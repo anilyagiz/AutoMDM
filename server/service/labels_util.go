@@ -4,18 +4,18 @@ import (
 	"context"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 )
 
-// Only global labels and the entity's fleet's labels count, the labels it can use. Names match case-insensitively, as
+// Only global labels and the entity's team's labels count, the labels it can use. Names match case-insensitively, as
 // in the database.
-func foundLabelNames(ctx context.Context, ds fleet.Datastore, names []string, entityTeamID *uint, user *fleet.User) (map[string]struct{}, error) {
+func foundLabelNames(ctx context.Context, ds automdm.Datastore, names []string, entityTeamID *uint, user *automdm.User) (map[string]struct{}, error) {
 	if entityTeamID == nil {
 		entityTeamID = new(uint(0))
 	}
-	labels, err := ds.AllLabelIDsByName(ctx, names, fleet.TeamFilter{User: user, TeamID: entityTeamID})
+	labels, err := ds.AllLabelIDsByName(ctx, names, automdm.TeamFilter{User: user, TeamID: entityTeamID})
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "getting label IDs by name")
 	}
@@ -32,7 +32,7 @@ func foundLabelNames(ctx context.Context, ds fleet.Datastore, names []string, en
 	return found, nil
 }
 
-func loadLabelsFromNames(ctx context.Context, ds fleet.Datastore, labelNames []string, filter fleet.TeamFilter) (map[string]*fleet.Label, error) {
+func loadLabelsFromNames(ctx context.Context, ds automdm.Datastore, labelNames []string, filter automdm.TeamFilter) (map[string]*automdm.Label, error) {
 	labelsMap, err := ds.LabelsByName(ctx, labelNames, filter)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "get labels by name")
@@ -46,14 +46,14 @@ func loadLabelsFromNames(ctx context.Context, ds fleet.Datastore, labelNames []s
 	return labelsMap, nil
 }
 
-func verifyLabelsToAssociate(ctx context.Context, ds fleet.Datastore, entityTeamID *uint, labelNames []string, user *fleet.User) error {
+func verifyLabelsToAssociate(ctx context.Context, ds automdm.Datastore, entityTeamID *uint, labelNames []string, user *automdm.User) error {
 	_, err := loadLabelsToAssociate(ctx, ds, entityTeamID, labelNames, user)
 	return err
 }
 
-// loadLabelsToAssociate is verifyLabelsToAssociate that also returns the verified labels by name. Fleets can share
-// label names, so IDs must come from this lookup rather than one across every fleet the user can see.
-func loadLabelsToAssociate(ctx context.Context, ds fleet.Datastore, entityTeamID *uint, labelNames []string, user *fleet.User) (map[string]*fleet.Label, error) {
+// loadLabelsToAssociate is verifyLabelsToAssociate that also returns the verified labels by name. Teams can share
+// label names, so IDs must come from this lookup rather than one across every team the user can see.
+func loadLabelsToAssociate(ctx context.Context, ds automdm.Datastore, entityTeamID *uint, labelNames []string, user *automdm.User) (map[string]*automdm.Label, error) {
 	if len(labelNames) == 0 {
 		return nil, nil
 	}
@@ -76,7 +76,7 @@ func loadLabelsToAssociate(ctx context.Context, ds fleet.Datastore, entityTeamID
 		entityTeamID = ptr.Uint(0)
 	}
 
-	labels, err := loadLabelsFromNames(ctx, ds, uniqueLabelNames, fleet.TeamFilter{User: user, TeamID: entityTeamID})
+	labels, err := loadLabelsFromNames(ctx, ds, uniqueLabelNames, automdm.TeamFilter{User: user, TeamID: entityTeamID})
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "labels by name")
 	}
@@ -89,9 +89,9 @@ func loadLabelsToAssociate(ctx context.Context, ds fleet.Datastore, entityTeamID
 }
 
 // verifyNoBuiltInLabels rejects built-in labels used as custom targets; platform targeting should be used instead.
-func verifyNoBuiltInLabels(ctx context.Context, labelNames []string, labels map[string]*fleet.Label) error {
+func verifyNoBuiltInLabels(ctx context.Context, labelNames []string, labels map[string]*automdm.Label) error {
 	for _, name := range labelNames {
-		if label, ok := labels[name]; ok && label.LabelType == fleet.LabelTypeBuiltIn {
+		if label, ok := labels[name]; ok && label.LabelType == automdm.LabelTypeBuiltIn {
 			return ctxerr.Wrap(ctx, badRequestf(
 				"'%s' label is built-in. Only custom labels are supported. If you want to target a specific platform please use 'platform' instead. If not, please create a custom label and try again.",
 				label.Name,

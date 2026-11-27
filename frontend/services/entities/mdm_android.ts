@@ -26,15 +26,15 @@ export default {
     return sendRequest("GET", MDM_ANDROID_ENTERPRISE);
   },
 
-  /** Omit `fleetId` (or pass 0) for Unassigned. */
+  /** Omit `automdmId` (or pass 0) for Unassigned. */
   getZeroTouchConfiguration: (
-    fleetId?: number
+    automdmId?: number
   ): Promise<IGetZeroTouchConfigurationResponse> => {
     const { MDM_ANDROID_ZERO_TOUCH_CONFIGURATION } = endpoints;
     return sendRequest(
       "GET",
       getPathWithQueryParams(MDM_ANDROID_ZERO_TOUCH_CONFIGURATION, {
-        fleet_id: fleetId || undefined,
+        team_id: automdmId || undefined,
       })
     );
   },
@@ -45,7 +45,7 @@ export default {
   },
 
   /**
-   * This function starts a Server-Sent Events connection with the fleet server
+   * This function starts a Server-Sent Events connection with the automdm server
    * to get messages about a successful Android mdm connection. We have to use
    * fetch here because the EventSource API does not support setting headers,
    * which we need to authenticate the request.

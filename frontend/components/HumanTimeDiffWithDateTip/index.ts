@@ -1,4 +1,4 @@
 export {
   HumanTimeDiffWithDateTip,
-  HumanTimeDiffWithFleetLaunchCutoff,
+  HumanTimeDiffWithTeamLaunchCutoff,
 } from "./HumanTimeDiffWithDateTip";

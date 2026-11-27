@@ -7,41 +7,41 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
 
 type mockService struct {
 	mock.Mock
-	fleet.Service
+	automdm.Service
 }
 
-func (m *mockService) GetSessionByKey(ctx context.Context, sessionKey string) (*fleet.Session, error) {
+func (m *mockService) GetSessionByKey(ctx context.Context, sessionKey string) (*automdm.Session, error) {
 	args := m.Called(ctx, sessionKey)
 	if ret := args.Get(0); ret != nil {
-		return ret.(*fleet.Session), nil
+		return ret.(*automdm.Session), nil
 	}
 	return nil, args.Error(1)
 }
 
-func (m *mockService) UserUnauthorized(ctx context.Context, userId uint) (*fleet.User, error) {
+func (m *mockService) UserUnauthorized(ctx context.Context, userId uint) (*automdm.User, error) {
 	args := m.Called(ctx, userId)
 	if ret := args.Get(0); ret != nil {
-		return ret.(*fleet.User), nil
+		return ret.(*automdm.User), nil
 	}
 	return nil, args.Error(1)
 }
 
-var testConfig = config.FleetConfig{
+var testConfig = config.AutoMDMConfig{
 	Auth: config.AuthConfig{},
 }
 
 func TestDebugHandlerAuthenticationTokenMissing(t *testing.T) {
 	handler := MakeDebugHandler(&mockService{}, testConfig, nil, nil, nil, nil)
 
-	req := httptest.NewRequest(http.MethodGet, "https://fleetdm.com/debug/pprof/profile", nil)
+	req := httptest.NewRequest(http.MethodGet, "https://automdm.com/debug/pprof/profile", nil)
 	res := httptest.NewRecorder()
 
 	handler.ServeHTTP(res, req)
@@ -58,7 +58,7 @@ func TestDebugHandlerAuthenticationSessionInvalid(t *testing.T) {
 
 	handler := MakeDebugHandler(svc, testConfig, nil, nil, nil, nil)
 
-	req := httptest.NewRequest(http.MethodGet, "https://fleetdm.com/debug/pprof/profile", nil)
+	req := httptest.NewRequest(http.MethodGet, "https://automdm.com/debug/pprof/profile", nil)
 	req.Header.Add("Authorization", "BEARER fake_session_key")
 	res := httptest.NewRecorder()
 
@@ -67,11 +67,11 @@ func TestDebugHandlerAuthenticationSessionInvalid(t *testing.T) {
 }
 
 func TestDebugHandlerAuthenticationFailsDueToRole(t *testing.T) {
-	for test, user := range map[string]fleet.User{
+	for test, user := range map[string]automdm.User{
 		"no role":                {},
-		"global observer role":   {GlobalRole: new(fleet.RoleObserver)},
-		"global maintainer role": {GlobalRole: new(fleet.RoleMaintainer)},
-		"non-global role":        {Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1, Name: "foo"}, Role: fleet.RoleAdmin}}},
+		"global observer role":   {GlobalRole: new(automdm.RoleObserver)},
+		"global maintainer role": {GlobalRole: new(automdm.RoleMaintainer)},
+		"non-global role":        {Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1, Name: "foo"}, Role: automdm.RoleAdmin}}},
 	} {
 		t.Run(test, func(t *testing.T) {
 			svc := &mockService{}
@@ -79,7 +79,7 @@ func TestDebugHandlerAuthenticationFailsDueToRole(t *testing.T) {
 				"GetSessionByKey",
 				mock.Anything,
 				"fake_session_key",
-			).Return(&fleet.Session{UserID: 42, ID: 1}, nil)
+			).Return(&automdm.Session{UserID: 42, ID: 1}, nil)
 			svc.On(
 				"UserUnauthorized",
 				mock.Anything,
@@ -88,7 +88,7 @@ func TestDebugHandlerAuthenticationFailsDueToRole(t *testing.T) {
 
 			handler := MakeDebugHandler(svc, testConfig, nil, nil, nil, nil)
 
-			req := httptest.NewRequest(http.MethodGet, "https://fleetdm.com/debug/pprof/cmdline", nil)
+			req := httptest.NewRequest(http.MethodGet, "https://automdm.com/debug/pprof/cmdline", nil)
 			req.Header.Add("Authorization", "BEARER fake_session_key")
 			res := httptest.NewRecorder()
 
@@ -106,20 +106,20 @@ func TestDebugHandlerAuthenticationFailsForRestrictedAPIOnlyUser(t *testing.T) {
 		"GetSessionByKey",
 		mock.Anything,
 		"fake_session_key",
-	).Return(&fleet.Session{UserID: 42, ID: 1}, nil)
+	).Return(&automdm.Session{UserID: 42, ID: 1}, nil)
 	svc.On(
 		"UserUnauthorized",
 		mock.Anything,
 		uint(42),
-	).Return(&fleet.User{
-		GlobalRole:   new(fleet.RoleAdmin),
+	).Return(&automdm.User{
+		GlobalRole:   new(automdm.RoleAdmin),
 		APIOnly:      true,
-		APIEndpoints: []fleet.APIEndpointRef{{Method: "GET", Path: "/api/v1/fleet/hosts"}},
+		APIEndpoints: []automdm.APIEndpointRef{{Method: "GET", Path: "/api/v1/automdm/hosts"}},
 	}, nil)
 
 	handler := MakeDebugHandler(svc, testConfig, nil, nil, nil, nil)
 
-	req := httptest.NewRequest(http.MethodGet, "https://fleetdm.com/debug/pprof/cmdline", nil)
+	req := httptest.NewRequest(http.MethodGet, "https://automdm.com/debug/pprof/cmdline", nil)
 	req.Header.Add("Authorization", "BEARER fake_session_key")
 	res := httptest.NewRecorder()
 
@@ -130,10 +130,10 @@ func TestDebugHandlerAuthenticationFailsForRestrictedAPIOnlyUser(t *testing.T) {
 func TestDebugHandlerAuthenticationSucceeds(t *testing.T) {
 	// An unrestricted API-only admin (empty APIEndpoints) retains full access, matching the main
 	// API path where APIOnlyEndpointCheck is a no-op for tokens with no endpoint restrictions.
-	for test, user := range map[string]fleet.User{
-		"admin session":            {GlobalRole: new(fleet.RoleAdmin)},
-		"unrestricted api-only":    {GlobalRole: new(fleet.RoleAdmin), APIOnly: true},
-		"api-only empty allowlist": {GlobalRole: new(fleet.RoleAdmin), APIOnly: true, APIEndpoints: []fleet.APIEndpointRef{}},
+	for test, user := range map[string]automdm.User{
+		"admin session":            {GlobalRole: new(automdm.RoleAdmin)},
+		"unrestricted api-only":    {GlobalRole: new(automdm.RoleAdmin), APIOnly: true},
+		"api-only empty allowlist": {GlobalRole: new(automdm.RoleAdmin), APIOnly: true, APIEndpoints: []automdm.APIEndpointRef{}},
 	} {
 		t.Run(test, func(t *testing.T) {
 			svc := &mockService{}
@@ -141,7 +141,7 @@ func TestDebugHandlerAuthenticationSucceeds(t *testing.T) {
 				"GetSessionByKey",
 				mock.Anything,
 				"fake_session_key",
-			).Return(&fleet.Session{UserID: 42, ID: 1}, nil)
+			).Return(&automdm.Session{UserID: 42, ID: 1}, nil)
 			svc.On(
 				"UserUnauthorized",
 				mock.Anything,
@@ -150,7 +150,7 @@ func TestDebugHandlerAuthenticationSucceeds(t *testing.T) {
 
 			handler := MakeDebugHandler(svc, testConfig, nil, nil, nil, nil)
 
-			req := httptest.NewRequest(http.MethodGet, "https://fleetdm.com/debug/pprof/cmdline", nil)
+			req := httptest.NewRequest(http.MethodGet, "https://automdm.com/debug/pprof/cmdline", nil)
 			req.Header.Add("Authorization", "BEARER fake_session_key")
 			res := httptest.NewRecorder()
 

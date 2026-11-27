@@ -107,7 +107,7 @@ export const StatusMessage = ({
         <span style={{ whiteSpace: "nowrap" }}>
           {"("}
           <TooltipWrapper
-            tipContent="Time when Fleet sent command to run script. If the host was offline, the run finished after it came online."
+            tipContent="Time when AutoMDM sent command to run script. If the host was offline, the run finished after it came online."
             position="top"
             showArrow
           >
@@ -124,7 +124,7 @@ export const StatusMessage = ({
   const renderStatusCopy = () => {
     const prefix = (
       <>
-        Fleet {getScriptDetailsStatusPredicate(status)} <b>{displayedTitle}</b>
+        AutoMDM {getScriptDetailsStatusPredicate(status)} <b>{displayedTitle}</b>
       </>
     );
 
@@ -212,7 +212,7 @@ export const ModalButtons = ({
 
 interface ISoftwareInstallDetailsProps {
   details: IPackageInstallDetails;
-  hostSoftware?: IHostSoftware; // for software name when not Fleet installed (not present on activity feeds)
+  hostSoftware?: IHostSoftware; // for software name when not AutoMDM installed (not present on activity feeds)
   deviceAuthToken?: string; // My Device Page only
   onCancel: () => void;
   onRerun?: (id: number, isScriptPackage?: boolean) => void; // My Device Page only

@@ -8,7 +8,7 @@
     "source": "spreadsheet-backfill",
     "sheet_row": 12
   },
-  "fleet_server": {
+  "automdm_server": {
     "cpu_utilization": {
       "Average": 31.0
     },
@@ -82,20 +82,20 @@
       }
     }
   ],
-  "fleet_server_errors": {
+  "automdm_server_errors": {
     "error_count": 0
   },
   "backfill": {
-    "source": "Fleet release load testing results (Google Sheet), manual-logging era",
+    "source": "AutoMDM release load testing results (Google Sheet), manual-logging era",
     "purpose": "Ticket #26918",
     "one_click": null,
     "notes": "20k hosts, all Windows with MDM",
     "raw": {
       "full_day": "no",
-      "fleet_containers": "30",
+      "automdm_containers": "30",
       "loadtest_containers": "40",
-      "fleet_cpu": "~31%",
-      "fleet_mem": "~2%",
+      "automdm_cpu": "~31%",
+      "automdm_mem": "~2%",
       "errors": "No new errors",
       "writer_top_sql": "UPDATE `software` `s` JOI\u2026",
       "writer_cpu": "~2.5%",

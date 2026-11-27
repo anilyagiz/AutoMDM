@@ -56,7 +56,7 @@ const Breadcrumbs = ({
           tabIndex={page3TabIndex}
           variant="unstyled"
         >
-          Set Fleet URL
+          Set AutoMDM URL
         </Button>
       </div>
     </div>

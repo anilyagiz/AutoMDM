@@ -36,7 +36,7 @@ describe("WindowsMdmPage", () => {
     expect(
       screen.queryByText("Turn on MDM programmatically")
     ).not.toBeInTheDocument();
-    expect(screen.queryByText("Default fleet")).not.toBeInTheDocument();
+    expect(screen.queryByText("Default team")).not.toBeInTheDocument();
     expect(
       screen.queryByText(MIGRATION_CHECKBOX_LABEL)
     ).not.toBeInTheDocument();
@@ -76,17 +76,17 @@ describe("WindowsMdmPage", () => {
     );
   });
 
-  it("disables the default fleet dropdown when Fleet is not connected to Entra", () => {
+  it("disables the default team dropdown when AutoMDM is not connected to Entra", () => {
     renderPage({
       windows_mdm_enabled: true,
       windows_entra_tenant_ids: [],
     });
 
-    expect(screen.getByText("Default fleet")).toBeVisible();
+    expect(screen.getByText("Default team")).toBeVisible();
     expect(screen.getByRole("combobox")).toBeDisabled();
   });
 
-  it("enables the default fleet dropdown when Fleet is connected to Entra", () => {
+  it("enables the default team dropdown when AutoMDM is connected to Entra", () => {
     renderPage({
       windows_mdm_enabled: true,
       windows_entra_tenant_ids: ["tenant-1"],
@@ -95,7 +95,7 @@ describe("WindowsMdmPage", () => {
     expect(screen.getByRole("combobox")).toBeEnabled();
   });
 
-  it("neither toggles Windows MDM nor navigates when Enter is pressed in the default fleet dropdown", async () => {
+  it("neither toggles Windows MDM nor navigates when Enter is pressed in the default team dropdown", async () => {
     const { user } = renderPage({
       windows_mdm_enabled: true,
       windows_entra_tenant_ids: ["tenant-1"],
@@ -115,13 +115,13 @@ describe("WindowsMdmPage", () => {
     expect(fireEvent.submit(form)).toBe(false);
   });
 
-  it("saves the toggle states and the default fleet through the config API", async () => {
+  it("saves the toggle states and the default team through the config API", async () => {
     (configAPI.updateMDMConfig as jest.Mock).mockResolvedValue({});
     const { user } = renderPage({
       windows_mdm_enabled: true,
       enable_turn_on_windows_mdm_manually: false,
       windows_entra_tenant_ids: ["tenant-1"],
-      windows_automatic_enrollment: { default_fleet: "Workstations" },
+      windows_automatic_enrollment: { default_team: "Workstations" },
     });
 
     // Turning programmatic enrollment off also forces auto migration off.
@@ -133,7 +133,7 @@ describe("WindowsMdmPage", () => {
         windows_mdm_enabled: true,
         enable_turn_on_windows_mdm_manually: true,
         windows_mdm_migration_enabled: false,
-        windows_automatic_enrollment: { default_fleet: "Workstations" },
+        windows_automatic_enrollment: { default_team: "Workstations" },
       },
       true
     );

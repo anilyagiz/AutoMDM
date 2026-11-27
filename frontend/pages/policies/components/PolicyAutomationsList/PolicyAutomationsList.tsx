@@ -60,7 +60,7 @@ export const mapAutomationRows = (
           iconUrl: software.icon_url,
           link: getPathWithQueryParams(
             PATHS.SOFTWARE_TITLE_DETAILS(software.software_title_id.toString()),
-            { fleet_id: storedPolicy.fleet_id }
+            { team_id: storedPolicy.team_id }
           ),
         },
       ];

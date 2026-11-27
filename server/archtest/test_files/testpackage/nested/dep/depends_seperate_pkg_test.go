@@ -3,7 +3,7 @@ package dep_test
 import (
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/archtest/test_files/testfiledeps/testpkgdependency"
+	"github.com/anilyagiz/automdm/v4/server/archtest/test_files/testfiledeps/testpkgdependency"
 )
 
 func Test(t *testing.T) {

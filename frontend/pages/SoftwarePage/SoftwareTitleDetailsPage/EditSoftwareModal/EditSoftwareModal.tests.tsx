@@ -70,11 +70,11 @@ describe("EditSoftwareModal — multi-package title", () => {
   });
 
   // Regression: a patch-when-closed installer must treat the pre-install query
-  // as Fleet-managed even when the caller doesn't pass preInstallQueryLocked —
+  // as AutoMDM-managed even when the caller doesn't pass preInstallQueryLocked —
   // the modal derives it from the installer's own patch policy. Otherwise the
   // pre-install query is sent on save and the backend rejects unrelated edits
   // (e.g. toggling self-service).
-  it("treats the pre-install query as Fleet-managed when the installer's patch policy is patch-when-closed", async () => {
+  it("treats the pre-install query as AutoMDM-managed when the installer's patch policy is patch-when-closed", async () => {
     const { user } = renderModal({
       softwareInstaller: createMockSoftwarePackage({
         patch_policy: {
@@ -95,7 +95,7 @@ describe("EditSoftwareModal — multi-package title", () => {
     ).toBeInTheDocument();
   });
 
-  it("treats the pre-install query as Fleet-managed when the installer's patch policy is notify-before-patching on macOS", async () => {
+  it("treats the pre-install query as AutoMDM-managed when the installer's patch policy is notify-before-patching on macOS", async () => {
     const { user } = renderModal({
       source: "apps", // maps to darwin
       softwareInstaller: createMockSoftwarePackage({

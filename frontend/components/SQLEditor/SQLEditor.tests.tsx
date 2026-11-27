@@ -56,9 +56,9 @@ describe("SQLEditor autocomplete", () => {
   });
 });
 
-// Renders SQL with table tokens as [name] and column tokens as {name}, using the fleet mode registered by importing SQLEditor.
+// Renders SQL with table tokens as [name] and column tokens as {name}, using the team mode registered by importing SQLEditor.
 const markHighlights = (sql: string): string => {
-  const tokenizer = new (ace.require("ace/mode/fleet").Mode)().getTokenizer();
+  const tokenizer = new (ace.require("ace/mode/automdm").Mode)().getTokenizer();
   let state: string | string[] = "start";
   return sql
     .split("\n")

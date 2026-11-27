@@ -11,7 +11,7 @@ jest.mock("services/entities/custom_host_vitals");
 const vital = {
   custom_host_vital_id: 5,
   name: "Asset tag",
-  value: "FLEET-001234",
+  value: "AUTOMDM-001234",
 };
 
 describe("EditHostVitalModal", () => {
@@ -33,7 +33,7 @@ describe("EditHostVitalModal", () => {
 
     expect(screen.getByText("Edit host vital")).toBeVisible();
     expect(screen.getByRole("textbox", { name: "Asset tag" })).toHaveValue(
-      "FLEET-001234"
+      "AUTOMDM-001234"
     );
   });
 
@@ -54,13 +54,13 @@ describe("EditHostVitalModal", () => {
 
     const input = screen.getByRole("textbox", { name: "Asset tag" });
     await user.clear(input);
-    await user.type(input, "FLEET-999");
+    await user.type(input, "AUTOMDM-999");
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => {
       expect(
         customHostVitalsAPI.updateHostCustomHostVitalValue
-      ).toHaveBeenCalledWith(7, 5, "FLEET-999");
+      ).toHaveBeenCalledWith(7, 5, "AUTOMDM-999");
     });
     await waitFor(() => {
       expect(onSave).toHaveBeenCalled();
@@ -87,7 +87,7 @@ describe("EditHostVitalModal", () => {
     await waitFor(() => {
       expect(
         customHostVitalsAPI.updateHostCustomHostVitalValue
-      ).toHaveBeenCalledWith(7, 5, "FLEET-001234");
+      ).toHaveBeenCalledWith(7, 5, "AUTOMDM-001234");
     });
     expect(onSave).not.toHaveBeenCalled();
   });

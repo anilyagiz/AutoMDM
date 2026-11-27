@@ -1,4 +1,4 @@
-name: Generate Swift Dialog targets for Fleetd
+name: Generate Swift Dialog targets for AutoMDMd
 
 on:
   push:

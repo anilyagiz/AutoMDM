@@ -60,7 +60,7 @@ export const getVulnerabilities = ({
   let path = VULNERABILITIES;
 
   const queryString = buildQueryStringFromParams({
-    fleet_id: teamId,
+    team_id: teamId,
     order_key,
     order_direction,
     page,
@@ -79,7 +79,7 @@ const getVulnerability = ({
   teamId,
 }: IGetVulnerabilityOptions): Promise<IVulnerabilityResponse> => {
   const endpoint = endpoints.VULNERABILITY(vulnerability);
-  const queryString = buildQueryStringFromParams({ fleet_id: teamId });
+  const queryString = buildQueryStringFromParams({ team_id: teamId });
   const path =
     typeof teamId === "undefined" ? endpoint : `${endpoint}?${queryString}`;
 

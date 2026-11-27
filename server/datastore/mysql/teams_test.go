@@ -10,11 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/optjson"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/apple/mobileconfig"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/pkg/optjson"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/apple/mobileconfig"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
@@ -58,11 +58,11 @@ func TestTeams(t *testing.T) {
 }
 
 func testTeamsGetSetDelete(t *testing.T, ds *Datastore) {
-	user, err := ds.NewUser(t.Context(), &fleet.User{
+	user, err := ds.NewUser(t.Context(), &automdm.User{
 		Name:       "Foobar",
 		Email:      "foobar@example.com",
 		Password:   []byte("insecure"),
-		GlobalRole: ptr.String(fleet.RoleAdmin),
+		GlobalRole: ptr.String(automdm.RoleAdmin),
 	})
 	require.NoError(t, err)
 
@@ -77,7 +77,7 @@ func testTeamsGetSetDelete(t *testing.T, ds *Datastore) {
 
 	for _, tt := range createTests {
 		t.Run(tt.name, func(t *testing.T) {
-			team, err := ds.NewTeam(context.Background(), &fleet.Team{
+			team, err := ds.NewTeam(context.Background(), &automdm.Team{
 				Name:        tt.name,
 				Description: tt.description,
 			})
@@ -100,7 +100,7 @@ func testTeamsGetSetDelete(t *testing.T, ds *Datastore) {
 			assert.Equal(t, tt.description, team.Description)
 
 			dummyMC := mobileconfig.Mobileconfig([]byte("DummyTestMobileconfigBytes"))
-			dummyCP := fleet.MDMAppleConfigProfile{
+			dummyCP := automdm.MDMAppleConfigProfile{
 				Name:         "DummyTestName",
 				Identifier:   "DummyTestIdentifier",
 				Mobileconfig: dummyMC,
@@ -109,14 +109,14 @@ func testTeamsGetSetDelete(t *testing.T, ds *Datastore) {
 			cp, err := ds.NewMDMAppleConfigProfile(context.Background(), dummyCP, nil)
 			require.NoError(t, err)
 
-			wcp, err := ds.NewMDMWindowsConfigProfile(context.Background(), fleet.MDMWindowsConfigProfile{
+			wcp, err := ds.NewMDMWindowsConfigProfile(context.Background(), automdm.MDMWindowsConfigProfile{
 				Name:   "abc",
 				TeamID: &team.ID,
 				SyncML: []byte(`<Replace></Replace>`),
 			}, nil)
 			require.NoError(t, err)
 
-			dec, err := ds.NewMDMAppleDeclaration(context.Background(), &fleet.MDMAppleDeclaration{
+			dec, err := ds.NewMDMAppleDeclaration(context.Background(), &automdm.MDMAppleDeclaration{
 				Identifier: "decl-1",
 				Name:       "decl-1",
 				TeamID:     &team.ID,
@@ -124,7 +124,7 @@ func testTeamsGetSetDelete(t *testing.T, ds *Datastore) {
 			}, nil)
 			require.NoError(t, err)
 
-			teamLabel, err := ds.NewLabel(t.Context(), &fleet.Label{
+			teamLabel, err := ds.NewLabel(t.Context(), &automdm.Label{
 				Name:   "Team label",
 				Query:  "SELECT 1;",
 				TeamID: &team.ID,
@@ -132,7 +132,7 @@ func testTeamsGetSetDelete(t *testing.T, ds *Datastore) {
 			require.NoError(t, err)
 
 			// Create host on the team.
-			host, err := ds.NewHost(t.Context(), &fleet.Host{
+			host, err := ds.NewHost(t.Context(), &automdm.Host{
 				OsqueryHostID:  ptr.String(fmt.Sprintf("foobar-%d", team.ID)),
 				NodeKey:        ptr.String(fmt.Sprintf("foobar-%d", team.ID)),
 				UUID:           fmt.Sprintf("foobar-%d", team.ID),
@@ -250,9 +250,9 @@ func testTeamsGetSetDelete(t *testing.T, ds *Datastore) {
 				}
 
 				// Insert the team label on a custom software installer.
-				installer, err := fleet.NewTempFileReader(strings.NewReader("echo"), t.TempDir)
+				installer, err := automdm.NewTempFileReader(strings.NewReader("echo"), t.TempDir)
 				require.NoError(t, err)
-				_, _, err = ds.MatchOrCreateSoftwareInstaller(t.Context(), &fleet.UploadSoftwareInstallerPayload{
+				_, _, err = ds.MatchOrCreateSoftwareInstaller(t.Context(), &automdm.UploadSoftwareInstallerPayload{
 					InstallScript: "install zoo",
 					InstallerFile: installer,
 					StorageID:     uuid.NewString(),
@@ -262,9 +262,9 @@ func testTeamsGetSetDelete(t *testing.T, ds *Datastore) {
 					Version:       "0.0.1",
 					UserID:        user.ID,
 					TeamID:        &team.ID,
-					ValidatedLabels: &fleet.LabelIdentsWithScope{
-						LabelScope: fleet.LabelScopeIncludeAny,
-						ByName: map[string]fleet.LabelIdent{teamLabel.Name: {
+					ValidatedLabels: &automdm.LabelIdentsWithScope{
+						LabelScope: automdm.LabelScopeIncludeAny,
+						ByName: map[string]automdm.LabelIdent{teamLabel.Name: {
 							LabelID:   teamLabel.ID,
 							LabelName: teamLabel.Name,
 						}},
@@ -273,13 +273,13 @@ func testTeamsGetSetDelete(t *testing.T, ds *Datastore) {
 				require.NoError(t, err)
 
 				// Insert the team label on a VPP app.
-				vppApp := &fleet.VPPApp{
+				vppApp := &automdm.VPPApp{
 					Name: "vpp_app_labels_1" + t.Name(),
-					VPPAppTeam: fleet.VPPAppTeam{
-						VPPAppID: fleet.VPPAppID{AdamID: "5", Platform: fleet.MacOSPlatform},
-						ValidatedLabels: &fleet.LabelIdentsWithScope{
-							LabelScope: fleet.LabelScopeIncludeAny,
-							ByName: map[string]fleet.LabelIdent{
+					VPPAppTeam: automdm.VPPAppTeam{
+						VPPAppID: automdm.VPPAppID{AdamID: "5", Platform: automdm.MacOSPlatform},
+						ValidatedLabels: &automdm.LabelIdentsWithScope{
+							LabelScope: automdm.LabelScopeIncludeAny,
+							ByName: map[string]automdm.LabelIdent{
 								teamLabel.Name: {
 									LabelID:   teamLabel.ID,
 									LabelName: teamLabel.Name,
@@ -340,7 +340,7 @@ func testTeamsGetSetDelete(t *testing.T, ds *Datastore) {
 			require.Error(t, err)
 
 			_, err = ds.GetMDMAppleConfigProfile(context.Background(), cp.ProfileUUID)
-			var nfe fleet.NotFoundError
+			var nfe automdm.NotFoundError
 			require.ErrorAs(t, err, &nfe)
 
 			_, err = ds.GetMDMWindowsConfigProfile(context.Background(), wcp.ProfileUUID)
@@ -350,7 +350,7 @@ func testTeamsGetSetDelete(t *testing.T, ds *Datastore) {
 			require.ErrorAs(t, err, &nfe)
 
 			// Check team label is gone.
-			labels, err := ds.LabelsByName(context.Background(), []string{teamLabel.Name}, fleet.TeamFilter{})
+			labels, err := ds.LabelsByName(context.Background(), []string{teamLabel.Name}, automdm.TeamFilter{})
 			require.NoError(t, err)
 			require.Empty(t, labels)
 
@@ -372,19 +372,19 @@ func testTeamsGetSetDelete(t *testing.T, ds *Datastore) {
 
 func testTeamsUsers(t *testing.T, ds *Datastore) {
 	users := createTestUsers(t, ds)
-	user1 := fleet.User{Name: users[0].Name, Email: users[0].Email, ID: users[0].ID}
-	user2 := fleet.User{Name: users[1].Name, Email: users[1].Email, ID: users[1].ID}
+	user1 := automdm.User{Name: users[0].Name, Email: users[0].Email, ID: users[0].ID}
+	user2 := automdm.User{Name: users[1].Name, Email: users[1].Email, ID: users[1].ID}
 
-	team1, err := ds.NewTeam(context.Background(), &fleet.Team{Name: "team1"})
+	team1, err := ds.NewTeam(context.Background(), &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
-	team2, err := ds.NewTeam(context.Background(), &fleet.Team{Name: "team2"})
+	team2, err := ds.NewTeam(context.Background(), &automdm.Team{Name: "team2"})
 	require.NoError(t, err)
 
 	team1, err = ds.TeamWithExtras(context.Background(), team1.ID)
 	require.NoError(t, err)
 	assert.Len(t, team1.Users, 0)
 
-	team1Users := []fleet.TeamUser{
+	team1Users := []automdm.TeamUser{
 		{User: user1, Role: "maintainer"},
 		{User: user2, Role: "observer"},
 	}
@@ -400,7 +400,7 @@ func testTeamsUsers(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 	assert.Len(t, team2.Users, 0)
 
-	team1Users = []fleet.TeamUser{
+	team1Users = []automdm.TeamUser{
 		{User: user2, Role: "maintainer"},
 	}
 	team1.Users = team1Users
@@ -410,7 +410,7 @@ func testTeamsUsers(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 	assert.ElementsMatch(t, team1Users, team1.Users)
 
-	team2Users := []fleet.TeamUser{
+	team2Users := []automdm.TeamUser{
 		{User: user2, Role: "observer"},
 	}
 	team2.Users = team2Users
@@ -429,13 +429,13 @@ func testTeamsUsers(t *testing.T, ds *Datastore) {
 func testTeamsUpdateUsers(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 	users := createTestUsers(t, ds)
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: t.Name()})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: t.Name()})
 	require.NoError(t, err)
-	otherTeam, err := ds.NewTeam(ctx, &fleet.Team{Name: t.Name() + " other"})
+	otherTeam, err := ds.NewTeam(ctx, &automdm.Team{Name: t.Name() + " other"})
 	require.NoError(t, err)
 	unknownID := users[1].ID + 100000
 
-	roleIn := func(user fleet.User, teamID uint) string {
+	roleIn := func(user automdm.User, teamID uint) string {
 		for _, userTeam := range user.Teams {
 			if userTeam.ID == teamID {
 				return userTeam.Role
@@ -443,31 +443,31 @@ func testTeamsUpdateUsers(t *testing.T, ds *Datastore) {
 		}
 		return ""
 	}
-	set := func(id uint, role string) fleet.TeamUser {
-		return fleet.TeamUser{ID: id, Role: role}
+	set := func(id uint, role string) automdm.TeamUser {
+		return automdm.TeamUser{ID: id, Role: role}
 	}
 
-	_, err = ds.UpdateTeamUsers(ctx, otherTeam.ID, []fleet.TeamUser{set(users[0].ID, fleet.RoleAdmin)}, nil)
+	_, err = ds.UpdateTeamUsers(ctx, otherTeam.ID, []automdm.TeamUser{set(users[0].ID, automdm.RoleAdmin)}, nil)
 	require.NoError(t, err)
 
-	previous, err := ds.UpdateTeamUsers(ctx, team.ID, []fleet.TeamUser{set(users[0].ID, fleet.RoleObserver), set(users[1].ID, fleet.RoleObserver)}, nil)
+	previous, err := ds.UpdateTeamUsers(ctx, team.ID, []automdm.TeamUser{set(users[0].ID, automdm.RoleObserver), set(users[1].ID, automdm.RoleObserver)}, nil)
 	require.NoError(t, err)
 	assert.Empty(t, roleIn(previous[users[0].ID], team.ID))
-	assert.Equal(t, fleet.RoleAdmin, roleIn(previous[users[0].ID], otherTeam.ID))
+	assert.Equal(t, automdm.RoleAdmin, roleIn(previous[users[0].ID], otherTeam.ID))
 	assert.Equal(t, users[0].Email, previous[users[0].ID].Email)
 
 	// Changing one member leaves the other member's role in place.
-	previous, err = ds.UpdateTeamUsers(ctx, team.ID, []fleet.TeamUser{set(users[0].ID, fleet.RoleMaintainer)}, nil)
+	previous, err = ds.UpdateTeamUsers(ctx, team.ID, []automdm.TeamUser{set(users[0].ID, automdm.RoleMaintainer)}, nil)
 	require.NoError(t, err)
-	assert.Equal(t, fleet.RoleObserver, roleIn(previous[users[0].ID], team.ID))
+	assert.Equal(t, automdm.RoleObserver, roleIn(previous[users[0].ID], team.ID))
 	got, err := ds.TeamWithExtras(ctx, team.ID)
 	require.NoError(t, err)
-	assert.ElementsMatch(t, []string{fleet.RoleMaintainer, fleet.RoleObserver}, []string{got.Users[0].Role, got.Users[1].Role})
+	assert.ElementsMatch(t, []string{automdm.RoleMaintainer, automdm.RoleObserver}, []string{got.Users[0].Role, got.Users[1].Role})
 
 	previous, err = ds.UpdateTeamUsers(ctx, team.ID, nil, []uint{users[0].ID, unknownID})
 	require.NoError(t, err)
 	require.Len(t, previous, 1)
-	assert.Equal(t, fleet.RoleMaintainer, roleIn(previous[users[0].ID], team.ID))
+	assert.Equal(t, automdm.RoleMaintainer, roleIn(previous[users[0].ID], team.ID))
 	got, err = ds.TeamWithExtras(ctx, team.ID)
 	require.NoError(t, err)
 	require.Len(t, got.Users, 1)
@@ -478,15 +478,15 @@ func testTeamsUpdateUsers(t *testing.T, ds *Datastore) {
 
 	// Whichever update runs second must see the first one's role.
 	for range 25 {
-		_, err = ds.UpdateTeamUsers(ctx, team.ID, []fleet.TeamUser{set(users[0].ID, fleet.RoleObserver)}, nil)
+		_, err = ds.UpdateTeamUsers(ctx, team.ID, []automdm.TeamUser{set(users[0].ID, automdm.RoleObserver)}, nil)
 		require.NoError(t, err)
 
-		roles := []string{fleet.RoleAdmin, fleet.RoleMaintainer}
+		roles := []string{automdm.RoleAdmin, automdm.RoleMaintainer}
 		seen := make([]string, len(roles))
 		var g errgroup.Group
 		for i, role := range roles {
 			g.Go(func() error {
-				previous, err := ds.UpdateTeamUsers(ctx, team.ID, []fleet.TeamUser{set(users[0].ID, role)}, nil)
+				previous, err := ds.UpdateTeamUsers(ctx, team.ID, []automdm.TeamUser{set(users[0].ID, role)}, nil)
 				if err != nil {
 					return err
 				}
@@ -495,22 +495,22 @@ func testTeamsUpdateUsers(t *testing.T, ds *Datastore) {
 			})
 		}
 		require.NoError(t, g.Wait())
-		assert.Contains(t, seen, fleet.RoleObserver)
-		assert.False(t, seen[0] == fleet.RoleObserver && seen[1] == fleet.RoleObserver, "both updates read the role before either saved: %v", seen)
+		assert.Contains(t, seen, automdm.RoleObserver)
+		assert.False(t, seen[0] == automdm.RoleObserver && seen[1] == automdm.RoleObserver, "both updates read the role before either saved: %v", seen)
 	}
 }
 
 func testTeamsList(t *testing.T, ds *Datastore) {
 	users := createTestUsers(t, ds)
-	user1 := fleet.User{Name: users[0].Name, Email: users[0].Email, ID: users[0].ID, GlobalRole: ptr.String(fleet.RoleAdmin)}
-	user2 := fleet.User{Name: users[1].Name, Email: users[1].Email, ID: users[1].ID, GlobalRole: ptr.String(fleet.RoleObserver)}
+	user1 := automdm.User{Name: users[0].Name, Email: users[0].Email, ID: users[0].ID, GlobalRole: ptr.String(automdm.RoleAdmin)}
+	user2 := automdm.User{Name: users[1].Name, Email: users[1].Email, ID: users[1].ID, GlobalRole: ptr.String(automdm.RoleObserver)}
 
-	team1, err := ds.NewTeam(context.Background(), &fleet.Team{Name: "team1"})
+	team1, err := ds.NewTeam(context.Background(), &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
-	team2, err := ds.NewTeam(context.Background(), &fleet.Team{Name: "team2"})
+	team2, err := ds.NewTeam(context.Background(), &automdm.Team{Name: "team2"})
 	require.NoError(t, err)
 
-	teams, err := ds.ListTeams(context.Background(), fleet.TeamFilter{User: &user1}, fleet.ListOptions{})
+	teams, err := ds.ListTeams(context.Background(), automdm.TeamFilter{User: &user1}, automdm.ListOptions{})
 	require.NoError(t, err)
 	sort.Slice(teams, func(i, j int) bool { return teams[i].Name < teams[j].Name })
 
@@ -525,23 +525,23 @@ func testTeamsList(t *testing.T, ds *Datastore) {
 	host1 := test.NewHost(t, ds, "1", "1", "1", "1", time.Now())
 	host2 := test.NewHost(t, ds, "2", "2", "2", "2", time.Now())
 	host3 := test.NewHost(t, ds, "3", "3", "3", "3", time.Now())
-	require.NoError(t, ds.AddHostsToTeam(context.Background(), fleet.NewAddHostsToTeamParams(&team1.ID, []uint{host1.ID})))
-	require.NoError(t, ds.AddHostsToTeam(context.Background(), fleet.NewAddHostsToTeamParams(&team2.ID, []uint{host2.ID, host3.ID})))
+	require.NoError(t, ds.AddHostsToTeam(context.Background(), automdm.NewAddHostsToTeamParams(&team1.ID, []uint{host1.ID})))
+	require.NoError(t, ds.AddHostsToTeam(context.Background(), automdm.NewAddHostsToTeamParams(&team2.ID, []uint{host2.ID, host3.ID})))
 
-	team1.Users = []fleet.TeamUser{
+	team1.Users = []automdm.TeamUser{
 		{User: user1, Role: "maintainer"},
 		{User: user2, Role: "observer"},
 	}
 	_, err = ds.SaveTeam(context.Background(), team1)
 	require.NoError(t, err)
 
-	team2.Users = []fleet.TeamUser{
+	team2.Users = []automdm.TeamUser{
 		{User: user1, Role: "maintainer"},
 	}
 	_, err = ds.SaveTeam(context.Background(), team2)
 	require.NoError(t, err)
 
-	teams, err = ds.ListTeams(context.Background(), fleet.TeamFilter{User: &user1}, fleet.ListOptions{})
+	teams, err = ds.ListTeams(context.Background(), automdm.TeamFilter{User: &user1}, automdm.ListOptions{})
 	require.NoError(t, err)
 	sort.Slice(teams, func(i, j int) bool { return teams[i].Name < teams[j].Name })
 
@@ -564,22 +564,22 @@ func testTeamsList(t *testing.T, ds *Datastore) {
 
 	for _, key := range []string{"id", "name", "created_at", "user_count", "host_count"} {
 		t.Run("order_"+key, func(t *testing.T) {
-			result, err := ds.ListTeams(context.Background(), fleet.TeamFilter{User: &user1}, fleet.ListOptions{OrderKey: key, PerPage: 10})
+			result, err := ds.ListTeams(context.Background(), automdm.TeamFilter{User: &user1}, automdm.ListOptions{OrderKey: key, PerPage: 10})
 			require.NoError(t, err)
 			require.NotEmpty(t, result)
 		})
 	}
 
 	t.Run("rejects_unknown_key", func(t *testing.T) {
-		_, err := ds.ListTeams(context.Background(), fleet.TeamFilter{User: &user1}, fleet.ListOptions{OrderKey: "h.node_key"})
+		_, err := ds.ListTeams(context.Background(), automdm.TeamFilter{User: &user1}, automdm.ListOptions{OrderKey: "h.node_key"})
 		require.Error(t, err)
 	})
 }
 
 func testTeamsSummary(t *testing.T, ds *Datastore) {
-	_, err := ds.NewTeam(context.Background(), &fleet.Team{Name: "ts1"})
+	_, err := ds.NewTeam(context.Background(), &automdm.Team{Name: "ts1"})
 	require.NoError(t, err)
-	_, err = ds.NewTeam(context.Background(), &fleet.Team{Name: "ts2"})
+	_, err = ds.NewTeam(context.Background(), &automdm.Team{Name: "ts2"})
 	require.NoError(t, err)
 
 	teams, err := ds.TeamsSummary(context.Background())
@@ -591,17 +591,17 @@ func testTeamsSummary(t *testing.T, ds *Datastore) {
 }
 
 func testTeamsSearch(t *testing.T, ds *Datastore) {
-	team1, err := ds.NewTeam(context.Background(), &fleet.Team{Name: "team1"})
+	team1, err := ds.NewTeam(context.Background(), &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
-	team2, err := ds.NewTeam(context.Background(), &fleet.Team{Name: "team2"})
+	team2, err := ds.NewTeam(context.Background(), &automdm.Team{Name: "team2"})
 	require.NoError(t, err)
-	team3, err := ds.NewTeam(context.Background(), &fleet.Team{Name: "foobar"})
+	team3, err := ds.NewTeam(context.Background(), &automdm.Team{Name: "foobar"})
 	require.NoError(t, err)
-	team4, err := ds.NewTeam(context.Background(), &fleet.Team{Name: "floobar"})
+	team4, err := ds.NewTeam(context.Background(), &automdm.Team{Name: "floobar"})
 	require.NoError(t, err)
 
-	user := &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}
-	filter := fleet.TeamFilter{User: user}
+	user := &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}
+	filter := automdm.TeamFilter{User: user}
 
 	teams, err := ds.SearchTeams(context.Background(), filter, "")
 	require.NoError(t, err)
@@ -627,8 +627,8 @@ func testTeamsSearch(t *testing.T, ds *Datastore) {
 }
 
 func testTeamsEnrollSecrets(t *testing.T, ds *Datastore) {
-	secrets := []*fleet.EnrollSecret{{Secret: "secret1"}, {Secret: "secret2"}}
-	team1, err := ds.NewTeam(context.Background(), &fleet.Team{
+	secrets := []*automdm.EnrollSecret{{Secret: "secret1"}, {Secret: "secret2"}}
+	team1, err := ds.NewTeam(context.Background(), &automdm.Team{
 		Name:    "team1",
 		Secrets: secrets,
 	})
@@ -637,17 +637,17 @@ func testTeamsEnrollSecrets(t *testing.T, ds *Datastore) {
 	enrollSecrets, err := ds.TeamEnrollSecrets(context.Background(), team1.ID)
 	require.NoError(t, err)
 
-	var justSecrets []*fleet.EnrollSecret
+	var justSecrets []*automdm.EnrollSecret
 	for _, secret := range enrollSecrets {
 		require.NotNil(t, secret.TeamID)
 		assert.Equal(t, team1.ID, *secret.TeamID)
-		justSecrets = append(justSecrets, &fleet.EnrollSecret{Secret: secret.Secret})
+		justSecrets = append(justSecrets, &automdm.EnrollSecret{Secret: secret.Secret})
 	}
 	test.ElementsMatchSkipTimestampsID(t, secrets, justSecrets)
 }
 
 func testTeamsAgentOptions(t *testing.T, ds *Datastore) {
-	team1, err := ds.NewTeam(context.Background(), &fleet.Team{
+	team1, err := ds.NewTeam(context.Background(), &automdm.Team{
 		Name: "team1",
 	})
 	require.NoError(t, err)
@@ -657,9 +657,9 @@ func testTeamsAgentOptions(t *testing.T, ds *Datastore) {
 	require.Nil(t, teamAgentOptions1)
 
 	agentOptions := json.RawMessage(`{"config":{"foo":"bar"},"overrides":{"platforms":{"darwin":{"foo":"override"}}}}`)
-	team2, err := ds.NewTeam(context.Background(), &fleet.Team{
+	team2, err := ds.NewTeam(context.Background(), &automdm.Team{
 		Name: "team2",
-		Config: fleet.TeamConfig{
+		Config: automdm.TeamConfig{
 			AgentOptions: &agentOptions,
 		},
 	})
@@ -676,15 +676,15 @@ func testTeamsDeleteIntegrationsFromTeams(t *testing.T, ds *Datastore) {
 	urla, urlb, urlc, urld, urle, urlf, urlg := "http://a.com", "http://b.com", "http://c.com", "http://d.com", "http://e.com", "http://f.com", "http://g.com"
 
 	// create some teams
-	team1, err := ds.NewTeam(ctx, &fleet.Team{
+	team1, err := ds.NewTeam(ctx, &automdm.Team{
 		Name: "team1",
-		Config: fleet.TeamConfig{
-			Integrations: fleet.TeamIntegrations{
-				Jira: []*fleet.TeamJiraIntegration{
+		Config: automdm.TeamConfig{
+			Integrations: automdm.TeamIntegrations{
+				Jira: []*automdm.TeamJiraIntegration{
 					{URL: urla, ProjectKey: "A"},
 					{URL: urlb, ProjectKey: "B"},
 				},
-				Zendesk: []*fleet.TeamZendeskIntegration{
+				Zendesk: []*automdm.TeamZendeskIntegration{
 					{URL: urlc, GroupID: 1},
 					{URL: urld, GroupID: 2},
 				},
@@ -693,15 +693,15 @@ func testTeamsDeleteIntegrationsFromTeams(t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 
-	team2, err := ds.NewTeam(ctx, &fleet.Team{
+	team2, err := ds.NewTeam(ctx, &automdm.Team{
 		Name: "team2",
-		Config: fleet.TeamConfig{
-			Integrations: fleet.TeamIntegrations{
-				Jira: []*fleet.TeamJiraIntegration{
+		Config: automdm.TeamConfig{
+			Integrations: automdm.TeamIntegrations{
+				Jira: []*automdm.TeamJiraIntegration{
 					{URL: urla, ProjectKey: "A"},
 					{URL: urle, ProjectKey: "E"},
 				},
-				Zendesk: []*fleet.TeamZendeskIntegration{
+				Zendesk: []*automdm.TeamZendeskIntegration{
 					{URL: urlc, GroupID: 1},
 					{URL: urlf, GroupID: 3},
 				},
@@ -710,14 +710,14 @@ func testTeamsDeleteIntegrationsFromTeams(t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 
-	team3, err := ds.NewTeam(ctx, &fleet.Team{
+	team3, err := ds.NewTeam(ctx, &automdm.Team{
 		Name: "team3",
-		Config: fleet.TeamConfig{
-			Integrations: fleet.TeamIntegrations{
-				Jira: []*fleet.TeamJiraIntegration{
+		Config: automdm.TeamConfig{
+			Integrations: automdm.TeamIntegrations{
+				Jira: []*automdm.TeamJiraIntegration{
 					{URL: urle, ProjectKey: "E"},
 				},
-				Zendesk: []*fleet.TeamZendeskIntegration{
+				Zendesk: []*automdm.TeamZendeskIntegration{
 					{URL: urlf, GroupID: 3},
 				},
 			},
@@ -747,17 +747,17 @@ func testTeamsDeleteIntegrationsFromTeams(t *testing.T, ds *Datastore) {
 	}
 
 	// delete nothing
-	err = ds.DeleteIntegrationsFromTeams(context.Background(), fleet.Integrations{})
+	err = ds.DeleteIntegrationsFromTeams(context.Background(), automdm.Integrations{})
 	require.NoError(t, err)
 	assertIntgURLs([]string{urla, urlb, urlc, urld}, []string{urla, urle, urlc, urlf}, []string{urle, urlf})
 
 	// delete a, b, c (in the url) so that team1 and team2 are impacted
-	err = ds.DeleteIntegrationsFromTeams(context.Background(), fleet.Integrations{
-		Jira: []*fleet.JiraIntegration{
+	err = ds.DeleteIntegrationsFromTeams(context.Background(), automdm.Integrations{
+		Jira: []*automdm.JiraIntegration{
 			{URL: urla, ProjectKey: "A"},
 			{URL: urlb, ProjectKey: "B"},
 		},
-		Zendesk: []*fleet.ZendeskIntegration{
+		Zendesk: []*automdm.ZendeskIntegration{
 			{URL: urlc, GroupID: 1},
 		},
 	})
@@ -765,8 +765,8 @@ func testTeamsDeleteIntegrationsFromTeams(t *testing.T, ds *Datastore) {
 	assertIntgURLs([]string{urld}, []string{urle, urlf}, []string{urle, urlf})
 
 	// delete g, no team is impacted
-	err = ds.DeleteIntegrationsFromTeams(context.Background(), fleet.Integrations{
-		Jira: []*fleet.JiraIntegration{
+	err = ds.DeleteIntegrationsFromTeams(context.Background(), automdm.Integrations{
+		Jira: []*automdm.JiraIntegration{
 			{URL: urlg, ProjectKey: "G"},
 		},
 	})
@@ -775,12 +775,12 @@ func testTeamsDeleteIntegrationsFromTeams(t *testing.T, ds *Datastore) {
 }
 
 func testTeamsFeatures(t *testing.T, ds *Datastore) {
-	defaultFeatures := fleet.Features{}
+	defaultFeatures := automdm.Features{}
 	defaultFeatures.ApplyDefaultsForNewInstalls()
 	ctx := context.Background()
 
 	t.Run("NULL config in the database", func(t *testing.T) {
-		team, err := ds.NewTeam(ctx, &fleet.Team{Name: "team_null_config"})
+		team, err := ds.NewTeam(ctx, &automdm.Team{Name: "team_null_config"})
 		require.NoError(t, err)
 		ExecAdhocSQL(t, ds, func(tx sqlx.ExtContext) error {
 			_, err = tx.ExecContext(
@@ -807,7 +807,7 @@ func testTeamsFeatures(t *testing.T, ds *Datastore) {
 	})
 
 	t.Run("NULL config.features in the database", func(t *testing.T) {
-		team, err := ds.NewTeam(ctx, &fleet.Team{Name: "team_null_config_features"})
+		team, err := ds.NewTeam(ctx, &automdm.Team{Name: "team_null_config_features"})
 		require.NoError(t, err)
 		ExecAdhocSQL(t, ds, func(tx sqlx.ExtContext) error {
 			_, err = tx.ExecContext(
@@ -834,10 +834,10 @@ func testTeamsFeatures(t *testing.T, ds *Datastore) {
 	})
 
 	t.Run("saves and retrieves configs", func(t *testing.T) {
-		team, err := ds.NewTeam(ctx, &fleet.Team{
+		team, err := ds.NewTeam(ctx, &automdm.Team{
 			Name: "team1",
-			Config: fleet.TeamConfig{
-				Features: fleet.Features{
+			Config: automdm.TeamConfig{
+				Features: automdm.Features{
 					EnableHostUsers:         false,
 					EnableSoftwareInventory: false,
 					AdditionalQueries:       nil,
@@ -848,7 +848,7 @@ func testTeamsFeatures(t *testing.T, ds *Datastore) {
 		features, err := ds.TeamFeatures(ctx, team.ID)
 		require.NoError(t, err)
 
-		assert.Equal(t, &fleet.Features{
+		assert.Equal(t, &automdm.Features{
 			EnableHostUsers:         false,
 			EnableSoftwareInventory: false,
 			AdditionalQueries:       nil,
@@ -857,16 +857,16 @@ func testTeamsFeatures(t *testing.T, ds *Datastore) {
 }
 
 func testTeamsMDMConfig(t *testing.T, ds *Datastore) {
-	defaultMDM := fleet.TeamMDM{}
+	defaultMDM := automdm.TeamMDM{}
 	ctx := context.Background()
 
 	t.Run("missing team", func(t *testing.T) {
 		_, err := ds.TeamMDMConfig(ctx, 999999)
-		require.True(t, fleet.IsNotFound(err))
+		require.True(t, automdm.IsNotFound(err))
 	})
 
 	t.Run("NULL config in the database", func(t *testing.T) {
-		team, err := ds.NewTeam(ctx, &fleet.Team{Name: "team_null_config"})
+		team, err := ds.NewTeam(ctx, &automdm.Team{Name: "team_null_config"})
 		require.NoError(t, err)
 		ExecAdhocSQL(t, ds, func(tx sqlx.ExtContext) error {
 			_, err = tx.ExecContext(
@@ -897,7 +897,7 @@ func testTeamsMDMConfig(t *testing.T, ds *Datastore) {
 	})
 
 	t.Run("NULL config.mdm in the database", func(t *testing.T) {
-		team, err := ds.NewTeam(ctx, &fleet.Team{Name: "team_null_config_mdm"})
+		team, err := ds.NewTeam(ctx, &automdm.Team{Name: "team_null_config_mdm"})
 		require.NoError(t, err)
 		ExecAdhocSQL(t, ds, func(tx sqlx.ExtContext) error {
 			_, err = tx.ExecContext(
@@ -928,31 +928,31 @@ func testTeamsMDMConfig(t *testing.T, ds *Datastore) {
 	})
 
 	t.Run("saves and retrieves configs", func(t *testing.T) {
-		team, err := ds.NewTeam(ctx, &fleet.Team{
+		team, err := ds.NewTeam(ctx, &automdm.Team{
 			Name: "team1",
-			Config: fleet.TeamConfig{
-				MDM: fleet.TeamMDM{
-					MacOSUpdates: fleet.AppleOSUpdateSettings{
+			Config: automdm.TeamConfig{
+				MDM: automdm.TeamMDM{
+					MacOSUpdates: automdm.AppleOSUpdateSettings{
 						MinimumVersion: optjson.SetString("10.15.0"),
 						Deadline:       optjson.SetString("2025-10-01"),
 					},
-					IOSUpdates: fleet.AppleOSUpdateSettings{
+					IOSUpdates: automdm.AppleOSUpdateSettings{
 						MinimumVersion: optjson.SetString("11.11.11"),
 						Deadline:       optjson.SetString("2024-04-04"),
 					},
-					IPadOSUpdates: fleet.AppleOSUpdateSettings{
+					IPadOSUpdates: automdm.AppleOSUpdateSettings{
 						MinimumVersion: optjson.SetString("12.12.12"),
 						Deadline:       optjson.SetString("2023-03-03"),
 					},
-					WindowsUpdates: fleet.WindowsUpdates{
+					WindowsUpdates: automdm.WindowsUpdates{
 						DeadlineDays:    optjson.SetInt(7),
 						GracePeriodDays: optjson.SetInt(3),
 					},
-					MacOSSetup: fleet.MacOSSetup{
+					MacOSSetup: automdm.MacOSSetup{
 						ManualAgentInstall: optjson.SetBool(true),
 					},
-					AndroidSettings: fleet.AndroidSettings{
-						Certificates: optjson.Slice[fleet.CertificateTemplateSpec]{Set: true, Value: []fleet.CertificateTemplateSpec{}},
+					AndroidSettings: automdm.AndroidSettings{
+						Certificates: optjson.Slice[automdm.CertificateTemplateSpec]{Set: true, Value: []automdm.CertificateTemplateSpec{}},
 					},
 				},
 			},
@@ -965,51 +965,51 @@ func testTeamsMDMConfig(t *testing.T, ds *Datastore) {
 		// deadline_days, so it reads back set-but-null rather than unset.
 		// Disk encryption settings are normalized on marshal, so they read
 		// back as explicit false.
-		assert.Equal(t, &fleet.TeamMDM{
-			MacOSSettings: fleet.MacOSSettings{
+		assert.Equal(t, &automdm.TeamMDM{
+			MacOSSettings: automdm.MacOSSettings{
 				EnableDiskEncryption:          optjson.SetBool(false),
 				EnableEscrowDiskEncryptionKey: optjson.SetBool(false),
 			},
-			LinuxSettings: fleet.LinuxSettings{
+			LinuxSettings: automdm.LinuxSettings{
 				EnableEscrowDiskEncryptionKey: optjson.SetBool(false),
 			},
-			MacOSUpdates: fleet.AppleOSUpdateSettings{
+			MacOSUpdates: automdm.AppleOSUpdateSettings{
 				MinimumVersion: optjson.SetString("10.15.0"),
 				Deadline:       optjson.SetString("2025-10-01"),
 				DeadlineDays:   optjson.Int{Set: true},
 				UpdateNewHosts: optjson.Bool{Set: true},
 			},
-			IOSUpdates: fleet.AppleOSUpdateSettings{
+			IOSUpdates: automdm.AppleOSUpdateSettings{
 				MinimumVersion: optjson.SetString("11.11.11"),
 				Deadline:       optjson.SetString("2024-04-04"),
 				DeadlineDays:   optjson.Int{Set: true},
 				UpdateNewHosts: optjson.Bool{Set: true},
 			},
-			IPadOSUpdates: fleet.AppleOSUpdateSettings{
+			IPadOSUpdates: automdm.AppleOSUpdateSettings{
 				MinimumVersion: optjson.SetString("12.12.12"),
 				Deadline:       optjson.SetString("2023-03-03"),
 				DeadlineDays:   optjson.Int{Set: true},
 				UpdateNewHosts: optjson.Bool{Set: true},
 			},
-			WindowsUpdates: fleet.WindowsUpdates{
+			WindowsUpdates: automdm.WindowsUpdates{
 				DeadlineDays:    optjson.SetInt(7),
 				GracePeriodDays: optjson.SetInt(3),
 			},
-			MacOSSetup: fleet.MacOSSetup{
+			MacOSSetup: automdm.MacOSSetup{
 				EnableReleaseDeviceManually:      optjson.SetBool(false),
-				Software:                         optjson.Slice[*fleet.MacOSSetupSoftware]{Set: true, Value: []*fleet.MacOSSetupSoftware{}},
+				Software:                         optjson.Slice[*automdm.MacOSSetupSoftware]{Set: true, Value: []*automdm.MacOSSetupSoftware{}},
 				ManualAgentInstall:               optjson.SetBool(true),
 				LockEndUserInfo:                  optjson.SetBool(false),
 				EnableManagedLocalAccount:        optjson.SetBool(false),
 				EndUserLocalAccountType:          optjson.SetString("admin"),
 				EnableManagedLocalAccountWindows: optjson.SetBool(false),
 			},
-			WindowsSettings: fleet.WindowsSettings{
+			WindowsSettings: automdm.WindowsSettings{
 				EnableDiskEncryption: optjson.SetBool(false),
 				RequireBitLockerPIN:  optjson.SetBool(false),
 			},
-			AndroidSettings: fleet.AndroidSettings{
-				Certificates: optjson.Slice[fleet.CertificateTemplateSpec]{Set: true, Value: []fleet.CertificateTemplateSpec{}},
+			AndroidSettings: automdm.AndroidSettings{
+				Certificates: optjson.Slice[automdm.CertificateTemplateSpec]{Set: true, Value: []automdm.CertificateTemplateSpec{}},
 			},
 		}, mdm)
 	})
@@ -1023,23 +1023,23 @@ func testTeamsNameUnicode(t *testing.T, ds *Datastore) {
 	equivalentNames = append(equivalentNames, item)
 
 	// Save team
-	team, err := ds.NewTeam(context.Background(), &fleet.Team{Name: equivalentNames[0]})
+	team, err := ds.NewTeam(context.Background(), &automdm.Team{Name: equivalentNames[0]})
 	require.NoError(t, err)
 	assert.Equal(t, equivalentNames[0], team.Name)
 
 	// Try to create team with equivalent name
-	_, err = ds.NewTeam(context.Background(), &fleet.Team{Name: equivalentNames[1]})
+	_, err = ds.NewTeam(context.Background(), &automdm.Team{Name: equivalentNames[1]})
 	assert.True(t, IsDuplicate(err), err)
 
 	// Try to update a different team with equivalent name -- not allowed
-	teamEmoji, err := ds.NewTeam(context.Background(), &fleet.Team{Name: "💻"})
+	teamEmoji, err := ds.NewTeam(context.Background(), &automdm.Team{Name: "💻"})
 	require.NoError(t, err)
-	_, err = ds.SaveTeam(context.Background(), &fleet.Team{ID: teamEmoji.ID, Name: equivalentNames[1]})
+	_, err = ds.SaveTeam(context.Background(), &automdm.Team{ID: teamEmoji.ID, Name: equivalentNames[1]})
 	assert.True(t, IsDuplicate(err), err)
 
 	// Try to find team with equivalent name
-	teamFilter := fleet.TeamFilter{User: &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}}
-	results, err := ds.ListTeams(context.Background(), teamFilter, fleet.ListOptions{MatchQuery: equivalentNames[1]})
+	teamFilter := automdm.TeamFilter{User: &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}}
+	results, err := ds.ListTeams(context.Background(), teamFilter, automdm.ListOptions{MatchQuery: equivalentNames[1]})
 	assert.NoError(t, err)
 	require.Len(t, results, 1)
 	assert.Equal(t, equivalentNames[0], results[0].Name)
@@ -1064,7 +1064,7 @@ func testTeamConflictsWithName(t *testing.T, ds *Datastore) {
 
 	// Create a team and confirm excludeID=0 returns it, excludeID=team.ID
 	// returns (nil, nil).
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "ABC"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "ABC"})
 	require.NoError(t, err)
 
 	conflict, err = ds.TeamConflictsWithName(ctx, "ABC", 0)
@@ -1083,7 +1083,7 @@ func testTeamConflictsWithName(t *testing.T, ds *Datastore) {
 
 	// Collation-equal variants: NFC normalization (é written as combined vs.
 	// e + combining acute accent).
-	reneeCombined, err := ds.NewTeam(ctx, &fleet.Team{Name: "Renée"})
+	reneeCombined, err := ds.NewTeam(ctx, &automdm.Team{Name: "Renée"})
 	require.NoError(t, err)
 	reneeDecomposed := "Renée" // e + U+0301 COMBINING ACUTE ACCENT
 	conflict, err = ds.TeamConflictsWithName(ctx, reneeDecomposed, 0)
@@ -1125,7 +1125,7 @@ func testTeamConflictsWithName(t *testing.T, ds *Datastore) {
 	// Name key matches, which the collation doesn't see.
 	existing := make(map[string]uint)
 	for _, name := range []string{"Workstations", "Laptops 💻", "開発チーム", "Team 𝐀", "straße", "はは", "राम", "กิน", "мой"} {
-		tm, err := ds.NewTeam(ctx, &fleet.Team{Name: name})
+		tm, err := ds.NewTeam(ctx, &automdm.Team{Name: name})
 		require.NoError(t, err)
 		existing[name] = tm.ID
 	}
@@ -1176,7 +1176,7 @@ func testTeamConflictsWithName(t *testing.T, ds *Datastore) {
 		require.Equal(t, tc.conflict, conflict.Name, tc.name)
 		require.Equal(t, existing[tc.conflict], conflict.ID, tc.name)
 
-		// A fleet can be renamed to a variant of its own name.
+		// A team can be renamed to a variant of its own name.
 		conflict, err = ds.TeamConflictsWithName(ctx, tc.name, existing[tc.conflict])
 		require.NoError(t, err, tc.name)
 		require.Nil(t, conflict, tc.name)
@@ -1186,16 +1186,16 @@ func testTeamConflictsWithName(t *testing.T, ds *Datastore) {
 func testTeamsNameEmoji(t *testing.T, ds *Datastore) {
 	// Try to save teams with emojis
 	emoji0 := "🔥"
-	_, err := ds.NewTeam(context.Background(), &fleet.Team{Name: emoji0})
+	_, err := ds.NewTeam(context.Background(), &automdm.Team{Name: emoji0})
 	require.NoError(t, err)
 	emoji1 := "💻"
-	teamEmoji, err := ds.NewTeam(context.Background(), &fleet.Team{Name: emoji1})
+	teamEmoji, err := ds.NewTeam(context.Background(), &automdm.Team{Name: emoji1})
 	require.NoError(t, err)
 	assert.Equal(t, emoji1, teamEmoji.Name)
 
 	// Try to find team with emoji0
-	teamFilter := fleet.TeamFilter{User: &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}}
-	results, err := ds.ListTeams(context.Background(), teamFilter, fleet.ListOptions{MatchQuery: emoji0})
+	teamFilter := automdm.TeamFilter{User: &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}}
+	results, err := ds.ListTeams(context.Background(), teamFilter, automdm.ListOptions{MatchQuery: emoji0})
 	assert.NoError(t, err)
 	require.Len(t, results, 1)
 	assert.Equal(t, emoji0, results[0].Name)
@@ -1209,18 +1209,18 @@ func testTeamsNameEmoji(t *testing.T, ds *Datastore) {
 
 // Ensure case-insensitive sort order for ames
 func testTeamsNameSort(t *testing.T, ds *Datastore) {
-	var teams [3]*fleet.Team
+	var teams [3]*automdm.Team
 	var err error
 	// Save teams
-	teams[1], err = ds.NewTeam(context.Background(), &fleet.Team{Name: "В"})
+	teams[1], err = ds.NewTeam(context.Background(), &automdm.Team{Name: "В"})
 	require.NoError(t, err)
-	teams[2], err = ds.NewTeam(context.Background(), &fleet.Team{Name: "о"})
+	teams[2], err = ds.NewTeam(context.Background(), &automdm.Team{Name: "о"})
 	require.NoError(t, err)
-	teams[0], err = ds.NewTeam(context.Background(), &fleet.Team{Name: "а"})
+	teams[0], err = ds.NewTeam(context.Background(), &automdm.Team{Name: "а"})
 	require.NoError(t, err)
 
-	teamFilter := fleet.TeamFilter{User: &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}}
-	results, err := ds.ListTeams(context.Background(), teamFilter, fleet.ListOptions{OrderKey: "name"})
+	teamFilter := automdm.TeamFilter{User: &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}}
+	results, err := ds.ListTeams(context.Background(), teamFilter, automdm.ListOptions{OrderKey: "name"})
 	assert.NoError(t, err)
 	require.Len(t, teams, 3)
 	for i, item := range teams {
@@ -1237,9 +1237,9 @@ func testTeamIDsWithSetupExperienceIdPEnabled(t *testing.T, ds *Datastore) {
 	require.Empty(t, teamIDs)
 
 	// create a couple teams
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "A"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "A"})
 	require.NoError(t, err)
-	team2, err := ds.NewTeam(ctx, &fleet.Team{Name: "B"})
+	team2, err := ds.NewTeam(ctx, &automdm.Team{Name: "B"})
 	require.NoError(t, err)
 
 	// still no team with IdP enabled
@@ -1308,15 +1308,15 @@ func testDefaultTeamConfig(t *testing.T, ds *Datastore) {
 	assert.Empty(t, config.WebhookSettings.FailingPoliciesWebhook.DestinationURL)
 
 	// Test saving a new config
-	newConfig := &fleet.TeamConfig{
-		WebhookSettings: fleet.TeamWebhookSettings{
-			FailingPoliciesWebhook: fleet.FailingPoliciesWebhookSettings{
+	newConfig := &automdm.TeamConfig{
+		WebhookSettings: automdm.TeamWebhookSettings{
+			FailingPoliciesWebhook: automdm.FailingPoliciesWebhookSettings{
 				Enable:         true,
 				DestinationURL: "https://example.com/webhook",
 				HostBatchSize:  100,
 			},
 		},
-		Features: fleet.Features{
+		Features: automdm.Features{
 			EnableHostUsers:         true,
 			EnableSoftwareInventory: true,
 		},
@@ -1335,9 +1335,9 @@ func testDefaultTeamConfig(t *testing.T, ds *Datastore) {
 	assert.Equal(t, 100, savedConfig.WebhookSettings.FailingPoliciesWebhook.HostBatchSize)
 
 	// Test updating existing config
-	updatedConfig := &fleet.TeamConfig{
-		WebhookSettings: fleet.TeamWebhookSettings{
-			FailingPoliciesWebhook: fleet.FailingPoliciesWebhookSettings{
+	updatedConfig := &automdm.TeamConfig{
+		WebhookSettings: automdm.TeamWebhookSettings{
+			FailingPoliciesWebhook: automdm.FailingPoliciesWebhookSettings{
 				Enable:         false,
 				DestinationURL: "https://updated.com/webhook",
 				HostBatchSize:  50,
@@ -1360,12 +1360,12 @@ func testDefaultTeamConfig(t *testing.T, ds *Datastore) {
 
 func testTeamLitesByIDs(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
-	teamA, err := ds.NewTeam(ctx, &fleet.Team{Name: "lites-a"})
+	teamA, err := ds.NewTeam(ctx, &automdm.Team{Name: "lites-a"})
 	require.NoError(t, err)
-	teamB, err := ds.NewTeam(ctx, &fleet.Team{
+	teamB, err := ds.NewTeam(ctx, &automdm.Team{
 		Name: "lites-b",
-		Config: fleet.TeamConfig{WebhookSettings: fleet.TeamWebhookSettings{
-			HostActivitiesWebhook: &fleet.HostActivitiesWebhookSettings{Enable: true, DestinationURL: "https://example.com/hook"},
+		Config: automdm.TeamConfig{WebhookSettings: automdm.TeamWebhookSettings{
+			HostActivitiesWebhook: &automdm.HostActivitiesWebhookSettings{Enable: true, DestinationURL: "https://example.com/hook"},
 		}},
 	})
 	require.NoError(t, err)
@@ -1377,7 +1377,7 @@ func testTeamLitesByIDs(t *testing.T, ds *Datastore) {
 	lites, err = ds.TeamLitesByIDs(ctx, []uint{teamA.ID, teamB.ID, teamB.ID + 1000, 0})
 	require.NoError(t, err)
 	require.Len(t, lites, 3)
-	byID := make(map[uint]*fleet.TeamLite, len(lites))
+	byID := make(map[uint]*automdm.TeamLite, len(lites))
 	for _, l := range lites {
 		byID[l.ID] = l
 	}
@@ -1387,7 +1387,7 @@ func testTeamLitesByIDs(t *testing.T, ds *Datastore) {
 	require.Equal(t, "lites-a", liteA.Name)
 	noTeam := byID[0]
 	require.NotNil(t, noTeam)
-	require.Equal(t, fleet.DisplayNameNoTeam, noTeam.Name)
+	require.Equal(t, automdm.DisplayNameNoTeam, noTeam.Name)
 	webhook := liteB.Config.WebhookSettings.HostActivitiesWebhook
 	require.NotNil(t, webhook)
 	require.Equal(t, "https://example.com/hook", webhook.DestinationURL)
@@ -1396,13 +1396,13 @@ func testTeamLitesByIDs(t *testing.T, ds *Datastore) {
 func testDeleteTeamCancelsSoftwareInstalls(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 	user := test.NewUser(t, ds, "Alice", "alice@example.com", true)
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "team1"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
 
 	newInstaller := func(name string, teamID *uint) uint {
-		tfr, err := fleet.NewTempFileReader(strings.NewReader(name), t.TempDir)
+		tfr, err := automdm.NewTempFileReader(strings.NewReader(name), t.TempDir)
 		require.NoError(t, err)
-		id, _, err := ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
+		id, _, err := ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
 			InstallScript:   "install",
 			UninstallScript: "uninstall",
 			InstallerFile:   tfr,
@@ -1413,7 +1413,7 @@ func testDeleteTeamCancelsSoftwareInstalls(t *testing.T, ds *Datastore) {
 			Platform:        "darwin",
 			TeamID:          teamID,
 			UserID:          user.ID,
-			ValidatedLabels: &fleet.LabelIdentsWithScope{},
+			ValidatedLabels: &automdm.LabelIdentsWithScope{},
 		})
 		require.NoError(t, err)
 		return id
@@ -1425,11 +1425,11 @@ func testDeleteTeamCancelsSoftwareInstalls(t *testing.T, ds *Datastore) {
 	hostC := test.NewHost(t, ds, "hostC", "3", "hostCkey", "hostCuuid", time.Now(), test.WithTeamID(team.ID))
 
 	// host A: an in-flight install, a queued install, then a script
-	inFlightA, err := ds.InsertSoftwareInstallRequest(ctx, hostA.ID, installerID, fleet.HostSoftwareInstallOptions{})
+	inFlightA, err := ds.InsertSoftwareInstallRequest(ctx, hostA.ID, installerID, automdm.HostSoftwareInstallOptions{})
 	require.NoError(t, err)
-	queuedA, err := ds.InsertSoftwareInstallRequest(ctx, hostA.ID, installerID, fleet.HostSoftwareInstallOptions{})
+	queuedA, err := ds.InsertSoftwareInstallRequest(ctx, hostA.ID, installerID, automdm.HostSoftwareInstallOptions{})
 	require.NoError(t, err)
-	scriptA, err := ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+	scriptA, err := ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 		HostID: hostA.ID, ScriptContents: "echo", UserID: &user.ID, SyncRequest: true,
 	})
 	require.NoError(t, err)
@@ -1437,7 +1437,7 @@ func testDeleteTeamCancelsSoftwareInstalls(t *testing.T, ds *Datastore) {
 	uninstallB := uuid.NewString()
 	require.NoError(t, ds.InsertSoftwareUninstallRequest(ctx, uninstallB, hostB.ID, installerID, false))
 	// host C: an in-flight setup experience install
-	setupC, err := ds.InsertSoftwareInstallRequest(ctx, hostC.ID, installerID, fleet.HostSoftwareInstallOptions{ForSetupExperience: true})
+	setupC, err := ds.InsertSoftwareInstallRequest(ctx, hostC.ID, installerID, automdm.HostSoftwareInstallOptions{ForSetupExperience: true})
 	require.NoError(t, err)
 	ExecAdhocSQL(t, ds, func(q sqlx.ExtContext) error {
 		_, err := q.ExecContext(ctx, `INSERT INTO setup_experience_status_results
@@ -1473,7 +1473,7 @@ func testDeleteTeamCancelsSoftwareInstalls(t *testing.T, ds *Datastore) {
 		setupC:     "canceled_install",
 	}, statuses)
 
-	for _, h := range []*fleet.Host{hostA, hostB, hostC} {
+	for _, h := range []*automdm.Host{hostA, hostB, hostC} {
 		got, err := ds.Host(ctx, h.ID)
 		require.NoError(t, err)
 		require.Nil(t, got.TeamID)
@@ -1481,7 +1481,7 @@ func testDeleteTeamCancelsSoftwareInstalls(t *testing.T, ds *Datastore) {
 
 	// The FK blocks deleting an installer that a queued install still references.
 	globalInstallerID := newInstaller("ins2", nil)
-	_, err = ds.InsertSoftwareInstallRequest(ctx, hostA.ID, globalInstallerID, fleet.HostSoftwareInstallOptions{})
+	_, err = ds.InsertSoftwareInstallRequest(ctx, hostA.ID, globalInstallerID, automdm.HostSoftwareInstallOptions{})
 	require.NoError(t, err)
 	ExecAdhocSQL(t, ds, func(q sqlx.ExtContext) error {
 		_, err := q.ExecContext(ctx, `DELETE FROM software_installers WHERE id = ?`, globalInstallerID)

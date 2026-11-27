@@ -76,7 +76,7 @@ const generateTableHeaders = (teamId?: number): IDataColumn[] => [
         <ViewAllHostsLink
           queryParams={{
             software_version_id: cellProps.cell.value,
-            fleet_id: teamId,
+            team_id: teamId,
           }}
           className="software-link"
           condensed

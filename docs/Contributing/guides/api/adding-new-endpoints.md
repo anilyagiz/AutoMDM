@@ -2,7 +2,7 @@
 
 ## Steps to add a new endpoint
 
-There are two main ways to add a new endpoint to the Fleet API:
+There are two main ways to add a new endpoint to the AutoMDM API:
 
 1. Building the data layer first (datastore) and then going up the stack until the API endpoint.
 2. Building the API endpoint and then going down the stack until the datastore.
@@ -12,14 +12,14 @@ you can simply read the documentation bottom up.
 
 ### Step 1: Datastore
 
-Let's say you want to add an endpoint to count the total number of hosts enrolled in Fleet. A SQL query for
+Let's say you want to add an endpoint to count the total number of hosts enrolled in AutoMDM. A SQL query for
 gathering this data could be the following:
 
 ```sql
 SELECT COUNT(*) FROM hosts
 ```
 
-So let's create a function for this within the mysql datastore in the [hosts.go file](https://github.com/fleetdm/fleet/blob/main/server/datastore/mysql/hosts.go):
+So let's create a function for this within the mysql datastore in the [hosts.go file](https://github.com/anilyagiz/automdm/blob/main/server/datastore/mysql/hosts.go):
 
 ```go
 func (ds *Datastore) CountAllHosts(ctx context.Context) (int, error) {
@@ -33,7 +33,7 @@ func (ds *Datastore) CountAllHosts(ctx context.Context) (int, error) {
 ```
 
 Now, this is part of the `Datastore` struct. In order to use it in an endpoint, we need this to be exposed by the `Datastore`
-interface. So we add this method [to it](https://github.com/fleetdm/fleet/blob/main/server/fleet/datastore.go):
+interface. So we add this method [to it](https://github.com/anilyagiz/automdm/blob/main/server/automdm/datastore.go):
 
 ```go
 type Datastore interface {
@@ -49,12 +49,12 @@ now we are ready to create a method in the service.
 ### Step 2: Service
 
 In order to use this new Datastore function we created, the layer that is in communication with it is the `Service` 
-which is both [an interface](https://github.com/fleetdm/fleet/blob/main/server/fleet/service.go) and
-[a struct](https://github.com/fleetdm/fleet/blob/main/server/service/service.go) that implements that interface.
+which is both [an interface](https://github.com/anilyagiz/automdm/blob/main/server/automdm/service.go) and
+[a struct](https://github.com/anilyagiz/automdm/blob/main/server/service/service.go) that implements that interface.
 
 Now at this point, we are not going to be jumping around files too much. Given that this new API will count the total 
 amount of hosts, it makes sense to add it to the 
-[hosts.go file within the service package](https://github.com/fleetdm/fleet/blob/main/server/service/hosts.go). If this 
+[hosts.go file within the service package](https://github.com/anilyagiz/automdm/blob/main/server/service/hosts.go). If this 
 was a totally new feature, we could've created new files instead of adding to existing ones (the same applies to the 
 datastore portion).
 
@@ -69,7 +69,7 @@ So we add to the bottom of the file the following:
 /////////////////////////////////////////////////////////////////////////////////
 
 func (svc *Service) CountAllHosts(ctx context.Context) (int, error) {
-    if err := svc.authz.Authorize(ctx, &fleet.Host{}, fleet.ActionList); err != nil {
+    if err := svc.authz.Authorize(ctx, &automdm.Host{}, automdm.ActionList); err != nil {
         return nil, err
     }
 
@@ -78,7 +78,7 @@ func (svc *Service) CountAllHosts(ctx context.Context) (int, error) {
 ```
 
 As you can see, the only thing this method adds to the table is the authorization. We assume that if a user can list 
-hosts, then they could list all hosts and count them, so they can have Fleet do that math for them.
+hosts, then they could list all hosts and count them, so they can have AutoMDM do that math for them.
 
 Just like with the `Datastore`, we need to add this method in the `Service` interface as well because otherwise, we won't 
 be able to call this from the endpoint function itself:
@@ -95,7 +95,7 @@ Now we are ready to work on the endpoint itself.
 
 ### Step 3: Endpoint
 
-We're going to be working in the same [hosts.go file from before](https://github.com/fleetdm/fleet/blob/main/server/service/hosts.go):
+We're going to be working in the same [hosts.go file from before](https://github.com/anilyagiz/automdm/blob/main/server/service/hosts.go):
 
 ```go
 /////////////////////////////////////////////////////////////////////////////////
@@ -111,7 +111,7 @@ type countAllHostsResponse struct {
 
 func (r countAllHostsResponse) Error() error { return r.Err }
 
-func countAllHostsEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func countAllHostsEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
     req := request.(*countAllHostsRequest)
     count, err := svc.CountAllHosts(ctx)
     if err != nil {
@@ -129,7 +129,7 @@ We added four things above:
 
 1. The struct that represents details about the request that we might receive. It would be defined here if the request could have query 
 parameters, or a JSON body, etc.
-2. The struct for the response. This struct has to implement the [`fleet.Errorer`](https://github.com/fleetdm/fleet/blob/main/server/platform/http/response.go) interface.
+2. The struct for the response. This struct has to implement the [`automdm.Errorer`](https://github.com/anilyagiz/automdm/blob/main/server/platform/http/response.go) interface.
 3. The implementation of the only method in the `Errorer` interface.
 4. The endpoint function handler itself.
 
@@ -137,21 +137,21 @@ Now it's time to expose this to be used.
 
 ### Step 4: Exposing the new API
 
-View the whole API in the [handler.go file](https://github.com/fleetdm/fleet/blob/main/server/service/handler.go).
+View the whole API in the [handler.go file](https://github.com/anilyagiz/automdm/blob/main/server/service/handler.go).
 Most of what there is to know about what API is being exposed lives in this file and particularly within the 
-`attachFleetAPIRoutes`.
+`attachAutoMDMAPIRoutes`.
 
 Since this endpoint is a user authenticated endpoint, we'll add it at the end of the `ue` (user authenticated) endpoints 
 of the function mentioned:
 
 ```go
-func attachFleetAPIRoutes(r *mux.Router, svc fleet.Service, config config.FleetConfig,
-	logger *slog.Logger, limitStore throttled.GCRAStore, redisPool fleet.RedisPool, opts []kithttp.ServerOption,
+func attachAutoMDMAPIRoutes(r *mux.Router, svc automdm.Service, config config.AutoMDMConfig,
+	logger *slog.Logger, limitStore throttled.GCRAStore, redisPool automdm.RedisPool, opts []kithttp.ServerOption,
 	extra extraHandlerOpts,
 ) {
 	// ...
 
-	ue.GET("/api/_version_/fleet/hosts/count_all", countAllHostsEndpoint, countAllHostsRequest)
+	ue.GET("/api/_version_/automdm/hosts/count_all", countAllHostsEndpoint, countAllHostsRequest)
 	
 	// ...
 }
@@ -161,11 +161,11 @@ And that's it! (Besides tests and documentation, which are key parts of adding a
 
 Now that the endpoint is all connected in the right places, a few things happen automatically:
 
-1. The [decoding of the request](https://github.com/fleetdm/fleet/blob/main/server/service/endpoint_utils.go) data
+1. The [decoding of the request](https://github.com/anilyagiz/automdm/blob/main/server/service/endpoint_utils.go) data
 (body, query params, etc.). More on this below.
-2. The [encoding of the response](https://github.com/fleetdm/fleet/blob/main/server/service/transport.go), including
-[error encoding/handling](https://github.com/fleetdm/fleet/blob/main/server/service/transport_error.go) among other things.
-3. [User](https://github.com/fleetdm/fleet/blob/main/server/service/endpoint_utils.go) or
+2. The [encoding of the response](https://github.com/anilyagiz/automdm/blob/main/server/service/transport.go), including
+[error encoding/handling](https://github.com/anilyagiz/automdm/blob/main/server/service/transport_error.go) among other things.
+3. [User](https://github.com/anilyagiz/automdm/blob/main/server/service/endpoint_utils.go) or
 host or
 device token authentication.
 4. [API versioning](../api-versioning.md) (mapping `_version_` to `latest`, `v1`, and `2022-04`).
@@ -175,27 +175,27 @@ and used `nil`, but it was added for the sake of this documentation.
 
 ## Recap of the responsibilities for each layer
 
-At first, it's easy to feel like Fleet might have too many layers (and it still might!), but this is the minimum we've 
+At first, it's easy to feel like AutoMDM might have too many layers (and it still might!), but this is the minimum we've 
 defined at the time of this writing to allow for the type of testing we want to have. You might've noticed we 
 didn't discuss testing at all so far, and we won't entirely because that's out of the scope of this document, but we'll 
 discuss the responsibilities of each layer and how it's meant to be used in testing.
 
 ### Datastore
 
-This is the layer where Fleet talks directly to the database. If it has a database query, 
-[this](https://github.com/fleetdm/fleet/tree/main/server/datastore) is where that code should live.
+This is the layer where AutoMDM talks directly to the database. If it has a database query, 
+[this](https://github.com/anilyagiz/automdm/tree/main/server/datastore) is where that code should live.
 
 The reason this layer implements the `Datastore` interface is to mock it while testing any other layer with which it 
 interacts.
 
 ### Service
 
-The [service layer](https://github.com/fleetdm/fleet/tree/main/server/service) is what implements the data access 
+The [service layer](https://github.com/anilyagiz/automdm/tree/main/server/service) is what implements the data access 
 authorization logic and connects the HTTP layer with the datastore layer. There is some translation of data here, 
 but not a lot.
 
 The reason this layer implements the `Service` interface is to allow for another implementation of this interface to 
-exist: [the enterprise/premium service that holds all the premium features](https://github.com/fleetdm/fleet/tree/main/ee).
+exist: [the enterprise/premium service that holds all the premium features](https://github.com/anilyagiz/automdm/tree/main/ee).
 
 We don't use this to mock the service layer in tests.
 
@@ -205,15 +205,15 @@ The HTTP layer is where all HTTP logic lives. Where structures go from query par
 the service layer understands.
 
 This layer is tested in the integration tests (the `integration_*_test.go` files in
-[`server/service/`](https://github.com/fleetdm/fleet/tree/main/server/service)).
+[`server/service/`](https://github.com/anilyagiz/automdm/tree/main/server/service)).
 
 ## Queries, Request bodies, and other decoding facts
 
 Before we dive into specifics, let's discuss some context around the framework we are using and other tools that have
 been implemented.
 
-The main thing to be aware of is that Fleet uses `go-kit` underneath. With it, we get all the concepts from the 
-framework, such as decoders, transport, etc. We have decided `go-kit` is no longer the best framework for Fleet to use 
+The main thing to be aware of is that AutoMDM uses `go-kit` underneath. With it, we get all the concepts from the 
+framework, such as decoders, transport, etc. We have decided `go-kit` is no longer the best framework for AutoMDM to use 
 anymore, but the cost of replacing it is higher than the cost of building some of the tools we'll discuss here and 
 maintaining it.
 
@@ -222,12 +222,12 @@ makes sense for our use case.
 
 For instance, we found ourselves implementing extremely similar request decoding code. It varied very slightly from one 
 implementation to the next, and it differed in ways that Go wasn't capable of handling at the time. So we wrote a [generic
-decoder](https://github.com/fleetdm/fleet/blob/main/server/service/endpoint_utils.go) that uses Go's `reflect` to 
+decoder](https://github.com/anilyagiz/automdm/blob/main/server/service/endpoint_utils.go) that uses Go's `reflect` to 
 understand what kind of request it is and the destination and decodes it correctly.
 
 Then the problem was specifying this decoder _every time a new endpoint is created_. And making new endpoints 
 also involves creating a server, user or host authentication, etc. So we abstracted this away into a
-[handful of types](https://github.com/fleetdm/fleet/blob/main/server/service/endpoint_utils.go) that handles this 
+[handful of types](https://github.com/anilyagiz/automdm/blob/main/server/service/endpoint_utils.go) that handles this 
 in a readable way.
 
 So with that in mind, let's look at the different tools these new things add for us:
@@ -236,7 +236,7 @@ So with that in mind, let's look at the different tools these new things add for
 
 In order to add query parameters, you have to specify them in the Request struct with a tag 
 `query:"name_of_the_parameter"` and the decoder looks for that parameter there. If the query parameter is 
-optional, you can add the `,optional` suffix to the parameter name: `query:"param1,optional"`. Otherwise, it will error out the request. Here's an [example of this error out](https://github.com/fleetdm/fleet/blob/main/server/service/hosts.go#L407) in 
+optional, you can add the `,optional` suffix to the parameter name: `query:"param1,optional"`. Otherwise, it will error out the request. Here's an [example of this error out](https://github.com/anilyagiz/automdm/blob/main/server/service/hosts.go#L407) in 
 use.
 
 Optional parameters can be pointers, in which case it's `nil` if omitted. If the optional parameter is not a 
@@ -246,14 +246,14 @@ pointer, the zero value for the type is set.
 
 There are shortcuts for bundles of query parameters such as `list_options` which results in parameters such as page and 
 order to be added, among others. Here's an
-[example of this](https://github.com/fleetdm/fleet/blob/main/server/service/labels.go).
+[example of this](https://github.com/anilyagiz/automdm/blob/main/server/service/labels.go).
 
 ## How to add URL variables
 
 To assign a part of a URL to a variable, such as an ID for an entity, define this by specifying 
 `url:"id"` in the tag in the Request struct and in-between `{}` in the URL for the handler where that variable is placed. 
-For instance: `"/api/_version_/fleet/labels/{id:[0-9]+}"` and can be found in
-[this example](https://github.com/fleetdm/fleet/blob/main/server/service/handler.go). URL variables cannot be 
+For instance: `"/api/_version_/automdm/labels/{id:[0-9]+}"` and can be found in
+[this example](https://github.com/anilyagiz/automdm/blob/main/server/service/handler.go). URL variables cannot be 
 optional.
 
 ## How is the JSON body defined
@@ -262,4 +262,4 @@ The logic here is that if there are any parameters in the Request struct that ha
 expected, and the absence of it results in an error.
 
 <meta name="pageOrderInSection" value="400">
-<meta name="description" value="Documentation about adding new API endpoints to Fleet.">
+<meta name="description" value="Documentation about adding new API endpoints to AutoMDM.">

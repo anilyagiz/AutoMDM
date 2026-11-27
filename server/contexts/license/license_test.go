@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/require"
 )
 
@@ -15,8 +15,8 @@ func TestIsPremium(t *testing.T) {
 		want bool
 	}{
 		{"no license", context.Background(), false},
-		{"free license", NewContext(context.Background(), &fleet.LicenseInfo{Tier: fleet.TierFree}), false},
-		{"premium license", NewContext(context.Background(), &fleet.LicenseInfo{Tier: fleet.TierPremium}), true},
+		{"free license", NewContext(context.Background(), &automdm.LicenseInfo{Tier: automdm.TierFree}), false},
+		{"premium license", NewContext(context.Background(), &automdm.LicenseInfo{Tier: automdm.TierPremium}), true},
 	}
 	for _, c := range cases {
 		t.Run(c.desc, func(t *testing.T) {

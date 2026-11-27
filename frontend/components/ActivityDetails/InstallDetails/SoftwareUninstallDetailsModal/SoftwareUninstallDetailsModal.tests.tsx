@@ -79,7 +79,7 @@ describe("SoftwareUninstallDetailsModal - StatusMessage component", () => {
     );
 
     expect(screen.queryByTestId("success-icon")).toBeInTheDocument();
-    expect(screen.getByText(/Fleet uninstalled/)).toBeInTheDocument();
+    expect(screen.getByText(/AutoMDM uninstalled/)).toBeInTheDocument();
     expect(screen.getByText(/CoolApp/)).toBeInTheDocument();
     expect(screen.getByText(/Test Host/)).toBeInTheDocument();
     expect(screen.getByText(/\(com\.cool\.app\)/)).toBeInTheDocument();

@@ -14,8 +14,8 @@ var upAO = `{"command_line_flags":{"disable_events":true},"config":{"options":{"
 
 // Notes:
 // Set env var TF_ACC=1
-// Set env var FLEETDM_APIKEY
-// Set env var FLEETDM_URL (I couldn't figure out how to set this otherwise...)
+// Set env var AUTOMDM_APIKEY
+// Set env var AUTOMDM_URL (I couldn't figure out how to set this otherwise...)
 
 // These tests use the Terraform acceptance testing framework to test
 // our provider. It's a little bit magical, in that you define what
@@ -23,7 +23,7 @@ var upAO = `{"command_line_flags":{"disable_events":true},"config":{"options":{"
 // against what you actually get back. Implicit in each test is that
 // it deletes the created resource at the end of the test.
 
-func TestAccFleetdmTeams_basic(t *testing.T) {
+func TestAccAutoMDMTeams_basic(t *testing.T) {
 	teamName := fmt.Sprintf("aaa-%s",
 		acctest.RandStringFromCharSet(6, acctest.CharSetAlpha))
 
@@ -33,22 +33,22 @@ func TestAccFleetdmTeams_basic(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: fmt.Sprintf(`
-					resource "fleetdm_teams" "test_team" {
+					resource "automdm_teams" "test_team" {
 						name        = "%s"
 						description = "Awesome description"
 					}
 				`, teamName),
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("fleetdm_teams.test_team", "name", teamName),
-					resource.TestCheckResourceAttr("fleetdm_teams.test_team", "description", "Awesome description"),
-					resource.TestCheckResourceAttr("fleetdm_teams.test_team", "agent_options", defaultAgentOptions),
+					resource.TestCheckResourceAttr("automdm_teams.test_team", "name", teamName),
+					resource.TestCheckResourceAttr("automdm_teams.test_team", "description", "Awesome description"),
+					resource.TestCheckResourceAttr("automdm_teams.test_team", "agent_options", defaultAgentOptions),
 				),
 			},
 		},
 	})
 }
 
-func TestAccFleetdmTeams_agent_options(t *testing.T) {
+func TestAccAutoMDMTeams_agent_options(t *testing.T) {
 	teamName := fmt.Sprintf("aaa-%s",
 		acctest.RandStringFromCharSet(6, acctest.CharSetAlpha))
 
@@ -58,23 +58,23 @@ func TestAccFleetdmTeams_agent_options(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: fmt.Sprintf(`
-					resource "fleetdm_teams" "test_team" {
+					resource "automdm_teams" "test_team" {
 						name          = "%s"
 						description   = "Awesome description"
 						agent_options = jsonencode(%s)
 					}
 				`, teamName, newAO),
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("fleetdm_teams.test_team", "name", teamName),
-					resource.TestCheckResourceAttr("fleetdm_teams.test_team", "description", "Awesome description"),
-					resource.TestCheckResourceAttr("fleetdm_teams.test_team", "agent_options", newAO),
+					resource.TestCheckResourceAttr("automdm_teams.test_team", "name", teamName),
+					resource.TestCheckResourceAttr("automdm_teams.test_team", "description", "Awesome description"),
+					resource.TestCheckResourceAttr("automdm_teams.test_team", "agent_options", newAO),
 				),
 			},
 		},
 	})
 }
 
-func TestAccFleetdmTeams_update_all(t *testing.T) {
+func TestAccAutoMDMTeams_update_all(t *testing.T) {
 	teamName := fmt.Sprintf("aaa-%s",
 		acctest.RandStringFromCharSet(6, acctest.CharSetAlpha))
 	NewTeamName := fmt.Sprintf("aaa-%s-new",
@@ -86,36 +86,36 @@ func TestAccFleetdmTeams_update_all(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: fmt.Sprintf(`
-					resource "fleetdm_teams" "test_team" {
+					resource "automdm_teams" "test_team" {
 						name          = "%s"
 						description   = "Awesome description"
 					}
 				`, teamName),
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("fleetdm_teams.test_team", "name", teamName),
-					resource.TestCheckResourceAttr("fleetdm_teams.test_team", "description", "Awesome description"),
-					resource.TestCheckResourceAttr("fleetdm_teams.test_team", "agent_options", defaultAgentOptions),
+					resource.TestCheckResourceAttr("automdm_teams.test_team", "name", teamName),
+					resource.TestCheckResourceAttr("automdm_teams.test_team", "description", "Awesome description"),
+					resource.TestCheckResourceAttr("automdm_teams.test_team", "agent_options", defaultAgentOptions),
 				),
 			},
 			{
 				Config: fmt.Sprintf(`
-					resource "fleetdm_teams" "test_team" {
+					resource "automdm_teams" "test_team" {
 						name          = "%s"
 						description   = "Awesomer description"
 						agent_options = jsonencode(%s)
 					}
 				`, NewTeamName, upAO),
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("fleetdm_teams.test_team", "name", NewTeamName),
-					resource.TestCheckResourceAttr("fleetdm_teams.test_team", "description", "Awesomer description"),
-					resource.TestCheckResourceAttr("fleetdm_teams.test_team", "agent_options", upAO),
+					resource.TestCheckResourceAttr("automdm_teams.test_team", "name", NewTeamName),
+					resource.TestCheckResourceAttr("automdm_teams.test_team", "description", "Awesomer description"),
+					resource.TestCheckResourceAttr("automdm_teams.test_team", "agent_options", upAO),
 				),
 			},
 		},
 	})
 }
 
-func TestAccFleetdmTeams_update_each(t *testing.T) {
+func TestAccAutoMDMTeams_update_each(t *testing.T) {
 	teamName := fmt.Sprintf("aaa-%s",
 		acctest.RandStringFromCharSet(6, acctest.CharSetAlpha))
 	NewTeamName := fmt.Sprintf("aaa-%s-new",
@@ -127,94 +127,94 @@ func TestAccFleetdmTeams_update_each(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: fmt.Sprintf(`
-					resource "fleetdm_teams" "test_team" {
+					resource "automdm_teams" "test_team" {
 						name          = "%s"
 					}
 				`, teamName),
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("fleetdm_teams.test_team", "name", teamName),
-					resource.TestCheckResourceAttr("fleetdm_teams.test_team", "description", ""),
-					resource.TestCheckResourceAttr("fleetdm_teams.test_team", "agent_options", defaultAgentOptions),
+					resource.TestCheckResourceAttr("automdm_teams.test_team", "name", teamName),
+					resource.TestCheckResourceAttr("automdm_teams.test_team", "description", ""),
+					resource.TestCheckResourceAttr("automdm_teams.test_team", "agent_options", defaultAgentOptions),
 				),
 			},
 			{
 				Config: fmt.Sprintf(`
-					resource "fleetdm_teams" "test_team" {
-						name          = "%s"
-						description   = "Awesome description"
-					}
-				`, teamName),
-				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("fleetdm_teams.test_team", "name", teamName),
-					resource.TestCheckResourceAttr("fleetdm_teams.test_team", "description", "Awesome description"),
-					resource.TestCheckResourceAttr("fleetdm_teams.test_team", "agent_options", defaultAgentOptions),
-				),
-			},
-			{
-				Config: fmt.Sprintf(`
-					resource "fleetdm_teams" "test_team" {
+					resource "automdm_teams" "test_team" {
 						name          = "%s"
 						description   = "Awesome description"
 					}
 				`, teamName),
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("fleetdm_teams.test_team", "name", teamName),
-					resource.TestCheckResourceAttr("fleetdm_teams.test_team", "description", "Awesome description"),
-					resource.TestCheckResourceAttr("fleetdm_teams.test_team", "agent_options", defaultAgentOptions),
+					resource.TestCheckResourceAttr("automdm_teams.test_team", "name", teamName),
+					resource.TestCheckResourceAttr("automdm_teams.test_team", "description", "Awesome description"),
+					resource.TestCheckResourceAttr("automdm_teams.test_team", "agent_options", defaultAgentOptions),
 				),
 			},
 			{
 				Config: fmt.Sprintf(`
-					resource "fleetdm_teams" "test_team" {
+					resource "automdm_teams" "test_team" {
+						name          = "%s"
+						description   = "Awesome description"
+					}
+				`, teamName),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("automdm_teams.test_team", "name", teamName),
+					resource.TestCheckResourceAttr("automdm_teams.test_team", "description", "Awesome description"),
+					resource.TestCheckResourceAttr("automdm_teams.test_team", "agent_options", defaultAgentOptions),
+				),
+			},
+			{
+				Config: fmt.Sprintf(`
+					resource "automdm_teams" "test_team" {
 						name          = "%s"
 						description   = "Awesome description"
 					}
 				`, NewTeamName),
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("fleetdm_teams.test_team", "name", NewTeamName),
-					resource.TestCheckResourceAttr("fleetdm_teams.test_team", "description", "Awesome description"),
-					resource.TestCheckResourceAttr("fleetdm_teams.test_team", "agent_options", defaultAgentOptions),
+					resource.TestCheckResourceAttr("automdm_teams.test_team", "name", NewTeamName),
+					resource.TestCheckResourceAttr("automdm_teams.test_team", "description", "Awesome description"),
+					resource.TestCheckResourceAttr("automdm_teams.test_team", "agent_options", defaultAgentOptions),
 				),
 			},
 			{
 				Config: fmt.Sprintf(`
-					resource "fleetdm_teams" "test_team" {
+					resource "automdm_teams" "test_team" {
 						name          = "%s"
 						description   = "Awesomer description"
 					}
 				`, NewTeamName),
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("fleetdm_teams.test_team", "name", NewTeamName),
-					resource.TestCheckResourceAttr("fleetdm_teams.test_team", "description", "Awesomer description"),
-					resource.TestCheckResourceAttr("fleetdm_teams.test_team", "agent_options", defaultAgentOptions),
+					resource.TestCheckResourceAttr("automdm_teams.test_team", "name", NewTeamName),
+					resource.TestCheckResourceAttr("automdm_teams.test_team", "description", "Awesomer description"),
+					resource.TestCheckResourceAttr("automdm_teams.test_team", "agent_options", defaultAgentOptions),
 				),
 			},
 			{
 				Config: fmt.Sprintf(`
-					resource "fleetdm_teams" "test_team" {
+					resource "automdm_teams" "test_team" {
 						name          = "%s"
 						description   = "Awesomer description"
 						agent_options = jsonencode(%s)
 					}
 				`, NewTeamName, newAO),
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("fleetdm_teams.test_team", "name", NewTeamName),
-					resource.TestCheckResourceAttr("fleetdm_teams.test_team", "description", "Awesomer description"),
-					resource.TestCheckResourceAttr("fleetdm_teams.test_team", "agent_options", newAO),
+					resource.TestCheckResourceAttr("automdm_teams.test_team", "name", NewTeamName),
+					resource.TestCheckResourceAttr("automdm_teams.test_team", "description", "Awesomer description"),
+					resource.TestCheckResourceAttr("automdm_teams.test_team", "agent_options", newAO),
 				),
 			},
 			{
 				Config: fmt.Sprintf(`
-					resource "fleetdm_teams" "test_team" {
+					resource "automdm_teams" "test_team" {
 						name          = "%s"
 						description   = "Awesomer description"
 						agent_options = jsonencode(%s)
 					}
 				`, NewTeamName, upAO),
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("fleetdm_teams.test_team", "name", NewTeamName),
-					resource.TestCheckResourceAttr("fleetdm_teams.test_team", "description", "Awesomer description"),
-					resource.TestCheckResourceAttr("fleetdm_teams.test_team", "agent_options", upAO),
+					resource.TestCheckResourceAttr("automdm_teams.test_team", "name", NewTeamName),
+					resource.TestCheckResourceAttr("automdm_teams.test_team", "description", "Awesomer description"),
+					resource.TestCheckResourceAttr("automdm_teams.test_team", "agent_options", upAO),
 				),
 			},
 		},

@@ -7,7 +7,7 @@ data "terraform_remote_state" "signoz" {
   count   = var.enable_otel ? 1 : 0
   backend = "s3"
   config = {
-    bucket               = "fleet-terraform-state20220408141538466600000002"
+    bucket               = "automdm-terraform-state20220408141538466600000002"
     key                  = "loadtesting/loadtesting/signoz/terraform.tfstate"
     workspace_key_prefix = "loadtesting"
     region               = "us-east-2"
@@ -28,7 +28,7 @@ output "signoz_cluster_name" {
 }
 
 output "signoz_otel_collector_endpoint" {
-  description = "Internal OTLP collector endpoint for Fleet"
+  description = "Internal OTLP collector endpoint for AutoMDM"
   value       = var.enable_otel ? try(data.terraform_remote_state.signoz[0].outputs.otel_collector_endpoint, "SigNoz not deployed yet") : null
 }
 

@@ -14,8 +14,8 @@ describe("Avatar - component", () => {
     expect(avatar).toHaveAttribute("src", "https://example.com/avatar.png");
   });
 
-  it("renders the fleet avatar if useFleetAvatar is `true`", () => {
-    render(<Avatar useFleetAvatar user={{}} />);
-    expect(screen.getByTestId("fleet-avatar")).toBeVisible();
+  it("renders the team avatar if useAutoMDMAvatar is `true`", () => {
+    render(<Avatar useAutoMDMAvatar user={{}} />);
+    expect(screen.getByTestId("automdm-avatar")).toBeVisible();
   });
 });

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 )
@@ -30,12 +30,12 @@ func (ds *Datastore) BatchNewInternalHostScriptExecutionRequests(ctx context.Con
 		executionIDs = append(executionIDs, executionID)
 	}
 
-	// fleet_initiated is always set: everything queued here is internal, so
-	// there's no user to attribute it to and the activity feed shows "Fleet"
+	// automdm_initiated is always set: everything queued here is internal, so
+	// there's no user to attribute it to and the activity feed shows "AutoMDM"
 	// rather than a blank actor.
 	const insertActivitiesStmt = `
 INSERT INTO upcoming_activities
-	(host_id, priority, fleet_initiated, activity_type, execution_id, payload)
+	(host_id, priority, automdm_initiated, activity_type, execution_id, payload)
 VALUES
 	(:host_id, 0, 1, 'script', :execution_id,
 		JSON_OBJECT('sync_request', :sync_request, 'is_internal', :is_internal)

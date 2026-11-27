@@ -221,7 +221,7 @@ const EditConfigurationModal = ({
         <CustomLink
           newTab
           text="variables"
-          url={`${LEARN_MORE_ABOUT_BASE_LINK}/fleet-variables`}
+          url={`${LEARN_MORE_ABOUT_BASE_LINK}/automdm-variables`}
         />
       </p>
     );

@@ -6,13 +6,13 @@ import (
 	"errors"
 	"slices"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/apple/apple_apps"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/mdm/apple/apple_apps"
 )
 
 // RefreshVersions updates the LatestVersion fields for the VPP apps stored in
-// Fleet. For each (adam_id, platform) row it picks a token to refresh from,
+// AutoMDM. For each (adam_id, platform) row it picks a token to refresh from,
 // preferring a token of that row's anchored country (the storefront the row
 // was originally added from). If no token of the anchored country owns the
 // app, it falls back to any other token that owns it and re-anchors the row
@@ -20,7 +20,7 @@ import (
 // per-row because two platforms of the same adam_id can have diverged
 // anchors. Apps that no remaining token owns are skipped silently and keep
 // their last-known metadata.
-func RefreshVersions(ctx context.Context, ds fleet.Datastore, vppAppsConfig apple_apps.Config) error {
+func RefreshVersions(ctx context.Context, ds automdm.Datastore, vppAppsConfig apple_apps.Config) error {
 	apps, err := ds.GetAllVPPApps(ctx)
 	if err != nil {
 		return ctxerr.Wrap(ctx, err, "getting all VPP apps")
@@ -35,16 +35,16 @@ func RefreshVersions(ctx context.Context, ds fleet.Datastore, vppAppsConfig appl
 	}
 
 	// Iterate tokens in deterministic order so the picks below are stable.
-	slices.SortFunc(tokens, func(a, b *fleet.VPPTokenDB) int { return cmp.Compare(a.ID, b.ID) })
+	slices.SortFunc(tokens, func(a, b *automdm.VPPTokenDB) int { return cmp.Compare(a.ID, b.ID) })
 
 	// Anchoring is per (adam_id, platform), so picks and bundles key on the
 	// pair. The asset list from Apple is per-adamID, but two platforms of
 	// the same adamID may resolve to different tokens.
 	type appKey struct {
 		adamID   string
-		platform fleet.InstallableDevicePlatform
+		platform automdm.InstallableDevicePlatform
 	}
-	appsByKey := make(map[appKey]*fleet.VPPApp, len(apps))
+	appsByKey := make(map[appKey]*automdm.VPPApp, len(apps))
 	for _, app := range apps {
 		appsByKey[appKey{adamID: app.AdamID, platform: app.Platform}] = app
 	}
@@ -58,7 +58,7 @@ func RefreshVersions(ctx context.Context, ds fleet.Datastore, vppAppsConfig appl
 		err   error
 	}
 	ownedByToken := make(map[uint]ownedResult, len(tokens))
-	getOwned := func(tok *fleet.VPPTokenDB) ownedResult {
+	getOwned := func(tok *automdm.VPPTokenDB) ownedResult {
 		if r, ok := ownedByToken[tok.ID]; ok {
 			return r
 		}
@@ -81,7 +81,7 @@ func RefreshVersions(ctx context.Context, ds fleet.Datastore, vppAppsConfig appl
 	// token to refresh from. Prefer tokens of the row's anchored country;
 	// fall back to any other token that owns the app.
 	type pick struct {
-		token *fleet.VPPTokenDB
+		token *automdm.VPPTokenDB
 	}
 	picks := make(map[appKey]pick)
 
@@ -142,7 +142,7 @@ func RefreshVersions(ctx context.Context, ds fleet.Datastore, vppAppsConfig appl
 	// bundle. The Apple call is by token+region with deduped adamIDs; the
 	// metadata loop dispatches per-platform back to the picked rows.
 	type bundle struct {
-		token   *fleet.VPPTokenDB
+		token   *automdm.VPPTokenDB
 		keys    []appKey
 		adamIDs []string
 	}
@@ -171,7 +171,7 @@ func RefreshVersions(ctx context.Context, ds fleet.Datastore, vppAppsConfig appl
 	}
 	slices.SortFunc(bundles, func(a, b *bundle) int { return cmp.Compare(a.token.ID, b.token.ID) })
 
-	var appsToUpdate []*fleet.VPPApp
+	var appsToUpdate []*automdm.VPPApp
 	var bundleErrs []error
 	for _, b := range bundles {
 		meta, err := apple_apps.GetMetadata(b.adamIDs, b.token.CountryCode, b.token.Token, vppAppsConfig)

@@ -1,5 +1,5 @@
 data "aws_secretsmanager_secret" "license" {
-  name = "/fleet/license"
+  name = "/automdm/license"
 }
 
 data "aws_secretsmanager_secret_version" "enroll_secret" {

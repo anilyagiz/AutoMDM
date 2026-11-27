@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/require"
 )
 
@@ -94,8 +94,8 @@ func TestNewToolchainRulesRejects(t *testing.T) {
 }
 
 func TestToolchainRulesFrom(t *testing.T) {
-	homebrewGo := &fleet.Software{Name: "go", Source: "homebrew_packages", Version: "1.22.4"}
-	chocolateyGo := &fleet.Software{Name: "golang", Source: "chocolatey_packages", Version: "1.22.4"}
+	homebrewGo := &automdm.Software{Name: "go", Source: "homebrew_packages", Version: "1.22.4"}
+	chocolateyGo := &automdm.Software{Name: "golang", Source: "chocolatey_packages", Version: "1.22.4"}
 
 	newLogger := func() (*slog.Logger, *bytes.Buffer) {
 		var buf bytes.Buffer

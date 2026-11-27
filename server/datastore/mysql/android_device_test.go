@@ -7,12 +7,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
-	"github.com/fleetdm/fleet/v4/server/platform/mysql/testing_utils"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/platform/mysql/testing_utils"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -39,7 +39,7 @@ func TestAndroidDevices(t *testing.T) {
 
 func testCreateGetDevice(t *testing.T, ds *Datastore) {
 	_, err := ds.getDeviceByDeviceID(testCtx(), "deviceID")
-	assert.True(t, fleet.IsNotFound(err))
+	assert.True(t, automdm.IsNotFound(err))
 
 	device1 := &android.Device{
 		HostID:               1,

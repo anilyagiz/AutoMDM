@@ -21,7 +21,7 @@ interface ISliderProps {
   disabled?: boolean;
 }
 
-const baseClass = "fleet-slider";
+const baseClass = "automdm-slider";
 
 const Slider = (props: ISliderProps): JSX.Element => {
   const {

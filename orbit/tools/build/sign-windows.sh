@@ -25,7 +25,7 @@ work_file="${input_file}_old"
 
 mv "$input_file" "$work_file"
 
-osslsigncode sign -pkcs12 "./orbit/tools/build/fleetdm.pfx" -pass "fleetdm" -n "Fleet Osquery" -i "https://www.fleetdm.com" -t "http://timestamp.comodoca.com/authenticode" -in "$work_file" -out "$input_file"
+osslsigncode sign -pkcs12 "./orbit/tools/build/automdm.pfx" -pass "automdm" -n "AutoMDM Osquery" -i "https://automdm.com" -t "http://timestamp.comodoca.com/authenticode" -in "$work_file" -out "$input_file"
 
 retVal=$?
 if [ $retVal -ne 0 ]; then

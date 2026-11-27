@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// jitterHashTable implements a data structure that allows a fleet to generate a static jitter value
+// jitterHashTable implements a data structure that allows a team to generate a static jitter value
 // that is properly balanced. Balance in this context means that hosts would be distributed uniformly
 // across the total jitter time so there are no spikes.
 // The way this structure works is as follows:
@@ -15,7 +15,7 @@ import (
 // The total amount of online hosts is unknown, so first it assumes that amount of buckets >= amount
 // of total hosts (maxCapacity of 1 per bucket). Once we have more hosts than buckets, then we
 // increase the maxCapacity by 1 for all buckets, and start placing hosts.
-// Hosts that have been placed in a bucket remain in that bucket for as long as the fleet instance is
+// Hosts that have been placed in a bucket remain in that bucket for as long as the automdm instance is
 // running.
 // The preferred bucket for a host is the one at (host id % bucketCount). If that bucket is full, the
 // next one will be tried. If all buckets are full, then capacity gets increased and the bucket
@@ -26,7 +26,7 @@ import (
 // distribute within 6 minutes around the hour mark. We would have 6 buckets in that case.
 // In the worst possible case that all hosts start at the same time, max jitter percent can be set to
 // 100, and this method will distribute hosts evenly.
-// The main caveat of this approach is that it works at the fleet instance. So depending on what
+// The main caveat of this approach is that it works at the automdm instance. So depending on what
 // instance gets chosen by the load balancer, the jitter might be different. However, load tests have
 // shown that the distribution in practice is pretty balance even when all hosts try to check in at
 // the same time.

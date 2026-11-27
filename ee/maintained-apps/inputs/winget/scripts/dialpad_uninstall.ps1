@@ -7,7 +7,7 @@
 
 $displayNamePattern = '^Dialpad$'
 $publisher = "Dialpad"
-$taskName = "fleet-uninstall-dialpad"
+$taskName = "automdm-uninstall-dialpad"
 $appDir = "AppData\Local\dialpad"  # in each user's profile
 $taskRunning = 267009  # SCHED_S_TASK_RUNNING
 $timeoutSeconds = 300

@@ -12,8 +12,8 @@ import (
 const codexID = "7f3c1a2b-1111-2222-3333-444455556666"
 
 var codexLegacy = lines(
-	`{"timestamp":"2026-08-01T12:00:00.000Z","type":"session_meta","payload":{"id":"`+codexID+`","session_id":"`+codexID+`","timestamp":"2026-08-01T12:00:00.000Z","cwd":"/Users/alice/GitHub/fleet","originator":"codex_cli_rs","cli_version":"0.20.0","model_provider":"openai","git":{"branch":"main","repository_url":"https://x-access-token:ghp_FAKE@github.com/fleetdm/fleet"}}}`,
-	`{"timestamp":"2026-08-01T12:00:01.000Z","type":"turn_context","payload":{"cwd":"/Users/alice/GitHub/fleet","model":"gpt-5","effort":"medium"}}`,
+	`{"timestamp":"2026-08-01T12:00:00.000Z","type":"session_meta","payload":{"id":"`+codexID+`","session_id":"`+codexID+`","timestamp":"2026-08-01T12:00:00.000Z","cwd":"/Users/alice/GitHub/automdm","originator":"codex_cli_rs","cli_version":"0.20.0","model_provider":"openai","git":{"branch":"main","repository_url":"https://x-access-token:ghp_FAKE@github.com/anilyagiz/automdm"}}}`,
+	`{"timestamp":"2026-08-01T12:00:01.000Z","type":"turn_context","payload":{"cwd":"/Users/alice/GitHub/automdm","model":"gpt-5","effort":"medium"}}`,
 	`{"timestamp":"2026-08-01T12:00:01.500Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"<environment_context>cwd</environment_context>"}]}}`,
 	`{"timestamp":"2026-08-01T12:00:02.000Z","type":"event_msg","payload":{"type":"user_message","message":"run the tests"}}`,
 	`{"timestamp":"2026-08-01T12:00:02.000Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"run the tests"}]}}`,
@@ -56,9 +56,9 @@ func TestCodexCLISession(t *testing.T) {
 	s := onlySession(t, agentCodexCLI)
 	requireRow(t, map[string]string{
 		"session_id":         codexID,
-		"project_path":       "/Users/alice/GitHub/fleet",
+		"project_path":       "/Users/alice/GitHub/automdm",
 		"git_branch":         "main",
-		"git_repository":     "https://github.com/fleetdm/fleet",
+		"git_repository":     "https://github.com/anilyagiz/automdm",
 		"agent_version":      "0.20.0",
 		"model":              "gpt-5",
 		"user_messages":      "1",

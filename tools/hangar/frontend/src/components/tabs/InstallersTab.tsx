@@ -40,11 +40,11 @@ const LOG_LEVELS = ["debug", "info", "warn", "error"];
 // a fixed minimum height keeps the card from shifting when it does.
 const SHARE_ROW: React.CSSProperties = { display: "flex", alignItems: "center", gap: "var(--pad-small)", flexWrap: "wrap", minHeight: 40 };
 const SHARE_BUTTON: React.CSSProperties = { minWidth: 130 };
-// Fleet dropdown values: the enroll secret was typed by hand, or no fleet has
-// been picked yet. Real fleets use fleetOptionValue.
-const MANUAL_FLEET = "__manual__";
-const NO_FLEET = "__none__";
-// Context dropdown value for building without a fleetctl context.
+// Team dropdown values: the enroll secret was typed by hand, or no team has
+// been picked yet. Real teams use automdmOptionValue.
+const MANUAL_AUTOMDM = "__manual__";
+const NO_TEAM = "__none__";
+// Context dropdown value for building without an automdmctl context.
 const NO_CONTEXT = "__none__";
 
 export function InstallersTab({
@@ -57,7 +57,7 @@ export function InstallersTab({
   procs: ProcInfo[];
 }) {
   const cfg = settings.installers;
-  // null until ~/.fleet/config has been read, so the card doesn't mount in
+  // null until ~/.automdm/config has been read, so the card doesn't mount in
   // manual mode first and then jump to a context.
   const [contexts, setContexts] = useState<ContextSummary[] | null>(null);
   const [contextsErr, setContextsErr] = useState("");
@@ -75,7 +75,7 @@ export function InstallersTab({
 
   const loadContexts = useCallback(() => {
     api
-      .fleetctlReadContext()
+      .automdmctlReadContext()
       .then((c) => {
         setContexts(c.contexts);
         setContextsErr("");
@@ -128,7 +128,7 @@ export function InstallersTab({
   // Only contexts with an address can be scanned or built for.
   const usable = (contexts ?? []).filter((c) => !!c.address);
   const manual = cfg.manual || usable.length === 0;
-  // Until a context is picked here, use "default" (fleetctl's own default).
+  // Until a context is picked here, use "default" (automdmctl's own default).
   const contextName = manual
     ? ""
     : usable.some((c) => c.name === cfg.context)
@@ -176,7 +176,7 @@ export function InstallersTab({
         }}
       >
         {contexts === null ? (
-          <div className="dim">Reading fleetctl contexts…</div>
+          <div className="dim">Reading automdmctl contexts…</div>
         ) : (
           <BuildCard
             key={manual ? NO_CONTEXT : contextName}
@@ -249,7 +249,7 @@ function BuildCard({
   const [showLog, setShowLog] = useState(false);
   const [showFiles, setShowFiles] = useState(false);
 
-  // Async results (scan, fleet secret) merge into the latest target, not the
+  // Async results (scan, automdm secret) merge into the latest target, not the
   // one from the render that started them.
   const targetRef = useRef(target);
   targetRef.current = target;
@@ -259,11 +259,11 @@ function BuildCard({
   // One build runs at a time, for whichever context started it; its label says
   // which (built the same way in InstallersStartBuild).
   const building = proc?.state === "running" || proc?.state === "stopping";
-  const ownProc = proc?.label === (manual ? "fleetd packages (manual)" : `fleetd packages (${contextName})`) ? proc : undefined;
+  const ownProc = proc?.label === (manual ? "automdmd packages (manual)" : `automdmd packages (${contextName})`) ? proc : undefined;
   const ownBuilding = building && !!ownProc;
   const address = contexts.find((c) => c.name === contextName)?.address ?? "";
 
-  // Re-read now and then: building fleetctl from the Server tab, or changing
+  // Re-read now and then: building automdmctl from the Server tab, or changing
   // the file server's directory, changes the answer.
   useEffect(() => {
     let cancelled = false;
@@ -313,9 +313,9 @@ function BuildCard({
     };
   }, [options.extra_flags]);
 
-  // Reads the context's server: its server_url, license and fleets. A fleet
+  // Reads the context's server: its server_url, license and teams. A team
   // picked earlier gets its secret re-read (secrets can be rotated); on a first
-  // visit it's the global (Unassigned) secret, like fleetctl's own examples. A
+  // visit it's the global (Unassigned) secret, like automdmctl's own examples. A
   // secret typed (or cleared) by hand is left alone. When the server can't be
   // read, the URL falls back to the context's address and everything stays
   // editable by hand.
@@ -331,8 +331,8 @@ function BuildCard({
       setScan(res);
       setScanErr("");
       const cur = targetRef.current;
-      const firstVisit = !cur.fleet_url.trim() && !cur.enroll_secret.trim() && !cur.team_name;
-      if (!cur.fleet_url.trim()) update({ fleet_url: res.server_url || address });
+      const firstVisit = !cur.automdm_url.trim() && !cur.enroll_secret.trim() && !cur.team_name;
+      if (!cur.automdm_url.trim()) update({ automdm_url: res.server_url || address });
       const team = cur.team_name
         ? res.teams.find((t) => (t.id ?? null) === (cur.team_id ?? null))
         : firstVisit
@@ -345,7 +345,7 @@ function BuildCard({
       }
       let secret: string;
       try {
-        secret = await api.installersFleetSecret(contextName, team.id ?? null);
+        secret = await api.installersAutoMDMSecret(contextName, team.id ?? null);
       } catch (e) {
         if (seq === scanSeq.current) setSecretErr(errText(e));
         return;
@@ -358,7 +358,7 @@ function BuildCard({
       if (seq !== scanSeq.current) return;
       setScan(null);
       setScanErr(errText(e));
-      if (!targetRef.current.fleet_url.trim() && address) update({ fleet_url: address });
+      if (!targetRef.current.automdm_url.trim() && address) update({ automdm_url: address });
     } finally {
       if (seq === scanSeq.current) setScanning(false);
     }
@@ -446,12 +446,12 @@ function BuildCard({
       platforms: o.platforms.includes(key) ? o.platforms.filter((p) => p !== key) : [...o.platforms, key],
     }));
 
-  // Picking a fleet fills its enroll secret (and the Fleet URL if empty). The
-  // fleet is only applied once its secret is in hand, so a failed read leaves
-  // the old fleet and secret as they were, and a slower earlier pick can't land
+  // Picking a team fills its enroll secret (and the AutoMDM URL if empty). The
+  // team is only applied once its secret is in hand, so a failed read leaves
+  // the old team and secret as they were, and a slower earlier pick can't land
   // after a later one.
   const pickSeq = useRef(0);
-  // Switching tabs unmounts this card; a scan or fleet read finishing after
+  // Switching tabs unmounts this card; a scan or team read finishing after
   // that would save a stale copy of the settings, so it's dropped instead.
   useEffect(
     () => () => {
@@ -461,16 +461,16 @@ function BuildCard({
     [],
   );
   const pickTeam = async (value: string) => {
-    const team = scan?.teams.find((t) => fleetOptionValue(t.id ?? null) === value);
+    const team = scan?.teams.find((t) => automdmOptionValue(t.id ?? null) === value);
     if (!team?.has_secret) return;
     const seq = ++pickSeq.current;
-    // A rescan finishing now must not re-read the previous fleet over this one.
+    // A rescan finishing now must not re-read the previous team over this one.
     scanSeq.current++;
     setScanning(false);
     const cur = targetRef.current;
     try {
-      const secret = await api.installersFleetSecret(contextName, team.id ?? null);
-      // A secret typed (or another fleet picked) meanwhile wins over this read.
+      const secret = await api.installersAutoMDMSecret(contextName, team.id ?? null);
+      // A secret typed (or another team picked) meanwhile wins over this read.
       const now = targetRef.current;
       if (seq !== pickSeq.current || now.team_name !== cur.team_name || now.enroll_secret !== cur.enroll_secret) return;
       setSecretErr("");
@@ -478,7 +478,7 @@ function BuildCard({
         team_id: team.id ?? null,
         team_name: team.name,
         enroll_secret: secret,
-        fleet_url: targetRef.current.fleet_url.trim() || scan?.server_url || address,
+        automdm_url: targetRef.current.automdm_url.trim() || scan?.server_url || address,
       });
     } catch (e) {
       if (seq === pickSeq.current) flash("err", errText(e));
@@ -502,13 +502,13 @@ function BuildCard({
   };
 
   const manualSecret = !!target.enroll_secret.trim() && !target.team_name;
-  const fleetValue = manualSecret ? MANUAL_FLEET : target.team_name ? fleetOptionValue(target.team_id ?? null) : NO_FLEET;
+  const automdmValue = manualSecret ? MANUAL_AUTOMDM : target.team_name ? automdmOptionValue(target.team_id ?? null) : NO_TEAM;
   const selectedTeam = target.team_name ? scan?.teams.find((t) => (t.id ?? null) === (target.team_id ?? null)) : undefined;
   const missing: string[] = [];
   if (!info) missing.push(infoErr ? `context details (${infoErr})` : "context details");
-  if (info && !info.fleetctl_exists) missing.push("fleetctl build");
+  if (info && !info.automdmctl_exists) missing.push("automdmctl build");
   if (info?.output_err) missing.push("a packages folder");
-  if (!target.fleet_url.trim()) missing.push("Fleet URL");
+  if (!target.automdm_url.trim()) missing.push("AutoMDM URL");
   if (!target.enroll_secret.trim()) missing.push("enroll secret");
   if (options.platforms.length === 0) missing.push("a platform");
   if (options.update_source === UPDATE_LOCAL_TUF && !localTuf?.available) missing.push("local TUF");
@@ -522,25 +522,25 @@ function BuildCard({
     .map((k) => planned[k])
     .filter((name): name is string => !!name && existing.has(name))
     .map((name) => existing.get(name)!);
-  // Two fleet names can come out as the same file name ("Work Stations" and
-  // "work-stations"), so say when the packages being replaced are another fleet's.
-  const otherFleets = target.team_name
+  // Two team names can come out as the same file name ("Work Stations" and
+  // "work-stations"), so say when the packages being replaced are another team's.
+  const otherTeams = target.team_name
     ? Array.from(new Set(overwrites.map((f) => f.build?.team).filter((t): t is string => !!t && t !== target.team_name)))
     : [];
 
-  const fleetUrl = target.fleet_url.trim();
-  const loopback = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/.test(fleetUrl);
-  const urlMatchesScan = !!scan?.server_url && fleetUrl.replace(/\/+$/, "") === scan.server_url.replace(/\/+$/, "");
+  const automdmUrl = target.automdm_url.trim();
+  const loopback = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/.test(automdmUrl);
+  const urlMatchesScan = !!scan?.server_url && automdmUrl.replace(/\/+$/, "") === scan.server_url.replace(/\/+$/, "");
 
   // Flag non-default agent options so a customized build isn't a surprise.
   const nonStable = [options.orbit_channel, options.desktop_channel, options.osqueryd_channel].some((ch) => ch && ch !== "stable");
   const customized =
-    !options.fleet_desktop || !options.enable_scripts || options.update_source === UPDATE_LOCAL_TUF || nonStable || options.debug || !!options.extra_flags.trim();
+    !options.automdm_desktop || !options.enable_scripts || options.update_source === UPDATE_LOCAL_TUF || nonStable || options.debug || !!options.extra_flags.trim();
 
   return (
     <div className="card" style={{ display: "flex", flexDirection: "column", gap: "var(--pad-smedium)" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "var(--pad-small)", flexWrap: "wrap" }}>
-        <div className="section-title" style={{ margin: 0 }}>Build fleetd packages for</div>
+        <div className="section-title" style={{ margin: 0 }}>Build automdmd packages for</div>
         <select value={manual ? NO_CONTEXT : contextName} onChange={(e) => onContextChange(e.target.value)} disabled={building} style={{ minWidth: 260 }}>
           {contexts.map((c) => (
             <option key={c.name} value={c.name}>
@@ -549,53 +549,53 @@ function BuildCard({
           ))}
           <option value={NO_CONTEXT}>No context — enter the URL and secret by hand</option>
         </select>
-        <button className="link-btn" onClick={onReloadContexts} title="Re-read ~/.fleet/config">
+        <button className="link-btn" onClick={onReloadContexts} title="Re-read ~/.automdm/config">
           reload contexts
         </button>
         <div style={{ flex: 1 }} />
         {!info && infoErr && <span style={{ color: "var(--ui-error)" }}>{infoErr}</span>}
         {info && (
-          <span className={info.fleetctl_exists ? "dim" : undefined} style={{ color: info.fleetctl_exists ? undefined : "var(--ui-error)" }} title={info.fleetctl}>
-            {info.fleetctl_exists
-              ? info.fleetctl_server
-                ? `builds with ${info.fleetctl_server}'s fleetctl`
-                : "builds with Hangar's fleetctl"
-              : "fleetctl not built — build it from the Server tab"}
+          <span className={info.automdmctl_exists ? "dim" : undefined} style={{ color: info.automdmctl_exists ? undefined : "var(--ui-error)" }} title={info.automdmctl}>
+            {info.automdmctl_exists
+              ? info.automdmctl_server
+                ? `builds with ${info.automdmctl_server}'s automdmctl`
+                : "builds with Hangar's automdmctl"
+              : "automdmctl not built — build it from the Server tab"}
           </span>
         )}
       </div>
       {contextsErr ? (
-        <span style={{ color: "var(--ui-warning)" }}>Couldn't read ~/.fleet/config ({contextsErr}). Enter the URL and secret by hand, or reload contexts.</span>
+        <span style={{ color: "var(--ui-warning)" }}>Couldn't read ~/.automdm/config ({contextsErr}). Enter the URL and secret by hand, or reload contexts.</span>
       ) : (
         contexts.length === 0 && (
-          <span className="dim">No fleetctl contexts with an address in ~/.fleet/config. Log in from the fleetctl tab to pick fleets from a server.</span>
+          <span className="dim">No automdmctl contexts with an address in ~/.automdm/config. Log in from the automdmctl tab to pick teams from a server.</span>
         )
       )}
 
-      {/* Where the enroll secret comes from: a fleet on the context's server, or typed in */}
+      {/* Where the enroll secret comes from: a team on the context's server, or typed in */}
       {!manual && (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <Field label="Fleet" htmlFor="installers-fleet">
+          <Field label="AutoMDM" htmlFor="installers-automdm">
             <div style={{ display: "flex", gap: "var(--pad-small)" }}>
-              <select id="installers-fleet" value={fleetValue} onChange={(e) => pickTeam(e.target.value)} disabled={!scan} style={{ flex: 1, minWidth: 0 }}>
-                {/* A hand-entered secret belongs to no fleet Hangar knows about, so
-                    the dropdown says so instead of showing the last fleet picked. */}
-                {manualSecret && <option value={MANUAL_FLEET}>— secret entered by hand</option>}
+              <select id="installers-automdm" value={automdmValue} onChange={(e) => pickTeam(e.target.value)} disabled={!scan} style={{ flex: 1, minWidth: 0 }}>
+                {/* A hand-entered secret belongs to no team Hangar knows about, so
+                    the dropdown says so instead of showing the last team picked. */}
+                {manualSecret && <option value={MANUAL_AUTOMDM}>— secret entered by hand</option>}
                 {!scan && !manualSecret && (
-                  <option value={fleetValue}>{scanning ? "loading fleets…" : target.team_name || "fleets unavailable — enter the secret below"}</option>
+                  <option value={automdmValue}>{scanning ? "loading teams…" : target.team_name || "teams unavailable — enter the secret below"}</option>
                 )}
                 {scan && !manualSecret && !selectedTeam && (
-                  <option value={fleetValue}>{target.team_name ? `${target.team_name} (not found)` : "pick a fleet"}</option>
+                  <option value={automdmValue}>{target.team_name ? `${target.team_name} (not found)` : "pick a team"}</option>
                 )}
                 {scan?.teams.map((t) => (
-                  <option key={t.id ?? "none"} value={fleetOptionValue(t.id ?? null)} disabled={!t.has_secret}>
+                  <option key={t.id ?? "none"} value={automdmOptionValue(t.id ?? null)} disabled={!t.has_secret}>
                     {t.name}
                     {t.has_secret ? "" : t.secret_hidden ? " (secret hidden from this user)" : " (no enroll secret)"}
                   </option>
                 ))}
               </select>
               {/* The label stays in the layout (hidden) under the spinner so the button never changes size. */}
-              <button onClick={runScan} disabled={scanning} aria-label={scanning ? "Loading" : "Reload"} title="Read the fleets again" style={{ position: "relative" }}>
+              <button onClick={runScan} disabled={scanning} aria-label={scanning ? "Loading" : "Reload"} title="Read the teams again" style={{ position: "relative" }}>
                 <span style={{ visibility: scanning ? "hidden" : "visible" }}>Reload</span>
                 {scanning && (
                   <span style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -607,18 +607,18 @@ function BuildCard({
           </Field>
           {scanErr ? (
             <span style={{ color: "var(--ui-warning)" }}>
-              Couldn't read fleets through <span className="mono">{contextName}</span>: {scanErr}. You can still build. Check the Fleet URL and paste an
+              Couldn't read teams through <span className="mono">{contextName}</span>: {scanErr}. You can still build. Check the AutoMDM URL and paste an
               enroll secret below.
             </span>
           ) : scan ? (
             <span className="dim">
               {scan.premium
-                ? `Premium · ${scan.teams.length - 1} fleet${scan.teams.length === 2 ? "" : "s"}`
-                : "Free · Unassigned only (fleets need Premium)"}
+                ? `Premium · ${scan.teams.length - 1} team${scan.teams.length === 2 ? "" : "s"}`
+                : "Free · Unassigned only (teams need Premium)"}
             </span>
           ) : null}
           {secretErr && (
-            <span style={{ color: "var(--ui-warning)" }}>Couldn't read the enroll secret: {secretErr}. Pick another fleet or paste a secret below.</span>
+            <span style={{ color: "var(--ui-warning)" }}>Couldn't read the enroll secret: {secretErr}. Pick another team or paste a secret below.</span>
           )}
         </div>
       )}
@@ -626,8 +626,8 @@ function BuildCard({
       {/* What gets baked into the packages — visible so it's easy to confirm */}
       <div style={{ display: "flex", gap: "var(--pad-medium)", flexWrap: "wrap" }}>
         <Field
-          label="Fleet URL"
-          htmlFor="installers-fleet-url"
+          label="AutoMDM URL"
+          htmlFor="installers-automdm-url"
           hint={
             loopback
               ? "Loopback address — other machines can't reach it. Use the public (e.g. ngrok) URL."
@@ -640,9 +640,9 @@ function BuildCard({
           warn={loopback}
         >
           <div style={{ display: "flex", gap: "var(--pad-small)" }}>
-            <input id="installers-fleet-url" value={target.fleet_url} placeholder="https://fleet.example.com" onChange={(e) => update({ fleet_url: e.target.value })} style={{ flex: 1, minWidth: 0 }} />
+            <input id="installers-automdm-url" value={target.automdm_url} placeholder="https://automdm.example.com" onChange={(e) => update({ automdm_url: e.target.value })} style={{ flex: 1, minWidth: 0 }} />
             {scan?.server_url && !urlMatchesScan && (
-              <button onClick={() => update({ fleet_url: scan.server_url })} title={scan.server_url}>
+              <button onClick={() => update({ automdm_url: scan.server_url })} title={scan.server_url}>
                 Use server_url
               </button>
             )}
@@ -658,7 +658,7 @@ function BuildCard({
               id="installers-enroll-secret"
               type={showSecret ? "text" : "password"}
               value={target.enroll_secret}
-              placeholder={manual ? "paste an enroll secret" : "pick a fleet, or paste one"}
+              placeholder={manual ? "paste an enroll secret" : "pick a team, or paste one"}
               onChange={(e) => update({ enroll_secret: e.target.value, team_id: null, team_name: "" })}
               autoComplete="off"
               spellCheck={false}
@@ -697,8 +697,8 @@ function BuildCard({
             {customized && <span style={{ color: "var(--ui-warning)" }}>· not the defaults</span>}
           </div>
           <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <input type="checkbox" checked={options.fleet_desktop} onChange={(e) => setOpt("fleet_desktop", e.target.checked)} />
-            Include Fleet Desktop
+            <input type="checkbox" checked={options.automdm_desktop} onChange={(e) => setOpt("automdm_desktop", e.target.checked)} />
+            Include AutoMDM Desktop
           </label>
           <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <input type="checkbox" checked={options.enable_scripts} onChange={(e) => setOpt("enable_scripts", e.target.checked)} />
@@ -733,7 +733,7 @@ function BuildCard({
           )}
           <div style={{ display: "flex", gap: "var(--pad-medium)", flexWrap: "wrap" }}>
             <ChannelSelect label="orbit" value={options.orbit_channel} options={channels?.orbit} onChange={(v) => setOpt("orbit_channel", v)} />
-            <ChannelSelect label="Fleet Desktop" value={options.desktop_channel} options={channels?.desktop} onChange={(v) => setOpt("desktop_channel", v)} />
+            <ChannelSelect label="AutoMDM Desktop" value={options.desktop_channel} options={channels?.desktop} onChange={(v) => setOpt("desktop_channel", v)} />
             <ChannelSelect label="osquery" value={options.osqueryd_channel} options={channels?.osqueryd} onChange={(v) => setOpt("osqueryd_channel", v)} />
           </div>
           <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -741,7 +741,7 @@ function BuildCard({
             Debug logging in orbit
           </label>
           <Field
-            label="Extra fleetctl package flags"
+            label="Extra automdmctl package flags"
             htmlFor="installers-extra-flags"
             full
             hint={flagsErr || "Added to every build, e.g. --host-identifier=instance. Quote values with spaces."}
@@ -782,7 +782,7 @@ function BuildCard({
           >
             ⚠ replaces {overwrites.length} existing package{overwrites.length === 1 ? "" : "s"} (newest built{" "}
             {new Date(Math.max(...overwrites.map((f) => f.mod_time_ms))).toLocaleString()})
-            {otherFleets.length > 0 && ` — built for ${otherFleets.join(", ")}, whose name gives the same file names`}
+            {otherTeams.length > 0 && ` — built for ${otherTeams.join(", ")}, whose name gives the same file names`}
           </span>
         )}
         <div style={{ flex: 1 }} />
@@ -962,7 +962,7 @@ function OutputShareCard({
         </div>
       ) : !fileServerDir ? (
         <span className="dim">
-          These are in the Fleet repo, so they aren't shared: python http.server would serve the whole repo. Set a folder for
+          These are in the AutoMDM repo, so they aren't shared: python http.server would serve the whole repo. Set a folder for
           python http.server in Settings to build packages there and share them.
         </span>
       ) : pythonRunning ? (
@@ -989,7 +989,7 @@ function OutputShareCard({
       )}
       {served && !fileServerDir && (
         <span style={{ color: "var(--ui-warning)" }}>
-          python http.server has no folder set, so it's serving the whole Fleet repo to your network. Stop it, and set a folder
+          python http.server has no folder set, so it's serving the whole AutoMDM repo to your network. Stop it, and set a folder
           for it in Settings.
         </span>
       )}
@@ -1040,12 +1040,12 @@ function OutputShareCard({
   );
 }
 
-function fleetOptionValue(id: number | null): string {
+function automdmOptionValue(id: number | null): string {
   return id == null ? "unassigned" : String(id);
 }
 
-// describeBuild summarizes a manifest entry: fleet, update server, channels and
-// options, e.g. "💻 Workstations · official updates · stable · Fleet Desktop".
+// describeBuild summarizes a manifest entry: team, update server, channels and
+// options, e.g. "💻 Workstations · official updates · stable · AutoMDM Desktop".
 function describeBuild(b: InstallersManifestEntry): string {
   const parts = [b.team || "Unassigned"];
   if (b.context) parts.push(`via ${b.context}`);
@@ -1062,11 +1062,11 @@ function describeBuild(b: InstallersManifestEntry): string {
     ["osquery", b.osqueryd_channel],
   ].filter(([, ch]) => ch && ch !== "stable");
   parts.push(custom.length === 0 ? "stable" : custom.map(([c, ch]) => `${c} ${ch}`).join(", "));
-  parts.push(b.fleet_desktop ? "Fleet Desktop" : "no Desktop");
+  parts.push(b.automdm_desktop ? "AutoMDM Desktop" : "no Desktop");
   parts.push(b.enable_scripts ? "scripts" : "no scripts");
   if (b.debug) parts.push("debug");
   if (b.extra_flags) parts.push(b.extra_flags);
-  if (b.fleet_url) parts.push(b.fleet_url);
+  if (b.automdm_url) parts.push(b.automdm_url);
   return parts.join(" · ");
 }
 
@@ -1109,7 +1109,7 @@ function JobBadge({ status, active, userStopped }: { status: JobStatus | undefin
     // No result line after the run ended: stopped by the user, or the build died.
     return userStopped ? <span className="dim">stopped</span> : <span style={{ color: "var(--ui-error)", fontWeight: 600 }}>✗ interrupted</span>;
   }
-  if (status === "ok") return <span style={{ color: "var(--core-fleet-green)", fontWeight: 600 }}>✓ built</span>;
+  if (status === "ok") return <span style={{ color: "var(--core-automdm-green)", fontWeight: 600 }}>✓ built</span>;
   return <span style={{ color: "var(--ui-error)", fontWeight: 600 }}>✗ failed</span>;
 }
 
@@ -1136,7 +1136,7 @@ function BuildStatus({
   if (proc.was_user_stopped) return <span className="dim">stopped{ok > 0 ? ` · ${ok} built` : ""}</span>;
   return (
     <span style={{ display: "inline-flex", gap: 8, fontWeight: 600 }}>
-      {ok > 0 && <span style={{ color: "var(--core-fleet-green)" }}>✓ {ok} built</span>}
+      {ok > 0 && <span style={{ color: "var(--core-automdm-green)" }}>✓ {ok} built</span>}
       {failed > 0 && <span style={{ color: "var(--ui-error)" }}>✗ {failed} failed</span>}
     </span>
   );

@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	activityapi "github.com/fleetdm/fleet/v4/server/activity/api"
-	"github.com/fleetdm/fleet/v4/server/activity/internal/testutils"
-	"github.com/fleetdm/fleet/v4/server/activity/internal/types"
+	activityapi "github.com/anilyagiz/automdm/v4/server/activity/api"
+	"github.com/anilyagiz/automdm/v4/server/activity/internal/testutils"
+	"github.com/anilyagiz/automdm/v4/server/activity/internal/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

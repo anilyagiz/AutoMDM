@@ -20,7 +20,7 @@ describe("SelfServicePreview", () => {
     );
 
     expect(
-      screen.getByAltText("Preview icon on Fleet Desktop > Self service")
+      screen.getByAltText("Preview icon on AutoMDM Desktop > Self service")
     ).toBeVisible();
 
     expect(screen.getByText("Mock icon")).toBeVisible();

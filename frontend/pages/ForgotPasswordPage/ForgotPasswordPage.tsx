@@ -42,12 +42,12 @@ const ForgotPasswordPage = ({ router }: IForgotPasswordPage) => {
             An email was sent to{" "}
             <span className={`${baseClass}__email`}>{email}</span>. Click the
             link in the email to proceed with the password reset process. If you
-            did not receive an email please contact your Fleet administrator.
+            did not receive an email please contact your AutoMDM administrator.
             <br />
             <br />
             You can find more information on resetting passwords at the{" "}
             <CustomLink
-              url="https://fleetdm.com/docs/using-fleet/fleetctl-cli?utm_medium=fleetui&utm_campaign=get-api-token#using-fleetctl-with-an-api-only-user"
+              url="https://automdm.com/docs/using-automdm/automdmctl-cli?utm_medium=automdmui&utm_campaign=get-api-token#using-automdmctl-with-an-api-only-user"
               text="Password reset FAQ"
               newTab
             />

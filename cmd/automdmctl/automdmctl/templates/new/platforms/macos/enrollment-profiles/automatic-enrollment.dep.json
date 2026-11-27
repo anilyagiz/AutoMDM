@@ -1,0 +1,6 @@
+{
+  "profile_name": "AutoMDM default enrollment profile",
+  "is_supervised": true,
+  "is_mdm_removable": false,
+  "skip_setup_items": []
+}

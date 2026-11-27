@@ -30,16 +30,16 @@ func TestRouter(t *testing.T) {
 	r.Handle(Route{
 		Name:     "get_host",
 		Methods:  []string{http.MethodGet},
-		Path:     "/api/_version_/fleet/hosts/{id:[0-9]+}",
+		Path:     "/api/_version_/automdm/hosts/{id:[0-9]+}",
 		Versions: []string{"v1", "latest"},
 	}, templateEcho)
-	r.Handle(Route{Name: "delete_label", Methods: []string{http.MethodDelete}, Path: "/api/v1/fleet/hosts/{name}"}, templateEcho)
+	r.Handle(Route{Name: "delete_label", Methods: []string{http.MethodDelete}, Path: "/api/v1/automdm/hosts/{name}"}, templateEcho)
 	r.Handle(Route{Name: "any_method", Path: "/api/any"}, templateEcho)
 	r.Handle(Route{Name: "subtree", Methods: []string{http.MethodGet}, Path: "/api/tree/", Prefix: true}, templateEcho)
 	r.Handle(Route{Name: "slash", Methods: []string{http.MethodGet}, Path: "/api/slash/"}, templateEcho)
-	r.Handle(Route{Name: "host_sub", Methods: []string{http.MethodGet}, Path: "/api/v1/fleet/hosts/{id:[0-9]+}/sub"}, templateEcho)
-	r.Handle(Route{Name: "any_pair", Methods: []string{http.MethodGet}, Path: "/api/v1/fleet/hosts/{a}/{b}"}, templateEcho)
-	const hostTemplate = "/api/{fleetversion:(?:v1|latest)}/fleet/hosts/{id:[0-9]+}"
+	r.Handle(Route{Name: "host_sub", Methods: []string{http.MethodGet}, Path: "/api/v1/automdm/hosts/{id:[0-9]+}/sub"}, templateEcho)
+	r.Handle(Route{Name: "any_pair", Methods: []string{http.MethodGet}, Path: "/api/v1/automdm/hosts/{a}/{b}"}, templateEcho)
+	const hostTemplate = "/api/{automdmversion:(?:v1|latest)}/automdm/hosts/{id:[0-9]+}"
 	assert.Panics(t, func() { r.Use(func(_ Route, next http.Handler) http.Handler { return next }) }, "Use after Handle")
 
 	assert.Equal(t, hostTemplate, r.Routes()[0].Template())
@@ -61,19 +61,19 @@ func TestRouter(t *testing.T) {
 		route, body  string
 		allow        string
 	}{
-		{http.MethodGet, "/api/latest/fleet/hosts/1", http.StatusOK, "get_host", hostTemplate + " 1", ""},
-		{http.MethodHead, "/api/v1/fleet/hosts/1", http.StatusOK, "get_host", "", ""},
-		{http.MethodGet, "/api/v9/fleet/hosts/1", http.StatusNotFound, "", "", ""},
-		{http.MethodPost, "/api/v1/fleet/hosts/1", http.StatusMethodNotAllowed, "", "", "DELETE, GET, HEAD"},
+		{http.MethodGet, "/api/latest/automdm/hosts/1", http.StatusOK, "get_host", hostTemplate + " 1", ""},
+		{http.MethodHead, "/api/v1/automdm/hosts/1", http.StatusOK, "get_host", "", ""},
+		{http.MethodGet, "/api/v9/automdm/hosts/1", http.StatusNotFound, "", "", ""},
+		{http.MethodPost, "/api/v1/automdm/hosts/1", http.StatusMethodNotAllowed, "", "", "DELETE, GET, HEAD"},
 		// A value that fails the constraint is a 404, or a 405 when another method's route takes it.
-		{http.MethodGet, "/api/latest/fleet/hosts/abc", http.StatusNotFound, "", "", ""},
-		{http.MethodGet, "/api/v1/fleet/hosts/abc", http.StatusMethodNotAllowed, "", "", "DELETE"},
+		{http.MethodGet, "/api/latest/automdm/hosts/abc", http.StatusNotFound, "", "", ""},
+		{http.MethodGet, "/api/v1/automdm/hosts/abc", http.StatusMethodNotAllowed, "", "", "DELETE"},
 		// The route the ServeMux picks rejects the id, so the less specific route that takes it serves the request.
-		{http.MethodGet, "/api/v1/fleet/hosts/abc/sub", http.StatusOK, "any_pair", "", ""},
+		{http.MethodGet, "/api/v1/automdm/hosts/abc/sub", http.StatusOK, "any_pair", "", ""},
 		// A path value is decoded exactly once, and an encoded slash stays in its segment.
-		{http.MethodDelete, "/api/v1/fleet/hosts/a%2Fb", http.StatusOK, "delete_label", "/api/v1/fleet/hosts/{name} a/b", ""},
-		{http.MethodDelete, "/api/v1/fleet/hosts/a%252Fb", http.StatusOK, "delete_label", "/api/v1/fleet/hosts/{name} a%2Fb", ""},
-		{http.MethodDelete, "/api/v1/fleet/hosts/50%25off", http.StatusOK, "delete_label", "/api/v1/fleet/hosts/{name} 50%off", ""},
+		{http.MethodDelete, "/api/v1/automdm/hosts/a%2Fb", http.StatusOK, "delete_label", "/api/v1/automdm/hosts/{name} a/b", ""},
+		{http.MethodDelete, "/api/v1/automdm/hosts/a%252Fb", http.StatusOK, "delete_label", "/api/v1/automdm/hosts/{name} a%2Fb", ""},
+		{http.MethodDelete, "/api/v1/automdm/hosts/50%25off", http.StatusOK, "delete_label", "/api/v1/automdm/hosts/{name} 50%off", ""},
 		// A route without methods serves every method.
 		{http.MethodGet, "/api/any", http.StatusOK, "any_method", "/api/any ", ""},
 		{http.MethodDelete, "/api/any", http.StatusOK, "any_method", "/api/any ", ""},

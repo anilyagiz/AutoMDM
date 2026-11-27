@@ -10,7 +10,7 @@
 
 $displayNamePattern = '^Notion \d'
 $publisher = "Notion Labs, Inc"
-$taskName = "fleet-uninstall-notion"
+$taskName = "automdm-uninstall-notion"
 $appDir = "AppData\Local\Programs\Notion"  # in each user's profile
 $taskRunning = 267009  # SCHED_S_TASK_RUNNING
 $timeoutSeconds = 300

@@ -17,15 +17,15 @@ const MdmUnenrolledActivityItem = ({
   if (isAndroid(platform) || isIPadOrIPhone(platform)) {
     content = actor_full_name ? (
       <>
-        <b>{actor_full_name}</b> told Fleet to unenroll this host.
+        <b>{actor_full_name}</b> told AutoMDM to unenroll this host.
       </>
     ) : (
-      <>This host is unenrolled from Fleet.</>
+      <>This host is unenrolled from AutoMDM.</>
     );
   } else {
     content = actor_full_name ? (
       <>
-        <b>{actor_full_name}</b> told Fleet to turn off mobile device management
+        <b>{actor_full_name}</b> told AutoMDM to turn off mobile device management
         (MDM) for this host.
       </>
     ) : (

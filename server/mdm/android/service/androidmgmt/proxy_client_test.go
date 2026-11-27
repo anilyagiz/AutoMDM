@@ -33,7 +33,7 @@ func TestProxyClientEnterprisesCreateStatusError(t *testing.T) {
 			defer srv.Close()
 
 			client := NewProxyClient(t.Context(), slog.New(slog.DiscardHandler), "license", func(name string) string {
-				if name == "FLEET_DEV_ANDROID_PROXY_ENDPOINT" {
+				if name == "AUTOMDM_DEV_ANDROID_PROXY_ENDPOINT" {
 					return srv.URL + "/"
 				}
 				return ""
@@ -100,7 +100,7 @@ func TestProxyClientSecretConcurrentUse(t *testing.T) {
 	defer srv.Close()
 
 	client := NewProxyClient(t.Context(), slog.New(slog.DiscardHandler), "license", func(name string) string {
-		if name == "FLEET_DEV_ANDROID_PROXY_ENDPOINT" {
+		if name == "AUTOMDM_DEV_ANDROID_PROXY_ENDPOINT" {
 			return srv.URL + "/"
 		}
 		return ""

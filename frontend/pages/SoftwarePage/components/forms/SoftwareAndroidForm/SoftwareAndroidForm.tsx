@@ -146,7 +146,7 @@ const SoftwareAndroidForm = ({
             }
           >
             This is an Android web app and it requires Google Chrome to work.
-            Please make sure you add Google Chrome to this fleet.
+            Please make sure you add Google Chrome to this team.
           </InfoBanner>
         )}
         <div>

@@ -1,4 +1,4 @@
-# Fleet Android agent
+# AutoMDM Android agent
 
 - [Requirements](#requirements)
 - [Building the project](#building-the-project)
@@ -48,7 +48,7 @@ Signing configuration is already set up in `build.gradle.kts`. You just need to 
 
 ```bash
 keytool -genkeypair \
-  -alias fleet-android \
+  -alias automdm-android \
   -keyalg RSA \
   -keysize 4096 \
   -validity 10000 \
@@ -62,7 +62,7 @@ keytool -genkeypair \
 ```properties
 storeFile=/path/to/keystore.jks
 storePassword=YOUR_PASSWORD
-keyAlias=fleet-android
+keyAlias=automdm-android
 keyPassword=YOUR_PASSWORD
 ```
 
@@ -100,7 +100,7 @@ jarsigner -verify app/build/outputs/bundle/release/app-release.aab
 The SHA256 fingerprint is required for MDM deployment. You can get it from your keystore.
 
 ```bash
-keytool -list -v -keystore keystore.jks -alias fleet-android
+keytool -list -v -keystore keystore.jks -alias automdm-android
 # Grab SHA256 (remove colons and convert to base64)
 echo <SHA256> | tr -d ':' | xxd -r -p | base64
 ```
@@ -109,19 +109,19 @@ Copy the fingerprint for use in the `mdm.android_agent.signing_sha256` config op
 
 ## Deploying via Android MDM (development)
 
-For development, each developer publishes a private build of the agent under a unique package name (e.g. `com.fleetdm.agent.private.<yourname>`) via the [Google Play Console](https://play.google.com/console) and distributes it to the target Fleet Android enterprise by Organization ID.
+For development, each developer publishes a private build of the agent under a unique package name (e.g. `com.fleetdm.agent.private.<yourname>`) via the [Google Play Console](https://play.google.com/console) and distributes it to the target AutoMDM Android enterprise by Organization ID.
 
-**Who owns the app:** Ask a Fleet admin to create the Play Console app `com.fleetdm.agent.private.<yourname>` and grant you the **Admin** role on it. That gives you upload + release access without needing your own paid developer account.
+**Who owns the app:** Ask an AutoMDM admin to create the Play Console app `com.fleetdm.agent.private.<yourname>` and grant you the **Admin** role on it. That gives you upload + release access without needing your own paid developer account.
 
-1. **Configure Fleet with your agent package and signing fingerprint:**
+1. **Configure AutoMDM with your agent package and signing fingerprint:**
 
    Environment variables:
    ```bash
-   export FLEET_MDM_ANDROID_AGENT_PACKAGE=com.fleetdm.agent.private.<yourname>
-   export FLEET_MDM_ANDROID_AGENT_SIGNING_SHA256=<SHA256 fingerprint>
+   export AUTOMDM_MDM_ANDROID_AGENT_PACKAGE=com.fleetdm.agent.private.<yourname>
+   export AUTOMDM_MDM_ANDROID_AGENT_SIGNING_SHA256=<SHA256 fingerprint>
    ```
 
-   Or in your Fleet config file:
+   Or in your AutoMDM config file:
    ```yaml
    mdm:
      android_agent:
@@ -142,16 +142,16 @@ For development, each developer publishes a private build of the agent under a u
 
 3. **Build a signed release** (AAB) using the instructions above.
 
-4. **Find the Organization ID** for your target Fleet Android enterprise:
+4. **Find the Organization ID** for your target AutoMDM Android enterprise:
 
-   This is the same as the Android Enterprise ID that Fleet uses for AMAPI calls (format like `LCxxxxxxxx`). You can find it in the Fleet UI under MDM Android settings, or in the `enterprise_id` column of the `android_enterprises` table in Fleet's DB.
+   This is the same as the Android Enterprise ID that AutoMDM uses for AMAPI calls (format like `LCxxxxxxxx`). You can find it in the AutoMDM UI under MDM Android settings, or in the `enterprise_id` column of the `android_enterprises` table in AutoMDM's DB.
 
 5. **Upload the AAB in Play Console:**
 
-   - Open `https://play.google.com/console` and pick the developer account that owns `com.fleetdm.agent.private.<yourname>` (the one the Fleet admin granted you Admin on).
+   - Open `https://play.google.com/console` and pick the developer account that owns `com.fleetdm.agent.private.<yourname>` (the one the AutoMDM admin granted you Admin on).
    - Go to the app → **Test and release** → pick a track (Internal/Closed/Production) → create a release → upload your AAB → save and review.
 
-6. **Distribute to your Fleet enterprise:**
+6. **Distribute to your AutoMDM enterprise:**
 
    - In the same app, go to **Test and release** → **Advanced settings** → **Managed Google Play**.
    - Add the **Organization ID** you copied in step 4 to the list of organizations allowed to install the app.
@@ -159,15 +159,15 @@ For development, each developer publishes a private build of the agent under a u
 
 7. **Roll out the release** (publish it on the chosen track). Wait ~10 minutes for Play to propagate.
 
-8. **Enroll your Android device** in Fleet. The agent should appear in your Work profile shortly after. If it's stuck pending, restart the device or check the device's `nonComplianceDetails` via `tools/android/android.go -command devices.list ...`.
+8. **Enroll your Android device** in AutoMDM. The agent should appear in your Work profile shortly after. If it's stuck pending, restart the device or check the device's `nonComplianceDetails` via `tools/android/android.go -command devices.list ...`.
 
 ### Re-using an existing private app
 
-If your Play Console app already exists and you only need to grant access to a new Fleet enterprise, repeat **steps 4 and 6** for the new Organization ID. No new upload is required.
+If your Play Console app already exists and you only need to grant access to a new AutoMDM enterprise, repeat **steps 4 and 6** for the new Organization ID. No new upload is required.
 
 ## How the app starts
 
-The Fleet Android agent is designed to run automatically without user interaction. The app starts in three scenarios:
+The AutoMDM Android agent is designed to run automatically without user interaction. The app starts in three scenarios:
 
 ### 1. On installation (COMPANION_APP role)
 
@@ -302,4 +302,4 @@ See `gradle/libs.versions.toml` for complete list.
 
 **Delete device from Android MDM:**
 - Delete Work profile on Android device
-- Using `tools/android/android.go`, delete the device and delete the associated policy (as of 2025/11/21, Fleet server does not do this)
+- Using `tools/android/android.go`, delete the device and delete the associated policy (as of 2025/11/21, AutoMDM server does not do this)

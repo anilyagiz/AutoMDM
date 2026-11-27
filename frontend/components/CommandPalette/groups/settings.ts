@@ -25,7 +25,7 @@ const buildSettingsItems = (ctx: ICommandPaletteContext): ICommandItem[] => {
         },
         {
           id: "settings-org-webaddress",
-          label: "Fleet web address",
+          label: "AutoMDM web address",
           path: paths.ADMIN_ORGANIZATION_WEBADDRESS,
           keywords: ["url", "server address"],
         },
@@ -41,7 +41,7 @@ const buildSettingsItems = (ctx: ICommandPaletteContext): ICommandItem[] => {
           path: paths.ADMIN_ORGANIZATION_AGENTS,
           keywords: [
             "osquery",
-            "fleetd",
+            "automdmd",
             "orbit",
             "flags",
             "global config",
@@ -55,9 +55,9 @@ const buildSettingsItems = (ctx: ICommandPaletteContext): ICommandItem[] => {
           keywords: ["telemetry", "anonymous"],
         },
         {
-          id: "settings-org-fleet-desktop",
-          label: "Fleet Desktop",
-          path: paths.ADMIN_ORGANIZATION_FLEET_DESKTOP,
+          id: "settings-org-automdm-desktop",
+          label: "AutoMDM Desktop",
+          path: paths.ADMIN_ORGANIZATION_AUTOMDM_DESKTOP,
           keywords: [
             "tray icon",
             "transparency",
@@ -144,9 +144,9 @@ const buildSettingsItems = (ctx: ICommandPaletteContext): ICommandItem[] => {
           keywords: ["sso", "fpsso", "provision", "scim"],
         },
         {
-          id: "settings-int-sso-fleet-users",
-          label: "Single sign-on (SSO) for Fleet users",
-          path: paths.ADMIN_INTEGRATIONS_SSO_FLEET_USERS,
+          id: "settings-int-sso-team-users",
+          label: "Single sign-on (SSO) for AutoMDM users",
+          path: paths.ADMIN_INTEGRATIONS_SSO_TEAM_USERS,
           keywords: ["saml", "idp", "admin", "login"],
         },
         // End-users SSO tab renders <PremiumFeatureMessage /> on Free —
@@ -238,7 +238,7 @@ const buildSettingsItems = (ctx: ICommandPaletteContext): ICommandItem[] => {
       ],
     },
 
-    // Users and Fleets
+    // Users and Teams
     {
       id: "settings-users",
       label: "Users",
@@ -246,21 +246,21 @@ const buildSettingsItems = (ctx: ICommandPaletteContext): ICommandItem[] => {
       path: paths.ADMIN_USERS,
       keywords: ["accounts", "admins", "invite"],
     },
-    // Fleets settings tab — Premium-only, and hidden in Primo Mode
-    // (single-fleet installs don't expose fleet management).
+    // Teams settings tab — Premium-only, and hidden in Primo Mode
+    // (single-team installs don't expose team management).
     ...(isPremiumTier && !isPrimoMode
       ? [
           {
-            id: "settings-fleets",
-            label: "Fleets",
+            id: "settings-teams",
+            label: "Teams",
             group: "Settings" as const,
-            path: paths.ADMIN_FLEETS,
+            path: paths.ADMIN_TEAMS,
             keywords: [
               "groups",
-              "add fleet",
-              "create fleet",
-              "edit fleet",
-              "delete fleet",
+              "add team",
+              "create team",
+              "edit team",
+              "delete team",
             ],
           },
         ]

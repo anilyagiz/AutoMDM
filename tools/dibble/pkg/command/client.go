@@ -14,10 +14,10 @@ import (
 
 	"github.com/spf13/viper"
 
-	"github.com/fleetdm/fleet/v4/tools/dibble/pkg/seed"
+	"github.com/anilyagiz/automdm/v4/tools/dibble/pkg/seed"
 )
 
-// Client is a thin Fleet API client. Bearer auth, JSON in/out.
+// Client is a thin AutoMDM API client. Bearer auth, JSON in/out.
 type Client struct {
 	baseURL    *url.URL
 	token      string
@@ -27,21 +27,21 @@ type Client struct {
 }
 
 func newClientFromViper() (*Client, error) {
-	raw := viper.GetString(keyFleetURL)
+	raw := viper.GetString(keyAutoMDMURL)
 	if raw == "" {
-		return nil, fmt.Errorf("fleet-url is empty")
+		return nil, fmt.Errorf("automdm-url is empty")
 	}
 	u, err := url.Parse(raw)
 	if err != nil {
-		return nil, fmt.Errorf("invalid fleet-url %q: %w", raw, err)
+		return nil, fmt.Errorf("invalid automdm-url %q: %w", raw, err)
 	}
 	if u.Scheme == "" || u.Host == "" {
-		return nil, fmt.Errorf("fleet-url must include scheme and host, got %q", raw)
+		return nil, fmt.Errorf("automdm-url must include scheme and host, got %q", raw)
 	}
 	httpClient := &http.Client{Timeout: 60 * time.Second}
 	if viper.GetBool(keyInsecure) {
-		// Local dev Fleets typically use a self-signed cert. Honor --insecure
-		// the same way fleetctl does.
+		// Local dev Teams typically use a self-signed cert. Honor --insecure
+		// the same way automdmctl does.
 		httpClient.Transport = &http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec // opt-in dev flag
 		}
@@ -140,7 +140,7 @@ func (c *Client) Delete(path string) error {
 }
 
 // PostMultipart uploads form fields + named files. Used for script / profile / installer uploads.
-// The Fleet API distinguishes the form *field name* (e.g. "script", "profile")
+// The AutoMDM API distinguishes the form *field name* (e.g. "script", "profile")
 // from the *filename*, which the server inspects for extension-based platform
 // detection — so we carry both via seed.MultipartFile.
 func (c *Client) PostMultipart(path string, fields map[string]string, files []seed.MultipartFile, out any) error {

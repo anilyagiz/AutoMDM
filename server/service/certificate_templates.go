@@ -6,9 +6,9 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/variables"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/variables"
 )
 
 // escapeDNValue escapes special characters in a string value being substituted
@@ -34,30 +34,30 @@ func escapeDNValue(s string) string {
 	return b.String()
 }
 
-// Fleet variables supported in certificate template subject names and SANs.
-var fleetVarsSupportedInCertificateTemplates = []fleet.FleetVarName{
-	fleet.FleetVarHostUUID,
-	fleet.FleetVarHostHardwareSerial,
-	fleet.FleetVarHostPlatform,
-	fleet.FleetVarHostEndUserIDPUsername,
-	fleet.FleetVarHostEndUserIDPUsernameLocalPart,
-	fleet.FleetVarHostEndUserIDPGroups,
-	fleet.FleetVarHostEndUserIDPDepartment,
-	fleet.FleetVarHostEndUserIDPFullname,
-	fleet.FleetVarHostEndUserIDPExternalID,
+// AutoMDM variables supported in certificate template subject names and SANs.
+var automdmVarsSupportedInCertificateTemplates = []automdm.AutoMDMVarName{
+	automdm.AutoMDMVarHostUUID,
+	automdm.AutoMDMVarHostHardwareSerial,
+	automdm.AutoMDMVarHostPlatform,
+	automdm.AutoMDMVarHostEndUserIDPUsername,
+	automdm.AutoMDMVarHostEndUserIDPUsernameLocalPart,
+	automdm.AutoMDMVarHostEndUserIDPGroups,
+	automdm.AutoMDMVarHostEndUserIDPDepartment,
+	automdm.AutoMDMVarHostEndUserIDPFullname,
+	automdm.AutoMDMVarHostEndUserIDPExternalID,
 }
 
-// extractCertTemplateFleetVars returns the deduplicated fleet variables found in
+// extractCertTemplateAutoMDMVars returns the deduplicated automdm variables found in
 // the certificate template's subject_name and subject_alternative_name.
-func extractCertTemplateFleetVars(subjectName, subjectAlternativeName string) []fleet.FleetVarName {
+func extractCertTemplateAutoMDMVars(subjectName, subjectAlternativeName string) []automdm.AutoMDMVarName {
 	combined := subjectName + " " + subjectAlternativeName
 	found := variables.Find(combined)
 	if len(found) == 0 {
 		return nil
 	}
-	result := make([]fleet.FleetVarName, len(found))
+	result := make([]automdm.AutoMDMVarName, len(found))
 	for i, v := range found {
-		result[i] = fleet.FleetVarName(v)
+		result[i] = automdm.AutoMDMVarName(v)
 	}
 	return result
 }
@@ -77,15 +77,15 @@ var subjectAlternativeNameAllowedKeys = map[string]struct{}{
 	"URI":   {},
 }
 
-func validateCertificateTemplateFleetVariables(subjectName string) error {
-	fleetVars := variables.Find(subjectName)
-	if len(fleetVars) == 0 {
+func validateCertificateTemplateAutoMDMVariables(subjectName string) error {
+	automdmVars := variables.Find(subjectName)
+	if len(automdmVars) == 0 {
 		return nil
 	}
 
-	for _, fleetVar := range fleetVars {
-		if !slices.Contains(fleetVarsSupportedInCertificateTemplates, fleet.FleetVarName(fleetVar)) {
-			return fmt.Errorf("Fleet variable $FLEET_VAR_%s is not supported in certificate templates", fleetVar)
+	for _, automdmVar := range automdmVars {
+		if !slices.Contains(automdmVarsSupportedInCertificateTemplates, automdm.AutoMDMVarName(automdmVar)) {
+			return fmt.Errorf("AutoMDM variable $AUTOMDM_VAR_%s is not supported in certificate templates", automdmVar)
 		}
 	}
 
@@ -98,11 +98,11 @@ func validateCertificateTemplateFleetVariables(subjectName string) error {
 // non-empty content on both sides, that each KEY is in the allowlist (DNS, EMAIL, UPN, IP,
 // URI), and that at least one valid token is present (rejects separator-only inputs like ",").
 // The value (right of '=') is otherwise not validated; value content is parsed by the Android
-// agent at delivery time, where any $FLEET_VAR_* references have already been expanded.
+// agent at delivery time, where any $AUTOMDM_VAR_* references have already been expanded.
 //
 // certName is suffixed onto each error reason as "(certificate <name>)" for GitOps multi-cert
 // clarity; pass "" from single-cert callers like CreateCertificateTemplate where the failing
-// cert is unambiguous. Returns a typed *fleet.InvalidArgumentError on failure (HTTP 422,
+// cert is unambiguous. Returns a typed *automdm.InvalidArgumentError on failure (HTTP 422,
 // errors[].name = "subject_alternative_name") or nil on success.
 func validateCertificateTemplateSubjectAlternativeName(san, certName string) error {
 	const field = "subject_alternative_name"
@@ -110,7 +110,7 @@ func validateCertificateTemplateSubjectAlternativeName(san, certName string) err
 		if certName != "" {
 			reason = fmt.Sprintf("%s (certificate %s)", reason, certName)
 		}
-		return fleet.NewInvalidArgumentError(field, reason)
+		return automdm.NewInvalidArgumentError(field, reason)
 	}
 	if strings.TrimSpace(san) == "" {
 		return nil
@@ -147,29 +147,29 @@ func validateCertificateTemplateSubjectAlternativeName(san, certName string) err
 	return nil
 }
 
-// replaceCertificateVariables replaces FLEET_VAR_* variables in the input string with actual
+// replaceCertificateVariables replaces AUTOMDM_VAR_* variables in the input string with actual
 // host values. endUsersMemo is an optional cross-call cache for the host's end-user list — pass
-// the same `*[]fleet.HostEndUser` (with `*memo == nil` initially) into successive calls for the
+// the same `*[]automdm.HostEndUser` (with `*memo == nil` initially) into successive calls for the
 // same host to avoid re-fetching from the datastore. The IDP related variable is the only one
 // that triggers a DB round-trip; UUID and hardware serial come from the in-memory host struct.
-func (svc *Service) replaceCertificateVariables(ctx context.Context, input string, host *fleet.Host, endUsersMemo *[]fleet.HostEndUser) (string, error) {
-	fleetVars := variables.Find(input)
-	if len(fleetVars) == 0 {
+func (svc *Service) replaceCertificateVariables(ctx context.Context, input string, host *automdm.Host, endUsersMemo *[]automdm.HostEndUser) (string, error) {
+	automdmVars := variables.Find(input)
+	if len(automdmVars) == 0 {
 		return input, nil
 	}
 
 	// fetchEndUsers lazily fetches and caches the host's end-user list.
-	fetchEndUsers := func(fleetVar string) ([]fleet.HostEndUser, error) {
+	fetchEndUsers := func(automdmVar string) ([]automdm.HostEndUser, error) {
 		if endUsersMemo != nil && *endUsersMemo != nil {
 			return *endUsersMemo, nil
 		}
-		fetched, err := fleet.GetEndUsers(ctx, svc.ds, host.ID)
+		fetched, err := automdm.GetEndUsers(ctx, svc.ds, host.ID)
 		if err != nil {
-			return nil, ctxerr.Wrapf(ctx, err, "getting host end users for variable %s", fleetVar)
+			return nil, ctxerr.Wrapf(ctx, err, "getting host end users for variable %s", automdmVar)
 		}
 		if endUsersMemo != nil {
 			if fetched == nil {
-				fetched = []fleet.HostEndUser{}
+				fetched = []automdm.HostEndUser{}
 			}
 			*endUsersMemo = fetched
 		}
@@ -177,86 +177,86 @@ func (svc *Service) replaceCertificateVariables(ctx context.Context, input strin
 	}
 
 	// requireIDPUser fetches end users and returns the first IDP user, or an error if none.
-	requireIDPUser := func(fleetVar string) (*fleet.HostEndUser, error) {
-		users, err := fetchEndUsers(fleetVar)
+	requireIDPUser := func(automdmVar string) (*automdm.HostEndUser, error) {
+		users, err := fetchEndUsers(automdmVar)
 		if err != nil {
 			return nil, err
 		}
 		if len(users) == 0 || users[0].IdpUserName == "" {
-			return nil, ctxerr.Errorf(ctx, "host %s does not have an IDP user for variable %s", host.UUID, fleetVar)
+			return nil, ctxerr.Errorf(ctx, "host %s does not have an IDP user for variable %s", host.UUID, automdmVar)
 		}
 		return &users[0], nil
 	}
 
 	result := input
-	for _, fleetVar := range fleetVars {
-		switch fleetVar {
-		case string(fleet.FleetVarHostUUID):
+	for _, automdmVar := range automdmVars {
+		switch automdmVar {
+		case string(automdm.AutoMDMVarHostUUID):
 			if host.UUID == "" {
-				return "", ctxerr.Errorf(ctx, "host does not have a UUID for variable %s", fleetVar)
+				return "", ctxerr.Errorf(ctx, "host does not have a UUID for variable %s", automdmVar)
 			}
-			result = fleet.FleetVarHostUUIDRegexp.ReplaceAllLiteralString(result, escapeDNValue(host.UUID))
-		case string(fleet.FleetVarHostHardwareSerial):
+			result = automdm.AutoMDMVarHostUUIDRegexp.ReplaceAllLiteralString(result, escapeDNValue(host.UUID))
+		case string(automdm.AutoMDMVarHostHardwareSerial):
 			if host.HardwareSerial == "" {
-				return "", ctxerr.Errorf(ctx, "host %s does not have a hardware serial for variable %s", host.UUID, fleetVar)
+				return "", ctxerr.Errorf(ctx, "host %s does not have a hardware serial for variable %s", host.UUID, automdmVar)
 			}
-			result = fleet.FleetVarHostHardwareSerialRegexp.ReplaceAllLiteralString(result, escapeDNValue(host.HardwareSerial))
-		case string(fleet.FleetVarHostPlatform):
+			result = automdm.AutoMDMVarHostHardwareSerialRegexp.ReplaceAllLiteralString(result, escapeDNValue(host.HardwareSerial))
+		case string(automdm.AutoMDMVarHostPlatform):
 			if host.Platform == "" {
-				return "", ctxerr.Errorf(ctx, "host %s does not have a platform for variable %s", host.UUID, fleetVar)
+				return "", ctxerr.Errorf(ctx, "host %s does not have a platform for variable %s", host.UUID, automdmVar)
 			}
-			result = fleet.FleetVarHostPlatformRegexp.ReplaceAllLiteralString(result, escapeDNValue(host.Platform))
-		case string(fleet.FleetVarHostEndUserIDPUsername):
-			user, err := requireIDPUser(fleetVar)
+			result = automdm.AutoMDMVarHostPlatformRegexp.ReplaceAllLiteralString(result, escapeDNValue(host.Platform))
+		case string(automdm.AutoMDMVarHostEndUserIDPUsername):
+			user, err := requireIDPUser(automdmVar)
 			if err != nil {
 				return "", err
 			}
-			result = fleet.FleetVarHostEndUserIDPUsernameRegexp.ReplaceAllLiteralString(result, escapeDNValue(user.IdpUserName))
-		case string(fleet.FleetVarHostEndUserIDPUsernameLocalPart):
-			user, err := requireIDPUser(fleetVar)
+			result = automdm.AutoMDMVarHostEndUserIDPUsernameRegexp.ReplaceAllLiteralString(result, escapeDNValue(user.IdpUserName))
+		case string(automdm.AutoMDMVarHostEndUserIDPUsernameLocalPart):
+			user, err := requireIDPUser(automdmVar)
 			if err != nil {
 				return "", err
 			}
-			result = fleet.FleetVarHostEndUserIDPUsernameLocalPartRegexp.ReplaceAllLiteralString(result, escapeDNValue(fleet.EmailLocalPart(user.IdpUserName)))
-		case string(fleet.FleetVarHostEndUserIDPGroups):
-			user, err := requireIDPUser(fleetVar)
+			result = automdm.AutoMDMVarHostEndUserIDPUsernameLocalPartRegexp.ReplaceAllLiteralString(result, escapeDNValue(automdm.EmailLocalPart(user.IdpUserName)))
+		case string(automdm.AutoMDMVarHostEndUserIDPGroups):
+			user, err := requireIDPUser(automdmVar)
 			if err != nil {
 				return "", err
 			}
 			if len(user.IdpGroups) == 0 {
-				return "", ctxerr.Errorf(ctx, "host %s does not have IDP groups for variable %s", host.UUID, fleetVar)
+				return "", ctxerr.Errorf(ctx, "host %s does not have IDP groups for variable %s", host.UUID, automdmVar)
 			}
-			result = fleet.FleetVarHostEndUserIDPGroupsRegexp.ReplaceAllLiteralString(result, escapeDNValue(strings.Join(user.IdpGroups, ",")))
-		case string(fleet.FleetVarHostEndUserIDPDepartment):
-			user, err := requireIDPUser(fleetVar)
+			result = automdm.AutoMDMVarHostEndUserIDPGroupsRegexp.ReplaceAllLiteralString(result, escapeDNValue(strings.Join(user.IdpGroups, ",")))
+		case string(automdm.AutoMDMVarHostEndUserIDPDepartment):
+			user, err := requireIDPUser(automdmVar)
 			if err != nil {
 				return "", err
 			}
 			if user.Department == "" {
-				return "", ctxerr.Errorf(ctx, "host %s does not have an IDP department for variable %s", host.UUID, fleetVar)
+				return "", ctxerr.Errorf(ctx, "host %s does not have an IDP department for variable %s", host.UUID, automdmVar)
 			}
-			result = fleet.FleetVarHostEndUserIDPDepartmentRegexp.ReplaceAllLiteralString(result, escapeDNValue(user.Department))
-		case string(fleet.FleetVarHostEndUserIDPFullname):
-			user, err := requireIDPUser(fleetVar)
+			result = automdm.AutoMDMVarHostEndUserIDPDepartmentRegexp.ReplaceAllLiteralString(result, escapeDNValue(user.Department))
+		case string(automdm.AutoMDMVarHostEndUserIDPFullname):
+			user, err := requireIDPUser(automdmVar)
 			if err != nil {
 				return "", err
 			}
 			fullName := strings.TrimSpace(user.IdpFullName)
 			if fullName == "" {
-				return "", ctxerr.Errorf(ctx, "host %s does not have an IDP full name for variable %s", host.UUID, fleetVar)
+				return "", ctxerr.Errorf(ctx, "host %s does not have an IDP full name for variable %s", host.UUID, automdmVar)
 			}
-			result = fleet.FleetVarHostEndUserIDPFullnameRegexp.ReplaceAllLiteralString(result, escapeDNValue(fullName))
-		case string(fleet.FleetVarHostEndUserIDPExternalID):
-			user, err := requireIDPUser(fleetVar)
+			result = automdm.AutoMDMVarHostEndUserIDPFullnameRegexp.ReplaceAllLiteralString(result, escapeDNValue(fullName))
+		case string(automdm.AutoMDMVarHostEndUserIDPExternalID):
+			user, err := requireIDPUser(automdmVar)
 			if err != nil {
 				return "", err
 			}
 			if user.IdpID == "" {
-				return "", ctxerr.Errorf(ctx, "host %s does not have an IDP external ID for variable %s", host.UUID, fleetVar)
+				return "", ctxerr.Errorf(ctx, "host %s does not have an IDP external ID for variable %s", host.UUID, automdmVar)
 			}
-			result = fleet.FleetVarHostEndUserIDPExternalIDRegexp.ReplaceAllLiteralString(result, escapeDNValue(user.IdpID))
+			result = automdm.AutoMDMVarHostEndUserIDPExternalIDRegexp.ReplaceAllLiteralString(result, escapeDNValue(user.IdpID))
 		default:
-			return "", ctxerr.Errorf(ctx, "unsupported Fleet variable %s in certificate template", fleetVar)
+			return "", ctxerr.Errorf(ctx, "unsupported AutoMDM variable %s in certificate template", automdmVar)
 		}
 	}
 
@@ -267,7 +267,7 @@ func (svc *Service) replaceCertificateVariables(ctx context.Context, input strin
 // (expanded, true, nil). On expansion failure (host missing UUID / hardware serial / IdP user, or
 // an unsupported variable), it persists a CertificateStatusFailed update for the host's row in
 // host_certificate_templates and mutates `certificate` in place: status -> failed, SCEPChallenge
-// and FleetChallenge -> nil so a previously-delivered template's active challenges do not ride
+// and AutoMDMChallenge -> nil so a previously-delivered template's active challenges do not ride
 // along on the failed response. The caller should check ok and return the failed certificate
 // without further processing.
 //
@@ -278,28 +278,28 @@ func (svc *Service) replaceCertificateVariables(ctx context.Context, input strin
 // may match on them.
 func (svc *Service) expandCertVar(
 	ctx context.Context,
-	certificate *fleet.CertificateTemplateResponseForHost,
+	certificate *automdm.CertificateTemplateResponseForHost,
 	input string,
 	detailPrefix string,
-	host *fleet.Host,
-	endUsersMemo *[]fleet.HostEndUser,
+	host *automdm.Host,
+	endUsersMemo *[]automdm.HostEndUser,
 ) (expanded string, ok bool, err error) {
 	expanded, expandErr := svc.replaceCertificateVariables(ctx, input, host, endUsersMemo)
 	if expandErr == nil {
 		return expanded, true, nil
 	}
 	errorMsg := fmt.Sprintf("%s: %s", detailPrefix, expandErr.Error())
-	if upsertErr := svc.ds.UpsertCertificateStatus(ctx, &fleet.CertificateStatusUpdate{
+	if upsertErr := svc.ds.UpsertCertificateStatus(ctx, &automdm.CertificateStatusUpdate{
 		HostUUID:              host.UUID,
 		CertificateTemplateID: certificate.ID,
-		Status:                fleet.MDMDeliveryFailed,
+		Status:                automdm.MDMDeliveryFailed,
 		Detail:                &errorMsg,
-		OperationType:         fleet.MDMOperationTypeInstall,
+		OperationType:         automdm.MDMOperationTypeInstall,
 	}); upsertErr != nil {
 		return "", false, upsertErr
 	}
-	certificate.Status = fleet.CertificateTemplateFailed
+	certificate.Status = automdm.CertificateTemplateFailed
 	certificate.SCEPChallenge = nil
-	certificate.FleetChallenge = nil
+	certificate.AutoMDMChallenge = nil
 	return "", false, nil
 }

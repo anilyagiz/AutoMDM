@@ -17,7 +17,7 @@ import authToken from "utilities/auth_token";
 import Breadcrumbs from "./Breadcrumbs";
 
 const SETUP_ERROR_MESSAGE =
-  "We were unable to configure Fleet. If your Fleet server is behind a proxy, please ensure the server can be reached.";
+  "We were unable to configure AutoMDM. If your AutoMDM server is behind a proxy, please ensure the server can be reached.";
 
 interface IRegistrationPageProps {
   router: InjectedRouter;
@@ -66,9 +66,9 @@ const RegistrationPage = ({ router }: IRegistrationPageProps) => {
         }
       }
 
-      const { user, available_fleets, settings } = await usersAPI.me();
+      const { user, available_teams, settings } = await usersAPI.me();
       setCurrentUser(user);
-      setAvailableTeams(user, available_fleets);
+      setAvailableTeams(user, available_teams);
       setUserSettings(settings);
       router.push(DASHBOARD);
       window.location.reload();
@@ -91,7 +91,7 @@ const RegistrationPage = ({ router }: IRegistrationPageProps) => {
   const REGISTRATION_HEADERS: Record<number, string> = {
     1: "Set up user",
     2: "Organization details",
-    3: "Set Fleet URL",
+    3: "Set AutoMDM URL",
     4: "Confirm configuration",
   };
   const header = REGISTRATION_HEADERS[page];

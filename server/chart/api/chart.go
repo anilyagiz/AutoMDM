@@ -53,15 +53,15 @@ type Dataset interface {
 
 	// Collect is called by the cron job to populate data in bulk.
 	//
-	// disabledFleetIDs scopes which fleets contribute to this collection. The
+	// disabledTeamIDs scopes which teams contribute to this collection. The
 	// orchestrator derives it from per-team config (teams whose Enabled(name)
 	// is false). Implementations should use this to filter out hosts from
-	// disabled fleets when collecting data.
+	// disabled teams when collecting data.
 	//
 	// No-team hosts (team_id IS NULL) are always included when the orchestrator
 	// invokes Collect — the orchestrator skips Collect entirely if the global
 	// flag is off.
-	Collect(ctx context.Context, store DatasetStore, now time.Time, disabledFleetIDs []uint) error
+	Collect(ctx context.Context, store DatasetStore, now time.Time, disabledTeamIDs []uint) error
 
 	// DefaultVisualization returns the default visualization type (e.g. "line", "heatmap").
 	DefaultVisualization() string
@@ -78,7 +78,7 @@ type DatasetStore interface {
 	// in via MDM, use their MDM activity signal (nano_seen_times.seen_time,
 	// falling back to detail_updated_at) within a fixed mobile online window.
 	// Used by datasets like uptime.
-	FindOnlineHostIDs(ctx context.Context, now time.Time, disabledFleetIDs []uint) ([]uint, error)
+	FindOnlineHostIDs(ctx context.Context, now time.Time, disabledTeamIDs []uint) ([]uint, error)
 
 	// AffectedHostIDsByCVE returns a bitmap of affected host IDs per CVE,
 	// scoped to the given cves set. nil or empty cves returns an empty map —
@@ -87,7 +87,7 @@ type DatasetStore interface {
 	// when it upgrades past the vulnerable version, so the join naturally
 	// stops matching. Bitmaps are returned in op form, ready to pass to
 	// RecordBucketData.
-	AffectedHostIDsByCVE(ctx context.Context, disabledFleetIDs []uint, cves []string) (map[string]*roaring.Bitmap, error)
+	AffectedHostIDsByCVE(ctx context.Context, disabledTeamIDs []uint, cves []string) (map[string]*roaring.Bitmap, error)
 
 	// CollectibleCVEs returns every CVE ID, at all severities, on the curated
 	// set of tracked software unioned with all operating-system vulnerabilities.
@@ -115,10 +115,10 @@ type DatasetStore interface {
 const MetricCVE = "cve"
 
 // MobileOnlineWindowSeconds is the mobile online-status window used by the
-// chart bounded context's FindOnlineHostIDs predicate, in seconds. Fleet's
-// core status computation duplicates the value in fleet.MobileOnlineWindow
-// because server/chart can't import server/fleet (arch test enforced).
-// TestMobileOnlineWindowMatchesChart in server/fleet asserts the two stay in
+// chart bounded context's FindOnlineHostIDs predicate, in seconds. AutoMDM's
+// core status computation duplicates the value in automdm.MobileOnlineWindow
+// because server/chart can't import server/automdm (arch test enforced).
+// TestMobileOnlineWindowMatchesChart in server/automdm asserts the two stay in
 // lockstep; edit both when tuning.
 const MobileOnlineWindowSeconds = 3600 + 600 + 60
 
@@ -134,11 +134,11 @@ const (
 )
 
 // Host is a minimal host type for authorization checks within the chart bounded context.
-// The JSON tags matter: the OPA rego policy reads object.fleet_id via the JSON-encoded
+// The JSON tags matter: the OPA rego policy reads object.team_id via the JSON-encoded
 // input, so renaming or dropping the tag silently breaks team-scoped authorization.
 type Host struct {
 	ID     uint  `json:"id"`
-	TeamID *uint `json:"fleet_id"`
+	TeamID *uint `json:"team_id"`
 }
 
 // AuthzType implements platform_authz.AuthzTyper.
@@ -173,7 +173,7 @@ type RequestOpts struct {
 	TZOffsetMinutes int
 	// TeamID scopes the request to a single team. nil = global (authz + data
 	// both fall back to the user's accessible scope). *TeamID == 0 means
-	// hosts with no team assignment, matching Fleet's convention elsewhere.
+	// hosts with no team assignment, matching AutoMDM's convention elsewhere.
 	TeamID         *uint
 	LabelIDs       []uint
 	Platforms      []string
@@ -199,7 +199,7 @@ type RequestOpts struct {
 
 // Filters captures the applied filters for a chart request.
 type Filters struct {
-	TeamID         *uint    `json:"fleet_id,omitempty"`
+	TeamID         *uint    `json:"team_id,omitempty"`
 	LabelIDs       []uint   `json:"label_ids,omitempty"`
 	Platforms      []string `json:"platforms,omitempty"`
 	IncludeHostIDs []uint   `json:"include_host_ids,omitempty"`

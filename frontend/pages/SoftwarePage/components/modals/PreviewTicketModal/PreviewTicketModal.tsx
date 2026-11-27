@@ -47,10 +47,10 @@ const PreviewTicketModal = ({
       width="large"
     >
       <p className="automations-learn-more">
-        Want to learn more about how automations in Fleet work?{" "}
+        Want to learn more about how automations in AutoMDM work?{" "}
         <CustomLink
-          url="https://fleetdm.com/docs/using-fleet/automations"
-          text="Check out the Fleet documentation"
+          url="https://automdm.com/docs/using-automdm/automations"
+          text="Check out the AutoMDM documentation"
           newTab
         />
       </p>

@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # Cube Browser ships as a WiX "burn" bootstrapper that chains its MSI and
 # registers a per-machine bundle ARP entry. Silent switches follow the burn

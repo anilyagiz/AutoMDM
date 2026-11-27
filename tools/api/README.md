@@ -1,22 +1,22 @@
-Using `curl` and `jq` to interact with the fleet API.
+Using `curl` and `jq` to interact with the automdm API.
 
 First, create a `env` file with the following contents:
 
 ```
-export SERVER_URL=https://localhost:8080 # your fleet server url and port
+export SERVER_URL=https://localhost:8080 # your automdm server url and port
 export CURL_FLAGS='-k -s' # set insecure flag
 export TOKEN=eyJhbGciOi... # your api token
 ```
 
-Next set the `FLEET_ENV_PATH` to point to the `env` file. This will let the scripts in the `fleet/` folder source the env file.
+Next set the `AUTOMDM_ENV_PATH` to point to the `env` file. This will let the scripts in the `automdm/` folder source the env file.
 
 # Examples
 
 ```
-export FLEET_ENV_PATH=./path/to/env/file/fleet_env
+export AUTOMDM_ENV_PATH=./path/to/env/file/automdm_env
 
 # get my user info
-./tools/api/fleet/me
+./tools/api/automdm/me
 {
   "user": {
     "created_at": "2018-04-10T02:07:46Z",
@@ -33,17 +33,17 @@ export FLEET_ENV_PATH=./path/to/env/file/fleet_env
 }
 
 # list reports (formerly "queries")
-./tools/api/fleet/queries/list
+./tools/api/automdm/queries/list
 {
   "queries": []
 }
 
 # use jq to filter a specific query and get the id
-./tools/api/fleet/queries/list | jq '.queries[]|select(.name == "osquery_info")|.id'
+./tools/api/automdm/queries/list | jq '.queries[]|select(.name == "osquery_info")|.id'
 2
 
 # create a query
-./tools/api/fleet/queries/create 'system_info' 'SELECT * FROM system_info;'
+./tools/api/automdm/queries/create 'system_info' 'SELECT * FROM system_info;'
 {
   "query": {
     "created_at": "0001-01-01T00:00:00Z",
@@ -59,13 +59,13 @@ export FLEET_ENV_PATH=./path/to/env/file/fleet_env
 }
 
 # run a live report (formerly "live query") on hosts (queries with id=1 and id=2 on hosts with id=3 and id=4)
-./tools/api/fleet/queries/run "[1,2]" "[3,4]"
+./tools/api/automdm/queries/run "[1,2]" "[3,4]"
 ```
 
-> The following examples are made obsolete with the vuln endpoint https://fleetdm.com/docs/rest-api/rest-api#vulnerabilities
+> The following examples are made obsolete with the vuln endpoint https://automdm.com/docs/rest-api/rest-api#vulnerabilities
 
 
-Bash Script - Pulls all hosts based on software _name_ for your Fleet instance, uses jq. Helps if wanting to track down a particular software and see what hosts might be affected.
+Bash Script - Pulls all hosts based on software _name_ for your AutoMDM instance, uses jq. Helps if wanting to track down a particular software and see what hosts might be affected.
 
 `./name.sh api_token software_title_id base_url`
 
@@ -142,7 +142,7 @@ version_hosts_cache = {}
 # Function to get all the software titles with vulnerabilities
 def get_all_vulnerable_software_titles():
     global api_calls_counter
-    endpoint = (f"{BASE_URL}/fleet/software/titles?scope=software-titles&page=0&per_page=1000&order_direction=desc&order_key=hosts_count&vulnerable=true") #note that this is set to 1k to try and capture "all" but might need to adjust
+    endpoint = (f"{BASE_URL}/automdm/software/titles?scope=software-titles&page=0&per_page=1000&order_direction=desc&order_key=hosts_count&vulnerable=true") #note that this is set to 1k to try and capture "all" but might need to adjust
     response = requests.get(endpoint, headers=HEADERS)
     api_calls_counter += 1
 
@@ -163,7 +163,7 @@ def get_hosts_for_software_version(version_id):
         return version_hosts_cache[version_id]
 
     # If not cached, make the request
-    endpoint = f"{BASE_URL}/fleet/hosts?software_version_id={version_id}"
+    endpoint = f"{BASE_URL}/automdm/hosts?software_version_id={version_id}"
     response = requests.get(endpoint, headers=HEADERS)
     api_calls_counter += 1
 

@@ -27,7 +27,7 @@ describe("Policies table", () => {
         isLoading={false}
         onDeletePoliciesClick={noop}
         onAddPolicyClick={noop}
-        currentTeam={{ id: -1, name: "All fleets" }}
+        currentTeam={{ id: -1, name: "All teams" }}
         searchQuery=""
         page={0}
         onQueryChange={noop}
@@ -58,7 +58,7 @@ describe("Policies table", () => {
         isLoading={false}
         onDeletePoliciesClick={noop}
         onAddPolicyClick={noop}
-        currentTeam={{ id: -1, name: "All fleets" }}
+        currentTeam={{ id: -1, name: "All teams" }}
         isPremiumTier
         searchQuery=""
         page={0}
@@ -70,7 +70,7 @@ describe("Policies table", () => {
     );
 
     expect(
-      screen.getByText("No policies apply to all fleets")
+      screen.getByText("No policies apply to all teams")
     ).toBeInTheDocument();
     expect(screen.queryByText("Name")).toBeNull();
     expect(screen.getByPlaceholderText("Search by name")).toBeDisabled();
@@ -103,11 +103,11 @@ describe("Policies table", () => {
       />
     );
 
-    expect(screen.getByText("No policies for this fleet")).toBeInTheDocument();
+    expect(screen.getByText("No policies for this team")).toBeInTheDocument();
     expect(screen.queryByText("Name")).toBeNull();
   });
 
-  it("Renders generic empty state header in Primo mode (all fleets)", () => {
+  it("Renders generic empty state header in Primo mode (all teams)", () => {
     const render = createCustomRenderer({
       context: {
         app: {
@@ -124,7 +124,7 @@ describe("Policies table", () => {
         isLoading={false}
         onDeletePoliciesClick={noop}
         onAddPolicyClick={noop}
-        currentTeam={{ id: -1, name: "All fleets" }}
+        currentTeam={{ id: -1, name: "All teams" }}
         isPremiumTier
         searchQuery=""
         page={0}
@@ -137,7 +137,7 @@ describe("Policies table", () => {
 
     expect(screen.getByText("No policies yet")).toBeInTheDocument();
     expect(
-      screen.queryByText("No policies apply to all fleets")
+      screen.queryByText("No policies apply to all teams")
     ).not.toBeInTheDocument();
   });
 
@@ -171,7 +171,7 @@ describe("Policies table", () => {
 
     expect(screen.getByText("No policies yet")).toBeInTheDocument();
     expect(
-      screen.queryByText("No policies for this fleet")
+      screen.queryByText("No policies for this team")
     ).not.toBeInTheDocument();
   });
 
@@ -191,7 +191,7 @@ describe("Policies table", () => {
         isLoading={false}
         onDeletePoliciesClick={noop}
         onAddPolicyClick={noop}
-        currentTeam={{ id: -1, name: "All fleets" }}
+        currentTeam={{ id: -1, name: "All teams" }}
         isPremiumTier
         searchQuery="shouldn't match anything"
         page={0}
@@ -225,7 +225,7 @@ describe("Policies table", () => {
         isLoading={false}
         onDeletePoliciesClick={noop}
         onAddPolicyClick={noop}
-        currentTeam={{ id: -1, name: "All fleets" }}
+        currentTeam={{ id: -1, name: "All teams" }}
         isPremiumTier
         searchQuery=""
         page={0}
@@ -257,7 +257,7 @@ describe("Policies table", () => {
       },
     });
 
-    const hiddenPolicy = createMockPolicy({ fleet_id: 2, hidden: true });
+    const hiddenPolicy = createMockPolicy({ team_id: 2, hidden: true });
 
     const { user } = render(
       <PoliciesTable
@@ -295,7 +295,7 @@ describe("Policies table", () => {
 
     render(
       <PoliciesTable
-        policiesList={[createMockPolicy({ fleet_id: 2, hidden: false })]}
+        policiesList={[createMockPolicy({ team_id: 2, hidden: false })]}
         isLoading={false}
         onDeletePoliciesClick={noop}
         onAddPolicyClick={noop}
@@ -323,7 +323,7 @@ describe("Policies table", () => {
       },
     });
 
-    const testInheritedPolicy = createMockPolicy({ fleet_id: null });
+    const testInheritedPolicy = createMockPolicy({ team_id: null });
 
     const { user } = render(
       <PoliciesTable
@@ -353,7 +353,7 @@ describe("Policies table", () => {
     });
   });
 
-  it("Does not render an inherited badge and tooltip for global policy on the All fleets's policies page", () => {
+  it("Does not render an inherited badge and tooltip for global policy on the All teams's policies page", () => {
     const render = createCustomRenderer({
       context: {
         app: {
@@ -363,7 +363,7 @@ describe("Policies table", () => {
       },
     });
 
-    const testGlobalPolicy = createMockPolicy({ fleet_id: null });
+    const testGlobalPolicy = createMockPolicy({ team_id: null });
 
     render(
       <PoliciesTable
@@ -371,7 +371,7 @@ describe("Policies table", () => {
         isLoading={false}
         onDeletePoliciesClick={noop}
         onAddPolicyClick={noop}
-        currentTeam={{ id: -1, name: "All fleets" }}
+        currentTeam={{ id: -1, name: "All teams" }}
         isPremiumTier
         searchQuery=""
         page={0}
@@ -396,14 +396,14 @@ describe("Policies table", () => {
     });
 
     const testInheritedPolicies = [
-      createMockPolicy({ fleet_id: null, name: "Inherited policy 1" }),
-      createMockPolicy({ id: 2, fleet_id: null, name: "Inherited policy 2" }),
-      createMockPolicy({ id: 3, fleet_id: null, name: "Inherited policy 3" }),
+      createMockPolicy({ team_id: null, name: "Inherited policy 1" }),
+      createMockPolicy({ id: 2, team_id: null, name: "Inherited policy 2" }),
+      createMockPolicy({ id: 3, team_id: null, name: "Inherited policy 3" }),
     ];
 
     const testTeamPolicies = [
-      createMockPolicy({ id: 4, fleet_id: 2, name: "Team policy 1" }),
-      createMockPolicy({ id: 5, fleet_id: 2, name: "Team policy 2" }),
+      createMockPolicy({ id: 4, team_id: 2, name: "Team policy 1" }),
+      createMockPolicy({ id: 5, team_id: 2, name: "Team policy 2" }),
     ];
 
     const policiesList = [...testInheritedPolicies, ...testTeamPolicies];
@@ -463,7 +463,7 @@ describe("Policies table", () => {
         isLoading={false}
         onDeletePoliciesClick={noop}
         onAddPolicyClick={noop}
-        currentTeam={{ id: -1, name: "All fleets" }}
+        currentTeam={{ id: -1, name: "All teams" }}
         isPremiumTier
         searchQuery=""
         page={0}
@@ -495,7 +495,7 @@ describe("Policies table", () => {
         isLoading={false}
         onDeletePoliciesClick={noop}
         onAddPolicyClick={noop}
-        currentTeam={{ id: -1, name: "All fleets" }}
+        currentTeam={{ id: -1, name: "All teams" }}
         isPremiumTier
         searchQuery=""
         page={0}
@@ -536,7 +536,7 @@ describe("Policies table", () => {
         isLoading={false}
         onDeletePoliciesClick={noop}
         onAddPolicyClick={noop}
-        currentTeam={{ id: -1, name: "All fleets" }}
+        currentTeam={{ id: -1, name: "All teams" }}
         isPremiumTier
         searchQuery=""
         page={0}
@@ -570,7 +570,7 @@ describe("Policies table", () => {
         isLoading={false}
         onDeletePoliciesClick={noop}
         onAddPolicyClick={noop}
-        currentTeam={{ id: -1, name: "All fleets" }}
+        currentTeam={{ id: -1, name: "All teams" }}
         isPremiumTier
         searchQuery=""
         page={0}
@@ -615,7 +615,7 @@ describe("Policies table", () => {
         isLoading={false}
         onDeletePoliciesClick={noop}
         onAddPolicyClick={noop}
-        currentTeam={{ id: -1, name: "All fleets" }}
+        currentTeam={{ id: -1, name: "All teams" }}
         isPremiumTier
         searchQuery=""
         page={0}
@@ -647,21 +647,21 @@ describe("Policies table", () => {
         policiesList={[
           createMockPolicy({
             id: 10,
-            name: "Fleet policy",
-            fleet_id: 2,
+            name: "AutoMDM policy",
+            team_id: 2,
             automation_type: "webhook_or_ticket",
           }),
           createMockPolicy({
             id: 11,
             name: "Inherited policy",
-            fleet_id: null,
+            team_id: null,
             automation_type: "webhook_or_ticket",
           }),
         ]}
         isLoading={false}
         onDeletePoliciesClick={noop}
         onAddPolicyClick={noop}
-        currentTeam={{ id: 2, name: "Fleet 2" }}
+        currentTeam={{ id: 2, name: "AutoMDM 2" }}
         isPremiumTier
         searchQuery=""
         page={0}
@@ -676,7 +676,7 @@ describe("Policies table", () => {
 
     const automationIn = (name: string) =>
       (screen.getAllByText(name)[0].closest("tr") as HTMLElement).textContent;
-    expect(automationIn("Fleet policy")).toContain("Ticket");
+    expect(automationIn("AutoMDM policy")).toContain("Ticket");
     expect(automationIn("Inherited policy")).toContain("Webhook");
     expect(automationIn("Inherited policy")).not.toContain("Ticket");
   });

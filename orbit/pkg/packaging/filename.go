@@ -5,7 +5,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/fleetdm/fleet/v4/pkg/str"
+	"github.com/anilyagiz/automdm/v4/pkg/str"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/unicode/norm"
 )
@@ -15,34 +15,34 @@ import (
 // A UTF-8 byte count is never smaller than the UTF-16 count Windows uses, so this holds on every OS.
 const maxFilenameBytes = 100
 
-// Fleet is a fleet as the package file name needs it.
-type Fleet struct {
+// AutoMDM is a team as the package file name needs it.
+type AutoMDM struct {
 	ID   uint
 	Name string
 }
 
-// outputFilename returns the default name of a generated package: fleet-<platform>[-<arch>][-<fleet>].<ext>.
+// outputFilename returns the default name of a generated package: automdm-<platform>[-<arch>][-<team>].<ext>.
 func outputFilename(platform, arch, ext string, opt Options) string {
-	name := "fleet-" + platform
+	name := "automdm-" + platform
 	if arch != "" {
 		name += "-" + arch
 	}
 	ext = "." + ext
 	budget := maxFilenameBytes - len(name) - len("-") - len(ext)
-	if fleet := fleetFilenamePart(Fleet{ID: opt.FleetID, Name: opt.FleetName}, opt.OtherFleets, budget); fleet != "" {
-		name += "-" + fleet
+	if automdm := automdmFilenamePart(AutoMDM{ID: opt.AutoMDMID, Name: opt.AutoMDMName}, opt.OtherTeams, budget); automdm != "" {
+		name += "-" + automdm
 	}
 	return name + ext
 }
 
-// fleetFilenamePart returns the fleet's cleaned name, cut to budget bytes. Fleets whose parts match get their ID at the
+// automdmFilenamePart returns the team's cleaned name, cut to budget bytes. Teams whose parts match get their ID at the
 // end, in rounds until no two match, so their packages don't overwrite each other. Parts that end in different IDs
-// never match, and each round is decided from the same parts, so a fleet gets the same part whichever package is built.
-func fleetFilenamePart(fleet Fleet, others []Fleet, budget int) string {
-	all := append([]Fleet{fleet}, others...)
+// never match, and each round is decided from the same parts, so a team gets the same part whichever package is built.
+func automdmFilenamePart(automdm AutoMDM, others []AutoMDM, budget int) string {
+	all := append([]AutoMDM{automdm}, others...)
 	parts, keys := make([]string, len(all)), make([]string, len(all))
 	for i, f := range all {
-		parts[i] = cutName(fleetNameForFilename(f.Name), budget)
+		parts[i] = cutName(teamNameForFilename(f.Name), budget)
 		keys[i] = sameFileKey(parts[i])
 	}
 	withID := make([]bool, len(all))
@@ -73,19 +73,19 @@ func sameFileKey(part string) string {
 	return norm.NFC.String(cases.Fold().String(part))
 }
 
-// nameWithID returns the fleet's cleaned name followed by its ID, cut to fit in budget bytes when the ID does.
-func nameWithID(f Fleet, budget int) string {
+// nameWithID returns the team's cleaned name followed by its ID, cut to fit in budget bytes when the ID does.
+func nameWithID(f AutoMDM, budget int) string {
 	suffix := strconv.FormatUint(uint64(f.ID), 10)
-	if short := cutName(fleetNameForFilename(f.Name), budget-len(suffix)-len("-")); short != "" {
+	if short := cutName(teamNameForFilename(f.Name), budget-len(suffix)-len("-")); short != "" {
 		return short + "-" + suffix
 	}
 	return suffix
 }
 
-// fleetNameForFilename lowercases a fleet name and keeps only its letters and digits, in any script, turning every
+// teamNameForFilename lowercases a team name and keeps only its letters and digits, in any script, turning every
 // other run of characters (spaces, punctuation, path separators, emojis) into a single dash. It returns "" when no
 // letter or digit is left.
-func fleetNameForFilename(name string) string {
+func teamNameForFilename(name string) string {
 	// Invisible characters (zero-width joiners inside Persian or Indic words, soft hyphens, bidi controls, Hangul fillers,
 	// the combining grapheme joiner) go first, so they neither split a word nor keep NFC from composing around them.
 	name = norm.NFC.String(strings.Map(func(r rune) rune {

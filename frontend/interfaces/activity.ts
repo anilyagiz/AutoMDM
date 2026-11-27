@@ -21,14 +21,14 @@ export enum ActivityType {
   DeletedSavedQuery = "deleted_saved_query",
   DeletedMultipleSavedQuery = "deleted_multiple_saved_query",
   EditedSavedQuery = "edited_saved_query",
-  CreatedFleet = "created_fleet",
-  DeletedFleet = "deleted_fleet",
+  CreatedTeam = "created_team",
+  DeletedTeam = "deleted_team",
   LiveQuery = "live_query",
-  AppliedSpecPack = "applied_spec_pack", // fleetctl
-  AppliedSpecPolicy = "applied_spec_policy", // fleetctl
-  AppliedSpecSavedQuery = "applied_spec_saved_query", // fleetctl
-  AppliedSpecSoftware = "applied_spec_software", // fleetctl
-  AppliedSpecFleet = "applied_spec_fleet", // fleetctl
+  AppliedSpecPack = "applied_spec_pack", // automdmctl
+  AppliedSpecPolicy = "applied_spec_policy", // automdmctl
+  AppliedSpecSavedQuery = "applied_spec_saved_query", // automdmctl
+  AppliedSpecSoftware = "applied_spec_software", // automdmctl
+  AppliedSpecTeam = "applied_spec_team", // automdmctl
   EditedAgentOptions = "edited_agent_options",
   UserAddedBySSO = "user_added_by_sso",
   UserLoggedIn = "user_logged_in",
@@ -39,9 +39,9 @@ export enum ActivityType {
   HostDeleted = "deleted_host",
   UserChangedGlobalRole = "changed_user_global_role",
   UserDeletedGlobalRole = "deleted_user_global_role",
-  UserChangedFleetRole = "changed_user_fleet_role",
-  UserDeletedFleetRole = "deleted_user_fleet_role",
-  FleetEnrolled = "fleet_enrolled",
+  UserChangedTeamRole = "changed_user_team_role",
+  UserDeletedTeamRole = "deleted_user_team_role",
+  AutoMDMEnrolled = "automdm_enrolled",
   MdmEnrolled = "mdm_enrolled",
   MdmUnenrolled = "mdm_unenrolled",
   EditedMacosMinVersion = "edited_macos_min_version",
@@ -116,13 +116,13 @@ export enum ActivityType {
   DisabledWindowsMdm = "disabled_windows_mdm",
   EnabledGitOpsMode = "enabled_gitops_mode",
   DisabledGitOpsMode = "disabled_gitops_mode",
-  EnabledSSOFleetDesktop = "enabled_sso_fleet_desktop",
-  DisabledSSOFleetDesktop = "disabled_sso_fleet_desktop",
+  EnabledSSOAutoMDMDesktop = "enabled_sso_automdm_desktop",
+  DisabledSSOAutoMDMDesktop = "disabled_sso_automdm_desktop",
   EnabledGitOpsException = "enabled_gitops_exception",
   DisabledGitOpsException = "disabled_gitops_exception",
   EnabledWindowsMdmMigration = "enabled_windows_mdm_migration",
   DisabledWindowsMdmMigration = "disabled_windows_mdm_migration",
-  EditedWindowsEnrollmentDefaultFleet = "edited_windows_enrollment_default_fleet",
+  EditedWindowsEnrollmentDefaultTeam = "edited_windows_enrollment_default_team",
   RanScript = "ran_script",
   RanCustomMdmCommand = "ran_custom_mdm_command",
   RanScriptBatch = "ran_script_batch",
@@ -332,7 +332,7 @@ export interface IActivity {
   actor_email?: string;
   actor_api_only: boolean;
   type: ActivityType;
-  fleet_initiated: boolean;
+  automdm_initiated: boolean;
   details?: IActivityDetails;
 }
 
@@ -378,7 +378,7 @@ export interface IActivityDetails {
   deadline?: string;
   email?: string;
   enrollment_id?: string | null; // unique identifier for MDM BYOD enrollments; null for other enrollments
-  /** Which fleetd component attempted to enroll: "orbit" or "osquery". */
+  /** Which automdmd component attempted to enroll: "orbit" or "osquery". */
   enrollment_plane?: string;
   global?: boolean;
   grace_period_days?: number;
@@ -458,7 +458,7 @@ export interface IActivityDetails {
   stats?: ISchedulableQueryStats;
   status?: string;
   targets_count?: number;
-  fleets?: ITeamSummary[];
+  teams?: ITeamSummary[];
   /** Seconds before the patch install (drives "1 hour" vs "5 minutes" copy). */
   time_before?: number;
   triggered_by?: string;
@@ -466,8 +466,8 @@ export interface IActivityDetails {
   from_auto_update?: boolean;
   /**
    * Set on a failed install activity (`installed_app_store_app` /
-   * `installed_software`) when Fleet failed the install before reaching the
-   * device — currently, the managed app configuration references a Fleet
+   * `installed_software`) when AutoMDM failed the install before reaching the
+   * device — currently, the managed app configuration references an AutoMDM
    * variable that can't be resolved for this host. Empty for device-reported
    * failures, which surface their reason through the MDM command error chain.
    */
@@ -502,8 +502,8 @@ export interface IActivityDetails {
   exception?: string;
   label_id?: number;
   label_name?: string;
-  fleet_id?: number | null;
-  fleet_name?: string | null;
+  team_id?: number | null;
+  team_name?: string | null;
   dataset?: string;
   /** `edited_patch_deadline_settings` payload — weekday names (lowercase) and
    * HH:MM 24-hour time in the host's local timezone. */
@@ -514,12 +514,12 @@ export interface IActivityDetails {
 /**
  * IActivityDetails plus the activity-envelope actor fields the
  * install-details modal needs to render the actor-driven failure copy
- * ("Fleet failed to install…" vs "<Admin> failed to install…"). Used by
+ * ("AutoMDM failed to install…" vs "<Admin> failed to install…"). Used by
  * activity-feed entry points that stash a clicked activity into modal state.
  */
 export type IActivityDetailsWithActor = IActivityDetails & {
   actor_full_name?: string;
-  fleet_initiated?: boolean;
+  automdm_initiated?: boolean;
   activity_created_at?: string;
 };
 
@@ -539,7 +539,7 @@ export const ACTIVITY_TYPE_TO_FILTER_LABEL: Record<ActivityType, string> = {
   added_script: "Added script",
   added_self_service_category: "Added self-service category",
   added_software: "Added software",
-  applied_spec_fleet: "GitOps: edited fleets",
+  applied_spec_team: "GitOps: edited teams",
   applied_spec_pack: "GitOps: edited packs",
   applied_spec_policy: "GitOps: edited policies",
   applied_spec_saved_query: "GitOps: edited reports",
@@ -553,10 +553,10 @@ export const ACTIVITY_TYPE_TO_FILTER_LABEL: Record<ActivityType, string> = {
   canceled_setup_experience: "Canceled setup experience",
   changed_macos_setup_assistant: "Edited macOS automatic enrollment profile",
   changed_org_logo: "Updated organization logo",
-  changed_user_fleet_role: "Edited user's role: fleet",
+  changed_user_team_role: "Edited user's role: team",
   changed_user_global_role: "Edited user's role: global",
   created_declaration_profile: "Added declaration (DDM) profile",
-  created_fleet: "Added fleet",
+  created_team: "Added team",
   created_macos_profile: "Added configuration profile: Apple",
   created_pack: "Created pack",
   created_policy: "Created policy",
@@ -571,7 +571,7 @@ export const ACTIVITY_TYPE_TO_FILTER_LABEL: Record<ActivityType, string> = {
   deleted_digicert: "Deleted certificate authority (CA): DigiCert",
   deleted_ejbca: "Deleted certificate authority (CA): EJBCA",
   deleted_end_user_agreement: "Deleted end user agreement (EULA)",
-  deleted_fleet: "Deleted fleet",
+  deleted_team: "Deleted team",
   deleted_macos_profile: "Deleted configuration profile: Apple",
   deleted_macos_setup_assistant: "Deleted macOS automatic enrollment profile",
   deleted_microsoft_entra_tenant: "Deleted Microsoft Entra tenant",
@@ -587,7 +587,7 @@ export const ACTIVITY_TYPE_TO_FILTER_LABEL: Record<ActivityType, string> = {
   deleted_self_service_category: "Deleted self-service category",
   deleted_software: "Deleted software",
   deleted_user: "Deleted user",
-  deleted_user_fleet_role: "Deleted user's role: fleet",
+  deleted_user_team_role: "Deleted user's role: team",
   deleted_user_global_role: "Deleted user's role: global",
   deleted_windows_profile: "Deleted configuration profile: Windows",
   disabled_activity_automations: "Disabled activity automations",
@@ -599,7 +599,7 @@ export const ACTIVITY_TYPE_TO_FILTER_LABEL: Record<ActivityType, string> = {
   disabled_macos_setup_end_user_auth:
     "Turned off end user authentication (setup experience)",
   disabled_macos_update_new_hosts: "Disabled OS updates for new macOS hosts",
-  disabled_sso_fleet_desktop: "Disabled single sign-on (SSO) for Fleet Desktop",
+  disabled_sso_automdm_desktop: "Disabled single sign-on (SSO) for AutoMDM Desktop",
   disabled_vpp: "Disabled Volume Purchasing Program (VPP)",
   disabled_windows_mdm: "Turned off Windows MDM",
   disabled_windows_mdm_migration: "Turned off Windows MDM migration",
@@ -624,8 +624,8 @@ export const ACTIVITY_TYPE_TO_FILTER_LABEL: Record<ActivityType, string> = {
   edited_script: "Edited script",
   edited_self_service_category: "Edited self-service category",
   edited_software: "Edited software",
-  edited_windows_enrollment_default_fleet:
-    "Edited enrollment default fleet: Windows",
+  edited_windows_enrollment_default_team:
+    "Edited enrollment default team: Windows",
   edited_windows_profile: "Edited configuration profiles: Windows",
   edited_windows_updates: "OS updates: edited Windows",
   enabled_activity_automations: "Enabled activity automations",
@@ -637,11 +637,11 @@ export const ACTIVITY_TYPE_TO_FILTER_LABEL: Record<ActivityType, string> = {
   enabled_macos_setup_end_user_auth:
     "Turned on end user authentication (setup experience)",
   enabled_macos_update_new_hosts: "Enabled OS updates for new macOS hosts",
-  enabled_sso_fleet_desktop: "Enabled single sign-on (SSO) for Fleet Desktop",
+  enabled_sso_automdm_desktop: "Enabled single sign-on (SSO) for AutoMDM Desktop",
   enabled_vpp: "Enabled Volume Purchasing Program (VPP)",
   enabled_windows_mdm: "Turned on Windows MDM",
   enabled_windows_mdm_migration: "Turned on Windows MDM migration",
-  fleet_enrolled: "Host enrolled",
+  automdm_enrolled: "Host enrolled",
   installed_app_store_app: "Installed App Store app",
   installed_software: "Install software",
   installed_all_self_service_software: "Installed all self-service software",

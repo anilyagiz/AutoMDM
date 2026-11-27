@@ -81,7 +81,7 @@ interface IUprightEmojiProps {
 
 /**
  * Renders `text` so emoji glyphs stay upright even when the surrounding
- * element has `font-style: italic`. Use anywhere fleet names (or other
+ * element has `font-style: italic`. Use anywhere team names (or other
  * user-provided strings that may carry emoji) appear inside italicized
  * surfaces — synthetic italic shears emoji and looks broken.
  */

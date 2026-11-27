@@ -1,4 +1,4 @@
-// Package variables provides functionality for handling Fleet variables,
+// Package variables provides functionality for handling AutoMDM variables,
 // which are template placeholders that can be substituted with actual values
 // in various contexts.
 package variables
@@ -9,25 +9,25 @@ import (
 	"strings"
 )
 
-// fleetVariableRegex matches Fleet variables in content.
+// automdmVariableRegex matches AutoMDM variables in content.
 // It supports two formats:
-//   - $FLEET_VAR_NAME - without braces
-//   - ${FLEET_VAR_NAME} - with braces
+//   - $AUTOMDM_VAR_NAME - without braces
+//   - ${AUTOMDM_VAR_NAME} - with braces
 //
-// The regex captures the variable name (without the FLEET_VAR_ prefix) in named groups.
-var fleetVariableRegex = regexp.MustCompile(`(\$FLEET_VAR_(?P<name1>\w+))|(\${FLEET_VAR_(?P<name2>\w+)})`)
+// The regex captures the variable name (without the AUTOMDM_VAR_ prefix) in named groups.
+var automdmVariableRegex = regexp.MustCompile(`(\$AUTOMDM_VAR_(?P<name1>\w+))|(\${AUTOMDM_VAR_(?P<name2>\w+)})`)
 
 // ProfileDataVariableRegex matches variables present in <data> section of Apple profile, which may cause validation issues.
 // This is specific to the DigiCert and EJBCA certificate data variables.
-var ProfileDataVariableRegex = regexp.MustCompile(`(\$FLEET_VAR_(DIGICERT|EJBCA)_DATA_(?P<name1>\w+))|(\${FLEET_VAR_(DIGICERT|EJBCA)_DATA_(?P<name2>\w+)})`)
+var ProfileDataVariableRegex = regexp.MustCompile(`(\$AUTOMDM_VAR_(DIGICERT|EJBCA)_DATA_(?P<name1>\w+))|(\${AUTOMDM_VAR_(DIGICERT|EJBCA)_DATA_(?P<name2>\w+)})`)
 
-// SecretRegex matches a $FLEET_SECRET_NAME or ${FLEET_SECRET_NAME} custom secret variable.
-var SecretRegex = regexp.MustCompile(`\$FLEET_SECRET_\w+|\$\{FLEET_SECRET_\w+\}`)
+// SecretRegex matches a $AUTOMDM_SECRET_NAME or ${AUTOMDM_SECRET_NAME} custom secret variable.
+var SecretRegex = regexp.MustCompile(`\$AUTOMDM_SECRET_\w+|\$\{AUTOMDM_SECRET_\w+\}`)
 
-// Find finds all Fleet variables in the given content and returns them as a map
-// without the FLEET_VAR_ prefix. Returns nil if no variables are found.
+// Find finds all AutoMDM variables in the given content and returns them as a map
+// without the AUTOMDM_VAR_ prefix. Returns nil if no variables are found.
 //
-// For example, if the content contains "$FLEET_VAR_HOST_UUID" and "${FLEET_VAR_HOST_EMAIL}",
+// For example, if the content contains "$AUTOMDM_VAR_HOST_UUID" and "${AUTOMDM_VAR_HOST_EMAIL}",
 // this function will return map[string]struct{}{"HOST_UUID": {}, "HOST_EMAIL": {}}.
 func Find(contents string) []string {
 	resultSlice := FindKeepDuplicates(contents)
@@ -37,19 +37,19 @@ func Find(contents string) []string {
 	return Dedupe(resultSlice)
 }
 
-// FindKeepDuplicates finds all Fleet variables in the given content and returns them
-// as a slice without the FLEET_VAR_ prefix. Duplicates are preserved in the result.
+// FindKeepDuplicates finds all AutoMDM variables in the given content and returns them
+// as a slice without the AUTOMDM_VAR_ prefix. Duplicates are preserved in the result.
 //
 // This is useful when you need to know the order or frequency of variable occurrences.
 func FindKeepDuplicates(contents string) []string {
 	var result []string
-	matches := fleetVariableRegex.FindAllStringSubmatch(contents, -1)
+	matches := automdmVariableRegex.FindAllStringSubmatch(contents, -1)
 	if len(matches) == 0 {
 		return nil
 	}
 
 	nameToIndex := make(map[string]int, 2)
-	for i, name := range fleetVariableRegex.SubexpNames() {
+	for i, name := range automdmVariableRegex.SubexpNames() {
 		if name == "" {
 			continue
 		}
@@ -90,12 +90,12 @@ func Dedupe(varsWithDupes []string) []string {
 	return result
 }
 
-// Replace replaces all occurrences of a specific Fleet variable with the given value.
-// The variableName should be provided without the FLEET_VAR_ prefix.
+// Replace replaces all occurrences of a specific AutoMDM variable with the given value.
+// The variableName should be provided without the AUTOMDM_VAR_ prefix.
 // This function replaces both braced and non-braced versions of the variable.
 //
 // For example, Replace(content, "HOST_UUID", "123-456") will replace both
-// $FLEET_VAR_HOST_UUID and ${FLEET_VAR_HOST_UUID} with "123-456".
+// $AUTOMDM_VAR_HOST_UUID and ${AUTOMDM_VAR_HOST_UUID} with "123-456".
 //
 // It performs no escaping. For content an interpreter will execute, never pass a
 // raw value: the quoting context at the substitution point is unknown. Use
@@ -103,8 +103,8 @@ func Dedupe(varsWithDupes []string) []string {
 // PythonEscape.
 func Replace(contents string, variableName string, value string) string {
 	// Replace both braced and non-braced versions
-	result := strings.ReplaceAll(contents, "$FLEET_VAR_"+variableName, value)
-	result = strings.ReplaceAll(result, "${FLEET_VAR_"+variableName+"}", value)
+	result := strings.ReplaceAll(contents, "$AUTOMDM_VAR_"+variableName, value)
+	result = strings.ReplaceAll(result, "${AUTOMDM_VAR_"+variableName+"}", value)
 	return result
 }
 
@@ -128,12 +128,12 @@ func PythonEscape(value string) string {
 	return b.String()
 }
 
-// Contains checks if the given content contains any Fleet variables.
+// Contains checks if the given content contains any AutoMDM variables.
 func Contains(contents string) bool {
-	return fleetVariableRegex.MatchString(contents)
+	return automdmVariableRegex.MatchString(contents)
 }
 
-// ContainsBytes checks if the given content contains any Fleet variables (bytes version).
+// ContainsBytes checks if the given content contains any AutoMDM variables (bytes version).
 func ContainsBytes(contents []byte) bool {
-	return fleetVariableRegex.Match(contents)
+	return automdmVariableRegex.Match(contents)
 }

@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -39,7 +39,7 @@ func TestConditionalAccessBypass(t *testing.T) {
 func testConditionalAccessBypassDevice(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
-	host, err := ds.NewHost(ctx, &fleet.Host{
+	host, err := ds.NewHost(ctx, &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -75,7 +75,7 @@ func testConditionalAccessBypassDevice(t *testing.T, ds *Datastore) {
 func testConditionalAccessConsumeBypass(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
-	host, err := ds.NewHost(ctx, &fleet.Host{
+	host, err := ds.NewHost(ctx, &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -122,7 +122,7 @@ func testConditionalAccessClearBypasses(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// Create multiple hosts with bypass records
-	host1, err := ds.NewHost(ctx, &fleet.Host{
+	host1, err := ds.NewHost(ctx, &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -135,7 +135,7 @@ func testConditionalAccessClearBypasses(t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 
-	host2, err := ds.NewHost(ctx, &fleet.Host{
+	host2, err := ds.NewHost(ctx, &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -148,7 +148,7 @@ func testConditionalAccessClearBypasses(t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 
-	host3, err := ds.NewHost(ctx, &fleet.Host{
+	host3, err := ds.NewHost(ctx, &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -189,7 +189,7 @@ func testConditionalAccessBypassDeletedWithHost(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
 	// Create a host
-	host, err := ds.NewHost(ctx, &fleet.Host{
+	host, err := ds.NewHost(ctx, &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -225,7 +225,7 @@ func testConditionalAccessBypassDeletedWithHost(t *testing.T, ds *Datastore) {
 func testConditionalAccessBypassedAt(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
-	host, err := ds.NewHost(ctx, &fleet.Host{
+	host, err := ds.NewHost(ctx, &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -255,7 +255,7 @@ func testConditionalAccessBypassedAt(t *testing.T, ds *Datastore) {
 	require.NotNil(t, bypassedAtAgain)
 	require.Equal(t, bypassedAt, bypassedAtAgain)
 
-	hostWithoutBypass, err := ds.NewHost(ctx, &fleet.Host{
+	hostWithoutBypass, err := ds.NewHost(ctx, &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -278,7 +278,7 @@ func testConditionalAccessBypassDeviceWithBlockingPolicy(t *testing.T, ds *Datas
 
 	user := test.NewUser(t, ds, "Alice", "alice@example.com", true)
 
-	host, err := ds.NewHost(ctx, &fleet.Host{
+	host, err := ds.NewHost(ctx, &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -292,12 +292,12 @@ func testConditionalAccessBypassDeviceWithBlockingPolicy(t *testing.T, ds *Datas
 	require.NoError(t, err)
 
 	// Assign host to a team
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "blocking-policy-team"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "blocking-policy-team"})
 	require.NoError(t, err)
-	require.NoError(t, ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team.ID, []uint{host.ID})))
+	require.NoError(t, ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team.ID, []uint{host.ID})))
 
 	// Create a team CA-enabled critical policy that should block bypass
-	policy, err := ds.NewTeamPolicy(ctx, team.ID, &user.ID, fleet.PolicyPayload{
+	policy, err := ds.NewTeamPolicy(ctx, team.ID, &user.ID, automdm.PolicyPayload{
 		Name:                     "ca-critical-policy",
 		Query:                    "select 1;",
 		Critical:                 true,
@@ -312,7 +312,7 @@ func testConditionalAccessBypassDeviceWithBlockingPolicy(t *testing.T, ds *Datas
 	// Bypass should fail because the host has a failing CA-enabled policy
 	err = ds.ConditionalAccessBypassDevice(ctx, host.ID)
 	require.Error(t, err)
-	var badReqErr *fleet.BadRequestError
+	var badReqErr *automdm.BadRequestError
 	require.ErrorAs(t, err, &badReqErr)
 
 	// Verify no host_conditional_access row was created
@@ -327,7 +327,7 @@ func testConditionalAccessBypassAllowedWithNonCAFailingCriticalPolicy(t *testing
 
 	user := test.NewUser(t, ds, "Bob", "bob@example.com", true)
 
-	host, err := ds.NewHost(ctx, &fleet.Host{
+	host, err := ds.NewHost(ctx, &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -341,12 +341,12 @@ func testConditionalAccessBypassAllowedWithNonCAFailingCriticalPolicy(t *testing
 	require.NoError(t, err)
 
 	// Assign host to a team
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "non-ca-policy-team"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "non-ca-policy-team"})
 	require.NoError(t, err)
-	require.NoError(t, ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team.ID, []uint{host.ID})))
+	require.NoError(t, ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team.ID, []uint{host.ID})))
 
 	// CA policy — passing
-	caPolicy, err := ds.NewTeamPolicy(ctx, team.ID, &user.ID, fleet.PolicyPayload{
+	caPolicy, err := ds.NewTeamPolicy(ctx, team.ID, &user.ID, automdm.PolicyPayload{
 		Name:                     "ca-policy-passing",
 		Query:                    "select 1;",
 		Critical:                 true,
@@ -355,7 +355,7 @@ func testConditionalAccessBypassAllowedWithNonCAFailingCriticalPolicy(t *testing
 	require.NoError(t, err)
 
 	// Non-CA critical policy — failing
-	nonCAPolicy, err := ds.NewTeamPolicy(ctx, team.ID, &user.ID, fleet.PolicyPayload{
+	nonCAPolicy, err := ds.NewTeamPolicy(ctx, team.ID, &user.ID, automdm.PolicyPayload{
 		Name:     "non-ca-policy-failing",
 		Query:    "select 1;",
 		Critical: true,
@@ -387,7 +387,7 @@ func testConditionalAccessBypassAllowedWithCAEnabledNonCriticalPolicy(t *testing
 
 	user := test.NewUser(t, ds, "Carol", "carol@example.com", true)
 
-	host, err := ds.NewHost(ctx, &fleet.Host{
+	host, err := ds.NewHost(ctx, &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -400,12 +400,12 @@ func testConditionalAccessBypassAllowedWithCAEnabledNonCriticalPolicy(t *testing
 	})
 	require.NoError(t, err)
 
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "ca-non-critical-team"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "ca-non-critical-team"})
 	require.NoError(t, err)
-	require.NoError(t, ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team.ID, []uint{host.ID})))
+	require.NoError(t, ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team.ID, []uint{host.ID})))
 
 	// CA-enabled but NOT critical — failing
-	nonCriticalCAPolicy, err := ds.NewTeamPolicy(ctx, team.ID, &user.ID, fleet.PolicyPayload{
+	nonCriticalCAPolicy, err := ds.NewTeamPolicy(ctx, team.ID, &user.ID, automdm.PolicyPayload{
 		Name:                     "ca-enabled-non-critical",
 		Query:                    "select 1;",
 		Critical:                 false,

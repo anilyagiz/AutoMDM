@@ -19,7 +19,7 @@ import { IGetHostCertificatesResponse } from "services/entities/hosts";
 import { baseUrl } from "test/test-utils";
 
 export const createDefaultDeviceResponse = (): IDUPDetails => ({
-  host: { ...createMockHost(), dep_assigned_to_fleet: false },
+  host: { ...createMockHost(), dep_assigned_to_automdm: false },
   license: createMockLicense(),
   org_logo_url_dark_mode: "",
   org_logo_url_light_mode: "",
@@ -43,7 +43,7 @@ export const defaultDeviceHandler = http.get(baseUrl("/device/:token"), () =>
   HttpResponse.json(createDefaultDeviceResponse())
 );
 
-/** The device API answers 401 for an expired device token and, when Fleet
+/** The device API answers 401 for an expired device token and, when AutoMDM
  * Desktop SSO is on, for a request carrying no IdP session. Only the second
  * carries the marker. */
 export const ssoRequiredDeviceHandler = http.get(

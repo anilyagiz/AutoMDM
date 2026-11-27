@@ -1,6 +1,6 @@
 package service
 
-// Orbit (fleetd) tests for the core (no-license) suite.
+// Orbit (automdmd) tests for the core (no-license) suite.
 //
 // Belongs here: orbit config and its notifications, orbit extensions, orbit
 // enrollment including serial-number mismatch handling, and debug logging on
@@ -16,8 +16,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/service/contract"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/service/contract"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
@@ -39,54 +39,54 @@ func (s *integrationTestSuite) TestOrbitConfigNotifications() {
 		require.NoError(t, err)
 	}()
 
-	var resp fleet.OrbitGetConfigResponse
+	var resp automdm.OrbitGetConfigResponse
 	// missing orbit key
-	s.DoJSON("POST", "/api/fleet/orbit/config", nil, http.StatusUnauthorized, &resp)
+	s.DoJSON("POST", "/api/automdm/orbit/config", nil, http.StatusUnauthorized, &resp)
 
 	hNoMDM := createOrbitEnrolledHost(t, "darwin", "nomdm", s.ds)
-	resp = fleet.OrbitGetConfigResponse{}
-	s.DoJSON("POST", "/api/fleet/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *hNoMDM.OrbitNodeKey)), http.StatusOK, &resp)
+	resp = automdm.OrbitGetConfigResponse{}
+	s.DoJSON("POST", "/api/automdm/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *hNoMDM.OrbitNodeKey)), http.StatusOK, &resp)
 	require.False(t, resp.Notifications.RenewEnrollmentProfile)
 
 	hSimpleMDM := createOrbitEnrolledHost(t, "darwin", "simplemdm", s.ds)
-	err = s.ds.SetOrUpdateMDMData(context.Background(), hSimpleMDM.ID, false, true, "https://simplemdm.com", false, fleet.WellKnownMDMSimpleMDM, "", fleet.PersonalEnrollmentTypeNone)
+	err = s.ds.SetOrUpdateMDMData(context.Background(), hSimpleMDM.ID, false, true, "https://simplemdm.com", false, automdm.WellKnownMDMSimpleMDM, "", automdm.PersonalEnrollmentTypeNone)
 	require.NoError(t, err)
-	resp = fleet.OrbitGetConfigResponse{}
-	s.DoJSON("POST", "/api/fleet/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *hSimpleMDM.OrbitNodeKey)), http.StatusOK, &resp)
+	resp = automdm.OrbitGetConfigResponse{}
+	s.DoJSON("POST", "/api/automdm/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *hSimpleMDM.OrbitNodeKey)), http.StatusOK, &resp)
 	require.False(t, resp.Notifications.RenewEnrollmentProfile)
 
 	// not yet assigned in ABM
-	hFleetMDM := createOrbitEnrolledHost(t, "darwin", "fleetmdm", s.ds)
-	err = s.ds.SetOrUpdateMDMData(context.Background(), hFleetMDM.ID, false, false, "https://fleetdm.com", true, fleet.WellKnownMDMFleet, "", fleet.PersonalEnrollmentTypeNone)
+	hAutoMDMMDM := createOrbitEnrolledHost(t, "darwin", "automdmmdm", s.ds)
+	err = s.ds.SetOrUpdateMDMData(context.Background(), hAutoMDMMDM.ID, false, false, "https://automdm.com", true, automdm.WellKnownMDMAutoMDM, "", automdm.PersonalEnrollmentTypeNone)
 	require.NoError(t, err)
 
-	resp = fleet.OrbitGetConfigResponse{}
-	s.DoJSON("POST", "/api/fleet/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *hFleetMDM.OrbitNodeKey)), http.StatusOK, &resp)
+	resp = automdm.OrbitGetConfigResponse{}
+	s.DoJSON("POST", "/api/automdm/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *hAutoMDMMDM.OrbitNodeKey)), http.StatusOK, &resp)
 	require.False(t, resp.Notifications.RenewEnrollmentProfile)
 
 	// simulate ABM assignment
 	encTok := uuid.NewString()
-	abmToken, err := s.ds.InsertABMToken(ctx, &fleet.ABMToken{OrganizationName: "unused", EncryptedToken: []byte(encTok), RenewAt: time.Now().Add(30 * 24 * time.Hour)})
+	abmToken, err := s.ds.InsertABMToken(ctx, &automdm.ABMToken{OrganizationName: "unused", EncryptedToken: []byte(encTok), RenewAt: time.Now().Add(30 * 24 * time.Hour)})
 	require.NoError(t, err)
 	require.NotEmpty(t, abmToken.ID)
-	err = s.ds.UpsertMDMAppleHostDEPAssignments(ctx, []fleet.Host{*hFleetMDM}, abmToken.ID, make(map[uint]time.Time))
+	err = s.ds.UpsertMDMAppleHostDEPAssignments(ctx, []automdm.Host{*hAutoMDMMDM}, abmToken.ID, make(map[uint]time.Time))
 	require.NoError(t, err)
-	err = s.ds.SetOrUpdateMDMData(context.Background(), hSimpleMDM.ID, false, true, "https://simplemdm.com", false, fleet.WellKnownMDMSimpleMDM, "", fleet.PersonalEnrollmentTypeNone)
+	err = s.ds.SetOrUpdateMDMData(context.Background(), hSimpleMDM.ID, false, true, "https://simplemdm.com", false, automdm.WellKnownMDMSimpleMDM, "", automdm.PersonalEnrollmentTypeNone)
 	require.NoError(t, err)
-	resp = fleet.OrbitGetConfigResponse{}
-	s.DoJSON("POST", "/api/fleet/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *hFleetMDM.OrbitNodeKey)), http.StatusOK, &resp)
+	resp = automdm.OrbitGetConfigResponse{}
+	s.DoJSON("POST", "/api/automdm/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *hAutoMDMMDM.OrbitNodeKey)), http.StatusOK, &resp)
 	require.True(t, resp.Notifications.RenewEnrollmentProfile)
 
-	// if the fleet mdm host is fully enrolled (not pending anymore), then the notification is false
-	err = s.ds.SetOrUpdateMDMData(context.Background(), hFleetMDM.ID, false, true, "https://fleetdm.com", true, fleet.WellKnownMDMFleet, "", fleet.PersonalEnrollmentTypeNone)
+	// if the automdm mdm host is fully enrolled (not pending anymore), then the notification is false
+	err = s.ds.SetOrUpdateMDMData(context.Background(), hAutoMDMMDM.ID, false, true, "https://automdm.com", true, automdm.WellKnownMDMAutoMDM, "", automdm.PersonalEnrollmentTypeNone)
 	require.NoError(t, err)
-	resp = fleet.OrbitGetConfigResponse{}
-	s.DoJSON("POST", "/api/fleet/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *hFleetMDM.OrbitNodeKey)), http.StatusOK, &resp)
+	resp = automdm.OrbitGetConfigResponse{}
+	s.DoJSON("POST", "/api/automdm/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *hAutoMDMMDM.OrbitNodeKey)), http.StatusOK, &resp)
 	require.False(t, resp.Notifications.RenewEnrollmentProfile)
 
 	// the scripts orbit endpoints are accessible without license
-	s.Do("POST", "/api/fleet/orbit/scripts/request", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *hFleetMDM.OrbitNodeKey)), http.StatusNotFound)
-	s.Do("POST", "/api/fleet/orbit/scripts/result", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *hFleetMDM.OrbitNodeKey)), http.StatusBadRequest)
+	s.Do("POST", "/api/automdm/orbit/scripts/request", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *hAutoMDMMDM.OrbitNodeKey)), http.StatusNotFound)
+	s.Do("POST", "/api/automdm/orbit/scripts/result", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *hAutoMDMMDM.OrbitNodeKey)), http.StatusBadRequest)
 }
 
 func (s *integrationTestSuite) TestEnrollOrbitExistingHostNoSerialMatch() {
@@ -96,7 +96,7 @@ func (s *integrationTestSuite) TestEnrollOrbitExistingHostNoSerialMatch() {
 	// create a host with minimal information and the serial, no uuid/osquery id
 	// (as when created via DEP sync).
 	dbZeroTime := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
-	h, err := s.ds.NewHost(ctx, &fleet.Host{
+	h, err := s.ds.NewHost(ctx, &automdm.Host{
 		HardwareSerial:   uuid.New().String(),
 		Platform:         "darwin",
 		LastEnrolledAt:   dbZeroTime,
@@ -108,9 +108,9 @@ func (s *integrationTestSuite) TestEnrollOrbitExistingHostNoSerialMatch() {
 	// create an enroll secret
 	secret := uuid.New().String()
 	var applyResp applyEnrollSecretSpecResponse
-	s.DoJSON("POST", "/api/latest/fleet/spec/enroll_secret", applyEnrollSecretSpecRequest{
-		Spec: &fleet.EnrollSecretSpec{
-			Secrets: []*fleet.EnrollSecret{{Secret: secret}},
+	s.DoJSON("POST", "/api/latest/automdm/spec/enroll_secret", applyEnrollSecretSpecRequest{
+		Spec: &automdm.EnrollSecretSpec{
+			Secrets: []*automdm.EnrollSecret{{Secret: secret}},
 		},
 	}, http.StatusOK, &applyResp)
 
@@ -119,7 +119,7 @@ func (s *integrationTestSuite) TestEnrollOrbitExistingHostNoSerialMatch() {
 	// the provided uuid).
 	var resp enrollOrbitResponse
 	hostUUID := uuid.New().String()
-	s.DoJSON("POST", "/api/fleet/orbit/enroll", fleet.EnrollOrbitRequest{
+	s.DoJSON("POST", "/api/automdm/orbit/enroll", automdm.EnrollOrbitRequest{
 		EnrollSecret:   secret,
 		HardwareUUID:   hostUUID, // will not match any existing host
 		HardwareSerial: h.HardwareSerial,
@@ -174,12 +174,12 @@ func (s *integrationTestSuite) TestOrbitConfigExtensions() {
 
 	// Orbit client gets no extensions if extensions are not configured.
 	orbitLinuxClient := createOrbitEnrolledHost(t, "linux", "foobar1", s.ds)
-	resp := fleet.OrbitGetConfigResponse{}
-	s.DoJSON("POST", "/api/fleet/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *orbitLinuxClient.OrbitNodeKey)), http.StatusOK, &resp)
+	resp := automdm.OrbitGetConfigResponse{}
+	s.DoJSON("POST", "/api/automdm/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *orbitLinuxClient.OrbitNodeKey)), http.StatusOK, &resp)
 	require.Empty(t, resp.Extensions)
 
 	// Attempt to add extensions (should succeed).
-	s.DoRaw("PATCH", "/api/latest/fleet/config", []byte(`{
+	s.DoRaw("PATCH", "/api/latest/automdm/config", []byte(`{
 	"agent_options": {
 		"config": {
 			"options": {
@@ -210,7 +210,7 @@ func (s *integrationTestSuite) TestOrbitConfigExtensions() {
 }`), http.StatusOK)
 
 	// Attempt to add labels to extensions (only available on premium).
-	s.DoRaw("PATCH", "/api/latest/fleet/config", []byte(`{
+	s.DoRaw("PATCH", "/api/latest/automdm/config", []byte(`{
   "agent_options": {
 	"config": {
 		"options": {
@@ -246,8 +246,8 @@ func (s *integrationTestSuite) TestOrbitConfigExtensions() {
 
 	// Orbit client gets extensions configured for its platform.
 	orbitDarwinClient := createOrbitEnrolledHost(t, "darwin", "foobar2", s.ds)
-	resp = fleet.OrbitGetConfigResponse{}
-	s.DoJSON("POST", "/api/fleet/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *orbitDarwinClient.OrbitNodeKey)), http.StatusOK, &resp)
+	resp = automdm.OrbitGetConfigResponse{}
+	s.DoJSON("POST", "/api/automdm/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *orbitDarwinClient.OrbitNodeKey)), http.StatusOK, &resp)
 	require.JSONEq(t, `{
     "hello_world_macos": {
       "platform": "macos",
@@ -258,13 +258,13 @@ func (s *integrationTestSuite) TestOrbitConfigExtensions() {
 	orbitWindowsClient := createOrbitEnrolledHost(t, "windows", "foobar3", s.ds)
 
 	// Orbit client gets no extensions if none of the platforms target it.
-	resp = fleet.OrbitGetConfigResponse{}
-	s.DoJSON("POST", "/api/fleet/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *orbitWindowsClient.OrbitNodeKey)), http.StatusOK, &resp)
+	resp = automdm.OrbitGetConfigResponse{}
+	s.DoJSON("POST", "/api/automdm/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *orbitWindowsClient.OrbitNodeKey)), http.StatusOK, &resp)
 	require.Empty(t, resp.Extensions)
 
 	// Orbit client gets the two extensions configured for its platform.
-	resp = fleet.OrbitGetConfigResponse{}
-	s.DoJSON("POST", "/api/fleet/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *orbitLinuxClient.OrbitNodeKey)), http.StatusOK, &resp)
+	resp = automdm.OrbitGetConfigResponse{}
+	s.DoJSON("POST", "/api/automdm/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *orbitLinuxClient.OrbitNodeKey)), http.StatusOK, &resp)
 	require.JSONEq(t, `{
 	"hello_world_linux": {
 		"channel": "stable",
@@ -283,37 +283,37 @@ func (s *integrationTestSuite) TestOrbitDebugLoggingOnEnroll() {
 
 	// Reject above cap.
 	var acResp appConfigResponse
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 		"agent_options": { "orbit": {"debug_logging_on_enroll_duration": 86401} }
 	}`), http.StatusBadRequest, &acResp)
 
 	// Reject negative.
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 		"agent_options": { "orbit": {"debug_logging_on_enroll_duration": -1} }
 	}`), http.StatusBadRequest, &acResp)
 
 	// Reject duration string (must be seconds, integer).
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 		"agent_options": { "orbit": {"debug_logging_on_enroll_duration": "1h"} }
 	}`), http.StatusBadRequest, &acResp)
 
 	// 1h global window (3600 seconds).
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 		"agent_options": { "orbit": {"debug_logging_on_enroll_duration": 3600} }
 	}`), http.StatusOK, &acResp)
 
 	secret := uuid.New().String()
 	var applyResp applyEnrollSecretSpecResponse
-	s.DoJSON("POST", "/api/latest/fleet/spec/enroll_secret", applyEnrollSecretSpecRequest{
-		Spec: &fleet.EnrollSecretSpec{
-			Secrets: []*fleet.EnrollSecret{{Secret: secret}},
+	s.DoJSON("POST", "/api/latest/automdm/spec/enroll_secret", applyEnrollSecretSpecRequest{
+		Spec: &automdm.EnrollSecretSpec{
+			Secrets: []*automdm.EnrollSecret{{Secret: secret}},
 		},
 	}, http.StatusOK, &applyResp)
 
 	beforeEnroll := time.Now()
 	var enrollResp enrollOrbitResponse
 	hostUUID := uuid.New().String()
-	s.DoJSON("POST", "/api/fleet/orbit/enroll", fleet.EnrollOrbitRequest{
+	s.DoJSON("POST", "/api/automdm/orbit/enroll", automdm.EnrollOrbitRequest{
 		EnrollSecret:   secret,
 		HardwareUUID:   hostUUID,
 		HardwareSerial: uuid.New().String(),
@@ -328,13 +328,13 @@ func (s *integrationTestSuite) TestOrbitDebugLoggingOnEnroll() {
 	require.WithinDuration(t, beforeEnroll.Add(time.Hour), *stampedHost.OrbitDebugUntil, time.Minute)
 
 	// Clearing the option stops stamping.
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 		"agent_options": { "orbit": {"debug_logging_on_enroll_duration": 0} }
 	}`), http.StatusOK, &acResp)
 
 	var enrollResp2 enrollOrbitResponse
 	hostUUID2 := uuid.New().String()
-	s.DoJSON("POST", "/api/fleet/orbit/enroll", fleet.EnrollOrbitRequest{
+	s.DoJSON("POST", "/api/automdm/orbit/enroll", automdm.EnrollOrbitRequest{
 		EnrollSecret:   secret,
 		HardwareUUID:   hostUUID2,
 		HardwareSerial: uuid.New().String(),

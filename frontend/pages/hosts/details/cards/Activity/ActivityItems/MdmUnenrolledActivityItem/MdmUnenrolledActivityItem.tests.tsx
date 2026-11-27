@@ -22,13 +22,13 @@ const renderItem = (platform: Platform, actor: string) =>
 
 describe("MdmUnenrolledActivityItem", () => {
   const cases: Array<[Platform, string, RegExp]> = [
-    ["ios", "Admin User", /told Fleet to unenroll this host/i],
-    ["android", "Admin User", /told Fleet to unenroll this host/i],
-    ["android", "", /This host is unenrolled from Fleet/i],
+    ["ios", "Admin User", /told AutoMDM to unenroll this host/i],
+    ["android", "Admin User", /told AutoMDM to unenroll this host/i],
+    ["android", "", /This host is unenrolled from AutoMDM/i],
     [
       "darwin",
       "Admin User",
-      /told Fleet to turn off mobile device management \(MDM\) for this host/i,
+      /told AutoMDM to turn off mobile device management \(MDM\) for this host/i,
     ],
     [
       "darwin",

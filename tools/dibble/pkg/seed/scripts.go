@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/tools/dibble/pkg/themes"
+	"github.com/anilyagiz/automdm/v4/tools/dibble/pkg/themes"
 )
 
 // Scripts seeds saved scripts (global + per-team). The endpoint accepts a
@@ -12,7 +12,7 @@ import (
 // none for global) as a form field.
 //
 // Script content varies by extension: .sh for macOS/Linux targets and .ps1
-// for Windows — the two extensions Fleet's scripts endpoint accepts (along
+// for Windows — the two extensions AutoMDM's scripts endpoint accepts (along
 // with .py, which we don't seed).
 func Scripts(c Client, log Logger, theme themes.Theme, teams []Team, count int) Result {
 	res := Result{Entity: "scripts"}
@@ -34,12 +34,12 @@ func Scripts(c Client, log Logger, theme themes.Theme, teams []Team, count int) 
 		name = strings.TrimSuffix(name, ".ps1") + ext
 		fields := map[string]string{}
 		if teamID > 0 {
-			// Fleet's renamed "team" → "fleet" — the multipart key is fleet_id.
-			fields["fleet_id"] = fmt.Sprintf("%d", teamID)
+			// AutoMDM's renamed "team" → "team" — the multipart key is team_id.
+			fields["team_id"] = fmt.Sprintf("%d", teamID)
 		}
 		// Form field must be exactly "script"; filename carries the extension.
 		files := []MultipartFile{{FieldName: "script", Filename: name, Content: []byte(body(ext, n.Name))}}
-		err := c.PostMultipart("/api/latest/fleet/scripts", fields, files, nil)
+		err := c.PostMultipart("/api/latest/automdm/scripts", fields, files, nil)
 		switch {
 		case err == nil:
 			res.Created++

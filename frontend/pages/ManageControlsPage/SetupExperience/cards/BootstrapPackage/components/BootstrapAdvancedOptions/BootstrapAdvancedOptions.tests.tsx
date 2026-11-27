@@ -34,7 +34,7 @@ const render = createCustomRenderer({
       config: createMockConfig({
         server_settings: {
           ...createMockConfig().server_settings,
-          server_url: "https://fleet.example.com",
+          server_url: "https://automdm.example.com",
         },
       }),
     },
@@ -107,7 +107,7 @@ describe("BootstrapAdvancedOptions", () => {
     expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
   });
 
-  it("saves all options for the fleet", async () => {
+  it("saves all options for the team", async () => {
     const updateSpy = jest
       .spyOn(mdmAPI, "updateSetupExperienceSettings")
       .mockResolvedValue({});
@@ -119,7 +119,7 @@ describe("BootstrapAdvancedOptions", () => {
 
     await waitFor(() => {
       expect(updateSpy).toHaveBeenCalledWith({
-        fleet_id: 1,
+        team_id: 1,
         macos_enable_bootstrap_package_during_manual_enrollment: true,
         macos_enable_bootstrap_package_during_migration: true,
         macos_manual_agent_install: false,
@@ -160,7 +160,7 @@ describe("BootstrapAdvancedOptions", () => {
     const link = await screen.findByRole("link", { name: /enrollment link/ });
     expect(link).toHaveAttribute(
       "href",
-      "https://fleet.example.com/enroll?enroll_secret=a%2Fb%2Bc"
+      "https://automdm.example.com/enroll?enroll_secret=a%2Fb%2Bc"
     );
     expect(link).toHaveAttribute("target", "_blank");
   });
@@ -177,7 +177,7 @@ describe("BootstrapAdvancedOptions", () => {
     });
     expect(link).toHaveAttribute(
       "href",
-      "/hosts/manage?manage_enroll_secrets=1&fleet_id=1"
+      "/hosts/manage?manage_enroll_secrets=1&team_id=1"
     );
     expect(
       screen.queryByRole("link", { name: /enrollment link/ })

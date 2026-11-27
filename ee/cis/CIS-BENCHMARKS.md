@@ -1,6 +1,6 @@
 # CIS benchmarks: authoring, testing, and automation
 
-This document describes how CIS benchmark policies work in Fleet, how
+This document describes how CIS benchmark policies work in AutoMDM, how
 to write and test them, and how to use an AI agent to generate them
 from CIS PDF documents end-to-end.
 
@@ -62,7 +62,7 @@ spec:
 
 | Field | Required | Notes |
 |-------|----------|-------|
-| `name` | yes | Format: `CIS - <benchmark title>`. Append `(MDM Required)`, `(Fleetd Required)`, or `(FDA Required)` when the check depends on managed profiles, fleetd tables, or full disk access. |
+| `name` | yes | Format: `CIS - <benchmark title>`. Append `(MDM Required)`, `(AutoMDMd Required)`, or `(FDA Required)` when the check depends on managed profiles, automdmd tables, or full disk access. |
 | `cis_id` | yes | The dotted section number from the benchmark document (e.g. `"2.3.3.4"`). For combined checks, comma-separate: `"5.2.3, 5.2.4"`. |
 | `platforms` | yes | Human-readable: `macOS`, `Windows`, etc. |
 | `platform` | yes | Osquery platform string: `darwin`, `windows`, `linux`. |
@@ -184,12 +184,12 @@ When the either-branch uses pattern 2, still include its
 Append these to the policy name when applicable:
 
 - **(MDM Required)** — query checks `managed_policies`; needs an MDM profile installed
-- **(Fleetd Required)** — query uses a fleetd-specific table (e.g. `software_update`)
+- **(AutoMDMd Required)** — query uses an automdmd-specific table (e.g. `software_update`)
 - **(FDA Required)** — query reads paths that require full disk access
 
-### Fleetd tables used by CIS queries
+### AutoMDMd tables used by CIS queries
 
-Fleetd ships custom osquery tables for settings that can't be read
+AutoMDMd ships custom osquery tables for settings that can't be read
 from stock osquery. When writing a query against one, check the
 source at `orbit/pkg/table/<name>/` to confirm the column names
 and any required `WHERE` constraints. The table below is the set
@@ -205,7 +205,7 @@ currently in use by macOS CIS policies.
 | `nvram_info` | `amfi_enabled` | — | Integer 0/1. |
 | `pmset` | `getting`, `json_result` | `getting` (e.g. `'custom'`) | `json_result` contains per-power-source nested dicts; use `JSON_EXTRACT(json_result, '$.AC Power:')` etc. |
 | `pwd_policy` | `max_failed_attempts`, `expires_every_n_days`, `days_to_expiration`, `history_depth`, `min_mixed_case_characters` | — | See console-user caveat below. |
-| `password_policy` | `policy_identifier`, `policy_content` | — | macOS-native osquery table, *not* fleetd — listed here for completeness. |
+| `password_policy` | `policy_identifier`, `policy_content` | — | macOS-native osquery table, *not* automdmd — listed here for completeness. |
 | `software_update` | `software_update_required` | — | — |
 | `sudo_info` | `json_result` | — | Parsed output of `sudo -V`; use `JSON_EXTRACT(json_result, '$.Authentication timestamp timeout')`, `'$.Type of authentication timestamp record'`, `'$.Log when a command is allowed by sudoers'`. |
 | `user_login_settings` | `password_hint_enabled` | — | See console-user caveat below. |
@@ -248,12 +248,12 @@ pushed alongside all other profiles during setup.
 ### Profile-only policies
 
 Many MDM-dependent policies have no shell script — the only way to
-make them pass is to install a `.mobileconfig` profile via Fleet. For
+make them pass is to install a `.mobileconfig` profile via AutoMDM. For
 these, the test runner automatically:
 
 1. Runs the query **before** pushing any profiles to verify it returns
    0 rows (confirms the query detects non-compliance)
-2. Pushes all needed profiles to the Fleet team
+2. Pushes all needed profiles to the AutoMDM team
 3. Waits for profile delivery
 4. Runs the query again to verify it now returns rows
 
@@ -316,7 +316,7 @@ These idioms come up repeatedly and are worth reusing verbatim.
 **Console user** — needed when setting or reading a per-user
 preference from within a system-level script. Write the user's plist
 by path as root rather than `sudo -u "$user" defaults write <domain>`:
-when a script runs through Fleet's script execution (a root
+when a script runs through AutoMDM's script execution (a root
 LaunchDaemon with no user session) the per-user cfprefsd is
 unreachable and the domain write fails with "Could not write domain"
 on some macOS versions (seen on 14.6 and 26.5; 15.6 happens to work).
@@ -336,7 +336,7 @@ fi
 On a headless test VM without a logged-in console user, the value
 is `root` — the script should no-op rather than fail. Older scripts
 that still use `sudo -u "$user" defaults write <domain>` work from the
-SSH-based test runner but not from Fleet's script execution.
+SSH-based test runner but not from AutoMDM's script execution.
 
 **Iterate `/Users/*`** — for per-user settings that must be applied
 to every local account. Skip `Shared`, `Guest`, and dot-prefixed
@@ -534,14 +534,14 @@ Each OS directory has a `README.md` that must document:
 2. **Status** — which sections are complete and which are still WIP.
 3. **Sections covered** — a table listing §1..§N with status per
    section (complete, in progress, not started, skipped).
-4. **Limitations** — benchmarks that cannot be checked as a Fleet
+4. **Limitations** — benchmarks that cannot be checked as an AutoMDM
    policy (manual audits, GUI-only settings). Include every
    Manual-assessment recommendation from the PDF with its CIS ID,
    level, title, and a one-line reason it can't be automated.
 5. **Org-decision policies** — where CIS leaves the choice to the
-   organization; Fleet provides both enable/disable variants.
+   organization; AutoMDM provides both enable/disable variants.
 6. **Optional policies** — benchmarks CIS ships at a level
-   higher than what Fleet enforces by default (e.g. Level 2
+   higher than what AutoMDM enforces by default (e.g. Level 2
    recommendations on a deployment that targets Level 1), or
    org-chosen alternatives for items CIS leaves open.
 7. **Per-section notes** — for each section that shipped, a short
@@ -569,7 +569,7 @@ it blank — readers otherwise assume it's a gap:
 # Test everything, skip manual policies / policies without test artifacts
 python3 tools/cis/cis-test-runner.py \
     --macos-version 14 --all --skip-manual \
-    --fleet-url $FLEET_URL --fleet-token $FLEET_API_TOKEN
+    --automdm-url $AUTOMDM_URL --automdm-token $AUTOMDM_API_TOKEN
 
 # Test specific CIS IDs
 python3 tools/cis/cis-test-runner.py \
@@ -580,7 +580,7 @@ python3 tools/cis/cis-test-runner.py \
     --macos-version 14 --all --skip-manual --cleanup
 ```
 
-The runner creates a Fleet team, builds and installs a fleet agent in
+The runner creates an AutoMDM team, builds and installs an automdm agent in
 a tart VM, enrolls it, runs each test, and prints a summary. See
 `tools/cis/README.md` for full flag reference.
 
@@ -724,7 +724,7 @@ minimum that has proven useful; extend as needed.
 ````markdown
 # <OS> <version> CIS benchmark — state file
 
-**Purpose:** durable checkpoint for generating Fleet's CIS
+**Purpose:** durable checkpoint for generating AutoMDM's CIS
 benchmark for <OS> <version>, resumable across sessions.
 
 ## How to resume
@@ -765,7 +765,7 @@ Status legend: ⬜ not started · 🟨 in progress · ✅ done ·
 - [ ] YAML parses, `cis_id`s unique
 - [ ] All profiles `plutil -lint` OK
 - [ ] Profile UUIDs unique (top-level + inner, no duplicates)
-- [ ] Fleetd table schemas verified against `orbit/pkg/table/`
+- [ ] AutoMDMd table schemas verified against `orbit/pkg/table/`
 - [ ] Test runner dry run against generated policies
 - [ ] Summary reviewed, failures fixed
 

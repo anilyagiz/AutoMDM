@@ -4,10 +4,10 @@ import (
 	"context"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/logging"
-	"github.com/fleetdm/fleet/v4/server/datastore/redis"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/logging"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis"
 	redigo "github.com/gomodule/redigo/redis"
 )
 
@@ -70,7 +70,7 @@ func (d *Datastore) SyncEnrolledHostIDs(ctx context.Context) error {
 	return nil
 }
 
-func addHosts(ctx context.Context, pool fleet.RedisPool, hostIDs ...uint) error {
+func addHosts(ctx context.Context, pool automdm.RedisPool, hostIDs ...uint) error {
 	conn := redis.ConfigureDoer(pool, pool.Get())
 	defer conn.Close()
 
@@ -90,7 +90,7 @@ func addHosts(ctx context.Context, pool fleet.RedisPool, hostIDs ...uint) error 
 	return nil
 }
 
-func removeHosts(ctx context.Context, pool fleet.RedisPool, hostIDs ...uint) error {
+func removeHosts(ctx context.Context, pool automdm.RedisPool, hostIDs ...uint) error {
 	conn := redis.ConfigureDoer(pool, pool.Get())
 	defer conn.Close()
 
@@ -124,7 +124,7 @@ func (d *Datastore) checkCanAddHost(ctx context.Context) (bool, error) {
 	return true, nil
 }
 
-func (d *Datastore) NewHost(ctx context.Context, host *fleet.Host) (*fleet.Host, error) {
+func (d *Datastore) NewHost(ctx context.Context, host *automdm.Host) (*automdm.Host, error) {
 	h, err := d.Datastore.NewHost(ctx, host)
 	if err != nil {
 		return h, err
@@ -143,7 +143,7 @@ func (d *Datastore) NewHost(ctx context.Context, host *fleet.Host) (*fleet.Host,
 	return h, nil
 }
 
-func (d *Datastore) EnrollOsquery(ctx context.Context, opts ...fleet.DatastoreEnrollOsqueryOption) (*fleet.Host, error) {
+func (d *Datastore) EnrollOsquery(ctx context.Context, opts ...automdm.DatastoreEnrollOsqueryOption) (*automdm.Host, error) {
 	h, err := d.Datastore.EnrollOsquery(ctx, opts...)
 	if err != nil {
 		return h, err
@@ -190,7 +190,7 @@ func (d *Datastore) DeleteHosts(ctx context.Context, ids []uint) error {
 	return nil
 }
 
-func (d *Datastore) CleanupExpiredHostsBatch(ctx context.Context, batchSize int) ([]fleet.DeletedHostDetails, error) {
+func (d *Datastore) CleanupExpiredHostsBatch(ctx context.Context, batchSize int) ([]automdm.DeletedHostDetails, error) {
 	details, err := d.Datastore.CleanupExpiredHostsBatch(ctx, batchSize)
 	if err != nil {
 		return details, err

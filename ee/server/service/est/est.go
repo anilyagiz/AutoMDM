@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 )
 
 // defaultTimeout is the timeout for requests.
@@ -26,12 +26,12 @@ type Service struct {
 }
 
 // Compile-time check for ESTService interface
-var _ fleet.ESTService = (*Service)(nil)
+var _ automdm.ESTService = (*Service)(nil)
 
-func NewService(opts ...Opt) fleet.ESTService {
+func NewService(opts ...Opt) automdm.ESTService {
 	s := &Service{}
 	s.populateOpts(opts)
-	s.client = fleethttp.NewClient(fleethttp.WithTimeout(s.timeout))
+	s.client = automdmhttp.NewClient(automdmhttp.WithTimeout(s.timeout))
 	return s
 }
 
@@ -64,7 +64,7 @@ func (s *Service) populateOpts(opts []Opt) {
 	}
 }
 
-func (s *Service) ValidateESTURL(ctx context.Context, estCA fleet.ESTProxyCA) error {
+func (s *Service) ValidateESTURL(ctx context.Context, estCA automdm.ESTProxyCA) error {
 	reqURL := estCA.URL + "/cacerts"
 	req, err := http.NewRequestWithContext(ctx, "GET", reqURL, nil)
 	if err != nil {
@@ -95,7 +95,7 @@ func (s *Service) ValidateESTURL(ctx context.Context, estCA fleet.ESTProxyCA) er
 	return nil
 }
 
-func (s *Service) GetCertificate(ctx context.Context, estCA fleet.ESTProxyCA, csr string) (*fleet.ESTCertificate, error) {
+func (s *Service) GetCertificate(ctx context.Context, estCA automdm.ESTProxyCA, csr string) (*automdm.ESTCertificate, error) {
 	reqURL, err := url.Parse(estCA.URL + "/simpleenroll")
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "parsing EST CA URL")
@@ -129,7 +129,7 @@ func (s *Service) GetCertificate(ctx context.Context, estCA fleet.ESTProxyCA, cs
 		return nil, ctxerr.Errorf(ctx, "unexpected EST CA status code: %d", resp.StatusCode)
 	}
 
-	return &fleet.ESTCertificate{
+	return &automdm.ESTCertificate{
 		Certificate: bytes,
 	}, nil
 }

@@ -1,9 +1,9 @@
 // Package scep drives a local SCEP server for QA: it builds the in-repo
-// scepserver binary (Fleet's fork of micromdm/scep) once and caches it, reads a
+// scepserver binary (AutoMDM's fork of micromdm/scep) once and caches it, reads a
 // depot's CA identity (thumbprint / issuer DN), initializes new CA depots, and
 // builds the launch args the process engine runs. One shared binary serves many
 // depot-based profiles (see internal/settings ScepProfile), so several CAs can
-// run side by side and expose multiple Custom SCEP CAs to Fleet at once.
+// run side by side and expose multiple Custom SCEP CAs to AutoMDM at once.
 //
 // Pure helpers (arg builders, depot parsing, proc/channel ids) take explicit
 // inputs so they're unit-testable; the service layer resolves real paths and
@@ -25,8 +25,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/tools/hangar/internal/settings"
-	"github.com/fleetdm/fleet/tools/hangar/internal/shellpath"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/settings"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/shellpath"
 )
 
 // scepserverPkg is the in-repo main package built into the cached binary. It's
@@ -35,11 +35,11 @@ import (
 const scepserverPkg = "./server/mdm/scep/cmd/scepserver"
 
 // ProcID is the process-engine id for a profile's running server. Namespaced
-// under "scep" so it never collides with fleet-serve / docker ids.
+// under "scep" so it never collides with automdm-serve / docker ids.
 func ProcID(profileID string) string { return "scep:" + profileID }
 
 // LogChannel is the structured-log ring + on-disk file for a profile's server,
-// mirroring the fleet-serve-<id> scheme.
+// mirroring the automdm-serve-<id> scheme.
 func LogChannel(profileID string) string { return "scep-" + profileID }
 
 // BinaryInfo describes the cached scepserver binary.

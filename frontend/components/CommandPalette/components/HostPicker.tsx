@@ -15,7 +15,7 @@ const HOST_SEARCH_LIMIT = 50;
 interface IHostPickerProps {
   search: string;
   /** When true, render the host's team in a third column. Caller is
-   *  responsible for enforcing premium-tier + non-Primo (single-fleet
+   *  responsible for enforcing premium-tier + non-Primo (single-team
    *  installs have nothing meaningful to show in the team column). */
   showTeamColumn?: boolean;
   onSelect: (hostId: number) => void;
@@ -33,7 +33,7 @@ const HostPicker = ({
   onResultsChange,
 }: IHostPickerProps): JSX.Element => {
   // No team scoping — the picker is a global navigator. On select, the
-  // parent navigates to /hosts/:id/details without fleet_id; the host
+  // parent navigates to /hosts/:id/details without team_id; the host
   // details page reads the host's team from the host record itself, so
   // the user's current team context is preserved (matches the
   // ManageHostsPage.handleRowSelect pattern).
@@ -104,7 +104,7 @@ const HostPicker = ({
             </span>
             {showTeamColumn && (
               <span className={`${baseClass}__host-team`}>
-                <UprightEmoji text={host.fleet_name || "Unassigned"} />
+                <UprightEmoji text={host.team_name || "Unassigned"} />
               </span>
             )}
           </Command.Item>

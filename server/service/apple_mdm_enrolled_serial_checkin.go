@@ -4,23 +4,23 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
-	nano_service "github.com/fleetdm/fleet/v4/server/mdm/nanomdm/service"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
+	nano_service "github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/service"
 )
 
 // enrolledSerialCheckinService refuses an Authenticate whose serial belongs to a host enrolled under another UUID.
-// Fleet's checkin service refuses the host update too, but it runs as a multi.New sub service whose errors never
+// AutoMDM's checkin service refuses the host update too, but it runs as a multi.New sub service whose errors never
 // reach the device, so this wraps the whole chain like abOnlyEnrollmentCheckinService and refuses before nanomdm
 // stores the enrollment.
 type enrolledSerialCheckinService struct {
 	nano_service.CheckinAndCommandService
-	ds     fleet.Datastore
+	ds     automdm.Datastore
 	logger *slog.Logger
 }
 
-func newEnrolledSerialCheckinService(next nano_service.CheckinAndCommandService, ds fleet.Datastore, logger *slog.Logger) nano_service.CheckinAndCommandService {
+func newEnrolledSerialCheckinService(next nano_service.CheckinAndCommandService, ds automdm.Datastore, logger *slog.Logger) nano_service.CheckinAndCommandService {
 	return &enrolledSerialCheckinService{CheckinAndCommandService: next, ds: ds, logger: logger}
 }
 
@@ -34,7 +34,7 @@ func (s *enrolledSerialCheckinService) Authenticate(r *mdm.Request, m *mdm.Authe
 		}
 		if taken {
 			s.logger.WarnContext(r.Context, "refusing MDM check-in: enrollment ID matches another host", "enrollment_id", m.EnrollmentID)
-			return nano_service.NewHTTPStatusError(http.StatusConflict, &fleet.ConflictError{
+			return nano_service.NewHTTPStatusError(http.StatusConflict, &automdm.ConflictError{
 				Message: "This enrollment ID belongs to another host.",
 			})
 		}
@@ -47,7 +47,7 @@ func (s *enrolledSerialCheckinService) Authenticate(r *mdm.Request, m *mdm.Authe
 		if enrolledUUID != "" {
 			s.logger.InfoContext(r.Context, "refusing MDM check-in: serial is enrolled under another UUID",
 				"serial", m.SerialNumber, "claimed_uuid", m.UDID, "enrolled_uuid", enrolledUUID)
-			return nano_service.NewHTTPStatusError(http.StatusConflict, &fleet.ConflictError{
+			return nano_service.NewHTTPStatusError(http.StatusConflict, &automdm.ConflictError{
 				Message: "This device's serial number belongs to a host that's already enrolled. Delete the host or turn off MDM, then try again.",
 			})
 		}

@@ -1,6 +1,6 @@
 # Architectural Decision Records (ADRs)
 
-This directory contains Architectural Decision Records (ADRs) for Fleet.
+This directory contains Architectural Decision Records (ADRs) for AutoMDM.
 
 ## What are ADRs?
 

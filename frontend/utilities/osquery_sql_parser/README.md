@@ -11,7 +11,7 @@ DELETE, CREATE, DROP, ALTER, ATTACH, etc. are parse errors by design.
 
 `osquery_sql.pegjs` derives from
 [sgress454/node-sql-parser](https://github.com/sgress454/node-sql-parser)
-(Fleet's fork of
+(AutoMDM's fork of
 [taozhi8833998/node-sql-parser](https://github.com/taozhi8833998/node-sql-parser),
 Apache-2.0 — see `LICENSE`) at tag `5.4.0-fork.2`.
 
@@ -71,7 +71,7 @@ Entries omit fields at their defaults, and `query` is the only required one:
   `knownFailure` — valid osquery SQL the grammar cannot parse yet, so closing
   the gap means updating the entry — or a `note` explaining the rejection:
   broken SQL, or a deliberate exclusion such as non-SELECT statements and bind
-  parameters nothing in Fleet can bind
+  parameters nothing in AutoMDM can bind
 - `name` is optional, and worth setting on a case you add so a failure says
   what it was testing. The seeded repo queries carry none; a failure on those
   reports the SQL itself, which is what you need to debug a parse error anyway.

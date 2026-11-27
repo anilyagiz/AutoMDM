@@ -12,21 +12,21 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/pkg/mdm/profilevalidation"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/dev_mode"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	platform_errors "github.com/fleetdm/fleet/v4/server/platform/errors"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/pkg/mdm/profilevalidation"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	"github.com/anilyagiz/automdm/v4/server/dev_mode"
+	platform_errors "github.com/anilyagiz/automdm/v4/server/platform/errors"
 	"golang.org/x/sync/singleflight"
 )
 
 const (
-	autofillConfigProfileDefaultBaseURL = "https://fleetdm.com"
-	// Lets developers and QA point Fleet at a local or preview website.
-	autofillConfigProfileBaseURLEnvVar = "FLEET_DEV_AI_AUTOFILL_BASE_URL"
+	autofillConfigProfileDefaultBaseURL = "https://automdm.com"
+	// Lets developers and QA point AutoMDM at a local or preview website.
+	autofillConfigProfileBaseURLEnvVar = "AUTOMDM_DEV_AI_AUTOFILL_BASE_URL"
 
 	autofillConfigProfileRegisterPath        = "/api/profile-generator/v1/register"
 	autofillConfigProfileNameDescriptionPath = "/api/profile-generator/v1/name-and-description"
@@ -42,7 +42,7 @@ const (
 // Just inside the UI's 10-second cap, for registering and generating together.  A var so tests can shorten it.
 var autofillConfigProfileTimeout = 9500 * time.Millisecond
 
-// Registering is a database write on fleetdm.com, so it gets a small part of the budget.
+// Registering is a database write on automdm.com, so it gets a small part of the budget.
 const autofillConfigProfileRegistrationTimeout = 3 * time.Second
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -62,7 +62,7 @@ type autofillConfigProfileNameDescriptionResponse struct {
 
 func (r autofillConfigProfileNameDescriptionResponse) Error() error { return r.Err }
 
-func autofillConfigProfileNameDescriptionEndpoint(ctx context.Context, request any, svc fleet.Service) (fleet.Errorer, error) {
+func autofillConfigProfileNameDescriptionEndpoint(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*autofillConfigProfileNameDescriptionRequest)
 	name, description, err := svc.AutofillConfigProfileNameDescription(ctx, req.NaturalLanguageInstructions, req.Platform)
 	if err != nil {
@@ -72,31 +72,31 @@ func autofillConfigProfileNameDescriptionEndpoint(ctx context.Context, request a
 }
 
 func (svc *Service) AutofillConfigProfileNameDescription(ctx context.Context, instructions, platform string) (string, string, error) {
-	if err := svc.authorizeConfigProfileWriteOnAnyFleet(ctx); err != nil {
+	if err := svc.authorizeConfigProfileWriteOnAnyTeam(ctx); err != nil {
 		return "", "", err
 	}
 
-	instructions, err := svc.validateAutofillConfigProfileRequest(ctx, instructions, platform, fleet.AutofillConfigProfileNameDescriptionErrorMessage)
+	instructions, err := svc.validateAutofillConfigProfileRequest(ctx, instructions, platform, automdm.AutofillConfigProfileNameDescriptionErrorMessage)
 	if err != nil {
 		return "", "", err
 	}
 
 	callCtx, cancel := context.WithTimeout(ctx, autofillConfigProfileTimeout)
 	defer cancel()
-	credential, err := svc.profileGeneratorCredential(callCtx, fleet.AutofillConfigProfileNameDescriptionErrorMessage)
+	credential, err := svc.profileGeneratorCredential(callCtx, automdm.AutofillConfigProfileNameDescriptionErrorMessage)
 	if err != nil {
 		return "", "", err
 	}
 
 	status, body, err := postToConfigProfileGenerator(callCtx, autofillConfigProfileNameDescriptionPath, instructions, platform, credential)
 	if err != nil {
-		return "", "", autofillUpstreamError(ctx, fleet.AutofillConfigProfileNameDescriptionErrorMessage, err)
+		return "", "", autofillUpstreamError(ctx, automdm.AutofillConfigProfileNameDescriptionErrorMessage, err)
 	}
-	if limitErr := autofillLimitError(ctx, fleet.AutofillConfigProfileNameDescriptionErrorMessage, status, body, time.Now()); limitErr != nil {
+	if limitErr := autofillLimitError(ctx, automdm.AutofillConfigProfileNameDescriptionErrorMessage, status, body, time.Now()); limitErr != nil {
 		return "", "", limitErr
 	}
 	if status != http.StatusOK {
-		return "", "", autofillUnavailableError(ctx, fleet.AutofillConfigProfileNameDescriptionErrorMessage, status)
+		return "", "", autofillUnavailableError(ctx, automdm.AutofillConfigProfileNameDescriptionErrorMessage, status)
 	}
 
 	var result struct {
@@ -104,7 +104,7 @@ func (svc *Service) AutofillConfigProfileNameDescription(ctx context.Context, in
 		Description string `json:"description"`
 	}
 	if err := json.Unmarshal(body, &result); err != nil || result.Name == "" {
-		return "", "", autofillUnreadableError(ctx, fleet.AutofillConfigProfileNameDescriptionErrorMessage, err)
+		return "", "", autofillUnreadableError(ctx, automdm.AutofillConfigProfileNameDescriptionErrorMessage, err)
 	}
 	return result.Name, result.Description, nil
 }
@@ -116,55 +116,55 @@ func (svc *Service) AutofillConfigProfileNameDescription(ctx context.Context, in
 type autofillConfigProfileContentRequest struct {
 	NaturalLanguageInstructions string `json:"natural_language_instructions"`
 	Platform                    string `json:"platform"`
-	FleetID                     uint   `json:"fleet_id" premium:"true"`
+	AutoMDMID                   uint   `json:"team_id" premium:"true"`
 }
 
 type autofillConfigProfileContentResponse struct {
-	*fleet.AutofilledConfigProfile
+	*automdm.AutofilledConfigProfile
 	Err error `json:"error,omitempty"`
 }
 
 func (r autofillConfigProfileContentResponse) Error() error { return r.Err }
 
-func autofillConfigProfileContentEndpoint(ctx context.Context, request any, svc fleet.Service) (fleet.Errorer, error) {
+func autofillConfigProfileContentEndpoint(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*autofillConfigProfileContentRequest)
-	profile, err := svc.AutofillConfigProfileContent(ctx, req.NaturalLanguageInstructions, req.Platform, req.FleetID)
+	profile, err := svc.AutofillConfigProfileContent(ctx, req.NaturalLanguageInstructions, req.Platform, req.AutoMDMID)
 	if err != nil {
 		return autofillConfigProfileContentResponse{Err: err}, nil
 	}
 	return autofillConfigProfileContentResponse{AutofilledConfigProfile: profile}, nil
 }
 
-func (svc *Service) AutofillConfigProfileContent(ctx context.Context, instructions, platform string, teamID uint) (*fleet.AutofilledConfigProfile, error) {
-	if err := svc.authz.Authorize(ctx, &fleet.MDMConfigProfileAuthz{TeamID: &teamID}, fleet.ActionWrite); err != nil {
+func (svc *Service) AutofillConfigProfileContent(ctx context.Context, instructions, platform string, teamID uint) (*automdm.AutofilledConfigProfile, error) {
+	if err := svc.authz.Authorize(ctx, &automdm.MDMConfigProfileAuthz{TeamID: &teamID}, automdm.ActionWrite); err != nil {
 		return nil, ctxerr.Wrap(ctx, err)
 	}
 
-	instructions, err := svc.validateAutofillConfigProfileRequest(ctx, instructions, platform, fleet.AutofillConfigProfileContentErrorMessage)
+	instructions, err := svc.validateAutofillConfigProfileRequest(ctx, instructions, platform, automdm.AutofillConfigProfileContentErrorMessage)
 	if err != nil {
 		return nil, err
 	}
 
 	if teamID > 0 {
-		// the request decoder checks the license if "fleet_id" is set
+		// the request decoder checks the license if "team_id" is set
 		if _, err := svc.EnterpriseOverrides.TeamByIDOrName(ctx, &teamID, nil); err != nil {
-			return nil, ctxerr.Wrap(ctx, err, "get fleet")
+			return nil, ctxerr.Wrap(ctx, err, "get team")
 		}
 	}
 
-	// Only the calls to fleetdm.com share the budget, not the checks that run on the profile afterward.
+	// Only the calls to automdm.com share the budget, not the checks that run on the profile afterward.
 	callCtx, cancel := context.WithTimeout(ctx, autofillConfigProfileTimeout)
 	defer cancel()
-	credential, err := svc.profileGeneratorCredential(callCtx, fleet.AutofillConfigProfileContentErrorMessage)
+	credential, err := svc.profileGeneratorCredential(callCtx, automdm.AutofillConfigProfileContentErrorMessage)
 	if err != nil {
 		return nil, err
 	}
 
 	status, body, err := postToConfigProfileGenerator(callCtx, autofillConfigProfileContentPath, instructions, platform, credential)
 	if err != nil {
-		return nil, autofillUpstreamError(ctx, fleet.AutofillConfigProfileContentErrorMessage, err)
+		return nil, autofillUpstreamError(ctx, automdm.AutofillConfigProfileContentErrorMessage, err)
 	}
-	if limitErr := autofillLimitError(ctx, fleet.AutofillConfigProfileContentErrorMessage, status, body, time.Now()); limitErr != nil {
+	if limitErr := autofillLimitError(ctx, automdm.AutofillConfigProfileContentErrorMessage, status, body, time.Now()); limitErr != nil {
 		return nil, limitErr
 	}
 
@@ -178,15 +178,15 @@ func (svc *Service) AutofillConfigProfileContent(ctx context.Context, instructio
 			if reason == "" {
 				reason = "The AI couldn't generate a configuration profile from these instructions."
 			}
-			return nil, ctxerr.Wrap(ctx, &fleet.AutofillConfigProfileError{
-				Message: fleet.AutofillConfigProfileContentErrorMessage,
+			return nil, ctxerr.Wrap(ctx, &automdm.AutofillConfigProfileError{
+				Message: automdm.AutofillConfigProfileContentErrorMessage,
 				Field:   "natural_language_instructions",
 				Reason:  reason,
 			}, "generator declined")
 		}
 	}
 	if status != http.StatusOK {
-		return nil, autofillUnavailableError(ctx, fleet.AutofillConfigProfileContentErrorMessage, status)
+		return nil, autofillUnavailableError(ctx, automdm.AutofillConfigProfileContentErrorMessage, status)
 	}
 
 	var generated struct {
@@ -196,18 +196,18 @@ func (svc *Service) AutofillConfigProfileContent(ctx context.Context, instructio
 		AdditionalProfiles []json.RawMessage `json:"additionalProfiles"`
 	}
 	if err := json.Unmarshal(body, &generated); err != nil || generated.Profile == "" {
-		return nil, autofillUnreadableError(ctx, fleet.AutofillConfigProfileContentErrorMessage, err)
+		return nil, autofillUnreadableError(ctx, automdm.AutofillConfigProfileContentErrorMessage, err)
 	}
 
 	if len(generated.AdditionalProfiles) > 0 {
-		return nil, ctxerr.Wrap(ctx, &fleet.AutofillConfigProfileError{
-			Message: fleet.AutofillConfigProfileContentErrorMessage,
+		return nil, ctxerr.Wrap(ctx, &automdm.AutofillConfigProfileError{
+			Message: automdm.AutofillConfigProfileContentErrorMessage,
 			Field:   "natural_language_instructions",
 			Reason:  "This configuration profile needs more than one file. Create it manually instead.",
 		}, "generator returned additional profiles")
 	}
 
-	result := &fleet.AutofilledConfigProfile{
+	result := &automdm.AutofilledConfigProfile{
 		Content:       generated.Profile,
 		DeliveryNotes: generated.DeliveryNotes,
 	}
@@ -216,29 +216,29 @@ func (svc *Service) AutofillConfigProfileContent(ctx context.Context, instructio
 	// never leniently, so the toggle hint can't appear.
 	strict := new(profilevalidation.ModeStrict)
 	switch {
-	case generated.ProfileType == "mobileconfig" && platform == fleet.AutofillConfigProfilePlatformApple:
-		result.Type = fleet.AutofillConfigProfileTypeMobileconfig
-		var cp *fleet.MDMAppleConfigProfile
-		cp, _, _, err = svc.parseAndValidateAppleConfigProfile(ctx, teamID, "", data, nil, fleet.LabelsIncludeAll, nil, strict)
+	case generated.ProfileType == "mobileconfig" && platform == automdm.AutofillConfigProfilePlatformApple:
+		result.Type = automdm.AutofillConfigProfileTypeMobileconfig
+		var cp *automdm.MDMAppleConfigProfile
+		cp, _, _, err = svc.parseAndValidateAppleConfigProfile(ctx, teamID, "", data, nil, automdm.LabelsIncludeAll, nil, strict)
 		if err == nil {
 			result.Name = &cp.Name
 		}
-	case generated.ProfileType == "ddm" && platform == fleet.AutofillConfigProfilePlatformApple:
-		result.Type = fleet.AutofillConfigProfileTypeDeclaration
-		_, _, _, err = svc.parseAndValidateAppleDeclaration(ctx, teamID, "", data, nil, fleet.LabelsIncludeAll, nil, strict)
-	case generated.ProfileType == "csp" && platform == fleet.AutofillConfigProfilePlatformWindows:
-		result.Type = fleet.AutofillConfigProfileTypeWindows
-		_, _, _, err = svc.parseAndValidateWindowsConfigProfile(ctx, teamID, autofillWindowsProfileCheckName, data, nil, fleet.LabelsIncludeAll, nil, "Couldn't add. ", strict)
+	case generated.ProfileType == "ddm" && platform == automdm.AutofillConfigProfilePlatformApple:
+		result.Type = automdm.AutofillConfigProfileTypeDeclaration
+		_, _, _, err = svc.parseAndValidateAppleDeclaration(ctx, teamID, "", data, nil, automdm.LabelsIncludeAll, nil, strict)
+	case generated.ProfileType == "csp" && platform == automdm.AutofillConfigProfilePlatformWindows:
+		result.Type = automdm.AutofillConfigProfileTypeWindows
+		_, _, _, err = svc.parseAndValidateWindowsConfigProfile(ctx, teamID, autofillWindowsProfileCheckName, data, nil, automdm.LabelsIncludeAll, nil, "Couldn't add. ", strict)
 	default:
-		return nil, autofillUnreadableError(ctx, fleet.AutofillConfigProfileContentErrorMessage,
+		return nil, autofillUnreadableError(ctx, automdm.AutofillConfigProfileContentErrorMessage,
 			errors.New("unexpected profile type "+generated.ProfileType+" for platform "+platform))
 	}
 	if pvErr, ok := errors.AsType[*profileValidationError](err); ok {
 		// "base" like an AI service failure: the model wrote the bad profile, so the
 		// decline banner under natural_language_instructions would blame the admin.
 		reasons := pvErr.sentences()
-		return nil, ctxerr.Wrap(ctx, &fleet.AutofillConfigProfileError{
-			Message:     fleet.AutofillConfigProfileContentErrorMessage,
+		return nil, ctxerr.Wrap(ctx, &automdm.AutofillConfigProfileError{
+			Message:     automdm.AutofillConfigProfileContentErrorMessage,
 			Field:       "base",
 			Reason:      reasons[0],
 			MoreReasons: reasons[1:],
@@ -260,62 +260,62 @@ func (svc *Service) AutofillConfigProfileContent(ctx context.Context, instructio
 // Helpers
 ////////////////////////////////////////////////////////////////////////////////
 
-// authorizeConfigProfileWriteOnAnyFleet mirrors AutofillPolicySql: the request names no fleet, so a user who can
-// write profiles on any fleet may ask.
-func (svc *Service) authorizeConfigProfileWriteOnAnyFleet(ctx context.Context) error {
+// authorizeConfigProfileWriteOnAnyTeam mirrors AutofillPolicySql: the request names no team, so a user who can
+// write profiles on any team may ask.
+func (svc *Service) authorizeConfigProfileWriteOnAnyTeam(ctx context.Context) error {
 	vc, ok := viewer.FromContext(ctx)
 	if !ok {
 		svc.authz.SkipAuthorization(ctx)
-		return fleet.ErrNoContext
+		return automdm.ErrNoContext
 	}
 
 	if vc.User.GlobalRole != nil || len(vc.User.Teams) == 0 {
-		return ctxerr.Wrap(ctx, svc.authz.Authorize(ctx, &fleet.MDMConfigProfileAuthz{}, fleet.ActionWrite))
+		return ctxerr.Wrap(ctx, svc.authz.Authorize(ctx, &automdm.MDMConfigProfileAuthz{}, automdm.ActionWrite))
 	}
 	teamID := vc.User.Teams[0].Team.ID
 	for _, teamUser := range vc.User.Teams {
-		if teamUser.Role == fleet.RoleAdmin || teamUser.Role == fleet.RoleMaintainer || teamUser.Role == fleet.RoleGitOps {
+		if teamUser.Role == automdm.RoleAdmin || teamUser.Role == automdm.RoleMaintainer || teamUser.Role == automdm.RoleGitOps {
 			teamID = teamUser.Team.ID
 			break
 		}
 	}
-	return ctxerr.Wrap(ctx, svc.authz.Authorize(ctx, &fleet.MDMConfigProfileAuthz{TeamID: &teamID}, fleet.ActionWrite))
+	return ctxerr.Wrap(ctx, svc.authz.Authorize(ctx, &automdm.MDMConfigProfileAuthz{TeamID: &teamID}, automdm.ActionWrite))
 }
 
 // validateAutofillConfigProfileRequest returns the trimmed instructions, or the error that stops the request
-// before anything is sent to fleetdm.com.
+// before anything is sent to automdm.com.
 func (svc *Service) validateAutofillConfigProfileRequest(ctx context.Context, instructions, platform, errMessage string) (string, error) {
 	appConfig, err := svc.ds.AppConfig(ctx)
 	if err != nil {
 		return "", ctxerr.Wrap(ctx, err, "get app config")
 	}
 	if appConfig.ServerSettings.AIFeaturesDisabled {
-		return "", ctxerr.Wrap(ctx, &fleet.BadRequestError{Message: "AI features are disabled (server_settings.ai_features_disabled)"})
+		return "", ctxerr.Wrap(ctx, &automdm.BadRequestError{Message: "AI features are disabled (server_settings.ai_features_disabled)"})
 	}
 
 	var mdmEnabled bool
 	var mdmOffMessage string
 	switch platform {
-	case fleet.AutofillConfigProfilePlatformApple:
-		mdmEnabled, mdmOffMessage = appConfig.MDM.EnabledAndConfigured, fleet.AppleMDMNotConfiguredMessage
-	case fleet.AutofillConfigProfilePlatformWindows:
-		mdmEnabled, mdmOffMessage = appConfig.MDM.WindowsEnabledAndConfigured, fleet.WindowsMDMNotConfiguredMessage
+	case automdm.AutofillConfigProfilePlatformApple:
+		mdmEnabled, mdmOffMessage = appConfig.MDM.EnabledAndConfigured, automdm.AppleMDMNotConfiguredMessage
+	case automdm.AutofillConfigProfilePlatformWindows:
+		mdmEnabled, mdmOffMessage = appConfig.MDM.WindowsEnabledAndConfigured, automdm.WindowsMDMNotConfiguredMessage
 	default:
-		return "", ctxerr.Wrap(ctx, &fleet.BadRequestError{Message: `'platform' must be "apple" or "windows"`})
+		return "", ctxerr.Wrap(ctx, &automdm.BadRequestError{Message: `'platform' must be "apple" or "windows"`})
 	}
 
 	instructions = strings.TrimSpace(instructions)
 	if instructions == "" {
-		return "", ctxerr.Wrap(ctx, &fleet.BadRequestError{Message: "'natural_language_instructions' cannot be empty"})
+		return "", ctxerr.Wrap(ctx, &automdm.BadRequestError{Message: "'natural_language_instructions' cannot be empty"})
 	}
-	if utf8.RuneCountInString(instructions) > fleet.MaxAutofillConfigProfileInstructionsLength {
-		return "", ctxerr.Wrap(ctx, &fleet.BadRequestError{Message: "'natural_language_instructions' must be 2,000 characters or fewer"})
+	if utf8.RuneCountInString(instructions) > automdm.MaxAutofillConfigProfileInstructionsLength {
+		return "", ctxerr.Wrap(ctx, &automdm.BadRequestError{Message: "'natural_language_instructions' must be 2,000 characters or fewer"})
 	}
 
-	// Checked before calling fleetdm.com, since the profile checks would fail anyway and the generation takes
+	// Checked before calling automdm.com, since the profile checks would fail anyway and the generation takes
 	// up to 10 seconds.
 	if !mdmEnabled {
-		return "", ctxerr.Wrap(ctx, &fleet.AutofillConfigProfileError{
+		return "", ctxerr.Wrap(ctx, &automdm.AutofillConfigProfileError{
 			Message: errMessage,
 			Field:   "base",
 			Reason:  mdmOffMessage,
@@ -325,7 +325,7 @@ func (svc *Service) validateAutofillConfigProfileRequest(ctx context.Context, in
 	return instructions, nil
 }
 
-// autofillConfigProfileBaseURL is fleetdm.com unless dev mode overrides it.
+// autofillConfigProfileBaseURL is automdm.com unless dev mode overrides it.
 func autofillConfigProfileBaseURL() string {
 	if baseURL := dev_mode.Env(autofillConfigProfileBaseURLEnvVar); baseURL != "" {
 		return strings.TrimSuffix(baseURL, "/")
@@ -333,7 +333,7 @@ func autofillConfigProfileBaseURL() string {
 	return autofillConfigProfileDefaultBaseURL
 }
 
-// postToConfigProfileGenerator sends the instructions to fleetdm.com and returns the status and body.  It uses
+// postToConfigProfileGenerator sends the instructions to automdm.com and returns the status and body.  It uses
 // the request's context, so a client that disconnects cancels the call.
 func postToConfigProfileGenerator(ctx context.Context, path, instructions, platform string, credential profileGeneratorCredential) (int, []byte, error) {
 	reqBody := map[string]any{
@@ -341,7 +341,7 @@ func postToConfigProfileGenerator(ctx context.Context, path, instructions, platf
 		"platform":                    platform,
 	}
 	if credential.licenseKey != "" {
-		reqBody["fleetLicenseKey"] = credential.licenseKey
+		reqBody["automdmLicenseKey"] = credential.licenseKey
 	}
 	return postJSONToConfigProfileGenerator(ctx, path, reqBody, credential.secret)
 }
@@ -363,7 +363,7 @@ func postJSONToConfigProfileGenerator(ctx context.Context, path string, reqBody 
 		req.Header.Set("Authorization", "Bearer "+bearerToken)
 	}
 
-	resp, err := fleethttp.NewClient().Do(req)
+	resp, err := automdmhttp.NewClient().Do(req)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -376,7 +376,7 @@ func postJSONToConfigProfileGenerator(ctx context.Context, path string, reqBody 
 	return resp.StatusCode, body, nil
 }
 
-// profileGeneratorCredential is what Fleet authenticates to the fleetdm.com configuration profile generator with:
+// profileGeneratorCredential is what AutoMDM authenticates to the automdm.com configuration profile generator with:
 // its license key, or the secret it got by registering.
 type profileGeneratorCredential struct {
 	licenseKey string
@@ -389,9 +389,9 @@ var profileGeneratorRegistrations singleflight.Group
 // profileGeneratorCredential returns the license key for an unexpired Premium license, and otherwise the stored
 // registration secret, registering first if there is none.
 func (svc *Service) profileGeneratorCredential(ctx context.Context, errMessage string) (profileGeneratorCredential, error) {
-	// fleetdm.com treats an expired license as Fleet Free, but IsPremium is still true for one.
+	// automdm.com treats an expired license as AutoMDM Free, but IsPremium is still true for one.
 	if lic, ok := license.FromContext(ctx); ok {
-		if licInfo, ok := lic.(*fleet.LicenseInfo); ok && licInfo.IsPremium() && !licInfo.IsExpired() && svc.config.License.Key != "" {
+		if licInfo, ok := lic.(*automdm.LicenseInfo); ok && licInfo.IsPremium() && !licInfo.IsExpired() && svc.config.License.Key != "" {
 			return profileGeneratorCredential{licenseKey: svc.config.License.Key}, nil
 		}
 	}
@@ -402,10 +402,10 @@ func (svc *Service) profileGeneratorCredential(ctx context.Context, errMessage s
 		privateKey = ""
 	}
 	if privateKey == "" {
-		return profileGeneratorCredential{}, ctxerr.Wrap(ctx, &fleet.AutofillConfigProfileError{
+		return profileGeneratorCredential{}, ctxerr.Wrap(ctx, &automdm.AutofillConfigProfileError{
 			Message: errMessage,
 			Field:   "base",
-			Reason:  fleet.AutofillConfigProfileMissingPrivateKeyReason,
+			Reason:  automdm.AutofillConfigProfileMissingPrivateKeyReason,
 		}, "no server private key to store the profile generator secret")
 	}
 
@@ -448,14 +448,14 @@ func (svc *Service) profileGeneratorCredential(ctx context.Context, errMessage s
 }
 
 func (svc *Service) storedProfileGeneratorSecret(ctx context.Context) (string, error) {
-	assets, err := svc.ds.GetAllMDMConfigAssetsByName(ctx, []fleet.MDMAssetName{fleet.MDMAssetProfileGeneratorFleetServerSecret}, nil)
+	assets, err := svc.ds.GetAllMDMConfigAssetsByName(ctx, []automdm.MDMAssetName{automdm.MDMAssetProfileGeneratorAutoMDMServerSecret}, nil)
 	if err != nil {
-		if fleet.IsNotFound(err) {
+		if automdm.IsNotFound(err) {
 			return "", nil
 		}
 		return "", ctxerr.Wrap(ctx, err, "get profile generator secret")
 	}
-	return string(assets[fleet.MDMAssetProfileGeneratorFleetServerSecret].Value), nil
+	return string(assets[automdm.MDMAssetProfileGeneratorAutoMDMServerSecret].Value), nil
 }
 
 // profileGeneratorRegistrationError is a failed registration, mapped to an autofill error by each request that
@@ -468,12 +468,12 @@ type profileGeneratorRegistrationError struct {
 
 func (e *profileGeneratorRegistrationError) Error() string {
 	if e.status != 0 {
-		return "fleetdm.com returned " + http.StatusText(e.status) + " to registration"
+		return "automdm.com returned " + http.StatusText(e.status) + " to registration"
 	}
-	return "registering with fleetdm.com: " + e.err.Error()
+	return "registering with automdm.com: " + e.err.Error()
 }
 
-// registerWithProfileGenerator registers this Fleet server with the fleetdm.com configuration profile generator
+// registerWithProfileGenerator registers this AutoMDM server with the automdm.com configuration profile generator
 // and stores the secret it returns.  A rejected secret isn't registered again.
 func (svc *Service) registerWithProfileGenerator(ctx context.Context) (string, error) {
 	// Another request may have stored a secret since this one looked.
@@ -487,7 +487,7 @@ func (svc *Service) registerWithProfileGenerator(ctx context.Context) (string, e
 		return "", ctxerr.Wrap(ctx, err, "get app config")
 	}
 	status, body, err := postJSONToConfigProfileGenerator(ctx, autofillConfigProfileRegisterPath,
-		map[string]any{"fleetServerUrl": appConfig.ServerSettings.ServerURL}, "")
+		map[string]any{"automdmServerUrl": appConfig.ServerSettings.ServerURL}, "")
 	if err != nil {
 		return "", &profileGeneratorRegistrationError{err: err}
 	}
@@ -495,23 +495,23 @@ func (svc *Service) registerWithProfileGenerator(ctx context.Context) (string, e
 		return "", &profileGeneratorRegistrationError{status: status}
 	}
 	var registration struct {
-		FleetServerSecret string `json:"fleetServerSecret"`
+		AutoMDMServerSecret string `json:"automdmServerSecret"`
 	}
-	if err := json.Unmarshal(body, &registration); err != nil || registration.FleetServerSecret == "" {
+	if err := json.Unmarshal(body, &registration); err != nil || registration.AutoMDMServerSecret == "" {
 		return "", &profileGeneratorRegistrationError{unreadable: true, err: err}
 	}
 
-	if err := svc.ds.InsertOrReplaceMDMConfigAsset(ctx, fleet.MDMConfigAsset{
-		Name:  fleet.MDMAssetProfileGeneratorFleetServerSecret,
-		Value: []byte(registration.FleetServerSecret),
+	if err := svc.ds.InsertOrReplaceMDMConfigAsset(ctx, automdm.MDMConfigAsset{
+		Name:  automdm.MDMAssetProfileGeneratorAutoMDMServerSecret,
+		Value: []byte(registration.AutoMDMServerSecret),
 	}); err != nil {
 		return "", ctxerr.Wrap(ctx, err, "store profile generator secret")
 	}
-	svc.logger.InfoContext(ctx, "registered with the fleetdm.com configuration profile generator")
-	return registration.FleetServerSecret, nil
+	svc.logger.InfoContext(ctx, "registered with the automdm.com configuration profile generator")
+	return registration.AutoMDMServerSecret, nil
 }
 
-// autofillLimitError reports fleetdm.com's Fleet Free limit as the endpoint's own 429, or returns nil for any
+// autofillLimitError reports automdm.com's AutoMDM Free limit as the endpoint's own 429, or returns nil for any
 // other response.
 func autofillLimitError(ctx context.Context, message string, status int, body []byte, now time.Time) error {
 	if status != http.StatusTooManyRequests {
@@ -524,7 +524,7 @@ func autofillLimitError(ctx context.Context, message string, status int, body []
 	if json.Unmarshal(body, &limit) != nil || limit.Error != "generationLimitReached" {
 		return nil
 	}
-	// The limit resets on the 1st of the month (UTC), the fallback when fleetdm.com sends no date.
+	// The limit resets on the 1st of the month (UTC), the fallback when automdm.com sends no date.
 	resetsAt := limit.ResetsAt
 	if resetsAt.IsZero() {
 		nowUTC := now.UTC()
@@ -532,10 +532,10 @@ func autofillLimitError(ctx context.Context, message string, status int, body []
 	}
 	// A reset that has already passed, from clock skew or a response that arrived late, means try again now.
 	retryAfter := max(int(math.Ceil(resetsAt.Sub(now).Seconds())), 1)
-	return ctxerr.Wrap(ctx, &fleet.AutofillConfigProfileError{
+	return ctxerr.Wrap(ctx, &automdm.AutofillConfigProfileError{
 		Message:           message,
 		Field:             "base",
-		Reason:            fleet.AutofillConfigProfileLimitReachedReason,
+		Reason:            automdm.AutofillConfigProfileLimitReachedReason,
 		Status:            http.StatusTooManyRequests,
 		RetryAfterSeconds: retryAfter,
 	}, "profile generator limit reached")
@@ -550,33 +550,33 @@ func autofillUpstreamError(ctx context.Context, message string, err error) error
 	if errors.Is(err, context.DeadlineExceeded) {
 		reason = "The AI service timed out."
 	}
-	return ctxerr.Wrap(ctx, &fleet.AutofillConfigProfileError{
+	return ctxerr.Wrap(ctx, &automdm.AutofillConfigProfileError{
 		Message:     message,
 		Field:       "base",
 		Reason:      reason,
 		InternalErr: err,
-	}, "calling fleetdm.com")
+	}, "calling automdm.com")
 }
 
 func autofillUnavailableError(ctx context.Context, message string, status int) error {
-	return ctxerr.Wrap(ctx, &fleet.AutofillConfigProfileError{
+	return ctxerr.Wrap(ctx, &automdm.AutofillConfigProfileError{
 		Message:     message,
 		Field:       "base",
 		Reason:      "The AI service is unavailable.",
-		InternalErr: errors.New("fleetdm.com returned " + http.StatusText(status)),
-	}, "calling fleetdm.com")
+		InternalErr: errors.New("automdm.com returned " + http.StatusText(status)),
+	}, "calling automdm.com")
 }
 
 func autofillUnreadableError(ctx context.Context, message string, err error) error {
 	if err == nil {
 		err = errors.New("response is missing a required field")
 	}
-	return ctxerr.Wrap(ctx, &fleet.AutofillConfigProfileError{
+	return ctxerr.Wrap(ctx, &automdm.AutofillConfigProfileError{
 		Message:     message,
 		Field:       "base",
-		Reason:      "The AI service returned a response Fleet couldn't read.",
+		Reason:      "The AI service returned a response AutoMDM couldn't read.",
 		InternalErr: err,
-	}, "reading fleetdm.com response")
+	}, "reading automdm.com response")
 }
 
 // autofillCheckError reports a profile the add checks reject the way the autofill API documents it, with the
@@ -593,8 +593,8 @@ func autofillCheckError(ctx context.Context, err error) error {
 	if errors.As(cause, &invalid) && len(invalid.Invalid()) > 0 {
 		reason = invalid.Invalid()[0]["reason"]
 	}
-	return ctxerr.Wrap(ctx, &fleet.AutofillConfigProfileError{
-		Message: fleet.AutofillConfigProfileContentErrorMessage,
+	return ctxerr.Wrap(ctx, &automdm.AutofillConfigProfileError{
+		Message: automdm.AutofillConfigProfileContentErrorMessage,
 		Field:   "natural_language_instructions",
 		Reason:  reason,
 	}, "generated profile failed checks")

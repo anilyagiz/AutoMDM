@@ -1,8 +1,8 @@
-# TPM-backed HTTP message signing for fleetd requests
+# TPM-backed HTTP message signing for automdmd requests
 
 ## Overview
 
-TPM-backed HTTP message signing is a security feature that uses the device’s TPM 2.0 (Trusted Platform Module) hardware to securely generate and store cryptographic keys for signing HTTP requests. By ensuring that private keys never leave the TPM's secure boundary, this feature provides hardware-backed assurance that requests to the Fleet server originate from the same physical device that initially enrolled.
+TPM-backed HTTP message signing is a security feature that uses the device’s TPM 2.0 (Trusted Platform Module) hardware to securely generate and store cryptographic keys for signing HTTP requests. By ensuring that private keys never leave the TPM's secure boundary, this feature provides hardware-backed assurance that requests to the AutoMDM server originate from the same physical device that initially enrolled.
 
 A **device identity certificate** is an X.509 certificate whose private key is bound to the TPM, enabling cryptographic proof of device identity.
 
@@ -13,11 +13,11 @@ This feature includes:
 * **HTTP request signing** using TPM-protected keys
   * **Server-side signature verification** with certificate validation
 
-Together, these mechanisms establish a strong trust foundation for authenticated communication between `fleetd` and the Fleet server.
+Together, these mechanisms establish a strong trust foundation for authenticated communication between `automdmd` and the AutoMDM server.
 
 **Also known as:**
 
-* Fleet host identity
+* AutoMDM host identity
 * Hardware-backed device identity
 * TPM-based request signing
 * Secure request signing with TPM
@@ -38,7 +38,7 @@ The TPM-backed HTTP message signing feature consists of several key components:
 
 #### orbit components
 
-fleetd is the Fleet agent that includes orbit (the main agent process), osquery, and Fleet Desktop.
+automdmd is the AutoMDM agent that includes orbit (the main agent process), osquery, and AutoMDM Desktop.
 
 1. **Secure hardware interface** - Hardware-agnostic Go abstraction for TPM (and, in the future, Apple's Secure Enclave)
 2. **TPM 2.0 implementation** - Linux-specific TPM 2.0 integration with automatic ECC curve selection
@@ -62,25 +62,25 @@ flowchart TD
     subgraph Host
         TPM[TPM 2.0 hardware]
         Cert[Device identity certificate]
-        fleetd[fleetd agent]
+        automdmd[automdmd agent]
     end
 
-    subgraph Fleet server
-        Server[Fleet server]
+    subgraph AutoMDM server
+        Server[AutoMDM server]
         Validate[Validate signed request]
         CA
     end
 
     TPM --> Cert
-    Cert --> fleetd
-    fleetd -->|Signs HTTP request| Server
+    Cert --> automdmd
+    automdmd -->|Signs HTTP request| Server
     Server --> Validate
 
     subgraph CA
        SCEP[SCEP endpoint]
     end
 
-    fleetd -->|Request cert via SCEP| SCEP
+    automdmd -->|Request cert via SCEP| SCEP
     SCEP -->|Issues cert| Cert
 ```
 
@@ -93,7 +93,7 @@ sequenceDiagram
     participant orbit
     participant tpm as TPM 2.0
     participant osquery
-    participant server as Fleet server
+    participant server as AutoMDM server
     orbit->>orbit: Load cert if exists
     alt no cert
        orbit->>+tpm: Create private key
@@ -154,7 +154,7 @@ Filename used is `host_identity_tpm.pem`
 
 ### Overview
 
-The SCEP (Simple Certificate Enrollment Protocol) client enables fleetd to obtain device identity certificates from a Certificate Authority. The certificates are used to establish device identity and can be used in conjunction with HTTP message signing for enhanced authentication.
+The SCEP (Simple Certificate Enrollment Protocol) client enables automdmd to obtain device identity certificates from a Certificate Authority. The certificates are used to establish device identity and can be used in conjunction with HTTP message signing for enhanced authentication.
 
 ### Certificate enrollment process
 
@@ -187,7 +187,7 @@ This separation is necessary because:
 
 ### Architecture overview
 
-The TPM-backed HTTP message signing operates at two levels within fleetd:
+The TPM-backed HTTP message signing operates at two levels within automdmd:
 
 1. **Direct Integration**: orbit's own HTTP communications are signed directly using TPM keys
 2. **Proxy Integration**: A proxy component intercepts osquery traffic and adds HTTP signature headers
@@ -236,7 +236,7 @@ The `created` and `nonce` fields can be used in the future to prevent replay att
 
 ```
 ┌─────────────┐    ┌──────────────┐    ┌─────────────┐
-│   osquery   │───▶│ fleetd proxy │───▶│ Fleet Server│
+│   osquery   │───▶│ automdmd proxy │───▶│ AutoMDM Server│
 └─────────────┘    └──────────────┘    └─────────────┘
                           │
                           ▼
@@ -245,7 +245,7 @@ The `created` and `nonce` fields can be used in the future to prevent replay att
                    └──────────────┘
 
 ┌─────────────┐    ┌──────────────┐    ┌─────────────┐
-│    orbit    │───▶│ HTTP Client  │───▶│ Fleet Server│
+│    orbit    │───▶│ HTTP Client  │───▶│ AutoMDM Server│
 └─────────────┘    └──────────────┘    └─────────────┘
                           │
                           ▼
@@ -254,36 +254,36 @@ The `created` and `nonce` fields can be used in the future to prevent replay att
                    └──────────────┘
 ```
 
-- **osquery → fleetd proxy**: osquery sends unsigned requests to the local proxy
-- **fleetd proxy → TPM**: Proxy uses TPM to sign the intercepted requests
-- **fleetd proxy → Fleet Server**: Proxy forwards signed requests to the server
+- **osquery → automdmd proxy**: osquery sends unsigned requests to the local proxy
+- **automdmd proxy → TPM**: Proxy uses TPM to sign the intercepted requests
+- **automdmd proxy → AutoMDM Server**: Proxy forwards signed requests to the server
 
-### Fleet desktop authentication
+### AutoMDM desktop authentication
 
-Fleet desktop (the Fleet UI that is shown in the browser) uses a token-based authentication approach that integrates with TPM-backed signing:
+AutoMDM desktop (the AutoMDM UI that is shown in the browser) uses a token-based authentication approach that integrates with TPM-backed signing:
 
-1. **Token retrieval**: Fleet Desktop retrieves an authentication token from the Fleet server using an HTTP-signed endpoint
+1. **Token retrieval**: AutoMDM Desktop retrieves an authentication token from the AutoMDM server using an HTTP-signed endpoint
 2. **TPM-backed security**: The token retrieval request is signed using the TPM-backed key, ensuring the token is only issued to the authenticated device
 3. **Token validity**: The token is valid for 1 hour
-4. **API access**: Fleet Desktop uses this token to access `/fleet/device` API endpoints
+4. **API access**: AutoMDM Desktop uses this token to access `/automdm/device` API endpoints
 
 ## Configuration
 
 ### Client configuration
 
-Enable TPM-backed HTTP message signing when packaging or running fleetd:
+Enable TPM-backed HTTP message signing when packaging or running automdmd:
 
 ```bash
 # Package with TPM signing enabled
-fleetctl package --fleet-managed-host-identity-certificate ...
+automdmctl package --automdm-managed-host-identity-certificate ...
 
 # Run orbit with TPM signing enabled
-orbit --fleet-managed-host-identity-certificate ...
+orbit --automdm-managed-host-identity-certificate ...
 ```
 
 ### Server configuration
 
-The SCEP endpoint is automatically available on Fleet servers with:
+The SCEP endpoint is automatically available on AutoMDM servers with:
 - **Premium license**
 - **Configured server private key**
 
@@ -308,7 +308,7 @@ The server always verifies that:
 
 #### Rate limiting configuration
 
-Certificate enrollment rate limiting is configurable through the Fleet server configuration, using the same setting as for host enrollment rate limiting:
+Certificate enrollment rate limiting is configurable through the AutoMDM server configuration, using the same setting as for host enrollment rate limiting:
 
 ```yaml
 osquery:
@@ -326,7 +326,7 @@ When rate limiting is enabled:
 For development and testing purposes only, you can override the default certificate validity period:
 
 ```bash
-export FLEET_DEV_HOST_IDENTITY_CERT_VALIDITY_DAYS=30
+export AUTOMDM_DEV_HOST_IDENTITY_CERT_VALIDITY_DAYS=30
 ```
 
 This environment variable overrides the default 365-day validity period for host identity certificates. This is intended only for development and testing scenarios where shorter certificate lifetimes are needed.
@@ -348,13 +348,13 @@ go run agent.go --http_message_signature_prob 0.3
 go run agent.go --http_message_signature_prob 1.0
 ```
 
-The `--http_message_signature_prob` flag controls the probability (0.0 to 1.0) that each simulated host will use HTTP message signatures. This allows testing Fleet's HTTP message signing feature at scale without requiring actual TPM hardware on load testing machines.
+The `--http_message_signature_prob` flag controls the probability (0.0 to 1.0) that each simulated host will use HTTP message signatures. This allows testing AutoMDM's HTTP message signing feature at scale without requiring actual TPM hardware on load testing machines.
 
 ## Certificate renewal
 
 The certificate is issued with a validity period of 365 days. Orbit attempts to renew it within 180 days of expiration.
 
-To prevent thundering herd issues when multiple hosts need to renew certificates simultaneously, Orbit adds a random jitter of 0-30 minutes to the renewal timer. This ensures that certificate renewal requests are spread out over time, reducing load on the Fleet server.
+To prevent thundering herd issues when multiple hosts need to renew certificates simultaneously, Orbit adds a random jitter of 0-30 minutes to the renewal timer. This ensures that certificate renewal requests are spread out over time, reducing load on the AutoMDM server.
 
 ### Problem
 
@@ -368,7 +368,7 @@ Instead, we implement a re-enrollment flow in Orbit that proves possession of th
 1. Generates a new ECC key and CSR.
 2. Signs a message: `<current cert serial number>` using the existing ECC private key.
 3. Embeds the message and signature in a custom CSR extension:
-   - OID: `1.3.6.1.4.1.63991.1.1` (63991 is Fleet's IANA private enterprise number)
+   - OID: `1.3.6.1.4.1.63991.1.1` (63991 is AutoMDM's IANA private enterprise number)
    - Value: JSON like `{ "sn":"0x1b", "sig":"MEUCIQ..." }`
    - This indicates that this is a renewal request
 4. Wraps the CSR in a CMS envelope signed by a temporary RSA key (to satisfy SCEP protocol requirements).
@@ -383,10 +383,10 @@ Instead, we implement a re-enrollment flow in Orbit that proves possession of th
 
 Additional features that may be implemented in future releases:
 
-1. **One-time enrollment secret**: This provides additional security to make sure an unauthorized device cannot get an identity certificate and enroll in Fleet.
+1. **One-time enrollment secret**: This provides additional security to make sure an unauthorized device cannot get an identity certificate and enroll in AutoMDM.
 2. **Windows Support**: TPM support for Windows platforms using TBS (TPM Base Services)
 3. **Apple Secure Enclave**: Integration with Apple's Secure Enclave for macOS devices
-4. **Fleet server visibility**: Allow IT admin to see which hosts have host identity certificates. For example, we can add a field to `orbit_info` table and IT admin could set up a policy to make sure all hosts have certificates.
+4. **AutoMDM server visibility**: Allow IT admin to see which hosts have host identity certificates. For example, we can add a field to `orbit_info` table and IT admin could set up a policy to make sure all hosts have certificates.
 5. **Multiple Key Support**: Support for multiple signing keys and certificates, like a separate key for WiFi/VPN.
 6. **Hardware Attestation**: TPM-based device attestation and platform integrity
 7. **SCEP Extensions**: Support for additional SCEP features and external CA integrations
@@ -413,7 +413,7 @@ Additional features that may be implemented in future releases:
 ### Certificate enrollment issues
 
 1. **SCEP server connection issues**
-   - Verify SCEP server URL is accessible (and your Fleet server has this feature)
+   - Verify SCEP server URL is accessible (and your AutoMDM server has this feature)
    - Check network connectivity and firewall rules
 
 2. **Challenge password authentication**
@@ -430,16 +430,16 @@ Additional features that may be implemented in future releases:
 
 ### General debugging
 
-Enable fleetd/server debug logging to troubleshoot issues.
+Enable automdmd/server debug logging to troubleshoot issues.
 
 ## Known issues
 
 ### Certificate enrollment and renewal interruptions
 
-If the client disconnects (e.g., loses network connection or crashes) after submitting the SCEP request but before receiving the issued certificate, the host may be disconnected from Fleet. This can occur during:
+If the client disconnects (e.g., loses network connection or crashes) after submitting the SCEP request but before receiving the issued certificate, the host may be disconnected from AutoMDM. This can occur during:
 - Initial certificate enrollment with one-time enrollment secrets
 - Certificate renewal processes
 
-**Mitigation**: Clear the TPM artifacts and/or reinstall the fleetd agent on affected hosts with a working enrollment secret.
+**Mitigation**: Clear the TPM artifacts and/or reinstall the automdmd agent on affected hosts with a working enrollment secret.
 
 **Long-term solution**: Switch to ACME protocol, which supports certificate issuance via polling with retryable identifiers (e.g., JWK thumbprints), making the process more resilient to network interruptions.

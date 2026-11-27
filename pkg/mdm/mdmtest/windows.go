@@ -14,11 +14,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	microsoft_mdm "github.com/fleetdm/fleet/v4/server/mdm/microsoft"
-	"github.com/fleetdm/fleet/v4/server/mdm/microsoft/syncml"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	microsoft_mdm "github.com/anilyagiz/automdm/v4/server/mdm/microsoft"
+	"github.com/anilyagiz/automdm/v4/server/mdm/microsoft/syncml"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 )
@@ -35,20 +35,20 @@ type TestWindowsMDMClient struct {
 	// NotInOOBE true basically means the enrollment happened post-setup(i.e. settings->Work or School Account)
 	// False means the enrollment is happening during OOBE/autopilot.
 	notInOOBE bool
-	// fleetServerURL is the URL of the Fleet server, used to ping the MDM endpoints.
-	fleetServerURL string
+	// automdmServerURL is the URL of the AutoMDM server, used to ping the MDM endpoints.
+	automdmServerURL string
 	// debug enables debug logging of request/responses.
 	debug bool
 	// enrollmentType is used to simulate different Windows enrollment
 	// types (programatic, automatic.)
-	enrollmentType fleet.WindowsMDMEnrollmentType
+	enrollmentType automdm.WindowsMDMEnrollmentType
 	// TokenIdentifier is used for authentication during the programmatic enrollment.
 	TokenIdentifier string
 	// lastManagementResp tracks the last response we received from the server.
-	lastManagementResp *fleet.SyncML
+	lastManagementResp *automdm.SyncML
 	// queuedCommandResponses tracks the commands that will be sent next
 	// time the device responds to the server.
-	queuedCommandResponses map[string]fleet.SyncMLCmd
+	queuedCommandResponses map[string]automdm.SyncMLCmd
 	// jwtSigningKey is the key used to sign JWTs
 	jwtSigningKey *rsa.PrivateKey
 	// jwtSigningKeyID is the ID to report in the header for the signing key
@@ -68,10 +68,10 @@ type TestWindowsMDMClient struct {
 }
 
 // This is a test-only enrollment type to force erroneous behavior.
-const WindowsMDMEmptyBinarySecurityTokenEnrollmentType fleet.WindowsMDMEnrollmentType = -1
+const WindowsMDMEmptyBinarySecurityTokenEnrollmentType automdm.WindowsMDMEnrollmentType = -1
 
 // windowsMDMEntraEnrollmentType is a test-only enrollment type for clients that authenticate with an Entra JWT.
-const windowsMDMEntraEnrollmentType fleet.WindowsMDMEnrollmentType = -2
+const windowsMDMEntraEnrollmentType automdm.WindowsMDMEnrollmentType = -2
 
 // TestWindowsMDMClientOption allows configuring a
 // TestWindowsMDMClient.
@@ -116,7 +116,7 @@ func TestWindowsMDMClientWithSigningKeyAndTenantID(signingKey *rsa.PrivateKey, s
 }
 
 func NewTestMDMClientWindowsProgramatic(serverURL string, orbitNodeKey string, opts ...TestWindowsMDMClientOption) *TestWindowsMDMClient {
-	return newTestMDMClient(serverURL, fleet.WindowsMDMProgrammaticEnrollmentType, orbitNodeKey, opts...)
+	return newTestMDMClient(serverURL, automdm.WindowsMDMProgrammaticEnrollmentType, orbitNodeKey, opts...)
 }
 
 func NewTestMDMClientWindowsEmptyBinarySecurityToken(serverURL string, orbitNodeKey string, opts ...TestWindowsMDMClientOption) *TestWindowsMDMClient {
@@ -127,23 +127,23 @@ func NewTestMDMClientWindowsAutomatic(serverURL string, email string, opts ...Te
 	return newTestMDMClient(serverURL, windowsMDMEntraEnrollmentType, email, opts...)
 }
 
-func newTestMDMClient(serverURL string, enrollmentType fleet.WindowsMDMEnrollmentType, tokenIdentifier string, opts ...TestWindowsMDMClientOption) *TestWindowsMDMClient {
+func newTestMDMClient(serverURL string, enrollmentType automdm.WindowsMDMEnrollmentType, tokenIdentifier string, opts ...TestWindowsMDMClientOption) *TestWindowsMDMClient {
 	c := TestWindowsMDMClient{
-		fleetServerURL:  serverURL,
-		DeviceID:        uuid.NewString(),
-		enrollmentType:  enrollmentType,
-		TokenIdentifier: tokenIdentifier,
-		HardwareID:      uuid.NewString(),
-		EntraDeviceID:   uuid.NewString(),
+		automdmServerURL: serverURL,
+		DeviceID:         uuid.NewString(),
+		enrollmentType:   enrollmentType,
+		TokenIdentifier:  tokenIdentifier,
+		HardwareID:       uuid.NewString(),
+		EntraDeviceID:    uuid.NewString(),
 	}
-	c.loginStatus = string(fleet.WindowsMDMLoginStatusUser)
+	c.loginStatus = string(automdm.WindowsMDMLoginStatusUser)
 	for _, fn := range opts {
 		fn(&c)
 	}
 	return &c
 }
 
-func (c *TestWindowsMDMClient) StartManagementSession() (map[string]fleet.ProtoCmdOperation, error) {
+func (c *TestWindowsMDMClient) StartManagementSession() (map[string]automdm.ProtoCmdOperation, error) {
 	// Get SessionID
 	sessionIDInt := 0
 	if c.lastManagementResp != nil {
@@ -164,7 +164,7 @@ func (c *TestWindowsMDMClient) StartManagementSession() (map[string]fleet.ProtoC
 	<SessionID>` + fmt.Sprint(sessionIDInt) + `</SessionID>
 	<MsgID>1</MsgID>
 	<Target>
-	<LocURI>` + c.fleetServerURL + microsoft_mdm.MDE2ManagementPath + `</LocURI>
+	<LocURI>` + c.automdmServerURL + microsoft_mdm.MDE2ManagementPath + `</LocURI>
 	</Target>
 	<Source>
 	<LocURI>` + c.DeviceID + `</LocURI>
@@ -226,13 +226,13 @@ func (c *TestWindowsMDMClient) StartManagementSession() (map[string]fleet.ProtoC
 	return c.doManagementReq(managementReq)
 }
 
-func (c *TestWindowsMDMClient) doManagementReq(rawXMLReq []byte) (map[string]fleet.ProtoCmdOperation, error) {
+func (c *TestWindowsMDMClient) doManagementReq(rawXMLReq []byte) (map[string]automdm.ProtoCmdOperation, error) {
 	if c.debug {
 		fmt.Println("=============== management request ================")
 		fmt.Println(string(rawXMLReq))
 	}
 
-	sendRequest := func(req []byte) (*fleet.SyncML, error) {
+	sendRequest := func(req []byte) (*automdm.SyncML, error) {
 		managementResp, err := c.request(microsoft_mdm.MDE2ManagementPath, req)
 		if err != nil {
 			return nil, err
@@ -248,7 +248,7 @@ func (c *TestWindowsMDMClient) doManagementReq(rawXMLReq []byte) (map[string]fle
 			fmt.Println(string(rawXMLResp))
 		}
 
-		var syncML fleet.SyncML
+		var syncML automdm.SyncML
 		if err := xml.Unmarshal(rawXMLResp, &syncML); err != nil {
 			return nil, fmt.Errorf("unmarshalling response body: %w", err)
 		}
@@ -273,7 +273,7 @@ func (c *TestWindowsMDMClient) doManagementReq(rawXMLReq []byte) (map[string]fle
 	}
 
 	if shouldAuth, nonce := c.shouldAuth(syncML); shouldAuth {
-		var reqSyncML fleet.SyncML
+		var reqSyncML automdm.SyncML
 		if err := xml.Unmarshal(rawXMLReq, &reqSyncML); err != nil {
 			return nil, fmt.Errorf("unmarshalling request body for auth: %w", err)
 		}
@@ -301,45 +301,45 @@ func (c *TestWindowsMDMClient) doManagementReq(rawXMLReq []byte) (map[string]fle
 
 	c.lastManagementResp = syncML
 
-	cmds := make(map[string]fleet.ProtoCmdOperation)
+	cmds := make(map[string]automdm.ProtoCmdOperation)
 	for _, p := range c.lastManagementResp.GetOrderedCmds() {
 		cmds[p.Cmd.CmdID.Value] = p
 	}
 
 	// before returning, clean up any lingering responses
-	c.queuedCommandResponses = make(map[string]fleet.SyncMLCmd)
+	c.queuedCommandResponses = make(map[string]automdm.SyncMLCmd)
 	return cmds, nil
 }
 
-func (c *TestWindowsMDMClient) isRekeyRequest(req *fleet.SyncML) (username string, password string) {
+func (c *TestWindowsMDMClient) isRekeyRequest(req *automdm.SyncML) (username string, password string) {
 	for _, cmd := range req.GetOrderedCmds() {
-		if cmd.Verb == fleet.CmdReplace && strings.Contains(cmd.Cmd.GetTargetURI(), "AAuthName") {
+		if cmd.Verb == automdm.CmdReplace && strings.Contains(cmd.Cmd.GetTargetURI(), "AAuthName") {
 			username = cmd.Cmd.GetTargetData()
-		} else if cmd.Verb == fleet.CmdReplace && strings.Contains(cmd.Cmd.GetTargetURI(), "AAuthSecret") {
+		} else if cmd.Verb == automdm.CmdReplace && strings.Contains(cmd.Cmd.GetTargetURI(), "AAuthSecret") {
 			password = cmd.Cmd.GetTargetData()
 		}
 	}
 	return
 }
 
-func (c *TestWindowsMDMClient) shouldAuth(req *fleet.SyncML) (bool, *string) {
+func (c *TestWindowsMDMClient) shouldAuth(req *automdm.SyncML) (bool, *string) {
 	for _, cmd := range req.GetOrderedCmds() {
-		if cmd.Verb == fleet.CmdStatus && cmd.Cmd.Chal != nil {
+		if cmd.Verb == automdm.CmdStatus && cmd.Cmd.Chal != nil {
 			return true, cmd.Cmd.Chal.Meta.NextNonce.Content
 		}
 	}
 	return false, nil
 }
 
-func (c *TestWindowsMDMClient) SendResponse() (map[string]fleet.ProtoCmdOperation, error) {
+func (c *TestWindowsMDMClient) SendResponse() (map[string]automdm.ProtoCmdOperation, error) {
 	// A real Windows client does not POST a message that contains only a SyncHdr Status ack and
 	// no protocol commands. Per [MS-MDM] §2.2.7.8 (Status):
 	//   "when a client creates a message containing only a successful Status in a SyncHdr,
 	//    the entire message MUST NOT be sent."
 	// (https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-mdm/36b1a4d9-fd93-48ce-b865-6a9d396c52a4)
 	// This is the same section that limits Status-on-Status to auth-renegotiation edge cases, so
-	// when Fleet's response contained only <Status> acks, the client has nothing to send back.
-	// Fleet also rejects such a body with "invalid SyncML body: no SyncML protocol commands"
+	// when AutoMDM's response contained only <Status> acks, the client has nothing to send back.
+	// AutoMDM also rejects such a body with "invalid SyncML body: no SyncML protocol commands"
 	if len(c.queuedCommandResponses) == 0 {
 		return nil, nil
 	}
@@ -360,23 +360,23 @@ func (c *TestWindowsMDMClient) SendResponse() (map[string]fleet.ProtoCmdOperatio
 		return nil, fmt.Errorf("converting message ID to int: %w", err)
 	}
 
-	var msg fleet.SyncML
+	var msg automdm.SyncML
 	msg.Xmlns = syncml.SyncCmdNamespace
-	msg.SyncHdr = fleet.SyncHdr{
+	msg.SyncHdr = automdm.SyncHdr{
 		VerDTD:    syncml.SyncMLSupportedVersion,
 		VerProto:  syncml.SyncMLVerProto,
 		SessionID: sessionID,
 		MsgID:     fmt.Sprint(messageIDInt + 1),
-		Source:    &fleet.LocURI{LocURI: &c.DeviceID},
-		Target: &fleet.LocURI{
-			LocURI: ptr.String(c.fleetServerURL + microsoft_mdm.MDE2ManagementPath),
+		Source:    &automdm.LocURI{LocURI: &c.DeviceID},
+		Target: &automdm.LocURI{
+			LocURI: ptr.String(c.automdmServerURL + microsoft_mdm.MDE2ManagementPath),
 		},
 		Cred: c.getCredHDR(),
 	}
 
 	// iterate over mocked responses and append them to the SyncML message
 	for _, protoCmd := range c.queuedCommandResponses {
-		msg.AppendCommand(fleet.MDMRaw, protoCmd)
+		msg.AppendCommand(automdm.MDMRaw, protoCmd)
 	}
 
 	xmlReq, err := xml.MarshalIndent(msg, "", "\t")
@@ -387,14 +387,14 @@ func (c *TestWindowsMDMClient) SendResponse() (map[string]fleet.ProtoCmdOperatio
 	return c.doManagementReq(xmlReq)
 }
 
-func (c *TestWindowsMDMClient) getCredHDR() *fleet.CredHdr {
-	return &fleet.CredHdr{
-		Meta: fleet.Meta{
-			Type: &fleet.MetaAttr{
+func (c *TestWindowsMDMClient) getCredHDR() *automdm.CredHdr {
+	return &automdm.CredHdr{
+		Meta: automdm.Meta{
+			Type: &automdm.MetaAttr{
 				XMLNS:   syncml.SyncMLMetaNamespace,
 				Content: ptr.String(syncml.AuthMD5),
 			},
-			Format: &fleet.MetaAttr{
+			Format: &automdm.MetaAttr{
 				XMLNS:   syncml.SyncMLMetaNamespace,
 				Content: ptr.String(syncml.AuthB64Format),
 			},
@@ -418,7 +418,7 @@ func (c *TestWindowsMDMClient) SetLoginStatus(status string) {
 }
 
 // AppendResponse sets a response for a specific command UUID.
-func (c *TestWindowsMDMClient) AppendResponse(op fleet.SyncMLCmd) {
+func (c *TestWindowsMDMClient) AppendResponse(op automdm.SyncMLCmd) {
 	c.queuedCommandResponses[op.CmdID.Value] = op
 }
 
@@ -458,7 +458,7 @@ func (c *TestWindowsMDMClient) Enroll() error {
         <a:ReplyTo>
             <a:Address>http://www.w3.org/2005/08/addressing/anonymous</a:Address>
         </a:ReplyTo>
-        <a:To s:mustUnderstand="1">` + c.fleetServerURL + microsoft_mdm.MDE2EnrollPath + `</a:To>
+        <a:To s:mustUnderstand="1">` + c.automdmServerURL + microsoft_mdm.MDE2EnrollPath + `</a:To>
         <wsse:Security s:mustUnderstand="1">
             <wsse:BinarySecurityToken ValueType="` + tokenValueType + `" EncodingType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd#base64binary">` + binarySecToken + `</wsse:BinarySecurityToken>
         </wsse:Security>
@@ -549,7 +549,7 @@ YioVozr1IWYySwWVzMf/SUwKZkKJCAJmSVcixE+4kxPkyPGyauIrN3wWC0zb+mjF
 		return fmt.Errorf("enroll request returned SOAP fault: %s", string(body))
 	}
 
-	var soapResponse fleet.SoapResponse
+	var soapResponse automdm.SoapResponse
 	if err := xml.Unmarshal(body, &soapResponse); err != nil {
 		return fmt.Errorf("unmarshalling enroll response body: %w", err)
 	}
@@ -561,7 +561,7 @@ YioVozr1IWYySwWVzMf/SUwKZkKJCAJmSVcixE+4kxPkyPGyauIrN3wWC0zb+mjF
 
 	// strip xml header
 	decoded = bytes.TrimPrefix(decoded, []byte(xml.Header))
-	var provDoc fleet.WapProvisioningDoc
+	var provDoc automdm.WapProvisioningDoc
 	if err := xml.Unmarshal(decoded, &provDoc); err != nil {
 		return fmt.Errorf("unmarshalling enroll response provisioning doc: %w", err)
 	}
@@ -618,7 +618,7 @@ func (c *TestWindowsMDMClient) Discovery() error {
         <a:ReplyTo>
             <a:Address>http://www.w3.org/2005/08/addressing/anonymous</a:Address>
         </a:ReplyTo>
-        <a:To s:mustUnderstand="1">` + c.fleetServerURL + microsoft_mdm.MDE2DiscoveryPath + `</a:To>
+        <a:To s:mustUnderstand="1">` + c.automdmServerURL + microsoft_mdm.MDE2DiscoveryPath + `</a:To>
     </s:Header>
     <s:Body>
         <Discover
@@ -680,7 +680,7 @@ func (c *TestWindowsMDMClient) Policy() error {
         <a:ReplyTo>
             <a:Address>http://www.w3.org/2005/08/addressing/anonymous</a:Address>
         </a:ReplyTo>
-        <a:To s:mustUnderstand="1">` + c.fleetServerURL + microsoft_mdm.MDE2PolicyPath + `</a:To>
+        <a:To s:mustUnderstand="1">` + c.automdmServerURL + microsoft_mdm.MDE2PolicyPath + `</a:To>
         <wsse:Security s:mustUnderstand="1">
             <wsse:BinarySecurityToken ValueType="` + tokenValueType + `" EncodingType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd#base64binary">` + binarySecToken + `</wsse:BinarySecurityToken>
         </wsse:Security>
@@ -722,11 +722,11 @@ func (c *TestWindowsMDMClient) Policy() error {
 }
 
 func (c *TestWindowsMDMClient) request(path string, reqBody []byte) (*http.Response, error) {
-	request, err := http.NewRequest("POST", c.fleetServerURL+path, bytes.NewReader(reqBody))
+	request, err := http.NewRequest("POST", c.automdmServerURL+path, bytes.NewReader(reqBody))
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
-	cc := fleethttp.NewClient(fleethttp.WithNoTimeout(), fleethttp.WithTLSClientConfig(&tls.Config{
+	cc := automdmhttp.NewClient(automdmhttp.WithNoTimeout(), automdmhttp.WithTLSClientConfig(&tls.Config{
 		// Ignoring "G402: TLS InsecureSkipVerify set true", this is only used for automated testing.
 		InsecureSkipVerify: true, //nolint:gosec
 	}))
@@ -750,7 +750,7 @@ func (c *TestWindowsMDMClient) getToken() (binarySecToken string, tokenValueType
 			"unique_name": "foo_bar",
 			"scp":         "mdm_delegation",
 			"iss":         "https://sts.windows.net/" + c.entraTenantID + "/",
-			"aud":         c.fleetServerURL,
+			"aud":         c.automdmServerURL,
 		}
 		if c.EntraDeviceID != "" {
 			(*claims)["deviceid"] = c.EntraDeviceID
@@ -769,10 +769,10 @@ func (c *TestWindowsMDMClient) getToken() (binarySecToken string, tokenValueType
 		tokenValueType = syncml.BinarySecurityAzureEnroll
 		binarySecToken = base64.URLEncoding.EncodeToString([]byte(tokenString))
 
-	case fleet.WindowsMDMProgrammaticEnrollmentType:
+	case automdm.WindowsMDMProgrammaticEnrollmentType:
 		var err error
 		tokenValueType = syncml.BinarySecurityDeviceEnroll
-		binarySecToken, err = fleet.GetEncodedBinarySecurityToken(c.enrollmentType, c.TokenIdentifier)
+		binarySecToken, err = automdm.GetEncodedBinarySecurityToken(c.enrollmentType, c.TokenIdentifier)
 		if err != nil {
 			return "", "", fmt.Errorf("generating encoded security token: %w", err)
 		}
@@ -794,7 +794,7 @@ func (c *TestWindowsMDMClient) Unenroll() error {
 				<SessionID>2</SessionID>
 				<MsgID>1</MsgID>
 				<Target>
-				<LocURI>` + c.fleetServerURL + microsoft_mdm.MDE2ManagementPath + `</LocURI>
+				<LocURI>` + c.automdmServerURL + microsoft_mdm.MDE2ManagementPath + `</LocURI>
 				</Target>
 				<Source>
 				<LocURI>` + c.DeviceID + `</LocURI>

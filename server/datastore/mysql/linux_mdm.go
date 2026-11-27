@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/jmoiron/sqlx"
 )
 
-func (ds *Datastore) GetLinuxDiskEncryptionSummary(ctx context.Context, teamID *uint) (fleet.MDMLinuxDiskEncryptionSummary, error) {
+func (ds *Datastore) GetLinuxDiskEncryptionSummary(ctx context.Context, teamID *uint) (automdm.MDMLinuxDiskEncryptionSummary, error) {
 	var args []interface{}
 	var teamFilter string
 	if teamID != nil {
@@ -48,7 +48,7 @@ func (ds *Datastore) GetLinuxDiskEncryptionSummary(ctx context.Context, teamID *
 	}
 
 	var counts []countRow
-	summary := fleet.MDMLinuxDiskEncryptionSummary{}
+	summary := automdm.MDMLinuxDiskEncryptionSummary{}
 
 	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &counts, stmt, args...); err != nil {
 		return summary, err
@@ -69,10 +69,10 @@ func (ds *Datastore) GetLinuxDiskEncryptionSummary(ctx context.Context, teamID *
 }
 
 var (
-	// sqlLUKSSupportedPlatforms is fleet.LUKSSupportedPlatforms as a quoted SQL list.
-	sqlLUKSSupportedPlatforms = "'" + strings.Join(fleet.LUKSSupportedPlatforms, "', '") + "'"
+	// sqlLUKSSupportedPlatforms is automdm.LUKSSupportedPlatforms as a quoted SQL list.
+	sqlLUKSSupportedPlatforms = "'" + strings.Join(automdm.LUKSSupportedPlatforms, "', '") + "'"
 
-	// sqlLUKSSupportedHostCond mirrors fleet.Host.IsLUKSSupported for the hosts table aliased as h.
+	// sqlLUKSSupportedHostCond mirrors automdm.Host.IsLUKSSupported for the hosts table aliased as h.
 	// Its % are doubled because every caller embeds it in a fmt format string.
 	sqlLUKSSupportedHostCond = `(h.platform IN (` + sqlLUKSSupportedPlatforms + `) OR h.os_version LIKE '%%Fedora%%')`
 )
@@ -83,14 +83,14 @@ func sqlCaseLinuxOSSettingsStatus() string {
 		hdek.base64_encrypted IS NOT NULL
 		AND hdek.base64_encrypted != ''
 		AND hdek.client_error = '' THEN
-		'` + string(fleet.OSSettingsVerified) + `'
+		'` + string(automdm.OSSettingsVerified) + `'
 	WHEN hdek.client_error IS NOT NULL
 	AND hdek.client_error != '' THEN
-		'` + string(fleet.OSSettingsFailed) + `'
+		'` + string(automdm.OSSettingsFailed) + `'
 	WHEN hdek.base64_encrypted IS NULL
 		OR (hdek.base64_encrypted = ''
 		AND hdek.client_error = '') THEN
-		'` + string(fleet.OSSettingsPending) + `'
+		'` + string(automdm.OSSettingsPending) + `'
 	END`
 }
 
@@ -100,13 +100,13 @@ func sqlCaseLinuxDiskEncryptionStatus() string {
 		hdek.base64_encrypted IS NOT NULL
 		AND hdek.base64_encrypted != ''
 		AND hdek.client_error = '' THEN
-		'` + string(fleet.DiskEncryptionVerified) + `'
+		'` + string(automdm.DiskEncryptionVerified) + `'
 	WHEN hdek.client_error IS NOT NULL
 	AND hdek.client_error != '' THEN
-		'` + string(fleet.DiskEncryptionFailed) + `'
+		'` + string(automdm.DiskEncryptionFailed) + `'
 	WHEN hdek.base64_encrypted IS NULL
 		OR (hdek.base64_encrypted = ''
 		AND hdek.client_error = '') THEN
-		'` + string(fleet.DiskEncryptionActionRequired) + `'
+		'` + string(automdm.DiskEncryptionActionRequired) + `'
 	END`
 }

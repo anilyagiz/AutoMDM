@@ -1,8 +1,8 @@
 // Package apiparamcheck defines an analyzer that flags json/url/query struct
-// tags whose name contains deprecated Fleet terminology.
+// tags whose name contains deprecated AutoMDM terminology.
 //
 // Two renames are enforced:
-//   - "team" / "teams" was renamed to "fleet" / "fleets". Any occurrence of
+//   - "team" / "teams" was renamed to "team" / "teams". Any occurrence of
 //     "team" or "teams" as a token in a tag name is flagged, including in
 //     snake_case, camelCase/PascalCase, and kebab-case names.
 //   - "query" / "queries" was renamed to "report" / "reports" when referring
@@ -27,7 +27,7 @@ import (
 var Analyzer = &analysis.Analyzer{
 	Name:     "apiparamcheck",
 	Doc:      "flags json/url/query struct tags using deprecated team/teams or query/queries terms",
-	URL:      "https://github.com/fleetdm/fleet",
+	URL:      "https://github.com/anilyagiz/automdm",
 	Requires: []*analysis.Analyzer{inspect.Analyzer},
 	Run:      run,
 }
@@ -84,7 +84,7 @@ func violationMessage(name string) string {
 	for _, t := range tokens {
 		low := strings.ToLower(t)
 		if low == "team" || low == "teams" {
-			return `uses deprecated "team"/"teams" — use "fleet"/"fleets" instead`
+			return `uses deprecated "team"/"teams" — use "team"/"teams" instead`
 		}
 	}
 	// "query"/"queries" are allowed when they are the entire tag name

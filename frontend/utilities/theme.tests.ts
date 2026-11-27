@@ -38,14 +38,14 @@ describe("theme - setThemeMode", () => {
     expect(document.body.classList.contains("theme-transition")).toBe(false);
   });
 
-  it("dispatches fleet-theme-change on every applied mode change, including no-op picks", () => {
+  it("dispatches automdm-theme-change on every applied mode change, including no-op picks", () => {
     // Both the animated path (real flip) and the no-op path (picking
     // a mode that resolves to the current dark state) must dispatch
     // the event, so subscribers like AccountSidePanel can re-read
     // getThemeMode() and keep the radio in sync with the picked mode
     // even when nothing visual changes.
     const handler = jest.fn();
-    window.addEventListener("fleet-theme-change", handler);
+    window.addEventListener("automdm-theme-change", handler);
 
     setThemeMode("light"); // no-op: body starts without dark-mode
     setThemeMode("dark"); // real flip
@@ -56,14 +56,14 @@ describe("theme - setThemeMode", () => {
     expect(handler.mock.calls[1][0].detail).toEqual({ dark: true });
     expect(handler.mock.calls[2][0].detail).toEqual({ dark: false });
 
-    window.removeEventListener("fleet-theme-change", handler);
+    window.removeEventListener("automdm-theme-change", handler);
   });
 
   it("persists explicit modes to localStorage and clears the key for system", () => {
     setThemeMode("dark");
-    expect(localStorage.getItem("fleet-theme")).toBe("dark");
+    expect(localStorage.getItem("automdm-theme")).toBe("dark");
 
     setThemeMode("system");
-    expect(localStorage.getItem("fleet-theme")).toBeNull();
+    expect(localStorage.getItem("automdm-theme")).toBeNull();
   });
 });

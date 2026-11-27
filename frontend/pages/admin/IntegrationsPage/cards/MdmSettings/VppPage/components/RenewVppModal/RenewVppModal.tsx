@@ -65,7 +65,7 @@ const RenewVppModal = ({
       <p className={`${baseClass}__description`}>
         Follow the step-by-step guide to renew.{" "}
         <CustomLink
-          url="https://fleetdm.com/learn-more-about/renew-vpp"
+          url="https://automdm.com/learn-more-about/renew-vpp"
           text="Learn how"
           newTab
         />

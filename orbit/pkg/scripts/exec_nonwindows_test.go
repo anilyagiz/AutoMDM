@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/variables"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/variables"
 	"github.com/stretchr/testify/require"
 )
 
@@ -62,7 +62,7 @@ func TestExecCmdNonWindows(t *testing.T) {
 		{
 			name:     "unsupported shebang",
 			contents: "#!/bin/ksh\necho 1",
-			error:    fleet.ErrUnsupportedInterpreter,
+			error:    automdm.ErrUnsupportedInterpreter,
 			exitCode: -1,
 		},
 	}
@@ -165,7 +165,7 @@ func TestExecCmdSuccess(t *testing.T) {
 
 // Values are defined ahead of the body rather than substituted into it, so a
 // value carrying interpreter metacharacters is data by the time it runs.
-func TestExecCmdDoesNotExecuteFleetVariableValues(t *testing.T) {
+func TestExecCmdDoesNotExecuteAutoMDMVariableValues(t *testing.T) {
 	dir := t.TempDir()
 	marker := filepath.Join(dir, "MARKER")
 
@@ -177,13 +177,13 @@ func TestExecCmdDoesNotExecuteFleetVariableValues(t *testing.T) {
 		// only gets the safety assertion
 		safetyOnly bool
 	}{
-		{"backtick", "Eng`touch " + marker + "`", "#!/bin/sh\nprintf %s \"$FLEET_VAR_HOST_UUID\"\n", false},
-		{"cmd-subst", "Eng$(touch " + marker + ")", "#!/bin/sh\nprintf %s \"$FLEET_VAR_HOST_UUID\"\n", false},
-		{"embedded quote", "Eng'; touch " + marker + "; echo '", "#!/bin/sh\nprintf %s \"$FLEET_VAR_HOST_UUID\"\n", false},
-		{"no shebang", "Eng`touch " + marker + "`", "printf %s \"$FLEET_VAR_HOST_UUID\"\n", false},
-		{"bash shebang", "Eng`touch " + marker + "`", "#!/bin/bash\nprintf %s \"$FLEET_VAR_HOST_UUID\"\n", false},
+		{"backtick", "Eng`touch " + marker + "`", "#!/bin/sh\nprintf %s \"$AUTOMDM_VAR_HOST_UUID\"\n", false},
+		{"cmd-subst", "Eng$(touch " + marker + ")", "#!/bin/sh\nprintf %s \"$AUTOMDM_VAR_HOST_UUID\"\n", false},
+		{"embedded quote", "Eng'; touch " + marker + "; echo '", "#!/bin/sh\nprintf %s \"$AUTOMDM_VAR_HOST_UUID\"\n", false},
+		{"no shebang", "Eng`touch " + marker + "`", "printf %s \"$AUTOMDM_VAR_HOST_UUID\"\n", false},
+		{"bash shebang", "Eng`touch " + marker + "`", "#!/bin/bash\nprintf %s \"$AUTOMDM_VAR_HOST_UUID\"\n", false},
 		// the kernel splits shebang arguments, so a substituted value would run
-		{"shebang reference", "x`touch " + marker + "`", "#!/bin/sh -c $FLEET_VAR_HOST_UUID\nprintf %s \"$FLEET_VAR_HOST_UUID\"\n", true},
+		{"shebang reference", "x`touch " + marker + "`", "#!/bin/sh -c $AUTOMDM_VAR_HOST_UUID\nprintf %s \"$AUTOMDM_VAR_HOST_UUID\"\n", true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			preamble := variables.Preamble(map[string]string{"HOST_UUID": tc.value}, variables.DialectPOSIX)
@@ -223,13 +223,13 @@ func TestPreambleDoesNotChangeInterpreterChoice(t *testing.T) {
 			withPreamble, err := variables.InsertPreamble(contents, pre, variables.DialectPOSIX)
 			require.NoError(t, err)
 
-			wantDirect, wantErr := fleet.ValidateShebang(contents)
-			gotDirect, gotErr := fleet.ValidateShebang(withPreamble)
+			wantDirect, wantErr := automdm.ValidateShebang(contents)
+			gotDirect, gotErr := automdm.ValidateShebang(withPreamble)
 			require.Equal(t, wantErr, gotErr)
 			require.Equal(t, wantDirect, gotDirect)
 
-			wantKind, _, _ := fleet.ShebangInfo(contents)
-			gotKind, _, _ := fleet.ShebangInfo(withPreamble)
+			wantKind, _, _ := automdm.ShebangInfo(contents)
+			gotKind, _, _ := automdm.ShebangInfo(withPreamble)
 			require.Equal(t, wantKind, gotKind)
 		})
 	}
@@ -272,8 +272,8 @@ func TestExecCmdMissingInterpreterFallsBackToSystemProfile(t *testing.T) {
 	for _, tc := range []struct {
 		name, contents, want string
 	}{
-		{"no args", "#!/nonexistent/fleet-test/python3\nprint(1)\n", "fake python3 "},
-		{"with args", "#!/nonexistent/fleet-test/python3 -u\nprint(1)\n", "fake python3 -u\n"},
+		{"no args", "#!/nonexistent/automdm-test/python3\nprint(1)\n", "fake python3 "},
+		{"with args", "#!/nonexistent/automdm-test/python3 -u\nprint(1)\n", "fake python3 -u\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			scriptPath, err := writeTestScript(tc.contents)
@@ -292,12 +292,12 @@ func TestExecCmdMissingInterpreterFallsBackToSystemProfile(t *testing.T) {
 	}
 
 	t.Run("not in system profile", func(t *testing.T) {
-		scriptPath, err := writeTestScript("#!/nonexistent/fleet-test/python3.99\nprint(1)\n")
+		scriptPath, err := writeTestScript("#!/nonexistent/automdm-test/python3.99\nprint(1)\n")
 		require.NoError(t, err)
 		defer os.Remove(scriptPath)
 
 		_, exitCode, err := ExecCmd(ctx, scriptPath, nil)
-		require.ErrorContains(t, err, "/nonexistent/fleet-test/python3.99 not found on this host")
+		require.ErrorContains(t, err, "/nonexistent/automdm-test/python3.99 not found on this host")
 		require.Equal(t, -1, exitCode)
 	})
 
@@ -316,7 +316,7 @@ func TestExecCmdMissingInterpreterFallsBackToSystemProfile(t *testing.T) {
 
 	t.Run("not NixOS", func(t *testing.T) {
 		nixosMarkerFile = filepath.Join(binDir, "no-such-marker")
-		scriptPath, err := writeTestScript("#!/nonexistent/fleet-test/python3\nprint(1)\n")
+		scriptPath, err := writeTestScript("#!/nonexistent/automdm-test/python3\nprint(1)\n")
 		require.NoError(t, err)
 		defer os.Remove(scriptPath)
 

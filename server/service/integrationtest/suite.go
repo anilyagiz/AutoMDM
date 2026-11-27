@@ -6,25 +6,25 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/datastore/redis/redistest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/platform/mysql/testing_utils"
-	"github.com/fleetdm/fleet/v4/server/service"
-	"github.com/fleetdm/fleet/v4/server/service/svctest"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis/redistest"
+	"github.com/anilyagiz/automdm/v4/server/platform/mysql/testing_utils"
+	"github.com/anilyagiz/automdm/v4/server/service"
+	"github.com/anilyagiz/automdm/v4/server/service/svctest"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/stretchr/testify/require"
 )
 
 type BaseSuite struct {
-	Logger   *slog.Logger
-	FleetCfg config.FleetConfig
-	Server   *httptest.Server
-	DS       *mysql.Datastore
-	Users    map[string]fleet.User
-	Token    string
+	Logger     *slog.Logger
+	AutoMDMCfg config.AutoMDMConfig
+	Server     *httptest.Server
+	DS         *mysql.Datastore
+	Users      map[string]automdm.User
+	Token      string
 
 	cachedAdminToken string
 }
@@ -53,8 +53,8 @@ func SetUpServerURL(t *testing.T, ds *mysql.Datastore, server *httptest.Server) 
 
 func SetUpMySQLAndService(t *testing.T, uniqueTestName string, opts ...*service.TestServerOpts) (
 	*mysql.Datastore,
-	config.FleetConfig,
-	fleet.Service, context.Context,
+	config.AutoMDMConfig,
+	automdm.Service, context.Context,
 ) {
 	ds := mysqltest.CreateMySQLDSWithOptions(t, &testing_utils.DatastoreTestOptions{
 		UniqueTestName: uniqueTestName,
@@ -64,23 +64,23 @@ func SetUpMySQLAndService(t *testing.T, uniqueTestName string, opts ...*service.
 	// Set up the required fields on AppConfig
 	appConf, err := ds.AppConfig(testContext())
 	require.NoError(t, err)
-	appConf.OrgInfo.OrgName = "FleetTest"
+	appConf.OrgInfo.OrgName = "AutoMDMTest"
 	appConf.ServerSettings.ServerURL = "https://example.org"
 	err = ds.SaveAppConfig(testContext(), appConf)
 	require.NoError(t, err)
 
-	fleetCfg := config.TestConfig()
-	fleetSvc, ctx := svctest.NewTestService(t, ds, fleetCfg, opts...)
-	return ds, fleetCfg, fleetSvc, ctx
+	automdmCfg := config.TestConfig()
+	automdmSvc, ctx := svctest.NewTestService(t, ds, automdmCfg, opts...)
+	return ds, automdmCfg, automdmSvc, ctx
 }
 
-func SetUpMySQLAndRedisAndService(t *testing.T, uniqueTestName string, opts ...*service.TestServerOpts) (*mysql.Datastore, fleet.RedisPool,
-	config.FleetConfig,
-	fleet.Service, context.Context,
+func SetUpMySQLAndRedisAndService(t *testing.T, uniqueTestName string, opts ...*service.TestServerOpts) (*mysql.Datastore, automdm.RedisPool,
+	config.AutoMDMConfig,
+	automdm.Service, context.Context,
 ) {
 	redisPool := redistest.SetupRedis(t, uniqueTestName, false, false, false)
-	ds, fleetCfg, fleetSvc, ctx := SetUpMySQLAndService(t, uniqueTestName, opts...)
-	return ds, redisPool, fleetCfg, fleetSvc, ctx
+	ds, automdmCfg, automdmSvc, ctx := SetUpMySQLAndService(t, uniqueTestName, opts...)
+	return ds, redisPool, automdmCfg, automdmSvc, ctx
 }
 
 func testContext() context.Context {

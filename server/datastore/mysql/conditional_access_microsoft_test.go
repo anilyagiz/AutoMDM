@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/require"
 )
 
@@ -35,7 +35,7 @@ func testConditionalAccessSetup(t *testing.T, ds *Datastore) {
 
 	_, err := ds.ConditionalAccessMicrosoftGet(ctx)
 	require.Error(t, err)
-	require.True(t, fleet.IsNotFound(err))
+	require.True(t, automdm.IsNotFound(err))
 
 	err = ds.ConditionalAccessMicrosoftCreateIntegration(ctx, "foobar", "insecure")
 	require.NoError(t, err)
@@ -71,7 +71,7 @@ func testConditionalAccessSetup(t *testing.T, ds *Datastore) {
 
 	_, err = ds.ConditionalAccessMicrosoftGet(ctx)
 	require.Error(t, err)
-	require.True(t, fleet.IsNotFound(err))
+	require.True(t, automdm.IsNotFound(err))
 
 	// Create a new one after deleting the existing.
 	err = ds.ConditionalAccessMicrosoftCreateIntegration(ctx, "foobar3", "insecure3")
@@ -93,21 +93,21 @@ func testConditionalAccessHosts(t *testing.T, ds *Datastore) {
 	// Test with non-existent host.
 	_, err = ds.LoadHostConditionalAccessStatus(ctx, 999_999)
 	require.Error(t, err)
-	require.True(t, fleet.IsNotFound(err))
+	require.True(t, automdm.IsNotFound(err))
 
 	noTeamHost := newTestHostWithPlatform(t, ds, "host1", "darwin", nil)
 
 	// Test with an existent host but no status yet.
 	_, err = ds.LoadHostConditionalAccessStatus(ctx, noTeamHost.ID)
 	require.Error(t, err)
-	require.True(t, fleet.IsNotFound(err))
+	require.True(t, automdm.IsNotFound(err))
 
 	// Nothing happens if the host doesn't have an entry yet.
 	err = ds.SetHostConditionalAccessStatus(ctx, noTeamHost.ID, false, false)
 	require.NoError(t, err)
 	_, err = ds.LoadHostConditionalAccessStatus(ctx, noTeamHost.ID)
 	require.Error(t, err)
-	require.True(t, fleet.IsNotFound(err))
+	require.True(t, automdm.IsNotFound(err))
 
 	changed, err := ds.CreateHostConditionalAccessStatus(ctx, noTeamHost.ID, "entraDeviceID", "foobar@example.onmicrosoft.com", true)
 	require.NoError(t, err)
@@ -305,11 +305,11 @@ func testConditionalAccessDeviceIDOneHost(t *testing.T, ds *Datastore) {
 	mac2 := newTestHostWithPlatform(t, ds, "mac2", "darwin", nil)
 	win1 := newTestHostWithPlatform(t, ds, "win1", "windows", nil)
 	win2 := newTestHostWithPlatform(t, ds, "win2", "windows", nil)
-	var conflictErr *fleet.ConflictError
+	var conflictErr *automdm.ConflictError
 	assertDeviceID := func(hostID uint, deviceID string) {
 		status, err := ds.LoadHostConditionalAccessStatus(ctx, hostID)
 		if deviceID == "" {
-			require.True(t, fleet.IsNotFound(err), err)
+			require.True(t, automdm.IsNotFound(err), err)
 			return
 		}
 		require.NoError(t, err)

@@ -37,9 +37,9 @@ func TestNormalizeRemote(t *testing.T) {
 		want string
 		ok   bool
 	}{
-		{"git@github.com:fleetdm/fleet.git", "fleetdm/fleet", true},
-		{"https://github.com/fleetdm/fleet.git", "fleetdm/fleet", true},
-		{"https://github.com/fleetdm/fleet", "fleetdm/fleet", true},
+		{"git@github.com:automdm/automdm.git", "automdm/automdm", true},
+		{"https://github.com/anilyagiz/automdm.git", "automdm/automdm", true},
+		{"https://github.com/anilyagiz/automdm", "automdm/automdm", true},
 		{"ssh://example.com/other.git", "", false},
 	}
 	for _, tt := range tests {

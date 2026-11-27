@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/stretchr/testify/require"
 )
 
@@ -24,7 +24,7 @@ func TestMatchVersion(t *testing.T) {
 		CVEs:              []string{"CVE-2024-001", "CVE-2024-002"},
 	}
 
-	sw := []fleet.Software{
+	sw := []automdm.Software{
 		{
 			ID:      1,
 			Version: "16.0.17531.20152", // in range
@@ -43,7 +43,7 @@ func TestMatchVersion(t *testing.T) {
 		},
 	}
 
-	expected := []fleet.SoftwareVulnerability{
+	expected := []automdm.SoftwareVulnerability{
 		{
 			SoftwareID:        1,
 			CVE:               "CVE-2024-001",
@@ -66,7 +66,7 @@ func TestMatchVersion(t *testing.T) {
 		},
 	}
 
-	ds.ListSoftwareForVulnDetectionFunc = func(ctx context.Context, filter fleet.VulnSoftwareFilter) ([]fleet.Software, error) {
+	ds.ListSoftwareForVulnDetectionFunc = func(ctx context.Context, filter automdm.VulnSoftwareFilter) ([]automdm.Software, error) {
 		return sw, nil
 	}
 
@@ -86,7 +86,7 @@ func TestMatchExcludeIfNameContains(t *testing.T) {
 		CVEs:                  []string{"CVE-2024-001", "CVE-2024-002"},
 	}
 
-	sw := []fleet.Software{
+	sw := []automdm.Software{
 		{
 			ID:      1,
 			Name:    "Microsoft 365 - en-us",
@@ -109,7 +109,7 @@ func TestMatchExcludeIfNameContains(t *testing.T) {
 		},
 	}
 
-	expected := []fleet.SoftwareVulnerability{
+	expected := []automdm.SoftwareVulnerability{
 		{
 			SoftwareID:        1,
 			CVE:               "CVE-2024-001",
@@ -132,7 +132,7 @@ func TestMatchExcludeIfNameContains(t *testing.T) {
 		},
 	}
 
-	ds.ListSoftwareForVulnDetectionFunc = func(ctx context.Context, filter fleet.VulnSoftwareFilter) ([]fleet.Software, error) {
+	ds.ListSoftwareForVulnDetectionFunc = func(ctx context.Context, filter automdm.VulnSoftwareFilter) ([]automdm.Software, error) {
 		return sw, nil
 	}
 
@@ -147,7 +147,7 @@ func TestMatchFilters(t *testing.T) {
 	testCases := []struct {
 		name           string
 		rule           CVEMatchingRule
-		expectedFilter fleet.VulnSoftwareFilter
+		expectedFilter automdm.VulnSoftwareFilter
 	}{
 		{
 			name: "Match all",
@@ -157,7 +157,7 @@ func TestMatchFilters(t *testing.T) {
 				ResolvedInVersion: "16.0.17628.20144",
 				CVEs:              []string{"CVE-2024-001", "CVE-2024-002"},
 			},
-			expectedFilter: fleet.VulnSoftwareFilter{
+			expectedFilter: automdm.VulnSoftwareFilter{
 				Name:    "Microsoft 365",
 				Sources: []string{"programs"},
 			},
@@ -169,7 +169,7 @@ func TestMatchFilters(t *testing.T) {
 				ResolvedInVersion: "16.0.17628.20144",
 				CVEs:              []string{"CVE-2024-001", "CVE-2024-002"},
 			},
-			expectedFilter: fleet.VulnSoftwareFilter{
+			expectedFilter: automdm.VulnSoftwareFilter{
 				Name: "Microsoft 365",
 			},
 		},
@@ -177,7 +177,7 @@ func TestMatchFilters(t *testing.T) {
 
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
-			ds.ListSoftwareForVulnDetectionFunc = func(ctx context.Context, filter fleet.VulnSoftwareFilter) ([]fleet.Software, error) {
+			ds.ListSoftwareForVulnDetectionFunc = func(ctx context.Context, filter automdm.VulnSoftwareFilter) ([]automdm.Software, error) {
 				require.Equal(t, tt.expectedFilter, filter)
 				return nil, nil
 			}
@@ -260,7 +260,7 @@ func TestValidateAll(t *testing.T) {
 
 func TestCheckCustomVulnerabilities(t *testing.T) {
 	ds := new(mock.Store)
-	sw := []fleet.Software{
+	sw := []automdm.Software{
 		// Very old version should match all custom matching rules.
 		{
 			ID:      1,
@@ -327,29 +327,29 @@ func TestCheckCustomVulnerabilities(t *testing.T) {
 	}
 
 	t.Run("New Vulns return all inserted", func(t *testing.T) {
-		ds.ListSoftwareForVulnDetectionFunc = func(ctx context.Context, filter fleet.VulnSoftwareFilter) ([]fleet.Software, error) {
+		ds.ListSoftwareForVulnDetectionFunc = func(ctx context.Context, filter automdm.VulnSoftwareFilter) ([]automdm.Software, error) {
 			if filter.Name == "Microsoft 365" && slices.Contains(filter.Sources, "programs") {
-				return []fleet.Software{sw[0], sw[1], sw[2], sw[3], sw[6]}, nil
+				return []automdm.Software{sw[0], sw[1], sw[2], sw[3], sw[6]}, nil
 			}
 			if filter.Name == "git-gui" && slices.Contains(filter.Sources, "homebrew_packages") {
-				return []fleet.Software{sw[4], sw[5]}, nil
+				return []automdm.Software{sw[4], sw[5]}, nil
 			}
 			if filter.Name == "Microsoft.WindowsNotepad" && slices.Contains(filter.Sources, "programs") {
-				return []fleet.Software{sw[7], sw[8]}, nil
+				return []automdm.Software{sw[7], sw[8]}, nil
 			}
 			return nil, nil
 		}
 
-		ds.InsertSoftwareVulnerabilitiesFunc = func(ctx context.Context, vulns []fleet.SoftwareVulnerability, source fleet.VulnerabilitySource) ([]fleet.SoftwareVulnerability, error) {
-			require.Equal(t, fleet.CustomSource, source)
+		ds.InsertSoftwareVulnerabilitiesFunc = func(ctx context.Context, vulns []automdm.SoftwareVulnerability, source automdm.VulnerabilitySource) ([]automdm.SoftwareVulnerability, error) {
+			require.Equal(t, automdm.CustomSource, source)
 			for _, v := range vulns {
 				require.NotEqual(t, uint(7), v.SoftwareID, "Microsoft 365 companion apps should be excluded from CVE matching")
 			}
 			return vulns, nil // all inserted vulns are "new"
 		}
 
-		ds.DeleteOutOfDateVulnerabilitiesFunc = func(ctx context.Context, source fleet.VulnerabilitySource, olderThan time.Time) error {
-			require.Equal(t, fleet.CustomSource, source)
+		ds.DeleteOutOfDateVulnerabilitiesFunc = func(ctx context.Context, source automdm.VulnerabilitySource, olderThan time.Time) error {
+			require.Equal(t, automdm.CustomSource, source)
 			return nil
 		}
 
@@ -359,7 +359,7 @@ func TestCheckCustomVulnerabilities(t *testing.T) {
 		require.Len(t, vulns, 35)
 		require.True(t, ds.DeleteOutOfDateVulnerabilitiesFuncInvoked)
 
-		expected := []fleet.SoftwareVulnerability{
+		expected := []automdm.SoftwareVulnerability{
 			{
 				SoftwareID:        1,
 				CVE:               "CVE-2024-30101",
@@ -537,7 +537,7 @@ func TestCheckCustomVulnerabilities(t *testing.T) {
 			},
 		}
 
-		cmpSoftwareVulnerability := func(v []fleet.SoftwareVulnerability) func(i, j int) bool {
+		cmpSoftwareVulnerability := func(v []automdm.SoftwareVulnerability) func(i, j int) bool {
 			return func(i, j int) bool {
 				if v[i].SoftwareID <= v[j].SoftwareID {
 					if v[i].SoftwareID == v[j].SoftwareID {
@@ -556,30 +556,30 @@ func TestCheckCustomVulnerabilities(t *testing.T) {
 	t.Run("Existing Vulns are not inserted", func(t *testing.T) {
 		ds.DeleteOutOfDateVulnerabilitiesFuncInvoked = false
 
-		ds.ListSoftwareForVulnDetectionFunc = func(ctx context.Context, filter fleet.VulnSoftwareFilter) ([]fleet.Software, error) {
+		ds.ListSoftwareForVulnDetectionFunc = func(ctx context.Context, filter automdm.VulnSoftwareFilter) ([]automdm.Software, error) {
 			if filter.Name == "Microsoft 365" && slices.Contains(filter.Sources, "programs") {
-				return []fleet.Software{sw[0], sw[1], sw[2], sw[3], sw[6]}, nil
+				return []automdm.Software{sw[0], sw[1], sw[2], sw[3], sw[6]}, nil
 			}
 			if filter.Name == "git-gui" && slices.Contains(filter.Sources, "homebrew_packages") {
-				return []fleet.Software{sw[4], sw[5]}, nil
+				return []automdm.Software{sw[4], sw[5]}, nil
 			}
 			if filter.Name == "Microsoft.WindowsNotepad" && slices.Contains(filter.Sources, "programs") {
-				return []fleet.Software{sw[7], sw[8]}, nil
+				return []automdm.Software{sw[7], sw[8]}, nil
 			}
 			return nil, nil
 		}
 
 		// Simulate all vulns already existing: InsertSoftwareVulnerabilities returns empty (no new vulns).
-		ds.InsertSoftwareVulnerabilitiesFunc = func(ctx context.Context, vulns []fleet.SoftwareVulnerability, source fleet.VulnerabilitySource) ([]fleet.SoftwareVulnerability, error) {
-			require.Equal(t, fleet.CustomSource, source)
+		ds.InsertSoftwareVulnerabilitiesFunc = func(ctx context.Context, vulns []automdm.SoftwareVulnerability, source automdm.VulnerabilitySource) ([]automdm.SoftwareVulnerability, error) {
+			require.Equal(t, automdm.CustomSource, source)
 			for _, v := range vulns {
 				require.NotEqual(t, uint(7), v.SoftwareID, "Microsoft 365 companion apps should be excluded from CVE matching")
 			}
 			return nil, nil
 		}
 
-		ds.DeleteOutOfDateVulnerabilitiesFunc = func(ctx context.Context, source fleet.VulnerabilitySource, olderThan time.Time) error {
-			require.Equal(t, fleet.CustomSource, source)
+		ds.DeleteOutOfDateVulnerabilitiesFunc = func(ctx context.Context, source automdm.VulnerabilitySource, olderThan time.Time) error {
+			require.Equal(t, automdm.CustomSource, source)
 			return nil
 		}
 

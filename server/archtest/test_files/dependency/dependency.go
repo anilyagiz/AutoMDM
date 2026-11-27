@@ -1,7 +1,7 @@
 package dependency
 
 import "fmt"
-import "github.com/fleetdm/fleet/v4/server/archtest/test_files/transative"
+import "github.com/anilyagiz/automdm/v4/server/archtest/test_files/transative"
 
 const Item = "depend on me"
 

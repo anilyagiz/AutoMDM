@@ -113,7 +113,7 @@ coverage: 40.5% of statements
 Some functions are skipped because they require:
 - GitHub CLI (`gh`) installation and authentication
 - Network connectivity 
-- Access to Fleet's GitHub repository
+- Access to AutoMDM's GitHub repository
 - Live GitHub API responses
 
 ## Running the Tests

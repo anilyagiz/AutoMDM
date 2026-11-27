@@ -1,6 +1,6 @@
 # ai_tools (vendored)
 
-This package provides the fleetd `ai_tools` osquery table: a unified inventory
+This package provides the automdmd `ai_tools` osquery table: a unified inventory
 of AI software (desktop apps, IDE plugins, agent CLIs, MCP servers, live AI/MCP
 sockets, agent instruction files, and browser extensions) with a `type`
 discriminator and per-row `risk_flags`, `sha256`, and JSON `detail` columns.
@@ -16,13 +16,13 @@ imported as a Go module dependency.
 
 The upstream `tables` package was renamed to `ai_tools`, and the import prefix
 `github.com/karmine05/agentic-detector/` was rewritten to
-`github.com/fleetdm/fleet/v4/orbit/pkg/table/ai_tools/`. `ai_tools.go` adds the
+`github.com/anilyagiz/automdm/v4/orbit/pkg/table/ai_tools/`. `ai_tools.go` adds the
 exported `Columns()`/`Generate()` wrappers used to register the table in
 `orbit/pkg/table/extension.go`.
 
 ### Modifications beyond the mechanical import
 
-- **Lint compliance** with Fleet's linters (set types, modernize idioms,
+- **Lint compliance** with AutoMDM's linters (set types, modernize idioms,
   defensive nil guards); all behavior-preserving.
 - **Windows app detection** rewritten for a daemon running as SYSTEM, where
   upstream's `HKEY_CURRENT_USER` read resolves to SYSTEM's own empty hive and

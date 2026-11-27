@@ -15,18 +15,18 @@ func TestUp_20261110135538(t *testing.T) {
 	execNoErr(t, db, `INSERT INTO users (id, name, email, password, salt) VALUES (1, 'Admin', 'admin@example.com', 'x', 'x')`)
 
 	type activityRow struct {
-		ID             int64          `db:"id"`
-		CreatedAt      time.Time      `db:"created_at"`
-		UserID         sql.NullInt64  `db:"user_id"`
-		UserName       sql.NullString `db:"user_name"`
-		UserEmail      string         `db:"user_email"`
-		ActivityType   string         `db:"activity_type"`
-		Details        sql.NullString `db:"details"`
-		Streamed       bool           `db:"streamed"`
-		FleetInitiated bool           `db:"fleet_initiated"`
-		HostOnly       bool           `db:"host_only"`
+		ID               int64          `db:"id"`
+		CreatedAt        time.Time      `db:"created_at"`
+		UserID           sql.NullInt64  `db:"user_id"`
+		UserName         sql.NullString `db:"user_name"`
+		UserEmail        string         `db:"user_email"`
+		ActivityType     string         `db:"activity_type"`
+		Details          sql.NullString `db:"details"`
+		Streamed         bool           `db:"streamed"`
+		AutoMDMInitiated bool           `db:"automdm_initiated"`
+		HostOnly         bool           `db:"host_only"`
 	}
-	const selectRows = `SELECT id, created_at, user_id, user_name, user_email, activity_type, details, streamed, fleet_initiated, host_only
+	const selectRows = `SELECT id, created_at, user_id, user_name, user_email, activity_type, details, streamed, automdm_initiated, host_only
 		FROM activity_past ORDER BY id`
 
 	// Vary the non-migrated columns so the test catches a migration that touches them.
@@ -38,8 +38,8 @@ func TestUp_20261110135538(t *testing.T) {
 	}
 
 	const (
-		fleetDetails      = `{"fleet_id": 123, "fleet_name": "Workstations", "platform": null}`
-		unassignedDetails = `{"fleet_id": null, "fleet_name": null, "platform": null}`
+		teamDetails       = `{"team_id": 123, "team_name": "Workstations", "platform": null}`
+		unassignedDetails = `{"team_id": null, "team_name": null, "platform": null}`
 	)
 	want := make(map[int64]string) // row id to expected details
 	for _, activityType := range []string{"enabled_macos_disk_encryption", "disabled_macos_disk_encryption"} {
@@ -47,15 +47,15 @@ func TestUp_20261110135538(t *testing.T) {
 			before string
 			after  string
 		}{
-			// Fleet 4.29 to 4.81.
-			{`{"team_id": 123, "team_name": "Workstations"}`, fleetDetails},
+			// AutoMDM 4.29 to 4.81.
+			{`{"team_id": 123, "team_name": "Workstations"}`, teamDetails},
 			{`{"team_id": null, "team_name": null}`, unassignedDetails},
-			// Fleet 4.82 to 4.91.
-			{`{"team_id": 123, "team_name": "Workstations", "fleet_id": 123, "fleet_name": "Workstations"}`, fleetDetails},
-			{`{"team_id": null, "team_name": null, "fleet_id": null, "fleet_name": null}`, unassignedDetails},
+			// AutoMDM 4.82 to 4.91.
+			{`{"team_id": 123, "team_name": "Workstations", "team_id": 123, "team_name": "Workstations"}`, teamDetails},
+			{`{"team_id": null, "team_name": null, "team_id": null, "team_name": null}`, unassignedDetails},
 			// Seeded by dibble.
-			{`{"fleet_id": 123, "fleet_name": "Workstations"}`, fleetDetails},
-			{`{"fleet_id": null, "fleet_name": null}`, unassignedDetails},
+			{`{"team_id": 123, "team_name": "Workstations"}`, teamDetails},
+			{`{"team_id": null, "team_name": null}`, unassignedDetails},
 			{`{}`, unassignedDetails},
 			// Never written, but must not fail the migration.
 			{`null`, unassignedDetails},
@@ -67,7 +67,7 @@ func TestUp_20261110135538(t *testing.T) {
 	}
 
 	untouchedDetails := map[string]string{
-		"edited_disk_encryption_settings": `{"fleet_id": 5, "fleet_name": "Desktops", "platform": "macos"}`,
+		"edited_disk_encryption_settings": `{"team_id": 5, "team_name": "Desktops", "platform": "macos"}`,
 		"edited_agent_options":            `{"team_id": 5, "team_name": "Desktops", "global": false}`,
 	}
 	for activityType, details := range untouchedDetails {

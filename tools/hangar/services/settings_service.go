@@ -7,10 +7,10 @@ package services
 import (
 	"fmt"
 
-	"github.com/fleetdm/fleet/tools/hangar/internal/buildinfo"
-	"github.com/fleetdm/fleet/tools/hangar/internal/netinfo"
-	"github.com/fleetdm/fleet/tools/hangar/internal/paths"
-	"github.com/fleetdm/fleet/tools/hangar/internal/settings"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/buildinfo"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/netinfo"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/paths"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/settings"
 )
 
 // SettingsService exposes settings, repo probing, ngrok parsing, and the
@@ -86,19 +86,19 @@ func (s *SettingsService) NewScepProfile() (settings.ScepProfile, error) {
 	return settings.NextScepProfile(cur.ScepProfiles), nil
 }
 
-// ProbeFleetRepo validates a single path, or (when path is empty) discovers
-// Fleet clones under the well-known dev roots.
-func (s *SettingsService) ProbeFleetRepo(path string) []settings.RepoProbe {
+// ProbeAutoMDMRepo validates a single path, or (when path is empty) discovers
+// AutoMDM clones under the well-known dev roots.
+func (s *SettingsService) ProbeAutoMDMRepo(path string) []settings.RepoProbe {
 	if path != "" {
 		return []settings.RepoProbe{settings.ProbeOne(path)}
 	}
-	return settings.DiscoverFleetRepos()
+	return settings.DiscoverAutoMDMRepos()
 }
 
-// DetectFleetConfig returns the relative serve-config name in the repo root
-// (fleet.yml/fleet.yaml), or "" if none.
-func (s *SettingsService) DetectFleetConfig(repo string) string {
-	return settings.DetectFleetConfig(repo)
+// DetectAutoMDMConfig returns the relative serve-config name in the repo root
+// (automdm.yml/automdm.yaml), or "" if none.
+func (s *SettingsService) DetectAutoMDMConfig(repo string) string {
+	return settings.DetectAutoMDMConfig(repo)
 }
 
 // NgrokTunnels returns the currently-running ngrok tunnels (with public URLs)

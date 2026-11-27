@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # 4K Video Downloader+ ships as a WiX "burn" bootstrapper (.exe). It installs
 # machine-wide (PerMachine="yes" in the bundle registration) and registers its

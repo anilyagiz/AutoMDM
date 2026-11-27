@@ -14,13 +14,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	fleetmdm "github.com/fleetdm/fleet/v4/server/mdm"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	automdmmdm "github.com/anilyagiz/automdm/v4/server/mdm"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
@@ -89,7 +89,7 @@ func TestPolicies(t *testing.T) {
 		{"TestPoliciesTeamPoliciesWithResendProfile", testTeamPoliciesWithResendProfile},
 		{"TestPoliciesApplyPolicySpecsWithResendProfile", testApplyPolicySpecsWithResendProfile},
 		{"TestPoliciesApplyPolicySpecsWithScript", testApplyPolicySpecsWithScript},
-		{"TestPoliciesResendProfileRejectsFleetManaged", testPoliciesResendProfileRejectsFleetManaged},
+		{"TestPoliciesResendProfileRejectsAutoMDMManaged", testPoliciesResendProfileRejectsAutoMDMManaged},
 		{"TestPoliciesGetPoliciesWithAssociatedProfile", testGetPoliciesWithAssociatedProfile},
 		{"TestPoliciesApplyPolicySpecsResendProfileChangeResetsStats", testApplyPolicySpecsResendProfileChangeResetsStats},
 		{"TestPoliciesSaveResendProfile", testSavePolicyResendProfile},
@@ -148,15 +148,15 @@ func TestPolicies(t *testing.T) {
 
 func testPoliciesNewGlobalPolicyLegacy(t *testing.T, ds *Datastore) {
 	user1 := test.NewUser(t, ds, "Alice", "alice@example.com", true)
-	q, err := ds.NewQuery(context.Background(), &fleet.Query{
+	q, err := ds.NewQuery(context.Background(), &automdm.Query{
 		Name:        "query1",
 		Description: "query1 desc",
 		Query:       "select 1;",
 		Saved:       true,
-		Logging:     fleet.LoggingSnapshot,
+		Logging:     automdm.LoggingSnapshot,
 	})
 	require.NoError(t, err)
-	p, err := ds.NewGlobalPolicy(context.Background(), &user1.ID, fleet.PolicyPayload{
+	p, err := ds.NewGlobalPolicy(context.Background(), &user1.ID, automdm.PolicyPayload{
 		Name:        q.Name,
 		Query:       q.Query,
 		Description: q.Description,
@@ -169,22 +169,22 @@ func testPoliciesNewGlobalPolicyLegacy(t *testing.T, ds *Datastore) {
 	require.NotNil(t, p.AuthorID)
 	assert.Equal(t, user1.ID, *p.AuthorID)
 
-	q2, err := ds.NewQuery(context.Background(), &fleet.Query{
+	q2, err := ds.NewQuery(context.Background(), &automdm.Query{
 		Name:        "query2",
 		Description: "query2 desc",
 		Query:       "select 42;",
 		Saved:       true,
-		Logging:     fleet.LoggingSnapshot,
+		Logging:     automdm.LoggingSnapshot,
 	})
 	require.NoError(t, err)
-	_, err = ds.NewGlobalPolicy(context.Background(), &user1.ID, fleet.PolicyPayload{
+	_, err = ds.NewGlobalPolicy(context.Background(), &user1.ID, automdm.PolicyPayload{
 		Name:        q2.Name,
 		Query:       q2.Query,
 		Description: q2.Description,
 	})
 	require.NoError(t, err)
 
-	policies, err := ds.ListGlobalPolicies(context.Background(), fleet.ListOptions{}, "")
+	policies, err := ds.ListGlobalPolicies(context.Background(), automdm.ListOptions{}, "")
 	require.NoError(t, err)
 	require.Len(t, policies, 2)
 	assert.Equal(t, q.Name, policies[0].Name)
@@ -202,7 +202,7 @@ func testPoliciesNewGlobalPolicyLegacy(t *testing.T, ds *Datastore) {
 	_, err = ds.DeleteGlobalPolicies(context.Background(), []uint{policies[0].ID, policies[1].ID})
 	require.NoError(t, err)
 
-	policies, err = ds.ListGlobalPolicies(context.Background(), fleet.ListOptions{}, "")
+	policies, err = ds.ListGlobalPolicies(context.Background(), automdm.ListOptions{}, "")
 	require.NoError(t, err)
 	require.Len(t, policies, 0)
 }
@@ -210,7 +210,7 @@ func testPoliciesNewGlobalPolicyLegacy(t *testing.T, ds *Datastore) {
 func testPoliciesNewGlobalPolicyProprietary(t *testing.T, ds *Datastore) {
 	user1 := test.NewUser(t, ds, "Alice", "alice@example.com", true)
 	ctx := context.Background()
-	p, err := ds.NewGlobalPolicy(ctx, &user1.ID, fleet.PolicyPayload{
+	p, err := ds.NewGlobalPolicy(ctx, &user1.ID, automdm.PolicyPayload{
 		Name:        "query1",
 		Query:       "select 1;",
 		Description: "query1 desc",
@@ -226,7 +226,7 @@ func testPoliciesNewGlobalPolicyProprietary(t *testing.T, ds *Datastore) {
 	require.NotNil(t, p.AuthorID)
 	assert.Equal(t, user1.ID, *p.AuthorID)
 
-	_, err = ds.NewGlobalPolicy(ctx, &user1.ID, fleet.PolicyPayload{
+	_, err = ds.NewGlobalPolicy(ctx, &user1.ID, automdm.PolicyPayload{
 		Name:        "query2",
 		Query:       "select 2;",
 		Description: "query2 desc",
@@ -234,7 +234,7 @@ func testPoliciesNewGlobalPolicyProprietary(t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 
-	policies, err := ds.ListGlobalPolicies(ctx, fleet.ListOptions{}, "")
+	policies, err := ds.ListGlobalPolicies(ctx, automdm.ListOptions{}, "")
 	require.NoError(t, err)
 	require.Len(t, policies, 2)
 	assert.Equal(t, "query1", policies[0].Name)
@@ -253,7 +253,7 @@ func testPoliciesNewGlobalPolicyProprietary(t *testing.T, ds *Datastore) {
 	assert.Equal(t, user1.ID, *policies[1].AuthorID)
 
 	// Can't create a global policy with an existing name.
-	p3, err := ds.NewGlobalPolicy(ctx, &user1.ID, fleet.PolicyPayload{
+	p3, err := ds.NewGlobalPolicy(ctx, &user1.ID, automdm.PolicyPayload{
 		Name:        "query1",
 		Query:       "select 3;",
 		Description: "query1 other description",
@@ -269,12 +269,12 @@ func testPoliciesNewGlobalPolicyProprietary(t *testing.T, ds *Datastore) {
 	_, err = ds.DeleteGlobalPolicies(ctx, []uint{policies[0].ID, policies[1].ID})
 	require.NoError(t, err)
 
-	policies, err = ds.ListGlobalPolicies(ctx, fleet.ListOptions{}, "")
+	policies, err = ds.ListGlobalPolicies(ctx, automdm.ListOptions{}, "")
 	require.NoError(t, err)
 	require.Len(t, policies, 0)
 
 	// Now the name is available and we can create the global policy.
-	p3, err = ds.NewGlobalPolicy(ctx, &user1.ID, fleet.PolicyPayload{
+	p3, err = ds.NewGlobalPolicy(ctx, &user1.ID, automdm.PolicyPayload{
 		Name:        "query1",
 		Query:       "select 3;",
 		Description: "query1 other description",
@@ -297,13 +297,13 @@ func testGlobalPolicyPendingScriptsAndInstalls(t *testing.T, ds *Datastore) {
 	host1 := test.NewHost(t, ds, "host1", "1", "host1key", "host1uuid", time.Now())
 
 	// create a new script and associate with global policy
-	script, err := ds.NewScript(ctx, &fleet.Script{
+	script, err := ds.NewScript(ctx, &automdm.Script{
 		Name:           "script1.sh",
 		ScriptContents: "echo",
 		TeamID:         nil,
 	})
 	require.NoError(t, err)
-	policy1, err := ds.NewGlobalPolicy(ctx, &user.ID, fleet.PolicyPayload{
+	policy1, err := ds.NewGlobalPolicy(ctx, &user.ID, automdm.PolicyPayload{
 		Name:        "query1",
 		Query:       "select 1;",
 		Description: "query1 desc",
@@ -314,12 +314,12 @@ func testGlobalPolicyPendingScriptsAndInstalls(t *testing.T, ds *Datastore) {
 		_, err := q.ExecContext(ctx, "UPDATE policies SET script_id = ?", script.ID)
 		return err
 	})
-	policies, err := ds.ListGlobalPolicies(ctx, fleet.ListOptions{}, "")
+	policies, err := ds.ListGlobalPolicies(ctx, automdm.ListOptions{}, "")
 	require.NoError(t, err)
 	require.Len(t, policies, 1)
 
 	// create pending script execution
-	_, err = ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+	_, err = ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 		HostID:         host1.ID,
 		ScriptContents: "echo",
 		UserID:         &user.ID,
@@ -342,9 +342,9 @@ func testGlobalPolicyPendingScriptsAndInstalls(t *testing.T, ds *Datastore) {
 
 	// create a new installer and associate with global policy
 	host2 := test.NewHost(t, ds, "host2", "2", "host2key", "host2uuid", time.Now())
-	tfr1, err := fleet.NewTempFileReader(strings.NewReader("hello"), t.TempDir)
+	tfr1, err := automdm.NewTempFileReader(strings.NewReader("hello"), t.TempDir)
 	require.NoError(t, err)
-	installerID, _, err := ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
+	installerID, _, err := ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
 		InstallScript:     "hello",
 		PreInstallQuery:   "SELECT 1",
 		PostInstallScript: "world",
@@ -356,10 +356,10 @@ func testGlobalPolicyPendingScriptsAndInstalls(t *testing.T, ds *Datastore) {
 		Version:           "1.0",
 		Source:            "apps",
 		UserID:            user.ID,
-		ValidatedLabels:   &fleet.LabelIdentsWithScope{},
+		ValidatedLabels:   &automdm.LabelIdentsWithScope{},
 	})
 	require.NoError(t, err)
-	policy2, err := ds.NewGlobalPolicy(ctx, &user.ID, fleet.PolicyPayload{
+	policy2, err := ds.NewGlobalPolicy(ctx, &user.ID, automdm.PolicyPayload{
 		Name:        "query2",
 		Query:       "select 1;",
 		Description: "query2 desc",
@@ -370,12 +370,12 @@ func testGlobalPolicyPendingScriptsAndInstalls(t *testing.T, ds *Datastore) {
 		_, err := q.ExecContext(ctx, "UPDATE policies SET software_installer_id = ?", installerID)
 		return err
 	})
-	policies, err = ds.ListGlobalPolicies(ctx, fleet.ListOptions{}, "")
+	policies, err = ds.ListGlobalPolicies(ctx, automdm.ListOptions{}, "")
 	require.NoError(t, err)
 	require.Len(t, policies, 1)
 
 	// create a pending software install request
-	_, err = ds.InsertSoftwareInstallRequest(ctx, host2.ID, installerID, fleet.HostSoftwareInstallOptions{PolicyID: &policy2.ID})
+	_, err = ds.InsertSoftwareInstallRequest(ctx, host2.ID, installerID, automdm.HostSoftwareInstallOptions{PolicyID: &policy2.ID})
 	require.NoError(t, err)
 
 	pendingInstalls, err := ds.listUpcomingSoftwareInstalls(ctx, host2.ID, false)
@@ -395,7 +395,7 @@ func testPoliciesListOptions(t *testing.T, ds *Datastore) {
 	user1 := test.NewUser(t, ds, "Alice", "alice@example.com", true)
 	ctx := context.Background()
 
-	_, err := ds.NewGlobalPolicy(ctx, &user1.ID, fleet.PolicyPayload{
+	_, err := ds.NewGlobalPolicy(ctx, &user1.ID, automdm.PolicyPayload{
 		Name:        "apple",
 		Query:       "select 1;",
 		Description: "query1 desc",
@@ -403,7 +403,7 @@ func testPoliciesListOptions(t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 
-	_, err = ds.NewGlobalPolicy(ctx, &user1.ID, fleet.PolicyPayload{
+	_, err = ds.NewGlobalPolicy(ctx, &user1.ID, automdm.PolicyPayload{
 		Name:        "banana",
 		Query:       "select 1;",
 		Description: "query2 desc",
@@ -411,7 +411,7 @@ func testPoliciesListOptions(t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 
-	_, err = ds.NewGlobalPolicy(ctx, &user1.ID, fleet.PolicyPayload{
+	_, err = ds.NewGlobalPolicy(ctx, &user1.ID, automdm.PolicyPayload{
 		Name:        "cherry",
 		Query:       "select 1;",
 		Description: "query3 desc",
@@ -419,7 +419,7 @@ func testPoliciesListOptions(t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 
-	_, err = ds.NewGlobalPolicy(ctx, &user1.ID, fleet.PolicyPayload{
+	_, err = ds.NewGlobalPolicy(ctx, &user1.ID, automdm.PolicyPayload{
 		Name:        "apple pie",
 		Query:       "select 1;",
 		Description: "query4 desc",
@@ -427,7 +427,7 @@ func testPoliciesListOptions(t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 
-	_, err = ds.NewGlobalPolicy(ctx, &user1.ID, fleet.PolicyPayload{
+	_, err = ds.NewGlobalPolicy(ctx, &user1.ID, automdm.PolicyPayload{
 		Name:        "rotten apple",
 		Query:       "select 1;",
 		Description: "query5 desc",
@@ -435,7 +435,7 @@ func testPoliciesListOptions(t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 
-	policies, err := ds.ListGlobalPolicies(ctx, fleet.ListOptions{MatchQuery: "apple", OrderKey: "name", OrderDirection: fleet.OrderAscending}, "")
+	policies, err := ds.ListGlobalPolicies(ctx, automdm.ListOptions{MatchQuery: "apple", OrderKey: "name", OrderDirection: automdm.OrderAscending}, "")
 	require.NoError(t, err)
 	require.Len(t, policies, 3)
 	assert.Equal(t, "apple", policies[0].Name)
@@ -448,20 +448,20 @@ func testPoliciesPlatformFilter(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
 	// Cross-platform policy (empty platform string targets all platforms)
-	_, err := ds.NewGlobalPolicy(ctx, &user1.ID, fleet.PolicyPayload{
+	_, err := ds.NewGlobalPolicy(ctx, &user1.ID, automdm.PolicyPayload{
 		Name:  "cross-platform",
 		Query: "select 1;",
 	})
 	require.NoError(t, err)
 
-	_, err = ds.NewGlobalPolicy(ctx, &user1.ID, fleet.PolicyPayload{
+	_, err = ds.NewGlobalPolicy(ctx, &user1.ID, automdm.PolicyPayload{
 		Name:     "macos-only",
 		Query:    "select 1;",
 		Platform: "darwin",
 	})
 	require.NoError(t, err)
 
-	_, err = ds.NewGlobalPolicy(ctx, &user1.ID, fleet.PolicyPayload{
+	_, err = ds.NewGlobalPolicy(ctx, &user1.ID, automdm.PolicyPayload{
 		Name:     "win-linux",
 		Query:    "select 1;",
 		Platform: "windows,linux",
@@ -469,33 +469,33 @@ func testPoliciesPlatformFilter(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// Empty platform = no filter, returns all policies
-	policies, err := ds.ListGlobalPolicies(ctx, fleet.ListOptions{OrderKey: "name"}, "")
+	policies, err := ds.ListGlobalPolicies(ctx, automdm.ListOptions{OrderKey: "name"}, "")
 	require.NoError(t, err)
 	require.Len(t, policies, 3)
 
 	// darwin matches cross-platform (empty) + macos-only
-	policies, err = ds.ListGlobalPolicies(ctx, fleet.ListOptions{OrderKey: "name"}, "darwin")
+	policies, err = ds.ListGlobalPolicies(ctx, automdm.ListOptions{OrderKey: "name"}, "darwin")
 	require.NoError(t, err)
 	require.Len(t, policies, 2)
 	names := []string{policies[0].Name, policies[1].Name}
 	assert.ElementsMatch(t, []string{"cross-platform", "macos-only"}, names)
 
 	// windows matches cross-platform + win-linux
-	policies, err = ds.ListGlobalPolicies(ctx, fleet.ListOptions{OrderKey: "name"}, "windows")
+	policies, err = ds.ListGlobalPolicies(ctx, automdm.ListOptions{OrderKey: "name"}, "windows")
 	require.NoError(t, err)
 	require.Len(t, policies, 2)
 	names = []string{policies[0].Name, policies[1].Name}
 	assert.ElementsMatch(t, []string{"cross-platform", "win-linux"}, names)
 
 	// linux matches cross-platform + win-linux
-	policies, err = ds.ListGlobalPolicies(ctx, fleet.ListOptions{OrderKey: "name"}, "linux")
+	policies, err = ds.ListGlobalPolicies(ctx, automdm.ListOptions{OrderKey: "name"}, "linux")
 	require.NoError(t, err)
 	require.Len(t, policies, 2)
 	names = []string{policies[0].Name, policies[1].Name}
 	assert.ElementsMatch(t, []string{"cross-platform", "win-linux"}, names)
 
 	// chrome matches only cross-platform (no chrome-targeted policies exist)
-	policies, err = ds.ListGlobalPolicies(ctx, fleet.ListOptions{OrderKey: "name"}, "chrome")
+	policies, err = ds.ListGlobalPolicies(ctx, automdm.ListOptions{OrderKey: "name"}, "chrome")
 	require.NoError(t, err)
 	require.Len(t, policies, 1)
 	assert.Equal(t, "cross-platform", policies[0].Name)
@@ -514,15 +514,15 @@ func testPoliciesPlatformFilter(t *testing.T, ds *Datastore) {
 	assert.Equal(t, 3, count)
 
 	// Test team-scoped list / count with platform.
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "team1"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
-	_, err = ds.NewTeamPolicy(ctx, team.ID, &user1.ID, fleet.PolicyPayload{
+	_, err = ds.NewTeamPolicy(ctx, team.ID, &user1.ID, automdm.PolicyPayload{
 		Name:     "team-darwin",
 		Query:    "select 1;",
 		Platform: "darwin",
 	})
 	require.NoError(t, err)
-	_, err = ds.NewTeamPolicy(ctx, team.ID, &user1.ID, fleet.PolicyPayload{
+	_, err = ds.NewTeamPolicy(ctx, team.ID, &user1.ID, automdm.PolicyPayload{
 		Name:  "team-all",
 		Query: "select 1;",
 	})
@@ -530,13 +530,13 @@ func testPoliciesPlatformFilter(t *testing.T, ds *Datastore) {
 
 	// ListMergedTeamPolicies with darwin: team-darwin, team-all, and the 2
 	// matching global policies (cross-platform, macos-only)
-	merged, err := ds.ListMergedTeamPolicies(ctx, team.ID, fleet.ListOptions{OrderKey: "name"}, "", "darwin")
+	merged, err := ds.ListMergedTeamPolicies(ctx, team.ID, automdm.ListOptions{OrderKey: "name"}, "", "darwin")
 	require.NoError(t, err)
 	require.Len(t, merged, 4)
 
 	// ListTeamPolicies with windows: the team has no darwin-only policy, so
 	// we expect team-all (empty platform) + cross-platform + win-linux inherited.
-	teamPols, inherited, err := ds.ListTeamPolicies(ctx, team.ID, fleet.ListOptions{OrderKey: "name"}, fleet.ListOptions{OrderKey: "name"}, "", "windows")
+	teamPols, inherited, err := ds.ListTeamPolicies(ctx, team.ID, automdm.ListOptions{OrderKey: "name"}, automdm.ListOptions{OrderKey: "name"}, "", "windows")
 	require.NoError(t, err)
 	require.Len(t, teamPols, 1)
 	assert.Equal(t, "team-all", teamPols[0].Name)
@@ -554,7 +554,7 @@ func testPoliciesMembershipView(deferred bool, t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
 	user1 := test.NewUser(t, ds, "Alice", "alice@example.com", true)
-	host1, err := ds.NewHost(ctx, &fleet.Host{
+	host1, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID:   ptr.String("1234"),
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
@@ -566,7 +566,7 @@ func testPoliciesMembershipView(deferred bool, t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 
-	host2, err := ds.NewHost(ctx, &fleet.Host{
+	host2, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID:   ptr.String("5679"),
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
@@ -578,15 +578,15 @@ func testPoliciesMembershipView(deferred bool, t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 
-	q, err := ds.NewQuery(ctx, &fleet.Query{
+	q, err := ds.NewQuery(ctx, &automdm.Query{
 		Name:        "query1",
 		Description: "query1 desc",
 		Query:       "select 1;",
 		Saved:       true,
-		Logging:     fleet.LoggingSnapshot,
+		Logging:     automdm.LoggingSnapshot,
 	})
 	require.NoError(t, err)
-	p, err := ds.NewGlobalPolicy(ctx, &user1.ID, fleet.PolicyPayload{
+	p, err := ds.NewGlobalPolicy(ctx, &user1.ID, automdm.PolicyPayload{
 		Name:        q.Name,
 		Query:       q.Query,
 		Description: q.Description,
@@ -599,15 +599,15 @@ func testPoliciesMembershipView(deferred bool, t *testing.T, ds *Datastore) {
 	require.NotNil(t, p.AuthorID)
 	assert.Equal(t, user1.ID, *p.AuthorID)
 
-	q2, err := ds.NewQuery(ctx, &fleet.Query{
+	q2, err := ds.NewQuery(ctx, &automdm.Query{
 		Name:        "query2",
 		Description: "query2 desc",
 		Query:       "select 42;",
 		Saved:       true,
-		Logging:     fleet.LoggingSnapshot,
+		Logging:     automdm.LoggingSnapshot,
 	})
 	require.NoError(t, err)
-	p2, err := ds.NewGlobalPolicy(ctx, &user1.ID, fleet.PolicyPayload{
+	p2, err := ds.NewGlobalPolicy(ctx, &user1.ID, automdm.PolicyPayload{
 		Name:        q2.Name,
 		Query:       q2.Query,
 		Description: q2.Description,
@@ -631,7 +631,7 @@ func testPoliciesMembershipView(deferred bool, t *testing.T, ds *Datastore) {
 
 	require.NoError(t, ds.UpdateHostPolicyCounts(ctx))
 
-	policies, err := ds.ListGlobalPolicies(ctx, fleet.ListOptions{}, "")
+	policies, err := ds.ListGlobalPolicies(ctx, automdm.ListOptions{}, "")
 	require.NoError(t, err)
 	require.Len(t, policies, 2)
 
@@ -648,7 +648,7 @@ func testPoliciesMembershipView(deferred bool, t *testing.T, ds *Datastore) {
 
 	require.NoError(t, ds.UpdateHostPolicyCounts(ctx))
 
-	policies, err = ds.ListGlobalPolicies(ctx, fleet.ListOptions{}, "")
+	policies, err = ds.ListGlobalPolicies(ctx, automdm.ListOptions{}, "")
 	require.NoError(t, err)
 	require.Len(t, policies, 2)
 
@@ -672,7 +672,7 @@ func testPoliciesMembershipView(deferred bool, t *testing.T, ds *Datastore) {
 	)))
 
 	require.NoError(t, ds.UpdateHostPolicyCounts(ctx))
-	policies, err = ds.ListGlobalPolicies(ctx, fleet.ListOptions{}, "")
+	policies, err = ds.ListGlobalPolicies(ctx, automdm.ListOptions{}, "")
 	require.NoError(t, err)
 	require.Len(t, policies, 2)
 	// host1: p now passing again (was failing), host2: p still passing
@@ -695,22 +695,22 @@ func testPoliciesMembershipView(deferred bool, t *testing.T, ds *Datastore) {
 	assert.Equal(t, q2.Query, queries[fmt.Sprint(q2.ID)])
 
 	// create a couple teams and team-specific policies
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "team1"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
-	team2, err := ds.NewTeam(ctx, &fleet.Team{Name: "team2"})
+	team2, err := ds.NewTeam(ctx, &automdm.Team{Name: "team2"})
 	require.NoError(t, err)
 
-	t1pol, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, fleet.PolicyPayload{
+	t1pol, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, automdm.PolicyPayload{
 		Name:  "team1pol",
 		Query: "SELECT 1",
 	})
 	require.NoError(t, err)
-	t2pol, err := ds.NewTeamPolicy(ctx, team2.ID, &user1.ID, fleet.PolicyPayload{
+	t2pol, err := ds.NewTeamPolicy(ctx, team2.ID, &user1.ID, automdm.PolicyPayload{
 		Name:  "team2pol",
 		Query: "SELECT 2",
 	})
 	require.NoError(t, err)
-	t2pol2, err := ds.NewTeamPolicy(ctx, team2.ID, &user1.ID, fleet.PolicyPayload{
+	t2pol2, err := ds.NewTeamPolicy(ctx, team2.ID, &user1.ID, automdm.PolicyPayload{
 		Name:  "team2pol2",
 		Query: "SELECT 3",
 	})
@@ -718,21 +718,21 @@ func testPoliciesMembershipView(deferred bool, t *testing.T, ds *Datastore) {
 
 	// create hosts in each team
 	host3, err := ds.EnrollOsquery(ctx,
-		fleet.WithEnrollOsqueryHostID("3"),
-		fleet.WithEnrollOsqueryNodeKey("3"),
-		fleet.WithEnrollOsqueryTeamID(&team1.ID),
+		automdm.WithEnrollOsqueryHostID("3"),
+		automdm.WithEnrollOsqueryNodeKey("3"),
+		automdm.WithEnrollOsqueryTeamID(&team1.ID),
 	)
 	require.NoError(t, err)
 	host4, err := ds.EnrollOsquery(ctx,
-		fleet.WithEnrollOsqueryHostID("4"),
-		fleet.WithEnrollOsqueryNodeKey("4"),
-		fleet.WithEnrollOsqueryTeamID(&team2.ID),
+		automdm.WithEnrollOsqueryHostID("4"),
+		automdm.WithEnrollOsqueryNodeKey("4"),
+		automdm.WithEnrollOsqueryTeamID(&team2.ID),
 	)
 	require.NoError(t, err)
 	host5, err := ds.EnrollOsquery(ctx,
-		fleet.WithEnrollOsqueryHostID("5"),
-		fleet.WithEnrollOsqueryNodeKey("5"),
-		fleet.WithEnrollOsqueryTeamID(&team2.ID),
+		automdm.WithEnrollOsqueryHostID("5"),
+		automdm.WithEnrollOsqueryNodeKey("5"),
+		automdm.WithEnrollOsqueryTeamID(&team2.ID),
 	)
 	require.NoError(t, err)
 
@@ -743,7 +743,7 @@ func testPoliciesMembershipView(deferred bool, t *testing.T, ds *Datastore) {
 
 	require.NoError(t, ds.UpdateHostPolicyCounts(ctx))
 
-	t1Pols, t1Inherited, err := ds.ListTeamPolicies(ctx, team1.ID, fleet.ListOptions{}, fleet.ListOptions{}, "", "")
+	t1Pols, t1Inherited, err := ds.ListTeamPolicies(ctx, team1.ID, automdm.ListOptions{}, automdm.ListOptions{}, "", "")
 	require.NoError(t, err)
 	require.Len(t, t1Pols, 1)
 	assert.Equal(t, uint(1), t1Pols[0].PassingHostCount)
@@ -757,7 +757,7 @@ func testPoliciesMembershipView(deferred bool, t *testing.T, ds *Datastore) {
 	assert.Equal(t, uint(0), t1Inherited[1].PassingHostCount)
 	assert.Equal(t, uint(1), t1Inherited[1].FailingHostCount)
 
-	t2Pols, t2Inherited, err := ds.ListTeamPolicies(ctx, team2.ID, fleet.ListOptions{}, fleet.ListOptions{}, "", "")
+	t2Pols, t2Inherited, err := ds.ListTeamPolicies(ctx, team2.ID, automdm.ListOptions{}, automdm.ListOptions{}, "", "")
 	require.NoError(t, err)
 	require.Len(t, t2Pols, 2)
 	require.Equal(t, t2pol.ID, t2Pols[0].ID)
@@ -780,42 +780,42 @@ func testTeamPolicyLegacy(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
 	user1 := test.NewUser(t, ds, "Alice", "alice@example.com", true)
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "team1"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
 
-	q, err := ds.NewQuery(ctx, &fleet.Query{
+	q, err := ds.NewQuery(ctx, &automdm.Query{
 		Name:        "query1",
 		Description: "query1 desc",
 		Query:       "select 1;",
 		Saved:       true,
-		Logging:     fleet.LoggingSnapshot,
+		Logging:     automdm.LoggingSnapshot,
 	})
 	require.NoError(t, err)
 
-	team2, err := ds.NewTeam(ctx, &fleet.Team{Name: "team2"})
+	team2, err := ds.NewTeam(ctx, &automdm.Team{Name: "team2"})
 	require.NoError(t, err)
 
-	q2, err := ds.NewQuery(ctx, &fleet.Query{
+	q2, err := ds.NewQuery(ctx, &automdm.Query{
 		Name:        "query2",
 		Description: "query2 desc",
 		Query:       "select 1;",
 		Saved:       true,
-		Logging:     fleet.LoggingSnapshot,
+		Logging:     automdm.LoggingSnapshot,
 	})
 	require.NoError(t, err)
 
-	prevPolicies, err := ds.ListGlobalPolicies(ctx, fleet.ListOptions{}, "")
+	prevPolicies, err := ds.ListGlobalPolicies(ctx, automdm.ListOptions{}, "")
 	require.NoError(t, err)
 	require.Len(t, prevPolicies, 0)
 
-	_, err = ds.NewTeamPolicy(ctx, 99999999, &user1.ID, fleet.PolicyPayload{
+	_, err = ds.NewTeamPolicy(ctx, 99999999, &user1.ID, automdm.PolicyPayload{
 		Name:        q.Name,
 		Query:       q.Query,
 		Description: q.Description,
 	})
 	require.Error(t, err)
 
-	p, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, fleet.PolicyPayload{
+	p, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, automdm.PolicyPayload{
 		Name:        q.Name,
 		Query:       q.Query,
 		Description: q.Description,
@@ -832,17 +832,17 @@ func testTeamPolicyLegacy(t *testing.T, ds *Datastore) {
 	require.NotNil(t, p.Resolution)
 	assert.Equal(t, "some resolution", *p.Resolution)
 
-	gpol, err := ds.NewGlobalPolicy(ctx, &user1.ID, fleet.PolicyPayload{
+	gpol, err := ds.NewGlobalPolicy(ctx, &user1.ID, automdm.PolicyPayload{
 		Name:  "global_1",
 		Query: "SELECT 1",
 	})
 	require.NoError(t, err)
 
-	globalPolicies, err := ds.ListGlobalPolicies(ctx, fleet.ListOptions{}, "")
+	globalPolicies, err := ds.ListGlobalPolicies(ctx, automdm.ListOptions{}, "")
 	require.NoError(t, err)
 	require.Len(t, globalPolicies, 1)
 
-	p2, err := ds.NewTeamPolicy(ctx, team2.ID, &user1.ID, fleet.PolicyPayload{
+	p2, err := ds.NewTeamPolicy(ctx, team2.ID, &user1.ID, automdm.PolicyPayload{
 		Name:        q2.Name,
 		Query:       q2.Query,
 		Description: q2.Description,
@@ -855,7 +855,7 @@ func testTeamPolicyLegacy(t *testing.T, ds *Datastore) {
 	require.NotNil(t, p2.AuthorID)
 	assert.Equal(t, user1.ID, *p2.AuthorID)
 
-	teamPolicies, inherited1, err := ds.ListTeamPolicies(ctx, team1.ID, fleet.ListOptions{}, fleet.ListOptions{}, "", "")
+	teamPolicies, inherited1, err := ds.ListTeamPolicies(ctx, team1.ID, automdm.ListOptions{}, automdm.ListOptions{}, "", "")
 	require.NoError(t, err)
 	require.Len(t, teamPolicies, 1)
 	assert.Equal(t, q.Name, teamPolicies[0].Name)
@@ -867,7 +867,7 @@ func testTeamPolicyLegacy(t *testing.T, ds *Datastore) {
 	require.Len(t, inherited1, 1)
 	require.Equal(t, gpol, inherited1[0])
 
-	team2Policies, inherited2, err := ds.ListTeamPolicies(ctx, team2.ID, fleet.ListOptions{}, fleet.ListOptions{}, "", "")
+	team2Policies, inherited2, err := ds.ListTeamPolicies(ctx, team2.ID, automdm.ListOptions{}, automdm.ListOptions{}, "", "")
 	require.NoError(t, err)
 	require.Len(t, team2Policies, 1)
 	assert.Equal(t, q2.Name, team2Policies[0].Name)
@@ -882,7 +882,7 @@ func testTeamPolicyLegacy(t *testing.T, ds *Datastore) {
 	_, err = ds.DeleteTeamPolicies(ctx, team1.ID, []uint{teamPolicies[0].ID})
 	require.NoError(t, err)
 
-	teamPolicies, inherited1, err = ds.ListTeamPolicies(ctx, team1.ID, fleet.ListOptions{}, fleet.ListOptions{}, "", "")
+	teamPolicies, inherited1, err = ds.ListTeamPolicies(ctx, team1.ID, automdm.ListOptions{}, automdm.ListOptions{}, "", "")
 	require.NoError(t, err)
 	require.Len(t, teamPolicies, 0)
 	require.Len(t, inherited1, 1)
@@ -891,7 +891,7 @@ func testTeamPolicyLegacy(t *testing.T, ds *Datastore) {
 func testTeamPolicyProprietary(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
-	requireLabels := func(t *testing.T, expected []string, actual []fleet.LabelIdent) {
+	requireLabels := func(t *testing.T, expected []string, actual []automdm.LabelIdent) {
 		actualLabels := make([]string, 0, len(actual))
 		for _, label := range actual {
 			actualLabels = append(actualLabels, label.LabelName)
@@ -900,16 +900,16 @@ func testTeamPolicyProprietary(t *testing.T, ds *Datastore) {
 	}
 
 	user1 := test.NewUser(t, ds, "Alice", "alice@example.com", true)
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "team1"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
-	team2, err := ds.NewTeam(ctx, &fleet.Team{Name: "team2"})
+	team2, err := ds.NewTeam(ctx, &automdm.Team{Name: "team2"})
 	require.NoError(t, err)
-	label1, err := ds.NewLabel(ctx, &fleet.Label{Name: "label1"})
+	label1, err := ds.NewLabel(ctx, &automdm.Label{Name: "label1"})
 	require.NoError(t, err)
-	label2, err := ds.NewLabel(ctx, &fleet.Label{Name: "label2"})
+	label2, err := ds.NewLabel(ctx, &automdm.Label{Name: "label2"})
 	require.NoError(t, err)
 
-	gpol, err := ds.NewGlobalPolicy(ctx, &user1.ID, fleet.PolicyPayload{
+	gpol, err := ds.NewGlobalPolicy(ctx, &user1.ID, automdm.PolicyPayload{
 		Name:             "existing-query-global-1",
 		Query:            "select 1;",
 		Description:      "query1 desc",
@@ -920,7 +920,7 @@ func testTeamPolicyProprietary(t *testing.T, ds *Datastore) {
 	requireLabels(t, []string{label1.Name, label2.Name}, gpol.LabelsIncludeAny)
 
 	// A policy can combine an include scope with an exclude scope; both persist.
-	gpol1, err := ds.NewGlobalPolicy(ctx, &user1.ID, fleet.PolicyPayload{
+	gpol1, err := ds.NewGlobalPolicy(ctx, &user1.ID, automdm.PolicyPayload{
 		Name:             "global-query-both-labels",
 		Query:            "select 1;",
 		Description:      "query1 desc",
@@ -936,7 +936,7 @@ func testTeamPolicyProprietary(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// Cannot create policy with invalid label set
-	gpol1, err = ds.NewGlobalPolicy(ctx, &user1.ID, fleet.PolicyPayload{
+	gpol1, err = ds.NewGlobalPolicy(ctx, &user1.ID, automdm.PolicyPayload{
 		Name:             "global-query-invalid-label",
 		Query:            "select 1;",
 		Description:      "query1 desc",
@@ -946,14 +946,14 @@ func testTeamPolicyProprietary(t *testing.T, ds *Datastore) {
 	require.Error(t, err)
 	require.Nil(t, gpol1)
 
-	prevPolicies, err := ds.ListGlobalPolicies(ctx, fleet.ListOptions{}, "")
+	prevPolicies, err := ds.ListGlobalPolicies(ctx, automdm.ListOptions{}, "")
 	require.NoError(t, err)
 	require.Len(t, prevPolicies, 1)
 	requireLabels(t, []string{label1.Name, label2.Name}, prevPolicies[0].LabelsIncludeAny)
 	require.Equal(t, gpol, prevPolicies[0])
 
 	// team does not exist
-	_, err = ds.NewTeamPolicy(ctx, 99999999, &user1.ID, fleet.PolicyPayload{
+	_, err = ds.NewTeamPolicy(ctx, 99999999, &user1.ID, automdm.PolicyPayload{
 		Name:        "query1",
 		Query:       "select 1;",
 		Description: "query1 desc",
@@ -961,7 +961,7 @@ func testTeamPolicyProprietary(t *testing.T, ds *Datastore) {
 	})
 	require.Error(t, err)
 
-	p, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, fleet.PolicyPayload{
+	p, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, automdm.PolicyPayload{
 		Name:                  "query1",
 		Query:                 "select 1;",
 		Description:           "query1 desc",
@@ -972,7 +972,7 @@ func testTeamPolicyProprietary(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// Can't create a team policy with same team id and name.
-	_, err = ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, fleet.PolicyPayload{
+	_, err = ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, automdm.PolicyPayload{
 		Name:  "query1",
 		Query: "select 1;",
 	})
@@ -983,7 +983,7 @@ func testTeamPolicyProprietary(t *testing.T, ds *Datastore) {
 	require.True(t, errors.As(err, &isExist) && isExist.IsExists(), err)
 
 	// Can't create a global policy with an existing global name.
-	_, err = ds.NewGlobalPolicy(ctx, &user1.ID, fleet.PolicyPayload{
+	_, err = ds.NewGlobalPolicy(ctx, &user1.ID, automdm.PolicyPayload{
 		Name:  "existing-query-global-1",
 		Query: "select 1;",
 	})
@@ -1000,11 +1000,11 @@ func testTeamPolicyProprietary(t *testing.T, ds *Datastore) {
 	assert.True(t, p.CalendarEventsEnabled)
 	requireLabels(t, []string{label1.Name, label2.Name}, p.LabelsExcludeAny)
 
-	globalPolicies, err := ds.ListGlobalPolicies(ctx, fleet.ListOptions{}, "")
+	globalPolicies, err := ds.ListGlobalPolicies(ctx, automdm.ListOptions{}, "")
 	require.NoError(t, err)
 	require.Len(t, globalPolicies, len(prevPolicies))
 
-	p2, err := ds.NewTeamPolicy(ctx, team2.ID, &user1.ID, fleet.PolicyPayload{
+	p2, err := ds.NewTeamPolicy(ctx, team2.ID, &user1.ID, automdm.PolicyPayload{
 		Name:        "query2",
 		Query:       "select 2;",
 		Description: "query2 desc",
@@ -1020,7 +1020,7 @@ func testTeamPolicyProprietary(t *testing.T, ds *Datastore) {
 	require.NotNil(t, p2.AuthorID)
 	assert.Equal(t, user1.ID, *p2.AuthorID)
 
-	teamPolicies, inherited1, err := ds.ListTeamPolicies(ctx, team1.ID, fleet.ListOptions{}, fleet.ListOptions{}, "", "")
+	teamPolicies, inherited1, err := ds.ListTeamPolicies(ctx, team1.ID, automdm.ListOptions{}, automdm.ListOptions{}, "", "")
 	require.NoError(t, err)
 	require.Len(t, teamPolicies, 1)
 	assert.Equal(t, "query1", teamPolicies[0].Name)
@@ -1035,7 +1035,7 @@ func testTeamPolicyProprietary(t *testing.T, ds *Datastore) {
 	require.Len(t, inherited1, 1)
 	require.Equal(t, gpol, inherited1[0])
 
-	team2Policies, inherited2, err := ds.ListTeamPolicies(ctx, team2.ID, fleet.ListOptions{}, fleet.ListOptions{}, "", "")
+	team2Policies, inherited2, err := ds.ListTeamPolicies(ctx, team2.ID, automdm.ListOptions{}, automdm.ListOptions{}, "", "")
 	require.NoError(t, err)
 	require.Len(t, team2Policies, 1)
 	assert.Equal(t, "query2", team2Policies[0].Name)
@@ -1050,7 +1050,7 @@ func testTeamPolicyProprietary(t *testing.T, ds *Datastore) {
 	require.Equal(t, gpol, inherited2[0])
 
 	// Can't create a policy with the same name on the same team.
-	p3, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, fleet.PolicyPayload{
+	p3, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, automdm.PolicyPayload{
 		Name:        "query1",
 		Query:       "select 2;",
 		Description: "query2 other description",
@@ -1061,7 +1061,7 @@ func testTeamPolicyProprietary(t *testing.T, ds *Datastore) {
 
 	// A policy can combine an include scope with an exclude scope; both persist
 	// and round-trip from the DB.
-	pCombined, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, fleet.PolicyPayload{
+	pCombined, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, automdm.PolicyPayload{
 		Name:             "query-combined",
 		Query:            "select 2;",
 		Description:      "combined description",
@@ -1082,16 +1082,16 @@ func testTeamPolicyProprietary(t *testing.T, ds *Datastore) {
 	// The datastore guard (updatePolicyLabelsTx) rejects invalid scope
 	// combinations even when a caller skips PolicyPayload.Verify: two include
 	// scopes is not allowed.
-	_, err = ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, fleet.PolicyPayload{
+	_, err = ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, automdm.PolicyPayload{
 		Name:             "query-two-include-scopes",
 		Query:            "select 2;",
 		LabelsIncludeAny: []string{label2.Name},
 		LabelsIncludeAll: []string{label1.Name},
 	})
-	require.ErrorIs(t, err, fleet.ErrPolicyConflictingIncludeLabels)
+	require.ErrorIs(t, err, automdm.ErrPolicyConflictingIncludeLabels)
 
 	// Can create a policy with include_all labels.
-	pIncludeAll, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, fleet.PolicyPayload{
+	pIncludeAll, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, automdm.PolicyPayload{
 		Name:             "query-include-all",
 		Query:            "select 1;",
 		Description:      "include_all desc",
@@ -1113,7 +1113,7 @@ func testTeamPolicyProprietary(t *testing.T, ds *Datastore) {
 
 	// A policy can combine include_all with exclude_all; both persist and
 	// round-trip, exercising the exclude_all encoding (exclude=1, require_all=1).
-	pExclAll, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, fleet.PolicyPayload{
+	pExclAll, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, automdm.PolicyPayload{
 		Name:             "query-include-all-exclude-all",
 		Query:            "select 1;",
 		LabelsIncludeAll: []string{label1.Name},
@@ -1134,7 +1134,7 @@ func testTeamPolicyProprietary(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// Can't create a policy with a non-existant label
-	p3, err = ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, fleet.PolicyPayload{
+	p3, err = ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, automdm.PolicyPayload{
 		Name:             "query-nolabel",
 		Query:            "select 2;",
 		Description:      "query2 other description",
@@ -1147,14 +1147,14 @@ func testTeamPolicyProprietary(t *testing.T, ds *Datastore) {
 	_, err = ds.DeleteTeamPolicies(ctx, team1.ID, []uint{teamPolicies[0].ID})
 	require.NoError(t, err)
 
-	teamPolicies, inherited1, err = ds.ListTeamPolicies(ctx, team1.ID, fleet.ListOptions{}, fleet.ListOptions{}, "", "")
+	teamPolicies, inherited1, err = ds.ListTeamPolicies(ctx, team1.ID, automdm.ListOptions{}, automdm.ListOptions{}, "", "")
 	require.NoError(t, err)
 	require.Len(t, teamPolicies, 0)
 	require.Len(t, inherited1, 1)
 	require.Equal(t, gpol, inherited1[0])
 
 	// Now the name is available and we can create the policy in the team.
-	_, err = ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, fleet.PolicyPayload{
+	_, err = ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, automdm.PolicyPayload{
 		Name:        "query1",
 		Query:       "select 2;",
 		Description: "query2 other description",
@@ -1162,7 +1162,7 @@ func testTeamPolicyProprietary(t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 
-	teamPolicies, _, err = ds.ListTeamPolicies(ctx, team1.ID, fleet.ListOptions{}, fleet.ListOptions{}, "", "")
+	teamPolicies, _, err = ds.ListTeamPolicies(ctx, team1.ID, automdm.ListOptions{}, automdm.ListOptions{}, "", "")
 	require.NoError(t, err)
 	require.Len(t, teamPolicies, 1)
 	assert.Equal(t, "query1", teamPolicies[0].Name)
@@ -1180,17 +1180,17 @@ func testTeamPolicyPendingScriptsAndInstalls(t *testing.T, ds *Datastore) {
 	user := test.NewUser(t, ds, "Alice", "alice@example.com", true)
 
 	// create a script and associate it with a team policy
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "team1"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
 	host1 := test.NewHost(t, ds, "host1", "1", "host1key", "host1uuid", time.Now())
 
-	script, err := ds.NewScript(ctx, &fleet.Script{
+	script, err := ds.NewScript(ctx, &automdm.Script{
 		Name:           "script1.sh",
 		ScriptContents: "echo",
 		TeamID:         &team1.ID,
 	})
 	require.NoError(t, err)
-	policy1, err := ds.NewTeamPolicy(ctx, team1.ID, nil, fleet.PolicyPayload{
+	policy1, err := ds.NewTeamPolicy(ctx, team1.ID, nil, automdm.PolicyPayload{
 		Name:        "team1",
 		Query:       "select 1;",
 		Description: "description",
@@ -1200,7 +1200,7 @@ func testTeamPolicyPendingScriptsAndInstalls(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// create pending script execution
-	_, err = ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+	_, err = ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 		HostID:         host1.ID,
 		ScriptContents: "echo",
 		UserID:         &user.ID,
@@ -1222,12 +1222,12 @@ func testTeamPolicyPendingScriptsAndInstalls(t *testing.T, ds *Datastore) {
 	require.Equal(t, 0, len(pendingScripts))
 
 	// create a software install and associate it with a team policy
-	team2, err := ds.NewTeam(ctx, &fleet.Team{Name: "team2"})
+	team2, err := ds.NewTeam(ctx, &automdm.Team{Name: "team2"})
 	require.NoError(t, err)
 	host2 := test.NewHost(t, ds, "host2", "2", "host2key", "host2uuid", time.Now())
-	tfr1, err := fleet.NewTempFileReader(strings.NewReader("hello"), t.TempDir)
+	tfr1, err := automdm.NewTempFileReader(strings.NewReader("hello"), t.TempDir)
 	require.NoError(t, err)
-	installerID, _, err := ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
+	installerID, _, err := ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
 		InstallScript:     "hello",
 		PreInstallQuery:   "SELECT 1",
 		PostInstallScript: "world",
@@ -1240,10 +1240,10 @@ func testTeamPolicyPendingScriptsAndInstalls(t *testing.T, ds *Datastore) {
 		Source:            "apps",
 		UserID:            user.ID,
 		TeamID:            &team2.ID,
-		ValidatedLabels:   &fleet.LabelIdentsWithScope{},
+		ValidatedLabels:   &automdm.LabelIdentsWithScope{},
 	})
 	require.NoError(t, err)
-	policy2, err := ds.NewTeamPolicy(ctx, team2.ID, nil, fleet.PolicyPayload{
+	policy2, err := ds.NewTeamPolicy(ctx, team2.ID, nil, automdm.PolicyPayload{
 		Name:                "team2",
 		Query:               "select 1;",
 		Description:         "description2",
@@ -1252,7 +1252,7 @@ func testTeamPolicyPendingScriptsAndInstalls(t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 	// create a pending software install request
-	_, err = ds.InsertSoftwareInstallRequest(ctx, host2.ID, installerID, fleet.HostSoftwareInstallOptions{PolicyID: &policy2.ID})
+	_, err = ds.InsertSoftwareInstallRequest(ctx, host2.ID, installerID, automdm.HostSoftwareInstallOptions{PolicyID: &policy2.ID})
 	require.NoError(t, err)
 
 	pendingInstalls, err := ds.listUpcomingSoftwareInstalls(ctx, host2.ID, false)
@@ -1270,7 +1270,7 @@ func testTeamPolicyPendingScriptsAndInstalls(t *testing.T, ds *Datastore) {
 
 func testListMergedTeamPolicies(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
-	gpol, err := ds.NewGlobalPolicy(ctx, nil, fleet.PolicyPayload{
+	gpol, err := ds.NewGlobalPolicy(ctx, nil, automdm.PolicyPayload{
 		Name:        "query1 global",
 		Query:       "select 1;",
 		Description: "query1 desc",
@@ -1278,10 +1278,10 @@ func testListMergedTeamPolicies(t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "team1"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
 
-	team1policy, err := ds.NewTeamPolicy(ctx, team1.ID, nil, fleet.PolicyPayload{
+	team1policy, err := ds.NewTeamPolicy(ctx, team1.ID, nil, automdm.PolicyPayload{
 		Name:        "query2 team1",
 		Query:       "select 1;",
 		Description: "query1 desc",
@@ -1289,10 +1289,10 @@ func testListMergedTeamPolicies(t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 
-	team2, err := ds.NewTeam(ctx, &fleet.Team{Name: "team2"})
+	team2, err := ds.NewTeam(ctx, &automdm.Team{Name: "team2"})
 	require.NoError(t, err)
 
-	team2policy, err := ds.NewTeamPolicy(ctx, team2.ID, nil, fleet.PolicyPayload{
+	team2policy, err := ds.NewTeamPolicy(ctx, team2.ID, nil, automdm.PolicyPayload{
 		Name:        "query3 team2",
 		Query:       "select 2;",
 		Description: "query2 desc",
@@ -1301,9 +1301,9 @@ func testListMergedTeamPolicies(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// Test list options affect both global and team policies
-	merged, err := ds.ListMergedTeamPolicies(ctx, team1.ID, fleet.ListOptions{
+	merged, err := ds.ListMergedTeamPolicies(ctx, team1.ID, automdm.ListOptions{
 		OrderKey:       "name",
-		OrderDirection: fleet.OrderDescending,
+		OrderDirection: automdm.OrderDescending,
 	}, "", "")
 	require.NoError(t, err)
 
@@ -1312,14 +1312,14 @@ func testListMergedTeamPolicies(t *testing.T, ds *Datastore) {
 	assert.Equal(t, gpol.ID, merged[1].ID)
 
 	// Test filter
-	merged, err = ds.ListMergedTeamPolicies(ctx, team1.ID, fleet.ListOptions{
+	merged, err = ds.ListMergedTeamPolicies(ctx, team1.ID, automdm.ListOptions{
 		MatchQuery: "query1",
 	}, "", "")
 	require.NoError(t, err)
 	require.Len(t, merged, 1)
 	assert.Equal(t, gpol.ID, merged[0].ID)
 
-	merged, err = ds.ListMergedTeamPolicies(ctx, team1.ID, fleet.ListOptions{
+	merged, err = ds.ListMergedTeamPolicies(ctx, team1.ID, automdm.ListOptions{
 		MatchQuery: "query2",
 	}, "", "")
 	require.NoError(t, err)
@@ -1330,7 +1330,7 @@ func testListMergedTeamPolicies(t *testing.T, ds *Datastore) {
 
 	// Global Host
 	host, err := ds.NewHost(context.Background(),
-		&fleet.Host{OsqueryHostID: ptr.String("host1"), NodeKey: ptr.String(fmt.Sprint("host1", 1)), TeamID: nil})
+		&automdm.Host{OsqueryHostID: ptr.String("host1"), NodeKey: ptr.String(fmt.Sprint("host1", 1)), TeamID: nil})
 	require.NoError(t, err)
 
 	_, err = ds.RecordPolicyQueryExecutions(ctx, host, map[uint]*bool{gpol.ID: new(true)}, time.Now(), false, nil)
@@ -1340,7 +1340,7 @@ func testListMergedTeamPolicies(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// team 1 shows no host counts
-	merged, err = ds.ListMergedTeamPolicies(ctx, team1.ID, fleet.ListOptions{
+	merged, err = ds.ListMergedTeamPolicies(ctx, team1.ID, automdm.ListOptions{
 		OrderKey: "name",
 	}, "", "")
 	require.NoError(t, err)
@@ -1353,7 +1353,7 @@ func testListMergedTeamPolicies(t *testing.T, ds *Datastore) {
 	assert.Equal(t, uint(0), merged[1].FailingHostCount)
 
 	// move host to team1
-	err = ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team1.ID, []uint{host.ID}))
+	err = ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team1.ID, []uint{host.ID}))
 	require.NoError(t, err)
 
 	_, err = ds.RecordPolicyQueryExecutions(ctx, host, map[uint]*bool{team1policy.ID: new(true)}, time.Now(), false, nil)
@@ -1363,7 +1363,7 @@ func testListMergedTeamPolicies(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// team 1 shows host counts
-	merged, err = ds.ListMergedTeamPolicies(ctx, team1.ID, fleet.ListOptions{
+	merged, err = ds.ListMergedTeamPolicies(ctx, team1.ID, automdm.ListOptions{
 		OrderKey: "name",
 	}, "", "")
 	require.NoError(t, err)
@@ -1376,7 +1376,7 @@ func testListMergedTeamPolicies(t *testing.T, ds *Datastore) {
 	assert.Equal(t, uint(0), merged[1].FailingHostCount)
 
 	// team2 shows no host counts
-	merged, err = ds.ListMergedTeamPolicies(ctx, team2.ID, fleet.ListOptions{
+	merged, err = ds.ListMergedTeamPolicies(ctx, team2.ID, automdm.ListOptions{
 		OrderKey: "name",
 	}, "", "")
 	require.NoError(t, err)
@@ -1389,10 +1389,10 @@ func testListMergedTeamPolicies(t *testing.T, ds *Datastore) {
 	assert.Equal(t, uint(0), merged[1].FailingHostCount)
 }
 
-func newTestHostWithPlatform(t *testing.T, ds *Datastore, hostname, platform string, teamID *uint) *fleet.Host {
+func newTestHostWithPlatform(t *testing.T, ds *Datastore, hostname, platform string, teamID *uint) *automdm.Host {
 	nodeKey, err := server.GenerateRandomText(32)
 	require.NoError(t, err)
-	host, err := ds.NewHost(context.Background(), &fleet.Host{
+	host, err := ds.NewHost(context.Background(), &automdm.Host{
 		OsqueryHostID:   ptr.String(uuid.NewString()),
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
@@ -1407,7 +1407,7 @@ func newTestHostWithPlatform(t *testing.T, ds *Datastore, hostname, platform str
 	})
 	require.NoError(t, err)
 	if teamID != nil {
-		err := ds.AddHostsToTeam(context.Background(), fleet.NewAddHostsToTeamParams(teamID, []uint{host.ID}))
+		err := ds.AddHostsToTeam(context.Background(), automdm.NewAddHostsToTeamParams(teamID, []uint{host.ID}))
 		require.NoError(t, err)
 		host, err = ds.Host(context.Background(), host.ID)
 		require.NoError(t, err)
@@ -1415,10 +1415,10 @@ func newTestHostWithPlatform(t *testing.T, ds *Datastore, hostname, platform str
 	return host
 }
 
-func newTestPolicy(t *testing.T, ds *Datastore, user *fleet.User, name, platforms string, teamID *uint) *fleet.Policy {
+func newTestPolicy(t *testing.T, ds *Datastore, user *automdm.User, name, platforms string, teamID *uint) *automdm.Policy {
 	query := fmt.Sprintf("select %s;", name)
 	if teamID == nil {
-		gp, err := ds.NewGlobalPolicy(context.Background(), &user.ID, fleet.PolicyPayload{
+		gp, err := ds.NewGlobalPolicy(context.Background(), &user.ID, automdm.PolicyPayload{
 			Name:     name,
 			Query:    query,
 			Platform: platforms,
@@ -1426,7 +1426,7 @@ func newTestPolicy(t *testing.T, ds *Datastore, user *fleet.User, name, platform
 		require.NoError(t, err)
 		return gp
 	}
-	tp, err := ds.NewTeamPolicy(context.Background(), *teamID, &user.ID, fleet.PolicyPayload{
+	tp, err := ds.NewTeamPolicy(context.Background(), *teamID, &user.ID, automdm.PolicyPayload{
 		Name:     name,
 		Query:    query,
 		Platform: platforms,
@@ -1437,17 +1437,17 @@ func newTestPolicy(t *testing.T, ds *Datastore, user *fleet.User, name, platform
 
 type expectedPolicyResults struct {
 	policyQueries map[string]string
-	hostPolicies  []*fleet.HostPolicy
+	hostPolicies  []*automdm.HostPolicy
 }
 
-func expectedPolicyQueries(policies ...*fleet.Policy) expectedPolicyResults {
+func expectedPolicyQueries(policies ...*automdm.Policy) expectedPolicyResults {
 	queries := make(map[string]string)
 	for _, policy := range policies {
 		queries[fmt.Sprint(policy.ID)] = policy.Query
 	}
-	hostPolicies := make([]*fleet.HostPolicy, len(policies))
+	hostPolicies := make([]*automdm.HostPolicy, len(policies))
 	for i := range policies {
-		hostPolicies[i] = &fleet.HostPolicy{
+		hostPolicies[i] = &automdm.HostPolicy{
 			PolicyData: policies[i].PolicyData,
 		}
 	}
@@ -1460,9 +1460,9 @@ func expectedPolicyQueries(policies ...*fleet.Policy) expectedPolicyResults {
 func testPolicyQueriesForHostPlatforms(t *testing.T, ds *Datastore) {
 	user1 := test.NewUser(t, ds, "Alice", "alice@example.com", true)
 
-	team1, err := ds.NewTeam(context.Background(), &fleet.Team{Name: "team1"})
+	team1, err := ds.NewTeam(context.Background(), &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
-	team2, err := ds.NewTeam(context.Background(), &fleet.Team{Name: "team2"})
+	team2, err := ds.NewTeam(context.Background(), &automdm.Team{Name: "team2"})
 	require.NoError(t, err)
 
 	// Global hosts:
@@ -1501,7 +1501,7 @@ func testPolicyQueriesForHostPlatforms(t *testing.T, ds *Datastore) {
 	policy4t2All2 := newTestPolicy(t, ds, user1, "policy4_team2_all2", "", &team2.ID)
 
 	for _, tc := range []struct {
-		host             *fleet.Host
+		host             *automdm.Host
 		expectedPolicies expectedPolicyResults
 	}{
 		{
@@ -1615,7 +1615,7 @@ func testPolicyQueriesForHostPlatforms(t *testing.T, ds *Datastore) {
 			queries, err := ds.PolicyQueriesForHost(context.Background(), tc.host)
 			require.NoError(t, err)
 			require.Equal(t, tc.expectedPolicies.policyQueries, queries)
-			// ListPoliciesForHost is the endpoint used by fleet UI/API clients.
+			// ListPoliciesForHost is the endpoint used by automdm UI/API clients.
 			hostPolicies, err := ds.ListPoliciesForHost(context.Background(), tc.host)
 			require.NoError(t, err)
 			sort.Slice(hostPolicies, func(i, j int) bool {
@@ -1631,10 +1631,10 @@ func testPolicyQueriesForHostPlatforms(t *testing.T, ds *Datastore) {
 
 func testPolicyQueriesForHost(t *testing.T, ds *Datastore) {
 	user1 := test.NewUser(t, ds, "Alice", "alice@example.com", true)
-	team1, err := ds.NewTeam(context.Background(), &fleet.Team{Name: "team1"})
+	team1, err := ds.NewTeam(context.Background(), &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
 
-	host1, err := ds.NewHost(context.Background(), &fleet.Host{
+	host1, err := ds.NewHost(context.Background(), &automdm.Host{
 		OsqueryHostID:   ptr.String("1234"),
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
@@ -1646,11 +1646,11 @@ func testPolicyQueriesForHost(t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 
-	require.NoError(t, ds.AddHostsToTeam(context.Background(), fleet.NewAddHostsToTeamParams(&team1.ID, []uint{host1.ID})))
+	require.NoError(t, ds.AddHostsToTeam(context.Background(), automdm.NewAddHostsToTeamParams(&team1.ID, []uint{host1.ID})))
 	host1, err = ds.Host(context.Background(), host1.ID)
 	require.NoError(t, err)
 
-	host2, err := ds.NewHost(context.Background(), &fleet.Host{
+	host2, err := ds.NewHost(context.Background(), &automdm.Host{
 		OsqueryHostID:   ptr.String("5679"),
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
@@ -1662,15 +1662,15 @@ func testPolicyQueriesForHost(t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 
-	q, err := ds.NewQuery(context.Background(), &fleet.Query{
+	q, err := ds.NewQuery(context.Background(), &automdm.Query{
 		Name:        "query1",
 		Description: "query1 desc",
 		Query:       "select 1;",
 		Saved:       true,
-		Logging:     fleet.LoggingSnapshot,
+		Logging:     automdm.LoggingSnapshot,
 	})
 	require.NoError(t, err)
-	gp, err := ds.NewGlobalPolicy(context.Background(), &user1.ID, fleet.PolicyPayload{
+	gp, err := ds.NewGlobalPolicy(context.Background(), &user1.ID, automdm.PolicyPayload{
 		Name:        q.Name,
 		Query:       q.Query,
 		Description: q.Description,
@@ -1678,15 +1678,15 @@ func testPolicyQueriesForHost(t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 
-	q2, err := ds.NewQuery(context.Background(), &fleet.Query{
+	q2, err := ds.NewQuery(context.Background(), &automdm.Query{
 		Name:        "query2",
 		Description: "query2 desc",
 		Query:       "select 42;",
 		Saved:       true,
-		Logging:     fleet.LoggingSnapshot,
+		Logging:     automdm.LoggingSnapshot,
 	})
 	require.NoError(t, err)
-	tp, err := ds.NewTeamPolicy(context.Background(), team1.ID, &user1.ID, fleet.PolicyPayload{
+	tp, err := ds.NewTeamPolicy(context.Background(), team1.ID, &user1.ID, automdm.PolicyPayload{
 		Name:                     q2.Name,
 		Query:                    q2.Query,
 		Description:              q2.Description,
@@ -1713,7 +1713,7 @@ func testPolicyQueriesForHost(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 	require.Len(t, policies, 2)
 
-	checkGlobaPolicy := func(policy *fleet.HostPolicy) {
+	checkGlobaPolicy := func(policy *automdm.HostPolicy) {
 		assert.Equal(t, "query1", policy.Name)
 		assert.Equal(t, "select 1;", policy.Query)
 		assert.Equal(t, "query1 desc", policy.Description)
@@ -1789,15 +1789,15 @@ func testPolicyQueriesForHost(t *testing.T, ds *Datastore) {
 func testPoliciesByID(t *testing.T, ds *Datastore) {
 	user1 := test.NewUser(t, ds, "Alice", "alice@example.com", true)
 	policy1 := newTestPolicy(t, ds, user1, "policy1", "darwin", nil)
-	team1, err := ds.NewTeam(context.Background(), &fleet.Team{Name: "team1"})
+	team1, err := ds.NewTeam(context.Background(), &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
 	policy2 := newTestPolicy(t, ds, user1, "policy2", "darwin", &team1.ID)
 	host1 := newTestHostWithPlatform(t, ds, "host1", "darwin", nil)
 
 	// Associate an installer to policy2
-	installer, err := fleet.NewTempFileReader(strings.NewReader("hello"), t.TempDir)
+	installer, err := automdm.NewTempFileReader(strings.NewReader("hello"), t.TempDir)
 	require.NoError(t, err)
-	installerID, _, err := ds.MatchOrCreateSoftwareInstaller(context.Background(), &fleet.UploadSoftwareInstallerPayload{
+	installerID, _, err := ds.MatchOrCreateSoftwareInstaller(context.Background(), &automdm.UploadSoftwareInstallerPayload{
 		InstallScript:     "hello",
 		PreInstallQuery:   "SELECT 1",
 		PostInstallScript: "world",
@@ -1809,7 +1809,7 @@ func testPoliciesByID(t *testing.T, ds *Datastore) {
 		Source:            "apps",
 		UserID:            user1.ID,
 		TeamID:            &team1.ID,
-		ValidatedLabels:   &fleet.LabelIdentsWithScope{},
+		ValidatedLabels:   &automdm.LabelIdentsWithScope{},
 	})
 	require.NoError(t, err)
 	policy2.SoftwareInstallerID = ptr.Uint(installerID)
@@ -1833,20 +1833,20 @@ func testPoliciesByID(t *testing.T, ds *Datastore) {
 
 	_, err = ds.PoliciesByID(context.Background(), []uint{1, 2, 3})
 	require.Error(t, err)
-	var nfe fleet.NotFoundError
+	var nfe automdm.NotFoundError
 	require.ErrorAs(t, err, &nfe)
 }
 
 func testTeamPolicyTransfer(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 	user1 := test.NewUser(t, ds, "Alice", "alice@example.com", true)
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: t.Name() + "team1"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: t.Name() + "team1"})
 	require.NoError(t, err)
 
-	team2, err := ds.NewTeam(ctx, &fleet.Team{Name: t.Name() + "team2"})
+	team2, err := ds.NewTeam(ctx, &automdm.Team{Name: t.Name() + "team2"})
 	require.NoError(t, err)
 
-	host1, err := ds.NewHost(ctx, &fleet.Host{
+	host1, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID:   ptr.String("1234"),
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
@@ -1858,40 +1858,40 @@ func testTeamPolicyTransfer(t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 	host2, err := ds.EnrollOsquery(ctx,
-		fleet.WithEnrollOsqueryHostID("2"),
-		fleet.WithEnrollOsqueryNodeKey("2"),
-		fleet.WithEnrollOsqueryTeamID(&team1.ID),
+		automdm.WithEnrollOsqueryHostID("2"),
+		automdm.WithEnrollOsqueryNodeKey("2"),
+		automdm.WithEnrollOsqueryTeamID(&team1.ID),
 	)
 	require.NoError(t, err)
 
-	require.NoError(t, ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team1.ID, []uint{host1.ID})))
+	require.NoError(t, ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team1.ID, []uint{host1.ID})))
 	host1, err = ds.Host(ctx, host1.ID)
 	require.NoError(t, err)
 
-	tq, err := ds.NewQuery(ctx, &fleet.Query{
+	tq, err := ds.NewQuery(ctx, &automdm.Query{
 		Name:        "query1",
 		Description: "query1 desc",
 		Query:       "select 1;",
 		Saved:       true,
-		Logging:     fleet.LoggingSnapshot,
+		Logging:     automdm.LoggingSnapshot,
 	})
 	require.NoError(t, err)
-	team1Policy, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, fleet.PolicyPayload{
+	team1Policy, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, automdm.PolicyPayload{
 		Name:        tq.Name,
 		Query:       tq.Query,
 		Description: tq.Description,
 	})
 	require.NoError(t, err)
 
-	gq, err := ds.NewQuery(ctx, &fleet.Query{
+	gq, err := ds.NewQuery(ctx, &automdm.Query{
 		Name:        "query2",
 		Description: "query2 desc",
 		Query:       "select 2;",
 		Saved:       true,
-		Logging:     fleet.LoggingSnapshot,
+		Logging:     automdm.LoggingSnapshot,
 	})
 	require.NoError(t, err)
-	globalPolicy, err := ds.NewGlobalPolicy(ctx, &user1.ID, fleet.PolicyPayload{
+	globalPolicy, err := ds.NewGlobalPolicy(ctx, &user1.ID, automdm.PolicyPayload{
 		Name:        gq.Name,
 		Query:       gq.Query,
 		Description: gq.Description,
@@ -1908,20 +1908,20 @@ func testTeamPolicyTransfer(t *testing.T, ds *Datastore) {
 	checkPassingCount := func(tm1, tm1Inherited, tm2Inherited, global uint) {
 		t.Helper()
 		require.NoError(t, ds.UpdateHostPolicyCounts(ctx))
-		policies, inherited, err := ds.ListTeamPolicies(ctx, team1.ID, fleet.ListOptions{}, fleet.ListOptions{}, "", "")
+		policies, inherited, err := ds.ListTeamPolicies(ctx, team1.ID, automdm.ListOptions{}, automdm.ListOptions{}, "", "")
 		require.NoError(t, err)
 		require.Len(t, policies, 1)
 		assert.Equal(t, tm1, policies[0].PassingHostCount)
 		require.Len(t, inherited, 1)
 		assert.Equal(t, tm1Inherited, inherited[0].PassingHostCount)
 
-		policies, inherited, err = ds.ListTeamPolicies(ctx, team2.ID, fleet.ListOptions{}, fleet.ListOptions{}, "", "")
+		policies, inherited, err = ds.ListTeamPolicies(ctx, team2.ID, automdm.ListOptions{}, automdm.ListOptions{}, "", "")
 		require.NoError(t, err)
 		require.Len(t, policies, 0) // team 2 has no policies of its own
 		require.Len(t, inherited, 1)
 		assert.Equal(t, tm2Inherited, inherited[0].PassingHostCount)
 
-		policies, err = ds.ListGlobalPolicies(ctx, fleet.ListOptions{}, "")
+		policies, err = ds.ListGlobalPolicies(ctx, automdm.ListOptions{}, "")
 		require.NoError(t, err)
 		require.Len(t, policies, 1)
 		assert.Equal(t, global, policies[0].PassingHostCount)
@@ -1931,15 +1931,15 @@ func testTeamPolicyTransfer(t *testing.T, ds *Datastore) {
 	checkPassingCount(2, 2, 0, 2)
 
 	// team policies are removed when AddHostsToTeam is called
-	require.NoError(t, ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(ptr.Uint(team2.ID), []uint{host1.ID})))
+	require.NoError(t, ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(ptr.Uint(team2.ID), []uint{host1.ID})))
 	// host2 passes tm1 and the global (so team1's inherited too), host1 passes the team2's inherited and the global
 	checkPassingCount(1, 1, 1, 2)
 
 	// all host policies are removed when a host is enrolled in the same team
 	_, err = ds.EnrollOsquery(ctx,
-		fleet.WithEnrollOsqueryHostID("2"),
-		fleet.WithEnrollOsqueryNodeKey("2"),
-		fleet.WithEnrollOsqueryTeamID(&team1.ID),
+		automdm.WithEnrollOsqueryHostID("2"),
+		automdm.WithEnrollOsqueryNodeKey("2"),
+		automdm.WithEnrollOsqueryTeamID(&team1.ID),
 	)
 	require.NoError(t, err)
 	checkPassingCount(0, 0, 1, 1)
@@ -1948,9 +1948,9 @@ func testTeamPolicyTransfer(t *testing.T, ds *Datastore) {
 	// belongs to a different team — but team_id stays put (orbit/osquery
 	// re-enrollment no longer changes a host's team).
 	_, err = ds.EnrollOsquery(ctx,
-		fleet.WithEnrollOsqueryHostID("2"),
-		fleet.WithEnrollOsqueryNodeKey("2"),
-		fleet.WithEnrollOsqueryTeamID(&team2.ID),
+		automdm.WithEnrollOsqueryHostID("2"),
+		automdm.WithEnrollOsqueryNodeKey("2"),
+		automdm.WithEnrollOsqueryTeamID(&team2.ID),
 	)
 	require.NoError(t, err)
 	// host1 is in team2, host2 stays in team1 (sticky)
@@ -1963,8 +1963,8 @@ func testTeamPolicyTransfer(t *testing.T, ds *Datastore) {
 	// all host policies are removed when a host is re-enrolled. The host's
 	// team_id is unchanged even though the re-enroll specifies no team.
 	_, err = ds.EnrollOsquery(ctx,
-		fleet.WithEnrollOsqueryHostID("2"),
-		fleet.WithEnrollOsqueryNodeKey("2"),
+		automdm.WithEnrollOsqueryHostID("2"),
+		automdm.WithEnrollOsqueryNodeKey("2"),
 	)
 	require.NoError(t, err)
 	checkPassingCount(0, 0, 1, 1)
@@ -1973,7 +1973,7 @@ func testTeamPolicyTransfer(t *testing.T, ds *Datastore) {
 func testApplyPolicySpec(t *testing.T, ds *Datastore) {
 	user1 := test.NewUser(t, ds, "User1", "user1@example.com", true)
 	ctx := context.Background()
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "team1"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
 
 	unicode, _ := strconv.Unquote(`"\uAC00"`)         // 가
@@ -1982,27 +1982,27 @@ func testApplyPolicySpec(t *testing.T, ds *Datastore) {
 	// Add a user-defined label
 	fooLabel, err := ds.NewLabel(
 		context.Background(),
-		&fleet.Label{
+		&automdm.Label{
 			Name:                "Foo",
 			Query:               "select 1",
-			LabelType:           fleet.LabelTypeRegular,
-			LabelMembershipType: fleet.LabelMembershipTypeManual,
+			LabelType:           automdm.LabelTypeRegular,
+			LabelMembershipType: automdm.LabelMembershipTypeManual,
 		},
 	)
 	require.NoError(t, err)
 
 	barLabel, err := ds.NewLabel(
 		context.Background(),
-		&fleet.Label{
+		&automdm.Label{
 			Name:                "Bar",
 			Query:               "select 1",
-			LabelType:           fleet.LabelTypeRegular,
-			LabelMembershipType: fleet.LabelMembershipTypeManual,
+			LabelType:           automdm.LabelTypeRegular,
+			LabelMembershipType: automdm.LabelMembershipTypeManual,
 		},
 	)
 	require.NoError(t, err)
 
-	require.NoError(t, ds.ApplyPolicySpecs(ctx, user1.ID, []*fleet.PolicySpec{
+	require.NoError(t, ds.ApplyPolicySpecs(ctx, user1.ID, []*automdm.PolicySpec{
 		{
 			Name:             "query1" + unicodeEq,
 			Query:            "select 1;",
@@ -2011,7 +2011,7 @@ func testApplyPolicySpec(t *testing.T, ds *Datastore) {
 			Team:             "",
 			Platform:         "",
 			LabelsIncludeAny: []string{fooLabel.Name},
-			Type:             fleet.PolicyTypeDynamic,
+			Type:             automdm.PolicyTypeDynamic,
 		},
 		{
 			Name:                  "query2",
@@ -2022,7 +2022,7 @@ func testApplyPolicySpec(t *testing.T, ds *Datastore) {
 			Platform:              "darwin",
 			CalendarEventsEnabled: true,
 			LabelsExcludeAny:      []string{barLabel.Name},
-			Type:                  fleet.PolicyTypeDynamic,
+			Type:                  automdm.PolicyTypeDynamic,
 		},
 		{
 			Name:        "query3",
@@ -2031,20 +2031,20 @@ func testApplyPolicySpec(t *testing.T, ds *Datastore) {
 			Resolution:  "some other good resolution",
 			Team:        "team1",
 			Platform:    "windows,linux",
-			Type:        fleet.PolicyTypeDynamic,
+			Type:        automdm.PolicyTypeDynamic,
 		},
 		{
 			Name:        "query4",
 			Query:       "select 4;",
 			Description: "query4 desc",
 			Resolution:  "some other good resolution 2",
-			Team:        fleet.DisplayNameNoTeam,
+			Team:        automdm.DisplayNameNoTeam,
 			Platform:    "",
-			Type:        fleet.PolicyTypeDynamic,
+			Type:        automdm.PolicyTypeDynamic,
 		},
 	}))
 
-	policies, err := ds.ListGlobalPolicies(ctx, fleet.ListOptions{}, "")
+	policies, err := ds.ListGlobalPolicies(ctx, automdm.ListOptions{}, "")
 	require.NoError(t, err)
 	require.Len(t, policies, 1)
 	assert.Equal(t, "query1"+unicode, policies[0].Name)
@@ -2055,13 +2055,13 @@ func testApplyPolicySpec(t *testing.T, ds *Datastore) {
 	require.NotNil(t, policies[0].Resolution)
 	assert.Equal(t, "some resolution", *policies[0].Resolution)
 	assert.Equal(t, "", policies[0].Platform)
-	assert.Equal(t, []fleet.LabelIdent{{
+	assert.Equal(t, []automdm.LabelIdent{{
 		LabelName: fooLabel.Name,
 		LabelID:   fooLabel.ID,
 	}}, policies[0].LabelsIncludeAny)
-	assert.Equal(t, policies[0].Type, fleet.PolicyTypeDynamic)
+	assert.Equal(t, policies[0].Type, automdm.PolicyTypeDynamic)
 
-	teamPolicies, _, err := ds.ListTeamPolicies(ctx, team1.ID, fleet.ListOptions{}, fleet.ListOptions{}, "", "")
+	teamPolicies, _, err := ds.ListTeamPolicies(ctx, team1.ID, automdm.ListOptions{}, automdm.ListOptions{}, "", "")
 	require.NoError(t, err)
 	require.Len(t, teamPolicies, 2)
 	assert.Equal(t, "query2", teamPolicies[0].Name)
@@ -2073,7 +2073,7 @@ func testApplyPolicySpec(t *testing.T, ds *Datastore) {
 	assert.Equal(t, "some other resolution", *teamPolicies[0].Resolution)
 	assert.Equal(t, "darwin", teamPolicies[0].Platform)
 	assert.True(t, teamPolicies[0].CalendarEventsEnabled)
-	assert.Equal(t, []fleet.LabelIdent{{
+	assert.Equal(t, []automdm.LabelIdent{{
 		LabelName: barLabel.Name,
 		LabelID:   barLabel.ID,
 	}}, teamPolicies[0].LabelsExcludeAny)
@@ -2088,7 +2088,7 @@ func testApplyPolicySpec(t *testing.T, ds *Datastore) {
 	assert.Equal(t, "windows,linux", teamPolicies[1].Platform)
 	assert.False(t, teamPolicies[1].CalendarEventsEnabled)
 
-	noTeamPolicies, _, err := ds.ListTeamPolicies(ctx, fleet.PolicyNoTeamID, fleet.ListOptions{}, fleet.ListOptions{}, "", "")
+	noTeamPolicies, _, err := ds.ListTeamPolicies(ctx, automdm.PolicyNoTeamID, automdm.ListOptions{}, automdm.ListOptions{}, "", "")
 	require.NoError(t, err)
 	require.Len(t, noTeamPolicies, 1)
 	assert.Equal(t, "query4", noTeamPolicies[0].Name)
@@ -2104,7 +2104,7 @@ func testApplyPolicySpec(t *testing.T, ds *Datastore) {
 	assert.Zero(t, *noTeamPolicies[0].TeamID)
 
 	// Make sure apply is idempotent
-	require.NoError(t, ds.ApplyPolicySpecs(ctx, user1.ID, []*fleet.PolicySpec{
+	require.NoError(t, ds.ApplyPolicySpecs(ctx, user1.ID, []*automdm.PolicySpec{
 		{
 			Name:             "query1" + unicode,
 			Query:            "select 1;",
@@ -2113,7 +2113,7 @@ func testApplyPolicySpec(t *testing.T, ds *Datastore) {
 			Team:             "",
 			Platform:         "",
 			LabelsIncludeAny: []string{fooLabel.Name},
-			Type:             fleet.PolicyTypeDynamic,
+			Type:             automdm.PolicyTypeDynamic,
 		},
 		{
 			Name:                  "query2",
@@ -2124,7 +2124,7 @@ func testApplyPolicySpec(t *testing.T, ds *Datastore) {
 			Platform:              "darwin",
 			CalendarEventsEnabled: true,
 			LabelsExcludeAny:      []string{barLabel.Name},
-			Type:                  fleet.PolicyTypeDynamic,
+			Type:                  automdm.PolicyTypeDynamic,
 		},
 		{
 			Name:        "query3",
@@ -2133,31 +2133,31 @@ func testApplyPolicySpec(t *testing.T, ds *Datastore) {
 			Resolution:  "some other good resolution",
 			Team:        "team1",
 			Platform:    "windows,linux",
-			Type:        fleet.PolicyTypeDynamic,
+			Type:        automdm.PolicyTypeDynamic,
 		},
 		{
 			Name:        "query4",
 			Query:       "select 4;",
 			Description: "query4 desc",
 			Resolution:  "some other good resolution 2",
-			Team:        fleet.DisplayNameNoTeam,
+			Team:        automdm.DisplayNameNoTeam,
 			Platform:    "",
-			Type:        fleet.PolicyTypeDynamic,
+			Type:        automdm.PolicyTypeDynamic,
 		},
 	}))
 
-	policies, err = ds.ListGlobalPolicies(ctx, fleet.ListOptions{}, "")
+	policies, err = ds.ListGlobalPolicies(ctx, automdm.ListOptions{}, "")
 	require.NoError(t, err)
 	require.Len(t, policies, 1)
-	teamPolicies, _, err = ds.ListTeamPolicies(ctx, team1.ID, fleet.ListOptions{}, fleet.ListOptions{}, "", "")
+	teamPolicies, _, err = ds.ListTeamPolicies(ctx, team1.ID, automdm.ListOptions{}, automdm.ListOptions{}, "", "")
 	require.NoError(t, err)
 	require.Len(t, teamPolicies, 2)
-	noTeamPolicies, _, err = ds.ListTeamPolicies(ctx, fleet.PolicyNoTeamID, fleet.ListOptions{}, fleet.ListOptions{}, "", "")
+	noTeamPolicies, _, err = ds.ListTeamPolicies(ctx, automdm.PolicyNoTeamID, automdm.ListOptions{}, automdm.ListOptions{}, "", "")
 	require.NoError(t, err)
 	require.Len(t, noTeamPolicies, 1)
 
 	// Test policy updating.
-	require.NoError(t, ds.ApplyPolicySpecs(ctx, user1.ID, []*fleet.PolicySpec{
+	require.NoError(t, ds.ApplyPolicySpecs(ctx, user1.ID, []*automdm.PolicySpec{
 		{
 			Name:             "query1" + unicodeEq,
 			Query:            "select 1 from updated;",
@@ -2166,7 +2166,7 @@ func testApplyPolicySpec(t *testing.T, ds *Datastore) {
 			Team:             "", // No error, team did not change
 			Platform:         "",
 			LabelsExcludeAny: []string{fooLabel.Name, barLabel.Name},
-			Type:             fleet.PolicyTypeDynamic,
+			Type:             automdm.PolicyTypeDynamic,
 		},
 		{
 			Name:                  "query2",
@@ -2176,10 +2176,10 @@ func testApplyPolicySpec(t *testing.T, ds *Datastore) {
 			Team:                  "team1", // No error, team did not change
 			Platform:              "windows",
 			CalendarEventsEnabled: false,
-			Type:                  fleet.PolicyTypeDynamic,
+			Type:                  automdm.PolicyTypeDynamic,
 		},
 	}))
-	policies, err = ds.ListGlobalPolicies(ctx, fleet.ListOptions{}, "")
+	policies, err = ds.ListGlobalPolicies(ctx, automdm.ListOptions{}, "")
 	require.NoError(t, err)
 	require.Len(t, policies, 1)
 
@@ -2192,16 +2192,16 @@ func testApplyPolicySpec(t *testing.T, ds *Datastore) {
 	assert.Equal(t, "some resolution updated", *policies[0].Resolution)
 	assert.Equal(t, "", policies[0].Platform)
 	assert.False(t, policies[0].CalendarEventsEnabled)
-	assert.Contains(t, policies[0].LabelsExcludeAny, fleet.LabelIdent{
+	assert.Contains(t, policies[0].LabelsExcludeAny, automdm.LabelIdent{
 		LabelName: fooLabel.Name,
 		LabelID:   fooLabel.ID,
 	})
-	assert.Contains(t, policies[0].LabelsExcludeAny, fleet.LabelIdent{
+	assert.Contains(t, policies[0].LabelsExcludeAny, automdm.LabelIdent{
 		LabelName: barLabel.Name,
 		LabelID:   barLabel.ID,
 	})
 
-	teamPolicies, _, err = ds.ListTeamPolicies(ctx, team1.ID, fleet.ListOptions{}, fleet.ListOptions{}, "", "")
+	teamPolicies, _, err = ds.ListTeamPolicies(ctx, team1.ID, automdm.ListOptions{}, automdm.ListOptions{}, "", "")
 	require.NoError(t, err)
 	require.Len(t, teamPolicies, 2)
 
@@ -2220,7 +2220,7 @@ func testApplyPolicySpec(t *testing.T, ds *Datastore) {
 	// Creating the same policy for a different team is allowed.
 	require.NoError(
 		t, ds.ApplyPolicySpecs(
-			ctx, user1.ID, []*fleet.PolicySpec{
+			ctx, user1.ID, []*automdm.PolicySpec{
 				{
 					Name:        "query1" + unicode,
 					Query:       "select 1 from updated again;",
@@ -2228,12 +2228,12 @@ func testApplyPolicySpec(t *testing.T, ds *Datastore) {
 					Resolution:  "some resolution updated again",
 					Team:        "team1",
 					Platform:    "",
-					Type:        fleet.PolicyTypeDynamic,
+					Type:        automdm.PolicyTypeDynamic,
 				},
 			}))
 }
 
-func updatePolicyFailureCountsForHosts(ctx context.Context, ds *Datastore, hosts []*fleet.Host) ([]*fleet.Host, error) {
+func updatePolicyFailureCountsForHosts(ctx context.Context, ds *Datastore, hosts []*automdm.Host) ([]*automdm.Host, error) {
 	if len(hosts) == 0 {
 		return hosts, nil
 	}
@@ -2291,7 +2291,7 @@ func testApplyPolicySpecDefaultType(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
 	// Apply a policy spec with an empty Type (simulates omitting "type" from JSON).
-	require.NoError(t, ds.ApplyPolicySpecs(ctx, user1.ID, []*fleet.PolicySpec{
+	require.NoError(t, ds.ApplyPolicySpecs(ctx, user1.ID, []*automdm.PolicySpec{
 		{
 			Name:  "no-type-policy",
 			Query: "SELECT 1;",
@@ -2299,11 +2299,11 @@ func testApplyPolicySpecDefaultType(t *testing.T, ds *Datastore) {
 		},
 	}))
 
-	policies, err := ds.ListGlobalPolicies(ctx, fleet.ListOptions{}, "")
+	policies, err := ds.ListGlobalPolicies(ctx, automdm.ListOptions{}, "")
 	require.NoError(t, err)
 	require.Len(t, policies, 1)
 	assert.Equal(t, "no-type-policy", policies[0].Name)
-	assert.Equal(t, fleet.PolicyTypeDynamic, policies[0].Type)
+	assert.Equal(t, automdm.PolicyTypeDynamic, policies[0].Type)
 }
 
 func testApplyPolicySpecWithQueryPlatformChanges(t *testing.T, ds *Datastore) {
@@ -2312,55 +2312,55 @@ func testApplyPolicySpecWithQueryPlatformChanges(t *testing.T, ds *Datastore) {
 	unicodeEq, _ := strconv.Unquote(`"\u1100\u1161"`) // ᄀ + ᅡ
 
 	user1 := test.NewUser(t, ds, "User1", "user1@example.com", true)
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "team1" + unicode})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "team1" + unicode})
 	require.NoError(t, err)
 
 	globalNames := []string{"global query1" + unicode, "global query2" + unicode, "global query3" + unicode}
 	teamNames := []string{"team query1", "team query2", "team query3"}
 	require.NoError(
 		t, ds.ApplyPolicySpecs(
-			ctx, user1.ID, []*fleet.PolicySpec{
+			ctx, user1.ID, []*automdm.PolicySpec{
 				{
 					Name:     globalNames[0],
 					Query:    "select 1;",
 					Team:     "",
 					Platform: "",
-					Type:     fleet.PolicyTypeDynamic,
+					Type:     automdm.PolicyTypeDynamic,
 				},
 				{
 					Name:     globalNames[1],
 					Query:    "select 2;",
 					Team:     "",
 					Platform: "darwin",
-					Type:     fleet.PolicyTypeDynamic,
+					Type:     automdm.PolicyTypeDynamic,
 				},
 				{
 					Name:     globalNames[2],
 					Query:    "select 3;",
 					Team:     "",
 					Platform: "darwin,linux",
-					Type:     fleet.PolicyTypeDynamic,
+					Type:     automdm.PolicyTypeDynamic,
 				},
 				{
 					Name:     teamNames[0],
 					Query:    "select 1;",
 					Team:     "team1" + unicode,
 					Platform: "",
-					Type:     fleet.PolicyTypeDynamic,
+					Type:     automdm.PolicyTypeDynamic,
 				},
 				{
 					Name:     teamNames[1],
 					Query:    "select 2;",
 					Team:     "team1" + unicode,
 					Platform: "darwin",
-					Type:     fleet.PolicyTypeDynamic,
+					Type:     automdm.PolicyTypeDynamic,
 				},
 				{
 					Name:     teamNames[2],
 					Query:    "select 3;",
 					Team:     "team1" + unicodeEq,
 					Platform: "darwin,linux",
-					Type:     fleet.PolicyTypeDynamic,
+					Type:     automdm.PolicyTypeDynamic,
 				},
 			},
 		),
@@ -2369,11 +2369,11 @@ func testApplyPolicySpecWithQueryPlatformChanges(t *testing.T, ds *Datastore) {
 	// create hosts with different platforms, for that team
 	const hostWin, hostMac, hostDeb, hostLin = 0, 1, 2, 3
 	platforms := []string{"windows", "darwin", "debian", "linux"}
-	teamHosts := make([]*fleet.Host, len(platforms))
+	teamHosts := make([]*automdm.Host, len(platforms))
 	for i, pl := range platforms {
 		id := fmt.Sprintf("%s-%d", strings.ReplaceAll(t.Name(), "/", "_"), i)
 		h, err := ds.NewHost(
-			ctx, &fleet.Host{
+			ctx, &automdm.Host{
 				OsqueryHostID:   &id,
 				DetailUpdatedAt: time.Now(),
 				LabelUpdatedAt:  time.Now(),
@@ -2391,11 +2391,11 @@ func testApplyPolicySpecWithQueryPlatformChanges(t *testing.T, ds *Datastore) {
 	}
 
 	// create hosts with different platforms, without team
-	globalHosts := make([]*fleet.Host, len(platforms))
+	globalHosts := make([]*automdm.Host, len(platforms))
 	for i, pl := range platforms {
 		id := fmt.Sprintf("g%s-%d", strings.ReplaceAll(t.Name(), "/", "_"), i)
 		h, err := ds.NewHost(
-			ctx, &fleet.Host{
+			ctx, &automdm.Host{
 				OsqueryHostID:   &id,
 				DetailUpdatedAt: time.Now(),
 				LabelUpdatedAt:  time.Now(),
@@ -2412,17 +2412,17 @@ func testApplyPolicySpecWithQueryPlatformChanges(t *testing.T, ds *Datastore) {
 	}
 
 	// load the global policies
-	gPolicies, err := ds.ListGlobalPolicies(ctx, fleet.ListOptions{}, "")
+	gPolicies, err := ds.ListGlobalPolicies(ctx, automdm.ListOptions{}, "")
 	require.NoError(t, err)
 	require.Len(t, gPolicies, 3)
 	// load the team policies
-	tPolicies, _, err := ds.ListTeamPolicies(ctx, team1.ID, fleet.ListOptions{}, fleet.ListOptions{}, "", "")
+	tPolicies, _, err := ds.ListTeamPolicies(ctx, team1.ID, automdm.ListOptions{}, automdm.ListOptions{}, "", "")
 	require.NoError(t, err)
 	require.Len(t, tPolicies, 3)
 
 	// index the policies by name for easier access in the rest of the test
-	polsByName := make(map[string]*fleet.Policy, len(gPolicies)+len(tPolicies))
-	globalPolsByName := make(map[string]*fleet.Policy, len(gPolicies))
+	polsByName := make(map[string]*automdm.Policy, len(gPolicies)+len(tPolicies))
+	globalPolsByName := make(map[string]*automdm.Policy, len(gPolicies))
 	for _, pol := range tPolicies {
 		polsByName[pol.Name] = pol
 	}
@@ -2467,10 +2467,10 @@ func testApplyPolicySpecWithQueryPlatformChanges(t *testing.T, ds *Datastore) {
 	assert.Equal(t, uint64(3), globalHosts[hostLin].FailingPoliciesCount)
 
 	// Ensure policy passing and failing counts are correct
-	gPolicies, err = ds.ListGlobalPolicies(ctx, fleet.ListOptions{}, "")
+	gPolicies, err = ds.ListGlobalPolicies(ctx, automdm.ListOptions{}, "")
 	require.NoError(t, err)
 	require.Len(t, gPolicies, 3)
-	tPolicies, _, err = ds.ListTeamPolicies(ctx, team1.ID, fleet.ListOptions{}, fleet.ListOptions{}, "", "")
+	tPolicies, _, err = ds.ListTeamPolicies(ctx, team1.ID, automdm.ListOptions{}, automdm.ListOptions{}, "", "")
 	require.NoError(t, err)
 	require.Len(t, tPolicies, 3)
 
@@ -2490,42 +2490,42 @@ func testApplyPolicySpecWithQueryPlatformChanges(t *testing.T, ds *Datastore) {
 	// Update policies
 	require.NoError(
 		t, ds.ApplyPolicySpecs(
-			ctx, user1.ID, []*fleet.PolicySpec{
+			ctx, user1.ID, []*automdm.PolicySpec{
 				{
 					Name:        globalNames[0],
 					Query:       "select 1;",
 					Team:        "",
 					Platform:    "",
 					Description: "updated", // update description
-					Type:        fleet.PolicyTypeDynamic,
+					Type:        automdm.PolicyTypeDynamic,
 				},
 				{
 					Name:     globalNames[1],
 					Query:    "select 2 updated;", // update query
 					Team:     "",
 					Platform: "darwin",
-					Type:     fleet.PolicyTypeDynamic,
+					Type:     automdm.PolicyTypeDynamic,
 				},
 				{
 					Name:     globalNames[2],
 					Query:    "select 3;",
 					Team:     "",
 					Platform: "darwin", // update platform
-					Type:     fleet.PolicyTypeDynamic,
+					Type:     automdm.PolicyTypeDynamic,
 				},
 				{
 					Name:     "new global query",
 					Query:    "select 4;",
 					Team:     "",
 					Platform: "",
-					Type:     fleet.PolicyTypeDynamic,
+					Type:     automdm.PolicyTypeDynamic,
 				},
 				{
 					Name:     teamNames[0],
 					Query:    "select 1;",
 					Team:     "team1" + unicode,
 					Platform: "linux", // update platform
-					Type:     fleet.PolicyTypeDynamic,
+					Type:     automdm.PolicyTypeDynamic,
 				},
 				{
 					Name:                  teamNames[1],
@@ -2533,21 +2533,21 @@ func testApplyPolicySpecWithQueryPlatformChanges(t *testing.T, ds *Datastore) {
 					Team:                  "team1" + unicode,
 					Platform:              "darwin",
 					CalendarEventsEnabled: true, // update calendar events
-					Type:                  fleet.PolicyTypeDynamic,
+					Type:                  automdm.PolicyTypeDynamic,
 				},
 				{
 					Name:     teamNames[2],
 					Query:    "select 3 updated;", // update query
 					Team:     "team1" + unicodeEq,
 					Platform: "darwin,linux",
-					Type:     fleet.PolicyTypeDynamic,
+					Type:     automdm.PolicyTypeDynamic,
 				},
 				{
 					Name:     "new team query",
 					Query:    "select 4;",
 					Team:     "team1" + unicode,
 					Platform: "",
-					Type:     fleet.PolicyTypeDynamic,
+					Type:     automdm.PolicyTypeDynamic,
 				},
 			},
 		),
@@ -2569,10 +2569,10 @@ func testApplyPolicySpecWithQueryPlatformChanges(t *testing.T, ds *Datastore) {
 	assert.Equal(t, uint64(1), globalHosts[hostLin].FailingPoliciesCount)
 
 	// Ensure policy passing and failing counts are correct
-	gPolicies, err = ds.ListGlobalPolicies(ctx, fleet.ListOptions{}, "")
+	gPolicies, err = ds.ListGlobalPolicies(ctx, automdm.ListOptions{}, "")
 	require.NoError(t, err)
 	require.Len(t, gPolicies, 4)
-	tPolicies, _, err = ds.ListTeamPolicies(ctx, team1.ID, fleet.ListOptions{}, fleet.ListOptions{}, "", "")
+	tPolicies, _, err = ds.ListTeamPolicies(ctx, team1.ID, automdm.ListOptions{}, automdm.ListOptions{}, "", "")
 	require.NoError(t, err)
 	require.Len(t, tPolicies, 4)
 
@@ -2603,10 +2603,10 @@ func testApplyPolicySpecWithQueryPlatformChanges(t *testing.T, ds *Datastore) {
 
 	err = ds.UpdateHostPolicyCounts(ctx)
 	require.NoError(t, err)
-	gPolicies, err = ds.ListGlobalPolicies(ctx, fleet.ListOptions{}, "")
+	gPolicies, err = ds.ListGlobalPolicies(ctx, automdm.ListOptions{}, "")
 	require.NoError(t, err)
 	require.Len(t, gPolicies, 4)
-	tPolicies, _, err = ds.ListTeamPolicies(ctx, team1.ID, fleet.ListOptions{}, fleet.ListOptions{}, "", "")
+	tPolicies, _, err = ds.ListTeamPolicies(ctx, team1.ID, automdm.ListOptions{}, automdm.ListOptions{}, "", "")
 	require.NoError(t, err)
 	require.Len(t, tPolicies, 4)
 
@@ -2625,7 +2625,7 @@ func testApplyPolicySpecWithQueryPlatformChanges(t *testing.T, ds *Datastore) {
 }
 
 func testPoliciesSave(t *testing.T, ds *Datastore) {
-	requireLabels := func(t *testing.T, expected []string, actual []fleet.LabelIdent) {
+	requireLabels := func(t *testing.T, expected []string, actual []automdm.LabelIdent) {
 		actualLabels := make([]string, 0, len(actual))
 		for _, label := range actual {
 			actualLabels = append(actualLabels, label.LabelName)
@@ -2635,15 +2635,15 @@ func testPoliciesSave(t *testing.T, ds *Datastore) {
 
 	user1 := test.NewUser(t, ds, "User1", "user1@example.com", true)
 	ctx := context.Background()
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "team1"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
-	label1, err := ds.NewLabel(ctx, &fleet.Label{Name: "label1"})
+	label1, err := ds.NewLabel(ctx, &automdm.Label{Name: "label1"})
 	require.NoError(t, err)
-	label2, err := ds.NewLabel(ctx, &fleet.Label{Name: "label2"})
+	label2, err := ds.NewLabel(ctx, &automdm.Label{Name: "label2"})
 	require.NoError(t, err)
 
-	err = ds.SavePolicy(ctx, &fleet.Policy{
-		PolicyData: fleet.PolicyData{
+	err = ds.SavePolicy(ctx, &automdm.Policy{
+		PolicyData: automdm.PolicyData{
 			ID:    99999999,
 			Name:  "non-existent query",
 			Query: "select 1;",
@@ -2654,7 +2654,7 @@ func testPoliciesSave(t *testing.T, ds *Datastore) {
 	var nfe *common_mysql.NotFoundError
 	require.True(t, errors.As(err, &nfe))
 
-	payload := fleet.PolicyPayload{
+	payload := automdm.PolicyPayload{
 		Name:             "global query",
 		Query:            "select 1;",
 		Description:      "global query desc",
@@ -2671,7 +2671,7 @@ func testPoliciesSave(t *testing.T, ds *Datastore) {
 	require.Equal(t, gp.Critical, payload.Critical)
 	requireLabels(t, []string{label1.Name, label2.Name}, gp.LabelsIncludeAny)
 
-	computeChecksum := func(policy fleet.Policy) string {
+	computeChecksum := func(policy automdm.Policy) string {
 		h := md5.New() //nolint:gosec // (only used for tests)
 		// Compute the same way as DB does.
 		teamStr := ""
@@ -2689,7 +2689,7 @@ func testPoliciesSave(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 	assert.Equal(t, computeChecksum(*gp), hex.EncodeToString(globalChecksum))
 
-	payload = fleet.PolicyPayload{
+	payload = automdm.PolicyPayload{
 		Name:                  "team1 query",
 		Query:                 "select 2;",
 		Description:           "team1 query desc",
@@ -2734,8 +2734,8 @@ func testPoliciesSave(t *testing.T, ds *Datastore) {
 	assert.Equal(t, computeChecksum(*gp), hex.EncodeToString(globalChecksum2))
 
 	// A policy can be saved with both an include and an exclude scope; both persist.
-	gp2.LabelsExcludeAny = []fleet.LabelIdent{{LabelName: label1.Name}}
-	gp2.LabelsIncludeAny = []fleet.LabelIdent{{LabelName: label2.Name}}
+	gp2.LabelsExcludeAny = []automdm.LabelIdent{{LabelName: label1.Name}}
+	gp2.LabelsIncludeAny = []automdm.LabelIdent{{LabelName: label2.Name}}
 	err = ds.SavePolicy(ctx, &gp2, false, false)
 	require.NoError(t, err)
 	gpCombined, err := ds.Policy(ctx, gp.ID)
@@ -2744,7 +2744,7 @@ func testPoliciesSave(t *testing.T, ds *Datastore) {
 	requireLabels(t, []string{label1.Name}, gpCombined.LabelsExcludeAny)
 
 	// Restore the exclude-only scope so the remaining assertions are unaffected.
-	gp2.LabelsExcludeAny = []fleet.LabelIdent{{LabelName: label1.Name}, {LabelName: label2.Name}}
+	gp2.LabelsExcludeAny = []automdm.LabelIdent{{LabelName: label1.Name}, {LabelName: label2.Name}}
 	gp2.LabelsIncludeAny = nil
 	err = ds.SavePolicy(ctx, &gp2, false, false)
 	require.NoError(t, err)
@@ -2790,10 +2790,10 @@ func testPoliciesSave(t *testing.T, ds *Datastore) {
 func testCachedPolicyCountDeletesOnPolicyChange(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 	user1 := test.NewUser(t, ds, "Alice", "alice@example.com", true)
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: t.Name() + "team1"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: t.Name() + "team1"})
 	require.NoError(t, err)
 
-	teamHost, err := ds.NewHost(ctx, &fleet.Host{
+	teamHost, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID:   ptr.String("test-1"),
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
@@ -2805,9 +2805,9 @@ func testCachedPolicyCountDeletesOnPolicyChange(t *testing.T, ds *Datastore) {
 		Platform:        "windows",
 	})
 	require.NoError(t, err)
-	require.NoError(t, ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team1.ID, []uint{teamHost.ID})))
+	require.NoError(t, ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team1.ID, []uint{teamHost.ID})))
 
-	globalHost, err := ds.NewHost(ctx, &fleet.Host{
+	globalHost, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID:   ptr.String("test-2"),
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
@@ -2820,7 +2820,7 @@ func testCachedPolicyCountDeletesOnPolicyChange(t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 
-	globalPolicy, err := ds.NewGlobalPolicy(ctx, &user1.ID, fleet.PolicyPayload{
+	globalPolicy, err := ds.NewGlobalPolicy(ctx, &user1.ID, automdm.PolicyPayload{
 		Name:        "global query",
 		Query:       "select 1;",
 		Description: "global query desc",
@@ -2828,7 +2828,7 @@ func testCachedPolicyCountDeletesOnPolicyChange(t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 
-	teamPolicy, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, fleet.PolicyPayload{
+	teamPolicy, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, automdm.PolicyPayload{
 		Name:        "team query",
 		Query:       "select 1;",
 		Description: "team query desc",
@@ -2859,7 +2859,7 @@ func testCachedPolicyCountDeletesOnPolicyChange(t *testing.T, ds *Datastore) {
 	globalPolicy, err = ds.Policy(ctx, globalPolicy.ID)
 	require.NoError(t, err)
 	assert.Equal(t, uint(2), globalPolicy.FailingHostCount)
-	teamPolicies, inheritedPolicies, err := ds.ListTeamPolicies(ctx, team1.ID, fleet.ListOptions{}, fleet.ListOptions{}, "", "")
+	teamPolicies, inheritedPolicies, err := ds.ListTeamPolicies(ctx, team1.ID, automdm.ListOptions{}, automdm.ListOptions{}, "", "")
 	require.NoError(t, err)
 	require.Len(t, teamPolicies, 1)
 	require.Len(t, inheritedPolicies, 1)
@@ -2880,7 +2880,7 @@ func testCachedPolicyCountDeletesOnPolicyChange(t *testing.T, ds *Datastore) {
 	globalPolicy, err = ds.Policy(ctx, globalPolicy.ID)
 	require.NoError(t, err)
 	assert.Equal(t, uint(0), globalPolicy.FailingHostCount)
-	teamPolicies, inheritedPolicies, err = ds.ListTeamPolicies(ctx, team1.ID, fleet.ListOptions{}, fleet.ListOptions{}, "", "")
+	teamPolicies, inheritedPolicies, err = ds.ListTeamPolicies(ctx, team1.ID, automdm.ListOptions{}, automdm.ListOptions{}, "", "")
 	require.NoError(t, err)
 	require.Len(t, teamPolicies, 1)
 	require.Len(t, inheritedPolicies, 1)
@@ -2899,7 +2899,7 @@ func testCachedPolicyCountDeletesOnPolicyChange(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 	require.NoError(t, ds.CleanupPendingPolicyMembership(ctx))
 
-	teamPolicies, inheritedPolicies, err = ds.ListTeamPolicies(ctx, team1.ID, fleet.ListOptions{}, fleet.ListOptions{}, "", "")
+	teamPolicies, inheritedPolicies, err = ds.ListTeamPolicies(ctx, team1.ID, automdm.ListOptions{}, automdm.ListOptions{}, "", "")
 	require.NoError(t, err)
 	require.Len(t, teamPolicies, 1)
 	require.Len(t, inheritedPolicies, 1)
@@ -2912,17 +2912,17 @@ func testPoliciesDelUser(t *testing.T, ds *Datastore) {
 	user1 := test.NewUser(t, ds, "User1", "user1@example.com", true)
 	user2 := test.NewUser(t, ds, "User2", "user2@example.com", true)
 	ctx := context.Background()
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "team1"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
 
-	gp, err := ds.NewGlobalPolicy(ctx, &user1.ID, fleet.PolicyPayload{
+	gp, err := ds.NewGlobalPolicy(ctx, &user1.ID, automdm.PolicyPayload{
 		Name:        "global query",
 		Query:       "select 1;",
 		Description: "global query desc",
 		Resolution:  "global query resolution",
 	})
 	require.NoError(t, err)
-	tp, err := ds.NewTeamPolicy(ctx, team1.ID, &user2.ID, fleet.PolicyPayload{
+	tp, err := ds.NewTeamPolicy(ctx, team1.ID, &user2.ID, automdm.PolicyPayload{
 		Name:        "team1 query",
 		Query:       "select 2;",
 		Description: "team1 query desc",
@@ -2951,7 +2951,7 @@ func testPoliciesDelUser(t *testing.T, ds *Datastore) {
 func testFlippingPoliciesForHost(t *testing.T, ds *Datastore) {
 	user1 := test.NewUser(t, ds, "Alice", "alice@example.com", true)
 	ctx := context.Background()
-	host1, err := ds.NewHost(ctx, &fleet.Host{
+	host1, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID:   ptr.String("test-1"),
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
@@ -2963,35 +2963,35 @@ func testFlippingPoliciesForHost(t *testing.T, ds *Datastore) {
 		Platform:        "windows",
 	})
 	require.NoError(t, err)
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "team1"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
-	p1, err := ds.NewGlobalPolicy(ctx, &user1.ID, fleet.PolicyPayload{
+	p1, err := ds.NewGlobalPolicy(ctx, &user1.ID, automdm.PolicyPayload{
 		Name:  "policy1",
 		Query: "select 41;",
 	})
 	require.NoError(t, err)
-	p2, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, fleet.PolicyPayload{
+	p2, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, automdm.PolicyPayload{
 		Name:  "policy2",
 		Query: "select 42;",
 	})
 	require.NoError(t, err)
 	// Create some unused policy.
-	_, err = ds.NewGlobalPolicy(ctx, &user1.ID, fleet.PolicyPayload{
+	_, err = ds.NewGlobalPolicy(ctx, &user1.ID, automdm.PolicyPayload{
 		Name:  "policy3",
 		Query: "select 43;",
 	})
 	require.NoError(t, err)
-	pfailed, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, fleet.PolicyPayload{
+	pfailed, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, automdm.PolicyPayload{
 		Name:  "policy_failed",
 		Query: "select * from unexistent_table;",
 	})
 	require.NoError(t, err)
-	p4, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, fleet.PolicyPayload{
+	p4, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, automdm.PolicyPayload{
 		Name:  "policy_failed_to_run_then_pass",
 		Query: "select 42;",
 	})
 	require.NoError(t, err)
-	p5, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, fleet.PolicyPayload{
+	p5, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, automdm.PolicyPayload{
 		Name:  "policy_failed_to_run_then_fail",
 		Query: "select 42;",
 	})
@@ -3147,7 +3147,7 @@ func testPoliciesNarrowedMembershipUpsert(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 	user := test.NewUser(t, ds, "Alice", "alice@example.com", true)
 
-	host, err := ds.NewHost(ctx, &fleet.Host{
+	host, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID:   ptr.String("narrowed-upsert-host"),
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
@@ -3159,12 +3159,12 @@ func testPoliciesNarrowedMembershipUpsert(t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 
-	policyA, err := ds.NewGlobalPolicy(ctx, &user.ID, fleet.PolicyPayload{
+	policyA, err := ds.NewGlobalPolicy(ctx, &user.ID, automdm.PolicyPayload{
 		Name:  "narrowed-upsert-policyA",
 		Query: "select 1;",
 	})
 	require.NoError(t, err)
-	policyB, err := ds.NewGlobalPolicy(ctx, &user.ID, fleet.PolicyPayload{
+	policyB, err := ds.NewGlobalPolicy(ctx, &user.ID, automdm.PolicyPayload{
 		Name:  "narrowed-upsert-policyB",
 		Query: "select 2;",
 	})
@@ -3235,17 +3235,17 @@ func testPoliciesNarrowedMembershipUpsert(t *testing.T, ds *Datastore) {
 func testPolicyPlatformUpdate(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 	user := test.NewUser(t, ds, "Alice", "alice@example.com", true)
-	tm, err := ds.NewTeam(ctx, &fleet.Team{Name: t.Name()})
+	tm, err := ds.NewTeam(ctx, &automdm.Team{Name: t.Name()})
 	require.NoError(t, err)
 
 	const hostWin, hostMac, hostDeb, hostLin = 0, 1, 2, 3
 	platforms := []string{"windows", "darwin", "debian", "linux"}
 
 	// create hosts with different platforms, for that team
-	teamHosts := make([]*fleet.Host, len(platforms))
+	teamHosts := make([]*automdm.Host, len(platforms))
 	for i, pl := range platforms {
 		id := fmt.Sprintf("%s-%d", strings.ReplaceAll(t.Name(), "/", "_"), i)
-		h, err := ds.NewHost(ctx, &fleet.Host{
+		h, err := ds.NewHost(ctx, &automdm.Host{
 			OsqueryHostID:   &id,
 			DetailUpdatedAt: time.Now(),
 			LabelUpdatedAt:  time.Now(),
@@ -3262,10 +3262,10 @@ func testPolicyPlatformUpdate(t *testing.T, ds *Datastore) {
 	}
 
 	// create hosts with different platforms, without team
-	globalHosts := make([]*fleet.Host, len(platforms))
+	globalHosts := make([]*automdm.Host, len(platforms))
 	for i, pl := range platforms {
 		id := fmt.Sprintf("g%s-%d", strings.ReplaceAll(t.Name(), "/", "_"), i)
-		h, err := ds.NewHost(ctx, &fleet.Host{
+		h, err := ds.NewHost(ctx, &automdm.Host{
 			OsqueryHostID:   &id,
 			DetailUpdatedAt: time.Now(),
 			LabelUpdatedAt:  time.Now(),
@@ -3281,30 +3281,30 @@ func testPolicyPlatformUpdate(t *testing.T, ds *Datastore) {
 	}
 
 	// new global policy for any platform
-	_, err = ds.NewGlobalPolicy(ctx, ptr.Uint(user.ID), fleet.PolicyPayload{Name: "g1", Query: "select 1", Platform: ""})
+	_, err = ds.NewGlobalPolicy(ctx, ptr.Uint(user.ID), automdm.PolicyPayload{Name: "g1", Query: "select 1", Platform: ""})
 	require.NoError(t, err)
 	// new team policy for any platform
-	_, err = ds.NewTeamPolicy(ctx, tm.ID, ptr.Uint(user.ID), fleet.PolicyPayload{Name: "t1", Query: "select 1", Platform: ""})
+	_, err = ds.NewTeamPolicy(ctx, tm.ID, ptr.Uint(user.ID), automdm.PolicyPayload{Name: "t1", Query: "select 1", Platform: ""})
 	require.NoError(t, err)
 
 	// new global and team policies for Linux, via apply spec
-	err = ds.ApplyPolicySpecs(ctx, user.ID, []*fleet.PolicySpec{
-		{Name: "g2", Query: "select 2", Platform: "linux", Type: fleet.PolicyTypeDynamic},
-		{Name: "t2", Query: "select 2", Team: tm.Name, Platform: "linux", Type: fleet.PolicyTypeDynamic},
+	err = ds.ApplyPolicySpecs(ctx, user.ID, []*automdm.PolicySpec{
+		{Name: "g2", Query: "select 2", Platform: "linux", Type: automdm.PolicyTypeDynamic},
+		{Name: "t2", Query: "select 2", Team: tm.Name, Platform: "linux", Type: automdm.PolicyTypeDynamic},
 	})
 	require.NoError(t, err)
 
 	// load the global policies
-	gpols, err := ds.ListGlobalPolicies(ctx, fleet.ListOptions{}, "")
+	gpols, err := ds.ListGlobalPolicies(ctx, automdm.ListOptions{}, "")
 	require.NoError(t, err)
 	require.Len(t, gpols, 2)
 	// load the team policies
-	tpols, _, err := ds.ListTeamPolicies(ctx, tm.ID, fleet.ListOptions{}, fleet.ListOptions{}, "", "")
+	tpols, _, err := ds.ListTeamPolicies(ctx, tm.ID, automdm.ListOptions{}, automdm.ListOptions{}, "", "")
 	require.NoError(t, err)
 	require.Len(t, tpols, 2)
 
 	// index the policies by name for easier access in the rest of the test
-	polsByName := make(map[string]*fleet.Policy, len(gpols)+len(tpols))
+	polsByName := make(map[string]*automdm.Policy, len(gpols)+len(tpols))
 	for _, tpol := range tpols {
 		polsByName[tpol.Name] = tpol
 	}
@@ -3318,9 +3318,9 @@ func testPolicyPlatformUpdate(t *testing.T, ds *Datastore) {
 	err = ds.SavePolicy(ctx, polsByName["t2"], false, false)
 	require.NoError(t, err)
 	// apply specs that result in an update (without change) works fine
-	err = ds.ApplyPolicySpecs(ctx, user.ID, []*fleet.PolicySpec{
-		{Name: polsByName["g2"].Name, Query: polsByName["g2"].Query, Platform: polsByName["g2"].Platform, Type: fleet.PolicyTypeDynamic},
-		{Name: polsByName["t1"].Name, Query: polsByName["t1"].Query, Team: tm.Name, Platform: polsByName["t1"].Platform, Type: fleet.PolicyTypeDynamic},
+	err = ds.ApplyPolicySpecs(ctx, user.ID, []*automdm.PolicySpec{
+		{Name: polsByName["g2"].Name, Query: polsByName["g2"].Query, Platform: polsByName["g2"].Platform, Type: automdm.PolicyTypeDynamic},
+		{Name: polsByName["t1"].Name, Query: polsByName["t1"].Query, Team: tm.Name, Platform: polsByName["t1"].Platform, Type: automdm.PolicyTypeDynamic},
 	})
 	require.NoError(t, err)
 
@@ -3388,9 +3388,9 @@ func testPolicyPlatformUpdate(t *testing.T, ds *Datastore) {
 	g2.Platform = ""
 	t2.Platform = "debian"
 	polsByName["t2"], polsByName["g2"] = t2, g2
-	err = ds.ApplyPolicySpecs(ctx, user.ID, []*fleet.PolicySpec{
-		{Name: g2.Name, Query: g2.Query, Platform: g2.Platform, Type: fleet.PolicyTypeDynamic},
-		{Name: t2.Name, Query: t2.Query, Team: tm.Name, Platform: t2.Platform, Type: fleet.PolicyTypeDynamic},
+	err = ds.ApplyPolicySpecs(ctx, user.ID, []*automdm.PolicySpec{
+		{Name: g2.Name, Query: g2.Query, Platform: g2.Platform, Type: automdm.PolicyTypeDynamic},
+		{Name: t2.Name, Query: t2.Query, Team: tm.Name, Platform: t2.Platform, Type: automdm.PolicyTypeDynamic},
 	})
 	require.NoError(t, err)
 	require.NoError(t, ds.CleanupPendingPolicyMembership(ctx))
@@ -3400,7 +3400,7 @@ func testPolicyPlatformUpdate(t *testing.T, ds *Datastore) {
 	assertPolicyMembership(t, ds, polsByName, wantHostsByPol)
 }
 
-func assertPolicyMembership(t *testing.T, ds *Datastore, polsByName map[string]*fleet.Policy, wantPolNameToHostIDs map[string][]uint) {
+func assertPolicyMembership(t *testing.T, ds *Datastore, polsByName map[string]*automdm.Policy, wantPolNameToHostIDs map[string][]uint) {
 	policyIDs := make([]uint, 0, len(polsByName))
 	for _, pol := range polsByName {
 		policyIDs = append(policyIDs, pol.ID)
@@ -3447,10 +3447,10 @@ func testPolicyViolationDays(t *testing.T, ds *Datastore) {
 
 	user := test.NewUser(t, ds, "Bob", "bob@example.com", true)
 
-	hosts := make([]*fleet.Host, 3)
+	hosts := make([]*automdm.Host, 3)
 	for i, name := range []string{"h1", "h2", "h3"} {
 		id := fmt.Sprintf("%s-%d", strings.ReplaceAll(t.Name(), "/", "_"), i)
-		h, err := ds.NewHost(ctx, &fleet.Host{
+		h, err := ds.NewHost(ctx, &automdm.Host{
 			OsqueryHostID:   &id,
 			DetailUpdatedAt: then,
 			LabelUpdatedAt:  then,
@@ -3543,10 +3543,10 @@ func testPolicyCleanupPolicyMembership(t *testing.T, ds *Datastore) {
 	// create hosts with different platforms
 	hostWin, hostMac, hostDeb, hostLin := 0, 1, 2, 3
 	platforms := []string{"windows", "darwin", "debian", "linux"}
-	hosts := make([]*fleet.Host, len(platforms))
+	hosts := make([]*automdm.Host, len(platforms))
 	for i, pl := range platforms {
 		id := fmt.Sprintf("%s-%d", strings.ReplaceAll(t.Name(), "/", "_"), i)
-		h, err := ds.NewHost(ctx, &fleet.Host{
+		h, err := ds.NewHost(ctx, &automdm.Host{
 			OsqueryHostID:   &id,
 			DetailUpdatedAt: time.Now(),
 			LabelUpdatedAt:  time.Now(),
@@ -3572,7 +3572,7 @@ func testPolicyCleanupPolicyMembership(t *testing.T, ds *Datastore) {
 	mar2020 := time.Date(2020, 3, 1, 0, 0, 0, 0, time.UTC)
 	apr2020 := time.Date(2020, 4, 1, 0, 0, 0, 0, time.UTC)
 	may2020 := time.Date(2020, 5, 1, 0, 0, 0, 0, time.UTC)
-	pols := make([]*fleet.Policy, 3)
+	pols := make([]*automdm.Policy, 3)
 	for i, dt := range []time.Time{jan2020, feb2020, mar2020} {
 		res, err := ds.writer(ctx).ExecContext(ctx, createPolStmt, "p"+strconv.Itoa(i+1), "select 1", user.ID, "", dt, dt)
 		require.NoError(t, err)
@@ -3582,7 +3582,7 @@ func testPolicyCleanupPolicyMembership(t *testing.T, ds *Datastore) {
 		pols[i] = pol
 	}
 	// index the policies by name for easier access in the rest of the test
-	polsByName := make(map[string]*fleet.Policy, len(pols))
+	polsByName := make(map[string]*automdm.Policy, len(pols))
 	for _, pol := range pols {
 		polsByName[pol.Name] = pol
 	}
@@ -3687,7 +3687,7 @@ func testPolicyCleanupPolicyMembership(t *testing.T, ds *Datastore) {
 	assertPolicyMembership(t, ds, polsByName, wantHostsByPol)
 }
 
-func updatePolicyWithTimestamp(t *testing.T, ds *Datastore, p *fleet.Policy, ts time.Time) {
+func updatePolicyWithTimestamp(t *testing.T, ds *Datastore, p *automdm.Policy, ts time.Time) {
 	sqlStmt := `
 		UPDATE policies
 			SET name = ?, query = ?, description = ?, resolution = ?, platforms = ?, updated_at = ?
@@ -3701,7 +3701,7 @@ func updatePolicyWithTimestamp(t *testing.T, ds *Datastore, p *fleet.Policy, ts 
 func testDeleteAllPolicyMemberships(t *testing.T, ds *Datastore) {
 	user1 := test.NewUser(t, ds, "Alan", "alan@example.com", true)
 	ctx := context.Background()
-	globalPolicy, err := ds.NewGlobalPolicy(ctx, &user1.ID, fleet.PolicyPayload{
+	globalPolicy, err := ds.NewGlobalPolicy(ctx, &user1.ID, automdm.PolicyPayload{
 		Name:        "query1",
 		Query:       "select 1;",
 		Description: "query1 desc",
@@ -3709,7 +3709,7 @@ func testDeleteAllPolicyMemberships(t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 
-	host, err := ds.NewHost(ctx, &fleet.Host{
+	host, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID:   ptr.String("567898"),
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
@@ -3755,9 +3755,9 @@ func testDeleteAllPolicyMemberships(t *testing.T, ds *Datastore) {
 
 func testIncreasePolicyAutomationIteration(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
-	pol1, err := ds.NewGlobalPolicy(ctx, nil, fleet.PolicyPayload{Name: "policy1"})
+	pol1, err := ds.NewGlobalPolicy(ctx, nil, automdm.PolicyPayload{Name: "policy1"})
 	require.NoError(t, err)
-	pol2, err := ds.NewGlobalPolicy(ctx, nil, fleet.PolicyPayload{Name: "policy2"})
+	pol2, err := ds.NewGlobalPolicy(ctx, nil, automdm.PolicyPayload{Name: "policy2"})
 	require.NoError(t, err)
 	require.NoError(t, ds.IncreasePolicyAutomationIteration(ctx, pol1.ID))
 	require.NoError(t, ds.IncreasePolicyAutomationIteration(ctx, pol2.ID))
@@ -3779,14 +3779,14 @@ func testIncreasePolicyAutomationIteration(t *testing.T, ds *Datastore) {
 func testOutdatedAutomationBatch(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
-	h1, err := ds.NewHost(ctx, &fleet.Host{OsqueryHostID: ptr.String("host1"), NodeKey: ptr.String("host1")})
+	h1, err := ds.NewHost(ctx, &automdm.Host{OsqueryHostID: ptr.String("host1"), NodeKey: ptr.String("host1")})
 	require.NoError(t, err)
-	h2, err := ds.NewHost(ctx, &fleet.Host{OsqueryHostID: ptr.String("host2"), NodeKey: ptr.String("host2")})
+	h2, err := ds.NewHost(ctx, &automdm.Host{OsqueryHostID: ptr.String("host2"), NodeKey: ptr.String("host2")})
 	require.NoError(t, err)
 
-	pol1, err := ds.NewGlobalPolicy(ctx, nil, fleet.PolicyPayload{Name: "policy1"})
+	pol1, err := ds.NewGlobalPolicy(ctx, nil, automdm.PolicyPayload{Name: "policy1"})
 	require.NoError(t, err)
-	pol2, err := ds.NewGlobalPolicy(ctx, nil, fleet.PolicyPayload{Name: "policy2"})
+	pol2, err := ds.NewGlobalPolicy(ctx, nil, automdm.PolicyPayload{Name: "policy2"})
 	require.NoError(t, err)
 
 	_, err = ds.RecordPolicyQueryExecutions(ctx, h1, map[uint]*bool{pol1.ID: new(false), pol2.ID: new(true)}, time.Now(), false, nil)
@@ -3796,21 +3796,21 @@ func testOutdatedAutomationBatch(t *testing.T, ds *Datastore) {
 
 	batch, err := ds.OutdatedAutomationBatch(ctx)
 	require.NoError(t, err)
-	require.ElementsMatch(t, batch, []fleet.PolicyFailure{})
+	require.ElementsMatch(t, batch, []automdm.PolicyFailure{})
 
 	require.NoError(t, ds.IncreasePolicyAutomationIteration(ctx, pol1.ID))
 	batch, err = ds.OutdatedAutomationBatch(ctx)
 	require.NoError(t, err)
-	require.ElementsMatch(t, batch, []fleet.PolicyFailure{
+	require.ElementsMatch(t, batch, []automdm.PolicyFailure{
 		{
 			PolicyID: pol1.ID,
-			Host: fleet.PolicySetHost{
+			Host: automdm.PolicySetHost{
 				ID: h1.ID,
 			},
 		},
 		{
 			PolicyID: pol1.ID,
-			Host: fleet.PolicySetHost{
+			Host: automdm.PolicySetHost{
 				ID: h2.ID,
 			},
 		},
@@ -3818,26 +3818,26 @@ func testOutdatedAutomationBatch(t *testing.T, ds *Datastore) {
 
 	batch, err = ds.OutdatedAutomationBatch(ctx)
 	require.NoError(t, err)
-	require.ElementsMatch(t, batch, []fleet.PolicyFailure{})
+	require.ElementsMatch(t, batch, []automdm.PolicyFailure{})
 
 	require.NoError(t, ds.IncreasePolicyAutomationIteration(ctx, pol1.ID))
 	require.NoError(t, ds.IncreasePolicyAutomationIteration(ctx, pol2.ID))
 	batch, err = ds.OutdatedAutomationBatch(ctx)
 	require.NoError(t, err)
-	require.ElementsMatch(t, batch, []fleet.PolicyFailure{
+	require.ElementsMatch(t, batch, []automdm.PolicyFailure{
 		{
 			PolicyID: pol1.ID,
-			Host: fleet.PolicySetHost{
+			Host: automdm.PolicySetHost{
 				ID: h1.ID,
 			},
 		}, {
 			PolicyID: pol1.ID,
-			Host: fleet.PolicySetHost{
+			Host: automdm.PolicySetHost{
 				ID: h2.ID,
 			},
 		}, {
 			PolicyID: pol2.ID,
-			Host: fleet.PolicySetHost{
+			Host: automdm.PolicySetHost{
 				ID: h2.ID,
 			},
 		},
@@ -3845,26 +3845,26 @@ func testOutdatedAutomationBatch(t *testing.T, ds *Datastore) {
 
 	batch, err = ds.OutdatedAutomationBatch(ctx)
 	require.NoError(t, err)
-	require.ElementsMatch(t, batch, []fleet.PolicyFailure{})
+	require.ElementsMatch(t, batch, []automdm.PolicyFailure{})
 }
 
 func testListGlobalPoliciesCanPaginate(t *testing.T, ds *Datastore) {
 	// create 30 policies
 	for i := 0; i < 30; i++ {
-		_, err := ds.NewGlobalPolicy(context.Background(), nil, fleet.PolicyPayload{Name: fmt.Sprintf("global policy %d", i)})
+		_, err := ds.NewGlobalPolicy(context.Background(), nil, automdm.PolicyPayload{Name: fmt.Sprintf("global policy %d", i)})
 		require.NoError(t, err)
 	}
 
 	// create 30 team policies
-	tm, err := ds.NewTeam(context.Background(), &fleet.Team{Name: "team1"})
+	tm, err := ds.NewTeam(context.Background(), &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
 	for i := 0; i < 30; i++ {
-		_, err := ds.NewTeamPolicy(context.Background(), tm.ID, nil, fleet.PolicyPayload{Name: fmt.Sprintf("team policy %d", i)})
+		_, err := ds.NewTeamPolicy(context.Background(), tm.ID, nil, automdm.PolicyPayload{Name: fmt.Sprintf("team policy %d", i)})
 		require.NoError(t, err)
 	}
 
 	// Page 0 contains 20 policies
-	policies, err := ds.ListGlobalPolicies(context.Background(), fleet.ListOptions{
+	policies, err := ds.ListGlobalPolicies(context.Background(), automdm.ListOptions{
 		Page:    0,
 		PerPage: 20,
 	}, "")
@@ -3874,7 +3874,7 @@ func testListGlobalPoliciesCanPaginate(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// Page 1 contains 10 policies
-	policies, err = ds.ListGlobalPolicies(context.Background(), fleet.ListOptions{
+	policies, err = ds.ListGlobalPolicies(context.Background(), automdm.ListOptions{
 		Page:    1,
 		PerPage: 20,
 	}, "")
@@ -3884,49 +3884,49 @@ func testListGlobalPoliciesCanPaginate(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// No list options returns all policies
-	policies, err = ds.ListGlobalPolicies(context.Background(), fleet.ListOptions{}, "")
+	policies, err = ds.ListGlobalPolicies(context.Background(), automdm.ListOptions{}, "")
 	assert.Len(t, policies, 30)
 	require.NoError(t, err)
 }
 
 func testListTeamPoliciesCanPaginate(t *testing.T, ds *Datastore) {
-	tm, err := ds.NewTeam(context.Background(), &fleet.Team{Name: "team1"})
+	tm, err := ds.NewTeam(context.Background(), &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
 
 	// create 30 team policies
 	for i := 0; i < 30; i++ {
-		_, err := ds.NewTeamPolicy(context.Background(), tm.ID, nil, fleet.PolicyPayload{Name: fmt.Sprintf("team policy %d", i)})
+		_, err := ds.NewTeamPolicy(context.Background(), tm.ID, nil, automdm.PolicyPayload{Name: fmt.Sprintf("team policy %d", i)})
 		require.NoError(t, err)
 	}
 
 	// create 30 global policies
 	for i := 0; i < 30; i++ {
-		_, err := ds.NewGlobalPolicy(context.Background(), nil, fleet.PolicyPayload{Name: fmt.Sprintf("global policy %d", i)})
+		_, err := ds.NewGlobalPolicy(context.Background(), nil, automdm.PolicyPayload{Name: fmt.Sprintf("global policy %d", i)})
 		require.NoError(t, err)
 	}
 
 	// Page 0 contains 20 policies
-	policies, _, err := ds.ListTeamPolicies(context.Background(), tm.ID, fleet.ListOptions{
+	policies, _, err := ds.ListTeamPolicies(context.Background(), tm.ID, automdm.ListOptions{
 		Page:    0,
 		PerPage: 20,
-	}, fleet.ListOptions{}, "", "")
+	}, automdm.ListOptions{}, "", "")
 
 	assert.Equal(t, "team policy 0", policies[0].Name)
 	assert.Len(t, policies, 20)
 	require.NoError(t, err)
 
 	// Page 1 contains 10 policies
-	policies, _, err = ds.ListTeamPolicies(context.Background(), tm.ID, fleet.ListOptions{
+	policies, _, err = ds.ListTeamPolicies(context.Background(), tm.ID, automdm.ListOptions{
 		Page:    1,
 		PerPage: 20,
-	}, fleet.ListOptions{}, "", "")
+	}, automdm.ListOptions{}, "", "")
 
 	assert.Equal(t, "team policy 20", policies[0].Name)
 	assert.Len(t, policies, 10)
 	require.NoError(t, err)
 
 	// No list options returns all policies
-	policies, _, err = ds.ListTeamPolicies(context.Background(), 1, fleet.ListOptions{}, fleet.ListOptions{}, "", "")
+	policies, _, err = ds.ListTeamPolicies(context.Background(), 1, automdm.ListOptions{}, automdm.ListOptions{}, "", "")
 	assert.Len(t, policies, 30)
 	require.NoError(t, err)
 }
@@ -3934,7 +3934,7 @@ func testListTeamPoliciesCanPaginate(t *testing.T, ds *Datastore) {
 func testCountPolicies(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
-	tm, err := ds.NewTeam(ctx, &fleet.Team{Name: "team1"})
+	tm, err := ds.NewTeam(ctx, &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
 
 	// no policies
@@ -3952,7 +3952,7 @@ func testCountPolicies(t *testing.T, ds *Datastore) {
 
 	// 10 global policies
 	for i := 0; i < 10; i++ {
-		_, err := ds.NewGlobalPolicy(ctx, nil, fleet.PolicyPayload{Name: fmt.Sprintf("global policy %d", i)})
+		_, err := ds.NewGlobalPolicy(ctx, nil, automdm.PolicyPayload{Name: fmt.Sprintf("global policy %d", i)})
 		require.NoError(t, err)
 	}
 
@@ -3970,7 +3970,7 @@ func testCountPolicies(t *testing.T, ds *Datastore) {
 
 	// add 5 team policies
 	for i := 0; i < 5; i++ {
-		_, err := ds.NewTeamPolicy(ctx, tm.ID, nil, fleet.PolicyPayload{Name: fmt.Sprintf("team policy %d", i)})
+		_, err := ds.NewTeamPolicy(ctx, tm.ID, nil, automdm.PolicyPayload{Name: fmt.Sprintf("team policy %d", i)})
 		require.NoError(t, err)
 	}
 
@@ -4007,15 +4007,15 @@ func testCountPolicies(t *testing.T, ds *Datastore) {
 
 func testUpdatePolicyHostCounts(t *testing.T, ds *Datastore) {
 	// new policy
-	policy, err := ds.NewGlobalPolicy(context.Background(), nil, fleet.PolicyPayload{Name: "global policy 1"})
+	policy, err := ds.NewGlobalPolicy(context.Background(), nil, automdm.PolicyPayload{Name: "global policy 1"})
 	require.NoError(t, err)
 
 	// create 4 global hosts
-	var globalHosts []*fleet.Host
+	var globalHosts []*automdm.Host
 	for i := 100; i < 104; i++ {
 		h, err := ds.NewHost(
 			context.Background(),
-			&fleet.Host{OsqueryHostID: ptr.String(fmt.Sprintf("host%d", i)), NodeKey: ptr.String(fmt.Sprintf("host%d", i)), TeamID: nil},
+			&automdm.Host{OsqueryHostID: ptr.String(fmt.Sprintf("host%d", i)), NodeKey: ptr.String(fmt.Sprintf("host%d", i)), TeamID: nil},
 		)
 		require.NoError(t, err)
 		globalHosts = append(globalHosts, h)
@@ -4056,13 +4056,13 @@ func testUpdatePolicyHostCounts(t *testing.T, ds *Datastore) {
 		t, policy.HostCountUpdatedAt.Compare(later) < 0, fmt.Sprintf("later:%v HostCountUpdatedAt:%v", later, *policy.HostCountUpdatedAt),
 	)
 
-	team, err := ds.NewTeam(context.Background(), &fleet.Team{Name: "team1"})
+	team, err := ds.NewTeam(context.Background(), &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
 
 	// create 4 team hosts
-	var teamHosts []*fleet.Host
+	var teamHosts []*automdm.Host
 	for i := 0; i < 4; i++ {
-		h, err := ds.NewHost(context.Background(), &fleet.Host{OsqueryHostID: ptr.String(fmt.Sprintf("host%d", i)), NodeKey: ptr.String(fmt.Sprintf("host%d", i)), TeamID: &team.ID})
+		h, err := ds.NewHost(context.Background(), &automdm.Host{OsqueryHostID: ptr.String(fmt.Sprintf("host%d", i)), NodeKey: ptr.String(fmt.Sprintf("host%d", i)), TeamID: &team.ID})
 		require.NoError(t, err)
 		teamHosts = append(teamHosts, h)
 	}
@@ -4106,17 +4106,17 @@ func testUpdatePolicyHostCounts(t *testing.T, ds *Datastore) {
 	)
 
 	// new global policy
-	policy2, err := ds.NewGlobalPolicy(context.Background(), nil, fleet.PolicyPayload{Name: "global policy 2"})
+	policy2, err := ds.NewGlobalPolicy(context.Background(), nil, automdm.PolicyPayload{Name: "global policy 2"})
 	require.NoError(t, err)
 
 	// new team
-	team2, err := ds.NewTeam(context.Background(), &fleet.Team{Name: "team2"})
+	team2, err := ds.NewTeam(context.Background(), &automdm.Team{Name: "team2"})
 	require.NoError(t, err)
 
 	// create 4 team2 hosts
 	for i := 4; i < 8; i++ {
 		h, err := ds.NewHost(
-			context.Background(), &fleet.Host{
+			context.Background(), &automdm.Host{
 				OsqueryHostID: ptr.String(fmt.Sprintf("host%d", i)), NodeKey: ptr.String(fmt.Sprintf("host%d", i)), TeamID: &team2.ID,
 			},
 		)
@@ -4185,45 +4185,45 @@ func testPoliciesNameUnicode(t *testing.T, ds *Datastore) {
 	equivalentNames = append(equivalentNames, item)
 
 	// Save policy
-	policy, err := ds.NewGlobalPolicy(context.Background(), nil, fleet.PolicyPayload{Name: equivalentNames[0]})
+	policy, err := ds.NewGlobalPolicy(context.Background(), nil, automdm.PolicyPayload{Name: equivalentNames[0]})
 	require.NoError(t, err)
 	assert.Equal(t, equivalentNames[0], policy.Name)
 
 	// Try to create policy with equivalent name
-	_, err = ds.NewGlobalPolicy(context.Background(), nil, fleet.PolicyPayload{Name: equivalentNames[1]})
+	_, err = ds.NewGlobalPolicy(context.Background(), nil, automdm.PolicyPayload{Name: equivalentNames[1]})
 	var existsErr *existsError
 	assert.ErrorAs(t, err, &existsErr)
 
 	// Try to update a different policy with equivalent name -- not allowed
-	policyEmoji, err := ds.NewGlobalPolicy(context.Background(), nil, fleet.PolicyPayload{Name: "💻"})
+	policyEmoji, err := ds.NewGlobalPolicy(context.Background(), nil, automdm.PolicyPayload{Name: "💻"})
 	require.NoError(t, err)
 	err = ds.SavePolicy(
-		context.Background(), &fleet.Policy{PolicyData: fleet.PolicyData{ID: policyEmoji.ID, Name: equivalentNames[1]}}, false, false,
+		context.Background(), &automdm.Policy{PolicyData: automdm.PolicyData{ID: policyEmoji.ID, Name: equivalentNames[1]}}, false, false,
 	)
 	assert.True(t, IsDuplicate(err), err)
 
 	// Try to find policy with equivalent name
-	policies, err := ds.ListGlobalPolicies(context.Background(), fleet.ListOptions{MatchQuery: equivalentNames[1]}, "")
+	policies, err := ds.ListGlobalPolicies(context.Background(), automdm.ListOptions{MatchQuery: equivalentNames[1]}, "")
 	assert.NoError(t, err)
 	require.Len(t, policies, 1)
 	assert.Equal(t, equivalentNames[0], policies[0].Name)
 
 	// Test team methods
-	team, err := ds.NewTeam(context.Background(), &fleet.Team{Name: "team1"})
+	team, err := ds.NewTeam(context.Background(), &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
 
 	// Create team policy
-	teamPolicy, err := ds.NewTeamPolicy(context.Background(), team.ID, nil, fleet.PolicyPayload{Name: equivalentNames[0]})
+	teamPolicy, err := ds.NewTeamPolicy(context.Background(), team.ID, nil, automdm.PolicyPayload{Name: equivalentNames[0]})
 	require.NoError(t, err)
 	assert.Equal(t, equivalentNames[0], teamPolicy.Name)
 
 	// Try to create another team policy with equivalent name -- not allowed
-	_, err = ds.NewTeamPolicy(context.Background(), team.ID, nil, fleet.PolicyPayload{Name: equivalentNames[1]})
+	_, err = ds.NewTeamPolicy(context.Background(), team.ID, nil, automdm.PolicyPayload{Name: equivalentNames[1]})
 	assert.ErrorAs(t, err, &existsErr)
 
 	// ListTeamPolicies, including inherited policy
 	teamPolicies, inheritedPolicies, err := ds.ListTeamPolicies(
-		context.Background(), team.ID, fleet.ListOptions{MatchQuery: equivalentNames[1]}, fleet.ListOptions{MatchQuery: equivalentNames[1]}, "", "",
+		context.Background(), team.ID, automdm.ListOptions{MatchQuery: equivalentNames[1]}, automdm.ListOptions{MatchQuery: equivalentNames[1]}, "", "",
 	)
 	assert.NoError(t, err)
 	require.Len(t, teamPolicies, 1)
@@ -4243,21 +4243,21 @@ func testPoliciesNameUnicode(t *testing.T, ds *Datastore) {
 func testPoliciesNameEmoji(t *testing.T, ds *Datastore) {
 	// Try to save policies with emojis
 	emoji0 := "🔥"
-	_, err := ds.NewGlobalPolicy(context.Background(), nil, fleet.PolicyPayload{Name: emoji0})
+	_, err := ds.NewGlobalPolicy(context.Background(), nil, automdm.PolicyPayload{Name: emoji0})
 	require.NoError(t, err)
 	emoji1 := "💻"
-	policyEmoji, err := ds.NewGlobalPolicy(context.Background(), nil, fleet.PolicyPayload{Name: emoji1})
+	policyEmoji, err := ds.NewGlobalPolicy(context.Background(), nil, automdm.PolicyPayload{Name: emoji1})
 	require.NoError(t, err)
 	assert.Equal(t, emoji1, policyEmoji.Name)
 
 	// Try to find policy with emoji0
-	policies, err := ds.ListGlobalPolicies(context.Background(), fleet.ListOptions{MatchQuery: emoji0}, "")
+	policies, err := ds.ListGlobalPolicies(context.Background(), automdm.ListOptions{MatchQuery: emoji0}, "")
 	assert.NoError(t, err)
 	require.Len(t, policies, 1)
 	assert.Equal(t, emoji0, policies[0].Name)
 
 	// Try to find policy with emoji1
-	policies, err = ds.ListGlobalPolicies(context.Background(), fleet.ListOptions{MatchQuery: emoji1}, "")
+	policies, err = ds.ListGlobalPolicies(context.Background(), automdm.ListOptions{MatchQuery: emoji1}, "")
 	assert.NoError(t, err)
 	require.Len(t, policies, 1)
 	assert.Equal(t, emoji1, policies[0].Name)
@@ -4265,17 +4265,17 @@ func testPoliciesNameEmoji(t *testing.T, ds *Datastore) {
 
 // Ensure case-insensitive sort order for policy names
 func testPoliciesNameSort(t *testing.T, ds *Datastore) {
-	var policies [3]*fleet.Policy
+	var policies [3]*automdm.Policy
 	var err error
 	// Save policy
-	policies[1], err = ds.NewGlobalPolicy(context.Background(), nil, fleet.PolicyPayload{Name: "В"})
+	policies[1], err = ds.NewGlobalPolicy(context.Background(), nil, automdm.PolicyPayload{Name: "В"})
 	require.NoError(t, err)
-	policies[2], err = ds.NewGlobalPolicy(context.Background(), nil, fleet.PolicyPayload{Name: "о"})
+	policies[2], err = ds.NewGlobalPolicy(context.Background(), nil, automdm.PolicyPayload{Name: "о"})
 	require.NoError(t, err)
-	policies[0], err = ds.NewGlobalPolicy(context.Background(), nil, fleet.PolicyPayload{Name: "а"})
+	policies[0], err = ds.NewGlobalPolicy(context.Background(), nil, automdm.PolicyPayload{Name: "а"})
 	require.NoError(t, err)
 
-	policiesResult, err := ds.ListGlobalPolicies(context.Background(), fleet.ListOptions{OrderKey: "name"}, "")
+	policiesResult, err := ds.ListGlobalPolicies(context.Background(), automdm.ListOptions{OrderKey: "name"}, "")
 	assert.NoError(t, err)
 	require.Len(t, policies, 3)
 	for i, policy := range policies {
@@ -4290,7 +4290,7 @@ func testGetCalendarPolicies(t *testing.T, ds *Datastore) {
 	_, err := ds.GetCalendarPolicies(ctx, 999)
 	require.NoError(t, err)
 
-	team, err := ds.NewTeam(ctx, &fleet.Team{
+	team, err := ds.NewTeam(ctx, &automdm.Team{
 		Name: "Foobar",
 	})
 	require.NoError(t, err)
@@ -4300,13 +4300,13 @@ func testGetCalendarPolicies(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// Create a global query to test that only team policies are returned.
-	_, err = ds.NewGlobalPolicy(ctx, nil, fleet.PolicyPayload{
+	_, err = ds.NewGlobalPolicy(ctx, nil, automdm.PolicyPayload{
 		Name:  "Global Policy",
 		Query: "SELECT * FROM time;",
 	})
 	require.NoError(t, err)
 
-	_, err = ds.NewTeamPolicy(ctx, team.ID, nil, fleet.PolicyPayload{
+	_, err = ds.NewTeamPolicy(ctx, team.ID, nil, automdm.PolicyPayload{
 		Name:                  "Team Policy 1",
 		Query:                 "SELECT * FROM system_info;",
 		CalendarEventsEnabled: false,
@@ -4317,13 +4317,13 @@ func testGetCalendarPolicies(t *testing.T, ds *Datastore) {
 	_, err = ds.GetCalendarPolicies(ctx, team.ID)
 	require.NoError(t, err)
 
-	teamPolicy2, err := ds.NewTeamPolicy(ctx, team.ID, nil, fleet.PolicyPayload{
+	teamPolicy2, err := ds.NewTeamPolicy(ctx, team.ID, nil, automdm.PolicyPayload{
 		Name:                  "Team Policy 2",
 		Query:                 "SELECT * FROM osquery_info;",
 		CalendarEventsEnabled: true,
 	})
 	require.NoError(t, err)
-	teamPolicy3, err := ds.NewTeamPolicy(ctx, team.ID, nil, fleet.PolicyPayload{
+	teamPolicy3, err := ds.NewTeamPolicy(ctx, team.ID, nil, automdm.PolicyPayload{
 		Name:                  "Team Policy 3",
 		Query:                 "SELECT * FROM os_version;",
 		CalendarEventsEnabled: true,
@@ -4357,36 +4357,36 @@ func testGetTeamHostsPolicyMemberships(t *testing.T, ds *Datastore) {
 	//
 	//
 
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "team1"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
-	team2, err := ds.NewTeam(ctx, &fleet.Team{Name: "team2"})
+	team2, err := ds.NewTeam(ctx, &automdm.Team{Name: "team2"})
 	require.NoError(t, err)
 
-	team1Policy1, err := ds.NewTeamPolicy(ctx, team1.ID, nil, fleet.PolicyPayload{
+	team1Policy1, err := ds.NewTeamPolicy(ctx, team1.ID, nil, automdm.PolicyPayload{
 		Name:                  "Team 1 Policy 1",
 		Query:                 "SELECT * FROM osquery_info;",
 		CalendarEventsEnabled: true,
 	})
 	require.NoError(t, err)
-	team1Policy2, err := ds.NewTeamPolicy(ctx, team1.ID, nil, fleet.PolicyPayload{
+	team1Policy2, err := ds.NewTeamPolicy(ctx, team1.ID, nil, automdm.PolicyPayload{
 		Name:                  "Team 1 Policy 2",
 		Query:                 "SELECT * FROM system_info;",
 		CalendarEventsEnabled: false,
 	})
 	require.NoError(t, err)
-	team2Policy1, err := ds.NewTeamPolicy(ctx, team2.ID, nil, fleet.PolicyPayload{
+	team2Policy1, err := ds.NewTeamPolicy(ctx, team2.ID, nil, automdm.PolicyPayload{
 		Name:                  "Team 2 Policy 1",
 		Query:                 "SELECT * FROM os_version;",
 		CalendarEventsEnabled: true,
 	})
 	require.NoError(t, err)
-	team2Policy2, err := ds.NewTeamPolicy(ctx, team2.ID, nil, fleet.PolicyPayload{
+	team2Policy2, err := ds.NewTeamPolicy(ctx, team2.ID, nil, automdm.PolicyPayload{
 		Name:                  "Team 2 Policy 2",
 		Query:                 "SELECT * FROM processes;",
 		CalendarEventsEnabled: true,
 	})
 	require.NoError(t, err)
-	_, err = ds.NewGlobalPolicy(ctx, nil, fleet.PolicyPayload{
+	_, err = ds.NewGlobalPolicy(ctx, nil, automdm.PolicyPayload{
 		Name:  "Global Policy 1",
 		Query: "SELECT * FROM foobar;",
 	})
@@ -4397,7 +4397,7 @@ func testGetTeamHostsPolicyMemberships(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 	require.Empty(t, hostsTeam1)
 
-	host1, err := ds.NewHost(ctx, &fleet.Host{
+	host1, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID:  ptr.String("host1"),
 		NodeKey:        ptr.String("host1"),
 		HardwareSerial: "serial1",
@@ -4405,7 +4405,7 @@ func testGetTeamHostsPolicyMemberships(t *testing.T, ds *Datastore) {
 		TeamID:         &team1.ID,
 	})
 	require.NoError(t, err)
-	host2, err := ds.NewHost(ctx, &fleet.Host{
+	host2, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID:  ptr.String("host2"),
 		NodeKey:        ptr.String("host2"),
 		HardwareSerial: "serial2",
@@ -4413,7 +4413,7 @@ func testGetTeamHostsPolicyMemberships(t *testing.T, ds *Datastore) {
 		TeamID:         &team2.ID,
 	})
 	require.NoError(t, err)
-	host3, err := ds.NewHost(ctx, &fleet.Host{
+	host3, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID:  ptr.String("host3"),
 		NodeKey:        ptr.String("host3"),
 		HardwareSerial: "serial3",
@@ -4421,14 +4421,14 @@ func testGetTeamHostsPolicyMemberships(t *testing.T, ds *Datastore) {
 		TeamID:         &team2.ID,
 	})
 	require.NoError(t, err)
-	host4, err := ds.NewHost(ctx, &fleet.Host{
+	host4, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID:  ptr.String("host4"),
 		NodeKey:        ptr.String("host4"),
 		HardwareSerial: "serial4",
 		ComputerName:   "display_name4",
 	})
 	require.NoError(t, err)
-	host5, err := ds.NewHost(ctx, &fleet.Host{
+	host5, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID:  ptr.String("host5"),
 		NodeKey:        ptr.String("host5"),
 		HardwareSerial: "serial5",
@@ -4436,7 +4436,7 @@ func testGetTeamHostsPolicyMemberships(t *testing.T, ds *Datastore) {
 		TeamID:         &team1.ID,
 	})
 	require.NoError(t, err)
-	host6, err := ds.NewHost(ctx, &fleet.Host{
+	host6, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID:  ptr.String("host6"),
 		NodeKey:        ptr.String("host6"),
 		HardwareSerial: "serial6",
@@ -4466,35 +4466,35 @@ func testGetTeamHostsPolicyMemberships(t *testing.T, ds *Datastore) {
 	//	host6 has bar@example.com
 	//
 
-	err = ds.ReplaceHostDeviceMapping(ctx, host1.ID, []*fleet.HostDeviceMapping{
+	err = ds.ReplaceHostDeviceMapping(ctx, host1.ID, []*automdm.HostDeviceMapping{
 		{HostID: host1.ID, Email: "foo@example.com", Source: "google_chrome_profiles"},
 	}, "google_chrome_profiles")
 	require.NoError(t, err)
-	err = ds.ReplaceHostDeviceMapping(ctx, host1.ID, []*fleet.HostDeviceMapping{
+	err = ds.ReplaceHostDeviceMapping(ctx, host1.ID, []*automdm.HostDeviceMapping{
 		{HostID: host1.ID, Email: "zoo@example.com", Source: "custom"},
 	}, "custom")
 	require.NoError(t, err)
-	err = ds.ReplaceHostDeviceMapping(ctx, host2.ID, []*fleet.HostDeviceMapping{
+	err = ds.ReplaceHostDeviceMapping(ctx, host2.ID, []*automdm.HostDeviceMapping{
 		{HostID: host2.ID, Email: "foo@example.com", Source: "custom"},
 	}, "custom")
 	require.NoError(t, err)
-	err = ds.ReplaceHostDeviceMapping(ctx, host2.ID, []*fleet.HostDeviceMapping{
+	err = ds.ReplaceHostDeviceMapping(ctx, host2.ID, []*automdm.HostDeviceMapping{
 		{HostID: host2.ID, Email: "foo@other.com", Source: "google_chrome_profiles"},
 	}, "google_chrome_profiles")
 	require.NoError(t, err)
-	err = ds.ReplaceHostDeviceMapping(ctx, host3.ID, []*fleet.HostDeviceMapping{
+	err = ds.ReplaceHostDeviceMapping(ctx, host3.ID, []*automdm.HostDeviceMapping{
 		{HostID: host3.ID, Email: "zoo@example.com", Source: "google_chrome_profiles"},
 	}, "google_chrome_profiles")
 	require.NoError(t, err)
-	err = ds.ReplaceHostDeviceMapping(ctx, host4.ID, []*fleet.HostDeviceMapping{
+	err = ds.ReplaceHostDeviceMapping(ctx, host4.ID, []*automdm.HostDeviceMapping{
 		{HostID: host4.ID, Email: "foo@example.com", Source: "google_chrome_profiles"},
 	}, "google_chrome_profiles")
 	require.NoError(t, err)
-	err = ds.ReplaceHostDeviceMapping(ctx, host5.ID, []*fleet.HostDeviceMapping{
+	err = ds.ReplaceHostDeviceMapping(ctx, host5.ID, []*automdm.HostDeviceMapping{
 		{HostID: host5.ID, Email: "foo@other.com", Source: "google_chrome_profiles"},
 	}, "google_chrome_profiles")
 	require.NoError(t, err)
-	err = ds.ReplaceHostDeviceMapping(ctx, host6.ID, []*fleet.HostDeviceMapping{
+	err = ds.ReplaceHostDeviceMapping(ctx, host6.ID, []*automdm.HostDeviceMapping{
 		{HostID: host6.ID, Email: "bar@example.com", Source: "google_chrome_profiles"},
 	}, "google_chrome_profiles")
 	require.NoError(t, err)
@@ -4560,11 +4560,11 @@ func testGetTeamHostsPolicyMemberships(t *testing.T, ds *Datastore) {
 	now := time.Now()
 	eventUUID1 := uuid.New().String()
 	_, err = ds.CreateOrUpdateCalendarEvent(ctx, eventUUID1, "foo@example.com", now, now.Add(30*time.Minute), []byte(`{"foo": "bar"}`), &tZ,
-		host1.ID, fleet.CalendarWebhookStatusPending)
+		host1.ID, automdm.CalendarWebhookStatusPending)
 	require.NoError(t, err)
 	eventUUID2 := uuid.New().String()
 	_, err = ds.CreateOrUpdateCalendarEvent(ctx, eventUUID2, "bar@example.com", now, now.Add(30*time.Minute), []byte(`{"foo": "bar"}`), &tZ,
-		host6.ID, fleet.CalendarWebhookStatusPending)
+		host6.ID, automdm.CalendarWebhookStatusPending)
 	require.NoError(t, err)
 
 	hostsTeam1, err = ds.GetTeamHostsPolicyMemberships(ctx, "example.com", team1.ID, []uint{team1Policies[0].ID}, nil)
@@ -4593,7 +4593,7 @@ func testGetTeamHostsPolicyMemberships(t *testing.T, ds *Datastore) {
 	// Move host 4 to team1 and have it fail all team1 policies.
 	//
 
-	err = ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team1.ID, []uint{host4.ID}))
+	err = ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team1.ID, []uint{host4.ID}))
 	require.NoError(t, err)
 	_, err = ds.RecordPolicyQueryExecutions(ctx, host4, map[uint]*bool{
 		team1Policy1.ID: ptr.Bool(false),
@@ -4646,11 +4646,11 @@ func testGetTeamHostsPolicyMemberships(t *testing.T, ds *Datastore) {
 	//
 	now = time.Now()
 	_, err = ds.CreateOrUpdateCalendarEvent(ctx, eventUUID1, "foo@example.com", now, now.Add(30*time.Minute), []byte(`{"foo": "bar"}`), &tZ,
-		host2.ID, fleet.CalendarWebhookStatusPending)
+		host2.ID, automdm.CalendarWebhookStatusPending)
 	require.NoError(t, err)
 	eventUUID3 := uuid.New().String()
 	calendarEventHost3, err := ds.CreateOrUpdateCalendarEvent(ctx, eventUUID3, "zoo@example.com", now, now.Add(30*time.Minute),
-		[]byte(`{"foo": "bar"}`), &tZ, host3.ID, fleet.CalendarWebhookStatusPending)
+		[]byte(`{"foo": "bar"}`), &tZ, host3.ID, automdm.CalendarWebhookStatusPending)
 	require.NoError(t, err)
 
 	//
@@ -4787,18 +4787,18 @@ func testGetTeamHostsPolicyMemberships(t *testing.T, ds *Datastore) {
 func testGetTeamHostsPolicyMembershipsEmailPriority(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "test-team"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "test-team"})
 	require.NoError(t, err)
 
-	calendarPolicy, err := ds.NewTeamPolicy(ctx, team.ID, nil, fleet.PolicyPayload{
+	calendarPolicy, err := ds.NewTeamPolicy(ctx, team.ID, nil, automdm.PolicyPayload{
 		Name:                  "Calendar Policy",
 		Query:                 "SELECT 1;",
 		CalendarEventsEnabled: true,
 	})
 	require.NoError(t, err)
 
-	newHost := func(name string) *fleet.Host {
-		h, err := ds.NewHost(ctx, &fleet.Host{
+	newHost := func(name string) *automdm.Host {
+		h, err := ds.NewHost(ctx, &automdm.Host{
 			OsqueryHostID:  ptr.String(name),
 			NodeKey:        ptr.String(name),
 			HardwareSerial: name + "-serial",
@@ -4812,10 +4812,10 @@ func testGetTeamHostsPolicyMembershipsEmailPriority(t *testing.T, ds *Datastore)
 		return h
 	}
 
-	setEmails := func(hostID uint, mappings ...*fleet.HostDeviceMapping) {
+	setEmails := func(hostID uint, mappings ...*automdm.HostDeviceMapping) {
 		// Group by source so each source gets its own ReplaceHostDeviceMapping call,
 		// matching production usage (each source replaces its own slice).
-		bySource := make(map[string][]*fleet.HostDeviceMapping)
+		bySource := make(map[string][]*automdm.HostDeviceMapping)
 		for _, m := range mappings {
 			bySource[m.Source] = append(bySource[m.Source], m)
 		}
@@ -4825,14 +4825,14 @@ func testGetTeamHostsPolicyMembershipsEmailPriority(t *testing.T, ds *Datastore)
 		}
 	}
 
-	getResults := func(domain string) []fleet.HostPolicyMembershipData {
+	getResults := func(domain string) []automdm.HostPolicyMembershipData {
 		results, err := ds.GetTeamHostsPolicyMemberships(ctx, domain, team.ID, []uint{calendarPolicy.ID}, nil)
 		require.NoError(t, err)
 		sort.Slice(results, func(i, j int) bool { return results[i].HostID < results[j].HostID })
 		return results
 	}
 
-	emailFor := func(results []fleet.HostPolicyMembershipData, h *fleet.Host) string {
+	emailFor := func(results []automdm.HostPolicyMembershipData, h *automdm.Host) string {
 		for _, r := range results {
 			if r.HostID == h.ID {
 				return r.Email
@@ -4844,62 +4844,62 @@ func testGetTeamHostsPolicyMembershipsEmailPriority(t *testing.T, ds *Datastore)
 
 	testCases := []struct {
 		name     string
-		mappings []*fleet.HostDeviceMapping
+		mappings []*automdm.HostDeviceMapping
 		expected string
 	}{
 		{
 			name: "idp-vs-chrome",
-			mappings: []*fleet.HostDeviceMapping{
-				{Email: "chrome@example.com", Source: fleet.DeviceMappingGoogleChromeProfiles},
-				{Email: "idp@example.com", Source: fleet.DeviceMappingMDMIdpAccounts},
+			mappings: []*automdm.HostDeviceMapping{
+				{Email: "chrome@example.com", Source: automdm.DeviceMappingGoogleChromeProfiles},
+				{Email: "idp@example.com", Source: automdm.DeviceMappingMDMIdpAccounts},
 			},
 			expected: "idp@example.com",
 		},
 		{
 			name: "idpsrc-vs-chrome",
-			mappings: []*fleet.HostDeviceMapping{
-				{Email: "chrome@example.com", Source: fleet.DeviceMappingGoogleChromeProfiles},
-				{Email: "idpsrc@example.com", Source: fleet.DeviceMappingIDP},
+			mappings: []*automdm.HostDeviceMapping{
+				{Email: "chrome@example.com", Source: automdm.DeviceMappingGoogleChromeProfiles},
+				{Email: "idpsrc@example.com", Source: automdm.DeviceMappingIDP},
 			},
 			expected: "idpsrc@example.com",
 		},
 		{
 			name: "entra-join-vs-chrome",
-			mappings: []*fleet.HostDeviceMapping{
-				{Email: "chrome@example.com", Source: fleet.DeviceMappingGoogleChromeProfiles},
-				{Email: "entra@example.com", Source: fleet.DeviceMappingEntraJoin},
+			mappings: []*automdm.HostDeviceMapping{
+				{Email: "chrome@example.com", Source: automdm.DeviceMappingGoogleChromeProfiles},
+				{Email: "entra@example.com", Source: automdm.DeviceMappingEntraJoin},
 			},
 			expected: "entra@example.com",
 		},
 		{
 			name: "custom-vs-chrome",
-			mappings: []*fleet.HostDeviceMapping{
-				{Email: "chrome@example.com", Source: fleet.DeviceMappingGoogleChromeProfiles},
+			mappings: []*automdm.HostDeviceMapping{
+				{Email: "chrome@example.com", Source: automdm.DeviceMappingGoogleChromeProfiles},
 				{Email: "custom@example.com", Source: "custom"},
 			},
 			expected: "chrome@example.com",
 		},
 		{
 			name: "multi-idp",
-			mappings: []*fleet.HostDeviceMapping{
-				{Email: "zebra@example.com", Source: fleet.DeviceMappingMDMIdpAccounts},
-				{Email: "apple@example.com", Source: fleet.DeviceMappingMDMIdpAccounts},
+			mappings: []*automdm.HostDeviceMapping{
+				{Email: "zebra@example.com", Source: automdm.DeviceMappingMDMIdpAccounts},
+				{Email: "apple@example.com", Source: automdm.DeviceMappingMDMIdpAccounts},
 			},
 			expected: "apple@example.com",
 		},
 		{
 			name: "multi-chrome",
-			mappings: []*fleet.HostDeviceMapping{
-				{Email: "zebra@example.com", Source: fleet.DeviceMappingGoogleChromeProfiles},
-				{Email: "apple@example.com", Source: fleet.DeviceMappingGoogleChromeProfiles},
+			mappings: []*automdm.HostDeviceMapping{
+				{Email: "zebra@example.com", Source: automdm.DeviceMappingGoogleChromeProfiles},
+				{Email: "apple@example.com", Source: automdm.DeviceMappingGoogleChromeProfiles},
 			},
 			expected: "apple@example.com",
 		},
 		{
 			name: "idp-wrong-domain",
-			mappings: []*fleet.HostDeviceMapping{
-				{Email: "idp@other.com", Source: fleet.DeviceMappingMDMIdpAccounts},
-				{Email: "chrome@example.com", Source: fleet.DeviceMappingGoogleChromeProfiles},
+			mappings: []*automdm.HostDeviceMapping{
+				{Email: "idp@other.com", Source: automdm.DeviceMappingMDMIdpAccounts},
+				{Email: "chrome@example.com", Source: automdm.DeviceMappingGoogleChromeProfiles},
 			},
 			expected: "chrome@example.com",
 		},
@@ -4920,7 +4920,7 @@ func testGetTeamHostsPolicyMembershipsEmailPriority(t *testing.T, ds *Datastore)
 
 func testNewGlobalPolicyWithInstaller(t *testing.T, ds *Datastore) {
 	user1 := test.NewUser(t, ds, "Alice", "alice@example.com", true)
-	_, err := ds.NewGlobalPolicy(context.Background(), &user1.ID, fleet.PolicyPayload{
+	_, err := ds.NewGlobalPolicy(context.Background(), &user1.ID, automdm.PolicyPayload{
 		Query:               "SELECT 1;",
 		SoftwareInstallerID: ptr.Uint(1),
 	})
@@ -4930,7 +4930,7 @@ func testNewGlobalPolicyWithInstaller(t *testing.T, ds *Datastore) {
 
 func testNewGlobalPolicyWithScript(t *testing.T, ds *Datastore) {
 	user1 := test.NewUser(t, ds, "Alice", "alice@example.com", true)
-	_, err := ds.NewGlobalPolicy(context.Background(), &user1.ID, fleet.PolicyPayload{
+	_, err := ds.NewGlobalPolicy(context.Background(), &user1.ID, automdm.PolicyPayload{
 		Query:    "SELECT 1;",
 		ScriptID: ptr.Uint(1),
 	})
@@ -4942,22 +4942,22 @@ func testTeamPoliciesWithInstaller(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
 	user1 := test.NewUser(t, ds, "Alice", "alice@example.com", true)
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "team1"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
-	team2, err := ds.NewTeam(ctx, &fleet.Team{Name: "team2"}) // team2 has no policies
+	team2, err := ds.NewTeam(ctx, &automdm.Team{Name: "team2"}) // team2 has no policies
 	require.NoError(t, err)
 
 	// Policy p1 has no associated installer.
-	p1, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, fleet.PolicyPayload{
+	p1, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, automdm.PolicyPayload{
 		Name:                "p1",
 		Query:               "SELECT 1;",
 		SoftwareInstallerID: nil,
 	})
 	require.NoError(t, err)
 	// Create and associate an installer to p2.
-	installer, err := fleet.NewTempFileReader(strings.NewReader("hello"), t.TempDir)
+	installer, err := automdm.NewTempFileReader(strings.NewReader("hello"), t.TempDir)
 	require.NoError(t, err)
-	installerID, _, err := ds.MatchOrCreateSoftwareInstaller(context.Background(), &fleet.UploadSoftwareInstallerPayload{
+	installerID, _, err := ds.MatchOrCreateSoftwareInstaller(context.Background(), &automdm.UploadSoftwareInstallerPayload{
 		InstallScript:     "hello",
 		PreInstallQuery:   "SELECT 1",
 		PostInstallScript: "world",
@@ -4969,11 +4969,11 @@ func testTeamPoliciesWithInstaller(t *testing.T, ds *Datastore) {
 		Source:            "apps",
 		UserID:            user1.ID,
 		TeamID:            &team1.ID,
-		ValidatedLabels:   &fleet.LabelIdentsWithScope{},
+		ValidatedLabels:   &automdm.LabelIdentsWithScope{},
 	})
 	require.NoError(t, err)
 	require.Nil(t, p1.SoftwareInstallerID)
-	p2, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, fleet.PolicyPayload{
+	p2, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, automdm.PolicyPayload{
 		Name:                "p2",
 		Query:               "SELECT 1;",
 		SoftwareInstallerID: ptr.Uint(installerID),
@@ -4982,7 +4982,7 @@ func testTeamPoliciesWithInstaller(t *testing.T, ds *Datastore) {
 	require.NotNil(t, p2.SoftwareInstallerID)
 	require.Equal(t, installerID, *p2.SoftwareInstallerID)
 	// Create p3 as global policy.
-	_, err = ds.NewGlobalPolicy(ctx, &user1.ID, fleet.PolicyPayload{
+	_, err = ds.NewGlobalPolicy(ctx, &user1.ID, automdm.PolicyPayload{
 		Name:  "p3",
 		Query: "SELECT 1;",
 	})
@@ -4994,9 +4994,9 @@ func testTeamPoliciesWithInstaller(t *testing.T, ds *Datastore) {
 	require.Equal(t, installerID, *p2.SoftwareInstallerID)
 
 	// Policy p4 in "No team" with associated installer.
-	installer1, err := fleet.NewTempFileReader(strings.NewReader("hello"), t.TempDir)
+	installer1, err := automdm.NewTempFileReader(strings.NewReader("hello"), t.TempDir)
 	require.NoError(t, err)
-	noTeamInstallerID, _, err := ds.MatchOrCreateSoftwareInstaller(context.Background(), &fleet.UploadSoftwareInstallerPayload{
+	noTeamInstallerID, _, err := ds.MatchOrCreateSoftwareInstaller(context.Background(), &automdm.UploadSoftwareInstallerPayload{
 		InstallScript:     "hello",
 		PreInstallQuery:   "SELECT 1",
 		PostInstallScript: "world",
@@ -5007,24 +5007,24 @@ func testTeamPoliciesWithInstaller(t *testing.T, ds *Datastore) {
 		Version:           "1.0",
 		Source:            "apps",
 		UserID:            user1.ID,
-		TeamID:            ptr.Uint(fleet.PolicyNoTeamID),
-		ValidatedLabels:   &fleet.LabelIdentsWithScope{},
+		TeamID:            ptr.Uint(automdm.PolicyNoTeamID),
+		ValidatedLabels:   &automdm.LabelIdentsWithScope{},
 	})
 	require.NoError(t, err)
-	p4, err := ds.NewTeamPolicy(ctx, fleet.PolicyNoTeamID, &user1.ID, fleet.PolicyPayload{
+	p4, err := ds.NewTeamPolicy(ctx, automdm.PolicyNoTeamID, &user1.ID, automdm.PolicyPayload{
 		Name:                "p4",
 		Query:               "SELECT 4;",
 		SoftwareInstallerID: ptr.Uint(noTeamInstallerID),
 	})
 	require.NoError(t, err)
-	_, err = ds.NewTeamPolicy(ctx, fleet.PolicyNoTeamID, &user1.ID, fleet.PolicyPayload{
+	_, err = ds.NewTeamPolicy(ctx, automdm.PolicyNoTeamID, &user1.ID, automdm.PolicyPayload{
 		Name:                "p4",
 		Query:               "SELECT 4;",
 		SoftwareInstallerID: ptr.Uint(installerID),
 	})
 	require.Error(t, err, "software installer is associated with a different team")
 
-	policiesWithInstallers, err := ds.GetPoliciesWithAssociatedInstaller(ctx, fleet.PolicyNoTeamID, []uint{p4.ID})
+	policiesWithInstallers, err := ds.GetPoliciesWithAssociatedInstaller(ctx, automdm.PolicyNoTeamID, []uint{p4.ID})
 	require.NoError(t, err)
 	require.Len(t, policiesWithInstallers, 1)
 	require.Equal(t, p4.ID, policiesWithInstallers[0].ID)
@@ -5100,30 +5100,30 @@ func testTeamPoliciesWithVPP(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
 	user1 := test.NewUser(t, ds, "Alice", "alice@example.com", true)
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "team1"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
-	team2, err := ds.NewTeam(ctx, &fleet.Team{Name: "team2"}) // team2 has no policies
+	team2, err := ds.NewTeam(ctx, &automdm.Team{Name: "team2"}) // team2 has no policies
 	require.NoError(t, err)
 
 	test.CreateInsertGlobalVPPToken(t, ds)
 
 	// create team1 app
-	team1App, err := ds.InsertVPPAppWithTeam(ctx, &fleet.VPPApp{
+	team1App, err := ds.InsertVPPAppWithTeam(ctx, &automdm.VPPApp{
 		Name: "vpp1", BundleIdentifier: "com.app.appy",
-		VPPAppTeam: fleet.VPPAppTeam{VPPAppID: fleet.VPPAppID{AdamID: "adam_app", Platform: fleet.MacOSPlatform}},
+		VPPAppTeam: automdm.VPPAppTeam{VPPAppID: automdm.VPPAppID{AdamID: "adam_app", Platform: automdm.MacOSPlatform}},
 	}, &team1.ID, nil)
 	require.NoError(t, err)
 	team1Meta, err := ds.GetVPPAppMetadataByTeamAndTitleID(ctx, &team1.ID, team1App.TitleID)
 	require.NoError(t, err)
 
 	// Policy p1 has no associated app.
-	p1, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, fleet.PolicyPayload{
+	p1, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, automdm.PolicyPayload{
 		Name:  "p1",
 		Query: "SELECT 1;",
 	})
 	require.NoError(t, err)
 	// Create and associate an app to p2.
-	p2, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, fleet.PolicyPayload{
+	p2, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, automdm.PolicyPayload{
 		Name:           "p2",
 		Query:          "SELECT 1;",
 		VPPAppsTeamsID: &team1Meta.VPPAppsTeamsID,
@@ -5136,9 +5136,9 @@ func testTeamPoliciesWithVPP(t *testing.T, ds *Datastore) {
 	require.Equal(t, team1Meta.VPPAppsTeamsID, *p2.VPPAppsTeamsID)
 
 	// create no-team app
-	noTeamApp, err := ds.InsertVPPAppWithTeam(ctx, &fleet.VPPApp{
+	noTeamApp, err := ds.InsertVPPAppWithTeam(ctx, &automdm.VPPApp{
 		Name: "vpp1", BundleIdentifier: "com.app.appy",
-		VPPAppTeam: fleet.VPPAppTeam{VPPAppID: fleet.VPPAppID{AdamID: "adam_app", Platform: fleet.MacOSPlatform}},
+		VPPAppTeam: automdm.VPPAppTeam{VPPAppID: automdm.VPPAppID{AdamID: "adam_app", Platform: automdm.MacOSPlatform}},
 	}, nil, nil)
 	require.NoError(t, err)
 	noTeamMeta, err := ds.GetVPPAppMetadataByTeamAndTitleID(ctx, ptr.Uint(0), noTeamApp.TitleID)
@@ -5147,7 +5147,7 @@ func testTeamPoliciesWithVPP(t *testing.T, ds *Datastore) {
 	require.Equal(t, noTeamMeta.AdamID, team1Meta.AdamID)
 
 	// Policy p4 in "No team" with associated app.
-	p4, err := ds.NewTeamPolicy(ctx, fleet.PolicyNoTeamID, &user1.ID, fleet.PolicyPayload{
+	p4, err := ds.NewTeamPolicy(ctx, automdm.PolicyNoTeamID, &user1.ID, automdm.PolicyPayload{
 		Name:           "p4",
 		Query:          "SELECT 4;",
 		VPPAppsTeamsID: ptr.Uint(noTeamMeta.VPPAppsTeamsID),
@@ -5155,23 +5155,23 @@ func testTeamPoliciesWithVPP(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// create another team1 app
-	team1App2, err := ds.InsertVPPAppWithTeam(ctx, &fleet.VPPApp{
+	team1App2, err := ds.InsertVPPAppWithTeam(ctx, &automdm.VPPApp{
 		Name: "vpp2", BundleIdentifier: "com.app.vpp2",
-		VPPAppTeam: fleet.VPPAppTeam{VPPAppID: fleet.VPPAppID{AdamID: "adam_vpp2", Platform: fleet.MacOSPlatform}},
+		VPPAppTeam: automdm.VPPAppTeam{VPPAppID: automdm.VPPAppID{AdamID: "adam_vpp2", Platform: automdm.MacOSPlatform}},
 	}, &team1.ID, nil)
 	require.NoError(t, err)
 	team1Meta2, err := ds.GetVPPAppMetadataByTeamAndTitleID(ctx, &team1.ID, team1App2.TitleID)
 	require.NoError(t, err)
 
 	require.NoError(t, err)
-	_, err = ds.NewTeamPolicy(ctx, fleet.PolicyNoTeamID, &user1.ID, fleet.PolicyPayload{
+	_, err = ds.NewTeamPolicy(ctx, automdm.PolicyNoTeamID, &user1.ID, automdm.PolicyPayload{
 		Name:           "p5",
 		Query:          "SELECT 5;",
 		VPPAppsTeamsID: ptr.Uint(team1Meta2.VPPAppsTeamsID),
 	})
 	require.Error(t, err, "app is associated with a different team")
 
-	policiesWithVPPs, err := ds.GetPoliciesWithAssociatedVPP(ctx, fleet.PolicyNoTeamID, []uint{p4.ID})
+	policiesWithVPPs, err := ds.GetPoliciesWithAssociatedVPP(ctx, automdm.PolicyNoTeamID, []uint{p4.ID})
 	require.NoError(t, err)
 	require.Len(t, policiesWithVPPs, 1)
 	require.Equal(t, p4.ID, policiesWithVPPs[0].ID)
@@ -5224,9 +5224,9 @@ func testTeamPoliciesWithVPP(t *testing.T, ds *Datastore) {
 	require.Empty(t, policiesWithVPPs)
 
 	// create another team1 app, this time with an automatic policy
-	team1App3, err := ds.InsertVPPAppWithTeam(ctx, &fleet.VPPApp{
+	team1App3, err := ds.InsertVPPAppWithTeam(ctx, &automdm.VPPApp{
 		Name: "vpp3", BundleIdentifier: "com.app.vpp3",
-		VPPAppTeam: fleet.VPPAppTeam{VPPAppID: fleet.VPPAppID{AdamID: "adam_vpp3", Platform: fleet.MacOSPlatform}, AddAutoInstallPolicy: true},
+		VPPAppTeam: automdm.VPPAppTeam{VPPAppID: automdm.VPPAppID{AdamID: "adam_vpp3", Platform: automdm.MacOSPlatform}, AddAutoInstallPolicy: true},
 	}, &team1.ID, nil)
 	require.NoError(t, err)
 
@@ -5247,27 +5247,27 @@ func testTeamPoliciesWithScript(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
 	user1 := test.NewUser(t, ds, "Sierra", "sierra@example.com", true)
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "team1"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
-	team2, err := ds.NewTeam(ctx, &fleet.Team{Name: "team2"}) // team2 has no policies
+	team2, err := ds.NewTeam(ctx, &automdm.Team{Name: "team2"}) // team2 has no policies
 	require.NoError(t, err)
 
 	// Policy p1 has no associated script.
-	p1, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, fleet.PolicyPayload{
+	p1, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, automdm.PolicyPayload{
 		Name:                "p1",
 		Query:               "SELECT 1;",
 		SoftwareInstallerID: nil,
 	})
 	require.NoError(t, err)
 	// Create and associate a script to p2.
-	script, err := ds.NewScript(context.Background(), &fleet.Script{
+	script, err := ds.NewScript(context.Background(), &automdm.Script{
 		TeamID:         &team1.ID,
 		Name:           "hello-world.sh",
 		ScriptContents: "echo 'Hello World'",
 	})
 	require.NoError(t, err)
 	require.Nil(t, p1.ScriptID)
-	p2, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, fleet.PolicyPayload{
+	p2, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, automdm.PolicyPayload{
 		Name:     "p2",
 		Query:    "SELECT 1;",
 		ScriptID: &script.ID,
@@ -5276,7 +5276,7 @@ func testTeamPoliciesWithScript(t *testing.T, ds *Datastore) {
 	require.NotNil(t, p2.ScriptID)
 	require.Equal(t, script.ID, *p2.ScriptID)
 	// Create p3 as global policy.
-	_, err = ds.NewGlobalPolicy(ctx, &user1.ID, fleet.PolicyPayload{
+	_, err = ds.NewGlobalPolicy(ctx, &user1.ID, automdm.PolicyPayload{
 		Name:  "p3",
 		Query: "SELECT 1;",
 	})
@@ -5288,25 +5288,25 @@ func testTeamPoliciesWithScript(t *testing.T, ds *Datastore) {
 	require.Equal(t, script.ID, *p2.ScriptID)
 
 	// Policy p4 in "No team" with associated script.
-	noTeamScript, err := ds.NewScript(context.Background(), &fleet.Script{
+	noTeamScript, err := ds.NewScript(context.Background(), &automdm.Script{
 		Name:           "hello-world.sh",
 		ScriptContents: "echo 'Hello NoTeam'",
 	})
 	require.NoError(t, err)
-	p4, err := ds.NewTeamPolicy(ctx, fleet.PolicyNoTeamID, &user1.ID, fleet.PolicyPayload{
+	p4, err := ds.NewTeamPolicy(ctx, automdm.PolicyNoTeamID, &user1.ID, automdm.PolicyPayload{
 		Name:     "p4",
 		Query:    "SELECT 4;",
 		ScriptID: &noTeamScript.ID,
 	})
 	require.NoError(t, err)
-	_, err = ds.NewTeamPolicy(ctx, fleet.PolicyNoTeamID, &user1.ID, fleet.PolicyPayload{
+	_, err = ds.NewTeamPolicy(ctx, automdm.PolicyNoTeamID, &user1.ID, automdm.PolicyPayload{
 		Name:     "p4",
 		Query:    "SELECT 4;",
 		ScriptID: &script.ID,
 	})
 	require.Error(t, err, "script is associated with a different team")
 
-	policiesWithScripts, err := ds.GetPoliciesWithAssociatedScript(ctx, fleet.PolicyNoTeamID, []uint{p4.ID})
+	policiesWithScripts, err := ds.GetPoliciesWithAssociatedScript(ctx, automdm.PolicyNoTeamID, []uint{p4.ID})
 	require.NoError(t, err)
 	require.Len(t, policiesWithScripts, 1)
 	require.Equal(t, p4.ID, policiesWithScripts[0].ID)
@@ -5361,30 +5361,30 @@ func testTeamPoliciesWithResendProfile(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
 	user1 := test.NewUser(t, ds, "Romeo", "romeo@example.com", true)
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "team resend profile"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "team resend profile"})
 	require.NoError(t, err)
 
-	appleProf, err := ds.NewMDMAppleConfigProfile(ctx, fleet.MDMAppleConfigProfile{
+	appleProf, err := ds.NewMDMAppleConfigProfile(ctx, automdm.MDMAppleConfigProfile{
 		Name:         "apple-profile",
 		Identifier:   "com.example.apple-profile",
 		Mobileconfig: []byte("<plist></plist>"),
 		TeamID:       &team1.ID,
 	}, nil)
 	require.NoError(t, err)
-	require.True(t, strings.HasPrefix(appleProf.ProfileUUID, fleet.MDMAppleProfileUUIDPrefix))
+	require.True(t, strings.HasPrefix(appleProf.ProfileUUID, automdm.MDMAppleProfileUUIDPrefix))
 
-	winProf, err := ds.NewMDMWindowsConfigProfile(ctx, fleet.MDMWindowsConfigProfile{
+	winProf, err := ds.NewMDMWindowsConfigProfile(ctx, automdm.MDMWindowsConfigProfile{
 		Name:   "windows-profile",
 		SyncML: []byte("<Replace></Replace>"),
 		TeamID: &team1.ID,
 	}, nil)
 	require.NoError(t, err)
-	require.True(t, strings.HasPrefix(winProf.ProfileUUID, fleet.MDMWindowsProfileUUIDPrefix))
+	require.True(t, strings.HasPrefix(winProf.ProfileUUID, automdm.MDMWindowsProfileUUIDPrefix))
 
 	// A profile on another team, to exercise the assertTeamMatches check.
-	team2, err := ds.NewTeam(ctx, &fleet.Team{Name: "other team resend profile"})
+	team2, err := ds.NewTeam(ctx, &automdm.Team{Name: "other team resend profile"})
 	require.NoError(t, err)
-	otherTeamProf, err := ds.NewMDMAppleConfigProfile(ctx, fleet.MDMAppleConfigProfile{
+	otherTeamProf, err := ds.NewMDMAppleConfigProfile(ctx, automdm.MDMAppleConfigProfile{
 		Name:         "other-team-apple-profile",
 		Identifier:   "com.example.other-team-apple-profile",
 		Mobileconfig: []byte("<plist></plist>"),
@@ -5420,26 +5420,26 @@ func testTeamPoliciesWithResendProfile(t *testing.T, ds *Datastore) {
 		},
 		{
 			name:        "nonexistent profile is rejected",
-			profileUUID: new(fleet.MDMAppleProfileUUIDPrefix + uuid.NewString()),
+			profileUUID: new(automdm.MDMAppleProfileUUIDPrefix + uuid.NewString()),
 			wantErrMsg:  "does not exist",
 		},
 		{
 			name:        "profile belonging to another team is rejected",
 			profileUUID: &otherTeamProf.ProfileUUID,
-			wantErrMsg:  "does not belong to fleet ID",
+			wantErrMsg:  "does not belong to team ID",
 		},
 	}
 
 	for i, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			p, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, fleet.PolicyPayload{
+			p, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, automdm.PolicyPayload{
 				Name:        fmt.Sprintf("resend policy %d", i),
 				Query:       "SELECT 1;",
 				ProfileUUID: c.profileUUID,
 			})
 			if c.wantErrMsg != "" {
 				require.Error(t, err)
-				var bre *fleet.BadRequestError
+				var bre *automdm.BadRequestError
 				require.ErrorAs(t, err, &bre)
 				require.Contains(t, bre.Message, c.wantErrMsg)
 				return
@@ -5459,43 +5459,43 @@ func testTeamPoliciesWithResendProfile(t *testing.T, ds *Datastore) {
 	}
 }
 
-// testPoliciesResendProfileRejectsFleetManaged verifies that a policy cannot be pinned to one of
-// Fleet's own profiles. Fleet rewrites and removes those as the settings that produce them change
-// (disk encryption, Windows OS updates, the fleetd config and CA profiles), so a policy holding one
+// testPoliciesResendProfileRejectsAutoMDMManaged verifies that a policy cannot be pinned to one of
+// AutoMDM's own profiles. AutoMDM rewrites and removes those as the settings that produce them change
+// (disk encryption, Windows OS updates, the automdmd config and CA profiles), so a policy holding one
 // for resend would reference a profile whose lifecycle it does not control.
-func testPoliciesResendProfileRejectsFleetManaged(t *testing.T, ds *Datastore) {
+func testPoliciesResendProfileRejectsAutoMDMManaged(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
 	user1 := test.NewUser(t, ds, "Whiskey", "whiskey@example.com", true)
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "team fleet managed profiles"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "team automdm managed profiles"})
 	require.NoError(t, err)
 
-	// Fleet's own profiles are ordinary rows in the profile tables — created by
+	// AutoMDM's own profiles are ordinary rows in the profile tables — created by
 	// MDMAppleReconcileFileVaultProfile, mdmWindowsEnableOSUpdates and friends — so nothing stops a
 	// caller from passing their UUIDs.
-	appleManaged, err := ds.NewMDMAppleConfigProfile(ctx, fleet.MDMAppleConfigProfile{
-		Name:         fleetmdm.FleetFileVaultProfileName,
+	appleManaged, err := ds.NewMDMAppleConfigProfile(ctx, automdm.MDMAppleConfigProfile{
+		Name:         automdmmdm.AutoMDMFileVaultProfileName,
 		Identifier:   "com.fleetdm.fleet.mdm.filevault",
 		Mobileconfig: []byte("<plist></plist>"),
 		TeamID:       &team1.ID,
 	}, nil)
 	require.NoError(t, err)
-	fleetdConfig, err := ds.NewMDMAppleConfigProfile(ctx, fleet.MDMAppleConfigProfile{
-		Name:         fleetmdm.FleetdConfigProfileName,
+	automdmdConfig, err := ds.NewMDMAppleConfigProfile(ctx, automdm.MDMAppleConfigProfile{
+		Name:         automdmmdm.AutoMDMdConfigProfileName,
 		Identifier:   "com.fleetdm.fleetd.config",
 		Mobileconfig: []byte("<plist></plist>"),
 		TeamID:       &team1.ID,
 	}, nil)
 	require.NoError(t, err)
-	windowsManaged, err := ds.NewMDMWindowsConfigProfile(ctx, fleet.MDMWindowsConfigProfile{
-		Name:   fleetmdm.FleetWindowsOSUpdatesProfileName,
+	windowsManaged, err := ds.NewMDMWindowsConfigProfile(ctx, automdm.MDMWindowsConfigProfile{
+		Name:   automdmmdm.AutoMDMWindowsOSUpdatesProfileName,
 		SyncML: []byte("<Replace></Replace>"),
 		TeamID: &team1.ID,
 	}, nil)
 	require.NoError(t, err)
 
 	// A user-authored profile in the same team, to show only the managed ones are refused.
-	userProf, err := ds.NewMDMAppleConfigProfile(ctx, fleet.MDMAppleConfigProfile{
+	userProf, err := ds.NewMDMAppleConfigProfile(ctx, automdm.MDMAppleConfigProfile{
 		Name:         "my-own-profile",
 		Identifier:   "com.example.my-own-profile",
 		Mobileconfig: []byte("<plist></plist>"),
@@ -5508,24 +5508,24 @@ func testPoliciesResendProfileRejectsFleetManaged(t *testing.T, ds *Datastore) {
 		profileUUID string
 		profileName string
 	}{
-		{"apple disk encryption", appleManaged.ProfileUUID, fleetmdm.FleetFileVaultProfileName},
-		{"fleetd configuration", fleetdConfig.ProfileUUID, fleetmdm.FleetdConfigProfileName},
-		{"windows OS updates", windowsManaged.ProfileUUID, fleetmdm.FleetWindowsOSUpdatesProfileName},
+		{"apple disk encryption", appleManaged.ProfileUUID, automdmmdm.AutoMDMFileVaultProfileName},
+		{"automdmd configuration", automdmdConfig.ProfileUUID, automdmmdm.AutoMDMdConfigProfileName},
+		{"windows OS updates", windowsManaged.ProfileUUID, automdmmdm.AutoMDMWindowsOSUpdatesProfileName},
 	}
 
 	requireRejected := func(t *testing.T, err error, profileName string) {
 		t.Helper()
 		require.Error(t, err)
-		var bre *fleet.BadRequestError
+		var bre *automdm.BadRequestError
 		require.ErrorAs(t, err, &bre)
 		require.Contains(t, bre.Message, profileName)
-		require.Contains(t, bre.Message, "managed by Fleet")
+		require.Contains(t, bre.Message, "managed by AutoMDM")
 	}
 
 	// Every write path converges on assertProfileTeamMatches, so each is exercised here.
 	for i, c := range managed {
 		t.Run("create: "+c.name, func(t *testing.T) {
-			_, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, fleet.PolicyPayload{
+			_, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, automdm.PolicyPayload{
 				Name:        fmt.Sprintf("managed create %d", i),
 				Query:       "SELECT 1;",
 				Platform:    "darwin,windows",
@@ -5535,7 +5535,7 @@ func testPoliciesResendProfileRejectsFleetManaged(t *testing.T, ds *Datastore) {
 		})
 
 		t.Run("modify: "+c.name, func(t *testing.T) {
-			p, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, fleet.PolicyPayload{
+			p, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, automdm.PolicyPayload{
 				Name:        fmt.Sprintf("managed modify %d", i),
 				Query:       "SELECT 1;",
 				Platform:    "darwin,windows",
@@ -5553,7 +5553,7 @@ func testPoliciesResendProfileRejectsFleetManaged(t *testing.T, ds *Datastore) {
 		})
 
 		t.Run("specs: "+c.name, func(t *testing.T) {
-			err := ds.ApplyPolicySpecs(ctx, user1.ID, []*fleet.PolicySpec{{
+			err := ds.ApplyPolicySpecs(ctx, user1.ID, []*automdm.PolicySpec{{
 				Name:        fmt.Sprintf("managed spec %d", i),
 				Team:        team1.Name,
 				Query:       "SELECT 1;",
@@ -5566,7 +5566,7 @@ func testPoliciesResendProfileRejectsFleetManaged(t *testing.T, ds *Datastore) {
 
 	// A user-authored profile is still accepted on every path.
 	t.Run("user-authored profile is accepted", func(t *testing.T) {
-		p, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, fleet.PolicyPayload{
+		p, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, automdm.PolicyPayload{
 			Name:        "user profile policy",
 			Query:       "SELECT 1;",
 			Platform:    "darwin",
@@ -5575,7 +5575,7 @@ func testPoliciesResendProfileRejectsFleetManaged(t *testing.T, ds *Datastore) {
 		require.NoError(t, err)
 		require.Equal(t, &userProf.ProfileUUID, p.ResendAppleProfileUUID)
 
-		require.NoError(t, ds.ApplyPolicySpecs(ctx, user1.ID, []*fleet.PolicySpec{{
+		require.NoError(t, ds.ApplyPolicySpecs(ctx, user1.ID, []*automdm.PolicySpec{{
 			Name:        "user profile spec",
 			Team:        team1.Name,
 			Query:       "SELECT 1;",
@@ -5589,33 +5589,33 @@ func testGetPoliciesWithAssociatedProfile(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
 	user1 := test.NewUser(t, ds, "Oscar", "oscar@example.com", true)
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "team get policies with profile"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "team get policies with profile"})
 	require.NoError(t, err)
-	team2, err := ds.NewTeam(ctx, &fleet.Team{Name: "other team get policies with profile"})
+	team2, err := ds.NewTeam(ctx, &automdm.Team{Name: "other team get policies with profile"})
 	require.NoError(t, err)
 
-	appleProf, err := ds.NewMDMAppleConfigProfile(ctx, fleet.MDMAppleConfigProfile{
+	appleProf, err := ds.NewMDMAppleConfigProfile(ctx, automdm.MDMAppleConfigProfile{
 		Name:         "get-apple-profile",
 		Identifier:   "com.example.get-apple-profile",
 		Mobileconfig: []byte("<plist></plist>"),
 		TeamID:       &team1.ID,
 	}, nil)
 	require.NoError(t, err)
-	winProf, err := ds.NewMDMWindowsConfigProfile(ctx, fleet.MDMWindowsConfigProfile{
+	winProf, err := ds.NewMDMWindowsConfigProfile(ctx, automdm.MDMWindowsConfigProfile{
 		Name:   "get-windows-profile",
 		SyncML: []byte("<Replace></Replace>"),
 		TeamID: &team1.ID,
 	}, nil)
 	require.NoError(t, err)
-	noTeamProf, err := ds.NewMDMAppleConfigProfile(ctx, fleet.MDMAppleConfigProfile{
+	noTeamProf, err := ds.NewMDMAppleConfigProfile(ctx, automdm.MDMAppleConfigProfile{
 		Name:         "get-no-team-profile",
 		Identifier:   "com.example.get-no-team-profile",
 		Mobileconfig: []byte("<plist></plist>"),
 	}, nil)
 	require.NoError(t, err)
 
-	newPolicy := func(teamID uint, name string, profileUUID *string) *fleet.Policy {
-		p, err := ds.NewTeamPolicy(ctx, teamID, &user1.ID, fleet.PolicyPayload{
+	newPolicy := func(teamID uint, name string, profileUUID *string) *automdm.Policy {
+		p, err := ds.NewTeamPolicy(ctx, teamID, &user1.ID, automdm.PolicyPayload{
 			Name:        name,
 			Query:       "SELECT 1;",
 			ProfileUUID: profileUUID,
@@ -5627,7 +5627,7 @@ func testGetPoliciesWithAssociatedProfile(t *testing.T, ds *Datastore) {
 	appleResendPolicy := newPolicy(team1.ID, "apple resend policy", &appleProf.ProfileUUID)
 	winResendPolicy := newPolicy(team1.ID, "windows resend policy", &winProf.ProfileUUID)
 	noResendPolicy := newPolicy(team1.ID, "no resend policy", nil)
-	noTeamResendPolicy := newPolicy(fleet.PolicyNoTeamID, "no team resend policy", &noTeamProf.ProfileUUID)
+	noTeamResendPolicy := newPolicy(automdm.PolicyNoTeamID, "no team resend policy", &noTeamProf.ProfileUUID)
 
 	// No policy IDs requested: no query, no results.
 	got, err := ds.GetPoliciesWithAssociatedProfile(ctx, team1.ID, nil)
@@ -5639,7 +5639,7 @@ func testGetPoliciesWithAssociatedProfile(t *testing.T, ds *Datastore) {
 	got, err = ds.GetPoliciesWithAssociatedProfile(ctx, team1.ID, []uint{appleResendPolicy.ID})
 	require.NoError(t, err)
 	require.Len(t, got, 1)
-	require.Equal(t, fleet.PolicyProfileData{
+	require.Equal(t, automdm.PolicyProfileData{
 		PolicyID:    appleResendPolicy.ID,
 		PolicyName:  "apple resend policy",
 		ProfileUUID: appleProf.ProfileUUID,
@@ -5650,7 +5650,7 @@ func testGetPoliciesWithAssociatedProfile(t *testing.T, ds *Datastore) {
 	got, err = ds.GetPoliciesWithAssociatedProfile(ctx, team1.ID, []uint{winResendPolicy.ID})
 	require.NoError(t, err)
 	require.Len(t, got, 1)
-	require.Equal(t, fleet.PolicyProfileData{
+	require.Equal(t, automdm.PolicyProfileData{
 		PolicyID:    winResendPolicy.ID,
 		PolicyName:  "windows resend policy",
 		ProfileUUID: winProf.ProfileUUID,
@@ -5666,7 +5666,7 @@ func testGetPoliciesWithAssociatedProfile(t *testing.T, ds *Datastore) {
 	got, err = ds.GetPoliciesWithAssociatedProfile(ctx, team1.ID, []uint{appleResendPolicy.ID, winResendPolicy.ID, noResendPolicy.ID})
 	require.NoError(t, err)
 	require.Len(t, got, 2)
-	byID := make(map[uint]fleet.PolicyProfileData, len(got))
+	byID := make(map[uint]automdm.PolicyProfileData, len(got))
 	for _, p := range got {
 		byID[p.PolicyID] = p
 	}
@@ -5680,7 +5680,7 @@ func testGetPoliciesWithAssociatedProfile(t *testing.T, ds *Datastore) {
 	require.Empty(t, got)
 
 	// "No team" policies live under PolicyNoTeamID and are not returned for a real team.
-	got, err = ds.GetPoliciesWithAssociatedProfile(ctx, fleet.PolicyNoTeamID, []uint{noTeamResendPolicy.ID})
+	got, err = ds.GetPoliciesWithAssociatedProfile(ctx, automdm.PolicyNoTeamID, []uint{noTeamResendPolicy.ID})
 	require.NoError(t, err)
 	require.Len(t, got, 1)
 	require.Equal(t, noTeamProf.ProfileUUID, got[0].ProfileUUID)
@@ -5708,13 +5708,13 @@ func testApplyPolicySpecsWithResendProfile(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
 	user1 := test.NewUser(t, ds, "Juliet", "juliet@example.com", true)
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "team specs resend profile"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "team specs resend profile"})
 	require.NoError(t, err)
-	team2, err := ds.NewTeam(ctx, &fleet.Team{Name: "other team specs resend profile"})
+	team2, err := ds.NewTeam(ctx, &automdm.Team{Name: "other team specs resend profile"})
 	require.NoError(t, err)
 
-	newAppleProf := func(name string, teamID *uint) *fleet.MDMAppleConfigProfile {
-		prof, err := ds.NewMDMAppleConfigProfile(ctx, fleet.MDMAppleConfigProfile{
+	newAppleProf := func(name string, teamID *uint) *automdm.MDMAppleConfigProfile {
+		prof, err := ds.NewMDMAppleConfigProfile(ctx, automdm.MDMAppleConfigProfile{
 			Name:         name,
 			Identifier:   "com.example." + name,
 			Mobileconfig: []byte("<plist></plist>"),
@@ -5726,15 +5726,15 @@ func testApplyPolicySpecsWithResendProfile(t *testing.T, ds *Datastore) {
 	team1Prof := newAppleProf("specs-team1-profile", &team1.ID)
 	team2Prof := newAppleProf("specs-team2-profile", &team2.ID)
 
-	winProf, err := ds.NewMDMWindowsConfigProfile(ctx, fleet.MDMWindowsConfigProfile{
+	winProf, err := ds.NewMDMWindowsConfigProfile(ctx, automdm.MDMWindowsConfigProfile{
 		Name:   "specs-windows-profile",
 		SyncML: []byte("<Replace></Replace>"),
 		TeamID: &team1.ID,
 	}, nil)
 	require.NoError(t, err)
 
-	spec := func(name, team string, profileUUID *string) *fleet.PolicySpec {
-		return &fleet.PolicySpec{
+	spec := func(name, team string, profileUUID *string) *automdm.PolicySpec {
+		return &automdm.PolicySpec{
 			Name:        name,
 			Team:        team,
 			Query:       "SELECT 1;",
@@ -5743,16 +5743,16 @@ func testApplyPolicySpecsWithResendProfile(t *testing.T, ds *Datastore) {
 	}
 
 	// Apple and Windows UUIDs land in their respective columns.
-	err = ds.ApplyPolicySpecs(ctx, user1.ID, []*fleet.PolicySpec{
+	err = ds.ApplyPolicySpecs(ctx, user1.ID, []*automdm.PolicySpec{
 		spec("apple resend", team1.Name, &team1Prof.ProfileUUID),
 		spec("windows resend", team1.Name, &winProf.ProfileUUID),
 		spec("no resend", team1.Name, nil),
 	})
 	require.NoError(t, err)
 
-	policies, _, err := ds.ListTeamPolicies(ctx, team1.ID, fleet.ListOptions{}, fleet.ListOptions{}, "", "")
+	policies, _, err := ds.ListTeamPolicies(ctx, team1.ID, automdm.ListOptions{}, automdm.ListOptions{}, "", "")
 	require.NoError(t, err)
-	byName := make(map[string]*fleet.Policy, len(policies))
+	byName := make(map[string]*automdm.Policy, len(policies))
 	for _, p := range policies {
 		byName[p.Name] = p
 	}
@@ -5767,7 +5767,7 @@ func testApplyPolicySpecsWithResendProfile(t *testing.T, ds *Datastore) {
 	require.Nil(t, byName["no resend"].ResendWindowsProfileUUID)
 
 	// An empty UUID clears both columns.
-	err = ds.ApplyPolicySpecs(ctx, user1.ID, []*fleet.PolicySpec{
+	err = ds.ApplyPolicySpecs(ctx, user1.ID, []*automdm.PolicySpec{
 		spec("apple resend", team1.Name, new("")),
 	})
 	require.NoError(t, err)
@@ -5778,22 +5778,22 @@ func testApplyPolicySpecsWithResendProfile(t *testing.T, ds *Datastore) {
 
 	errCases := []struct {
 		name       string
-		spec       *fleet.PolicySpec
+		spec       *automdm.PolicySpec
 		wantErrMsg string
 	}{
 		{
 			name:       "profile on a global policy is rejected",
 			spec:       spec("global resend", "", &team1Prof.ProfileUUID),
-			wantErrMsg: "resend configuration profile can only be set on fleet-level policies",
+			wantErrMsg: "resend configuration profile can only be set on team-level policies",
 		},
 		{
 			name:       "profile belonging to another team is rejected",
 			spec:       spec("cross team resend", team1.Name, &team2Prof.ProfileUUID),
-			wantErrMsg: "does not belong to fleet ID",
+			wantErrMsg: "does not belong to team ID",
 		},
 		{
 			name:       "nonexistent profile is rejected",
-			spec:       spec("missing resend", team1.Name, new(fleet.MDMAppleProfileUUIDPrefix+uuid.NewString())),
+			spec:       spec("missing resend", team1.Name, new(automdm.MDMAppleProfileUUIDPrefix+uuid.NewString())),
 			wantErrMsg: "does not exist",
 		},
 		{
@@ -5805,7 +5805,7 @@ func testApplyPolicySpecsWithResendProfile(t *testing.T, ds *Datastore) {
 
 	for _, c := range errCases {
 		t.Run(c.name, func(t *testing.T) {
-			err := ds.ApplyPolicySpecs(ctx, user1.ID, []*fleet.PolicySpec{c.spec})
+			err := ds.ApplyPolicySpecs(ctx, user1.ID, []*automdm.PolicySpec{c.spec})
 			require.Error(t, err)
 			require.Contains(t, err.Error(), c.wantErrMsg)
 
@@ -5822,13 +5822,13 @@ func testApplyPolicySpecsWithScript(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
 	user := test.NewUser(t, ds, "Mercutio", "mercutio@example.com", true)
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "team specs script"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "team specs script"})
 	require.NoError(t, err)
-	team2, err := ds.NewTeam(ctx, &fleet.Team{Name: "other team specs script"})
+	team2, err := ds.NewTeam(ctx, &automdm.Team{Name: "other team specs script"})
 	require.NoError(t, err)
 
-	newScript := func(name string, teamID *uint) *fleet.Script {
-		script, err := ds.NewScript(ctx, &fleet.Script{
+	newScript := func(name string, teamID *uint) *automdm.Script {
+		script, err := ds.NewScript(ctx, &automdm.Script{
 			Name:           name,
 			ScriptContents: "echo",
 			TeamID:         teamID,
@@ -5840,8 +5840,8 @@ func testApplyPolicySpecsWithScript(t *testing.T, ds *Datastore) {
 	team2Script := newScript("specs-team2.sh", &team2.ID)
 	noTeamScript := newScript("specs-no-team.sh", nil)
 
-	spec := func(name, team string, scriptID *uint) *fleet.PolicySpec {
-		return &fleet.PolicySpec{
+	spec := func(name, team string, scriptID *uint) *automdm.PolicySpec {
+		return &automdm.PolicySpec{
 			Name:     name,
 			Team:     team,
 			Query:    "SELECT 1;",
@@ -5850,24 +5850,24 @@ func testApplyPolicySpecsWithScript(t *testing.T, ds *Datastore) {
 	}
 
 	// A script on the same team, and a "No team" script on a "No team" policy, are accepted.
-	err = ds.ApplyPolicySpecs(ctx, user.ID, []*fleet.PolicySpec{
+	err = ds.ApplyPolicySpecs(ctx, user.ID, []*automdm.PolicySpec{
 		spec("team script", team1.Name, &team1Script.ID),
-		spec("no team script", fleet.DisplayNameNoTeam, &noTeamScript.ID),
+		spec("no team script", automdm.DisplayNameNoTeam, &noTeamScript.ID),
 	})
 	require.NoError(t, err)
 
-	teamPolicies, _, err := ds.ListTeamPolicies(ctx, team1.ID, fleet.ListOptions{}, fleet.ListOptions{}, "", "")
+	teamPolicies, _, err := ds.ListTeamPolicies(ctx, team1.ID, automdm.ListOptions{}, automdm.ListOptions{}, "", "")
 	require.NoError(t, err)
 	require.Len(t, teamPolicies, 1)
 	require.Equal(t, &team1Script.ID, teamPolicies[0].ScriptID)
 
-	noTeamPolicies, _, err := ds.ListTeamPolicies(ctx, 0, fleet.ListOptions{}, fleet.ListOptions{}, "", "")
+	noTeamPolicies, _, err := ds.ListTeamPolicies(ctx, 0, automdm.ListOptions{}, automdm.ListOptions{}, "", "")
 	require.NoError(t, err)
 	require.Len(t, noTeamPolicies, 1)
 	require.Equal(t, &noTeamScript.ID, noTeamPolicies[0].ScriptID)
 
 	// script_id: 0 clears the script on an existing policy.
-	err = ds.ApplyPolicySpecs(ctx, user.ID, []*fleet.PolicySpec{
+	err = ds.ApplyPolicySpecs(ctx, user.ID, []*automdm.PolicySpec{
 		spec("team script", team1.Name, new(uint(0))),
 	})
 	require.NoError(t, err)
@@ -5877,7 +5877,7 @@ func testApplyPolicySpecsWithScript(t *testing.T, ds *Datastore) {
 
 	errCases := []struct {
 		name       string
-		spec       *fleet.PolicySpec
+		spec       *automdm.PolicySpec
 		wantErrMsg string
 	}{
 		{
@@ -5888,7 +5888,7 @@ func testApplyPolicySpecsWithScript(t *testing.T, ds *Datastore) {
 		{
 			name:       "script belonging to another team is rejected",
 			spec:       spec("cross team script", team1.Name, &team2Script.ID),
-			wantErrMsg: "does not belong to fleet ID",
+			wantErrMsg: "does not belong to team ID",
 		},
 		{
 			name:       "nonexistent script is rejected",
@@ -5899,7 +5899,7 @@ func testApplyPolicySpecsWithScript(t *testing.T, ds *Datastore) {
 
 	for _, c := range errCases {
 		t.Run(c.name, func(t *testing.T) {
-			err := ds.ApplyPolicySpecs(ctx, user.ID, []*fleet.PolicySpec{c.spec})
+			err := ds.ApplyPolicySpecs(ctx, user.ID, []*automdm.PolicySpec{c.spec})
 			require.Error(t, err)
 			require.Contains(t, err.Error(), c.wantErrMsg)
 
@@ -5916,11 +5916,11 @@ func testApplyPolicySpecsResendProfileChangeResetsStats(t *testing.T, ds *Datast
 	ctx := t.Context()
 
 	user1 := test.NewUser(t, ds, "Benvolio", "benvolio@example.com", true)
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "team resend profile stats"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "team resend profile stats"})
 	require.NoError(t, err)
 
-	newAppleProf := func(name string) *fleet.MDMAppleConfigProfile {
-		prof, err := ds.NewMDMAppleConfigProfile(ctx, fleet.MDMAppleConfigProfile{
+	newAppleProf := func(name string) *automdm.MDMAppleConfigProfile {
+		prof, err := ds.NewMDMAppleConfigProfile(ctx, automdm.MDMAppleConfigProfile{
 			Name:         name,
 			Identifier:   "com.example." + name,
 			Mobileconfig: []byte("<plist></plist>"),
@@ -5933,13 +5933,13 @@ func testApplyPolicySpecsResendProfileChangeResetsStats(t *testing.T, ds *Datast
 	prof2 := newAppleProf("stats-profile-2")
 
 	applySpec := func(profileUUID *string) {
-		require.NoError(t, ds.ApplyPolicySpecs(ctx, user1.ID, []*fleet.PolicySpec{
+		require.NoError(t, ds.ApplyPolicySpecs(ctx, user1.ID, []*automdm.PolicySpec{
 			{
 				Name:        "resend stats policy",
 				Query:       "SELECT 1;",
 				Team:        team.Name,
 				Platform:    "darwin",
-				Type:        fleet.PolicyTypeDynamic,
+				Type:        automdm.PolicyTypeDynamic,
 				ProfileUUID: profileUUID,
 			},
 		}))
@@ -5948,13 +5948,13 @@ func testApplyPolicySpecsResendProfileChangeResetsStats(t *testing.T, ds *Datast
 
 	applySpec(&prof1.ProfileUUID)
 
-	policies, _, err := ds.ListTeamPolicies(ctx, team.ID, fleet.ListOptions{}, fleet.ListOptions{}, fleet.PolicyAutomationTypeNone, "")
+	policies, _, err := ds.ListTeamPolicies(ctx, team.ID, automdm.ListOptions{}, automdm.ListOptions{}, automdm.PolicyAutomationTypeNone, "")
 	require.NoError(t, err)
 	require.Len(t, policies, 1)
 	pol := policies[0]
 
 	hostKey := "resend-stats-host"
-	h, err := ds.NewHost(ctx, &fleet.Host{
+	h, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID:   &hostKey,
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
@@ -5975,7 +5975,7 @@ func testApplyPolicySpecsResendProfileChangeResetsStats(t *testing.T, ds *Datast
 	}
 
 	failingHostCount := func() uint {
-		policies, _, err := ds.ListTeamPolicies(ctx, team.ID, fleet.ListOptions{}, fleet.ListOptions{}, fleet.PolicyAutomationTypeNone, "")
+		policies, _, err := ds.ListTeamPolicies(ctx, team.ID, automdm.ListOptions{}, automdm.ListOptions{}, automdm.PolicyAutomationTypeNone, "")
 		require.NoError(t, err)
 		require.Len(t, policies, 1)
 		return policies[0].FailingHostCount
@@ -6011,25 +6011,25 @@ func testSavePolicyResendProfile(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
 	user1 := test.NewUser(t, ds, "Mercutio", "mercutio@example.com", true)
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "team save resend profile"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "team save resend profile"})
 	require.NoError(t, err)
-	team2, err := ds.NewTeam(ctx, &fleet.Team{Name: "other team save resend profile"})
+	team2, err := ds.NewTeam(ctx, &automdm.Team{Name: "other team save resend profile"})
 	require.NoError(t, err)
 
-	appleProf, err := ds.NewMDMAppleConfigProfile(ctx, fleet.MDMAppleConfigProfile{
+	appleProf, err := ds.NewMDMAppleConfigProfile(ctx, automdm.MDMAppleConfigProfile{
 		Name:         "save-apple-profile",
 		Identifier:   "com.example.save-apple-profile",
 		Mobileconfig: []byte("<plist></plist>"),
 		TeamID:       &team1.ID,
 	}, nil)
 	require.NoError(t, err)
-	winProf, err := ds.NewMDMWindowsConfigProfile(ctx, fleet.MDMWindowsConfigProfile{
+	winProf, err := ds.NewMDMWindowsConfigProfile(ctx, automdm.MDMWindowsConfigProfile{
 		Name:   "save-windows-profile",
 		SyncML: []byte("<Replace></Replace>"),
 		TeamID: &team1.ID,
 	}, nil)
 	require.NoError(t, err)
-	team2Prof, err := ds.NewMDMAppleConfigProfile(ctx, fleet.MDMAppleConfigProfile{
+	team2Prof, err := ds.NewMDMAppleConfigProfile(ctx, automdm.MDMAppleConfigProfile{
 		Name:         "save-team2-apple-profile",
 		Identifier:   "com.example.save-team2-apple-profile",
 		Mobileconfig: []byte("<plist></plist>"),
@@ -6037,7 +6037,7 @@ func testSavePolicyResendProfile(t *testing.T, ds *Datastore) {
 	}, nil)
 	require.NoError(t, err)
 
-	p, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, fleet.PolicyPayload{
+	p, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, automdm.PolicyPayload{
 		Name:  "save resend policy",
 		Query: "SELECT 1;",
 	})
@@ -6075,9 +6075,9 @@ func testSavePolicyResendProfile(t *testing.T, ds *Datastore) {
 		saved.ResendAppleProfileUUID = &team2Prof.ProfileUUID
 		err := ds.SavePolicy(ctx, &saved, false, false)
 		require.Error(t, err)
-		var bre *fleet.BadRequestError
+		var bre *automdm.BadRequestError
 		require.ErrorAs(t, err, &bre)
-		require.Contains(t, bre.Message, "does not belong to fleet ID")
+		require.Contains(t, bre.Message, "does not belong to team ID")
 	})
 
 	t.Run("both columns at once is rejected", func(t *testing.T) {
@@ -6090,7 +6090,7 @@ func testSavePolicyResendProfile(t *testing.T, ds *Datastore) {
 
 	t.Run("global policy rejects a resend profile", func(t *testing.T) {
 		// On create.
-		_, err := ds.NewGlobalPolicy(ctx, &user1.ID, fleet.PolicyPayload{
+		_, err := ds.NewGlobalPolicy(ctx, &user1.ID, automdm.PolicyPayload{
 			Name:        "global resend policy",
 			Query:       "SELECT 1;",
 			ProfileUUID: &appleProf.ProfileUUID,
@@ -6098,7 +6098,7 @@ func testSavePolicyResendProfile(t *testing.T, ds *Datastore) {
 		require.ErrorIs(t, err, errProfileUUIDOnGlobalPolicy)
 
 		// And on save.
-		gp, err := ds.NewGlobalPolicy(ctx, &user1.ID, fleet.PolicyPayload{
+		gp, err := ds.NewGlobalPolicy(ctx, &user1.ID, automdm.PolicyPayload{
 			Name:  "global no resend policy",
 			Query: "SELECT 1;",
 		})
@@ -6112,75 +6112,75 @@ func testResendProfileAutomationFilter(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
 	user1 := test.NewUser(t, ds, "Tybalt", "tybalt@example.com", true)
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "team resend automation filter"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "team resend automation filter"})
 	require.NoError(t, err)
 
-	appleProf, err := ds.NewMDMAppleConfigProfile(ctx, fleet.MDMAppleConfigProfile{
+	appleProf, err := ds.NewMDMAppleConfigProfile(ctx, automdm.MDMAppleConfigProfile{
 		Name:         "filter-apple-profile",
 		Identifier:   "com.example.filter-apple-profile",
 		Mobileconfig: []byte("<plist></plist>"),
 		TeamID:       &team1.ID,
 	}, nil)
 	require.NoError(t, err)
-	winProf, err := ds.NewMDMWindowsConfigProfile(ctx, fleet.MDMWindowsConfigProfile{
+	winProf, err := ds.NewMDMWindowsConfigProfile(ctx, automdm.MDMWindowsConfigProfile{
 		Name:   "filter-windows-profile",
 		SyncML: []byte("<Replace></Replace>"),
 		TeamID: &team1.ID,
 	}, nil)
 	require.NoError(t, err)
 
-	applePolicy, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, fleet.PolicyPayload{
+	applePolicy, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, automdm.PolicyPayload{
 		Name:        "filter apple resend",
 		Query:       "SELECT 1;",
 		ProfileUUID: &appleProf.ProfileUUID,
 	})
 	require.NoError(t, err)
-	winPolicy, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, fleet.PolicyPayload{
+	winPolicy, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, automdm.PolicyPayload{
 		Name:        "filter windows resend",
 		Query:       "SELECT 1;",
 		ProfileUUID: &winProf.ProfileUUID,
 	})
 	require.NoError(t, err)
 	// A policy with a different automation, which must be filtered out.
-	script, err := ds.NewScript(ctx, &fleet.Script{
+	script, err := ds.NewScript(ctx, &automdm.Script{
 		TeamID:         &team1.ID,
 		Name:           "filter-hello-world.sh",
 		ScriptContents: "echo 'Hello World'",
 	})
 	require.NoError(t, err)
-	_, err = ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, fleet.PolicyPayload{
+	_, err = ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, automdm.PolicyPayload{
 		Name:     "filter script",
 		Query:    "SELECT 1;",
 		ScriptID: &script.ID,
 	})
 	require.NoError(t, err)
 	// And one with no automation at all.
-	_, err = ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, fleet.PolicyPayload{
+	_, err = ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, automdm.PolicyPayload{
 		Name:  "filter none",
 		Query: "SELECT 1;",
 	})
 	require.NoError(t, err)
 
-	opts := fleet.ListOptions{OrderKey: "name", OrderDirection: fleet.OrderAscending}
+	opts := automdm.ListOptions{OrderKey: "name", OrderDirection: automdm.OrderAscending}
 
 	// Unfiltered, all four are listed.
-	all, _, err := ds.ListTeamPolicies(ctx, team1.ID, opts, fleet.ListOptions{}, fleet.PolicyAutomationTypeNone, "")
+	all, _, err := ds.ListTeamPolicies(ctx, team1.ID, opts, automdm.ListOptions{}, automdm.PolicyAutomationTypeNone, "")
 	require.NoError(t, err)
 	require.Len(t, all, 4)
 
 	// The "profiles" automation type returns both the Apple- and Windows-backed policies.
-	profiles, _, err := ds.ListTeamPolicies(ctx, team1.ID, opts, fleet.ListOptions{}, fleet.PolicyAutomationTypeProfiles, "")
+	profiles, _, err := ds.ListTeamPolicies(ctx, team1.ID, opts, automdm.ListOptions{}, automdm.PolicyAutomationTypeProfiles, "")
 	require.NoError(t, err)
 	require.Len(t, profiles, 2)
 	assert.Equal(t, applePolicy.ID, profiles[0].ID)
 	assert.Equal(t, winPolicy.ID, profiles[1].ID)
 
-	count, err := ds.CountPolicies(ctx, &team1.ID, "", fleet.PolicyAutomationTypeProfiles, "")
+	count, err := ds.CountPolicies(ctx, &team1.ID, "", automdm.PolicyAutomationTypeProfiles, "")
 	require.NoError(t, err)
 	assert.Equal(t, 2, count)
 
 	// The "scripts" automation type must not pick up the profile policies.
-	scripts, _, err := ds.ListTeamPolicies(ctx, team1.ID, opts, fleet.ListOptions{}, fleet.PolicyAutomationTypeScripts, "")
+	scripts, _, err := ds.ListTeamPolicies(ctx, team1.ID, opts, automdm.ListOptions{}, automdm.PolicyAutomationTypeScripts, "")
 	require.NoError(t, err)
 	require.Len(t, scripts, 1)
 	assert.Equal(t, "filter script", scripts[0].Name)
@@ -6190,12 +6190,12 @@ func testApplyPolicySpecWithInstallers(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
 	user1 := test.NewUser(t, ds, "User1", "user1@example.com", true)
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "team1"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
-	team2, err := ds.NewTeam(ctx, &fleet.Team{Name: "team2"})
+	team2, err := ds.NewTeam(ctx, &automdm.Team{Name: "team2"})
 	require.NoError(t, err)
-	newHost := func(name string, teamID *uint, platform string) *fleet.Host {
-		h, err := ds.NewHost(ctx, &fleet.Host{
+	newHost := func(name string, teamID *uint, platform string) *automdm.Host {
+		h, err := ds.NewHost(ctx, &automdm.Host{
 			OsqueryHostID:   ptr.String(uuid.New().String()),
 			DetailUpdatedAt: time.Now(),
 			LabelUpdatedAt:  time.Now(),
@@ -6213,9 +6213,9 @@ func testApplyPolicySpecWithInstallers(t *testing.T, ds *Datastore) {
 
 	host1Team1 := newHost("host1Team1", &team1.ID, "darwin")
 
-	tfr1, err := fleet.NewTempFileReader(strings.NewReader("hello1"), t.TempDir)
+	tfr1, err := automdm.NewTempFileReader(strings.NewReader("hello1"), t.TempDir)
 	require.NoError(t, err)
-	installer1ID, _, err := ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
+	installer1ID, _, err := ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
 		InstallScript:     "hello",
 		PreInstallQuery:   "SELECT 1;",
 		PostInstallScript: "world1",
@@ -6227,15 +6227,15 @@ func testApplyPolicySpecWithInstallers(t *testing.T, ds *Datastore) {
 		Source:            "apps",
 		UserID:            user1.ID,
 		TeamID:            &team1.ID,
-		ValidatedLabels:   &fleet.LabelIdentsWithScope{},
+		ValidatedLabels:   &automdm.LabelIdentsWithScope{},
 	})
 	require.NoError(t, err)
 	installer1, err := ds.GetSoftwareInstallerMetadataByID(ctx, installer1ID)
 	require.NoError(t, err)
 	require.NotNil(t, installer1.TitleID)
-	tfr2, err := fleet.NewTempFileReader(strings.NewReader("hello2"), t.TempDir)
+	tfr2, err := automdm.NewTempFileReader(strings.NewReader("hello2"), t.TempDir)
 	require.NoError(t, err)
-	installer2ID, _, err := ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
+	installer2ID, _, err := ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
 		InstallScript:     "hello2",
 		PreInstallQuery:   "SELECT 2;",
 		PostInstallScript: "world2",
@@ -6247,15 +6247,15 @@ func testApplyPolicySpecWithInstallers(t *testing.T, ds *Datastore) {
 		Source:            "deb_packages",
 		UserID:            user1.ID,
 		TeamID:            &team2.ID,
-		ValidatedLabels:   &fleet.LabelIdentsWithScope{},
+		ValidatedLabels:   &automdm.LabelIdentsWithScope{},
 	})
 	require.NoError(t, err)
 	installer2, err := ds.GetSoftwareInstallerMetadataByID(ctx, installer2ID)
 	require.NoError(t, err)
 	require.NotNil(t, installer2.TitleID)
-	tfr3, err := fleet.NewTempFileReader(strings.NewReader("hello3"), t.TempDir)
+	tfr3, err := automdm.NewTempFileReader(strings.NewReader("hello3"), t.TempDir)
 	require.NoError(t, err)
-	installer3ID, _, err := ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
+	installer3ID, _, err := ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
 		InstallScript:     "hello3",
 		PreInstallQuery:   "SELECT 3;",
 		PostInstallScript: "world3",
@@ -6267,16 +6267,16 @@ func testApplyPolicySpecWithInstallers(t *testing.T, ds *Datastore) {
 		Source:            "rpm_packages",
 		UserID:            user1.ID,
 		TeamID:            nil,
-		ValidatedLabels:   &fleet.LabelIdentsWithScope{},
+		ValidatedLabels:   &automdm.LabelIdentsWithScope{},
 	})
 	require.NoError(t, err)
 	installer3, err := ds.GetSoftwareInstallerMetadataByID(ctx, installer3ID)
 	require.NoError(t, err)
 	require.NotNil(t, installer3.TitleID)
 	// Another installer on team1 to test changing installers.
-	tfr5, err := fleet.NewTempFileReader(strings.NewReader("hello5"), t.TempDir)
+	tfr5, err := automdm.NewTempFileReader(strings.NewReader("hello5"), t.TempDir)
 	require.NoError(t, err)
-	installer5ID, _, err := ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
+	installer5ID, _, err := ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
 		InstallScript:     "hello5",
 		PreInstallQuery:   "SELECT 5;",
 		PostInstallScript: "world5",
@@ -6288,7 +6288,7 @@ func testApplyPolicySpecWithInstallers(t *testing.T, ds *Datastore) {
 		Source:            "programs",
 		UserID:            user1.ID,
 		TeamID:            &team1.ID,
-		ValidatedLabels:   &fleet.LabelIdentsWithScope{},
+		ValidatedLabels:   &automdm.LabelIdentsWithScope{},
 	})
 	require.NoError(t, err)
 	installer5, err := ds.GetSoftwareInstallerMetadataByID(ctx, installer5ID)
@@ -6298,24 +6298,24 @@ func testApplyPolicySpecWithInstallers(t *testing.T, ds *Datastore) {
 	test.CreateInsertGlobalVPPToken(t, ds)
 
 	// create VPP apps
-	va1, err := ds.InsertVPPAppWithTeam(ctx, &fleet.VPPApp{
+	va1, err := ds.InsertVPPAppWithTeam(ctx, &automdm.VPPApp{
 		Name: "vpp1", BundleIdentifier: "com.app.vpp1",
-		VPPAppTeam: fleet.VPPAppTeam{VPPAppID: fleet.VPPAppID{AdamID: "adam_vpp_app_1", Platform: fleet.MacOSPlatform}},
+		VPPAppTeam: automdm.VPPAppTeam{VPPAppID: automdm.VPPAppID{AdamID: "adam_vpp_app_1", Platform: automdm.MacOSPlatform}},
 	}, &team1.ID, nil)
 	require.NoError(t, err)
-	va2, err := ds.InsertVPPAppWithTeam(ctx, &fleet.VPPApp{
+	va2, err := ds.InsertVPPAppWithTeam(ctx, &automdm.VPPApp{
 		Name: "vpp2", BundleIdentifier: "com.app.vpp2",
-		VPPAppTeam: fleet.VPPAppTeam{VPPAppID: fleet.VPPAppID{AdamID: "adam_vpp_app_2", Platform: fleet.MacOSPlatform}},
+		VPPAppTeam: automdm.VPPAppTeam{VPPAppID: automdm.VPPAppID{AdamID: "adam_vpp_app_2", Platform: automdm.MacOSPlatform}},
 	}, &team2.ID, nil)
 	require.NoError(t, err)
-	va1NoTeam, err := ds.InsertVPPAppWithTeam(ctx, &fleet.VPPApp{
+	va1NoTeam, err := ds.InsertVPPAppWithTeam(ctx, &automdm.VPPApp{
 		Name: "vpp1", BundleIdentifier: "com.app.vpp1",
-		VPPAppTeam: fleet.VPPAppTeam{VPPAppID: fleet.VPPAppID{AdamID: "adam_vpp_app_1", Platform: fleet.MacOSPlatform}},
+		VPPAppTeam: automdm.VPPAppTeam{VPPAppID: automdm.VPPAppID{AdamID: "adam_vpp_app_1", Platform: automdm.MacOSPlatform}},
 	}, nil, nil)
 	require.NoError(t, err)
 
 	// Installers cannot be assigned to global policies.
-	err = ds.ApplyPolicySpecs(ctx, user1.ID, []*fleet.PolicySpec{
+	err = ds.ApplyPolicySpecs(ctx, user1.ID, []*automdm.PolicySpec{
 		{
 			Name:            "Global policy",
 			Query:           "SELECT 1;",
@@ -6330,7 +6330,7 @@ func testApplyPolicySpecWithInstallers(t *testing.T, ds *Datastore) {
 	require.ErrorIs(t, err, errSoftwareTitleIDOnGlobalPolicy)
 
 	// Apply two team policies associated to two installers and a "No team" policy associated to an installer.
-	err = ds.ApplyPolicySpecs(ctx, user1.ID, []*fleet.PolicySpec{
+	err = ds.ApplyPolicySpecs(ctx, user1.ID, []*automdm.PolicySpec{
 		{
 			Name:            "Team policy 1",
 			Query:           "SELECT 1;",
@@ -6339,7 +6339,7 @@ func testApplyPolicySpecWithInstallers(t *testing.T, ds *Datastore) {
 			Team:            "team1",
 			Platform:        "darwin",
 			SoftwareTitleID: installer1.TitleID,
-			Type:            fleet.PolicyTypeDynamic,
+			Type:            automdm.PolicyTypeDynamic,
 		},
 		{
 			Name:            "Team policy 2",
@@ -6349,17 +6349,17 @@ func testApplyPolicySpecWithInstallers(t *testing.T, ds *Datastore) {
 			Team:            "team2",
 			Platform:        "linux",
 			SoftwareTitleID: installer2.TitleID,
-			Type:            fleet.PolicyTypeDynamic,
+			Type:            automdm.PolicyTypeDynamic,
 		},
 		{
 			Name:            "No team policy 3",
 			Query:           "SELECT 3;",
 			Description:     "Description 3",
 			Resolution:      "Resolution 3",
-			Team:            fleet.DisplayNameNoTeam,
+			Team:            automdm.DisplayNameNoTeam,
 			Platform:        "linux",
 			SoftwareTitleID: installer3.TitleID,
-			Type:            fleet.PolicyTypeDynamic,
+			Type:            automdm.PolicyTypeDynamic,
 		},
 		{
 			Name:            "VPP Team policy 1",
@@ -6369,7 +6369,7 @@ func testApplyPolicySpecWithInstallers(t *testing.T, ds *Datastore) {
 			Team:            "team1",
 			Platform:        "darwin",
 			SoftwareTitleID: &va1.TitleID,
-			Type:            fleet.PolicyTypeDynamic,
+			Type:            automdm.PolicyTypeDynamic,
 		},
 		{
 			Name:            "VPP Team policy 2",
@@ -6379,21 +6379,21 @@ func testApplyPolicySpecWithInstallers(t *testing.T, ds *Datastore) {
 			Team:            "team2",
 			Platform:        "linux",
 			SoftwareTitleID: &va2.TitleID,
-			Type:            fleet.PolicyTypeDynamic,
+			Type:            automdm.PolicyTypeDynamic,
 		},
 		{
 			Name:            "VPP No team policy 3",
 			Query:           "SELECT 3;",
 			Description:     "Description 3",
 			Resolution:      "Resolution 3",
-			Team:            fleet.DisplayNameNoTeam,
+			Team:            automdm.DisplayNameNoTeam,
 			Platform:        "linux",
 			SoftwareTitleID: &va1NoTeam.TitleID,
-			Type:            fleet.PolicyTypeDynamic,
+			Type:            automdm.PolicyTypeDynamic,
 		},
 	})
 	require.NoError(t, err)
-	team1Policies, _, err := ds.ListTeamPolicies(ctx, team1.ID, fleet.ListOptions{}, fleet.ListOptions{}, "", "")
+	team1Policies, _, err := ds.ListTeamPolicies(ctx, team1.ID, automdm.ListOptions{}, automdm.ListOptions{}, "", "")
 	require.NoError(t, err)
 	require.Len(t, team1Policies, 2)
 
@@ -6406,7 +6406,7 @@ func testApplyPolicySpecWithInstallers(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 	require.Equal(t, va1Meta.VPPAppsTeamsID, *vppPolicy1Team1.VPPAppsTeamsID)
 
-	team2Policies, _, err := ds.ListTeamPolicies(ctx, team2.ID, fleet.ListOptions{}, fleet.ListOptions{}, "", "")
+	team2Policies, _, err := ds.ListTeamPolicies(ctx, team2.ID, automdm.ListOptions{}, automdm.ListOptions{}, "", "")
 	require.NoError(t, err)
 	require.Len(t, team2Policies, 2)
 	require.NotNil(t, team2Policies[0].SoftwareInstallerID)
@@ -6416,7 +6416,7 @@ func testApplyPolicySpecWithInstallers(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 	require.Equal(t, va2Meta.VPPAppsTeamsID, *vppPolicy2Team2.VPPAppsTeamsID)
 
-	noTeamPolicies, _, err := ds.ListTeamPolicies(ctx, fleet.PolicyNoTeamID, fleet.ListOptions{}, fleet.ListOptions{}, "", "")
+	noTeamPolicies, _, err := ds.ListTeamPolicies(ctx, automdm.PolicyNoTeamID, automdm.ListOptions{}, automdm.ListOptions{}, "", "")
 	require.NoError(t, err)
 	require.Len(t, noTeamPolicies, 2)
 	require.NotNil(t, noTeamPolicies[0].SoftwareInstallerID)
@@ -6436,7 +6436,7 @@ func testApplyPolicySpecWithInstallers(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// Unset software installer from "Team policy 1" and the VPP policy.
-	err = ds.ApplyPolicySpecs(ctx, user1.ID, []*fleet.PolicySpec{
+	err = ds.ApplyPolicySpecs(ctx, user1.ID, []*automdm.PolicySpec{
 		{
 			Name:            "Team policy 1",
 			Query:           "SELECT 1;",
@@ -6445,7 +6445,7 @@ func testApplyPolicySpecWithInstallers(t *testing.T, ds *Datastore) {
 			Team:            "team1",
 			Platform:        "darwin",
 			SoftwareTitleID: nil,
-			Type:            fleet.PolicyTypeDynamic,
+			Type:            automdm.PolicyTypeDynamic,
 		},
 		{
 			Name:            "VPP Team policy 1",
@@ -6455,11 +6455,11 @@ func testApplyPolicySpecWithInstallers(t *testing.T, ds *Datastore) {
 			Team:            "team1",
 			Platform:        "darwin",
 			SoftwareTitleID: nil,
-			Type:            fleet.PolicyTypeDynamic,
+			Type:            automdm.PolicyTypeDynamic,
 		},
 	})
 	require.NoError(t, err)
-	team1Policies, _, err = ds.ListTeamPolicies(ctx, team1.ID, fleet.ListOptions{}, fleet.ListOptions{}, "", "")
+	team1Policies, _, err = ds.ListTeamPolicies(ctx, team1.ID, automdm.ListOptions{}, automdm.ListOptions{}, "", "")
 	require.NoError(t, err)
 	require.Len(t, team1Policies, 2)
 	require.Nil(t, team1Policies[0].SoftwareInstallerID)
@@ -6469,7 +6469,7 @@ func testApplyPolicySpecWithInstallers(t *testing.T, ds *Datastore) {
 	require.Equal(t, uint(1), team1Policies[1].FailingHostCount)
 
 	// Set "Team policy 1" to a software installer on team2.
-	err = ds.ApplyPolicySpecs(ctx, user1.ID, []*fleet.PolicySpec{
+	err = ds.ApplyPolicySpecs(ctx, user1.ID, []*automdm.PolicySpec{
 		{
 			Name:            "Team policy 1",
 			Query:           "SELECT 1;",
@@ -6478,7 +6478,7 @@ func testApplyPolicySpecWithInstallers(t *testing.T, ds *Datastore) {
 			Team:            "team1",
 			Platform:        "darwin",
 			SoftwareTitleID: installer2.TitleID,
-			Type:            fleet.PolicyTypeDynamic,
+			Type:            automdm.PolicyTypeDynamic,
 		},
 	})
 	require.Error(t, err)
@@ -6486,7 +6486,7 @@ func testApplyPolicySpecWithInstallers(t *testing.T, ds *Datastore) {
 	require.ErrorAs(t, err, &notFoundErr)
 
 	// Set "Team policy 1" to a VPP app on team2.
-	err = ds.ApplyPolicySpecs(ctx, user1.ID, []*fleet.PolicySpec{
+	err = ds.ApplyPolicySpecs(ctx, user1.ID, []*automdm.PolicySpec{
 		{
 			Name:            "Team policy 1",
 			Query:           "SELECT 1;",
@@ -6495,46 +6495,46 @@ func testApplyPolicySpecWithInstallers(t *testing.T, ds *Datastore) {
 			Team:            "team1",
 			Platform:        "darwin",
 			SoftwareTitleID: &va2.TitleID,
-			Type:            fleet.PolicyTypeDynamic,
+			Type:            automdm.PolicyTypeDynamic,
 		},
 	})
 	require.Error(t, err)
 	require.ErrorAs(t, err, &notFoundErr)
 
 	// Set "No team policy 3" to a software installer on team2.
-	err = ds.ApplyPolicySpecs(ctx, user1.ID, []*fleet.PolicySpec{
+	err = ds.ApplyPolicySpecs(ctx, user1.ID, []*automdm.PolicySpec{
 		{
 			Name:            "No team policy 3",
 			Query:           "SELECT 3;",
 			Description:     "Description 3",
 			Resolution:      "Resolution 3",
-			Team:            fleet.DisplayNameNoTeam,
+			Team:            automdm.DisplayNameNoTeam,
 			Platform:        "darwin",
 			SoftwareTitleID: installer2.TitleID,
-			Type:            fleet.PolicyTypeDynamic,
+			Type:            automdm.PolicyTypeDynamic,
 		},
 	})
 	require.Error(t, err)
 	require.ErrorAs(t, err, &notFoundErr)
 
 	// Set "No Team policy 3" to a VPP app on team2.
-	err = ds.ApplyPolicySpecs(ctx, user1.ID, []*fleet.PolicySpec{
+	err = ds.ApplyPolicySpecs(ctx, user1.ID, []*automdm.PolicySpec{
 		{
 			Name:            "No team policy 3",
 			Query:           "SELECT 3;",
 			Description:     "Description 3",
 			Resolution:      "Resolution 3",
-			Team:            fleet.DisplayNameNoTeam,
+			Team:            automdm.DisplayNameNoTeam,
 			Platform:        "darwin",
 			SoftwareTitleID: &va2.TitleID,
-			Type:            fleet.PolicyTypeDynamic,
+			Type:            automdm.PolicyTypeDynamic,
 		},
 	})
 	require.Error(t, err)
 	require.ErrorAs(t, err, &notFoundErr)
 
 	// Set "Team policy 1" to a software title that doesn't exist.
-	err = ds.ApplyPolicySpecs(ctx, user1.ID, []*fleet.PolicySpec{
+	err = ds.ApplyPolicySpecs(ctx, user1.ID, []*automdm.PolicySpec{
 		{
 			Name:            "Team policy 1",
 			Query:           "SELECT 1;",
@@ -6543,30 +6543,30 @@ func testApplyPolicySpecWithInstallers(t *testing.T, ds *Datastore) {
 			Team:            "team1",
 			Platform:        "darwin",
 			SoftwareTitleID: ptr.Uint(999_999),
-			Type:            fleet.PolicyTypeDynamic,
+			Type:            automdm.PolicyTypeDynamic,
 		},
 	})
 	require.Error(t, err)
 	require.ErrorAs(t, err, &notFoundErr)
 
 	// Set "No team policy 3" to a software title that doesn't exist.
-	err = ds.ApplyPolicySpecs(ctx, user1.ID, []*fleet.PolicySpec{
+	err = ds.ApplyPolicySpecs(ctx, user1.ID, []*automdm.PolicySpec{
 		{
 			Name:            "No team policy 3",
 			Query:           "SELECT 3;",
 			Description:     "Description 3",
 			Resolution:      "Resolution 3",
-			Team:            fleet.DisplayNameNoTeam,
+			Team:            automdm.DisplayNameNoTeam,
 			Platform:        "darwin",
 			SoftwareTitleID: ptr.Uint(999_999),
-			Type:            fleet.PolicyTypeDynamic,
+			Type:            automdm.PolicyTypeDynamic,
 		},
 	})
 	require.Error(t, err)
 	require.ErrorAs(t, err, &notFoundErr)
 
 	// Unset software installer from "Team policy 2" using 0.
-	err = ds.ApplyPolicySpecs(ctx, user1.ID, []*fleet.PolicySpec{
+	err = ds.ApplyPolicySpecs(ctx, user1.ID, []*automdm.PolicySpec{
 		{
 			Name:            "Team policy 2",
 			Query:           "SELECT 2;",
@@ -6575,20 +6575,20 @@ func testApplyPolicySpecWithInstallers(t *testing.T, ds *Datastore) {
 			Team:            "team2",
 			Platform:        "linux",
 			SoftwareTitleID: ptr.Uint(0),
-			Type:            fleet.PolicyTypeDynamic,
+			Type:            automdm.PolicyTypeDynamic,
 		},
 	})
 	require.NoError(t, err)
-	team2Policies, _, err = ds.ListTeamPolicies(ctx, team2.ID, fleet.ListOptions{}, fleet.ListOptions{}, "", "")
+	team2Policies, _, err = ds.ListTeamPolicies(ctx, team2.ID, automdm.ListOptions{}, automdm.ListOptions{}, "", "")
 	require.NoError(t, err)
 	require.Len(t, team2Policies, 2)
 	require.Nil(t, team2Policies[0].SoftwareInstallerID)
 	require.Equal(t, va2Meta.VPPAppsTeamsID, *team2Policies[1].VPPAppsTeamsID) // stays set since Apply doesn't delete
 
 	// Apply team policies associated to two installers (again, with two installers with the same title), and same with VPP apps
-	tfr4, err := fleet.NewTempFileReader(strings.NewReader("hello3"), t.TempDir)
+	tfr4, err := automdm.NewTempFileReader(strings.NewReader("hello3"), t.TempDir)
 	require.NoError(t, err)
-	installer4ID, _, err := ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
+	installer4ID, _, err := ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
 		InstallScript:     "hello3",
 		PreInstallQuery:   "SELECT 3;",
 		PostInstallScript: "world3",
@@ -6600,19 +6600,19 @@ func testApplyPolicySpecWithInstallers(t *testing.T, ds *Datastore) {
 		Source:            "apps",
 		UserID:            user1.ID,
 		TeamID:            &team2.ID,
-		ValidatedLabels:   &fleet.LabelIdentsWithScope{},
+		ValidatedLabels:   &automdm.LabelIdentsWithScope{},
 	})
 	require.NoError(t, err)
 	installer4, err := ds.GetSoftwareInstallerMetadataByID(ctx, installer4ID)
 	require.NoError(t, err)
 	require.NotNil(t, installer2.TitleID)
-	va4Team2, err := ds.InsertVPPAppWithTeam(ctx, &fleet.VPPApp{
+	va4Team2, err := ds.InsertVPPAppWithTeam(ctx, &automdm.VPPApp{
 		Name: "vpp4", BundleIdentifier: "com.app.vpp4",
-		VPPAppTeam: fleet.VPPAppTeam{VPPAppID: fleet.VPPAppID{AdamID: "adam_vpp_app_4", Platform: fleet.MacOSPlatform}},
+		VPPAppTeam: automdm.VPPAppTeam{VPPAppID: automdm.VPPAppID{AdamID: "adam_vpp_app_4", Platform: automdm.MacOSPlatform}},
 	}, &team2.ID, nil)
 	require.NoError(t, err)
 
-	err = ds.ApplyPolicySpecs(ctx, user1.ID, []*fleet.PolicySpec{
+	err = ds.ApplyPolicySpecs(ctx, user1.ID, []*automdm.PolicySpec{
 		{
 			Name:            "Team policy 1",
 			Query:           "SELECT 1;",
@@ -6621,7 +6621,7 @@ func testApplyPolicySpecWithInstallers(t *testing.T, ds *Datastore) {
 			Team:            "team1",
 			Platform:        "darwin",
 			SoftwareTitleID: installer1.TitleID,
-			Type:            fleet.PolicyTypeDynamic,
+			Type:            automdm.PolicyTypeDynamic,
 		},
 		{
 			Name:            "Team policy 2",
@@ -6631,7 +6631,7 @@ func testApplyPolicySpecWithInstallers(t *testing.T, ds *Datastore) {
 			Team:            "team2",
 			Platform:        "linux",
 			SoftwareTitleID: installer4.TitleID,
-			Type:            fleet.PolicyTypeDynamic,
+			Type:            automdm.PolicyTypeDynamic,
 		},
 		{
 			Name:            "VPP Team policy 1",
@@ -6641,7 +6641,7 @@ func testApplyPolicySpecWithInstallers(t *testing.T, ds *Datastore) {
 			Team:            "team1",
 			Platform:        "darwin",
 			SoftwareTitleID: &va1.TitleID,
-			Type:            fleet.PolicyTypeDynamic,
+			Type:            automdm.PolicyTypeDynamic,
 		},
 		{
 			Name:            "VPP Team policy 2",
@@ -6651,12 +6651,12 @@ func testApplyPolicySpecWithInstallers(t *testing.T, ds *Datastore) {
 			Team:            "team2",
 			Platform:        "linux",
 			SoftwareTitleID: &va4Team2.TitleID,
-			Type:            fleet.PolicyTypeDynamic,
+			Type:            automdm.PolicyTypeDynamic,
 		},
 	})
 	require.NoError(t, err)
 	require.NoError(t, ds.CleanupPendingPolicyMembership(ctx))
-	team1Policies, _, err = ds.ListTeamPolicies(ctx, team1.ID, fleet.ListOptions{}, fleet.ListOptions{}, "", "")
+	team1Policies, _, err = ds.ListTeamPolicies(ctx, team1.ID, automdm.ListOptions{}, automdm.ListOptions{}, "", "")
 	require.NoError(t, err)
 	require.Len(t, team1Policies, 2)
 	require.NotNil(t, team1Policies[0].SoftwareInstallerID)
@@ -6676,7 +6676,7 @@ func testApplyPolicySpecWithInstallers(t *testing.T, ds *Datastore) {
 		)
 	})
 	require.False(t, countBiggerThanZero)
-	team2Policies, _, err = ds.ListTeamPolicies(ctx, team2.ID, fleet.ListOptions{}, fleet.ListOptions{}, "", "")
+	team2Policies, _, err = ds.ListTeamPolicies(ctx, team2.ID, automdm.ListOptions{}, automdm.ListOptions{}, "", "")
 	require.NoError(t, err)
 	require.Len(t, team2Policies, 2)
 	require.NotNil(t, team2Policies[0].SoftwareInstallerID)
@@ -6694,7 +6694,7 @@ func testApplyPolicySpecWithInstallers(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 	err = ds.UpdateHostPolicyCounts(ctx)
 	require.NoError(t, err)
-	err = ds.ApplyPolicySpecs(ctx, user1.ID, []*fleet.PolicySpec{
+	err = ds.ApplyPolicySpecs(ctx, user1.ID, []*automdm.PolicySpec{
 		{
 			Name:            "Team policy 1",
 			Query:           "SELECT 1;",
@@ -6703,7 +6703,7 @@ func testApplyPolicySpecWithInstallers(t *testing.T, ds *Datastore) {
 			Team:            "team1",
 			Platform:        "darwin",
 			SoftwareTitleID: installer1.TitleID,
-			Type:            fleet.PolicyTypeDynamic,
+			Type:            automdm.PolicyTypeDynamic,
 		},
 		{
 			Name:            "VPP Team policy 1",
@@ -6713,11 +6713,11 @@ func testApplyPolicySpecWithInstallers(t *testing.T, ds *Datastore) {
 			Team:            "team1",
 			Platform:        "darwin",
 			SoftwareTitleID: &va1.TitleID,
-			Type:            fleet.PolicyTypeDynamic,
+			Type:            automdm.PolicyTypeDynamic,
 		},
 	})
 	require.NoError(t, err)
-	team1Policies, _, err = ds.ListTeamPolicies(ctx, team1.ID, fleet.ListOptions{}, fleet.ListOptions{}, "", "")
+	team1Policies, _, err = ds.ListTeamPolicies(ctx, team1.ID, automdm.ListOptions{}, automdm.ListOptions{}, "", "")
 	require.NoError(t, err)
 	require.Len(t, team1Policies, 2)
 	require.Equal(t, uint(1), team1Policies[0].FailingHostCount)
@@ -6741,14 +6741,14 @@ func testApplyPolicySpecWithInstallers(t *testing.T, ds *Datastore) {
 	})
 	require.True(t, countBiggerThanZero)
 
-	va4Team1, err := ds.InsertVPPAppWithTeam(ctx, &fleet.VPPApp{
+	va4Team1, err := ds.InsertVPPAppWithTeam(ctx, &automdm.VPPApp{
 		Name: "vpp4", BundleIdentifier: "com.app.vpp4",
-		VPPAppTeam: fleet.VPPAppTeam{VPPAppID: fleet.VPPAppID{AdamID: "adam_vpp_app_4", Platform: fleet.MacOSPlatform}},
+		VPPAppTeam: automdm.VPPAppTeam{VPPAppID: automdm.VPPAppID{AdamID: "adam_vpp_app_4", Platform: automdm.MacOSPlatform}},
 	}, &team1.ID, nil)
 	require.NoError(t, err)
 
 	// Now change the installer, should clear results.
-	err = ds.ApplyPolicySpecs(ctx, user1.ID, []*fleet.PolicySpec{
+	err = ds.ApplyPolicySpecs(ctx, user1.ID, []*automdm.PolicySpec{
 		{
 			Name:            "Team policy 1",
 			Query:           "SELECT 1;",
@@ -6757,7 +6757,7 @@ func testApplyPolicySpecWithInstallers(t *testing.T, ds *Datastore) {
 			Team:            "team1",
 			Platform:        "darwin",
 			SoftwareTitleID: installer5.TitleID,
-			Type:            fleet.PolicyTypeDynamic,
+			Type:            automdm.PolicyTypeDynamic,
 		},
 		{
 			Name:            "VPP Team policy 1",
@@ -6767,12 +6767,12 @@ func testApplyPolicySpecWithInstallers(t *testing.T, ds *Datastore) {
 			Team:            "team1",
 			Platform:        "darwin",
 			SoftwareTitleID: &va4Team1.TitleID,
-			Type:            fleet.PolicyTypeDynamic,
+			Type:            automdm.PolicyTypeDynamic,
 		},
 	})
 	require.NoError(t, err)
 	require.NoError(t, ds.CleanupPendingPolicyMembership(ctx))
-	team1Policies, _, err = ds.ListTeamPolicies(ctx, team1.ID, fleet.ListOptions{}, fleet.ListOptions{}, "", "")
+	team1Policies, _, err = ds.ListTeamPolicies(ctx, team1.ID, automdm.ListOptions{}, automdm.ListOptions{}, "", "")
 	require.NoError(t, err)
 	require.Len(t, team1Policies, 2)
 	require.Equal(t, uint(0), team1Policies[0].FailingHostCount)
@@ -6801,13 +6801,13 @@ func testTeamPoliciesNoTeam(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
 	user1 := test.NewUser(t, ds, "Alice", "alice@example.com", true)
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "team1"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
-	team2, err := ds.NewTeam(ctx, &fleet.Team{Name: "team2"})
+	team2, err := ds.NewTeam(ctx, &automdm.Team{Name: "team2"})
 	require.NoError(t, err)
 
-	newHost := func(name string, teamID *uint, platform string) *fleet.Host {
-		h, err := ds.NewHost(ctx, &fleet.Host{
+	newHost := func(name string, teamID *uint, platform string) *automdm.Host {
+		h, err := ds.NewHost(ctx, &automdm.Host{
 			OsqueryHostID:   ptr.String(uuid.New().String()),
 			DetailUpdatedAt: time.Now(),
 			LabelUpdatedAt:  time.Now(),
@@ -6829,44 +6829,44 @@ func testTeamPoliciesNoTeam(t *testing.T, ds *Datastore) {
 	host3Team2 := newHost("host1Team1", &team2.ID, "windows")
 	host5NoTeam := newHost("host5NoTeam", nil, "windows")
 
-	policy0NoTeam, err := ds.NewTeamPolicy(ctx, fleet.PolicyNoTeamID, &user1.ID, fleet.PolicyPayload{
+	policy0NoTeam, err := ds.NewTeamPolicy(ctx, automdm.PolicyNoTeamID, &user1.ID, automdm.PolicyPayload{
 		Name:  "policy0NoTeam",
 		Query: "SELECT 0;",
 	})
 	require.NoError(t, err)
 	require.NotNil(t, policy0NoTeam.TeamID)
-	require.Equal(t, fleet.PolicyNoTeamID, *policy0NoTeam.TeamID)
-	tp, err := ds.TeamPolicy(ctx, fleet.PolicyNoTeamID, policy0NoTeam.ID)
+	require.Equal(t, automdm.PolicyNoTeamID, *policy0NoTeam.TeamID)
+	tp, err := ds.TeamPolicy(ctx, automdm.PolicyNoTeamID, policy0NoTeam.ID)
 	require.NoError(t, err)
 	require.Equal(t, tp, policy0NoTeam)
 
-	policy1Team1, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, fleet.PolicyPayload{
+	policy1Team1, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, automdm.PolicyPayload{
 		Name:  "policy1Team1",
 		Query: "SELECT 1;",
 	})
 	require.NoError(t, err)
-	policy2Team2, err := ds.NewTeamPolicy(ctx, team2.ID, &user1.ID, fleet.PolicyPayload{
+	policy2Team2, err := ds.NewTeamPolicy(ctx, team2.ID, &user1.ID, automdm.PolicyPayload{
 		Name:  "policy2Team2",
 		Query: "SELECT 2;",
 	})
 	require.NoError(t, err)
-	policy3NoTeam, err := ds.NewTeamPolicy(ctx, fleet.PolicyNoTeamID, &user1.ID, fleet.PolicyPayload{
+	policy3NoTeam, err := ds.NewTeamPolicy(ctx, automdm.PolicyNoTeamID, &user1.ID, automdm.PolicyPayload{
 		Name:  "policy3NoTeam",
 		Query: "SELECT 3;",
 	})
 	require.NoError(t, err)
-	policy4Team2, err := ds.NewTeamPolicy(ctx, team2.ID, &user1.ID, fleet.PolicyPayload{
+	policy4Team2, err := ds.NewTeamPolicy(ctx, team2.ID, &user1.ID, automdm.PolicyPayload{
 		Name:  "policy4Team2",
 		Query: "SELECT 4;",
 	})
 	require.NoError(t, err)
 
-	globalPolicy1, err := ds.NewGlobalPolicy(ctx, &user1.ID, fleet.PolicyPayload{
+	globalPolicy1, err := ds.NewGlobalPolicy(ctx, &user1.ID, automdm.PolicyPayload{
 		Name:  "globalPolicy1",
 		Query: "SELECT gp1;",
 	})
 	require.NoError(t, err)
-	globalPolicy2, err := ds.NewGlobalPolicy(ctx, &user1.ID, fleet.PolicyPayload{
+	globalPolicy2, err := ds.NewGlobalPolicy(ctx, &user1.ID, automdm.PolicyPayload{
 		Name:  "globalPolicy2",
 		Query: "SELECT gp2;",
 	})
@@ -6918,7 +6918,7 @@ func testTeamPoliciesNoTeam(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// Tests on global domain.
-	globalPolicies, err := ds.ListGlobalPolicies(ctx, fleet.ListOptions{}, "")
+	globalPolicies, err := ds.ListGlobalPolicies(ctx, automdm.ListOptions{}, "")
 	require.NoError(t, err)
 	require.Len(t, globalPolicies, 2)
 	require.Equal(t, globalPolicy1.ID, globalPolicies[0].ID)
@@ -6944,7 +6944,7 @@ func testTeamPoliciesNoTeam(t *testing.T, ds *Datastore) {
 	require.Equal(t, globalPoliciesByID[globalPolicies[1].ID], globalPolicies[1])
 
 	// Tests on team1 domain.
-	teamPolicies, inheritedPolicies, err := ds.ListTeamPolicies(ctx, team1.ID, fleet.ListOptions{}, fleet.ListOptions{}, "", "")
+	teamPolicies, inheritedPolicies, err := ds.ListTeamPolicies(ctx, team1.ID, automdm.ListOptions{}, automdm.ListOptions{}, "", "")
 	require.NoError(t, err)
 	require.Len(t, teamPolicies, 1)
 	require.Equal(t, policy1Team1.ID, teamPolicies[0].ID)
@@ -6974,7 +6974,7 @@ func testTeamPoliciesNoTeam(t *testing.T, ds *Datastore) {
 	c, err = ds.CountPolicies(ctx, &team1.ID, "", "", "")
 	require.NoError(t, err)
 	require.Equal(t, 1, c)
-	mergedTeamPolicies, err := ds.ListMergedTeamPolicies(ctx, team1.ID, fleet.ListOptions{}, "", "")
+	mergedTeamPolicies, err := ds.ListMergedTeamPolicies(ctx, team1.ID, automdm.ListOptions{}, "", "")
 	require.NoError(t, err)
 	require.Len(t, mergedTeamPolicies, 3)
 	require.Equal(t, policy1Team1.ID, mergedTeamPolicies[0].ID)
@@ -6988,7 +6988,7 @@ func testTeamPoliciesNoTeam(t *testing.T, ds *Datastore) {
 	require.Equal(t, uint(1), mergedTeamPolicies[2].PassingHostCount)
 
 	// Tests on team2 domain.
-	teamPolicies, inheritedPolicies, err = ds.ListTeamPolicies(ctx, team2.ID, fleet.ListOptions{}, fleet.ListOptions{}, "", "")
+	teamPolicies, inheritedPolicies, err = ds.ListTeamPolicies(ctx, team2.ID, automdm.ListOptions{}, automdm.ListOptions{}, "", "")
 	require.NoError(t, err)
 	require.Len(t, teamPolicies, 2)
 	require.Equal(t, policy2Team2.ID, teamPolicies[0].ID)
@@ -7022,7 +7022,7 @@ func testTeamPoliciesNoTeam(t *testing.T, ds *Datastore) {
 	c, err = ds.CountPolicies(ctx, &team2.ID, "", "", "")
 	require.NoError(t, err)
 	require.Equal(t, 2, c)
-	mergedTeamPolicies, err = ds.ListMergedTeamPolicies(ctx, team2.ID, fleet.ListOptions{}, "", "")
+	mergedTeamPolicies, err = ds.ListMergedTeamPolicies(ctx, team2.ID, automdm.ListOptions{}, "", "")
 	require.NoError(t, err)
 	require.Len(t, mergedTeamPolicies, 4)
 	require.Equal(t, policy2Team2.ID, mergedTeamPolicies[0].ID)
@@ -7039,7 +7039,7 @@ func testTeamPoliciesNoTeam(t *testing.T, ds *Datastore) {
 	require.Equal(t, uint(0), mergedTeamPolicies[3].PassingHostCount)
 
 	// Tests on "No team" domain.
-	teamPolicies, inheritedPolicies, err = ds.ListTeamPolicies(ctx, fleet.PolicyNoTeamID, fleet.ListOptions{}, fleet.ListOptions{}, "", "")
+	teamPolicies, inheritedPolicies, err = ds.ListTeamPolicies(ctx, automdm.PolicyNoTeamID, automdm.ListOptions{}, automdm.ListOptions{}, "", "")
 	require.NoError(t, err)
 	require.Len(t, teamPolicies, 2)
 	require.Equal(t, policy0NoTeam.ID, teamPolicies[0].ID)
@@ -7067,13 +7067,13 @@ func testTeamPoliciesNoTeam(t *testing.T, ds *Datastore) {
 	require.Len(t, teamPoliciesByID, 2)
 	require.Equal(t, teamPoliciesByID[teamPolicies[0].ID], teamPolicies[0])
 	require.Equal(t, teamPoliciesByID[teamPolicies[1].ID], teamPolicies[1])
-	c, err = ds.CountMergedTeamPolicies(ctx, fleet.PolicyNoTeamID, "", "", "")
+	c, err = ds.CountMergedTeamPolicies(ctx, automdm.PolicyNoTeamID, "", "", "")
 	require.NoError(t, err)
 	require.Equal(t, 4, c)
-	c, err = ds.CountPolicies(ctx, new(fleet.PolicyNoTeamID), "", "", "")
+	c, err = ds.CountPolicies(ctx, new(automdm.PolicyNoTeamID), "", "", "")
 	require.NoError(t, err)
 	require.Equal(t, 2, c)
-	mergedTeamPolicies, err = ds.ListMergedTeamPolicies(ctx, fleet.PolicyNoTeamID, fleet.ListOptions{}, "", "")
+	mergedTeamPolicies, err = ds.ListMergedTeamPolicies(ctx, automdm.PolicyNoTeamID, automdm.ListOptions{}, "", "")
 	require.NoError(t, err)
 	require.Len(t, mergedTeamPolicies, 4)
 	require.Equal(t, policy0NoTeam.ID, mergedTeamPolicies[0].ID)
@@ -7188,9 +7188,9 @@ func testPoliciesBySoftwareTitleID(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
 	user1 := test.NewUser(t, ds, "Alice", "alice@example.com", true)
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "team1"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
-	team2, err := ds.NewTeam(ctx, &fleet.Team{Name: "team2"})
+	team2, err := ds.NewTeam(ctx, &automdm.Team{Name: "team2"})
 	require.NoError(t, err)
 
 	policy1 := newTestPolicy(t, ds, user1, "policy 1", "darwin", &team1.ID)
@@ -7201,11 +7201,11 @@ func testPoliciesBySoftwareTitleID(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 	require.Empty(t, policies)
 
-	installer, err := fleet.NewTempFileReader(strings.NewReader("hello"), t.TempDir)
+	installer, err := automdm.NewTempFileReader(strings.NewReader("hello"), t.TempDir)
 	require.NoError(t, err)
 
 	// Associate an installer to policy 1 on team 1.
-	installer1ID, _, err := ds.MatchOrCreateSoftwareInstaller(context.Background(), &fleet.UploadSoftwareInstallerPayload{
+	installer1ID, _, err := ds.MatchOrCreateSoftwareInstaller(context.Background(), &automdm.UploadSoftwareInstallerPayload{
 		InstallScript:     "hello",
 		PreInstallQuery:   "SELECT 1",
 		PostInstallScript: "world",
@@ -7217,7 +7217,7 @@ func testPoliciesBySoftwareTitleID(t *testing.T, ds *Datastore) {
 		Source:            "apps",
 		UserID:            user1.ID,
 		TeamID:            &team1.ID,
-		ValidatedLabels:   &fleet.LabelIdentsWithScope{},
+		ValidatedLabels:   &automdm.LabelIdentsWithScope{},
 	})
 	require.NoError(t, err)
 	policy1.SoftwareInstallerID = ptr.Uint(installer1ID)
@@ -7225,7 +7225,7 @@ func testPoliciesBySoftwareTitleID(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// Associate an installer to policy 2 on team 2.
-	installer2ID, _, err := ds.MatchOrCreateSoftwareInstaller(context.Background(), &fleet.UploadSoftwareInstallerPayload{
+	installer2ID, _, err := ds.MatchOrCreateSoftwareInstaller(context.Background(), &automdm.UploadSoftwareInstallerPayload{
 		InstallScript:     "hello",
 		PreInstallQuery:   "SELECT 1",
 		PostInstallScript: "world",
@@ -7237,7 +7237,7 @@ func testPoliciesBySoftwareTitleID(t *testing.T, ds *Datastore) {
 		Source:            "apps",
 		UserID:            user1.ID,
 		TeamID:            &team2.ID,
-		ValidatedLabels:   &fleet.LabelIdentsWithScope{},
+		ValidatedLabels:   &automdm.LabelIdentsWithScope{},
 	})
 	require.NoError(t, err)
 	policy2.SoftwareInstallerID = ptr.Uint(installer2ID)
@@ -7289,7 +7289,7 @@ func testPoliciesBySoftwareTitleID(t *testing.T, ds *Datastore) {
 	require.Len(t, policies, 0)
 
 	// Associate a couple of installers to policy 3 on no team.
-	installer3ID, _, err := ds.MatchOrCreateSoftwareInstaller(context.Background(), &fleet.UploadSoftwareInstallerPayload{
+	installer3ID, _, err := ds.MatchOrCreateSoftwareInstaller(context.Background(), &automdm.UploadSoftwareInstallerPayload{
 		InstallScript:     "hello noteam",
 		PreInstallQuery:   "SELECT 1 from noteam",
 		PostInstallScript: "world",
@@ -7301,11 +7301,11 @@ func testPoliciesBySoftwareTitleID(t *testing.T, ds *Datastore) {
 		Source:            "apps",
 		UserID:            user1.ID,
 		TeamID:            nil,
-		ValidatedLabels:   &fleet.LabelIdentsWithScope{},
+		ValidatedLabels:   &automdm.LabelIdentsWithScope{},
 	})
 	require.NoError(t, err)
 
-	installer4ID, _, err := ds.MatchOrCreateSoftwareInstaller(context.Background(), &fleet.UploadSoftwareInstallerPayload{
+	installer4ID, _, err := ds.MatchOrCreateSoftwareInstaller(context.Background(), &automdm.UploadSoftwareInstallerPayload{
 		InstallScript:     "hello noteam",
 		PreInstallQuery:   "SELECT 1 from noteam",
 		PostInstallScript: "world",
@@ -7317,7 +7317,7 @@ func testPoliciesBySoftwareTitleID(t *testing.T, ds *Datastore) {
 		Source:            "apps",
 		UserID:            user1.ID,
 		TeamID:            nil,
-		ValidatedLabels:   &fleet.LabelIdentsWithScope{},
+		ValidatedLabels:   &automdm.LabelIdentsWithScope{},
 	})
 	require.NoError(t, err)
 
@@ -7342,9 +7342,9 @@ func testPoliciesBySoftwareTitleID(t *testing.T, ds *Datastore) {
 	policies, err = ds.getPoliciesBySoftwareTitleIDs(ctx, []uint{*installer3.TitleID, *installer4.TitleID}, 0)
 	require.NoError(t, err)
 	require.Len(t, policies, 2)
-	expected := map[uint]fleet.AutomaticInstallPolicy{
-		policy3.ID: {ID: policy3.ID, Name: policy3.Name, TitleID: *installer3.TitleID, InstallerID: new(installer3ID), Type: fleet.PolicyTypeDynamic},
-		policy4.ID: {ID: policy4.ID, Name: policy4.Name, TitleID: *installer4.TitleID, InstallerID: new(installer4ID), Type: fleet.PolicyTypeDynamic},
+	expected := map[uint]automdm.AutomaticInstallPolicy{
+		policy3.ID: {ID: policy3.ID, Name: policy3.Name, TitleID: *installer3.TitleID, InstallerID: new(installer3ID), Type: automdm.PolicyTypeDynamic},
+		policy4.ID: {ID: policy4.ID, Name: policy4.Name, TitleID: *installer4.TitleID, InstallerID: new(installer4ID), Type: automdm.PolicyTypeDynamic},
 	}
 
 	for _, got := range policies {
@@ -7372,7 +7372,7 @@ func testClearAutoInstallPolicyStatusForHost(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
 	user1 := test.NewUser(t, ds, "Alice", "alice@example.com", true)
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "team1" + t.Name()})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "team1" + t.Name()})
 	require.NoError(t, err)
 	test.CreateInsertGlobalVPPToken(t, ds)
 
@@ -7383,9 +7383,9 @@ func testClearAutoInstallPolicyStatusForHost(t *testing.T, ds *Datastore) {
 	policy2 := newTestPolicy(t, ds, user1, "policy 2"+t.Name(), "darwin", &team1.ID)
 	policy3 := newTestPolicy(t, ds, user1, "policy 3"+t.Name(), "darwin", &team1.ID)
 
-	installer, err := fleet.NewTempFileReader(strings.NewReader("hello"), t.TempDir)
+	installer, err := automdm.NewTempFileReader(strings.NewReader("hello"), t.TempDir)
 	require.NoError(t, err)
-	installer1ID, _, err := ds.MatchOrCreateSoftwareInstaller(context.Background(), &fleet.UploadSoftwareInstallerPayload{
+	installer1ID, _, err := ds.MatchOrCreateSoftwareInstaller(context.Background(), &automdm.UploadSoftwareInstallerPayload{
 		InstallScript:     "hello",
 		PreInstallQuery:   "SELECT 1",
 		PostInstallScript: "world",
@@ -7397,16 +7397,16 @@ func testClearAutoInstallPolicyStatusForHost(t *testing.T, ds *Datastore) {
 		Source:            "apps",
 		UserID:            user1.ID,
 		TeamID:            &team1.ID,
-		ValidatedLabels:   &fleet.LabelIdentsWithScope{},
+		ValidatedLabels:   &automdm.LabelIdentsWithScope{},
 	})
 	require.NoError(t, err)
 	policy2.SoftwareInstallerID = ptr.Uint(installer1ID)
 	err = ds.SavePolicy(context.Background(), policy2, false, false)
 	require.NoError(t, err)
 
-	team1App, err := ds.InsertVPPAppWithTeam(ctx, &fleet.VPPApp{
+	team1App, err := ds.InsertVPPAppWithTeam(ctx, &automdm.VPPApp{
 		Name: "vpp1", BundleIdentifier: "com.app.appy",
-		VPPAppTeam: fleet.VPPAppTeam{VPPAppID: fleet.VPPAppID{AdamID: "adam_app", Platform: fleet.MacOSPlatform}},
+		VPPAppTeam: automdm.VPPAppTeam{VPPAppID: automdm.VPPAppID{AdamID: "adam_app", Platform: automdm.MacOSPlatform}},
 	}, &team1.ID, nil)
 	require.NoError(t, err)
 	team1Meta, err := ds.GetVPPAppMetadataByTeamAndTitleID(ctx, &team1.ID, team1App.TitleID)
@@ -7417,7 +7417,7 @@ func testClearAutoInstallPolicyStatusForHost(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// create a host
-	host, err := ds.NewHost(ctx, &fleet.Host{
+	host, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID:   ptr.String(uuid.New().String()),
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
@@ -7434,8 +7434,8 @@ func testClearAutoInstallPolicyStatusForHost(t *testing.T, ds *Datastore) {
 	// record a policy run for both policies
 	_, err = ds.RecordPolicyQueryExecutions(ctx, host, map[uint]*bool{
 		policy1.ID: ptr.Bool(true),
-		policy2.ID: ptr.Bool(false), // software isn't installed on host, so Fleet should install it
-		policy3.ID: ptr.Bool(false), // software isn't installed on host, so Fleet should install it
+		policy2.ID: ptr.Bool(false), // software isn't installed on host, so AutoMDM should install it
+		policy3.ID: ptr.Bool(false), // software isn't installed on host, so AutoMDM should install it
 	}, time.Now(), false, nil)
 	require.NoError(t, err)
 
@@ -7484,7 +7484,7 @@ func testClearAutoInstallPolicyStatusForHost(t *testing.T, ds *Datastore) {
 func testPolicyLabels(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
-	assertPolicies := func(t *testing.T, havePolicies []*fleet.HostPolicy, wantPolicies []*fleet.Policy, hostName string) {
+	assertPolicies := func(t *testing.T, havePolicies []*automdm.HostPolicy, wantPolicies []*automdm.Policy, hostName string) {
 		haveMap := map[uint]string{}
 		wantMap := map[uint]string{}
 		missingPolicies := []string{}
@@ -7511,7 +7511,7 @@ func testPolicyLabels(t *testing.T, ds *Datastore) {
 		}
 	}
 
-	assertQueries := func(t *testing.T, havePolicies map[string]string, wantPolicies []*fleet.Policy, hostName string) {
+	assertQueries := func(t *testing.T, havePolicies map[string]string, wantPolicies []*automdm.Policy, hostName string) {
 		haveMap := map[uint]string{}
 		wantMap := map[uint]string{}
 		missingPolicies := []string{}
@@ -7542,9 +7542,9 @@ func testPolicyLabels(t *testing.T, ds *Datastore) {
 
 	user1 := test.NewUser(t, ds, "Alice", "alice@example.com", true)
 
-	label1, err := ds.NewLabel(ctx, &fleet.Label{Name: "label1"})
+	label1, err := ds.NewLabel(ctx, &automdm.Label{Name: "label1"})
 	require.NoError(t, err)
-	label2, err := ds.NewLabel(ctx, &fleet.Label{Name: "label2"})
+	label2, err := ds.NewLabel(ctx, &automdm.Label{Name: "label2"})
 	require.NoError(t, err)
 
 	// labels.created_at is second-granular, and this test creates its labels and hosts inside one second. A tie reads as
@@ -7570,36 +7570,36 @@ func testPolicyLabels(t *testing.T, ds *Datastore) {
 	policyNoLabel := newTestPolicy(t, ds, user1, "policy no label", "", nil)
 
 	policyIncludeLabel1 := newTestPolicy(t, ds, user1, "policy include label1", "", nil)
-	policyIncludeLabel1.LabelsIncludeAny = []fleet.LabelIdent{{LabelName: label1.Name}}
+	policyIncludeLabel1.LabelsIncludeAny = []automdm.LabelIdent{{LabelName: label1.Name}}
 	require.NoError(t, ds.SavePolicy(ctx, policyIncludeLabel1, false, false))
 
 	policyExcludeLabel2 := newTestPolicy(t, ds, user1, "policy exclude label2", "", nil)
-	policyExcludeLabel2.LabelsExcludeAny = []fleet.LabelIdent{{LabelName: label2.Name}}
+	policyExcludeLabel2.LabelsExcludeAny = []automdm.LabelIdent{{LabelName: label2.Name}}
 	require.NoError(t, ds.SavePolicy(ctx, policyExcludeLabel2, false, false))
 
 	policyIncludeBoth := newTestPolicy(t, ds, user1, "policy include both", "", nil)
-	policyIncludeBoth.LabelsIncludeAny = []fleet.LabelIdent{{LabelName: label1.Name}, {LabelName: label2.Name}}
+	policyIncludeBoth.LabelsIncludeAny = []automdm.LabelIdent{{LabelName: label1.Name}, {LabelName: label2.Name}}
 	require.NoError(t, ds.SavePolicy(ctx, policyIncludeBoth, false, false))
 
 	policyExcludeBoth := newTestPolicy(t, ds, user1, "policy exclude both", "", nil)
-	policyExcludeBoth.LabelsExcludeAny = []fleet.LabelIdent{{LabelName: label1.Name}, {LabelName: label2.Name}}
+	policyExcludeBoth.LabelsExcludeAny = []automdm.LabelIdent{{LabelName: label1.Name}, {LabelName: label2.Name}}
 	require.NoError(t, ds.SavePolicy(ctx, policyExcludeBoth, false, false))
 
 	policyIncludeAllBoth := newTestPolicy(t, ds, user1, "policy include all both", "", nil)
-	policyIncludeAllBoth.LabelsIncludeAll = []fleet.LabelIdent{{LabelName: label1.Name}, {LabelName: label2.Name}}
+	policyIncludeAllBoth.LabelsIncludeAll = []automdm.LabelIdent{{LabelName: label1.Name}, {LabelName: label2.Name}}
 	require.NoError(t, ds.SavePolicy(ctx, policyIncludeAllBoth, false, false))
 
 	policyIncludeAllOnly1 := newTestPolicy(t, ds, user1, "policy include all only1", "", nil)
-	policyIncludeAllOnly1.LabelsIncludeAll = []fleet.LabelIdent{{LabelName: label1.Name}}
+	policyIncludeAllOnly1.LabelsIncludeAll = []automdm.LabelIdent{{LabelName: label1.Name}}
 	require.NoError(t, ds.SavePolicy(ctx, policyIncludeAllOnly1, false, false))
 
 	// exclude_all: a host is excluded only when it is a member of ALL the listed labels.
 	policyExcludeAllBoth := newTestPolicy(t, ds, user1, "policy exclude all both", "", nil)
-	policyExcludeAllBoth.LabelsExcludeAll = []fleet.LabelIdent{{LabelName: label1.Name}, {LabelName: label2.Name}}
+	policyExcludeAllBoth.LabelsExcludeAll = []automdm.LabelIdent{{LabelName: label1.Name}, {LabelName: label2.Name}}
 	require.NoError(t, ds.SavePolicy(ctx, policyExcludeAllBoth, false, false))
 
 	policyExcludeAllOnly1 := newTestPolicy(t, ds, user1, "policy exclude all only1", "", nil)
-	policyExcludeAllOnly1.LabelsExcludeAll = []fleet.LabelIdent{{LabelName: label1.Name}}
+	policyExcludeAllOnly1.LabelsExcludeAll = []automdm.LabelIdent{{LabelName: label1.Name}}
 	require.NoError(t, ds.SavePolicy(ctx, policyExcludeAllOnly1, false, false))
 
 	// The testing grid of truth
@@ -7612,12 +7612,12 @@ func testPolicyLabels(t *testing.T, ds *Datastore) {
 	// | label both       | X         | X         |           | X            |              | X                | X             |                  |               |
 
 	tcs := []struct {
-		Host     *fleet.Host
-		Policies []*fleet.Policy
+		Host     *automdm.Host
+		Policies []*automdm.Policy
 	}{
 		{
 			Host: hostNoLabels,
-			Policies: []*fleet.Policy{
+			Policies: []*automdm.Policy{
 				policyNoLabel,
 				policyExcludeLabel2,
 				policyExcludeBoth,
@@ -7627,7 +7627,7 @@ func testPolicyLabels(t *testing.T, ds *Datastore) {
 		},
 		{
 			Host: hostLabel1,
-			Policies: []*fleet.Policy{
+			Policies: []*automdm.Policy{
 				policyNoLabel,
 				policyIncludeLabel1,
 				policyExcludeLabel2,
@@ -7638,7 +7638,7 @@ func testPolicyLabels(t *testing.T, ds *Datastore) {
 		},
 		{
 			Host: hostLabel2,
-			Policies: []*fleet.Policy{
+			Policies: []*automdm.Policy{
 				policyNoLabel,
 				policyIncludeBoth,
 				policyExcludeAllBoth,
@@ -7647,7 +7647,7 @@ func testPolicyLabels(t *testing.T, ds *Datastore) {
 		},
 		{
 			Host: hostLabelBoth,
-			Policies: []*fleet.Policy{
+			Policies: []*automdm.Policy{
 				policyNoLabel,
 				policyIncludeLabel1,
 				policyIncludeBoth,
@@ -7671,7 +7671,7 @@ func testPolicyLabelsUnknownMembership(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 	user1 := test.NewUser(t, ds, "Alice", "alice@example.com", true)
 
-	setLabelUpdatedAt := func(t *testing.T, host *fleet.Host, ts time.Time) {
+	setLabelUpdatedAt := func(t *testing.T, host *automdm.Host, ts time.Time) {
 		ExecAdhocSQL(t, ds, func(q sqlx.ExtContext) error {
 			_, err := q.ExecContext(ctx, `UPDATE hosts SET label_updated_at = ? WHERE id = ?`, ts, host.ID)
 			return err
@@ -7679,7 +7679,7 @@ func testPolicyLabelsUnknownMembership(t *testing.T, ds *Datastore) {
 		host.LabelUpdatedAt = ts
 	}
 
-	policyNames := func(t *testing.T, host *fleet.Host) []string {
+	policyNames := func(t *testing.T, host *automdm.Host) []string {
 		t.Helper()
 		queries, err := ds.PolicyQueriesForHost(ctx, host)
 		require.NoError(t, err)
@@ -7711,36 +7711,36 @@ func testPolicyLabelsUnknownMembership(t *testing.T, ds *Datastore) {
 	host := test.NewHost(t, ds, "unknown-membership-host", "10.0.0.1", "key1", "uuid1", time.Now())
 	setLabelUpdatedAt(t, host, common_mysql.GetDefaultNonZeroTime())
 
-	dynamicLabel, err := ds.NewLabel(ctx, &fleet.Label{Name: "dynamic-mdm-enrolled", Query: "select 1;"})
+	dynamicLabel, err := ds.NewLabel(ctx, &automdm.Label{Name: "dynamic-mdm-enrolled", Query: "select 1;"})
 	require.NoError(t, err)
-	require.Equal(t, fleet.LabelMembershipTypeDynamic, dynamicLabel.LabelMembershipType)
-	dynamicLabel2, err := ds.NewLabel(ctx, &fleet.Label{Name: "dynamic-other", Query: "select 1;"})
+	require.Equal(t, automdm.LabelMembershipTypeDynamic, dynamicLabel.LabelMembershipType)
+	dynamicLabel2, err := ds.NewLabel(ctx, &automdm.Label{Name: "dynamic-other", Query: "select 1;"})
 	require.NoError(t, err)
-	manualLabel, err := ds.NewLabel(ctx, &fleet.Label{
+	manualLabel, err := ds.NewLabel(ctx, &automdm.Label{
 		Name:                "manual-label",
-		LabelMembershipType: fleet.LabelMembershipTypeManual,
+		LabelMembershipType: automdm.LabelMembershipTypeManual,
 	})
 	require.NoError(t, err)
 
 	unscoped := newTestPolicy(t, ds, user1, "unscoped", "", nil)
 
 	excludeDynamic := newTestPolicy(t, ds, user1, "exclude any dynamic", "", nil)
-	excludeDynamic.LabelsExcludeAny = []fleet.LabelIdent{{LabelName: dynamicLabel.Name}}
+	excludeDynamic.LabelsExcludeAny = []automdm.LabelIdent{{LabelName: dynamicLabel.Name}}
 	require.NoError(t, ds.SavePolicy(ctx, excludeDynamic, false, false))
 
 	excludeManual := newTestPolicy(t, ds, user1, "exclude any manual", "", nil)
-	excludeManual.LabelsExcludeAny = []fleet.LabelIdent{{LabelName: manualLabel.Name}}
+	excludeManual.LabelsExcludeAny = []automdm.LabelIdent{{LabelName: manualLabel.Name}}
 	require.NoError(t, ds.SavePolicy(ctx, excludeManual, false, false))
 
 	excludeAllDynamic := newTestPolicy(t, ds, user1, "exclude all dynamic", "", nil)
-	excludeAllDynamic.LabelsExcludeAll = []fleet.LabelIdent{
+	excludeAllDynamic.LabelsExcludeAll = []automdm.LabelIdent{
 		{LabelName: dynamicLabel.Name},
 		{LabelName: dynamicLabel2.Name},
 	}
 	require.NoError(t, ds.SavePolicy(ctx, excludeAllDynamic, false, false))
 
 	includeDynamic := newTestPolicy(t, ds, user1, "include any dynamic", "", nil)
-	includeDynamic.LabelsIncludeAny = []fleet.LabelIdent{{LabelName: dynamicLabel.Name}}
+	includeDynamic.LabelsIncludeAny = []automdm.LabelIdent{{LabelName: dynamicLabel.Name}}
 	require.NoError(t, ds.SavePolicy(ctx, includeDynamic, false, false))
 
 	t.Run("host that has never reported labels is held out of exclude scope", func(t *testing.T) {
@@ -7781,10 +7781,10 @@ func testPolicyLabelsUnknownMembership(t *testing.T, ds *Datastore) {
 		}, policyNames(t, host))
 	})
 
-	// GetHostHealth and the conditional-access IdP build a &fleet.Host{ID, Platform} with no LabelUpdatedAt; a zero timestamp
+	// GetHostHealth and the conditional-access IdP build a &automdm.Host{ID, Platform} with no LabelUpdatedAt; a zero timestamp
 	// would make every dynamic label look unevaluated and silently hide exclude-scoped policies from them.
 	t.Run("minimal host struct scopes off the stored timestamp", func(t *testing.T) {
-		minimal := &fleet.Host{ID: host.ID, Platform: host.Platform}
+		minimal := &automdm.Host{ID: host.ID, Platform: host.Platform}
 		require.True(t, minimal.LabelUpdatedAt.IsZero())
 
 		full, err := ds.ListPoliciesForHost(ctx, host)
@@ -7792,7 +7792,7 @@ func testPolicyLabelsUnknownMembership(t *testing.T, ds *Datastore) {
 		lean, err := ds.ListPoliciesForHost(ctx, minimal)
 		require.NoError(t, err)
 
-		names := func(ps []*fleet.HostPolicy) []string {
+		names := func(ps []*automdm.HostPolicy) []string {
 			var out []string
 			for _, p := range ps {
 				out = append(out, p.Name)
@@ -7819,10 +7819,10 @@ func testPolicyLabelsUnknownMembership(t *testing.T, ds *Datastore) {
 	})
 
 	t.Run("label created after the host's last report is unknown again", func(t *testing.T) {
-		newLabel, err := ds.NewLabel(ctx, &fleet.Label{Name: "dynamic-added-later", Query: "select 1;"})
+		newLabel, err := ds.NewLabel(ctx, &automdm.Label{Name: "dynamic-added-later", Query: "select 1;"})
 		require.NoError(t, err)
 		excludeNew := newTestPolicy(t, ds, user1, "exclude any newly created label", "", nil)
-		excludeNew.LabelsExcludeAny = []fleet.LabelIdent{{LabelName: newLabel.Name}}
+		excludeNew.LabelsExcludeAny = []automdm.LabelIdent{{LabelName: newLabel.Name}}
 		require.NoError(t, ds.SavePolicy(ctx, excludeNew, false, false))
 
 		// labels.created_at is second-granular, so pivot on the stored value rather than wall-clock now.
@@ -7844,9 +7844,9 @@ func testPolicyLabelMembershipCleanup(t *testing.T, ds *Datastore) {
 	user1 := test.NewUser(t, ds, "Alice", "alice@example.com", true)
 
 	// Create labels
-	label1, err := ds.NewLabel(ctx, &fleet.Label{Name: "cleanup-label1"})
+	label1, err := ds.NewLabel(ctx, &automdm.Label{Name: "cleanup-label1"})
 	require.NoError(t, err)
-	label2, err := ds.NewLabel(ctx, &fleet.Label{Name: "cleanup-label2"})
+	label2, err := ds.NewLabel(ctx, &automdm.Label{Name: "cleanup-label2"})
 	require.NoError(t, err)
 
 	// Create hosts with different label combinations
@@ -7864,20 +7864,20 @@ func testPolicyLabelMembershipCleanup(t *testing.T, ds *Datastore) {
 	policy := newTestPolicy(t, ds, user1, "cleanup test policy", "", nil)
 
 	// Record policy results for all hosts
-	for _, h := range []*fleet.Host{hostNoLabels, hostLabel1, hostLabel2, hostLabelBoth} {
+	for _, h := range []*automdm.Host{hostNoLabels, hostLabel1, hostLabel2, hostLabelBoth} {
 		_, err = ds.RecordPolicyQueryExecutions(ctx, h, map[uint]*bool{policy.ID: new(true)}, time.Now(), false, nil)
 		require.NoError(t, err)
 	}
 
 	// Verify all hosts have membership
-	polsByName := map[string]*fleet.Policy{policy.Name: policy}
+	polsByName := map[string]*automdm.Policy{policy.Name: policy}
 	wantHostsByPol := map[string][]uint{
 		policy.Name: {hostNoLabels.ID, hostLabel1.ID, hostLabel2.ID, hostLabelBoth.ID},
 	}
 	assertPolicyMembership(t, ds, polsByName, wantHostsByPol)
 
 	// Update policy to include only label1
-	policy.LabelsIncludeAny = []fleet.LabelIdent{{LabelName: label1.Name}}
+	policy.LabelsIncludeAny = []automdm.LabelIdent{{LabelName: label1.Name}}
 	require.NoError(t, ds.SavePolicy(ctx, policy, false, false))
 	require.NoError(t, ds.CleanupPendingPolicyMembership(ctx))
 
@@ -7886,7 +7886,7 @@ func testPolicyLabelMembershipCleanup(t *testing.T, ds *Datastore) {
 	assertPolicyMembership(t, ds, polsByName, wantHostsByPol)
 
 	// Update policy to include both labels (include any means host must have at least one)
-	policy.LabelsIncludeAny = []fleet.LabelIdent{{LabelName: label1.Name}, {LabelName: label2.Name}}
+	policy.LabelsIncludeAny = []automdm.LabelIdent{{LabelName: label1.Name}, {LabelName: label2.Name}}
 	require.NoError(t, ds.SavePolicy(ctx, policy, false, false))
 	require.NoError(t, ds.CleanupPendingPolicyMembership(ctx))
 
@@ -7896,7 +7896,7 @@ func testPolicyLabelMembershipCleanup(t *testing.T, ds *Datastore) {
 	assertPolicyMembership(t, ds, polsByName, wantHostsByPol)
 
 	// Re-record membership for all hosts to test exclude labels
-	for _, h := range []*fleet.Host{hostNoLabels, hostLabel1, hostLabel2, hostLabelBoth} {
+	for _, h := range []*automdm.Host{hostNoLabels, hostLabel1, hostLabel2, hostLabelBoth} {
 		_, err = ds.RecordPolicyQueryExecutions(ctx, h, map[uint]*bool{policy.ID: new(true)}, time.Now(), false, nil)
 		require.NoError(t, err)
 	}
@@ -7905,7 +7905,7 @@ func testPolicyLabelMembershipCleanup(t *testing.T, ds *Datastore) {
 
 	// Update policy to exclude label2
 	policy.LabelsIncludeAny = nil
-	policy.LabelsExcludeAny = []fleet.LabelIdent{{LabelName: label2.Name}}
+	policy.LabelsExcludeAny = []automdm.LabelIdent{{LabelName: label2.Name}}
 	require.NoError(t, ds.SavePolicy(ctx, policy, false, false))
 	require.NoError(t, ds.CleanupPendingPolicyMembership(ctx))
 
@@ -7915,7 +7915,7 @@ func testPolicyLabelMembershipCleanup(t *testing.T, ds *Datastore) {
 
 	// Re-record membership for all hosts, then switch to exclude_all of both
 	// labels: a host is removed only if it is a member of BOTH labels.
-	for _, h := range []*fleet.Host{hostNoLabels, hostLabel1, hostLabel2, hostLabelBoth} {
+	for _, h := range []*automdm.Host{hostNoLabels, hostLabel1, hostLabel2, hostLabelBoth} {
 		_, err = ds.RecordPolicyQueryExecutions(ctx, h, map[uint]*bool{policy.ID: new(true)}, time.Now(), false, nil)
 		require.NoError(t, err)
 	}
@@ -7923,7 +7923,7 @@ func testPolicyLabelMembershipCleanup(t *testing.T, ds *Datastore) {
 	assertPolicyMembership(t, ds, polsByName, wantHostsByPol)
 
 	policy.LabelsExcludeAny = nil
-	policy.LabelsExcludeAll = []fleet.LabelIdent{{LabelName: label1.Name}, {LabelName: label2.Name}}
+	policy.LabelsExcludeAll = []automdm.LabelIdent{{LabelName: label1.Name}, {LabelName: label2.Name}}
 	require.NoError(t, ds.SavePolicy(ctx, policy, false, false))
 	require.NoError(t, ds.CleanupPendingPolicyMembership(ctx))
 
@@ -7938,7 +7938,7 @@ func testPolicyLabelMembershipCleanup(t *testing.T, ds *Datastore) {
 
 	// Test ApplyPolicySpecs with label changes
 	// First, re-record membership for all hosts
-	for _, h := range []*fleet.Host{hostNoLabels, hostLabel1, hostLabel2, hostLabelBoth} {
+	for _, h := range []*automdm.Host{hostNoLabels, hostLabel1, hostLabel2, hostLabelBoth} {
 		_, err = ds.RecordPolicyQueryExecutions(ctx, h, map[uint]*bool{policy.ID: new(true)}, time.Now(), false, nil)
 		require.NoError(t, err)
 	}
@@ -7946,12 +7946,12 @@ func testPolicyLabelMembershipCleanup(t *testing.T, ds *Datastore) {
 	assertPolicyMembership(t, ds, polsByName, wantHostsByPol)
 
 	// Apply spec with include label1 only
-	err = ds.ApplyPolicySpecs(ctx, user1.ID, []*fleet.PolicySpec{
+	err = ds.ApplyPolicySpecs(ctx, user1.ID, []*automdm.PolicySpec{
 		{
 			Name:             policy.Name,
 			Query:            policy.Query,
 			LabelsIncludeAny: []string{label1.Name},
-			Type:             fleet.PolicyTypeDynamic,
+			Type:             automdm.PolicyTypeDynamic,
 		},
 	})
 	require.NoError(t, err)
@@ -7977,7 +7977,7 @@ func testPolicyLabelMembershipCleanup(t *testing.T, ds *Datastore) {
 	policy2 := newTestPolicy(t, ds, user1, "cleanup test policy 2", "", nil)
 
 	// Record membership for all hosts with label1
-	for _, h := range []*fleet.Host{hostLabel1, hostLabelBoth, hostWinLabel1, hostMacLabel1} {
+	for _, h := range []*automdm.Host{hostLabel1, hostLabelBoth, hostWinLabel1, hostMacLabel1} {
 		_, err = ds.RecordPolicyQueryExecutions(ctx, h, map[uint]*bool{policy2.ID: new(true)}, time.Now(), false, nil)
 		require.NoError(t, err)
 	}
@@ -7988,7 +7988,7 @@ func testPolicyLabelMembershipCleanup(t *testing.T, ds *Datastore) {
 
 	// Update policy2 to windows platform AND include label1
 	policy2.Platform = "windows"
-	policy2.LabelsIncludeAny = []fleet.LabelIdent{{LabelName: label1.Name}}
+	policy2.LabelsIncludeAny = []automdm.LabelIdent{{LabelName: label1.Name}}
 	require.NoError(t, ds.SavePolicy(ctx, policy2, false, false))
 	require.NoError(t, ds.CleanupPendingPolicyMembership(ctx))
 
@@ -7999,7 +7999,7 @@ func testPolicyLabelMembershipCleanup(t *testing.T, ds *Datastore) {
 	// include_all cleanup: switch policy to require BOTH label1 and label2.
 	// Only hostLabelBoth qualifies; hosts with one of the two should have their membership cleaned up.
 	policy3 := newTestPolicy(t, ds, user1, "cleanup test policy 3 include_all", "", nil)
-	for _, h := range []*fleet.Host{hostNoLabels, hostLabel1, hostLabel2, hostLabelBoth} {
+	for _, h := range []*automdm.Host{hostNoLabels, hostLabel1, hostLabel2, hostLabelBoth} {
 		_, err = ds.RecordPolicyQueryExecutions(ctx, h, map[uint]*bool{policy3.ID: new(true)}, time.Now(), false, nil)
 		require.NoError(t, err)
 	}
@@ -8007,7 +8007,7 @@ func testPolicyLabelMembershipCleanup(t *testing.T, ds *Datastore) {
 	wantHostsByPol[policy3.Name] = []uint{hostNoLabels.ID, hostLabel1.ID, hostLabel2.ID, hostLabelBoth.ID}
 	assertPolicyMembership(t, ds, polsByName, wantHostsByPol)
 
-	policy3.LabelsIncludeAll = []fleet.LabelIdent{{LabelName: label1.Name}, {LabelName: label2.Name}}
+	policy3.LabelsIncludeAll = []automdm.LabelIdent{{LabelName: label1.Name}, {LabelName: label2.Name}}
 	require.NoError(t, ds.SavePolicy(ctx, policy3, false, false))
 	require.NoError(t, ds.CleanupPendingPolicyMembership(ctx))
 	// Only the host with BOTH labels should retain membership.
@@ -8020,19 +8020,19 @@ func testPolicyLabelMembershipCleanup(t *testing.T, ds *Datastore) {
 	policy3.LabelsIncludeAll = nil
 	require.NoError(t, ds.SavePolicy(ctx, policy3, false, false))
 	require.NoError(t, ds.CleanupPendingPolicyMembership(ctx))
-	for _, h := range []*fleet.Host{hostNoLabels, hostLabel1, hostLabel2, hostLabelBoth} {
+	for _, h := range []*automdm.Host{hostNoLabels, hostLabel1, hostLabel2, hostLabelBoth} {
 		_, err = ds.RecordPolicyQueryExecutions(ctx, h, map[uint]*bool{policy3.ID: new(true)}, time.Now(), false, nil)
 		require.NoError(t, err)
 	}
 	wantHostsByPol[policy3.Name] = []uint{hostNoLabels.ID, hostLabel1.ID, hostLabel2.ID, hostLabelBoth.ID}
 	assertPolicyMembership(t, ds, polsByName, wantHostsByPol)
 
-	err = ds.ApplyPolicySpecs(ctx, user1.ID, []*fleet.PolicySpec{
+	err = ds.ApplyPolicySpecs(ctx, user1.ID, []*automdm.PolicySpec{
 		{
 			Name:             policy3.Name,
 			Query:            policy3.Query,
 			LabelsIncludeAll: []string{label1.Name, label2.Name},
-			Type:             fleet.PolicyTypeDynamic,
+			Type:             automdm.PolicyTypeDynamic,
 		},
 	})
 	require.NoError(t, err)
@@ -8042,12 +8042,12 @@ func testPolicyLabelMembershipCleanup(t *testing.T, ds *Datastore) {
 	assertPolicyMembership(t, ds, polsByName, wantHostsByPol)
 
 	// Re-applying the same label scope skips the cleanup, so re-recorded membership is kept.
-	for _, h := range []*fleet.Host{hostNoLabels, hostLabel1, hostLabel2, hostLabelBoth} {
+	for _, h := range []*automdm.Host{hostNoLabels, hostLabel1, hostLabel2, hostLabelBoth} {
 		_, err = ds.RecordPolicyQueryExecutions(ctx, h, map[uint]*bool{policy3.ID: new(true)}, time.Now(), false, nil)
 		require.NoError(t, err)
 	}
-	err = ds.ApplyPolicySpecs(ctx, user1.ID, []*fleet.PolicySpec{
-		{Name: policy3.Name, Query: policy3.Query, LabelsIncludeAll: []string{label1.Name, label2.Name}, Type: fleet.PolicyTypeDynamic},
+	err = ds.ApplyPolicySpecs(ctx, user1.ID, []*automdm.PolicySpec{
+		{Name: policy3.Name, Query: policy3.Query, LabelsIncludeAll: []string{label1.Name, label2.Name}, Type: automdm.PolicyTypeDynamic},
 	})
 	require.NoError(t, err)
 	require.NoError(t, ds.CleanupPendingPolicyMembership(ctx))
@@ -8055,19 +8055,19 @@ func testPolicyLabelMembershipCleanup(t *testing.T, ds *Datastore) {
 	assertPolicyMembership(t, ds, polsByName, wantHostsByPol)
 
 	freshName := "cleanup test policy 4 include_all create"
-	err = ds.ApplyPolicySpecs(ctx, user1.ID, []*fleet.PolicySpec{
+	err = ds.ApplyPolicySpecs(ctx, user1.ID, []*automdm.PolicySpec{
 		{
 			Name:             freshName,
 			Query:            "SELECT 1",
 			LabelsIncludeAll: []string{label1.Name, label2.Name},
-			Type:             fleet.PolicyTypeDynamic,
+			Type:             automdm.PolicyTypeDynamic,
 		},
 	})
 	require.NoError(t, err)
 	require.NoError(t, ds.CleanupPendingPolicyMembership(ctx))
-	allPolicies, err := ds.ListGlobalPolicies(ctx, fleet.ListOptions{}, "")
+	allPolicies, err := ds.ListGlobalPolicies(ctx, automdm.ListOptions{}, "")
 	require.NoError(t, err)
-	var freshPolicy *fleet.Policy
+	var freshPolicy *automdm.Policy
 	for _, p := range allPolicies {
 		if p.Name == freshName {
 			freshPolicy = p
@@ -8084,20 +8084,20 @@ func testDeletePolicyWithSoftwareActivatesNextActivity(t *testing.T, ds *Datasto
 	ctx := t.Context()
 	u := test.NewUser(t, ds, "Alice", "alice@example.com", true)
 
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "team1"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
 
 	hostTm := test.NewHost(t, ds, "host1", "1", "host1key", "host1uuid", time.Now())
 	hostNoTm := test.NewHost(t, ds, "host2", "2", "host2key", "host2uuid", time.Now())
 	// move hostTm to team1
-	err = ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team1.ID, []uint{hostTm.ID}))
+	err = ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team1.ID, []uint{hostTm.ID}))
 	require.NoError(t, err)
 
 	// Create a couple policies with an associated installer, one for team1 and
 	// one for no team
-	installer, err := fleet.NewTempFileReader(strings.NewReader("hello"), t.TempDir)
+	installer, err := automdm.NewTempFileReader(strings.NewReader("hello"), t.TempDir)
 	require.NoError(t, err)
-	installerIDTm, _, err := ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
+	installerIDTm, _, err := ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
 		InstallScript:   "hello",
 		InstallerFile:   installer,
 		StorageID:       "storage1",
@@ -8107,12 +8107,12 @@ func testDeletePolicyWithSoftwareActivatesNextActivity(t *testing.T, ds *Datasto
 		Source:          "apps",
 		UserID:          u.ID,
 		TeamID:          &team1.ID,
-		ValidatedLabels: &fleet.LabelIdentsWithScope{},
+		ValidatedLabels: &automdm.LabelIdentsWithScope{},
 	})
 	require.NoError(t, err)
-	installer, err = fleet.NewTempFileReader(strings.NewReader("hello2"), t.TempDir)
+	installer, err = automdm.NewTempFileReader(strings.NewReader("hello2"), t.TempDir)
 	require.NoError(t, err)
-	installerIDNoTm, _, err := ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
+	installerIDNoTm, _, err := ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
 		InstallScript:   "hello2",
 		InstallerFile:   installer,
 		StorageID:       "storage2",
@@ -8122,17 +8122,17 @@ func testDeletePolicyWithSoftwareActivatesNextActivity(t *testing.T, ds *Datasto
 		Source:          "apps",
 		UserID:          u.ID,
 		TeamID:          nil,
-		ValidatedLabels: &fleet.LabelIdentsWithScope{},
+		ValidatedLabels: &automdm.LabelIdentsWithScope{},
 	})
 	require.NoError(t, err)
 
-	policyTm, err := ds.NewTeamPolicy(ctx, team1.ID, &u.ID, fleet.PolicyPayload{
+	policyTm, err := ds.NewTeamPolicy(ctx, team1.ID, &u.ID, automdm.PolicyPayload{
 		Name:                "p1",
 		Query:               "SELECT 1;",
 		SoftwareInstallerID: ptr.Uint(installerIDTm),
 	})
 	require.NoError(t, err)
-	policyNoTm, err := ds.NewTeamPolicy(ctx, fleet.PolicyNoTeamID, &u.ID, fleet.PolicyPayload{
+	policyNoTm, err := ds.NewTeamPolicy(ctx, automdm.PolicyNoTeamID, &u.ID, automdm.PolicyPayload{
 		Name:                "p2",
 		Query:               "SELECT 2;",
 		SoftwareInstallerID: ptr.Uint(installerIDNoTm),
@@ -8140,7 +8140,7 @@ func testDeletePolicyWithSoftwareActivatesNextActivity(t *testing.T, ds *Datasto
 	require.NoError(t, err)
 
 	// enqueue a script execution on hostNoTm
-	scriptExec, err := ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+	scriptExec, err := ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 		HostID:         hostNoTm.ID,
 		ScriptContents: "echo",
 		UserID:         &u.ID,
@@ -8154,26 +8154,26 @@ func testDeletePolicyWithSoftwareActivatesNextActivity(t *testing.T, ds *Datasto
 
 	// simulate the work of "processSoftwareForNewlyFailingPolicies"
 	installUUIDNoTm, err := ds.InsertSoftwareInstallRequest(ctx, hostNoTm.ID, installerIDNoTm,
-		fleet.HostSoftwareInstallOptions{
+		automdm.HostSoftwareInstallOptions{
 			SelfService: false,
 			PolicyID:    &policyNoTm.ID,
 		})
 	require.NoError(t, err)
 	installUUIDTm, err := ds.InsertSoftwareInstallRequest(ctx, hostTm.ID, installerIDTm,
-		fleet.HostSoftwareInstallOptions{
+		automdm.HostSoftwareInstallOptions{
 			SelfService: false,
 			PolicyID:    &policyTm.ID,
 		})
 	require.NoError(t, err)
 
 	// check the upcoming activities before deletion
-	activities, _, err := ds.ListHostUpcomingActivities(ctx, hostNoTm.ID, fleet.ListOptions{})
+	activities, _, err := ds.ListHostUpcomingActivities(ctx, hostNoTm.ID, automdm.ListOptions{})
 	require.NoError(t, err)
 	require.Len(t, activities, 2)
 	require.Equal(t, scriptExec.ExecutionID, activities[0].UUID)
 	require.Equal(t, installUUIDNoTm, activities[1].UUID)
 
-	activities, _, err = ds.ListHostUpcomingActivities(ctx, hostTm.ID, fleet.ListOptions{})
+	activities, _, err = ds.ListHostUpcomingActivities(ctx, hostTm.ID, automdm.ListOptions{})
 	require.NoError(t, err)
 	require.Len(t, activities, 1)
 	require.Equal(t, installUUIDTm, activities[0].UUID)
@@ -8184,7 +8184,7 @@ func testDeletePolicyWithSoftwareActivatesNextActivity(t *testing.T, ds *Datasto
 	// delete both policies, will cancel and activate next
 	_, err = ds.DeleteTeamPolicies(ctx, team1.ID, []uint{policyTm.ID})
 	require.NoError(t, err)
-	_, err = ds.DeleteTeamPolicies(ctx, fleet.PolicyNoTeamID, []uint{policyNoTm.ID})
+	_, err = ds.DeleteTeamPolicies(ctx, automdm.PolicyNoTeamID, []uint{policyNoTm.ID})
 	require.NoError(t, err)
 
 	checkUpcomingActivities(t, ds, hostNoTm, scriptExec.ExecutionID)
@@ -8195,37 +8195,37 @@ func testDeletePolicyWithScriptActivatesNextActivity(t *testing.T, ds *Datastore
 	ctx := t.Context()
 	u := test.NewUser(t, ds, "Alice", "alice@example.com", true)
 
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "team1"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
 
 	hostTm := test.NewHost(t, ds, "host1", "1", "host1key", "host1uuid", time.Now())
 	hostNoTm := test.NewHost(t, ds, "host2", "2", "host2key", "host2uuid", time.Now())
 	// move hostTm to team1
-	err = ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team1.ID, []uint{hostTm.ID}))
+	err = ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team1.ID, []uint{hostTm.ID}))
 	require.NoError(t, err)
 
 	// Create a couple policies with an associated script, one for team1 and
 	// one for no team
-	scriptTm, err := ds.NewScript(ctx, &fleet.Script{
+	scriptTm, err := ds.NewScript(ctx, &automdm.Script{
 		Name:           "script1.sh",
 		ScriptContents: "echo",
 		TeamID:         &team1.ID,
 	})
 	require.NoError(t, err)
-	scriptNoTm, err := ds.NewScript(ctx, &fleet.Script{
+	scriptNoTm, err := ds.NewScript(ctx, &automdm.Script{
 		Name:           "script2.sh",
 		ScriptContents: "echo",
 		TeamID:         nil,
 	})
 	require.NoError(t, err)
 
-	policyTm, err := ds.NewTeamPolicy(ctx, team1.ID, &u.ID, fleet.PolicyPayload{
+	policyTm, err := ds.NewTeamPolicy(ctx, team1.ID, &u.ID, automdm.PolicyPayload{
 		Name:     "p1",
 		Query:    "SELECT 1;",
 		ScriptID: &scriptTm.ID,
 	})
 	require.NoError(t, err)
-	policyNoTm, err := ds.NewTeamPolicy(ctx, fleet.PolicyNoTeamID, &u.ID, fleet.PolicyPayload{
+	policyNoTm, err := ds.NewTeamPolicy(ctx, automdm.PolicyNoTeamID, &u.ID, automdm.PolicyPayload{
 		Name:     "p2",
 		Query:    "SELECT 2;",
 		ScriptID: &scriptNoTm.ID,
@@ -8233,7 +8233,7 @@ func testDeletePolicyWithScriptActivatesNextActivity(t *testing.T, ds *Datastore
 	require.NoError(t, err)
 
 	// enqueue a script execution on hostNoTm
-	scriptExec, err := ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+	scriptExec, err := ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 		HostID:         hostNoTm.ID,
 		ScriptContents: "echo",
 		UserID:         &u.ID,
@@ -8247,7 +8247,7 @@ func testDeletePolicyWithScriptActivatesNextActivity(t *testing.T, ds *Datastore
 	require.NoError(t, errOnly(ds.RecordPolicyQueryExecutions(ctx, hostTm, map[uint]*bool{policyTm.ID: new(false)}, time.Now(), false, nil)))
 
 	// simulate the work of "processScriptsForNewlyFailingPolicies"
-	hsrPolicyNoTm, err := ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+	hsrPolicyNoTm, err := ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 		HostID:         hostNoTm.ID,
 		ScriptContents: "echo",
 		UserID:         &u.ID,
@@ -8256,7 +8256,7 @@ func testDeletePolicyWithScriptActivatesNextActivity(t *testing.T, ds *Datastore
 		ScriptID:       &scriptNoTm.ID,
 	})
 	require.NoError(t, err)
-	hsrPolicyTm, err := ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+	hsrPolicyTm, err := ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 		HostID:         hostTm.ID,
 		ScriptContents: "echo",
 		UserID:         &u.ID,
@@ -8267,13 +8267,13 @@ func testDeletePolicyWithScriptActivatesNextActivity(t *testing.T, ds *Datastore
 	require.NoError(t, err)
 
 	// check the upcoming activities before deletion
-	activities, _, err := ds.ListHostUpcomingActivities(ctx, hostNoTm.ID, fleet.ListOptions{})
+	activities, _, err := ds.ListHostUpcomingActivities(ctx, hostNoTm.ID, automdm.ListOptions{})
 	require.NoError(t, err)
 	require.Len(t, activities, 2)
 	require.Equal(t, scriptExec.ExecutionID, activities[0].UUID)
 	require.Equal(t, hsrPolicyNoTm.ExecutionID, activities[1].UUID)
 
-	activities, _, err = ds.ListHostUpcomingActivities(ctx, hostTm.ID, fleet.ListOptions{})
+	activities, _, err = ds.ListHostUpcomingActivities(ctx, hostTm.ID, automdm.ListOptions{})
 	require.NoError(t, err)
 	require.Len(t, activities, 1)
 	require.Equal(t, hsrPolicyTm.ExecutionID, activities[0].UUID)
@@ -8284,7 +8284,7 @@ func testDeletePolicyWithScriptActivatesNextActivity(t *testing.T, ds *Datastore
 	// delete both policies, will cancel and activate next
 	_, err = ds.DeleteTeamPolicies(ctx, team1.ID, []uint{policyTm.ID})
 	require.NoError(t, err)
-	_, err = ds.DeleteTeamPolicies(ctx, fleet.PolicyNoTeamID, []uint{policyNoTm.ID})
+	_, err = ds.DeleteTeamPolicies(ctx, automdm.PolicyNoTeamID, []uint{policyNoTm.ID})
 	require.NoError(t, err)
 
 	checkUpcomingActivities(t, ds, hostNoTm, scriptExec.ExecutionID)
@@ -8298,9 +8298,9 @@ func testDeletePolicyWithScriptActivatesNextActivity(t *testing.T, ds *Datastore
 func testSimultaneousSavePolicy(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 	user1 := test.NewUser(t, ds, "Alice", "alice@example.com", true)
-	team1, err := ds.NewTeam(context.Background(), &fleet.Team{Name: "team1"})
+	team1, err := ds.NewTeam(context.Background(), &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
-	var policies []*fleet.Policy
+	var policies []*automdm.Policy
 	for i := range 10 {
 		policies = append(policies, newTestPolicy(t, ds, user1, fmt.Sprintf("policy%d", i), "darwin", &team1.ID))
 	}
@@ -8338,7 +8338,7 @@ func testIsPolicyFailing(t *testing.T, ds *Datastore) {
 	host := test.NewHost(t, ds, "host1", "10.0.0.1", "host1Key", "host1UUID", time.Now())
 	user := test.NewUser(t, ds, "User", "test@example.com", true)
 
-	policy, err := ds.NewGlobalPolicy(ctx, &user.ID, fleet.PolicyPayload{
+	policy, err := ds.NewGlobalPolicy(ctx, &user.ID, automdm.PolicyPayload{
 		Name:  "policy",
 		Query: "SELECT 1;",
 	})
@@ -8384,7 +8384,7 @@ func testIsPolicyFailing(t *testing.T, ds *Datastore) {
 	require.True(t, isFailing, "policy with no membership record for different host should be considered still failing")
 
 	// Different policy for the same host
-	policy2, err := ds.NewGlobalPolicy(ctx, &user.ID, fleet.PolicyPayload{
+	policy2, err := ds.NewGlobalPolicy(ctx, &user.ID, automdm.PolicyPayload{
 		Name:  "policy 2",
 		Query: "SELECT 2;",
 	})
@@ -8400,12 +8400,12 @@ func testResetAttemptsOnFailingToPassingSync(t *testing.T, ds *Datastore) {
 	user := test.NewUser(t, ds, "Bob", "bob@example.com", true)
 
 	// Create policies
-	p1, err := ds.NewGlobalPolicy(ctx, &user.ID, fleet.PolicyPayload{
+	p1, err := ds.NewGlobalPolicy(ctx, &user.ID, automdm.PolicyPayload{
 		Name:  "policy-sync-1",
 		Query: "SELECT 1",
 	})
 	require.NoError(t, err)
-	p2, err := ds.NewGlobalPolicy(ctx, &user.ID, fleet.PolicyPayload{
+	p2, err := ds.NewGlobalPolicy(ctx, &user.ID, automdm.PolicyPayload{
 		Name:  "policy-sync-2",
 		Query: "SELECT 2",
 	})
@@ -8413,8 +8413,8 @@ func testResetAttemptsOnFailingToPassingSync(t *testing.T, ds *Datastore) {
 
 	// Enroll a host
 	host, err := ds.EnrollOsquery(ctx,
-		fleet.WithEnrollOsqueryHostID("hsync1"),
-		fleet.WithEnrollOsqueryNodeKey("nsync1"),
+		automdm.WithEnrollOsqueryHostID("hsync1"),
+		automdm.WithEnrollOsqueryNodeKey("nsync1"),
 	)
 	require.NoError(t, err)
 
@@ -8481,7 +8481,7 @@ func testPolicyModificationResetsAttemptNumber(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
 	// Create a team
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: t.Name()})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: t.Name()})
 	require.NoError(t, err)
 
 	// Create script content
@@ -8497,7 +8497,7 @@ func testPolicyModificationResetsAttemptNumber(t *testing.T, ds *Datastore) {
 	})
 
 	// Create a script
-	script, err := ds.NewScript(ctx, &fleet.Script{
+	script, err := ds.NewScript(ctx, &automdm.Script{
 		Name:            "test.sh",
 		TeamID:          &team.ID,
 		ScriptContentID: uint(scriptContentID), //nolint:gosec // dismiss G115
@@ -8530,7 +8530,7 @@ func testPolicyModificationResetsAttemptNumber(t *testing.T, ds *Datastore) {
 	})
 
 	// Create a policy
-	policy, err := ds.NewTeamPolicy(ctx, team.ID, nil, fleet.PolicyPayload{
+	policy, err := ds.NewTeamPolicy(ctx, team.ID, nil, automdm.PolicyPayload{
 		Name:     t.Name(),
 		Query:    "SELECT 1;",
 		Platform: "darwin",
@@ -8632,10 +8632,10 @@ func testBatchedPolicyMembershipCleanup(t *testing.T, ds *Datastore) {
 
 	// Create a policy and 5 hosts (more than the batch size of 2).
 	pol := newTestPolicy(t, ds, user1, "batch cleanup policy", "", nil)
-	hosts := make([]*fleet.Host, 5)
+	hosts := make([]*automdm.Host, 5)
 	for i := range hosts {
 		id := fmt.Sprintf("batch-cleanup-%d", i)
-		h, err := ds.NewHost(ctx, &fleet.Host{
+		h, err := ds.NewHost(ctx, &automdm.Host{
 			OsqueryHostID:   &id,
 			DetailUpdatedAt: time.Now(),
 			LabelUpdatedAt:  time.Now(),
@@ -8702,7 +8702,7 @@ func hostFailingPolicyCounts(t *testing.T, ds *Datastore, hostIDs []uint) []int 
 
 // testDeletePoliciesCleansUpBeforeDelete verifies that deleting policies removes their per-host rows ahead of the
 // policy row (so the foreign-key cascades find nothing left), recomputes the hosts' failing policy counts, and leaves
-// other fleets' policies alone.
+// other teams' policies alone.
 func testDeletePoliciesCleansUpBeforeDelete(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 	user := test.NewUser(t, ds, "Alice", "alice@example.com", true)
@@ -8711,9 +8711,9 @@ func testDeletePoliciesCleansUpBeforeDelete(t *testing.T, ds *Datastore) {
 	policyMembershipDeleteBatchSize = 2
 	t.Cleanup(func() { policyMembershipDeleteBatchSize = orig })
 
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "team1"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
-	team2, err := ds.NewTeam(ctx, &fleet.Team{Name: "team2"})
+	team2, err := ds.NewTeam(ctx, &automdm.Team{Name: "team2"})
 	require.NoError(t, err)
 
 	globalPolicy := newTestPolicy(t, ds, user, "global", "", nil)
@@ -8721,7 +8721,7 @@ func testDeletePoliciesCleansUpBeforeDelete(t *testing.T, ds *Datastore) {
 	team1OtherPolicy := newTestPolicy(t, ds, user, "team1 other", "", &team1.ID)
 	team2Policy := newTestPolicy(t, ds, user, "team2", "", &team2.ID)
 
-	team1Hosts := make([]*fleet.Host, 5)
+	team1Hosts := make([]*automdm.Host, 5)
 	team1HostIDs := make([]uint, len(team1Hosts))
 	for i := range team1Hosts {
 		team1Hosts[i] = newTestHostWithPlatform(t, ds, fmt.Sprintf("team1-host-%d", i), "darwin", &team1.ID)
@@ -8740,8 +8740,8 @@ func testDeletePoliciesCleansUpBeforeDelete(t *testing.T, ds *Datastore) {
 		`INSERT INTO vpp_apps (adam_id, platform, name, latest_version) VALUES ('adam-1', 'darwin', 'App', '1.0')`)
 	require.NoError(t, err)
 	for _, hp := range []struct {
-		host   *fleet.Host
-		policy *fleet.Policy
+		host   *automdm.Host
+		policy *automdm.Policy
 	}{
 		{team1Hosts[0], team1Policy}, {team1Hosts[1], team1Policy}, {team1Hosts[2], team1Policy}, {team1Hosts[3], team1Policy},
 		{team1Hosts[4], team1OtherPolicy}, {team2Host, team2Policy},
@@ -8806,19 +8806,19 @@ func testDeletePoliciesCleansUpBeforeDelete(t *testing.T, ds *Datastore) {
 	}
 	require.Equal(t, []int{2, 2, 2, 2, 2}, hostFailingPolicyCounts(t, ds, team1HostIDs))
 
-	// Another fleet's policy is skipped, see the last assertions.
+	// Another team's policy is skipped, see the last assertions.
 	_, err = ds.DeleteTeamPolicies(ctx, team1.ID, []uint{team1Policy.ID, team1OtherPolicy.ID, team2Policy.ID})
 	require.NoError(t, err)
 	for _, id := range []uint{team1Policy.ID, team1OtherPolicy.ID} {
 		_, err = ds.Policy(ctx, id)
-		require.True(t, fleet.IsNotFound(err))
+		require.True(t, automdm.IsNotFound(err))
 	}
 	require.Equal(t, []int{1, 1, 1, 1, 1}, hostFailingPolicyCounts(t, ds, team1HostIDs))
 
 	_, err = ds.DeleteGlobalPolicies(ctx, []uint{globalPolicy.ID})
 	require.NoError(t, err)
 	_, err = ds.Policy(ctx, globalPolicy.ID)
-	require.True(t, fleet.IsNotFound(err))
+	require.True(t, automdm.IsNotFound(err))
 	require.Equal(t, []int{0, 0, 0, 0, 0}, hostFailingPolicyCounts(t, ds, team1HostIDs))
 
 	_, err = ds.Policy(ctx, team2Policy.ID)
@@ -8875,16 +8875,16 @@ func testDeleteNoTeamPoliciesCancelsActivatedAutomations(t *testing.T, ds *Datas
 	scriptHost := newTestHostWithPlatform(t, ds, "script host", "darwin", nil)
 	installHost := newTestHostWithPlatform(t, ds, "install host", "darwin", nil)
 
-	script, err := ds.NewScript(ctx, &fleet.Script{Name: "script.sh", ScriptContents: "echo"})
+	script, err := ds.NewScript(ctx, &automdm.Script{Name: "script.sh", ScriptContents: "echo"})
 	require.NoError(t, err)
-	scriptPolicy, err := ds.NewTeamPolicy(ctx, fleet.PolicyNoTeamID, &user.ID, fleet.PolicyPayload{
+	scriptPolicy, err := ds.NewTeamPolicy(ctx, automdm.PolicyNoTeamID, &user.ID, automdm.PolicyPayload{
 		Name: "script policy", Query: "SELECT 1;", ScriptID: &script.ID,
 	})
 	require.NoError(t, err)
 
-	installer, err := fleet.NewTempFileReader(strings.NewReader("hello"), t.TempDir)
+	installer, err := automdm.NewTempFileReader(strings.NewReader("hello"), t.TempDir)
 	require.NoError(t, err)
-	installerID, _, err := ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
+	installerID, _, err := ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
 		InstallScript:   "hello",
 		InstallerFile:   installer,
 		StorageID:       "storage1",
@@ -8893,28 +8893,28 @@ func testDeleteNoTeamPoliciesCancelsActivatedAutomations(t *testing.T, ds *Datas
 		Version:         "1.0",
 		Source:          "apps",
 		UserID:          user.ID,
-		TeamID:          new(fleet.PolicyNoTeamID),
-		ValidatedLabels: &fleet.LabelIdentsWithScope{},
+		TeamID:          new(automdm.PolicyNoTeamID),
+		ValidatedLabels: &automdm.LabelIdentsWithScope{},
 	})
 	require.NoError(t, err)
-	installPolicy, err := ds.NewTeamPolicy(ctx, fleet.PolicyNoTeamID, &user.ID, fleet.PolicyPayload{
+	installPolicy, err := ds.NewTeamPolicy(ctx, automdm.PolicyNoTeamID, &user.ID, automdm.PolicyPayload{
 		Name: "install policy", Query: "SELECT 2;", SoftwareInstallerID: &installerID,
 	})
 	require.NoError(t, err)
 
-	for _, h := range []*fleet.Host{scriptHost, installHost} {
+	for _, h := range []*automdm.Host{scriptHost, installHost} {
 		_, err = ds.RecordPolicyQueryExecutions(ctx, h,
 			map[uint]*bool{scriptPolicy.ID: new(false), installPolicy.ID: new(false)}, time.Now(), false, nil)
 		require.NoError(t, err)
 	}
 
 	// Neither host has anything else queued, so both requests are activated right away.
-	scriptRun, err := ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+	scriptRun, err := ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 		HostID: scriptHost.ID, ScriptContents: "echo", UserID: &user.ID, PolicyID: &scriptPolicy.ID, ScriptID: &script.ID,
 	})
 	require.NoError(t, err)
 	installExecID, err := ds.InsertSoftwareInstallRequest(ctx, installHost.ID, installerID,
-		fleet.HostSoftwareInstallOptions{PolicyID: &installPolicy.ID})
+		automdm.HostSoftwareInstallOptions{PolicyID: &installPolicy.ID})
 	require.NoError(t, err)
 
 	var activated int
@@ -8925,7 +8925,7 @@ func testDeleteNoTeamPoliciesCancelsActivatedAutomations(t *testing.T, ds *Datas
 		`SELECT COUNT(*) FROM host_software_installs WHERE execution_id = ? AND status = 'pending_install'`, installExecID))
 	require.Equal(t, 1, activated)
 
-	_, err = ds.DeleteTeamPolicies(ctx, fleet.PolicyNoTeamID, []uint{scriptPolicy.ID, installPolicy.ID})
+	_, err = ds.DeleteTeamPolicies(ctx, automdm.PolicyNoTeamID, []uint{scriptPolicy.ID, installPolicy.ID})
 	require.NoError(t, err)
 
 	var scriptRuns int
@@ -8956,7 +8956,7 @@ func testBatchedPolicyMembershipCleanupOnPolicyUpdate(t *testing.T, ds *Datastor
 
 	// Create 5 linux hosts (wrong platform) + 1 windows host (should remain).
 	winID := "batch-win-0"
-	winHost, err := ds.NewHost(ctx, &fleet.Host{
+	winHost, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID:   &winID,
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
@@ -8969,10 +8969,10 @@ func testBatchedPolicyMembershipCleanupOnPolicyUpdate(t *testing.T, ds *Datastor
 	})
 	require.NoError(t, err)
 
-	linuxHosts := make([]*fleet.Host, 5)
+	linuxHosts := make([]*automdm.Host, 5)
 	for i := range linuxHosts {
 		id := fmt.Sprintf("batch-lin-%d", i)
-		h, err := ds.NewHost(ctx, &fleet.Host{
+		h, err := ds.NewHost(ctx, &automdm.Host{
 			OsqueryHostID:   &id,
 			DetailUpdatedAt: time.Now(),
 			LabelUpdatedAt:  time.Now(),
@@ -8988,7 +8988,7 @@ func testBatchedPolicyMembershipCleanupOnPolicyUpdate(t *testing.T, ds *Datastor
 	}
 
 	// Record results for all hosts (simulating results arriving before platform filter applied).
-	allHosts := append([]*fleet.Host{winHost}, linuxHosts...)
+	allHosts := append([]*automdm.Host{winHost}, linuxHosts...)
 	for _, h := range allHosts {
 		_, err := ds.RecordPolicyQueryExecutions(ctx, h, map[uint]*bool{pol.ID: new(false)}, time.Now(), false, nil)
 		require.NoError(t, err)
@@ -9009,13 +9009,13 @@ func testBatchedPolicyMembershipCleanupOnPolicyUpdate(t *testing.T, ds *Datastor
 
 	// ── Part 2: label-based cleanup ─────────────────────────────────────────
 	// Create a label and a policy that targets only hosts in that label.
-	inclLabel, err := ds.NewLabel(ctx, &fleet.Label{Name: "batch-incl-label"})
+	inclLabel, err := ds.NewLabel(ctx, &automdm.Label{Name: "batch-incl-label"})
 	require.NoError(t, err)
 
 	// Create 1 host that belongs to the label (should survive cleanup) and 5
 	// that do not (should be removed in multiple batches of 2).
 	lblID := "batch-lbl-0"
-	lblHost, err := ds.NewHost(ctx, &fleet.Host{
+	lblHost, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID:   &lblID,
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
@@ -9029,10 +9029,10 @@ func testBatchedPolicyMembershipCleanupOnPolicyUpdate(t *testing.T, ds *Datastor
 	require.NoError(t, err)
 	require.NoError(t, ds.AddLabelsToHost(ctx, lblHost.ID, []uint{inclLabel.ID}))
 
-	nonLblHosts := make([]*fleet.Host, 5)
+	nonLblHosts := make([]*automdm.Host, 5)
 	for i := range nonLblHosts {
 		id := fmt.Sprintf("batch-nonlbl-%d", i)
-		h, err := ds.NewHost(ctx, &fleet.Host{
+		h, err := ds.NewHost(ctx, &automdm.Host{
 			OsqueryHostID:   &id,
 			DetailUpdatedAt: time.Now(),
 			LabelUpdatedAt:  time.Now(),
@@ -9049,11 +9049,11 @@ func testBatchedPolicyMembershipCleanupOnPolicyUpdate(t *testing.T, ds *Datastor
 
 	// Create a label-scoped policy (no platform restriction).
 	lblPol := newTestPolicy(t, ds, user1, "batch label cleanup", "", nil)
-	lblPol.LabelsIncludeAny = []fleet.LabelIdent{{LabelName: inclLabel.Name}}
+	lblPol.LabelsIncludeAny = []automdm.LabelIdent{{LabelName: inclLabel.Name}}
 	require.NoError(t, ds.SavePolicy(ctx, lblPol, false, false))
 
 	// Record policy results for all label-test hosts so policy_membership is populated.
-	labelHosts := append([]*fleet.Host{lblHost}, nonLblHosts...)
+	labelHosts := append([]*automdm.Host{lblHost}, nonLblHosts...)
 	for _, h := range labelHosts {
 		_, err := ds.RecordPolicyQueryExecutions(ctx, h, map[uint]*bool{lblPol.ID: new(false)}, time.Now(), false, nil)
 		require.NoError(t, err)
@@ -9101,7 +9101,7 @@ func policyStatsCount(t *testing.T, ds *Datastore, policyID uint) int {
 	return count
 }
 
-func recordFailingPolicyResults(t *testing.T, ds *Datastore, policyID uint, hosts []*fleet.Host) {
+func recordFailingPolicyResults(t *testing.T, ds *Datastore, policyID uint, hosts []*automdm.Host) {
 	t.Helper()
 	for _, h := range hosts {
 		_, err := ds.RecordPolicyQueryExecutions(t.Context(), h, map[uint]*bool{policyID: new(false)}, time.Now(), false, nil)
@@ -9156,9 +9156,9 @@ func testCleanupPendingPolicyMembership(t *testing.T, ds *Datastore) {
 	})
 
 	t.Run("re-applying an unchanged spec requests no cleanup", func(t *testing.T) {
-		spec := &fleet.PolicySpec{Name: "reapplied", Query: "select 1;", Type: fleet.PolicyTypeDynamic}
-		require.NoError(t, ds.ApplyPolicySpecs(ctx, user.ID, []*fleet.PolicySpec{spec}))
-		var pol fleet.Policy
+		spec := &automdm.PolicySpec{Name: "reapplied", Query: "select 1;", Type: automdm.PolicyTypeDynamic}
+		require.NoError(t, ds.ApplyPolicySpecs(ctx, user.ID, []*automdm.PolicySpec{spec}))
+		var pol automdm.Policy
 		require.NoError(t, ds.writer(ctx).GetContext(ctx, &pol, `SELECT id FROM policies WHERE name = ?`, spec.Name))
 		removeAll, partial := policyCleanupFlags(t, ds, pol.ID)
 		assert.False(t, removeAll, "a new policy has no results to clean up")
@@ -9167,11 +9167,11 @@ func testCleanupPendingPolicyMembership(t *testing.T, ds *Datastore) {
 		recordFailingPolicyResults(t, ds, pol.ID, hosts)
 
 		spec.Query = "select 2;"
-		require.NoError(t, ds.ApplyPolicySpecs(ctx, user.ID, []*fleet.PolicySpec{spec}))
+		require.NoError(t, ds.ApplyPolicySpecs(ctx, user.ID, []*automdm.PolicySpec{spec}))
 		require.NoError(t, ds.CleanupPendingPolicyMembership(ctx))
 		recordFailingPolicyResults(t, ds, pol.ID, hosts)
 
-		require.NoError(t, ds.ApplyPolicySpecs(ctx, user.ID, []*fleet.PolicySpec{spec}))
+		require.NoError(t, ds.ApplyPolicySpecs(ctx, user.ID, []*automdm.PolicySpec{spec}))
 		removeAll, partial = policyCleanupFlags(t, ds, pol.ID)
 		assert.False(t, removeAll)
 		assert.False(t, partial)
@@ -9198,7 +9198,7 @@ func testCleanupPendingPolicyMembership(t *testing.T, ds *Datastore) {
 	t.Run("hourly reconcile leaves pending policies to the cleanup", func(t *testing.T) {
 		pol := newTestPolicy(t, ds, user, "reconcile", "", nil)
 		linuxHost := newTestHostWithPlatform(t, ds, "reconcile-linux", "ubuntu", nil)
-		recordFailingPolicyResults(t, ds, pol.ID, []*fleet.Host{linuxHost})
+		recordFailingPolicyResults(t, ds, pol.ID, []*automdm.Host{linuxHost})
 		// A platform change an hour ago, which the reconcile would otherwise clean up.
 		_, err := ds.writer(ctx).ExecContext(ctx, `
 			UPDATE policies SET platforms = 'darwin', needs_partial_membership_cleanup = 1,
@@ -9214,18 +9214,18 @@ func testCleanupPendingPolicyMembership(t *testing.T, ds *Datastore) {
 	})
 
 	t.Run("a label change through GitOps clears the counts", func(t *testing.T) {
-		label, err := ds.NewLabel(ctx, &fleet.Label{Name: "label change counts", Query: "select 1;"})
+		label, err := ds.NewLabel(ctx, &automdm.Label{Name: "label change counts", Query: "select 1;"})
 		require.NoError(t, err)
-		spec := &fleet.PolicySpec{Name: "label change counts", Query: "select 1;", Type: fleet.PolicyTypeDynamic}
-		require.NoError(t, ds.ApplyPolicySpecs(ctx, user.ID, []*fleet.PolicySpec{spec}))
-		var pol fleet.Policy
+		spec := &automdm.PolicySpec{Name: "label change counts", Query: "select 1;", Type: automdm.PolicyTypeDynamic}
+		require.NoError(t, ds.ApplyPolicySpecs(ctx, user.ID, []*automdm.PolicySpec{spec}))
+		var pol automdm.Policy
 		require.NoError(t, ds.writer(ctx).GetContext(ctx, &pol, `SELECT id FROM policies WHERE name = ?`, spec.Name))
 		recordFailingPolicyResults(t, ds, pol.ID, newPolicyTestHosts(t, ds, 2, "label-change-counts"))
 		require.NoError(t, ds.UpdateHostPolicyCounts(ctx))
 		require.Positive(t, policyStatsCount(t, ds, pol.ID))
 
 		spec.LabelsIncludeAny = []string{label.Name}
-		require.NoError(t, ds.ApplyPolicySpecs(ctx, user.ID, []*fleet.PolicySpec{spec}))
+		require.NoError(t, ds.ApplyPolicySpecs(ctx, user.ID, []*automdm.PolicySpec{spec}))
 		assert.Zero(t, policyStatsCount(t, ds, pol.ID))
 		_, partial := policyCleanupFlags(t, ds, pol.ID)
 		assert.True(t, partial)
@@ -9282,18 +9282,18 @@ func testPolicyChangesRequestMembershipCleanup(t *testing.T, ds *Datastore) {
 
 	cases := []struct {
 		name   string
-		change func(pol *fleet.Policy) error
+		change func(pol *automdm.Policy) error
 	}{
-		{"ApplyPolicySpecs", func(pol *fleet.Policy) error {
-			return ds.ApplyPolicySpecs(ctx, user.ID, []*fleet.PolicySpec{
-				{Name: pol.Name, Query: "SELECT 1 WHERE 1 = 2;", Type: fleet.PolicyTypeDynamic},
+		{"ApplyPolicySpecs", func(pol *automdm.Policy) error {
+			return ds.ApplyPolicySpecs(ctx, user.ID, []*automdm.PolicySpec{
+				{Name: pol.Name, Query: "SELECT 1 WHERE 1 = 2;", Type: automdm.PolicyTypeDynamic},
 			})
 		}},
-		{"SavePolicy", func(pol *fleet.Policy) error {
+		{"SavePolicy", func(pol *automdm.Policy) error {
 			pol.Query = "SELECT 1 WHERE 1 = 2;"
 			return ds.SavePolicy(ctx, pol, true, true)
 		}},
-		{"ResetPolicy", func(pol *fleet.Policy) error {
+		{"ResetPolicy", func(pol *automdm.Policy) error {
 			return ds.ResetPolicy(ctx, pol.ID)
 		}},
 	}
@@ -9410,7 +9410,7 @@ func testSavePolicyPartialMembershipCleanup(t *testing.T, ds *Datastore) {
 	pol := newTestPolicy(t, ds, user, "partial cleanup policy", "", nil)
 	macHost := newTestHostWithPlatform(t, ds, "partial-mac", "darwin", nil)
 	linuxHost := newTestHostWithPlatform(t, ds, "partial-linux", "ubuntu", nil)
-	recordFailingPolicyResults(t, ds, pol.ID, []*fleet.Host{macHost, linuxHost})
+	recordFailingPolicyResults(t, ds, pol.ID, []*automdm.Host{macHost, linuxHost})
 	require.NoError(t, ds.UpdateHostPolicyCounts(ctx))
 	require.Positive(t, policyStatsCount(t, ds, pol.ID))
 
@@ -9423,19 +9423,19 @@ func testSavePolicyPartialMembershipCleanup(t *testing.T, ds *Datastore) {
 	assert.Positive(t, policyStatsCount(t, ds, pol.ID), "counts must be kept")
 
 	require.NoError(t, ds.CleanupPendingPolicyMembership(ctx))
-	assertPolicyMembership(t, ds, map[string]*fleet.Policy{pol.Name: pol}, map[string][]uint{pol.Name: {macHost.ID}})
+	assertPolicyMembership(t, ds, map[string]*automdm.Policy{pol.Name: pol}, map[string][]uint{pol.Name: {macHost.ID}})
 	_, partial = policyCleanupFlags(t, ds, pol.ID)
 	assert.False(t, partial)
 }
 
 // newPolicyTestHosts creates n linux hosts with unique identifiers derived from prefix.
-func newPolicyTestHosts(t *testing.T, ds *Datastore, n int, prefix string) []*fleet.Host {
+func newPolicyTestHosts(t *testing.T, ds *Datastore, n int, prefix string) []*automdm.Host {
 	t.Helper()
 	ctx := context.Background()
-	hosts := make([]*fleet.Host, n)
+	hosts := make([]*automdm.Host, n)
 	for i := range hosts {
 		id := fmt.Sprintf("%s-%d", prefix, i)
-		h, err := ds.NewHost(ctx, &fleet.Host{
+		h, err := ds.NewHost(ctx, &automdm.Host{
 			OsqueryHostID:   &id,
 			DetailUpdatedAt: time.Now(),
 			LabelUpdatedAt:  time.Now(),
@@ -9455,7 +9455,7 @@ func newPolicyTestHosts(t *testing.T, ds *Datastore, n int, prefix string) []*fl
 func testSyncPatchPolicyQueries(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 	user := test.NewUser(t, ds, "Alice", "alice@example.com", true)
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "team1"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
 
 	const staleQuery = "SELECT 1 WHERE NOT EXISTS (SELECT 1 FROM apps WHERE bundle_identifier = 'com.example.stale' AND version_compare(bundle_short_version, '1.0') < 0);"
@@ -9463,17 +9463,17 @@ func testSyncPatchPolicyQueries(t *testing.T, ds *Datastore) {
 	const otherQuery = "SELECT 1 WHERE NOT EXISTS (SELECT 1 FROM apps WHERE bundle_identifier = 'com.example.other' AND version_compare(bundle_short_version, '1.0') < 0);"
 
 	addFMA := func(name, bundleID, patchQuery string) (installerID, titleID uint) {
-		fma, err := ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{
+		fma, err := ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{
 			Name: name, Slug: name + "/darwin", Platform: "darwin", UniqueIdentifier: bundleID,
 		})
 		require.NoError(t, err)
-		tfr, err := fleet.NewTempFileReader(strings.NewReader(name), t.TempDir)
+		tfr, err := automdm.NewTempFileReader(strings.NewReader(name), t.TempDir)
 		require.NoError(t, err)
-		installerID, titleID, err = ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
+		installerID, titleID, err = ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
 			TeamID: &team.ID, Title: name, Source: "apps", Platform: "darwin", BundleIdentifier: bundleID,
 			InstallScript: "echo install", UninstallScript: "echo uninstall",
 			InstallerFile: tfr, StorageID: name, Filename: name + ".pkg", Version: "1.0",
-			UserID: user.ID, ValidatedLabels: &fleet.LabelIdentsWithScope{}, FleetMaintainedAppID: &fma.ID,
+			UserID: user.ID, ValidatedLabels: &automdm.LabelIdentsWithScope{}, AutoMDMMaintainedAppID: &fma.ID,
 			PatchQuery: patchQuery,
 		})
 		require.NoError(t, err)
@@ -9482,9 +9482,9 @@ func testSyncPatchPolicyQueries(t *testing.T, ds *Datastore) {
 	staleInstallerID, staleTitleID := addFMA("stale", "com.example.stale", staleQuery)
 	_, otherTitleID := addFMA("other", "com.example.other", otherQuery)
 
-	stalePolicy, err := ds.NewTeamPolicy(ctx, team.ID, &user.ID, fleet.PolicyPayload{Type: fleet.PolicyTypePatch, PatchSoftwareTitleID: &staleTitleID})
+	stalePolicy, err := ds.NewTeamPolicy(ctx, team.ID, &user.ID, automdm.PolicyPayload{Type: automdm.PolicyTypePatch, PatchSoftwareTitleID: &staleTitleID})
 	require.NoError(t, err)
-	otherPolicy, err := ds.NewTeamPolicy(ctx, team.ID, &user.ID, fleet.PolicyPayload{Type: fleet.PolicyTypePatch, PatchSoftwareTitleID: &otherTitleID})
+	otherPolicy, err := ds.NewTeamPolicy(ctx, team.ID, &user.ID, automdm.PolicyPayload{Type: automdm.PolicyTypePatch, PatchSoftwareTitleID: &otherTitleID})
 	require.NoError(t, err)
 
 	setInstallerPatchQuery := func(query string) {
@@ -9509,7 +9509,7 @@ func testSyncPatchPolicyQueries(t *testing.T, ds *Datastore) {
 	}
 
 	host := test.NewHost(t, ds, "host1", "1", "host1key", "host1uuid", time.Now())
-	require.NoError(t, ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team.ID, []uint{host.ID})))
+	require.NoError(t, ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team.ID, []uint{host.ID})))
 	recordResults := func() {
 		_, err := ds.RecordPolicyQueryExecutions(ctx, host, map[uint]*bool{stalePolicy.ID: new(false), otherPolicy.ID: new(false)}, time.Now(), false, nil)
 		require.NoError(t, err)
@@ -9554,7 +9554,7 @@ func testSyncPatchPolicyQueries(t *testing.T, ds *Datastore) {
 	require.Equal(t, staleQuery, policyQuery(stalePolicy.ID))
 
 	// A newer cached version that isn't active yet doesn't move the policy.
-	v2ID, err := ds.InsertFleetMaintainedAppVersion(ctx, staleInstallerID, &fleet.UploadSoftwareInstallerPayload{
+	v2ID, err := ds.InsertAutoMDMMaintainedAppVersion(ctx, staleInstallerID, &automdm.UploadSoftwareInstallerPayload{
 		Version: "2.0", StorageID: "stale2", Filename: "stale2.pkg", Extension: "pkg",
 		InstallScript: "echo install", UninstallScript: "echo uninstall", PatchQuery: fixedQuery,
 	})
@@ -9563,7 +9563,7 @@ func testSyncPatchPolicyQueries(t *testing.T, ds *Datastore) {
 	require.Equal(t, staleQuery, policyQuery(stalePolicy.ID))
 
 	// The flip generates the same query the sync does, so the sync keeps the results.
-	require.NoError(t, ds.SetFleetMaintainedAppActiveInstaller(ctx, &fleet.UpdateSoftwareInstallerPayload{TeamID: &team.ID, TitleID: staleTitleID}, v2ID))
+	require.NoError(t, ds.SetAutoMDMMaintainedAppActiveInstaller(ctx, &automdm.UpdateSoftwareInstallerPayload{TeamID: &team.ID, TitleID: staleTitleID}, v2ID))
 	require.Equal(t, fixedQuery, policyQuery(stalePolicy.ID))
 	recordResults()
 	require.NoError(t, ds.SyncPatchPolicyQueries(ctx))
@@ -9572,20 +9572,20 @@ func testSyncPatchPolicyQueries(t *testing.T, ds *Datastore) {
 	require.Equal(t, 1, membership)
 
 	// No-team Windows title without a patch query: the default programs query.
-	winFMA, err := ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{
+	winFMA, err := ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{
 		Name: "Example Win", Slug: "example-win/windows", Platform: "windows", UniqueIdentifier: "Example Win",
 	})
 	require.NoError(t, err)
-	tfr, err := fleet.NewTempFileReader(strings.NewReader("win"), t.TempDir)
+	tfr, err := automdm.NewTempFileReader(strings.NewReader("win"), t.TempDir)
 	require.NoError(t, err)
-	_, winTitleID, err := ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
+	_, winTitleID, err := ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
 		Title: "Example Win", Source: "programs", Platform: "windows",
 		InstallScript: "install", UninstallScript: "uninstall",
 		InstallerFile: tfr, StorageID: "win", Filename: "win.msi", Extension: "msi", Version: "1.0",
-		UserID: user.ID, ValidatedLabels: &fleet.LabelIdentsWithScope{}, FleetMaintainedAppID: &winFMA.ID,
+		UserID: user.ID, ValidatedLabels: &automdm.LabelIdentsWithScope{}, AutoMDMMaintainedAppID: &winFMA.ID,
 	})
 	require.NoError(t, err)
-	winPolicy, err := ds.NewTeamPolicy(ctx, 0, &user.ID, fleet.PolicyPayload{Type: fleet.PolicyTypePatch, PatchSoftwareTitleID: &winTitleID})
+	winPolicy, err := ds.NewTeamPolicy(ctx, 0, &user.ID, automdm.PolicyPayload{Type: automdm.PolicyTypePatch, PatchSoftwareTitleID: &winTitleID})
 	require.NoError(t, err)
 	const winQuery = "SELECT 1 WHERE NOT EXISTS (SELECT 1 FROM programs WHERE name = 'Example Win' AND version_compare(version, '1.0') < 0);"
 	require.Equal(t, winQuery, winPolicy.Query)
@@ -9603,10 +9603,10 @@ func testSyncPatchPolicyQueries(t *testing.T, ds *Datastore) {
 func testTeamPatchPolicy(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 	user1 := test.NewUser(t, ds, "Alice", "alice@example.com", true)
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "team1"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
 
-	payload := &fleet.UploadSoftwareInstallerPayload{
+	payload := &automdm.UploadSoftwareInstallerPayload{
 		InstallScript:     "hello",
 		PreInstallQuery:   "SELECT 1",
 		PostInstallScript: "world",
@@ -9616,47 +9616,47 @@ func testTeamPatchPolicy(t *testing.T, ds *Datastore) {
 		Version:           "1.0",
 		Source:            "apps",
 		Platform:          "darwin",
-		BundleIdentifier:  "fleet.maintained1",
+		BundleIdentifier:  "automdm.maintained1",
 		UserID:            user1.ID,
 		TeamID:            &team1.ID,
-		ValidatedLabels:   &fleet.LabelIdentsWithScope{},
+		ValidatedLabels:   &automdm.LabelIdentsWithScope{},
 	}
 	installerID, titleID, err := ds.MatchOrCreateSoftwareInstaller(context.Background(), payload)
 	require.NoError(t, err)
 
 	// create a patch policy for an installer with no associated FMA
-	_, err = ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, fleet.PolicyPayload{
+	_, err = ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, automdm.PolicyPayload{
 		Name:                 "p1",
 		Query:                "SELECT 1;",
-		Type:                 fleet.PolicyTypePatch,
+		Type:                 automdm.PolicyTypePatch,
 		PatchSoftwareTitleID: &titleID,
 	})
-	require.ErrorContains(t, err, "Software installer for Fleet maintained app with title ID")
+	require.ErrorContains(t, err, "Software installer for AutoMDM maintained app with title ID")
 
-	maintainedApp, err := ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{
+	maintainedApp, err := ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{
 		Name:             "Maintained1",
 		Slug:             "maintained1",
 		Platform:         "darwin",
-		UniqueIdentifier: "fleet.maintained1",
+		UniqueIdentifier: "automdm.maintained1",
 	})
 	require.NoError(t, err)
 
 	require.NoError(t, ds.DeleteSoftwareInstaller(ctx, installerID))
 
-	payload.FleetMaintainedAppID = &maintainedApp.ID
+	payload.AutoMDMMaintainedAppID = &maintainedApp.ID
 	_, titleID, err = ds.MatchOrCreateSoftwareInstaller(context.Background(), payload)
 	require.NoError(t, err)
 
-	p1, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, fleet.PolicyPayload{
+	p1, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, automdm.PolicyPayload{
 		Name:                 "p1",
 		Query:                "SELECT 1;",
-		Type:                 fleet.PolicyTypePatch,
+		Type:                 automdm.PolicyTypePatch,
 		PatchSoftwareTitleID: &titleID,
 	})
 	require.NoError(t, err)
-	require.Equal(t, "SELECT 1 WHERE NOT EXISTS (SELECT 1 FROM apps WHERE bundle_identifier = 'fleet.maintained1' AND version_compare(bundle_short_version, '1.0') < 0);", p1.Query)
+	require.Equal(t, "SELECT 1 WHERE NOT EXISTS (SELECT 1 FROM apps WHERE bundle_identifier = 'automdm.maintained1' AND version_compare(bundle_short_version, '1.0') < 0);", p1.Query)
 
-	_, err = ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, fleet.PolicyPayload{
+	_, err = ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, automdm.PolicyPayload{
 		Name:     "p2",
 		Query:    "SELECT 1;",
 		Platform: "darwin",
@@ -9667,8 +9667,8 @@ func testTeamPatchPolicy(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// everything automatically generated
-	p3, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, fleet.PolicyPayload{
-		Type:                 fleet.PolicyTypePatch,
+	p3, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, automdm.PolicyPayload{
+		Type:                 automdm.PolicyTypePatch,
 		PatchSoftwareTitleID: &titleID,
 		Hidden:               true,
 	})
@@ -9678,17 +9678,17 @@ func testTeamPatchPolicy(t *testing.T, ds *Datastore) {
 	require.Equal(t, "Outdated software might introduce security vulnerabilities or compatibility issues.", p3.Description)
 	require.Equal(t, "Install the latest version from self-service.", *p3.Resolution)
 	require.Equal(t, "darwin", p3.Platform)
-	require.Equal(t, "SELECT 1 WHERE NOT EXISTS (SELECT 1 FROM apps WHERE bundle_identifier = 'fleet.maintained1' AND version_compare(bundle_short_version, '1.0') < 0);", p3.Query)
+	require.Equal(t, "SELECT 1 WHERE NOT EXISTS (SELECT 1 FROM apps WHERE bundle_identifier = 'automdm.maintained1' AND version_compare(bundle_short_version, '1.0') < 0);", p3.Query)
 
 	_, err = ds.DeleteTeamPolicies(ctx, team1.ID, []uint{p3.ID})
 	require.NoError(t, err)
 
 	// some fields should not be overwritten
-	p4, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, fleet.PolicyPayload{
+	p4, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, automdm.PolicyPayload{
 		Name:                 "name",
 		Description:          "description",
 		Resolution:           "resolution",
-		Type:                 fleet.PolicyTypePatch,
+		Type:                 automdm.PolicyTypePatch,
 		PatchSoftwareTitleID: &titleID,
 	})
 	require.NoError(t, err)
@@ -9696,7 +9696,7 @@ func testTeamPatchPolicy(t *testing.T, ds *Datastore) {
 	require.Equal(t, "description", p4.Description)
 	require.Equal(t, "resolution", *p4.Resolution)
 	require.Equal(t, "darwin", p4.Platform)
-	require.Equal(t, "SELECT 1 WHERE NOT EXISTS (SELECT 1 FROM apps WHERE bundle_identifier = 'fleet.maintained1' AND version_compare(bundle_short_version, '1.0') < 0);", p4.Query)
+	require.Equal(t, "SELECT 1 WHERE NOT EXISTS (SELECT 1 FROM apps WHERE bundle_identifier = 'automdm.maintained1' AND version_compare(bundle_short_version, '1.0') < 0);", p4.Query)
 
 	// test GetPatchPolicy
 	data, err := ds.GetPatchPolicy(ctx, &team1.ID, titleID)
@@ -9718,48 +9718,48 @@ func testTeamPatchPolicy(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 	require.True(t, data.NotifyBeforePatching)
 
-	payload2 := &fleet.UploadSoftwareInstallerPayload{
+	payload2 := &automdm.UploadSoftwareInstallerPayload{
 		Filename:        "bar",
 		Title:           "bar",
 		UserID:          user1.ID,
 		TeamID:          &team1.ID,
-		ValidatedLabels: &fleet.LabelIdentsWithScope{},
+		ValidatedLabels: &automdm.LabelIdentsWithScope{},
 	}
 	_, titleID2, err := ds.MatchOrCreateSoftwareInstaller(context.Background(), payload2)
 	require.NoError(t, err)
 
 	_, err = ds.GetPatchPolicy(ctx, &team1.ID, titleID2)
-	require.True(t, fleet.IsNotFound(err))
+	require.True(t, automdm.IsNotFound(err))
 
-	maintainedApp2, err := ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{
+	maintainedApp2, err := ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{
 		Name:             "Maintained2",
 		Slug:             "maintained2",
 		Platform:         "windows",
-		UniqueIdentifier: "fleet.maintained2",
+		UniqueIdentifier: "automdm.maintained2",
 	})
 	require.NoError(t, err)
 
-	payload3 := &fleet.UploadSoftwareInstallerPayload{
-		InstallScript:        "hello",
-		PreInstallQuery:      "SELECT 1",
-		PostInstallScript:    "world",
-		StorageID:            "storage2",
-		Filename:             "maintained2",
-		Title:                "Maintained2",
-		Version:              "1.0",
-		Source:               "programs",
-		Platform:             "windows",
-		BundleIdentifier:     "fleet.maintained2",
-		UserID:               user1.ID,
-		TeamID:               &team1.ID,
-		ValidatedLabels:      &fleet.LabelIdentsWithScope{},
-		FleetMaintainedAppID: &maintainedApp2.ID,
+	payload3 := &automdm.UploadSoftwareInstallerPayload{
+		InstallScript:          "hello",
+		PreInstallQuery:        "SELECT 1",
+		PostInstallScript:      "world",
+		StorageID:              "storage2",
+		Filename:               "maintained2",
+		Title:                  "Maintained2",
+		Version:                "1.0",
+		Source:                 "programs",
+		Platform:               "windows",
+		BundleIdentifier:       "automdm.maintained2",
+		UserID:                 user1.ID,
+		TeamID:                 &team1.ID,
+		ValidatedLabels:        &automdm.LabelIdentsWithScope{},
+		AutoMDMMaintainedAppID: &maintainedApp2.ID,
 	}
 	_, titleID3, err := ds.MatchOrCreateSoftwareInstaller(context.Background(), payload3)
 	require.NoError(t, err)
 
-	p5, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, fleet.PolicyPayload{
-		Type:                 fleet.PolicyTypePatch,
+	p5, err := ds.NewTeamPolicy(ctx, team1.ID, &user1.ID, automdm.PolicyPayload{
+		Type:                 automdm.PolicyTypePatch,
 		PatchSoftwareTitleID: &titleID3,
 	})
 	require.NoError(t, err)
@@ -9771,72 +9771,72 @@ func testTeamPatchPolicy(t *testing.T, ds *Datastore) {
 	// ApplyPolicySpecs
 
 	// Test ApplyPolicySpecs with patch policies using a separate team.
-	team2, err := ds.NewTeam(ctx, &fleet.Team{Name: "team2"})
+	team2, err := ds.NewTeam(ctx, &automdm.Team{Name: "team2"})
 	require.NoError(t, err)
 
 	// Set up an FMA installer on team2 for the valid slug test.
-	team2Payload := &fleet.UploadSoftwareInstallerPayload{
-		InstallScript:        "hello",
-		PreInstallQuery:      "SELECT 1",
-		PostInstallScript:    "world",
-		StorageID:            "storage-team2",
-		Filename:             "maintained1-team2",
-		Title:                "Maintained1",
-		Version:              "1.0",
-		Source:               "apps",
-		Platform:             "darwin",
-		BundleIdentifier:     "fleet.maintained1",
-		UserID:               user1.ID,
-		TeamID:               &team2.ID,
-		ValidatedLabels:      &fleet.LabelIdentsWithScope{},
-		FleetMaintainedAppID: &maintainedApp.ID,
+	team2Payload := &automdm.UploadSoftwareInstallerPayload{
+		InstallScript:          "hello",
+		PreInstallQuery:        "SELECT 1",
+		PostInstallScript:      "world",
+		StorageID:              "storage-team2",
+		Filename:               "maintained1-team2",
+		Title:                  "Maintained1",
+		Version:                "1.0",
+		Source:                 "apps",
+		Platform:               "darwin",
+		BundleIdentifier:       "automdm.maintained1",
+		UserID:                 user1.ID,
+		TeamID:                 &team2.ID,
+		ValidatedLabels:        &automdm.LabelIdentsWithScope{},
+		AutoMDMMaintainedAppID: &maintainedApp.ID,
 	}
 	_, _, err = ds.MatchOrCreateSoftwareInstaller(ctx, team2Payload)
 	require.NoError(t, err)
 
-	// ApplyPolicySpecs with type=patch and empty fleet_maintained_app_slug should return an error.
-	err = ds.ApplyPolicySpecs(ctx, user1.ID, []*fleet.PolicySpec{
+	// ApplyPolicySpecs with type=patch and empty automdm_maintained_app_slug should return an error.
+	err = ds.ApplyPolicySpecs(ctx, user1.ID, []*automdm.PolicySpec{
 		{
 			Name:  "patch-no-slug",
 			Query: "SELECT 1;",
 			Team:  "team2",
-			Type:  fleet.PolicyTypePatch,
+			Type:  automdm.PolicyTypePatch,
 		},
 	})
 	require.Error(t, err)
 
-	// ApplyPolicySpecs with type=patch and a non-existent fleet_maintained_app_slug should return an error.
-	err = ds.ApplyPolicySpecs(ctx, user1.ID, []*fleet.PolicySpec{
+	// ApplyPolicySpecs with type=patch and a non-existent automdm_maintained_app_slug should return an error.
+	err = ds.ApplyPolicySpecs(ctx, user1.ID, []*automdm.PolicySpec{
 		{
-			Name:                   "patch-bad-slug",
-			Query:                  "SELECT 1;",
-			Team:                   "team2",
-			Type:                   fleet.PolicyTypePatch,
-			FleetMaintainedAppSlug: "nonexistent-slug",
+			Name:                     "patch-bad-slug",
+			Query:                    "SELECT 1;",
+			Team:                     "team2",
+			Type:                     automdm.PolicyTypePatch,
+			AutoMDMMaintainedAppSlug: "nonexistent-slug",
 		},
 	})
 	require.Error(t, err)
 
-	// ApplyPolicySpecs with type=patch and a valid fleet_maintained_app_slug should succeed.
-	err = ds.ApplyPolicySpecs(ctx, user1.ID, []*fleet.PolicySpec{
+	// ApplyPolicySpecs with type=patch and a valid automdm_maintained_app_slug should succeed.
+	err = ds.ApplyPolicySpecs(ctx, user1.ID, []*automdm.PolicySpec{
 		{
-			Name:                   "patch-valid-slug",
-			Query:                  "SELECT 1;",
-			Team:                   "team2",
-			Type:                   fleet.PolicyTypePatch,
-			FleetMaintainedAppSlug: "maintained1",
+			Name:                     "patch-valid-slug",
+			Query:                    "SELECT 1;",
+			Team:                     "team2",
+			Type:                     automdm.PolicyTypePatch,
+			AutoMDMMaintainedAppSlug: "maintained1",
 		},
 	})
 	require.NoError(t, err)
 
 	// Verify the policy was created with the expected auto-generated query and platform.
-	policies, _, err := ds.ListTeamPolicies(ctx, team2.ID, fleet.ListOptions{}, fleet.ListOptions{}, "", "")
+	policies, _, err := ds.ListTeamPolicies(ctx, team2.ID, automdm.ListOptions{}, automdm.ListOptions{}, "", "")
 	require.NoError(t, err)
 	require.Len(t, policies, 1)
 	require.Equal(t, "patch-valid-slug", policies[0].Name)
-	require.Equal(t, fleet.PolicyTypePatch, policies[0].Type)
+	require.Equal(t, automdm.PolicyTypePatch, policies[0].Type)
 	require.Equal(t, "darwin", policies[0].Platform)
-	require.Contains(t, policies[0].Query, "fleet.maintained1")
+	require.Contains(t, policies[0].Query, "automdm.maintained1")
 
 	// Renaming a patch policy via ApplyPolicySpecs should update it, not delete it.
 	previousID := policies[0].ID
@@ -9845,23 +9845,23 @@ func testTeamPatchPolicy(t *testing.T, ds *Datastore) {
 		return sqlx.GetContext(ctx, q, &previousChecksum, `SELECT checksum FROM policies WHERE id = ?`, previousID)
 	})
 
-	err = ds.ApplyPolicySpecs(ctx, user1.ID, []*fleet.PolicySpec{
+	err = ds.ApplyPolicySpecs(ctx, user1.ID, []*automdm.PolicySpec{
 		{
-			Name:                   "patch-renamed",
-			Query:                  "SELECT 1;",
-			Team:                   "team2",
-			Type:                   fleet.PolicyTypePatch,
-			FleetMaintainedAppSlug: "maintained1",
+			Name:                     "patch-renamed",
+			Query:                    "SELECT 1;",
+			Team:                     "team2",
+			Type:                     automdm.PolicyTypePatch,
+			AutoMDMMaintainedAppSlug: "maintained1",
 		},
 	})
 	require.NoError(t, err)
 
-	policies, _, err = ds.ListTeamPolicies(ctx, team2.ID, fleet.ListOptions{}, fleet.ListOptions{}, "", "")
+	policies, _, err = ds.ListTeamPolicies(ctx, team2.ID, automdm.ListOptions{}, automdm.ListOptions{}, "", "")
 	require.NoError(t, err)
 	require.Len(t, policies, 1)
 	require.Equal(t, previousID, policies[0].ID)
 	require.Equal(t, "patch-renamed", policies[0].Name)
-	require.Equal(t, fleet.PolicyTypePatch, policies[0].Type)
+	require.Equal(t, automdm.PolicyTypePatch, policies[0].Type)
 
 	var newChecksum []byte
 	ExecAdhocSQL(t, ds, func(q sqlx.ExtContext) error {
@@ -9872,66 +9872,66 @@ func testTeamPatchPolicy(t *testing.T, ds *Datastore) {
 
 // testApplyPolicySpecsDynamicAndPatchSameFMA is a regression test for a unique
 // index collision on (team_id, patch_software_title_id). A dynamic policy that
-// carries fleet_maintained_app_slug (e.g. install_software automation) must not
+// carries automdm_maintained_app_slug (e.g. install_software automation) must not
 // reuse the FMA's title id in patch_software_title_id, otherwise a separate
 // patch policy on the same team and FMA collides with it.
 func testApplyPolicySpecsDynamicAndPatchSameFMA(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 	user1 := test.NewUser(t, ds, "Alice", "alice@example.com", true)
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "team-fma-collision"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "team-fma-collision"})
 	require.NoError(t, err)
 
-	maintainedApp, err := ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{
+	maintainedApp, err := ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{
 		Name:             "Maintained1",
 		Slug:             "maintained1",
 		Platform:         "darwin",
-		UniqueIdentifier: "fleet.maintained1",
+		UniqueIdentifier: "automdm.maintained1",
 	})
 	require.NoError(t, err)
 
-	_, fmaTitleID, err := ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
-		InstallScript:        "hello",
-		PreInstallQuery:      "SELECT 1",
-		PostInstallScript:    "world",
-		StorageID:            "storage-fma-collision",
-		Filename:             "maintained1",
-		Title:                "Maintained1",
-		Version:              "1.0",
-		Source:               "apps",
-		Platform:             "darwin",
-		BundleIdentifier:     "fleet.maintained1",
-		UserID:               user1.ID,
-		TeamID:               &team1.ID,
-		ValidatedLabels:      &fleet.LabelIdentsWithScope{},
-		FleetMaintainedAppID: &maintainedApp.ID,
+	_, fmaTitleID, err := ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
+		InstallScript:          "hello",
+		PreInstallQuery:        "SELECT 1",
+		PostInstallScript:      "world",
+		StorageID:              "storage-fma-collision",
+		Filename:               "maintained1",
+		Title:                  "Maintained1",
+		Version:                "1.0",
+		Source:                 "apps",
+		Platform:               "darwin",
+		BundleIdentifier:       "automdm.maintained1",
+		UserID:                 user1.ID,
+		TeamID:                 &team1.ID,
+		ValidatedLabels:        &automdm.LabelIdentsWithScope{},
+		AutoMDMMaintainedAppID: &maintainedApp.ID,
 	})
 	require.NoError(t, err)
 
 	// Apply a dynamic install_software policy that references the FMA slug. With
 	// the bug, the FMA's title id was written into patch_software_title_id even
 	// though spec.Type was dynamic.
-	err = ds.ApplyPolicySpecs(ctx, user1.ID, []*fleet.PolicySpec{
+	err = ds.ApplyPolicySpecs(ctx, user1.ID, []*automdm.PolicySpec{
 		{
-			Name:                   "install-fma-dynamic",
-			Query:                  "SELECT 1;",
-			Team:                   team1.Name,
-			Platform:               "darwin",
-			Type:                   fleet.PolicyTypeDynamic,
-			FleetMaintainedAppSlug: "maintained1",
-			SoftwareTitleID:        &fmaTitleID,
+			Name:                     "install-fma-dynamic",
+			Query:                    "SELECT 1;",
+			Team:                     team1.Name,
+			Platform:                 "darwin",
+			Type:                     automdm.PolicyTypeDynamic,
+			AutoMDMMaintainedAppSlug: "maintained1",
+			SoftwareTitleID:          &fmaTitleID,
 		},
 	})
 	require.NoError(t, err)
 
 	// Apply a patch policy on the same team for the same FMA slug. With the bug
 	// this collided with the dynamic row on (team_id, patch_software_title_id).
-	err = ds.ApplyPolicySpecs(ctx, user1.ID, []*fleet.PolicySpec{
+	err = ds.ApplyPolicySpecs(ctx, user1.ID, []*automdm.PolicySpec{
 		{
-			Name:                   "patch-fma",
-			Query:                  "SELECT 1;",
-			Team:                   team1.Name,
-			Type:                   fleet.PolicyTypePatch,
-			FleetMaintainedAppSlug: "maintained1",
+			Name:                     "patch-fma",
+			Query:                    "SELECT 1;",
+			Team:                     team1.Name,
+			Type:                     automdm.PolicyTypePatch,
+			AutoMDMMaintainedAppSlug: "maintained1",
 		},
 	})
 	require.NoError(t, err)
@@ -9957,12 +9957,12 @@ func testApplyPolicySpecsDynamicAndPatchSameFMA(t *testing.T, ds *Datastore) {
 		byType[r.Type] = r
 	}
 
-	dyn, ok := byType[fleet.PolicyTypeDynamic]
+	dyn, ok := byType[automdm.PolicyTypeDynamic]
 	require.True(t, ok, "dynamic policy must be persisted")
 	require.Equal(t, "install-fma-dynamic", dyn.Name)
 	require.Nil(t, dyn.PatchSoftwareTitleID, "dynamic policy must not set patch_software_title_id")
 
-	patch, ok := byType[fleet.PolicyTypePatch]
+	patch, ok := byType[automdm.PolicyTypePatch]
 	require.True(t, ok, "patch policy must be persisted")
 	require.Equal(t, "patch-fma", patch.Name)
 	require.NotNil(t, patch.PatchSoftwareTitleID, "patch policy must set patch_software_title_id")
@@ -9972,45 +9972,45 @@ func testApplyPolicySpecsDynamicAndPatchSameFMA(t *testing.T, ds *Datastore) {
 func testApplyPolicySpecsPatchWhenClosedRejectsPreInstallQuery(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 	user1 := test.NewUser(t, ds, "Alice", "alice@example.com", true)
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "team-pwc-pre-install"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "team-pwc-pre-install"})
 	require.NoError(t, err)
 
-	maintainedApp, err := ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{
+	maintainedApp, err := ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{
 		Name:             "Maintained2",
 		Slug:             "maintained2",
 		Platform:         "darwin",
-		UniqueIdentifier: "fleet.maintained2",
+		UniqueIdentifier: "automdm.maintained2",
 	})
 	require.NoError(t, err)
 
 	// The package carries a user-set pre-install query.
-	_, _, err = ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
-		InstallScript:        "hello",
-		PreInstallQuery:      "SELECT 1",
-		StorageID:            "storage-pwc-pre-install",
-		Filename:             "maintained2",
-		Title:                "Maintained2",
-		Version:              "1.0",
-		Source:               "apps",
-		Platform:             "darwin",
-		BundleIdentifier:     "fleet.maintained2",
-		UserID:               user1.ID,
-		TeamID:               &team1.ID,
-		ValidatedLabels:      &fleet.LabelIdentsWithScope{},
-		FleetMaintainedAppID: &maintainedApp.ID,
+	_, _, err = ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
+		InstallScript:          "hello",
+		PreInstallQuery:        "SELECT 1",
+		StorageID:              "storage-pwc-pre-install",
+		Filename:               "maintained2",
+		Title:                  "Maintained2",
+		Version:                "1.0",
+		Source:                 "apps",
+		Platform:               "darwin",
+		BundleIdentifier:       "automdm.maintained2",
+		UserID:                 user1.ID,
+		TeamID:                 &team1.ID,
+		ValidatedLabels:        &automdm.LabelIdentsWithScope{},
+		AutoMDMMaintainedAppID: &maintainedApp.ID,
 	})
 	require.NoError(t, err)
 
-	spec := func(patchWhenClosed, notifyBeforePatching, patchDeadline bool) []*fleet.PolicySpec {
-		return []*fleet.PolicySpec{{
-			Name:                   "patch-fma-when-closed",
-			Query:                  "SELECT 1;",
-			Team:                   team1.Name,
-			Type:                   fleet.PolicyTypePatch,
-			FleetMaintainedAppSlug: "maintained2",
-			PatchWhenClosed:        patchWhenClosed,
-			NotifyBeforePatching:   notifyBeforePatching,
-			PatchDeadline:          patchDeadline,
+	spec := func(patchWhenClosed, notifyBeforePatching, patchDeadline bool) []*automdm.PolicySpec {
+		return []*automdm.PolicySpec{{
+			Name:                     "patch-fma-when-closed",
+			Query:                    "SELECT 1;",
+			Team:                     team1.Name,
+			Type:                     automdm.PolicyTypePatch,
+			AutoMDMMaintainedAppSlug: "maintained2",
+			PatchWhenClosed:          patchWhenClosed,
+			NotifyBeforePatching:     notifyBeforePatching,
+			PatchDeadline:            patchDeadline,
 		}}
 	}
 
@@ -10025,16 +10025,16 @@ func testApplyPolicySpecsPatchWhenClosedRejectsPreInstallQuery(t *testing.T, ds 
 
 	// patch_when_closed is rejected while the package has its own pre-install query.
 	err = ds.ApplyPolicySpecs(ctx, user1.ID, spec(true, false, false))
-	require.ErrorContains(t, err, `pre_install_query can't be set on Fleet-maintained app "maintained2" when patch_when_closed is true`)
+	require.ErrorContains(t, err, `pre_install_query can't be set on AutoMDM-maintained app "maintained2" when patch_when_closed is true`)
 	assertNothingWritten()
 
 	// notify_before_patching is rejected for the same reason, and names itself in the error.
 	err = ds.ApplyPolicySpecs(ctx, user1.ID, spec(false, true, false))
-	require.ErrorContains(t, err, `pre_install_query can't be set on Fleet-maintained app "maintained2" when notify_before_patching is true`)
+	require.ErrorContains(t, err, `pre_install_query can't be set on AutoMDM-maintained app "maintained2" when notify_before_patching is true`)
 	assertNothingWritten()
 
 	err = ds.ApplyPolicySpecs(ctx, user1.ID, spec(false, false, true))
-	require.ErrorContains(t, err, `pre_install_query can't be set on Fleet-maintained app "maintained2" when patch_deadline is true`)
+	require.ErrorContains(t, err, `pre_install_query can't be set on AutoMDM-maintained app "maintained2" when patch_deadline is true`)
 	assertNothingWritten()
 
 	// The same spec applies without any patch option.
@@ -10044,51 +10044,51 @@ func testApplyPolicySpecsPatchWhenClosedRejectsPreInstallQuery(t *testing.T, ds 
 func testApplyPolicySpecsNotifyBeforePatchingRejectsWindows(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 	user1 := test.NewUser(t, ds, "Alice", "alice@example.com", true)
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "team-nbp-windows"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "team-nbp-windows"})
 	require.NoError(t, err)
 
-	maintainedApp, err := ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{
+	maintainedApp, err := ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{
 		Name:             "MaintainedWin",
 		Slug:             "maintained-win",
 		Platform:         "windows",
-		UniqueIdentifier: "fleet.maintainedwin",
+		UniqueIdentifier: "automdm.maintainedwin",
 	})
 	require.NoError(t, err)
 
-	_, _, err = ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
-		InstallScript:        "hello",
-		StorageID:            "storage-nbp-windows",
-		Filename:             "maintained-win",
-		Title:                "MaintainedWin",
-		Version:              "1.0",
-		Source:               "programs",
-		Platform:             "windows",
-		BundleIdentifier:     "fleet.maintainedwin",
-		UserID:               user1.ID,
-		TeamID:               &team1.ID,
-		ValidatedLabels:      &fleet.LabelIdentsWithScope{},
-		FleetMaintainedAppID: &maintainedApp.ID,
+	_, _, err = ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
+		InstallScript:          "hello",
+		StorageID:              "storage-nbp-windows",
+		Filename:               "maintained-win",
+		Title:                  "MaintainedWin",
+		Version:                "1.0",
+		Source:                 "programs",
+		Platform:               "windows",
+		BundleIdentifier:       "automdm.maintainedwin",
+		UserID:                 user1.ID,
+		TeamID:                 &team1.ID,
+		ValidatedLabels:        &automdm.LabelIdentsWithScope{},
+		AutoMDMMaintainedAppID: &maintainedApp.ID,
 	})
 	require.NoError(t, err)
 
-	spec := func(notifyBeforePatching, patchDeadline bool) []*fleet.PolicySpec {
-		return []*fleet.PolicySpec{{
-			Name:                   "patch-fma-notify",
-			Query:                  "SELECT 1;",
-			Team:                   team1.Name,
-			Type:                   fleet.PolicyTypePatch,
-			FleetMaintainedAppSlug: "maintained-win",
-			NotifyBeforePatching:   notifyBeforePatching,
-			PatchDeadline:          patchDeadline,
+	spec := func(notifyBeforePatching, patchDeadline bool) []*automdm.PolicySpec {
+		return []*automdm.PolicySpec{{
+			Name:                     "patch-fma-notify",
+			Query:                    "SELECT 1;",
+			Team:                     team1.Name,
+			Type:                     automdm.PolicyTypePatch,
+			AutoMDMMaintainedAppSlug: "maintained-win",
+			NotifyBeforePatching:     notifyBeforePatching,
+			PatchDeadline:            patchDeadline,
 		}}
 	}
 
-	// notify_before_patching is macOS-only, so a Windows Fleet-maintained app is rejected.
+	// notify_before_patching is macOS-only, so a Windows AutoMDM-maintained app is rejected.
 	err = ds.ApplyPolicySpecs(ctx, user1.ID, spec(true, false))
-	require.ErrorContains(t, err, fleet.ErrPolicyNotifyBeforePatchingRequiresMacOS.Error())
+	require.ErrorContains(t, err, automdm.ErrPolicyNotifyBeforePatchingRequiresMacOS.Error())
 
 	err = ds.ApplyPolicySpecs(ctx, user1.ID, spec(false, true))
-	require.ErrorContains(t, err, fleet.ErrPolicyPatchDeadlineRequiresMacOS.Error())
+	require.ErrorContains(t, err, automdm.ErrPolicyPatchDeadlineRequiresMacOS.Error())
 
 	var count int
 	ExecAdhocSQL(t, ds, func(q sqlx.ExtContext) error {
@@ -10103,36 +10103,36 @@ func testApplyPolicySpecsNotifyBeforePatchingRejectsWindows(t *testing.T, ds *Da
 func testPatchDeadlineRoundTrip(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 	user := test.NewUser(t, ds, "Alice", "alice@example.com", true)
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "team-patch-deadline"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "team-patch-deadline"})
 	require.NoError(t, err)
 
-	maintainedApp, err := ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{
+	maintainedApp, err := ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{
 		Name:             "MaintainedDeadline",
 		Slug:             "maintained-deadline",
 		Platform:         "darwin",
-		UniqueIdentifier: "fleet.maintaineddeadline",
+		UniqueIdentifier: "automdm.maintaineddeadline",
 	})
 	require.NoError(t, err)
-	_, titleID, err := ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
-		InstallScript:        "hello",
-		StorageID:            "storage-deadline",
-		Filename:             "maintained-deadline",
-		Title:                "MaintainedDeadline",
-		Version:              "1.0",
-		Source:               "apps",
-		Platform:             "darwin",
-		BundleIdentifier:     "fleet.maintaineddeadline",
-		UserID:               user.ID,
-		TeamID:               &team.ID,
-		ValidatedLabels:      &fleet.LabelIdentsWithScope{},
-		FleetMaintainedAppID: &maintainedApp.ID,
+	_, titleID, err := ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
+		InstallScript:          "hello",
+		StorageID:              "storage-deadline",
+		Filename:               "maintained-deadline",
+		Title:                  "MaintainedDeadline",
+		Version:                "1.0",
+		Source:                 "apps",
+		Platform:               "darwin",
+		BundleIdentifier:       "automdm.maintaineddeadline",
+		UserID:                 user.ID,
+		TeamID:                 &team.ID,
+		ValidatedLabels:        &automdm.LabelIdentsWithScope{},
+		AutoMDMMaintainedAppID: &maintainedApp.ID,
 	})
 	require.NoError(t, err)
 
 	// Create.
-	p, err := ds.NewTeamPolicy(ctx, team.ID, &user.ID, fleet.PolicyPayload{
+	p, err := ds.NewTeamPolicy(ctx, team.ID, &user.ID, automdm.PolicyPayload{
 		Name:                         "deadline",
-		Type:                         fleet.PolicyTypePatch,
+		Type:                         automdm.PolicyTypePatch,
 		PatchSoftwareTitleID:         &titleID,
 		PatchDeadline:                true,
 		ContinuousAutomationsEnabled: true,
@@ -10151,7 +10151,7 @@ func testPatchDeadlineRoundTrip(t *testing.T, ds *Datastore) {
 	require.True(t, data.PatchDeadline)
 	require.False(t, data.NotifyBeforePatching)
 
-	list, _, err := ds.ListTeamPolicies(ctx, team.ID, fleet.ListOptions{}, fleet.ListOptions{}, "", "")
+	list, _, err := ds.ListTeamPolicies(ctx, team.ID, automdm.ListOptions{}, automdm.ListOptions{}, "", "")
 	require.NoError(t, err)
 	require.Len(t, list, 1)
 	require.True(t, list[0].PatchDeadline)
@@ -10167,12 +10167,12 @@ func testPatchDeadlineRoundTrip(t *testing.T, ds *Datastore) {
 
 	// ApplyPolicySpecs sets it, forces continuous automations on, and clears it again.
 	applySpec := func(patchDeadline bool) {
-		require.NoError(t, ds.ApplyPolicySpecs(ctx, user.ID, []*fleet.PolicySpec{{
-			Name:                   "deadline",
-			Team:                   team.Name,
-			Type:                   fleet.PolicyTypePatch,
-			FleetMaintainedAppSlug: "maintained-deadline",
-			PatchDeadline:          patchDeadline,
+		require.NoError(t, ds.ApplyPolicySpecs(ctx, user.ID, []*automdm.PolicySpec{{
+			Name:                     "deadline",
+			Team:                     team.Name,
+			Type:                     automdm.PolicyTypePatch,
+			AutoMDMMaintainedAppSlug: "maintained-deadline",
+			PatchDeadline:            patchDeadline,
 		}}))
 	}
 	applySpec(true)
@@ -10199,10 +10199,10 @@ func testPatchDeadlineRoundTrip(t *testing.T, ds *Datastore) {
 func testApplyPolicySpecsRenamePatchPolicyRegression43687(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 	user1 := test.NewUser(t, ds, "Alice", "alice@example.com", true)
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "team-43687"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "team-43687"})
 	require.NoError(t, err)
 
-	maintainedApp, err := ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{
+	maintainedApp, err := ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{
 		Name:             "Adobe Reader",
 		Slug:             "adobe-reader/darwin",
 		Platform:         "darwin",
@@ -10210,36 +10210,36 @@ func testApplyPolicySpecsRenamePatchPolicyRegression43687(t *testing.T, ds *Data
 	})
 	require.NoError(t, err)
 
-	_, _, err = ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
-		InstallScript:        "hello",
-		PreInstallQuery:      "SELECT 1",
-		PostInstallScript:    "world",
-		StorageID:            "storage-43687",
-		Filename:             "adobe-reader",
-		Title:                "Adobe Reader",
-		Version:              "1.0",
-		Source:               "apps",
-		Platform:             "darwin",
-		BundleIdentifier:     "com.adobe.Reader",
-		UserID:               user1.ID,
-		TeamID:               &team.ID,
-		ValidatedLabels:      &fleet.LabelIdentsWithScope{},
-		FleetMaintainedAppID: &maintainedApp.ID,
+	_, _, err = ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
+		InstallScript:          "hello",
+		PreInstallQuery:        "SELECT 1",
+		PostInstallScript:      "world",
+		StorageID:              "storage-43687",
+		Filename:               "adobe-reader",
+		Title:                  "Adobe Reader",
+		Version:                "1.0",
+		Source:                 "apps",
+		Platform:               "darwin",
+		BundleIdentifier:       "com.adobe.Reader",
+		UserID:                 user1.ID,
+		TeamID:                 &team.ID,
+		ValidatedLabels:        &automdm.LabelIdentsWithScope{},
+		AutoMDMMaintainedAppID: &maintainedApp.ID,
 	})
 	require.NoError(t, err)
 
 	// Apply the original patch policy with the auto-generated-style name.
-	err = ds.ApplyPolicySpecs(ctx, user1.ID, []*fleet.PolicySpec{
+	err = ds.ApplyPolicySpecs(ctx, user1.ID, []*automdm.PolicySpec{
 		{
-			Name:                   "Adobe Reader up to date",
-			Team:                   team.Name,
-			Type:                   fleet.PolicyTypePatch,
-			FleetMaintainedAppSlug: "adobe-reader/darwin",
+			Name:                     "Adobe Reader up to date",
+			Team:                     team.Name,
+			Type:                     automdm.PolicyTypePatch,
+			AutoMDMMaintainedAppSlug: "adobe-reader/darwin",
 		},
 	})
 	require.NoError(t, err)
 
-	policies, _, err := ds.ListTeamPolicies(ctx, team.ID, fleet.ListOptions{}, fleet.ListOptions{}, "", "")
+	policies, _, err := ds.ListTeamPolicies(ctx, team.ID, automdm.ListOptions{}, automdm.ListOptions{}, "", "")
 	require.NoError(t, err)
 	require.Len(t, policies, 1)
 	require.Equal(t, "Adobe Reader up to date", policies[0].Name)
@@ -10250,30 +10250,30 @@ func testApplyPolicySpecsRenamePatchPolicyRegression43687(t *testing.T, ds *Data
 	// result set" because the ON DUPLICATE KEY UPDATE matched by
 	// (team_id, patch_software_title_id) but did not update name, and the
 	// follow-up SELECT WHERE name = "Adobe Reader" returned no rows.
-	err = ds.ApplyPolicySpecs(ctx, user1.ID, []*fleet.PolicySpec{
+	err = ds.ApplyPolicySpecs(ctx, user1.ID, []*automdm.PolicySpec{
 		{
-			Name:                   "Adobe Reader",
-			Team:                   team.Name,
-			Type:                   fleet.PolicyTypePatch,
-			FleetMaintainedAppSlug: "adobe-reader/darwin",
+			Name:                     "Adobe Reader",
+			Team:                     team.Name,
+			Type:                     automdm.PolicyTypePatch,
+			AutoMDMMaintainedAppSlug: "adobe-reader/darwin",
 		},
 	})
 	require.NoError(t, err)
 
 	// The same row must now carry the new name (update, not delete + recreate).
-	policies, _, err = ds.ListTeamPolicies(ctx, team.ID, fleet.ListOptions{}, fleet.ListOptions{}, "", "")
+	policies, _, err = ds.ListTeamPolicies(ctx, team.ID, automdm.ListOptions{}, automdm.ListOptions{}, "", "")
 	require.NoError(t, err)
 	require.Len(t, policies, 1)
 	require.Equal(t, originalID, policies[0].ID)
 	require.Equal(t, "Adobe Reader", policies[0].Name)
-	require.Equal(t, fleet.PolicyTypePatch, policies[0].Type)
+	require.Equal(t, automdm.PolicyTypePatch, policies[0].Type)
 }
 
 func testTeamPolicyAutomationFilter(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 	user1 := test.NewUser(t, ds, "Alice", "alice@example.com", true)
 
-	gpol, err := ds.NewGlobalPolicy(ctx, nil, fleet.PolicyPayload{
+	gpol, err := ds.NewGlobalPolicy(ctx, nil, automdm.PolicyPayload{
 		Name:        "query 1",
 		Query:       "select 1;",
 		Description: "query desc",
@@ -10281,7 +10281,7 @@ func testTeamPolicyAutomationFilter(t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 
-	installerID, _, err := ds.MatchOrCreateSoftwareInstaller(context.Background(), &fleet.UploadSoftwareInstallerPayload{
+	installerID, _, err := ds.MatchOrCreateSoftwareInstaller(context.Background(), &automdm.UploadSoftwareInstallerPayload{
 		InstallScript:     "hello",
 		PreInstallQuery:   "SELECT 1",
 		PostInstallScript: "world",
@@ -10292,29 +10292,29 @@ func testTeamPolicyAutomationFilter(t *testing.T, ds *Datastore) {
 		Source:            "apps",
 		UserID:            user1.ID,
 		TeamID:            nil,
-		ValidatedLabels:   &fleet.LabelIdentsWithScope{},
+		ValidatedLabels:   &automdm.LabelIdentsWithScope{},
 	})
 	require.NoError(t, err)
 
 	// Add an FMA.
-	fma, err := ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{ID: 1})
+	fma, err := ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{ID: 1})
 	require.NoError(t, err)
 
-	payload := &fleet.UploadSoftwareInstallerPayload{
-		InstallScript:        "hello",
-		PreInstallQuery:      "SELECT 1",
-		PostInstallScript:    "world",
-		StorageID:            "storage1",
-		Filename:             "maintained1",
-		Title:                "Maintained1",
-		Version:              "1.0",
-		Source:               "apps",
-		Platform:             "darwin",
-		BundleIdentifier:     "fleet.maintained1",
-		UserID:               user1.ID,
-		TeamID:               nil,
-		ValidatedLabels:      &fleet.LabelIdentsWithScope{},
-		FleetMaintainedAppID: &fma.ID,
+	payload := &automdm.UploadSoftwareInstallerPayload{
+		InstallScript:          "hello",
+		PreInstallQuery:        "SELECT 1",
+		PostInstallScript:      "world",
+		StorageID:              "storage1",
+		Filename:               "maintained1",
+		Title:                  "Maintained1",
+		Version:                "1.0",
+		Source:                 "apps",
+		Platform:               "darwin",
+		BundleIdentifier:       "automdm.maintained1",
+		UserID:                 user1.ID,
+		TeamID:                 nil,
+		ValidatedLabels:        &automdm.LabelIdentsWithScope{},
+		AutoMDMMaintainedAppID: &fma.ID,
 	}
 	_, titleID2, err := ds.MatchOrCreateSoftwareInstaller(context.Background(), payload)
 	require.NoError(t, err)
@@ -10322,66 +10322,66 @@ func testTeamPolicyAutomationFilter(t *testing.T, ds *Datastore) {
 	test.CreateInsertGlobalVPPToken(t, ds)
 
 	// create team1 app
-	teamApp, err := ds.InsertVPPAppWithTeam(ctx, &fleet.VPPApp{
+	teamApp, err := ds.InsertVPPAppWithTeam(ctx, &automdm.VPPApp{
 		Name: "vpp1", BundleIdentifier: "com.app.appy",
-		VPPAppTeam: fleet.VPPAppTeam{VPPAppID: fleet.VPPAppID{AdamID: "adam_app", Platform: fleet.MacOSPlatform}},
+		VPPAppTeam: automdm.VPPAppTeam{VPPAppID: automdm.VPPAppID{AdamID: "adam_app", Platform: automdm.MacOSPlatform}},
 	}, nil, nil)
 	require.NoError(t, err)
 	teamAppMeta, err := ds.GetVPPAppMetadataByTeamAndTitleID(ctx, nil, teamApp.TitleID)
 	require.NoError(t, err)
 
 	// Create policies with automations
-	teamInstallerPolicy, err := ds.NewTeamPolicy(ctx, 0, nil, fleet.PolicyPayload{
+	teamInstallerPolicy, err := ds.NewTeamPolicy(ctx, 0, nil, automdm.PolicyPayload{
 		Name:                "query 2",
 		Query:               "select 1;",
 		SoftwareInstallerID: &installerID,
 	})
 	require.NoError(t, err)
 
-	teamAppStorePolicy, err := ds.NewTeamPolicy(ctx, 0, nil, fleet.PolicyPayload{
+	teamAppStorePolicy, err := ds.NewTeamPolicy(ctx, 0, nil, automdm.PolicyPayload{
 		Name:           "query 3",
 		Query:          "select 1;",
 		VPPAppsTeamsID: &teamAppMeta.VPPAppsTeamsID,
 	})
 	require.NoError(t, err)
 
-	script, err := ds.NewScript(context.Background(), &fleet.Script{
+	script, err := ds.NewScript(context.Background(), &automdm.Script{
 		TeamID:         nil,
 		Name:           "hello-world.sh",
 		ScriptContents: "echo 'Hello World'",
 	})
 	require.NoError(t, err)
-	teamScriptPolicy, err := ds.NewTeamPolicy(ctx, 0, nil, fleet.PolicyPayload{
+	teamScriptPolicy, err := ds.NewTeamPolicy(ctx, 0, nil, automdm.PolicyPayload{
 		Name:     "query 4",
 		Query:    "SELECT 1;",
 		ScriptID: &script.ID,
 	})
 	require.NoError(t, err)
 
-	teamCalendarPolicy, err := ds.NewTeamPolicy(ctx, 0, nil, fleet.PolicyPayload{
+	teamCalendarPolicy, err := ds.NewTeamPolicy(ctx, 0, nil, automdm.PolicyPayload{
 		Name:                  "query 5",
 		Query:                 "SELECT 1;",
 		CalendarEventsEnabled: true,
 	})
 	require.NoError(t, err)
 
-	teamConditionalPolicy, err := ds.NewTeamPolicy(ctx, 0, nil, fleet.PolicyPayload{
+	teamConditionalPolicy, err := ds.NewTeamPolicy(ctx, 0, nil, automdm.PolicyPayload{
 		Name:                     "query 6",
 		Query:                    "SELECT 1;",
 		ConditionalAccessEnabled: true,
 	})
 	require.NoError(t, err)
 
-	teamWebhookPolicy, err := ds.NewTeamPolicy(ctx, 0, nil, fleet.PolicyPayload{
+	teamWebhookPolicy, err := ds.NewTeamPolicy(ctx, 0, nil, automdm.PolicyPayload{
 		Name:  "query 7",
 		Query: "SELECT 1;",
 	})
 	require.NoError(t, err)
 
-	teamPatchPolicy, err := ds.NewTeamPolicy(ctx, 0, nil, fleet.PolicyPayload{
+	teamPatchPolicy, err := ds.NewTeamPolicy(ctx, 0, nil, automdm.PolicyPayload{
 		Name:                 "query 8",
 		Query:                "SELECT 1;",
-		Type:                 fleet.PolicyTypePatch,
+		Type:                 automdm.PolicyTypePatch,
 		PatchSoftwareTitleID: &titleID2,
 	})
 	require.NoError(t, err)
@@ -10389,13 +10389,13 @@ func testTeamPolicyAutomationFilter(t *testing.T, ds *Datastore) {
 	// TODO: test ticket integration policies?
 
 	setWebhooksAndTickets(t, ds, teamWebhookPolicy.ID)
-	// The "other" filter only matches the fleet's own policies, not inherited ones.
+	// The "other" filter only matches the team's own policies, not inherited ones.
 	setWebhooksAndTickets(t, ds, gpol.ID)
 
 	// All policies are listed
-	merged, err := ds.ListMergedTeamPolicies(ctx, 0, fleet.ListOptions{
+	merged, err := ds.ListMergedTeamPolicies(ctx, 0, automdm.ListOptions{
 		OrderKey:       "name",
-		OrderDirection: fleet.OrderAscending,
+		OrderDirection: automdm.OrderAscending,
 	}, "", "")
 	require.NoError(t, err)
 
@@ -10414,9 +10414,9 @@ func testTeamPolicyAutomationFilter(t *testing.T, ds *Datastore) {
 	assert.Equal(t, 8, mergedCount)
 
 	// Test software
-	merged, err = ds.ListMergedTeamPolicies(ctx, 0, fleet.ListOptions{
+	merged, err = ds.ListMergedTeamPolicies(ctx, 0, automdm.ListOptions{
 		OrderKey:       "name",
-		OrderDirection: fleet.OrderAscending,
+		OrderDirection: automdm.OrderAscending,
 	}, "software", "")
 	require.NoError(t, err)
 	require.Len(t, merged, 2)
@@ -10428,9 +10428,9 @@ func testTeamPolicyAutomationFilter(t *testing.T, ds *Datastore) {
 	assert.Equal(t, 2, mergedCount)
 
 	// Test patch
-	merged, err = ds.ListMergedTeamPolicies(ctx, 0, fleet.ListOptions{
+	merged, err = ds.ListMergedTeamPolicies(ctx, 0, automdm.ListOptions{
 		OrderKey:       "name",
-		OrderDirection: fleet.OrderAscending,
+		OrderDirection: automdm.OrderAscending,
 	}, "patch", "")
 	require.NoError(t, err)
 	require.Len(t, merged, 1)
@@ -10441,9 +10441,9 @@ func testTeamPolicyAutomationFilter(t *testing.T, ds *Datastore) {
 	assert.Equal(t, 1, mergedCount)
 
 	// Test scripts
-	merged, err = ds.ListMergedTeamPolicies(ctx, 0, fleet.ListOptions{
+	merged, err = ds.ListMergedTeamPolicies(ctx, 0, automdm.ListOptions{
 		OrderKey:       "name",
-		OrderDirection: fleet.OrderAscending,
+		OrderDirection: automdm.OrderAscending,
 	}, "scripts", "")
 	require.NoError(t, err)
 	require.Len(t, merged, 1)
@@ -10454,9 +10454,9 @@ func testTeamPolicyAutomationFilter(t *testing.T, ds *Datastore) {
 	assert.Equal(t, 1, mergedCount)
 
 	// Test calendar
-	merged, err = ds.ListMergedTeamPolicies(ctx, 0, fleet.ListOptions{
+	merged, err = ds.ListMergedTeamPolicies(ctx, 0, automdm.ListOptions{
 		OrderKey:       "name",
-		OrderDirection: fleet.OrderAscending,
+		OrderDirection: automdm.OrderAscending,
 	}, "calendar", "")
 	require.NoError(t, err)
 	require.Len(t, merged, 1)
@@ -10467,9 +10467,9 @@ func testTeamPolicyAutomationFilter(t *testing.T, ds *Datastore) {
 	assert.Equal(t, 1, mergedCount)
 
 	// Test conditional_access
-	merged, err = ds.ListMergedTeamPolicies(ctx, 0, fleet.ListOptions{
+	merged, err = ds.ListMergedTeamPolicies(ctx, 0, automdm.ListOptions{
 		OrderKey:       "name",
-		OrderDirection: fleet.OrderAscending,
+		OrderDirection: automdm.OrderAscending,
 	}, "conditional_access", "")
 	require.NoError(t, err)
 	require.Len(t, merged, 1)
@@ -10480,9 +10480,9 @@ func testTeamPolicyAutomationFilter(t *testing.T, ds *Datastore) {
 	assert.Equal(t, 1, mergedCount)
 
 	// Test other
-	merged, err = ds.ListMergedTeamPolicies(ctx, 0, fleet.ListOptions{
+	merged, err = ds.ListMergedTeamPolicies(ctx, 0, automdm.ListOptions{
 		OrderKey:       "name",
-		OrderDirection: fleet.OrderAscending,
+		OrderDirection: automdm.OrderAscending,
 	}, "other", "")
 	require.NoError(t, err)
 	require.Len(t, merged, 1)
@@ -10493,10 +10493,10 @@ func testTeamPolicyAutomationFilter(t *testing.T, ds *Datastore) {
 	assert.Equal(t, 1, mergedCount)
 
 	// Test not merged
-	policies, _, err := ds.ListTeamPolicies(ctx, 0, fleet.ListOptions{
+	policies, _, err := ds.ListTeamPolicies(ctx, 0, automdm.ListOptions{
 		OrderKey:       "name",
-		OrderDirection: fleet.OrderAscending,
-	}, fleet.ListOptions{}, "software", "")
+		OrderDirection: automdm.OrderAscending,
+	}, automdm.ListOptions{}, "software", "")
 	require.NoError(t, err)
 	require.Len(t, policies, 2)
 	assert.Equal(t, teamInstallerPolicy.ID, policies[0].ID)
@@ -10507,10 +10507,10 @@ func testTeamPolicyAutomationFilter(t *testing.T, ds *Datastore) {
 	assert.Equal(t, 2, mergedCount)
 
 	// Test not merged patch
-	policies, _, err = ds.ListTeamPolicies(ctx, 0, fleet.ListOptions{
+	policies, _, err = ds.ListTeamPolicies(ctx, 0, automdm.ListOptions{
 		OrderKey:       "name",
-		OrderDirection: fleet.OrderAscending,
-	}, fleet.ListOptions{}, "patch", "")
+		OrderDirection: automdm.OrderAscending,
+	}, automdm.ListOptions{}, "patch", "")
 	require.NoError(t, err)
 	require.Len(t, policies, 1)
 	assert.Equal(t, teamPatchPolicy.ID, policies[0].ID)
@@ -10530,23 +10530,23 @@ func testApplyPolicySpecNoSpuriousStatsReset(t *testing.T, ds *Datastore) {
 
 	user1 := test.NewUser(t, ds, "StatsUser1", "statsuser1@example.com", true)
 	user2 := test.NewUser(t, ds, "StatsUser2", "statsuser2@example.com", true)
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: t.Name()})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: t.Name()})
 	require.NoError(t, err)
 
 	// Create a team policy (no software installer) as user1.
-	require.NoError(t, ds.ApplyPolicySpecs(ctx, user1.ID, []*fleet.PolicySpec{
+	require.NoError(t, ds.ApplyPolicySpecs(ctx, user1.ID, []*automdm.PolicySpec{
 		{
 			Name:     "stats-test-policy",
 			Query:    "SELECT 1;",
 			Team:     team.Name,
 			Platform: "darwin",
-			Type:     fleet.PolicyTypeDynamic,
+			Type:     automdm.PolicyTypeDynamic,
 		},
 	}))
 
 	// Create a host on the team and record a failing result.
 	hostID := fmt.Sprintf("%s-host", strings.ReplaceAll(t.Name(), "/", "_"))
-	h, err := ds.NewHost(ctx, &fleet.Host{
+	h, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID:   &hostID,
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
@@ -10561,7 +10561,7 @@ func testApplyPolicySpecNoSpuriousStatsReset(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// Get the policy to find its ID.
-	policies, _, err := ds.ListTeamPolicies(ctx, team.ID, fleet.ListOptions{}, fleet.ListOptions{}, "", "")
+	policies, _, err := ds.ListTeamPolicies(ctx, team.ID, automdm.ListOptions{}, automdm.ListOptions{}, "", "")
 	require.NoError(t, err)
 	require.Len(t, policies, 1)
 	pol := policies[0]
@@ -10575,7 +10575,7 @@ func testApplyPolicySpecNoSpuriousStatsReset(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// Verify the policy has a failing host count of 1.
-	policies, _, err = ds.ListTeamPolicies(ctx, team.ID, fleet.ListOptions{}, fleet.ListOptions{}, "", "")
+	policies, _, err = ds.ListTeamPolicies(ctx, team.ID, automdm.ListOptions{}, automdm.ListOptions{}, "", "")
 	require.NoError(t, err)
 	require.Len(t, policies, 1)
 	require.Equal(t, uint(1), policies[0].FailingHostCount)
@@ -10586,19 +10586,19 @@ func testApplyPolicySpecNoSpuriousStatsReset(t *testing.T, ds *Datastore) {
 	// causes insertOnDuplicateDidInsertOrUpdate to return true. Before the fix,
 	// the comparison logic would see SoftwareTitleID!=nil and incorrectly
 	// conclude the software installer changed, resetting stats.
-	require.NoError(t, ds.ApplyPolicySpecs(ctx, user2.ID, []*fleet.PolicySpec{
+	require.NoError(t, ds.ApplyPolicySpecs(ctx, user2.ID, []*automdm.PolicySpec{
 		{
 			Name:            "stats-test-policy",
 			Query:           "SELECT 1;",
 			Team:            team.Name,
 			Platform:        "darwin",
 			SoftwareTitleID: new(uint), // ptr to 0, as GitOps does
-			Type:            fleet.PolicyTypeDynamic,
+			Type:            automdm.PolicyTypeDynamic,
 		},
 	}))
 
 	// Verify that policy stats were NOT reset.
-	policies, _, err = ds.ListTeamPolicies(ctx, team.ID, fleet.ListOptions{}, fleet.ListOptions{}, "", "")
+	policies, _, err = ds.ListTeamPolicies(ctx, team.ID, automdm.ListOptions{}, automdm.ListOptions{}, "", "")
 	require.NoError(t, err)
 	require.Len(t, policies, 1)
 	assert.Equal(t, uint(1), policies[0].FailingHostCount, "policy stats should not have been reset")
@@ -10614,7 +10614,7 @@ func testStalePolicyIDsForHost(t *testing.T, ds *Datastore) {
 	otherHost := newTestHostWithPlatform(t, ds, "stale-other-host", "darwin", nil)
 	hostWithoutRows := newTestHostWithPlatform(t, ds, "stale-host-without-rows", "darwin", nil)
 	allResults := map[uint]*bool{passingPolicy.ID: new(true), failingPolicy.ID: new(false), otherPolicy.ID: new(true)}
-	for _, h := range []*fleet.Host{host, otherHost} {
+	for _, h := range []*automdm.Host{host, otherHost} {
 		_, err := ds.RecordPolicyQueryExecutions(ctx, h, allResults, time.Now(), false, nil)
 		require.NoError(t, err)
 	}
@@ -10645,13 +10645,13 @@ func testStalePolicyIDsForHost(t *testing.T, ds *Datastore) {
 func testApplyPolicySpecsMembershipCleanupOnlyOnChange(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 	user := test.NewUser(t, ds, "Alice", "alice@example.com", true)
-	spec := &fleet.PolicySpec{Name: "cleanup-policy", Query: "SELECT 1;", Platform: "darwin", Type: fleet.PolicyTypeDynamic}
-	require.NoError(t, ds.ApplyPolicySpecs(ctx, user.ID, []*fleet.PolicySpec{spec}))
-	policies, err := ds.ListGlobalPolicies(ctx, fleet.ListOptions{}, "")
+	spec := &automdm.PolicySpec{Name: "cleanup-policy", Query: "SELECT 1;", Platform: "darwin", Type: automdm.PolicyTypeDynamic}
+	require.NoError(t, ds.ApplyPolicySpecs(ctx, user.ID, []*automdm.PolicySpec{spec}))
+	policies, err := ds.ListGlobalPolicies(ctx, automdm.ListOptions{}, "")
 	require.NoError(t, err)
 	require.Len(t, policies, 1)
 	pol := policies[0]
-	polsByName := map[string]*fleet.Policy{pol.Name: pol}
+	polsByName := map[string]*automdm.Policy{pol.Name: pol}
 
 	host := newTestHostWithPlatform(t, ds, "cleanup-host", "darwin", nil)
 	_, err = ds.RecordPolicyQueryExecutions(ctx, host, map[uint]*bool{pol.ID: new(false)}, time.Now(), false, nil)
@@ -10663,7 +10663,7 @@ func testApplyPolicySpecsMembershipCleanupOnlyOnChange(t *testing.T, ds *Datasto
 		return err
 	})
 
-	require.NoError(t, ds.ApplyPolicySpecs(ctx, user.ID, []*fleet.PolicySpec{spec}))
+	require.NoError(t, ds.ApplyPolicySpecs(ctx, user.ID, []*automdm.PolicySpec{spec}))
 	// Orphan was not cleaned up because the policy was unchanged.
 	assertPolicyMembership(t, ds, polsByName, map[string][]uint{pol.Name: {host.ID, orphanHostID}})
 
@@ -10678,7 +10678,7 @@ func testApplyPolicySpecsMembershipCleanupOnlyOnChange(t *testing.T, ds *Datasto
 	spec.Platform = "darwin,linux"
 	applyCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	require.NoError(t, ds.ApplyPolicySpecs(applyCtx, user.ID, []*fleet.PolicySpec{spec}))
+	require.NoError(t, ds.ApplyPolicySpecs(applyCtx, user.ID, []*automdm.PolicySpec{spec}))
 	require.NoError(t, ds.CleanupPendingPolicyMembership(applyCtx))
 	// Orphan was cleaned up because the policy was changed.
 	assertPolicyMembership(t, ds, polsByName, map[string][]uint{pol.Name: {host.ID}})
@@ -10687,18 +10687,18 @@ func testApplyPolicySpecsMembershipCleanupOnlyOnChange(t *testing.T, ds *Datasto
 func testApplyPolicySpecsUnchangedDoesNotLockPolicies(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 	user := test.NewUser(t, ds, "Alice", "alice@example.com", true)
-	tm, err := ds.NewTeam(ctx, &fleet.Team{Name: t.Name()})
+	tm, err := ds.NewTeam(ctx, &automdm.Team{Name: t.Name()})
 	require.NoError(t, err)
-	script, err := ds.NewScript(ctx, &fleet.Script{Name: "remediate.sh", ScriptContents: "echo", TeamID: &tm.ID})
+	script, err := ds.NewScript(ctx, &automdm.Script{Name: "remediate.sh", ScriptContents: "echo", TeamID: &tm.ID})
 	require.NoError(t, err)
-	label, err := ds.NewLabel(ctx, &fleet.Label{Name: t.Name(), Query: "SELECT 1;"})
+	label, err := ds.NewLabel(ctx, &automdm.Label{Name: t.Name(), Query: "SELECT 1;"})
 	require.NoError(t, err)
-	specs := []*fleet.PolicySpec{
+	specs := []*automdm.PolicySpec{
 		{Name: "with script", Team: tm.Name, Query: "SELECT 1;", ScriptID: &script.ID},
 		{Name: "with label", Team: tm.Name, Query: "SELECT 1;", LabelsIncludeAny: []string{label.Name}},
 	}
 	require.NoError(t, ds.ApplyPolicySpecs(ctx, user.ID, specs))
-	policies, _, err := ds.ListTeamPolicies(ctx, tm.ID, fleet.ListOptions{}, fleet.ListOptions{}, "", "")
+	policies, _, err := ds.ListTeamPolicies(ctx, tm.ID, automdm.ListOptions{}, automdm.ListOptions{}, "", "")
 	require.NoError(t, err)
 	require.Len(t, policies, 2)
 
@@ -10736,45 +10736,45 @@ func testApplyPolicySpecsAppliesChangedFields(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 	user := test.NewUser(t, ds, "Alice", "alice@example.com", true)
 	other := test.NewUser(t, ds, "Bob", "bob@example.com", true)
-	tm, err := ds.NewTeam(ctx, &fleet.Team{Name: t.Name()})
+	tm, err := ds.NewTeam(ctx, &automdm.Team{Name: t.Name()})
 	require.NoError(t, err)
-	scriptA, err := ds.NewScript(ctx, &fleet.Script{Name: "a.sh", ScriptContents: "echo a", TeamID: &tm.ID})
+	scriptA, err := ds.NewScript(ctx, &automdm.Script{Name: "a.sh", ScriptContents: "echo a", TeamID: &tm.ID})
 	require.NoError(t, err)
-	scriptB, err := ds.NewScript(ctx, &fleet.Script{Name: "b.sh", ScriptContents: "echo b", TeamID: &tm.ID})
+	scriptB, err := ds.NewScript(ctx, &automdm.Script{Name: "b.sh", ScriptContents: "echo b", TeamID: &tm.ID})
 	require.NoError(t, err)
-	label, err := ds.NewLabel(ctx, &fleet.Label{Name: t.Name(), Query: "SELECT 1;"})
+	label, err := ds.NewLabel(ctx, &automdm.Label{Name: t.Name(), Query: "SELECT 1;"})
 	require.NoError(t, err)
 
 	cases := []struct {
 		name   string
 		author uint
-		change func(*fleet.PolicySpec)
-		check  func(*testing.T, *fleet.Policy)
+		change func(*automdm.PolicySpec)
+		check  func(*testing.T, *automdm.Policy)
 	}{
-		{"query", user.ID, func(s *fleet.PolicySpec) { s.Query = "SELECT 2;" }, func(t *testing.T, p *fleet.Policy) { require.Equal(t, "SELECT 2;", p.Query) }},
-		{"description", user.ID, func(s *fleet.PolicySpec) { s.Description = "new" }, func(t *testing.T, p *fleet.Policy) { require.Equal(t, "new", p.Description) }},
-		{"resolution", user.ID, func(s *fleet.PolicySpec) { s.Resolution = "new" }, func(t *testing.T, p *fleet.Policy) { require.Equal(t, "new", *p.Resolution) }},
-		{"platform", user.ID, func(s *fleet.PolicySpec) { s.Platform = "darwin,linux" }, func(t *testing.T, p *fleet.Policy) { require.Equal(t, "darwin,linux", p.Platform) }},
-		{"critical", user.ID, func(s *fleet.PolicySpec) { s.Critical = true }, func(t *testing.T, p *fleet.Policy) { require.True(t, p.Critical) }},
-		{"calendar events", user.ID, func(s *fleet.PolicySpec) { s.CalendarEventsEnabled = true }, func(t *testing.T, p *fleet.Policy) { require.True(t, p.CalendarEventsEnabled) }},
-		{"conditional access", user.ID, func(s *fleet.PolicySpec) { s.ConditionalAccessEnabled = true }, func(t *testing.T, p *fleet.Policy) { require.True(t, p.ConditionalAccessEnabled) }},
-		{"continuous automations", user.ID, func(s *fleet.PolicySpec) { s.ContinuousAutomationsEnabled = true }, func(t *testing.T, p *fleet.Policy) { require.True(t, p.ContinuousAutomationsEnabled) }},
-		{"hidden", user.ID, func(s *fleet.PolicySpec) { s.Hidden = true }, func(t *testing.T, p *fleet.Policy) { require.True(t, p.Hidden) }},
-		{"script", user.ID, func(s *fleet.PolicySpec) { s.ScriptID = &scriptB.ID }, func(t *testing.T, p *fleet.Policy) { require.Equal(t, scriptB.ID, *p.ScriptID) }},
-		{"labels", user.ID, func(s *fleet.PolicySpec) { s.LabelsIncludeAny = []string{label.Name} }, func(t *testing.T, p *fleet.Policy) { require.Len(t, p.LabelsIncludeAny, 1) }},
-		{"author", other.ID, func(s *fleet.PolicySpec) {}, func(t *testing.T, p *fleet.Policy) { require.Equal(t, other.ID, *p.AuthorID) }},
+		{"query", user.ID, func(s *automdm.PolicySpec) { s.Query = "SELECT 2;" }, func(t *testing.T, p *automdm.Policy) { require.Equal(t, "SELECT 2;", p.Query) }},
+		{"description", user.ID, func(s *automdm.PolicySpec) { s.Description = "new" }, func(t *testing.T, p *automdm.Policy) { require.Equal(t, "new", p.Description) }},
+		{"resolution", user.ID, func(s *automdm.PolicySpec) { s.Resolution = "new" }, func(t *testing.T, p *automdm.Policy) { require.Equal(t, "new", *p.Resolution) }},
+		{"platform", user.ID, func(s *automdm.PolicySpec) { s.Platform = "darwin,linux" }, func(t *testing.T, p *automdm.Policy) { require.Equal(t, "darwin,linux", p.Platform) }},
+		{"critical", user.ID, func(s *automdm.PolicySpec) { s.Critical = true }, func(t *testing.T, p *automdm.Policy) { require.True(t, p.Critical) }},
+		{"calendar events", user.ID, func(s *automdm.PolicySpec) { s.CalendarEventsEnabled = true }, func(t *testing.T, p *automdm.Policy) { require.True(t, p.CalendarEventsEnabled) }},
+		{"conditional access", user.ID, func(s *automdm.PolicySpec) { s.ConditionalAccessEnabled = true }, func(t *testing.T, p *automdm.Policy) { require.True(t, p.ConditionalAccessEnabled) }},
+		{"continuous automations", user.ID, func(s *automdm.PolicySpec) { s.ContinuousAutomationsEnabled = true }, func(t *testing.T, p *automdm.Policy) { require.True(t, p.ContinuousAutomationsEnabled) }},
+		{"hidden", user.ID, func(s *automdm.PolicySpec) { s.Hidden = true }, func(t *testing.T, p *automdm.Policy) { require.True(t, p.Hidden) }},
+		{"script", user.ID, func(s *automdm.PolicySpec) { s.ScriptID = &scriptB.ID }, func(t *testing.T, p *automdm.Policy) { require.Equal(t, scriptB.ID, *p.ScriptID) }},
+		{"labels", user.ID, func(s *automdm.PolicySpec) { s.LabelsIncludeAny = []string{label.Name} }, func(t *testing.T, p *automdm.Policy) { require.Len(t, p.LabelsIncludeAny, 1) }},
+		{"author", other.ID, func(s *automdm.PolicySpec) {}, func(t *testing.T, p *automdm.Policy) { require.Equal(t, other.ID, *p.AuthorID) }},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			spec := func() *fleet.PolicySpec {
-				return &fleet.PolicySpec{Name: c.name, Team: tm.Name, Query: "SELECT 1;", Platform: "darwin", ScriptID: &scriptA.ID}
+			spec := func() *automdm.PolicySpec {
+				return &automdm.PolicySpec{Name: c.name, Team: tm.Name, Query: "SELECT 1;", Platform: "darwin", ScriptID: &scriptA.ID}
 			}
-			require.NoError(t, ds.ApplyPolicySpecs(ctx, user.ID, []*fleet.PolicySpec{spec()}))
+			require.NoError(t, ds.ApplyPolicySpecs(ctx, user.ID, []*automdm.PolicySpec{spec()}))
 			changed := spec()
 			c.change(changed)
-			require.NoError(t, ds.ApplyPolicySpecs(ctx, c.author, []*fleet.PolicySpec{changed}))
+			require.NoError(t, ds.ApplyPolicySpecs(ctx, c.author, []*automdm.PolicySpec{changed}))
 
-			policies, _, err := ds.ListTeamPolicies(ctx, tm.ID, fleet.ListOptions{}, fleet.ListOptions{}, "", "")
+			policies, _, err := ds.ListTeamPolicies(ctx, tm.ID, automdm.ListOptions{}, automdm.ListOptions{}, "", "")
 			require.NoError(t, err)
 			for _, p := range policies {
 				if p.Name == c.name {
@@ -10792,12 +10792,12 @@ func testApplyPolicySpecsAppliesChangedFields(t *testing.T, ds *Datastore) {
 func testApplyPolicySpecsDoesNotLockScripts(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 	user := test.NewUser(t, ds, "Alice", "alice@example.com", true)
-	tm, err := ds.NewTeam(ctx, &fleet.Team{Name: t.Name()})
+	tm, err := ds.NewTeam(ctx, &automdm.Team{Name: t.Name()})
 	require.NoError(t, err)
-	script, err := ds.NewScript(ctx, &fleet.Script{Name: "remediate.sh", ScriptContents: "echo", TeamID: &tm.ID})
+	script, err := ds.NewScript(ctx, &automdm.Script{Name: "remediate.sh", ScriptContents: "echo", TeamID: &tm.ID})
 	require.NoError(t, err)
-	spec := &fleet.PolicySpec{Name: t.Name(), Team: tm.Name, Query: "SELECT 1;", ScriptID: &script.ID}
-	require.NoError(t, ds.ApplyPolicySpecs(ctx, user.ID, []*fleet.PolicySpec{spec}))
+	spec := &automdm.PolicySpec{Name: t.Name(), Team: tm.Name, Query: "SELECT 1;", ScriptID: &script.ID}
+	require.NoError(t, ds.ApplyPolicySpecs(ctx, user.ID, []*automdm.PolicySpec{spec}))
 
 	// Activating a queued run of the script locks the policy row, then the script row. Hold the script lock.
 	hostTx, err := ds.writer(ctx).BeginTxx(ctx, nil)
@@ -10809,7 +10809,7 @@ func testApplyPolicySpecsDoesNotLockScripts(t *testing.T, ds *Datastore) {
 	spec.Query = "SELECT 2;"
 	applyCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	require.NoError(t, ds.ApplyPolicySpecs(applyCtx, user.ID, []*fleet.PolicySpec{spec}))
+	require.NoError(t, ds.ApplyPolicySpecs(applyCtx, user.ID, []*automdm.PolicySpec{spec}))
 	require.NoError(t, hostTx.Rollback())
 }
 
@@ -10817,14 +10817,14 @@ func testGetPoliciesForConditionalAccess(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 	// Two "No team" (team_id = 0) policies enrolled in conditional access, one
 	// per supported platform.
-	darwinPolicy, err := ds.NewTeamPolicy(ctx, 0, nil, fleet.PolicyPayload{
+	darwinPolicy, err := ds.NewTeamPolicy(ctx, 0, nil, automdm.PolicyPayload{
 		Name:                     "ca-darwin",
 		Query:                    "SELECT 1;",
 		Platform:                 "darwin",
 		ConditionalAccessEnabled: true,
 	})
 	require.NoError(t, err)
-	windowsPolicy, err := ds.NewTeamPolicy(ctx, 0, nil, fleet.PolicyPayload{
+	windowsPolicy, err := ds.NewTeamPolicy(ctx, 0, nil, automdm.PolicyPayload{
 		Name:                     "ca-windows",
 		Query:                    "SELECT 1;",
 		Platform:                 "windows",
@@ -10854,13 +10854,13 @@ func testRecordPolicyQueryExecutionsDeletedPolicy(t *testing.T, ds *Datastore) {
 	host := test.NewHost(t, ds, "host1", "10.0.0.1", "host1Key", "host1UUID", time.Now())
 	user := test.NewUser(t, ds, "User", "test@example.com", true)
 
-	validPolicy, err := ds.NewGlobalPolicy(ctx, &user.ID, fleet.PolicyPayload{
+	validPolicy, err := ds.NewGlobalPolicy(ctx, &user.ID, automdm.PolicyPayload{
 		Name:  "valid-policy",
 		Query: "SELECT 1;",
 	})
 	require.NoError(t, err)
 
-	deletedPolicy, err := ds.NewGlobalPolicy(ctx, &user.ID, fleet.PolicyPayload{
+	deletedPolicy, err := ds.NewGlobalPolicy(ctx, &user.ID, automdm.PolicyPayload{
 		Name:  "deleted-policy",
 		Query: "SELECT 2;",
 	})
@@ -10901,8 +10901,8 @@ func testRecordPolicyQueryExecutionsStalePolicyIDs(t *testing.T, ds *Datastore) 
 	otherHost := test.NewHost(t, ds, "host2", "10.0.0.2", "host2Key", "host2UUID", time.Now())
 	user := test.NewUser(t, ds, "User", "test@example.com", true)
 
-	newPolicy := func(name string) *fleet.Policy {
-		p, err := ds.NewGlobalPolicy(ctx, &user.ID, fleet.PolicyPayload{
+	newPolicy := func(name string) *automdm.Policy {
+		p, err := ds.NewGlobalPolicy(ctx, &user.ID, automdm.PolicyPayload{
 			Name:  name,
 			Query: "SELECT 1;",
 		})
@@ -10997,18 +10997,18 @@ func testResetPolicy(t *testing.T, ds *Datastore) {
 	host2 := test.NewHost(t, ds, "host2", "1.1.1.2", "uuid-host2", "node-key-host2", time.Now())
 
 	// Create a team.
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: t.Name() + "-team"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: t.Name() + "-team"})
 	require.NoError(t, err)
 
 	// Create a global policy (the one we will reset).
-	policy, err := ds.NewGlobalPolicy(ctx, nil, fleet.PolicyPayload{
+	policy, err := ds.NewGlobalPolicy(ctx, nil, automdm.PolicyPayload{
 		Name:  t.Name(),
 		Query: "SELECT 1;",
 	})
 	require.NoError(t, err)
 
 	// Create a second policy (team policy) to prove reset is scoped.
-	otherPolicy, err := ds.NewTeamPolicy(ctx, team.ID, nil, fleet.PolicyPayload{
+	otherPolicy, err := ds.NewTeamPolicy(ctx, team.ID, nil, automdm.PolicyPayload{
 		Name:  t.Name() + "-other",
 		Query: "SELECT 2;",
 	})
@@ -11132,13 +11132,13 @@ func testResetPolicyForHost(t *testing.T, ds *Datastore) {
 
 	host1 := test.NewHost(t, ds, "host1", "1.1.1.1", "uuid-host1", "node-key-host1", time.Now())
 	host2 := test.NewHost(t, ds, "host2", "1.1.1.2", "uuid-host2", "node-key-host2", time.Now())
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: t.Name() + "-team"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: t.Name() + "-team"})
 	require.NoError(t, err)
-	require.NoError(t, ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team.ID, []uint{host1.ID})))
+	require.NoError(t, ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team.ID, []uint{host1.ID})))
 
-	policy, err := ds.NewGlobalPolicy(ctx, nil, fleet.PolicyPayload{Name: t.Name(), Query: "SELECT 1;"})
+	policy, err := ds.NewGlobalPolicy(ctx, nil, automdm.PolicyPayload{Name: t.Name(), Query: "SELECT 1;"})
 	require.NoError(t, err)
-	otherPolicy, err := ds.NewGlobalPolicy(ctx, nil, fleet.PolicyPayload{Name: t.Name() + "-other", Query: "SELECT 2;"})
+	otherPolicy, err := ds.NewGlobalPolicy(ctx, nil, automdm.PolicyPayload{Name: t.Name() + "-other", Query: "SELECT 2;"})
 	require.NoError(t, err)
 
 	ExecAdhocSQL(t, ds, func(q sqlx.ExtContext) error {
@@ -11238,14 +11238,14 @@ func testResetPolicyForHost(t *testing.T, ds *Datastore) {
 func testApplyPolicySpecFirstAddedInstaller(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 	user := test.NewUser(t, ds, "Spec First Added", "spec-first-added@example.com", true)
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "spec-first-added-team"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "spec-first-added-team"})
 	require.NoError(t, err)
 
 	var titleID uint
 	newPkg := func(storage, filename string) uint {
-		tfr, err := fleet.NewTempFileReader(strings.NewReader("hello-"+storage), t.TempDir)
+		tfr, err := automdm.NewTempFileReader(strings.NewReader("hello-"+storage), t.TempDir)
 		require.NoError(t, err)
-		id, tID, err := ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
+		id, tID, err := ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
 			InstallScript:    "install",
 			InstallerFile:    tfr,
 			StorageID:        storage,
@@ -11257,7 +11257,7 @@ func testApplyPolicySpecFirstAddedInstaller(t *testing.T, ds *Datastore) {
 			UserID:           user.ID,
 			TeamID:           &team.ID,
 			Platform:         "darwin",
-			ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+			ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 		})
 		require.NoError(t, err)
 		titleID = tID
@@ -11267,7 +11267,7 @@ func testApplyPolicySpecFirstAddedInstaller(t *testing.T, ds *Datastore) {
 	installerB := newPkg("spec-b", "pkgB.pkg")
 	require.Less(t, installerA, installerB)
 
-	err = ds.ApplyPolicySpecs(ctx, user.ID, []*fleet.PolicySpec{
+	err = ds.ApplyPolicySpecs(ctx, user.ID, []*automdm.PolicySpec{
 		{
 			Name:            "spec multi-package policy",
 			Query:           "SELECT 1;",
@@ -11277,7 +11277,7 @@ func testApplyPolicySpecFirstAddedInstaller(t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 
-	policies, _, err := ds.ListTeamPolicies(ctx, team.ID, fleet.ListOptions{}, fleet.ListOptions{}, "", "")
+	policies, _, err := ds.ListTeamPolicies(ctx, team.ID, automdm.ListOptions{}, automdm.ListOptions{}, "", "")
 	require.NoError(t, err)
 	require.Len(t, policies, 1)
 	require.NotNil(t, policies[0].SoftwareInstallerID)
@@ -11292,14 +11292,14 @@ func testApplyPolicySpecFirstAddedInstaller(t *testing.T, ds *Datastore) {
 func testApplyPolicySpecPinnedInstaller(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 	user := test.NewUser(t, ds, "Spec Pinned", "spec-pinned@example.com", true)
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "spec-pinned-team"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "spec-pinned-team"})
 	require.NoError(t, err)
 
 	var titleID uint
 	newPkg := func(storage, filename string) uint {
-		tfr, err := fleet.NewTempFileReader(strings.NewReader("hello-"+storage), t.TempDir)
+		tfr, err := automdm.NewTempFileReader(strings.NewReader("hello-"+storage), t.TempDir)
 		require.NoError(t, err)
-		id, tID, err := ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
+		id, tID, err := ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
 			InstallScript:    "install",
 			InstallerFile:    tfr,
 			StorageID:        storage,
@@ -11311,7 +11311,7 @@ func testApplyPolicySpecPinnedInstaller(t *testing.T, ds *Datastore) {
 			UserID:           user.ID,
 			TeamID:           &team.ID,
 			Platform:         "darwin",
-			ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+			ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 		})
 		require.NoError(t, err)
 		titleID = tID
@@ -11322,7 +11322,7 @@ func testApplyPolicySpecPinnedInstaller(t *testing.T, ds *Datastore) {
 	require.Less(t, installerA, installerB)
 
 	t.Run("SoftwarePackageID pins the non-first-added installer", func(t *testing.T) {
-		err := ds.ApplyPolicySpecs(ctx, user.ID, []*fleet.PolicySpec{
+		err := ds.ApplyPolicySpecs(ctx, user.ID, []*automdm.PolicySpec{
 			{
 				Name:              "policy pinned to B",
 				Query:             "SELECT 1;",
@@ -11333,9 +11333,9 @@ func testApplyPolicySpecPinnedInstaller(t *testing.T, ds *Datastore) {
 		})
 		require.NoError(t, err)
 
-		policies, _, err := ds.ListTeamPolicies(ctx, team.ID, fleet.ListOptions{}, fleet.ListOptions{}, "", "")
+		policies, _, err := ds.ListTeamPolicies(ctx, team.ID, automdm.ListOptions{}, automdm.ListOptions{}, "", "")
 		require.NoError(t, err)
-		var pinned *fleet.Policy
+		var pinned *automdm.Policy
 		for _, p := range policies {
 			if p.Name == "policy pinned to B" {
 				pinned = p
@@ -11353,7 +11353,7 @@ func testApplyPolicySpecPinnedInstaller(t *testing.T, ds *Datastore) {
 		// the per-policy id in a team+title-keyed map — the second pin would
 		// overwrite the first and both rows would end up on the last one.
 		// Validate + use inline instead.
-		err := ds.ApplyPolicySpecs(ctx, user.ID, []*fleet.PolicySpec{
+		err := ds.ApplyPolicySpecs(ctx, user.ID, []*automdm.PolicySpec{
 			{
 				Name:              "collision A pins first installer",
 				Query:             "SELECT 1;",
@@ -11371,9 +11371,9 @@ func testApplyPolicySpecPinnedInstaller(t *testing.T, ds *Datastore) {
 		})
 		require.NoError(t, err)
 
-		policies, _, err := ds.ListTeamPolicies(ctx, team.ID, fleet.ListOptions{}, fleet.ListOptions{}, "", "")
+		policies, _, err := ds.ListTeamPolicies(ctx, team.ID, automdm.ListOptions{}, automdm.ListOptions{}, "", "")
 		require.NoError(t, err)
-		byName := map[string]*fleet.Policy{}
+		byName := map[string]*automdm.Policy{}
 		for _, p := range policies {
 			byName[p.Name] = p
 		}
@@ -11390,9 +11390,9 @@ func testApplyPolicySpecPinnedInstaller(t *testing.T, ds *Datastore) {
 	t.Run("SoftwarePackageID that doesn't belong to the title is rejected", func(t *testing.T) {
 		// Create a second title with its own installer, then try to pin a policy
 		// on the first title to the second title's installer.
-		tfr, err := fleet.NewTempFileReader(strings.NewReader("other"), t.TempDir)
+		tfr, err := automdm.NewTempFileReader(strings.NewReader("other"), t.TempDir)
 		require.NoError(t, err)
-		otherInstaller, _, err := ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
+		otherInstaller, _, err := ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
 			InstallScript:    "install",
 			InstallerFile:    tfr,
 			StorageID:        "pinned-other",
@@ -11404,11 +11404,11 @@ func testApplyPolicySpecPinnedInstaller(t *testing.T, ds *Datastore) {
 			UserID:           user.ID,
 			TeamID:           &team.ID,
 			Platform:         "darwin",
-			ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+			ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 		})
 		require.NoError(t, err)
 
-		err = ds.ApplyPolicySpecs(ctx, user.ID, []*fleet.PolicySpec{
+		err = ds.ApplyPolicySpecs(ctx, user.ID, []*automdm.PolicySpec{
 			{
 				Name:              "policy pinned to wrong title's installer",
 				Query:             "SELECT 1;",
@@ -11425,10 +11425,10 @@ func testApplyPolicySpecPinnedInstaller(t *testing.T, ds *Datastore) {
 func testPoliciesHidden(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 	user := test.NewUser(t, ds, "Alice", "alice@example.com", true)
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "team hidden"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "team hidden"})
 	require.NoError(t, err)
 
-	p, err := ds.NewTeamPolicy(ctx, team.ID, &user.ID, fleet.PolicyPayload{Name: "hidden", Query: "SELECT 1;", Hidden: true})
+	p, err := ds.NewTeamPolicy(ctx, team.ID, &user.ID, automdm.PolicyPayload{Name: "hidden", Query: "SELECT 1;", Hidden: true})
 	require.NoError(t, err)
 	require.True(t, p.Hidden)
 	got, err := ds.Policy(ctx, p.ID)
@@ -11441,41 +11441,41 @@ func testPoliciesHidden(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 	require.False(t, got.Hidden)
 
-	spec := &fleet.PolicySpec{Name: "hidden", Team: team.Name, Query: "SELECT 1;", Hidden: true}
-	require.NoError(t, ds.ApplyPolicySpecs(ctx, user.ID, []*fleet.PolicySpec{spec}))
+	spec := &automdm.PolicySpec{Name: "hidden", Team: team.Name, Query: "SELECT 1;", Hidden: true}
+	require.NoError(t, ds.ApplyPolicySpecs(ctx, user.ID, []*automdm.PolicySpec{spec}))
 	got, err = ds.Policy(ctx, p.ID)
 	require.NoError(t, err)
 	require.True(t, got.Hidden)
 
 	spec.Hidden = false
-	require.NoError(t, ds.ApplyPolicySpecs(ctx, user.ID, []*fleet.PolicySpec{spec}))
+	require.NoError(t, ds.ApplyPolicySpecs(ctx, user.ID, []*automdm.PolicySpec{spec}))
 	got, err = ds.Policy(ctx, p.ID)
 	require.NoError(t, err)
 	require.False(t, got.Hidden)
 
-	teamPolicies, _, err := ds.ListTeamPolicies(ctx, team.ID, fleet.ListOptions{}, fleet.ListOptions{}, "", "")
+	teamPolicies, _, err := ds.ListTeamPolicies(ctx, team.ID, automdm.ListOptions{}, automdm.ListOptions{}, "", "")
 	require.NoError(t, err)
 	require.Len(t, teamPolicies, 1)
 	require.False(t, teamPolicies[0].Hidden)
 
 	// Hidden policies are still listed for a host; only the device endpoints filter them out.
 	host := test.NewHost(t, ds, "host-hidden", "1.1.1.1", "hidden-key", "hidden-uuid", time.Now())
-	require.NoError(t, ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team.ID, []uint{host.ID})))
+	require.NoError(t, ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team.ID, []uint{host.ID})))
 	spec.Hidden = true
-	require.NoError(t, ds.ApplyPolicySpecs(ctx, user.ID, []*fleet.PolicySpec{spec}))
+	require.NoError(t, ds.ApplyPolicySpecs(ctx, user.ID, []*automdm.PolicySpec{spec}))
 	hostPolicies, err := ds.ListPoliciesForHost(ctx, host)
 	require.NoError(t, err)
 	require.Len(t, hostPolicies, 1)
 	require.True(t, hostPolicies[0].Hidden)
 
-	// Global ("All fleets") policies can be hidden too, via create and GitOps.
-	gp, err := ds.NewGlobalPolicy(ctx, &user.ID, fleet.PolicyPayload{Name: "hidden global", Query: "SELECT 1;", Hidden: true})
+	// Global ("All teams") policies can be hidden too, via create and GitOps.
+	gp, err := ds.NewGlobalPolicy(ctx, &user.ID, automdm.PolicyPayload{Name: "hidden global", Query: "SELECT 1;", Hidden: true})
 	require.NoError(t, err)
 	require.True(t, gp.Hidden)
 	got, err = ds.Policy(ctx, gp.ID)
 	require.NoError(t, err)
 	require.True(t, got.Hidden)
-	require.NoError(t, ds.ApplyPolicySpecs(ctx, user.ID, []*fleet.PolicySpec{
+	require.NoError(t, ds.ApplyPolicySpecs(ctx, user.ID, []*automdm.PolicySpec{
 		{Name: "hidden global", Query: "SELECT 1;", Hidden: false},
 	}))
 	got, err = ds.Policy(ctx, gp.ID)
@@ -11528,14 +11528,14 @@ func setWebhooksAndTickets(t *testing.T, ds *Datastore, policyIDs ...uint) {
 func testWebhooksAndTicketsPolicies(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "team1"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
-	team2, err := ds.NewTeam(ctx, &fleet.Team{Name: "team2"})
+	team2, err := ds.NewTeam(ctx, &automdm.Team{Name: "team2"})
 	require.NoError(t, err)
 
 	newPolicy := func(name string, teamID *uint) uint {
-		payload := fleet.PolicyPayload{Name: name, Query: "SELECT 1;"}
-		var p *fleet.Policy
+		payload := automdm.PolicyPayload{Name: name, Query: "SELECT 1;"}
+		var p *automdm.Policy
 		var err error
 		if teamID == nil {
 			p, err = ds.NewGlobalPolicy(ctx, nil, payload)
@@ -11559,7 +11559,7 @@ func testWebhooksAndTicketsPolicies(t *testing.T, ds *Datastore) {
 
 	filtered, err := ds.FilterWebhooksAndTicketsPolicies(ctx, []uint{global1, global2, team1b, team2a, noTeam, deletedID})
 	require.NoError(t, err)
-	require.ElementsMatch(t, []fleet.PolicyIDAndTeam{
+	require.ElementsMatch(t, []automdm.PolicyIDAndTeam{
 		{ID: global1}, {ID: team1b, TeamID: &team1.ID}, {ID: noTeam, TeamID: new(uint(0))},
 	}, filtered)
 	filtered, err = ds.FilterWebhooksAndTicketsPolicies(ctx, nil)
@@ -11570,19 +11570,19 @@ func testWebhooksAndTicketsPolicies(t *testing.T, ds *Datastore) {
 func testWebhooksAndTicketsWrites(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 	user := test.NewUser(t, ds, "Alice", "alice-webhook@example.com", true)
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "webhook writes"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "webhook writes"})
 	require.NoError(t, err)
-	script, err := ds.NewScript(ctx, &fleet.Script{Name: "webhook-writes.sh", ScriptContents: "echo", TeamID: &team.ID})
+	script, err := ds.NewScript(ctx, &automdm.Script{Name: "webhook-writes.sh", ScriptContents: "echo", TeamID: &team.ID})
 	require.NoError(t, err)
 
 	// Create and save keep the flag.
-	global, err := ds.NewGlobalPolicy(ctx, &user.ID, fleet.PolicyPayload{Name: "g", Query: "SELECT 1", WebhooksAndTicketsEnabled: true})
+	global, err := ds.NewGlobalPolicy(ctx, &user.ID, automdm.PolicyPayload{Name: "g", Query: "SELECT 1", WebhooksAndTicketsEnabled: true})
 	require.NoError(t, err)
 	require.True(t, global.WebhooksAndTicketsEnabled)
-	teamPolicy, err := ds.NewTeamPolicy(ctx, team.ID, &user.ID, fleet.PolicyPayload{Name: "t", Query: "SELECT 1", WebhooksAndTicketsEnabled: true})
+	teamPolicy, err := ds.NewTeamPolicy(ctx, team.ID, &user.ID, automdm.PolicyPayload{Name: "t", Query: "SELECT 1", WebhooksAndTicketsEnabled: true})
 	require.NoError(t, err)
 	require.True(t, teamPolicy.WebhooksAndTicketsEnabled)
-	_, err = ds.NewTeamPolicy(ctx, team.ID, &user.ID, fleet.PolicyPayload{Name: "s", Query: "SELECT 1", ScriptID: &script.ID})
+	_, err = ds.NewTeamPolicy(ctx, team.ID, &user.ID, automdm.PolicyPayload{Name: "s", Query: "SELECT 1", ScriptID: &script.ID})
 	require.NoError(t, err)
 	teamPolicy.WebhooksAndTicketsEnabled = false
 	require.NoError(t, ds.SavePolicy(ctx, teamPolicy, false, false))
@@ -11598,14 +11598,14 @@ func testWebhooksAndTicketsWrites(t *testing.T, ds *Datastore) {
 	require.Equal(t, map[string]bool{"g": true}, byName)
 
 	// Spec apply writes the flag on new and existing policies, and a change alone is applied.
-	require.NoError(t, ds.ApplyPolicySpecs(ctx, user.ID, []*fleet.PolicySpec{
+	require.NoError(t, ds.ApplyPolicySpecs(ctx, user.ID, []*automdm.PolicySpec{
 		{Name: "t", Query: "SELECT 1", Team: team.Name, WebhooksAndTicketsEnabled: true},
 		{Name: "spec new", Query: "SELECT 1", Team: team.Name, WebhooksAndTicketsEnabled: true},
 	}))
 	byName, err = ds.WebhooksAndTicketsByPolicyName(ctx, &team.ID, []string{"t", "spec new"})
 	require.NoError(t, err)
 	require.Equal(t, map[string]bool{"t": true, "spec new": true}, byName)
-	require.NoError(t, ds.ApplyPolicySpecs(ctx, user.ID, []*fleet.PolicySpec{
+	require.NoError(t, ds.ApplyPolicySpecs(ctx, user.ID, []*automdm.PolicySpec{
 		{Name: "t", Query: "SELECT 1", Team: team.Name},
 		{Name: "g", Query: "SELECT 1"},
 	}))
@@ -11620,27 +11620,27 @@ func testWebhooksAndTicketsWrites(t *testing.T, ds *Datastore) {
 func testWebhooksAndTicketsByPatchPolicySlug(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 	user := test.NewUser(t, ds, "Alice", "alice-patch-webhook@example.com", true)
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "patch webhook"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "patch webhook"})
 	require.NoError(t, err)
-	otherTeam, err := ds.NewTeam(ctx, &fleet.Team{Name: "patch webhook other"})
+	otherTeam, err := ds.NewTeam(ctx, &automdm.Team{Name: "patch webhook other"})
 	require.NoError(t, err)
 
 	addPatchPolicy := func(teamID uint, name string, webhook bool) {
-		fma, err := ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{
+		fma, err := ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{
 			Name: name, Slug: name + "/darwin", Platform: "darwin", UniqueIdentifier: "com.example." + name,
 		})
 		require.NoError(t, err)
-		tfr, err := fleet.NewTempFileReader(strings.NewReader(name), t.TempDir)
+		tfr, err := automdm.NewTempFileReader(strings.NewReader(name), t.TempDir)
 		require.NoError(t, err)
-		_, titleID, err := ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
+		_, titleID, err := ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
 			TeamID: &teamID, Title: name, Source: "apps", Platform: "darwin", BundleIdentifier: "com.example." + name,
 			InstallScript: "echo install", UninstallScript: "echo uninstall",
 			InstallerFile: tfr, StorageID: name, Filename: name + ".pkg", Version: "1.0",
-			UserID: user.ID, ValidatedLabels: &fleet.LabelIdentsWithScope{}, FleetMaintainedAppID: &fma.ID,
+			UserID: user.ID, ValidatedLabels: &automdm.LabelIdentsWithScope{}, AutoMDMMaintainedAppID: &fma.ID,
 		})
 		require.NoError(t, err)
-		_, err = ds.NewTeamPolicy(ctx, teamID, &user.ID, fleet.PolicyPayload{
-			Type: fleet.PolicyTypePatch, PatchSoftwareTitleID: &titleID, WebhooksAndTicketsEnabled: webhook,
+		_, err = ds.NewTeamPolicy(ctx, teamID, &user.ID, automdm.PolicyPayload{
+			Type: automdm.PolicyTypePatch, PatchSoftwareTitleID: &titleID, WebhooksAndTicketsEnabled: webhook,
 		})
 		require.NoError(t, err)
 	}
@@ -11659,16 +11659,16 @@ func testWebhooksAndTicketsByPatchPolicySlug(t *testing.T, ds *Datastore) {
 
 func testListAndCountPoliciesInScope(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "scope team"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "scope team"})
 	require.NoError(t, err)
-	otherTeam, err := ds.NewTeam(ctx, &fleet.Team{Name: "scope other team"})
+	otherTeam, err := ds.NewTeam(ctx, &automdm.Team{Name: "scope other team"})
 	require.NoError(t, err)
-	script, err := ds.NewScript(ctx, &fleet.Script{Name: "scope.sh", ScriptContents: "echo", TeamID: &team.ID})
+	script, err := ds.NewScript(ctx, &automdm.Script{Name: "scope.sh", ScriptContents: "echo", TeamID: &team.ID})
 	require.NoError(t, err)
 
-	newPolicy := func(name string, teamID *uint, payload fleet.PolicyPayload) uint {
+	newPolicy := func(name string, teamID *uint, payload automdm.PolicyPayload) uint {
 		payload.Name, payload.Query = name, "SELECT 1;"
-		var p *fleet.Policy
+		var p *automdm.Policy
 		var err error
 		if teamID == nil {
 			p, err = ds.NewGlobalPolicy(ctx, nil, payload)
@@ -11678,17 +11678,17 @@ func testListAndCountPoliciesInScope(t *testing.T, ds *Datastore) {
 		require.NoError(t, err)
 		return p.ID
 	}
-	newPolicy("global webhook", nil, fleet.PolicyPayload{WebhooksAndTicketsEnabled: true, Platform: "darwin"})
-	newPolicy("global plain", nil, fleet.PolicyPayload{Platform: "windows"})
-	newPolicy("team script", &team.ID, fleet.PolicyPayload{ScriptID: &script.ID})
-	newPolicy("team calendar", &team.ID, fleet.PolicyPayload{CalendarEventsEnabled: true})
-	newPolicy("team webhook", &team.ID, fleet.PolicyPayload{WebhooksAndTicketsEnabled: true})
-	newPolicy("unassigned conditional", new(uint(0)), fleet.PolicyPayload{ConditionalAccessEnabled: true, Platform: "darwin"})
-	newPolicy("other team", &otherTeam.ID, fleet.PolicyPayload{})
+	newPolicy("global webhook", nil, automdm.PolicyPayload{WebhooksAndTicketsEnabled: true, Platform: "darwin"})
+	newPolicy("global plain", nil, automdm.PolicyPayload{Platform: "windows"})
+	newPolicy("team script", &team.ID, automdm.PolicyPayload{ScriptID: &script.ID})
+	newPolicy("team calendar", &team.ID, automdm.PolicyPayload{CalendarEventsEnabled: true})
+	newPolicy("team webhook", &team.ID, automdm.PolicyPayload{WebhooksAndTicketsEnabled: true})
+	newPolicy("unassigned conditional", new(uint(0)), automdm.PolicyPayload{ConditionalAccessEnabled: true, Platform: "darwin"})
+	newPolicy("other team", &otherTeam.ID, automdm.PolicyPayload{})
 
-	check := func(teamID *uint, merge bool, filter fleet.PolicyListFilter, want ...string) {
+	check := func(teamID *uint, merge bool, filter automdm.PolicyListFilter, want ...string) {
 		t.Helper()
-		policies, err := ds.ListPoliciesInScope(ctx, teamID, merge, fleet.ListOptions{OrderKey: "name"}, filter)
+		policies, err := ds.ListPoliciesInScope(ctx, teamID, merge, automdm.ListOptions{OrderKey: "name"}, filter)
 		require.NoError(t, err)
 		var got []string
 		for _, p := range policies {
@@ -11699,27 +11699,27 @@ func testListAndCountPoliciesInScope(t *testing.T, ds *Datastore) {
 		require.NoError(t, err)
 		require.Equal(t, len(want), count)
 	}
-	none := fleet.PolicyListFilter{}
+	none := automdm.PolicyListFilter{}
 	check(nil, false, none, "global webhook", "global plain")
-	check(nil, true, none, "global webhook", "global plain") // merging needs a fleet
+	check(nil, true, none, "global webhook", "global plain") // merging needs a team
 	check(&team.ID, false, none, "team script", "team calendar", "team webhook")
 	check(&team.ID, true, none, "team script", "team calendar", "team webhook", "global webhook", "global plain")
 	check(new(uint(0)), false, none, "unassigned conditional")
 	check(new(uint(0)), true, none, "unassigned conditional", "global webhook", "global plain")
 
-	webhook := fleet.PolicyListFilter{AutomationType: fleet.PolicyAutomationWebhookOrTicket}
+	webhook := automdm.PolicyListFilter{AutomationType: automdm.PolicyAutomationWebhookOrTicket}
 	check(nil, false, webhook, "global webhook")
 	check(&team.ID, false, webhook, "team webhook")
 	check(&team.ID, true, webhook, "team webhook", "global webhook")
-	check(&team.ID, false, fleet.PolicyListFilter{AutomationType: fleet.PolicyAutomationScript}, "team script")
-	check(&team.ID, false, fleet.PolicyListFilter{AutomationType: fleet.PolicyAutomationCalendar}, "team calendar")
-	check(new(uint(0)), false, fleet.PolicyListFilter{AutomationType: fleet.PolicyAutomationConditionalAccess}, "unassigned conditional")
-	check(&team.ID, false, fleet.PolicyListFilter{AutomationType: fleet.PolicyAutomationSoftware})
-	check(&team.ID, false, fleet.PolicyListFilter{AutomationType: fleet.PolicyAutomationConfigurationProfile})
-	check(&team.ID, false, fleet.PolicyListFilter{Type: fleet.PolicyTypeDynamic}, "team script", "team calendar", "team webhook")
-	check(&team.ID, false, fleet.PolicyListFilter{Type: fleet.PolicyTypePatch})
-	check(nil, false, fleet.PolicyListFilter{Platform: "darwin"}, "global webhook")
-	check(&team.ID, true, fleet.PolicyListFilter{Platform: "windows"}, "team script", "team calendar", "team webhook", "global plain")
+	check(&team.ID, false, automdm.PolicyListFilter{AutomationType: automdm.PolicyAutomationScript}, "team script")
+	check(&team.ID, false, automdm.PolicyListFilter{AutomationType: automdm.PolicyAutomationCalendar}, "team calendar")
+	check(new(uint(0)), false, automdm.PolicyListFilter{AutomationType: automdm.PolicyAutomationConditionalAccess}, "unassigned conditional")
+	check(&team.ID, false, automdm.PolicyListFilter{AutomationType: automdm.PolicyAutomationSoftware})
+	check(&team.ID, false, automdm.PolicyListFilter{AutomationType: automdm.PolicyAutomationConfigurationProfile})
+	check(&team.ID, false, automdm.PolicyListFilter{Type: automdm.PolicyTypeDynamic}, "team script", "team calendar", "team webhook")
+	check(&team.ID, false, automdm.PolicyListFilter{Type: automdm.PolicyTypePatch})
+	check(nil, false, automdm.PolicyListFilter{Platform: "darwin"}, "global webhook")
+	check(&team.ID, true, automdm.PolicyListFilter{Platform: "windows"}, "team script", "team calendar", "team webhook", "global plain")
 
 	count, err := ds.CountPoliciesInScope(ctx, &team.ID, true, "calendar", none)
 	require.NoError(t, err)
@@ -11727,7 +11727,7 @@ func testListAndCountPoliciesInScope(t *testing.T, ds *Datastore) {
 
 	afterCursor := func(teamID *uint, merge bool, after string, want ...string) {
 		t.Helper()
-		policies, err := ds.ListPoliciesInScope(ctx, teamID, merge, fleet.ListOptions{OrderKey: "name", After: after}, none)
+		policies, err := ds.ListPoliciesInScope(ctx, teamID, merge, automdm.ListOptions{OrderKey: "name", After: after}, none)
 		require.NoError(t, err)
 		var got []string
 		for _, p := range policies {
@@ -11740,7 +11740,7 @@ func testListAndCountPoliciesInScope(t *testing.T, ds *Datastore) {
 	afterCursor(&team.ID, true, "team calendar", "team script", "team webhook")
 	afterCursor(new(uint(0)), true, "global webhook", "unassigned conditional")
 
-	_, inherited, err := ds.ListTeamPolicies(ctx, team.ID, fleet.ListOptions{}, fleet.ListOptions{OrderKey: "name", After: "global plain"}, "", "")
+	_, inherited, err := ds.ListTeamPolicies(ctx, team.ID, automdm.ListOptions{}, automdm.ListOptions{OrderKey: "name", After: "global plain"}, "", "")
 	require.NoError(t, err)
 	require.Len(t, inherited, 1)
 	require.Equal(t, "global webhook", inherited[0].Name)
@@ -11750,7 +11750,7 @@ func testGetHostIssuesLastUpdated(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 	// Not found keeps GetHost from adding a host_issues row for a number tried as a host ID before its lookup as a serial.
 	_, err := ds.GetHostIssuesLastUpdated(ctx, 123456)
-	require.True(t, fleet.IsNotFound(err), err)
+	require.True(t, automdm.IsNotFound(err), err)
 
 	host := test.NewHost(t, ds, "host", "1", "hostkey", "hostuuid", time.Now())
 	lastUpdated, err := ds.GetHostIssuesLastUpdated(ctx, host.ID)

@@ -30,7 +30,7 @@ const statusPath = (software_status: "installed" | "pending" | "failed") =>
   getPathWithQueryParams(paths.MANAGE_HOSTS, {
     software_title_id: 123,
     software_status,
-    fleet_id: 0,
+    team_id: 0,
   });
 
 const meta: Meta<typeof LibraryItemAccordion> = {

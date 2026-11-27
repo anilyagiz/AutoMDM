@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # IrfanView uses its own installer; /silent runs it unattended and /allusers=1
 # installs machine-wide. /desktop and /group control shortcut creation.

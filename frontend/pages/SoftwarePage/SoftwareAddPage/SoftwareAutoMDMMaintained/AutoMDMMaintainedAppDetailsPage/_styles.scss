@@ -1,0 +1,34 @@
+.automdm-maintained-app-details-page {
+  @include vertical-page-layout;
+
+  &__back-to-add-software {
+    align-self: start;
+  }
+
+  &__page-content {
+    display: flex;
+    flex-direction: column;
+    gap: $pad-large;
+  }
+
+  &__automdm-app-summary {
+    display: flex;
+    justify-content: space-between;
+  }
+
+  &__automdm-app-summary--left {
+    display: flex;
+    gap: $pad-medium;
+  }
+
+  &__automdm-app-summary--title {
+    font-weight: $bold;
+    font-size: $small;
+  }
+
+  &__automdm-app-summary--info {
+    font-size: $x-small;
+    display: flex;
+    gap: $pad-xsmall;
+  }
+}

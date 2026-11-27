@@ -73,7 +73,7 @@ try {
     # Inno Setup's unins000.exe relaunches itself (it copies to a temp _iu*.tmp and
     # spawns that copy), so the process we waited on returns BEFORE the uninstall
     # has finished. Poll the registry until the entry is gone so the post-uninstall
-    # state is consistent for callers (e.g. Fleet's install/uninstall verification).
+    # state is consistent for callers (e.g. AutoMDM's install/uninstall verification).
     $deadline = (Get-Date).AddSeconds(120)
     do {
         Start-Sleep -Seconds 2

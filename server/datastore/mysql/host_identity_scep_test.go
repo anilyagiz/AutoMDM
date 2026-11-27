@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/ee/pkg/hostidentity/types"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/ee/pkg/hostidentity/types"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -93,7 +93,7 @@ func testGetHostIdentityCert(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
 	// Create a test host
-	host, err := ds.NewHost(ctx, &fleet.Host{
+	host, err := ds.NewHost(ctx, &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -186,7 +186,7 @@ func testGetHostIdentityCert(t *testing.T, ds *Datastore) {
 		} else {
 			require.Error(t, err)
 			assert.Nil(t, cert)
-			assert.True(t, fleet.IsNotFound(err))
+			assert.True(t, automdm.IsNotFound(err))
 		}
 	}
 
@@ -212,7 +212,7 @@ func testGetHostIdentityCert(t *testing.T, ds *Datastore) {
 		cert, err := ds.GetHostIdentityCertBySerialNumber(ctx, serial)
 		require.Error(t, err)
 		assert.Nil(t, cert)
-		assert.True(t, fleet.IsNotFound(err))
+		assert.True(t, automdm.IsNotFound(err))
 	})
 
 	// Test cases specific to name lookup
@@ -222,14 +222,14 @@ func testGetHostIdentityCert(t *testing.T, ds *Datastore) {
 		cert, err := ds.GetHostIdentityCertByName(ctx, name)
 		require.Error(t, err)
 		assert.Nil(t, cert)
-		assert.True(t, fleet.IsNotFound(err))
+		assert.True(t, automdm.IsNotFound(err))
 	})
 
 	t.Run("empty name parameter", func(t *testing.T) {
 		cert, err := ds.GetHostIdentityCertByName(ctx, "")
 		require.Error(t, err)
 		assert.Nil(t, cert)
-		assert.True(t, fleet.IsNotFound(err))
+		assert.True(t, automdm.IsNotFound(err))
 	})
 }
 
@@ -237,7 +237,7 @@ func testUpdateHostIdentityCertHostIDBySerial(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
 	// Create test hosts
-	host1, err := ds.NewHost(ctx, &fleet.Host{
+	host1, err := ds.NewHost(ctx, &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -249,7 +249,7 @@ func testUpdateHostIdentityCertHostIDBySerial(t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 
-	host2, err := ds.NewHost(ctx, &fleet.Host{
+	host2, err := ds.NewHost(ctx, &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -305,7 +305,7 @@ func testHostIdentityCertificateIntegration(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
 	// Create a test host
-	host, err := ds.NewHost(ctx, &fleet.Host{
+	host, err := ds.NewHost(ctx, &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -377,26 +377,26 @@ func testEnrollRequiresSignatureForCertHost(t *testing.T, ds *Datastore) {
 
 	enrollOsquery := func(osqueryID, serial, nodeKey string, cert *types.HostIdentityCertificate) error {
 		_, err := ds.EnrollOsquery(ctx,
-			fleet.WithEnrollOsqueryMDMEnabled(true),
-			fleet.WithEnrollOsqueryHostID(osqueryID),
-			fleet.WithEnrollOsqueryHardwareUUID(victim.UUID),
-			fleet.WithEnrollOsqueryHardwareSerial(serial),
-			fleet.WithEnrollOsqueryNodeKey(nodeKey),
-			fleet.WithEnrollOsqueryIdentityCert(cert),
+			automdm.WithEnrollOsqueryMDMEnabled(true),
+			automdm.WithEnrollOsqueryHostID(osqueryID),
+			automdm.WithEnrollOsqueryHardwareUUID(victim.UUID),
+			automdm.WithEnrollOsqueryHardwareSerial(serial),
+			automdm.WithEnrollOsqueryNodeKey(nodeKey),
+			automdm.WithEnrollOsqueryIdentityCert(cert),
 		)
 		return err
 	}
 	enrollOrbit := func(osqueryID, serial, nodeKey string, cert *types.HostIdentityCertificate) error {
 		_, err := ds.EnrollOrbit(ctx,
-			fleet.WithEnrollOrbitMDMEnabled(true),
-			fleet.WithEnrollOrbitHostInfo(fleet.OrbitHostInfo{
+			automdm.WithEnrollOrbitMDMEnabled(true),
+			automdm.WithEnrollOrbitHostInfo(automdm.OrbitHostInfo{
 				HardwareUUID:      victim.UUID,
 				HardwareSerial:    serial,
 				Platform:          "darwin",
 				OsqueryIdentifier: osqueryID,
 			}),
-			fleet.WithEnrollOrbitNodeKey(nodeKey),
-			fleet.WithEnrollOrbitIdentityCert(cert),
+			automdm.WithEnrollOrbitNodeKey(nodeKey),
+			automdm.WithEnrollOrbitIdentityCert(cert),
 		)
 		return err
 	}
@@ -420,9 +420,9 @@ func testEnrollRequiresSignatureForCertHost(t *testing.T, ds *Datastore) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			err := tc.enroll()
-			var rejected *fleet.EnrollmentRejectedError
+			var rejected *automdm.EnrollmentRejectedError
 			require.ErrorAs(t, err, &rejected)
-			require.Equal(t, fleet.EnrollmentRejectedHostIdentityCertRequired, rejected.Reason)
+			require.Equal(t, automdm.EnrollmentRejectedHostIdentityCertRequired, rejected.Reason)
 			require.Equal(t, victim.ID, ptr.ValOrZero(rejected.HostID))
 			requireNodeKeys(t, victimNodeKey, victimOrbitKey)
 		})

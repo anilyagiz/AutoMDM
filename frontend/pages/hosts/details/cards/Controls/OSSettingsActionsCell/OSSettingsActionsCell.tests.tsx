@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import React from "react";
 
 import { createMockHostMdmProfile } from "__mocks__/hostMock";
-import { FLEET_ANDROID_CERTIFICATE_TEMPLATE_PROFILE_ID } from "interfaces/mdm";
+import { AUTOMDM_ANDROID_CERTIFICATE_TEMPLATE_PROFILE_ID } from "interfaces/mdm";
 import {
   HOST_NAME_SYNTHETIC_PROFILE_UUID,
   REC_LOCK_SYNTHETIC_PROFILE_UUID,
@@ -123,7 +123,7 @@ describe("OSSettingsActionsCell", () => {
             canResendProfiles
             profile={createMockHostMdmProfile({
               platform: "android",
-              profile_uuid: FLEET_ANDROID_CERTIFICATE_TEMPLATE_PROFILE_ID,
+              profile_uuid: AUTOMDM_ANDROID_CERTIFICATE_TEMPLATE_PROFILE_ID,
               certificate_template_id: 1,
               operation_type: "install",
               status,
@@ -144,7 +144,7 @@ describe("OSSettingsActionsCell", () => {
           canResendProfiles
           profile={createMockHostMdmProfile({
             platform: "android",
-            profile_uuid: FLEET_ANDROID_CERTIFICATE_TEMPLATE_PROFILE_ID,
+            profile_uuid: AUTOMDM_ANDROID_CERTIFICATE_TEMPLATE_PROFILE_ID,
             certificate_template_id: 1,
             operation_type: "install",
             status: "pending",
@@ -193,7 +193,7 @@ describe("OSSettingsActionsCell", () => {
     await user.hover(resendButton);
 
     expect(
-      await screen.findByText(/Fleet can't resend this configuration profile/i)
+      await screen.findByText(/AutoMDM can't resend this configuration profile/i)
     ).toBeInTheDocument();
   });
 

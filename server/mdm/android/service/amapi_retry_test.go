@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/dev_mode"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
-	"github.com/fleetdm/fleet/v4/server/mdm/android/service/androidmgmt"
-	ds_mock "github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/dev_mode"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android/service/androidmgmt"
+	ds_mock "github.com/anilyagiz/automdm/v4/server/mock"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,8 +30,8 @@ func newTooManyRequestsProxy(t *testing.T) *atomic.Int64 {
 		_, _ = w.Write([]byte(`{"error":{"code":429,"message":"rate limit exceeded"}}`))
 	}))
 	t.Cleanup(srv.Close)
-	dev_mode.SetOverride("FLEET_DEV_ANDROID_GOOGLE_CLIENT", "", t)
-	dev_mode.SetOverride("FLEET_DEV_ANDROID_PROXY_ENDPOINT", srv.URL+"/", t)
+	dev_mode.SetOverride("AUTOMDM_DEV_ANDROID_GOOGLE_CLIENT", "", t)
+	dev_mode.SetOverride("AUTOMDM_DEV_ANDROID_PROXY_ENDPOINT", srv.URL+"/", t)
 	return &calls
 }
 
@@ -64,16 +64,16 @@ func TestReconcileAndroidDevicesDoesNotRetryTooManyRequests(t *testing.T) {
 	calls := newTooManyRequestsProxy(t)
 
 	ds := new(ds_mock.Store)
-	ds.AppConfigFunc = func(context.Context) (*fleet.AppConfig, error) {
-		appCfg := &fleet.AppConfig{}
+	ds.AppConfigFunc = func(context.Context) (*automdm.AppConfig, error) {
+		appCfg := &automdm.AppConfig{}
 		appCfg.MDM.AndroidEnabledAndConfigured = true
 		return appCfg, nil
 	}
 	ds.GetEnterpriseFunc = func(context.Context) (*android.Enterprise, error) {
 		return &android.Enterprise{EnterpriseID: "e"}, nil
 	}
-	ds.GetAllMDMConfigAssetsByNameFunc = func(context.Context, []fleet.MDMAssetName, sqlx.QueryerContext) (map[fleet.MDMAssetName]fleet.MDMConfigAsset, error) {
-		return map[fleet.MDMAssetName]fleet.MDMConfigAsset{}, nil
+	ds.GetAllMDMConfigAssetsByNameFunc = func(context.Context, []automdm.MDMAssetName, sqlx.QueryerContext) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
+		return map[automdm.MDMAssetName]automdm.MDMConfigAsset{}, nil
 	}
 	ds.ListAndroidEnrolledDevicesForReconcileFunc = func(context.Context) ([]*android.Device, error) {
 		return []*android.Device{{HostID: 1, DeviceID: "d"}}, nil

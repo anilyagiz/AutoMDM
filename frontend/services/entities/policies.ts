@@ -23,9 +23,9 @@ import {
 } from "utilities/url";
 
 export interface IPoliciesFilterParams {
-  /** Omitted for "All fleets", 0 for "Unassigned". */
-  fleetId?: number;
-  /** Adds the "All fleets" policies to a fleet's list or count. */
+  /** Omitted for "All teams", 0 for "Unassigned". */
+  automdmId?: number;
+  /** Adds the "All teams" policies to a team's list or count. */
   mergeInherited?: boolean;
   query?: string;
   automationType?: PolicyAutomationType;
@@ -53,7 +53,7 @@ const ORDER_KEY = "name";
 const ORDER_DIRECTION = "asc";
 
 const filterQueryString = ({
-  fleetId,
+  automdmId,
   mergeInherited,
   query,
   automationType,
@@ -62,7 +62,7 @@ const filterQueryString = ({
 }: IPoliciesFilterParams) =>
   buildQueryStringFromParams(
     convertParamsToSnakeCase({
-      fleetId,
+      automdmId,
       mergeInherited,
       query,
       automationType,
@@ -97,7 +97,7 @@ export default {
       name,
       description,
       query,
-      fleet_id,
+      team_id,
       resolution,
       platform,
       critical,
@@ -119,7 +119,7 @@ export default {
     } = data;
 
     return sendRequest("POST", endpoints.POLICIES, {
-      fleet_id: fleet_id ?? undefined,
+      team_id: team_id ?? undefined,
       name,
       description,
       query,
@@ -144,7 +144,7 @@ export default {
     });
   },
 
-  // A policy keeps its fleet, so fleet_id isn't sent.
+  // A policy keeps its team, so team_id isn't sent.
   update: (
     id: number,
     data: IPolicyFormData

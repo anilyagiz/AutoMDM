@@ -13,7 +13,7 @@ const renderItem = (type: IHostPastActivityType) =>
         type,
         actor_full_name: "",
         actor_id: 0,
-        fleet_initiated: true,
+        automdm_initiated: true,
         details: {},
       })}
       tab="past"
@@ -52,7 +52,7 @@ describe("PolicyAutomationActivityItem", () => {
 
   it.each(cases)("renders copy for %s", (type, expected) => {
     renderItem(type);
-    expect(screen.getByText("Fleet")).toBeVisible();
+    expect(screen.getByText("AutoMDM")).toBeVisible();
     expect(screen.getByText(expected)).toBeVisible();
   });
 
@@ -62,22 +62,22 @@ describe("PolicyAutomationActivityItem", () => {
     expect(screen.queryByTestId("info-icon")).not.toBeInTheDocument();
   });
 
-  // These activities are always Fleet-initiated in practice; this documents the
+  // These activities are always AutoMDM-initiated in practice; this documents the
   // defensive actor branch that keeps the bold name in sync with the avatar.
-  it("renders the actor name when the activity is not Fleet-initiated", () => {
+  it("renders the actor name when the activity is not AutoMDM-initiated", () => {
     render(
       <PolicyAutomationActivityItem
         activity={createMockHostPastActivity({
           type: ActivityType.RanAutomationWebhook,
           actor_full_name: "Admin User",
           actor_id: 1,
-          fleet_initiated: false,
+          automdm_initiated: false,
           details: {},
         })}
         tab="past"
       />
     );
     expect(screen.getByText("Admin User")).toBeVisible();
-    expect(screen.queryByText("Fleet")).not.toBeInTheDocument();
+    expect(screen.queryByText("AutoMDM")).not.toBeInTheDocument();
   });
 });

@@ -1,7 +1,7 @@
 ---
 name: test
 description: Run tests related to recent changes with appropriate tools and environment variables. Use when asked to "run tests", "test my changes", or "test this".
-allowed-tools: Bash(go test *), Bash(MYSQL_TEST*), Bash(MYSQL_TEST=1 *), Bash(MYSQL_TEST=1 REDIS_TEST=1 *), Bash(FLEET_INTEGRATION_TESTS_DISABLE_LOG=1 *), Bash(yarn test*), Bash(npx jest*), Bash(git diff*), Bash(git status*), Read, Grep, Glob
+allowed-tools: Bash(go test *), Bash(MYSQL_TEST*), Bash(MYSQL_TEST=1 *), Bash(MYSQL_TEST=1 REDIS_TEST=1 *), Bash(AUTOMDM_INTEGRATION_TESTS_DISABLE_LOG=1 *), Bash(yarn test*), Bash(npx jest*), Bash(git diff*), Bash(git status*), Read, Grep, Glob
 effort: low
 ---
 

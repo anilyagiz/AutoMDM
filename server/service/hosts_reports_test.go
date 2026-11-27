@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -21,18 +21,18 @@ func TestListHostReports(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Second)
 
 	// global admin user
-	admin := &fleet.User{
+	admin := &automdm.User{
 		ID:         1,
-		GlobalRole: ptr.String(fleet.RoleAdmin),
+		GlobalRole: ptr.String(automdm.RoleAdmin),
 	}
 
 	// Host with no team
-	hostNoTeam := &fleet.Host{ID: 10, TeamID: nil}
+	hostNoTeam := &automdm.Host{ID: 10, TeamID: nil}
 	// Host with team
 	teamID := uint(42)
-	hostWithTeam := &fleet.Host{ID: 20, TeamID: &teamID}
+	hostWithTeam := &automdm.Host{ID: 20, TeamID: &teamID}
 
-	sampleReports := []*fleet.HostReport{
+	sampleReports := []*automdm.HostReport{
 		{
 			ReportID:     1,
 			Name:         "Query Alpha",
@@ -51,11 +51,11 @@ func TestListHostReports(t *testing.T) {
 		},
 	}
 
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
 	}
 
-	ds.HostLiteFunc = func(ctx context.Context, id uint) (*fleet.Host, error) {
+	ds.HostLiteFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
 		if id == hostNoTeam.ID {
 			return hostNoTeam, nil
 		}
@@ -66,7 +66,7 @@ func TestListHostReports(t *testing.T) {
 	}
 
 	var capturedTeamID *uint
-	ds.ListHostReportsFunc = func(ctx context.Context, hostID uint, tID *uint, hostPlatform string, opts fleet.ListHostReportsOptions) ([]*fleet.HostReport, int, *fleet.PaginationMetadata, error) {
+	ds.ListHostReportsFunc = func(ctx context.Context, hostID uint, tID *uint, hostPlatform string, opts automdm.ListHostReportsOptions) ([]*automdm.HostReport, int, *automdm.PaginationMetadata, error) {
 		capturedTeamID = tID
 		return sampleReports, len(sampleReports), nil, nil
 	}
@@ -75,7 +75,7 @@ func TestListHostReports(t *testing.T) {
 
 	t.Run("admin can list reports for host with no team", func(t *testing.T) {
 		viewerCtx := viewer.NewContext(ctx, viewer.Viewer{User: admin})
-		opts := fleet.ListHostReportsOptions{}
+		opts := automdm.ListHostReportsOptions{}
 		reports, count, _, err := svc.ListHostReports(viewerCtx, hostNoTeam.ID, opts)
 		require.NoError(t, err)
 		assert.Equal(t, 2, count)
@@ -94,7 +94,7 @@ func TestListHostReports(t *testing.T) {
 
 	t.Run("admin can list reports for host with team", func(t *testing.T) {
 		viewerCtx := viewer.NewContext(ctx, viewer.Viewer{User: admin})
-		opts := fleet.ListHostReportsOptions{}
+		opts := automdm.ListHostReportsOptions{}
 		reports, count, _, err := svc.ListHostReports(viewerCtx, hostWithTeam.ID, opts)
 		require.NoError(t, err)
 		assert.Equal(t, 2, count)
@@ -104,12 +104,12 @@ func TestListHostReports(t *testing.T) {
 	})
 
 	t.Run("observer can list reports", func(t *testing.T) {
-		observer := &fleet.User{
+		observer := &automdm.User{
 			ID:         2,
-			GlobalRole: ptr.String(fleet.RoleObserver),
+			GlobalRole: ptr.String(automdm.RoleObserver),
 		}
 		viewerCtx := viewer.NewContext(ctx, viewer.Viewer{User: observer})
-		opts := fleet.ListHostReportsOptions{}
+		opts := automdm.ListHostReportsOptions{}
 		reports, count, _, err := svc.ListHostReports(viewerCtx, hostNoTeam.ID, opts)
 		require.NoError(t, err)
 		assert.Equal(t, 2, count)
@@ -118,31 +118,31 @@ func TestListHostReports(t *testing.T) {
 
 	t.Run("invalid order_key returns bad request", func(t *testing.T) {
 		viewerCtx := viewer.NewContext(ctx, viewer.Viewer{User: admin})
-		_, _, _, err := svc.ListHostReports(viewerCtx, hostNoTeam.ID, fleet.ListHostReportsOptions{
-			ListOptions: fleet.ListOptions{OrderKey: "invalid_key"},
+		_, _, _, err := svc.ListHostReports(viewerCtx, hostNoTeam.ID, automdm.ListHostReportsOptions{
+			ListOptions: automdm.ListOptions{OrderKey: "invalid_key"},
 		})
 		require.Error(t, err)
-		var invalidArgErr *fleet.InvalidArgumentError
+		var invalidArgErr *automdm.InvalidArgumentError
 		require.ErrorAs(t, err, &invalidArgErr)
 	})
 
 	t.Run("unauthenticated gets error", func(t *testing.T) {
-		_, _, _, err := svc.ListHostReports(ctx, hostNoTeam.ID, fleet.ListHostReportsOptions{})
+		_, _, _, err := svc.ListHostReports(ctx, hostNoTeam.ID, automdm.ListHostReportsOptions{})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "forbidden")
 	})
 
 	t.Run("team observer cannot read host belonging to a different team", func(t *testing.T) {
 		otherTeamID := uint(99)
-		teamObserver := &fleet.User{
+		teamObserver := &automdm.User{
 			ID: 3,
-			Teams: []fleet.UserTeam{
-				{Team: fleet.Team{ID: otherTeamID}, Role: fleet.RoleObserver},
+			Teams: []automdm.UserTeam{
+				{Team: automdm.Team{ID: otherTeamID}, Role: automdm.RoleObserver},
 			},
 		}
 		// hostWithTeam belongs to teamID=42; teamObserver only has access to teamID=99.
 		viewerCtx := viewer.NewContext(ctx, viewer.Viewer{User: teamObserver})
-		_, _, _, err := svc.ListHostReports(viewerCtx, hostWithTeam.ID, fleet.ListHostReportsOptions{})
+		_, _, _, err := svc.ListHostReports(viewerCtx, hostWithTeam.ID, automdm.ListHostReportsOptions{})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "forbidden")
 	})
@@ -156,27 +156,27 @@ func TestListHostReportsDatastorePassthrough(t *testing.T) {
 	teamID := uint(5)
 	// Platform is "ubuntu" so PlatformFromHost maps it to "linux" — a non-trivial
 	// conversion that would be missed if the service passed host.Platform raw.
-	host := &fleet.Host{ID: 7, TeamID: &teamID, Platform: "ubuntu"}
+	host := &automdm.Host{ID: 7, TeamID: &teamID, Platform: "ubuntu"}
 
-	admin := &fleet.User{
+	admin := &automdm.User{
 		ID:         1,
-		GlobalRole: ptr.String(fleet.RoleAdmin),
+		GlobalRole: ptr.String(automdm.RoleAdmin),
 	}
 
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
 	}
 
-	ds.HostLiteFunc = func(ctx context.Context, id uint) (*fleet.Host, error) {
+	ds.HostLiteFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
 		return host, nil
 	}
 
 	capturedHostID := uint(0)
 	capturedTeamID := (*uint)(nil)
 	capturedPlatform := ""
-	capturedOpts := fleet.ListHostReportsOptions{}
+	capturedOpts := automdm.ListHostReportsOptions{}
 
-	ds.ListHostReportsFunc = func(ctx context.Context, hostID uint, tID *uint, hostPlatform string, opts fleet.ListHostReportsOptions) ([]*fleet.HostReport, int, *fleet.PaginationMetadata, error) {
+	ds.ListHostReportsFunc = func(ctx context.Context, hostID uint, tID *uint, hostPlatform string, opts automdm.ListHostReportsOptions) ([]*automdm.HostReport, int, *automdm.PaginationMetadata, error) {
 		capturedHostID = hostID
 		capturedTeamID = tID
 		capturedPlatform = hostPlatform
@@ -187,13 +187,13 @@ func TestListHostReportsDatastorePassthrough(t *testing.T) {
 	svc, ctx := newTestService(t, ds, nil, nil)
 	viewerCtx := viewer.NewContext(ctx, viewer.Viewer{User: admin})
 
-	opts := fleet.ListHostReportsOptions{
+	opts := automdm.ListHostReportsOptions{
 		IncludeReportsDontStoreResults: true,
-		ListOptions: fleet.ListOptions{
+		ListOptions: automdm.ListOptions{
 			Page:           1,
 			PerPage:        10,
 			OrderKey:       "name",
-			OrderDirection: fleet.OrderAscending,
+			OrderDirection: automdm.OrderAscending,
 			MatchQuery:     "Alpha",
 		},
 	}
@@ -203,7 +203,7 @@ func TestListHostReportsDatastorePassthrough(t *testing.T) {
 
 	assert.Equal(t, host.ID, capturedHostID)
 	assert.Equal(t, &teamID, capturedTeamID)
-	assert.Equal(t, fleet.PlatformFromHost(host.Platform), capturedPlatform)
+	assert.Equal(t, automdm.PlatformFromHost(host.Platform), capturedPlatform)
 	assert.True(t, capturedOpts.IncludeReportsDontStoreResults)
 	assert.Equal(t, uint(1), capturedOpts.ListOptions.Page)
 	assert.Equal(t, uint(10), capturedOpts.ListOptions.PerPage)
@@ -218,7 +218,7 @@ func TestHostReportJSONRoundTrip(t *testing.T) {
 
 	// This test exercises the HostReport struct's FirstResult field to ensure
 	// the data mapping from query_results.data JSON is correct.
-	report := &fleet.HostReport{
+	report := &automdm.HostReport{
 		ReportID:     1,
 		Name:         "USB Devices",
 		Description:  "List USB devices",
@@ -231,7 +231,7 @@ func TestHostReportJSONRoundTrip(t *testing.T) {
 	b, err := json.Marshal(report)
 	require.NoError(t, err)
 
-	var decoded fleet.HostReport
+	var decoded automdm.HostReport
 	err = json.Unmarshal(b, &decoded)
 	require.NoError(t, err)
 

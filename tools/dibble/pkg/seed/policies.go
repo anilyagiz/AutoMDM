@@ -3,7 +3,7 @@ package seed
 import (
 	"fmt"
 
-	"github.com/fleetdm/fleet/v4/tools/dibble/pkg/themes"
+	"github.com/anilyagiz/automdm/v4/tools/dibble/pkg/themes"
 )
 
 // Policies creates `count` global policies plus a handful per team.
@@ -12,7 +12,7 @@ import (
 var seededPlatforms = []string{"", "darwin", "windows", "linux", "darwin,windows,linux"}
 
 // dummyPolicyQuery is a query that always returns "compliant" — enough for the
-// UI to show the row, but never alarming on a fresh dev Fleet.
+// UI to show the row, but never alarming on a fresh dev AutoMDM.
 const dummyPolicyQuery = "SELECT 1 WHERE 1=1;"
 
 func Policies(c Client, log Logger, theme themes.Theme, teams []Team, count int) Result {
@@ -28,7 +28,7 @@ func Policies(c Client, log Logger, theme themes.Theme, teams []Team, count int)
 			"resolution":  "Wave the dibble at the host until it complies.",
 			"platform":    seededPlatforms[i%len(seededPlatforms)],
 		}
-		err := c.Post("/api/latest/fleet/policies", body, nil)
+		err := c.Post("/api/latest/automdm/policies", body, nil)
 		switch {
 		case err == nil:
 			res.Created++
@@ -49,9 +49,9 @@ func Policies(c Client, log Logger, theme themes.Theme, teams []Team, count int)
 				"query":       dummyPolicyQuery,
 				"description": n.Desc,
 				"platform":    seededPlatforms[i%len(seededPlatforms)],
-				"fleet_id":    t.ID,
+				"team_id":     t.ID,
 			}
-			err := c.Post("/api/latest/fleet/policies", body, nil)
+			err := c.Post("/api/latest/automdm/policies", body, nil)
 			switch {
 			case err == nil:
 				res.Created++

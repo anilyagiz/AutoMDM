@@ -2,12 +2,12 @@
 # opportunistically register for the currently logged-on console user (via a scheduled
 # task in their session) so the app is immediately visible without requiring sign-out.
 #
-# The Fleet agent runs as Local System on Windows, and Add-AppxPackage cannot run in that
+# The AutoMDM agent runs as Local System on Windows, and Add-AppxPackage cannot run in that
 # context (HRESULT 0x80073CF9). The scheduled task is the supported way to register a
 # package in a user session from a system-context script.
 
 $softwareName = "ChatGPT"
-$taskName = "fleet-install-$softwareName.msix"
+$taskName = "automdm-install-$softwareName.msix"
 $taskRunning = 267009  # SCHED_S_TASK_RUNNING
 $stageDir = $null
 
@@ -105,7 +105,7 @@ try {
 
   # The task runs elevated as that user, so stage its script in a new folder only SYSTEM
   # and Administrators can write to. Add-AppxPackage reads the package as that user, who
-  # can't read Fleet's installer directory, so stage a copy of the package there too.
+  # can't read AutoMDM's installer directory, so stage a copy of the package there too.
   $sid = (New-Object System.Security.Principal.NTAccount($userName)).Translate(
     [System.Security.Principal.SecurityIdentifier]).Value
   $security = New-Object System.Security.AccessControl.DirectorySecurity
@@ -115,7 +115,7 @@ try {
       (New-Object System.Security.Principal.SecurityIdentifier($grant[0])), $grant[1],
       "ContainerInherit, ObjectInherit", "None", "Allow")))
   }
-  $stageDir = Join-Path $env:ProgramData ("fleet-chatgpt-" + [guid]::NewGuid().ToString("N"))
+  $stageDir = Join-Path $env:ProgramData ("automdm-chatgpt-" + [guid]::NewGuid().ToString("N"))
   [void][System.IO.Directory]::CreateDirectory($stageDir, $security)
   $stagedMsix = Join-Path $stageDir (Split-Path $msixPath -Leaf)
   Copy-Item -LiteralPath $msixPath -Destination $stagedMsix -Force -ErrorAction Stop

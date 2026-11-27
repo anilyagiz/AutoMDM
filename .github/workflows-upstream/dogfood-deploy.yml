@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       DOCKER_IMAGE:
-        description: "The full image reference to deploy. Usually a tag: an RC branch tag (e.g. fleetdm/fleet:rc-minor-fleet-v4.90.0) or a release tag (e.g. fleetdm/fleet:v4.87.0). To deploy from main, do not use the floating fleetdm/fleet:main tag; pin the immutable digest instead (e.g. fleetdm/fleet@sha256:<digest>, from the main tag on Docker Hub) since per-commit hash tags are no longer published. If pull-rate limited, try the quay.io/fleetdm/fleet mirror."
+        description: "The full image reference to deploy. Usually a tag: an RC branch tag (e.g. automdm/automdm:rc-minor-automdm-v4.90.0) or a release tag (e.g. automdm/automdm:v4.87.0). To deploy from main, do not use the floating automdm/automdm:main tag; pin the immutable digest instead (e.g. automdm/automdm@sha256:<digest>, from the main tag on Docker Hub) since per-commit hash tags are no longer published. If pull-rate limited, try the quay.io/automdm/automdm mirror."
         required: true
       dry_run:
         description: Dry run only? No "terraform apply"
@@ -28,23 +28,23 @@ defaults:
 
 env:
   AWS_REGION: us-east-2
-  ECR_REPOSITORY: fleet-test
+  ECR_REPOSITORY: automdm-test
   AWS_IAM_ROLE: arn:aws:iam::160035666661:role/github-actions-role
   TF_ACTIONS_WORKING_DIR: infrastructure/dogfood/terraform/aws-tf-module
-  TF_WORKSPACE: fleet
-  TF_VAR_fleet_image: ${{ github.event.inputs.DOCKER_IMAGE || 'fleetdm/fleet:main' }}
-  TF_VAR_fleet_license: ${{ secrets.DOGFOOD_LICENSE_KEY }}
+  TF_WORKSPACE: automdm
+  TF_VAR_automdm_image: ${{ github.event.inputs.DOCKER_IMAGE || 'automdm/automdm:main' }}
+  TF_VAR_automdm_license: ${{ secrets.DOGFOOD_LICENSE_KEY }}
   TF_VAR_webhook_url: ${{secrets.DOGFOOD_WEBHOOK_URL }}
   TF_VAR_slack_p1_webhook: ${{ secrets.SLACK_HELP_P1_RAW_WEBHOOK_URL }}
   TF_VAR_slack_p2_webhook: ${{ secrets.SLACK_G_HELP_P2_WEBHOOK_URL }}
-  TF_VAR_fleet_sentry_dsn: ${{ secrets.DOGFOOD_SENTRY_DSN }}
+  TF_VAR_automdm_sentry_dsn: ${{ secrets.DOGFOOD_SENTRY_DSN }}
   TF_VAR_geolite2_license: ${{ secrets.MAXMIND_LICENSE }}
   TF_VAR_dogfood_sidecar_enroll_secret: ${{ secrets.DOGFOOD_SERVERS_CANARY_ENROLL_SECRET }}
   TF_VAR_otel_bearer_token: ${{ secrets.DOGFOOD_SIGNOZ_OTEL_BEARER_TOKEN }}
-  TF_VAR_android_service_credentials: ${{ secrets.FLEET_DEV_ANDROID_SERVICE_CREDENTIALS }}
+  TF_VAR_android_service_credentials: ${{ secrets.AUTOMDM_DEV_ANDROID_SERVICE_CREDENTIALS }}
   TF_VAR_cloudfront_public_key: ${{ secrets.CLOUDFRONT_SIGNING_PUBLIC_KEY }}
   TF_VAR_cloudfront_private_key: ${{ secrets.CLOUDFRONT_SIGNING_PRIVATE_KEY }}
-  TF_VAR_entra_api_key: ${{ secrets.DOGFOOD_FLEET_MICROSOFT_COMPLIANCE_PARTNER_PROXY_API_KEY }}
+  TF_VAR_entra_api_key: ${{ secrets.DOGFOOD_AUTOMDM_MICROSOFT_COMPLIANCE_PARTNER_PROXY_API_KEY }}
 
 permissions: {}
 
@@ -53,7 +53,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    name: Deploy Fleet Dogfood Environment
+    name: Deploy AutoMDM Dogfood Environment
     runs-on: ubuntu-latest
     steps:
       - name: Harden Runner
@@ -108,7 +108,7 @@ jobs:
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "🚀 🛠️ Dogfood deploy in progress\nhttps://github.com/fleetdm/fleet/actions/runs/${{  github.run_id }}"
+                    "text": "🚀 🛠️ Dogfood deploy in progress\nhttps://github.com/anilyagiz/automdm/actions/runs/${{  github.run_id }}"
                   }
                 }
               ]

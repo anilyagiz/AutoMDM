@@ -8,56 +8,56 @@ on:
         type: string
         required: true
       tag:
-        description: "Fleet Image Tag to deploy"
+        description: "AutoMDM Image Tag to deploy"
         type: string
         default: "v4.72.1"
         required: true
-      fleet_task_count:
-        description: "The number of ECS tasks, fleet containers, that should be deployed"
+      automdm_task_count:
+        description: "The number of ECS tasks, automdm containers, that should be deployed"
         type: string
         default: "5"
         required: true
-      fleet_task_memory:
+      automdm_task_memory:
         description: "The amount of memory allocated in Megabytes for the ECS tasks"
         type: string
         default: "4096"
         required: true
-      fleet_task_cpu:
+      automdm_task_cpu:
         description: "The amount of CPU allocated in hertz for the ECS tasks"
         type: string
         default: "512"
         required: true
-      fleet_database_instance_size:
-        description: "AWS Instance size for the Fleet database instances"
+      automdm_database_instance_size:
+        description: "AWS Instance size for the AutoMDM database instances"
         type: string
         default: "db.t4g.medium"
         required: true
-      fleet_database_instance_count:
+      automdm_database_instance_count:
         description: "Number of database instance replicas (including the writer)"
         type: string
         default: 2
         required: true
-      fleet_mysql_max_open_conns:
-        description: "MySQL connections per Fleet task, for the writer and replica pools each (reference architecture: 10 up to 10k hosts, 20 above)"
+      automdm_mysql_max_open_conns:
+        description: "MySQL connections per AutoMDM task, for the writer and replica pools each (reference architecture: 10 up to 10k hosts, 20 above)"
         type: string
         default: "10"
         required: true
-      fleet_redis_instance_size:
-        description: "AWS Instance size for the Fleet redis instances"
+      automdm_redis_instance_size:
+        description: "AWS Instance size for the AutoMDM redis instances"
         type: string
         default: "cache.t4g.micro"
         required: true
-      fleet_redis_instance_count:
+      automdm_redis_instance_count:
         description: "Number of redis instance replicas (including the writer)"
         type: string
         default: 3
         required: true
-      fleet_redis_max_open_conns:
-        description: "Redis connections per Fleet task, max open and max idle (Fleet's default is unlimited; when the pool is full, requests fail immediately)"
+      automdm_redis_max_open_conns:
+        description: "Redis connections per AutoMDM task, max open and max idle (AutoMDM's default is unlimited; when the pool is full, requests fail immediately)"
         type: string
         default: "500"
         required: true
-      fleet_redis_engine:
+      automdm_redis_engine:
         description: "Elasticache engine to deploy"
         type: choice
         options:
@@ -65,12 +65,12 @@ on:
         - valkey
         default: redis
         required: false
-      fleet_redis_engine_version:
+      automdm_redis_engine_version:
         description: "Elasticache engine version (must match the engine, e.g. 7.1 for redis, 8.0 for valkey)"
         type: string
         default: "7.1"
         required: false
-      fleet_redis_parameter_group_family:
+      automdm_redis_parameter_group_family:
         description: "Elasticache parameter group family (must match engine+version, e.g. redis7, valkey7, valkey8)"
         type: string
         default: "redis7"
@@ -110,18 +110,18 @@ env:
   AWS_IAM_ROLE: arn:aws:iam::917007347864:role/github-actions-role
   TF_ACTIONS_WORKING_DIR: infrastructure/loadtesting/terraform/infra
   TF_VAR_tag: "${{ inputs.tag }}"
-  TF_VAR_fleet_task_count: "${{ inputs.fleet_task_count }}"
-  TF_VAR_fleet_task_memory: "${{ inputs.fleet_task_memory }}"
-  TF_VAR_fleet_task_cpu: "${{ inputs.fleet_task_cpu }}"
-  TF_VAR_database_instance_size: "${{ inputs.fleet_database_instance_size }}"
-  TF_VAR_database_instance_count: "${{ inputs.fleet_database_instance_count }}"
-  TF_VAR_mysql_max_open_conns: "${{ inputs.fleet_mysql_max_open_conns }}"
-  TF_VAR_redis_instance_size: "${{ inputs.fleet_redis_instance_size }}"
-  TF_VAR_redis_instance_count: "${{ inputs.fleet_redis_instance_count }}"
-  TF_VAR_redis_max_open_conns: "${{ inputs.fleet_redis_max_open_conns }}"
-  TF_VAR_redis_engine: "${{ inputs.fleet_redis_engine }}"
-  TF_VAR_redis_engine_version: "${{ inputs.fleet_redis_engine_version }}"
-  TF_VAR_redis_parameter_group_family: "${{ inputs.fleet_redis_parameter_group_family }}"
+  TF_VAR_automdm_task_count: "${{ inputs.automdm_task_count }}"
+  TF_VAR_automdm_task_memory: "${{ inputs.automdm_task_memory }}"
+  TF_VAR_automdm_task_cpu: "${{ inputs.automdm_task_cpu }}"
+  TF_VAR_database_instance_size: "${{ inputs.automdm_database_instance_size }}"
+  TF_VAR_database_instance_count: "${{ inputs.automdm_database_instance_count }}"
+  TF_VAR_mysql_max_open_conns: "${{ inputs.automdm_mysql_max_open_conns }}"
+  TF_VAR_redis_instance_size: "${{ inputs.automdm_redis_instance_size }}"
+  TF_VAR_redis_instance_count: "${{ inputs.automdm_redis_instance_count }}"
+  TF_VAR_redis_max_open_conns: "${{ inputs.automdm_redis_max_open_conns }}"
+  TF_VAR_redis_engine: "${{ inputs.automdm_redis_engine }}"
+  TF_VAR_redis_engine_version: "${{ inputs.automdm_redis_engine_version }}"
+  TF_VAR_redis_parameter_group_family: "${{ inputs.automdm_redis_parameter_group_family }}"
   TF_VAR_enable_apple_mdm: "${{ inputs.mock_apns_server_instance_count != 0 }}"
   TF_VAR_apple_apns_mock_instance_count: "${{ inputs.mock_apns_server_instance_count }}"
   TF_VAR_enable_websocket_transport: "${{ inputs.websocket_transport }}"
@@ -133,7 +133,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    name: Deploy Fleet Loadtest Environment
+    name: Deploy AutoMDM Loadtest Environment
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:

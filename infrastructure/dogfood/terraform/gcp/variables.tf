@@ -12,7 +12,7 @@ variable "db_user" {
 }
 
 variable "db_name" {
-  default = "fleet"
+  default = "automdm"
 }
 
 variable "db_tier" {
@@ -23,11 +23,11 @@ variable "db_version" {
   default = "MYSQL_8_0"
 }
 
-variable "fleet_cpu" {
+variable "automdm_cpu" {
   default = "1000m"
 }
 
-variable "fleet_memory" {
+variable "automdm_memory" {
   default = "1024Mi"
 }
 
@@ -59,7 +59,7 @@ variable "project_id" {
 }
 
 variable "prefix" {
-  default     = "fleet"
+  default     = "automdm"
   description = "prefix resources with this string"
 }
 
@@ -68,16 +68,16 @@ variable "redis_mem" {
 }
 
 variable "image" {
-  default = "fleetdm/fleet:v4.95.0"
+  default = "automdm/automdm:v4.95.0"
 }
 
 variable "software_installers_bucket_name" {
-  default = "fleet-software-installers"
+  default = "automdm-software-installers"
 }
 
 variable "license_key" {
   default = ""
-  description = "Fleet license key"
+  description = "AutoMDM license key"
 }
 
 variable "debug_logging" {

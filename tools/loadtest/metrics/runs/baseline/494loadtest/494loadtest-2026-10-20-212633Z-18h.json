@@ -9,7 +9,7 @@
       "end": "2026-10-20T21:26:33Z"
     }
   },
-  "fleet_server": {
+  "automdm_server": {
     "cpu_utilization": {
       "Average": 25.55,
       "Minimum": 25.22,
@@ -398,7 +398,7 @@
       "data_coverage": 1
     }
   },
-  "fleet_server_errors": {
+  "automdm_server_errors": {
     "error_count": 1.0,
     "sample_messages": [
       "{\"ts\":\"2026-10-20T03:40:44Z\",\"level\":\"error\",\"component\":\"http\",\"method\":\"POST\",\"uri\":\"/api/v1/osquery/distributed/write\",\"took\":\"4.627902968s\",\"host_id\":2119,\"ip_addr\":\"10.12.1.210\",\"x_for_ip_addr\":\"10.12.1.210\",\"ingestion-err\":\"ingesting query software_macos: update software installed path: software installed paths for host 2119 were reported but host contains no software\",\"err\":\"error in query ingestion\",\"uuid\":\"<redacted>\"}"
@@ -678,7 +678,7 @@
   },
   "container_health": {
     "abnormal_stops": 0,
-    "fleet_abnormal_stops": 0,
+    "automdm_abnormal_stops": 0,
     "running_tasks": 50,
     "failed_health_checks": 0,
     "unable_to_place": 0,

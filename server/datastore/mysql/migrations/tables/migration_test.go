@@ -1,4 +1,4 @@
-// Package tables holds fleet table migrations.
+// Package tables holds team table migrations.
 //
 // Migrations can be tested with tests following the following format:
 //
@@ -35,7 +35,7 @@ import (
 // otherwise we have import cycle errors.
 //
 // We need to decouple the server/datastore/mysql package,
-// it contains both the implementation of the fleet.Datastore and
+// it contains both the implementation of the automdm.Datastore and
 // MySQL functionality, and MySQL test functionality.
 const (
 	testUsername = "root"
@@ -44,11 +44,11 @@ const (
 
 var testAddress = getTestAddress()
 
-// Test helpers for migrations added after the Fleet 5 baseline.
+// Test helpers for migrations added after the AutoMDM 5 baseline.
 var _ = []any{applyUpToPrev, indexColumns}
 
 func getTestAddress() string {
-	if port := os.Getenv("FLEET_MYSQL_TEST_PORT"); port != "" {
+	if port := os.Getenv("AUTOMDM_MYSQL_TEST_PORT"); port != "" {
 		return "localhost:" + port
 	}
 	return "localhost:3307"
@@ -170,7 +170,7 @@ WHERE
 		{"utf8mb4_bin", "email_changes", "token", "utf8mb4"},
 		{"utf8mb4_bin", "enroll_secrets", "secret", "utf8mb4"},
 		{"utf8mb4_bin", "eulas", "token", "utf8mb4"},
-		{"utf8mb4_bin", "host_certificate_templates", "fleet_challenge", "utf8mb4"},
+		{"utf8mb4_bin", "host_certificate_templates", "automdm_challenge", "utf8mb4"},
 		{"utf8mb4_bin", "host_device_auth", "previous_token", "utf8mb4"},
 		{"utf8mb4_bin", "host_device_auth", "token", "utf8mb4"},
 		{"utf8mb4_bin", "host_one_time_enroll_secrets", "secret", "utf8mb4"},

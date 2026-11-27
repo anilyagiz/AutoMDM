@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,14 +21,14 @@ func TestLiveQueryWithContext(t *testing.T) {
 	upgrader := websocket.Upgrader{}
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/api/latest/fleet/reports/run_by_identifiers":
+		case "/api/latest/automdm/reports/run_by_identifiers":
 			resp := createDistributedQueryCampaignResponse{
-				Campaign: &fleet.DistributedQueryCampaign{
-					UpdateCreateTimestamps: fleet.UpdateCreateTimestamps{
-						CreateTimestamp: fleet.CreateTimestamp{CreatedAt: time.Now()},
-						UpdateTimestamp: fleet.UpdateTimestamp{UpdatedAt: time.Now()},
+				Campaign: &automdm.DistributedQueryCampaign{
+					UpdateCreateTimestamps: automdm.UpdateCreateTimestamps{
+						CreateTimestamp: automdm.CreateTimestamp{CreatedAt: time.Now()},
+						UpdateTimestamp: automdm.UpdateTimestamp{UpdatedAt: time.Now()},
 					},
-					Metrics: fleet.TargetMetrics{
+					Metrics: automdm.TargetMetrics{
 						TotalHosts:           1,
 						OnlineHosts:          1,
 						OfflineHosts:         0,
@@ -43,7 +43,7 @@ func TestLiveQueryWithContext(t *testing.T) {
 			}
 			err := json.NewEncoder(w).Encode(resp)
 			assert.NoError(t, err)
-		case "/api/latest/fleet/results/websocket":
+		case "/api/latest/automdm/results/websocket":
 			ws, _ := upgrader.Upgrade(w, r, nil)
 			defer ws.Close()
 
@@ -58,13 +58,13 @@ func TestLiveQueryWithContext(t *testing.T) {
 				}
 
 				result := struct {
-					Type string                       `json:"type"`
-					Data fleet.DistributedQueryResult `json:"data"`
+					Type string                         `json:"type"`
+					Data automdm.DistributedQueryResult `json:"data"`
 				}{
 					Type: "result",
-					Data: fleet.DistributedQueryResult{
+					Data: automdm.DistributedQueryResult{
 						DistributedQueryCampaignID: 99,
-						Host: fleet.ResultHostData{
+						Host: automdm.ResultHostData{
 							ID:       23,
 							Hostname: "somehostaaa",
 						},
@@ -90,7 +90,7 @@ func TestLiveQueryWithContext(t *testing.T) {
 	client := &Client{
 		baseClient: &baseClient{
 			BaseURL:            baseURL,
-			HTTP:               fleethttp.NewClient(),
+			HTTP:               automdmhttp.NewClient(),
 			InsecureSkipVerify: false,
 			URLPrefix:          "",
 		},
@@ -125,10 +125,10 @@ func TestLiveQueryErrorFrame(t *testing.T) {
 	upgrader := websocket.Upgrader{}
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/api/latest/fleet/reports/run_by_identifiers":
-			err := json.NewEncoder(w).Encode(createDistributedQueryCampaignResponse{Campaign: &fleet.DistributedQueryCampaign{ID: 99}})
+		case "/api/latest/automdm/reports/run_by_identifiers":
+			err := json.NewEncoder(w).Encode(createDistributedQueryCampaignResponse{Campaign: &automdm.DistributedQueryCampaign{ID: 99}})
 			assert.NoError(t, err)
-		case "/api/latest/fleet/results/websocket":
+		case "/api/latest/automdm/results/websocket":
 			ws, err := upgrader.Upgrade(w, r, nil)
 			if !assert.NoError(t, err) {
 				return
@@ -147,7 +147,7 @@ func TestLiveQueryErrorFrame(t *testing.T) {
 	baseURL, err := url.Parse(ts.URL)
 	require.NoError(t, err)
 	client := &Client{
-		baseClient: &baseClient{BaseURL: baseURL, HTTP: fleethttp.NewClient()},
+		baseClient: &baseClient{BaseURL: baseURL, HTTP: automdmhttp.NewClient()},
 		token:      "1234",
 	}
 	ctx, cancel := context.WithCancel(t.Context())
@@ -167,14 +167,14 @@ func TestLiveQueryConnectionCloseDoesNotPanic(t *testing.T) {
 	upgrader := websocket.Upgrader{}
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/api/latest/fleet/reports/run_by_identifiers":
+		case "/api/latest/automdm/reports/run_by_identifiers":
 			resp := createDistributedQueryCampaignResponse{
-				Campaign: &fleet.DistributedQueryCampaign{
+				Campaign: &automdm.DistributedQueryCampaign{
 					ID: 99,
 				},
 			}
 			_ = json.NewEncoder(w).Encode(resp)
-		case "/api/latest/fleet/results/websocket":
+		case "/api/latest/automdm/results/websocket":
 			ws, err := upgrader.Upgrade(w, r, nil)
 			if !assert.NoError(t, err) {
 				return
@@ -200,7 +200,7 @@ func TestLiveQueryConnectionCloseDoesNotPanic(t *testing.T) {
 	client := &Client{
 		baseClient: &baseClient{
 			BaseURL: baseURL,
-			HTTP:    fleethttp.NewClient(),
+			HTTP:    automdmhttp.NewClient(),
 		},
 		token: "1234",
 	}

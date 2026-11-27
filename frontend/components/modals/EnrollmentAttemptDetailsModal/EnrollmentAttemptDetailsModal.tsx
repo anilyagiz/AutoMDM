@@ -7,8 +7,8 @@ import Modal from "components/Modal";
 import ModalFooter from "components/ModalFooter";
 import { EnrollmentRejectedReason } from "interfaces/activity";
 import {
-  FLEET_FLEETD_CONFIG_PROFILE_DISPLAY_NAME,
-  FLEET_WINDOWS_ENROLL_SECRET_PROFILE_DISPLAY_NAME,
+  AUTOMDM_AUTOMDMD_CONFIG_PROFILE_DISPLAY_NAME,
+  AUTOMDM_WINDOWS_ENROLL_SECRET_PROFILE_DISPLAY_NAME,
 } from "interfaces/mdm";
 import { isWindows } from "interfaces/platform";
 import { LEARN_MORE_ABOUT_BASE_LINK } from "utilities/constants";
@@ -37,8 +37,8 @@ export const getEnrollmentRejectedReasonText = (
           The host&apos;s one-time enroll secret was already used. Resend the{" "}
           <b>
             {isWindows(platform)
-              ? FLEET_WINDOWS_ENROLL_SECRET_PROFILE_DISPLAY_NAME
-              : FLEET_FLEETD_CONFIG_PROFILE_DISPLAY_NAME}
+              ? AUTOMDM_WINDOWS_ENROLL_SECRET_PROFILE_DISPLAY_NAME
+              : AUTOMDM_AUTOMDMD_CONFIG_PROFILE_DISPLAY_NAME}
           </b>{" "}
           profile to issue a new one from <b>Host details &gt; Controls</b>.
         </>
@@ -58,7 +58,7 @@ export const getEnrollmentRejectedReasonText = (
     case "end_user_authentication_required":
       return (
         <>
-          The host&apos;s fleet requires IdP authentication, but the host tried
+          The host&apos;s team requires IdP authentication, but the host tried
           to enroll without it. Reactivate the host so it goes through IdP
           authentication.{" "}
           <CustomLink
@@ -72,7 +72,7 @@ export const getEnrollmentRejectedReasonText = (
       // Told entirely in the modal headline; there is no body text.
       return null;
     case "uuid_of_another_mdm_host":
-      return "An enrollment presented this host's hardware UUID with a different identifier. Fleet doesn't add a second host with the UUID of a host that has MDM turned on. If this is the same device enrolling again, delete this host so it can re-enroll.";
+      return "An enrollment presented this host's hardware UUID with a different identifier. AutoMDM doesn't add a second host with the UUID of a host that has MDM turned on. If this is the same device enrolling again, delete this host so it can re-enroll.";
     case "host_identity_cert_required":
       return "The enrollment wasn't signed with this host's identity certificate. Another device may have tried to enroll as this host.";
     default:
@@ -113,7 +113,7 @@ const EnrollmentAttemptDetailsModal = ({
   const isIdentifierMismatch = reason === "one_time_secret_identifier_mismatch";
 
   const supportLink = (
-    <CustomLink text="Fleet support" url="https://fleetdm.com/support" newTab />
+    <CustomLink text="AutoMDM support" url="https://automdm.com/support" newTab />
   );
 
   const enrollmentKind =
@@ -125,14 +125,14 @@ const EnrollmentAttemptDetailsModal = ({
   if (!isIdentifierMismatch) {
     message = (
       <span>
-        Fleet rejected {enrollmentKind} for {host}
+        AutoMDM rejected {enrollmentKind} for {host}
         {displayTime}.
       </span>
     );
   } else if (hostDisplayName) {
     message = (
       <span>
-        Fleet rejected an enrollment for a host that tried to enroll with{" "}
+        AutoMDM rejected an enrollment for a host that tried to enroll with{" "}
         <b>{hostDisplayName}&apos;s</b> one-time enroll secret{displayTime}.
         Reach out to {supportLink}.
       </span>
@@ -140,7 +140,7 @@ const EnrollmentAttemptDetailsModal = ({
   } else {
     message = (
       <span>
-        Fleet rejected an enrollment for a host that tried to enroll with the
+        AutoMDM rejected an enrollment for a host that tried to enroll with the
         one-time enroll secret issued to {host}
         {displayTime}. Reach out to {supportLink}.
       </span>

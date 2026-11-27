@@ -8,7 +8,7 @@ export type Weekday =
   | "sunday";
 
 export interface IPatchDeadlineSettings {
-  fleet_id: number;
+  team_id: number;
   days: Weekday[];
   // 24-hour clock, HH:MM.
   time: string;

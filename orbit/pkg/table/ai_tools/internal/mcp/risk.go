@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/ai_tools/internal/classify"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/internal/fsutil"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/ai_tools/internal/classify"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/internal/fsutil"
 )
 
 // fetchRunners launch code that is downloaded at invocation time rather than

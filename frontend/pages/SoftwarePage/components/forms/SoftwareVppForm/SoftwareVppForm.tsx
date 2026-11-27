@@ -127,7 +127,7 @@ interface ISoftwareVppFormProps {
   isLoading?: boolean;
   onCancel: () => void;
   onClickPreviewEndUserExperience: (isIosOrIpadosApp: boolean) => void;
-  /** When provided, the categories list is fetched dynamically for this fleet. */
+  /** When provided, the categories list is fetched dynamically for this team. */
   teamId?: number;
 }
 

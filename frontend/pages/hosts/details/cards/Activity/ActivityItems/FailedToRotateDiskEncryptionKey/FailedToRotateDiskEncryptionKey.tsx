@@ -12,7 +12,7 @@ const FailedToRotateDiskEncryptionKeyActivityItem = ({
   // admin how the end user recovers.
   return (
     <ActivityItem activity={activity} hideCancel onShowDetails={onShowDetails}>
-      <b>Fleet </b>
+      <b>AutoMDM </b>
       failed to rotate the disk encryption key for this host.
     </ActivityItem>
   );

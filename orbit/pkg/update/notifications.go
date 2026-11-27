@@ -8,12 +8,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/client"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/bitlocker"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/profiles"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/scripts"
-	fleetscripts "github.com/fleetdm/fleet/v4/pkg/scripts"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/client"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/bitlocker"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/profiles"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/scripts"
+	automdmscripts "github.com/anilyagiz/automdm/v4/pkg/scripts"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/rs/zerolog/log"
 )
 
@@ -24,7 +24,7 @@ type checkEnrollmentFunc func() (bool, string, error)
 type checkAssignedEnrollmentProfileFunc func(url string) error
 
 // renewEnrollmentProfileConfigReceiver is a kind of middleware that wraps an
-// OrbitConfigFetcher and detects if the fleet server sent a notification to
+// OrbitConfigFetcher and detects if the automdm server sent a notification to
 // renew the enrollment profile. If so, it runs the command (as root) to
 // bootstrap the renewal of the profile on the device (the user still needs to
 // execute some manual steps to accept the new profile).
@@ -39,7 +39,7 @@ type renewEnrollmentProfileConfigReceiver struct {
 	// runRenewEnrollmentProfile.
 	runCmdFn runCmdFunc
 
-	// for tests, to be able to mock the function that checks for Fleet
+	// for tests, to be able to mock the function that checks for AutoMDM
 	// enrollment
 	checkEnrollmentFn checkEnrollmentFunc
 
@@ -50,20 +50,20 @@ type renewEnrollmentProfileConfigReceiver struct {
 	cmdMu   sync.Mutex
 	lastRun time.Time
 
-	fleetURL string
+	automdmURL string
 }
 
-func ApplyRenewEnrollmentProfileConfigFetcherMiddleware(fetcher OrbitConfigFetcher, frequency time.Duration, fleetURL string) fleet.OrbitConfigReceiver {
-	return &renewEnrollmentProfileConfigReceiver{Frequency: frequency, fleetURL: fleetURL}
+func ApplyRenewEnrollmentProfileConfigFetcherMiddleware(fetcher OrbitConfigFetcher, frequency time.Duration, automdmURL string) automdm.OrbitConfigReceiver {
+	return &renewEnrollmentProfileConfigReceiver{Frequency: frequency, automdmURL: automdmURL}
 }
 
-func (h *renewEnrollmentProfileConfigReceiver) Run(config *fleet.OrbitConfig) error {
+func (h *renewEnrollmentProfileConfigReceiver) Run(config *automdm.OrbitConfig) error {
 	if config.Notifications.RenewEnrollmentProfile {
 		if h.cmdMu.TryLock() {
 			defer h.cmdMu.Unlock()
 
 			// Note that the macOS notification popup will be shown periodically
-			// until the Fleet server gets notified that the device is now properly
+			// until the AutoMDM server gets notified that the device is now properly
 			// enrolled (after the user's manual steps, and osquery reporting the
 			// updated mdm enrollment).
 			// See https://github.com/fleetdm/fleet/pull/9409#discussion_r1084382455
@@ -86,13 +86,13 @@ func (h *renewEnrollmentProfileConfigReceiver) Run(config *fleet.OrbitConfig) er
 				}
 
 				// we perform this check locally on the client too to avoid showing the
-				// dialog if the Fleet enrollment profile has not been assigned to the device in
+				// dialog if the AutoMDM enrollment profile has not been assigned to the device in
 				// Apple Business.
 				assignedFn := h.checkAssignedEnrollmentProfileFn
 				if assignedFn == nil {
 					assignedFn = profiles.CheckAssignedEnrollmentProfile
 				}
-				if err := assignedFn(h.fleetURL); err != nil {
+				if err := assignedFn(h.automdmURL); err != nil {
 					log.Error().Err(err).Msg("checking assigned enrollment profile")
 					log.Info().Msg("a request to renew the enrollment profile was processed but not executed because there was an error checking the assigned enrollment profile.")
 					// TODO: Design a better way to backoff `profiles show` so that the device doesn't get rate
@@ -156,7 +156,7 @@ func ApplyWindowsMDMEnrollmentFetcherMiddleware(
 	frequency time.Duration,
 	hostUUID string,
 	nodeKeyGetter OrbitNodeKeyGetter,
-) fleet.OrbitConfigReceiver {
+) automdm.OrbitConfigReceiver {
 	return &windowsMDMEnrollmentConfigReceiver{
 		Frequency:     frequency,
 		HostUUID:      hostUUID,
@@ -166,12 +166,12 @@ func ApplyWindowsMDMEnrollmentFetcherMiddleware(
 
 var errIsWindowsServer = errors.New("device is a Windows Server")
 
-// Run checks if the fleet server set the "needs windows {un}enrollment" flag
+// Run checks if the automdm server set the "needs windows {un}enrollment" flag
 // to true, and executes the command to {un}enroll into Windows MDM (or not, if
 // the device is a Windows Server). It also unenrolls the device if the flag
 // "needs MDM migration" is set to true, so that the device can then be
-// enrolled in Fleet MDM.
-func (w *windowsMDMEnrollmentConfigReceiver) Run(cfg *fleet.OrbitConfig) error {
+// enrolled in AutoMDM.
+func (w *windowsMDMEnrollmentConfigReceiver) Run(cfg *automdm.OrbitConfig) error {
 	switch {
 	case cfg.Notifications.NeedsProgrammaticWindowsMDMEnrollment:
 		w.attemptEnrollment(cfg.Notifications)
@@ -186,7 +186,7 @@ func (w *windowsMDMEnrollmentConfigReceiver) Run(cfg *fleet.OrbitConfig) error {
 	return nil
 }
 
-func (w *windowsMDMEnrollmentConfigReceiver) attemptEnrollment(notifs fleet.OrbitConfigNotifications) {
+func (w *windowsMDMEnrollmentConfigReceiver) attemptEnrollment(notifs automdm.OrbitConfigNotifications) {
 	if notifs.WindowsMDMDiscoveryEndpoint == "" {
 		log.Info().Err(errors.New("discovery endpoint is missing")).Msg("skipping enrollment, discovery endpoint is empty")
 		return
@@ -273,7 +273,7 @@ func (w *windowsMDMEnrollmentConfigReceiver) attemptUnenrollment(actionLabel str
 	}
 }
 
-// execSyncFunc starts an on-demand Windows MDM (OMA-DM) session with the Fleet server. Indirected so tests can mock it; if nil the receiver
+// execSyncFunc starts an on-demand Windows MDM (OMA-DM) session with the AutoMDM server. Indirected so tests can mock it; if nil the receiver
 // uses TriggerWindowsMDMSync.
 type execSyncFunc func() error
 
@@ -302,13 +302,13 @@ type windowsMDMSyncConfigReceiver struct {
 // Past it, attempts follow the slower poll that orbit config nudges allow: newly queued commands are nudged anyway.
 const windowsMDMSyncFastAttempts = 3
 
-func ApplyWindowsMDMSyncFetcherMiddleware(frequency time.Duration) fleet.OrbitConfigReceiver {
+func ApplyWindowsMDMSyncFetcherMiddleware(frequency time.Duration) automdm.OrbitConfigReceiver {
 	return &windowsMDMSyncConfigReceiver{Frequency: frequency}
 }
 
 // Run starts an on-demand Windows MDM sync when the server sets WindowsMDMSyncRequest, so queued commands are delivered promptly even when
 // the device's OMA-DM poll schedule has been relaxed. It returns immediately; the sync itself runs in the background (see attemptSync).
-func (w *windowsMDMSyncConfigReceiver) Run(cfg *fleet.OrbitConfig) error {
+func (w *windowsMDMSyncConfigReceiver) Run(cfg *automdm.OrbitConfig) error {
 	if !cfg.Notifications.WindowsMDMSyncRequest {
 		w.attempts.Store(0)
 		return nil
@@ -319,7 +319,7 @@ func (w *windowsMDMSyncConfigReceiver) Run(cfg *fleet.OrbitConfig) error {
 
 // QuietNotifications stops WindowsMDMSyncRequest from holding the config poll at its default interval once several syncs haven't cleared
 // it, e.g. a failing deviceenroller or a command the device never acks (see client.NotificationQuieter).
-func (w *windowsMDMSyncConfigReceiver) QuietNotifications(n *fleet.OrbitConfigNotifications) {
+func (w *windowsMDMSyncConfigReceiver) QuietNotifications(n *automdm.OrbitConfigNotifications) {
 	if w.attempts.Load() >= windowsMDMSyncFastAttempts {
 		n.WindowsMDMSyncRequest = false
 	}
@@ -361,7 +361,7 @@ func (w *windowsMDMSyncConfigReceiver) attemptSync() {
 type runScriptsConfigReceiver struct {
 	// ScriptsExecutionEnabled indicates if this agent allows scripts execution.
 	// If it doesn't, scripts are not executed, but a response is returned to the
-	// Fleet server so it knows the agent processed the request. Note that this
+	// AutoMDM server so it knows the agent processed the request. Note that this
 	// should be set to the value of the --enable-scripts command-line flag. An
 	// additional, dynamic check is done automatically by the
 	// runScriptsConfigReceiver if this field is false to get the value from the
@@ -377,8 +377,8 @@ type runScriptsConfigReceiver struct {
 	// on macos and only if ScriptsExecutionEnabled is false.
 	dynamicScriptsEnabled              atomic.Bool
 	dynamicScriptsEnabledCheckInterval time.Duration
-	// for tests, if set will use this instead of profiles.GetFleetdConfig.
-	testGetFleetdConfig func() (*fleet.MDMAppleFleetdConfig, error)
+	// for tests, if set will use this instead of profiles.GetAutoMDMdConfig.
+	testGetAutoMDMdConfig func() (*automdm.MDMAppleAutoMDMdConfig, error)
 
 	// for tests, to be able to mock command execution. If nil, will use
 	// (scripts.Runner{...}).Run. To help with testing, the function receives as
@@ -393,7 +393,7 @@ type runScriptsConfigReceiver struct {
 
 func ApplyRunScriptsConfigFetcherMiddleware(
 	scriptsEnabled bool, scriptsClient scripts.Client, rootDirPath string,
-) (fleet.OrbitConfigReceiver, func() bool) {
+) (automdm.OrbitConfigReceiver, func() bool) {
 	scriptsFetcher := &runScriptsConfigReceiver{
 		ScriptsExecutionEnabled:            scriptsEnabled,
 		ScriptsClient:                      scriptsClient,
@@ -406,23 +406,23 @@ func ApplyRunScriptsConfigFetcherMiddleware(
 }
 
 func (h *runScriptsConfigReceiver) runDynamicScriptsEnabledCheck() {
-	getFleetdConfig := h.testGetFleetdConfig
-	if getFleetdConfig == nil {
-		getFleetdConfig = profiles.GetFleetdConfig
+	getAutoMDMdConfig := h.testGetAutoMDMdConfig
+	if getAutoMDMdConfig == nil {
+		getAutoMDMdConfig = profiles.GetAutoMDMdConfig
 	}
 
 	// only run on macos and only if scripts are disabled by default for the
-	// agent (but always run if a test get fleetd config function is set).
-	if (runtime.GOOS == "darwin" && !h.ScriptsExecutionEnabled) || (h.testGetFleetdConfig != nil) {
+	// agent (but always run if a test get automdmd config function is set).
+	if (runtime.GOOS == "darwin" && !h.ScriptsExecutionEnabled) || (h.testGetAutoMDMdConfig != nil) {
 		go func() {
 			runCheck := func() {
-				cfg, err := getFleetdConfig()
+				cfg, err := getAutoMDMdConfig()
 				if err != nil {
 					if err != profiles.ErrNotImplemented {
 						// note that an unenrolled host will not return an error, it will
 						// return the zero-value struct, so this logging should not be too
 						// noisy unless something goes wrong.
-						log.Info().Err(err).Msg("get fleetd configuration failed")
+						log.Info().Err(err).Msg("get automdmd configuration failed")
 					}
 					return
 				}
@@ -440,11 +440,11 @@ func (h *runScriptsConfigReceiver) runDynamicScriptsEnabledCheck() {
 	}
 }
 
-// GetConfig calls the wrapped Fetcher's GetConfig method, and if the fleet
+// GetConfig calls the wrapped Fetcher's GetConfig method, and if the team
 // server sent a list of scripts to execute, starts a goroutine to execute
 // them.
-func (h *runScriptsConfigReceiver) Run(cfg *fleet.OrbitConfig) error {
-	timeout := fleetscripts.MaxHostExecutionTime
+func (h *runScriptsConfigReceiver) Run(cfg *automdm.OrbitConfig) error {
+	timeout := automdmscripts.MaxHostExecutionTime
 	if cfg.ScriptExeTimeout > 0 {
 		timeout = time.Duration(cfg.ScriptExeTimeout) * time.Second
 	}
@@ -496,15 +496,15 @@ func (h *runScriptsConfigReceiver) scriptsEnabled() bool {
 }
 
 type DiskEncryptionKeySetter interface {
-	SetOrUpdateDiskEncryptionKey(diskEncryptionStatus fleet.OrbitHostDiskEncryptionKeyPayload) error
+	SetOrUpdateDiskEncryptionKey(diskEncryptionStatus automdm.OrbitHostDiskEncryptionKeyPayload) error
 	// SetOrUpdateDiskEncryptionProtection reports the outcome of an attempt to restore protection.
-	SetOrUpdateDiskEncryptionProtection(outcome fleet.DiskEncryptionProtectionOutcome, clientError string) error
+	SetOrUpdateDiskEncryptionProtection(outcome automdm.DiskEncryptionProtectionOutcome, clientError string) error
 	// GetServerCapabilities reports what the server supports.
-	GetServerCapabilities() fleet.CapabilityMap
+	GetServerCapabilities() automdm.CapabilityMap
 	// GetDiskEncryptionPINDetails collects the startup PIN the end user submitted. It hands out each PIN only once.
 	GetDiskEncryptionPINDetails() (pin, requestUUID string, err error)
 	// SetDiskEncryptionPINResult reports whether the PIN collected with requestUUID was applied.
-	SetDiskEncryptionPINResult(requestUUID string, outcome fleet.BitLockerPINRequestStatus, clientError string) error
+	SetDiskEncryptionPINResult(requestUUID string, outcome automdm.BitLockerPINRequestStatus, clientError string) error
 }
 
 // execEncryptVolumeFunc handles the encryption of a volume identified by its
@@ -545,7 +545,7 @@ type execSetTPMAndPINProtectorFunc func(volumeID, pin string) error
 // pinOutcome is what the agent reports back for a collected startup PIN.
 type pinOutcome struct {
 	requestUUID string
-	outcome     fleet.BitLockerPINRequestStatus
+	outcome     automdm.BitLockerPINRequestStatus
 	clientError string
 }
 
@@ -562,7 +562,7 @@ type windowsMDMBitlockerConfigReceiver struct {
 	encryptionRetryAfter time.Time
 
 	// pendingRecoveryKey holds a rotated recovery key that was not yet
-	// successfully escrowed to Fleet. On subsequent ticks, orbit retries
+	// successfully escrowed to AutoMDM. On subsequent ticks, orbit retries
 	// the escrow without rotating again, avoiding orphan protectors.
 	pendingRecoveryKey string
 
@@ -606,7 +606,7 @@ func ApplyWindowsMDMBitlockerFetcherMiddleware(
 	frequency time.Duration,
 	encryptionResult DiskEncryptionKeySetter,
 	comWorker *bitlocker.COMWorker,
-) fleet.OrbitConfigReceiver {
+) automdm.OrbitConfigReceiver {
 	return &windowsMDMBitlockerConfigReceiver{
 		Frequency:                    frequency,
 		EncryptionResult:             encryptionResult,
@@ -633,10 +633,10 @@ func (w *windowsMDMBitlockerConfigReceiver) NeedsFrequentPolling() bool {
 	return w.heldPINOutcome != nil || w.pendingRecoveryKey != ""
 }
 
-// GetConfig calls the wrapped Fetcher's GetConfig method, and if the fleet
+// GetConfig calls the wrapped Fetcher's GetConfig method, and if the team
 // server set the "EnforceBitLockerEncryption" flag to true, executes the command
 // to attempt BitlockerEncryption (or not, if the device is a Windows Server).
-func (w *windowsMDMBitlockerConfigReceiver) Run(cfg *fleet.OrbitConfig) error {
+func (w *windowsMDMBitlockerConfigReceiver) Run(cfg *automdm.OrbitConfig) error {
 	// Before the branches below, which return early: the server times a collected PIN out an hour after the agent took it,
 	// so try to resend it.
 	if w.mu.TryLock() {
@@ -687,10 +687,10 @@ func (w *windowsMDMBitlockerConfigReceiver) attemptSetBitLockerPIN() {
 		return
 	}
 
-	outcome := pinOutcome{requestUUID: requestUUID, outcome: fleet.BitLockerPINRequestSet}
+	outcome := pinOutcome{requestUUID: requestUUID, outcome: automdm.BitLockerPINRequestSet}
 	if err := w.setBitLockerPIN(pin); err != nil {
 		log.Error().Err(err).Msg("could not set the BitLocker startup PIN")
-		outcome.outcome = fleet.BitLockerPINRequestFailed
+		outcome.outcome = automdm.BitLockerPINRequestFailed
 		outcome.clientError = bitlocker.PINReasonNotFinished
 		if pinErr, ok := errors.AsType[*bitlocker.PINError](err); ok {
 			outcome.clientError = pinErr.Reason
@@ -721,10 +721,10 @@ func (w *windowsMDMBitlockerConfigReceiver) reportPINOutcome(outcome pinOutcome)
 		w.heldPINOutcome = nil
 	case client.IsNotFoundErr(err):
 		// The submission was settled or superseded, so the server will never accept this outcome.
-		log.Warn().Err(err).Msgf("Fleet no longer expects the BitLocker PIN outcome %q, dropping it", outcome.outcome)
+		log.Warn().Err(err).Msgf("AutoMDM no longer expects the BitLocker PIN outcome %q, dropping it", outcome.outcome)
 		w.heldPINOutcome = nil
 	default:
-		log.Error().Err(err).Msgf("could not report the BitLocker PIN outcome %q to Fleet, will retry", outcome.outcome)
+		log.Error().Err(err).Msgf("could not report the BitLocker PIN outcome %q to AutoMDM, will retry", outcome.outcome)
 		w.heldPINOutcome = &outcome
 	}
 }
@@ -739,12 +739,12 @@ func (w *windowsMDMBitlockerConfigReceiver) retryHeldPINOutcome() {
 
 // retryHeldRecoveryKeyEscrow sends a recovery key that a repair rotated but could not escrow, when the server is no longer
 // asking for anything. Rotating also adds a boot protector, and the server stops asking for the repair once it sees one,
-// so without this the key would never reach Fleet and the admin would be left holding a key the volume no longer accepts.
+// so without this the key would never reach AutoMDM and the admin would be left holding a key the volume no longer accepts.
 func (w *windowsMDMBitlockerConfigReceiver) retryHeldRecoveryKeyEscrow() {
 	if w.pendingRecoveryKey == "" || time.Now().Before(w.protectionRetryAfter) {
 		return
 	}
-	if err := w.updateFleetServer(w.pendingRecoveryKey, nil); err != nil {
+	if err := w.updateAutoMDMServer(w.pendingRecoveryKey, nil); err != nil {
 		log.Error().Err(err).Msg("could not escrow the held recovery key, will retry")
 		w.protectionRetryAfter = time.Now().Add(w.Frequency)
 		return
@@ -766,7 +766,7 @@ const encryptionSuccessBackoff = 5 * time.Minute
 
 const (
 	repairCostNoBootProtector = "so the volume still has nothing that can unseal it at boot"
-	repairCostNoWorkingKey    = "so Fleet does not hold a working recovery key for it"
+	repairCostNoWorkingKey    = "so AutoMDM does not hold a working recovery key for it"
 )
 
 // repairFailureCost describes what a failed repair step cost the host. With protection off, the repair always stops
@@ -823,13 +823,13 @@ func (w *windowsMDMBitlockerConfigReceiver) attemptEnableBitlockerProtection() {
 		}
 		if pending, err := restartPending(); err != nil {
 			log.Error().Err(err).Msg("cannot determine whether a restart is pending, not restoring protection")
-			w.reportProtectionOutcome(fleet.DiskEncryptionProtectionFailed,
+			w.reportProtectionOutcome(automdm.DiskEncryptionProtectionFailed,
 				fmt.Sprintf("could not determine whether a restart is pending: %v", err))
 			w.protectionRetryAfter = time.Now().Add(w.Frequency)
 			return
 		} else if pending {
 			log.Info().Msg("a restart is pending, deferring BitLocker protection restore until after it")
-			w.reportProtectionOutcome(fleet.DiskEncryptionProtectionDeferred,
+			w.reportProtectionOutcome(automdm.DiskEncryptionProtectionDeferred,
 				"a restart is pending on this host; protection will be restored after it completes")
 			w.protectionRetryAfter = time.Now().Add(w.Frequency)
 			return
@@ -840,7 +840,7 @@ func (w *windowsMDMBitlockerConfigReceiver) attemptEnableBitlockerProtection() {
 	hasProtector, err := w.execHasBootUnsealProtectorFn(targetVolume)
 	if err != nil {
 		log.Error().Err(err).Msg("cannot determine whether a boot protector is present, not restoring protection")
-		w.reportProtectionOutcome(fleet.DiskEncryptionProtectionFailed,
+		w.reportProtectionOutcome(automdm.DiskEncryptionProtectionFailed,
 			fmt.Sprintf("could not determine whether a boot protector is present: %v", err))
 		w.protectionRetryAfter = time.Now().Add(w.Frequency)
 		return
@@ -854,7 +854,7 @@ func (w *windowsMDMBitlockerConfigReceiver) attemptEnableBitlockerProtection() {
 	}
 
 	// Whatever disturbed this volume's protectors may have taken the recovery password with it. Only rotate when the recovery
-	// password is actually gone. This does not cover a recovery password that was replaced rather than removed. Fleet would still
+	// password is actually gone. This does not cover a recovery password that was replaced rather than removed. AutoMDM would still
 	// hold a stale key, because it only knows it can decrypt the value it stored, never that the volume still accepts it. Recording
 	// the protector GUID at escrow time would close that gap. Tracked as https://github.com/fleetdm/fleet/issues/40430
 	if w.pendingRecoveryKey == "" {
@@ -871,7 +871,7 @@ func (w *windowsMDMBitlockerConfigReceiver) attemptEnableBitlockerProtection() {
 				log.Error().Err(err).Msg("could not rotate the recovery key, not restoring protection")
 				// Rotation fails before it adds a boot protector, so on a protected volume the protector is still missing.
 				cost := repairFailureCost(protectionAlreadyOn, repairCostNoBootProtector)
-				w.reportProtectionOutcome(fleet.DiskEncryptionProtectionFailed,
+				w.reportProtectionOutcome(automdm.DiskEncryptionProtectionFailed,
 					fmt.Sprintf("could not rotate the recovery key, %s: %v", cost, err))
 				w.protectionRetryAfter = time.Now().Add(w.Frequency)
 				return
@@ -881,13 +881,13 @@ func (w *windowsMDMBitlockerConfigReceiver) attemptEnableBitlockerProtection() {
 		}
 	}
 	if w.pendingRecoveryKey != "" {
-		if err := w.updateFleetServer(w.pendingRecoveryKey, nil); err != nil {
+		if err := w.updateAutoMDMServer(w.pendingRecoveryKey, nil); err != nil {
 			// The key stays held. The next pass retries it, or retryHeldRecoveryKeyEscrow does once the server stops asking.
-			// Rotation deletes the previous recovery passwords, so whatever key Fleet stored no longer unlocks the volume.
+			// Rotation deletes the previous recovery passwords, so whatever key AutoMDM stored no longer unlocks the volume.
 			log.Error().Err(err).Msg("could not escrow the rotated recovery key, not restoring protection")
 			cost := repairFailureCost(protectionAlreadyOn, repairCostNoWorkingKey)
-			w.reportProtectionOutcome(fleet.DiskEncryptionProtectionFailed,
-				fmt.Sprintf("could not send the rotated recovery key to Fleet, %s: %v", cost, err))
+			w.reportProtectionOutcome(automdm.DiskEncryptionProtectionFailed,
+				fmt.Sprintf("could not send the rotated recovery key to AutoMDM, %s: %v", cost, err))
 			w.protectionRetryAfter = time.Now().Add(w.Frequency)
 			return
 		}
@@ -899,10 +899,10 @@ func (w *windowsMDMBitlockerConfigReceiver) attemptEnableBitlockerProtection() {
 		log.Info().Msg("no protector can unseal this volume at boot, adding a TPM protector before restoring protection")
 		if err := w.execAddTPMProtectorFn(targetVolume); err != nil {
 			// Policy can forbid a TPM-only protector, in which case a startup PIN has to be enrolled by the end user
-			// and Fleet cannot repair this host.
+			// and AutoMDM cannot repair this host.
 			log.Error().Err(err).Msg("could not add a TPM protector, not restoring protection")
 			cost := repairFailureCost(protectionAlreadyOn, repairCostNoBootProtector)
-			w.reportProtectionOutcome(fleet.DiskEncryptionProtectionFailed,
+			w.reportProtectionOutcome(automdm.DiskEncryptionProtectionFailed,
 				fmt.Sprintf("could not add a TPM protector, %s: %v", cost, err))
 			w.protectionRetryAfter = time.Now().Add(w.Frequency)
 			return
@@ -913,7 +913,7 @@ func (w *windowsMDMBitlockerConfigReceiver) attemptEnableBitlockerProtection() {
 	if !protectionAlreadyOn {
 		if err := w.execEnableProtectionFn(targetVolume); err != nil {
 			log.Error().Err(err).Msg("failed to restore BitLocker protection")
-			w.reportProtectionOutcome(fleet.DiskEncryptionProtectionFailed, err.Error())
+			w.reportProtectionOutcome(automdm.DiskEncryptionProtectionFailed, err.Error())
 			w.protectionRetryAfter = time.Now().Add(w.Frequency)
 			return
 		}
@@ -921,21 +921,21 @@ func (w *windowsMDMBitlockerConfigReceiver) attemptEnableBitlockerProtection() {
 	} else {
 		log.Info().Msgf("restored a boot protector on %s, protection was already on", targetVolume)
 	}
-	w.reportProtectionOutcome(fleet.DiskEncryptionProtectionRestored, "")
+	w.reportProtectionOutcome(automdm.DiskEncryptionProtectionRestored, "")
 	w.protectionRetryAfter = time.Now().Add(protectionSuccessBackoff)
 }
 
 // reportProtectionOutcome tells the server what happened
-func (w *windowsMDMBitlockerConfigReceiver) reportProtectionOutcome(outcome fleet.DiskEncryptionProtectionOutcome, clientError string) {
+func (w *windowsMDMBitlockerConfigReceiver) reportProtectionOutcome(outcome automdm.DiskEncryptionProtectionOutcome, clientError string) {
 	if w.EncryptionResult == nil {
 		return
 	}
-	if outcome != fleet.DiskEncryptionProtectionRestored && clientError == "" {
+	if outcome != automdm.DiskEncryptionProtectionRestored && clientError == "" {
 		// The server rejects a blank reason, which would drop the outcome entirely. An unhelpful reason still beats none.
 		clientError = fmt.Sprintf("BitLocker protection was not re-enabled (%s), but the agent reported no reason", outcome)
 	}
 	if err := w.EncryptionResult.SetOrUpdateDiskEncryptionProtection(outcome, clientError); err != nil {
-		log.Error().Err(err).Msgf("failed to report disk encryption protection outcome %q to Fleet", outcome)
+		log.Error().Err(err).Msgf("failed to report disk encryption protection outcome %q to AutoMDM", outcome)
 	}
 }
 
@@ -962,8 +962,8 @@ func (w *windowsMDMBitlockerConfigReceiver) attemptBitlockerEncryption() {
 	// or when WMI status is transiently unavailable.
 	if w.pendingRecoveryKey != "" {
 		log.Debug().Msg("retrying escrow of previously rotated recovery key")
-		if serverErr := w.updateFleetServer(w.pendingRecoveryKey, nil); serverErr != nil {
-			log.Error().Err(serverErr).Msg("failed to escrow cached recovery key to Fleet Server")
+		if serverErr := w.updateAutoMDMServer(w.pendingRecoveryKey, nil); serverErr != nil {
+			log.Error().Err(serverErr).Msg("failed to escrow cached recovery key to AutoMDM Server")
 			return
 		}
 		w.pendingRecoveryKey = ""
@@ -987,7 +987,7 @@ func (w *windowsMDMBitlockerConfigReceiver) attemptBitlockerEncryption() {
 		return
 
 	case bitlocker.ConversionStatusEncryptionPaused:
-		// This is the conversion Fleet wants, so resume it rather than reporting a problem the agent can fix itself.
+		// This is the conversion AutoMDM wants, so resume it rather than reporting a problem the agent can fix itself.
 		log.Info().Msgf("BitLocker encryption is paused on %s, resuming it", targetVolume)
 		if err := w.execResumeConversionFn(targetVolume); err != nil {
 			log.Error().Err(err).Msg("could not resume the paused BitLocker encryption")
@@ -1004,11 +1004,11 @@ func (w *windowsMDMBitlockerConfigReceiver) attemptBitlockerEncryption() {
 		return
 
 	case bitlocker.ConversionStatusDecryptionPaused:
-		// Resuming would finish the decryption Fleet is trying to prevent, and encrypting is refused with
+		// Resuming would finish the decryption AutoMDM is trying to prevent, and encrypting is refused with
 		// FVE_E_NOT_DECRYPTED while the volume is partly decrypted. Report it and let an admin decide.
-		log.Warn().Msgf("BitLocker decryption is paused on %s, which Fleet will not resume or override", targetVolume)
+		log.Warn().Msgf("BitLocker decryption is paused on %s, which AutoMDM will not resume or override", targetVolume)
 		w.reportKeylessError(errors.New(
-			"a BitLocker decryption is paused on this host. Fleet cannot encrypt the disk until the decryption is resumed and completed, or the volume is re-encrypted",
+			"a BitLocker decryption is paused on this host. AutoMDM cannot encrypt the disk until the decryption is resumed and completed, or the volume is re-encrypted",
 		), "the paused decryption")
 		// Only a person can clear this, and the server keeps asking regardless, so back off.
 		w.encryptionRetryAfter = time.Now().Add(w.Frequency)
@@ -1016,7 +1016,7 @@ func (w *windowsMDMBitlockerConfigReceiver) attemptBitlockerEncryption() {
 	}
 
 	// If the disk is already encrypted, rotate the recovery key instead of
-	// decrypting and re-encrypting. This adds a new Fleet-managed recovery key
+	// decrypting and re-encrypting. This adds a new AutoMDM-managed recovery key
 	// protector, removes old ones, and escrows the new key. This matches how other MDMs
 	// handle pre-encrypted disks.
 	if encryptionStatus.ConversionStatus == bitlocker.ConversionStatusFullyEncrypted {
@@ -1025,14 +1025,14 @@ func (w *windowsMDMBitlockerConfigReceiver) attemptBitlockerEncryption() {
 		recoveryKey, err := w.execRotateRecoveryKeyFn(targetVolume)
 		if err != nil {
 			log.Error().Err(err).Msg("recovery key rotation failed")
-			if serverErr := w.updateFleetServer("", err); serverErr != nil {
-				log.Error().Err(serverErr).Msg("failed to send key rotation failure to Fleet Server")
+			if serverErr := w.updateAutoMDMServer("", err); serverErr != nil {
+				log.Error().Err(serverErr).Msg("failed to send key rotation failure to AutoMDM Server")
 			}
 			return
 		}
 
-		if serverErr := w.updateFleetServer(recoveryKey, nil); serverErr != nil {
-			log.Error().Err(serverErr).Msg("failed to escrow rotated recovery key to Fleet Server, will retry")
+		if serverErr := w.updateAutoMDMServer(recoveryKey, nil); serverErr != nil {
+			log.Error().Err(serverErr).Msg("failed to escrow rotated recovery key to AutoMDM Server, will retry")
 			w.pendingRecoveryKey = recoveryKey
 			return
 		}
@@ -1057,8 +1057,8 @@ func (w *windowsMDMBitlockerConfigReceiver) attemptBitlockerEncryption() {
 		return
 	}
 
-	if serverErr := w.updateFleetServer(recoveryKey, encryptionErr); serverErr != nil {
-		log.Error().Err(serverErr).Msg("failed to send encryption result to Fleet Server")
+	if serverErr := w.updateAutoMDMServer(recoveryKey, encryptionErr); serverErr != nil {
+		log.Error().Err(serverErr).Msg("failed to send encryption result to AutoMDM Server")
 		if encryptionErr == nil && recoveryKey != "" {
 			w.pendingRecoveryKey = recoveryKey
 		}
@@ -1125,28 +1125,28 @@ func (w *windowsMDMBitlockerConfigReceiver) isMisreportedDecryptionError(err *bi
 
 // reportKeylessError reports a failure that carries no recovery key, but only to a server that will keep the key it
 // already holds. An older server overwrites the stored key with the empty value in this payload, which is worse than
-// staying silent: the volume is still encrypted, and the admin loses the only key Fleet can show them.
+// staying silent: the volume is still encrypted, and the admin loses the only key AutoMDM can show them.
 func (w *windowsMDMBitlockerConfigReceiver) reportKeylessError(err error, what string) {
-	if !w.EncryptionResult.GetServerCapabilities().Has(fleet.CapabilityWindowsDiskEncryptionErrorKeepsKey) {
+	if !w.EncryptionResult.GetServerCapabilities().Has(automdm.CapabilityWindowsDiskEncryptionErrorKeepsKey) {
 		log.Warn().Err(err).Msgf(
-			"not reporting %s to Fleet: this server would discard the host's escrowed recovery key", what)
+			"not reporting %s to AutoMDM: this server would discard the host's escrowed recovery key", what)
 		return
 	}
-	if serverErr := w.updateFleetServer("", err); serverErr != nil {
-		log.Error().Err(serverErr).Msgf("failed to report %s to Fleet Server", what)
+	if serverErr := w.updateAutoMDMServer("", err); serverErr != nil {
+		log.Error().Err(serverErr).Msgf("failed to report %s to AutoMDM Server", what)
 	}
 }
 
-func (w *windowsMDMBitlockerConfigReceiver) updateFleetServer(key string, err error) error {
+func (w *windowsMDMBitlockerConfigReceiver) updateAutoMDMServer(key string, err error) error {
 	// Getting Bitlocker encryption operation error message if any
-	// This is going to be sent to Fleet Server
+	// This is going to be sent to AutoMDM Server
 	bitlockerError := ""
 	if err != nil {
 		bitlockerError = err.Error()
 	}
 
-	// Update Fleet Server with encryption result
-	payload := fleet.OrbitHostDiskEncryptionKeyPayload{
+	// Update AutoMDM Server with encryption result
+	payload := automdm.OrbitHostDiskEncryptionKeyPayload{
 		EncryptionKey: []byte(key),
 		ClientError:   bitlockerError,
 	}

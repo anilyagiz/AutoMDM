@@ -14,12 +14,12 @@ import (
 	"strings"
 	"testing"
 
-	platform_http "github.com/fleetdm/fleet/v4/server/platform/http"
+	platform_http "github.com/anilyagiz/automdm/v4/server/platform/http"
 	"github.com/stretchr/testify/require"
 )
 
 type scanEmbedded struct {
-	FleetID *uint `json:"fleet_id" query:"fleet_id"`
+	AutoMDMID *uint `json:"team_id" query:"team_id"`
 }
 
 type scanSelfDecoding struct{ Inner string }
@@ -83,14 +83,14 @@ func TestRejectRemovedJSONKeys(t *testing.T) {
 	}{
 		{name: "removed key at the top level", body: `{"name": "a", "teams": []}`, wantKey: "teams"},
 		{name: "case does not matter, the message keeps the sent spelling", body: `{"TEAM_ID": 1}`, wantKey: "TEAM_ID"},
-		{name: "old and new name together", body: `{"fleet_id": 1, "team_id": 1}`, wantKey: "team_id"},
+		{name: "old and new name together", body: `{"team_id": 1, "team_id": 1}`, wantKey: "team_id"},
 		{name: "removed key in a nested struct, declared name next to it", body: `{"items": [{"name": "a", "teams": 1}]}`, wantKey: "teams"},
 		{name: "removed key in a container sent under its renameto name", body: `{"reports": [{"teams": 1}]}`, wantKey: "teams"},
 		{name: "removed key in a container sent under its json name", body: `{"queries": [{"teams": 1}]}`, wantKey: "teams"},
 		{name: "removed key in a container whose renameto has options", body: `{"new_list": [{"teams": 1}]}`, wantKey: "teams"},
 		{name: "removed key after unrelated unknown keys", body: `{"extra": 1, "another": {"x": 1}, "teams": []}`, wantKey: "teams"},
 
-		{name: "new names only, one through an embedded struct", body: `{"fleet_id": 1, "name": "a"}`},
+		{name: "new names only, one through an embedded struct", body: `{"team_id": 1, "name": "a"}`},
 		{name: "a removed name that the type still declares is accepted", body: `{"item": {"team_id": 3}, "items": [{"team_id": 3}]}`},
 		{name: "free-form map is not looked into", body: `{"settings": {"teams": [1], "team_id": 2, "nested": {"Team": "x"}}}`},
 		{name: "any is not looked into", body: `{"anything": {"team_id": 1}}`},
@@ -117,21 +117,21 @@ func TestRejectRemovedQueryParams(t *testing.T) {
 	t.Cleanup(func() { SetRemovedNames(nil, nil, nil, nil) })
 
 	type renamed struct {
-		FleetID *uint `query:"fleet_id,optional"`
+		AutoMDMID *uint `query:"team_id,optional"`
 	}
 	for _, tc := range []struct {
 		name, query, wantKey, wantParam string
 		typ                             reflect.Type // renamed when unset
 	}{
 		{name: "removed parameter", query: "team_id=1", wantKey: "team_id"},
-		{name: "with the new name", query: "fleet_id=0&team_id=1", wantKey: "team_id"},
-		{name: "new name only", query: "fleet_id=1"},
+		{name: "with the new name", query: "team_id=0&team_id=1", wantKey: "team_id"},
+		{name: "new name only", query: "team_id=1"},
 		{name: "parameter names are case sensitive, like the decoder", query: "Team_ID=1"},
 		{name: "a parameter the type still declares", typ: reflect.TypeFor[scanRequest](), query: "team_id=1"},
-		{name: "declared through an embedded struct", typ: reflect.TypeFor[scanRequest](), query: "fleet_id=1&team_name=x", wantKey: "team_name"},
+		{name: "declared through an embedded struct", typ: reflect.TypeFor[scanRequest](), query: "team_id=1&team_name=x", wantKey: "team_name"},
 		{name: "removed sort key", query: "order_key=team_name", wantKey: "team_name", wantParam: "order_key"},
 		{name: "removed inherited sort key", query: "order_key=name&inherited_order_key=team_name", wantKey: "team_name", wantParam: "inherited_order_key"},
-		{name: "sort keys are matched as values of the order key parameters only", query: "order_key=fleet_name&sort=team_name"},
+		{name: "sort keys are matched as values of the order key parameters only", query: "order_key=team_name&sort=team_name"},
 		{name: "a type that sorts by any result column", typ: reflect.TypeFor[columnSortRequest](), query: "order_key=team_name"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -151,8 +151,8 @@ func TestMakeDecoderRemovedNames(t *testing.T) {
 	t.Cleanup(func() { SetRemovedNames(nil, nil, nil, nil) })
 
 	type request struct {
-		FleetID uint `json:"fleet_id"`
-		Page    int  `query:"page,optional"`
+		AutoMDMID uint `json:"team_id"`
+		Page      int  `query:"page,optional"`
 	}
 	decode := func(limit int64, target, body string) error {
 		r := httptest.NewRequest(http.MethodPost, target, strings.NewReader(body))
@@ -161,11 +161,11 @@ func TestMakeDecoderRemovedNames(t *testing.T) {
 	}
 
 	requireRejected(t, decode(1<<20, "/", `{"team_id": 1}`), "team_id")
-	requireRejected(t, decode(1<<20, "/?team_id=1", `{"fleet_id": 1}`), "team_id")
-	require.NoError(t, decode(1<<20, "/?page=1", `{"fleet_id": 1}`))
+	requireRejected(t, decode(1<<20, "/?team_id=1", `{"team_id": 1}`), "team_id")
+	require.NoError(t, decode(1<<20, "/?page=1", `{"team_id": 1}`))
 	// Agent routes are not scanned, in the query string or in the body.
-	requireRejected(t, decode(1<<20, "/api/fleet/orbit/config?team_id=1", `{"team_id": 1}`), "")
-	requireRejected(t, decode(1<<20, "/api/latest/fleet/device/abc/ping", `{"team_id": 1}`), "")
+	requireRejected(t, decode(1<<20, "/api/automdm/orbit/config?team_id=1", `{"team_id": 1}`), "")
+	requireRejected(t, decode(1<<20, "/api/latest/automdm/device/abc/ping", `{"team_id": 1}`), "")
 	// A body without a size limit is not buffered or scanned.
 	require.NoError(t, decode(-1, "/", `{"team_id": 1}`))
 	// A body over the scan size is decoded without a scan, and still decodes. The route's limit is above the scan size.
@@ -174,7 +174,7 @@ func TestMakeDecoderRemovedNames(t *testing.T) {
 	requireRejected(t, decode(2*maxRemovedNamesScanSize, "/", `{"team_id": 1, "x": "`+strings.Repeat("a", maxRemovedNamesScanSize-100)+`"}`), "team_id")
 	// Malformed JSON is still reported by the decoder, and an oversize body keeps its error.
 	require.Error(t, decode(1<<20, "/", `{"team_id": `))
-	_, ok := errors.AsType[platform_http.PayloadTooLargeError](decode(8, "/", `{"fleet_id": 1, "x": "0123456789"}`))
+	_, ok := errors.AsType[platform_http.PayloadTooLargeError](decode(8, "/", `{"team_id": 1, "x": "0123456789"}`))
 	require.True(t, ok)
 
 	// A request type with its own DecodeRequest still gets its query string checked.
@@ -183,13 +183,13 @@ func TestMakeDecoderRemovedNames(t *testing.T) {
 			httptest.NewRequest(http.MethodPut, target, nil))
 		return err
 	}
-	require.NoError(t, decodeSelf("/?fleet_id=1"))
-	requireRejected(t, decodeSelf("/?fleet_id=1&team_id=1"), "team_id")
-	requireRejected(t, decodeSelf("/api/fleet/orbit/upload?team_id=1"), "")
+	require.NoError(t, decodeSelf("/?team_id=1"))
+	requireRejected(t, decodeSelf("/?team_id=1&team_id=1"), "team_id")
+	requireRejected(t, decodeSelf("/api/automdm/orbit/upload?team_id=1"), "")
 }
 
 type selfDecodingRequest struct {
-	FleetID *uint `query:"fleet_id,optional"`
+	AutoMDMID *uint `query:"team_id,optional"`
 }
 
 func (selfDecodingRequest) DecodeRequest(context.Context, *http.Request) (any, error) {
@@ -217,24 +217,24 @@ func TestMakeDecoderRemovedFormFields(t *testing.T) {
 		return err
 	}
 
-	require.NoError(t, upload("/", map[string]string{"fleet_id": "1"}))
-	requireRejected(t, upload("/", map[string]string{"fleet_id": "1", "team_id": "1"}), "team_id")
-	// The decoder fails without fleet_id, but the removed name is the error reported.
+	require.NoError(t, upload("/", map[string]string{"team_id": "1"}))
+	requireRejected(t, upload("/", map[string]string{"team_id": "1", "team_id": "1"}), "team_id")
+	// The decoder fails without team_id, but the removed name is the error reported.
 	requireRejected(t, upload("/", map[string]string{"team_id": "1"}), "team_id")
-	require.EqualError(t, upload("/", map[string]string{"other": "1"}), "fleet_id is required")
-	requireRejected(t, upload("/?team_id=1", map[string]string{"fleet_id": "1"}), "team_id")
-	require.NoError(t, upload("/api/fleet/orbit/upload", map[string]string{"fleet_id": "1", "team_id": "1"}))
+	require.EqualError(t, upload("/", map[string]string{"other": "1"}), "team_id is required")
+	requireRejected(t, upload("/?team_id=1", map[string]string{"team_id": "1"}), "team_id")
+	require.NoError(t, upload("/api/automdm/orbit/upload", map[string]string{"team_id": "1", "team_id": "1"}))
 }
 
-// formUploadRequest decodes itself from a multipart form that requires fleet_id.
+// formUploadRequest decodes itself from a multipart form that requires team_id.
 type formUploadRequest struct{}
 
 func (formUploadRequest) DecodeRequest(_ context.Context, r *http.Request) (any, error) {
 	if err := r.ParseMultipartForm(1 << 20); err != nil {
 		return nil, err
 	}
-	if len(r.MultipartForm.Value["fleet_id"]) == 0 {
-		return nil, errors.New("fleet_id is required")
+	if len(r.MultipartForm.Value["team_id"]) == 0 {
+		return nil, errors.New("team_id is required")
 	}
 	return formUploadRequest{}, nil
 }

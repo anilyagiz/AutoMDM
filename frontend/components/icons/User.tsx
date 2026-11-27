@@ -8,7 +8,7 @@ interface IUserProps {
   size?: IconSizes;
 }
 
-const User = ({ color = "ui-fleet-black-75", size = "medium" }: IUserProps) => {
+const User = ({ color = "ui-automdm-black-75", size = "medium" }: IUserProps) => {
   return (
     <svg
       width={ICON_SIZES[size]}

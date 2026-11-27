@@ -4,21 +4,21 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/fleetdm/fleet/v4/pkg/certificate"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/scep/depot"
+	"github.com/anilyagiz/automdm/v4/pkg/certificate"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/scep/depot"
 )
 
-func initAssets(ds fleet.Datastore) error {
+func initAssets(ds automdm.Datastore) error {
 	// Check if we have existing certs and keys
-	expectedAssets := []fleet.MDMAssetName{
-		fleet.MDMAssetHostIdentityCACert,
-		fleet.MDMAssetHostIdentityCAKey,
+	expectedAssets := []automdm.MDMAssetName{
+		automdm.MDMAssetHostIdentityCACert,
+		automdm.MDMAssetHostIdentityCAKey,
 	}
 	savedAssets, err := ds.GetAllMDMConfigAssetsByName(context.Background(), expectedAssets, nil)
 	if err != nil {
 		// allow not found errors as it means we're generating the assets for the first time.
-		if !fleet.IsNotFound(err) {
+		if !automdm.IsNotFound(err) {
 			return fmt.Errorf("loading existing host identity assets from the database: %w", err)
 		}
 	}
@@ -27,8 +27,8 @@ func initAssets(ds fleet.Datastore) error {
 		// Then we should create them
 		caCert := depot.NewCACert(
 			depot.WithYears(10),
-			depot.WithCommonName("Fleet Host Identity CA"),
-			// Signal that the CA is local to the deployment and not necessarily managed by Fleet or another external vendor
+			depot.WithCommonName("AutoMDM Host Identity CA"),
+			// Signal that the CA is local to the deployment and not necessarily managed by AutoMDM or another external vendor
 			depot.WithOrganization("Local Certificate Authority"),
 			depot.WithCountry("US"),
 		)
@@ -38,12 +38,12 @@ func initAssets(ds fleet.Datastore) error {
 		}
 
 		// Store our config assets encrypted
-		var assets []fleet.MDMConfigAsset
-		for k, v := range map[fleet.MDMAssetName][]byte{
-			fleet.MDMAssetHostIdentityCACert: certificate.EncodeCertPEM(scepCert),
-			fleet.MDMAssetHostIdentityCAKey:  certificate.EncodePrivateKeyPEM(scepKey),
+		var assets []automdm.MDMConfigAsset
+		for k, v := range map[automdm.MDMAssetName][]byte{
+			automdm.MDMAssetHostIdentityCACert: certificate.EncodeCertPEM(scepCert),
+			automdm.MDMAssetHostIdentityCAKey:  certificate.EncodePrivateKeyPEM(scepKey),
 		} {
-			assets = append(assets, fleet.MDMConfigAsset{
+			assets = append(assets, automdm.MDMConfigAsset{
 				Name:  k,
 				Value: v,
 			})

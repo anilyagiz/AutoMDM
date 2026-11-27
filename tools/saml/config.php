@@ -2,7 +2,7 @@
 
 $metadata['https://localhost:8080'] = array(
     'AssertionConsumerService' => [
-        'https://localhost:8080/api/v1/fleet/sso/callback',
+        'https://localhost:8080/api/v1/automdm/sso/callback',
     ],
     'NameIDFormat' => 'urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddres',
     'simplesaml.nameidattribute' => 'email',
@@ -13,7 +13,7 @@ $metadata['https://localhost:8080'] = array(
 # AssertionConsumerService)
 $metadata['mdm.test.com'] = array(
     'AssertionConsumerService' => [
-        'https://localhost:8080/api/v1/fleet/mdm/sso/callback',
+        'https://localhost:8080/api/v1/automdm/mdm/sso/callback',
     ],
     'NameIDFormat' => 'urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddres',
     'simplesaml.nameidattribute' => 'email',
@@ -22,7 +22,7 @@ $metadata['mdm.test.com'] = array(
 # Use for local testing of devices on the same network.
 $metadata['mdm.host.docker.internal'] = array(
     'AssertionConsumerService' => [
-        'https://host.docker.internal:8080/api/v1/fleet/mdm/sso/callback',
+        'https://host.docker.internal:8080/api/v1/automdm/mdm/sso/callback',
     ],
     'NameIDFormat' => 'urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddres',
     'simplesaml.nameidattribute' => 'email',
@@ -33,7 +33,7 @@ $metadata['mdm.host.docker.internal'] = array(
 # server_settings.server_url (usually "https://localhost:8080").
 $metadata['sso.test.com'] = array(
     'AssertionConsumerService' => [
-        'https://localhost:8080/api/v1/fleet/sso/callback',
+        'https://localhost:8080/api/v1/automdm/sso/callback',
     ],
     'NameIDFormat' => 'urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddres',
     'simplesaml.nameidattribute' => 'email',
@@ -42,7 +42,7 @@ $metadata['sso.test.com'] = array(
 # Used for testing when entity_id is not set, so that it matches the hostname (localhost).
 $metadata['localhost'] = array(
     'AssertionConsumerService' => [
-        'https://localhost:8080/api/v1/fleet/sso/callback',
+        'https://localhost:8080/api/v1/automdm/sso/callback',
     ],
     'NameIDFormat' => 'urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddres',
     'simplesaml.nameidattribute' => 'email',

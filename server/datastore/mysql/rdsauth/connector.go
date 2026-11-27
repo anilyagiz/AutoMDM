@@ -8,10 +8,10 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/anilyagiz/automdm/v4/server/aws_common"
+	"github.com/anilyagiz/automdm/v4/server/config"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/rds/auth"
-	"github.com/fleetdm/fleet/v4/server/aws_common"
-	"github.com/fleetdm/fleet/v4/server/config"
 	"github.com/go-sql-driver/mysql"
 	// Blank import registers the "rdsmysql" TLS config with pre-loaded AWS RDS CA certificates
 	_ "github.com/shogo82148/rdsmysql/v2"

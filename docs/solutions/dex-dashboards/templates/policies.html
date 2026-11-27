@@ -13,7 +13,7 @@
 .act-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
 .act-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 /* One 100% bar per policy: pass, fail, then no result, with a 2px gap between parts. */
-.stack { display: inline-flex; gap: 2px; width: 160px; height: 10px; border-radius: 4px; overflow: hidden; background: var(--ui-fleet-black-5); vertical-align: middle; margin-right: 8px; }
+.stack { display: inline-flex; gap: 2px; width: 160px; height: 10px; border-radius: 4px; overflow: hidden; background: var(--ui-automdm-black-5); vertical-align: middle; margin-right: 8px; }
 .stack > span { height: 100%; min-width: 3px; border-radius: 2px; }
 .detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px 32px; }
 .detail-grid h4 { margin: 0 0 6px; font-size: 12px; font-weight: 600; color: var(--ink); }
@@ -24,7 +24,7 @@
 /* One set of columns for every row, so the bars line up. */
 .types { display: grid; grid-template-columns: minmax(120px, max-content) max-content minmax(0, 1fr); gap: 12px; align-items: center; }
 .type-row { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; align-items: center; }
-.type-row .btn[aria-pressed="true"] { background: var(--ui-fleet-black-5); border-color: var(--ui-fleet-black-50); }
+.type-row .btn[aria-pressed="true"] { background: var(--ui-automdm-black-5); border-color: var(--ui-automdm-black-50); }
 @media (max-width: 600px) { .types { grid-template-columns: minmax(0, 1fr); } .type-row .btn { justify-self: start; } }
 .spark-fail line { stroke: var(--line); }
 </style>
@@ -34,7 +34,7 @@
   <div class="title-row">
     <div>
       <h1>Policies</h1>
-      <p class="subtitle">Which Fleet policies your computers pass and fail, on the latest run or on any day since this dashboard started, up to a year back. Covers macOS, Windows, and Linux.</p>
+      <p class="subtitle">Which AutoMDM policies your computers pass and fail, on the latest run or on any day since this dashboard started, up to a year back. Covers macOS, Windows, and Linux.</p>
     </div>
   </div>
   <div class="date-bar" id="date-bar"></div>
@@ -42,7 +42,7 @@
   <section class="hero" id="hero" aria-label="Summary"></section>
   <div class="stats" id="stats"></div>
   <div class="panel"><h3 id="by-type-h">By type</h3><div class="types" id="by-type"></div>
-    <p class="panel-note">Patch policies check that a Fleet-maintained app is on its latest version. Pick a type to see it on its own.</p></div>
+    <p class="panel-note">Patch policies check that an AutoMDM-maintained app is on its latest version. Pick a type to see it on its own.</p></div>
 
   <section class="sec" aria-labelledby="trend-h">
     <div class="sec-head">
@@ -66,17 +66,17 @@
     <summary>How this is measured</summary>
     <div class="cols">
       <div>
-        <p><span class="term">Results:</span> each computer's latest result for every policy that applies to it, from Fleet's Get host. "No result" means the policy hasn't run on that computer yet, for example right after it was added.</p>
-        <p><span class="term">Who's counted:</span> macOS, Windows, and Linux computers that checked in to Fleet in the last 30 days and have at least one policy.</p>
+        <p><span class="term">Results:</span> each computer's latest result for every policy that applies to it, from AutoMDM's Get host. "No result" means the policy hasn't run on that computer yet, for example right after it was added.</p>
+        <p><span class="term">Who's counted:</span> macOS, Windows, and Linux computers that checked in to AutoMDM in the last 30 days and have at least one policy.</p>
       </div>
       <div>
-        <p><span class="term">Past days:</span> each run saves every policy's counts for the day, and the last run of a day wins. Fleet doesn't keep past results, so history starts the day this dashboard started, and a day without a run shows the last run before it. Lists of failing computers show for the latest run only.</p>
+        <p><span class="term">Past days:</span> each run saves every policy's counts for the day, and the last run of a day wins. AutoMDM doesn't keep past results, so history starts the day this dashboard started, and a day without a run shows the last run before it. Lists of failing computers show for the latest run only.</p>
         <p><span class="term">Pass rate:</span> passing results out of passing and failing results. Computers with no result yet aren't counted.</p>
       </div>
       <div>
         <p><span class="term">Passing every policy:</span> a computer with at least one passing result and no failing ones, counted for the type you pick.</p>
-        <p><span class="term">Patch policies:</span> the policies Fleet keeps for Fleet-maintained apps, which pass when the app is on its latest version. Every other policy is under "Other policies."</p>
-        <p><span class="term">Critical only:</span> limits every count to the policies marked critical in Fleet. It works with any type, so you can see critical patch policies or the other critical policies on their own.</p>
+        <p><span class="term">Patch policies:</span> the policies AutoMDM keeps for AutoMDM-maintained apps, which pass when the app is on its latest version. Every other policy is under "Other policies."</p>
+        <p><span class="term">Critical only:</span> limits every count to the policies marked critical in AutoMDM. It works with any type, so you can see critical patch policies or the other critical policies on their own.</p>
         <p><span class="term">Charts:</span> each policy gets one bar that adds up to 100% of its computers, so you can compare policies down the list. Pie charts can't be compared that way.</p>
       </div>
     </div>
@@ -91,7 +91,7 @@
 <script>
 const DAYS = DATA.days;
 const KEYS = DATA.keys.map((k) => { const i = k.lastIndexOf("|"); return [k.slice(0, i), k.slice(i + 1)]; });
-const fleets = [...new Set(KEYS.map(([f]) => f))].sort();
+const teams = [...new Set(KEYS.map(([f]) => f))].sort();
 const platformCounts = {};
 for (const x of Object.values(DATA.hosts)) platformCounts[x.p] = (platformCounts[x.p] || 0) + 1;
 const PLATFORM_NAMES = { darwin: "macOS", windows: "Windows", linux: "Linux", chrome: "ChromeOS" };
@@ -116,13 +116,13 @@ const scope = () => CRIT ? { all: "critical policies", patch: "critical patch po
   : KINDS.find(([k]) => k === KIND)[1].toLowerCase();
 const filtered = () => KIND !== "all" || CRIT;
 
-const keyOk = (ki) => inFleet(KEYS[ki][0]) && inPlatform(KEYS[ki][1]);
+const keyOk = (ki) => inTeam(KEYS[ki][0]) && inPlatform(KEYS[ki][1]);
 const noun = (n) => (PLATFORM === "macos" ? fmt.plural(n, "Mac") : fmt.plural(n, "computer"));
 const nounWord = (plural) => (PLATFORM === "macos" ? (plural ? "Macs" : "Mac") : (plural ? "computers" : "computer"));
 const policiesN = (n) => `${fmt.n(n)} ${n === 1 ? "policy" : "policies"}`;
 const platformsOf = (p) => (p ? p.split(",").map((x) => PLATFORM_NAMES[x.trim()] || x.trim()).join(", ") : "All platforms");
 
-// Each policy's counts on day i, summed over the selected fleets and platforms, for one type.
+// Each policy's counts on day i, summed over the selected teams and platforms, for one type.
 function policiesOn(i, kind = KIND, crit = CRIT) {
   const out = [];
   for (const [pid, byKey] of Object.entries(DAYS[i][1])) {
@@ -130,8 +130,8 @@ function policiesOn(i, kind = KIND, crit = CRIT) {
     let pass = 0, fail = 0, none = 0;
     for (const [ki, p, f, n] of byKey) if (keyOk(ki)) { pass += p; fail += f; none += n; }
     if (!(pass + fail + none)) continue;
-    const [name, critical, platform, fleet] = DATA.policies[pid] || [`Policy ${pid}`, 0, "", ""];
-    out.push({ _id: pid, id: pid, name, critical: !!critical, platform, fleet, patch: isPatch(pid), pass, fail, none, rate: pass + fail ? (100 * pass) / (pass + fail) : null });
+    const [name, critical, platform, team] = DATA.policies[pid] || [`Policy ${pid}`, 0, "", ""];
+    out.push({ _id: pid, id: pid, name, critical: !!critical, platform, team, patch: isPatch(pid), pass, fail, none, rate: pass + fail ? (100 * pass) / (pass + fail) : null });
   }
   return out;
 }
@@ -141,7 +141,7 @@ function countsOn(date) {
   const t = (DATA.trend || []).find(([d]) => d === date);
   for (const [k, c] of Object.entries(t ? t[1] : {})) {
     const i = k.lastIndexOf("|");
-    if (inFleet(k.slice(0, i)) && inPlatform(k.slice(i + 1))) for (const f in r) r[f] += c[prefix() + f] || 0;
+    if (inTeam(k.slice(0, i)) && inPlatform(k.slice(i + 1))) for (const f in r) r[f] += c[prefix() + f] || 0;
   }
   return r;
 }
@@ -182,12 +182,12 @@ function failSpark(pid) {
 function detail(r) {
   const latest = dayIdx === DAYS.length - 1;
   const cur = DATA.current[r.id];
-  const fails = latest ? (DATA.failing[r.id] || []).filter((hid) => DATA.hosts[hid] && inFleet(DATA.hosts[hid].f) && inPlatform(DATA.hosts[hid].p)) : [];
+  const fails = latest ? (DATA.failing[r.id] || []).filter((hid) => DATA.hosts[hid] && inTeam(DATA.hosts[hid].f) && inPlatform(DATA.hosts[hid].p)) : [];
   return h("div", { class: "detail-grid" },
     h("div", {},
       h("h4", {}, "Description"), h("p", {}, cur && cur.d ? cur.d : "---"),
       cur && cur.r ? [h("h4", {}, "Resolution"), h("p", {}, cur.r)] : null,
-      h("p", { class: "cell-sub" }, `${platformsOf(r.platform)} · ${r.fleet || "All fleets"}`)),
+      h("p", { class: "cell-sub" }, `${platformsOf(r.platform)} · ${r.team || "All teams"}`)),
     h("div", {}, h("h4", {}, "Failing share, last 90 days"), failSpark(r.id)),
     h("div", {}, h("h4", {}, latest ? `Failing ${nounWord(true)}` : `Failing ${nounWord(true)} (latest run only)`),
       !latest ? h("p", {}, "Pick the latest run to see which computers fail.")
@@ -274,7 +274,7 @@ function render() {
   const pf = prefix();
   renderTrend([pf + "computers", pf + "all_pass", pf + "any_fail", pf + "passed", pf + "failed"], [
     { title: filtered() ? `Pass rate, ${scope()}` : "Policy pass rate", series: [{ label: "Pass rate", color: "var(--good)", value: (r) => pct(r[pf + "passed"], r[pf + "passed"] + r[pf + "failed"]) }], yFmt: fmt.pct, yMax: 100,
-      note: "Passing results out of passing and failing results, for the selected fleets and platforms." },
+      note: "Passing results out of passing and failing results, for the selected teams and platforms." },
     { title: "Computers passing every policy", series: [{ label: "Passing every policy", color: "var(--info)", value: (r) => pct(r[pf + "all_pass"], r[pf + "computers"]) }], yFmt: fmt.pct, yMax: 100,
       note: filtered() ? `Computers with at least one passing result and no failing ones, counting ${scope()} only.` : "Computers with at least one passing result and no failing ones." },
   ]);
@@ -292,12 +292,12 @@ function render() {
       el.focus();
       el.setSelectionRange(el.value.length, el.value.length);
     } });
-  mount("pol-tools", search, visible.length ? copyButton("Copy as CSV", () => csv([["date", "policy", "type", "fleet", "platforms", "critical", "pass", "fail", "no_result", "pass_rate"],
-    ...visible.map((r) => [date, r.name, r.patch ? "patch" : "other", r.fleet || "All fleets", platformsOf(r.platform), r.critical ? "yes" : "no", r.pass, r.fail, r.none, r.rate == null ? "" : Math.round(r.rate * 10) / 10])])) : null);
+  mount("pol-tools", search, visible.length ? copyButton("Copy as CSV", () => csv([["date", "policy", "type", "team", "platforms", "critical", "pass", "fail", "no_result", "pass_rate"],
+    ...visible.map((r) => [date, r.name, r.patch ? "patch" : "other", r.team || "All teams", platformsOf(r.platform), r.critical ? "yes" : "no", r.pass, r.fail, r.none, r.rate == null ? "" : Math.round(r.rate * 10) / 10])])) : null);
   mount("pol-legend", RESULTS.map(([, label, tone]) => h("span", {}, h("i", { style: `background:var(--${tone})` }), label)));
   const columns = [
     { key: "name", label: "Policy", value: (r) => r.name.toLowerCase(), cell: (r) => [h("span", { class: "cell-main" }, r.name), r.critical && !CRIT ? h("span", { class: "tag" }, "Critical") : null, KIND === "all" && r.patch ? h("span", { class: "tag" }, "Patch") : null,
-      h("span", { class: "tag" }, r.fleet || "All fleets")] },
+      h("span", { class: "tag" }, r.team || "All teams")] },
     { key: "results", label: "Results", value: (r) => r.fail / Math.max(1, r.pass + r.fail + r.none), cell: (r) => [stack(r), h("span", { class: "cell-sub" }, `${fmt.n(r.pass)} pass · ${fmt.n(r.fail)} fail`)] },
     { key: "fail", label: "Failing", num: true, value: (r) => r.fail },
     { key: "rate", label: "Pass rate", num: true, value: (r) => r.rate, cell: (r) => fmt.pct(r.rate) },
@@ -306,9 +306,9 @@ function render() {
   mount("pol", groups.length ? sortTable({ columns, groups, sort: ["fail", "desc"], detail, id: "pol-table" })
     : empty(query ? "No policy matches" : "Nothing to show", query ? "Try a shorter search." : "Turn on a group above to see its policies."));
 
-  document.getElementById("foot").textContent = `Data from ${DATA.fleet_url.replace(/^https?:\/\//, "")} via the Fleet API (Get host). Rebuilt on each run.`;
+  document.getElementById("foot").textContent = `Data from ${DATA.automdm_url.replace(/^https?:\/\//, "")} via the AutoMDM API (Get host). Rebuilt on each run.`;
 }
 
-renderTop(fleets, render, platformCounts);
+renderTop(teams, render, platformCounts);
 render();
 </script>

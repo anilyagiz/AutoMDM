@@ -81,7 +81,7 @@ const InstallAllInCategoryButton = ({
         onClick={() => setShowModal(true)}
         disabled={isDisabled}
       >
-        <Icon name="install" color="ui-fleet-black-75" />
+        <Icon name="install" color="ui-automdm-black-75" />
         {label}
       </Button>
       {showModal && (

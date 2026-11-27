@@ -43,7 +43,7 @@ describe("CustomLink - component", () => {
   it("renders the small external link icon inside a small-size context", () => {
     render(
       <CustomLinkSizeContext.Provider value="small">
-        <CustomLink url="https://fleetdm.com/docs" text="Learn more" newTab />
+        <CustomLink url="https://automdm.com/docs" text="Learn more" newTab />
       </CustomLinkSizeContext.Provider>
     );
 

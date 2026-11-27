@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # HP Prime Virtual Calculator ships as a WiX Burn bundle; /quiet /norestart
 # installs it silently machine-wide.

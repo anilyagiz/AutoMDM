@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	hostctx "github.com/fleetdm/fleet/v4/server/contexts/host"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	hostctx "github.com/anilyagiz/automdm/v4/server/contexts/host"
+	"github.com/anilyagiz/automdm/v4/server/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -22,25 +22,25 @@ func TestQueryResultRowsUnchanged(t *testing.T) {
 		}
 		return new(json.RawMessage(d))
 	}
-	incoming := func(ds ...string) []*fleet.ScheduledQueryResultRow {
-		var rows []*fleet.ScheduledQueryResultRow
+	incoming := func(ds ...string) []*automdm.ScheduledQueryResultRow {
+		var rows []*automdm.ScheduledQueryResultRow
 		for _, d := range ds {
-			rows = append(rows, &fleet.ScheduledQueryResultRow{Data: data(d)})
+			rows = append(rows, &automdm.ScheduledQueryResultRow{Data: data(d)})
 		}
 		return rows
 	}
-	stored := func(ds ...string) []*fleet.StoredQueryResultRow {
-		var rows []*fleet.StoredQueryResultRow
+	stored := func(ds ...string) []*automdm.StoredQueryResultRow {
+		var rows []*automdm.StoredQueryResultRow
 		for i, d := range ds {
-			rows = append(rows, &fleet.StoredQueryResultRow{ID: uint(i + 1), Data: data(d)}) //nolint:gosec // dismiss G115
+			rows = append(rows, &automdm.StoredQueryResultRow{ID: uint(i + 1), Data: data(d)}) //nolint:gosec // dismiss G115
 		}
 		return rows
 	}
 
 	cases := []struct {
 		name   string
-		rows   []*fleet.ScheduledQueryResultRow
-		stored []*fleet.StoredQueryResultRow
+		rows   []*automdm.ScheduledQueryResultRow
+		stored []*automdm.StoredQueryResultRow
 		want   bool
 	}{
 		{"nothing stored", incoming(`{"a":"1"}`), nil, false},
@@ -64,10 +64,10 @@ func TestQueryResultRowsUnchanged(t *testing.T) {
 
 func TestQueryResultRowsLastFetchedStale(t *testing.T) {
 	now := time.Now()
-	stored := func(ages ...time.Duration) []*fleet.StoredQueryResultRow {
-		rows := make([]*fleet.StoredQueryResultRow, 0, len(ages))
+	stored := func(ages ...time.Duration) []*automdm.StoredQueryResultRow {
+		rows := make([]*automdm.StoredQueryResultRow, 0, len(ages))
 		for _, age := range ages {
-			rows = append(rows, &fleet.StoredQueryResultRow{LastFetched: now.Add(-age)})
+			rows = append(rows, &automdm.StoredQueryResultRow{LastFetched: now.Add(-age)})
 		}
 		return rows
 	}
@@ -81,9 +81,9 @@ func TestSaveResultLogsToQueryReportsSkipsUnchanged(t *testing.T) {
 	lq := makeLiveQueryStore(t, 0)
 	svc, ctx := newTestService(t, ds, nil, lq)
 	serv := ((svc.(validationMiddleware)).Service).(*Service)
-	ctx = hostctx.NewContext(ctx, &fleet.Host{ID: 42})
+	ctx = hostctx.NewContext(ctx, &automdm.Host{ID: 42})
 
-	results := []*fleet.ScheduledQueryResult{
+	results := []*automdm.ScheduledQueryResult{
 		{
 			QueryName: "pack/Global/Same",
 			Snapshot:  []*json.RawMessage{new(json.RawMessage(`{"hour":"20"}`))},
@@ -95,14 +95,14 @@ func TestSaveResultLogsToQueryReportsSkipsUnchanged(t *testing.T) {
 			UnixTime:  1484078931,
 		},
 	}
-	queries := map[string]*fleet.Query{
-		"pack/Global/Same":    {ID: 1, Logging: fleet.LoggingSnapshot},
-		"pack/Global/Changed": {ID: 2, Logging: fleet.LoggingSnapshot},
+	queries := map[string]*automdm.Query{
+		"pack/Global/Same":    {ID: 1, Logging: automdm.LoggingSnapshot},
+		"pack/Global/Changed": {ID: 2, Logging: automdm.LoggingSnapshot},
 	}
 
 	storedLastFetched := time.Now().Add(-queryResultsLastFetchedRefreshAge - time.Hour)
-	stored := func(queryID, rowID uint) []*fleet.StoredQueryResultRow {
-		return []*fleet.StoredQueryResultRow{{
+	stored := func(queryID, rowID uint) []*automdm.StoredQueryResultRow {
+		return []*automdm.StoredQueryResultRow{{
 			ID:          rowID,
 			QueryID:     queryID,
 			HostID:      42,
@@ -110,15 +110,15 @@ func TestSaveResultLogsToQueryReportsSkipsUnchanged(t *testing.T) {
 			LastFetched: storedLastFetched,
 		}}
 	}
-	ds.QueryResultRowsForHostByQueryFunc = func(ctx context.Context, hostID uint, queryIDs []uint) (map[uint][]*fleet.StoredQueryResultRow, error) {
+	ds.QueryResultRowsForHostByQueryFunc = func(ctx context.Context, hostID uint, queryIDs []uint) (map[uint][]*automdm.StoredQueryResultRow, error) {
 		require.Equal(t, uint(42), hostID)
 		require.ElementsMatch(t, []uint{1, 2}, queryIDs)
-		return map[uint][]*fleet.StoredQueryResultRow{1: stored(1, 100), 2: stored(2, 200)}, nil
+		return map[uint][]*automdm.StoredQueryResultRow{1: stored(1, 100), 2: stored(2, 200)}, nil
 	}
 	var written []uint
-	ds.OverwriteQueryResultRowsFunc = func(ctx context.Context, rows []*fleet.ScheduledQueryResultRow, maxQueryReportRows, currentCount int) (fleet.QueryReportWriteResult, error) {
+	ds.OverwriteQueryResultRowsFunc = func(ctx context.Context, rows []*automdm.ScheduledQueryResultRow, maxQueryReportRows, currentCount int) (automdm.QueryReportWriteResult, error) {
 		written = append(written, rows[0].QueryID)
-		return fleet.QueryReportWriteResult{}, nil
+		return automdm.QueryReportWriteResult{}, nil
 	}
 	var recorded []uint
 	recordErr := error(nil)
@@ -133,7 +133,7 @@ func TestSaveResultLogsToQueryReportsSkipsUnchanged(t *testing.T) {
 
 	t.Run("unchanged rows are recorded instead of written", func(t *testing.T) {
 		reset()
-		serv.saveResultLogsToQueryReports(ctx, results, queries, fleet.DefaultMaxQueryReportRows)
+		serv.saveResultLogsToQueryReports(ctx, results, queries, automdm.DefaultMaxQueryReportRows)
 		require.Equal(t, []uint{2}, written)
 		require.Equal(t, []uint{100}, recorded)
 	})
@@ -141,7 +141,7 @@ func TestSaveResultLogsToQueryReportsSkipsUnchanged(t *testing.T) {
 	t.Run("unchanged rows with a recent last_fetched are neither recorded nor written", func(t *testing.T) {
 		reset()
 		storedLastFetched = time.Now().Add(-queryResultsLastFetchedRefreshAge / 2)
-		serv.saveResultLogsToQueryReports(ctx, results, queries, fleet.DefaultMaxQueryReportRows)
+		serv.saveResultLogsToQueryReports(ctx, results, queries, automdm.DefaultMaxQueryReportRows)
 		require.Equal(t, []uint{2}, written)
 		require.Empty(t, recorded)
 	})
@@ -149,23 +149,23 @@ func TestSaveResultLogsToQueryReportsSkipsUnchanged(t *testing.T) {
 	t.Run("rows are written if they can't be recorded", func(t *testing.T) {
 		reset()
 		recordErr = errors.New("redis down")
-		serv.saveResultLogsToQueryReports(ctx, results, queries, fleet.DefaultMaxQueryReportRows)
+		serv.saveResultLogsToQueryReports(ctx, results, queries, automdm.DefaultMaxQueryReportRows)
 		require.ElementsMatch(t, []uint{1, 2}, written)
 	})
 
 	t.Run("rows aren't written while too many are pending", func(t *testing.T) {
 		reset()
-		recordErr = fleet.ErrQueryResultsLastFetchedFull
-		serv.saveResultLogsToQueryReports(ctx, results, queries, fleet.DefaultMaxQueryReportRows)
+		recordErr = automdm.ErrQueryResultsLastFetchedFull
+		serv.saveResultLogsToQueryReports(ctx, results, queries, automdm.DefaultMaxQueryReportRows)
 		require.Equal(t, []uint{2}, written)
 	})
 
 	t.Run("stored rows can't be read", func(t *testing.T) {
 		reset()
-		ds.QueryResultRowsForHostByQueryFunc = func(ctx context.Context, hostID uint, queryIDs []uint) (map[uint][]*fleet.StoredQueryResultRow, error) {
+		ds.QueryResultRowsForHostByQueryFunc = func(ctx context.Context, hostID uint, queryIDs []uint) (map[uint][]*automdm.StoredQueryResultRow, error) {
 			return nil, context.DeadlineExceeded
 		}
-		serv.saveResultLogsToQueryReports(ctx, results, queries, fleet.DefaultMaxQueryReportRows)
+		serv.saveResultLogsToQueryReports(ctx, results, queries, automdm.DefaultMaxQueryReportRows)
 		require.ElementsMatch(t, []uint{1, 2}, written)
 		require.Empty(t, recorded)
 	})
@@ -175,7 +175,7 @@ func TestSaveResultLogsToQueryReportsSkipsUnchanged(t *testing.T) {
 		ds.QueryResultRowsForHostByQueryFuncInvoked = false
 		serv.liveQueryStore = nil
 		t.Cleanup(func() { serv.liveQueryStore = lq })
-		serv.saveResultLogsToQueryReports(ctx, results, queries, fleet.DefaultMaxQueryReportRows)
+		serv.saveResultLogsToQueryReports(ctx, results, queries, automdm.DefaultMaxQueryReportRows)
 		require.ElementsMatch(t, []uint{1, 2}, written)
 		require.False(t, ds.QueryResultRowsForHostByQueryFuncInvoked)
 	})
@@ -232,7 +232,7 @@ func TestSaveResultLogsToQueryReportsSkipsWhenBusy(t *testing.T) {
 	lq := makeLiveQueryStore(t, 0)
 	svc, ctx := newTestService(t, ds, nil, lq)
 	serv := ((svc.(validationMiddleware)).Service).(*Service)
-	ctx = hostctx.NewContext(ctx, &fleet.Host{ID: 42})
+	ctx = hostctx.NewContext(ctx, &automdm.Host{ID: 42})
 	serv.queryReportReadSem = make(chan struct{}, 1)
 	serv.queryReportWriteLimit = 1
 	writeSlotsHeld := 0
@@ -248,7 +248,7 @@ func TestSaveResultLogsToQueryReportsSkipsWhenBusy(t *testing.T) {
 		return nil
 	}
 
-	results := []*fleet.ScheduledQueryResult{
+	results := []*automdm.ScheduledQueryResult{
 		{
 			QueryName: "pack/Global/Same",
 			Snapshot:  []*json.RawMessage{new(json.RawMessage(`{"hour":"20"}`))},
@@ -260,19 +260,19 @@ func TestSaveResultLogsToQueryReportsSkipsWhenBusy(t *testing.T) {
 			UnixTime:  1484078931,
 		},
 	}
-	queries := map[string]*fleet.Query{
-		"pack/Global/Same":    {ID: 1, Logging: fleet.LoggingSnapshot},
-		"pack/Global/Changed": {ID: 2, Logging: fleet.LoggingSnapshot},
+	queries := map[string]*automdm.Query{
+		"pack/Global/Same":    {ID: 1, Logging: automdm.LoggingSnapshot},
+		"pack/Global/Changed": {ID: 2, Logging: automdm.LoggingSnapshot},
 	}
-	ds.QueryResultRowsForHostByQueryFunc = func(ctx context.Context, hostID uint, queryIDs []uint) (map[uint][]*fleet.StoredQueryResultRow, error) {
-		return map[uint][]*fleet.StoredQueryResultRow{
+	ds.QueryResultRowsForHostByQueryFunc = func(ctx context.Context, hostID uint, queryIDs []uint) (map[uint][]*automdm.StoredQueryResultRow, error) {
+		return map[uint][]*automdm.StoredQueryResultRow{
 			1: {{ID: 100, QueryID: 1, HostID: 42, Data: new(json.RawMessage(`{"hour": "20"}`))}},
 		}, nil
 	}
 	var written []uint
-	ds.OverwriteQueryResultRowsFunc = func(ctx context.Context, rows []*fleet.ScheduledQueryResultRow, maxQueryReportRows, currentCount int) (fleet.QueryReportWriteResult, error) {
+	ds.OverwriteQueryResultRowsFunc = func(ctx context.Context, rows []*automdm.ScheduledQueryResultRow, maxQueryReportRows, currentCount int) (automdm.QueryReportWriteResult, error) {
 		written = append(written, rows[0].QueryID)
-		return fleet.QueryReportWriteResult{}, nil
+		return automdm.QueryReportWriteResult{}, nil
 	}
 	var recorded []uint
 	lq.RecordQueryResultsLastFetchedOverride = func(rowIDs []uint, fetchedAt time.Time) error {
@@ -295,7 +295,7 @@ func TestSaveResultLogsToQueryReportsSkipsWhenBusy(t *testing.T) {
 		t.Cleanup(func() { <-serv.queryReportReadSem })
 
 		// Nothing can be compared, so the results are dropped without touching Redis or the database.
-		serv.saveResultLogsToQueryReports(ctx, results, queries, fleet.DefaultMaxQueryReportRows)
+		serv.saveResultLogsToQueryReports(ctx, results, queries, automdm.DefaultMaxQueryReportRows)
 		assert.False(t, ds.QueryResultRowsForHostByQueryFuncInvoked)
 		assert.Empty(t, recorded)
 		assert.Empty(t, written)
@@ -308,7 +308,7 @@ func TestSaveResultLogsToQueryReportsSkipsWhenBusy(t *testing.T) {
 		t.Cleanup(func() { writeSlotsHeld = 0 })
 
 		// Unchanged results are still recorded; only the changed one is dropped.
-		serv.saveResultLogsToQueryReports(ctx, results, queries, fleet.DefaultMaxQueryReportRows)
+		serv.saveResultLogsToQueryReports(ctx, results, queries, automdm.DefaultMaxQueryReportRows)
 		assert.True(t, ds.QueryResultRowsForHostByQueryFuncInvoked)
 		assert.Equal(t, []uint{100}, recorded)
 		assert.Empty(t, written)
@@ -318,7 +318,7 @@ func TestSaveResultLogsToQueryReportsSkipsWhenBusy(t *testing.T) {
 
 	t.Run("slots free", func(t *testing.T) {
 		reset()
-		serv.saveResultLogsToQueryReports(ctx, results, queries, fleet.DefaultMaxQueryReportRows)
+		serv.saveResultLogsToQueryReports(ctx, results, queries, automdm.DefaultMaxQueryReportRows)
 		assert.Equal(t, []uint{100}, recorded)
 		assert.Equal(t, []uint{2}, written)
 		assert.True(t, countsRead)
@@ -342,7 +342,7 @@ func TestSaveResultLogsToQueryReportsSkipsWhenBusy(t *testing.T) {
 			return acquireWrite(token, limit, lease)
 		}
 
-		serv.saveResultLogsToQueryReports(ctx, results, queries, fleet.DefaultMaxQueryReportRows)
+		serv.saveResultLogsToQueryReports(ctx, results, queries, automdm.DefaultMaxQueryReportRows)
 		assert.Equal(t, 1, heldWhileRecording)
 		assert.Zero(t, heldWhileAcquiringWrite)
 		assert.Empty(t, serv.queryReportReadSem)
@@ -353,7 +353,7 @@ func TestSaveResultLogsToQueryReportsSkipsWhenBusy(t *testing.T) {
 		writeSlotsHeld = 1
 		t.Cleanup(func() { writeSlotsHeld = 0 })
 
-		serv.saveResultLogsToQueryReports(ctx, results[:1], queries, fleet.DefaultMaxQueryReportRows)
+		serv.saveResultLogsToQueryReports(ctx, results[:1], queries, automdm.DefaultMaxQueryReportRows)
 		assert.Equal(t, []uint{100}, recorded)
 		assert.Empty(t, written)
 		assert.False(t, countsRead)

@@ -57,7 +57,7 @@
     padding: 0;
     &.white {
       .path {
-        stroke: $core-fleet-white;
+        stroke: $core-automdm-white;
       }
     }
     .loader {
@@ -84,13 +84,13 @@
   .path {
     stroke-dasharray: 1, 200;
     stroke-dashoffset: 0;
-    stroke: $core-fleet-green;
+    stroke: $core-automdm-green;
     animation: dash 1.5s ease-in-out infinite;
     stroke-linecap: round;
   }
 
   .background {
-    stroke: $ui-fleet-black-25;
+    stroke: $ui-automdm-black-25;
   }
 
   @keyframes rotate {

@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-const packagePrefix = "github.com/fleetdm/fleet/v4/server/archtest/test_files/"
+const packagePrefix = "github.com/anilyagiz/automdm/v4/server/archtest/test_files/"
 
 func TestPackage_ShouldNotDependOn(t *testing.T) {
 

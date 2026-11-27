@@ -6,7 +6,7 @@ terraform {
     }
   }
   backend "s3" {
-    bucket               = "fleet-terraform-state20220408141538466600000002"
+    bucket               = "automdm-terraform-state20220408141538466600000002"
     key                  = "dogfood/db-temp-restores/terraform.tfstate"
     workspace_key_prefix = "dogfood"
     region               = "us-east-2"
@@ -23,7 +23,7 @@ provider "aws" {
   default_tags {
     tags = {
       environment = "dogfood"
-      terraform   = "https://github.com/fleetdm/fleet/tree/main/infrastructure/dogfood/terraform/aws-tf-module/db-temp-restores"
+      terraform   = "https://github.com/anilyagiz/automdm/tree/main/infrastructure/dogfood/terraform/aws-tf-module/db-temp-restores"
       workspace   = terraform.workspace
     }
   }
@@ -32,12 +32,12 @@ provider "aws" {
 # Read shared VPC from remote state
 data "terraform_remote_state" "dogfood" {
   backend   = "s3"
-  workspace = "fleet"
+  workspace = "automdm"
   config = {
-    bucket         = "fleet-terraform-remote-state"
-    key            = "fleet"
+    bucket         = "automdm-terraform-remote-state"
+    key            = "automdm"
     region         = "us-east-2"
-    dynamodb_table = "fleet-terraform-state-lock"
+    dynamodb_table = "automdm-terraform-state-lock"
   }
 }
 
@@ -46,7 +46,7 @@ data "aws_region" "current" {}
 locals {
   tags = {
     environment = "dogfood"
-    terraform   = "https://github.com/fleetdm/fleet/tree/main/infrastructure/dogfood/terraform/aws-tf-module/db-temp-restores"
+    terraform   = "https://github.com/anilyagiz/automdm/tree/main/infrastructure/dogfood/terraform/aws-tf-module/db-temp-restores"
   }
   allowed_subnets = [
     "10.255.1.0/24",
@@ -64,7 +64,7 @@ locals {
     "victor"
   ]
   customers = {
-    fleet-dogfood-1 = "arn:aws:rds:us-east-2:160035666661:cluster-snapshot:rds:fleet-dogfood-1-2026-05-07-02-06"
+    automdm-dogfood-1 = "arn:aws:rds:us-east-2:160035666661:cluster-snapshot:rds:automdm-dogfood-1-2026-05-07-02-06"
   }
 }
 
@@ -125,7 +125,7 @@ module "dev_restore_dbs" {
   manage_master_user_password = true
 
   # Provide/confirm the master user (must match/override snapshot’s username)
-  master_username = "fleet" # <-- set to your cluster admin username
+  master_username = "automdm" # <-- set to your cluster admin username
 
   # Single instance, fixed size
   instances = {
@@ -182,7 +182,7 @@ module "mysql_dev_access" {
   # and plain-string secrets (fallback).
   admin_username = try(
     jsondecode(data.aws_secretsmanager_secret_version.aurora_master[each.key].secret_string).username,
-    "fleet" # fallback if username not present
+    "automdm" # fallback if username not present
   )
 
   admin_password = try(
@@ -191,7 +191,7 @@ module "mysql_dev_access" {
   )
 
   developers    = local.developers
-  database_name = "fleet"
+  database_name = "automdm"
 
   # Ensure the cluster exists before we try to connect
   depends_on = [module.dev_restore_dbs]

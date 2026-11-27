@@ -4,7 +4,7 @@ try {
 
 # Beekeeper Studio ships an electron-builder NSIS installer. /S runs it
 # silently; /allusers forces a per-machine install so the app is reachable
-# from Fleet's SYSTEM context (matches the winget machine-scope switch).
+# from AutoMDM's SYSTEM context (matches the winget machine-scope switch).
 $processOptions = @{
   FilePath = "$exeFilePath"
   ArgumentList = "/S", "/allusers"

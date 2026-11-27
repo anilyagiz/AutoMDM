@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/ee/pkg/hostidentity/types"
-	"github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/ee/pkg/hostidentity/types"
+	"github.com/anilyagiz/automdm/v4/server/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -36,7 +36,7 @@ func TestMiddlewareUniformErrorResponses(t *testing.T) {
 	}))
 
 	do := func(setup func(*http.Request)) *httptest.ResponseRecorder {
-		req := httptest.NewRequest("POST", "https://fleet.example.com/api/fleet/orbit/config", strings.NewReader("{}"))
+		req := httptest.NewRequest("POST", "https://automdm.example.com/api/automdm/orbit/config", strings.NewReader("{}"))
 		setup(req)
 		rr := httptest.NewRecorder()
 		handler.ServeHTTP(rr, req)
@@ -74,13 +74,13 @@ func TestHandleInternalErrorStatusAndGenericBody(t *testing.T) {
 	ctx := context.Background()
 
 	rr := httptest.NewRecorder()
-	handleInternalError(ctx, rr, errors.New("could not extract host identity certificate key: path=/api/fleet/orbit/config"))
+	handleInternalError(ctx, rr, errors.New("could not extract host identity certificate key: path=/api/automdm/orbit/config"))
 	require.Equal(t, http.StatusInternalServerError, rr.Code)
 	require.NotContains(t, rr.Body.String(), "path=")
 	require.NotContains(t, rr.Body.String(), "certificate")
 
 	rr = httptest.NewRecorder()
-	handleError(ctx, rr, errors.New("request not verified: path=/api/fleet/orbit/config"))
+	handleError(ctx, rr, errors.New("request not verified: path=/api/automdm/orbit/config"))
 	require.Equal(t, http.StatusUnauthorized, rr.Code)
 	require.NotContains(t, rr.Body.String(), "path=")
 }

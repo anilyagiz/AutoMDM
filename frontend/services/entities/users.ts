@@ -21,10 +21,10 @@ export interface ISortOption {
   desc: boolean;
 }
 
-/** The API only needs a fleet's id and role. Sending back the whole fleet carries both names of renamed settings. */
-export const toFleetRoles = <T extends { id: number; role?: string }>(
-  fleets?: T[]
-) => fleets?.map(({ id, role }) => ({ id, role }));
+/** The API only needs a team's id and role. Sending back the whole fleet carries both names of renamed settings. */
+export const toTeamRoles = <T extends { id: number; role?: string }>(
+  teams?: T[]
+) => teams?.map(({ id, role }) => ({ id, role }));
 
 interface IUserSearchOptions {
   page?: number;
@@ -49,7 +49,7 @@ interface IRequirePasswordReset {
 
 export interface IGetMeResponse {
   user: IUser;
-  available_fleets: ITeamSummary[];
+  available_teams: ITeamSummary[];
   settings: IUserSettings;
 }
 
@@ -86,7 +86,7 @@ export default {
   createApiOnlyUser: (formData: {
     name: string;
     global_role?: string | null;
-    fleets?: INewTeamUser[];
+    teams?: INewTeamUser[];
     api_endpoints?: IApiEndpointRef[] | null;
   }): Promise<{ user: IUser; token?: string }> => {
     const { USERS_API_ONLY } = endpoints;
@@ -142,7 +142,7 @@ export default {
   loadAll: ({ globalFilter = "", teamId }: IUserSearchOptions = {}) => {
     const queryParams = {
       query: globalFilter,
-      fleet_id: teamId,
+      team_id: teamId,
     };
 
     const queryString = buildQueryStringFromParams(queryParams);
@@ -159,10 +159,10 @@ export default {
     // include the user's settings when calling from the UI
     const path = `${endpoints.ME}?include_ui_settings=true`;
     return sendRequest("GET", path).then(
-      ({ user, available_fleets, settings }) => {
+      ({ user, available_teams, settings }) => {
         return {
           user: helpers.addGravatarUrlToResource(user),
-          available_fleets,
+          available_teams,
           settings,
         };
       }
@@ -202,8 +202,8 @@ export default {
   update: (userId: number, formData: IUpdateUserFormData) => {
     const { USERS } = endpoints;
     const path = `${USERS}/${userId}`;
-    const body = formData.fleets
-      ? { ...formData, fleets: toFleetRoles(formData.fleets) }
+    const body = formData.teams
+      ? { ...formData, teams: toTeamRoles(formData.teams) }
       : formData;
 
     return sendRequest("PATCH", path, body).then((response) =>

@@ -39,7 +39,7 @@ export interface IQueriesTableProps {
     query?: string;
     order_key?: string;
     order_direction?: "asc" | "desc";
-    fleet_id?: string;
+    team_id?: string;
   };
   currentTeamId?: number;
   isPremiumTier?: boolean;
@@ -150,7 +150,7 @@ const QueriesTable = ({
       ) {
         newQueryParams.page = "0";
       }
-      newQueryParams.fleet_id = queryParams?.fleet_id;
+      newQueryParams.team_id = queryParams?.team_id;
 
       const locationPath = getNextLocationPath({
         pathPrefix: PATHS.MANAGE_REPORTS,
@@ -174,7 +174,7 @@ const QueriesTable = ({
     ]
   );
 
-  const isAllFleets =
+  const isAllAutoMDMs =
     isPremiumTier &&
     (typeof currentTeamId === "undefined" ||
       currentTeamId === null ||
@@ -183,15 +183,15 @@ const QueriesTable = ({
   let emptyHeader = "No reports yet";
   // Primo mode uses a generic empty state header
   if (isPremiumTier && !config?.partnerships?.enable_primo) {
-    emptyHeader = isAllFleets
-      ? "No reports apply to all fleets"
-      : "No reports for this fleet";
+    emptyHeader = isAllAutoMDMs
+      ? "No reports apply to all teams"
+      : "No reports for this team";
   }
 
   const emptyParams: IEmptyStateProps = {
     header: emptyHeader,
     info:
-      "Reports are queries that run on a schedule. Results are saved in Fleet.",
+      "Reports are queries that run on a schedule. Results are saved in AutoMDM.",
     primaryButton: canAddReport ? (
       <Button onClick={onAddReportClick} type="button">
         Add report
@@ -230,7 +230,7 @@ const QueriesTable = ({
     if (row.original.id) {
       router?.push(
         getPathWithQueryParams(PATHS.REPORT_DETAILS(row.original.id), {
-          fleet_id: currentTeamId,
+          team_id: currentTeamId,
         })
       );
     }

@@ -5,14 +5,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/mock"
 )
 
 // MockLiveQuery allows mocking a live query store.
 type MockLiveQuery struct {
 	mock.Mock
-	fleet.LiveQueryStore
+	automdm.LiveQueryStore
 	StopQueryOverride                        func(name string) error
 	GetQueryResultsCountsOverride            func(queryIDs []uint) (map[uint]int, error)
 	IncrQueryResultsCountsOverride           func(queryIDsToAmounts map[uint]int) error
@@ -35,7 +35,7 @@ type MockLiveQuery struct {
 	ReleaseQueryReportWriteSlotOverride func(token string) error
 }
 
-var _ fleet.LiveQueryStore = (*MockLiveQuery)(nil)
+var _ automdm.LiveQueryStore = (*MockLiveQuery)(nil)
 
 // New allocates a mocked live query store.
 func New(t *testing.T) *MockLiveQuery {

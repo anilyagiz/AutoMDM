@@ -40,12 +40,12 @@ const ExamplePayload = (): JSX.Element => {
       {
         id: 1,
         display_name: "macbook-1",
-        url: "https://fleet.example.com/hosts/1",
+        url: "https://automdm.example.com/hosts/1",
       },
       {
         id: 2,
         display_name: "macbbook-2",
-        url: "https://fleet.example.com/hosts/2",
+        url: "https://automdm.example.com/hosts/2",
       },
     ],
   };

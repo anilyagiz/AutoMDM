@@ -6,4 +6,4 @@ else
 export USE_MDM=1
 fi
 
-source $FLEET_ENV_PATH
+source $AUTOMDM_ENV_PATH

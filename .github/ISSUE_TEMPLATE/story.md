@@ -1,6 +1,6 @@
 ---
 name: 🎟  Story
-about: Specify an iterative change to the Fleet product.  (e.g. "As a user, I want to sign in with SSO.")
+about: Specify an iterative change to the AutoMDM product.  (e.g. "As a user, I want to sign in with SSO.")
 title: ''
 labels: 'story'
 assignees: ''
@@ -8,7 +8,7 @@ assignees: ''
 ---
 
 <!-- **This issue's remaining effort can be completed in ≤1 sprint.  It will be valuable even if nothing else ships.**
-It is [planned and ready](https://fleetdm.com/handbook/company/development-groups#making-changes) to implement.  It is on the proper kanban board. -->
+It is [planned and ready](https://automdm.com/handbook/company/development-groups#making-changes) to implement.  It is on the proper kanban board. -->
 
 
 ## Goal
@@ -22,21 +22,21 @@ It is [planned and ready](https://fleetdm.com/handbook/company/development-group
 ## Changes
 
 ### Product
-- [ ] UI changes: TODO <!-- Insert the link to the relevant Figma "Ready" page. If there are substantial UI changes at one of Fleet's breakpoints (480, 768, 1024, 1280, and 1440px), make sure wireframes show the UI at the relevant breakpoint(s). Put "No changes" if there are no changes to the user interface. -->
-- [ ] CLI (fleetctl) usage changes: TODO <!-- Insert the link to the relevant Figma cover page. Put "No changes" if there are no changes to the CLI. -->
-- [ ] YAML changes: TODO <!-- Specify changes in the YAML files doc page as a PR to the reference docs release branch following the guidelines in the handbook here: https://fleetdm.com/handbook/product-design#drafting Put "No changes" if there are no changes necessary. -->
-- [ ] REST API changes: TODO <!-- Specify changes as a PR to reference docs release branch following the guidelines in the handbook here: https://fleetdm.com/handbook/product-design#drafting Put "No changes" if there are no changes necessary. Move this item to the engineering list below if engineering will design the API changes. -->
-- [ ] Fleet's agent (fleetd) changes: TODO <!-- Specify changes to fleetd. If the change requires a new Fleet (server) version, consider specifying to only enable this change in new Fleet versions. If there are new tables, specify changes in the schema/ folder as a PR to the reference docs release branch following the guidelines in the handbook here: https://fleetdm.com/handbook/product-design#drafting Put "No changes" if there are no changes necessary. -->
-- [ ] Fleet server configuration changes: TODO <!-- Specify changes in the Fleet server configuration doc page as a PR to reference docs release branch following the guidelines in the handbook here: https://fleetdm.com/handbook/product-design#drafting File a :help-customers request and assign the SVP of Customer Success. Up to Customer Success to device if any changes to cloud environments is needed. Put "No changes" if there are no changes necessary. -->
-- [ ] Exposed, public API endpoint changes: TODO <!-- Specify changes in the "Which API endpoints to expose to the public internet?" guide as a PR to reference docs release branch following the guidelines in the handbook here: https://fleetdm.com/handbook/product-design#drafting File a :help-customers request and assign the SVP of Customer Success. Up to Customer Success to device if any changes to cloud environments is needed.  Put "No changes" if there are no changes necessary. -->
-- [ ] fleetdm.com changes: TODO <!-- Does this story include changes to fleetdm.com? (e.g. new API endpoints) If yes, create a blank subtask with the #g-website label, assign @eashaw, and add @eashaw and @lukeheath to the next design review meeting. fleetdm.com changes are up to @eashaw -->
+- [ ] UI changes: TODO <!-- Insert the link to the relevant Figma "Ready" page. If there are substantial UI changes at one of AutoMDM's breakpoints (480, 768, 1024, 1280, and 1440px), make sure wireframes show the UI at the relevant breakpoint(s). Put "No changes" if there are no changes to the user interface. -->
+- [ ] CLI (automdmctl) usage changes: TODO <!-- Insert the link to the relevant Figma cover page. Put "No changes" if there are no changes to the CLI. -->
+- [ ] YAML changes: TODO <!-- Specify changes in the YAML files doc page as a PR to the reference docs release branch following the guidelines in the handbook here: https://automdm.com/handbook/product-design#drafting Put "No changes" if there are no changes necessary. -->
+- [ ] REST API changes: TODO <!-- Specify changes as a PR to reference docs release branch following the guidelines in the handbook here: https://automdm.com/handbook/product-design#drafting Put "No changes" if there are no changes necessary. Move this item to the engineering list below if engineering will design the API changes. -->
+- [ ] AutoMDM's agent (automdmd) changes: TODO <!-- Specify changes to automdmd. If the change requires a new AutoMDM (server) version, consider specifying to only enable this change in new AutoMDM versions. If there are new tables, specify changes in the schema/ folder as a PR to the reference docs release branch following the guidelines in the handbook here: https://automdm.com/handbook/product-design#drafting Put "No changes" if there are no changes necessary. -->
+- [ ] AutoMDM server configuration changes: TODO <!-- Specify changes in the AutoMDM server configuration doc page as a PR to reference docs release branch following the guidelines in the handbook here: https://automdm.com/handbook/product-design#drafting File a :help-customers request and assign the SVP of Customer Success. Up to Customer Success to device if any changes to cloud environments is needed. Put "No changes" if there are no changes necessary. -->
+- [ ] Exposed, public API endpoint changes: TODO <!-- Specify changes in the "Which API endpoints to expose to the public internet?" guide as a PR to reference docs release branch following the guidelines in the handbook here: https://automdm.com/handbook/product-design#drafting File a :help-customers request and assign the SVP of Customer Success. Up to Customer Success to device if any changes to cloud environments is needed.  Put "No changes" if there are no changes necessary. -->
+- [ ] automdm.com changes: TODO <!-- Does this story include changes to automdm.com? (e.g. new API endpoints) If yes, create a blank subtask with the #g-website label, assign @eashaw, and add @eashaw and @lukeheath to the next design review meeting. automdm.com changes are up to @eashaw -->
 - [ ] GitOps mode UI changes: TODO <!-- Specify UI changes for read-only GitOps mode. Put "No changes" if there are no changes necessary. -->
-- [ ] GitOps generation changes: TODO <!-- Specify changes to results from the fleetctl generate-gitops command. Put "No changes" if there are no changes necessary. -->
-- [ ] Activity changes: TODO <!-- Specify the display name that will appear on the dashboard ("type" filter) and changes to the Audit log page in the contributor docs as a PR to reference docs release branch following the guidelines in the handbook here: https://fleetdm.com/handbook/product-design#drafting Put "No changes" if there are no changes necessary. -->
-- [ ] Permissions changes: TODO <!-- Specify changes in the permissions doc page here: https://fleetdm.com/docs/using-fleet/manage-access as a PR to the reference docs release branch. For each new or changed permission, also specify which roles have access by adding or updating role bubbles (e.g. ((Admin)), ((Maintainer)), ((GitOps)), ((Technician)), ((Observer+)), ((Observer))) in the REST API docs (https://fleetdm.com/docs/api/rest-api) in the same PR. Put "No changes" if there are no permissions changes. -->
-- [ ] Changes to paid features or tiers: TODO  <!-- Specify changes in pricing-features-table.yml as a PR to reference docs release branch. Specify "Fleet Free" and/or "Fleet Premium" if there are no changes to the pricing page necessary. -->
-- [ ] My device and fleetdm.com/better changes: TODO <!-- If there are changes to the personal information Fleet can see on end user workstations, make sure wireframes include changes to the My device page. Also, specify changes as a PR to the fleetdm.com/better (aka Transparency page). Put "No changes" if there are no changes necessary. -->
-- [ ] Usage statistics: TODO <!-- Specify changes in the Fleet usage statistics guide as a PR to reference docs release branch. Put "No changes" if there are no changes necessary. -->
+- [ ] GitOps generation changes: TODO <!-- Specify changes to results from the automdmctl generate-gitops command. Put "No changes" if there are no changes necessary. -->
+- [ ] Activity changes: TODO <!-- Specify the display name that will appear on the dashboard ("type" filter) and changes to the Audit log page in the contributor docs as a PR to reference docs release branch following the guidelines in the handbook here: https://automdm.com/handbook/product-design#drafting Put "No changes" if there are no changes necessary. -->
+- [ ] Permissions changes: TODO <!-- Specify changes in the permissions doc page here: https://automdm.com/docs/using-automdm/manage-access as a PR to the reference docs release branch. For each new or changed permission, also specify which roles have access by adding or updating role bubbles (e.g. ((Admin)), ((Maintainer)), ((GitOps)), ((Technician)), ((Observer+)), ((Observer))) in the REST API docs (https://automdm.com/docs/api/rest-api) in the same PR. Put "No changes" if there are no permissions changes. -->
+- [ ] Changes to paid features or tiers: TODO  <!-- Specify changes in pricing-features-table.yml as a PR to reference docs release branch. Specify "AutoMDM Free" and/or "AutoMDM Premium" if there are no changes to the pricing page necessary. -->
+- [ ] My device and automdm.com/better changes: TODO <!-- If there are changes to the personal information AutoMDM can see on end user workstations, make sure wireframes include changes to the My device page. Also, specify changes as a PR to the automdm.com/better (aka Transparency page). Put "No changes" if there are no changes necessary. -->
+- [ ] Usage statistics: TODO <!-- Specify changes in the AutoMDM usage statistics guide as a PR to reference docs release branch. Put "No changes" if there are no changes necessary. -->
 - [ ] Compatibility: TODO <!-- If there are there are any breaking changes, outside of a major release, notify the Manager of Customer Support and Solutions Architecture. Put "No changes" if there are no changes necessary. -->
 - [ ] Other reference documentation changes: TODO <!-- Any other reference doc changes? Specify changes as a PR to reference docs release branch. Put "No changes" if there are no changes necessary. -->
 - [ ] First draft of test plan added
@@ -45,14 +45,14 @@ It is [planned and ready](https://fleetdm.com/handbook/company/development-group
 
 ### Engineering
 - [ ] Test plan is finalized
-- [ ] Contributor API changes: TODO <!-- Specify changes in the the Contributor API doc page as a PR to reference docs release branch following the guidelines in the handbook here: https://fleetdm.com/handbook/product-design#drafting Put "No changes" if there are no changes necessary. -->
-- [ ] Feature guide changes: TODO <!-- Specify if a new feature guide is required at fleetdm.com/guides, or if a previous guide should be updated to reflect feature changes. -->
+- [ ] Contributor API changes: TODO <!-- Specify changes in the the Contributor API doc page as a PR to reference docs release branch following the guidelines in the handbook here: https://automdm.com/handbook/product-design#drafting Put "No changes" if there are no changes necessary. -->
+- [ ] Feature guide changes: TODO <!-- Specify if a new feature guide is required at automdm.com/guides, or if a previous guide should be updated to reflect feature changes. -->
 - [ ] Database schema migrations: TODO <!-- Specify what changes to the database schema are required. (This will be used to change migration scripts accordingly.) Remove this checkbox if there are no changes necessary. -->
 - [ ] Load testing: TODO  <!-- List any required scalability testing to be conducted.  Remove this checkbox if there is no scalability testing required. -->
-- [ ] Pre-QA load test: TODO <!-- If this story has high risk of changing load profile, engineers must load-test prior to QA, with a subtask dedicated to that effort. Remove this checkbox if the change won't measurably modify Fleet's load profile, such that either load testing isn't needed at all or load testing is expected to be only performed during QA. -->
+- [ ] Pre-QA load test: TODO <!-- If this story has high risk of changing load profile, engineers must load-test prior to QA, with a subtask dedicated to that effort. Remove this checkbox if the change won't measurably modify AutoMDM's load profile, such that either load testing isn't needed at all or load testing is expected to be only performed during QA. -->
 - [ ] Load testing/osquery-perf improvements: TODO <!-- List, or link a subtask for, any osquery-perf or load test environment changes required to comprehensively load test this story if load testing is needed. -->
 
-> ℹ️  Please read this issue carefully and understand it.  Pay [special attention](https://fleetdm.com/handbook/company/development-groups#developing-from-wireframes) to UI wireframes, especially "dev notes".
+> ℹ️  Please read this issue carefully and understand it.  Pay [special attention](https://automdm.com/handbook/company/development-groups#developing-from-wireframes) to UI wireframes, especially "dev notes".
 
 ### Risk assessment
 
@@ -63,7 +63,7 @@ It is [planned and ready](https://fleetdm.com/handbook/company/development-group
 
 ### Test plan
 <!-- Add detailed manual testing steps for all affected user roles. -->
-> Make sure to go through [the list](https://github.com/fleetdm/fleet/blob/main/docs/Contributing/guides/ui/design-qa-considerations.md) and consider all events that might be related to this story, so we catch edge cases earlier.
+> Make sure to go through [the list](https://github.com/anilyagiz/automdm/blob/main/docs/Contributing/guides/ui/design-qa-considerations.md) and consider all events that might be related to this story, so we catch edge cases earlier.
 
 #### Core flow
 <!-- Product TO DO -->
@@ -78,7 +78,7 @@ It is [planned and ready](https://fleetdm.com/handbook/company/development-group
 #### UI
 - [ ] Verify that all UI changes specified in the Figma wireframes are correctly implemented
 - [ ] Verify expected UI states (loading, empty, error states if applicable)
-- [ ] Verify the UI at Fleet's breakpoints (480, 768, 1024, 1280, 1440px) — no clipped controls, no horizontal scroll, no overlapping text
+- [ ] Verify the UI at AutoMDM's breakpoints (480, 768, 1024, 1280, 1440px) — no clipped controls, no horizontal scroll, no overlapping text
 
 #### API
 - [ ] Test all API endpoints added or modified in the **API changes** section of this issue
@@ -87,20 +87,20 @@ It is [planned and ready](https://fleetdm.com/handbook/company/development-group
 - [ ] Verify that the new endpoints are available for granular API assignment during API-only user creation
 
 #### GitOps (generate + run)
-- [ ] Configure the feature through the UI and run `fleetctl generate-gitops`
+- [ ] Configure the feature through the UI and run `automdmctl generate-gitops`
 - [ ] Confirm the generated `.yml` includes the expected fields (compare with YAML changes in the Product section)
-- [ ] Modify the generated `.yml` and run `fleetctl gitops`
-- [ ] Confirm the configuration updates correctly in Fleet
+- [ ] Modify the generated `.yml` and run `automdmctl gitops`
+- [ ] Confirm the configuration updates correctly in AutoMDM
 - [ ] Enable GitOps mode and verify the feature behaves correctly
-- [ ] Create a new fleet and apply the feature for the first time together with the fleet creation
+- [ ] Create a new team and apply the feature for the first time together with the team creation
 
 #### Permissions
 - [ ] Verify role restrictions are applied correctly for **global roles** (admin, maintainer, observer, observer+, GitOps)
-- [ ] Verify role restrictions are applied correctly for **fleet-level roles**
+- [ ] Verify role restrictions are applied correctly for **team-level roles**
 
 #### Premium gating (if this is a premium-only feature)
-- [ ] Verify the feature is blocked on Fleet Free in the **frontend** (UI hidden/disabled with appropriate messaging)
-- [ ] Verify the feature is blocked on Fleet Free in the **backend** (API returns the expected error, not just hidden in the UI)
+- [ ] Verify the feature is blocked on AutoMDM Free in the **frontend** (UI hidden/disabled with appropriate messaging)
+- [ ] Verify the feature is blocked on AutoMDM Free in the **backend** (API returns the expected error, not just hidden in the UI)
 
 #### Upgrade / data migration
 - [ ] Verify behavior on a server upgraded from a prior version (not just a fresh install)

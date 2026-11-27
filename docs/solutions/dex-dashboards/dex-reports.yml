@@ -1,5 +1,5 @@
 # Reports the DEX dashboards read. Keep the names exactly as written: the
-# collector finds each report by name, in any fleet or in All fleets.
+# collector finds each report by name, in any team or in All teams.
 - name: DEX - Hardware experience - Device health
   description: CPU class, RAM tier, swap/compression pressure, and battery condition in a single row. This is the physical-layer health signal — answers whether the hardware can keep up with what the user is asking it to do.
   query: |
@@ -149,7 +149,7 @@
   logging: snapshot
   interval: 28800
 - name: DEX - AI governance - AI tools per host
-  description: Every AI tool fleetd's ai_tools table finds on the host (desktop apps, agent CLIs, IDE plugins, browser extensions, MCP servers, live AI connections, and agent instruction files), packed into one row per host so Fleet's 1,000-row report limit doesn't cut hosts off. Needs fleetd 1.59.0 or later.
+  description: Every AI tool automdmd's ai_tools table finds on the host (desktop apps, agent CLIs, IDE plugins, browser extensions, MCP servers, live AI connections, and agent instruction files), packed into one row per host so AutoMDM's 1,000-row report limit doesn't cut hosts off. Needs automdmd 1.59.0 or later.
   query: |
     SELECT
       COUNT(*) AS tool_count,
@@ -164,7 +164,7 @@
   logging: snapshot
   interval: 3600
 - name: DEX - AI governance - AI agent usage per host
-  description: Sessions, tool calls, and tokens of AI coding agents (Claude Code, Codex CLI, Gemini CLI, Copilot CLI, and Cursor) over the last 30 days, per day, agent, model, and sign-in type, packed into one row per host. Only the domain of a sign-in email leaves the computer, never usernames, paths, or repositories. Read by the AI governance DEX dashboard. Needs fleetd 1.64.0 or later.
+  description: Sessions, tool calls, and tokens of AI coding agents (Claude Code, Codex CLI, Gemini CLI, Copilot CLI, and Cursor) over the last 30 days, per day, agent, model, and sign-in type, packed into one row per host. Only the domain of a sign-in email leaves the computer, never usernames, paths, or repositories. Read by the AI governance DEX dashboard. Needs automdmd 1.64.0 or later.
   query: |
     SELECT
       COUNT(*) AS usage_rows,
@@ -361,7 +361,7 @@
   automations_enabled: false
   logging: snapshot
 - name: DEX - Sustainability - Mac energy
-  description: Energy the Mac has used since it booted, from the power telemetry Apple silicon Macs keep in AppleSmartBattery (laptops and desktops), plus the current system power draw. The dashboard turns the difference between two readings into kWh. Needs fleetd for the ioreg table.
+  description: Energy the Mac has used since it booted, from the power telemetry Apple silicon Macs keep in AppleSmartBattery (laptops and desktops), plus the current system power draw. The dashboard turns the difference between two readings into kWh. Needs automdmd for the ioreg table.
   query: |
     SELECT
       (SELECT total_seconds FROM uptime)                                  AS uptime_s,
@@ -378,7 +378,7 @@
   logging: snapshot
   interval: 3600
 - name: DEX - Sustainability - Mac sleep settings
-  description: Sleep and display sleep timers on AC and battery power, what's keeping the Mac awake right now, and how many times it has slept since boot. Needs fleetd for the pmset table.
+  description: Sleep and display sleep timers on AC and battery power, what's keeping the Mac awake right now, and how many times it has slept since boot. Needs automdmd for the pmset table.
   query: |
     SELECT
       json_extract(c.json_result, '$."AC Power:".sleep')                  AS ac_sleep,
@@ -466,7 +466,7 @@
   logging: snapshot
   interval: 3600
 - name: DEX - Sustainability - Linux power
-  description: Whether sleep is disabled in systemd, GNOME's automatic suspend setting for the first desktop user, whether the computer has a battery, and power sensor readings (the amdgpu sensor reports package power on AMD APUs). Needs fleetd for the file_lines and dconf_read tables.
+  description: Whether sleep is disabled in systemd, GNOME's automatic suspend setting for the first desktop user, whether the computer has a battery, and power sensor readings (the amdgpu sensor reports package power on AMD APUs). Needs automdmd for the file_lines and dconf_read tables.
   query: |
     WITH u AS (
       SELECT username FROM users

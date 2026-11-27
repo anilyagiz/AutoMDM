@@ -11,11 +11,11 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/pkg/str"
-	"github.com/fleetdm/fleet/v4/server/dev_mode"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/cryptoutil"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/pkg/str"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/dev_mode"
+	"github.com/anilyagiz/automdm/v4/server/mdm/cryptoutil"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"golang.org/x/oauth2/jwt"
@@ -26,10 +26,10 @@ import (
 )
 
 // EndpointOverrideEnv points the API and the token exchange at a mock server. Dev only.
-const EndpointOverrideEnv = "FLEET_DEV_GOOGLE_CLOUD_IDENTITY_ENDPOINT"
+const EndpointOverrideEnv = "AUTOMDM_DEV_GOOGLE_CLOUD_IDENTITY_ENDPOINT"
 
-// ClientStateSuffix follows the customer ID, without its "C", in Fleet's client state ID.
-const ClientStateSuffix = "-fleet"
+// ClientStateSuffix follows the customer ID, without its "C", in AutoMDM's client state ID.
+const ClientStateSuffix = "-automdm"
 
 const maxGoogleResponseBytes = 1 << 20
 
@@ -80,7 +80,7 @@ func newCloudIdentity(ctx context.Context, creds Credentials, logger *slog.Logge
 
 	// The token exchange and the API calls share this client's timeout and response cap. Only
 	// API calls follow ctx: the oauth2 jwt token request carries no context.
-	httpClient := fleethttp.NewClient(fleethttp.WithMaxResponseSize(maxGoogleResponseBytes))
+	httpClient := automdmhttp.NewClient(automdmhttp.WithMaxResponseSize(maxGoogleResponseBytes))
 	opts := []option.ClientOption{option.WithHTTPClient(conf.Client(context.WithValue(ctx, oauth2.HTTPClient, httpClient)))}
 	if endpoint != "" {
 		logger.WarnContext(ctx, "using Google Cloud Identity endpoint override; do not use in production",
@@ -102,7 +102,7 @@ func (c *cloudIdentityClient) CheckDelegation(ctx context.Context) error {
 	return nil
 }
 
-func (c *cloudIdentityClient) SetClientState(ctx context.Context, deviceUserName string, state fleet.GoogleConditionalAccessClientState) error {
+func (c *cloudIdentityClient) SetClientState(ctx context.Context, deviceUserName string, state automdm.GoogleConditionalAccessClientState) error {
 	var body cloudidentity.GoogleAppsCloudidentityDevicesV1ClientState
 	var mask []string
 	if state.Managed != nil {
@@ -338,7 +338,7 @@ func (e *Error) message() string {
 	if tokenErr, ok := errors.AsType[*oauth2.RetrieveError](e.err); ok {
 		return tokenErrorMessage(tokenErr)
 	}
-	if _, ok := errors.AsType[*http.MaxBytesError](e.err); ok || errors.Is(e.err, fleethttp.ErrMaxSizeExceeded) {
+	if _, ok := errors.AsType[*http.MaxBytesError](e.err); ok || errors.Is(e.err, automdmhttp.ErrMaxSizeExceeded) {
 		return "Google's response is too large"
 	}
 	if urlErr, ok := errors.AsType[*url.Error](e.err); ok {
@@ -379,7 +379,7 @@ func (e *Error) IsNotFound() bool {
 	return ok && apiErr.Code == http.StatusNotFound
 }
 
-var _ fleet.NotFoundError = (*Error)(nil)
+var _ automdm.NotFoundError = (*Error)(nil)
 
 // IsUnavailable reports a failure on Google's side or on the way to Google, as opposed to
 // settings or credentials Google rejects. Only a 4xx answer other than a 429 is a

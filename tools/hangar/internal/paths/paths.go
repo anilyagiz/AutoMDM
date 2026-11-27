@@ -89,7 +89,7 @@ func expand(p, home string) string {
 
 // OnDisk returns the absolute path p with each element spelled as it is on
 // disk; a relative p is returned unchanged. On a case-insensitive volume (the
-// macOS default) ~/code/fleet opens ~/Code/fleet, so a guessed or typed
+// macOS default) ~/code/automdm opens ~/Code/automdm, so a guessed or typed
 // spelling can differ from the real one and the same folder would compare as
 // two. Elements that can't be read are kept as given.
 func OnDisk(p string) string {
@@ -97,7 +97,7 @@ func OnDisk(p string) string {
 		return p
 	}
 	// Clean drops ".." lexically, but the OS applies it after following
-	// symlinks: with link -> /elsewhere/sub, link/../fleet is /elsewhere/fleet.
+	// symlinks: with link -> /elsewhere/sub, link/../automdm is /elsewhere/automdm.
 	if slices.Contains(strings.Split(p, string(filepath.Separator)), "..") {
 		if resolved, err := filepath.EvalSymlinks(p); err == nil {
 			p = resolved

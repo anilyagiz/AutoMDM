@@ -80,8 +80,8 @@ const SelfServiceCard = ({
   const initialSortHeader = queryParams.order_key || "name";
   const initialSortDirection = queryParams.order_direction || "asc";
 
-  // Device-token-scoped categories: the BE derives the fleet from the token
-  // so the dropdown reflects this host's fleet, not the global fleet_id=0 set.
+  // Device-token-scoped categories: the BE derives the team from the token
+  // so the dropdown reflects this host's team, not the global team_id=0 set.
   // The queryKey's second element must match the queryFn arg to avoid
   // cross-device cache bleed.
   const { data: categoriesData, isSuccess: isCategoriesSuccess } = useQuery<

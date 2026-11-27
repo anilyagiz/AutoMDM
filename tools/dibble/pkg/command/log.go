@@ -5,7 +5,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/fleetdm/fleet/v4/tools/dibble/pkg/themes"
+	"github.com/anilyagiz/automdm/v4/tools/dibble/pkg/themes"
 )
 
 // stdoutish / stderrish are package-level writers so tests can swap them.

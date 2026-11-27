@@ -59,7 +59,7 @@ describe("ManageControlsPage - teamIdForApi forwarded to sub-pages", () => {
     expect(screen.getByTestId("sub-page")).toHaveTextContent("teamIdForApi=0");
   });
 
-  it("keeps teamIdForApi undefined on premium while the selected fleet resolves (preserves the loading gate)", () => {
+  it("keeps teamIdForApi undefined on premium while the selected team resolves (preserves the loading gate)", () => {
     renderPage(true, undefined);
     expect(screen.getByTestId("sub-page")).toHaveTextContent(
       "teamIdForApi=undefined"

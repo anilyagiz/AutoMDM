@@ -8,15 +8,15 @@ import (
 
 	"github.com/jmoiron/sqlx"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 )
 
 // saveHostsScheduledQueryStatsDB upserts the stats of one or more hosts in
 // batches of batchSize rows and returns the number of statements executed.
 // Callers resolve each stat's report ID (ScheduledQueryID) up front; stats
 // without one are skipped.
-func saveHostsScheduledQueryStatsDB(ctx context.Context, db sqlx.ExecerContext, stats map[uint][]fleet.ScheduledQueryStats, batchSize int) (int, error) {
+func saveHostsScheduledQueryStatsDB(ctx context.Context, db sqlx.ExecerContext, stats map[uint][]automdm.ScheduledQueryStats, batchSize int) (int, error) {
 	stmt := `
 		INSERT IGNORE INTO scheduled_query_stats (
 			scheduled_query_id,

@@ -161,7 +161,7 @@ export const updateCampaignState = (socketData: ISocketData) => {
             socketData.data.indexOf("=") + 1
           );
           notify.error(
-            `Fleet's connection to Redis failed (campaign ID ${campaignID}). If this issue persists, please contact your administrator.`
+            `AutoMDM's connection to Redis failed (campaign ID ${campaignID}). If this issue persists, please contact your administrator.`
           );
         }
         return { campaign };

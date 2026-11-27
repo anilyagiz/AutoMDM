@@ -120,7 +120,7 @@ const LogDestinationIndicator = ({
         return (
           <>
             Each time a report runs, the data is sent to <br />
-            standard output(stdout) on the Fleet server.
+            standard output(stdout) on the AutoMDM server.
           </>
         );
       case "webhook":

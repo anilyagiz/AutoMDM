@@ -12,12 +12,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/file"
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/dev_mode"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	maintained_apps "github.com/fleetdm/fleet/v4/server/mdm/maintainedapps"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/pkg/file"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/dev_mode"
+	maintained_apps "github.com/anilyagiz/automdm/v4/server/mdm/maintainedapps"
 )
 
 // patchPolicySyncMaxRunTime caps the patch policy sweep's share of an auto-update
@@ -25,14 +25,14 @@ import (
 // the budget for installer updates.
 const patchPolicySyncMaxRunTime = 10 * time.Minute
 
-// AutoUpdateFleetMaintainedApps walks every active Fleet-maintained app
+// AutoUpdateAutoMDMMaintainedApps walks every active AutoMDM-maintained app
 // installer and, where its pin state allows, downloads the newest published
 // version into the team's cache and advances the active installer to it. When
 // softwareInstallStore is nil (e.g. the installer store isn't configured) it
 // degrades to promote-only: it advances among versions already cached but
 // fetches nothing from upstream. A failure on one app is logged and skipped so a
 // single bad row can't stall the whole run.
-func AutoUpdateFleetMaintainedApps(ctx context.Context, ds fleet.Datastore, softwareInstallStore fleet.SoftwareInstallerStore, logger *slog.Logger) error {
+func AutoUpdateAutoMDMMaintainedApps(ctx context.Context, ds automdm.Datastore, softwareInstallStore automdm.SoftwareInstallerStore, logger *slog.Logger) error {
 	// Catches up patch policies whose query fell behind their active installer, such
 	// as one refreshed in place by a server that didn't regenerate the policy. First,
 	// so a run that spends its budget on downloads can't skip it. Policies it doesn't
@@ -44,9 +44,9 @@ func AutoUpdateFleetMaintainedApps(ctx context.Context, ds fleet.Datastore, soft
 		logger.ErrorContext(ctx, "syncing patch policy queries", "err", err)
 	}
 
-	candidates, err := ds.ListFleetMaintainedAppActiveInstallers(ctx)
+	candidates, err := ds.ListAutoMDMMaintainedAppActiveInstallers(ctx)
 	if err != nil {
-		return ctxerr.Wrap(ctx, err, "listing active fleet-maintained app installers")
+		return ctxerr.Wrap(ctx, err, "listing active automdm-maintained app installers")
 	}
 
 	// One HTTP client and one manifest cache for the whole run, so each distinct
@@ -54,12 +54,12 @@ func AutoUpdateFleetMaintainedApps(ctx context.Context, ds fleet.Datastore, soft
 	var client *http.Client
 	if softwareInstallStore != nil {
 		timeout := maintained_apps.InstallerTimeout
-		if v := dev_mode.Env("FLEET_DEV_MAINTAINED_APPS_INSTALLER_TIMEOUT"); v != "" {
+		if v := dev_mode.Env("AUTOMDM_DEV_MAINTAINED_APPS_INSTALLER_TIMEOUT"); v != "" {
 			if d, err := time.ParseDuration(v); err == nil {
 				timeout = d
 			}
 		}
-		client = fleethttp.NewClient(fleethttp.WithTimeout(timeout))
+		client = automdmhttp.NewClient(automdmhttp.WithTimeout(timeout))
 	}
 	manifests := map[string]*manifestEntry{}
 
@@ -68,27 +68,27 @@ func AutoUpdateFleetMaintainedApps(ctx context.Context, ds fleet.Datastore, soft
 		// budget the caller gave it. Stop here rather than working through the rest; the next run resumes.
 		err = ctx.Err()
 		if err != nil {
-			return ctxerr.Wrap(ctx, err, "auto-updating fleet-maintained apps")
+			return ctxerr.Wrap(ctx, err, "auto-updating automdm-maintained apps")
 		}
 
-		err = autoUpdateOneFleetMaintainedApp(ctx, ds, softwareInstallStore, client, logger, c, manifests)
+		err = autoUpdateOneAutoMDMMaintainedApp(ctx, ds, softwareInstallStore, client, logger, c, manifests)
 		if err != nil {
-			logger.ErrorContext(ctx, "auto-updating fleet-maintained app",
-				"title_id", c.TitleID, "fleet_id", teamIDForLog(c.TeamID), "slug", c.Slug, "err", err)
+			logger.ErrorContext(ctx, "auto-updating automdm-maintained app",
+				"title_id", c.TitleID, "team_id", teamIDForLog(c.TeamID), "slug", c.Slug, "err", err)
 		}
 	}
 
 	// The loop check above never sees a budget that ran out during the last app, so report that here.
-	return ctxerr.Wrap(ctx, ctx.Err(), "auto-updating fleet-maintained apps")
+	return ctxerr.Wrap(ctx, ctx.Err(), "auto-updating automdm-maintained apps")
 }
 
-func autoUpdateOneFleetMaintainedApp(
+func autoUpdateOneAutoMDMMaintainedApp(
 	ctx context.Context,
-	ds fleet.Datastore,
-	store fleet.SoftwareInstallerStore,
+	ds automdm.Datastore,
+	store automdm.SoftwareInstallerStore,
 	client *http.Client,
 	logger *slog.Logger,
-	c fleet.FMAAutoUpdateCandidate,
+	c automdm.FMAAutoUpdateCandidate,
 	manifests map[string]*manifestEntry,
 ) error {
 	pinned, err := ds.GetPinnedVersion(ctx, c.TeamID, c.TitleID)
@@ -107,23 +107,23 @@ func autoUpdateOneFleetMaintainedApp(
 	if store != nil && client != nil {
 		version, err := downloadNewVersionIfEligible(ctx, ds, store, logger, c, pin, client, manifests)
 		if err != nil {
-			logger.ErrorContext(ctx, "downloading new fleet-maintained app version",
-				"title_id", c.TitleID, "fleet_id", teamIDForLog(c.TeamID), "slug", c.Slug, "err", err)
+			logger.ErrorContext(ctx, "downloading new automdm-maintained app version",
+				"title_id", c.TitleID, "team_id", teamIDForLog(c.TeamID), "slug", c.Slug, "err", err)
 		}
 		publishedVersion = version
 	}
 
-	return promoteFleetMaintainedApp(ctx, ds, logger, c, pin, publishedVersion)
+	return promoteAutoMDMMaintainedApp(ctx, ds, logger, c, pin, publishedVersion)
 }
 
-// promoteFleetMaintainedApp advances the active installer to the newest cached
+// promoteAutoMDMMaintainedApp advances the active installer to the newest cached
 // version the pin allows, without ever rewriting the pin (a nil PinnedVersion
 // leaves it untouched, so an admin pin changed between this read and write is
 // never clobbered).
-func promoteFleetMaintainedApp(ctx context.Context, ds fleet.Datastore, logger *slog.Logger, c fleet.FMAAutoUpdateCandidate, pin string, publishedVersion string) error {
+func promoteAutoMDMMaintainedApp(ctx context.Context, ds automdm.Datastore, logger *slog.Logger, c automdm.FMAAutoUpdateCandidate, pin string, publishedVersion string) error {
 	// Cached versions, most recently downloaded first. This runs on every pass, not just
 	// after a download, so the first entry decides which version stays active.
-	versions, err := ds.GetFleetMaintainedVersionsByTitleID(ctx, c.TeamID, c.TitleID)
+	versions, err := ds.GetAutoMDMMaintainedVersionsByTitleID(ctx, c.TeamID, c.TitleID)
 	if err != nil {
 		return ctxerr.Wrap(ctx, err, "getting cached versions")
 	}
@@ -134,11 +134,11 @@ func promoteFleetMaintainedApp(ctx context.Context, ds fleet.Datastore, logger *
 	// The selection below takes the newest download, which after a rollback is the version
 	// upstream dropped. Make the version the manifest publishes now the newest instead.
 	if publishedVersion != "" {
-		publishedIndex := slices.IndexFunc(versions, func(version fleet.FleetMaintainedVersion) bool {
+		publishedIndex := slices.IndexFunc(versions, func(version automdm.AutoMDMMaintainedVersion) bool {
 			return version.Version == publishedVersion
 		})
 		if publishedIndex > 0 {
-			if err := ds.MarkFleetMaintainedAppVersionCurrent(ctx, versions[publishedIndex].ID); err != nil {
+			if err := ds.MarkAutoMDMMaintainedAppVersionCurrent(ctx, versions[publishedIndex].ID); err != nil {
 				return ctxerr.Wrap(ctx, err, "marking cached version current")
 			}
 			// These versions were read before changing uploaded_at, so reorder them to match the write.
@@ -152,19 +152,19 @@ func promoteFleetMaintainedApp(ctx context.Context, ds fleet.Datastore, logger *
 		return nil
 	}
 
-	payload := &fleet.UpdateSoftwareInstallerPayload{
+	payload := &automdm.UpdateSoftwareInstallerPayload{
 		TeamID:  c.TeamID,
 		TitleID: c.TitleID,
 	}
-	// SetFleetMaintainedAppActiveInstaller atomically flips the active installer,
+	// SetAutoMDMMaintainedAppActiveInstaller atomically flips the active installer,
 	// re-points policies, and redirects installs frozen on the old version to the
 	// new one, so a host never installs a version other than the one displayed.
-	if err := ds.SetFleetMaintainedAppActiveInstaller(ctx, payload, target.ID); err != nil {
+	if err := ds.SetAutoMDMMaintainedAppActiveInstaller(ctx, payload, target.ID); err != nil {
 		return ctxerr.Wrap(ctx, err, "setting active installer")
 	}
 
-	logger.InfoContext(ctx, "advanced fleet-maintained app to newer cached version",
-		"title_id", c.TitleID, "fleet_id", teamIDForLog(c.TeamID), "slug", c.Slug,
+	logger.InfoContext(ctx, "advanced automdm-maintained app to newer cached version",
+		"title_id", c.TitleID, "team_id", teamIDForLog(c.TeamID), "slug", c.Slug,
 		"from", c.Version, "to", target.Version, "pin", pin)
 	return nil
 }
@@ -172,7 +172,7 @@ func promoteFleetMaintainedApp(ctx context.Context, ds fleet.Datastore, logger *
 // manifestEntry memoizes the hydrated latest manifest (or its fetch error) for a
 // slug across the run, so N teams sharing an app fetch the manifest once.
 type manifestEntry struct {
-	app *fleet.MaintainedApp
+	app *automdm.MaintainedApp
 	err error
 }
 
@@ -182,10 +182,10 @@ type manifestEntry struct {
 // so the bytes are always stored before the active flag flips.
 func downloadNewVersionIfEligible(
 	ctx context.Context,
-	ds fleet.Datastore,
-	store fleet.SoftwareInstallerStore,
+	ds automdm.Datastore,
+	store automdm.SoftwareInstallerStore,
 	logger *slog.Logger,
-	c fleet.FMAAutoUpdateCandidate,
+	c automdm.FMAAutoUpdateCandidate,
 	pin string,
 	client *http.Client,
 	manifests map[string]*manifestEntry,
@@ -207,7 +207,7 @@ func downloadNewVersionIfEligible(
 		if !versionAllowedByPin(app.Version, pin) {
 			return "", nil
 		}
-		versionExists, cachedHash, err := ds.HasFMAInstallerVersion(ctx, c.TeamID, c.FleetMaintainedAppID, app.Version)
+		versionExists, cachedHash, err := ds.HasFMAInstallerVersion(ctx, c.TeamID, c.AutoMDMMaintainedAppID, app.Version)
 		if err != nil {
 			return "", ctxerr.Wrap(ctx, err, "checking cached version")
 		}
@@ -251,7 +251,7 @@ func downloadNewVersionIfEligible(
 	extension := ""
 	upgradeCode := app.UpgradeCode
 	var packageIDs []string
-	var tfr *fleet.TempFileReader
+	var tfr *automdm.TempFileReader
 	if needBytes {
 		tfr, filename, err = maintained_apps.DownloadInstaller(ctx, app.InstallerURL, client)
 		if err != nil {
@@ -283,7 +283,7 @@ func downloadNewVersionIfEligible(
 			if isLatest {
 				return "", ctxerr.Wrap(ctx, metaErr, "extracting installer metadata")
 			}
-			logger.WarnContext(ctx, "extracting fleet-maintained app installer metadata", "slug", c.Slug, "err", metaErr)
+			logger.WarnContext(ctx, "extracting automdm-maintained app installer metadata", "slug", c.Slug, "err", metaErr)
 		} else {
 			if isLatest {
 				version = meta.Version
@@ -315,7 +315,7 @@ func downloadNewVersionIfEligible(
 		return "", nil
 	}
 	if !versionAlreadyCached {
-		versionExists, cachedHash, err := ds.HasFMAInstallerVersion(ctx, c.TeamID, c.FleetMaintainedAppID, version)
+		versionExists, cachedHash, err := ds.HasFMAInstallerVersion(ctx, c.TeamID, c.AutoMDMMaintainedAppID, version)
 		if err != nil {
 			return "", ctxerr.Wrap(ctx, err, "checking cached version")
 		}
@@ -334,7 +334,7 @@ func downloadNewVersionIfEligible(
 		extension = extensionFromFilename(filename)
 	}
 
-	payload := &fleet.UploadSoftwareInstallerPayload{
+	payload := &automdm.UploadSoftwareInstallerPayload{
 		TeamID:          c.TeamID,
 		Version:         version,
 		Filename:        filename,
@@ -357,7 +357,7 @@ func downloadNewVersionIfEligible(
 	payload.InstallScriptEdited = c.InstallScriptEdited
 	payload.UninstallScriptEdited = c.UninstallScriptEdited
 	active, err := ds.GetSoftwareInstallerMetadataByTeamTitleAndInstallerID(ctx, c.TeamID, c.TitleID, c.InstallerID, true)
-	if err != nil && !fleet.IsNotFound(err) {
+	if err != nil && !automdm.IsNotFound(err) {
 		return "", ctxerr.Wrap(ctx, err, "getting active installer to preserve custom scripts")
 	}
 	if active != nil {
@@ -419,22 +419,22 @@ func downloadNewVersionIfEligible(
 		return version, nil
 	}
 
-	if _, err := ds.InsertFleetMaintainedAppVersion(ctx, c.InstallerID, payload); err != nil {
-		return "", ctxerr.Wrap(ctx, err, "caching new fleet-maintained app version")
+	if _, err := ds.InsertAutoMDMMaintainedAppVersion(ctx, c.InstallerID, payload); err != nil {
+		return "", ctxerr.Wrap(ctx, err, "caching new automdm-maintained app version")
 	}
 
-	logger.InfoContext(ctx, "cached new fleet-maintained app version",
-		"title_id", c.TitleID, "fleet_id", teamIDForLog(c.TeamID), "slug", c.Slug,
+	logger.InfoContext(ctx, "cached new automdm-maintained app version",
+		"title_id", c.TitleID, "team_id", teamIDForLog(c.TeamID), "slug", c.Slug,
 		"from", c.Version, "to", version, "pin", pin)
 	return version, nil
 }
 
-func hydrateLatestManifest(ctx context.Context, ds fleet.Datastore, c fleet.FMAAutoUpdateCandidate, manifests map[string]*manifestEntry) (*fleet.MaintainedApp, error) {
+func hydrateLatestManifest(ctx context.Context, ds automdm.Datastore, c automdm.FMAAutoUpdateCandidate, manifests map[string]*manifestEntry) (*automdm.MaintainedApp, error) {
 	if e, ok := manifests[c.Slug]; ok {
 		return e.app, e.err
 	}
-	app, err := func() (*fleet.MaintainedApp, error) {
-		skeleton, err := ds.GetMaintainedAppByID(ctx, c.FleetMaintainedAppID, c.TeamID)
+	app, err := func() (*automdm.MaintainedApp, error) {
+		skeleton, err := ds.GetMaintainedAppByID(ctx, c.AutoMDMMaintainedAppID, c.TeamID)
 		if err != nil {
 			return nil, ctxerr.Wrap(ctx, err, "getting maintained app by id")
 		}
@@ -454,13 +454,13 @@ func hydrateLatestManifest(ctx context.Context, ds fleet.Datastore, c fleet.FMAA
 // pin means Latest (newest). A caret pin returns the newest version within its major, or
 // ok=false when no cached version satisfies the major (so the cron skips rather
 // than crossing into another major).
-func selectAutoUpdateTarget(versions []fleet.FleetMaintainedVersion, pin string) (fleet.FleetMaintainedVersion, bool) {
+func selectAutoUpdateTarget(versions []automdm.AutoMDMMaintainedVersion, pin string) (automdm.AutoMDMMaintainedVersion, bool) {
 	for _, v := range versions {
 		if versionAllowedByPin(v.Version, pin) {
 			return v, true
 		}
 	}
-	return fleet.FleetMaintainedVersion{}, false
+	return automdm.AutoMDMMaintainedVersion{}, false
 }
 
 func versionAllowedByPin(version string, pin string) bool {

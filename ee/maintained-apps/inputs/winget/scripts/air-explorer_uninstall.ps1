@@ -1,4 +1,4 @@
-# Fleet extracts name from installer (EXE) and saves it to PACKAGE_ID
+# AutoMDM extracts name from installer (EXE) and saves it to PACKAGE_ID
 # variable
 # Air Explorer registers DisplayName "Air Explorer" (NSIS installer); silent
 # uninstall uses the NSIS /S flag.

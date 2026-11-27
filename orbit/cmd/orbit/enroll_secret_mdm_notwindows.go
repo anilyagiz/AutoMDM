@@ -2,8 +2,8 @@
 
 package main
 
-// The registry channel Fleet Windows MDM uses to deliver an enroll secret has no counterpart here. macOS does have its own
-// out-of-band delivery, a fleetd configuration profile carrying the secret and the Fleet URL, but orbit reads that directly in
+// The registry channel AutoMDM Windows MDM uses to deliver an enroll secret has no counterpart here. macOS does have its own
+// out-of-band delivery, an automdmd configuration profile carrying the secret and the AutoMDM URL, but orbit reads that directly in
 // orbitAction under --use-system-configuration rather than through these functions.
 
 // loadMDMSecretIfWaiting reports that nothing was waiting.

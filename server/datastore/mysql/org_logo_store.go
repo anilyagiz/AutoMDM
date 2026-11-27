@@ -7,8 +7,8 @@ import (
 	"errors"
 	"io"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -16,13 +16,13 @@ type orgLogoStore struct {
 	ds *Datastore
 }
 
-var _ fleet.OrgLogoStore = (*orgLogoStore)(nil)
+var _ automdm.OrgLogoStore = (*orgLogoStore)(nil)
 
-func (ds *Datastore) NewOrgLogoStore() fleet.OrgLogoStore {
+func (ds *Datastore) NewOrgLogoStore() automdm.OrgLogoStore {
 	return &orgLogoStore{ds: ds}
 }
 
-func (s *orgLogoStore) Put(ctx context.Context, mode fleet.OrgLogoMode, content io.ReadSeeker) error {
+func (s *orgLogoStore) Put(ctx context.Context, mode automdm.OrgLogoMode, content io.ReadSeeker) error {
 	data, err := io.ReadAll(content)
 	if err != nil {
 		return ctxerr.Wrap(ctx, err, "reading org logo content")
@@ -37,7 +37,7 @@ func (s *orgLogoStore) Put(ctx context.Context, mode fleet.OrgLogoMode, content 
 	return nil
 }
 
-func (s *orgLogoStore) Get(ctx context.Context, mode fleet.OrgLogoMode) (io.ReadCloser, int64, error) {
+func (s *orgLogoStore) Get(ctx context.Context, mode automdm.OrgLogoMode) (io.ReadCloser, int64, error) {
 	var data []byte
 	err := sqlx.GetContext(ctx, s.ds.reader(ctx), &data, `SELECT data FROM org_logo WHERE mode = ?`, string(mode))
 	if err != nil {
@@ -49,14 +49,14 @@ func (s *orgLogoStore) Get(ctx context.Context, mode fleet.OrgLogoMode) (io.Read
 	return io.NopCloser(bytes.NewReader(data)), int64(len(data)), nil
 }
 
-func (s *orgLogoStore) Delete(ctx context.Context, mode fleet.OrgLogoMode) error {
+func (s *orgLogoStore) Delete(ctx context.Context, mode automdm.OrgLogoMode) error {
 	if _, err := s.ds.writer(ctx).ExecContext(ctx, `DELETE FROM org_logo WHERE mode = ?`, string(mode)); err != nil {
 		return ctxerr.Wrap(ctx, err, "deleting org logo")
 	}
 	return nil
 }
 
-func (s *orgLogoStore) Exists(ctx context.Context, mode fleet.OrgLogoMode) (bool, error) {
+func (s *orgLogoStore) Exists(ctx context.Context, mode automdm.OrgLogoMode) (bool, error) {
 	var exists bool
 	err := sqlx.GetContext(ctx, s.ds.reader(ctx), &exists, `SELECT EXISTS(SELECT 1 FROM org_logo WHERE mode = ?)`, string(mode))
 	if err != nil {

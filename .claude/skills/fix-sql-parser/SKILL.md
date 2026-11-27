@@ -1,6 +1,6 @@
 ---
 name: fix-sql-parser
-description: Fix the osquery SQL parser when it rejects a valid query (or accepts an invalid one). Use when a query is flagged as invalid in the query editor but runs fine in osquery, when asked to "fix the SQL parser", "fix the grammar", "this query is valid but Fleet says syntax error", or when a corpus knownFailure needs closing.
+description: Fix the osquery SQL parser when it rejects a valid query (or accepts an invalid one). Use when a query is flagged as invalid in the query editor but runs fine in osquery, when asked to "fix the SQL parser", "fix the grammar", "this query is valid but AutoMDM says syntax error", or when a corpus knownFailure needs closing.
 allowed-tools: Bash(yarn *), Bash(npx *), Bash(sqlite3 *), Bash(make generate-osquery-sql-parser), Bash(node *), Bash(git diff*), Bash(git status*), Read, Edit, Grep, Glob
 effort: high
 ---
@@ -24,7 +24,7 @@ would undo deliberate decisions:
    `BEGIN` are parse errors by design. Never re-add statement types to
    `crud_stmt`.
 2. **Bind parameters** (`?`, `:name`, `@name`, `$name`). Valid SQLite, but
-   nothing in Fleet supplies bindings, so an unbound parameter silently matches
+   nothing in AutoMDM supplies bindings, so an unbound parameter silently matches
    nothing. Rejecting them is intentional.
 3. **MySQL/Postgres dialect** osquery has no equivalent for: `FOR UPDATE`,
    `INTERVAL`, `@@variables`, `RLIKE`, `FROM DUAL`, `#` comments, `@>` and

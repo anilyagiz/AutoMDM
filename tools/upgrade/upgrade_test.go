@@ -8,17 +8,17 @@ import (
 )
 
 func TestUpgradeAToB(t *testing.T) {
-	versionA := os.Getenv("FLEET_VERSION_A")
+	versionA := os.Getenv("AUTOMDM_VERSION_A")
 	if versionA == "" {
-		t.Skip("Missing environment variable FLEET_VERSION_A")
+		t.Skip("Missing environment variable AUTOMDM_VERSION_A")
 	}
 
-	versionB := os.Getenv("FLEET_VERSION_B")
+	versionB := os.Getenv("AUTOMDM_VERSION_B")
 	if versionB == "" {
-		t.Skip("Missing environment variable FLEET_VERSION_B")
+		t.Skip("Missing environment variable AUTOMDM_VERSION_B")
 	}
 
-	f := NewFleet(t, versionA)
+	f := NewAutoMDM(t, versionA)
 
 	hostname, err := enrollHost(t, f)
 	require.NoError(t, err)

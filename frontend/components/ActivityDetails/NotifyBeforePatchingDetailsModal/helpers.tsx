@@ -19,14 +19,14 @@ export const INLINE_APP_LIMIT = 4;
 const TRUNCATED_INLINE_COUNT = 3;
 
 export const DEFERRED_SENTENCE =
-  "Another notification was displayed. Fleet will try again on the next policy run.";
+  "Another notification was displayed. AutoMDM will try again on the next policy run.";
 
 // Reused across exit codes with the same retry cadence. Short-retry codes
 // re-fire on the next policy run (~2 minutes); no-retry codes come from
-// Fleet-side misconfiguration that won't clear on its own.
-const RETRY_NEXT_RUN = "Fleet will try again on the next policy run.";
-const RETRY_LATER = "Fleet will try again later.";
-const NO_RETRY = "Fleet won't try again.";
+// AutoMDM-side misconfiguration that won't clear on its own.
+const RETRY_NEXT_RUN = "AutoMDM will try again on the next policy run.";
+const RETRY_LATER = "AutoMDM will try again later.";
+const NO_RETRY = "AutoMDM won't try again.";
 
 // Shown for any failure exit code the notification script can return but that
 // isn't enumerated below (server-side default is EndUserNotificationReasonUnexpectedFailure,
@@ -37,7 +37,7 @@ export const UNEXPECTED_FAILURE_COPY = `The notification failed unexpectedly. ${
 // success; non-zero entries are failure reasons. Keep in sync with the
 // server-side map in server/notifications/internal/service/record_outcome.go.
 export const COPY_BY_EXIT_CODE: Record<number, string> = {
-  0: "If the host is offline when the patch is forced, Fleet skips the patch. When the host comes back online Fleet notifies the end user again and the patch is forced 1 hour later.",
+  0: "If the host is offline when the patch is forced, AutoMDM skips the patch. When the host comes back online AutoMDM notifies the end user again and the patch is forced 1 hour later.",
   2: `The notification command was invalid. ${NO_RETRY}`,
   20: `The notification couldn't be sent because of an internal configuration error. ${NO_RETRY}`,
   30: `The notification couldn't load. ${RETRY_NEXT_RUN}`,
@@ -46,11 +46,11 @@ export const COPY_BY_EXIT_CODE: Record<number, string> = {
   41: `The screen was locked so the end user couldn't see the notification. ${RETRY_NEXT_RUN}`,
   42: `No display was connected. ${RETRY_NEXT_RUN}`,
   [DEFERRED_EXIT_CODE]: DEFERRED_SENTENCE,
-  70: `Fleet Desktop had an internal error. ${RETRY_NEXT_RUN}`,
+  70: `AutoMDM Desktop had an internal error. ${RETRY_NEXT_RUN}`,
   [-2]: `Scripts are disabled on the host. ${RETRY_LATER}`,
-  [-5]: `Fleet couldn't build the notification URL. ${RETRY_LATER}`,
-  100: "The Fleet Desktop app is required to notify end users. Add the app from the Fleet-maintained catalog and deploy to all your hosts.",
-  101: "The Fleet Desktop app v1.5.0 is required to notify end users. Add the app from the Fleet-maintained catalog and deploy to all your hosts.",
+  [-5]: `AutoMDM couldn't build the notification URL. ${RETRY_LATER}`,
+  100: "The AutoMDM Desktop app is required to notify end users. Add the app from the AutoMDM-maintained catalog and deploy to all your hosts.",
+  101: "The AutoMDM Desktop app v1.5.0 is required to notify end users. Add the app from the AutoMDM-maintained catalog and deploy to all your hosts.",
 };
 
 // Covers both success (exit 0 caveat) and failure sentences.
@@ -87,17 +87,17 @@ export const formatNotifyTimeLabel = (timeBefore?: number): string =>
 export const getAutomationNotifiedMessage = (timeBefore?: number): string =>
   `End user was notified. Patch will be forced in ${formatNotifyTimeLabel(
     timeBefore
-  )}. If the host is offline when a patch should be forced, Fleet notifies the end user again when it comes back online and patches it after 1 hour.`;
+  )}. If the host is offline when a patch should be forced, AutoMDM notifies the end user again when it comes back online and patches it after 1 hour.`;
 
 export const SKIPPED_INSTALL_NOTIFY_EXPLANATION =
   "The app was open. The end user will be notified before the patch is forced.";
 
 export const SKIPPED_INSTALL_DEADLINE_EXPLANATION =
-  "The app was open. Fleet will notify the end user 1 hour before the patch deadline.";
+  "The app was open. AutoMDM will notify the end user 1 hour before the patch deadline.";
 
 // Shared with the "End user experience" dropdown — keep in sync.
 export const PATCHING_END_USER_EXPERIENCE_URL =
-  "https://fleetdm.com/learn-more-about/patching-end-user-experience";
+  "https://automdm.com/learn-more-about/patching-end-user-experience";
 
 // Exit codes that append the "End user experience" learn-more link.
 export const EXIT_CODES_NEEDING_EUE_LINK: ReadonlySet<number> = new Set([
@@ -108,13 +108,13 @@ export const EXIT_CODES_NEEDING_EUE_LINK: ReadonlySet<number> = new Set([
 // Single-install-result path only (SoftwareInstallDetailsModal). That endpoint
 // runs EnhanceOutputDetails before serializing, so pre_install_query_output
 // carries the full "The app was open..." copy. Both deadline and notify
-// variants include "Fleet notifies the end user"; the deadline marker is
+// variants include "AutoMDM notifies the end user"; the deadline marker is
 // strictly more specific, so check it first.
 //
 // Activity-feed consumers must NOT use these — the automation activities
 // endpoint returns raw pre_install_output (empty on skips). Use the dedicated
 // `patch_deadline` and `notify_before_patching` booleans on IActivityDetails.
-const NOTIFY_SKIP_MARKER = "Fleet notifies the end user";
+const NOTIFY_SKIP_MARKER = "AutoMDM notifies the end user";
 const DEADLINE_SKIP_MARKER = "patch deadline";
 export const isPatchDeadlineSkip = (
   preInstallOutput?: string | null

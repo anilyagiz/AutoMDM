@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
 type UbuntuResult struct {
@@ -37,9 +37,9 @@ func (r *UbuntuResult) AddUnameTest(id int, tst *UnixUnameTest) {
 	r.UnameTests[id] = tst
 }
 
-func (r UbuntuResult) Eval(ver fleet.OSVersion, software []fleet.Software) ([]fleet.SoftwareVulnerability, error) {
+func (r UbuntuResult) Eval(ver automdm.OSVersion, software []automdm.Software) ([]automdm.SoftwareVulnerability, error) {
 	// Test Id => Matching software
-	pkgTstResults := make(map[int][]fleet.Software)
+	pkgTstResults := make(map[int][]automdm.Software)
 	for i, t := range r.PackageTests {
 		r, err := t.Eval(software)
 		if err != nil {
@@ -51,7 +51,7 @@ func (r UbuntuResult) Eval(ver fleet.OSVersion, software []fleet.Software) ([]fl
 	// We don't parse/analyze any tests against the installed OS Ver on Ubuntu hosts
 	var OSTstResults map[int]bool
 
-	vuln := make([]fleet.SoftwareVulnerability, 0)
+	vuln := make([]automdm.SoftwareVulnerability, 0)
 	for _, d := range r.Definitions {
 		if !d.Eval(OSTstResults, pkgTstResults) {
 			continue
@@ -60,7 +60,7 @@ func (r UbuntuResult) Eval(ver fleet.OSVersion, software []fleet.Software) ([]fl
 		for _, tId := range d.CollectTestIds() {
 			for _, software := range pkgTstResults[tId] {
 				for _, v := range d.CveVulnerabilities() {
-					vuln = append(vuln, fleet.SoftwareVulnerability{
+					vuln = append(vuln, automdm.SoftwareVulnerability{
 						SoftwareID: software.ID,
 						CVE:        v,
 					})
@@ -74,7 +74,7 @@ func (r UbuntuResult) Eval(ver fleet.OSVersion, software []fleet.Software) ([]fl
 
 var kernelImageRegex = regexp.MustCompile(`^linux-image-(\d+\.\d+\.\d+-\d+)-\w+`)
 
-func (r UbuntuResult) EvalKernel(software []fleet.Software) ([]fleet.SoftwareVulnerability, error) {
+func (r UbuntuResult) EvalKernel(software []automdm.Software) ([]automdm.SoftwareVulnerability, error) {
 	// Test Id => Matching software IDs
 	uTests := make(map[int][]uint)
 	for _, s := range software {
@@ -97,12 +97,12 @@ func (r UbuntuResult) EvalKernel(software []fleet.Software) ([]fleet.SoftwareVul
 		}
 	}
 
-	vuln := make([]fleet.SoftwareVulnerability, 0)
+	vuln := make([]automdm.SoftwareVulnerability, 0)
 	for _, d := range r.Definitions {
 		swIDs := findMatchingSoftware(*d.Criteria, uTests)
 		for _, v := range d.CveVulnerabilities() {
 			for _, swID := range swIDs {
-				vuln = append(vuln, fleet.SoftwareVulnerability{
+				vuln = append(vuln, automdm.SoftwareVulnerability{
 					SoftwareID: swID,
 					CVE:        v,
 				})

@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
 )
@@ -23,9 +23,9 @@ func TestHostSoftwareInstalledPathsDeleteExplosion(t *testing.T) {
 
 	// Insert a large number of software items, each with an installed path
 	const softwareCount = 500 // a more modest number than 30k for local testing
-	software := make([]fleet.Software, softwareCount)
+	software := make([]automdm.Software, softwareCount)
 	for i := range softwareCount {
-		software[i] = fleet.Software{
+		software[i] = automdm.Software{
 			Name:    fmt.Sprintf("DeleteTestApp %d", i),
 			Version: "1.0.0",
 			Source:  "apps",
@@ -71,9 +71,9 @@ func TestHostSoftwareInstalledPathsDeleteExplosion(t *testing.T) {
 
 	// Now simulate a "full replacement" by reporting all-new software with no overlap.
 	// This causes ALL existing paths to be deleted in one shot.
-	newSoftware := make([]fleet.Software, softwareCount)
+	newSoftware := make([]automdm.Software, softwareCount)
 	for i := range softwareCount {
-		newSoftware[i] = fleet.Software{
+		newSoftware[i] = automdm.Software{
 			Name:    fmt.Sprintf("ReplacementApp %d", i),
 			Version: "2.0.0",
 			Source:  "apps",
@@ -94,7 +94,7 @@ func TestHostSoftwareInstalledPathsDeleteExplosion(t *testing.T) {
 	wg.Add(concurrentHosts)
 
 	// Create hosts and insert paths synchronously to avoid require.*/ExecAdhocSQL panics from goroutines.
-	concurrentTestHosts := make([]*fleet.Host, concurrentHosts)
+	concurrentTestHosts := make([]*automdm.Host, concurrentHosts)
 	for i := range concurrentHosts {
 		concurrentTestHosts[i] = test.NewHost(t, ds, fmt.Sprintf("concurrent-del-%d", i), "", fmt.Sprintf("cd-key-%d", i), fmt.Sprintf("cd-uuid-%d", i), time.Now())
 

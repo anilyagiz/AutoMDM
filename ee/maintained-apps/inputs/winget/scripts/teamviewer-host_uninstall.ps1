@@ -5,7 +5,7 @@
 # The trailing wildcard tolerates a version suffix if TeamViewer ever adds one,
 # and the "Host" in the pattern keeps this from matching the full TeamViewer
 # client, which registers as plain "TeamViewer" and ships as its own
-# Fleet-maintained app (teamviewer/windows).
+# AutoMDM-maintained app (teamviewer/windows).
 $softwareNameLike = "TeamViewer Host*"
 
 # Matched with a trailing wildcard so this filter stays strictly looser than the

@@ -13,7 +13,7 @@
 
 $displayNameLike = "Signal*"
 $publisher = "Signal Messenger, LLC"
-$taskName = "fleet-uninstall-signal"
+$taskName = "automdm-uninstall-signal"
 $appDir = "AppData\Local\Programs\signal-desktop"  # in each user's profile
 $taskRunning = 267009  # SCHED_S_TASK_RUNNING
 $timeoutSeconds = 600

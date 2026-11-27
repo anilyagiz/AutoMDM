@@ -12,23 +12,23 @@ describe("sortAvailableTeams", () => {
       { id: 0, name: "Unassigned" },
       { id: 2, name: "Zebra" },
       { id: 1, name: "Alpha" },
-      { id: -1, name: "All fleets" },
+      { id: -1, name: "All teams" },
     ];
     const result = sortAvailableTeams(teams, createMockUser());
     expect(result.map((t) => t.name)).toEqual([
-      "All fleets",
+      "All teams",
       "Alpha",
       "Zebra",
       "Unassigned",
     ]);
   });
 
-  it("does not include All fleets or Unassigned for non-global users", () => {
+  it("does not include All teams or Unassigned for non-global users", () => {
     const teams = [
       { id: 0, name: "Unassigned" },
       { id: 2, name: "Zebra" },
       { id: 1, name: "Alpha" },
-      { id: -1, name: "All fleets" },
+      { id: -1, name: "All teams" },
     ];
     const result = sortAvailableTeams(
       teams,

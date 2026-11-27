@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	hostctx "github.com/fleetdm/fleet/v4/server/contexts/host"
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	hostctx "github.com/anilyagiz/automdm/v4/server/contexts/host"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	"github.com/anilyagiz/automdm/v4/server/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -19,7 +19,7 @@ import (
 // per-host value map, so service-layer tests don't need a real DB.
 func fakeExpandCustomHostVitals(valueByID map[uint]string) func(context.Context, uint, string) (string, error) {
 	return func(_ context.Context, _ uint, document string) (string, error) {
-		refIDs := fleet.FindCustomHostVitalIDs(document)
+		refIDs := automdm.FindCustomHostVitalIDs(document)
 		if len(refIDs) == 0 {
 			return document, nil
 		}
@@ -30,13 +30,13 @@ func fakeExpandCustomHostVitals(valueByID map[uint]string) func(context.Context,
 			}
 		}
 		if len(missing) > 0 {
-			return "", &fleet.MissingCustomHostVitalValueError{MissingIDs: missing}
+			return "", &automdm.MissingCustomHostVitalValueError{MissingIDs: missing}
 		}
-		expanded := fleet.MaybeExpand(document, func(s string, _, _ int) (string, bool) {
-			if !strings.HasPrefix(s, fleet.CustomHostVitalPrefix) {
+		expanded := automdm.MaybeExpand(document, func(s string, _, _ int) (string, bool) {
+			if !strings.HasPrefix(s, automdm.CustomHostVitalPrefix) {
 				return "", false
 			}
-			id, err := strconv.ParseUint(strings.TrimPrefix(s, fleet.CustomHostVitalPrefix), 10, 64)
+			id, err := strconv.ParseUint(strings.TrimPrefix(s, automdm.CustomHostVitalPrefix), 10, 64)
 			if err != nil {
 				return "", false
 			}
@@ -49,18 +49,18 @@ func fakeExpandCustomHostVitals(valueByID map[uint]string) func(context.Context,
 
 func TestGetHostScriptExpandsCustomHostVitals(t *testing.T) {
 	ds := new(mock.Store)
-	license := &fleet.LicenseInfo{Tier: fleet.TierPremium}
+	license := &automdm.LicenseInfo{Tier: automdm.TierPremium}
 	svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: license, SkipCreateTestUsers: true})
 
-	host := &fleet.Host{ID: 42, UUID: "host-uuid-42", OrbitNodeKey: new("nk")}
+	host := &automdm.Host{ID: 42, UUID: "host-uuid-42", OrbitNodeKey: new("nk")}
 
 	ds.ExpandEmbeddedSecretsFunc = func(ctx context.Context, doc string) (string, error) {
 		return doc, nil
 	}
 
 	t.Run("substitutes the host's value", func(t *testing.T) {
-		ds.GetHostScriptExecutionResultFunc = func(ctx context.Context, execID string) (*fleet.HostScriptResult, error) {
-			return &fleet.HostScriptResult{HostID: host.ID, ExecutionID: execID, ScriptContents: "echo $FLEET_HOST_VITAL_7"}, nil
+		ds.GetHostScriptExecutionResultFunc = func(ctx context.Context, execID string) (*automdm.HostScriptResult, error) {
+			return &automdm.HostScriptResult{HostID: host.ID, ExecutionID: execID, ScriptContents: "echo $AUTOMDM_HOST_VITAL_7"}, nil
 		}
 		ds.ExpandCustomHostVitalsFunc = fakeExpandCustomHostVitals(map[uint]string{7: "engineering"})
 
@@ -71,8 +71,8 @@ func TestGetHostScriptExpandsCustomHostVitals(t *testing.T) {
 	})
 
 	t.Run("empty/missing value fails the script fetch", func(t *testing.T) {
-		ds.GetHostScriptExecutionResultFunc = func(ctx context.Context, execID string) (*fleet.HostScriptResult, error) {
-			return &fleet.HostScriptResult{HostID: host.ID, ExecutionID: execID, ScriptContents: "echo $FLEET_HOST_VITAL_9"}, nil
+		ds.GetHostScriptExecutionResultFunc = func(ctx context.Context, execID string) (*automdm.HostScriptResult, error) {
+			return &automdm.HostScriptResult{HostID: host.ID, ExecutionID: execID, ScriptContents: "echo $AUTOMDM_HOST_VITAL_9"}, nil
 		}
 		// host 42 has no value for vital 9
 		ds.ExpandCustomHostVitalsFunc = fakeExpandCustomHostVitals(map[uint]string{7: "engineering"})
@@ -80,7 +80,7 @@ func TestGetHostScriptExpandsCustomHostVitals(t *testing.T) {
 		hctx := hostctx.NewContext(ctx, host)
 		_, err := svc.GetHostScript(hctx, "exec-2")
 		require.Error(t, err)
-		var missing *fleet.MissingCustomHostVitalValueError
+		var missing *automdm.MissingCustomHostVitalValueError
 		require.ErrorAs(t, err, &missing)
 		require.Equal(t, []uint{9}, missing.MissingIDs)
 	})
@@ -88,9 +88,9 @@ func TestGetHostScriptExpandsCustomHostVitals(t *testing.T) {
 
 func TestCreateScriptValidatesCustomHostVitals(t *testing.T) {
 	ds := new(mock.Store)
-	license := &fleet.LicenseInfo{Tier: fleet.TierPremium, Expiration: time.Now().Add(24 * time.Hour)}
+	license := &automdm.LicenseInfo{Tier: automdm.TierPremium, Expiration: time.Now().Add(24 * time.Hour)}
 	svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: license, SkipCreateTestUsers: true})
-	ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{GlobalRole: new(fleet.RoleAdmin)}})
+	ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{GlobalRole: new(automdm.RoleAdmin)}})
 
 	ds.ValidateEmbeddedSecretsFunc = func(ctx context.Context, documents []string) error { return nil }
 
@@ -98,7 +98,7 @@ func TestCreateScriptValidatesCustomHostVitals(t *testing.T) {
 	ds.ValidateReferencedCustomHostVitalsFunc = func(ctx context.Context, documents []string) error {
 		want := map[uint]struct{}{}
 		for _, d := range documents {
-			for _, id := range fleet.FindCustomHostVitalIDs(d) {
+			for _, id := range automdm.FindCustomHostVitalIDs(d) {
 				want[id] = struct{}{}
 			}
 		}
@@ -110,15 +110,15 @@ func TestCreateScriptValidatesCustomHostVitals(t *testing.T) {
 			}
 		}
 		if len(missing) > 0 {
-			return &fleet.MissingCustomHostVitalsError{MissingIDs: missing}
+			return &automdm.MissingCustomHostVitalsError{MissingIDs: missing}
 		}
 		return nil
 	}
 
 	// Unknown id (999) should be rejected.
-	_, err := svc.NewScript(ctx, nil, "myscript.sh", strings.NewReader("#!/bin/sh\necho $FLEET_HOST_VITAL_999\n"))
+	_, err := svc.NewScript(ctx, nil, "myscript.sh", strings.NewReader("#!/bin/sh\necho $AUTOMDM_HOST_VITAL_999\n"))
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "FLEET_HOST_VITAL_999")
+	require.Contains(t, err.Error(), "AUTOMDM_HOST_VITAL_999")
 
 	// ValidateReferencedCustomHostVitals must actually have been called.
 	require.True(t, ds.ValidateReferencedCustomHostVitalsFuncInvoked)

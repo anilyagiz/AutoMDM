@@ -1,8 +1,8 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # Comet ships a Chromium/Omaha-based machine-scope installer
-# (comet_*_system.exe). Fleet runs as SYSTEM, so it installs machine-wide.
+# (comet_*_system.exe). AutoMDM runs as SYSTEM, so it installs machine-wide.
 
 $exeFilePath = "${env:INSTALLER_PATH}"
 

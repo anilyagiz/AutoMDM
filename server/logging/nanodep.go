@@ -4,7 +4,7 @@ import (
 	"context"
 	"log/slog"
 
-	nanodep_log "github.com/fleetdm/fleet/v4/server/mdm/nanodep/log"
+	nanodep_log "github.com/anilyagiz/automdm/v4/server/mdm/nanodep/log"
 )
 
 // NanoDEPLogger is a logger adapter for nanodep.

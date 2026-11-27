@@ -18,7 +18,7 @@ import { IQueryContext, QueryContext } from "context/query";
 import { IRouterLocation } from "interfaces/routing";
 
 export const baseUrl = (path: string) => {
-  return `/api/latest/fleet${path}`;
+  return `/api/latest/automdm${path}`;
 };
 
 type RenderOptionsWithProviderProps = RenderOptions & {
@@ -235,7 +235,7 @@ export const getFutureDate = (days: number) => {
   return targetDate.toISOString();
 };
 
-// Fleet's Modal renders no dialog role, so testing-library's byRole query cannot reach it. Scope by the shared modal
+// AutoMDM's Modal renders no dialog role, so testing-library's byRole query cannot reach it. Scope by the shared modal
 // container class instead. Tests open one modal at a time, so a single match is the whole contract.
 const MODAL_CONTAINER_SELECTOR = ".modal__modal_container";
 

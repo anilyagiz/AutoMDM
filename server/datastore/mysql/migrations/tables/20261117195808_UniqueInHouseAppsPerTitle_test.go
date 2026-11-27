@@ -177,14 +177,14 @@ func TestUp_20261117195808(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []string{"uploaded-config"}, configurations)
 
-	// Insert a second row for the same title and fleet, it should fail on the new unique index.
+	// Insert a second row for the same title and team, it should fail on the new unique index.
 	_, err = db.Exec(`
 		INSERT INTO in_house_apps (title_id, team_id, global_or_team_id, filename, version, storage_id, platform)
 		VALUES (?, ?, ?, 'Another.ipa', '2.0', 'storage-another', 'ios')`,
 		iosTitleID, teamID, teamID)
 	require.ErrorContains(t, err, "Duplicate entry")
 
-	// Insert a row for another title with a filename already used in the fleet, it should succeed.
+	// Insert a row for another title with a filename already used in the team, it should succeed.
 	otherTitleID := execNoErrLastID(t, db,
 		`INSERT INTO software_titles (name, source, bundle_identifier, extension_for) VALUES ('Other', 'ios_apps', 'com.example.other', '')`)
 	insertInHouseApp(&teamID, &otherTitleID, "HelloWorld.ipa", "1.0", "ios")

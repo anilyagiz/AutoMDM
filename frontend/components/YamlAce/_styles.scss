@@ -5,9 +5,9 @@
       // Beat the ace theme's :hover / .ace_focus selectors
       // (frontend/utilities/ace_theme.css) so the red border persists
       // through hover and focus, matching InputField's error state.
-      .ace_editor.ace-fleet,
-      .ace_editor.ace-fleet:hover,
-      .ace_editor.ace-fleet.ace_focus {
+      .ace_editor.ace-automdm,
+      .ace_editor.ace-automdm:hover,
+      .ace_editor.ace-automdm.ace_focus {
         border-color: $ui-error;
       }
     }

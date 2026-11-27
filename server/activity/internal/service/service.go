@@ -9,17 +9,17 @@ import (
 	"slices"
 	"strconv"
 
-	"github.com/fleetdm/fleet/v4/server/activity"
-	"github.com/fleetdm/fleet/v4/server/activity/api"
-	"github.com/fleetdm/fleet/v4/server/activity/internal/types"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	platform_authz "github.com/fleetdm/fleet/v4/server/platform/authz"
-	platform_errors "github.com/fleetdm/fleet/v4/server/platform/errors"
+	"github.com/anilyagiz/automdm/v4/server/activity"
+	"github.com/anilyagiz/automdm/v4/server/activity/api"
+	"github.com/anilyagiz/automdm/v4/server/activity/internal/types"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	platform_authz "github.com/anilyagiz/automdm/v4/server/platform/authz"
+	platform_errors "github.com/anilyagiz/automdm/v4/server/platform/errors"
 	"github.com/hashicorp/go-multierror"
 	"go.opentelemetry.io/otel"
 )
 
-var tracer = otel.Tracer("github.com/fleetdm/fleet/v4/server/activity/internal/service")
+var tracer = otel.Tracer("github.com/anilyagiz/automdm/v4/server/activity/internal/service")
 
 // streamBatchSize is the number of activities to fetch per batch when streaming.
 const streamBatchSize uint = 500

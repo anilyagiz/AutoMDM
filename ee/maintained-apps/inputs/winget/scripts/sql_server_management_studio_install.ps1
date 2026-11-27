@@ -7,7 +7,7 @@ $ExpectedExitCodes = @(0, 1641, 3010)
 try {
 
 # The bootstrapper exits 1 while SSMS is open, because the Visual Studio
-# Installer can't update files the IDE holds. Fleet runs as SYSTEM, outside the
+# Installer can't update files the IDE holds. AutoMDM runs as SYSTEM, outside the
 # user's session, so it can't ask SSMS to close: stop it first. Unsaved queries
 # are lost.
 $getRunning = { @(Get-Process -Name "SSMS" -ErrorAction SilentlyContinue) }

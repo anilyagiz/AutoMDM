@@ -14,7 +14,7 @@
 #
 # We match on the DisplayName (anchored for the bundle) rather than the Publisher
 # string. Only entries in HKLM, SYSTEM's hive and the hive of the account running
-# this script (SYSTEM under Fleet) are removed: another user's hive is writable by
+# this script (SYSTEM under AutoMDM) are removed: another user's hive is writable by
 # that user, so its uninstaller or MSI product code would run as SYSTEM. The bundle
 # registers in the installing account's hive even for an all-users install. Other
 # user hives (which osquery's "programs" table also reads) are checked at the end

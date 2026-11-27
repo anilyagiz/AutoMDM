@@ -11,18 +11,18 @@ import (
 	"time"
 
 	"github.com/RoaringBitmap/roaring"
-	"github.com/fleetdm/fleet/v4/server/chart/api"
-	"github.com/fleetdm/fleet/v4/server/chart/internal/types"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxdb"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	platform_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/chart/api"
+	"github.com/anilyagiz/automdm/v4/server/chart/internal/types"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxdb"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	platform_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
 	"github.com/jmoiron/sqlx"
 )
 
-// onlineIntervalBufferSeconds mirrors fleet.OnlineIntervalBuffer (the grace
+// onlineIntervalBufferSeconds mirrors automdm.OnlineIntervalBuffer (the grace
 // period added on top of a host's own check-in interval before it's
 // considered offline). Duplicated rather than imported because the chart
-// bounded context must not depend on server/fleet — arch test enforced.
+// bounded context must not depend on server/automdm — arch test enforced.
 const onlineIntervalBufferSeconds = 60
 
 // mobileOnlineWindowSeconds is the window within which a mobile
@@ -32,9 +32,9 @@ const onlineIntervalBufferSeconds = 60
 // interval we anchor the window to the iOS/iPadOS refetch cadence (1h; see
 // ListIOSAndIPadOSToRefetch) plus the 10m cron tick that dispatches it plus
 // the same grace buffer used for osquery hosts.
-// Sourced from api.MobileOnlineWindowSeconds so the fleet-side sync test
+// Sourced from api.MobileOnlineWindowSeconds so the automdm-side sync test
 // (TestMobileOnlineWindowMatchesChart) catches drift with
-// fleet.MobileOnlineWindow.
+// automdm.MobileOnlineWindow.
 const mobileOnlineWindowSeconds = api.MobileOnlineWindowSeconds
 
 // neverTimestamp mirrors server.NeverTimestamp, the sentinel written to
@@ -110,7 +110,7 @@ func (ds *Datastore) GetHostIDsForFilter(ctx context.Context, hostFilter *types.
 //     neverTimestamp sentinel treated as null) — within mobileOnlineWindowSeconds
 //     of `now`. There is deliberately no created_at fallback: a freshly enrolled
 //     device that never checked in is not "online".
-func (ds *Datastore) FindOnlineHostIDs(ctx context.Context, now time.Time, disabledFleetIDs []uint) ([]uint, error) {
+func (ds *Datastore) FindOnlineHostIDs(ctx context.Context, now time.Time, disabledTeamIDs []uint) ([]uint, error) {
 	query := fmt.Sprintf(`
 		SELECT h.id
 		FROM hosts h
@@ -144,9 +144,9 @@ func (ds *Datastore) FindOnlineHostIDs(ctx context.Context, now time.Time, disab
 		)`, onlineIntervalBufferSeconds, mobileOnlineWindowSeconds)
 	args := []any{now.UTC(), neverTimestamp, now.UTC()}
 
-	if len(disabledFleetIDs) > 0 {
+	if len(disabledTeamIDs) > 0 {
 		query += ` AND (h.team_id IS NULL OR h.team_id NOT IN (?))`
-		args = append(args, disabledFleetIDs)
+		args = append(args, disabledTeamIDs)
 	}
 
 	expanded, expandedArgs, err := sqlx.In(query, args...)
@@ -220,15 +220,15 @@ var trackedCVESoftwareMatchers = []cveSoftwareMatcher{
 //
 // nil or empty cves returns an empty map without running any query.
 // TODO: support `nil` meaning "all CVEs".
-func (ds *Datastore) AffectedHostIDsByCVE(ctx context.Context, disabledFleetIDs []uint, cves []string) (map[string]*roaring.Bitmap, error) {
+func (ds *Datastore) AffectedHostIDsByCVE(ctx context.Context, disabledTeamIDs []uint, cves []string) (map[string]*roaring.Bitmap, error) {
 	result := make(map[string]*roaring.Bitmap)
 	if len(cves) == 0 {
 		return result, nil
 	}
 
-	// Both subqueries gain a hosts JOIN + WHERE only when there are fleets to
+	// Both subqueries gain a hosts JOIN + WHERE only when there are teams to
 	// exclude. Skipping the JOIN entirely when the slice is empty keeps the
-	// existing query plan unchanged for the common case (no fleets disabled).
+	// existing query plan unchanged for the common case (no teams disabled).
 	swQuery := `
 		SELECT sc.cve, hs.host_id
 		FROM software_cve sc
@@ -243,16 +243,16 @@ func (ds *Datastore) AffectedHostIDsByCVE(ctx context.Context, disabledFleetIDs 
 	swArgs := []any{cves}
 	osArgs := []any{cves}
 
-	if len(disabledFleetIDs) > 0 {
+	if len(disabledTeamIDs) > 0 {
 		swQuery += `
 			JOIN hosts h ON h.id = hs.host_id`
 		swWhere = append(swWhere, "(h.team_id IS NULL OR h.team_id NOT IN (?))")
-		swArgs = append(swArgs, disabledFleetIDs)
+		swArgs = append(swArgs, disabledTeamIDs)
 
 		osQuery += `
 			JOIN hosts h ON h.id = hos.host_id`
 		osWhere = append(osWhere, "(h.team_id IS NULL OR h.team_id NOT IN (?))")
-		osArgs = append(osArgs, disabledFleetIDs)
+		osArgs = append(osArgs, disabledTeamIDs)
 	}
 
 	swQuery += " WHERE " + strings.Join(swWhere, " AND ")
@@ -302,7 +302,7 @@ func (ds *Datastore) CollectibleCVEs(ctx context.Context) ([]string, error) {
 		}
 	}
 
-	// OS-side: all OS vulnerabilities. Fleet's OS vuln coverage is already
+	// OS-side: all OS vulnerabilities. AutoMDM's OS vuln coverage is already
 	// scoped to desktop OSes.
 	const osQuery = `SELECT DISTINCT osv.cve FROM operating_system_vulnerabilities osv`
 	if err := streamCVEStrings(ctx, ds.reader(ctx), osQuery, nil, set); err != nil {
@@ -317,7 +317,7 @@ func (ds *Datastore) CollectibleCVEs(ctx context.Context) ([]string, error) {
 // range, EPSS range, known-exploit) and subtracting any excluded CVEs.
 //
 // Filtering on any cve_meta column (CVSS, EPSS, known-exploit) requires that
-// row to exist, so those filters exclude CVEs Fleet has no NVD metadata for.
+// row to exist, so those filters exclude CVEs AutoMDM has no NVD metadata for.
 // When no such filter is set the join is dropped and they resolve. NULL fails
 // every comparison, so an explicit 0.0–10.0 CVSS range still excludes a CVE
 // whose cvss_score is NULL, while no CVSS bound at all includes it.
@@ -497,11 +497,11 @@ func streamCVEStrings(ctx context.Context, q sqlx.QueryerContext, query string, 
 // sight of the CVE. Setting bits while scanning keeps peak memory at one
 // bitmap per CVE (KBs even at 50k hosts) instead of retaining every raw
 // (cve, host_id) pair, whose row count can reach many millions on a large
-// fleet. Duplicate pairs — several matching software rows on one host, or
+// team. Duplicate pairs — several matching software rows on one host, or
 // overlap between the software and OS queries — are no-op Adds.
 //
 // Host IDs of 0 or above MaxUint32 are skipped, mirroring chart.NewBitmap —
-// Fleet host IDs are AUTO_INCREMENT starting at 1.
+// AutoMDM host IDs are AUTO_INCREMENT starting at 1.
 //
 // args are expanded via sqlx.In for slice arguments (e.g. team IDs) and
 // rebinds to the driver dialect.

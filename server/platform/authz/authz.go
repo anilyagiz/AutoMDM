@@ -1,5 +1,5 @@
 // Package authz provides authorization interfaces for bounded contexts.
-// This package contains only interfaces with no dependencies on fleet packages,
+// This package contains only interfaces with no dependencies on automdm packages,
 // allowing bounded contexts to use authorization without coupling to legacy code.
 package authz
 

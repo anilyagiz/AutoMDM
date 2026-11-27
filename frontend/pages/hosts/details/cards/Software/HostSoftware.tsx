@@ -101,7 +101,7 @@ export const parseHostSoftwareQueryParams = (queryParams: {
   max_cvss_score?: string;
   self_service?: string;
   category_id?: string;
-  fleet_id?: string;
+  team_id?: string;
   macos_applications?: string;
   types?: string;
   ai_tool?: string;
@@ -118,8 +118,8 @@ export const parseHostSoftwareQueryParams = (queryParams: {
     ? parseInt(queryParams.category_id, 10)
     : undefined;
   const selfService = queryParams?.self_service === "true";
-  const teamId = queryParams?.fleet_id
-    ? parseInt(queryParams.fleet_id, 10)
+  const teamId = queryParams?.team_id
+    ? parseInt(queryParams.team_id, 10)
     : undefined;
   // Tri-state: true/false when explicitly set in the URL, otherwise undefined so
   // the platform-specific default can be applied where the platform is known.
@@ -143,7 +143,7 @@ export const parseHostSoftwareQueryParams = (queryParams: {
     exploit: softwareFilters.exploit,
     available_for_install: false, // always false for host software
     category_id: categoryId,
-    fleet_id: teamId,
+    team_id: teamId,
     macos_applications: macosApplications,
     types: softwareFilters.types,
     ai_tool: softwareFilters.aiTool,
@@ -311,7 +311,7 @@ const HostSoftware = ({
       orderKey: queryParams.order_key,
       orderDirection: queryParams.order_direction,
       page,
-      fleetId: queryParams.fleet_id,
+      automdmId: queryParams.team_id,
       // Preserve an explicit Show helpers selection only while "App (macOS)"
       // stays selected, so reselecting it brings the toggle back off.
       macosApplications: newFilters.types?.includes(MACOS_APP_SOFTWARE_TYPE)
@@ -394,7 +394,7 @@ const HostSoftware = ({
             page={queryParams.page}
             pagePath={pathname}
             filters={filters}
-            teamId={queryParams.fleet_id}
+            teamId={queryParams.team_id}
             macosApplicationsFilter={macosApplicationsFilter}
             onAddFiltersClick={toggleSoftwareFiltersModal}
             // for my device software details modal toggling
@@ -424,7 +424,7 @@ const HostSoftware = ({
         <CardHeader
           header="Software"
           subheader={
-            // Fleet Free does not have card subheader
+            // AutoMDM Free does not have card subheader
             isPremiumTier
               ? getSoftwareSubheader({
                   platform,
@@ -441,7 +441,7 @@ const HostSoftware = ({
 
   return (
     <div className={baseClass}>
-      {/* Fleet Free and Android both do not have card subheader */}
+      {/* AutoMDM Free and Android both do not have card subheader */}
       {!isAndroid(platform) && isPremiumTier && (
         <CardHeader
           subheader={getSoftwareSubheader({

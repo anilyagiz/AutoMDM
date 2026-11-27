@@ -280,7 +280,7 @@ func testNestedGroups(t *testing.T, s *Suite) {
 		defer s.Do(t, "DELETE", scimPath("/Groups/"+cycle2ID), nil, http.StatusNoContent)
 
 		// Close the cycle (1 -> 2 -> 1) and add a user to cycle 1 in the same
-		// patch. Entra ID prevents cycles on its side, but Fleet must not error
+		// patch. Entra ID prevents cycles on its side, but AutoMDM must not error
 		// or loop if one is ever provisioned (the recursive membership expansion
 		// uses UNION, which guarantees termination).
 		patchPayload := map[string]any{

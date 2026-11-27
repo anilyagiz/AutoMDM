@@ -8,24 +8,24 @@ import { ICommandPaletteContext } from "../helpers";
 export interface IDerivedContext {
   /** Apple Business configured at the org level. */
   isAbmConfigured: boolean;
-  /** GitOps mode active — disables Create-fleet etc. */
+  /** GitOps mode active — disables Create-team etc. */
   isGitOpsMode: boolean;
   /** GitOps mode active for software, unless the software exception is on. */
   isSoftwareGitOpsMode: boolean;
   /** currentTeam is the "No team" / Unassigned sentinel (id 0). */
   isUnassigned: boolean;
-  /** A specific team OR unassigned is selected (not "All fleets"). */
+  /** A specific team OR unassigned is selected (not "All teams"). */
   hasTeamOrUnassigned: boolean;
-  /** Chip label when navigating from Unassigned to an "All fleets" page. */
+  /** Chip label when navigating from Unassigned to an "All teams" page. */
   switchesFromUnassigned: string | undefined;
   /**
-   * Chip label when navigating from "All fleets" to a page that requires a
-   * specific team (Controls etc.). Returns the default fleet name.
+   * Chip label when navigating from "All teams" to a page that requires a
+   * specific team (Controls etc.). Returns the default team name.
    */
-  switchesFromAllFleets: string | undefined;
+  switchesFromAllTeams: string | undefined;
   /**
    * Chip label for default-context commands (add-report, software automations)
-   * — set to "All fleets" only when on Unassigned and would switch context.
+   * — set to "All teams" only when on Unassigned and would switch context.
    */
   defaultDestination: string | undefined;
 }
@@ -45,7 +45,7 @@ export const deriveContext = (ctx: ICommandPaletteContext): IDerivedContext => {
     config?.mdm?.apple_business_enabled_and_configured ?? false;
 
   // GitOps mode disables write actions in the UI; mirrors the predicate
-  // ManageFleetsPage uses to disable its Add fleet button.
+  // ManageTeamsPage uses to disable its Add team button.
   const isGitOpsMode = !!(
     config?.gitops?.gitops_mode_enabled && config?.gitops?.repository_url
   );
@@ -56,35 +56,35 @@ export const deriveContext = (ctx: ICommandPaletteContext): IDerivedContext => {
   );
 
   const isUnassigned = currentTeam?.id === 0;
-  // On Fleet Free, the team concept doesn't apply — there's a single
-  // implicit fleet, no team picker, and currentTeam stays undefined. Treat
+  // On AutoMDM Free, the team concept doesn't apply — there's a single
+  // implicit team, no team picker, and currentTeam stays undefined. Treat
   // Free as team-or-unassigned so team-gated palette items (Controls, Add
   // script, etc.) still surface on Free-available destinations.
   const hasTeamOrUnassigned =
     !isPremiumTier || !!hasTeamSelected || isUnassigned;
 
-  // In Primo Mode the user perceives a single-fleet install, so the
-  // concept of "switching fleet context" doesn't apply. All destination
+  // In Primo Mode the user perceives a single-team install, so the
+  // concept of "switching team context" doesn't apply. All destination
   // chips collapse to undefined.
 
   const switchesFromUnassigned =
-    !isPrimoMode && isUnassigned ? "All fleets" : undefined;
+    !isPrimoMode && isUnassigned ? "All teams" : undefined;
 
   const getDefaultTeamName = (): string | undefined => {
     if (isPrimoMode) return undefined;
     if (hasTeamOrUnassigned) return undefined;
-    const realFleets = availableTeams?.filter((t) => t.id > 0) ?? [];
-    if (!realFleets.length) return undefined;
-    const workstations = realFleets.find((t) => {
+    const realTeams = availableTeams?.filter((t) => t.id > 0) ?? [];
+    if (!realTeams.length) return undefined;
+    const workstations = realTeams.find((t) => {
       const lower = t.name.toLowerCase();
       return lower === "workstations" || lower === "\u{1F4BB} workstations";
     });
-    return (workstations ?? realFleets.sort((a, b) => a.id - b.id)[0])?.name;
+    return (workstations ?? realTeams.sort((a, b) => a.id - b.id)[0])?.name;
   };
-  const switchesFromAllFleets = getDefaultTeamName();
+  const switchesFromAllTeams = getDefaultTeamName();
 
   const defaultDestination =
-    !isPrimoMode && isUnassigned ? "All fleets" : undefined;
+    !isPrimoMode && isUnassigned ? "All teams" : undefined;
 
   return {
     isAbmConfigured,
@@ -93,7 +93,7 @@ export const deriveContext = (ctx: ICommandPaletteContext): IDerivedContext => {
     isUnassigned,
     hasTeamOrUnassigned,
     switchesFromUnassigned,
-    switchesFromAllFleets,
+    switchesFromAllTeams,
     defaultDestination,
   };
 };

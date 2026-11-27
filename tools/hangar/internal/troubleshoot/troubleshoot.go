@@ -121,7 +121,7 @@ func ScanPort(port uint16) ([]DetectedProcess, error) {
 }
 
 // ScanPattern lists processes whose full command line matches pattern,
-// excluding our own process (so searching "fleet" doesn't list Hangar).
+// excluding our own process (so searching "team" doesn't list Hangar).
 func ScanPattern(pattern string) ([]DetectedProcess, error) {
 	raw, err := runCapture("pgrep", "-f", pattern)
 	if err != nil {

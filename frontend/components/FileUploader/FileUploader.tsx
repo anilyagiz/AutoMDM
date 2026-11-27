@@ -83,7 +83,7 @@ export type ISupportedGraphicNames = Extract<
   | "file-vpp"
   | "file-png"
   | "file-json"
-  | "fleet-logo"
+  | "automdm-logo"
 >;
 
 interface IFileUploaderProps {

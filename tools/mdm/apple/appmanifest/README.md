@@ -13,24 +13,24 @@ Usage of appmanifest:
 
 ### Example workflow
 
-1. Create a fleetd installer
+1. Create an automdmd installer
 
 ```
-fleetctl package --type=pkg --fleet-desktop
+automdmctl package --type=pkg --automdm-desktop
 ```
 
 2. Sign the installer so it can be installed via MDM
 
 ```
-productsign --sign "Developer ID Installer: $DEVID_INFO" fleet-osquery.pkg fleetd-base.pkg
+productsign --sign "Developer ID Installer: $DEVID_INFO" automdm-osquery.pkg automdmd-base.pkg
 ```
 
 3. Run `appmanifest`
 
 ```
 $ go run tools/mdm/apple/appmanifest/main.go \
-    -pkg-file fleetd-base.pkg \
-    -pkg-url $YOUR_URL > fleetd-base-manifest.plist
+    -pkg-file automdmd-base.pkg \
+    -pkg-url $YOUR_URL > automdmd-base-manifest.plist
 ```
 
-4. Upload `fleetd-base.pkg` to `$YOUR_URL` and `fleetd-base-manifest.plist` to a publicly accessible location.
+4. Upload `automdmd-base.pkg` to `$YOUR_URL` and `automdmd-base-manifest.plist` to a publicly accessible location.

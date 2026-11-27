@@ -15,9 +15,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/build"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/constant"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/platform"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/build"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/constant"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/platform"
 	"github.com/rs/zerolog/log"
 	"github.com/theupdateframework/go-tuf/client"
 	"golang.org/x/mod/semver"
@@ -385,7 +385,7 @@ func (r *Runner) updateTarget(target string) error {
 	// target now guaranteed to be orbit
 
 	// Compare old/new orbit versions
-	oVC := compareVersion(newVersion, build.Version, "fleetd")
+	oVC := compareVersion(newVersion, build.Version, "automdmd")
 
 	// Symlink Orbit binary
 	linkPath := filepath.Join(r.updater.opt.RootDirectory, "bin", "orbit", filepath.Base(path))
@@ -399,7 +399,7 @@ func (r *Runner) updateTarget(target string) error {
 
 	// oVC == 1 if downgrading or -1 if upgrading, 0 if the same version
 	if oVC != nil && *oVC != 0 && runtime.GOOS == "windows" {
-		if err := updateUninstallFleetdRegistryVersion(newVersion); err != nil {
+		if err := updateUninstallAutoMDMdRegistryVersion(newVersion); err != nil {
 			return fmt.Errorf("update orbit version in Windows registry: %w", err)
 		}
 	}

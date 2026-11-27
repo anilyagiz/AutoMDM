@@ -244,7 +244,7 @@ const Modal = ({
                 autofocus={isContentDisabled}
                 ariaLabel="Close"
               >
-                <Icon name="close" color="core-fleet-black" size="medium" />
+                <Icon name="close" color="core-automdm-black" size="medium" />
               </Button>
             </div>
           )}

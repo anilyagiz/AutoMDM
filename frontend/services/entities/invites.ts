@@ -6,7 +6,7 @@ import {
   IEditInviteFormData,
 } from "interfaces/invite";
 import sendRequest from "services";
-import { toFleetRoles } from "services/entities/users";
+import { toTeamRoles } from "services/entities/users";
 import endpoints from "utilities/endpoints";
 import helpers from "utilities/helpers";
 import { buildQueryStringFromParams } from "utilities/url";
@@ -38,8 +38,8 @@ export default {
   update: (inviteId: number, formData: IEditInviteFormData) => {
     const { INVITES } = endpoints;
     const path = `${INVITES}/${inviteId}`;
-    const body = formData.fleets
-      ? { ...formData, fleets: toFleetRoles(formData.fleets) }
+    const body = formData.teams
+      ? { ...formData, teams: toTeamRoles(formData.teams) }
       : formData;
 
     return sendRequest("PATCH", path, body);

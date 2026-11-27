@@ -10,12 +10,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm"
-	apple_mdm "github.com/fleetdm/fleet/v4/server/mdm/apple"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanodep/tokenpki"
-	"github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/mdm"
+	apple_mdm "github.com/anilyagiz/automdm/v4/server/mdm/apple"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanodep/tokenpki"
+	"github.com/anilyagiz/automdm/v4/server/mock"
 	"github.com/smallstep/pkcs7"
 	"github.com/stretchr/testify/require"
 )
@@ -30,7 +30,7 @@ func TestReencryptWSTEPDiskEncryptionKeys(t *testing.T) {
 	require.NoError(t, err)
 	appleCertPEM, appleKeyPEM := tokenpki.PEMCertificate(appleCert.Raw), tokenpki.PEMRSAPrivateKey(appleKey)
 	// MicrosoftWSTEP caches the parsed pair on the config, so each scenario that needs a different pair starts fresh.
-	newConfig := func(t *testing.T) config.FleetConfig {
+	newConfig := func(t *testing.T) config.AutoMDMConfig {
 		cfg := config.TestConfig()
 		config.SetTestMDMConfig(t, &cfg, appleCertPEM, appleKeyPEM, "")
 		return cfg
@@ -59,17 +59,17 @@ func TestReencryptWSTEPDiskEncryptionKeys(t *testing.T) {
 	type recorder struct {
 		replaced         map[uint]string
 		archivedReplaced map[uint]string
-		marked           []fleet.HostDiskEncryptionKey
+		marked           []automdm.HostDiskEncryptionKey
 	}
-	newStore := func(t *testing.T, keys []fleet.HostDiskEncryptionKey, archived []fleet.HostArchivedDiskEncryptionKey) (*mock.Store, *recorder) {
+	newStore := func(t *testing.T, keys []automdm.HostDiskEncryptionKey, archived []automdm.HostArchivedDiskEncryptionKey) (*mock.Store, *recorder) {
 		ds := new(mock.Store)
 		rec := &recorder{replaced: map[uint]string{}, archivedReplaced: map[uint]string{}}
 		blobOf := map[uint]string{}
 		for _, k := range keys {
 			blobOf[k.HostID] = k.Base64Encrypted
 		}
-		ds.ListWSTEPEncryptedDiskEncryptionKeysFunc = func(ctx context.Context, afterHostID uint, limit int) ([]fleet.HostDiskEncryptionKey, error) {
-			var page []fleet.HostDiskEncryptionKey
+		ds.ListWSTEPEncryptedDiskEncryptionKeysFunc = func(ctx context.Context, afterHostID uint, limit int) ([]automdm.HostDiskEncryptionKey, error) {
+			var page []automdm.HostDiskEncryptionKey
 			for _, k := range keys {
 				if k.HostID > afterHostID && len(page) < limit {
 					page = append(page, k)
@@ -77,8 +77,8 @@ func TestReencryptWSTEPDiskEncryptionKeys(t *testing.T) {
 			}
 			return page, nil
 		}
-		ds.ListWSTEPEncryptedArchivedDiskEncryptionKeysFunc = func(ctx context.Context, afterID uint, limit int) ([]fleet.HostArchivedDiskEncryptionKey, error) {
-			var page []fleet.HostArchivedDiskEncryptionKey
+		ds.ListWSTEPEncryptedArchivedDiskEncryptionKeysFunc = func(ctx context.Context, afterID uint, limit int) ([]automdm.HostArchivedDiskEncryptionKey, error) {
+			var page []automdm.HostArchivedDiskEncryptionKey
 			for _, k := range archived {
 				if k.ID > afterID && len(page) < limit {
 					page = append(page, k)
@@ -95,7 +95,7 @@ func TestReencryptWSTEPDiskEncryptionKeys(t *testing.T) {
 			rec.archivedReplaced[id] = updated
 			return true, nil
 		}
-		ds.MarkWindowsDiskEncryptionKeysUndecryptableFunc = func(ctx context.Context, keys []fleet.HostDiskEncryptionKey) error {
+		ds.MarkWindowsDiskEncryptionKeysUndecryptableFunc = func(ctx context.Context, keys []automdm.HostDiskEncryptionKey) error {
 			for _, k := range keys {
 				require.Equal(t, blobOf[k.HostID], k.Base64Encrypted, "marking must name the blob that was read")
 			}
@@ -119,7 +119,7 @@ func TestReencryptWSTEPDiskEncryptionKeys(t *testing.T) {
 
 	t.Run("readable keys move to the server private key, unreadable ones are marked", func(t *testing.T) {
 		ds, rec := newStore(t,
-			[]fleet.HostDiskEncryptionKey{
+			[]automdm.HostDiskEncryptionKey{
 				{HostID: 1, Base64Encrypted: readable, WSTEPEncrypted: true},
 				{HostID: 2, Base64Encrypted: renewed, WSTEPEncrypted: true},
 				{HostID: 3, Base64Encrypted: dead, WSTEPEncrypted: true},
@@ -129,7 +129,7 @@ func TestReencryptWSTEPDiskEncryptionKeys(t *testing.T) {
 				// Marked but already on the server key: only the marker goes.
 				{HostID: 9, Base64Encrypted: current, WSTEPEncrypted: true},
 			},
-			[]fleet.HostArchivedDiskEncryptionKey{
+			[]automdm.HostArchivedDiskEncryptionKey{
 				{ID: 10, HostID: 1, Base64Encrypted: archivedReadable, WSTEPEncrypted: true},
 				{ID: 11, HostID: 3, Base64Encrypted: archivedDead, WSTEPEncrypted: true},
 				{ID: 12, HostID: 9, Base64Encrypted: current, WSTEPEncrypted: true},
@@ -150,13 +150,13 @@ func TestReencryptWSTEPDiskEncryptionKeys(t *testing.T) {
 
 	// A replaced certificate leaves every key unreadable; one run walks all batches and marks them all.
 	t.Run("one run walks every batch and marks every unreadable key", func(t *testing.T) {
-		var keys []fleet.HostDiskEncryptionKey
+		var keys []automdm.HostDiskEncryptionKey
 		for i := uint(1); i <= 3*wstepKeyBatchSize+1; i++ {
 			blob := dead
 			if i%2 == 0 {
 				blob = readable
 			}
-			keys = append(keys, fleet.HostDiskEncryptionKey{HostID: i, Base64Encrypted: blob, WSTEPEncrypted: true})
+			keys = append(keys, automdm.HostDiskEncryptionKey{HostID: i, Base64Encrypted: blob, WSTEPEncrypted: true})
 		}
 		ds, rec := newStore(t, keys, nil)
 		require.NoError(t, ReencryptWSTEPDiskEncryptionKeys(ctx, logger, ds, &cfg))
@@ -168,7 +168,7 @@ func TestReencryptWSTEPDiskEncryptionKeys(t *testing.T) {
 	// needs Windows MDM, which needs the pair. The rows are left alone rather than marked.
 	t.Run("without a WSTEP pair nothing runs", func(t *testing.T) {
 		noWSTEP := config.TestConfig()
-		ds, _ := newStore(t, []fleet.HostDiskEncryptionKey{{HostID: 1, Base64Encrypted: readable, WSTEPEncrypted: true}}, nil)
+		ds, _ := newStore(t, []automdm.HostDiskEncryptionKey{{HostID: 1, Base64Encrypted: readable, WSTEPEncrypted: true}}, nil)
 		require.NoError(t, ReencryptWSTEPDiskEncryptionKeys(ctx, logger, ds, &noWSTEP))
 		require.False(t, ds.ListWSTEPEncryptedDiskEncryptionKeysFuncInvoked)
 	})
@@ -177,7 +177,7 @@ func TestReencryptWSTEPDiskEncryptionKeys(t *testing.T) {
 		badWSTEP := config.TestConfig()
 		badWSTEP.MDM.WindowsWSTEPIdentityCert = "testdata/does-not-exist.pem"
 		badWSTEP.MDM.WindowsWSTEPIdentityKey = "testdata/does-not-exist.key"
-		ds, _ := newStore(t, []fleet.HostDiskEncryptionKey{{HostID: 1, Base64Encrypted: readable, WSTEPEncrypted: true}}, nil)
+		ds, _ := newStore(t, []automdm.HostDiskEncryptionKey{{HostID: 1, Base64Encrypted: readable, WSTEPEncrypted: true}}, nil)
 		require.NoError(t, ReencryptWSTEPDiskEncryptionKeys(ctx, logger, ds, &badWSTEP))
 		require.False(t, ds.ListWSTEPEncryptedDiskEncryptionKeysFuncInvoked)
 	})
@@ -185,7 +185,7 @@ func TestReencryptWSTEPDiskEncryptionKeys(t *testing.T) {
 	t.Run("without a server private key nothing runs", func(t *testing.T) {
 		noPrivateKey := newConfig(t)
 		noPrivateKey.Server.PrivateKey = ""
-		ds, _ := newStore(t, []fleet.HostDiskEncryptionKey{{HostID: 1, Base64Encrypted: readable, WSTEPEncrypted: true}}, nil)
+		ds, _ := newStore(t, []automdm.HostDiskEncryptionKey{{HostID: 1, Base64Encrypted: readable, WSTEPEncrypted: true}}, nil)
 		require.NoError(t, ReencryptWSTEPDiskEncryptionKeys(ctx, logger, ds, &noPrivateKey))
 		require.False(t, ds.ListWSTEPEncryptedDiskEncryptionKeysFuncInvoked)
 	})
@@ -193,7 +193,7 @@ func TestReencryptWSTEPDiskEncryptionKeys(t *testing.T) {
 	t.Run("a server private key that cannot encrypt stops the run before any write", func(t *testing.T) {
 		badPrivateKey := newConfig(t)
 		badPrivateKey.Server.PrivateKey = "too short for AES"
-		ds, rec := newStore(t, []fleet.HostDiskEncryptionKey{{HostID: 1, Base64Encrypted: readable, WSTEPEncrypted: true}}, nil)
+		ds, rec := newStore(t, []automdm.HostDiskEncryptionKey{{HostID: 1, Base64Encrypted: readable, WSTEPEncrypted: true}}, nil)
 		require.Error(t, ReencryptWSTEPDiskEncryptionKeys(ctx, logger, ds, &badPrivateKey))
 		require.Empty(t, rec.replaced)
 		require.Empty(t, rec.marked)

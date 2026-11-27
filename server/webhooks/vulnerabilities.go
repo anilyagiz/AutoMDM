@@ -6,15 +6,15 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 )
 
 // TriggerVulnerabilitiesWebhook performs the webhook requests for vulnerabilities.
 func TriggerVulnerabilitiesWebhook(
 	ctx context.Context,
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	logger *slog.Logger,
 	args VulnArgs,
 	mapper VulnMapper,

@@ -1,8 +1,8 @@
 package service
 
-// Fleet Desktop (device endpoint) tests for the enterprise (premium) suite.
+// AutoMDM Desktop (device endpoint) tests for the enterprise (premium) suite.
 //
-// Belongs here: device-authenticated endpoints and Fleet Desktop settings — device policies,
+// Belongs here: device-authenticated endpoints and AutoMDM Desktop settings — device policies,
 // transparency URL, alternative browser host, device SSO, and device authentication methods.
 //
 // Does not belong here: conditional access flags in device responses
@@ -19,9 +19,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
 )
@@ -33,7 +33,7 @@ func (s *integrationEnterpriseTestSuite) TestListDevicePolicies() {
 	// set the logo via the modify appconfig endpoint, so that the cache is
 	// properly updated.
 	var acResp appConfigResponse
-	s.DoJSON("PATCH", "/api/latest/fleet/config",
+	s.DoJSON("PATCH", "/api/latest/automdm/config",
 		json.RawMessage(`{
 		"org_info":{
 			"org_logo_url_dark_mode": "http://example.com/logo",
@@ -43,7 +43,7 @@ func (s *integrationEnterpriseTestSuite) TestListDevicePolicies() {
 	require.Equal(t, "http://example.com/logo", acResp.OrgInfo.OrgLogoURLDarkMode)
 	require.Equal(t, "http://example.com/contact", acResp.OrgInfo.ContactURL)
 
-	team, err := s.ds.NewTeam(ctx, &fleet.Team{
+	team, err := s.ds.NewTeam(ctx, &automdm.Team{
 		ID:          51,
 		Name:        "team1-policies",
 		Description: "desc team1",
@@ -52,27 +52,27 @@ func (s *integrationEnterpriseTestSuite) TestListDevicePolicies() {
 
 	token := "much_valid"
 	host := createHostAndDeviceToken(t, s.ds, token)
-	err = s.ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team.ID, []uint{host.ID}))
+	err = s.ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team.ID, []uint{host.ID}))
 	require.NoError(t, err)
 
-	qr, err := s.ds.NewQuery(ctx, &fleet.Query{
+	qr, err := s.ds.NewQuery(ctx, &automdm.Query{
 		Name:           "TestQueryEnterpriseGlobalPolicy",
 		Description:    "Some description",
 		Query:          "select * from osquery;",
 		ObserverCanRun: true,
-		Logging:        fleet.LoggingSnapshot,
+		Logging:        automdm.LoggingSnapshot,
 	})
 	require.NoError(t, err)
 
 	// add a global policy
-	gpParams := fleet.CreatePolicyRequest{
+	gpParams := automdm.CreatePolicyRequest{
 		Name:        qr.Name,
 		Query:       qr.Query,
 		Description: qr.Description,
 		Resolution:  "some global resolution",
 	}
-	gpResp := fleet.CreatePolicyResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/policies", gpParams, http.StatusOK, &gpResp)
+	gpResp := automdm.CreatePolicyResponse{}
+	s.DoJSON("POST", "/api/latest/automdm/policies", gpParams, http.StatusOK, &gpResp)
 	require.NotNil(t, gpResp.Policy)
 
 	// add a policy execution
@@ -88,14 +88,14 @@ func (s *integrationEnterpriseTestSuite) TestListDevicePolicies() {
 	password := test.GoodPassword
 	email := "test_enterprise_policies@user.com"
 
-	u := &fleet.User{
+	u := &automdm.User{
 		Name:       "test team user",
 		Email:      email,
 		GlobalRole: nil,
-		Teams: []fleet.UserTeam{
+		Teams: []automdm.UserTeam{
 			{
 				Team: *team,
-				Role: fleet.RoleMaintainer,
+				Role: automdm.RoleMaintainer,
 			},
 		},
 	}
@@ -105,7 +105,7 @@ func (s *integrationEnterpriseTestSuite) TestListDevicePolicies() {
 	require.NoError(t, err)
 
 	s.token = s.getTestToken(email, password)
-	tpParams := fleet.CreatePolicyRequest{
+	tpParams := automdm.CreatePolicyRequest{
 		TeamID:      &team.ID,
 		Name:        "TestQueryEnterpriseTeamPolicy",
 		Query:       "select * from osquery;",
@@ -113,12 +113,12 @@ func (s *integrationEnterpriseTestSuite) TestListDevicePolicies() {
 		Resolution:  "some team resolution",
 		Platform:    "darwin",
 	}
-	tpResp := fleet.CreatePolicyResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/policies", tpParams, http.StatusOK, &tpResp)
+	tpResp := automdm.CreatePolicyResponse{}
+	s.DoJSON("POST", "/api/latest/automdm/policies", tpParams, http.StatusOK, &tpResp)
 
 	// add a hidden policy to the team, failing on the host
-	hiddenResp := fleet.CreatePolicyResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/policies", fleet.CreatePolicyRequest{
+	hiddenResp := automdm.CreatePolicyResponse{}
+	s.DoJSON("POST", "/api/latest/automdm/policies", automdm.CreatePolicyRequest{
 		TeamID:   &team.ID,
 		Name:     "TestQueryEnterpriseHiddenTeamPolicy",
 		Query:    "select * from osquery;",
@@ -130,7 +130,7 @@ func (s *integrationEnterpriseTestSuite) TestListDevicePolicies() {
 		map[uint]*bool{hiddenResp.Policy.ID: new(false)}, time.Now(), false, nil)))
 
 	// try with invalid token
-	res := s.DoRawNoAuth("GET", "/api/latest/fleet/device/invalid_token/policies", nil, http.StatusUnauthorized)
+	res := s.DoRawNoAuth("GET", "/api/latest/automdm/device/invalid_token/policies", nil, http.StatusUnauthorized)
 	err = res.Body.Close()
 	require.NoError(t, err)
 
@@ -146,9 +146,9 @@ func (s *integrationEnterpriseTestSuite) TestListDevicePolicies() {
 		require.Contains(t, policy, "response")
 	}
 
-	// GET `/api/_version_/fleet/device/{token}/policies`
+	// GET `/api/_version_/automdm/device/{token}/policies`
 	listDevicePoliciesResp := listDevicePoliciesResponse{}
-	res = s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token+"/policies", nil, http.StatusOK)
+	res = s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token+"/policies", nil, http.StatusOK)
 	rawBody, err := io.ReadAll(res.Body)
 	require.NoError(t, err)
 	err = res.Body.Close()
@@ -172,18 +172,18 @@ func (s *integrationEnterpriseTestSuite) TestListDevicePolicies() {
 		assertDeviceSafePolicy(policy)
 	}
 
-	// GET `/api/_version_/fleet/device/{token}/policies?include_hidden_policies=true`
+	// GET `/api/_version_/automdm/device/{token}/policies?include_hidden_policies=true`
 	listDevicePoliciesResp = listDevicePoliciesResponse{}
-	res = s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token+"/policies?include_hidden_policies=true", nil, http.StatusOK)
+	res = s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token+"/policies?include_hidden_policies=true", nil, http.StatusOK)
 	err = json.NewDecoder(res.Body).Decode(&listDevicePoliciesResp)
 	require.NoError(t, err)
 	err = res.Body.Close()
 	require.NoError(t, err)
 	require.Len(t, listDevicePoliciesResp.Policies, 3)
 
-	// GET `/api/_version_/fleet/device/{token}`
+	// GET `/api/_version_/automdm/device/{token}`
 	getDeviceHostResp := getDeviceHostResponse{}
-	res = s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token, nil, http.StatusOK)
+	res = s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token, nil, http.StatusOK)
 	rawBody, err = io.ReadAll(res.Body)
 	require.NoError(t, err)
 	err = res.Body.Close()
@@ -220,9 +220,9 @@ func (s *integrationEnterpriseTestSuite) TestListDevicePolicies() {
 		assertDeviceSafePolicy(policy)
 	}
 
-	// GET `/api/_version_/fleet/device/{token}?include_hidden_policies=true`
+	// GET `/api/_version_/automdm/device/{token}?include_hidden_policies=true`
 	getDeviceHostResp = getDeviceHostResponse{}
-	res = s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token+"?include_hidden_policies=true", nil, http.StatusOK)
+	res = s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token+"?include_hidden_policies=true", nil, http.StatusOK)
 	err = json.NewDecoder(res.Body).Decode(&getDeviceHostResp)
 	require.NoError(t, err)
 	err = res.Body.Close()
@@ -237,9 +237,9 @@ func (s *integrationEnterpriseTestSuite) TestListDevicePolicies() {
 	require.Equal(t, uint64(1), *getDeviceHostResp.Host.HostIssues.FailingUnhiddenPoliciesCount)
 	require.Equal(t, uint64(1), *getDeviceHostResp.Host.HostIssues.HiddenPoliciesCount)
 
-	// GET `/api/_version_/fleet/device/{token}/desktop`
-	getDesktopResp := fleetDesktopResponse{}
-	res = s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token+"/desktop", nil, http.StatusOK)
+	// GET `/api/_version_/automdm/device/{token}/desktop`
+	getDesktopResp := automdmDesktopResponse{}
+	res = s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token+"/desktop", nil, http.StatusOK)
 	err = json.NewDecoder(res.Body).Decode(&getDesktopResp)
 	require.NoError(t, err)
 	err = res.Body.Close()
@@ -255,28 +255,28 @@ func (s *integrationEnterpriseTestSuite) TestListDevicePolicies() {
 	require.NoError(t, err)
 
 	getDeviceHostResp = getDeviceHostResponse{}
-	res = s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token, nil, http.StatusOK)
+	res = s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token, nil, http.StatusOK)
 	err = json.NewDecoder(res.Body).Decode(&getDeviceHostResp)
 	require.NoError(t, err)
 	require.True(t, getDeviceHostResp.GlobalConfig.Features.EnableSoftwareInventory)
 
 	// Transferring the host drops the old team's hidden failure from both device
 	// endpoints right away; only the global failure remains.
-	team2, err := s.ds.NewTeam(ctx, &fleet.Team{Name: "team2-policies"})
+	team2, err := s.ds.NewTeam(ctx, &automdm.Team{Name: "team2-policies"})
 	require.NoError(t, err)
-	require.NoError(t, s.ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team2.ID, []uint{host.ID})))
+	require.NoError(t, s.ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team2.ID, []uint{host.ID})))
 
 	checkCounts := func(wantPolicies int, wantTotal, wantUnhidden uint64) {
 		getDeviceHostResp = getDeviceHostResponse{}
-		res = s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token+"?include_hidden_policies=true", nil, http.StatusOK)
+		res = s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token+"?include_hidden_policies=true", nil, http.StatusOK)
 		require.NoError(t, json.NewDecoder(res.Body).Decode(&getDeviceHostResp))
 		require.NoError(t, res.Body.Close())
 		require.Len(t, *getDeviceHostResp.Host.Policies, wantPolicies)
 		require.Equal(t, wantTotal, getDeviceHostResp.Host.HostIssues.FailingPoliciesCount)
 		require.Equal(t, wantUnhidden, *getDeviceHostResp.Host.HostIssues.FailingUnhiddenPoliciesCount)
 
-		getDesktopResp = fleetDesktopResponse{}
-		res = s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token+"/desktop", nil, http.StatusOK)
+		getDesktopResp = automdmDesktopResponse{}
+		res = s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token+"/desktop", nil, http.StatusOK)
 		require.NoError(t, json.NewDecoder(res.Body).Decode(&getDesktopResp))
 		require.NoError(t, res.Body.Close())
 		require.Equal(t, uint(wantTotal), *getDesktopResp.FailingPolicies)
@@ -285,7 +285,7 @@ func (s *integrationEnterpriseTestSuite) TestListDevicePolicies() {
 	checkCounts(1, 1, 1)
 
 	// A hidden policy on the new team counts once the host reports a result for it.
-	team2Hidden, err := s.ds.NewTeamPolicy(ctx, team2.ID, nil, fleet.PolicyPayload{
+	team2Hidden, err := s.ds.NewTeamPolicy(ctx, team2.ID, nil, automdm.PolicyPayload{
 		Name: "TestQueryEnterpriseTeam2HiddenPolicy", Query: "select 1;", Hidden: true,
 	})
 	require.NoError(t, err)
@@ -294,7 +294,7 @@ func (s *integrationEnterpriseTestSuite) TestListDevicePolicies() {
 	checkCounts(2, 2, 1)
 }
 
-// TestCustomTransparencyURL tests that Fleet Premium licensees can use custom transparency urls.
+// TestCustomTransparencyURL tests that AutoMDM Premium licensees can use custom transparency urls.
 func (s *integrationEnterpriseTestSuite) TestCustomTransparencyURL() {
 	t := s.T()
 
@@ -303,27 +303,27 @@ func (s *integrationEnterpriseTestSuite) TestCustomTransparencyURL() {
 
 	// confirm intitial default url
 	acResp := appConfigResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
+	s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
 	require.NotNil(t, acResp)
-	require.Equal(t, fleet.DefaultTransparencyURL, acResp.FleetDesktop.TransparencyURL)
+	require.Equal(t, automdm.DefaultTransparencyURL, acResp.AutoMDMDesktop.TransparencyURL)
 
 	// confirm device endpoint returns initial default url
 	deviceResp := &transparencyURLResponse{}
-	rawResp := s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token+"/transparency", nil, http.StatusTemporaryRedirect)
+	rawResp := s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token+"/transparency", nil, http.StatusTemporaryRedirect)
 	json.NewDecoder(rawResp.Body).Decode(deviceResp) //nolint:errcheck
 	rawResp.Body.Close()                             //nolint:errcheck
 	require.NoError(t, deviceResp.Err)
-	require.Equal(t, fleet.DefaultTransparencyURL, rawResp.Header.Get("Location"))
+	require.Equal(t, automdm.DefaultTransparencyURL, rawResp.Header.Get("Location"))
 
 	// set custom url
 	acResp = appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{"fleet_desktop":{"transparency_url": "customURL"}}`), http.StatusOK, &acResp)
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{"automdm_desktop":{"transparency_url": "customURL"}}`), http.StatusOK, &acResp)
 	require.NotNil(t, acResp)
-	require.Equal(t, "customURL", acResp.FleetDesktop.TransparencyURL)
+	require.Equal(t, "customURL", acResp.AutoMDMDesktop.TransparencyURL)
 
 	// device endpoint returns custom url
 	deviceResp = &transparencyURLResponse{}
-	rawResp = s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token+"/transparency", nil, http.StatusTemporaryRedirect)
+	rawResp = s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token+"/transparency", nil, http.StatusTemporaryRedirect)
 	json.NewDecoder(rawResp.Body).Decode(deviceResp) //nolint:errcheck
 	rawResp.Body.Close()                             //nolint:errcheck
 	require.NoError(t, deviceResp.Err)
@@ -331,20 +331,20 @@ func (s *integrationEnterpriseTestSuite) TestCustomTransparencyURL() {
 
 	// empty string applies default url
 	acResp = appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{"fleet_desktop":{"transparency_url": ""}}`), http.StatusOK, &acResp)
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{"automdm_desktop":{"transparency_url": ""}}`), http.StatusOK, &acResp)
 	require.NotNil(t, acResp)
-	require.Equal(t, fleet.DefaultTransparencyURL, acResp.FleetDesktop.TransparencyURL)
+	require.Equal(t, automdm.DefaultTransparencyURL, acResp.AutoMDMDesktop.TransparencyURL)
 
 	// device endpoint returns default url
 	deviceResp = &transparencyURLResponse{}
-	rawResp = s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token+"/transparency", nil, http.StatusTemporaryRedirect)
+	rawResp = s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token+"/transparency", nil, http.StatusTemporaryRedirect)
 	json.NewDecoder(rawResp.Body).Decode(deviceResp) //nolint:errcheck
 	rawResp.Body.Close()                             //nolint:errcheck
 	require.NoError(t, deviceResp.Err)
-	require.Equal(t, fleet.DefaultTransparencyURL, rawResp.Header.Get("Location"))
+	require.Equal(t, automdm.DefaultTransparencyURL, rawResp.Header.Get("Location"))
 }
 
-func (s *integrationEnterpriseTestSuite) TestFleetDesktopSettingsAlternativeBrowserHostURL() {
+func (s *integrationEnterpriseTestSuite) TestAutoMDMDesktopSettingsAlternativeBrowserHostURL() {
 	t := s.T()
 
 	token := "valid_token"
@@ -352,31 +352,31 @@ func (s *integrationEnterpriseTestSuite) TestFleetDesktopSettingsAlternativeBrow
 
 	// set custom url
 	acResp := appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{"fleet_desktop":{"alternative_browser_host": "example.com"}}`), http.StatusOK, &acResp)
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{"automdm_desktop":{"alternative_browser_host": "example.com"}}`), http.StatusOK, &acResp)
 	require.NotNil(t, acResp)
-	require.Equal(t, "example.com", acResp.FleetDesktop.AlternativeBrowserHost)
+	require.Equal(t, "example.com", acResp.AutoMDMDesktop.AlternativeBrowserHost)
 
 	acResp = appConfigResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
+	s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
 	require.NotNil(t, acResp)
-	require.Equal(t, "example.com", acResp.FleetDesktop.AlternativeBrowserHost)
+	require.Equal(t, "example.com", acResp.AutoMDMDesktop.AlternativeBrowserHost)
 
 	// try setting invalid value
 	acResp = appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{"fleet_desktop":{"alternative_browser_host": "@:mon's_spagetti.com"}}`), http.StatusUnprocessableEntity, &acResp)
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{"automdm_desktop":{"alternative_browser_host": "@:mon's_spagetti.com"}}`), http.StatusUnprocessableEntity, &acResp)
 
-	s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
+	s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
 	require.NotNil(t, acResp)
-	require.Equal(t, "example.com", acResp.FleetDesktop.AlternativeBrowserHost)
+	require.Equal(t, "example.com", acResp.AutoMDMDesktop.AlternativeBrowserHost)
 }
 
-func (s *integrationEnterpriseTestSuite) TestFleetDesktopSettingsSSOEnabled() {
+func (s *integrationEnterpriseTestSuite) TestAutoMDMDesktopSettingsSSOEnabled() {
 	t := s.T()
 
 	t.Cleanup(func() {
 		var acResp appConfigResponse
-		s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
-			"fleet_desktop": {"sso_enabled": false},
+		s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
+			"automdm_desktop": {"sso_enabled": false},
 			"mdm": {"end_user_authentication": {"entity_id": "", "idp_name": "", "metadata": "", "metadata_url": ""}}
 		}`), http.StatusOK, &acResp)
 	})
@@ -385,56 +385,56 @@ func (s *integrationEnterpriseTestSuite) TestFleetDesktopSettingsSSOEnabled() {
 	// unconfigured state instead of relying on test order.
 	appCfg, err := s.ds.AppConfig(t.Context())
 	require.NoError(t, err)
-	appCfg.FleetDesktop.SSOEnabled = false
-	appCfg.MDM.EndUserAuthentication = fleet.MDMEndUserAuthentication{}
+	appCfg.AutoMDMDesktop.SSOEnabled = false
+	appCfg.MDM.EndUserAuthentication = automdm.MDMEndUserAuthentication{}
 	require.NoError(t, s.ds.SaveAppConfig(t.Context(), appCfg))
 
 	// enabling without a configured IdP is rejected, naming the offending field
-	res := s.Do("PATCH", "/api/latest/fleet/config", json.RawMessage(`{"fleet_desktop":{"sso_enabled":true}}`), http.StatusUnprocessableEntity)
+	res := s.Do("PATCH", "/api/latest/automdm/config", json.RawMessage(`{"automdm_desktop":{"sso_enabled":true}}`), http.StatusUnprocessableEntity)
 	name, reason := extractServerErrorNameReason(res.Body)
-	require.Equal(t, "fleet_desktop.sso_enabled", name)
+	require.Equal(t, "automdm_desktop.sso_enabled", name)
 	require.Contains(t, reason, "Please configure it and try again.")
 
 	var acResp appConfigResponse
-	s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
-	require.False(t, acResp.FleetDesktop.SSOEnabled)
+	s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
+	require.False(t, acResp.AutoMDMDesktop.SSOEnabled)
 
 	// setting the IdP and the flag in the same payload succeeds, since the
 	// prerequisite is checked against the merged config
 	acResp = appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
-		"fleet_desktop": {"sso_enabled": true},
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
+		"automdm_desktop": {"sso_enabled": true},
 		"mdm": {"end_user_authentication": {
 			"entity_id": "https://localhost:8080",
 			"idp_name": "SimpleSAML",
 			"metadata_url": "https://idp.example.com/metadata"
 		}}
 	}`), http.StatusOK, &acResp)
-	require.True(t, acResp.FleetDesktop.SSOEnabled)
+	require.True(t, acResp.AutoMDMDesktop.SSOEnabled)
 
-	// the GET response rebuilds FleetDesktopSettings field by field, so verify
+	// the GET response rebuilds AutoMDMDesktopSettings field by field, so verify
 	// the flag survives that path and not just the PATCH echo
 	acResp = appConfigResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
-	require.True(t, acResp.FleetDesktop.SSOEnabled)
+	s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
+	require.True(t, acResp.AutoMDMDesktop.SSOEnabled)
 
-	s.lastActivityMatches(fleet.ActivityTypeEnabledSSOFleetDesktop{}.ActivityName(), "", 0)
+	s.lastActivityMatches(automdm.ActivityTypeEnabledSSOAutoMDMDesktop{}.ActivityName(), "", 0)
 	lastID := s.lastActivityMatches("", "", 0)
 
 	// a PATCH omitting sso_enabled leaves it on and emits no activity
 	acResp = appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{"org_info":{"org_name":"Fleet Desktop SSO"}}`), http.StatusOK, &acResp)
-	require.True(t, acResp.FleetDesktop.SSOEnabled)
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{"org_info":{"org_name":"AutoMDM Desktop SSO"}}`), http.StatusOK, &acResp)
+	require.True(t, acResp.AutoMDMDesktop.SSOEnabled)
 	require.Equal(t, lastID, s.lastActivityMatches("", "", 0))
 
 	// re-asserting the same value emits no activity either
 	acResp = appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{"fleet_desktop":{"sso_enabled":true}}`), http.StatusOK, &acResp)
-	require.True(t, acResp.FleetDesktop.SSOEnabled)
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{"automdm_desktop":{"sso_enabled":true}}`), http.StatusOK, &acResp)
+	require.True(t, acResp.AutoMDMDesktop.SSOEnabled)
 	require.Equal(t, lastID, s.lastActivityMatches("", "", 0))
 
 	// reverse guard: the IdP can't be cleared while SSO is enabled
-	res = s.Do("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	res = s.Do("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 		"mdm": {"end_user_authentication": {"entity_id": "", "idp_name": "", "metadata": "", "metadata_url": ""}}
 	}`), http.StatusUnprocessableEntity)
 	name, reason = extractServerErrorNameReason(res.Body)
@@ -442,18 +442,18 @@ func (s *integrationEnterpriseTestSuite) TestFleetDesktopSettingsSSOEnabled() {
 	require.Contains(t, reason, "Please disable it and try again.")
 
 	acResp = appConfigResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
-	require.True(t, acResp.FleetDesktop.SSOEnabled)
+	s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
+	require.True(t, acResp.AutoMDMDesktop.SSOEnabled)
 	require.False(t, acResp.MDM.EndUserAuthentication.IsEmpty())
 
 	// disabling emits the disabled activity, and then the IdP can be cleared
 	acResp = appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{"fleet_desktop":{"sso_enabled":false}}`), http.StatusOK, &acResp)
-	require.False(t, acResp.FleetDesktop.SSOEnabled)
-	s.lastActivityMatches(fleet.ActivityTypeDisabledSSOFleetDesktop{}.ActivityName(), "", 0)
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{"automdm_desktop":{"sso_enabled":false}}`), http.StatusOK, &acResp)
+	require.False(t, acResp.AutoMDMDesktop.SSOEnabled)
+	s.lastActivityMatches(automdm.ActivityTypeDisabledSSOAutoMDMDesktop{}.ActivityName(), "", 0)
 
 	acResp = appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 		"mdm": {"end_user_authentication": {"entity_id": "", "idp_name": "", "metadata": "", "metadata_url": ""}}
 	}`), http.StatusOK, &acResp)
 	require.True(t, acResp.MDM.EndUserAuthentication.IsEmpty())
@@ -467,13 +467,13 @@ func (s *integrationEnterpriseTestSuite) TestDeviceSSOWithoutAppleMDM() {
 	}
 
 	var acResp appConfigResponse
-	s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
+	s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
 	require.False(t, acResp.MDM.EnabledAndConfigured)
 	originalServerURL := acResp.ServerSettings.ServerURL
 
 	createHostAndDeviceToken(t, s.ds, "device-sso-no-apple-mdm-token")
 
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(fmt.Sprintf(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(fmt.Sprintf(`{
 		"server_settings": { "server_url": "https://localhost:8080" },
 		"mdm": {
 			"end_user_authentication": {
@@ -482,15 +482,15 @@ func (s *integrationEnterpriseTestSuite) TestDeviceSSOWithoutAppleMDM() {
 				"metadata_url": "%s"
 			}
 		},
-		"fleet_desktop": { "sso_enabled": true, "alternative_browser_host": "" }
+		"automdm_desktop": { "sso_enabled": true, "alternative_browser_host": "" }
 	}`, testSAMLIDPMetadataURL)), http.StatusOK, &acResp)
-	require.True(t, acResp.FleetDesktop.SSOEnabled)
-	require.Empty(t, acResp.FleetDesktop.AlternativeBrowserHost)
+	require.True(t, acResp.AutoMDMDesktop.SSOEnabled)
+	require.Empty(t, acResp.AutoMDMDesktop.AlternativeBrowserHost)
 
 	t.Cleanup(func() {
-		s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(fmt.Sprintf(`{
+		s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(fmt.Sprintf(`{
 			"server_settings": { "server_url": %q },
-			"fleet_desktop": { "sso_enabled": false },
+			"automdm_desktop": { "sso_enabled": false },
 			"mdm": { "end_user_authentication": { "entity_id": "", "idp_name": "", "metadata_url": "" } }
 		}`, originalServerURL)), http.StatusOK, &appConfigResponse{})
 	})
@@ -519,7 +519,7 @@ func (s *integrationEnterpriseTestSuite) TestDesktopEndpointWithInvalidPolicy() 
 	err := s.ds.SaveUser(context.Background(), &admin)
 	require.NoError(t, err)
 
-	policy, err := s.ds.NewGlobalPolicy(context.Background(), &admin.ID, fleet.PolicyPayload{
+	policy, err := s.ds.NewGlobalPolicy(context.Background(), &admin.ID, automdm.PolicyPayload{
 		Query:       "SELECT 1 FROM table",
 		Name:        "test",
 		Description: "Some invalid Query",
@@ -531,8 +531,8 @@ func (s *integrationEnterpriseTestSuite) TestDesktopEndpointWithInvalidPolicy() 
 	require.NoError(t, errOnly(s.ds.RecordPolicyQueryExecutions(context.Background(), host, map[uint]*bool{policy.ID: nil}, time.Now(), false, nil)))
 
 	// Any 'invalid' policies should be ignored.
-	desktopRes := fleetDesktopResponse{}
-	res := s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token+"/desktop", nil, http.StatusOK)
+	desktopRes := automdmDesktopResponse{}
+	res := s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token+"/desktop", nil, http.StatusOK)
 	require.NoError(t, json.NewDecoder(res.Body).Decode(&desktopRes))
 	require.NoError(t, res.Body.Close())
 	require.NoError(t, desktopRes.Err)
@@ -543,7 +543,7 @@ func (s *integrationEnterpriseTestSuite) TestDeviceAuthenticationMethods() {
 	t := s.T()
 	ctx := context.Background()
 
-	iosHost, err := s.ds.NewHost(ctx, &fleet.Host{
+	iosHost, err := s.ds.NewHost(ctx, &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -556,7 +556,7 @@ func (s *integrationEnterpriseTestSuite) TestDeviceAuthenticationMethods() {
 	})
 	require.NoError(t, err)
 
-	macHost, err := s.ds.NewHost(ctx, &fleet.Host{
+	macHost, err := s.ds.NewHost(ctx, &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -577,7 +577,7 @@ func (s *integrationEnterpriseTestSuite) TestDeviceAuthenticationMethods() {
 
 	t.Run("iOS device authenticates by UUID in the URL", func(t *testing.T) {
 		var getHostResp getDeviceHostResponse
-		res := s.DoRawNoAuth("GET", fmt.Sprintf("/api/latest/fleet/device/%s", iosHost.UUID), nil, http.StatusOK)
+		res := s.DoRawNoAuth("GET", fmt.Sprintf("/api/latest/automdm/device/%s", iosHost.UUID), nil, http.StatusOK)
 		require.NoError(t, json.NewDecoder(res.Body).Decode(&getHostResp))
 		require.NoError(t, res.Body.Close())
 		require.Equal(t, iosHost.ID, getHostResp.Host.ID)
@@ -585,13 +585,13 @@ func (s *integrationEnterpriseTestSuite) TestDeviceAuthenticationMethods() {
 	})
 
 	t.Run("iOS device with invalid UUID is rejected", func(t *testing.T) {
-		res := s.DoRawNoAuth("GET", "/api/latest/fleet/device/invalid-uuid-does-not-exist", nil, http.StatusUnauthorized)
+		res := s.DoRawNoAuth("GET", "/api/latest/automdm/device/invalid-uuid-does-not-exist", nil, http.StatusUnauthorized)
 		res.Body.Close()
 	})
 
 	t.Run("macOS device with token auth", func(t *testing.T) {
 		var getHostResp getDeviceHostResponse
-		res := s.DoRawNoAuth("GET", fmt.Sprintf("/api/latest/fleet/device/%s", macToken), nil, http.StatusOK)
+		res := s.DoRawNoAuth("GET", fmt.Sprintf("/api/latest/automdm/device/%s", macToken), nil, http.StatusOK)
 		require.NoError(t, json.NewDecoder(res.Body).Decode(&getHostResp))
 		require.NoError(t, res.Body.Close())
 		require.Equal(t, macHost.ID, getHostResp.Host.ID)
@@ -599,7 +599,7 @@ func (s *integrationEnterpriseTestSuite) TestDeviceAuthenticationMethods() {
 	})
 
 	t.Run("macOS device UUID in URL should be rejected (not iOS/iPadOS)", func(t *testing.T) {
-		res := s.DoRawNoAuth("GET", fmt.Sprintf("/api/latest/fleet/device/%s", macHost.UUID), nil, http.StatusUnauthorized)
+		res := s.DoRawNoAuth("GET", fmt.Sprintf("/api/latest/automdm/device/%s", macHost.UUID), nil, http.StatusUnauthorized)
 		res.Body.Close()
 	})
 
@@ -610,7 +610,7 @@ func (s *integrationEnterpriseTestSuite) TestDeviceAuthenticationMethods() {
 			return err
 		})
 
-		res := s.DoRawNoAuth("GET", fmt.Sprintf("/api/latest/fleet/device/%s", iosToken), nil, http.StatusUnauthorized)
+		res := s.DoRawNoAuth("GET", fmt.Sprintf("/api/latest/automdm/device/%s", iosToken), nil, http.StatusUnauthorized)
 		errMsg := extractServerErrorText(res.Body)
 		require.Contains(t, errMsg, "Authentication required")
 	})
@@ -618,7 +618,7 @@ func (s *integrationEnterpriseTestSuite) TestDeviceAuthenticationMethods() {
 	// X-Client-Cert-Serial used to select a separate authentication path that
 	// skipped the iOS/iPadOS response scrub. The header must now be inert.
 	t.Run("X-Client-Cert-Serial is ignored", func(t *testing.T) {
-		devicePath := fmt.Sprintf("/api/latest/fleet/device/%s", iosHost.UUID)
+		devicePath := fmt.Sprintf("/api/latest/automdm/device/%s", iosHost.UUID)
 
 		res := s.DoRawNoAuth("GET", devicePath, nil, http.StatusOK)
 		plain, err := io.ReadAll(res.Body)
@@ -647,18 +647,18 @@ func (s *integrationEnterpriseTestSuite) TestDeviceAuthenticationMethods() {
 	t.Run("X-Client-Cert-Serial does not unlock token-only routes", func(t *testing.T) {
 		headers := map[string]string{"X-Client-Cert-Serial": "1"}
 
-		res := s.DoRawWithHeaders("POST", fmt.Sprintf("/api/latest/fleet/device/%s/debug/errors", iosHost.UUID),
-			jsonMustMarshal(t, fleet.FleetdError{ErrorSource: "test", ErrorMessage: "test"}), http.StatusForbidden, headers)
+		res := s.DoRawWithHeaders("POST", fmt.Sprintf("/api/latest/automdm/device/%s/debug/errors", iosHost.UUID),
+			jsonMustMarshal(t, automdm.AutoMDMdError{ErrorSource: "test", ErrorMessage: "test"}), http.StatusForbidden, headers)
 		res.Body.Close()
 
-		res = s.DoRawWithHeaders("POST", fmt.Sprintf("/api/latest/fleet/device/%s/bypass_conditional_access", iosHost.UUID),
+		res = s.DoRawWithHeaders("POST", fmt.Sprintf("/api/latest/automdm/device/%s/bypass_conditional_access", iosHost.UUID),
 			nil, http.StatusForbidden, headers)
 		res.Body.Close()
 	})
 
 	t.Run("X-Client-Cert-Serial does not break token auth", func(t *testing.T) {
 		var getHostResp getDeviceHostResponse
-		res := s.DoRawWithHeaders("GET", fmt.Sprintf("/api/latest/fleet/device/%s", macToken), nil, http.StatusOK,
+		res := s.DoRawWithHeaders("GET", fmt.Sprintf("/api/latest/automdm/device/%s", macToken), nil, http.StatusOK,
 			map[string]string{"X-Client-Cert-Serial": "1"})
 		require.NoError(t, json.NewDecoder(res.Body).Decode(&getHostResp))
 		require.NoError(t, res.Body.Close())

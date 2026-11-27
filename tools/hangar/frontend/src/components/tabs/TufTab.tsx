@@ -14,7 +14,7 @@ import {
   type TufServerStatus,
 } from "../../lib/ipc";
 import {
-  FLEET_PORT,
+  AUTOMDM_PORT,
   TUF_CHANNEL,
   TUF_PLATFORMS,
   TUF_PORT,
@@ -92,16 +92,16 @@ export function TufTab({
   const buildProc = procs.find((p) => p.id === TUF_PROC_ID);
   const building = buildProc?.state === "running" || buildProc?.state === "stopping";
 
-  const fleetTunnel = tunnelForPort(tunnels, FLEET_PORT);
+  const automdmTunnel = tunnelForPort(tunnels, AUTOMDM_PORT);
   const tufTunnel = tunnelForPort(tunnels, TUF_PORT);
 
   const useDetected = useCallback(() => {
     const next = { ...cfg };
-    if (fleetTunnel?.public_url) next.fleet_url = fleetTunnel.public_url;
+    if (automdmTunnel?.public_url) next.automdm_url = automdmTunnel.public_url;
     if (tufTunnel?.public_url) next.tuf_url = tufTunnel.public_url;
     persist(next);
     flash("ok", "Filled URLs from running tunnels");
-  }, [cfg, fleetTunnel, tufTunnel, persist, flash]);
+  }, [cfg, automdmTunnel, tufTunnel, persist, flash]);
 
   const runBuild = useCallback(async () => {
     try {
@@ -200,12 +200,12 @@ export function TufTab({
             <span className="dim" style={{ fontSize: "var(--fs-xx-small)" }}>
               runs <span className="mono">tools/tuf/test/main.sh</span>
             </span>
-            <button onClick={useDetected} disabled={!fleetTunnel && !tufTunnel}>
+            <button onClick={useDetected} disabled={!automdmTunnel && !tufTunnel}>
               Use detected URLs
             </button>
           </div>
 
-          <TunnelRow label="Fleet tunnel" port={FLEET_PORT} tunnel={fleetTunnel} domain={domainOf(cfg.fleet_url)} onCopy={copy} />
+          <TunnelRow label="AutoMDM tunnel" port={AUTOMDM_PORT} tunnel={automdmTunnel} domain={domainOf(cfg.automdm_url)} onCopy={copy} />
           <TunnelRow label="TUF tunnel" port={TUF_PORT} tunnel={tufTunnel} domain={domainOf(cfg.tuf_url)} onCopy={copy} />
 
           <div style={{ display: "flex", alignItems: "center", gap: "var(--pad-small)", flexWrap: "wrap" }}>
@@ -243,8 +243,8 @@ export function TufTab({
           </div>
 
           <div style={{ display: "flex", gap: "var(--pad-medium)", flexWrap: "wrap" }}>
-            <Field label="Fleet URL">
-              <input value={cfg.fleet_url} placeholder="https://you.ngrok.app" onChange={(e) => set("fleet_url", e.target.value)} style={{ width: "100%" }} />
+            <Field label="AutoMDM URL">
+              <input value={cfg.automdm_url} placeholder="https://you.ngrok.app" onChange={(e) => set("automdm_url", e.target.value)} style={{ width: "100%" }} />
             </Field>
             <Field label="TUF URL">
               <input value={cfg.tuf_url} placeholder="https://tuf.you.ngrok.app" onChange={(e) => set("tuf_url", e.target.value)} style={{ width: "100%" }} />
@@ -257,8 +257,8 @@ export function TufTab({
 
           <div style={{ display: "flex", gap: "var(--pad-large)" }}>
             <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "var(--fs-xx-small)" }}>
-              <input type="checkbox" checked={cfg.fleet_desktop} onChange={(e) => set("fleet_desktop", e.target.checked)} />
-              Fleet Desktop
+              <input type="checkbox" checked={cfg.automdm_desktop} onChange={(e) => set("automdm_desktop", e.target.checked)} />
+              AutoMDM Desktop
             </label>
             <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "var(--fs-xx-small)" }}>
               <input type="checkbox" checked={cfg.debug} onChange={(e) => set("debug", e.target.checked)} />
@@ -327,7 +327,7 @@ function BuildStatus({ proc, building }: { proc: ProcInfo | undefined; building:
   }
   if (!proc) return null;
   if (proc.state === "done") {
-    return <span style={{ fontSize: "var(--fs-xx-small)", color: "var(--core-fleet-green)", fontWeight: 600 }}>build finished</span>;
+    return <span style={{ fontSize: "var(--fs-xx-small)", color: "var(--core-automdm-green)", fontWeight: 600 }}>build finished</span>;
   }
   if (proc.state === "failed") {
     return (

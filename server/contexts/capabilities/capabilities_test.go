@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/require"
 )
 
@@ -13,17 +13,17 @@ func TestCapabilitiesExist(t *testing.T) {
 	cases := []struct {
 		name string
 		in   string
-		out  fleet.CapabilityMap
+		out  automdm.CapabilityMap
 	}{
-		{"empty", "", fleet.CapabilityMap{}},
-		{"one", "test", fleet.CapabilityMap{fleet.Capability("test"): struct{}{}}},
+		{"empty", "", automdm.CapabilityMap{}},
+		{"one", "test", automdm.CapabilityMap{automdm.Capability("test"): struct{}{}}},
 		{
 			"many",
 			"test,foo,bar",
-			fleet.CapabilityMap{
-				fleet.Capability("test"): struct{}{},
-				fleet.Capability("foo"):  struct{}{},
-				fleet.Capability("bar"):  struct{}{},
+			automdm.CapabilityMap{
+				automdm.Capability("test"): struct{}{},
+				automdm.Capability("foo"):  struct{}{},
+				automdm.Capability("bar"):  struct{}{},
 			},
 		},
 	}
@@ -31,7 +31,7 @@ func TestCapabilitiesExist(t *testing.T) {
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
 			r := http.Request{
-				Header: http.Header{fleet.CapabilitiesHeader: []string{tt.in}},
+				Header: http.Header{automdm.CapabilitiesHeader: []string{tt.in}},
 			}
 			ctx := NewContext(context.Background(), &r)
 			mp, ok := FromContext(ctx)

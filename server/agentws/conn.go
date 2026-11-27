@@ -12,7 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/gorilla/websocket"
 )
 
@@ -92,7 +92,7 @@ func (c *conn) bytesInOut() (in, out int64) {
 
 // enqueue queues msg for delivery, merging it into a pending notification of
 // the same type (keeping the latest reason).
-func (c *conn) enqueue(msg fleet.AgentWSMessage) {
+func (c *conn) enqueue(msg automdm.AgentWSMessage) {
 	c.lastNotifiedNano.Store(time.Now().UnixNano())
 	c.lastNotifyReason.Store(&msg.Reason)
 	c.notified.Add(1)
@@ -113,12 +113,12 @@ func (c *conn) enqueue(msg fleet.AgentWSMessage) {
 
 // takePending returns the pending notifications, sorted by type, and clears
 // them.
-func (c *conn) takePending() []fleet.AgentWSMessage {
+func (c *conn) takePending() []automdm.AgentWSMessage {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	msgs := make([]fleet.AgentWSMessage, 0, len(c.pending))
+	msgs := make([]automdm.AgentWSMessage, 0, len(c.pending))
 	for _, msgType := range slices.Sorted(maps.Keys(c.pending)) {
-		msgs = append(msgs, fleet.AgentWSMessage{Type: msgType, Reason: c.pending[msgType]})
+		msgs = append(msgs, automdm.AgentWSMessage{Type: msgType, Reason: c.pending[msgType]})
 	}
 	clear(c.pending)
 	return msgs

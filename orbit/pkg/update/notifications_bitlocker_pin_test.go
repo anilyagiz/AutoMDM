@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/client"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/bitlocker"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/client"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/bitlocker"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/rs/zerolog/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,8 +29,8 @@ func TestWindowsMDMBitlockerPIN(t *testing.T) {
 	notFound := &client.NotFoundErr{}
 	networkErr := errors.New("connection refused")
 
-	pinPending := &fleet.OrbitConfig{Notifications: fleet.OrbitConfigNotifications{BitLockerPINRequestPending: true}}
-	nothingPending := &fleet.OrbitConfig{}
+	pinPending := &automdm.OrbitConfig{Notifications: automdm.OrbitConfigNotifications{BitLockerPINRequestPending: true}}
+	nothingPending := &automdm.OrbitConfig{}
 
 	type fixture struct {
 		receiver  *windowsMDMBitlockerConfigReceiver
@@ -56,7 +56,7 @@ func TestWindowsMDMBitlockerPIN(t *testing.T) {
 		}
 		return f
 	}
-	setOutcome := pinOutcome{requestUUID: requestUUID, outcome: fleet.BitLockerPINRequestSet}
+	setOutcome := pinOutcome{requestUUID: requestUUID, outcome: automdm.BitLockerPINRequestSet}
 
 	t.Run("a pending PIN is applied and reported", func(t *testing.T) {
 		f := newFixture(t, nil)
@@ -88,7 +88,7 @@ func TestWindowsMDMBitlockerPIN(t *testing.T) {
 	t.Run("nothing is collected while encryption is being enforced", func(t *testing.T) {
 		f := newFixture(t, nil)
 		f.receiver.encryptionRetryAfter = time.Now().Add(time.Hour)
-		cfg := &fleet.OrbitConfig{Notifications: fleet.OrbitConfigNotifications{
+		cfg := &automdm.OrbitConfig{Notifications: automdm.OrbitConfigNotifications{
 			BitLockerPINRequestPending: true,
 			EnforceBitLockerEncryption: true,
 		}}
@@ -149,7 +149,7 @@ func TestWindowsMDMBitlockerPIN(t *testing.T) {
 
 			require.Equal(t, []pinOutcome{{
 				requestUUID: requestUUID,
-				outcome:     fleet.BitLockerPINRequestFailed,
+				outcome:     automdm.BitLockerPINRequestFailed,
 				clientError: tc.wantReason,
 			}}, f.server.PINResults)
 		})
@@ -179,7 +179,7 @@ func TestWindowsMDMBitlockerPIN(t *testing.T) {
 		// The repair branches return early, and the server times a collected PIN out an hour after the agent took it.
 		f.server.SetPINResultImpl = func(pinOutcome) error { return nil }
 		f.receiver.encryptionRetryAfter = time.Now().Add(time.Hour)
-		repairing := &fleet.OrbitConfig{Notifications: fleet.OrbitConfigNotifications{EnforceBitLockerEncryption: true}}
+		repairing := &automdm.OrbitConfig{Notifications: automdm.OrbitConfigNotifications{EnforceBitLockerEncryption: true}}
 		require.NoError(t, f.receiver.Run(repairing))
 
 		require.Equal(t, []pinOutcome{setOutcome, setOutcome}, f.server.PINResults)

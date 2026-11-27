@@ -8,8 +8,8 @@ import (
 	"context"
 	"errors"
 
-	authz_ctx "github.com/fleetdm/fleet/v4/server/contexts/authz"
-	platform_http "github.com/fleetdm/fleet/v4/server/platform/http"
+	authz_ctx "github.com/anilyagiz/automdm/v4/server/contexts/authz"
+	platform_http "github.com/anilyagiz/automdm/v4/server/platform/http"
 	"github.com/go-kit/kit/endpoint"
 )
 

@@ -1,6 +1,6 @@
 <!doctype html>
 <!--
-  Fleet load test metrics dashboard.
+  AutoMDM load test metrics dashboard.
 
   A zero-dependency, single-file viewer for the run artifacts produced by
   collect-metrics.sh (the .json files under runs/). Open this file in a
@@ -15,7 +15,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Fleet load test metrics</title>
+<title>AutoMDM load test metrics</title>
 <style>
   :root {
     --bg: #f8fafc; --panel: #ffffff; --border: #e2e8f0;
@@ -121,7 +121,7 @@
 <body>
 
 <header>
-  <h1>Fleet load test metrics</h1>
+  <h1>AutoMDM load test metrics</h1>
   <button class="primary" id="btn-pick">Load runs folder…</button>
   <button id="btn-overview" class="hidden">← Overview</button>
   <span id="load-status">No runs loaded</span>
@@ -184,10 +184,10 @@
  * zero: going 0 -> non-zero is always an alert
  * ======================================================================= */
 const REGISTRY = [
-  { group: 'Fleet Server', name: 'Fleet CPU', path: 'fleet_server.cpu_utilization.Average', unit: '%', warn: 10, alert: 30, abs: 80, floor: 5 },
-  { group: 'Fleet Server', name: 'Fleet CPU (max)', path: 'fleet_server.cpu_utilization.Maximum', unit: '%', warn: 20, alert: 40, floor: 5 },
-  { group: 'Fleet Server', name: 'Fleet Memory', path: 'fleet_server.memory_utilization.Average', unit: '%', warn: 15, alert: 30, abs: 80, floor: 5 },
-  { group: 'Fleet Server', name: 'Fleet Containers', path: 'fleet_server.task_counts.runningCount', unit: '', dir: 'info' },
+  { group: 'AutoMDM Server', name: 'AutoMDM CPU', path: 'automdm_server.cpu_utilization.Average', unit: '%', warn: 10, alert: 30, abs: 80, floor: 5 },
+  { group: 'AutoMDM Server', name: 'AutoMDM CPU (max)', path: 'automdm_server.cpu_utilization.Maximum', unit: '%', warn: 20, alert: 40, floor: 5 },
+  { group: 'AutoMDM Server', name: 'AutoMDM Memory', path: 'automdm_server.memory_utilization.Average', unit: '%', warn: 15, alert: 30, abs: 80, floor: 5 },
+  { group: 'AutoMDM Server', name: 'AutoMDM Containers', path: 'automdm_server.task_counts.runningCount', unit: '', dir: 'info' },
 
   { group: 'Loadtest', name: 'Loadtest CPU', path: 'loadtest_containers.cpu_utilization.Average', unit: '%', warn: 20, alert: 40, abs: 90, floor: 5 },
   { group: 'Loadtest', name: 'Loadtest Memory', path: 'loadtest_containers.memory_utilization.Average', unit: '%', warn: 20, alert: 40, abs: 90, floor: 5 },
@@ -248,9 +248,9 @@ const REGISTRY = [
   { group: 'ALB', name: 'Requests/h', path: 'alb.request_count.Sum', unit: '', dir: 'info', rate: true },
   { group: 'ALB', name: 'Traffic/h', path: 'alb.processed_bytes.Sum', unit: 'bytes', dir: 'info', rate: true },
 
-  { group: 'Errors & Restarts', name: 'Fleet Errors/h', path: 'fleet_server_errors.error_count', unit: '', zero: true, rate: true },
+  { group: 'Errors & Restarts', name: 'AutoMDM Errors/h', path: 'automdm_server_errors.error_count', unit: '', zero: true, rate: true },
   { group: 'Errors & Restarts', name: 'Container Stops', path: 'container_health.abnormal_stops', unit: '', zero: true },
-  { group: 'Errors & Restarts', name: 'Fleet Container Stops', path: 'container_health.fleet_abnormal_stops', unit: '', zero: true },
+  { group: 'Errors & Restarts', name: 'AutoMDM Container Stops', path: 'container_health.automdm_abnormal_stops', unit: '', zero: true },
   { group: 'Errors & Restarts', name: 'Failed Health Checks', path: 'container_health.failed_health_checks', unit: '', zero: true },
   { group: 'Errors & Restarts', name: 'Placement Failures', path: 'container_health.unable_to_place', unit: '', zero: true },
 ];

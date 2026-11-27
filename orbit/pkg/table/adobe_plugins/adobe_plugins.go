@@ -25,7 +25,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/tablehelpers"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/tablehelpers"
 	"github.com/osquery/osquery-go/plugin/table"
 	"github.com/rs/zerolog"
 )

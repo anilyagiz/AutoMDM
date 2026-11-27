@@ -28,7 +28,7 @@ More details:
 `.msi` files are a relational database (!) laid out in [CFB format](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cfb/53989ce4-7b05-4f8d-829b-d08d6148375b)
 
 Getting the database tables in binary format form the CBF file is
-[possible](https://github.com/fleetdm/fleet/blob/85ee1f7bb9fe33ece20aca0f38678fb5390d3e9c/pkg/file/msi.go#L40-L41), but extracting the information from the tables is a challenge
+[possible](https://github.com/anilyagiz/automdm/blob/85ee1f7bb9fe33ece20aca0f38678fb5390d3e9c/pkg/file/msi.go#L40-L41), but extracting the information from the tables is a challenge
 because the DB format is closed source and Microsoft doesn't disclose any
 details about the implementation.
 
@@ -50,10 +50,10 @@ One possibly, but very low accuracy strategy could be to regex the contents of
 A more sophisticated approach is taken by [this Python library](https://github.com/binref/refinery/blob/de99c87f6dedd6d42508a3d436b6df9181837e34/refinery/units/formats/msi.py#L131) that is able to reverse engineer some of the data based on both tables:
 
 ```
-$ emit fleet-osquery.msi | ./pyenv/bin/xtmsi MsiTables.json | jq '.Property[] | select(.Property == "ProductName" or .Property == "ProductVersion")'
+$ emit automdm-osquery.msi | ./pyenv/bin/xtmsi MsiTables.json | jq '.Property[] | select(.Property == "ProductName" or .Property == "ProductVersion")'
 {
   "Property": "ProductName",
-  "Value": "Fleet osquery"
+  "Value": "AutoMDM osquery"
 }
 {
   "Property": "ProductVersion",
@@ -61,7 +61,7 @@ $ emit fleet-osquery.msi | ./pyenv/bin/xtmsi MsiTables.json | jq '.Property[] | 
 }
 ```
 
-A partial implementation that reads the CFB format can be found in the [MSI metadata extraction code](https://github.com/fleetdm/fleet/blob/main/pkg/file/msi.go).
+A partial implementation that reads the CFB format can be found in the [MSI metadata extraction code](https://github.com/anilyagiz/automdm/blob/main/pkg/file/msi.go).
 
 ### Apple Disk Image (.dmg)
 
@@ -136,7 +136,7 @@ file input:
 - Firefox treats it as a folder, and won't let you select it as a unit (screenshot)
 - Safari and Chrome automatically compresses the folder in zip format (screenshot)
 
-A full implementation that reads the name and version from `Info.plist` can be found [in the application bundle extraction code](https://github.com/fleetdm/fleet/blob/85ee1f7bb9fe33ece20aca0f38678fb5390d3e9c/pkg/file/app.go).
+A full implementation that reads the name and version from `Info.plist` can be found [in the application bundle extraction code](https://github.com/anilyagiz/automdm/blob/85ee1f7bb9fe33ece20aca0f38678fb5390d3e9c/pkg/file/app.go).
 
 ### PKG installers (.pkg)
 
@@ -145,7 +145,7 @@ Under the hood, `.pkg` installers are compressed files in `xar` format.
 PKG installers are required to have a [Distribution](https://developer.apple.com/library/archive/documentation/DeveloperTools/Reference/DistributionDefinitionRef/Chapters/Distribution_XML_Ref.html) file from which we can extract the name and version.
 
 A full implementation that reads the name and version from the `Distribution` file
-can be found in the [XAR metadata extraction code](https://github.com/fleetdm/fleet/blob/85ee1f7bb9fe33ece20aca0f38678fb5390d3e9c/pkg/file/xar.go).
+can be found in the [XAR metadata extraction code](https://github.com/anilyagiz/automdm/blob/85ee1f7bb9fe33ece20aca0f38678fb5390d3e9c/pkg/file/xar.go).
 
 ### Portable Executable (.exe)
 
@@ -155,7 +155,7 @@ The Go standard library provides a `"debug/pe"` package that we could use as a s
 
 The file is composed by different sections, and the name and version can be found in the [`.rsrc` section](https://learn.microsoft.com/en-us/windows/win32/debug/pe-format#the-rsrc-section)
 
-For the PoC, I used a Go library that's a bit heavy but does the heavy lifting for us ([link](https://github.com/fleetdm/fleet/blob/85ee1f7bb9fe33ece20aca0f38678fb5390d3e9c/pkg/file/pe.go))
+For the PoC, I used a Go library that's a bit heavy but does the heavy lifting for us ([link](https://github.com/anilyagiz/automdm/blob/85ee1f7bb9fe33ece20aca0f38678fb5390d3e9c/pkg/file/pe.go))
 
 ### .deb
 

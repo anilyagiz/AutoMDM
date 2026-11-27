@@ -7,10 +7,10 @@ import MicrosoftGraphCard from "./MicrosoftGraphCard";
 
 const COPY = {
   connect:
-    "Add a Microsoft Entra app registration to sync Windows Autopilot devices to Fleet as pending hosts.",
+    "Add a Microsoft Entra app registration to sync Windows Autopilot devices to AutoMDM as pending hosts.",
   connected: "Microsoft Graph connected.",
   invalid:
-    "Microsoft Graph credential is invalid. Windows Autopilot devices won't sync to Fleet as pending hosts.",
+    "Microsoft Graph credential is invalid. Windows Autopilot devices won't sync to AutoMDM as pending hosts.",
   unavailable: "Couldn't load the Microsoft Graph connection status.",
 };
 

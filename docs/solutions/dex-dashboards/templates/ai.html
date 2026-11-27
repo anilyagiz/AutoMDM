@@ -46,7 +46,7 @@ pre.yaml { font-family: var(--font-mono); font-size: 12px; background: var(--pan
   <div class="title-row">
     <div>
       <h1>AI governance</h1>
-      <p class="subtitle">Which AI tools run on your computers, how much coding agents are used and with which models, and which settings put code, credentials, or data at risk. From fleetd's AI tool inventory and agent sessions on macOS, Windows, and Linux.</p>
+      <p class="subtitle">Which AI tools run on your computers, how much coding agents are used and with which models, and which settings put code, credentials, or data at risk. From automdmd's AI tool inventory and agent sessions on macOS, Windows, and Linux.</p>
     </div>
     <div class="title-tools" id="title-tools"></div>
   </div>
@@ -116,7 +116,7 @@ pre.yaml { font-family: var(--font-mono); font-size: 12px; background: var(--pan
     </div>
     <div class="policy">
       <div class="panel"><h3>Posture</h3><div id="posture"></div></div>
-      <div class="panel"><h3>Enforce it in Fleet</h3><div id="enforce"></div></div>
+      <div class="panel"><h3>Enforce it in AutoMDM</h3><div id="enforce"></div></div>
     </div>
     <div class="policy">
       <div class="panel"><h3>Decisions by product</h3><div id="decisions"></div></div>
@@ -132,16 +132,16 @@ pre.yaml { font-family: var(--font-mono); font-size: 12px; background: var(--pan
     <summary>How this is measured</summary>
     <div class="cols">
       <div>
-        <p><span class="term">Source:</span> fleetd's <code>ai_tools</code> table, read by the <code id="report-name"></code> report every hour. It finds AI desktop apps, command-line agents, editor plugins, browser extensions, MCP servers, live connections to AI services, and agent instruction files. It needs fleetd 1.59.0 or later. Computers that haven't checked in for <span id="stale-days"></span> days are left out.</p>
-        <p><span class="term">Active:</span> a product counts as active on a computer when the report saw it running or connected to an AI service, when Fleet's software inventory shows its app was opened, or when its coding agent ran a session there. The report runs hourly, so a tool used briefly between runs can be missed. Activity history starts <span id="since"></span>.</p>
+        <p><span class="term">Source:</span> automdmd's <code>ai_tools</code> table, read by the <code id="report-name"></code> report every hour. It finds AI desktop apps, command-line agents, editor plugins, browser extensions, MCP servers, live connections to AI services, and agent instruction files. It needs automdmd 1.59.0 or later. Computers that haven't checked in for <span id="stale-days"></span> days are left out.</p>
+        <p><span class="term">Active:</span> a product counts as active on a computer when the report saw it running or connected to an AI service, when AutoMDM's software inventory shows its app was opened, or when its coding agent ran a session there. The report runs hourly, so a tool used briefly between runs can be missed. Activity history starts <span id="since"></span>.</p>
       </div>
       <div>
         <p><span class="term">Products:</span> a desktop app, command-line agent, editor plugin, or browser extension from the same product counts once per computer. "How it runs" lists each way it's installed. MCP servers and instruction files are counted on their own.</p>
         <p><span class="term">Risk findings:</span> the table's own risk flags, such as an agent started with an auto-approve flag or a credential in an MCP config. Severity is this dashboard's judgment of how much each one exposes.</p>
-        <p><span class="term">Agent usage:</span> fleetd's <code>ai_agent_sessions</code> table, read by the <code>DEX - AI governance - AI agent usage per host</code> report every hour. It needs fleetd 1.64.0 or later and covers Claude Code, Codex, Gemini CLI, Copilot CLI, and Cursor sessions in every user's home folder. Each computer sends its last 30 days, so recent days fill in as computers report. A session counts on the day it was last active, under the last model its main agent used, with its sub-agents' tokens. Input tokens include prompt cache reads and writes. Cursor records no model or token counts.</p>
+        <p><span class="term">Agent usage:</span> automdmd's <code>ai_agent_sessions</code> table, read by the <code>DEX - AI governance - AI agent usage per host</code> report every hour. It needs automdmd 1.64.0 or later and covers Claude Code, Codex, Gemini CLI, Copilot CLI, and Cursor sessions in every user's home folder. Each computer sends its last 30 days, so recent days fill in as computers report. A session counts on the day it was last active, under the last model its main agent used, with its sub-agents' tokens. Input tokens include prompt cache reads and writes. Cursor records no model or token counts.</p>
       </div>
       <div>
-        <p><span class="term">Policy:</span> decisions and the posture are saved with this dashboard and every change is logged with who made it and when. Only people who can edit the dashboard can change them. Fleet enforces them through the policies you copy from "Enforce it in Fleet."</p>
+        <p><span class="term">Policy:</span> decisions and the posture are saved with this dashboard and every change is logged with who made it and when. Only people who can edit the dashboard can change them. AutoMDM enforces them through the policies you copy from "Enforce it in AutoMDM."</p>
         <p><span class="term">Privacy:</span> the dashboard never shows command lines, launch arguments, environment values, or usernames. File paths start at <code>~</code>, so they don't include a username. Agent usage leaves each computer as counts per day, agent, model, and sign-in type, and only the domain of a sign-in email. It's shown in totals, not per person.</p>
       </div>
     </div>
@@ -172,12 +172,12 @@ let prodFilter = "all", prodQuery = "", riskSev = new Set(["high", "medium", "lo
 
 DATA.products.forEach((p) => (p._id = p.k));
 DATA.mcp.forEach((m) => (m._id = m.name));
-const fleets = [...new Set(Object.values(DATA.hosts).map((x) => x.f))].sort();
+const teams = [...new Set(Object.values(DATA.hosts).map((x) => x.f))].sort();
 const platformCounts = {};
 for (const x of Object.values(DATA.hosts)) platformCounts[x.p] = (platformCounts[x.p] || 0) + 1;
 const noun = (n) => (PLATFORM === "macos" ? fmt.plural(n, "Mac") : fmt.plural(n, "computer"));
 const nounWord = (plural) => (PLATFORM === "macos" ? (plural ? "Macs" : "Mac") : (plural ? "computers" : "computer"));
-const inView = (hid) => { const x = DATA.hosts[hid]; return Boolean(x && inFleet(x.f) && inPlatform(x.p)); };
+const inView = (hid) => { const x = DATA.hosts[hid]; return Boolean(x && inTeam(x.f) && inPlatform(x.p)); };
 const statusOf = (k) => (POLICY.tools[k] && POLICY.tools[k].status) || "unreviewed";
 const isNew = (d) => d && (Date.parse(DATA.generated_at) - Date.parse(d + "T00:00:00Z")) / 864e5 < 30;
 const daysText = (d) => (d == null ? "not seen running" : d < 1 ? "active today" : `active ${fmt.ago(d)}`);
@@ -189,7 +189,7 @@ const U = DATA.usage || { rows: [], models: [], signins: [], agents: {}, company
 const METRICS = [["sessions", "Sessions"], ["output", "Output tokens"], ["input", "Input tokens"]];
 let METRIC = store.get("dex-ai-usage-metric") || "sessions";
 if (!METRICS.some(([k]) => k === METRIC)) METRIC = "sessions";
-let GROUP = store.get("dex-ai-usage-group") === "dept" ? "dept" : "fleet";
+let GROUP = store.get("dex-ai-usage-group") === "dept" ? "dept" : "team";
 const SIGNIN = {
   company: ["Company", "var(--good)"], personal: ["Personal", "var(--bad)"], email: ["Email", "var(--info)"],
   api_key: ["API key", "var(--info)"], cloud: ["Cloud provider", "var(--info)"], gateway: ["Gateway", "var(--info)"],
@@ -297,9 +297,9 @@ function render() {
   // Notice
   const src = DATA.source;
   mount("notice", !src.report ? h("div", { class: "notice" }, h("b", {}, "No AI tool inventory yet."),
-      h("span", {}, "Add the DEX - AI governance - AI tools per host report to Fleet. It needs fleetd 1.59.0 or later on each computer."))
-    : src.clipped ? h("div", { class: "notice" }, h("b", {}, `Fleet kept only part of the AI tools report: ${fmt.n(c.reported.length)} of ${noun(c.hostsInView.length)} reported.`),
-      h("span", {}, "Fleet stores up to 1,000 rows per report. Add the DEX - AI governance - AI tools per host report, which sends one row per computer, so every computer counts."))
+      h("span", {}, "Add the DEX - AI governance - AI tools per host report to AutoMDM. It needs automdmd 1.59.0 or later on each computer."))
+    : src.clipped ? h("div", { class: "notice" }, h("b", {}, `AutoMDM kept only part of the AI tools report: ${fmt.n(c.reported.length)} of ${noun(c.hostsInView.length)} reported.`),
+      h("span", {}, "AutoMDM stores up to 1,000 rows per report. Add the DEX - AI governance - AI tools per host report, which sends one row per computer, so every computer counts."))
     : src.per_host && src.per_host < src.reported ? h("div", { class: "notice" }, h("b", {}, `The per-host AI report has reached ${fmt.n(src.per_host)} of ${fmt.n(src.reported)} computers so far.`),
       h("span", {}, "The rest come from the older per-tool report until the per-host report runs on them. It runs hourly on computers that are awake."))
     : null);
@@ -402,7 +402,7 @@ function render() {
   document.getElementById("report-name").textContent = src.report || "DEX - AI governance - AI tools per host";
   document.getElementById("stale-days").textContent = DATA.stale_days;
   document.getElementById("since").textContent = fmt.date(DATA.history_since);
-  document.getElementById("foot").textContent = `Data from ${DATA.fleet_url.replace(/^https?:\/\//, "")} via the Fleet API (List hosts with software, Get host, Get report data). Rebuilt daily.`;
+  document.getElementById("foot").textContent = `Data from ${DATA.automdm_url.replace(/^https?:\/\//, "")} via the AutoMDM API (List hosts with software, Get host, Get report data). Rebuilt daily.`;
 }
 
 function renderUsage(c) {
@@ -411,11 +411,11 @@ function renderUsage(c) {
   const hint = document.getElementById("usage-hint");
   if (!U.found || !c.usageReported.length) {
     hint.textContent = "";
-    mount("usage", !U.found ? empty("Agent usage isn't set up yet", "Add the DEX - AI governance - AI agent usage per host report to Fleet. It reads fleetd's ai_agent_sessions table, which needs fleetd 1.64.0 or later.")
-      : empty("No computer has reported agent usage yet", "The AI agent usage report runs hourly on computers with fleetd 1.64.0 or later."));
+    mount("usage", !U.found ? empty("Agent usage isn't set up yet", "Add the DEX - AI governance - AI agent usage per host report to AutoMDM. It reads automdmd's ai_agent_sessions table, which needs automdmd 1.64.0 or later.")
+      : empty("No computer has reported agent usage yet", "The AI agent usage report runs hourly on computers with automdmd 1.64.0 or later."));
     return;
   }
-  hint.textContent = `Coding agent sessions in the last ${WINDOW} days. ${fmt.n(c.usageReported.length)} of ${noun(c.hostsInView.length)} report agent usage, which needs fleetd 1.64.0 or later. Shown as totals, never per person.`;
+  hint.textContent = `Coding agent sessions in the last ${WINDOW} days. ${fmt.n(c.usageReported.length)} of ${noun(c.hostsInView.length)} report agent usage, which needs automdmd 1.64.0 or later. Shown as totals, never per person.`;
   const u = c.usage;
   const sum = (f) => u.reduce((a, r) => a + f(r), 0);
   const sessions = sum((r) => r[5]), output = sum((r) => r[9]), input = sum(inputOf), toolCalls = sum((r) => r[7]);
@@ -443,7 +443,7 @@ function renderUsage(c) {
   };
   const models = group((r) => r[2]);
   const depts = c.hostsInView.some((hid) => DATA.hosts[hid].d);
-  const by = depts ? GROUP : "fleet";
+  const by = depts ? GROUP : "team";
   const groups = group((r) => (by === "dept" ? DATA.hosts[r[0]].d || "No department" : DATA.hosts[r[0]].f));
   const vendors = new Set(models.map((m) => U.models[m.key][2]).filter(Boolean));
 
@@ -465,9 +465,9 @@ function renderUsage(c) {
   const signinNote = U.company_source === "idp" ? `Company accounts are emails at ${U.company.join(", ")}, the domains of your identity provider's users.${skipped ? ` Personal email domains (${skipped}) are left out. To choose the domains yourself, set DEX_COMPANY_DOMAINS.` : ""}`
     : U.company_source === "setting" ? `Company accounts are emails at ${U.company.join(", ")}, from the DEX_COMPANY_DOMAINS setting.`
     : skipped ? `Your identity provider's users only have personal email domains (${skipped}), so email sign-ins aren't sorted into company and personal. Set DEX_COMPANY_DOMAINS to sort them.`
-    : "Fleet has no end users from an identity provider, so email sign-ins aren't sorted into company and personal. Set DEX_COMPANY_DOMAINS to sort them.";
+    : "AutoMDM has no end users from an identity provider, so email sign-ins aren't sorted into company and personal. Set DEX_COMPANY_DOMAINS to sort them.";
 
-  // Agents whose every session fleetd reads: installed with no session means unused.
+  // Agents whose every session automdmd reads: installed with no session means unused.
   const idle = Object.entries(U.agents).filter(([, a]) => a[2]).map(([agent, [label, product]]) => {
     const p = c.products.find((x) => x.name === product);
     const installed = p ? p.rows.filter((r) => r[1].length && DATA.hosts[r[0]].u).map((r) => r[0]) : [];
@@ -491,8 +491,8 @@ function renderUsage(c) {
         h("p", { class: "panel-note" }, "A session counts under the last model its main agent used, with its sub-agents' tokens."
           + (METRIC !== "sessions" && u.some((r) => r[1] === "cursor") ? " Cursor records no model or tokens." : ""))),
       h("div", { class: "panel" }, h("h3", {}, `${metricLabel} by agent`), bars(group((r) => r[1]), (x) => agentName(x.key))),
-      h("div", { class: "panel" }, h("div", { class: "panel-head" }, h("h3", {}, `${metricLabel} by ${by === "dept" ? "department" : "fleet"}`),
-        depts ? h("div", { class: "seg-toggle small", role: "group", "aria-label": "Group by" }, [["fleet", "Fleet"], ["dept", "Department"]].map(([k, label]) =>
+      h("div", { class: "panel" }, h("div", { class: "panel-head" }, h("h3", {}, `${metricLabel} by ${by === "dept" ? "department" : "team"}`),
+        depts ? h("div", { class: "seg-toggle small", role: "group", "aria-label": "Group by" }, [["team", "AutoMDM"], ["dept", "Department"]].map(([k, label]) =>
           h("button", { type: "button", "aria-pressed": by === k ? "true" : "false", onclick: () => { GROUP = k; store.set("dex-ai-usage-group", k); render(); } }, label))) : null),
         bars(groups, (x) => x.key)),
       h("div", { class: "panel" }, h("h3", {}, "How agents sign in"), signinRows.length ? barRows(signinRows) : h("p", { class: "cell-sub" }, "No sessions in this window."),
@@ -500,7 +500,7 @@ function renderUsage(c) {
       h("div", { class: "panel" }, h("h3", {}, "Installed, no sessions"), idle.length
         ? [barRows(idle), legend([[`Sessions, last ${WINDOW} days`, "var(--info)"], ["No sessions", "var(--neutral)"]])]
         : h("p", { class: "cell-sub" }, "None of these agents is installed on a computer that reports usage."),
-        h("p", { class: "panel-note" }, "Seats to reclaim. Copilot and Cursor are left out, since their editors keep no sessions fleetd reads."))));
+        h("p", { class: "panel-note" }, "Seats to reclaim. Copilot and Cursor are left out, since their editors keep no sessions automdmd reads."))));
 }
 
 function renderProducts(c) {
@@ -603,7 +603,7 @@ function renderRisks(c) {
   mount("risk-chips", ["high", "medium", "low"].map((s) => h("button", { type: "button", class: "chip", style: `--tone:var(--${SEV[s].tone})`, "aria-pressed": riskSev.has(s) ? "true" : "false",
     onclick: () => { riskSev.has(s) ? riskSev.delete(s) : riskSev.add(s); render(); } }, h("i"), SEV[s].label, h("b", {}, fmt.n(counts[s])))));
   document.getElementById("risk-hint").textContent = "Grouped by severity. Click a finding to see the computers and items.";
-  mount("risk-tools", c.findings.length ? copyButton("Copy as CSV", () => csv([["severity", "finding", "host", "fleet", "type", "item", "location", "fleet_url"],
+  mount("risk-tools", c.findings.length ? copyButton("Copy as CSV", () => csv([["severity", "finding", "host", "team", "type", "item", "location", "automdm_url"],
     ...c.findings.map(([hid, flag, typ, item, where]) => [DATA.risks[flag]?.sev || "low", DATA.risks[flag]?.label || flag, DATA.hosts[hid].n, DATA.hosts[hid].f, TYPE_LABEL[typ] || typ, item, where, hostUrl(hid)])])) : null);
   const groups = ["high", "medium", "low"].filter((s) => riskSev.has(s)).map((s) => ({ label: `${SEV[s].label} severity`, pill: pill(fmt.n(counts[s]), SEV[s].tone),
     rows: items.filter((i) => i.sev === s) })).filter((g) => g.rows.length);
@@ -637,16 +637,16 @@ function policyItems() {
   const sanctionedModels = named.filter((m) => modelStatus(m[0]) === "sanctioned");
   const ids = (ms) => ms.flatMap((m) => m[3]).filter(Boolean).map(sqlStr).join(", ");
   if (POLICY.posture === "strict" && sanctionedModels.length) {
-    items.push({ name: "AI agents use sanctioned models only", description: `Fails when an AI coding agent used a model other than ${sanctionedModels.map((m) => m[1]).join(", ")} in the last 7 days. Sanctioned on the AI governance dashboard. Needs fleetd 1.64.0 or later.`,
+    items.push({ name: "AI agents use sanctioned models only", description: `Fails when an AI coding agent used a model other than ${sanctionedModels.map((m) => m[1]).join(", ")} in the last 7 days. Sanctioned on the AI governance dashboard. Needs automdmd 1.64.0 or later.`,
       query: `SELECT 1 WHERE NOT EXISTS (\n  SELECT 1 FROM ai_agent_sessions WHERE ${recent}\n    AND model != '' AND model NOT IN (${ids(sanctionedModels)})\n);`,
       resolution: "Switch the agent to a sanctioned model, or ask IT to review the model you need." });
   } else if (restrictedModels.length) {
-    items.push({ name: "No restricted AI models", description: `Fails when an AI coding agent used ${restrictedModels.map((m) => m[1]).join(", ")} in the last 7 days. Restricted on the AI governance dashboard. Needs fleetd 1.64.0 or later.`,
+    items.push({ name: "No restricted AI models", description: `Fails when an AI coding agent used ${restrictedModels.map((m) => m[1]).join(", ")} in the last 7 days. Restricted on the AI governance dashboard. Needs automdmd 1.64.0 or later.`,
       query: `SELECT 1 WHERE NOT EXISTS (\n  SELECT 1 FROM ai_agent_sessions WHERE ${recent}\n    AND model IN (${ids(restrictedModels)})\n);`,
       resolution: "Switch the agent to another model, or ask IT to review the restricted one." });
   }
   if (POLICY.signin === "company" && U.company.length) {
-    items.push({ name: "AI agents signed in with a company account", description: `Fails when an AI coding agent signed in with an email outside ${U.company.join(", ")} in the last 7 days. Copilot CLI signs in with a GitHub username, so it isn't checked. Needs fleetd 1.64.0 or later.`,
+    items.push({ name: "AI agents signed in with a company account", description: `Fails when an AI coding agent signed in with an email outside ${U.company.join(", ")} in the last 7 days. Copilot CLI signs in with a GitHub username, so it isn't checked. Needs automdmd 1.64.0 or later.`,
       query: `SELECT 1 WHERE NOT EXISTS (\n  SELECT 1 FROM ai_agent_sessions WHERE ${recent}\n    AND account_identifier LIKE '%@%'\n${U.company.map((d) => `    AND lower(account_identifier) NOT LIKE ${sqlStr("%@" + d)}`).join("\n")}\n);`,
       resolution: "Sign the agent out of the personal account, then sign in with your company account." });
   }
@@ -699,7 +699,7 @@ function renderPolicy(c, oop) {
 
   const items = policyItems();
   const yaml = policyYaml(items);
-  mount("enforce", h("p", { style: "margin-top:0" }, `${items.length === 1 ? "One Fleet policy" : `${fmt.n(items.length)} Fleet policies`}: ${items.map((i) => i.name).join("; ")}. `
+  mount("enforce", h("p", { style: "margin-top:0" }, `${items.length === 1 ? "One AutoMDM policy" : `${fmt.n(items.length)} AutoMDM policies`}: ${items.map((i) => i.name).join("; ")}. `
       + "Add them to your GitOps policies file, then automate a script or ticket on failure. Restricting a product or a model, or requiring company sign-ins, adds a policy for it."),
     h("div", { class: "title-tools", style: "margin-top:12px" }, copyButton("Copy policies as YAML", () => yaml)),
     h("pre", { class: "yaml" }, yaml));
@@ -781,7 +781,7 @@ async function downloadReport(c, oop) {
   const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[ch]);
   const ids = [...new Set((LOG || []).map((e) => e.by).filter(Boolean))];
   const ps = USER && ids.length ? await USER.profiles(ids) : {};
-  const scope = [FLEET || "All fleets", PLATFORM ? platformLabel(PLATFORM) : "All platforms"].join(" · ");
+  const scope = [AUTOMDM || "All teams", PLATFORM ? platformLabel(PLATFORM) : "All platforms"].join(" · ");
   const row = (cells) => `<tr>${cells.map((x) => `<td>${esc(x)}</td>`).join("")}</tr>`;
   const byFlag = {};
   for (const f of c.findings) (byFlag[f[1]] ||= new Set()).add(f[0]);
@@ -796,7 +796,7 @@ async function downloadReport(c, oop) {
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>AI governance report</title><style>
 body{font:14px/1.5 system-ui,sans-serif;color:#192147;margin:32px;max-width:960px}h1{font-size:24px;margin:0}h2{font-size:16px;margin:28px 0 8px}
 table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #e2e4ea;padding:6px 8px;text-align:left;font-size:13px}th{background:#f9fafc}.m{color:#515774}
-</style></head><body><h1>AI governance report</h1><p class="m">${esc(DATA.fleet_url)} · ${esc(scope)} · data from ${esc(DATA.generated_at)} · activity window ${WINDOW} days</p>
+</style></head><body><h1>AI governance report</h1><p class="m">${esc(DATA.automdm_url)} · ${esc(scope)} · data from ${esc(DATA.generated_at)} · activity window ${WINDOW} days</p>
 <h2>Summary</h2><table>${[["Computers reporting", c.reported.length], ["Computers with AI tools", c.withAI.size], [`Active, last ${WINDOW} days`, c.activeAny.size],
     ["Risk findings", c.findings.length], ["MCP servers", c.mcp.length], ["Posture", POSTURES.find(([k]) => k === POLICY.posture)[1]],
     ["Agent sign-in", SIGNIN_POLICY[POLICY.signin]], ["Out of policy", POLICY.posture === "visibility" ? "n/a" : oop.size],
@@ -841,7 +841,7 @@ async function initPolicy() {
 }
 
 document.getElementById("prod-search").addEventListener("input", (e) => { prodQuery = e.target.value; render(); });
-renderTop(fleets, render, platformCounts);
+renderTop(teams, render, platformCounts);
 render();
 initPolicy();
 </script>

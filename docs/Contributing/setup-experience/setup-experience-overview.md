@@ -4,7 +4,7 @@ Setup experience lets newly enrolled hosts be configured with all the MDM profil
 
 ## Summary
 
-Setup experience has various triggers depending on the platform and MDM enrollment. After enrollment, orbit goes through end user authentication, then calls the `/api/fleet/orbit/setup_experience/init` endpoint which causes the Fleet server to queue up the relevant items in the `setup_experience_status_results` table with pending statuses. For ADE enrollments, Fleet enqueues the items when handling the `TokenUpdate` request. 
+Setup experience has various triggers depending on the platform and MDM enrollment. After enrollment, orbit goes through end user authentication, then calls the `/api/automdm/orbit/setup_experience/init` endpoint which causes the AutoMDM server to queue up the relevant items in the `setup_experience_status_results` table with pending statuses. For ADE enrollments, AutoMDM enqueues the items when handling the `TokenUpdate` request. 
 
 The orbit `SetupExperiencer` config receiver runs every 30s and requests the current setup experience status. This status lets orbit know if config profiles, software installers and scripts are still pending or finished while those happen asynchronously through MDM and unified queue activities. Once all items are completed, the end user can exit setup experience.
 
@@ -12,41 +12,41 @@ The orbit `SetupExperiencer` config receiver runs every 30s and requests the cur
 
 When a team requires end user authentication, `EnrollOrbit` refuses a first-time Linux or Windows enrollment whose hardware UUID has no IdP account linked in `host_mdm_idp_accounts`, answering `401 END_USER_AUTH_REQUIRED`. orbit opens the browser to `/mdm/sso?initiator=setup_experience&host_uuid=<hardware UUID>` and retries the enroll request every 30 seconds until it succeeds.
 
-The `POST /api/v1/fleet/mdm/sso` endpoint is unauthenticated, so it must not accept any host UUID a caller names. Each `401 END_USER_AUTH_REQUIRED` answer also writes a pending marker for that hardware UUID to the Redis key-value store (`eua_pending:<hardware UUID>`, 24h TTL, refreshed on every retry). Initiating the setup experience SSO flow requires that marker; any other host UUID gets the same generic 401 so the endpoint does not reveal which hosts are waiting. A store error also refuses the request. A successful enrollment clears the marker.
+The `POST /api/v1/automdm/mdm/sso` endpoint is unauthenticated, so it must not accept any host UUID a caller names. Each `401 END_USER_AUTH_REQUIRED` answer also writes a pending marker for that hardware UUID to the Redis key-value store (`eua_pending:<hardware UUID>`, 24h TTL, refreshed on every retry). Initiating the setup experience SSO flow requires that marker; any other host UUID gets the same generic 401 so the endpoint does not reveal which hosts are waiting. A store error also refuses the request. A successful enrollment clears the marker.
 
 The SAML callback links the host to the IdP account it resolved by email. While the marker is still present the link may replace an existing one, which covers an end user correcting a wrong-account sign-in before enrollment completes. Once the marker is gone the callback may only fill in a missing link, never replace one, which covers a sign-in that completes after the device enrolled. The read of the previous link and the conditional write happen in one transaction under a row lock.
 
-Every link is recorded as a `bound_host_to_idp_account` activity, carrying the replaced account when there was one. A sign-in that would have replaced the link of an enrolled host is recorded as `refused_host_idp_account_change`. Both are Fleet-initiated, since the flow has no authenticated user. The trust floor remains the enroll secret: a caller holding one can trigger the 401 and mint a marker, which is why bindings are auditable rather than only gated.
+Every link is recorded as a `bound_host_to_idp_account` activity, carrying the replaced account when there was one. A sign-in that would have replaced the link of an enrolled host is recorded as `refused_host_idp_account_change`. Both are AutoMDM-initiated, since the flow has no authenticated user. The trust floor remains the enroll secret: a caller holding one can trigger the 401 and mint a marker, which is why bindings are auditable rather than only gated.
 
 The check runs at initiation only. Re-checking at the SAML callback would fail a legitimate sign-in that finished after orbit's retry enrolled the host through another path.
 
 ## Enqueuing items
 
-Fleet enqueues relevant software installers, VPP apps, and scripts during MDM enrollment for Apple hosts or after orbit calls `setup_experience/init` for Windows and Linux hosts. This is what the end user sees on the web UI.
+AutoMDM enqueues relevant software installers, VPP apps, and scripts during MDM enrollment for Apple hosts or after orbit calls `setup_experience/init` for Windows and Linux hosts. This is what the end user sees on the web UI.
 
 ## Setup experience status
 
-Whenever `/api/fleet/orbit/setup_experience/status` is called, the Fleet server checks the current state of MDM profiles, software installs, and script runs. At the end of the function, it will call `SetupExperienceNextStep()` which queues up the next item (software install/VPP install/script run) for the host in the unified queue (see [upcoming activities](https://github.com/fleetdm/fleet/blob/main/docs/Contributing/guides/upcoming-activities.md)), and updates the status in `setup_experience_status_results` for that item. If there is nothing left to do, the device is released. On macOS, if everything is done and the device hasn't been released manually, the server sends a `DeviceConfigured` MDM command here to release the device from Setup Assistant.
+Whenever `/api/automdm/orbit/setup_experience/status` is called, the AutoMDM server checks the current state of MDM profiles, software installs, and script runs. At the end of the function, it will call `SetupExperienceNextStep()` which queues up the next item (software install/VPP install/script run) for the host in the unified queue (see [upcoming activities](https://github.com/anilyagiz/automdm/blob/main/docs/Contributing/guides/upcoming-activities.md)), and updates the status in `setup_experience_status_results` for that item. If there is nothing left to do, the device is released. On macOS, if everything is done and the device hasn't been released manually, the server sends a `DeviceConfigured` MDM command here to release the device from Setup Assistant.
 
-These activities run in order, but they don't directly interact with the setup experience which is why the setup experience receiver polls for status. The results from software installs, script runs, or VPP installs are responsible for updating the setup experience status for that item. See [software installation](https://github.com/fleetdm/fleet/blob/main/docs/Contributing/software/software-installation.md) for how Fleet installs software on hosts while setup experience is running.
+These activities run in order, but they don't directly interact with the setup experience which is why the setup experience receiver polls for status. The results from software installs, script runs, or VPP installs are responsible for updating the setup experience status for that item. See [software installation](https://github.com/anilyagiz/automdm/blob/main/docs/Contributing/software/software-installation.md) for how AutoMDM installs software on hosts while setup experience is running.
 
 ## Platform differences
 
 ### Windows
 
-Windows enrollment goes through the Enrollment Status Page (ESP). Setup experience is driven by orbit: when a Windows host is awaiting configuration, Fleet sets `RunSetupExperience` in orbit's config response, and orbit calls `/api/fleet/orbit/setup_experience/init` to enqueue items. Fleet does not push profiles as part of setup experience on Windows. The device is held in the ESP based on the enrollment's `awaiting_configuration` state until the installs complete (or fail/time out), not merely until `init` is called. Only software installers are supported on Windows; scripts are macOS-only.
+Windows enrollment goes through the Enrollment Status Page (ESP). Setup experience is driven by orbit: when a Windows host is awaiting configuration, AutoMDM sets `RunSetupExperience` in orbit's config response, and orbit calls `/api/automdm/orbit/setup_experience/init` to enqueue items. AutoMDM does not push profiles as part of setup experience on Windows. The device is held in the ESP based on the enrollment's `awaiting_configuration` state until the installs complete (or fail/time out), not merely until `init` is called. Only software installers are supported on Windows; scripts are macOS-only.
 
 ### Linux
 
-Linux has no MDM, so there is no MDM command path at all. Setup experience starts when orbit calls `/api/fleet/orbit/setup_experience/init` on boot, and the same 30s polling loop drives software installs (no scripts).
+Linux has no MDM, so there is no MDM command path at all. Setup experience starts when orbit calls `/api/automdm/orbit/setup_experience/init` on boot, and the same 30s polling loop drives software installs (no scripts).
 
 ### macOS
 
-When Fleet processes a `TokenUpdate` request with `AwaitingConfiguration==true` for ADE enrollments, which indicates a host waiting for commands during setup assistant, it enqueues MDM items (profiles, bootstrap package, orbit installer, account configuration) as MDM commands in the nanomdm command queue and software and scripts in the unified queue. Manual enrollments, ADE enrollments without AwaitingConfiguration=true(e.g. `sudo profiles renew -type enrollment`), and AB MDM migration enrollments do not enqueue Setup Experience items, only profiles and an orbit install.
+When AutoMDM processes a `TokenUpdate` request with `AwaitingConfiguration==true` for ADE enrollments, which indicates a host waiting for commands during setup assistant, it enqueues MDM items (profiles, bootstrap package, orbit installer, account configuration) as MDM commands in the nanomdm command queue and software and scripts in the unified queue. Manual enrollments, ADE enrollments without AwaitingConfiguration=true(e.g. `sudo profiles renew -type enrollment`), and AB MDM migration enrollments do not enqueue Setup Experience items, only profiles and an orbit install.
 
 ### iOS/iPadOS
 
-iOS and iPadOS don't run orbit, so there is no polling loop, no `init` endpoint and no step-by-step display. Fleet only enqueues VPP apps for setup experience items on the first `TokenUpdate`. The release worker on the Fleet server polls internally until every item is done before sending `DeviceConfigured` to exit Setup Assistant for ADE-enrolling devices. Devices that manually enroll via profile or Account-Driven User Enrollment will see setup experience apps install in the background after enrollment 
+iOS and iPadOS don't run orbit, so there is no polling loop, no `init` endpoint and no step-by-step display. AutoMDM only enqueues VPP apps for setup experience items on the first `TokenUpdate`. The release worker on the AutoMDM server polls internally until every item is done before sending `DeviceConfigured` to exit Setup Assistant for ADE-enrolling devices. Devices that manually enroll via profile or Account-Driven User Enrollment will see setup experience apps install in the background after enrollment 
 
 ### Android
 
@@ -58,7 +58,7 @@ Setup experience is not supported on Android. Apps are delivered through the dev
 ```mermaid
 flowchart TB
 
-    subgraph FS["Fleet Server"]
+    subgraph FS["AutoMDM Server"]
         ESE["EnqueueSetupExperienceItems()"]
         TU["TokenUpdate handler\n(ADE: AwaitingConfiguration==true)"]
         TU --> ESE
@@ -137,6 +137,6 @@ flowchart TB
 
 ## Related resources
 
-- [Upcoming activities](https://github.com/fleetdm/fleet/blob/main/docs/Contributing/guides/upcoming-activities.md) - How Fleet's unified activity queue works
-- [Software installation architecture](https://github.com/fleetdm/fleet/blob/main/docs/Contributing/software/software-installation.md) - How Fleet installs software on hosts
+- [Upcoming activities](https://github.com/anilyagiz/automdm/blob/main/docs/Contributing/guides/upcoming-activities.md) - How AutoMDM's unified activity queue works
+- [Software installation architecture](https://github.com/anilyagiz/automdm/blob/main/docs/Contributing/software/software-installation.md) - How AutoMDM installs software on hosts
 - [Automated Device Enrollment](../mdm/apple/automated-device-enrollment.md) - Architecture for ADE

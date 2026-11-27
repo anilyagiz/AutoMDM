@@ -8,13 +8,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mock"
 	"github.com/stretchr/testify/require"
 )
 
 type stubStore struct {
-	fleet.ConfigETagStore
+	automdm.ConfigETagStore
 	invalidateCalls       int
 	labelScopesResetCalls int
 	hostInvalidations     []uint
@@ -72,22 +72,22 @@ var deploymentHookCases = []deploymentHookCase{
 	{
 		"SaveAppConfig", resetsNothing,
 		func(ds *mock.Store, d *Datastore) (*bool, func() error) {
-			ds.SaveAppConfigFunc = func(ctx context.Context, info *fleet.AppConfig) error { return nil }
-			return &ds.SaveAppConfigFuncInvoked, func() error { return d.SaveAppConfig(hookTestCtx, &fleet.AppConfig{}) }
+			ds.SaveAppConfigFunc = func(ctx context.Context, info *automdm.AppConfig) error { return nil }
+			return &ds.SaveAppConfigFuncInvoked, func() error { return d.SaveAppConfig(hookTestCtx, &automdm.AppConfig{}) }
 		},
 	},
 	{
 		"NewTeam", resetsNothing,
 		func(ds *mock.Store, d *Datastore) (*bool, func() error) {
-			ds.NewTeamFunc = func(ctx context.Context, team *fleet.Team) (*fleet.Team, error) { return team, nil }
-			return &ds.NewTeamFuncInvoked, func() error { _, err := d.NewTeam(hookTestCtx, &fleet.Team{}); return err }
+			ds.NewTeamFunc = func(ctx context.Context, team *automdm.Team) (*automdm.Team, error) { return team, nil }
+			return &ds.NewTeamFuncInvoked, func() error { _, err := d.NewTeam(hookTestCtx, &automdm.Team{}); return err }
 		},
 	},
 	{
 		"SaveTeam", resetsNothing,
 		func(ds *mock.Store, d *Datastore) (*bool, func() error) {
-			ds.SaveTeamFunc = func(ctx context.Context, team *fleet.Team) (*fleet.Team, error) { return team, nil }
-			return &ds.SaveTeamFuncInvoked, func() error { _, err := d.SaveTeam(hookTestCtx, &fleet.Team{}); return err }
+			ds.SaveTeamFunc = func(ctx context.Context, team *automdm.Team) (*automdm.Team, error) { return team, nil }
+			return &ds.SaveTeamFuncInvoked, func() error { _, err := d.SaveTeam(hookTestCtx, &automdm.Team{}); return err }
 		},
 	},
 	{
@@ -100,7 +100,7 @@ var deploymentHookCases = []deploymentHookCase{
 	{
 		"ApplyQueries", resetsLabelScopes,
 		func(ds *mock.Store, d *Datastore) (*bool, func() error) {
-			ds.ApplyQueriesFunc = func(ctx context.Context, authorID uint, queries []*fleet.Query, discard map[uint]struct{}) error {
+			ds.ApplyQueriesFunc = func(ctx context.Context, authorID uint, queries []*automdm.Query, discard map[uint]struct{}) error {
 				return nil
 			}
 			return &ds.ApplyQueriesFuncInvoked, func() error { return d.ApplyQueries(hookTestCtx, 1, nil, nil) }
@@ -109,17 +109,17 @@ var deploymentHookCases = []deploymentHookCase{
 	{
 		"NewQuery", resetsLabelScopes,
 		func(ds *mock.Store, d *Datastore) (*bool, func() error) {
-			ds.NewQueryFunc = func(ctx context.Context, query *fleet.Query, opts ...fleet.OptionalArg) (*fleet.Query, error) {
+			ds.NewQueryFunc = func(ctx context.Context, query *automdm.Query, opts ...automdm.OptionalArg) (*automdm.Query, error) {
 				return query, nil
 			}
-			return &ds.NewQueryFuncInvoked, func() error { _, err := d.NewQuery(hookTestCtx, &fleet.Query{}); return err }
+			return &ds.NewQueryFuncInvoked, func() error { _, err := d.NewQuery(hookTestCtx, &automdm.Query{}); return err }
 		},
 	},
 	{
 		"SaveQuery", resetsLabelScopes,
 		func(ds *mock.Store, d *Datastore) (*bool, func() error) {
-			ds.SaveQueryFunc = func(ctx context.Context, query *fleet.Query, discard, deleteStats bool) error { return nil }
-			return &ds.SaveQueryFuncInvoked, func() error { return d.SaveQuery(hookTestCtx, &fleet.Query{}, false, false) }
+			ds.SaveQueryFunc = func(ctx context.Context, query *automdm.Query, discard, deleteStats bool) error { return nil }
+			return &ds.SaveQueryFuncInvoked, func() error { return d.SaveQuery(hookTestCtx, &automdm.Query{}, false, false) }
 		},
 	},
 	{
@@ -142,18 +142,18 @@ var deploymentHookCases = []deploymentHookCase{
 		// with removals unknowable from the specs — deployment-wide.
 		"ApplyLabelSpecs", resetsLabelScopes,
 		func(ds *mock.Store, d *Datastore) (*bool, func() error) {
-			ds.ApplyLabelSpecsFunc = func(ctx context.Context, specs []*fleet.LabelSpec) error { return nil }
+			ds.ApplyLabelSpecsFunc = func(ctx context.Context, specs []*automdm.LabelSpec) error { return nil }
 			return &ds.ApplyLabelSpecsFuncInvoked, func() error {
-				return d.ApplyLabelSpecs(hookTestCtx, []*fleet.LabelSpec{{Name: "l"}})
+				return d.ApplyLabelSpecs(hookTestCtx, []*automdm.LabelSpec{{Name: "l"}})
 			}
 		},
 	},
 	{
 		"ApplyLabelSpecsWithAuthor", resetsLabelScopes,
 		func(ds *mock.Store, d *Datastore) (*bool, func() error) {
-			ds.ApplyLabelSpecsWithAuthorFunc = func(ctx context.Context, specs []*fleet.LabelSpec, authorID *uint) error { return nil }
+			ds.ApplyLabelSpecsWithAuthorFunc = func(ctx context.Context, specs []*automdm.LabelSpec, authorID *uint) error { return nil }
 			return &ds.ApplyLabelSpecsWithAuthorFuncInvoked, func() error {
-				return d.ApplyLabelSpecsWithAuthor(hookTestCtx, []*fleet.LabelSpec{{Name: "l"}}, new(uint(1)))
+				return d.ApplyLabelSpecsWithAuthor(hookTestCtx, []*automdm.LabelSpec{{Name: "l"}}, new(uint(1)))
 			}
 		},
 	},
@@ -172,11 +172,11 @@ var deploymentHookCases = []deploymentHookCase{
 		// be missed by per-host invalidation.
 		"SaveLabel", resetsNothing,
 		func(ds *mock.Store, d *Datastore) (*bool, func() error) {
-			ds.SaveLabelFunc = func(ctx context.Context, label *fleet.Label, hostIDs []uint, tf fleet.TeamFilter) (*fleet.LabelWithTeamName, []uint, error) {
-				return &fleet.LabelWithTeamName{}, nil, nil
+			ds.SaveLabelFunc = func(ctx context.Context, label *automdm.Label, hostIDs []uint, tf automdm.TeamFilter) (*automdm.LabelWithTeamName, []uint, error) {
+				return &automdm.LabelWithTeamName{}, nil, nil
 			}
 			return &ds.SaveLabelFuncInvoked, func() error {
-				_, _, err := d.SaveLabel(hookTestCtx, &fleet.Label{}, []uint{1, 2}, fleet.TeamFilter{})
+				_, _, err := d.SaveLabel(hookTestCtx, &automdm.Label{}, []uint{1, 2}, automdm.TeamFilter{})
 				return err
 			}
 		},
@@ -184,11 +184,11 @@ var deploymentHookCases = []deploymentHookCase{
 	{
 		"UpdateLabelMembershipByHostIDs", resetsNothing,
 		func(ds *mock.Store, d *Datastore) (*bool, func() error) {
-			ds.UpdateLabelMembershipByHostIDsFunc = func(ctx context.Context, label fleet.Label, hostIds []uint, tf fleet.TeamFilter) (*fleet.Label, []uint, error) {
-				return &fleet.Label{}, nil, nil
+			ds.UpdateLabelMembershipByHostIDsFunc = func(ctx context.Context, label automdm.Label, hostIds []uint, tf automdm.TeamFilter) (*automdm.Label, []uint, error) {
+				return &automdm.Label{}, nil, nil
 			}
 			return &ds.UpdateLabelMembershipByHostIDsFuncInvoked, func() error {
-				_, _, err := d.UpdateLabelMembershipByHostIDs(hookTestCtx, fleet.Label{}, []uint{1}, fleet.TeamFilter{})
+				_, _, err := d.UpdateLabelMembershipByHostIDs(hookTestCtx, automdm.Label{}, []uint{1}, automdm.TeamFilter{})
 				return err
 			}
 		},
@@ -205,11 +205,11 @@ var perHostHookCases = []perHostHookCase{
 	{
 		"RecordLabelQueryExecutions", []uint{11},
 		func(ds *mock.Store, d *Datastore) (*bool, func() error) {
-			ds.RecordLabelQueryExecutionsFunc = func(ctx context.Context, host *fleet.Host, results map[uint]*bool, t time.Time, deferred bool) error {
+			ds.RecordLabelQueryExecutionsFunc = func(ctx context.Context, host *automdm.Host, results map[uint]*bool, t time.Time, deferred bool) error {
 				return nil
 			}
 			return &ds.RecordLabelQueryExecutionsFuncInvoked, func() error {
-				return d.RecordLabelQueryExecutions(hookTestCtx, &fleet.Host{ID: 11}, nil, time.Now(), false)
+				return d.RecordLabelQueryExecutions(hookTestCtx, &automdm.Host{ID: 11}, nil, time.Now(), false)
 			}
 		},
 	},
@@ -234,11 +234,11 @@ var perHostHookCases = []perHostHookCase{
 		// method), never the deployment and never all members.
 		"UpdateLabelMembershipByHostCriteria", []uint{61, 62},
 		func(ds *mock.Store, d *Datastore) (*bool, func() error) {
-			ds.UpdateLabelMembershipByHostCriteriaFunc = func(ctx context.Context, hvl fleet.HostVitalsLabel) (*fleet.Label, []uint, error) {
-				return &fleet.Label{}, []uint{61, 62}, nil
+			ds.UpdateLabelMembershipByHostCriteriaFunc = func(ctx context.Context, hvl automdm.HostVitalsLabel) (*automdm.Label, []uint, error) {
+				return &automdm.Label{}, []uint{61, 62}, nil
 			}
 			return &ds.UpdateLabelMembershipByHostCriteriaFuncInvoked, func() error {
-				_, _, err := d.UpdateLabelMembershipByHostCriteria(hookTestCtx, &fleet.Label{})
+				_, _, err := d.UpdateLabelMembershipByHostCriteria(hookTestCtx, &automdm.Label{})
 				return err
 			}
 		},
@@ -295,24 +295,24 @@ func TestNoInvalidationOnWriteError(t *testing.T) {
 	ds, store, d := newTestDatastore()
 
 	wantErr := errors.New("boom")
-	ds.SaveAppConfigFunc = func(ctx context.Context, info *fleet.AppConfig) error { return wantErr }
-	ds.RecordLabelQueryExecutionsFunc = func(ctx context.Context, host *fleet.Host, results map[uint]*bool, t time.Time, deferred bool) error {
+	ds.SaveAppConfigFunc = func(ctx context.Context, info *automdm.AppConfig) error { return wantErr }
+	ds.RecordLabelQueryExecutionsFunc = func(ctx context.Context, host *automdm.Host, results map[uint]*bool, t time.Time, deferred bool) error {
 		return wantErr
 	}
-	ds.ApplyLabelSpecsWithAuthorFunc = func(ctx context.Context, specs []*fleet.LabelSpec, authorID *uint) error {
+	ds.ApplyLabelSpecsWithAuthorFunc = func(ctx context.Context, specs []*automdm.LabelSpec, authorID *uint) error {
 		return wantErr
 	}
 
-	err := d.SaveAppConfig(ctx, &fleet.AppConfig{})
+	err := d.SaveAppConfig(ctx, &automdm.AppConfig{})
 	require.ErrorIs(t, err, wantErr)
 	require.Equal(t, 0, store.invalidateCalls)
 
-	err = d.RecordLabelQueryExecutions(ctx, &fleet.Host{ID: 1}, nil, time.Now(), false)
+	err = d.RecordLabelQueryExecutions(ctx, &automdm.Host{ID: 1}, nil, time.Now(), false)
 	require.ErrorIs(t, err, wantErr)
 	require.Empty(t, store.hostInvalidations)
 
 	// failed label-spec persistence must not invalidate either
-	err = d.ApplyLabelSpecsWithAuthor(ctx, []*fleet.LabelSpec{{Name: "l"}}, new(uint(1)))
+	err = d.ApplyLabelSpecsWithAuthor(ctx, []*automdm.LabelSpec{{Name: "l"}}, new(uint(1)))
 	require.ErrorIs(t, err, wantErr)
 	require.Equal(t, 0, store.invalidateCalls)
 	require.Equal(t, 0, store.labelScopesResetCalls)
@@ -323,7 +323,7 @@ func TestNoInvalidationOnWriteError(t *testing.T) {
 func TestApplyQueriesInvalidatesOnWriteError(t *testing.T) {
 	ds, store, d := newTestDatastore()
 	wantErr := errors.New("boom")
-	ds.ApplyQueriesFunc = func(ctx context.Context, authorID uint, queries []*fleet.Query, discard map[uint]struct{}) error {
+	ds.ApplyQueriesFunc = func(ctx context.Context, authorID uint, queries []*automdm.Query, discard map[uint]struct{}) error {
 		return wantErr
 	}
 
@@ -343,17 +343,17 @@ func TestInvalidationErrorsAreSwallowed(t *testing.T) {
 	store.resetErr = errors.New("redis down")
 	store.hostErr = errors.New("redis down")
 
-	ds.SaveQueryFunc = func(ctx context.Context, q *fleet.Query, shouldDiscardResults bool, shouldDeleteStats bool) error {
+	ds.SaveQueryFunc = func(ctx context.Context, q *automdm.Query, shouldDiscardResults bool, shouldDeleteStats bool) error {
 		return nil
 	}
-	ds.RecordLabelQueryExecutionsFunc = func(ctx context.Context, host *fleet.Host, results map[uint]*bool, t time.Time, deferred bool) error {
+	ds.RecordLabelQueryExecutionsFunc = func(ctx context.Context, host *automdm.Host, results map[uint]*bool, t time.Time, deferred bool) error {
 		return nil
 	}
 
-	require.NoError(t, d.SaveQuery(ctx, &fleet.Query{}, false, false))
+	require.NoError(t, d.SaveQuery(ctx, &automdm.Query{}, false, false))
 	require.Equal(t, 1, store.invalidateCalls)
 	require.Equal(t, 1, store.labelScopesResetCalls)
 
-	require.NoError(t, d.RecordLabelQueryExecutions(ctx, &fleet.Host{ID: 9}, nil, time.Now(), false))
+	require.NoError(t, d.RecordLabelQueryExecutions(ctx, &automdm.Host{ID: 9}, nil, time.Now(), false))
 	require.Equal(t, []uint{9}, store.hostInvalidations)
 }

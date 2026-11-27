@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxdb"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxdb"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
 	"github.com/jmoiron/sqlx"
 	"github.com/patrickmn/go-cache"
 )
@@ -28,7 +28,7 @@ import (
 //  3. Implement the cloner interface for the type of the cached item. If the
 //     type is a slice, you will need to define a type for the slice (see
 //     queryIDList in this package for an example).
-//  4. Add the cached item to fleet/tools/cloner-check/main.go (in the
+//  4. Add the cached item to automdm/tools/cloner-check/main.go (in the
 //     cacheableItems slice variable) to ensure it gets properly checked in CI
 //     when fields are added/modified. Run the tool to update the generated files
 //     once you're confident that the Clone implementation covers all fields that
@@ -38,7 +38,7 @@ import (
 const (
 	appConfigKey                       = "AppConfig:%s"
 	defaultAppConfigExpiration         = 1 * time.Second
-	windowsEnrollmentDefaultFleetKey   = "WindowsEnrollmentDefaultFleet"
+	windowsEnrollmentDefaultAutoMDMKey = "WindowsEnrollmentDefaultTeam"
 	teamAgentOptionsKey                = "TeamAgentOptions:team:%d"
 	defaultTeamAgentOptionsExpiration  = 1 * time.Minute
 	teamFeaturesKey                    = "TeamFeatures:team:%d"
@@ -66,7 +66,7 @@ const (
 	defaultMDMConfigAssetExpiration = 15 * time.Minute
 
 	// FMA names cache stores a map of unique_identifier -> canonical name
-	// for Fleet-maintained apps. Used during software ingestion to override
+	// for AutoMDM-maintained apps. Used during software ingestion to override
 	// osquery-reported names with the FMA canonical name.
 	fmaNamesByIdentifierKey               = "FMANamesByIdentifier"
 	defaultFMANamesByIdentifierExpiration = 5 * time.Minute
@@ -108,7 +108,7 @@ type cloneCache struct {
 	*cache.Cache
 }
 
-func (c *cloneCache) Get(ctx context.Context, k string) (fleet.Cloner, bool) {
+func (c *cloneCache) Get(ctx context.Context, k string) (automdm.Cloner, bool) {
 	if ctxdb.IsCachedMysqlBypassed(ctx) {
 		// cache miss if the caller explicitly asked to bypass the cache
 		return nil, false
@@ -118,7 +118,7 @@ func (c *cloneCache) Get(ctx context.Context, k string) (fleet.Cloner, bool) {
 	if !found {
 		return nil, false
 	}
-	xc, ok := x.(fleet.Cloner)
+	xc, ok := x.(automdm.Cloner)
 	if !ok {
 		// should never happen, cached item is not a cloner
 		return nil, false
@@ -132,7 +132,7 @@ func (c *cloneCache) Get(ctx context.Context, k string) (fleet.Cloner, bool) {
 	return clone, true
 }
 
-func (c *cloneCache) Set(ctx context.Context, k string, x fleet.Cloner, d time.Duration) {
+func (c *cloneCache) Set(ctx context.Context, k string, x automdm.Cloner, d time.Duration) {
 	clone, err := x.Clone()
 	if err != nil {
 		// Unfortunately, we can't return an error here. Skip caching it if clone
@@ -146,7 +146,7 @@ func (c *cloneCache) Set(ctx context.Context, k string, x fleet.Cloner, d time.D
 }
 
 type cachedMysql struct {
-	fleet.Datastore
+	automdm.Datastore
 
 	c *cloneCache
 
@@ -231,7 +231,7 @@ func WithEULAMetadataExpiration(d time.Duration) Option {
 	}
 }
 
-func New(ds fleet.Datastore, opts ...Option) fleet.Datastore {
+func New(ds automdm.Datastore, opts ...Option) automdm.Datastore {
 	c := &cachedMysql{
 		Datastore:               ds,
 		c:                       &cloneCache{cache.New(5*time.Minute, 10*time.Minute)},
@@ -253,7 +253,7 @@ func New(ds fleet.Datastore, opts ...Option) fleet.Datastore {
 	return c
 }
 
-func (ds *cachedMysql) NewAppConfig(ctx context.Context, info *fleet.AppConfig) (*fleet.AppConfig, error) {
+func (ds *cachedMysql) NewAppConfig(ctx context.Context, info *automdm.AppConfig) (*automdm.AppConfig, error) {
 	ac, err := ds.Datastore.NewAppConfig(ctx, info)
 	if err != nil {
 		return nil, err
@@ -264,9 +264,9 @@ func (ds *cachedMysql) NewAppConfig(ctx context.Context, info *fleet.AppConfig) 
 	return ac, nil
 }
 
-func (ds *cachedMysql) AppConfig(ctx context.Context) (*fleet.AppConfig, error) {
+func (ds *cachedMysql) AppConfig(ctx context.Context) (*automdm.AppConfig, error) {
 	if x, found := ds.c.Get(ctx, appConfigKey); found {
-		ac, ok := x.(*fleet.AppConfig)
+		ac, ok := x.(*automdm.AppConfig)
 		if ok {
 			return ac, nil
 		}
@@ -282,7 +282,7 @@ func (ds *cachedMysql) AppConfig(ctx context.Context) (*fleet.AppConfig, error) 
 	return ac, nil
 }
 
-func (ds *cachedMysql) SaveAppConfig(ctx context.Context, info *fleet.AppConfig) error {
+func (ds *cachedMysql) SaveAppConfig(ctx context.Context, info *automdm.AppConfig) error {
 	err := ds.Datastore.SaveAppConfig(ctx, info)
 	if err != nil {
 		return err
@@ -293,28 +293,28 @@ func (ds *cachedMysql) SaveAppConfig(ctx context.Context, info *fleet.AppConfig)
 	return nil
 }
 
-func (ds *cachedMysql) GetWindowsEnrollmentDefaultFleet(ctx context.Context) (*uint, string, error) {
-	if x, found := ds.c.Get(ctx, windowsEnrollmentDefaultFleetKey); found {
-		if v, ok := x.(*fleet.WindowsEnrollmentDefaultFleet); ok {
-			return v.FleetID, v.FleetName, nil
+func (ds *cachedMysql) GetWindowsEnrollmentDefaultTeam(ctx context.Context) (*uint, string, error) {
+	if x, found := ds.c.Get(ctx, windowsEnrollmentDefaultAutoMDMKey); found {
+		if v, ok := x.(*automdm.WindowsEnrollmentDefaultTeam); ok {
+			return v.AutoMDMID, v.AutoMDMName, nil
 		}
 	}
 
-	fleetID, fleetName, err := ds.Datastore.GetWindowsEnrollmentDefaultFleet(ctx)
+	automdmID, automdmName, err := ds.Datastore.GetWindowsEnrollmentDefaultTeam(ctx)
 	if err != nil {
 		return nil, "", err
 	}
 
-	ds.c.Set(ctx, windowsEnrollmentDefaultFleetKey, &fleet.WindowsEnrollmentDefaultFleet{FleetID: fleetID, FleetName: fleetName}, ds.appConfigExp)
+	ds.c.Set(ctx, windowsEnrollmentDefaultAutoMDMKey, &automdm.WindowsEnrollmentDefaultTeam{AutoMDMID: automdmID, AutoMDMName: automdmName}, ds.appConfigExp)
 
-	return fleetID, fleetName, nil
+	return automdmID, automdmName, nil
 }
 
-func (ds *cachedMysql) SetWindowsEnrollmentDefaultFleet(ctx context.Context, fleetID *uint) error {
-	if err := ds.Datastore.SetWindowsEnrollmentDefaultFleet(ctx, fleetID); err != nil {
+func (ds *cachedMysql) SetWindowsEnrollmentDefaultTeam(ctx context.Context, automdmID *uint) error {
+	if err := ds.Datastore.SetWindowsEnrollmentDefaultTeam(ctx, automdmID); err != nil {
 		return err
 	}
-	ds.c.Delete(windowsEnrollmentDefaultFleetKey)
+	ds.c.Delete(windowsEnrollmentDefaultAutoMDMKey)
 	return nil
 }
 
@@ -336,10 +336,10 @@ func (ds *cachedMysql) TeamAgentOptions(ctx context.Context, teamID uint) (*json
 	return agentOptions, nil
 }
 
-func (ds *cachedMysql) TeamFeatures(ctx context.Context, teamID uint) (*fleet.Features, error) {
+func (ds *cachedMysql) TeamFeatures(ctx context.Context, teamID uint) (*automdm.Features, error) {
 	key := fmt.Sprintf(teamFeaturesKey, teamID)
 	if x, found := ds.c.Get(ctx, key); found {
-		if features, ok := x.(*fleet.Features); ok {
+		if features, ok := x.(*automdm.Features); ok {
 			return features, nil
 		}
 	}
@@ -354,10 +354,10 @@ func (ds *cachedMysql) TeamFeatures(ctx context.Context, teamID uint) (*fleet.Fe
 	return features, nil
 }
 
-func (ds *cachedMysql) TeamMDMConfig(ctx context.Context, teamID uint) (*fleet.TeamMDM, error) {
+func (ds *cachedMysql) TeamMDMConfig(ctx context.Context, teamID uint) (*automdm.TeamMDM, error) {
 	key := fmt.Sprintf(teamMDMConfigKey, teamID)
 	if x, found := ds.c.Get(ctx, key); found {
-		if cfg, ok := x.(*fleet.TeamMDM); ok {
+		if cfg, ok := x.(*automdm.TeamMDM); ok {
 			return cfg, nil
 		}
 	}
@@ -372,7 +372,7 @@ func (ds *cachedMysql) TeamMDMConfig(ctx context.Context, teamID uint) (*fleet.T
 	return cfg, nil
 }
 
-func (ds *cachedMysql) SaveTeam(ctx context.Context, team *fleet.Team) (*fleet.Team, error) {
+func (ds *cachedMysql) SaveTeam(ctx context.Context, team *automdm.Team) (*automdm.Team, error) {
 	team, err := ds.Datastore.SaveTeam(ctx, team)
 	if err != nil {
 		return nil, err
@@ -407,7 +407,7 @@ func (ds *cachedMysql) DeleteTeam(ctx context.Context, teamID uint) error {
 }
 
 // TODO: should we handle DeleteQuery/DeleteQueries/SaveQuery to invalidate that cache?
-func (ds *cachedMysql) QueryByName(ctx context.Context, teamID *uint, name string) (*fleet.Query, error) {
+func (ds *cachedMysql) QueryByName(ctx context.Context, teamID *uint, name string) (*automdm.Query, error) {
 	teamID_ := uint(0) // global team is 0
 	if teamID != nil {
 		teamID_ = *teamID
@@ -415,7 +415,7 @@ func (ds *cachedMysql) QueryByName(ctx context.Context, teamID *uint, name strin
 	key := fmt.Sprintf(queryByNameKey, teamID_, name)
 
 	if x, found := ds.c.Get(ctx, key); found {
-		if query, ok := x.(*fleet.Query); ok {
+		if query, ok := x.(*automdm.Query); ok {
 			return query, nil
 		}
 	}
@@ -432,7 +432,7 @@ func (ds *cachedMysql) QueryByName(ctx context.Context, teamID *uint, name strin
 
 // QueriesByName delegates straight to the underlying store: a batch lookup is
 // already a single round-trip, so there is nothing for the per-name cache to add.
-func (ds *cachedMysql) QueriesByName(ctx context.Context, names []fleet.TeamScopedQueryName) (map[string]*fleet.Query, error) {
+func (ds *cachedMysql) QueriesByName(ctx context.Context, names []automdm.TeamScopedQueryName) (map[string]*automdm.Query, error) {
 	return ds.Datastore.QueriesByName(ctx, names)
 }
 
@@ -459,8 +459,8 @@ func (ds *cachedMysql) QueriesPerHost(ctx context.Context, hostID uint, teamID *
 	return queryIDs, nil
 }
 
-func (ds *cachedMysql) GetAllMDMConfigAssetsByName(ctx context.Context, assetNames []fleet.MDMAssetName,
-	queryerContext sqlx.QueryerContext) (map[fleet.MDMAssetName]fleet.MDMConfigAsset, error) {
+func (ds *cachedMysql) GetAllMDMConfigAssetsByName(ctx context.Context, assetNames []automdm.MDMAssetName,
+	queryerContext sqlx.QueryerContext) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
 	// always reach the database to get the latest hashes
 	latestHashes, hashErr := ds.Datastore.GetAllMDMConfigAssetsHashes(ctx, assetNames)
 	// Continue even with partial results - we'll return the error at the end
@@ -468,14 +468,14 @@ func (ds *cachedMysql) GetAllMDMConfigAssetsByName(ctx context.Context, assetNam
 		return nil, hashErr
 	}
 
-	cachedAssets := make(map[fleet.MDMAssetName]fleet.MDMConfigAsset)
-	var missingAssets []fleet.MDMAssetName
+	cachedAssets := make(map[automdm.MDMAssetName]automdm.MDMConfigAsset)
+	var missingAssets []automdm.MDMAssetName
 
 	for _, name := range assetNames {
 		key := fmt.Sprintf(mdmConfigAssetKey, name, latestHashes[name])
 
 		if x, found := ds.c.Get(ctx, key); found {
-			asset, ok := x.(fleet.MDMConfigAsset)
+			asset, ok := x.(automdm.MDMConfigAsset)
 			if ok {
 				cachedAssets[name] = asset
 				continue
@@ -509,9 +509,9 @@ func (ds *cachedMysql) GetAllMDMConfigAssetsByName(ctx context.Context, assetNam
 	return cachedAssets, err
 }
 
-func (ds *cachedMysql) DefaultTeamConfig(ctx context.Context) (*fleet.TeamConfig, error) {
+func (ds *cachedMysql) DefaultTeamConfig(ctx context.Context) (*automdm.TeamConfig, error) {
 	if x, found := ds.c.Get(ctx, defaultTeamConfigKey); found {
-		if cfg, ok := x.(*fleet.TeamConfig); ok {
+		if cfg, ok := x.(*automdm.TeamConfig); ok {
 			return cfg, nil
 		}
 	}
@@ -526,7 +526,7 @@ func (ds *cachedMysql) DefaultTeamConfig(ctx context.Context) (*fleet.TeamConfig
 	return cfg, nil
 }
 
-func (ds *cachedMysql) SaveDefaultTeamConfig(ctx context.Context, config *fleet.TeamConfig) error {
+func (ds *cachedMysql) SaveDefaultTeamConfig(ctx context.Context, config *automdm.TeamConfig) error {
 	err := ds.Datastore.SaveDefaultTeamConfig(ctx, config)
 	if err != nil {
 		return err
@@ -538,11 +538,11 @@ func (ds *cachedMysql) SaveDefaultTeamConfig(ctx context.Context, config *fleet.
 	return nil
 }
 
-func (ds *cachedMysql) YaraRuleByName(ctx context.Context, name string) (*fleet.YaraRule, error) {
+func (ds *cachedMysql) YaraRuleByName(ctx context.Context, name string) (*automdm.YaraRule, error) {
 	key := fmt.Sprintf(yaraRuleByNameKey, name)
 
 	if x, found := ds.c.Get(ctx, key); found {
-		if rule, ok := x.(*fleet.YaraRule); ok {
+		if rule, ok := x.(*automdm.YaraRule); ok {
 			return rule, nil
 		}
 	}
@@ -557,7 +557,7 @@ func (ds *cachedMysql) YaraRuleByName(ctx context.Context, name string) (*fleet.
 	return rule, nil
 }
 
-func (ds *cachedMysql) ApplyYaraRules(ctx context.Context, rules []fleet.YaraRule) error {
+func (ds *cachedMysql) ApplyYaraRules(ctx context.Context, rules []automdm.YaraRule) error {
 	err := ds.Datastore.ApplyYaraRules(ctx, rules)
 	if err != nil {
 		return err
@@ -592,7 +592,7 @@ func (ds *cachedMysql) GetFMANamesByIdentifier(ctx context.Context) (map[string]
 	return names, nil
 }
 
-func (ds *cachedMysql) UpsertMaintainedApp(ctx context.Context, app *fleet.MaintainedApp) (*fleet.MaintainedApp, error) {
+func (ds *cachedMysql) UpsertMaintainedApp(ctx context.Context, app *automdm.MaintainedApp) (*automdm.MaintainedApp, error) {
 	result, err := ds.Datastore.UpsertMaintainedApp(ctx, app)
 	if err != nil {
 		return nil, err
@@ -604,8 +604,8 @@ func (ds *cachedMysql) UpsertMaintainedApp(ctx context.Context, app *fleet.Maint
 	return result, nil
 }
 
-func (ds *cachedMysql) ClearRemovedFleetMaintainedApps(ctx context.Context, slugsToKeep []string) error {
-	err := ds.Datastore.ClearRemovedFleetMaintainedApps(ctx, slugsToKeep)
+func (ds *cachedMysql) ClearRemovedAutoMDMMaintainedApps(ctx context.Context, slugsToKeep []string) error {
+	err := ds.Datastore.ClearRemovedAutoMDMMaintainedApps(ctx, slugsToKeep)
 	if err != nil {
 		return err
 	}
@@ -616,10 +616,10 @@ func (ds *cachedMysql) ClearRemovedFleetMaintainedApps(ctx context.Context, slug
 	return nil
 }
 
-func (ds *cachedMysql) MDMGetEULAMetadata(ctx context.Context, platform fleet.MDMEULAPlatform) (*fleet.MDMEULA, error) {
+func (ds *cachedMysql) MDMGetEULAMetadata(ctx context.Context, platform automdm.MDMEULAPlatform) (*automdm.MDMEULA, error) {
 	key := fmt.Sprintf(eulaMetadataKey, platform)
 	if x, found := ds.c.Get(ctx, key); found {
-		if lookup, ok := x.(*fleet.MDMEULAMetadataLookup); ok {
+		if lookup, ok := x.(*automdm.MDMEULAMetadataLookup); ok {
 			if lookup.EULA == nil {
 				return nil, common_mysql.NotFound("MDMEULA")
 			}
@@ -629,18 +629,18 @@ func (ds *cachedMysql) MDMGetEULAMetadata(ctx context.Context, platform fleet.MD
 
 	eula, err := ds.Datastore.MDMGetEULAMetadata(ctx, platform)
 	switch {
-	case fleet.IsNotFound(err):
-		ds.c.Set(ctx, key, &fleet.MDMEULAMetadataLookup{}, ds.eulaMetadataExp)
+	case automdm.IsNotFound(err):
+		ds.c.Set(ctx, key, &automdm.MDMEULAMetadataLookup{}, ds.eulaMetadataExp)
 		return nil, err
 	case err != nil:
 		return nil, err
 	}
 
-	ds.c.Set(ctx, key, &fleet.MDMEULAMetadataLookup{EULA: eula}, ds.eulaMetadataExp)
+	ds.c.Set(ctx, key, &automdm.MDMEULAMetadataLookup{EULA: eula}, ds.eulaMetadataExp)
 	return eula, nil
 }
 
-func (ds *cachedMysql) MDMInsertEULA(ctx context.Context, eula *fleet.MDMEULA) error {
+func (ds *cachedMysql) MDMInsertEULA(ctx context.Context, eula *automdm.MDMEULA) error {
 	err := ds.Datastore.MDMInsertEULA(ctx, eula)
 	// Invalidate even on failure: a duplicate means another instance wrote one
 	// that this cache may not know about yet.
@@ -648,7 +648,7 @@ func (ds *cachedMysql) MDMInsertEULA(ctx context.Context, eula *fleet.MDMEULA) e
 	return err
 }
 
-func (ds *cachedMysql) MDMDeleteEULA(ctx context.Context, platform fleet.MDMEULAPlatform, token string) error {
+func (ds *cachedMysql) MDMDeleteEULA(ctx context.Context, platform automdm.MDMEULAPlatform, token string) error {
 	err := ds.Datastore.MDMDeleteEULA(ctx, platform, token)
 	ds.c.Delete(fmt.Sprintf(eulaMetadataKey, platform))
 	return err

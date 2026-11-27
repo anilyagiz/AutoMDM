@@ -6,37 +6,37 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/authz"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/contexts/logging"
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
+	"github.com/anilyagiz/automdm/v4/server/contexts/logging"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
 // Get Query
 ////////////////////////////////////////////////////////////////////////////////
 
-func getQueryEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.GetQueryRequest)
+func getQueryEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.GetQueryRequest)
 	query, err := svc.GetQuery(ctx, req.ID)
 	if err != nil {
-		return fleet.GetQueryResponse{Err: err}, nil
+		return automdm.GetQueryResponse{Err: err}, nil
 	}
-	return fleet.GetQueryResponse{Report: query}, nil
+	return automdm.GetQueryResponse{Report: query}, nil
 }
 
-func (svc *Service) GetQuery(ctx context.Context, id uint) (*fleet.Query, error) {
+func (svc *Service) GetQuery(ctx context.Context, id uint) (*automdm.Query, error) {
 	// Load query first to get its teamID.
 	query, err := svc.ds.Query(ctx, id)
 	if err != nil {
 		setAuthCheckedOnPreAuthErr(ctx)
 		return nil, ctxerr.Wrap(ctx, err, "get query from datastore")
 	}
-	if err := svc.authz.Authorize(ctx, query, fleet.ActionRead); err != nil {
+	if err := svc.authz.Authorize(ctx, query, automdm.ActionRead); err != nil {
 		return nil, err
 	}
 	return query, nil
@@ -46,8 +46,8 @@ func (svc *Service) GetQuery(ctx context.Context, id uint) (*fleet.Query, error)
 // List Queries
 ////////////////////////////////////////////////////////////////////////////////
 
-func listQueriesEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.ListQueriesRequest)
+func listQueriesEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.ListQueriesRequest)
 
 	var teamID *uint
 	if req.TeamID != 0 {
@@ -61,15 +61,15 @@ func listQueriesEndpoint(ctx context.Context, request interface{}, svc fleet.Ser
 
 	queries, count, inheritedCount, meta, err := svc.ListQueries(ctx, req.ListOptions, teamID, nil, req.MergeInherited, urlPlatform)
 	if err != nil {
-		return fleet.ListQueriesResponse{Err: err}, nil
+		return automdm.ListQueriesResponse{Err: err}, nil
 	}
 
-	respQueries := make([]fleet.Query, 0, len(queries))
+	respQueries := make([]automdm.Query, 0, len(queries))
 	for _, query := range queries {
 		respQueries = append(respQueries, *query)
 	}
 
-	return fleet.ListQueriesResponse{
+	return automdm.ListQueriesResponse{
 		Queries:             respQueries,
 		Count:               count,
 		InheritedQueryCount: inheritedCount,
@@ -77,11 +77,11 @@ func listQueriesEndpoint(ctx context.Context, request interface{}, svc fleet.Ser
 	}, nil
 }
 
-func (svc *Service) ListQueries(ctx context.Context, opt fleet.ListOptions, teamID *uint, scheduled *bool, mergeInherited bool, urlPlatform *string) ([]*fleet.Query, int, int, *fleet.PaginationMetadata, error) {
+func (svc *Service) ListQueries(ctx context.Context, opt automdm.ListOptions, teamID *uint, scheduled *bool, mergeInherited bool, urlPlatform *string) ([]*automdm.Query, int, int, *automdm.PaginationMetadata, error) {
 	// Check the user is allowed to list queries on the given team.
-	if err := svc.authz.Authorize(ctx, &fleet.Query{
+	if err := svc.authz.Authorize(ctx, &automdm.Query{
 		TeamID: teamID,
-	}, fleet.ActionRead); err != nil {
+	}, automdm.ActionRead); err != nil {
 		return nil, 0, 0, nil, err
 	}
 
@@ -98,15 +98,15 @@ func (svc *Service) ListQueries(ctx context.Context, opt fleet.ListOptions, team
 			dbPlatform = urlPlatform
 		}
 		if strings.Contains(*urlPlatform, ",") {
-			return nil, 0, 0, nil, &fleet.BadRequestError{Message: "queries can only be filtered by one platform at a time"}
+			return nil, 0, 0, nil, &automdm.BadRequestError{Message: "queries can only be filtered by one platform at a time"}
 		}
 		targetableDBPlatforms := []string{"darwin", "windows", "linux"}
 		if !slices.Contains(targetableDBPlatforms, *dbPlatform) {
-			return nil, 0, 0, nil, &fleet.BadRequestError{Message: fmt.Sprintf("platform %q cannot be a scheduled query target, supported platforms are: %s", *dbPlatform, strings.Join(targetableDBPlatforms, ","))}
+			return nil, 0, 0, nil, &automdm.BadRequestError{Message: fmt.Sprintf("platform %q cannot be a scheduled query target, supported platforms are: %s", *dbPlatform, strings.Join(targetableDBPlatforms, ","))}
 		}
 	}
 
-	queries, count, inheritedCount, meta, err := svc.ds.ListQueries(ctx, fleet.ListQueryOptions{
+	queries, count, inheritedCount, meta, err := svc.ds.ListQueries(ctx, automdm.ListQueryOptions{
 		ListOptions:    opt,
 		TeamID:         teamID,
 		IsScheduled:    scheduled,
@@ -124,18 +124,18 @@ func (svc *Service) ListQueries(ctx context.Context, opt fleet.ListOptions, team
 // Query Reports
 ////////////////////////////////////////////////////////////////////////////////
 
-func getQueryReportEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.GetQueryReportRequest)
+func getQueryReportEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.GetQueryReportRequest)
 	queryReportResults, count, meta, reportClipped, err := svc.GetQueryReportResults(ctx, req.ID, req.TeamID, req.ListOptions)
 	if err != nil {
-		return fleet.GetQueryReportResponse{Err: err}, nil
+		return automdm.GetQueryReportResponse{Err: err}, nil
 	}
 	// Return an empty array if there are no results stored.
-	results := []fleet.HostQueryResultRow{}
+	results := []automdm.HostQueryResultRow{}
 	if len(queryReportResults) > 0 {
 		results = queryReportResults
 	}
-	return fleet.GetQueryReportResponse{
+	return automdm.GetQueryReportResponse{
 		QueryID:       req.ID,
 		Results:       results,
 		ReportClipped: reportClipped,
@@ -144,14 +144,14 @@ func getQueryReportEndpoint(ctx context.Context, request interface{}, svc fleet.
 	}, nil
 }
 
-func (svc *Service) GetQueryReportResults(ctx context.Context, id uint, teamID *uint, opts fleet.ListOptions) ([]fleet.HostQueryResultRow, int, *fleet.PaginationMetadata, bool, error) {
+func (svc *Service) GetQueryReportResults(ctx context.Context, id uint, teamID *uint, opts automdm.ListOptions) ([]automdm.HostQueryResultRow, int, *automdm.PaginationMetadata, bool, error) {
 	// Load query first to get its teamID.
 	query, err := svc.ds.Query(ctx, id)
 	if err != nil {
 		setAuthCheckedOnPreAuthErr(ctx)
 		return nil, 0, nil, false, ctxerr.Wrap(ctx, err, "get query from datastore")
 	}
-	if err := svc.authz.Authorize(ctx, query, fleet.ActionRead); err != nil {
+	if err := svc.authz.Authorize(ctx, query, automdm.ActionRead); err != nil {
 		return nil, 0, nil, false, err
 	}
 
@@ -161,23 +161,23 @@ func (svc *Service) GetQueryReportResults(ctx context.Context, id uint, teamID *
 
 	vc, ok := viewer.FromContext(ctx)
 	if !ok {
-		return nil, 0, nil, false, fleet.ErrNoContext
+		return nil, 0, nil, false, automdm.ErrNoContext
 	}
-	filter := fleet.TeamFilter{User: vc.User, IncludeObserver: true, TeamID: teamID}
+	filter := automdm.TeamFilter{User: vc.User, IncludeObserver: true, TeamID: teamID}
 
 	// Only paginate when the caller asks for a page size; otherwise return every row,
 	// which is what existing API consumers expect.
 	opts.IncludeMetadata = opts.PerPage > 0
 	if opts.OrderKey == "" {
 		opts.OrderKey = "last_fetched"
-		opts.OrderDirection = fleet.OrderDescending
+		opts.OrderDirection = automdm.OrderDescending
 	}
 
 	queryReportResultRows, count, meta, err := svc.ds.QueryResultRows(ctx, id, filter, opts)
 	if err != nil {
 		return nil, 0, nil, false, ctxerr.Wrap(ctx, err, "get query report results")
 	}
-	queryReportResults, err := fleet.MapQueryReportResultsToRows(queryReportResultRows)
+	queryReportResults, err := automdm.MapQueryReportResultsToRows(queryReportResultRows)
 	if err != nil {
 		return nil, 0, nil, false, ctxerr.Wrap(ctx, err, "map db rows to results")
 	}
@@ -191,7 +191,7 @@ func (svc *Service) GetQueryReportResults(ctx context.Context, id uint, teamID *
 // queryReportCap returns the effective report cap, raised to the total host count cached in
 // Redis by the query results cleanup cron. On a cache miss the count is read from the database
 // and seeded into Redis. Falls back to the configured cap if the count is unavailable.
-func (svc *Service) queryReportCap(ctx context.Context, serverSettings fleet.ServerSettings) int {
+func (svc *Service) queryReportCap(ctx context.Context, serverSettings automdm.ServerSettings) int {
 	if svc.liveQueryStore == nil {
 		return serverSettings.GetEffectiveQueryReportCap(0)
 	}
@@ -219,7 +219,7 @@ func (svc *Service) QueryReportIsClipped(ctx context.Context, queryID uint) (boo
 		setAuthCheckedOnPreAuthErr(ctx)
 		return false, ctxerr.Wrap(ctx, err, "get query from datastore")
 	}
-	if err := svc.authz.Authorize(ctx, query, fleet.ActionRead); err != nil {
+	if err := svc.authz.Authorize(ctx, query, automdm.ActionRead); err != nil {
 		return false, err
 	}
 
@@ -269,45 +269,45 @@ func (svc *Service) clearQueryReportState(ctx context.Context, queryID uint, del
 // Create Query
 ////////////////////////////////////////////////////////////////////////////////
 
-func createQueryEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.CreateQueryRequest)
+func createQueryEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.CreateQueryRequest)
 	query, err := svc.NewQuery(ctx, req.QueryPayload)
 	if err != nil {
-		return fleet.CreateQueryResponse{Err: err}, nil
+		return automdm.CreateQueryResponse{Err: err}, nil
 	}
-	return fleet.CreateQueryResponse{Report: query}, nil
+	return automdm.CreateQueryResponse{Report: query}, nil
 }
 
-func (svc *Service) NewQuery(ctx context.Context, p fleet.QueryPayload) (*fleet.Query, error) {
+func (svc *Service) NewQuery(ctx context.Context, p automdm.QueryPayload) (*automdm.Query, error) {
 	// Check the user is allowed to create a new query on the team.
-	if err := svc.authz.Authorize(ctx, fleet.Query{
+	if err := svc.authz.Authorize(ctx, automdm.Query{
 		TeamID: p.TeamID,
-	}, fleet.ActionWrite); err != nil {
+	}, automdm.ActionWrite); err != nil {
 		return nil, err
 	}
 
 	if p.Name == nil || p.Query == nil {
-		return nil, ctxerr.Wrap(ctx, &fleet.BadRequestError{
+		return nil, ctxerr.Wrap(ctx, &automdm.BadRequestError{
 			Message: "name and query fields are required",
 		})
 	}
 
 	if p.Logging == nil || (p.Logging != nil && *p.Logging == "") {
-		p.Logging = ptr.String(fleet.LoggingSnapshot)
+		p.Logging = ptr.String(automdm.LoggingSnapshot)
 	}
 
 	// Targeting queries by label is a premium feature only.
 	if (len(p.LabelsIncludeAny) > 0 || len(p.LabelsIncludeAll) > 0) && !license.IsPremium(ctx) {
-		return nil, fleet.ErrMissingLicense
+		return nil, automdm.ErrMissingLicense
 	}
 
 	if err := p.Verify(); err != nil {
-		return nil, ctxerr.Wrap(ctx, &fleet.BadRequestError{
+		return nil, ctxerr.Wrap(ctx, &automdm.BadRequestError{
 			Message: fmt.Sprintf("query payload verification: %s", err),
 		})
 	}
 
-	query := &fleet.Query{Saved: true, TeamID: p.TeamID}
+	query := &automdm.Query{Saved: true, TeamID: p.TeamID}
 
 	vc, ok := viewer.FromContext(ctx)
 	if ok {
@@ -356,10 +356,10 @@ func (svc *Service) NewQuery(ctx context.Context, p fleet.QueryPayload) (*fleet.
 		query.DiscardData = *p.DiscardData
 	}
 	if len(p.LabelsIncludeAny) > 0 {
-		query.LabelsIncludeAny = fleet.LabelNamesToIdents(p.LabelsIncludeAny)
+		query.LabelsIncludeAny = automdm.LabelNamesToIdents(p.LabelsIncludeAny)
 	}
 	if len(p.LabelsIncludeAll) > 0 {
-		query.LabelsIncludeAll = fleet.LabelNamesToIdents(p.LabelsIncludeAll)
+		query.LabelsIncludeAll = automdm.LabelNamesToIdents(p.LabelsIncludeAll)
 	}
 
 	logging.WithExtras(ctx, "name", query.Name, "sql", query.Query)
@@ -388,7 +388,7 @@ func (svc *Service) NewQuery(ctx context.Context, p fleet.QueryPayload) (*fleet.
 	if err := svc.NewActivity(
 		ctx,
 		authz.UserFromContext(ctx),
-		fleet.ActivityTypeCreatedSavedQuery{
+		automdm.ActivityTypeCreatedSavedQuery{
 			ID:       query.ID,
 			Name:     query.Name,
 			TeamID:   teamID, // log teamID if available, else -1 for global
@@ -405,16 +405,16 @@ func (svc *Service) NewQuery(ctx context.Context, p fleet.QueryPayload) (*fleet.
 // Modify Query
 ////////////////////////////////////////////////////////////////////////////////
 
-func modifyQueryEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.ModifyQueryRequest)
+func modifyQueryEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.ModifyQueryRequest)
 	query, err := svc.ModifyQuery(ctx, req.ID, req.QueryPayload)
 	if err != nil {
-		return fleet.ModifyQueryResponse{Err: err}, nil
+		return automdm.ModifyQueryResponse{Err: err}, nil
 	}
-	return fleet.ModifyQueryResponse{Report: query}, nil
+	return automdm.ModifyQueryResponse{Report: query}, nil
 }
 
-func (svc *Service) ModifyQuery(ctx context.Context, id uint, p fleet.QueryPayload) (*fleet.Query, error) {
+func (svc *Service) ModifyQuery(ctx context.Context, id uint, p automdm.QueryPayload) (*automdm.Query, error) {
 	// Load query first to determine if the user can modify it.
 	query, err := svc.ds.Query(ctx, id)
 	if err != nil {
@@ -422,21 +422,21 @@ func (svc *Service) ModifyQuery(ctx context.Context, id uint, p fleet.QueryPaylo
 		return nil, err
 	}
 	notFoundErr := ctxerr.Wrap(ctx, common_mysql.NotFound("Report").WithID(query.ID), "get query to modify")
-	if err := svc.authz.AuthorizeOrNotFound(ctx, query, fleet.ActionWrite, notFoundErr); err != nil {
+	if err := svc.authz.AuthorizeOrNotFound(ctx, query, automdm.ActionWrite, notFoundErr); err != nil {
 		return nil, err
 	}
 
 	if p.Logging != nil && *p.Logging == "" {
-		p.Logging = ptr.String(fleet.LoggingSnapshot)
+		p.Logging = ptr.String(automdm.LoggingSnapshot)
 	}
 
 	// Targeting queries by label is a premium feature only.
 	if (len(p.LabelsIncludeAny) > 0 || len(p.LabelsIncludeAll) > 0) && !license.IsPremium(ctx) {
-		return nil, fleet.ErrMissingLicense
+		return nil, automdm.ErrMissingLicense
 	}
 
 	if err := p.Verify(); err != nil {
-		return nil, ctxerr.Wrap(ctx, &fleet.BadRequestError{
+		return nil, ctxerr.Wrap(ctx, &automdm.BadRequestError{
 			Message: fmt.Sprintf("query payload verification: %s", err),
 		})
 	}
@@ -485,7 +485,7 @@ func (svc *Service) ModifyQuery(ctx context.Context, id uint, p fleet.QueryPaylo
 		query.AutomationsEnabled = *p.AutomationsEnabled
 	}
 	if p.Logging != nil {
-		if query.Logging != *p.Logging && *p.Logging != fleet.LoggingSnapshot {
+		if query.Logging != *p.Logging && *p.Logging != automdm.LoggingSnapshot {
 			shouldDiscardQueryResults = true
 		}
 		query.Logging = *p.Logging
@@ -504,8 +504,8 @@ func (svc *Service) ModifyQuery(ctx context.Context, id uint, p fleet.QueryPaylo
 	// the other is reset to empty so a scope switch implicitly clears the
 	// previous scope.
 	if p.LabelsIncludeAny != nil || p.LabelsIncludeAll != nil {
-		query.LabelsIncludeAny = fleet.LabelNamesToIdents(p.LabelsIncludeAny)
-		query.LabelsIncludeAll = fleet.LabelNamesToIdents(p.LabelsIncludeAll)
+		query.LabelsIncludeAny = automdm.LabelNamesToIdents(p.LabelsIncludeAny)
+		query.LabelsIncludeAll = automdm.LabelNamesToIdents(p.LabelsIncludeAll)
 	}
 
 	logging.WithExtras(ctx, "name", query.Name, "sql", query.Query)
@@ -537,7 +537,7 @@ func (svc *Service) ModifyQuery(ctx context.Context, id uint, p fleet.QueryPaylo
 	if err := svc.NewActivity(
 		ctx,
 		authz.UserFromContext(ctx),
-		fleet.ActivityTypeEditedSavedQuery{
+		automdm.ActivityTypeEditedSavedQuery{
 			ID:       query.ID,
 			Name:     query.Name,
 			TeamID:   teamID,
@@ -565,13 +565,13 @@ func comparePlatforms(platform1, platform2 string) bool {
 // Delete Query By ID
 ////////////////////////////////////////////////////////////////////////////////
 
-func deleteQueryByIDEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.DeleteQueryByIDRequest)
+func deleteQueryByIDEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.DeleteQueryByIDRequest)
 	err := svc.DeleteQueryByID(ctx, req.ID)
 	if err != nil {
-		return fleet.DeleteQueryByIDResponse{Err: err}, nil
+		return automdm.DeleteQueryByIDResponse{Err: err}, nil
 	}
-	return fleet.DeleteQueryByIDResponse{}, nil
+	return automdm.DeleteQueryByIDResponse{}, nil
 }
 
 func (svc *Service) DeleteQueryByID(ctx context.Context, id uint) error {
@@ -583,7 +583,7 @@ func (svc *Service) DeleteQueryByID(ctx context.Context, id uint) error {
 		return ctxerr.Wrap(ctx, err, "lookup query by ID")
 	}
 	notFoundErr := ctxerr.Wrap(ctx, common_mysql.NotFound("Report").WithID(query.ID), "lookup query by ID")
-	if err := svc.authz.AuthorizeOrNotFound(ctx, query, fleet.ActionWrite, notFoundErr); err != nil {
+	if err := svc.authz.AuthorizeOrNotFound(ctx, query, automdm.ActionWrite, notFoundErr); err != nil {
 		return err
 	}
 
@@ -612,7 +612,7 @@ func (svc *Service) DeleteQueryByID(ctx context.Context, id uint) error {
 	if err := svc.NewActivity(
 		ctx,
 		authz.UserFromContext(ctx),
-		fleet.ActivityTypeDeletedSavedQuery{
+		automdm.ActivityTypeDeletedSavedQuery{
 			Name:     query.Name,
 			TeamID:   logTeamID,
 			TeamName: teamName,
@@ -627,13 +627,13 @@ func (svc *Service) DeleteQueryByID(ctx context.Context, id uint) error {
 // Delete Queries
 ////////////////////////////////////////////////////////////////////////////////
 
-func deleteQueriesEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.DeleteQueriesRequest)
+func deleteQueriesEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.DeleteQueriesRequest)
 	deleted, err := svc.DeleteQueries(ctx, req.IDs)
 	if err != nil {
-		return fleet.DeleteQueriesResponse{Err: err}, nil
+		return automdm.DeleteQueriesResponse{Err: err}, nil
 	}
-	return fleet.DeleteQueriesResponse{Deleted: deleted}, nil
+	return automdm.DeleteQueriesResponse{Deleted: deleted}, nil
 }
 
 func (svc *Service) DeleteQueries(ctx context.Context, ids []uint) (uint, error) {
@@ -647,7 +647,7 @@ func (svc *Service) DeleteQueries(ctx context.Context, ids []uint) (uint, error)
 			return 0, ctxerr.Wrap(ctx, err, "lookup query by ID")
 		}
 		notFoundErr := ctxerr.Wrap(ctx, common_mysql.NotFound("Report").WithID(id), "lookup query by ID")
-		if err := svc.authz.AuthorizeOrNotFound(ctx, query, fleet.ActionWrite, notFoundErr); err != nil {
+		if err := svc.authz.AuthorizeOrNotFound(ctx, query, automdm.ActionWrite, notFoundErr); err != nil {
 			return 0, err
 		}
 
@@ -676,7 +676,7 @@ func (svc *Service) DeleteQueries(ctx context.Context, ids []uint) (uint, error)
 	if err := svc.NewActivity(
 		ctx,
 		authz.UserFromContext(ctx),
-		fleet.ActivityTypeDeletedMultipleSavedQuery{
+		automdm.ActivityTypeDeletedMultipleSavedQuery{
 			IDs:      ids,
 			Teamid:   logTeamID,
 			TeamName: teamName,
@@ -692,18 +692,18 @@ func (svc *Service) DeleteQueries(ctx context.Context, ids []uint) (uint, error)
 // Apply Query Specs
 ////////////////////////////////////////////////////////////////////////////////
 
-func applyQuerySpecsEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.ApplyQuerySpecsRequest)
+func applyQuerySpecsEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.ApplyQuerySpecsRequest)
 	err := svc.ApplyQuerySpecs(ctx, req.Specs)
 	if err != nil {
-		return fleet.ApplyQuerySpecsResponse{Err: err}, nil
+		return automdm.ApplyQuerySpecsResponse{Err: err}, nil
 	}
-	return fleet.ApplyQuerySpecsResponse{}, nil
+	return automdm.ApplyQuerySpecsResponse{}, nil
 }
 
 // validateQueryNamesUnderCollation rejects two queries for the same team whose names the name column's collation treats as equal,
 // which would otherwise be upserted into one row.
-func (svc *Service) validateQueryNamesUnderCollation(ctx context.Context, queries []*fleet.Query) error {
+func (svc *Service) validateQueryNamesUnderCollation(ctx context.Context, queries []*automdm.Query) error {
 	namesByTeam := make(map[uint][]string)
 	for _, query := range queries {
 		teamID := ptr.ValOrZero(query.TeamID)
@@ -715,32 +715,32 @@ func (svc *Service) validateQueryNamesUnderCollation(ctx context.Context, querie
 			return ctxerr.Wrap(ctx, err, "checking for duplicate report names")
 		}
 		if found {
-			return ctxerr.Wrap(ctx, fleet.NewInvalidArgumentError("name",
+			return ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("name",
 				fmt.Sprintf("Couldn't edit reports. More than one report has the same name: %q", names[duplicateIndex])))
 		}
 	}
 	return nil
 }
 
-func (svc *Service) ApplyQuerySpecs(ctx context.Context, specs []*fleet.QuerySpec) error {
+func (svc *Service) ApplyQuerySpecs(ctx context.Context, specs []*automdm.QuerySpec) error {
 	// 1. Validate each spec (nil, premium label scoping, payload verification)
 	// and turn it into a query. Fail-fast on the first invalid spec.
 	isPremium := license.IsPremium(ctx)
-	queries := make([]*fleet.Query, 0, len(specs))
+	queries := make([]*automdm.Query, 0, len(specs))
 	for _, spec := range specs {
 		if spec == nil {
 			setAuthCheckedOnPreAuthErr(ctx)
-			return ctxerr.Wrap(ctx, &fleet.BadRequestError{
+			return ctxerr.Wrap(ctx, &automdm.BadRequestError{
 				Message: "invalid query spec: nil",
 			})
 		}
 		if !isPremium && (len(spec.LabelsIncludeAny) > 0 || len(spec.LabelsIncludeAll) > 0) {
 			setAuthCheckedOnPreAuthErr(ctx)
-			return fleet.ErrMissingLicense
+			return automdm.ErrMissingLicense
 		}
 		if err := spec.Verify(); err != nil {
 			setAuthCheckedOnPreAuthErr(ctx)
-			return ctxerr.Wrap(ctx, &fleet.BadRequestError{
+			return ctxerr.Wrap(ctx, &automdm.BadRequestError{
 				Message: fmt.Sprintf("invalid query spec: %s", err),
 			})
 		}
@@ -753,11 +753,11 @@ func (svc *Service) ApplyQuerySpecs(ctx context.Context, specs []*fleet.QuerySpe
 	}
 	// 2. Run authorization checks and verify their fields.
 	for _, query := range queries {
-		if err := svc.authz.Authorize(ctx, query, fleet.ActionWrite); err != nil {
+		if err := svc.authz.Authorize(ctx, query, automdm.ActionWrite); err != nil {
 			return err
 		}
 		if err := query.Verify(); err != nil {
-			return ctxerr.Wrap(ctx, &fleet.BadRequestError{
+			return ctxerr.Wrap(ctx, &automdm.BadRequestError{
 				Message: fmt.Sprintf("query payload verification: %s", err),
 			})
 		}
@@ -771,7 +771,7 @@ func (svc *Service) ApplyQuerySpecs(ctx context.Context, specs []*fleet.QuerySpe
 	queriesToDiscardResults := make(map[uint]struct{})
 	for _, query := range queries {
 		dbQuery, err := svc.ds.QueryByName(ctx, query.TeamID, query.Name)
-		if err != nil && !fleet.IsNotFound(err) {
+		if err != nil && !automdm.IsNotFound(err) {
 			return ctxerr.Wrap(ctx, err, "fetching saved query")
 		}
 
@@ -781,7 +781,7 @@ func (svc *Service) ApplyQuerySpecs(ctx context.Context, specs []*fleet.QuerySpe
 		}
 
 		if (query.DiscardData && query.DiscardData != dbQuery.DiscardData) ||
-			(query.Logging != dbQuery.Logging && query.Logging != fleet.LoggingSnapshot) ||
+			(query.Logging != dbQuery.Logging && query.Logging != automdm.LoggingSnapshot) ||
 			query.Query != dbQuery.Query ||
 			query.MinOsqueryVersion != dbQuery.MinOsqueryVersion ||
 			!comparePlatforms(query.Platform, dbQuery.Platform) {
@@ -805,7 +805,7 @@ func (svc *Service) ApplyQuerySpecs(ctx context.Context, specs []*fleet.QuerySpe
 	if err := svc.NewActivity(
 		ctx,
 		authz.UserFromContext(ctx),
-		fleet.ActivityTypeAppliedSpecSavedQuery{
+		automdm.ActivityTypeAppliedSpecSavedQuery{
 			Specs: specs,
 		},
 	); err != nil {
@@ -814,7 +814,7 @@ func (svc *Service) ApplyQuerySpecs(ctx context.Context, specs []*fleet.QuerySpe
 	return nil
 }
 
-func (svc *Service) queryFromSpec(ctx context.Context, spec *fleet.QuerySpec) (*fleet.Query, error) {
+func (svc *Service) queryFromSpec(ctx context.Context, spec *automdm.QuerySpec) (*automdm.Query, error) {
 	var teamID *uint
 	if spec.TeamName != "" {
 		team, err := svc.ds.TeamByName(ctx, spec.TeamName)
@@ -825,7 +825,7 @@ func (svc *Service) queryFromSpec(ctx context.Context, spec *fleet.QuerySpec) (*
 	}
 	logging := spec.Logging
 	if logging == "" {
-		logging = fleet.LoggingSnapshot
+		logging = automdm.LoggingSnapshot
 	}
 	// Resolve labels for both supported scopes (mutual exclusion enforced
 	// upstream by spec.Verify, so at most one slice is non-empty in practice).
@@ -833,9 +833,9 @@ func (svc *Service) queryFromSpec(ctx context.Context, spec *fleet.QuerySpec) (*
 	if len(allLabelNames) > 0 {
 		vc, ok := viewer.FromContext(ctx)
 		if !ok {
-			return nil, fleet.ErrNoContext
+			return nil, automdm.ErrNoContext
 		}
-		labelsMap, err := svc.ds.LabelsByName(ctx, allLabelNames, fleet.TeamFilter{User: vc.User, TeamID: teamID})
+		labelsMap, err := svc.ds.LabelsByName(ctx, allLabelNames, automdm.TeamFilter{User: vc.User, TeamID: teamID})
 		if err != nil {
 			return nil, ctxerr.Wrap(ctx, err, "get labels by name")
 		}
@@ -849,9 +849,9 @@ func (svc *Service) queryFromSpec(ctx context.Context, spec *fleet.QuerySpec) (*
 		}
 	}
 	// LabelID is left zero — updateQueryLabelsInTx resolves names to IDs.
-	includeAny := fleet.LabelNamesToIdents(spec.LabelsIncludeAny)
-	includeAll := fleet.LabelNamesToIdents(spec.LabelsIncludeAll)
-	return &fleet.Query{
+	includeAny := automdm.LabelNamesToIdents(spec.LabelsIncludeAny)
+	includeAll := automdm.LabelNamesToIdents(spec.LabelsIncludeAll)
+	return &automdm.Query{
 		Name:        spec.Name,
 		Description: spec.Description,
 		Query:       spec.Query,
@@ -873,27 +873,27 @@ func (svc *Service) queryFromSpec(ctx context.Context, spec *fleet.QuerySpec) (*
 // Get Query Specs
 ////////////////////////////////////////////////////////////////////////////////
 
-func getQuerySpecsEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.GetQuerySpecsRequest)
+func getQuerySpecsEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.GetQuerySpecsRequest)
 	var teamID *uint
 	if req.TeamID != 0 {
 		teamID = &req.TeamID
 	}
 	specs, err := svc.GetQuerySpecs(ctx, teamID)
 	if err != nil {
-		return fleet.GetQuerySpecsResponse{Err: err}, nil
+		return automdm.GetQuerySpecsResponse{Err: err}, nil
 	}
-	return fleet.GetQuerySpecsResponse{Specs: specs}, nil
+	return automdm.GetQuerySpecsResponse{Specs: specs}, nil
 }
 
-func (svc *Service) GetQuerySpecs(ctx context.Context, teamID *uint) ([]*fleet.QuerySpec, error) {
-	queries, _, _, _, err := svc.ListQueries(ctx, fleet.ListOptions{}, teamID, nil, false, nil)
+func (svc *Service) GetQuerySpecs(ctx context.Context, teamID *uint) ([]*automdm.QuerySpec, error) {
+	queries, _, _, _, err := svc.ListQueries(ctx, automdm.ListOptions{}, teamID, nil, false, nil)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "getting queries")
 	}
 
 	// Turn queries into specs.
-	var specs []*fleet.QuerySpec
+	var specs []*automdm.QuerySpec
 	for _, query := range queries {
 		spec, err := svc.specFromQuery(ctx, query)
 		if err != nil {
@@ -904,7 +904,7 @@ func (svc *Service) GetQuerySpecs(ctx context.Context, teamID *uint) ([]*fleet.Q
 	return specs, nil
 }
 
-func (svc *Service) specFromQuery(ctx context.Context, query *fleet.Query) (*fleet.QuerySpec, error) {
+func (svc *Service) specFromQuery(ctx context.Context, query *automdm.Query) (*automdm.QuerySpec, error) {
 	var teamName string
 	if query.TeamID != nil {
 		team, err := svc.ds.TeamLite(ctx, *query.TeamID)
@@ -913,7 +913,7 @@ func (svc *Service) specFromQuery(ctx context.Context, query *fleet.Query) (*fle
 		}
 		teamName = team.Name
 	}
-	return &fleet.QuerySpec{
+	return &automdm.QuerySpec{
 		Name:        query.Name,
 		Description: query.Description,
 		Query:       query.Query,
@@ -926,8 +926,8 @@ func (svc *Service) specFromQuery(ctx context.Context, query *fleet.Query) (*fle
 		AutomationsEnabled: query.AutomationsEnabled,
 		Logging:            query.Logging,
 		DiscardData:        query.DiscardData,
-		LabelsIncludeAny:   fleet.LabelIdentsToNames(query.LabelsIncludeAny),
-		LabelsIncludeAll:   fleet.LabelIdentsToNames(query.LabelsIncludeAll),
+		LabelsIncludeAny:   automdm.LabelIdentsToNames(query.LabelsIncludeAny),
+		LabelsIncludeAll:   automdm.LabelIdentsToNames(query.LabelsIncludeAll),
 	}, nil
 }
 
@@ -935,24 +935,24 @@ func (svc *Service) specFromQuery(ctx context.Context, query *fleet.Query) (*fle
 // Get Query Spec
 ////////////////////////////////////////////////////////////////////////////////
 
-func getQuerySpecEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.GetQuerySpecRequest)
+func getQuerySpecEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.GetQuerySpecRequest)
 	var teamID *uint
 	if req.TeamID != 0 {
 		teamID = &req.TeamID
 	}
 	spec, err := svc.GetQuerySpec(ctx, teamID, req.Name)
 	if err != nil {
-		return fleet.GetQuerySpecResponse{Err: err}, nil
+		return automdm.GetQuerySpecResponse{Err: err}, nil
 	}
-	return fleet.GetQuerySpecResponse{Spec: spec}, nil
+	return automdm.GetQuerySpecResponse{Spec: spec}, nil
 }
 
-func (svc *Service) GetQuerySpec(ctx context.Context, teamID *uint, name string) (*fleet.QuerySpec, error) {
+func (svc *Service) GetQuerySpec(ctx context.Context, teamID *uint, name string) (*automdm.QuerySpec, error) {
 	// Check the user is allowed to get the query on the requested team.
-	if err := svc.authz.Authorize(ctx, &fleet.Query{
+	if err := svc.authz.Authorize(ctx, &automdm.Query{
 		TeamID: teamID,
-	}, fleet.ActionRead); err != nil {
+	}, automdm.ActionRead); err != nil {
 		return nil, err
 	}
 

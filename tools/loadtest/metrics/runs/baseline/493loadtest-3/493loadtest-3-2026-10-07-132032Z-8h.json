@@ -9,7 +9,7 @@
       "end": "2026-10-07T13:20:32Z"
     }
   },
-  "fleet_server": {
+  "automdm_server": {
     "cpu_utilization": {
       "Average": 28.3,
       "Minimum": 7.71,
@@ -392,16 +392,16 @@
       "data_coverage": 1
     }
   },
-  "fleet_server_errors": {
+  "automdm_server_errors": {
     "error_count": 509.0,
     "sample_messages": [
-      "{\"ts\":\"2026-10-07T13:18:29Z\",\"level\":\"error\",\"component\":\"http\",\"method\":\"POST\",\"uri\":\"/api/fleet/orbit/config\",\"took\":\"5.009541743s\",\"host_id\":87382,\"ip_addr\":\"10.12.3.232\",\"x_for_ip_addr\":\"10.12.3.232\",\"err\":\"dial tcp 10.12.31.148:6379: i/o timeout\",\"uuid\":\"d9020b8d-5db3-493a-b99a-91e061ee5085\"}",
+      "{\"ts\":\"2026-10-07T13:18:29Z\",\"level\":\"error\",\"component\":\"http\",\"method\":\"POST\",\"uri\":\"/api/automdm/orbit/config\",\"took\":\"5.009541743s\",\"host_id\":87382,\"ip_addr\":\"10.12.3.232\",\"x_for_ip_addr\":\"10.12.3.232\",\"err\":\"dial tcp 10.12.31.148:6379: i/o timeout\",\"uuid\":\"d9020b8d-5db3-493a-b99a-91e061ee5085\"}",
       "{\"ts\":\"2026-10-07T13:18:29Z\",\"level\":\"error\",\"component\":\"http\",\"method\":\"POST\",\"uri\":\"/api/v1/osquery/distributed/read\",\"took\":\"5.00273988s\",\"host_id\":47004,\"ip_addr\":\"10.12.1.25\",\"x_for_ip_addr\":\"10.12.1.25\",\"err\":\"dial tcp 10.12.31.148:6379: i/o timeout\",\"uuid\":\"d396003d-bc01-47e3-8bc0-a1bbe7a1a4a1\"}",
       "{\"ts\":\"2026-10-07T13:18:29Z\",\"level\":\"error\",\"component\":\"http\",\"method\":\"POST\",\"uri\":\"/api/v1/osquery/distributed/read\",\"took\":\"5.000996378s\",\"host_id\":4709,\"ip_addr\":\"10.12.2.22\",\"x_for_ip_addr\":\"10.12.2.22\",\"err\":\"dial tcp 10.12.31.148:6379: i/o timeout\",\"uuid\":\"fd78792b-fc62-4b5e-8341-0a8d479ff3a0\"}",
       "{\"ts\":\"2026-10-07T13:18:29Z\",\"level\":\"error\",\"component\":\"http\",\"method\":\"POST\",\"uri\":\"/api/osquery/config\",\"took\":\"5.008196443s\",\"host_id\":93101,\"ip_addr\":\"10.12.1.162\",\"x_for_ip_addr\":\"10.12.1.162\",\"etag_result\":\"full_no_validator\",\"etag_mode\":\"off\",\"err\":\"dial tcp 10.12.31.148:6379: i/o timeout\",\"uuid\":\"9b96043e-8b9d-4493-b35f-3b488f9ea602\"}",
       "{\"ts\":\"2026-10-07T13:18:29Z\",\"level\":\"error\",\"component\":\"http\",\"method\":\"POST\",\"uri\":\"/api/osquery/log\",\"took\":\"5.003726361s\",\"host_id\":21468,\"ip_addr\":\"10.12.2.25\",\"x_for_ip_addr\":\"10.12.2.25\",\"results\":8,\"err\":\"dial tcp 10.12.31.148:6379: i/o timeout\",\"uuid\":\"75dcef9f-6f8b-4127-b507-95874f785c00\"}",
       "{\"ts\":\"2026-10-07T13:18:29Z\",\"level\":\"error\",\"component\":\"http\",\"method\":\"POST\",\"uri\":\"/api/osquery/config\",\"took\":\"5.010027847s\",\"host_id\":93100,\"ip_addr\":\"10.12.3.76\",\"x_for_ip_addr\":\"10.12.3.76\",\"etag_result\":\"full_no_validator\",\"etag_mode\":\"off\",\"err\":\"dial tcp 10.12.31.148:6379: i/o timeout\",\"uuid\":\"b98f8441-48b4-4b31-80be-07bdc1bac6d9\"}",
-      "{\"ts\":\"2026-10-07T13:18:29Z\",\"level\":\"error\",\"component\":\"http\",\"method\":\"POST\",\"uri\":\"/api/fleet/orbit/config\",\"took\":\"5.005718332s\",\"host_id\":25142,\"ip_addr\":\"10.12.3.41\",\"x_for_ip_addr\":\"10.12.3.41\",\"err\":\"dial tcp 10.12.31.148:6379: i/o timeout\",\"uuid\":\"0a81edee-51d6-48c3-8c18-02b4374b3e74\"}",
+      "{\"ts\":\"2026-10-07T13:18:29Z\",\"level\":\"error\",\"component\":\"http\",\"method\":\"POST\",\"uri\":\"/api/automdm/orbit/config\",\"took\":\"5.005718332s\",\"host_id\":25142,\"ip_addr\":\"10.12.3.41\",\"x_for_ip_addr\":\"10.12.3.41\",\"err\":\"dial tcp 10.12.31.148:6379: i/o timeout\",\"uuid\":\"0a81edee-51d6-48c3-8c18-02b4374b3e74\"}",
       "{\"ts\":\"2026-10-07T13:18:29Z\",\"level\":\"error\",\"component\":\"http\",\"method\":\"POST\",\"uri\":\"/api/v1/osquery/distributed/read\",\"took\":\"5.003152792s\",\"host_id\":96624,\"ip_addr\":\"10.12.1.72\",\"x_for_ip_addr\":\"10.12.1.72\",\"err\":\"dial tcp 10.12.31.148:6379: i/o timeout\",\"uuid\":\"64ea28ce-2625-473a-b34a-123fca838ab6\"}",
       "{\"ts\":\"2026-10-07T13:18:29Z\",\"level\":\"error\",\"component\":\"http\",\"method\":\"POST\",\"uri\":\"/api/v1/osquery/distributed/read\",\"took\":\"5.000935637s\",\"host_id\":25674,\"ip_addr\":\"10.12.1.73\",\"x_for_ip_addr\":\"10.12.1.73\",\"err\":\"dial tcp 10.12.31.148:6379: i/o timeout\",\"uuid\":\"8c78b19e-aaa4-42b7-884d-69c28c04183e\"}",
       "{\"ts\":\"2026-10-07T13:18:29Z\",\"level\":\"error\",\"component\":\"http\",\"method\":\"POST\",\"uri\":\"/api/osquery/config\",\"took\":\"5.011299578s\",\"host_id\":38898,\"ip_addr\":\"10.12.3.25\",\"x_for_ip_addr\":\"10.12.3.25\",\"etag_result\":\"full_no_validator\",\"etag_mode\":\"off\",\"err\":\"dial tcp 10.12.31.148:6379: i/o timeout\",\"uuid\":\"db456069-5034-4aa3-8797-ecc484ee9a89\"}"

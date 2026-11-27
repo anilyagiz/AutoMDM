@@ -10,7 +10,7 @@ func init() {
 }
 
 // Up_20261117042116 leaves each policy with at most one automation, keeping the first in this order: conditional
-// access, software, script, configuration profile, calendar, webhook or ticket. Calendar never worked on "All fleets"
+// access, software, script, configuration profile, calendar, webhook or ticket. Calendar never worked on "All teams"
 // or "Unassigned" policies, so it's turned off there first and can't win. The failing_policies_webhook.policy_ids
 // lists, already copied onto the policies, are removed from the settings.
 //
@@ -18,7 +18,7 @@ func init() {
 func Up_20261117042116(tx *sql.Tx) error {
 	const policyIDsPath = `'$.webhook_settings.failing_policies_webhook.policy_ids'`
 	for _, stmt := range []struct{ desc, query string }{
-		{"turn calendar off on All fleets and Unassigned policies", `
+		{"turn calendar off on All teams and Unassigned policies", `
 			UPDATE policies SET calendar_events_enabled = 0, updated_at = updated_at
 			WHERE calendar_events_enabled = 1 AND (team_id IS NULL OR team_id = 0)`},
 		{"keep conditional access", `
@@ -43,7 +43,7 @@ func Up_20261117042116(tx *sql.Tx) error {
 		{"remove global policy_ids", `
 			UPDATE app_config_json SET json_value = JSON_REMOVE(json_value, ` + policyIDsPath + `)
 			WHERE JSON_CONTAINS_PATH(json_value, 'one', ` + policyIDsPath + `)`},
-		{"remove fleet policy_ids", `
+		{"remove team policy_ids", `
 			UPDATE teams SET config = JSON_REMOVE(config, ` + policyIDsPath + `)
 			WHERE JSON_CONTAINS_PATH(config, 'one', ` + policyIDsPath + `)`},
 		{"remove Unassigned policy_ids", `

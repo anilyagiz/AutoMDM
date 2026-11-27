@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/google/go-github/v37/github"
 	"github.com/stretchr/testify/require"
 )

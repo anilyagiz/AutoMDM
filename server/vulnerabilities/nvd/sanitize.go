@@ -4,7 +4,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
 var nonAlphaNumeric = regexp.MustCompile(`[^a-zA-Z0-9]+`)
@@ -82,7 +82,7 @@ var langCodes = map[string]bool{
 // - Lowercasing the name
 // - Removing parts from the bundle identifier
 // - Removing version contained in homebrew_packages name
-func sanitizeSoftwareName(s *fleet.Software) string {
+func sanitizeSoftwareName(s *automdm.Software) string {
 	archs := regexp.MustCompile(` \(?x64\)?|\(?64-bit\)?|\(?64bit\)?|\(?amd64\)? `)
 	ver := regexp.MustCompile(` \.?\(?(\d+\.)?(\d+\.)?(\*|\d+)\)?\s?`)
 	gen := regexp.MustCompile(` \(\w+\)\s?`)
@@ -129,7 +129,7 @@ func sanitizeSoftwareName(s *fleet.Software) string {
 	return r
 }
 
-func productVariations(s *fleet.Software) []string {
+func productVariations(s *automdm.Software) []string {
 	var r []string
 	rSet := make(map[string]bool)
 
@@ -183,7 +183,7 @@ func productVariations(s *fleet.Software) []string {
 	return r
 }
 
-func vendorVariations(s *fleet.Software) []string {
+func vendorVariations(s *automdm.Software) []string {
 	var r []string
 	rSet := make(map[string]bool)
 
@@ -243,7 +243,7 @@ func sanitizeVersion(version string) string {
 	return strings.Trim(strings.Join(parts, "."), ".")
 }
 
-func targetSW(s *fleet.Software) string {
+func targetSW(s *automdm.Software) string {
 	switch s.Source {
 	case "apps":
 		return "macos"

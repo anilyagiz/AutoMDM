@@ -2,7 +2,7 @@ package tests
 
 import (
 	"context"
-	mockredis "github.com/fleetdm/fleet/v4/server/mock/redis"
+	mockredis "github.com/anilyagiz/automdm/v4/server/mock/redis"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -11,19 +11,19 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
-	android_mock "github.com/fleetdm/fleet/v4/server/mdm/android/mock"
-	"github.com/fleetdm/fleet/v4/server/mdm/android/service"
-	"github.com/fleetdm/fleet/v4/server/mdm/android/service/androidmgmt"
-	ds_mock "github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/platform/endpointer"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/service/middleware/auth"
-	"github.com/fleetdm/fleet/v4/server/service/middleware/log"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
+	android_mock "github.com/anilyagiz/automdm/v4/server/mdm/android/mock"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android/service"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android/service/androidmgmt"
+	ds_mock "github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/platform/endpointer"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/service/middleware/auth"
+	"github.com/anilyagiz/automdm/v4/server/service/middleware/log"
 	kithttp "github.com/go-kit/kit/transport/http"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
@@ -44,7 +44,7 @@ type AndroidDSWithMock struct {
 }
 
 // resolve ambiguity between embedded datastore and mock methods
-func (ds *AndroidDSWithMock) AppConfig(ctx context.Context) (*fleet.AppConfig, error) {
+func (ds *AndroidDSWithMock) AppConfig(ctx context.Context) (*automdm.AppConfig, error) {
 	return ds.Store.AppConfig(ctx) // use mock datastore
 }
 
@@ -113,40 +113,40 @@ func (ds *AndroidDSWithMock) ReplaceZeroTouchEnrollmentToken(ctx context.Context
 	return ds.Datastore.ReplaceZeroTouchEnrollmentToken(ctx, oldTokenName, token)
 }
 
-func (ds *AndroidDSWithMock) ListAndroidFleetDefaultPolicyProfiles(ctx context.Context, teamID *uint) ([]*fleet.MDMAndroidConfigProfile, error) {
-	return ds.Datastore.ListAndroidFleetDefaultPolicyProfiles(ctx, teamID)
+func (ds *AndroidDSWithMock) ListAndroidAutoMDMDefaultPolicyProfiles(ctx context.Context, teamID *uint) ([]*automdm.MDMAndroidConfigProfile, error) {
+	return ds.Datastore.ListAndroidAutoMDMDefaultPolicyProfiles(ctx, teamID)
 }
 
-func (ds *AndroidDSWithMock) GetAndroidFleetDefaultPolicyChecksums(ctx context.Context) (map[uint][]byte, error) {
-	return ds.Datastore.GetAndroidFleetDefaultPolicyChecksums(ctx)
+func (ds *AndroidDSWithMock) GetAndroidAutoMDMDefaultPolicyChecksums(ctx context.Context) (map[uint][]byte, error) {
+	return ds.Datastore.GetAndroidAutoMDMDefaultPolicyChecksums(ctx)
 }
 
-func (ds *AndroidDSWithMock) ListAndroidFleetDefaultPolicyDeletedFleets(ctx context.Context) ([]uint, error) {
-	return ds.Datastore.ListAndroidFleetDefaultPolicyDeletedFleets(ctx)
+func (ds *AndroidDSWithMock) ListAndroidAutoMDMDefaultPolicyDeletedTeams(ctx context.Context) ([]uint, error) {
+	return ds.Datastore.ListAndroidAutoMDMDefaultPolicyDeletedTeams(ctx)
 }
 
-func (ds *AndroidDSWithMock) SetAndroidFleetDefaultPolicyChecksum(ctx context.Context, teamID uint, checksum, previous []byte) error {
-	return ds.Datastore.SetAndroidFleetDefaultPolicyChecksum(ctx, teamID, checksum, previous)
+func (ds *AndroidDSWithMock) SetAndroidAutoMDMDefaultPolicyChecksum(ctx context.Context, teamID uint, checksum, previous []byte) error {
+	return ds.Datastore.SetAndroidAutoMDMDefaultPolicyChecksum(ctx, teamID, checksum, previous)
 }
 
-func (ds *AndroidDSWithMock) MarkAndroidFleetDefaultPolicyUnverified(ctx context.Context, teamID uint) error {
-	return ds.Datastore.MarkAndroidFleetDefaultPolicyUnverified(ctx, teamID)
+func (ds *AndroidDSWithMock) MarkAndroidAutoMDMDefaultPolicyUnverified(ctx context.Context, teamID uint) error {
+	return ds.Datastore.MarkAndroidAutoMDMDefaultPolicyUnverified(ctx, teamID)
 }
 
 // noopNewActivity is a no-op activity creation function for tests that don't verify activity creation.
-func noopNewActivity(_ context.Context, _ *fleet.User, _ fleet.ActivityDetails) error {
+func noopNewActivity(_ context.Context, _ *automdm.User, _ automdm.ActivityDetails) error {
 	return nil
 }
 
 type WithServer struct {
 	suite.Suite
-	Svc      android.Service
-	DS       AndroidDSWithMock
-	FleetSvc mockService
-	Server   *httptest.Server
-	Token    string
+	Svc        android.Service
+	DS         AndroidDSWithMock
+	AutoMDMSvc mockService
+	Server     *httptest.Server
+	Token      string
 
-	AppConfig   fleet.AppConfig
+	AppConfig   automdm.AppConfig
 	AppConfigMu sync.Mutex
 
 	AndroidAPIClient android_mock.Client
@@ -165,11 +165,11 @@ func (ts *WithServer) SetupSuite(t *testing.T, dbName string) {
 	require.NoError(t, err)
 	ts.Svc = svc
 
-	ts.Server = runServerForTests(t, logger, &ts.FleetSvc, svc)
+	ts.Server = runServerForTests(t, logger, &ts.AutoMDMSvc, svc)
 }
 
 func (ts *WithServer) CreateCommonDSMocks() {
-	ts.DS.AppConfigFunc = func(_ context.Context) (*fleet.AppConfig, error) {
+	ts.DS.AppConfigFunc = func(_ context.Context) (*automdm.AppConfig, error) {
 		// Create a copy to prevent race conditions
 		ts.AppConfigMu.Lock()
 		appConfigCopy := ts.AppConfig
@@ -182,22 +182,22 @@ func (ts *WithServer) CreateCommonDSMocks() {
 		ts.AppConfigMu.Unlock()
 		return nil
 	}
-	ts.DS.UserOrDeletedUserByIDFunc = func(_ context.Context, id uint) (*fleet.User, error) {
-		return &fleet.User{ID: id}, nil
+	ts.DS.UserOrDeletedUserByIDFunc = func(_ context.Context, id uint) (*automdm.User, error) {
+		return &automdm.User{ID: id}, nil
 	}
-	ts.DS.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []fleet.MDMAssetName,
+	ts.DS.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []automdm.MDMAssetName,
 		queryerContext sqlx.QueryerContext,
-	) (map[fleet.MDMAssetName]fleet.MDMConfigAsset, error) {
-		result := make(map[fleet.MDMAssetName]fleet.MDMConfigAsset, len(assetNames))
+	) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
+		result := make(map[automdm.MDMAssetName]automdm.MDMConfigAsset, len(assetNames))
 		for _, name := range assetNames {
-			result[name] = fleet.MDMConfigAsset{Value: []byte("value")}
+			result[name] = automdm.MDMConfigAsset{Value: []byte("value")}
 		}
 		return result, nil
 	}
-	ts.DS.InsertOrReplaceMDMConfigAssetFunc = func(ctx context.Context, asset fleet.MDMConfigAsset) error {
+	ts.DS.InsertOrReplaceMDMConfigAssetFunc = func(ctx context.Context, asset automdm.MDMConfigAsset) error {
 		return nil
 	}
-	ts.DS.DeleteMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []fleet.MDMAssetName) error {
+	ts.DS.DeleteMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []automdm.MDMAssetName) error {
 		return nil
 	}
 	ts.DS.BulkSetAndroidHostsUnenrolledFunc = func(ctx context.Context) error {
@@ -237,31 +237,31 @@ func (ts *WithServer) TearDownSuite() {
 
 type mockService struct {
 	mock.Mock
-	fleet.Service
+	automdm.Service
 }
 
-func (m *mockService) GetSessionByKey(ctx context.Context, sessionKey string) (*fleet.Session, error) {
-	return &fleet.Session{UserID: 1}, nil
+func (m *mockService) GetSessionByKey(ctx context.Context, sessionKey string) (*automdm.Session, error) {
+	return &automdm.Session{UserID: 1}, nil
 }
 
-func (m *mockService) UserUnauthorized(ctx context.Context, userId uint) (*fleet.User, error) {
-	return &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}, nil
+func (m *mockService) UserUnauthorized(ctx context.Context, userId uint) (*automdm.User, error) {
+	return &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}, nil
 }
 
-func (m *mockService) NewActivity(ctx context.Context, user *fleet.User, details fleet.ActivityDetails) error {
+func (m *mockService) NewActivity(ctx context.Context, user *automdm.User, details automdm.ActivityDetails) error {
 	return m.Called(ctx, user, details).Error(0)
 }
 
-func runServerForTests(t *testing.T, logger *slog.Logger, fleetSvc fleet.Service, androidSvc android.Service) *httptest.Server {
+func runServerForTests(t *testing.T, logger *slog.Logger, automdmSvc automdm.Service, androidSvc android.Service) *httptest.Server {
 	// androidErrorEncoder wraps EncodeError with nil domain encoder for android tests
 	androidErrorEncoder := func(ctx context.Context, err error, w http.ResponseWriter) {
 		endpointer.EncodeError(ctx, err, w, nil)
 	}
 
-	fleetAPIOptions := []kithttp.ServerOption{
+	automdmAPIOptions := []kithttp.ServerOption{
 		kithttp.ServerBefore(
 			kithttp.PopulateRequestContext,
-			auth.SetRequestsContexts(fleetSvc),
+			auth.SetRequestsContexts(automdmSvc),
 		),
 		kithttp.ServerErrorHandler(&endpointer.ErrorHandler{Logger: logger}),
 		kithttp.ServerErrorEncoder(androidErrorEncoder),
@@ -272,7 +272,7 @@ func runServerForTests(t *testing.T, logger *slog.Logger, fleetSvc fleet.Service
 	}
 
 	r := endpointer.NewRouter()
-	service.GetRoutes(fleetSvc, androidSvc)(r, fleetAPIOptions)
+	service.GetRoutes(automdmSvc, androidSvc)(r, automdmAPIOptions)
 	rootMux := http.NewServeMux()
 	rootMux.HandleFunc("/api/", r.ServeHTTP)
 
@@ -296,11 +296,11 @@ func CreateNamedMySQLDS(t *testing.T, name string) *mysql.Datastore {
 	if _, ok := os.LookupEnv("MYSQL_TEST"); !ok {
 		t.Skip("MySQL tests are disabled")
 	}
-	// Use a named Fleet datastore for Android integration tests to ensure the expected database exists
+	// Use a named AutoMDM datastore for Android integration tests to ensure the expected database exists
 	return mysqltest.CreateNamedMySQLDS(t, name)
 }
 
-func newMemKeyValueStore() fleet.KeyValueStore {
+func newMemKeyValueStore() automdm.KeyValueStore {
 	var mu sync.Mutex
 	vals := map[string]string{}
 	return &mockredis.KeyValueStore{

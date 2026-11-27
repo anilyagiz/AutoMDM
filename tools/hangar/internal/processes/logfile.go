@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-// logFileMaxBytes is the on-disk rotation threshold. fleet serve under debug
+// logFileMaxBytes is the on-disk rotation threshold. automdm serve under debug
 // logging can produce tens of MB/hour; without rotation the file grows
 // unbounded. One previous generation is kept as <channel>.log.1.
 const logFileMaxBytes int64 = 16 * 1024 * 1024

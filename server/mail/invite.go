@@ -5,13 +5,13 @@ import (
 	"html/template"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
 // InviteMailer is used to build an email template for the invite email.
 type InviteMailer struct {
-	*fleet.Invite
+	*automdm.Invite
 	BaseURL     template.URL
 	AssetURL    template.URL
 	InvitedBy   string

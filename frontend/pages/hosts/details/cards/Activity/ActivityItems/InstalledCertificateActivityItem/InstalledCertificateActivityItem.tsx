@@ -22,12 +22,12 @@ const InstalledCertificateActivityItem = ({
     >
       {isFailed ? (
         <>
-          <b>Fleet</b> failed to install certificate{" "}
+          <b>AutoMDM</b> failed to install certificate{" "}
           <b>{activity.details?.certificate_name}</b> on this host.
         </>
       ) : (
         <>
-          <b>Fleet</b> installed certificate{" "}
+          <b>AutoMDM</b> installed certificate{" "}
           <b>{activity.details?.certificate_name}</b> on this host.
         </>
       )}

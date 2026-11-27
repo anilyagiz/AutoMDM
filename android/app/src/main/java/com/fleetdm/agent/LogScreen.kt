@@ -58,18 +58,18 @@ fun LogsScreen(onNavigateBack: () -> Unit) {
         logs = null
         logs = withContext(Dispatchers.IO) {
             try {
-                val fleetTags = listOf(
-                    "fleet-app",
-                    "fleet-ApiClient",
-                    "fleet-CertificateEnrollmentWorker",
-                    "fleet-CertificateOrchestrator",
-                    "fleet-AndroidCertInstaller",
-                    "fleet-DeviceKeystoreManager",
-                    "fleet-boot",
-                    "fleet-RoleNotificationReceiverService",
-                    "fleet-crash",
+                val automdmTags = listOf(
+                    "automdm-app",
+                    "automdm-ApiClient",
+                    "automdm-CertificateEnrollmentWorker",
+                    "automdm-CertificateOrchestrator",
+                    "automdm-AndroidCertInstaller",
+                    "automdm-DeviceKeystoreManager",
+                    "automdm-boot",
+                    "team-RoleNotificationReceiverService",
+                    "automdm-crash",
                 )
-                val filterArgs = fleetTags.map { "$it:${selectedLevel.logcatCode}" } + listOf("*:S")
+                val filterArgs = automdmTags.map { "$it:${selectedLevel.logcatCode}" } + listOf("*:S")
                 val command = listOf("logcat", "-d") + filterArgs
                 val process = ProcessBuilder(command).redirectErrorStream(true).start()
                 try {
@@ -116,7 +116,7 @@ fun LogsScreen(onNavigateBack: () -> Unit) {
                     IconButton(onClick = {
                         val clipboard = context.getSystemService(ClipboardManager::class.java)
                             ?: return@IconButton
-                        clipboard.setPrimaryClip(ClipData.newPlainText("fleet logs", logs ?: ""))
+                        clipboard.setPrimaryClip(ClipData.newPlainText("automdm logs", logs ?: ""))
                         Toast.makeText(context, "Logs copied", Toast.LENGTH_SHORT).show()
                     }) {
                         Icon(Icons.Filled.ContentCopy, contentDescription = "copy logs")

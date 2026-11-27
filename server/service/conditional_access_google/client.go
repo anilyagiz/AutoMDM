@@ -1,21 +1,21 @@
 // Package conditional_access_google holds the Google conditional access clients: the
-// fleetdm.com relay and the Cloud Identity API.
+// automdm.com relay and the Cloud Identity API.
 package conditional_access_google
 
 import (
 	"context"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
-// Relay registers this server with the relay on fleetdm.com. Customer IDs include the
-// leading "C". serverURL is this server's current URL, which fleetdm.com calls back.
+// Relay registers this server with the relay on automdm.com. Customer IDs include the
+// leading "C". serverURL is this server's current URL, which automdm.com calls back.
 type Relay interface {
 	// Register replaces the secret when called again from the same server.
 	Register(ctx context.Context, serverURL, customerID string) (*Registration, error)
-	// Deregister returns a fleet.IsNotFound error when there's no matching registration.
+	// Deregister returns an automdm.IsNotFound error when there's no matching registration.
 	Deregister(ctx context.Context, serverURL, customerID, secret string) error
-	// SignInURL is fleetdm.com's sign-in page for an iOS or iPadOS host, which carries
+	// SignInURL is automdm.com's sign-in page for an iOS or iPadOS host, which carries
 	// the host's single-use registration token back to this server.
 	SignInURL(customerID, hostUUID, token string) (string, error)
 }
@@ -24,11 +24,11 @@ type Relay interface {
 type CloudIdentity interface {
 	// CheckDelegation lists one device under the customer. It proves read access only.
 	CheckDelegation(ctx context.Context) error
-	// SetClientState writes the set fields of state on Fleet's client state of a
-	// DeviceUser. It returns a fleet.IsNotFound error when Google has no such DeviceUser.
-	SetClientState(ctx context.Context, deviceUserName string, state fleet.GoogleConditionalAccessClientState) error
+	// SetClientState writes the set fields of state on AutoMDM's client state of a
+	// DeviceUser. It returns an automdm.IsNotFound error when Google has no such DeviceUser.
+	SetClientState(ctx context.Context, deviceUserName string, state automdm.GoogleConditionalAccessClientState) error
 	// ListDeviceUserNames lists the DeviceUser names of a device, by its device ID. It
-	// returns an IsStale error when Google has no such device, which is a fleet.IsNotFound
+	// returns an IsStale error when Google has no such device, which is an automdm.IsNotFound
 	// error too, or when the device left the customer's Workspace.
 	ListDeviceUserNames(ctx context.Context, deviceID string) ([]string, error)
 	// FindDeviceIDs returns the device IDs of the customer's records whose deviceId field

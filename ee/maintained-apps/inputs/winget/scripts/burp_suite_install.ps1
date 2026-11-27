@@ -22,7 +22,7 @@ try {
         }
     })
 
-    # Setup exits with code 1 while Burp Suite is running. Fleet runs as SYSTEM,
+    # Setup exits with code 1 while Burp Suite is running. AutoMDM runs as SYSTEM,
     # outside the user's session, so it can't ask the app to close: stop Burp,
     # its browser, and its bundled Java runtime first, wherever Burp is
     # installed. Unsaved changes are lost.

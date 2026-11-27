@@ -113,7 +113,7 @@ const EndUserAuthSection = ({
           to require end users to authenticate.{" "}
           <CustomLink
             text="Learn more"
-            url="https://fleetdm.com/learn-more-about/end-user-authentication"
+            url="https://automdm.com/learn-more-about/end-user-authentication"
             newTab
           />
         </p>
@@ -132,7 +132,7 @@ const EndUserAuthSection = ({
             label="Entity ID"
             {...getTextFieldProps("entity_id")}
             disabled={isSubmitting || gitOpsModeEnabled}
-            tooltip="The Entity ID is a required URI that you use to identify Fleet when configuring the identity provider. Okta calls this Audience Restriction."
+            tooltip="The Entity ID is a required URI that you use to identify AutoMDM when configuring the identity provider. Okta calls this Audience Restriction."
           />
           <InputField
             label="Metadata URL"

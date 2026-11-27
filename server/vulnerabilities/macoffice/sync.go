@@ -5,14 +5,14 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/io"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/io"
 	"github.com/google/go-github/v37/github"
 )
 
 // SyncFromGithub keeps the local mac Office release notes metadata in sync with the one published in Github.
 func SyncFromGithub(ctx context.Context, dstDir string) error {
-	client := fleethttp.NewGithubClient()
+	client := automdmhttp.NewGithubClient()
 	rep := github.NewClient(client).Repositories
 
 	gh := io.NewGitHubClient(client, rep, dstDir)

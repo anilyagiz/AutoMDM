@@ -4,16 +4,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis/redistest"
 	"github.com/crewjam/saml"
-	"github.com/fleetdm/fleet/v4/server/datastore/redis/redistest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
 	redigo "github.com/gomodule/redigo/redis"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestSessionStore(t *testing.T) {
-	runTest := func(t *testing.T, pool fleet.RedisPool) {
+	runTest := func(t *testing.T, pool automdm.RedisPool) {
 		store := NewSessionStore(pool)
 
 		sessionID, err := generateSessionID()
@@ -34,7 +34,7 @@ func TestSessionStore(t *testing.T) {
 		// Wait a little bit more than one second, session should no longer be present.
 		time.Sleep(1100 * time.Millisecond)
 		sess, err = store.get(sessionID)
-		var authRequiredError *fleet.AuthRequiredError
+		var authRequiredError *automdm.AuthRequiredError
 		assert.ErrorAs(t, err, &authRequiredError)
 		// The SSO callbacks tell an expired session apart from other failures
 		// with this, so that they can explain the timeout to the end user.
@@ -77,7 +77,7 @@ func TestSessionStore(t *testing.T) {
 // The store only resolves canonical server-generated session IDs, and only
 // to keys inside its own namespace.
 func TestSessionStoreKeyNamespace(t *testing.T) {
-	runTest := func(t *testing.T, pool fleet.RedisPool) {
+	runTest := func(t *testing.T, pool automdm.RedisPool) {
 		store := NewSessionStore(pool)
 
 		// A complete JSON object followed by unrelated bytes.
@@ -93,7 +93,7 @@ func TestSessionStoreKeyNamespace(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		var authRequiredError *fleet.AuthRequiredError
+		var authRequiredError *automdm.AuthRequiredError
 		for _, sessionID := range []string{
 			"sso:unrelated:{1}",
 			"sso:someotherkey",
@@ -161,7 +161,7 @@ func TestSessionStoreKeyNamespace(t *testing.T) {
 }
 
 func TestConsumeAssertion(t *testing.T) {
-	runTest := func(t *testing.T, pool fleet.RedisPool) {
+	runTest := func(t *testing.T, pool automdm.RedisPool) {
 		store := NewSessionStore(pool)
 
 		require.Error(t, store.ConsumeAssertion("", time.Now().Add(time.Minute)))
@@ -197,10 +197,10 @@ func TestConsumeAssertion(t *testing.T) {
 // middleware matches on the AuthRequiredError type, and the SSO callbacks match
 // on ErrSessionNotFound so they can tell the end user their sign-in timed out.
 func TestSessionNotFoundErrorSatisfiesBothCallers(t *testing.T) {
-	authRequired := fleet.NewAuthRequiredError("session not found")
+	authRequired := automdm.NewAuthRequiredError("session not found")
 	err := &sessionNotFoundError{authRequired: authRequired}
 
-	var asAuthRequired *fleet.AuthRequiredError
+	var asAuthRequired *automdm.AuthRequiredError
 	require.ErrorAs(t, err, &asAuthRequired)
 	require.ErrorIs(t, err, ErrSessionNotFound)
 

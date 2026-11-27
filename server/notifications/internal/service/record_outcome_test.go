@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/notifications/api"
+	"github.com/anilyagiz/automdm/v4/server/notifications/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -17,7 +17,7 @@ func TestNotificationOutcomeForExitCode(t *testing.T) {
 		longRetry bool
 	}{
 		{0, "", false, false},
-		// Fleet's own side of the delivery, so both wait out the long retry rather
+		// AutoMDM's own side of the delivery, so both wait out the long retry rather
 		// than queueing another script every cron pass
 		{-2, api.EndUserNotificationReasonScriptsDisabled, true, true},
 		{-5, api.EndUserNotificationReasonURLUnresolved, true, true},

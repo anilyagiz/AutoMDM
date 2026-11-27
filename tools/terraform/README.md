@@ -1,10 +1,10 @@
-# Terraform Provider for fleets
+# Terraform Provider for teams
 
-This is a Terraform provider for managing fleets (formally "teams"). When you have
-100+ fleets, and manually managing them is not feasible. The
-primary setting of concern is the fleet's "agent options" which
+This is a Terraform provider for managing teams (formally "teams"). When you have
+100+ teams, and manually managing them is not feasible. The
+primary setting of concern is the team's "agent options" which
 consists of some settings and command line flags. These (potentially
-dangerously) configure FleetDM all machines.
+dangerously) configure AutoMDM all machines.
 
 ## Usage
 
@@ -34,9 +34,9 @@ See `make plan` and `make apply`.
 ### Running Tests
 
 You probably guessed this.  See `make test`. Note that these tests
-require a FleetDM server to be running. The tests will create fleets
+require an AutoMDM server to be running. The tests will create teams
 and delete them when they're done. The tests also require a valid
-Fleet API token to be in the `FLEETDM_APIKEY` environment variable.
+AutoMDM API token to be in the `AUTOMDM_APIKEY` environment variable.
 
 ### Debugging locally
 
@@ -46,7 +46,7 @@ times in the course of operations. What you want to do instead is
 to run the provider in debug mode and tell terraform to contact it.
 
 To do this, you need to start the provider with the `-debug` flag
-inside a debugger. You'll also need to give it the FLEETDM_APIKEY
+inside a debugger. You'll also need to give it the AUTOMDM_APIKEY
 environment variable. The provider will print out a big environment
 variable that you can copy and paste to your command line.
 
@@ -54,7 +54,7 @@ When you run `terraform apply` or the like, you'll invoke it with
 that big environment variable. It'll look something like 
 
 ```shell
-TF_REATTACH_PROVIDERS='{"fleetdm.com/tf/fleetdm":{"Protocol":"grpc","ProtocolVersion":6,"Pid":33644,"Test":true,"Addr":{"Network":"unix","String":"/var/folders/32/xw2p1jtd4w10hpnsyrb_4nmm0000gq/T/plugin771405263"}}}' terraform apply
+TF_REATTACH_PROVIDERS='{"automdm.com/tf/automdm":{"Protocol":"grpc","ProtocolVersion":6,"Pid":33644,"Test":true,"Addr":{"Network":"unix","String":"/var/folders/32/xw2p1jtd4w10hpnsyrb_4nmm0000gq/T/plugin771405263"}}}' terraform apply
 ```
 
 With this magic, terraform will look to your provider that's running

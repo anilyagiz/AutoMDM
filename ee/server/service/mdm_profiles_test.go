@@ -8,8 +8,8 @@ import (
 	"text/template"
 	"text/template/parse"
 
-	"github.com/fleetdm/fleet/v4/server/mdm"
-	"github.com/fleetdm/fleet/v4/server/mdm/apple/mobileconfig"
+	"github.com/anilyagiz/automdm/v4/server/mdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/apple/mobileconfig"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -22,8 +22,8 @@ func renderFileVaultProfile(t *testing.T, enforcement, escrow bool) string {
 	t.Helper()
 	var buf bytes.Buffer
 	require.NoError(t, fileVaultProfileTemplate.Execute(&buf, fileVaultProfileOptions{
-		PayloadIdentifier:    mobileconfig.FleetFileVaultPayloadIdentifier,
-		PayloadName:          mdm.FleetFileVaultProfileName,
+		PayloadIdentifier:    mobileconfig.AutoMDMFileVaultPayloadIdentifier,
+		PayloadName:          mdm.AutoMDMFileVaultProfileName,
 		Base64DerCertificate: testCertB64,
 		EnableEnforcement:    enforcement,
 		EnableEscrow:         escrow,
@@ -43,10 +43,10 @@ func dictsOf(t *testing.T, profile string) []string {
 		}
 		v := strings.TrimSuffix(strings.TrimPrefix(line, prefix), suffix)
 		switch v {
-		case mobileconfig.FleetFileVaultPayloadType,
-			mobileconfig.FleetRecoveryKeyEscrowPayloadType,
+		case mobileconfig.AutoMDMFileVaultPayloadType,
+			mobileconfig.AutoMDMRecoveryKeyEscrowPayloadType,
 			"com.apple.security.pkcs1",
-			mobileconfig.FleetCustomSettingsPayloadType:
+			mobileconfig.AutoMDMCustomSettingsPayloadType:
 			types = append(types, v)
 		}
 	}
@@ -55,7 +55,7 @@ func dictsOf(t *testing.T, profile string) []string {
 
 // TestFileVaultProfileBothOnIsByteStable is the load-bearing assertion of the
 // per-platform work: an existing customer with both macOS settings on must get
-// a profile identical to what Fleet shipped before the settings were split, or
+// a profile identical to what AutoMDM shipped before the settings were split, or
 // every Mac gets a needless re-push on upgrade.
 func TestFileVaultProfileBothOnIsByteStable(t *testing.T) {
 	want, err := os.ReadFile("testdata/filevault/both_on.xml")
@@ -68,10 +68,10 @@ func TestFileVaultProfilePayloadsPerCombination(t *testing.T) {
 
 	t.Run("both on carries all four payloads", func(t *testing.T) {
 		require.Equal(t, []string{
-			mobileconfig.FleetFileVaultPayloadType,
-			mobileconfig.FleetRecoveryKeyEscrowPayloadType,
+			mobileconfig.AutoMDMFileVaultPayloadType,
+			mobileconfig.AutoMDMRecoveryKeyEscrowPayloadType,
 			"com.apple.security.pkcs1",
-			mobileconfig.FleetCustomSettingsPayloadType,
+			mobileconfig.AutoMDMCustomSettingsPayloadType,
 		}, dictsOf(t, bothOn))
 		require.Contains(t, bothOn, "<key>ShowRecoveryKey</key>\n\t\t\t<false/>")
 	})
@@ -79,8 +79,8 @@ func TestFileVaultProfilePayloadsPerCombination(t *testing.T) {
 	t.Run("enforce only drops the escrow payloads and shows the recovery key", func(t *testing.T) {
 		got := renderFileVaultProfile(t, true, false)
 		require.Equal(t, []string{
-			mobileconfig.FleetFileVaultPayloadType,
-			mobileconfig.FleetCustomSettingsPayloadType,
+			mobileconfig.AutoMDMFileVaultPayloadType,
+			mobileconfig.AutoMDMCustomSettingsPayloadType,
 		}, dictsOf(t, got))
 		// with nowhere to escrow the key, the user has to be shown it
 		require.Contains(t, got, "<key>ShowRecoveryKey</key>\n\t\t\t<true/>")
@@ -90,10 +90,10 @@ func TestFileVaultProfilePayloadsPerCombination(t *testing.T) {
 	t.Run("escrow only drops the enforcement payloads", func(t *testing.T) {
 		got := renderFileVaultProfile(t, false, true)
 		require.Equal(t, []string{
-			mobileconfig.FleetRecoveryKeyEscrowPayloadType,
+			mobileconfig.AutoMDMRecoveryKeyEscrowPayloadType,
 			"com.apple.security.pkcs1",
 		}, dictsOf(t, got))
-		// nothing forces or prevents disabling FileVault; Fleet only escrows
+		// nothing forces or prevents disabling FileVault; AutoMDM only escrows
 		require.NotContains(t, got, "dontAllowFDEDisable")
 		require.NotContains(t, got, "<key>ShowRecoveryKey</key>")
 		require.Contains(t, got, testCertB64)

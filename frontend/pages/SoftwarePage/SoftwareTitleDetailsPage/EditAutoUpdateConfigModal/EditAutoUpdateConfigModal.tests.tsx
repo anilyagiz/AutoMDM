@@ -16,7 +16,7 @@ import EditAutoUpdateConfigModal, {
 } from "./EditAutoUpdateConfigModal";
 
 const baseUrl = (path: string) => {
-  return `/api/latest/fleet${path}`;
+  return `/api/latest/automdm${path}`;
 };
 
 const mockLabels: ILabelSummary[] = [
@@ -483,7 +483,7 @@ describe("Edit Auto Update Config Modal", () => {
           labels_include_any: [],
           labels_exclude_any: [],
           labels_include_all: [],
-          fleet_id: 1,
+          team_id: 1,
         });
       });
     });
@@ -525,7 +525,7 @@ describe("Edit Auto Update Config Modal", () => {
           labels_include_any: [],
           labels_exclude_any: [],
           labels_include_all: [],
-          fleet_id: 1,
+          team_id: 1,
         });
       });
     });
@@ -561,7 +561,7 @@ describe("Edit Auto Update Config Modal", () => {
           labels_include_any: [],
           labels_exclude_any: [],
           labels_include_all: [],
-          fleet_id: 1,
+          team_id: 1,
         });
       });
     });
@@ -594,7 +594,7 @@ describe("Edit Auto Update Config Modal", () => {
         expect(requestSpy).toHaveBeenCalledWith({
           auto_update_enabled: false,
           labels_include_any: [mockLabels[1].name],
-          fleet_id: 1,
+          team_id: 1,
         });
       });
     });

@@ -83,7 +83,7 @@ const WipeModal = ({
             <p>
               This will run a script to erase all data from this host.{" "}
               <CustomLink
-                url="https://fleetdm.com/learn-more-about/linux-wipe"
+                url="https://automdm.com/learn-more-about/linux-wipe"
                 text="Learn more"
                 newTab
               />

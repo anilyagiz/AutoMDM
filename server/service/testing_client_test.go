@@ -21,20 +21,20 @@ import (
 	"time"
 
 	"github.com/WatchBeam/clock"
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	shared_mdm "github.com/fleetdm/fleet/v4/pkg/mdm"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/datastore/redis/redistest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/live_query/live_query_mock"
-	notifications_api "github.com/fleetdm/fleet/v4/server/notifications/api"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
-	"github.com/fleetdm/fleet/v4/server/pubsub"
-	"github.com/fleetdm/fleet/v4/server/service/redis_key_value"
-	"github.com/fleetdm/fleet/v4/server/test"
-	fleet_httptest "github.com/fleetdm/fleet/v4/server/test/httptest"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	shared_mdm "github.com/anilyagiz/automdm/v4/pkg/mdm"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis/redistest"
+	"github.com/anilyagiz/automdm/v4/server/live_query/live_query_mock"
+	notifications_api "github.com/anilyagiz/automdm/v4/server/notifications/api"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/pubsub"
+	"github.com/anilyagiz/automdm/v4/server/service/redis_key_value"
+	"github.com/anilyagiz/automdm/v4/server/test"
+	automdm_httptest "github.com/anilyagiz/automdm/v4/server/test/httptest"
 	"github.com/ghodss/yaml"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
@@ -42,7 +42,7 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-// testSAMLIDPBaseURL is the SAML IDP base URL, read from FLEET_SAML_IDP_HTTP_PORT (defaults to http://localhost:9080).
+// testSAMLIDPBaseURL is the SAML IDP base URL, read from AUTOMDM_SAML_IDP_HTTP_PORT (defaults to http://localhost:9080).
 var (
 	testSAMLIDPBaseURL     = getTestSAMLIDPBaseURL()
 	testSAMLIDPMetadataURL = testSAMLIDPBaseURL + "/simplesaml/saml2/idp/metadata.php"
@@ -51,7 +51,7 @@ var (
 )
 
 func getTestSAMLIDPBaseURL() string {
-	if port := os.Getenv("FLEET_SAML_IDP_HTTP_PORT"); port != "" {
+	if port := os.Getenv("AUTOMDM_SAML_IDP_HTTP_PORT"); port != "" {
 		return "http://localhost:" + port
 	}
 	return "http://localhost:9080"
@@ -76,7 +76,7 @@ func (ts *withDS) SetupSuite(dbName string) {
 	// setup the required fields on AppConfig
 	appConf, err := ts.ds.AppConfig(context.Background())
 	require.NoError(t, err)
-	appConf.OrgInfo.OrgName = "FleetTest"
+	appConf.OrgInfo.OrgName = "AutoMDMTest"
 	appConf.ServerSettings.ServerURL = "https://example.org"
 	err = ts.ds.SaveAppConfig(context.Background(), appConf)
 	require.NoError(t, err)
@@ -90,7 +90,7 @@ type withServer struct {
 	withDS
 
 	server           *httptest.Server
-	users            map[string]fleet.User
+	users            map[string]automdm.User
 	token            string
 	cachedAdminToken string
 
@@ -99,9 +99,9 @@ type withServer struct {
 
 	lq *live_query_mock.MockLiveQuery
 
-	redisPool fleet.RedisPool
+	redisPool automdm.RedisPool
 
-	fleetSvc fleet.Service
+	automdmSvc automdm.Service
 
 	notificationsSvc      notifications_api.Service
 	patchNotificationKind PatchNotificationKind
@@ -115,13 +115,13 @@ func (ts *withServer) SetupSuite(dbName string) {
 	cfg.Osquery.EnrollCooldown = 0
 	redisPool := redistest.SetupRedis(ts.s.T(), "integration_core", false, false, false)
 	opts := &TestServerOpts{
-		Rs:          rs,
-		Lq:          ts.lq,
-		FleetConfig: &cfg,
-		Pool:        redisPool,
-		DBConns:     ts.dbConns,
+		Rs:            rs,
+		Lq:            ts.lq,
+		AutoMDMConfig: &cfg,
+		Pool:          redisPool,
+		DBConns:       ts.dbConns,
 	}
-	if os.Getenv("FLEET_INTEGRATION_TESTS_DISABLE_LOG") != "" {
+	if os.Getenv("AUTOMDM_INTEGRATION_TESTS_DISABLE_LOG") != "" {
 		opts.Logger = slog.New(slog.DiscardHandler)
 	}
 	users, server := RunServerForTestsWithDS(ts.s.T(), ts.ds, opts)
@@ -148,8 +148,8 @@ func (ts *withServer) commonTearDownTest(t *testing.T) {
 	ctx := context.Background()
 
 	u := ts.users["admin1@example.com"]
-	filter := fleet.TeamFilter{User: &u}
-	hosts, err := ts.ds.ListHosts(ctx, filter, fleet.HostListOptions{})
+	filter := automdm.TeamFilter{User: &u}
+	hosts, err := ts.ds.ListHosts(ctx, filter, automdm.HostListOptions{})
 	require.NoError(t, err)
 	for _, host := range hosts {
 		_, err := ts.ds.UpdateHostSoftware(context.Background(), host.ID, nil)
@@ -157,7 +157,7 @@ func (ts *withServer) commonTearDownTest(t *testing.T) {
 		require.NoError(t, ts.ds.DeleteHost(ctx, host.ID))
 	}
 
-	teams, err := ts.ds.ListTeams(ctx, fleet.TeamFilter{User: &u}, fleet.ListOptions{})
+	teams, err := ts.ds.ListTeams(ctx, automdm.TeamFilter{User: &u}, automdm.ListOptions{})
 	require.NoError(t, err)
 	for _, tm := range teams {
 		err := ts.ds.DeleteTeam(ctx, tm.ID)
@@ -199,10 +199,10 @@ func (ts *withServer) commonTearDownTest(t *testing.T) {
 		return err
 	})
 
-	lbls, err := ts.ds.ListLabels(ctx, filter, fleet.ListOptions{}, false)
+	lbls, err := ts.ds.ListLabels(ctx, filter, automdm.ListOptions{}, false)
 	require.NoError(t, err)
 	for _, lbl := range lbls {
-		if lbl.LabelType != fleet.LabelTypeBuiltIn {
+		if lbl.LabelType != automdm.LabelTypeBuiltIn {
 			// Clear profile label associations first so DeleteLabel isn't blocked
 			// by the FK constraint that prevents deleting referenced labels.
 			mysqltest.ExecAdhocSQL(t, ts.ds, func(q sqlx.ExtContext) error {
@@ -217,7 +217,7 @@ func (ts *withServer) commonTearDownTest(t *testing.T) {
 		}
 	}
 
-	queries, _, _, _, err := ts.ds.ListQueries(ctx, fleet.ListQueryOptions{})
+	queries, _, _, _, err := ts.ds.ListQueries(ctx, automdm.ListQueryOptions{})
 	require.NoError(t, err)
 	queryIDs := make([]uint, 0, len(queries))
 	for _, query := range queries {
@@ -229,7 +229,7 @@ func (ts *withServer) commonTearDownTest(t *testing.T) {
 		require.EqualValues(t, len(queries), count)
 	}
 
-	users, err := ts.ds.ListUsers(ctx, fleet.UserListOptions{})
+	users, err := ts.ds.ListUsers(ctx, automdm.UserListOptions{})
 	require.NoError(t, err)
 	for _, u := range users {
 		if _, ok := ts.users[u.Email]; !ok {
@@ -244,7 +244,7 @@ func (ts *withServer) commonTearDownTest(t *testing.T) {
 		return err
 	})
 
-	globalPolicies, err := ts.ds.ListGlobalPolicies(ctx, fleet.ListOptions{}, "")
+	globalPolicies, err := ts.ds.ListGlobalPolicies(ctx, automdm.ListOptions{}, "")
 	require.NoError(t, err)
 	if len(globalPolicies) > 0 {
 		var globalPolicyIDs []uint
@@ -286,12 +286,12 @@ func (ts *withServer) commonTearDownTest(t *testing.T) {
 	})
 
 	mysqltest.ExecAdhocSQL(t, ts.ds, func(q sqlx.ExtContext) error {
-		_, err := q.ExecContext(ctx, "DELETE FROM fleet_maintained_apps; ")
+		_, err := q.ExecContext(ctx, "DELETE FROM automdm_maintained_apps; ")
 		return err
 	})
 	// Most tests reference FMAs by ID, and the expect the records to be inserted starting with 1, so we need to reset the auto increment.
 	mysqltest.ExecAdhocSQL(t, ts.ds, func(q sqlx.ExtContext) error {
-		_, err := q.ExecContext(ctx, "ALTER TABLE fleet_maintained_apps AUTO_INCREMENT = 1;")
+		_, err := q.ExecContext(ctx, "ALTER TABLE automdm_maintained_apps AUTO_INCREMENT = 1;")
 		return err
 	})
 	mysqltest.ExecAdhocSQL(t, ts.ds, func(q sqlx.ExtContext) error {
@@ -321,12 +321,12 @@ func (ts *withServer) Do(verb, path string, params interface{}, expectedStatusCo
 func (ts *withServer) DoRawWithHeaders(
 	verb string, path string, rawBytes []byte, expectedStatusCode int, headers map[string]string, queryParams ...string,
 ) *http.Response {
-	opts := []fleethttp.ClientOpt{}
+	opts := []automdmhttp.ClientOpt{}
 	if expectedStatusCode >= 300 && expectedStatusCode <= 399 {
-		opts = append(opts, fleethttp.WithFollowRedir(false))
+		opts = append(opts, automdmhttp.WithFollowRedir(false))
 	}
-	client := fleethttp.NewClient(opts...)
-	return fleet_httptest.DoHTTPReq(ts.s.T(), client, decodeJSON, verb, rawBytes, ts.server.URL+path, headers, expectedStatusCode, queryParams...)
+	client := automdmhttp.NewClient(opts...)
+	return automdm_httptest.DoHTTPReq(ts.s.T(), client, decodeJSON, verb, rawBytes, ts.server.URL+path, headers, expectedStatusCode, queryParams...)
 }
 
 func decodeJSON(r io.Reader, v interface{}) error {
@@ -347,7 +347,7 @@ func (ts *withServer) DoJSON(verb, path string, params interface{}, expectedStat
 	resp := ts.Do(verb, path, params, expectedStatusCode, queryParams...)
 	err := json.NewDecoder(resp.Body).Decode(v)
 	require.NoError(ts.s.T(), err)
-	if e, ok := v.(fleet.Errorer); ok {
+	if e, ok := v.(automdm.Errorer); ok {
 		require.NoError(ts.s.T(), e.Error())
 	}
 }
@@ -362,7 +362,7 @@ func (ts *withServer) DoJSONWithoutAuth(verb, path string, params interface{}, e
 	})
 	err = json.NewDecoder(resp.Body).Decode(v)
 	require.NoError(ts.s.T(), err)
-	if e, ok := v.(fleet.Errorer); ok {
+	if e, ok := v.(automdm.Errorer); ok {
 		require.NoError(ts.s.T(), e.Error())
 	}
 }
@@ -411,7 +411,7 @@ func (ts *withServer) getTestToken(email string, password string) string {
 }
 
 func GetToken(t *testing.T, email string, password string, serverURL string) string {
-	params := fleet.LoginRequest{
+	params := automdm.LoginRequest{
 		Email:    email,
 		Password: password,
 	}
@@ -419,13 +419,13 @@ func GetToken(t *testing.T, email string, password string, serverURL string) str
 	require.NoError(t, err)
 
 	requestBody := io.NopCloser(bytes.NewBuffer(j))
-	resp, err := http.Post(serverURL+"/api/latest/fleet/login", "application/json", requestBody)
+	resp, err := http.Post(serverURL+"/api/latest/automdm/login", "application/json", requestBody)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 
 	jsn := struct {
-		User  *fleet.User         `json:"user"`
+		User  *automdm.User       `json:"user"`
 		Token string              `json:"token"`
 		Err   []map[string]string `json:"errors,omitempty"`
 	}{}
@@ -441,12 +441,12 @@ func (ts *withServer) applyConfig(spec []byte) {
 	err := yaml.Unmarshal(spec, &appConfigSpec)
 	require.NoError(ts.s.T(), err)
 
-	ts.Do("PATCH", "/api/latest/fleet/config", appConfigSpec, http.StatusOK)
+	ts.Do("PATCH", "/api/latest/automdm/config", appConfigSpec, http.StatusOK)
 }
 
 func (ts *withServer) getConfig() *appConfigResponse {
 	var responseBody *appConfigResponse
-	ts.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &responseBody)
+	ts.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &responseBody)
 	return responseBody
 }
 
@@ -458,12 +458,12 @@ func (ts *withServer) applyTeamSpec(yamlSpec []byte) {
 	specsReq := map[string]any{
 		"specs": []any{teamSpec},
 	}
-	ts.Do("POST", "/api/latest/fleet/spec/fleets", specsReq, http.StatusOK)
+	ts.Do("POST", "/api/latest/automdm/spec/teams", specsReq, http.StatusOK)
 }
 
 func (ts *withServer) LoginSSOUser(username, password string) string {
 	t := ts.s.T()
-	res := ts.loginSSOUser(username, password, "/api/v1/fleet/sso", http.StatusOK)
+	res := ts.loginSSOUser(username, password, "/api/v1/automdm/sso", http.StatusOK)
 	defer res.Body.Close()
 	body, err := io.ReadAll(res.Body)
 	require.NoError(t, err)
@@ -473,9 +473,9 @@ func (ts *withServer) LoginSSOUser(username, password string) string {
 // LoginMDMSSOUser initiates the MDM SSO flow, as Apple DEP enrollment would,
 // for the device that presented deviceInfo (a base64 x-apple-aspen-deviceinfo).
 func (ts *withServer) LoginMDMSSOUser(username, password, deviceInfo string) *http.Response {
-	body, err := json.Marshal(initiateMDMSSORequest{Initiator: fleet.SSOInitiatorAppleMDMSSO, DeviceInfo: deviceInfo})
+	body, err := json.Marshal(initiateMDMSSORequest{Initiator: automdm.SSOInitiatorAppleMDMSSO, DeviceInfo: deviceInfo})
 	require.NoError(ts.s.T(), err)
-	res := ts.loginSSOUserWithBody(username, password, "/api/v1/fleet/mdm/sso", http.StatusSeeOther, body)
+	res := ts.loginSSOUserWithBody(username, password, "/api/v1/automdm/mdm/sso", http.StatusSeeOther, body)
 	return res
 }
 
@@ -483,22 +483,22 @@ func (ts *withServer) LoginMDMSSOUser(username, password, deviceInfo string) *ht
 // (Linux/Windows), where the host UUID travels in the SSO request data and the
 // callback binds the resulting IdP account to that host. Unlike
 // LoginMDMSSOUser (Apple flow), the host UUID is known up front. The flow only
-// opens for a device Fleet answered with END_USER_AUTH_REQUIRED, so the prompt
+// opens for a device AutoMDM answered with END_USER_AUTH_REQUIRED, so the prompt
 // is seeded first, as orbit enrollment does for real devices. An optional
 // beforeCallback runs after the IdP sign-in but before the assertion reaches
-// Fleet, so a test can change server state mid-flow. Returns the callback
+// AutoMDM, so a test can change server state mid-flow. Returns the callback
 // response (a redirect).
 func (ts *withServer) LoginMDMSSOUserSetupExperience(username, password, hostUUID string, beforeCallback ...func()) *http.Response {
 	ts.SeedEndUserAuthPrompt(hostUUID)
 	body, err := json.Marshal(initiateMDMSSORequest{
-		Initiator: fleet.SSOInitiatorOrbitSetupExperience,
+		Initiator: automdm.SSOInitiatorOrbitSetupExperience,
 		HostUUID:  hostUUID,
 	})
 	require.NoError(ts.s.T(), err)
-	return ts.loginSSOUserWithBody(username, password, "/api/v1/fleet/mdm/sso", http.StatusSeeOther, body, beforeCallback...)
+	return ts.loginSSOUserWithBody(username, password, "/api/v1/automdm/mdm/sso", http.StatusSeeOther, body, beforeCallback...)
 }
 
-// SeedEndUserAuthPrompt records that Fleet asked hostUUID's end user to sign in.
+// SeedEndUserAuthPrompt records that AutoMDM asked hostUUID's end user to sign in.
 func (ts *withServer) SeedEndUserAuthPrompt(hostUUID string) {
 	t := ts.s.T()
 	require.NoError(t, shared_mdm.RecordEndUserAuthPrompt(
@@ -534,9 +534,9 @@ func (ts *withServer) newSSOTestClient() *http.Client {
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
 
-	return fleethttp.NewClient(
-		fleethttp.WithFollowRedir(false),
-		fleethttp.WithCookieJar(jar),
+	return automdmhttp.NewClient(
+		automdmhttp.WithFollowRedir(false),
+		automdmhttp.WithCookieJar(jar),
 	)
 }
 
@@ -562,7 +562,7 @@ func (ts *withServer) completeSAMLLogin(client *http.Client, idpURL, username, p
 	require.NoError(t, err)
 
 	// The response is an HTML form, we can extract the base64-encoded response
-	// to submit to the Fleet server from here
+	// to submit to the AutoMDM server from here
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
@@ -580,7 +580,7 @@ func (ts *withServer) InitiateDeviceSSO(client *http.Client, deviceToken string)
 	t := ts.s.T()
 
 	var resIni initiateDeviceSSOResponse
-	httpResponse := ts.doWithClient(client, "POST", "/api/v1/fleet/device/"+deviceToken+"/sso", nil, http.StatusOK, nil)
+	httpResponse := ts.doWithClient(client, "POST", "/api/v1/automdm/device/"+deviceToken+"/sso", nil, http.StatusOK, nil)
 	require.NoError(t, json.NewDecoder(httpResponse.Body).Decode(&resIni))
 	require.NoError(t, resIni.Error())
 	require.NotEmpty(t, resIni.URL)
@@ -593,13 +593,13 @@ func (ts *withServer) InitiateDeviceSSO(client *http.Client, deviceToken string)
 // serves both the happy path and the rejection paths.
 func (ts *withServer) CompleteDeviceSSO(client *http.Client, idpURL, username, password string) *http.Response {
 	samlResponse := ts.completeSAMLLogin(client, idpURL, username, password)
-	return ts.doWithClient(client, "POST", "/api/v1/fleet/mdm/sso/callback", nil, http.StatusSeeOther, nil,
-		"SAMLResponse", samlResponse, "RelayState", fleet.SSOInitiatorFleetDesktop)
+	return ts.doWithClient(client, "POST", "/api/v1/automdm/mdm/sso/callback", nil, http.StatusSeeOther, nil,
+		"SAMLResponse", samlResponse, "RelayState", automdm.SSOInitiatorAutoMDMDesktop)
 }
 
 func (ts *withServer) CompleteDeviceSSOWithRelayState(client *http.Client, idpURL, username, password, relayState string) *http.Response {
 	samlResponse := ts.completeSAMLLogin(client, idpURL, username, password)
-	return ts.doWithClient(client, "POST", "/api/v1/fleet/mdm/sso/callback", nil, http.StatusSeeOther, nil,
+	return ts.doWithClient(client, "POST", "/api/v1/automdm/mdm/sso/callback", nil, http.StatusSeeOther, nil,
 		"SAMLResponse", samlResponse, "RelayState", relayState)
 }
 
@@ -612,7 +612,7 @@ func (ts *withServer) ExpireSSOHandshake(client *http.Client) {
 	})
 }
 
-// LoginDeviceSSOUser drives the whole Fleet Desktop "My device" page SSO flow:
+// LoginDeviceSSOUser drives the whole AutoMDM Desktop "My device" page SSO flow:
 // initiate, sign in at the IdP, and post the assertion back to the callback.
 // Returns the callback response (a redirect) with the client's cookie jar
 // populated, so callers can inspect Set-Cookie headers along the way (the
@@ -642,8 +642,8 @@ func (ts *withServer) LoginOTAEnrollSSOUser(username, password, enrollSecret str
 
 	samlResponse := ts.completeSAMLLogin(client, idpURL, username, password)
 
-	// POST the SAMLResponse to Fleet's MDM SSO callback; the jar carries the SSO session
-	callbackURL := ts.server.URL + "/api/v1/fleet/mdm/sso/callback?SAMLResponse=" + url.QueryEscape(samlResponse)
+	// POST the SAMLResponse to AutoMDM's MDM SSO callback; the jar carries the SSO session
+	callbackURL := ts.server.URL + "/api/v1/automdm/mdm/sso/callback?SAMLResponse=" + url.QueryEscape(samlResponse)
 	resp, err = client.Post(callbackURL, "application/x-www-form-urlencoded", nil)
 	require.NoError(t, err)
 	require.NoError(t, resp.Body.Close())
@@ -652,7 +652,7 @@ func (ts *withServer) LoginOTAEnrollSSOUser(username, password, enrollSecret str
 }
 
 func (ts *withServer) LoginAccountDrivenEnrollUser(username, password, token string) *http.Response {
-	initiator := fleet.SSOInitiatorAccountDrivenEnroll
+	initiator := automdm.SSOInitiatorAccountDrivenEnroll
 	if token != "" {
 		initiator = fmt.Sprintf("%s:%s", initiator, token)
 	}
@@ -662,7 +662,7 @@ func (ts *withServer) LoginAccountDrivenEnrollUser(username, password, token str
 	}
 	body, err := json.Marshal(requestParams)
 	require.NoError(ts.s.T(), err)
-	res := ts.loginSSOUserWithBody(username, password, "/api/v1/fleet/mdm/sso", http.StatusSeeOther, body)
+	res := ts.loginSSOUserWithBody(username, password, "/api/v1/automdm/mdm/sso", http.StatusSeeOther, body)
 	return res
 }
 
@@ -670,7 +670,7 @@ func (ts *withServer) LoginSSOUserIDPInitiated(username, password, entityID stri
 	t := ts.s.T()
 	res := ts.loginSSOUserIDPInitiated(
 		username, password,
-		"/api/v1/fleet/sso",
+		"/api/v1/automdm/sso",
 		fmt.Sprintf("%s?spentityid=%s", testSAMLIDPSSOURL, entityID),
 		http.StatusOK,
 	)
@@ -686,7 +686,7 @@ func (ts *withServer) doWithClient(
 	expectedStatusCode int, headers map[string]string,
 	queryParams ...string,
 ) *http.Response {
-	return fleet_httptest.DoHTTPReq(
+	return automdm_httptest.DoHTTPReq(
 		ts.s.T(),
 		client,
 		decodeJSON,
@@ -705,7 +705,7 @@ func (ts *withServer) loginSSOUser(username, password string, basePath string, c
 
 // loginSSOUserWithBody drives an SP-initiated SSO login end to end. Any
 // beforeCallback hooks run after the IdP sign-in and before the assertion is
-// posted to Fleet.
+// posted to AutoMDM.
 func (ts *withServer) loginSSOUserWithBody(username, password string, basePath string, callbackStatus int, requestBody []byte, beforeCallback ...func()) *http.Response {
 	client := ts.newSSOTestClient()
 
@@ -740,9 +740,9 @@ func (ts *withServer) loginSSOUserIDPInitiated(
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
 
-	client := fleethttp.NewClient(
-		fleethttp.WithFollowRedir(false),
-		fleethttp.WithCookieJar(jar),
+	client := automdmhttp.NewClient(
+		automdmhttp.WithFollowRedir(false),
+		automdmhttp.WithCookieJar(jar),
 	)
 
 	rawSSOResp := ts.completeSAMLLogin(client, idpURL, username, password)
@@ -751,9 +751,9 @@ func (ts *withServer) loginSSOUserIDPInitiated(
 }
 
 type listActivitiesResponse struct {
-	Meta       *fleet.PaginationMetadata `json:"meta"`
-	Activities []*fleet.Activity         `json:"activities"`
-	Err        error                     `json:"error,omitempty"`
+	Meta       *automdm.PaginationMetadata `json:"meta"`
+	Activities []*automdm.Activity         `json:"activities"`
+	Err        error                       `json:"error,omitempty"`
 }
 
 func (r listActivitiesResponse) Error() error { return r.Err }
@@ -765,10 +765,10 @@ func (ts *withServer) lastActivityMatches(name, details string, id uint) uint {
 // gets the latest activity and checks that it matches any provided properties.
 // empty string or 0 id means do not check that property. It returns the ID of that
 // latest activity.
-func (ts *withServer) lastActivityMatchesExtended(name, details string, id uint, fleetInitiated *bool) uint {
+func (ts *withServer) lastActivityMatchesExtended(name, details string, id uint, automdmInitiated *bool) uint {
 	t := ts.s.T()
 	var listActivities listActivitiesResponse
-	ts.DoJSON("GET", "/api/latest/fleet/activities", nil, http.StatusOK, &listActivities, "order_key", "id", "order_direction", "desc", "per_page", "1")
+	ts.DoJSON("GET", "/api/latest/automdm/activities", nil, http.StatusOK, &listActivities, "order_key", "id", "order_direction", "desc", "per_page", "1")
 	require.True(t, len(listActivities.Activities) > 0)
 
 	act := listActivities.Activities[0]
@@ -782,8 +782,8 @@ func (ts *withServer) lastActivityMatchesExtended(name, details string, id uint,
 	if id > 0 {
 		assert.Equal(t, id, act.ID)
 	}
-	if fleetInitiated != nil {
-		assert.Equal(t, *fleetInitiated, act.FleetInitiated)
+	if automdmInitiated != nil {
+		assert.Equal(t, *automdmInitiated, act.AutoMDMInitiated)
 	}
 	return act.ID
 }
@@ -791,7 +791,7 @@ func (ts *withServer) lastActivityMatchesExtended(name, details string, id uint,
 func (ts *withServer) lastHostActivityMatches(hostID uint, name, details string, id uint) uint {
 	t := ts.s.T()
 	var listActivities listActivitiesResponse
-	ts.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/activities", hostID), nil, http.StatusOK, &listActivities, "order_key", "id", "order_direction", "desc", "per_page", "10")
+	ts.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/activities", hostID), nil, http.StatusOK, &listActivities, "order_key", "id", "order_direction", "desc", "per_page", "10")
 	require.NotEmpty(t, listActivities.Activities)
 
 	act := listActivities.Activities[0]
@@ -821,7 +821,7 @@ func (ts *withServer) lastActivityOfTypeMatches(name, details string, id uint) u
 	t := ts.s.T()
 
 	var listActivities listActivitiesResponse
-	ts.DoJSON("GET", "/api/latest/fleet/activities", nil, http.StatusOK,
+	ts.DoJSON("GET", "/api/latest/automdm/activities", nil, http.StatusOK,
 		&listActivities, "order_key", "id", "order_direction", "desc", "per_page", "10")
 	require.True(t, len(listActivities.Activities) > 0)
 
@@ -846,7 +846,7 @@ func (ts *withServer) lastActivityOfTypeMatches(name, details string, id uint) u
 // assert that an operation records exactly one, or none, which the "last activity" helpers cannot express.
 func (ts *withServer) countHostActivitiesOfType(hostID uint, name string) int {
 	var listActivities listActivitiesResponse
-	ts.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/activities", hostID), nil, http.StatusOK,
+	ts.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/activities", hostID), nil, http.StatusOK,
 		&listActivities, "order_key", "id", "order_direction", "desc", "per_page", "1000")
 
 	var count int
@@ -862,7 +862,7 @@ func (ts *withServer) countHostActivitiesOfType(hostID uint, name string) int {
 // no activity, which "last activity" helpers cannot express on a suite that shares its database across tests.
 func (ts *withServer) countActivitiesOfType(name string) int {
 	var listActivities listActivitiesResponse
-	ts.DoJSON("GET", "/api/latest/fleet/activities", nil, http.StatusOK,
+	ts.DoJSON("GET", "/api/latest/automdm/activities", nil, http.StatusOK,
 		&listActivities, "order_key", "id", "order_direction", "desc", "per_page", "10000")
 
 	var count int
@@ -878,7 +878,7 @@ func (ts *withServer) lastActivityOfTypeDoesNotMatch(name, details string, id ui
 	t := ts.s.T()
 
 	var listActivities listActivitiesResponse
-	ts.DoJSON("GET", "/api/latest/fleet/activities", nil, http.StatusOK,
+	ts.DoJSON("GET", "/api/latest/automdm/activities", nil, http.StatusOK,
 		&listActivities, "order_key", "id", "order_direction", "desc", "per_page", "10")
 	require.True(t, len(listActivities.Activities) > 0)
 
@@ -896,10 +896,10 @@ func (ts *withServer) lastActivityOfTypeDoesNotMatch(name, details string, id ui
 }
 
 // listActivities retrieves all activities via the HTTP API endpoint.
-func (ts *withServer) listActivities() []*fleet.Activity {
+func (ts *withServer) listActivities() []*automdm.Activity {
 	t := ts.s.T()
 	var resp listActivitiesResponse
-	ts.DoJSON("GET", "/api/latest/fleet/activities", nil, http.StatusOK, &resp,
+	ts.DoJSON("GET", "/api/latest/automdm/activities", nil, http.StatusOK, &resp,
 		"order_key", "id", "order_direction", "asc", "per_page", "10000")
 	require.NotNil(t, resp.Activities)
 	return resp.Activities
@@ -907,7 +907,7 @@ func (ts *withServer) listActivities() []*fleet.Activity {
 
 func (ts *withServer) uploadSoftwareInstaller(
 	t *testing.T,
-	payload *fleet.UploadSoftwareInstallerPayload,
+	payload *automdm.UploadSoftwareInstallerPayload,
 	expectedStatus int,
 	expectedError string,
 ) {
@@ -916,7 +916,7 @@ func (ts *withServer) uploadSoftwareInstaller(
 
 func (ts *withServer) uploadSoftwareInstallerWithErrorNameReason(
 	t *testing.T,
-	payload *fleet.UploadSoftwareInstallerPayload,
+	payload *automdm.UploadSoftwareInstallerPayload,
 	expectedStatus int,
 	expectedErrorReason string,
 	expectedErrorName string,
@@ -927,11 +927,11 @@ func (ts *withServer) uploadSoftwareInstallerWithErrorNameReason(
 	var installerFile io.Reader
 	if payload.InstallerFile == nil && payload.StagedUploadID == "" {
 		// Open file from testdata and close it when done
-		tfr, err := fleet.NewKeepFileReader(filepath.Join("testdata", "software-installers", payload.Filename))
+		tfr, err := automdm.NewKeepFileReader(filepath.Join("testdata", "software-installers", payload.Filename))
 		// Try the test installers in the pkg/file testdata (to reduce clutter/copies).
 		if errors.Is(err, os.ErrNotExist) {
 			var err2 error
-			tfr, err2 = fleet.NewKeepFileReader(filepath.Join("..", "..", "pkg", "file", "testdata", "software-installers", payload.Filename))
+			tfr, err2 = automdm.NewKeepFileReader(filepath.Join("..", "..", "pkg", "file", "testdata", "software-installers", payload.Filename))
 			if err2 == nil {
 				err = nil
 			}
@@ -961,7 +961,7 @@ func (ts *withServer) uploadSoftwareInstallerWithErrorNameReason(
 
 	// add the team_id field
 	if payload.TeamID != nil {
-		require.NoError(t, w.WriteField("fleet_id", fmt.Sprintf("%d", *payload.TeamID)))
+		require.NoError(t, w.WriteField("team_id", fmt.Sprintf("%d", *payload.TeamID)))
 	}
 	if payload.TitleID != nil {
 		require.NoError(t, w.WriteField("software_title_id", fmt.Sprintf("%d", *payload.TitleID)))
@@ -1004,7 +1004,7 @@ func (ts *withServer) uploadSoftwareInstallerWithErrorNameReason(
 		"Authorization": fmt.Sprintf("Bearer %s", ts.token),
 	}
 
-	r := ts.DoRawWithHeaders("POST", "/api/latest/fleet/software/package", b.Bytes(), expectedStatus, headers)
+	r := ts.DoRawWithHeaders("POST", "/api/latest/automdm/software/package", b.Bytes(), expectedStatus, headers)
 	defer r.Body.Close()
 
 	if expectedErrorReason != "" || expectedErrorName != "" {
@@ -1020,7 +1020,7 @@ func (ts *withServer) uploadSoftwareInstallerWithErrorNameReason(
 
 func (ts *withServer) updateSoftwareInstaller(
 	t *testing.T,
-	payload *fleet.UpdateSoftwareInstallerPayload,
+	payload *automdm.UpdateSoftwareInstallerPayload,
 	expectedStatus int,
 	expectedError string,
 ) {
@@ -1047,7 +1047,7 @@ func (ts *withServer) updateSoftwareInstaller(
 	if payload.TeamID != nil {
 		tmID = *payload.TeamID
 	}
-	require.NoError(t, w.WriteField("fleet_id", fmt.Sprintf("%d", tmID)))
+	require.NoError(t, w.WriteField("team_id", fmt.Sprintf("%d", tmID)))
 	if payload.InstallerID != 0 {
 		require.NoError(t, w.WriteField("installer_id", fmt.Sprintf("%d", payload.InstallerID)))
 	}
@@ -1103,7 +1103,7 @@ func (ts *withServer) updateSoftwareInstaller(
 		"Authorization": fmt.Sprintf("Bearer %s", ts.token),
 	}
 
-	r := ts.DoRawWithHeaders("PATCH", fmt.Sprintf("/api/latest/fleet/software/titles/%d/package", payload.TitleID), b.Bytes(), expectedStatus, headers)
+	r := ts.DoRawWithHeaders("PATCH", fmt.Sprintf("/api/latest/automdm/software/titles/%d/package", payload.TitleID), b.Bytes(), expectedStatus, headers)
 	defer r.Body.Close()
 
 	if expectedError != "" {

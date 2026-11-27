@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # Pale Moon ships as a Nullsoft (NSIS) installer; /S runs it silently.
 
@@ -24,9 +24,9 @@ try {
     if ($build -ge 19041) {
         $hasAvx = $true
         try {
-            Add-Type -Namespace Fleet -Name Cpu -MemberDefinition '[DllImport("kernel32.dll")] public static extern bool IsProcessorFeaturePresent(uint feature);'
+            Add-Type -Namespace AutoMDM -Name Cpu -MemberDefinition '[DllImport("kernel32.dll")] public static extern bool IsProcessorFeaturePresent(uint feature);'
             $PF_AVX_INSTRUCTIONS_AVAILABLE = 39
-            $hasAvx = [Fleet.Cpu]::IsProcessorFeaturePresent($PF_AVX_INSTRUCTIONS_AVAILABLE)
+            $hasAvx = [AutoMDM.Cpu]::IsProcessorFeaturePresent($PF_AVX_INSTRUCTIONS_AVAILABLE)
         } catch {
             # Add-Type is blocked in ConstrainedLanguage mode; leave the check to the installer.
             Write-Host "Couldn't check for AVX support: $_"

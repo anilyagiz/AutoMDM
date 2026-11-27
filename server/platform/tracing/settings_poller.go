@@ -9,15 +9,15 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// settingsPollInterval is how often each Fleet replica re-reads trace_sampler_settings. 60s matches industry defaults for
+// settingsPollInterval is how often each AutoMDM replica re-reads trace_sampler_settings. 60s matches industry defaults for
 // feature flag style runtime config.
 const settingsPollInterval = 60 * time.Second
 
 // pollTracer instruments the poll loop. When OTEL is not configured the global provider returns a no-op tracer, so this is
 // free when tracing is disabled.
-var pollTracer = otel.Tracer("github.com/fleetdm/fleet/v4/server/platform/tracing")
+var pollTracer = otel.Tracer("github.com/anilyagiz/automdm/v4/server/platform/tracing")
 
-// settingsReader is the minimal datastore surface the poller needs. The full fleet.Datastore is large. Depending only on this
+// settingsReader is the minimal datastore surface the poller needs. The full automdm.Datastore is large. Depending only on this
 // interface keeps the poller's tests cheap and the package free of cross context coupling.
 type settingsReader interface {
 	GetTraceSamplerSettings(ctx context.Context) (*Settings, error)

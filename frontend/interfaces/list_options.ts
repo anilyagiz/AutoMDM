@@ -1,5 +1,5 @@
 /**
- * Represents query params used as list options by the Fleet API
+ * Represents query params used as list options by the AutoMDM API
  */
 export interface IListOptions {
   page: number;

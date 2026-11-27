@@ -1,5 +1,5 @@
 // Package deps runs the first-run dependency checks: detect required
-// tooling, compare versions against what the Fleet repo declares, and return
+// tooling, compare versions against what the AutoMDM repo declares, and return
 // a structured report. Ported from src-tauri/src/deps.rs. macOS-first.
 package deps
 
@@ -15,7 +15,7 @@ import (
 	"strings"
 
 	"github.com/Masterminds/semver/v3"
-	"github.com/fleetdm/fleet/tools/hangar/internal/shellpath"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/shellpath"
 )
 
 // DepCheck is one row of the dependency checklist.
@@ -62,7 +62,7 @@ func extractVersion(s string) string {
 
 // satisfies reports whether detected meets requirement, or nil if either
 // fails to parse. NOTE: uses Masterminds/semver constraint syntax; for the
-// values Fleet declares (e.g. "^24.10.0") it agrees with the Rust semver
+// values AutoMDM declares (e.g. "^24.10.0") it agrees with the Rust semver
 // crate, but exotic ranges could differ in dialect.
 func satisfies(detected, requirement string) *bool {
 	c, err := semver.NewConstraint(requirement)
@@ -192,7 +192,7 @@ func checkGit(path string) DepCheck {
 	return DepCheck{
 		ID: "git", Name: "git", Installed: installed, Version: version,
 		InstallCommand: "brew install git",
-		Note:           sp("Clones the Fleet repo and manages branches."),
+		Note:           sp("Clones the AutoMDM repo and manages branches."),
 	}
 }
 
@@ -203,7 +203,7 @@ func checkGo(path string) DepCheck {
 	return DepCheck{
 		ID: "go", Name: "Go", Installed: installed, Version: version,
 		InstallCommand: "brew install go",
-		Note:           sp("Builds the Fleet server."),
+		Note:           sp("Builds the AutoMDM server."),
 	}
 }
 
@@ -269,7 +269,7 @@ func checkNode(path, required string, manager nodeManager) DepCheck {
 	if version != nil && required != "" {
 		versionOK = satisfies(*version, required)
 	}
-	// Pin to the major Fleet requires; fall back to "24".
+	// Pin to the major AutoMDM requires; fall back to "24".
 	major := "24"
 	if v := extractVersion(required); v != "" {
 		if before, _, found := strings.Cut(v, "."); found {
@@ -277,10 +277,10 @@ func checkNode(path, required string, manager nodeManager) DepCheck {
 		}
 	}
 	installCmd := "nvm install " + major + " && nvm use " + major
-	note := "Fleet pins a specific Node major. Use nvm or `n` to install/switch."
+	note := "AutoMDM pins a specific Node major. Use nvm or `n` to install/switch."
 	if manager == managerN {
 		installCmd = "n " + major
-		note = "Fleet pins a specific Node major. Use `n` to install/switch."
+		note = "AutoMDM pins a specific Node major. Use `n` to install/switch."
 	}
 	return DepCheck{
 		ID: "node", Name: "Node.js", Installed: installed, Version: version,
@@ -294,7 +294,7 @@ func checkYarn(path string) DepCheck {
 	return DepCheck{
 		ID: "yarn", Name: "Yarn", Installed: installed, Version: version,
 		InstallCommand: "brew install yarn",
-		Note:           sp("Bundles Fleet's frontend."),
+		Note:           sp("Bundles AutoMDM's frontend."),
 	}
 }
 
@@ -314,7 +314,7 @@ func checkDocker(path string) DepCheck {
 	case runtimeOK != nil && !*runtimeOK:
 		note = sp("Installed, but the daemon isn't running. Open Docker Desktop.")
 	default:
-		note = sp("Runs Fleet's MySQL/Redis dev infra.")
+		note = sp("Runs AutoMDM's MySQL/Redis dev infra.")
 	}
 	return DepCheck{
 		ID: "docker", Name: "Docker", Installed: cliOK, Version: version,

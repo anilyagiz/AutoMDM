@@ -6,13 +6,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/optjson"
-	activity_api "github.com/fleetdm/fleet/v4/server/activity/api"
-	"github.com/fleetdm/fleet/v4/server/authz"
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/pkg/optjson"
+	activity_api "github.com/anilyagiz/automdm/v4/server/activity/api"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -21,27 +21,27 @@ func TestTeamPoliciesAuth(t *testing.T) {
 	ds := new(mock.Store)
 	svc, ctx := newTestService(t, ds, nil, nil)
 
-	ds.NewTeamPolicyFunc = func(ctx context.Context, teamID uint, authorID *uint, args fleet.PolicyPayload) (*fleet.Policy, error) {
-		return &fleet.Policy{
-			PolicyData: fleet.PolicyData{
+	ds.NewTeamPolicyFunc = func(ctx context.Context, teamID uint, authorID *uint, args automdm.PolicyPayload) (*automdm.Policy, error) {
+		return &automdm.Policy{
+			PolicyData: automdm.PolicyData{
 				ID:     1,
 				TeamID: ptr.Uint(1),
 			},
 		}, nil
 	}
-	ds.ListTeamPoliciesFunc = func(ctx context.Context, teamID uint, opts fleet.ListOptions, iopts fleet.ListOptions, automationType fleet.PolicyAutomationType, platform string) (tpol, ipol []*fleet.Policy, err error) {
+	ds.ListTeamPoliciesFunc = func(ctx context.Context, teamID uint, opts automdm.ListOptions, iopts automdm.ListOptions, automationType automdm.PolicyAutomationType, platform string) (tpol, ipol []*automdm.Policy, err error) {
 		return nil, nil, nil
 	}
-	ds.PoliciesByIDFunc = func(ctx context.Context, ids []uint) (map[uint]*fleet.Policy, error) {
+	ds.PoliciesByIDFunc = func(ctx context.Context, ids []uint) (map[uint]*automdm.Policy, error) {
 		return nil, nil
 	}
-	ds.TeamPolicyFunc = func(ctx context.Context, teamID uint, policyID uint) (*fleet.Policy, error) {
-		return &fleet.Policy{}, nil
+	ds.TeamPolicyFunc = func(ctx context.Context, teamID uint, policyID uint) (*automdm.Policy, error) {
+		return &automdm.Policy{}, nil
 	}
-	ds.PolicyFunc = func(ctx context.Context, id uint) (*fleet.Policy, error) {
+	ds.PolicyFunc = func(ctx context.Context, id uint) (*automdm.Policy, error) {
 		if id == 1 {
-			return &fleet.Policy{
-				PolicyData: fleet.PolicyData{
+			return &automdm.Policy{
+				PolicyData: automdm.PolicyData{
 					ID:     1,
 					TeamID: ptr.Uint(1),
 				},
@@ -49,86 +49,86 @@ func TestTeamPoliciesAuth(t *testing.T) {
 		}
 		return nil, nil
 	}
-	ds.SavePolicyFunc = func(ctx context.Context, p *fleet.Policy, shouldDeleteAll bool, removePolicyStats bool) error {
+	ds.SavePolicyFunc = func(ctx context.Context, p *automdm.Policy, shouldDeleteAll bool, removePolicyStats bool) error {
 		return nil
 	}
 	ds.DeleteTeamPoliciesFunc = func(ctx context.Context, teamID uint, ids []uint) ([]uint, error) {
 		return nil, nil
 	}
-	ds.TeamByNameFunc = func(ctx context.Context, name string) (*fleet.Team, error) {
-		return &fleet.Team{ID: 1}, nil
+	ds.TeamByNameFunc = func(ctx context.Context, name string) (*automdm.Team, error) {
+		return &automdm.Team{ID: 1}, nil
 	}
-	ds.ApplyPolicySpecsFunc = func(ctx context.Context, authorID uint, specs []*fleet.PolicySpec) error {
+	ds.ApplyPolicySpecsFunc = func(ctx context.Context, authorID uint, specs []*automdm.PolicySpec) error {
 		return nil
 	}
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
 	}
-	ds.TeamLiteFunc = func(ctx context.Context, tid uint) (*fleet.TeamLite, error) {
-		return &fleet.TeamLite{ID: 1}, nil
+	ds.TeamLiteFunc = func(ctx context.Context, tid uint) (*automdm.TeamLite, error) {
+		return &automdm.TeamLite{ID: 1}, nil
 	}
-	ds.GetSoftwareInstallerMetadataByIDFunc = func(ctx context.Context, id uint) (*fleet.SoftwareInstaller, error) {
-		return &fleet.SoftwareInstaller{}, nil
+	ds.GetSoftwareInstallerMetadataByIDFunc = func(ctx context.Context, id uint) (*automdm.SoftwareInstaller, error) {
+		return &automdm.SoftwareInstaller{}, nil
 	}
 
 	testCases := []struct {
 		name            string
-		user            *fleet.User
+		user            *automdm.User
 		shouldFailWrite bool
 		shouldFailRead  bool
 	}{
 		{
 			"global admin",
-			&fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)},
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)},
 			false,
 			false,
 		},
 		{
 			"global maintainer",
-			&fleet.User{GlobalRole: ptr.String(fleet.RoleMaintainer)},
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleMaintainer)},
 			false,
 			false,
 		},
 		{
 			"global observer",
-			&fleet.User{GlobalRole: ptr.String(fleet.RoleObserver)},
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleObserver)},
 			true,
 			false,
 		},
 		{
 			"team admin, belongs to team",
-			&fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleAdmin}}},
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleAdmin}}},
 			false,
 			false,
 		},
 		{
 			"team maintainer, belongs to team",
-			&fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleMaintainer}}},
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleMaintainer}}},
 			false,
 			false,
 		},
 		{
 			"team observer, belongs to team",
-			&fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleObserver}}},
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserver}}},
 			true,
 			false,
 		},
 		{
 			"team admin, DOES NOT belong to team",
-			&fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 2}, Role: fleet.RoleAdmin}}},
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleAdmin}}},
 			true,
 			true,
 		},
 		{
 			"team observer, and team admin of another team",
-			&fleet.User{Teams: []fleet.UserTeam{
+			&automdm.User{Teams: []automdm.UserTeam{
 				{
-					Team: fleet.Team{ID: 1},
-					Role: fleet.RoleObserver,
+					Team: automdm.Team{ID: 1},
+					Role: automdm.RoleObserver,
 				},
 				{
-					Team: fleet.Team{ID: 2},
-					Role: fleet.RoleAdmin,
+					Team: automdm.Team{ID: 2},
+					Role: automdm.RoleAdmin,
 				},
 			}},
 			true,
@@ -136,13 +136,13 @@ func TestTeamPoliciesAuth(t *testing.T) {
 		},
 		{
 			"team maintainer, DOES NOT belong to team",
-			&fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 2}, Role: fleet.RoleMaintainer}}},
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleMaintainer}}},
 			true,
 			true,
 		},
 		{
 			"team observer, DOES NOT belong to team",
-			&fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 2}, Role: fleet.RoleObserver}}},
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleObserver}}},
 			true,
 			true,
 		},
@@ -151,25 +151,25 @@ func TestTeamPoliciesAuth(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := viewer.NewContext(ctx, viewer.Viewer{User: tt.user})
 
-			_, err := svc.NewTeamPolicy(ctx, 1, fleet.NewTeamPolicyPayload{
+			_, err := svc.NewTeamPolicy(ctx, 1, automdm.NewTeamPolicyPayload{
 				Name:  "query1",
 				Query: "select 1;",
 			})
 			checkAuthErr(t, tt.shouldFailWrite, err)
 
-			_, _, err = svc.ListTeamPolicies(ctx, 1, fleet.ListOptions{}, fleet.ListOptions{}, false, "", "")
+			_, _, err = svc.ListTeamPolicies(ctx, 1, automdm.ListOptions{}, automdm.ListOptions{}, false, "", "")
 			checkAuthErr(t, tt.shouldFailRead, err)
 
 			_, err = svc.GetTeamPolicyByID(ctx, 1, 1)
 			checkAuthErr(t, tt.shouldFailRead, err)
 
-			_, err = svc.ModifyTeamPolicy(ctx, 1, 1, fleet.ModifyPolicyPayload{})
+			_, err = svc.ModifyTeamPolicy(ctx, 1, 1, automdm.ModifyPolicyPayload{})
 			checkAuthErr(t, tt.shouldFailWrite, err)
 
 			_, err = svc.DeleteTeamPolicies(ctx, 1, []uint{1})
 			checkAuthErr(t, tt.shouldFailWrite, err)
 
-			err = svc.ApplyPolicySpecs(ctx, []*fleet.PolicySpec{
+			err = svc.ApplyPolicySpecs(ctx, []*automdm.PolicySpec{
 				{
 					Name:  "query1",
 					Query: "select 1;",
@@ -184,21 +184,21 @@ func TestTeamPoliciesAuth(t *testing.T) {
 func TestTeamPolicyVPPAutomationRejectsNonMacOS(t *testing.T) {
 	ds := new(mock.Store)
 	svc, ctx := newTestService(t, ds, nil, nil)
-	ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}})
+	ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}})
 
-	appID := fleet.VPPAppID{AdamID: "123456", Platform: fleet.IOSPlatform}
+	appID := automdm.VPPAppID{AdamID: "123456", Platform: automdm.IOSPlatform}
 	ds.TeamExistsFunc = func(ctx context.Context, id uint) (bool, error) {
 		return true, nil
 	}
-	ds.SoftwareTitleByIDFunc = func(ctx context.Context, id uint, teamID *uint, tmFilter fleet.TeamFilter) (*fleet.SoftwareTitle, error) {
-		return &fleet.SoftwareTitle{
-			AppStoreApps: []*fleet.VPPAppStoreApp{{
+	ds.SoftwareTitleByIDFunc = func(ctx context.Context, id uint, teamID *uint, tmFilter automdm.TeamFilter) (*automdm.SoftwareTitle, error) {
+		return &automdm.SoftwareTitle{
+			AppStoreApps: []*automdm.VPPAppStoreApp{{
 				VPPAppID: appID,
 			}},
 		}, nil
 	}
 
-	_, err := svc.NewTeamPolicy(ctx, 1, fleet.NewTeamPolicyPayload{
+	_, err := svc.NewTeamPolicy(ctx, 1, automdm.NewTeamPolicyPayload{
 		Name:            "query1",
 		Query:           "select 1;",
 		SoftwareTitleID: ptr.Uint(123),
@@ -212,32 +212,32 @@ func TestTeamPolicyPatchWhenClosed(t *testing.T) {
 		policyID             = uint(42)
 		patchSoftwareTitleID = uint(401)
 	)
-	patchType := fleet.PolicyTypePatch
+	patchType := automdm.PolicyTypePatch
 
-	freshPatchPolicy := func() *fleet.Policy {
+	freshPatchPolicy := func() *automdm.Policy {
 		tID := teamID
-		return &fleet.Policy{
-			PolicyData: fleet.PolicyData{
+		return &automdm.Policy{
+			PolicyData: automdm.PolicyData{
 				ID:                   policyID,
 				TeamID:               &tID,
 				Name:                 "macOS - App up to date",
-				Type:                 fleet.PolicyTypePatch,
+				Type:                 automdm.PolicyTypePatch,
 				PatchSoftwareTitleID: new(patchSoftwareTitleID),
 			},
 		}
 	}
 
 	adminCtx := func(ctx context.Context) context.Context {
-		return viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{ID: 1, GlobalRole: new(fleet.RoleAdmin)}})
+		return viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{ID: 1, GlobalRole: new(automdm.RoleAdmin)}})
 	}
 
 	setupDS := func() *mock.Store {
 		ds := new(mock.Store)
-		ds.PolicyFunc = func(ctx context.Context, id uint) (*fleet.Policy, error) {
+		ds.PolicyFunc = func(ctx context.Context, id uint) (*automdm.Policy, error) {
 			return freshPatchPolicy(), nil
 		}
-		ds.GetSoftwareInstallerMetadataByTeamAndTitleIDFunc = func(ctx context.Context, tID *uint, titleID uint, withScriptContents bool) (*fleet.SoftwareInstaller, error) {
-			return &fleet.SoftwareInstaller{TitleID: new(patchSoftwareTitleID), SoftwareTitle: "App", DisplayName: "App"}, nil
+		ds.GetSoftwareInstallerMetadataByTeamAndTitleIDFunc = func(ctx context.Context, tID *uint, titleID uint, withScriptContents bool) (*automdm.SoftwareInstaller, error) {
+			return &automdm.SoftwareInstaller{TitleID: new(patchSoftwareTitleID), SoftwareTitle: "App", DisplayName: "App"}, nil
 		}
 		ds.ClearPreInstallQueryForTitleFunc = func(ctx context.Context, teamID uint, titleID uint) error {
 			return nil
@@ -249,8 +249,8 @@ func TestTeamPolicyPatchWhenClosed(t *testing.T) {
 	// title's managed pre-install query.
 	t.Run("create patch-when-closed policy", func(t *testing.T) {
 		ds := setupDS()
-		var captured fleet.PolicyPayload
-		ds.NewTeamPolicyFunc = func(ctx context.Context, tID uint, authorID *uint, args fleet.PolicyPayload) (*fleet.Policy, error) {
+		var captured automdm.PolicyPayload
+		ds.NewTeamPolicyFunc = func(ctx context.Context, tID uint, authorID *uint, args automdm.PolicyPayload) (*automdm.Policy, error) {
 			captured = args
 			created := freshPatchPolicy()
 			created.PatchWhenClosed = true
@@ -262,7 +262,7 @@ func TestTeamPolicyPatchWhenClosed(t *testing.T) {
 			return nil
 		}
 
-		_, err := svc.NewTeamPolicy(adminCtx(baseCtx), teamID, fleet.NewTeamPolicyPayload{
+		_, err := svc.NewTeamPolicy(adminCtx(baseCtx), teamID, automdm.NewTeamPolicyPayload{
 			Type:                         &patchType,
 			PatchSoftwareTitleID:         new(patchSoftwareTitleID),
 			PatchWhenClosed:              true,
@@ -279,7 +279,7 @@ func TestTeamPolicyPatchWhenClosed(t *testing.T) {
 	t.Run("create rejects disabling continuous automations", func(t *testing.T) {
 		ds := setupDS()
 		svc, baseCtx := newTestService(t, ds, nil, nil)
-		_, err := svc.NewTeamPolicy(adminCtx(baseCtx), teamID, fleet.NewTeamPolicyPayload{
+		_, err := svc.NewTeamPolicy(adminCtx(baseCtx), teamID, automdm.NewTeamPolicyPayload{
 			Type:                         &patchType,
 			PatchSoftwareTitleID:         new(patchSoftwareTitleID),
 			PatchWhenClosed:              true,
@@ -293,7 +293,7 @@ func TestTeamPolicyPatchWhenClosed(t *testing.T) {
 	t.Run("create rejects patch_when_closed on non-patch policy", func(t *testing.T) {
 		ds := setupDS()
 		svc, baseCtx := newTestService(t, ds, nil, nil)
-		_, err := svc.NewTeamPolicy(adminCtx(baseCtx), teamID, fleet.NewTeamPolicyPayload{
+		_, err := svc.NewTeamPolicy(adminCtx(baseCtx), teamID, automdm.NewTeamPolicyPayload{
 			Name:  "dynamic policy",
 			Query: "SELECT 1;",
 			// Continuous automations must be on, otherwise that check rejects the payload first.
@@ -309,7 +309,7 @@ func TestTeamPolicyPatchWhenClosed(t *testing.T) {
 	t.Run("modify rejects disabling continuous automations", func(t *testing.T) {
 		ds := setupDS()
 		svc, baseCtx := newTestService(t, ds, nil, nil)
-		_, err := svc.ModifyTeamPolicy(adminCtx(baseCtx), teamID, policyID, fleet.ModifyPolicyPayload{
+		_, err := svc.ModifyTeamPolicy(adminCtx(baseCtx), teamID, policyID, automdm.ModifyPolicyPayload{
 			PatchWhenClosed:              new(true),
 			ContinuousAutomationsEnabled: new(false),
 		})
@@ -320,8 +320,8 @@ func TestTeamPolicyPatchWhenClosed(t *testing.T) {
 	// Enabling patch_when_closed on modify forces continuous automations on.
 	t.Run("modify auto-sets continuous automations", func(t *testing.T) {
 		ds := setupDS()
-		var saved *fleet.Policy
-		ds.SavePolicyFunc = func(ctx context.Context, p *fleet.Policy, _ bool, _ bool) error {
+		var saved *automdm.Policy
+		ds.SavePolicyFunc = func(ctx context.Context, p *automdm.Policy, _ bool, _ bool) error {
 			saved = p
 			return nil
 		}
@@ -331,7 +331,7 @@ func TestTeamPolicyPatchWhenClosed(t *testing.T) {
 			return nil
 		}
 
-		_, err := svc.ModifyTeamPolicy(adminCtx(baseCtx), teamID, policyID, fleet.ModifyPolicyPayload{
+		_, err := svc.ModifyTeamPolicy(adminCtx(baseCtx), teamID, policyID, automdm.ModifyPolicyPayload{
 			PatchWhenClosed: new(true),
 		})
 		require.NoError(t, err)
@@ -364,16 +364,16 @@ func TestTeamPolicyAutomationsPopulated(t *testing.T) {
 	)
 
 	wantInstallIconURL := fmt.Sprintf(
-		"/api/latest/fleet/software/titles/%d/icon?fleet_id=%d",
+		"/api/latest/automdm/software/titles/%d/icon?team_id=%d",
 		softwareInstallerTitle, teamID,
 	)
 
 	// Returns a fresh team-scoped policy with all three automation IDs set.
 	// Each test gets a separate copy to prevent cross-test mutation.
-	freshPolicy := func() *fleet.Policy {
+	freshPolicy := func() *automdm.Policy {
 		tID := teamID
-		return &fleet.Policy{
-			PolicyData: fleet.PolicyData{
+		return &automdm.Policy{
+			PolicyData: automdm.PolicyData{
 				ID:                   policyID,
 				TeamID:               &tID,
 				Name:                 "policy-with-automations",
@@ -387,52 +387,52 @@ func TestTeamPolicyAutomationsPopulated(t *testing.T) {
 
 	setupDS := func() *mock.Store {
 		ds := new(mock.Store)
-		ds.NewTeamPolicyFunc = func(ctx context.Context, tID uint, authorID *uint, args fleet.PolicyPayload) (*fleet.Policy, error) {
+		ds.NewTeamPolicyFunc = func(ctx context.Context, tID uint, authorID *uint, args automdm.PolicyPayload) (*automdm.Policy, error) {
 			return freshPolicy(), nil
 		}
-		ds.PolicyFunc = func(ctx context.Context, id uint) (*fleet.Policy, error) {
+		ds.PolicyFunc = func(ctx context.Context, id uint) (*automdm.Policy, error) {
 			return freshPolicy(), nil
 		}
-		ds.TeamPolicyFunc = func(ctx context.Context, tID uint, id uint) (*fleet.Policy, error) {
+		ds.TeamPolicyFunc = func(ctx context.Context, tID uint, id uint) (*automdm.Policy, error) {
 			return freshPolicy(), nil
 		}
-		ds.ListTeamPoliciesFunc = func(ctx context.Context, tID uint, opts fleet.ListOptions, iopts fleet.ListOptions, automationType fleet.PolicyAutomationType, platform string) ([]*fleet.Policy, []*fleet.Policy, error) {
-			return []*fleet.Policy{freshPolicy()}, nil, nil
+		ds.ListTeamPoliciesFunc = func(ctx context.Context, tID uint, opts automdm.ListOptions, iopts automdm.ListOptions, automationType automdm.PolicyAutomationType, platform string) ([]*automdm.Policy, []*automdm.Policy, error) {
+			return []*automdm.Policy{freshPolicy()}, nil, nil
 		}
-		ds.ListMergedTeamPoliciesFunc = func(ctx context.Context, tID uint, opts fleet.ListOptions, automationType fleet.PolicyAutomationType, platform string) ([]*fleet.Policy, error) {
-			return []*fleet.Policy{freshPolicy()}, nil
+		ds.ListMergedTeamPoliciesFunc = func(ctx context.Context, tID uint, opts automdm.ListOptions, automationType automdm.PolicyAutomationType, platform string) ([]*automdm.Policy, error) {
+			return []*automdm.Policy{freshPolicy()}, nil
 		}
-		ds.SavePolicyFunc = func(ctx context.Context, p *fleet.Policy, _ bool, _ bool) error {
+		ds.SavePolicyFunc = func(ctx context.Context, p *automdm.Policy, _ bool, _ bool) error {
 			return nil
 		}
-		ds.TeamLiteFunc = func(ctx context.Context, tID uint) (*fleet.TeamLite, error) {
-			return &fleet.TeamLite{ID: tID}, nil
+		ds.TeamLiteFunc = func(ctx context.Context, tID uint) (*automdm.TeamLite, error) {
+			return &automdm.TeamLite{ID: tID}, nil
 		}
-		ds.GetSoftwareInstallerMetadataByIDFunc = func(ctx context.Context, id uint) (*fleet.SoftwareInstaller, error) {
+		ds.GetSoftwareInstallerMetadataByIDFunc = func(ctx context.Context, id uint) (*automdm.SoftwareInstaller, error) {
 			require.Equal(t, softwareInstallerID, id)
-			return &fleet.SoftwareInstaller{
+			return &automdm.SoftwareInstaller{
 				InstallerID:   softwareInstallerID,
 				TitleID:       ptr.Uint(softwareInstallerTitle),
 				SoftwareTitle: installerSoftwareTitle,
 				DisplayName:   installerDisplayName,
 			}, nil
 		}
-		ds.ScriptFunc = func(ctx context.Context, id uint) (*fleet.Script, error) {
+		ds.ScriptFunc = func(ctx context.Context, id uint) (*automdm.Script, error) {
 			require.Equal(t, scriptID, id)
-			return &fleet.Script{ID: id, Name: scriptName}, nil
+			return &automdm.Script{ID: id, Name: scriptName}, nil
 		}
-		ds.GetSoftwareInstallerMetadataByTeamAndTitleIDFunc = func(ctx context.Context, tID *uint, titleID uint, withScriptContents bool) (*fleet.SoftwareInstaller, error) {
+		ds.GetSoftwareInstallerMetadataByTeamAndTitleIDFunc = func(ctx context.Context, tID *uint, titleID uint, withScriptContents bool) (*automdm.SoftwareInstaller, error) {
 			require.Equal(t, patchSoftwareTitleID, titleID)
-			return &fleet.SoftwareInstaller{
+			return &automdm.SoftwareInstaller{
 				TitleID:       ptr.Uint(patchInstallerTitleID),
 				SoftwareTitle: patchSoftwareTitleName,
 				DisplayName:   patchSoftwareDisplay,
 			}, nil
 		}
-		ds.GetSoftwareIconsByTeamAndTitleIdsFunc = func(ctx context.Context, tID uint, titleIDs []uint) (map[uint]fleet.SoftwareTitleIcon, error) {
+		ds.GetSoftwareIconsByTeamAndTitleIdsFunc = func(ctx context.Context, tID uint, titleIDs []uint) (map[uint]automdm.SoftwareTitleIcon, error) {
 			require.Equal(t, teamID, tID)
 			// Only the install-software title has a custom icon uploaded.
-			return map[uint]fleet.SoftwareTitleIcon{
+			return map[uint]automdm.SoftwareTitleIcon{
 				softwareInstallerTitle: {
 					TeamID:          teamID,
 					SoftwareTitleID: softwareInstallerTitle,
@@ -442,7 +442,7 @@ func TestTeamPolicyAutomationsPopulated(t *testing.T) {
 		return ds
 	}
 
-	requireAutomationsPopulated := func(t *testing.T, p *fleet.Policy) {
+	requireAutomationsPopulated := func(t *testing.T, p *automdm.Policy) {
 		t.Helper()
 		require.NotNil(t, p)
 		require.NotNil(t, p.InstallSoftware, "install_software should be populated")
@@ -470,7 +470,7 @@ func TestTeamPolicyAutomationsPopulated(t *testing.T) {
 	// requireSoftwareIconURLs verifies that install_software.icon_url is set to the
 	// custom icon path when one exists, and that patch_software.icon_url stays nil
 	// when the title has no custom icon.
-	requireSoftwareIconURLs := func(t *testing.T, p *fleet.Policy) {
+	requireSoftwareIconURLs := func(t *testing.T, p *automdm.Policy) {
 		t.Helper()
 		require.NotNil(t, p.InstallSoftware, "install_software should be populated")
 		require.NotNil(t, p.InstallSoftware.IconURL, "install_software icon_url should be set when a custom icon exists")
@@ -481,9 +481,9 @@ func TestTeamPolicyAutomationsPopulated(t *testing.T) {
 	}
 
 	adminCtx := func(ctx context.Context) context.Context {
-		return viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{
+		return viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{
 			ID:         1,
-			GlobalRole: ptr.String(fleet.RoleAdmin),
+			GlobalRole: ptr.String(automdm.RoleAdmin),
 		}})
 	}
 
@@ -496,7 +496,7 @@ func TestTeamPolicyAutomationsPopulated(t *testing.T) {
 		}
 		ctx := adminCtx(baseCtx)
 
-		policy, err := svc.NewTeamPolicy(ctx, teamID, fleet.NewTeamPolicyPayload{
+		policy, err := svc.NewTeamPolicy(ctx, teamID, automdm.NewTeamPolicyPayload{
 			Name:  "policy-with-automations",
 			Query: "SELECT 1;",
 		})
@@ -531,7 +531,7 @@ func TestTeamPolicyAutomationsPopulated(t *testing.T) {
 		svc, baseCtx := newTestService(t, ds, nil, nil)
 		ctx := adminCtx(baseCtx)
 
-		teamPols, _, err := svc.ListTeamPolicies(ctx, teamID, fleet.ListOptions{}, fleet.ListOptions{}, false, "", "")
+		teamPols, _, err := svc.ListTeamPolicies(ctx, teamID, automdm.ListOptions{}, automdm.ListOptions{}, false, "", "")
 		require.NoError(t, err)
 		require.Len(t, teamPols, 1)
 		requireAutomationsPopulated(t, teamPols[0])
@@ -543,7 +543,7 @@ func TestTeamPolicyAutomationsPopulated(t *testing.T) {
 		svc, baseCtx := newTestService(t, ds, nil, nil)
 		ctx := adminCtx(baseCtx)
 
-		merged, _, err := svc.ListTeamPolicies(ctx, teamID, fleet.ListOptions{}, fleet.ListOptions{}, true, "", "")
+		merged, _, err := svc.ListTeamPolicies(ctx, teamID, automdm.ListOptions{}, automdm.ListOptions{}, true, "", "")
 		require.NoError(t, err)
 		require.Len(t, merged, 1)
 		requireAutomationsPopulated(t, merged[0])
@@ -561,7 +561,7 @@ func TestTeamPolicyAutomationsPopulated(t *testing.T) {
 
 		// Empty payload — no field changes; we only care that the helper runs
 		// after SavePolicy and the returned policy has its automations populated.
-		policy, err := svc.ModifyTeamPolicy(ctx, teamID, policyID, fleet.ModifyPolicyPayload{})
+		policy, err := svc.ModifyTeamPolicy(ctx, teamID, policyID, automdm.ModifyPolicyPayload{})
 		require.NoError(t, err)
 		requireAutomationsPopulated(t, policy)
 	})
@@ -588,11 +588,11 @@ func TestPopulateSoftwareIconURLs(t *testing.T) {
 	svcImpl := svc.(validationMiddleware).Service.(*Service)
 
 	var requestedTitleIDs []uint
-	ds.GetSoftwareIconsByTeamAndTitleIdsFunc = func(ctx context.Context, tID uint, titleIDs []uint) (map[uint]fleet.SoftwareTitleIcon, error) {
+	ds.GetSoftwareIconsByTeamAndTitleIdsFunc = func(ctx context.Context, tID uint, titleIDs []uint) (map[uint]automdm.SoftwareTitleIcon, error) {
 		require.Equal(t, teamID, tID)
 		requestedTitleIDs = titleIDs
 		// Custom icons exist for one installer, one VPP app, and one patch title.
-		return map[uint]fleet.SoftwareTitleIcon{
+		return map[uint]automdm.SoftwareTitleIcon{
 			customInstallerTitle: {TeamID: teamID, SoftwareTitleID: customInstallerTitle},
 			vppCustomTitle:       {TeamID: teamID, SoftwareTitleID: vppCustomTitle},
 			patchCustomTitle:     {TeamID: teamID, SoftwareTitleID: patchCustomTitle},
@@ -600,22 +600,22 @@ func TestPopulateSoftwareIconURLs(t *testing.T) {
 	}
 
 	tID := teamID
-	teamPolicy := func(install *fleet.PolicySoftwareTitle, vppAppsTeamsID *uint, patch *fleet.PolicySoftwareTitle) *fleet.Policy {
-		return &fleet.Policy{
-			PolicyData:      fleet.PolicyData{TeamID: &tID, VPPAppsTeamsID: vppAppsTeamsID},
+	teamPolicy := func(install *automdm.PolicySoftwareTitle, vppAppsTeamsID *uint, patch *automdm.PolicySoftwareTitle) *automdm.Policy {
+		return &automdm.Policy{
+			PolicyData:      automdm.PolicyData{TeamID: &tID, VPPAppsTeamsID: vppAppsTeamsID},
 			InstallSoftware: install,
 			PatchSoftware:   patch,
 		}
 	}
 
-	customInstaller := teamPolicy(&fleet.PolicySoftwareTitle{SoftwareTitleID: customInstallerTitle}, nil, nil)
-	plainInstaller := teamPolicy(&fleet.PolicySoftwareTitle{SoftwareTitleID: plainInstallerTitle}, nil, nil)
-	vppPlain := teamPolicy(&fleet.PolicySoftwareTitle{SoftwareTitleID: vppPlainTitle}, new(vppAppsTeamsID), nil)
-	vppCustom := teamPolicy(&fleet.PolicySoftwareTitle{SoftwareTitleID: vppCustomTitle}, new(vppAppsTeamsID), nil)
-	patchPolicy := teamPolicy(nil, nil, &fleet.PolicySoftwareTitle{SoftwareTitleID: patchCustomTitle})
-	inheritedPolicy := &fleet.Policy{PolicyData: fleet.PolicyData{TeamID: nil}}
+	customInstaller := teamPolicy(&automdm.PolicySoftwareTitle{SoftwareTitleID: customInstallerTitle}, nil, nil)
+	plainInstaller := teamPolicy(&automdm.PolicySoftwareTitle{SoftwareTitleID: plainInstallerTitle}, nil, nil)
+	vppPlain := teamPolicy(&automdm.PolicySoftwareTitle{SoftwareTitleID: vppPlainTitle}, new(vppAppsTeamsID), nil)
+	vppCustom := teamPolicy(&automdm.PolicySoftwareTitle{SoftwareTitleID: vppCustomTitle}, new(vppAppsTeamsID), nil)
+	patchPolicy := teamPolicy(nil, nil, &automdm.PolicySoftwareTitle{SoftwareTitleID: patchCustomTitle})
+	inheritedPolicy := &automdm.Policy{PolicyData: automdm.PolicyData{TeamID: nil}}
 
-	policies := []*fleet.Policy{customInstaller, plainInstaller, vppPlain, vppCustom, patchPolicy, inheritedPolicy}
+	policies := []*automdm.Policy{customInstaller, plainInstaller, vppPlain, vppCustom, patchPolicy, inheritedPolicy}
 	require.NoError(t, svcImpl.populateSoftwareIconURLs(ctx, policies))
 
 	require.True(t, ds.GetSoftwareIconsByTeamAndTitleIdsFuncInvoked)
@@ -628,7 +628,7 @@ func TestPopulateSoftwareIconURLs(t *testing.T) {
 	// Custom installer icon → canonical endpoint URL.
 	require.NotNil(t, customInstaller.InstallSoftware.IconURL)
 	assert.Equal(t,
-		fmt.Sprintf("/api/latest/fleet/software/titles/%d/icon?fleet_id=%d", customInstallerTitle, teamID),
+		fmt.Sprintf("/api/latest/automdm/software/titles/%d/icon?team_id=%d", customInstallerTitle, teamID),
 		*customInstaller.InstallSoftware.IconURL,
 	)
 
@@ -638,21 +638,21 @@ func TestPopulateSoftwareIconURLs(t *testing.T) {
 	// VPP app, no custom icon → endpoint URL (redirects to App Store icon).
 	require.NotNil(t, vppPlain.InstallSoftware.IconURL)
 	assert.Equal(t,
-		fmt.Sprintf("/api/latest/fleet/software/titles/%d/icon?fleet_id=%d", vppPlainTitle, teamID),
+		fmt.Sprintf("/api/latest/automdm/software/titles/%d/icon?team_id=%d", vppPlainTitle, teamID),
 		*vppPlain.InstallSoftware.IconURL,
 	)
 
 	// VPP app with a custom icon → still gets the endpoint URL (custom icon served).
 	require.NotNil(t, vppCustom.InstallSoftware.IconURL)
 	assert.Equal(t,
-		fmt.Sprintf("/api/latest/fleet/software/titles/%d/icon?fleet_id=%d", vppCustomTitle, teamID),
+		fmt.Sprintf("/api/latest/automdm/software/titles/%d/icon?team_id=%d", vppCustomTitle, teamID),
 		*vppCustom.InstallSoftware.IconURL,
 	)
 
 	// Patch software with a custom icon → endpoint URL.
 	require.NotNil(t, patchPolicy.PatchSoftware.IconURL)
 	assert.Equal(t,
-		fmt.Sprintf("/api/latest/fleet/software/titles/%d/icon?fleet_id=%d", patchCustomTitle, teamID),
+		fmt.Sprintf("/api/latest/automdm/software/titles/%d/icon?team_id=%d", patchCustomTitle, teamID),
 		*patchPolicy.PatchSoftware.IconURL,
 	)
 }
@@ -674,31 +674,31 @@ func TestTeamPolicyNotifyBeforePatching(t *testing.T) {
 		policyID             = uint(42)
 		patchSoftwareTitleID = uint(401)
 	)
-	patchType := fleet.PolicyTypePatch
+	patchType := automdm.PolicyTypePatch
 
-	freshPatchPolicy := func() *fleet.Policy {
+	freshPatchPolicy := func() *automdm.Policy {
 		tID := teamID
-		return &fleet.Policy{
+		return &automdm.Policy{
 			ID:                   policyID,
 			TeamID:               &tID,
 			Name:                 "macOS - App up to date",
 			Platform:             "darwin",
-			Type:                 fleet.PolicyTypePatch,
+			Type:                 automdm.PolicyTypePatch,
 			PatchSoftwareTitleID: new(patchSoftwareTitleID),
 		}
 	}
 
 	adminCtx := func(ctx context.Context) context.Context {
-		return viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{ID: 1, GlobalRole: new(fleet.RoleAdmin)}})
+		return viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{ID: 1, GlobalRole: new(automdm.RoleAdmin)}})
 	}
 
 	setupDS := func(installerPlatform string) *mock.Store {
 		ds := new(mock.Store)
-		ds.PolicyFunc = func(ctx context.Context, id uint) (*fleet.Policy, error) {
+		ds.PolicyFunc = func(ctx context.Context, id uint) (*automdm.Policy, error) {
 			return freshPatchPolicy(), nil
 		}
-		ds.GetSoftwareInstallerMetadataByTeamAndTitleIDFunc = func(ctx context.Context, tID *uint, titleID uint, withScriptContents bool) (*fleet.SoftwareInstaller, error) {
-			return &fleet.SoftwareInstaller{
+		ds.GetSoftwareInstallerMetadataByTeamAndTitleIDFunc = func(ctx context.Context, tID *uint, titleID uint, withScriptContents bool) (*automdm.SoftwareInstaller, error) {
+			return &automdm.SoftwareInstaller{
 				TitleID:       new(patchSoftwareTitleID),
 				SoftwareTitle: "App",
 				DisplayName:   "App",
@@ -716,13 +716,13 @@ func TestTeamPolicyNotifyBeforePatching(t *testing.T) {
 		cases := []struct {
 			name              string
 			installerPlatform string
-			payload           fleet.NewTeamPolicyPayload
+			payload           automdm.NewTeamPolicyPayload
 			wantErr           string
 		}{
 			{
 				name:              "non-patch policy",
 				installerPlatform: "darwin",
-				payload: fleet.NewTeamPolicyPayload{
+				payload: automdm.NewTeamPolicyPayload{
 					Name:  "dynamic policy",
 					Query: "SELECT 1;",
 					// Continuous automations must be on, otherwise that check rejects it first.
@@ -734,7 +734,7 @@ func TestTeamPolicyNotifyBeforePatching(t *testing.T) {
 			{
 				name:              "both patch options",
 				installerPlatform: "darwin",
-				payload: fleet.NewTeamPolicyPayload{
+				payload: automdm.NewTeamPolicyPayload{
 					Type:                         &patchType,
 					PatchSoftwareTitleID:         new(patchSoftwareTitleID),
 					PatchWhenClosed:              true,
@@ -746,18 +746,18 @@ func TestTeamPolicyNotifyBeforePatching(t *testing.T) {
 			{
 				name:              "windows app",
 				installerPlatform: "windows",
-				payload: fleet.NewTeamPolicyPayload{
+				payload: automdm.NewTeamPolicyPayload{
 					Type:                         &patchType,
 					PatchSoftwareTitleID:         new(patchSoftwareTitleID),
 					NotifyBeforePatching:         true,
 					ContinuousAutomationsEnabled: true,
 				},
-				wantErr: `"notify_before_patching" is only available for macOS Fleet-maintained apps.`,
+				wantErr: `"notify_before_patching" is only available for macOS AutoMDM-maintained apps.`,
 			},
 			{
 				name:              "continuous automations off",
 				installerPlatform: "darwin",
-				payload: fleet.NewTeamPolicyPayload{
+				payload: automdm.NewTeamPolicyPayload{
 					Type:                 &patchType,
 					PatchSoftwareTitleID: new(patchSoftwareTitleID),
 					NotifyBeforePatching: true,
@@ -767,7 +767,7 @@ func TestTeamPolicyNotifyBeforePatching(t *testing.T) {
 			{
 				name:              "deadline on a non-patch policy",
 				installerPlatform: "darwin",
-				payload: fleet.NewTeamPolicyPayload{
+				payload: automdm.NewTeamPolicyPayload{
 					Name:                         "dynamic policy",
 					Query:                        "SELECT 1;",
 					PatchDeadline:                true,
@@ -778,7 +778,7 @@ func TestTeamPolicyNotifyBeforePatching(t *testing.T) {
 			{
 				name:              "deadline with patch_when_closed",
 				installerPlatform: "darwin",
-				payload: fleet.NewTeamPolicyPayload{
+				payload: automdm.NewTeamPolicyPayload{
 					Type:                         &patchType,
 					PatchSoftwareTitleID:         new(patchSoftwareTitleID),
 					PatchWhenClosed:              true,
@@ -790,7 +790,7 @@ func TestTeamPolicyNotifyBeforePatching(t *testing.T) {
 			{
 				name:              "deadline with notify_before_patching",
 				installerPlatform: "darwin",
-				payload: fleet.NewTeamPolicyPayload{
+				payload: automdm.NewTeamPolicyPayload{
 					Type:                         &patchType,
 					PatchSoftwareTitleID:         new(patchSoftwareTitleID),
 					NotifyBeforePatching:         true,
@@ -802,18 +802,18 @@ func TestTeamPolicyNotifyBeforePatching(t *testing.T) {
 			{
 				name:              "deadline on a windows app",
 				installerPlatform: "windows",
-				payload: fleet.NewTeamPolicyPayload{
+				payload: automdm.NewTeamPolicyPayload{
 					Type:                         &patchType,
 					PatchSoftwareTitleID:         new(patchSoftwareTitleID),
 					PatchDeadline:                true,
 					ContinuousAutomationsEnabled: true,
 				},
-				wantErr: `"patch_deadline" is available for macOS Fleet-maintained apps. It's coming soon to Windows.`,
+				wantErr: `"patch_deadline" is available for macOS AutoMDM-maintained apps. It's coming soon to Windows.`,
 			},
 			{
 				name:              "deadline with continuous automations off",
 				installerPlatform: "darwin",
-				payload: fleet.NewTeamPolicyPayload{
+				payload: automdm.NewTeamPolicyPayload{
 					Type:                 &patchType,
 					PatchSoftwareTitleID: new(patchSoftwareTitleID),
 					PatchDeadline:        true,
@@ -837,68 +837,68 @@ func TestTeamPolicyNotifyBeforePatching(t *testing.T) {
 			storedType     string
 			storedPWC      bool
 			storedPlatform string
-			payload        fleet.ModifyPolicyPayload
+			payload        automdm.ModifyPolicyPayload
 			wantErr        string
 		}{
 			{
 				name:    "continuous automations off",
-				payload: fleet.ModifyPolicyPayload{NotifyBeforePatching: new(true), ContinuousAutomationsEnabled: new(false)},
+				payload: automdm.ModifyPolicyPayload{NotifyBeforePatching: new(true), ContinuousAutomationsEnabled: new(false)},
 				wantErr: `If "notify_before_patching" is true, "continuous_automations_enabled" can't be set to false.`,
 			},
 			{
 				name:       "non-patch policy",
-				storedType: fleet.PolicyTypeDynamic,
-				payload:    fleet.ModifyPolicyPayload{NotifyBeforePatching: new(true)},
+				storedType: automdm.PolicyTypeDynamic,
+				payload:    automdm.ModifyPolicyPayload{NotifyBeforePatching: new(true)},
 				wantErr:    `"notify_before_patching" is only supported for patch policies`,
 			},
 			{
 				// The payload carries only the delta, so the stored flag has to count.
 				name:      "stored patch_when_closed",
 				storedPWC: true,
-				payload:   fleet.ModifyPolicyPayload{NotifyBeforePatching: new(true)},
+				payload:   automdm.ModifyPolicyPayload{NotifyBeforePatching: new(true)},
 				wantErr:   `Only one of "force_patch", "patch_when_closed", "notify_before_patching", or "patch_deadline" can be set to true.`,
 			},
 			{
 				name:           "windows policy",
 				storedPlatform: "windows",
-				payload:        fleet.ModifyPolicyPayload{NotifyBeforePatching: new(true)},
-				wantErr:        `"notify_before_patching" is only available for macOS Fleet-maintained apps.`,
+				payload:        automdm.ModifyPolicyPayload{NotifyBeforePatching: new(true)},
+				wantErr:        `"notify_before_patching" is only available for macOS AutoMDM-maintained apps.`,
 			},
 			{
 				name:    "deadline with continuous automations off",
-				payload: fleet.ModifyPolicyPayload{PatchDeadline: new(true), ContinuousAutomationsEnabled: new(false)},
+				payload: automdm.ModifyPolicyPayload{PatchDeadline: new(true), ContinuousAutomationsEnabled: new(false)},
 				wantErr: `If "patch_deadline" is true, "continuous_automations_enabled" can't be set to false.`,
 			},
 			{
 				name:       "deadline on a non-patch policy",
-				storedType: fleet.PolicyTypeDynamic,
-				payload:    fleet.ModifyPolicyPayload{PatchDeadline: new(true)},
+				storedType: automdm.PolicyTypeDynamic,
+				payload:    automdm.ModifyPolicyPayload{PatchDeadline: new(true)},
 				wantErr:    `"patch_deadline" is only supported for patch policies`,
 			},
 			{
 				name:      "deadline with stored patch_when_closed",
 				storedPWC: true,
-				payload:   fleet.ModifyPolicyPayload{PatchDeadline: new(true)},
+				payload:   automdm.ModifyPolicyPayload{PatchDeadline: new(true)},
 				wantErr:   `Only one of "force_patch", "patch_when_closed", "notify_before_patching", or "patch_deadline" can be set to true.`,
 			},
 			{
 				name:           "deadline on a windows policy",
 				storedPlatform: "windows",
-				payload:        fleet.ModifyPolicyPayload{PatchDeadline: new(true)},
-				wantErr:        `"patch_deadline" is available for macOS Fleet-maintained apps. It's coming soon to Windows.`,
+				payload:        automdm.ModifyPolicyPayload{PatchDeadline: new(true)},
+				wantErr:        `"patch_deadline" is available for macOS AutoMDM-maintained apps. It's coming soon to Windows.`,
 			},
 		}
 
 		for _, c := range cases {
 			storedType, storedPWC, storedPlatform := c.storedType, c.storedPWC, c.storedPlatform
 			ds := setupDS("darwin")
-			ds.PolicyFunc = func(ctx context.Context, id uint) (*fleet.Policy, error) {
+			ds.PolicyFunc = func(ctx context.Context, id uint) (*automdm.Policy, error) {
 				stored := freshPatchPolicy()
 				stored.PatchWhenClosed = storedPWC
 				if storedType != "" {
 					stored.Type = storedType
 				}
-				if stored.Type != fleet.PolicyTypePatch {
+				if stored.Type != automdm.PolicyTypePatch {
 					stored.PatchSoftwareTitleID = nil
 				}
 				if storedPlatform != "" {
@@ -917,8 +917,8 @@ func TestTeamPolicyNotifyBeforePatching(t *testing.T) {
 	// same as patch_when_closed does.
 	t.Run("create notify-before-patching policy", func(t *testing.T) {
 		ds := setupDS("darwin")
-		var captured fleet.PolicyPayload
-		ds.NewTeamPolicyFunc = func(ctx context.Context, tID uint, authorID *uint, args fleet.PolicyPayload) (*fleet.Policy, error) {
+		var captured automdm.PolicyPayload
+		ds.NewTeamPolicyFunc = func(ctx context.Context, tID uint, authorID *uint, args automdm.PolicyPayload) (*automdm.Policy, error) {
 			captured = args
 			created := freshPatchPolicy()
 			created.NotifyBeforePatching = true
@@ -930,7 +930,7 @@ func TestTeamPolicyNotifyBeforePatching(t *testing.T) {
 			return nil
 		}
 
-		_, err := svc.NewTeamPolicy(adminCtx(baseCtx), teamID, fleet.NewTeamPolicyPayload{
+		_, err := svc.NewTeamPolicy(adminCtx(baseCtx), teamID, automdm.NewTeamPolicyPayload{
 			Type:                         &patchType,
 			PatchSoftwareTitleID:         new(patchSoftwareTitleID),
 			NotifyBeforePatching:         true,
@@ -946,8 +946,8 @@ func TestTeamPolicyNotifyBeforePatching(t *testing.T) {
 	// Enabling notify_before_patching on modify forces continuous automations on.
 	t.Run("modify auto-sets continuous automations", func(t *testing.T) {
 		ds := setupDS("darwin")
-		var saved *fleet.Policy
-		ds.SavePolicyFunc = func(ctx context.Context, p *fleet.Policy, _ bool, _ bool) error {
+		var saved *automdm.Policy
+		ds.SavePolicyFunc = func(ctx context.Context, p *automdm.Policy, _ bool, _ bool) error {
 			saved = p
 			return nil
 		}
@@ -957,7 +957,7 @@ func TestTeamPolicyNotifyBeforePatching(t *testing.T) {
 			return nil
 		}
 
-		_, err := svc.ModifyTeamPolicy(adminCtx(baseCtx), teamID, policyID, fleet.ModifyPolicyPayload{
+		_, err := svc.ModifyTeamPolicy(adminCtx(baseCtx), teamID, policyID, automdm.ModifyPolicyPayload{
 			NotifyBeforePatching: new(true),
 		})
 		require.NoError(t, err)
@@ -973,17 +973,17 @@ func TestTeamPolicyNotifyBeforePatching(t *testing.T) {
 	t.Run("modify off stops forcing continuous automations on", func(t *testing.T) {
 		cases := []struct {
 			name           string
-			payload        fleet.ModifyPolicyPayload
+			payload        automdm.ModifyPolicyPayload
 			wantContinuous bool
 		}{
 			{
 				name:           "continuous omitted keeps the stored value",
-				payload:        fleet.ModifyPolicyPayload{NotifyBeforePatching: new(false)},
+				payload:        automdm.ModifyPolicyPayload{NotifyBeforePatching: new(false)},
 				wantContinuous: true,
 			},
 			{
 				name: "explicit false is honored once the flag is off",
-				payload: fleet.ModifyPolicyPayload{
+				payload: automdm.ModifyPolicyPayload{
 					NotifyBeforePatching:         new(false),
 					ContinuousAutomationsEnabled: new(false),
 				},
@@ -993,14 +993,14 @@ func TestTeamPolicyNotifyBeforePatching(t *testing.T) {
 
 		for _, c := range cases {
 			ds := setupDS("darwin")
-			ds.PolicyFunc = func(ctx context.Context, id uint) (*fleet.Policy, error) {
+			ds.PolicyFunc = func(ctx context.Context, id uint) (*automdm.Policy, error) {
 				stored := freshPatchPolicy()
 				stored.NotifyBeforePatching = true
 				stored.ContinuousAutomationsEnabled = true
 				return stored, nil
 			}
-			var saved *fleet.Policy
-			ds.SavePolicyFunc = func(ctx context.Context, p *fleet.Policy, _ bool, _ bool) error {
+			var saved *automdm.Policy
+			ds.SavePolicyFunc = func(ctx context.Context, p *automdm.Policy, _ bool, _ bool) error {
 				saved = p
 				return nil
 			}
@@ -1023,26 +1023,26 @@ func TestModifyGlobalPolicyScriptID(t *testing.T) {
 	const policyID = uint(42)
 
 	ds := new(mock.Store)
-	ds.PolicyFunc = func(ctx context.Context, id uint) (*fleet.Policy, error) {
-		return &fleet.Policy{ID: policyID, Name: "global", Query: "SELECT 1;"}, nil
+	ds.PolicyFunc = func(ctx context.Context, id uint) (*automdm.Policy, error) {
+		return &automdm.Policy{ID: policyID, Name: "global", Query: "SELECT 1;"}, nil
 	}
-	ds.SavePolicyFunc = func(ctx context.Context, p *fleet.Policy, _ bool, _ bool) error { return nil }
-	opts := &TestServerOpts{License: &fleet.LicenseInfo{Tier: fleet.TierPremium}}
+	ds.SavePolicyFunc = func(ctx context.Context, p *automdm.Policy, _ bool, _ bool) error { return nil }
+	opts := &TestServerOpts{License: &automdm.LicenseInfo{Tier: automdm.TierPremium}}
 	svc, ctx := newTestService(t, ds, nil, nil, opts)
 	opts.ActivityMock.NewActivityFunc = func(_ context.Context, _ *activity_api.User, _ activity_api.ActivityDetails) error {
 		return nil
 	}
-	ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{ID: 1, GlobalRole: new(fleet.RoleAdmin)}})
+	ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{ID: 1, GlobalRole: new(automdm.RoleAdmin)}})
 
-	_, err := svc.ModifyGlobalPolicy(ctx, policyID, fleet.ModifyPolicyPayload{ScriptID: optjson.Any[uint]{Set: true, Valid: true, Value: 1}})
-	var bre *fleet.BadRequestError
+	_, err := svc.ModifyGlobalPolicy(ctx, policyID, automdm.ModifyPolicyPayload{ScriptID: optjson.Any[uint]{Set: true, Valid: true, Value: 1}})
+	var bre *automdm.BadRequestError
 	require.ErrorAs(t, err, &bre)
-	require.ErrorContains(t, err, errPolicyAllFleetsForScripts)
+	require.ErrorContains(t, err, errPolicyAllTeamsForScripts)
 	require.False(t, ds.SavePolicyFuncInvoked)
 
 	// Clients such as the UI send the full payload, so unsetting must keep working.
 	for _, unset := range []optjson.Any[uint]{{Set: true, Valid: true}, {Set: true}} {
-		_, err = svc.ModifyGlobalPolicy(ctx, policyID, fleet.ModifyPolicyPayload{ScriptID: unset})
+		_, err = svc.ModifyGlobalPolicy(ctx, policyID, automdm.ModifyPolicyPayload{ScriptID: unset})
 		require.NoError(t, err)
 	}
 	require.True(t, ds.SavePolicyFuncInvoked)
@@ -1052,23 +1052,23 @@ func TestTeamPolicyResendConfigProfile(t *testing.T) {
 	const (
 		teamID     = uint(1)
 		policyID   = uint(42)
-		appleUUID  = fleet.MDMAppleProfileUUIDPrefix + "1111"
-		winUUID    = fleet.MDMWindowsProfileUUIDPrefix + "2222"
-		otherApple = fleet.MDMAppleProfileUUIDPrefix + "3333"
+		appleUUID  = automdm.MDMAppleProfileUUIDPrefix + "1111"
+		winUUID    = automdm.MDMWindowsProfileUUIDPrefix + "2222"
+		otherApple = automdm.MDMAppleProfileUUIDPrefix + "3333"
 		appleName  = "Apple Profile"
 		winName    = "Windows Profile"
 	)
 
 	adminCtx := func(ctx context.Context) context.Context {
-		return viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{ID: 1, GlobalRole: new(fleet.RoleAdmin)}})
+		return viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{ID: 1, GlobalRole: new(automdm.RoleAdmin)}})
 	}
 
 	// policy returns a fresh team policy whose resend columns are set as given, so
 	// each subtest gets its own copy and cannot mutate another's.
-	policy := func(apple, windows *string) *fleet.Policy {
+	policy := func(apple, windows *string) *automdm.Policy {
 		tID := teamID
-		return &fleet.Policy{
-			PolicyData: fleet.PolicyData{
+		return &automdm.Policy{
+			PolicyData: automdm.PolicyData{
 				ID:                       policyID,
 				TeamID:                   &tID,
 				Name:                     "resend-policy",
@@ -1080,28 +1080,28 @@ func TestTeamPolicyResendConfigProfile(t *testing.T) {
 		}
 	}
 
-	setupDS := func(existing *fleet.Policy) *mock.Store {
+	setupDS := func(existing *automdm.Policy) *mock.Store {
 		ds := new(mock.Store)
 		ds.TeamExistsFunc = func(ctx context.Context, id uint) (bool, error) { return true, nil }
-		ds.PolicyFunc = func(ctx context.Context, id uint) (*fleet.Policy, error) { return existing, nil }
-		ds.TeamPolicyFunc = func(ctx context.Context, tID uint, id uint) (*fleet.Policy, error) { return existing, nil }
-		ds.TeamLiteFunc = func(ctx context.Context, id uint) (*fleet.TeamLite, error) {
-			return &fleet.TeamLite{ID: id}, nil
+		ds.PolicyFunc = func(ctx context.Context, id uint) (*automdm.Policy, error) { return existing, nil }
+		ds.TeamPolicyFunc = func(ctx context.Context, tID uint, id uint) (*automdm.Policy, error) { return existing, nil }
+		ds.TeamLiteFunc = func(ctx context.Context, id uint) (*automdm.TeamLite, error) {
+			return &automdm.TeamLite{ID: id}, nil
 		}
-		ds.TeamWithExtrasFunc = func(ctx context.Context, id uint) (*fleet.Team, error) {
-			return &fleet.Team{ID: id, Name: "team1"}, nil
+		ds.TeamWithExtrasFunc = func(ctx context.Context, id uint) (*automdm.Team, error) {
+			return &automdm.Team{ID: id, Name: "team1"}, nil
 		}
-		ds.GetMDMAppleConfigProfileFunc = func(ctx context.Context, profileUUID string) (*fleet.MDMAppleConfigProfile, error) {
-			return &fleet.MDMAppleConfigProfile{ProfileUUID: profileUUID, Name: appleName}, nil
+		ds.GetMDMAppleConfigProfileFunc = func(ctx context.Context, profileUUID string) (*automdm.MDMAppleConfigProfile, error) {
+			return &automdm.MDMAppleConfigProfile{ProfileUUID: profileUUID, Name: appleName}, nil
 		}
-		ds.GetMDMWindowsConfigProfileFunc = func(ctx context.Context, profileUUID string) (*fleet.MDMWindowsConfigProfile, error) {
-			return &fleet.MDMWindowsConfigProfile{ProfileUUID: profileUUID, Name: winName}, nil
+		ds.GetMDMWindowsConfigProfileFunc = func(ctx context.Context, profileUUID string) (*automdm.MDMWindowsConfigProfile, error) {
+			return &automdm.MDMWindowsConfigProfile{ProfileUUID: profileUUID, Name: winName}, nil
 		}
 		return ds
 	}
 
-	newPremiumSvc := func(t *testing.T, ds *mock.Store) (fleet.Service, context.Context) {
-		opts := &TestServerOpts{License: &fleet.LicenseInfo{Tier: fleet.TierPremium}}
+	newPremiumSvc := func(t *testing.T, ds *mock.Store) (automdm.Service, context.Context) {
+		opts := &TestServerOpts{License: &automdm.LicenseInfo{Tier: automdm.TierPremium}}
 		svc, baseCtx := newTestService(t, ds, nil, nil, opts)
 		opts.ActivityMock.NewActivityFunc = func(_ context.Context, _ *activity_api.User, _ activity_api.ActivityDetails) error {
 			return nil
@@ -1115,14 +1115,14 @@ func TestTeamPolicyResendConfigProfile(t *testing.T) {
 		for _, uuid := range []string{appleUUID, winUUID} {
 			t.Run(uuid, func(t *testing.T) {
 				ds := setupDS(nil)
-				var captured fleet.PolicyPayload
-				ds.NewTeamPolicyFunc = func(ctx context.Context, tID uint, authorID *uint, args fleet.PolicyPayload) (*fleet.Policy, error) {
+				var captured automdm.PolicyPayload
+				ds.NewTeamPolicyFunc = func(ctx context.Context, tID uint, authorID *uint, args automdm.PolicyPayload) (*automdm.Policy, error) {
 					captured = args
 					return policy(nil, nil), nil
 				}
 				svc, ctx := newPremiumSvc(t, ds)
 
-				_, err := svc.NewTeamPolicy(ctx, teamID, fleet.NewTeamPolicyPayload{
+				_, err := svc.NewTeamPolicy(ctx, teamID, automdm.NewTeamPolicyPayload{
 					Name:        "resend-policy",
 					Query:       "SELECT 1;",
 					Platform:    "darwin,windows",
@@ -1141,12 +1141,12 @@ func TestTeamPolicyResendConfigProfile(t *testing.T) {
 			for _, platform := range []string{"linux", "chrome", "linux,chrome"} {
 				t.Run("platform="+platform, func(t *testing.T) {
 					ds := setupDS(nil)
-					ds.NewTeamPolicyFunc = func(ctx context.Context, tID uint, authorID *uint, args fleet.PolicyPayload) (*fleet.Policy, error) {
+					ds.NewTeamPolicyFunc = func(ctx context.Context, tID uint, authorID *uint, args automdm.PolicyPayload) (*automdm.Policy, error) {
 						return policy(nil, nil), nil
 					}
 					svc, ctx := newPremiumSvc(t, ds)
 
-					_, err := svc.NewTeamPolicy(ctx, teamID, fleet.NewTeamPolicyPayload{
+					_, err := svc.NewTeamPolicy(ctx, teamID, automdm.NewTeamPolicyPayload{
 						Name:        "resend-policy",
 						Query:       "SELECT 1;",
 						Platform:    platform,
@@ -1164,12 +1164,12 @@ func TestTeamPolicyResendConfigProfile(t *testing.T) {
 			for _, platform := range []string{"darwin", "windows", "darwin,windows", "linux,darwin", ""} {
 				t.Run("platform="+platform, func(t *testing.T) {
 					ds := setupDS(nil)
-					ds.NewTeamPolicyFunc = func(ctx context.Context, tID uint, authorID *uint, args fleet.PolicyPayload) (*fleet.Policy, error) {
+					ds.NewTeamPolicyFunc = func(ctx context.Context, tID uint, authorID *uint, args automdm.PolicyPayload) (*automdm.Policy, error) {
 						return policy(new(appleUUID), nil), nil
 					}
 					svc, ctx := newPremiumSvc(t, ds)
 
-					_, err := svc.NewTeamPolicy(ctx, teamID, fleet.NewTeamPolicyPayload{
+					_, err := svc.NewTeamPolicy(ctx, teamID, automdm.NewTeamPolicyPayload{
 						Name:        "resend-policy",
 						Query:       "SELECT 1;",
 						Platform:    platform,
@@ -1185,12 +1185,12 @@ func TestTeamPolicyResendConfigProfile(t *testing.T) {
 			existing := policy(nil, nil)
 			existing.Platform = "linux"
 			ds := setupDS(existing)
-			ds.SavePolicyFunc = func(ctx context.Context, p *fleet.Policy, removeAllMemberships, removeStats bool) error {
+			ds.SavePolicyFunc = func(ctx context.Context, p *automdm.Policy, removeAllMemberships, removeStats bool) error {
 				return nil
 			}
 			svc, ctx := newPremiumSvc(t, ds)
 
-			_, err := svc.ModifyTeamPolicy(ctx, teamID, policyID, fleet.ModifyPolicyPayload{
+			_, err := svc.ModifyTeamPolicy(ctx, teamID, policyID, automdm.ModifyPolicyPayload{
 				ProfileUUID: optjson.SetString(appleUUID),
 			})
 			require.Error(t, err)
@@ -1201,12 +1201,12 @@ func TestTeamPolicyResendConfigProfile(t *testing.T) {
 		t.Run("modify rejects narrowing the platform away from a policy that resends", func(t *testing.T) {
 			// The profile stays as it was; the platform change is what invalidates the pairing.
 			ds := setupDS(policy(new(appleUUID), nil))
-			ds.SavePolicyFunc = func(ctx context.Context, p *fleet.Policy, removeAllMemberships, removeStats bool) error {
+			ds.SavePolicyFunc = func(ctx context.Context, p *automdm.Policy, removeAllMemberships, removeStats bool) error {
 				return nil
 			}
 			svc, ctx := newPremiumSvc(t, ds)
 
-			_, err := svc.ModifyTeamPolicy(ctx, teamID, policyID, fleet.ModifyPolicyPayload{
+			_, err := svc.ModifyTeamPolicy(ctx, teamID, policyID, automdm.ModifyPolicyPayload{
 				Platform: new("linux"),
 			})
 			require.Error(t, err)
@@ -1216,14 +1216,14 @@ func TestTeamPolicyResendConfigProfile(t *testing.T) {
 
 		t.Run("modify allows clearing the profile while narrowing the platform", func(t *testing.T) {
 			ds := setupDS(policy(new(appleUUID), nil))
-			var saved *fleet.Policy
-			ds.SavePolicyFunc = func(ctx context.Context, p *fleet.Policy, removeAllMemberships, removeStats bool) error {
+			var saved *automdm.Policy
+			ds.SavePolicyFunc = func(ctx context.Context, p *automdm.Policy, removeAllMemberships, removeStats bool) error {
 				saved = p
 				return nil
 			}
 			svc, ctx := newPremiumSvc(t, ds)
 
-			_, err := svc.ModifyTeamPolicy(ctx, teamID, policyID, fleet.ModifyPolicyPayload{
+			_, err := svc.ModifyTeamPolicy(ctx, teamID, policyID, automdm.ModifyPolicyPayload{
 				Platform:    new("linux"),
 				ProfileUUID: optjson.SetString(""),
 			})
@@ -1236,14 +1236,14 @@ func TestTeamPolicyResendConfigProfile(t *testing.T) {
 
 	t.Run("create with no profile_uuid leaves the payload nil", func(t *testing.T) {
 		ds := setupDS(nil)
-		var captured fleet.PolicyPayload
-		ds.NewTeamPolicyFunc = func(ctx context.Context, tID uint, authorID *uint, args fleet.PolicyPayload) (*fleet.Policy, error) {
+		var captured automdm.PolicyPayload
+		ds.NewTeamPolicyFunc = func(ctx context.Context, tID uint, authorID *uint, args automdm.PolicyPayload) (*automdm.Policy, error) {
 			captured = args
 			return policy(nil, nil), nil
 		}
 		svc, ctx := newPremiumSvc(t, ds)
 
-		_, err := svc.NewTeamPolicy(ctx, teamID, fleet.NewTeamPolicyPayload{Name: "p", Query: "SELECT 1;"})
+		_, err := svc.NewTeamPolicy(ctx, teamID, automdm.NewTeamPolicyPayload{Name: "p", Query: "SELECT 1;"})
 		require.NoError(t, err)
 		require.Nil(t, captured.ProfileUUID)
 	})
@@ -1326,18 +1326,18 @@ func TestTeamPolicyResendConfigProfile(t *testing.T) {
 			t.Run(c.name, func(t *testing.T) {
 				ds := setupDS(policy(c.prevApple, c.prevWindows))
 				var (
-					saved                *fleet.Policy
+					saved                *automdm.Policy
 					gotRemoveMemberships bool
 					gotRemoveStats       bool
 				)
-				ds.SavePolicyFunc = func(ctx context.Context, p *fleet.Policy, removeAllMemberships bool, removeStats bool) error {
+				ds.SavePolicyFunc = func(ctx context.Context, p *automdm.Policy, removeAllMemberships bool, removeStats bool) error {
 					saved, gotRemoveMemberships, gotRemoveStats = p, removeAllMemberships, removeStats
 					return nil
 				}
 				svc, ctx := newPremiumSvc(t, ds)
 
 				tID := teamID
-				_, err := svc.ModifyTeamPolicy(ctx, tID, policyID, fleet.ModifyPolicyPayload{
+				_, err := svc.ModifyTeamPolicy(ctx, tID, policyID, automdm.ModifyPolicyPayload{
 					ProfileUUID: optjson.SetString(c.newValue),
 				})
 				require.NoError(t, err)
@@ -1358,15 +1358,15 @@ func TestTeamPolicyResendConfigProfile(t *testing.T) {
 	// savePolicy writes both columns unconditionally.
 	t.Run("absent profile_uuid keeps the existing profile", func(t *testing.T) {
 		ds := setupDS(policy(new(appleUUID), nil))
-		var saved *fleet.Policy
+		var saved *automdm.Policy
 		var gotRemoveMemberships, gotRemoveStats bool
-		ds.SavePolicyFunc = func(ctx context.Context, p *fleet.Policy, removeAllMemberships bool, removeStats bool) error {
+		ds.SavePolicyFunc = func(ctx context.Context, p *automdm.Policy, removeAllMemberships bool, removeStats bool) error {
 			saved, gotRemoveMemberships, gotRemoveStats = p, removeAllMemberships, removeStats
 			return nil
 		}
 		svc, ctx := newPremiumSvc(t, ds)
 
-		_, err := svc.ModifyTeamPolicy(ctx, teamID, policyID, fleet.ModifyPolicyPayload{
+		_, err := svc.ModifyTeamPolicy(ctx, teamID, policyID, automdm.ModifyPolicyPayload{
 			Name: new("renamed"),
 		})
 		require.NoError(t, err)
@@ -1385,12 +1385,12 @@ func TestTeamPolicyResendConfigProfile(t *testing.T) {
 		}{
 			{
 				name:       "apple declaration",
-				uuid:       fleet.MDMAppleDeclarationUUIDPrefix + "4444",
-				wantErrMsg: fleet.CantResendAppleDeclarationProfilesMessage,
+				uuid:       automdm.MDMAppleDeclarationUUIDPrefix + "4444",
+				wantErrMsg: automdm.CantResendAppleDeclarationProfilesMessage,
 			},
 			{
 				name:       "android profile",
-				uuid:       fleet.MDMAndroidProfileUUIDPrefix + "5555",
+				uuid:       automdm.MDMAndroidProfileUUIDPrefix + "5555",
 				wantErrMsg: "has an invalid prefix",
 			},
 			{
@@ -1403,16 +1403,16 @@ func TestTeamPolicyResendConfigProfile(t *testing.T) {
 		for _, c := range cases {
 			t.Run(c.name, func(t *testing.T) {
 				ds := setupDS(policy(nil, nil))
-				ds.SavePolicyFunc = func(ctx context.Context, p *fleet.Policy, _ bool, _ bool) error {
+				ds.SavePolicyFunc = func(ctx context.Context, p *automdm.Policy, _ bool, _ bool) error {
 					return nil
 				}
 				svc, ctx := newPremiumSvc(t, ds)
 
-				_, err := svc.ModifyTeamPolicy(ctx, teamID, policyID, fleet.ModifyPolicyPayload{
+				_, err := svc.ModifyTeamPolicy(ctx, teamID, policyID, automdm.ModifyPolicyPayload{
 					ProfileUUID: optjson.SetString(c.uuid),
 				})
 				require.Error(t, err)
-				var bre *fleet.BadRequestError
+				var bre *automdm.BadRequestError
 				require.ErrorAs(t, err, &bre)
 				require.Contains(t, bre.Message, c.wantErrMsg)
 				// Nothing must reach the datastore.
@@ -1421,20 +1421,20 @@ func TestTeamPolicyResendConfigProfile(t *testing.T) {
 		}
 	})
 
-	// "All fleets" (global) policies cannot carry a resend profile.
+	// "All teams" (global) policies cannot carry a resend profile.
 	t.Run("global policy rejects profile_uuid", func(t *testing.T) {
-		globalPolicy := &fleet.Policy{
-			PolicyData: fleet.PolicyData{ID: policyID, Name: "global", Query: "SELECT 1;"},
+		globalPolicy := &automdm.Policy{
+			PolicyData: automdm.PolicyData{ID: policyID, Name: "global", Query: "SELECT 1;"},
 		}
 		ds := setupDS(globalPolicy)
-		ds.SavePolicyFunc = func(ctx context.Context, p *fleet.Policy, _ bool, _ bool) error { return nil }
+		ds.SavePolicyFunc = func(ctx context.Context, p *automdm.Policy, _ bool, _ bool) error { return nil }
 		svc, ctx := newPremiumSvc(t, ds)
 
-		_, err := svc.ModifyGlobalPolicy(ctx, policyID, fleet.ModifyPolicyPayload{
+		_, err := svc.ModifyGlobalPolicy(ctx, policyID, automdm.ModifyPolicyPayload{
 			ProfileUUID: optjson.SetString(appleUUID),
 		})
 		require.Error(t, err)
-		require.ErrorContains(t, err, errPolicyAllFleetsForProfiles)
+		require.ErrorContains(t, err, errPolicyAllTeamsForProfiles)
 		require.False(t, ds.SavePolicyFuncInvoked)
 	})
 
@@ -1481,45 +1481,45 @@ func TestTeamPolicyResendConfigProfile(t *testing.T) {
 
 func TestModifyPolicyLabelChangeRemovesStats(t *testing.T) {
 	const policyID = uint(42)
-	newSvc := func(t *testing.T) (*mock.Store, fleet.Service, context.Context) {
+	newSvc := func(t *testing.T) (*mock.Store, automdm.Service, context.Context) {
 		ds := new(mock.Store)
-		ds.PolicyFunc = func(ctx context.Context, id uint) (*fleet.Policy, error) {
-			return &fleet.Policy{
+		ds.PolicyFunc = func(ctx context.Context, id uint) (*automdm.Policy, error) {
+			return &automdm.Policy{
 				ID: policyID, Name: "global", Query: "SELECT 1;",
-				LabelsIncludeAny: fleet.LabelNamesToIdents([]string{"label-a", "label-b"}),
+				LabelsIncludeAny: automdm.LabelNamesToIdents([]string{"label-a", "label-b"}),
 				PassingHostCount: 3, FailingHostCount: 4, HostCountUpdatedAt: new(time.Now()),
 			}, nil
 		}
-		ds.LabelsByNameFunc = func(ctx context.Context, names []string, filter fleet.TeamFilter) (map[string]*fleet.Label, error) {
-			labels := make(map[string]*fleet.Label, len(names))
+		ds.LabelsByNameFunc = func(ctx context.Context, names []string, filter automdm.TeamFilter) (map[string]*automdm.Label, error) {
+			labels := make(map[string]*automdm.Label, len(names))
 			for i, name := range names {
-				labels[name] = &fleet.Label{ID: uint(i + 1), Name: name} //nolint:gosec // dismiss G115
+				labels[name] = &automdm.Label{ID: uint(i + 1), Name: name} //nolint:gosec // dismiss G115
 			}
 			return labels, nil
 		}
-		opts := &TestServerOpts{License: &fleet.LicenseInfo{Tier: fleet.TierPremium}}
+		opts := &TestServerOpts{License: &automdm.LicenseInfo{Tier: automdm.TierPremium}}
 		svc, ctx := newTestService(t, ds, nil, nil, opts)
 		opts.ActivityMock.NewActivityFunc = func(_ context.Context, _ *activity_api.User, _ activity_api.ActivityDetails) error {
 			return nil
 		}
-		return ds, svc, viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{ID: 1, GlobalRole: new(fleet.RoleAdmin)}})
+		return ds, svc, viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{ID: 1, GlobalRole: new(automdm.RoleAdmin)}})
 	}
 
 	cases := []struct {
 		name            string
-		payload         fleet.ModifyPolicyPayload
+		payload         automdm.ModifyPolicyPayload
 		wantRemoveStats bool
 	}{
-		{"changed labels", fleet.ModifyPolicyPayload{LabelsIncludeAny: []string{"label-a"}}, true},
-		{"switched label scope", fleet.ModifyPolicyPayload{LabelsExcludeAny: []string{"label-a", "label-b"}}, true},
-		{"same labels in another order", fleet.ModifyPolicyPayload{LabelsIncludeAny: []string{"label-b", "label-a"}}, false},
-		{"labels not sent", fleet.ModifyPolicyPayload{Description: new("new description")}, false},
+		{"changed labels", automdm.ModifyPolicyPayload{LabelsIncludeAny: []string{"label-a"}}, true},
+		{"switched label scope", automdm.ModifyPolicyPayload{LabelsExcludeAny: []string{"label-a", "label-b"}}, true},
+		{"same labels in another order", automdm.ModifyPolicyPayload{LabelsIncludeAny: []string{"label-b", "label-a"}}, false},
+		{"labels not sent", automdm.ModifyPolicyPayload{Description: new("new description")}, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			ds, svc, ctx := newSvc(t)
 			var removeAll, removeStats bool
-			ds.SavePolicyFunc = func(ctx context.Context, p *fleet.Policy, shouldRemoveAll, shouldRemoveStats bool) error {
+			ds.SavePolicyFunc = func(ctx context.Context, p *automdm.Policy, shouldRemoveAll, shouldRemoveStats bool) error {
 				removeAll, removeStats = shouldRemoveAll, shouldRemoveStats
 				return nil
 			}
@@ -1544,43 +1544,43 @@ func TestListPoliciesForcePatch(t *testing.T) {
 	const softwareTitleID = uint(201)
 
 	ds := new(mock.Store)
-	ds.TeamLiteFunc = func(ctx context.Context, teamID uint) (*fleet.TeamLite, error) {
-		return &fleet.TeamLite{ID: teamID}, nil
+	ds.TeamLiteFunc = func(ctx context.Context, teamID uint) (*automdm.TeamLite, error) {
+		return &automdm.TeamLite{ID: teamID}, nil
 	}
-	ds.GetSoftwareInstallerMetadataByIDFunc = func(ctx context.Context, id uint) (*fleet.SoftwareInstaller, error) {
-		return &fleet.SoftwareInstaller{InstallerID: id, TitleID: new(softwareTitleID), SoftwareTitle: "Firefox"}, nil
+	ds.GetSoftwareInstallerMetadataByIDFunc = func(ctx context.Context, id uint) (*automdm.SoftwareInstaller, error) {
+		return &automdm.SoftwareInstaller{InstallerID: id, TitleID: new(softwareTitleID), SoftwareTitle: "Firefox"}, nil
 	}
-	ds.GetSoftwareIconsByTeamAndTitleIdsFunc = func(ctx context.Context, teamID uint, titleIDs []uint) (map[uint]fleet.SoftwareTitleIcon, error) {
-		return map[uint]fleet.SoftwareTitleIcon{}, nil
+	ds.GetSoftwareIconsByTeamAndTitleIdsFunc = func(ctx context.Context, teamID uint, titleIDs []uint) (map[uint]automdm.SoftwareTitleIcon, error) {
+		return map[uint]automdm.SoftwareTitleIcon{}, nil
 	}
-	ds.ListPoliciesInScopeFunc = func(ctx context.Context, teamID *uint, mergeInherited bool, opts fleet.ListOptions, filter fleet.PolicyListFilter) ([]*fleet.Policy, error) {
-		return []*fleet.Policy{
-			{ID: 1, TeamID: teamID, Type: fleet.PolicyTypePatch, SoftwareInstallerID: new(softwareInstallerID)},
-			{ID: 2, TeamID: teamID, Type: fleet.PolicyTypePatch, SoftwareInstallerID: new(softwareInstallerID), PatchWhenClosed: true},
-			{ID: 3, TeamID: teamID, Type: fleet.PolicyTypePatch, SoftwareInstallerID: new(softwareInstallerID), NotifyBeforePatching: true},
-			{ID: 4, TeamID: teamID, Type: fleet.PolicyTypePatch, SoftwareInstallerID: new(softwareInstallerID), PatchDeadline: true},
-			{ID: 5, TeamID: teamID, Type: fleet.PolicyTypePatch},
-			{ID: 6, TeamID: teamID, Type: fleet.PolicyTypeDynamic, SoftwareInstallerID: new(softwareInstallerID)},
+	ds.ListPoliciesInScopeFunc = func(ctx context.Context, teamID *uint, mergeInherited bool, opts automdm.ListOptions, filter automdm.PolicyListFilter) ([]*automdm.Policy, error) {
+		return []*automdm.Policy{
+			{ID: 1, TeamID: teamID, Type: automdm.PolicyTypePatch, SoftwareInstallerID: new(softwareInstallerID)},
+			{ID: 2, TeamID: teamID, Type: automdm.PolicyTypePatch, SoftwareInstallerID: new(softwareInstallerID), PatchWhenClosed: true},
+			{ID: 3, TeamID: teamID, Type: automdm.PolicyTypePatch, SoftwareInstallerID: new(softwareInstallerID), NotifyBeforePatching: true},
+			{ID: 4, TeamID: teamID, Type: automdm.PolicyTypePatch, SoftwareInstallerID: new(softwareInstallerID), PatchDeadline: true},
+			{ID: 5, TeamID: teamID, Type: automdm.PolicyTypePatch},
+			{ID: 6, TeamID: teamID, Type: automdm.PolicyTypeDynamic, SoftwareInstallerID: new(softwareInstallerID)},
 		}, nil
 	}
 
-	svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: &fleet.LicenseInfo{Tier: fleet.TierPremium}})
-	ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{ID: 1, GlobalRole: new(fleet.RoleAdmin)}})
+	svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: &automdm.LicenseInfo{Tier: automdm.TierPremium}})
+	ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{ID: 1, GlobalRole: new(automdm.RoleAdmin)}})
 
 	for _, teamID := range []uint{1, 0} {
-		policies, err := svc.ListPolicies(ctx, new(teamID), false, fleet.ListOptions{}, fleet.PolicyListFilter{})
+		policies, err := svc.ListPolicies(ctx, new(teamID), false, automdm.ListOptions{}, automdm.PolicyListFilter{})
 		require.NoError(t, err)
 		require.Len(t, policies, 6)
 
 		// List a patch policy with an installer and no other option, force_patch should be true.
-		require.True(t, policies[0].ForcePatch, "fleet %d", teamID)
+		require.True(t, policies[0].ForcePatch, "team %d", teamID)
 		// List patch policies with patch_when_closed, notify_before_patching, or patch_deadline, force_patch should be false.
-		require.False(t, policies[1].ForcePatch, "fleet %d", teamID)
-		require.False(t, policies[2].ForcePatch, "fleet %d", teamID)
-		require.False(t, policies[3].ForcePatch, "fleet %d", teamID)
+		require.False(t, policies[1].ForcePatch, "team %d", teamID)
+		require.False(t, policies[2].ForcePatch, "team %d", teamID)
+		require.False(t, policies[3].ForcePatch, "team %d", teamID)
 		// List a patch policy without an installer, force_patch should be false.
-		require.False(t, policies[4].ForcePatch, "fleet %d", teamID)
+		require.False(t, policies[4].ForcePatch, "team %d", teamID)
 		// List a dynamic policy with an installer, force_patch should be false.
-		require.False(t, policies[5].ForcePatch, "fleet %d", teamID)
+		require.False(t, policies[5].ForcePatch, "team %d", teamID)
 	}
 }

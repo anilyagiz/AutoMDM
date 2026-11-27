@@ -13,11 +13,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/stretchr/testify/require"
 )
 
@@ -45,16 +45,16 @@ func extract(src, dst string, t require.TestingT) {
 func loadSoftware(
 	ds *mysql.Datastore,
 	p Platform,
-	s fleet.OSVersion,
+	s automdm.OSVersion,
 	vulnPath string,
 	t require.TestingT,
-) *fleet.Host {
+) *automdm.Host {
 	osqueryHostID, err := server.GenerateRandomText(10)
 	require.NoError(t, err)
 
 	ctx := context.Background()
 
-	h, err := ds.NewHost(context.Background(), &fleet.Host{
+	h, err := ds.NewHost(context.Background(), &automdm.Host{
 		Hostname:        string(p),
 		NodeKey:         ptr.String(string(p)),
 		UUID:            string(p),
@@ -80,9 +80,9 @@ func loadSoftware(
 		source = "deb_packages"
 	}
 
-	var software []fleet.Software
+	var software []automdm.Software
 	for _, fi := range fixtures {
-		software = append(software, fleet.Software{
+		software = append(software, automdm.Software{
 			Name:    fi.Name,
 			Version: fi.Version,
 			Release: fi.Release,
@@ -96,9 +96,9 @@ func loadSoftware(
 	err = ds.LoadHostSoftware(ctx, h, false)
 	require.NoError(t, err)
 
-	var cpes []fleet.SoftwareCPE
+	var cpes []automdm.SoftwareCPE
 	for _, s := range h.Software {
-		cpes = append(cpes, fleet.SoftwareCPE{SoftwareID: s.ID, CPE: fmt.Sprintf("%s-%s", s.Name, s.Version)})
+		cpes = append(cpes, automdm.SoftwareCPE{SoftwareID: s.ID, CPE: fmt.Sprintf("%s-%s", s.Name, s.Version)})
 	}
 	_, err = ds.UpsertSoftwareCPEs(ctx, cpes)
 	require.NoError(t, err)
@@ -129,12 +129,12 @@ func extractFixtures(
 }
 
 func withTestFixture(
-	version fleet.OSVersion,
+	version automdm.OSVersion,
 	ovalFixtureDir string,
 	softwareFixtureDir string,
 	vulnPath string,
 	ds *mysql.Datastore,
-	afterLoad func(h *fleet.Host),
+	afterLoad func(h *automdm.Host),
 	t require.TestingT,
 ) {
 	ctx := context.Background()
@@ -154,9 +154,9 @@ func assertVulns(
 	t require.TestingT,
 	ds *mysql.Datastore,
 	vulnPath string,
-	h *fleet.Host,
+	h *automdm.Host,
 	p Platform,
-	source fleet.VulnerabilitySource,
+	source automdm.VulnerabilitySource,
 ) {
 	ctx := context.Background()
 
@@ -211,7 +211,7 @@ func BenchmarkTestOvalAnalyzer(b *testing.B) {
 
 		vulnPath := b.TempDir()
 
-		systems := []fleet.OSVersion{
+		systems := []automdm.OSVersion{
 			{Platform: "ubuntu", Name: "Ubuntu 16.4.0"},
 			{Platform: "ubuntu", Name: "Ubuntu 18.4.0"},
 			{Platform: "ubuntu", Name: "Ubuntu 20.4.0"},
@@ -225,7 +225,7 @@ func BenchmarkTestOvalAnalyzer(b *testing.B) {
 
 		for _, v := range systems {
 			b.Run(fmt.Sprintf("for %s %s", v.Platform, v.Name), func(b *testing.B) {
-				withTestFixture(v, ovalFixtureDir, softwareFixtureDir, vulnPath, ds, func(h *fleet.Host) {
+				withTestFixture(v, ovalFixtureDir, softwareFixtureDir, vulnPath, ds, func(h *automdm.Host) {
 					b.ResetTimer()
 					for i := 0; i < b.N; i++ {
 						_, err := Analyze(context.Background(), ds, v, vulnPath, true)
@@ -245,43 +245,43 @@ func BenchmarkTestOvalAnalyzer(b *testing.B) {
 		systems := []struct {
 			softwareFixtureDir string
 			ovalFixtureDir     string
-			version            fleet.OSVersion
+			version            automdm.OSVersion
 		}{
 			{
 				ovalFixtureDir:     "rhel",
 				softwareFixtureDir: filepath.Join("rhel", "software", "0709"),
-				version:            fleet.OSVersion{Platform: "rhel", Name: "Red Hat Enterprise Linux Server 7.9.0"},
+				version:            automdm.OSVersion{Platform: "rhel", Name: "Red Hat Enterprise Linux Server 7.9.0"},
 			},
 			{
 				ovalFixtureDir:     "rhel",
 				softwareFixtureDir: filepath.Join("rhel", "software", "0802"),
-				version:            fleet.OSVersion{Platform: "rhel", Name: "Red Hat Enterprise Linux Server 8.2.0"},
+				version:            automdm.OSVersion{Platform: "rhel", Name: "Red Hat Enterprise Linux Server 8.2.0"},
 			},
 			{
 				ovalFixtureDir:     "rhel",
 				softwareFixtureDir: filepath.Join("rhel", "software", "0804"),
-				version:            fleet.OSVersion{Platform: "rhel", Name: "Red Hat Enterprise Linux 8.4.0"},
+				version:            automdm.OSVersion{Platform: "rhel", Name: "Red Hat Enterprise Linux 8.4.0"},
 			},
 			{
 				ovalFixtureDir:     "rhel",
 				softwareFixtureDir: filepath.Join("rhel", "software", "0806"),
-				version:            fleet.OSVersion{Platform: "rhel", Name: "Red Hat Enterprise Linux 8.6.0"},
+				version:            automdm.OSVersion{Platform: "rhel", Name: "Red Hat Enterprise Linux 8.6.0"},
 			},
 			{
 				ovalFixtureDir:     "rhel",
 				softwareFixtureDir: filepath.Join("rhel", "software", "0900"),
-				version:            fleet.OSVersion{Platform: "rhel", Name: "Red Hat Enterprise Linux 9.0.0"},
+				version:            automdm.OSVersion{Platform: "rhel", Name: "Red Hat Enterprise Linux 9.0.0"},
 			},
 			{
 				ovalFixtureDir:     filepath.Join("rhel", "fp_test"), // false-positive filtering test
 				softwareFixtureDir: filepath.Join("rhel", "fp_test", "software", "0900"),
-				version:            fleet.OSVersion{Platform: "rhel", Name: "Red Hat Enterprise Linux 9.0.0"},
+				version:            automdm.OSVersion{Platform: "rhel", Name: "Red Hat Enterprise Linux 9.0.0"},
 			},
 		}
 
 		for _, v := range systems {
 			b.Run(fmt.Sprintf("for %s %s", v.version.Platform, v.version.Name), func(b *testing.B) {
-				withTestFixture(v.version, v.ovalFixtureDir, v.softwareFixtureDir, vulnPath, ds, func(h *fleet.Host) {
+				withTestFixture(v.version, v.ovalFixtureDir, v.softwareFixtureDir, vulnPath, ds, func(h *automdm.Host) {
 					b.ResetTimer()
 					for i := 0; i < b.N; i++ {
 						_, err := Analyze(context.Background(), ds, v.version, vulnPath, true)
@@ -305,46 +305,46 @@ func TestOvalAnalyzer(t *testing.T) {
 		systems := []struct {
 			softwareFixtureDir string
 			ovalFixtureDir     string
-			version            fleet.OSVersion
+			version            automdm.OSVersion
 		}{
 			{
 				ovalFixtureDir:     "rhel",
 				softwareFixtureDir: filepath.Join("rhel", "software", "0709"),
-				version:            fleet.OSVersion{Platform: "rhel", Name: "Red Hat Enterprise Linux Server 7.9.0"},
+				version:            automdm.OSVersion{Platform: "rhel", Name: "Red Hat Enterprise Linux Server 7.9.0"},
 			},
 			{
 				ovalFixtureDir:     "rhel",
 				softwareFixtureDir: filepath.Join("rhel", "software", "0802"),
-				version:            fleet.OSVersion{Platform: "rhel", Name: "Red Hat Enterprise Linux Server 8.2.0"},
+				version:            automdm.OSVersion{Platform: "rhel", Name: "Red Hat Enterprise Linux Server 8.2.0"},
 			},
 			{
 				ovalFixtureDir:     "rhel",
 				softwareFixtureDir: filepath.Join("rhel", "software", "0804"),
-				version:            fleet.OSVersion{Platform: "rhel", Name: "Red Hat Enterprise Linux 8.4.0"},
+				version:            automdm.OSVersion{Platform: "rhel", Name: "Red Hat Enterprise Linux 8.4.0"},
 			},
 			{
 				ovalFixtureDir:     "rhel",
 				softwareFixtureDir: filepath.Join("rhel", "software", "0806"),
-				version:            fleet.OSVersion{Platform: "rhel", Name: "Red Hat Enterprise Linux 8.6.0"},
+				version:            automdm.OSVersion{Platform: "rhel", Name: "Red Hat Enterprise Linux 8.6.0"},
 			},
 			{
 				ovalFixtureDir:     "rhel",
 				softwareFixtureDir: filepath.Join("rhel", "software", "0900"),
-				version:            fleet.OSVersion{Platform: "rhel", Name: "Red Hat Enterprise Linux 9.0.0"},
+				version:            automdm.OSVersion{Platform: "rhel", Name: "Red Hat Enterprise Linux 9.0.0"},
 			},
 			{
 				ovalFixtureDir:     filepath.Join("rhel", "fp_test"), // false-positive filtering test
 				softwareFixtureDir: filepath.Join("rhel", "fp_test", "software", "0900"),
-				version:            fleet.OSVersion{Platform: "rhel", Name: "Red Hat Enterprise Linux 9.0.0"},
+				version:            automdm.OSVersion{Platform: "rhel", Name: "Red Hat Enterprise Linux 9.0.0"},
 			},
 		}
 
 		for _, s := range systems {
-			withTestFixture(s.version, s.ovalFixtureDir, s.softwareFixtureDir, vulnPath, ds, func(h *fleet.Host) {
+			withTestFixture(s.version, s.ovalFixtureDir, s.softwareFixtureDir, vulnPath, ds, func(h *automdm.Host) {
 				_, err := Analyze(ctx, ds, s.version, vulnPath, true)
 				require.NoError(t, err)
 				p := NewPlatform(s.version.Platform, s.version.Name)
-				assertVulns(t, ds, vulnPath, h, p, fleet.RHELOVALSource)
+				assertVulns(t, ds, vulnPath, h, p, automdm.RHELOVALSource)
 			}, t)
 		}
 	})
@@ -360,7 +360,7 @@ func TestOvalAnalyzer(t *testing.T) {
 
 		ctx := context.Background()
 
-		systems := []fleet.OSVersion{
+		systems := []automdm.OSVersion{
 			{Platform: "ubuntu", Name: "Ubuntu 16.4.0"},
 			{Platform: "ubuntu", Name: "Ubuntu 18.4.0"},
 			{Platform: "ubuntu", Name: "Ubuntu 20.4.0"},
@@ -372,12 +372,12 @@ func TestOvalAnalyzer(t *testing.T) {
 		ovalFixtureDir := "ubuntu"
 		softwareFixtureDir := filepath.Join("ubuntu", "software")
 		for _, v := range systems {
-			withTestFixture(v, ovalFixtureDir, softwareFixtureDir, vulnPath, ds, func(h *fleet.Host) {
+			withTestFixture(v, ovalFixtureDir, softwareFixtureDir, vulnPath, ds, func(h *automdm.Host) {
 				_, err := Analyze(ctx, ds, v, vulnPath, true)
 				require.NoError(t, err)
 
 				p := NewPlatform(v.Platform, v.Name)
-				assertVulns(t, ds, vulnPath, h, p, fleet.UbuntuOVALSource)
+				assertVulns(t, ds, vulnPath, h, p, automdm.UbuntuOVALSource)
 			}, t)
 		}
 	})

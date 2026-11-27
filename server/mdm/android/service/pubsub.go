@@ -13,15 +13,15 @@ import (
 	"strings"
 	"time"
 
-	shared_mdm "github.com/fleetdm/fleet/v4/pkg/mdm"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxdb"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/logging"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
-	"github.com/fleetdm/fleet/v4/server/mdm/android/service/androidmgmt"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/worker"
+	shared_mdm "github.com/anilyagiz/automdm/v4/pkg/mdm"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxdb"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/logging"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android/service/androidmgmt"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/worker"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 	"google.golang.org/api/androidmanagement/v1"
@@ -37,7 +37,7 @@ type PubSubPushRequest struct {
 	android.PubSubMessage `json:"message"`
 }
 
-func pubSubPushEndpoint(ctx context.Context, request interface{}, svc android.Service) fleet.Errorer {
+func pubSubPushEndpoint(ctx context.Context, request interface{}, svc android.Service) automdm.Errorer {
 	req := request.(*PubSubPushRequest)
 	err := svc.ProcessPubSubPush(ctx, req.Token, &req.PubSubMessage)
 	return android.DefaultResponse{Err: err}
@@ -98,29 +98,29 @@ func (svc *Service) authenticatePubSub(ctx context.Context, token string) error 
 	//
 	// Note: We could also check that the device belongs to our enterprise, for additional security. We would need an Android cached_mysql for that.
 	// "name": "enterprises/LC044q09r2/devices/3dc9d72fbd517bbc",
-	assets, err := svc.ds.GetAllMDMConfigAssetsByName(ctx, []fleet.MDMAssetName{fleet.MDMAssetAndroidPubSubToken}, nil)
+	assets, err := svc.ds.GetAllMDMConfigAssetsByName(ctx, []automdm.MDMAssetName{automdm.MDMAssetAndroidPubSubToken}, nil)
 	switch {
-	case fleet.IsNotFound(err):
-		return fleet.NewAuthFailedError("missing Android PubSub token in Fleet")
+	case automdm.IsNotFound(err):
+		return automdm.NewAuthFailedError("missing Android PubSub token in AutoMDM")
 	case err != nil:
 		return ctxerr.Wrap(ctx, err, "getting Android PubSub token")
 	}
-	goldenToken, ok := assets[fleet.MDMAssetAndroidPubSubToken]
+	goldenToken, ok := assets[automdm.MDMAssetAndroidPubSubToken]
 	if !ok || len(goldenToken.Value) == 0 || subtle.ConstantTimeCompare(goldenToken.Value, []byte(token)) != 1 {
-		return fleet.NewAuthFailedError("invalid Android PubSub token")
+		return automdm.NewAuthFailedError("invalid Android PubSub token")
 	}
 	return nil
 }
 
 func (svc *Service) getClientAuthenticationSecret(ctx context.Context) (string, error) {
-	assets, err := svc.ds.GetAllMDMConfigAssetsByName(ctx, []fleet.MDMAssetName{fleet.MDMAssetAndroidFleetServerSecret}, nil)
+	assets, err := svc.ds.GetAllMDMConfigAssetsByName(ctx, []automdm.MDMAssetName{automdm.MDMAssetAndroidAutoMDMServerSecret}, nil)
 	switch {
-	case fleet.IsNotFound(err):
+	case automdm.IsNotFound(err):
 		return "", nil
 	case err != nil:
 		return "", ctxerr.Wrap(ctx, err, "getting Android authentication secret")
 	}
-	return string(assets[fleet.MDMAssetAndroidFleetServerSecret].Value), nil
+	return string(assets[automdm.MDMAssetAndroidAutoMDMServerSecret].Value), nil
 }
 
 // clearAndroidBYOWipeRef drops host_mdm_actions for a BYO Android host whose work-profile AMAPI WIPE just completed (DELETED
@@ -129,10 +129,10 @@ func (svc *Service) getClientAuthenticationSecret(ctx context.Context) (string, 
 //
 // Returns nil on success, on NotFound, and on COBO (which is a no-op). Returns a wrapped error on transient DB issues so the
 // caller can decide whether to bubble (Pub/Sub retry) or swallow (reconcile janitor continues to next host).
-func clearAndroidBYOWipeRef(ctx context.Context, ds fleet.Datastore, hostID uint) error {
+func clearAndroidBYOWipeRef(ctx context.Context, ds automdm.Datastore, hostID uint) error {
 	hostMDM, err := ds.GetHostMDM(ctx, hostID)
 	switch {
-	case fleet.IsNotFound(err):
+	case automdm.IsNotFound(err):
 		return nil
 	case err != nil:
 		return ctxerr.Wrap(ctx, err, "android byo wipe-ref cleanup: get host_mdm")
@@ -148,7 +148,7 @@ func clearAndroidBYOWipeRef(ctx context.Context, ds fleet.Datastore, hostID uint
 // handlePubSubCommand processes an AMAPI COMMAND notification, which AMAPI delivers as an Operation envelope whose Name
 // is the operation_name we recorded at IssueCommand time. The envelope's Error field, when populated, indicates AMAPI
 // rejected the command (or the device rejected it); otherwise the device executed it successfully. We correlate the
-// notification to the Fleet row via operation_name and transition the mdm_android_commands row from pending to
+// notification to the Team row via operation_name and transition the mdm_android_commands row from pending to
 // acknowledged or error. host_mdm_actions does not need updating: HostLockWipeStatus reads the row status string
 // directly.
 func (svc *Service) handlePubSubCommand(ctx context.Context, token string, rawData []byte, messageID, publishTime string) error {
@@ -176,9 +176,9 @@ func (svc *Service) handlePubSubCommand(ctx context.Context, token string, rawDa
 		return nil
 	}
 
-	cmd, err := svc.fleetDS.GetMDMAndroidCommandByOperationName(ctx, op.Name)
+	cmd, err := svc.automdmDS.GetMDMAndroidCommandByOperationName(ctx, op.Name)
 	if err != nil {
-		if fleet.IsNotFound(err) {
+		if automdm.IsNotFound(err) {
 			// Two cases to distinguish:
 			//   1. Race: AMAPI delivered the notification before our IssueCommand-then-insert
 			//      transaction committed. The row will exist on retry.
@@ -197,12 +197,12 @@ func (svc *Service) handlePubSubCommand(ctx context.Context, token string, rawDa
 	// failures on the original delivery recover on this retry.
 	if cmd.Status != string(android.MDMAndroidCommandStatusPending) {
 		if cmd.CommandType == string(android.MDMAndroidCommandTypeWipe) && cmd.Status == string(android.MDMAndroidCommandStatusAcknowledged) {
-			rerun, err := isWipeOfGoneCurrentDevice(ctx, svc.fleetDS, svc.getAMAPIDevice, cmd)
+			rerun, err := isWipeOfGoneCurrentDevice(ctx, svc.automdmDS, svc.getAMAPIDevice, cmd)
 			if err != nil {
 				return err
 			}
 			if rerun {
-				if err := androidWipeAckUnenroll(ctx, svc.fleetDS, svc.newActivity, cmd,
+				if err := androidWipeAckUnenroll(ctx, svc.automdmDS, svc.newActivity, cmd,
 					svc.pubSubDedupRecorder(ctx, messageID, publishTime)); err != nil {
 					return err
 				}
@@ -233,7 +233,7 @@ func (svc *Service) handlePubSubCommand(ctx context.Context, token string, rawDa
 		rawResult = &s
 	}
 
-	if err := setAndroidCommandTerminalState(ctx, svc.fleetDS, svc.newActivity, cmd, newStatus, errCode, errMsg, rawResult,
+	if err := setAndroidCommandTerminalState(ctx, svc.automdmDS, svc.newActivity, cmd, newStatus, errCode, errMsg, rawResult,
 		svc.pubSubDedupRecorder(ctx, messageID, publishTime)); err != nil {
 		return err
 	}
@@ -282,7 +282,7 @@ func androidOperationTerminalState(op *androidmanagement.Operation) (status stri
 // the post-WIPE-ack side effects. Shared by the Pub/Sub COMMAND handler and the command reconciler cron
 // so the two paths cannot drift. onUnenrolled is passed through to androidWipeAckUnenroll; see its doc
 // comment.
-func setAndroidCommandTerminalState(ctx context.Context, ds fleet.Datastore, newActivityFn fleet.NewActivityFunc,
+func setAndroidCommandTerminalState(ctx context.Context, ds automdm.Datastore, newActivityFn automdm.NewActivityFunc,
 	cmd *android.MDMAndroidCommand, status string, errCode, errMsg, rawResult *string, onUnenrolled func(hostID uint),
 ) error {
 	// WIPE ack is the authoritative signal that the device has been wiped (BYO: work profile removed; COBO: full factory reset). Flip
@@ -313,15 +313,15 @@ func setAndroidCommandTerminalState(ctx context.Context, ds fleet.Datastore, new
 // onUnenrolled, when non-nil, runs only if this call actually flipped the host to unenrolled. The Pub/Sub
 // path uses it to record dedup state for the notification that drove the wipe; the reconciler cron passes
 // nil because it has no Pub/Sub message to dedup against.
-func androidWipeAckUnenroll(ctx context.Context, ds fleet.Datastore, newActivityFn fleet.NewActivityFunc,
+func androidWipeAckUnenroll(ctx context.Context, ds automdm.Datastore, newActivityFn automdm.NewActivityFunc,
 	cmd *android.MDMAndroidCommand, onUnenrolled func(hostID uint),
 ) error {
 	// Primary: a replica that hasn't caught up with a device change would still return the previous device ID.
 	ah, err := ds.AndroidHostLiteByHostUUID(ctxdb.RequirePrimary(ctx, true), cmd.HostUUID)
-	if err != nil && !fleet.IsNotFound(err) {
+	if err != nil && !automdm.IsNotFound(err) {
 		return ctxerr.Wrap(ctx, err, "android wipe-ack unenroll: lookup host by uuid")
 	}
-	// No host found (e.g. deleted from Fleet) leaves nothing to unenroll; returning nil lets the command reach a terminal state.
+	// No host found (e.g. deleted from AutoMDM) leaves nothing to unenroll; returning nil lets the command reach a terminal state.
 	if err != nil || ah == nil || ah.Host == nil {
 		return nil
 	}
@@ -371,7 +371,7 @@ func androidWipeAckUnenroll(ctx context.Context, ds fleet.Datastore, newActivity
 	if hosts, herr := ds.ListHostsLiteByIDs(ctx, []uint{ah.Host.ID}); herr == nil && len(hosts) == 1 && hosts[0] != nil {
 		displayName = hosts[0].DisplayName()
 	}
-	if err := newActivityFn(ctx, nil, fleet.ActivityTypeMDMUnenrolled{
+	if err := newActivityFn(ctx, nil, automdm.ActivityTypeMDMUnenrolled{
 		HostID:           ah.Host.ID,
 		HostDisplayName:  displayName,
 		InstalledFromDEP: false,
@@ -383,7 +383,7 @@ func androidWipeAckUnenroll(ctx context.Context, ds fleet.Datastore, newActivity
 }
 
 // ackOrRetryUnknownAndroidOperation is the NotFound branch of handlePubSubCommand. It looks up
-// the host associated with the AMAPI device referenced by opName in Fleet's DB to distinguish
+// the host associated with the AMAPI device referenced by opName in AutoMDM's DB to distinguish
 // "race window, row will arrive" (host still exists -> retry) from "host was deleted, row is
 // genuinely orphaned" (host NotFound -> ack). lookupErr is the original NotFound from the
 // command row lookup, returned wrapped when we choose to retry. On any non-NotFound DB error we
@@ -396,7 +396,7 @@ func (svc *Service) ackOrRetryUnknownAndroidOperation(ctx context.Context, opNam
 		return nil
 	}
 
-	exists, err := svc.fleetDS.AndroidDeviceExistsByDeviceID(ctx, deviceID)
+	exists, err := svc.automdmDS.AndroidDeviceExistsByDeviceID(ctx, deviceID)
 	if err != nil {
 		// DB lookup failed (transient) -- retry; the next attempt will likely succeed.
 		svc.logger.WarnContext(ctx, "android pub/sub COMMAND device existence check failed, retrying",
@@ -404,12 +404,12 @@ func (svc *Service) ackOrRetryUnknownAndroidOperation(ctx context.Context, opNam
 		return ctxerr.Wrap(ctx, lookupErr, "android command row not yet persisted, retry")
 	}
 	if !exists {
-		svc.logger.WarnContext(ctx, "android pub/sub COMMAND for unknown device (deleted from Fleet), acking",
+		svc.logger.WarnContext(ctx, "android pub/sub COMMAND for unknown device (deleted from AutoMDM), acking",
 			"operation_name", opName, "device_id", deviceID)
 		return nil
 	}
 
-	// Host exists in Fleet but the command row doesn't (yet) -- most likely the race window.
+	// Host exists in AutoMDM but the command row doesn't (yet) -- most likely the race window.
 	svc.logger.WarnContext(ctx, "android pub/sub COMMAND row not yet persisted for live host, retrying",
 		"operation_name", opName, "device_id", deviceID)
 	return ctxerr.Wrap(ctx, lookupErr, "android command row not yet persisted, retry")
@@ -466,7 +466,7 @@ func (svc *Service) pubSubEventTime(deviceTime, publishTime string) *time.Time {
 	return nil
 }
 
-// maxPubSubEventSkew is how far ahead of the Fleet server's clock an AMAPI event time
+// maxPubSubEventSkew is how far ahead of the AutoMDM server's clock an AMAPI event time
 // may be before it is treated as invalid.
 const maxPubSubEventSkew = 5 * time.Minute
 
@@ -481,7 +481,7 @@ func (svc *Service) isDuplicateOrStalePubSub(ctx context.Context, hostID uint, m
 	// reprocess — defeating the dedup.
 	lastMessageID, lastEventTime, err := svc.ds.GetAndroidPubSubDedupState(ctxdb.RequirePrimary(ctx, true), hostID)
 	if err != nil {
-		if fleet.IsNotFound(err) {
+		if automdm.IsNotFound(err) {
 			return false, nil
 		}
 		return false, ctxerr.Wrap(ctx, err, "get android pubsub dedup state")
@@ -595,7 +595,7 @@ func (svc *Service) handlePubSubStatusReport(ctx context.Context, token string, 
 
 			// Capture BYO-ness BEFORE flipping host_mdm.enrolled, then clear host_mdm_actions for BYO
 			// so the post-ack "Wiped" badge clears (BYO unenroll only wipes the work profile).
-			if err := clearAndroidBYOWipeRef(ctx, svc.fleetDS, host.Host.ID); err != nil {
+			if err := clearAndroidBYOWipeRef(ctx, svc.automdmDS, host.Host.ID); err != nil {
 				return ctxerr.Wrap(ctx, err, "clear byo wipe-ref on DELETED state")
 			}
 
@@ -610,7 +610,7 @@ func (svc *Service) handlePubSubStatusReport(ctx context.Context, token string, 
 				return ctxerr.Wrap(ctx, err, "mark pending vpp installs as failed for deleted android host")
 			}
 			if len(users) != len(acts) {
-				return ctxerr.New(ctx, "number of users and activities must match, this is a Fleet development bug")
+				return ctxerr.New(ctx, "number of users and activities must match, this is an AutoMDM development bug")
 			}
 			for i, act := range acts {
 				user := users[i]
@@ -627,11 +627,11 @@ func (svc *Service) handlePubSubStatusReport(ctx context.Context, token string, 
 
 			// Emit system activity: mdm_unenrolled. For Android BYOD, InstalledFromDEP is always false.
 			var displayName, serial string
-			if hosts, herr := svc.fleetDS.ListHostsLiteByIDs(ctx, []uint{host.Host.ID}); herr == nil && len(hosts) == 1 && hosts[0] != nil {
+			if hosts, herr := svc.automdmDS.ListHostsLiteByIDs(ctx, []uint{host.Host.ID}); herr == nil && len(hosts) == 1 && hosts[0] != nil {
 				displayName = hosts[0].DisplayName()
 				serial = hosts[0].HardwareSerial
 			}
-			_ = svc.newActivity(ctx, nil, fleet.ActivityTypeMDMUnenrolled{
+			_ = svc.newActivity(ctx, nil, automdm.ActivityTypeMDMUnenrolled{
 				HostID:           host.Host.ID,
 				HostSerial:       serial,
 				HostDisplayName:  displayName,
@@ -647,7 +647,7 @@ func (svc *Service) handlePubSubStatusReport(ctx context.Context, token string, 
 		return ctxerr.Wrap(ctx, err, "getting existing Android host")
 	}
 	if host == nil {
-		svc.logger.DebugContext(ctx, "Device not found in Fleet. Perhaps it was deleted, "+
+		svc.logger.DebugContext(ctx, "Device not found in AutoMDM. Perhaps it was deleted, "+
 			"but it is still connected via Android MDM. Re-enrolling", "device.name", device.Name,
 			"device.enterpriseSpecificId", device.HardwareInfo.EnterpriseSpecificId)
 		if _, err := svc.enrollHost(ctx, &device); err != nil {
@@ -706,7 +706,7 @@ func (svc *Service) handlePubSubStatusReport(ctx context.Context, token string, 
 }
 
 // largely based on refetch apps code from Apple MDM service methods
-func (svc *Service) updateHostSoftware(ctx context.Context, device *androidmanagement.Device, host *fleet.AndroidHost) error {
+func (svc *Service) updateHostSoftware(ctx context.Context, device *androidmanagement.Device, host *automdm.AndroidHost) error {
 	// Do nothing if no app reports returned
 	if len(device.ApplicationReports) == 0 {
 		return nil
@@ -722,22 +722,22 @@ func (svc *Service) updateHostSoftware(ctx context.Context, device *androidmanag
 		}
 		return str
 	}
-	software := []fleet.Software{}
+	software := []automdm.Software{}
 	for _, app := range device.ApplicationReports {
 		if app.State != "INSTALLED" {
 			continue
 		}
-		sw := fleet.Software{
-			Name:          truncateString(app.DisplayName, fleet.SoftwareNameMaxLength),
-			Version:       truncateString(app.VersionName, fleet.SoftwareVersionMaxLength),
-			ApplicationID: ptr.String(truncateString(app.PackageName, fleet.SoftwareBundleIdentifierMaxLength)),
+		sw := automdm.Software{
+			Name:          truncateString(app.DisplayName, automdm.SoftwareNameMaxLength),
+			Version:       truncateString(app.VersionName, automdm.SoftwareVersionMaxLength),
+			ApplicationID: ptr.String(truncateString(app.PackageName, automdm.SoftwareBundleIdentifierMaxLength)),
 			Source:        "android_apps",
 			Installed:     true,
 		}
 		software = append(software, sw)
 	}
 
-	_, err := svc.fleetDS.UpdateHostSoftware(ctx, host.Host.ID, software)
+	_, err := svc.automdmDS.UpdateHostSoftware(ctx, host.Host.ID, software)
 	if err != nil {
 		return ctxerr.Wrap(ctx, err, "updating Android host software")
 	}
@@ -796,7 +796,7 @@ func (svc *Service) handlePubSubEnrollment(ctx context.Context, token string, ra
 
 			// Capture BYO-ness BEFORE flipping host_mdm.enrolled, then clear host_mdm_actions for BYO
 			// so the post-ack "Wiped" badge clears (BYO unenroll only wipes the work profile).
-			if err := clearAndroidBYOWipeRef(ctx, svc.fleetDS, host.Host.ID); err != nil {
+			if err := clearAndroidBYOWipeRef(ctx, svc.automdmDS, host.Host.ID); err != nil {
 				return ctxerr.Wrap(ctx, err, "clear byo wipe-ref on DELETED state (ENROLLMENT)")
 			}
 
@@ -811,7 +811,7 @@ func (svc *Service) handlePubSubEnrollment(ctx context.Context, token string, ra
 				return ctxerr.Wrap(ctx, err, "mark pending vpp installs as failed for deleted android host")
 			}
 			if len(users) != len(acts) {
-				return ctxerr.New(ctx, "number of users and activities must match, this is a Fleet development bug")
+				return ctxerr.New(ctx, "number of users and activities must match, this is an AutoMDM development bug")
 			}
 			for i, act := range acts {
 				user := users[i]
@@ -831,11 +831,11 @@ func (svc *Service) handlePubSubEnrollment(ctx context.Context, token string, ra
 			}
 
 			var displayName, serial string
-			if hosts, herr := svc.fleetDS.ListHostsLiteByIDs(ctx, []uint{host.Host.ID}); herr == nil && len(hosts) == 1 && hosts[0] != nil {
+			if hosts, herr := svc.automdmDS.ListHostsLiteByIDs(ctx, []uint{host.Host.ID}); herr == nil && len(hosts) == 1 && hosts[0] != nil {
 				displayName = hosts[0].DisplayName()
 				serial = hosts[0].HardwareSerial
 			}
-			_ = svc.newActivity(ctx, nil, fleet.ActivityTypeMDMUnenrolled{
+			_ = svc.newActivity(ctx, nil, automdm.ActivityTypeMDMUnenrolled{
 				HostID:           host.Host.ID,
 				HostSerial:       serial,
 				HostDisplayName:  displayName,
@@ -848,7 +848,7 @@ func (svc *Service) handlePubSubEnrollment(ctx context.Context, token string, ra
 
 	// Drop duplicate ENROLLMENT deliveries before enrolling: a redelivered ENROLLMENT
 	// for an existing host would otherwise re-queue the setup-experience job (duplicate
-	// VPP installs and activities). A device brand-new to Fleet has no row to check
+	// VPP installs and activities). A device brand-new to AutoMDM has no row to check
 	// against yet; its state is recorded below so a redelivery is caught.
 	// Force the primary so a redelivered ENROLLMENT sees a host that a prior delivery just
 	// created (and thus its recorded dedup state), instead of missing it on a lagging replica
@@ -880,7 +880,7 @@ func (svc *Service) handlePubSubEnrollment(ctx context.Context, token string, ra
 	return nil
 }
 
-// enrollHost enrolls (or re-enrolls) the device and returns the Fleet host ID of the
+// enrollHost enrolls (or re-enrolls) the device and returns the AutoMDM host ID of the
 // resulting host. Returning the ID lets callers record follow-up state without a second
 // lookup: a lookup that fails *after* enrollment has already run leaves the Pub/Sub
 // delivery acked with that state unwritten, which is exactly the window a 5xx-inducing
@@ -894,7 +894,7 @@ func (svc *Service) enrollHost(ctx context.Context, device *androidmanagement.De
 	// Enqueue a job to send any necessary self-service software.
 	// Like Martin said below, this should properly be part of a device lifecycle action.
 
-	// Device may already be present in Fleet if device user removed the MDM profile and then re-enrolled
+	// Device may already be present in AutoMDM if device user removed the MDM profile and then re-enrolled
 	host, err := svc.getExistingHost(ctx, device)
 	if err != nil {
 		return 0, ctxerr.Wrap(ctx, err, "getting existing Android host")
@@ -906,7 +906,7 @@ func (svc *Service) enrollHost(ctx context.Context, device *androidmanagement.De
 	// inserts the host_mdm, and TurnOffMDM deletes it.
 
 	if host != nil {
-		svc.logger.DebugContext(ctx, "The enrolling Android host is already present in Fleet. Updating fleet if needed",
+		svc.logger.DebugContext(ctx, "The enrolling Android host is already present in AutoMDM. Updating team if needed",
 			"device.name", device.Name, "device.enterpriseSpecificId", device.HardwareInfo.EnterpriseSpecificId)
 		if err := svc.verifyReenrollment(ctx, device); err != nil {
 			return 0, err
@@ -931,14 +931,14 @@ func (svc *Service) enrollHost(ctx context.Context, device *androidmanagement.De
 		return host.Host.ID, nil
 	}
 
-	// Device is new to Fleet
+	// Device is new to AutoMDM
 	if err := svc.verifyNewHostDevice(ctx, device); err != nil {
 		return 0, err
 	}
 	return svc.addNewHost(ctx, device)
 }
 
-func (svc *Service) getExistingHost(ctx context.Context, device *androidmanagement.Device) (*fleet.AndroidHost, error) {
+func (svc *Service) getExistingHost(ctx context.Context, device *androidmanagement.Device) (*automdm.AndroidHost, error) {
 	hostKey := getAndroidHostKey(device)
 	host, err := svc.getHostIfPresent(ctx, hostKey)
 	if err != nil {
@@ -958,26 +958,26 @@ func (svc *Service) validateDevice(ctx context.Context, device *androidmanagemen
 			"device.appliedState", device.AppliedState,
 			"device.state", device.State,
 		)
-		return fleet.NewInvalidArgumentError("device", fmt.Sprintf("missing hardware info for Android device %s", device.Name)).WithStatus(http.StatusOK)
+		return automdm.NewInvalidArgumentError("device", fmt.Sprintf("missing hardware info for Android device %s", device.Name)).WithStatus(http.StatusOK)
 	}
 	if device.SoftwareInfo == nil {
 		svc.logger.WarnContext(ctx, "Android device payload missing softwareInfo",
 			"device.name", device.Name,
 			"device.enterpriseSpecificId", device.HardwareInfo.EnterpriseSpecificId,
 		)
-		return fleet.NewInvalidArgumentError("device", fmt.Sprintf("missing software info for Android device %s. Are policy statusReportingSettings set correctly?", device.Name)).WithStatus(http.StatusOK)
+		return automdm.NewInvalidArgumentError("device", fmt.Sprintf("missing software info for Android device %s. Are policy statusReportingSettings set correctly?", device.Name)).WithStatus(http.StatusOK)
 	}
 	if device.MemoryInfo == nil {
 		svc.logger.WarnContext(ctx, "Android device payload missing memoryInfo",
 			"device.name", device.Name,
 			"device.enterpriseSpecificId", device.HardwareInfo.EnterpriseSpecificId,
 		)
-		return fleet.NewInvalidArgumentError("device", fmt.Sprintf("missing memory info for Android device %s", device.Name)).WithStatus(http.StatusOK)
+		return automdm.NewInvalidArgumentError("device", fmt.Sprintf("missing memory info for Android device %s", device.Name)).WithStatus(http.StatusOK)
 	}
 	return nil
 }
 
-func (svc *Service) updateHost(ctx context.Context, device *androidmanagement.Device, host *fleet.AndroidHost, fromEnroll bool) error {
+func (svc *Service) updateHost(ctx context.Context, device *androidmanagement.Device, host *automdm.AndroidHost, fromEnroll bool) error {
 	err := svc.validateDevice(ctx, device)
 	if err != nil {
 		return err
@@ -998,7 +998,7 @@ func (svc *Service) updateHost(ctx context.Context, device *androidmanagement.De
 			return ctxerr.Wrap(ctx, err, "reset state on android reenroll")
 		}
 		if len(users) != len(acts) {
-			return ctxerr.New(ctx, "number of users and activities must match, this is a Fleet development bug")
+			return ctxerr.New(ctx, "number of users and activities must match, this is an AutoMDM development bug")
 		}
 		for i, act := range acts {
 			if err := svc.newActivity(ctx, users[i], act); err != nil {
@@ -1026,7 +1026,7 @@ func (svc *Service) updateHost(ctx context.Context, device *androidmanagement.De
 		// about them.
 		if policy != nil && *policy == host.UUID {
 			svc.verifyDevicePolicy(ctx, host.UUID, device)
-			err = svc.fleetDS.SetHostAndroidSoftwareInstallsVerified(ctx, host.Host.ID, device.AppliedPolicyVersion)
+			err = svc.automdmDS.SetHostAndroidSoftwareInstallsVerified(ctx, host.Host.ID, device.AppliedPolicyVersion)
 			if err != nil {
 				svc.logger.ErrorContext(ctx, "failed to verify android software installs", "host_uuid", host.UUID, "err", err)
 			}
@@ -1046,7 +1046,7 @@ func (svc *Service) updateHost(ctx context.Context, device *androidmanagement.De
 	}
 	host.Device.DeviceID = deviceID
 
-	computerName, err := getComputerName(ctx, svc.fleetDS, device, &host.Host.ID, host.Host.UUID, "")
+	computerName, err := getComputerName(ctx, svc.automdmDS, device, &host.Host.ID, host.Host.UUID, "")
 	if err != nil {
 		return ctxerr.Wrap(ctx, err, "getting computer name for host")
 	}
@@ -1089,7 +1089,7 @@ func (svc *Service) updateHost(ctx context.Context, device *androidmanagement.De
 	}
 
 	if fromEnroll {
-		if err := svc.fleetDS.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(host.TeamID, []uint{host.Host.ID})); err != nil {
+		if err := svc.automdmDS.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(host.TeamID, []uint{host.Host.ID})); err != nil {
 			return ctxerr.Wrap(ctx, err, "setting team for re-enrolled Android host")
 		}
 		if err := svc.ds.UpdateTeamIDOnAndroidDevices(ctx, []string{host.Host.UUID}, host.TeamID); err != nil {
@@ -1098,7 +1098,7 @@ func (svc *Service) updateHost(ctx context.Context, device *androidmanagement.De
 	}
 
 	// Populate the operating_systems table so the host can be filtered via
-	// `GET /api/v1/fleet/hosts?os_name=Android&os_version=<version>` and show
+	// `GET /api/v1/automdm/hosts?os_name=Android&os_version=<version>` and show
 	// up in the /os_versions aggregation alongside other platforms.
 	if err := svc.updateHostOperatingSystem(ctx, host.Host.ID, device); err != nil {
 		return err
@@ -1107,7 +1107,7 @@ func (svc *Service) updateHost(ctx context.Context, device *androidmanagement.De
 	if fromEnroll {
 		// Drop stale host_mdm_actions from a previous enrollment cycle so the re-enrolled device starts in "unlocked" device status with
 		// no Lock/Wipe/Clear-passcode pending or Wiped badges.
-		if err := svc.fleetDS.ClearHostMDMActions(ctx, host.Host.ID); err != nil {
+		if err := svc.automdmDS.ClearHostMDMActions(ctx, host.Host.ID); err != nil {
 			svc.logger.ErrorContext(ctx, "failed to clear host_mdm_actions on android re-enrollment", "host_id", host.Host.ID, "err", err)
 			return ctxerr.Wrap(ctx, err, "clear host_mdm_actions on android re-enrollment")
 		}
@@ -1115,7 +1115,7 @@ func (svc *Service) updateHost(ctx context.Context, device *androidmanagement.De
 		// lost all certificates on re-enrollment (work profile removed and re-installed, or
 		// unenrolled/re-enrolled). This also clears stale rows from a previous team if the
 		// host is re-enrolling into a different team via a new enroll secret.
-		if err := svc.fleetDS.DeleteAllHostCertificateTemplates(ctx, host.Host.UUID); err != nil {
+		if err := svc.automdmDS.DeleteAllHostCertificateTemplates(ctx, host.Host.UUID); err != nil {
 			svc.logger.ErrorContext(ctx, "failed to delete existing certificate templates for re-enrolled host", "host_uuid", host.Host.UUID, "err", err)
 			return ctxerr.Wrap(ctx, err, "deleting existing certificate templates for re-enrolled host")
 		}
@@ -1125,7 +1125,7 @@ func (svc *Service) updateHost(ctx context.Context, device *androidmanagement.De
 		if host.Host.TeamID != nil {
 			teamID = *host.Host.TeamID
 		}
-		if _, err := svc.fleetDS.CreatePendingCertificateTemplatesForNewHost(ctx, host.Host.UUID, teamID); err != nil {
+		if _, err := svc.automdmDS.CreatePendingCertificateTemplatesForNewHost(ctx, host.Host.UUID, teamID); err != nil {
 			svc.logger.ErrorContext(ctx, "failed to create pending certificate templates for re-enrolled host", "host_uuid", host.Host.UUID, "err", err)
 			return ctxerr.Wrap(ctx, err, "creating pending certificate templates for re-enrolled host")
 		}
@@ -1137,7 +1137,7 @@ func (svc *Service) updateHost(ctx context.Context, device *androidmanagement.De
 
 		svc.clearReusedHostPolicyApps(ctx, enterprise.Name(), host.Host.ID, host.Host.UUID, host.Device.AppliedPolicyID)
 
-		err = worker.QueueRunAndroidSetupExperience(ctx, svc.fleetDS, svc.logger,
+		err = worker.QueueRunAndroidSetupExperience(ctx, svc.automdmDS, svc.logger,
 			host.Host.UUID, host.Host.TeamID, enterprise.Name())
 		if err != nil {
 			return ctxerr.Wrap(ctx, err, "enqueuing run android setup experience for host job")
@@ -1165,7 +1165,7 @@ func (svc *Service) clearReusedHostPolicyApps(ctx context.Context, enterpriseNam
 	}
 	// Delete the host's install rows too, because the policy no longer has those apps. Otherwise, if the Android
 	// app reconciler checks the host before setup experience runs, it would see the apps as sent and send nothing.
-	err = svc.fleetDS.ReplaceHostAndroidSoftwareInstalls(ctx, hostID, nil)
+	err = svc.automdmDS.ReplaceHostAndroidSoftwareInstalls(ctx, hostID, nil)
 	if err != nil {
 		svc.logger.WarnContext(ctx, "failed to delete the android software installs of the previous enrollment", "host_uuid", hostUUID, "err", err)
 	}
@@ -1181,8 +1181,8 @@ func (svc *Service) clearReusedHostPolicyApps(ctx context.Context, enterpriseNam
 // version doesn't report. A section that's absent yields nil columns rather
 // than zero values, so "not reported" stays distinguishable from "reported as
 // false/empty".
-func androidDeviceVitals(device *androidmanagement.Device) fleet.MDMAndroidDeviceVitals {
-	var vitals fleet.MDMAndroidDeviceVitals
+func androidDeviceVitals(device *androidmanagement.Device) automdm.MDMAndroidDeviceVitals {
+	var vitals automdm.MDMAndroidDeviceVitals
 
 	// api_level is a bigint, matching AMAPI's int64, so any value it reports
 	// stores as-is; 0 just means it wasn't reported.
@@ -1216,7 +1216,7 @@ func androidDeviceVitals(device *androidmanagement.Device) fleet.MDMAndroidDevic
 			if detail == nil {
 				continue
 			}
-			// Only the default message of each piece of advice is kept: Fleet
+			// Only the default message of each piece of advice is kept: AutoMDM
 			// has no device locale to pick a localized variant with.
 			var advice []string
 			for _, msg := range detail.Advice {
@@ -1228,7 +1228,7 @@ func androidDeviceVitals(device *androidmanagement.Device) fleet.MDMAndroidDevic
 			if risk == "" && len(advice) == 0 {
 				continue
 			}
-			vitals.SecurityPostureDetails = append(vitals.SecurityPostureDetails, fleet.MDMAndroidPostureDetail{
+			vitals.SecurityPostureDetails = append(vitals.SecurityPostureDetails, automdm.MDMAndroidPostureDetail{
 				SecurityRisk: risk,
 				Advice:       advice,
 			})
@@ -1236,7 +1236,7 @@ func androidDeviceVitals(device *androidmanagement.Device) fleet.MDMAndroidDevic
 	}
 
 	// AMAPI only reports telephonyInfos, imei and meid for fully managed
-	// devices. Fleet drops them as well on an explicitly personally-owned
+	// devices. AutoMDM drops them as well on an explicitly personally-owned
 	// device, which also clears identifiers left over from a company-owned
 	// enrollment if the device comes back as personally owned.
 	//
@@ -1244,7 +1244,7 @@ func androidDeviceVitals(device *androidmanagement.Device) fleet.MDMAndroidDevic
 	// treated as personally owned: AMAPI omits the field on some status
 	// reports, and since this write is a full overwrite, doing so would erase
 	// the numbers captured at enrollment on the next report. What the API
-	// returns is gated on Fleet's own enrollment record instead, in
+	// returns is gated on AutoMDM's own enrollment record instead, in
 	// getHostDetails.
 	if ni := device.NetworkInfo; ni != nil && device.Ownership != DeviceOwnershipPersonallyOwned {
 		// A device reports imei or meid depending on its radio, not both.
@@ -1255,7 +1255,7 @@ func androidDeviceVitals(device *androidmanagement.Device) fleet.MDMAndroidDevic
 			if info == nil {
 				continue
 			}
-			vitals.TelephonyInfos = append(vitals.TelephonyInfos, fleet.MDMAndroidTelephonyInfo{
+			vitals.TelephonyInfos = append(vitals.TelephonyInfos, automdm.MDMAndroidTelephonyInfo{
 				PhoneNumber:     truncateVital(info.PhoneNumber),
 				CarrierName:     truncateVital(info.CarrierName),
 				ICCID:           truncateVital(info.IccId),
@@ -1286,8 +1286,8 @@ func optionalVital(s string) *string {
 // invalid UTF-8 that a utf8mb4 column rejects.
 func truncateVital(s string) string {
 	runes := []rune(s)
-	if len(runes) > fleet.MDMAndroidDeviceVitalMaxLength {
-		return string(runes[:fleet.MDMAndroidDeviceVitalMaxLength])
+	if len(runes) > automdm.MDMAndroidDeviceVitalMaxLength {
+		return string(runes[:automdm.MDMAndroidDeviceVitalMaxLength])
 	}
 	return s
 }
@@ -1342,7 +1342,7 @@ func (svc *Service) updateHostOperatingSystem(ctx context.Context, hostID uint, 
 	if device.SoftwareInfo == nil || device.SoftwareInfo.AndroidVersion == "" {
 		return nil
 	}
-	if err := svc.fleetDS.UpdateHostOperatingSystem(ctx, hostID, fleet.OperatingSystem{
+	if err := svc.automdmDS.UpdateHostOperatingSystem(ctx, hostID, automdm.OperatingSystem{
 		Name:     "Android",
 		Version:  androidOSVersion(device.SoftwareInfo),
 		Platform: "android",
@@ -1367,14 +1367,14 @@ func getAndroidHostKey(device *androidmanagement.Device) string {
 	return generatedUUID
 }
 
-func setAndroidHostUUID(host *fleet.AndroidHost, device *androidmanagement.Device) {
+func setAndroidHostUUID(host *automdm.AndroidHost, device *androidmanagement.Device) {
 	uuidKey := getAndroidHostKey(device)
 	host.SetNodeKey(uuidKey)
 	host.Host.UUID = uuidKey
 	host.Device.EnterpriseSpecificID = ptr.String(uuidKey)
 }
 
-// addNewHost inserts a host that is new to Fleet and returns its Fleet host ID.
+// addNewHost inserts a host that is new to AutoMDM and returns its AutoMDM host ID.
 func (svc *Service) addNewHost(ctx context.Context, device *androidmanagement.Device) (uint, error) {
 	// Validate before dereferencing device.SoftwareInfo/MemoryInfo/HardwareInfo
 	// below. enrollHost already validates before dispatching here, but this keeps
@@ -1396,13 +1396,13 @@ func (svc *Service) addNewHost(ctx context.Context, device *androidmanagement.De
 
 	gigsTotalDiskSpace, gigsDiskSpaceAvailable, percentDiskSpaceAvailable := svc.calculateAndroidStorageMetrics(ctx, device, false)
 
-	computerName, err := getComputerName(ctx, svc.fleetDS, device, nil, "", idpUUID)
+	computerName, err := getComputerName(ctx, svc.automdmDS, device, nil, "", idpUUID)
 	if err != nil {
 		return 0, ctxerr.Wrap(ctx, err, "getting computer name for new host")
 	}
 
-	host := &fleet.AndroidHost{
-		Host: &fleet.Host{
+	host := &automdm.AndroidHost{
+		Host: &automdm.Host{
 			TeamID:                    teamID,
 			ComputerName:              computerName,
 			Hostname:                  computerName,
@@ -1442,20 +1442,20 @@ func (svc *Service) addNewHost(ctx context.Context, device *androidmanagement.De
 	}
 	companyOwned := device.Ownership == DeviceOwnershipCompanyOwned
 
-	fleetHost, err := svc.ds.NewAndroidHost(ctx, host, companyOwned)
+	automdmHost, err := svc.ds.NewAndroidHost(ctx, host, companyOwned)
 	if err != nil {
 		return 0, ctxerr.Wrap(ctx, err, "enrolling Android host")
 	}
 
 	vitals := androidDeviceVitals(device)
-	if err := svc.ds.SetOrUpdateHostMDMAndroidDeviceVitals(ctx, fleetHost.Host.UUID, vitals); err != nil {
+	if err := svc.ds.SetOrUpdateHostMDMAndroidDeviceVitals(ctx, automdmHost.Host.UUID, vitals); err != nil {
 		return 0, ctxerr.Wrap(ctx, err, "setting Android host vitals")
 	}
 
 	// Populate the operating_systems table so the host can be filtered via
-	// `GET /api/v1/fleet/hosts?os_name=Android&os_version=<version>` and show
+	// `GET /api/v1/automdm/hosts?os_name=Android&os_version=<version>` and show
 	// up in the /os_versions aggregation alongside other platforms.
-	if err := svc.updateHostOperatingSystem(ctx, fleetHost.Host.ID, device); err != nil {
+	if err := svc.updateHostOperatingSystem(ctx, automdmHost.Host.ID, device); err != nil {
 		return 0, err
 	}
 
@@ -1466,7 +1466,7 @@ func (svc *Service) addNewHost(ctx context.Context, device *androidmanagement.De
 			return 0, ctxerr.Wrap(ctx, err, "associating host with idp account")
 		}
 		shared_mdm.LogHostIdPAccountLinkChange(ctx, svc.ds, svc.newActivity, svc.logger, host.UUID, previousAcctUUID, idpUUID)
-		if err := svc.fleetDS.MaybeAssociateHostWithScimUser(ctx, fleetHost.Host.ID); err != nil {
+		if err := svc.automdmDS.MaybeAssociateHostWithScimUser(ctx, automdmHost.Host.ID); err != nil {
 			return 0, ctxerr.Wrap(ctx, err, "associating android host with scim user")
 		}
 	}
@@ -1477,8 +1477,8 @@ func (svc *Service) addNewHost(ctx context.Context, device *androidmanagement.De
 	if teamID != nil {
 		certTeamID = *teamID
 	}
-	if _, err := svc.fleetDS.CreatePendingCertificateTemplatesForNewHost(ctx, fleetHost.Host.UUID, certTeamID); err != nil {
-		svc.logger.ErrorContext(ctx, "failed to create pending certificate templates for new host", "host_uuid", fleetHost.Host.UUID, "err", err)
+	if _, err := svc.automdmDS.CreatePendingCertificateTemplatesForNewHost(ctx, automdmHost.Host.UUID, certTeamID); err != nil {
+		svc.logger.ErrorContext(ctx, "failed to create pending certificate templates for new host", "host_uuid", automdmHost.Host.UUID, "err", err)
 		return 0, ctxerr.Wrap(ctx, err, "creating pending certificate templates for new host")
 	}
 
@@ -1487,15 +1487,15 @@ func (svc *Service) addNewHost(ctx context.Context, device *androidmanagement.De
 		return 0, ctxerr.Wrap(ctx, err, "get android enterprise")
 	}
 
-	svc.clearReusedHostPolicyApps(ctx, enterprise.Name(), fleetHost.Host.ID, fleetHost.Host.UUID, host.Device.AppliedPolicyID)
+	svc.clearReusedHostPolicyApps(ctx, enterprise.Name(), automdmHost.Host.ID, automdmHost.Host.UUID, host.Device.AppliedPolicyID)
 
-	err = worker.QueueRunAndroidSetupExperience(ctx, svc.fleetDS, svc.logger,
-		fleetHost.Host.UUID, fleetHost.Host.TeamID, enterprise.Name())
+	err = worker.QueueRunAndroidSetupExperience(ctx, svc.automdmDS, svc.logger,
+		automdmHost.Host.UUID, automdmHost.Host.TeamID, enterprise.Name())
 	if err != nil {
 		return 0, ctxerr.Wrap(ctx, err, "enqueuing run android setup experience for host job")
 	}
 
-	return fleetHost.Host.ID, nil
+	return automdmHost.Host.ID, nil
 }
 
 func getHardwareModel(device *androidmanagement.Device) string {
@@ -1505,13 +1505,13 @@ func getHardwareModel(device *androidmanagement.Device) string {
 // Priority: SCIM full name (via GetEndUsers) → IdP fullname (mdm_idp_accounts) → hardware model.
 // For existing hosts pass hostID + hostUUID
 // For new hosts (not yet inserted) pass hostID=nil and enrollmentIdpUUID from the enrollment token.
-func getComputerName(ctx context.Context, ds fleet.Datastore, device *androidmanagement.Device, hostID *uint, hostUUID, enrollmentIdpUUID string) (string, error) {
+func getComputerName(ctx context.Context, ds automdm.Datastore, device *androidmanagement.Device, hostID *uint, hostUUID, enrollmentIdpUUID string) (string, error) {
 	hardwareModel := getHardwareModel(device)
 
-	var endUsers []fleet.HostEndUser
+	var endUsers []automdm.HostEndUser
 	if hostID != nil {
 		var err error
-		endUsers, err = fleet.GetEndUsers(ctx, ds, *hostID)
+		endUsers, err = automdm.GetEndUsers(ctx, ds, *hostID)
 		if err != nil {
 			return "", ctxerr.Wrap(ctx, err, "getting end users")
 		}
@@ -1521,7 +1521,7 @@ func getComputerName(ctx context.Context, ds fleet.Datastore, device *androidman
 		return endUsers[0].IdpFullName + "'s " + hardwareModel, nil
 	}
 
-	var idpAcct *fleet.MDMIdPAccount
+	var idpAcct *automdm.MDMIdPAccount
 	var err error
 	switch {
 	case hostUUID != "":
@@ -1529,7 +1529,7 @@ func getComputerName(ctx context.Context, ds fleet.Datastore, device *androidman
 	case enrollmentIdpUUID != "":
 		idpAcct, err = ds.GetMDMIdPAccountByUUID(ctx, enrollmentIdpUUID)
 	}
-	if err != nil && !fleet.IsNotFound(err) {
+	if err != nil && !automdm.IsNotFound(err) {
 		return "", ctxerr.Wrap(ctx, err, "getting IdP account")
 	}
 
@@ -1542,10 +1542,10 @@ func getComputerName(ctx context.Context, ds fleet.Datastore, device *androidman
 	return hardwareModel, nil
 }
 
-func (svc *Service) getHostIfPresent(ctx context.Context, enterpriseSpecificID string) (*fleet.AndroidHost, error) {
+func (svc *Service) getHostIfPresent(ctx context.Context, enterpriseSpecificID string) (*automdm.AndroidHost, error) {
 	host, err := svc.ds.AndroidHostLite(ctx, enterpriseSpecificID)
 	switch {
-	case fleet.IsNotFound(err):
+	case automdm.IsNotFound(err):
 		return nil, nil
 	case err != nil:
 		return nil, ctxerr.Wrap(ctx, err, "getting Android host")
@@ -1602,11 +1602,11 @@ func (svc *Service) verifyDevicePolicy(ctx context.Context, hostUUID string, dev
 		// profiles, such as apps added by certificate delivery or app installs.
 	case len(device.NonComplianceDetails) == 0:
 		// If nonComplianceDetails is empty, verify all profiles that are pending or failed install, and remove the pending remove ones.
-		var verifiedProfiles []*fleet.MDMAndroidProfilePayload
+		var verifiedProfiles []*automdm.MDMAndroidProfilePayload
 		for _, profile := range pendingInstallProfiles {
-			verifiedProfiles = append(verifiedProfiles, &fleet.MDMAndroidProfilePayload{
+			verifiedProfiles = append(verifiedProfiles, &automdm.MDMAndroidProfilePayload{
 				HostUUID:      profile.HostUUID,
-				Status:        &fleet.MDMDeliveryVerified,
+				Status:        &automdm.MDMDeliveryVerified,
 				OperationType: profile.OperationType,
 				ProfileUUID:   profile.ProfileUUID,
 				// The profile is verified, so any detail recorded by an earlier
@@ -1664,17 +1664,17 @@ func (svc *Service) verifyDevicePolicy(ctx context.Context, hostUUID string, dev
 		// Iterate over all policy request uuids, fetch them and unmarshal the payload into the type.
 		// Then re-use the map above, so we can iterate over it again, but now the payload is already unmarshalled.
 		policyRequest, err := svc.ds.GetAndroidPolicyRequestByUUID(ctx, policyRequestUUID)
-		if err != nil && !fleet.IsNotFound(err) {
+		if err != nil && !automdm.IsNotFound(err) {
 			svc.logger.ErrorContext(ctx, "error getting policy request", "err", err, "policy_request_uuid", policyRequestUUID, "host_uuid", hostUUID)
 			return
 		}
 
-		if fleet.IsNotFound(err) {
+		if automdm.IsNotFound(err) {
 			svc.logger.ErrorContext(ctx, "policy request not found", "policy_request_uuid", policyRequestUUID, "host_uuid", hostUUID)
 			return
 		}
 
-		var policyRequestPayload fleet.AndroidPolicyRequestPayload
+		var policyRequestPayload automdm.AndroidPolicyRequestPayload
 		err = json.Unmarshal(policyRequest.Payload, &policyRequestPayload)
 		if err != nil {
 			svc.logger.ErrorContext(ctx, "error unmarshalling policy request payload", "err", err, "policy_request_uuid", policyRequestUUID, "host_uuid", hostUUID)
@@ -1693,9 +1693,9 @@ func (svc *Service) verifyDevicePolicy(ctx context.Context, hostUUID string, dev
 			failedProfileUUIDsWithNonCompliances[profileUUIDToMarkAsFailed] = append(failedProfileUUIDsWithNonCompliances[profileUUIDToMarkAsFailed], nonCompliance)
 		}
 
-		var profiles []*fleet.MDMAndroidProfilePayload
+		var profiles []*automdm.MDMAndroidProfilePayload
 		for _, profile := range pendingInstallProfiles {
-			status := &fleet.MDMDeliveryVerified
+			status := &automdm.MDMDeliveryVerified
 			// A verified profile has no detail; only a profile that is still
 			// non-compliant carries an error message. Defaulting to the stored
 			// detail would leave a stale failure message on a profile that has
@@ -1704,13 +1704,13 @@ func (svc *Service) verifyDevicePolicy(ctx context.Context, hostUUID string, dev
 			canReverify := false
 
 			if nonCompliance, ok := failedProfileUUIDsWithNonCompliances[profile.ProfileUUID]; ok {
-				status = &fleet.MDMDeliveryFailed
+				status = &automdm.MDMDeliveryFailed
 				detail = buildNonComplianceErrorMessage(nonCompliance)
 				// profiles that failed due to non compliance reasons can be reverified on status reports
 				canReverify = true
 			}
 
-			profiles = append(profiles, &fleet.MDMAndroidProfilePayload{
+			profiles = append(profiles, &automdm.MDMAndroidProfilePayload{
 				HostUUID:                profile.HostUUID,
 				Status:                  status,
 				ProfileUUID:             profile.ProfileUUID,
@@ -1740,7 +1740,7 @@ func (svc *Service) verifyDevicePolicy(ctx context.Context, hostUUID string, dev
 	}
 }
 
-func (svc *Service) verifyDeviceSoftware(ctx context.Context, host *fleet.Host, device *androidmanagement.Device, fromEnroll bool) {
+func (svc *Service) verifyDeviceSoftware(ctx context.Context, host *automdm.Host, device *androidmanagement.Device, fromEnroll bool) {
 	appliedPolicyVersion := device.AppliedPolicyVersion
 	hostUUID := host.UUID
 
@@ -1754,7 +1754,7 @@ func (svc *Service) verifyDeviceSoftware(ctx context.Context, host *fleet.Host, 
 		svc.logger.ErrorContext(ctx, "error getting pending vpp installs", "err", err)
 		return
 	}
-	// A failure is not final: the device can report an app installed after Fleet gave up
+	// A failure is not final: the device can report an app installed after AutoMDM gave up
 	// on it, e.g. when it was offline past the install timeout or the report listing the
 	// app arrived after the one that failed it. Not on enrollment though, as the host's
 	// enrollment time isn't updated yet, so the installs that re-enrolling just failed would
@@ -1765,7 +1765,7 @@ func (svc *Service) verifyDeviceSoftware(ctx context.Context, host *fleet.Host, 
 			installedPackages[appReport.PackageName] = true
 		}
 	}
-	var failedInstallApps []*fleet.HostAndroidVPPSoftwareInstall
+	var failedInstallApps []*automdm.HostAndroidVPPSoftwareInstall
 	if !fromEnroll && len(installedPackages) > 0 {
 		failedInstallApps, err = svc.listFailedInstallsReportedInstalled(ctx, host.ID, installedPackages)
 		if err != nil {
@@ -1780,7 +1780,7 @@ func (svc *Service) verifyDeviceSoftware(ctx context.Context, host *fleet.Host, 
 	}
 
 	// index pending installs by package name
-	pendingByPackageName := make(map[string]*fleet.HostAndroidVPPSoftwareInstall, len(pendingInstallApps))
+	pendingByPackageName := make(map[string]*automdm.HostAndroidVPPSoftwareInstall, len(pendingInstallApps))
 	for _, app := range pendingInstallApps {
 		pendingByPackageName[app.AdamID] = app
 	}
@@ -1846,7 +1846,7 @@ func (svc *Service) verifyDeviceSoftware(ctx context.Context, host *fleet.Host, 
 
 		// Absent from both reports is not a failure by itself: a real one arrives as a
 		// non-compliance report, so wait for a later message as the in-progress case above
-		// does. But an app that left the host's policy before installing (fleet transfer, app
+		// does. But an app that left the host's policy before installing (team transfer, app
 		// deleted, GitOps) is never reported again, so give up once the install is too old.
 		if svc.installReapTimeout > 0 && install.CreatedAt != nil && svc.clock.Since(*install.CreatedAt) >= svc.installReapTimeout {
 			markVerified[packageName] = false
@@ -1872,7 +1872,7 @@ func (svc *Service) verifyDeviceSoftware(ctx context.Context, host *fleet.Host, 
 	for _, install := range failedInstallApps {
 		// The pending installs come from the replica, which can still list an install the
 		// primary already failed; that install was handled above.
-		if slices.ContainsFunc(pendingInstallApps, func(pending *fleet.HostAndroidVPPSoftwareInstall) bool {
+		if slices.ContainsFunc(pendingInstallApps, func(pending *automdm.HostAndroidVPPSoftwareInstall) bool {
 			return pending.CommandUUID == install.CommandUUID
 		}) {
 			continue
@@ -1889,10 +1889,10 @@ func (svc *Service) verifyDeviceSoftware(ctx context.Context, host *fleet.Host, 
 		return
 	}
 
-	createPastActivity := func(cmdUUID string, status fleet.SoftwareInstallerStatus) (stop bool) {
+	createPastActivity := func(cmdUUID string, status automdm.SoftwareInstallerStatus) (stop bool) {
 		user, act, err := svc.ds.GetPastActivityDataForAndroidVPPAppInstall(ctx, cmdUUID, status)
 		if err != nil {
-			if fleet.IsNotFound(err) {
+			if automdm.IsNotFound(err) {
 				// shouldn't happen, but no need to fail
 				return false
 			}
@@ -1915,12 +1915,12 @@ func (svc *Service) verifyDeviceSoftware(ctx context.Context, host *fleet.Host, 
 
 	// create the matching past activities
 	for _, cmd := range toVerifyUUIDs {
-		if stop := createPastActivity(cmd, fleet.SoftwareInstalled); stop {
+		if stop := createPastActivity(cmd, automdm.SoftwareInstalled); stop {
 			return
 		}
 	}
 	for _, cmd := range toFailUUIDs {
-		if stop := createPastActivity(cmd, fleet.SoftwareInstallFailed); stop {
+		if stop := createPastActivity(cmd, automdm.SoftwareInstallFailed); stop {
 			return
 		}
 	}
@@ -1933,9 +1933,9 @@ func (svc *Service) verifyDeviceSoftware(ctx context.Context, host *fleet.Host, 
 // report already verified, which would then be verified again with a second "installed"
 // activity. A failure the replica hasn't caught up with yet is recovered by a later report.
 func (svc *Service) listFailedInstallsReportedInstalled(ctx context.Context, hostID uint, installedPackages map[string]bool,
-) ([]*fleet.HostAndroidVPPSoftwareInstall, error) {
-	reportedInstalled := func(installs []*fleet.HostAndroidVPPSoftwareInstall) []*fleet.HostAndroidVPPSoftwareInstall {
-		return slices.DeleteFunc(installs, func(install *fleet.HostAndroidVPPSoftwareInstall) bool {
+) ([]*automdm.HostAndroidVPPSoftwareInstall, error) {
+	reportedInstalled := func(installs []*automdm.HostAndroidVPPSoftwareInstall) []*automdm.HostAndroidVPPSoftwareInstall {
+		return slices.DeleteFunc(installs, func(install *automdm.HostAndroidVPPSoftwareInstall) bool {
 			return !installedPackages[install.AdamID]
 		})
 	}

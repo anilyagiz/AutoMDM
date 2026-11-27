@@ -1,5 +1,5 @@
 # Learn more about .exe uninstall scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 
 $softwareName = "RetroArch"
 $softwareNameLike = "*$softwareName*"

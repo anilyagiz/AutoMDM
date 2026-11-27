@@ -6,7 +6,7 @@
 //
 // As the returned data is a complex nested plist, this uses the
 // dataflatten tooling. (See
-// https://github.com/fleetdm/fleet/v4/orbit/pkg/dataflatten)
+// https://github.com/anilyagiz/automdm/v4/orbit/pkg/dataflatten)
 // based on github.com/kolide/launcher/pkg/osquery/tables
 package ioreg
 
@@ -14,9 +14,9 @@ import (
 	"context"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/dataflatten"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/dataflattentable"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/tablehelpers"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/dataflatten"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/dataflattentable"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/tablehelpers"
 	"github.com/osquery/osquery-go/plugin/table"
 	"github.com/rs/zerolog"
 )

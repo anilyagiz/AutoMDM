@@ -13,11 +13,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/pkg/str"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 	"github.com/cenkalti/backoff/v4"
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/pkg/str"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
 	"github.com/google/uuid"
 	"golang.org/x/oauth2/google"
 	"golang.org/x/oauth2/jwt"
@@ -29,7 +29,7 @@ import (
 // The calendar package has the following features for testing:
 // 1. High level UserCalendar interface and Low level GoogleCalendarAPI interface can have a custom implementations.
 // 2. Setting "client_email" to "calendar-mock@example.com" in the API key will use a mock in-memory implementation GoogleCalendarMockAPI of GoogleCalendarAPI.
-// 3. Setting FLEET_GOOGLE_CALENDAR_PLUS_ADDRESSING environment variable to "1" will strip the "plus addressing" from the user email, effectively allowing a single user
+// 3. Setting AUTOMDM_GOOGLE_CALENDAR_PLUS_ADDRESSING environment variable to "1" will strip the "plus addressing" from the user email, effectively allowing a single user
 //    to create multiple events in the same calendar. This is useful for load testing. For example: john+test@example.com becomes john@example.com
 
 const (
@@ -47,13 +47,13 @@ var (
 		"https://www.googleapis.com/auth/calendar.events",
 		"https://www.googleapis.com/auth/calendar.settings.readonly",
 	}
-	plusAddressing      = os.Getenv("FLEET_GOOGLE_CALENDAR_PLUS_ADDRESSING") == "1"
+	plusAddressing      = os.Getenv("AUTOMDM_GOOGLE_CALENDAR_PLUS_ADDRESSING") == "1"
 	plusAddressingRegex = regexp.MustCompile(`\+.*@`)
 )
 
 type GoogleCalendarConfig struct {
 	Context           context.Context
-	IntegrationConfig *fleet.GoogleCalendarIntegration
+	IntegrationConfig *automdm.GoogleCalendarIntegration
 	Logger            *slog.Logger
 	ServerURL         string
 	// Should be nil for production
@@ -73,9 +73,9 @@ func NewGoogleCalendar(config *GoogleCalendarConfig) *GoogleCalendar {
 	switch {
 	case config.API != nil:
 		// Use the provided API.
-	case config.IntegrationConfig.ApiKey.Values[fleet.GoogleCalendarEmail] == loadEmail:
+	case config.IntegrationConfig.ApiKey.Values[automdm.GoogleCalendarEmail] == loadEmail:
 		config.API = &GoogleCalendarLoadAPI{Logger: config.Logger}
-	case config.IntegrationConfig.ApiKey.Values[fleet.GoogleCalendarEmail] == MockEmail:
+	case config.IntegrationConfig.ApiKey.Values[automdm.GoogleCalendarEmail] == MockEmail:
 		config.API = &GoogleCalendarMockAPI{config.Logger}
 	default:
 		config.API = &GoogleCalendarLowLevelAPI{logger: config.Logger}
@@ -125,7 +125,7 @@ func (lowLevelAPI *GoogleCalendarLowLevelAPI) Configure(
 		TokenURL:   google.JWTTokenURL,
 		Subject:    userToImpersonateEmail,
 	}
-	client := conf.Client(fleethttp.WithOAuth2Client(ctx))
+	client := conf.Client(automdmhttp.WithOAuth2Client(ctx))
 	service, err := calendar.NewService(ctx, option.WithHTTPClient(client))
 	if err != nil {
 		return err
@@ -231,7 +231,7 @@ func (lowLevelAPI *GoogleCalendarLowLevelAPI) Watch(eventUUID string, channelID 
 			return lowLevelAPI.service.Events.Watch(calendarID, &calendar.Channel{
 				Id:   channelID, // channelID is also used for authentication -- it should be a random value
 				Type: "web_hook",
-				Address: fmt.Sprintf("%s/api/v1/fleet/calendar/webhook/%s",
+				Address: fmt.Sprintf("%s/api/v1/automdm/calendar/webhook/%s",
 					lowLevelAPI.serverURL, eventUUID),
 				Params: map[string]string{
 					"ttl": strconv.FormatUint(ttl, 10),
@@ -284,8 +284,8 @@ func (lowLevelAPI *GoogleCalendarLowLevelAPI) withRetry(fn func() (any, error)) 
 func (c *GoogleCalendar) Configure(userEmail string) error {
 	adjustedUserEmail := adjustEmail(userEmail)
 	err := c.config.API.Configure(
-		c.config.Context, c.config.IntegrationConfig.ApiKey.Values[fleet.GoogleCalendarEmail],
-		c.config.IntegrationConfig.ApiKey.Values[fleet.GoogleCalendarPrivateKey], adjustedUserEmail,
+		c.config.Context, c.config.IntegrationConfig.ApiKey.Values[automdm.GoogleCalendarEmail],
+		c.config.IntegrationConfig.ApiKey.Values[automdm.GoogleCalendarPrivateKey], adjustedUserEmail,
 		c.config.ServerURL,
 	)
 	if err != nil {
@@ -298,8 +298,8 @@ func (c *GoogleCalendar) Configure(userEmail string) error {
 	return nil
 }
 
-func (c *GoogleCalendar) UpdateEventBody(event *fleet.CalendarEvent,
-	genBodyFn fleet.CalendarGenBodyFn) (string, error) {
+func (c *GoogleCalendar) UpdateEventBody(event *automdm.CalendarEvent,
+	genBodyFn automdm.CalendarGenBodyFn) (string, error) {
 	details, err := c.unmarshalDetails(event)
 	if err != nil {
 		return "", err
@@ -309,7 +309,7 @@ func (c *GoogleCalendar) UpdateEventBody(event *fleet.CalendarEvent,
 		return "", ctxerr.Wrap(c.config.Context, err, "retrieving Google calendar event")
 	}
 	// Check if the current description contains the conflict text
-	conflict := strings.Contains(gEvent.Description, fleet.CalendarEventConflictText)
+	conflict := strings.Contains(gEvent.Description, automdm.CalendarEventConflictText)
 	var ok bool
 	gEvent.Description, ok, err = genBodyFn(conflict)
 	if err != nil {
@@ -325,11 +325,11 @@ func (c *GoogleCalendar) UpdateEventBody(event *fleet.CalendarEvent,
 	return updatedEvent.Etag, nil
 }
 
-func (c *GoogleCalendar) GetAndUpdateEvent(event *fleet.CalendarEvent, genBodyFn fleet.CalendarGenBodyFn,
-	opts fleet.CalendarGetAndUpdateEventOpts) (
-	*fleet.CalendarEvent, bool, error,
+func (c *GoogleCalendar) GetAndUpdateEvent(event *automdm.CalendarEvent, genBodyFn automdm.CalendarGenBodyFn,
+	opts automdm.CalendarGetAndUpdateEventOpts) (
+	*automdm.CalendarEvent, bool, error,
 ) {
-	// We assume that the Fleet event has not already ended. We will simply return it if it has not been modified.
+	// We assume that the AutoMDM event has not already ended. We will simply return it if it has not been modified.
 	details, err := c.unmarshalDetails(event)
 	if err != nil {
 		return nil, false, err
@@ -344,7 +344,7 @@ func (c *GoogleCalendar) GetAndUpdateEvent(event *fleet.CalendarEvent, genBodyFn
 			return err
 		}
 		latestTzName = c.location.String()
-		// nil if cal event created before Fleet tracked timezone
+		// nil if cal event created before AutoMDM tracked timezone
 		tzUpdated = event.TimeZone == nil || (latestTzName != *event.TimeZone)
 		return nil
 	}
@@ -362,7 +362,7 @@ func (c *GoogleCalendar) GetAndUpdateEvent(event *fleet.CalendarEvent, genBodyFn
 	case googleapi.IsNotModified(err):
 		if tzUpdated {
 			// this condition occurs when the event itself hasn't been updated, but the calendar timezone
-			// has been, so update the Fleet event's timezone
+			// has been, so update the AutoMDM event's timezone
 			event.TimeZone = &latestTzName
 			return event, true, nil
 		}
@@ -442,12 +442,12 @@ func (c *GoogleCalendar) GetAndUpdateEvent(event *fleet.CalendarEvent, genBodyFn
 			if err != nil {
 				return nil, false, err
 			}
-			fleetEvent, err := c.googleEventToFleetEvent(*startTime, *endTime, gEvent, event.UUID, details.ChannelID, details.ResourceID,
+			automdmEvent, err := c.googleEventToAutoMDMEvent(*startTime, *endTime, gEvent, event.UUID, details.ChannelID, details.ResourceID,
 				details.BodyTag)
 			if err != nil {
 				return nil, false, err
 			}
-			return fleetEvent, true, nil
+			return automdmEvent, true, nil
 		}
 	}
 
@@ -456,18 +456,18 @@ func (c *GoogleCalendar) GetAndUpdateEvent(event *fleet.CalendarEvent, genBodyFn
 	// Since this rare corner case does not cause any harm, we will ignore it.
 	newStartDate := calculateNewEventDate(event.StartTime)
 
-	var createOpts fleet.CalendarCreateEventOpts
+	var createOpts automdm.CalendarCreateEventOpts
 	// Check for backward compatibility, for events created before we introduced notification channels
 	if details.ChannelID != "" && details.ResourceID != "" {
 		createOpts.EventUUID = event.UUID
 		createOpts.ChannelID = details.ChannelID
 		createOpts.ResourceID = details.ResourceID
 	}
-	fleetEvent, err := c.CreateEvent(newStartDate, genBodyFn, createOpts)
+	automdmEvent, err := c.CreateEvent(newStartDate, genBodyFn, createOpts)
 	if err != nil {
 		return nil, false, err
 	}
-	return fleetEvent, true, nil
+	return automdmEvent, true, nil
 }
 
 func calculateNewEventDate(oldStartDate time.Time) time.Time {
@@ -525,7 +525,7 @@ func isInvalidGrant(err error) bool {
 }
 
 // RemoteError classifies err as a failure returned by the remote calendar
-// provider (as opposed to an internal Fleet error such as a database or lock
+// provider (as opposed to an internal AutoMDM error such as a database or lock
 // failure). When it is a remote failure it returns the HTTP status code (0 if
 // none, e.g. for OAuth token errors) and the response body.
 func RemoteError(err error) (isRemote bool, statusCode int, body string) {
@@ -559,7 +559,7 @@ func isRateLimited(err error) bool {
 			(ae.Message == "Rate Limit Exceeded" || ae.Message == "User Rate Limit Exceeded" || ae.Message == "Calendar usage limits exceeded." || strings.HasPrefix(ae.Message, "Quota exceeded"))))
 }
 
-func (c *GoogleCalendar) unmarshalDetails(event *fleet.CalendarEvent) (*eventDetails, error) {
+func (c *GoogleCalendar) unmarshalDetails(event *automdm.CalendarEvent) (*eventDetails, error) {
 	var details eventDetails
 	err := json.Unmarshal(event.Data, &details)
 	if err != nil {
@@ -573,17 +573,17 @@ func (c *GoogleCalendar) unmarshalDetails(event *fleet.CalendarEvent) (*eventDet
 }
 
 func (c *GoogleCalendar) CreateEvent(dayOfEvent time.Time,
-	genBodyFn fleet.CalendarGenBodyFn,
-	opts fleet.CalendarCreateEventOpts) (*fleet.CalendarEvent, error) {
+	genBodyFn automdm.CalendarGenBodyFn,
+	opts automdm.CalendarCreateEventOpts) (*automdm.CalendarEvent, error) {
 	return c.createEvent(dayOfEvent, genBodyFn, time.Now, opts)
 }
 
 // createEvent creates a new event on the calendar on the given date. timeNow is a function that returns the current time.
 // timeNow can be overwritten for testing
 func (c *GoogleCalendar) createEvent(
-	dayOfEvent time.Time, genBodyFn fleet.CalendarGenBodyFn, timeNow func() time.Time,
-	opts fleet.CalendarCreateEventOpts,
-) (*fleet.CalendarEvent, error) {
+	dayOfEvent time.Time, genBodyFn automdm.CalendarGenBodyFn, timeNow func() time.Time,
+	opts automdm.CalendarCreateEventOpts,
+) (*automdm.CalendarEvent, error) {
 	var err error
 	if c.location == nil {
 		c.location, err = getTimezone(c)
@@ -598,7 +598,7 @@ func (c *GoogleCalendar) createEvent(
 	now := timeNow().In(c.location)
 	if dayEnd.Before(now) {
 		// The workday has already ended.
-		return nil, ctxerr.Wrap(c.config.Context, fleet.DayEndedError{Msg: "cannot schedule an event for a day that has already ended"})
+		return nil, ctxerr.Wrap(c.config.Context, automdm.DayEndedError{Msg: "cannot schedule an event for a day that has already ended"})
 	}
 
 	// Adjust day start if workday already started
@@ -608,7 +608,7 @@ func (c *GoogleCalendar) createEvent(
 			dayStart = dayStart.Add(eventLength)
 		}
 		if !dayStart.Before(dayEnd) {
-			return nil, ctxerr.Wrap(c.config.Context, fleet.DayEndedError{Msg: "no time available for event"})
+			return nil, ctxerr.Wrap(c.config.Context, automdm.DayEndedError{Msg: "no time available for event"})
 		}
 	}
 	eventStart := dayStart
@@ -713,8 +713,8 @@ func (c *GoogleCalendar) createEvent(
 		resourceID = opts.ResourceID
 	}
 
-	// Convert Google event to Fleet event. Body tag will be updated by the calling function.
-	fleetEvent, err := c.googleEventToFleetEvent(eventStart, eventEnd, event, eventUUID, channelID, resourceID, "body_tag")
+	// Convert Google event to AutoMDM event. Body tag will be updated by the calling function.
+	automdmEvent, err := c.googleEventToAutoMDMEvent(eventStart, eventEnd, event, eventUUID, channelID, resourceID, "body_tag")
 	if err != nil {
 		return nil, err
 	}
@@ -722,7 +722,7 @@ func (c *GoogleCalendar) createEvent(
 		"created Google calendar event", "user", c.adjustedUserEmail, "startTime", eventStart, "timezone", c.location.String(),
 	)
 
-	return fleetEvent, nil
+	return automdmEvent, nil
 }
 
 func adjustEventTimes(endTime time.Time, dayEnd time.Time) (eventStart time.Time, eventEnd time.Time, isLastSlot bool, conflict bool) {
@@ -764,17 +764,17 @@ func getLocation(tz string, config *GoogleCalendarConfig) *time.Location {
 	return loc
 }
 
-func (c *GoogleCalendar) googleEventToFleetEvent(startTime time.Time, endTime time.Time, event *calendar.Event, eventUUID string,
+func (c *GoogleCalendar) googleEventToAutoMDMEvent(startTime time.Time, endTime time.Time, event *calendar.Event, eventUUID string,
 	channelID string, resourceID string, bodyTag string) (
-	*fleet.CalendarEvent, error,
+	*automdm.CalendarEvent, error,
 ) {
 	tzName := c.location.String()
-	fleetEvent := &fleet.CalendarEvent{}
-	fleetEvent.StartTime = startTime
-	fleetEvent.EndTime = endTime
-	fleetEvent.Email = c.currentUserEmail
-	fleetEvent.TimeZone = &tzName
-	fleetEvent.UUID = eventUUID
+	automdmEvent := &automdm.CalendarEvent{}
+	automdmEvent.StartTime = startTime
+	automdmEvent.EndTime = endTime
+	automdmEvent.Email = c.currentUserEmail
+	automdmEvent.TimeZone = &tzName
+	automdmEvent.UUID = eventUUID
 	details := &eventDetails{
 		ID:         event.Id,
 		ETag:       event.Etag,
@@ -786,11 +786,11 @@ func (c *GoogleCalendar) googleEventToFleetEvent(startTime time.Time, endTime ti
 	if err != nil {
 		return nil, ctxerr.Wrap(c.config.Context, err, "marshaling Google calendar event details")
 	}
-	fleetEvent.Data = detailsJson
-	return fleetEvent, nil
+	automdmEvent.Data = detailsJson
+	return automdmEvent, nil
 }
 
-func (c *GoogleCalendar) DeleteEvent(event *fleet.CalendarEvent) error {
+func (c *GoogleCalendar) DeleteEvent(event *automdm.CalendarEvent) error {
 	details, err := c.unmarshalDetails(event)
 	if err != nil {
 		return err
@@ -809,7 +809,7 @@ func (c *GoogleCalendar) DeleteEvent(event *fleet.CalendarEvent) error {
 	return nil
 }
 
-func (c *GoogleCalendar) StopEventChannel(event *fleet.CalendarEvent) error {
+func (c *GoogleCalendar) StopEventChannel(event *automdm.CalendarEvent) error {
 	details, err := c.unmarshalDetails(event)
 	if err != nil {
 		return err
@@ -823,7 +823,7 @@ func (c *GoogleCalendar) StopEventChannel(event *fleet.CalendarEvent) error {
 	return nil
 }
 
-func (c *GoogleCalendar) Get(event *fleet.CalendarEvent, key string) (interface{}, error) {
+func (c *GoogleCalendar) Get(event *automdm.CalendarEvent, key string) (interface{}, error) {
 	if key == "channelID" {
 		details, err := c.unmarshalDetails(event)
 		if err != nil {

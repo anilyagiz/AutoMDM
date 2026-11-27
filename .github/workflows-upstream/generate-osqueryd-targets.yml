@@ -1,4 +1,4 @@
-name: Generate osqueryd targets for Fleetd
+name: Generate osqueryd targets for AutoMDMd
 
 on:
   push:

@@ -5,16 +5,16 @@ package table
 import (
 	"context"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/containerd"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/crowdstrike/falcon_kernel_check"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/crowdstrike/falconctl"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/cryptsetup"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/cryptsetup_luks_salt"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/dataflattentable"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/dconf_read"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/fleetd_nix_packages"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/fleetd_pacman_packages"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/sshd_config"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/automdmd_nix_packages"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/automdmd_pacman_packages"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/containerd"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/crowdstrike/falcon_kernel_check"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/crowdstrike/falconctl"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/cryptsetup"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/cryptsetup_luks_salt"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/dataflattentable"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/dconf_read"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/sshd_config"
 	"github.com/macadmins/osquery-extension/tables/crowdstrike_falcon"
 	"github.com/osquery/osquery-go"
 	"github.com/osquery/osquery-go/plugin/table"
@@ -33,8 +33,8 @@ func PlatformTables(opts PluginOpts) ([]osquery.OsqueryPlugin, error) {
 		table.NewPlugin("dconf_read", dconf_read.Columns(), dconf_read.Generate),
 		table.NewPlugin("containerd_containers", containerd.ContainersColumns(), containerd.GenerateContainers),
 		table.NewPlugin("containerd_mounts", containerd.MountsColumns(), containerd.GenerateMounts),
-		table.NewPlugin(fleetd_pacman_packages.TableName, fleetd_pacman_packages.Columns(), fleetd_pacman_packages.Generate),
-		table.NewPlugin(fleetd_nix_packages.TableName, fleetd_nix_packages.Columns(), fleetd_nix_packages.Generate),
+		table.NewPlugin(automdmd_pacman_packages.TableName, automdmd_pacman_packages.Columns(), automdmd_pacman_packages.Generate),
+		table.NewPlugin(automdmd_nix_packages.TableName, automdmd_nix_packages.Columns(), automdmd_nix_packages.Generate),
 		table.NewPlugin("sshd_config", sshd_config.Columns(), sshd_config.Generate),
 		table.NewPlugin("crowdstrike_falcon", crowdstrike_falcon.CrowdstrikeFalconColumns(),
 			func(ctx context.Context, queryContext table.QueryContext) ([]map[string]string, error) {

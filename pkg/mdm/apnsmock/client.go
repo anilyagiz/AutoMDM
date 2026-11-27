@@ -1,8 +1,8 @@
-// Package apnsmock provides the client half of Fleet's mock APNS service
+// Package apnsmock provides the client half of AutoMDM's mock APNS service
 // (cmd/apple-apns-mock). Simulated MDM devices (osquery-perf agents, mdmtest
 // clients) use Client as their stand-in for a real device's persistent APNS
 // courier connection: they subscribe with their device token and receive
-// each push Fleet sends as a Ping, which should trigger an MDM check-in
+// each push AutoMDM sends as a Ping, which should trigger an MDM check-in
 package apnsmock
 
 import (
@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
 )
 
 // Ping is one push notification delivered by the mock APNS server. It is a
@@ -23,7 +23,7 @@ import (
 // proof that the MDM server wants a check-in.
 type Ping struct {
 	PushMagic  string    // parsed from the {"mdm":"<magic>"} payload; empty for any other shape
-	Raw        []byte    // exact payload Fleet posted to /3/device/<token>, verbatim
+	Raw        []byte    // exact payload AutoMDM posted to /3/device/<token>, verbatim
 	ReceivedAt time.Time // when this client received the event
 }
 
@@ -96,7 +96,7 @@ func NewClient(baseURL, deviceToken string, opts ...Option) *Client {
 	c := &Client{
 		baseURL:    strings.TrimRight(baseURL, "/"),
 		token:      strings.ToLower(deviceToken),
-		httpClient: fleethttp.NewClient(fleethttp.WithNoTimeout()), // deliberately no timeout: SSE streams are long-lived
+		httpClient: automdmhttp.NewClient(automdmhttp.WithNoTimeout()), // deliberately no timeout: SSE streams are long-lived
 		backoffMin: time.Second,
 		backoffMax: 30 * time.Second,
 		logf:       func(string, ...any) {},
@@ -160,7 +160,7 @@ func (c *Client) run(ctx context.Context) {
 	}
 }
 
-// jitter returns a random offset in [0, d/2] so a fleet of clients that were
+// jitter returns a random offset in [0, d/2] so a team of clients that were
 // all disconnected at the same moment does not redial in lockstep.
 func jitter(d time.Duration) time.Duration {
 	if d <= 0 {
@@ -240,7 +240,7 @@ func (c *Client) deliver(raw []byte) {
 }
 
 // pushMagic extracts the PushMagic from an MDM push payload
-// ({"mdm":"<magic>"} — the only payload Fleet ever sends). Any other shape
+// ({"mdm":"<magic>"} — the only payload AutoMDM ever sends). Any other shape
 // yields "" and the ping is still delivered with Raw intact.
 func pushMagic(raw []byte) string {
 	var p struct {

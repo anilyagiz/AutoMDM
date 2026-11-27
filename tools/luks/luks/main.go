@@ -7,9 +7,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/dialog"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/lvm"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/zenity"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/dialog"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/lvm"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/zenity"
 	"github.com/siderolabs/go-blockdevice/v2/encryption"
 	"github.com/siderolabs/go-blockdevice/v2/encryption/luks"
 )
@@ -34,7 +34,7 @@ func main() {
 		panic(err)
 	}
 
-	const escrowPassPhrase = "fleet123"
+	const escrowPassPhrase = "automdm123"
 
 	device := luks.New(luks.AESXTSPlain64Cipher)
 

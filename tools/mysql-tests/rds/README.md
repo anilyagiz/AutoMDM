@@ -1,6 +1,6 @@
 # RDS IAM Authentication Test Tools
 
-This directory contains test tools for validating Fleet's AWS RDS IAM authentication implementation.
+This directory contains test tools for validating AutoMDM's AWS RDS IAM authentication implementation.
 
 ## Prerequisites
 

@@ -11,22 +11,22 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/fleetdm/fleet/v4/pkg/certificate"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/assets"
-	"github.com/fleetdm/fleet/v4/server/mdm/scep/depot"
+	"github.com/anilyagiz/automdm/v4/pkg/certificate"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/assets"
+	"github.com/anilyagiz/automdm/v4/server/mdm/scep/depot"
 )
 
 // SCEPDepot is a MySQL-backed SCEP certificate depot.
 type SCEPDepot struct {
 	db *sql.DB
-	ds fleet.Datastore
+	ds automdm.Datastore
 }
 
 var _ depot.Depot = (*SCEPDepot)(nil)
 
 // newSCEPDepot creates and returns a *SCEPDepot.
-func newSCEPDepot(db *sql.DB, ds fleet.Datastore) (*SCEPDepot, error) {
+func newSCEPDepot(db *sql.DB, ds automdm.Datastore) (*SCEPDepot, error) {
 	if err := db.Ping(); err != nil {
 		return nil, err
 	}

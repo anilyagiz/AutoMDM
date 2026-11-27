@@ -69,13 +69,13 @@ const createEmptyConditionalAccessConfig = () =>
   createMockConfig({ conditional_access: EMPTY_CONDITIONAL_ACCESS });
 
 const GOOGLE_CUSTOMER_ID = "C01234abc";
-const GOOGLE_ADMIN_EMAIL = "fleet-admin@example.com";
+const GOOGLE_ADMIN_EMAIL = "team-admin@example.com";
 const SERVICE_ACCOUNT_JSON = `{
   "type": "service_account",
-  "client_email": "fleet@example.iam.gserviceaccount.com",
+  "client_email": "team@example.iam.gserviceaccount.com",
   "private_key": "-----BEGIN PRIVATE KEY-----\\nabc\\n-----END PRIVATE KEY-----\\n"
 }`;
-const REGISTRATION_ERROR = "Couldn't register with fleetdm.com: timeout";
+const REGISTRATION_ERROR = "Couldn't register with automdm.com: timeout";
 const GOOGLE_ERROR_MESSAGES: Record<string, string> = {
   delegation_failed: "Google rejected the service account key.",
   registration_failed: REGISTRATION_ERROR,
@@ -89,7 +89,7 @@ const GOOGLE_CONNECTED_RESPONSE = {
 };
 const GITOPS_ON = {
   gitops_mode_enabled: true,
-  repository_url: "https://github.com/example/fleet-gitops",
+  repository_url: "https://github.com/example/automdm-gitops",
   exceptions: { labels: false, software: false, secrets: true },
 };
 
@@ -728,7 +728,7 @@ BAYTAkFVMRMwEQYDVQQIDApTb21lLVN0YXRlMSEwHwYDVQQKDBhJbnRlcm5ldCBX
         },
         gitops: {
           gitops_mode_enabled: true,
-          repository_url: "https://github.com/example/fleet-gitops",
+          repository_url: "https://github.com/example/automdm-gitops",
           exceptions: { labels: false, software: false, secrets: true },
         },
       });
@@ -778,7 +778,7 @@ BAYTAkFVMRMwEQYDVQQIDApTb21lLVN0YXRlMSEwHwYDVQQKDBhJbnRlcm5ldCBX
         conditional_access: baseConditionalAccess,
         gitops: {
           gitops_mode_enabled: false,
-          repository_url: "https://github.com/example/fleet-gitops",
+          repository_url: "https://github.com/example/automdm-gitops",
           exceptions: { labels: false, software: false, secrets: true },
         },
       });
@@ -786,7 +786,7 @@ BAYTAkFVMRMwEQYDVQQIDApTb21lLVN0YXRlMSEwHwYDVQQKDBhJbnRlcm5ldCBX
         conditional_access: baseConditionalAccess,
         gitops: {
           gitops_mode_enabled: true,
-          repository_url: "https://github.com/example/fleet-gitops",
+          repository_url: "https://github.com/example/automdm-gitops",
           exceptions: { labels: false, software: false, secrets: true },
         },
       });
@@ -835,7 +835,7 @@ BAYTAkFVMRMwEQYDVQQIDApTb21lLVN0YXRlMSEwHwYDVQQKDBhJbnRlcm5ldCBX
         },
         gitops: {
           gitops_mode_enabled: true,
-          repository_url: "https://github.com/example/fleet-gitops",
+          repository_url: "https://github.com/example/automdm-gitops",
           exceptions: { labels: false, software: false, secrets: true },
         },
       });
@@ -870,7 +870,7 @@ BAYTAkFVMRMwEQYDVQQIDApTb21lLVN0YXRlMSEwHwYDVQQKDBhJbnRlcm5ldCBX
         },
         gitops: {
           gitops_mode_enabled: true,
-          repository_url: "https://github.com/example/fleet-gitops",
+          repository_url: "https://github.com/example/automdm-gitops",
           exceptions: { labels: false, software: false, secrets: true },
         },
       });
@@ -910,7 +910,7 @@ BAYTAkFVMRMwEQYDVQQIDApTb21lLVN0YXRlMSEwHwYDVQQKDBhJbnRlcm5ldCBX
         },
         gitops: {
           gitops_mode_enabled: true,
-          repository_url: "https://github.com/example/fleet-gitops",
+          repository_url: "https://github.com/example/automdm-gitops",
           exceptions: { labels: false, software: false, secrets: true },
         },
       });
@@ -957,7 +957,7 @@ BAYTAkFVMRMwEQYDVQQIDApTb21lLVN0YXRlMSEwHwYDVQQKDBhJbnRlcm5ldCBX
         conditional_access: baseConditionalAccess,
         gitops: {
           gitops_mode_enabled: false,
-          repository_url: "https://github.com/example/fleet-gitops",
+          repository_url: "https://github.com/example/automdm-gitops",
           exceptions: { labels: false, software: false, secrets: true },
         },
       });
@@ -965,7 +965,7 @@ BAYTAkFVMRMwEQYDVQQIDApTb21lLVN0YXRlMSEwHwYDVQQKDBhJbnRlcm5ldCBX
         conditional_access: baseConditionalAccess,
         gitops: {
           gitops_mode_enabled: true,
-          repository_url: "https://github.com/example/fleet-gitops",
+          repository_url: "https://github.com/example/automdm-gitops",
           exceptions: { labels: false, software: false, secrets: true },
         },
       });
@@ -1046,11 +1046,11 @@ BAYTAkFVMRMwEQYDVQQIDApTb21lLVN0YXRlMSEwHwYDVQQKDBhJbnRlcm5ldCBX
       render(<ConditionalAccess />);
 
       expect(
-        screen.getByText(/This feature is included in Fleet Premium/i)
+        screen.getByText(/This feature is included in AutoMDM Premium/i)
       ).toBeInTheDocument();
     });
 
-    it("Renders the 'Conditional access' section header on Fleet Free", () => {
+    it("Renders the 'Conditional access' section header on AutoMDM Free", () => {
       const render = createCustomRenderer({
         withBackendMock: true,
         context: {
@@ -1353,15 +1353,15 @@ BAYTAkFVMRMwEQYDVQQIDApTb21lLVN0YXRlMSEwHwYDVQQKDBhJbnRlcm5ldCBX
     it.each<[ConditionalAccessGoogleState, string]>([
       [
         "pending",
-        "Fleet is connecting to Google. If this doesn't change, edit the settings and save to try again.",
+        "AutoMDM is connecting to Google. If this doesn't change, edit the settings and save to try again.",
       ],
       [
         "deleted",
-        "Fleet couldn't finish deleting Google conditional access. Delete it again, or edit the settings and save to reconnect.",
+        "AutoMDM couldn't finish deleting Google conditional access. Delete it again, or edit the settings and save to reconnect.",
       ],
       [
         "",
-        "Fleet couldn't connect to Google. Edit the settings and try again.",
+        "AutoMDM couldn't connect to Google. Edit the settings and try again.",
       ],
     ])(
       "Explains the '%s' state on the card and keeps Edit and Delete",
@@ -1541,7 +1541,7 @@ BAYTAkFVMRMwEQYDVQQIDApTb21lLVN0YXRlMSEwHwYDVQQKDBhJbnRlcm5ldCBX
     });
 
     it("Shows the failed integration on the card when the server saves the settings but can't register", async () => {
-      const reason = "Couldn't register with fleetdm.com";
+      const reason = "Couldn't register with automdm.com";
       mockServer.use(
         http.post(baseUrl("/conditional_access/google"), () =>
           HttpResponse.json(
@@ -1617,7 +1617,7 @@ BAYTAkFVMRMwEQYDVQQIDApTb21lLVN0YXRlMSEwHwYDVQQKDBhJbnRlcm5ldCBX
       await user.click(deleteButtons[deleteButtons.length - 1]);
 
       expect(
-        await screen.findByText(/Fleet couldn't finish deleting Google/)
+        await screen.findByText(/AutoMDM couldn't finish deleting Google/)
       ).toBeInTheDocument();
       expect(notify.error).toHaveBeenCalledWith(
         "Could not disconnect from Google, please try again.",

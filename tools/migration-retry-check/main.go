@@ -15,8 +15,8 @@ import (
 
 	"github.com/jmoiron/sqlx"
 
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/migrations/tables"
-	platform_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/migrations/tables"
+	platform_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
 )
 
 const childProcessEnvVar = "MIGRATION_RETRY_CHECK_CHILD"
@@ -175,7 +175,7 @@ func applyMigrationInSubprocess(username string) (int, string) {
 
 func openDatabase(username string, database string) (*sqlx.DB, error) {
 	address := "localhost:3307"
-	if port := os.Getenv("FLEET_MYSQL_TEST_PORT"); port != "" {
+	if port := os.Getenv("AUTOMDM_MYSQL_TEST_PORT"); port != "" {
 		address = "localhost:" + port
 	}
 

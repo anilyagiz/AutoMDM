@@ -5,18 +5,18 @@ package main
 import (
 	"time"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/profiles"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/update"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/profiles"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/update"
 	"github.com/rs/zerolog/log"
 )
 
-// On Windows, Fleet MDM delivers an enroll secret out of band by writing it to a registry value that a Fleet-managed
+// On Windows, AutoMDM delivers an enroll secret out of band by writing it to a registry value that an AutoMDM-managed
 // configuration profile carries. This file is that channel.
 
 // mdmSyncInterval bounds how often a rejected enroll attempt asks the device to check in with MDM.
 const mdmSyncInterval = 5 * time.Minute
 
-// loadMDMSecretIfWaiting loads an enroll secret Fleet MDM delivered out of band, if one is waiting. It reports whether a secret
+// loadMDMSecretIfWaiting loads an enroll secret AutoMDM delivered out of band, if one is waiting. It reports whether a secret
 // was loaded.
 func loadMDMSecretIfWaiting(
 	enrollSecretPath string, disableKeystore bool, setSecret func(string) error,
@@ -29,7 +29,7 @@ func loadMDMSecretIfWaiting(
 	return loaded
 }
 
-// loadMDMDeliveredEnrollSecret loads an enroll secret that Fleet MDM delivered out of band, if one is waiting. It reports
+// loadMDMDeliveredEnrollSecret loads an enroll secret that AutoMDM delivered out of band, if one is waiting. It reports
 // whether a secret was loaded.
 func loadMDMDeliveredEnrollSecret(
 	enrollSecretPath string, ks enrollSecretKeystore, disableKeystore bool, setSecret func(string) error,
@@ -40,10 +40,10 @@ func loadMDMDeliveredEnrollSecret(
 
 // newMDMSync returns the orbit client's hook for a rejected enroll attempt: a throttled MDM check-in.
 func newMDMSync() func() {
-	return throttledMDMSync(mdmSyncInterval, update.HasActiveFleetMDMEnrollment, update.TriggerWindowsMDMSync)
+	return throttledMDMSync(mdmSyncInterval, update.HasActiveAutoMDMMDMEnrollment, update.TriggerWindowsMDMSync)
 }
 
-// mdmEnrollSecretRefresher returns the orbit client's pre-enroll hook. It loads a secret Fleet MDM delivered since startup, if one
+// mdmEnrollSecretRefresher returns the orbit client's pre-enroll hook. It loads a secret AutoMDM delivered since startup, if one
 // is waiting, and returns it; empty means nothing new, and the client keeps the secret it has.
 //
 // This is what recovers a host whose one-time secret was already used. The keystore still holds that secret, so orbit starts with

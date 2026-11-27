@@ -50,7 +50,7 @@ interface IEditSoftwareModalProps {
   refetchSoftwareTitle: () => void;
   onExit: () => void;
   installerType: InstallerType;
-  isFleetMaintainedApp?: boolean;
+  isAutoMDMMaintainedApp?: boolean;
   isIosOrIpadosApp?: boolean;
   name: string;
   displayName: string;
@@ -71,7 +71,7 @@ const EditSoftwareModal = ({
   onExit,
   refetchSoftwareTitle,
   installerType,
-  isFleetMaintainedApp = false,
+  isAutoMDMMaintainedApp = false,
   isIosOrIpadosApp = false,
   name,
   displayName,
@@ -87,7 +87,7 @@ const EditSoftwareModal = ({
   // disabled Save button carries the standard GitOps tooltip that links to
   // the repo.
   const isGitOpsCompatible =
-    gitOpsModeEnabled && (isFleetMaintainedApp || canActivateMultiplePackages);
+    gitOpsModeEnabled && (isAutoMDMMaintainedApp || canActivateMultiplePackages);
 
   // Backend rejects pre_install_query on save when patch_when_closed,
   // notify_before_patching, or patch_deadline is on, so the field must be
@@ -246,7 +246,7 @@ const EditSoftwareModal = ({
           Successfully edited <b>{formData.software?.name}</b>
           {canActivateMultiplePackages ? " version." : "."}
           {formData.selfService
-            ? " The end user can install from Fleet Desktop."
+            ? " The end user can install from AutoMDM Desktop."
             : ""}
         </>
       );
@@ -315,7 +315,7 @@ const EditSoftwareModal = ({
         <>
           Successfully edited <b>{softwareInstaller.name}</b>.
           {formData.selfService
-            ? " The end user can install from Fleet Desktop."
+            ? " The end user can install from AutoMDM Desktop."
             : ""}
         </>
       );
@@ -374,7 +374,7 @@ const EditSoftwareModal = ({
           labels={labels || []}
           className={formClassNames}
           isEditingSoftware
-          isFleetMaintainedApp={isFleetMaintainedApp}
+          isAutoMDMMaintainedApp={isAutoMDMMaintainedApp}
           onCancel={onExit}
           onSubmit={onClickSavePackage}
           onClickPreviewEndUserExperience={togglePreviewEndUserExperienceModal}

@@ -1,4 +1,4 @@
-# Fleet extracts name from installer (EXE) and saves it to PACKAGE_ID
+# AutoMDM extracts name from installer (EXE) and saves it to PACKAGE_ID
 # variable
 # Certify Certificate Manager registers a versioned DisplayName in the registry
 # (e.g. "Certify Certificate Manager version 7.1.0.0"), so we match on the stable prefix.

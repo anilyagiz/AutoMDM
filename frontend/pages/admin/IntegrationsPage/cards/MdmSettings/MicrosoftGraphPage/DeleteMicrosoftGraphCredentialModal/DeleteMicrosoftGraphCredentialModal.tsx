@@ -43,7 +43,7 @@ const DeleteMicrosoftGraphCredentialModal = ({
       isContentDisabled={isDeleting}
     >
       <p>
-        Fleet will stop syncing Windows Autopilot devices from this tenant.
+        AutoMDM will stop syncing Windows Autopilot devices from this tenant.
         Devices already synced will remain as pending hosts until they enroll or
         you delete them.
       </p>

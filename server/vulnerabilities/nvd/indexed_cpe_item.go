@@ -4,8 +4,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/nvd/tools/wfn"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/nvd/tools/wfn"
 )
 
 type IndexedCPEItem struct {
@@ -34,7 +34,7 @@ func isCitrixWorkspaceLTSR(version string) bool {
 	return false
 }
 
-func (i *IndexedCPEItem) FmtStr(s *fleet.Software) string {
+func (i *IndexedCPEItem) FmtStr(s *automdm.Software) string {
 	cpe := wfn.NewAttributesWithAny()
 	cpe.Part = "a"
 	cpe.Vendor = i.Vendor

@@ -1,13 +1,13 @@
 # Learn more about install scripts:
-# http://fleetdm.com/learn-more-about/install-scripts
+# http://automdm.com/learn-more-about/install-scripts
 #
 # The Delinea Connection Manager MSI is a dual-purpose package: its Property
 # table sets ALLUSERS=2 + MSIINSTALLPERUSER=1, so a plain silent install under
-# Fleet's SYSTEM context lands per-user (in the SYSTEM profile) despite the
+# AutoMDM's SYSTEM context lands per-user (in the SYSTEM profile) despite the
 # winget manifest's machine scope. Force a true per-machine install by setting
 # ALLUSERS=1 and clearing MSIINSTALLPERUSER.
 
-$logFile = "${env:TEMP}/fleet-install-software.log"
+$logFile = "${env:TEMP}/automdm-install-software.log"
 
 try {
 

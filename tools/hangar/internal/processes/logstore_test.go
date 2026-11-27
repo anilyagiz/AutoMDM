@@ -23,11 +23,11 @@ func lvl(s string) *string { return &s }
 
 func sampleChannels() map[string][]LogEntry {
 	return map[string][]LogEntry{
-		"fleet-serve": {
-			{TsMS: 10, Level: lvl("info"), Message: "starting up", Channel: "fleet-serve"},
-			{TsMS: 20, Level: lvl("warn"), Message: "disk getting full", Channel: "fleet-serve"},
-			{TsMS: 30, Level: lvl("error"), Message: "connection refused", Channel: "fleet-serve"},
-			{TsMS: 40, Level: nil, Message: "no level here", Channel: "fleet-serve"}, // treated as info
+		"automdm-serve": {
+			{TsMS: 10, Level: lvl("info"), Message: "starting up", Channel: "automdm-serve"},
+			{TsMS: 20, Level: lvl("warn"), Message: "disk getting full", Channel: "automdm-serve"},
+			{TsMS: 30, Level: lvl("error"), Message: "connection refused", Channel: "automdm-serve"},
+			{TsMS: 40, Level: nil, Message: "no level here", Channel: "automdm-serve"}, // treated as info
 		},
 		"docker-compose": {
 			{TsMS: 15, Level: lvl("info"), Message: "container up", Channel: "docker-compose"},

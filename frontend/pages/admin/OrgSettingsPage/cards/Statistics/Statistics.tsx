@@ -56,15 +56,15 @@ const Statistics = ({
         variant="right-panel"
         content={
           <p className={`${baseClass}__section-description`}>
-            Help us improve Fleet by sending us anonymous usage statistics.
+            Help us improve AutoMDM by sending us anonymous usage statistics.
             <br />
             <br />
             This information helps our team better understand feature adoption
-            and usage, and allows us to see how Fleet is adding value, so that
-            we can make better product decisions. Fleet Premium customers always
+            and usage, and allows us to see how AutoMDM is adding value, so that
+            we can make better product decisions. AutoMDM Premium customers always
             submit usage statistics data.{" "}
             <CustomLink
-              url="https://fleetdm.com/docs/using-fleet/usage-statistics#usage-statistics"
+              url="https://automdm.com/docs/using-automdm/usage-statistics#usage-statistics"
               text="Learn more"
               newTab
             />

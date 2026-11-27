@@ -1,6 +1,6 @@
-// Package wstransport implements the fleetd side of the agent WebSocket
+// Package wstransport implements the automdmd side of the agent WebSocket
 // notification transport (ADR-0011): orbit holds a persistent WebSocket to the
-// Fleet server, receives tiny "check now" notifications and performs the usual
+// AutoMDM server, receives tiny "check now" notifications and performs the usual
 // HTTP distributed/read and distributed/write calls on behalf of osquery,
 // acting as osquery's distributed plugin over the extension socket.
 package wstransport
@@ -12,8 +12,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/constant"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/constant"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/rs/zerolog/log"
 )
 
@@ -32,7 +32,7 @@ type State struct {
 	OsqueryConfig bool `json:"osquery_config,omitempty"`
 }
 
-func stateFromConfig(cfg *fleet.OrbitConfig) State {
+func stateFromConfig(cfg *automdm.OrbitConfig) State {
 	ws := cfg.WebSocketTransport
 	if ws == nil || !ws.Enabled {
 		return State{}
@@ -84,9 +84,9 @@ func NewToggleReceiver(rootDir string, triggerOrbitRestart func(reason string)) 
 	}
 }
 
-var _ fleet.OrbitConfigReceiver = (*ToggleReceiver)(nil)
+var _ automdm.OrbitConfigReceiver = (*ToggleReceiver)(nil)
 
-func (r *ToggleReceiver) Run(cfg *fleet.OrbitConfig) error {
+func (r *ToggleReceiver) Run(cfg *automdm.OrbitConfig) error {
 	want := stateFromConfig(cfg)
 	if want == LoadState(r.rootDir) {
 		return nil

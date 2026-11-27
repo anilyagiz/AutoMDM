@@ -8,7 +8,7 @@
     "source": "spreadsheet-backfill",
     "sheet_row": 19
   },
-  "fleet_server": {
+  "automdm_server": {
     "cpu_utilization": {
       "Average": 72.0
     },
@@ -80,20 +80,20 @@
       }
     }
   ],
-  "fleet_server_errors": {
+  "automdm_server_errors": {
     "error_count": 0
   },
   "backfill": {
-    "source": "Fleet release load testing results (Google Sheet), manual-logging era",
+    "source": "AutoMDM release load testing results (Google Sheet), manual-logging era",
     "purpose": "Migration Test",
     "one_click": null,
     "notes": "No abnormal spikes in performance after upgrade",
     "raw": {
       "full_day": "no",
-      "fleet_containers": "30",
+      "automdm_containers": "30",
       "loadtest_containers": "200",
-      "fleet_cpu": "~72%",
-      "fleet_mem": "~5.5%",
+      "automdm_cpu": "~72%",
+      "automdm_mem": "~5.5%",
       "errors": "No new errors",
       "writer_top_sql": "INSERT INTO `host_seen_ti\u2026",
       "writer_cpu": "~20%",

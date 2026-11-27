@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/fleetdm/fleet/tools/hangar/internal/processes"
-	"github.com/fleetdm/fleet/tools/hangar/internal/settings"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/processes"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/settings"
 )
 
 func envMap(pairs []processes.EnvPair) map[string]string {
@@ -19,12 +19,12 @@ func envMap(pairs []processes.EnvPair) map[string]string {
 
 func TestEnvForFullSelection(t *testing.T) {
 	cfg := settings.TufConfig{
-		Platforms:    []string{"macos", "windows", "windows-arm64", "linux", "linux-arm64"},
-		FleetURL:     "https://andrey.ngrok.app",
-		TufURL:       "https://tuf.andrey.ngrok.app",
-		EnrollSecret: "sekret",
-		FleetDesktop: true,
-		Debug:        true,
+		Platforms:      []string{"macos", "windows", "windows-arm64", "linux", "linux-arm64"},
+		AutoMDMURL:     "https://andrey.ngrok.app",
+		TufURL:         "https://tuf.andrey.ngrok.app",
+		EnrollSecret:   "sekret",
+		AutoMDMDesktop: true,
+		Debug:          true,
 	}
 	m := envMap(EnvFor(cfg))
 
@@ -41,8 +41,8 @@ func TestEnvForFullSelection(t *testing.T) {
 	}
 	// URLs set for every package-type prefix.
 	for _, tp := range []string{"PKG", "DEB", "RPM", "MSI", "PKG_TAR_ZST"} {
-		if m[tp+"_FLEET_URL"] != cfg.FleetURL {
-			t.Errorf("%s_FLEET_URL = %q, want %q", tp, m[tp+"_FLEET_URL"], cfg.FleetURL)
+		if m[tp+"_AUTOMDM_URL"] != cfg.AutoMDMURL {
+			t.Errorf("%s_AUTOMDM_URL = %q, want %q", tp, m[tp+"_AUTOMDM_URL"], cfg.AutoMDMURL)
 		}
 		if m[tp+"_TUF_URL"] != cfg.TufURL {
 			t.Errorf("%s_TUF_URL = %q, want %q", tp, m[tp+"_TUF_URL"], cfg.TufURL)
@@ -51,8 +51,8 @@ func TestEnvForFullSelection(t *testing.T) {
 	if m["ENROLL_SECRET"] != "sekret" {
 		t.Errorf("ENROLL_SECRET = %q", m["ENROLL_SECRET"])
 	}
-	if m["FLEET_DESKTOP"] != "1" || m["DEBUG"] != "1" {
-		t.Errorf("expected FLEET_DESKTOP=1 DEBUG=1, got %q %q", m["FLEET_DESKTOP"], m["DEBUG"])
+	if m["AUTOMDM_DESKTOP"] != "1" || m["DEBUG"] != "1" {
+		t.Errorf("expected AUTOMDM_DESKTOP=1 DEBUG=1, got %q %q", m["AUTOMDM_DESKTOP"], m["DEBUG"])
 	}
 	// Hangar runs the file-server itself, so the build must skip main.sh's.
 	if m["SKIP_SERVER"] != "1" {
@@ -88,8 +88,8 @@ func TestEnvForSubsetAndToggles(t *testing.T) {
 		t.Error("GENERATE_MSI should be absent for macos-only")
 	}
 	// Toggles off → keys absent.
-	if _, ok := m["FLEET_DESKTOP"]; ok {
-		t.Error("FLEET_DESKTOP should be absent when disabled")
+	if _, ok := m["AUTOMDM_DESKTOP"]; ok {
+		t.Error("AUTOMDM_DESKTOP should be absent when disabled")
 	}
 	if _, ok := m["DEBUG"]; ok {
 		t.Error("DEBUG should be absent when disabled")
@@ -119,7 +119,7 @@ func TestDeleteAssets(t *testing.T) {
 }
 
 func TestMainScriptPath(t *testing.T) {
-	if got := MainScriptPath("/x/fleet"); got != "/x/fleet/tools/tuf/test/main.sh" {
+	if got := MainScriptPath("/x/automdm"); got != "/x/automdm/tools/tuf/test/main.sh" {
 		t.Errorf("MainScriptPath = %q", got)
 	}
 }

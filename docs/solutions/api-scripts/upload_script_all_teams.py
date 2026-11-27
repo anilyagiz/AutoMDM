@@ -4,8 +4,8 @@ import os
 import requests
 
 # First make sure the environment variable exists
-# > export FLEET_API_TOKEN="your_token"
-api_token = os.getenv("FLEET_API_TOKEN")
+# > export AUTOMDM_API_TOKEN="your_token"
+api_token = os.getenv("AUTOMDM_API_TOKEN")
 if not api_token:
     print("No token found in the environment")
     raise
@@ -13,8 +13,8 @@ if not api_token:
 #############################
 # ENTER YOUR INFORMATION HERE
 #############################
-base_url = "https://your-Fleet-server.com"  # no trailing slash
-api_path = "api/v1/fleet"
+base_url = "https://your-AutoMDM-server.com"  # no trailing slash
+api_path = "api/v1/automdm"
 script_path = "script.sh"  # relative path to this file (example is a script in the same directory)
 #
 # END

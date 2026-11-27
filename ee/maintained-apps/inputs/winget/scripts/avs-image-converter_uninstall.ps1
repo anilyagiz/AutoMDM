@@ -1,4 +1,4 @@
-# Fleet extracts name from installer (EXE) and saves it to PACKAGE_ID
+# AutoMDM extracts name from installer (EXE) and saves it to PACKAGE_ID
 # variable
 # AVS Image Converter registers a versioned DisplayName in the registry
 # (e.g. "AVS Image Converter 26.0.2"), so we match on the stable prefix.

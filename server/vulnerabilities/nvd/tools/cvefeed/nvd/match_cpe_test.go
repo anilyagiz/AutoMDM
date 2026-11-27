@@ -3,8 +3,8 @@ package nvd
 import (
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/nvd/tools/cvefeed/nvd/schema"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/nvd/tools/wfn"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/nvd/tools/cvefeed/nvd/schema"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/nvd/tools/wfn"
 	"github.com/stretchr/testify/require"
 )
 

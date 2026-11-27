@@ -2,7 +2,7 @@
 # same-version install is removed first - SecureRepair blocks a same-version
 # reinstall and fails with 1603.
 
-$logFile = "${env:TEMP}/fleet-install-software.log"
+$logFile = "${env:TEMP}/automdm-install-software.log"
 $softwareName = "Microsoft OLE DB Driver for SQL Server"
 $softwarePublisher = "Microsoft Corporation"
 

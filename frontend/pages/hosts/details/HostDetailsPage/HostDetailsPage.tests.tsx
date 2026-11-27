@@ -81,14 +81,14 @@ const mockNeverFetchedWindowsHost = (status: "online" | "offline"): IHost =>
 const mockAppleHost = (): IHost => {
   const host = createMockHost({ platform: "darwin", status: "online" });
   host.mdm.enrollment_status = "On (manual)";
-  host.mdm.connected_to_fleet = true;
+  host.mdm.connected_to_automdm = true;
   return host;
 };
 
 const mockWindowsHost = (): IHost => {
   const host = createMockHost({ platform: "windows", status: "online" });
   host.mdm.enrollment_status = null;
-  host.mdm.connected_to_fleet = false;
+  host.mdm.connected_to_automdm = false;
   return host;
 };
 
@@ -115,7 +115,7 @@ const stubQueries = (host: IHost) => {
     count: 0,
     meta: { has_next_results: false, has_previous_results: false },
   });
-  (teamAPI.loadAll as jest.Mock).mockResolvedValue({ fleets: [] });
+  (teamAPI.loadAll as jest.Mock).mockResolvedValue({ teams: [] });
   (commandAPI.getCommands as jest.Mock).mockResolvedValue({
     results: [],
     count: 0,
@@ -463,7 +463,7 @@ describe("HostDetailsPage - software library", () => {
     jest.resetAllMocks();
   });
 
-  it("shows the unsupported empty state on NixOS hosts, explaining that software is installed outside of Fleet", async () => {
+  it("shows the unsupported empty state on NixOS hosts, explaining that software is installed outside of AutoMDM", async () => {
     const host = createMockHost({ platform: "nixos", status: "online" });
     stubQueries(host);
 
@@ -473,7 +473,7 @@ describe("HostDetailsPage - software library", () => {
 
     expect(
       await screen.findByText(
-        /Installing software on NixOS hosts happens outside of Fleet./
+        /Installing software on NixOS hosts happens outside of AutoMDM./
       )
     ).toBeInTheDocument();
     expect(
@@ -483,7 +483,7 @@ describe("HostDetailsPage - software library", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /learn more/i })).toHaveAttribute(
       "href",
-      "https://fleetdm.com/learn-more-about/nixos-package-management"
+      "https://automdm.com/learn-more-about/nixos-package-management"
     );
     expect(hostAPI.getHostSoftware).not.toHaveBeenCalled();
   });
@@ -708,13 +708,13 @@ describe("HostDetailsPage - enrollment rejection details", () => {
     jest.resetAllMocks();
   });
 
-  it("names the Fleetd enroll secret profile for a Windows spent-secret rejection", async () => {
+  it("names the AutoMDMd enroll secret profile for a Windows spent-secret rejection", async () => {
     stubQueries(mockWindowsHost());
     (activitiesAPI.getHostPastActivities as jest.Mock).mockResolvedValue({
       activities: [
         createMockActivity({
           type: ActivityType.HostEnrollmentRejected,
-          fleet_initiated: true,
+          automdm_initiated: true,
           details: {
             host_display_name: "Anna's laptop",
             reason: "one_time_secret_spent",
@@ -732,8 +732,8 @@ describe("HostDetailsPage - enrollment rejection details", () => {
     );
 
     expect(await screen.findByText("Enrollment details")).toBeInTheDocument();
-    expect(screen.getByText("Fleetd enroll secret")).toBeInTheDocument();
-    expect(screen.queryByText("Fleetd configuration")).not.toBeInTheDocument();
+    expect(screen.getByText("AutoMDMd enroll secret")).toBeInTheDocument();
+    expect(screen.queryByText("AutoMDMd configuration")).not.toBeInTheDocument();
   });
 });
 
@@ -745,7 +745,7 @@ describe("HostDetailsPage - reset", () => {
   it("shows Reset pending and reloads the activity feed from its first page after a reset", async () => {
     const host = createMockHost({ platform: "windows", status: "online" });
     host.mdm.enrollment_status = "On (manual)";
-    host.mdm.connected_to_fleet = true;
+    host.mdm.connected_to_automdm = true;
     stubQueries(host);
     (activitiesAPI.getHostPastActivities as jest.Mock).mockResolvedValue({
       activities: [createMockActivity({ type: ActivityType.LockedHost })],
@@ -873,19 +873,19 @@ describe("HostDetailsPage - delete host", () => {
     await waitFor(() => expect(hostAPI.destroy).toHaveBeenCalled());
   };
 
-  it("returns to the fleet's host list the user came from", async () => {
+  it("returns to the team's host list the user came from", async () => {
     stubQueries(mockWindowsHost());
     (hostAPI.destroy as jest.Mock).mockResolvedValue({});
     const router = createMockRouter({ push: jest.fn() });
     const { user } = renderHostDetails({
       router,
-      location: { ...mockLocation, query: { fleet_id: "3" } },
+      location: { ...mockLocation, query: { team_id: "3" } },
     });
 
     await deleteHost(user);
 
     await waitFor(() =>
-      expect(router.push).toHaveBeenCalledWith("/hosts/manage?fleet_id=3")
+      expect(router.push).toHaveBeenCalledWith("/hosts/manage?team_id=3")
     );
   });
 
@@ -895,15 +895,15 @@ describe("HostDetailsPage - delete host", () => {
     const router = createMockRouter({ push: jest.fn() });
     const { user } = renderHostDetails({
       router,
-      location: { ...mockLocation, query: { fleet_id: "3" } },
-      filteredHostsPath: "/hosts/manage?fleet_id=3&status=offline",
+      location: { ...mockLocation, query: { team_id: "3" } },
+      filteredHostsPath: "/hosts/manage?team_id=3&status=offline",
     });
 
     await deleteHost(user);
 
     await waitFor(() =>
       expect(router.push).toHaveBeenCalledWith(
-        "/hosts/manage?fleet_id=3&status=offline"
+        "/hosts/manage?team_id=3&status=offline"
       )
     );
   });
@@ -933,30 +933,30 @@ describe("HostDetailsPage - policy click", () => {
   });
 
   it.each<[string, number | null, number | null, boolean, number | undefined]>([
-    ["an inherited policy keeps the host's fleet", null, 2, true, 2],
+    ["an inherited policy keeps the host's team", null, 2, true, 2],
     [
-      "an inherited policy on an unassigned host keeps No fleet",
+      "an inherited policy on an unassigned host keeps No team",
       null,
       null,
       true,
       0,
     ],
-    ["a fleet policy opens in its own fleet", 2, 2, true, 2],
-    ["Free tier sends no fleet", null, null, false, undefined],
+    ["a team policy opens in its own team", 2, 2, true, 2],
+    ["Free tier sends no team", null, null, false, undefined],
   ])(
     "opens the policy page with the host's name: %s",
-    async (_, policyFleetId, hostFleetId, isPremiumTier, expectedFleetId) => {
+    async (_, policyAutoMDMId, hostAutoMDMId, isPremiumTier, expectedTeamId) => {
       const hostPolicy: IHostPolicy = {
         ...createMockPolicy({
           id: 7,
           name: "Disk encrypted",
-          fleet_id: policyFleetId,
+          team_id: policyAutoMDMId,
         }),
         response: "fail",
       };
       stubQueries(
         createMockHost({
-          fleet_id: hostFleetId,
+          team_id: hostAutoMDMId,
           display_name: "Workstation 1",
           policies: [hostPolicy],
         })
@@ -974,7 +974,7 @@ describe("HostDetailsPage - policy click", () => {
 
       expect(router.push).toHaveBeenCalledWith({
         pathname: "/policies/7",
-        query: { fleet_id: expectedFleetId },
+        query: { team_id: expectedTeamId },
         state: { hostSearch: "Workstation 1" },
       });
     }

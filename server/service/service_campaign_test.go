@@ -14,18 +14,18 @@ import (
 	"time"
 
 	"github.com/WatchBeam/clock"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxdb"
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/datastore/redis/redistest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/live_query/live_query_mock"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/pubsub"
-	ws "github.com/fleetdm/fleet/v4/server/websocket"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxdb"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis/redistest"
+	"github.com/anilyagiz/automdm/v4/server/live_query/live_query_mock"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/pubsub"
+	ws "github.com/anilyagiz/automdm/v4/server/websocket"
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -45,32 +45,32 @@ func TestStreamCampaignResultsClosesReditOnWSClose(t *testing.T) {
 	lq := live_query_mock.New(t)
 	svc, ctx := newTestServiceWithClock(t, ds, store, lq, mockClock)
 
-	campaign := &fleet.DistributedQueryCampaign{ID: 42}
+	campaign := &automdm.DistributedQueryCampaign{ID: 42}
 
-	ds.LabelQueriesForHostFunc = func(ctx context.Context, host *fleet.Host) (map[string]string, error) {
+	ds.LabelQueriesForHostFunc = func(ctx context.Context, host *automdm.Host) (map[string]string, error) {
 		return map[string]string{}, nil
 	}
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
 	}
-	ds.NewQueryFunc = func(ctx context.Context, query *fleet.Query, opts ...fleet.OptionalArg) (*fleet.Query, error) {
+	ds.NewQueryFunc = func(ctx context.Context, query *automdm.Query, opts ...automdm.OptionalArg) (*automdm.Query, error) {
 		return query, nil
 	}
-	ds.NewDistributedQueryCampaignFunc = func(ctx context.Context, camp *fleet.DistributedQueryCampaign) (*fleet.DistributedQueryCampaign, error) {
+	ds.NewDistributedQueryCampaignFunc = func(ctx context.Context, camp *automdm.DistributedQueryCampaign) (*automdm.DistributedQueryCampaign, error) {
 		return camp, nil
 	}
-	ds.NewDistributedQueryCampaignTargetFunc = func(ctx context.Context, target *fleet.DistributedQueryCampaignTarget) (*fleet.DistributedQueryCampaignTarget, error) {
+	ds.NewDistributedQueryCampaignTargetFunc = func(ctx context.Context, target *automdm.DistributedQueryCampaignTarget) (*automdm.DistributedQueryCampaignTarget, error) {
 		return target, nil
 	}
-	ds.HostIDsInTargetsFunc = func(ctx context.Context, filter fleet.TeamFilter, targets fleet.HostTargets) ([]uint, error) {
+	ds.HostIDsInTargetsFunc = func(ctx context.Context, filter automdm.TeamFilter, targets automdm.HostTargets) ([]uint, error) {
 		return []uint{1}, nil
 	}
-	ds.CountHostsInTargetsFunc = func(ctx context.Context, filter fleet.TeamFilter, targets fleet.HostTargets, now time.Time) (fleet.TargetMetrics, error) {
-		return fleet.TargetMetrics{TotalHosts: 1}, nil
+	ds.CountHostsInTargetsFunc = func(ctx context.Context, filter automdm.TeamFilter, targets automdm.HostTargets, now time.Time) (automdm.TargetMetrics, error) {
+		return automdm.TargetMetrics{TotalHosts: 1}, nil
 	}
-	ds.SessionByKeyFunc = func(ctx context.Context, key string) (*fleet.Session, error) {
-		return &fleet.Session{
-			CreateTimestamp: fleet.CreateTimestamp{CreatedAt: time.Now()},
+	ds.SessionByKeyFunc = func(ctx context.Context, key string) (*automdm.Session, error) {
+		return &automdm.Session{
+			CreateTimestamp: automdm.CreateTimestamp{CreatedAt: time.Now()},
 			ID:              42,
 			AccessedAt:      time.Now(),
 			UserID:          999,
@@ -78,7 +78,7 @@ func TestStreamCampaignResultsClosesReditOnWSClose(t *testing.T) {
 		}, nil
 	}
 
-	host := &fleet.Host{ID: 1, Platform: "windows"}
+	host := &automdm.Host{ID: 1, Platform: "windows"}
 
 	lq.On("QueriesForHost", uint(1)).Return(
 		map[string]string{
@@ -89,20 +89,20 @@ func TestStreamCampaignResultsClosesReditOnWSClose(t *testing.T) {
 	lq.On("QueryCompletedByHost", strconv.Itoa(int(campaign.ID)), host.ID).Return(true, nil)
 	lq.On("RunQuery", "0", "select year, month, day, hour, minutes, seconds from time", []uint{1}).Return(nil)
 	viewerCtx := viewer.NewContext(ctx, viewer.Viewer{
-		User: &fleet.User{
+		User: &automdm.User{
 			ID:         0,
-			GlobalRole: ptr.String(fleet.RoleAdmin),
+			GlobalRole: ptr.String(automdm.RoleAdmin),
 		},
 	})
 	q := "select year, month, day, hour, minutes, seconds from time"
-	_, err := svc.NewDistributedQueryCampaign(viewerCtx, q, nil, fleet.HostTargets{HostIDs: []uint{2}, LabelIDs: []uint{1}})
+	_, err := svc.NewDistributedQueryCampaign(viewerCtx, q, nil, automdm.HostTargets{HostIDs: []uint{2}, LabelIDs: []uint{1}})
 	require.NoError(t, err)
 
 	pathHandler := makeStreamDistributedQueryCampaignResultsHandler(config.TestConfig().Server, svc, slog.New(slog.DiscardHandler))
-	s := httptest.NewServer(pathHandler("/api/latest/fleet/results/"))
+	s := httptest.NewServer(pathHandler("/api/latest/automdm/results/"))
 	defer s.Close()
 	// Convert http://127.0.0.1 to ws://127.0.0.1
-	u := "ws" + strings.TrimPrefix(s.URL, "http") + "/api/latest/fleet/results/websocket"
+	u := "ws" + strings.TrimPrefix(s.URL, "http") + "/api/latest/automdm/results/websocket"
 
 	// Connect to the server
 	dialer := &websocket.Dialer{
@@ -129,23 +129,23 @@ func TestStreamCampaignResultsClosesReditOnWSClose(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	ds.MarkSessionAccessedFunc = func(context.Context, *fleet.Session) error {
+	ds.MarkSessionAccessedFunc = func(context.Context, *automdm.Session) error {
 		return nil
 	}
-	ds.UserByIDFunc = func(ctx context.Context, id uint) (*fleet.User, error) {
-		return &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}, nil
+	ds.UserByIDFunc = func(ctx context.Context, id uint) (*automdm.User, error) {
+		return &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}, nil
 	}
-	ds.DistributedQueryCampaignFunc = func(ctx context.Context, id uint) (*fleet.DistributedQueryCampaign, error) {
+	ds.DistributedQueryCampaignFunc = func(ctx context.Context, id uint) (*automdm.DistributedQueryCampaign, error) {
 		return campaign, nil
 	}
-	ds.SaveDistributedQueryCampaignFunc = func(ctx context.Context, camp *fleet.DistributedQueryCampaign) error {
+	ds.SaveDistributedQueryCampaignFunc = func(ctx context.Context, camp *automdm.DistributedQueryCampaign) error {
 		return nil
 	}
-	ds.DistributedQueryCampaignTargetIDsFunc = func(ctx context.Context, id uint) (targets *fleet.HostTargets, err error) {
-		return &fleet.HostTargets{HostIDs: []uint{1}}, nil
+	ds.DistributedQueryCampaignTargetIDsFunc = func(ctx context.Context, id uint) (targets *automdm.HostTargets, err error) {
+		return &automdm.HostTargets{HostIDs: []uint{1}}, nil
 	}
-	ds.QueryFunc = func(ctx context.Context, id uint) (*fleet.Query, error) {
-		return &fleet.Query{}, nil
+	ds.QueryFunc = func(ctx context.Context, id uint) (*automdm.Query, error) {
+		return &automdm.Query{}, nil
 	}
 
 	/*****************************************************************************************/
@@ -179,38 +179,38 @@ func TestStreamCampaignResultsDoesNotLeakCampaignExistence(t *testing.T) {
 	ds := new(mock.Store)
 	svc, _ := newTestService(t, ds, nil, nil)
 
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
 	}
-	ds.SessionByKeyFunc = func(ctx context.Context, key string) (*fleet.Session, error) {
-		return &fleet.Session{
-			CreateTimestamp: fleet.CreateTimestamp{CreatedAt: time.Now()},
+	ds.SessionByKeyFunc = func(ctx context.Context, key string) (*automdm.Session, error) {
+		return &automdm.Session{
+			CreateTimestamp: automdm.CreateTimestamp{CreatedAt: time.Now()},
 			ID:              1,
 			AccessedAt:      time.Now(),
 			UserID:          1,
 			Key:             "observer-token",
 		}, nil
 	}
-	ds.UserByIDFunc = func(ctx context.Context, id uint) (*fleet.User, error) {
-		return &fleet.User{ID: 1, GlobalRole: new(fleet.RoleObserver)}, nil
+	ds.UserByIDFunc = func(ctx context.Context, id uint) (*automdm.User, error) {
+		return &automdm.User{ID: 1, GlobalRole: new(automdm.RoleObserver)}, nil
 	}
-	ds.MarkSessionAccessedFunc = func(context.Context, *fleet.Session) error {
+	ds.MarkSessionAccessedFunc = func(context.Context, *automdm.Session) error {
 		return nil
 	}
 
 	othersCampaignID := uint(99)
-	ds.DistributedQueryCampaignFunc = func(ctx context.Context, id uint) (*fleet.DistributedQueryCampaign, error) {
+	ds.DistributedQueryCampaignFunc = func(ctx context.Context, id uint) (*automdm.DistributedQueryCampaign, error) {
 		if id == othersCampaignID {
 			// Owned by a different user than the one authenticating below.
-			return &fleet.DistributedQueryCampaign{ID: othersCampaignID, UserID: 2}, nil
+			return &automdm.DistributedQueryCampaign{ID: othersCampaignID, UserID: 2}, nil
 		}
 		return nil, sql.ErrNoRows
 	}
 
 	pathHandler := makeStreamDistributedQueryCampaignResultsHandler(config.TestConfig().Server, svc, slog.New(slog.DiscardHandler))
-	s := httptest.NewServer(pathHandler("/api/{fleetversion:(?:v1|2022-04)}/fleet/results/"))
+	s := httptest.NewServer(pathHandler("/api/{automdmversion:(?:v1|2022-04)}/automdm/results/"))
 	defer s.Close()
-	u := "ws" + strings.TrimPrefix(s.URL, "http") + "/api/2022-04/fleet/results/websocket"
+	u := "ws" + strings.TrimPrefix(s.URL, "http") + "/api/2022-04/automdm/results/websocket"
 
 	dialer := &websocket.Dialer{
 		Proxy:            http.ProxyFromEnvironment,
@@ -278,7 +278,7 @@ func testUpdateStats(t *testing.T, ds *mysql.Datastore, usingReplica bool) {
 	tracker.stats = append(
 		tracker.stats, statsToSave{
 			hostID: myHostID,
-			Stats: &fleet.Stats{
+			Stats: &automdm.Stats{
 				WallTimeMs: myWallTime,
 				UserTime:   myUserTime,
 				SystemTime: mySystemTime,
@@ -293,7 +293,7 @@ func testUpdateStats(t *testing.T, ds *mysql.Datastore, usingReplica bool) {
 		tracker.stats = append(
 			tracker.stats, statsToSave{
 				hostID: i,
-				Stats: &fleet.Stats{
+				Stats: &automdm.Stats{
 					WallTimeMs: rand.Uint64(),
 					UserTime:   rand.Uint64(),
 					SystemTime: rand.Uint64(),
@@ -320,11 +320,11 @@ func testUpdateStats(t *testing.T, ds *mysql.Datastore, usingReplica bool) {
 
 	// Check that aggregated stats were created. Since we read aggregated stats from the replica, we may need to wait for it to catch up.
 	var err error
-	var aggStats fleet.AggregatedStats
+	var aggStats automdm.AggregatedStats
 	done := make(chan struct{}, 1)
 	go func() {
 		for {
-			aggStats, err = mysqltest.GetAggregatedStats(ctx, svc.ds.(*mysql.Datastore), fleet.AggregatedStatsTypeScheduledQuery, queryID)
+			aggStats, err = mysqltest.GetAggregatedStats(ctx, svc.ds.(*mysql.Datastore), automdm.AggregatedStatsTypeScheduledQuery, queryID)
 			if usingReplica && err != nil {
 				time.Sleep(30 * time.Millisecond)
 			} else {
@@ -342,7 +342,7 @@ func testUpdateStats(t *testing.T, ds *mysql.Datastore, usingReplica bool) {
 			lastErr = err.Error()
 		}
 		aggStats, err = mysqltest.GetAggregatedStats(
-			ctxdb.RequirePrimary(ctx, true), svc.ds.(*mysql.Datastore), fleet.AggregatedStatsTypeScheduledQuery, queryID,
+			ctxdb.RequirePrimary(ctx, true), svc.ds.(*mysql.Datastore), automdm.AggregatedStatsTypeScheduledQuery, queryID,
 		)
 		if err != nil {
 			t.Logf("Error getting aggregated stats from primary DB: %s", err.Error())
@@ -389,7 +389,7 @@ func testUpdateStats(t *testing.T, ds *mysql.Datastore, usingReplica bool) {
 	tracker.stats = append(
 		tracker.stats, statsToSave{
 			hostID: myHostID,
-			Stats: &fleet.Stats{
+			Stats: &automdm.Stats{
 				WallTimeMs: myNewWallTime,
 				UserTime:   myNewUserTime,
 				SystemTime: myNewSystemTime,
@@ -403,7 +403,7 @@ func testUpdateStats(t *testing.T, ds *mysql.Datastore, usingReplica bool) {
 		tracker.stats = append(
 			tracker.stats, statsToSave{
 				hostID: i,
-				Stats: &fleet.Stats{
+				Stats: &automdm.Stats{
 					WallTimeMs: rand.Uint64(),
 					UserTime:   rand.Uint64() % 100, // Keep these values small to ensure the update will be noticeable
 					SystemTime: rand.Uint64() % 100, // Keep these values small to ensure the update will be noticeable
@@ -420,11 +420,11 @@ func testUpdateStats(t *testing.T, ds *mysql.Datastore, usingReplica bool) {
 	assert.False(t, tracker.aggregationNeeded)
 
 	// Check that aggregated stats were updated. Since we read aggregated stats from the replica, we may need to wait for it to catch up.
-	var newAggStats fleet.AggregatedStats
+	var newAggStats automdm.AggregatedStats
 	done = make(chan struct{}, 1)
 	go func() {
 		for {
-			newAggStats, err = mysqltest.GetAggregatedStats(ctx, svc.ds.(*mysql.Datastore), fleet.AggregatedStatsTypeScheduledQuery, queryID)
+			newAggStats, err = mysqltest.GetAggregatedStats(ctx, svc.ds.(*mysql.Datastore), automdm.AggregatedStatsTypeScheduledQuery, queryID)
 			if usingReplica && (*aggStats.SystemTimeP50 == *newAggStats.SystemTimeP50 ||
 				*aggStats.SystemTimeP95 == *newAggStats.SystemTimeP95 ||
 				*aggStats.UserTimeP50 == *newAggStats.UserTimeP50 ||
@@ -482,13 +482,13 @@ func TestIntegrationsUpdateStatsOnReplica(t *testing.T) {
 }
 
 func TestCalculateOutputSize(t *testing.T) {
-	createResult := func() *fleet.DistributedQueryResult {
-		result := fleet.DistributedQueryResult{}
+	createResult := func() *automdm.DistributedQueryResult {
+		result := automdm.DistributedQueryResult{}
 		result.Rows = append(result.Rows, nil)
 		result.Rows = append(result.Rows, map[string]string{})
 		result.Rows = append(result.Rows, map[string]string{"a": "b", "a1": "b1"})
 		result.Rows = append(result.Rows, map[string]string{"c": "d"})
-		result.Stats = &fleet.Stats{}
+		result.Stats = &automdm.Stats{}
 		return &result
 	}
 	t.Run(
@@ -501,7 +501,7 @@ func TestCalculateOutputSize(t *testing.T) {
 	t.Run(
 		"output size empty", func(t *testing.T) {
 			tracker := statsTracker{saveStats: true}
-			size := calculateOutputSize(&tracker, &fleet.DistributedQueryResult{})
+			size := calculateOutputSize(&tracker, &automdm.DistributedQueryResult{})
 			require.Equal(t, uint64(0), size)
 		},
 	)

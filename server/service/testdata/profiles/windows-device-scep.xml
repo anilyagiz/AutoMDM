@@ -2,7 +2,7 @@
     <Item>
         <Target>
             <LocURI>
-                ./Device/Vendor/MSFT/ClientCertificateInstall/SCEP/$FLEET_VAR_SCEP_WINDOWS_CERTIFICATE_ID</LocURI>
+                ./Device/Vendor/MSFT/ClientCertificateInstall/SCEP/$AUTOMDM_VAR_SCEP_WINDOWS_CERTIFICATE_ID</LocURI>
         </Target>
         <Meta>
             <Format xmlns="syncml:metinf">node</Format>
@@ -13,7 +13,7 @@
     <Item>
         <Target>
             <LocURI>
-                ./Device/Vendor/MSFT/ClientCertificateInstall/SCEP/$FLEET_VAR_SCEP_WINDOWS_CERTIFICATE_ID/Install/RetryCount</LocURI>
+                ./Device/Vendor/MSFT/ClientCertificateInstall/SCEP/$AUTOMDM_VAR_SCEP_WINDOWS_CERTIFICATE_ID/Install/RetryCount</LocURI>
         </Target>
         <Meta>
             <Format xmlns="syncml:metinf">int</Format>
@@ -25,7 +25,7 @@
     <Item>
         <Target>
             <LocURI>
-                ./Device/Vendor/MSFT/ClientCertificateInstall/SCEP/$FLEET_VAR_SCEP_WINDOWS_CERTIFICATE_ID/Install/RetryDelay</LocURI>
+                ./Device/Vendor/MSFT/ClientCertificateInstall/SCEP/$AUTOMDM_VAR_SCEP_WINDOWS_CERTIFICATE_ID/Install/RetryDelay</LocURI>
         </Target>
         <Meta>
             <Format xmlns="syncml:metinf">int</Format>
@@ -37,7 +37,7 @@
     <Item>
         <Target>
             <LocURI>
-                ./Device/Vendor/MSFT/ClientCertificateInstall/SCEP/$FLEET_VAR_SCEP_WINDOWS_CERTIFICATE_ID/Install/KeyUsage</LocURI>
+                ./Device/Vendor/MSFT/ClientCertificateInstall/SCEP/$AUTOMDM_VAR_SCEP_WINDOWS_CERTIFICATE_ID/Install/KeyUsage</LocURI>
         </Target>
         <Meta>
             <Format xmlns="syncml:metinf">int</Format>
@@ -49,7 +49,7 @@
     <Item>
         <Target>
             <LocURI>
-                ./Device/Vendor/MSFT/ClientCertificateInstall/SCEP/$FLEET_VAR_SCEP_WINDOWS_CERTIFICATE_ID/Install/KeyLength</LocURI>
+                ./Device/Vendor/MSFT/ClientCertificateInstall/SCEP/$AUTOMDM_VAR_SCEP_WINDOWS_CERTIFICATE_ID/Install/KeyLength</LocURI>
         </Target>
         <Meta>
             <Format xmlns="syncml:metinf">int</Format>
@@ -61,7 +61,7 @@
     <Item>
         <Target>
             <LocURI>
-                ./Device/Vendor/MSFT/ClientCertificateInstall/SCEP/$FLEET_VAR_SCEP_WINDOWS_CERTIFICATE_ID/Install/HashAlgorithm</LocURI>
+                ./Device/Vendor/MSFT/ClientCertificateInstall/SCEP/$AUTOMDM_VAR_SCEP_WINDOWS_CERTIFICATE_ID/Install/HashAlgorithm</LocURI>
         </Target>
         <Meta>
             <Format xmlns="syncml:metinf">chr</Format>
@@ -73,19 +73,19 @@
     <Item>
         <Target>
             <LocURI>
-                ./Device/Vendor/MSFT/ClientCertificateInstall/SCEP/$FLEET_VAR_SCEP_WINDOWS_CERTIFICATE_ID/Install/SubjectName</LocURI>
+                ./Device/Vendor/MSFT/ClientCertificateInstall/SCEP/$AUTOMDM_VAR_SCEP_WINDOWS_CERTIFICATE_ID/Install/SubjectName</LocURI>
         </Target>
         <Meta>
             <Format xmlns="syncml:metinf">chr</Format>
         </Meta>
-        <Data>CN=$FLEET_VAR_SCEP_WINDOWS_CERTIFICATE_ID,OU=$FLEET_VAR_SCEP_RENEWAL_ID</Data>
+        <Data>CN=$AUTOMDM_VAR_SCEP_WINDOWS_CERTIFICATE_ID,OU=$AUTOMDM_VAR_SCEP_RENEWAL_ID</Data>
     </Item>
 </Add>
 <Add>
     <Item>
         <Target>
             <LocURI>
-                ./Device/Vendor/MSFT/ClientCertificateInstall/SCEP/$FLEET_VAR_SCEP_WINDOWS_CERTIFICATE_ID/Install/EKUMapping</LocURI>
+                ./Device/Vendor/MSFT/ClientCertificateInstall/SCEP/$AUTOMDM_VAR_SCEP_WINDOWS_CERTIFICATE_ID/Install/EKUMapping</LocURI>
         </Target>
         <Meta>
             <Format xmlns="syncml:metinf">chr</Format>
@@ -98,31 +98,31 @@
     <Item>
         <Target>
             <LocURI>
-                ./Device/Vendor/MSFT/ClientCertificateInstall/SCEP/$FLEET_VAR_SCEP_WINDOWS_CERTIFICATE_ID/Install/ServerURL</LocURI>
+                ./Device/Vendor/MSFT/ClientCertificateInstall/SCEP/$AUTOMDM_VAR_SCEP_WINDOWS_CERTIFICATE_ID/Install/ServerURL</LocURI>
         </Target>
         <Meta>
             <Format xmlns="syncml:metinf">chr</Format>
         </Meta>
-        <Data>$FLEET_VAR_CUSTOM_SCEP_PROXY_URL_INTEGRATION</Data>
+        <Data>$AUTOMDM_VAR_CUSTOM_SCEP_PROXY_URL_INTEGRATION</Data>
     </Item>
 </Add>
 <Add>
     <Item>
         <Target>
             <LocURI>
-                ./Device/Vendor/MSFT/ClientCertificateInstall/SCEP/$FLEET_VAR_SCEP_WINDOWS_CERTIFICATE_ID/Install/Challenge</LocURI>
+                ./Device/Vendor/MSFT/ClientCertificateInstall/SCEP/$AUTOMDM_VAR_SCEP_WINDOWS_CERTIFICATE_ID/Install/Challenge</LocURI>
         </Target>
         <Meta>
             <Format xmlns="syncml:metinf">chr</Format>
         </Meta>
-        <Data>$FLEET_VAR_CUSTOM_SCEP_CHALLENGE_INTEGRATION</Data>
+        <Data>$AUTOMDM_VAR_CUSTOM_SCEP_CHALLENGE_INTEGRATION</Data>
     </Item>
 </Add>
 <Add>
     <Item>
         <Target>
             <LocURI>
-                ./Device/Vendor/MSFT/ClientCertificateInstall/SCEP/$FLEET_VAR_SCEP_WINDOWS_CERTIFICATE_ID/Install/CAThumbprint</LocURI>
+                ./Device/Vendor/MSFT/ClientCertificateInstall/SCEP/$AUTOMDM_VAR_SCEP_WINDOWS_CERTIFICATE_ID/Install/CAThumbprint</LocURI>
         </Target>
         <Meta>
             <Format xmlns="syncml:metinf">chr</Format>
@@ -134,7 +134,7 @@
     <Item>
         <Target>
             <LocURI>
-                ./Device/Vendor/MSFT/ClientCertificateInstall/SCEP/$FLEET_VAR_SCEP_WINDOWS_CERTIFICATE_ID/Install/Enroll</LocURI>
+                ./Device/Vendor/MSFT/ClientCertificateInstall/SCEP/$AUTOMDM_VAR_SCEP_WINDOWS_CERTIFICATE_ID/Install/Enroll</LocURI>
         </Target>
     </Item>
 </Exec>

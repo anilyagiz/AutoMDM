@@ -1,7 +1,7 @@
 package update
 
 import (
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/rs/zerolog/log"
 )
 
@@ -17,11 +17,11 @@ type SwiftDialogDownloaderOptions struct {
 
 func ApplySwiftDialogDownloaderMiddleware(
 	runner *Runner,
-) fleet.OrbitConfigReceiver {
+) automdm.OrbitConfigReceiver {
 	return &SwiftDialogDownloader{UpdateRunner: runner}
 }
 
-func (s *SwiftDialogDownloader) Run(cfg *fleet.OrbitConfig) error {
+func (s *SwiftDialogDownloader) Run(cfg *automdm.OrbitConfig) error {
 	log.Debug().Msg("running swiftDialog installer middleware")
 
 	if cfg == nil {

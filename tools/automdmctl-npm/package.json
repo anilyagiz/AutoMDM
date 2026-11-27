@@ -1,0 +1,26 @@
+{
+  "name": "automdmctl",
+  "version": "v4.95.0",
+  "description": "Installer for the automdmctl CLI tool",
+  "bin": {
+    "automdmctl": "./run.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/anilyagiz/automdm"
+  },
+  "author": "AutoMDM Developers",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/fleetdm/fleet/issues"
+  },
+  "homepage": "https://automdm.com",
+  "dependencies": {
+    "axios": "1.20.0",
+    "tar": "7.5.22"
+  },
+  "keywords": [
+    "osquery",
+    "security"
+  ]
+}

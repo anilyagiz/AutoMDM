@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/crewjam/saml"
-	"github.com/fleetdm/fleet/v4/server/fleet"
 	dsig "github.com/russellhaering/goxmldsig"
 	"github.com/stretchr/testify/require"
 )
@@ -24,7 +24,7 @@ func (f *fakeSessionStore) create(sessionID, requestID, originalURL, metadata st
 func (f *fakeSessionStore) get(sessionID string) (*Session, error) {
 	sess, ok := f.sessions[sessionID]
 	if !ok {
-		return nil, &sessionNotFoundError{authRequired: fleet.NewAuthRequiredError("session not found")}
+		return nil, &sessionNotFoundError{authRequired: automdm.NewAuthRequiredError("session not found")}
 	}
 	return sess, nil
 }
@@ -107,11 +107,11 @@ func TestSAMLProviderFromSessionOrConfiguredMetadataRequestIDValidation(t *testi
 				reqSessionID = sessionID
 				require.NoError(t, store.create(sessionID, tc.sessionRequestID, "/hosts", testSalesforceMetadataXML, 60, SSORequestData{}))
 			}
-			settings := &fleet.SSOSettings{
+			settings := &automdm.SSOSettings{
 				EnableSSO:         true,
 				EnableSSOIdPLogin: tc.idpLoginEnabled,
 			}
-			settings.EntityID = "https://fleet-dev-ed.my.salesforce.com"
+			settings.EntityID = "https://automdm-dev-ed.my.salesforce.com"
 			settings.Metadata = testSalesforceMetadataXML
 
 			provider, requestID, redirectURL, err := SAMLProviderFromSessionOrConfiguredMetadata(

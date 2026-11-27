@@ -140,7 +140,7 @@ const FileDetails = ({
             disabled={disabled || (gitOpsModeEnabled && gitopsCompatible)}
           >
             <label htmlFor="delete-file">
-              <Icon name="trash" color="ui-fleet-black-75" />
+              <Icon name="trash" color="ui-automdm-black-75" />
             </label>
           </Button>
         </div>

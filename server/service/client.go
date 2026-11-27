@@ -23,17 +23,17 @@ import (
 	"golang.org/x/text/unicode/norm"
 	"gopkg.in/yaml.v2"
 
-	"github.com/fleetdm/fleet/v4/client"
-	"github.com/fleetdm/fleet/v4/pkg/markdown"
-	"github.com/fleetdm/fleet/v4/pkg/optjson"
-	"github.com/fleetdm/fleet/v4/pkg/spec"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm"
-	"github.com/fleetdm/fleet/v4/server/mdm/apple/mobileconfig"
-	"github.com/fleetdm/fleet/v4/server/platform/endpointer"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/version"
+	"github.com/anilyagiz/automdm/v4/client"
+	"github.com/anilyagiz/automdm/v4/pkg/markdown"
+	"github.com/anilyagiz/automdm/v4/pkg/optjson"
+	"github.com/anilyagiz/automdm/v4/pkg/spec"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/mdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/apple/mobileconfig"
+	"github.com/anilyagiz/automdm/v4/server/platform/endpointer"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/version"
 	kithttp "github.com/go-kit/kit/transport/http"
 )
 
@@ -41,12 +41,12 @@ const batchSize = 100
 
 var (
 	clientVersion = version.Version().Version
-	// clientUserAgent tells Fleet that the client is fleetctl 5 or later. Fleet refuses the version check of fleetctl 4, which sends
+	// clientUserAgent tells AutoMDM that the client is automdmctl 5 or later. AutoMDM refuses the version check of automdmctl 4, which sends
 	// Go's default User-Agent.
-	clientUserAgent = "fleetctl/" + clientVersion
+	clientUserAgent = "automdmctl/" + clientVersion
 )
 
-// Client is used to consume Fleet APIs from Go code
+// Client is used to consume AutoMDM APIs from Go code
 type Client struct {
 	*baseClient
 	addr          string
@@ -63,7 +63,7 @@ type ClientOption func(*Client) error
 func NewClient(addr string, insecureSkipVerify bool, rootCA, urlPrefix string, options ...ClientOption) (*Client, error) {
 	// TODO #265 refactor all optional parameters to functional options
 	// API breaking change, needs a major version release
-	baseClient, err := newBaseClient(addr, insecureSkipVerify, rootCA, urlPrefix, nil, fleet.CapabilityMap{}, nil)
+	baseClient, err := newBaseClient(addr, insecureSkipVerify, rootCA, urlPrefix, nil, automdm.CapabilityMap{}, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -150,7 +150,7 @@ func (c *Client) doContextWithBodyAndHeaders(ctx context.Context, verb, path, ra
 		request.Header.Set(k, v)
 	}
 	// Set after the custom headers, so that they can't override it.
-	request.Header.Set(fleet.HeaderClientVersion, clientVersion)
+	request.Header.Set(automdm.HeaderClientVersion, clientVersion)
 	for k, v := range headers {
 		request.Header.Set(k, v)
 	}
@@ -160,8 +160,8 @@ func (c *Client) doContextWithBodyAndHeaders(ctx context.Context, verb, path, ra
 		return nil, ctxerr.Wrap(ctx, err, "do request")
 	}
 
-	if !c.seenLicenseExpired && resp.Header.Get(fleet.HeaderLicenseKey) == fleet.HeaderLicenseValueExpired {
-		fleet.WriteExpiredLicenseBanner(c.errWriter)
+	if !c.seenLicenseExpired && resp.Header.Get(automdm.HeaderLicenseKey) == automdm.HeaderLicenseValueExpired {
+		automdm.WriteExpiredLicenseBanner(c.errWriter)
 		c.seenLicenseExpired = true
 	}
 
@@ -320,36 +320,36 @@ func (c *Client) authenticatedRequest(params interface{}, verb string, path stri
 }
 
 func (c *Client) CheckAnyMDMEnabled() error {
-	return c.runAppConfigChecks(func(ac *fleet.EnrichedAppConfig) error {
+	return c.runAppConfigChecks(func(ac *automdm.EnrichedAppConfig) error {
 		if !ac.MDM.EnabledAndConfigured && !ac.MDM.WindowsEnabledAndConfigured && !ac.MDM.AndroidEnabledAndConfigured {
-			return errors.New(fleet.MDMNotConfiguredMessage)
+			return errors.New(automdm.MDMNotConfiguredMessage)
 		}
 		return nil
 	})
 }
 
 func (c *Client) CheckAppleMDMEnabled() error {
-	return c.runAppConfigChecks(func(ac *fleet.EnrichedAppConfig) error {
+	return c.runAppConfigChecks(func(ac *automdm.EnrichedAppConfig) error {
 		if !ac.MDM.EnabledAndConfigured {
-			return errors.New(fleet.AppleMDMNotConfiguredMessage)
+			return errors.New(automdm.AppleMDMNotConfiguredMessage)
 		}
 		return nil
 	})
 }
 
 func (c *Client) CheckPremiumMDMEnabled() error {
-	return c.runAppConfigChecks(func(ac *fleet.EnrichedAppConfig) error {
+	return c.runAppConfigChecks(func(ac *automdm.EnrichedAppConfig) error {
 		if ac.License == nil || !ac.License.IsPremium() {
 			return errors.New("missing or invalid license")
 		}
 		if !ac.MDM.EnabledAndConfigured {
-			return errors.New(fleet.AppleMDMNotConfiguredMessage)
+			return errors.New(automdm.AppleMDMNotConfiguredMessage)
 		}
 		return nil
 	})
 }
 
-func (c *Client) runAppConfigChecks(fn func(ac *fleet.EnrichedAppConfig) error) error {
+func (c *Client) runAppConfigChecks(fn func(ac *automdm.EnrichedAppConfig) error) error {
 	appCfg, err := c.GetAppConfig()
 	if err != nil {
 		var sce kithttp.StatusCoder
@@ -367,13 +367,13 @@ func (c *Client) runAppConfigChecks(fn func(ac *fleet.EnrichedAppConfig) error) 
 
 // getProfilesContents takes file paths and creates a slice of profile payloads
 // ready to batch-apply.
-func getProfilesContents(baseDir string, macProfiles, windowsProfiles, androidProfiles []fleet.MDMProfileSpec, expandEnv bool) ([]fleet.MDMProfileBatchPayload, error) {
+func getProfilesContents(baseDir string, macProfiles, windowsProfiles, androidProfiles []automdm.MDMProfileSpec, expandEnv bool) ([]automdm.MDMProfileBatchPayload, error) {
 	// map to check for duplicate names across all profiles
 	extByName := make(map[string]string, len(macProfiles))
-	result := make([]fleet.MDMProfileBatchPayload, 0, len(macProfiles))
+	result := make([]automdm.MDMProfileBatchPayload, 0, len(macProfiles))
 
 	// iterate over the profiles for each platform
-	for platform, profiles := range map[string][]fleet.MDMProfileSpec{
+	for platform, profiles := range map[string][]automdm.MDMProfileSpec{
 		"macos":   macProfiles,
 		"windows": windowsProfiles,
 		"android": androidProfiles,
@@ -400,7 +400,7 @@ func getProfilesContents(baseDir string, macProfiles, windowsProfiles, androidPr
 				// Parse and check for signed mobile configs before expanding.
 				mc := mobileconfig.Mobileconfig(fileContents)
 				if mc.IsSignedProfile() {
-					return nil, fmt.Errorf("%s: %s", prefixErrMsg, "Configuration profiles can't be signed. Fleet will sign the profile for you. Learn more: https://fleetdm.com/learn-more-about/unsigning-configuration-profiles")
+					return nil, fmt.Errorf("%s: %s", prefixErrMsg, "Configuration profiles can't be signed. AutoMDM will sign the profile for you. Learn more: https://automdm.com/learn-more-about/unsigning-configuration-profiles")
 				}
 			}
 
@@ -416,14 +416,14 @@ func getProfilesContents(baseDir string, macProfiles, windowsProfiles, androidPr
 			if platform == "macos" {
 				switch ext {
 				case ".mobileconfig", ".xml": // allowing .xml for backwards compatibility
-					// For validation, we need to expand FLEET_SECRET_ variables in <data> tags so the XML parser
+					// For validation, we need to expand AUTOMDM_SECRET_ variables in <data> tags so the XML parser
 					// can properly validate the profile structure. However, we must be careful not to expose
 					// secrets in the profile name.
-					containsSecrets := len(fleet.ContainsPrefixVars(string(fileContents), fleet.ServerSecretPrefix)) > 0
+					containsSecrets := len(automdm.ContainsPrefixVars(string(fileContents), automdm.ServerSecretPrefix)) > 0
 
 					if containsSecrets {
 						// If profile contains secrets, check for secrets in PayloadDisplayName first
-						if err := fleet.ValidateNoSecretsInProfileName(fileContents); err != nil {
+						if err := automdm.ValidateNoSecretsInProfileName(fileContents); err != nil {
 							return nil, fmt.Errorf("%s: %w", prefixErrMsg, err)
 						}
 
@@ -434,7 +434,7 @@ func getProfilesContents(baseDir string, macProfiles, windowsProfiles, androidPr
 						}
 
 						// Validate the profile structure with expanded secrets
-						mcExpanded, validationErr := fleet.NewMDMAppleConfigProfile(validationContents, nil)
+						mcExpanded, validationErr := automdm.NewMDMAppleConfigProfile(validationContents, nil)
 						if validationErr != nil {
 							errForMsg := errors.Unwrap(validationErr)
 							if errForMsg == nil {
@@ -446,7 +446,7 @@ func getProfilesContents(baseDir string, macProfiles, windowsProfiles, androidPr
 						name = strings.TrimSpace(mcExpanded.Name)
 					} else {
 						// No secrets, parse normally
-						mc, err := fleet.NewMDMAppleConfigProfile(fileContents, nil)
+						mc, err := automdm.NewMDMAppleConfigProfile(fileContents, nil)
 						if err != nil {
 							errForMsg := errors.Unwrap(err)
 							if errForMsg == nil {
@@ -524,7 +524,7 @@ func getProfilesContents(baseDir string, macProfiles, windowsProfiles, androidPr
 				return nil, fmt.Errorf("%s: %s", prefixErrMsg, "hidden requires self_service to be false.")
 			}
 
-			result = append(result, fleet.MDMProfileBatchPayload{
+			result = append(result, automdm.MDMProfileBatchPayload{
 				Name:             name,
 				Description:      profile.Description,
 				Contents:         fileContents,
@@ -544,9 +544,9 @@ func getProfilesContents(baseDir string, macProfiles, windowsProfiles, androidPr
 
 // getAssetsContents reads and env-expands the Apple DDM asset files referenced
 // by the given specs, returning them as batch payloads. As with profiles,
-// FLEET_SECRET_ variables are left for the server to expand.
-func getAssetsContents(baseDir string, assets []fleet.MDMProfileSpec, expandEnv bool) ([]fleet.MDMAppleDDMAssetBatchPayload, error) {
-	result := make([]fleet.MDMAppleDDMAssetBatchPayload, 0, len(assets))
+// AUTOMDM_SECRET_ variables are left for the server to expand.
+func getAssetsContents(baseDir string, assets []automdm.MDMProfileSpec, expandEnv bool) ([]automdm.MDMAppleDDMAssetBatchPayload, error) {
+	result := make([]automdm.MDMAppleDDMAssetBatchPayload, 0, len(assets))
 	seenNames := make(map[string]struct{}, len(assets))
 	for _, asset := range assets {
 		filePath := resolveApplyRelativePath(baseDir, asset.Path)
@@ -565,7 +565,7 @@ func getAssetsContents(baseDir string, assets []fleet.MDMProfileSpec, expandEnv 
 			return nil, errors.New(fmtDuplicateNameErrMsg(name))
 		}
 		seenNames[name] = struct{}{}
-		result = append(result, fleet.MDMAppleDDMAssetBatchPayload{Name: name, Contents: fileContents})
+		result = append(result, automdm.MDMAppleDDMAssetBatchPayload{Name: name, Contents: fileContents})
 	}
 	return result, nil
 }
@@ -581,17 +581,17 @@ type errConflictingSoftwareSetupExperienceDeclarations struct {
 }
 
 func (e errConflictingSoftwareSetupExperienceDeclarations) Error() string {
-	return fmt.Sprintf("Couldn't edit software (%s). Setup experience may only be specified directly on software or within setup_experience, but not both. See https://fleetdm.com/learn-more-about/yaml-software-setup-experience.", e.URL)
+	return fmt.Sprintf("Couldn't edit software (%s). Setup experience may only be specified directly on software or within setup_experience, but not both. See https://automdm.com/learn-more-about/yaml-software-setup-experience.", e.URL)
 }
 
-var errConflictingVPPSetupExperienceDeclarations = errors.New("Couldn't edit app store apps. Setup experience may only be specified directly on software or within setup_experience, but not both. See https://fleetdm.com/learn-more-about/yaml-software-setup-experience.")
+var errConflictingVPPSetupExperienceDeclarations = errors.New("Couldn't edit app store apps. Setup experience may only be specified directly on software or within setup_experience, but not both. See https://automdm.com/learn-more-about/yaml-software-setup-experience.")
 
 // TODO: as confirmed by Noah and Marko on Slack:
 //
-//	> from Noah: "We want to support existing features w/ fleetctl apply for
+//	> from Noah: "We want to support existing features w/ automdmctl apply for
 //	> backwards compatibility GitOps but we don’t need to add new features."
 //
-// We should deprecate ApplyGroup and use it only for `fleetctl apply` (and
+// We should deprecate ApplyGroup and use it only for `automdmctl apply` (and
 // its current minimal use in `preview`), and have a distinct implementation
 // that is `gitops`-only, because both uses have subtle differences in
 // behaviour that make it hard to reuse a single implementation (e.g. a missing
@@ -612,26 +612,26 @@ func numberWithPluralization(n int, singular string, plural string) string {
 const (
 	dryRunAppliedFormat     = "[+] would've applied %s\n"
 	appliedFormat           = "[+] applied %s\n"
-	applyingTeamFormat      = "[+] applying %s for fleet %s\n"
-	appliedTeamFormat       = "[+] applied %s for fleet %s\n"
-	dryRunAppliedTeamFormat = "[+] would've applied %s for fleet %s\n"
+	applyingTeamFormat      = "[+] applying %s for team %s\n"
+	appliedTeamFormat       = "[+] applied %s for team %s\n"
+	dryRunAppliedTeamFormat = "[+] would've applied %s for team %s\n"
 )
 
-// ApplyGroup applies the given spec group to Fleet.
+// ApplyGroup applies the given spec group to AutoMDM.
 func (c *Client) ApplyGroup(
 	ctx context.Context,
 	viaGitOps bool, // TODO: should we fail if this gets called for CAs outside of gitops?
 	specs *spec.Group,
 	baseDir string,
 	logf func(format string, args ...interface{}),
-	appconfig *fleet.EnrichedAppConfig,
-	opts fleet.ApplyClientSpecOptions,
-	teamsSoftwareInstallers map[string][]fleet.SoftwarePackageResponse,
-	teamsVPPApps map[string][]fleet.VPPAppResponse,
-	teamsScripts map[string][]fleet.ScriptResponse,
+	appconfig *automdm.EnrichedAppConfig,
+	opts automdm.ApplyClientSpecOptions,
+	teamsSoftwareInstallers map[string][]automdm.SoftwarePackageResponse,
+	teamsVPPApps map[string][]automdm.VPPAppResponse,
+	teamsScripts map[string][]automdm.ScriptResponse,
 	filename *string,
 	afterTeamApply func(teamIDsByName map[string]uint) error,
-) (map[string]uint, map[string][]fleet.SoftwarePackageResponse, map[string][]fleet.VPPAppResponse, map[string][]fleet.ScriptResponse, error) {
+) (map[string]uint, map[string][]automdm.SoftwarePackageResponse, map[string][]automdm.VPPAppResponse, map[string][]automdm.ScriptResponse, error) {
 	logfn := func(format string, args ...interface{}) {
 		if logf != nil {
 			logf(format, args...)
@@ -642,7 +642,7 @@ func (c *Client) ApplyGroup(
 		return nil, nil, nil, nil, err
 	}
 
-	// fleetctl gitops passes the config it read at the start of the run.
+	// automdmctl gitops passes the config it read at the start of the run.
 	checkConfig := &lazyAppConfig{client: c, config: appconfig, loaded: appconfig != nil || viaGitOps}
 	if err := checkMDMRequirements(specs, checkConfig.get); err != nil {
 		return nil, nil, nil, nil, err
@@ -650,7 +650,7 @@ func (c *Client) ApplyGroup(
 
 	if len(specs.Queries) > 0 {
 		if opts.DryRun {
-			logfn("[!] ignoring reports, dry run mode only supported for 'config' and 'fleet' specs\n")
+			logfn("[!] ignoring reports, dry run mode only supported for 'config' and 'team' specs\n")
 		} else {
 			if err := c.ApplyQueries(specs.Queries); err != nil {
 				return nil, nil, nil, nil, fmt.Errorf("applying reports: %w", err)
@@ -661,10 +661,10 @@ func (c *Client) ApplyGroup(
 
 	if len(specs.Labels) > 0 {
 		if opts.DryRun {
-			logfn("[!] ignoring labels, dry run mode only supported for 'config' and 'fleet' specs\n")
+			logfn("[!] ignoring labels, dry run mode only supported for 'config' and 'team' specs\n")
 		} else {
 			for _, label := range specs.Labels {
-				if label.LabelType == fleet.LabelTypeBuiltIn {
+				if label.LabelType == automdm.LabelTypeBuiltIn {
 					return nil, nil, nil, nil, errors.New("Cannot import built-in labels. Please remove labels with a label_type of builtin and try again.")
 				}
 			}
@@ -680,7 +680,7 @@ func (c *Client) ApplyGroup(
 		if err := c.ApplyMicrosoftGraphCredentials(*specs.MicrosoftGraphCredentials, opts.ApplySpecOptions.DryRun); err != nil {
 			// The server answers 402, which ParseResponse converts to client.ErrMissingLicense.
 			if errors.Is(err, client.ErrMissingLicense) && viaGitOps && filename != nil {
-				return nil, nil, nil, nil, fmt.Errorf("Couldn't edit \"%s\" at \"microsoft_graph_credentials\": Missing or invalid license. Microsoft Graph credentials are available in Fleet Premium only.", *filename)
+				return nil, nil, nil, nil, fmt.Errorf("Couldn't edit \"%s\" at \"microsoft_graph_credentials\": Missing or invalid license. Microsoft Graph credentials are available in AutoMDM Premium only.", *filename)
 			}
 			return nil, nil, nil, nil, fmt.Errorf("applying microsoft graph credentials: %w", err)
 		}
@@ -689,10 +689,10 @@ func (c *Client) ApplyGroup(
 	if specs.CertificateAuthorities != nil {
 		// In GitOps, skip deletes here. CA deletions are deferred to a post-op so that team configs
 		// can clean up certificate templates (which have FK references to CAs) first.
-		if err := c.ApplyCertificateAuthoritiesSpec(*specs.CertificateAuthorities, opts.ApplySpecOptions, fleet.BatchApplyCertificateAuthoritiesOpts{SkipDeletes: viaGitOps}); err != nil {
+		if err := c.ApplyCertificateAuthoritiesSpec(*specs.CertificateAuthorities, opts.ApplySpecOptions, automdm.BatchApplyCertificateAuthoritiesOpts{SkipDeletes: viaGitOps}); err != nil {
 			// only do this custom message for gitops as we reference the applying filename which only makes sense in gitops
 			if err.Error() == "missing or invalid license" && viaGitOps && filename != nil {
-				return nil, nil, nil, nil, fmt.Errorf("Couldn't edit \"%s\" at \"certificate_authorities\": Missing or invalid license. Certificate authorities are available in Fleet Premium only.", *filename)
+				return nil, nil, nil, nil, fmt.Errorf("Couldn't edit \"%s\" at \"certificate_authorities\": Missing or invalid license. Certificate authorities are available in AutoMDM Premium only.", *filename)
 			}
 			return nil, nil, nil, nil, fmt.Errorf("applying certificate authorities: %w", err)
 		}
@@ -779,13 +779,13 @@ func (c *Client) ApplyGroup(
 			}
 		}
 		if scripts != nil {
-			scriptPayloads := make([]fleet.ScriptPayload, len(scripts))
+			scriptPayloads := make([]automdm.ScriptPayload, len(scripts))
 			for i, f := range scripts {
 				b, err := os.ReadFile(f)
 				if err != nil {
 					return nil, nil, nil, nil, fmt.Errorf("applying scripts for unassigned hosts: %w", err)
 				}
-				scriptPayloads[i] = fleet.ScriptPayload{
+				scriptPayloads[i] = automdm.ScriptPayload{
 					ScriptContents: b,
 					Name:           filepath.Base(f),
 				}
@@ -794,7 +794,7 @@ func (c *Client) ApplyGroup(
 			if err != nil {
 				return nil, nil, nil, nil, fmt.Errorf("applying scripts for unassigned hosts: %w", err)
 			}
-			teamsScripts[fleet.DisplayNameNoTeam] = noTeamScripts
+			teamsScripts[automdm.DisplayNameNoTeam] = noTeamScripts
 
 			if opts.DryRun {
 				logfn(dryRunAppliedFormat, numberWithPluralization(len(scriptPayloads), "script", "scripts"))
@@ -808,14 +808,14 @@ func (c *Client) ApplyGroup(
 			return nil, nil, nil, nil, fmt.Errorf("applying yara rules: %w", err)
 		}
 		if rules != nil {
-			rulePayloads := make([]fleet.YaraRule, len(rules))
+			rulePayloads := make([]automdm.YaraRule, len(rules))
 			for i, f := range rules {
 				path := resolveApplyRelativePath(baseDir, f.Path)
 				b, err := os.ReadFile(path)
 				if err != nil {
 					return nil, nil, nil, nil, fmt.Errorf("applying yara rules: %w", err)
 				}
-				rulePayloads[i] = fleet.YaraRule{
+				rulePayloads[i] = automdm.YaraRule{
 					Contents: string(b),
 					Name:     filepath.Base(f.Path),
 				}
@@ -833,19 +833,19 @@ func (c *Client) ApplyGroup(
 
 		appConfigPayload, err := withoutGitOpsOnlyKeys(specs.AppConfig)
 		if err != nil {
-			return nil, nil, nil, nil, fmt.Errorf("applying fleet config: %w", err)
+			return nil, nil, nil, nil, fmt.Errorf("applying automdm config: %w", err)
 		}
 		if err := c.ApplyAppConfig(appConfigPayload, opts.ApplySpecOptions); err != nil {
-			return nil, nil, nil, nil, fmt.Errorf("applying fleet config: %w", err)
+			return nil, nil, nil, nil, fmt.Errorf("applying automdm config: %w", err)
 		}
 		if opts.DryRun {
-			logfn("[+] would've applied fleet config\n")
+			logfn("[+] would've applied automdm config\n")
 		} else {
-			logfn("[+] applied fleet config\n")
+			logfn("[+] applied automdm config\n")
 		}
 
 		// We apply profiles after the main AppConfig org_settings because profiles may
-		// contain Fleet variables that are set in org_settings, such as $FLEET_VAR_DIGICERT_PASSWORD_My_CA
+		// contain AutoMDM variables that are set in org_settings, such as $AUTOMDM_VAR_DIGICERT_PASSWORD_My_CA
 		//
 		// if there is no custom setting but the windows and mac settings are
 		// non-nil, this means that we want to clear the existing custom settings,
@@ -883,7 +883,7 @@ func (c *Client) ApplyGroup(
 			}
 			// Figure out if MDM should be enabled.
 			assumeEnabled := false
-			assumptions := &fleet.TeamSpecsDryRunAssumptions{}
+			assumptions := &automdm.TeamSpecsDryRunAssumptions{}
 			// This cast is safe because we've already checked AppConfig when extracting custom settings
 			mdmConfigMap, ok := specs.AppConfig.(map[string]interface{})["mdm"].(map[string]interface{})
 			if ok {
@@ -899,10 +899,10 @@ func (c *Client) ApplyGroup(
 			assumptions.WindowsEnabledAndConfigured = optjson.SetBool(assumeEnabled)
 			profilesSpecOptions := opts.ApplySpecOptions
 			// Since we just updated AppConfig, we don't want to get a stale (cached) AppConfig on the server if
-			// this HTTP request gets routed to another Fleet server.
+			// this HTTP request gets routed to another AutoMDM server.
 			profilesSpecOptions.NoCache = true
 			warnDeletedWindowsProfiles := c.windowsProfileDeletionWarning(appconfig,
-				assumptions, nil, fleet.DisplayNameNoTeam, fileContents, logfn)
+				assumptions, nil, automdm.DisplayNameNoTeam, fileContents, logfn)
 			if err := c.ApplyNoTeamProfiles(fileContents, profilesSpecOptions, assumptions); err != nil {
 				return nil, nil, nil, nil, fmt.Errorf("applying custom settings: %w", err)
 			}
@@ -935,7 +935,7 @@ func (c *Client) ApplyGroup(
 			return nil, nil, nil, nil, extractErr
 		}
 
-		tmFileContents := make(map[string][]fleet.MDMProfileBatchPayload, len(tmMDMSettings))
+		tmFileContents := make(map[string][]automdm.MDMProfileBatchPayload, len(tmMDMSettings))
 		for k, profileSpecs := range tmMDMSettings {
 			if err := validateProfileSpecs(profileSpecs.macos, profileSpecs.windows, profileSpecs.android); err != nil {
 				return nil, nil, nil, nil, fmt.Errorf("Team %s: %w", k, err)
@@ -943,18 +943,18 @@ func (c *Client) ApplyGroup(
 			fileContents, err := getProfilesContents(baseDir, profileSpecs.macos, profileSpecs.windows, profileSpecs.android, opts.ExpandEnvConfigProfiles)
 			if err != nil {
 				// TODO: consider adding team name to improve error messages generally for other parts of the config because multiple team configs can be processed at once
-				return nil, nil, nil, nil, fmt.Errorf("Fleet %s: %w", k, err)
+				return nil, nil, nil, nil, fmt.Errorf("AutoMDM %s: %w", k, err)
 			}
 			tmFileContents[k] = fileContents
 		}
 
 		// Resolve DDM asset files up front so missing-file errors surface early.
 		tmAssetSpecs := extractTmSpecsMDMAssets(specs.Teams)
-		tmAssetContents := make(map[string][]fleet.MDMAppleDDMAssetBatchPayload, len(tmAssetSpecs))
+		tmAssetContents := make(map[string][]automdm.MDMAppleDDMAssetBatchPayload, len(tmAssetSpecs))
 		for k, assetSpecs := range tmAssetSpecs {
 			assetContents, err := getAssetsContents(baseDir, assetSpecs, opts.ExpandEnvConfigProfiles)
 			if err != nil {
-				return nil, nil, nil, nil, fmt.Errorf("Fleet %s: %w", k, err)
+				return nil, nil, nil, nil, fmt.Errorf("AutoMDM %s: %w", k, err)
 			}
 			tmAssetContents[k] = assetContents
 		}
@@ -963,23 +963,23 @@ func (c *Client) ApplyGroup(
 		if err != nil {
 			return nil, nil, nil, nil, err
 		}
-		tmBootstrapPackages := make(map[string]*fleet.MDMAppleBootstrapPackage, len(tmMacSetup))
+		tmBootstrapPackages := make(map[string]*automdm.MDMAppleBootstrapPackage, len(tmMacSetup))
 		tmMacSetupAssistants := make(map[string][]byte, len(tmMacSetup))
 
 		// those are gitops-only features
 		tmMacSetupScript := make(map[string]fileContent, len(tmMacSetup))
-		tmMacSetupSoftware := make(map[string][]*fleet.MacOSSetupSoftware, len(tmMacSetup))
+		tmMacSetupSoftware := make(map[string][]*automdm.MacOSSetupSoftware, len(tmMacSetup))
 		// this is a set of software packages or VPP apps that are configured as
 		// install_during_setup, by team. This is a gitops-only setting, so it will
 		// only be filled when called via this command.
-		tmSoftwareMacOSSetup := make(map[string]map[fleet.MacOSSetupSoftware]struct{}, len(tmMacSetup))
+		tmSoftwareMacOSSetup := make(map[string]map[automdm.MacOSSetupSoftware]struct{}, len(tmMacSetup))
 
 		for k, setup := range tmMacSetup {
 			switch {
 			case setup.BootstrapPackage.Value != "":
 				bp, err := c.ValidateBootstrapPackageFromURL(setup.BootstrapPackage.Value)
 				if err != nil {
-					return nil, nil, nil, nil, fmt.Errorf("applying fleets: %w", err)
+					return nil, nil, nil, nil, fmt.Errorf("applying teams: %w", err)
 				}
 				tmBootstrapPackages[k] = bp
 			case setup.BootstrapPackage.Set: // explicitly empty
@@ -989,7 +989,7 @@ func (c *Client) ApplyGroup(
 			case setup.MacOSSetupAssistant.Value != "":
 				b, err := c.validateMacOSSetupAssistant(resolveApplyRelativePath(baseDir, setup.MacOSSetupAssistant.Value))
 				if err != nil {
-					return nil, nil, nil, nil, fmt.Errorf("applying fleets: %w", err)
+					return nil, nil, nil, nil, fmt.Errorf("applying teams: %w", err)
 				}
 				tmMacSetupAssistants[k] = b
 			case setup.MacOSSetupAssistant.Set: // explicitly empty
@@ -998,12 +998,12 @@ func (c *Client) ApplyGroup(
 			if setup.Script.Value != "" {
 				if setup.ManualAgentInstall.Value {
 					return nil, nil, nil, nil, fmt.Errorf(
-						"Couldn\u2019t add setup experience script. To add script, first disable macos_manual_agent_install (fleet %q).", k,
+						"Couldn\u2019t add setup experience script. To add script, first disable macos_manual_agent_install (team %q).", k,
 					)
 				}
 				b, err := c.validateMacOSSetupScript(resolveApplyRelativePath(baseDir, setup.Script.Value))
 				if err != nil {
-					return nil, nil, nil, nil, fmt.Errorf("applying fleets: %w", err)
+					return nil, nil, nil, nil, fmt.Errorf("applying teams: %w", err)
 				}
 				tmMacSetupScript[k] = fileContent{Filename: filepath.Base(setup.Script.Value), Content: b}
 			}
@@ -1021,15 +1021,15 @@ func (c *Client) ApplyGroup(
 		if err != nil {
 			return nil, nil, nil, nil, err
 		}
-		tmScriptsPayloads := make(map[string][]fleet.ScriptPayload, len(tmScripts))
+		tmScriptsPayloads := make(map[string][]automdm.ScriptPayload, len(tmScripts))
 		for k, paths := range tmScripts {
-			scriptPayloads := make([]fleet.ScriptPayload, len(paths))
+			scriptPayloads := make([]automdm.ScriptPayload, len(paths))
 			for i, f := range paths {
 				b, err := os.ReadFile(f)
 				if err != nil {
 					return nil, nil, nil, nil, fmt.Errorf("reading script file: %w", err)
 				}
-				scriptPayloads[i] = fleet.ScriptPayload{
+				scriptPayloads[i] = automdm.ScriptPayload{
 					ScriptContents: b,
 					Name:           filepath.Base(f),
 				}
@@ -1038,13 +1038,13 @@ func (c *Client) ApplyGroup(
 		}
 
 		tmSoftwarePackages := extractTmSpecsSoftwarePackages(specs.Teams)
-		tmSoftwarePackagesPayloads := make(map[string][]fleet.SoftwareInstallerPayload, len(tmSoftwarePackages))
+		tmSoftwarePackagesPayloads := make(map[string][]automdm.SoftwareInstallerPayload, len(tmSoftwarePackages))
 		tmSoftwarePackagesWithPaths := make(map[string]map[string]struct{}, len(tmSoftwarePackages))
 		for tmName, software := range tmSoftwarePackages {
 			installDuringSetupKeys := tmSoftwareMacOSSetup[tmName]
 			softwarePayloads, err := buildSoftwarePackagesPayload(software, installDuringSetupKeys)
 			if err != nil {
-				return nil, nil, nil, nil, fmt.Errorf("applying software installers for fleet %q: %w", tmName, err)
+				return nil, nil, nil, nil, fmt.Errorf("applying software installers for team %q: %w", tmName, err)
 			}
 			tmSoftwarePackagesPayloads[tmName] = softwarePayloads
 			for _, swSpec := range software {
@@ -1059,12 +1059,12 @@ func (c *Client) ApplyGroup(
 			}
 		}
 
-		tmFleetMaintainedApps := extractTmSpecsFleetMaintainedApps(specs.Teams)
-		for tmName, apps := range tmFleetMaintainedApps {
+		tmAutoMDMMaintainedApps := extractTmSpecsAutoMDMMaintainedApps(specs.Teams)
+		for tmName, apps := range tmAutoMDMMaintainedApps {
 			installDuringSetupKeys := tmSoftwareMacOSSetup[tmName]
 			softwarePayloads, err := buildSoftwarePackagesPayload(apps, installDuringSetupKeys)
 			if err != nil {
-				return nil, nil, nil, nil, fmt.Errorf("applying software installers for fleet %q: %w", tmName, err)
+				return nil, nil, nil, nil, fmt.Errorf("applying software installers for team %q: %w", tmName, err)
 			}
 			if existingPayloads, ok := tmSoftwarePackagesPayloads[tmName]; ok {
 				tmSoftwarePackagesPayloads[tmName] = append(existingPayloads, softwarePayloads...)
@@ -1074,15 +1074,15 @@ func (c *Client) ApplyGroup(
 		}
 
 		tmSoftwareApps := extractTmSpecsSoftwareApps(specs.Teams)
-		tmSoftwareAppsPayloads := make(map[string][]fleet.VPPBatchPayload)
-		tmSoftwareAppsByAppID := make(map[string]map[string]fleet.TeamSpecAppStoreApp, len(tmSoftwareApps))
+		tmSoftwareAppsPayloads := make(map[string][]automdm.VPPBatchPayload)
+		tmSoftwareAppsByAppID := make(map[string]map[string]automdm.TeamSpecAppStoreApp, len(tmSoftwareApps))
 		for tmName, apps := range tmSoftwareApps {
 			installDuringSetupKeys := tmSoftwareMacOSSetup[tmName]
-			appPayloads := make([]fleet.VPPBatchPayload, 0, len(apps))
+			appPayloads := make([]automdm.VPPBatchPayload, 0, len(apps))
 			for _, app := range apps {
 				var installDuringSetup *bool
 				if installDuringSetupKeys != nil {
-					_, ok := installDuringSetupKeys[fleet.MacOSSetupSoftware{AppStoreID: app.AppStoreID}]
+					_, ok := installDuringSetupKeys[automdm.MacOSSetupSoftware{AppStoreID: app.AppStoreID}]
 					installDuringSetup = &ok
 				}
 				if app.InstallDuringSetup.Valid {
@@ -1104,7 +1104,7 @@ func (c *Client) ApplyGroup(
 						return nil, nil, nil, nil, fmt.Errorf("Couldn't edit app store app (%s). Reading configuration %s: %w", app.AppStoreID, version.Configuration.Path, err)
 					}
 
-					payload := fleet.VPPBatchPayload{
+					payload := automdm.VPPBatchPayload{
 						AppStoreID:          app.AppStoreID,
 						VersionName:         version.Name,
 						SelfService:         version.SelfService,
@@ -1116,7 +1116,7 @@ func (c *Client) ApplyGroup(
 						DisplayName:         app.DisplayName,
 						IconPath:            app.Icon.Path,
 						IconHash:            iconHash,
-						Platform:            fleet.InstallableDevicePlatform(app.Platform),
+						Platform:            automdm.InstallableDevicePlatform(app.Platform),
 						Location:            app.Location,
 						AutoUpdateEnabled:   version.AutoUpdateEnabled,
 						AutoUpdateStartTime: version.AutoUpdateStartTime,
@@ -1130,7 +1130,7 @@ func (c *Client) ApplyGroup(
 
 				// can be referenced by setup_experience.software.app_store_id
 				if tmSoftwareAppsByAppID[tmName] == nil {
-					tmSoftwareAppsByAppID[tmName] = make(map[string]fleet.TeamSpecAppStoreApp, len(apps))
+					tmSoftwareAppsByAppID[tmName] = make(map[string]automdm.TeamSpecAppStoreApp, len(apps))
 				}
 				tmSoftwareAppsByAppID[tmName][app.AppStoreID] = app
 			}
@@ -1155,29 +1155,29 @@ func (c *Client) ApplyGroup(
 
 		// Next, apply the teams specs before saving the profiles, so that any
 		// non-existing team gets created.
-		teamOpts := fleet.ApplyTeamSpecOptions{
+		teamOpts := automdm.ApplyTeamSpecOptions{
 			ApplySpecOptions:  opts.ApplySpecOptions,
 			DryRunAssumptions: specs.TeamsDryRunAssumptions,
 		}
 		teamSpecs := make([]json.RawMessage, len(specs.Teams))
 		for i, spec := range specs.Teams {
 			if teamSpecs[i], err = withoutGitOpsOnlyKeys(spec); err != nil {
-				return nil, nil, nil, nil, fmt.Errorf("applying fleets: %w", err)
+				return nil, nil, nil, nil, fmt.Errorf("applying teams: %w", err)
 			}
 		}
 		// In dry-run, the team names returned are the old team names (when team name is modified via gitops)
 		teamIDsByName, err = c.ApplyTeams(teamSpecs, teamOpts)
 		if err != nil {
-			return nil, nil, nil, nil, fmt.Errorf("applying fleets: %w", err)
+			return nil, nil, nil, nil, fmt.Errorf("applying teams: %w", err)
 		}
 
-		// Run any caller-supplied hook between fleet creation and fleet-resource
-		// apply. The GitOps fleet flow uses this to apply fleet-scoped labels
+		// Run any caller-supplied hook between team creation and automdm-resource
+		// apply. The GitOps team flow uses this to apply team-scoped labels
 		// before possible consumers (profiles, policies etc.) validate label
 		// references against the database.
 		if afterTeamApply != nil {
 			if err := afterTeamApply(teamIDsByName); err != nil {
-				return nil, nil, nil, nil, fmt.Errorf("after-fleet-create hook: %w", err)
+				return nil, nil, nil, nil, fmt.Errorf("after-automdm-create hook: %w", err)
 			}
 		}
 
@@ -1204,16 +1204,16 @@ func (c *Client) ApplyGroup(
 				currentTeamName := getTeamName(tmName)
 				teamID, ok := teamIDsByName[currentTeamName]
 				if opts.DryRun && (teamID == 0 || !ok) {
-					logfn("[+] would've applied DDM assets for new fleet %s\n", tmName)
+					logfn("[+] would've applied DDM assets for new team %s\n", tmName)
 					continue
 				}
 				if opts.DryRun {
-					logfn("[+] would've applied DDM assets for fleet %s\n", tmName)
+					logfn("[+] would've applied DDM assets for team %s\n", tmName)
 				} else {
-					logfn("[+] applying DDM assets for fleet %s\n", tmName)
+					logfn("[+] applying DDM assets for team %s\n", tmName)
 				}
 				if err := c.applyDDMAssets(currentTeamName, assets, teamOpts.ApplySpecOptions); err != nil {
-					return nil, nil, nil, nil, fmt.Errorf("applying assets for fleet %q: %w", tmName, err)
+					return nil, nil, nil, nil, fmt.Errorf("applying assets for team %q: %w", tmName, err)
 				}
 			}
 		}
@@ -1228,17 +1228,17 @@ func (c *Client) ApplyGroup(
 				currentTeamName := getTeamName(tmName)
 				teamID, ok := teamIDsByName[currentTeamName]
 				if opts.DryRun && (teamID == 0 || !ok) {
-					logfn("[+] would've applied MDM profiles for new fleet %s\n", tmName)
+					logfn("[+] would've applied MDM profiles for new team %s\n", tmName)
 				} else {
 					if opts.DryRun {
-						logfn("[+] would've applied MDM profiles for new fleet %s\n", tmName)
+						logfn("[+] would've applied MDM profiles for new team %s\n", tmName)
 					} else {
-						logfn("[+] applying MDM profiles for fleet %s\n", tmName)
+						logfn("[+] applying MDM profiles for team %s\n", tmName)
 					}
 					warnDeletedWindowsProfiles := c.windowsProfileDeletionWarning(appconfig, teamProfilesOpts.DryRunAssumptions,
 						&teamID, tmName, profs, logfn)
 					if err := c.ApplyTeamProfiles(currentTeamName, profs, teamProfilesOpts); err != nil {
-						return nil, nil, nil, nil, fmt.Errorf("applying custom settings for fleet %q: %w", tmName, err)
+						return nil, nil, nil, nil, fmt.Errorf("applying custom settings for team %q: %w", tmName, err)
 					}
 					warnDeletedWindowsProfiles()
 				}
@@ -1250,7 +1250,7 @@ func (c *Client) ApplyGroup(
 					switch {
 					case bp != nil:
 						if err := c.UploadBootstrapPackageIfNeeded(bp, tmID, opts.DryRun); err != nil {
-							return nil, nil, nil, nil, fmt.Errorf("uploading bootstrap package for fleet %q: %w", tmName, err)
+							return nil, nil, nil, nil, fmt.Errorf("uploading bootstrap package for team %q: %w", tmName, err)
 						}
 					default: // explicitly empty
 						allowed, err := checkConfig.canDeleteSetupItems()
@@ -1259,7 +1259,7 @@ func (c *Client) ApplyGroup(
 						}
 						if allowed {
 							if err := c.DeleteBootstrapPackageIfNeeded(tmID, opts.DryRun); err != nil {
-								return nil, nil, nil, nil, fmt.Errorf("deleting bootstrap package for fleet %q: %w", tmName, err)
+								return nil, nil, nil, nil, fmt.Errorf("deleting bootstrap package for team %q: %w", tmName, err)
 							}
 						}
 					}
@@ -1279,13 +1279,13 @@ func (c *Client) ApplyGroup(
 								// to render a more helpful error message.
 								parts := strings.Split(err.Error(), ".")
 								if len(parts) < 2 {
-									return nil, nil, nil, nil, fmt.Errorf("unexpected error while uploading macOS setup assistant for fleet %q: %w",
+									return nil, nil, nil, nil, fmt.Errorf("unexpected error while uploading macOS setup assistant for team %q: %w",
 										tmName, err)
 								}
 								return nil, nil, nil, nil, fmt.Errorf("Couldn't edit apple_setup_assistant. Response from Apple: %s. Learn more at %s",
-									strings.Trim(parts[1], " "), "https://fleetdm.com/learn-more-about/dep-profile")
+									strings.Trim(parts[1], " "), "https://automdm.com/learn-more-about/dep-profile")
 							}
-							return nil, nil, nil, nil, fmt.Errorf("uploading macOS setup assistant for fleet %q: %w", tmName, err)
+							return nil, nil, nil, nil, fmt.Errorf("uploading macOS setup assistant for team %q: %w", tmName, err)
 						}
 					default: // explicitly empty
 						allowed, err := checkConfig.canDeleteSetupItems()
@@ -1294,7 +1294,7 @@ func (c *Client) ApplyGroup(
 						}
 						if allowed {
 							if err := c.deleteMacOSSetupAssistant(&tmID); err != nil {
-								return nil, nil, nil, nil, fmt.Errorf("deleting macOS enrollment profile for fleet %q: %w", tmName, err)
+								return nil, nil, nil, nil, fmt.Errorf("deleting macOS enrollment profile for team %q: %w", tmName, err)
 							}
 						}
 					}
@@ -1305,11 +1305,11 @@ func (c *Client) ApplyGroup(
 			for tmName, tmID := range teamIDsByName {
 				if fc, ok := tmMacSetupScript[tmName]; ok {
 					if err := c.uploadMacOSSetupScript(fc.Filename, fc.Content, &tmID); err != nil {
-						return nil, nil, nil, nil, fmt.Errorf("uploading setup experience script for fleet %q: %w", tmName, err)
+						return nil, nil, nil, nil, fmt.Errorf("uploading setup experience script for team %q: %w", tmName, err)
 					}
 				} else {
 					if err := c.deleteMacOSSetupScript(&tmID); err != nil {
-						return nil, nil, nil, nil, fmt.Errorf("deleting setup experience script for fleet %q: %w", tmName, err)
+						return nil, nil, nil, nil, fmt.Errorf("deleting setup experience script for team %q: %w", tmName, err)
 					}
 				}
 			}
@@ -1324,7 +1324,7 @@ func (c *Client) ApplyGroup(
 				currentTeamName := getTeamName(tmName)
 				scriptResponses, err := c.ApplyTeamScripts(currentTeamName, scripts, opts.ApplySpecOptions)
 				if err != nil {
-					return nil, nil, nil, nil, fmt.Errorf("applying scripts for fleet %q: %w", tmName, err)
+					return nil, nil, nil, nil, fmt.Errorf("applying scripts for team %q: %w", tmName, err)
 				}
 				teamsScripts[tmName] = scriptResponses
 				if opts.DryRun {
@@ -1348,7 +1348,7 @@ func (c *Client) ApplyGroup(
 				}
 				installers, deletedInstallers, categories, err := c.ApplyTeamSoftwareInstallers(currentTeamName, software, opts.ApplySpecOptions, logfn)
 				if err != nil {
-					return nil, nil, nil, nil, fmt.Errorf("applying software installers for fleet %q: %w", tmName, err)
+					return nil, nil, nil, nil, fmt.Errorf("applying software installers for team %q: %w", tmName, err)
 				}
 				if opts.DryRun {
 					logfn(dryRunAppliedTeamFormat, softwareCount, tmName)
@@ -1367,39 +1367,39 @@ func (c *Client) ApplyGroup(
 				logfn(format, numberWithPluralization(len(apps), "app store app", "app store apps"), tmName)
 				appsResponse, categories, err := c.ApplyTeamAppStoreAppsAssociation(currentTeamName, apps, opts.ApplySpecOptions)
 				if err != nil {
-					return nil, nil, nil, nil, fmt.Errorf("applying app store apps for fleet: %q: %w", tmName, err)
+					return nil, nil, nil, nil, fmt.Errorf("applying app store apps for team: %q: %w", tmName, err)
 				}
 				teamsVPPApps[tmName] = appsResponse
 				categoriesByTeam[currentTeamName] = append(categoriesByTeam[currentTeamName], categories...)
 			}
 		}
 
-		// Delete categories no longer referenced by any of the fleet's software.
+		// Delete categories no longer referenced by any of the team's software.
 		if viaGitOps && !opts.DryRun && !softwareExcepted {
 			for tmName, tmID := range teamIDsByName {
 				if err := c.deleteUnusedSelfServiceCategories(tmID, categoriesByTeam[tmName]); err != nil {
-					return nil, nil, nil, nil, fmt.Errorf("deleting unused self-service categories for fleet %q: %w", tmName, err)
+					return nil, nil, nil, nil, fmt.Errorf("deleting unused self-service categories for team %q: %w", tmName, err)
 				}
 			}
 		}
 
 		if opts.DryRun {
-			logfn(dryRunAppliedFormat, numberWithPluralization(len(specs.Teams), "fleet", "fleets"))
+			logfn(dryRunAppliedFormat, numberWithPluralization(len(specs.Teams), "team", "teams"))
 		} else {
-			logfn(appliedFormat, numberWithPluralization(len(specs.Teams), "fleet", "fleets"))
+			logfn(appliedFormat, numberWithPluralization(len(specs.Teams), "team", "teams"))
 		}
 	}
 
 	// Policies can reference software installers thus they are applied at this point.
 	if len(specs.Policies) > 0 {
 		// Policy names must be unique, return error if duplicate policy names are found
-		if policyName := fleet.FirstDuplicatePolicySpecName(specs.Policies); policyName != "" {
+		if policyName := automdm.FirstDuplicatePolicySpecName(specs.Policies); policyName != "" {
 			return nil, nil, nil, nil, fmt.Errorf(
 				"applying policies: policy names must be unique. Please correct policy %q and try again.", policyName,
 			)
 		}
 		if opts.DryRun {
-			logfn("[!] ignoring policies, dry run mode only supported for 'config' and 'fleet' specs\n")
+			logfn("[!] ignoring policies, dry run mode only supported for 'config' and 'team' specs\n")
 		} else {
 			// If set, override the team in all the policies.
 			if opts.TeamForPolicies != "" {
@@ -1418,11 +1418,11 @@ func (c *Client) ApplyGroup(
 	return teamIDsByName, teamsSoftwareInstallers, teamsVPPApps, teamsScripts, nil
 }
 
-func extractTeamOrNoTeamMacOSSetupSoftware(baseDir string, software []*fleet.MacOSSetupSoftware) (map[fleet.MacOSSetupSoftware]struct{}, error) {
-	m := make(map[fleet.MacOSSetupSoftware]struct{}, len(software))
+func extractTeamOrNoTeamMacOSSetupSoftware(baseDir string, software []*automdm.MacOSSetupSoftware) (map[automdm.MacOSSetupSoftware]struct{}, error) {
+	m := make(map[automdm.MacOSSetupSoftware]struct{}, len(software))
 	for _, sw := range software {
 		if sw.AppStoreID != "" && sw.PackagePath != "" {
-			return nil, errors.New("applying fleets: only one of app_store_id or package_path can be set")
+			return nil, errors.New("applying teams: only one of app_store_id or package_path can be set")
 		}
 		if sw.PackagePath != "" {
 			sw.PackagePath = resolveApplyRelativePath(baseDir, sw.PackagePath)
@@ -1432,7 +1432,7 @@ func extractTeamOrNoTeamMacOSSetupSoftware(baseDir string, software []*fleet.Mac
 	return m, nil
 }
 
-func validateTeamOrNoTeamMacOSSetupSoftware(teamName string, macOSSetupSoftware []*fleet.MacOSSetupSoftware, pathsWithPackages map[string]struct{}, vppAppsByAppID map[string]fleet.TeamSpecAppStoreApp) error {
+func validateTeamOrNoTeamMacOSSetupSoftware(teamName string, macOSSetupSoftware []*automdm.MacOSSetupSoftware, pathsWithPackages map[string]struct{}, vppAppsByAppID map[string]automdm.TeamSpecAppStoreApp) error {
 	// if setup_experience.software has some values, they must exist in the software
 	// packages or vpp apps.
 	for _, ssw := range macOSSetupSoftware {
@@ -1450,14 +1450,14 @@ func validateTeamOrNoTeamMacOSSetupSoftware(teamName string, macOSSetupSoftware 
 			if label == "" {
 				label = ssw.PackagePath
 			}
-			return fmt.Errorf("applying macOS setup experience software for fleet %q: software %q does not exist for that fleet", teamName, label)
+			return fmt.Errorf("applying macOS setup experience software for team %q: software %q does not exist for that team", teamName, label)
 		}
 	}
 	return nil
 }
 
-func buildSoftwarePackagesPayload(specs []fleet.SoftwarePackageSpec, installDuringSetupKeys map[fleet.MacOSSetupSoftware]struct{}) ([]fleet.SoftwareInstallerPayload, error) {
-	softwarePayloads := make([]fleet.SoftwareInstallerPayload, len(specs))
+func buildSoftwarePackagesPayload(specs []automdm.SoftwarePackageSpec, installDuringSetupKeys map[automdm.MacOSSetupSoftware]struct{}) ([]automdm.SoftwareInstallerPayload, error) {
+	softwarePayloads := make([]automdm.SoftwareInstallerPayload, len(specs))
 	for i, si := range specs {
 		if si.AlwaysDownload && si.SHA256 != "" {
 			return nil, errors.New("Couldn't edit software. The 'always_download' option cannot be used with 'hash_sha256'.")
@@ -1502,7 +1502,7 @@ func buildSoftwarePackagesPayload(specs []fleet.SoftwarePackageSpec, installDuri
 				qc = group.Queries[0].Query
 			} else {
 				// Gitops format
-				var querySpecs []fleet.QuerySpec
+				var querySpecs []automdm.QuerySpec
 				if err := yaml.Unmarshal(rawSpecExpanded, &querySpecs); err != nil {
 					return nil, fmt.Errorf("Couldn't edit software (%s). Unable to parse pre-install query YAML file %s: %w", si.URL, queryFile, err)
 				}
@@ -1554,7 +1554,7 @@ func buildSoftwarePackagesPayload(specs []fleet.SoftwarePackageSpec, installDuri
 
 		var installDuringSetup *bool
 		if installDuringSetupKeys != nil {
-			_, ok := installDuringSetupKeys[fleet.MacOSSetupSoftware{PackagePath: si.ReferencedYamlPath}]
+			_, ok := installDuringSetupKeys[automdm.MacOSSetupSoftware{PackagePath: si.ReferencedYamlPath}]
 			installDuringSetup = &ok
 		}
 
@@ -1568,7 +1568,7 @@ func buildSoftwarePackagesPayload(specs []fleet.SoftwarePackageSpec, installDuri
 		// For script packages from path, use "script://" URL scheme to pass the filename
 		urlValue := si.URL
 		sha256Value := si.SHA256
-		if fleet.IsScriptPackage(filepath.Ext(si.ReferencedYamlPath)) && si.URL == "" {
+		if automdm.IsScriptPackage(filepath.Ext(si.ReferencedYamlPath)) && si.URL == "" {
 			scriptFilename := filepath.Base(si.ReferencedYamlPath)
 			urlValue = "script://" + scriptFilename
 			if sha256Value == "" && len(ic) > 0 {
@@ -1583,7 +1583,7 @@ func buildSoftwarePackagesPayload(specs []fleet.SoftwarePackageSpec, installDuri
 			if err != nil {
 				return nil, fmt.Errorf("Couldn't edit software (%s). Reading configuration %s: %w", si.URL, si.Configuration.Path, err)
 			}
-			if err := fleet.ValidateAppleAppConfiguration(cfg); err != nil {
+			if err := automdm.ValidateAppleAppConfiguration(cfg); err != nil {
 				return nil, fmt.Errorf("Couldn't edit software (%s). Configuration %s: %w", si.URL, si.Configuration.Path, err)
 			}
 		}
@@ -1606,7 +1606,7 @@ func buildSoftwarePackagesPayload(specs []fleet.SoftwarePackageSpec, installDuri
 			setupExperiencePlatforms = &ps
 		}
 
-		softwarePayloads[i] = fleet.SoftwareInstallerPayload{
+		softwarePayloads[i] = automdm.SoftwareInstallerPayload{
 			URL:                      urlValue,
 			SelfService:              si.SelfService,
 			PreInstallQuery:          qc,
@@ -1676,14 +1676,14 @@ func getAppStoreAppConfig(platform, path string) (json.RawMessage, error) {
 	}
 
 	switch platform {
-	case string(fleet.AndroidPlatform):
+	case string(automdm.AndroidPlatform):
 		config := json.RawMessage(contents)
-		if err := fleet.ValidateAndroidAppConfiguration(config); err != nil {
+		if err := automdm.ValidateAndroidAppConfiguration(config); err != nil {
 			return nil, err
 		}
 		return config, nil
-	case string(fleet.IOSPlatform), string(fleet.IPadOSPlatform):
-		if err := fleet.ValidateAppleAppConfiguration(contents); err != nil {
+	case string(automdm.IOSPlatform), string(automdm.IPadOSPlatform):
+		if err := automdm.ValidateAppleAppConfiguration(contents); err != nil {
 			return nil, err
 		}
 		// Wrap as a JSON-encoded string of XML to match the wire format
@@ -1698,7 +1698,7 @@ func getAppStoreAppConfig(platform, path string) (json.RawMessage, error) {
 	return nil, nil
 }
 
-// checkRemovedSpecKeys runs the server's removed-key check on the config and fleet specs. The server would reject them
+// checkRemovedSpecKeys runs the server's removed-key check on the config and team specs. The server would reject them
 // too, but only after ApplyGroup has already uploaded bootstrap packages and applied earlier specs.
 func checkRemovedSpecKeys(specs *spec.Group) error {
 	if specs.AppConfig != nil {
@@ -1706,15 +1706,15 @@ func checkRemovedSpecKeys(specs *spec.Group) error {
 		if err != nil {
 			return fmt.Errorf("marshal app config: %w", err)
 		}
-		if data, err = endpointer.RewriteOldToNewKeys(data, spec.SpecAliasRules(fleet.AppConfig{})); err != nil {
+		if data, err = endpointer.RewriteOldToNewKeys(data, spec.SpecAliasRules(automdm.AppConfig{})); err != nil {
 			return err
 		}
-		if err := endpointer.CheckRemovedKeys(data, spec.SpecRemovedKeyRules(fleet.AppConfig{})); err != nil {
+		if err := endpointer.CheckRemovedKeys(data, spec.SpecRemovedKeyRules(automdm.AppConfig{})); err != nil {
 			return err
 		}
 	}
-	aliasRules := spec.SpecAliasRules(fleet.TeamSpec{})
-	removedRules := spec.SpecRemovedKeyRules(fleet.TeamSpec{})
+	aliasRules := spec.SpecAliasRules(automdm.TeamSpec{})
+	removedRules := spec.SpecRemovedKeyRules(automdm.TeamSpec{})
 	for _, tm := range specs.Teams {
 		data, err := endpointer.RewriteOldToNewKeys(tm, aliasRules)
 		if err != nil {
@@ -1727,7 +1727,7 @@ func checkRemovedSpecKeys(specs *spec.Group) error {
 	return nil
 }
 
-func extractAppCfgMacOSSetup(appCfg any) (*fleet.GitOpsMacOSSetup, error) {
+func extractAppCfgMacOSSetup(appCfg any) (*automdm.GitOpsMacOSSetup, error) {
 	asMap, ok := appCfg.(map[string]interface{})
 	if !ok {
 		return nil, nil
@@ -1738,12 +1738,12 @@ func extractAppCfgMacOSSetup(appCfg any) (*fleet.GitOpsMacOSSetup, error) {
 	}
 
 	// GitOps
-	mosGitOps, ok := mmdm["setup_experience"].(*fleet.GitOpsMacOSSetup)
+	mosGitOps, ok := mmdm["setup_experience"].(*automdm.GitOpsMacOSSetup)
 	if ok {
 		return mosGitOps, nil
 	}
 
-	// Legacy fleetctl apply
+	// Legacy automdmctl apply
 	mos, ok := mmdm["setup_experience"].(map[string]any)
 	if !ok || mos == nil {
 		return nil, nil
@@ -1753,7 +1753,7 @@ func extractAppCfgMacOSSetup(appCfg any) (*fleet.GitOpsMacOSSetup, error) {
 		return nil, err
 	}
 	// A key left out keeps the item; an empty or null one deletes it.
-	var setup fleet.GitOpsMacOSSetup
+	var setup automdm.GitOpsMacOSSetup
 	if v, ok := items["macos_bootstrap_package"]; ok {
 		setup.BootstrapPackage = optjson.SetString(ptr.ValOrZero(v))
 	}
@@ -1785,7 +1785,7 @@ func decodeSetupItems(prefix string, setup any) (map[string]*string, error) {
 	return items, nil
 }
 
-// fleetctl apply reads specs as untyped YAML, and since Fleet 5 the server no longer receives the
+// automdmctl apply reads specs as untyped YAML, and since AutoMDM 5 the server no longer receives the
 // profiles, scripts, or setup items, so a value of the wrong type is rejected here instead of being
 // read as empty, which would delete what's there.
 func decodeSpecValue(key string, value, target any) error {
@@ -1794,12 +1794,12 @@ func decodeSpecValue(key string, value, target any) error {
 		return fmt.Errorf("%s: %w", key, err)
 	}
 	if err := json.Unmarshal(b, target); err != nil {
-		return fmt.Errorf("%s: %s", key, fleet.NewUserMessageError(err, http.StatusBadRequest).UserMessage())
+		return fmt.Errorf("%s: %s", key, automdm.NewUserMessageError(err, http.StatusBadRequest).UserMessage())
 	}
 	return nil
 }
 
-// Since Fleet 5 the config and fleet API types don't have the profiles, scripts, setup assistant,
+// Since AutoMDM 5 the config and automdm API types don't have the profiles, scripts, setup assistant,
 // and setup script, so the server rejects them; the client applies them through their own
 // endpoints. The bootstrap package URL stays: the server reads it to validate settings that need a
 // package before the package is uploaded.
@@ -1819,42 +1819,42 @@ func withoutGitOpsOnlyKeys(spec any) (json.RawMessage, error) {
 	return endpointer.RemoveJSONKeys(b, paths...)
 }
 
-// The server used to decode the profiles in fleet specs, so keep its message for a malformed entry.
+// The server used to decode the profiles in team specs, so keep its message for a malformed entry.
 func profileSpecsDecodeError(teamName, settingsKey string, err error) error {
-	return fmt.Errorf("fleet %q: %s.configuration_profiles: %s", teamName, settingsKey,
-		fleet.NewUserMessageError(err, http.StatusBadRequest).UserMessage())
+	return fmt.Errorf("team %q: %s.configuration_profiles: %s", teamName, settingsKey,
+		automdm.NewUserMessageError(err, http.StatusBadRequest).UserMessage())
 }
 
 // The profiles batch endpoint reads a legacy labels list as labels_include_all,
 // so a profile that sets both is only caught here.
-func validateProfileSpecs(macos, windows, android []fleet.MDMProfileSpec) error {
-	invalid := &fleet.InvalidArgumentError{}
-	fleet.ValidateMDMProfileSpecs(invalid, "apple", macos)
-	fleet.ValidateMDMProfileSpecs(invalid, "windows", windows)
-	fleet.ValidateMDMProfileSpecs(invalid, "android", android)
+func validateProfileSpecs(macos, windows, android []automdm.MDMProfileSpec) error {
+	invalid := &automdm.InvalidArgumentError{}
+	automdm.ValidateMDMProfileSpecs(invalid, "apple", macos)
+	automdm.ValidateMDMProfileSpecs(invalid, "windows", windows)
+	automdm.ValidateMDMProfileSpecs(invalid, "android", android)
 	if invalid.HasErrors() {
 		return invalid
 	}
 	return nil
 }
 
-// lazyAppConfig is the config ApplyGroup checks the specs against. fleetctl apply doesn't pass it,
+// lazyAppConfig is the config ApplyGroup checks the specs against. automdmctl apply doesn't pass it,
 // so it's fetched the first time a check needs it.
 type lazyAppConfig struct {
 	client *Client
-	config *fleet.EnrichedAppConfig
+	config *automdm.EnrichedAppConfig
 	err    error
 	loaded bool
 }
 
-func (l *lazyAppConfig) get() (*fleet.EnrichedAppConfig, error) {
+func (l *lazyAppConfig) get() (*automdm.EnrichedAppConfig, error) {
 	if l.loaded {
 		return l.config, l.err
 	}
 	l.loaded = true
 	l.config, l.err = l.client.GetAppConfig()
 	if l.err != nil {
-		l.err = fmt.Errorf("getting fleet config: %w", l.err)
+		l.err = fmt.Errorf("getting automdm config: %w", l.err)
 	}
 	return l.config, l.err
 }
@@ -1869,15 +1869,15 @@ func (l *lazyAppConfig) canDeleteSetupItems() (bool, error) {
 	return ac != nil && ac.MDM.EnabledAndConfigured && ac.License.IsPremium(), nil
 }
 
-// Before Fleet 5 the profiles, bootstrap package, and setup assistant were part of the config and
-// fleet requests, and the server rejected them up front when MDM was off or the license wasn't
+// Before AutoMDM 5 the profiles, bootstrap package, and setup assistant were part of the config and
+// team requests, and the server rejected them up front when MDM was off or the license wasn't
 // Premium. Now they only go to their own endpoints, which GitOps calls after applying the config
-// and fleets and dry runs partly skip, so checking here fails the run before anything is applied.
-func checkMDMRequirements(specs *spec.Group, getAppConfig func() (*fleet.EnrichedAppConfig, error)) error {
+// and teams and dry runs partly skip, so checking here fails the run before anything is applied.
+func checkMDMRequirements(specs *spec.Group, getAppConfig func() (*automdm.EnrichedAppConfig, error)) error {
 	type scope struct {
 		prefix                  string
-		macos, windows, android []fleet.MDMProfileSpec
-		setup                   *fleet.GitOpsMacOSSetup
+		macos, windows, android []automdm.MDMProfileSpec
+		setup                   *automdm.GitOpsMacOSSetup
 	}
 	var scopes []scope
 	if specs.AppConfig != nil {
@@ -1907,11 +1907,11 @@ func checkMDMRequirements(specs *spec.Group, getAppConfig func() (*fleet.Enriche
 	}
 	for _, name := range slices.Sorted(maps.Keys(tmProfiles)) {
 		p := tmProfiles[name]
-		scopes = append(scopes, scope{prefix: fmt.Sprintf("fleet %q: ", name), macos: p.macos, windows: p.windows, android: p.android, setup: tmSetups[name]})
+		scopes = append(scopes, scope{prefix: fmt.Sprintf("team %q: ", name), macos: p.macos, windows: p.windows, android: p.android, setup: tmSetups[name]})
 	}
 	for _, name := range slices.Sorted(maps.Keys(tmSetups)) {
 		if _, ok := tmProfiles[name]; !ok {
-			scopes = append(scopes, scope{prefix: fmt.Sprintf("fleet %q: ", name), setup: tmSetups[name]})
+			scopes = append(scopes, scope{prefix: fmt.Sprintf("team %q: ", name), setup: tmSetups[name]})
 		}
 	}
 
@@ -1928,7 +1928,7 @@ func checkMDMRequirements(specs *spec.Group, getAppConfig func() (*fleet.Enriche
 		return err
 	}
 
-	// The config in the same run can turn Windows MDM on or off; a fleet-only dry run
+	// The config in the same run can turn Windows MDM on or off; an automdm-only dry run
 	// gets that from the assumptions.
 	windowsOn := ac.MDM.WindowsEnabledAndConfigured
 	androidOn := ac.MDM.AndroidEnabledAndConfigured
@@ -1948,14 +1948,14 @@ func checkMDMRequirements(specs *spec.Group, getAppConfig func() (*fleet.Enriche
 
 	for _, sc := range scopes {
 		if len(sc.macos) > 0 && !ac.MDM.EnabledAndConfigured {
-			return errors.New(sc.prefix + `Couldn't update apple_settings because MDM features aren't turned on in Fleet. ` +
-				`Use fleetctl generate mdm-apple and then fleet serve with mdm configuration to turn on MDM features.`)
+			return errors.New(sc.prefix + `Couldn't update apple_settings because MDM features aren't turned on in AutoMDM. ` +
+				`Use automdmctl generate mdm-apple and then automdm serve with mdm configuration to turn on MDM features.`)
 		}
 		if len(sc.windows) > 0 && !windowsOn {
-			return errors.New(sc.prefix + "Couldn’t edit windows_settings.configuration_profiles. " + fleet.WindowsMDMNotTurnedOnMessage)
+			return errors.New(sc.prefix + "Couldn’t edit windows_settings.configuration_profiles. " + automdm.WindowsMDMNotTurnedOnMessage)
 		}
 		if len(sc.android) > 0 && !androidOn {
-			return errors.New(sc.prefix + "Couldn’t edit android_settings.configuration_profiles. " + fleet.AndroidMDMNotConfiguredMessage)
+			return errors.New(sc.prefix + "Couldn’t edit android_settings.configuration_profiles. " + automdm.AndroidMDMNotConfiguredMessage)
 		}
 		if sc.setup == nil {
 			continue
@@ -1969,7 +1969,7 @@ func checkMDMRequirements(specs *spec.Group, getAppConfig func() (*fleet.Enriche
 			case !ac.License.IsPremium():
 				return fmt.Errorf("%ssetup_experience.%s: %w", sc.prefix, item.key, ErrMissingLicense)
 			case !ac.MDM.EnabledAndConfigured:
-				return fmt.Errorf("%ssetup_experience.%s: %s", sc.prefix, item.key, fleet.AppleMDMNotConfiguredMessage)
+				return fmt.Errorf("%ssetup_experience.%s: %s", sc.prefix, item.key, automdm.AppleMDMNotConfiguredMessage)
 			}
 		}
 	}
@@ -1998,7 +1998,7 @@ func resolveApplyRelativePaths(baseDir string, paths []string) []string {
 	return resolved
 }
 
-func extractAppCfgCustomSettings(appCfg any, platformKey string) ([]fleet.MDMProfileSpec, error) {
+func extractAppCfgCustomSettings(appCfg any, platformKey string) ([]automdm.MDMProfileSpec, error) {
 	asMap, ok := appCfg.(map[string]interface{})
 	if !ok {
 		return nil, nil
@@ -2007,15 +2007,15 @@ func extractAppCfgCustomSettings(appCfg any, platformKey string) ([]fleet.MDMPro
 	if !ok {
 		return nil, nil
 	}
-	mos, ok := mmdm[platformKey].(fleet.WithMDMProfileSpecs)
+	mos, ok := mmdm[platformKey].(automdm.WithMDMProfileSpecs)
 	if !ok || mos == nil {
 		return legacyExtractAppCfgCustomSettings(mmdm, platformKey)
 	}
 	return mos.GetMDMProfileSpecs(), nil
 }
 
-// legacyExtractAppCfgCustomSettings is used to extract custom settings for legacy fleetctl apply use case
-func legacyExtractAppCfgCustomSettings(mmdm map[string]any, platformKey string) ([]fleet.MDMProfileSpec, error) {
+// legacyExtractAppCfgCustomSettings is used to extract custom settings for legacy automdmctl apply use case
+func legacyExtractAppCfgCustomSettings(mmdm map[string]any, platformKey string) ([]automdm.MDMProfileSpec, error) {
 	mos, ok := mmdm[platformKey].(map[string]interface{})
 	if !ok || mos == nil {
 		return nil, nil
@@ -2026,12 +2026,12 @@ func legacyExtractAppCfgCustomSettings(mmdm map[string]any, platformKey string) 
 		return nil, nil
 	}
 
-	var specs []fleet.MDMProfileSpec
+	var specs []automdm.MDMProfileSpec
 	if err := decodeSpecValue(platformKey+".configuration_profiles", cs, &specs); err != nil {
 		return nil, err
 	}
 	// return a non-nil slice, so the caller knows that the configuration_profiles key was actually provided.
-	csSpecs := make([]fleet.MDMProfileSpec, 0, len(specs))
+	csSpecs := make([]automdm.MDMProfileSpec, 0, len(specs))
 	for _, spec := range specs {
 		if spec.Path != "" {
 			csSpecs = append(csSpecs, spec)
@@ -2040,37 +2040,37 @@ func legacyExtractAppCfgCustomSettings(mmdm map[string]any, platformKey string) 
 	return csSpecs, nil
 }
 
-func extractAppCfgMacOSCustomSettings(appCfg any) ([]fleet.MDMProfileSpec, error) {
+func extractAppCfgMacOSCustomSettings(appCfg any) ([]automdm.MDMProfileSpec, error) {
 	return extractAppCfgCustomSettings(appCfg, "apple_settings")
 }
 
-func extractAppCfgWindowsCustomSettings(appCfg any) ([]fleet.MDMProfileSpec, error) {
+func extractAppCfgWindowsCustomSettings(appCfg any) ([]automdm.MDMProfileSpec, error) {
 	return extractAppCfgCustomSettings(appCfg, "windows_settings")
 }
 
-func extractAppCfgAndroidCustomSettings(appCfg any) ([]fleet.MDMProfileSpec, error) {
+func extractAppCfgAndroidCustomSettings(appCfg any) ([]automdm.MDMProfileSpec, error) {
 	return extractAppCfgCustomSettings(appCfg, "android_settings")
 }
 
 // extractMacOSAssetSpecs returns the Apple DDM asset specs from an apple_settings
-// value, which may be a fleet.GitOpsMacOSSettings struct (GitOps) or a raw map
-// (fleetctl apply).
-func extractMacOSAssetSpecs(macOSSettings any) []fleet.MDMProfileSpec {
+// value, which may be an automdm.GitOpsMacOSSettings struct (GitOps) or a raw map
+// (automdmctl apply).
+func extractMacOSAssetSpecs(macOSSettings any) []automdm.MDMProfileSpec {
 	switch v := macOSSettings.(type) {
-	case fleet.GitOpsMacOSSettings:
+	case automdm.GitOpsMacOSSettings:
 		// apple_settings is present (GitOps decodes it into the struct), so assets
 		// are reconciled even when none are listed. Normalize nil to a non-nil
 		// empty slice so the caller treats it as "reconcile to empty".
 		if v.Assets == nil {
-			return []fleet.MDMProfileSpec{}
+			return []automdm.MDMProfileSpec{}
 		}
 		return v.Assets
-	case *fleet.GitOpsMacOSSettings:
+	case *automdm.GitOpsMacOSSettings:
 		if v == nil {
 			return nil
 		}
 		if v.Assets == nil {
-			return []fleet.MDMProfileSpec{}
+			return []automdm.MDMProfileSpec{}
 		}
 		return v.Assets
 	case map[string]any:
@@ -2078,11 +2078,11 @@ func extractMacOSAssetSpecs(macOSSettings any) []fleet.MDMProfileSpec {
 		if !ok {
 			return nil
 		}
-		specs := make([]fleet.MDMProfileSpec, 0, len(raw))
+		specs := make([]automdm.MDMProfileSpec, 0, len(raw))
 		for _, a := range raw {
 			if m, ok := a.(map[string]any); ok {
 				if path, ok := m["path"].(string); ok && path != "" {
-					specs = append(specs, fleet.MDMProfileSpec{Path: path})
+					specs = append(specs, automdm.MDMProfileSpec{Path: path})
 				}
 			}
 		}
@@ -2091,7 +2091,7 @@ func extractMacOSAssetSpecs(macOSSettings any) []fleet.MDMProfileSpec {
 	return nil
 }
 
-func extractAppCfgMacOSAssets(appCfg any) []fleet.MDMProfileSpec {
+func extractAppCfgMacOSAssets(appCfg any) []automdm.MDMProfileSpec {
 	asMap, ok := appCfg.(map[string]any)
 	if !ok {
 		return nil
@@ -2111,14 +2111,14 @@ func extractAppCfgMacOSAssets(appCfg any) []fleet.MDMProfileSpec {
 // through a pointer so its absence (leave assets untouched) is distinguishable
 // from an empty apple_settings (reconcile assets to the provided, possibly
 // empty, set).
-func extractTmSpecsMDMAssets(tmSpecs []json.RawMessage) map[string][]fleet.MDMProfileSpec {
-	var m map[string][]fleet.MDMProfileSpec
+func extractTmSpecsMDMAssets(tmSpecs []json.RawMessage) map[string][]automdm.MDMProfileSpec {
+	var m map[string][]automdm.MDMProfileSpec
 	for _, tm := range tmSpecs {
 		var spec struct {
 			Name string `json:"name"`
 			MDM  struct {
 				MacOSSettings *struct {
-					Assets []fleet.MDMProfileSpec `json:"assets"`
+					Assets []automdm.MDMProfileSpec `json:"assets"`
 				} `json:"apple_settings"`
 			} `json:"mdm"`
 		}
@@ -2132,13 +2132,13 @@ func extractTmSpecsMDMAssets(tmSpecs []json.RawMessage) map[string][]fleet.MDMPr
 			continue
 		}
 		if m == nil {
-			m = make(map[string][]fleet.MDMProfileSpec)
+			m = make(map[string][]automdm.MDMProfileSpec)
 		}
 		// A present but empty (or absent) assets key clears the team's assets, so
 		// normalize nil to a non-nil empty slice to signal "reconcile to empty".
 		assets := spec.MDM.MacOSSettings.Assets
 		if assets == nil {
-			assets = []fleet.MDMProfileSpec{}
+			assets = []automdm.MDMProfileSpec{}
 		}
 		m[spec.Name] = assets
 	}
@@ -2171,7 +2171,7 @@ func extractAppCfgScripts(appCfg any) ([]string, error) {
 	return scriptsStrings, nil
 }
 
-func extractAppCfgYaraRules(appCfg interface{}) ([]fleet.YaraRuleSpec, error) {
+func extractAppCfgYaraRules(appCfg interface{}) ([]automdm.YaraRuleSpec, error) {
 	asMap, ok := appCfg.(map[string]interface{})
 	if !ok {
 		return nil, errors.New("extract yara rules: app config is not a map")
@@ -2180,16 +2180,16 @@ func extractAppCfgYaraRules(appCfg interface{}) ([]fleet.YaraRuleSpec, error) {
 	rules, ok := asMap["yara_rules"]
 	if !ok {
 		// yara_rules is not present. Return an empty slice so that the value is cleared.
-		return []fleet.YaraRuleSpec{}, nil
+		return []automdm.YaraRuleSpec{}, nil
 	}
 
 	rulesAny, ok := rules.([]interface{})
 	if !ok || rulesAny == nil {
 		// If nil, return an empty slice so the value will be cleared.
-		return []fleet.YaraRuleSpec{}, nil
+		return []automdm.YaraRuleSpec{}, nil
 	}
 
-	ruleSpecs := make([]fleet.YaraRuleSpec, 0, len(rulesAny))
+	ruleSpecs := make([]automdm.YaraRuleSpec, 0, len(rulesAny))
 	for _, v := range rulesAny {
 		smap, ok := v.(map[string]interface{})
 		if !ok {
@@ -2206,15 +2206,15 @@ func extractAppCfgYaraRules(appCfg interface{}) ([]fleet.YaraRuleSpec, error) {
 			return nil, errors.New("extract yara rules: rule entry path is not string")
 		}
 
-		ruleSpecs = append(ruleSpecs, fleet.YaraRuleSpec{Path: path})
+		ruleSpecs = append(ruleSpecs, automdm.YaraRuleSpec{Path: path})
 	}
 	return ruleSpecs, nil
 }
 
 type profileSpecsByPlatform struct {
-	macos   []fleet.MDMProfileSpec
-	windows []fleet.MDMProfileSpec
-	android []fleet.MDMProfileSpec
+	macos   []automdm.MDMProfileSpec
+	windows []automdm.MDMProfileSpec
+	android []automdm.MDMProfileSpec
 }
 
 func extractTeamName(tmSpec json.RawMessage) string {
@@ -2251,9 +2251,9 @@ func extractTmSpecsMDMCustomSettings(tmSpecs []json.RawMessage) (map[string]prof
 		}
 		spec.Name = norm.NFC.String(spec.Name)
 		if spec.Name != "" {
-			var macOSSettings []fleet.MDMProfileSpec
-			var windowsSettings []fleet.MDMProfileSpec
-			var androidSettings []fleet.MDMProfileSpec
+			var macOSSettings []automdm.MDMProfileSpec
+			var windowsSettings []automdm.MDMProfileSpec
+			var androidSettings []automdm.MDMProfileSpec
 
 			// to keep existing bahavior, if any of the custom
 			// settings is provided, make the map a non-nil map
@@ -2272,7 +2272,7 @@ func extractTmSpecsMDMCustomSettings(tmSpecs []json.RawMessage) (map[string]prof
 				if macOSSettings == nil {
 					// to be consistent with the AppConfig custom settings, set it to an
 					// empty slice if the provided custom settings are present but empty.
-					macOSSettings = []fleet.MDMProfileSpec{}
+					macOSSettings = []automdm.MDMProfileSpec{}
 				}
 			}
 			if len(spec.MDM.WindowsSettings.CustomSettings) > 0 {
@@ -2282,7 +2282,7 @@ func extractTmSpecsMDMCustomSettings(tmSpecs []json.RawMessage) (map[string]prof
 				if windowsSettings == nil {
 					// to be consistent with the AppConfig custom settings, set it to an
 					// empty slice if the provided custom settings are present but empty.
-					windowsSettings = []fleet.MDMProfileSpec{}
+					windowsSettings = []automdm.MDMProfileSpec{}
 				}
 			}
 			if len(spec.MDM.AndroidSettings.CustomSettings) > 0 {
@@ -2292,7 +2292,7 @@ func extractTmSpecsMDMCustomSettings(tmSpecs []json.RawMessage) (map[string]prof
 				if androidSettings == nil {
 					// to be consistent with the AppConfig custom settings, set it to an
 					// empty slice if the provided custom settings are present but empty.
-					androidSettings = []fleet.MDMProfileSpec{}
+					androidSettings = []automdm.MDMProfileSpec{}
 				}
 			}
 
@@ -2316,8 +2316,8 @@ func extractTmSpecsMDMCustomSettings(tmSpecs []json.RawMessage) (map[string]prof
 	return m, nil
 }
 
-func extractTmSpecsSoftwarePackages(tmSpecs []json.RawMessage) map[string][]fleet.SoftwarePackageSpec {
-	var m map[string][]fleet.SoftwarePackageSpec
+func extractTmSpecsSoftwarePackages(tmSpecs []json.RawMessage) map[string][]automdm.SoftwarePackageSpec {
+	var m map[string][]automdm.SoftwarePackageSpec
 	for _, tm := range tmSpecs {
 		var spec struct {
 			Name     string          `json:"name"`
@@ -2330,10 +2330,10 @@ func extractTmSpecsSoftwarePackages(tmSpecs []json.RawMessage) map[string][]flee
 		spec.Name = norm.NFC.String(spec.Name)
 		if spec.Name != "" && len(spec.Software) > 0 {
 			if m == nil {
-				m = make(map[string][]fleet.SoftwarePackageSpec)
+				m = make(map[string][]automdm.SoftwarePackageSpec)
 			}
-			var software fleet.SoftwareSpec
-			var packages []fleet.SoftwarePackageSpec
+			var software automdm.SoftwareSpec
+			var packages []automdm.SoftwarePackageSpec
 			if err := json.Unmarshal(spec.Software, &software); err != nil {
 				// ignore, will fail in apply team specs call
 				continue
@@ -2341,7 +2341,7 @@ func extractTmSpecsSoftwarePackages(tmSpecs []json.RawMessage) map[string][]flee
 			if !software.Packages.Valid {
 				// to be consistent with the AppConfig custom settings, set it to an
 				// empty slice if the provided custom settings are present but empty.
-				packages = []fleet.SoftwarePackageSpec{}
+				packages = []automdm.SoftwarePackageSpec{}
 			} else {
 				packages = software.Packages.Value
 			}
@@ -2351,8 +2351,8 @@ func extractTmSpecsSoftwarePackages(tmSpecs []json.RawMessage) map[string][]flee
 	return m
 }
 
-func extractTmSpecsFleetMaintainedApps(tmSpecs []json.RawMessage) map[string][]fleet.SoftwarePackageSpec {
-	var m map[string][]fleet.SoftwarePackageSpec
+func extractTmSpecsAutoMDMMaintainedApps(tmSpecs []json.RawMessage) map[string][]automdm.SoftwarePackageSpec {
+	var m map[string][]automdm.SoftwarePackageSpec
 	for _, tm := range tmSpecs {
 		var spec struct {
 			Name     string          `json:"name"`
@@ -2365,20 +2365,20 @@ func extractTmSpecsFleetMaintainedApps(tmSpecs []json.RawMessage) map[string][]f
 		spec.Name = norm.NFC.String(spec.Name)
 		if spec.Name != "" && len(spec.Software) > 0 {
 			if m == nil {
-				m = make(map[string][]fleet.SoftwarePackageSpec)
+				m = make(map[string][]automdm.SoftwarePackageSpec)
 			}
-			var software fleet.SoftwareSpec
-			var packages []fleet.SoftwarePackageSpec
+			var software automdm.SoftwareSpec
+			var packages []automdm.SoftwarePackageSpec
 			if err := json.Unmarshal(spec.Software, &software); err != nil {
 				// ignore, will fail in apply team specs call
 				continue
 			}
-			if !software.FleetMaintainedApps.Valid {
+			if !software.AutoMDMMaintainedApps.Valid {
 				// to be consistent with the AppConfig custom settings, set it to an
 				// empty slice if the provided custom settings are present but empty.
-				packages = []fleet.SoftwarePackageSpec{}
+				packages = []automdm.SoftwarePackageSpec{}
 			} else {
-				for _, app := range software.FleetMaintainedApps.Value {
+				for _, app := range software.AutoMDMMaintainedApps.Value {
 					packages = append(packages, app.ToSoftwarePackageSpec())
 				}
 			}
@@ -2389,8 +2389,8 @@ func extractTmSpecsFleetMaintainedApps(tmSpecs []json.RawMessage) map[string][]f
 	return m
 }
 
-func extractTmSpecsSoftwareApps(tmSpecs []json.RawMessage) map[string][]fleet.TeamSpecAppStoreApp {
-	var m map[string][]fleet.TeamSpecAppStoreApp
+func extractTmSpecsSoftwareApps(tmSpecs []json.RawMessage) map[string][]automdm.TeamSpecAppStoreApp {
+	var m map[string][]automdm.TeamSpecAppStoreApp
 	for _, tm := range tmSpecs {
 		var spec struct {
 			Name     string          `json:"name"`
@@ -2403,10 +2403,10 @@ func extractTmSpecsSoftwareApps(tmSpecs []json.RawMessage) map[string][]fleet.Te
 		spec.Name = norm.NFC.String(spec.Name)
 		if spec.Name != "" && len(spec.Software) > 0 {
 			if m == nil {
-				m = make(map[string][]fleet.TeamSpecAppStoreApp)
+				m = make(map[string][]automdm.TeamSpecAppStoreApp)
 			}
-			var software fleet.SoftwareSpec
-			var apps []fleet.TeamSpecAppStoreApp
+			var software automdm.SoftwareSpec
+			var apps []automdm.TeamSpecAppStoreApp
 			if err := json.Unmarshal(spec.Software, &software); err != nil {
 				// ignore, will fail in apply team specs call
 				continue
@@ -2414,7 +2414,7 @@ func extractTmSpecsSoftwareApps(tmSpecs []json.RawMessage) map[string][]fleet.Te
 			if !software.AppStoreApps.Valid {
 				// to be consistent with the AppConfig custom settings, set it to an
 				// empty slice if the provided custom settings are present but empty.
-				apps = []fleet.TeamSpecAppStoreApp{}
+				apps = []automdm.TeamSpecAppStoreApp{}
 			} else {
 				apps = software.AppStoreApps.Value
 			}
@@ -2441,7 +2441,7 @@ func extractTmSpecsScripts(tmSpecs []json.RawMessage) (map[string][]string, erro
 				m = make(map[string][]string)
 			}
 			var scripts []string
-			if err := decodeSpecValue(fmt.Sprintf("fleet %q: scripts", spec.Name), spec.Scripts, &scripts); err != nil {
+			if err := decodeSpecValue(fmt.Sprintf("team %q: scripts", spec.Name), spec.Scripts, &scripts); err != nil {
 				return nil, err
 			}
 			if scripts == nil {
@@ -2456,8 +2456,8 @@ func extractTmSpecsScripts(tmSpecs []json.RawMessage) (map[string][]string, erro
 }
 
 // returns the setup_experience keyed by team name.
-func extractTmSpecsMacOSSetup(tmSpecs []json.RawMessage) (map[string]*fleet.GitOpsMacOSSetup, error) {
-	var m map[string]*fleet.GitOpsMacOSSetup
+func extractTmSpecsMacOSSetup(tmSpecs []json.RawMessage) (map[string]*automdm.GitOpsMacOSSetup, error) {
+	var m map[string]*automdm.GitOpsMacOSSetup
 	for _, tm := range tmSpecs {
 		var spec struct {
 			Name string `json:"name"`
@@ -2473,9 +2473,9 @@ func extractTmSpecsMacOSSetup(tmSpecs []json.RawMessage) (map[string]*fleet.GitO
 		if spec.Name == "" {
 			continue
 		}
-		var setup fleet.GitOpsMacOSSetup
+		var setup automdm.GitOpsMacOSSetup
 		if len(spec.MDM.MacOSSetup) > 0 {
-			if _, err := decodeSetupItems(fmt.Sprintf("fleet %q: ", spec.Name), spec.MDM.MacOSSetup); err != nil {
+			if _, err := decodeSetupItems(fmt.Sprintf("team %q: ", spec.Name), spec.MDM.MacOSSetup); err != nil {
 				return nil, err
 			}
 			if err := json.Unmarshal(spec.MDM.MacOSSetup, &setup); err != nil {
@@ -2484,7 +2484,7 @@ func extractTmSpecsMacOSSetup(tmSpecs []json.RawMessage) (map[string]*fleet.GitO
 			}
 		}
 		if m == nil {
-			m = make(map[string]*fleet.GitOpsMacOSSetup)
+			m = make(map[string]*automdm.GitOpsMacOSSetup)
 		}
 		m[spec.Name] = &setup
 	}
@@ -2496,10 +2496,10 @@ func (c *Client) SaveEnvSecrets(alreadySaved map[string]string, toSave map[strin
 		return nil
 	}
 	// Figure out which secrets need to be saved
-	var secretsToSave []fleet.SecretVariable
+	var secretsToSave []automdm.SecretVariable
 	for key, value := range toSave {
 		if _, ok := alreadySaved[key]; !ok {
-			secretsToSave = append(secretsToSave, fleet.SecretVariable{Name: key, Value: value})
+			secretsToSave = append(secretsToSave, automdm.SecretVariable{Name: key, Value: value})
 			alreadySaved[key] = value
 		}
 	}
@@ -2551,23 +2551,23 @@ func defaultUnsetToFalse(settings ...*optjson.Bool) {
 	}
 }
 
-// DoGitOps applies the GitOps config to Fleet.
+// DoGitOps applies the GitOps config to AutoMDM.
 func (c *Client) DoGitOps(
 	ctx context.Context,
 	incoming *spec.GitOps,
 	fullFilename string,
 	logf func(format string, args ...interface{}),
 	dryRun bool,
-	teamDryRunAssumptions *fleet.TeamSpecsDryRunAssumptions,
-	appConfig *fleet.EnrichedAppConfig, // pass-by-ref to build lists
-	teamsSoftwareInstallers map[string][]fleet.SoftwarePackageResponse,
-	teamsVPPApps map[string][]fleet.VPPAppResponse,
-	teamsScripts map[string][]fleet.ScriptResponse,
-	iconSettings *fleet.IconGitOpsSettings,
-) (*fleet.TeamSpecsDryRunAssumptions, error) {
+	teamDryRunAssumptions *automdm.TeamSpecsDryRunAssumptions,
+	appConfig *automdm.EnrichedAppConfig, // pass-by-ref to build lists
+	teamsSoftwareInstallers map[string][]automdm.SoftwarePackageResponse,
+	teamsVPPApps map[string][]automdm.VPPAppResponse,
+	teamsScripts map[string][]automdm.ScriptResponse,
+	iconSettings *automdm.IconGitOpsSettings,
+) (*automdm.TeamSpecsDryRunAssumptions, error) {
 	baseDir := filepath.Dir(fullFilename)
 	filename := filepath.Base(fullFilename)
-	var teamAssumptions *fleet.TeamSpecsDryRunAssumptions
+	var teamAssumptions *automdm.TeamSpecsDryRunAssumptions
 	var windowsEULAPath string
 	var err error
 	logFn := func(format string, args ...interface{}) {
@@ -2591,24 +2591,24 @@ func (c *Client) DoGitOps(
 	// - If the key is absent, it's a no-op (existing entities preserved).
 	// When an entity type is NOT excepted:
 	// - If the key is absent, all entities of that type are deleted.
-	var exceptions fleet.GitOpsExceptions
+	var exceptions automdm.GitOpsExceptions
 	if appConfig != nil {
 		exceptions = appConfig.GitOpsConfig.Exceptions
 		if appConfig.License.IsPremium() {
 			changeManagementURL := strings.TrimRight(appConfig.ServerSettings.ServerURL, "/") + "/settings/integrations/change-management"
 			if exceptions.Labels && incoming.LabelsPresent {
 				return nil, fmt.Errorf(
-					`"labels" is excepted from GitOps management. Remove the "labels:" key from your GitOps file or disable the exception in Fleet settings at %s`, changeManagementURL,
+					`"labels" is excepted from GitOps management. Remove the "labels:" key from your GitOps file or disable the exception in AutoMDM settings at %s`, changeManagementURL,
 				)
 			}
 			if exceptions.Secrets && incoming.SecretsPresent {
 				return nil, fmt.Errorf(
-					`"secrets" is excepted from GitOps management. Remove the "secrets:" key from your GitOps file or disable the exception in Fleet settings at %s`, changeManagementURL,
+					`"secrets" is excepted from GitOps management. Remove the "secrets:" key from your GitOps file or disable the exception in AutoMDM settings at %s`, changeManagementURL,
 				)
 			}
 			if exceptions.Software && incoming.SoftwarePresent && incoming.TeamName != nil {
 				return nil, fmt.Errorf(
-					`"software" is excepted from GitOps management. Remove the "software:" key from your GitOps file or disable the exception in Fleet settings at %s`, changeManagementURL,
+					`"software" is excepted from GitOps management. Remove the "software:" key from your GitOps file or disable the exception in AutoMDM settings at %s`, changeManagementURL,
 				)
 			}
 		}
@@ -2627,16 +2627,16 @@ func (c *Client) DoGitOps(
 		// OrgSettings so that they are not applied as part of the AppConfig.
 		// If secrets are not excepted and key is absent, treat as delete-all.
 		if !exceptions.Secrets && !incoming.SecretsPresent {
-			incoming.OrgSettings["secrets"] = make([]*fleet.EnrollSecret, 0)
+			incoming.OrgSettings["secrets"] = make([]*automdm.EnrollSecret, 0)
 		}
 		if orgSecrets, ok := incoming.OrgSettings["secrets"]; ok && (!exceptions.Secrets || !appConfig.License.IsPremium()) {
-			group.EnrollSecret = &fleet.EnrollSecretSpec{Secrets: orgSecrets.([]*fleet.EnrollSecret)}
+			group.EnrollSecret = &automdm.EnrollSecretSpec{Secrets: orgSecrets.([]*automdm.EnrollSecret)}
 		}
 		delete(incoming.OrgSettings, "secrets")
 
 		// Certificate authorities are managed separately in Client.ApplyGroup, so we remove them from the
 		// OrgSettings so that they are not applied as part of the AppConfig.
-		groupedCAs, err := fleet.ValidateCertificateAuthoritiesSpec(incoming.OrgSettings["certificate_authorities"])
+		groupedCAs, err := automdm.ValidateCertificateAuthoritiesSpec(incoming.OrgSettings["certificate_authorities"])
 		if err != nil {
 			return nil, fmt.Errorf("invalid certificate_authorities: %w", err)
 		}
@@ -2645,7 +2645,7 @@ func (c *Client) DoGitOps(
 
 		// Microsoft Graph credentials are applied through their own endpoint too, so they are lifted out of
 		// OrgSettings for the same reason and must not reach the AppConfig PATCH.
-		graphCreds, err := fleet.ParseMicrosoftGraphCredentials(incoming.OrgSettings["microsoft_graph_credentials"])
+		graphCreds, err := automdm.ParseMicrosoftGraphCredentials(incoming.OrgSettings["microsoft_graph_credentials"])
 		if err != nil {
 			return nil, fmt.Errorf("invalid microsoft_graph_credentials: %w", err)
 		}
@@ -2653,7 +2653,7 @@ func (c *Client) DoGitOps(
 		delete(incoming.OrgSettings, "microsoft_graph_credentials")
 
 		// Plan PUT uploads and strip the gitops-only `path` keys, which
-		// aren't part of fleet.OrgInfo. URL changes ride on the PATCH.
+		// aren't part of automdm.OrgInfo. URL changes ride on the PATCH.
 		orgLogoActions, err = c.planAndStripOrgLogos(incoming.OrgSettings, baseDir, dryRun, logFn)
 		if err != nil {
 			return nil, err
@@ -2741,7 +2741,7 @@ func (c *Client) DoGitOps(
 			integrations.(map[string]any)["google_workspace"] = []any{}
 		}
 		// Google conditional access is turned off when it is not set: sending the key as null
-		// tells the server so, where a missing key keeps it for older fleetctl versions.
+		// tells the server so, where a missing key keeps it for older automdmctl versions.
 		if _, ok := integrations.(map[string]any)["google_conditional_access"]; !ok {
 			integrations.(map[string]any)["google_conditional_access"] = json.RawMessage("null")
 		}
@@ -2877,7 +2877,7 @@ func (c *Client) DoGitOps(
 			mdmAppConfig["enable_turn_on_windows_mdm_manually"] = false
 		}
 		if windowsEnabledAndConfiguredAssumption, ok := mdmAppConfig["windows_mdm_enabled"].(bool); ok {
-			teamAssumptions = &fleet.TeamSpecsDryRunAssumptions{
+			teamAssumptions = &automdm.TeamSpecsDryRunAssumptions{
 				WindowsEnabledAndConfigured: optjson.SetBool(windowsEnabledAndConfiguredAssumption),
 			}
 		}
@@ -2900,7 +2900,7 @@ func (c *Client) DoGitOps(
 		}
 		if v, ok := mdmAppConfig["enable_profile_validation"].(bool); ok {
 			if teamAssumptions == nil {
-				teamAssumptions = &fleet.TeamSpecsDryRunAssumptions{}
+				teamAssumptions = &automdm.TeamSpecsDryRunAssumptions{}
 			}
 			teamAssumptions.EnableProfileValidation = optjson.SetBool(v)
 		}
@@ -2913,7 +2913,7 @@ func (c *Client) DoGitOps(
 		}
 		if androidEnabledAndConfiguredAssumption, ok := mdmAppConfig["android_enabled_and_configured"].(bool); ok {
 			if teamAssumptions == nil {
-				teamAssumptions = &fleet.TeamSpecsDryRunAssumptions{
+				teamAssumptions = &automdm.TeamSpecsDryRunAssumptions{
 					AndroidEnabledAndConfigured: optjson.SetBool(androidEnabledAndConfiguredAssumption),
 				}
 			} else {
@@ -2959,7 +2959,7 @@ func (c *Client) DoGitOps(
 		team["agent_options"] = incoming.AgentOptions
 		team["host_expiry_settings"] = incoming.TeamSettings["host_expiry_settings"]
 		if team["host_expiry_settings"] == nil {
-			team["host_expiry_settings"] = fleet.HostExpirySettings{}
+			team["host_expiry_settings"] = automdm.HostExpirySettings{}
 		}
 		if features, ok := incoming.TeamSettings["features"]; ok {
 			team["features"] = features
@@ -2970,14 +2970,14 @@ func (c *Client) DoGitOps(
 			team["software"] = map[string]any{}
 			team["software"].(map[string]any)["app_store_apps"] = incoming.Software.AppStoreApps
 			team["software"].(map[string]any)["packages"] = incoming.Software.Packages
-			team["software"].(map[string]any)["fleet_maintained_apps"] = incoming.Software.FleetMaintainedApps
+			team["software"].(map[string]any)["automdm_maintained_apps"] = incoming.Software.AutoMDMMaintainedApps
 		}
 		// Secrets: if not excepted and key is absent, treat as delete-all.
 		if !exceptions.Secrets && !incoming.SecretsPresent {
 			if incoming.TeamSettings == nil {
 				incoming.TeamSettings = make(map[string]any)
 			}
-			incoming.TeamSettings["secrets"] = make([]*fleet.EnrollSecret, 0)
+			incoming.TeamSettings["secrets"] = make([]*automdm.EnrollSecret, 0)
 		}
 		if teamSecrets, ok := incoming.TeamSettings["secrets"]; ok && (!exceptions.Secrets || !appConfig.License.IsPremium()) {
 			team["secrets"] = teamSecrets
@@ -3026,7 +3026,7 @@ func (c *Client) DoGitOps(
 		}
 		features, ok = features.(map[string]any)
 		if !ok {
-			return nil, fmt.Errorf("Fleet %s features config is not a map", *incoming.TeamName)
+			return nil, fmt.Errorf("AutoMDM %s features config is not a map", *incoming.TeamName)
 		}
 		if enableSoftwareInventory, ok := features.(map[string]any)["enable_software_inventory"]; !ok || enableSoftwareInventory == nil {
 			features.(map[string]any)["enable_software_inventory"] = true
@@ -3037,7 +3037,7 @@ func (c *Client) DoGitOps(
 		// historical_data sub-keys default to true on every gitops apply.
 		// See ensureHistoricalDataDefaults for the rationale.
 		if err := ensureHistoricalDataDefaults(features.(map[string]any)); err != nil {
-			return nil, fmt.Errorf("Fleet %s %w", *incoming.TeamName, err)
+			return nil, fmt.Errorf("AutoMDM %s %w", *incoming.TeamName, err)
 		}
 
 		// Integrations
@@ -3073,7 +3073,7 @@ func (c *Client) DoGitOps(
 		mdmAppConfig = team["mdm"].(map[string]interface{})
 	}
 
-	// name_template (host name template) applies to fleets and to the global
+	// name_template (host name template) applies to teams and to the global
 	// config for "No team": for "No team" the controls are merged onto the global
 	// config upstream (extractControlsForNoTeam), so it rides the global/team
 	// apply block below.
@@ -3094,8 +3094,8 @@ func (c *Client) DoGitOps(
 		if incoming.Controls.MacOSSettings != nil {
 			mdmAppConfig["apple_settings"] = incoming.Controls.MacOSSettings
 		} else {
-			mdmAppConfig["apple_settings"] = fleet.GitOpsMacOSSettings{
-				CustomSettings: []fleet.MDMProfileSpec{},
+			mdmAppConfig["apple_settings"] = automdm.GitOpsMacOSSettings{
+				CustomSettings: []automdm.MDMProfileSpec{},
 			}
 		}
 		// Put in default values for macos_updates
@@ -3127,7 +3127,7 @@ func (c *Client) DoGitOps(
 			// "latest" mode has no deadline — deadline_days replaces it — so the
 			// deadline check alone would read as "not configured" and silently
 			// leave new hosts unenforced.
-			enforcingLatest := macOSUpdates["minimum_version"] == fleet.AppleOSUpdateLatestVersion &&
+			enforcingLatest := macOSUpdates["minimum_version"] == automdm.AppleOSUpdateLatestVersion &&
 				macOSUpdates["deadline_days"] != nil
 			macOSUpdates["update_new_hosts"] = enforcingLatest ||
 				(macOSUpdates["minimum_version"] != "" && macOSUpdates["deadline"] != "")
@@ -3176,27 +3176,27 @@ func (c *Client) DoGitOps(
 			incoming.Controls.MacOSSetup.SetDefaultsIfNeeded()
 			mdmAppConfig["setup_experience"] = incoming.Controls.MacOSSetup
 		} else {
-			mdmAppConfig["setup_experience"] = fleet.NewGitOpsMacOSSetupWithDefaults()
+			mdmAppConfig["setup_experience"] = automdm.NewGitOpsMacOSSetupWithDefaults()
 		}
 		// Put in default values for windows_settings
 		if incoming.Controls.WindowsSettings != nil {
 			mdmAppConfig["windows_settings"] = incoming.Controls.WindowsSettings
 		} else {
-			mdmAppConfig["windows_settings"] = fleet.GitOpsWindowsSettings{
-				CustomSettings: optjson.Slice[fleet.MDMProfileSpec]{Value: []fleet.MDMProfileSpec{}},
+			mdmAppConfig["windows_settings"] = automdm.GitOpsWindowsSettings{
+				CustomSettings: optjson.Slice[automdm.MDMProfileSpec]{Value: []automdm.MDMProfileSpec{}},
 			}
 		}
 		if incoming.Controls.LinuxSettings != nil {
 			mdmAppConfig["linux_settings"] = incoming.Controls.LinuxSettings
 		} else {
-			mdmAppConfig["linux_settings"] = fleet.LinuxSettings{}
+			mdmAppConfig["linux_settings"] = automdm.LinuxSettings{}
 		}
 		// Put in default values for android_settings
 		if incoming.Controls.AndroidSettings != nil {
 			mdmAppConfig["android_settings"] = incoming.Controls.AndroidSettings
 		} else {
-			mdmAppConfig["android_settings"] = fleet.GitOpsAndroidSettings{
-				CustomSettings: optjson.Slice[fleet.MDMProfileSpec]{Value: []fleet.MDMProfileSpec{}},
+			mdmAppConfig["android_settings"] = automdm.GitOpsAndroidSettings{
+				CustomSettings: optjson.Slice[automdm.MDMProfileSpec]{Value: []automdm.MDMProfileSpec{}},
 			}
 		}
 
@@ -3216,9 +3216,9 @@ func (c *Client) DoGitOps(
 			}
 		}
 
-		macOSSettings := mdmAppConfig["apple_settings"].(fleet.GitOpsMacOSSettings)
-		windowsSettings := mdmAppConfig["windows_settings"].(fleet.GitOpsWindowsSettings)
-		linuxSettings := mdmAppConfig["linux_settings"].(fleet.LinuxSettings)
+		macOSSettings := mdmAppConfig["apple_settings"].(automdm.GitOpsMacOSSettings)
+		windowsSettings := mdmAppConfig["windows_settings"].(automdm.GitOpsWindowsSettings)
+		linuxSettings := mdmAppConfig["linux_settings"].(automdm.LinuxSettings)
 
 		if incoming.Controls.EnableDiskEncryption != nil {
 			switch {
@@ -3293,21 +3293,21 @@ func (c *Client) DoGitOps(
 			team["gitops_filename"] = filename
 			rawTeam, err := json.Marshal(team)
 			if err != nil {
-				return nil, fmt.Errorf("error marshalling fleet spec: %w", err)
+				return nil, fmt.Errorf("error marshalling team spec: %w", err)
 			}
 			group.Teams = []json.RawMessage{rawTeam}
 			group.TeamsDryRunAssumptions = teamDryRunAssumptions
 		}
 	}
 
-	// For the fleet-scoped flow, apply fleet labels via an ApplyGroup hook that
-	// fires after the fleet is created and before possible label consumers
+	// For the team-scoped flow, apply team labels via an ApplyGroup hook that
+	// fires after the team is created and before possible label consumers
 	// (profiles, software, policies, declarations) are applied.
 	var afterTeamApply func(teamIDsByName map[string]uint) error
 	if incoming.TeamName != nil && !incoming.IsNoTeam() {
 		afterTeamApply = func(teamIDsByName map[string]uint) error {
 			if len(teamIDsByName) != 1 {
-				return fmt.Errorf("expected 1 fleet spec to be applied, got %d", len(teamIDsByName))
+				return fmt.Errorf("expected 1 team spec to be applied, got %d", len(teamIDsByName))
 			}
 			for _, teamID := range teamIDsByName {
 				incoming.TeamID = &teamID
@@ -3320,8 +3320,8 @@ func (c *Client) DoGitOps(
 	}
 
 	// Apply org settings, scripts, enroll secrets, certificate authorities, team entities (software, scripts, etc.), and controls.
-	teamIDsByName, teamsSoftwareInstallers, teamsVPPApps, teamsScripts, err := c.ApplyGroup(ctx, true, &group, baseDir, logf, appConfig, fleet.ApplyClientSpecOptions{
-		ApplySpecOptions: fleet.ApplySpecOptions{
+	teamIDsByName, teamsSoftwareInstallers, teamsVPPApps, teamsScripts, err := c.ApplyGroup(ctx, true, &group, baseDir, logf, appConfig, automdm.ApplyClientSpecOptions{
+		ApplySpecOptions: automdm.ApplySpecOptions{
 			DryRun:    dryRun,
 			Overwrite: true,
 		},
@@ -3341,42 +3341,42 @@ func (c *Client) DoGitOps(
 		}
 	}
 
-	var teamSoftwareInstallers []fleet.SoftwarePackageResponse
-	var teamVPPApps []fleet.VPPAppResponse
-	var teamScripts []fleet.ScriptResponse
+	var teamSoftwareInstallers []automdm.SoftwarePackageResponse
+	var teamVPPApps []automdm.VPPAppResponse
+	var teamScripts []automdm.ScriptResponse
 
 	if incoming.TeamName != nil {
 		if !incoming.IsNoTeam() {
 			if len(teamIDsByName) != 1 {
-				return nil, fmt.Errorf("expected 1 fleet spec to be applied, got %d", len(teamIDsByName))
+				return nil, fmt.Errorf("expected 1 team spec to be applied, got %d", len(teamIDsByName))
 			}
 			teamID, ok := teamIDsByName[*incoming.TeamName]
 			if ok && teamID == 0 {
 				if dryRun {
-					logFn("[+] would've added any policies/reports to new fleet %s\n", *incoming.TeamName)
+					logFn("[+] would've added any policies/reports to new team %s\n", *incoming.TeamName)
 
 					numCerts := 0
 					if incoming.Controls.AndroidSettings != nil {
-						if androidSettings, ok := incoming.Controls.AndroidSettings.(fleet.GitOpsAndroidSettings); ok {
+						if androidSettings, ok := incoming.Controls.AndroidSettings.(automdm.GitOpsAndroidSettings); ok {
 							if androidSettings.Certificates.Valid {
 								numCerts = len(androidSettings.Certificates.Value)
 							}
 						}
 					}
 					if numCerts > 0 {
-						logFn("[+] would've added %s to new fleet %s\n",
+						logFn("[+] would've added %s to new team %s\n",
 							numberWithPluralization(numCerts, "Android certificate", "Android certificates"),
 							*incoming.TeamName)
 					}
 					if incoming.Software.PatchDeadlineSettings != nil && !exceptions.Software {
-						logFn("[+] would've set patch deadline settings for fleet %s\n", *incoming.TeamName)
+						logFn("[+] would've set patch deadline settings for team %s\n", *incoming.TeamName)
 					}
 
 					return nil, nil
 				}
-				return nil, fmt.Errorf("fleet %s not created", *incoming.TeamName)
+				return nil, fmt.Errorf("team %s not created", *incoming.TeamName)
 			}
-			// incoming.TeamID and fleet-scoped labels were both already applied
+			// incoming.TeamID and team-scoped labels were both already applied
 			// by the afterTeamApply closure passed to ApplyGroup above.
 
 			teamSoftwareInstallers = teamsSoftwareInstallers[*incoming.TeamName]
@@ -3400,7 +3400,7 @@ func (c *Client) DoGitOps(
 				teamSoftwareInstallers = noTeamSoftwareInstallers
 				teamVPPApps = noTeamVPPApps
 			}
-			teamScripts = teamsScripts[fleet.DisplayNameNoTeam]
+			teamScripts = teamsScripts[automdm.DisplayNameNoTeam]
 		}
 	}
 
@@ -3422,7 +3422,7 @@ func (c *Client) DoGitOps(
 		return nil, err
 	}
 
-	// "Unassigned" policies are Premium, so Fleet Free has none to sync unless the file adds some, which the server
+	// "Unassigned" policies are Premium, so AutoMDM Free has none to sync unless the file adds some, which the server
 	// then rejects.
 	freeUnassigned := incoming.IsNoTeam() && (appConfig == nil || appConfig.License == nil || !appConfig.License.IsPremium())
 	if !freeUnassigned || len(incoming.Policies) > 0 {
@@ -3433,7 +3433,7 @@ func (c *Client) DoGitOps(
 
 	// apply icon changes from software installers and VPP apps
 	if len(teamSoftwareInstallers) > 0 || len(teamVPPApps) > 0 {
-		iconUpdates := fleet.IconChanges{}.WithUploadedHashes(iconSettings.UploadedHashes).WithSoftware(teamSoftwareInstallers, teamVPPApps)
+		iconUpdates := automdm.IconChanges{}.WithUploadedHashes(iconSettings.UploadedHashes).WithSoftware(teamSoftwareInstallers, teamVPPApps)
 		if dryRun {
 			logFn(
 				"[+] Would've set icons on %s and deleted icons on %s\n",
@@ -3465,7 +3465,7 @@ func (c *Client) DoGitOps(
 	return teamAssumptions, nil
 }
 
-func (c *Client) doGitOpsIcons(iconUpdates fleet.IconChanges, concurrentUploads int, concurrentUpdates int) error {
+func (c *Client) doGitOpsIcons(iconUpdates automdm.IconChanges, concurrentUploads int, concurrentUpdates int) error {
 	var uploads errgroup.Group
 	uploads.SetLimit(concurrentUploads)
 
@@ -3527,16 +3527,16 @@ func (c *Client) doGitOpsIcons(iconUpdates fleet.IconChanges, concurrentUploads 
 func (c *Client) doGitOpsNoTeamSetupAndSoftware(
 	config *spec.GitOps,
 	baseDir string,
-	appconfig *fleet.EnrichedAppConfig,
+	appconfig *automdm.EnrichedAppConfig,
 	softwareExcepted bool,
 	logFn func(format string, args ...interface{}),
 	dryRun bool,
-) ([]fleet.SoftwarePackageResponse, []fleet.VPPAppResponse, error) {
+) ([]automdm.SoftwarePackageResponse, []automdm.VPPAppResponse, error) {
 	if !config.IsNoTeam() || appconfig == nil || !appconfig.License.IsPremium() {
 		return nil, nil, nil
 	}
 
-	var macOSSetup fleet.GitOpsMacOSSetup
+	var macOSSetup automdm.GitOpsMacOSSetup
 	if config.Controls.MacOSSetup == nil {
 		config.Controls.MacOSSetup = &macOSSetup
 	}
@@ -3582,9 +3582,9 @@ func (c *Client) doGitOpsNoTeamSetupAndSoftware(
 		return nil, nil, err
 	}
 
-	var softwareInstallers []fleet.SoftwarePackageResponse
+	var softwareInstallers []automdm.SoftwarePackageResponse
 
-	packages := make([]fleet.SoftwarePackageSpec, 0, len(config.Software.Packages))
+	packages := make([]automdm.SoftwarePackageSpec, 0, len(config.Software.Packages))
 	packagesWithPaths := make(map[string]struct{}, len(config.Software.Packages))
 	for _, software := range config.Software.Packages {
 		if software != nil {
@@ -3595,20 +3595,20 @@ func (c *Client) doGitOpsNoTeamSetupAndSoftware(
 			}
 		}
 	}
-	for _, software := range config.Software.FleetMaintainedApps {
+	for _, software := range config.Software.AutoMDMMaintainedApps {
 		if software != nil {
 			packages = append(packages, software.ToSoftwarePackageSpec())
 		}
 	}
 
-	var appsPayload []fleet.VPPBatchPayload
-	appsByAppID := make(map[string]fleet.TeamSpecAppStoreApp, len(config.Software.AppStoreApps))
+	var appsPayload []automdm.VPPBatchPayload
+	appsByAppID := make(map[string]automdm.TeamSpecAppStoreApp, len(config.Software.AppStoreApps))
 	for _, appStoreApp := range config.Software.AppStoreApps {
 		if appStoreApp != nil {
 			// can be referenced by setup_experience.software
 			appsByAppID[appStoreApp.AppStoreID] = *appStoreApp
 
-			_, installDuringSetup := noTeamSoftwareMacOSSetup[fleet.MacOSSetupSoftware{AppStoreID: appStoreApp.AppStoreID}]
+			_, installDuringSetup := noTeamSoftwareMacOSSetup[automdm.MacOSSetupSoftware{AppStoreID: appStoreApp.AppStoreID}]
 			if appStoreApp.InstallDuringSetup.Valid {
 				if len(noTeamSoftwareMacOSSetup) > 0 {
 					return nil, nil, errConflictingVPPSetupExperienceDeclarations
@@ -3628,7 +3628,7 @@ func (c *Client) doGitOpsNoTeamSetupAndSoftware(
 					return nil, nil, fmt.Errorf("Couldn't edit app store app (%s). Reading configuration %s: %w", appStoreApp.AppStoreID, version.Configuration.Path, err)
 				}
 
-				payload := fleet.VPPBatchPayload{
+				payload := automdm.VPPBatchPayload{
 					AppStoreID:          appStoreApp.AppStoreID,
 					VersionName:         version.Name,
 					SelfService:         version.SelfService,
@@ -3636,7 +3636,7 @@ func (c *Client) doGitOpsNoTeamSetupAndSoftware(
 					DisplayName:         appStoreApp.DisplayName,
 					IconPath:            appStoreApp.Icon.Path,
 					IconHash:            iconHash,
-					Platform:            fleet.InstallableDevicePlatform(appStoreApp.Platform),
+					Platform:            automdm.InstallableDevicePlatform(appStoreApp.Platform),
 					Location:            appStoreApp.Location,
 					AutoUpdateEnabled:   version.AutoUpdateEnabled,
 					AutoUpdateStartTime: version.AutoUpdateStartTime,
@@ -3668,7 +3668,7 @@ func (c *Client) doGitOpsNoTeamSetupAndSoftware(
 	if !dryRun {
 		logFn(applyingTeamFormat, softwareCount, "'Unassigned'")
 	}
-	softwareInstallers, deletedInstallers, installerCategories, err := c.ApplyNoTeamSoftwareInstallers(swPkgPayload, fleet.ApplySpecOptions{DryRun: dryRun}, logFn)
+	softwareInstallers, deletedInstallers, installerCategories, err := c.ApplyNoTeamSoftwareInstallers(swPkgPayload, automdm.ApplySpecOptions{DryRun: dryRun}, logFn)
 	if err != nil {
 		return nil, nil, fmt.Errorf("applying software installers: %w", err)
 	}
@@ -3680,7 +3680,7 @@ func (c *Client) doGitOpsNoTeamSetupAndSoftware(
 	logSoftwareDeletions(logFn, deletedInstallers, dryRun)
 
 	logFn(format, numberWithPluralization(len(appsPayload), "app store app", "app store apps"), "'Unassigned'")
-	vppApps, appCategories, err := c.ApplyNoTeamAppStoreAppsAssociation(appsPayload, fleet.ApplySpecOptions{DryRun: dryRun})
+	vppApps, appCategories, err := c.ApplyNoTeamAppStoreAppsAssociation(appsPayload, automdm.ApplySpecOptions{DryRun: dryRun})
 	if err != nil {
 		return nil, nil, fmt.Errorf("applying app store apps: %w", err)
 	}
@@ -3699,7 +3699,7 @@ func (c *Client) doGitOpsNoTeamSetupAndSoftware(
 // logSoftwareDeletions prints one message per software package that a batch
 // set deleted (real run) or would delete (dry run), following the per-item
 // deletion message pattern used for labels and policies.
-func logSoftwareDeletions(logFn func(format string, args ...any), deleted []fleet.DeletedSoftwarePackage, dryRun bool) {
+func logSoftwareDeletions(logFn func(format string, args ...any), deleted []automdm.DeletedSoftwarePackage, dryRun bool) {
 	for _, pkg := range deleted {
 		if dryRun {
 			logFn("[-] would've deleted software - %s\n", pkg.DisplayName)
@@ -3710,26 +3710,26 @@ func logSoftwareDeletions(logFn func(format string, args ...any), deleted []flee
 }
 
 // extractFailingPoliciesWebhook extracts and processes failing policies webhook settings from a map
-func extractFailingPoliciesWebhook(webhookSettings interface{}) fleet.FailingPoliciesWebhookSettings {
+func extractFailingPoliciesWebhook(webhookSettings interface{}) automdm.FailingPoliciesWebhookSettings {
 	// Marshal the interface{} to JSON, which handles type conversions
 	jsonBytes, err := json.Marshal(webhookSettings)
 	if err != nil {
-		return fleet.FailingPoliciesWebhookSettings{Enable: false}
+		return automdm.FailingPoliciesWebhookSettings{Enable: false}
 	}
 
 	// Unmarshal into a wrapper struct to extract failing_policies_webhook
 	var ws struct {
-		FailingPoliciesWebhook fleet.FailingPoliciesWebhookSettings `json:"failing_policies_webhook"`
+		FailingPoliciesWebhook automdm.FailingPoliciesWebhookSettings `json:"failing_policies_webhook"`
 	}
 	if err := json.Unmarshal(jsonBytes, &ws); err != nil {
-		return fleet.FailingPoliciesWebhookSettings{Enable: false}
+		return automdm.FailingPoliciesWebhookSettings{Enable: false}
 	}
 
 	return ws.FailingPoliciesWebhook
 }
 
-func extractHostActivitiesWebhook(webhookSettings any) *fleet.HostActivitiesWebhookSettings {
-	disabled := &fleet.HostActivitiesWebhookSettings{Enable: false}
+func extractHostActivitiesWebhook(webhookSettings any) *automdm.HostActivitiesWebhookSettings {
+	disabled := &automdm.HostActivitiesWebhookSettings{Enable: false}
 
 	jsonBytes, err := json.Marshal(webhookSettings)
 	if err != nil {
@@ -3737,7 +3737,7 @@ func extractHostActivitiesWebhook(webhookSettings any) *fleet.HostActivitiesWebh
 	}
 
 	var ws struct {
-		HostActivitiesWebhook *fleet.HostActivitiesWebhookSettings `json:"host_activities_webhook"`
+		HostActivitiesWebhook *automdm.HostActivitiesWebhookSettings `json:"host_activities_webhook"`
 	}
 	if err := json.Unmarshal(jsonBytes, &ws); err != nil {
 		return disabled
@@ -3751,7 +3751,7 @@ func extractHostActivitiesWebhook(webhookSettings any) *fleet.HostActivitiesWebh
 
 func (c *Client) doGitOpsNoTeamWebhookSettings(
 	config *spec.GitOps,
-	appCfg *fleet.EnrichedAppConfig,
+	appCfg *automdm.EnrichedAppConfig,
 	logFn func(format string, args ...interface{}),
 	dryRun bool,
 ) error {
@@ -3762,12 +3762,12 @@ func (c *Client) doGitOpsNoTeamWebhookSettings(
 
 	// Apply webhook settings for "No Team"
 	// If webhook_settings are not specified, they will be applied as disabled to clear existing settings
-	teamPayload := fleet.TeamPayload{
-		WebhookSettings: &fleet.TeamSpecWebhookSettings{
-			FailingPoliciesWebhook: &fleet.FailingPoliciesWebhookSettings{
+	teamPayload := automdm.TeamPayload{
+		WebhookSettings: &automdm.TeamSpecWebhookSettings{
+			FailingPoliciesWebhook: &automdm.FailingPoliciesWebhookSettings{
 				Enable: false,
 			},
-			HostActivitiesWebhook: &fleet.HostActivitiesWebhookSettings{
+			HostActivitiesWebhook: &automdm.HostActivitiesWebhookSettings{
 				Enable: false,
 			},
 		},
@@ -3784,7 +3784,7 @@ func (c *Client) doGitOpsNoTeamWebhookSettings(
 
 	if !dryRun {
 		logFn("[+] applying webhook settings for unassigned hosts\n")
-		err := c.PatchFleet(0, teamPayload)
+		err := c.PatchAutoMDM(0, teamPayload)
 		if err != nil {
 			return fmt.Errorf("applying webhook settings for unassigned hosts: %w", err)
 		}
@@ -3798,7 +3798,7 @@ func (c *Client) doGitOpsNoTeamWebhookSettings(
 
 func (c *Client) doGitOpsPatchDeadlineSettings(
 	incoming *spec.GitOps,
-	appConfig *fleet.EnrichedAppConfig,
+	appConfig *automdm.EnrichedAppConfig,
 	softwareExcepted bool,
 	logFn func(format string, args ...any),
 	dryRun bool,
@@ -3807,22 +3807,22 @@ func (c *Client) doGitOpsPatchDeadlineSettings(
 		return nil
 	}
 
-	var fleetID uint
+	var automdmID uint
 	target := "unassigned hosts"
 	if !incoming.IsNoTeam() {
 		if incoming.TeamID == nil {
-			return fmt.Errorf("applying patch deadline settings for fleet %s: fleet ID not set", *incoming.TeamName)
+			return fmt.Errorf("applying patch deadline settings for team %s: team ID not set", *incoming.TeamName)
 		}
-		fleetID = *incoming.TeamID
-		target = "fleet " + *incoming.TeamName
+		automdmID = *incoming.TeamID
+		target = "team " + *incoming.TeamName
 	}
 
-	desired := fleet.DefaultPatchDeadlineSettings(fleetID)
+	desired := automdm.DefaultPatchDeadlineSettings(automdmID)
 	if s := incoming.Software.PatchDeadlineSettings; s != nil {
 		desired.Days, desired.Time = s.Days, s.Time
 	}
 
-	current, err := c.GetPatchDeadlineSettings(fleetID)
+	current, err := c.GetPatchDeadlineSettings(automdmID)
 	if err != nil {
 		return fmt.Errorf("getting patch deadline settings for %s: %w", target, err)
 	}
@@ -3834,7 +3834,7 @@ func (c *Client) doGitOpsPatchDeadlineSettings(
 		logFn("[+] would've set patch deadline settings for %s\n", target)
 		return nil
 	}
-	if err := c.UpdatePatchDeadlineSettings(fleetID, *desired); err != nil {
+	if err := c.UpdatePatchDeadlineSettings(automdmID, *desired); err != nil {
 		return fmt.Errorf("setting patch deadline settings for %s: %w", target, err)
 	}
 	logFn("[+] set patch deadline settings for %s\n", target)
@@ -3865,7 +3865,7 @@ func (c *Client) doGitOpsLabels(
 			logFn("[+] would've updated %s\n", numberWithPluralization(nToUpdate, "label", "labels"))
 		}
 		for _, l := range toMove {
-			logFn("[-] would've moved label %q from fleet %q to fleet %q\n", l.Name, l.FromTeamName, l.ToTeamName)
+			logFn("[-] would've moved label %q from team %q to team %q\n", l.Name, l.FromTeamName, l.ToTeamName)
 		}
 		return nil
 	}
@@ -3876,14 +3876,14 @@ func (c *Client) doGitOpsLabels(
 	for _, l := range toDelete {
 		logFn("[-] deleting label '%s'\n", l.Name)
 	}
-	labelsToMove := make([]fleet.LabelToMove, 0, len(toMove))
+	labelsToMove := make([]automdm.LabelToMove, 0, len(toMove))
 	for _, l := range toMove {
-		move := fleet.LabelToMove{Name: l.Name}
+		move := automdm.LabelToMove{Name: l.Name}
 		if l.FromTeamID != nil && *l.FromTeamID > 0 {
-			move.FromFleetID = l.FromTeamID
+			move.FromAutoMDMID = l.FromTeamID
 		}
 		labelsToMove = append(labelsToMove, move)
-		logFn("[-] moving label %q from fleet %q to fleet %q\n", l.Name, l.FromTeamName, l.ToTeamName)
+		logFn("[-] moving label %q from team %q to team %q\n", l.Name, l.FromTeamName, l.ToTeamName)
 	}
 	logFn("[+] applying %s (%d new and %d updated)\n", numberWithPluralization(len(config.Labels), "label", "labels"), nToAdd, nToUpdate)
 	return c.ApplyLabels(config.Labels, config.TeamID, labelsToMove)
@@ -3900,7 +3900,7 @@ func (c *Client) doGitOpsCustomHostVitals(config *spec.GitOps, logFn func(format
 
 	desired := config.CustomHostVitals
 	if !config.CustomHostVitalsPresent {
-		desired = []fleet.CustomHostVital{}
+		desired = []automdm.CustomHostVital{}
 	}
 
 	existing, err := c.listAllCustomHostVitals()
@@ -3994,15 +3994,15 @@ func resolvePolicySoftwareTitleID(
 			return id, nil, true
 		}
 	}
-	if policy.InstallSoftware.Other.FleetMaintainedAppSlug != "" {
-		if id, ok := bySlug[policy.InstallSoftware.Other.FleetMaintainedAppSlug]; ok {
+	if policy.InstallSoftware.Other.AutoMDMMaintainedAppSlug != "" {
+		if id, ok := bySlug[policy.InstallSoftware.Other.AutoMDMMaintainedAppSlug]; ok {
 			return id, nil, true
 		}
 	}
 	return 0, nil, false
 }
 
-func (c *Client) doGitOpsPolicies(config *spec.GitOps, teamSoftwareInstallers []fleet.SoftwarePackageResponse, teamVPPApps []fleet.VPPAppResponse, teamScripts []fleet.ScriptResponse, logFn func(format string, args ...interface{}), dryRun bool) error {
+func (c *Client) doGitOpsPolicies(config *spec.GitOps, teamSoftwareInstallers []automdm.SoftwarePackageResponse, teamVPPApps []automdm.VPPAppResponse, teamScripts []automdm.ScriptResponse, logFn func(format string, args ...interface{}), dryRun bool) error {
 	var teamID *uint // Global policies (nil)
 	switch {
 	case config.TeamID != nil: // Team policies
@@ -4024,12 +4024,12 @@ func (c *Client) doGitOpsPolicies(config *spec.GitOps, teamSoftwareInstallers []
 		for _, softwareInstaller := range teamSoftwareInstallers {
 			if softwareInstaller.TitleID == nil {
 				// Should not happen, but to not panic we just log a warning.
-				logFn("[!] software installer without title id: fleet_id=%d, url=%s\n", *teamID, softwareInstaller.URL)
+				logFn("[!] software installer without title id: team_id=%d, url=%s\n", *teamID, softwareInstaller.URL)
 				continue
 			}
 			if softwareInstaller.URL == "" && softwareInstaller.HashSHA256 == "" {
 				// Should not happen because we previously applied packages via gitops, but to not panic we just log a warning.
-				logFn("[!] software installer without url: fleet_id=%d, title_id=%d\n", *teamID, *softwareInstaller.TitleID)
+				logFn("[!] software installer without url: team_id=%d, title_id=%d\n", *teamID, *softwareInstaller.TitleID)
 				continue
 			}
 			// Normal software installers unconditionally claim their URL/hash for
@@ -4068,17 +4068,17 @@ func (c *Client) doGitOpsPolicies(config *spec.GitOps, teamSoftwareInstallers []
 			}
 		}
 		for _, vppApp := range teamVPPApps {
-			if vppApp.Platform != fleet.MacOSPlatform {
+			if vppApp.Platform != automdm.MacOSPlatform {
 				continue // ignore iPad/iPhone VPP apps as they aren't relevant for policies
 			}
 			if vppApp.TitleID == nil {
 				// Should not happen, but to not panic we just log a warning.
-				logFn("[!] VPP app without title id: fleet_id=%d, app_store_id=%s\n", *teamID, vppApp.AppStoreID)
+				logFn("[!] VPP app without title id: team_id=%d, app_store_id=%s\n", *teamID, vppApp.AppStoreID)
 				continue
 			}
 			if vppApp.AppStoreID == "" {
 				// Should not happen because we previously applied apps via gitops, but to not panic we just log a warning.
-				logFn("[!] VPP app without app ID: fleet_id=%d, title_id=%d\n", *teamID, *vppApp.TitleID)
+				logFn("[!] VPP app without app ID: team_id=%d, title_id=%d\n", *teamID, *vppApp.TitleID)
 				continue
 			}
 			softwareTitleIDsByAppStoreAppID[vppApp.AppStoreID] = *vppApp.TitleID
@@ -4094,13 +4094,13 @@ func (c *Client) doGitOpsPolicies(config *spec.GitOps, teamSoftwareInstallers []
 			// validation or silently pin the wrong package. Reset before resolve.
 			config.Policies[i].SoftwarePackageID = nil
 
-			if config.Policies[i].Type == fleet.PolicyTypePatch && (config.Policies[i].ForcePatch || config.Policies[i].PatchWhenClosed ||
+			if config.Policies[i].Type == automdm.PolicyTypePatch && (config.Policies[i].ForcePatch || config.Policies[i].PatchWhenClosed ||
 				config.Policies[i].NotifyBeforePatching || config.Policies[i].PatchDeadline) {
-				softwareTitleID, ok := softwareTitleIDsBySlug[config.Policies[i].FleetMaintainedAppSlug]
+				softwareTitleID, ok := softwareTitleIDsBySlug[config.Policies[i].AutoMDMMaintainedAppSlug]
 				if !ok {
 					// Should not happen because FMAs are uploaded first.
 					if !dryRun {
-						logFn("[!] fleet-maintained app slug without software title ID: %s\n", config.Policies[i].FleetMaintainedAppSlug)
+						logFn("[!] automdm-maintained app slug without software title ID: %s\n", config.Policies[i].AutoMDMMaintainedAppSlug)
 					}
 					continue
 				}
@@ -4213,8 +4213,8 @@ func (c *Client) doGitOpsPolicies(config *spec.GitOps, teamSoftwareInstallers []
 
 		// Get patch policy title IDs for the team
 		for _, policy := range config.Policies {
-			if policy.Type == fleet.PolicyTypePatch {
-				policy.PatchSoftwareTitleID = softwareTitleIDsBySlug[policy.FleetMaintainedAppSlug]
+			if policy.Type == automdm.PolicyTypePatch {
+				policy.PatchSoftwareTitleID = softwareTitleIDsBySlug[policy.AutoMDMMaintainedAppSlug]
 			}
 		}
 	}
@@ -4243,7 +4243,7 @@ func (c *Client) doGitOpsPolicies(config *spec.GitOps, teamSoftwareInstallers []
 				totalApplied += end - i
 				// Note: We are reusing the spec flow here for adding/updating policies, instead of creating a new flow for GitOps.
 				policiesToApply := config.Policies[i:end]
-				policiesSpec := make([]*fleet.PolicySpec, len(policiesToApply))
+				policiesSpec := make([]*automdm.PolicySpec, len(policiesToApply))
 				for i := range policiesToApply {
 					policiesSpec[i] = &policiesToApply[i].PolicySpec
 				}
@@ -4264,7 +4264,7 @@ func (c *Client) doGitOpsPolicies(config *spec.GitOps, teamSoftwareInstallers []
 				break
 			}
 			// patch policies are unique by patch_software_title_id so matching by name doesn't always work
-			if newItem.Type == fleet.PolicyTypePatch && oldItem.PatchSoftware != nil {
+			if newItem.Type == automdm.PolicyTypePatch && oldItem.PatchSoftware != nil {
 				if oldItem.PatchSoftware.SoftwareTitleID == newItem.PatchSoftwareTitleID {
 					found = true
 					break
@@ -4375,12 +4375,12 @@ func (c *Client) doGitOpsQueries(config *spec.GitOps, logFn func(format string, 
 	return nil
 }
 
-func (c *Client) doGitOpsAndroidCertificates(config *spec.GitOps, appConfig *fleet.EnrichedAppConfig, logFn func(format string, args ...any), dryRun bool) error {
-	certificates := make([]fleet.CertificateTemplateSpec, 0)
+func (c *Client) doGitOpsAndroidCertificates(config *spec.GitOps, appConfig *automdm.EnrichedAppConfig, logFn func(format string, args ...any), dryRun bool) error {
+	certificates := make([]automdm.CertificateTemplateSpec, 0)
 
 	// Extract Android certificates from config if there are any.
 	if config.Controls.AndroidSettings != nil {
-		androidSettings, ok := config.Controls.AndroidSettings.(fleet.GitOpsAndroidSettings)
+		androidSettings, ok := config.Controls.AndroidSettings.(automdm.GitOpsAndroidSettings)
 		if ok && androidSettings.Certificates.Valid && len(androidSettings.Certificates.Value) > 0 {
 			certificates = androidSettings.Certificates.Value
 		}
@@ -4392,7 +4392,7 @@ func (c *Client) doGitOpsAndroidCertificates(config *spec.GitOps, appConfig *fle
 	teamName := ""
 	switch {
 	case config.IsNoTeam():
-		teamName = fleet.DisplayNameNoTeam
+		teamName = automdm.DisplayNameNoTeam
 		teamID = "0"
 	case config.TeamID != nil:
 		teamName = *config.TeamName
@@ -4419,7 +4419,7 @@ func (c *Client) doGitOpsAndroidCertificates(config *spec.GitOps, appConfig *fle
 	// Premium checks; reuse rather than refetch.
 	if numCerts > 0 && (appConfig == nil || appConfig.License == nil || !appConfig.License.IsPremium()) {
 		return newGitOpsValidationError(
-			"Android certificate templates require a custom SCEP CA, which is available in Fleet Premium only.",
+			"Android certificate templates require a custom SCEP CA, which is available in AutoMDM Premium only.",
 		)
 	}
 
@@ -4429,8 +4429,8 @@ func (c *Client) doGitOpsAndroidCertificates(config *spec.GitOps, appConfig *fle
 		logFn("[+] attempting to apply %s\n", numberWithPluralization(numCerts, "Android certificate", "Android certificates"))
 	}
 
-	certRequests := make([]*fleet.CertificateRequestSpec, len(certificates))
-	certsToBeAdded := make(map[string]*fleet.CertificateRequestSpec, len(certificates))
+	certRequests := make([]*automdm.CertificateRequestSpec, len(certificates))
+	certsToBeAdded := make(map[string]*automdm.CertificateRequestSpec, len(certificates))
 	// CA lookups + per-cert validation are only needed when the YAML declares at least one cert.
 	// Skipping the GetCertificateAuthorities call lets delete-only syncs (numCerts == 0,
 	// existingCertificates non-empty) succeed without CA-read access.
@@ -4439,7 +4439,7 @@ func (c *Client) doGitOpsAndroidCertificates(config *spec.GitOps, appConfig *fle
 		if err != nil {
 			return fmt.Errorf("getting certificate authorities: %w", err)
 		}
-		casByName := make(map[string]*fleet.CertificateAuthoritySummary)
+		casByName := make(map[string]*automdm.CertificateAuthoritySummary)
 		for _, ca := range cas {
 			casByName[ca.Name] = ca
 		}
@@ -4451,10 +4451,10 @@ func (c *Client) doGitOpsAndroidCertificates(config *spec.GitOps, appConfig *fle
 				)
 			}
 
-			// Validate Fleet variables in subject name
-			if err := validateCertificateTemplateFleetVariables(certificates[i].SubjectName); err != nil {
+			// Validate AutoMDM variables in subject name
+			if err := validateCertificateTemplateAutoMDMVariables(certificates[i].SubjectName); err != nil {
 				return newGitOpsValidationError(
-					fmt.Sprintf(`Invalid Fleet variable in certificate %q: %s`, certificates[i].Name, err.Error()),
+					fmt.Sprintf(`Invalid AutoMDM variable in certificate %q: %s`, certificates[i].Name, err.Error()),
 				)
 			}
 
@@ -4475,9 +4475,9 @@ func (c *Client) doGitOpsAndroidCertificates(config *spec.GitOps, appConfig *fle
 						fmt.Sprintf(`Invalid subject_alternative_name in certificate %q: %s`, certificates[i].Name, err.Error()),
 					)
 				}
-				if err := validateCertificateTemplateFleetVariables(san); err != nil {
+				if err := validateCertificateTemplateAutoMDMVariables(san); err != nil {
 					return newGitOpsValidationError(
-						fmt.Sprintf(`Invalid Fleet variable in subject_alternative_name of certificate %q: %s`,
+						fmt.Sprintf(`Invalid AutoMDM variable in subject_alternative_name of certificate %q: %s`,
 							certificates[i].Name, err.Error()),
 					)
 				}
@@ -4489,11 +4489,11 @@ func (c *Client) doGitOpsAndroidCertificates(config *spec.GitOps, appConfig *fle
 					certificates[i].CertificateAuthorityName, certificates[i].Name)
 			}
 			// Validate that the CA is the right type.
-			if ca.Type != string(fleet.CATypeCustomSCEPProxy) {
+			if ca.Type != string(automdm.CATypeCustomSCEPProxy) {
 				return newGitOpsValidationError(fmt.Sprintf("Android certificates: CA `%s` has type `%s`. Currently, only the custom_scep_proxy certificate authority is supported.", ca.Name, ca.Type))
 			}
 
-			certRequests[i] = &fleet.CertificateRequestSpec{
+			certRequests[i] = &automdm.CertificateRequestSpec{
 				Name:                   certificates[i].Name,
 				Team:                   teamName,
 				CertificateAuthorityId: ca.ID,
@@ -4535,7 +4535,7 @@ func (c *Client) doGitOpsAndroidCertificates(config *spec.GitOps, appConfig *fle
 			logFn("[-] deleting %s\n", numberWithPluralization(len(certificatesToDelete), "Android certificate", "Android certificates"))
 			tmId, err := strconv.ParseUint(teamID, 10, 0)
 			if err != nil {
-				return fmt.Errorf("applying Android certificates: parsing fleet ID: %w", err)
+				return fmt.Errorf("applying Android certificates: parsing team ID: %w", err)
 			}
 			if err := c.DeleteCertificateTemplates(certificatesToDelete, uint(tmId)); err != nil {
 				return fmt.Errorf("applying Android certificates: deleting existing Android certificates: %w", err)
@@ -4644,8 +4644,8 @@ var windowsMDMSettle = func() { time.Sleep(time.Second) }
 // gated on it, so applying first would be refused on the run that enables it.
 func (c *Client) doGitOpsWindowsEULA(
 	path string,
-	appConfig *fleet.EnrichedAppConfig,
-	assumptions *fleet.TeamSpecsDryRunAssumptions,
+	appConfig *automdm.EnrichedAppConfig,
+	assumptions *automdm.TeamSpecsDryRunAssumptions,
 	baseDir string,
 	dryRun bool,
 	logFn func(format string, args ...any),
@@ -4658,7 +4658,7 @@ func (c *Client) doGitOpsWindowsEULA(
 
 	switch {
 	case path != "" && !appConfig.License.IsPremium():
-		logFn("[!] skipping windows_eula: requires Fleet Premium\n")
+		logFn("[!] skipping windows_eula: requires AutoMDM Premium\n")
 		return nil
 	case path != "" && !windowsMDMOnAfter:
 		logFn("[!] skipping windows_eula: requires Windows MDM to be turned on\n")
@@ -4703,7 +4703,7 @@ func (c *Client) GetGitOpsSecrets(
 	if config.TeamName == nil {
 		orgSecrets, ok := config.OrgSettings["secrets"]
 		if ok {
-			secrets, ok := orgSecrets.([]*fleet.EnrollSecret)
+			secrets, ok := orgSecrets.([]*automdm.EnrollSecret)
 			if ok {
 				secretValues := make([]string, 0, len(secrets))
 				for _, secret := range secrets {
@@ -4715,7 +4715,7 @@ func (c *Client) GetGitOpsSecrets(
 	} else {
 		teamSecrets, ok := config.TeamSettings["secrets"]
 		if ok {
-			secrets, ok := teamSecrets.([]*fleet.EnrollSecret)
+			secrets, ok := teamSecrets.([]*automdm.EnrollSecret)
 			if ok {
 				secretValues := make([]string, 0, len(secrets))
 				for _, secret := range secrets {

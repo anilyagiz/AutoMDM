@@ -11,14 +11,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/profiles"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/variables"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/mdm/profiles"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/variables"
 )
 
-// PreprocessWindowsProfileContentsForDeployment processes Windows configuration profiles to replace Fleet variables
+// PreprocessWindowsProfileContentsForDeployment processes Windows configuration profiles to replace AutoMDM variables
 // with their actual values for each host during profile deployment.
 func PreprocessWindowsProfileContentsForDeployment(deps ProfilePreprocessDependencies, params ProfilePreprocessParams, profileContents string) (string, error) {
 	return preprocessWindowsProfileContents(deps, params, profileContents)
@@ -49,7 +49,7 @@ func (e *MicrosoftProfileProcessingError) Error() string {
 	return e.message
 }
 
-// MicrosoftProfileTransientError indicates that preprocessing (substituting this host's Fleet variables into the
+// MicrosoftProfileTransientError indicates that preprocessing (substituting this host's AutoMDM variables into the
 // profile) could not complete for a reason that clears on its own.
 type MicrosoftProfileTransientError struct {
 	message string
@@ -62,15 +62,15 @@ func (e *MicrosoftProfileTransientError) Error() string {
 type ProfilePreprocessDependencies struct {
 	Context                    context.Context
 	Logger                     *slog.Logger
-	DataStore                  fleet.Datastore
+	DataStore                  automdm.Datastore
 	HostIDForUUIDCache         map[string]uint
-	AppConfig                  *fleet.AppConfig
-	CustomSCEPCAs              map[string]*fleet.CustomSCEPProxyCA
-	ManagedCertificatePayloads *[]*fleet.MDMManagedCertificate
-	NDESConfig                 *fleet.NDESSCEPProxyCA
-	GetNDESSCEPChallenge       func(ctx context.Context, proxy fleet.NDESSCEPProxyCA) (string, error)
+	AppConfig                  *automdm.AppConfig
+	CustomSCEPCAs              map[string]*automdm.CustomSCEPProxyCA
+	ManagedCertificatePayloads *[]*automdm.MDMManagedCertificate
+	NDESConfig                 *automdm.NDESSCEPProxyCA
+	GetNDESSCEPChallenge       func(ctx context.Context, proxy automdm.NDESSCEPProxyCA) (string, error)
 	NDESChallengeErrorToDetail func(err error) string
-	// NDESChallengeErrorIsTerminal reports whether a challenge-fetch failure needs someone to act before Fleet could
+	// NDESChallengeErrorIsTerminal reports whether a challenge-fetch failure needs someone to act before AutoMDM could
 	// succeed. Required whenever the profile can carry an NDES challenge. Injected rather than called directly to keep
 	// the ee SCEP package out of this one's imports.
 	NDESChallengeErrorIsTerminal func(err error) bool
@@ -81,21 +81,21 @@ type ProfilePreprocessParams struct {
 	ProfileUUID string
 }
 
-// preprocessWindowsProfileContents processes Windows configuration profiles to replace Fleet variables
+// preprocessWindowsProfileContents processes Windows configuration profiles to replace AutoMDM variables
 // with their actual values for each host. This function is used both during profile deployment
 // and during profile verification to ensure consistency.
 //
 // The function handles XML escaping to prevent injection attacks.
 //
 // Currently supported variables:
-//   - $FLEET_VAR_HOST_UUID or ${FLEET_VAR_HOST_UUID}: Replaced with the host's UUID
-//   - $FLEET_VAR_SCEP_WINDOWS_CERTIFICATE_ID or ${FLEET_VAR_SCEP_WINDOWS_CERTIFICATE_ID}: Replaced with the profile UUID for SCEP certificate
-//   - $FLEET_VAR_CUSTOM_SCEP_CHALLENGE_<CA_NAME> or ${FLEET_VAR_CUSTOM_SCEP_CHALLENGE_<CA_NAME>}: Replaced with the challenge for the specified custom SCEP CA
-//   - $FLEET_VAR_CUSTOM_SCEP_PROXY_URL_<CA_NAME> or ${FLEET_VAR_CUSTOM_SCEP_PROXY_URL_<CA_NAME>}: Replaced with the proxy URL for the specified custom SCEP CA
-//   - $FLEET_VAR_NDES_SCEP_CHALLENGE or ${FLEET_VAR_NDES_SCEP_CHALLENGE}: Replaced with the one-time NDES challenge password
-//   - $FLEET_VAR_NDES_SCEP_PROXY_URL or ${FLEET_VAR_NDES_SCEP_PROXY_URL}: Replaced with the Fleet SCEP proxy URL for NDES
-//   - $FLEET_VAR_CONDITIONAL_ACCESS_SCEP_URL or ${FLEET_VAR_CONDITIONAL_ACCESS_SCEP_URL}: Replaced with Fleet's conditional access SCEP URL
-//   - $FLEET_VAR_CONDITIONAL_ACCESS_SCEP_CHALLENGE or ${FLEET_VAR_CONDITIONAL_ACCESS_SCEP_CHALLENGE}: Replaced with a host secret placeholder, which becomes a one-time challenge for the host when the command is sent
+//   - $AUTOMDM_VAR_HOST_UUID or ${AUTOMDM_VAR_HOST_UUID}: Replaced with the host's UUID
+//   - $AUTOMDM_VAR_SCEP_WINDOWS_CERTIFICATE_ID or ${AUTOMDM_VAR_SCEP_WINDOWS_CERTIFICATE_ID}: Replaced with the profile UUID for SCEP certificate
+//   - $AUTOMDM_VAR_CUSTOM_SCEP_CHALLENGE_<CA_NAME> or ${AUTOMDM_VAR_CUSTOM_SCEP_CHALLENGE_<CA_NAME>}: Replaced with the challenge for the specified custom SCEP CA
+//   - $AUTOMDM_VAR_CUSTOM_SCEP_PROXY_URL_<CA_NAME> or ${AUTOMDM_VAR_CUSTOM_SCEP_PROXY_URL_<CA_NAME>}: Replaced with the proxy URL for the specified custom SCEP CA
+//   - $AUTOMDM_VAR_NDES_SCEP_CHALLENGE or ${AUTOMDM_VAR_NDES_SCEP_CHALLENGE}: Replaced with the one-time NDES challenge password
+//   - $AUTOMDM_VAR_NDES_SCEP_PROXY_URL or ${AUTOMDM_VAR_NDES_SCEP_PROXY_URL}: Replaced with the AutoMDM SCEP proxy URL for NDES
+//   - $AUTOMDM_VAR_CONDITIONAL_ACCESS_SCEP_URL or ${AUTOMDM_VAR_CONDITIONAL_ACCESS_SCEP_URL}: Replaced with AutoMDM's conditional access SCEP URL
+//   - $AUTOMDM_VAR_CONDITIONAL_ACCESS_SCEP_CHALLENGE or ${AUTOMDM_VAR_CONDITIONAL_ACCESS_SCEP_CHALLENGE}: Replaced with a host secret placeholder, which becomes a one-time challenge for the host when the command is sent
 //
 // Why we don't use Go templates here:
 //  1. Error handling: Go templates don't provide fine-grained error handling for individual variable
@@ -111,10 +111,10 @@ type ProfilePreprocessParams struct {
 // implementation and to the interface if it's required for both verification and deployment. For new dependencies that
 // vary profile-to-profile, add them to ProfilePreprocessParams.
 func preprocessWindowsProfileContents(deps ProfilePreprocessDependencies, params ProfilePreprocessParams, profileContents string) (string, error) {
-	// Check if Fleet variables or custom host vitals are present.
-	fleetVars := variables.Find(profileContents)
-	hasHostVitals := len(fleet.FindCustomHostVitalIDs(profileContents)) > 0
-	if len(fleetVars) == 0 && !hasHostVitals {
+	// Check if AutoMDM variables or custom host vitals are present.
+	automdmVars := variables.Find(profileContents)
+	hasHostVitals := len(automdm.FindCustomHostVitalIDs(profileContents)) > 0
+	if len(automdmVars) == 0 && !hasHostVitals {
 		// No variables to replace, return original content
 		return profileContents, nil
 	}
@@ -122,26 +122,26 @@ func preprocessWindowsProfileContents(deps ProfilePreprocessDependencies, params
 	// Quote the SCEP SubjectName values about to be substituted, while the attribute boundaries are
 	// still the admin's own. The pass after substitution doubles any quote that arrived inside them.
 	result := transformSCEPSubjectNameData(profileContents, quoteAttributeValue)
-	for _, fleetVar := range fleetVars {
+	for _, automdmVar := range automdmVars {
 		switch {
-		case fleetVar == string(fleet.FleetVarHostUUID):
-			result = profiles.ReplaceFleetVariableInXML(fleet.FleetVarHostUUIDRegexp, result, params.HostUUID)
-		case fleetVar == string(fleet.FleetVarHostPlatform):
-			result = profiles.ReplaceFleetVariableInXML(fleet.FleetVarHostPlatformRegexp, result, "windows")
-		case fleetVar == string(fleet.FleetVarHostHardwareSerial):
-			hostLite, _, err := profiles.HydrateHost(deps.Context, deps.DataStore, fleet.Host{UUID: params.HostUUID}, func(hostCount int) error {
-				return &MicrosoftProfileProcessingError{message: fmt.Sprintf("Found %d hosts with UUID %s. Profile variable substitution for %s requires exactly one host", hostCount, params.HostUUID, fleet.FleetVarHostHardwareSerial.WithPrefix())}
+		case automdmVar == string(automdm.AutoMDMVarHostUUID):
+			result = profiles.ReplaceAutoMDMVariableInXML(automdm.AutoMDMVarHostUUIDRegexp, result, params.HostUUID)
+		case automdmVar == string(automdm.AutoMDMVarHostPlatform):
+			result = profiles.ReplaceAutoMDMVariableInXML(automdm.AutoMDMVarHostPlatformRegexp, result, "windows")
+		case automdmVar == string(automdm.AutoMDMVarHostHardwareSerial):
+			hostLite, _, err := profiles.HydrateHost(deps.Context, deps.DataStore, automdm.Host{UUID: params.HostUUID}, func(hostCount int) error {
+				return &MicrosoftProfileProcessingError{message: fmt.Sprintf("Found %d hosts with UUID %s. Profile variable substitution for %s requires exactly one host", hostCount, params.HostUUID, automdm.AutoMDMVarHostHardwareSerial.WithPrefix())}
 			})
 			if err != nil {
 				return profileContents, err
 			}
 			if hostLite.HardwareSerial == "" {
-				return profileContents, &MicrosoftProfileProcessingError{message: fmt.Sprintf("There is no serial number for this host. Fleet couldn't populate %s.", fleet.FleetVarHostHardwareSerial.WithPrefix())}
+				return profileContents, &MicrosoftProfileProcessingError{message: fmt.Sprintf("There is no serial number for this host. AutoMDM couldn't populate %s.", automdm.AutoMDMVarHostHardwareSerial.WithPrefix())}
 			}
 
-			result = profiles.ReplaceFleetVariableInXML(fleet.FleetVarHostHardwareSerialRegexp, result, hostLite.HardwareSerial)
-		case slices.Contains(fleet.IDPFleetVariables, fleet.FleetVarName(fleetVar)):
-			replacedContents, replacedVariable, err := profiles.ReplaceHostEndUserIDPVariables(deps.Context, deps.DataStore, fleetVar, result, params.HostUUID, deps.HostIDForUUIDCache, func(errMsg string) error {
+			result = profiles.ReplaceAutoMDMVariableInXML(automdm.AutoMDMVarHostHardwareSerialRegexp, result, hostLite.HardwareSerial)
+		case slices.Contains(automdm.IDPAutoMDMVariables, automdm.AutoMDMVarName(automdmVar)):
+			replacedContents, replacedVariable, err := profiles.ReplaceHostEndUserIDPVariables(deps.Context, deps.DataStore, automdmVar, result, params.HostUUID, deps.HostIDForUUIDCache, func(errMsg string) error {
 				return &MicrosoftProfileProcessingError{message: errMsg}
 			})
 			if err != nil {
@@ -154,15 +154,15 @@ func preprocessWindowsProfileContents(deps ProfilePreprocessDependencies, params
 		}
 
 		switch {
-		case fleetVar == string(fleet.FleetVarSCEPWindowsCertificateID):
-			result = profiles.ReplaceFleetVariableInXML(fleet.FleetVarSCEPWindowsCertificateIDRegexp, result, params.ProfileUUID)
-		case fleetVar == string(fleet.FleetVarSCEPRenewalID), fleetVar == string(fleet.FleetVarCertificateRenewalID):
+		case automdmVar == string(automdm.AutoMDMVarSCEPWindowsCertificateID):
+			result = profiles.ReplaceAutoMDMVariableInXML(automdm.AutoMDMVarSCEPWindowsCertificateIDRegexp, result, params.ProfileUUID)
+		case automdmVar == string(automdm.AutoMDMVarSCEPRenewalID), automdmVar == string(automdm.AutoMDMVarCertificateRenewalID):
 			// Both legacy SCEP_RENEWAL_ID and the preferred CERTIFICATE_RENEWAL_ID
 			// substitute to the same value.
-			result = profiles.ReplaceFleetVariableInXML(fleet.FleetVarRenewalIDRegexp, result, "fleet-"+params.ProfileUUID)
-		case strings.HasPrefix(fleetVar, string(fleet.FleetVarCustomSCEPChallengePrefix)):
-			caName := strings.TrimPrefix(fleetVar, string(fleet.FleetVarCustomSCEPChallengePrefix))
-			err := profiles.IsCustomSCEPConfigured(deps.Context, deps.CustomSCEPCAs, caName, fleetVar, func(errMsg string) error {
+			result = profiles.ReplaceAutoMDMVariableInXML(automdm.AutoMDMVarRenewalIDRegexp, result, "automdm-"+params.ProfileUUID)
+		case strings.HasPrefix(automdmVar, string(automdm.AutoMDMVarCustomSCEPChallengePrefix)):
+			caName := strings.TrimPrefix(automdmVar, string(automdm.AutoMDMVarCustomSCEPChallengePrefix))
+			err := profiles.IsCustomSCEPConfigured(deps.Context, deps.CustomSCEPCAs, caName, automdmVar, func(errMsg string) error {
 				return &MicrosoftProfileProcessingError{message: errMsg}
 			})
 			if err != nil {
@@ -173,36 +173,36 @@ func preprocessWindowsProfileContents(deps ProfilePreprocessDependencies, params
 					message: fmt.Sprintf(scepChallengeInvalidCharsDetail, caName),
 				}
 			}
-			replacedContents, replacedVariable, err := profiles.ReplaceCustomSCEPChallengeVariable(deps.Context, deps.Logger, fleetVar, deps.CustomSCEPCAs, result)
+			replacedContents, replacedVariable, err := profiles.ReplaceCustomSCEPChallengeVariable(deps.Context, deps.Logger, automdmVar, deps.CustomSCEPCAs, result)
 			if err != nil {
 				return profileContents, ctxerr.Wrap(deps.Context, err, "replacing custom SCEP challenge variable")
 			}
 			if !replacedVariable {
-				return profileContents, &MicrosoftProfileProcessingError{message: fmt.Sprintf("Custom SCEP challenge variable replacement failed for variable %s", fleetVar)}
+				return profileContents, &MicrosoftProfileProcessingError{message: fmt.Sprintf("Custom SCEP challenge variable replacement failed for variable %s", automdmVar)}
 			}
 			result = replacedContents
-		case strings.HasPrefix(fleetVar, string(fleet.FleetVarCustomSCEPProxyURLPrefix)):
-			caName := strings.TrimPrefix(fleetVar, string(fleet.FleetVarCustomSCEPProxyURLPrefix))
-			err := profiles.IsCustomSCEPConfigured(deps.Context, deps.CustomSCEPCAs, caName, fleetVar, func(errMsg string) error {
+		case strings.HasPrefix(automdmVar, string(automdm.AutoMDMVarCustomSCEPProxyURLPrefix)):
+			caName := strings.TrimPrefix(automdmVar, string(automdm.AutoMDMVarCustomSCEPProxyURLPrefix))
+			err := profiles.IsCustomSCEPConfigured(deps.Context, deps.CustomSCEPCAs, caName, automdmVar, func(errMsg string) error {
 				return &MicrosoftProfileProcessingError{message: errMsg}
 			})
 			if err != nil {
 				return profileContents, err
 			}
-			replacedContents, managedCertificate, replacedVariable, err := profiles.ReplaceCustomSCEPProxyURLVariable(deps.Context, deps.Logger, deps.DataStore, deps.AppConfig, fleetVar, deps.CustomSCEPCAs, result, params.HostUUID, params.ProfileUUID)
+			replacedContents, managedCertificate, replacedVariable, err := profiles.ReplaceCustomSCEPProxyURLVariable(deps.Context, deps.Logger, deps.DataStore, deps.AppConfig, automdmVar, deps.CustomSCEPCAs, result, params.HostUUID, params.ProfileUUID)
 			if err != nil {
 				return profileContents, ctxerr.Wrap(deps.Context, err, "replacing custom SCEP challenge variable")
 			}
 			if !replacedVariable {
-				return profileContents, &MicrosoftProfileProcessingError{message: fmt.Sprintf("Custom SCEP challenge variable replacement failed for variable %s", fleetVar)}
+				return profileContents, &MicrosoftProfileProcessingError{message: fmt.Sprintf("Custom SCEP challenge variable replacement failed for variable %s", automdmVar)}
 			}
 			result = replacedContents
 
 			*deps.ManagedCertificatePayloads = append(*deps.ManagedCertificatePayloads, managedCertificate)
 
-		case fleetVar == string(fleet.FleetVarNDESSCEPChallenge):
+		case automdmVar == string(automdm.AutoMDMVarNDESSCEPChallenge):
 			if deps.NDESConfig == nil {
-				return profileContents, &MicrosoftProfileProcessingError{message: fleet.NDESNotConfiguredMsg}
+				return profileContents, &MicrosoftProfileProcessingError{message: automdm.NDESNotConfiguredMsg}
 			}
 			deps.Logger.DebugContext(deps.Context, "fetching NDES challenge", "host_uuid", params.HostUUID, "profile_uuid", params.ProfileUUID)
 			challenge, err := deps.GetNDESSCEPChallenge(deps.Context, *deps.NDESConfig)
@@ -212,39 +212,39 @@ func preprocessWindowsProfileContents(deps ProfilePreprocessDependencies, params
 				}
 				return profileContents, &MicrosoftProfileProcessingError{message: deps.NDESChallengeErrorToDetail(err)}
 			}
-			payload := &fleet.MDMManagedCertificate{
+			payload := &automdm.MDMManagedCertificate{
 				HostUUID:             params.HostUUID,
 				ProfileUUID:          params.ProfileUUID,
 				ChallengeRetrievedAt: ptr.Time(time.Now()),
-				Type:                 fleet.CAConfigNDES,
+				Type:                 automdm.CAConfigNDES,
 				CAName:               "NDES",
 			}
 			*deps.ManagedCertificatePayloads = append(*deps.ManagedCertificatePayloads, payload)
-			result = profiles.ReplaceFleetVariableInXML(fleet.FleetVarNDESSCEPChallengeRegexp, result, challenge)
+			result = profiles.ReplaceAutoMDMVariableInXML(automdm.AutoMDMVarNDESSCEPChallengeRegexp, result, challenge)
 
-		case fleetVar == string(fleet.FleetVarNDESSCEPProxyURL):
+		case automdmVar == string(automdm.AutoMDMVarNDESSCEPProxyURL):
 			result = profiles.ReplaceNDESSCEPProxyURLVariable(deps.AppConfig.MDMUrl(), params.HostUUID, params.ProfileUUID, result)
 
-		case fleetVar == string(fleet.FleetVarConditionalAccessSCEPURL):
-			scepURL, err := url.JoinPath(deps.AppConfig.ServerSettings.ServerURL, fleet.ConditionalAccessSCEPPath)
+		case automdmVar == string(automdm.AutoMDMVarConditionalAccessSCEPURL):
+			scepURL, err := url.JoinPath(deps.AppConfig.ServerSettings.ServerURL, automdm.ConditionalAccessSCEPPath)
 			if err != nil {
 				return profileContents, ctxerr.Wrap(deps.Context, err, "building conditional access SCEP URL")
 			}
-			// The URL variable is what marks the certificate as Fleet-tracked, whichever challenge the profile carries.
-			*deps.ManagedCertificatePayloads = append(*deps.ManagedCertificatePayloads, &fleet.MDMManagedCertificate{
+			// The URL variable is what marks the certificate as AutoMDM-tracked, whichever challenge the profile carries.
+			*deps.ManagedCertificatePayloads = append(*deps.ManagedCertificatePayloads, &automdm.MDMManagedCertificate{
 				HostUUID:             params.HostUUID,
 				ProfileUUID:          params.ProfileUUID,
 				ChallengeRetrievedAt: new(time.Now()),
-				Type:                 fleet.CAConfigConditionalAccess,
-				CAName:               fleet.ConditionalAccessManagedCertificateCAName,
+				Type:                 automdm.CAConfigConditionalAccess,
+				CAName:               automdm.ConditionalAccessManagedCertificateCAName,
 			})
-			result = profiles.ReplaceFleetVariableInXML(fleet.FleetVarConditionalAccessSCEPURLRegexp, result, scepURL)
+			result = profiles.ReplaceAutoMDMVariableInXML(automdm.AutoMDMVarConditionalAccessSCEPURLRegexp, result, scepURL)
 
-		case fleetVar == string(fleet.FleetVarConditionalAccessSCEPChallenge):
+		case automdmVar == string(automdm.AutoMDMVarConditionalAccessSCEPChallenge):
 			// The challenge is created when the command is sent, so the stored command never holds one and a host that
 			// picks it up late still gets a valid one.
-			result = profiles.ReplaceFleetVariableInXML(fleet.FleetVarConditionalAccessSCEPChallengeRegexp, result,
-				fleet.HostSecretPlaceholder(fleet.HostSecretConditionalAccessSCEPChallenge))
+			result = profiles.ReplaceAutoMDMVariableInXML(automdm.AutoMDMVarConditionalAccessSCEPChallengeRegexp, result,
+				automdm.HostSecretPlaceholder(automdm.HostSecretConditionalAccessSCEPChallenge))
 		}
 	}
 
@@ -253,7 +253,7 @@ func preprocessWindowsProfileContents(deps ProfilePreprocessDependencies, params
 	// MicrosoftProfileProcessingError so the caller marks the profile failed with
 	// this detail rather than shipping a blank substitution.
 	if hasHostVitals {
-		hostLite, _, err := profiles.HydrateHost(deps.Context, deps.DataStore, fleet.Host{UUID: params.HostUUID}, func(hostCount int) error {
+		hostLite, _, err := profiles.HydrateHost(deps.Context, deps.DataStore, automdm.Host{UUID: params.HostUUID}, func(hostCount int) error {
 			return &MicrosoftProfileProcessingError{message: fmt.Sprintf("Found %d hosts with UUID %s. Custom host vital substitution requires exactly one host.", hostCount, params.HostUUID)}
 		})
 		if err != nil {
@@ -261,7 +261,7 @@ func preprocessWindowsProfileContents(deps ProfilePreprocessDependencies, params
 		}
 		expanded, err := deps.DataStore.ExpandCustomHostVitals(deps.Context, hostLite.ID, result)
 		if err != nil {
-			if missing, ok := errors.AsType[*fleet.MissingCustomHostVitalValueError](err); ok {
+			if missing, ok := errors.AsType[*automdm.MissingCustomHostVitalValueError](err); ok {
 				return profileContents, &MicrosoftProfileProcessingError{message: missing.Error()}
 			}
 			return profileContents, err

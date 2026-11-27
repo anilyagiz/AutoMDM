@@ -14,8 +14,8 @@ const createNotifyActivity = (
 ) =>
   createMockHostPastActivity({
     type: ActivityType.NotifiedEndUserBeforePatching,
-    actor_full_name: "Fleet",
-    fleet_initiated: true,
+    actor_full_name: "AutoMDM",
+    automdm_initiated: true,
     details: {
       host_display_name: "John's MacBook Pro",
       software_titles: ["1Password"],
@@ -36,7 +36,7 @@ describe("NotifiedEndUserBeforePatchingActivityItem", () => {
     );
 
     expect(container.textContent).toContain(
-      "Fleet notified end user 1 hour before patching 1Password on this host."
+      "AutoMDM notified end user 1 hour before patching 1Password on this host."
     );
     // Host name from details is intentionally dropped on the host feed.
     expect(container.textContent).not.toContain("John's MacBook Pro");
@@ -104,7 +104,7 @@ describe("NotifiedEndUserBeforePatchingActivityItem", () => {
     );
 
     expect(container.textContent).toContain(
-      "Fleet failed to notify end user 1 hour before patching 1Password on this host."
+      "AutoMDM failed to notify end user 1 hour before patching 1Password on this host."
     );
   });
 });

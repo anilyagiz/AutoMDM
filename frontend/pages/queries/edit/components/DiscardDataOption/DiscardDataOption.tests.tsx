@@ -17,7 +17,7 @@ describe("DiscardDataOption component", () => {
 
     expect(screen.getByText(/Store data/)).toBeInTheDocument();
     expect(
-      screen.getByText(/When disabled, results will not be available in Fleet./)
+      screen.getByText(/When disabled, results will not be available in AutoMDM./)
     ).toBeInTheDocument();
   });
 
@@ -50,7 +50,7 @@ describe("DiscardDataOption component", () => {
 
     // normal text
     expect(
-      screen.getByText(/When disabled, results will not be available in Fleet./)
+      screen.getByText(/When disabled, results will not be available in AutoMDM./)
     ).toBeInTheDocument();
   });
   it('Renders the info banner when  "Differential"  logging option is selected', () => {

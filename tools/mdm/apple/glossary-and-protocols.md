@@ -4,18 +4,18 @@
 sequenceDiagram
     participant apns as APNS
     participant mac as Mac
-    participant server as fleet server
+    participant server as automdm server
 
     note over server: Server sends automatic enrollment<br/>endpoint details to AB as part of a<br/>ADE/DEP configuration cron job
     alt Automatic Authenticated Enrollment
-        mac->>server: GET /api/v1/fleet/sso<br/>(endpoint configured using ADE)<br/>Opens authetication webpage in a webview
+        mac->>server: GET /api/v1/automdm/sso<br/>(endpoint configured using ADE)<br/>Opens authetication webpage in a webview
         server->>mac: Enrollment Profile (specific response headers)
     else Automatic Enrollment
         mac->>server: GET /api/mdm/apple/enroll<br/>(endpoint configured using ADE)
         server->>mac: Enrollment profile
     else Manual Enrollment
         note over mac,server: User downloads a profile<br/>containing the OTA endpoint
-        mac->>server: POST /api/latest/fleet/ota_enrollment
+        mac->>server: POST /api/latest/automdm/ota_enrollment
         mac->server: Throw-away SCEP flow
         server->>mac: Enrollment profile
     end
@@ -50,7 +50,7 @@ sequenceDiagram
 ### SCEP: Simple Certificate Enrollment Protocol
 
 SCEP is a protocol that allows devices to get a certificate from a CA (in our
-case, the Fleet server). This certificate is used later on to authenticate to
+case, the AutoMDM server). This certificate is used later on to authenticate to
 the MDM server.
 
 Resources:
@@ -127,7 +127,7 @@ For [ADE enrollment](#ade-device-enrollment-program) the enrollment profile is d
 This (JSON) profile is used to configure a device in Apple Business.
 It contains all the necessary information that a device needs to automatically enroll to an MDM server during device setup.
 
-[Example](https://fleetdm.com/example-dep-profile)
+[Example](https://automdm.com/example-dep-profile)
 
 See [Apple's Profile documentation](https://developer.apple.com/documentation/devicemanagement/profile) for all fields.
 
@@ -177,8 +177,8 @@ Resources:
 
 SCEP is a [PKI](#pki-public-key-infrastructure) protocol that allows devices to
 request certificates from a [CA](#ca-certificate-authoriy) (in our context, the
-Fleet server acts as a CA) that will be later used to authenticate with the MDM
-server (in our context, the Fleet server also acts as the MDM server.)
+AutoMDM server acts as a CA) that will be later used to authenticate with the MDM
+server (in our context, the AutoMDM server also acts as the MDM server.)
 
 To enroll, a client provides a distinguished name and a public key, and the
 server responds with a X.509 certificate.

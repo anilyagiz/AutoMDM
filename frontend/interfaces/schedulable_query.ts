@@ -17,7 +17,7 @@ export interface ISchedulableQuery {
   name: string;
   description: string;
   query: string;
-  fleet_id: number | null;
+  team_id: number | null;
   interval: number;
   platform: CommaSeparatedPlatformString; // Might more accurately be called `platforms_to_query` or `targeted_platforms` – comma-separated string of platforms to query, default all platforms if omitted
   min_osquery_version: string;
@@ -77,13 +77,13 @@ export default PropTypes.shape({
 // API shapes
 
 // Get a query by id
-/** GET /api/v1/fleet/reports/{id}` */
+/** GET /api/v1/automdm/reports/{id}` */
 export interface IGetQueryResponse {
   report: ISchedulableQuery;
 }
 
 // List global or team queries
-/**  GET /api/v1/fleet/reports?order_key={column_from_queries_table}&order_direction={asc|desc}&fleet_id={fleet_id} */
+/**  GET /api/v1/automdm/reports?order_key={column_from_queries_table}&order_direction={asc|desc}&team_id={team_id} */
 export interface IListQueriesResponse {
   reports: ISchedulableQuery[];
 }
@@ -100,14 +100,14 @@ export interface IQueryKeyQueriesLoadAll {
   targetedPlatform?: SelectedPlatform;
 }
 // Create a new query
-/** POST /api/v1/fleet/reports */
+/** POST /api/v1/automdm/reports */
 export interface ICreateQueryFormData {
   name: string;
   query: string;
   description?: string;
   observer_can_run?: boolean;
   discard_data?: boolean;
-  fleet_id?: number; // global query if undefined
+  team_id?: number; // global query if undefined
   interval?: number; // default 0 means never run
   platform?: CommaSeparatedPlatformString; // Might more accurately be called `platforms_to_query` – comma-separated string of platforms to query, default all platforms if omitted
   min_osquery_version?: string; // default all versions if ommitted
@@ -120,9 +120,9 @@ export interface ICreateQueryFormData {
 // response is ISchedulableQuery
 
 // Edit a query by id
-/** PATCH /api/v1/fleet/reports/{id} */
+/** PATCH /api/v1/automdm/reports/{id} */
 export interface IEditQueryFormData
-  extends Omit<ICreateQueryFormData, "name" | "query" | "fleet_id"> {
+  extends Omit<ICreateQueryFormData, "name" | "query" | "team_id"> {
   id?: number;
   name?: string;
   query?: string;
@@ -138,11 +138,11 @@ export interface IEditQueryFormData
 // response is ISchedulableQuery // better way to indicate this?
 
 // Delete a query by id
-// DELETE /api/v1/fleet/reports/{id}
+// DELETE /api/v1/automdm/reports/{id}
 // (no body)
 
 // Delete queries by id
-/** POST /api/v1/fleet/reports/delete */
+/** POST /api/v1/automdm/reports/delete */
 export interface IDeleteQueriesFormData {
   ids: number[];
 }

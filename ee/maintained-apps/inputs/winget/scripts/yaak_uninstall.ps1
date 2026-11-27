@@ -7,7 +7,7 @@
 
 $displayNamePattern = '^Yaak$'
 $publisher = "Yaak"
-$taskName = "fleet-uninstall-yaak"
+$taskName = "automdm-uninstall-yaak"
 $appDir = "AppData\Local\Yaak"  # in each user's profile
 $taskRunning = 267009  # SCHED_S_TASK_RUNNING
 $timeoutSeconds = 300

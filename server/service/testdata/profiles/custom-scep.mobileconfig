@@ -8,9 +8,9 @@
                 <key>PayloadContent</key>
                 <dict>
                     <key>Challenge</key>
-                    <string>$FLEET_VAR_CUSTOM_SCEP_CHALLENGE_%s</string>
+                    <string>$AUTOMDM_VAR_CUSTOM_SCEP_CHALLENGE_%s</string>
                     <key>URL</key>
-                    <string>${FLEET_VAR_CUSTOM_SCEP_PROXY_URL_%s}</string>
+                    <string>${AUTOMDM_VAR_CUSTOM_SCEP_PROXY_URL_%s}</string>
                     <key>Key Type</key>
                     <string>RSA</string>
                     <key>Key Usage</key>
@@ -22,13 +22,13 @@
                         <array>
                             <array>
                                 <string>CN</string>
-                                <string>WIFI $FLEET_VAR_SCEP_RENEWAL_ID</string>
+                                <string>WIFI $AUTOMDM_VAR_SCEP_RENEWAL_ID</string>
                             </array>
                         </array>
                         <array>
                             <array>
                                 <string>OU</string>
-                                <string>FLEET DEVICE MANAGEMENT</string>
+                                <string>AUTOMDM DEVICE MANAGEMENT</string>
                             </array>
                         </array>
                     </array>

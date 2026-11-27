@@ -36,7 +36,7 @@ describe("RunScriptModal", () => {
   });
 
   describe("empty state", () => {
-    it("shows the 'Add a script' link with fleet_id for a premium admin", () => {
+    it("shows the 'Add a script' link with team_id for a premium admin", () => {
       const adminUser = createMockUser({ global_role: "admin" });
       const render = createCustomRenderer({
         withBackendMock: true,
@@ -56,11 +56,11 @@ describe("RunScriptModal", () => {
       expect(link).toBeInTheDocument();
       expect(link).toHaveAttribute(
         "href",
-        expect.stringContaining("fleet_id=7")
+        expect.stringContaining("team_id=7")
       );
     });
 
-    it("falls back to fleet_id=0 (No team) when the host is unassigned", () => {
+    it("falls back to team_id=0 (No team) when the host is unassigned", () => {
       const adminUser = createMockUser({ global_role: "admin" });
       const render = createCustomRenderer({
         withBackendMock: true,
@@ -84,11 +84,11 @@ describe("RunScriptModal", () => {
       const link = screen.getByRole("link", { name: /Add a script/i });
       expect(link).toHaveAttribute(
         "href",
-        expect.stringContaining("fleet_id=0")
+        expect.stringContaining("team_id=0")
       );
     });
 
-    it("omits fleet_id from the link on free tier", () => {
+    it("omits team_id from the link on free tier", () => {
       const adminUser = createMockUser({ global_role: "admin" });
       const render = createCustomRenderer({
         withBackendMock: true,
@@ -105,7 +105,7 @@ describe("RunScriptModal", () => {
 
       const link = screen.getByRole("link", { name: /Add a script/i });
       expect(link).toBeInTheDocument();
-      expect(link.getAttribute("href")).not.toContain("fleet_id");
+      expect(link.getAttribute("href")).not.toContain("team_id");
     });
 
     it("hides the link and guidance text for a global technician", () => {
@@ -135,7 +135,7 @@ describe("RunScriptModal", () => {
     it("shows the link for a team maintainer on the host's team", () => {
       const maintainerUser = createMockUser({
         global_role: null,
-        fleets: [{ id: 7, name: "Some team", role: "maintainer" }],
+        teams: [{ id: 7, name: "Some team", role: "maintainer" }],
       });
       const render = createCustomRenderer({
         withBackendMock: true,
@@ -158,7 +158,7 @@ describe("RunScriptModal", () => {
     it("hides the link for a team technician on the host's team", () => {
       const technicianUser = createMockUser({
         global_role: null,
-        fleets: [{ id: 7, name: "Some team", role: "technician" }],
+        teams: [{ id: 7, name: "Some team", role: "technician" }],
       });
       const render = createCustomRenderer({
         withBackendMock: true,
@@ -280,7 +280,7 @@ describe("RunScriptModal", () => {
       expect(screen.queryByText("Close")).not.toBeInTheDocument();
     });
 
-    it("shows an 'Add script' button that goes to scripts with fleet_id for an admin", async () => {
+    it("shows an 'Add script' button that goes to scripts with team_id for an admin", async () => {
       const adminUser = createMockUser({ global_role: "admin" });
       const render = createCustomRenderer({
         withBackendMock: true,
@@ -310,7 +310,7 @@ describe("RunScriptModal", () => {
 
       await user.click(screen.getByRole("button", { name: /Add script/i }));
       expect(pushSpy).toHaveBeenCalledWith(
-        expect.stringContaining("fleet_id=7")
+        expect.stringContaining("team_id=7")
       );
       pushSpy.mockRestore();
     });

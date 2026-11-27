@@ -12,14 +12,14 @@ const LicenseExpirationBanner = (): JSX.Element => {
       color="yellow"
       cta={
         <CustomLink
-          url="https://fleetdm.com/learn-more-about/downgrading"
+          url="https://automdm.com/learn-more-about/downgrading"
           text="Downgrade or renew"
           newTab
           variant="banner-link"
         />
       }
     >
-      Your Fleet Premium license is about to expire.
+      Your AutoMDM Premium license is about to expire.
     </InfoBanner>
   );
 };

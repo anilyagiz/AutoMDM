@@ -14,7 +14,7 @@ describe("EndUserOSRequirementPreview", () => {
       ).toBeVisible();
       expect(screen.getByRole("link", { name: /Learn more/ })).toHaveAttribute(
         "href",
-        "https://fleetdm.com/learn-more-about/os-updates-apple"
+        "https://automdm.com/learn-more-about/os-updates-apple"
       );
     }
   );

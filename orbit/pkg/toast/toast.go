@@ -1,4 +1,4 @@
-// Package toast posts Windows toast notifications for Fleet Desktop.
+// Package toast posts Windows toast notifications for AutoMDM Desktop.
 package toast
 
 import (
@@ -13,17 +13,17 @@ import (
 	"unicode/utf16"
 )
 
-// FleetDesktopAppID is the AppUserModelID orbit registers so toasts are labeled "Fleet Desktop" with its icon.
-const FleetDesktopAppID = "FleetDM.FleetDesktop"
+// AutoMDMDesktopAppID is the AppUserModelID orbit registers so toasts are labeled "AutoMDM Desktop" with its icon.
+const AutoMDMDesktopAppID = "AutoMDM.AutoMDMDesktop"
 
 // maxTagLength is what Windows accepts for a toast's tag and group.
 const maxTagLength = 64
 
-// fleetDesktopEnvPrefix marks Fleet Desktop's own environment variables, which carry the Fleet client TLS key and the device URL.
-const fleetDesktopEnvPrefix = "FLEET_DESKTOP_"
+// automdmDesktopEnvPrefix marks AutoMDM Desktop's own environment variables, which carry the AutoMDM client TLS key and the device URL.
+const automdmDesktopEnvPrefix = "AUTOMDM_DESKTOP_"
 
-// ErrAppIDNotRegistered means orbit has not registered Fleet Desktop's AppUserModelID. Windows drops a toast posted under one it does not know.
-var ErrAppIDNotRegistered = errors.New("the Fleet Desktop notification identity is not registered")
+// ErrAppIDNotRegistered means orbit has not registered AutoMDM Desktop's AppUserModelID. Windows drops a toast posted under one it does not know.
+var ErrAppIDNotRegistered = errors.New("the AutoMDM Desktop notification identity is not registered")
 
 // Notification is a toast with a heading, a body, and one button that opens a URL.
 type Notification struct {
@@ -90,7 +90,7 @@ func validateTagAndGroup(tag, group string) error {
 }
 
 // xml renders the toast payload. Protocol activation hands the URL to its default handler, so clicking the toast or the
-// button opens the browser without any Fleet Desktop code running.
+// button opens the browser without any AutoMDM Desktop code running.
 func (n Notification) xml() (string, error) {
 	payload := toastXML{Launch: n.URL, ActivationType: "protocol"}
 	if n.StayOnScreen {
@@ -124,14 +124,14 @@ exit 1
 }
 `
 	showScript = scriptPrologue + `$xml = [Windows.Data.Xml.Dom.XmlDocument]::new()
-$xml.LoadXml($env:FLEET_TOAST_XML)
+$xml.LoadXml($env:AUTOMDM_TOAST_XML)
 $toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
-$toast.Tag = $env:FLEET_TOAST_TAG
-$toast.Group = $env:FLEET_TOAST_GROUP
-$expiresIn = [int]$env:FLEET_TOAST_EXPIRES_SECONDS
+$toast.Tag = $env:AUTOMDM_TOAST_TAG
+$toast.Group = $env:AUTOMDM_TOAST_GROUP
+$expiresIn = [int]$env:AUTOMDM_TOAST_EXPIRES_SECONDS
 if ($expiresIn -gt 0) { $toast.ExpirationTime = [DateTimeOffset]::Now.AddSeconds($expiresIn) }
-$toast.SuppressPopup = $env:FLEET_TOAST_SUPPRESS_POPUP -eq 'true'
-$notifier = [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($env:FLEET_TOAST_APP_ID)
+$toast.SuppressPopup = $env:AUTOMDM_TOAST_SUPPRESS_POPUP -eq 'true'
+$notifier = [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($env:AUTOMDM_TOAST_APP_ID)
 # Show() is silent when notifications are off for this user, this app, or by policy, so report which it is instead.
 # Setting reads as null on hosts where Show() works fine, so only a value that names an actual block stops us.
 $setting = "$($notifier.Setting)"
@@ -139,7 +139,7 @@ if ($setting -ne '' -and $setting -ne 'Enabled') { throw "Windows notifications 
 $notifier.Show($toast)
 ` + scriptEpilogue
 	removeScript = scriptPrologue + `[Windows.UI.Notifications.ToastNotificationManager]::History.Remove(
-	$env:FLEET_TOAST_TAG, $env:FLEET_TOAST_GROUP, $env:FLEET_TOAST_APP_ID)
+	$env:AUTOMDM_TOAST_TAG, $env:AUTOMDM_TOAST_GROUP, $env:AUTOMDM_TOAST_APP_ID)
 ` + scriptEpilogue
 )
 
@@ -152,30 +152,30 @@ func showScriptEnv(n Notification) ([]string, error) {
 		return nil, err
 	}
 	return []string{
-		"FLEET_TOAST_XML=" + payload,
-		"FLEET_TOAST_TAG=" + n.Tag,
-		"FLEET_TOAST_GROUP=" + n.Group,
-		"FLEET_TOAST_EXPIRES_SECONDS=" + strconv.Itoa(int(n.ExpiresIn.Seconds())),
-		"FLEET_TOAST_SUPPRESS_POPUP=" + strconv.FormatBool(n.SuppressPopup),
-		"FLEET_TOAST_APP_ID=" + FleetDesktopAppID,
+		"AUTOMDM_TOAST_XML=" + payload,
+		"AUTOMDM_TOAST_TAG=" + n.Tag,
+		"AUTOMDM_TOAST_GROUP=" + n.Group,
+		"AUTOMDM_TOAST_EXPIRES_SECONDS=" + strconv.Itoa(int(n.ExpiresIn.Seconds())),
+		"AUTOMDM_TOAST_SUPPRESS_POPUP=" + strconv.FormatBool(n.SuppressPopup),
+		"AUTOMDM_TOAST_APP_ID=" + AutoMDMDesktopAppID,
 	}, nil
 }
 
 func removeScriptEnv(tag, group string) []string {
 	return []string{
-		"FLEET_TOAST_TAG=" + tag,
-		"FLEET_TOAST_GROUP=" + group,
-		"FLEET_TOAST_APP_ID=" + FleetDesktopAppID,
+		"AUTOMDM_TOAST_TAG=" + tag,
+		"AUTOMDM_TOAST_GROUP=" + group,
+		"AUTOMDM_TOAST_APP_ID=" + AutoMDMDesktopAppID,
 	}
 }
 
-// childEnv is the environment for the PowerShell process: this process's, without Fleet Desktop's own variables, plus the
+// childEnv is the environment for the PowerShell process: this process's, without AutoMDM Desktop's own variables, plus the
 // toast values.
 func childEnv(parent, values []string) []string {
 	env := make([]string, 0, len(parent)+len(values))
 	for _, variable := range parent {
 		// Windows environment variable names are case-insensitive.
-		if strings.HasPrefix(strings.ToUpper(variable), fleetDesktopEnvPrefix) {
+		if strings.HasPrefix(strings.ToUpper(variable), automdmDesktopEnvPrefix) {
 			continue
 		}
 		env = append(env, variable)

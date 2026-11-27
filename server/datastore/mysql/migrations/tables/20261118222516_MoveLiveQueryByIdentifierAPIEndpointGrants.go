@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/jmoiron/sqlx"
 	"github.com/jmoiron/sqlx/reflectx"
 )
@@ -17,10 +17,10 @@ func init() {
 // which now takes the same identifiers. Grants are matched by fingerprint because the server accepts any placeholder spelling.
 func Up_20261118222516(tx *sql.Tx) error {
 	const (
-		oldPath = "/api/v1/fleet/hosts/identifier/:identifier/query"
-		newPath = "/api/v1/fleet/hosts/:id/query"
+		oldPath = "/api/v1/automdm/hosts/identifier/:identifier/query"
+		newPath = "/api/v1/automdm/hosts/:id/query"
 	)
-	oldFingerprint := fleet.NewAPIEndpointFromTpl("POST", oldPath).Fingerprint()
+	oldFingerprint := automdm.NewAPIEndpointFromTpl("POST", oldPath).Fingerprint()
 
 	type grant struct {
 		UserID uint   `db:"user_id"`
@@ -33,7 +33,7 @@ func Up_20261118222516(tx *sql.Tx) error {
 		return fmt.Errorf("select POST api endpoint grants: %w", err)
 	}
 	for _, g := range grants {
-		if fleet.NewAPIEndpointFromTpl(g.Method, g.Path).Fingerprint() != oldFingerprint {
+		if automdm.NewAPIEndpointFromTpl(g.Method, g.Path).Fingerprint() != oldFingerprint {
 			continue
 		}
 		if _, err := tx.Exec(`DELETE FROM user_api_endpoints WHERE user_id = ? AND method = ? AND path = ?`,

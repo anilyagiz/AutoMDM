@@ -127,10 +127,10 @@ func TestLookups(t *testing.T) {
 	assert.Nil(t, s.WindowsNode("./Device/Vendor/MSFT/Unknown"))
 }
 
-func TestNoServerFleetImport(t *testing.T) {
+func TestNoServerAutoMDMImport(t *testing.T) {
 	out, err := exec.Command("go", "list", "-deps", ".").Output()
 	require.NoError(t, err)
 	for dep := range strings.SplitSeq(string(out), "\n") {
-		assert.False(t, strings.HasPrefix(dep, "github.com/fleetdm/fleet/v4/server/fleet"), "package must not depend on %s", dep)
+		assert.False(t, strings.HasPrefix(dep, "github.com/anilyagiz/automdm/v4/server/automdm"), "package must not depend on %s", dep)
 	}
 }

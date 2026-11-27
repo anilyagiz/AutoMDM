@@ -418,7 +418,7 @@ const EditIconModal = ({
         }
       : undefined;
 
-  const renderPreviewFleetCard = () => {
+  const renderPreviewTeamCard = () => {
     const {
       type,
       versions,
@@ -432,7 +432,7 @@ const EditIconModal = ({
         className={`${baseClass}__preview-card`}
         paddingSize="xlarge"
       >
-        <Card className={`${baseClass}__preview-card__fleet`}>
+        <Card className={`${baseClass}__preview-card__automdm`}>
           <SoftwareDetailsSummary
             displayName={displayName || previewInfo.titleName}
             name={previewInfo.titleName}
@@ -493,7 +493,7 @@ const EditIconModal = ({
           </div>
         </Card>
         <div
-          className={`${baseClass}__mask-overlay ${baseClass}__mask-overlay--fleet`}
+          className={`${baseClass}__mask-overlay ${baseClass}__mask-overlay--automdm`}
         />
       </Card>
     );
@@ -590,7 +590,7 @@ const EditIconModal = ({
         parseTarget
         helpText={
           <>
-            Optional. If left blank, Fleet will use{" "}
+            Optional. If left blank, AutoMDM will use{" "}
             <strong>{defaultDisplayName}</strong>.
           </>
         }
@@ -613,19 +613,19 @@ const EditIconModal = ({
       />
       <h2>Preview</h2>
       {isAndroidApp ? (
-        renderPreviewFleetCard()
+        renderPreviewTeamCard()
       ) : (
         <TabNav>
           <Tabs selectedIndex={previewTabIndex} onSelect={onTabChange}>
             <TabList>
               <Tab>
-                <TabText>Fleet</TabText>
+                <TabText>AutoMDM</TabText>
               </Tab>
               <Tab>
                 <TabText>Self service</TabText>
               </Tab>
             </TabList>
-            <TabPanel>{renderPreviewFleetCard()}</TabPanel>
+            <TabPanel>{renderPreviewTeamCard()}</TabPanel>
             <TabPanel>{renderPreviewSelfServiceCard()}</TabPanel>
           </Tabs>
         </TabNav>

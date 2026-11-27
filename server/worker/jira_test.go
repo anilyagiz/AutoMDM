@@ -12,19 +12,19 @@ import (
 	"testing"
 
 	jira "github.com/andygrunwald/go-jira"
-	activity_api "github.com/fleetdm/fleet/v4/server/activity/api"
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/service/externalsvc"
+	activity_api "github.com/anilyagiz/automdm/v4/server/activity/api"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/service/externalsvc"
 	"github.com/stretchr/testify/require"
 )
 
 func TestJiraRun(t *testing.T) {
 	ds := new(mock.Store)
-	ds.HostsByCVEFunc = func(ctx context.Context, cve string) ([]fleet.HostVulnerabilitySummary, error) {
-		return []fleet.HostVulnerabilitySummary{
+	ds.HostsByCVEFunc = func(ctx context.Context, cve string) ([]automdm.HostVulnerabilitySummary, error) {
+		return []automdm.HostVulnerabilitySummary{
 			{
 				ID:       1,
 				Hostname: "test",
@@ -35,22 +35,22 @@ func TestJiraRun(t *testing.T) {
 			},
 		}, nil
 	}
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{Integrations: fleet.Integrations{
-			Jira: []*fleet.JiraIntegration{
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{Integrations: automdm.Integrations{
+			Jira: []*automdm.JiraIntegration{
 				{EnableSoftwareVulnerabilities: true, EnableFailingPolicies: true},
 			},
 		}}, nil
 	}
-	ds.TeamLiteFunc = func(ctx context.Context, tid uint) (*fleet.TeamLite, error) {
+	ds.TeamLiteFunc = func(ctx context.Context, tid uint) (*automdm.TeamLite, error) {
 		if tid != 123 {
 			return nil, errors.New("unexpected team id")
 		}
-		return &fleet.TeamLite{
+		return &automdm.TeamLite{
 			ID: 123,
-			Config: fleet.TeamConfigLite{
-				Integrations: fleet.TeamIntegrations{
-					Jira: []*fleet.TeamJiraIntegration{
+			Config: automdm.TeamConfigLite{
+				Integrations: automdm.TeamIntegrations{
+					Jira: []*automdm.TeamJiraIntegration{
 						{EnableFailingPolicies: true},
 					},
 				},
@@ -117,12 +117,12 @@ func TestJiraRun(t *testing.T) {
 	}{
 		{
 			"vuln free",
-			fleet.TierFree,
+			automdm.TierFree,
 			`{"vulnerability":{"cve":"CVE-1234-5678"}}`,
 			`"summary":"Vulnerability CVE-1234-5678 detected on 1 host(s)"`,
 			[]string{
 				"Affected hosts:",
-				"https://fleetdm.com/hosts/1",
+				"https://automdm.com/hosts/1",
 				"** /some/path/1",
 				"** /some/path/2",
 			},
@@ -130,12 +130,12 @@ func TestJiraRun(t *testing.T) {
 		},
 		{
 			"vuln with scores free",
-			fleet.TierFree,
+			automdm.TierFree,
 			`{"vulnerability":{"cve":"CVE-1234-5678","epss_probability":3.4,"cvss_score":50,"cisa_known_exploit":true}}`,
 			`"summary":"Vulnerability CVE-1234-5678 detected on 1 host(s)"`,
 			[]string{
 				"Affected hosts:",
-				"https://fleetdm.com/hosts/1",
+				"https://automdm.com/hosts/1",
 				"** /some/path/1",
 				"** /some/path/2",
 			},
@@ -143,28 +143,28 @@ func TestJiraRun(t *testing.T) {
 		},
 		{
 			"failing global policy",
-			fleet.TierFree,
+			automdm.TierFree,
 			`{"failing_policy":{"policy_id": 1, "policy_name": "test-policy", "hosts": []}}`,
 			`"summary":"test-policy policy failed on 0 host(s)"`,
 			[]string{"\\u0026policy_id=1\\u0026policy_response=failing"},
-			"\\u0026fleet_id=",
+			"\\u0026team_id=",
 		},
 		{
 			"failing team policy",
-			fleet.TierPremium,
+			automdm.TierPremium,
 			`{"failing_policy":{"policy_id": 2, "policy_name": "test-policy-2", "team_id": 123, "hosts": [{"id": 1, "hostname": "test-1"}, {"id": 2, "hostname": "test-2"}]}}`,
 			`"summary":"test-policy-2 policy failed on 2 host(s)"`,
-			[]string{"\\u0026fleet_id=123\\u0026policy_id=2\\u0026policy_response=failing"},
+			[]string{"\\u0026team_id=123\\u0026policy_id=2\\u0026policy_response=failing"},
 			"",
 		},
 		{
 			"vuln premium",
-			fleet.TierPremium,
+			automdm.TierPremium,
 			`{"vulnerability":{"cve":"CVE-1234-5678"}}`,
 			`"summary":"Vulnerability CVE-1234-5678 detected on 1 host(s)"`,
 			[]string{
 				"Affected hosts:",
-				"https://fleetdm.com/hosts/1",
+				"https://automdm.com/hosts/1",
 				"** /some/path/1",
 				"** /some/path/2",
 			},
@@ -172,12 +172,12 @@ func TestJiraRun(t *testing.T) {
 		},
 		{
 			"vuln with scores premium",
-			fleet.TierPremium,
+			automdm.TierPremium,
 			`{"vulnerability":{"cve":"CVE-1234-5678","epss_probability":3.4,"cvss_score":50,"cisa_known_exploit":true}}`,
 			`"summary":"Vulnerability CVE-1234-5678 detected on 1 host(s)"`,
 			[]string{
 				"Affected hosts:",
-				"https://fleetdm.com/hosts/1",
+				"https://automdm.com/hosts/1",
 				"** /some/path/1",
 				"** /some/path/2",
 			},
@@ -185,12 +185,12 @@ func TestJiraRun(t *testing.T) {
 		},
 		{
 			"vuln with published date",
-			fleet.TierPremium,
+			automdm.TierPremium,
 			`{"vulnerability":{"cve":"CVE-1234-5678","cve_published":"2012-04-23T18:25:43.511Z","epss_probability":3.4,"cvss_score":50,"cisa_known_exploit":true}}`,
 			`"summary":"Vulnerability CVE-1234-5678 detected on 1 host(s)"`,
 			[]string{
 				"Affected hosts:",
-				"https://fleetdm.com/hosts/1",
+				"https://automdm.com/hosts/1",
 				"** /some/path/1",
 				"** /some/path/2",
 				"Published (reported by [NVD|https://nvd.nist.gov/]): 2012-04-23",
@@ -202,13 +202,13 @@ func TestJiraRun(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.desc, func(t *testing.T) {
 			jira := &Jira{
-				FleetURL:  "https://fleetdm.com",
-				Datastore: ds,
-				Log:       slog.New(slog.DiscardHandler),
+				AutoMDMURL: "https://automdm.com",
+				Datastore:  ds,
+				Log:        slog.New(slog.DiscardHandler),
 				NewClientFunc: func(opts *externalsvc.JiraOptions) (JiraClient, error) {
 					return client, nil
 				},
-				NewActivitySvc: &mock.MockActivityService{NewActivityFunc: func(_ context.Context, _ *activity_api.User, _ fleet.ActivityDetails) error {
+				NewActivitySvc: &mock.MockActivityService{NewActivityFunc: func(_ context.Context, _ *activity_api.User, _ automdm.ActivityDetails) error {
 					return nil
 				}},
 			}
@@ -216,7 +216,7 @@ func TestJiraRun(t *testing.T) {
 			expectedSummary = c.expectedSummary
 			expectedDescription = c.expectedDescription
 			expectedNotInDescription = c.expectedNotInDescription
-			err = jira.Run(license.NewContext(context.Background(), &fleet.LicenseInfo{Tier: c.licenseTier}), json.RawMessage(c.payload))
+			err = jira.Run(license.NewContext(context.Background(), &automdm.LicenseInfo{Tier: c.licenseTier}), json.RawMessage(c.payload))
 			require.NoError(t, err)
 		})
 	}
@@ -229,11 +229,11 @@ func TestJiraQueueVulnJobs(t *testing.T) {
 
 	t.Run("same vulnerability on multiple software only queue one job", func(t *testing.T) {
 		var count int
-		ds.NewJobFunc = func(ctx context.Context, job *fleet.Job) (*fleet.Job, error) {
+		ds.NewJobFunc = func(ctx context.Context, job *automdm.Job) (*automdm.Job, error) {
 			count++
 			return job, nil
 		}
-		vulns := []fleet.SoftwareVulnerability{{
+		vulns := []automdm.SoftwareVulnerability{{
 			CVE:        "CVE-1234-5678",
 			SoftwareID: 1,
 		}, {
@@ -246,9 +246,9 @@ func TestJiraQueueVulnJobs(t *testing.T) {
 			CVE:        "CVE-1234-5678",
 			SoftwareID: 3,
 		}}
-		meta := make(map[string]fleet.CVEMeta, len(vulns))
+		meta := make(map[string]automdm.CVEMeta, len(vulns))
 		for _, v := range vulns {
-			meta[v.CVE] = fleet.CVEMeta{CVE: v.CVE}
+			meta[v.CVE] = automdm.CVEMeta{CVE: v.CVE}
 		}
 
 		err := QueueJiraVulnJobs(ctx, ds, logger, vulns, meta)
@@ -258,27 +258,27 @@ func TestJiraQueueVulnJobs(t *testing.T) {
 	})
 
 	t.Run("success", func(t *testing.T) {
-		ds.NewJobFunc = func(ctx context.Context, job *fleet.Job) (*fleet.Job, error) {
+		ds.NewJobFunc = func(ctx context.Context, job *automdm.Job) (*automdm.Job, error) {
 			return job, nil
 		}
 		theCVE := "CVE-1234-5678"
-		meta := map[string]fleet.CVEMeta{
+		meta := map[string]automdm.CVEMeta{
 			theCVE: {CVE: theCVE},
 		}
-		err := QueueJiraVulnJobs(ctx, ds, logger, []fleet.SoftwareVulnerability{{CVE: theCVE}}, meta)
+		err := QueueJiraVulnJobs(ctx, ds, logger, []automdm.SoftwareVulnerability{{CVE: theCVE}}, meta)
 		require.NoError(t, err)
 		require.True(t, ds.NewJobFuncInvoked)
 	})
 
 	t.Run("failure", func(t *testing.T) {
-		ds.NewJobFunc = func(ctx context.Context, job *fleet.Job) (*fleet.Job, error) {
+		ds.NewJobFunc = func(ctx context.Context, job *automdm.Job) (*automdm.Job, error) {
 			return nil, io.EOF
 		}
 		theCVE := "CVE-1234-5678"
-		meta := map[string]fleet.CVEMeta{
+		meta := map[string]automdm.CVEMeta{
 			theCVE: {CVE: theCVE},
 		}
-		err := QueueJiraVulnJobs(ctx, ds, logger, []fleet.SoftwareVulnerability{{CVE: theCVE}}, meta)
+		err := QueueJiraVulnJobs(ctx, ds, logger, []automdm.SoftwareVulnerability{{CVE: theCVE}}, meta)
 		require.Error(t, err)
 		require.ErrorIs(t, err, io.EOF)
 		require.True(t, ds.NewJobFuncInvoked)
@@ -289,10 +289,10 @@ func TestJiraOnFinalFailure(t *testing.T) {
 	ctx := t.Context()
 
 	t.Run("failing policy records activity", func(t *testing.T) {
-		var recorded []fleet.ActivityDetails
+		var recorded []automdm.ActivityDetails
 		j := &Jira{
 			Log: slog.New(slog.DiscardHandler),
-			NewActivitySvc: &mock.MockActivityService{NewActivityFunc: func(_ context.Context, user *activity_api.User, activity fleet.ActivityDetails) error {
+			NewActivitySvc: &mock.MockActivityService{NewActivityFunc: func(_ context.Context, user *activity_api.User, activity automdm.ActivityDetails) error {
 				require.Nil(t, user)
 				recorded = append(recorded, activity)
 				return nil
@@ -301,14 +301,14 @@ func TestJiraOnFinalFailure(t *testing.T) {
 
 		args, err := json.Marshal(jiraArgs{FailingPolicy: &failingPolicyArgs{
 			PolicyID: 5,
-			Hosts:    []fleet.PolicySetHost{{ID: 1, Hostname: "h1"}, {ID: 2, Hostname: "h2"}},
+			Hosts:    []automdm.PolicySetHost{{ID: 1, Hostname: "h1"}, {ID: 2, Hostname: "h2"}},
 		}})
 		require.NoError(t, err)
 
 		require.NoError(t, j.OnFinalFailure(ctx, args, "create issue: 401 Unauthorized"))
 
 		require.Len(t, recorded, 1)
-		act, ok := recorded[0].(fleet.ActivityTypeFailedAutomationTicket)
+		act, ok := recorded[0].(automdm.ActivityTypeFailedAutomationTicket)
 		require.True(t, ok)
 		require.Equal(t, uint(5), act.PolicyID)
 		require.Equal(t, []uint{1, 2}, act.HostIDList)
@@ -317,10 +317,10 @@ func TestJiraOnFinalFailure(t *testing.T) {
 	})
 
 	t.Run("vuln job records nothing", func(t *testing.T) {
-		var recorded []fleet.ActivityDetails
+		var recorded []automdm.ActivityDetails
 		j := &Jira{
 			Log: slog.New(slog.DiscardHandler),
-			NewActivitySvc: &mock.MockActivityService{NewActivityFunc: func(_ context.Context, _ *activity_api.User, activity fleet.ActivityDetails) error {
+			NewActivitySvc: &mock.MockActivityService{NewActivityFunc: func(_ context.Context, _ *activity_api.User, activity automdm.ActivityDetails) error {
 				recorded = append(recorded, activity)
 				return nil
 			}},
@@ -336,9 +336,9 @@ func TestJiraOnFinalFailure(t *testing.T) {
 
 func TestJiraRunRecordsCreatedActivity(t *testing.T) {
 	ds := new(mock.Store)
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{Integrations: fleet.Integrations{
-			Jira: []*fleet.JiraIntegration{
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{Integrations: automdm.Integrations{
+			Jira: []*automdm.JiraIntegration{
 				{EnableFailingPolicies: true},
 			},
 		}}, nil
@@ -354,15 +354,15 @@ func TestJiraRunRecordsCreatedActivity(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("failing policy records created activity", func(t *testing.T) {
-		var recorded []fleet.ActivityDetails
+		var recorded []automdm.ActivityDetails
 		j := &Jira{
-			FleetURL:  "https://fleetdm.com",
-			Datastore: ds,
-			Log:       slog.New(slog.DiscardHandler),
+			AutoMDMURL: "https://automdm.com",
+			Datastore:  ds,
+			Log:        slog.New(slog.DiscardHandler),
 			NewClientFunc: func(opts *externalsvc.JiraOptions) (JiraClient, error) {
 				return client, nil
 			},
-			NewActivitySvc: &mock.MockActivityService{NewActivityFunc: func(_ context.Context, user *activity_api.User, activity fleet.ActivityDetails) error {
+			NewActivitySvc: &mock.MockActivityService{NewActivityFunc: func(_ context.Context, user *activity_api.User, activity automdm.ActivityDetails) error {
 				require.Nil(t, user)
 				recorded = append(recorded, activity)
 				return nil
@@ -370,10 +370,10 @@ func TestJiraRunRecordsCreatedActivity(t *testing.T) {
 		}
 
 		args := json.RawMessage(`{"failing_policy":{"policy_id":5,"policy_name":"p5","hosts":[{"id":1,"hostname":"h1"},{"id":2,"hostname":"h2"}]}}`)
-		require.NoError(t, j.Run(license.NewContext(context.Background(), &fleet.LicenseInfo{Tier: fleet.TierFree}), args))
+		require.NoError(t, j.Run(license.NewContext(context.Background(), &automdm.LicenseInfo{Tier: automdm.TierFree}), args))
 
 		require.Len(t, recorded, 1)
-		act, ok := recorded[0].(fleet.ActivityTypeRanAutomationTicket)
+		act, ok := recorded[0].(automdm.ActivityTypeRanAutomationTicket)
 		require.True(t, ok)
 		require.Equal(t, uint(5), act.PolicyID)
 		require.Equal(t, []uint{1, 2}, act.HostIDList)
@@ -389,35 +389,35 @@ func TestJiraQueueFailingPolicyJob(t *testing.T) {
 	logger := slog.New(slog.DiscardHandler)
 
 	t.Run("success global", func(t *testing.T) {
-		ds.NewJobFunc = func(ctx context.Context, job *fleet.Job) (*fleet.Job, error) {
+		ds.NewJobFunc = func(ctx context.Context, job *automdm.Job) (*automdm.Job, error) {
 			require.NotContains(t, string(*job.Args), `"team_id"`)
 			return job, nil
 		}
 		err := QueueJiraFailingPolicyJob(ctx, ds, logger,
-			&fleet.Policy{PolicyData: fleet.PolicyData{ID: 1, Name: "p1"}}, []fleet.PolicySetHost{{ID: 1, Hostname: "h1"}})
+			&automdm.Policy{PolicyData: automdm.PolicyData{ID: 1, Name: "p1"}}, []automdm.PolicySetHost{{ID: 1, Hostname: "h1"}})
 		require.NoError(t, err)
 		require.True(t, ds.NewJobFuncInvoked)
 		ds.NewJobFuncInvoked = false
 	})
 
 	t.Run("success team", func(t *testing.T) {
-		ds.NewJobFunc = func(ctx context.Context, job *fleet.Job) (*fleet.Job, error) {
+		ds.NewJobFunc = func(ctx context.Context, job *automdm.Job) (*automdm.Job, error) {
 			require.Contains(t, string(*job.Args), `"team_id"`)
 			return job, nil
 		}
 		err := QueueJiraFailingPolicyJob(ctx, ds, logger,
-			&fleet.Policy{PolicyData: fleet.PolicyData{ID: 1, Name: "p1", TeamID: ptr.Uint(2)}}, []fleet.PolicySetHost{{ID: 1, Hostname: "h1"}})
+			&automdm.Policy{PolicyData: automdm.PolicyData{ID: 1, Name: "p1", TeamID: ptr.Uint(2)}}, []automdm.PolicySetHost{{ID: 1, Hostname: "h1"}})
 		require.NoError(t, err)
 		require.True(t, ds.NewJobFuncInvoked)
 		ds.NewJobFuncInvoked = false
 	})
 
 	t.Run("failure", func(t *testing.T) {
-		ds.NewJobFunc = func(ctx context.Context, job *fleet.Job) (*fleet.Job, error) {
+		ds.NewJobFunc = func(ctx context.Context, job *automdm.Job) (*automdm.Job, error) {
 			return nil, io.EOF
 		}
 		err := QueueJiraFailingPolicyJob(ctx, ds, logger,
-			&fleet.Policy{PolicyData: fleet.PolicyData{ID: 1, Name: "p1"}}, []fleet.PolicySetHost{{ID: 1, Hostname: "h1"}})
+			&automdm.Policy{PolicyData: automdm.PolicyData{ID: 1, Name: "p1"}}, []automdm.PolicySetHost{{ID: 1, Hostname: "h1"}})
 		require.Error(t, err)
 		require.ErrorIs(t, err, io.EOF)
 		require.True(t, ds.NewJobFuncInvoked)
@@ -425,11 +425,11 @@ func TestJiraQueueFailingPolicyJob(t *testing.T) {
 	})
 
 	t.Run("no host", func(t *testing.T) {
-		ds.NewJobFunc = func(ctx context.Context, job *fleet.Job) (*fleet.Job, error) {
+		ds.NewJobFunc = func(ctx context.Context, job *automdm.Job) (*automdm.Job, error) {
 			return job, nil
 		}
 		err := QueueJiraFailingPolicyJob(ctx, ds, logger,
-			&fleet.Policy{PolicyData: fleet.PolicyData{ID: 1, Name: "p1"}}, []fleet.PolicySetHost{})
+			&automdm.Policy{PolicyData: automdm.PolicyData{ID: 1, Name: "p1"}}, []automdm.PolicySetHost{})
 		require.NoError(t, err)
 		require.False(t, ds.NewJobFuncInvoked)
 		ds.NewJobFuncInvoked = false
@@ -455,11 +455,11 @@ func TestJiraRunClientUpdate(t *testing.T) {
 	ds := new(mock.Store)
 
 	var globalCount int
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
 		// failing policies is globally enabled
 		globalCount++
-		return &fleet.AppConfig{Integrations: fleet.Integrations{
-			Jira: []*fleet.JiraIntegration{
+		return &automdm.AppConfig{Integrations: automdm.Integrations{
+			Jira: []*automdm.JiraIntegration{
 				{ProjectKey: "0", EnableFailingPolicies: true},
 				{ProjectKey: "1", EnableFailingPolicies: false}, // the team integration will use the project keys 1-3
 				{ProjectKey: "2", EnableFailingPolicies: false},
@@ -468,11 +468,11 @@ func TestJiraRunClientUpdate(t *testing.T) {
 		}}, nil
 	}
 
-	teamCfg := &fleet.TeamLite{
+	teamCfg := &automdm.TeamLite{
 		ID: 123,
-		Config: fleet.TeamConfigLite{
-			Integrations: fleet.TeamIntegrations{
-				Jira: []*fleet.TeamJiraIntegration{
+		Config: automdm.TeamConfigLite{
+			Integrations: automdm.TeamIntegrations{
+				Jira: []*automdm.TeamJiraIntegration{
 					{ProjectKey: "1", EnableFailingPolicies: true},
 				},
 			},
@@ -480,7 +480,7 @@ func TestJiraRunClientUpdate(t *testing.T) {
 	}
 
 	var teamCount int
-	ds.TeamLiteFunc = func(ctx context.Context, tid uint) (*fleet.TeamLite, error) {
+	ds.TeamLiteFunc = func(ctx context.Context, tid uint) (*automdm.TeamLite, error) {
 		teamCount++
 
 		if tid != 123 {
@@ -494,12 +494,12 @@ func TestJiraRunClientUpdate(t *testing.T) {
 		if jira0.ProjectKey == "1" {
 			// the second time we change the project key
 			jira0.ProjectKey = "2"
-			teamCfg.Config.Integrations.Jira = []*fleet.TeamJiraIntegration{&jira0}
+			teamCfg.Config.Integrations.Jira = []*automdm.TeamJiraIntegration{&jira0}
 		} else if jira0.ProjectKey == "2" {
 			// the third time we disable it altogether
 			jira0.ProjectKey = "3"
 			jira0.EnableFailingPolicies = false
-			teamCfg.Config.Integrations.Jira = []*fleet.TeamJiraIntegration{&jira0}
+			teamCfg.Config.Integrations.Jira = []*automdm.TeamJiraIntegration{&jira0}
 		}
 		return &curCfg, nil
 	}
@@ -507,9 +507,9 @@ func TestJiraRunClientUpdate(t *testing.T) {
 	var projectKeys []string
 	var clients []*mockJiraClient
 	jiraJob := &Jira{
-		FleetURL:  "http://example.com",
-		Datastore: ds,
-		Log:       slog.New(slog.DiscardHandler),
+		AutoMDMURL: "http://example.com",
+		Datastore:  ds,
+		Log:        slog.New(slog.DiscardHandler),
 		NewClientFunc: func(opts *externalsvc.JiraOptions) (JiraClient, error) {
 			// keep track of project keys received in calls to NewClientFunc
 			projectKeys = append(projectKeys, opts.ProjectKey)
@@ -517,12 +517,12 @@ func TestJiraRunClientUpdate(t *testing.T) {
 			clients = append(clients, client)
 			return client, nil
 		},
-		NewActivitySvc: &mock.MockActivityService{NewActivityFunc: func(_ context.Context, _ *activity_api.User, _ fleet.ActivityDetails) error {
+		NewActivitySvc: &mock.MockActivityService{NewActivityFunc: func(_ context.Context, _ *activity_api.User, _ automdm.ActivityDetails) error {
 			return nil
 		}},
 	}
 
-	ctx := license.NewContext(context.Background(), &fleet.LicenseInfo{Tier: fleet.TierFree})
+	ctx := license.NewContext(context.Background(), &automdm.LicenseInfo{Tier: automdm.TierFree})
 	// run it globally - it is enabled and will not change
 	err := jiraJob.Run(ctx, json.RawMessage(`{"failing_policy":{"policy_id": 1, "policy_name": "test-policy", "hosts": []}}`))
 	require.NoError(t, err)

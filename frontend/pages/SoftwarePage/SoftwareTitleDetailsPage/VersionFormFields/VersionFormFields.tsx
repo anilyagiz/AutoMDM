@@ -80,7 +80,7 @@ export const validateVersionForm = (
   if (!trimmed) {
     errors.name = "Enter a version name";
   } else if (!checkNameUniqueness(trimmed)) {
-    errors.name = "A version with this name already exists on this fleet";
+    errors.name = "A version with this name already exists on this team";
   }
 
   // Android configuration must be a valid JSON object (the API strict-decodes
@@ -220,8 +220,8 @@ interface IVersionFormFieldsProps {
   /** Display name of the app, used in the auto-update help text. */
   appDisplayName: string;
   labels: ILabelSummary[];
-  /** Fleet id. Passed to the shared `CategoriesSelector` so it can load the
-   * fleet's self-service categories dynamically (undefined falls back to the
+  /** Team id. Passed to the shared `CategoriesSelector` so it can load the
+   * team's self-service categories dynamically (undefined falls back to the
    * hardcoded list). */
   teamId: number;
   /** Click handler for the Category section's "Preview end user experience"
@@ -419,7 +419,7 @@ const VersionFormFields = ({
         labelInfoBanner={
           isWebApp ? undefined : (
             <InfoBanner icon="info">
-              If multiple versions target the same host, Fleet will deploy the
+              If multiple versions target the same host, AutoMDM will deploy the
               one that was added first.
               <br />
               Want to roll out a new version to multiple hosts?{" "}

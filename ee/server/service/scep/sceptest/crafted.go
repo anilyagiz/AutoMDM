@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	scepserver "github.com/fleetdm/fleet/v4/server/mdm/scep/server"
+	scepserver "github.com/anilyagiz/automdm/v4/server/mdm/scep/server"
 	"github.com/smallstep/pkcs7"
 	smallstepscep "github.com/smallstep/scep"
 	"github.com/stretchr/testify/require"

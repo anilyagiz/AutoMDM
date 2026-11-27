@@ -1,12 +1,12 @@
 // Package redis_config_etag implements the Redis-backed store for osquery
 // config ETags — the persistence half of the config "SHORT CIRCUIT" that lets
-// Fleet answer a config check-in as "unchanged" without building the
+// AutoMDM answer a config check-in as "unchanged" without building the
 // config (and therefore without any database reads).
 //
 // # Record families and cache modes
 //
 // Two record families exist, selected per request by cache mode (see
-// fleet.ConfigETagStore and Service.GetClientConfigWithETag):
+// automdm.ConfigETagStore and Service.GetClientConfigWithETag):
 //
 //   - SHARED records, one per (scope, platform): used when the host's
 //     effective report scope (global ∪ team) has NO label-scoped reports, so
@@ -18,7 +18,7 @@
 //
 // # Why a plain "delete the ETag on change" scheme is NOT correct
 //
-// Fleet builds the osquery config through two stacked PER-INSTANCE in-memory
+// AutoMDM builds the osquery config through two stacked PER-INSTANCE in-memory
 // caches:
 //
 //  1. cached_mysql (server/datastore/cached_mysql): AppConfig (1s TTL),
@@ -75,7 +75,7 @@
 // build that STARTED before the membership commit, or read a lagging MySQL
 // replica after it, can publish a pre-change ETag AFTER the DEL. The
 // deployment fence cannot gate this (membership persistence is continuous at
-// fleet scale; arming a global fence would keep it armed forever), so each
+// team scale; arming a global fence would keep it armed forever), so each
 // InvalidateHost also arms a PER-HOST publish quarantine
 // (DefaultHostQuarantineTTL) that SetHostIfNoFence honors. The DEL and the
 // quarantine SET are ONE Lua script: a pipeline is not atomic, and a publish
@@ -100,8 +100,8 @@
 // The loader is a cheap deployment-level query, but a Redis miss must not
 // become one database query per concurrent config request — and the miss window
 // widens exactly when the database is degraded. The gate therefore uses
-// NON-BLOCKING leader election (one CAS flag per Fleet instance): the
-// winner runs the loader, and losers return fleet.ErrConfigETagGateLoading
+// NON-BLOCKING leader election (one CAS flag per AutoMDM instance): the
+// winner runs the loader, and losers return automdm.ErrConfigETagGateLoading
 // immediately rather than waiting or querying. Callers treat that as "state
 // unknown" and bypass for the request. A blocking singleflight is deliberately
 // avoided: it would couple config-request latency to a possibly-hung query.
@@ -122,7 +122,7 @@
 //	{cfgetag}:fence                            deployment write fence, TTL 3m
 //	{cfgetag}:scope-modes                      cached gate answer, TTL 5m
 //
-// Only the two record families carry the Fleet version, and the split is not
+// Only the two record families carry the AutoMDM version, and the split is not
 // cosmetic — it follows from whether the key's VALUE is version-dependent or
 // its MEANING is version-independent:
 //
@@ -151,12 +151,12 @@
 // ops are single tiny GET/SET/INCR/DELs, so the single-slot hot spot is
 // negligible at realistic check-in rates.
 //
-// # Fleet version namespacing
+// # AutoMDM version namespacing
 //
 // The motivating case for versioning record keys (see Key layout above) is that
 // a server upgrade can change the rendered config body with ZERO datastore
 // writes, so no invalidation hook would ever fire. Redis state outlives the
-// deploy even though Fleet instances scale to zero, so without namespacing the
+// deploy even though AutoMDM instances scale to zero, so without namespacing the
 // new version would read the old version's validators as current. Orphaned
 // old-version keys are garbage-collected by their TTLs.
 //
@@ -165,7 +165,7 @@
 // Structured logs are the PRIMARY mechanism (bounded state-write logs here;
 // per-request debug fields at the endpoint). Prometheus counters are ALSO
 // registered — they cost nanoseconds and a few dozen time series, appear on
-// the existing /metrics endpoint, and NOTHING depends on them (Fleet's
+// the existing /metrics endpoint, and NOTHING depends on them (AutoMDM's
 // /metrics has no known production consumers; if it is retired these are
 // deleted with no design impact).
 //

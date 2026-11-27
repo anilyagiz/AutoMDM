@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # Spotify installs per user and has no machine-wide mode, so installing it from this
 # script's SYSTEM context would put it in SYSTEM's profile where nobody can launch
@@ -7,7 +7,7 @@
 # earlier version of this script left in SYSTEM's profile.
 
 $exeFilePath = "${env:INSTALLER_PATH}"
-$taskName = "fleet-install-spotify"
+$taskName = "automdm-install-spotify"
 $taskRunning = 267009  # SCHED_S_TASK_RUNNING
 $exitCode = 0
 $stageDir = $null
@@ -74,7 +74,7 @@ try {
     $profilePath = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\$sid" -ErrorAction SilentlyContinue).ProfileImagePath
     if ($profilePath) { Stop-AppProcesses (Join-Path $profilePath "AppData\Roaming\Spotify") }
 
-    # Fleet's installer directory is not readable by that user, so stage a copy in
+    # AutoMDM's installer directory is not readable by that user, so stage a copy in
     # a new folder only SYSTEM and Administrators can write to.
     $security = New-Object System.Security.AccessControl.DirectorySecurity
     $security.SetAccessRuleProtection($true, $false)
@@ -83,7 +83,7 @@ try {
             (New-Object System.Security.Principal.SecurityIdentifier($grant[0])), $grant[1],
             "ContainerInherit, ObjectInherit", "None", "Allow")))
     }
-    $stageDir = Join-Path $env:ProgramData ("fleet-spotify-" + [guid]::NewGuid().ToString("N"))
+    $stageDir = Join-Path $env:ProgramData ("automdm-spotify-" + [guid]::NewGuid().ToString("N"))
     [void][System.IO.Directory]::CreateDirectory($stageDir, $security)
     $stagedInstaller = Join-Path $stageDir (Split-Path $exeFilePath -Leaf)
     Copy-Item -LiteralPath $exeFilePath -Destination $stagedInstaller -Force -ErrorAction Stop

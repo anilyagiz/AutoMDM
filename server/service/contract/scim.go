@@ -1,9 +1,9 @@
 package contract
 
-import "github.com/fleetdm/fleet/v4/server/fleet"
+import "github.com/anilyagiz/automdm/v4/server/automdm"
 
 type ScimDetailsResponse struct {
-	fleet.ScimDetails
+	automdm.ScimDetails
 	Err error `json:"-"`
 }
 

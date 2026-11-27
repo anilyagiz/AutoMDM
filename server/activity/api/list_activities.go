@@ -20,18 +20,18 @@ type ListActivitiesService interface {
 
 // Activity represents a recorded activity in the audit log.
 type Activity struct {
-	ID             uint             `json:"id,omitempty" db:"id"`
-	UUID           string           `json:"uuid,omitempty" db:"uuid"`
-	CreatedAt      time.Time        `json:"created_at" db:"created_at"`
-	Type           string           `json:"type" db:"activity_type"`
-	ActorID        *uint            `json:"actor_id,omitempty" db:"user_id"`
-	ActorFullName  *string          `json:"actor_full_name,omitempty" db:"name"`
-	ActorEmail     *string          `json:"actor_email,omitempty" db:"user_email"`
-	ActorGravatar  *string          `json:"actor_gravatar,omitempty" db:"gravatar_url"`
-	ActorAPIOnly   *bool            `json:"actor_api_only,omitempty" db:"api_only"`
-	Streamed       *bool            `json:"-" db:"streamed"`
-	FleetInitiated bool             `json:"fleet_initiated" db:"fleet_initiated"`
-	Details        *json.RawMessage `json:"details" db:"details"`
+	ID               uint             `json:"id,omitempty" db:"id"`
+	UUID             string           `json:"uuid,omitempty" db:"uuid"`
+	CreatedAt        time.Time        `json:"created_at" db:"created_at"`
+	Type             string           `json:"type" db:"activity_type"`
+	ActorID          *uint            `json:"actor_id,omitempty" db:"user_id"`
+	ActorFullName    *string          `json:"actor_full_name,omitempty" db:"name"`
+	ActorEmail       *string          `json:"actor_email,omitempty" db:"user_email"`
+	ActorGravatar    *string          `json:"actor_gravatar,omitempty" db:"gravatar_url"`
+	ActorAPIOnly     *bool            `json:"actor_api_only,omitempty" db:"api_only"`
+	Streamed         *bool            `json:"-" db:"streamed"`
+	AutoMDMInitiated bool             `json:"automdm_initiated" db:"automdm_initiated"`
+	Details          *json.RawMessage `json:"details" db:"details"`
 }
 
 // AuthzType implements the authorization type for activities.

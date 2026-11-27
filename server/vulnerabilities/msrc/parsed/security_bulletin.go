@@ -5,7 +5,7 @@ import (
 	"errors"
 	"os"
 
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"golang.org/x/exp/slices"
 )
 

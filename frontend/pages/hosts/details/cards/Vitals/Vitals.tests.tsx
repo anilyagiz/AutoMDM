@@ -697,7 +697,7 @@ describe("Card vitals cap", () => {
     const rendered = getRenderedVitals(container);
 
     expect(rendered).toEqual([
-      "Added to Fleet",
+      "Added to AutoMDM",
       "Disk space available",
       "Hardware model",
       "MDM server URL",
@@ -713,7 +713,7 @@ describe("Card vitals cap", () => {
     const { container } = renderCard("ipados");
 
     expect(getRenderedVitals(container)).toEqual([
-      "Added to Fleet",
+      "Added to AutoMDM",
       "Disk space available",
       "Hardware model",
       "MDM server URL",
@@ -955,7 +955,7 @@ describe("Agent data", () => {
       platform: "darwin",
       orbit_version: "1.2.0",
       osquery_version: "5.5.1",
-      fleet_desktop_version: "1.0.0",
+      automdm_desktop_version: "1.0.0",
     });
 
     const { user } = customRender(<Vitals vitalsData={mockHost} />);
@@ -968,17 +968,17 @@ describe("Agent data", () => {
     await waitFor(() => {
       expect(screen.getByText(/osquery: 5.5.1/)).toBeInTheDocument();
       expect(screen.getByText(/Orbit: 1.2.0/)).toBeInTheDocument();
-      expect(screen.getByText(/Fleet Desktop: 1.0.0/)).toBeInTheDocument();
+      expect(screen.getByText(/AutoMDM Desktop: 1.0.0/)).toBeInTheDocument();
     });
   });
 
-  it("omit fleet desktop from tooltip if no fleet desktop version", async () => {
+  it("omit automdm desktop from tooltip if no automdm desktop version", async () => {
     const customRender = createCustomRenderer({});
     const mockHost = createMockHost({
       platform: "darwin",
       orbit_version: "1.2.0",
       osquery_version: "5.5.1",
-      fleet_desktop_version: DEFAULT_EMPTY_CELL_VALUE,
+      automdm_desktop_version: DEFAULT_EMPTY_CELL_VALUE,
     });
 
     const { user } = customRender(<Vitals vitalsData={mockHost} />);
@@ -990,7 +990,7 @@ describe("Agent data", () => {
     await waitFor(() => {
       expect(screen.getByText(/osquery: 5.5.1/)).toBeInTheDocument();
       expect(screen.getByText(/Orbit: 1.2.0/)).toBeInTheDocument();
-      expect(screen.queryByText(/Fleet desktop:/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/AutoMDM desktop:/i)).not.toBeInTheDocument();
     });
   });
 
@@ -1001,7 +1001,7 @@ describe("Agent data", () => {
       platform: "darwin",
       orbit_version: DEFAULT_EMPTY_CELL_VALUE,
       osquery_version: osqVersion,
-      fleet_desktop_version: DEFAULT_EMPTY_CELL_VALUE,
+      automdm_desktop_version: DEFAULT_EMPTY_CELL_VALUE,
     });
 
     const { user } = customRender(<Vitals vitalsData={mockHost} />);
@@ -1011,22 +1011,22 @@ describe("Agent data", () => {
 
     await user.hover(screen.getByText(osqVersion));
     expect(screen.queryByText(/Orbit/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Fleet Desktop/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/AutoMDM Desktop/i)).not.toBeInTheDocument();
   });
 
-  it("for Chromebooks, render Agent header with osquery_version that is the fleetd chrome version and no tooltip", async () => {
+  it("for Chromebooks, render Agent header with osquery_version that is the automdmd chrome version and no tooltip", async () => {
     const customRender = createCustomRenderer({});
     const mockHost = createMockHost({
       platform: "chrome",
-      osquery_version: "fleetd-chrome 1.2.0",
+      osquery_version: "automdmd-chrome 1.2.0",
     });
 
-    const fleetdChromeVersion = mockHost.osquery_version as string;
+    const automdmdChromeVersion = mockHost.osquery_version as string;
 
     const { user } = customRender(<Vitals vitalsData={mockHost} />);
 
     expect(screen.getByText("Agent")).toBeInTheDocument();
-    await user.hover(screen.getByText(new RegExp(fleetdChromeVersion, "i")));
+    await user.hover(screen.getByText(new RegExp(automdmdChromeVersion, "i")));
     expect(screen.queryByText("Osquery")).not.toBeInTheDocument();
   });
 });
@@ -1124,7 +1124,7 @@ describe("Disk space field visibility", () => {
 
 describe("Custom host vitals", () => {
   const customHostVitals = [
-    { custom_host_vital_id: 1, name: "Asset tag", value: "FLEET-001234" },
+    { custom_host_vital_id: 1, name: "Asset tag", value: "AUTOMDM-001234" },
     { custom_host_vital_id: 2, name: "Purchase date", value: "" },
   ];
 
@@ -1136,7 +1136,7 @@ describe("Custom host vitals", () => {
     );
 
     expect(screen.getByText("Asset tag")).toBeInTheDocument();
-    expect(screen.getByText("FLEET-001234")).toBeInTheDocument();
+    expect(screen.getByText("AUTOMDM-001234")).toBeInTheDocument();
     const purchaseDateLabel = screen.getByText("Purchase date");
     // The vital with no value falls back to the default empty cell value.
     expect(purchaseDateLabel.nextElementSibling).toHaveTextContent(
@@ -1154,7 +1154,7 @@ describe("Custom host vitals", () => {
     expect(
       screen.queryByRole("button", { name: "Edit Asset tag" })
     ).not.toBeInTheDocument();
-    expect(screen.getByText("FLEET-001234")).toBeInTheDocument();
+    expect(screen.getByText("AUTOMDM-001234")).toBeInTheDocument();
   });
 
   it("renders an edit pencil next to the label and calls the edit handler on click", async () => {
@@ -1170,9 +1170,9 @@ describe("Custom host vitals", () => {
       />
     );
 
-    expect(screen.getByText("FLEET-001234")).toBeInTheDocument();
+    expect(screen.getByText("AUTOMDM-001234")).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "FLEET-001234" })
+      screen.queryByRole("button", { name: "AUTOMDM-001234" })
     ).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Edit Asset tag" }));
@@ -1395,7 +1395,7 @@ describe("Android vitals", () => {
     );
   });
 
-  it("falls back to the raw value for an enum member Fleet doesn't know", () => {
+  it("falls back to the raw value for an enum member AutoMDM doesn't know", () => {
     const { container } = renderAndroidCard(
       createMockAndroidHost({
         security_posture: "SOME_NEW_POSTURE" as never,
@@ -1685,7 +1685,7 @@ describe("Android vitals", () => {
     );
     expect(learnMore.closest("a")).toHaveAttribute(
       "href",
-      "https://fleetdm.com/learn-more-about/security-posture"
+      "https://automdm.com/learn-more-about/security-posture"
     );
   });
 

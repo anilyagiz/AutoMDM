@@ -813,7 +813,7 @@ const SoftwareSelfService = ({
           hostSoftware={selectedHostSWIpaInstallDetails}
           details={{
             hostDisplayName,
-            fleetInstallStatus: selectedHostSWIpaInstallDetails.status,
+            automdmInstallStatus: selectedHostSWIpaInstallDetails.status,
             appName: getDisplayedSoftwareName(
               selectedHostSWIpaInstallDetails.name,
               selectedHostSWIpaInstallDetails.display_name
@@ -845,7 +845,7 @@ const SoftwareSelfService = ({
         <VppInstallDetailsModal
           deviceAuthToken={deviceToken}
           details={{
-            fleetInstallStatus: selectedVPPInstallDetails.status,
+            automdmInstallStatus: selectedVPPInstallDetails.status,
             hostDisplayName,
             appName: getDisplayedSoftwareName(
               selectedVPPInstallDetails.name,

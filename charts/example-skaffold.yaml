@@ -3,30 +3,30 @@ kind: Config
 deploy:
   helm:
     releases:
-    - name: fleet
+    - name: automdm
       imageStrategy:
         helm: {}
-      chartPath: ./fleet
+      chartPath: ./automdm
       valuesFiles:
-      - ./fleet/values.yaml
+      - ./automdm/values.yaml
       recreatePods: false
       setValues:
         image.pullPolicy: Never
         imageTag: main
         replicas: 1
-        hostName: fleet.example.com
-        database.secretName: fleet-mysql
-        database.address: fleet-mysql:3306
-        cache.secretName: fleet-redis
-        cache.address: fleet-valkey:6379
+        hostName: automdm.example.com
+        database.secretName: automdm-mysql
+        database.address: automdm-mysql:3306
+        cache.secretName: automdm-redis
+        cache.address: automdm-valkey:6379
         ingress.enabled: true
-        ingress.hosts[0].host: fleet.example.com
-        ingress.tls[0].secretName: fleet-web-tls
-        ingress.tls[0].hosts: ["fleet.example.com"]
-        fleet.tls.enabled: false
+        ingress.hosts[0].host: automdm.example.com
+        ingress.tls[0].secretName: automdm-web-tls
+        ingress.tls[0].hosts: ["automdm.example.com"]
+        automdm.tls.enabled: false
         mysql.enabled: true
-        mysql.auth.username: fleet
-        mysql.auth.database: fleet
+        mysql.auth.username: automdm
+        mysql.auth.database: automdm
         redis.enabled: true
         valkey.auth.enabled: false
         valkey.replica.enabled: false

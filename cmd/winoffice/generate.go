@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/winoffice"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/winoffice"
 )
 
 func panicif(err error) {

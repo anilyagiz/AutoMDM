@@ -1,4 +1,4 @@
-# Please don't delete. This script is used in the guide here: https://fleetdm.com/guides/scripts
+# Please don't delete. This script is used in the guide here: https://automdm.com/guides/scripts
 
 # Error if not run as admin
 if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
@@ -6,7 +6,7 @@ if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdent
     exit 1
 }
 
-$serviceName = "Fleet osquery"
+$serviceName = "AutoMDM osquery"
 $regPath = "HKLM:\SYSTEM\CurrentControlSet\Services\$serviceName"
 
 $service = Get-CimInstance -ClassName Win32_Service -Filter "Name='$serviceName'"
@@ -16,12 +16,12 @@ if (-not $service) {
 }
 
 if ($service.PathName -match '\s--') {
-    # Legacy install: fleetd's settings are command-line flags on the service ImagePath.
+    # Legacy install: automdmd's settings are command-line flags on the service ImagePath.
     # Replace any existing --enable-scripts flag with --enable-scripts="True"
     $modifiedPath = $service.PathName -replace '--enable-scripts(=".*?")?', '--enable-scripts="True"'
     sc.exe config "$serviceName" binPath= "$modifiedPath"
 } else {
-    # Current install: fleetd's settings are per-service environment variables in the
+    # Current install: automdmd's settings are per-service environment variables in the
     # service's Environment (REG_MULTI_SZ) value, applied by Windows when the service starts.
     $environment = @((Get-ItemProperty -Path $regPath -Name Environment -ErrorAction SilentlyContinue).Environment | Where-Object { $_ })
     $environment = @($environment | Where-Object { $_ -notmatch '^ORBIT_ENABLE_SCRIPTS=' }) + 'ORBIT_ENABLE_SCRIPTS=True'

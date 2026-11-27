@@ -18,9 +18,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/nvd/tools/cvefeed/nvd/schema"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/nvd/tools/wfn"
 	"github.com/facebookincubator/flog"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/nvd/tools/cvefeed/nvd/schema"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/nvd/tools/wfn"
 )
 
 // Matcher returns an object which knows how to match attributes

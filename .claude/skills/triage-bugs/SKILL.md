@@ -1,6 +1,6 @@
 ---
 name: triage-bugs
-description: Triage the bug Inbox on a Fleet product group's GitHub project board the way the Engineering Manager does at standup. Finds Inbox bugs already fixed by merged PRs, asks openers for missing expected behavior or repro steps, moves bugs that need a design call to Drafting for the Product Designer, and moves complete technical bugs to Ready. Use for "/triage-bugs", "triage the board", "clean up the Inbox", "go through the aging bugs", "which Inbox bugs are already fixed", "move the bugs along", or any request to route bugs on a fleetdm `#g-*` board (e.g. https://github.com/orgs/fleetdm/projects/109). Don't use it to investigate or fix a single bug.
+description: Triage the bug Inbox on an AutoMDM product group's GitHub project board the way the Engineering Manager does at standup. Finds Inbox bugs already fixed by merged PRs, asks openers for missing expected behavior or repro steps, moves bugs that need a design call to Drafting for the Product Designer, and moves complete technical bugs to Ready. Use for "/triage-bugs", "triage the board", "clean up the Inbox", "go through the aging bugs", "which Inbox bugs are already fixed", "move the bugs along", or any request to route bugs on an automdm `#g-*` board (e.g. https://github.com/orgs/fleetdm/projects/109). Don't use it to investigate or fix a single bug.
 argument-hint: "[board URL or project number] [sweep|asks|drafting|ready|all]"
 effort: high
 ---
@@ -28,7 +28,7 @@ Each rule has a reason.
 - **No QA reproduction requests by default.** Many groups reproduce bugs themselves, even though the handbook describes `:reproduce`. Don't add the label or write "I'll send this to QA" unless the user says their group sends bugs to QA. Asking the opener to re-check their own report is fine.
 - **Assignees change only on a Drafting move**, where the PD gets assigned. Designers work from Drafting items assigned to them, so an unassigned bug there sits untouched. Ready needs no assignee: engineers pick unassigned bugs from Ready. Don't unassign anyone.
 - **Milestones only matter for `~unreleased bug`.** Those need the release that ships the feature and the feature's engineer (`handbook/engineering/releases.md`). Flag gaps in the report. Don't set them unless asked.
-- **No customer names** in anything posted. Labels like `customer-*` and `#fleet-at-*` channel names count.
+- **No customer names** in anything posted. Labels like `customer-*` and `#automdm-at-*` channel names count.
 - **Re-snapshot before every report and every apply.** The user moves and closes bugs by hand between turns. Mention anything that moved without you ("You moved #N to Ready").
 
 
@@ -43,9 +43,9 @@ $S bugs 109 | cut -f2 | sort | uniq -c   # bug count per column
 $S move 109 drafting 51493 53393  # move one or more issues
 ```
 
-Avoid `gh project`. It runs on GraphQL, which parallel agents can exhaust in minutes, and then it fails with "unknown owner type". When `gh issue view` fails the same way, read issues with `gh api repos/fleetdm/fleet/issues/N` and `.../comments`.
+Avoid `gh project`. It runs on GraphQL, which parallel agents can exhaust in minutes, and then it fails with "unknown owner type". When `gh issue view` fails the same way, read issues with `gh api repos/automdm/automdm/issues/N` and `.../comments`.
 
-Read an issue with `gh issue view N -R fleetdm/fleet --json title,author,assignees,labels,milestone,createdAt,body,comments`. Strip `<!-- -->` template comments before judging whether a section is filled in.
+Read an issue with `gh issue view N -R automdm/automdm --json title,author,assignees,labels,milestone,createdAt,body,comments`. Strip `<!-- -->` template comments before judging whether a section is filled in.
 
 
 ## Workflow
@@ -75,7 +75,7 @@ List IN FLIGHT bugs with their open PR. They may belong in In progress, but leav
 
 ### 3. Classify what's left
 
-Read each remaining bug's body, comments, and recent timeline (`gh api repos/fleetdm/fleet/issues/N/timeline`), then put it in exactly one bucket. Bugs bounce between groups through label changes with no comment, so the last comment alone can be stale.
+Read each remaining bug's body, comments, and recent timeline (`gh api repos/automdm/automdm/issues/N/timeline`), then put it in exactly one bucket. Bugs bounce between groups through label changes with no comment, so the last comment alone can be stale.
 
 | Bucket | When | Action |
 |---|---|---|
@@ -117,10 +117,10 @@ Every comment is one to three sentences. It's plain language, with no file paths
 After approval:
 
 ```bash
-gh issue comment N -R fleetdm/fleet --body-file draft_N.md
+gh issue comment N -R automdm/automdm --body-file draft_N.md
 $S move <project> drafting N...          # or: ready N...
-gh issue edit N -R fleetdm/fleet --add-assignee <pd>     # Drafting moves only
-gh issue edit N -R fleetdm/fleet --body-file body_N.md   # approved body edits only
+gh issue edit N -R automdm/automdm --add-assignee <pd>     # Drafting moves only
+gh issue edit N -R automdm/automdm --body-file body_N.md   # approved body edits only
 ```
 
 Write each comment to a file and post it with `--body-file`, so quoting and backticks survive. Then re-snapshot and check each bug's column and assignees on GitHub.
@@ -135,4 +135,4 @@ Lead with the Inbox count before and after, then what moved. For example: "Inbox
 - Flag `~unreleased bug` items moved to Ready that are missing a milestone or assignee.
 - Give the date to close asked bugs with no reply. The handbook allows one week, so that's the ask date plus 7 days.
 
-If the user asks how many bugs they've closed, filter the issue `closed` events by their login (`gh api repos/fleetdm/fleet/issues/N/events`).
+If the user asks how many bugs they've closed, filter the issue `closed` events by their login (`gh api repos/automdm/automdm/issues/N/events`).

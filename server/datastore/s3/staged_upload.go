@@ -1,6 +1,6 @@
 package s3
 
-import "github.com/fleetdm/fleet/v4/server/config"
+import "github.com/anilyagiz/automdm/v4/server/config"
 
 // stagedUploadPrefix must not string-prefix match softwareInstallersPrefix,
 // bootstrapPackagePrefix, or softwareTitleIconPrefix (or vice versa):

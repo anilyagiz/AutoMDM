@@ -9,7 +9,7 @@
       "end": "2026-09-10T04:12:24Z"
     }
   },
-  "fleet_server": {
+  "automdm_server": {
     "cpu_utilization": {
       "Average": 63.09,
       "Minimum": 59.21,
@@ -385,7 +385,7 @@
       "data_coverage": 1
     }
   },
-  "fleet_server_errors": {
+  "automdm_server_errors": {
     "error_count": 0.0,
     "sample_messages": []
   },

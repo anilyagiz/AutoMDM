@@ -28,7 +28,7 @@ tmp/
 .vscode
 .idea
 
-# fleetdm.com website (uses its own formatting conventions)
+# automdm.com website (uses its own formatting conventions)
 website/
 
 # certain frontend files that are not meant to be formatted

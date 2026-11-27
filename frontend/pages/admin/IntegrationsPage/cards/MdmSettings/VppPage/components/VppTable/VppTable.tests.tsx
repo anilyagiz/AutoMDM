@@ -55,14 +55,14 @@ describe("VppTable", () => {
     expect(within(rows[1]).getByText("---")).toBeInTheDocument();
   });
 
-  it("renders Added to Fleet as a relative time, and --- when null", () => {
+  it("renders Added to AutoMDM as a relative time, and --- when null", () => {
     renderTable([
       createToken({ id: 1, org_name: "Zeta" }),
       createToken({ id: 2, org_name: "Acme", created_at: null }),
     ]);
 
     expect(
-      screen.getByRole("columnheader", { name: "Added to Fleet" })
+      screen.getByRole("columnheader", { name: "Added to AutoMDM" })
     ).toBeInTheDocument();
     const rows = screen.getAllByRole("row").slice(1);
     expect(within(rows[0]).getByText(/second|minute|ago/i)).toBeInTheDocument();
@@ -80,7 +80,7 @@ describe("VppTable", () => {
     ).toBeInTheDocument();
   });
 
-  it("disables only Edit fleets in GitOps mode", async () => {
+  it("disables only Edit teams in GitOps mode", async () => {
     const { user } = renderTable([createToken()], true);
 
     await user.click(screen.getByText("Actions"));
@@ -90,7 +90,7 @@ describe("VppTable", () => {
         .getByText(label)
         .closest("[aria-disabled]")
         ?.getAttribute("aria-disabled") === "true";
-    expect(isDisabled("Edit fleets")).toBe(true);
+    expect(isDisabled("Edit teams")).toBe(true);
     expect(isDisabled("Renew")).toBe(false);
     expect(isDisabled("Delete")).toBe(false);
   });

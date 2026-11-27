@@ -20,7 +20,7 @@ const FailedEnrollmentProfileRenewalActivityItem = ({
       hideCancel
     >
       <span>
-        <b>Fleet</b> enrollment profile renewal failed for this host.{" "}
+        <b>AutoMDM</b> enrollment profile renewal failed for this host.{" "}
       </span>
     </ActivityItem>
   );

@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # GoAnywhere OpenPGP Studio ships as an install4j installer (bundled JRE). -q
 # runs it unattended; suppressUnattendedReboot avoids an automatic reboot.
@@ -8,7 +8,7 @@ $exeFilePath = "${env:INSTALLER_PATH}"
 
 try {
 
-# Setup exits with code 1 while OpenPGP Studio is running. Fleet runs as SYSTEM,
+# Setup exits with code 1 while OpenPGP Studio is running. AutoMDM runs as SYSTEM,
 # outside the user's session, so it can't ask the app to close: stop it
 # first. Unsaved changes are lost.
 $running = Get-Process -ErrorAction SilentlyContinue |

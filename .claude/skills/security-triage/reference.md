@@ -33,8 +33,8 @@ EOF
 
 # Advisories in every state
 for s in triage draft published closed; do
-  gh api "/repos/fleetdm/fleet/security-advisories?state=$s&per_page=100" \
-    -q ".[] | \"$s \(.ghsa_id) \(.severity) \(.created_at[:10]) \(.author.login // \"fleet\") | \(.summary)\""
+  gh api "/repos/automdm/automdm/security-advisories?state=$s&per_page=100" \
+    -q ".[] | \"$s \(.ghsa_id) \(.severity) \(.created_at[:10]) \(.author.login // \"automdm\") | \(.summary)\""
 done | grep -iE "<term1>|<term2>"
 
 # Bugbop, both programs, all statuses
@@ -56,7 +56,7 @@ git grep -n "<function or route>" origin/main -- server/ ee/
 git log --format='%h %ad %s' --date=short -S "<guard or check text>" origin/main -- <file>   # when was it added or removed
 # First tag whose file contains the fix. Backports are cherry-picks with new SHAs, so check file contents, not ancestry, and include patch tags.
 git fetch -q --tags origin
-for t in $(git tag -l 'fleet-v4.*' | sort -V); do git show "${t}:<file>" 2>/dev/null | grep -q '<marker from the fix>' && echo "in $t"; done | head -5
+for t in $(git tag -l 'automdm-v4.*' | sort -V); do git show "${t}:<file>" 2>/dev/null | grep -q '<marker from the fix>' && echo "in $t"; done | head -5
 ```
 
 Write `${t}:path`, not `$t:path`; zsh reads `$t:s` as a history modifier.
@@ -79,25 +79,25 @@ Then the boards:
 
 ```bash
 # Group board (number from the product groups handbook page)
-gh project item-add <board-number> --owner fleetdm --url https://github.com/fleetdm/security/issues/<n>
+gh project item-add <board-number> --owner automdm --url https://github.com/fleetdm/security/issues/<n>
 
 # :help-security board (113): the `security` label adds the card; set it to Ready
-gh project item-list 113 --owner fleetdm --format json --limit 500 \
+gh project item-list 113 --owner automdm --format json --limit 500 \
   | python3 -c 'import sys,json; [print(i["id"]) for i in json.load(sys.stdin)["items"] if i.get("content",{}).get("number")==<n> and i["content"].get("repository","").endswith("/security")]'
 gh project item-edit --project-id PVT_kwDOBDAnic4BgFfY --id <item-id> \
-  --field-id "$(gh project field-list 113 --owner fleetdm --format json | python3 -c 'import sys,json; print(next(f["id"] for f in json.load(sys.stdin)["fields"] if f["name"]=="Status"))')" \
+  --field-id "$(gh project field-list 113 --owner automdm --format json | python3 -c 'import sys,json; print(next(f["id"] for f in json.load(sys.stdin)["fields"] if f["name"]=="Status"))')" \
   --single-select-option-id 64ac26b5
 ```
 
 If `gh project` fails with a scope error: `gh auth refresh -s project -h github.com`.
 
-Product group board numbers and EMs are on the [product groups page](https://fleetdm.com/handbook/company/product-groups); look them up rather than trusting a copy. If the page doesn't say which group owns the affected surface, use the `CODEOWNERS` entry for the files involved. If that is also silent, ask the CTO rather than guessing.
+Product group board numbers and EMs are on the [product groups page](https://automdm.com/handbook/company/product-groups); look them up rather than trusting a copy. If the page doesn't say which group owns the affected surface, use the `CODEOWNERS` entry for the files involved. If that is also silent, ask the CTO rather than guessing.
 
 ## GitHub security advisory submissions
 
 ```bash
 # Read one
-gh api /repos/fleetdm/fleet/security-advisories/<ghsa> -q '{summary,severity,cvss,state,credits,vulnerabilities,description}'
+gh api /repos/automdm/automdm/security-advisories/<ghsa> -q '{summary,severity,cvss,state,credits,vulnerabilities,description}'
 
 # Accept it and set everything in one PATCH (severity OR cvss_vector_string, never both)
 cat > /tmp/adv.json <<'EOF'
@@ -105,15 +105,15 @@ cat > /tmp/adv.json <<'EOF'
  "cvss_vector_string":"CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:L/I:N/A:N",
  "cwe_ids":["CWE-200"],
  "credits":[{"login":"<reporter-login>","type":"reporter"}],
- "vulnerabilities":[{"package":{"ecosystem":"go","name":"github.com/fleetdm/fleet"},
+ "vulnerabilities":[{"package":{"ecosystem":"go","name":"github.com/anilyagiz/automdm"},
                      "vulnerable_version_range":"<= 4.94.0","patched_versions":""}],
- "description":"<templated description, see any recently published fleetdm/fleet advisory for the sections>"}
+ "description":"<templated description, see any recently published automdm/automdm advisory for the sections>"}
 EOF
-gh api -X PATCH /repos/fleetdm/fleet/security-advisories/<ghsa> --input /tmp/adv.json
+gh api -X PATCH /repos/automdm/automdm/security-advisories/<ghsa> --input /tmp/adv.json
 
 # Reject a submission that isn't a vulnerability or duplicates an accepted one (comment in the UI first)
-gh api -X PATCH /repos/fleetdm/fleet/security-advisories/<ghsa> -f state=closed
-gh api /repos/fleetdm/fleet/security-advisories/<ghsa> -q '{ghsa_id,state,severity}'   # PATCH can silently no-op; always re-read
+gh api -X PATCH /repos/automdm/automdm/security-advisories/<ghsa> -f state=closed
+gh api /repos/automdm/automdm/security-advisories/<ghsa> -q '{ghsa_id,state,severity}'   # PATCH can silently no-op; always re-read
 ```
 
 Rules:
@@ -137,7 +137,7 @@ python3 "$BUGBOP" POST /reports/<id>/close_as_duplicate   # same program only; u
 
 The script needs `BUGBOP_TOKEN` in the environment; never paste the token into chat.
 
-A report whose bug was fixed and shipped before it arrived, with the canonical tracker outside Bugbop (email disclosure, advisory submission), can't be closed as `duplicate`. Set `not_applicable`, severity to Fleet's rating of the underlying bug, and an internal note naming the tracker and advisory. Use the "Fixed before the report" reply.
+A report whose bug was fixed and shipped before it arrived, with the canonical tracker outside Bugbop (email disclosure, advisory submission), can't be closed as `duplicate`. Set `not_applicable`, severity to AutoMDM's rating of the underlying bug, and an internal note naming the tracker and advisory. Use the "Fixed before the report" reply.
 
 Bugbop's "Suspected duplicate" banner matches titles, not root causes. Two reports with similar titles can be different bugs. Read both before clicking.
 

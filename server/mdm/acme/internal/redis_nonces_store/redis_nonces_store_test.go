@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/datastore/redis/redistest"
-	"github.com/fleetdm/fleet/v4/server/mdm/acme"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis/redistest"
+	"github.com/anilyagiz/automdm/v4/server/mdm/acme"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/stretchr/testify/require"
 )
 

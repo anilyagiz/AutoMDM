@@ -5,7 +5,7 @@ import {
   aggregateInstallStatusCounts,
   SCRIPT_PACKAGE_SOURCES,
   ISoftwarePackage,
-  IFleetMaintainedVersion,
+  IAutoMDMMaintainedVersion,
 } from "interfaces/software";
 import URL_PREFIX from "router/url_prefix";
 import endpoints from "utilities/endpoints";
@@ -77,24 +77,24 @@ export interface ILibraryVersionRow {
 }
 
 /** Builds the Library accordion rows for a title: one row per cached
- * Fleet-maintained version (the active row badged from the pin, the rest dimmed
+ * AutoMDM-maintained version (the active row badged from the pin, the rest dimmed
  * rollback candidates), or a single active un-badged row for installer types
  * that have no cached-version list. The `latest`/`pinned`/`majorVersion` badges
  * are FMA-semantics — custom packages have no version history to pin against,
  * so no badge is rendered. */
 export const buildLibraryVersionRows = ({
-  fleetMaintainedVersions,
+  automdmMaintainedVersions,
   activeVersion,
   pinnedVersion,
   addedTimestamp,
 }: {
-  fleetMaintainedVersions?: IFleetMaintainedVersion[] | null;
+  automdmMaintainedVersions?: IAutoMDMMaintainedVersion[] | null;
   activeVersion: string | null;
   pinnedVersion?: string | null;
   addedTimestamp: string;
 }): ILibraryVersionRow[] => {
-  if (fleetMaintainedVersions?.length) {
-    return fleetMaintainedVersions.map((v) => ({
+  if (automdmMaintainedVersions?.length) {
+    return automdmMaintainedVersions.map((v) => ({
       ...v,
       ...deriveAccordionRowState({
         rowVersion: v.version,

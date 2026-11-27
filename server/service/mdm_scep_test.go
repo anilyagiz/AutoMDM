@@ -7,11 +7,11 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/pkg/mdm/mdmtest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/scep/depot"
-	scepserver "github.com/fleetdm/fleet/v4/server/mdm/scep/server"
-	"github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/pkg/mdm/mdmtest"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/scep/depot"
+	scepserver "github.com/anilyagiz/automdm/v4/server/mdm/scep/server"
+	"github.com/anilyagiz/automdm/v4/server/mock"
 	"github.com/jmoiron/sqlx"
 	"github.com/smallstep/scep"
 	"github.com/stretchr/testify/assert"
@@ -25,10 +25,10 @@ func TestSCEPPKIOperationUndecryptableEnvelope(t *testing.T) {
 	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(caKey)})
 
 	ds := new(mock.Store)
-	ds.GetAllMDMConfigAssetsByNameFunc = func(_ context.Context, _ []fleet.MDMAssetName, _ sqlx.QueryerContext) (map[fleet.MDMAssetName]fleet.MDMConfigAsset, error) {
-		return map[fleet.MDMAssetName]fleet.MDMConfigAsset{
-			fleet.MDMAssetCACert: {Name: fleet.MDMAssetCACert, Value: certPEM},
-			fleet.MDMAssetCAKey:  {Name: fleet.MDMAssetCAKey, Value: keyPEM},
+	ds.GetAllMDMConfigAssetsByNameFunc = func(_ context.Context, _ []automdm.MDMAssetName, _ sqlx.QueryerContext) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
+		return map[automdm.MDMAssetName]automdm.MDMConfigAsset{
+			automdm.MDMAssetCACert: {Name: automdm.MDMAssetCACert, Value: certPEM},
+			automdm.MDMAssetCAKey:  {Name: automdm.MDMAssetCAKey, Value: keyPEM},
 		}, nil
 	}
 
@@ -58,6 +58,6 @@ func TestSCEPPKIOperationRejectsMalformedBody(t *testing.T) {
 
 	_, err := svc.PKIOperation(t.Context(), []byte("hello"))
 
-	var badReq *fleet.BadRequestError
+	var badReq *automdm.BadRequestError
 	require.ErrorAs(t, err, &badReq)
 }

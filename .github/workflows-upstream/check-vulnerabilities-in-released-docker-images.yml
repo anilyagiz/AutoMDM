@@ -50,28 +50,28 @@ jobs:
       - name: Get last 5 minor releases
         id: get_latest_releases
         run: |
-          echo "FLEET_LATEST_RELEASES=$(go run ./tools/github-releases --last-minor-releases 5)" >> $GITHUB_OUTPUT
+          echo "AUTOMDM_LATEST_RELEASES=$(go run ./tools/github-releases --last-minor-releases 5)" >> $GITHUB_OUTPUT
 
       - name: Pull docker images
         run: |
-          RELEASES="${{ steps.get_latest_releases.outputs.FLEET_LATEST_RELEASES }}"
+          RELEASES="${{ steps.get_latest_releases.outputs.AUTOMDM_LATEST_RELEASES }}"
           for version in $RELEASES; do
-            docker pull fleetdm/fleet:$version
+            docker pull automdm/automdm:$version
           done
 
-      - name: List fleet VEX files
-        id: generate_fleet_vex_files
+      - name: List automdm VEX files
+        id: generate_automdm_vex_files
         run: |
           # Trivy requires a separate --vex flag per source file; a comma-separated
           # value is treated as one path. Emit the output pre-formatted as repeated
           # `--vex=...` tokens so the trivy step can splat it directly.
-          VEX_FLAGS=$(ls -1 ./security/vex/fleet/ | while IFS= read -r line; do printf -- '--vex=./security/vex/fleet/%s ' "$line"; done)
+          VEX_FLAGS=$(ls -1 ./security/vex/automdm/ | while IFS= read -r line; do printf -- '--vex=./security/vex/automdm/%s ' "$line"; done)
           echo "$VEX_FLAGS"
-          echo "FLEET_VEX_FLAGS=$VEX_FLAGS" >> $GITHUB_OUTPUT
+          echo "AUTOMDM_VEX_FLAGS=$VEX_FLAGS" >> $GITHUB_OUTPUT
 
       # We use the trivy command and not the github action because it doesn't support loading
       # VEX files yet and looks like we can't run the action on multiple images.
-      - name: Run trivy vulnerability scanner on fleetdm/fleet images
+      - name: Run trivy vulnerability scanner on automdm/automdm images
         env:
           # Fallbacks: each registry throttles anonymous pulls per source IP, which
           # GitHub-hosted runners share with every other tenant.
@@ -85,34 +85,34 @@ jobs:
           mv trivy ..
           cd ..
           chmod +x ./trivy
-          RELEASES="${{ steps.get_latest_releases.outputs.FLEET_LATEST_RELEASES }}"
+          RELEASES="${{ steps.get_latest_releases.outputs.AUTOMDM_LATEST_RELEASES }}"
           for version in $RELEASES; do
             unset trivy_exit_code
             ./trivy image \
               --exit-code=1 \
               --pkg-types=os,library \
               --severity=CRITICAL \
-              ${{ steps.generate_fleet_vex_files.outputs.FLEET_VEX_FLAGS }} \
+              ${{ steps.generate_automdm_vex_files.outputs.AUTOMDM_VEX_FLAGS }} \
               --format=json \
-              --output=trivy-results-fleet-$version.json \
-              fleetdm/fleet:$version || trivy_exit_code=$?
+              --output=trivy-results-automdm-$version.json \
+              automdm/automdm:$version || trivy_exit_code=$?
             # Print a human-readable table to the job log for debugging.
-            ./trivy convert --format table trivy-results-fleet-$version.json
+            ./trivy convert --format table trivy-results-automdm-$version.json
             if [ -n "${trivy_exit_code:-}" ]; then
               exit "$trivy_exit_code"
             fi
           done
 
-      - name: List fleetctl VEX files
-        id: generate_fleetctl_vex_files
+      - name: List automdmctl VEX files
+        id: generate_automdmctl_vex_files
         run: |
-          # See the fleet VEX step above for why we emit pre-formatted --vex flags.
-          VEX_FLAGS=$(ls -1 ./security/vex/fleetctl/ | while IFS= read -r line; do printf -- '--vex=./security/vex/fleetctl/%s ' "$line"; done)
+          # See the team VEX step above for why we emit pre-formatted --vex flags.
+          VEX_FLAGS=$(ls -1 ./security/vex/automdmctl/ | while IFS= read -r line; do printf -- '--vex=./security/vex/automdmctl/%s ' "$line"; done)
           echo "$VEX_FLAGS"
-          echo "FLEETCTL_VEX_FLAGS=$VEX_FLAGS" >> $GITHUB_OUTPUT
+          echo "AUTOMDMCTL_VEX_FLAGS=$VEX_FLAGS" >> $GITHUB_OUTPUT
 
       # We use the trivy command and not the github action because it doesn't support loading VEX files yet.
-      - name: Run trivy vulnerability scanner on latest released fleetdm/fleetctl image
+      - name: Run trivy vulnerability scanner on latest released automdm/automdmctl image
         env:
           # Fallbacks: each registry throttles anonymous pulls per source IP, which
           # GitHub-hosted runners share with every other tenant.
@@ -123,12 +123,12 @@ jobs:
             --exit-code=1 \
             --pkg-types=os,library \
             --severity=CRITICAL \
-            ${{ steps.generate_fleetctl_vex_files.outputs.FLEETCTL_VEX_FLAGS }} \
+            ${{ steps.generate_automdmctl_vex_files.outputs.AUTOMDMCTL_VEX_FLAGS }} \
             --format=json \
-            --output=trivy-results-fleetctl.json \
-            fleetdm/fleetctl:latest || trivy_exit_code=$?
+            --output=trivy-results-automdmctl.json \
+            automdm/automdmctl:latest || trivy_exit_code=$?
           # Print a human-readable table to the job log for debugging.
-          ./trivy convert --format table trivy-results-fleetctl.json
+          ./trivy convert --format table trivy-results-automdmctl.json
           exit "${trivy_exit_code:-0}"
 
       - name: Extract CVE list for Slack notification
@@ -175,7 +175,7 @@ jobs:
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "⚠️ Check vulnerabilities in released docker images failed.\nhttps://github.com/fleetdm/fleet/actions/runs/${{  github.run_id }}\n\n*Detected CVEs:*\n${{ steps.extract_cves.outputs.cve_list }}"
+                    "text": "⚠️ Check vulnerabilities in released docker images failed.\nhttps://github.com/anilyagiz/automdm/actions/runs/${{  github.run_id }}\n\n*Detected CVEs:*\n${{ steps.extract_cves.outputs.cve_list }}"
                   }
                 }
               ]

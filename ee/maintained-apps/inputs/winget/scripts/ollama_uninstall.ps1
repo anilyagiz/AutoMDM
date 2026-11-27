@@ -7,7 +7,7 @@
 
 $displayNamePattern = '^Ollama version '
 $publisher = "Ollama"
-$taskName = "fleet-uninstall-ollama"
+$taskName = "automdm-uninstall-ollama"
 $taskRunning = 267009  # SCHED_S_TASK_RUNNING
 $timeoutSeconds = 300
 $exitCode = 0

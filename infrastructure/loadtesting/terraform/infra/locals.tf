@@ -1,15 +1,15 @@
 locals {
-  customer    = "fleet-${terraform.workspace}"
-  prefix      = "fleet-${terraform.workspace}"
-  fleet_image = "${aws_ecr_repository.fleet.repository_url}:${var.tag}-${split(":", data.docker_registry_image.dockerhub.sha256_digest)[1]}"
+  customer    = "automdm-${terraform.workspace}"
+  prefix      = "automdm-${terraform.workspace}"
+  automdm_image = "${aws_ecr_repository.automdm.repository_url}:${var.tag}-${split(":", data.docker_registry_image.dockerhub.sha256_digest)[1]}"
 
   # Tracing is off unless enable_otel is set.
   otel_environment_variables = var.enable_otel ? {
-    OTEL_SERVICE_NAME             = "fleet"
+    OTEL_SERVICE_NAME             = "automdm"
     OTEL_RESOURCE_ATTRIBUTES      = "deployment.environment.name=${terraform.workspace},deployment.environment=${terraform.workspace}"
     OTEL_EXPORTER_OTLP_ENDPOINT   = "http://${data.terraform_remote_state.signoz[0].outputs.otel_collector_endpoint}"
-    FLEET_LOGGING_TRACING_ENABLED = "true"
-    FLEET_LOGGING_TRACING_TYPE    = "opentelemetry"
+    AUTOMDM_LOGGING_TRACING_ENABLED = "true"
+    AUTOMDM_LOGGING_TRACING_TYPE    = "opentelemetry"
   } : {}
 
   # Single label under loadtest.fleetdm.com so the *.loadtest.fleetdm.com
@@ -22,7 +22,7 @@ locals {
   mdm_apple_environment_variables = merge(
     {
       # Skip verification of Apple certificates for OTA enrollments.
-      FLEET_DEV_MDM_APPLE_DISABLE_DEVICE_INFO_CERT_VERIFY = "1"
+      AUTOMDM_DEV_MDM_APPLE_DISABLE_DEVICE_INFO_CERT_VERIFY = "1"
     },
     # Push traffic must never reach real Apple infrastructure, which would
     # rate-limit us for pushing to thousands of fake device UUIDs. Either it
@@ -32,61 +32,61 @@ locals {
     # initAppleMDMPushService to a nopPusher before the push URL is ever read,
     # so setting both would silently make the mock unreachable.
     var.enable_apple_mdm ? {
-      FLEET_DEV_MDM_APPLE_PUSH_SERVER_URL = "http://${local.apple_apns_mock_hostname}"
+      AUTOMDM_DEV_MDM_APPLE_PUSH_SERVER_URL = "http://${local.apple_apns_mock_hostname}"
       } : {
-      FLEET_DEV_MDM_APPLE_DISABLE_PUSH = "1"
+      AUTOMDM_DEV_MDM_APPLE_DISABLE_PUSH = "1"
     }
   )
 
   # Orbit and osquery config notifications require the transport, so they are switched together.
   websocket_environment_variables = var.enable_websocket_transport ? {
-    FLEET_WEBSOCKET_TRANSPORT_ENABLED      = "true"
-    FLEET_WEBSOCKET_ORBIT_CONFIG_ENABLED   = "true"
-    FLEET_WEBSOCKET_OSQUERY_CONFIG_ENABLED = "true"
+    AUTOMDM_WEBSOCKET_TRANSPORT_ENABLED      = "true"
+    AUTOMDM_WEBSOCKET_ORBIT_CONFIG_ENABLED   = "true"
+    AUTOMDM_WEBSOCKET_OSQUERY_CONFIG_ENABLED = "true"
   } : {}
 
   extra_environment_variables = merge(
     {
-      CLOUDWATCH_NAMESPACE = "fleet-loadtest-migration"
+      CLOUDWATCH_NAMESPACE = "automdm-loadtest-migration"
       CLOUDWATCH_REGION    = "us-east-2"
       # PROMETHEUS_SCRAPE_URL = "http://localhost:8080/metrics"
 
-      FLEET_VULNERABILITIES_DATABASES_PATH    = "/home/fleet"
-      FLEET_LOGGING_JSON                      = "true"
-      FLEET_LOGGING_DEBUG                     = "true"
-      FLEET_OSQUERY_STATUS_LOG_PLUGIN         = "filesystem"
-      FLEET_FILESYSTEM_STATUS_LOG_FILE        = "/dev/null"
-      FLEET_OSQUERY_RESULT_LOG_PLUGIN         = "filesystem"
-      FLEET_FILESYSTEM_RESULT_LOG_FILE        = "/dev/null"
-      FLEET_MYSQL_MAX_OPEN_CONNS              = tostring(var.mysql_max_open_conns)
-      FLEET_MYSQL_READ_REPLICA_MAX_OPEN_CONNS = tostring(var.mysql_max_open_conns)
+      AUTOMDM_VULNERABILITIES_DATABASES_PATH    = "/home/automdm"
+      AUTOMDM_LOGGING_JSON                      = "true"
+      AUTOMDM_LOGGING_DEBUG                     = "true"
+      AUTOMDM_OSQUERY_STATUS_LOG_PLUGIN         = "filesystem"
+      AUTOMDM_FILESYSTEM_STATUS_LOG_FILE        = "/dev/null"
+      AUTOMDM_OSQUERY_RESULT_LOG_PLUGIN         = "filesystem"
+      AUTOMDM_FILESYSTEM_RESULT_LOG_FILE        = "/dev/null"
+      AUTOMDM_MYSQL_MAX_OPEN_CONNS              = tostring(var.mysql_max_open_conns)
+      AUTOMDM_MYSQL_READ_REPLICA_MAX_OPEN_CONNS = tostring(var.mysql_max_open_conns)
       # 30 min: recycle connections often enough that pooled reader connections re-spread across replicas after a
       # replica reboot/failover, and proactively drop bad idles.
-      FLEET_MYSQL_CONN_MAX_LIFETIME              = "1800"
-      FLEET_MYSQL_READ_REPLICA_CONN_MAX_LIFETIME = "1800"
-      FLEET_REDIS_MAX_OPEN_CONNS                 = tostring(var.redis_max_open_conns)
-      FLEET_REDIS_MAX_IDLE_CONNS                 = tostring(var.redis_max_open_conns)
-      FLEET_AUTH_SSO_SESSION_VALIDITY_PERIOD     = "15m"
-      FLEET_MDM_SSO_RATE_LIMIT_PER_MINUTE        = "500"
-      FLEET_SERVER_GZIP_RESPONSES                = "true"
-      FLEET_DEV_ANDROID_PROXY_ENDPOINT           = "http://${resource.aws_lb.internal.dns_name}/"
+      AUTOMDM_MYSQL_CONN_MAX_LIFETIME              = "1800"
+      AUTOMDM_MYSQL_READ_REPLICA_CONN_MAX_LIFETIME = "1800"
+      AUTOMDM_REDIS_MAX_OPEN_CONNS                 = tostring(var.redis_max_open_conns)
+      AUTOMDM_REDIS_MAX_IDLE_CONNS                 = tostring(var.redis_max_open_conns)
+      AUTOMDM_AUTH_SSO_SESSION_VALIDITY_PERIOD     = "15m"
+      AUTOMDM_MDM_SSO_RATE_LIMIT_PER_MINUTE        = "500"
+      AUTOMDM_SERVER_GZIP_RESPONSES                = "true"
+      AUTOMDM_DEV_ANDROID_PROXY_ENDPOINT           = "http://${resource.aws_lb.internal.dns_name}/"
 
       # Load TLS Certificate for RDS Authentication
-      FLEET_MYSQL_TLS_CA                  = local.cert_path
-      FLEET_MYSQL_READ_REPLICA_TLS_CA     = local.cert_path
-      FLEET_MYSQL_READ_REPLICA_TLS_CONFIG = "custom"
+      AUTOMDM_MYSQL_TLS_CA                  = local.cert_path
+      AUTOMDM_MYSQL_READ_REPLICA_TLS_CA     = local.cert_path
+      AUTOMDM_MYSQL_READ_REPLICA_TLS_CONFIG = "custom"
 
       # Skip backfilling S3 config with dev values for load testing
-      FLEET_DEV_SKIP_S3_CONFIG = "1"
+      AUTOMDM_DEV_SKIP_S3_CONFIG = "1"
 
-      FLEET_MDM_APPLE_SCEP_STATIC_CHALLENGE_ENABLED = "true"
+      AUTOMDM_MDM_APPLE_SCEP_STATIC_CHALLENGE_ENABLED = "true"
     },
     local.otel_environment_variables,
     local.mdm_apple_environment_variables,
     local.websocket_environment_variables
   )
   extra_secrets = {
-    FLEET_LICENSE_KEY = data.aws_secretsmanager_secret.license.arn
+    AUTOMDM_LICENSE_KEY = data.aws_secretsmanager_secret.license.arn
   }
   # Private Subnets from VPN VPC
   vpn_cidr_blocks = [
@@ -145,13 +145,13 @@ locals {
     #     options = {
     #       "awslogs-group"         = local.customer
     #       "awslogs-region"        = data.aws_region.current.region
-    #       "awslogs-stream-prefix" = "fleet-prometheus-exporter"
+    #       "awslogs-stream-prefix" = "automdm-prometheus-exporter"
     #     }
     #   }
     #   environment = [
     #     {
     #       name  = "CLOUDWATCH_NAMESPACE"
-    #       value = "fleet-loadtest"
+    #       value = "automdm-loadtest"
     #     },
     #     {
     #       name  = "CLOUDWATCH_REGION"

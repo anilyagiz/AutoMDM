@@ -72,7 +72,7 @@ import { ILabel } from "interfaces/label";
 import { IListSort } from "interfaces/list_options";
 import {
   canTriggerAPNSPing,
-  FLEET_FILEVAULT_PROFILE_DISPLAY_NAME,
+  AUTOMDM_FILEVAULT_PROFILE_DISPLAY_NAME,
   isPersonalEnrollment,
 } from "interfaces/mdm";
 import {
@@ -130,7 +130,7 @@ import { timeAgo } from "utilities/date_format";
 import {
   getHostOSDisplayName,
   normalizeEmptyValues,
-  wrapFleetHelper,
+  wrapAutoMDMHelper,
 } from "utilities/helpers";
 import local from "utilities/local";
 import permissions from "utilities/permissions";
@@ -210,9 +210,9 @@ const tripleHeightCardClass = `${baseClass}__card--triple-height`;
 
 export const REFETCH_HOST_DETAILS_POLLING_INTERVAL = 2000; // 2 seconds
 const ANDROID_SW_INSTALL_LEARN_MORE_LINK =
-  "https://fleetdm.com/learn-more-about/install-google-play-apps";
+  "https://automdm.com/learn-more-about/install-google-play-apps";
 const NIXOS_PACKAGE_MANAGEMENT_LINK =
-  "https://fleetdm.com/learn-more-about/nixos-package-management";
+  "https://automdm.com/learn-more-about/nixos-package-management";
 const SOFTWARE_LIBRARY_UNSUPPORTED_HEADER =
   "Software library is currently not supported on this host";
 
@@ -241,7 +241,7 @@ const getSoftwareLibraryUnsupportedState = (platform: HostPlatform) => {
       header: SOFTWARE_LIBRARY_UNSUPPORTED_HEADER,
       info: (
         <>
-          Installing software on NixOS hosts happens outside of Fleet.{" "}
+          Installing software on NixOS hosts happens outside of AutoMDM.{" "}
           <CustomLink
             text="Learn more"
             url={NIXOS_PACKAGE_MANAGEMENT_LINK}
@@ -274,7 +274,7 @@ interface IHostDetailsProps {
       query?: string;
       order_key?: string;
       order_direction?: "asc" | "desc";
-      fleet_id?: string;
+      team_id?: string;
       show_mdm_status?: string;
     };
     search?: string;
@@ -323,11 +323,11 @@ const HostDetailsPage = ({
     isMacMdmEnabledAndConfigured,
   } = useContext(AppContext);
 
-  // The host list the user came from, so leaving this page keeps their fleet and filters
+  // The host list the user came from, so leaving this page keeps their team and filters
   const hostsListPath =
     filteredHostsPath ||
     getPathWithQueryParams(PATHS.MANAGE_HOSTS, {
-      fleet_id: location.query.fleet_id,
+      team_id: location.query.team_id,
     });
 
   const handlePageError = useErrorHandler();
@@ -539,7 +539,7 @@ const HostDetailsPage = ({
   >("teams", () => teamAPI.loadAll(), {
     enabled: !!hostIdFromURL && !!isPremiumTier,
     retry: false,
-    select: (data: ILoadTeamsResponse) => data.fleets,
+    select: (data: ILoadTeamsResponse) => data.teams,
   });
 
   const { data: macadmins, refetch: refetchMacadmins } = useQuery(
@@ -847,8 +847,8 @@ const HostDetailsPage = ({
     }
   );
 
-  const mdmConfig = host?.fleet_id
-    ? teams?.find((t) => t.id === host.fleet_id)?.mdm
+  const mdmConfig = host?.team_id
+    ? teams?.find((t) => t.id === host.team_id)?.mdm
     : config?.mdm;
 
   // We must check if the host has a UUID. Not-yet-enrolled hosts synced over from ABM will have
@@ -932,8 +932,8 @@ const HostDetailsPage = ({
     ? upcomingMDMCommands
     : undefined;
 
-  const featuresConfig = host?.fleet_id
-    ? teams?.find((t) => t.id === host.fleet_id)?.features
+  const featuresConfig = host?.team_id
+    ? teams?.find((t) => t.id === host.team_id)?.features
     : config?.features;
 
   // undefined = still resolving. Global config must be loaded, and for a
@@ -941,7 +941,7 @@ const HostDetailsPage = ({
   // teams-load failure falls back to the global setting rather than spinning
   // forever; a missing team-level override is treated as "not disabled".
   const teamFeaturesResolved =
-    !host?.fleet_id || teams !== undefined || isTeamsError;
+    !host?.team_id || teams !== undefined || isTeamsError;
   const uptimeGloballyEnabled =
     config?.features?.historical_data?.uptime ?? true;
   const uptimeCollectionEnabled: boolean | undefined =
@@ -965,7 +965,7 @@ const HostDetailsPage = ({
   // Updates title that shows up on browser tabs
   useEffect(() => {
     if (host?.display_name) {
-      // e.g., Rachel's Macbook Pro | Hosts | Fleet
+      // e.g., Rachel's Macbook Pro | Hosts | AutoMDM
       document.title = `${host?.display_name} | Hosts | ${DOCUMENT_TITLE_SUFFIX}`;
     } else {
       document.title = `Hosts | ${DOCUMENT_TITLE_SUFFIX}`;
@@ -992,17 +992,17 @@ const HostDetailsPage = ({
     (policy: IHostPolicy) => {
       router.push({
         pathname: PATHS.POLICY_DETAILS(policy.id),
-        // Inherited policies have no fleet, so keep the host's fleet, or No
-        // fleet (0) for an unassigned host. Free tier has no fleets.
+        // Inherited policies have no team, so keep the host's team, or No
+        // team (0) for an unassigned host. Free tier has no teams.
         query: {
-          fleet_id: isPremiumTier
-            ? policy.fleet_id ?? host?.fleet_id ?? 0
+          team_id: isPremiumTier
+            ? policy.team_id ?? host?.team_id ?? 0
             : undefined,
         },
         state: { hostSearch: host?.display_name },
       });
     },
-    [router, isPremiumTier, host?.fleet_id, host?.display_name]
+    [router, isPremiumTier, host?.team_id, host?.display_name]
   );
 
   const toggleBootstrapPackageModal = useCallback(() => {
@@ -1081,7 +1081,7 @@ const HostDetailsPage = ({
       // Trigger APNS ping independently
       if (
         canTriggerAPNSPing(host) &&
-        permissions.isGlobalOrTeamObserverOrAbove(currentUser, host.fleet_id)
+        permissions.isGlobalOrTeamObserverOrAbove(currentUser, host.team_id)
       ) {
         hostAPI.apnsPing(host.id).catch((error) => {
           notify.error("Failed to send APNS ping", { response: error });
@@ -1192,7 +1192,7 @@ const HostDetailsPage = ({
       details,
       created_at,
       actor_full_name,
-      fleet_initiated,
+      automdm_initiated,
     }: IShowActivityDetailsData) => {
       switch (type) {
         case "ran_script":
@@ -1201,7 +1201,7 @@ const HostDetailsPage = ({
         case "installed_software":
           if (details?.command_uuid) {
             setIpaPackageInstallDetails({
-              fleetInstallStatus: details?.status as SoftwareInstallUninstallStatus,
+              automdmInstallStatus: details?.status as SoftwareInstallUninstallStatus,
               hostDisplayName:
                 host?.display_name || details?.host_display_name || "",
               appName: getDisplayedSoftwareName(
@@ -1211,7 +1211,7 @@ const HostDetailsPage = ({
               commandUuid: details?.command_uuid,
               failureReason: details?.failure_reason,
               actorFullName: actor_full_name,
-              fleetInitiated: fleet_initiated,
+              automdmInitiated: automdm_initiated,
               selfService: details?.self_service,
               activityCreatedAt: created_at,
             });
@@ -1255,7 +1255,7 @@ const HostDetailsPage = ({
               details?.software_title,
               details?.software_display_name
             ),
-            fleetInstallStatus: (details?.status ||
+            automdmInstallStatus: (details?.status ||
               "pending_install") as SoftwareInstallUninstallStatus,
             commandUuid: details?.command_uuid || "",
             // FIXME: It seems like the backend is not using the correct display name when it returns
@@ -1266,7 +1266,7 @@ const HostDetailsPage = ({
             platform: details?.host_platform || host?.platform,
             failureReason: details?.failure_reason,
             actorFullName: actor_full_name,
-            fleetInitiated: fleet_initiated,
+            automdmInitiated: automdm_initiated,
             selfService: details?.self_service,
             vppTokenLocation: details?.vpp_token?.location,
             activityCreatedAt: created_at,
@@ -1390,7 +1390,7 @@ const HostDetailsPage = ({
 
       const successMessage =
         teamId === null
-          ? `Host successfully removed from fleets.`
+          ? `Host successfully removed from teams.`
           : `Host successfully transferred to  ${team.name}.`;
 
       notify.success(successMessage);
@@ -1425,12 +1425,12 @@ const HostDetailsPage = ({
     [host]
   );
 
-  // enforce-only (macOS disk encryption on, escrow off) fleets never receive
+  // enforce-only (macOS disk encryption on, escrow off) teams never receive
   // keys, so the disk encryption control drops its key phrasing
-  const hostFleetMdm = host?.fleet_id
-    ? teams?.find((team) => team.id === host.fleet_id)?.mdm
+  const hostAutoMDMMdm = host?.team_id
+    ? teams?.find((team) => team.id === host.team_id)?.mdm
     : config?.mdm;
-  const fleetDiskEncryptionSettings = getDiskEncryptionSettings(hostFleetMdm);
+  const automdmDiskEncryptionSettings = getDiskEncryptionSettings(hostAutoMDMMdm);
 
   const onSelectHostAction = (action: string) => {
     switch (action) {
@@ -1493,12 +1493,12 @@ const HostDetailsPage = ({
     }
 
     const diskEncryptionProfile = host.mdm.profiles?.find(
-      (p) => p.name === FLEET_FILEVAULT_PROFILE_DISPLAY_NAME
+      (p) => p.name === AUTOMDM_FILEVAULT_PROFILE_DISPLAY_NAME
     );
 
     return (
       <HostActionsDropdown
-        hostTeamId={host.fleet_id}
+        hostTeamId={host.team_id}
         onSelect={onSelectHostAction}
         hostPlatform={host.platform}
         hostCpuType={host.cpu_type}
@@ -1507,8 +1507,8 @@ const HostDetailsPage = ({
         hostMdmEnrollmentStatus={host.mdm.enrollment_status}
         isEncryptionKeyAvailable={host.mdm.encryption_key_available}
         isEncryptionKeyArchived={!!host.mdm.encryption_key_archived}
-        isConnectedToFleetMdm={host.mdm?.connected_to_fleet}
-        isDEPAssignedToFleet={host.dep_assigned_to_fleet}
+        isConnectedToAutoMDMMdm={host.mdm?.connected_to_automdm}
+        isDEPAssignedToAutoMDM={host.dep_assigned_to_automdm}
         hostScriptsEnabled={host.scripts_enabled}
         isRecoveryLockPasswordEnabled={
           mdmConfig?.macos_recovery_lock_password_enabled ?? false
@@ -1633,13 +1633,13 @@ const HostDetailsPage = ({
     hostPlatform: host?.platform,
     macDiskEncryptionStatus: host?.mdm.apple_settings?.disk_encryption,
     diskEncryptionActionRequired: host?.mdm.apple_settings?.action_required,
-    connectedToFleetMdm: host?.mdm.connected_to_fleet,
+    connectedToAutoMDMMdm: host?.mdm.connected_to_automdm,
     diskEncryptionOSSetting: host?.mdm.os_settings?.disk_encryption,
     diskIsEncrypted: host?.disk_encryption_enabled,
     diskEncryptionKeyAvailable: host?.mdm.encryption_key_available,
     lastMdmEnrolledAt: host?.last_mdm_enrolled_at,
     detailUpdatedAt: host?.detail_updated_at,
-    depAssignedToFleet: host?.dep_assigned_to_fleet || false,
+    depAssignedToAutoMDM: host?.dep_assigned_to_automdm || false,
     onlyAllowAppleBusinessEnrollment:
       config?.mdm.only_allow_apple_business_enrollment || false,
   });
@@ -1757,7 +1757,7 @@ const HostDetailsPage = ({
     const navPath = hostDetailsSubNav[i].pathname;
     router.push(
       getPathWithQueryParams(navPath, {
-        fleet_id: currentTeam?.id || location.query.fleet_id,
+        team_id: currentTeam?.id || location.query.team_id,
       })
     );
   };
@@ -1765,24 +1765,24 @@ const HostDetailsPage = ({
     const navPath = hostSoftwareSubNav[i].pathname;
     router.push(
       getPathWithQueryParams(navPath, {
-        fleet_id: currentTeam?.id || location.query.fleet_id,
+        team_id: currentTeam?.id || location.query.team_id,
       })
     );
   };
 
-  const isHostTeamAdmin = permissions.isTeamAdmin(currentUser, host?.fleet_id);
+  const isHostTeamAdmin = permissions.isTeamAdmin(currentUser, host?.team_id);
   const isHostTeamMaintainer = permissions.isTeamMaintainer(
     currentUser,
-    host?.fleet_id
+    host?.team_id
   );
   const isHostTeamTechnician = permissions.isTeamTechnician(
     currentUser,
-    host?.fleet_id
+    host?.team_id
   );
 
   const isHostTeamObserverPlus =
     !!currentUser &&
-    permissions.isObserverPlus(currentUser, host?.fleet_id ?? null);
+    permissions.isObserverPlus(currentUser, host?.team_id ?? null);
 
   // CTA permissions are checked against the host's specific team, not the
   // currently selected team in the nav. Must align with the /reports/new
@@ -1842,12 +1842,12 @@ const HostDetailsPage = ({
   // "My device" link points to that host's end-user My device page. The URL
   // embeds the device auth token so it acts as a credential, hence global
   // admin only. Also hide it on hosts that have no live end-user surface —
-  // no Fleet Desktop (so no token, and no page to load) or wiped.
+  // no AutoMDM Desktop (so no token, and no page to load) or wiped.
   const canViewMyDeviceLink =
     isGlobalAdmin &&
     canShowMyDeviceButton(
       host,
-      config?.fleet_desktop.sso_enabled ?? false,
+      config?.automdm_desktop.sso_enabled ?? false,
       isPremiumTier
     );
 
@@ -1896,7 +1896,7 @@ const HostDetailsPage = ({
                 onShowInventoryVersions={
                   onSetSelectedHostSWForInventoryVersions
                 }
-                hostTeamId={host.fleet_id || 0}
+                hostTeamId={host.team_id || 0}
                 hostMdmEnrollmentStatus={host.mdm.enrollment_status}
               />
               {isMacOSHost && macadmins?.munki?.version && (
@@ -1931,9 +1931,9 @@ const HostDetailsPage = ({
                   onShowInventoryVersions={
                     onSetSelectedHostSWForInventoryVersions
                   }
-                  hostTeamId={host.fleet_id || 0}
+                  hostTeamId={host.team_id || 0}
                   hostName={host.display_name}
-                  hostMDMEnrolled={host.mdm.connected_to_fleet}
+                  hostMDMEnrolled={host.mdm.connected_to_automdm}
                   isHostOnline={host.status === "online"}
                   refetchHostDetails={refetchHostDetails}
                   isHostDetailsPolling={showRefetchSpinner}
@@ -1955,7 +1955,7 @@ const HostDetailsPage = ({
               }}
               pathname={location.pathname}
               onShowInventoryVersions={onSetSelectedHostSWForInventoryVersions}
-              hostTeamId={host.fleet_id || 0}
+              hostTeamId={host.team_id || 0}
             />
             {isMacOSHost && macadmins?.munki?.version && (
               <MunkiIssuesCard
@@ -2123,7 +2123,7 @@ const HostDetailsPage = ({
                   <AgentOptionsCard
                     className={defaultCardClass}
                     osqueryData={osqueryData}
-                    wrapFleetHelper={wrapFleetHelper}
+                    wrapAutoMDMHelper={wrapAutoMDMHelper}
                     isChromeOS={host?.platform === "chrome"}
                   />
                 )}
@@ -2190,8 +2190,8 @@ const HostDetailsPage = ({
                     }
                     canResendHostNameTemplate={canResendProfiles}
                     canAddControls={canAddControls}
-                    isConnectedToFleetMdm={!!host.mdm?.connected_to_fleet}
-                    teamId={host.fleet_id}
+                    isConnectedToAutoMDMMdm={!!host.mdm?.connected_to_automdm}
+                    teamId={host.team_id}
                     resendRequest={resendProfile}
                     resendCertificateRequest={resendCertificate}
                     rotateRecoveryLockPassword={rotateRecoveryLockPassword}
@@ -2202,7 +2202,7 @@ const HostDetailsPage = ({
                     installRequest={installProfile}
                     uninstallRequest={uninstallProfile}
                     isMacOSDiskEncryptionEnforceOnly={isMacOSDiskEncryptionEnforceOnly(
-                      fleetDiskEncryptionSettings
+                      automdmDiskEncryptionSettings
                     )}
                     router={router}
                   />
@@ -2234,7 +2234,7 @@ const HostDetailsPage = ({
                       router.push(
                         getPathWithQueryParams(PATHS.NEW_REPORT, {
                           host_id: host.id,
-                          fleet_id: host.fleet_id,
+                          team_id: host.team_id,
                         })
                       )
                     }
@@ -2254,7 +2254,7 @@ const HostDetailsPage = ({
                     onManagePolicies={() =>
                       router.push(
                         getPathWithQueryParams(PATHS.MANAGE_POLICIES, {
-                          fleet_id: host.fleet_id,
+                          team_id: host.team_id,
                         })
                       )
                     }
@@ -2269,7 +2269,7 @@ const HostDetailsPage = ({
               onSubmit={onDestroyHost}
               hostName={host?.display_name}
               platform={host?.platform}
-              isMdmEnrolledInFleet={!!host?.mdm?.connected_to_fleet}
+              isMdmEnrolledInTeam={!!host?.mdm?.connected_to_automdm}
               mdmEnrollmentStatus={host?.mdm?.enrollment_status}
               isUpdating={isUpdating}
             />
@@ -2279,7 +2279,7 @@ const HostDetailsPage = ({
               onCancel={() => setShowSelectReportModal(false)}
               isOnlyObserver={isOnlyObserver}
               hostId={hostIdFromURL}
-              hostTeamId={host?.fleet_id}
+              hostTeamId={host?.team_id}
               router={router}
               currentTeamId={currentTeam?.id}
             />
@@ -2299,7 +2299,7 @@ const HostDetailsPage = ({
               teams={teams || []}
               isGlobalAdmin={isGlobalAdmin as boolean}
               isUpdating={isUpdating}
-              hostsTeamId={host.fleet_id}
+              hostsTeamId={host.team_id}
             />
           )}
           {!!host && showReleaseFromABModal && (
@@ -2329,7 +2329,7 @@ const HostDetailsPage = ({
               onlyAllowAppleBusinessEnrollment={
                 config?.mdm.only_allow_apple_business_enrollment || false
               }
-              depAssignedToFleet={host.dep_assigned_to_fleet}
+              depAssignedToAutoMDM={host.dep_assigned_to_automdm}
               onClose={toggleUnenrollMdmModal}
               onSuccess={() => {
                 // The server marks the host unenrolled immediately, so refresh
@@ -2351,7 +2351,7 @@ const HostDetailsPage = ({
                 host.mdm.encryption_key_available &&
                 !isPersonalEnrollment(host.mdm.enrollment_status)
               }
-              isEscrowEnabled={fleetDiskEncryptionSettings.macOSEscrowEnabled}
+              isEscrowEnabled={automdmDiskEncryptionSettings.macOSEscrowEnabled}
               onCancel={() => setShowDiskEncryptionModal(false)}
             />
           )}
@@ -2442,7 +2442,7 @@ const HostDetailsPage = ({
             <SoftwareIpaInstallDetailsModal
               details={{
                 appName: ipaPackageInstallDetails.appName || "",
-                fleetInstallStatus: (ipaPackageInstallDetails.fleetInstallStatus ||
+                automdmInstallStatus: (ipaPackageInstallDetails.automdmInstallStatus ||
                   "pending_install") as SoftwareInstallUninstallStatus,
                 hostDisplayName: ipaPackageInstallDetails.hostDisplayName || "",
                 commandUuid: ipaPackageInstallDetails.commandUuid || "",
@@ -2685,7 +2685,7 @@ const HostDetailsPage = ({
         {showOnlineHistoryModal && (
           <HostOnlineHistoryModal
             hostId={host.id}
-            fleetId={host.fleet_id ?? undefined}
+            automdmId={host.team_id ?? undefined}
             uptimeCollectionEnabled={uptimeCollectionEnabled}
             uptimeGloballyEnabled={uptimeGloballyEnabled}
             onExit={toggleOnlineHistoryModal}
@@ -2705,14 +2705,14 @@ const HostDetailsPage = ({
         )}
         {showMDMStatusModal && host.mdm.enrollment_status && (
           <MDMStatusModal
-            fleetId={host.fleet_id}
+            automdmId={host.team_id}
             hostId={host.id}
             depProfileError={host.mdm.dep_profile_error}
             enrollmentStatus={host.mdm.enrollment_status}
             isPremiumTier={isPremiumTier}
             platform={host.platform}
             lastMDMCheckIn={host.last_mdm_checked_in_at}
-            connectedToFleet={host.mdm.connected_to_fleet}
+            connectedToAutoMDM={host.mdm.connected_to_automdm}
             onSuccessfulCheckIn={() => {
               // Delay the refetch of the host details
               // so the device has time to check in.

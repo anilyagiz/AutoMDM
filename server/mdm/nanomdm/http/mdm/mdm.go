@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"strings"
 
-	mdmhttp "github.com/fleetdm/fleet/v4/server/mdm/nanomdm/http"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/service"
+	mdmhttp "github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/http"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/service"
 
 	"github.com/micromdm/nanolib/log"
 	"github.com/micromdm/nanolib/log/ctxlog"

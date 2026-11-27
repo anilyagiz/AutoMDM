@@ -1,15 +1,15 @@
 package service
 
 import (
-	"github.com/fleetdm/fleet/v4/pkg/removednames"
-	"github.com/fleetdm/fleet/v4/server/platform/endpointer"
+	"github.com/anilyagiz/automdm/v4/pkg/removednames"
+	"github.com/anilyagiz/automdm/v4/server/platform/endpointer"
 )
 
 func init() {
 	endpointer.SetRemovedKeyMessage(removedKeyMessage)
 	endpointer.SetDeletedKeyRules(deletedKeyRules())
 	endpointer.SetRemovedNames(requestNames(removednames.KindJSONKey), requestNames(removednames.KindQueryParam),
-		requestNames(removednames.KindSortKey), []string{"/osquery/", "/orbit/", "/fleetd/", "/device/"})
+		requestNames(removednames.KindSortKey), []string{"/osquery/", "/orbit/", "/automdmd/", "/device/"})
 	endpointer.SetRemovedFormFields(requestNames(removednames.KindFormField))
 }
 

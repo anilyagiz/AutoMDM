@@ -8,7 +8,7 @@ interface ITextProps {
   size?: IconSizes;
 }
 
-const Text = ({ color = "ui-fleet-black-75", size = "medium" }: ITextProps) => {
+const Text = ({ color = "ui-automdm-black-75", size = "medium" }: ITextProps) => {
   return (
     <svg
       width={ICON_SIZES[size]}

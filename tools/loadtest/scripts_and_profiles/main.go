@@ -1,4 +1,4 @@
-// Package main is used to test applying several profiles and scripts on several fleets (formerly "teams").
+// Package main is used to test applying several profiles and scripts on several teams (formerly "teams").
 // It allows setting secret variables on the Apple configuration and declaration profiles and in the scripts.
 package main
 
@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/service"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/service"
 )
 
 func printfAndPrompt(format string, a ...any) {
@@ -27,7 +27,7 @@ func printf(format string, a ...any) {
 }
 
 func main() {
-	fleetURL := flag.String("fleet_url", "", "URL (with protocol and port of Fleet server)")
+	automdmURL := flag.String("automdm_url", "", "URL (with protocol and port of AutoMDM server)")
 	apiToken := flag.String("api_token", "", "API authentication token to use on API calls")
 	teamCount := flag.Int("team_count", 0, "Number of teams to create for the load test")
 	cleanupTeams := flag.Bool("cleanup_teams", false, "Removes teams from previous runs and exits")
@@ -35,13 +35,13 @@ func main() {
 
 	flag.Parse()
 
-	if *fleetURL == "" {
-		log.Fatal("missing fleet_url argument")
+	if *automdmURL == "" {
+		log.Fatal("missing automdm_url argument")
 	}
 	if *apiToken == "" {
 		log.Fatal("missing api_token argument")
 	}
-	apiClient, err := service.NewClient(*fleetURL, true, "", "")
+	apiClient, err := service.NewClient(*automdmURL, true, "", "")
 	if err != nil {
 		panic(err)
 	}
@@ -69,9 +69,9 @@ func main() {
 
 	printfAndPrompt("Creating %d teams...", *teamCount)
 
-	var teams []*fleet.Team
+	var teams []*automdm.Team
 	for t := 0; t < *teamCount; t++ {
-		team, err := apiClient.CreateTeam(fleet.TeamPayload{
+		team, err := apiClient.CreateTeam(automdm.TeamPayload{
 			Name: ptr.String(fmt.Sprintf("Team %d", t)),
 		})
 		if err != nil {
@@ -93,7 +93,7 @@ func main() {
 
 	for _, team := range teams {
 		printf("Applying profiles to team %s...\n", team.Name)
-		if err := apiClient.ApplyTeamProfiles(team.Name, allProfiles, fleet.ApplyTeamSpecOptions{}); err != nil {
+		if err := apiClient.ApplyTeamProfiles(team.Name, allProfiles, automdm.ApplyTeamSpecOptions{}); err != nil {
 			log.Fatalf("apply profiles to team %s: %s", team.Name, err)
 		}
 	}
@@ -103,16 +103,16 @@ func main() {
 	for _, team := range teams {
 		scripts := createRandomScripts(team.ID, 30, *secretVariable)
 		printf("Applying %d scripts to team %s...\n", len(scripts), team.Name)
-		if _, err := apiClient.ApplyTeamScripts(team.Name, scripts, fleet.ApplySpecOptions{}); err != nil {
+		if _, err := apiClient.ApplyTeamScripts(team.Name, scripts, automdm.ApplySpecOptions{}); err != nil {
 			log.Fatalf("apply scripts to team %s: %s", team.Name, err)
 		}
 	}
 }
 
-func addSecretVariable(profiles []fleet.MDMProfileBatchPayload, secretVariable string) []fleet.MDMProfileBatchPayload {
+func addSecretVariable(profiles []automdm.MDMProfileBatchPayload, secretVariable string) []automdm.MDMProfileBatchPayload {
 	s := "test"
 	if secretVariable != "" {
-		s = fmt.Sprintf("$FLEET_SECRET_%s", secretVariable)
+		s = fmt.Sprintf("$AUTOMDM_SECRET_%s", secretVariable)
 	}
 	for i := range profiles {
 		profiles[i].Contents = []byte(fmt.Sprintf(string(profiles[i].Contents), s))
@@ -120,14 +120,14 @@ func addSecretVariable(profiles []fleet.MDMProfileBatchPayload, secretVariable s
 	return profiles
 }
 
-func createRandomScripts(j uint, n int, secretVariable string) []fleet.ScriptPayload {
-	var scripts []fleet.ScriptPayload
+func createRandomScripts(j uint, n int, secretVariable string) []automdm.ScriptPayload {
+	var scripts []automdm.ScriptPayload
 	s := ""
 	if secretVariable != "" {
-		s = fmt.Sprintf("${FLEET_SECRET_%s}", secretVariable)
+		s = fmt.Sprintf("${AUTOMDM_SECRET_%s}", secretVariable)
 	}
 	for i := 0; i < n; i++ {
-		scripts = append(scripts, fleet.ScriptPayload{
+		scripts = append(scripts, automdm.ScriptPayload{
 			Name: fmt.Sprintf("script_%d.sh", i),
 			ScriptContents: []byte(fmt.Sprintf(`#!/bin/bash
 
@@ -137,17 +137,17 @@ echo "Script %d"
 
 # macOS Compatibility universal extension installer script
 # Downloads and installs the latest macos_compatibility_universal.ext from GitHub
-# Safe for deployment via Fleet (schedules orbit restart to avoid script termination)
+# Safe for deployment via AutoMDM (schedules orbit restart to avoid script termination)
 #
 # Usage:
-#   sudo ./install_macos_compatibility_extension.sh          # Default: scheduled restart (Fleet-safe)
+#   sudo ./install_macos_compatibility_extension.sh          # Default: scheduled restart (AutoMDM-safe)
 #   sudo ./install_macos_compatibility_extension.sh immediate # Immediate restart (manual execution)
 
 set -e  # Exit on any error
 
 # Variables
-GITHUB_REPO="allenhouchins/fleet-extensions"
-EXTENSION_DIR="/var/fleet/extensions"
+GITHUB_REPO="allenhouchins/automdm-extensions"
+EXTENSION_DIR="/var/automdm/extensions"
 OSQUERY_DIR="/var/osquery"
 EXTENSIONS_LOAD_FILE="$OSQUERY_DIR/extensions.load"
 EXTENSION_NAME="macos_compatibility.ext"
@@ -407,7 +407,7 @@ handle_orbit_restart() {
         log "Immediate restart requested - restarting orbit service now..."
         restart_orbit_immediate
     else
-        log "Scheduling orbit service restart (safe for Fleet deployment)..."
+        log "Scheduling orbit service restart (safe for AutoMDM deployment)..."
         schedule_orbit_restart
     fi
 }
@@ -475,7 +475,7 @@ main() {
     if [[ "$IMMEDIATE_RESTART" == "immediate" ]]; then
         log "Mode: Immediate restart (manual execution)"
     else
-        log "Mode: Scheduled restart (safe for Fleet deployment)"
+        log "Mode: Scheduled restart (safe for AutoMDM deployment)"
     fi
     
     # Ensure log directory exists for background process
@@ -502,7 +502,7 @@ main() {
     # Setup extensions.load file
     setup_extensions_load
     
-    # Handle orbit restart (scheduled for Fleet deployment, immediate for manual)
+    # Handle orbit restart (scheduled for AutoMDM deployment, immediate for manual)
     handle_orbit_restart
     
     # Clean up backup on success
@@ -529,10 +529,10 @@ main "$@"`, s, j, i)),
 	return scripts
 }
 
-func createRandomDeclarations(n int, secretVariable string) []fleet.MDMProfileBatchPayload {
+func createRandomDeclarations(n int, secretVariable string) []automdm.MDMProfileBatchPayload {
 	s := "foobar"
 	if secretVariable != "" {
-		s = fmt.Sprintf("${FLEET_SECRET_%s}", secretVariable)
+		s = fmt.Sprintf("${AUTOMDM_SECRET_%s}", secretVariable)
 	}
 	tmpl := `
 {
@@ -553,9 +553,9 @@ func createRandomDeclarations(n int, secretVariable string) []fleet.MDMProfileBa
 		return []byte(fmt.Sprintf(tmpl, i, i, s, p))
 	}
 
-	var decls []fleet.MDMProfileBatchPayload
+	var decls []automdm.MDMProfileBatchPayload
 	for i := 0; i < n; i++ {
-		decls = append(decls, fleet.MDMProfileBatchPayload{
+		decls = append(decls, automdm.MDMProfileBatchPayload{
 			Name:     fmt.Sprintf("Declaration %d", i),
 			Contents: newDeclBytes(i),
 		})
@@ -563,7 +563,7 @@ func createRandomDeclarations(n int, secretVariable string) []fleet.MDMProfileBa
 	return decls
 }
 
-var appleConfigurationProfiles = []fleet.MDMProfileBatchPayload{
+var appleConfigurationProfiles = []automdm.MDMProfileBatchPayload{
 	{
 		Name: "Ensure Install Security Responses and System Files Is Enabled",
 		Contents: []byte(`<?xml version="1.0" encoding="UTF-8"?>
@@ -995,7 +995,7 @@ var appleConfigurationProfiles = []fleet.MDMProfileBatchPayload{
 	},
 }
 
-var windowsConfigurationProfiles = []fleet.MDMProfileBatchPayload{
+var windowsConfigurationProfiles = []automdm.MDMProfileBatchPayload{
 	{
 		Name: "Advanced PowerShell logging",
 		Contents: []byte(`<Replace>
@@ -1153,7 +1153,7 @@ var windowsConfigurationProfiles = []fleet.MDMProfileBatchPayload{
 	},
 }
 
-var appleDeclarationProfiles = []fleet.MDMProfileBatchPayload{
+var appleDeclarationProfiles = []automdm.MDMProfileBatchPayload{
 	{
 		Name: "Passcode Settings",
 		Contents: []byte(`{

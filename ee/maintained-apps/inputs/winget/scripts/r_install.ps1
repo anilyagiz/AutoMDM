@@ -4,7 +4,7 @@ $ExpectedExitCodes = @(0, 1641, 3010, 1223)
 try {
 
 # R for Windows uses an Inno Setup installer. /VERYSILENT installs with no UI,
-# /SUPPRESSMSGBOXES suppresses prompts, /NORESTART prevents reboots. Fleet runs
+# /SUPPRESSMSGBOXES suppresses prompts, /NORESTART prevents reboots. AutoMDM runs
 # elevated (SYSTEM), so the installer installs machine-wide.
 $processOptions = @{
   FilePath = "$exeFilePath"

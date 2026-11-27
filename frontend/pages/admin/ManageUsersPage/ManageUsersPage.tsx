@@ -14,7 +14,7 @@ interface IUserManagementProps {
 const ManageUsersPage = ({ router }: IUserManagementProps): JSX.Element => {
   return (
     <div className={`${baseClass}`}>
-      <PageDescription content="Manage who can access Fleet and what they can do." />
+      <PageDescription content="Manage who can access AutoMDM and what they can do." />
       <UsersTable router={router} />
     </div>
   );

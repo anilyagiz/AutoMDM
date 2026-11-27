@@ -1,6 +1,6 @@
 {
-  "name": "fleet-license",
-  "description": "Generate license keys for Fleet.",
+  "name": "automdm-license",
+  "description": "Generate license keys for AutoMDM.",
   "version": "0.0.1",
   "license": "See ../../LICENSE",
   "main": "license.js",

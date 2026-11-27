@@ -10,15 +10,15 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/gorilla/websocket"
 )
 
 // Tunables mirror orbit's wstransport manager defaults (see
 // orbit/pkg/wstransport.Options.applyDefaults), so load tests exercise the
-// same connect/reconnect behavior as real fleetd.
+// same connect/reconnect behavior as real automdmd.
 const (
-	wsNotificationsPath  = "/api/fleet/orbit/notifications"
+	wsNotificationsPath  = "/api/automdm/orbit/notifications"
 	wsReconnectJitterMax = 30 * time.Second
 	wsBackoffBase        = 5 * time.Second
 	wsBackoffCap         = 5 * time.Minute
@@ -134,7 +134,7 @@ func (w *wsTransport) readLoop(conn *websocket.Conn) {
 	})
 
 	for {
-		var msg fleet.AgentWSMessage
+		var msg automdm.AgentWSMessage
 		if err := conn.ReadJSON(&msg); err != nil {
 			// A stopped transport closes the connection itself; the resulting
 			// read error is not worth logging.
@@ -146,13 +146,13 @@ func (w *wsTransport) readLoop(conn *websocket.Conn) {
 		// Unknown notification types are ignored for forward compatibility,
 		// like orbit.
 		switch msg.Type {
-		case fleet.AgentWSMessageTypeDistributedRead:
+		case automdm.AgentWSMessageTypeDistributedRead:
 			w.agent.stats.IncrementWebSocketNotifications()
 			w.trigger()
-		case fleet.AgentWSMessageTypeOrbitConfig:
+		case automdm.AgentWSMessageTypeOrbitConfig:
 			w.agent.stats.IncrementWebSocketNotifications()
 			w.agent.requestOrbitConfig()
-		case fleet.AgentWSMessageTypeOsqueryConfig:
+		case automdm.AgentWSMessageTypeOsqueryConfig:
 			w.agent.stats.IncrementWebSocketNotifications()
 			if w.agent.osqueryConfigViaOrbit() {
 				select {
@@ -247,12 +247,12 @@ func (w *wsTransport) sleep(d time.Duration) bool {
 }
 
 // syncWSTransport starts or stops the simulated WebSocket transport to match
-// the server's orbit config directive. Real fleetd restarts itself when the
+// the server's orbit config directive. Real automdmd restarts itself when the
 // directive flips (see orbit/pkg/wstransport.ToggleReceiver); the simulator
 // just starts or stops the loop.
-func (a *agent) syncWSTransport(directive *fleet.OrbitWebSocketTransportConfig) {
+func (a *agent) syncWSTransport(directive *automdm.OrbitWebSocketTransportConfig) {
 	enabled := a.wsSupported && directive != nil && directive.Enabled
-	// Real fleetd restarts to switch osquery's config plugin; the simulator
+	// Real automdmd restarts to switch osquery's config plugin; the simulator
 	// switches in place.
 	var osqueryConfigPollInterval int64
 	if enabled && directive.OsqueryConfigPollInterval != nil && a.orbitNodeKey != nil {
@@ -297,7 +297,7 @@ func (a *agent) wsTransportActive() bool {
 
 // distributedNodeKey is the node key sent on distributed read/write calls.
 // With the WebSocket transport active the calls go through orbit in real
-// fleetd (osquery's tls distributed plugin is replaced by orbit's), so they
+// automdmd (osquery's tls distributed plugin is replaced by orbit's), so they
 // authenticate with the orbit node key via the server's fallback lookup.
 func (a *agent) distributedNodeKey() string {
 	if a.wsTransportActive() && a.orbitNodeKey != nil {
@@ -366,7 +366,7 @@ func (a *agent) orbitConfigTransportConnected() {
 // connected and the config is quiet, the default interval otherwise. The
 // simulator runs scripts and installs from the notifications themselves, so a
 // quiet config is the only "no local work" signal it needs.
-func (a *agent) nextOrbitConfigInterval(cfg *fleet.OrbitConfig) time.Duration {
+func (a *agent) nextOrbitConfigInterval(cfg *automdm.OrbitConfig) time.Duration {
 	if cfg.WebSocketTransport == nil || cfg.WebSocketTransport.OrbitConfigPollInterval == nil ||
 		!cfg.Notifications.IsQuiet() {
 		return orbitConfigDefaultInterval

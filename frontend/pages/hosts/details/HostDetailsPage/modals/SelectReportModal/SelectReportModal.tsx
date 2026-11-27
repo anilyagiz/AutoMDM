@@ -71,7 +71,7 @@ const SelectReportModal = ({
     router.push(
       getPathWithQueryParams(PATHS.NEW_REPORT, {
         host_id: hostId,
-        fleet_id: currentTeamId,
+        team_id: currentTeamId,
       })
     );
   };
@@ -81,7 +81,7 @@ const SelectReportModal = ({
     router.push(
       getPathWithQueryParams(PATHS.EDIT_REPORT(selectedReport.id), {
         host_id: hostId,
-        fleet_id: currentTeamId,
+        team_id: currentTeamId,
       })
     );
   };

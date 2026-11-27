@@ -6,8 +6,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/internal/fsutil"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/internal/homes"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/internal/fsutil"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/internal/homes"
 )
 
 // scanWorkspaces finds agent-shaped tool homes and project directories.

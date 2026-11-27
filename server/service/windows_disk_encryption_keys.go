@@ -6,10 +6,10 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/mdm"
 )
 
 // wstepKeyBatchSize is how many legacy rows one query returns. Re-encryption happens on the server and costs one RSA
@@ -25,7 +25,7 @@ var wstepKeyBatchPause = time.Second
 // cannot read are marked undecryptable, which makes the host escrow a new one; a replaced certificate makes every key
 // unreadable at once and they are all marked in that run, since an unreadable key is already lost. It finishes in one
 // run on a healthy server, so later runs find nothing to do.
-func ReencryptWSTEPDiskEncryptionKeys(ctx context.Context, logger *slog.Logger, ds fleet.Datastore, cfg *config.FleetConfig) error {
+func ReencryptWSTEPDiskEncryptionKeys(ctx context.Context, logger *slog.Logger, ds automdm.Datastore, cfg *config.AutoMDMConfig) error {
 	if cfg.Server.PrivateKey == "" {
 		return nil
 	}
@@ -88,7 +88,7 @@ func ReencryptWSTEPDiskEncryptionKeys(ctx context.Context, logger *slog.Logger, 
 		if len(keys) == 0 {
 			break
 		}
-		var unreadable []fleet.HostDiskEncryptionKey
+		var unreadable []automdm.HostDiskEncryptionKey
 		for _, key := range keys {
 			afterHostID = key.HostID
 			// A marked row the server key already reads only needs its marker cleared, which the same compare-and-swap

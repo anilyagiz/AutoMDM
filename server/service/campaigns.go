@@ -6,11 +6,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/logging"
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/logging"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -18,19 +18,19 @@ import (
 ////////////////////////////////////////////////////////////////////////////////
 
 type createDistributedQueryCampaignRequest struct {
-	QuerySQL string            `json:"query"`
-	QueryID  *uint             `json:"report_id" removedkey:"query_id"`
-	Selected fleet.HostTargets `json:"selected"`
+	QuerySQL string              `json:"query"`
+	QueryID  *uint               `json:"report_id" removedkey:"query_id"`
+	Selected automdm.HostTargets `json:"selected"`
 }
 
 type createDistributedQueryCampaignResponse struct {
-	Campaign *fleet.DistributedQueryCampaign `json:"campaign,omitempty"`
-	Err      error                           `json:"error,omitempty"`
+	Campaign *automdm.DistributedQueryCampaign `json:"campaign,omitempty"`
+	Err      error                             `json:"error,omitempty"`
 }
 
 func (r createDistributedQueryCampaignResponse) Error() error { return r.Err }
 
-func createDistributedQueryCampaignEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func createDistributedQueryCampaignEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*createDistributedQueryCampaignRequest)
 	campaign, err := svc.NewDistributedQueryCampaign(ctx, req.QuerySQL, req.QueryID, req.Selected)
 	if err != nil {
@@ -39,21 +39,21 @@ func createDistributedQueryCampaignEndpoint(ctx context.Context, request interfa
 	return createDistributedQueryCampaignResponse{Campaign: campaign}, nil
 }
 
-func (svc *Service) NewDistributedQueryCampaign(ctx context.Context, queryString string, queryID *uint, targets fleet.HostTargets) (*fleet.DistributedQueryCampaign, error) {
+func (svc *Service) NewDistributedQueryCampaign(ctx context.Context, queryString string, queryID *uint, targets automdm.HostTargets) (*automdm.DistributedQueryCampaign, error) {
 	if err := svc.StatusLiveQuery(ctx); err != nil {
 		return nil, err
 	}
 
 	vc, ok := viewer.FromContext(ctx)
 	if !ok {
-		return nil, fleet.ErrNoContext
+		return nil, automdm.ErrNoContext
 	}
 
 	if queryID == nil && strings.TrimSpace(queryString) == "" {
-		return nil, fleet.NewInvalidArgumentError("query", "one of query or report_id must be specified")
+		return nil, automdm.NewInvalidArgumentError("query", "one of query or report_id must be specified")
 	}
 
-	var query *fleet.Query
+	var query *automdm.Query
 	var err error
 	if queryID != nil {
 		query, err = svc.ds.Query(ctx, *queryID)
@@ -62,19 +62,19 @@ func (svc *Service) NewDistributedQueryCampaign(ctx context.Context, queryString
 		}
 		queryString = query.Query
 	} else {
-		if err := svc.authz.Authorize(ctx, &fleet.Query{}, fleet.ActionRunNew); err != nil {
+		if err := svc.authz.Authorize(ctx, &automdm.Query{}, automdm.ActionRunNew); err != nil {
 			return nil, err
 		}
-		query = &fleet.Query{
+		query = &automdm.Query{
 			Name:     fmt.Sprintf("distributed_%s_%d", vc.Email(), time.Now().UnixNano()),
 			Query:    queryString,
 			Saved:    false,
 			AuthorID: ptr.Uint(vc.UserID()),
 			// We must set a valid value for this field, even if unused by live queries.
-			Logging: fleet.LoggingSnapshot,
+			Logging: automdm.LoggingSnapshot,
 		}
 		if err := query.Verify(); err != nil {
-			return nil, ctxerr.Wrap(ctx, &fleet.BadRequestError{
+			return nil, ctxerr.Wrap(ctx, &automdm.BadRequestError{
 				Message: fmt.Sprintf("query payload verification: %s", err),
 			})
 		}
@@ -84,16 +84,16 @@ func (svc *Service) NewDistributedQueryCampaign(ctx context.Context, queryString
 		}
 	}
 
-	tq := &fleet.TargetedQuery{Query: query, HostTargets: targets}
-	if err := svc.authz.Authorize(ctx, tq, fleet.ActionRun); err != nil {
+	tq := &automdm.TargetedQuery{Query: query, HostTargets: targets}
+	if err := svc.authz.Authorize(ctx, tq, automdm.ActionRun); err != nil {
 		return nil, err
 	}
 
-	filter := fleet.TeamFilter{User: vc.User, IncludeObserver: query.ObserverCanRun, ObserverTeamID: query.TeamID}
+	filter := automdm.TeamFilter{User: vc.User, IncludeObserver: query.ObserverCanRun, ObserverTeamID: query.TeamID}
 
-	campaign, err := svc.ds.NewDistributedQueryCampaign(ctx, &fleet.DistributedQueryCampaign{
+	campaign, err := svc.ds.NewDistributedQueryCampaign(ctx, &automdm.DistributedQueryCampaign{
 		QueryID: query.ID,
-		Status:  fleet.QueryWaiting,
+		Status:  automdm.QueryWaiting,
 		UserID:  vc.UserID(),
 	})
 	if err != nil {
@@ -110,8 +110,8 @@ func (svc *Service) NewDistributedQueryCampaign(ctx context.Context, queryString
 
 	// Add host targets
 	for _, hid := range targets.HostIDs {
-		_, err = svc.ds.NewDistributedQueryCampaignTarget(ctx, &fleet.DistributedQueryCampaignTarget{
-			Type:                       fleet.TargetHost,
+		_, err = svc.ds.NewDistributedQueryCampaignTarget(ctx, &automdm.DistributedQueryCampaignTarget{
+			Type:                       automdm.TargetHost,
 			DistributedQueryCampaignID: campaign.ID,
 			TargetID:                   hid,
 		})
@@ -122,8 +122,8 @@ func (svc *Service) NewDistributedQueryCampaign(ctx context.Context, queryString
 
 	// Add label targets
 	for _, lid := range targets.LabelIDs {
-		_, err = svc.ds.NewDistributedQueryCampaignTarget(ctx, &fleet.DistributedQueryCampaignTarget{
-			Type:                       fleet.TargetLabel,
+		_, err = svc.ds.NewDistributedQueryCampaignTarget(ctx, &automdm.DistributedQueryCampaignTarget{
+			Type:                       automdm.TargetLabel,
 			DistributedQueryCampaignID: campaign.ID,
 			TargetID:                   lid,
 		})
@@ -134,8 +134,8 @@ func (svc *Service) NewDistributedQueryCampaign(ctx context.Context, queryString
 
 	// Add team targets
 	for _, tid := range targets.TeamIDs {
-		_, err = svc.ds.NewDistributedQueryCampaignTarget(ctx, &fleet.DistributedQueryCampaignTarget{
-			Type:                       fleet.TargetTeam,
+		_, err = svc.ds.NewDistributedQueryCampaignTarget(ctx, &automdm.DistributedQueryCampaignTarget{
+			Type:                       automdm.TargetTeam,
 			DistributedQueryCampaignID: campaign.ID,
 			TargetID:                   tid,
 		})
@@ -150,7 +150,7 @@ func (svc *Service) NewDistributedQueryCampaign(ctx context.Context, queryString
 	}
 
 	if len(hostIDs) == 0 {
-		return nil, &fleet.BadRequestError{
+		return nil, &automdm.BadRequestError{
 			Message: "no hosts targeted",
 		}
 	}
@@ -197,7 +197,7 @@ type distributedQueryCampaignTargetsByIdentifiers struct {
 	Hosts []string `json:"hosts"`
 }
 
-func createDistributedQueryCampaignByIdentifierEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer,
+func createDistributedQueryCampaignByIdentifierEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer,
 	error,
 ) {
 	req := request.(*createDistributedQueryCampaignByIdentifierRequest)
@@ -208,23 +208,23 @@ func createDistributedQueryCampaignByIdentifierEndpoint(ctx context.Context, req
 	return createDistributedQueryCampaignResponse{Campaign: campaign}, nil
 }
 
-func (svc *Service) NewDistributedQueryCampaignByIdentifiers(ctx context.Context, queryString string, queryID *uint, hostIdentifiers []string, labels []string) (*fleet.DistributedQueryCampaign, error) {
+func (svc *Service) NewDistributedQueryCampaignByIdentifiers(ctx context.Context, queryString string, queryID *uint, hostIdentifiers []string, labels []string) (*automdm.DistributedQueryCampaign, error) {
 	vc, ok := viewer.FromContext(ctx)
 	if !ok {
-		return nil, fleet.ErrNoContext
+		return nil, automdm.ErrNoContext
 	}
-	filter := fleet.TeamFilter{User: vc.User, IncludeObserver: true}
+	filter := automdm.TeamFilter{User: vc.User, IncludeObserver: true}
 
 	hostIDs, err := svc.ds.HostIDsByIdentifier(ctx, filter, hostIdentifiers)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "finding host IDs")
 	}
 
-	if err := svc.authz.Authorize(ctx, &fleet.Label{}, fleet.ActionRead); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.Label{}, automdm.ActionRead); err != nil {
 		return nil, err
 	}
-	// A name can match labels on several fleets, and each of them is targeted.
-	labelIDsByName, err := svc.ds.AllLabelIDsByName(ctx, labels, fleet.TeamFilter{User: vc.User})
+	// A name can match labels on several teams, and each of them is targeted.
+	labelIDsByName, err := svc.ds.AllLabelIDsByName(ctx, labels, automdm.TeamFilter{User: vc.User})
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "finding label IDs")
 	}
@@ -238,13 +238,13 @@ func (svc *Service) NewDistributedQueryCampaignByIdentifiers(ctx context.Context
 
 	// DetectMissingLabels will return the list of labels that are not found in the database
 	// These labels are considered invalid
-	invalidLabels := fleet.DetectMissingLabels(foundLabels, labels)
+	invalidLabels := automdm.DetectMissingLabels(foundLabels, labels)
 	if len(invalidLabels) > 0 {
-		return nil, ctxerr.Wrap(ctx, &fleet.BadRequestError{
-			Message: fmt.Sprintf("%s %s.", fleet.InvalidLabelSpecifiedErrMsg, strings.Join(invalidLabels, ", ")),
+		return nil, ctxerr.Wrap(ctx, &automdm.BadRequestError{
+			Message: fmt.Sprintf("%s %s.", automdm.InvalidLabelSpecifiedErrMsg, strings.Join(invalidLabels, ", ")),
 		}, "invalid labels")
 	}
 
-	targets := fleet.HostTargets{HostIDs: hostIDs, LabelIDs: labelIDs}
+	targets := automdm.HostTargets{HostIDs: hostIDs, LabelIDs: labelIDs}
 	return svc.NewDistributedQueryCampaign(ctx, queryString, queryID, targets)
 }

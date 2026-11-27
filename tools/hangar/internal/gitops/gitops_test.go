@@ -48,7 +48,7 @@ func TestListReposMultiMode(t *testing.T) {
 	touch(t, filepath.Join(root, "repo-a", "default.yml"))
 	touch(t, filepath.Join(root, "repo-a", "teams", "t2.yml"))
 	touch(t, filepath.Join(root, "repo-a", "teams", "t1.yml"))
-	touch(t, filepath.Join(root, "repo-a", "fleets", "f1.yml"))
+	touch(t, filepath.Join(root, "repo-a", "teams", "f1.yml"))
 	touch(t, filepath.Join(root, "repo-a", "teams", ".hidden.yml")) // skipped
 	touch(t, filepath.Join(root, "repo-a", "teams", "notes.txt"))   // skipped
 	mkdir(t, filepath.Join(root, "not-a-repo"))
@@ -67,7 +67,7 @@ func TestListReposMultiMode(t *testing.T) {
 	if scan.Repos[0].Name != "repo-a" || scan.Repos[1].Name != "repo-b" {
 		t.Errorf("repos not sorted: %s, %s", scan.Repos[0].Name, scan.Repos[1].Name)
 	}
-	// teams before fleets, each group sorted, hidden + non-yaml skipped.
+	// teams before teams, each group sorted, hidden + non-yaml skipped.
 	tf := scan.Repos[0].TeamFiles
 	wantOrder := []string{"t1.yml", "t2.yml", "f1.yml"}
 	if len(tf) != 3 {
@@ -78,7 +78,7 @@ func TestListReposMultiMode(t *testing.T) {
 			t.Errorf("team file[%d] = %q, want %q", i, tf[i].Name, name)
 		}
 	}
-	if tf[0].Subdir != "teams" || tf[2].Subdir != "fleets" {
+	if tf[0].Subdir != "teams" || tf[2].Subdir != "teams" {
 		t.Errorf("subdir tags wrong: %+v", tf)
 	}
 	// "not-a-repo" surfaced as ignored.

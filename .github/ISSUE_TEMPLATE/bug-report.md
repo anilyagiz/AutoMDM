@@ -7,9 +7,9 @@ assignees: ''
 
 ---
 
-**Fleet versions** <!-- Copy this from the "My account" page in the Fleet UI, or run `fleetctl --version` -->
-  - *Discovered:* <!-- Fleet version where the issue was first observed -->
-  - *Reproduced:* <!-- Fleet version where the issue was successfully reproduced/confirmed -->
+**AutoMDM versions** <!-- Copy this from the "My account" page in the AutoMDM UI, or run `automdmctl --version` -->
+  - *Discovered:* <!-- AutoMDM version where the issue was first observed -->
+  - *Reproduced:* <!-- AutoMDM version where the issue was successfully reproduced/confirmed -->
 
 **Web browser and operating system**: <!-- e.g. Chrome 88.0.4324 running on macOS -->
 
@@ -24,13 +24,13 @@ TODO
 TODO
 
 ### 🧑‍💻  Steps to reproduce
-<!-- Provide step-by-step actions of how to recreate this bug in a clean install of Fleet. (This helps others understand and fix it more quickly.) -->
+<!-- Provide step-by-step actions of how to recreate this bug in a clean install of AutoMDM. (This helps others understand and fix it more quickly.) -->
 <!-- PRs that fix this bug must include reproduction and manual verification. -->
 
 These steps:
 
-- [ ] Have been confirmed to consistently lead to reproduction in multiple Fleet instances.
-- [ ] Describe the workflow that led to the error, but have not yet been reproduced in multiple Fleet instances.
+- [ ] Have been confirmed to consistently lead to reproduction in multiple AutoMDM instances.
+- [ ] Describe the workflow that led to the error, but have not yet been reproduced in multiple AutoMDM instances.
 
 1. TODO
 2. TODO

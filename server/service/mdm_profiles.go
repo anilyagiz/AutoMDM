@@ -4,26 +4,26 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/apple/mobileconfig"
-	"github.com/fleetdm/fleet/v4/server/variables"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/apple/mobileconfig"
+	"github.com/anilyagiz/automdm/v4/server/variables"
 )
 
-// pkcs12CAPrefixes are the Fleet variable prefixes of a certificate authority that delivers a PKCS#12 in a profile.
+// pkcs12CAPrefixes are the AutoMDM variable prefixes of a certificate authority that delivers a PKCS#12 in a profile.
 type pkcs12CAPrefixes interface {
-	prefixes() (data, password fleet.FleetVarName)
+	prefixes() (data, password automdm.AutoMDMVarName)
 }
 
 type digiCertPrefixes struct{}
 
-func (digiCertPrefixes) prefixes() (fleet.FleetVarName, fleet.FleetVarName) {
-	return fleet.FleetVarDigiCertDataPrefix, fleet.FleetVarDigiCertPasswordPrefix
+func (digiCertPrefixes) prefixes() (automdm.AutoMDMVarName, automdm.AutoMDMVarName) {
+	return automdm.AutoMDMVarDigiCertDataPrefix, automdm.AutoMDMVarDigiCertPasswordPrefix
 }
 
 type ejbcaPrefixes struct{}
 
-func (ejbcaPrefixes) prefixes() (fleet.FleetVarName, fleet.FleetVarName) {
-	return fleet.FleetVarEJBCADataPrefix, fleet.FleetVarEJBCAPasswordPrefix
+func (ejbcaPrefixes) prefixes() (automdm.AutoMDMVarName, automdm.AutoMDMVarName) {
+	return automdm.AutoMDMVarEJBCADataPrefix, automdm.AutoMDMVarEJBCAPasswordPrefix
 }
 
 // Certificate Authority structs for MDM profile checking
@@ -78,15 +78,15 @@ func (d *PKCS12VarsFound[P]) ErrorMessage() string {
 	dataVar, passwordVar := p.prefixes()
 	for ca := range d.passwordCA {
 		if _, ok := d.dataCA[ca]; !ok {
-			return fmt.Sprintf("Missing $FLEET_VAR_%s%s in the profile", dataVar, ca)
+			return fmt.Sprintf("Missing $AUTOMDM_VAR_%s%s in the profile", dataVar, ca)
 		}
 	}
 	for ca := range d.dataCA {
 		if _, ok := d.passwordCA[ca]; !ok {
-			return fmt.Sprintf("Missing $FLEET_VAR_%s%s in the profile", passwordVar, ca)
+			return fmt.Sprintf("Missing $AUTOMDM_VAR_%s%s in the profile", passwordVar, ca)
 		}
 	}
-	return fmt.Sprintf("CA name mismatch between $FLEET_VAR_%s<ca_name> and $FLEET_VAR_%s<ca_name> in the profile.", dataVar, passwordVar)
+	return fmt.Sprintf("CA name mismatch between $AUTOMDM_VAR_%s<ca_name> and $AUTOMDM_VAR_%s<ca_name> in the profile.", dataVar, passwordVar)
 }
 
 func (d *PKCS12VarsFound[P]) SetData(value string) (*PKCS12VarsFound[P], bool) {
@@ -137,9 +137,9 @@ func (n *NDESVarsFound) RenewalOnly() bool {
 
 func (n *NDESVarsFound) ErrorMessage() string {
 	if n.renewalIdFound && !n.urlFound && !n.challengeFound {
-		return fleet.SCEPRenewalIDWithoutURLChallengeErrMsg
+		return automdm.SCEPRenewalIDWithoutURLChallengeErrMsg
 	}
-	return fleet.NDESSCEPVariablesMissingErrMsg
+	return automdm.NDESSCEPVariablesMissingErrMsg
 }
 
 func (n *NDESVarsFound) SetURL() (*NDESVarsFound, bool) {
@@ -169,7 +169,7 @@ func (n *NDESVarsFound) SetRenewalID() (*NDESVarsFound, bool) {
 	return n, !alreadyPresent
 }
 
-// ConditionalAccessVarsFound tracks the variables that point a SCEP profile at Fleet's conditional access SCEP server.
+// ConditionalAccessVarsFound tracks the variables that point a SCEP profile at AutoMDM's conditional access SCEP server.
 // The challenge variable is optional: profiles written before it existed carry a global enroll secret instead.
 type ConditionalAccessVarsFound struct {
 	urlFound       bool
@@ -199,7 +199,7 @@ func (c *ConditionalAccessVarsFound) ChallengeFound() bool {
 }
 
 func (c *ConditionalAccessVarsFound) ErrorMessage() string {
-	return fleet.ConditionalAccessSCEPVariablesMissingErrMsg
+	return automdm.ConditionalAccessSCEPVariablesMissingErrMsg
 }
 
 func (c *ConditionalAccessVarsFound) SetURL() (*ConditionalAccessVarsFound, bool) {
@@ -277,26 +277,26 @@ func (cs *CustomSCEPVarsFound) CAs() []string {
 
 func (cs *CustomSCEPVarsFound) ErrorMessage() string {
 	if cs.renewalIdFound && len(cs.challengeCA) == 0 && len(cs.urlCA) == 0 {
-		return fleet.SCEPRenewalIDWithoutURLChallengeErrMsg
+		return automdm.SCEPRenewalIDWithoutURLChallengeErrMsg
 	}
 
 	if !cs.renewalIdFound || len(cs.challengeCA) == 0 || len(cs.urlCA) == 0 {
-		return fmt.Sprintf("SCEP profile for custom SCEP certificate authority requires: $FLEET_VAR_%s<CA_NAME>, $FLEET_VAR_%s<CA_NAME>, and $FLEET_VAR_%s variables.", fleet.FleetVarCustomSCEPChallengePrefix, fleet.FleetVarCustomSCEPProxyURLPrefix, fleet.FleetVarCertificateRenewalID)
+		return fmt.Sprintf("SCEP profile for custom SCEP certificate authority requires: $AUTOMDM_VAR_%s<CA_NAME>, $AUTOMDM_VAR_%s<CA_NAME>, and $AUTOMDM_VAR_%s variables.", automdm.AutoMDMVarCustomSCEPChallengePrefix, automdm.AutoMDMVarCustomSCEPProxyURLPrefix, automdm.AutoMDMVarCertificateRenewalID)
 	}
 
 	for ca := range cs.challengeCA {
 		if _, ok := cs.urlCA[ca]; !ok {
-			return fmt.Sprintf("Missing $FLEET_VAR_%s%s in the profile", fleet.FleetVarCustomSCEPProxyURLPrefix, ca)
+			return fmt.Sprintf("Missing $AUTOMDM_VAR_%s%s in the profile", automdm.AutoMDMVarCustomSCEPProxyURLPrefix, ca)
 		}
 	}
 	for ca := range cs.urlCA {
 		if _, ok := cs.challengeCA[ca]; !ok {
-			return fmt.Sprintf("Missing $FLEET_VAR_%s%s in the profile", fleet.FleetVarCustomSCEPChallengePrefix, ca)
+			return fmt.Sprintf("Missing $AUTOMDM_VAR_%s%s in the profile", automdm.AutoMDMVarCustomSCEPChallengePrefix, ca)
 		}
 	}
 
-	return fmt.Sprintf("CA name mismatch between $FLEET_VAR_%s<ca_name> and $FLEET_VAR_%s<ca_name> in the profile.",
-		fleet.FleetVarCustomSCEPProxyURLPrefix, fleet.FleetVarCustomSCEPChallengePrefix)
+	return fmt.Sprintf("CA name mismatch between $AUTOMDM_VAR_%s<ca_name> and $AUTOMDM_VAR_%s<ca_name> in the profile.",
+		automdm.AutoMDMVarCustomSCEPProxyURLPrefix, automdm.AutoMDMVarCustomSCEPChallengePrefix)
 }
 
 func (cs *CustomSCEPVarsFound) SetURL(value string) (*CustomSCEPVarsFound, bool) {
@@ -381,23 +381,23 @@ func (cs *SmallstepVarsFound) CAs() []string {
 
 func (cs *SmallstepVarsFound) ErrorMessage() string {
 	if cs.renewalIdFound && len(cs.challengeCA) == 0 && len(cs.urlCA) == 0 {
-		return fleet.SCEPRenewalIDWithoutURLChallengeErrMsg
+		return automdm.SCEPRenewalIDWithoutURLChallengeErrMsg
 	}
 	if !cs.renewalIdFound || len(cs.challengeCA) == 0 || len(cs.urlCA) == 0 {
-		return fmt.Sprintf("SCEP profile for Smallstep certificate authority requires: $FLEET_VAR_%s<CA_NAME>, $FLEET_VAR_%s<CA_NAME>, and $FLEET_VAR_%s variables.", fleet.FleetVarSmallstepSCEPChallengePrefix, fleet.FleetVarSmallstepSCEPProxyURLPrefix, fleet.FleetVarCertificateRenewalID)
+		return fmt.Sprintf("SCEP profile for Smallstep certificate authority requires: $AUTOMDM_VAR_%s<CA_NAME>, $AUTOMDM_VAR_%s<CA_NAME>, and $AUTOMDM_VAR_%s variables.", automdm.AutoMDMVarSmallstepSCEPChallengePrefix, automdm.AutoMDMVarSmallstepSCEPProxyURLPrefix, automdm.AutoMDMVarCertificateRenewalID)
 	}
 	for ca := range cs.challengeCA {
 		if _, ok := cs.urlCA[ca]; !ok {
-			return fmt.Sprintf("Missing $FLEET_VAR_%s%s in the profile", fleet.FleetVarSmallstepSCEPProxyURLPrefix, ca)
+			return fmt.Sprintf("Missing $AUTOMDM_VAR_%s%s in the profile", automdm.AutoMDMVarSmallstepSCEPProxyURLPrefix, ca)
 		}
 	}
 	for ca := range cs.urlCA {
 		if _, ok := cs.challengeCA[ca]; !ok {
-			return fmt.Sprintf("Missing $FLEET_VAR_%s%s in the profile", fleet.FleetVarSmallstepSCEPChallengePrefix, ca)
+			return fmt.Sprintf("Missing $AUTOMDM_VAR_%s%s in the profile", automdm.AutoMDMVarSmallstepSCEPChallengePrefix, ca)
 		}
 	}
-	return fmt.Sprintf("CA name mismatch between $FLEET_VAR_%s<ca_name> and $FLEET_VAR_%s<ca_name> in the profile.",
-		fleet.FleetVarSmallstepSCEPProxyURLPrefix, fleet.FleetVarSmallstepSCEPChallengePrefix)
+	return fmt.Sprintf("CA name mismatch between $AUTOMDM_VAR_%s<ca_name> and $AUTOMDM_VAR_%s<ca_name> in the profile.",
+		automdm.AutoMDMVarSmallstepSCEPProxyURLPrefix, automdm.AutoMDMVarSmallstepSCEPChallengePrefix)
 }
 
 func (cs *SmallstepVarsFound) SetURL(value string) (*SmallstepVarsFound, bool) {
@@ -434,9 +434,9 @@ func (cs *SmallstepVarsFound) SetRenewalID() (*SmallstepVarsFound, bool) {
 }
 
 var (
-	renewalIDNotInSubjectMsg = "Variable " + fleet.FleetVarCertificateRenewalID.WithPrefix() +
+	renewalIDNotInSubjectMsg = "Variable " + automdm.AutoMDMVarCertificateRenewalID.WithPrefix() +
 		" must be in the SCEP certificate's organizational unit (OU). In some use cases, it can go in the common name (CN) instead."
-	renewalIDDuplicateMsg = "Variable " + fleet.FleetVarCertificateRenewalID.WithPrefix() +
+	renewalIDDuplicateMsg = "Variable " + automdm.AutoMDMVarCertificateRenewalID.WithPrefix() +
 		" can only be used once in a profile. Put it in the SCEP certificate's organizational unit (OU). " +
 		"In some use cases, it can go in the common name (CN) instead."
 )
@@ -451,20 +451,20 @@ type caVarValidators struct {
 	conditionalAccess func(contents string, conditionalAccessVars *ConditionalAccessVarsFound) error
 }
 
-// validateProfileCertificateAuthorityVariables checks that all Fleet variables
+// validateProfileCertificateAuthorityVariables checks that all AutoMDM variables
 // used in the given profile contents correspond to existing Certificate Authorities,
 // and that is mapped to a set of CA vars, that can later be used for validation.
-func validateProfileCertificateAuthorityVariables(profileContents string, lic *fleet.LicenseInfo, groupedCAs *fleet.GroupedCertificateAuthorities,
+func validateProfileCertificateAuthorityVariables(profileContents string, lic *automdm.LicenseInfo, groupedCAs *automdm.GroupedCertificateAuthorities,
 	validators caVarValidators,
 ) error {
-	fleetVars := variables.FindKeepDuplicates(profileContents)
-	if len(fleetVars) == 0 {
+	automdmVars := variables.FindKeepDuplicates(profileContents)
+	if len(automdmVars) == 0 {
 		return nil
 	}
 
-	// Check for premium license if the profile contains Fleet variables
+	// Check for premium license if the profile contains AutoMDM variables
 	if lic == nil || !lic.IsPremium() {
-		return fleet.ErrMissingLicense
+		return automdm.ErrMissingLicense
 	}
 
 	var (
@@ -475,12 +475,12 @@ func validateProfileCertificateAuthorityVariables(profileContents string, lic *f
 		customSCEPVars        *CustomSCEPVarsFound
 		conditionalAccessVars *ConditionalAccessVarsFound
 	)
-	for _, k := range fleetVars {
+	for _, k := range automdmVars {
 		caFound := false
 		ok := true
 		switch {
-		case strings.HasPrefix(k, string(fleet.FleetVarDigiCertDataPrefix)):
-			caName := strings.TrimPrefix(k, string(fleet.FleetVarDigiCertDataPrefix))
+		case strings.HasPrefix(k, string(automdm.AutoMDMVarDigiCertDataPrefix)):
+			caName := strings.TrimPrefix(k, string(automdm.AutoMDMVarDigiCertDataPrefix))
 			for _, ca := range groupedCAs.DigiCert {
 				if ca.Name == caName {
 					caFound = true
@@ -491,8 +491,8 @@ func validateProfileCertificateAuthorityVariables(profileContents string, lic *f
 			if !caFound {
 				ok = false
 			}
-		case strings.HasPrefix(k, string(fleet.FleetVarDigiCertPasswordPrefix)):
-			caName := strings.TrimPrefix(k, string(fleet.FleetVarDigiCertPasswordPrefix))
+		case strings.HasPrefix(k, string(automdm.AutoMDMVarDigiCertPasswordPrefix)):
+			caName := strings.TrimPrefix(k, string(automdm.AutoMDMVarDigiCertPasswordPrefix))
 			for _, ca := range groupedCAs.DigiCert {
 				if ca.Name == caName {
 					caFound = true
@@ -503,8 +503,8 @@ func validateProfileCertificateAuthorityVariables(profileContents string, lic *f
 			if !caFound {
 				ok = false
 			}
-		case strings.HasPrefix(k, string(fleet.FleetVarEJBCADataPrefix)):
-			caName := strings.TrimPrefix(k, string(fleet.FleetVarEJBCADataPrefix))
+		case strings.HasPrefix(k, string(automdm.AutoMDMVarEJBCADataPrefix)):
+			caName := strings.TrimPrefix(k, string(automdm.AutoMDMVarEJBCADataPrefix))
 			for _, ca := range groupedCAs.EJBCA {
 				if ca.Name == caName {
 					caFound = true
@@ -515,8 +515,8 @@ func validateProfileCertificateAuthorityVariables(profileContents string, lic *f
 			if !caFound {
 				ok = false
 			}
-		case strings.HasPrefix(k, string(fleet.FleetVarEJBCAPasswordPrefix)):
-			caName := strings.TrimPrefix(k, string(fleet.FleetVarEJBCAPasswordPrefix))
+		case strings.HasPrefix(k, string(automdm.AutoMDMVarEJBCAPasswordPrefix)):
+			caName := strings.TrimPrefix(k, string(automdm.AutoMDMVarEJBCAPasswordPrefix))
 			for _, ca := range groupedCAs.EJBCA {
 				if ca.Name == caName {
 					caFound = true
@@ -527,8 +527,8 @@ func validateProfileCertificateAuthorityVariables(profileContents string, lic *f
 			if !caFound {
 				ok = false
 			}
-		case strings.HasPrefix(k, string(fleet.FleetVarCustomSCEPProxyURLPrefix)):
-			caName := strings.TrimPrefix(k, string(fleet.FleetVarCustomSCEPProxyURLPrefix))
+		case strings.HasPrefix(k, string(automdm.AutoMDMVarCustomSCEPProxyURLPrefix)):
+			caName := strings.TrimPrefix(k, string(automdm.AutoMDMVarCustomSCEPProxyURLPrefix))
 			for _, ca := range groupedCAs.CustomScepProxy {
 				if ca.Name == caName {
 					caFound = true
@@ -539,8 +539,8 @@ func validateProfileCertificateAuthorityVariables(profileContents string, lic *f
 			if !caFound {
 				ok = false
 			}
-		case strings.HasPrefix(k, string(fleet.FleetVarCustomSCEPChallengePrefix)):
-			caName := strings.TrimPrefix(k, string(fleet.FleetVarCustomSCEPChallengePrefix))
+		case strings.HasPrefix(k, string(automdm.AutoMDMVarCustomSCEPChallengePrefix)):
+			caName := strings.TrimPrefix(k, string(automdm.AutoMDMVarCustomSCEPChallengePrefix))
 			for _, ca := range groupedCAs.CustomScepProxy {
 				if ca.Name == caName {
 					caFound = true
@@ -551,8 +551,8 @@ func validateProfileCertificateAuthorityVariables(profileContents string, lic *f
 			if !caFound {
 				ok = false
 			}
-		case strings.HasPrefix(k, string(fleet.FleetVarSmallstepSCEPProxyURLPrefix)):
-			caName := strings.TrimPrefix(k, string(fleet.FleetVarSmallstepSCEPProxyURLPrefix))
+		case strings.HasPrefix(k, string(automdm.AutoMDMVarSmallstepSCEPProxyURLPrefix)):
+			caName := strings.TrimPrefix(k, string(automdm.AutoMDMVarSmallstepSCEPProxyURLPrefix))
 			for _, ca := range groupedCAs.Smallstep {
 				if ca.Name == caName {
 					caFound = true
@@ -563,8 +563,8 @@ func validateProfileCertificateAuthorityVariables(profileContents string, lic *f
 			if !caFound {
 				ok = false
 			}
-		case strings.HasPrefix(k, string(fleet.FleetVarSmallstepSCEPChallengePrefix)):
-			caName := strings.TrimPrefix(k, string(fleet.FleetVarSmallstepSCEPChallengePrefix))
+		case strings.HasPrefix(k, string(automdm.AutoMDMVarSmallstepSCEPChallengePrefix)):
+			caName := strings.TrimPrefix(k, string(automdm.AutoMDMVarSmallstepSCEPChallengePrefix))
 			for _, ca := range groupedCAs.Smallstep {
 				if ca.Name == caName {
 					caFound = true
@@ -575,22 +575,22 @@ func validateProfileCertificateAuthorityVariables(profileContents string, lic *f
 			if !caFound {
 				ok = false
 			}
-		case k == string(fleet.FleetVarNDESSCEPProxyURL):
+		case k == string(automdm.AutoMDMVarNDESSCEPProxyURL):
 			caFound = true
 			ndesVars, ok = ndesVars.SetURL()
-		case k == string(fleet.FleetVarNDESSCEPChallenge):
+		case k == string(automdm.AutoMDMVarNDESSCEPChallenge):
 			caFound = true
 			ndesVars, ok = ndesVars.SetChallenge()
-		case k == string(fleet.FleetVarConditionalAccessSCEPURL):
+		case k == string(automdm.AutoMDMVarConditionalAccessSCEPURL):
 			caFound = true
 			conditionalAccessVars, ok = conditionalAccessVars.SetURL()
-		case k == string(fleet.FleetVarConditionalAccessSCEPChallenge):
+		case k == string(automdm.AutoMDMVarConditionalAccessSCEPChallenge):
 			caFound = true
 			conditionalAccessVars, ok = conditionalAccessVars.SetChallenge()
-		case k == string(fleet.FleetVarSCEPRenewalID), k == string(fleet.FleetVarCertificateRenewalID):
+		case k == string(automdm.AutoMDMVarSCEPRenewalID), k == string(automdm.AutoMDMVarCertificateRenewalID):
 			caFound = true
 			// Custom SCEP, NDES, Smallstep, and conditional access all share the
-			// renewal-ID Fleet variable. The legacy SCEP_RENEWAL_ID and the
+			// renewal-ID AutoMDM variable. The legacy SCEP_RENEWAL_ID and the
 			// preferred CERTIFICATE_RENEWAL_ID names are interchangeable here.
 
 			customSCEPVars, ok = customSCEPVars.SetRenewalID()
@@ -607,22 +607,22 @@ func validateProfileCertificateAuthorityVariables(profileContents string, lic *f
 
 		if !ok {
 			if !caFound {
-				return &fleet.BadRequestError{Message: fmt.Sprintf("Fleet variable $FLEET_VAR_%s does not exist.", k)}
+				return &automdm.BadRequestError{Message: fmt.Sprintf("AutoMDM variable $AUTOMDM_VAR_%s does not exist.", k)}
 			}
 
-			if k == string(fleet.FleetVarSCEPRenewalID) || k == string(fleet.FleetVarCertificateRenewalID) {
+			if k == string(automdm.AutoMDMVarSCEPRenewalID) || k == string(automdm.AutoMDMVarCertificateRenewalID) {
 				// Special message for renewal ID — surface the preferred name
 				// in the error regardless of which form the user authored.
-				return &fleet.BadRequestError{Message: renewalIDDuplicateMsg}
+				return &automdm.BadRequestError{Message: renewalIDDuplicateMsg}
 			}
 
-			return &fleet.BadRequestError{Message: fmt.Sprintf("Fleet variable $FLEET_VAR_%s is already present in configuration profile.", k)}
+			return &automdm.BadRequestError{Message: fmt.Sprintf("AutoMDM variable $AUTOMDM_VAR_%s is already present in configuration profile.", k)}
 		}
 	}
 
 	if digiCertVars.Found() {
 		if !digiCertVars.Ok() {
-			return &fleet.BadRequestError{Message: digiCertVars.ErrorMessage()}
+			return &automdm.BadRequestError{Message: digiCertVars.ErrorMessage()}
 		}
 		if validators.digiCert != nil {
 			err := validators.digiCert(profileContents, digiCertVars)
@@ -634,7 +634,7 @@ func validateProfileCertificateAuthorityVariables(profileContents string, lic *f
 
 	if ejbcaVars.Found() {
 		if !ejbcaVars.Ok() {
-			return &fleet.BadRequestError{Message: ejbcaVars.ErrorMessage()}
+			return &automdm.BadRequestError{Message: ejbcaVars.ErrorMessage()}
 		}
 		// Only supported for Apple.
 		if err := additionalEJBCAValidation(profileContents, ejbcaVars); err != nil {
@@ -642,7 +642,7 @@ func validateProfileCertificateAuthorityVariables(profileContents string, lic *f
 		}
 	}
 
-	// Since custom SCEP, NDES, Smallstep, and conditional access share the renewal ID Fleet variable, we need to figure out
+	// Since custom SCEP, NDES, Smallstep, and conditional access share the renewal ID AutoMDM variable, we need to figure out
 	// which one to validate.
 	if customSCEPVars.Found() || ndesVars.Found() || smallstepVars.Found() || conditionalAccessVars.Found() {
 		if ndesVars.RenewalOnly() {
@@ -670,13 +670,13 @@ func validateProfileCertificateAuthorityVariables(profileContents string, lic *f
 			}
 		}
 		if ndesVars == nil && smallstepVars == nil && customSCEPVars == nil && conditionalAccessVars == nil && !hasRenewableCertPayload {
-			return &fleet.BadRequestError{Message: fleet.SCEPRenewalIDWithoutURLChallengeErrMsg}
+			return &automdm.BadRequestError{Message: automdm.SCEPRenewalIDWithoutURLChallengeErrMsg}
 		}
 	}
 
 	if customSCEPVars.Found() {
 		if !customSCEPVars.Ok() {
-			return &fleet.BadRequestError{Message: customSCEPVars.ErrorMessage()}
+			return &automdm.BadRequestError{Message: customSCEPVars.ErrorMessage()}
 		}
 		if validators.customSCEP != nil {
 			err := validators.customSCEP(profileContents, customSCEPVars)
@@ -687,7 +687,7 @@ func validateProfileCertificateAuthorityVariables(profileContents string, lic *f
 	}
 	if ndesVars.Found() {
 		if !ndesVars.Ok() {
-			return &fleet.BadRequestError{Message: ndesVars.ErrorMessage()}
+			return &automdm.BadRequestError{Message: ndesVars.ErrorMessage()}
 		}
 		if validators.ndes != nil {
 			err := validators.ndes(profileContents, ndesVars)
@@ -698,7 +698,7 @@ func validateProfileCertificateAuthorityVariables(profileContents string, lic *f
 	}
 	if smallstepVars.Found() {
 		if !smallstepVars.Ok() {
-			return &fleet.BadRequestError{Message: smallstepVars.ErrorMessage()}
+			return &automdm.BadRequestError{Message: smallstepVars.ErrorMessage()}
 		}
 		if validators.smallstep != nil {
 			err := validators.smallstep(profileContents, smallstepVars)
@@ -709,7 +709,7 @@ func validateProfileCertificateAuthorityVariables(profileContents string, lic *f
 	}
 	if conditionalAccessVars.Found() {
 		if !conditionalAccessVars.Ok() {
-			return &fleet.BadRequestError{Message: conditionalAccessVars.ErrorMessage()}
+			return &automdm.BadRequestError{Message: conditionalAccessVars.ErrorMessage()}
 		}
 		if validators.conditionalAccess != nil {
 			err := validators.conditionalAccess(profileContents, conditionalAccessVars)

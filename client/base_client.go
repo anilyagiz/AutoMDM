@@ -17,8 +17,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/google/uuid"
 )
 
@@ -41,11 +41,11 @@ type BaseClient struct {
 	InsecureSkipVerify bool
 	// ServerCapabilities is a map of capabilities that the server supports.
 	// This map is updated on each response we receive from the server.
-	ServerCapabilities fleet.CapabilityMap
+	ServerCapabilities automdm.CapabilityMap
 	// ClientCapabilities is a map of capabilities that the client supports.
 	// This list is given when the client is instantiated and shouldn't be
 	// modified afterwards.
-	ClientCapabilities fleet.CapabilityMap
+	ClientCapabilities automdm.CapabilityMap
 
 	idleConnCloser interface{ CloseIdleConnections() }
 }
@@ -104,7 +104,7 @@ func (bc *BaseClient) ParseResponse(verb, path string, response *http.Response, 
 				}
 				return fmt.Errorf("decode %s %s response: %w, body: %s", verb, path, err, truncatedBytes)
 			}
-			if e, ok := responseDest.(fleet.Errorer); ok {
+			if e, ok := responseDest.(automdm.Errorer); ok {
 				if e.Error() != nil {
 					return fmt.Errorf("%s %s error: %w", verb, path, e.Error())
 				}
@@ -117,14 +117,14 @@ func (bc *BaseClient) ParseResponse(verb, path string, response *http.Response, 
 	return nil
 }
 
-// URL builds the URL for reqPath on the Fleet server. reqPath must be escaped: callers wrap each dynamic segment with
+// URL builds the URL for reqPath on the AutoMDM server. reqPath must be escaped: callers wrap each dynamic segment with
 // url.PathEscape, which keeps characters like "/" and "%" in a name from being read as path syntax. A reqPath with an invalid
 // escape sequence yields the base URL (see url.URL.JoinPath); use RequestURL to get an error instead.
 func (bc *BaseClient) URL(reqPath, rawQuery string) *url.URL {
-	// Preserve any subpath from the base URL (e.g. when Fleet is deployed at
+	// Preserve any subpath from the base URL (e.g. when AutoMDM is deployed at
 	// https://host/subpath). A subpath can arrive via either BaseURL.Path
-	// (Orbit and Fleet Desktop, which parse a single --fleet-url) or URLPrefix
-	// (fleetctl, which has a separate --url-prefix config). These two sources
+	// (Orbit and AutoMDM Desktop, which parse a single --automdm-url) or URLPrefix
+	// (automdmctl, which has a separate --url-prefix config). These two sources
 	// are mutually exclusive by configuration convention; setting both
 	// concatenates them.
 	//
@@ -146,11 +146,11 @@ func (bc *BaseClient) RequestURL(reqPath, rawQuery string) (string, error) {
 // SetServerCapabilities updates the server capabilities based on the response
 // from the server.
 func (bc *BaseClient) SetServerCapabilities(response *http.Response) {
-	capabilities := response.Header.Get(fleet.CapabilitiesHeader)
+	capabilities := response.Header.Get(automdm.CapabilitiesHeader)
 	bc.ServerCapabilities.PopulateFromString(capabilities)
 }
 
-func (bc *BaseClient) GetServerCapabilities() fleet.CapabilityMap {
+func (bc *BaseClient) GetServerCapabilities() automdm.CapabilityMap {
 	return bc.ServerCapabilities
 }
 
@@ -168,17 +168,17 @@ func (bc *BaseClient) SetClientCapabilitiesHeader(req *http.Request) {
 		req.Header = http.Header{}
 	}
 
-	req.Header.Set(fleet.CapabilitiesHeader, bc.ClientCapabilities.String())
+	req.Header.Set(automdm.CapabilitiesHeader, bc.ClientCapabilities.String())
 }
 
 func NewBaseClient(
 	addr string,
 	insecureSkipVerify bool,
 	rootCA, urlPrefix string,
-	fleetClientCert *tls.Certificate,
-	capabilities fleet.CapabilityMap,
+	automdmClientCert *tls.Certificate,
+	capabilities automdm.CapabilityMap,
 	signerWrapper func(*http.Client) *http.Client,
-	httpOpts ...fleethttp.ClientOpt,
+	httpOpts ...automdmhttp.ClientOpt,
 ) (*BaseClient, error) {
 	baseURL, err := url.Parse(addr)
 	if err != nil {
@@ -198,8 +198,8 @@ func NewBaseClient(
 		MinVersion: tls.VersionTLS12,
 	}
 
-	if fleetClientCert != nil {
-		tlsConfig.Certificates = []tls.Certificate{*fleetClientCert}
+	if automdmClientCert != nil {
+		tlsConfig.Certificates = []tls.Certificate{*automdmClientCert}
 	}
 
 	switch {
@@ -225,8 +225,8 @@ func NewBaseClient(
 		tlsConfig.RootCAs = rootCAPool
 	}
 
-	httpOpts = append([]fleethttp.ClientOpt{fleethttp.WithNoTimeout(), fleethttp.WithTLSClientConfig(tlsConfig), fleethttp.WithoutOTEL()}, httpOpts...)
-	httpClient := fleethttp.NewClient(httpOpts...)
+	httpOpts = append([]automdmhttp.ClientOpt{automdmhttp.WithNoTimeout(), automdmhttp.WithTLSClientConfig(tlsConfig), automdmhttp.WithoutOTEL()}, httpOpts...)
+	httpClient := automdmhttp.NewClient(httpOpts...)
 	// Kept before signerWrapper, whose transport doesn't forward CloseIdleConnections.
 	idleConnCloser, _ := httpClient.Transport.(interface{ CloseIdleConnections() })
 	if signerWrapper != nil {
@@ -239,7 +239,7 @@ func NewBaseClient(
 		InsecureSkipVerify: insecureSkipVerify,
 		URLPrefix:          urlPrefix,
 		ClientCapabilities: capabilities,
-		ServerCapabilities: fleet.CapabilityMap{},
+		ServerCapabilities: automdm.CapabilityMap{},
 		idleConnCloser:     idleConnCloser,
 	}
 	return client, nil

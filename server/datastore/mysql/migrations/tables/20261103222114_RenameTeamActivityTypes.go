@@ -13,11 +13,11 @@ func init() {
 // batching would not help because the migration runs in a single transaction.
 func Up_20261103222114(tx *sql.Tx) error {
 	renamed := [][2]string{
-		{"created_team", "created_fleet"},
-		{"deleted_team", "deleted_fleet"},
-		{"applied_spec_team", "applied_spec_fleet"},
-		{"changed_user_team_role", "changed_user_fleet_role"},
-		{"deleted_user_team_role", "deleted_user_fleet_role"},
+		{"created_team", "created_team"},
+		{"deleted_team", "deleted_team"},
+		{"applied_spec_team", "applied_spec_team"},
+		{"changed_user_team_role", "changed_user_team_role"},
+		{"deleted_user_team_role", "deleted_user_team_role"},
 	}
 	for _, types := range renamed {
 		oldType, newType := types[0], types[1]

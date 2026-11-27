@@ -5,11 +5,11 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxdb"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/microsoft/msgraph"
-	"github.com/fleetdm/fleet/v4/server/service/schedule"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxdb"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/microsoft/msgraph"
+	"github.com/anilyagiz/automdm/v4/server/service/schedule"
 )
 
 // microsoftAutopilotSyncInterval mirrors the Apple DEP sync cadence.
@@ -20,11 +20,11 @@ const microsoftAutopilotSyncInterval = 5 * time.Minute
 func NewMicrosoftAutopilotSchedule(
 	ctx context.Context,
 	instanceID string,
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	factory msgraph.ClientFactory,
 	logger *slog.Logger,
 ) (*schedule.Schedule, error) {
-	name := string(fleet.CronMicrosoftAutopilotSync)
+	name := string(automdm.CronMicrosoftAutopilotSync)
 	logger = logger.With("cron", name)
 	s := schedule.New(
 		ctx, name, instanceID, microsoftAutopilotSyncInterval, ds, ds,
@@ -38,7 +38,7 @@ func NewMicrosoftAutopilotSchedule(
 
 // cronMicrosoftAutopilotSync syncs every configured tenant, isolating failures so one bad credential neither stops the
 // others nor disturbs its own tenant's existing hosts.
-func cronMicrosoftAutopilotSync(ctx context.Context, ds fleet.Datastore, factory msgraph.ClientFactory, logger *slog.Logger) error {
+func cronMicrosoftAutopilotSync(ctx context.Context, ds automdm.Datastore, factory msgraph.ClientFactory, logger *slog.Logger) error {
 	creds, err := ds.ListMicrosoftGraphCredentials(ctx)
 	if err != nil {
 		return ctxerr.Wrap(ctx, err, "list microsoft graph credentials")
@@ -65,15 +65,15 @@ func cronMicrosoftAutopilotSync(ctx context.Context, ds fleet.Datastore, factory
 // syncMicrosoftAutopilotTenant runs one tenant's sync and records its outcome.
 func syncMicrosoftAutopilotTenant(
 	ctx context.Context,
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	factory msgraph.ClientFactory,
-	cred *fleet.MicrosoftGraphCredential,
+	cred *automdm.MicrosoftGraphCredential,
 	logger *slog.Logger,
 ) error {
 	syncErr := reconcileMicrosoftAutopilotTenant(ctx, ds, factory, cred, logger)
 
 	// Only an explicit credential rejection sets the flag. Throttling and server errors must never raise a credential
-	// alarm, or a Microsoft outage would flag every Fleet deployment at once.
+	// alarm, or a Microsoft outage would flag every AutoMDM deployment at once.
 	invalid := msgraph.CredentialRejected(syncErr)
 	// Set on rejection, clear on success, and leave a transient failure alone.
 	if invalid || syncErr == nil {
@@ -101,9 +101,9 @@ func syncMicrosoftAutopilotTenant(
 // reconcileMicrosoftAutopilotTenant pulls one tenant's Autopilot registry and reconciles it into pending hosts.
 func reconcileMicrosoftAutopilotTenant(
 	ctx context.Context,
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	factory msgraph.ClientFactory,
-	cred *fleet.MicrosoftGraphCredential,
+	cred *automdm.MicrosoftGraphCredential,
 	logger *slog.Logger,
 ) error {
 	client, err := factory(cred)
@@ -150,8 +150,8 @@ func reconcileMicrosoftAutopilotTenant(
 
 // autopilotDevicesToIngest converts Graph devices into storable records, dropping the ones that can never become a
 // usable pending host and reporting how many were skipped.
-func autopilotDevicesToIngest(devices []msgraph.WindowsAutopilotDevice, tenantID string) (out []*fleet.HostAutopilotDevice, skipped int) {
-	out = make([]*fleet.HostAutopilotDevice, 0, len(devices))
+func autopilotDevicesToIngest(devices []msgraph.WindowsAutopilotDevice, tenantID string) (out []*automdm.HostAutopilotDevice, skipped int) {
+	out = make([]*automdm.HostAutopilotDevice, 0, len(devices))
 	for _, dev := range devices {
 		// The Autopilot device ID is what every downstream lookup resolves on. The serial is not required: devices with
 		// an empty or placeholder serial still become pending hosts, and are matched by the device ID when they enroll.
@@ -159,7 +159,7 @@ func autopilotDevicesToIngest(devices []msgraph.WindowsAutopilotDevice, tenantID
 			skipped++
 			continue
 		}
-		out = append(out, &fleet.HostAutopilotDevice{
+		out = append(out, &automdm.HostAutopilotDevice{
 			AutopilotDeviceID: dev.ID,
 			EntraDeviceID:     dev.EntraDeviceID,
 			GroupTag:          dev.GroupTag,
@@ -172,10 +172,10 @@ func autopilotDevicesToIngest(devices []msgraph.WindowsAutopilotDevice, tenantID
 	return out, skipped
 }
 
-// diffAutopilotDevices compares the tenant's Autopilot registry against what Fleet already stores, returning the
+// diffAutopilotDevices compares the tenant's Autopilot registry against what AutoMDM already stores, returning the
 // records that need writing and the host IDs whose devices have left.
-func diffAutopilotDevices(incoming []*fleet.HostAutopilotDevice, stored []*fleet.HostAutopilotDevice) (changed []*fleet.HostAutopilotDevice, removedHostIDs []uint) {
-	storedByDeviceID := make(map[string]*fleet.HostAutopilotDevice, len(stored))
+func diffAutopilotDevices(incoming []*automdm.HostAutopilotDevice, stored []*automdm.HostAutopilotDevice) (changed []*automdm.HostAutopilotDevice, removedHostIDs []uint) {
+	storedByDeviceID := make(map[string]*automdm.HostAutopilotDevice, len(stored))
 	for _, dev := range stored {
 		storedByDeviceID[dev.AutopilotDeviceID] = dev
 	}

@@ -6,29 +6,29 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/authz"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxdb"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxdb"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 )
 
 const (
-	SecretVariablePrefix = "FLEET_SECRET_"
+	SecretVariablePrefix = "AUTOMDM_SECRET_"
 )
 
 //////////////////////////////////////////////////////////////////////////////////
 // Create secret variables (spec)
 //////////////////////////////////////////////////////////////////////////////////
 
-func createSecretVariablesEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.CreateSecretVariablesRequest)
+func createSecretVariablesEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.CreateSecretVariablesRequest)
 	err := svc.CreateSecretVariables(ctx, req.SecretVariables, req.DryRun)
-	return fleet.CreateSecretVariablesResponse{Err: err}, nil
+	return automdm.CreateSecretVariablesResponse{Err: err}, nil
 }
 
-func (svc *Service) CreateSecretVariables(ctx context.Context, secretVariables []fleet.SecretVariable, dryRun bool) error {
+func (svc *Service) CreateSecretVariables(ctx context.Context, secretVariables []automdm.SecretVariable, dryRun bool) error {
 	// Do authorization check first so that we don't have to worry about it later in the flow.
-	if err := svc.authz.Authorize(ctx, &fleet.SecretVariable{}, fleet.ActionWrite); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.SecretVariable{}, automdm.ActionWrite); err != nil {
 		return err
 	}
 
@@ -39,16 +39,16 @@ func (svc *Service) CreateSecretVariables(ctx context.Context, secretVariables [
 
 	if len(privateKey) == 0 {
 		return ctxerr.Wrap(ctx,
-			&fleet.BadRequestError{Message: "Couldn't save secret variables. Missing required private key. Learn how to configure the private key here: https://fleetdm.com/learn-more-about/fleet-server-private-key"})
+			&automdm.BadRequestError{Message: "Couldn't save secret variables. Missing required private key. Learn how to configure the private key here: https://automdm.com/learn-more-about/automdm-server-private-key"})
 	}
 
-	// Preprocess: strip FLEET_SECRET_ prefix from variable names
+	// Preprocess: strip AUTOMDM_SECRET_ prefix from variable names
 	for i, secretVariable := range secretVariables {
-		secretVariables[i].Name = fleet.Preprocess(strings.TrimPrefix(secretVariable.Name, SecretVariablePrefix))
+		secretVariables[i].Name = automdm.Preprocess(strings.TrimPrefix(secretVariable.Name, SecretVariablePrefix))
 	}
 
 	for _, secretVariable := range secretVariables {
-		if err := fleet.ValidateSecretVariableName(secretVariable.Name); err != nil {
+		if err := automdm.ValidateSecretVariableName(secretVariable.Name); err != nil {
 			return ctxerr.Wrap(ctx, err, "validate secret variable name")
 		}
 	}
@@ -80,7 +80,7 @@ func (svc *Service) CreateSecretVariables(ctx context.Context, secretVariables [
 		if err := svc.NewActivity(
 			ctx,
 			user,
-			fleet.ActivityCreatedCustomVariable{
+			automdm.ActivityCreatedCustomVariable{
 				CustomVariableID:   createdIDs[name],
 				CustomVariableName: name,
 			},
@@ -92,7 +92,7 @@ func (svc *Service) CreateSecretVariables(ctx context.Context, secretVariables [
 		if err := svc.NewActivity(
 			ctx,
 			user,
-			fleet.ActivityUpdatedCustomVariable{
+			automdm.ActivityUpdatedCustomVariable{
 				CustomVariableName: name,
 			},
 		); err != nil {
@@ -106,20 +106,20 @@ func (svc *Service) CreateSecretVariables(ctx context.Context, secretVariables [
 // Create secret variable
 //////////////////////////////////////////////////////////////////////////////////
 
-func createSecretVariableEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.CreateSecretVariableRequest)
+func createSecretVariableEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.CreateSecretVariableRequest)
 	id, err := svc.CreateSecretVariable(ctx, req.Name, req.Value)
 	if err != nil {
-		return fleet.CreateSecretVariableResponse{Err: err}, nil
+		return automdm.CreateSecretVariableResponse{Err: err}, nil
 	}
-	return fleet.CreateSecretVariableResponse{
+	return automdm.CreateSecretVariableResponse{
 		ID:   id,
 		Name: req.Name,
 	}, nil
 }
 
 func (svc *Service) CreateSecretVariable(ctx context.Context, name string, value string) (id uint, err error) {
-	if err := svc.authz.Authorize(ctx, &fleet.SecretVariable{}, fleet.ActionWrite); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.SecretVariable{}, automdm.ActionWrite); err != nil {
 		return 0, err
 	}
 
@@ -130,16 +130,16 @@ func (svc *Service) CreateSecretVariable(ctx context.Context, name string, value
 
 	if len(privateKey) == 0 {
 		return 0, ctxerr.Wrap(ctx,
-			&fleet.BadRequestError{
-				Message: "Couldn't save secret variable. Missing required private key. Learn how to configure the private key here: https://fleetdm.com/learn-more-about/fleet-server-private-key",
+			&automdm.BadRequestError{
+				Message: "Couldn't save secret variable. Missing required private key. Learn how to configure the private key here: https://automdm.com/learn-more-about/automdm-server-private-key",
 			})
 	}
 
-	if err := fleet.ValidateSecretVariableName(name); err != nil {
+	if err := automdm.ValidateSecretVariableName(name); err != nil {
 		return 0, ctxerr.Wrap(ctx, err, "validate secret variable name")
 	}
 	if value == "" {
-		return 0, fleet.NewInvalidArgumentError("name", "secret variable value cannot be empty")
+		return 0, automdm.NewInvalidArgumentError("name", "secret variable value cannot be empty")
 	}
 
 	id, err = svc.ds.CreateSecretVariable(ctx, name, value)
@@ -150,7 +150,7 @@ func (svc *Service) CreateSecretVariable(ctx context.Context, name string, value
 	if err := svc.NewActivity(
 		ctx,
 		authz.UserFromContext(ctx),
-		fleet.ActivityCreatedCustomVariable{
+		automdm.ActivityCreatedCustomVariable{
 			CustomVariableID:   id,
 			CustomVariableName: name,
 		},
@@ -165,10 +165,10 @@ func (svc *Service) CreateSecretVariable(ctx context.Context, name string, value
 // List secret variables
 //////////////////////////////////////////////////////////////////////////////////
 
-func listSecretVariablesEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.ListSecretVariablesRequest)
+func listSecretVariablesEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.ListSecretVariablesRequest)
 	secretVariables, meta, count, err := svc.ListSecretVariables(ctx, req.ListOptions)
-	return fleet.ListSecretVariablesResponse{
+	return automdm.ListSecretVariablesResponse{
 		CustomVariables: secretVariables,
 		Meta:            meta,
 		Count:           count,
@@ -179,14 +179,14 @@ func listSecretVariablesEndpoint(ctx context.Context, request interface{}, svc f
 
 func (svc *Service) ListSecretVariables(
 	ctx context.Context,
-	opts fleet.ListOptions,
+	opts automdm.ListOptions,
 ) (
-	secretVariables []fleet.SecretVariableIdentifier,
-	meta *fleet.PaginationMetadata,
+	secretVariables []automdm.SecretVariableIdentifier,
+	meta *automdm.PaginationMetadata,
 	count int,
 	err error,
 ) {
-	if err := svc.authz.Authorize(ctx, &fleet.SecretVariable{}, fleet.ActionRead); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.SecretVariable{}, automdm.ActionRead); err != nil {
 		return nil, nil, 0, err
 	}
 
@@ -197,7 +197,7 @@ func (svc *Service) ListSecretVariables(
 	opts.IncludeMetadata = true
 	// Default sort order is name ascending.
 	opts.OrderKey = "name"
-	opts.OrderDirection = fleet.OrderAscending
+	opts.OrderDirection = automdm.OrderAscending
 
 	secretVariables, meta, count, err = svc.ds.ListSecretVariables(ctx, opts)
 	if err != nil {
@@ -211,23 +211,23 @@ func (svc *Service) ListSecretVariables(
 // Delete secret variable
 //////////////////////////////////////////////////////////////////////////////////
 
-func deleteSecretVariableEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.DeleteSecretVariableRequest)
+func deleteSecretVariableEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.DeleteSecretVariableRequest)
 	err := svc.DeleteSecretVariable(ctx, req.ID)
-	return fleet.DeleteSecretVariableResponse{
+	return automdm.DeleteSecretVariableResponse{
 		Err: err,
 	}, nil
 }
 
 func (svc *Service) DeleteSecretVariable(ctx context.Context, id uint) error {
-	if err := svc.authz.Authorize(ctx, &fleet.SecretVariable{}, fleet.ActionWrite); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.SecretVariable{}, automdm.ActionWrite); err != nil {
 		return err
 	}
 	deletedSecretVariableName, err := svc.ds.DeleteSecretVariable(ctx, id)
 	if err != nil {
-		var secretUsedErr *fleet.SecretUsedError
+		var secretUsedErr *automdm.SecretUsedError
 		if errors.As(err, &secretUsedErr) {
-			return ctxerr.Wrap(ctx, &fleet.ConflictError{
+			return ctxerr.Wrap(ctx, &automdm.ConflictError{
 				Message: fmt.Sprintf("Couldn't delete. %s", secretUsedErr.Error()),
 			}, "delete secret variable")
 		}
@@ -236,7 +236,7 @@ func (svc *Service) DeleteSecretVariable(ctx context.Context, id uint) error {
 	if err := svc.NewActivity(
 		ctx,
 		authz.UserFromContext(ctx),
-		fleet.ActivityDeletedCustomVariable{
+		automdm.ActivityDeletedCustomVariable{
 			CustomVariableID:   id,
 			CustomVariableName: deletedSecretVariableName,
 		},

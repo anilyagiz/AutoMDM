@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/fleet"
 	"github.com/stretchr/testify/require"
 )
 
@@ -44,7 +44,7 @@ func TestStagedUploadStore(t *testing.T) {
 		require.NoError(t, err)
 		require.NotEqual(t, http.StatusOK, put(url, "too long", 8))
 		_, _, err = staged.Get(ctx, "up1")
-		require.True(t, fleet.IsNotFound(err))
+		require.True(t, automdm.IsNotFound(err))
 
 		require.Equal(t, http.StatusOK, put(url, "hello", 5))
 		rc, size, err := staged.Get(ctx, "up1")
@@ -57,7 +57,7 @@ func TestStagedUploadStore(t *testing.T) {
 
 		require.NoError(t, staged.Delete(ctx, "up1"))
 		_, _, err = staged.Get(ctx, "up1")
-		require.True(t, fleet.IsNotFound(err))
+		require.True(t, automdm.IsNotFound(err))
 		require.NoError(t, staged.Delete(ctx, "up1"))
 	})
 

@@ -8,7 +8,7 @@ import (
 // ScepProfile is one saved SCEP server launch configuration. The in-repo
 // scepserver binary (a fork of micromdm/scep) is shared across profiles; each
 // profile differs by its depot (CA), port, and challenge, so several can run
-// side by side and expose multiple Custom SCEP CAs to Fleet at once. Profiles
+// side by side and expose multiple Custom SCEP CAs to AutoMDM at once. Profiles
 // are the reusable ("starred") configs — every profile is persisted, so the
 // saved list *is* the set of reusable selections.
 type ScepProfile struct {

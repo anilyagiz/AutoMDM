@@ -8,7 +8,7 @@
     "source": "spreadsheet-backfill",
     "sheet_row": 56
   },
-  "fleet_server": {
+  "automdm_server": {
     "cpu_utilization": {
       "Average": 52.0
     },
@@ -81,20 +81,20 @@
       }
     }
   ],
-  "fleet_server_errors": {
+  "automdm_server_errors": {
     "error_count": 0
   },
   "backfill": {
-    "source": "Fleet release load testing results (Google Sheet), manual-logging era",
+    "source": "AutoMDM release load testing results (Google Sheet), manual-logging era",
     "purpose": "Migration test",
     "one_click": "yes",
     "notes": null,
     "raw": {
       "full_day": "yes",
-      "fleet_containers": "30",
+      "automdm_containers": "30",
       "loadtest_containers": "200",
-      "fleet_cpu": "~52%",
-      "fleet_mem": "~4%",
+      "automdm_cpu": "~52%",
+      "automdm_mem": "~4%",
       "errors": "No new errores: logged a follow-up bug for existing one here\u2026",
       "writer_top_sql": "DELETE FROM `host_softwar\u2026",
       "writer_cpu": "~56% > ~20%",

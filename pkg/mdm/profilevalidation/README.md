@@ -1,6 +1,6 @@
 This package contains types and functions for validating MDM profiles on Apple and Windows devices.
 
-It works by parsing the respective sources with [`tools/profile-schema-gen`](../../../tools/profile-schema-gen), applying Fleet's overrides from `inputs/overrides.yml`, and writing the result as a Fleet-defined schema.
+It works by parsing the respective sources with [`tools/profile-schema-gen`](../../../tools/profile-schema-gen), applying AutoMDM's overrides from `inputs/overrides.yml`, and writing the result as an AutoMDM-defined schema.
 
 The output of this process lands in `outputs/profile_schema.json`, which is embedded into the Go code and parsed into a JSON struct on startup.
 
@@ -91,12 +91,12 @@ Every run is checked:
 
 How the data is derived from Apple's YAML:
 - **Grouping:** Apple's payload types are keyed by the `payloadtype` inside each file, not the filename. Files that share a type (the six `com.apple.MCX` files, the two `com.apple.extensiblesso` files) are merged into one entry. Where they disagree, the looser definition wins.
-- **What's dropped:** descriptions and defaults. `ServerToken` is also dropped from the declaration envelope, because Fleet's server sets it.
+- **What's dropped:** descriptions and defaults. `ServerToken` is also dropped from the declaration envelope, because AutoMDM's server sets it.
 - **Constraints:** recorded even where no validator enforces them yet.
 - **Unknown values:** carried as declared.
 
 How the Windows data is derived:
-- **Every DDF node is kept,** settings and interior nodes alike. Interior nodes have `format: node`. Profiles `<Add>` them to create a dynamic instance before setting its children, e.g. Fleet's SCEP profiles add `ClientCertificateInstall/SCEP/<id>`.
+- **Every DDF node is kept,** settings and interior nodes alike. Interior nodes have `format: node`. Profiles `<Add>` them to create a dynamic instance before setting its children, e.g. AutoMDM's SCEP profiles add `ClientCertificateInstall/SCEP/<id>`.
 - **Paths are kept as declared.** The Firewall CSP is rooted at bare `./Vendor/MSFT`, and policies at `./Device` or `./User`. Treating those roots as equivalent is the validator's job.
 - **Applicability is inherited:** a node without `OsBuildVersion` takes its nearest ancestor's, as the DDF schema specifies. Placeholder builds such as `99.9.99999` are carried as-is.
 - **XSDs** are stored once in `windows_xsds`, keyed by sha256, and nodes reference them.
@@ -125,7 +125,7 @@ Release-v27.0 has 119 payload types and 48 configuration declarations. DDFv2Feb2
 
 ## Using the schema
 
-- **At startup:** `fleet serve` calls `ParseProfileValidationSchema()`, which parses the embedded copy. It refuses to start if that fails.
+- **At startup:** `automdm serve` calls `ParseProfileValidationSchema()`, which parses the embedded copy. It refuses to start if that fails.
 - **Reading it:** callers use `Current()`, then the lookups, which return nil for anything unknown:
   - `AppleProfile(payloadType)` and `AppleDeclaration(declarationType)`.
   - `WindowsNode(locURI)` returns the exact node, or else the node whose `*` segments match, preferring the fewest `*`. Segments compare case-insensitively; roots are compared as written.
@@ -163,9 +163,9 @@ findings, err := s.ValidateAppleDeclaration(data, profilevalidation.ModeStrict) 
   - It follows dictionaries that have `keys` or `values`, arrays that have `items`, and `ref`s back to their definition.
   - It stops at `any` and at any type it doesn't recognize.
   - An open dictionary never reports unknown key names, but its values are checked against `values` when it has one.
-- **Fleet variables** are strings like any other, so `$FLEET_VAR_…` passes a string key and fails an integer one.
+- **AutoMDM variables** are strings like any other, so `$AUTOMDM_VAR_…` passes a string key and fails an integer one.
   - DigiCert `<data>` placeholders are blanked before parsing.
-  - A string that contains `$FLEET_SECRET_…` passes any key, because a secret can hold any value.
+  - A string that contains `$AUTOMDM_SECRET_…` passes any key, because a secret can hold any value.
 - **Never checked:** platforms, required keys, allowed values, formats, and removed keys. The schema carries them for later.
 
 **Strict mode also reports:**
@@ -173,8 +173,8 @@ findings, err := s.ValidateAppleDeclaration(data, profilevalidation.ModeStrict) 
 - **`UNKNOWN_TYPE`:** a payload or declaration type the schema doesn't have. `com.apple.ManagedClient.preferences` also counts as unknown unless an `allow` override vouches for it.
 - **`UNKNOWN_KEY`:** a key that isn't documented, outside open dictionaries.
 - **`MISSING_PAYLOAD_VERSION`:** on the profile root or any payload.
-- **`MALFORMED_UUID`:** a `PayloadUUID` that isn't in 8-4-4-4-12 hex form. Values containing Fleet variables or secrets aren't checked.
-- **`MALFORMED_IDENTIFIER`:** a `PayloadIdentifier` that isn't reverse-DNS. Values containing Fleet variables or secrets aren't checked.
+- **`MALFORMED_UUID`:** a `PayloadUUID` that isn't in 8-4-4-4-12 hex form. Values containing AutoMDM variables or secrets aren't checked.
+- **`MALFORMED_IDENTIFIER`:** a `PayloadIdentifier` that isn't reverse-DNS. Values containing AutoMDM variables or secrets aren't checked.
 
 Lenient mode is for profiles admins upload. Strict mode is for profiles the AI profile generator writes.
 
@@ -184,7 +184,7 @@ Lenient mode is for profiles admins upload. Strict mode is for profiles the AI p
 findings, err := s.ValidateWindowsProfile(data, profilevalidation.ModeLenient) // SyncML
 ```
 
-It runs after the structural validator in `server/fleet` (well-formed XML, allowed top-level elements, LocURI format, Fleet-reserved LocURIs) and checks every `<Item>` with a `Target/LocURI`, wherever it's nested.
+It runs after the structural validator in `server/automdm` (well-formed XML, allowed top-level elements, LocURI format, AutoMDM-reserved LocURIs) and checks every `<Item>` with a `Target/LocURI`, wherever it's nested.
 
 - **Errors** mean the XML is malformed. A body that's only a secret placeholder has no items and no findings.
 - **A finding** has the same fields as Apple's:
@@ -196,11 +196,11 @@ It runs after the structural validator in `server/fleet` (well-formed XML, allow
 **Matching a LocURI to a node:**
 
 - The leading `./` is optional, as on devices; `key_path` keeps the LocURI as written.
-- Segments compare case-insensitively. A `*` segment in the schema matches any one non-empty segment, including a Fleet variable.
+- Segments compare case-insensitively. A `*` segment in the schema matches any one non-empty segment, including an AutoMDM variable.
 - A bare `./Vendor/MSFT/X` and `./Device/Vendor/MSFT/X` are the same setting; each is tried for the other. A bare path counts as device scope.
 - If neither spelling matches, the other scope (`./User/` ↔ `./Device/`) is tried and the match is flagged as the wrong scope.
 - Policies under `Policy/Config/{Area}/{Policy}` must match exactly. The DDF's `Policy/Config/*` and `Policy/Config/*/*` placeholders (declared for ADMX ingestion, format `null`) never match; otherwise every policy LocURI, typos included, would be known.
-- An ingested ADMX area, `{App}~Policy~{Category}`, matches a template policy whatever the `{App}`, because the admin picks it in `ADMXInstall/{App}/…`. Fleet's docs install Chrome as `chrome`, the template calls it `GoogleChrome`. A policy in another category (an older or newer ADMX release) or from an ADMX without a template is unknown.
+- An ingested ADMX area, `{App}~Policy~{Category}`, matches a template policy whatever the `{App}`, because the admin picks it in `ADMXInstall/{App}/…`. AutoMDM's docs install Chrome as `chrome`, the template calls it `GoogleChrome`. A policy in another category (an older or newer ADMX release) or from an ADMX without a template is unknown.
 - `Policy/ConfigOperations/ADMXInstall/{App}/Policy/{File}` matches the DDF's dynamic nodes.
 
 **Both modes:**
@@ -209,7 +209,7 @@ It runs after the structural validator in `server/fleet` (well-formed XML, allow
   - `int`: a base-10 integer. `bool`: `true`, `false`, `0`, or `1`. `b64`: base64, whitespace ignored. `xml`: one root element, escaped, in CDATA, or as raw child elements of `<Data>`.
   - An empty `<Data>` fails these four, as on devices, and so does a scalar with child elements, e.g. `<Data>5<x/></Data>`.
   - Every other format passes, empty or not: `chr` (including ADMX-backed `<enabled/>` markup), `node`, `null`, `bin`, `time`, `float`, and any format the validator doesn't know. An item without `<Data>` isn't checked.
-- **Fleet variables** expand to text, so `$FLEET_VAR_…` passes `chr` and `xml` and fails `int`, `bool`, and `b64`. Data containing `$FLEET_SECRET_…` passes any format.
+- **AutoMDM variables** expand to text, so `$AUTOMDM_VAR_…` passes `chr` and `xml` and fails `int`, `bool`, and `b64`. Data containing `$AUTOMDM_SECRET_…` passes any format.
 - **Unknown LocURIs pass.** Allowed values (`enum`, `range`, `regex`, `flag`, `xsd`) aren't checked; the schema carries them for later.
 
 **Strict mode also reports:**
@@ -228,12 +228,12 @@ go run ./tools/profile-validate [-strict] [paths…]   # defaults to it-and-secu
 
 - `.mobileconfig` files are Apple profiles, `.json` files with a `com.apple.*` `Type` are declarations, and `.xml` files with a `<LocURI>` are Windows profiles. Anything else is ignored.
 - It prints one line per finding and exits 1 if there are any.
-- Files it can't parse are logged and skipped. For example, a profile with a GitOps environment variable that fleetctl expands before upload.
+- Files it can't parse are logged and skipped. For example, a profile with a GitOps environment variable that automdmctl expands before upload.
 - Every profile in those directories passes lenient mode. Strict mode reports fixture problems, which is expected: mostly missing `PayloadVersion` in CIS profiles, and a Chrome policy in the Windows ADMX example whose bundled ADMX puts it in an older category.
 
 ## Overrides
 
-Apple's and Microsoft's published schemas don't match what devices accept in every case. `inputs/overrides.yml` records Fleet's corrections. The generator applies them when it writes `outputs/profile_schema.json`, so the overrides travel with the schema, including newer copies downloaded by older servers.
+Apple's and Microsoft's published schemas don't match what devices accept in every case. `inputs/overrides.yml` records AutoMDM's corrections. The generator applies them when it writes `outputs/profile_schema.json`, so the overrides travel with the schema, including newer copies downloaded by older servers.
 
 After editing the file, regenerate from the repository root and commit both files:
 
@@ -329,7 +329,7 @@ allow:
 
 ### What isn't an override
 
-- **Keys Fleet sets itself:** don't add them here. The generator already drops `ServerToken` from the declaration envelope, since Fleet's server sets it when serving a declaration.
+- **Keys AutoMDM sets itself:** don't add them here. The generator already drops `ServerToken` from the declaration envelope, since AutoMDM's server sets it when serving a declaration.
 - **Typos in a profile:** fix the profile, not the schema.
 
 ## Notes for validators

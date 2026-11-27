@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -16,7 +16,7 @@ func TestLinuxDiskEncryptionSummary(t *testing.T) {
 	ctx := context.Background()
 
 	// 5 new ubuntu hosts
-	var ubuntuHosts []*fleet.Host
+	var ubuntuHosts []*automdm.Host
 	for i := 0; i < 5; i++ {
 		h := test.NewHost(t, ds, fmt.Sprintf("foo.local.%d", i), "1.1.1.1",
 			fmt.Sprintf("%d", i), fmt.Sprintf("%d", i), time.Now(), test.WithPlatform("ubuntu"))
@@ -24,7 +24,7 @@ func TestLinuxDiskEncryptionSummary(t *testing.T) {
 	}
 
 	// 5 new fedora hosts
-	var fedoraHosts []*fleet.Host
+	var fedoraHosts []*automdm.Host
 	for i := 5; i < 10; i++ {
 		h := test.NewHost(t, ds, fmt.Sprintf("foo.local.%d", i), "1.1.1.1",
 			fmt.Sprintf("%d", i), fmt.Sprintf("%d", i), time.Now(),
@@ -33,7 +33,7 @@ func TestLinuxDiskEncryptionSummary(t *testing.T) {
 	}
 
 	// 5 macos hosts
-	var macosHosts []*fleet.Host
+	var macosHosts []*automdm.Host
 	for i := 10; i < 15; i++ {
 		h := test.NewHost(t, ds, fmt.Sprintf("foo.local.%d", i), "1.1.1.1",
 			fmt.Sprintf("%d", i), fmt.Sprintf("%d", i), time.Now(), test.WithPlatform("darwin"))
@@ -95,10 +95,10 @@ func TestLinuxDiskEncryptionSummary(t *testing.T) {
 	require.Equal(t, uint(2), summary.Failed)
 
 	// move verified fedora host to team will remove existing key
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "team1"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
 
-	err = ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team.ID, []uint{fedoraHosts[0].ID}))
+	err = ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team.ID, []uint{fedoraHosts[0].ID}))
 	require.NoError(t, err)
 
 	// team summary
@@ -119,17 +119,17 @@ func TestLinuxDiskEncryptionSummary(t *testing.T) {
 
 	// move all hosts to team
 	for _, h := range ubuntuHosts {
-		err = ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team.ID, []uint{h.ID}))
+		err = ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team.ID, []uint{h.ID}))
 		require.NoError(t, err)
 	}
 
 	for _, h := range fedoraHosts {
-		err = ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team.ID, []uint{h.ID}))
+		err = ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team.ID, []uint{h.ID}))
 		require.NoError(t, err)
 	}
 
 	for _, h := range macosHosts {
-		err = ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team.ID, []uint{h.ID}))
+		err = ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team.ID, []uint{h.ID}))
 		require.NoError(t, err)
 	}
 
@@ -187,10 +187,10 @@ func TestLinuxDiskEncryptionSupportedPlatforms(t *testing.T) {
 
 	summary, err := ds.GetLinuxDiskEncryptionSummary(ctx, nil)
 	require.NoError(t, err)
-	require.Equal(t, fleet.MDMLinuxDiskEncryptionSummary{ActionRequired: uint(len(supported))}, summary)
+	require.Equal(t, automdm.MDMLinuxDiskEncryptionSummary{ActionRequired: uint(len(supported))}, summary)
 
-	listIDs := func(opts fleet.HostListOptions) []uint {
-		hosts, err := ds.ListHosts(ctx, fleet.TeamFilter{User: test.UserAdmin}, opts)
+	listIDs := func(opts automdm.HostListOptions) []uint {
+		hosts, err := ds.ListHosts(ctx, automdm.TeamFilter{User: test.UserAdmin}, opts)
 		require.NoError(t, err)
 		ids := make([]uint, 0, len(hosts))
 		for _, h := range hosts {
@@ -198,6 +198,6 @@ func TestLinuxDiskEncryptionSupportedPlatforms(t *testing.T) {
 		}
 		return ids
 	}
-	require.ElementsMatch(t, supportedIDs, listIDs(fleet.HostListOptions{OSSettingsFilter: fleet.OSSettingsPending}))
-	require.ElementsMatch(t, supportedIDs, listIDs(fleet.HostListOptions{OSSettingsDiskEncryptionFilter: fleet.DiskEncryptionActionRequired}))
+	require.ElementsMatch(t, supportedIDs, listIDs(automdm.HostListOptions{OSSettingsFilter: automdm.OSSettingsPending}))
+	require.ElementsMatch(t, supportedIDs, listIDs(automdm.HostListOptions{OSSettingsDiskEncryptionFilter: automdm.DiskEncryptionActionRequired}))
 }

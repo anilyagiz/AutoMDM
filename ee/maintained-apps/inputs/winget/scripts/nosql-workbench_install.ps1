@@ -1,12 +1,12 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 
 $exeFilePath = "${env:INSTALLER_PATH}"
 
 try {
 
 # Setup stops on a "Can't modify NoSQL Workbench's files" prompt while the app
-# is open, and nobody can answer it from Fleet's SYSTEM context, so the install
+# is open, and nobody can answer it from AutoMDM's SYSTEM context, so the install
 # never returns. Stop the app first. Unsaved work is lost.
 # A machine-wide install can be registered outside Program Files, and setup
 # updates it where it is, so take the directories to match from the registry

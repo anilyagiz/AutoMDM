@@ -1,5 +1,5 @@
-// Package managedaccount creates and maintains the Fleet-managed local admin account on Windows hosts, and escrows its
-// password to the Fleet server.
+// Package managedaccount creates and maintains the AutoMDM-managed local admin account on Windows hosts, and escrows its
+// password to the AutoMDM server.
 //
 // The server asks for the account by setting the CreateWindowsManagedLocalAccount notification on the orbit config
 // response, and stops asking once this host escrows a password for its current MDM enrollment. Every step is idempotent,
@@ -10,11 +10,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/rs/zerolog/log"
 )
 
-// Escrower sends the managed local account password to the Fleet server.
+// Escrower sends the managed local account password to the AutoMDM server.
 type Escrower interface {
 	SendManagedLocalAccountPassword(password, clientError string) error
 }
@@ -49,9 +49,9 @@ func New(escrower Escrower, retryFrequency time.Duration) *Receiver {
 	return &Receiver{escrower: escrower, retryFrequency: retryFrequency}
 }
 
-// Run implements fleet.OrbitConfigReceiver. It returns immediately; provisioning happens in the
+// Run implements automdm.OrbitConfigReceiver. It returns immediately; provisioning happens in the
 // background so a slow Windows API call or HTTP request never gates the config receiver loop.
-func (r *Receiver) Run(cfg *fleet.OrbitConfig) error {
+func (r *Receiver) Run(cfg *automdm.OrbitConfig) error {
 	if cfg == nil || !cfg.Notifications.CreateWindowsManagedLocalAccount {
 		return nil
 	}
@@ -105,14 +105,14 @@ func (r *Receiver) attempt() <-chan struct{} {
 // password of an existing account, which is what makes that retry safe.
 // It reports whether the password was successfully escrowed.
 func (r *Receiver) createAndEscrow() bool {
-	password := fleet.GenerateManagedLocalAccountPassword(true)
+	password := automdm.GenerateManagedLocalAccountPassword(true)
 
 	provision := r.provision
 	if provision == nil {
 		provision = provisionAccount
 	}
 
-	if err := provision(fleet.ManagedLocalAccountUsername, password); err != nil {
+	if err := provision(automdm.ManagedLocalAccountUsername, password); err != nil {
 		log.Error().Err(err).Msg("managed local account: creating account")
 		// Tell the server why, so it surfaces on the host instead of only in this log. The server
 		// records the failure and keeps asking, so this is a report, not a terminal state.
@@ -123,7 +123,7 @@ func (r *Receiver) createAndEscrow() bool {
 	}
 
 	if err := r.escrower.SendManagedLocalAccountPassword(password, ""); err != nil {
-		// The account now exists with a password Fleet does not know. That is recovered by the next
+		// The account now exists with a password AutoMDM does not know. That is recovered by the next
 		// notification: provisioning resets the password and escrows the new one.
 		log.Error().Err(err).Msg("managed local account: escrowing password")
 		return false

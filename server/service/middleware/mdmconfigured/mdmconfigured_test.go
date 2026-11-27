@@ -6,17 +6,17 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
-// mockService implements the minimal subset of fleet.Service required by the
+// mockService implements the minimal subset of automdm.Service required by the
 // middleware tests. Each Verify* method gates execution via simple atomic flags
 // so tests can toggle the configured MDM platforms.
 type mockService struct {
 	mock.Mock
-	fleet.Service
+	automdm.Service
 
 	mdmConfigured     atomic.Bool
 	msMdmConfigured   atomic.Bool
@@ -26,7 +26,7 @@ type mockService struct {
 // VerifyMDMAppleConfigured marks whether Apple MDM is enabled for the test.
 func (m *mockService) VerifyMDMAppleConfigured(ctx context.Context) error {
 	if !m.mdmConfigured.Load() {
-		return fleet.ErrMDMNotConfigured
+		return automdm.ErrMDMNotConfigured
 	}
 	return nil
 }
@@ -34,7 +34,7 @@ func (m *mockService) VerifyMDMAppleConfigured(ctx context.Context) error {
 // VerifyMDMWindowsConfigured marks whether Windows MDM is enabled for the test.
 func (m *mockService) VerifyMDMWindowsConfigured(ctx context.Context) error {
 	if !m.msMdmConfigured.Load() {
-		return fleet.ErrWindowsMDMNotConfigured
+		return automdm.ErrWindowsMDMNotConfigured
 	}
 	return nil
 }
@@ -42,7 +42,7 @@ func (m *mockService) VerifyMDMWindowsConfigured(ctx context.Context) error {
 // VerifyMDMAndroidConfigured marks whether Android MDM is enabled for the test.
 func (m *mockService) VerifyMDMAndroidConfigured(ctx context.Context) error {
 	if !m.androidConfigured.Load() {
-		return fleet.ErrAndroidMDMNotConfigured
+		return automdm.ErrAndroidMDMNotConfigured
 	}
 	return nil
 }
@@ -51,7 +51,7 @@ func (m *mockService) VerifyMDMAndroidConfigured(ctx context.Context) error {
 // VerifyAnyMDMConfigured service method, adding Android to the Apple/Windows check.
 func (m *mockService) VerifyAnyMDMConfigured(ctx context.Context) error {
 	if !m.mdmConfigured.Load() && !m.msMdmConfigured.Load() && !m.androidConfigured.Load() {
-		return fleet.ErrMDMNotConfigured
+		return automdm.ErrMDMNotConfigured
 	}
 	return nil
 }
@@ -86,7 +86,7 @@ func TestMDMNotConfigured(t *testing.T) {
 
 	f := mw.VerifyAppleMDM()(next)
 	_, err := f(context.Background(), struct{}{})
-	require.ErrorIs(t, err, fleet.ErrMDMNotConfigured)
+	require.ErrorIs(t, err, automdm.ErrMDMNotConfigured)
 	require.False(t, nextCalled)
 }
 
@@ -120,7 +120,7 @@ func TestWindowsMDMNotConfigured(t *testing.T) {
 
 	f := mw.VerifyWindowsMDM()(next)
 	_, err := f(context.Background(), struct{}{})
-	require.ErrorIs(t, err, fleet.ErrWindowsMDMNotConfigured)
+	require.ErrorIs(t, err, automdm.ErrWindowsMDMNotConfigured)
 	require.False(t, nextCalled)
 }
 
@@ -154,7 +154,7 @@ func TestAndroidMDMNotConfigured(t *testing.T) {
 
 	f := mw.VerifyAndroidMDM()(next)
 	_, err := f(context.Background(), struct{}{})
-	require.ErrorIs(t, err, fleet.ErrAndroidMDMNotConfigured)
+	require.ErrorIs(t, err, automdm.ErrAndroidMDMNotConfigured)
 	require.False(t, nextCalled)
 }
 
@@ -212,6 +212,6 @@ func TestAnyMDMNotConfigured(t *testing.T) {
 
 	f := mw.VerifyAnyMDM()(next)
 	_, err := f(context.Background(), struct{}{})
-	require.ErrorIs(t, err, fleet.ErrMDMNotConfigured)
+	require.ErrorIs(t, err, automdm.ErrMDMNotConfigured)
 	require.False(t, nextCalled)
 }

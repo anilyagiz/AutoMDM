@@ -32,7 +32,7 @@ Actions drive the development lifecycle:
   - b  open the selected issue's most recently updated project board
 
 Press B for the Branch cleanup view — local branches across your fleet folders
-(clone_base_dirs matching branch_scan_glob, default "fleet*"), each tagged pushed
+(clone_base_dirs matching branch_scan_glob, default "team*"), each tagged pushed
 / ahead / gone / local. Delete the selected branch (d), all fully-pushed branches
 (p), or all branches except main (D); press F to fetch + prune first so branches
 whose merged remote was deleted show as "gone".

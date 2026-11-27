@@ -18,7 +18,7 @@ import { IPackageFormData } from "pages/SoftwarePage/components/forms/PackageFor
 import { ISoftwareAndroidFormData } from "pages/SoftwarePage/components/forms/SoftwareAndroidForm/SoftwareAndroidForm";
 import { ISoftwareVppFormData } from "pages/SoftwarePage/components/forms/SoftwareVppForm/SoftwareVppForm";
 import { getSelfServiceTooltip } from "pages/SoftwarePage/helpers";
-import { IFleetMaintainedAppFormData } from "pages/SoftwarePage/SoftwareAddPage/SoftwareFleetMaintained/FleetMaintainedAppDetailsPage/FleetAppDetailsForm/FleetAppDetailsForm";
+import { IAutoMDMMaintainedAppFormData } from "pages/SoftwarePage/SoftwareAddPage/SoftwareAutoMDMMaintained/AutoMDMMaintainedAppDetailsPage/AutoMDMAppDetailsForm/AutoMDMAppDetailsForm";
 import paths from "router/paths";
 import selfServiceCategoriesAPI, {
   ISelfServiceCategoriesResponse,
@@ -39,7 +39,7 @@ interface ICategoriesSelector {
   selectedCategories: string[];
   onClickPreviewEndUserExperience: () => void;
   /** When provided, categories are fetched from the self-service categories API
-   * for this fleet. When undefined, the hardcoded list is used. */
+   * for this team. When undefined, the hardcoded list is used. */
   teamId?: number;
   /** Override the section label. Defaults to "Categories". */
   label?: string;
@@ -131,7 +131,7 @@ export const CategoriesSelector = ({
           <CustomLink
             url={getPathWithQueryParams(
               paths.SOFTWARE_LIBRARY_SETTINGS_CATEGORIES,
-              { fleet_id: teamId }
+              { team_id: teamId }
             )}
             text="Add category"
           />
@@ -184,7 +184,7 @@ export const CategoriesSelector = ({
 
 interface ISoftwareOptionsSelector {
   formData:
-    | IFleetMaintainedAppFormData
+    | IAutoMDMMaintainedAppFormData
     | ISoftwareVppFormData
     | IPackageFormData
     | ISoftwareAndroidFormData;
@@ -198,7 +198,7 @@ interface ISoftwareOptionsSelector {
   isEditingSoftware?: boolean;
   disableOptions?: boolean;
   /** When provided, the categories list is fetched dynamically from the
-   * self-service categories API for this fleet. */
+   * self-service categories API for this team. */
   teamId?: number;
 }
 

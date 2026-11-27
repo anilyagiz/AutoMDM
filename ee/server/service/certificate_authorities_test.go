@@ -12,16 +12,16 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/ee/server/service/digicert"
-	"github.com/fleetdm/fleet/v4/ee/server/service/est"
-	"github.com/fleetdm/fleet/v4/ee/server/service/scep"
-	"github.com/fleetdm/fleet/v4/server/authz"
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	scep_mock "github.com/fleetdm/fleet/v4/server/mock/scep"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/ee/server/service/digicert"
+	"github.com/anilyagiz/automdm/v4/ee/server/service/est"
+	"github.com/anilyagiz/automdm/v4/ee/server/service/scep"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	scep_mock "github.com/anilyagiz/automdm/v4/server/mock/scep"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -30,18 +30,18 @@ func TestGetCertificateAuthorityByID(t *testing.T) {
 	t.Parallel()
 
 	ds := new(mock.Store)
-	ctx := viewer.NewContext(context.Background(), viewer.Viewer{User: &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}})
+	ctx := viewer.NewContext(context.Background(), viewer.Viewer{User: &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}})
 	svc := newTestService(t, ds)
 
 	t.Run("GET a CA - Happy path", func(t *testing.T) {
-		ds.GetCertificateAuthorityByIDFunc = func(ctx context.Context, id uint, includeSecrets bool) (*fleet.CertificateAuthority, error) {
+		ds.GetCertificateAuthorityByIDFunc = func(ctx context.Context, id uint, includeSecrets bool) (*automdm.CertificateAuthority, error) {
 			require.False(t, includeSecrets, "includeSecrets should be false - the API should never return the secrets")
-			return &fleet.CertificateAuthority{
+			return &automdm.CertificateAuthority{
 				ID:                            1,
 				Name:                          ptr.String("Test CA"),
 				URL:                           ptr.String("https://example.com"),
-				Type:                          string(fleet.CATypeDigiCert),
-				APIToken:                      ptr.String(fleet.MaskedPassword),
+				Type:                          string(automdm.CATypeDigiCert),
+				APIToken:                      ptr.String(automdm.MaskedPassword),
 				ProfileID:                     ptr.String("digicert-profile-id"),
 				CertificateCommonName:         ptr.String("digicert-common-name"),
 				CertificateUserPrincipalNames: &[]string{"digicert-upn1"},
@@ -55,7 +55,7 @@ func TestGetCertificateAuthorityByID(t *testing.T) {
 	})
 
 	t.Run("GET a CA - CA not found", func(t *testing.T) {
-		ds.GetCertificateAuthorityByIDFunc = func(ctx context.Context, id uint, includeSecrets bool) (*fleet.CertificateAuthority, error) {
+		ds.GetCertificateAuthorityByIDFunc = func(ctx context.Context, id uint, includeSecrets bool) (*automdm.CertificateAuthority, error) {
 			require.False(t, includeSecrets, "includeSecrets should be false - the API should never return the secrets")
 			return nil, common_mysql.NotFound("CertificateAuthority").WithID(id)
 		}
@@ -69,20 +69,20 @@ func TestGetCertificateAuthorityByID(t *testing.T) {
 func TestListCertificateAuthorities(t *testing.T) {
 	ds := new(mock.Store)
 	svc := newTestService(t, ds)
-	ctx := viewer.NewContext(context.Background(), viewer.Viewer{User: &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}})
+	ctx := viewer.NewContext(context.Background(), viewer.Viewer{User: &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}})
 
 	t.Run("GET all CAs - Happy path", func(t *testing.T) {
-		ds.ListCertificateAuthoritiesFunc = func(ctx context.Context) ([]*fleet.CertificateAuthoritySummary, error) {
-			return []*fleet.CertificateAuthoritySummary{
+		ds.ListCertificateAuthoritiesFunc = func(ctx context.Context) ([]*automdm.CertificateAuthoritySummary, error) {
+			return []*automdm.CertificateAuthoritySummary{
 				{
 					ID:   1,
 					Name: "TestDigicertCA",
-					Type: string(fleet.CATypeDigiCert),
+					Type: string(automdm.CATypeDigiCert),
 				},
 				{
 					ID:   2,
 					Name: "TestSCEPCA",
-					Type: string(fleet.CATypeCustomSCEPProxy),
+					Type: string(automdm.CATypeCustomSCEPProxy),
 				},
 			}, nil
 		}
@@ -93,8 +93,8 @@ func TestListCertificateAuthorities(t *testing.T) {
 	})
 
 	t.Run("GET all CAs - No CAs found", func(t *testing.T) {
-		ds.ListCertificateAuthoritiesFunc = func(ctx context.Context) ([]*fleet.CertificateAuthoritySummary, error) {
-			return []*fleet.CertificateAuthoritySummary{}, nil
+		ds.ListCertificateAuthoritiesFunc = func(ctx context.Context) ([]*automdm.CertificateAuthoritySummary, error) {
+			return []*automdm.CertificateAuthoritySummary{}, nil
 		}
 
 		returnedCAs, err := svc.ListCertificateAuthorities(ctx)
@@ -153,42 +153,42 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 		hydrantServer.Close()
 	})
 
-	verifyNilFieldsForType := func(t *testing.T, ca *fleet.CertificateAuthority) {
-		if ca.Type != string(fleet.CATypeDigiCert) {
+	verifyNilFieldsForType := func(t *testing.T, ca *automdm.CertificateAuthority) {
+		if ca.Type != string(automdm.CATypeDigiCert) {
 			assert.Nil(t, ca.APIToken)
 			assert.Nil(t, ca.ProfileID)
 			assert.Nil(t, ca.CertificateCommonName)
 			assert.Nil(t, ca.CertificateUserPrincipalNames)
 			assert.Nil(t, ca.CertificateSeatID)
 		}
-		if ca.Type != string(fleet.CATypeHydrant) {
+		if ca.Type != string(automdm.CATypeHydrant) {
 			assert.Nil(t, ca.ClientID)
 			assert.Nil(t, ca.ClientSecret)
 		}
-		if ca.Type != string(fleet.CATypeCustomSCEPProxy) {
+		if ca.Type != string(automdm.CATypeCustomSCEPProxy) {
 			assert.Nil(t, ca.Challenge)
 		}
-		if ca.Type != string(fleet.CATypeNDESSCEPProxy) {
+		if ca.Type != string(automdm.CATypeNDESSCEPProxy) {
 			assert.Nil(t, ca.AdminURL)
 		}
-		if ca.Type != string(fleet.CATypeSmallstep) {
+		if ca.Type != string(automdm.CATypeSmallstep) {
 			assert.Nil(t, ca.ChallengeURL)
 		}
 
 		// Since username and password is now shared for NDES and Smallstep
-		if ca.Type != string(fleet.CATypeNDESSCEPProxy) && ca.Type != string(fleet.CATypeSmallstep) {
+		if ca.Type != string(automdm.CATypeNDESSCEPProxy) && ca.Type != string(automdm.CATypeSmallstep) {
 			assert.Nil(t, ca.Username)
 			assert.Nil(t, ca.Password)
 		}
 	}
 
-	createdCAs := []*fleet.CertificateAuthority{}
+	createdCAs := []*automdm.CertificateAuthority{}
 	baseSetupForCATests := func() (*Service, context.Context) {
 		ds := new(mock.Store)
 		// Reset createdCAs before each test
-		createdCAs = []*fleet.CertificateAuthority{}
+		createdCAs = []*automdm.CertificateAuthority{}
 		// Setup DS mocks
-		ds.NewCertificateAuthorityFunc = func(ctx context.Context, ca *fleet.CertificateAuthority) (*fleet.CertificateAuthority, error) {
+		ds.NewCertificateAuthorityFunc = func(ctx context.Context, ca *automdm.CertificateAuthority) (*automdm.CertificateAuthority, error) {
 			ca.ID = uint(len(createdCAs) + 1) // nolint:gosec // Disable G115 since this is just a test
 			createdCAs = append(createdCAs, ca)
 			// NewCertificateAuthority would normally call NewActivity() after calling this
@@ -197,7 +197,7 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 			// check for
 			return nil, errors.New("mock error to avoid NewActivity panic")
 		}
-		ds.ListCertificateAuthoritiesFunc = func(ctx context.Context) ([]*fleet.CertificateAuthoritySummary, error) {
+		ds.ListCertificateAuthoritiesFunc = func(ctx context.Context) ([]*automdm.CertificateAuthoritySummary, error) {
 			return nil, nil
 		}
 		authorizer, err := authz.NewAuthorizer()
@@ -211,13 +211,13 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 			estService:      est.NewService(),
 			scepConfigService: &scep_mock.SCEPConfigService{
 				ValidateSCEPURLFunc:               func(_ context.Context, _ string) error { return nil },
-				ValidateNDESSCEPAdminURLFunc:      func(_ context.Context, _ fleet.NDESSCEPProxyCA) error { return nil },
-				ValidateSmallstepChallengeURLFunc: func(_ context.Context, _ fleet.SmallstepSCEPProxyCA) error { return nil },
+				ValidateNDESSCEPAdminURLFunc:      func(_ context.Context, _ automdm.NDESSCEPProxyCA) error { return nil },
+				ValidateSmallstepChallengeURLFunc: func(_ context.Context, _ automdm.SmallstepSCEPProxyCA) error { return nil },
 			},
 		}
 		svc.config.Server.PrivateKey = "supersecret"
 
-		ctx := viewer.NewContext(context.Background(), viewer.Viewer{User: &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}})
+		ctx := viewer.NewContext(context.Background(), viewer.Viewer{User: &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}})
 
 		return svc, ctx
 	}
@@ -225,7 +225,7 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 	t.Run("Errors when no CA type is specified", func(t *testing.T) {
 		svc, ctx := baseSetupForCATests()
 
-		createRequest := fleet.CertificateAuthorityPayload{}
+		createRequest := automdm.CertificateAuthorityPayload{}
 		createdCA, err := svc.NewCertificateAuthority(ctx, createRequest)
 		require.EqualError(t, err, "Couldn't add certificate authority. A certificate authority must be specified")
 		require.Nil(t, createdCA)
@@ -233,9 +233,9 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 
 	t.Run("Errors when multiple CA types are specified", func(t *testing.T) {
 		svc, ctx := baseSetupForCATests()
-		createRequest := fleet.CertificateAuthorityPayload{
-			DigiCert: &fleet.DigiCertCA{},
-			Hydrant:  &fleet.HydrantCA{},
+		createRequest := automdm.CertificateAuthorityPayload{
+			DigiCert: &automdm.DigiCertCA{},
+			Hydrant:  &automdm.HydrantCA{},
 		}
 
 		createdCA, err := svc.NewCertificateAuthority(ctx, createRequest)
@@ -253,21 +253,21 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 			authz:  authorizer,
 		}
 		svc.config.Server.PrivateKey = ""
-		ctx := viewer.NewContext(context.Background(), viewer.Viewer{User: &fleet.User{GlobalRole: new(fleet.RoleAdmin)}})
+		ctx := viewer.NewContext(context.Background(), viewer.Viewer{User: &automdm.User{GlobalRole: new(automdm.RoleAdmin)}})
 
-		incoming := fleet.GroupedCertificateAuthorities{
-			DigiCert: []fleet.DigiCertCA{{Name: "DigicertWIFI", URL: digicertURL}},
+		incoming := automdm.GroupedCertificateAuthorities{
+			DigiCert: []automdm.DigiCertCA{{Name: "DigicertWIFI", URL: digicertURL}},
 		}
-		err = svc.BatchApplyCertificateAuthorities(ctx, incoming, fleet.BatchApplyCertificateAuthoritiesOpts{ViaGitOps: true})
-		require.EqualError(t, err, "Server private key must be configured. Learn more: https://fleetdm.com/learn-more-about/fleet-server-private-key")
+		err = svc.BatchApplyCertificateAuthorities(ctx, incoming, automdm.BatchApplyCertificateAuthoritiesOpts{ViaGitOps: true})
+		require.EqualError(t, err, "Server private key must be configured. Learn more: https://automdm.com/learn-more-about/automdm-server-private-key")
 	})
 
 	t.Run("Batch apply with no CAs succeeds when no private key is configured", func(t *testing.T) {
 		ds := new(mock.Store)
-		ds.GetGroupedCertificateAuthoritiesFunc = func(ctx context.Context, includeSecrets bool) (*fleet.GroupedCertificateAuthorities, error) {
-			return &fleet.GroupedCertificateAuthorities{}, nil
+		ds.GetGroupedCertificateAuthoritiesFunc = func(ctx context.Context, includeSecrets bool) (*automdm.GroupedCertificateAuthorities, error) {
+			return &automdm.GroupedCertificateAuthorities{}, nil
 		}
-		ds.BatchApplyCertificateAuthoritiesFunc = func(ctx context.Context, ops fleet.CertificateAuthoritiesBatchOperations) ([]uint, error) {
+		ds.BatchApplyCertificateAuthoritiesFunc = func(ctx context.Context, ops automdm.CertificateAuthoritiesBatchOperations) ([]uint, error) {
 			require.Empty(t, ops.Add)
 			require.Empty(t, ops.Update)
 			require.Empty(t, ops.Delete)
@@ -281,9 +281,9 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 			authz:  authorizer,
 		}
 		svc.config.Server.PrivateKey = ""
-		ctx := viewer.NewContext(context.Background(), viewer.Viewer{User: &fleet.User{GlobalRole: new(fleet.RoleAdmin)}})
+		ctx := viewer.NewContext(context.Background(), viewer.Viewer{User: &automdm.User{GlobalRole: new(automdm.RoleAdmin)}})
 
-		err = svc.BatchApplyCertificateAuthorities(ctx, fleet.GroupedCertificateAuthorities{}, fleet.BatchApplyCertificateAuthoritiesOpts{ViaGitOps: true})
+		err = svc.BatchApplyCertificateAuthorities(ctx, automdm.GroupedCertificateAuthorities{}, automdm.BatchApplyCertificateAuthoritiesOpts{ViaGitOps: true})
 		require.NoError(t, err)
 		require.True(t, ds.BatchApplyCertificateAuthoritiesFuncInvoked)
 	})
@@ -291,8 +291,8 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 	t.Run("Create DigiCert CA - Happy path", func(t *testing.T) {
 		svc, ctx := baseSetupForCATests()
 
-		createDigicertRequest := fleet.CertificateAuthorityPayload{
-			DigiCert: &fleet.DigiCertCA{
+		createDigicertRequest := automdm.CertificateAuthorityPayload{
+			DigiCert: &automdm.DigiCertCA{
 				Name:                          "DigicertWIFI",
 				URL:                           digicertURL,
 				APIToken:                      "digicert_api_token",
@@ -310,7 +310,7 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 
 		assert.Equal(t, createDigicertRequest.DigiCert.Name, *createdCA.Name)
 		assert.Equal(t, createDigicertRequest.DigiCert.URL, *createdCA.URL)
-		assert.Equal(t, string(fleet.CATypeDigiCert), createdCA.Type)
+		assert.Equal(t, string(automdm.CATypeDigiCert), createdCA.Type)
 		require.NotNil(t, createdCA.APIToken)
 		assert.Equal(t, createDigicertRequest.DigiCert.APIToken, *createdCA.APIToken)
 		require.NotNil(t, createdCA.ProfileID)
@@ -326,15 +326,15 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 	t.Run("Create DigiCert CA - Happy path with variables", func(t *testing.T) {
 		svc, ctx := baseSetupForCATests()
 
-		createDigicertRequest := fleet.CertificateAuthorityPayload{
-			DigiCert: &fleet.DigiCertCA{
+		createDigicertRequest := automdm.CertificateAuthorityPayload{
+			DigiCert: &automdm.DigiCertCA{
 				Name:                          "DigicertWIFI",
 				URL:                           digicertURL,
 				APIToken:                      "digicert_api_token",
 				ProfileID:                     "digicert_profile_id",
-				CertificateCommonName:         "$FLEET_VAR_HOST_END_USER_IDP_USERNAME",
-				CertificateUserPrincipalNames: []string{"${FLEET_VAR_HOST_UUID}@example.com"},
-				CertificateSeatID:             "$FLEET_VAR_HOST_END_USER_IDP_USERNAME_LOCAL_PART",
+				CertificateCommonName:         "$AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME",
+				CertificateUserPrincipalNames: []string{"${AUTOMDM_VAR_HOST_UUID}@example.com"},
+				CertificateSeatID:             "$AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME_LOCAL_PART",
 			},
 		}
 
@@ -345,7 +345,7 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 
 		assert.Equal(t, createDigicertRequest.DigiCert.Name, *createdCA.Name)
 		assert.Equal(t, createDigicertRequest.DigiCert.URL, *createdCA.URL)
-		assert.Equal(t, string(fleet.CATypeDigiCert), createdCA.Type)
+		assert.Equal(t, string(automdm.CATypeDigiCert), createdCA.Type)
 		require.NotNil(t, createdCA.APIToken)
 		assert.Equal(t, createDigicertRequest.DigiCert.APIToken, *createdCA.APIToken)
 		require.NotNil(t, createdCA.ProfileID)
@@ -361,8 +361,8 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 	t.Run("Create DigiCert CA - Happy path with no UPNs", func(t *testing.T) {
 		svc, ctx := baseSetupForCATests()
 
-		createDigicertRequest := fleet.CertificateAuthorityPayload{
-			DigiCert: &fleet.DigiCertCA{
+		createDigicertRequest := automdm.CertificateAuthorityPayload{
+			DigiCert: &automdm.DigiCertCA{
 				Name:                          "DigicertWIFI",
 				URL:                           digicertURL,
 				APIToken:                      "digicert_api_token",
@@ -380,7 +380,7 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 
 		assert.Equal(t, createDigicertRequest.DigiCert.Name, *createdCA.Name)
 		assert.Equal(t, createDigicertRequest.DigiCert.URL, *createdCA.URL)
-		assert.Equal(t, string(fleet.CATypeDigiCert), createdCA.Type)
+		assert.Equal(t, string(automdm.CATypeDigiCert), createdCA.Type)
 		require.NotNil(t, createdCA.APIToken)
 		assert.Equal(t, createDigicertRequest.DigiCert.APIToken, *createdCA.APIToken)
 		require.NotNil(t, createdCA.ProfileID)
@@ -396,8 +396,8 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 	t.Run("Create Hydrant CA - Happy path", func(t *testing.T) {
 		svc, ctx := baseSetupForCATests()
 		fmt.Println(hydrantURL)
-		createHydrantRequest := fleet.CertificateAuthorityPayload{
-			Hydrant: &fleet.HydrantCA{
+		createHydrantRequest := automdm.CertificateAuthorityPayload{
+			Hydrant: &automdm.HydrantCA{
 				Name:         "HydrantWIFI",
 				URL:          hydrantURL,
 				ClientID:     "hydrant_client_id",
@@ -412,7 +412,7 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 
 		assert.Equal(t, createHydrantRequest.Hydrant.Name, *createdCA.Name)
 		assert.Equal(t, createHydrantRequest.Hydrant.URL, *createdCA.URL)
-		assert.Equal(t, string(fleet.CATypeHydrant), createdCA.Type)
+		assert.Equal(t, string(automdm.CATypeHydrant), createdCA.Type)
 		require.NotNil(t, createdCA.ClientID)
 		assert.Equal(t, createHydrantRequest.Hydrant.ClientID, *createdCA.ClientID)
 		require.NotNil(t, createdCA.ClientSecret)
@@ -423,8 +423,8 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 	t.Run("Create Custom SCEP CA - Happy path", func(t *testing.T) {
 		svc, ctx := baseSetupForCATests()
 
-		createCustomSCEPRequest := fleet.CertificateAuthorityPayload{
-			CustomSCEPProxy: &fleet.CustomSCEPProxyCA{
+		createCustomSCEPRequest := automdm.CertificateAuthorityPayload{
+			CustomSCEPProxy: &automdm.CustomSCEPProxyCA{
 				Name:      "CustomSCEPWIFI",
 				URL:       "https://customscep.example.com",
 				Challenge: "challenge",
@@ -438,7 +438,7 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 
 		assert.Equal(t, createCustomSCEPRequest.CustomSCEPProxy.Name, *createdCA.Name)
 		assert.Equal(t, createCustomSCEPRequest.CustomSCEPProxy.URL, *createdCA.URL)
-		assert.Equal(t, string(fleet.CATypeCustomSCEPProxy), createdCA.Type)
+		assert.Equal(t, string(automdm.CATypeCustomSCEPProxy), createdCA.Type)
 		require.NotNil(t, createdCA.Challenge)
 		assert.Equal(t, createCustomSCEPRequest.CustomSCEPProxy.Challenge, *createdCA.Challenge)
 		verifyNilFieldsForType(t, createdCA)
@@ -449,8 +449,8 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 		// ASN.1 PrintableString set (such as "_" and "@") must be accepted.
 		svc, ctx := baseSetupForCATests()
 
-		createRequest := fleet.CertificateAuthorityPayload{
-			CustomSCEPProxy: &fleet.CustomSCEPProxyCA{
+		createRequest := automdm.CertificateAuthorityPayload{
+			CustomSCEPProxy: &automdm.CustomSCEPProxyCA{
 				Name:      "CustomSCEPWIFI",
 				URL:       "https://customscep.example.com",
 				Challenge: "base64url_style@challenge",
@@ -467,8 +467,8 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 	t.Run("Create NDES SCEP CA - Happy path", func(t *testing.T) {
 		svc, ctx := baseSetupForCATests()
 
-		createNDESSCEPRequest := fleet.CertificateAuthorityPayload{
-			NDESSCEPProxy: &fleet.NDESSCEPProxyCA{
+		createNDESSCEPRequest := automdm.CertificateAuthorityPayload{
+			NDESSCEPProxy: &automdm.NDESSCEPProxyCA{
 				URL:      "https://ndes.example.com",
 				AdminURL: "https://ndes-admin.example.com",
 				Username: "ndes_user",
@@ -483,7 +483,7 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 
 		assert.Equal(t, "NDES", *createdCA.Name)
 		assert.Equal(t, createNDESSCEPRequest.NDESSCEPProxy.URL, *createdCA.URL)
-		assert.Equal(t, string(fleet.CATypeNDESSCEPProxy), createdCA.Type)
+		assert.Equal(t, string(automdm.CATypeNDESSCEPProxy), createdCA.Type)
 		require.NotNil(t, createdCA.AdminURL)
 		assert.Equal(t, createNDESSCEPRequest.NDESSCEPProxy.AdminURL, *createdCA.AdminURL)
 		require.NotNil(t, createdCA.Username)
@@ -496,10 +496,10 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 	t.Run("Create NDES SCEP CA - an NDES CA already exists", func(t *testing.T) {
 		svc, ctx := baseSetupForCATests()
 		ds := svc.ds.(*mock.Store)
-		ds.ListCertificateAuthoritiesFunc = func(context.Context) ([]*fleet.CertificateAuthoritySummary, error) {
-			return []*fleet.CertificateAuthoritySummary{{ID: 1, Name: "NDES", Type: string(fleet.CATypeNDESSCEPProxy)}}, nil
+		ds.ListCertificateAuthoritiesFunc = func(context.Context) ([]*automdm.CertificateAuthoritySummary, error) {
+			return []*automdm.CertificateAuthoritySummary{{ID: 1, Name: "NDES", Type: string(automdm.CATypeNDESSCEPProxy)}}, nil
 		}
-		_, err := svc.NewCertificateAuthority(ctx, fleet.CertificateAuthorityPayload{NDESSCEPProxy: &fleet.NDESSCEPProxyCA{
+		_, err := svc.NewCertificateAuthority(ctx, automdm.CertificateAuthorityPayload{NDESSCEPProxy: &automdm.NDESSCEPProxyCA{
 			URL: "https://ndes.example.com", AdminURL: "https://ndes-admin.example.com", Username: "ndes_user", Password: "ndes_password",
 		}})
 		require.EqualError(t, err, "Couldn't add certificate authority. Only a single NDES CA can be added.")
@@ -509,8 +509,8 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 	t.Run("Create Smallstep SCEP CA - Happy path", func(t *testing.T) {
 		svc, ctx := baseSetupForCATests()
 
-		createSmallstepRequest := fleet.CertificateAuthorityPayload{
-			Smallstep: &fleet.SmallstepSCEPProxyCA{
+		createSmallstepRequest := automdm.CertificateAuthorityPayload{
+			Smallstep: &automdm.SmallstepSCEPProxyCA{
 				Name:         "SmallstepWIFI",
 				URL:          "https://smallstep.example.com",
 				ChallengeURL: "https://smallstep.example.com/challenge",
@@ -526,7 +526,7 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 
 		assert.Equal(t, createSmallstepRequest.Smallstep.Name, *createdCA.Name)
 		assert.Equal(t, createSmallstepRequest.Smallstep.URL, *createdCA.URL)
-		assert.Equal(t, string(fleet.CATypeSmallstep), createdCA.Type)
+		assert.Equal(t, string(automdm.CATypeSmallstep), createdCA.Type)
 		require.NotNil(t, createdCA.ChallengeURL)
 		assert.Equal(t, createSmallstepRequest.Smallstep.ChallengeURL, *createdCA.ChallengeURL)
 		require.NotNil(t, createdCA.Username)
@@ -539,8 +539,8 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 	t.Run("Create DigiCert CA - Bad Name", func(t *testing.T) {
 		svc, ctx := baseSetupForCATests()
 
-		createDigicertRequest := fleet.CertificateAuthorityPayload{
-			DigiCert: &fleet.DigiCertCA{
+		createDigicertRequest := automdm.CertificateAuthorityPayload{
+			DigiCert: &automdm.DigiCertCA{
 				Name:                          "Digicert WIFI",
 				URL:                           digicertURL,
 				APIToken:                      "digicert_api_token",
@@ -560,8 +560,8 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 	t.Run("Create DigiCert CA - empty CN", func(t *testing.T) {
 		svc, ctx := baseSetupForCATests()
 
-		createDigicertRequest := fleet.CertificateAuthorityPayload{
-			DigiCert: &fleet.DigiCertCA{
+		createDigicertRequest := automdm.CertificateAuthorityPayload{
+			DigiCert: &automdm.DigiCertCA{
 				Name:                          "Digicert WIFI",
 				URL:                           digicertURL,
 				APIToken:                      "digicert_api_token",
@@ -581,20 +581,20 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 	t.Run("Create DigiCert CA - unsupported variable in CN", func(t *testing.T) {
 		svc, ctx := baseSetupForCATests()
 
-		createDigicertRequest := fleet.CertificateAuthorityPayload{
-			DigiCert: &fleet.DigiCertCA{
+		createDigicertRequest := automdm.CertificateAuthorityPayload{
+			DigiCert: &automdm.DigiCertCA{
 				Name:                          "DigicertWIFI",
 				URL:                           digicertURL,
 				APIToken:                      "digicert_api_token",
 				ProfileID:                     "digicert_profile_id",
-				CertificateCommonName:         "$FLEET_VAR_BOZO",
+				CertificateCommonName:         "$AUTOMDM_VAR_BOZO",
 				CertificateUserPrincipalNames: []string{"digicert_user_principal_name"},
 				CertificateSeatID:             "digicert_seat_id",
 			},
 		}
 
 		createdCA, err := svc.NewCertificateAuthority(ctx, createDigicertRequest)
-		require.ErrorContains(t, err, "FLEET_VAR_BOZO is not allowed in CA Common Name")
+		require.ErrorContains(t, err, "AUTOMDM_VAR_BOZO is not allowed in CA Common Name")
 		require.Len(t, createdCAs, 0)
 		require.Nil(t, createdCA)
 	})
@@ -603,8 +603,8 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 	t.Run("Create DigiCert CA - Bad URL format", func(t *testing.T) {
 		svc, ctx := baseSetupForCATests()
 
-		createDigicertRequest := fleet.CertificateAuthorityPayload{
-			DigiCert: &fleet.DigiCertCA{
+		createDigicertRequest := automdm.CertificateAuthorityPayload{
+			DigiCert: &automdm.DigiCertCA{
 				Name:                          "DigicertWIFI",
 				URL:                           "bozo",
 				APIToken:                      "digicert_api_token",
@@ -624,8 +624,8 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 	t.Run("Create DigiCert CA - Bad URL path", func(t *testing.T) {
 		svc, ctx := baseSetupForCATests()
 
-		createDigicertRequest := fleet.CertificateAuthorityPayload{
-			DigiCert: &fleet.DigiCertCA{
+		createDigicertRequest := automdm.CertificateAuthorityPayload{
+			DigiCert: &automdm.DigiCertCA{
 				Name:                          "DigicertWIFI",
 				URL:                           digicertURL + "/invalid",
 				APIToken:                      "digicert_api_token",
@@ -645,8 +645,8 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 	t.Run("Create DigiCert CA - empty seat ID", func(t *testing.T) {
 		svc, ctx := baseSetupForCATests()
 
-		createDigicertRequest := fleet.CertificateAuthorityPayload{
-			DigiCert: &fleet.DigiCertCA{
+		createDigicertRequest := automdm.CertificateAuthorityPayload{
+			DigiCert: &automdm.DigiCertCA{
 				Name:                          "DigicertWIFI",
 				URL:                           digicertURL,
 				APIToken:                      "digicert_api_token",
@@ -666,20 +666,20 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 	t.Run("Create DigiCert CA - unsupported variable in seat id", func(t *testing.T) {
 		svc, ctx := baseSetupForCATests()
 
-		createDigicertRequest := fleet.CertificateAuthorityPayload{
-			DigiCert: &fleet.DigiCertCA{
+		createDigicertRequest := automdm.CertificateAuthorityPayload{
+			DigiCert: &automdm.DigiCertCA{
 				Name:                          "DigicertWIFI",
 				URL:                           digicertURL,
 				APIToken:                      "digicert_api_token",
 				ProfileID:                     "digicert_profile_id",
 				CertificateCommonName:         "digicert_common_name",
 				CertificateUserPrincipalNames: []string{"digicert_user_principal_name"},
-				CertificateSeatID:             "$FLEET_VAR_BOZO",
+				CertificateSeatID:             "$AUTOMDM_VAR_BOZO",
 			},
 		}
 
 		createdCA, err := svc.NewCertificateAuthority(ctx, createDigicertRequest)
-		require.ErrorContains(t, err, "FLEET_VAR_BOZO is not allowed in DigiCert Seat ID")
+		require.ErrorContains(t, err, "AUTOMDM_VAR_BOZO is not allowed in DigiCert Seat ID")
 		require.Len(t, createdCAs, 0)
 		require.Nil(t, createdCA)
 	})
@@ -687,8 +687,8 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 	t.Run("Create DigiCert CA - empty UPN", func(t *testing.T) {
 		svc, ctx := baseSetupForCATests()
 
-		createDigicertRequest := fleet.CertificateAuthorityPayload{
-			DigiCert: &fleet.DigiCertCA{
+		createDigicertRequest := automdm.CertificateAuthorityPayload{
+			DigiCert: &automdm.DigiCertCA{
 				Name:                          "DigicertWIFI",
 				URL:                           digicertURL,
 				APIToken:                      "digicert_api_token",
@@ -708,20 +708,20 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 	t.Run("Create DigiCert CA - unsupported variable in UPNs", func(t *testing.T) {
 		svc, ctx := baseSetupForCATests()
 
-		createDigicertRequest := fleet.CertificateAuthorityPayload{
-			DigiCert: &fleet.DigiCertCA{
+		createDigicertRequest := automdm.CertificateAuthorityPayload{
+			DigiCert: &automdm.DigiCertCA{
 				Name:                          "DigicertWIFI",
 				URL:                           digicertURL,
 				APIToken:                      "digicert_api_token",
 				ProfileID:                     "digicert_profile_id",
 				CertificateCommonName:         "digicert_common_name",
-				CertificateUserPrincipalNames: []string{"$FLEET_VAR_BOZO"},
+				CertificateUserPrincipalNames: []string{"$AUTOMDM_VAR_BOZO"},
 				CertificateSeatID:             "digicert_seat_id",
 			},
 		}
 
 		createdCA, err := svc.NewCertificateAuthority(ctx, createDigicertRequest)
-		require.ErrorContains(t, err, "FLEET_VAR_BOZO is not allowed in CA User Principal Name")
+		require.ErrorContains(t, err, "AUTOMDM_VAR_BOZO is not allowed in CA User Principal Name")
 		require.Len(t, createdCAs, 0)
 		require.Nil(t, createdCA)
 	})
@@ -729,8 +729,8 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 	t.Run("Create Hydrant CA - Bad name", func(t *testing.T) {
 		svc, ctx := baseSetupForCATests()
 
-		createHydrantRequest := fleet.CertificateAuthorityPayload{
-			Hydrant: &fleet.HydrantCA{
+		createHydrantRequest := automdm.CertificateAuthorityPayload{
+			Hydrant: &automdm.HydrantCA{
 				Name:         "Hydrant WIFI",
 				URL:          "https://hydrant.example.com",
 				ClientID:     "hydrant_client_id",
@@ -747,8 +747,8 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 	t.Run("Create Hydrant CA - Bad URL", func(t *testing.T) {
 		svc, ctx := baseSetupForCATests()
 
-		createHydrantRequest := fleet.CertificateAuthorityPayload{
-			Hydrant: &fleet.HydrantCA{
+		createHydrantRequest := automdm.CertificateAuthorityPayload{
+			Hydrant: &automdm.HydrantCA{
 				Name:         "HydrantWIFI",
 				URL:          "bozo",
 				ClientID:     "hydrant_client_id",
@@ -765,8 +765,8 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 	t.Run("Create Hydrant CA - Bad URL but looks like a hydrant URL", func(t *testing.T) {
 		svc, ctx := baseSetupForCATests()
 
-		createHydrantRequest := fleet.CertificateAuthorityPayload{
-			Hydrant: &fleet.HydrantCA{
+		createHydrantRequest := automdm.CertificateAuthorityPayload{
+			Hydrant: &automdm.HydrantCA{
 				Name:         "HydrantWIFI",
 				URL:          "https://hydrant.example.com/invalid",
 				ClientID:     "hydrant_client_id",
@@ -783,8 +783,8 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 	t.Run("Create Hydrant CA - missing client_id", func(t *testing.T) {
 		svc, ctx := baseSetupForCATests()
 
-		createHydrantRequest := fleet.CertificateAuthorityPayload{
-			Hydrant: &fleet.HydrantCA{
+		createHydrantRequest := automdm.CertificateAuthorityPayload{
+			Hydrant: &automdm.HydrantCA{
 				Name:         "HydrantWIFI",
 				URL:          "https://hydrant.example.com/invalid",
 				ClientID:     "",
@@ -801,8 +801,8 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 	t.Run("Create Hydrant CA - missing client_secret", func(t *testing.T) {
 		svc, ctx := baseSetupForCATests()
 
-		createHydrantRequest := fleet.CertificateAuthorityPayload{
-			Hydrant: &fleet.HydrantCA{
+		createHydrantRequest := automdm.CertificateAuthorityPayload{
+			Hydrant: &automdm.HydrantCA{
 				Name:         "HydrantWIFI",
 				URL:          "https://hydrant.example.com/invalid",
 				ClientID:     "hydrant_client_id",
@@ -819,8 +819,8 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 	t.Run("Create Custom SCEP CA - bad name", func(t *testing.T) {
 		svc, ctx := baseSetupForCATests()
 
-		createCustomSCEPRequest := fleet.CertificateAuthorityPayload{
-			CustomSCEPProxy: &fleet.CustomSCEPProxyCA{
+		createCustomSCEPRequest := automdm.CertificateAuthorityPayload{
+			CustomSCEPProxy: &automdm.CustomSCEPProxyCA{
 				Name:      "Custom SCEP WIFI",
 				URL:       "https://customscep.example.com",
 				Challenge: "challenge",
@@ -836,8 +836,8 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 	t.Run("Create Custom SCEP CA - invalid URL format", func(t *testing.T) {
 		svc, ctx := baseSetupForCATests()
 
-		createCustomSCEPRequest := fleet.CertificateAuthorityPayload{
-			CustomSCEPProxy: &fleet.CustomSCEPProxyCA{
+		createCustomSCEPRequest := automdm.CertificateAuthorityPayload{
+			CustomSCEPProxy: &automdm.CustomSCEPProxyCA{
 				Name:      "CustomSCEPWIFI",
 				URL:       "bozo",
 				Challenge: "challenge",
@@ -853,8 +853,8 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 	t.Run("Create Custom SCEP CA - missing challenge", func(t *testing.T) {
 		svc, ctx := baseSetupForCATests()
 
-		createCustomSCEPRequest := fleet.CertificateAuthorityPayload{
-			CustomSCEPProxy: &fleet.CustomSCEPProxyCA{
+		createCustomSCEPRequest := automdm.CertificateAuthorityPayload{
+			CustomSCEPProxy: &automdm.CustomSCEPProxyCA{
 				Name:      "CustomSCEPWIFI",
 				URL:       "https://customscep.example.com",
 				Challenge: "",
@@ -874,8 +874,8 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 			ValidateSCEPURLFunc: func(_ context.Context, _ string) error { return errors.New("some error") },
 		}
 
-		createCustomSCEPRequest := fleet.CertificateAuthorityPayload{
-			CustomSCEPProxy: &fleet.CustomSCEPProxyCA{
+		createCustomSCEPRequest := automdm.CertificateAuthorityPayload{
+			CustomSCEPProxy: &automdm.CustomSCEPProxyCA{
 				Name:      "CustomSCEPWIFI",
 				URL:       "https://customscep.example.com",
 				Challenge: "challenge",
@@ -883,7 +883,7 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 		}
 
 		createdCA, err := svc.NewCertificateAuthority(ctx, createCustomSCEPRequest)
-		require.ErrorContains(t, err, "Fleet couldn't find the CA at the specified URL. Please correct and try again.")
+		require.ErrorContains(t, err, "AutoMDM couldn't find the CA at the specified URL. Please correct and try again.")
 		require.Len(t, createdCAs, 0)
 		require.Nil(t, createdCA)
 	})
@@ -891,8 +891,8 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 	t.Run("Create NDES SCEP CA - bad URL format", func(t *testing.T) {
 		svc, ctx := baseSetupForCATests()
 
-		createNDESSCEPRequest := fleet.CertificateAuthorityPayload{
-			NDESSCEPProxy: &fleet.NDESSCEPProxyCA{
+		createNDESSCEPRequest := automdm.CertificateAuthorityPayload{
+			NDESSCEPProxy: &automdm.NDESSCEPProxyCA{
 				URL:      "bozo",
 				AdminURL: "https://ndes-admin.example.com",
 				Username: "ndes_user",
@@ -913,8 +913,8 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 			ValidateSCEPURLFunc: func(_ context.Context, _ string) error { return errors.New("some error") },
 		}
 
-		createNDESSCEPRequest := fleet.CertificateAuthorityPayload{
-			NDESSCEPProxy: &fleet.NDESSCEPProxyCA{
+		createNDESSCEPRequest := automdm.CertificateAuthorityPayload{
+			NDESSCEPProxy: &automdm.NDESSCEPProxyCA{
 				URL:      "https://ndes.example.com",
 				AdminURL: "https://ndes-admin.example.com",
 				Username: "ndes_user",
@@ -923,7 +923,7 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 		}
 
 		createdCA, err := svc.NewCertificateAuthority(ctx, createNDESSCEPRequest)
-		require.ErrorContains(t, err, "Fleet couldn't find the CA at the specified URL.")
+		require.ErrorContains(t, err, "AutoMDM couldn't find the CA at the specified URL.")
 		require.Len(t, createdCAs, 0)
 		require.Nil(t, createdCA)
 	})
@@ -933,13 +933,13 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 
 		svc.scepConfigService = &scep_mock.SCEPConfigService{
 			ValidateSCEPURLFunc: func(_ context.Context, _ string) error { return nil },
-			ValidateNDESSCEPAdminURLFunc: func(_ context.Context, _ fleet.NDESSCEPProxyCA) error {
+			ValidateNDESSCEPAdminURLFunc: func(_ context.Context, _ automdm.NDESSCEPProxyCA) error {
 				return errors.New("some error")
 			},
 		}
 
-		createNDESSCEPRequest := fleet.CertificateAuthorityPayload{
-			NDESSCEPProxy: &fleet.NDESSCEPProxyCA{
+		createNDESSCEPRequest := automdm.CertificateAuthorityPayload{
+			NDESSCEPProxy: &automdm.NDESSCEPProxyCA{
 				URL:      "https://ndes.example.com",
 				AdminURL: "https://ndes-admin.example.com",
 				Username: "ndes_user",
@@ -958,13 +958,13 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 
 		svc.scepConfigService = &scep_mock.SCEPConfigService{
 			ValidateSCEPURLFunc: func(_ context.Context, _ string) error { return nil },
-			ValidateNDESSCEPAdminURLFunc: func(_ context.Context, _ fleet.NDESSCEPProxyCA) error {
+			ValidateNDESSCEPAdminURLFunc: func(_ context.Context, _ automdm.NDESSCEPProxyCA) error {
 				return scep.NewNDESInvalidError("some error")
 			},
 		}
 
-		createNDESSCEPRequest := fleet.CertificateAuthorityPayload{
-			NDESSCEPProxy: &fleet.NDESSCEPProxyCA{
+		createNDESSCEPRequest := automdm.CertificateAuthorityPayload{
+			NDESSCEPProxy: &automdm.NDESSCEPProxyCA{
 				URL:      "https://ndes.example.com",
 				AdminURL: "https://ndes-admin.example.com",
 				Username: "ndes_user",
@@ -983,13 +983,13 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 
 		svc.scepConfigService = &scep_mock.SCEPConfigService{
 			ValidateSCEPURLFunc: func(_ context.Context, _ string) error { return nil },
-			ValidateNDESSCEPAdminURLFunc: func(_ context.Context, _ fleet.NDESSCEPProxyCA) error {
+			ValidateNDESSCEPAdminURLFunc: func(_ context.Context, _ automdm.NDESSCEPProxyCA) error {
 				return scep.NewNDESPasswordCacheFullError("mock error")
 			},
 		}
 
-		createNDESSCEPRequest := fleet.CertificateAuthorityPayload{
-			NDESSCEPProxy: &fleet.NDESSCEPProxyCA{
+		createNDESSCEPRequest := automdm.CertificateAuthorityPayload{
+			NDESSCEPProxy: &automdm.NDESSCEPProxyCA{
 				URL:      "https://ndes.example.com",
 				AdminURL: "https://ndes-admin.example.com",
 				Username: "ndes_user",
@@ -1008,13 +1008,13 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 
 		svc.scepConfigService = &scep_mock.SCEPConfigService{
 			ValidateSCEPURLFunc: func(_ context.Context, _ string) error { return nil },
-			ValidateNDESSCEPAdminURLFunc: func(_ context.Context, _ fleet.NDESSCEPProxyCA) error {
+			ValidateNDESSCEPAdminURLFunc: func(_ context.Context, _ automdm.NDESSCEPProxyCA) error {
 				return scep.NewNDESInsufficientPermissionsError("mock error")
 			},
 		}
 
-		createNDESSCEPRequest := fleet.CertificateAuthorityPayload{
-			NDESSCEPProxy: &fleet.NDESSCEPProxyCA{
+		createNDESSCEPRequest := automdm.CertificateAuthorityPayload{
+			NDESSCEPProxy: &automdm.NDESSCEPProxyCA{
 				URL:      "https://ndes.example.com",
 				AdminURL: "https://ndes-admin.example.com",
 				Username: "ndes_user",
@@ -1031,8 +1031,8 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 	t.Run("Create Smallstep SCEP CA - bad name", func(t *testing.T) {
 		svc, ctx := baseSetupForCATests()
 
-		createSmallstepRequest := fleet.CertificateAuthorityPayload{
-			Smallstep: &fleet.SmallstepSCEPProxyCA{
+		createSmallstepRequest := automdm.CertificateAuthorityPayload{
+			Smallstep: &automdm.SmallstepSCEPProxyCA{
 				Name:         "Smallstep SCEP WIFI",
 				URL:          "https://smallstep.example.com",
 				ChallengeURL: "https://smallstep.example.com/challenge",
@@ -1050,8 +1050,8 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 	t.Run("Create Smallstep SCEP CA - invalid URL format", func(t *testing.T) {
 		svc, ctx := baseSetupForCATests()
 
-		createSmallstepRequest := fleet.CertificateAuthorityPayload{
-			Smallstep: &fleet.SmallstepSCEPProxyCA{
+		createSmallstepRequest := automdm.CertificateAuthorityPayload{
+			Smallstep: &automdm.SmallstepSCEPProxyCA{
 				Name:         "SmallstepSCEPWIFI",
 				URL:          "bozo",
 				ChallengeURL: "https://smallstep.example.com/challenge",
@@ -1069,8 +1069,8 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 	t.Run("Create Smallstep SCEP CA - empty username", func(t *testing.T) {
 		svc, ctx := baseSetupForCATests()
 
-		createSmallstepRequest := fleet.CertificateAuthorityPayload{
-			Smallstep: &fleet.SmallstepSCEPProxyCA{
+		createSmallstepRequest := automdm.CertificateAuthorityPayload{
+			Smallstep: &automdm.SmallstepSCEPProxyCA{
 				Name:         "SmallstepSCEPWIFI",
 				URL:          "https://smallstep.example.com",
 				ChallengeURL: "https://smallstep.example.com/challenge",
@@ -1088,8 +1088,8 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 	t.Run("Create Smallstep SCEP CA - empty password", func(t *testing.T) {
 		svc, ctx := baseSetupForCATests()
 
-		createSmallstepRequest := fleet.CertificateAuthorityPayload{
-			Smallstep: &fleet.SmallstepSCEPProxyCA{
+		createSmallstepRequest := automdm.CertificateAuthorityPayload{
+			Smallstep: &automdm.SmallstepSCEPProxyCA{
 				Name:         "SmallstepSCEPWIFI",
 				URL:          "https://smallstep.example.com",
 				ChallengeURL: "https://smallstep.example.com/challenge",
@@ -1107,13 +1107,13 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 	t.Run("Create Smallstep SCEP CA - masked password", func(t *testing.T) {
 		svc, ctx := baseSetupForCATests()
 
-		createSmallstepRequest := fleet.CertificateAuthorityPayload{
-			Smallstep: &fleet.SmallstepSCEPProxyCA{
+		createSmallstepRequest := automdm.CertificateAuthorityPayload{
+			Smallstep: &automdm.SmallstepSCEPProxyCA{
 				Name:         "SmallstepSCEPWIFI",
 				URL:          "https://smallstep.example.com",
 				ChallengeURL: "https://smallstep.example.com/challenge",
 				Username:     "smallstep_user",
-				Password:     fleet.MaskedPassword,
+				Password:     automdm.MaskedPassword,
 			},
 		}
 
@@ -1130,8 +1130,8 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 			ValidateSCEPURLFunc: func(_ context.Context, _ string) error { return errors.New("some error") },
 		}
 
-		createSmallstepRequest := fleet.CertificateAuthorityPayload{
-			Smallstep: &fleet.SmallstepSCEPProxyCA{
+		createSmallstepRequest := automdm.CertificateAuthorityPayload{
+			Smallstep: &automdm.SmallstepSCEPProxyCA{
 				Name:         "SmallstepSCEPWIFI",
 				URL:          "https://smallstep.example.com",
 				ChallengeURL: "https://smallstep.example.com/challenge",
@@ -1141,7 +1141,7 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 		}
 
 		createdCA, err := svc.NewCertificateAuthority(ctx, createSmallstepRequest)
-		require.ErrorContains(t, err, "Fleet couldn't find the CA at the specified URL. Please correct and try again.")
+		require.ErrorContains(t, err, "AutoMDM couldn't find the CA at the specified URL. Please correct and try again.")
 		require.Len(t, createdCAs, 0)
 		require.Nil(t, createdCA)
 	})
@@ -1151,13 +1151,13 @@ func TestCreatingCertificateAuthorities(t *testing.T) {
 
 		svc.scepConfigService = &scep_mock.SCEPConfigService{
 			ValidateSCEPURLFunc: func(_ context.Context, _ string) error { return nil },
-			ValidateSmallstepChallengeURLFunc: func(_ context.Context, _ fleet.SmallstepSCEPProxyCA) error {
+			ValidateSmallstepChallengeURLFunc: func(_ context.Context, _ automdm.SmallstepSCEPProxyCA) error {
 				return errors.New("some error")
 			},
 		}
 
-		createSmallstepRequest := fleet.CertificateAuthorityPayload{
-			Smallstep: &fleet.SmallstepSCEPProxyCA{
+		createSmallstepRequest := automdm.CertificateAuthorityPayload{
+			Smallstep: &automdm.SmallstepSCEPProxyCA{
 				Name:         "SmallstepSCEPWIFI",
 				URL:          "https://smallstep.example.com",
 				ChallengeURL: "bozo",
@@ -1190,74 +1190,74 @@ func TestUpdatingCertificateAuthorities(t *testing.T) {
 	ndesID := uint(4)
 	smallstepID := uint(5)
 	estID := uint(6)
-	createdCAs := []*fleet.CertificateAuthority{}
+	createdCAs := []*automdm.CertificateAuthority{}
 	baseSetupForCATests := func() (*Service, context.Context) {
 		ds := new(mock.Store)
 		// Reset createdCAs before each test
-		createdCAs = []*fleet.CertificateAuthority{}
+		createdCAs = []*automdm.CertificateAuthority{}
 		// Setup CA's mocks
-		digicertCA := &fleet.CertificateAuthority{
+		digicertCA := &automdm.CertificateAuthority{
 			ID:                            digicertID,
 			Name:                          ptr.String("Test Digicert CA"),
 			URL:                           ptr.String("https://digicert1.example.com"),
-			Type:                          string(fleet.CATypeDigiCert),
+			Type:                          string(automdm.CATypeDigiCert),
 			APIToken:                      ptr.String("test-api-token"),
 			ProfileID:                     ptr.String("test-profile-id"),
-			CertificateCommonName:         ptr.String("test-common-name $FLEET_VAR_HOST_HARDWARE_SERIAL"),
-			CertificateUserPrincipalNames: &[]string{"test-upn $FLEET_VAR_HOST_HARDWARE_SERIAL"},
+			CertificateCommonName:         ptr.String("test-common-name $AUTOMDM_VAR_HOST_HARDWARE_SERIAL"),
+			CertificateUserPrincipalNames: &[]string{"test-upn $AUTOMDM_VAR_HOST_HARDWARE_SERIAL"},
 			CertificateSeatID:             ptr.String("test-seat-id"),
 		}
 
-		hydrantCA := &fleet.CertificateAuthority{
+		hydrantCA := &automdm.CertificateAuthority{
 			ID:           hydrantID,
 			Name:         ptr.String("Hydrant CA"),
 			URL:          ptr.String("https://hydrant1.example.com"),
-			Type:         string(fleet.CATypeHydrant),
+			Type:         string(automdm.CATypeHydrant),
 			ClientID:     ptr.String("hydrant-client-id"),
 			ClientSecret: ptr.String("hydrant-client-secret"),
 		}
 
 		// Custom SCEP CAs
-		customSCEPCA := &fleet.CertificateAuthority{
+		customSCEPCA := &automdm.CertificateAuthority{
 			ID:        scepID,
 			Name:      ptr.String("Custom SCEP CA"),
 			URL:       ptr.String("https://custom-scep.example.com"),
-			Type:      string(fleet.CATypeCustomSCEPProxy),
+			Type:      string(automdm.CATypeCustomSCEPProxy),
 			Challenge: ptr.String("custom-scep-challenge"),
 		}
 
 		// NDES CA
-		ndesCA := &fleet.CertificateAuthority{
+		ndesCA := &automdm.CertificateAuthority{
 			ID:       ndesID,
 			Name:     ptr.String("NDES"),
 			URL:      ptr.String("https://ndes.example.com"),
 			AdminURL: ptr.String("https://ndes-admin.example.com"),
-			Type:     string(fleet.CATypeNDESSCEPProxy),
+			Type:     string(automdm.CATypeNDESSCEPProxy),
 			Username: ptr.String("ndes-username"),
 			Password: ptr.String("ndes-password"),
 		}
 
-		smallstepCA := &fleet.CertificateAuthority{
+		smallstepCA := &automdm.CertificateAuthority{
 			ID:           smallstepID,
 			Name:         ptr.String("Smallstep CA"),
 			URL:          ptr.String("https://smallstep.example.com"),
-			Type:         string(fleet.CATypeSmallstep),
+			Type:         string(automdm.CATypeSmallstep),
 			ChallengeURL: ptr.String("https://smallstep.example.com/challenge"),
 			Username:     ptr.String("smallstep-username"),
 			Password:     ptr.String("smallstep-password"),
 		}
 
-		estCA := &fleet.CertificateAuthority{
+		estCA := &automdm.CertificateAuthority{
 			ID:       estID,
 			Name:     new("EST CA"),
 			URL:      new("https://est.example.com"),
-			Type:     string(fleet.CATypeCustomESTProxy),
+			Type:     string(automdm.CATypeCustomESTProxy),
 			Username: new("est-username"),
 			Password: new("est-password"),
 		}
 
 		createdCAs = append(createdCAs, digicertCA, hydrantCA, customSCEPCA, ndesCA, smallstepCA, estCA)
-		ds.GetCertificateAuthorityByIDFunc = func(ctx context.Context, id uint, includeSecrets bool) (*fleet.CertificateAuthority, error) {
+		ds.GetCertificateAuthorityByIDFunc = func(ctx context.Context, id uint, includeSecrets bool) (*automdm.CertificateAuthority, error) {
 			for _, ca := range createdCAs {
 				if ca.ID == id {
 					return ca, nil
@@ -1266,7 +1266,7 @@ func TestUpdatingCertificateAuthorities(t *testing.T) {
 
 			return nil, common_mysql.NotFound("get ca for update")
 		}
-		ds.UpdateCertificateAuthorityByIDFunc = func(ctx context.Context, certificateAuthorityID uint, updatedCA *fleet.CertificateAuthority) error {
+		ds.UpdateCertificateAuthorityByIDFunc = func(ctx context.Context, certificateAuthorityID uint, updatedCA *automdm.CertificateAuthority) error {
 			for index, ca := range createdCAs {
 				if ca.ID != certificateAuthorityID {
 					continue
@@ -1294,13 +1294,13 @@ func TestUpdatingCertificateAuthorities(t *testing.T) {
 			estService:      est.NewService(),
 			scepConfigService: &scep_mock.SCEPConfigService{
 				ValidateSCEPURLFunc:               func(_ context.Context, _ string) error { return nil },
-				ValidateNDESSCEPAdminURLFunc:      func(_ context.Context, _ fleet.NDESSCEPProxyCA) error { return nil },
-				ValidateSmallstepChallengeURLFunc: func(_ context.Context, _ fleet.SmallstepSCEPProxyCA) error { return nil },
+				ValidateNDESSCEPAdminURLFunc:      func(_ context.Context, _ automdm.NDESSCEPProxyCA) error { return nil },
+				ValidateSmallstepChallengeURLFunc: func(_ context.Context, _ automdm.SmallstepSCEPProxyCA) error { return nil },
 			},
 		}
 		svc.config.Server.PrivateKey = "supersecret"
 
-		ctx := viewer.NewContext(context.Background(), viewer.Viewer{User: &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}})
+		ctx := viewer.NewContext(context.Background(), viewer.Viewer{User: &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}})
 
 		return svc, ctx
 	}
@@ -1308,18 +1308,18 @@ func TestUpdatingCertificateAuthorities(t *testing.T) {
 	t.Run("Errors on empty payload", func(t *testing.T) {
 		svc, ctx := baseSetupForCATests()
 
-		err := svc.UpdateCertificateAuthority(ctx, digicertID, fleet.CertificateAuthorityUpdatePayload{})
+		err := svc.UpdateCertificateAuthority(ctx, digicertID, automdm.CertificateAuthorityUpdatePayload{})
 		require.EqualError(t, err, "Couldn't edit certificate authority. A certificate authority must be specified")
 	})
 
 	t.Run("Errors on multiple payloads", func(t *testing.T) {
 		svc, ctx := baseSetupForCATests()
 
-		payload := fleet.CertificateAuthorityUpdatePayload{
-			DigiCertCAUpdatePayload: &fleet.DigiCertCAUpdatePayload{
+		payload := automdm.CertificateAuthorityUpdatePayload{
+			DigiCertCAUpdatePayload: &automdm.DigiCertCAUpdatePayload{
 				APIToken: ptr.String("updated-api-token"),
 			},
-			HydrantCAUpdatePayload: &fleet.HydrantCAUpdatePayload{
+			HydrantCAUpdatePayload: &automdm.HydrantCAUpdatePayload{
 				ClientSecret: ptr.String("updated-secret"),
 			},
 		}
@@ -1331,8 +1331,8 @@ func TestUpdatingCertificateAuthorities(t *testing.T) {
 	t.Run("Errors if no certificate authority is found", func(t *testing.T) {
 		svc, ctx := baseSetupForCATests()
 
-		payload := fleet.CertificateAuthorityUpdatePayload{
-			DigiCertCAUpdatePayload: &fleet.DigiCertCAUpdatePayload{},
+		payload := automdm.CertificateAuthorityUpdatePayload{
+			DigiCertCAUpdatePayload: &automdm.DigiCertCAUpdatePayload{},
 		}
 
 		err := svc.UpdateCertificateAuthority(ctx, 999, payload)
@@ -1341,21 +1341,21 @@ func TestUpdatingCertificateAuthorities(t *testing.T) {
 
 	t.Run("Errors on empty inner update payload", func(t *testing.T) {
 		svc, ctx := baseSetupForCATests()
-		payloadMap := map[uint]fleet.CertificateAuthorityUpdatePayload{
+		payloadMap := map[uint]automdm.CertificateAuthorityUpdatePayload{
 			digicertID: {
-				DigiCertCAUpdatePayload: &fleet.DigiCertCAUpdatePayload{},
+				DigiCertCAUpdatePayload: &automdm.DigiCertCAUpdatePayload{},
 			},
 			hydrantID: {
-				HydrantCAUpdatePayload: &fleet.HydrantCAUpdatePayload{},
+				HydrantCAUpdatePayload: &automdm.HydrantCAUpdatePayload{},
 			},
 			scepID: {
-				CustomSCEPProxyCAUpdatePayload: &fleet.CustomSCEPProxyCAUpdatePayload{},
+				CustomSCEPProxyCAUpdatePayload: &automdm.CustomSCEPProxyCAUpdatePayload{},
 			},
 			ndesID: {
-				NDESSCEPProxyCAUpdatePayload: &fleet.NDESSCEPProxyCAUpdatePayload{},
+				NDESSCEPProxyCAUpdatePayload: &automdm.NDESSCEPProxyCAUpdatePayload{},
 			},
 			smallstepID: {
-				SmallstepSCEPProxyCAUpdatePayload: &fleet.SmallstepSCEPProxyCAUpdatePayload{},
+				SmallstepSCEPProxyCAUpdatePayload: &automdm.SmallstepSCEPProxyCAUpdatePayload{},
 			},
 		}
 
@@ -1369,8 +1369,8 @@ func TestUpdatingCertificateAuthorities(t *testing.T) {
 	t.Run("Errors on wrong existing CA type", func(t *testing.T) {
 		svc, ctx := baseSetupForCATests()
 
-		payload := fleet.CertificateAuthorityUpdatePayload{
-			HydrantCAUpdatePayload: &fleet.HydrantCAUpdatePayload{
+		payload := automdm.CertificateAuthorityUpdatePayload{
+			HydrantCAUpdatePayload: &automdm.HydrantCAUpdatePayload{
 				ClientSecret: ptr.String("updated-secret"),
 			},
 		}
@@ -1381,50 +1381,50 @@ func TestUpdatingCertificateAuthorities(t *testing.T) {
 
 	// The GET endpoint returns secrets masked, so sending one back must not overwrite the stored secret with the mask.
 	t.Run("Masked secrets are rejected", func(t *testing.T) {
-		masked := new(fleet.MaskedPassword)
+		masked := new(automdm.MaskedPassword)
 		for _, tc := range []struct {
 			name    string
 			id      uint
-			payload fleet.CertificateAuthorityUpdatePayload
+			payload automdm.CertificateAuthorityUpdatePayload
 			wantErr string
 		}{
 			{
 				name: "DigiCert API token",
 				id:   digicertID,
-				payload: fleet.CertificateAuthorityUpdatePayload{
-					DigiCertCAUpdatePayload: &fleet.DigiCertCAUpdatePayload{APIToken: masked},
+				payload: automdm.CertificateAuthorityUpdatePayload{
+					DigiCertCAUpdatePayload: &automdm.DigiCertCAUpdatePayload{APIToken: masked},
 				},
 				wantErr: "Invalid DigiCert API token",
 			},
 			{
 				name: "Hydrant client secret",
 				id:   hydrantID,
-				payload: fleet.CertificateAuthorityUpdatePayload{
-					HydrantCAUpdatePayload: &fleet.HydrantCAUpdatePayload{ClientSecret: masked},
+				payload: automdm.CertificateAuthorityUpdatePayload{
+					HydrantCAUpdatePayload: &automdm.HydrantCAUpdatePayload{ClientSecret: masked},
 				},
 				wantErr: "Invalid Hydrant Client Secret",
 			},
 			{
 				name: "EST password",
 				id:   estID,
-				payload: fleet.CertificateAuthorityUpdatePayload{
-					CustomESTCAUpdatePayload: &fleet.CustomESTCAUpdatePayload{Password: masked},
+				payload: automdm.CertificateAuthorityUpdatePayload{
+					CustomESTCAUpdatePayload: &automdm.CustomESTCAUpdatePayload{Password: masked},
 				},
 				wantErr: "Invalid EST Password",
 			},
 			{
 				name: "custom SCEP challenge",
 				id:   scepID,
-				payload: fleet.CertificateAuthorityUpdatePayload{
-					CustomSCEPProxyCAUpdatePayload: &fleet.CustomSCEPProxyCAUpdatePayload{Challenge: masked},
+				payload: automdm.CertificateAuthorityUpdatePayload{
+					CustomSCEPProxyCAUpdatePayload: &automdm.CustomSCEPProxyCAUpdatePayload{Challenge: masked},
 				},
 				wantErr: "Custom SCEP Proxy challenge cannot be empty",
 			},
 			{
 				name: "Smallstep password",
 				id:   smallstepID,
-				payload: fleet.CertificateAuthorityUpdatePayload{
-					SmallstepSCEPProxyCAUpdatePayload: &fleet.SmallstepSCEPProxyCAUpdatePayload{Password: masked},
+				payload: automdm.CertificateAuthorityUpdatePayload{
+					SmallstepSCEPProxyCAUpdatePayload: &automdm.SmallstepSCEPProxyCAUpdatePayload{Password: masked},
 				},
 				wantErr: "Smallstep SCEP Proxy password cannot be empty",
 			},
@@ -1442,8 +1442,8 @@ func TestUpdatingCertificateAuthorities(t *testing.T) {
 			svc, ctx := baseSetupForCATests()
 
 			upns := []string{"updated-upns"}
-			payload := fleet.CertificateAuthorityUpdatePayload{
-				DigiCertCAUpdatePayload: &fleet.DigiCertCAUpdatePayload{
+			payload := automdm.CertificateAuthorityUpdatePayload{
+				DigiCertCAUpdatePayload: &automdm.DigiCertCAUpdatePayload{
 					Name:                          ptr.String("Updated_Digicert"),
 					URL:                           &digicertURL,
 					APIToken:                      ptr.String("updated-api-token"),
@@ -1461,11 +1461,11 @@ func TestUpdatingCertificateAuthorities(t *testing.T) {
 		t.Run("Allows variable for certificate related fields", func(t *testing.T) {
 			svc, ctx := baseSetupForCATests()
 
-			payload := fleet.CertificateAuthorityUpdatePayload{
-				DigiCertCAUpdatePayload: &fleet.DigiCertCAUpdatePayload{
-					CertificateCommonName:         ptr.String("$FLEET_VAR_HOST_HARDWARE_SERIAL"),
-					CertificateUserPrincipalNames: &[]string{"$FLEET_VAR_HOST_HARDWARE_SERIAL"},
-					CertificateSeatID:             ptr.String("$FLEET_VAR_HOST_HARDWARE_SERIAL"),
+			payload := automdm.CertificateAuthorityUpdatePayload{
+				DigiCertCAUpdatePayload: &automdm.DigiCertCAUpdatePayload{
+					CertificateCommonName:         ptr.String("$AUTOMDM_VAR_HOST_HARDWARE_SERIAL"),
+					CertificateUserPrincipalNames: &[]string{"$AUTOMDM_VAR_HOST_HARDWARE_SERIAL"},
+					CertificateSeatID:             ptr.String("$AUTOMDM_VAR_HOST_HARDWARE_SERIAL"),
 				},
 			}
 
@@ -1476,8 +1476,8 @@ func TestUpdatingCertificateAuthorities(t *testing.T) {
 		t.Run("Fails updating URL if no api token", func(t *testing.T) {
 			svc, ctx := baseSetupForCATests()
 
-			payload := fleet.CertificateAuthorityUpdatePayload{
-				DigiCertCAUpdatePayload: &fleet.DigiCertCAUpdatePayload{
+			payload := automdm.CertificateAuthorityUpdatePayload{
+				DigiCertCAUpdatePayload: &automdm.DigiCertCAUpdatePayload{
 					URL: &digicertURL,
 				},
 			}
@@ -1489,8 +1489,8 @@ func TestUpdatingCertificateAuthorities(t *testing.T) {
 		t.Run("Fails updating profile ID if no api token", func(t *testing.T) {
 			svc, ctx := baseSetupForCATests()
 
-			payload := fleet.CertificateAuthorityUpdatePayload{
-				DigiCertCAUpdatePayload: &fleet.DigiCertCAUpdatePayload{
+			payload := automdm.CertificateAuthorityUpdatePayload{
+				DigiCertCAUpdatePayload: &automdm.DigiCertCAUpdatePayload{
 					ProfileID: ptr.String("fake-profile-id"),
 				},
 			}
@@ -1502,8 +1502,8 @@ func TestUpdatingCertificateAuthorities(t *testing.T) {
 		t.Run("Invalid URL Format", func(t *testing.T) {
 			svc, ctx := baseSetupForCATests()
 
-			payload := fleet.CertificateAuthorityUpdatePayload{
-				DigiCertCAUpdatePayload: &fleet.DigiCertCAUpdatePayload{
+			payload := automdm.CertificateAuthorityUpdatePayload{
+				DigiCertCAUpdatePayload: &automdm.DigiCertCAUpdatePayload{
 					URL:      ptr.String("bozo"),
 					APIToken: ptr.String("secret-token"),
 				},
@@ -1516,8 +1516,8 @@ func TestUpdatingCertificateAuthorities(t *testing.T) {
 		t.Run("Bad URL Path", func(t *testing.T) {
 			svc, ctx := baseSetupForCATests()
 
-			payload := fleet.CertificateAuthorityUpdatePayload{
-				DigiCertCAUpdatePayload: &fleet.DigiCertCAUpdatePayload{
+			payload := automdm.CertificateAuthorityUpdatePayload{
+				DigiCertCAUpdatePayload: &automdm.DigiCertCAUpdatePayload{
 					URL:      ptr.String(digicertURL + "/invalid"),
 					APIToken: ptr.String("secret-token"),
 				},
@@ -1530,8 +1530,8 @@ func TestUpdatingCertificateAuthorities(t *testing.T) {
 		t.Run("Empty CN", func(t *testing.T) {
 			svc, ctx := baseSetupForCATests()
 
-			payload := fleet.CertificateAuthorityUpdatePayload{
-				DigiCertCAUpdatePayload: &fleet.DigiCertCAUpdatePayload{
+			payload := automdm.CertificateAuthorityUpdatePayload{
+				DigiCertCAUpdatePayload: &automdm.DigiCertCAUpdatePayload{
 					CertificateCommonName: ptr.String(""),
 				},
 			}
@@ -1543,21 +1543,21 @@ func TestUpdatingCertificateAuthorities(t *testing.T) {
 		t.Run("Unsupported variable in CN", func(t *testing.T) {
 			svc, ctx := baseSetupForCATests()
 
-			payload := fleet.CertificateAuthorityUpdatePayload{
-				DigiCertCAUpdatePayload: &fleet.DigiCertCAUpdatePayload{
-					CertificateCommonName: ptr.String("$FLEET_VAR_BOZO"),
+			payload := automdm.CertificateAuthorityUpdatePayload{
+				DigiCertCAUpdatePayload: &automdm.DigiCertCAUpdatePayload{
+					CertificateCommonName: ptr.String("$AUTOMDM_VAR_BOZO"),
 				},
 			}
 
 			err := svc.UpdateCertificateAuthority(ctx, digicertID, payload)
-			require.EqualError(t, err, "validation failed: certificate_common_name Couldn't edit certificate authority. FLEET_VAR_BOZO is not allowed in CA Common Name (CN)")
+			require.EqualError(t, err, "validation failed: certificate_common_name Couldn't edit certificate authority. AUTOMDM_VAR_BOZO is not allowed in CA Common Name (CN)")
 		})
 
 		t.Run("Empty Seat ID", func(t *testing.T) {
 			svc, ctx := baseSetupForCATests()
 
-			payload := fleet.CertificateAuthorityUpdatePayload{
-				DigiCertCAUpdatePayload: &fleet.DigiCertCAUpdatePayload{
+			payload := automdm.CertificateAuthorityUpdatePayload{
+				DigiCertCAUpdatePayload: &automdm.DigiCertCAUpdatePayload{
 					CertificateSeatID: ptr.String(""),
 				},
 			}
@@ -1569,21 +1569,21 @@ func TestUpdatingCertificateAuthorities(t *testing.T) {
 		t.Run("Unsupported variable in Seat ID", func(t *testing.T) {
 			svc, ctx := baseSetupForCATests()
 
-			payload := fleet.CertificateAuthorityUpdatePayload{
-				DigiCertCAUpdatePayload: &fleet.DigiCertCAUpdatePayload{
-					CertificateSeatID: ptr.String("$FLEET_VAR_BOZO"),
+			payload := automdm.CertificateAuthorityUpdatePayload{
+				DigiCertCAUpdatePayload: &automdm.DigiCertCAUpdatePayload{
+					CertificateSeatID: ptr.String("$AUTOMDM_VAR_BOZO"),
 				},
 			}
 
 			err := svc.UpdateCertificateAuthority(ctx, digicertID, payload)
-			require.EqualError(t, err, "validation failed: certificate_seat_id Couldn't edit certificate authority. FLEET_VAR_BOZO is not allowed in DigiCert Seat ID")
+			require.EqualError(t, err, "validation failed: certificate_seat_id Couldn't edit certificate authority. AUTOMDM_VAR_BOZO is not allowed in DigiCert Seat ID")
 		})
 
 		t.Run("Empty UPN", func(t *testing.T) {
 			svc, ctx := baseSetupForCATests()
 
-			payload := fleet.CertificateAuthorityUpdatePayload{
-				DigiCertCAUpdatePayload: &fleet.DigiCertCAUpdatePayload{
+			payload := automdm.CertificateAuthorityUpdatePayload{
+				DigiCertCAUpdatePayload: &automdm.DigiCertCAUpdatePayload{
 					CertificateUserPrincipalNames: &[]string{""},
 				},
 			}
@@ -1595,14 +1595,14 @@ func TestUpdatingCertificateAuthorities(t *testing.T) {
 		t.Run("Unsupported variable in UPN", func(t *testing.T) {
 			svc, ctx := baseSetupForCATests()
 
-			payload := fleet.CertificateAuthorityUpdatePayload{
-				DigiCertCAUpdatePayload: &fleet.DigiCertCAUpdatePayload{
-					CertificateUserPrincipalNames: &[]string{"$FLEET_VAR_BOZO"},
+			payload := automdm.CertificateAuthorityUpdatePayload{
+				DigiCertCAUpdatePayload: &automdm.DigiCertCAUpdatePayload{
+					CertificateUserPrincipalNames: &[]string{"$AUTOMDM_VAR_BOZO"},
 				},
 			}
 
 			err := svc.UpdateCertificateAuthority(ctx, digicertID, payload)
-			require.EqualError(t, err, "validation failed: certificate_user_principal_names Couldn't edit certificate authority. FLEET_VAR_BOZO is not allowed in CA User Principal Name")
+			require.EqualError(t, err, "validation failed: certificate_user_principal_names Couldn't edit certificate authority. AUTOMDM_VAR_BOZO is not allowed in CA User Principal Name")
 		})
 	})
 
@@ -1610,8 +1610,8 @@ func TestUpdatingCertificateAuthorities(t *testing.T) {
 		t.Run("Full update succeeds", func(t *testing.T) {
 			svc, ctx := baseSetupForCATests()
 
-			payload := fleet.CertificateAuthorityUpdatePayload{
-				HydrantCAUpdatePayload: &fleet.HydrantCAUpdatePayload{
+			payload := automdm.CertificateAuthorityUpdatePayload{
+				HydrantCAUpdatePayload: &automdm.HydrantCAUpdatePayload{
 					Name:         ptr.String("Updated_Hydrant"),
 					URL:          &hydrantURL,
 					ClientID:     ptr.String("updated-id"),
@@ -1626,8 +1626,8 @@ func TestUpdatingCertificateAuthorities(t *testing.T) {
 		t.Run("Bad name", func(t *testing.T) {
 			svc, ctx := baseSetupForCATests()
 
-			payload := fleet.CertificateAuthorityUpdatePayload{
-				HydrantCAUpdatePayload: &fleet.HydrantCAUpdatePayload{
+			payload := automdm.CertificateAuthorityUpdatePayload{
+				HydrantCAUpdatePayload: &automdm.HydrantCAUpdatePayload{
 					Name:         ptr.String("Updated Hydrant"),
 					URL:          &hydrantURL,
 					ClientID:     ptr.String("updated-id"),
@@ -1642,8 +1642,8 @@ func TestUpdatingCertificateAuthorities(t *testing.T) {
 		t.Run("Invalid URL format", func(t *testing.T) {
 			svc, ctx := baseSetupForCATests()
 
-			payload := fleet.CertificateAuthorityUpdatePayload{
-				HydrantCAUpdatePayload: &fleet.HydrantCAUpdatePayload{
+			payload := automdm.CertificateAuthorityUpdatePayload{
+				HydrantCAUpdatePayload: &automdm.HydrantCAUpdatePayload{
 					Name:         ptr.String("UpdatedHydrant"),
 					URL:          ptr.String("bozo"),
 					ClientID:     ptr.String("updated-id"),
@@ -1658,8 +1658,8 @@ func TestUpdatingCertificateAuthorities(t *testing.T) {
 		t.Run("Bad URL", func(t *testing.T) {
 			svc, ctx := baseSetupForCATests()
 
-			payload := fleet.CertificateAuthorityUpdatePayload{
-				HydrantCAUpdatePayload: &fleet.HydrantCAUpdatePayload{
+			payload := automdm.CertificateAuthorityUpdatePayload{
+				HydrantCAUpdatePayload: &automdm.HydrantCAUpdatePayload{
 					Name:         ptr.String("UpdatedHydrant"),
 					URL:          ptr.String("https://hydrant.example.com/invalid"),
 					ClientID:     ptr.String("updated-id"),
@@ -1674,8 +1674,8 @@ func TestUpdatingCertificateAuthorities(t *testing.T) {
 		t.Run("Empty ClientID", func(t *testing.T) {
 			svc, ctx := baseSetupForCATests()
 
-			payload := fleet.CertificateAuthorityUpdatePayload{
-				HydrantCAUpdatePayload: &fleet.HydrantCAUpdatePayload{
+			payload := automdm.CertificateAuthorityUpdatePayload{
+				HydrantCAUpdatePayload: &automdm.HydrantCAUpdatePayload{
 					ClientID: ptr.String(""),
 				},
 			}
@@ -1687,8 +1687,8 @@ func TestUpdatingCertificateAuthorities(t *testing.T) {
 		t.Run("Empty ClientSecret", func(t *testing.T) {
 			svc, ctx := baseSetupForCATests()
 
-			payload := fleet.CertificateAuthorityUpdatePayload{
-				HydrantCAUpdatePayload: &fleet.HydrantCAUpdatePayload{
+			payload := automdm.CertificateAuthorityUpdatePayload{
+				HydrantCAUpdatePayload: &automdm.HydrantCAUpdatePayload{
 					ClientSecret: ptr.String(""),
 				},
 			}
@@ -1702,8 +1702,8 @@ func TestUpdatingCertificateAuthorities(t *testing.T) {
 		t.Run("Full update succeeds", func(t *testing.T) {
 			svc, ctx := baseSetupForCATests()
 
-			payload := fleet.CertificateAuthorityUpdatePayload{
-				CustomSCEPProxyCAUpdatePayload: &fleet.CustomSCEPProxyCAUpdatePayload{
+			payload := automdm.CertificateAuthorityUpdatePayload{
+				CustomSCEPProxyCAUpdatePayload: &automdm.CustomSCEPProxyCAUpdatePayload{
 					Name:      ptr.String("Updated_Scep"),
 					URL:       ptr.String("https://customscep.example.com"),
 					Challenge: ptr.String("updated-challenge"),
@@ -1718,8 +1718,8 @@ func TestUpdatingCertificateAuthorities(t *testing.T) {
 			// Regression test for the reverted PrintableString challenge validation (#49756).
 			svc, ctx := baseSetupForCATests()
 
-			payload := fleet.CertificateAuthorityUpdatePayload{
-				CustomSCEPProxyCAUpdatePayload: &fleet.CustomSCEPProxyCAUpdatePayload{
+			payload := automdm.CertificateAuthorityUpdatePayload{
+				CustomSCEPProxyCAUpdatePayload: &automdm.CustomSCEPProxyCAUpdatePayload{
 					Challenge: new("updated_challenge@with_special_chars"),
 				},
 			}
@@ -1731,8 +1731,8 @@ func TestUpdatingCertificateAuthorities(t *testing.T) {
 		t.Run("Bad name", func(t *testing.T) {
 			svc, ctx := baseSetupForCATests()
 
-			payload := fleet.CertificateAuthorityUpdatePayload{
-				CustomSCEPProxyCAUpdatePayload: &fleet.CustomSCEPProxyCAUpdatePayload{
+			payload := automdm.CertificateAuthorityUpdatePayload{
+				CustomSCEPProxyCAUpdatePayload: &automdm.CustomSCEPProxyCAUpdatePayload{
 					Name: ptr.String("Updated SCEP"),
 				},
 			}
@@ -1744,8 +1744,8 @@ func TestUpdatingCertificateAuthorities(t *testing.T) {
 		t.Run("Invalid URL format", func(t *testing.T) {
 			svc, ctx := baseSetupForCATests()
 
-			payload := fleet.CertificateAuthorityUpdatePayload{
-				CustomSCEPProxyCAUpdatePayload: &fleet.CustomSCEPProxyCAUpdatePayload{
+			payload := automdm.CertificateAuthorityUpdatePayload{
+				CustomSCEPProxyCAUpdatePayload: &automdm.CustomSCEPProxyCAUpdatePayload{
 					URL:       ptr.String("bozo"),
 					Challenge: ptr.String("challenge"),
 				},
@@ -1758,8 +1758,8 @@ func TestUpdatingCertificateAuthorities(t *testing.T) {
 		t.Run("Requires challenge when updating URL", func(t *testing.T) {
 			svc, ctx := baseSetupForCATests()
 
-			payload := fleet.CertificateAuthorityUpdatePayload{
-				CustomSCEPProxyCAUpdatePayload: &fleet.CustomSCEPProxyCAUpdatePayload{
+			payload := automdm.CertificateAuthorityUpdatePayload{
+				CustomSCEPProxyCAUpdatePayload: &automdm.CustomSCEPProxyCAUpdatePayload{
 					URL: ptr.String("https://customscep.localhost.com"),
 				},
 			}
@@ -1775,15 +1775,15 @@ func TestUpdatingCertificateAuthorities(t *testing.T) {
 				ValidateSCEPURLFunc: func(_ context.Context, _ string) error { return errors.New("some error") },
 			}
 
-			payload := fleet.CertificateAuthorityUpdatePayload{
-				CustomSCEPProxyCAUpdatePayload: &fleet.CustomSCEPProxyCAUpdatePayload{
+			payload := automdm.CertificateAuthorityUpdatePayload{
+				CustomSCEPProxyCAUpdatePayload: &automdm.CustomSCEPProxyCAUpdatePayload{
 					URL:       ptr.String("https://customscep.localhost.com"),
 					Challenge: ptr.String("updated-challenge"),
 				},
 			}
 
 			err := svc.UpdateCertificateAuthority(ctx, scepID, payload)
-			require.EqualError(t, err, "Couldn't edit certificate authority. Fleet couldn't find the CA at the specified URL. Please correct and try again.")
+			require.EqualError(t, err, "Couldn't edit certificate authority. AutoMDM couldn't find the CA at the specified URL. Please correct and try again.")
 		})
 	})
 
@@ -1791,8 +1791,8 @@ func TestUpdatingCertificateAuthorities(t *testing.T) {
 		t.Run("Full update succeeds", func(t *testing.T) {
 			svc, ctx := baseSetupForCATests()
 
-			payload := fleet.CertificateAuthorityUpdatePayload{
-				NDESSCEPProxyCAUpdatePayload: &fleet.NDESSCEPProxyCAUpdatePayload{
+			payload := automdm.CertificateAuthorityUpdatePayload{
+				NDESSCEPProxyCAUpdatePayload: &automdm.NDESSCEPProxyCAUpdatePayload{
 					URL:      ptr.String("https://ndes.example.com"),
 					AdminURL: ptr.String("https://ndes-admin.example.com"),
 					Username: ptr.String("ndes_user"),
@@ -1807,8 +1807,8 @@ func TestUpdatingCertificateAuthorities(t *testing.T) {
 		t.Run("Invalid URL format", func(t *testing.T) {
 			svc, ctx := baseSetupForCATests()
 
-			payload := fleet.CertificateAuthorityUpdatePayload{
-				NDESSCEPProxyCAUpdatePayload: &fleet.NDESSCEPProxyCAUpdatePayload{
+			payload := automdm.CertificateAuthorityUpdatePayload{
+				NDESSCEPProxyCAUpdatePayload: &automdm.NDESSCEPProxyCAUpdatePayload{
 					URL:      ptr.String("bozo"),
 					Password: ptr.String("updated-pasword"),
 				},
@@ -1825,22 +1825,22 @@ func TestUpdatingCertificateAuthorities(t *testing.T) {
 				ValidateSCEPURLFunc: func(_ context.Context, _ string) error { return errors.New("some error") },
 			}
 
-			payload := fleet.CertificateAuthorityUpdatePayload{
-				NDESSCEPProxyCAUpdatePayload: &fleet.NDESSCEPProxyCAUpdatePayload{
+			payload := automdm.CertificateAuthorityUpdatePayload{
+				NDESSCEPProxyCAUpdatePayload: &automdm.NDESSCEPProxyCAUpdatePayload{
 					URL:      ptr.String("https://ndes.example.com"),
 					Password: ptr.String("updated-pasword"),
 				},
 			}
 
 			err := svc.UpdateCertificateAuthority(ctx, ndesID, payload)
-			require.EqualError(t, err, "Couldn't edit certificate authority. Fleet couldn't find the CA at the specified URL. Please correct and try again.")
+			require.EqualError(t, err, "Couldn't edit certificate authority. AutoMDM couldn't find the CA at the specified URL. Please correct and try again.")
 		})
 
 		t.Run("Missing password", func(t *testing.T) {
 			svc, ctx := baseSetupForCATests()
 
-			payload := fleet.CertificateAuthorityUpdatePayload{
-				NDESSCEPProxyCAUpdatePayload: &fleet.NDESSCEPProxyCAUpdatePayload{
+			payload := automdm.CertificateAuthorityUpdatePayload{
+				NDESSCEPProxyCAUpdatePayload: &automdm.NDESSCEPProxyCAUpdatePayload{
 					URL: ptr.String("https://ndes.example.com"),
 				},
 			}
@@ -1852,8 +1852,8 @@ func TestUpdatingCertificateAuthorities(t *testing.T) {
 		t.Run("Empty admin URL", func(t *testing.T) {
 			svc, ctx := baseSetupForCATests()
 
-			payload := fleet.CertificateAuthorityUpdatePayload{
-				NDESSCEPProxyCAUpdatePayload: &fleet.NDESSCEPProxyCAUpdatePayload{
+			payload := automdm.CertificateAuthorityUpdatePayload{
+				NDESSCEPProxyCAUpdatePayload: &automdm.NDESSCEPProxyCAUpdatePayload{
 					AdminURL: new(""),
 					Password: new("updated-password"),
 				},
@@ -1866,8 +1866,8 @@ func TestUpdatingCertificateAuthorities(t *testing.T) {
 		t.Run("Empty username", func(t *testing.T) {
 			svc, ctx := baseSetupForCATests()
 
-			payload := fleet.CertificateAuthorityUpdatePayload{
-				NDESSCEPProxyCAUpdatePayload: &fleet.NDESSCEPProxyCAUpdatePayload{
+			payload := automdm.CertificateAuthorityUpdatePayload{
+				NDESSCEPProxyCAUpdatePayload: &automdm.NDESSCEPProxyCAUpdatePayload{
 					Username: new(""),
 					Password: new("updated-password"),
 				},
@@ -1880,8 +1880,8 @@ func TestUpdatingCertificateAuthorities(t *testing.T) {
 		t.Run("Empty password", func(t *testing.T) {
 			svc, ctx := baseSetupForCATests()
 
-			payload := fleet.CertificateAuthorityUpdatePayload{
-				NDESSCEPProxyCAUpdatePayload: &fleet.NDESSCEPProxyCAUpdatePayload{
+			payload := automdm.CertificateAuthorityUpdatePayload{
+				NDESSCEPProxyCAUpdatePayload: &automdm.NDESSCEPProxyCAUpdatePayload{
 					Password: new(""),
 				},
 			}
@@ -1896,16 +1896,16 @@ func TestUpdatingCertificateAuthorities(t *testing.T) {
 			// changing NDES credentials requires re-supplying the actual password, so the
 			// mask the GET endpoint returns in place of the real one is not accepted
 			scepConfig := &scep_mock.SCEPConfigService{
-				ValidateNDESSCEPAdminURLFunc: func(_ context.Context, _ fleet.NDESSCEPProxyCA) error {
+				ValidateNDESSCEPAdminURLFunc: func(_ context.Context, _ automdm.NDESSCEPProxyCA) error {
 					return errors.New("should not be called")
 				},
 			}
 			svc.scepConfigService = scepConfig
 
-			payload := fleet.CertificateAuthorityUpdatePayload{
-				NDESSCEPProxyCAUpdatePayload: &fleet.NDESSCEPProxyCAUpdatePayload{
+			payload := automdm.CertificateAuthorityUpdatePayload{
+				NDESSCEPProxyCAUpdatePayload: &automdm.NDESSCEPProxyCAUpdatePayload{
 					Username: new("updated-username"),
-					Password: new(fleet.MaskedPassword),
+					Password: new(automdm.MaskedPassword),
 				},
 			}
 
@@ -1918,14 +1918,14 @@ func TestUpdatingCertificateAuthorities(t *testing.T) {
 			svc, ctx := baseSetupForCATests()
 
 			scepConfig := &scep_mock.SCEPConfigService{
-				ValidateNDESSCEPAdminURLFunc: func(_ context.Context, _ fleet.NDESSCEPProxyCA) error {
+				ValidateNDESSCEPAdminURLFunc: func(_ context.Context, _ automdm.NDESSCEPProxyCA) error {
 					return errors.New("should not be called")
 				},
 			}
 			svc.scepConfigService = scepConfig
 
-			payload := fleet.CertificateAuthorityUpdatePayload{
-				NDESSCEPProxyCAUpdatePayload: &fleet.NDESSCEPProxyCAUpdatePayload{
+			payload := automdm.CertificateAuthorityUpdatePayload{
+				NDESSCEPProxyCAUpdatePayload: &automdm.NDESSCEPProxyCAUpdatePayload{
 					Username: new("ndes-username"),
 					Password: new("ndes-password"),
 				},
@@ -1940,13 +1940,13 @@ func TestUpdatingCertificateAuthorities(t *testing.T) {
 			svc, ctx := baseSetupForCATests()
 
 			svc.scepConfigService = &scep_mock.SCEPConfigService{
-				ValidateNDESSCEPAdminURLFunc: func(_ context.Context, _ fleet.NDESSCEPProxyCA) error {
+				ValidateNDESSCEPAdminURLFunc: func(_ context.Context, _ automdm.NDESSCEPProxyCA) error {
 					return errors.New("sending request: dial tcp: connection refused")
 				},
 			}
 
-			payload := fleet.CertificateAuthorityUpdatePayload{
-				NDESSCEPProxyCAUpdatePayload: &fleet.NDESSCEPProxyCAUpdatePayload{
+			payload := automdm.CertificateAuthorityUpdatePayload{
+				NDESSCEPProxyCAUpdatePayload: &automdm.NDESSCEPProxyCAUpdatePayload{
 					AdminURL: new("https://ndes.example.com"),
 					Password: new("updated-password"),
 				},
@@ -1960,13 +1960,13 @@ func TestUpdatingCertificateAuthorities(t *testing.T) {
 			svc, ctx := baseSetupForCATests()
 
 			svc.scepConfigService = &scep_mock.SCEPConfigService{
-				ValidateNDESSCEPAdminURLFunc: func(_ context.Context, _ fleet.NDESSCEPProxyCA) error {
+				ValidateNDESSCEPAdminURLFunc: func(_ context.Context, _ automdm.NDESSCEPProxyCA) error {
 					return scep.NewNDESInvalidError("some error")
 				},
 			}
 
-			payload := fleet.CertificateAuthorityUpdatePayload{
-				NDESSCEPProxyCAUpdatePayload: &fleet.NDESSCEPProxyCAUpdatePayload{
+			payload := automdm.CertificateAuthorityUpdatePayload{
+				NDESSCEPProxyCAUpdatePayload: &automdm.NDESSCEPProxyCAUpdatePayload{
 					AdminURL: ptr.String("https://ndes.example.com"),
 					Password: ptr.String("updated-password"),
 				},
@@ -1980,13 +1980,13 @@ func TestUpdatingCertificateAuthorities(t *testing.T) {
 			svc, ctx := baseSetupForCATests()
 
 			svc.scepConfigService = &scep_mock.SCEPConfigService{
-				ValidateNDESSCEPAdminURLFunc: func(_ context.Context, _ fleet.NDESSCEPProxyCA) error {
+				ValidateNDESSCEPAdminURLFunc: func(_ context.Context, _ automdm.NDESSCEPProxyCA) error {
 					return scep.NewNDESPasswordCacheFullError("some error")
 				},
 			}
 
-			payload := fleet.CertificateAuthorityUpdatePayload{
-				NDESSCEPProxyCAUpdatePayload: &fleet.NDESSCEPProxyCAUpdatePayload{
+			payload := automdm.CertificateAuthorityUpdatePayload{
+				NDESSCEPProxyCAUpdatePayload: &automdm.NDESSCEPProxyCAUpdatePayload{
 					AdminURL: ptr.String("https://ndes.example.com"),
 					Password: ptr.String("updated-password"),
 				},
@@ -2000,13 +2000,13 @@ func TestUpdatingCertificateAuthorities(t *testing.T) {
 			svc, ctx := baseSetupForCATests()
 
 			svc.scepConfigService = &scep_mock.SCEPConfigService{
-				ValidateNDESSCEPAdminURLFunc: func(_ context.Context, _ fleet.NDESSCEPProxyCA) error {
+				ValidateNDESSCEPAdminURLFunc: func(_ context.Context, _ automdm.NDESSCEPProxyCA) error {
 					return scep.NewNDESInsufficientPermissionsError("some error")
 				},
 			}
 
-			payload := fleet.CertificateAuthorityUpdatePayload{
-				NDESSCEPProxyCAUpdatePayload: &fleet.NDESSCEPProxyCAUpdatePayload{
+			payload := automdm.CertificateAuthorityUpdatePayload{
+				NDESSCEPProxyCAUpdatePayload: &automdm.NDESSCEPProxyCAUpdatePayload{
 					AdminURL: ptr.String("https://ndes.example.com"),
 					Password: ptr.String("updated-password"),
 				},
@@ -2021,8 +2021,8 @@ func TestUpdatingCertificateAuthorities(t *testing.T) {
 		t.Run("Full update succeeds", func(t *testing.T) {
 			svc, ctx := baseSetupForCATests()
 
-			payload := fleet.CertificateAuthorityUpdatePayload{
-				SmallstepSCEPProxyCAUpdatePayload: &fleet.SmallstepSCEPProxyCAUpdatePayload{
+			payload := automdm.CertificateAuthorityUpdatePayload{
+				SmallstepSCEPProxyCAUpdatePayload: &automdm.SmallstepSCEPProxyCAUpdatePayload{
 					Name:         ptr.String("Updated_Smallstep"),
 					URL:          ptr.String("https://smallstep.example.com"),
 					ChallengeURL: ptr.String("https://smallstep.example.com/challenge"),
@@ -2038,8 +2038,8 @@ func TestUpdatingCertificateAuthorities(t *testing.T) {
 		t.Run("Bad name", func(t *testing.T) {
 			svc, ctx := baseSetupForCATests()
 
-			payload := fleet.CertificateAuthorityUpdatePayload{
-				SmallstepSCEPProxyCAUpdatePayload: &fleet.SmallstepSCEPProxyCAUpdatePayload{
+			payload := automdm.CertificateAuthorityUpdatePayload{
+				SmallstepSCEPProxyCAUpdatePayload: &automdm.SmallstepSCEPProxyCAUpdatePayload{
 					Name: ptr.String("Updated Smallstep"),
 				},
 			}
@@ -2051,8 +2051,8 @@ func TestUpdatingCertificateAuthorities(t *testing.T) {
 		t.Run("Invalid URL format", func(t *testing.T) {
 			svc, ctx := baseSetupForCATests()
 
-			payload := fleet.CertificateAuthorityUpdatePayload{
-				SmallstepSCEPProxyCAUpdatePayload: &fleet.SmallstepSCEPProxyCAUpdatePayload{
+			payload := automdm.CertificateAuthorityUpdatePayload{
+				SmallstepSCEPProxyCAUpdatePayload: &automdm.SmallstepSCEPProxyCAUpdatePayload{
 					URL:          ptr.String("bozo"),
 					ChallengeURL: ptr.String("https://smallstep.example.com/challenge"),
 					Username:     ptr.String("updated-username"),
@@ -2067,8 +2067,8 @@ func TestUpdatingCertificateAuthorities(t *testing.T) {
 		t.Run("Invalid Challenge URL format", func(t *testing.T) {
 			svc, ctx := baseSetupForCATests()
 
-			payload := fleet.CertificateAuthorityUpdatePayload{
-				SmallstepSCEPProxyCAUpdatePayload: &fleet.SmallstepSCEPProxyCAUpdatePayload{
+			payload := automdm.CertificateAuthorityUpdatePayload{
+				SmallstepSCEPProxyCAUpdatePayload: &automdm.SmallstepSCEPProxyCAUpdatePayload{
 					URL:          ptr.String("https://smallstep.example.com"),
 					ChallengeURL: ptr.String("bozo"),
 					Username:     ptr.String("updated-username"),
@@ -2085,13 +2085,13 @@ func TestUpdatingCertificateAuthorities(t *testing.T) {
 
 			svc.scepConfigService = &scep_mock.SCEPConfigService{
 				ValidateSCEPURLFunc: func(_ context.Context, _ string) error { return nil },
-				ValidateSmallstepChallengeURLFunc: func(_ context.Context, _ fleet.SmallstepSCEPProxyCA) error {
+				ValidateSmallstepChallengeURLFunc: func(_ context.Context, _ automdm.SmallstepSCEPProxyCA) error {
 					return errors.New("some error")
 				},
 			}
 
-			payload := fleet.CertificateAuthorityUpdatePayload{
-				SmallstepSCEPProxyCAUpdatePayload: &fleet.SmallstepSCEPProxyCAUpdatePayload{
+			payload := automdm.CertificateAuthorityUpdatePayload{
+				SmallstepSCEPProxyCAUpdatePayload: &automdm.SmallstepSCEPProxyCAUpdatePayload{
 					URL:          ptr.String("https://smallstep.example.com"),
 					ChallengeURL: ptr.String("https://smallstep.example.com/challenge"),
 					Username:     ptr.String("updated-username"),
@@ -2105,8 +2105,8 @@ func TestUpdatingCertificateAuthorities(t *testing.T) {
 
 		t.Run("Requires password when updating SCEP URL", func(t *testing.T) {
 			svc, ctx := baseSetupForCATests()
-			payload := fleet.CertificateAuthorityUpdatePayload{
-				SmallstepSCEPProxyCAUpdatePayload: &fleet.SmallstepSCEPProxyCAUpdatePayload{
+			payload := automdm.CertificateAuthorityUpdatePayload{
+				SmallstepSCEPProxyCAUpdatePayload: &automdm.SmallstepSCEPProxyCAUpdatePayload{
 					URL: ptr.String("https://smallstep.example.com"),
 				},
 			}
@@ -2117,8 +2117,8 @@ func TestUpdatingCertificateAuthorities(t *testing.T) {
 
 		t.Run("Requires password when updating challenge URL", func(t *testing.T) {
 			svc, ctx := baseSetupForCATests()
-			payload := fleet.CertificateAuthorityUpdatePayload{
-				SmallstepSCEPProxyCAUpdatePayload: &fleet.SmallstepSCEPProxyCAUpdatePayload{
+			payload := automdm.CertificateAuthorityUpdatePayload{
+				SmallstepSCEPProxyCAUpdatePayload: &automdm.SmallstepSCEPProxyCAUpdatePayload{
 					ChallengeURL: ptr.String("https://smallstep.example.com/challenge"),
 				},
 			}
@@ -2129,8 +2129,8 @@ func TestUpdatingCertificateAuthorities(t *testing.T) {
 
 		t.Run("Requires password when updating username", func(t *testing.T) {
 			svc, ctx := baseSetupForCATests()
-			payload := fleet.CertificateAuthorityUpdatePayload{
-				SmallstepSCEPProxyCAUpdatePayload: &fleet.SmallstepSCEPProxyCAUpdatePayload{
+			payload := automdm.CertificateAuthorityUpdatePayload{
+				SmallstepSCEPProxyCAUpdatePayload: &automdm.SmallstepSCEPProxyCAUpdatePayload{
 					Username: ptr.String("updated-username"),
 				},
 			}
@@ -2141,15 +2141,15 @@ func TestUpdatingCertificateAuthorities(t *testing.T) {
 
 		t.Run("Validates password and username on update", func(t *testing.T) {
 			svc, ctx := baseSetupForCATests()
-			payload := fleet.CertificateAuthorityUpdatePayload{
-				SmallstepSCEPProxyCAUpdatePayload: &fleet.SmallstepSCEPProxyCAUpdatePayload{
+			payload := automdm.CertificateAuthorityUpdatePayload{
+				SmallstepSCEPProxyCAUpdatePayload: &automdm.SmallstepSCEPProxyCAUpdatePayload{
 					Username: ptr.String("updated-username"),
 					Password: ptr.String("updated-password"),
 				},
 			}
 
 			mockScep := &scep_mock.SCEPConfigService{
-				ValidateSmallstepChallengeURLFunc: func(_ context.Context, _ fleet.SmallstepSCEPProxyCA) error {
+				ValidateSmallstepChallengeURLFunc: func(_ context.Context, _ automdm.SmallstepSCEPProxyCA) error {
 					return errors.New("bad password or username")
 				},
 				ValidateSmallstepChallengeURLFuncInvoked: false, // Reset so we can check it was invoked
@@ -2163,8 +2163,8 @@ func TestUpdatingCertificateAuthorities(t *testing.T) {
 
 		t.Run("Errors on empty username", func(t *testing.T) {
 			svc, ctx := baseSetupForCATests()
-			payload := fleet.CertificateAuthorityUpdatePayload{
-				SmallstepSCEPProxyCAUpdatePayload: &fleet.SmallstepSCEPProxyCAUpdatePayload{
+			payload := automdm.CertificateAuthorityUpdatePayload{
+				SmallstepSCEPProxyCAUpdatePayload: &automdm.SmallstepSCEPProxyCAUpdatePayload{
 					Username: ptr.String(""),
 					Password: ptr.String("updated-password"),
 				},
@@ -2176,8 +2176,8 @@ func TestUpdatingCertificateAuthorities(t *testing.T) {
 
 		t.Run("Errors on empty password", func(t *testing.T) {
 			svc, ctx := baseSetupForCATests()
-			payload := fleet.CertificateAuthorityUpdatePayload{
-				SmallstepSCEPProxyCAUpdatePayload: &fleet.SmallstepSCEPProxyCAUpdatePayload{
+			payload := automdm.CertificateAuthorityUpdatePayload{
+				SmallstepSCEPProxyCAUpdatePayload: &automdm.SmallstepSCEPProxyCAUpdatePayload{
 					Username: ptr.String("updated-username"),
 					Password: ptr.String(""),
 				},
@@ -2196,11 +2196,11 @@ func TestDeleteCertificateAuthority(t *testing.T) {
 	ctx := context.Background()
 	svc := newTestService(t, ds)
 
-	admin := &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}
+	admin := &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}
 	ctx = viewer.NewContext(ctx, viewer.Viewer{User: admin})
 
 	t.Run("successfully deletes certificate", func(t *testing.T) {
-		ds.DeleteCertificateAuthorityFunc = func(ctx context.Context, certificateAuthorityID uint) (*fleet.CertificateAuthoritySummary, error) {
+		ds.DeleteCertificateAuthorityFunc = func(ctx context.Context, certificateAuthorityID uint) (*automdm.CertificateAuthoritySummary, error) {
 			return nil, errors.New("forced error to short-circuit activity creation")
 		}
 		err := svc.DeleteCertificateAuthority(ctx, 1)
@@ -2209,7 +2209,7 @@ func TestDeleteCertificateAuthority(t *testing.T) {
 	})
 
 	t.Run("returns not found error if certificate authority does not exist", func(t *testing.T) {
-		ds.DeleteCertificateAuthorityFunc = func(ctx context.Context, certificateAuthorityID uint) (*fleet.CertificateAuthoritySummary, error) {
+		ds.DeleteCertificateAuthorityFunc = func(ctx context.Context, certificateAuthorityID uint) (*automdm.CertificateAuthoritySummary, error) {
 			return nil, common_mysql.NotFound("certificate authority")
 		}
 		err := svc.DeleteCertificateAuthority(ctx, 999)
@@ -2228,13 +2228,13 @@ func TestProcessCustomSCEPProxyCAsChallengeChars(t *testing.T) {
 		},
 	}
 
-	incoming := []fleet.CustomSCEPProxyCA{{Name: "SCEP1", URL: "https://customscep.example.com", Challenge: "base64url_style@challenge"}}
-	err := svc.processCustomSCEPProxyCAs(t.Context(), &fleet.CertificateAuthoritiesBatchOperations{}, incoming, nil)
+	incoming := []automdm.CustomSCEPProxyCA{{Name: "SCEP1", URL: "https://customscep.example.com", Challenge: "base64url_style@challenge"}}
+	err := svc.processCustomSCEPProxyCAs(t.Context(), &automdm.CertificateAuthoritiesBatchOperations{}, incoming, nil)
 	require.NoError(t, err)
 }
 
 func TestDigicertFieldsAcceptIdPVariables(t *testing.T) {
-	for _, v := range fleet.IDPFleetVariables {
+	for _, v := range automdm.IDPAutoMDMVariables {
 		t.Run(string(v), func(t *testing.T) {
 			require.NoError(t, validateDigicertCACN(v.WithPrefix(), ""))
 			require.NoError(t, validateDigicertSeatID(v.WithPrefix(), ""))
@@ -2245,38 +2245,38 @@ func TestDigicertFieldsAcceptIdPVariables(t *testing.T) {
 
 func TestDigicertFieldsRejectRemovedVariable(t *testing.T) {
 	const errPrefix = "Couldn't add certificate authority. "
-	const removed = "${FLEET_VAR_HOST_END_USER_EMAIL_IDP}"
+	const removed = "${AUTOMDM_VAR_HOST_END_USER_EMAIL_IDP}"
 	for field, err := range map[string]error{
 		"certificate_common_name":          validateDigicertCACN(removed, errPrefix),
 		"certificate_seat_id":              validateDigicertSeatID(removed, errPrefix),
 		"certificate_user_principal_names": validateDigicertUserPrincipalNames([]string{removed}, errPrefix),
 	} {
-		var iae *fleet.InvalidArgumentError
+		var iae *automdm.InvalidArgumentError
 		require.ErrorAs(t, err, &iae, field)
 		require.Equal(t, []map[string]string{{"name": field, "reason": errPrefix + removedEmailIDPVarMsg}}, iae.Invalid(), field)
 	}
 }
 
 type recordingESTService struct {
-	fleet.ESTService
+	automdm.ESTService
 	record func(url string) error
 }
 
-func (r recordingESTService) ValidateESTURL(_ context.Context, ca fleet.ESTProxyCA) error {
+func (r recordingESTService) ValidateESTURL(_ context.Context, ca automdm.ESTProxyCA) error {
 	return r.record(ca.URL)
 }
 
 func TestBatchApplyCertificateAuthoritiesRejectsRemovedVariableInUnchangedCA(t *testing.T) {
 	svc := &Service{logger: slog.New(slog.DiscardHandler)}
-	const removed = "$FLEET_VAR_HOST_END_USER_EMAIL_IDP"
+	const removed = "$AUTOMDM_VAR_HOST_END_USER_EMAIL_IDP"
 
 	// A CA saved before the upgrade that GitOps sends back as it is.
-	digicert := []fleet.DigiCertCA{{
+	digicert := []automdm.DigiCertCA{{
 		Name: "DIGICERT", URL: "https://digicert.example.com", APIToken: "token", ProfileID: "profile",
 		CertificateCommonName: removed, CertificateSeatID: "seat",
 	}}
-	err := svc.processDigiCertCAs(t.Context(), &fleet.CertificateAuthoritiesBatchOperations{}, digicert, digicert)
-	var iae *fleet.InvalidArgumentError
+	err := svc.processDigiCertCAs(t.Context(), &automdm.CertificateAuthoritiesBatchOperations{}, digicert, digicert)
+	var iae *automdm.InvalidArgumentError
 	require.ErrorAs(t, err, &iae)
 	require.Equal(t, []map[string]string{{
 		"name": "certificate_common_name", "reason": "certificate_authorities.digicert: " + removedEmailIDPVarMsg,
@@ -2284,8 +2284,8 @@ func TestBatchApplyCertificateAuthoritiesRejectsRemovedVariableInUnchangedCA(t *
 
 	ejbca := validEJBCA("")
 	ejbca.CertificateCommonName = "cn"
-	ejbca.UsernameTemplate = "${FLEET_VAR_HOST_END_USER_EMAIL_IDP}"
-	err = svc.processEJBCACAs(t.Context(), &fleet.CertificateAuthoritiesBatchOperations{}, []fleet.EJBCA{ejbca}, []fleet.EJBCA{ejbca})
+	ejbca.UsernameTemplate = "${AUTOMDM_VAR_HOST_END_USER_EMAIL_IDP}"
+	err = svc.processEJBCACAs(t.Context(), &automdm.CertificateAuthoritiesBatchOperations{}, []automdm.EJBCA{ejbca}, []automdm.EJBCA{ejbca})
 	require.ErrorAs(t, err, &iae)
 	require.Equal(t, []map[string]string{{
 		"name": "username_template", "reason": "certificate_authorities.ejbca: " + removedEmailIDPVarMsg,
@@ -2293,13 +2293,13 @@ func TestBatchApplyCertificateAuthoritiesRejectsRemovedVariableInUnchangedCA(t *
 }
 
 func TestBatchApplyCertificateAuthoritiesSkipsUnchanged(t *testing.T) {
-	stored := func() fleet.GroupedCertificateAuthorities {
-		return fleet.GroupedCertificateAuthorities{
-			DigiCert:        []fleet.DigiCertCA{{Name: "DIGICERT", URL: "https://digicert.example.com", APIToken: "token", ProfileID: "profile"}},
-			CustomScepProxy: []fleet.CustomSCEPProxyCA{{Name: "SCEP", URL: "https://scep.example.com", Challenge: "challenge"}},
-			Hydrant:         []fleet.HydrantCA{{Name: "HYDRANT", URL: "https://hydrant.example.com", ClientID: "id", ClientSecret: "secret"}},
-			EST:             []fleet.ESTProxyCA{{Name: "EST", URL: "https://est.example.com", Username: "user", Password: "pass"}},
-			Smallstep: []fleet.SmallstepSCEPProxyCA{{
+	stored := func() automdm.GroupedCertificateAuthorities {
+		return automdm.GroupedCertificateAuthorities{
+			DigiCert:        []automdm.DigiCertCA{{Name: "DIGICERT", URL: "https://digicert.example.com", APIToken: "token", ProfileID: "profile"}},
+			CustomScepProxy: []automdm.CustomSCEPProxyCA{{Name: "SCEP", URL: "https://scep.example.com", Challenge: "challenge"}},
+			Hydrant:         []automdm.HydrantCA{{Name: "HYDRANT", URL: "https://hydrant.example.com", ClientID: "id", ClientSecret: "secret"}},
+			EST:             []automdm.ESTProxyCA{{Name: "EST", URL: "https://est.example.com", Username: "user", Password: "pass"}},
+			Smallstep: []automdm.SmallstepSCEPProxyCA{{
 				Name: "SMALLSTEP", URL: "https://smallstep.example.com/scep", ChallengeURL: "https://smallstep.example.com/challenge",
 				Username: "user", Password: "pass",
 			}},
@@ -2308,14 +2308,14 @@ func TestBatchApplyCertificateAuthoritiesSkipsUnchanged(t *testing.T) {
 
 	for _, tc := range []struct {
 		name          string
-		change        func(cas *fleet.GroupedCertificateAuthorities)
+		change        func(cas *automdm.GroupedCertificateAuthorities)
 		wantUpdated   []string
 		wantValidated []string
 	}{
-		{name: "identical CAs are skipped", change: func(*fleet.GroupedCertificateAuthorities) {}},
+		{name: "identical CAs are skipped", change: func(*automdm.GroupedCertificateAuthorities) {}},
 		{
 			name: "padded values are trimmed before comparing",
-			change: func(cas *fleet.GroupedCertificateAuthorities) {
+			change: func(cas *automdm.GroupedCertificateAuthorities) {
 				cas.DigiCert[0].ProfileID = " profile "
 				cas.CustomScepProxy[0].URL = " https://scep.example.com "
 				cas.Hydrant[0].Name = " HYDRANT"
@@ -2325,7 +2325,7 @@ func TestBatchApplyCertificateAuthoritiesSkipsUnchanged(t *testing.T) {
 		},
 		{
 			name: "changed secrets are validated and updated",
-			change: func(cas *fleet.GroupedCertificateAuthorities) {
+			change: func(cas *automdm.GroupedCertificateAuthorities) {
 				cas.CustomScepProxy[0].Challenge = "new-challenge"
 				cas.Hydrant[0].ClientSecret = "new-secret"
 				cas.EST[0].Password = "new-pass"
@@ -2339,7 +2339,7 @@ func TestBatchApplyCertificateAuthoritiesSkipsUnchanged(t *testing.T) {
 		},
 		{
 			name:          "case-only rename is an update",
-			change:        func(cas *fleet.GroupedCertificateAuthorities) { cas.CustomScepProxy[0].Name = "scep" },
+			change:        func(cas *automdm.GroupedCertificateAuthorities) { cas.CustomScepProxy[0].Name = "scep" },
 			wantUpdated:   []string{"scep"},
 			wantValidated: []string{"https://scep.example.com"},
 		},
@@ -2348,7 +2348,7 @@ func TestBatchApplyCertificateAuthoritiesSkipsUnchanged(t *testing.T) {
 			existing, incoming := stored(), stored()
 			tc.change(&incoming)
 			ds := new(mock.Store)
-			ds.GetGroupedCertificateAuthoritiesFunc = func(_ context.Context, includeSecrets bool) (*fleet.GroupedCertificateAuthorities, error) {
+			ds.GetGroupedCertificateAuthoritiesFunc = func(_ context.Context, includeSecrets bool) (*automdm.GroupedCertificateAuthorities, error) {
 				require.True(t, includeSecrets)
 				return &existing, nil
 			}
@@ -2363,7 +2363,7 @@ func TestBatchApplyCertificateAuthoritiesSkipsUnchanged(t *testing.T) {
 				estService: recordingESTService{record: record},
 				scepConfigService: &scep_mock.SCEPConfigService{
 					ValidateSCEPURLFunc:               func(_ context.Context, url string) error { return record(url) },
-					ValidateSmallstepChallengeURLFunc: func(_ context.Context, ca fleet.SmallstepSCEPProxyCA) error { return record(ca.ChallengeURL) },
+					ValidateSmallstepChallengeURLFunc: func(_ context.Context, ca automdm.SmallstepSCEPProxyCA) error { return record(ca.ChallengeURL) },
 				},
 			}
 

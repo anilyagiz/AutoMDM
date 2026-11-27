@@ -10,9 +10,9 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/download"
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/pkg/download"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/google/go-github/v37/github"
 )
 
@@ -76,7 +76,7 @@ func DownloadCPETranslationsFromGithub(vulnPath string, cpeTranslationsURL strin
 	if err != nil {
 		return err
 	}
-	client := fleethttp.NewGithubClient()
+	client := automdmhttp.NewGithubClient()
 	if err := download.Download(client, u, path); err != nil {
 		return err
 	}
@@ -124,7 +124,7 @@ func (r *regexpCache) Get(pattern string) (*regexp.Regexp, error) {
 //	]
 type CPETranslations []CPETranslationItem
 
-func (c CPETranslations) Translate(reCache *regexpCache, s *fleet.Software) (CPETranslation, bool, error) {
+func (c CPETranslations) Translate(reCache *regexpCache, s *automdm.Software) (CPETranslation, bool, error) {
 	for _, item := range c {
 		match, err := item.Software.Matches(reCache, s)
 		if err != nil {
@@ -154,7 +154,7 @@ type CPETranslationSoftware struct {
 }
 
 // Matches returns true if the software satifies all the match criteria.
-func (c CPETranslationSoftware) Matches(reCache *regexpCache, s *fleet.Software) (bool, error) {
+func (c CPETranslationSoftware) Matches(reCache *regexpCache, s *automdm.Software) (bool, error) {
 	matches := func(a, b string) (bool, error) {
 		// check if its a regular expression enclosed in '/'
 		if len(a) > 2 && a[0] == '/' && a[len(a)-1] == '/' {

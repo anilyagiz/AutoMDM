@@ -9,7 +9,7 @@ import (
 func newPingCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "ping",
-		Short: "Verify dibble can reach the Fleet API",
+		Short: "Verify dibble can reach the AutoMDM API",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := requireConfig(); err != nil {
 				return err
@@ -23,10 +23,10 @@ func newPingCmd() *cobra.Command {
 				Branch  string `json:"branch"`
 				Build   string `json:"build"`
 			}
-			if err := c.Get("/api/latest/fleet/version", &resp); err != nil {
+			if err := c.Get("/api/latest/automdm/version", &resp); err != nil {
 				return err
 			}
-			fmt.Printf("Fleet %s (branch %s, build %s) — connection OK 🌱\n", resp.Version, resp.Branch, resp.Build)
+			fmt.Printf("AutoMDM %s (branch %s, build %s) — connection OK 🌱\n", resp.Version, resp.Branch, resp.Build)
 			return nil
 		},
 	}

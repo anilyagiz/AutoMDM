@@ -69,7 +69,7 @@ const BootstrapPackage = ({
     () =>
       mdmAPI.getSetupExperienceSoftware({
         platform: "macos",
-        fleet_id: currentTeamId,
+        team_id: currentTeamId,
         per_page: PER_PAGE_SIZE,
       }),
     {
@@ -118,7 +118,7 @@ const BootstrapPackage = ({
     {
       ...DEFAULT_USE_QUERY_OPTIONS,
       enabled: currentTeamId !== API_NO_TEAM_ID,
-      select: (res) => res.fleet,
+      select: (res) => res.team,
     }
   );
 
@@ -144,9 +144,9 @@ const BootstrapPackage = ({
     try {
       await mdmAPI.deleteBootstrapPackage(currentTeamId);
       // the manual enrollment and migration settings are kept, they do nothing
-      // without a package. Manual agent install isn't, since hosts would get no fleetd.
+      // without a package. Manual agent install isn't, since hosts would get no automdmd.
       await mdmAPI.updateSetupExperienceSettings({
-        fleet_id: currentTeamId,
+        team_id: currentTeamId,
         macos_manual_agent_install: false,
       });
       notify.success("Successfully deleted.");
@@ -276,7 +276,7 @@ const BootstrapPackage = ({
       />
       <PageDescription
         variant="right-panel"
-        content="Upload a bootstrap package to install a configuration management tool (e.g. Munki, Chef, or Puppet) on macOS hosts that automatically enroll to Fleet."
+        content="Upload a bootstrap package to install a configuration management tool (e.g. Munki, Chef, or Puppet) on macOS hosts that automatically enroll to AutoMDM."
       />
       <SetupExperienceContentContainer>
         {renderContent()}

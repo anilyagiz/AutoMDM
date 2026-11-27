@@ -35,7 +35,7 @@ export interface IHostAISessionEvent {
   decision: string;
   executed_at: string | null;
   payload: unknown;
-  /** fleetd cut the call's arguments before they reached the payload. */
+  /** automdmd cut the call's arguments before they reached the payload. */
   truncated: boolean;
 }
 

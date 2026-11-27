@@ -47,7 +47,7 @@ const EditCategoryModal = ({
     } catch (e) {
       if (hasStatusKey(e) && e.status === 409) {
         setError(
-          "A self-service category with this name already exists in this fleet."
+          "A self-service category with this name already exists in this team."
         );
       } else {
         setError("Couldn't update self-service category.");

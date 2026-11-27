@@ -1,5 +1,5 @@
 #!/bin/bash
-# Please don't delete. This script is used in the guide here: https://fleetdm.com/guides/scripts
+# Please don't delete. This script is used in the guide here: https://automdm.com/guides/scripts
 plist_path="/Library/LaunchDaemons/com.fleetdm.orbit.plist"
 if [ "$EUID" -ne 0 ]; then
   echo "This script requires administrator privileges. Please run with sudo."
@@ -17,4 +17,4 @@ fi
 launchctl bootout system/com.fleetdm.orbit
 while pgrep orbit > /dev/null; do sleep 1 ; done
 launchctl bootstrap system $plist_path
-echo "Fleet script execution has been enabled and Orbit restarted."
+echo "AutoMDM script execution has been enabled and Orbit restarted."

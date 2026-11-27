@@ -99,7 +99,7 @@ export const DEVICE_STATUS_TAGS: DeviceStatusTagConfig = {
     title: "Unlock pending",
     tagType: "warning",
     generateTooltip: () =>
-      "Host will unlock when it comes online.  If the host is online, it will unlock the next time it checks in to Fleet.",
+      "Host will unlock when it comes online.  If the host is online, it will unlock the next time it checks in to AutoMDM.",
   },
   /** "locking" also includes device_status is "unlocked" and pending_action is "location" as
    * that combination is a part of the locking process */
@@ -107,20 +107,20 @@ export const DEVICE_STATUS_TAGS: DeviceStatusTagConfig = {
     title: "Lock pending",
     tagType: "warning",
     generateTooltip: () => (
-      <>Host will lock the next time it checks in to Fleet.</>
+      <>Host will lock the next time it checks in to AutoMDM.</>
     ),
   },
   wiped: {
     title: "Wiped",
     tagType: "error",
     generateTooltip: () =>
-      "Host is wiped. If you re-enrolled the host, delete it to clear the wiped badge. The host will automatically re-appear in Fleet.",
+      "Host is wiped. If you re-enrolled the host, delete it to clear the wiped badge. The host will automatically re-appear in AutoMDM.",
   },
   wiping: {
     title: "Wipe pending",
     tagType: "error",
     generateTooltip: () =>
-      "Host will wipe when it comes online. If the host is online, it will wipe the next time it checks in to Fleet.",
+      "Host will wipe when it comes online. If the host is online, it will wipe the next time it checks in to AutoMDM.",
   },
   reset: RESET_TAG,
   reset_wipe_pending: {
@@ -132,20 +132,20 @@ export const DEVICE_STATUS_TAGS: DeviceStatusTagConfig = {
     title: "Reset pending",
     tagType: "error",
     generateTooltip: () =>
-      "Host will reset when it comes online. If the host is online, it will reset the next time it checks in to Fleet.",
+      "Host will reset when it comes online. If the host is online, it will reset the next time it checks in to AutoMDM.",
   },
   clearing_passcode: {
     title: "Clear passcode pending",
     tagType: "warning",
     generateTooltip: () =>
-      "Passcode will clear when the host comes online. If the host is online, it will clear the next time it checks in to Fleet.",
+      "Passcode will clear when the host comes online. If the host is online, it will clear the next time it checks in to AutoMDM.",
   },
   /** Android BYOD only: Unenroll and Wipe both remove the work profile. */
   unenrolling: {
     title: "Unenroll pending",
     tagType: "warning",
     generateTooltip: () =>
-      "Host will unenroll when it comes online. If the host is online, it will unenroll the next time it checks in to Fleet.",
+      "Host will unenroll when it comes online. If the host is online, it will unenroll the next time it checks in to AutoMDM.",
   },
 };
 

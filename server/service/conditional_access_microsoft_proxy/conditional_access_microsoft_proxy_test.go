@@ -20,7 +20,7 @@ func TestProxyStatusErrorCapturesBody(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		p, err := New(srv.URL, func() (string, error) { return "https://fleet.example.com", nil })
+		p, err := New(srv.URL, func() (string, error) { return "https://automdm.example.com", nil })
 		require.NoError(t, err)
 
 		_, err = p.SetComplianceStatus(t.Context(), "tenant", "secret", "device", "upn", true, "name", "macOS", "14.0", false, time.Now())
@@ -49,7 +49,7 @@ func TestProxyStatusErrorCapturesBody(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		p, err := New(srv.URL, func() (string, error) { return "https://fleet.example.com", nil })
+		p, err := New(srv.URL, func() (string, error) { return "https://automdm.example.com", nil })
 		require.NoError(t, err)
 
 		_, err = p.SetComplianceStatus(t.Context(), "tenant", "secret", "device", "upn", true, "name", "macOS", "14.0", false, time.Now())
@@ -66,7 +66,7 @@ func TestProxyStatusErrorCapturesBody(t *testing.T) {
 
 func TestProxyQueryParametersAreEncoded(t *testing.T) {
 	const (
-		tenantID  = "tenant&fleetServerSecret=smuggled+x"
+		tenantID  = "tenant&automdmServerSecret=smuggled+x"
 		secret    = "secret=a&b"
 		messageID = "msg&entraTenantId=other"
 	)
@@ -78,7 +78,7 @@ func TestProxyQueryParametersAreEncoded(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	p, err := New(srv.URL, func() (string, error) { return "https://fleet.example.com", nil })
+	p, err := New(srv.URL, func() (string, error) { return "https://automdm.example.com", nil })
 	require.NoError(t, err)
 
 	for _, tc := range []struct {
@@ -92,7 +92,7 @@ func TestProxyQueryParametersAreEncoded(t *testing.T) {
 				_, err := p.Get(t.Context(), tenantID, secret)
 				return err
 			},
-			expected: url.Values{"entraTenantId": {tenantID}, "fleetServerSecret": {secret}},
+			expected: url.Values{"entraTenantId": {tenantID}, "automdmServerSecret": {secret}},
 		},
 		{
 			name: "delete",
@@ -100,7 +100,7 @@ func TestProxyQueryParametersAreEncoded(t *testing.T) {
 				_, err := p.Delete(t.Context(), tenantID, secret)
 				return err
 			},
-			expected: url.Values{"entraTenantId": {tenantID}, "fleetServerSecret": {secret}},
+			expected: url.Values{"entraTenantId": {tenantID}, "automdmServerSecret": {secret}},
 		},
 		{
 			name: "get message status",
@@ -108,7 +108,7 @@ func TestProxyQueryParametersAreEncoded(t *testing.T) {
 				_, err := p.GetMessageStatus(t.Context(), tenantID, secret, messageID)
 				return err
 			},
-			expected: url.Values{"entraTenantId": {tenantID}, "fleetServerSecret": {secret}, "messageId": {messageID}},
+			expected: url.Values{"entraTenantId": {tenantID}, "automdmServerSecret": {secret}, "messageId": {messageID}},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

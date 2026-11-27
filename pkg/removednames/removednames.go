@@ -6,36 +6,36 @@ import (
 	"strings"
 )
 
-// GuideURL is the Fleet 5 migration guide that every removal message links to.
-const GuideURL = "https://fleetdm.com/learn-more-about/fleet-5-upgrade"
+// GuideURL is the AutoMDM 5 migration guide that every removal message links to.
+const GuideURL = "https://automdm.com/learn-more-about/automdm-5-upgrade"
 
 // pathPrefix is the start of every KindPath entry. Entries keep it so they are full paths, and messages for removed endpoints drop it.
-// A path outside the Fleet API has its own full path and shows it in full.
-const pathPrefix = "/api/_version_/fleet"
+// A path outside the AutoMDM API has its own full path and shows it in full.
+const pathPrefix = "/api/_version_/automdm"
 
 // Kind is the kind of thing a removed name was.
 type Kind string
 
 const (
-	KindPath          Kind = "path"           // URL path template, starting with /api/_version_/fleet (or a full path outside the Fleet API)
-	KindQueryParam    Kind = "query_param"    // URL query parameter
-	KindJSONKey       Kind = "json_key"       // key in a JSON request or response body
-	KindFormField     Kind = "form_field"     // multipart form field
-	KindCSVColumn     Kind = "csv_column"     // column header of a CSV export
-	KindSortKey       Kind = "sort_key"       // value of an order_key parameter
-	KindTargetType    Kind = "target_type"    // value of a target type
-	KindFlag          Kind = "flag"           // fleetctl flag, without the leading dashes
-	KindFlagValue     Kind = "flag_value"     // fleetctl flag and value, verbatim
-	KindEnvVar        Kind = "env_var"        // environment variable read by fleetctl
-	KindCommand       Kind = "command"        // fleetctl command, verbatim
-	KindYAMLKey       Kind = "yaml_key"       // GitOps or apply YAML key path, dot notation, [] for array elements
-	KindSpecKind      Kind = "spec_kind"      // kind of a fleetctl apply spec
-	KindFileName      Kind = "file_name"      // name of a GitOps file, without its directory
-	KindYAMLValue     Kind = "yaml_value"     // value of a YAML key, written "key: value" and compared without regard to case
-	KindActivityType  Kind = "activity_type"  // activity type name
-	KindSAMLAttribute Kind = "saml_attribute" // SAML attribute an identity provider sends, written with <ID> where a suffix varies
-	KindConfigKey     Kind = "config"         // yaml configuration key in the Fleet server config (will also check it's env var and flag versions)
-	KindFleetVariable Kind = "fleet_variable" // Fleet variable, written with its $FLEET_VAR_ prefix
+	KindPath            Kind = "path"             // URL path template, starting with /api/_version_/automdm (or a full path outside the AutoMDM API)
+	KindQueryParam      Kind = "query_param"      // URL query parameter
+	KindJSONKey         Kind = "json_key"         // key in a JSON request or response body
+	KindFormField       Kind = "form_field"       // multipart form field
+	KindCSVColumn       Kind = "csv_column"       // column header of a CSV export
+	KindSortKey         Kind = "sort_key"         // value of an order_key parameter
+	KindTargetType      Kind = "target_type"      // value of a target type
+	KindFlag            Kind = "flag"             // automdmctl flag, without the leading dashes
+	KindFlagValue       Kind = "flag_value"       // automdmctl flag and value, verbatim
+	KindEnvVar          Kind = "env_var"          // environment variable read by automdmctl
+	KindCommand         Kind = "command"          // automdmctl command, verbatim
+	KindYAMLKey         Kind = "yaml_key"         // GitOps or apply YAML key path, dot notation, [] for array elements
+	KindSpecKind        Kind = "spec_kind"        // kind of an automdmctl apply spec
+	KindFileName        Kind = "file_name"        // name of a GitOps file, without its directory
+	KindYAMLValue       Kind = "yaml_value"       // value of a YAML key, written "key: value" and compared without regard to case
+	KindActivityType    Kind = "activity_type"    // activity type name
+	KindSAMLAttribute   Kind = "saml_attribute"   // SAML attribute an identity provider sends, written with <ID> where a suffix varies
+	KindConfigKey       Kind = "config"           // yaml configuration key in the AutoMDM server config (will also check it's env var and flag versions)
+	KindAutoMDMVariable Kind = "automdm_variable" // AutoMDM variable, written with its $AUTOMDM_VAR_ prefix
 )
 
 // Scope says where a removed name appears, so each consumer loads only the entries it needs.
@@ -57,17 +57,17 @@ type Entry struct {
 	Old   string
 	// New is the replacement. It is empty for a name that was removed without one.
 	New string
-	// Context narrows the entry to one fleetctl command (for example "fleetctl get hosts") or, for a path, to one HTTP method.
+	// Context narrows the entry to one automdmctl command (for example "automdmctl get hosts") or, for a path, to one HTTP method.
 	// Empty means it applies everywhere.
 	Context string
 	// Format builds the error message. Nil means the default for the Kind: EndpointFormat for a path, ParameterFormat for a query
 	// parameter, form field, JSON key, sort key, or target type, KeyFormat for a YAML key, NounFormat for a flag, command, environment
-	// variable, flag value, SAML attribute, or Fleet variable, and ReplacedFormat for the rest.
+	// variable, flag value, SAML attribute, or AutoMDM variable, and ReplacedFormat for the rest.
 	Format Format
 }
 
 // Message returns the error message for the removed name, for example
-// `The "team_id" parameter is not available anymore. What to use instead: https://fleetdm.com/learn-more-about/fleet-5-upgrade`.
+// `The "team_id" parameter is not available anymore. What to use instead: https://automdm.com/learn-more-about/automdm-5-upgrade`.
 func (e Entry) Message() string {
 	if e.Format == nil {
 		return defaultFormat(e.Kind).Message(e)
@@ -78,9 +78,9 @@ func (e Entry) Message() string {
 // Message formats the removal message for an arbitrary old name and its replacement, which may be empty.
 func Message(oldName, newName string) string {
 	if newName == "" {
-		return fmt.Sprintf("%s was removed in Fleet 5. See %s", oldName, GuideURL)
+		return fmt.Sprintf("%s was removed in AutoMDM 5. See %s", oldName, GuideURL)
 	}
-	return fmt.Sprintf("%s was removed in Fleet 5. Use %s instead. See %s", oldName, newName, GuideURL)
+	return fmt.Sprintf("%s was removed in AutoMDM 5. Use %s instead. See %s", oldName, newName, GuideURL)
 }
 
 // All returns a copy of every entry.
@@ -105,7 +105,7 @@ func Find(kind Kind, oldName, context string) (Entry, bool) {
 }
 
 // FindSAMLAttribute returns the entry for a removed SAML attribute. A KindSAMLAttribute entry is written with a trailing <ID> for the
-// part that varies (FLEET_JIT_USER_ROLE_TEAM_<ID>), so it matches any attribute name that starts with the text before it.
+// part that varies (AUTOMDM_JIT_USER_ROLE_TEAM_<ID>), so it matches any attribute name that starts with the text before it.
 func FindSAMLAttribute(name string) (Entry, bool) {
 	for _, e := range entries {
 		if prefix, ok := strings.CutSuffix(e.Old, "<ID>"); e.Kind == KindSAMLAttribute && ok && strings.HasPrefix(name, prefix) {

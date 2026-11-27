@@ -7,7 +7,7 @@
 
 $displayNamePattern = '^Kiro\ \(User\)$'
 $publisher = "Amazon Web Services"
-$taskName = "fleet-uninstall-kiro"
+$taskName = "automdm-uninstall-kiro"
 $appDir = "AppData\Local\Programs\Kiro"  # in each user's profile
 $taskRunning = 267009  # SCHED_S_TASK_RUNNING
 $timeoutSeconds = 300

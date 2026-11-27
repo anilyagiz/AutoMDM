@@ -5,11 +5,11 @@ package luks
 
 import (
 	"context"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
 // Run is a placeholder method for non-Linux builds.
-func (lr *LuksRunner) Run(oc *fleet.OrbitConfig) error {
+func (lr *LuksRunner) Run(oc *automdm.OrbitConfig) error {
 	return nil
 }
 

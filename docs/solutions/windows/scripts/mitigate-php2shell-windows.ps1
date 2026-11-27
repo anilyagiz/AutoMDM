@@ -17,7 +17,7 @@
 #   3. Restarts IIS (iisreset) and Apache services when a php-cgi.exe or httpd.exe process started
 #      before the newest ini change, because PHP reads its ini only at startup.
 # Partial mitigation only: the out-of-memory path (CVE-2026-109618) stays open until the
-# build is replaced. Idempotent: safe to re-run. Built for Fleet "Run script" (runs as SYSTEM).
+# build is replaced. Idempotent: safe to re-run. Built for AutoMDM "Run script" (runs as SYSTEM).
 # Rollback: copy each .pre-php2shell backup back over its ini file and restart the same services.
 # Exit: 0 = applied or nothing to do, 2 = something needs a look (read output), 1 = error.
 # Advisory: https://github.com/php/php-src/security/advisories/GHSA-6wmf-4rv5-p3rp

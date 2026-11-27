@@ -15,7 +15,7 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/require"
 )
 
@@ -102,15 +102,15 @@ func (f pagingFake) server(t *testing.T, ceiling int64) (*httptest.Server, *atom
 
 // newTestDirectory points a real Directory client at the fake server through the
 // endpoint override seam, so the limits are exercised in the production code path.
-func newTestDirectory(t *testing.T, srv *httptest.Server, pemKey []byte, limits Limits) fleet.GoogleWorkspaceDirectory {
+func newTestDirectory(t *testing.T, srv *httptest.Server, pemKey []byte, limits Limits) automdm.GoogleWorkspaceDirectory {
 	t.Setenv(endpointOverrideEnv, srv.URL)
-	intg := &fleet.GoogleWorkspaceIntegration{
+	intg := &automdm.GoogleWorkspaceIntegration{
 		Domain:                "b.com",
 		ImpersonatedUserEmail: "admin@b.com",
-		ApiKey: fleet.GoogleCalendarApiKey{Values: map[string]string{
-			fleet.GoogleCalendarEmail:      "sa@b.com",
-			fleet.GoogleCalendarPrivateKey: string(pemKey),
-			tokenURIKey:                    srv.URL + "/token",
+		ApiKey: automdm.GoogleCalendarApiKey{Values: map[string]string{
+			automdm.GoogleCalendarEmail:      "sa@b.com",
+			automdm.GoogleCalendarPrivateKey: string(pemKey),
+			tokenURIKey:                      srv.URL + "/token",
 		}},
 	}
 	dir, err := NewDirectory(t.Context(), intg, slog.New(slog.DiscardHandler), limits)
@@ -127,10 +127,10 @@ func testServiceAccountKey(t *testing.T) []byte {
 }
 
 // errBudget is how long a limit error may be. cronGoogleWorkspaceSync truncates the
-// sync status to fleet.SCIMMaxFieldLength runes after adding its own wrapping, and a
+// sync status to automdm.SCIMMaxFieldLength runes after adding its own wrapping, and a
 // real Google group ID is 21 characters where the fake's is 4, so a longer message
 // loses the setting name that tells the operator what to raise.
-const errBudget = fleet.SCIMMaxFieldLength - 55
+const errBudget = automdm.SCIMMaxFieldLength - 55
 
 func TestDirectoryPaginationLimits(t *testing.T) {
 	pemKey := testServiceAccountKey(t)
@@ -257,7 +257,7 @@ func TestDirectoryPaginationLimits(t *testing.T) {
 				err     error
 			)
 			if tc.listGroups {
-				var groups []*fleet.GoogleWorkspaceGroup
+				var groups []*automdm.GoogleWorkspaceGroup
 				groups, err = dir.ListGroups(t.Context())
 				records = len(groups)
 				if tc.wantErrContains != "" {
@@ -266,7 +266,7 @@ func TestDirectoryPaginationLimits(t *testing.T) {
 					require.Nil(t, groups)
 				}
 			} else {
-				var users []*fleet.ScimUser
+				var users []*automdm.ScimUser
 				users, err = dir.ListUsers(t.Context())
 				records = len(users)
 				if tc.wantErrContains != "" {

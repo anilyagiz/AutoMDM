@@ -7,8 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/activity/api"
-	platform_endpointer "github.com/fleetdm/fleet/v4/server/platform/endpointer"
+	"github.com/anilyagiz/automdm/v4/server/activity/api"
+	platform_endpointer "github.com/anilyagiz/automdm/v4/server/platform/endpointer"
 	"github.com/go-kit/kit/endpoint"
 	kithttp "github.com/go-kit/kit/transport/http"
 	"github.com/stretchr/testify/assert"
@@ -71,7 +71,7 @@ func TestListActivitiesValidation(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			r := setupTestRouter()
 
-			req := httptest.NewRequest("GET", "/api/v1/fleet/activities?"+tc.query, nil)
+			req := httptest.NewRequest("GET", "/api/v1/automdm/activities?"+tc.query, nil)
 			rr := httptest.NewRecorder()
 
 			r.ServeHTTP(rr, req)

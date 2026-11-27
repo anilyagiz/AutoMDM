@@ -21,22 +21,22 @@ type installerSource struct {
 	sha256 string
 }
 
-// testdataRef pins the fleet commit whose
+// testdataRef pins the team commit whose
 // server/service/testdata/software-installers/ fixtures dibble reuses. These
-// are the same package files Fleet's own tests exercise; serving them from
+// are the same package files AutoMDM's own tests exercise; serving them from
 // raw.githubusercontent.com keeps a single source of truth and avoids
 // committing binaries in this module.
 const testdataRef = "8c85ef8ad3b1c67ca13486791f3b3e0cae52c565"
 
 func testdataURL(name string) string {
-	return "https://raw.githubusercontent.com/fleetdm/fleet/" + testdataRef +
+	return "https://raw.githubusercontent.com/automdm/automdm/" + testdataRef +
 		"/server/service/testdata/software-installers/" + name
 }
 
 // installerSources maps each curated fixture filename to its download source.
 // The .msi and .exe entries use upstream-signed installers (python-manager,
-// 7-Zip) so we exercise the Windows code paths without surfacing the Fleet
-// agent itself as a custom software item; everything else reuses Fleet's
+// 7-Zip) so we exercise the Windows code paths without surfacing the AutoMDM
+// agent itself as a custom software item; everything else reuses AutoMDM's
 // committed test fixtures via raw GitHub.
 var installerSources = map[string]installerSource{
 	"7z2601.exe":              {"https://www.7-zip.org/a/7z2601.exe", "615976598f800c70827c5a47e68c2b0d2b17d048b9721ba071c8af825d2476bd"},
@@ -110,7 +110,7 @@ func loadInstaller(log Logger, name string) ([]byte, error) {
 
 // downloadInstaller fetches src and returns its bytes only if they match the
 // expected checksum, so a moved or tampered upstream artifact is rejected
-// rather than uploaded to Fleet.
+// rather than uploaded to AutoMDM.
 func downloadInstaller(src installerSource) ([]byte, error) {
 	client := &http.Client{Timeout: 2 * time.Minute}
 	resp, err := client.Get(src.url)

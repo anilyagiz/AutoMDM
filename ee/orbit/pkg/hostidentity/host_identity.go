@@ -19,11 +19,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/ee/orbit/pkg/scep"
-	"github.com/fleetdm/fleet/v4/ee/orbit/pkg/securehw"
-	"github.com/fleetdm/fleet/v4/ee/pkg/hostidentity/types"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/constant"
-	"github.com/fleetdm/fleet/v4/server/mdm/scep/enrollment"
+	"github.com/anilyagiz/automdm/v4/ee/orbit/pkg/scep"
+	"github.com/anilyagiz/automdm/v4/ee/orbit/pkg/securehw"
+	"github.com/anilyagiz/automdm/v4/ee/pkg/hostidentity/types"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/constant"
+	"github.com/anilyagiz/automdm/v4/server/mdm/scep/enrollment"
 	"github.com/rs/zerolog"
 )
 
@@ -73,7 +73,7 @@ func Setup(
 		return nil, fmt.Errorf("failed to initialize secure hardware device: %w", err)
 	}
 	credentials := &Credentials{
-		CertificatePath: filepath.Join(metadataDir, constant.FleetHTTPSignatureCertificateFileName),
+		CertificatePath: filepath.Join(metadataDir, constant.AutoMDMHTTPSignatureCertificateFileName),
 		SecureHW:        secureHWDevice,
 	}
 	credentials.SecureHWKey, err = secureHWDevice.LoadKey()
@@ -86,7 +86,7 @@ func Setup(
 		// First let's clear any existing certificate in
 		// case a user or process deleted the keyfile but not
 		// the issued-via-SCEP certificate.
-		certPath := filepath.Join(metadataDir, constant.FleetHTTPSignatureCertificateFileName)
+		certPath := filepath.Join(metadataDir, constant.AutoMDMHTTPSignatureCertificateFileName)
 		if err := os.RemoveAll(certPath); err != nil {
 			return nil, fmt.Errorf("failed to clear the host identity certificate: %w", err)
 		}
@@ -108,7 +108,7 @@ func Setup(
 		credentials.Certificate = clientCert
 		renewedCert, err := RenewCertificate(ctx, metadataDir, credentials, scepURL, rootCA, insecure, logger)
 		if err != nil {
-			// This error can occur when Fleet server is offline. We will continue and schedule another renewal attempt in the future.
+			// This error can occur when AutoMDM server is offline. We will continue and schedule another renewal attempt in the future.
 			logger.Error().Err(err).Msg("Certificate renewal failed, continuing with existing certificate")
 		} else {
 			clientCert = renewedCert
@@ -159,7 +159,7 @@ func Setup(
 	if !keysEqual {
 		// Cleanup the certificate in the metadata directory so that on next start up it will re-issue
 		// a new certificate.
-		certPath := filepath.Join(metadataDir, constant.FleetHTTPSignatureCertificateFileName)
+		certPath := filepath.Join(metadataDir, constant.AutoMDMHTTPSignatureCertificateFileName)
 		if err := os.Remove(certPath); err != nil {
 			return nil, fmt.Errorf("error cleaning up %s: %w", certPath, err)
 		}
@@ -201,7 +201,7 @@ func Setup(
 }
 
 func loadSCEPClientCert(metadataDir string) (*x509.Certificate, error) {
-	certPath := filepath.Join(metadataDir, constant.FleetHTTPSignatureCertificateFileName)
+	certPath := filepath.Join(metadataDir, constant.AutoMDMHTTPSignatureCertificateFileName)
 	certPEMBytes, err := os.ReadFile(certPath)
 	if err != nil {
 		return nil, fmt.Errorf("open %q: %w", certPath, err)
@@ -214,7 +214,7 @@ func loadSCEPClientCert(metadataDir string) (*x509.Certificate, error) {
 }
 
 func saveSCEPClientCert(metadataDir string, cert *x509.Certificate) error {
-	certPath := filepath.Join(metadataDir, constant.FleetHTTPSignatureCertificateFileName)
+	certPath := filepath.Join(metadataDir, constant.AutoMDMHTTPSignatureCertificateFileName)
 	certFile, err := os.OpenFile(certPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
 		return fmt.Errorf("create cert file: %w", err)
@@ -245,8 +245,8 @@ func RenewCertificate(
 	logger zerolog.Logger,
 ) (*x509.Certificate, error) {
 	// First, backup the existing key file
-	keyPath := filepath.Join(metadataDir, constant.FleetHTTPSignatureTPMKeyFileName)
-	oldKeyPath := filepath.Join(metadataDir, constant.FleetHTTPSignatureTPMKeyBackupFileName)
+	keyPath := filepath.Join(metadataDir, constant.AutoMDMHTTPSignatureTPMKeyFileName)
+	oldKeyPath := filepath.Join(metadataDir, constant.AutoMDMHTTPSignatureTPMKeyBackupFileName)
 
 	if _, err := os.Stat(keyPath); err != nil {
 		return nil, fmt.Errorf("failed to find existing TPM key: %w", err)
@@ -262,7 +262,7 @@ func RenewCertificate(
 		return nil, fmt.Errorf("failed to backup existing key: %w", err)
 	}
 
-	// Ensure we restore the backup if something goes wrong, like we cannot connect to Fleet server to get a cert
+	// Ensure we restore the backup if something goes wrong, like we cannot connect to AutoMDM server to get a cert
 	defer func() {
 		if _, err := os.Stat(oldKeyPath); err == nil {
 			_ = os.Rename(oldKeyPath, keyPath)
@@ -334,9 +334,9 @@ func RenewCertificate(
 		caps, capsErr := renewalClient.Capabilities(ctx)
 		switch {
 		case capsErr != nil:
-			logger.Warn().Err(capsErr).Msg("could not read Fleet server SCEP capabilities, not retrying renewal with the legacy proof")
+			logger.Warn().Err(capsErr).Msg("could not read AutoMDM server SCEP capabilities, not retrying renewal with the legacy proof")
 		case !slices.Contains(strings.Fields(string(caps)), types.RenewalKeyBindingCapability):
-			logger.Warn().Msg("Fleet server rejected the key-bound renewal proof, retrying with the legacy proof")
+			logger.Warn().Msg("AutoMDM server rejected the key-bound renewal proof, retrying with the legacy proof")
 			renewalClient, err = newRenewalClient([]byte(serialHex))
 			if err != nil {
 				return nil, err

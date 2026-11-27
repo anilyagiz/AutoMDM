@@ -85,12 +85,12 @@ export default {
   ADMIN_INTEGRATIONS_VPP: `${INTEGRATIONS_PREFIX}/mdm/vpp`,
   ADMIN_INTEGRATIONS_VPP_SETUP: `${INTEGRATIONS_PREFIX}/vpp/setup`,
   ADMIN_INTEGRATIONS_SSO: `${INTEGRATIONS_PREFIX}/sso`,
-  ADMIN_INTEGRATIONS_SSO_FLEET_USERS: `${INTEGRATIONS_PREFIX}/sso/fleet-users`,
+  ADMIN_INTEGRATIONS_SSO_TEAM_USERS: `${INTEGRATIONS_PREFIX}/sso/team-users`,
   ADMIN_INTEGRATIONS_SSO_END_USERS: `${INTEGRATIONS_PREFIX}/sso/end-users`,
   ADMIN_INTEGRATIONS_FPSSO: `${INTEGRATIONS_PREFIX}/account-provisioning`,
   ADMIN_INTEGRATIONS_HOST_STATUS_WEBHOOK: `${INTEGRATIONS_PREFIX}/host-status-webhook`,
 
-  ADMIN_FLEETS: `${URL_PREFIX}/settings/fleets`,
+  ADMIN_TEAMS: `${URL_PREFIX}/settings/teams`,
   ADMIN_ORGANIZATION: `${URL_PREFIX}/settings/organization`,
   ADMIN_ORGANIZATION_INFO: `${URL_PREFIX}/settings/organization/info`,
   ADMIN_ORGANIZATION_WEBADDRESS: `${URL_PREFIX}/settings/organization/webaddress`,
@@ -98,7 +98,7 @@ export default {
   ADMIN_ORGANIZATION_AGENTS: `${URL_PREFIX}/settings/organization/agents`,
   ADMIN_ORGANIZATION_STATISTICS: `${URL_PREFIX}/settings/organization/statistics`,
   ADMIN_ORGANIZATION_ADVANCED: `${URL_PREFIX}/settings/organization/advanced`,
-  ADMIN_ORGANIZATION_FLEET_DESKTOP: `${URL_PREFIX}/settings/organization/fleet-desktop`,
+  ADMIN_ORGANIZATION_AUTOMDM_DESKTOP: `${URL_PREFIX}/settings/organization/automdm-desktop`,
 
   // Software pages
   SOFTWARE: `${URL_PREFIX}/software`,
@@ -122,9 +122,9 @@ export default {
   SOFTWARE_VULNERABILITY_DETAILS: (cve: string): string => {
     return `${URL_PREFIX}/software/vulnerabilities/${cve}`;
   },
-  SOFTWARE_ADD_FLEET_MAINTAINED: `${URL_PREFIX}/software/add/fleet-maintained`,
-  SOFTWARE_FLEET_MAINTAINED_DETAILS: (id: number) =>
-    `${URL_PREFIX}/software/add/fleet-maintained/${id}`,
+  SOFTWARE_ADD_AUTOMDM_MAINTAINED: `${URL_PREFIX}/software/add/automdm-maintained`,
+  SOFTWARE_AUTOMDM_MAINTAINED_DETAILS: (id: number) =>
+    `${URL_PREFIX}/software/add/automdm-maintained/${id}`,
   SOFTWARE_ADD_PACKAGE: `${URL_PREFIX}/software/add/package`,
   SOFTWARE_ADD_APP_STORE: `${URL_PREFIX}/software/add/app-store`,
 
@@ -157,9 +157,9 @@ export default {
   API_ONLY_USER: `${URL_PREFIX}/apionlyuser`,
 
   // error pages
-  FLEET_403: `${URL_PREFIX}/403`,
-  FLEET_404: `${URL_PREFIX}/404`,
-  FLEET_500: `${URL_PREFIX}/500`,
+  AUTOMDM_403: `${URL_PREFIX}/403`,
+  AUTOMDM_404: `${URL_PREFIX}/404`,
+  AUTOMDM_500: `${URL_PREFIX}/500`,
 
   LOGIN: `${URL_PREFIX}/login`,
   LOGOUT: `${URL_PREFIX}/logout`,
@@ -169,7 +169,7 @@ export default {
   },
   HOST_DETAILS: (id: number, teamId?: number): string => {
     if (typeof teamId === "number") {
-      return `${URL_PREFIX}/hosts/${id}/details?fleet_id=${teamId}`;
+      return `${URL_PREFIX}/hosts/${id}/details?team_id=${teamId}`;
     }
     return `${URL_PREFIX}/hosts/${id}/details`;
   },
@@ -212,7 +212,7 @@ export default {
     return `${URL_PREFIX}/device/${deviceAuthToken}/policies`;
   },
   DEVICE_TRANSPARENCY: (deviceAuthToken: string): string => {
-    return `${URL_PREFIX}/api/v1/fleet/device/${deviceAuthToken}/transparency`;
+    return `${URL_PREFIX}/api/v1/automdm/device/${deviceAuthToken}/transparency`;
   },
   DEVICE_NOTIFICATION: (
     deviceAuthToken: string,
@@ -221,23 +221,23 @@ export default {
     return `${URL_PREFIX}/device/${deviceAuthToken}/notifications/${notificationUuid}`;
   },
 
-  FLEET_DETAILS_USERS: (teamId?: number): string => {
+  TEAM_DETAILS_USERS: (teamId?: number): string => {
     if (teamId !== undefined && teamId > 0) {
-      return `${URL_PREFIX}/settings/fleets/users?fleet_id=${teamId}`;
+      return `${URL_PREFIX}/settings/teams/users?team_id=${teamId}`;
     }
-    return `${URL_PREFIX}/settings/fleets`;
+    return `${URL_PREFIX}/settings/teams`;
   },
-  FLEET_DETAILS_OPTIONS: (teamId?: number): string => {
+  TEAM_DETAILS_OPTIONS: (teamId?: number): string => {
     if (teamId !== undefined && teamId > 0) {
-      return `${URL_PREFIX}/settings/fleets/options?fleet_id=${teamId}`;
+      return `${URL_PREFIX}/settings/teams/options?team_id=${teamId}`;
     }
-    return `${URL_PREFIX}/settings/fleets`;
+    return `${URL_PREFIX}/settings/teams`;
   },
-  FLEET_DETAILS_SETTINGS: (teamId?: number) => {
+  TEAM_DETAILS_SETTINGS: (teamId?: number) => {
     if (teamId !== undefined && teamId > 0) {
-      return `${URL_PREFIX}/settings/fleets/settings?fleet_id=${teamId}`;
+      return `${URL_PREFIX}/settings/teams/settings?team_id=${teamId}`;
     }
-    return `${URL_PREFIX}/settings/fleets`;
+    return `${URL_PREFIX}/settings/teams`;
   },
   MANAGE_REPORTS: `${URL_PREFIX}/reports/manage`,
   MANAGE_SCHEDULE: `${URL_PREFIX}/schedule/manage`,

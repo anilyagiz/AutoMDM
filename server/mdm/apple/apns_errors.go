@@ -3,7 +3,7 @@ package apple_mdm
 import (
 	"errors"
 
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/push/nanopush"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/push/nanopush"
 )
 
 // APNs rejection reasons from the JSON body of a failed push request, as
@@ -32,7 +32,7 @@ const (
 	APNSReasonMissingProviderToken      = "MissingProviderToken"
 	APNSReasonBadTopic                  = "BadTopic"
 	APNSReasonTopicDisallowed           = "TopicDisallowed"
-	// token-auth-only reasons; unreachable with Fleet's certificate-based
+	// token-auth-only reasons; unreachable with AutoMDM's certificate-based
 	// APNs auth, classified for completeness
 	APNSReasonUnrelatedKeyIdInToken      = "UnrelatedKeyIdInToken"      //nolint:revive // Apple's spelling
 	APNSReasonBadEnvironmentKeyIdInToken = "BadEnvironmentKeyIdInToken" //nolint:revive // Apple's spelling

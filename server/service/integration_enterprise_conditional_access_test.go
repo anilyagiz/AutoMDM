@@ -6,7 +6,7 @@ package service
 // processing, platform validation, bypass, related activities, and the conditional access flags
 // in device endpoint responses.
 //
-// Does not belong here: other Fleet Desktop device endpoints (integration_enterprise_desktop_test.go)
+// Does not belong here: other AutoMDM Desktop device endpoints (integration_enterprise_desktop_test.go)
 // and policy CRUD (integration_enterprise_policies_test.go).
 
 import (
@@ -26,13 +26,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/optjson"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/service/conditional_access_google"
-	"github.com/fleetdm/fleet/v4/server/service/conditional_access_microsoft_proxy"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/pkg/optjson"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	"github.com/anilyagiz/automdm/v4/server/service/conditional_access_google"
+	"github.com/anilyagiz/automdm/v4/server/service/conditional_access_microsoft_proxy"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
@@ -76,7 +76,7 @@ func (s *integrationEnterpriseTestSuite) clearOktaConditionalAccess() {
 	}
 	b, err := json.Marshal(body)
 	s.Require().NoError(err)
-	s.DoRaw("PATCH", "/api/latest/fleet/config", b, http.StatusOK)
+	s.DoRaw("PATCH", "/api/latest/automdm/config", b, http.StatusOK)
 }
 
 // TestDeviceHostConditionalAccessFeatures tests the EnableConditionalAccess and
@@ -94,7 +94,7 @@ func (s *integrationEnterpriseTestSuite) TestDeviceHostConditionalAccessFeatures
 	})
 
 	// Create a test team
-	team, err := s.ds.NewTeam(ctx, &fleet.Team{
+	team, err := s.ds.NewTeam(ctx, &automdm.Team{
 		Name:        "team-conditional-access-test",
 		Description: "Test team for conditional access",
 	})
@@ -103,13 +103,13 @@ func (s *integrationEnterpriseTestSuite) TestDeviceHostConditionalAccessFeatures
 	// Create a host with device token and assign to team
 	token := "conditional_access_features_test_token"
 	host := createHostAndDeviceToken(t, s.ds, token)
-	err = s.ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team.ID, []uint{host.ID}))
+	err = s.ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team.ID, []uint{host.ID}))
 	require.NoError(t, err)
 
 	// Helper to call the device endpoint and return the response
 	getDeviceHost := func() getDeviceHostResponse {
 		var resp getDeviceHostResponse
-		res := s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token, nil, http.StatusOK)
+		res := s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token, nil, http.StatusOK)
 		err := json.NewDecoder(res.Body).Decode(&resp)
 		require.NoError(t, err)
 		res.Body.Close()
@@ -144,7 +144,7 @@ A3smrFnIVFrVeLPn47FnPVP8HzT8dcMBwGKOGANW1VAMEwlZXHdVlRaGVqd9FbxS
 KSCy+VfKBn4=
 -----END CERTIFICATE-----`
 
-	s.DoRaw("PATCH", "/api/latest/fleet/config", fmt.Appendf(nil, `{
+	s.DoRaw("PATCH", "/api/latest/automdm/config", fmt.Appendf(nil, `{
 		"conditional_access": {
 			"okta_idp_id": "https://www.okta.com/saml2/service-provider/test",
 			"okta_assertion_consumer_service_url": "https://dev-test.okta.com/sso/saml2/test",
@@ -164,7 +164,7 @@ KSCy+VfKBn4=
 
 	// Enable conditional access on the team
 	var tmResp teamResponse
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d", team.ID), map[string]any{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d", team.ID), map[string]any{
 		"integrations": map[string]any{
 			"conditional_access_enabled": true,
 		},
@@ -180,7 +180,7 @@ KSCy+VfKBn4=
 	})
 
 	// Disable bypass explicitly
-	s.DoRaw("PATCH", "/api/latest/fleet/config", []byte(`{
+	s.DoRaw("PATCH", "/api/latest/automdm/config", []byte(`{
 		"conditional_access": {
 			"bypass_disabled": true
 		}
@@ -196,7 +196,7 @@ KSCy+VfKBn4=
 	})
 
 	// Re-enable bypass explicitly
-	s.DoRaw("PATCH", "/api/latest/fleet/config", []byte(`{
+	s.DoRaw("PATCH", "/api/latest/automdm/config", []byte(`{
 		"conditional_access": {
 			"bypass_disabled": false
 		}
@@ -212,7 +212,7 @@ KSCy+VfKBn4=
 	})
 
 	// Disable conditional access on the team
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d", team.ID), map[string]any{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d", team.ID), map[string]any{
 		"integrations": map[string]any{
 			"conditional_access_enabled": false,
 		},
@@ -228,37 +228,37 @@ KSCy+VfKBn4=
 	})
 }
 
-// reportEntraDeviceToken reports an Entra device token for h the way fleetd does: it reads the
+// reportEntraDeviceToken reports an Entra device token for h the way automdmd does: it reads the
 // request from the orbit config and posts a token for it signed by signer. It returns the
 // request, nil if the orbit config didn't include one.
 func (s *integrationEnterpriseTestSuite) reportEntraDeviceToken(
-	signer *testEntraSigner, h *fleet.Host, deviceID, userPrincipalName string, expectedStatus int,
-) *fleet.OrbitEntraDeviceTokenRequest {
+	signer *testEntraSigner, h *automdm.Host, deviceID, userPrincipalName string, expectedStatus int,
+) *automdm.OrbitEntraDeviceTokenRequest {
 	t := s.T()
-	var cfg fleet.OrbitConfig
-	s.DoJSON("POST", "/api/fleet/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *h.OrbitNodeKey)), http.StatusOK, &cfg)
+	var cfg automdm.OrbitConfig
+	s.DoJSON("POST", "/api/automdm/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *h.OrbitNodeKey)), http.StatusOK, &cfg)
 	nonce := entraDeviceNonce(testConditionalAccessProxySecret, h.UUID)
 	if req := cfg.EntraDeviceTokenRequest; req != nil {
-		require.Equal(t, fleet.OrbitEntraDeviceTokenRequest{TenantID: testEntraTenantID, ClientID: testEntraClientID, Nonce: nonce}, *req)
+		require.Equal(t, automdm.OrbitEntraDeviceTokenRequest{TenantID: testEntraTenantID, ClientID: testEntraClientID, Nonce: nonce}, *req)
 	}
 	token := signer.sign(t, testEntraDeviceTokenClaims(testEntraTenantID, testEntraClientID, deviceID, userPrincipalName, nonce, time.Now()))
-	var resp fleet.OrbitPostEntraDeviceTokenResponse
-	s.DoJSON("POST", "/api/fleet/orbit/entra_device_token", fleet.OrbitPostEntraDeviceTokenRequest{
+	var resp automdm.OrbitPostEntraDeviceTokenResponse
+	s.DoJSON("POST", "/api/automdm/orbit/entra_device_token", automdm.OrbitPostEntraDeviceTokenRequest{
 		OrbitNodeKey: *h.OrbitNodeKey,
 		IDToken:      token,
 	}, expectedStatus, &resp)
 	return cfg.EntraDeviceTokenRequest
 }
 
-func genDistributedReqWithEntraIDDetailsForWindows(host *fleet.Host, deviceID string) submitDistributedQueryResultsRequestShim {
+func genDistributedReqWithEntraIDDetailsForWindows(host *automdm.Host, deviceID string) submitDistributedQueryResultsRequestShim {
 	results := make(map[string]json.RawMessage)
-	results["fleet_detail_query_conditional_access_microsoft_device_id_windows"] = json.RawMessage(fmt.Sprintf(`[{"device_id": "%s"}]`, deviceID))
+	results["team_detail_query_conditional_access_microsoft_device_id_windows"] = json.RawMessage(fmt.Sprintf(`[{"device_id": "%s"}]`, deviceID))
 	return submitDistributedQueryResultsRequestShim{
 		NodeKey:  *host.NodeKey,
 		Results:  results,
 		Statuses: make(map[string]any),
 		Messages: make(map[string]string),
-		Stats:    map[string]*fleet.Stats{},
+		Stats:    map[string]*automdm.Stats{},
 	}
 }
 
@@ -281,10 +281,10 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessBasicSetup() {
 	var acResp appConfigResponse
 
 	// Test global maintainer fails to create the integration.
-	u := &fleet.User{
+	u := &automdm.User{
 		Name:       "test maintainer",
 		Email:      "maintainer@example.com",
-		GlobalRole: new(fleet.RoleMaintainer),
+		GlobalRole: new(automdm.RoleMaintainer),
 	}
 	password := test.GoodPassword
 	require.NoError(t, u.SetPassword(password, 10, 10))
@@ -292,11 +292,11 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessBasicSetup() {
 	require.NoError(t, err)
 	s.token = s.getTestToken("maintainer@example.com", password)
 	var r conditionalAccessMicrosoftCreateResponse
-	s.DoJSON("POST", "/api/latest/fleet/conditional-access/microsoft", conditionalAccessMicrosoftCreateRequest{}, http.StatusForbidden, &r)
+	s.DoJSON("POST", "/api/latest/automdm/conditional-access/microsoft", conditionalAccessMicrosoftCreateRequest{}, http.StatusForbidden, &r)
 	var c conditionalAccessMicrosoftConfirmResponse
-	s.DoJSON("POST", "/api/latest/fleet/conditional-access/microsoft/confirm", conditionalAccessMicrosoftConfirmRequest{}, http.StatusForbidden, &c)
+	s.DoJSON("POST", "/api/latest/automdm/conditional-access/microsoft/confirm", conditionalAccessMicrosoftConfirmRequest{}, http.StatusForbidden, &c)
 	var d conditionalAccessMicrosoftDeleteResponse
-	s.DoJSON("DELETE", "/api/latest/fleet/conditional-access/microsoft", conditionalAccessMicrosoftDeleteRequest{}, http.StatusForbidden, &d)
+	s.DoJSON("DELETE", "/api/latest/automdm/conditional-access/microsoft", conditionalAccessMicrosoftDeleteRequest{}, http.StatusForbidden, &d)
 
 	// Restore token for global admin.
 	s.token = s.getTestAdminToken()
@@ -305,12 +305,12 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessBasicSetup() {
 	for _, invalidTenantID := range []string{
 		"",
 		"foobar",
-		testEntraTenantID + "&fleetServerSecret=smuggled",
+		testEntraTenantID + "&automdmServerSecret=smuggled",
 		"{" + testEntraTenantID + "}",
 		"urn:uuid:" + testEntraTenantID,
 		strings.ReplaceAll(testEntraTenantID, "-", ""),
 	} {
-		res := s.Do("POST", "/api/latest/fleet/conditional-access/microsoft", conditionalAccessMicrosoftCreateRequest{
+		res := s.Do("POST", "/api/latest/automdm/conditional-access/microsoft", conditionalAccessMicrosoftCreateRequest{
 			MicrosoftTenantID: invalidTenantID,
 		}, http.StatusUnprocessableEntity)
 		require.Contains(t, extractServerErrorText(res.Body), "must be a valid Microsoft Entra tenant ID (GUID)", invalidTenantID)
@@ -327,14 +327,14 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessBasicSetup() {
 		Secret:   "secret",
 	}
 	r = conditionalAccessMicrosoftCreateResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/conditional-access/microsoft", conditionalAccessMicrosoftCreateRequest{
+	s.DoJSON("POST", "/api/latest/automdm/conditional-access/microsoft", conditionalAccessMicrosoftCreateRequest{
 		MicrosoftTenantID: testEntraTenantID,
 	}, http.StatusOK, &r)
 	require.Equal(t, "https://example.com", r.MicrosoftAuthenticationURL)
 
 	// UI uses the /config endpoint to know the status of the integration.
 	acResp = appConfigResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
+	s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
 	require.NotNil(t, acResp)
 	require.NotNil(t, acResp.ConditionalAccess)
 	require.Equal(t, testEntraTenantID, acResp.ConditionalAccess.MicrosoftEntraTenantID)
@@ -342,7 +342,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessBasicSetup() {
 
 	// Confirm should return that the setup is not done.
 	c = conditionalAccessMicrosoftConfirmResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/conditional-access/microsoft/confirm", conditionalAccessMicrosoftConfirmRequest{}, http.StatusOK, &c)
+	s.DoJSON("POST", "/api/latest/automdm/conditional-access/microsoft/confirm", conditionalAccessMicrosoftConfirmRequest{}, http.StatusOK, &c)
 	require.False(t, c.ConfigurationCompleted)
 
 	// Confirm now should succeed.
@@ -351,26 +351,26 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessBasicSetup() {
 		SetupDone: true,
 	}
 	c = conditionalAccessMicrosoftConfirmResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/conditional-access/microsoft/confirm", conditionalAccessMicrosoftConfirmRequest{}, http.StatusOK, &c)
+	s.DoJSON("POST", "/api/latest/automdm/conditional-access/microsoft/confirm", conditionalAccessMicrosoftConfirmRequest{}, http.StatusOK, &c)
 	require.True(t, c.ConfigurationCompleted)
 	// Confirm again should succeed because integration is done.
 	c = conditionalAccessMicrosoftConfirmResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/conditional-access/microsoft/confirm", conditionalAccessMicrosoftConfirmRequest{}, http.StatusOK, &c)
+	s.DoJSON("POST", "/api/latest/automdm/conditional-access/microsoft/confirm", conditionalAccessMicrosoftConfirmRequest{}, http.StatusOK, &c)
 	require.True(t, c.ConfigurationCompleted)
 	// Create will succeed if using the same tenant ID.
 	r = conditionalAccessMicrosoftCreateResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/conditional-access/microsoft", conditionalAccessMicrosoftCreateRequest{
+	s.DoJSON("POST", "/api/latest/automdm/conditional-access/microsoft", conditionalAccessMicrosoftCreateRequest{
 		MicrosoftTenantID: testEntraTenantID,
 	}, http.StatusOK, &r)
 	// Create will should fail if using the a different tenant ID (if the setup is done).
 	r = conditionalAccessMicrosoftCreateResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/conditional-access/microsoft", conditionalAccessMicrosoftCreateRequest{
+	s.DoJSON("POST", "/api/latest/automdm/conditional-access/microsoft", conditionalAccessMicrosoftCreateRequest{
 		MicrosoftTenantID: otherTestEntraTenantID,
 	}, http.StatusBadRequest, &r)
 
 	// Test app config returns that the configuration is done.
 	acResp = appConfigResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
+	s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
 	require.NotNil(t, acResp)
 	require.NotNil(t, acResp.ConditionalAccess)
 	require.Equal(t, testEntraTenantID, acResp.ConditionalAccess.MicrosoftEntraTenantID)
@@ -379,14 +379,14 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessBasicSetup() {
 	// Delete endpoint.
 	mockedConditionalAccessMicrosoftProxyInstance.deleteResponse = &conditional_access_microsoft_proxy.DeleteResponse{}
 	d = conditionalAccessMicrosoftDeleteResponse{}
-	s.DoJSON("DELETE", "/api/latest/fleet/conditional-access/microsoft", conditionalAccessMicrosoftDeleteRequest{}, http.StatusOK, &d)
+	s.DoJSON("DELETE", "/api/latest/automdm/conditional-access/microsoft", conditionalAccessMicrosoftDeleteRequest{}, http.StatusOK, &d)
 	// Deleting again should fail with bad request.
 	d = conditionalAccessMicrosoftDeleteResponse{}
-	s.DoJSON("DELETE", "/api/latest/fleet/conditional-access/microsoft", conditionalAccessMicrosoftDeleteRequest{}, http.StatusBadRequest, &d)
+	s.DoJSON("DELETE", "/api/latest/automdm/conditional-access/microsoft", conditionalAccessMicrosoftDeleteRequest{}, http.StatusBadRequest, &d)
 
 	// Test app config returns that the integration was deleted.
 	acResp = appConfigResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
+	s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
 	require.NotNil(t, acResp)
 	// ConditionalAccess is always initialized, but Entra fields should be empty
 	require.NotNil(t, acResp.ConditionalAccess)
@@ -404,13 +404,13 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessBasicSetup() {
 		Secret:   "secret",
 	}
 	r = conditionalAccessMicrosoftCreateResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/conditional-access/microsoft", conditionalAccessMicrosoftCreateRequest{
+	s.DoJSON("POST", "/api/latest/automdm/conditional-access/microsoft", conditionalAccessMicrosoftCreateRequest{
 		MicrosoftTenantID: otherTestEntraTenantID,
 	}, http.StatusOK, &r)
 
 	// Test app config returns that the new integration was created.
 	acResp = appConfigResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
+	s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
 	require.NotNil(t, acResp)
 	require.NotNil(t, acResp.ConditionalAccess)
 	require.Equal(t, otherTestEntraTenantID, acResp.ConditionalAccess.MicrosoftEntraTenantID)
@@ -419,11 +419,11 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessBasicSetup() {
 	// Simulate a not found error on the proxy (should allow deletion to start over).
 	mockedConditionalAccessMicrosoftProxyInstance.deleteErr = &notFoundError{}
 	d = conditionalAccessMicrosoftDeleteResponse{}
-	s.DoJSON("DELETE", "/api/latest/fleet/conditional-access/microsoft", conditionalAccessMicrosoftDeleteRequest{}, http.StatusOK, &d)
+	s.DoJSON("DELETE", "/api/latest/automdm/conditional-access/microsoft", conditionalAccessMicrosoftDeleteRequest{}, http.StatusOK, &d)
 
 	// Test app config returns that the configuration is gone.
 	acResp = appConfigResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
+	s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
 	require.NotNil(t, acResp)
 	// ConditionalAccess is always initialized, but Entra fields should be empty
 	require.NotNil(t, acResp.ConditionalAccess)
@@ -446,7 +446,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessPolicies() {
 		Secret:   "secret",
 	}
 	var r conditionalAccessMicrosoftCreateResponse
-	s.DoJSON("POST", "/api/latest/fleet/conditional-access/microsoft", conditionalAccessMicrosoftCreateRequest{
+	s.DoJSON("POST", "/api/latest/automdm/conditional-access/microsoft", conditionalAccessMicrosoftCreateRequest{
 		MicrosoftTenantID: testEntraTenantID,
 	}, http.StatusOK, &r)
 	mockedConditionalAccessMicrosoftProxyInstance.getResponse = &conditional_access_microsoft_proxy.GetResponse{
@@ -454,35 +454,35 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessPolicies() {
 		SetupDone: true,
 	}
 	var c conditionalAccessMicrosoftConfirmResponse
-	s.DoJSON("POST", "/api/latest/fleet/conditional-access/microsoft/confirm", conditionalAccessMicrosoftConfirmRequest{}, http.StatusOK, &c)
+	s.DoJSON("POST", "/api/latest/automdm/conditional-access/microsoft/confirm", conditionalAccessMicrosoftConfirmRequest{}, http.StatusOK, &c)
 	require.True(t, c.ConfigurationCompleted)
 
-	t1, err := s.ds.NewTeam(context.Background(), &fleet.Team{
+	t1, err := s.ds.NewTeam(context.Background(), &automdm.Team{
 		Name:        "team1",
 		Description: "desc team1",
 	})
 	require.NoError(t, err)
 
-	var pr fleet.CreatePolicyResponse
-	s.DoJSON("POST", "/api/latest/fleet/policies", fleet.CreatePolicyRequest{
+	var pr automdm.CreatePolicyResponse
+	s.DoJSON("POST", "/api/latest/automdm/policies", automdm.CreatePolicyRequest{
 		TeamID:         new(t1.ID),
 		Query:          "SELECT 1;",
 		Name:           "Compliance check 1",
 		Platform:       "darwin,windows",
-		AutomationType: new(fleet.PolicyAutomationConditionalAccess),
+		AutomationType: new(automdm.PolicyAutomationConditionalAccess),
 	}, http.StatusOK, &pr)
 	cp1 := pr.Policy
-	pr = fleet.CreatePolicyResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/policies", fleet.CreatePolicyRequest{
+	pr = automdm.CreatePolicyResponse{}
+	s.DoJSON("POST", "/api/latest/automdm/policies", automdm.CreatePolicyRequest{
 		TeamID:         new(t1.ID),
 		Query:          "SELECT 2;",
 		Name:           "Compliance check 2",
-		AutomationType: new(fleet.PolicyAutomationConditionalAccess),
+		AutomationType: new(automdm.PolicyAutomationConditionalAccess),
 		Platform:       "darwin,windows",
 	}, http.StatusOK, &pr)
 	cp2 := pr.Policy
-	pr = fleet.CreatePolicyResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/policies", fleet.CreatePolicyRequest{
+	pr = automdm.CreatePolicyResponse{}
+	s.DoJSON("POST", "/api/latest/automdm/policies", automdm.CreatePolicyRequest{
 		TeamID:   new(t1.ID),
 		Query:    "SELECT 3;",
 		Name:     "Other policy",
@@ -491,8 +491,8 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessPolicies() {
 	p3 := pr.Policy
 
 	ctx := context.Background()
-	newHost := func(name string, teamID *uint, platform string, osVersion string) *fleet.Host {
-		h, err := s.ds.NewHost(ctx, &fleet.Host{
+	newHost := func(name string, teamID *uint, platform string, osVersion string) *automdm.Host {
+		h, err := s.ds.NewHost(ctx, &automdm.Host{
 			DetailUpdatedAt: time.Now(),
 			LabelUpdatedAt:  time.Now(),
 			PolicyUpdatedAt: time.Now(),
@@ -526,11 +526,11 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessPolicies() {
 	require.Nil(t, s.reportEntraDeviceToken(signer, h1, testEntraDeviceID, "entraUserPrincipalName", http.StatusBadRequest))
 	_, err = s.ds.LoadHostConditionalAccessStatus(ctx, h1.ID)
 	require.Error(t, err)
-	require.True(t, fleet.IsNotFound(err))
+	require.True(t, automdm.IsNotFound(err))
 
 	// Enable feature on team.
 	var tmResp teamResponse
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d", t1.ID), map[string]any{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d", t1.ID), map[string]any{
 		"integrations": map[string]any{
 			"conditional_access_enabled": true,
 		},
@@ -654,7 +654,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessPolicies() {
 	// Enroll macOS host to MDM to update managed status.
 	err = s.ds.SetOrUpdateMDMData(ctx,
 		h1.ID, false, true /* enrolled */, s.server.URL, false, /* installedFromDEP */
-		"Fleet" /* MDM name */, "" /* fleetEnrollmentRef */, fleet.PersonalEnrollmentTypeNone, /* isPersonalEnrollment */
+		"AutoMDM" /* MDM name */, "" /* automdmEnrollmentRef */, automdm.PersonalEnrollmentTypeNone, /* isPersonalEnrollment */
 	)
 	require.NoError(t, err)
 
@@ -689,7 +689,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessPolicies() {
 	// Enroll Windows host to MDM to update managed status.
 	err = s.ds.SetOrUpdateMDMData(ctx,
 		windowsHost1.ID, false, true /* enrolled */, s.server.URL, false, /* installedFromDEP */
-		"Fleet" /* MDM name */, "" /* fleetEnrollmentRef */, fleet.PersonalEnrollmentTypeNone, /* isPersonalEnrollment */
+		"AutoMDM" /* MDM name */, "" /* automdmEnrollmentRef */, automdm.PersonalEnrollmentTypeNone, /* isPersonalEnrollment */
 	)
 	require.NoError(t, err)
 
@@ -814,43 +814,43 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessPolicies() {
 	h2.OrbitNodeKey = &orbitKey2
 
 	// "No team" configuration for conditional access is in global config.
-	s.DoRaw("PATCH", "/api/v1/fleet/config", []byte(`{
+	s.DoRaw("PATCH", "/api/v1/automdm/config", []byte(`{
 		"integrations": {
 			"conditional_access_enabled": true
 		}
 	}`), http.StatusOK)
 	// Test that by not setting it it's not disabled.
-	s.DoRaw("PATCH", "/api/v1/fleet/config", []byte(`{
+	s.DoRaw("PATCH", "/api/v1/automdm/config", []byte(`{
 		"integrations": {}
 	}`), http.StatusOK)
 	acResp := appConfigResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
+	s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
 	require.NotNil(t, acResp)
 	require.True(t, acResp.Integrations.ConditionalAccessEnabled.Set)
 	require.True(t, acResp.Integrations.ConditionalAccessEnabled.Value)
 
-	pr = fleet.CreatePolicyResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/policies", fleet.CreatePolicyRequest{
-		TeamID:         new(fleet.PolicyNoTeamID),
+	pr = automdm.CreatePolicyResponse{}
+	s.DoJSON("POST", "/api/latest/automdm/policies", automdm.CreatePolicyRequest{
+		TeamID:         new(automdm.PolicyNoTeamID),
 		Query:          "SELECT 1;",
 		Name:           "Compliance check 1",
-		AutomationType: new(fleet.PolicyAutomationConditionalAccess),
+		AutomationType: new(automdm.PolicyAutomationConditionalAccess),
 		Platform:       "darwin,windows",
 	}, http.StatusOK, &pr)
 	cp1 = pr.Policy
-	pr = fleet.CreatePolicyResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/policies", fleet.CreatePolicyRequest{
-		TeamID: new(fleet.PolicyNoTeamID),
+	pr = automdm.CreatePolicyResponse{}
+	s.DoJSON("POST", "/api/latest/automdm/policies", automdm.CreatePolicyRequest{
+		TeamID: new(automdm.PolicyNoTeamID),
 		Query:  "SELECT 2;",
 		Name:   "Other 1",
 	}, http.StatusOK, &pr)
 	p2 := pr.Policy
-	pr = fleet.CreatePolicyResponse{}
+	pr = automdm.CreatePolicyResponse{}
 
 	// Enroll to MDM to update managed status.
 	err = s.ds.SetOrUpdateMDMData(ctx,
 		h2.ID, false, true /* enrolled */, s.server.URL, false, /* installedFromDEP */
-		"Fleet" /* MDM name */, "" /* fleetEnrollmentRef */, fleet.PersonalEnrollmentTypeNone, /* isPersonalEnrollment */
+		"AutoMDM" /* MDM name */, "" /* automdmEnrollmentRef */, automdm.PersonalEnrollmentTypeNone, /* isPersonalEnrollment */
 	)
 	require.NoError(t, err)
 
@@ -891,7 +891,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessPolicies() {
 	require.False(t, *h2s.Compliant) // host is non-compliant
 
 	// Delete compliance policy, now there should be no compliance policies so host should be compliant.
-	_, err = s.ds.DeleteTeamPolicies(ctx, fleet.PolicyNoTeamID, []uint{cp1.ID})
+	_, err = s.ds.DeleteTeamPolicies(ctx, automdm.PolicyNoTeamID, []uint{cp1.ID})
 	require.NoError(t, err)
 
 	setDone = make(chan struct{})
@@ -944,7 +944,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessPoliciesEntraResul
 		Secret:   "secret",
 	}
 	var r conditionalAccessMicrosoftCreateResponse
-	s.DoJSON("POST", "/api/latest/fleet/conditional-access/microsoft", conditionalAccessMicrosoftCreateRequest{
+	s.DoJSON("POST", "/api/latest/automdm/conditional-access/microsoft", conditionalAccessMicrosoftCreateRequest{
 		MicrosoftTenantID: testEntraTenantID,
 	}, http.StatusOK, &r)
 	mockedConditionalAccessMicrosoftProxyInstance.getResponse = &conditional_access_microsoft_proxy.GetResponse{
@@ -952,38 +952,38 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessPoliciesEntraResul
 		SetupDone: true,
 	}
 	var c conditionalAccessMicrosoftConfirmResponse
-	s.DoJSON("POST", "/api/latest/fleet/conditional-access/microsoft/confirm", conditionalAccessMicrosoftConfirmRequest{}, http.StatusOK, &c)
+	s.DoJSON("POST", "/api/latest/automdm/conditional-access/microsoft/confirm", conditionalAccessMicrosoftConfirmRequest{}, http.StatusOK, &c)
 	require.True(t, c.ConfigurationCompleted)
 
-	t1, err := s.ds.NewTeam(context.Background(), &fleet.Team{
+	t1, err := s.ds.NewTeam(context.Background(), &automdm.Team{
 		Name:        "team1",
 		Description: "desc team1",
 	})
 	require.NoError(t, err)
 
 	// Create two conditional access policies.
-	var pr fleet.CreatePolicyResponse
-	s.DoJSON("POST", "/api/latest/fleet/policies", fleet.CreatePolicyRequest{
+	var pr automdm.CreatePolicyResponse
+	s.DoJSON("POST", "/api/latest/automdm/policies", automdm.CreatePolicyRequest{
 		TeamID:         new(t1.ID),
 		Query:          "SELECT 1;",
 		Name:           "Compliance check 1",
-		AutomationType: new(fleet.PolicyAutomationConditionalAccess),
+		AutomationType: new(automdm.PolicyAutomationConditionalAccess),
 		Platform:       "darwin,windows",
 	}, http.StatusOK, &pr)
 	cp1 := pr.Policy
-	pr = fleet.CreatePolicyResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/policies", fleet.CreatePolicyRequest{
+	pr = automdm.CreatePolicyResponse{}
+	s.DoJSON("POST", "/api/latest/automdm/policies", automdm.CreatePolicyRequest{
 		TeamID:         new(t1.ID),
 		Query:          "SELECT 2;",
 		Name:           "Compliance check 2",
-		AutomationType: new(fleet.PolicyAutomationConditionalAccess),
+		AutomationType: new(automdm.PolicyAutomationConditionalAccess),
 		Platform:       "darwin,windows",
 	}, http.StatusOK, &pr)
 	cp2 := pr.Policy
 
 	ctx := context.Background()
-	newHost := func(name string, teamID *uint) *fleet.Host {
-		h, err := s.ds.NewHost(ctx, &fleet.Host{
+	newHost := func(name string, teamID *uint) *automdm.Host {
+		h, err := s.ds.NewHost(ctx, &automdm.Host{
 			DetailUpdatedAt: time.Now(),
 			LabelUpdatedAt:  time.Now(),
 			PolicyUpdatedAt: time.Now(),
@@ -1005,7 +1005,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessPoliciesEntraResul
 
 	// Enable feature on team.
 	var tmResp teamResponse
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d", t1.ID), map[string]any{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d", t1.ID), map[string]any{
 		"integrations": map[string]any{
 			"conditional_access_enabled": true,
 		},
@@ -1038,7 +1038,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessPoliciesEntraResul
 	// Check that before the distributed/write there's no device information.
 	_, err = s.ds.LoadHostConditionalAccessStatus(ctx, h1.ID)
 	require.Error(t, err)
-	require.True(t, fleet.IsNotFound(err))
+	require.True(t, automdm.IsNotFound(err))
 
 	// Host sends policy results AND entra device information in the same distributed/write
 	rawJSON := fmt.Sprintf(`{
@@ -1120,7 +1120,7 @@ func (s *integrationEnterpriseTestSuite) TestAppConfigOktaConditionalAccess() {
 
 	// GET config should return empty Okta fields initially
 	var acResp appConfigResponse
-	s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
+	s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
 	// ConditionalAccess should always be present; initially Okta fields should be empty/not valid
 	require.NotNil(t, acResp.ConditionalAccess)
 	require.False(t, acResp.ConditionalAccess.OktaIDPID.Valid)
@@ -1130,17 +1130,17 @@ func (s *integrationEnterpriseTestSuite) TestAppConfigOktaConditionalAccess() {
 	require.False(t, acResp.ConditionalAccess.BypassDisabled.Valid)
 
 	// Test 1: Try to set only some Okta fields (should fail validation)
-	s.DoRaw("PATCH", "/api/latest/fleet/config", oktaPayload(&idp, nil, nil, nil, nil), http.StatusUnprocessableEntity)
+	s.DoRaw("PATCH", "/api/latest/automdm/config", oktaPayload(&idp, nil, nil, nil, nil), http.StatusUnprocessableEntity)
 
 	// Test 2: Try to set 3 out of 4 fields (should fail validation)
-	s.DoRaw("PATCH", "/api/latest/fleet/config", oktaPayload(&idp, &acs, &aud, nil, nil), http.StatusUnprocessableEntity)
+	s.DoRaw("PATCH", "/api/latest/automdm/config", oktaPayload(&idp, &acs, &aud, nil, nil), http.StatusUnprocessableEntity)
 
 	// Test 3: Set all 4 Okta fields with valid values (should succeed)
-	s.DoRaw("PATCH", "/api/latest/fleet/config", oktaPayload(&idp, &acs, &aud, &validCert, &trueBool), http.StatusOK)
+	s.DoRaw("PATCH", "/api/latest/automdm/config", oktaPayload(&idp, &acs, &aud, &validCert, &trueBool), http.StatusOK)
 
 	// GET config should now return the Okta fields
 	acResp = appConfigResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
+	s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
 	require.True(t, acResp.ConditionalAccess.OktaIDPID.Valid)
 	assert.Equal(t, idp, acResp.ConditionalAccess.OktaIDPID.Value)
 	assert.Equal(t, acs, acResp.ConditionalAccess.OktaAssertionConsumerServiceURL.Value)
@@ -1151,29 +1151,29 @@ func (s *integrationEnterpriseTestSuite) TestAppConfigOktaConditionalAccess() {
 
 	// Verify activity was created for adding Okta config
 	s.lastActivityOfTypeMatches(
-		fleet.ActivityTypeAddedConditionalAccessOkta{}.ActivityName(),
+		automdm.ActivityTypeAddedConditionalAccessOkta{}.ActivityName(),
 		"",
 		0,
 	)
 
 	// Test 4: Try to set invalid URL for assertion_consumer_service_url (should fail)
-	s.DoRaw("PATCH", "/api/latest/fleet/config", oktaPayload(&idp, &invalidURL, &aud, &validCert, &falseBool), http.StatusUnprocessableEntity)
+	s.DoRaw("PATCH", "/api/latest/automdm/config", oktaPayload(&idp, &invalidURL, &aud, &validCert, &falseBool), http.StatusUnprocessableEntity)
 
 	// Test 5: Try to set invalid PEM certificate (should fail)
-	s.DoRaw("PATCH", "/api/latest/fleet/config", oktaPayload(&idp, &acs, &aud, &invalidCert, &falseBool), http.StatusUnprocessableEntity)
+	s.DoRaw("PATCH", "/api/latest/automdm/config", oktaPayload(&idp, &acs, &aud, &invalidCert, &falseBool), http.StatusUnprocessableEntity)
 
 	// Test 6: Clear all Okta configuration by setting all fields to null
 	// First verify Okta is currently configured (from Test 3)
 	acResp = appConfigResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
+	s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
 	require.True(t, acResp.ConditionalAccess.OktaIDPID.Valid, "Okta should be configured before Test 6")
 
 	// Now clear it
-	s.DoRaw("PATCH", "/api/latest/fleet/config", oktaPayload(nil, nil, nil, nil, nil), http.StatusOK)
+	s.DoRaw("PATCH", "/api/latest/automdm/config", oktaPayload(nil, nil, nil, nil, nil), http.StatusOK)
 
 	// Verify all fields are now null/empty
 	acResp = appConfigResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
+	s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
 	// ConditionalAccess should always be present; after clearing, Okta fields should not be valid
 	require.NotNil(t, acResp.ConditionalAccess)
 	assert.False(t, acResp.ConditionalAccess.OktaIDPID.Valid)
@@ -1185,17 +1185,17 @@ func (s *integrationEnterpriseTestSuite) TestAppConfigOktaConditionalAccess() {
 	// Verify activity was created for deleting Okta config
 	// Note: Using lastActivityOfTypeMatches which searches the last 10 activities
 	s.lastActivityOfTypeMatches(
-		fleet.ActivityTypeDeletedConditionalAccessOkta{}.ActivityName(),
+		automdm.ActivityTypeDeletedConditionalAccessOkta{}.ActivityName(),
 		"", // no details for this activity type
 		0,  // don't check specific ID
 	)
 
 	// Test 7: Verify an unrelated config change doesn't affect Okta settings when Okta is configured
 	// First, set up Okta config again
-	s.DoRaw("PATCH", "/api/latest/fleet/config", oktaPayload(&idp, &acs, &aud, &validCert, &trueBool), http.StatusOK)
+	s.DoRaw("PATCH", "/api/latest/automdm/config", oktaPayload(&idp, &acs, &aud, &validCert, &trueBool), http.StatusOK)
 
 	// Make an unrelated change (e.g., org_name)
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 		"org_info": {
 			"org_name": "test-okta-config"
 		}
@@ -1204,7 +1204,7 @@ func (s *integrationEnterpriseTestSuite) TestAppConfigOktaConditionalAccess() {
 
 	// Verify Okta settings are still there
 	acResp = appConfigResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
+	s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
 	assert.Equal(t, idp, acResp.ConditionalAccess.OktaIDPID.Value)
 	assert.Equal(t, acs, acResp.ConditionalAccess.OktaAssertionConsumerServiceURL.Value)
 	assert.Equal(t, aud, acResp.ConditionalAccess.OktaAudienceURI.Value)
@@ -1213,16 +1213,16 @@ func (s *integrationEnterpriseTestSuite) TestAppConfigOktaConditionalAccess() {
 	// Test 8: Verify activity is created when editing Okta config
 	// Change one of the fields (e.g., the IDP ID)
 	newIdp := "https://www.okta.com/saml2/service-provider/newvalue123"
-	s.DoRaw("PATCH", "/api/latest/fleet/config", oktaPayload(&newIdp, &acs, &aud, &validCert, &trueBool), http.StatusOK)
+	s.DoRaw("PATCH", "/api/latest/automdm/config", oktaPayload(&newIdp, &acs, &aud, &validCert, &trueBool), http.StatusOK)
 
 	// Verify the field was changed
 	acResp = appConfigResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
+	s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
 	assert.Equal(t, newIdp, acResp.ConditionalAccess.OktaIDPID.Value)
 
 	// Verify activity was created for editing Okta config
 	s.lastActivityOfTypeMatches(
-		fleet.ActivityTypeAddedConditionalAccessOkta{}.ActivityName(),
+		automdm.ActivityTypeAddedConditionalAccessOkta{}.ActivityName(),
 		"",
 		0,
 	)
@@ -1266,44 +1266,44 @@ mH6v0Wtbra/Ck/QjLbGj3zg/PGfpDiMwXFRCwTn+YjUFmNN/XYyfjqEaR7TbJ3H+
 qcznMoapfGAjRwaheTlWbzyUh57ToALyx3xQbzqYIxiQCzY=
 -----END CERTIFICATE-----`
 	validCertMultiple := validCert + "\n" + secondValidCert
-	s.DoRaw("PATCH", "/api/latest/fleet/config", oktaPayload(&idp, &acs, &aud, &validCertMultiple, &trueBool), http.StatusOK)
+	s.DoRaw("PATCH", "/api/latest/automdm/config", oktaPayload(&idp, &acs, &aud, &validCertMultiple, &trueBool), http.StatusOK)
 
 	// Verify the configuration is saved with multiple certificates
 	acResp = appConfigResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
+	s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
 	require.True(t, acResp.ConditionalAccess.OktaCertificate.Valid)
 	assert.Equal(t, validCertMultiple, acResp.ConditionalAccess.OktaCertificate.Value)
 	require.True(t, acResp.ConditionalAccess.BypassDisabled.Valid)
 	assert.True(t, acResp.ConditionalAccess.BypassDisabled.Value)
 
 	// Change only if bypass is disabled
-	s.DoRaw("PATCH", "/api/latest/fleet/config", oktaPayload(&idp, &acs, &aud, &validCertMultiple, &falseBool), http.StatusOK)
+	s.DoRaw("PATCH", "/api/latest/automdm/config", oktaPayload(&idp, &acs, &aud, &validCertMultiple, &falseBool), http.StatusOK)
 
 	// Verify the was changed
 	acResp = appConfigResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
+	s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
 	require.True(t, acResp.ConditionalAccess.BypassDisabled.Valid)
 	assert.False(t, acResp.ConditionalAccess.BypassDisabled.Value)
 
 	// Verify activity was created for editing Okta config
 	s.lastActivityOfTypeMatches(
-		fleet.ActivityTypeUpdateConditionalAccessBypass{}.ActivityName(),
+		automdm.ActivityTypeUpdateConditionalAccessBypass{}.ActivityName(),
 		"{\"bypass_disabled\": false}",
 		0,
 	)
 
 	// Change only if bypass is disabled
-	s.DoRaw("PATCH", "/api/latest/fleet/config", oktaPayload(&idp, &acs, &aud, &validCertMultiple, &trueBool), http.StatusOK)
+	s.DoRaw("PATCH", "/api/latest/automdm/config", oktaPayload(&idp, &acs, &aud, &validCertMultiple, &trueBool), http.StatusOK)
 
 	// Verify the was changed
 	acResp = appConfigResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
+	s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
 	require.True(t, acResp.ConditionalAccess.BypassDisabled.Valid)
 	assert.True(t, acResp.ConditionalAccess.BypassDisabled.Value)
 
 	// Verify activity was created for editing Okta config
 	s.lastActivityOfTypeMatches(
-		fleet.ActivityTypeUpdateConditionalAccessBypass{}.ActivityName(),
+		automdm.ActivityTypeUpdateConditionalAccessBypass{}.ActivityName(),
 		"{\"bypass_disabled\": true}",
 		0,
 	)
@@ -1320,7 +1320,7 @@ func (s *integrationEnterpriseTestSuite) TestGitOpsModeToggleDoesNotCreateCondit
 	t.Cleanup(func() {
 		s.clearOktaConditionalAccess()
 		// Also reset gitops config to a clean state.
-		s.Do("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+		s.Do("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 			"gitops": { "gitops_mode_enabled": false, "repository_url": "" }
 		}`), http.StatusOK)
 	})
@@ -1340,10 +1340,10 @@ func (s *integrationEnterpriseTestSuite) TestGitOpsModeToggleDoesNotCreateCondit
 	}
 	oktaBodyBytes, err := json.Marshal(oktaBody)
 	require.NoError(t, err)
-	s.DoRaw("PATCH", "/api/latest/fleet/config", oktaBodyBytes, http.StatusOK)
+	s.DoRaw("PATCH", "/api/latest/automdm/config", oktaBodyBytes, http.StatusOK)
 
 	var acResp appConfigResponse
-	s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
+	s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
 	require.True(t, acResp.ConditionalAccess.BypassDisabled.Valid)
 	require.True(t, acResp.ConditionalAccess.BypassDisabled.Value, "bypass_disabled must be true to reproduce the bug")
 
@@ -1356,7 +1356,7 @@ func (s *integrationEnterpriseTestSuite) TestGitOpsModeToggleDoesNotCreateCondit
 	// Toggle GitOps mode ON. The PATCH body intentionally omits
 	// conditional_access — this is exactly what the Change management page
 	// sends (frontend/pages/admin/IntegrationsPage/cards/ChangeManagement).
-	s.Do("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	s.Do("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 		"gitops": { "gitops_mode_enabled": true, "repository_url": "https://example.com/repo" }
 	}`), http.StatusOK)
 
@@ -1370,11 +1370,11 @@ func (s *integrationEnterpriseTestSuite) TestGitOpsModeToggleDoesNotCreateCondit
 	// update_conditional_access_bypass. The buggy code emits the bypass
 	// activity after the gitops one, so checking only the last activity
 	// is sufficient.
-	s.lastActivityMatches(fleet.ActivityTypeEnabledGitOpsMode{}.ActivityName(), "", 0)
+	s.lastActivityMatches(automdm.ActivityTypeEnabledGitOpsMode{}.ActivityName(), "", 0)
 
 	// Re-seed the bypass row and toggle GitOps mode OFF. Same assertions.
 	require.NoError(t, s.ds.ConditionalAccessBypassDevice(ctx, host.ID))
-	s.Do("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	s.Do("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 		"gitops": { "gitops_mode_enabled": false, "repository_url": "https://example.com/repo" }
 	}`), http.StatusOK)
 
@@ -1382,7 +1382,7 @@ func (s *integrationEnterpriseTestSuite) TestGitOpsModeToggleDoesNotCreateCondit
 	require.NoError(t, err)
 	require.NotNil(t, bypassedAt, "host_conditional_access row was cleared by an unrelated gitops PATCH")
 
-	s.lastActivityMatches(fleet.ActivityTypeDisabledGitOpsMode{}.ActivityName(), "", 0)
+	s.lastActivityMatches(automdm.ActivityTypeDisabledGitOpsMode{}.ActivityName(), "", 0)
 
 	// Sanity check: a real change to bypass_disabled still emits the activity.
 	flipBody := map[string]any{
@@ -1396,9 +1396,9 @@ func (s *integrationEnterpriseTestSuite) TestGitOpsModeToggleDoesNotCreateCondit
 	}
 	flipBodyBytes, err := json.Marshal(flipBody)
 	require.NoError(t, err)
-	s.DoRaw("PATCH", "/api/latest/fleet/config", flipBodyBytes, http.StatusOK)
+	s.DoRaw("PATCH", "/api/latest/automdm/config", flipBodyBytes, http.StatusOK)
 	s.lastActivityOfTypeMatches(
-		fleet.ActivityTypeUpdateConditionalAccessBypass{}.ActivityName(),
+		automdm.ActivityTypeUpdateConditionalAccessBypass{}.ActivityName(),
 		`{"bypass_disabled": false}`,
 		0,
 	)
@@ -1416,7 +1416,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessBypass() {
 		host := createHostAndDeviceToken(t, s.ds, token)
 
 		var bypassResp bypassConditionalAccessResponse
-		s.DoJSON("POST", fmt.Sprintf("/api/v1/fleet/device/%s/bypass_conditional_access", token),
+		s.DoJSON("POST", fmt.Sprintf("/api/v1/automdm/device/%s/bypass_conditional_access", token),
 			nil, http.StatusOK, &bypassResp)
 		require.NoError(t, bypassResp.Err)
 
@@ -1432,13 +1432,13 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessBypass() {
 		host := createHostAndDeviceToken(t, s.ds, token)
 
 		var bypassResp bypassConditionalAccessResponse
-		s.DoJSON("POST", fmt.Sprintf("/api/v1/fleet/device/%s/bypass_conditional_access", token),
+		s.DoJSON("POST", fmt.Sprintf("/api/v1/automdm/device/%s/bypass_conditional_access", token),
 			nil, http.StatusOK, &bypassResp)
 		require.NoError(t, bypassResp.Err)
 
 		// Verify the activity was created with default idp_full_name when no SCIM user exists
 		s.lastActivityOfTypeMatches(
-			fleet.ActivityTypeHostBypassedConditionalAccess{}.ActivityName(),
+			automdm.ActivityTypeHostBypassedConditionalAccess{}.ActivityName(),
 			fmt.Sprintf(`{"host_id": %d, "host_display_name": %q, "idp_full_name": "An end user"}`, host.ID, host.DisplayName()),
 			0,
 		)
@@ -1447,7 +1447,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessBypass() {
 	t.Run("activity includes actual IDP name when SCIM user present", func(t *testing.T) {
 		// Create a host with SCIM user
 		token := fmt.Sprintf("activity-scim-%s", uuid.New().String())
-		host, err := s.ds.NewHost(ctx, &fleet.Host{
+		host, err := s.ds.NewHost(ctx, &automdm.Host{
 			DetailUpdatedAt: time.Now(),
 			LabelUpdatedAt:  time.Now(),
 			PolicyUpdatedAt: time.Now(),
@@ -1482,12 +1482,12 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessBypass() {
 		})
 
 		// Call bypass for host with SCIM user
-		s.DoRawNoAuth("POST", fmt.Sprintf("/api/v1/fleet/device/%s/bypass_conditional_access", token),
+		s.DoRawNoAuth("POST", fmt.Sprintf("/api/v1/automdm/device/%s/bypass_conditional_access", token),
 			nil, http.StatusOK)
 
 		// Verify the activity includes the actual IDP full name
 		s.lastActivityOfTypeMatches(
-			fleet.ActivityTypeHostBypassedConditionalAccess{}.ActivityName(),
+			automdm.ActivityTypeHostBypassedConditionalAccess{}.ActivityName(),
 			fmt.Sprintf(`{"host_id": %d, "host_display_name": %q, "idp_full_name": "John Doe"}`, host.ID, host.DisplayName()),
 			0,
 		)
@@ -1500,7 +1500,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessBypass() {
 
 		// First bypass
 		var bypassResp bypassConditionalAccessResponse
-		s.DoJSON("POST", fmt.Sprintf("/api/v1/fleet/device/%s/bypass_conditional_access", token),
+		s.DoJSON("POST", fmt.Sprintf("/api/v1/automdm/device/%s/bypass_conditional_access", token),
 			nil, http.StatusOK, &bypassResp)
 		require.NoError(t, bypassResp.Err)
 
@@ -1511,7 +1511,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessBypass() {
 
 		// Call bypass again - should work (creates a new bypass)
 		bypassResp = bypassConditionalAccessResponse{}
-		s.DoJSON("POST", fmt.Sprintf("/api/v1/fleet/device/%s/bypass_conditional_access", token),
+		s.DoJSON("POST", fmt.Sprintf("/api/v1/automdm/device/%s/bypass_conditional_access", token),
 			nil, http.StatusOK, &bypassResp)
 		require.NoError(t, bypassResp.Err)
 
@@ -1528,7 +1528,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessBypass() {
 
 		// Disable bypass via app config
 		var acResp appConfigResponse
-		s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+		s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 			"conditional_access": {
 				"bypass_disabled": true
 			}
@@ -1536,7 +1536,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessBypass() {
 
 		t.Cleanup(func() {
 			// Re-enable bypass for other tests
-			s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+			s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 				"conditional_access": {
 					"bypass_disabled": false
 				}
@@ -1545,13 +1545,13 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessBypass() {
 
 		// Verify bypass is now disabled
 		acResp = appConfigResponse{}
-		s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
+		s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
 		require.True(t, acResp.ConditionalAccess.BypassDisabled.Valid)
 		require.True(t, acResp.ConditionalAccess.BypassDisabled.Value)
 
 		// Bypass should fail when bypass is disabled (403 Forbidden)
 		var bypassResp bypassConditionalAccessResponse
-		s.DoJSON("POST", fmt.Sprintf("/api/v1/fleet/device/%s/bypass_conditional_access", token),
+		s.DoJSON("POST", fmt.Sprintf("/api/v1/automdm/device/%s/bypass_conditional_access", token),
 			nil, http.StatusForbidden, &bypassResp)
 	})
 
@@ -1564,7 +1564,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessBypass() {
 			_, _ = s.ds.ConditionalAccessConsumeBypass(ctx, host.ID)
 			// Ensure bypass is enabled for other tests
 			var acResp appConfigResponse
-			s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+			s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 				"conditional_access": {
 					"bypass_disabled": false
 				}
@@ -1573,7 +1573,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessBypass() {
 
 		// Disable bypass
 		var acResp appConfigResponse
-		s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+		s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 			"conditional_access": {
 				"bypass_disabled": true
 			}
@@ -1581,11 +1581,11 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessBypass() {
 
 		// Verify it's disabled
 		var bypassResp bypassConditionalAccessResponse
-		s.DoJSON("POST", fmt.Sprintf("/api/v1/fleet/device/%s/bypass_conditional_access", token),
+		s.DoJSON("POST", fmt.Sprintf("/api/v1/automdm/device/%s/bypass_conditional_access", token),
 			nil, http.StatusForbidden, &bypassResp)
 
 		// Re-enable bypass
-		s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+		s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 			"conditional_access": {
 				"bypass_disabled": false
 			}
@@ -1593,7 +1593,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessBypass() {
 
 		// Bypass should succeed after re-enabling
 		bypassResp = bypassConditionalAccessResponse{}
-		s.DoJSON("POST", fmt.Sprintf("/api/v1/fleet/device/%s/bypass_conditional_access", token),
+		s.DoJSON("POST", fmt.Sprintf("/api/v1/automdm/device/%s/bypass_conditional_access", token),
 			nil, http.StatusOK, &bypassResp)
 		require.NoError(t, bypassResp.Err)
 
@@ -1606,7 +1606,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessBypass() {
 	t.Run("toggling bypass_disabled clears all bypasses", func(t *testing.T) {
 		// Set up Okta configuration (required for bypass toggle detection)
 		var acResp appConfigResponse
-		s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(fmt.Sprintf(`{
+		s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(fmt.Sprintf(`{
 			"conditional_access": {
 				"okta_idp_id": "https://www.okta.com/saml2/service-provider/test",
 				"okta_assertion_consumer_service_url": "https://dev-test.okta.com/sso/saml2/test",
@@ -1620,7 +1620,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessBypass() {
 		token1 := fmt.Sprintf("bypass-clear-1-%s", uuid.New().String())
 		token2 := fmt.Sprintf("bypass-clear-2-%s", uuid.New().String())
 		host1 := createHostAndDeviceToken(t, s.ds, token1)
-		host2, err := s.ds.NewHost(ctx, &fleet.Host{
+		host2, err := s.ds.NewHost(ctx, &automdm.Host{
 			DetailUpdatedAt: time.Now(),
 			LabelUpdatedAt:  time.Now(),
 			PolicyUpdatedAt: time.Now(),
@@ -1637,9 +1637,9 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessBypass() {
 
 		// Create bypass records for both hosts
 		var bypassResp bypassConditionalAccessResponse
-		s.DoJSON("POST", fmt.Sprintf("/api/v1/fleet/device/%s/bypass_conditional_access", token1),
+		s.DoJSON("POST", fmt.Sprintf("/api/v1/automdm/device/%s/bypass_conditional_access", token1),
 			nil, http.StatusOK, &bypassResp)
-		s.DoJSON("POST", fmt.Sprintf("/api/v1/fleet/device/%s/bypass_conditional_access", token2),
+		s.DoJSON("POST", fmt.Sprintf("/api/v1/automdm/device/%s/bypass_conditional_access", token2),
 			nil, http.StatusOK, &bypassResp)
 
 		// Verify both bypasses exist by checking the count directly
@@ -1650,7 +1650,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessBypass() {
 		require.GreaterOrEqual(t, count, 2, "at least both bypass records should exist")
 
 		// Toggle bypass_disabled to true - this should clear all bypasses
-		s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+		s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 			"conditional_access": {
 				"bypass_disabled": true
 			}
@@ -1663,7 +1663,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessBypass() {
 		require.Equal(t, 0, count, "all bypass records should be cleared when bypass_disabled is toggled")
 
 		// Toggle back to false - should also clear any bypasses (though there are none)
-		s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+		s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 			"conditional_access": {
 				"bypass_disabled": false
 			}
@@ -1679,7 +1679,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessBypass() {
 		require.Nil(t, bypassedAtBefore)
 
 		var bypassResp bypassConditionalAccessResponse
-		s.DoJSON("POST", fmt.Sprintf("/api/v1/fleet/device/%s/bypass_conditional_access", token),
+		s.DoJSON("POST", fmt.Sprintf("/api/v1/automdm/device/%s/bypass_conditional_access", token),
 			nil, http.StatusOK, &bypassResp)
 		require.NoError(t, bypassResp.Err)
 
@@ -1707,7 +1707,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessBypass() {
 		host := createHostAndDeviceToken(t, s.ds, token)
 
 		getDeviceHostResp := getDeviceHostResponse{}
-		res := s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token, nil, http.StatusOK)
+		res := s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token, nil, http.StatusOK)
 		err := json.NewDecoder(res.Body).Decode(&getDeviceHostResp)
 		require.NoError(t, err)
 		require.NoError(t, res.Body.Close())
@@ -1716,12 +1716,12 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessBypass() {
 		require.False(t, getDeviceHostResp.Host.ConditionalAccessBypassed)
 
 		var bypassResp bypassConditionalAccessResponse
-		s.DoJSON("POST", fmt.Sprintf("/api/v1/fleet/device/%s/bypass_conditional_access", token),
+		s.DoJSON("POST", fmt.Sprintf("/api/v1/automdm/device/%s/bypass_conditional_access", token),
 			nil, http.StatusOK, &bypassResp)
 		require.NoError(t, bypassResp.Err)
 
 		getDeviceHostResp = getDeviceHostResponse{}
-		res = s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token, nil, http.StatusOK)
+		res = s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token, nil, http.StatusOK)
 		err = json.NewDecoder(res.Body).Decode(&getDeviceHostResp)
 		require.NoError(t, err)
 		require.NoError(t, res.Body.Close())
@@ -1732,7 +1732,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessBypass() {
 		require.NoError(t, err)
 
 		getDeviceHostResp = getDeviceHostResponse{}
-		res = s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token, nil, http.StatusOK)
+		res = s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token, nil, http.StatusOK)
 		err = json.NewDecoder(res.Body).Decode(&getDeviceHostResp)
 		require.NoError(t, err)
 		require.NoError(t, res.Body.Close())
@@ -1745,12 +1745,12 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessBypass() {
 		host := createHostAndDeviceToken(t, s.ds, token)
 
 		// Assign host to a team
-		team, err := s.ds.NewTeam(ctx, &fleet.Team{Name: fmt.Sprintf("ca-blocking-team-%s", uuid.New().String())})
+		team, err := s.ds.NewTeam(ctx, &automdm.Team{Name: fmt.Sprintf("ca-blocking-team-%s", uuid.New().String())})
 		require.NoError(t, err)
-		require.NoError(t, s.ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team.ID, []uint{host.ID})))
+		require.NoError(t, s.ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team.ID, []uint{host.ID})))
 
 		adminUser := s.users["admin1@example.com"]
-		policy, err := s.ds.NewTeamPolicy(ctx, team.ID, &adminUser.ID, fleet.PolicyPayload{
+		policy, err := s.ds.NewTeamPolicy(ctx, team.ID, &adminUser.ID, automdm.PolicyPayload{
 			Name:                     fmt.Sprintf("ca-critical-%s", uuid.New().String()),
 			Query:                    "select 1;",
 			Critical:                 true,
@@ -1764,7 +1764,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessBypass() {
 
 		// Bypass should fail with 400 Bad Request
 		var bypassResp bypassConditionalAccessResponse
-		s.DoJSON("POST", fmt.Sprintf("/api/v1/fleet/device/%s/bypass_conditional_access", token),
+		s.DoJSON("POST", fmt.Sprintf("/api/v1/automdm/device/%s/bypass_conditional_access", token),
 			nil, http.StatusBadRequest, &bypassResp)
 
 		// Verify no bypass row was created
@@ -1778,14 +1778,14 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessBypass() {
 		host := createHostAndDeviceToken(t, s.ds, token)
 
 		// Assign host to a team
-		team, err := s.ds.NewTeam(ctx, &fleet.Team{Name: fmt.Sprintf("non-ca-team-%s", uuid.New().String())})
+		team, err := s.ds.NewTeam(ctx, &automdm.Team{Name: fmt.Sprintf("non-ca-team-%s", uuid.New().String())})
 		require.NoError(t, err)
-		require.NoError(t, s.ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team.ID, []uint{host.ID})))
+		require.NoError(t, s.ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team.ID, []uint{host.ID})))
 
 		adminUser := s.users["admin1@example.com"]
 
 		// CA policy — passing
-		caPolicy, err := s.ds.NewTeamPolicy(ctx, team.ID, &adminUser.ID, fleet.PolicyPayload{
+		caPolicy, err := s.ds.NewTeamPolicy(ctx, team.ID, &adminUser.ID, automdm.PolicyPayload{
 			Name:                     fmt.Sprintf("ca-policy-%s", uuid.New().String()),
 			Query:                    "select 1;",
 			Critical:                 true,
@@ -1794,7 +1794,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessBypass() {
 		require.NoError(t, err)
 
 		// Non-CA critical policy — failing
-		nonCAPolicy, err := s.ds.NewTeamPolicy(ctx, team.ID, &adminUser.ID, fleet.PolicyPayload{
+		nonCAPolicy, err := s.ds.NewTeamPolicy(ctx, team.ID, &adminUser.ID, automdm.PolicyPayload{
 			Name:     fmt.Sprintf("non-ca-policy-%s", uuid.New().String()),
 			Query:    "select 1;",
 			Critical: true,
@@ -1809,7 +1809,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessBypass() {
 
 		// Bypass must succeed: the only failing policy is not CA-enabled
 		var bypassResp bypassConditionalAccessResponse
-		s.DoJSON("POST", fmt.Sprintf("/api/v1/fleet/device/%s/bypass_conditional_access", token),
+		s.DoJSON("POST", fmt.Sprintf("/api/v1/automdm/device/%s/bypass_conditional_access", token),
 			nil, http.StatusOK, &bypassResp)
 		require.NoError(t, bypassResp.Err)
 
@@ -1822,7 +1822,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessBypass() {
 func (s *integrationEnterpriseTestSuite) TestConditionalAccessPlatformValidation() {
 	t := s.T()
 
-	team1, err := s.ds.NewTeam(context.Background(), &fleet.Team{
+	team1, err := s.ds.NewTeam(context.Background(), &automdm.Team{
 		Name:        "team_ca_platform_" + t.Name(),
 		Description: "desc",
 	})
@@ -1833,8 +1833,8 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessPlatformValidation
 	//
 
 	// conditional_access_enabled=true with platform="linux" should fail
-	res := s.Do("POST", "/api/latest/fleet/policies", map[string]any{
-		"fleet_id":        team1.ID,
+	res := s.Do("POST", "/api/latest/automdm/policies", map[string]any{
+		"team_id":         team1.ID,
 		"name":            "ca-linux",
 		"query":           "SELECT 1;",
 		"platform":        "linux",
@@ -1845,8 +1845,8 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessPlatformValidation
 	res.Body.Close()
 
 	// conditional_access_enabled=true with empty platform (all platforms) should fail
-	res = s.Do("POST", "/api/latest/fleet/policies", map[string]any{
-		"fleet_id":        team1.ID,
+	res = s.Do("POST", "/api/latest/automdm/policies", map[string]any{
+		"team_id":         team1.ID,
 		"name":            "ca-all-platforms",
 		"query":           "SELECT 1;",
 		"platform":        "",
@@ -1857,40 +1857,40 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessPlatformValidation
 	res.Body.Close()
 
 	// conditional_access_enabled=true with platform="darwin" should succeed
-	var pr fleet.CreatePolicyResponse
-	s.DoJSON("POST", "/api/latest/fleet/policies", fleet.CreatePolicyRequest{
+	var pr automdm.CreatePolicyResponse
+	s.DoJSON("POST", "/api/latest/automdm/policies", automdm.CreatePolicyRequest{
 		TeamID:         new(team1.ID),
 		Name:           "ca-darwin",
 		Query:          "SELECT 1;",
 		Platform:       "darwin",
-		AutomationType: new(fleet.PolicyAutomationConditionalAccess),
+		AutomationType: new(automdm.PolicyAutomationConditionalAccess),
 	}, http.StatusOK, &pr)
 	darwinPolicyID := pr.Policy.ID
 
 	// conditional_access_enabled=true with platform="windows" should succeed
-	pr = fleet.CreatePolicyResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/policies", fleet.CreatePolicyRequest{
+	pr = automdm.CreatePolicyResponse{}
+	s.DoJSON("POST", "/api/latest/automdm/policies", automdm.CreatePolicyRequest{
 		TeamID:         new(team1.ID),
 		Name:           "ca-windows",
 		Query:          "SELECT 2;",
 		Platform:       "windows",
-		AutomationType: new(fleet.PolicyAutomationConditionalAccess),
+		AutomationType: new(automdm.PolicyAutomationConditionalAccess),
 	}, http.StatusOK, &pr)
 	windowsPolicyID := pr.Policy.ID
 
 	// conditional_access_enabled=true with platform="darwin,windows" should succeed
-	pr = fleet.CreatePolicyResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/policies", fleet.CreatePolicyRequest{
+	pr = automdm.CreatePolicyResponse{}
+	s.DoJSON("POST", "/api/latest/automdm/policies", automdm.CreatePolicyRequest{
 		TeamID:         new(team1.ID),
 		Name:           "ca-darwin-windows",
 		Query:          "SELECT 3;",
 		Platform:       "darwin,windows",
-		AutomationType: new(fleet.PolicyAutomationConditionalAccess),
+		AutomationType: new(automdm.PolicyAutomationConditionalAccess),
 	}, http.StatusOK, &pr)
 
 	// conditional_access_enabled=false with platform="linux" should succeed (no restriction when disabled)
-	pr = fleet.CreatePolicyResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/policies", fleet.CreatePolicyRequest{
+	pr = automdm.CreatePolicyResponse{}
+	s.DoJSON("POST", "/api/latest/automdm/policies", automdm.CreatePolicyRequest{
 		TeamID:   new(team1.ID),
 		Name:     "no-ca-linux",
 		Query:    "SELECT 4;",
@@ -1903,13 +1903,13 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessPlatformValidation
 	//
 
 	// Modify a darwin policy to enable conditional_access_enabled — should succeed (already darwin)
-	patchResp := &fleet.ModifyPolicyResponse{}
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/policies/%d", darwinPolicyID), fleet.ModifyPolicyRequest{
-		AutomationType: optjson.Any[fleet.PolicyAutomation]{Set: true, Valid: true, Value: fleet.PolicyAutomationConditionalAccess},
+	patchResp := &automdm.ModifyPolicyResponse{}
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/policies/%d", darwinPolicyID), automdm.ModifyPolicyRequest{
+		AutomationType: optjson.Any[automdm.PolicyAutomation]{Set: true, Valid: true, Value: automdm.PolicyAutomationConditionalAccess},
 	}, http.StatusOK, patchResp)
 
 	// Modify a linux policy to enable conditional_access_enabled — should fail
-	res = s.Do("PATCH", fmt.Sprintf("/api/latest/fleet/policies/%d", linuxPolicyID), map[string]any{
+	res = s.Do("PATCH", fmt.Sprintf("/api/latest/automdm/policies/%d", linuxPolicyID), map[string]any{
 		"automation_type": "conditional_access",
 	}, http.StatusBadRequest)
 	errMsg = extractServerErrorText(res.Body)
@@ -1917,7 +1917,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessPlatformValidation
 	res.Body.Close()
 
 	// Modify a darwin conditional_access policy to change platform to linux — should fail
-	res = s.Do("PATCH", fmt.Sprintf("/api/latest/fleet/policies/%d", darwinPolicyID), map[string]any{
+	res = s.Do("PATCH", fmt.Sprintf("/api/latest/automdm/policies/%d", darwinPolicyID), map[string]any{
 		"platform": "linux",
 	}, http.StatusBadRequest)
 	errMsg = extractServerErrorText(res.Body)
@@ -1925,8 +1925,8 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessPlatformValidation
 	res.Body.Close()
 
 	// Modify a windows conditional_access policy to change platform to darwin — should succeed
-	patchResp = &fleet.ModifyPolicyResponse{}
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/policies/%d", windowsPolicyID), fleet.ModifyPolicyRequest{
+	patchResp = &automdm.ModifyPolicyResponse{}
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/policies/%d", windowsPolicyID), automdm.ModifyPolicyRequest{
 		Platform: new("darwin"),
 	}, http.StatusOK, patchResp)
 
@@ -1935,8 +1935,8 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessPlatformValidation
 	//
 
 	// Create a global policy
-	createGlobal := &fleet.CreatePolicyResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/policies", &fleet.CreatePolicyRequest{
+	createGlobal := &automdm.CreatePolicyResponse{}
+	s.DoJSON("POST", "/api/latest/automdm/policies", &automdm.CreatePolicyRequest{
 		Name:     "global-policy-ca-test",
 		Query:    "SELECT 1;",
 		Platform: "darwin",
@@ -1944,11 +1944,11 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessPlatformValidation
 	globalPolicyID := createGlobal.Policy.ID
 
 	// Try to enable conditional_access_enabled on a global policy — should fail
-	res = s.Do("PATCH", fmt.Sprintf("/api/latest/fleet/policies/%d", globalPolicyID), map[string]any{
+	res = s.Do("PATCH", fmt.Sprintf("/api/latest/automdm/policies/%d", globalPolicyID), map[string]any{
 		"automation_type": "conditional_access",
 	}, http.StatusBadRequest)
 	errMsg = extractServerErrorText(res.Body)
-	require.Contains(t, errMsg, fmt.Sprintf(`%q policies can only have automation_type %q`, fleet.DisplayNameAllTeams, fleet.PolicyAutomationWebhookOrTicket))
+	require.Contains(t, errMsg, fmt.Sprintf(`%q policies can only have automation_type %q`, automdm.DisplayNameAllTeams, automdm.PolicyAutomationWebhookOrTicket))
 	res.Body.Close()
 
 	//
@@ -1956,16 +1956,16 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessPlatformValidation
 	//
 
 	// Team spec with conditional_access_enabled=true and platform="linux" should fail
-	applyResp := fleet.ApplyPolicySpecsResponse{}
-	res = s.Do("POST", "/api/latest/fleet/spec/policies", fleet.ApplyPolicySpecsRequest{
-		Specs: []*fleet.PolicySpec{
+	applyResp := automdm.ApplyPolicySpecsResponse{}
+	res = s.Do("POST", "/api/latest/automdm/spec/policies", automdm.ApplyPolicySpecsRequest{
+		Specs: []*automdm.PolicySpec{
 			{
 				Name:                     "spec-ca-linux",
 				Query:                    "SELECT 1;",
 				Team:                     team1.Name,
 				Platform:                 "linux",
 				ConditionalAccessEnabled: true,
-				Type:                     fleet.PolicyTypeDynamic,
+				Type:                     automdm.PolicyTypeDynamic,
 			},
 		},
 	}, http.StatusBadRequest)
@@ -1974,45 +1974,45 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessPlatformValidation
 	res.Body.Close()
 
 	// Global spec (no team) with conditional_access_enabled=true should fail
-	res = s.Do("POST", "/api/latest/fleet/spec/policies", fleet.ApplyPolicySpecsRequest{
-		Specs: []*fleet.PolicySpec{
+	res = s.Do("POST", "/api/latest/automdm/spec/policies", automdm.ApplyPolicySpecsRequest{
+		Specs: []*automdm.PolicySpec{
 			{
 				Name:                     "spec-ca-global",
 				Query:                    "SELECT 1;",
 				Platform:                 "darwin",
 				ConditionalAccessEnabled: true,
-				Type:                     fleet.PolicyTypeDynamic,
+				Type:                     automdm.PolicyTypeDynamic,
 			},
 		},
 	}, http.StatusBadRequest)
 	errMsg = extractServerErrorText(res.Body)
-	require.Contains(t, errMsg, `"All fleets" policy cannot have conditional_access_enabled set`)
+	require.Contains(t, errMsg, `"All teams" policy cannot have conditional_access_enabled set`)
 	res.Body.Close()
 
 	// Team spec with conditional_access_enabled=true and platform="darwin" should succeed
-	s.DoJSON("POST", "/api/latest/fleet/spec/policies", fleet.ApplyPolicySpecsRequest{
-		Specs: []*fleet.PolicySpec{
+	s.DoJSON("POST", "/api/latest/automdm/spec/policies", automdm.ApplyPolicySpecsRequest{
+		Specs: []*automdm.PolicySpec{
 			{
 				Name:                     "spec-ca-darwin",
 				Query:                    "SELECT 1;",
 				Team:                     team1.Name,
 				Platform:                 "darwin",
 				ConditionalAccessEnabled: true,
-				Type:                     fleet.PolicyTypeDynamic,
+				Type:                     automdm.PolicyTypeDynamic,
 			},
 		},
 	}, http.StatusOK, &applyResp)
 
 	// Team spec with conditional_access_enabled=true and platform="windows" should succeed
-	s.DoJSON("POST", "/api/latest/fleet/spec/policies", fleet.ApplyPolicySpecsRequest{
-		Specs: []*fleet.PolicySpec{
+	s.DoJSON("POST", "/api/latest/automdm/spec/policies", automdm.ApplyPolicySpecsRequest{
+		Specs: []*automdm.PolicySpec{
 			{
 				Name:                     "spec-ca-windows",
 				Query:                    "SELECT 2;",
 				Team:                     team1.Name,
 				Platform:                 "windows",
 				ConditionalAccessEnabled: true,
-				Type:                     fleet.PolicyTypeDynamic,
+				Type:                     automdm.PolicyTypeDynamic,
 			},
 		},
 	}, http.StatusOK, &applyResp)
@@ -2032,22 +2032,22 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessMicrosoftEntraDevi
 		SetupDone: true,
 	}
 	var r conditionalAccessMicrosoftCreateResponse
-	s.DoJSON("POST", "/api/latest/fleet/conditional-access/microsoft", conditionalAccessMicrosoftCreateRequest{
+	s.DoJSON("POST", "/api/latest/automdm/conditional-access/microsoft", conditionalAccessMicrosoftCreateRequest{
 		MicrosoftTenantID: testEntraTenantID,
 	}, http.StatusOK, &r)
 	var c conditionalAccessMicrosoftConfirmResponse
-	s.DoJSON("POST", "/api/latest/fleet/conditional-access/microsoft/confirm", conditionalAccessMicrosoftConfirmRequest{}, http.StatusOK, &c)
+	s.DoJSON("POST", "/api/latest/automdm/conditional-access/microsoft/confirm", conditionalAccessMicrosoftConfirmRequest{}, http.StatusOK, &c)
 	require.True(t, c.ConfigurationCompleted)
 
-	team, err := s.ds.NewTeam(ctx, &fleet.Team{Name: t.Name()})
+	team, err := s.ds.NewTeam(ctx, &automdm.Team{Name: t.Name()})
 	require.NoError(t, err)
 	var tmResp teamResponse
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d", team.ID), map[string]any{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d", team.ID), map[string]any{
 		"integrations": map[string]any{"conditional_access_enabled": true},
 	}, http.StatusOK, &tmResp)
 
-	newHost := func(name, platform string) *fleet.Host {
-		h, err := s.ds.NewHost(ctx, &fleet.Host{
+	newHost := func(name, platform string) *automdm.Host {
+		h, err := s.ds.NewHost(ctx, &automdm.Host{
 			DetailUpdatedAt: time.Now(),
 			LabelUpdatedAt:  time.Now(),
 			PolicyUpdatedAt: time.Now(),
@@ -2068,17 +2068,17 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessMicrosoftEntraDevi
 	mac2 := newHost("mac2", "darwin")
 	win := newHost("win", "windows")
 
-	postToken := func(h *fleet.Host, claims jwt.MapClaims, expectedStatus int) {
-		var resp fleet.OrbitPostEntraDeviceTokenResponse
-		s.DoJSON("POST", "/api/fleet/orbit/entra_device_token", fleet.OrbitPostEntraDeviceTokenRequest{
+	postToken := func(h *automdm.Host, claims jwt.MapClaims, expectedStatus int) {
+		var resp automdm.OrbitPostEntraDeviceTokenResponse
+		s.DoJSON("POST", "/api/automdm/orbit/entra_device_token", automdm.OrbitPostEntraDeviceTokenRequest{
 			OrbitNodeKey: *h.OrbitNodeKey,
 			IDToken:      signer.sign(t, claims),
 		}, expectedStatus, &resp)
 	}
-	assertDeviceID := func(h *fleet.Host, deviceID string) {
+	assertDeviceID := func(h *automdm.Host, deviceID string) {
 		status, err := s.ds.LoadHostConditionalAccessStatus(ctx, h.ID)
 		if deviceID == "" {
-			require.True(t, fleet.IsNotFound(err), err)
+			require.True(t, automdm.IsNotFound(err), err)
 			return
 		}
 		require.NoError(t, err)
@@ -2086,8 +2086,8 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessMicrosoftEntraDevi
 	}
 
 	// Only macOS hosts get the request.
-	var cfg fleet.OrbitConfig
-	s.DoJSON("POST", "/api/fleet/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *win.OrbitNodeKey)), http.StatusOK, &cfg)
+	var cfg automdm.OrbitConfig
+	s.DoJSON("POST", "/api/automdm/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *win.OrbitNodeKey)), http.StatusOK, &cfg)
 	require.Nil(t, cfg.EntraDeviceTokenRequest)
 	postToken(win, testEntraDeviceTokenClaims(testEntraTenantID, testEntraClientID, testEntraDeviceID, "user@example.com",
 		entraDeviceNonce(testConditionalAccessProxySecret, win.UUID), time.Now()), http.StatusBadRequest)
@@ -2109,7 +2109,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessMicrosoftEntraDevi
 	postToken(mac1, testEntraDeviceTokenClaims(testEntraTenantID, testEntraClientID, testEntraDeviceID, "user@example.com", mac1Nonce, time.Now().Add(-2*time.Hour)), http.StatusBadRequest)
 	assertDeviceID(mac1, "")
 
-	assertRefetchRequested := func(h *fleet.Host, want bool) {
+	assertRefetchRequested := func(h *automdm.Host, want bool) {
 		hl, err := s.ds.HostLite(ctx, h.ID)
 		require.NoError(t, err)
 		require.Equal(t, want, hl.RefetchRequested)
@@ -2144,23 +2144,23 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessMicrosoftEntraDevi
 		entraDeviceNonce(testConditionalAccessProxySecret, mac2.UUID), time.Now()), http.StatusConflict)
 	assertDeviceID(mac2, "")
 
-	// A Windows host in another fleet can't claim it either, so its passing policy results don't
+	// A Windows host in another team can't claim it either, so its passing policy results don't
 	// update mac1's device in Entra.
-	teamB, err := s.ds.NewTeam(ctx, &fleet.Team{Name: t.Name() + "-b"})
+	teamB, err := s.ds.NewTeam(ctx, &automdm.Team{Name: t.Name() + "-b"})
 	require.NoError(t, err)
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d", teamB.ID), map[string]any{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d", teamB.ID), map[string]any{
 		"integrations": map[string]any{"conditional_access_enabled": true},
 	}, http.StatusOK, &tmResp)
-	var pr fleet.CreatePolicyResponse
-	s.DoJSON("POST", "/api/latest/fleet/policies", fleet.CreatePolicyRequest{
+	var pr automdm.CreatePolicyResponse
+	s.DoJSON("POST", "/api/latest/automdm/policies", automdm.CreatePolicyRequest{
 		TeamID:         new(teamB.ID),
 		Query:          "SELECT 1;",
 		Name:           t.Name() + " compliance check",
 		Platform:       "windows",
-		AutomationType: new(fleet.PolicyAutomationConditionalAccess),
+		AutomationType: new(automdm.PolicyAutomationConditionalAccess),
 	}, http.StatusOK, &pr)
 	winB := newHost("winB", "windows")
-	require.NoError(t, s.ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&teamB.ID, []uint{winB.ID})))
+	require.NoError(t, s.ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&teamB.ID, []uint{winB.ID})))
 
 	var sentMu sync.Mutex
 	var sentDeviceIDs []string
@@ -2195,7 +2195,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessMicrosoftEntraDevi
 	assertDeviceID(winB, "")
 
 	// Disabling the feature stops the request and the ingestion.
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d", team.ID), map[string]any{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d", team.ID), map[string]any{
 		"integrations": map[string]any{"conditional_access_enabled": false},
 	}, http.StatusOK, &tmResp)
 	require.Nil(t, s.reportEntraDeviceToken(signer, mac2, testEntraDeviceID2, "user2@example.com", http.StatusBadRequest))
@@ -2238,7 +2238,7 @@ func (s *integrationEnterpriseTestSuite) newGoogleCATest() *googleCATest {
 		appCfg.Integrations.GoogleConditionalAccess = nil
 		require.NoError(t, s.ds.SaveAppConfig(ctx, appCfg))
 		g.deleteRows(ctx)
-		require.NoError(t, s.ds.DeleteMDMConfigAssetsByName(ctx, []fleet.MDMAssetName{fleet.MDMAssetGoogleConditionalAccessServiceAccountKey}))
+		require.NoError(t, s.ds.DeleteMDMConfigAssetsByName(ctx, []automdm.MDMAssetName{automdm.MDMAssetGoogleConditionalAccessServiceAccountKey}))
 		g.client.reset()
 	})
 	return g
@@ -2261,7 +2261,7 @@ func (g *googleCATest) deleteRows(ctx context.Context) {
 
 func (g *googleCATest) connect(customerID, adminEmail, key string, wantStatus int) googleConditionalAccessResponse {
 	var resp googleConditionalAccessResponse
-	g.s.DoJSON("POST", "/api/latest/fleet/conditional_access/google", connectGoogleConditionalAccessRequest{
+	g.s.DoJSON("POST", "/api/latest/automdm/conditional_access/google", connectGoogleConditionalAccessRequest{
 		CustomerID:        customerID,
 		AdminEmail:        adminEmail,
 		ServiceAccountKey: json.RawMessage(key),
@@ -2271,48 +2271,48 @@ func (g *googleCATest) connect(customerID, adminEmail, key string, wantStatus in
 
 func (g *googleCATest) update(body string, wantStatus int) googleConditionalAccessResponse {
 	var resp googleConditionalAccessResponse
-	g.s.DoJSON("PATCH", "/api/latest/fleet/conditional_access/google", json.RawMessage(body), wantStatus, &resp)
+	g.s.DoJSON("PATCH", "/api/latest/automdm/conditional_access/google", json.RawMessage(body), wantStatus, &resp)
 	return resp
 }
 
 func (g *googleCATest) status() googleConditionalAccessResponse {
 	var resp googleConditionalAccessResponse
-	g.s.DoJSON("GET", "/api/latest/fleet/conditional_access/google", nil, http.StatusOK, &resp)
+	g.s.DoJSON("GET", "/api/latest/automdm/conditional_access/google", nil, http.StatusOK, &resp)
 	return resp
 }
 
 func (g *googleCATest) getConfig() appConfigResponse {
 	var resp appConfigResponse
-	g.s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &resp)
+	g.s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &resp)
 	return resp
 }
 
 func (g *googleCATest) storedKey() []byte {
-	assets, err := g.s.ds.GetAllMDMConfigAssetsByName(g.t.Context(), []fleet.MDMAssetName{fleet.MDMAssetGoogleConditionalAccessServiceAccountKey}, nil)
-	if fleet.IsNotFound(err) {
+	assets, err := g.s.ds.GetAllMDMConfigAssetsByName(g.t.Context(), []automdm.MDMAssetName{automdm.MDMAssetGoogleConditionalAccessServiceAccountKey}, nil)
+	if automdm.IsNotFound(err) {
 		return nil
 	}
 	require.NoError(g.t, err)
-	return assets[fleet.MDMAssetGoogleConditionalAccessServiceAccountKey].Value
+	return assets[automdm.MDMAssetGoogleConditionalAccessServiceAccountKey].Value
 }
 
 func (g *googleCATest) requireCalls(wantChecks, wantCreates, wantDeletes []string) {
 	checks, registers, deregisters, _ := g.client.calls()
 	require.Equal(g.t, wantChecks, checks, "delegation checks")
-	require.Equal(g.t, wantCreates, registers, "fleetdm.com registrations")
-	require.Equal(g.t, wantDeletes, deregisters, "fleetdm.com deregistrations")
+	require.Equal(g.t, wantCreates, registers, "automdm.com registrations")
+	require.Equal(g.t, wantDeletes, deregisters, "automdm.com deregistrations")
 }
 
 func (g *googleCATest) addedCount() int {
-	return g.s.countActivitiesOfType(fleet.ActivityTypeAddedConditionalAccessIntegrationGoogle{}.ActivityName())
+	return g.s.countActivitiesOfType(automdm.ActivityTypeAddedConditionalAccessIntegrationGoogle{}.ActivityName())
 }
 
 func (g *googleCATest) deletedCount() int {
-	return g.s.countActivitiesOfType(fleet.ActivityTypeDeletedConditionalAccessIntegrationGoogle{}.ActivityName())
+	return g.s.countActivitiesOfType(automdm.ActivityTypeDeletedConditionalAccessIntegrationGoogle{}.ActivityName())
 }
 
 func (g *googleCATest) editedCount() int {
-	return g.s.countActivitiesOfType(fleet.ActivityTypeEditedConditionalAccessIntegrationGoogle{}.ActivityName())
+	return g.s.countActivitiesOfType(automdm.ActivityTypeEditedConditionalAccessIntegrationGoogle{}.ActivityName())
 }
 
 func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogle() {
@@ -2325,11 +2325,11 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogle() {
 	// Nothing configured yet.
 	st := g.status()
 	require.Empty(t, st.CustomerID)
-	require.Equal(t, fleet.ConditionalAccessGoogleStatus{}, st.ConditionalAccessGoogleStatus)
-	s.DoJSON("DELETE", "/api/latest/fleet/conditional_access/google", nil, http.StatusBadRequest, &deleteGoogleConditionalAccessResponse{})
+	require.Equal(t, automdm.ConditionalAccessGoogleStatus{}, st.ConditionalAccessGoogleStatus)
+	s.DoJSON("DELETE", "/api/latest/automdm/conditional_access/google", nil, http.StatusBadRequest, &deleteGoogleConditionalAccessResponse{})
 
 	// Invalid input is a 422 on the field (the validator has its own unit tests).
-	res := s.Do("POST", "/api/latest/fleet/conditional_access/google", connectGoogleConditionalAccessRequest{
+	res := s.Do("POST", "/api/latest/automdm/conditional_access/google", connectGoogleConditionalAccessRequest{
 		CustomerID: "C02cajzvg", AdminEmail: "admin@example.com",
 	}, http.StatusUnprocessableEntity)
 	name, _ := extractServerErrorNameReason(res.Body)
@@ -2338,7 +2338,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogle() {
 
 	// Without a server private key the key can't be stored, so nothing is called.
 	testSetEmptyPrivateKey = true
-	res = s.Do("POST", "/api/latest/fleet/conditional_access/google", connectGoogleConditionalAccessRequest{
+	res = s.Do("POST", "/api/latest/automdm/conditional_access/google", connectGoogleConditionalAccessRequest{
 		CustomerID: "C02cajzvg", AdminEmail: "admin@example.com", ServiceAccountKey: json.RawMessage(key),
 	}, http.StatusUnprocessableEntity)
 	testSetEmptyPrivateKey = false
@@ -2346,39 +2346,39 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogle() {
 	g.requireCalls(nil, nil, nil)
 
 	// Both writes are authorized: global admins and gitops only (the policy has its own test).
-	maintainer := &fleet.User{Name: "GCA maintainer", Email: "gca-maintainer@example.com", GlobalRole: new(fleet.RoleMaintainer)}
+	maintainer := &automdm.User{Name: "GCA maintainer", Email: "gca-maintainer@example.com", GlobalRole: new(automdm.RoleMaintainer)}
 	require.NoError(t, maintainer.SetPassword(test.GoodPassword, 10, 10))
 	_, err := s.ds.NewUser(ctx, maintainer)
 	require.NoError(t, err)
 	s.setTokenForTest(t, maintainer.Email, test.GoodPassword)
 	g.connect("C02cajzvg", "admin@example.com", key, http.StatusForbidden)
-	s.DoJSON("DELETE", "/api/latest/fleet/conditional_access/google", nil, http.StatusForbidden, &deleteGoogleConditionalAccessResponse{})
+	s.DoJSON("DELETE", "/api/latest/automdm/conditional_access/google", nil, http.StatusForbidden, &deleteGoogleConditionalAccessResponse{})
 	s.token = s.getTestAdminToken()
 	g.requireCalls(nil, nil, nil)
 
 	// A failed delegation check (e.g. a wrong customer ID) stores nothing.
 	addedBefore, deletedBefore, editedBefore := g.addedCount(), g.deletedCount(), g.editedCount()
 	g.client.checkErr = errors.New("Not Authorized to access this resource/api")
-	res = s.Do("POST", "/api/latest/fleet/conditional_access/google", connectGoogleConditionalAccessRequest{
+	res = s.Do("POST", "/api/latest/automdm/conditional_access/google", connectGoogleConditionalAccessRequest{
 		CustomerID: "C02cajzvg", AdminEmail: "admin@example.com", ServiceAccountKey: json.RawMessage(key),
 	}, http.StatusUnprocessableEntity)
 	require.Contains(t, extractServerErrorText(res.Body), "Not Authorized to access this resource/api")
 	g.requireCalls([]string{"admin@example.com/C02cajzvg"}, nil, nil)
 	_, err = s.ds.GetGoogleConditionalAccessIntegration(ctx)
-	require.True(t, fleet.IsNotFound(err))
+	require.True(t, automdm.IsNotFound(err))
 	require.Nil(t, g.storedKey())
 	require.Equal(t, addedBefore, g.addedCount())
 	g.client.reset()
 
 	// A Google outage isn't blamed on the key: it's a 502, and nothing is stored.
 	g.client.checkErr = googleOutageError{}
-	res = s.Do("POST", "/api/latest/fleet/conditional_access/google", connectGoogleConditionalAccessRequest{
+	res = s.Do("POST", "/api/latest/automdm/conditional_access/google", connectGoogleConditionalAccessRequest{
 		CustomerID: "C02cajzvg", AdminEmail: "admin@example.com", ServiceAccountKey: json.RawMessage(key),
 	}, http.StatusBadGateway)
 	require.Contains(t, extractServerErrorText(res.Body), "Couldn't verify the settings with Google")
 	g.requireCalls([]string{"admin@example.com/C02cajzvg"}, nil, nil)
 	_, err = s.ds.GetGoogleConditionalAccessIntegration(ctx)
-	require.True(t, fleet.IsNotFound(err))
+	require.True(t, automdm.IsNotFound(err))
 	require.Nil(t, g.storedKey())
 	require.Nil(t, g.getConfig().Integrations.GoogleConditionalAccess)
 	g.client.reset()
@@ -2387,22 +2387,22 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogle() {
 	resp := g.connect("C02cajzvg", "admin@example.com", key, http.StatusOK)
 	require.Equal(t, "C02cajzvg", resp.CustomerID)
 	require.Equal(t, "admin@example.com", resp.AdminEmail)
-	require.Equal(t, fleet.ConditionalAccessGoogleStateConnected, resp.State)
+	require.Equal(t, automdm.ConditionalAccessGoogleStateConnected, resp.State)
 	require.True(t, resp.ServiceAccountKeyConfigured)
 	require.Nil(t, resp.ErrorMessage)
 	g.requireCalls([]string{"admin@example.com/C02cajzvg"}, []string{"C02cajzvg"}, nil)
 	require.JSONEq(t, key, string(g.storedKey()))
 	row, err := s.ds.GetGoogleConditionalAccessIntegration(ctx)
 	require.NoError(t, err)
-	require.Equal(t, &fleet.ConditionalAccessGoogleIntegration{ //nolint:gosec // test value, not a credential
-		ProxyServerSecret: "secret-C02cajzvg", State: fleet.ConditionalAccessGoogleStateConnected,
+	require.Equal(t, &automdm.ConditionalAccessGoogleIntegration{ //nolint:gosec // test value, not a credential
+		ProxyServerSecret: "secret-C02cajzvg", State: automdm.ConditionalAccessGoogleStateConnected,
 	}, row)
 	require.Equal(t, addedBefore+1, g.addedCount())
 	require.Equal(t, deletedBefore, g.deletedCount())
 	require.Equal(t, editedBefore, g.editedCount())
-	require.Equal(t, &fleet.GoogleConditionalAccessIntegration{CustomerID: "C02cajzvg", AdminEmail: "admin@example.com", APIKeyJSON: fleet.MaskedPassword},
+	require.Equal(t, &automdm.GoogleConditionalAccessIntegration{CustomerID: "C02cajzvg", AdminEmail: "admin@example.com", APIKeyJSON: automdm.MaskedPassword},
 		g.getConfig().Integrations.GoogleConditionalAccess)
-	for _, path := range []string{"/api/latest/fleet/config", "/api/latest/fleet/conditional_access/google"} {
+	for _, path := range []string{"/api/latest/automdm/config", "/api/latest/automdm/conditional_access/google"} {
 		rawBody, err := io.ReadAll(s.Do("GET", path, nil, http.StatusOK).Body)
 		require.NoError(t, err)
 		require.NotContains(t, string(rawBody), "BEGIN PRIVATE KEY", path)
@@ -2442,7 +2442,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogle() {
 	host0 := test.NewHost(t, s.ds, "gca-host-0", "", "gca-host-0-key", uuid.NewString(), time.Now())
 	insertGoogleDeviceUsers(t, s.ds, "C02cajzvg", host0, "devices/old/deviceUsers/u1", "devices/old/deviceUsers/u2")
 
-	// If fleetdm.com can't drop the previous registration, nothing changes.
+	// If automdm.com can't drop the previous registration, nothing changes.
 	g.client.deregisterErr = &conditional_access_google.RelayStatusError{Code: http.StatusServiceUnavailable}
 	g.connect("C03other", "admin2@example.com", key, http.StatusBadGateway)
 	g.requireCalls([]string{"admin2@example.com/C03other"}, nil, []string{"C02cajzvg"})
@@ -2451,7 +2451,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogle() {
 	row, err = s.ds.GetGoogleConditionalAccessIntegration(ctx)
 	require.NoError(t, err)
 	require.Equal(t, "secret-C02cajzvg", row.ProxyServerSecret)
-	require.Equal(t, fleet.ConditionalAccessGoogleStateConnected, row.State)
+	require.Equal(t, automdm.ConditionalAccessGoogleStateConnected, row.State)
 	require.JSONEq(t, otherKey, string(g.storedKey()))
 	require.Equal(t, "C02cajzvg", g.getConfig().Integrations.GoogleConditionalAccess.CustomerID)
 	require.Equal(t, 1, countGoogleDeviceRows(t, s.ds, "C02cajzvg"))
@@ -2463,7 +2463,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogle() {
 	g.connect("C03other", "admin2@example.com", key, http.StatusOK)
 	g.requireCalls([]string{"admin2@example.com/C03other"}, []string{"C03other"}, []string{"C02cajzvg"})
 	require.Equal(t, []string{"secret-C02cajzvg"}, g.client.deregisterSecrets())
-	// fleetdm.com calls the server back at the app config's server URL.
+	// automdm.com calls the server back at the app config's server URL.
 	serverURL := g.getConfig().ServerSettings.ServerURL
 	require.NotEmpty(t, serverURL)
 	require.Equal(t, []string{serverURL, serverURL}, g.client.serverURLs())
@@ -2480,18 +2480,18 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogle() {
 	require.Equal(t, editedBefore+1, g.editedCount())
 	g.client.reset()
 
-	// DELETE drops the fleetdm.com registration first, so a failure is a 502 and changes
+	// DELETE drops the automdm.com registration first, so a failure is a 502 and changes
 	// nothing.
 	host1 := test.NewHost(t, s.ds, "gca-host-1", "", "gca-host-1-key", uuid.NewString(), time.Now())
 	host2 := test.NewHost(t, s.ds, "gca-host-2", "", "gca-host-2-key", uuid.NewString(), time.Now())
 	insertGoogleDeviceUsers(t, s.ds, "C03other", host1, "devices/d1/deviceUsers/u1", "devices/d1/deviceUsers/u2")
 	insertGoogleDeviceUsers(t, s.ds, "C03other", host2, "devices/d2/deviceUsers/u1")
 	g.client.deregisterErr = &conditional_access_google.RelayStatusError{Code: http.StatusServiceUnavailable}
-	s.DoJSON("DELETE", "/api/latest/fleet/conditional_access/google", nil, http.StatusBadGateway, &deleteGoogleConditionalAccessResponse{})
+	s.DoJSON("DELETE", "/api/latest/automdm/conditional_access/google", nil, http.StatusBadGateway, &deleteGoogleConditionalAccessResponse{})
 	g.requireCalls(nil, nil, []string{"C03other"})
 	row, err = s.ds.GetGoogleConditionalAccessIntegration(ctx)
 	require.NoError(t, err)
-	require.Equal(t, fleet.ConditionalAccessGoogleStateConnected, row.State)
+	require.Equal(t, automdm.ConditionalAccessGoogleStateConnected, row.State)
 	require.Equal(t, "secret-C03other", row.ProxyServerSecret)
 	require.NotNil(t, g.storedKey())
 	require.NotNil(t, g.getConfig().Integrations.GoogleConditionalAccess)
@@ -2501,22 +2501,22 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogle() {
 	// secret. Nothing is unmarked in Google, and the device rows are kept for a re-add
 	// for the same customer.
 	addedBefore, deletedBefore, editedBefore = g.addedCount(), g.deletedCount(), g.editedCount()
-	s.DoJSON("DELETE", "/api/latest/fleet/conditional_access/google", nil, http.StatusOK, &deleteGoogleConditionalAccessResponse{})
+	s.DoJSON("DELETE", "/api/latest/automdm/conditional_access/google", nil, http.StatusOK, &deleteGoogleConditionalAccessResponse{})
 	g.requireCalls(nil, nil, []string{"C03other"})
 	require.Equal(t, []string{"secret-C03other"}, g.client.deregisterSecrets())
 	_, _, _, unmanaged = g.client.calls()
 	require.Empty(t, unmanaged)
 	row, err = s.ds.GetGoogleConditionalAccessIntegration(ctx)
 	require.NoError(t, err)
-	require.Equal(t, fleet.ConditionalAccessGoogleStateDeleted, row.State)
+	require.Equal(t, automdm.ConditionalAccessGoogleStateDeleted, row.State)
 	require.False(t, row.Registered())
 	require.Equal(t, 2, countGoogleDeviceRows(t, s.ds, "C03other"))
 	require.Nil(t, g.storedKey())
 	require.Nil(t, g.getConfig().Integrations.GoogleConditionalAccess)
-	require.Equal(t, fleet.ConditionalAccessGoogleStatus{}, g.status().ConditionalAccessGoogleStatus)
+	require.Equal(t, automdm.ConditionalAccessGoogleStatus{}, g.status().ConditionalAccessGoogleStatus)
 	require.Equal(t, addedBefore, g.addedCount())
 	require.Equal(t, deletedBefore+1, g.deletedCount())
-	s.DoJSON("DELETE", "/api/latest/fleet/conditional_access/google", nil, http.StatusBadRequest, &deleteGoogleConditionalAccessResponse{})
+	s.DoJSON("DELETE", "/api/latest/automdm/conditional_access/google", nil, http.StatusBadRequest, &deleteGoogleConditionalAccessResponse{})
 	g.client.reset()
 
 	// Adding it back for the same customer (e.g. to rotate the key) registers again and
@@ -2525,7 +2525,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogle() {
 	g.requireCalls([]string{"admin3@example.com/C03other"}, []string{"C03other"}, nil)
 	row, err = s.ds.GetGoogleConditionalAccessIntegration(ctx)
 	require.NoError(t, err)
-	require.Equal(t, fleet.ConditionalAccessGoogleStateConnected, row.State)
+	require.Equal(t, automdm.ConditionalAccessGoogleStateConnected, row.State)
 	require.Equal(t, "secret-C03other", row.ProxyServerSecret)
 	require.Equal(t, "admin3@example.com", g.getConfig().Integrations.GoogleConditionalAccess.AdminEmail)
 	require.Equal(t, 2, countGoogleDeviceRows(t, s.ds, "C03other"))
@@ -2534,9 +2534,9 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogle() {
 	require.Equal(t, editedBefore, g.editedCount())
 	g.client.reset()
 
-	// A registration fleetdm.com no longer has doesn't block DELETE.
+	// A registration automdm.com no longer has doesn't block DELETE.
 	g.client.deregisterErr = &notFoundError{}
-	s.DoJSON("DELETE", "/api/latest/fleet/conditional_access/google", nil, http.StatusOK, &deleteGoogleConditionalAccessResponse{})
+	s.DoJSON("DELETE", "/api/latest/automdm/conditional_access/google", nil, http.StatusOK, &deleteGoogleConditionalAccessResponse{})
 	g.requireCalls(nil, nil, []string{"C03other"})
 	g.client.reset()
 
@@ -2553,14 +2553,14 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogle() {
 	require.Equal(t, 1, countGoogleDeviceRows(t, s.ds, "C02cajzvg"))
 	row, err = s.ds.GetGoogleConditionalAccessIntegration(ctx)
 	require.NoError(t, err)
-	require.Equal(t, fleet.ConditionalAccessGoogleStateConnected, row.State)
+	require.Equal(t, automdm.ConditionalAccessGoogleStateConnected, row.State)
 	require.Equal(t, "secret-C02cajzvg", row.ProxyServerSecret)
 	require.Equal(t, addedBefore+1, g.addedCount())
 	require.Equal(t, deletedBefore, g.deletedCount())
 	g.client.reset()
 
 	// Start over without a row, as after the cleanup of a deleted integration.
-	s.DoJSON("DELETE", "/api/latest/fleet/conditional_access/google", nil, http.StatusOK, &deleteGoogleConditionalAccessResponse{})
+	s.DoJSON("DELETE", "/api/latest/automdm/conditional_access/google", nil, http.StatusOK, &deleteGoogleConditionalAccessResponse{})
 	g.deleteRows(ctx)
 	g.client.reset()
 
@@ -2573,28 +2573,28 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogle() {
 	row, err = s.ds.GetGoogleConditionalAccessIntegration(ctx)
 	require.NoError(t, err)
 	require.Empty(t, row.ProxyServerSecret)
-	require.NotEqual(t, fleet.ConditionalAccessGoogleStateConnected, row.State)
+	require.NotEqual(t, automdm.ConditionalAccessGoogleStateConnected, row.State)
 	g.client.reset()
 
 	// Deleting an integration that never registered logs nothing, and adding it back for
 	// the same customer registers again.
 	deletedBefore = g.deletedCount()
-	s.DoJSON("DELETE", "/api/latest/fleet/conditional_access/google", nil, http.StatusOK, &deleteGoogleConditionalAccessResponse{})
+	s.DoJSON("DELETE", "/api/latest/automdm/conditional_access/google", nil, http.StatusOK, &deleteGoogleConditionalAccessResponse{})
 	g.requireCalls(nil, nil, nil)
 	require.Equal(t, deletedBefore, g.deletedCount())
 
-	// A fleetdm.com failure during upload is a 502 and is recorded as a registration
+	// An automdm.com failure during upload is a 502 and is recorded as a registration
 	// error; the key and the setting are kept.
-	g.client.registerErr = &conditional_access_google.RelayStatusError{Code: http.StatusUnauthorized, RespErr: "fleetdm.com unavailable"}
+	g.client.registerErr = &conditional_access_google.RelayStatusError{Code: http.StatusUnauthorized, RespErr: "automdm.com unavailable"}
 	g.connect("C02cajzvg", "admin@example.com", key, http.StatusBadGateway)
 	g.requireCalls([]string{"admin@example.com/C02cajzvg"}, []string{"C02cajzvg"}, nil)
 	require.JSONEq(t, key, string(g.storedKey()))
 	require.NotNil(t, g.getConfig().Integrations.GoogleConditionalAccess)
 	st = g.status()
 	require.True(t, st.ServiceAccountKeyConfigured)
-	require.Equal(t, fleet.ConditionalAccessGoogleStateRegistrationFailed, st.State)
+	require.Equal(t, automdm.ConditionalAccessGoogleStateRegistrationFailed, st.State)
 	require.NotNil(t, st.ErrorMessage)
-	require.Contains(t, *st.ErrorMessage, "fleetdm.com unavailable")
+	require.Contains(t, *st.ErrorMessage, "automdm.com unavailable")
 	g.client.reset()
 
 	// Sending the same values again retries the check and the registration, which logs
@@ -2603,7 +2603,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogle() {
 	g.connect("C02cajzvg", "admin@example.com", key, http.StatusOK)
 	g.requireCalls([]string{"admin@example.com/C02cajzvg"}, []string{"C02cajzvg"}, nil)
 	st = g.status()
-	require.Equal(t, fleet.ConditionalAccessGoogleStateConnected, st.State)
+	require.Equal(t, automdm.ConditionalAccessGoogleStateConnected, st.State)
 	require.Nil(t, st.ErrorMessage)
 	require.Equal(t, addedBefore+1, g.addedCount())
 	require.Equal(t, editedBefore, g.editedCount())
@@ -2611,11 +2611,11 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogle() {
 
 	// DELETE also cleans up a key left without a connection row.
 	g.deleteRows(ctx)
-	s.DoJSON("DELETE", "/api/latest/fleet/conditional_access/google", nil, http.StatusOK, &deleteGoogleConditionalAccessResponse{})
+	s.DoJSON("DELETE", "/api/latest/automdm/conditional_access/google", nil, http.StatusOK, &deleteGoogleConditionalAccessResponse{})
 	g.requireCalls(nil, nil, nil)
 	require.Nil(t, g.storedKey())
 	require.Nil(t, g.getConfig().Integrations.GoogleConditionalAccess)
-	s.DoJSON("DELETE", "/api/latest/fleet/conditional_access/google", nil, http.StatusBadRequest, &deleteGoogleConditionalAccessResponse{})
+	s.DoJSON("DELETE", "/api/latest/automdm/conditional_access/google", nil, http.StatusBadRequest, &deleteGoogleConditionalAccessResponse{})
 }
 
 func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleUpdate() {
@@ -2633,7 +2633,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleUpdate() {
 	g.client.reset()
 	addedBefore, deletedBefore, editedBefore := g.addedCount(), g.deletedCount(), g.editedCount()
 
-	maintainer := &fleet.User{Name: "GCA editor", Email: "gca-editor@example.com", GlobalRole: new(fleet.RoleMaintainer)}
+	maintainer := &automdm.User{Name: "GCA editor", Email: "gca-editor@example.com", GlobalRole: new(automdm.RoleMaintainer)}
 	require.NoError(t, maintainer.SetPassword(test.GoodPassword, 10, 10))
 	_, err := s.ds.NewUser(ctx, maintainer)
 	require.NoError(t, err)
@@ -2646,7 +2646,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleUpdate() {
 	resp := g.update(`{}`, http.StatusOK)
 	require.Equal(t, "C02cajzvg", resp.CustomerID)
 	require.Equal(t, "admin@example.com", resp.AdminEmail)
-	require.Equal(t, fleet.ConditionalAccessGoogleStateConnected, resp.State)
+	require.Equal(t, automdm.ConditionalAccessGoogleStateConnected, resp.State)
 	g.update(`{"customer_id": "C02cajzvg", "admin_email": "admin@example.com"}`, http.StatusOK)
 	g.requireCalls(nil, nil, nil)
 	require.Equal(t, editedBefore, g.editedCount())
@@ -2656,7 +2656,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleUpdate() {
 		"admin_email": `{"admin_email": "not-an-email"}`,
 		"customer_id": `{"customer_id": ""}`,
 	} {
-		res := s.Do("PATCH", "/api/latest/fleet/conditional_access/google", json.RawMessage(body), http.StatusUnprocessableEntity)
+		res := s.Do("PATCH", "/api/latest/automdm/conditional_access/google", json.RawMessage(body), http.StatusUnprocessableEntity)
 		name, _ := extractServerErrorNameReason(res.Body)
 		require.Equal(t, field, name)
 	}
@@ -2666,7 +2666,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleUpdate() {
 	resp = g.update(`{"admin_email": "admin2@example.com"}`, http.StatusOK)
 	require.Equal(t, "C02cajzvg", resp.CustomerID)
 	require.Equal(t, "admin2@example.com", resp.AdminEmail)
-	require.Equal(t, fleet.ConditionalAccessGoogleStateConnected, resp.State)
+	require.Equal(t, automdm.ConditionalAccessGoogleStateConnected, resp.State)
 	require.True(t, resp.ServiceAccountKeyConfigured)
 	g.requireCalls([]string{"admin2@example.com/C02cajzvg"}, nil, nil)
 	checkKeys := g.client.delegationCheckKeys()
@@ -2693,20 +2693,20 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleUpdate() {
 
 	// A failed delegation check changes nothing.
 	g.client.checkErr = errors.New("Not Authorized to access this resource/api")
-	res := s.Do("PATCH", "/api/latest/fleet/conditional_access/google",
+	res := s.Do("PATCH", "/api/latest/automdm/conditional_access/google",
 		json.RawMessage(`{"admin_email": "admin3@example.com", "service_account_key": `+key+`}`), http.StatusUnprocessableEntity)
 	require.Contains(t, extractServerErrorText(res.Body), "Not Authorized to access this resource/api")
 	g.requireCalls([]string{"admin3@example.com/C02cajzvg"}, nil, nil)
 	require.JSONEq(t, otherKey, string(g.storedKey()))
 	require.Equal(t, "admin2@example.com", g.getConfig().Integrations.GoogleConditionalAccess.AdminEmail)
-	require.Equal(t, fleet.ConditionalAccessGoogleStateConnected, g.status().State)
+	require.Equal(t, automdm.ConditionalAccessGoogleStateConnected, g.status().State)
 	g.client.reset()
 
 	// So does a Google outage, which is a 502 rather than a 422.
 	g.client.checkErr = googleOutageError{}
 	g.update(`{"admin_email": "admin3@example.com"}`, http.StatusBadGateway)
 	require.Equal(t, "admin2@example.com", g.getConfig().Integrations.GoogleConditionalAccess.AdminEmail)
-	require.Equal(t, fleet.ConditionalAccessGoogleStateConnected, g.status().State)
+	require.Equal(t, automdm.ConditionalAccessGoogleStateConnected, g.status().State)
 	g.client.reset()
 
 	// Each successful edit logs the edited activity, and nothing else.
@@ -2735,7 +2735,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleUpdate() {
 	addedBefore, deletedBefore, editedBefore = g.addedCount(), g.deletedCount(), g.editedCount()
 	g.client.registerErr = &conditional_access_google.RelayStatusError{Code: http.StatusServiceUnavailable}
 	g.update(`{"customer_id": "C02cajzvg"}`, http.StatusBadGateway)
-	require.Equal(t, fleet.ConditionalAccessGoogleStateRegistrationFailed, g.status().State)
+	require.Equal(t, automdm.ConditionalAccessGoogleStateRegistrationFailed, g.status().State)
 	require.Equal(t, addedBefore, g.addedCount())
 	require.Equal(t, deletedBefore+1, g.deletedCount())
 	require.Equal(t, editedBefore, g.editedCount())
@@ -2743,7 +2743,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleUpdate() {
 
 	// An update with no changes retries the registration, which logs the addition.
 	resp = g.update(`{}`, http.StatusOK)
-	require.Equal(t, fleet.ConditionalAccessGoogleStateConnected, resp.State)
+	require.Equal(t, automdm.ConditionalAccessGoogleStateConnected, resp.State)
 	require.Nil(t, resp.ErrorMessage)
 	g.requireCalls([]string{"admin2@example.com/C02cajzvg"}, []string{"C02cajzvg"}, nil)
 	require.Equal(t, addedBefore+1, g.addedCount())
@@ -2752,7 +2752,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleUpdate() {
 	g.client.reset()
 
 	// A removed integration can't be edited.
-	s.DoJSON("DELETE", "/api/latest/fleet/conditional_access/google", nil, http.StatusOK, &deleteGoogleConditionalAccessResponse{})
+	s.DoJSON("DELETE", "/api/latest/automdm/conditional_access/google", nil, http.StatusOK, &deleteGoogleConditionalAccessResponse{})
 	g.client.reset()
 	g.update(`{"admin_email": "admin@example.com", "service_account_key": `+key+`}`, http.StatusBadRequest)
 	g.requireCalls(nil, nil, nil)
@@ -2760,7 +2760,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleUpdate() {
 	require.Nil(t, g.getConfig().Integrations.GoogleConditionalAccess)
 }
 
-func insertGoogleDeviceUsers(t *testing.T, ds *mysql.Datastore, customerID string, host *fleet.Host, names ...string) {
+func insertGoogleDeviceUsers(t *testing.T, ds *mysql.Datastore, customerID string, host *automdm.Host, names ...string) {
 	mysqltest.ExecAdhocSQL(t, ds, func(q sqlx.ExtContext) error {
 		if _, err := q.ExecContext(t.Context(),
 			`INSERT IGNORE INTO google_conditional_access_devices (host_uuid, customer_id) VALUES (?, ?)`, host.UUID, customerID); err != nil {
@@ -2796,15 +2796,15 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleAppConfig() 
 	g := s.newGoogleCATest()
 	key := newGoogleCATestKey(t, "sa@example.iam.gserviceaccount.com")
 	patch := func(body string, wantStatus int) *http.Response {
-		return s.Do("PATCH", "/api/latest/fleet/config", json.RawMessage(body), wantStatus)
+		return s.Do("PATCH", "/api/latest/automdm/config", json.RawMessage(body), wantStatus)
 	}
-	// gitopsTurnOff sends a null setting in overwrite mode, as fleetctl gitops does when the
+	// gitopsTurnOff sends a null setting in overwrite mode, as automdmctl gitops does when the
 	// YAML has none. Overwrite mode also resets what the payload leaves out, so the rest of
 	// the suite's config is restored afterwards.
 	gitopsTurnOff := func() {
 		before, err := s.ds.AppConfig(ctx)
 		require.NoError(t, err)
-		s.DoRaw("PATCH", "/api/latest/fleet/config?overwrite=true",
+		s.DoRaw("PATCH", "/api/latest/automdm/config?overwrite=true",
 			[]byte(`{"integrations": {"google_conditional_access": null}}`), http.StatusOK)
 		before.Integrations.GoogleConditionalAccess = nil
 		require.NoError(t, s.ds.SaveAppConfig(ctx, before))
@@ -2814,7 +2814,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleAppConfig() 
 	// GET config always carries the read-only status.
 	cfg := g.getConfig()
 	require.NotNil(t, cfg.ConditionalAccess.Google)
-	require.Equal(t, fleet.ConditionalAccessGoogleStatus{}, *cfg.ConditionalAccess.Google)
+	require.Equal(t, automdm.ConditionalAccessGoogleStatus{}, *cfg.ConditionalAccess.Google)
 
 	// The settings are validated, and rejected settings aren't stored.
 	settingsBefore := cfg.Integrations.GoogleConditionalAccess
@@ -2825,7 +2825,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleAppConfig() 
 	require.Equal(t, settingsBefore, g.getConfig().Integrations.GoogleConditionalAccess)
 
 	// Turning it on without a key, with none stored, is rejected and calls nothing.
-	gitops := &fleet.User{Name: "GCA config gitops", Email: "gca-config-gitops@example.com", GlobalRole: new(fleet.RoleGitOps)}
+	gitops := &automdm.User{Name: "GCA config gitops", Email: "gca-config-gitops@example.com", GlobalRole: new(automdm.RoleGitOps)}
 	require.NoError(t, gitops.SetPassword(test.GoodPassword, 10, 10))
 	_, err := s.ds.NewUser(ctx, gitops)
 	require.NoError(t, err)
@@ -2837,20 +2837,20 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleAppConfig() 
 	g.requireCalls(nil, nil, nil)
 	cfg = g.getConfig()
 	require.Nil(t, cfg.Integrations.GoogleConditionalAccess)
-	require.Equal(t, fleet.ConditionalAccessGoogleStatus{}, *cfg.ConditionalAccess.Google)
+	require.Equal(t, automdm.ConditionalAccessGoogleStatus{}, *cfg.ConditionalAccess.Google)
 
 	// Uploading the key connects.
 	resp := g.connect("C02cajzvg", "admin@example.com", key, http.StatusOK)
-	require.Equal(t, fleet.ConditionalAccessGoogleStateConnected, resp.State)
+	require.Equal(t, automdm.ConditionalAccessGoogleStateConnected, resp.State)
 	require.Nil(t, resp.ErrorMessage)
 	g.requireCalls([]string{"admin@example.com/C02cajzvg"}, []string{"C02cajzvg"}, nil)
-	require.Equal(t, fleet.ConditionalAccessGoogleStatus{ServiceAccountKeyConfigured: true, State: fleet.ConditionalAccessGoogleStateConnected}, *g.getConfig().ConditionalAccess.Google)
+	require.Equal(t, automdm.ConditionalAccessGoogleStatus{ServiceAccountKeyConfigured: true, State: automdm.ConditionalAccessGoogleStateConnected}, *g.getConfig().ConditionalAccess.Google)
 	g.client.reset()
 
 	// Resending the same settings, an unrelated update, or a null object make no call and log nothing.
 	addedBefore, deletedBefore, editedBefore := g.addedCount(), g.deletedCount(), g.editedCount()
 	patch(settings, http.StatusOK)
-	patch(`{"org_info": {"org_name": "Fleet"}}`, http.StatusOK)
+	patch(`{"org_info": {"org_name": "AutoMDM"}}`, http.StatusOK)
 	patch(`{"integrations": {"google_conditional_access": null}}`, http.StatusOK)
 	g.requireCalls(nil, nil, nil)
 	require.Equal(t, addedBefore, g.addedCount())
@@ -2878,7 +2878,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleAppConfig() 
 	g.client.reset()
 
 	// A dry run checks the delegation but stores nothing.
-	s.DoRaw("PATCH", "/api/latest/fleet/config?dry_run=true", []byte(`{
+	s.DoRaw("PATCH", "/api/latest/automdm/config?dry_run=true", []byte(`{
 		"integrations": {"google_conditional_access": {"customer_id": "C03other"}}
 	}`), http.StatusOK)
 	g.requireCalls([]string{"admin2@example.com/C03other"}, nil, nil)
@@ -2886,7 +2886,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleAppConfig() 
 	g.client.reset()
 
 	// Changing the customer ID drops the previous customer's registration and re-registers,
-	// since fleetdm.com keys the server by it. Nothing is unmarked, and the previous
+	// since automdm.com keys the server by it. Nothing is unmarked, and the previous
 	// customer's device rows are left for the cron.
 	oldHost := test.NewHost(t, s.ds, "gca-config-old-host", "", "gca-config-old-host-key", uuid.NewString(), time.Now())
 	insertGoogleDeviceUsers(t, s.ds, "C02cajzvg", oldHost, "devices/old/deviceUsers/u1")
@@ -2907,20 +2907,20 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleAppConfig() 
 	require.Equal(t, editedBefore+2, g.editedCount())
 	g.client.reset()
 
-	// A gitops run without the setting turns it off like DELETE. If fleetdm.com can't drop
+	// A gitops run without the setting turns it off like DELETE. If automdm.com can't drop
 	// the registration, it fails with a 502 and changes nothing.
 	host := test.NewHost(t, s.ds, "gca-config-host", "", "gca-config-host-key", uuid.NewString(), time.Now())
 	insertGoogleDeviceUsers(t, s.ds, "C03other", host, "devices/d1/deviceUsers/u1")
 	deletedBefore = g.deletedCount()
 	s.setTokenForTest(t, gitops.Email, test.GoodPassword)
 	g.client.deregisterErr = &conditional_access_google.RelayStatusError{Code: http.StatusServiceUnavailable}
-	s.DoRaw("PATCH", "/api/latest/fleet/config?overwrite=true",
+	s.DoRaw("PATCH", "/api/latest/automdm/config?overwrite=true",
 		[]byte(`{"integrations": {"google_conditional_access": null}}`), http.StatusBadGateway)
 	s.token = s.getTestAdminToken()
 	g.requireCalls(nil, nil, []string{"C03other"})
 	row, err = s.ds.GetGoogleConditionalAccessIntegration(ctx)
 	require.NoError(t, err)
-	require.Equal(t, fleet.ConditionalAccessGoogleStateConnected, row.State)
+	require.Equal(t, automdm.ConditionalAccessGoogleStateConnected, row.State)
 	require.Equal(t, "secret-C03other", row.ProxyServerSecret)
 	require.NotNil(t, g.storedKey())
 	require.Equal(t, "C03other", g.getConfig().Integrations.GoogleConditionalAccess.CustomerID)
@@ -2937,11 +2937,11 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleAppConfig() 
 	require.Empty(t, unmanaged)
 	row, err = s.ds.GetGoogleConditionalAccessIntegration(ctx)
 	require.NoError(t, err)
-	require.Equal(t, fleet.ConditionalAccessGoogleStateDeleted, row.State)
+	require.Equal(t, automdm.ConditionalAccessGoogleStateDeleted, row.State)
 	require.False(t, row.Registered())
 	require.Nil(t, g.storedKey())
 	require.Equal(t, 1, countGoogleDeviceRows(t, s.ds, "C03other"))
-	require.Equal(t, fleet.ConditionalAccessGoogleStatus{}, *g.getConfig().ConditionalAccess.Google)
+	require.Equal(t, automdm.ConditionalAccessGoogleStatus{}, *g.getConfig().ConditionalAccess.Google)
 	require.Equal(t, deletedBefore+1, g.deletedCount())
 	g.client.reset()
 
@@ -2957,31 +2957,31 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleAppConfig() 
 	g.requireCalls([]string{"admin2@example.com/C03other"}, []string{"C03other"}, nil)
 	row, err = s.ds.GetGoogleConditionalAccessIntegration(ctx)
 	require.NoError(t, err)
-	require.Equal(t, fleet.ConditionalAccessGoogleStateConnected, row.State)
+	require.Equal(t, automdm.ConditionalAccessGoogleStateConnected, row.State)
 	require.Equal(t, "secret-C03other", row.ProxyServerSecret)
 	require.Equal(t, 1, countGoogleDeviceRows(t, s.ds, "C03other"))
 	require.Equal(t, addedBefore+1, g.addedCount())
 	g.client.reset()
 
 	// Start over without a row, as after the cleanup of a deleted integration.
-	s.DoJSON("DELETE", "/api/latest/fleet/conditional_access/google", nil, http.StatusOK, &deleteGoogleConditionalAccessResponse{})
+	s.DoJSON("DELETE", "/api/latest/automdm/conditional_access/google", nil, http.StatusOK, &deleteGoogleConditionalAccessResponse{})
 	g.deleteRows(ctx)
 	g.client.reset()
 
-	// After a key upload that fleetdm.com failed, an unrelated config update doesn't retry,
-	// so it can't fail because of Google or fleetdm.com.
-	g.client.registerErr = errors.New("fleetdm.com unavailable")
+	// After a key upload that automdm.com failed, an unrelated config update doesn't retry,
+	// so it can't fail because of Google or automdm.com.
+	g.client.registerErr = errors.New("automdm.com unavailable")
 	g.connect("C02cajzvg", "admin@example.com", key, http.StatusBadGateway)
 	g.client.reset()
 	g.client.registerErr = errors.New("still unavailable")
-	patch(`{"org_info": {"org_name": "Fleet"}}`, http.StatusOK)
+	patch(`{"org_info": {"org_name": "AutoMDM"}}`, http.StatusOK)
 	g.requireCalls(nil, nil, nil)
 
 	// Resending the same settings retries, and a failed retry is recorded rather than failing the update.
 	patch(settings, http.StatusOK)
 	g.requireCalls([]string{"admin@example.com/C02cajzvg"}, []string{"C02cajzvg"}, nil)
 	cfg = g.getConfig()
-	require.Equal(t, fleet.ConditionalAccessGoogleStateRegistrationFailed, cfg.ConditionalAccess.Google.State)
+	require.Equal(t, automdm.ConditionalAccessGoogleStateRegistrationFailed, cfg.ConditionalAccess.Google.State)
 	require.Contains(t, *cfg.ConditionalAccess.Google.ErrorMessage, "still unavailable")
 	g.client.reset()
 	// A Google outage during a retry says nothing about the delegation, so the connection
@@ -2990,27 +2990,27 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleAppConfig() 
 	patch(settings, http.StatusOK)
 	g.requireCalls([]string{"admin@example.com/C02cajzvg"}, nil, nil)
 	cfg = g.getConfig()
-	require.Equal(t, fleet.ConditionalAccessGoogleStateRegistrationFailed, cfg.ConditionalAccess.Google.State)
+	require.Equal(t, automdm.ConditionalAccessGoogleStateRegistrationFailed, cfg.ConditionalAccess.Google.State)
 	require.Contains(t, *cfg.ConditionalAccess.Google.ErrorMessage, "still unavailable")
 	g.client.reset()
 	g.client.checkErr = errors.New("Not Authorized to access this resource/api")
 	patch(settings, http.StatusOK)
 	g.requireCalls([]string{"admin@example.com/C02cajzvg"}, nil, nil)
 	cfg = g.getConfig()
-	require.Equal(t, fleet.ConditionalAccessGoogleStateDelegationFailed, cfg.ConditionalAccess.Google.State)
+	require.Equal(t, automdm.ConditionalAccessGoogleStateDelegationFailed, cfg.ConditionalAccess.Google.State)
 	require.Contains(t, *cfg.ConditionalAccess.Google.ErrorMessage, "Not Authorized to access this resource/api")
 	g.client.reset()
 	patch(settings, http.StatusOK)
 	g.requireCalls([]string{"admin@example.com/C02cajzvg"}, []string{"C02cajzvg"}, nil)
 	cfg = g.getConfig()
-	require.Equal(t, fleet.ConditionalAccessGoogleStateConnected, cfg.ConditionalAccess.Google.State)
+	require.Equal(t, automdm.ConditionalAccessGoogleStateConnected, cfg.ConditionalAccess.Google.State)
 	require.Nil(t, cfg.ConditionalAccess.Google.ErrorMessage)
 	g.client.reset()
 
 	// Turning off an integration whose connection never completed still removes the key.
-	s.DoJSON("DELETE", "/api/latest/fleet/conditional_access/google", nil, http.StatusOK, &deleteGoogleConditionalAccessResponse{})
+	s.DoJSON("DELETE", "/api/latest/automdm/conditional_access/google", nil, http.StatusOK, &deleteGoogleConditionalAccessResponse{})
 	g.deleteRows(ctx)
-	g.client.registerErr = errors.New("fleetdm.com unavailable")
+	g.client.registerErr = errors.New("automdm.com unavailable")
 	g.connect("C02cajzvg", "admin@example.com", key, http.StatusBadGateway)
 	require.NotNil(t, g.storedKey())
 	g.client.reset()
@@ -3019,7 +3019,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleAppConfig() 
 	require.Nil(t, g.storedKey())
 	row, err = s.ds.GetGoogleConditionalAccessIntegration(ctx)
 	require.NoError(t, err)
-	require.Equal(t, fleet.ConditionalAccessGoogleStateDeleted, row.State)
+	require.Equal(t, automdm.ConditionalAccessGoogleStateDeleted, row.State)
 
 	// In overwrite mode (GitOps) the given object replaces the settings rather than merging.
 	g.connect("C02cajzvg", "admin@example.com", key, http.StatusOK)
@@ -3027,7 +3027,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleAppConfig() 
 	settingsBefore = g.getConfig().Integrations.GoogleConditionalAccess
 	rowBefore, err := s.ds.GetGoogleConditionalAccessIntegration(ctx)
 	require.NoError(t, err)
-	res = s.DoRaw("PATCH", "/api/latest/fleet/config?overwrite=true", []byte(`{
+	res = s.DoRaw("PATCH", "/api/latest/automdm/config?overwrite=true", []byte(`{
 		"integrations": {"google_conditional_access": {"customer_id": "C02cajzvg"}}
 	}`), http.StatusUnprocessableEntity)
 	name, _ = extractServerErrorNameReason(res.Body)
@@ -3045,27 +3045,27 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleAppConfig() 
 	// is logged, and the retry logs the addition.
 	origAgentOptions := g.getConfig().AgentOptions
 	require.NotNil(t, origAgentOptions)
-	agentOptionsEdits := s.countActivitiesOfType(fleet.ActivityTypeEditedAgentOptions{}.ActivityName())
+	agentOptionsEdits := s.countActivitiesOfType(automdm.ActivityTypeEditedAgentOptions{}.ActivityName())
 	addedBefore, deletedBefore, editedBefore = g.addedCount(), g.deletedCount(), g.editedCount()
-	g.client.registerErr = errors.New("fleetdm.com unavailable")
+	g.client.registerErr = errors.New("automdm.com unavailable")
 	patch(`{
 		"agent_options": {"config": {"options": {"distributed_interval": 13}}},
 		"integrations": {"google_conditional_access": {"customer_id": "C03other"}}
 	}`, http.StatusBadGateway)
 	g.requireCalls([]string{"admin@example.com/C03other"}, []string{"C03other"}, []string{"C02cajzvg"})
-	require.Equal(t, agentOptionsEdits+1, s.countActivitiesOfType(fleet.ActivityTypeEditedAgentOptions{}.ActivityName()))
+	require.Equal(t, agentOptionsEdits+1, s.countActivitiesOfType(automdm.ActivityTypeEditedAgentOptions{}.ActivityName()))
 	require.Equal(t, addedBefore, g.addedCount())
 	require.Equal(t, deletedBefore+1, g.deletedCount())
 	require.Equal(t, editedBefore, g.editedCount())
 	// Forced: the suite's agent options don't all pass validation.
-	s.Do("PATCH", "/api/latest/fleet/config?force=true", json.RawMessage(`{"agent_options": `+string(*origAgentOptions)+`}`), http.StatusOK)
+	s.Do("PATCH", "/api/latest/automdm/config?force=true", json.RawMessage(`{"agent_options": `+string(*origAgentOptions)+`}`), http.StatusOK)
 	cfg = g.getConfig()
 	require.Equal(t, "C03other", cfg.Integrations.GoogleConditionalAccess.CustomerID)
-	require.Equal(t, fleet.ConditionalAccessGoogleStateRegistrationFailed, cfg.ConditionalAccess.Google.State)
+	require.Equal(t, automdm.ConditionalAccessGoogleStateRegistrationFailed, cfg.ConditionalAccess.Google.State)
 	g.client.reset()
 	patch(`{"integrations": {"google_conditional_access": {"customer_id": "C03other", "admin_email": "admin@example.com"}}}`, http.StatusOK)
 	g.requireCalls([]string{"admin@example.com/C03other"}, []string{"C03other"}, nil)
-	require.Equal(t, fleet.ConditionalAccessGoogleStateConnected, g.getConfig().ConditionalAccess.Google.State)
+	require.Equal(t, automdm.ConditionalAccessGoogleStateConnected, g.getConfig().ConditionalAccess.Google.State)
 	require.Equal(t, addedBefore+1, g.addedCount())
 	require.Equal(t, deletedBefore+1, g.deletedCount())
 	require.Equal(t, editedBefore, g.editedCount())
@@ -3073,7 +3073,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleAppConfig() 
 
 	// Changing the customer ID with no stored key is rejected and keeps the previous
 	// customer's registration.
-	require.NoError(t, s.ds.DeleteMDMConfigAssetsByName(ctx, []fleet.MDMAssetName{fleet.MDMAssetGoogleConditionalAccessServiceAccountKey}))
+	require.NoError(t, s.ds.DeleteMDMConfigAssetsByName(ctx, []automdm.MDMAssetName{automdm.MDMAssetGoogleConditionalAccessServiceAccountKey}))
 	patch(`{"integrations": {"google_conditional_access": {"customer_id": "C04third"}}}`, http.StatusUnprocessableEntity)
 	g.requireCalls(nil, nil, nil)
 	row, err = s.ds.GetGoogleConditionalAccessIntegration(ctx)
@@ -3094,36 +3094,36 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleAppConfigKey
 
 	// A gitops user can turn it on with the key, which is stored encrypted and never in the
 	// app config.
-	gitops := &fleet.User{Name: "GCA key gitops", Email: "gca-key-gitops@example.com", GlobalRole: new(fleet.RoleGitOps)}
+	gitops := &automdm.User{Name: "GCA key gitops", Email: "gca-key-gitops@example.com", GlobalRole: new(automdm.RoleGitOps)}
 	require.NoError(t, gitops.SetPassword(test.GoodPassword, 10, 10))
 	_, err := s.ds.NewUser(ctx, gitops)
 	require.NoError(t, err)
 	addedBefore, editedBefore := g.addedCount(), g.editedCount()
 	s.setTokenForTest(t, gitops.Email, test.GoodPassword)
-	s.DoRaw("PATCH", "/api/latest/fleet/config", withKey(key), http.StatusOK)
+	s.DoRaw("PATCH", "/api/latest/automdm/config", withKey(key), http.StatusOK)
 	s.token = s.getTestAdminToken()
 	g.requireCalls([]string{"admin@example.com/C02cajzvg"}, []string{"C02cajzvg"}, nil)
 	require.JSONEq(t, key, string(g.storedKey()))
 	require.Equal(t, addedBefore+1, g.addedCount())
 	stored, err := s.ds.AppConfig(ctx)
 	require.NoError(t, err)
-	require.Equal(t, &fleet.GoogleConditionalAccessIntegration{CustomerID: "C02cajzvg", AdminEmail: "admin@example.com"},
+	require.Equal(t, &automdm.GoogleConditionalAccessIntegration{CustomerID: "C02cajzvg", AdminEmail: "admin@example.com"},
 		stored.Integrations.GoogleConditionalAccess)
 
 	// GET config shows the key masked, next to the status.
 	cfg := g.getConfig()
-	require.Equal(t, fleet.GoogleServiceAccountKey(fleet.MaskedPassword), cfg.Integrations.GoogleConditionalAccess.APIKeyJSON)
-	require.Equal(t, fleet.ConditionalAccessGoogleStateConnected, cfg.ConditionalAccess.Google.State)
+	require.Equal(t, automdm.GoogleServiceAccountKey(automdm.MaskedPassword), cfg.Integrations.GoogleConditionalAccess.APIKeyJSON)
+	require.Equal(t, automdm.ConditionalAccessGoogleStateConnected, cfg.ConditionalAccess.Google.State)
 	g.client.reset()
 
 	// Resending the same key or the masked value makes no call.
-	s.DoRaw("PATCH", "/api/latest/fleet/config", withKey(key), http.StatusOK)
-	s.DoRaw("PATCH", "/api/latest/fleet/config", withKey(`"********"`), http.StatusOK)
+	s.DoRaw("PATCH", "/api/latest/automdm/config", withKey(key), http.StatusOK)
+	s.DoRaw("PATCH", "/api/latest/automdm/config", withKey(`"********"`), http.StatusOK)
 	g.requireCalls(nil, nil, nil)
 
 	// A new key is checked and replaces the stored one, without re-registering.
 	key2 := newGoogleCATestKey(t, "sa2@example.iam.gserviceaccount.com")
-	s.DoRaw("PATCH", "/api/latest/fleet/config", withKey(key2), http.StatusOK)
+	s.DoRaw("PATCH", "/api/latest/automdm/config", withKey(key2), http.StatusOK)
 	g.requireCalls([]string{"admin@example.com/C02cajzvg"}, nil, nil)
 	require.JSONEq(t, key2, string(g.storedKey()))
 	require.Equal(t, addedBefore+1, g.addedCount())
@@ -3133,7 +3133,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleAppConfigKey
 	// A new key that fails the check is rejected and the stored one is kept.
 	g.client.checkErr = errors.New("unauthorized_client")
 	key3 := newGoogleCATestKey(t, "sa3@example.iam.gserviceaccount.com")
-	res := s.DoRaw("PATCH", "/api/latest/fleet/config", withKey(key3), http.StatusUnprocessableEntity)
+	res := s.DoRaw("PATCH", "/api/latest/automdm/config", withKey(key3), http.StatusUnprocessableEntity)
 	require.Contains(t, extractServerErrorText(res.Body), "unauthorized_client")
 	require.JSONEq(t, key2, string(g.storedKey()))
 }

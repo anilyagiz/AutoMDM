@@ -1,7 +1,7 @@
 export const getExploitedVulnerabilitiesDropdownOptions = (
   isPremiumTier = false
 ) => {
-  const disabledTooltipContent = "Available in Fleet Premium.";
+  const disabledTooltipContent = "Available in AutoMDM Premium.";
 
   return [
     {

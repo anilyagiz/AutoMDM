@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/config"
 	"github.com/stretchr/testify/require"
 )
 
@@ -19,7 +19,7 @@ const (
 
 var testContainerURL = func() string {
 	port := "10000"
-	if p := os.Getenv("FLEET_AZURITE_PORT"); p != "" {
+	if p := os.Getenv("AUTOMDM_AZURITE_PORT"); p != "" {
 		port = p
 	}
 	return "http://127.0.0.1:" + port + "/" + testAccountName

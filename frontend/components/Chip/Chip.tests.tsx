@@ -6,9 +6,9 @@ import Chip from "./Chip";
 
 describe("Chip", () => {
   it("renders text without an icon when icon is omitted", () => {
-    render(<Chip text="Fleet-maintained" />);
+    render(<Chip text="AutoMDM-maintained" />);
 
-    expect(screen.getByText("Fleet-maintained")).toBeInTheDocument();
+    expect(screen.getByText("AutoMDM-maintained")).toBeInTheDocument();
     // The Icon component renders an svg; there should be none when no icon prop.
     expect(document.querySelector("svg")).toBeNull();
   });
@@ -50,7 +50,7 @@ describe("Chip", () => {
   });
 
   it("does not render a button when onClick is not provided", () => {
-    render(<Chip text="Fleet-maintained" />);
+    render(<Chip text="AutoMDM-maintained" />);
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 

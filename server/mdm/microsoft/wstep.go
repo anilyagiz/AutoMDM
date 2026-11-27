@@ -19,11 +19,11 @@ import (
 	"time"
 
 	"github.com/MicahParks/jwkset"
-	"github.com/fleetdm/fleet/v4/server"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/dev_mode"
-	"github.com/fleetdm/fleet/v4/server/mdm/microsoft/syncml"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/cryptoutil"
+	"github.com/anilyagiz/automdm/v4/server"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/dev_mode"
+	"github.com/anilyagiz/automdm/v4/server/mdm/microsoft/syncml"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/cryptoutil"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"github.com/smallstep/pkcs7"
@@ -43,7 +43,7 @@ type CertManager interface {
 	// IdentityCert returns the identity certificate of the depot.
 	IdentityCert() x509.Certificate
 
-	// NewEUAToken returns a Fleet-signed JWT for the given UPN and Windows MDM
+	// NewEUAToken returns an AutoMDM-signed JWT for the given UPN and Windows MDM
 	// device ID. Used to pass end-user authentication context to the orbit
 	// installer so the user is not prompted twice.
 	NewEUAToken(upn string, deviceID string) (string, error)
@@ -51,7 +51,7 @@ type CertManager interface {
 	// GetEUATokenClaims validates the given EUA token and returns the parsed claims.
 	GetEUATokenClaims(token string) (*EUATokenClaims, error)
 
-	// GetAzureAuthTokenClaims validates the given Azure AD token and returns its Fleet-relevant claims.
+	// GetAzureAuthTokenClaims validates the given Azure AD token and returns its AutoMDM-relevant claims.
 	GetAzureAuthTokenClaims(ctx context.Context, token string) (AzureData, error)
 
 	// TODO: implement other methods as needed:
@@ -60,7 +60,7 @@ type CertManager interface {
 }
 
 // CertStore implements storage tasks associated with MS-WSTEP messages in the MS-MDE2
-// protocol. It is implemented by fleet.Datastore.
+// protocol. It is implemented by automdm.Datastore.
 type CertStore interface {
 	WSTEPStoreCertificate(ctx context.Context, name string, crt *x509.Certificate) error
 	WSTEPNewSerial(ctx context.Context) (*big.Int, error)
@@ -190,7 +190,7 @@ func (m *manager) SignClientCSR(ctx context.Context, subject string, clientCSR *
 	return rawSignedDER, CertFingerprintHexStr(signedCert), nil
 }
 
-// NewEUAToken returns a Fleet-signed JWT for the given UPN and Windows MDM device ID.
+// NewEUAToken returns an AutoMDM-signed JWT for the given UPN and Windows MDM device ID.
 func (m *manager) NewEUAToken(upn string, deviceID string) (string, error) {
 	if m == nil {
 		return "", errors.New("windows mdm identity keypair was not configured")
@@ -336,7 +336,7 @@ func (m *manager) GetAzureAuthTokenClaims(ctx context.Context, tokenStr string) 
 // refresh goroutine, are created once per manager instead of on every token validation.
 func newAzureJWKSClient() (jwkset.Storage, error) {
 	jwksURI := "https://login.microsoftonline.com/common/discovery/v2.0/keys"
-	if devURI := dev_mode.Env("FLEET_DEV_AZURE_JWT_JWKS_URI"); devURI != "" {
+	if devURI := dev_mode.Env("AUTOMDM_DEV_AZURE_JWT_JWKS_URI"); devURI != "" {
 		jwksURI = devURI
 	}
 
@@ -347,7 +347,7 @@ func newAzureJWKSClient() (jwkset.Storage, error) {
 	return jwksetClient, nil
 }
 
-// azureDataFromClaims extracts and validates the Fleet-relevant claims from an already signature-verified Azure AD JWT.
+// azureDataFromClaims extracts and validates the AutoMDM-relevant claims from an already signature-verified Azure AD JWT.
 func azureDataFromClaims(ctx context.Context, claims jwt.MapClaims) (AzureData, error) {
 	// Get UPN claim. v1 access tokens carry `upn`; v2 tokens may instead carry `preferred_username`,
 	// so fall back to it when `upn` is absent. The UPN is not part of the enrollment authorization decision

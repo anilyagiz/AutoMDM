@@ -12,7 +12,7 @@ import {
 import {
   generateAvailableTableHeaders,
   getPrimaryDeviceUser,
-  toFleetColumnId,
+  toTeamColumnId,
 } from "./HostTableConfig";
 
 // react-table's `Column` union includes group columns, which carry no `Cell`,
@@ -437,16 +437,16 @@ describe("HostTableConfig - Status column", () => {
   });
 });
 
-describe("HostTableConfig - Fleet column", () => {
-  it("is sorted and hidden by `fleet_name`, and saved `team_name` settings carry over", () => {
+describe("HostTableConfig - Team column", () => {
+  it("is sorted and hidden by `team_name`, and saved `team_name` settings carry over", () => {
     const ids = generateAvailableTableHeaders({
       isFreeTier: false,
       isOnlyObserver: false,
     }).map((h) => (h as Column<IHost>).id);
 
-    expect(ids).toContain("fleet_name");
+    expect(ids).toContain("team_name");
     expect(ids).not.toContain("team_name");
-    expect(toFleetColumnId("team_name")).toBe("fleet_name");
-    expect(toFleetColumnId("hostname")).toBe("hostname");
+    expect(toTeamColumnId("team_name")).toBe("team_name");
+    expect(toTeamColumnId("hostname")).toBe("hostname");
   });
 });

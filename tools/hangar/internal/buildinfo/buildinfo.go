@@ -2,7 +2,7 @@
 //
 // Hangar is handed around as an ad-hoc-signed `.app` and rebuilt often, so
 // "which build is this?" has to be answerable from three places that don't
-// share any state: the bundle's Info.plist (Finder, and Fleet's own software
+// share any state: the bundle's Info.plist (Finder, and AutoMDM's own software
 // inventory), the Settings tab (whoever is running it), and hangar.log
 // (whoever is reading a crash report afterwards). All three are fed from here.
 //

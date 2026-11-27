@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/constant"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/constant"
 	"github.com/stretchr/testify/require"
 )
 

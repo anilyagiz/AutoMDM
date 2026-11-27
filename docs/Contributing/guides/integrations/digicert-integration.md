@@ -28,14 +28,14 @@ title: Enable DigiCert integration
 sequenceDiagram
     autonumber
     actor admin as Admin
-    participant fleet as Fleet server
+    participant automdm as AutoMDM server
     participant digicert as DigiCert
-    admin->>+fleet: Save configs
-    fleet->>fleet: Validate inputs
-    fleet->>+digicert: Get profile by GUID
-    digicert-->>-fleet: Profile (Active)
-    fleet->>fleet: Encrypt API token
-    fleet-->>-admin: Done
+    admin->>+automdm: Save configs
+    automdm->>automdm: Validate inputs
+    automdm->>+digicert: Get profile by GUID
+    digicert-->>-automdm: Profile (Active)
+    automdm->>automdm: Encrypt API token
+    automdm-->>-admin: Done
 ```
 
 ```mermaid
@@ -46,38 +46,38 @@ sequenceDiagram
     autonumber
     actor admin as Admin
     participant host as Host
-    participant fleet as Fleet server
+    participant automdm as AutoMDM server
     participant digicert as DigiCert
     participant apple as Apple
-    admin->>+fleet: Upload PKCS12 Apple configuration profile
-    fleet->>fleet: Validate profile
-    fleet-->>-admin: OK
+    admin->>+automdm: Upload PKCS12 Apple configuration profile
+    automdm->>automdm: Validate profile
+    automdm-->>-admin: OK
 
-    fleet--)+fleet: Process profiles every 30 seconds
-    fleet->>fleet: Validate profile
-    fleet->>fleet: Decrypt API token
-    fleet->>fleet: Inject Fleet variables
-    fleet->>+digicert: Get certificate
-    digicert-->>-fleet: Certificate
-    fleet->>fleet: Save NotValidBefore, NotValidAfter dates, Serial number
-    fleet->>+apple: Push notification (APNS)
-    apple-->>-fleet: OK
-    deactivate fleet
+    automdm--)+automdm: Process profiles every 30 seconds
+    automdm->>automdm: Validate profile
+    automdm->>automdm: Decrypt API token
+    automdm->>automdm: Inject AutoMDM variables
+    automdm->>+digicert: Get certificate
+    digicert-->>-automdm: Certificate
+    automdm->>automdm: Save NotValidBefore, NotValidAfter dates, Serial number
+    automdm->>+apple: Push notification (APNS)
+    apple-->>-automdm: OK
+    deactivate automdm
 
-    host--)+fleet: Idle message
-    fleet-->>-host: PKCS12 profile (DigiCert certificate)
+    host--)+automdm: Idle message
+    automdm-->>-host: PKCS12 profile (DigiCert certificate)
     activate host
     host->>host: Add certificate to keychain
-    host-->>-fleet: Acknowledged message
-    activate fleet
-    fleet-->>-host: Empty
+    host-->>-automdm: Acknowledged message
+    activate automdm
+    automdm-->>-host: Empty
 
-    host->>+fleet: Read
-    fleet-->>-host: Get profiles command (once an hour)
+    host->>+automdm: Read
+    automdm-->>-host: Get profiles command (once an hour)
     
-    host->>+fleet: Write (profiles)
-    fleet->>fleet: PKCS12 profile Verified
-    fleet-->>-host: OK
+    host->>+automdm: Write (profiles)
+    automdm->>automdm: PKCS12 profile Verified
+    automdm-->>-host: OK
 ```
 
 ```mermaid
@@ -88,40 +88,40 @@ sequenceDiagram
     autonumber
     actor admin as Admin
     participant host as Host
-    participant fleet as Fleet server
+    participant automdm as AutoMDM server
     participant digicert as DigiCert
     participant apple as Apple
-    fleet->>fleet: Process cleanups then aggregations cron every hour
-    fleet->>fleet: Query Host MDM Managed Certificates table for DigiCert certificates<br> expiring soon(validity window > 30 days and not_valid_after < 30 days or <br>validity window < 30 days and not_valid_after < half validity window from<br>now)
-    fleet->>fleet: Mark host-profile association rows for expiring certificates for resend
+    automdm->>automdm: Process cleanups then aggregations cron every hour
+    automdm->>automdm: Query Host MDM Managed Certificates table for DigiCert certificates<br> expiring soon(validity window > 30 days and not_valid_after < 30 days or <br>validity window < 30 days and not_valid_after < half validity window from<br>now)
+    automdm->>automdm: Mark host-profile association rows for expiring certificates for resend
 
 
-    fleet--)+fleet: Process profiles every 30 seconds
-    fleet->>fleet: Validate profile
-    fleet->>fleet: Decrypt API token
-    fleet->>fleet: Inject Fleet variables
-    fleet->>+digicert: Get certificate
-    digicert-->>-fleet: Certificate
-    fleet->>fleet: Save NotValidBefore, NotValidAfter dates, Serial number
-    fleet->>+apple: Push notification (APNS)
-    apple-->>-fleet: OK
-    deactivate fleet
+    automdm--)+automdm: Process profiles every 30 seconds
+    automdm->>automdm: Validate profile
+    automdm->>automdm: Decrypt API token
+    automdm->>automdm: Inject AutoMDM variables
+    automdm->>+digicert: Get certificate
+    digicert-->>-automdm: Certificate
+    automdm->>automdm: Save NotValidBefore, NotValidAfter dates, Serial number
+    automdm->>+apple: Push notification (APNS)
+    apple-->>-automdm: OK
+    deactivate automdm
 
-    host--)+fleet: Idle message
-    fleet-->>-host: PKCS12 profile (DigiCert certificate)
+    host--)+automdm: Idle message
+    automdm-->>-host: PKCS12 profile (DigiCert certificate)
     activate host
     host->>host: Add certificate to keychain
     host->>host: Remove prior certificate from keychain<br>(once no longer in use - usually seconds to minutes)
-    host-->>-fleet: Acknowledged message
-    activate fleet
-    fleet-->>-host: Empty
+    host-->>-automdm: Acknowledged message
+    activate automdm
+    automdm-->>-host: Empty
 
-    host->>+fleet: Read
-    fleet-->>-host: Get profiles command (once an hour)
+    host->>+automdm: Read
+    automdm-->>-host: Get profiles command (once an hour)
     
-    host->>+fleet: Write (profiles)
-    fleet->>fleet: PKCS12 profile Verified
-    fleet-->>-host: OK
+    host->>+automdm: Write (profiles)
+    automdm->>automdm: PKCS12 profile Verified
+    automdm-->>-host: OK
 ```
 
 ## Sample PKCS12 profile
@@ -135,9 +135,9 @@ sequenceDiagram
         <array>
             <dict>
                 <key>Password</key>
-                <string>$FLEET_VAR_DIGICERT_PASSWORD_Test_CA</string>
+                <string>$AUTOMDM_VAR_DIGICERT_PASSWORD_Test_CA</string>
                 <key>PayloadContent</key>
-                <data>${FLEET_VAR_DIGICERT_DATA_Test_CA}</data>
+                <data>${AUTOMDM_VAR_DIGICERT_DATA_Test_CA}</data>
                 <key>PayloadDisplayName</key>
                 <string>CertificatePKCS12</string>
                 <key>PayloadIdentifier</key>

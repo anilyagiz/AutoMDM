@@ -3,7 +3,7 @@ package externalrefs
 import (
 	"regexp"
 
-	maintained_apps "github.com/fleetdm/fleet/v4/ee/maintained-apps"
+	maintained_apps "github.com/anilyagiz/automdm/v4/ee/maintained-apps"
 )
 
 var postgresAppBundleIDRe = regexp.MustCompile(`com\.postgresapp\.Postgres\d+`)

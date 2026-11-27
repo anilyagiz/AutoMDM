@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Checks the invariants that keep Fleet-maintained-app icons out of the JS
+ * Checks the invariants that keep AutoMDM-maintained-app icons out of the JS
  * bundle. They are served as individual static files, so a page downloads only
  * the icons it renders — which holds as long as every icon stays a small,
  * quantized PNG that the barrel actually references.

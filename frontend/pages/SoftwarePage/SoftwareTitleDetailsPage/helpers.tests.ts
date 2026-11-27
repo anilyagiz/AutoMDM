@@ -23,7 +23,7 @@ describe("SoftwareTitleDetailsPage helpers", () => {
       // no badge is emitted for the fallback row.
       expect(
         buildLibraryVersionRows({
-          fleetMaintainedVersions: null,
+          automdmMaintainedVersions: null,
           activeVersion: "1.2.3",
           pinnedVersion: null,
           addedTimestamp: "2026-02-02T00:00:00Z",
@@ -40,7 +40,7 @@ describe("SoftwareTitleDetailsPage helpers", () => {
 
     it("marks the active-version row active with a 'latest' badge when unpinned", () => {
       const rows = buildLibraryVersionRows({
-        fleetMaintainedVersions: [
+        automdmMaintainedVersions: [
           v(1, "149.0.7827.54"),
           v(2, "148.0.7778.179"),
         ],
@@ -56,7 +56,7 @@ describe("SoftwareTitleDetailsPage helpers", () => {
 
     it("carries each version's own filename through to its row", () => {
       const rows = buildLibraryVersionRows({
-        fleetMaintainedVersions: [
+        automdmMaintainedVersions: [
           v(1, "149.0.7827.54"),
           v(2, "148.0.7778.179"),
         ],
@@ -72,7 +72,7 @@ describe("SoftwareTitleDetailsPage helpers", () => {
 
     it("badges the active row 'pinned' for an exact pin and 'majorVersion' for a caret pin", () => {
       const exact = buildLibraryVersionRows({
-        fleetMaintainedVersions: [
+        automdmMaintainedVersions: [
           v(1, "149.0.7827.54"),
           v(2, "148.0.7778.179"),
         ],
@@ -83,7 +83,7 @@ describe("SoftwareTitleDetailsPage helpers", () => {
       expect(exact.find((r) => r.isActive)?.badgeState).toBe("pinned");
 
       const major = buildLibraryVersionRows({
-        fleetMaintainedVersions: [v(1, "149.0.7827.54")],
+        automdmMaintainedVersions: [v(1, "149.0.7827.54")],
         activeVersion: "149.0.7827.54",
         pinnedVersion: "^149",
         addedTimestamp: "x",
@@ -291,9 +291,9 @@ describe("SoftwareTitleDetailsPage helpers", () => {
   describe("buildInstallerDownloadUrl", () => {
     it("assembles the token-based download URL for the given title id", () => {
       expect(
-        buildInstallerDownloadUrl(42, "abc123", "https://fleet.example.com")
+        buildInstallerDownloadUrl(42, "abc123", "https://automdm.example.com")
       ).toBe(
-        "https://fleet.example.com/api/latest/fleet/software/titles/42/package/token/abc123"
+        "https://automdm.example.com/api/latest/automdm/software/titles/42/package/token/abc123"
       );
     });
   });

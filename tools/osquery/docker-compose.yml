@@ -3,11 +3,11 @@ version: '2'
 
 x-default-settings:
   volumes: &default-volumes
-    - ./fleet.crt:/etc/osquery/fleet.crt
+    - ./automdm.crt:/etc/osquery/automdm.crt
     - ./example_osquery.flags:/etc/osquery/osquery.flags
   environment: &default-environment
     ENROLL_SECRET: "${ENROLL_SECRET:?ENROLL_SECRET must be set for server authentication}"
-  command: &default-command osqueryd --flagfile=/etc/osquery/osquery.flags --tls_hostname=${FLEET_SERVER:-host.docker.internal:8080}
+  command: &default-command osqueryd --flagfile=/etc/osquery/osquery.flags --tls_hostname=${AUTOMDM_SERVER:-host.docker.internal:8080}
   ulimits: &default-ulimits
     core:
       hard:  1000000000

@@ -6,12 +6,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	apple_mdm "github.com/fleetdm/fleet/v4/server/mdm/apple"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
-	nanomdm_pushsvc "github.com/fleetdm/fleet/v4/server/mdm/nanomdm/push/service"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	mdmmock "github.com/fleetdm/fleet/v4/server/mock/mdm"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	apple_mdm "github.com/anilyagiz/automdm/v4/server/mdm/apple"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
+	nanomdm_pushsvc "github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/push/service"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	mdmmock "github.com/anilyagiz/automdm/v4/server/mock/mdm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -22,14 +22,14 @@ type testInstalledAppListResult struct {
 	uuid          string
 	hostUUID      string
 	hostPlatform  string
-	availableApps []fleet.Software
+	availableApps []automdm.Software
 }
 
-func (t *testInstalledAppListResult) Raw() []byte                     { return t.raw }
-func (t *testInstalledAppListResult) UUID() string                    { return t.uuid }
-func (t *testInstalledAppListResult) HostUUID() string                { return t.hostUUID }
-func (t *testInstalledAppListResult) HostPlatform() string            { return t.hostPlatform }
-func (t *testInstalledAppListResult) AvailableApps() []fleet.Software { return t.availableApps }
+func (t *testInstalledAppListResult) Raw() []byte                       { return t.raw }
+func (t *testInstalledAppListResult) UUID() string                      { return t.uuid }
+func (t *testInstalledAppListResult) HostUUID() string                  { return t.hostUUID }
+func (t *testInstalledAppListResult) HostPlatform() string              { return t.hostPlatform }
+func (t *testInstalledAppListResult) AvailableApps() []automdm.Software { return t.availableApps }
 
 func TestInstalledApplicationListHandler(t *testing.T) {
 	ctx := context.Background()
@@ -39,34 +39,34 @@ func TestInstalledApplicationListHandler(t *testing.T) {
 
 	hostUUID := "host-uuid-1"
 	hostID := uint(42)
-	cmdUUID := fleet.VerifySoftwareInstallVPPPrefix + "test-cmd-uuid"
+	cmdUUID := automdm.VerifySoftwareInstallVPPPrefix + "test-cmd-uuid"
 	bundleID := "com.example.app"
 
 	ackTime := time.Now().Add(-1 * time.Minute)
 
-	newNoopActivityFn := func(_ context.Context, _ *fleet.User, _ fleet.ActivityDetails) error {
+	newNoopActivityFn := func(_ context.Context, _ *automdm.User, _ automdm.ActivityDetails) error {
 		return nil
 	}
 
 	// setupMockDS creates a mock datastore with common function stubs.
 	setupMockDS := func(t *testing.T) *mock.DataStore {
 		ds := new(mock.DataStore)
-		ds.GetUnverifiedInHouseAppInstallsForHostFunc = func(_ context.Context, _ string) ([]*fleet.HostVPPSoftwareInstall, error) {
+		ds.GetUnverifiedInHouseAppInstallsForHostFunc = func(_ context.Context, _ string) ([]*automdm.HostVPPSoftwareInstall, error) {
 			return nil, nil
 		}
 		ds.GetVPPInstallAutomationReasonsFunc = func(_ context.Context, _ string) (bool, bool, error) {
 			return false, false, nil
 		}
-		ds.UpdateSetupExperienceStatusResultFunc = func(_ context.Context, _ *fleet.SetupExperienceStatusResult) error {
+		ds.UpdateSetupExperienceStatusResultFunc = func(_ context.Context, _ *automdm.SetupExperienceStatusResult) error {
 			return nil
 		}
-		ds.MaybeUpdateSetupExperienceVPPStatusFunc = func(_ context.Context, _ string, _ string, _ fleet.SetupExperienceStatusResultStatus) (bool, error) {
+		ds.MaybeUpdateSetupExperienceVPPStatusFunc = func(_ context.Context, _ string, _ string, _ automdm.SetupExperienceStatusResultStatus) (bool, error) {
 			return false, nil
 		}
-		ds.GetPastActivityDataForVPPAppInstallFunc = func(_ context.Context, _ *mdm.CommandResults) (*fleet.User, *fleet.ActivityInstalledAppStoreApp, error) {
-			return &fleet.User{}, &fleet.ActivityInstalledAppStoreApp{}, nil
+		ds.GetPastActivityDataForVPPAppInstallFunc = func(_ context.Context, _ *mdm.CommandResults) (*automdm.User, *automdm.ActivityInstalledAppStoreApp, error) {
+			return &automdm.User{}, &automdm.ActivityInstalledAppStoreApp{}, nil
 		}
-		ds.RemoveHostMDMCommandFunc = func(_ context.Context, _ fleet.HostMDMCommand) error {
+		ds.RemoveHostMDMCommandFunc = func(_ context.Context, _ automdm.HostMDMCommand) error {
 			return nil
 		}
 		ds.UpdateHostRefetchRequestedFunc = func(_ context.Context, _ uint, _ bool) error {
@@ -89,8 +89,8 @@ func TestInstalledApplicationListHandler(t *testing.T) {
 			t.Fatal("fail should not be called")
 			return nil
 		}
-		ds.GetUnverifiedVPPInstallsForHostFunc = func(_ context.Context, _ string) ([]*fleet.HostVPPSoftwareInstall, error) {
-			return []*fleet.HostVPPSoftwareInstall{
+		ds.GetUnverifiedVPPInstallsForHostFunc = func(_ context.Context, _ string) ([]*automdm.HostVPPSoftwareInstall, error) {
+			return []*automdm.HostVPPSoftwareInstall{
 				{
 					InstallCommandUUID:  cmdUUID,
 					InstallCommandAckAt: &ackTime,
@@ -107,7 +107,7 @@ func TestInstalledApplicationListHandler(t *testing.T) {
 			uuid:         cmdUUID,
 			hostUUID:     hostUUID,
 			hostPlatform: "darwin",
-			availableApps: []fleet.Software{
+			availableApps: []automdm.Software{
 				{BundleIdentifier: bundleID, Version: "1.0.0", Installed: true},
 			},
 		}
@@ -129,8 +129,8 @@ func TestInstalledApplicationListHandler(t *testing.T) {
 			verifiedCalled = true
 			return nil
 		}
-		ds.GetUnverifiedVPPInstallsForHostFunc = func(_ context.Context, _ string) ([]*fleet.HostVPPSoftwareInstall, error) {
-			return []*fleet.HostVPPSoftwareInstall{
+		ds.GetUnverifiedVPPInstallsForHostFunc = func(_ context.Context, _ string) ([]*automdm.HostVPPSoftwareInstall, error) {
+			return []*automdm.HostVPPSoftwareInstall{
 				{
 					InstallCommandUUID:  cmdUUID,
 					InstallCommandAckAt: &ackTime,
@@ -140,8 +140,8 @@ func TestInstalledApplicationListHandler(t *testing.T) {
 				},
 			}, nil
 		}
-		var emitted fleet.ActivityDetails
-		newActivityFn := func(_ context.Context, _ *fleet.User, activity fleet.ActivityDetails) error {
+		var emitted automdm.ActivityDetails
+		newActivityFn := func(_ context.Context, _ *automdm.User, activity automdm.ActivityDetails) error {
 			emitted = activity
 			return nil
 		}
@@ -152,7 +152,7 @@ func TestInstalledApplicationListHandler(t *testing.T) {
 			uuid:         cmdUUID,
 			hostUUID:     hostUUID,
 			hostPlatform: "darwin",
-			availableApps: []fleet.Software{
+			availableApps: []automdm.Software{
 				{BundleIdentifier: bundleID, Version: "1.0.0", Installed: true},
 			},
 		}
@@ -160,7 +160,7 @@ func TestInstalledApplicationListHandler(t *testing.T) {
 		err := handler(ctx, result)
 		require.NoError(t, err)
 		require.True(t, verifiedCalled)
-		act, ok := emitted.(*fleet.ActivityInstalledAppStoreApp)
+		act, ok := emitted.(*automdm.ActivityInstalledAppStoreApp)
 		require.True(t, ok)
 		require.True(t, act.FromConfigurationResend)
 		require.True(t, act.WasFromAutomation())
@@ -180,8 +180,8 @@ func TestInstalledApplicationListHandler(t *testing.T) {
 			t.Fatal("fail should not be called for version mismatch")
 			return nil
 		}
-		ds.GetUnverifiedVPPInstallsForHostFunc = func(_ context.Context, _ string) ([]*fleet.HostVPPSoftwareInstall, error) {
-			return []*fleet.HostVPPSoftwareInstall{
+		ds.GetUnverifiedVPPInstallsForHostFunc = func(_ context.Context, _ string) ([]*automdm.HostVPPSoftwareInstall, error) {
+			return []*automdm.HostVPPSoftwareInstall{
 				{
 					InstallCommandUUID:  cmdUUID,
 					InstallCommandAckAt: &ackTime,
@@ -198,7 +198,7 @@ func TestInstalledApplicationListHandler(t *testing.T) {
 			uuid:         cmdUUID,
 			hostUUID:     hostUUID,
 			hostPlatform: "darwin",
-			availableApps: []fleet.Software{
+			availableApps: []automdm.Software{
 				{BundleIdentifier: bundleID, Version: "24.10.50", Installed: true},
 			},
 		}
@@ -221,8 +221,8 @@ func TestInstalledApplicationListHandler(t *testing.T) {
 			t.Fatal("fail should not be called")
 			return nil
 		}
-		ds.GetUnverifiedVPPInstallsForHostFunc = func(_ context.Context, _ string) ([]*fleet.HostVPPSoftwareInstall, error) {
-			return []*fleet.HostVPPSoftwareInstall{
+		ds.GetUnverifiedVPPInstallsForHostFunc = func(_ context.Context, _ string) ([]*automdm.HostVPPSoftwareInstall, error) {
+			return []*automdm.HostVPPSoftwareInstall{
 				{
 					InstallCommandUUID:  cmdUUID,
 					InstallCommandAckAt: &ackTime, // 1 minute ago, within 10-minute timeout
@@ -232,7 +232,7 @@ func TestInstalledApplicationListHandler(t *testing.T) {
 				},
 			}, nil
 		}
-		ds.NewJobFunc = func(_ context.Context, job *fleet.Job) (*fleet.Job, error) {
+		ds.NewJobFunc = func(_ context.Context, job *automdm.Job) (*automdm.Job, error) {
 			return job, nil
 		}
 
@@ -243,7 +243,7 @@ func TestInstalledApplicationListHandler(t *testing.T) {
 			uuid:          cmdUUID,
 			hostUUID:      hostUUID,
 			hostPlatform:  "darwin",
-			availableApps: []fleet.Software{},
+			availableApps: []automdm.Software{},
 		}
 
 		err := handler(ctx, result)
@@ -267,8 +267,8 @@ func TestInstalledApplicationListHandler(t *testing.T) {
 			assert.Equal(t, cmdUUID, installUUID)
 			return nil
 		}
-		ds.GetUnverifiedVPPInstallsForHostFunc = func(_ context.Context, _ string) ([]*fleet.HostVPPSoftwareInstall, error) {
-			return []*fleet.HostVPPSoftwareInstall{
+		ds.GetUnverifiedVPPInstallsForHostFunc = func(_ context.Context, _ string) ([]*automdm.HostVPPSoftwareInstall, error) {
+			return []*automdm.HostVPPSoftwareInstall{
 				{
 					InstallCommandUUID:  cmdUUID,
 					InstallCommandAckAt: &expiredAckTime,
@@ -285,7 +285,7 @@ func TestInstalledApplicationListHandler(t *testing.T) {
 			uuid:          cmdUUID,
 			hostUUID:      hostUUID,
 			hostPlatform:  "darwin",
-			availableApps: []fleet.Software{},
+			availableApps: []automdm.Software{},
 		}
 
 		err := handler(ctx, result)
@@ -304,8 +304,8 @@ func TestInstalledApplicationListHandler(t *testing.T) {
 			t.Fatal("fail should not be called")
 			return nil
 		}
-		ds.GetUnverifiedVPPInstallsForHostFunc = func(_ context.Context, _ string) ([]*fleet.HostVPPSoftwareInstall, error) {
-			return []*fleet.HostVPPSoftwareInstall{
+		ds.GetUnverifiedVPPInstallsForHostFunc = func(_ context.Context, _ string) ([]*automdm.HostVPPSoftwareInstall, error) {
+			return []*automdm.HostVPPSoftwareInstall{
 				{
 					InstallCommandUUID:  cmdUUID,
 					InstallCommandAckAt: &ackTime,
@@ -315,7 +315,7 @@ func TestInstalledApplicationListHandler(t *testing.T) {
 				},
 			}, nil
 		}
-		ds.NewJobFunc = func(_ context.Context, job *fleet.Job) (*fleet.Job, error) {
+		ds.NewJobFunc = func(_ context.Context, job *automdm.Job) (*automdm.Job, error) {
 			return job, nil
 		}
 
@@ -326,7 +326,7 @@ func TestInstalledApplicationListHandler(t *testing.T) {
 			uuid:         cmdUUID,
 			hostUUID:     hostUUID,
 			hostPlatform: "darwin",
-			availableApps: []fleet.Software{
+			availableApps: []automdm.Software{
 				{BundleIdentifier: "com.other.app", Version: "2.0.0", Installed: true},
 			},
 		}
@@ -338,7 +338,7 @@ func TestInstalledApplicationListHandler(t *testing.T) {
 
 	t.Run("no installs left to verify releases the verify command", func(t *testing.T) {
 		ds := setupMockDS(t)
-		ds.GetUnverifiedVPPInstallsForHostFunc = func(_ context.Context, _ string) ([]*fleet.HostVPPSoftwareInstall, error) {
+		ds.GetUnverifiedVPPInstallsForHostFunc = func(_ context.Context, _ string) ([]*automdm.HostVPPSoftwareInstall, error) {
 			return nil, nil
 		}
 		var removedHostUUID, removedCmdType string
@@ -353,7 +353,7 @@ func TestInstalledApplicationListHandler(t *testing.T) {
 			uuid:          cmdUUID,
 			hostUUID:      hostUUID,
 			hostPlatform:  "darwin",
-			availableApps: []fleet.Software{},
+			availableApps: []automdm.Software{},
 		})
 		require.NoError(t, err)
 
@@ -361,7 +361,7 @@ func TestInstalledApplicationListHandler(t *testing.T) {
 		// this host until the daily cleanup removes it.
 		require.True(t, ds.RemoveHostMDMCommandByHostUUIDFuncInvoked)
 		assert.Equal(t, hostUUID, removedHostUUID)
-		assert.Equal(t, fleet.VerifySoftwareInstallVPPPrefix, removedCmdType)
+		assert.Equal(t, automdm.VerifySoftwareInstallVPPPrefix, removedCmdType)
 		assert.False(t, ds.NewJobFuncInvoked, "nothing left to verify, so no polling job")
 	})
 }
@@ -399,9 +399,9 @@ func TestSetRecoveryLockResultsHandler(t *testing.T) {
 	newTestCommander := newRecoveryLockTestCommander
 
 	// pendingFn mocks GetPendingRecoveryLock for a host awaiting the SetRecoveryLock result.
-	pendingFn := func(op fleet.MDMOperationType, retries int) func(context.Context, string) (*fleet.HostRecoveryLockPending, error) {
-		return func(_ context.Context, hUUID string) (*fleet.HostRecoveryLockPending, error) {
-			return &fleet.HostRecoveryLockPending{
+	pendingFn := func(op automdm.MDMOperationType, retries int) func(context.Context, string) (*automdm.HostRecoveryLockPending, error) {
+		return func(_ context.Context, hUUID string) (*automdm.HostRecoveryLockPending, error) {
+			return &automdm.HostRecoveryLockPending{
 				PendingSetCommandUUID: new(cmdUUID),
 				OperationType:         op,
 				Retries:               retries,
@@ -409,7 +409,7 @@ func TestSetRecoveryLockResultsHandler(t *testing.T) {
 		}
 	}
 
-	newResult := func(status string, errChain []mdm.ErrorChain) fleet.MDMCommandResults {
+	newResult := func(status string, errChain []mdm.ErrorChain) automdm.MDMCommandResults {
 		return NewRecoveryLockResult(&mdm.CommandResults{
 			Enrollment:  mdm.Enrollment{UDID: hostUUID},
 			CommandUUID: cmdUUID,
@@ -421,7 +421,7 @@ func TestSetRecoveryLockResultsHandler(t *testing.T) {
 
 	t.Run("acknowledged promotes to verifying and enqueues VerifyRecoveryLock", func(t *testing.T) {
 		ds := new(mock.DataStore)
-		ds.GetPendingRecoveryLockFunc = pendingFn(fleet.MDMOperationTypeInstall, 0)
+		ds.GetPendingRecoveryLockFunc = pendingFn(automdm.MDMOperationTypeInstall, 0)
 
 		var verifyingCalled bool
 		var capturedSetCmdUUID, capturedVerifyCmdUUID string
@@ -436,38 +436,38 @@ func TestSetRecoveryLockResultsHandler(t *testing.T) {
 		commander, enqueued := newTestCommander(t)
 		handler := NewSetRecoveryLockResultsHandler(ds, logger, commander)
 
-		err := handler(ctx, newResult(fleet.MDMAppleStatusAcknowledged, nil))
+		err := handler(ctx, newResult(automdm.MDMAppleStatusAcknowledged, nil))
 		require.NoError(t, err)
 
 		assert.True(t, verifyingCalled)
 		assert.Equal(t, cmdUUID, capturedSetCmdUUID)
 
 		// The verify command is enqueued under the same UUID recorded as pending.
-		verifyCmd, ok := enqueued[fleet.VerifyRecoveryLockCmdName]
+		verifyCmd, ok := enqueued[automdm.VerifyRecoveryLockCmdName]
 		require.True(t, ok, "VerifyRecoveryLock should be enqueued")
 		assert.Equal(t, capturedVerifyCmdUUID, verifyCmd.CommandUUID)
 	})
 
 	t.Run("acknowledged clear enqueues VerifyRecoveryLock with empty password", func(t *testing.T) {
 		ds := new(mock.DataStore)
-		ds.GetPendingRecoveryLockFunc = pendingFn(fleet.MDMOperationTypeRemove, 0)
+		ds.GetPendingRecoveryLockFunc = pendingFn(automdm.MDMOperationTypeRemove, 0)
 		ds.SetRecoveryLockVerifyingFunc = func(_ context.Context, _, _, _ string) error { return nil }
 
 		commander, enqueued := newTestCommander(t)
 		handler := NewSetRecoveryLockResultsHandler(ds, logger, commander)
 
-		err := handler(ctx, newResult(fleet.MDMAppleStatusAcknowledged, nil))
+		err := handler(ctx, newResult(automdm.MDMAppleStatusAcknowledged, nil))
 		require.NoError(t, err)
 
-		verifyCmd, ok := enqueued[fleet.VerifyRecoveryLockCmdName]
+		verifyCmd, ok := enqueued[automdm.VerifyRecoveryLockCmdName]
 		require.True(t, ok, "VerifyRecoveryLock should be enqueued for a clear")
 		// Clearing is verified with an empty password, so no host secret placeholder.
-		assert.NotContains(t, string(verifyCmd.Raw), fleet.HostSecretPrefix)
+		assert.NotContains(t, string(verifyCmd.Raw), automdm.HostSecretPrefix)
 	})
 
 	t.Run("error with retries exhausted sets failed", func(t *testing.T) {
 		ds := new(mock.DataStore)
-		ds.GetPendingRecoveryLockFunc = pendingFn(fleet.MDMOperationTypeInstall, maxRecoveryLockRetries)
+		ds.GetPendingRecoveryLockFunc = pendingFn(automdm.MDMOperationTypeInstall, maxRecoveryLockRetries)
 
 		var failedCalled bool
 		var capturedError, capturedCmdUUID string
@@ -482,7 +482,7 @@ func TestSetRecoveryLockResultsHandler(t *testing.T) {
 		commander, _ := newTestCommander(t)
 		handler := NewSetRecoveryLockResultsHandler(ds, logger, commander)
 
-		err := handler(ctx, newResult(fleet.MDMAppleStatusError,
+		err := handler(ctx, newResult(automdm.MDMAppleStatusError,
 			[]mdm.ErrorChain{{ErrorCode: 12345, ErrorDomain: "test", LocalizedDescription: "Test error"}}))
 		require.NoError(t, err)
 
@@ -493,7 +493,7 @@ func TestSetRecoveryLockResultsHandler(t *testing.T) {
 
 	t.Run("error with retries remaining retries", func(t *testing.T) {
 		ds := new(mock.DataStore)
-		ds.GetPendingRecoveryLockFunc = pendingFn(fleet.MDMOperationTypeInstall, 0)
+		ds.GetPendingRecoveryLockFunc = pendingFn(automdm.MDMOperationTypeInstall, 0)
 
 		var retryCalled bool
 		ds.RetryRecoveryLockFunc = func(_ context.Context, hUUID, cmdUUID string) error {
@@ -509,7 +509,7 @@ func TestSetRecoveryLockResultsHandler(t *testing.T) {
 		commander, _ := newTestCommander(t)
 		handler := NewSetRecoveryLockResultsHandler(ds, logger, commander)
 
-		err := handler(ctx, newResult(fleet.MDMAppleStatusError,
+		err := handler(ctx, newResult(automdm.MDMAppleStatusError,
 			[]mdm.ErrorChain{{ErrorCode: 12345, ErrorDomain: "SomeTransientError", LocalizedDescription: "Network timeout or temporary failure"}}))
 		require.NoError(t, err)
 
@@ -518,7 +518,7 @@ func TestSetRecoveryLockResultsHandler(t *testing.T) {
 
 	t.Run("command format error sets failed with default message", func(t *testing.T) {
 		ds := new(mock.DataStore)
-		ds.GetPendingRecoveryLockFunc = pendingFn(fleet.MDMOperationTypeInstall, 0)
+		ds.GetPendingRecoveryLockFunc = pendingFn(automdm.MDMOperationTypeInstall, 0)
 
 		var capturedError string
 		ds.SetRecoveryLockFailedFunc = func(_ context.Context, _, _, errorMsg string) error {
@@ -533,7 +533,7 @@ func TestSetRecoveryLockResultsHandler(t *testing.T) {
 		commander, _ := newTestCommander(t)
 		handler := NewSetRecoveryLockResultsHandler(ds, logger, commander)
 
-		err := handler(ctx, newResult(fleet.MDMAppleStatusCommandFormatError, nil))
+		err := handler(ctx, newResult(automdm.MDMAppleStatusCommandFormatError, nil))
 		require.NoError(t, err)
 
 		assert.Equal(t, "SetRecoveryLock command failed", capturedError)
@@ -541,7 +541,7 @@ func TestSetRecoveryLockResultsHandler(t *testing.T) {
 
 	t.Run("password mismatch on clear sets failed", func(t *testing.T) {
 		ds := new(mock.DataStore)
-		ds.GetPendingRecoveryLockFunc = pendingFn(fleet.MDMOperationTypeRemove, 0)
+		ds.GetPendingRecoveryLockFunc = pendingFn(automdm.MDMOperationTypeRemove, 0)
 
 		var failedCalled bool
 		var capturedError string
@@ -554,7 +554,7 @@ func TestSetRecoveryLockResultsHandler(t *testing.T) {
 		commander, _ := newTestCommander(t)
 		handler := NewSetRecoveryLockResultsHandler(ds, logger, commander)
 
-		err := handler(ctx, newResult(fleet.MDMAppleStatusError,
+		err := handler(ctx, newResult(automdm.MDMAppleStatusError,
 			[]mdm.ErrorChain{{ErrorCode: 70, ErrorDomain: "MDMClientError", LocalizedDescription: "Existing recovery lock password not provided"}}))
 		require.NoError(t, err)
 
@@ -564,7 +564,7 @@ func TestSetRecoveryLockResultsHandler(t *testing.T) {
 
 	t.Run("clear errors are never retried", func(t *testing.T) {
 		ds := new(mock.DataStore)
-		ds.GetPendingRecoveryLockFunc = pendingFn(fleet.MDMOperationTypeRemove, 0)
+		ds.GetPendingRecoveryLockFunc = pendingFn(automdm.MDMOperationTypeRemove, 0)
 
 		var failedCalled bool
 		var capturedError string
@@ -581,7 +581,7 @@ func TestSetRecoveryLockResultsHandler(t *testing.T) {
 		commander, _ := newTestCommander(t)
 		handler := NewSetRecoveryLockResultsHandler(ds, logger, commander)
 
-		err := handler(ctx, newResult(fleet.MDMAppleStatusError,
+		err := handler(ctx, newResult(automdm.MDMAppleStatusError,
 			[]mdm.ErrorChain{{ErrorCode: 8, ErrorDomain: "ROSLockoutServiceDaemonErrorDomain", LocalizedDescription: "The provided recovery password failed to validate."}}))
 		require.NoError(t, err)
 
@@ -591,10 +591,10 @@ func TestSetRecoveryLockResultsHandler(t *testing.T) {
 
 	t.Run("result for a stale command UUID is ignored", func(t *testing.T) {
 		ds := new(mock.DataStore)
-		ds.GetPendingRecoveryLockFunc = func(_ context.Context, _ string) (*fleet.HostRecoveryLockPending, error) {
-			return &fleet.HostRecoveryLockPending{
+		ds.GetPendingRecoveryLockFunc = func(_ context.Context, _ string) (*automdm.HostRecoveryLockPending, error) {
+			return &automdm.HostRecoveryLockPending{
 				PendingSetCommandUUID: new("some-other-cmd-uuid"),
-				OperationType:         fleet.MDMOperationTypeInstall,
+				OperationType:         automdm.MDMOperationTypeInstall,
 			}, nil
 		}
 		ds.SetRecoveryLockVerifyingFunc = func(_ context.Context, _, _, _ string) error {
@@ -605,7 +605,7 @@ func TestSetRecoveryLockResultsHandler(t *testing.T) {
 		commander, _ := newTestCommander(t)
 		handler := NewSetRecoveryLockResultsHandler(ds, logger, commander)
 
-		err := handler(ctx, newResult(fleet.MDMAppleStatusAcknowledged, nil))
+		err := handler(ctx, newResult(automdm.MDMAppleStatusAcknowledged, nil))
 		require.NoError(t, err)
 	})
 }
@@ -623,13 +623,13 @@ func TestVerifyRecoveryLockResultsHandler(t *testing.T) {
 
 	// pendingFn mocks GetPendingRecoveryLock for a host awaiting the VerifyRecoveryLock result. Without a
 	// current password the install is a first set; with one, a rotation.
-	pendingFn := func(op fleet.MDMOperationType, hasCurrentPassword bool, retries int) func(context.Context, string) (*fleet.HostRecoveryLockPending, error) {
-		return func(_ context.Context, _ string) (*fleet.HostRecoveryLockPending, error) {
-			return &fleet.HostRecoveryLockPending{
+	pendingFn := func(op automdm.MDMOperationType, hasCurrentPassword bool, retries int) func(context.Context, string) (*automdm.HostRecoveryLockPending, error) {
+		return func(_ context.Context, _ string) (*automdm.HostRecoveryLockPending, error) {
+			return &automdm.HostRecoveryLockPending{
 				PendingVerifyCommandUUID: new(verifyCmdUUID),
 				OperationType:            op,
 				HasCurrentPassword:       hasCurrentPassword,
-				SetsNewPassword:          op == fleet.MDMOperationTypeInstall && !hasCurrentPassword,
+				SetsNewPassword:          op == automdm.MDMOperationTypeInstall && !hasCurrentPassword,
 				Retries:                  retries,
 			}, nil
 		}
@@ -645,7 +645,7 @@ func TestVerifyRecoveryLockResultsHandler(t *testing.T) {
 		return []byte(`<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict><key>PasswordVerified</key>` + verdict + `</dict></plist>`)
 	}
 
-	newResult := func(status string, errChain []mdm.ErrorChain) fleet.MDMCommandResults {
+	newResult := func(status string, errChain []mdm.ErrorChain) automdm.MDMCommandResults {
 		return NewRecoveryLockResult(&mdm.CommandResults{
 			Enrollment:  mdm.Enrollment{UDID: hostUUID},
 			CommandUUID: verifyCmdUUID,
@@ -656,18 +656,18 @@ func TestVerifyRecoveryLockResultsHandler(t *testing.T) {
 	}
 
 	// newUnverifiedResult is an acknowledgment that says the password did not match.
-	newUnverifiedResult := func() fleet.MDMCommandResults {
+	newUnverifiedResult := func() automdm.MDMCommandResults {
 		return NewRecoveryLockResult(&mdm.CommandResults{
 			Enrollment:  mdm.Enrollment{UDID: hostUUID},
 			CommandUUID: verifyCmdUUID,
-			Status:      fleet.MDMAppleStatusAcknowledged,
+			Status:      automdm.MDMAppleStatusAcknowledged,
 			Raw:         rawVerifyResponse(false),
 		})
 	}
 
 	t.Run("acknowledged sets verified and logs activity", func(t *testing.T) {
 		ds := new(mock.DataStore)
-		ds.GetPendingRecoveryLockFunc = pendingFn(fleet.MDMOperationTypeInstall, false, 0)
+		ds.GetPendingRecoveryLockFunc = pendingFn(automdm.MDMOperationTypeInstall, false, 0)
 
 		var verifiedCalled bool
 		var capturedCmdUUID string
@@ -677,17 +677,17 @@ func TestVerifyRecoveryLockResultsHandler(t *testing.T) {
 			capturedCmdUUID = commandUUID
 			return nil
 		}
-		ds.HostLiteByIdentifierFunc = func(_ context.Context, identifier string) (*fleet.HostLite, error) {
+		ds.HostLiteByIdentifierFunc = func(_ context.Context, identifier string) (*automdm.HostLite, error) {
 			assert.Equal(t, hostUUID, identifier)
-			return &fleet.HostLite{ID: 1, Hostname: "Test Host"}, nil
+			return &automdm.HostLite{ID: 1, Hostname: "Test Host"}, nil
 		}
 
 		var activityCalled bool
 		var capturedHostID uint
 		var capturedDisplayName string
-		newActivityFn := func(_ context.Context, _ *fleet.User, activity fleet.ActivityDetails) error {
+		newActivityFn := func(_ context.Context, _ *automdm.User, activity automdm.ActivityDetails) error {
 			activityCalled = true
-			act, ok := activity.(fleet.ActivityTypeSetHostRecoveryLockPassword)
+			act, ok := activity.(automdm.ActivityTypeSetHostRecoveryLockPassword)
 			require.True(t, ok)
 			capturedHostID = act.HostID
 			capturedDisplayName = act.HostDisplayName
@@ -696,7 +696,7 @@ func TestVerifyRecoveryLockResultsHandler(t *testing.T) {
 
 		handler := NewVerifyRecoveryLockResultsHandler(ds, logger, commander, newActivityFn)
 
-		err := handler(ctx, newResult(fleet.MDMAppleStatusAcknowledged, nil))
+		err := handler(ctx, newResult(automdm.MDMAppleStatusAcknowledged, nil))
 		require.NoError(t, err)
 
 		assert.True(t, verifiedCalled)
@@ -709,7 +709,7 @@ func TestVerifyRecoveryLockResultsHandler(t *testing.T) {
 	t.Run("acknowledged rotation sets verified without activity", func(t *testing.T) {
 		ds := new(mock.DataStore)
 		// A rotation's activity is logged at rotation enqueue time, not here.
-		ds.GetPendingRecoveryLockFunc = pendingFn(fleet.MDMOperationTypeInstall, true, 0)
+		ds.GetPendingRecoveryLockFunc = pendingFn(automdm.MDMOperationTypeInstall, true, 0)
 
 		var verifiedCalled bool
 		ds.SetRecoveryLockVerifiedFunc = func(_ context.Context, _, _ string) error {
@@ -717,14 +717,14 @@ func TestVerifyRecoveryLockResultsHandler(t *testing.T) {
 			return nil
 		}
 
-		newActivityFn := func(_ context.Context, _ *fleet.User, _ fleet.ActivityDetails) error {
+		newActivityFn := func(_ context.Context, _ *automdm.User, _ automdm.ActivityDetails) error {
 			t.Fatal("activity should not be created for a rotation")
 			return nil
 		}
 
 		handler := NewVerifyRecoveryLockResultsHandler(ds, logger, commander, newActivityFn)
 
-		err := handler(ctx, newResult(fleet.MDMAppleStatusAcknowledged, nil))
+		err := handler(ctx, newResult(automdm.MDMAppleStatusAcknowledged, nil))
 		require.NoError(t, err)
 
 		assert.True(t, verifiedCalled)
@@ -732,48 +732,48 @@ func TestVerifyRecoveryLockResultsHandler(t *testing.T) {
 
 	t.Run("deferred verify logs nothing", func(t *testing.T) {
 		ds := new(mock.DataStore)
-		ds.GetPendingRecoveryLockFunc = pendingFn(fleet.MDMOperationTypeInstall, false, 0)
+		ds.GetPendingRecoveryLockFunc = pendingFn(automdm.MDMOperationTypeInstall, false, 0)
 
-		newActivityFn := func(_ context.Context, _ *fleet.User, _ fleet.ActivityDetails) error {
+		newActivityFn := func(_ context.Context, _ *automdm.User, _ automdm.ActivityDetails) error {
 			t.Fatal("activity should not be created before the device confirms")
 			return nil
 		}
 
 		handler := NewVerifyRecoveryLockResultsHandler(ds, logger, commander, newActivityFn)
-		require.NoError(t, handler(ctx, newResult(fleet.MDMAppleStatusNotNow, nil)))
+		require.NoError(t, handler(ctx, newResult(automdm.MDMAppleStatusNotNow, nil)))
 		assert.False(t, ds.SetRecoveryLockVerifiedFuncInvoked)
 	})
 
 	t.Run("acknowledged set after re-enrollment logs activity", func(t *testing.T) {
 		ds := new(mock.DataStore)
 		// Re-enrollment keeps the last known password as current, but this is still a set.
-		ds.GetPendingRecoveryLockFunc = func(_ context.Context, _ string) (*fleet.HostRecoveryLockPending, error) {
-			return &fleet.HostRecoveryLockPending{
+		ds.GetPendingRecoveryLockFunc = func(_ context.Context, _ string) (*automdm.HostRecoveryLockPending, error) {
+			return &automdm.HostRecoveryLockPending{
 				PendingVerifyCommandUUID: new(verifyCmdUUID),
-				OperationType:            fleet.MDMOperationTypeInstall,
+				OperationType:            automdm.MDMOperationTypeInstall,
 				HasCurrentPassword:       true,
 				SetsNewPassword:          true,
 			}, nil
 		}
 		ds.SetRecoveryLockVerifiedFunc = func(_ context.Context, _, _ string) error { return nil }
-		ds.HostLiteByIdentifierFunc = func(_ context.Context, _ string) (*fleet.HostLite, error) {
-			return &fleet.HostLite{ID: 1, Hostname: "Test Host"}, nil
+		ds.HostLiteByIdentifierFunc = func(_ context.Context, _ string) (*automdm.HostLite, error) {
+			return &automdm.HostLite{ID: 1, Hostname: "Test Host"}, nil
 		}
 
 		var activityCalled bool
-		newActivityFn := func(_ context.Context, _ *fleet.User, activity fleet.ActivityDetails) error {
-			_, activityCalled = activity.(fleet.ActivityTypeSetHostRecoveryLockPassword)
+		newActivityFn := func(_ context.Context, _ *automdm.User, activity automdm.ActivityDetails) error {
+			_, activityCalled = activity.(automdm.ActivityTypeSetHostRecoveryLockPassword)
 			return nil
 		}
 
 		handler := NewVerifyRecoveryLockResultsHandler(ds, logger, commander, newActivityFn)
-		require.NoError(t, handler(ctx, newResult(fleet.MDMAppleStatusAcknowledged, nil)))
+		require.NoError(t, handler(ctx, newResult(automdm.MDMAppleStatusAcknowledged, nil)))
 		assert.True(t, activityCalled)
 	})
 
 	t.Run("acknowledged clear deletes password", func(t *testing.T) {
 		ds := new(mock.DataStore)
-		ds.GetPendingRecoveryLockFunc = pendingFn(fleet.MDMOperationTypeRemove, true, 0)
+		ds.GetPendingRecoveryLockFunc = pendingFn(automdm.MDMOperationTypeRemove, true, 0)
 
 		var deleteCalled bool
 		var capturedCmdUUID string
@@ -784,14 +784,14 @@ func TestVerifyRecoveryLockResultsHandler(t *testing.T) {
 			return nil
 		}
 
-		newActivityFn := func(_ context.Context, _ *fleet.User, _ fleet.ActivityDetails) error {
+		newActivityFn := func(_ context.Context, _ *automdm.User, _ automdm.ActivityDetails) error {
 			t.Fatal("activity should not be created for a clear")
 			return nil
 		}
 
 		handler := NewVerifyRecoveryLockResultsHandler(ds, logger, commander, newActivityFn)
 
-		err := handler(ctx, newResult(fleet.MDMAppleStatusAcknowledged, nil))
+		err := handler(ctx, newResult(automdm.MDMAppleStatusAcknowledged, nil))
 		require.NoError(t, err)
 
 		assert.True(t, deleteCalled)
@@ -800,7 +800,7 @@ func TestVerifyRecoveryLockResultsHandler(t *testing.T) {
 
 	t.Run("acknowledged with PasswordVerified false fails instead of verifying", func(t *testing.T) {
 		ds := new(mock.DataStore)
-		ds.GetPendingRecoveryLockFunc = pendingFn(fleet.MDMOperationTypeInstall, false, 0)
+		ds.GetPendingRecoveryLockFunc = pendingFn(automdm.MDMOperationTypeInstall, false, 0)
 
 		ds.SetRecoveryLockVerifiedFunc = func(_ context.Context, _, _ string) error {
 			t.Fatal("an acknowledgment the device did not verify must not mark the host verified")
@@ -819,7 +819,7 @@ func TestVerifyRecoveryLockResultsHandler(t *testing.T) {
 			return nil
 		}
 
-		newActivityFn := func(_ context.Context, _ *fleet.User, _ fleet.ActivityDetails) error {
+		newActivityFn := func(_ context.Context, _ *automdm.User, _ automdm.ActivityDetails) error {
 			t.Fatal("no set activity for a password the device never confirmed")
 			return nil
 		}
@@ -835,9 +835,9 @@ func TestVerifyRecoveryLockResultsHandler(t *testing.T) {
 
 	t.Run("acknowledged clear with PasswordVerified false keeps the password", func(t *testing.T) {
 		ds := new(mock.DataStore)
-		ds.GetPendingRecoveryLockFunc = pendingFn(fleet.MDMOperationTypeRemove, true, 0)
+		ds.GetPendingRecoveryLockFunc = pendingFn(automdm.MDMOperationTypeRemove, true, 0)
 
-		// The lock is still on the device, so dropping Fleet's copy would strand it.
+		// The lock is still on the device, so dropping AutoMDM's copy would strand it.
 		ds.DeleteHostRecoveryLockPasswordFunc = func(_ context.Context, _, _ string) error {
 			t.Fatal("the stored password must not be deleted while the device still has a lock")
 			return nil
@@ -860,7 +860,7 @@ func TestVerifyRecoveryLockResultsHandler(t *testing.T) {
 
 	t.Run("password not set error is terminal", func(t *testing.T) {
 		ds := new(mock.DataStore)
-		ds.GetPendingRecoveryLockFunc = pendingFn(fleet.MDMOperationTypeInstall, false, 0)
+		ds.GetPendingRecoveryLockFunc = pendingFn(automdm.MDMOperationTypeInstall, false, 0)
 
 		var failedCalled bool
 		var capturedError string
@@ -876,7 +876,7 @@ func TestVerifyRecoveryLockResultsHandler(t *testing.T) {
 
 		handler := NewVerifyRecoveryLockResultsHandler(ds, logger, commander, nil)
 
-		err := handler(ctx, newResult(fleet.MDMAppleStatusError,
+		err := handler(ctx, newResult(automdm.MDMAppleStatusError,
 			[]mdm.ErrorChain{{ErrorCode: 70, ErrorDomain: "MDMClientError", LocalizedDescription: "Recovery lock password not set"}}))
 		require.NoError(t, err)
 
@@ -886,7 +886,7 @@ func TestVerifyRecoveryLockResultsHandler(t *testing.T) {
 
 	t.Run("error with retries remaining re-issues the verify", func(t *testing.T) {
 		ds := new(mock.DataStore)
-		ds.GetPendingRecoveryLockFunc = pendingFn(fleet.MDMOperationTypeInstall, false, 0)
+		ds.GetPendingRecoveryLockFunc = pendingFn(automdm.MDMOperationTypeInstall, false, 0)
 
 		// The set was already acknowledged, so the device holds the pending password while
 		// encrypted_password still holds the superseded one. Retrying via RetryRecoveryLock
@@ -913,7 +913,7 @@ func TestVerifyRecoveryLockResultsHandler(t *testing.T) {
 		commander, enqueued := newRecoveryLockTestCommander(t)
 		handler := NewVerifyRecoveryLockResultsHandler(ds, logger, commander, nil)
 
-		err := handler(ctx, newResult(fleet.MDMAppleStatusError,
+		err := handler(ctx, newResult(automdm.MDMAppleStatusError,
 			[]mdm.ErrorChain{{ErrorCode: 12345, ErrorDomain: "SomeTransientError", LocalizedDescription: "Network timeout"}}))
 		require.NoError(t, err)
 
@@ -923,19 +923,19 @@ func TestVerifyRecoveryLockResultsHandler(t *testing.T) {
 		assert.NotEqual(t, verifyCmdUUID, capturedNewUUID, "the retry needs its own command UUID")
 
 		// A fresh VerifyRecoveryLock goes out under the new UUID, and no SetRecoveryLock does.
-		cmd, ok := enqueued[fleet.VerifyRecoveryLockCmdName]
+		cmd, ok := enqueued[automdm.VerifyRecoveryLockCmdName]
 		require.True(t, ok, "a replacement VerifyRecoveryLock should be enqueued")
 		assert.Equal(t, capturedNewUUID, cmd.CommandUUID)
-		assert.NotContains(t, enqueued, fleet.SetRecoveryLockCmdName,
+		assert.NotContains(t, enqueued, automdm.SetRecoveryLockCmdName,
 			"a verify retry must never re-run the set")
 	})
 
 	t.Run("result for a stale command UUID is ignored", func(t *testing.T) {
 		ds := new(mock.DataStore)
-		ds.GetPendingRecoveryLockFunc = func(_ context.Context, _ string) (*fleet.HostRecoveryLockPending, error) {
-			return &fleet.HostRecoveryLockPending{
+		ds.GetPendingRecoveryLockFunc = func(_ context.Context, _ string) (*automdm.HostRecoveryLockPending, error) {
+			return &automdm.HostRecoveryLockPending{
 				PendingVerifyCommandUUID: new("some-other-cmd-uuid"),
-				OperationType:            fleet.MDMOperationTypeInstall,
+				OperationType:            automdm.MDMOperationTypeInstall,
 			}, nil
 		}
 		ds.SetRecoveryLockVerifiedFunc = func(_ context.Context, _, _ string) error {
@@ -945,7 +945,7 @@ func TestVerifyRecoveryLockResultsHandler(t *testing.T) {
 
 		handler := NewVerifyRecoveryLockResultsHandler(ds, logger, commander, nil)
 
-		err := handler(ctx, newResult(fleet.MDMAppleStatusAcknowledged, nil))
+		err := handler(ctx, newResult(automdm.MDMAppleStatusAcknowledged, nil))
 		require.NoError(t, err)
 	})
 }

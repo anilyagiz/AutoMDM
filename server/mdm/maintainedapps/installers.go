@@ -10,21 +10,21 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/version"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/version"
 )
 
 // InstallerTimeout is the timeout duration for downloading and adding a maintained app.
 const InstallerTimeout = 15 * time.Minute
 
 // DownloadInstaller downloads the maintained app installer located at the given URL.
-func DownloadInstaller(ctx context.Context, installerURL string, client *http.Client) (*fleet.TempFileReader, string, error) {
+func DownloadInstaller(ctx context.Context, installerURL string, client *http.Client) (*automdm.TempFileReader, string, error) {
 	// validate the URL before doing the request
 	_, err := url.ParseRequestURI(installerURL)
 	if err != nil {
-		return nil, "", fleet.NewInvalidArgumentError(
-			"fleet_maintained_app.url",
+		return nil, "", automdm.NewInvalidArgumentError(
+			"automdm_maintained_app.url",
 			fmt.Sprintf("Couldn't download maintained app installer. URL (%q) is invalid", installerURL),
 		)
 	}
@@ -36,7 +36,7 @@ func DownloadInstaller(ctx context.Context, installerURL string, client *http.Cl
 	// Vendor CDNs disagree on which clients to allow: some Cloudflare-fronted
 	// hosts 403 a User-Agent that starts with "Go-http-client", while Akamai
 	// (downloads.tableau.com) 403s any User-Agent without a known HTTP library
-	// token. Leading with fleet/<version> and keeping the Go token satisfies both.
+	// token. Leading with automdm/<version> and keeping the Go token satisfies both.
 	req.Header.Set("User-Agent", installerUserAgent())
 
 	resp, err := client.Do(req)
@@ -46,21 +46,21 @@ func DownloadInstaller(ctx context.Context, installerURL string, client *http.Cl
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return nil, "", fleet.NewInvalidArgumentError(
-			"fleet_maintained_app.url",
+		return nil, "", automdm.NewInvalidArgumentError(
+			"automdm_maintained_app.url",
 			fmt.Sprintf("Couldn't download maintained app installer. URL (%q) doesn't exist. Please make sure that URLs are publicy accessible to the internet.", installerURL),
 		)
 	}
 
 	// Allow all 2xx and 3xx status codes in this pass.
 	if resp.StatusCode > 400 {
-		return nil, "", fleet.NewInvalidArgumentError(
-			"fleet_maintained_app.url",
+		return nil, "", automdm.NewInvalidArgumentError(
+			"automdm_maintained_app.url",
 			fmt.Sprintf("Couldn't download maintained app installer. URL (%q) received response status code %d.", installerURL, resp.StatusCode),
 		)
 	}
 
-	tfr, err := fleet.NewTempFileReader(resp.Body, nil)
+	tfr, err := automdm.NewTempFileReader(resp.Body, nil)
 	if err != nil {
 		return nil, "", ctxerr.Wrapf(ctx, err, "reading installer %q contents", installerURL)
 	}
@@ -69,7 +69,7 @@ func DownloadInstaller(ctx context.Context, installerURL string, client *http.Cl
 }
 
 func installerUserAgent() string {
-	return "fleet/" + version.Version().Version + " Go-http-client/1.1"
+	return "automdm/" + version.Version().Version + " Go-http-client/1.1"
 }
 
 func FilenameFromResponse(resp *http.Response) string {

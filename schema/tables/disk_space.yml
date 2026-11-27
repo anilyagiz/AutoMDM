@@ -2,7 +2,7 @@ name: disk_space
 platforms:
   - darwin
 description: |-
-  Returns available and total disk capacity on macOS using NSURLVolumeAvailableCapacityForImportantUsageKey, which includes purgeable space and matches what macOS reports in Finder's "Get Info" dialog. For Windows disk space, use the [logical_drives](https://fleetdm.com/tables/logical_drives) table. For Linux, use the [mounts](https://fleetdm.com/tables/mounts) table.
+  Returns available and total disk capacity on macOS using NSURLVolumeAvailableCapacityForImportantUsageKey, which includes purgeable space and matches what macOS reports in Finder's "Get Info" dialog. For Windows disk space, use the [logical_drives](https://automdm.com/tables/logical_drives) table. For Linux, use the [mounts](https://automdm.com/tables/mounts) table.
 examples: |-
   ```
   SELECT * FROM disk_space;
@@ -17,5 +17,5 @@ columns:
     required: false
     description: Total disk capacity in bytes.
 notes: |-
-  This table is not a core osquery table. It is included as part of Fleet's agent ([fleetd](https://fleetdm.com/docs/get-started/anatomy#fleetd)).
+  This table is not a core osquery table. It is included as part of AutoMDM's agent ([automdmd](https://automdm.com/docs/get-started/anatomy#automdmd)).
 evented: false

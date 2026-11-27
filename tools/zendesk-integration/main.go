@@ -1,5 +1,5 @@
 // Command zendesk-integration tests creating a ticket to a Zendesk instance via
-// the Fleet worker processor. It creates it exactly as if a Zendesk integration
+// the AutoMDM worker processor. It creates it exactly as if a Zendesk integration
 // was configured and a new CVE and related CPEs was found.
 //
 // Note that the Zendesk API token must be provided via an environment
@@ -15,11 +15,11 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/service/externalsvc"
-	"github.com/fleetdm/fleet/v4/server/worker"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/service/externalsvc"
+	"github.com/anilyagiz/automdm/v4/server/worker"
 )
 
 func main() {
@@ -27,7 +27,7 @@ func main() {
 		zendeskURL          = flag.String("zendesk-url", "", "The Zendesk instance URL")
 		zendeskEmail        = flag.String("zendesk-email", "", "The Zendesk email")
 		zendeskGroupID      = flag.Int64("zendesk-group-id", 0, "The Zendesk group id")
-		fleetURL            = flag.String("fleet-url", "https://localhost:8080", "The Fleet server URL")
+		automdmURL          = flag.String("automdm-url", "https://localhost:8080", "The AutoMDM server URL")
 		cve                 = flag.String("cve", "", "The CVE to create a Zendesk issue for")
 		epssProbability     = flag.Float64("epss-probability", 0, "The EPSS Probability score of the CVE")
 		cvssScore           = flag.Float64("cvss-score", 0, "The CVSS score of the CVE")
@@ -80,10 +80,10 @@ func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	ds := new(mock.Store)
-	ds.HostsByCVEFunc = func(ctx context.Context, cve string) ([]fleet.HostVulnerabilitySummary, error) {
-		hosts := make([]fleet.HostVulnerabilitySummary, *hostsCount)
+	ds.HostsByCVEFunc = func(ctx context.Context, cve string) ([]automdm.HostVulnerabilitySummary, error) {
+		hosts := make([]automdm.HostVulnerabilitySummary, *hostsCount)
 		for i := 0; i < *hostsCount; i++ {
-			hosts[i] = fleet.HostVulnerabilitySummary{
+			hosts[i] = automdm.HostVulnerabilitySummary{
 				ID:          uint(i + 1), //nolint:gosec // dismiss G115
 				Hostname:    fmt.Sprintf("host-test-%d", i+1),
 				DisplayName: fmt.Sprintf("host-test-%d", i+1),
@@ -91,10 +91,10 @@ func main() {
 		}
 		return hosts, nil
 	}
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{
-			Integrations: fleet.Integrations{
-				Zendesk: []*fleet.ZendeskIntegration{
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{
+			Integrations: automdm.Integrations{
+				Zendesk: []*automdm.ZendeskIntegration{
 					{
 						EnableSoftwareVulnerabilities: *cve != "",
 						URL:                           *zendeskURL,
@@ -107,13 +107,13 @@ func main() {
 			},
 		}, nil
 	}
-	ds.TeamLiteFunc = func(ctx context.Context, tid uint) (*fleet.TeamLite, error) {
-		return &fleet.TeamLite{
+	ds.TeamLiteFunc = func(ctx context.Context, tid uint) (*automdm.TeamLite, error) {
+		return &automdm.TeamLite{
 			ID:   tid,
 			Name: fmt.Sprintf("team-test-%d", tid),
-			Config: fleet.TeamConfigLite{
-				Integrations: fleet.TeamIntegrations{
-					Zendesk: []*fleet.TeamZendeskIntegration{
+			Config: automdm.TeamConfigLite{
+				Integrations: automdm.TeamIntegrations{
+					Zendesk: []*automdm.TeamZendeskIntegration{
 						{
 							URL:                   *zendeskURL,
 							GroupID:               *zendeskGroupID,
@@ -125,16 +125,16 @@ func main() {
 		}, nil
 	}
 
-	lic := &fleet.LicenseInfo{Tier: fleet.TierFree}
+	lic := &automdm.LicenseInfo{Tier: automdm.TierFree}
 	if *premiumLicense {
-		lic.Tier = fleet.TierPremium
+		lic.Tier = automdm.TierPremium
 	}
 	ctx := license.NewContext(context.Background(), lic)
 
 	zendesk := &worker.Zendesk{
-		FleetURL:  *fleetURL,
-		Datastore: ds,
-		Log:       logger,
+		AutoMDMURL: *automdmURL,
+		Datastore:  ds,
+		Log:        logger,
 		NewClientFunc: func(opts *externalsvc.ZendeskOptions) (worker.ZendeskClient, error) {
 			return externalsvc.NewZendeskClient(opts)
 		},
@@ -173,9 +173,9 @@ func main() {
 			jsonStr += fmt.Sprintf(`"team_id":%d, `, *failingPolicyTeamID)
 		}
 		jsonStr += `"hosts": `
-		hosts := make([]fleet.PolicySetHost, 0, *hostsCount)
+		hosts := make([]automdm.PolicySetHost, 0, *hostsCount)
 		for i := 1; i <= *hostsCount; i++ {
-			hosts = append(hosts, fleet.PolicySetHost{ID: uint(i), Hostname: fmt.Sprintf("host-test-%d", i)}) //nolint:gosec // dismiss G115
+			hosts = append(hosts, automdm.PolicySetHost{ID: uint(i), Hostname: fmt.Sprintf("host-test-%d", i)}) //nolint:gosec // dismiss G115
 		}
 		b, _ := json.Marshal(hosts)
 		jsonStr += string(b) + "}}"

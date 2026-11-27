@@ -50,7 +50,7 @@ type priorityReport struct {
 var reportsPriorityCmd = &cobra.Command{
 	Use:   "priority",
 	Short: "Report priority (P0/P1) issues over time, bucketed by week and product group",
-	Long: `Report how many priority issues (P0, P1) were opened over time in fleetdm/fleet.
+	Long: `Report how many priority issues (P0, P1) were opened over time in automdm/automdm.
 
 For each priority label the report shows:
   1. A total count within the window.

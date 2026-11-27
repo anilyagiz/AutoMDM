@@ -9,7 +9,7 @@ $shadow-transition-width: 16px;
   .data-table {
     &__wrapper {
       position: relative;
-      border: 1px solid $ui-fleet-black-10;
+      border: 1px solid $ui-automdm-black-10;
       border-radius: $border-radius-large;
       flex-grow: 1;
       width: 100%;
@@ -22,29 +22,29 @@ $shadow-transition-width: 16px;
       background-image:
       /* Shadows */ linear-gradient(
           to right,
-          $core-fleet-white,
-          $core-fleet-white-transparent
+          $core-automdm-white,
+          $core-automdm-white-transparent
         ),
         linear-gradient(
           to left,
-          $core-fleet-white,
-          $core-fleet-white-transparent
+          $core-automdm-white,
+          $core-automdm-white-transparent
         ),
         /* Shadow covers */
           linear-gradient(
             to right,
             $ui-shadow,
-            $core-fleet-white $shadow-transition-width
+            $core-automdm-white $shadow-transition-width
           ),
         linear-gradient(
           to left,
           $ui-shadow,
-          $core-fleet-white $shadow-transition-width
+          $core-automdm-white $shadow-transition-width
         );
 
       background-position: left center, right center, left center, right center;
       background-repeat: no-repeat;
-      background-color: $core-fleet-white;
+      background-color: $core-automdm-white;
       background-size: $shadow-width 100%, $shadow-width 100%, 50% 100%,
         50% 100%;
 
@@ -78,7 +78,7 @@ $shadow-transition-width: 16px;
       display: block;
       height: 12px;
       border-radius: 4px;
-      background-color: $ui-fleet-black-10;
+      background-color: $ui-automdm-black-10;
     }
 
     // Overlay sits OUTSIDE .data-table__wrapper (which is the horizontal scroll
@@ -100,7 +100,7 @@ $shadow-transition-width: 16px;
       pointer-events: auto;
       padding: $pad-xsmall;
       text-align: center;
-      background: $core-fleet-white;
+      background: $core-automdm-white;
       border-radius: $border-radius-large;
 
       h3 {
@@ -108,7 +108,7 @@ $shadow-transition-width: 16px;
         font-size: $small;
         font-weight: $bold;
         line-height: $line-height;
-        color: $core-fleet-black;
+        color: $core-automdm-black;
       }
     }
 
@@ -116,12 +116,12 @@ $shadow-transition-width: 16px;
       position: relative;
       width: 100%;
       border-collapse: collapse;
-      color: $ui-fleet-black-75;
+      color: $ui-automdm-black-75;
       font-size: $x-small;
     }
 
     tr {
-      border-bottom: 1px solid $ui-fleet-black-10;
+      border-bottom: 1px solid $ui-automdm-black-10;
 
       &:last-child {
         border-bottom: 0;
@@ -133,7 +133,7 @@ $shadow-transition-width: 16px;
         justify-content: center;
         margin-bottom: 0;
 
-        .fleet-checkbox__label {
+        .automdm-checkbox__label {
           padding-left: 0;
         }
       }
@@ -147,9 +147,9 @@ $shadow-transition-width: 16px;
 
     thead {
       background-color: $ui-off-white-opaque; // opaque needed for horizontal scroll shadow
-      color: $core-fleet-black;
+      color: $core-automdm-black;
       text-align: left;
-      border-bottom: 1px solid $ui-fleet-black-10;
+      border-bottom: 1px solid $ui-automdm-black-10;
 
       // resize header icons
       img {
@@ -170,7 +170,7 @@ $shadow-transition-width: 16px;
       th {
         padding: 0 $table-cell-padding;
         white-space: nowrap;
-        border-left: 1px solid $ui-fleet-black-10;
+        border-left: 1px solid $ui-automdm-black-10;
         font-weight: $bold;
         font-size: $xx-small;
         height: 40px; // Match body row height
@@ -235,12 +235,12 @@ $shadow-transition-width: 16px;
           &:hover {
             .header-cell:not(.ascending) {
               .ascending-arrow {
-                border-bottom-color: $ui-fleet-black-50;
+                border-bottom-color: $ui-automdm-black-50;
               }
             }
             .header-cell.ascending {
               .descending-arrow {
-                border-top-color: $ui-fleet-black-50;
+                border-top-color: $ui-automdm-black-50;
               }
             }
           }
@@ -253,7 +253,7 @@ $shadow-transition-width: 16px;
         th {
           border: 0;
         }
-        .fleet-checkbox {
+        .automdm-checkbox {
           opacity: 0;
         }
         .active-selection__container {
@@ -454,7 +454,7 @@ $shadow-transition-width: 16px;
           }
         }
         .grey-cell {
-          color: $ui-fleet-black-75;
+          color: $ui-automdm-black-75;
         }
       }
 

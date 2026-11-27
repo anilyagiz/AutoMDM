@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -24,8 +24,8 @@ func TestLoadLicense(t *testing.T) {
 	license, err := LoadLicense(key)
 	require.NoError(t, err)
 	assert.Equal(t,
-		&fleet.LicenseInfo{
-			Tier:         fleet.TierPremium,
+		&automdm.LicenseInfo{
+			Tier:         automdm.TierPremium,
 			Organization: "Dev license",
 			DeviceCount:  100,
 			Expiration:   time.Unix(1641013200, 0),
@@ -33,7 +33,7 @@ func TestLoadLicense(t *testing.T) {
 		},
 		license,
 	)
-	assert.Equal(t, fleet.TierPremium, license.Tier)
+	assert.Equal(t, automdm.TierPremium, license.Tier)
 	assert.True(t, license.IsPremium())
 }
 
@@ -101,6 +101,6 @@ func TestForceUpgrade(t *testing.T) {
 	key := "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJGbGVldCBEZXZpY2UgTWFuYWdlbWVudCBJbmMuIiwiZXhwIjoxNjQwOTk1MjAwLCJzdWIiOiJ0ZXN0IiwiZGV2aWNlcyI6MTAwLCJub3RlIjoiZm9yIGRldmVsb3BtZW50IG9ubHkiLCJ0aWVyIjoiYmFzaWMiLCJpYXQiOjE2Nzc3ODkzMjZ9.DOQ5AGHthInA3pGv6U4xf3PGdGZCRTkbkn96g45PPEvpUN0LwNMOc8FL-wWowZ2rp5yvqmKlb_gzkAh7jkhz8g"
 	license, err := LoadLicense(key)
 	require.NoError(t, err)
-	require.Equal(t, fleet.TierPremium, license.Tier)
+	require.Equal(t, automdm.TierPremium, license.Tier)
 	require.True(t, license.IsPremium())
 }

@@ -87,7 +87,7 @@ const ProfileAdvancedOptions = ({
               ariaLabel="Hide from end user"
               value={hidden}
               onChange={(value: boolean) => onChange({ hidden: value })}
-              labelTooltipContent="When checked, this profile is hidden from the end user's default list of profiles in Fleet Desktop."
+              labelTooltipContent="When checked, this profile is hidden from the end user's default list of profiles in AutoMDM Desktop."
               disabled={disabled || disableChildren || selfService}
             >
               Hide from end user

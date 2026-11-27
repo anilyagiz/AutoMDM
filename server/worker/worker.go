@@ -7,8 +7,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -48,11 +48,11 @@ type FinalFailureNotifier interface {
 // failingPolicyArgs are the args common to all integrations that can process
 // failing policies.
 type failingPolicyArgs struct {
-	PolicyID       uint                  `json:"policy_id"`
-	PolicyName     string                `json:"policy_name"`
-	PolicyCritical bool                  `json:"policy_critical"`
-	Hosts          []fleet.PolicySetHost `json:"hosts"`
-	TeamID         *uint                 `json:"team_id,omitempty"` //nolint:apiparamcheck // these are written to the db, changing likely requires migration
+	PolicyID       uint                    `json:"policy_id"`
+	PolicyName     string                  `json:"policy_name"`
+	PolicyCritical bool                    `json:"policy_critical"`
+	Hosts          []automdm.PolicySetHost `json:"hosts"`
+	TeamID         *uint                   `json:"team_id,omitempty"` //nolint:apiparamcheck // these are written to the db, changing likely requires migration
 }
 
 // hostIDs returns the IDs of the hosts targeted by the failing-policy job, used
@@ -78,7 +78,7 @@ type vulnArgs struct {
 
 // Worker runs jobs. NOT SAFE FOR CONCURRENT USE.
 type Worker struct {
-	ds  fleet.Datastore
+	ds  automdm.Datastore
 	log *slog.Logger
 
 	// For tests only, allows ignoring unknown jobs instead of failing them.
@@ -91,7 +91,7 @@ type Worker struct {
 	registry map[string]Job
 }
 
-func NewWorker(ds fleet.Datastore, log *slog.Logger) *Worker {
+func NewWorker(ds automdm.Datastore, log *slog.Logger) *Worker {
 	return &Worker{
 		ds:       ds,
 		log:      log,
@@ -112,13 +112,13 @@ func (w *Worker) Register(jobs ...Job) {
 // QueueJob inserts a job to be processed by the worker for the job processor
 // identified by the name (e.g. "jira"). The args value is marshaled as JSON
 // and provided to the job processor when the job is executed.
-func QueueJob(ctx context.Context, ds fleet.Datastore, name string, args interface{}) (*fleet.Job, error) {
+func QueueJob(ctx context.Context, ds automdm.Datastore, name string, args interface{}) (*automdm.Job, error) {
 	return QueueJobWithDelay(ctx, ds, name, args, 0)
 }
 
 // QueueJobWithDelay is like QueueJob but does not make the job available
 // before a specified delay (or no delay if delay is <= 0).
-func QueueJobWithDelay(ctx context.Context, ds fleet.Datastore, name string, args interface{}, delay time.Duration) (*fleet.Job, error) {
+func QueueJobWithDelay(ctx context.Context, ds automdm.Datastore, name string, args interface{}, delay time.Duration) (*automdm.Job, error) {
 	job, err := newJob(name, args, delay)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "marshal args")
@@ -126,7 +126,7 @@ func QueueJobWithDelay(ctx context.Context, ds fleet.Datastore, name string, arg
 	return ds.NewJob(ctx, job)
 }
 
-func newJob(name string, args any, delay time.Duration) (*fleet.Job, error) {
+func newJob(name string, args any, delay time.Duration) (*automdm.Job, error) {
 	argsJSON, err := json.Marshal(args)
 	if err != nil {
 		return nil, err
@@ -136,10 +136,10 @@ func newJob(name string, args any, delay time.Duration) (*fleet.Job, error) {
 	if delay > 0 {
 		notBefore = time.Now().UTC().Add(delay)
 	}
-	return &fleet.Job{
+	return &automdm.Job{
 		Name:      name,
 		Args:      (*json.RawMessage)(&argsJSON),
-		State:     fleet.JobStateQueued,
+		State:     automdm.JobStateQueued,
 		NotBefore: notBefore,
 	}, nil
 }
@@ -219,7 +219,7 @@ func (w *Worker) ProcessJobs(ctx context.Context) error {
 						job.NotBefore = time.Now().UTC().Add(delays[job.Retries])
 					}
 				} else {
-					job.State = fleet.JobStateFailure
+					job.State = automdm.JobStateFailure
 					if notifier, ok := w.registry[job.Name].(FinalFailureNotifier); ok {
 						var args json.RawMessage
 						if job.Args != nil {
@@ -231,7 +231,7 @@ func (w *Worker) ProcessJobs(ctx context.Context) error {
 					}
 				}
 			} else {
-				job.State = fleet.JobStateSuccess
+				job.State = automdm.JobStateSuccess
 				job.Error = ""
 			}
 
@@ -247,9 +247,9 @@ func (w *Worker) ProcessJobs(ctx context.Context) error {
 	return nil
 }
 
-func (w *Worker) processJob(ctx context.Context, job *fleet.Job) error {
+func (w *Worker) processJob(ctx context.Context, job *automdm.Job) error {
 	// Create OTEL span for job processing (parent span should be: cron.scheduled_tick.integrations)
-	ctx, span := otel.Tracer("github.com/fleetdm/fleet/v4/server/worker").Start(ctx, fmt.Sprintf("worker.process_job.%s", job.Name),
+	ctx, span := otel.Tracer("github.com/anilyagiz/automdm/v4/server/worker").Start(ctx, fmt.Sprintf("worker.process_job.%s", job.Name),
 		trace.WithSpanKind(trace.SpanKindConsumer),
 		trace.WithAttributes(
 			attribute.Int64("job.id", int64(job.ID)), //nolint:gosec // G115
@@ -278,17 +278,17 @@ func (w *Worker) processJob(ctx context.Context, job *fleet.Job) error {
 }
 
 type failingPoliciesTplArgs struct {
-	FleetURL       string
+	AutoMDMURL     string
 	PolicyID       uint
 	PolicyName     string
 	PolicyCritical bool
 	TeamID         *uint
-	Hosts          []fleet.PolicySetHost
+	Hosts          []automdm.PolicySetHost
 }
 
-func newFailingPoliciesTplArgs(fleetURL string, args *failingPolicyArgs) *failingPoliciesTplArgs {
+func newFailingPoliciesTplArgs(automdmURL string, args *failingPolicyArgs) *failingPoliciesTplArgs {
 	return &failingPoliciesTplArgs{
-		FleetURL:       fleetURL,
+		AutoMDMURL:     automdmURL,
 		PolicyName:     args.PolicyName,
 		PolicyID:       args.PolicyID,
 		PolicyCritical: args.PolicyCritical,

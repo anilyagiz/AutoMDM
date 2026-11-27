@@ -4,7 +4,7 @@ package service
 //
 // Belongs here: how the reconciler cancels, replaces, or removes profile commands — deletes and
 // edits cancelling undelivered installs, NotNow responses, user-scoped pending installs, failed
-// verifications, profile errors and removing failed profiles, resend race conditions, fleet
+// verifications, profile errors and removing failed profiles, resend race conditions, team
 // transfers with identical profiles, and resends triggered by policy automations.
 //
 // Does not belong here: the normal delivery and status flows (integration_mdm_profiles_apple_test.go,
@@ -20,16 +20,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/mdm/mdmtest"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	servermdm "github.com/fleetdm/fleet/v4/server/mdm"
-	apple_mdm "github.com/fleetdm/fleet/v4/server/mdm/apple"
-	"github.com/fleetdm/fleet/v4/server/mdm/apple/mobileconfig"
-	"github.com/fleetdm/fleet/v4/server/mdm/microsoft/syncml"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/pkg/mdm/mdmtest"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	servermdm "github.com/anilyagiz/automdm/v4/server/mdm"
+	apple_mdm "github.com/anilyagiz/automdm/v4/server/mdm/apple"
+	"github.com/anilyagiz/automdm/v4/server/mdm/apple/mobileconfig"
+	"github.com/anilyagiz/automdm/v4/server/mdm/microsoft/syncml"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	micromdm "github.com/micromdm/micromdm/mdm/mdm"
@@ -43,7 +43,7 @@ func (s *integrationMDMTestSuite) TestDeleteMDMProfileCancelsInstalls() {
 	s.setSkipWorkerJobs(t)
 
 	// create some Apple, Windows and declaration profiles
-	profiles := []fleet.MDMProfileBatchPayload{
+	profiles := []automdm.MDMProfileBatchPayload{
 		{
 			Name:     "A1",
 			Contents: mobileconfigForTest("A1", "A1"),
@@ -69,12 +69,12 @@ func (s *integrationMDMTestSuite) TestDeleteMDMProfileCancelsInstalls() {
 			Contents: syncml.ForTestWithData([]syncml.TestCommand{{Verb: "Replace", LocURI: "W2", Data: "W2"}}),
 		},
 	}
-	s.Do("POST", "/api/v1/fleet/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: profiles}, http.StatusNoContent)
+	s.Do("POST", "/api/v1/automdm/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: profiles}, http.StatusNoContent)
 
 	// list the profiles to get the UUIDs
 	var listResp listMDMConfigProfilesResponse
-	s.DoJSON("GET", "/api/latest/fleet/configuration_profiles", nil, http.StatusOK, &listResp)
-	profNameToPayload := make(map[string]*fleet.MDMConfigProfilePayload)
+	s.DoJSON("GET", "/api/latest/automdm/configuration_profiles", nil, http.StatusOK, &listResp)
+	profNameToPayload := make(map[string]*automdm.MDMConfigProfilePayload)
 	for _, prof := range listResp.Profiles {
 		if len(prof.Checksum) == 0 {
 			// not important, but must not be empty or it causes issues when forcing a status
@@ -86,84 +86,84 @@ func (s *integrationMDMTestSuite) TestDeleteMDMProfileCancelsInstalls() {
 
 	// deleting without any affected host is fine
 	var deleteResp deleteMDMConfigProfileResponse
-	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/fleet/configuration_profiles/%s", profNameToPayload["A1"].ProfileUUID), nil, http.StatusOK, &deleteResp) // nolint:nilaway // every name looked up here was inserted from the list response above
-	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/fleet/configuration_profiles/%s", profNameToPayload["D1"].ProfileUUID), nil, http.StatusOK, &deleteResp)
-	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/fleet/configuration_profiles/%s", profNameToPayload["W1"].ProfileUUID), nil, http.StatusOK, &deleteResp)
+	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/automdm/configuration_profiles/%s", profNameToPayload["A1"].ProfileUUID), nil, http.StatusOK, &deleteResp) // nolint:nilaway // every name looked up here was inserted from the list response above
+	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/automdm/configuration_profiles/%s", profNameToPayload["D1"].ProfileUUID), nil, http.StatusOK, &deleteResp)
+	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/automdm/configuration_profiles/%s", profNameToPayload["W1"].ProfileUUID), nil, http.StatusOK, &deleteResp)
 
 	// create some Apple and Windows hosts
 	host1, _ := createHostThenEnrollMDM(s.ds, s.server.URL, t)
 	host2, _ := createHostThenEnrollMDM(s.ds, s.server.URL, t)
 	host3, mdmDevice3 := createWindowsHostThenEnrollMDM(s.ds, s.server.URL, t)
 	host4, mdmDevice4 := createWindowsHostThenEnrollMDM(s.ds, s.server.URL, t)
-	for i, h := range []*fleet.Host{host1, host2, host3, host4} {
+	for i, h := range []*automdm.Host{host1, host2, host3, host4} {
 		t.Logf("host %d: %s", i+1, h.UUID)
 	}
 	s.awaitTriggerProfileSchedule(t)
 	s.awaitRunAppleMDMWorkerSchedule()
 
-	s.assertHostAppleConfigProfiles(map[*fleet.Host][]fleet.HostMDMAppleProfile{
+	s.assertHostAppleConfigProfiles(map[*automdm.Host][]automdm.HostMDMAppleProfile{
 		host1: {
-			{Identifier: "A2", OperationType: fleet.MDMOperationTypeInstall, Status: &fleet.MDMDeliveryPending},
-			{Identifier: "D2", OperationType: fleet.MDMOperationTypeInstall, Status: &fleet.MDMDeliveryPending},
-			{Identifier: mobileconfig.FleetdConfigPayloadIdentifier, OperationType: fleet.MDMOperationTypeInstall, Status: &fleet.MDMDeliveryPending},
-			{Identifier: mobileconfig.FleetCARootConfigPayloadIdentifier, OperationType: fleet.MDMOperationTypeInstall, Status: &fleet.MDMDeliveryPending},
+			{Identifier: "A2", OperationType: automdm.MDMOperationTypeInstall, Status: &automdm.MDMDeliveryPending},
+			{Identifier: "D2", OperationType: automdm.MDMOperationTypeInstall, Status: &automdm.MDMDeliveryPending},
+			{Identifier: mobileconfig.AutoMDMdConfigPayloadIdentifier, OperationType: automdm.MDMOperationTypeInstall, Status: &automdm.MDMDeliveryPending},
+			{Identifier: mobileconfig.AutoMDMCARootConfigPayloadIdentifier, OperationType: automdm.MDMOperationTypeInstall, Status: &automdm.MDMDeliveryPending},
 		},
 		host2: {
-			{Identifier: "A2", OperationType: fleet.MDMOperationTypeInstall, Status: &fleet.MDMDeliveryPending},
-			{Identifier: "D2", OperationType: fleet.MDMOperationTypeInstall, Status: &fleet.MDMDeliveryPending},
-			{Identifier: mobileconfig.FleetdConfigPayloadIdentifier, OperationType: fleet.MDMOperationTypeInstall, Status: &fleet.MDMDeliveryPending},
-			{Identifier: mobileconfig.FleetCARootConfigPayloadIdentifier, OperationType: fleet.MDMOperationTypeInstall, Status: &fleet.MDMDeliveryPending},
+			{Identifier: "A2", OperationType: automdm.MDMOperationTypeInstall, Status: &automdm.MDMDeliveryPending},
+			{Identifier: "D2", OperationType: automdm.MDMOperationTypeInstall, Status: &automdm.MDMDeliveryPending},
+			{Identifier: mobileconfig.AutoMDMdConfigPayloadIdentifier, OperationType: automdm.MDMOperationTypeInstall, Status: &automdm.MDMDeliveryPending},
+			{Identifier: mobileconfig.AutoMDMCARootConfigPayloadIdentifier, OperationType: automdm.MDMOperationTypeInstall, Status: &automdm.MDMDeliveryPending},
 		},
 	})
-	s.assertHostWindowsConfigProfiles(map[*fleet.Host][]fleet.HostMDMWindowsProfile{
+	s.assertHostWindowsConfigProfiles(map[*automdm.Host][]automdm.HostMDMWindowsProfile{
 		host3: {
-			{Name: "W2", OperationType: fleet.MDMOperationTypeInstall, Status: &fleet.MDMDeliveryPending},
+			{Name: "W2", OperationType: automdm.MDMOperationTypeInstall, Status: &automdm.MDMDeliveryPending},
 		},
 		host4: {
-			{Name: "W2", OperationType: fleet.MDMOperationTypeInstall, Status: &fleet.MDMDeliveryPending},
+			{Name: "W2", OperationType: automdm.MDMOperationTypeInstall, Status: &automdm.MDMDeliveryPending},
 		},
 	})
 
 	// for the declaration, set host1 as NULL and host2 as verified
-	forceSetAppleHostDeclarationStatus(t, s.ds, host1.UUID, test.ToMDMAppleDecl(profNameToPayload["D2"]), fleet.MDMOperationTypeInstall, "")
-	forceSetAppleHostDeclarationStatus(t, s.ds, host2.UUID, test.ToMDMAppleDecl(profNameToPayload["D2"]), fleet.MDMOperationTypeInstall, fleet.MDMDeliveryVerified)
+	forceSetAppleHostDeclarationStatus(t, s.ds, host1.UUID, test.ToMDMAppleDecl(profNameToPayload["D2"]), automdm.MDMOperationTypeInstall, "")
+	forceSetAppleHostDeclarationStatus(t, s.ds, host2.UUID, test.ToMDMAppleDecl(profNameToPayload["D2"]), automdm.MDMOperationTypeInstall, automdm.MDMDeliveryVerified)
 
 	// delete the declaration, will have removed it for host1 and set to remove pending for host2
-	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/fleet/configuration_profiles/%s", profNameToPayload["D2"].ProfileUUID), nil, http.StatusOK, &deleteResp)
+	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/automdm/configuration_profiles/%s", profNameToPayload["D2"].ProfileUUID), nil, http.StatusOK, &deleteResp)
 
-	s.assertHostAppleConfigProfiles(map[*fleet.Host][]fleet.HostMDMAppleProfile{
+	s.assertHostAppleConfigProfiles(map[*automdm.Host][]automdm.HostMDMAppleProfile{
 		host1: {
-			{Identifier: "A2", OperationType: fleet.MDMOperationTypeInstall, Status: &fleet.MDMDeliveryPending},
-			{Identifier: mobileconfig.FleetdConfigPayloadIdentifier, OperationType: fleet.MDMOperationTypeInstall, Status: &fleet.MDMDeliveryPending},
-			{Identifier: mobileconfig.FleetCARootConfigPayloadIdentifier, OperationType: fleet.MDMOperationTypeInstall, Status: &fleet.MDMDeliveryPending},
+			{Identifier: "A2", OperationType: automdm.MDMOperationTypeInstall, Status: &automdm.MDMDeliveryPending},
+			{Identifier: mobileconfig.AutoMDMdConfigPayloadIdentifier, OperationType: automdm.MDMOperationTypeInstall, Status: &automdm.MDMDeliveryPending},
+			{Identifier: mobileconfig.AutoMDMCARootConfigPayloadIdentifier, OperationType: automdm.MDMOperationTypeInstall, Status: &automdm.MDMDeliveryPending},
 		},
 		host2: {
-			{Identifier: "A2", OperationType: fleet.MDMOperationTypeInstall, Status: &fleet.MDMDeliveryPending},
-			{Identifier: "D2", OperationType: fleet.MDMOperationTypeRemove, Status: &fleet.MDMDeliveryPending},
-			{Identifier: mobileconfig.FleetdConfigPayloadIdentifier, OperationType: fleet.MDMOperationTypeInstall, Status: &fleet.MDMDeliveryPending},
-			{Identifier: mobileconfig.FleetCARootConfigPayloadIdentifier, OperationType: fleet.MDMOperationTypeInstall, Status: &fleet.MDMDeliveryPending},
+			{Identifier: "A2", OperationType: automdm.MDMOperationTypeInstall, Status: &automdm.MDMDeliveryPending},
+			{Identifier: "D2", OperationType: automdm.MDMOperationTypeRemove, Status: &automdm.MDMDeliveryPending},
+			{Identifier: mobileconfig.AutoMDMdConfigPayloadIdentifier, OperationType: automdm.MDMOperationTypeInstall, Status: &automdm.MDMDeliveryPending},
+			{Identifier: mobileconfig.AutoMDMCARootConfigPayloadIdentifier, OperationType: automdm.MDMOperationTypeInstall, Status: &automdm.MDMDeliveryPending},
 		},
 	})
 
 	// for the Windows profile, set host4 as failed
-	forceSetWindowsHostProfileStatus(t, s.ds, host4.UUID, test.ToMDMWindowsConfigProfile(profNameToPayload["W2"]), fleet.MDMOperationTypeInstall, fleet.MDMDeliveryFailed)
+	forceSetWindowsHostProfileStatus(t, s.ds, host4.UUID, test.ToMDMWindowsConfigProfile(profNameToPayload["W2"]), automdm.MDMOperationTypeInstall, automdm.MDMDeliveryFailed)
 
 	// delete the Windows profile. Removal is async: the delete retains the profile content, and the profile-manager cron flips both
 	// hosts' surviving rows (pending/failed) to remove+pending and enqueues the <Delete>.
-	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/fleet/configuration_profiles/%s", profNameToPayload["W2"].ProfileUUID), nil, http.StatusOK, &deleteResp)
+	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/automdm/configuration_profiles/%s", profNameToPayload["W2"].ProfileUUID), nil, http.StatusOK, &deleteResp)
 	s.awaitTriggerProfileSchedule(t)
 
-	s.assertHostWindowsConfigProfiles(map[*fleet.Host][]fleet.HostMDMWindowsProfile{
+	s.assertHostWindowsConfigProfiles(map[*automdm.Host][]automdm.HostMDMWindowsProfile{
 		host3: {
-			{Name: "W2", OperationType: fleet.MDMOperationTypeRemove, Status: &fleet.MDMDeliveryPending},
+			{Name: "W2", OperationType: automdm.MDMOperationTypeRemove, Status: &automdm.MDMDeliveryPending},
 		},
 		host4: {
-			{Name: "W2", OperationType: fleet.MDMOperationTypeRemove, Status: &fleet.MDMDeliveryPending},
+			{Name: "W2", OperationType: automdm.MDMOperationTypeRemove, Status: &automdm.MDMDeliveryPending},
 		},
 	})
 
 	// for the Apple profile, set host1 as NULL (pending not queued yet), and leave host2 as actually pending (queued)
-	forceSetAppleHostProfileStatus(t, s.ds, host1.UUID, test.ToMDMAppleConfigProfile(profNameToPayload["A2"]), fleet.MDMOperationTypeInstall, "")
+	forceSetAppleHostProfileStatus(t, s.ds, host1.UUID, test.ToMDMAppleConfigProfile(profNameToPayload["A2"]), automdm.MDMOperationTypeInstall, "")
 
 	assertIsCommandActiveForHostAndProfile := func(hostUUID, profileUUID string, wantActive bool) {
 		var active bool
@@ -189,46 +189,46 @@ func (s *integrationMDMTestSuite) TestDeleteMDMProfileCancelsInstalls() {
 	assertIsCommandActiveForHostAndProfile(host2.UUID, profNameToPayload["A2"].ProfileUUID, true)
 
 	// delete the profile, will remove the row for host1 and set host2 to pending remove (and will deactivate the associated nano command)
-	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/fleet/configuration_profiles/%s", profNameToPayload["A2"].ProfileUUID), nil, http.StatusOK, &deleteResp)
+	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/automdm/configuration_profiles/%s", profNameToPayload["A2"].ProfileUUID), nil, http.StatusOK, &deleteResp)
 
-	s.assertHostAppleConfigProfiles(map[*fleet.Host][]fleet.HostMDMAppleProfile{
+	s.assertHostAppleConfigProfiles(map[*automdm.Host][]automdm.HostMDMAppleProfile{
 		host1: {
-			{Identifier: mobileconfig.FleetdConfigPayloadIdentifier, OperationType: fleet.MDMOperationTypeInstall, Status: &fleet.MDMDeliveryPending},
-			{Identifier: mobileconfig.FleetCARootConfigPayloadIdentifier, OperationType: fleet.MDMOperationTypeInstall, Status: &fleet.MDMDeliveryPending},
+			{Identifier: mobileconfig.AutoMDMdConfigPayloadIdentifier, OperationType: automdm.MDMOperationTypeInstall, Status: &automdm.MDMDeliveryPending},
+			{Identifier: mobileconfig.AutoMDMCARootConfigPayloadIdentifier, OperationType: automdm.MDMOperationTypeInstall, Status: &automdm.MDMDeliveryPending},
 		},
 		host2: {
-			{Identifier: "A2", OperationType: fleet.MDMOperationTypeRemove, Status: &fleet.MDMDeliveryPending},
-			{Identifier: "D2", OperationType: fleet.MDMOperationTypeRemove, Status: &fleet.MDMDeliveryPending},
-			{Identifier: mobileconfig.FleetdConfigPayloadIdentifier, OperationType: fleet.MDMOperationTypeInstall, Status: &fleet.MDMDeliveryPending},
-			{Identifier: mobileconfig.FleetCARootConfigPayloadIdentifier, OperationType: fleet.MDMOperationTypeInstall, Status: &fleet.MDMDeliveryPending},
+			{Identifier: "A2", OperationType: automdm.MDMOperationTypeRemove, Status: &automdm.MDMDeliveryPending},
+			{Identifier: "D2", OperationType: automdm.MDMOperationTypeRemove, Status: &automdm.MDMDeliveryPending},
+			{Identifier: mobileconfig.AutoMDMdConfigPayloadIdentifier, OperationType: automdm.MDMOperationTypeInstall, Status: &automdm.MDMDeliveryPending},
+			{Identifier: mobileconfig.AutoMDMCARootConfigPayloadIdentifier, OperationType: automdm.MDMOperationTypeInstall, Status: &automdm.MDMDeliveryPending},
 		},
 	})
 
 	assertIsCommandActiveForHostAndProfile(host2.UUID, profNameToPayload["A2"].ProfileUUID, false)
 
 	// set the remove operations to verifying and reconcile profiles
-	forceSetAppleHostProfileStatus(t, s.ds, host2.UUID, test.ToMDMAppleConfigProfile(profNameToPayload["A2"]), fleet.MDMOperationTypeRemove, fleet.MDMDeliveryVerifying)
-	forceSetAppleHostDeclarationStatus(t, s.ds, host2.UUID, test.ToMDMAppleDecl(profNameToPayload["D2"]), fleet.MDMOperationTypeRemove, fleet.MDMDeliveryVerifying)
+	forceSetAppleHostProfileStatus(t, s.ds, host2.UUID, test.ToMDMAppleConfigProfile(profNameToPayload["A2"]), automdm.MDMOperationTypeRemove, automdm.MDMDeliveryVerifying)
+	forceSetAppleHostDeclarationStatus(t, s.ds, host2.UUID, test.ToMDMAppleDecl(profNameToPayload["D2"]), automdm.MDMOperationTypeRemove, automdm.MDMDeliveryVerifying)
 	s.awaitTriggerProfileSchedule(t)
-	s.assertHostAppleConfigProfiles(map[*fleet.Host][]fleet.HostMDMAppleProfile{
+	s.assertHostAppleConfigProfiles(map[*automdm.Host][]automdm.HostMDMAppleProfile{
 		host1: {
-			{Identifier: mobileconfig.FleetdConfigPayloadIdentifier, OperationType: fleet.MDMOperationTypeInstall, Status: &fleet.MDMDeliveryPending},
-			{Identifier: mobileconfig.FleetCARootConfigPayloadIdentifier, OperationType: fleet.MDMOperationTypeInstall, Status: &fleet.MDMDeliveryPending},
+			{Identifier: mobileconfig.AutoMDMdConfigPayloadIdentifier, OperationType: automdm.MDMOperationTypeInstall, Status: &automdm.MDMDeliveryPending},
+			{Identifier: mobileconfig.AutoMDMCARootConfigPayloadIdentifier, OperationType: automdm.MDMOperationTypeInstall, Status: &automdm.MDMDeliveryPending},
 		},
 		host2: {
-			{Identifier: mobileconfig.FleetdConfigPayloadIdentifier, OperationType: fleet.MDMOperationTypeInstall, Status: &fleet.MDMDeliveryPending},
-			{Identifier: mobileconfig.FleetCARootConfigPayloadIdentifier, OperationType: fleet.MDMOperationTypeInstall, Status: &fleet.MDMDeliveryPending},
+			{Identifier: mobileconfig.AutoMDMdConfigPayloadIdentifier, OperationType: automdm.MDMOperationTypeInstall, Status: &automdm.MDMDeliveryPending},
+			{Identifier: mobileconfig.AutoMDMCARootConfigPayloadIdentifier, OperationType: automdm.MDMOperationTypeInstall, Status: &automdm.MDMDeliveryPending},
 		},
 	})
 	// Both Windows hosts still have the W2 remove+pending row from the
 	// earlier deletion -- no simulated device check-in has processed the
 	// <Delete> command yet.
-	s.assertHostWindowsConfigProfiles(map[*fleet.Host][]fleet.HostMDMWindowsProfile{
+	s.assertHostWindowsConfigProfiles(map[*automdm.Host][]automdm.HostMDMWindowsProfile{
 		host3: {
-			{Name: "W2", OperationType: fleet.MDMOperationTypeRemove, Status: &fleet.MDMDeliveryPending},
+			{Name: "W2", OperationType: automdm.MDMOperationTypeRemove, Status: &automdm.MDMDeliveryPending},
 		},
 		host4: {
-			{Name: "W2", OperationType: fleet.MDMOperationTypeRemove, Status: &fleet.MDMDeliveryPending},
+			{Name: "W2", OperationType: automdm.MDMOperationTypeRemove, Status: &automdm.MDMDeliveryPending},
 		},
 	})
 
@@ -241,13 +241,13 @@ func (s *integrationMDMTestSuite) TestDeleteMDMProfileCancelsInstalls() {
 		require.NoError(t, err)
 		for _, c := range cmds {
 			status := syncml.CmdStatusOK
-			device.AppendResponse(fleet.SyncMLCmd{
-				XMLName: xml.Name{Local: fleet.CmdStatus},
+			device.AppendResponse(automdm.SyncMLCmd{
+				XMLName: xml.Name{Local: automdm.CmdStatus},
 				MsgRef:  &msgID,
 				CmdRef:  &c.Cmd.CmdID.Value,
 				Cmd:     new(c.Verb),
 				Data:    &status,
-				CmdID:   fleet.CmdID{Value: uuid.NewString()},
+				CmdID:   automdm.CmdID{Value: uuid.NewString()},
 			})
 		}
 		_, err = device.SendResponse()
@@ -256,14 +256,14 @@ func (s *integrationMDMTestSuite) TestDeleteMDMProfileCancelsInstalls() {
 
 	// After the devices confirmed the <Delete>, the remove rows should be
 	// cleaned up (verified removes are deleted from host_mdm_windows_profiles).
-	s.assertHostWindowsConfigProfiles(map[*fleet.Host][]fleet.HostMDMWindowsProfile{
+	s.assertHostWindowsConfigProfiles(map[*automdm.Host][]automdm.HostMDMWindowsProfile{
 		host3: {},
 		host4: {},
 	})
 
 	// add new profile A3 and re-add A2, behaves as if a new profile because it has a new uuid
 	oldA2Contents := profiles[1].Contents
-	profiles = []fleet.MDMProfileBatchPayload{
+	profiles = []automdm.MDMProfileBatchPayload{
 		{
 			Name:     "A2",
 			Contents: oldA2Contents,
@@ -273,11 +273,11 @@ func (s *integrationMDMTestSuite) TestDeleteMDMProfileCancelsInstalls() {
 			Contents: mobileconfigForTest("A3", "A3"),
 		},
 	}
-	s.Do("POST", "/api/v1/fleet/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: profiles}, http.StatusNoContent)
+	s.Do("POST", "/api/v1/automdm/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: profiles}, http.StatusNoContent)
 
 	// list the profiles to get the UUIDs
-	s.DoJSON("GET", "/api/latest/fleet/configuration_profiles", nil, http.StatusOK, &listResp)
-	profNameToPayload = make(map[string]*fleet.MDMConfigProfilePayload)
+	s.DoJSON("GET", "/api/latest/automdm/configuration_profiles", nil, http.StatusOK, &listResp)
+	profNameToPayload = make(map[string]*automdm.MDMConfigProfilePayload)
 	for _, prof := range listResp.Profiles {
 		if len(prof.Checksum) == 0 {
 			// not important, but must not be empty or it causes issues when forcing a status
@@ -288,56 +288,56 @@ func (s *integrationMDMTestSuite) TestDeleteMDMProfileCancelsInstalls() {
 	}
 	s.awaitTriggerProfileSchedule(t)
 
-	s.assertHostAppleConfigProfiles(map[*fleet.Host][]fleet.HostMDMAppleProfile{
+	s.assertHostAppleConfigProfiles(map[*automdm.Host][]automdm.HostMDMAppleProfile{
 		host1: {
-			{Identifier: "A2", OperationType: fleet.MDMOperationTypeInstall, Status: &fleet.MDMDeliveryPending},
-			{Identifier: "A3", OperationType: fleet.MDMOperationTypeInstall, Status: &fleet.MDMDeliveryPending},
-			{Identifier: mobileconfig.FleetdConfigPayloadIdentifier, OperationType: fleet.MDMOperationTypeInstall, Status: &fleet.MDMDeliveryPending},
-			{Identifier: mobileconfig.FleetCARootConfigPayloadIdentifier, OperationType: fleet.MDMOperationTypeInstall, Status: &fleet.MDMDeliveryPending},
+			{Identifier: "A2", OperationType: automdm.MDMOperationTypeInstall, Status: &automdm.MDMDeliveryPending},
+			{Identifier: "A3", OperationType: automdm.MDMOperationTypeInstall, Status: &automdm.MDMDeliveryPending},
+			{Identifier: mobileconfig.AutoMDMdConfigPayloadIdentifier, OperationType: automdm.MDMOperationTypeInstall, Status: &automdm.MDMDeliveryPending},
+			{Identifier: mobileconfig.AutoMDMCARootConfigPayloadIdentifier, OperationType: automdm.MDMOperationTypeInstall, Status: &automdm.MDMDeliveryPending},
 		},
 		host2: {
-			{Identifier: "A2", OperationType: fleet.MDMOperationTypeInstall, Status: &fleet.MDMDeliveryPending},
-			{Identifier: "A3", OperationType: fleet.MDMOperationTypeInstall, Status: &fleet.MDMDeliveryPending},
-			{Identifier: mobileconfig.FleetdConfigPayloadIdentifier, OperationType: fleet.MDMOperationTypeInstall, Status: &fleet.MDMDeliveryPending},
-			{Identifier: mobileconfig.FleetCARootConfigPayloadIdentifier, OperationType: fleet.MDMOperationTypeInstall, Status: &fleet.MDMDeliveryPending},
+			{Identifier: "A2", OperationType: automdm.MDMOperationTypeInstall, Status: &automdm.MDMDeliveryPending},
+			{Identifier: "A3", OperationType: automdm.MDMOperationTypeInstall, Status: &automdm.MDMDeliveryPending},
+			{Identifier: mobileconfig.AutoMDMdConfigPayloadIdentifier, OperationType: automdm.MDMOperationTypeInstall, Status: &automdm.MDMDeliveryPending},
+			{Identifier: mobileconfig.AutoMDMCARootConfigPayloadIdentifier, OperationType: automdm.MDMOperationTypeInstall, Status: &automdm.MDMDeliveryPending},
 		},
 	})
 
 	// set A3 as failed on host1, and removed on host2
-	forceSetAppleHostProfileStatus(t, s.ds, host1.UUID, test.ToMDMAppleConfigProfile(profNameToPayload["A3"]), fleet.MDMOperationTypeInstall, fleet.MDMDeliveryFailed)
-	forceSetAppleHostProfileStatus(t, s.ds, host2.UUID, test.ToMDMAppleConfigProfile(profNameToPayload["A3"]), fleet.MDMOperationTypeRemove, fleet.MDMDeliveryFailed)
+	forceSetAppleHostProfileStatus(t, s.ds, host1.UUID, test.ToMDMAppleConfigProfile(profNameToPayload["A3"]), automdm.MDMOperationTypeInstall, automdm.MDMDeliveryFailed)
+	forceSetAppleHostProfileStatus(t, s.ds, host2.UUID, test.ToMDMAppleConfigProfile(profNameToPayload["A3"]), automdm.MDMOperationTypeRemove, automdm.MDMDeliveryFailed)
 
 	// delete the profile, will mark host1 as pending remove and will not touch host2 (not installed)
-	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/fleet/configuration_profiles/%s", profNameToPayload["A3"].ProfileUUID), nil, http.StatusOK, &deleteResp)
+	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/automdm/configuration_profiles/%s", profNameToPayload["A3"].ProfileUUID), nil, http.StatusOK, &deleteResp)
 
-	s.assertHostAppleConfigProfiles(map[*fleet.Host][]fleet.HostMDMAppleProfile{
+	s.assertHostAppleConfigProfiles(map[*automdm.Host][]automdm.HostMDMAppleProfile{
 		host1: {
-			{Identifier: "A2", OperationType: fleet.MDMOperationTypeInstall, Status: &fleet.MDMDeliveryPending},
-			{Identifier: "A3", OperationType: fleet.MDMOperationTypeRemove, Status: &fleet.MDMDeliveryPending},
-			{Identifier: mobileconfig.FleetdConfigPayloadIdentifier, OperationType: fleet.MDMOperationTypeInstall, Status: &fleet.MDMDeliveryPending},
-			{Identifier: mobileconfig.FleetCARootConfigPayloadIdentifier, OperationType: fleet.MDMOperationTypeInstall, Status: &fleet.MDMDeliveryPending},
+			{Identifier: "A2", OperationType: automdm.MDMOperationTypeInstall, Status: &automdm.MDMDeliveryPending},
+			{Identifier: "A3", OperationType: automdm.MDMOperationTypeRemove, Status: &automdm.MDMDeliveryPending},
+			{Identifier: mobileconfig.AutoMDMdConfigPayloadIdentifier, OperationType: automdm.MDMOperationTypeInstall, Status: &automdm.MDMDeliveryPending},
+			{Identifier: mobileconfig.AutoMDMCARootConfigPayloadIdentifier, OperationType: automdm.MDMOperationTypeInstall, Status: &automdm.MDMDeliveryPending},
 		},
 		host2: {
-			{Identifier: "A2", OperationType: fleet.MDMOperationTypeInstall, Status: &fleet.MDMDeliveryPending},
-			{Identifier: "A3", OperationType: fleet.MDMOperationTypeRemove, Status: &fleet.MDMDeliveryFailed},
-			{Identifier: mobileconfig.FleetdConfigPayloadIdentifier, OperationType: fleet.MDMOperationTypeInstall, Status: &fleet.MDMDeliveryPending},
-			{Identifier: mobileconfig.FleetCARootConfigPayloadIdentifier, OperationType: fleet.MDMOperationTypeInstall, Status: &fleet.MDMDeliveryPending},
+			{Identifier: "A2", OperationType: automdm.MDMOperationTypeInstall, Status: &automdm.MDMDeliveryPending},
+			{Identifier: "A3", OperationType: automdm.MDMOperationTypeRemove, Status: &automdm.MDMDeliveryFailed},
+			{Identifier: mobileconfig.AutoMDMdConfigPayloadIdentifier, OperationType: automdm.MDMOperationTypeInstall, Status: &automdm.MDMDeliveryPending},
+			{Identifier: mobileconfig.AutoMDMCARootConfigPayloadIdentifier, OperationType: automdm.MDMOperationTypeInstall, Status: &automdm.MDMDeliveryPending},
 		},
 	})
 
-	forceSetAppleHostProfileStatus(t, s.ds, host1.UUID, test.ToMDMAppleConfigProfile(profNameToPayload["A3"]), fleet.MDMOperationTypeRemove, fleet.MDMDeliveryVerifying)
+	forceSetAppleHostProfileStatus(t, s.ds, host1.UUID, test.ToMDMAppleConfigProfile(profNameToPayload["A3"]), automdm.MDMOperationTypeRemove, automdm.MDMDeliveryVerifying)
 	s.awaitTriggerProfileSchedule(t)
-	s.assertHostAppleConfigProfiles(map[*fleet.Host][]fleet.HostMDMAppleProfile{
+	s.assertHostAppleConfigProfiles(map[*automdm.Host][]automdm.HostMDMAppleProfile{
 		host1: {
-			{Identifier: "A2", OperationType: fleet.MDMOperationTypeInstall, Status: &fleet.MDMDeliveryPending},
-			{Identifier: mobileconfig.FleetdConfigPayloadIdentifier, OperationType: fleet.MDMOperationTypeInstall, Status: &fleet.MDMDeliveryPending},
-			{Identifier: mobileconfig.FleetCARootConfigPayloadIdentifier, OperationType: fleet.MDMOperationTypeInstall, Status: &fleet.MDMDeliveryPending},
+			{Identifier: "A2", OperationType: automdm.MDMOperationTypeInstall, Status: &automdm.MDMDeliveryPending},
+			{Identifier: mobileconfig.AutoMDMdConfigPayloadIdentifier, OperationType: automdm.MDMOperationTypeInstall, Status: &automdm.MDMDeliveryPending},
+			{Identifier: mobileconfig.AutoMDMCARootConfigPayloadIdentifier, OperationType: automdm.MDMOperationTypeInstall, Status: &automdm.MDMDeliveryPending},
 		},
 		host2: {
-			{Identifier: "A2", OperationType: fleet.MDMOperationTypeInstall, Status: &fleet.MDMDeliveryPending},
-			{Identifier: "A3", OperationType: fleet.MDMOperationTypeRemove, Status: &fleet.MDMDeliveryFailed},
-			{Identifier: mobileconfig.FleetdConfigPayloadIdentifier, OperationType: fleet.MDMOperationTypeInstall, Status: &fleet.MDMDeliveryPending},
-			{Identifier: mobileconfig.FleetCARootConfigPayloadIdentifier, OperationType: fleet.MDMOperationTypeInstall, Status: &fleet.MDMDeliveryPending},
+			{Identifier: "A2", OperationType: automdm.MDMOperationTypeInstall, Status: &automdm.MDMDeliveryPending},
+			{Identifier: "A3", OperationType: automdm.MDMOperationTypeRemove, Status: &automdm.MDMDeliveryFailed},
+			{Identifier: mobileconfig.AutoMDMdConfigPayloadIdentifier, OperationType: automdm.MDMOperationTypeInstall, Status: &automdm.MDMDeliveryPending},
+			{Identifier: mobileconfig.AutoMDMCARootConfigPayloadIdentifier, OperationType: automdm.MDMOperationTypeInstall, Status: &automdm.MDMDeliveryPending},
 		},
 	})
 }
@@ -352,15 +352,15 @@ func (s *integrationMDMTestSuite) TestAppleProfileResendRaceCondition() {
 	setupPusher(s, t, mdmDevice)
 
 	// Delete the key to let the reconciler pick up the profiles
-	err := s.keyValueStore.Delete(ctx, fleet.MDMProfileProcessingKeyPrefix+":"+host.UUID)
+	err := s.keyValueStore.Delete(ctx, automdm.MDMProfileProcessingKeyPrefix+":"+host.UUID)
 	require.NoError(t, err)
 
-	scimUserID, err := s.ds.CreateScimUser(ctx, &fleet.ScimUser{UserName: "user@example.com"})
+	scimUserID, err := s.ds.CreateScimUser(ctx, &automdm.ScimUser{UserName: "user@example.com"})
 	require.NoError(t, err)
 
 	// Assign scim user to host
 	hostIdStr := fmt.Sprint(host.ID)
-	s.Do("PUT", "/api/latest/fleet/hosts/"+hostIdStr+"/device_mapping", putHostDeviceMappingRequest{
+	s.Do("PUT", "/api/latest/automdm/hosts/"+hostIdStr+"/device_mapping", putHostDeviceMappingRequest{
 		Email:  "user@example.com",
 		Source: "idp",
 	}, http.StatusOK)
@@ -371,11 +371,11 @@ func (s *integrationMDMTestSuite) TestAppleProfileResendRaceCondition() {
 	// Replace the profile content to include an IDP variable
 	profileContent := string(profileWithIDPVar)
 	profileContent = strings.Replace(profileContent, "<key>ShowRecoveryKey</key>", "<key>TestVariable</key>", 1)
-	profileContent = strings.Replace(profileContent, "<false/>", "<string>$FLEET_VAR_HOST_END_USER_IDP_USERNAME</string>", 1)
+	profileContent = strings.Replace(profileContent, "<false/>", "<string>$AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME</string>", 1)
 	profileWithIDPVar = []byte(profileContent)
 
 	// Upload the profile using the new endpoint that supports variables
-	s.Do("POST", "/api/latest/fleet/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{
+	s.Do("POST", "/api/latest/automdm/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{
 		{Name: "TestProfile", Contents: profileWithIDPVar},
 	}}, http.StatusNoContent) // Setup SCIM user data for the host
 
@@ -418,7 +418,7 @@ func (s *integrationMDMTestSuite) TestAppleProfileResendRaceCondition() {
 	hostProfiles, err = s.ds.GetHostMDMAppleProfiles(ctx, host.UUID)
 	require.NoError(t, err)
 
-	var testProfile *fleet.HostMDMAppleProfile
+	var testProfile *automdm.HostMDMAppleProfile
 	for _, p := range hostProfiles {
 		if p.Identifier == "com.test.profile" {
 			testProfile = &p
@@ -426,13 +426,13 @@ func (s *integrationMDMTestSuite) TestAppleProfileResendRaceCondition() {
 		}
 	}
 	require.NotNil(t, testProfile)
-	require.Equal(t, fleet.MDMDeliveryPending, *testProfile.Status)
+	require.Equal(t, automdm.MDMDeliveryPending, *testProfile.Status)
 
 	// Now simulate the race condition:
 	// we trigger a resend before the acknowledgement comes back
 
 	// 1. Trigger an IDP variable change by updating SCIM user
-	_, err = s.ds.ReplaceScimUser(ctx, &fleet.ScimUser{ID: scimUserID, UserName: "newuser@example.com"})
+	_, err = s.ds.ReplaceScimUser(ctx, &automdm.ScimUser{ID: scimUserID, UserName: "newuser@example.com"})
 	require.NoError(t, err)
 
 	// 2. At this point, the profile should be marked for resend (status = NULL)
@@ -446,9 +446,9 @@ func (s *integrationMDMTestSuite) TestAppleProfileResendRaceCondition() {
 		}
 	}
 	require.NotNil(t, testProfile)
-	require.Equal(t, fleet.MDMDeliveryPending, *testProfile.Status) // Should be NULL (pending for the user)
+	require.Equal(t, automdm.MDMDeliveryPending, *testProfile.Status) // Should be NULL (pending for the user)
 	mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
-		var status *fleet.MDMDeliveryStatus
+		var status *automdm.MDMDeliveryStatus
 		err := sqlx.GetContext(t.Context(), q, &status, `SELECT status FROM host_mdm_apple_profiles WHERE profile_identifier = ?`, testProfile.Identifier)
 		require.Nil(t, status)
 		return err
@@ -495,9 +495,9 @@ func (s *integrationMDMTestSuite) TestAppleProfileResendRaceCondition() {
 		}
 	}
 	require.NotNil(t, testProfile)
-	require.Equal(t, fleet.MDMDeliveryPending, *testProfile.Status)
+	require.Equal(t, automdm.MDMDeliveryPending, *testProfile.Status)
 	mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
-		var status *fleet.MDMDeliveryStatus
+		var status *automdm.MDMDeliveryStatus
 		err := sqlx.GetContext(t.Context(), q, &status, `SELECT status FROM host_mdm_apple_profiles WHERE profile_identifier = ?`, testProfile.Identifier)
 		require.Nil(t, status)
 		return err
@@ -541,10 +541,10 @@ func (s *integrationMDMTestSuite) TestAppleProfileResendRaceCondition() {
 		}
 	}
 	require.NotNil(t, testProfile)
-	require.Equal(t, fleet.MDMDeliveryVerifying, *testProfile.Status)
+	require.Equal(t, automdm.MDMDeliveryVerifying, *testProfile.Status)
 
 	// Verify deleting the device mapping also triggers a resend
-	s.Do("PUT", "/api/latest/fleet/hosts/"+hostIdStr+"/device_mapping", putHostDeviceMappingRequest{
+	s.Do("PUT", "/api/latest/automdm/hosts/"+hostIdStr+"/device_mapping", putHostDeviceMappingRequest{
 		Email:  "",
 		Source: "idp",
 	}, http.StatusOK)
@@ -558,10 +558,10 @@ func (s *integrationMDMTestSuite) TestAppleProfileResendRaceCondition() {
 		}
 	}
 	require.NotNil(t, testProfile)
-	require.Equal(t, fleet.MDMDeliveryPending, *testProfile.Status) // Should be pending again due to device mapping deletion
+	require.Equal(t, automdm.MDMDeliveryPending, *testProfile.Status) // Should be pending again due to device mapping deletion
 
 	mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
-		var status *fleet.MDMDeliveryStatus
+		var status *automdm.MDMDeliveryStatus
 		err := sqlx.GetContext(t.Context(), q, &status, `SELECT status FROM host_mdm_apple_profiles WHERE host_uuid = ? AND profile_identifier = ?`, host.UUID, testProfile.Identifier)
 		require.Nil(t, status)
 		return err
@@ -586,7 +586,7 @@ func (s *integrationMDMTestSuite) TestAppleProfileResendRaceCondition() {
 		}
 		return payload
 	}
-	testProfileStatus := func() fleet.MDMDeliveryStatus {
+	testProfileStatus := func() automdm.MDMDeliveryStatus {
 		hostProfiles, err := s.ds.GetHostMDMAppleProfiles(ctx, host.UUID)
 		require.NoError(t, err)
 		for _, p := range hostProfiles {
@@ -601,21 +601,21 @@ func (s *integrationMDMTestSuite) TestAppleProfileResendRaceCondition() {
 
 	// the cleared username can't be resolved, so the profile fails
 	require.Empty(t, installedTestProfile())
-	require.Equal(t, fleet.MDMDeliveryFailed, testProfileStatus())
+	require.Equal(t, automdm.MDMDeliveryFailed, testProfileStatus())
 
 	// without a SCIM user, every new IdP username resends the profile with that value
 	for _, email := range []string{"manual.one@example.com", "manual.two@example.com"} {
-		s.Do("PUT", "/api/latest/fleet/hosts/"+hostIdStr+"/device_mapping", putHostDeviceMappingRequest{
+		s.Do("PUT", "/api/latest/automdm/hosts/"+hostIdStr+"/device_mapping", putHostDeviceMappingRequest{
 			Email:  email,
 			Source: "idp",
 		}, http.StatusOK)
-		require.Equal(t, fleet.MDMDeliveryPending, testProfileStatus())
+		require.Equal(t, automdm.MDMDeliveryPending, testProfileStatus())
 		require.Contains(t, installedTestProfile(), email)
-		require.Equal(t, fleet.MDMDeliveryVerifying, testProfileStatus())
+		require.Equal(t, automdm.MDMDeliveryVerifying, testProfileStatus())
 	}
 }
 
-// Moving a host between fleets that hold a byte-identical profile must keep the
+// Moving a host between teams that hold a byte-identical profile must keep the
 // pending install the host already has queued, whether the device hasn't
 // fetched it yet or answered NotNow.
 func (s *integrationMDMTestSuite) TestAppleProfileTransferKeepsPendingInstallForIdenticalProfile() {
@@ -625,13 +625,13 @@ func (s *integrationMDMTestSuite) TestAppleProfileTransferKeepsPendingInstallFor
 	const identifier = "com.example.transfer.shared"
 	shared := mobileconfigForTest("TransferShared", identifier)
 
-	teamA, err := s.ds.NewTeam(ctx, &fleet.Team{Name: t.Name() + "_A"})
+	teamA, err := s.ds.NewTeam(ctx, &automdm.Team{Name: t.Name() + "_A"})
 	require.NoError(t, err)
-	teamB, err := s.ds.NewTeam(ctx, &fleet.Team{Name: t.Name() + "_B"})
+	teamB, err := s.ds.NewTeam(ctx, &automdm.Team{Name: t.Name() + "_B"})
 	require.NoError(t, err)
-	for _, tm := range []*fleet.Team{teamA, teamB} {
-		s.Do("POST", "/api/v1/fleet/mdm/profiles/batch", appleProfilesBatchRequest([][]byte{shared}),
-			http.StatusNoContent, "fleet_id", fmt.Sprint(tm.ID))
+	for _, tm := range []*automdm.Team{teamA, teamB} {
+		s.Do("POST", "/api/v1/automdm/mdm/profiles/batch", appleProfilesBatchRequest([][]byte{shared}),
+			http.StatusNoContent, "team_id", fmt.Sprint(tm.ID))
 	}
 
 	profileUUIDForTeam := func(teamID uint) string {
@@ -644,9 +644,9 @@ func (s *integrationMDMTestSuite) TestAppleProfileTransferKeepsPendingInstallFor
 	}
 
 	type hostProfileRow struct {
-		ProfileUUID string                   `db:"profile_uuid"`
-		Status      *fleet.MDMDeliveryStatus `db:"status"`
-		CommandUUID string                   `db:"command_uuid"`
+		ProfileUUID string                     `db:"profile_uuid"`
+		Status      *automdm.MDMDeliveryStatus `db:"status"`
+		CommandUUID string                     `db:"command_uuid"`
 	}
 	getRow := func(hostUUID string) hostProfileRow {
 		var row hostProfileRow
@@ -665,8 +665,8 @@ func (s *integrationMDMTestSuite) TestAppleProfileTransferKeepsPendingInstallFor
 		})
 		return n > 0
 	}
-	transfer := func(h *fleet.Host, teamID uint) {
-		s.Do("POST", "/api/v1/fleet/hosts/transfer",
+	transfer := func(h *automdm.Host, teamID uint) {
+		s.Do("POST", "/api/v1/automdm/hosts/transfer",
 			addHostsToTeamRequest{TeamID: &teamID, HostIDs: []uint{h.ID}}, http.StatusOK)
 	}
 
@@ -692,9 +692,9 @@ func (s *integrationMDMTestSuite) TestAppleProfileTransferKeepsPendingInstallFor
 
 	offlineHost, offlineDevice := createHostThenEnrollMDM(s.ds, s.server.URL, t)
 	notNowHost, notNowDevice := createHostThenEnrollMDM(s.ds, s.server.URL, t)
-	for _, h := range []*fleet.Host{offlineHost, notNowHost} {
+	for _, h := range []*automdm.Host{offlineHost, notNowHost} {
 		transfer(h, teamA.ID)
-		require.NoError(t, s.keyValueStore.Delete(ctx, fleet.MDMProfileProcessingKeyPrefix+":"+h.UUID))
+		require.NoError(t, s.keyValueStore.Delete(ctx, automdm.MDMProfileProcessingKeyPrefix+":"+h.UUID))
 	}
 	s.awaitTriggerProfileSchedule(t)
 
@@ -702,11 +702,11 @@ func (s *integrationMDMTestSuite) TestAppleProfileTransferKeepsPendingInstallFor
 	require.NotEqual(t, profA, profB)
 
 	queuedCmds := make(map[string]string, 2)
-	for _, h := range []*fleet.Host{offlineHost, notNowHost} {
+	for _, h := range []*automdm.Host{offlineHost, notNowHost} {
 		row := getRow(h.UUID)
 		require.Equal(t, profA, row.ProfileUUID)
 		require.NotNil(t, row.Status)
-		require.Equal(t, fleet.MDMDeliveryPending, *row.Status)
+		require.Equal(t, automdm.MDMDeliveryPending, *row.Status)
 		require.NotEmpty(t, row.CommandUUID)
 		queuedCmds[h.UUID] = row.CommandUUID
 	}
@@ -714,14 +714,14 @@ func (s *integrationMDMTestSuite) TestAppleProfileTransferKeepsPendingInstallFor
 	// the offline host never checks in; the other fetches the install and defers it
 	require.True(t, drainCommands(notNowDevice, queuedCmds[notNowHost.UUID], queuedCmds[notNowHost.UUID]))
 
-	for _, h := range []*fleet.Host{offlineHost, notNowHost} {
+	for _, h := range []*automdm.Host{offlineHost, notNowHost} {
 		transfer(h, teamB.ID)
-		require.NoError(t, s.keyValueStore.Delete(ctx, fleet.MDMProfileProcessingKeyPrefix+":"+h.UUID))
+		require.NoError(t, s.keyValueStore.Delete(ctx, automdm.MDMProfileProcessingKeyPrefix+":"+h.UUID))
 	}
 	s.awaitTriggerProfileSchedule(t)
 
 	for _, tc := range []struct {
-		host   *fleet.Host
+		host   *automdm.Host
 		device *mdmtest.TestAppleMDMClient
 	}{
 		{offlineHost, offlineDevice},
@@ -731,20 +731,20 @@ func (s *integrationMDMTestSuite) TestAppleProfileTransferKeepsPendingInstallFor
 		row := getRow(tc.host.UUID)
 		require.Equal(t, profB, row.ProfileUUID, "host %s", tc.host.UUID)
 		require.NotNil(t, row.Status)
-		require.Equal(t, fleet.MDMDeliveryPending, *row.Status)
-		require.Equal(t, cmdUUID, row.CommandUUID, "the new fleet's row takes over the queued install")
+		require.Equal(t, automdm.MDMDeliveryPending, *row.Status)
+		require.Equal(t, cmdUUID, row.CommandUUID, "the new team's row takes over the queued install")
 		require.True(t, isQueued(tc.host.UUID, cmdUUID), "the taken-over install must still be queued for the device")
 
 		require.True(t, drainCommands(tc.device, cmdUUID, ""), "device must receive the queued install")
 		row = getRow(tc.host.UUID)
 		require.NotNil(t, row.Status)
-		require.Equal(t, fleet.MDMDeliveryVerifying, *row.Status)
+		require.Equal(t, automdm.MDMDeliveryVerifying, *row.Status)
 	}
 }
 
-// Moving a host between fleets that hold a byte-identical profile skips the
+// Moving a host between teams that hold a byte-identical profile skips the
 // reinstall, so the certificate that profile installed must stay tracked under the
-// new fleet's profile: renewal has to find it and the cleanup cron must keep it.
+// new team's profile: renewal has to find it and the cleanup cron must keep it.
 func (s *integrationMDMTestSuite) TestAppleProfileTransferKeepsManagedCertificateForIdenticalProfile() {
 	t := s.T()
 	ctx := t.Context()
@@ -752,20 +752,20 @@ func (s *integrationMDMTestSuite) TestAppleProfileTransferKeepsManagedCertificat
 	const identifier = "com.example.transfer.certificate"
 	shared := mobileconfigForTest("TransferCertificate", identifier)
 
-	teamA, err := s.ds.NewTeam(ctx, &fleet.Team{Name: t.Name() + "_A"})
+	teamA, err := s.ds.NewTeam(ctx, &automdm.Team{Name: t.Name() + "_A"})
 	require.NoError(t, err)
-	teamB, err := s.ds.NewTeam(ctx, &fleet.Team{Name: t.Name() + "_B"})
+	teamB, err := s.ds.NewTeam(ctx, &automdm.Team{Name: t.Name() + "_B"})
 	require.NoError(t, err)
-	for _, tm := range []*fleet.Team{teamA, teamB} {
-		s.Do("POST", "/api/v1/fleet/mdm/profiles/batch", appleProfilesBatchRequest([][]byte{shared}),
-			http.StatusNoContent, "fleet_id", fmt.Sprint(tm.ID))
+	for _, tm := range []*automdm.Team{teamA, teamB} {
+		s.Do("POST", "/api/v1/automdm/mdm/profiles/batch", appleProfilesBatchRequest([][]byte{shared}),
+			http.StatusNoContent, "team_id", fmt.Sprint(tm.ID))
 	}
 
 	type hostProfileRow struct {
-		ProfileUUID        string                   `db:"profile_uuid"`
-		Status             *fleet.MDMDeliveryStatus `db:"status"`
-		CommandUUID        string                   `db:"command_uuid"`
-		VariablesUpdatedAt *time.Time               `db:"variables_updated_at"`
+		ProfileUUID        string                     `db:"profile_uuid"`
+		Status             *automdm.MDMDeliveryStatus `db:"status"`
+		CommandUUID        string                     `db:"command_uuid"`
+		VariablesUpdatedAt *time.Time                 `db:"variables_updated_at"`
 	}
 	host, device := createHostThenEnrollMDM(s.ds, s.server.URL, t)
 	getRow := func() hostProfileRow {
@@ -778,9 +778,9 @@ func (s *integrationMDMTestSuite) TestAppleProfileTransferKeepsManagedCertificat
 		return row
 	}
 	transfer := func(teamID uint) {
-		s.Do("POST", "/api/v1/fleet/hosts/transfer",
+		s.Do("POST", "/api/v1/automdm/hosts/transfer",
 			addHostsToTeamRequest{TeamID: &teamID, HostIDs: []uint{host.ID}}, http.StatusOK)
-		require.NoError(t, s.keyValueStore.Delete(ctx, fleet.MDMProfileProcessingKeyPrefix+":"+host.UUID))
+		require.NoError(t, s.keyValueStore.Delete(ctx, automdm.MDMProfileProcessingKeyPrefix+":"+host.UUID))
 		s.awaitTriggerProfileSchedule(t)
 	}
 
@@ -793,13 +793,13 @@ func (s *integrationMDMTestSuite) TestAppleProfileTransferKeepsManagedCertificat
 	}
 	installed := getRow()
 	require.NotNil(t, installed.Status)
-	require.Equal(t, fleet.MDMDeliveryVerifying, *installed.Status)
+	require.Equal(t, automdm.MDMDeliveryVerifying, *installed.Status)
 
 	// the certificate the profile installed, due for renewal in 10 days
 	notValidBefore := time.Now().Add(-355 * 24 * time.Hour).UTC().Round(time.Microsecond)
 	notValidAfter := time.Now().Add(10 * 24 * time.Hour).UTC().Round(time.Microsecond)
-	require.NoError(t, s.ds.BulkUpsertMDMManagedCertificates(ctx, []*fleet.MDMManagedCertificate{{
-		HostUUID: host.UUID, ProfileUUID: installed.ProfileUUID, Type: fleet.CAConfigDigiCert, CAName: "digicert",
+	require.NoError(t, s.ds.BulkUpsertMDMManagedCertificates(ctx, []*automdm.MDMManagedCertificate{{
+		HostUUID: host.UUID, ProfileUUID: installed.ProfileUUID, Type: automdm.CAConfigDigiCert, CAName: "digicert",
 		NotValidBefore: &notValidBefore, NotValidAfter: &notValidAfter, Serial: new("01"),
 	}}))
 	variablesUpdatedAt := time.Now().Add(-time.Hour).UTC().Round(time.Microsecond)
@@ -860,9 +860,9 @@ func ackUntilThenNotNow(t *testing.T, device *mdmtest.TestAppleMDMClient, cmdUUI
 
 // labelGateHost creates a label, makes the host a member, and marks the host's labels
 // as reported so include-any gating evaluates it as a match.
-func (s *integrationMDMTestSuite) labelGateHost(t *testing.T, host *fleet.Host, name string) *fleet.Label {
+func (s *integrationMDMTestSuite) labelGateHost(t *testing.T, host *automdm.Host, name string) *automdm.Label {
 	ctx := t.Context()
-	label, err := s.ds.NewLabel(ctx, &fleet.Label{Name: name, Query: "select 1;"})
+	label, err := s.ds.NewLabel(ctx, &automdm.Label{Name: name, Query: "select 1;"})
 	require.NoError(t, err)
 	host.LabelUpdatedAt = time.Now()
 	require.NoError(t, s.ds.UpdateHost(ctx, host))
@@ -875,18 +875,18 @@ func (s *integrationMDMTestSuite) labelGateHost(t *testing.T, host *fleet.Host, 
 func (s *integrationMDMTestSuite) TestProfileReconcilerCancelsInstallationWhenNotNowResponseRecorded() {
 	t := s.T()
 	ctx := t.Context()
-	require.NoError(t, s.ds.ApplyEnrollSecrets(ctx, nil, []*fleet.EnrollSecret{{Secret: t.Name()}}))
+	require.NoError(t, s.ds.ApplyEnrollSecrets(ctx, nil, []*automdm.EnrollSecret{{Secret: t.Name()}}))
 	host, mdmDevice := s.enrollHostDrainInitialProfiles(t)
 	label := s.labelGateHost(t, host, t.Name()+"-lbl")
 
-	s.Do("POST", "/api/v1/fleet/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{
+	s.Do("POST", "/api/v1/automdm/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{
 		{Name: "P1", Contents: mobileconfigForTest("P1", "P1"), LabelsIncludeAny: []string{label.Name}},
 	}}, http.StatusNoContent)
 	s.awaitTriggerProfileSchedule(t)
 
 	// take P1's install command from its hmap row (Idle may deliver other
 	// re-enqueued profiles first), ack up to it and answer it with NotNow
-	ok, i := hostHasAppleProfileOp(t, s.ds, host.UUID, "P1", fleet.MDMOperationTypeInstall)
+	ok, i := hostHasAppleProfileOp(t, s.ds, host.UUID, "P1", automdm.MDMOperationTypeInstall)
 	require.True(t, ok)
 	require.NotEmpty(t, i)
 	ackUntilThenNotNow(t, mdmDevice, i)
@@ -900,11 +900,11 @@ func (s *integrationMDMTestSuite) TestProfileReconcilerCancelsInstallationWhenNo
 }
 
 // TestProfileUserScopedPendingInstallCancelled is a regression test where when label descoping a user-scoped profile, that is pending installation
-// ensures the install command is cancelled. To avoid NotNow'ing producing an incorrect order and could leave profiles that Fleet is no longer tracking on the device.
+// ensures the install command is cancelled. To avoid NotNow'ing producing an incorrect order and could leave profiles that AutoMDM is no longer tracking on the device.
 func (s *integrationMDMTestSuite) TestProfileUserScopedPendingInstallCancelled() {
 	t := s.T()
 	ctx := t.Context()
-	require.NoError(t, s.ds.ApplyEnrollSecrets(ctx, nil, []*fleet.EnrollSecret{{Secret: t.Name()}}))
+	require.NoError(t, s.ds.ApplyEnrollSecrets(ctx, nil, []*automdm.EnrollSecret{{Secret: t.Name()}}))
 	host, mdmDevice := s.enrollHostDrainInitialProfiles(t)
 	require.NoError(t, mdmDevice.UserEnroll())
 	userEnr, err := s.ds.GetNanoMDMUserEnrollment(ctx, host.UUID)
@@ -912,15 +912,15 @@ func (s *integrationMDMTestSuite) TestProfileUserScopedPendingInstallCancelled()
 	require.NotNil(t, userEnr)
 	label := s.labelGateHost(t, host, t.Name()+"-lbl")
 
-	scope := fleet.PayloadScopeUser
-	s.Do("POST", "/api/v1/fleet/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{
+	scope := automdm.PayloadScopeUser
+	s.Do("POST", "/api/v1/automdm/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{
 		{Name: "P2", Contents: scopedMobileconfigForTest("P2", "P2.user", &scope), LabelsIncludeAny: []string{label.Name}},
 	}}, http.StatusNoContent)
 	s.awaitTriggerProfileSchedule(t)
 
 	// take P2's install command from its hmap row (no device interaction needed;
 	// this is a pure keying bug)
-	ok, i := hostHasAppleProfileOp(t, s.ds, host.UUID, "P2.user", fleet.MDMOperationTypeInstall)
+	ok, i := hostHasAppleProfileOp(t, s.ds, host.UUID, "P2.user", automdm.MDMOperationTypeInstall)
 	require.True(t, ok)
 	require.NotEmpty(t, i)
 
@@ -943,11 +943,11 @@ func (s *integrationMDMTestSuite) TestProfileUserScopedPendingInstallCancelled()
 func (s *integrationMDMTestSuite) TestProfileFailedVerificationGetsRemove() {
 	t := s.T()
 	ctx := t.Context()
-	require.NoError(t, s.ds.ApplyEnrollSecrets(ctx, nil, []*fleet.EnrollSecret{{Secret: t.Name()}}))
+	require.NoError(t, s.ds.ApplyEnrollSecrets(ctx, nil, []*automdm.EnrollSecret{{Secret: t.Name()}}))
 	host, mdmDevice := s.enrollHostDrainInitialProfiles(t)
 	label := s.labelGateHost(t, host, t.Name()+"-lbl")
 
-	s.Do("POST", "/api/v1/fleet/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{
+	s.Do("POST", "/api/v1/automdm/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{
 		{Name: "P3", Contents: mobileconfigForTest("P3", "P3"), LabelsIncludeAny: []string{label.Name}},
 	}}, http.StatusNoContent)
 	s.awaitTriggerProfileSchedule(t)
@@ -967,7 +967,7 @@ func (s *integrationMDMTestSuite) TestProfileFailedVerificationGetsRemove() {
 	s.awaitTriggerProfileSchedule(t)
 
 	// desired: a RemoveProfile is enqueued to pull the profile off the device
-	ok, _ := hostHasAppleProfileOp(t, s.ds, host.UUID, "P3", fleet.MDMOperationTypeRemove)
+	ok, _ := hostHasAppleProfileOp(t, s.ds, host.UUID, "P3", automdm.MDMOperationTypeRemove)
 	require.True(t, ok, "failed install that left scope got no RemoveProfile; profile stranded on device")
 }
 
@@ -976,27 +976,27 @@ func (s *integrationMDMTestSuite) TestProfileFailedVerificationGetsRemove() {
 func (s *integrationMDMTestSuite) TestProfileEditLeaksOldInstallCommand() {
 	t := s.T()
 	ctx := t.Context()
-	require.NoError(t, s.ds.ApplyEnrollSecrets(ctx, nil, []*fleet.EnrollSecret{{Secret: t.Name()}}))
+	require.NoError(t, s.ds.ApplyEnrollSecrets(ctx, nil, []*automdm.EnrollSecret{{Secret: t.Name()}}))
 	host, mdmDevice := s.enrollHostDrainInitialProfiles(t)
 
-	s.Do("POST", "/api/v1/fleet/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{
+	s.Do("POST", "/api/v1/automdm/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{
 		{Name: "P5", Contents: mobileconfigForTest("P5", "P5")},
 	}}, http.StatusNoContent)
 	s.awaitTriggerProfileSchedule(t)
 
 	// take P5's install command from its hmap row (Idle may deliver other
 	// re-enqueued profiles first), ack up to it and answer it with NotNow
-	ok, iOld := hostHasAppleProfileOp(t, s.ds, host.UUID, "P5", fleet.MDMOperationTypeInstall)
+	ok, iOld := hostHasAppleProfileOp(t, s.ds, host.UUID, "P5", automdm.MDMOperationTypeInstall)
 	require.True(t, ok)
 	require.NotEmpty(t, iOld)
 	ackUntilThenNotNow(t, mdmDevice, iOld)
 
 	// edit P5's content (new random PayloadUUID -> new checksum), same name/identifier
-	s.Do("POST", "/api/v1/fleet/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{
+	s.Do("POST", "/api/v1/automdm/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{
 		{Name: "P5", Contents: mobileconfigForTest("P5", "P5")},
 	}}, http.StatusNoContent)
 	s.awaitTriggerProfileSchedule(t)
-	ok, iNew := hostHasAppleProfileOp(t, s.ds, host.UUID, "P5", fleet.MDMOperationTypeInstall)
+	ok, iNew := hostHasAppleProfileOp(t, s.ds, host.UUID, "P5", automdm.MDMOperationTypeInstall)
 	require.True(t, ok)
 	require.NotEmpty(t, iNew)
 
@@ -1014,26 +1014,26 @@ func (s *integrationMDMTestSuite) TestProfileEditLeaksOldInstallCommand() {
 func (s *integrationMDMTestSuite) TestProfileEditCancelsUndeliveredInstallCommand() {
 	t := s.T()
 	ctx := t.Context()
-	require.NoError(t, s.ds.ApplyEnrollSecrets(ctx, nil, []*fleet.EnrollSecret{{Secret: t.Name()}}))
+	require.NoError(t, s.ds.ApplyEnrollSecrets(ctx, nil, []*automdm.EnrollSecret{{Secret: t.Name()}}))
 	host, _ := s.enrollHostDrainInitialProfiles(t)
 
-	s.Do("POST", "/api/v1/fleet/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{
+	s.Do("POST", "/api/v1/automdm/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{
 		{Name: "P6", Contents: mobileconfigForTest("P6", "P6")},
 	}}, http.StatusNoContent)
 	s.awaitTriggerProfileSchedule(t)
 
 	// the install is queued but the device never checks in
-	ok, iOld := hostHasAppleProfileOp(t, s.ds, host.UUID, "P6", fleet.MDMOperationTypeInstall)
+	ok, iOld := hostHasAppleProfileOp(t, s.ds, host.UUID, "P6", automdm.MDMOperationTypeInstall)
 	require.True(t, ok)
 	require.NotEmpty(t, iOld)
 	require.Equal(t, 1, mdmActiveCmdCount(t, s.ds, iOld))
 
 	// edit P6's content (new random PayloadUUID -> new checksum), same name/identifier
-	s.Do("POST", "/api/v1/fleet/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{
+	s.Do("POST", "/api/v1/automdm/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{
 		{Name: "P6", Contents: mobileconfigForTest("P6", "P6")},
 	}}, http.StatusNoContent)
 	s.awaitTriggerProfileSchedule(t)
-	ok, iNew := hostHasAppleProfileOp(t, s.ds, host.UUID, "P6", fleet.MDMOperationTypeInstall)
+	ok, iNew := hostHasAppleProfileOp(t, s.ds, host.UUID, "P6", automdm.MDMOperationTypeInstall)
 	require.True(t, ok)
 	require.NotEmpty(t, iNew)
 	require.NotEqual(t, iOld, iNew)
@@ -1045,14 +1045,14 @@ func (s *integrationMDMTestSuite) TestProfileEditCancelsUndeliveredInstallComman
 
 // TestPolicyAutomationResendConfigurationProfile covers the policy automation that resends a
 // configuration profile when its policy starts failing on a host: the profile is queued for
-// redelivery, actually reaches the device, and the resend is recorded as a Fleet-initiated
+// redelivery, actually reaches the device, and the resend is recorded as an AutoMDM-initiated
 // activity naming the policy that triggered it. The activity is the only record of an automated
 // resend, so its payload is asserted in full.
 func (s *integrationMDMTestSuite) TestPolicyAutomationResendConfigurationProfile() {
 	t := s.T()
 	ctx := context.Background()
 
-	tm, err := s.ds.NewTeam(ctx, &fleet.Team{Name: t.Name()})
+	tm, err := s.ds.NewTeam(ctx, &automdm.Team{Name: t.Name()})
 	require.NoError(t, err)
 
 	host, mdmDevice := createHostThenEnrollMDM(s.ds, s.server.URL, t)
@@ -1072,18 +1072,18 @@ func (s *integrationMDMTestSuite) TestPolicyAutomationResendConfigurationProfile
 		_, err := q.ExecContext(ctx, stmt, mcUUID, tm.ID, profName, "identifier-"+mcUUID, prof, test.MakeTestBytes())
 		return err
 	})
-	require.NoError(t, s.ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&tm.ID, []uint{host.ID})))
+	require.NoError(t, s.ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&tm.ID, []uint{host.ID})))
 
 	syncProfiles := func() {
-		require.NoError(t, s.keyValueStore.Delete(ctx, fleet.MDMProfileProcessingKeyPrefix+":"+host.UUID))
+		require.NoError(t, s.keyValueStore.Delete(ctx, automdm.MDMProfileProcessingKeyPrefix+":"+host.UUID))
 		s.awaitTriggerProfileSchedule(t)
 	}
-	// Deliver the team's profiles, including this one. The payloads also cover the fleetd config
+	// Deliver the team's profiles, including this one. The payloads also cover the automdmd config
 	// and CA profiles swapped out by the team move, so they aren't asserted here.
 	syncProfiles()
 	checkNextPayloads(t, mdmDevice, false)
 
-	profileStatus := func() *fleet.MDMDeliveryStatus {
+	profileStatus := func() *automdm.MDMDeliveryStatus {
 		hostProfs, err := s.ds.GetHostMDMAppleProfiles(ctx, host.UUID)
 		require.NoError(t, err)
 		for _, p := range hostProfs {
@@ -1097,20 +1097,20 @@ func (s *integrationMDMTestSuite) TestPolicyAutomationResendConfigurationProfile
 
 	// Mark it verified: a host that has drifted from a verified profile is what the automation
 	// exists for. (A pending or verifying profile is deliberately left alone.)
-	setProfileStatus := func(status fleet.MDMDeliveryStatus) {
+	setProfileStatus := func(status automdm.MDMDeliveryStatus) {
 		mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
 			stmt := `UPDATE host_mdm_apple_profiles SET status = ? WHERE profile_uuid = ? AND host_uuid = ?`
 			_, err := q.ExecContext(ctx, stmt, status, mcUUID, host.UUID)
 			return err
 		})
 	}
-	setProfileStatus(fleet.MDMDeliveryVerified)
-	require.Equal(t, &fleet.MDMDeliveryVerified, profileStatus())
+	setProfileStatus(automdm.MDMDeliveryVerified)
+	require.Equal(t, &automdm.MDMDeliveryVerified, profileStatus())
 
 	// A policy that resends the profile when it fails, plus one with no profile attached, to
 	// confirm only the former triggers a resend.
-	newPolicy := func(name string, profileUUID *string) *fleet.Policy {
-		req := fleet.CreatePolicyRequest{
+	newPolicy := func(name string, profileUUID *string) *automdm.Policy {
+		req := automdm.CreatePolicyRequest{
 			TeamID:      &tm.ID,
 			Name:        name,
 			Query:       "SELECT 1;",
@@ -1118,10 +1118,10 @@ func (s *integrationMDMTestSuite) TestPolicyAutomationResendConfigurationProfile
 			ProfileUUID: profileUUID,
 		}
 		if profileUUID != nil {
-			req.AutomationType = new(fleet.PolicyAutomationConfigurationProfile)
+			req.AutomationType = new(automdm.PolicyAutomationConfigurationProfile)
 		}
-		var resp fleet.CreatePolicyResponse
-		s.DoJSON("POST", "/api/latest/fleet/policies", req, http.StatusOK, &resp)
+		var resp automdm.CreatePolicyResponse
+		s.DoJSON("POST", "/api/latest/automdm/policies", req, http.StatusOK, &resp)
 		require.NotNil(t, resp.Policy)
 		return resp.Policy
 	}
@@ -1138,21 +1138,21 @@ func (s *integrationMDMTestSuite) TestPolicyAutomationResendConfigurationProfile
 
 	// Both policies passing: nothing is resent, the profile stays verified.
 	reportPolicies(map[uint]*bool{resendPolicy.ID: new(true), plainPolicy.ID: new(true)})
-	require.Equal(t, &fleet.MDMDeliveryVerified, profileStatus())
+	require.Equal(t, &automdm.MDMDeliveryVerified, profileStatus())
 
 	// The policy with no profile failing: still nothing to resend.
 	reportPolicies(map[uint]*bool{resendPolicy.ID: new(true), plainPolicy.ID: new(false)})
-	require.Equal(t, &fleet.MDMDeliveryVerified, profileStatus())
+	require.Equal(t, &automdm.MDMDeliveryVerified, profileStatus())
 
 	// The resend policy fails: the profile is queued for redelivery. Its status is cleared to NULL
 	// in the DB, which the API reports as pending, and the resend is recorded.
 	reportPolicies(map[uint]*bool{resendPolicy.ID: new(false), plainPolicy.ID: new(true)})
-	require.Equal(t, &fleet.MDMDeliveryPending, profileStatus())
+	require.Equal(t, &automdm.MDMDeliveryPending, profileStatus())
 
 	// The activity names the host, the profile and the policy that triggered the resend, and is
-	// attributed to Fleet rather than to a user.
+	// attributed to AutoMDM rather than to a user.
 	s.lastActivityMatchesExtended(
-		fleet.ActivityTypeResentConfigurationProfile{}.ActivityName(),
+		automdm.ActivityTypeResentConfigurationProfile{}.ActivityName(),
 		fmt.Sprintf(`{"host_id": %d, "host_display_name": %q, "profile_name": %q, "profile_uuid": %q, "policy_id": %d, "policy_name": %q}`,
 			host.ID, host.DisplayName(), profName, mcUUID, resendPolicy.ID, resendPolicy.Name),
 		0,
@@ -1172,22 +1172,22 @@ func (s *integrationMDMTestSuite) TestPolicyAutomationResendConfigurationProfile
 	require.Len(t, installs, 1)
 	s.signedProfilesMatch([][]byte{prof}, installs)
 	require.Empty(t, removes)
-	require.Equal(t, &fleet.MDMDeliveryVerifying, profileStatus())
+	require.Equal(t, &automdm.MDMDeliveryVerifying, profileStatus())
 
 	// Even with the profile back to verified — so nothing else would block a resend — a policy
 	// that was already failing still doesn't trigger one.
-	setProfileStatus(fleet.MDMDeliveryVerified)
+	setProfileStatus(automdm.MDMDeliveryVerified)
 	reportPolicies(map[uint]*bool{resendPolicy.ID: new(false)})
 	require.Equal(t, lastActivityID, s.lastActivityMatches("", "", 0),
 		"a verified profile should not be resent for a policy that was already failing")
-	require.Equal(t, &fleet.MDMDeliveryVerified, profileStatus())
+	require.Equal(t, &automdm.MDMDeliveryVerified, profileStatus())
 
 	// Once the policy passes and fails again, the transition triggers another resend.
 	reportPolicies(map[uint]*bool{resendPolicy.ID: new(true)})
 	reportPolicies(map[uint]*bool{resendPolicy.ID: new(false)})
-	require.Equal(t, &fleet.MDMDeliveryPending, profileStatus())
+	require.Equal(t, &automdm.MDMDeliveryPending, profileStatus())
 	s.lastActivityMatchesExtended(
-		fleet.ActivityTypeResentConfigurationProfile{}.ActivityName(),
+		automdm.ActivityTypeResentConfigurationProfile{}.ActivityName(),
 		fmt.Sprintf(`{"host_id": %d, "host_display_name": %q, "profile_name": %q, "profile_uuid": %q, "policy_id": %d, "policy_name": %q}`,
 			host.ID, host.DisplayName(), profName, mcUUID, resendPolicy.ID, resendPolicy.Name),
 		0,
@@ -1197,7 +1197,7 @@ func (s *integrationMDMTestSuite) TestPolicyAutomationResendConfigurationProfile
 	// A Windows profile on a policy failing on this macOS host resends nothing and records no
 	// activity: the host has no row for that profile, so the resend is rejected rather than
 	// recorded as something that happened.
-	winProf, err := s.ds.NewMDMWindowsConfigProfile(ctx, fleet.MDMWindowsConfigProfile{
+	winProf, err := s.ds.NewMDMWindowsConfigProfile(ctx, automdm.MDMWindowsConfigProfile{
 		Name:   "win-" + uuid.NewString(),
 		SyncML: []byte("<Replace></Replace>"),
 		TeamID: &tm.ID,
@@ -1217,7 +1217,7 @@ func (s *integrationMDMTestSuite) TestDontIgnoreAnyProfileErrors() {
 
 	appConfig, err := s.ds.AppConfig(ctx)
 	require.NoError(t, err)
-	appConfig.MDM.MacOSSetup = fleet.MacOSSetup{
+	appConfig.MDM.MacOSSetup = automdm.MacOSSetup{
 		EnableEndUserAuthentication: false,
 	}
 	err = s.ds.SaveAppConfig(ctx, appConfig)
@@ -1228,7 +1228,7 @@ func (s *integrationMDMTestSuite) TestDontIgnoreAnyProfileErrors() {
 	s.awaitTriggerProfileSchedule(t)
 	s.awaitRunAppleMDMWorkerSchedule()
 
-	err = s.keyValueStore.Delete(ctx, fleet.MDMProfileProcessingKeyPrefix+":"+host.UUID)
+	err = s.keyValueStore.Delete(ctx, automdm.MDMProfileProcessingKeyPrefix+":"+host.UUID)
 	require.NoError(t, err)
 
 	globalProfiles := [][]byte{
@@ -1236,10 +1236,10 @@ func (s *integrationMDMTestSuite) TestDontIgnoreAnyProfileErrors() {
 		mobileconfigForTest("N2", "I2"),
 	}
 
-	s.Do("POST", "/api/v1/fleet/mdm/profiles/batch", appleProfilesBatchRequest(globalProfiles), http.StatusNoContent)
+	s.Do("POST", "/api/v1/automdm/mdm/profiles/batch", appleProfilesBatchRequest(globalProfiles), http.StatusNoContent)
 	s.awaitTriggerProfileSchedule(t)
 
-	// The profiles should be associated with the host we made + the standard fleet configs
+	// The profiles should be associated with the host we made + the standard team configs
 	profs, err := s.ds.GetHostMDMAppleProfiles(ctx, host.UUID)
 	require.NoError(t, err)
 	require.Len(t, profs, 4)
@@ -1252,23 +1252,23 @@ func (s *integrationMDMTestSuite) TestDontIgnoreAnyProfileErrors() {
 		require.NoError(t, err)
 	}
 
-	require.NoError(t, apple_mdm.VerifyHostMDMProfiles(context.Background(), s.ds, host, map[string]*fleet.HostMacOSProfile{
+	require.NoError(t, apple_mdm.VerifyHostMDMProfiles(context.Background(), s.ds, host, map[string]*automdm.HostMacOSProfile{
 		"I1": {Identifier: "I1", DisplayName: "I1", InstallDate: time.Now()},
 		"I2": {Identifier: "I2", DisplayName: "I2", InstallDate: time.Now()},
-		mobileconfig.FleetdConfigPayloadIdentifier:      {Identifier: mobileconfig.FleetdConfigPayloadIdentifier, DisplayName: "I2", InstallDate: time.Now()},
-		mobileconfig.FleetCARootConfigPayloadIdentifier: {Identifier: mobileconfig.FleetCARootConfigPayloadIdentifier, DisplayName: "I2", InstallDate: time.Now()},
+		mobileconfig.AutoMDMdConfigPayloadIdentifier:      {Identifier: mobileconfig.AutoMDMdConfigPayloadIdentifier, DisplayName: "I2", InstallDate: time.Now()},
+		mobileconfig.AutoMDMCARootConfigPayloadIdentifier: {Identifier: mobileconfig.AutoMDMCARootConfigPayloadIdentifier, DisplayName: "I2", InstallDate: time.Now()},
 	}))
 
 	// Check that the profile is marked as verified when fetching the host
 	getHostResp := getHostResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", host.ID), nil, http.StatusOK, &getHostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", host.ID), nil, http.StatusOK, &getHostResp)
 	require.NotNil(t, getHostResp.Host.MDM.Profiles)
 	for _, hm := range *getHostResp.Host.MDM.Profiles {
-		require.EqualValues(t, fleet.MDMDeliveryVerified, *hm.Status)
+		require.EqualValues(t, automdm.MDMDeliveryVerified, *hm.Status)
 	}
 
 	// remove the profiles
-	s.Do("POST", "/api/v1/fleet/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{}}, http.StatusNoContent)
+	s.Do("POST", "/api/v1/automdm/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{}}, http.StatusNoContent)
 	s.awaitTriggerProfileSchedule(t)
 
 	// On the host side, return errors for the two profile removal actions
@@ -1299,14 +1299,14 @@ func (s *integrationMDMTestSuite) TestDontIgnoreAnyProfileErrors() {
 		"N2": "Failed to remove: MDMClientError (96): Cannot replace profile 'I2' because it was not installed by the MDM server.\n",
 	}
 	getHostResp = getHostResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", host.ID), nil, http.StatusOK, &getHostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", host.ID), nil, http.StatusOK, &getHostResp)
 	for _, hm := range *getHostResp.Host.MDM.Profiles {
 		if wantErr, ok := expectedErrs[hm.Name]; ok {
-			require.EqualValues(t, fleet.MDMDeliveryFailed, *hm.Status)
+			require.EqualValues(t, automdm.MDMDeliveryFailed, *hm.Status)
 			require.Equal(t, wantErr, hm.Detail)
 			continue
 		}
-		require.EqualValues(t, fleet.MDMDeliveryVerified, *hm.Status)
+		require.EqualValues(t, automdm.MDMDeliveryVerified, *hm.Status)
 	}
 }
 
@@ -1314,17 +1314,17 @@ func (s *integrationMDMTestSuite) TestRemoveFailedProfiles() {
 	t := s.T()
 
 	teamName := t.Name()
-	team := &fleet.Team{
+	team := &automdm.Team{
 		Name:        teamName,
 		Description: "desc " + teamName,
 	}
 
 	var createTeamResp teamResponse
-	s.DoJSON("POST", "/api/latest/fleet/fleets", team, http.StatusOK, &createTeamResp)
+	s.DoJSON("POST", "/api/latest/automdm/teams", team, http.StatusOK, &createTeamResp)
 	require.NotZero(t, createTeamResp.Team.ID)
 	team.ID = createTeamResp.Team.ID
 
-	// Ensure fleet profiles
+	// Ensure automdm profiles
 	s.awaitTriggerProfileSchedule(t)
 
 	host, mdmDevice := createHostThenEnrollMDM(s.ds, s.server.URL, t)
@@ -1332,7 +1332,7 @@ func (s *integrationMDMTestSuite) TestRemoveFailedProfiles() {
 	ident := uuid.NewString()
 
 	// simulate TTL expiration
-	err := s.keyValueStore.Delete(context.Background(), fleet.MDMProfileProcessingKeyPrefix+":"+host.UUID)
+	err := s.keyValueStore.Delete(context.Background(), automdm.MDMProfileProcessingKeyPrefix+":"+host.UUID)
 	require.NoError(t, err)
 
 	mdmDeviceRespond := func(device *mdmtest.TestAppleMDMClient) {
@@ -1360,10 +1360,10 @@ func (s *integrationMDMTestSuite) TestRemoveFailedProfiles() {
 		mobileconfigForTest("N1", ident),
 		mobileconfigForTest("N2", "I2"),
 	}
-	s.Do("POST", "/api/v1/fleet/mdm/profiles/batch", appleProfilesBatchRequest(globalProfiles), http.StatusNoContent)
+	s.Do("POST", "/api/v1/automdm/mdm/profiles/batch", appleProfilesBatchRequest(globalProfiles), http.StatusNoContent)
 	s.awaitTriggerProfileSchedule(t)
 	mdmDeviceRespond(mdmDevice)
-	require.NoError(t, apple_mdm.VerifyHostMDMProfiles(context.Background(), s.ds, host, map[string]*fleet.HostMacOSProfile{
+	require.NoError(t, apple_mdm.VerifyHostMDMProfiles(context.Background(), s.ds, host, map[string]*automdm.HostMacOSProfile{
 		"I2": {Identifier: "I2", DisplayName: "I2", InstallDate: time.Now()},
 		"I1": {Identifier: "I1", DisplayName: "I1", InstallDate: time.Now()},
 	}))
@@ -1381,52 +1381,52 @@ func (s *integrationMDMTestSuite) TestRemoveFailedProfiles() {
 	mdmDeviceRespond(mdmDevice)
 
 	// Verify the non-failing profiles via osquery
-	require.NoError(t, apple_mdm.VerifyHostMDMProfiles(context.Background(), s.ds, host, map[string]*fleet.HostMacOSProfile{
+	require.NoError(t, apple_mdm.VerifyHostMDMProfiles(context.Background(), s.ds, host, map[string]*automdm.HostMacOSProfile{
 		"I2": {Identifier: "I2", DisplayName: "I2", InstallDate: time.Now()},
-		mobileconfig.FleetdConfigPayloadIdentifier:      {Identifier: mobileconfig.FleetdConfigPayloadIdentifier, DisplayName: "dn1", InstallDate: time.Now()},
-		mobileconfig.FleetCARootConfigPayloadIdentifier: {Identifier: mobileconfig.FleetCARootConfigPayloadIdentifier, DisplayName: "dn2", InstallDate: time.Now()},
+		mobileconfig.AutoMDMdConfigPayloadIdentifier:      {Identifier: mobileconfig.AutoMDMdConfigPayloadIdentifier, DisplayName: "dn1", InstallDate: time.Now()},
+		mobileconfig.AutoMDMCARootConfigPayloadIdentifier: {Identifier: mobileconfig.AutoMDMCARootConfigPayloadIdentifier, DisplayName: "dn2", InstallDate: time.Now()},
 	}))
 
 	// Check that the profile is marked as failed when fetching the host
 	getHostResp := getHostResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", host.ID), nil, http.StatusOK, &getHostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", host.ID), nil, http.StatusOK, &getHostResp)
 	require.NotNil(t, getHostResp.Host.MDM.Profiles)
 	require.Len(t, *getHostResp.Host.MDM.Profiles, 4)
 	for _, hm := range *getHostResp.Host.MDM.Profiles {
 		if hm.Name == "N1" {
-			require.EqualValues(t, fleet.MDMDeliveryFailed, *hm.Status)
+			require.EqualValues(t, automdm.MDMDeliveryFailed, *hm.Status)
 			continue
 		}
 
-		require.EqualValues(t, fleet.MDMDeliveryVerified, *hm.Status)
+		require.EqualValues(t, automdm.MDMDeliveryVerified, *hm.Status)
 	}
 
 	// transfer host to a team without the failed profile
 
-	s.DoJSON("POST", "/api/latest/fleet/hosts/transfer", addHostsToTeamRequest{TeamID: &team.ID, HostIDs: []uint{host.ID}}, http.StatusOK, &addHostsToTeamResponse{})
+	s.DoJSON("POST", "/api/latest/automdm/hosts/transfer", addHostsToTeamRequest{TeamID: &team.ID, HostIDs: []uint{host.ID}}, http.StatusOK, &addHostsToTeamResponse{})
 	s.awaitTriggerProfileSchedule(t)
 
 	// the failed install may have left an older version on the host, so a removal
 	// is sent and the profile stays listed as a pending removal until the device answers
 	getHostResp = getHostResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", host.ID), nil, http.StatusOK, &getHostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", host.ID), nil, http.StatusOK, &getHostResp)
 	require.NotNil(t, getHostResp.Host.MDM.Profiles)
-	var failedProf *fleet.HostMDMProfile
+	var failedProf *automdm.HostMDMProfile
 	for i, hm := range *getHostResp.Host.MDM.Profiles {
 		if hm.Name == "N1" {
 			failedProf = &(*getHostResp.Host.MDM.Profiles)[i]
 		}
 	}
 	require.NotNil(t, failedProf)
-	require.Equal(t, fleet.MDMOperationTypeRemove, failedProf.OperationType)
-	require.EqualValues(t, fleet.MDMDeliveryPending, *failedProf.Status)
+	require.Equal(t, automdm.MDMOperationTypeRemove, failedProf.OperationType)
+	require.EqualValues(t, automdm.MDMDeliveryPending, *failedProf.Status)
 
 	// confirm that we remove the failed profile once the device acknowledges the removal
 	mdmDeviceRespond(mdmDevice)
 	getHostResp = getHostResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", host.ID), nil, http.StatusOK, &getHostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", host.ID), nil, http.StatusOK, &getHostResp)
 	require.NotNil(t, getHostResp.Host.MDM.Profiles)
-	require.Len(t, *getHostResp.Host.MDM.Profiles, 2) // the fleet's fleetd and CA profiles
+	require.Len(t, *getHostResp.Host.MDM.Profiles, 2) // the team's automdmd and CA profiles
 	for _, hm := range *getHostResp.Host.MDM.Profiles {
 		require.NotEqual(t, "N1", hm.Name)
 	}
@@ -1434,40 +1434,40 @@ func (s *integrationMDMTestSuite) TestRemoveFailedProfiles() {
 	// Test case where the profile never makes it to the host at all
 	host, _ = createHostThenEnrollMDM(s.ds, s.server.URL, t)
 	ident = uuid.NewString()
-	err = s.keyValueStore.Delete(context.Background(), fleet.MDMProfileProcessingKeyPrefix+":"+host.UUID)
+	err = s.keyValueStore.Delete(context.Background(), automdm.MDMProfileProcessingKeyPrefix+":"+host.UUID)
 	require.NoError(t, err)
 
 	globalProfiles = [][]byte{
 		mobileconfigForTest("N3", ident),
 	}
-	s.Do("POST", "/api/v1/fleet/mdm/profiles/batch", appleProfilesBatchRequest(globalProfiles), http.StatusNoContent)
+	s.Do("POST", "/api/v1/automdm/mdm/profiles/batch", appleProfilesBatchRequest(globalProfiles), http.StatusNoContent)
 	s.awaitTriggerProfileSchedule(t)
 
 	getHostResp = getHostResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", host.ID), nil, http.StatusOK, &getHostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", host.ID), nil, http.StatusOK, &getHostResp)
 	require.NotNil(t, getHostResp.Host.MDM.Profiles)
 	require.Len(t, *getHostResp.Host.MDM.Profiles, 3)
 	var profUUID string
 	for _, hm := range *getHostResp.Host.MDM.Profiles {
-		require.EqualValues(t, fleet.MDMDeliveryPending, *hm.Status)
+		require.EqualValues(t, automdm.MDMDeliveryPending, *hm.Status)
 		if hm.Name == "N3" {
 			profUUID = hm.ProfileUUID
 		}
 	}
 
 	// delete the custom profile
-	s.Do("DELETE", fmt.Sprintf("/api/latest/fleet/configuration_profiles/%s", profUUID), nil, http.StatusOK)
+	s.Do("DELETE", fmt.Sprintf("/api/latest/automdm/configuration_profiles/%s", profUUID), nil, http.StatusOK)
 	s.awaitTriggerProfileSchedule(t)
 
 	getHostResp = getHostResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", host.ID), nil, http.StatusOK, &getHostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", host.ID), nil, http.StatusOK, &getHostResp)
 	require.NotNil(t, getHostResp.Host.MDM.Profiles)
-	// Since Fleet doesn't know for sure whether profile was installed or not, it sends a remove command just in case.
+	// Since AutoMDM doesn't know for sure whether profile was installed or not, it sends a remove command just in case.
 	require.Len(t, *getHostResp.Host.MDM.Profiles, 3)
 	for _, hm := range *getHostResp.Host.MDM.Profiles {
-		require.EqualValues(t, fleet.MDMDeliveryPending, *hm.Status)
+		require.EqualValues(t, automdm.MDMDeliveryPending, *hm.Status)
 		if hm.Name == "N3" {
-			assert.Equal(t, fleet.MDMOperationTypeRemove, hm.OperationType)
+			assert.Equal(t, automdm.MDMOperationTypeRemove, hm.OperationType)
 		}
 	}
 }

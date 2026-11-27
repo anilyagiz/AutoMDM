@@ -9,12 +9,12 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxdb"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
 	"github.com/elimity-com/scim"
 	scimerrors "github.com/elimity-com/scim/errors"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxdb"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
 	"github.com/scim2/filter-parser/v2"
 	"github.com/stretchr/testify/require"
 )
@@ -22,9 +22,9 @@ import (
 type groupTestMocks struct {
 	ds *mock.Store
 
-	patched  fleet.ScimGroupMemberDeltas
-	replaced *fleet.ScimGroup
-	created  *fleet.ScimGroup
+	patched  automdm.ScimGroupMemberDeltas
+	replaced *automdm.ScimGroup
+	created  *automdm.ScimGroup
 
 	// Every ID is treated as existing unless listed here.
 	unknownUsers  []uint
@@ -43,8 +43,8 @@ func existingExcept(ids, unknown []uint) map[uint]struct{} {
 
 func newGroupTestMocks(staleMembers, staleChildGroups []uint) *groupTestMocks {
 	m := &groupTestMocks{ds: new(mock.Store)}
-	m.ds.ScimGroupByIDFunc = func(ctx context.Context, id uint, excludeUsers bool) (*fleet.ScimGroup, error) {
-		return &fleet.ScimGroup{
+	m.ds.ScimGroupByIDFunc = func(ctx context.Context, id uint, excludeUsers bool) (*automdm.ScimGroup, error) {
+		return &automdm.ScimGroup{
 			ID:          id,
 			DisplayName: "Engineering",
 			ScimUsers:   append([]uint{}, staleMembers...),
@@ -57,18 +57,18 @@ func newGroupTestMocks(staleMembers, staleChildGroups []uint) *groupTestMocks {
 	m.ds.ExistingScimGroupIDsFunc = func(ctx context.Context, ids []uint) (map[uint]struct{}, error) {
 		return existingExcept(ids, m.unknownGroups), nil
 	}
-	m.ds.ScimGroupByDisplayNameFunc = func(ctx context.Context, displayName string) (*fleet.ScimGroup, error) {
+	m.ds.ScimGroupByDisplayNameFunc = func(ctx context.Context, displayName string) (*automdm.ScimGroup, error) {
 		return nil, common_mysql.NotFound("ScimGroup")
 	}
-	m.ds.CreateScimGroupFunc = func(ctx context.Context, group *fleet.ScimGroup) (uint, error) {
+	m.ds.CreateScimGroupFunc = func(ctx context.Context, group *automdm.ScimGroup) (uint, error) {
 		m.created = group
 		return 1, nil
 	}
-	m.ds.ApplyScimGroupPatchFunc = func(ctx context.Context, group *fleet.ScimGroup, deltas fleet.ScimGroupMemberDeltas) error {
+	m.ds.ApplyScimGroupPatchFunc = func(ctx context.Context, group *automdm.ScimGroup, deltas automdm.ScimGroupMemberDeltas) error {
 		m.patched = deltas
 		return nil
 	}
-	m.ds.ReplaceScimGroupFunc = func(ctx context.Context, group *fleet.ScimGroup) error {
+	m.ds.ReplaceScimGroupFunc = func(ctx context.Context, group *automdm.ScimGroup) error {
 		m.replaced = group
 		return nil
 	}
@@ -81,7 +81,7 @@ func (m *groupTestMocks) newTestHandler() *GroupHandler {
 
 // requireDeltas requires that the patch was written as targeted deltas matching
 // want, and not as a full membership rewrite.
-func requireDeltas(t *testing.T, mocks *groupTestMocks, want fleet.ScimGroupMemberDeltas) {
+func requireDeltas(t *testing.T, mocks *groupTestMocks, want automdm.ScimGroupMemberDeltas) {
 	t.Helper()
 	require.True(t, mocks.ds.ApplyScimGroupPatchFuncInvoked, "patch should be applied as deltas")
 	require.False(t, mocks.ds.ReplaceScimGroupFuncInvoked, "patch must not rewrite the whole membership")
@@ -130,21 +130,21 @@ func TestGroupPatchMemberDeltas(t *testing.T) {
 		mocks := newGroupTestMocks([]uint{1}, nil)
 		patch(t, mocks, patchOp(t, scim.PatchOperationAdd, membersAttr, memberValues("4")))
 
-		requireDeltas(t, mocks, fleet.ScimGroupMemberDeltas{AddUsers: []uint{4}})
+		requireDeltas(t, mocks, automdm.ScimGroupMemberDeltas{AddUsers: []uint{4}})
 	})
 
 	t.Run("add without a path records the added members only", func(t *testing.T) {
 		mocks := newGroupTestMocks([]uint{1}, nil)
 		patch(t, mocks, patchOp(t, scim.PatchOperationAdd, "", map[string]any{membersAttr: memberValues("4", "group-7")}))
 
-		requireDeltas(t, mocks, fleet.ScimGroupMemberDeltas{AddUsers: []uint{4}, AddChildGroups: []uint{7}})
+		requireDeltas(t, mocks, automdm.ScimGroupMemberDeltas{AddUsers: []uint{4}, AddChildGroups: []uint{7}})
 	})
 
 	t.Run("displayName-only patch leaves membership untouched", func(t *testing.T) {
 		mocks := newGroupTestMocks([]uint{1, 2}, []uint{7})
 		patch(t, mocks, patchOp(t, scim.PatchOperationReplace, displayNameAttr, "Engineering EMEA"))
 
-		requireDeltas(t, mocks, fleet.ScimGroupMemberDeltas{})
+		requireDeltas(t, mocks, automdm.ScimGroupMemberDeltas{})
 	})
 
 	t.Run("filtered remove records a targeted removal", func(t *testing.T) {
@@ -154,7 +154,7 @@ func TestGroupPatchMemberDeltas(t *testing.T) {
 			patchOp(t, scim.PatchOperationRemove, `members[value eq "group-7"]`, nil),
 		)
 
-		requireDeltas(t, mocks, fleet.ScimGroupMemberDeltas{RemoveUsers: []uint{2}, RemoveChildGroups: []uint{7}})
+		requireDeltas(t, mocks, automdm.ScimGroupMemberDeltas{RemoveUsers: []uint{2}, RemoveChildGroups: []uint{7}})
 	})
 
 	t.Run("filtered remove of a member missing from the read still removes it", func(t *testing.T) {
@@ -162,14 +162,14 @@ func TestGroupPatchMemberDeltas(t *testing.T) {
 		mocks := newGroupTestMocks([]uint{1}, nil)
 		patch(t, mocks, patchOp(t, scim.PatchOperationRemove, `members[value eq "2"]`, nil))
 
-		requireDeltas(t, mocks, fleet.ScimGroupMemberDeltas{RemoveUsers: []uint{2}})
+		requireDeltas(t, mocks, automdm.ScimGroupMemberDeltas{RemoveUsers: []uint{2}})
 	})
 
 	t.Run("filtered replace with a nil value records a removal", func(t *testing.T) {
 		mocks := newGroupTestMocks([]uint{1, 2}, nil)
 		patch(t, mocks, patchOp(t, scim.PatchOperationReplace, `members[value eq "2"]`, nil))
 
-		requireDeltas(t, mocks, fleet.ScimGroupMemberDeltas{RemoveUsers: []uint{2}})
+		requireDeltas(t, mocks, automdm.ScimGroupMemberDeltas{RemoveUsers: []uint{2}})
 	})
 
 	t.Run("add then remove of the same member folds to a single removal", func(t *testing.T) {
@@ -179,7 +179,7 @@ func TestGroupPatchMemberDeltas(t *testing.T) {
 			patchOp(t, scim.PatchOperationRemove, `members[value eq "4"]`, nil),
 		)
 
-		requireDeltas(t, mocks, fleet.ScimGroupMemberDeltas{RemoveUsers: []uint{4}})
+		requireDeltas(t, mocks, automdm.ScimGroupMemberDeltas{RemoveUsers: []uint{4}})
 	})
 
 	t.Run("remove then add of the same member folds to a single add", func(t *testing.T) {
@@ -189,7 +189,7 @@ func TestGroupPatchMemberDeltas(t *testing.T) {
 			patchOp(t, scim.PatchOperationAdd, `members[value eq "4"]`, nil),
 		)
 
-		requireDeltas(t, mocks, fleet.ScimGroupMemberDeltas{AddUsers: []uint{4}})
+		requireDeltas(t, mocks, automdm.ScimGroupMemberDeltas{AddUsers: []uint{4}})
 	})
 
 	t.Run("unfiltered replace writes the full membership state", func(t *testing.T) {
@@ -214,7 +214,7 @@ func TestGroupPatchMemberDeltas(t *testing.T) {
 		mocks := newGroupTestMocks([]uint{1, 4}, []uint{7, 8})
 		patch(t, mocks, patchOp(t, scim.PatchOperationRemove, membersAttr, memberValues("4", "group-7")))
 
-		requireDeltas(t, mocks, fleet.ScimGroupMemberDeltas{RemoveUsers: []uint{4}, RemoveChildGroups: []uint{7}})
+		requireDeltas(t, mocks, automdm.ScimGroupMemberDeltas{RemoveUsers: []uint{4}, RemoveChildGroups: []uint{7}})
 	})
 
 	t.Run("unfiltered remove with an empty value is a no-op, not a remove-all", func(t *testing.T) {
@@ -222,7 +222,7 @@ func TestGroupPatchMemberDeltas(t *testing.T) {
 		mocks := newGroupTestMocks([]uint{1, 2}, []uint{7})
 		patch(t, mocks, patchOp(t, scim.PatchOperationRemove, membersAttr, []any{}))
 
-		requireDeltas(t, mocks, fleet.ScimGroupMemberDeltas{})
+		requireDeltas(t, mocks, automdm.ScimGroupMemberDeltas{})
 	})
 
 	t.Run("an add after a replace still writes the full membership state", func(t *testing.T) {
@@ -241,9 +241,9 @@ func TestGroupPatchMemberDeltas(t *testing.T) {
 	t.Run("the group read a patch depends on goes to the primary", func(t *testing.T) {
 		mocks := newGroupTestMocks([]uint{1}, nil)
 		var groupReadPrimary bool
-		mocks.ds.ScimGroupByIDFunc = func(ctx context.Context, id uint, excludeUsers bool) (*fleet.ScimGroup, error) {
+		mocks.ds.ScimGroupByIDFunc = func(ctx context.Context, id uint, excludeUsers bool) (*automdm.ScimGroup, error) {
 			groupReadPrimary = ctxdb.IsPrimaryRequired(ctx)
-			return &fleet.ScimGroup{ID: id, DisplayName: "Engineering", ScimUsers: []uint{1}}, nil
+			return &automdm.ScimGroup{ID: id, DisplayName: "Engineering", ScimUsers: []uint{1}}, nil
 		}
 
 		patch(t, mocks, patchOp(t, scim.PatchOperationAdd, membersAttr, memberValues("4")))
@@ -308,7 +308,7 @@ func TestGroupUnknownMembers(t *testing.T) {
 		res, err := patch(t, mocks, patchOp(t, scim.PatchOperationAdd, membersAttr, memberValues("4", "999")))
 		require.NoError(t, err)
 
-		requireDeltas(t, mocks, fleet.ScimGroupMemberDeltas{AddUsers: []uint{4}})
+		requireDeltas(t, mocks, automdm.ScimGroupMemberDeltas{AddUsers: []uint{4}})
 		require.ElementsMatch(t, []string{"1", "4"}, responseMemberValues(t, res))
 	})
 
@@ -318,7 +318,7 @@ func TestGroupUnknownMembers(t *testing.T) {
 		res, err := patch(t, mocks, patchOp(t, scim.PatchOperationAdd, membersAttr, memberValues("4", "group-77")))
 		require.NoError(t, err)
 
-		requireDeltas(t, mocks, fleet.ScimGroupMemberDeltas{AddUsers: []uint{4}})
+		requireDeltas(t, mocks, automdm.ScimGroupMemberDeltas{AddUsers: []uint{4}})
 		require.ElementsMatch(t, []string{"4"}, responseMemberValues(t, res))
 	})
 
@@ -331,7 +331,7 @@ func TestGroupUnknownMembers(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		requireDeltas(t, mocks, fleet.ScimGroupMemberDeltas{RemoveUsers: []uint{2}})
+		requireDeltas(t, mocks, automdm.ScimGroupMemberDeltas{RemoveUsers: []uint{2}})
 		require.ElementsMatch(t, []string{"1"}, responseMemberValues(t, res))
 	})
 

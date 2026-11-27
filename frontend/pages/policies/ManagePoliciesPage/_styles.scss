@@ -43,16 +43,16 @@
   &__title {
     font-size: $large;
 
-    .fleeticon {
-      color: $core-fleet-blue;
+    .automdmicon {
+      color: $core-automdm-blue;
       margin-right: 15px;
     }
 
-    .fleeticon-success-check {
+    .automdmicon-success-check {
       color: $ui-success;
     }
 
-    .fleeticon-offline {
+    .automdmicon-offline {
       color: $ui-error;
     }
   }
@@ -67,7 +67,7 @@
     transition: color 150ms ease-in-out, background 150ms ease-in-out,
       top 50ms ease-in-out, box-shadow 50ms ease-in-out, border 50ms ease-in-out;
     position: relative;
-    color: $core-fleet-white;
+    color: $core-automdm-white;
     text-decoration: none;
     flex-direction: row;
     justify-content: center;
@@ -85,9 +85,9 @@
     cursor: pointer;
 
     @include button-variant(
-      $ui-fleet-black-75,
-      $ui-fleet-black-75-over,
-      $ui-fleet-black-75-down
+      $ui-automdm-black-75,
+      $ui-automdm-black-75-over,
+      $ui-automdm-black-75-down
     );
   }
 
@@ -98,7 +98,7 @@
     margin-top: -20px;
 
     .help-text {
-      color: $core-fleet-black;
+      color: $core-automdm-black;
 
       &--brand {
         color: $core-vibrant-blue;
@@ -112,7 +112,7 @@
 
   &__inherited-policies-table {
     th {
-      border-right: 1px solid $ui-fleet-black-10 !important;
+      border-right: 1px solid $ui-automdm-black-10 !important;
     }
 
     .table-container__header {

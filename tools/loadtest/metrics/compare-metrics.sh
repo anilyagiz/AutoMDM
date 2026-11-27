@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# compare-metrics.sh - Compare metrics across Fleet load test runs to detect regressions.
+# compare-metrics.sh - Compare metrics across AutoMDM load test runs to detect regressions.
 #
 # Usage:
 #   ./compare-metrics.sh [options]
@@ -198,11 +198,11 @@ echo ""
 #                     read IOPS going 1.2 → 5.1 is +197% but meaningless on an
 #                     instance rated for 15000+). Empty = always grade.
 # ---------------------------------------------------------------------------
-FLEET_DEFS=(
-  ".fleet_server.cpu_utilization.Average|Fleet CPU|%|10|30|false|lt|80||5"
-  ".fleet_server.cpu_utilization.Maximum|Fleet CPU (max)|%|20|40|false||||5"
-  ".fleet_server.memory_utilization.Average|Fleet Memory|%|15|30|false|lt|80||5"
-  ".fleet_server.task_counts.runningCount|Fleet Containers||0|0|false||||"
+AUTOMDM_DEFS=(
+  ".automdm_server.cpu_utilization.Average|AutoMDM CPU|%|10|30|false|lt|80||5"
+  ".automdm_server.cpu_utilization.Maximum|AutoMDM CPU (max)|%|20|40|false||||5"
+  ".automdm_server.memory_utilization.Average|AutoMDM Memory|%|15|30|false|lt|80||5"
+  ".automdm_server.task_counts.runningCount|AutoMDM Containers||0|0|false||||"
 )
 
 # Loadtest containers — context for everything else: server-side numbers only
@@ -228,12 +228,12 @@ REDIS_DEFS=(
   ".redis[0].memory_utilization.Average|Redis Memory|%|15|30|false|lt|70||5"
 )
 
-# Fleet server container network traffic (Container Insights). Average is
+# AutoMDM server container network traffic (Container Insights). Average is
 # bytes/sec, so runs with different intervals stay comparable (Sum scales with
 # the window). A TX jump at the same load usually means a response payload grew.
 NETWORK_DEFS=(
-  ".network.network_rx_bytes.Average|Fleet Network RX|bytes/s|50|100|false||"
-  ".network.network_tx_bytes.Average|Fleet Network TX|bytes/s|50|100|false||"
+  ".network.network_rx_bytes.Average|AutoMDM Network RX|bytes/s|50|100|false||"
+  ".network.network_tx_bytes.Average|AutoMDM Network TX|bytes/s|50|100|false||"
 )
 
 # apple-apns-mock (MDM runs only). Absent from non-MDM runs; compare_metric_set
@@ -286,7 +286,7 @@ RDS_WRITER_EXT_DEFS=(
   ".rds_writer_extended.buffer_cache_hit_ratio.Average|RDS Cache Hit Ratio|%|1|3|false||||0.5"
   ".rds_writer_extended.freeable_memory.Average|RDS Freeable Memory|bytes|15|30|false||||1073741824"
   ".rds_writer_extended.select_latency.Average|RDS Select Latency|ms|50|100|false||||2"
-  # Fleet's write path (host check-ins, inventory) — historically ≤10% noise,
+  # AutoMDM's write path (host check-ins, inventory) — historically ≤10% noise,
   # so graded tighter than SELECT latency, which swings much more run-to-run.
   ".rds_writer_extended.insert_latency.Average|RDS Insert Latency|ms|25|50|false||||2"
   ".rds_writer_extended.dml_latency.Average|RDS DML Latency|ms|25|50|false||||2"
@@ -310,10 +310,10 @@ REDIS_EXT_DEFS=(
 
 # Other
 OTHER_DEFS=(
-  ".fleet_server_errors.error_count|Fleet Errors/h||0|0|true|eq|0|rate|"
+  ".automdm_server_errors.error_count|AutoMDM Errors/h||0|0|true|eq|0|rate|"
   ".apns_mock_errors.error_count|apns-mock Errors||0|0|true|eq|0||"
   ".container_health.abnormal_stops|Container Stops||0|0|true|eq|0||"
-  ".container_health.fleet_abnormal_stops|Fleet Container Stops||0|0|true|eq|0||"
+  ".container_health.automdm_abnormal_stops|AutoMDM Container Stops||0|0|true|eq|0||"
   ".container_health.failed_health_checks|Failed Health Checks||0|0|true|eq|0||"
   ".container_health.unable_to_place|Placement Failures||0|0|true|eq|0||"
 )
@@ -630,8 +630,8 @@ separator=""
 for (( i=0; i < ${#header}; i++ )); do separator+="-"; done
 echo "$separator"
 
-compare_metric_set "Fleet Server" "${FLEET_DEFS[@]}"
-compare_metric_set "Fleet Server Network" "${NETWORK_DEFS[@]}"
+compare_metric_set "AutoMDM Server" "${AUTOMDM_DEFS[@]}"
+compare_metric_set "AutoMDM Server Network" "${NETWORK_DEFS[@]}"
 compare_metric_set "Loadtest Containers" "${LOADTEST_DEFS[@]}"
 compare_metric_set "RDS Writer" "${RDS_WRITER_DEFS[@]}"
 compare_metric_set "Redis" "${REDIS_DEFS[@]}"

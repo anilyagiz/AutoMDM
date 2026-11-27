@@ -5,7 +5,7 @@ windows_settings:
   configuration_profiles:
     - path: ./lib/windows-screenlock.xml
 scripts:
-  - path: ./lib/collect-fleetd-logs.sh
+  - path: ./lib/collect-automdmd-logs.sh
 enable_disk_encryption: true
 macos_migration:
   enable: false

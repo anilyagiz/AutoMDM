@@ -58,7 +58,7 @@
 }
 {{- end }}
 
-{{ define "fleet_detail_query_network_interface_windows" -}}
+{{ define "team_detail_query_network_interface_windows" -}}
 [
   {
     "address":"fe80::8cb:112d:ff51:1e5d%en0",
@@ -66,7 +66,7 @@
   }
 ]
 {{- end }}
-{{ define "fleet_detail_query_os_version" -}}
+{{ define "team_detail_query_os_version" -}}
 [
   {
     "name":"Microsoft Windows 11 Enterprise",
@@ -83,7 +83,7 @@
   }
 ]
 {{- end }}
-{{ define "fleet_detail_query_os_version_windows" -}}
+{{ define "team_detail_query_os_version_windows" -}}
 [
   {
     "name":"Microsoft Windows 11 Enterprise",
@@ -92,7 +92,7 @@
   }
 ]
 {{- end }}
-{{ define "fleet_detail_query_os_windows" -}}
+{{ define "team_detail_query_os_windows" -}}
 [
   {
     "name":"Microsoft Windows 11 Enterprise",
@@ -104,7 +104,7 @@
   }
 ]
 {{- end }}
-{{ define "fleet_detail_query_osquery_flags" -}}
+{{ define "team_detail_query_osquery_flags" -}}
 [
   {
     "name":"config_refresh",
@@ -120,7 +120,7 @@
   }
 ]
 {{- end }}
-{{ define "fleet_detail_query_osquery_info" -}}
+{{ define "team_detail_query_osquery_info" -}}
 [
   {
     "build_distro": "10",
@@ -139,7 +139,7 @@
   }
 ]
 {{- end }}
-{{ define "fleet_detail_query_system_info" -}}
+{{ define "team_detail_query_system_info" -}}
 [
   {
     "hostname":"{{ .CachedString "hostname" }}",
@@ -159,7 +159,7 @@
   }
 ]
 {{- end }}
-{{ define "fleet_detail_query_uptime" -}}
+{{ define "team_detail_query_uptime" -}}
 [
   {
     "days":"0",
@@ -171,7 +171,7 @@
 ]
 {{- end }}
 
-{{ define "fleet_detail_query_timezone_windows" -}}
+{{ define "team_detail_query_timezone_windows" -}}
 [
   {
     "data":"Eastern Standard Time"
@@ -180,7 +180,7 @@
 {{- end }}
 
 {{/* all hosts */}}
-{{ define "fleet_label_query_6" -}}
+{{ define "automdm_label_query_6" -}}
 [
   {
     "1": "1"
@@ -189,22 +189,22 @@
 {{- end }}
 
 {{/* All macOS hosts */}}
-{{ define "fleet_label_query_7" -}}
+{{ define "automdm_label_query_7" -}}
 []
 {{- end }}
 
 {{/* All Ubuntu hosts */}}
-{{ define "fleet_label_query_8" -}}
+{{ define "automdm_label_query_8" -}}
 []
 {{- end }}
 
 {{/* All CentOS hosts */}}
-{{ define "fleet_label_query_9" -}}
+{{ define "automdm_label_query_9" -}}
 []
 {{- end }}
 
 {{/* All Windows hosts */}}
-{{ define "fleet_label_query_10" -}}
+{{ define "automdm_label_query_10" -}}
 [
   {
     "1": "1"
@@ -213,16 +213,16 @@
 {{- end }}
 
 {{/* All Red Hat hosts */}}
-{{ define "fleet_label_query_11" -}}
+{{ define "automdm_label_query_11" -}}
 []
 {{- end }}
 
 {{/* All Linux distributions */}}
-{{ define "fleet_label_query_12" -}}
+{{ define "automdm_label_query_12" -}}
 []
 {{- end }}
 
-{{ define "fleet_detail_query_windows_update_history" -}}
+{{ define "team_detail_query_windows_update_history" -}}
 [
   {
     "date": "1660227583",

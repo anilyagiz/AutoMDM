@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -77,7 +77,7 @@ VALUES (?, ?, ?, '', ?, ?, ?)
 			return fmt.Errorf("failed to JSON marshal the job arguments: %w", err)
 		}
 		ts := time.Date(2024, 8, 26, 0, 0, 0, 0, time.UTC)
-		if _, err := q.ExecContext(ctx, insJob, dbMigrationJobName, argsJSON, fleet.JobStateQueued, ts, ts, ts); err != nil {
+		if _, err := q.ExecContext(ctx, insJob, dbMigrationJobName, argsJSON, automdm.JobStateQueued, ts, ts, ts); err != nil {
 			return err
 		}
 		return nil
@@ -107,7 +107,7 @@ VALUES (?, ?, ?, '', ?, ?, ?)
 	// empty-location token should not exist anymore
 	_, err = ds.GetVPPTokenByLocation(ctx, "")
 	require.Error(t, err)
-	var nfe fleet.NotFoundError
+	var nfe automdm.NotFoundError
 	require.ErrorAs(t, err, &nfe)
 
 	// enqueue a DB migration job with an unknown task
@@ -117,7 +117,7 @@ VALUES (?, ?, ?, '', ?, ?, ?)
 			return fmt.Errorf("failed to JSON marshal the job arguments: %w", err)
 		}
 		ts := time.Date(2024, 8, 26, 0, 0, 0, 0, time.UTC)
-		if _, err := q.ExecContext(ctx, insJob, dbMigrationJobName, argsJSON, fleet.JobStateQueued, ts, ts, ts); err != nil {
+		if _, err := q.ExecContext(ctx, insJob, dbMigrationJobName, argsJSON, automdm.JobStateQueued, ts, ts, ts); err != nil {
 			return err
 		}
 		return nil
@@ -130,7 +130,7 @@ VALUES (?, ?, ?, '', ?, ?, ?)
 	jobs, err = ds.GetQueuedJobs(ctx, 1, time.Now().UTC().Add(time.Minute)) // look in the future to catch any delayed job
 	require.NoError(t, err)
 	require.Len(t, jobs, 1)
-	require.Equal(t, fleet.JobStateQueued, jobs[0].State)
+	require.Equal(t, automdm.JobStateQueued, jobs[0].State)
 	require.Equal(t, 1, jobs[0].Retries)
 	require.Contains(t, jobs[0].Error, "unknown task: no-such-task")
 }

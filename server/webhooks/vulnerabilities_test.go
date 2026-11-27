@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/tj/assert"
 )
@@ -23,19 +23,19 @@ func TestTriggerVulnerabilitiesWebhook(t *testing.T) {
 	logger := slog.New(slog.DiscardHandler)
 	mapper := Mapper{}
 
-	appCfg := &fleet.AppConfig{
-		WebhookSettings: fleet.WebhookSettings{
-			VulnerabilitiesWebhook: fleet.VulnerabilitiesWebhookSettings{
+	appCfg := &automdm.AppConfig{
+		WebhookSettings: automdm.WebhookSettings{
+			VulnerabilitiesWebhook: automdm.VulnerabilitiesWebhookSettings{
 				Enable:        true,
 				HostBatchSize: 2,
 			},
 		},
-		ServerSettings: fleet.ServerSettings{
-			ServerURL: "https://fleet.example.com",
+		ServerSettings: automdm.ServerSettings{
+			ServerURL: "https://automdm.example.com",
 		},
 	}
 
-	recentVulns := []fleet.SoftwareVulnerability{
+	recentVulns := []automdm.SoftwareVulnerability{
 		{SoftwareID: 1, CVE: "CVE-2012-1234"},
 		{SoftwareID: 2, CVE: "CVE-2012-1234"},
 	}
@@ -81,7 +81,7 @@ func TestTriggerVulnerabilitiesWebhook(t *testing.T) {
 	t.Run("trigger requests", func(t *testing.T) {
 		now := time.Now()
 
-		hosts := []fleet.HostVulnerabilitySummary{
+		hosts := []automdm.HostVulnerabilitySummary{
 			{ID: 1, Hostname: "h1", DisplayName: "d1"},
 			{ID: 2, Hostname: "h2", DisplayName: "d2"},
 			{ID: 3, Hostname: "h3", DisplayName: "d3"},
@@ -103,21 +103,21 @@ func TestTriggerVulnerabilitiesWebhook(t *testing.T) {
 
 		cases := []struct {
 			name  string
-			vulns []fleet.SoftwareVulnerability
-			meta  map[string]fleet.CVEMeta
-			hosts []fleet.HostVulnerabilitySummary
+			vulns []automdm.SoftwareVulnerability
+			meta  map[string]automdm.CVEMeta
+			hosts []automdm.HostVulnerabilitySummary
 			want  string
 		}{
 			{
 				"1 vuln, 1 host",
-				[]fleet.SoftwareVulnerability{{CVE: cves[0], SoftwareID: 1}},
+				[]automdm.SoftwareVulnerability{{CVE: cves[0], SoftwareID: 1}},
 				nil,
 				hosts[:1],
 				fmt.Sprintf("%s[%s]}}", jsonCVE1, jsonH1),
 			},
 			{
 				"1 vuln in multiple software, 1 host",
-				[]fleet.SoftwareVulnerability{
+				[]automdm.SoftwareVulnerability{
 					{CVE: cves[0], SoftwareID: 1},
 					{CVE: cves[0], SoftwareID: 1},
 					{CVE: cves[0], SoftwareID: 2},
@@ -128,7 +128,7 @@ func TestTriggerVulnerabilitiesWebhook(t *testing.T) {
 			},
 			{
 				"1 vuln, 2 hosts",
-				[]fleet.SoftwareVulnerability{
+				[]automdm.SoftwareVulnerability{
 					{CVE: cves[0], SoftwareID: 1},
 				},
 				nil,
@@ -137,7 +137,7 @@ func TestTriggerVulnerabilitiesWebhook(t *testing.T) {
 			},
 			{
 				"1 vuln, 3 hosts",
-				[]fleet.SoftwareVulnerability{
+				[]automdm.SoftwareVulnerability{
 					{CVE: cves[0], SoftwareID: 1},
 				},
 				nil,
@@ -146,7 +146,7 @@ func TestTriggerVulnerabilitiesWebhook(t *testing.T) {
 			},
 			{
 				"1 vuln, 4 hosts",
-				[]fleet.SoftwareVulnerability{
+				[]automdm.SoftwareVulnerability{
 					{CVE: cves[0], SoftwareID: 1},
 				},
 				nil,
@@ -155,7 +155,7 @@ func TestTriggerVulnerabilitiesWebhook(t *testing.T) {
 			},
 			{
 				"2 vulns, 1 host each",
-				[]fleet.SoftwareVulnerability{
+				[]automdm.SoftwareVulnerability{
 					{CVE: cves[0], SoftwareID: 1},
 					{CVE: cves[1], SoftwareID: 2},
 				},
@@ -178,7 +178,7 @@ func TestTriggerVulnerabilitiesWebhook(t *testing.T) {
 				}))
 				defer srv.Close()
 
-				ds.HostVulnSummariesBySoftwareIDsFunc = func(ctx context.Context, softwareIDs []uint) ([]fleet.HostVulnerabilitySummary, error) {
+				ds.HostVulnSummariesBySoftwareIDsFunc = func(ctx context.Context, softwareIDs []uint) ([]automdm.HostVulnerabilitySummary, error) {
 					return c.hosts, nil
 				}
 

@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"sync"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
 // BackfillLegacyCountries is a one-shot helper that fills `country_code` for
@@ -25,18 +25,18 @@ import (
 // helper, the function becomes a permanent no-op (steps 1 and 3 both touch
 // zero rows) and is safe to remove. See FIXME below.
 //
-// FIXME(43846): remove this helper and its caller in cmd/fleet/serve.go once
-// Fleet versions <= the release that introduced country_code are no longer
+// FIXME(43846): remove this helper and its caller in cmd/automdm/serve.go once
+// AutoMDM versions <= the release that introduced country_code are no longer
 // supported. The lazy fallback in ee/server/service/vpp.go ensureVPPTokenCountry
 // can be deleted at the same time.
-func BackfillLegacyCountries(ctx context.Context, ds fleet.Datastore, logger *slog.Logger) {
+func BackfillLegacyCountries(ctx context.Context, ds automdm.Datastore, logger *slog.Logger) {
 	tokens, err := ds.ListVPPTokens(ctx)
 	if err != nil {
 		logger.WarnContext(ctx, "vpp legacy backfill: list tokens failed", "err", err)
 		return
 	}
 
-	var needsBackfill []*fleet.VPPTokenDB
+	var needsBackfill []*automdm.VPPTokenDB
 	for _, t := range tokens {
 		if t.CountryCode == "" {
 			needsBackfill = append(needsBackfill, t)
@@ -59,7 +59,7 @@ func BackfillLegacyCountries(ctx context.Context, ds fleet.Datastore, logger *sl
 		for _, t := range needsBackfill {
 			wg.Add(1)
 			sem <- struct{}{}
-			go func(token *fleet.VPPTokenDB) {
+			go func(token *automdm.VPPTokenDB) {
 				defer wg.Done()
 				defer func() { <-sem }()
 

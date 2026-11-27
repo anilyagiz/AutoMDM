@@ -60,7 +60,7 @@ interface IPolicyDetailsPageProps {
   location: {
     pathname: string;
     search: string;
-    query: { fleet_id?: string; query?: string };
+    query: { team_id?: string; query?: string };
     /** Set when opened from a host's policy. */
     state?: { hostSearch?: string };
   };
@@ -68,14 +68,14 @@ interface IPolicyDetailsPageProps {
 
 const baseClass = "policy-details-page";
 
-const getPolicyFleetName = (
+const getPolicyTeamName = (
   policy: IPolicy | undefined,
   teamData: ILoadTeamResponse | undefined
 ): string | null => {
   if (!policy) return null;
-  if (policy.fleet_id === null) return APP_CONTEXT_ALL_TEAMS_SUMMARY.name;
-  if (policy.fleet_id === 0) return APP_CONTEXT_NO_TEAM_SUMMARY.name;
-  return teamData?.fleet?.name ?? null;
+  if (policy.team_id === null) return APP_CONTEXT_ALL_TEAMS_SUMMARY.name;
+  if (policy.team_id === 0) return APP_CONTEXT_NO_TEAM_SUMMARY.name;
+  return teamData?.team?.name ?? null;
 };
 
 export const getLabelModalData = (policy: IPolicy): ILabelModalData => {
@@ -158,11 +158,11 @@ const PolicyDetailsPage = ({
     onError: (error) => handlePageError(error),
   });
 
-  // Drive the team display from the policy's own fleet_id rather than the URL's
-  // fleet_id: a user can land here from another team's list (e.g. clicking an
-  // inherited policy from team 42's view), and the displayed Fleet must reflect
+  // Drive the team display from the policy's own team_id rather than the URL's
+  // team_id: a user can land here from another team's list (e.g. clicking an
+  // inherited policy from team 42's view), and the displayed AutoMDM must reflect
   // the policy's owner, not the navigation context.
-  const policyTeamId = storedPolicy?.fleet_id;
+  const policyTeamId = storedPolicy?.team_id;
 
   const { data: teamData } = useQuery<ILoadTeamResponse>(
     ["team", policyTeamId],
@@ -173,12 +173,12 @@ const PolicyDetailsPage = ({
     }
   );
 
-  const policyFleetName = getPolicyFleetName(storedPolicy, teamData);
+  const policyTeamName = getPolicyTeamName(storedPolicy, teamData);
 
   const labelModalData = storedPolicy ? getLabelModalData(storedPolicy) : null;
 
   const ticketOrWebhookState = getTicketOrWebhookState(
-    storedPolicy?.fleet_id == null ? config ?? undefined : teamData?.fleet
+    storedPolicy?.team_id == null ? config ?? undefined : teamData?.team
   );
   const otherAutomationType: OtherAutomationType | undefined =
     ticketOrWebhookState === "disabled" ? undefined : ticketOrWebhookState;
@@ -191,7 +191,7 @@ const PolicyDetailsPage = ({
     }
   }, [location.pathname, storedPolicy?.name]);
 
-  const isInheritedPolicy = storedPolicy?.fleet_id === null;
+  const isInheritedPolicy = storedPolicy?.team_id === null;
 
   const canEditPolicy =
     (isGlobalAdmin || isGlobalMaintainer || isTeamMaintainerOrTeamAdmin) &&
@@ -215,7 +215,7 @@ const PolicyDetailsPage = ({
 
   const disabledLiveQuery = config?.server_settings.live_reporting_disabled;
 
-  // Captured on mount: a fleet redirect (e.g. dropping fleet_id on Free tier)
+  // Captured on mount: a team redirect (e.g. dropping team_id on Free tier)
   // replaces the location and loses its state. The host's name only filters
   // the runs of a policy with an automation; a policy without one has none.
   const [hostSearch, setHostSearch] = useState(location.state?.hostSearch);
@@ -239,7 +239,7 @@ const PolicyDetailsPage = ({
   // Once the policy is known, moves the host's name from navigation state into
   // the URL (or drops it), so a reload doesn't depend on the state.
   useEffect(() => {
-    // isRouteOk: a cached policy can be present before a fleet redirect lands.
+    // isRouteOk: a cached policy can be present before a team redirect lands.
     if (isRouteOk && storedPolicy && hostSearch !== undefined) {
       replaceSearchQuery(searchQuery);
       // Applied once, so clearing the search doesn't bring the host back.
@@ -248,7 +248,7 @@ const PolicyDetailsPage = ({
   }, [isRouteOk, storedPolicy, hostSearch, searchQuery, replaceSearchQuery]);
 
   const backToPoliciesPath = getPathWithQueryParams(PATHS.MANAGE_POLICIES, {
-    fleet_id: teamIdForApi,
+    team_id: teamIdForApi,
   });
 
   const renderAuthor = (): JSX.Element | null => {
@@ -292,7 +292,7 @@ const PolicyDetailsPage = ({
           <div className={`${baseClass}__platform-list`}>
             {platforms.map((platform) => (
               <span key={platform} className={`${baseClass}__platform-item`}>
-                <Icon name={platform} color="ui-fleet-black-75" />
+                <Icon name={platform} color="ui-automdm-black-75" />
                 {PLATFORM_DISPLAY_NAMES[platform] || platform}
               </span>
             ))}
@@ -325,13 +325,13 @@ const PolicyDetailsPage = ({
     );
   };
 
-  const renderFleetName = () => {
-    if (!policyFleetName) return null;
+  const renderTeamName = () => {
+    if (!policyTeamName) return null;
     return (
       <DataSet
-        className={`${baseClass}__fleet`}
-        title="Fleet"
-        value={policyFleetName}
+        className={`${baseClass}__team`}
+        title="AutoMDM"
+        value={policyTeamName}
       />
     );
   };
@@ -398,7 +398,7 @@ const PolicyDetailsPage = ({
             </span>
             {isContinuous && (
               <span className={`${baseClass}__automation-continuous`}>
-                <TooltipWrapper tipContent="Runs every time Fleet receives a failing response, not only on a host's first failure.">
+                <TooltipWrapper tipContent="Runs every time AutoMDM receives a failing response, not only on a host's first failure.">
                   Continuous
                 </TooltipWrapper>
               </span>
@@ -435,7 +435,7 @@ const PolicyDetailsPage = ({
                       <Icon
                         className="critical-policy-icon"
                         name="policy"
-                        color="ui-fleet-black-50"
+                        color="ui-automdm-black-50"
                       />
                     </TooltipWrapper>
                   )}
@@ -461,7 +461,7 @@ const PolicyDetailsPage = ({
                       policyId &&
                         router.push(
                           getPathWithQueryParams(PATHS.LIVE_POLICY(policyId), {
-                            fleet_id: teamIdForApi,
+                            team_id: teamIdForApi,
                           })
                         );
                     }}
@@ -478,7 +478,7 @@ const PolicyDetailsPage = ({
                       policyId &&
                         router.push(
                           getPathWithQueryParams(PATHS.EDIT_POLICY(policyId), {
-                            fleet_id: teamIdForApi,
+                            team_id: teamIdForApi,
                           })
                         );
                     }}
@@ -491,7 +491,7 @@ const PolicyDetailsPage = ({
             </div>
             <div className={`${baseClass}__details`}>
               <div className={`${baseClass}__properties`}>
-                {renderFleetName()}
+                {renderTeamName()}
                 {renderPlatforms()}
                 {renderLabels()}
                 {renderAutomation()}

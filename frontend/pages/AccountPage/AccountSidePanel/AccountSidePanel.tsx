@@ -62,16 +62,16 @@ const AccountSidePanel = ({
 
   // Keep the radio selection in sync when the theme is changed elsewhere
   // (command palette "Toggle dark mode", OS media query when on system).
-  // utilities/theme dispatches `fleet-theme-change` on every applied
+  // utilities/theme dispatches `automdm-theme-change` on every applied
   // change — re-read the mode rather than trusting `detail.dark`, since
   // dark/light alone can't disambiguate "Dark" from "System (dark)".
   useEffect(() => {
     const onThemeChange = () => {
       setThemeModeState(getThemeMode());
     };
-    window.addEventListener("fleet-theme-change", onThemeChange);
+    window.addEventListener("automdm-theme-change", onThemeChange);
     return () => {
-      window.removeEventListener("fleet-theme-change", onThemeChange);
+      window.removeEventListener("automdm-theme-change", onThemeChange);
     };
   }, []);
 
@@ -79,14 +79,14 @@ const AccountSidePanel = ({
     global_role: globalRole,
     updated_at: updatedAt,
     sso_enabled: ssoEnabled,
-    fleets,
+    teams,
   } = currentUser;
 
-  const roleText = generateRole(fleets, globalRole);
-  const teamsText = generateTeam(fleets, globalRole);
+  const roleText = generateRole(teams, globalRole);
+  const teamsText = generateTeam(teams, globalRole);
 
-  const teamNames = generateTeamNames(fleets);
-  const roleGroups = generateRoleGroups(fleets);
+  const teamNames = generateTeamNames(teams);
+  const roleGroups = generateRoleGroups(teams);
 
   const lastUpdatedAt = updatedAt && (
     <HumanTimeDiffWithDateTip timeString={updatedAt} />
@@ -135,7 +135,7 @@ const AccountSidePanel = ({
       </div>
       {isPremiumTier && (
         <DataSet
-          title="Fleets"
+          title="Teams"
           value={
             teamNames.length > 1 ? (
               <TooltipWrapper
@@ -206,10 +206,10 @@ const AccountSidePanel = ({
       </Button>
       <span
         className={`${baseClass}__version`}
-      >{`Fleet ${versionData?.version} • Go ${versionData?.go_version}`}</span>
+      >{`AutoMDM ${versionData?.version} • Go ${versionData?.go_version}`}</span>
       <span className={`${baseClass}__privacy-policy`}>
         <CustomLink
-          url="https://fleetdm.com/legal/privacy"
+          url="https://automdm.com/legal/privacy"
           text="Privacy policy"
           newTab
         />

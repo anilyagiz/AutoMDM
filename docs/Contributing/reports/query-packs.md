@@ -1,14 +1,14 @@
 # Query packs architecture
 
-This document provides an overview of Fleet's Query Packs architecture.
+This document provides an overview of AutoMDM's Query Packs architecture.
 
 ## Introduction
 
-Query packs in Fleet allow users to group related queries together for easier management and distribution. This document provides insights into the design decisions, system components, and interactions specific to the Query Packs functionality.
+Query packs in AutoMDM allow users to group related queries together for easier management and distribution. This document provides insights into the design decisions, system components, and interactions specific to the Query Packs functionality.
 
 ## Architecture overview
 
-The Query Packs architecture enables the organization, configuration, and distribution of groups of queries across a fleet of devices. It leverages osquery's pack capabilities to execute multiple queries on devices and return results to the Fleet server.
+The Query Packs architecture enables the organization, configuration, and distribution of groups of queries across a fleet of devices. It leverages osquery's pack capabilities to execute multiple queries on devices and return results to the AutoMDM server.
 
 ## Key components
 
@@ -25,13 +25,13 @@ The Query Packs architecture enables the organization, configuration, and distri
 
 ## Pack execution flow
 
-### 1 - Fleet user creates a query pack
+### 1 - AutoMDM user creates a query pack
 
 ```
-Fleet User -> API Client (Frontend or Fleetctl) -> Server -> DB
+AutoMDM User -> API Client (Frontend or AutoMDMctl) -> Server -> DB
 ```
 
-1. Fleet user creates a query pack for a fleet or globally through the UI or API.
+1. AutoMDM user creates a query pack for a team or globally through the UI or API.
 2. Server stores the pack configuration in the database.
 
 ### 2 - Agent gets config file (with the query pack)
@@ -41,7 +41,7 @@ osquery agent -> Server -> DB
 ```
 
 1. osquery agent requests the configuration file from the server.
-2. Server merges fleet and global configurations, including packs.
+2. Server merges team and global configurations, including packs.
 3. Server returns the merged configuration to the agent.
 
 ### 3 - Agent executes queries and returns results
@@ -61,7 +61,7 @@ Query packs have several configuration options:
 - **Name**: The name of the pack.
 - **Description**: A description of the pack's purpose.
 - **Queries**: The queries included in the pack.
-- **Targets**: The devices or fleets targeted by the pack.
+- **Targets**: The devices or teams targeted by the pack.
 - **Schedules**: The schedules for each query in the pack.
 
 ## Performance considerations

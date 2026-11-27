@@ -49,7 +49,7 @@ issues() {
 
 	members="$(curl -s -u "${username}:${token}" https://api.github.com/orgs/fleetdm/members?per_page=100 | jq -r 'map(.login)')"
 
-	gh issue list --repo fleetdm/fleet --json id,title,author,url,createdAt,labels --limit 100 |
+	gh issue list --repo automdm/automdm --json id,title,author,url,createdAt,labels --limit 100 |
 		jq -r --argjson members "$members" \
 			'map(select(.author.login as $in | $members | index($in) | not)) | sort_by(.createdAt) | reverse | .[] | [(.url | split("/") | last), .createdAt, .author.login, .title] | @tsv'
 }
@@ -80,7 +80,7 @@ prs() {
 	defs='def pad($n): . + ((" " * ($n - length)) // "");
 		def body_text: (.body // "") | gsub("<!--.*?-->"; ""; "m");
 		def linked_issue:
-			[body_text | scan("(?i)\\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\\s*:?\\s*(?:https://github\\.com/fleetdm/fleet/issues/|fleetdm/fleet#|#)([0-9]+)\\b")]
+			[body_text | scan("(?i)\\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\\s*:?\\s*(?:https://github\\.com/automdm/automdm/issues/|automdm/automdm#|#)([0-9]+)\\b")]
 			| if length > 0 then .[0][0] else "" end;
 		def manually_tested:
 			if body_text | test("(?i)[-*]\\s*\\[x\\][^\\n]*(?:QA.?d all new/changed functionality|Attached a screenshot or screen recording)")
@@ -94,7 +94,7 @@ prs() {
 			| reverse;'
 
 	# defaults to listing open prs
-	prs_json="$(gh pr list --limit 1000 --repo fleetdm/fleet --json id,title,author,url,createdAt,isDraft,body,assignees)"
+	prs_json="$(gh pr list --limit 1000 --repo automdm/automdm --json id,title,author,url,createdAt,isDraft,body,assignees)"
 
 	if [ -n "$slack" ]; then
 		# titles are untrusted. escaping &, < and > stops them from injecting mentions
@@ -135,7 +135,7 @@ prs() {
 	issue_labels="{}"
 	if [ -n "$verbose" ]; then
 		for issue in $(jq -r --argjson members "$members" "$defs"'open_prs | map(linked_issue) | unique | .[] | select(. != "")' <<<"$prs_json"); do
-			labels="$(gh issue view "$issue" --repo fleetdm/fleet --json labels -q '[.labels[].name] | join(", ")' || true)"
+			labels="$(gh issue view "$issue" --repo automdm/automdm --json labels -q '[.labels[].name] | join(", ")' || true)"
 			issue_labels="$(jq --arg issue "$issue" --arg labels "$labels" '. + {($issue): $labels}' <<<"$issue_labels")"
 		done
 	fi

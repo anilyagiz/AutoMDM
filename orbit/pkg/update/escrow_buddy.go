@@ -7,7 +7,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
 // EscrowBuddyRunner sets up [Escrow Buddy][1] to rotate FileVault keys on
@@ -36,11 +36,11 @@ type EscrowBuddyRunner struct {
 }
 
 // NewEscrowBuddyRunner returns a new instance configured with the provided values
-func NewEscrowBuddyRunner(runner *Runner, interval time.Duration) fleet.OrbitConfigReceiver {
+func NewEscrowBuddyRunner(runner *Runner, interval time.Duration) automdm.OrbitConfigReceiver {
 	return &EscrowBuddyRunner{updateRunner: runner, interval: interval}
 }
 
-func (e *EscrowBuddyRunner) Run(cfg *fleet.OrbitConfig) error {
+func (e *EscrowBuddyRunner) Run(cfg *automdm.OrbitConfig) error {
 	log.Debug().Msgf("EscrowBuddyRunner: notification: %t", cfg.Notifications.RotateDiskEncryptionKey)
 
 	if e.updateRunner == nil {

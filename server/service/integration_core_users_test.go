@@ -19,10 +19,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/removednames"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/pkg/removednames"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -32,15 +32,15 @@ import (
 func (s *integrationTestSuite) TestDoubleUserCreationErrors() {
 	t := s.T()
 
-	params := fleet.UserPayload{
+	params := automdm.UserPayload{
 		Name:       new("user1"),
 		Email:      new("email@asd.com"),
 		Password:   &test.GoodPassword,
-		GlobalRole: new(fleet.RoleObserver),
+		GlobalRole: new(automdm.RoleObserver),
 	}
 
-	s.Do("POST", "/api/latest/fleet/users/admin", &params, http.StatusOK)
-	respSecond := s.Do("POST", "/api/latest/fleet/users/admin", &params, http.StatusConflict)
+	s.Do("POST", "/api/latest/automdm/users/admin", &params, http.StatusOK)
+	respSecond := s.Do("POST", "/api/latest/automdm/users/admin", &params, http.StatusConflict)
 
 	assertBodyContains(t, respSecond, "Duplicate entry")
 }
@@ -48,79 +48,79 @@ func (s *integrationTestSuite) TestDoubleUserCreationErrors() {
 func (s *integrationTestSuite) TestUserWithoutRoleErrors() {
 	t := s.T()
 
-	params := fleet.UserPayload{
+	params := automdm.UserPayload{
 		Name:     new("user1"),
 		Email:    new("email@asd.com"),
 		Password: new(test.GoodPassword),
 	}
 
-	resp := s.Do("POST", "/api/latest/fleet/users/admin", &params, http.StatusUnprocessableEntity)
-	assertErrorCodeAndMessage(t, resp, fleet.ErrNoRoleNeeded, "either global role or fleet role needs to be defined")
+	resp := s.Do("POST", "/api/latest/automdm/users/admin", &params, http.StatusUnprocessableEntity)
+	assertErrorCodeAndMessage(t, resp, automdm.ErrNoRoleNeeded, "either global role or team role needs to be defined")
 }
 
 func (s *integrationTestSuite) TestUserEmailValidation() {
-	params := fleet.UserPayload{
+	params := automdm.UserPayload{
 		Name:       new("user_invalid_email"),
 		Email:      new("invalid"),
 		Password:   &test.GoodPassword,
-		GlobalRole: new(fleet.RoleObserver),
+		GlobalRole: new(automdm.RoleObserver),
 	}
 
-	s.Do("POST", "/api/latest/fleet/users/admin", &params, http.StatusUnprocessableEntity)
+	s.Do("POST", "/api/latest/automdm/users/admin", &params, http.StatusUnprocessableEntity)
 
 	params.Email = new("user_valid_mail@example.com")
-	s.Do("POST", "/api/latest/fleet/users/admin", &params, http.StatusOK)
+	s.Do("POST", "/api/latest/automdm/users/admin", &params, http.StatusOK)
 }
 
 func (s *integrationTestSuite) TestUserPasswordLengthValidation() {
-	params := fleet.UserPayload{
+	params := automdm.UserPayload{
 		Name:  new("user_invalid_email"),
 		Email: new("test@example.com"),
 		// This is 73 characters long
 		Password:   new("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaX@1"),
-		GlobalRole: new(fleet.RoleObserver),
+		GlobalRole: new(automdm.RoleObserver),
 	}
 
-	resp := s.Do("POST", "/api/latest/fleet/users/admin", &params, http.StatusUnprocessableEntity)
-	assertBodyContains(s.T(), resp, "Could not create user. Password is over the 48 characters limit. If the password is under 48 characters, please check the auth_salt_key_size in your Fleet server config.")
+	resp := s.Do("POST", "/api/latest/automdm/users/admin", &params, http.StatusUnprocessableEntity)
+	assertBodyContains(s.T(), resp, "Could not create user. Password is over the 48 characters limit. If the password is under 48 characters, please check the auth_salt_key_size in your AutoMDM server config.")
 }
 
 func (s *integrationTestSuite) TestUserWithWrongRoleErrors() {
 	t := s.T()
 
-	params := fleet.UserPayload{
+	params := automdm.UserPayload{
 		Name:       new("user1"),
 		Email:      new("email@asd.com"),
 		Password:   new(test.GoodPassword),
 		GlobalRole: new("wrongrole"),
 	}
-	resp := s.Do("POST", "/api/latest/fleet/users/admin", &params, http.StatusUnprocessableEntity)
-	assertErrorCodeAndMessage(t, resp, fleet.ErrNoRoleNeeded, "invalid global role: wrongrole")
+	resp := s.Do("POST", "/api/latest/automdm/users/admin", &params, http.StatusUnprocessableEntity)
+	assertErrorCodeAndMessage(t, resp, automdm.ErrNoRoleNeeded, "invalid global role: wrongrole")
 }
 
 func (s *integrationTestSuite) TestUserCreationWrongTeamErrors() {
 	t := s.T()
 
-	teams := []fleet.UserTeam{
+	teams := []automdm.UserTeam{
 		{
-			Team: fleet.Team{
+			Team: automdm.Team{
 				ID: 9999, // non-existent team
 			},
-			Role: fleet.RoleObserver,
+			Role: automdm.RoleObserver,
 		},
 	}
 
-	params := fleet.UserPayload{
+	params := automdm.UserPayload{
 		Name:     new("user2"),
 		Email:    new("email2@asd.com"),
 		Password: new(test.GoodPassword),
 		Teams:    &teams,
 	}
-	resp := s.Do("POST", "/api/latest/fleet/users/admin", &params, http.StatusUnprocessableEntity)
+	resp := s.Do("POST", "/api/latest/automdm/users/admin", &params, http.StatusUnprocessableEntity)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	assert.Contains(t, string(body), `"name": "fleets.id"`)
-	assert.Contains(t, string(body), `fleet with id 9999 does not exist`)
+	assert.Contains(t, string(body), `"name": "teams.id"`)
+	assert.Contains(t, string(body), `team with id 9999 does not exist`)
 }
 
 func (s *integrationTestSuite) TestCreateUserAPIEndpointsRejected() {
@@ -128,20 +128,20 @@ func (s *integrationTestSuite) TestCreateUserAPIEndpointsRejected() {
 
 	// api_endpoints cannot be specified directly on this endpoint.
 	var resp createUserResponse
-	s.DoJSON("POST", "/api/latest/fleet/users/admin", fleet.UserPayload{
+	s.DoJSON("POST", "/api/latest/automdm/users/admin", automdm.UserPayload{
 		Name:         new("user1"),
 		Email:        new("apireject@example.com"),
 		Password:     &test.GoodPassword,
-		GlobalRole:   new(fleet.RoleObserver),
-		APIEndpoints: &[]fleet.APIEndpointRef{{Method: "GET", Path: "/api/v1/fleet/config"}},
+		GlobalRole:   new(automdm.RoleObserver),
+		APIEndpoints: &[]automdm.APIEndpointRef{{Method: "GET", Path: "/api/v1/automdm/config"}},
 	}, http.StatusUnprocessableEntity, &resp)
 
 	var apiOnlyResp createUserResponse
-	s.DoJSON("POST", "/api/latest/fleet/users/admin", fleet.UserPayload{
+	s.DoJSON("POST", "/api/latest/automdm/users/admin", automdm.UserPayload{
 		Name:       new("api-only-legacy"),
 		Email:      new("api-only-legacy@example.com"),
 		Password:   &test.GoodPassword,
-		GlobalRole: new(fleet.RoleObserver),
+		GlobalRole: new(automdm.RoleObserver),
 		APIOnly:    new(true),
 	}, http.StatusOK, &apiOnlyResp)
 	require.True(t, apiOnlyResp.User.APIOnly)
@@ -153,11 +153,11 @@ func (s *integrationTestSuite) TestModifyUserAPIOnlyRejected() {
 
 	// Create a regular user to use as target.
 	var createResp createUserResponse
-	s.DoJSON("POST", "/api/latest/fleet/users/admin", fleet.UserPayload{
+	s.DoJSON("POST", "/api/latest/automdm/users/admin", automdm.UserPayload{
 		Name:       new("regular-api-protect"),
 		Email:      new("regular-api-protect@example.com"),
 		Password:   &test.GoodPassword,
-		GlobalRole: new(fleet.RoleObserver),
+		GlobalRole: new(automdm.RoleObserver),
 	}, http.StatusOK, &createResp)
 	require.NotZero(t, createResp.User.ID)
 	regularID := createResp.User.ID
@@ -168,7 +168,7 @@ func (s *integrationTestSuite) TestModifyUserAPIOnlyRejected() {
 			ID uint `json:"id"`
 		} `json:"user"`
 	}
-	s.DoJSON("POST", "/api/latest/fleet/users/api_only", map[string]any{
+	s.DoJSON("POST", "/api/latest/automdm/users/api_only", map[string]any{
 		"name":        "api-only-protect",
 		"global_role": "observer",
 	}, http.StatusOK, &createAPIResp)
@@ -178,17 +178,17 @@ func (s *integrationTestSuite) TestModifyUserAPIOnlyRejected() {
 	cases := []struct {
 		name   string
 		userID uint
-		body   fleet.UserPayload
+		body   automdm.UserPayload
 	}{
-		{"regular user api_only false", regularID, fleet.UserPayload{APIOnly: new(false)}},
-		{"regular user api_only true", regularID, fleet.UserPayload{APIOnly: new(true)}},
-		{"api-only user api_only false", apiOnlyID, fleet.UserPayload{APIOnly: new(false)}},
-		{"api-only user api_only true", apiOnlyID, fleet.UserPayload{APIOnly: new(true)}},
+		{"regular user api_only false", regularID, automdm.UserPayload{APIOnly: new(false)}},
+		{"regular user api_only true", regularID, automdm.UserPayload{APIOnly: new(true)}},
+		{"api-only user api_only false", apiOnlyID, automdm.UserPayload{APIOnly: new(false)}},
+		{"api-only user api_only true", apiOnlyID, automdm.UserPayload{APIOnly: new(true)}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			var modResp modifyUserResponse
-			s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/users/%d", tc.userID), tc.body, http.StatusUnprocessableEntity, &modResp)
+			s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/users/%d", tc.userID), tc.body, http.StatusUnprocessableEntity, &modResp)
 		})
 	}
 }
@@ -220,15 +220,15 @@ func (s *integrationTestSuite) TestCreateAPIOnlyUser() {
 			wantStatus: http.StatusUnprocessableEntity,
 		},
 		{
-			name:       "neither global_role nor fleets",
+			name:       "neither global_role nor teams",
 			body:       map[string]any{"name": "Jane Doe"},
 			wantStatus: http.StatusUnprocessableEntity,
 		},
 		{
-			name: "fleets without premium",
+			name: "teams without premium",
 			body: map[string]any{
-				"name":   "Jane Doe",
-				"fleets": []map[string]any{{"id": 9999, "role": "observer"}},
+				"name":  "Jane Doe",
+				"teams": []map[string]any{{"id": 9999, "role": "observer"}},
 			},
 			wantStatus: http.StatusPaymentRequired,
 		},
@@ -238,17 +238,17 @@ func (s *integrationTestSuite) TestCreateAPIOnlyUser() {
 				"name":        "Jane Doe",
 				"global_role": "observer",
 				"api_endpoints": []map[string]any{
-					{"method": "GET", "path": "/api/v1/fleet/hosts/:id"},
+					{"method": "GET", "path": "/api/v1/automdm/hosts/:id"},
 				},
 			},
 			wantStatus: http.StatusPaymentRequired,
 		},
 		{
-			name: "both global_role and fleets without premium",
+			name: "both global_role and teams without premium",
 			body: map[string]any{
 				"name":        "Jane Doe",
 				"global_role": "observer",
-				"fleets":      []map[string]any{{"id": 9999, "role": "observer"}},
+				"teams":       []map[string]any{{"id": 9999, "role": "observer"}},
 			},
 			wantStatus: http.StatusPaymentRequired,
 		},
@@ -274,7 +274,7 @@ func (s *integrationTestSuite) TestCreateAPIOnlyUser() {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			var resp createAPIOnlyUserResponse
-			s.DoJSON("POST", "/api/latest/fleet/users/api_only", tc.body, tc.wantStatus, &resp)
+			s.DoJSON("POST", "/api/latest/automdm/users/api_only", tc.body, tc.wantStatus, &resp)
 			if tc.verify != nil {
 				tc.verify(t, resp)
 			}
@@ -292,7 +292,7 @@ func (s *integrationTestSuite) TestModifyAPIOnlyUser() {
 		Token string `json:"token"`
 		Err   string `json:"error,omitempty"`
 	}
-	s.DoJSON("POST", "/api/latest/fleet/users/api_only", map[string]any{
+	s.DoJSON("POST", "/api/latest/automdm/users/api_only", map[string]any{
 		"name":        "API User",
 		"global_role": "observer",
 	}, http.StatusOK, &createResp)
@@ -301,27 +301,27 @@ func (s *integrationTestSuite) TestModifyAPIOnlyUser() {
 	apiUserID := createResp.User.ID
 	apiUserToken := createResp.Token
 
-	s.DoRawNoAuth("PATCH", fmt.Sprintf("/api/latest/fleet/users/api_only/%d", apiUserID), []byte(`{}`), http.StatusUnauthorized)
+	s.DoRawNoAuth("PATCH", fmt.Sprintf("/api/latest/automdm/users/api_only/%d", apiUserID), []byte(`{}`), http.StatusUnauthorized)
 
-	s.Do("PATCH", "/api/latest/fleet/users/api_only/999999", map[string]any{
+	s.Do("PATCH", "/api/latest/automdm/users/api_only/999999", map[string]any{
 		"name": "New Name",
 	}, http.StatusNotFound)
 
 	// Targeting a non-API-only user must be rejected.
 	admin := s.users["admin1@example.com"]
-	s.Do("PATCH", fmt.Sprintf("/api/latest/fleet/users/api_only/%d", admin.ID), map[string]any{
+	s.Do("PATCH", fmt.Sprintf("/api/latest/automdm/users/api_only/%d", admin.ID), map[string]any{
 		"name": "New Name",
 	}, http.StatusUnprocessableEntity)
 
 	var createRegularResp createUserResponse
-	s.DoJSON("POST", "/api/latest/fleet/users/admin", fleet.UserPayload{
+	s.DoJSON("POST", "/api/latest/automdm/users/admin", automdm.UserPayload{
 		Name:       new("regular-modify-api-only"),
 		Email:      new("regular-modify-api-only@example.com"),
 		Password:   &test.GoodPassword,
-		GlobalRole: new(fleet.RoleObserver),
+		GlobalRole: new(automdm.RoleObserver),
 	}, http.StatusOK, &createRegularResp)
 	require.NotZero(t, createRegularResp.User.ID)
-	s.Do("PATCH", fmt.Sprintf("/api/latest/fleet/users/api_only/%d", createRegularResp.User.ID), map[string]any{
+	s.Do("PATCH", fmt.Sprintf("/api/latest/automdm/users/api_only/%d", createRegularResp.User.ID), map[string]any{
 		"name": "New Name",
 	}, http.StatusUnprocessableEntity)
 
@@ -331,14 +331,14 @@ func (s *integrationTestSuite) TestModifyAPIOnlyUser() {
 	// This is to protect against privilege escalation vulnerability.
 	s.token = apiUserToken
 	defer func() { s.token = s.getTestAdminToken() }()
-	s.Do("PATCH", fmt.Sprintf("/api/latest/fleet/users/api_only/%d", apiUserID), map[string]any{
+	s.Do("PATCH", fmt.Sprintf("/api/latest/automdm/users/api_only/%d", apiUserID), map[string]any{
 		"name": "Self Update",
 	}, http.StatusUnprocessableEntity)
 	s.token = s.getTestAdminToken()
 
-	s.Do("PATCH", fmt.Sprintf("/api/latest/fleet/users/api_only/%d", apiUserID), map[string]any{
+	s.Do("PATCH", fmt.Sprintf("/api/latest/automdm/users/api_only/%d", apiUserID), map[string]any{
 		"api_endpoints": []map[string]any{
-			{"method": "GET", "path": "/api/v1/fleet/config"},
+			{"method": "GET", "path": "/api/v1/automdm/config"},
 		},
 	}, http.StatusPaymentRequired)
 }
@@ -351,33 +351,33 @@ func (s *integrationTestSuite) TestCreatingAPIOnlyUserReturnsAPIToken() {
 	}()
 
 	var createResp createUserResponse
-	params := fleet.UserPayload{
+	params := automdm.UserPayload{
 		Name:       new("someadmin"),
 		Email:      new("someadmin@example.com"),
 		Password:   new(test.GoodPassword),
-		GlobalRole: new(fleet.RoleAdmin),
+		GlobalRole: new(automdm.RoleAdmin),
 		APIOnly:    new(false),
 	}
-	s.DoJSON("POST", "/api/latest/fleet/users/admin", params, http.StatusOK, &createResp)
+	s.DoJSON("POST", "/api/latest/automdm/users/admin", params, http.StatusOK, &createResp)
 	assert.NotZero(t, createResp.User.ID)
 	assert.Nil(t, createResp.Token)
 
-	params = fleet.UserPayload{
+	params = automdm.UserPayload{
 		Name:       new("apionly"),
 		Email:      new("apionly@example.com"),
 		Password:   new(test.GoodPassword),
-		GlobalRole: new(fleet.RoleObserver),
+		GlobalRole: new(automdm.RoleObserver),
 		APIOnly:    new(true),
-		// AdminForcedPasswordReset is set to false when creating api-only users via `fleetctl user create --api-only`.
+		// AdminForcedPasswordReset is set to false when creating api-only users via `automdmctl user create --api-only`.
 		AdminForcedPasswordReset: new(false),
 	}
-	s.DoJSON("POST", "/api/latest/fleet/users/admin", params, http.StatusOK, &createResp)
+	s.DoJSON("POST", "/api/latest/automdm/users/admin", params, http.StatusOK, &createResp)
 	assert.NotZero(t, createResp.User.ID)
 	assert.NotNil(t, createResp.Token)
 
 	s.token = *createResp.Token
 	var chr countHostsResponse
-	s.DoJSON("GET", "/api/latest/fleet/hosts/count", countHostsRequest{}, http.StatusOK, &chr)
+	s.DoJSON("GET", "/api/latest/automdm/hosts/count", countHostsRequest{}, http.StatusOK, &chr)
 	assert.Equal(t, 0, chr.Count)
 }
 
@@ -387,23 +387,23 @@ func (s *integrationTestSuite) TestActivityUserEmailPersistsAfterDeletion() {
 	// create a new user
 	var createResp createUserResponse
 	userRawPwd := test.GoodPassword
-	params := fleet.UserPayload{
+	params := automdm.UserPayload{
 		Name:       new("Gonna B Deleted"),
 		Email:      new("goingto@delete.com"),
 		Password:   &userRawPwd,
-		GlobalRole: new(fleet.RoleObserver),
+		GlobalRole: new(automdm.RoleObserver),
 	}
-	s.DoJSON("POST", "/api/latest/fleet/users/admin", params, http.StatusOK, &createResp)
+	s.DoJSON("POST", "/api/latest/automdm/users/admin", params, http.StatusOK, &createResp)
 	assert.NotZero(t, createResp.User.ID)
 	assert.True(t, createResp.User.AdminForcedPasswordReset)
 	u := *createResp.User
 
-	var loginResp fleet.LoginResponse
-	s.DoJSON("POST", "/api/latest/fleet/login", params, http.StatusOK, &loginResp)
+	var loginResp automdm.LoginResponse
+	s.DoJSON("POST", "/api/latest/automdm/login", params, http.StatusOK, &loginResp)
 	require.Equal(t, loginResp.User.ID, u.ID)
 
 	activities := listActivitiesResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/activities", nil, http.StatusOK, &activities)
+	s.DoJSON("GET", "/api/latest/automdm/activities", nil, http.StatusOK, &activities)
 
 	assert.GreaterOrEqual(t, len(activities.Activities), 1)
 	found := false
@@ -419,7 +419,7 @@ func (s *integrationTestSuite) TestActivityUserEmailPersistsAfterDeletion() {
 	require.NoError(t, err)
 
 	activities = listActivitiesResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/activities", nil, http.StatusOK, &activities)
+	s.DoJSON("GET", "/api/latest/automdm/activities", nil, http.StatusOK, &activities)
 
 	assert.GreaterOrEqual(t, len(activities.Activities), 1)
 	found = false
@@ -438,10 +438,10 @@ func (s *integrationTestSuite) TestActivityUserEmailPersistsAfterDeletion() {
 func (s *integrationTestSuite) TestPremiumOnlyRoles() {
 	t := s.T()
 
-	for _, role := range []string{fleet.RoleTechnician, fleet.RoleObserverPlus} {
+	for _, role := range []string{automdm.RoleTechnician, automdm.RoleObserverPlus} {
 		t.Run(role, func(t *testing.T) {
 			t.Run("login", func(t *testing.T) {
-				user := &fleet.User{
+				user := &automdm.User{
 					Name:       role,
 					Email:      fmt.Sprintf("%s@example.com", role),
 					GlobalRole: new(role),
@@ -451,8 +451,8 @@ func (s *integrationTestSuite) TestPremiumOnlyRoles() {
 				_, err = s.ds.NewUser(t.Context(), user)
 				require.NoError(t, err)
 
-				var loginResp fleet.LoginResponse
-				s.DoJSON("POST", "/api/latest/fleet/login", fleet.LoginRequest{
+				var loginResp automdm.LoginResponse
+				s.DoJSON("POST", "/api/latest/automdm/login", automdm.LoginRequest{
 					Email:    fmt.Sprintf("%s@example.com", role),
 					Password: test.GoodPassword,
 				}, http.StatusPaymentRequired, &loginResp)
@@ -460,13 +460,13 @@ func (s *integrationTestSuite) TestPremiumOnlyRoles() {
 
 			t.Run("create", func(t *testing.T) {
 				var createResp createUserResponse
-				params := fleet.UserPayload{
+				params := automdm.UserPayload{
 					Name:       new(role),
 					Email:      new(fmt.Sprintf("%s@example.com", role)),
 					Password:   new(test.GoodPassword),
 					GlobalRole: new(role),
 				}
-				s.DoJSON("POST", "/api/latest/fleet/users/admin", params, http.StatusPaymentRequired, &createResp)
+				s.DoJSON("POST", "/api/latest/automdm/users/admin", params, http.StatusPaymentRequired, &createResp)
 			})
 		})
 	}
@@ -482,35 +482,35 @@ func (s *integrationTestSuite) TestGitOpsRoleOnFree() {
 		} `json:"user"`
 		Token string `json:"token"`
 	}
-	s.DoJSON("POST", "/api/latest/fleet/users/api_only", map[string]any{
+	s.DoJSON("POST", "/api/latest/automdm/users/api_only", map[string]any{
 		"name":        "gitops-free",
-		"global_role": fleet.RoleGitOps,
+		"global_role": automdm.RoleGitOps,
 	}, http.StatusOK, &createResp)
 	require.NotZero(t, createResp.User.ID)
 	require.NotEmpty(t, createResp.Token)
 	require.NotNil(t, createResp.User.GlobalRole)
-	require.Equal(t, fleet.RoleGitOps, *createResp.User.GlobalRole)
+	require.Equal(t, automdm.RoleGitOps, *createResp.User.GlobalRole)
 
 	// The GitOps user can authenticate and use a GitOps endpoint.
 	s.token = createResp.Token
-	s.Do("PUT", "/api/latest/fleet/spec/secret_variables", fleet.CreateSecretVariablesRequest{
-		SecretVariables: []fleet.SecretVariable{{Name: "FLEET_SECRET_GITOPS_FREE", Value: "v"}},
+	s.Do("PUT", "/api/latest/automdm/spec/secret_variables", automdm.CreateSecretVariablesRequest{
+		SecretVariables: []automdm.SecretVariable{{Name: "AUTOMDM_SECRET_GITOPS_FREE", Value: "v"}},
 		DryRun:          true,
 	}, http.StatusOK)
 	s.token = s.getTestAdminToken()
 
-	// Fleet-level GitOps role still requires Premium.
-	s.Do("POST", "/api/latest/fleet/users/api_only", map[string]any{
-		"name":   "gitops-free-fleet",
-		"fleets": []map[string]any{{"id": 9999, "role": fleet.RoleGitOps}},
+	// Team-level GitOps role still requires Premium.
+	s.Do("POST", "/api/latest/automdm/users/api_only", map[string]any{
+		"name":  "gitops-free-automdm",
+		"teams": []map[string]any{{"id": 9999, "role": automdm.RoleGitOps}},
 	}, http.StatusPaymentRequired)
 
 	// GitOps is still API-only.
-	s.Do("POST", "/api/latest/fleet/users/admin", fleet.UserPayload{
+	s.Do("POST", "/api/latest/automdm/users/admin", automdm.UserPayload{
 		Name:       new("gitops-free-not-api-only"),
 		Email:      new("gitops-free-not-api-only@example.com"),
 		Password:   new(test.GoodPassword),
-		GlobalRole: new(fleet.RoleGitOps),
+		GlobalRole: new(automdm.RoleGitOps),
 	}, http.StatusUnprocessableEntity)
 
 	// An existing API-only user can be changed to GitOps.
@@ -519,39 +519,39 @@ func (s *integrationTestSuite) TestGitOpsRoleOnFree() {
 			ID uint `json:"id"`
 		} `json:"user"`
 	}
-	s.DoJSON("POST", "/api/latest/fleet/users/api_only", map[string]any{
+	s.DoJSON("POST", "/api/latest/automdm/users/api_only", map[string]any{
 		"name":        "observer-to-gitops-free",
-		"global_role": fleet.RoleObserver,
+		"global_role": automdm.RoleObserver,
 	}, http.StatusOK, &observerResp)
 	var modifyResp modifyUserResponse
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/users/%d", observerResp.User.ID), fleet.UserPayload{
-		GlobalRole: new(fleet.RoleGitOps),
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/users/%d", observerResp.User.ID), automdm.UserPayload{
+		GlobalRole: new(automdm.RoleGitOps),
 	}, http.StatusOK, &modifyResp)
 	require.NotNil(t, modifyResp.User.GlobalRole)
-	require.Equal(t, fleet.RoleGitOps, *modifyResp.User.GlobalRole)
+	require.Equal(t, automdm.RoleGitOps, *modifyResp.User.GlobalRole)
 
 	// A non-API-only user cannot be changed to GitOps.
 	var regularResp createUserResponse
-	s.DoJSON("POST", "/api/latest/fleet/users/admin", fleet.UserPayload{
+	s.DoJSON("POST", "/api/latest/automdm/users/admin", automdm.UserPayload{
 		Name:       new("regular-to-gitops-free"),
 		Email:      new("regular-to-gitops-free@example.com"),
 		Password:   new(test.GoodPassword),
-		GlobalRole: new(fleet.RoleObserver),
+		GlobalRole: new(automdm.RoleObserver),
 	}, http.StatusOK, &regularResp)
-	res := s.Do("PATCH", fmt.Sprintf("/api/latest/fleet/users/%d", regularResp.User.ID), fleet.UserPayload{
-		GlobalRole: new(fleet.RoleGitOps),
+	res := s.Do("PATCH", fmt.Sprintf("/api/latest/automdm/users/%d", regularResp.User.ID), automdm.UserPayload{
+		GlobalRole: new(automdm.RoleGitOps),
 	}, http.StatusUnprocessableEntity)
 	assertBodyContains(t, res, "role GitOps can only be set for API only users")
 	regularUser, err := s.ds.UserByID(t.Context(), regularResp.User.ID)
 	require.NoError(t, err)
 	require.NotNil(t, regularUser.GlobalRole)
-	require.Equal(t, fleet.RoleObserver, *regularUser.GlobalRole)
+	require.Equal(t, automdm.RoleObserver, *regularUser.GlobalRole)
 }
 
 func (s *integrationTestSuite) TestUserRolesSpecRemoved() {
 	t := s.T()
 
-	res := s.Do("POST", "/api/latest/fleet/users/roles/spec", json.RawMessage(`{"spec":{"roles":{}}}`), http.StatusGone)
+	res := s.Do("POST", "/api/latest/automdm/users/roles/spec", json.RawMessage(`{"spec":{"roles":{}}}`), http.StatusGone)
 	var body struct {
 		Errors []struct {
 			Reason string `json:"reason"`
@@ -566,7 +566,7 @@ func (s *integrationTestSuite) TestUserRolesSpecRemoved() {
 func (s *integrationTestSuite) TestInvites() {
 	t := s.T()
 
-	team, err := s.ds.NewTeam(context.Background(), &fleet.Team{
+	team, err := s.ds.NewTeam(context.Background(), &automdm.Team{
 		Name:        t.Name() + "team1",
 		Description: "desc team1",
 	})
@@ -574,17 +574,17 @@ func (s *integrationTestSuite) TestInvites() {
 
 	// list invites, none yet
 	var listResp listInvitesResponse
-	s.DoJSON("GET", "/api/latest/fleet/invites", nil, http.StatusOK, &listResp)
+	s.DoJSON("GET", "/api/latest/automdm/invites", nil, http.StatusOK, &listResp)
 	require.Empty(t, listResp.Invites)
 
 	// create valid invite
-	createInviteReq := createInviteRequest{InvitePayload: fleet.InvitePayload{
+	createInviteReq := createInviteRequest{InvitePayload: automdm.InvitePayload{
 		Email:      new("some email"),
 		Name:       new("some name"),
-		GlobalRole: null.StringFrom(fleet.RoleAdmin),
+		GlobalRole: null.StringFrom(automdm.RoleAdmin),
 	}}
 	createInviteResp := createInviteResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/invites", createInviteReq, http.StatusOK, &createInviteResp)
+	s.DoJSON("POST", "/api/latest/automdm/invites", createInviteReq, http.StatusOK, &createInviteResp)
 	require.NotNil(t, createInviteResp.Invite)
 	require.NotZero(t, createInviteResp.Invite.ID)
 	validInvite := *createInviteResp.Invite
@@ -597,131 +597,131 @@ func (s *integrationTestSuite) TestInvites() {
 
 	// verify the token with valid invite
 	var verifyInvResp verifyInviteResponse
-	s.DoJSON("GET", "/api/latest/fleet/invites/"+validInviteToken, nil, http.StatusOK, &verifyInvResp)
+	s.DoJSON("GET", "/api/latest/automdm/invites/"+validInviteToken, nil, http.StatusOK, &verifyInvResp)
 	require.Equal(t, validInvite.ID, verifyInvResp.Invite.ID)
 
 	// verify the token with an invalid invite
-	s.DoJSON("GET", "/api/latest/fleet/invites/invalid", nil, http.StatusNotFound, &verifyInvResp)
+	s.DoJSON("GET", "/api/latest/automdm/invites/invalid", nil, http.StatusNotFound, &verifyInvResp)
 
 	// create invite without an email
-	createInviteReq = createInviteRequest{InvitePayload: fleet.InvitePayload{
+	createInviteReq = createInviteRequest{InvitePayload: automdm.InvitePayload{
 		Email:      nil,
 		Name:       new("some other name"),
-		GlobalRole: null.StringFrom(fleet.RoleObserver),
+		GlobalRole: null.StringFrom(automdm.RoleObserver),
 	}}
 	createInviteResp = createInviteResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/invites", createInviteReq, http.StatusUnprocessableEntity, &createInviteResp)
+	s.DoJSON("POST", "/api/latest/automdm/invites", createInviteReq, http.StatusUnprocessableEntity, &createInviteResp)
 
 	// create invite for an existing user
 	existingEmail := "admin1@example.com"
-	createInviteReq = createInviteRequest{InvitePayload: fleet.InvitePayload{
+	createInviteReq = createInviteRequest{InvitePayload: automdm.InvitePayload{
 		Email:      new(existingEmail),
 		Name:       new("some other name"),
-		GlobalRole: null.StringFrom(fleet.RoleObserver),
+		GlobalRole: null.StringFrom(automdm.RoleObserver),
 	}}
 	createInviteResp = createInviteResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/invites", createInviteReq, http.StatusUnprocessableEntity, &createInviteResp)
+	s.DoJSON("POST", "/api/latest/automdm/invites", createInviteReq, http.StatusUnprocessableEntity, &createInviteResp)
 
 	// create invite for an existing user with email ALL CAPS
-	createInviteReq = createInviteRequest{InvitePayload: fleet.InvitePayload{
+	createInviteReq = createInviteRequest{InvitePayload: automdm.InvitePayload{
 		Email:      new(strings.ToUpper(existingEmail)),
 		Name:       new("some other name"),
-		GlobalRole: null.StringFrom(fleet.RoleObserver),
+		GlobalRole: null.StringFrom(automdm.RoleObserver),
 	}}
 	createInviteResp = createInviteResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/invites", createInviteReq, http.StatusUnprocessableEntity, &createInviteResp)
+	s.DoJSON("POST", "/api/latest/automdm/invites", createInviteReq, http.StatusUnprocessableEntity, &createInviteResp)
 
 	// list invites, we have one now
 	listResp = listInvitesResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/invites", nil, http.StatusOK, &listResp)
+	s.DoJSON("GET", "/api/latest/automdm/invites", nil, http.StatusOK, &listResp)
 	require.Len(t, listResp.Invites, 1)
 	require.Equal(t, validInvite.ID, listResp.Invites[0].ID)
 
 	// invalid order_key returns 422
 	listResp = listInvitesResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/invites", nil, http.StatusUnprocessableEntity, &listResp, "order_key", "invalid")
+	s.DoJSON("GET", "/api/latest/automdm/invites", nil, http.StatusUnprocessableEntity, &listResp, "order_key", "invalid")
 
 	// list invites filtered by search query with leading/trailing whitespace
 	// matches name
 	listResp = listInvitesResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/invites", nil, http.StatusOK, &listResp, "query", " some name                     ")
+	s.DoJSON("GET", "/api/latest/automdm/invites", nil, http.StatusOK, &listResp, "query", " some name                     ")
 	require.Len(t, listResp.Invites, 1)
 	require.Equal(t, validInvite.ID, listResp.Invites[0].ID)
 
 	// list invites filtered by search query with leading/trailing whitespace
 	// matches email
 	listResp = listInvitesResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/invites", nil, http.StatusOK, &listResp, "query", " some email                     ")
+	s.DoJSON("GET", "/api/latest/automdm/invites", nil, http.StatusOK, &listResp, "query", " some email                     ")
 	require.Len(t, listResp.Invites, 1)
 	require.Equal(t, validInvite.ID, listResp.Invites[0].ID)
 
 	// list invites filtered by search query with leading/trailing whitespace
 	// matches nothing
 	listResp = listInvitesResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/invites", nil, http.StatusOK, &listResp, "query", " no match                     ")
+	s.DoJSON("GET", "/api/latest/automdm/invites", nil, http.StatusOK, &listResp, "query", " no match                     ")
 	require.Empty(t, listResp.Invites)
 
 	// list invites, next page is empty
 	listResp = listInvitesResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/invites", nil, http.StatusOK, &listResp, "page", "1", "per_page", "2")
+	s.DoJSON("GET", "/api/latest/automdm/invites", nil, http.StatusOK, &listResp, "page", "1", "per_page", "2")
 	require.Empty(t, listResp.Invites)
 
 	// update a non-existing invite
-	updateInviteReq := updateInviteRequest{InvitePayload: fleet.InvitePayload{
-		Teams: []fleet.UserTeam{
-			{Team: fleet.Team{ID: team.ID}, Role: fleet.RoleObserver},
+	updateInviteReq := updateInviteRequest{InvitePayload: automdm.InvitePayload{
+		Teams: []automdm.UserTeam{
+			{Team: automdm.Team{ID: team.ID}, Role: automdm.RoleObserver},
 		},
 		MFAEnabled: new(true),
 	}}
 	updateInviteResp := updateInviteResponse{}
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/invites/%d", validInvite.ID+1), updateInviteReq, http.StatusNotFound, &updateInviteResp)
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/invites/%d", validInvite.ID+1), updateInviteReq, http.StatusNotFound, &updateInviteResp)
 
 	// update the valid invite created earlier, make it an observer of a team
 	updateInviteResp = updateInviteResponse{}
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/invites/%d", validInvite.ID), updateInviteReq, http.StatusPaymentRequired, &updateInviteResp)
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/invites/%d", validInvite.ID), updateInviteReq, http.StatusPaymentRequired, &updateInviteResp)
 	updateInviteReq.MFAEnabled = nil
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/invites/%d", validInvite.ID), updateInviteReq, http.StatusOK, &updateInviteResp)
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/invites/%d", validInvite.ID), updateInviteReq, http.StatusOK, &updateInviteResp)
 
 	// update the valid invite: set an email that already exists for a user
 	updateInviteReq = updateInviteRequest{
-		InvitePayload: fleet.InvitePayload{
+		InvitePayload: automdm.InvitePayload{
 			Email: new(s.users["admin1@example.com"].Email),
-			Teams: []fleet.UserTeam{
-				{Team: fleet.Team{ID: team.ID}, Role: fleet.RoleObserver},
+			Teams: []automdm.UserTeam{
+				{Team: automdm.Team{ID: team.ID}, Role: automdm.RoleObserver},
 			},
 		},
 	}
 	updateInviteResp = updateInviteResponse{}
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/invites/%d", validInvite.ID), updateInviteReq, http.StatusConflict, &updateInviteResp)
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/invites/%d", validInvite.ID), updateInviteReq, http.StatusConflict, &updateInviteResp)
 
 	// update the valid invite: set an email that already exists for another invite
-	createInviteReq = createInviteRequest{InvitePayload: fleet.InvitePayload{
+	createInviteReq = createInviteRequest{InvitePayload: automdm.InvitePayload{
 		Email:      new("some@other.email"),
 		Name:       new("some name"),
-		GlobalRole: null.StringFrom(fleet.RoleAdmin),
+		GlobalRole: null.StringFrom(automdm.RoleAdmin),
 	}}
 	createInviteResp = createInviteResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/invites", createInviteReq, http.StatusOK, &createInviteResp)
+	s.DoJSON("POST", "/api/latest/automdm/invites", createInviteReq, http.StatusOK, &createInviteResp)
 	updateInviteReq = updateInviteRequest{
-		InvitePayload: fleet.InvitePayload{
+		InvitePayload: automdm.InvitePayload{
 			Email: createInviteReq.Email,
-			Teams: []fleet.UserTeam{
-				{Team: fleet.Team{ID: team.ID}, Role: fleet.RoleObserver},
+			Teams: []automdm.UserTeam{
+				{Team: automdm.Team{ID: team.ID}, Role: automdm.RoleObserver},
 			},
 		},
 	}
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/invites/%d", validInvite.ID), updateInviteReq, http.StatusConflict, &updateInviteResp)
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/invites/%d", validInvite.ID), updateInviteReq, http.StatusConflict, &updateInviteResp)
 
 	// update the valid invite to an email that is ok
 	updateInviteReq = updateInviteRequest{
-		InvitePayload: fleet.InvitePayload{
+		InvitePayload: automdm.InvitePayload{
 			Email: new("something@nonexistent.yet123"),
-			Teams: []fleet.UserTeam{
-				{Team: fleet.Team{ID: team.ID}, Role: fleet.RoleObserver},
+			Teams: []automdm.UserTeam{
+				{Team: automdm.Team{ID: team.ID}, Role: automdm.RoleObserver},
 			},
 		},
 	}
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/invites/%d", validInvite.ID), updateInviteReq, http.StatusOK, &updateInviteResp)
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/invites/%d", validInvite.ID), updateInviteReq, http.StatusOK, &updateInviteResp)
 
 	verify, err := s.ds.Invite(context.Background(), validInvite.ID)
 	require.NoError(t, err)
@@ -731,17 +731,17 @@ func (s *integrationTestSuite) TestInvites() {
 
 	// Try to create an user with an email different that the one associated with the invite
 	var createFromInviteResp createUserResponse
-	userPayload := fleet.UserPayload{
+	userPayload := automdm.UserPayload{
 		Name:        new("Full Name"),
 		Password:    new(test.GoodPassword),
 		Email:       new("a@b.c"),
 		InviteToken: new(validInviteToken),
 	}
-	s.DoJSON("POST", "/api/latest/fleet/users", userPayload, http.StatusUnprocessableEntity, &createFromInviteResp)
+	s.DoJSON("POST", "/api/latest/automdm/users", userPayload, http.StatusUnprocessableEntity, &createFromInviteResp)
 
 	// Adjust email and try again, this should be OK
 	userPayload.Email = new(verify.Email)
-	s.DoJSON("POST", "/api/latest/fleet/users", userPayload, http.StatusOK, &createFromInviteResp)
+	s.DoJSON("POST", "/api/latest/automdm/users", userPayload, http.StatusOK, &createFromInviteResp)
 
 	// Check that user is associated with unique invite ID
 	user, err := s.ds.UserByEmail(context.Background(), verify.Email)
@@ -755,18 +755,18 @@ func (s *integrationTestSuite) TestInvites() {
 
 	// delete an existing invite
 	var delResp deleteInviteResponse
-	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/fleet/invites/%d", createInviteResp.Invite.ID), nil, http.StatusOK, &delResp)
+	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/automdm/invites/%d", createInviteResp.Invite.ID), nil, http.StatusOK, &delResp)
 
 	// list invites, is now empty
 	listResp = listInvitesResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/invites", nil, http.StatusOK, &listResp)
+	s.DoJSON("GET", "/api/latest/automdm/invites", nil, http.StatusOK, &listResp)
 	require.Empty(t, listResp.Invites)
 
 	// delete a now non-existing invite
-	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/fleet/invites/%d", validInvite.ID), nil, http.StatusNotFound, &delResp)
+	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/automdm/invites/%d", validInvite.ID), nil, http.StatusNotFound, &delResp)
 
 	// create user from never used but deleted invite
-	s.DoJSON("POST", "/api/latest/fleet/users", fleet.UserPayload{
+	s.DoJSON("POST", "/api/latest/automdm/users", automdm.UserPayload{
 		Name:        new("Full Name"),
 		Password:    new(test.GoodPassword),
 		Email:       new(inv.Email),
@@ -778,18 +778,18 @@ func (s *integrationTestSuite) TestCreateUserFromInviteErrors() {
 	t := s.T()
 
 	// create a valid invite
-	createInviteReq := createInviteRequest{InvitePayload: fleet.InvitePayload{
+	createInviteReq := createInviteRequest{InvitePayload: automdm.InvitePayload{
 		Email:      new("a@b.c"),
 		Name:       new("A"),
-		GlobalRole: null.StringFrom(fleet.RoleObserver),
+		GlobalRole: null.StringFrom(automdm.RoleObserver),
 	}}
 	createInviteResp := createInviteResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/invites", createInviteReq, http.StatusOK, &createInviteResp)
+	s.DoJSON("POST", "/api/latest/automdm/invites", createInviteReq, http.StatusOK, &createInviteResp)
 
 	// make sure to delete it on exit
 	defer func() {
 		var delResp deleteInviteResponse
-		s.DoJSON("DELETE", fmt.Sprintf("/api/latest/fleet/invites/%d", createInviteResp.Invite.ID), nil, http.StatusOK, &delResp)
+		s.DoJSON("DELETE", fmt.Sprintf("/api/latest/automdm/invites/%d", createInviteResp.Invite.ID), nil, http.StatusOK, &delResp)
 	}()
 
 	// the token is not returned via the response's json, must get it from the db
@@ -798,12 +798,12 @@ func (s *integrationTestSuite) TestCreateUserFromInviteErrors() {
 
 	cases := []struct {
 		desc string
-		pld  fleet.UserPayload
+		pld  automdm.UserPayload
 		want int
 	}{
 		{
 			"empty name",
-			fleet.UserPayload{
+			automdm.UserPayload{
 				Name:        new(""),
 				Password:    &test.GoodPassword,
 				Email:       new("a@b.c"),
@@ -813,7 +813,7 @@ func (s *integrationTestSuite) TestCreateUserFromInviteErrors() {
 		},
 		{
 			"empty email",
-			fleet.UserPayload{
+			automdm.UserPayload{
 				Name:        new("Name"),
 				Password:    &test.GoodPassword,
 				Email:       new(""),
@@ -823,7 +823,7 @@ func (s *integrationTestSuite) TestCreateUserFromInviteErrors() {
 		},
 		{
 			"empty password",
-			fleet.UserPayload{
+			automdm.UserPayload{
 				Name:        new("Name"),
 				Password:    new(""),
 				Email:       new("a@b.c"),
@@ -833,7 +833,7 @@ func (s *integrationTestSuite) TestCreateUserFromInviteErrors() {
 		},
 		{
 			"empty token",
-			fleet.UserPayload{
+			automdm.UserPayload{
 				Name:        new("Name"),
 				Password:    &test.GoodPassword,
 				Email:       new("a@b.c"),
@@ -843,7 +843,7 @@ func (s *integrationTestSuite) TestCreateUserFromInviteErrors() {
 		},
 		{
 			"invalid token",
-			fleet.UserPayload{
+			automdm.UserPayload{
 				Name:        new("Name"),
 				Password:    &test.GoodPassword,
 				Email:       new("a@b.c"),
@@ -853,7 +853,7 @@ func (s *integrationTestSuite) TestCreateUserFromInviteErrors() {
 		},
 		{
 			"invalid password",
-			fleet.UserPayload{
+			automdm.UserPayload{
 				Name:        new("Name"),
 				Password:    new("password"), // no number or symbol
 				Email:       new("a@b.c"),
@@ -863,12 +863,12 @@ func (s *integrationTestSuite) TestCreateUserFromInviteErrors() {
 		},
 		{
 			"api_endpoints not accepted",
-			fleet.UserPayload{
+			automdm.UserPayload{
 				Name:         new("Name"),
 				Password:     &test.GoodPassword,
 				Email:        new("a@b.c"),
 				InviteToken:  &invite.Token,
-				APIEndpoints: &[]fleet.APIEndpointRef{{Method: "GET", Path: "/api/v1/fleet/config"}},
+				APIEndpoints: &[]automdm.APIEndpointRef{{Method: "GET", Path: "/api/v1/automdm/config"}},
 			},
 			http.StatusUnprocessableEntity,
 		},
@@ -877,7 +877,7 @@ func (s *integrationTestSuite) TestCreateUserFromInviteErrors() {
 	for _, c := range cases {
 		t.Run(c.desc, func(t *testing.T) {
 			var resp createUserResponse
-			s.DoJSON("POST", "/api/latest/fleet/users", c.pld, c.want, &resp)
+			s.DoJSON("POST", "/api/latest/automdm/users", c.pld, c.want, &resp)
 		})
 	}
 }
@@ -886,15 +886,15 @@ func (s *integrationTestSuite) TestCreateUserFromSSOInvite() {
 	t := s.T()
 	ctx := context.Background()
 
-	createInvite := func(email string, ssoEnabled bool) *fleet.Invite {
-		createInviteReq := createInviteRequest{InvitePayload: fleet.InvitePayload{
+	createInvite := func(email string, ssoEnabled bool) *automdm.Invite {
+		createInviteReq := createInviteRequest{InvitePayload: automdm.InvitePayload{
 			Email:      new(email),
 			Name:       new("SSO Invitee"),
-			GlobalRole: null.StringFrom(fleet.RoleObserver),
+			GlobalRole: null.StringFrom(automdm.RoleObserver),
 			SSOEnabled: new(ssoEnabled),
 		}}
 		createInviteResp := createInviteResponse{}
-		s.DoJSON("POST", "/api/latest/fleet/invites", createInviteReq, http.StatusOK, &createInviteResp)
+		s.DoJSON("POST", "/api/latest/automdm/invites", createInviteReq, http.StatusOK, &createInviteResp)
 		t.Cleanup(func() {
 			// Ignore the error: an accepted invite is consumed (deleted) by the
 			// acceptance flow, so it may no longer exist at cleanup time.
@@ -912,7 +912,7 @@ func (s *integrationTestSuite) TestCreateUserFromSSOInvite() {
 		invite := createInvite(email, true)
 
 		var resp createUserResponse
-		s.DoJSON("POST", "/api/latest/fleet/users", fleet.UserPayload{
+		s.DoJSON("POST", "/api/latest/automdm/users", automdm.UserPayload{
 			Name:        new("Attacker"),
 			Email:       new(email),
 			Password:    &test.GoodPassword,
@@ -921,7 +921,7 @@ func (s *integrationTestSuite) TestCreateUserFromSSOInvite() {
 
 		// no user should have been created
 		_, err := s.ds.UserByEmail(ctx, email)
-		require.True(t, fleet.IsNotFound(err), "expected no user to be created, got err: %v", err)
+		require.True(t, automdm.IsNotFound(err), "expected no user to be created, got err: %v", err)
 	})
 
 	// An empty password field on an SSO invite must also be rejected: the
@@ -931,7 +931,7 @@ func (s *integrationTestSuite) TestCreateUserFromSSOInvite() {
 		invite := createInvite(email, true)
 
 		var resp createUserResponse
-		s.DoJSON("POST", "/api/latest/fleet/users", fleet.UserPayload{
+		s.DoJSON("POST", "/api/latest/automdm/users", automdm.UserPayload{
 			Name:        new("Attacker"),
 			Email:       new(email),
 			Password:    new(""),
@@ -940,7 +940,7 @@ func (s *integrationTestSuite) TestCreateUserFromSSOInvite() {
 		}, http.StatusUnprocessableEntity, &resp)
 
 		_, err := s.ds.UserByEmail(ctx, email)
-		require.True(t, fleet.IsNotFound(err), "expected no user to be created, got err: %v", err)
+		require.True(t, automdm.IsNotFound(err), "expected no user to be created, got err: %v", err)
 	})
 
 	// The legitimate SSO acceptance flow must create an SSO-enabled user.
@@ -949,7 +949,7 @@ func (s *integrationTestSuite) TestCreateUserFromSSOInvite() {
 		invite := createInvite(email, true)
 
 		var resp createUserResponse
-		s.DoJSON("POST", "/api/latest/fleet/users", fleet.UserPayload{
+		s.DoJSON("POST", "/api/latest/automdm/users", automdm.UserPayload{
 			Name:        new("SSO User"),
 			Email:       new(email),
 			SSOInvite:   new(true),
@@ -967,7 +967,7 @@ func (s *integrationTestSuite) TestCreateUserFromSSOInvite() {
 		invite := createInvite(email, false)
 
 		var resp createUserResponse
-		s.DoJSON("POST", "/api/latest/fleet/users", fleet.UserPayload{
+		s.DoJSON("POST", "/api/latest/automdm/users", automdm.UserPayload{
 			Name:        new("No Password"),
 			Email:       new(email),
 			SSOInvite:   new(true),
@@ -975,7 +975,7 @@ func (s *integrationTestSuite) TestCreateUserFromSSOInvite() {
 		}, http.StatusUnprocessableEntity, &resp)
 
 		_, err := s.ds.UserByEmail(ctx, email)
-		require.True(t, fleet.IsNotFound(err), "expected no user to be created, got err: %v", err)
+		require.True(t, automdm.IsNotFound(err), "expected no user to be created, got err: %v", err)
 	})
 
 	// A non-SSO invite accepted with SSOInvite falsely set must still enforce
@@ -986,7 +986,7 @@ func (s *integrationTestSuite) TestCreateUserFromSSOInvite() {
 		invite := createInvite(email, false)
 
 		var resp createUserResponse
-		s.DoJSON("POST", "/api/latest/fleet/users", fleet.UserPayload{
+		s.DoJSON("POST", "/api/latest/automdm/users", automdm.UserPayload{
 			Name:        new("Weak Password"),
 			Email:       new(email),
 			Password:    new("weak"), // too short, no number or symbol
@@ -995,7 +995,7 @@ func (s *integrationTestSuite) TestCreateUserFromSSOInvite() {
 		}, http.StatusUnprocessableEntity, &resp)
 
 		_, err := s.ds.UserByEmail(ctx, email)
-		require.True(t, fleet.IsNotFound(err), "expected no user to be created, got err: %v", err)
+		require.True(t, automdm.IsNotFound(err), "expected no user to be created, got err: %v", err)
 	})
 }
 
@@ -1012,19 +1012,19 @@ func (s *integrationTestSuite) TestUsers() {
 
 	// list existing users
 	var listResp listUsersResponse
-	s.DoJSON("GET", "/api/latest/fleet/users", nil, http.StatusOK, &listResp)
+	s.DoJSON("GET", "/api/latest/automdm/users", nil, http.StatusOK, &listResp)
 	assert.Len(t, listResp.Users, len(s.users))
 
 	// invalid order_key returns 422
 	listResp = listUsersResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/users", nil, http.StatusUnprocessableEntity, &listResp, "order_key", "invalid")
+	s.DoJSON("GET", "/api/latest/automdm/users", nil, http.StatusUnprocessableEntity, &listResp, "order_key", "invalid")
 
 	// with non-matching query
-	s.DoJSON("GET", "/api/latest/fleet/users", nil, http.StatusOK, &listResp, "query", "noone")
+	s.DoJSON("GET", "/api/latest/automdm/users", nil, http.StatusOK, &listResp, "query", "noone")
 	assert.Empty(t, listResp.Users)
 
 	// with matching query containing leading/trailing whitespaces
-	s.DoJSON("GET", "/api/latest/fleet/users", nil, http.StatusOK, &listResp, "query", " user 	")
+	s.DoJSON("GET", "/api/latest/automdm/users", nil, http.StatusOK, &listResp, "query", " user 	")
 	assert.Len(t, listResp.Users, 2)
 	assert.Equal(t, uint(2), listResp.Users[0].ID)
 	assert.Equal(t, uint(3), listResp.Users[1].ID)
@@ -1032,7 +1032,7 @@ func (s *integrationTestSuite) TestUsers() {
 	// test available teams returned by `/me` endpoint for existing user
 	var getMeResp getUserResponse
 	ssn := createSession(t, 1, s.ds)
-	resp := s.DoRawWithHeaders("GET", "/api/latest/fleet/me", []byte(""), http.StatusOK, map[string]string{
+	resp := s.DoRawWithHeaders("GET", "/api/latest/automdm/me", []byte(""), http.StatusOK, map[string]string{
 		"Authorization": fmt.Sprintf("Bearer %s", ssn.Key),
 	})
 	err := json.NewDecoder(resp.Body).Decode(&getMeResp)
@@ -1046,11 +1046,11 @@ func (s *integrationTestSuite) TestUsers() {
 
 	// get session user with ui settings, which should be empty, two endpoints
 	var getResp getUserResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/users/%d", 1), nil, http.StatusOK, &getResp, "include_ui_settings", "true")
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/users/%d", 1), nil, http.StatusOK, &getResp, "include_ui_settings", "true")
 	assert.Equal(t, uint(1), getResp.User.ID)
 	assert.Empty(t, getResp.User.Settings)
 
-	resp = s.DoRawWithHeaders("GET", "/api/latest/fleet/me", []byte(""), http.StatusOK, map[string]string{
+	resp = s.DoRawWithHeaders("GET", "/api/latest/automdm/me", []byte(""), http.StatusOK, map[string]string{
 		"Authorization": fmt.Sprintf("Bearer %s", ssn.Key),
 	}, "include_ui_settings", "true")
 	err = json.NewDecoder(resp.Body).Decode(&getMeResp)
@@ -1064,18 +1064,18 @@ func (s *integrationTestSuite) TestUsers() {
 
 	// modify session user - add ui setting
 	var modResp modifyUserResponse
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/users/%d", 1), json.RawMessage(`{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/users/%d", 1), json.RawMessage(`{
 		"settings": {
 			"hidden_host_columns": ["osquery_version"]}
 	}`), http.StatusOK, &modResp)
 
 	// get session user with ui settings, should now be present, two endpoints
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/users/%d", 1), nil, http.StatusOK, &getResp, "include_ui_settings", "true")
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/users/%d", 1), nil, http.StatusOK, &getResp, "include_ui_settings", "true")
 	assert.Equal(t, uint(1), getResp.User.ID)
 	assert.Nil(t, getResp.User.Settings)
-	assert.Equal(t, &fleet.UserSettings{HiddenHostColumns: []string{"osquery_version"}}, getResp.Settings)
+	assert.Equal(t, &automdm.UserSettings{HiddenHostColumns: []string{"osquery_version"}}, getResp.Settings)
 
-	resp = s.DoRawWithHeaders("GET", "/api/latest/fleet/me", []byte(""), http.StatusOK, map[string]string{
+	resp = s.DoRawWithHeaders("GET", "/api/latest/automdm/me", []byte(""), http.StatusOK, map[string]string{
 		"Authorization": fmt.Sprintf("Bearer %s", ssn.Key),
 	}, "include_ui_settings", "true")
 	err = json.NewDecoder(resp.Body).Decode(&getMeResp)
@@ -1083,21 +1083,21 @@ func (s *integrationTestSuite) TestUsers() {
 	assert.Equal(t, uint(1), getMeResp.User.ID)
 	assert.NotNil(t, getMeResp.User.GlobalRole)
 	assert.Nil(t, getMeResp.User.Settings)
-	assert.Equal(t, &fleet.UserSettings{HiddenHostColumns: []string{"osquery_version"}}, getResp.Settings)
+	assert.Equal(t, &automdm.UserSettings{HiddenHostColumns: []string{"osquery_version"}}, getResp.Settings)
 
 	// modify user ui settings, check they are returned modified
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/users/%d", 1), json.RawMessage(`{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/users/%d", 1), json.RawMessage(`{
 		"settings": {
 			"hidden_host_columns": ["hostname", "osquery_version"]}
 	}`), http.StatusOK, &modResp)
 
 	// get session user with ui settings, should now be modified, two endpoints
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/users/%d", 1), nil, http.StatusOK, &getResp, "include_ui_settings", "true")
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/users/%d", 1), nil, http.StatusOK, &getResp, "include_ui_settings", "true")
 	assert.Equal(t, uint(1), getResp.User.ID)
 	assert.Nil(t, getResp.User.Settings)
-	assert.Equal(t, &fleet.UserSettings{HiddenHostColumns: []string{"hostname", "osquery_version"}}, getResp.Settings)
+	assert.Equal(t, &automdm.UserSettings{HiddenHostColumns: []string{"hostname", "osquery_version"}}, getResp.Settings)
 
-	resp = s.DoRawWithHeaders("GET", "/api/latest/fleet/me", []byte(""), http.StatusOK, map[string]string{
+	resp = s.DoRawWithHeaders("GET", "/api/latest/automdm/me", []byte(""), http.StatusOK, map[string]string{
 		"Authorization": fmt.Sprintf("Bearer %s", ssn.Key),
 	}, "include_ui_settings", "true")
 	err = json.NewDecoder(resp.Body).Decode(&getMeResp)
@@ -1105,21 +1105,21 @@ func (s *integrationTestSuite) TestUsers() {
 	assert.Equal(t, uint(1), getMeResp.User.ID)
 	assert.NotNil(t, getMeResp.User.GlobalRole)
 	assert.Nil(t, getMeResp.User.Settings)
-	assert.Equal(t, &fleet.UserSettings{HiddenHostColumns: []string{"hostname", "osquery_version"}}, getMeResp.Settings)
+	assert.Equal(t, &automdm.UserSettings{HiddenHostColumns: []string{"hostname", "osquery_version"}}, getMeResp.Settings)
 
 	// modify user ui settings, empty array, check they are returned correctly
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/users/%d", 1), json.RawMessage(`{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/users/%d", 1), json.RawMessage(`{
 		"settings": {
 			"hidden_host_columns": []}
 	}`), http.StatusOK, &modResp)
 
 	// get session user with ui settings, should now be modified, two endpoints
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/users/%d", 1), nil, http.StatusOK, &getResp, "include_ui_settings", "true")
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/users/%d", 1), nil, http.StatusOK, &getResp, "include_ui_settings", "true")
 	assert.Equal(t, uint(1), getResp.User.ID)
 	assert.Nil(t, getResp.User.Settings)
-	assert.Equal(t, &fleet.UserSettings{HiddenHostColumns: []string{}}, getResp.Settings)
+	assert.Equal(t, &automdm.UserSettings{HiddenHostColumns: []string{}}, getResp.Settings)
 
-	resp = s.DoRawWithHeaders("GET", "/api/latest/fleet/me", []byte(""), http.StatusOK, map[string]string{
+	resp = s.DoRawWithHeaders("GET", "/api/latest/automdm/me", []byte(""), http.StatusOK, map[string]string{
 		"Authorization": fmt.Sprintf("Bearer %s", ssn.Key),
 	}, "include_ui_settings", "true")
 	err = json.NewDecoder(resp.Body).Decode(&getMeResp)
@@ -1127,34 +1127,34 @@ func (s *integrationTestSuite) TestUsers() {
 	assert.Equal(t, uint(1), getMeResp.User.ID)
 	assert.NotNil(t, getMeResp.User.GlobalRole)
 	assert.Nil(t, getMeResp.User.Settings)
-	assert.Equal(t, &fleet.UserSettings{HiddenHostColumns: []string{}}, getMeResp.Settings)
+	assert.Equal(t, &automdm.UserSettings{HiddenHostColumns: []string{}}, getMeResp.Settings)
 
 	// create a new user
 	var createResp createUserResponse
 	userRawPwd := test.GoodPassword
-	params := fleet.UserPayload{
+	params := automdm.UserPayload{
 		Name:       new("extra"),
 		Email:      new("extra@asd.com"),
 		Password:   new(userRawPwd),
-		GlobalRole: new(fleet.RoleObserver),
+		GlobalRole: new(automdm.RoleObserver),
 		MFAEnabled: new(true),
 	}
 	// mailer isn't set up, which fails prior to silently ignoring MFA
-	s.DoJSON("POST", "/api/latest/fleet/users/admin", params, http.StatusBadRequest, &createResp)
+	s.DoJSON("POST", "/api/latest/automdm/users/admin", params, http.StatusBadRequest, &createResp)
 	params.MFAEnabled = nil
-	s.DoJSON("POST", "/api/latest/fleet/users/admin", params, http.StatusOK, &createResp)
+	s.DoJSON("POST", "/api/latest/automdm/users/admin", params, http.StatusOK, &createResp)
 	assert.NotZero(t, createResp.User.ID)
 	assert.True(t, createResp.User.AdminForcedPasswordReset)
 	u := *createResp.User
 
-	var loginResp fleet.LoginResponse
+	var loginResp automdm.LoginResponse
 
 	// try MFA
 	mysqltest.ExecAdhocSQL(t, s.ds, func(db sqlx.ExtContext) error {
 		_, err := db.ExecContext(context.Background(), `UPDATE users SET mfa_enabled = TRUE WHERE id = ?`, u.ID)
 		return err
 	})
-	s.DoJSONWithoutAuth("POST", "/api/latest/fleet/sessions", sessionCreateRequest{Token: "foo"}, http.StatusUnauthorized, &loginResp)
+	s.DoJSONWithoutAuth("POST", "/api/latest/automdm/sessions", sessionCreateRequest{Token: "foo"}, http.StatusUnauthorized, &loginResp)
 
 	loginErrMessage := func(rawBody []byte) string {
 		var body struct {
@@ -1168,22 +1168,22 @@ func (s *integrationTestSuite) TestUsers() {
 		return fmt.Sprintf("%s %+v", body.Message, body.Errors)
 	}
 
-	mfaUnsupportedResp := s.DoRawNoAuth("POST", "/api/latest/fleet/login",
-		jsonMustMarshal(t, fleet.LoginRequest{Email: "extra@asd.com", Password: userRawPwd}),
+	mfaUnsupportedResp := s.DoRawNoAuth("POST", "/api/latest/automdm/login",
+		jsonMustMarshal(t, automdm.LoginRequest{Email: "extra@asd.com", Password: userRawPwd}),
 		http.StatusUnauthorized)
 	mfaUnsupportedBody, err := io.ReadAll(mfaUnsupportedResp.Body)
 	require.NoError(t, err)
 	mfaUnsupportedResp.Body.Close()
 
-	wrongPwdResp := s.DoRawNoAuth("POST", "/api/latest/fleet/login",
-		jsonMustMarshal(t, fleet.LoginRequest{Email: "extra@asd.com", Password: "wrong-" + userRawPwd}),
+	wrongPwdResp := s.DoRawNoAuth("POST", "/api/latest/automdm/login",
+		jsonMustMarshal(t, automdm.LoginRequest{Email: "extra@asd.com", Password: "wrong-" + userRawPwd}),
 		http.StatusUnauthorized)
 	wrongPwdBody, err := io.ReadAll(wrongPwdResp.Body)
 	require.NoError(t, err)
 	wrongPwdResp.Body.Close()
 
-	nonexistentResp := s.DoRawNoAuth("POST", "/api/latest/fleet/login",
-		jsonMustMarshal(t, fleet.LoginRequest{Email: "does-not-exist@asd.com", Password: userRawPwd}),
+	nonexistentResp := s.DoRawNoAuth("POST", "/api/latest/automdm/login",
+		jsonMustMarshal(t, automdm.LoginRequest{Email: "does-not-exist@asd.com", Password: userRawPwd}),
 		http.StatusUnauthorized)
 	nonexistentBody, err := io.ReadAll(nonexistentResp.Body)
 	require.NoError(t, err)
@@ -1192,20 +1192,20 @@ func (s *integrationTestSuite) TestUsers() {
 	require.Equal(t, loginErrMessage(wrongPwdBody), loginErrMessage(mfaUnsupportedBody))
 	require.Equal(t, loginErrMessage(wrongPwdBody), loginErrMessage(nonexistentBody))
 	// MFA supported; send email
-	s.DoJSONWithoutAuth("POST", "/api/latest/fleet/login",
-		fleet.LoginRequest{Email: "extra@asd.com", Password: userRawPwd, SupportsEmailVerification: true}, http.StatusAccepted, &loginResp)
+	s.DoJSONWithoutAuth("POST", "/api/latest/automdm/login",
+		automdm.LoginRequest{Email: "extra@asd.com", Password: userRawPwd, SupportsEmailVerification: true}, http.StatusAccepted, &loginResp)
 	var mfaToken string
 	mysqltest.ExecAdhocSQL(t, s.ds, func(tx sqlx.ExtContext) error {
 		return sqlx.GetContext(context.Background(), tx, &mfaToken, `SELECT token FROM verification_tokens WHERE user_id = ? LIMIT 1`, createResp.User.ID)
 	})
 	// create session from MFA token
-	s.DoJSONWithoutAuth("POST", "/api/latest/fleet/sessions", sessionCreateRequest{Token: mfaToken}, http.StatusOK, &loginResp)
+	s.DoJSONWithoutAuth("POST", "/api/latest/automdm/sessions", sessionCreateRequest{Token: mfaToken}, http.StatusOK, &loginResp)
 	// can't use the same MFA token twice
-	s.DoJSONWithoutAuth("POST", "/api/latest/fleet/sessions", sessionCreateRequest{Token: mfaToken}, http.StatusUnauthorized, &loginResp)
+	s.DoJSONWithoutAuth("POST", "/api/latest/automdm/sessions", sessionCreateRequest{Token: mfaToken}, http.StatusUnauthorized, &loginResp)
 
 	// send another email, which we'll expire the token for
-	s.DoJSONWithoutAuth("POST", "/api/latest/fleet/login",
-		fleet.LoginRequest{Email: "extra@asd.com", Password: userRawPwd, SupportsEmailVerification: true}, http.StatusAccepted, &loginResp)
+	s.DoJSONWithoutAuth("POST", "/api/latest/automdm/login",
+		automdm.LoginRequest{Email: "extra@asd.com", Password: userRawPwd, SupportsEmailVerification: true}, http.StatusAccepted, &loginResp)
 	mysqltest.ExecAdhocSQL(t, s.ds, func(db sqlx.ExtContext) error {
 		_, err := db.ExecContext(
 			context.Background(),
@@ -1219,100 +1219,100 @@ func (s *integrationTestSuite) TestUsers() {
 
 		return sqlx.GetContext(context.Background(), db, &mfaToken, `SELECT token FROM verification_tokens WHERE user_id = ? LIMIT 1`, createResp.User.ID)
 	})
-	s.DoJSONWithoutAuth("POST", "/api/latest/fleet/sessions", sessionCreateRequest{Token: mfaToken}, http.StatusUnauthorized, &loginResp)
+	s.DoJSONWithoutAuth("POST", "/api/latest/automdm/sessions", sessionCreateRequest{Token: mfaToken}, http.StatusUnauthorized, &loginResp)
 
 	// turn off MFA
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/users/%d", u.ID), fleet.UserPayload{MFAEnabled: new(false)}, http.StatusOK, &modResp)
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/users/%d", u.ID), automdm.UserPayload{MFAEnabled: new(false)}, http.StatusOK, &modResp)
 	require.False(t, modResp.User.MFAEnabled)
 
 	// can't turn MFA back on
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/users/%d", u.ID), fleet.UserPayload{MFAEnabled: new(true)}, http.StatusPaymentRequired, &modResp)
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/users/%d", u.ID), automdm.UserPayload{MFAEnabled: new(true)}, http.StatusPaymentRequired, &modResp)
 
 	// login as that user and check that teams info is empty
-	s.DoJSON("POST", "/api/latest/fleet/login", params, http.StatusOK, &loginResp)
+	s.DoJSON("POST", "/api/latest/automdm/login", params, http.StatusOK, &loginResp)
 	require.Equal(t, loginResp.User.ID, u.ID)
 	assert.Empty(t, loginResp.User.Teams)
 	assert.Empty(t, loginResp.AvailableTeams)
 
 	// get that user from `/users` endpoint and check that teams info is empty
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/users/%d", u.ID), nil, http.StatusOK, &getResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/users/%d", u.ID), nil, http.StatusOK, &getResp)
 	assert.Equal(t, u.ID, getResp.User.ID)
 	assert.Empty(t, getResp.User.Teams)
 	assert.Empty(t, getResp.AvailableTeams)
 
 	// get non-existing user
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/users/%d", u.ID+1), nil, http.StatusNotFound, &getResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/users/%d", u.ID+1), nil, http.StatusNotFound, &getResp)
 
 	// modify that user - simple name change
-	params = fleet.UserPayload{
+	params = automdm.UserPayload{
 		Name: new("extraz"),
 	}
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/users/%d", u.ID), params, http.StatusOK, &modResp)
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/users/%d", u.ID), params, http.StatusOK, &modResp)
 	assert.Equal(t, u.ID, modResp.User.ID)
 	assert.Equal(t, u.Name+"z", modResp.User.Name)
 
 	// modify that user - set an existing email
-	params = fleet.UserPayload{
+	params = automdm.UserPayload{
 		Email: &getMeResp.User.Email,
 	}
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/users/%d", u.ID), params, http.StatusConflict, &modResp)
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/users/%d", u.ID), params, http.StatusConflict, &modResp)
 
 	// modify that user - set an email that has an invite for it
-	createInviteReq := createInviteRequest{InvitePayload: fleet.InvitePayload{
+	createInviteReq := createInviteRequest{InvitePayload: automdm.InvitePayload{
 		Email:      new("colliding@email.com"),
 		Name:       new("some name"),
-		GlobalRole: null.StringFrom(fleet.RoleAdmin),
+		GlobalRole: null.StringFrom(automdm.RoleAdmin),
 		MFAEnabled: new(true),
 	}}
 	createInviteResp := createInviteResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/invites", createInviteReq, http.StatusPaymentRequired, &createInviteResp)
+	s.DoJSON("POST", "/api/latest/automdm/invites", createInviteReq, http.StatusPaymentRequired, &createInviteResp)
 	createInviteReq.MFAEnabled = nil
-	s.DoJSON("POST", "/api/latest/fleet/invites", createInviteReq, http.StatusOK, &createInviteResp)
-	params = fleet.UserPayload{
+	s.DoJSON("POST", "/api/latest/automdm/invites", createInviteReq, http.StatusOK, &createInviteResp)
+	params = automdm.UserPayload{
 		Email: new("colliding@email.com"),
 	}
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/users/%d", u.ID), params, http.StatusConflict, &modResp)
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/users/%d", u.ID), params, http.StatusConflict, &modResp)
 
 	// modify that user - set a non existent email
-	params = fleet.UserPayload{
+	params = automdm.UserPayload{
 		Email: new("someemail@qowieuowh.com"),
 	}
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/users/%d", u.ID), params, http.StatusOK, &modResp)
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/users/%d", u.ID), params, http.StatusOK, &modResp)
 
 	// modify user - email change, password does not match
-	params = fleet.UserPayload{
+	params = automdm.UserPayload{
 		Email:    new("extra2@asd.com"),
 		Password: new("wrongpass"),
 	}
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/users/%d", u.ID), params, http.StatusForbidden, &modResp)
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/users/%d", u.ID), params, http.StatusForbidden, &modResp)
 
 	// modify user - email change, password ok
-	params = fleet.UserPayload{
+	params = automdm.UserPayload{
 		Email:    new("extra2@asd.com"),
 		Password: new(test.GoodPassword),
 	}
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/users/%d", u.ID), params, http.StatusOK, &modResp)
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/users/%d", u.ID), params, http.StatusOK, &modResp)
 	assert.Equal(t, u.ID, modResp.User.ID)
 	assert.NotEqual(t, u.ID, modResp.User.Email)
 
 	// modify invalid user
-	params = fleet.UserPayload{
+	params = automdm.UserPayload{
 		Name: new("nosuchuser"),
 	}
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/users/%d", u.ID+1), params, http.StatusNotFound, &modResp)
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/users/%d", u.ID+1), params, http.StatusNotFound, &modResp)
 
 	var perfPwdResetResp performRequiredPasswordResetResponse
 	newRawPwd := test.GoodPassword2
 	// Try a required password change without authentication
 	s.DoJSON(
-		"POST", "/api/latest/fleet/perform_required_password_reset", performRequiredPasswordResetRequest{
+		"POST", "/api/latest/automdm/perform_required_password_reset", performRequiredPasswordResetRequest{
 			Password: newRawPwd,
 		}, http.StatusForbidden, &perfPwdResetResp,
 	)
 
 	// perform a required password change as the user themselves
 	s.token = s.getTestToken(u.Email, userRawPwd)
-	s.DoJSON("POST", "/api/latest/fleet/perform_required_password_reset", performRequiredPasswordResetRequest{
+	s.DoJSON("POST", "/api/latest/automdm/perform_required_password_reset", performRequiredPasswordResetRequest{
 		Password: newRawPwd,
 	}, http.StatusOK, &perfPwdResetResp)
 	assert.False(t, perfPwdResetResp.User.AdminForcedPasswordReset)
@@ -1322,55 +1322,55 @@ func (s *integrationTestSuite) TestUsers() {
 	// perform a required password change again, this time it fails as there is no request pending
 	perfPwdResetResp = performRequiredPasswordResetResponse{}
 	newRawPwd = "new_password2!"
-	s.DoJSON("POST", "/api/latest/fleet/perform_required_password_reset", performRequiredPasswordResetRequest{
+	s.DoJSON("POST", "/api/latest/automdm/perform_required_password_reset", performRequiredPasswordResetRequest{
 		Password: newRawPwd,
 	}, http.StatusForbidden, &perfPwdResetResp)
 	s.token = s.getTestAdminToken()
 
 	// login as that user to verify that the new password is active (userRawPwd was updated to the new pwd)
-	loginResp = fleet.LoginResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/login", fleet.LoginRequest{Email: u.Email, Password: userRawPwd}, http.StatusOK, &loginResp)
+	loginResp = automdm.LoginResponse{}
+	s.DoJSON("POST", "/api/latest/automdm/login", automdm.LoginRequest{Email: u.Email, Password: userRawPwd}, http.StatusOK, &loginResp)
 	require.Equal(t, loginResp.User.ID, u.ID)
 
 	// logout for that user
 	s.token = loginResp.Token
-	var logoutResp fleet.LogoutResponse
-	s.DoJSON("POST", "/api/latest/fleet/logout", nil, http.StatusOK, &logoutResp)
+	var logoutResp automdm.LogoutResponse
+	s.DoJSON("POST", "/api/latest/automdm/logout", nil, http.StatusOK, &logoutResp)
 
 	// logout again, even though not logged in
-	s.DoJSON("POST", "/api/latest/fleet/logout", nil, http.StatusUnauthorized, &logoutResp)
+	s.DoJSON("POST", "/api/latest/automdm/logout", nil, http.StatusUnauthorized, &logoutResp)
 
 	s.token = s.getTestAdminToken()
 
 	// login as that user with previous pwd fails
-	loginResp = fleet.LoginResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/login", fleet.LoginRequest{Email: u.Email, Password: oldUserRawPwd}, http.StatusUnauthorized, &loginResp)
+	loginResp = automdm.LoginResponse{}
+	s.DoJSON("POST", "/api/latest/automdm/login", automdm.LoginRequest{Email: u.Email, Password: oldUserRawPwd}, http.StatusUnauthorized, &loginResp)
 
 	// require a password reset
 	var reqResetResp requirePasswordResetResponse
-	s.DoJSON("POST", fmt.Sprintf("/api/latest/fleet/users/%d/require_password_reset", u.ID), map[string]bool{"require": true}, http.StatusOK, &reqResetResp)
+	s.DoJSON("POST", fmt.Sprintf("/api/latest/automdm/users/%d/require_password_reset", u.ID), map[string]bool{"require": true}, http.StatusOK, &reqResetResp)
 	assert.Equal(t, u.ID, reqResetResp.User.ID)
 	assert.True(t, reqResetResp.User.AdminForcedPasswordReset)
 
 	// require a password reset to invalid user
-	s.DoJSON("POST", fmt.Sprintf("/api/latest/fleet/users/%d/require_password_reset", u.ID+1), map[string]bool{"require": true}, http.StatusNotFound, &reqResetResp)
+	s.DoJSON("POST", fmt.Sprintf("/api/latest/automdm/users/%d/require_password_reset", u.ID+1), map[string]bool{"require": true}, http.StatusNotFound, &reqResetResp)
 
 	// delete user
 	var delResp deleteUserResponse
-	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/fleet/users/%d", u.ID), nil, http.StatusOK, &delResp)
+	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/automdm/users/%d", u.ID), nil, http.StatusOK, &delResp)
 
 	// delete invalid user
-	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/fleet/users/%d", u.ID), nil, http.StatusNotFound, &delResp)
+	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/automdm/users/%d", u.ID), nil, http.StatusNotFound, &delResp)
 }
 
 func (s *integrationTestSuite) TestChangeUserEmail() {
 	t := s.T()
 
 	// create a new test user
-	user := &fleet.User{
+	user := &automdm.User{
 		Name:       t.Name(),
 		Email:      "testchangeemail@example.com",
-		GlobalRole: new(fleet.RoleObserver),
+		GlobalRole: new(automdm.RoleObserver),
 	}
 	userRawPwd := "foobarbaz1234!"
 	err := user.SetPassword(userRawPwd, 10, 10)
@@ -1380,7 +1380,7 @@ func (s *integrationTestSuite) TestChangeUserEmail() {
 
 	// try to change email with an invalid token
 	var changeResp changeEmailResponse
-	s.DoJSON("GET", "/api/latest/fleet/email/change/invalidtoken", nil, http.StatusNotFound, &changeResp)
+	s.DoJSON("GET", "/api/latest/automdm/email/change/invalidtoken", nil, http.StatusNotFound, &changeResp)
 
 	// create a valid token for the test user
 	err = s.ds.PendingEmailChange(context.Background(), user.ID, "testchangeemail2@example.com", "validtoken")
@@ -1388,19 +1388,19 @@ func (s *integrationTestSuite) TestChangeUserEmail() {
 
 	// try to change email with a valid token, but request made from different user
 	changeResp = changeEmailResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/email/change/validtoken", nil, http.StatusNotFound, &changeResp)
+	s.DoJSON("GET", "/api/latest/automdm/email/change/validtoken", nil, http.StatusNotFound, &changeResp)
 
 	// switch to the test user and make the change email request
 	s.token = s.getTestToken(user.Email, userRawPwd)
 	defer func() { s.token = s.getTestAdminToken() }()
 
 	changeResp = changeEmailResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/email/change/validtoken", nil, http.StatusOK, &changeResp)
+	s.DoJSON("GET", "/api/latest/automdm/email/change/validtoken", nil, http.StatusOK, &changeResp)
 	require.Equal(t, "testchangeemail2@example.com", changeResp.NewEmail)
 
 	// using the token consumes it, so making another request with the same token fails
 	changeResp = changeEmailResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/email/change/validtoken", nil, http.StatusNotFound, &changeResp)
+	s.DoJSON("GET", "/api/latest/automdm/email/change/validtoken", nil, http.StatusNotFound, &changeResp)
 }
 
 func (s *integrationTestSuite) TestModifyUser() {
@@ -1409,14 +1409,14 @@ func (s *integrationTestSuite) TestModifyUser() {
 	// create a new user
 	var createResp createUserResponse
 	userRawPwd := test.GoodPassword
-	params := fleet.UserPayload{
+	params := automdm.UserPayload{
 		Name:                     new("moduser"),
 		Email:                    new("moduser@example.com"),
 		Password:                 new(userRawPwd),
-		GlobalRole:               new(fleet.RoleObserver),
+		GlobalRole:               new(automdm.RoleObserver),
 		AdminForcedPasswordReset: new(false),
 	}
-	s.DoJSON("POST", "/api/latest/fleet/users/admin", params, http.StatusOK, &createResp)
+	s.DoJSON("POST", "/api/latest/automdm/users/admin", params, http.StatusOK, &createResp)
 	require.NotZero(t, createResp.User.ID)
 	u := *createResp.User
 
@@ -1426,19 +1426,19 @@ func (s *integrationTestSuite) TestModifyUser() {
 
 	// as the user: modify email without providing current password
 	var modResp modifyUserResponse
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/users/%d", u.ID), fleet.UserPayload{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/users/%d", u.ID), automdm.UserPayload{
 		Email: new("moduser2@example.com"),
 	}, http.StatusUnprocessableEntity, &modResp)
 
 	// as the user: modify email with invalid password
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/users/%d", u.ID), fleet.UserPayload{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/users/%d", u.ID), automdm.UserPayload{
 		Email:    new("moduser2@example.com"),
 		Password: new("nosuchpwd"),
 	}, http.StatusForbidden, &modResp)
 
 	// as the user: modify email with current password
 	newEmail := "moduser2@example.com"
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/users/%d", u.ID), fleet.UserPayload{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/users/%d", u.ID), automdm.UserPayload{
 		Email:    new(newEmail),
 		Password: new(userRawPwd),
 	}, http.StatusOK, &modResp)
@@ -1447,19 +1447,19 @@ func (s *integrationTestSuite) TestModifyUser() {
 
 	// as the user: set new password without providing current one
 	newRawPwd := test.GoodPassword2
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/users/%d", u.ID), fleet.UserPayload{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/users/%d", u.ID), automdm.UserPayload{
 		NewPassword: &newRawPwd,
 	}, http.StatusUnprocessableEntity, &modResp)
 
 	// as the user: set new password with an invalid current password
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/users/%d", u.ID), fleet.UserPayload{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/users/%d", u.ID), automdm.UserPayload{
 		NewPassword: &newRawPwd,
 		Password:    new("nosuchpwd"),
 	}, http.StatusForbidden, &modResp)
 
 	// as the user: set new password and change name, with a valid current password
 	modResp = modifyUserResponse{}
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/users/%d", u.ID), fleet.UserPayload{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/users/%d", u.ID), automdm.UserPayload{
 		NewPassword: new(newRawPwd),
 		Password:    new(userRawPwd),
 		Name:        new("moduser2"),
@@ -1472,7 +1472,7 @@ func (s *integrationTestSuite) TestModifyUser() {
 	// as a different user: set new password with different user's old password (ensure
 	// any other user that is not admin cannot change another user's password)
 	newRawPwd = userRawPwd + "3"
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/users/%d", u.ID), fleet.UserPayload{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/users/%d", u.ID), automdm.UserPayload{
 		NewPassword: &newRawPwd,
 		Password:    new(testUsers["user2"].PlaintextPassword),
 	}, http.StatusForbidden, &modResp)
@@ -1482,7 +1482,7 @@ func (s *integrationTestSuite) TestModifyUser() {
 	// as an admin, set a new email, name and password without a current password
 	newRawPwd = userRawPwd + "4"
 	modResp = modifyUserResponse{}
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/users/%d", u.ID), fleet.UserPayload{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/users/%d", u.ID), automdm.UserPayload{
 		SSOEnabled:  new(false),
 		NewPassword: &newRawPwd,
 		Email:       new("moduser3@example.com"),
@@ -1492,13 +1492,13 @@ func (s *integrationTestSuite) TestModifyUser() {
 
 	// as an admin, set new password that doesn't meet requirements
 	invalidUserPwd := "abc"
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/users/%d", u.ID), fleet.UserPayload{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/users/%d", u.ID), automdm.UserPayload{
 		NewPassword: new(invalidUserPwd),
 	}, http.StatusUnprocessableEntity, &modResp)
 
 	// login as the user, with the last password successfully set (to confirm it is the current one)
-	var loginResp fleet.LoginResponse
-	resp := s.DoRawNoAuth("POST", "/api/latest/fleet/login", jsonMustMarshal(t, fleet.LoginRequest{
+	var loginResp automdm.LoginResponse
+	resp := s.DoRawNoAuth("POST", "/api/latest/automdm/login", jsonMustMarshal(t, automdm.LoginRequest{
 		Email:    u.Email, // all email changes made are still pending, never confirmed
 		Password: newRawPwd,
 	}), http.StatusOK)
@@ -1507,31 +1507,31 @@ func (s *integrationTestSuite) TestModifyUser() {
 	require.Equal(t, u.ID, loginResp.User.ID)
 
 	// as an admin, api_endpoints must be rejected on this endpoint
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/users/%d", u.ID), fleet.UserPayload{
-		APIEndpoints: &[]fleet.APIEndpointRef{{Method: "GET", Path: "/api/v1/fleet/config"}},
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/users/%d", u.ID), automdm.UserPayload{
+		APIEndpoints: &[]automdm.APIEndpointRef{{Method: "GET", Path: "/api/v1/automdm/config"}},
 	}, http.StatusUnprocessableEntity, &modResp)
 
 	// as an admin, create a new user with SSO authentication enabled
-	params = fleet.UserPayload{
+	params = automdm.UserPayload{
 		Name:                     new("moduser1"),
 		Email:                    new("moduser1@example.com"),
 		SSOInvite:                new(true),
-		GlobalRole:               new(fleet.RoleObserver),
+		GlobalRole:               new(automdm.RoleObserver),
 		AdminForcedPasswordReset: new(false),
 	}
-	s.DoJSON("POST", "/api/latest/fleet/users/admin", params, http.StatusOK, &createResp)
+	s.DoJSON("POST", "/api/latest/automdm/users/admin", params, http.StatusOK, &createResp)
 	require.NotZero(t, createResp.User.ID)
 	u = *createResp.User
 
 	// as an admin, try to disable sso for that user without providing a password
-	res := s.Do("PATCH", fmt.Sprintf("/api/latest/fleet/users/%d", u.ID), fleet.UserPayload{
+	res := s.Do("PATCH", fmt.Sprintf("/api/latest/automdm/users/%d", u.ID), automdm.UserPayload{
 		SSOEnabled: new(false),
 	}, http.StatusUnprocessableEntity)
 	errMsg := extractServerErrorText(res.Body)
 	require.Contains(t, errMsg, "a new password must be provided when disabling SSO")
 
 	// as an admin, try to disable sso for that user while providing a password
-	s.Do("PATCH", fmt.Sprintf("/api/latest/fleet/users/%d", u.ID), fleet.UserPayload{
+	s.Do("PATCH", fmt.Sprintf("/api/latest/automdm/users/%d", u.ID), automdm.UserPayload{
 		SSOEnabled:  new(false),
 		NewPassword: new("Password123#"),
 	}, http.StatusOK)

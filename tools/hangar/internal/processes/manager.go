@@ -13,7 +13,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/fleetdm/fleet/tools/hangar/internal/shellpath"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/shellpath"
 )
 
 const logTailCap = 60 // recent_log lines kept per process

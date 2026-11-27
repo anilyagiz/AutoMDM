@@ -11,24 +11,24 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/pkg/mdm/profilevalidation"
-	"github.com/fleetdm/fleet/v4/server/authz"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm"
-	microsoft_mdm "github.com/fleetdm/fleet/v4/server/mdm/microsoft"
-	"github.com/fleetdm/fleet/v4/server/mdm/microsoft/syncml"
-	"github.com/fleetdm/fleet/v4/server/platform/endpointer"
-	"github.com/fleetdm/fleet/v4/server/variables"
+	"github.com/anilyagiz/automdm/v4/pkg/mdm/profilevalidation"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
+	"github.com/anilyagiz/automdm/v4/server/mdm"
+	microsoft_mdm "github.com/anilyagiz/automdm/v4/server/mdm/microsoft"
+	"github.com/anilyagiz/automdm/v4/server/mdm/microsoft/syncml"
+	"github.com/anilyagiz/automdm/v4/server/platform/endpointer"
+	"github.com/anilyagiz/automdm/v4/server/variables"
 )
 
-func (svc *Service) NewMDMWindowsConfigProfile(ctx context.Context, teamID uint, profileName string, data []byte, labelsInclude []string, labelsMembershipMode fleet.MDMLabelsMode, labelsExcludeAny []string, description string, selfService, hidden bool) (*fleet.MDMWindowsConfigProfile, error) {
-	if err := svc.authz.Authorize(ctx, &fleet.MDMConfigProfileAuthz{TeamID: &teamID}, fleet.ActionWrite); err != nil {
+func (svc *Service) NewMDMWindowsConfigProfile(ctx context.Context, teamID uint, profileName string, data []byte, labelsInclude []string, labelsMembershipMode automdm.MDMLabelsMode, labelsExcludeAny []string, description string, selfService, hidden bool) (*automdm.MDMWindowsConfigProfile, error) {
+	if err := svc.authz.Authorize(ctx, &automdm.MDMConfigProfileAuthz{TeamID: &teamID}, automdm.ActionWrite); err != nil {
 		return nil, ctxerr.Wrap(ctx, err)
 	}
 
-	if err := fleet.ValidateMDMProfileDescription(description); err != nil {
+	if err := automdm.ValidateMDMProfileDescription(description); err != nil {
 		return nil, ctxerr.Wrap(ctx, err)
 	}
 	if err := validateProfileDeployFlags(ctx, selfService, hidden, false, "Couldn't add. "); err != nil {
@@ -38,17 +38,17 @@ func (svc *Service) NewMDMWindowsConfigProfile(ctx context.Context, teamID uint,
 	if err != nil {
 		return nil, err
 	}
-	cp, usesFleetVars, teamName, err := svc.parseAndValidateWindowsConfigProfile(ctx, teamID, profileName, data, labelsInclude, labelsMembershipMode, labelsExcludeAny, "Couldn't add. ", validation)
+	cp, usesAutoMDMVars, teamName, err := svc.parseAndValidateWindowsConfigProfile(ctx, teamID, profileName, data, labelsInclude, labelsMembershipMode, labelsExcludeAny, "Couldn't add. ", validation)
 	if err != nil {
 		return nil, profileValidationUserError(err, false)
 	}
 	cp.Description = description
 	cp.Hidden = hidden
 
-	newCP, err := svc.ds.NewMDMWindowsConfigProfile(ctx, *cp, usesFleetVars)
+	newCP, err := svc.ds.NewMDMWindowsConfigProfile(ctx, *cp, usesAutoMDMVars)
 	if err != nil {
 		if _, ok := errors.AsType[endpointer.ExistsErrorInterface](err); ok {
-			err = fleet.NewInvalidArgumentError("profile", SameProfileNameUploadErrorMsg).
+			err = automdm.NewInvalidArgumentError("profile", SameProfileNameUploadErrorMsg).
 				WithStatus(http.StatusConflict)
 		}
 		return nil, ctxerr.Wrap(ctx, err)
@@ -63,7 +63,7 @@ func (svc *Service) NewMDMWindowsConfigProfile(ctx context.Context, teamID uint,
 		actTeamName = &teamName
 	}
 	if err := svc.NewActivity(
-		ctx, authz.UserFromContext(ctx), &fleet.ActivityTypeCreatedWindowsProfile{
+		ctx, authz.UserFromContext(ctx), &automdm.ActivityTypeCreatedWindowsProfile{
 			TeamID:      actTeamID,
 			TeamName:    actTeamName,
 			ProfileName: newCP.Name,
@@ -77,13 +77,13 @@ func (svc *Service) NewMDMWindowsConfigProfile(ctx context.Context, teamID uint,
 
 // parseAndValidateWindowsConfigProfile runs the validation shared by the
 // create and update paths. It returns the constructed profile (with labels
-// set), the Fleet variable names it uses, and the team's name (empty string
+// set), the AutoMDM variable names it uses, and the team's name (empty string
 // for no team).
-func (svc *Service) parseAndValidateWindowsConfigProfile(ctx context.Context, teamID uint, profileName string, data []byte, labelsInclude []string, labelsMembershipMode fleet.MDMLabelsMode, labelsExcludeAny []string, errPrefix string, validation *profilevalidation.Mode) (*fleet.MDMWindowsConfigProfile, []fleet.FleetVarName, string, error) {
+func (svc *Service) parseAndValidateWindowsConfigProfile(ctx context.Context, teamID uint, profileName string, data []byte, labelsInclude []string, labelsMembershipMode automdm.MDMLabelsMode, labelsExcludeAny []string, errPrefix string, validation *profilevalidation.Mode) (*automdm.MDMWindowsConfigProfile, []automdm.AutoMDMVarName, string, error) {
 	// check that Windows MDM is enabled - the middleware of that endpoint checks
 	// only that any MDM is enabled, maybe it's just macOS
 	if err := svc.VerifyMDMWindowsConfigured(ctx); err != nil {
-		err := fleet.NewInvalidArgumentError("profile", fleet.WindowsMDMNotConfiguredMessage).WithStatus(http.StatusBadRequest)
+		err := automdm.NewInvalidArgumentError("profile", automdm.WindowsMDMNotConfiguredMessage).WithStatus(http.StatusBadRequest)
 		return nil, nil, "", ctxerr.Wrap(ctx, err, "check windows MDM enabled")
 	}
 
@@ -95,7 +95,7 @@ func (svc *Service) parseAndValidateWindowsConfigProfile(ctx context.Context, te
 	var teamName string
 	if teamID > 0 {
 		if lic == nil || !lic.IsPremium() {
-			return nil, nil, "", ctxerr.Wrap(ctx, fleet.ErrMissingLicense)
+			return nil, nil, "", ctxerr.Wrap(ctx, automdm.ErrMissingLicense)
 		}
 		tm, err := svc.EnterpriseOverrides.TeamByIDOrName(ctx, &teamID, nil)
 		if err != nil {
@@ -106,11 +106,11 @@ func (svc *Service) parseAndValidateWindowsConfigProfile(ctx context.Context, te
 
 	if len(labelsInclude) > 0 || len(labelsExcludeAny) > 0 {
 		if lic == nil || !lic.IsPremium() {
-			return nil, nil, "", ctxerr.Wrap(ctx, fleet.NewLicenseErrorWithCause(fleet.ConfigProfileLabelScopingPremiumCauseMsg), "checking license for profile label scoping")
+			return nil, nil, "", ctxerr.Wrap(ctx, automdm.NewLicenseErrorWithCause(automdm.ConfigProfileLabelScopingPremiumCauseMsg), "checking license for profile label scoping")
 		}
 	}
 
-	cp := fleet.MDMWindowsConfigProfile{
+	cp := automdm.MDMWindowsConfigProfile{
 		TeamID: &teamID,
 		Name:   profileName,
 		SyncML: data,
@@ -119,7 +119,7 @@ func (svc *Service) parseAndValidateWindowsConfigProfile(ctx context.Context, te
 		msg := err.Error()
 		if strings.Contains(msg, syncml.DiskEncryptionProfileRestrictionErrMsg) {
 			return nil, nil, "", ctxerr.Wrap(ctx,
-				&fleet.BadRequestError{Message: msg + " To control these settings use disk encryption endpoint."})
+				&automdm.BadRequestError{Message: msg + " To control these settings use disk encryption endpoint."})
 		}
 
 		// this is not great, but since the validations are shared between the CLI
@@ -127,24 +127,24 @@ func (svc *Service) parseAndValidateWindowsConfigProfile(ctx context.Context, te
 		if ix := strings.Index(msg, "To control these settings,"); ix >= 0 {
 			msg = strings.TrimSpace(msg[:ix])
 		}
-		err := &fleet.BadRequestError{Message: errPrefix + msg}
+		err := &automdm.BadRequestError{Message: errPrefix + msg}
 		return nil, nil, "", ctxerr.Wrap(ctx, err, "validate profile")
 	}
 	// After ValidateUserProvided, which keeps its own 400s for reserved and
 	// empty names; this adds the limits shared with the other profile types.
-	if err := fleet.ValidateMDMProfileName(cp.Name); err != nil {
+	if err := automdm.ValidateMDMProfileName(cp.Name); err != nil {
 		return nil, nil, "", ctxerr.Wrap(ctx, err)
 	}
 
-	if overlap := fleet.LabelOverlap(labelsInclude, labelsExcludeAny); overlap != "" {
-		return nil, nil, "", ctxerr.Wrap(ctx, fleet.NewInvalidArgumentError("labels", fmt.Sprintf("label %q cannot appear in both include and exclude lists", overlap)))
+	if overlap := automdm.LabelOverlap(labelsInclude, labelsExcludeAny); overlap != "" {
+		return nil, nil, "", ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("labels", fmt.Sprintf("label %q cannot appear in both include and exclude lists", overlap)))
 	}
 	includeLabels, excludeLabels, err := svc.validateProfileLabelSets(ctx, &teamID, labelsInclude, labelsExcludeAny)
 	if err != nil {
 		return nil, nil, "", ctxerr.Wrap(ctx, err, "validating labels")
 	}
 	switch labelsMembershipMode {
-	case fleet.LabelsIncludeAny:
+	case automdm.LabelsIncludeAny:
 		cp.LabelsIncludeAny = includeLabels
 	default:
 		// default include all
@@ -152,8 +152,8 @@ func (svc *Service) parseAndValidateWindowsConfigProfile(ctx context.Context, te
 	}
 	cp.LabelsExcludeAny = excludeLabels
 
-	if err := fleet.ValidateEmbeddedSecretsAndCustomHostVitals(ctx, svc.ds, []string{string(cp.SyncML)}); err != nil {
-		return nil, nil, "", ctxerr.Wrap(ctx, fleet.NewInvalidArgumentError("profile", err.Error()))
+	if err := automdm.ValidateEmbeddedSecretsAndCustomHostVitals(ctx, svc.ds, []string{string(cp.SyncML)}); err != nil {
+		return nil, nil, "", ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("profile", err.Error()))
 	}
 
 	groupedCAs, err := svc.ds.GetGroupedCertificateAuthorities(ctx, true)
@@ -164,22 +164,22 @@ func (svc *Service) parseAndValidateWindowsConfigProfile(ctx context.Context, te
 	// Validated expanded, like the batch path, so a secret's value is checked (a SCEP challenge's characters, a
 	// schema's types); the expanded copy stays local and cp.SyncML is stored unexpanded.
 	expanded := string(cp.SyncML)
-	if len(fleet.ContainsPrefixVars(expanded, fleet.ServerSecretPrefix)) > 0 {
+	if len(automdm.ContainsPrefixVars(expanded, automdm.ServerSecretPrefix)) > 0 {
 		expanded, err = svc.ds.ExpandEmbeddedSecrets(ctx, expanded)
 		if err != nil {
-			return nil, nil, "", ctxerr.Wrap(ctx, fleet.NewInvalidArgumentError("profile", err.Error()))
+			return nil, nil, "", ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("profile", err.Error()))
 		}
 	}
 
-	foundVars, err := validateWindowsProfileFleetVariables(expanded, lic, groupedCAs)
+	foundVars, err := validateWindowsProfileAutoMDMVariables(expanded, lic, groupedCAs)
 	if err != nil {
 		return nil, nil, "", ctxerr.Wrap(ctx, err)
 	}
 
-	// Collect Fleet variables used in the profile
-	var usesFleetVars []fleet.FleetVarName
+	// Collect AutoMDM variables used in the profile
+	var usesAutoMDMVars []automdm.AutoMDMVarName
 	for _, varName := range foundVars {
-		usesFleetVars = append(usesFleetVars, fleet.FleetVarName(varName))
+		usesAutoMDMVars = append(usesAutoMDMVars, automdm.AutoMDMVarName(varName))
 	}
 
 	if validation != nil {
@@ -192,7 +192,7 @@ func (svc *Service) parseAndValidateWindowsConfigProfile(ctx context.Context, te
 		return nil, nil, "", ctxerr.Wrap(ctx, err, "handling windows profile software update")
 	}
 
-	return &cp, usesFleetVars, teamName, nil
+	return &cp, usesAutoMDMVars, teamName, nil
 }
 
 // updateMDMWindowsConfigProfile implements the Windows branch of
@@ -200,9 +200,9 @@ func (svc *Service) parseAndValidateWindowsConfigProfile(ctx context.Context, te
 // keyed by UUID here. An empty profileName keeps the stored name; a nil
 // description keeps the stored description. The rename is in place, unlike
 // GitOps, which matches on name and so treats a rename as delete-then-insert.
-func (svc *Service) updateMDMWindowsConfigProfile(ctx context.Context, profileUUID string, profileName string, profile []byte, labelsInclude []string, labelsMembershipMode fleet.MDMLabelsMode, labelsExcludeAny []string, description *string, selfService, hidden *bool) error {
+func (svc *Service) updateMDMWindowsConfigProfile(ctx context.Context, profileUUID string, profileName string, profile []byte, labelsInclude []string, labelsMembershipMode automdm.MDMLabelsMode, labelsExcludeAny []string, description *string, selfService, hidden *bool) error {
 	// first we perform a basic authz check
-	if err := svc.authz.Authorize(ctx, &fleet.Team{}, fleet.ActionRead); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.Team{}, automdm.ActionRead); err != nil {
 		return ctxerr.Wrap(ctx, err)
 	}
 
@@ -221,16 +221,16 @@ func (svc *Service) updateMDMWindowsConfigProfile(ctx context.Context, profileUU
 	}
 
 	// now we can do a specific authz check based on team id of profile before we update it
-	if err := svc.authz.Authorize(ctx, &fleet.MDMConfigProfileAuthz{TeamID: existing.TeamID}, fleet.ActionWrite); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.MDMConfigProfileAuthz{TeamID: existing.TeamID}, automdm.ActionWrite); err != nil {
 		return ctxerr.Wrap(ctx, err)
 	}
 
-	// prevent editing profiles that are managed by Fleet
-	fleetNames := mdm.FleetReservedProfileNames()
-	if _, ok := fleetNames[existing.Name]; ok {
-		return &fleet.BadRequestError{
-			Message:     "profiles managed by Fleet can't be edited using this endpoint.",
-			InternalErr: fmt.Errorf("editing profile %s for fleet %s not allowed because it's managed by Fleet", existing.Name, teamName),
+	// prevent editing profiles that are managed by AutoMDM
+	automdmNames := mdm.AutoMDMReservedProfileNames()
+	if _, ok := automdmNames[existing.Name]; ok {
+		return &automdm.BadRequestError{
+			Message:     "profiles managed by AutoMDM can't be edited using this endpoint.",
+			InternalErr: fmt.Errorf("editing profile %s for team %s not allowed because it's managed by AutoMDM", existing.Name, teamName),
 		}
 	}
 
@@ -240,7 +240,7 @@ func (svc *Service) updateMDMWindowsConfigProfile(ctx context.Context, profileUU
 	}
 	newDescription := existing.Description
 	if description != nil {
-		if err := fleet.ValidateMDMProfileDescription(*description); err != nil {
+		if err := automdm.ValidateMDMProfileDescription(*description); err != nil {
 			return ctxerr.Wrap(ctx, err)
 		}
 		newDescription = *description
@@ -250,8 +250,8 @@ func (svc *Service) updateMDMWindowsConfigProfile(ctx context.Context, profileUU
 		return err
 	}
 
-	var cp *fleet.MDMWindowsConfigProfile
-	var usesFleetVars []fleet.FleetVarName
+	var cp *automdm.MDMWindowsConfigProfile
+	var usesAutoMDMVars []automdm.AutoMDMVarName
 	if len(profile) > 0 {
 		var validation *profilevalidation.Mode
 		if !bytes.Equal(profile, existing.SyncML) {
@@ -259,7 +259,7 @@ func (svc *Service) updateMDMWindowsConfigProfile(ctx context.Context, profileUU
 				return err
 			}
 		}
-		cp, usesFleetVars, _, err = svc.parseAndValidateWindowsConfigProfile(ctx, teamID, name, profile, labelsInclude, labelsMembershipMode, labelsExcludeAny, "Couldn't edit. ", validation)
+		cp, usesAutoMDMVars, _, err = svc.parseAndValidateWindowsConfigProfile(ctx, teamID, name, profile, labelsInclude, labelsMembershipMode, labelsExcludeAny, "Couldn't edit. ", validation)
 		if err != nil {
 			return profileValidationUserError(err, true)
 		}
@@ -273,18 +273,18 @@ func (svc *Service) updateMDMWindowsConfigProfile(ctx context.Context, profileUU
 			return ctxerr.Wrap(ctx, err, "validating labels")
 		}
 		if name != existing.Name {
-			if err := fleet.ValidateMDMProfileName(name); err != nil {
+			if err := automdm.ValidateMDMProfileName(name); err != nil {
 				return ctxerr.Wrap(ctx, err)
 			}
 		}
-		cp = &fleet.MDMWindowsConfigProfile{
+		cp = &automdm.MDMWindowsConfigProfile{
 			Name:   name,
 			TeamID: existing.TeamID,
 		}
 		switch labelsMembershipMode {
-		case fleet.LabelsIncludeAll:
+		case automdm.LabelsIncludeAll:
 			cp.LabelsIncludeAll = includeLabels
-		case fleet.LabelsIncludeAny:
+		case automdm.LabelsIncludeAny:
 			cp.LabelsIncludeAny = includeLabels
 		}
 		cp.LabelsExcludeAny = excludeLabels
@@ -293,9 +293,9 @@ func (svc *Service) updateMDMWindowsConfigProfile(ctx context.Context, profileUU
 	cp.Description = newDescription
 	cp.Hidden = newHidden
 
-	if _, err := svc.ds.UpdateMDMWindowsConfigProfile(ctx, *cp, usesFleetVars); err != nil {
+	if _, err := svc.ds.UpdateMDMWindowsConfigProfile(ctx, *cp, usesAutoMDMVars); err != nil {
 		if _, ok := errors.AsType[endpointer.ExistsErrorInterface](err); ok {
-			err = fleet.NewInvalidArgumentError("profile", SameProfileNameEditErrorMsg).WithStatus(http.StatusConflict)
+			err = automdm.NewInvalidArgumentError("profile", SameProfileNameEditErrorMsg).WithStatus(http.StatusConflict)
 		}
 		return ctxerr.Wrap(ctx, err)
 	}
@@ -309,7 +309,7 @@ func (svc *Service) updateMDMWindowsConfigProfile(ctx context.Context, profileUU
 		actTeamName = &teamName
 	}
 	if err := svc.NewActivity(
-		ctx, authz.UserFromContext(ctx), &fleet.ActivityTypeEditedWindowsProfile{
+		ctx, authz.UserFromContext(ctx), &automdm.ActivityTypeEditedWindowsProfile{
 			TeamID:      actTeamID,
 			TeamName:    actTeamName,
 			ProfileName: cp.Name,
@@ -330,13 +330,13 @@ func (svc *Service) handleWindowsProfileSoftwareUpdate(
 	syncML []byte,
 	teamID uint,
 ) error {
-	if !fleet.ProfileTargetsReservedLocURI(syncML, syncml.FleetOSUpdateTargetLocURI) {
+	if !automdm.ProfileTargetsReservedLocURI(syncML, syncml.AutoMDMOSUpdateTargetLocURI) {
 		return nil
 	}
 
 	lic, _ := license.FromContext(ctx)
 	if lic == nil || !lic.IsPremium() {
-		return fleet.ErrMissingLicense
+		return automdm.ErrMissingLicense
 	}
 
 	osUpdatesConfigured, err := isWindowsOSUpdatesConfigured(ctx, teamID, svc)
@@ -344,8 +344,8 @@ func (svc *Service) handleWindowsProfileSoftwareUpdate(
 		return ctxerr.Wrap(ctx, err, "checking if Windows OS updates are configured")
 	}
 	if osUpdatesConfigured {
-		return &fleet.BadRequestError{
-			Message: fleet.OSUpdatesAlreadyConfiguredErrorMessage,
+		return &automdm.BadRequestError{
+			Message: automdm.OSUpdatesAlreadyConfiguredErrorMessage,
 		}
 	}
 
@@ -353,7 +353,7 @@ func (svc *Service) handleWindowsProfileSoftwareUpdate(
 }
 
 func isWindowsOSUpdatesConfigured(ctx context.Context, teamID uint, svc *Service) (bool, error) {
-	var windowsOSUpdates fleet.WindowsUpdates
+	var windowsOSUpdates automdm.WindowsUpdates
 	if teamID > 0 {
 		teamConfig, err := svc.ds.TeamMDMConfig(ctx, teamID)
 		if err != nil {
@@ -374,34 +374,34 @@ func isWindowsOSUpdatesConfigured(ctx context.Context, teamID uint, svc *Service
 	return false, nil
 }
 
-// fleetVarsSupportedInWindowsProfiles lists the Fleet variables that are
+// automdmVarsSupportedInWindowsProfiles lists the AutoMDM variables that are
 // supported in Windows configuration profiles.
 // except prefix variables
-var fleetVarsSupportedInWindowsProfiles = []fleet.FleetVarName{
-	fleet.FleetVarHostUUID,
-	fleet.FleetVarHostHardwareSerial,
-	fleet.FleetVarSCEPWindowsCertificateID,
-	fleet.FleetVarSCEPRenewalID,
-	fleet.FleetVarCertificateRenewalID,
-	fleet.FleetVarHostEndUserIDPUsername,
-	fleet.FleetVarHostEndUserIDPUsernameLocalPart,
-	fleet.FleetVarHostEndUserIDPFullname,
-	fleet.FleetVarHostEndUserIDPDepartment,
-	fleet.FleetVarHostEndUserIDPGroups,
-	fleet.FleetVarHostEndUserIDPExternalID,
-	fleet.FleetVarHostPlatform,
-	fleet.FleetVarNDESSCEPChallenge,
-	fleet.FleetVarNDESSCEPProxyURL,
-	fleet.FleetVarConditionalAccessSCEPURL,
-	fleet.FleetVarConditionalAccessSCEPChallenge,
+var automdmVarsSupportedInWindowsProfiles = []automdm.AutoMDMVarName{
+	automdm.AutoMDMVarHostUUID,
+	automdm.AutoMDMVarHostHardwareSerial,
+	automdm.AutoMDMVarSCEPWindowsCertificateID,
+	automdm.AutoMDMVarSCEPRenewalID,
+	automdm.AutoMDMVarCertificateRenewalID,
+	automdm.AutoMDMVarHostEndUserIDPUsername,
+	automdm.AutoMDMVarHostEndUserIDPUsernameLocalPart,
+	automdm.AutoMDMVarHostEndUserIDPFullname,
+	automdm.AutoMDMVarHostEndUserIDPDepartment,
+	automdm.AutoMDMVarHostEndUserIDPGroups,
+	automdm.AutoMDMVarHostEndUserIDPExternalID,
+	automdm.AutoMDMVarHostPlatform,
+	automdm.AutoMDMVarNDESSCEPChallenge,
+	automdm.AutoMDMVarNDESSCEPProxyURL,
+	automdm.AutoMDMVarConditionalAccessSCEPURL,
+	automdm.AutoMDMVarConditionalAccessSCEPChallenge,
 }
 
 var (
-	subjectNameMissingRenewalIDMsg = "SubjectName item must contain the " + fleet.FleetVarCertificateRenewalID.WithPrefix() +
+	subjectNameMissingRenewalIDMsg = "SubjectName item must contain the " + automdm.AutoMDMVarCertificateRenewalID.WithPrefix() +
 		" variable in the OU field. In some use cases, it can go in the CN field instead."
 	subjectNameRenewalIDInOneOfManyCNsMsg = "SubjectName item can only have one CN field when the CN contains the " +
-		fleet.FleetVarCertificateRenewalID.WithPrefix() + " variable."
-	subjectNameEntityQuotedVariableMsg = `SubjectName values with Fleet variables can't use escaped quotes (&quot;). ` +
+		automdm.AutoMDMVarCertificateRenewalID.WithPrefix() + " variable."
+	subjectNameEntityQuotedVariableMsg = `SubjectName values with AutoMDM variables can't use escaped quotes (&quot;). ` +
 		`Remove them, or use a literal " instead.`
 )
 
@@ -437,10 +437,10 @@ func validateSubjectNameRenewalID(rawData string) error {
 		}
 		switch strings.ToUpper(strings.TrimSpace(key)) {
 		case "OU":
-			inOU = inOU || fleet.FleetVarRenewalIDRegexp.MatchString(value)
+			inOU = inOU || automdm.AutoMDMVarRenewalIDRegexp.MatchString(value)
 		case "CN":
 			commonNames++
-			inCN = inCN || fleet.FleetVarRenewalIDRegexp.MatchString(value)
+			inCN = inCN || automdm.AutoMDMVarRenewalIDRegexp.MatchString(value)
 		}
 	}
 	switch {
@@ -455,8 +455,8 @@ func validateSubjectNameRenewalID(rawData string) error {
 	return nil
 }
 
-func validateWindowsProfileFleetVariables(contents string, lic *fleet.LicenseInfo, groupedCAs *fleet.GroupedCertificateAuthorities) ([]string, error) {
-	if err := fleet.ValidateNoHostSecretVariables(contents); err != nil {
+func validateWindowsProfileAutoMDMVariables(contents string, lic *automdm.LicenseInfo, groupedCAs *automdm.GroupedCertificateAuthorities) ([]string, error) {
+	if err := automdm.ValidateNoHostSecretVariables(contents); err != nil {
 		return nil, err
 	}
 	foundVars := variables.Find(contents)
@@ -464,17 +464,17 @@ func validateWindowsProfileFleetVariables(contents string, lic *fleet.LicenseInf
 		return nil, nil
 	}
 
-	// Check for premium license if the profile contains Fleet variables
+	// Check for premium license if the profile contains AutoMDM variables
 	if lic == nil || !lic.IsPremium() {
-		return nil, fleet.ErrMissingLicense
+		return nil, automdm.ErrMissingLicense
 	}
 
 	// Check if all found variables are supported
 	for _, varName := range foundVars {
-		if !slices.Contains(fleetVarsSupportedInWindowsProfiles, fleet.FleetVarName(varName)) &&
-			!strings.HasPrefix(varName, string(fleet.FleetVarCustomSCEPChallengePrefix)) &&
-			!strings.HasPrefix(varName, string(fleet.FleetVarCustomSCEPProxyURLPrefix)) {
-			return nil, fleet.NewInvalidArgumentError("profile", fmt.Sprintf("Fleet variable $FLEET_VAR_%s is not supported in Windows profiles.", varName))
+		if !slices.Contains(automdmVarsSupportedInWindowsProfiles, automdm.AutoMDMVarName(varName)) &&
+			!strings.HasPrefix(varName, string(automdm.AutoMDMVarCustomSCEPChallengePrefix)) &&
+			!strings.HasPrefix(varName, string(automdm.AutoMDMVarCustomSCEPProxyURLPrefix)) {
+			return nil, automdm.NewInvalidArgumentError("profile", fmt.Sprintf("AutoMDM variable $AUTOMDM_VAR_%s is not supported in Windows profiles.", varName))
 		}
 	}
 
@@ -494,7 +494,7 @@ func validateWindowsProfileFleetVariables(contents string, lic *fleet.LicenseInf
 
 // collectAllSyncMLItems returns all CmdItems from a SyncMLCmd, including items from nested
 // commands within Atomic blocks (ReplaceCommands, AddCommands, ExecCommands).
-func collectAllSyncMLItems(cmd *fleet.SyncMLCmd) []fleet.CmdItem {
+func collectAllSyncMLItems(cmd *automdm.SyncMLCmd) []automdm.CmdItem {
 	items := cmd.Items
 	for _, nested := range cmd.ReplaceCommands {
 		items = append(items, nested.Items...)
@@ -508,13 +508,13 @@ func collectAllSyncMLItems(cmd *fleet.SyncMLCmd) []fleet.CmdItem {
 	return items
 }
 
-// containsFleetVar checks if s contains the given Fleet variable in either $FLEET_VAR_ or ${FLEET_VAR_} form.
-func containsFleetVar(s string, v fleet.FleetVarName) bool {
+// containsAutoMDMVar checks if s contains the given AutoMDM variable in either $AUTOMDM_VAR_ or ${AUTOMDM_VAR_} form.
+func containsAutoMDMVar(s string, v automdm.AutoMDMVarName) bool {
 	return strings.Contains(s, v.WithPrefix()) || strings.Contains(s, v.WithBraces())
 }
 
-// isFleetVar checks if s is exactly the given Fleet variable in either $FLEET_VAR_ or ${FLEET_VAR_} form.
-func isFleetVar(s string, v fleet.FleetVarName) bool {
+// isAutoMDMVar checks if s is exactly the given AutoMDM variable in either $AUTOMDM_VAR_ or ${AUTOMDM_VAR_} form.
+func isAutoMDMVar(s string, v automdm.AutoMDMVarName) bool {
 	return s == v.WithPrefix() || s == v.WithBraces()
 }
 
@@ -522,12 +522,12 @@ func additionalNDESValidationForWindowsProfiles(contents string, ndesVars *NDESV
 	if ndesVars == nil {
 		return nil
 	}
-	return validateWindowsSCEPURLAndChallengePlacement(contents, "NDES", fleet.FleetVarNDESSCEPProxyURL, fleet.FleetVarNDESSCEPChallenge)
+	return validateWindowsSCEPURLAndChallengePlacement(contents, "NDES", automdm.AutoMDMVarNDESSCEPProxyURL, automdm.AutoMDMVarNDESSCEPChallenge)
 }
 
 // conditionalAccessChallengeInvalidMsg is the upload error when the challenge of a conditional access SCEP profile is
 // missing, empty, or a literal with characters Windows can't encode as a PrintableString.
-const conditionalAccessChallengeInvalidMsg = `The SCEP certificate's "Challenge" field must contain $FLEET_VAR_CONDITIONAL_ACCESS_SCEP_CHALLENGE, or a global enroll secret made of letters, numbers, spaces, and ' ( ) + , - . / : = ?`
+const conditionalAccessChallengeInvalidMsg = `The SCEP certificate's "Challenge" field must contain $AUTOMDM_VAR_CONDITIONAL_ACCESS_SCEP_CHALLENGE, or a global enroll secret made of letters, numbers, spaces, and ' ( ) + , - . / : = ?`
 
 // additionalConditionalAccessValidationForWindowsProfiles checks that the conditional access SCEP URL and challenge
 // variables are in, and only in, the SCEP node's ServerURL and Challenge, and that the SubjectName carries the renewal
@@ -538,13 +538,13 @@ func additionalConditionalAccessValidationForWindowsProfiles(contents string, co
 	if conditionalAccessVars == nil {
 		return nil
 	}
-	urlVar := fleet.FleetVarConditionalAccessSCEPURL
-	challengeVar := fleet.FleetVarConditionalAccessSCEPChallenge
+	urlVar := automdm.AutoMDMVarConditionalAccessSCEPURL
+	challengeVar := automdm.AutoMDMVarConditionalAccessSCEPChallenge
 
-	var cmdMsg *fleet.SyncMLCmd
+	var cmdMsg *automdm.SyncMLCmd
 	// An admin's upload, already parsed as SyncML by the profile validators; encoding/xml resolves no external entities.
 	dec := xml.NewDecoder(bytes.NewReader(bytes.TrimSpace([]byte(contents)))) //nolint:gosec // G709: see above
-	urlMissingErr := &fleet.BadRequestError{
+	urlMissingErr := &automdm.BadRequestError{
 		Message: fmt.Sprintf("Variable %q must be in the SCEP certificate's \"ServerURL\" field.", urlVar.WithPrefix()),
 	}
 	challengeFound, challengeIsVar, serverURLFound := false, false, false
@@ -569,38 +569,38 @@ func additionalConditionalAccessValidationForWindowsProfiles(contents string, co
 				dataContent = cmd.Data.Content
 			}
 
-			if containsFleetVar(target, urlVar) || containsFleetVar(target, challengeVar) {
-				return &fleet.BadRequestError{Message: "Conditional access Fleet variables must not appear in LocURI target paths."}
+			if containsAutoMDMVar(target, urlVar) || containsAutoMDMVar(target, challengeVar) {
+				return &automdm.BadRequestError{Message: "Conditional access AutoMDM variables must not appear in LocURI target paths."}
 			}
 			isServerURL := strings.HasSuffix(target, "/Install/ServerURL")
 			isChallenge := strings.HasSuffix(target, "/Install/Challenge")
-			if !isServerURL && containsFleetVar(dataContent, urlVar) {
-				return &fleet.BadRequestError{
+			if !isServerURL && containsAutoMDMVar(dataContent, urlVar) {
+				return &automdm.BadRequestError{
 					Message: fmt.Sprintf("Variable %q must only be in the SCEP certificate's \"ServerURL\" field.", urlVar.WithPrefix()),
 				}
 			}
-			if !isChallenge && containsFleetVar(dataContent, challengeVar) {
-				return &fleet.BadRequestError{
+			if !isChallenge && containsAutoMDMVar(dataContent, challengeVar) {
+				return &automdm.BadRequestError{
 					Message: fmt.Sprintf("Variable %q must only be in the SCEP certificate's \"Challenge\" field.", challengeVar.WithPrefix()),
 				}
 			}
 			if isServerURL {
-				if !isFleetVar(dataContent, urlVar) {
+				if !isAutoMDMVar(dataContent, urlVar) {
 					return urlMissingErr
 				}
 				serverURLFound = true
 			}
 			if isChallenge {
 				challengeFound = true
-				challengeIsVar = isFleetVar(dataContent, challengeVar)
+				challengeIsVar = isAutoMDMVar(dataContent, challengeVar)
 				validLiteral := dataContent != "" && microsoft_mdm.IsValidWindowsSCEPChallenge(dataContent)
 				if !challengeIsVar && !validLiteral {
-					return &fleet.BadRequestError{Message: conditionalAccessChallengeInvalidMsg}
+					return &automdm.BadRequestError{Message: conditionalAccessChallengeInvalidMsg}
 				}
 			}
-			if strings.HasSuffix(target, fleet.WindowsSCEPSubjectNameSuffix) {
+			if strings.HasSuffix(target, automdm.WindowsSCEPSubjectNameSuffix) {
 				if err := validateSubjectNameRenewalID(dataContent); err != nil {
-					return &fleet.BadRequestError{Message: err.Error()}
+					return &automdm.BadRequestError{Message: err.Error()}
 				}
 			}
 		}
@@ -609,12 +609,12 @@ func additionalConditionalAccessValidationForWindowsProfiles(contents string, co
 		return urlMissingErr
 	}
 	if !challengeFound {
-		return &fleet.BadRequestError{Message: conditionalAccessChallengeInvalidMsg}
+		return &automdm.BadRequestError{Message: conditionalAccessChallengeInvalidMsg}
 	}
 	// The variable appears at most once, so requiring it as the challenge also keeps it out of the parts of the profile
 	// the item checks don't read, such as Meta.
 	if conditionalAccessVars.ChallengeFound() && !challengeIsVar {
-		return &fleet.BadRequestError{
+		return &automdm.BadRequestError{
 			Message: fmt.Sprintf("Variable %q must be in the SCEP certificate's \"Challenge\" field.", challengeVar.WithPrefix()),
 		}
 	}
@@ -623,8 +623,8 @@ func additionalConditionalAccessValidationForWindowsProfiles(contents string, co
 
 // validateWindowsSCEPURLAndChallengePlacement checks that a certificate authority's SCEP URL and challenge variables
 // are each in, and only in, their own SCEP node, and that the SubjectName carries the renewal ID in its OU or CN.
-func validateWindowsSCEPURLAndChallengePlacement(contents, groupName string, urlVar, challengeVar fleet.FleetVarName) error {
-	var cmdMsg *fleet.SyncMLCmd
+func validateWindowsSCEPURLAndChallengePlacement(contents, groupName string, urlVar, challengeVar automdm.AutoMDMVarName) error {
+	var cmdMsg *automdm.SyncMLCmd
 	dec := xml.NewDecoder(bytes.NewReader(bytes.TrimSpace([]byte(contents))))
 	for {
 		if err := dec.Decode(&cmdMsg); err != nil {
@@ -651,20 +651,20 @@ func validateWindowsSCEPURLAndChallengePlacement(contents, groupName string, url
 
 			isChallenge := strings.HasSuffix(target, "/Install/Challenge")
 			isServerURL := strings.HasSuffix(target, "/Install/ServerURL")
-			isSubjectName := strings.HasSuffix(target, fleet.WindowsSCEPSubjectNameSuffix)
+			isSubjectName := strings.HasSuffix(target, automdm.WindowsSCEPSubjectNameSuffix)
 
 			// Verify that each variable appears ONLY in its expected field.
 			// This prevents the challenge or URL from being placed in an unexpected field
 			// where it could be exfiltrated, since variable replacement is a global string substitution.
-			if !isChallenge && containsFleetVar(dataContent, challengeVar) {
-				return &fleet.BadRequestError{
+			if !isChallenge && containsAutoMDMVar(dataContent, challengeVar) {
+				return &automdm.BadRequestError{
 					Message: fmt.Sprintf(
 						"Variable %q must only be in the SCEP certificate's \"Challenge\" field.", challengeVar.WithPrefix(),
 					),
 				}
 			}
-			if !isServerURL && containsFleetVar(dataContent, urlVar) {
-				return &fleet.BadRequestError{
+			if !isServerURL && containsAutoMDMVar(dataContent, urlVar) {
+				return &automdm.BadRequestError{
 					Message: fmt.Sprintf(
 						"Variable %q must only be in the SCEP certificate's \"ServerURL\" field.", urlVar.WithPrefix(),
 					),
@@ -672,22 +672,22 @@ func validateWindowsSCEPURLAndChallengePlacement(contents, groupName string, url
 			}
 
 			// Variables must not appear in LocURI target paths.
-			if containsFleetVar(target, challengeVar) || containsFleetVar(target, urlVar) {
-				return &fleet.BadRequestError{
-					Message: groupName + " Fleet variables must not appear in LocURI target paths.",
+			if containsAutoMDMVar(target, challengeVar) || containsAutoMDMVar(target, urlVar) {
+				return &automdm.BadRequestError{
+					Message: groupName + " AutoMDM variables must not appear in LocURI target paths.",
 				}
 			}
 
 			// Verify the expected fields contain the correct variables.
-			if isChallenge && !isFleetVar(dataContent, challengeVar) {
-				return &fleet.BadRequestError{
+			if isChallenge && !isAutoMDMVar(dataContent, challengeVar) {
+				return &automdm.BadRequestError{
 					Message: fmt.Sprintf(
 						"Variable %q must be in the SCEP certificate's \"Challenge\" field.", challengeVar.WithPrefix(),
 					),
 				}
 			}
-			if isServerURL && !isFleetVar(dataContent, urlVar) {
-				return &fleet.BadRequestError{
+			if isServerURL && !isAutoMDMVar(dataContent, urlVar) {
+				return &automdm.BadRequestError{
 					Message: fmt.Sprintf(
 						"Variable %q must be in the SCEP certificate's \"ServerURL\" field.", urlVar.WithPrefix(),
 					),
@@ -695,7 +695,7 @@ func validateWindowsSCEPURLAndChallengePlacement(contents, groupName string, url
 			}
 			if isSubjectName {
 				if err := validateSubjectNameRenewalID(dataContent); err != nil {
-					return &fleet.BadRequestError{Message: err.Error()}
+					return &automdm.BadRequestError{Message: err.Error()}
 				}
 			}
 		}
@@ -709,14 +709,14 @@ func additionalCustomSCEPValidationForWindowsProfiles(contents string, customSCE
 		return nil
 	}
 
-	var cmdMsg *fleet.SyncMLCmd
+	var cmdMsg *automdm.SyncMLCmd
 	dec := xml.NewDecoder(bytes.NewReader(bytes.TrimSpace([]byte(contents))))
 	for {
 		if err := dec.Decode(&cmdMsg); err != nil { // EOF is fine in this case
 			if errors.Is(err, io.EOF) {
 				break
 			}
-			return &fleet.BadRequestError{Message: fmt.Sprintf("The payload isn't valid XML: %s", err)}
+			return &automdm.BadRequestError{Message: fmt.Sprintf("The payload isn't valid XML: %s", err)}
 		}
 		if cmdMsg == nil {
 			break
@@ -729,14 +729,14 @@ func additionalCustomSCEPValidationForWindowsProfiles(contents string, customSCE
 
 			target := strings.TrimSpace(*cmd.Target)
 
-			if strings.HasSuffix(target, fleet.WindowsSCEPSubjectNameSuffix) {
+			if strings.HasSuffix(target, automdm.WindowsSCEPSubjectNameSuffix) {
 				// SubjectName item found, check that it contains the expected renewal ID variable
 				if cmd.Data == nil {
-					return &fleet.BadRequestError{Message: "SubjectName item is missing data"}
+					return &automdm.BadRequestError{Message: "SubjectName item is missing data"}
 				}
 
 				if err := validateSubjectNameRenewalID(cmd.Data.Content); err != nil {
-					return &fleet.BadRequestError{Message: err.Error()}
+					return &automdm.BadRequestError{Message: err.Error()}
 				}
 			}
 		}

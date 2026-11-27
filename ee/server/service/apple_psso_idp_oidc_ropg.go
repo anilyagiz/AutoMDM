@@ -17,10 +17,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/logging"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/logging"
 	jwt "github.com/golang-jwt/jwt/v4"
 )
 
@@ -29,7 +29,7 @@ import (
 // pull the user's claims from.
 const defaultOIDCScopes = "openid profile email"
 
-// maxOIDCTokenResponseSize bounds how much of the IdP token response Fleet
+// maxOIDCTokenResponseSize bounds how much of the IdP token response AutoMDM
 // will read. Real responses (id_token + refresh_token JSON) are a few KB.
 const maxOIDCTokenResponseSize = 1 << 20 // 1 MiB
 
@@ -49,14 +49,14 @@ var oauthErrorFields = []struct{ code, description string }{
 // ropgVerifyUsername is the account VerifyConfig signs in as. It can't exist
 // (the .invalid TLD is reserved), and it reads as a configuration check in the
 // customer's IdP sign-in logs rather than a guessed password.
-const ropgVerifyUsername = "fleet-config-check@invalid.invalid"
+const ropgVerifyUsername = "automdm-config-check@invalid.invalid"
 
 // ropgVerifyTimeout bounds VerifyConfig so a slow IdP can't stall a settings
 // save. Sign-in has no such limit. A var so a test can shorten it; tests that
 // change it must not run in parallel.
 var ropgVerifyTimeout = 10 * time.Second
 
-// ropgVerifyOutcome is what an IdP's error code says about Fleet's settings
+// ropgVerifyOutcome is what an IdP's error code says about AutoMDM's settings
 // when VerifyConfig signs in as a user that doesn't exist.
 type ropgVerifyOutcome int
 
@@ -101,7 +101,7 @@ type ropgDecodeError struct {
 func (e *ropgDecodeError) Error() string { return fmt.Sprintf("HTTP %d: %v", e.status, e.err) }
 func (e *ropgDecodeError) Unwrap() error { return e.err }
 
-// pssoIdPClientConfigError is an IdP token error caused by Fleet's IdP client
+// pssoIdPClientConfigError is an IdP token error caused by AutoMDM's IdP client
 // settings rather than the user. The IdP's details are logged via Internal but
 // never sent to the device: a plain error's text would be.
 type pssoIdPClientConfigError struct {
@@ -109,7 +109,7 @@ type pssoIdPClientConfigError struct {
 }
 
 func (e *pssoIdPClientConfigError) Error() string {
-	return "identity provider rejected Fleet's client configuration"
+	return "identity provider rejected AutoMDM's client configuration"
 }
 
 func (e *pssoIdPClientConfigError) Internal() string { return e.detail }
@@ -130,7 +130,7 @@ type PSSOOIDCROPGClient struct {
 	// defaultOIDCScopes.
 	Scopes string
 
-	// HTTPClient may be overridden in tests. nil falls back to fleethttp.
+	// HTTPClient may be overridden in tests. nil falls back to automdmhttp.
 	HTTPClient *http.Client
 }
 
@@ -222,10 +222,10 @@ func (c PSSOOIDCROPGClient) postTokenRequest(ctx context.Context, client *http.C
 // ValidatePasswordAndGetClaims posts the user's credentials to the IdP's
 // token endpoint with grant_type=password, then parses the returned
 // id_token (JWT) for OIDC-shaped claims.
-func (c PSSOOIDCROPGClient) ValidatePasswordAndGetClaims(ctx context.Context, username, password string) (*fleet.PSSOClaims, error) {
+func (c PSSOOIDCROPGClient) ValidatePasswordAndGetClaims(ctx context.Context, username, password string) (*automdm.PSSOClaims, error) {
 	client := c.HTTPClient
 	if client == nil {
-		client = fleethttp.NewClient(fleethttp.WithNoTimeout())
+		client = automdmhttp.NewClient(automdmhttp.WithNoTimeout())
 	}
 	reply, err := c.postTokenRequest(ctx, client, username, password)
 	if err != nil {
@@ -234,10 +234,10 @@ func (c PSSOOIDCROPGClient) ValidatePasswordAndGetClaims(ctx context.Context, us
 	if reply.status != http.StatusOK || reply.code != "" {
 		// invalid_grant is the IdP rejecting the user's credentials, the only
 		// case the user can fix. Any other error (invalid_client,
-		// unauthorized_client, ...) means Fleet's IdP client settings are wrong,
+		// unauthorized_client, ...) means AutoMDM's IdP client settings are wrong,
 		// which the device must not present as a bad password.
 		if reply.code == oauthErrInvalidGrant {
-			return nil, fleet.NewAuthFailedError(fmt.Sprintf("idp rejected password: %s %s", reply.code, reply.description))
+			return nil, automdm.NewAuthFailedError(fmt.Sprintf("idp rejected password: %s %s", reply.code, reply.description))
 		}
 		return nil, &pssoIdPClientConfigError{detail: fmt.Sprintf(
 			"idp token endpoint returned HTTP %d %q %q: check the Apple account provisioning token URL, client ID, and client secret",
@@ -259,8 +259,8 @@ func (c PSSOOIDCROPGClient) ValidatePasswordAndGetClaims(ctx context.Context, us
 
 // VerifyConfig checks the token URL, client ID, and client secret by signing
 // in as ropgVerifyUsername with a random password. The IdP only rejects that
-// user (invalid_grant) once it has authenticated Fleet's client, so any other
-// answer means the settings are wrong, reported as an *fleet.InvalidArgumentError.
+// user (invalid_grant) once it has authenticated AutoMDM's client, so any other
+// answer means the settings are wrong, reported as an *automdm.InvalidArgumentError.
 func (c PSSOOIDCROPGClient) VerifyConfig(ctx context.Context) error {
 	const (
 		urlField     = "mdm.apple_account_provisioning.oauth_idp_token_url"
@@ -271,7 +271,7 @@ func (c PSSOOIDCROPGClient) VerifyConfig(ctx context.Context) error {
 	defer cancel()
 	client := c.HTTPClient
 	if client == nil {
-		client = fleethttp.NewClient(fleethttp.WithTimeout(ropgVerifyTimeout))
+		client = automdmhttp.NewClient(automdmhttp.WithTimeout(ropgVerifyTimeout))
 	}
 
 	password := make([]byte, 16)
@@ -285,7 +285,7 @@ func (c PSSOOIDCROPGClient) VerifyConfig(ctx context.Context) error {
 		// logged at debug level, where nobody troubleshooting would see it.
 		logging.WithExtras(ctx, "idp_verify_error", err.Error())
 		logging.WithLevel(ctx, slog.LevelInfo)
-		return fleet.NewInvalidArgumentError(urlField, describeTokenURLFailure(c.TokenURL, err))
+		return automdm.NewInvalidArgumentError(urlField, describeTokenURLFailure(c.TokenURL, err))
 	}
 
 	// The IdP's text is shown to the admin; cap it so an odd response can't
@@ -299,28 +299,28 @@ func (c PSSOOIDCROPGClient) VerifyConfig(ctx context.Context) error {
 	}
 	switch {
 	case reply.code == "" && reply.status == http.StatusOK:
-		return fleet.NewInvalidArgumentError(urlField, fmt.Sprintf(
+		return automdm.NewInvalidArgumentError(urlField, fmt.Sprintf(
 			"The token URL returned a token for %s, a test user that shouldn't exist. Check that it points at your IdP's token endpoint.",
 			ropgVerifyUsername))
 	case reply.code == "":
-		return fleet.NewInvalidArgumentError(urlField, fmt.Sprintf(
+		return automdm.NewInvalidArgumentError(urlField, fmt.Sprintf(
 			"The token URL didn't return an OAuth error (HTTP %d). Check that it points at your IdP's token endpoint.", reply.status))
 	}
 	switch ropgVerifyOutcomes[reply.code] {
 	case ropgVerifyOK:
 		return nil
 	case ropgVerifyClientCredentials:
-		return fleet.NewInvalidArgumentError(settingField, fmt.Sprintf(
+		return automdm.NewInvalidArgumentError(settingField, fmt.Sprintf(
 			"Your IdP rejected the client ID or client secret (%s).", idpDetail))
 	case ropgVerifyTokenURL:
-		return fleet.NewInvalidArgumentError(urlField, fmt.Sprintf(
+		return automdm.NewInvalidArgumentError(urlField, fmt.Sprintf(
 			"The token URL isn't your IdP's OAuth token endpoint (%s).", idpDetail))
 	case ropgVerifyAppSetup:
-		return fleet.NewInvalidArgumentError(settingField, fmt.Sprintf(
+		return automdm.NewInvalidArgumentError(settingField, fmt.Sprintf(
 			"Your IdP didn't let this app sign users in with a password (%s). Check that the app exists, allows the OAuth Resource Owner Password grant, and is permitted by your IdP's access policies.", idpDetail))
 	default:
-		return fleet.NewInvalidArgumentError(settingField, fmt.Sprintf(
-			"Your IdP rejected Fleet's test sign-in (%s).", idpDetail))
+		return automdm.NewInvalidArgumentError(settingField, fmt.Sprintf(
+			"Your IdP rejected AutoMDM's test sign-in (%s).", idpDetail))
 	}
 }
 
@@ -335,18 +335,18 @@ func describeTokenURLFailure(tokenURL string, err error) string {
 		return fmt.Sprintf("The token URL didn't return an OAuth response (HTTP %d). Check that it points at your IdP's token endpoint.", decodeErr.status)
 	}
 	if dnsErr, ok := errors.AsType[*net.DNSError](err); ok && dnsErr.IsNotFound {
-		return fmt.Sprintf("Fleet couldn't find the host %s. Check the token URL.", host)
+		return fmt.Sprintf("AutoMDM couldn't find the host %s. Check the token URL.", host)
 	}
 	if netErr, ok := errors.AsType[net.Error](err); (ok && netErr.Timeout()) || errors.Is(err, context.DeadlineExceeded) {
 		return fmt.Sprintf("The token URL didn't respond within %s.", ropgVerifyTimeout)
 	}
 	if _, ok := errors.AsType[*tls.CertificateVerificationError](err); ok {
-		return fmt.Sprintf("Fleet couldn't verify the TLS certificate of %s.", host)
+		return fmt.Sprintf("AutoMDM couldn't verify the TLS certificate of %s.", host)
 	}
 	if errors.Is(err, syscall.ECONNREFUSED) {
-		return fmt.Sprintf("Fleet couldn't connect to %s.", host)
+		return fmt.Sprintf("AutoMDM couldn't connect to %s.", host)
 	}
-	return "Fleet couldn't reach the token URL."
+	return "AutoMDM couldn't reach the token URL."
 }
 
 // parseOIDCIDTokenClaims decodes the id_token JWT body without verifying
@@ -355,13 +355,13 @@ func describeTokenURLFailure(tokenURL string, err error) string {
 // channel — the JWT is effectively a structured response, not a
 // cross-trust assertion. (If we ever start accepting id_tokens from
 // elsewhere, this needs to change.)
-func parseOIDCIDTokenClaims(idToken string) (*fleet.PSSOClaims, error) {
+func parseOIDCIDTokenClaims(idToken string) (*automdm.PSSOClaims, error) {
 	parser := jwt.NewParser(jwt.WithoutClaimsValidation())
 	claims := jwt.MapClaims{}
 	if _, _, err := parser.ParseUnverified(idToken, claims); err != nil {
 		return nil, fmt.Errorf("parse id_token: %w", err)
 	}
-	out := &fleet.PSSOClaims{
+	out := &automdm.PSSOClaims{
 		Subject:           stringClaim(claims, "sub"),
 		Email:             stringClaim(claims, "email"),
 		Name:              stringClaim(claims, "name"),
@@ -372,7 +372,7 @@ func parseOIDCIDTokenClaims(idToken string) (*fleet.PSSOClaims, error) {
 	}
 	// Carry every other claim through in Extra so the PSSO login handler can
 	// forward the ones it allows into the minted id_token. Skip the registered
-	// claims Fleet sets itself when re-signing and the typed claims captured
+	// claims AutoMDM sets itself when re-signing and the typed claims captured
 	// above, so Extra holds only the IdP's custom claims.
 	for k, v := range claims {
 		if _, reserved := oidcCapturedClaims[k]; reserved {
@@ -388,7 +388,7 @@ func parseOIDCIDTokenClaims(idToken string) (*fleet.PSSOClaims, error) {
 
 // oidcCapturedClaims are id_token claims excluded from Extra so it carries only
 // the IdP's custom claims: the ones parseOIDCIDTokenClaims promotes to a typed
-// PSSOClaims field, the registered claims Fleet overwrites when re-signing, and
+// PSSOClaims field, the registered claims AutoMDM overwrites when re-signing, and
 // the standard OIDC session claims. None of these start with the account
 // prefix today, so excluding them is defense-in-depth against the forwarding
 // rule changing later.

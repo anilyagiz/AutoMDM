@@ -13,7 +13,7 @@ interface ILicenseHostLimitMessageProps {
 }
 
 /**
- * Shown when enrolled hosts exceed the Fleet Premium license count by more than 20%.
+ * Shown when enrolled hosts exceed the AutoMDM Premium license count by more than 20%.
  */
 const LicenseHostLimitMessage = ({
   hostCount,

@@ -74,7 +74,7 @@ const config = {
   reporters: ["<rootDir>/frontend/test/trimConsoleStackReporter.js", "default"],
   clearMocks: true,
   testEnvironmentOptions: {
-    url: "http://fleettest.test:9876",
+    url: "http://automdmtest.test:9876",
     customExportConditions: [""],
   },
   transformIgnorePatterns: [`/node_modules/(?!(${esModules})/)`],

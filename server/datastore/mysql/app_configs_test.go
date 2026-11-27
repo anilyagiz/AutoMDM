@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/optjson"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/pkg/optjson"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -45,8 +45,8 @@ func TestAppConfig(t *testing.T) {
 }
 
 func testAppConfigOrgInfo(t *testing.T, ds *Datastore) {
-	info := &fleet.AppConfig{
-		OrgInfo: fleet.OrgInfo{
+	info := &automdm.AppConfig{
+		OrgInfo: automdm.OrgInfo{
 			OrgName:            "Test",
 			OrgLogoURLDarkMode: "localhost:8080/logo.png",
 		},
@@ -73,11 +73,11 @@ func testAppConfigOrgInfo(t *testing.T, ds *Datastore) {
 	info2.SMTPSettings.SMTPSenderAddress = "123"
 	info2.SMTPSettings.SMTPServer = "server"
 	info2.SMTPSettings.SMTPPort = 100
-	info2.SMTPSettings.SMTPAuthenticationType = fleet.AuthTypeNameUserNamePassword
+	info2.SMTPSettings.SMTPAuthenticationType = automdm.AuthTypeNameUserNamePassword
 	info2.SMTPSettings.SMTPUserName = "username"
 	info2.SMTPSettings.SMTPPassword = "password"
 	info2.SMTPSettings.SMTPEnableTLS = false
-	info2.SMTPSettings.SMTPAuthenticationMethod = fleet.AuthMethodNameCramMD5
+	info2.SMTPSettings.SMTPAuthenticationMethod = automdm.AuthMethodNameCramMD5
 	info2.SMTPSettings.SMTPVerifySSLCerts = true
 	info2.SMTPSettings.SMTPEnableStartTLS = true
 	info2.SSOSettings.EnableSSO = true
@@ -98,11 +98,11 @@ func testAppConfigOrgInfo(t *testing.T, ds *Datastore) {
 	assert.Equal(t, info3, info4)
 
 	email := "e@mail.com"
-	u := &fleet.User{
+	u := &automdm.User{
 		Password:   []byte("pass"),
 		Email:      email,
 		SSOEnabled: true,
-		GlobalRole: ptr.String(fleet.RoleAdmin),
+		GlobalRole: ptr.String(automdm.RoleAdmin),
 	}
 	_, err = ds.NewUser(context.Background(), u)
 	assert.Nil(t, err)
@@ -122,12 +122,12 @@ func testAppConfigOrgInfo(t *testing.T, ds *Datastore) {
 
 func testAppConfigAdditionalQueries(t *testing.T, ds *Datastore) {
 	additional := ptr.RawMessage(json.RawMessage("not valid json"))
-	info := &fleet.AppConfig{
-		OrgInfo: fleet.OrgInfo{
+	info := &automdm.AppConfig{
+		OrgInfo: automdm.OrgInfo{
 			OrgName:            "Test",
 			OrgLogoURLDarkMode: "localhost:8080/logo.png",
 		},
-		Features: fleet.Features{
+		Features: automdm.Features{
 			AdditionalQueries: additional,
 		},
 	}
@@ -150,7 +150,7 @@ func testAppConfigEnrollSecrets(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 	defer TruncateTables(t, ds)
 
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "team1"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
 
 	secret, err := ds.VerifyEnrollSecret(ctx, "missing")
@@ -160,18 +160,18 @@ func testAppConfigEnrollSecrets(t *testing.T, ds *Datastore) {
 	// An empty or whitespace-only secret is rejected as not-found before
 	// matching, even when an empty secret exists in storage (e.g. a row created
 	// before the create/update validation existed).
-	require.NoError(t, ds.ApplyEnrollSecrets(ctx, &team1.ID, []*fleet.EnrollSecret{{Secret: "", TeamID: &team1.ID}}))
+	require.NoError(t, ds.ApplyEnrollSecrets(ctx, &team1.ID, []*automdm.EnrollSecret{{Secret: "", TeamID: &team1.ID}}))
 	for _, in := range []string{"", "   ", "\t\n"} {
 		secret, err = ds.VerifyEnrollSecret(ctx, in)
 		require.Error(t, err)
-		require.True(t, fleet.IsNotFound(err))
+		require.True(t, automdm.IsNotFound(err))
 		require.Nil(t, secret)
 	}
 	// remove the empty secret so the rest of the test starts from a clean slate
-	require.NoError(t, ds.ApplyEnrollSecrets(ctx, &team1.ID, []*fleet.EnrollSecret{}))
+	require.NoError(t, ds.ApplyEnrollSecrets(ctx, &team1.ID, []*automdm.EnrollSecret{}))
 
 	err = ds.ApplyEnrollSecrets(ctx, &team1.ID,
-		[]*fleet.EnrollSecret{
+		[]*automdm.EnrollSecret{
 			{Secret: "one_secret", TeamID: &team1.ID},
 		},
 	)
@@ -195,7 +195,7 @@ func testAppConfigEnrollSecrets(t *testing.T, ds *Datastore) {
 
 	// Add global secret
 	err = ds.ApplyEnrollSecrets(ctx, nil,
-		[]*fleet.EnrollSecret{
+		[]*automdm.EnrollSecret{
 			{Secret: "two_secret"},
 		},
 	)
@@ -219,7 +219,7 @@ func testAppConfigEnrollSecrets(t *testing.T, ds *Datastore) {
 
 	// apply a new team secret, keeping the old one
 	err = ds.ApplyEnrollSecrets(ctx, &team1.ID,
-		[]*fleet.EnrollSecret{
+		[]*automdm.EnrollSecret{
 			{Secret: "one_secret", TeamID: &team1.ID},
 			{Secret: "three_secret", TeamID: &team1.ID},
 		},
@@ -228,7 +228,7 @@ func testAppConfigEnrollSecrets(t *testing.T, ds *Datastore) {
 
 	// apply a new global secret, keeping the old one
 	err = ds.ApplyEnrollSecrets(ctx, nil,
-		[]*fleet.EnrollSecret{
+		[]*automdm.EnrollSecret{
 			{Secret: "two_secret"},
 			{Secret: "four_secret"},
 		},
@@ -261,7 +261,7 @@ func testAppConfigEnrollSecrets(t *testing.T, ds *Datastore) {
 	assert.Equal(t, "four_secret", globalSecrets[1].Secret)
 
 	// Remove team secrets
-	err = ds.ApplyEnrollSecrets(ctx, &team1.ID, []*fleet.EnrollSecret{})
+	err = ds.ApplyEnrollSecrets(ctx, &team1.ID, []*automdm.EnrollSecret{})
 	assert.NoError(t, err)
 	secret, err = ds.VerifyEnrollSecret(ctx, "one_secret")
 	assert.Error(t, err)
@@ -277,7 +277,7 @@ func testAppConfigEnrollSecretsCaseSensitive(t *testing.T, ds *Datastore) {
 	err := ds.ApplyEnrollSecrets(
 		context.Background(),
 		nil,
-		[]*fleet.EnrollSecret{
+		[]*automdm.EnrollSecret{
 			{Secret: "one_secret"},
 		},
 	)
@@ -292,7 +292,7 @@ func testAppConfigEnrollSecretsCaseSensitive(t *testing.T, ds *Datastore) {
 func testAppConfigEnrollSecretRoundtrip(t *testing.T, ds *Datastore) {
 	defer TruncateTables(t, ds)
 
-	team1, err := ds.NewTeam(context.Background(), &fleet.Team{Name: "team1"})
+	team1, err := ds.NewTeam(context.Background(), &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
 
 	secrets, err := ds.GetEnrollSecrets(context.Background(), nil)
@@ -303,7 +303,7 @@ func testAppConfigEnrollSecretRoundtrip(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 	assert.Len(t, secrets, 0)
 
-	expectedSecrets := []*fleet.EnrollSecret{
+	expectedSecrets := []*automdm.EnrollSecret{
 		{Secret: "one_secret"},
 		{Secret: "two_secret"},
 	}
@@ -332,11 +332,11 @@ func testAppConfigEnrollSecretRoundtrip(t *testing.T, ds *Datastore) {
 func testAppConfigEnrollSecretUniqueness(t *testing.T, ds *Datastore) {
 	defer TruncateTables(t, ds)
 
-	team1, err := ds.NewTeam(context.Background(), &fleet.Team{Name: "team1"})
+	team1, err := ds.NewTeam(context.Background(), &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
 
 	const secret = "one_secret"
-	expectedSecrets := []*fleet.EnrollSecret{
+	expectedSecrets := []*automdm.EnrollSecret{
 		{Secret: secret},
 	}
 	err = ds.ApplyEnrollSecrets(context.Background(), &team1.ID, expectedSecrets)
@@ -401,29 +401,29 @@ func testAggregateEnrollSecretPerTeam(t *testing.T, ds *Datastore) {
 
 	// Add global secret
 	err := ds.ApplyEnrollSecrets(ctx, nil,
-		[]*fleet.EnrollSecret{
+		[]*automdm.EnrollSecret{
 			{Secret: "global_secret"},
 		},
 	)
 	assert.NoError(t, err)
 
 	// a team with two enroll secrets
-	team1, err := ds.NewTeam(context.Background(), &fleet.Team{Name: "team1"})
+	team1, err := ds.NewTeam(context.Background(), &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
-	err = ds.ApplyEnrollSecrets(context.Background(), &team1.ID, []*fleet.EnrollSecret{
+	err = ds.ApplyEnrollSecrets(context.Background(), &team1.ID, []*automdm.EnrollSecret{
 		{Secret: "team_1_secret_1"},
 		{Secret: "team_1_secret_2"},
 	})
 	require.NoError(t, err)
 
 	// a team with no enroll secrets
-	_, err = ds.NewTeam(context.Background(), &fleet.Team{Name: "team2"})
+	_, err = ds.NewTeam(context.Background(), &automdm.Team{Name: "team2"})
 	require.NoError(t, err)
 
 	// a team with a single enroll secret
-	team3, err := ds.NewTeam(context.Background(), &fleet.Team{Name: "team3"})
+	team3, err := ds.NewTeam(context.Background(), &automdm.Team{Name: "team3"})
 	require.NoError(t, err)
-	err = ds.ApplyEnrollSecrets(context.Background(), &team3.ID, []*fleet.EnrollSecret{
+	err = ds.ApplyEnrollSecrets(context.Background(), &team3.ID, []*automdm.EnrollSecret{
 		{Secret: "team_3_secret_1"},
 	})
 	require.NoError(t, err)
@@ -443,7 +443,7 @@ func testAggregateEnrollSecretPerTeam(t *testing.T, ds *Datastore) {
 		return *agg[i].TeamID < *agg[j].TeamID
 	})
 
-	require.ElementsMatch(t, []*fleet.EnrollSecret{
+	require.ElementsMatch(t, []*automdm.EnrollSecret{
 		{TeamID: nil, Secret: "global_secret"},
 		{TeamID: ptr.Uint(1), Secret: "team_1_secret_1"},
 		{TeamID: ptr.Uint(2), Secret: ""},
@@ -462,7 +462,7 @@ func testGetConfigEnableDiskEncryption(t *testing.T, ds *Datastore) {
 
 	diskEncryptionConfig, err := ds.GetConfigEnableDiskEncryption(ctx, nil)
 	require.NoError(t, err)
-	require.Equal(t, fleet.DiskEncryptionConfig{}, diskEncryptionConfig)
+	require.Equal(t, automdm.DiskEncryptionConfig{}, diskEncryptionConfig)
 
 	// Enable disk encryption for no team. The flat toggle is virtual so
 	// the per-platform fields are what gets written.
@@ -481,7 +481,7 @@ func testGetConfigEnableDiskEncryption(t *testing.T, ds *Datastore) {
 
 	diskEncryptionConfig, err = ds.GetConfigEnableDiskEncryption(ctx, nil)
 	require.NoError(t, err)
-	require.Equal(t, fleet.DiskEncryptionConfig{
+	require.Equal(t, automdm.DiskEncryptionConfig{
 		MacOSEnabled:         true,
 		MacOSEscrowEnabled:   true,
 		WindowsEnabled:       true,
@@ -501,7 +501,7 @@ func testGetConfigEnableDiskEncryption(t *testing.T, ds *Datastore) {
 	// the per-platform read reflects the mixed state as-is
 	diskEncryptionConfig, err = ds.GetConfigEnableDiskEncryption(ctx, nil)
 	require.NoError(t, err)
-	require.Equal(t, fleet.DiskEncryptionConfig{
+	require.Equal(t, automdm.DiskEncryptionConfig{
 		MacOSEnabled:         true,
 		MacOSEscrowEnabled:   true,
 		WindowsEnabled:       true,
@@ -514,7 +514,7 @@ func testGetConfigEnableDiskEncryption(t *testing.T, ds *Datastore) {
 	require.NoError(t, ds.SaveAppConfig(ctx, ac))
 
 	// Create team
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "team1"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
 
 	tm, err := ds.TeamWithExtras(ctx, team1.ID) // TODO replace with TeamLite (will require a new save DS method)
@@ -525,7 +525,7 @@ func testGetConfigEnableDiskEncryption(t *testing.T, ds *Datastore) {
 
 	diskEncryptionConfig, err = ds.GetConfigEnableDiskEncryption(ctx, &team1.ID)
 	require.NoError(t, err)
-	require.Equal(t, fleet.DiskEncryptionConfig{}, diskEncryptionConfig)
+	require.Equal(t, automdm.DiskEncryptionConfig{}, diskEncryptionConfig)
 
 	// Enable disk encryption for the team
 	tm.Config.MDM.MacOSSettings.EnableDiskEncryption = optjson.SetBool(true)
@@ -545,7 +545,7 @@ func testGetConfigEnableDiskEncryption(t *testing.T, ds *Datastore) {
 
 	diskEncryptionConfig, err = ds.GetConfigEnableDiskEncryption(ctx, &team1.ID)
 	require.NoError(t, err)
-	require.Equal(t, fleet.DiskEncryptionConfig{
+	require.Equal(t, automdm.DiskEncryptionConfig{
 		MacOSEnabled:         true,
 		MacOSEscrowEnabled:   true,
 		WindowsEnabled:       true,
@@ -559,14 +559,14 @@ func testIsEnrollSecretAvailable(t *testing.T, ds *Datastore) {
 	defer TruncateTables(t, ds)
 
 	// Create teams
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "team1"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
-	team2, err := ds.NewTeam(ctx, &fleet.Team{Name: "team2"})
+	team2, err := ds.NewTeam(ctx, &automdm.Team{Name: "team2"})
 	require.NoError(t, err)
 
 	// Populate enroll secrets
-	require.NoError(t, ds.ApplyEnrollSecrets(ctx, nil, []*fleet.EnrollSecret{{Secret: "globalSecret"}}))
-	require.NoError(t, ds.ApplyEnrollSecrets(ctx, &team1.ID, []*fleet.EnrollSecret{{Secret: "teamSecret"}}))
+	require.NoError(t, ds.ApplyEnrollSecrets(ctx, nil, []*automdm.EnrollSecret{{Secret: "globalSecret"}}))
+	require.NoError(t, ds.ApplyEnrollSecrets(ctx, &team1.ID, []*automdm.EnrollSecret{{Secret: "teamSecret"}}))
 
 	tests := []struct {
 		secret          string
@@ -609,7 +609,7 @@ func testYaraRulesRoundtrip(t *testing.T, ds *Datastore) {
 	defer TruncateTables(t, ds)
 
 	// Empty insert
-	expectedRules := []fleet.YaraRule{}
+	expectedRules := []automdm.YaraRule{}
 	err := ds.ApplyYaraRules(ctx, expectedRules)
 	require.NoError(t, err)
 	rules, err := ds.GetYaraRules(ctx)
@@ -617,7 +617,7 @@ func testYaraRulesRoundtrip(t *testing.T, ds *Datastore) {
 	assert.Equal(t, expectedRules, rules)
 
 	// Insert values
-	expectedRules = []fleet.YaraRule{
+	expectedRules = []automdm.YaraRule{
 		{
 			Name: "wildcard.yar",
 			Contents: `rule WildcardExample
@@ -655,7 +655,7 @@ func testYaraRulesRoundtrip(t *testing.T, ds *Datastore) {
 	assert.Equal(t, &expectedRules[1], rule)
 
 	// Update rules
-	expectedRules = []fleet.YaraRule{
+	expectedRules = []automdm.YaraRule{
 		{
 			Name: "wildcard.yar",
 			Contents: `rule WildcardExample
@@ -701,7 +701,7 @@ func testYaraRulesRoundtrip(t *testing.T, ds *Datastore) {
 	assert.Equal(t, expectedRules, rules)
 
 	// Test edge case: Apply same rules but in different order
-	reorderedRules := []fleet.YaraRule{expectedRules[1], expectedRules[0]}
+	reorderedRules := []automdm.YaraRule{expectedRules[1], expectedRules[0]}
 	err = ds.ApplyYaraRules(ctx, reorderedRules)
 	require.NoError(t, err)
 	// Verify both rules still exist
@@ -713,7 +713,7 @@ func testYaraRulesRoundtrip(t *testing.T, ds *Datastore) {
 	assert.Equal(t, &expectedRules[1], rule)
 
 	// Test: Modify only the content of one rule (same name, different content)
-	modifiedContentRules := []fleet.YaraRule{
+	modifiedContentRules := []automdm.YaraRule{
 		{
 			Name: "wildcard.yar",
 			Contents: `rule WildcardExampleModified
@@ -746,7 +746,7 @@ func testYaraRulesRoundtrip(t *testing.T, ds *Datastore) {
 	assert.Contains(t, rule.Contents, "E2 34 ?? C8 A? FB FF")
 
 	// Test: Mixed operations - add new, keep one unchanged, delete one
-	mixedRules := []fleet.YaraRule{
+	mixedRules := []automdm.YaraRule{
 		{
 			Name: "wildcard.yar",
 			Contents: `rule WildcardExampleModified
@@ -787,7 +787,7 @@ func testYaraRulesRoundtrip(t *testing.T, ds *Datastore) {
 	assert.Equal(t, `rule NewRule { condition: true }`, rule.Contents)
 
 	// Clear rules
-	expectedRules = []fleet.YaraRule{}
+	expectedRules = []automdm.YaraRule{}
 	err = ds.ApplyYaraRules(ctx, expectedRules)
 	require.NoError(t, err)
 	rules, err = ds.GetYaraRules(ctx)
@@ -801,7 +801,7 @@ func testYaraRulesRoundtrip(t *testing.T, ds *Datastore) {
 
 // setAppConfigDiskEncryptionForTest sets the deprecated flat toggle and every
 // per-platform disk encryption setting.
-func setAppConfigDiskEncryptionForTest(ac *fleet.AppConfig, enabled bool) {
+func setAppConfigDiskEncryptionForTest(ac *automdm.AppConfig, enabled bool) {
 	ac.MDM.EnableDiskEncryption = optjson.SetBool(enabled)
 	ac.MDM.MacOSSettings.EnableDiskEncryption = optjson.SetBool(enabled)
 	ac.MDM.MacOSSettings.EnableEscrowDiskEncryptionKey = optjson.SetBool(enabled)
@@ -811,7 +811,7 @@ func setAppConfigDiskEncryptionForTest(ac *fleet.AppConfig, enabled bool) {
 
 // setTeamMDMDiskEncryptionForTest is the TeamMDM twin of
 // setAppConfigDiskEncryptionForTest.
-func setTeamMDMDiskEncryptionForTest(tm *fleet.TeamMDM, enabled bool) {
+func setTeamMDMDiskEncryptionForTest(tm *automdm.TeamMDM, enabled bool) {
 	tm.EnableDiskEncryption = enabled
 	tm.MacOSSettings.EnableDiskEncryption = optjson.SetBool(enabled)
 	tm.MacOSSettings.EnableEscrowDiskEncryptionKey = optjson.SetBool(enabled)

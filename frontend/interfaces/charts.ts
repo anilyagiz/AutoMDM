@@ -111,15 +111,15 @@ export const DATASET_LABEL: Record<HistoricalDataConfigKey, string> = {
   vulnerabilities: "Vulnerability exposure",
 };
 
-// Applies the global-AND-fleet precedence rule for historical data
-// collection. Missing settings (e.g. no fleet selected) are treated as
+// Applies the global-AND-automdm precedence rule for historical data
+// collection. Missing settings (e.g. no team selected) are treated as
 // enabled so the rule is a true AND with no surprises.
 export const isHistoricalDataEnabled = (
   global: IHistoricalDataSettings | undefined,
-  fleet: IHistoricalDataSettings | undefined,
+  team: IHistoricalDataSettings | undefined,
   configKey: HistoricalDataConfigKey
 ): boolean => {
   const g = global?.[configKey] ?? true;
-  const f = fleet?.[configKey] ?? true;
+  const f = team?.[configKey] ?? true;
   return g && f;
 };

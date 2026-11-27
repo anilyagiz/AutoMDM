@@ -37,7 +37,7 @@
     gap: $pad-small;
     padding: $pad-medium;
     background: $ui-off-white;
-    border: 1px solid $ui-fleet-black-10;
+    border: 1px solid $ui-automdm-black-10;
     // No bottom border: the accordion list below has its own top border and
     // doubling them up renders at 2px.
     border-bottom: none;
@@ -82,7 +82,7 @@
   &__app-versions-header-name {
     font-size: $x-small;
     font-weight: $bold;
-    color: $core-fleet-black;
+    color: $core-automdm-black;
   }
 
   &__app-versions-header-version {

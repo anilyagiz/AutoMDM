@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -24,21 +24,21 @@ func TestInitAssets(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify all assets were created
-	expectedAssets := []fleet.MDMAssetName{
-		fleet.MDMAssetConditionalAccessCACert,
-		fleet.MDMAssetConditionalAccessCAKey,
-		fleet.MDMAssetConditionalAccessIDPCert,
-		fleet.MDMAssetConditionalAccessIDPKey,
+	expectedAssets := []automdm.MDMAssetName{
+		automdm.MDMAssetConditionalAccessCACert,
+		automdm.MDMAssetConditionalAccessCAKey,
+		automdm.MDMAssetConditionalAccessIDPCert,
+		automdm.MDMAssetConditionalAccessIDPKey,
 	}
 	savedAssets, err := ds.GetAllMDMConfigAssetsByName(ctx, expectedAssets, nil)
 	require.NoError(t, err)
 	require.Len(t, savedAssets, 4, "Should have created all four assets")
 
 	// Extract assets by name
-	caCertAsset, foundCACert := savedAssets[fleet.MDMAssetConditionalAccessCACert]
-	caKeyAsset, foundCAKey := savedAssets[fleet.MDMAssetConditionalAccessCAKey]
-	idpCertAsset, foundIdPCert := savedAssets[fleet.MDMAssetConditionalAccessIDPCert]
-	idpKeyAsset, foundIdPKey := savedAssets[fleet.MDMAssetConditionalAccessIDPKey]
+	caCertAsset, foundCACert := savedAssets[automdm.MDMAssetConditionalAccessCACert]
+	caKeyAsset, foundCAKey := savedAssets[automdm.MDMAssetConditionalAccessCAKey]
+	idpCertAsset, foundIdPCert := savedAssets[automdm.MDMAssetConditionalAccessIDPCert]
+	idpKeyAsset, foundIdPKey := savedAssets[automdm.MDMAssetConditionalAccessIDPKey]
 
 	require.True(t, foundCACert, "Should have CA cert")
 	require.True(t, foundCAKey, "Should have CA key")
@@ -55,7 +55,7 @@ func TestInitAssets(t *testing.T) {
 	require.NoError(t, err, "Should be able to parse CA certificate")
 
 	// Verify certificate attributes
-	assert.Equal(t, "Fleet conditional access CA", cert.Subject.CommonName, "CA cert should have correct common name")
+	assert.Equal(t, "AutoMDM conditional access CA", cert.Subject.CommonName, "CA cert should have correct common name")
 	assert.Contains(t, cert.Subject.Organization, "Local certificate authority", "CA cert should have correct organization")
 
 	// Verify certificate is valid for 10 years (with tolerance for leap years)
@@ -100,7 +100,7 @@ func TestInitAssets(t *testing.T) {
 	require.NoError(t, err, "Should be able to parse IdP certificate")
 
 	// Verify IdP certificate attributes
-	assert.Equal(t, "Fleet conditional access IdP", idpCert.Subject.CommonName, "IdP cert should have correct common name")
+	assert.Equal(t, "AutoMDM conditional access IdP", idpCert.Subject.CommonName, "IdP cert should have correct common name")
 	assert.Contains(t, idpCert.Subject.Organization, "Local certificate authority", "IdP cert should have correct organization")
 
 	// Save original values for idempotency check
@@ -119,8 +119,8 @@ func TestInitAssets(t *testing.T) {
 	require.Len(t, secondAssets, 4)
 
 	// Verify all values are unchanged (idempotent)
-	assert.Equal(t, originalCACertValue, secondAssets[fleet.MDMAssetConditionalAccessCACert].Value, "CA cert should not be regenerated")
-	assert.Equal(t, originalCAKeyValue, secondAssets[fleet.MDMAssetConditionalAccessCAKey].Value, "CA key should not be regenerated")
-	assert.Equal(t, originalIdPCertValue, secondAssets[fleet.MDMAssetConditionalAccessIDPCert].Value, "IdP cert should not be regenerated")
-	assert.Equal(t, originalIdPKeyValue, secondAssets[fleet.MDMAssetConditionalAccessIDPKey].Value, "IdP key should not be regenerated")
+	assert.Equal(t, originalCACertValue, secondAssets[automdm.MDMAssetConditionalAccessCACert].Value, "CA cert should not be regenerated")
+	assert.Equal(t, originalCAKeyValue, secondAssets[automdm.MDMAssetConditionalAccessCAKey].Value, "CA key should not be regenerated")
+	assert.Equal(t, originalIdPCertValue, secondAssets[automdm.MDMAssetConditionalAccessIDPCert].Value, "IdP cert should not be regenerated")
+	assert.Equal(t, originalIdPKeyValue, secondAssets[automdm.MDMAssetConditionalAccessIDPKey].Value, "IdP key should not be regenerated")
 }

@@ -10,19 +10,19 @@ Rejected
 
 ## Context
 
-Fleet uses a number of third-party open-source dependencies, and in some cases needs to make modifications to those
+AutoMDM uses a number of third-party open-source dependencies, and in some cases needs to make modifications to those
 dependencies to conform to our needs. These modifications may or may not make sense in the context of the upstream
 project, but in many cases the modifications require editing code rather than wrapping it.
 
-Previously, in cases where it didn't make sense for Fleet to wait for changes to be merged upstream, engineers would
+Previously, in cases where it didn't make sense for AutoMDM to wait for changes to be merged upstream, engineers would
 copy libraries to into the monorepo. However, this made it quite difficult to pull in beneficial upstream changes,
-including security fixes. It also meant that changes useful beyond Fleet were difficult for other members of the
+including security fixes. It also meant that changes useful beyond AutoMDM were difficult for other members of the
 community to benefit from, even though this arrangement meets the letter of libraries' licenses.
 
 ## Decision
 
-Going forward, for actively maintained GitHub-hosted third-party dependencies where Fleet needs to make its own
-modification on top, that work will be done on a fork of the appropriate repository in the `fleet` GitHub organization.
+Going forward, for actively maintained GitHub-hosted third-party dependencies where AutoMDM needs to make its own
+modification on top, that work will be done on a fork of the appropriate repository in the `automdm` GitHub organization.
 See [Impact](#impact) for exact implementation details.
 
 ## Consequences
@@ -30,9 +30,9 @@ See [Impact](#impact) for exact implementation details.
 ### Benefits
 
 * It's simpler to incorporate upstream fixes and improvements for libraries as those changes are made, increasing the
-likelihood that Fleet will pull those improvements in and decreasing duplicated work.
+likelihood that AutoMDM will pull those improvements in and decreasing duplicated work.
 * It's easier to push more broadly useful changes upstream, as those change sets will live in a feature branch prior to
-being merged to our "working branch." This allows us to be better open source citizens, and will increase Fleet's
+being merged to our "working branch." This allows us to be better open source citizens, and will increase AutoMDM's
 visibility in relevant circles.
 * This practice more closely aligns with industry standard approaches to maintaining workload-specific patches on top of
 third-party open source dependencies, allowing for easier onboarding of internal and external contributors.
@@ -42,7 +42,7 @@ third-party open source dependencies, allowing for easier onboarding of internal
 #### More exceptions to the monorepo rule
 
 This decision adds additional nuance to the monorepo "Why this way" entry, and results in additional repositories being
-created under the fleetdm organization, potentially causing confusion for external users.
+created under the automdm organization, potentially causing confusion for external users.
 
 Mitigations:
 
@@ -60,7 +60,7 @@ is copied into the monorepo.
 Mitigation:
 
 1. Use git submodules rather than heavier-duty package management
-2. Allow pre-merge branches in the `fleet` repo to point at pre-merge commits in dependency forks so upstream and
+2. Allow pre-merge branches in the `automdm` repo to point at pre-merge commits in dependency forks so upstream and
 downstream can be modified concurrently in response to review feedback.
 
 #### More ways of doing the same thing
@@ -79,17 +79,17 @@ should be prioritized over larger ones to gain momentum.
 
 ### Impact
 
-For new cases, where Fleet needs to make changes to a new actively maintained[^1] GitHub-hosted third-party dependency,
-Fleet will fork the dependency into the `fleet` GitHub organization. Upon forking, the repo description must be
-modified to indicate that the library incorporates Fleet-specific changes, for inclusion in a Fleet product
-(e.g. Fleet server or fleetd).
+For new cases, where AutoMDM needs to make changes to a new actively maintained[^1] GitHub-hosted third-party dependency,
+AutoMDM will fork the dependency into the `automdm` GitHub organization. Upon forking, the repo description must be
+modified to indicate that the library incorporates AutoMDM-specific changes, for inclusion in an AutoMDM product
+(e.g. AutoMDM server or automdmd).
 
 Changes to the dependency must be pushed to a branch distinct from the upstream repo's branches, allowing our fork to be
 easily synced with upstream. Changes must reviewed before merging into this branch by a Fleetie, similar to merging into
-`main` in `fleet/fleetdm` (e.g. Go changes must be reviewed by a backend engineer).
+`main` in `automdm/automdm` (e.g. Go changes must be reviewed by a backend engineer).
 
 Periodically, branches mirroring the upstream repo should be synced to that repo. If upstream changes make sense to
-merge into the Fleet-specific branch, an issue (engineering-initiated or otherwise as appropriate) should be created
+merge into the AutoMDM-specific branch, an issue (engineering-initiated or otherwise as appropriate) should be created
 to merge upstream changes in. Merges from upstream require the same level of review as a normal code contribution: the
 person doing the review must be distinct from the person doing the merge.
 
@@ -98,7 +98,7 @@ directory. For work merged into `main` or a release branch, submodules must refe
 has passed peer review. Open PRs may point to commits that are themselves on a PR branch to allow for quick iteration of
 both monorepo and dependency code.
 
-Fleeties should attempt to upstream their changes. If the Fleet-specific fork of a dependency is no longer needed (e.g.
+Fleeties should attempt to upstream their changes. If the AutoMDM-specific fork of a dependency is no longer needed (e.g.
 because all relevant changes were successfully upstreamed) the consumer of the dependency should be updated to refer to
 the upstream package directly via normal dependency management mechanisms (e.g. go dep or npm). Once this change has
 been merged to `main` in the monorepo, the fork should be archived, with the repo description updated to indicate that
@@ -182,7 +182,7 @@ revised, rather than performing a suboptimal fix all at once.
 
 None.
 
-[^1]: For purposes of this ADR, "actively maintained" means "having commits within the last three months to a branch Fleet is
+[^1]: For purposes of this ADR, "actively maintained" means "having commits within the last three months to a branch AutoMDM is
 interested in consuming." If an upstream repo has been abandoned, following this workflow (rather than copying the code
 into the monorepo) is optional.
-[^2]: Note `-`, not `_`, for consistency with other directories in the `fleet monorepo.
+[^2]: Note `-`, not `_`, for consistency with other directories in the `automdm monorepo.

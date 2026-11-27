@@ -1,5 +1,5 @@
 // Package redis_nonces_store is the Redis-backed implementation of
-// fleet.PSSONonceStore. It stores short-lived nonces issued by the PSSO
+// automdm.PSSONonceStore. It stores short-lived nonces issued by the PSSO
 // /nonce endpoint and consumed by the registration and token flows.
 //
 // Shape mirrors server/mdm/acme/internal/redis_nonces_store so the two
@@ -11,8 +11,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/datastore/redis"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis"
 	redigo "github.com/gomodule/redigo/redis"
 )
 
@@ -33,7 +33,7 @@ const usedLoginAssertionPrefix = "pssousedloginassertion:"
 // package) to avoid an import cycle: psso/providers.go imports this internal
 // package to expose its public constructor, so we can't import back the
 // other way. Structural typing means any value matching this shape (incl.
-// the parent psso.RedisPool and fleet.RedisPool) is accepted.
+// the parent psso.RedisPool and automdm.RedisPool) is accepted.
 type RedisPool interface {
 	Get() redigo.Conn
 }

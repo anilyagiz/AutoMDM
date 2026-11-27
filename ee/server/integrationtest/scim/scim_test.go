@@ -7,12 +7,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	"github.com/anilyagiz/automdm/v4/server/service"
+	"github.com/anilyagiz/automdm/v4/server/service/contract"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/elimity-com/scim/errors"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/service"
-	"github.com/fleetdm/fleet/v4/server/service/contract"
-	"github.com/fleetdm/fleet/v4/server/test"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,8 +34,8 @@ func TestSCIM(t *testing.T) {
 		{"CreateGroup", testCreateGroup},
 		{"UpdateUser", testUpdateUser},
 		{"DeactivationDeprovisionsMutatedUser", testDeactivationDeprovisionsMutatedUser},
-		{"TwoStepDeactivationDeprovisionsFleetUser", testTwoStepDeactivationDeprovisionsFleetUser},
-		{"JITDeactivationDeprovisionsFleetUser", testJITDeactivationDeprovisionsFleetUser},
+		{"TwoStepDeactivationDeprovisionsTeamUser", testTwoStepDeactivationDeprovisionsTeamUser},
+		{"JITDeactivationDeprovisionsTeamUser", testJITDeactivationDeprovisionsTeamUser},
 		{"DeactivationWithoutIdentifiersFlagsSkippedDeprovision", testDeactivationWithoutIdentifiersFlagsSkippedDeprovision},
 		{"UpdateGroup", testUpdateGroup},
 		{"PatchUserEmails", testPatchUserEmails},
@@ -248,10 +248,10 @@ func createTestUser(t *testing.T, s *Suite, userName string) (string, map[string
 func testDeactivationDeprovisionsMutatedUser(t *testing.T, s *Suite) {
 	ctx := t.Context()
 
-	// Create an SSO-enabled Fleet user that SCIM deactivation should deprovision.
+	// Create an SSO-enabled AutoMDM user that SCIM deactivation should deprovision.
 	email := "deprovision_target@example.com"
-	role := fleet.RoleObserver
-	_, err := s.DS.NewUser(ctx, &fleet.User{
+	role := automdm.RoleObserver
+	_, err := s.DS.NewUser(ctx, &automdm.User{
 		Password:   []byte("garbage"),
 		Salt:       "garbage",
 		Name:       "Deprovision Target",
@@ -278,18 +278,18 @@ func testDeactivationDeprovisionsMutatedUser(t *testing.T, s *Suite) {
 	s.DoJSON(t, "PATCH", scimPath("/Users/"+userID), patchPayload, http.StatusOK, &patchResp)
 	assert.Equal(t, false, patchResp["active"])
 
-	// The Fleet user must have been deprovisioned despite the mutated identifiers.
+	// The AutoMDM user must have been deprovisioned despite the mutated identifiers.
 	_, err = s.DS.UserByEmail(ctx, email)
 	require.Error(t, err)
-	require.True(t, fleet.IsNotFound(err), "expected Fleet user to be deleted, got: %v", err)
+	require.True(t, automdm.IsNotFound(err), "expected AutoMDM user to be deleted, got: %v", err)
 }
 
-func testTwoStepDeactivationDeprovisionsFleetUser(t *testing.T, s *Suite) {
+func testTwoStepDeactivationDeprovisionsTeamUser(t *testing.T, s *Suite) {
 	ctx := t.Context()
 
 	email := "two_step_target@example.com"
-	role := fleet.RoleObserver
-	_, err := s.DS.NewUser(ctx, &fleet.User{
+	role := automdm.RoleObserver
+	_, err := s.DS.NewUser(ctx, &automdm.User{
 		Password:   []byte("garbage"),
 		Salt:       "garbage",
 		Name:       "Two Step Target",
@@ -299,7 +299,7 @@ func testTwoStepDeactivationDeprovisionsFleetUser(t *testing.T, s *Suite) {
 	})
 	require.NoError(t, err)
 
-	// Creating the SCIM user links it to the Fleet user (both exist now).
+	// Creating the SCIM user links it to the AutoMDM user (both exist now).
 	userID, _ := createTestUser(t, s, email)
 
 	// Request 1: mutate identifiers, leave active=true.
@@ -323,23 +323,23 @@ func testTwoStepDeactivationDeprovisionsFleetUser(t *testing.T, s *Suite) {
 	var deactivateResp map[string]any
 	s.DoJSON(t, "PATCH", scimPath("/Users/"+userID), deactivatePayload, http.StatusOK, &deactivateResp)
 
-	// The Fleet account must be deprovisioned via the durable link.
+	// The AutoMDM account must be deprovisioned via the durable link.
 	_, err = s.DS.UserByEmail(ctx, email)
 	require.Error(t, err)
-	require.True(t, fleet.IsNotFound(err), "expected Fleet user to be deprovisioned, got: %v", err)
+	require.True(t, automdm.IsNotFound(err), "expected AutoMDM user to be deprovisioned, got: %v", err)
 }
 
-func testJITDeactivationDeprovisionsFleetUser(t *testing.T, s *Suite) {
+func testJITDeactivationDeprovisionsTeamUser(t *testing.T, s *Suite) {
 	ctx := t.Context()
 
 	email := "jit_target@example.com"
 
-	// SCIM user created first; no Fleet user exists yet, so it links to nothing.
+	// SCIM user created first; no AutoMDM user exists yet, so it links to nothing.
 	userID, _ := createTestUser(t, s, email)
 
-	// Fleet SSO user appears later (e.g., via JIT SSO login), with no re-sync.
-	role := fleet.RoleObserver
-	_, err := s.DS.NewUser(ctx, &fleet.User{
+	// AutoMDM SSO user appears later (e.g., via JIT SSO login), with no re-sync.
+	role := automdm.RoleObserver
+	_, err := s.DS.NewUser(ctx, &automdm.User{
 		Password:   []byte("garbage"),
 		Salt:       "garbage",
 		Name:       "JIT Target",
@@ -373,11 +373,11 @@ func testJITDeactivationDeprovisionsFleetUser(t *testing.T, s *Suite) {
 
 	_, err = s.DS.UserByEmail(ctx, email)
 	require.Error(t, err)
-	require.True(t, fleet.IsNotFound(err), "expected Fleet user to be deprovisioned via the pre-mutation link, got: %v", err)
+	require.True(t, automdm.IsNotFound(err), "expected AutoMDM user to be deprovisioned via the pre-mutation link, got: %v", err)
 }
 
 func testDeactivationWithoutIdentifiersFlagsSkippedDeprovision(t *testing.T, s *Suite) {
-	// SCIM user with no matching Fleet user, so it never links.
+	// SCIM user with no matching AutoMDM user, so it never links.
 	userID, _ := createTestUser(t, s, "orphan_target@example.com")
 
 	// Wipe the identifiers, then deactivate in a separate request.
@@ -1288,7 +1288,7 @@ func testHostIdPAssociationAndRename(t *testing.T, s *Suite) {
 	})
 	const idpUUID = "scim-multi-idp-uuid"
 	const userName = "scim.multi@example.com"
-	require.NoError(t, s.DS.InsertMDMIdPAccount(ctx, &fleet.MDMIdPAccount{
+	require.NoError(t, s.DS.InsertMDMIdPAccount(ctx, &automdm.MDMIdPAccount{
 		UUID:     idpUUID,
 		Username: userName,
 		Fullname: "SCIM Multi",
@@ -1322,10 +1322,10 @@ func testHostIdPAssociationAndRename(t *testing.T, s *Suite) {
 	for _, hostID := range []uint{host1.ID, host2.ID} {
 		var resp struct {
 			Host struct {
-				EndUsers []fleet.HostEndUser `json:"end_users"`
+				EndUsers []automdm.HostEndUser `json:"end_users"`
 			} `json:"host"`
 		}
-		s.DoJSON(t, "GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", hostID), nil, http.StatusOK, &resp)
+		s.DoJSON(t, "GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", hostID), nil, http.StatusOK, &resp)
 		require.Len(t, resp.Host.EndUsers, 1, "host %d should expose one IdP end user", hostID)
 		assert.Equal(t, userName, resp.Host.EndUsers[0].IdpUserName, "host %d idp_username", hostID)
 		assert.Equal(t, "SCIM Multi", resp.Host.EndUsers[0].IdpFullName, "host %d idp_full_name", hostID)
@@ -1338,20 +1338,20 @@ func testHostIdPAssociationAndRename(t *testing.T, s *Suite) {
 		for _, hostID := range []uint{host1.ID, host2.ID} {
 			var detail struct {
 				Host struct {
-					EndUsers []fleet.HostEndUser `json:"end_users"`
+					EndUsers []automdm.HostEndUser `json:"end_users"`
 				} `json:"host"`
 			}
-			s.DoJSON(t, "GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", hostID), nil, http.StatusOK, &detail)
+			s.DoJSON(t, "GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", hostID), nil, http.StatusOK, &detail)
 			require.Len(t, detail.Host.EndUsers, 1, "host %d", hostID)
 			assert.Equal(t, want, detail.Host.EndUsers[0].IdpUserName, "host %d GET /hosts/:id", hostID)
 
 			var mapping struct {
-				DeviceMapping []fleet.HostDeviceMapping `json:"device_mapping"`
+				DeviceMapping []automdm.HostDeviceMapping `json:"device_mapping"`
 			}
-			s.DoJSON(t, "GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/device_mapping", hostID), nil, http.StatusOK, &mapping)
+			s.DoJSON(t, "GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/device_mapping", hostID), nil, http.StatusOK, &mapping)
 			require.Len(t, mapping.DeviceMapping, 1, "host %d", hostID)
 			assert.Equal(t, want, mapping.DeviceMapping[0].Email, "host %d GET /hosts/:id/device_mapping", hostID)
-			assert.Equal(t, fleet.DeviceMappingMDMIdpAccounts, mapping.DeviceMapping[0].Source, "host %d", hostID)
+			assert.Equal(t, automdm.DeviceMappingMDMIdpAccounts, mapping.DeviceMapping[0].Source, "host %d", hostID)
 		}
 
 		var list struct {
@@ -1360,7 +1360,7 @@ func testHostIdPAssociationAndRename(t *testing.T, s *Suite) {
 				DeviceMapping *json.RawMessage `json:"device_mapping"`
 			} `json:"hosts"`
 		}
-		s.DoJSON(t, "GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &list, "device_mapping", "true")
+		s.DoJSON(t, "GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &list, "device_mapping", "true")
 		var seen int
 		for _, h := range list.Hosts {
 			if h.ID != host1.ID && h.ID != host2.ID {
@@ -1368,7 +1368,7 @@ func testHostIdPAssociationAndRename(t *testing.T, s *Suite) {
 			}
 			seen++
 			require.NotNil(t, h.DeviceMapping, "host %d device_mapping", h.ID)
-			var mapped []fleet.HostDeviceMapping
+			var mapped []automdm.HostDeviceMapping
 			require.NoError(t, json.Unmarshal(*h.DeviceMapping, &mapped))
 			require.Len(t, mapped, 1, "host %d", h.ID)
 			assert.Equal(t, want, mapped[0].Email, "host %d GET /hosts device_mapping", h.ID)
@@ -1380,7 +1380,7 @@ func testHostIdPAssociationAndRename(t *testing.T, s *Suite) {
 				ID uint `json:"id"`
 			} `json:"hosts"`
 		}
-		s.DoJSON(t, "GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &search, "query", want)
+		s.DoJSON(t, "GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &search, "query", want)
 		require.Len(t, search.Hosts, 2, "both hosts should be searchable by %q", want)
 	}
 
@@ -1414,7 +1414,7 @@ func testHostIdPAssociationAndRename(t *testing.T, s *Suite) {
 			ID uint `json:"id"`
 		} `json:"hosts"`
 	}
-	s.DoJSON(t, "GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &stale, "query", userName)
+	s.DoJSON(t, "GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &stale, "query", userName)
 	require.Empty(t, stale.Hosts, "hosts still searchable by the pre-rename address")
 }
 
@@ -3559,7 +3559,7 @@ func testPatchUserAttributes(t *testing.T, s *Suite) {
 		ext, ok := resp[enterpriseURN].(map[string]any)
 		require.True(t, ok, "enterprise extension should be present in response")
 		assert.Equal(t, "Internal Tools", ext["department"])
-		// Fleet does not store employeeNumber/costCenter — they must not appear in the response.
+		// AutoMDM does not store employeeNumber/costCenter — they must not appear in the response.
 		_, hasEmp := ext["employeeNumber"]
 		assert.False(t, hasEmp, "employeeNumber should not be stored")
 		_, hasCC := ext["costCenter"]
@@ -3608,7 +3608,7 @@ func testPatchUserAttributes(t *testing.T, s *Suite) {
 		// validateEmptyPath parses each top-level key as a SCIM path, and a URI alone
 		// (no attribute name after it) fails to parse. This test pins down that
 		// behavior so a future library bump that quietly starts to accept the nested
-		// form will be caught: Fleet only handles the flat
+		// form will be caught: AutoMDM only handles the flat
 		// form (urn:...:User:department), and that assumption is load-bearing here.
 		const enterpriseURN = "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User"
 		patchPayload := map[string]any{
@@ -5040,7 +5040,7 @@ func groupMemberValues(t *testing.T, s *Suite, groupID string) []string {
 }
 
 func scimPath(suffix string) string {
-	paths := []string{"/api/v1/fleet/scim", "/api/latest/fleet/scim"}
+	paths := []string{"/api/v1/automdm/scim", "/api/latest/automdm/scim"}
 	prefix := paths[time.Now().UnixNano()%int64(len(paths))]
 	return prefix + suffix
 }

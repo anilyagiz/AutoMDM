@@ -7,14 +7,14 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/require"
 )
 
 func TestApplyScriptsBatchErrorNamesScript(t *testing.T) {
 	t.Parallel()
 
-	// 422 response as returned by POST /api/latest/fleet/scripts/batch when
+	// 422 response as returned by POST /api/latest/automdm/scripts/batch when
 	// one script in the batch fails validation.
 	newClient := func(t *testing.T, status int, body map[string]any) *Client {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -29,20 +29,20 @@ func TestApplyScriptsBatchErrorNamesScript(t *testing.T) {
 		return client
 	}
 
-	scripts := []fleet.ScriptPayload{
+	scripts := []automdm.ScriptPayload{
 		{Name: "ok.sh", ScriptContents: []byte("echo ok")},
-		{Name: "nonexistent.sh", ScriptContents: []byte("echo $FLEET_VAR_NONEXISTENT")},
+		{Name: "nonexistent.sh", ScriptContents: []byte("echo $AUTOMDM_VAR_NONEXISTENT")},
 	}
 	invalidBody := map[string]any{
 		"message": "Validation Failed",
-		"errors":  []map[string]string{{"name": "scripts[1]", "reason": "Fleet variable $FLEET_VAR_NONEXISTENT is not supported in scripts."}},
+		"errors":  []map[string]string{{"name": "scripts[1]", "reason": "AutoMDM variable $AUTOMDM_VAR_NONEXISTENT is not supported in scripts."}},
 	}
 
 	t.Run("team scripts name the failing file", func(t *testing.T) {
 		client := newClient(t, http.StatusUnprocessableEntity, invalidBody)
-		_, err := client.ApplyTeamScripts("Workstations", scripts, fleet.ApplySpecOptions{})
+		_, err := client.ApplyTeamScripts("Workstations", scripts, automdm.ApplySpecOptions{})
 		require.ErrorContains(t, err, `script "nonexistent.sh"`)
-		require.ErrorContains(t, err, "Fleet variable $FLEET_VAR_NONEXISTENT is not supported in scripts.")
+		require.ErrorContains(t, err, "AutoMDM variable $AUTOMDM_VAR_NONEXISTENT is not supported in scripts.")
 		// the original error stays in the chain for status-code checks
 		var scErr *StatusCodeErr
 		require.ErrorAs(t, err, &scErr)
@@ -51,7 +51,7 @@ func TestApplyScriptsBatchErrorNamesScript(t *testing.T) {
 
 	t.Run("no-team scripts name the failing file", func(t *testing.T) {
 		client := newClient(t, http.StatusUnprocessableEntity, invalidBody)
-		_, err := client.ApplyNoTeamScripts(scripts, fleet.ApplySpecOptions{})
+		_, err := client.ApplyNoTeamScripts(scripts, automdm.ApplySpecOptions{})
 		require.ErrorContains(t, err, `script "nonexistent.sh"`)
 	})
 
@@ -60,7 +60,7 @@ func TestApplyScriptsBatchErrorNamesScript(t *testing.T) {
 			"message": "Validation Failed",
 			"errors":  []map[string]string{{"name": "script", "reason": "secret not found"}},
 		})
-		_, err := client.ApplyTeamScripts("Workstations", scripts, fleet.ApplySpecOptions{})
+		_, err := client.ApplyTeamScripts("Workstations", scripts, automdm.ApplySpecOptions{})
 		require.Error(t, err)
 		require.NotContains(t, err.Error(), `script "`)
 		require.ErrorContains(t, err, "secret not found")
@@ -70,7 +70,7 @@ func TestApplyScriptsBatchErrorNamesScript(t *testing.T) {
 func TestRewrapScriptBatchIndexErr(t *testing.T) {
 	t.Parallel()
 
-	scripts := []fleet.ScriptPayload{{Name: "a.sh"}, {Name: "b.sh"}}
+	scripts := []automdm.ScriptPayload{{Name: "a.sh"}, {Name: "b.sh"}}
 
 	statusErr := func(name string) error {
 		return &StatusCodeErr{Code: http.StatusUnprocessableEntity, Body: "Validation Failed: boom", Name: name}

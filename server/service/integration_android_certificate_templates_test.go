@@ -16,15 +16,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
-	android_service "github.com/fleetdm/fleet/v4/server/mdm/android/service"
-	apple_mdm "github.com/fleetdm/fleet/v4/server/mdm/apple"
-	scepserver "github.com/fleetdm/fleet/v4/server/mdm/scep/server"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	scep_server "github.com/fleetdm/fleet/v4/server/service/integrationtest/scep_server"
-	"github.com/fleetdm/fleet/v4/server/worker"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
+	android_service "github.com/anilyagiz/automdm/v4/server/mdm/android/service"
+	apple_mdm "github.com/anilyagiz/automdm/v4/server/mdm/apple"
+	scepserver "github.com/anilyagiz/automdm/v4/server/mdm/scep/server"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	scep_server "github.com/anilyagiz/automdm/v4/server/service/integrationtest/scep_server"
+	"github.com/anilyagiz/automdm/v4/server/worker"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
@@ -32,15 +32,15 @@ import (
 )
 
 // verifyCertificateStatus is a helper function that verifies the certificate template status
-// via both the host API and the fleetd certificate API.
+// via both the host API and the automdmd certificate API.
 func (s *integrationMDMTestSuite) verifyCertificateStatus(
 	t *testing.T,
-	host *fleet.Host,
+	host *automdm.Host,
 	orbitNodeKey string,
 	certificateTemplateID uint,
 	certTemplateName string,
 	caID uint,
-	expectedStatus fleet.CertificateTemplateStatus,
+	expectedStatus automdm.CertificateTemplateStatus,
 	expectedDetail string,
 ) {
 	s.verifyCertificateStatusWithSubject(t, host, orbitNodeKey, certificateTemplateID, certTemplateName, caID, expectedStatus, expectedDetail, fmt.Sprintf("CN=%s", host.HardwareSerial))
@@ -49,22 +49,22 @@ func (s *integrationMDMTestSuite) verifyCertificateStatus(
 // verifyCertificateStatusWithSubject is like verifyCertificateStatus but allows specifying the expected subject name.
 func (s *integrationMDMTestSuite) verifyCertificateStatusWithSubject(
 	t *testing.T,
-	host *fleet.Host,
+	host *automdm.Host,
 	orbitNodeKey string,
 	certificateTemplateID uint,
 	certTemplateName string,
 	caID uint,
-	expectedStatus fleet.CertificateTemplateStatus,
+	expectedStatus automdm.CertificateTemplateStatus,
 	expectedDetail string,
 	expectedSubjectName string,
 ) {
 	// Verify via host API
 	var getHostResp getHostResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", host.ID), nil, http.StatusOK, &getHostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", host.ID), nil, http.StatusOK, &getHostResp)
 	require.NotNil(t, getHostResp.Host.MDM.Profiles)
 	require.NotEmpty(t, *getHostResp.Host.MDM.Profiles)
 	// Find the profile by name
-	var profile *fleet.HostMDMProfile
+	var profile *automdm.HostMDMProfile
 	for _, p := range *getHostResp.Host.MDM.Profiles {
 		if p.Name == certTemplateName {
 			profile = &p
@@ -80,8 +80,8 @@ func (s *integrationMDMTestSuite) verifyCertificateStatusWithSubject(
 		require.Equal(t, expectedDetail, profile.Detail)
 	}
 
-	// Verify via fleetd certificate API
-	resp := s.DoRawWithHeaders("GET", fmt.Sprintf("/api/fleetd/certificates/%d", certificateTemplateID), nil, http.StatusOK, map[string]string{
+	// Verify via automdmd certificate API
+	resp := s.DoRawWithHeaders("GET", fmt.Sprintf("/api/automdmd/certificates/%d", certificateTemplateID), nil, http.StatusOK, map[string]string{
 		"Authorization": fmt.Sprintf("Node key %s", orbitNodeKey),
 	})
 	var getCertResp getDeviceCertificateTemplateResponse
@@ -96,29 +96,29 @@ func (s *integrationMDMTestSuite) verifyCertificateStatusWithSubject(
 	require.Equal(t, caID, getCertResp.Certificate.CertificateAuthorityId)
 	require.NotEmpty(t, getCertResp.Certificate.CertificateAuthorityName)
 	require.NotEmpty(t, getCertResp.Certificate.CreatedAt)
-	// SubjectName has Fleet variables replaced with host-specific values
+	// SubjectName has AutoMDM variables replaced with host-specific values
 	require.Equal(t, expectedSubjectName, getCertResp.Certificate.SubjectName)
-	require.Equal(t, string(fleet.CATypeCustomSCEPProxy), getCertResp.Certificate.CertificateAuthorityType)
+	require.Equal(t, string(automdm.CATypeCustomSCEPProxy), getCertResp.Certificate.CertificateAuthorityType)
 	require.Equal(t, expectedStatus, getCertResp.Certificate.Status)
 
 	// Verify challenges based on status
-	if expectedStatus == fleet.CertificateTemplateDelivered {
+	if expectedStatus == automdm.CertificateTemplateDelivered {
 		// Challenges should be returned when status is 'delivered'
 		require.NotNil(t, getCertResp.Certificate.SCEPChallenge)
 		require.NotEmpty(t, *getCertResp.Certificate.SCEPChallenge)
-		require.NotNil(t, getCertResp.Certificate.FleetChallenge)
-		require.NotEmpty(t, *getCertResp.Certificate.FleetChallenge)
+		require.NotNil(t, getCertResp.Certificate.AutoMDMChallenge)
+		require.NotEmpty(t, *getCertResp.Certificate.AutoMDMChallenge)
 	} else {
 		// Challenges should be nil for other statuses
 		require.Nil(t, getCertResp.Certificate.SCEPChallenge)
-		require.Nil(t, getCertResp.Certificate.FleetChallenge)
+		require.Nil(t, getCertResp.Certificate.AutoMDMChallenge)
 	}
 }
 
 // createTestCertificateAuthority creates a test certificate authority for use in tests.
-func (s *integrationMDMTestSuite) createTestCertificateAuthority(t *testing.T, ctx context.Context) (uint, *fleet.CertificateAuthority) {
-	ca, err := s.ds.NewCertificateAuthority(ctx, &fleet.CertificateAuthority{
-		Type:      string(fleet.CATypeCustomSCEPProxy),
+func (s *integrationMDMTestSuite) createTestCertificateAuthority(t *testing.T, ctx context.Context) (uint, *automdm.CertificateAuthority) {
+	ca, err := s.ds.NewCertificateAuthority(ctx, &automdm.CertificateAuthority{
+		Type:      string(automdm.CATypeCustomSCEPProxy),
 		Name:      ptr.String(t.Name() + "-CA"),
 		URL:       ptr.String("http://localhost:8080/scep"),
 		Challenge: ptr.String("test-challenge"),
@@ -131,14 +131,14 @@ func (s *integrationMDMTestSuite) createTestCertificateAuthority(t *testing.T, c
 // createEnrolledAndroidHost creates an enrolled Android host whose device is on its host-specific
 // policy if hostPolicyApplied, or else still on the default policy it enrolled with, waiting for
 // the setup experience.
-func (s *integrationMDMTestSuite) createEnrolledAndroidHost(t *testing.T, ctx context.Context, enterpriseID string, teamID *uint, suffix string, hostPolicyApplied bool) (*fleet.Host, string) {
+func (s *integrationMDMTestSuite) createEnrolledAndroidHost(t *testing.T, ctx context.Context, enterpriseID string, teamID *uint, suffix string, hostPolicyApplied bool) (*automdm.Host, string) {
 	hostUUID := uuid.NewString()
 	appliedPolicyID := "1"
 	if hostPolicyApplied {
 		appliedPolicyID = hostUUID
 	}
-	androidHostInput := &fleet.AndroidHost{
-		Host: &fleet.Host{
+	androidHostInput := &automdm.AndroidHost{
+		Host: &automdm.Host{
 			Hostname:       t.Name() + "-host-" + suffix,
 			ComputerName:   t.Name() + "-device-" + suffix,
 			Platform:       "android",
@@ -180,7 +180,7 @@ func (s *integrationMDMTestSuite) createEnrolledAndroidHost(t *testing.T, ctx co
 // applyHostSpecificPolicy records that the host's device applied the host-specific policy the
 // setup experience assigned it. Until then, the profile cron leaves certificate delivery to the
 // setup experience.
-func (s *integrationMDMTestSuite) applyHostSpecificPolicy(t *testing.T, host *fleet.AndroidHost) {
+func (s *integrationMDMTestSuite) applyHostSpecificPolicy(t *testing.T, host *automdm.AndroidHost) {
 	host.Device.AppliedPolicyID = &host.Host.UUID
 	require.NoError(t, s.ds.UpdateAndroidHost(t.Context(), host, false, false))
 }
@@ -194,16 +194,16 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateLifecycle() {
 	// Create a test team
 	teamName := t.Name() + "-team"
 	var createTeamResp teamResponse
-	s.DoJSON("POST", "/api/latest/fleet/fleets", createTeamRequest{
-		TeamPayload: fleet.TeamPayload{
+	s.DoJSON("POST", "/api/latest/automdm/teams", createTeamRequest{
+		TeamPayload: automdm.TeamPayload{
 			Name: ptr.String(teamName),
 		},
 	}, http.StatusOK, &createTeamResp)
 	teamID := createTeamResp.Team.ID
 
 	// Create a test certificate authority (using Datastore directly to bypass SCEP URL validation)
-	ca, err := s.ds.NewCertificateAuthority(ctx, &fleet.CertificateAuthority{
-		Type:      string(fleet.CATypeCustomSCEPProxy),
+	ca, err := s.ds.NewCertificateAuthority(ctx, &automdm.CertificateAuthority{
+		Type:      string(automdm.CATypeCustomSCEPProxy),
 		Name:      ptr.String(t.Name() + "-CA"),
 		URL:       ptr.String("http://localhost:8080/scep"),
 		Challenge: ptr.String("test-challenge"),
@@ -213,8 +213,8 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateLifecycle() {
 
 	// Create an enrolled Android host in the team
 	hostUUID := uuid.NewString()
-	androidHostInput := &fleet.AndroidHost{
-		Host: &fleet.Host{
+	androidHostInput := &automdm.AndroidHost{
+		Host: &automdm.Host{
 			Hostname:       t.Name() + "-host",
 			ComputerName:   t.Name() + "-device",
 			Platform:       "android",
@@ -255,19 +255,19 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateLifecycle() {
 	// Step: Create a certificate template
 	certTemplateName := strings.ReplaceAll(t.Name(), "/", "-") + "-CertTemplate"
 	var createResp createCertificateTemplateResponse
-	s.DoJSON("POST", "/api/latest/fleet/certificates", createCertificateTemplateRequest{
+	s.DoJSON("POST", "/api/latest/automdm/certificates", createCertificateTemplateRequest{
 		Name:                   certTemplateName,
 		TeamID:                 teamID,
 		CertificateAuthorityId: caID,
-		SubjectName:            "CN=$FLEET_VAR_HOST_HARDWARE_SERIAL",
+		SubjectName:            "CN=$AUTOMDM_VAR_HOST_HARDWARE_SERIAL",
 	}, http.StatusOK, &createResp)
 	require.NotZero(t, createResp.ID)
 	certificateTemplateID := createResp.ID
 
 	s.lastActivityOfTypeMatches(
-		fleet.ActivityTypeAddedCertificate{}.ActivityName(),
+		automdm.ActivityTypeAddedCertificate{}.ActivityName(),
 		fmt.Sprintf(
-			`{"fleet_id": %d, "fleet_name": %q, "name": %q}`,
+			`{"team_id": %d, "team_name": %q, "name": %q}`,
 			teamID,
 			teamName,
 			certTemplateName,
@@ -276,66 +276,66 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateLifecycle() {
 	)
 
 	// Step: Verify status is 'pending'
-	s.verifyCertificateStatus(t, host, orbitNodeKey, certificateTemplateID, certTemplateName, caID, fleet.CertificateTemplatePending, "")
+	s.verifyCertificateStatus(t, host, orbitNodeKey, certificateTemplateID, certTemplateName, caID, automdm.CertificateTemplatePending, "")
 
 	// Step: Set up AMAPI mock to verify 'delivering' status during the call
 	deliveringStatusVerified := false
 	s.androidAPIClient.EnterprisesPoliciesModifyPolicyApplicationsFunc = func(_ context.Context, _ string, _ []*androidmanagement.ApplicationPolicy) (*androidmanagement.Policy, error) {
-		s.verifyCertificateStatus(t, host, orbitNodeKey, certificateTemplateID, certTemplateName, caID, fleet.CertificateTemplateDelivering, "")
+		s.verifyCertificateStatus(t, host, orbitNodeKey, certificateTemplateID, certTemplateName, caID, automdm.CertificateTemplateDelivering, "")
 		deliveringStatusVerified = true
 		return &androidmanagement.Policy{}, nil
 	}
 
 	// Step: Trigger the Android profile reconciliation job and wait for completion
-	// This transitions: pending → delivering → delivered (with fleet_challenge)
+	// This transitions: pending → delivering → delivered (with automdm_challenge)
 	s.awaitTriggerAndroidProfileSchedule(t)
 
 	// Step: Verify the AMAPI callback was invoked and 'delivering' status was verified
 	require.True(t, deliveringStatusVerified, "AMAPI callback should have been invoked")
 
 	// Step: Verify status is now 'delivered'
-	s.verifyCertificateStatus(t, host, orbitNodeKey, certificateTemplateID, certTemplateName, caID, fleet.CertificateTemplateDelivered, "")
+	s.verifyCertificateStatus(t, host, orbitNodeKey, certificateTemplateID, certTemplateName, caID, automdm.CertificateTemplateDelivered, "")
 
-	// Step: Host updates the certificate status to 'verified' via fleetd API
+	// Step: Host updates the certificate status to 'verified' via automdmd API
 	successDetail := "Certificate installed successfully"
 	updateReq, err := json.Marshal(updateCertificateStatusRequest{
-		Status: string(fleet.CertificateTemplateVerified),
+		Status: string(automdm.CertificateTemplateVerified),
 		Detail: ptr.String(successDetail),
 	})
 	require.NoError(t, err)
 
-	resp := s.DoRawWithHeaders("PUT", fmt.Sprintf("/api/fleetd/certificates/%d/status", certificateTemplateID), updateReq, http.StatusOK, map[string]string{
+	resp := s.DoRawWithHeaders("PUT", fmt.Sprintf("/api/automdmd/certificates/%d/status", certificateTemplateID), updateReq, http.StatusOK, map[string]string{
 		"Authorization": fmt.Sprintf("Node key %s", orbitNodeKey),
 	})
 	_ = resp.Body.Close()
 
 	// Step: Verify the status is 'verified'
-	s.verifyCertificateStatus(t, host, orbitNodeKey, certificateTemplateID, certTemplateName, caID, fleet.CertificateTemplateVerified, successDetail)
+	s.verifyCertificateStatus(t, host, orbitNodeKey, certificateTemplateID, certTemplateName, caID, automdm.CertificateTemplateVerified, successDetail)
 
-	// Step: Host attempts to update the certificate status to 'failed' via fleetd API
+	// Step: Host attempts to update the certificate status to 'failed' via automdmd API
 	// This should be ignored since the current status is not 'delivered'
 	failedDetail := "Certificate installation failed: invalid challenge"
 	updateReq, err = json.Marshal(updateCertificateStatusRequest{
-		Status: string(fleet.CertificateTemplateFailed),
+		Status: string(automdm.CertificateTemplateFailed),
 		Detail: ptr.String(failedDetail),
 	})
 	require.NoError(t, err)
 
-	resp = s.DoRawWithHeaders("PUT", fmt.Sprintf("/api/fleetd/certificates/%d/status", certificateTemplateID), updateReq, http.StatusOK, map[string]string{
+	resp = s.DoRawWithHeaders("PUT", fmt.Sprintf("/api/automdmd/certificates/%d/status", certificateTemplateID), updateReq, http.StatusOK, map[string]string{
 		"Authorization": fmt.Sprintf("Node key %s", orbitNodeKey),
 	})
 	_ = resp.Body.Close()
 
 	// Step: Verify the status is still 'verified' with details
-	s.verifyCertificateStatus(t, host, orbitNodeKey, certificateTemplateID, certTemplateName, caID, fleet.CertificateTemplateVerified, successDetail)
+	s.verifyCertificateStatus(t, host, orbitNodeKey, certificateTemplateID, certTemplateName, caID, automdm.CertificateTemplateVerified, successDetail)
 
 	// Delete the cert
-	s.Do("DELETE", fmt.Sprintf("/api/latest/fleet/certificates/%d", certificateTemplateID), nil, http.StatusOK)
+	s.Do("DELETE", fmt.Sprintf("/api/latest/automdm/certificates/%d", certificateTemplateID), nil, http.StatusOK)
 
 	s.lastActivityOfTypeMatches(
-		fleet.ActivityTypeDeletedCertificate{}.ActivityName(),
+		automdm.ActivityTypeDeletedCertificate{}.ActivityName(),
 		fmt.Sprintf(
-			`{"fleet_id": %d, "fleet_name": %q, "name": %q}`,
+			`{"team_id": %d, "team_name": %q, "name": %q}`,
 			teamID,
 			teamName,
 			certTemplateName,
@@ -345,11 +345,11 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateLifecycle() {
 
 	// Deleting a certificate template that doesn't exist returns 404 for a user authorized to manage certificate templates,
 	// not a 500 from the authorization check being skipped ahead of the not found error.
-	s.Do("DELETE", fmt.Sprintf("/api/latest/fleet/certificates/%d", certificateTemplateID), nil, http.StatusNotFound)
+	s.Do("DELETE", fmt.Sprintf("/api/latest/automdm/certificates/%d", certificateTemplateID), nil, http.StatusNotFound)
 }
 
 // TestCertificateTemplateSpecEndpointAndAMAPIFailure tests:
-// 1. Creating a certificate template via spec/certificates endpoint with $FLEET_VAR_HOST_UUID
+// 1. Creating a certificate template via spec/certificates endpoint with $AUTOMDM_VAR_HOST_UUID
 // 2. Enrolling a new host to a team that already has certificate templates (pending records created automatically)
 // 3. AMAPI failure reverts status from 'delivering' back to 'pending'
 func (s *integrationMDMTestSuite) TestCertificateTemplateSpecEndpointAndAMAPIFailure() {
@@ -360,16 +360,16 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateSpecEndpointAndAMAPIFai
 	// Step: Create a test team
 	teamName := t.Name() + "-team"
 	var createTeamResp teamResponse
-	s.DoJSON("POST", "/api/latest/fleet/fleets", createTeamRequest{
-		TeamPayload: fleet.TeamPayload{
+	s.DoJSON("POST", "/api/latest/automdm/teams", createTeamRequest{
+		TeamPayload: automdm.TeamPayload{
 			Name: ptr.String(teamName),
 		},
 	}, http.StatusOK, &createTeamResp)
 	teamID := createTeamResp.Team.ID
 
 	// Step: Create a test certificate authority
-	ca, err := s.ds.NewCertificateAuthority(ctx, &fleet.CertificateAuthority{
-		Type:      string(fleet.CATypeCustomSCEPProxy),
+	ca, err := s.ds.NewCertificateAuthority(ctx, &automdm.CertificateAuthority{
+		Type:      string(automdm.CATypeCustomSCEPProxy),
 		Name:      ptr.String(t.Name() + "-CA"),
 		URL:       ptr.String("http://localhost:8080/scep"),
 		Challenge: ptr.String("test-challenge"),
@@ -377,30 +377,30 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateSpecEndpointAndAMAPIFai
 	require.NoError(t, err)
 	caID := ca.ID
 
-	// Step: Create certificate template via spec/certificates endpoint with $FLEET_VAR_HOST_UUID
+	// Step: Create certificate template via spec/certificates endpoint with $AUTOMDM_VAR_HOST_UUID
 	certTemplateName := strings.ReplaceAll(t.Name(), "/", "-") + "-CertTemplate"
 	var applyResp applyCertificateTemplateSpecsResponse
-	s.DoJSON("POST", "/api/latest/fleet/spec/certificates", applyCertificateTemplateSpecsRequest{
-		Specs: []*fleet.CertificateRequestSpec{
+	s.DoJSON("POST", "/api/latest/automdm/spec/certificates", applyCertificateTemplateSpecsRequest{
+		Specs: []*automdm.CertificateRequestSpec{
 			{
 				Name:                   certTemplateName,
 				Team:                   teamName,
 				CertificateAuthorityId: caID,
-				SubjectName:            "CN=$FLEET_VAR_HOST_UUID",
+				SubjectName:            "CN=$AUTOMDM_VAR_HOST_UUID",
 			},
 		},
 	}, http.StatusOK, &applyResp)
 
 	// Step: Get the certificate template ID
 	var listResp listCertificateTemplatesResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/certificates?fleet_id=%d", teamID), nil, http.StatusOK, &listResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/certificates?team_id=%d", teamID), nil, http.StatusOK, &listResp)
 	require.Len(t, listResp.Certificates, 1)
 	certificateTemplateID := listResp.Certificates[0].ID
 
 	// Step: Enroll a new Android host to the team (should automatically get pending certificate template)
 	hostUUID := uuid.NewString()
-	androidHostInput := &fleet.AndroidHost{
-		Host: &fleet.Host{
+	androidHostInput := &automdm.AndroidHost{
+		Host: &automdm.Host{
 			Hostname:       t.Name() + "-host",
 			ComputerName:   t.Name() + "-device",
 			Platform:       "android",
@@ -446,13 +446,13 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateSpecEndpointAndAMAPIFai
 	expectedSubjectName := fmt.Sprintf("CN=%s", host.UUID)
 
 	// Step: Set up AMAPI mock to fail on first call, succeed on second
-	// This must be set up BEFORE running the worker since the worker also calls BuildAndSendFleetAgentConfig
+	// This must be set up BEFORE running the worker since the worker also calls BuildAndSendAutoMDMAgentConfig
 	amapiCallCount := 0
 	s.androidAPIClient.EnterprisesPoliciesModifyPolicyApplicationsFunc = func(_ context.Context, _ string, _ []*androidmanagement.ApplicationPolicy) (*androidmanagement.Policy, error) {
 		amapiCallCount++
 		if amapiCallCount == 1 {
 			// First call: verify status is 'delivering', then return error to simulate AMAPI failure
-			s.verifyCertificateStatusWithSubject(t, host, orbitNodeKey, certificateTemplateID, certTemplateName, caID, fleet.CertificateTemplateDelivering, "", expectedSubjectName)
+			s.verifyCertificateStatusWithSubject(t, host, orbitNodeKey, certificateTemplateID, certTemplateName, caID, automdm.CertificateTemplateDelivering, "", expectedSubjectName)
 			return nil, errors.New("simulated AMAPI failure")
 		}
 		// Second call: succeed
@@ -468,12 +468,12 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateSpecEndpointAndAMAPIFai
 
 	// Step: Verify AMAPI was called once (during worker) and status reverted to 'pending' after failure
 	require.Equal(t, 1, amapiCallCount, "AMAPI should have been called once by worker")
-	s.verifyCertificateStatusWithSubject(t, host, orbitNodeKey, certificateTemplateID, certTemplateName, caID, fleet.CertificateTemplatePending, "", expectedSubjectName)
+	s.verifyCertificateStatusWithSubject(t, host, orbitNodeKey, certificateTemplateID, certTemplateName, caID, automdm.CertificateTemplatePending, "", expectedSubjectName)
 
 	// Step: Until the device reports its host-specific policy, the cron leaves the certificate pending
 	s.awaitTriggerAndroidProfileSchedule(t)
 	require.Equal(t, 1, amapiCallCount, "AMAPI should not be called before the device applies its host policy")
-	s.verifyCertificateStatusWithSubject(t, host, orbitNodeKey, certificateTemplateID, certTemplateName, caID, fleet.CertificateTemplatePending, "", expectedSubjectName)
+	s.verifyCertificateStatusWithSubject(t, host, orbitNodeKey, certificateTemplateID, certTemplateName, caID, automdm.CertificateTemplatePending, "", expectedSubjectName)
 
 	// Step: The worker assigned the host-specific policy, which the device reports applying
 	s.applyHostSpecificPolicy(t, createdAndroidHost)
@@ -483,21 +483,21 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateSpecEndpointAndAMAPIFai
 
 	// Step: Verify AMAPI was called again and status is now 'delivered'
 	require.Equal(t, 2, amapiCallCount, "AMAPI should have been called twice")
-	s.verifyCertificateStatusWithSubject(t, host, orbitNodeKey, certificateTemplateID, certTemplateName, caID, fleet.CertificateTemplateDelivered, "", expectedSubjectName)
+	s.verifyCertificateStatusWithSubject(t, host, orbitNodeKey, certificateTemplateID, certTemplateName, caID, automdm.CertificateTemplateDelivered, "", expectedSubjectName)
 }
 
 // TestCertificateTemplateNoTeamWithIDPVariable tests:
 // 1. Creating a certificate template for "no team" (team_id = 0)
-// 2. Using $FLEET_VAR_HOST_END_USER_IDP_USERNAME which fails when host has no IDP user
-// 3. Verifying status becomes 'failed' when fetching the certificate via fleetd API
+// 2. Using $AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME which fails when host has no IDP user
+// 3. Verifying status becomes 'failed' when fetching the certificate via automdmd API
 func (s *integrationMDMTestSuite) TestCertificateTemplateNoTeamWithIDPVariable() {
 	t := s.T()
 	ctx := t.Context()
 	enterpriseID := s.enableAndroidMDM(t)
 
 	// Step: Create a test certificate authority
-	ca, err := s.ds.NewCertificateAuthority(ctx, &fleet.CertificateAuthority{
-		Type:      string(fleet.CATypeCustomSCEPProxy),
+	ca, err := s.ds.NewCertificateAuthority(ctx, &automdm.CertificateAuthority{
+		Type:      string(automdm.CATypeCustomSCEPProxy),
 		Name:      ptr.String(t.Name() + "-CA"),
 		URL:       ptr.String("http://localhost:8080/scep"),
 		Challenge: ptr.String("test-challenge"),
@@ -508,8 +508,8 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateNoTeamWithIDPVariable()
 	// Step: Create certificate template for "no team" (team_id = 0) with IDP_USERNAME variable
 	certTemplateName := strings.ReplaceAll(t.Name(), "/", "-") + "-CertTemplate"
 	var createResp createCertificateTemplateResponse
-	subjectName := "CN=$FLEET_VAR_HOST_END_USER_IDP_USERNAME"
-	s.DoJSON("POST", "/api/latest/fleet/certificates", createCertificateTemplateRequest{
+	subjectName := "CN=$AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME"
+	s.DoJSON("POST", "/api/latest/automdm/certificates", createCertificateTemplateRequest{
 		Name:                   certTemplateName,
 		TeamID:                 0, // No team
 		CertificateAuthorityId: caID,
@@ -520,8 +520,8 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateNoTeamWithIDPVariable()
 
 	// Step: Create an enrolled Android host with NO team (team_id = NULL)
 	hostUUID := uuid.NewString()
-	androidHostInput := &fleet.AndroidHost{
-		Host: &fleet.Host{
+	androidHostInput := &automdm.AndroidHost{
+		Host: &automdm.Host{
 			Hostname:       t.Name() + "-host",
 			ComputerName:   t.Name() + "-device",
 			Platform:       "android",
@@ -578,14 +578,14 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateNoTeamWithIDPVariable()
 
 	// Step: Verify status is 'delivered' via host API (after worker runs)
 	var getHostResp getHostResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", host.ID), nil, http.StatusOK, &getHostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", host.ID), nil, http.StatusOK, &getHostResp)
 	require.NotNil(t, getHostResp.Host.MDM.Profiles)
 	require.Len(t, *getHostResp.Host.MDM.Profiles, 1)
-	require.Equal(t, string(fleet.CertificateTemplateDelivered), *(*getHostResp.Host.MDM.Profiles)[0].Status)
+	require.Equal(t, string(automdm.CertificateTemplateDelivered), *(*getHostResp.Host.MDM.Profiles)[0].Status)
 
-	// Step: Fetch certificate via fleetd API - this should trigger failure due to missing IDP username
-	// The host has no IDP user associated, so $FLEET_VAR_HOST_END_USER_IDP_USERNAME cannot be replaced
-	resp := s.DoRawWithHeaders("GET", fmt.Sprintf("/api/fleetd/certificates/%d", certificateTemplateID), nil, http.StatusOK, map[string]string{
+	// Step: Fetch certificate via automdmd API - this should trigger failure due to missing IDP username
+	// The host has no IDP user associated, so $AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME cannot be replaced
+	resp := s.DoRawWithHeaders("GET", fmt.Sprintf("/api/automdmd/certificates/%d", certificateTemplateID), nil, http.StatusOK, map[string]string{
 		"Authorization": fmt.Sprintf("Node key %s", orbitNodeKey),
 	})
 	var getCertResp getDeviceCertificateTemplateResponse
@@ -595,17 +595,17 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateNoTeamWithIDPVariable()
 
 	// Step: Verify the response shows 'failed' status due to missing IDP username
 	require.NotNil(t, getCertResp.Certificate)
-	require.Equal(t, fleet.CertificateTemplateFailed, getCertResp.Certificate.Status)
+	require.Equal(t, automdm.CertificateTemplateFailed, getCertResp.Certificate.Status)
 
-	s.verifyCertificateStatusWithSubject(t, host, orbitNodeKey, certificateTemplateID, certTemplateName, caID, fleet.CertificateTemplateFailed, "", subjectName)
+	s.verifyCertificateStatusWithSubject(t, host, orbitNodeKey, certificateTemplateID, certTemplateName, caID, automdm.CertificateTemplateFailed, "", subjectName)
 }
 
 // TestCertificateTemplateWithSANIDPVariable tests that subject_alternative_name supports the
-// same $FLEET_VAR_HOST_* expansion as subject_name, end to end:
+// same $AUTOMDM_VAR_HOST_* expansion as subject_name, end to end:
 //  1. Premium tenant creates a cert template with subject_alternative_name containing
-//     $FLEET_VAR_HOST_END_USER_IDP_USERNAME.
+//     $AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME.
 //  2. Android host with no team is enrolled and associated with an IdP account.
-//  3. The fleetd certificate API returns the rendered SAN with the IdP username substituted.
+//  3. The automdmd certificate API returns the rendered SAN with the IdP username substituted.
 func (s *integrationMDMTestSuite) TestCertificateTemplateWithSANIDPVariable() {
 	t := s.T()
 	ctx := t.Context()
@@ -614,9 +614,9 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateWithSANIDPVariable() {
 	caID, _ := s.createTestCertificateAuthority(t, ctx)
 
 	// Insert an IdP account that the Android host will be associated with so the
-	// $FLEET_VAR_HOST_END_USER_IDP_USERNAME variable resolves at delivery time.
+	// $AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME variable resolves at delivery time.
 	idpUsername := fmt.Sprintf("san.idp.%s@example.com", strings.ReplaceAll(uuid.NewString(), "-", ""))
-	require.NoError(t, s.ds.InsertMDMIdPAccount(ctx, &fleet.MDMIdPAccount{
+	require.NoError(t, s.ds.InsertMDMIdPAccount(ctx, &automdm.MDMIdPAccount{
 		Username: idpUsername,
 		Fullname: "SAN Test User",
 		Email:    idpUsername,
@@ -628,11 +628,11 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateWithSANIDPVariable() {
 	// Create the cert template with both subject_name and subject_alternative_name using the
 	// IdP-username variable. Both should expand at delivery time.
 	certTemplateName := strings.ReplaceAll(t.Name(), "/", "-") + "-CertTemplate"
-	subjectName := "CN=$FLEET_VAR_HOST_END_USER_IDP_USERNAME"
-	subjectAlternativeName := "DNS=wifi.example.com, UPN=$FLEET_VAR_HOST_END_USER_IDP_USERNAME, EMAIL=$FLEET_VAR_HOST_END_USER_IDP_USERNAME"
+	subjectName := "CN=$AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME"
+	subjectAlternativeName := "DNS=wifi.example.com, UPN=$AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME, EMAIL=$AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME"
 
 	var createResp createCertificateTemplateResponse
-	s.DoJSON("POST", "/api/latest/fleet/certificates", createCertificateTemplateRequest{
+	s.DoJSON("POST", "/api/latest/automdm/certificates", createCertificateTemplateRequest{
 		Name:                   certTemplateName,
 		TeamID:                 0,
 		CertificateAuthorityId: caID,
@@ -663,11 +663,11 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateWithSANIDPVariable() {
 	require.NoError(t, worker.QueueRunAndroidSetupExperience(ctx, s.ds, slog.New(slog.DiscardHandler), host.UUID, nil, enterpriseName))
 	s.runWorker()
 
-	// Fetch the certificate via the fleetd API. Both SN and SAN should have the IdP username
+	// Fetch the certificate via the automdmd API. Both SN and SAN should have the IdP username
 	// substituted.
 	resp := s.DoRawWithHeaders(
 		"GET",
-		fmt.Sprintf("/api/fleetd/certificates/%d", certificateTemplateID),
+		fmt.Sprintf("/api/automdmd/certificates/%d", certificateTemplateID),
 		nil,
 		http.StatusOK,
 		map[string]string{"Authorization": fmt.Sprintf("Node key %s", orbitNodeKey)},
@@ -677,7 +677,7 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateWithSANIDPVariable() {
 	_ = resp.Body.Close()
 
 	require.NotNil(t, getCertResp.Certificate)
-	require.Equal(t, fleet.CertificateTemplateDelivered, getCertResp.Certificate.Status)
+	require.Equal(t, automdm.CertificateTemplateDelivered, getCertResp.Certificate.Status)
 	require.Equal(t, fmt.Sprintf("CN=%s", idpUsername), getCertResp.Certificate.SubjectName)
 	require.Equal(t,
 		fmt.Sprintf("DNS=wifi.example.com, UPN=%s, EMAIL=%s", idpUsername, idpUsername),
@@ -696,16 +696,16 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateUnenrollReenroll() {
 	// Step: Create a test team
 	teamName := t.Name() + "-team"
 	var createTeamResp teamResponse
-	s.DoJSON("POST", "/api/latest/fleet/fleets", createTeamRequest{
-		TeamPayload: fleet.TeamPayload{
+	s.DoJSON("POST", "/api/latest/automdm/teams", createTeamRequest{
+		TeamPayload: automdm.TeamPayload{
 			Name: ptr.String(teamName),
 		},
 	}, http.StatusOK, &createTeamResp)
 	teamID := createTeamResp.Team.ID
 
 	// Step: Create a test certificate authority
-	ca, err := s.ds.NewCertificateAuthority(ctx, &fleet.CertificateAuthority{
-		Type:      string(fleet.CATypeCustomSCEPProxy),
+	ca, err := s.ds.NewCertificateAuthority(ctx, &automdm.CertificateAuthority{
+		Type:      string(automdm.CATypeCustomSCEPProxy),
 		Name:      ptr.String(t.Name() + "-CA"),
 		URL:       ptr.String("http://localhost:8080/scep"),
 		Challenge: ptr.String("test-challenge"),
@@ -715,8 +715,8 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateUnenrollReenroll() {
 
 	// Step: Create an enrolled Android host in the team
 	hostUUID := uuid.NewString()
-	androidHostInput := &fleet.AndroidHost{
-		Host: &fleet.Host{
+	androidHostInput := &automdm.AndroidHost{
+		Host: &automdm.Host{
 			Hostname:       t.Name() + "-host",
 			ComputerName:   t.Name() + "-device",
 			Platform:       "android",
@@ -747,29 +747,29 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateUnenrollReenroll() {
 	// Step: Create the first certificate template (while host is enrolled)
 	certTemplateName := strings.ReplaceAll(t.Name(), "/", "-") + "-CertTemplate1"
 	var createResp createCertificateTemplateResponse
-	s.DoJSON("POST", "/api/latest/fleet/certificates", createCertificateTemplateRequest{
+	s.DoJSON("POST", "/api/latest/automdm/certificates", createCertificateTemplateRequest{
 		Name:                   certTemplateName,
 		TeamID:                 teamID,
 		CertificateAuthorityId: caID,
-		SubjectName:            "CN=$FLEET_VAR_HOST_HARDWARE_SERIAL",
+		SubjectName:            "CN=$AUTOMDM_VAR_HOST_HARDWARE_SERIAL",
 	}, http.StatusOK, &createResp)
 	require.NotZero(t, createResp.ID)
 	certTemplateID := createResp.ID
 
 	// Step: Verify host has pending certificate template record
 	s.verifyCertificateStatusWithSubject(t, host, orbitNodeKey, certTemplateID, certTemplateName, caID,
-		fleet.CertificateTemplatePending, "", "CN="+host.HardwareSerial)
+		automdm.CertificateTemplatePending, "", "CN="+host.HardwareSerial)
 
 	// Step: Simulate the certificate being successfully installed on the device (status = verified).
 	// This is critical for testing that verified records are cleared on unenroll (issue #42600).
 	mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
 		_, err := q.ExecContext(ctx,
 			"UPDATE host_certificate_templates SET status = ?, uuid = UUID_TO_BIN(UUID(), true) WHERE host_uuid = ? AND certificate_template_id = ?",
-			fleet.CertificateTemplateVerified, host.UUID, certTemplateID)
+			automdm.CertificateTemplateVerified, host.UUID, certTemplateID)
 		return err
 	})
 	s.verifyCertificateStatusWithSubject(t, host, orbitNodeKey, certTemplateID, certTemplateName, caID,
-		fleet.CertificateTemplateVerified, "", "CN="+host.HardwareSerial)
+		automdm.CertificateTemplateVerified, "", "CN="+host.HardwareSerial)
 
 	// Step: Unenroll the host (simulates pubsub DELETED message)
 	unenrolled, err := s.ds.SetAndroidHostUnenrolled(ctx, host.ID)
@@ -785,11 +785,11 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateUnenrollReenroll() {
 
 	// Step: Create a second certificate template while host is unenrolled
 	certTemplateName2 := strings.ReplaceAll(t.Name(), "/", "-") + "-CertTemplate2"
-	s.DoJSON("POST", "/api/latest/fleet/certificates", createCertificateTemplateRequest{
+	s.DoJSON("POST", "/api/latest/automdm/certificates", createCertificateTemplateRequest{
 		Name:                   certTemplateName2,
 		TeamID:                 teamID,
 		CertificateAuthorityId: caID,
-		SubjectName:            "CN=$FLEET_VAR_HOST_UUID",
+		SubjectName:            "CN=$AUTOMDM_VAR_HOST_UUID",
 	}, http.StatusOK, &createResp)
 	require.NotZero(t, createResp.ID)
 	certTemplateID2 := createResp.ID
@@ -797,7 +797,7 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateUnenrollReenroll() {
 	// Step: Verify that unenrolling cleared all certificate template records for this host.
 	// Neither the previously verified first template nor the newly created second template should appear.
 	var getHostResp getHostResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", host.ID), nil, http.StatusOK, &getHostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", host.ID), nil, http.StatusOK, &getHostResp)
 	require.Nil(t, getHostResp.Host.MDM.Profiles, "All certificate template records should be cleared on unenroll")
 
 	// Step: Re-enroll the host (simulates pubsub status report triggering UpdateAndroidHost with fromEnroll=true).
@@ -821,11 +821,11 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateUnenrollReenroll() {
 	require.Equal(t, 1, enrolledStatus, "Host should be marked as enrolled in host_mdm after re-enrollment")
 
 	// Step: Verify that the re-enrolled host now has BOTH certificate templates via the host API.
-	// The helper verifies both via the host API (MDM.Profiles) and the fleetd certificate API.
+	// The helper verifies both via the host API (MDM.Profiles) and the automdmd certificate API.
 	s.verifyCertificateStatusWithSubject(t, host, orbitNodeKey, certTemplateID, certTemplateName, caID,
-		fleet.CertificateTemplatePending, "", "CN="+host.HardwareSerial)
+		automdm.CertificateTemplatePending, "", "CN="+host.HardwareSerial)
 	s.verifyCertificateStatusWithSubject(t, host, orbitNodeKey, certTemplateID2, certTemplateName2, caID,
-		fleet.CertificateTemplatePending, "", "CN="+host.UUID)
+		automdm.CertificateTemplatePending, "", "CN="+host.UUID)
 }
 
 // TestCertificateTemplateTeamTransfer tests certificate template behavior when Android hosts transfer between teams:
@@ -840,27 +840,27 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateTeamTransfer() {
 	// Create two teams with different certificate templates
 	teamAName := t.Name() + "-teamA"
 	var createTeamResp teamResponse
-	s.DoJSON("POST", "/api/latest/fleet/fleets", createTeamRequest{
-		TeamPayload: fleet.TeamPayload{
+	s.DoJSON("POST", "/api/latest/automdm/teams", createTeamRequest{
+		TeamPayload: automdm.TeamPayload{
 			Name: ptr.String(teamAName),
 		},
 	}, http.StatusOK, &createTeamResp)
 	teamAID := createTeamResp.Team.ID
 
 	teamBName := t.Name() + "-teamB"
-	s.DoJSON("POST", "/api/latest/fleet/fleets", createTeamRequest{
-		TeamPayload: fleet.TeamPayload{
+	s.DoJSON("POST", "/api/latest/automdm/teams", createTeamRequest{
+		TeamPayload: automdm.TeamPayload{
 			Name: ptr.String(teamBName),
 		},
 	}, http.StatusOK, &createTeamResp)
 	teamBID := createTeamResp.Team.ID
 
 	// Create enroll secrets for both teams
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d/secrets", teamAID), modifyTeamEnrollSecretsRequest{
-		Secrets: []fleet.EnrollSecret{{Secret: "teamA-secret"}},
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d/secrets", teamAID), modifyTeamEnrollSecretsRequest{
+		Secrets: []automdm.EnrollSecret{{Secret: "teamA-secret"}},
 	}, http.StatusOK, &teamEnrollSecretsResponse{})
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d/secrets", teamBID), modifyTeamEnrollSecretsRequest{
-		Secrets: []fleet.EnrollSecret{{Secret: "teamB-secret"}},
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d/secrets", teamBID), modifyTeamEnrollSecretsRequest{
+		Secrets: []automdm.EnrollSecret{{Secret: "teamB-secret"}},
 	}, http.StatusOK, &teamEnrollSecretsResponse{})
 
 	// Create a test certificate authority
@@ -869,46 +869,46 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateTeamTransfer() {
 	// Create certificate templates for Team A
 	certTemplateA1Name := strings.ReplaceAll(t.Name(), "/", "-") + "-TeamA-Cert1"
 	var createCertResp createCertificateTemplateResponse
-	s.DoJSON("POST", "/api/latest/fleet/certificates", createCertificateTemplateRequest{
+	s.DoJSON("POST", "/api/latest/automdm/certificates", createCertificateTemplateRequest{
 		Name:                   certTemplateA1Name,
 		TeamID:                 teamAID,
 		CertificateAuthorityId: caID,
-		SubjectName:            "CN=$FLEET_VAR_HOST_HARDWARE_SERIAL",
+		SubjectName:            "CN=$AUTOMDM_VAR_HOST_HARDWARE_SERIAL",
 	}, http.StatusOK, &createCertResp)
 	certTemplateA1ID := createCertResp.ID
 
 	certTemplateA2Name := strings.ReplaceAll(t.Name(), "/", "-") + "-TeamA-Cert2"
-	s.DoJSON("POST", "/api/latest/fleet/certificates", createCertificateTemplateRequest{
+	s.DoJSON("POST", "/api/latest/automdm/certificates", createCertificateTemplateRequest{
 		Name:                   certTemplateA2Name,
 		TeamID:                 teamAID,
 		CertificateAuthorityId: caID,
-		SubjectName:            "CN=$FLEET_VAR_HOST_UUID",
+		SubjectName:            "CN=$AUTOMDM_VAR_HOST_UUID",
 	}, http.StatusOK, &createCertResp)
 	certTemplateA2ID := createCertResp.ID
 
 	// Create certificate templates for Team B
 	certTemplateB1Name := strings.ReplaceAll(t.Name(), "/", "-") + "-TeamB-Cert1"
-	s.DoJSON("POST", "/api/latest/fleet/certificates", createCertificateTemplateRequest{
+	s.DoJSON("POST", "/api/latest/automdm/certificates", createCertificateTemplateRequest{
 		Name:                   certTemplateB1Name,
 		TeamID:                 teamBID,
 		CertificateAuthorityId: caID,
-		SubjectName:            "CN=$FLEET_VAR_HOST_HARDWARE_SERIAL",
+		SubjectName:            "CN=$AUTOMDM_VAR_HOST_HARDWARE_SERIAL",
 	}, http.StatusOK, &createCertResp)
 	certTemplateB1ID := createCertResp.ID
 
 	// Helper to get certificate template statuses for a host from the database
 	getCertTemplateStatuses := func(hostUUID string) map[uint]struct {
-		Status        fleet.CertificateTemplateStatus
-		OperationType fleet.MDMOperationType
+		Status        automdm.CertificateTemplateStatus
+		OperationType automdm.MDMOperationType
 	} {
 		result := make(map[uint]struct {
-			Status        fleet.CertificateTemplateStatus
-			OperationType fleet.MDMOperationType
+			Status        automdm.CertificateTemplateStatus
+			OperationType automdm.MDMOperationType
 		})
 		var rows []struct {
-			CertificateTemplateID uint                            `db:"certificate_template_id"`
-			Status                fleet.CertificateTemplateStatus `db:"status"`
-			OperationType         fleet.MDMOperationType          `db:"operation_type"`
+			CertificateTemplateID uint                              `db:"certificate_template_id"`
+			Status                automdm.CertificateTemplateStatus `db:"status"`
+			OperationType         automdm.MDMOperationType          `db:"operation_type"`
 		}
 		mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
 			return sqlx.SelectContext(ctx, q, &rows, `
@@ -919,8 +919,8 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateTeamTransfer() {
 		})
 		for _, r := range rows {
 			result[r.CertificateTemplateID] = struct {
-				Status        fleet.CertificateTemplateStatus
-				OperationType fleet.MDMOperationType
+				Status        automdm.CertificateTemplateStatus
+				OperationType automdm.MDMOperationType
 			}{r.Status, r.OperationType}
 		}
 		return result
@@ -934,61 +934,61 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateTeamTransfer() {
 	t.Run("host with certs in all status/operation combinations transfers to team without certs", func(t *testing.T) {
 		// Create a team with 9 certificate templates to test all status/operation combinations
 		teamEName := t.Name() + "-teamE"
-		s.DoJSON("POST", "/api/latest/fleet/fleets", createTeamRequest{
-			TeamPayload: fleet.TeamPayload{
+		s.DoJSON("POST", "/api/latest/automdm/teams", createTeamRequest{
+			TeamPayload: automdm.TeamPayload{
 				Name: ptr.String(teamEName),
 			},
 		}, http.StatusOK, &createTeamResp)
 		teamEID := createTeamResp.Team.ID
 
 		// Create enroll secret for team E
-		s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d/secrets", teamEID), modifyTeamEnrollSecretsRequest{
-			Secrets: []fleet.EnrollSecret{{Secret: "teamE-secret"}},
+		s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d/secrets", teamEID), modifyTeamEnrollSecretsRequest{
+			Secrets: []automdm.EnrollSecret{{Secret: "teamE-secret"}},
 		}, http.StatusOK, &teamEnrollSecretsResponse{})
 
 		// Create a team without certificate templates for transfer target
 		teamFName := t.Name() + "-teamF"
-		s.DoJSON("POST", "/api/latest/fleet/fleets", createTeamRequest{
-			TeamPayload: fleet.TeamPayload{
+		s.DoJSON("POST", "/api/latest/automdm/teams", createTeamRequest{
+			TeamPayload: automdm.TeamPayload{
 				Name: ptr.String(teamFName),
 			},
 		}, http.StatusOK, &createTeamResp)
 		teamFID := createTeamResp.Team.ID
 
 		// Create enroll secret for team F
-		s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d/secrets", teamFID), modifyTeamEnrollSecretsRequest{
-			Secrets: []fleet.EnrollSecret{{Secret: "teamF-secret"}},
+		s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d/secrets", teamFID), modifyTeamEnrollSecretsRequest{
+			Secrets: []automdm.EnrollSecret{{Secret: "teamF-secret"}},
 		}, http.StatusOK, &teamEnrollSecretsResponse{})
 
 		// Define all status/operation combinations to test
 		type certTestCase struct {
-			status         fleet.CertificateTemplateStatus
-			operation      fleet.MDMOperationType
-			shouldDelete   bool                            // true if record should be deleted during transfer
-			expectedStatus fleet.CertificateTemplateStatus // expected status after transfer (if not deleted)
-			expectedOp     fleet.MDMOperationType          // expected operation after transfer (if not deleted)
+			status         automdm.CertificateTemplateStatus
+			operation      automdm.MDMOperationType
+			shouldDelete   bool                              // true if record should be deleted during transfer
+			expectedStatus automdm.CertificateTemplateStatus // expected status after transfer (if not deleted)
+			expectedOp     automdm.MDMOperationType          // expected operation after transfer (if not deleted)
 			templateID     uint
 			templateName   string
 		}
 
 		testCases := []certTestCase{
 			// Install operations: pending/failed are deleted, others are marked for removal
-			{fleet.CertificateTemplatePending, fleet.MDMOperationTypeInstall, true, "", "", 0, ""},
-			{fleet.CertificateTemplateDelivering, fleet.MDMOperationTypeInstall, false, fleet.CertificateTemplatePending, fleet.MDMOperationTypeRemove, 0, ""},
-			{fleet.CertificateTemplateDelivered, fleet.MDMOperationTypeInstall, false, fleet.CertificateTemplatePending, fleet.MDMOperationTypeRemove, 0, ""},
-			{fleet.CertificateTemplateVerified, fleet.MDMOperationTypeInstall, false, fleet.CertificateTemplatePending, fleet.MDMOperationTypeRemove, 0, ""},
-			{fleet.CertificateTemplateFailed, fleet.MDMOperationTypeInstall, true, "", "", 0, ""},
+			{automdm.CertificateTemplatePending, automdm.MDMOperationTypeInstall, true, "", "", 0, ""},
+			{automdm.CertificateTemplateDelivering, automdm.MDMOperationTypeInstall, false, automdm.CertificateTemplatePending, automdm.MDMOperationTypeRemove, 0, ""},
+			{automdm.CertificateTemplateDelivered, automdm.MDMOperationTypeInstall, false, automdm.CertificateTemplatePending, automdm.MDMOperationTypeRemove, 0, ""},
+			{automdm.CertificateTemplateVerified, automdm.MDMOperationTypeInstall, false, automdm.CertificateTemplatePending, automdm.MDMOperationTypeRemove, 0, ""},
+			{automdm.CertificateTemplateFailed, automdm.MDMOperationTypeInstall, true, "", "", 0, ""},
 			// Remove operations: all stay unchanged (removal already in progress)
-			{fleet.CertificateTemplatePending, fleet.MDMOperationTypeRemove, false, fleet.CertificateTemplatePending, fleet.MDMOperationTypeRemove, 0, ""},
-			{fleet.CertificateTemplateDelivering, fleet.MDMOperationTypeRemove, false, fleet.CertificateTemplateDelivering, fleet.MDMOperationTypeRemove, 0, ""},
-			{fleet.CertificateTemplateDelivered, fleet.MDMOperationTypeRemove, false, fleet.CertificateTemplateDelivered, fleet.MDMOperationTypeRemove, 0, ""},
-			{fleet.CertificateTemplateFailed, fleet.MDMOperationTypeRemove, false, fleet.CertificateTemplateFailed, fleet.MDMOperationTypeRemove, 0, ""},
+			{automdm.CertificateTemplatePending, automdm.MDMOperationTypeRemove, false, automdm.CertificateTemplatePending, automdm.MDMOperationTypeRemove, 0, ""},
+			{automdm.CertificateTemplateDelivering, automdm.MDMOperationTypeRemove, false, automdm.CertificateTemplateDelivering, automdm.MDMOperationTypeRemove, 0, ""},
+			{automdm.CertificateTemplateDelivered, automdm.MDMOperationTypeRemove, false, automdm.CertificateTemplateDelivered, automdm.MDMOperationTypeRemove, 0, ""},
+			{automdm.CertificateTemplateFailed, automdm.MDMOperationTypeRemove, false, automdm.CertificateTemplateFailed, automdm.MDMOperationTypeRemove, 0, ""},
 		}
 
 		// Create certificate templates for team E
 		for i := range testCases {
 			name := fmt.Sprintf("%s-Cert-%s-%s", strings.ReplaceAll(t.Name(), "/", "-"), testCases[i].status, testCases[i].operation)
-			s.DoJSON("POST", "/api/latest/fleet/certificates", createCertificateTemplateRequest{
+			s.DoJSON("POST", "/api/latest/automdm/certificates", createCertificateTemplateRequest{
 				Name:                   name,
 				TeamID:                 teamEID,
 				CertificateAuthorityId: caID,
@@ -1005,11 +1005,11 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateTeamTransfer() {
 		mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
 			for _, tc := range testCases {
 				challenge := "challenge"
-				if tc.status == fleet.CertificateTemplatePending || tc.status == fleet.CertificateTemplateFailed {
+				if tc.status == automdm.CertificateTemplatePending || tc.status == automdm.CertificateTemplateFailed {
 					challenge = "" // No challenge for pending/failed
 				}
 				_, err := q.ExecContext(ctx, `
-					INSERT INTO host_certificate_templates (host_uuid, certificate_template_id, status, operation_type, fleet_challenge, name)
+					INSERT INTO host_certificate_templates (host_uuid, certificate_template_id, status, operation_type, automdm_challenge, name)
 					VALUES (?, ?, ?, ?, NULLIF(?, ''), ?)
 				`, host.UUID, tc.templateID, tc.status, tc.operation, challenge, tc.templateName)
 				if err != nil {
@@ -1024,7 +1024,7 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateTeamTransfer() {
 		require.Len(t, statuses, 9, "Should have 9 certificate template records")
 
 		// Transfer host to Team F (no certs)
-		s.DoJSON("POST", "/api/latest/fleet/hosts/transfer", addHostsToTeamRequest{
+		s.DoJSON("POST", "/api/latest/automdm/hosts/transfer", addHostsToTeamRequest{
 			TeamID:  &teamFID,
 			HostIDs: []uint{host.ID},
 		}, http.StatusOK, &addHostsToTeamResponse{})
@@ -1062,16 +1062,16 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateTeamTransfer() {
 	t.Run("host without certs transfers to team with certs", func(t *testing.T) {
 		// Create a team without certificate templates
 		teamDName := t.Name() + "-teamD"
-		s.DoJSON("POST", "/api/latest/fleet/fleets", createTeamRequest{
-			TeamPayload: fleet.TeamPayload{
+		s.DoJSON("POST", "/api/latest/automdm/teams", createTeamRequest{
+			TeamPayload: automdm.TeamPayload{
 				Name: ptr.String(teamDName),
 			},
 		}, http.StatusOK, &createTeamResp)
 		teamDID := createTeamResp.Team.ID
 
 		// Create enroll secret for team D
-		s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d/secrets", teamDID), modifyTeamEnrollSecretsRequest{
-			Secrets: []fleet.EnrollSecret{{Secret: "teamD-secret"}},
+		s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d/secrets", teamDID), modifyTeamEnrollSecretsRequest{
+			Secrets: []automdm.EnrollSecret{{Secret: "teamD-secret"}},
 		}, http.StatusOK, &teamEnrollSecretsResponse{})
 
 		// Create host in Team D (no certs)
@@ -1082,7 +1082,7 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateTeamTransfer() {
 		require.Empty(t, statuses, "Host should have no certificate templates initially")
 
 		// Transfer host to Team B (has certs)
-		s.DoJSON("POST", "/api/latest/fleet/hosts/transfer", addHostsToTeamRequest{
+		s.DoJSON("POST", "/api/latest/automdm/hosts/transfer", addHostsToTeamRequest{
 			TeamID:  &teamBID,
 			HostIDs: []uint{host.ID},
 		}, http.StatusOK, &addHostsToTeamResponse{})
@@ -1093,8 +1093,8 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateTeamTransfer() {
 		// Verify host now has Team B's certificate template as pending install
 		statuses = getCertTemplateStatuses(host.UUID)
 		require.Len(t, statuses, 1, "Host should have Team B's certificate template")
-		require.Equal(t, fleet.CertificateTemplatePending, statuses[certTemplateB1ID].Status)
-		require.Equal(t, fleet.MDMOperationTypeInstall, statuses[certTemplateB1ID].OperationType)
+		require.Equal(t, automdm.CertificateTemplatePending, statuses[certTemplateB1ID].Status)
+		require.Equal(t, automdm.MDMOperationTypeInstall, statuses[certTemplateB1ID].OperationType)
 	})
 
 	t.Run("host with certs transfers to team with different certs", func(t *testing.T) {
@@ -1109,9 +1109,9 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateTeamTransfer() {
 		mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
 			_, err := q.ExecContext(ctx, `
 				UPDATE host_certificate_templates
-				SET status = ?, fleet_challenge = 'challenge'
+				SET status = ?, automdm_challenge = 'challenge'
 				WHERE host_uuid = ?
-			`, fleet.CertificateTemplateVerified, host.UUID)
+			`, automdm.CertificateTemplateVerified, host.UUID)
 			return err
 		})
 
@@ -1120,11 +1120,11 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateTeamTransfer() {
 		require.Len(t, statuses, 2)
 		require.Contains(t, statuses, certTemplateA1ID)
 		require.Contains(t, statuses, certTemplateA2ID)
-		require.Equal(t, fleet.CertificateTemplateVerified, statuses[certTemplateA1ID].Status)
-		require.Equal(t, fleet.CertificateTemplateVerified, statuses[certTemplateA2ID].Status)
+		require.Equal(t, automdm.CertificateTemplateVerified, statuses[certTemplateA1ID].Status)
+		require.Equal(t, automdm.CertificateTemplateVerified, statuses[certTemplateA2ID].Status)
 
 		// Transfer host to Team B
-		s.DoJSON("POST", "/api/latest/fleet/hosts/transfer", addHostsToTeamRequest{
+		s.DoJSON("POST", "/api/latest/automdm/hosts/transfer", addHostsToTeamRequest{
 			TeamID:  &teamBID,
 			HostIDs: []uint{host.ID},
 		}, http.StatusOK, &addHostsToTeamResponse{})
@@ -1139,25 +1139,25 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateTeamTransfer() {
 		require.Len(t, statuses, 3, "Should have 2 old certs (pending remove) + 1 new cert (pending install)")
 
 		// Team A certs should be pending remove
-		require.Equal(t, fleet.CertificateTemplatePending, statuses[certTemplateA1ID].Status)
-		require.Equal(t, fleet.MDMOperationTypeRemove, statuses[certTemplateA1ID].OperationType)
-		require.Equal(t, fleet.CertificateTemplatePending, statuses[certTemplateA2ID].Status)
-		require.Equal(t, fleet.MDMOperationTypeRemove, statuses[certTemplateA2ID].OperationType)
+		require.Equal(t, automdm.CertificateTemplatePending, statuses[certTemplateA1ID].Status)
+		require.Equal(t, automdm.MDMOperationTypeRemove, statuses[certTemplateA1ID].OperationType)
+		require.Equal(t, automdm.CertificateTemplatePending, statuses[certTemplateA2ID].Status)
+		require.Equal(t, automdm.MDMOperationTypeRemove, statuses[certTemplateA2ID].OperationType)
 
 		// Team B cert should be pending install
-		require.Equal(t, fleet.CertificateTemplatePending, statuses[certTemplateB1ID].Status)
-		require.Equal(t, fleet.MDMOperationTypeInstall, statuses[certTemplateB1ID].OperationType)
+		require.Equal(t, automdm.CertificateTemplatePending, statuses[certTemplateB1ID].Status)
+		require.Equal(t, automdm.MDMOperationTypeInstall, statuses[certTemplateB1ID].OperationType)
 
 		// Test that device can report "verified" for a pending removal and the record gets deleted.
 		// This handles race conditions where the device processes the removal before the server
 		// transitions the status through the full state machine.
 		updateReq, err := json.Marshal(updateCertificateStatusRequest{
-			Status:        string(fleet.CertificateTemplateVerified),
-			OperationType: ptr.String(string(fleet.MDMOperationTypeRemove)),
+			Status:        string(automdm.CertificateTemplateVerified),
+			OperationType: ptr.String(string(automdm.MDMOperationTypeRemove)),
 		})
 		require.NoError(t, err)
 
-		resp := s.DoRawWithHeaders("PUT", fmt.Sprintf("/api/fleetd/certificates/%d/status", certTemplateA1ID), updateReq, http.StatusOK, map[string]string{
+		resp := s.DoRawWithHeaders("PUT", fmt.Sprintf("/api/automdmd/certificates/%d/status", certTemplateA1ID), updateReq, http.StatusOK, map[string]string{
 			"Authorization": fmt.Sprintf("Node key %s", orbitNodeKey),
 		})
 		_ = resp.Body.Close()
@@ -1183,8 +1183,8 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateRenewal() {
 	// Create a test team
 	teamName := t.Name() + "-team"
 	var createTeamResp teamResponse
-	s.DoJSON("POST", "/api/latest/fleet/fleets", createTeamRequest{
-		TeamPayload: fleet.TeamPayload{
+	s.DoJSON("POST", "/api/latest/automdm/teams", createTeamRequest{
+		TeamPayload: automdm.TeamPayload{
 			Name: ptr.String(teamName),
 		},
 	}, http.StatusOK, &createTeamResp)
@@ -1281,11 +1281,11 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateRenewal() {
 			// Create a certificate template
 			certTemplateName := strings.ReplaceAll(t.Name(), "/", "_") + "_CertTemplate"
 			var createResp createCertificateTemplateResponse
-			s.DoJSON("POST", "/api/latest/fleet/certificates", createCertificateTemplateRequest{
+			s.DoJSON("POST", "/api/latest/automdm/certificates", createCertificateTemplateRequest{
 				Name:                   certTemplateName,
 				TeamID:                 teamID,
 				CertificateAuthorityId: caID,
-				SubjectName:            "CN=$FLEET_VAR_HOST_HARDWARE_SERIAL",
+				SubjectName:            "CN=$AUTOMDM_VAR_HOST_HARDWARE_SERIAL",
 			}, http.StatusOK, &createResp)
 			require.NotZero(t, createResp.ID)
 			certificateTemplateID := createResp.ID
@@ -1294,7 +1294,7 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateRenewal() {
 			s.awaitTriggerAndroidProfileSchedule(t)
 
 			// Verify status is now 'delivered'
-			s.verifyCertificateStatus(t, host, orbitNodeKey, certificateTemplateID, certTemplateName, caID, fleet.CertificateTemplateDelivered, "")
+			s.verifyCertificateStatus(t, host, orbitNodeKey, certificateTemplateID, certTemplateName, caID, automdm.CertificateTemplateDelivered, "")
 
 			// Get the original UUID before renewal
 			var originalUUID string
@@ -1312,7 +1312,7 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateRenewal() {
 			serial := fmt.Sprintf("SERIAL-%s", tc.name)
 
 			updateReq, err := json.Marshal(updateCertificateStatusRequest{
-				Status:         string(fleet.CertificateTemplateVerified),
+				Status:         string(automdm.CertificateTemplateVerified),
 				Detail:         ptr.String("Certificate installed successfully"),
 				NotValidBefore: &notValidBefore,
 				NotValidAfter:  &notValidAfter,
@@ -1320,13 +1320,13 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateRenewal() {
 			})
 			require.NoError(t, err)
 
-			resp := s.DoRawWithHeaders("PUT", fmt.Sprintf("/api/fleetd/certificates/%d/status", certificateTemplateID), updateReq, http.StatusOK, map[string]string{
+			resp := s.DoRawWithHeaders("PUT", fmt.Sprintf("/api/automdmd/certificates/%d/status", certificateTemplateID), updateReq, http.StatusOK, map[string]string{
 				"Authorization": fmt.Sprintf("Node key %s", orbitNodeKey),
 			})
 			_ = resp.Body.Close()
 
 			// Verify the status is 'verified'
-			s.verifyCertificateStatus(t, host, orbitNodeKey, certificateTemplateID, certTemplateName, caID, fleet.CertificateTemplateVerified, "Certificate installed successfully")
+			s.verifyCertificateStatus(t, host, orbitNodeKey, certificateTemplateID, certTemplateName, caID, automdm.CertificateTemplateVerified, "Certificate installed successfully")
 
 			// Trigger the cleanups cron schedule which includes the renewal job
 			s.awaitRunCleanupSchedule()
@@ -1348,7 +1348,7 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateRenewal() {
 
 			if tc.shouldRenew {
 				// Status should be 'pending'
-				require.Equal(t, string(fleet.CertificateTemplatePending), newRecord.Status, "%s: Status should be pending after renewal", tc.description)
+				require.Equal(t, string(automdm.CertificateTemplatePending), newRecord.Status, "%s: Status should be pending after renewal", tc.description)
 
 				// UUID should be different (signals renewal to device)
 				require.NotEmpty(t, newRecord.UUID)
@@ -1361,10 +1361,10 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateRenewal() {
 
 				// Trigger profile reconciliation again - certificate should be delivered
 				s.awaitTriggerAndroidProfileSchedule(t)
-				s.verifyCertificateStatus(t, host, orbitNodeKey, certificateTemplateID, certTemplateName, caID, fleet.CertificateTemplateDelivered, "")
+				s.verifyCertificateStatus(t, host, orbitNodeKey, certificateTemplateID, certTemplateName, caID, automdm.CertificateTemplateDelivered, "")
 			} else {
 				// Status should still be 'verified' (not renewed)
-				require.Equal(t, string(fleet.CertificateTemplateVerified), newRecord.Status, "%s: Status should remain verified", tc.description)
+				require.Equal(t, string(automdm.CertificateTemplateVerified), newRecord.Status, "%s: Status should remain verified", tc.description)
 
 				// UUID should be the same (no renewal triggered)
 				require.Equal(t, originalUUID, newRecord.UUID, "%s: UUID should not change", tc.description)
@@ -1380,7 +1380,7 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateRenewal() {
 // TestCertificateTemplateAuthorizationForTeamUsers tests authorization for certificate templates with team-level users.
 // This test covers the bug fix where team admins/maintainers/gitops can read certificate templates for their own teams.
 // The bug was that CertificateTemplate struct was missing JSON tags, causing TeamID to serialize as "TeamID"
-// instead of "fleet_id", which prevented the OPA policy from matching correctly.
+// instead of "team_id", which prevented the OPA policy from matching correctly.
 func (s *integrationMDMTestSuite) TestCertificateTemplateAuthorizationForTeamUsers() {
 	t := s.T()
 	ctx := context.Background()
@@ -1388,8 +1388,8 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateAuthorizationForTeamUse
 	// Create a team
 	teamName := t.Name() + "-team"
 	var createTeamResp teamResponse
-	s.DoJSON("POST", "/api/latest/fleet/fleets", createTeamRequest{
-		TeamPayload: fleet.TeamPayload{
+	s.DoJSON("POST", "/api/latest/automdm/teams", createTeamRequest{
+		TeamPayload: automdm.TeamPayload{
 			Name: ptr.String(teamName),
 		},
 	}, http.StatusOK, &createTeamResp)
@@ -1399,17 +1399,17 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateAuthorizationForTeamUse
 	teamAdminEmail := "team-admin@example.com"
 	teamAdminPassword := "password123#"
 	var createUserResp createUserResponse
-	s.DoJSON("POST", "/api/latest/fleet/users/admin", createUserRequest{
-		UserPayload: fleet.UserPayload{
+	s.DoJSON("POST", "/api/latest/automdm/users/admin", createUserRequest{
+		UserPayload: automdm.UserPayload{
 			Name:                     ptr.String("Team Admin"),
 			Email:                    &teamAdminEmail,
 			Password:                 &teamAdminPassword,
 			GlobalRole:               nil,
 			AdminForcedPasswordReset: ptr.Bool(false),
-			Teams: &[]fleet.UserTeam{
+			Teams: &[]automdm.UserTeam{
 				{
-					Team: fleet.Team{ID: teamID},
-					Role: fleet.RoleAdmin,
+					Team: automdm.Team{ID: teamID},
+					Role: automdm.RoleAdmin,
 				},
 			},
 		},
@@ -1417,8 +1417,8 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateAuthorizationForTeamUse
 	require.NotZero(t, createUserResp.User.ID)
 
 	// Create a certificate authority
-	ca, err := s.ds.NewCertificateAuthority(ctx, &fleet.CertificateAuthority{
-		Type:      string(fleet.CATypeCustomSCEPProxy),
+	ca, err := s.ds.NewCertificateAuthority(ctx, &automdm.CertificateAuthority{
+		Type:      string(automdm.CATypeCustomSCEPProxy),
 		Name:      ptr.String(t.Name() + "-CA"),
 		URL:       ptr.String("http://localhost:8080/scep"),
 		Challenge: ptr.String("test-challenge"),
@@ -1427,8 +1427,8 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateAuthorizationForTeamUse
 	caID := ca.ID
 
 	// Login as team admin
-	var loginResp fleet.LoginResponse
-	s.DoJSON("POST", "/api/latest/fleet/login", fleet.LoginRequest{
+	var loginResp automdm.LoginResponse
+	s.DoJSON("POST", "/api/latest/automdm/login", automdm.LoginRequest{
 		Email:    teamAdminEmail,
 		Password: teamAdminPassword,
 	}, http.StatusOK, &loginResp)
@@ -1447,11 +1447,11 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateAuthorizationForTeamUse
 		s.token = originalToken
 		certTemplateTeamName := strings.ReplaceAll(t.Name(), "/", "-") + "-Team-Cert"
 		var createResp createCertificateTemplateResponse
-		s.DoJSON("POST", "/api/latest/fleet/certificates", createCertificateTemplateRequest{
+		s.DoJSON("POST", "/api/latest/automdm/certificates", createCertificateTemplateRequest{
 			Name:                   certTemplateTeamName,
 			TeamID:                 teamID,
 			CertificateAuthorityId: caID,
-			SubjectName:            "CN=$FLEET_VAR_HOST_UUID",
+			SubjectName:            "CN=$AUTOMDM_VAR_HOST_UUID",
 		}, http.StatusOK, &createResp)
 		require.NotZero(t, createResp.ID)
 		teamCertID := createResp.ID
@@ -1460,7 +1460,7 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateAuthorizationForTeamUse
 		s.token = teamAdminToken
 
 		var listResp listCertificateTemplatesResponse
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/certificates?fleet_id=%d", teamID), nil, http.StatusOK, &listResp)
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/certificates?team_id=%d", teamID), nil, http.StatusOK, &listResp)
 		require.Len(t, listResp.Certificates, 1)
 		require.Equal(t, teamCertID, listResp.Certificates[0].ID)
 		require.Equal(t, certTemplateTeamName, listResp.Certificates[0].Name)
@@ -1472,8 +1472,8 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateAuthorizationForTeamUse
 		s.token = originalToken
 		otherTeamName := t.Name() + "-other-team"
 		var createTeamResp teamResponse
-		s.DoJSON("POST", "/api/latest/fleet/fleets", createTeamRequest{
-			TeamPayload: fleet.TeamPayload{
+		s.DoJSON("POST", "/api/latest/automdm/teams", createTeamRequest{
+			TeamPayload: automdm.TeamPayload{
 				Name: ptr.String(otherTeamName),
 			},
 		}, http.StatusOK, &createTeamResp)
@@ -1482,11 +1482,11 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateAuthorizationForTeamUse
 		// Create a certificate template for the other team
 		certTemplateOtherTeamName := strings.ReplaceAll(t.Name(), "/", "-") + "-OtherTeam-Cert"
 		var createResp createCertificateTemplateResponse
-		s.DoJSON("POST", "/api/latest/fleet/certificates", createCertificateTemplateRequest{
+		s.DoJSON("POST", "/api/latest/automdm/certificates", createCertificateTemplateRequest{
 			Name:                   certTemplateOtherTeamName,
 			TeamID:                 otherTeamID,
 			CertificateAuthorityId: caID,
-			SubjectName:            "CN=$FLEET_VAR_HOST_HARDWARE_SERIAL",
+			SubjectName:            "CN=$AUTOMDM_VAR_HOST_HARDWARE_SERIAL",
 		}, http.StatusOK, &createResp)
 		require.NotZero(t, createResp.ID)
 
@@ -1494,7 +1494,7 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateAuthorizationForTeamUse
 		s.token = teamAdminToken
 
 		// Team admin should get 403 forbidden when trying to list other team's certificates
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/certificates?fleet_id=%d", otherTeamID), nil, http.StatusForbidden, &listCertificateTemplatesResponse{})
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/certificates?team_id=%d", otherTeamID), nil, http.StatusForbidden, &listCertificateTemplatesResponse{})
 	})
 
 	// Reading and deleting hide the existence of templates the team admin can't reach.
@@ -1504,35 +1504,35 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateAuthorizationForTeamUse
 		s.token = originalToken
 		deleteOtherTeamName := t.Name() + "-other-team"
 		var createTeamResp teamResponse
-		s.DoJSON("POST", "/api/latest/fleet/fleets", createTeamRequest{
-			TeamPayload: fleet.TeamPayload{
+		s.DoJSON("POST", "/api/latest/automdm/teams", createTeamRequest{
+			TeamPayload: automdm.TeamPayload{
 				Name: &deleteOtherTeamName,
 			},
 		}, http.StatusOK, &createTeamResp)
 		otherTeamID := createTeamResp.Team.ID
 
 		var createResp createCertificateTemplateResponse
-		s.DoJSON("POST", "/api/latest/fleet/certificates", createCertificateTemplateRequest{
+		s.DoJSON("POST", "/api/latest/automdm/certificates", createCertificateTemplateRequest{
 			Name:                   strings.ReplaceAll(t.Name(), "/", "-") + "-Cert",
 			TeamID:                 otherTeamID,
 			CertificateAuthorityId: caID,
-			SubjectName:            "CN=$FLEET_VAR_HOST_UUID",
+			SubjectName:            "CN=$AUTOMDM_VAR_HOST_UUID",
 		}, http.StatusOK, &createResp)
 		require.NotZero(t, createResp.ID)
 
 		s.token = teamAdminToken
 
-		s.Do("DELETE", fmt.Sprintf("/api/latest/fleet/certificates/%d", createResp.ID), nil, http.StatusNotFound)
-		s.Do("DELETE", "/api/latest/fleet/certificates/9999999", nil, http.StatusNotFound)
+		s.Do("DELETE", fmt.Sprintf("/api/latest/automdm/certificates/%d", createResp.ID), nil, http.StatusNotFound)
+		s.Do("DELETE", "/api/latest/automdm/certificates/9999999", nil, http.StatusNotFound)
 
 		// Reading a single template hides existence the same way deleting does.
-		s.Do("GET", fmt.Sprintf("/api/latest/fleet/certificates/%d", createResp.ID), nil, http.StatusNotFound)
-		s.Do("GET", "/api/latest/fleet/certificates/9999999", nil, http.StatusNotFound)
+		s.Do("GET", fmt.Sprintf("/api/latest/automdm/certificates/%d", createResp.ID), nil, http.StatusNotFound)
+		s.Do("GET", "/api/latest/automdm/certificates/9999999", nil, http.StatusNotFound)
 
 		// The other team's template is still there.
 		s.token = originalToken
 		var listResp listCertificateTemplatesResponse
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/certificates?fleet_id=%d", otherTeamID), nil, http.StatusOK, &listResp)
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/certificates?team_id=%d", otherTeamID), nil, http.StatusOK, &listResp)
 		require.Len(t, listResp.Certificates, 1)
 		require.Equal(t, createResp.ID, listResp.Certificates[0].ID)
 	})
@@ -1541,9 +1541,9 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateAuthorizationForTeamUse
 // TestCertificateTemplateResend tests the resend endpoint for Android certificate templates:
 // 1. After a certificate reaches 'verified' status, calling resend resets it to 'pending'
 // 2. The UUID changes after resend (signals the device to re-fetch)
-// 3. The fleet_challenge is cleared after resend and regenerated on next delivery
+// 3. The automdm_challenge is cleared after resend and regenerated on next delivery
 // 4. The reconcile cron picks up the pending template and re-delivers it
-// 5. The SCEP proxy accepts the refreshed fleet challenge
+// 5. The SCEP proxy accepts the refreshed automdm challenge
 func (s *integrationMDMTestSuite) TestCertificateTemplateResend() {
 	t := s.T()
 	ctx := t.Context()
@@ -1555,8 +1555,8 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateResend() {
 	// Create a test team
 	teamName := t.Name() + "-team"
 	var createTeamResp teamResponse
-	s.DoJSON("POST", "/api/latest/fleet/fleets", createTeamRequest{
-		TeamPayload: fleet.TeamPayload{
+	s.DoJSON("POST", "/api/latest/automdm/teams", createTeamRequest{
+		TeamPayload: automdm.TeamPayload{
 			Name: ptr.String(teamName),
 		},
 	}, http.StatusOK, &createTeamResp)
@@ -1564,8 +1564,8 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateResend() {
 
 	// Create a certificate authority pointing to the real test SCEP server.
 	// Use a name without slashes since it appears in the SCEP proxy URL path.
-	ca, err := s.ds.NewCertificateAuthority(ctx, &fleet.CertificateAuthority{
-		Type:      string(fleet.CATypeCustomSCEPProxy),
+	ca, err := s.ds.NewCertificateAuthority(ctx, &automdm.CertificateAuthority{
+		Type:      string(automdm.CATypeCustomSCEPProxy),
 		Name:      ptr.String(strings.ReplaceAll(t.Name(), "/", "-") + "-CA"),
 		URL:       ptr.String(testSCEPServer.URL + "/scep"),
 		Challenge: ptr.String("test-challenge"),
@@ -1579,37 +1579,37 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateResend() {
 	// Create a certificate template for the team
 	certTemplateName := strings.ReplaceAll(t.Name(), "/", "-") + "-CertTemplate"
 	var createResp createCertificateTemplateResponse
-	s.DoJSON("POST", "/api/latest/fleet/certificates", createCertificateTemplateRequest{
+	s.DoJSON("POST", "/api/latest/automdm/certificates", createCertificateTemplateRequest{
 		Name:                   certTemplateName,
 		TeamID:                 teamID,
 		CertificateAuthorityId: caID,
-		SubjectName:            "CN=$FLEET_VAR_HOST_HARDWARE_SERIAL",
+		SubjectName:            "CN=$AUTOMDM_VAR_HOST_HARDWARE_SERIAL",
 	}, http.StatusOK, &createResp)
 	require.NotZero(t, createResp.ID)
 	certTemplateID := createResp.ID
 
 	// Verify initial pending status
 	s.verifyCertificateStatus(t, host, orbitNodeKey, certTemplateID, certTemplateName, caID,
-		fleet.CertificateTemplatePending, "")
+		automdm.CertificateTemplatePending, "")
 
 	// Trigger reconciliation to deliver the certificate template
 	s.awaitTriggerAndroidProfileSchedule(t)
 
 	// Verify status is now 'delivered'
 	s.verifyCertificateStatus(t, host, orbitNodeKey, certTemplateID, certTemplateName, caID,
-		fleet.CertificateTemplateDelivered, "")
+		automdm.CertificateTemplateDelivered, "")
 
-	// Fetch via fleetd API to trigger on-demand fleet_challenge creation
+	// Fetch via automdmd API to trigger on-demand automdm_challenge creation
 	// (challenge is created lazily on first fetch in delivered status)
-	resp := s.DoRawWithHeaders("GET", fmt.Sprintf("/api/fleetd/certificates/%d", certTemplateID), nil, http.StatusOK, map[string]string{
+	resp := s.DoRawWithHeaders("GET", fmt.Sprintf("/api/automdmd/certificates/%d", certTemplateID), nil, http.StatusOK, map[string]string{
 		"Authorization": fmt.Sprintf("Node key %s", orbitNodeKey),
 	})
 	var preResendCertResp getDeviceCertificateTemplateResponse
 	err = json.NewDecoder(resp.Body).Decode(&preResendCertResp)
 	require.NoError(t, err)
 	_ = resp.Body.Close()
-	require.NotNil(t, preResendCertResp.Certificate.FleetChallenge, "fleet_challenge should be created on-demand")
-	originalFleetChallenge := *preResendCertResp.Certificate.FleetChallenge
+	require.NotNil(t, preResendCertResp.Certificate.AutoMDMChallenge, "automdm_challenge should be created on-demand")
+	originalAutoMDMChallenge := *preResendCertResp.Certificate.AutoMDMChallenge
 
 	// Simulate device reporting certificate enrollment as verified, with validity info
 	certNotBefore := time.Now().UTC().Truncate(time.Second)
@@ -1617,21 +1617,21 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateResend() {
 	certSerial := "AB:CD:EF:01:23:45"
 	certDetail := "enrollment succeeded"
 	updateReq, err := json.Marshal(updateCertificateStatusRequest{
-		Status:         string(fleet.CertificateTemplateVerified),
+		Status:         string(automdm.CertificateTemplateVerified),
 		NotValidBefore: &certNotBefore,
 		NotValidAfter:  &certNotAfter,
 		Serial:         &certSerial,
 		Detail:         &certDetail,
 	})
 	require.NoError(t, err)
-	resp = s.DoRawWithHeaders("PUT", fmt.Sprintf("/api/fleetd/certificates/%d/status", certTemplateID), updateReq, http.StatusOK, map[string]string{
+	resp = s.DoRawWithHeaders("PUT", fmt.Sprintf("/api/automdmd/certificates/%d/status", certTemplateID), updateReq, http.StatusOK, map[string]string{
 		"Authorization": fmt.Sprintf("Node key %s", orbitNodeKey),
 	})
 	_ = resp.Body.Close()
 
 	// Verify status is 'verified' and validity fields are populated
 	s.verifyCertificateStatus(t, host, orbitNodeKey, certTemplateID, certTemplateName, caID,
-		fleet.CertificateTemplateVerified, "")
+		automdm.CertificateTemplateVerified, "")
 	verifiedRecord, err := s.ds.GetHostCertificateTemplateRecord(ctx, host.UUID, certTemplateID)
 	require.NoError(t, err)
 	require.NotNil(t, verifiedRecord.NotValidBefore, "not_valid_before should be set after verified")
@@ -1643,12 +1643,12 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateResend() {
 	originalUUID := verifiedRecord.UUID
 
 	// Call the resend endpoint
-	s.DoJSON("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/certificates/%d/resend", host.ID, certTemplateID),
+	s.DoJSON("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/certificates/%d/resend", host.ID, certTemplateID),
 		nil, http.StatusOK, &struct{}{})
 
 	// Verify activity was created for the resend
 	s.lastActivityOfTypeMatches(
-		fleet.ActivityTypeResentCertificate{}.ActivityName(),
+		automdm.ActivityTypeResentCertificate{}.ActivityName(),
 		fmt.Sprintf(
 			`{"host_id": %d, "host_display_name": %q, "certificate_template_id": %d, "certificate_name": %q}`,
 			host.ID,
@@ -1662,9 +1662,9 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateResend() {
 	// Verify status is reset to 'pending', UUID changed, and all certificate fields cleared
 	updatedRecord, err := s.ds.GetHostCertificateTemplateRecord(ctx, host.UUID, certTemplateID)
 	require.NoError(t, err)
-	require.Equal(t, fleet.CertificateTemplatePending, updatedRecord.Status)
+	require.Equal(t, automdm.CertificateTemplatePending, updatedRecord.Status)
 	require.NotEqual(t, originalUUID, updatedRecord.UUID, "UUID should change after resend")
-	require.Nil(t, updatedRecord.FleetChallenge, "fleet_challenge should be cleared after resend")
+	require.Nil(t, updatedRecord.AutoMDMChallenge, "automdm_challenge should be cleared after resend")
 	require.Nil(t, updatedRecord.NotValidBefore, "not_valid_before should be cleared after resend")
 	require.Nil(t, updatedRecord.NotValidAfter, "not_valid_after should be cleared after resend")
 	require.Nil(t, updatedRecord.Serial, "serial should be cleared after resend")
@@ -1672,38 +1672,38 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateResend() {
 
 	// Verify the host API reflects pending status
 	s.verifyCertificateStatus(t, host, orbitNodeKey, certTemplateID, certTemplateName, caID,
-		fleet.CertificateTemplatePending, "")
+		automdm.CertificateTemplatePending, "")
 
 	// Trigger reconciliation again - should re-deliver with new UUID
 	s.awaitTriggerAndroidProfileSchedule(t)
 
 	// Verify status is 'delivered' again after reconciliation
 	s.verifyCertificateStatus(t, host, orbitNodeKey, certTemplateID, certTemplateName, caID,
-		fleet.CertificateTemplateDelivered, "")
+		automdm.CertificateTemplateDelivered, "")
 
-	// Fetch via fleetd API again to trigger new fleet_challenge creation
-	resp = s.DoRawWithHeaders("GET", fmt.Sprintf("/api/fleetd/certificates/%d", certTemplateID), nil, http.StatusOK, map[string]string{
+	// Fetch via automdmd API again to trigger new automdm_challenge creation
+	resp = s.DoRawWithHeaders("GET", fmt.Sprintf("/api/automdmd/certificates/%d", certTemplateID), nil, http.StatusOK, map[string]string{
 		"Authorization": fmt.Sprintf("Node key %s", orbitNodeKey),
 	})
 	var postResendCertResp getDeviceCertificateTemplateResponse
 	err = json.NewDecoder(resp.Body).Decode(&postResendCertResp)
 	require.NoError(t, err)
 	_ = resp.Body.Close()
-	require.NotNil(t, postResendCertResp.Certificate.FleetChallenge, "fleet_challenge should be regenerated after resend and re-delivery")
-	require.NotEqual(t, originalFleetChallenge, *postResendCertResp.Certificate.FleetChallenge, "fleet_challenge should differ from the original after resend")
+	require.NotNil(t, postResendCertResp.Certificate.AutoMDMChallenge, "automdm_challenge should be regenerated after resend and re-delivery")
+	require.NotEqual(t, originalAutoMDMChallenge, *postResendCertResp.Certificate.AutoMDMChallenge, "automdm_challenge should differ from the original after resend")
 
-	// Use the SCEP proxy with the refreshed fleet_challenge to fetch CA capabilities.
-	// Android identifier format: {hostUUID},g{certificateTemplateID},{caName},{fleetChallenge}
-	newFleetChallenge := *postResendCertResp.Certificate.FleetChallenge
+	// Use the SCEP proxy with the refreshed automdm_challenge to fetch CA capabilities.
+	// Android identifier format: {hostUUID},g{certificateTemplateID},{caName},{automdmChallenge}
+	newAutoMDMChallenge := *postResendCertResp.Certificate.AutoMDMChallenge
 	caName := *ca.Name
-	identifier := url.PathEscape(fmt.Sprintf("%s,g%d,%s,%s", host.UUID, certTemplateID, caName, newFleetChallenge))
+	identifier := url.PathEscape(fmt.Sprintf("%s,g%d,%s,%s", host.UUID, certTemplateID, caName, newAutoMDMChallenge))
 	scepRes := s.DoRawWithHeaders("GET", apple_mdm.SCEPProxyPath+identifier, nil, http.StatusOK, nil, "operation", "GetCACaps")
 	body, err := io.ReadAll(scepRes.Body)
 	require.NoError(t, err)
 	_ = scepRes.Body.Close()
 	require.Equal(t, scepserver.DefaultCACaps, string(body))
 
-	// Verify the new fleet_challenge exists in the challenges table (GetCACaps doesn't consume it)
+	// Verify the new automdm_challenge exists in the challenges table (GetCACaps doesn't consume it)
 	checkChallengeExists := func(challenge string, expectFound bool) {
 		mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
 			var found string
@@ -1717,7 +1717,7 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateResend() {
 			return nil
 		})
 	}
-	checkChallengeExists(newFleetChallenge, true)
+	checkChallengeExists(newAutoMDMChallenge, true)
 
 	pkcsReq, err := os.ReadFile("./testdata/PKCSReq.der")
 	require.NoError(t, err)
@@ -1727,21 +1727,21 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateResend() {
 	noChallengeIdentifier := url.PathEscape(fmt.Sprintf("%s,g%d,%s,", host.UUID, certTemplateID, caName))
 	_ = s.DoRawWithHeaders("GET", apple_mdm.SCEPProxyPath+noChallengeIdentifier, nil, http.StatusBadRequest, nil, "operation",
 		"PKIOperation", "message", message)
-	checkChallengeExists(newFleetChallenge, true)
+	checkChallengeExists(newAutoMDMChallenge, true)
 
 	// PKIOperation with the challenge consumes it, so it only works once.
 	_ = s.DoRawWithHeaders("GET", apple_mdm.SCEPProxyPath+identifier, nil, http.StatusOK, nil, "operation",
 		"PKIOperation", "message", message)
-	checkChallengeExists(newFleetChallenge, false)
+	checkChallengeExists(newAutoMDMChallenge, false)
 	_ = s.DoRawWithHeaders("GET", apple_mdm.SCEPProxyPath+identifier, nil, http.StatusBadRequest, nil, "operation",
 		"PKIOperation", "message", message)
 
 	// Resend for a non-existent host should return 404
-	s.DoJSON("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/certificates/%d/resend", 99999, certTemplateID),
+	s.DoJSON("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/certificates/%d/resend", 99999, certTemplateID),
 		nil, http.StatusNotFound, &struct{}{})
 
 	// Resend for a non-existent template returns 404
-	s.DoJSON("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/certificates/%d/resend", host.ID, 99999),
+	s.DoJSON("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/certificates/%d/resend", host.ID, 99999),
 		nil, http.StatusNotFound, &struct{}{})
 
 	// ---- Automatic retry tests (reusing same host/cert/CA setup) ----
@@ -1750,7 +1750,7 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateResend() {
 		mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
 			_, err := q.ExecContext(ctx,
 				`UPDATE host_certificate_templates SET status = ?, retry_count = 0 WHERE host_uuid = ? AND certificate_template_id = ?`,
-				fleet.CertificateTemplatePending, host.UUID, certTemplateID)
+				automdm.CertificateTemplatePending, host.UUID, certTemplateID)
 			return err
 		})
 
@@ -1758,7 +1758,7 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateResend() {
 		reportCertStatus := func(status string, detail *string) {
 			req, err := json.Marshal(updateCertificateStatusRequest{Status: status, Detail: detail})
 			require.NoError(t, err)
-			resp := s.DoRawWithHeaders("PUT", fmt.Sprintf("/api/fleetd/certificates/%d/status", certTemplateID), req, http.StatusOK, map[string]string{
+			resp := s.DoRawWithHeaders("PUT", fmt.Sprintf("/api/automdmd/certificates/%d/status", certTemplateID), req, http.StatusOK, map[string]string{
 				"Authorization": fmt.Sprintf("Node key %s", orbitNodeKey),
 			})
 			_ = resp.Body.Close()
@@ -1768,7 +1768,7 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateResend() {
 		deliverCert := func() {
 			s.awaitTriggerAndroidProfileSchedule(t)
 			s.verifyCertificateStatus(t, host, orbitNodeKey, certTemplateID, certTemplateName, caID,
-				fleet.CertificateTemplateDelivered, "")
+				automdm.CertificateTemplateDelivered, "")
 		}
 
 		// backdateRetry sets updated_at far enough in the past for the exponential backoff
@@ -1785,9 +1785,9 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateResend() {
 		// Helper: read the certificate's profile off the host details endpoint. The admin UI
 		// distinguishes an automatic retry from a first delivery using the retry count and detail
 		// reported here, so they have to survive the trip through the API.
-		getCertProfile := func() fleet.HostMDMProfile {
+		getCertProfile := func() automdm.HostMDMProfile {
 			var getHostResp getHostResponse
-			s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", host.ID), nil, http.StatusOK, &getHostResp)
+			s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", host.ID), nil, http.StatusOK, &getHostResp)
 			require.NotNil(t, getHostResp.Host.MDM.Profiles)
 			for _, p := range *getHostResp.Host.MDM.Profiles {
 				if p.CertificateTemplateID != nil && *p.CertificateTemplateID == certTemplateID {
@@ -1795,7 +1795,7 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateResend() {
 				}
 			}
 			t.Fatalf("no profile found for certificate template %d", certTemplateID)
-			return fleet.HostMDMProfile{}
+			return automdm.HostMDMProfile{}
 		}
 
 		// A first delivery reports no retries yet, alongside the allowance the UI counts against.
@@ -1804,14 +1804,14 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateResend() {
 		require.NotNil(t, profile.RetryCount)
 		require.EqualValues(t, 0, *profile.RetryCount)
 		require.NotNil(t, profile.MaxRetries)
-		require.Equal(t, fleet.MaxCertificateInstallRetries, *profile.MaxRetries)
+		require.Equal(t, automdm.MaxCertificateInstallRetries, *profile.MaxRetries)
 		require.Empty(t, profile.Detail)
 		require.NotNil(t, profile.Retrying)
 		require.False(t, *profile.Retrying, "a first delivery is not a retry")
 
 		// Fail MaxCertificateInstallRetries times -- each should auto-retry (status resets to pending)
 		var previousDetail string
-		for i := range fleet.MaxCertificateInstallRetries {
+		for i := range automdm.MaxCertificateInstallRetries {
 			if i > 0 {
 				// The first delivery already happened above.
 				deliverCert()
@@ -1821,7 +1821,7 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateResend() {
 				// and the detail carried over from the previous attempt mark it as a retry. The
 				// delivery transitions must leave both alone.
 				profile = getCertProfile()
-				require.Equal(t, string(fleet.CertificateTemplateDelivered), *profile.Status)
+				require.Equal(t, string(automdm.CertificateTemplateDelivered), *profile.Status)
 				require.Equal(t, previousDetail, profile.Detail,
 					"re-delivering a retry must preserve the previous failure detail")
 				require.NotNil(t, profile.RetryCount)
@@ -1831,24 +1831,24 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateResend() {
 			}
 			detail := fmt.Sprintf("SCEP failure %d", i+1)
 			previousDetail = detail
-			reportCertStatus(string(fleet.MDMDeliveryFailed), &detail)
+			reportCertStatus(string(automdm.MDMDeliveryFailed), &detail)
 
 			record, err := s.ds.GetHostCertificateTemplateRecord(ctx, host.UUID, certTemplateID)
 			require.NoError(t, err)
-			require.Equal(t, fleet.CertificateTemplatePending, record.Status, "retry %d should auto-retry", i+1)
+			require.Equal(t, automdm.CertificateTemplatePending, record.Status, "retry %d should auto-retry", i+1)
 			require.Equal(t, i+1, record.RetryCount)
 
 			// While retrying, the profile still reports an in-progress status, so the retry count
 			// and the preserved detail are all the UI has to go on.
 			profile = getCertProfile()
-			require.Equal(t, string(fleet.CertificateTemplatePending), *profile.Status)
+			require.Equal(t, string(automdm.CertificateTemplatePending), *profile.Status)
 			require.Equal(t, detail, profile.Detail)
 			require.NotNil(t, profile.Retrying)
 			require.True(t, *profile.Retrying)
 			require.NotNil(t, profile.RetryCount)
 			require.Equal(t, i+1, *profile.RetryCount)
 			require.NotNil(t, profile.MaxRetries)
-			require.Equal(t, fleet.MaxCertificateInstallRetries, *profile.MaxRetries)
+			require.Equal(t, automdm.MaxCertificateInstallRetries, *profile.MaxRetries)
 			// Backdate updated_at so the cron picks up the retried row despite exponential backoff.
 			backdateRetry()
 		}
@@ -1856,29 +1856,29 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateResend() {
 		// One more failure with retry_count at max -- should be terminal
 		deliverCert()
 		terminalDetail := "final failure"
-		reportCertStatus(string(fleet.MDMDeliveryFailed), &terminalDetail)
+		reportCertStatus(string(automdm.MDMDeliveryFailed), &terminalDetail)
 
 		record, err := s.ds.GetHostCertificateTemplateRecord(ctx, host.UUID, certTemplateID)
 		require.NoError(t, err)
-		require.Equal(t, fleet.CertificateTemplateFailed, record.Status, "should be terminal after max retries")
+		require.Equal(t, automdm.CertificateTemplateFailed, record.Status, "should be terminal after max retries")
 
 		// Terminal failure reports the exhausted allowance, which is how the UI knows to stop
 		// showing it as a retry.
 		profile = getCertProfile()
-		require.Equal(t, string(fleet.CertificateTemplateFailed), *profile.Status)
+		require.Equal(t, string(automdm.CertificateTemplateFailed), *profile.Status)
 		require.Equal(t, terminalDetail, profile.Detail)
 		require.NotNil(t, profile.RetryCount)
-		require.Equal(t, fleet.MaxCertificateInstallRetries, *profile.RetryCount)
+		require.Equal(t, automdm.MaxCertificateInstallRetries, *profile.RetryCount)
 		require.NotNil(t, profile.Retrying)
 		require.False(t, *profile.Retrying, "a terminal failure is not a retry")
 
 		// Verify terminal failure activity was logged on the host with correct details
 		var hostActivitiesResp listActivitiesResponse
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/activities", host.ID), nil, http.StatusOK,
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/activities", host.ID), nil, http.StatusOK,
 			&hostActivitiesResp, "per_page", "10")
 		foundTerminalFailActivity := false
 		for _, act := range hostActivitiesResp.Activities {
-			if act.Type == (fleet.ActivityTypeInstalledCertificate{}).ActivityName() && act.Details != nil {
+			if act.Type == (automdm.ActivityTypeInstalledCertificate{}).ActivityName() && act.Details != nil {
 				var details map[string]any
 				err = json.Unmarshal(*act.Details, &details)
 				require.NoError(t, err)
@@ -1891,18 +1891,18 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateResend() {
 		require.True(t, foundTerminalFailActivity, "expected installed_certificate activity with status=failed_install and terminal detail")
 
 		// Resend after terminal failure -- gets exactly one attempt (retry_count set to max)
-		s.DoJSON("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/certificates/%d/resend", host.ID, certTemplateID),
+		s.DoJSON("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/certificates/%d/resend", host.ID, certTemplateID),
 			nil, http.StatusOK, &struct{}{})
 		record, err = s.ds.GetHostCertificateTemplateRecord(ctx, host.UUID, certTemplateID)
 		require.NoError(t, err)
-		require.Equal(t, fleet.MaxCertificateInstallRetries+1, record.RetryCount, "resend should set retry_count above max to bypass backoff")
+		require.Equal(t, automdm.MaxCertificateInstallRetries+1, record.RetryCount, "resend should set retry_count above max to bypass backoff")
 
 		// A resend also leaves an exhausted retry count on an in-progress profile, so the cleared
 		// detail is what keeps the UI from reading it as an automatic retry.
 		profile = getCertProfile()
 		require.Empty(t, profile.Detail, "resend should clear the detail from the previous failure")
 		require.NotNil(t, profile.RetryCount)
-		require.Equal(t, fleet.MaxCertificateInstallRetries+1, *profile.RetryCount)
+		require.Equal(t, automdm.MaxCertificateInstallRetries+1, *profile.RetryCount)
 		// The resend cannot be told apart from a final automatic retry by retry count and detail
 		// alone -- both are spent with no detail -- so this flag is the only separator.
 		require.NotNil(t, profile.Retrying)
@@ -1910,30 +1910,30 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateResend() {
 
 		// Deliver and fail once more -- terminal immediately (no auto-retry after resend)
 		deliverCert()
-		reportCertStatus(string(fleet.MDMDeliveryFailed), ptr.String("post-resend failure"))
+		reportCertStatus(string(automdm.MDMDeliveryFailed), ptr.String("post-resend failure"))
 		record, err = s.ds.GetHostCertificateTemplateRecord(ctx, host.UUID, certTemplateID)
 		require.NoError(t, err)
-		require.Equal(t, fleet.CertificateTemplateFailed, record.Status, "should be terminal after resend failure")
+		require.Equal(t, automdm.CertificateTemplateFailed, record.Status, "should be terminal after resend failure")
 
 		// Success on retry: reset to fresh, fail once, then succeed
 		mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
 			_, err := q.ExecContext(ctx,
 				`UPDATE host_certificate_templates SET status = ?, retry_count = 0 WHERE host_uuid = ? AND certificate_template_id = ?`,
-				fleet.CertificateTemplatePending, host.UUID, certTemplateID)
+				automdm.CertificateTemplatePending, host.UUID, certTemplateID)
 			return err
 		})
 		deliverCert()
-		reportCertStatus(string(fleet.MDMDeliveryFailed), ptr.String("transient error"))
+		reportCertStatus(string(automdm.MDMDeliveryFailed), ptr.String("transient error"))
 		record, err = s.ds.GetHostCertificateTemplateRecord(ctx, host.UUID, certTemplateID)
 		require.NoError(t, err)
-		require.Equal(t, fleet.CertificateTemplatePending, record.Status)
+		require.Equal(t, automdm.CertificateTemplatePending, record.Status)
 
 		// Backdate so the cron picks up the retried row despite exponential backoff.
 		backdateRetry()
 		// A failure reported without a detail still has to leave a retry count behind, since that
 		// is then the only thing marking the profile as a retry rather than a first delivery.
 		deliverCert()
-		reportCertStatus(string(fleet.MDMDeliveryFailed), nil)
+		reportCertStatus(string(automdm.MDMDeliveryFailed), nil)
 		profile = getCertProfile()
 		require.Empty(t, profile.Detail)
 		require.NotNil(t, profile.RetryCount)
@@ -1944,14 +1944,14 @@ func (s *integrationMDMTestSuite) TestCertificateTemplateResend() {
 		// Backdate so the cron picks up the retried row despite exponential backoff.
 		backdateRetry()
 		deliverCert()
-		reportCertStatus(string(fleet.MDMDeliveryVerified), nil)
+		reportCertStatus(string(automdm.MDMDeliveryVerified), nil)
 		record, err = s.ds.GetHostCertificateTemplateRecord(ctx, host.UUID, certTemplateID)
 		require.NoError(t, err)
-		require.Equal(t, fleet.CertificateTemplateVerified, record.Status, "should succeed on retry")
+		require.Equal(t, automdm.CertificateTemplateVerified, record.Status, "should succeed on retry")
 
 		// A verified certificate clears the detail and stops being a retry in the UI.
 		profile = getCertProfile()
-		require.Equal(t, string(fleet.CertificateTemplateVerified), *profile.Status)
+		require.Equal(t, string(automdm.CertificateTemplateVerified), *profile.Status)
 		require.Empty(t, profile.Detail)
 	}) // end "automatic retry" subtest
 }
@@ -1969,7 +1969,7 @@ func (s *integrationMDMTestSuite) TestONCProfileWithheldUntilCertReady() {
 	s.setSkipWorkerJobs(t)
 
 	// Create team with enroll secret
-	team, err := s.ds.NewTeam(ctx, &fleet.Team{Name: t.Name(), Secrets: []*fleet.EnrollSecret{
+	team, err := s.ds.NewTeam(ctx, &automdm.Team{Name: t.Name(), Secrets: []*automdm.EnrollSecret{
 		{Secret: "secret-" + t.Name()},
 	}})
 	require.NoError(t, err)
@@ -1978,8 +1978,8 @@ func (s *integrationMDMTestSuite) TestONCProfileWithheldUntilCertReady() {
 	// This ensures CreatePendingCertificateTemplatesForNewHost finds it during enrollment.
 	caID, _ := s.createTestCertificateAuthority(t, ctx)
 	var certTemplateResp applyCertificateTemplateSpecsResponse
-	s.DoJSON("POST", "/api/latest/fleet/spec/certificates", applyCertificateTemplateSpecsRequest{
-		Specs: []*fleet.CertificateRequestSpec{{
+	s.DoJSON("POST", "/api/latest/automdm/spec/certificates", applyCertificateTemplateSpecsRequest{
+		Specs: []*automdm.CertificateRequestSpec{{
 			Name:                   "wifi-cert",
 			Team:                   team.Name,
 			CertificateAuthorityId: caID,
@@ -2008,7 +2008,7 @@ func (s *integrationMDMTestSuite) TestONCProfileWithheldUntilCertReady() {
 		AppliedPolicyVersion: 1,
 		LastPolicySyncTime:   time.Now().Format(time.RFC3339Nano),
 	}, host.HardwareSerial)
-	s.Do("POST", "/api/v1/fleet/android_enterprise/pubsub", &android_service.PubSubPushRequest{PubSubMessage: *reportMsg},
+	s.Do("POST", "/api/v1/automdm/android_enterprise/pubsub", &android_service.PubSubPushRequest{PubSubMessage: *reportMsg},
 		http.StatusOK, "token", string(pubSubToken.Value))
 
 	// Set orbit_node_key so the host can authenticate to the cert status API.
@@ -2024,15 +2024,15 @@ func (s *integrationMDMTestSuite) TestONCProfileWithheldUntilCertReady() {
 			"SELECT status FROM host_certificate_templates WHERE host_uuid = ? AND certificate_template_id = ?",
 			host.UUID, certTemplateID)
 	})
-	require.Equal(t, string(fleet.CertificateTemplatePending), certStatus,
+	require.Equal(t, string(automdm.CertificateTemplatePending), certStatus,
 		"enrollment should have created a pending cert template record")
 
 	// Create ONC profile referencing the certificate + a non-ONC profile
 	oncProfileJSON, cameraProfileJSON := s.oncWithholdingProfiles()
-	s.Do("POST", "/api/v1/fleet/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{
+	s.Do("POST", "/api/v1/automdm/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{
 		{Name: "onc-wifi", Contents: oncProfileJSON},
 		{Name: "camera-policy", Contents: cameraProfileJSON},
-	}}, http.StatusNoContent, "fleet_id", fmt.Sprint(team.ID))
+	}}, http.StatusNoContent, "team_id", fmt.Sprint(team.ID))
 
 	// Trigger profile reconciliation
 	s.awaitTriggerAndroidProfileSchedule(t)
@@ -2044,11 +2044,11 @@ func (s *integrationMDMTestSuite) TestONCProfileWithheldUntilCertReady() {
 	// After the first reconciliation, reconcileCertificateTemplates transitioned the cert
 	// to "delivered", so the status API will accept the update.
 	updateReq, err := json.Marshal(updateCertificateStatusRequest{
-		Status: string(fleet.CertificateTemplateVerified),
+		Status: string(automdm.CertificateTemplateVerified),
 		Detail: new("Certificate installed successfully"),
 	})
 	require.NoError(t, err)
-	resp := s.DoRawWithHeaders("PUT", fmt.Sprintf("/api/fleetd/certificates/%d/status", certTemplateID), updateReq, http.StatusOK, map[string]string{
+	resp := s.DoRawWithHeaders("PUT", fmt.Sprintf("/api/automdmd/certificates/%d/status", certTemplateID), updateReq, http.StatusOK, map[string]string{
 		"Authorization": fmt.Sprintf("Node key %s", orbitNodeKey),
 	})
 	resp.Body.Close()
@@ -2071,15 +2071,15 @@ func (s *integrationMDMTestSuite) TestONCProfileReleasedAfterCertTemplateDeleted
 	s.setSkipWorkerJobs(t)
 
 	// Create team with enroll secret
-	team, err := s.ds.NewTeam(ctx, &fleet.Team{Name: t.Name(), Secrets: []*fleet.EnrollSecret{
+	team, err := s.ds.NewTeam(ctx, &automdm.Team{Name: t.Name(), Secrets: []*automdm.EnrollSecret{
 		{Secret: "secret-" + t.Name()},
 	}})
 	require.NoError(t, err)
 
 	caID, _ := s.createTestCertificateAuthority(t, ctx)
 	var certTemplateResp applyCertificateTemplateSpecsResponse
-	s.DoJSON("POST", "/api/latest/fleet/spec/certificates", applyCertificateTemplateSpecsRequest{
-		Specs: []*fleet.CertificateRequestSpec{{
+	s.DoJSON("POST", "/api/latest/automdm/spec/certificates", applyCertificateTemplateSpecsRequest{
+		Specs: []*automdm.CertificateRequestSpec{{
 			Name:                   "wifi-cert",
 			Team:                   team.Name,
 			CertificateAuthorityId: caID,
@@ -2097,16 +2097,16 @@ func (s *integrationMDMTestSuite) TestONCProfileReleasedAfterCertTemplateDeleted
 	host, _, _ := s.createAndEnrollAndroidDevice(t, "onc-delete-test", &team.ID, true)
 
 	oncProfileJSON, cameraProfileJSON := s.oncWithholdingProfiles()
-	s.Do("POST", "/api/v1/fleet/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{
+	s.Do("POST", "/api/v1/automdm/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{
 		{Name: "onc-wifi", Contents: oncProfileJSON},
 		{Name: "camera-policy", Contents: cameraProfileJSON},
-	}}, http.StatusNoContent, "fleet_id", fmt.Sprint(team.ID))
+	}}, http.StatusNoContent, "team_id", fmt.Sprint(team.ID))
 
 	s.awaitTriggerAndroidProfileSchedule(t)
 	s.assertONCProfileWithheld(t, host.UUID)
 
 	// Delete the certificate template via API
-	s.Do("DELETE", fmt.Sprintf("/api/latest/fleet/certificates/%d", certTemplateID), nil, http.StatusOK)
+	s.Do("DELETE", fmt.Sprintf("/api/latest/automdm/certificates/%d", certTemplateID), nil, http.StatusOK)
 
 	// Trigger reconciliation -- ONC should now be released since the cert template
 	// no longer exists and filterProfilesWithPendingCerts treats missing statuses
@@ -2133,15 +2133,15 @@ func (s *integrationMDMTestSuite) TestONCProfileDetailPreservedWhenAddingAnother
 	)
 	expectedDetailSubstr := fmt.Sprintf(`Waiting for certificate %q`, certTemplateName)
 
-	team, err := s.ds.NewTeam(ctx, &fleet.Team{Name: t.Name(), Secrets: []*fleet.EnrollSecret{
+	team, err := s.ds.NewTeam(ctx, &automdm.Team{Name: t.Name(), Secrets: []*automdm.EnrollSecret{
 		{Secret: "secret-" + t.Name()},
 	}})
 	require.NoError(t, err)
 
 	caID, _ := s.createTestCertificateAuthority(t, ctx)
 	var certTemplateResp applyCertificateTemplateSpecsResponse
-	s.DoJSON("POST", "/api/latest/fleet/spec/certificates", applyCertificateTemplateSpecsRequest{
-		Specs: []*fleet.CertificateRequestSpec{{
+	s.DoJSON("POST", "/api/latest/automdm/spec/certificates", applyCertificateTemplateSpecsRequest{
+		Specs: []*automdm.CertificateRequestSpec{{
 			Name:                   certTemplateName,
 			Team:                   team.Name,
 			CertificateAuthorityId: caID,
@@ -2154,10 +2154,10 @@ func (s *integrationMDMTestSuite) TestONCProfileDetailPreservedWhenAddingAnother
 	// Apply the initial profile set and reconcile once so the ONC profile is
 	// in the withheld state we want to defend.
 	oncProfileJSON, cameraProfileJSON := s.oncWithholdingProfiles()
-	s.Do("POST", "/api/v1/fleet/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{
+	s.Do("POST", "/api/v1/automdm/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{
 		{Name: oncProfileName, Contents: oncProfileJSON},
 		{Name: cameraProfileName, Contents: cameraProfileJSON},
-	}}, http.StatusNoContent, "fleet_id", fmt.Sprint(team.ID))
+	}}, http.StatusNoContent, "team_id", fmt.Sprint(team.ID))
 	s.awaitTriggerAndroidProfileSchedule(t)
 	s.assertONCProfileWithheld(t, host.UUID)
 
@@ -2190,9 +2190,9 @@ func (s *integrationMDMTestSuite) TestONCProfileDetailPreservedWhenAddingAnother
 			"extra-single.json",
 			[]byte(`{"cameraDisabled": false}`),
 			s.token,
-			map[string][]string{"fleet_id": {fmt.Sprint(team.ID)}},
+			map[string][]string{"team_id": {fmt.Sprint(team.ID)}},
 		)
-		res := s.DoRawWithHeaders("POST", "/api/latest/fleet/configuration_profiles", body.Bytes(), http.StatusOK, headers)
+		res := s.DoRawWithHeaders("POST", "/api/latest/automdm/configuration_profiles", body.Bytes(), http.StatusOK, headers)
 		defer res.Body.Close()
 
 		requireDetailPreservedAndStatusReset(t, "POST /configuration_profiles")
@@ -2200,11 +2200,11 @@ func (s *integrationMDMTestSuite) TestONCProfileDetailPreservedWhenAddingAnother
 
 	t.Run("batch profile set", func(t *testing.T) {
 		// POST /mdm/profiles/batch
-		s.Do("POST", "/api/v1/fleet/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{
+		s.Do("POST", "/api/v1/automdm/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{
 			{Name: oncProfileName, Contents: oncProfileJSON},
 			{Name: cameraProfileName, Contents: cameraProfileJSON},
 			{Name: "extra-batch", Contents: []byte(`{"cameraDisabled": false}`)},
-		}}, http.StatusNoContent, "fleet_id", fmt.Sprint(team.ID))
+		}}, http.StatusNoContent, "team_id", fmt.Sprint(team.ID))
 
 		requireDetailPreservedAndStatusReset(t, "POST /mdm/profiles/batch")
 	})

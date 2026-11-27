@@ -9,7 +9,7 @@ interface ISettingsProps {
 }
 
 const Settings = ({
-  color = "ui-fleet-black-75",
+  color = "ui-automdm-black-75",
   size = "medium",
 }: ISettingsProps) => {
   return (

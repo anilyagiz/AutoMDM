@@ -51,7 +51,7 @@ export const EULA_PLATFORM_CONFIG: Record<EulaPlatform, IEulaPlatformConfig> = {
     unavailableMessage:
       "To require terms on Windows hosts, first turn on Windows MDM.",
     deleteMessage:
-      "End users won’t be required to agree to these terms on Windows hosts that enroll through Microsoft Entra. Fleet’s default terms will be shown instead.",
+      "End users won’t be required to agree to these terms on Windows hosts that enroll through Microsoft Entra. AutoMDM’s default terms will be shown instead.",
     hasExample: true,
     upload: (file) => mdmAPI.uploadWindowsEULA(file),
   },

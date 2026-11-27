@@ -147,18 +147,18 @@ func escapePath(p string) string {
 func InstallCommand(name, fileURL string) (cmd, shell string) {
 	switch InstallerExt(name) {
 	case ".pkg.tar.zst":
-		return fmt.Sprintf(`d=$(mktemp -d) && curl -fLo "$d/fleetd.pkg.tar.zst" '%s' && sudo pacman -U --noconfirm "$d/fleetd.pkg.tar.zst"`, fileURL), "sh"
+		return fmt.Sprintf(`d=$(mktemp -d) && curl -fLo "$d/automdmd.pkg.tar.zst" '%s' && sudo pacman -U --noconfirm "$d/automdmd.pkg.tar.zst"`, fileURL), "sh"
 	case ".deb":
-		return fmt.Sprintf(`d=$(mktemp -d) && curl -fLo "$d/fleetd.deb" '%s' && sudo apt-get install -y "$d/fleetd.deb"`, fileURL), "sh"
+		return fmt.Sprintf(`d=$(mktemp -d) && curl -fLo "$d/automdmd.deb" '%s' && sudo apt-get install -y "$d/automdmd.deb"`, fileURL), "sh"
 	case ".rpm":
-		return fmt.Sprintf(`d=$(mktemp -d) && curl -fLo "$d/fleetd.rpm" '%s' && sudo dnf install -y "$d/fleetd.rpm"`, fileURL), "sh"
+		return fmt.Sprintf(`d=$(mktemp -d) && curl -fLo "$d/automdmd.rpm" '%s' && sudo dnf install -y "$d/automdmd.rpm"`, fileURL), "sh"
 	case ".pkg":
-		return fmt.Sprintf(`d=$(mktemp -d) && curl -fLo "$d/fleetd.pkg" '%s' && sudo installer -pkg "$d/fleetd.pkg" -target /`, fileURL), "sh"
+		return fmt.Sprintf(`d=$(mktemp -d) && curl -fLo "$d/automdmd.pkg" '%s' && sudo installer -pkg "$d/automdmd.pkg" -target /`, fileURL), "sh"
 	case ".msi":
 		// Stop on a failed download, and download to a fresh name, so msiexec
 		// never installs an older package left in %TEMP%. Hiding the progress
 		// bar makes Invoke-WebRequest many times faster on Windows PowerShell.
-		return fmt.Sprintf(`$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue'; $f = Join-Path $env:TEMP ('fleetd-' + [guid]::NewGuid() + '.msi'); Invoke-WebRequest -UseBasicParsing -Uri '%s' -OutFile $f; Start-Process msiexec.exe -Wait -ArgumentList '/i', ('"' + $f + '"'), '/qn'`, fileURL), "powershell"
+		return fmt.Sprintf(`$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue'; $f = Join-Path $env:TEMP ('automdmd-' + [guid]::NewGuid() + '.msi'); Invoke-WebRequest -UseBasicParsing -Uri '%s' -OutFile $f; Start-Process msiexec.exe -Wait -ArgumentList '/i', ('"' + $f + '"'), '/qn'`, fileURL), "powershell"
 	}
 	return "", ""
 }

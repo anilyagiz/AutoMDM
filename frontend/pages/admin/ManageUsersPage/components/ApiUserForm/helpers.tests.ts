@@ -8,17 +8,17 @@ import {
 
 const LIST_HOSTS: IApiEndpointRef = {
   method: "GET",
-  path: "/api/v1/fleet/hosts",
+  path: "/api/v1/automdm/hosts",
 };
 
 const LIST_USERS: IApiEndpointRef = {
   method: "GET",
-  path: "/api/v1/fleet/users",
+  path: "/api/v1/automdm/users",
 };
 
 const REMOVED_ROUTE: IApiEndpointRef = {
   method: "GET",
-  path: "/api/v1/fleet/mdm/profiles",
+  path: "/api/v1/automdm/mdm/profiles",
 };
 
 const CATALOG: IApiEndpointRef[] = [LIST_HOSTS, LIST_USERS];
@@ -27,7 +27,7 @@ const SPECIFIC_ENDPOINTS: ApiUserFormState = {
   name: "CI token",
   global_role: "observer",
   isGlobalUser: true,
-  fleets: [],
+  teams: [],
   isSpecificEndpoints: true,
   api_endpoints: [LIST_HOSTS],
 };
@@ -40,15 +40,15 @@ describe("dropUnlistedEndpoints", () => {
   });
 
   it("keeps endpoints the catalog lists under a different spelling", () => {
-    const hostDetails = { method: "GET", path: "/api/v1/fleet/hosts/:id" };
+    const hostDetails = { method: "GET", path: "/api/v1/automdm/hosts/:id" };
     const sameAsServerMatches = [
       { method: "get", path: LIST_HOSTS.path },
-      { method: "GET", path: "/api/v1/fleet/hosts/:host_id" },
-      { method: "GET", path: "/api/v1/fleet/hosts/{id}" },
-      { method: "GET", path: "/api/_version_/fleet/hosts" },
+      { method: "GET", path: "/api/v1/automdm/hosts/:host_id" },
+      { method: "GET", path: "/api/v1/automdm/hosts/{id}" },
+      { method: "GET", path: "/api/_version_/automdm/hosts" },
       {
         method: "GET",
-        path: "/api/{fleetversion:(?:v1|2022-04|latest)}/fleet/hosts",
+        path: "/api/{automdmversion:(?:v1|2022-04|latest)}/automdm/hosts",
       },
     ];
 

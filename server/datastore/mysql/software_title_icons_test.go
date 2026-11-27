@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -33,12 +33,12 @@ func TestSoftwareTitleIcons(t *testing.T) {
 }
 
 func createTeamAndSoftwareTitle(t *testing.T, ctx context.Context, ds *Datastore) (uint, uint, error) {
-	tm, err := ds.NewTeam(ctx, &fleet.Team{Name: "team1"})
+	tm, err := ds.NewTeam(ctx, &automdm.Team{Name: "team1"})
 	if err != nil {
 		return 0, 0, err
 	}
 	host1 := test.NewHost(t, ds, "host1", "", "host1key", "host1uuid", time.Now())
-	software1 := []fleet.Software{
+	software1 := []automdm.Software{
 		{Name: "foo", Version: "0.0.3", Source: "apps", BundleIdentifier: "foo.bundle.id"},
 	}
 	_, err = ds.UpdateHostSoftware(ctx, host1.ID, software1)
@@ -67,7 +67,7 @@ func testCreateOrUpdateSoftwareTitleIcon(t *testing.T, ds *Datastore) {
 			teamID, titleID, err = createTeamAndSoftwareTitle(t, ctx, ds)
 			require.NoError(t, err)
 		}, func(t *testing.T, ds *Datastore) {
-			icon, err := ds.CreateOrUpdateSoftwareTitleIcon(ctx, &fleet.UploadSoftwareTitleIconPayload{
+			icon, err := ds.CreateOrUpdateSoftwareTitleIcon(ctx, &automdm.UploadSoftwareTitleIconPayload{
 				TeamID:    teamID,
 				TitleID:   titleID,
 				StorageID: "storage-id-1",
@@ -83,7 +83,7 @@ func testCreateOrUpdateSoftwareTitleIcon(t *testing.T, ds *Datastore) {
 		{"Update existing icon", func(ds *Datastore) {
 			teamID, titleID, err = createTeamAndSoftwareTitle(t, ctx, ds)
 			require.NoError(t, err)
-			_, err = ds.CreateOrUpdateSoftwareTitleIcon(ctx, &fleet.UploadSoftwareTitleIconPayload{
+			_, err = ds.CreateOrUpdateSoftwareTitleIcon(ctx, &automdm.UploadSoftwareTitleIconPayload{
 				TeamID:    teamID,
 				TitleID:   titleID,
 				StorageID: "storage-id-1",
@@ -91,7 +91,7 @@ func testCreateOrUpdateSoftwareTitleIcon(t *testing.T, ds *Datastore) {
 			})
 			require.NoError(t, err)
 		}, func(t *testing.T, ds *Datastore) {
-			icon, err := ds.CreateOrUpdateSoftwareTitleIcon(ctx, &fleet.UploadSoftwareTitleIconPayload{
+			icon, err := ds.CreateOrUpdateSoftwareTitleIcon(ctx, &automdm.UploadSoftwareTitleIconPayload{
 				TeamID:    teamID,
 				TitleID:   titleID,
 				StorageID: "storage-id-2",
@@ -148,7 +148,7 @@ func testGetSoftwareTitleIcon(t *testing.T, ds *Datastore) {
 			func(ds *Datastore) {
 				teamID, titleID, err = createTeamAndSoftwareTitle(t, ctx, ds)
 				require.NoError(t, err)
-				_, err = ds.CreateOrUpdateSoftwareTitleIcon(ctx, &fleet.UploadSoftwareTitleIconPayload{
+				_, err = ds.CreateOrUpdateSoftwareTitleIcon(ctx, &automdm.UploadSoftwareTitleIconPayload{
 					TeamID:    teamID,
 					TitleID:   titleID,
 					StorageID: "storage-id-1",
@@ -198,7 +198,7 @@ func testGetTeamIdsForIconStorageId(t *testing.T, ds *Datastore) {
 			func(ds *Datastore) {
 				teamID, titleID, err = createTeamAndSoftwareTitle(t, ctx, ds)
 				require.NoError(t, err)
-				_, err = ds.CreateOrUpdateSoftwareTitleIcon(ctx, &fleet.UploadSoftwareTitleIconPayload{
+				_, err = ds.CreateOrUpdateSoftwareTitleIcon(ctx, &automdm.UploadSoftwareTitleIconPayload{
 					TeamID:    teamID,
 					TitleID:   titleID,
 					StorageID: "storage-id",
@@ -233,7 +233,7 @@ func testDeleteSoftwareTitleIcon(t *testing.T, ds *Datastore) {
 	teamID, titleID, err = createTeamAndSoftwareTitle(t, ctx, ds)
 	require.NoError(t, err)
 
-	icon, err := ds.CreateOrUpdateSoftwareTitleIcon(ctx, &fleet.UploadSoftwareTitleIconPayload{
+	icon, err := ds.CreateOrUpdateSoftwareTitleIcon(ctx, &automdm.UploadSoftwareTitleIconPayload{
 		TeamID:    teamID,
 		TitleID:   titleID,
 		StorageID: "storage-id-1",
@@ -269,9 +269,9 @@ func testActivityDetailsForSoftwareTitleIcon(t *testing.T, ds *Datastore) {
 			require.NoError(t, err)
 
 			// create a software installer associated to the title
-			tfr1, err := fleet.NewTempFileReader(strings.NewReader("hello"), t.TempDir)
+			tfr1, err := automdm.NewTempFileReader(strings.NewReader("hello"), t.TempDir)
 			require.NoError(t, err)
-			installerID, _, err = ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
+			installerID, _, err = ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
 				InstallScript:    "hello",
 				InstallerFile:    tfr1,
 				StorageID:        "storage1",
@@ -282,7 +282,7 @@ func testActivityDetailsForSoftwareTitleIcon(t *testing.T, ds *Datastore) {
 				TeamID:           &teamID,
 				UserID:           user.ID,
 				BundleIdentifier: "foo.bundle.id",
-				ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+				ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 			})
 			require.NoError(t, err)
 			var softwareInstallerTitleIds []struct {
@@ -294,9 +294,9 @@ func testActivityDetailsForSoftwareTitleIcon(t *testing.T, ds *Datastore) {
 			require.Equal(t, titleID, softwareInstallerTitleIds[0].ID)
 
 			// add some labels
-			label1, err := ds.NewLabel(ctx, &fleet.Label{Name: "label1"})
+			label1, err := ds.NewLabel(ctx, &automdm.Label{Name: "label1"})
 			require.NoError(t, err)
-			label2, err := ds.NewLabel(ctx, &fleet.Label{Name: "label2"})
+			label2, err := ds.NewLabel(ctx, &automdm.Label{Name: "label2"})
 			require.NoError(t, err)
 			// Insert exclude label
 			_, err = ds.writer(ctx).ExecContext(ctx,
@@ -309,14 +309,14 @@ func testActivityDetailsForSoftwareTitleIcon(t *testing.T, ds *Datastore) {
 				installerID, label2.ID, false)
 			require.NoError(t, err)
 			// Insert include all label
-			label3, err := ds.NewLabel(ctx, &fleet.Label{Name: "label3"})
+			label3, err := ds.NewLabel(ctx, &automdm.Label{Name: "label3"})
 			require.NoError(t, err)
 			_, err = ds.writer(ctx).ExecContext(ctx,
 				"INSERT INTO software_installer_labels (software_installer_id, label_id, exclude, require_all) VALUES (?, ?, ?, ?)",
 				installerID, label3.ID, false, true)
 			require.NoError(t, err)
 
-			_, err = ds.CreateOrUpdateSoftwareTitleIcon(ctx, &fleet.UploadSoftwareTitleIconPayload{
+			_, err = ds.CreateOrUpdateSoftwareTitleIcon(ctx, &automdm.UploadSoftwareTitleIconPayload{
 				TeamID:    teamID,
 				TitleID:   titleID,
 				StorageID: "storage-id-1",
@@ -358,14 +358,14 @@ func testActivityDetailsForSoftwareTitleIcon(t *testing.T, ds *Datastore) {
 			require.NoError(t, err)
 			vppTokenID = tok1.ID
 
-			vppApp := &fleet.VPPApp{
+			vppApp := &automdm.VPPApp{
 				Name:    "foo",
 				TitleID: titleID,
-				IconURL: "fleetdm.com/icon.png",
-				VPPAppTeam: fleet.VPPAppTeam{
-					VPPAppID: fleet.VPPAppID{
+				IconURL: "automdm.com/icon.png",
+				VPPAppTeam: automdm.VPPAppTeam{
+					VPPAppID: automdm.VPPAppID{
 						AdamID:   "1",
-						Platform: fleet.MacOSPlatform,
+						Platform: automdm.MacOSPlatform,
 					},
 				},
 				BundleIdentifier: "foo.bundle.id",
@@ -382,9 +382,9 @@ func testActivityDetailsForSoftwareTitleIcon(t *testing.T, ds *Datastore) {
 			require.Equal(t, titleID, vppAppsTitleIds[0].ID)
 
 			// add some labels
-			label1, err := ds.NewLabel(ctx, &fleet.Label{Name: "label1"})
+			label1, err := ds.NewLabel(ctx, &automdm.Label{Name: "label1"})
 			require.NoError(t, err)
-			label2, err := ds.NewLabel(ctx, &fleet.Label{Name: "label2"})
+			label2, err := ds.NewLabel(ctx, &automdm.Label{Name: "label2"})
 			require.NoError(t, err)
 
 			// Insert exclude label
@@ -398,14 +398,14 @@ func testActivityDetailsForSoftwareTitleIcon(t *testing.T, ds *Datastore) {
 				vppApp.VPPAppTeam.AppTeamID, label2.ID, false)
 			require.NoError(t, err)
 			// Insert include all label
-			label3, err := ds.NewLabel(ctx, &fleet.Label{Name: "label3"})
+			label3, err := ds.NewLabel(ctx, &automdm.Label{Name: "label3"})
 			require.NoError(t, err)
 			_, err = ds.writer(ctx).ExecContext(ctx,
 				"INSERT INTO vpp_app_team_labels (vpp_app_team_id, label_id, exclude, require_all) VALUES (?, ?, ?, ?)",
 				vppApp.VPPAppTeam.AppTeamID, label3.ID, false, true)
 			require.NoError(t, err)
 
-			_, err = ds.CreateOrUpdateSoftwareTitleIcon(ctx, &fleet.UploadSoftwareTitleIconPayload{
+			_, err = ds.CreateOrUpdateSoftwareTitleIcon(ctx, &automdm.UploadSoftwareTitleIconPayload{
 				TeamID:    teamID,
 				TitleID:   titleID,
 				StorageID: "storage-id-1",
@@ -420,7 +420,7 @@ func testActivityDetailsForSoftwareTitleIcon(t *testing.T, ds *Datastore) {
 			require.Equal(t, "1", *activity.AdamID)
 			require.NotEmpty(t, *activity.VPPAppTeamID)
 			require.Equal(t, &vppTokenID, activity.VPPTokenID)
-			require.Equal(t, "fleetdm.com/icon.png", *activity.VPPIconUrl)
+			require.Equal(t, "automdm.com/icon.png", *activity.VPPIconUrl)
 			require.Equal(t, "foo", activity.SoftwareTitle)
 			require.Nil(t, activity.Filename)
 			require.Equal(t, "team1", *activity.TeamName)
@@ -428,7 +428,7 @@ func testActivityDetailsForSoftwareTitleIcon(t *testing.T, ds *Datastore) {
 			require.False(t, activity.SelfService)
 			require.Equal(t, titleID, activity.SoftwareTitleID)
 			require.Len(t, activity.LabelsExcludeAny, 1)
-			require.Equal(t, fleet.MacOSPlatform, *activity.Platform)
+			require.Equal(t, automdm.MacOSPlatform, *activity.Platform)
 			require.Equal(t, "label1", activity.LabelsExcludeAny[0].Name)
 			require.Len(t, activity.LabelsIncludeAny, 1)
 			require.Equal(t, "label2", activity.LabelsIncludeAny[0].Name)
@@ -436,13 +436,13 @@ func testActivityDetailsForSoftwareTitleIcon(t *testing.T, ds *Datastore) {
 			require.Equal(t, "label3", activity.LabelsIncludeAll[0].Name)
 			// VPP titles populate VersionName from the first-added vpp_apps_teams
 			// row (MIN(vat.id)); InsertVPPAppWithTeam defaults an unset name to
-			// fleet.DefaultAppStoreAppVersionName, which is what we see here.
-			require.Equal(t, fleet.DefaultAppStoreAppVersionName, activity.VersionName)
+			// automdm.DefaultAppStoreAppVersionName, which is what we see here.
+			require.Equal(t, automdm.DefaultAppStoreAppVersionName, activity.VersionName)
 		}},
 		{"team id 0", func(ds *Datastore) {
 			user := test.NewUser(t, ds, "user1", "user1@example.com", false)
 			host1 := test.NewHost(t, ds, "host1", "", "host1key", "host1uuid", time.Now())
-			software1 := []fleet.Software{
+			software1 := []automdm.Software{
 				{Name: "foo", Version: "0.0.3", Source: "apps", BundleIdentifier: "foo.bundle.id"},
 			}
 			_, err = ds.UpdateHostSoftware(ctx, host1.ID, software1)
@@ -453,9 +453,9 @@ func testActivityDetailsForSoftwareTitleIcon(t *testing.T, ds *Datastore) {
 			teamID = uint(0)
 			titleID = titles[0].ID
 
-			tfr1, err := fleet.NewTempFileReader(strings.NewReader("hello"), t.TempDir)
+			tfr1, err := automdm.NewTempFileReader(strings.NewReader("hello"), t.TempDir)
 			require.NoError(t, err)
-			installerID, _, err = ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
+			installerID, _, err = ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
 				InstallScript:    "hello",
 				InstallerFile:    tfr1,
 				StorageID:        "storage1",
@@ -466,7 +466,7 @@ func testActivityDetailsForSoftwareTitleIcon(t *testing.T, ds *Datastore) {
 				TeamID:           &teamID,
 				UserID:           user.ID,
 				BundleIdentifier: "foo.bundle.id",
-				ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+				ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 			})
 			require.NoError(t, err)
 			var softwareInstallerTitleIds []struct {
@@ -481,7 +481,7 @@ func testActivityDetailsForSoftwareTitleIcon(t *testing.T, ds *Datastore) {
 			require.Nil(t, softwareInstallerTitleIds[0].TeamID)
 			require.Equal(t, teamID, softwareInstallerTitleIds[0].GlobalOrTeamId)
 
-			_, err = ds.CreateOrUpdateSoftwareTitleIcon(ctx, &fleet.UploadSoftwareTitleIconPayload{
+			_, err = ds.CreateOrUpdateSoftwareTitleIcon(ctx, &automdm.UploadSoftwareTitleIconPayload{
 				TeamID:    teamID,
 				TitleID:   titleID,
 				StorageID: "storage-id-1",
@@ -515,13 +515,13 @@ func testActivityDetailsForSoftwareTitleIcon(t *testing.T, ds *Datastore) {
 			require.NoError(t, err)
 
 			// Create a second team
-			tm2, err := ds.NewTeam(ctx, &fleet.Team{Name: "team2"})
+			tm2, err := ds.NewTeam(ctx, &automdm.Team{Name: "team2"})
 			require.NoError(t, err)
 
 			// Create installer in team 1
-			tfr1, err := fleet.NewTempFileReader(strings.NewReader("hello"), t.TempDir)
+			tfr1, err := automdm.NewTempFileReader(strings.NewReader("hello"), t.TempDir)
 			require.NoError(t, err)
-			installerID, _, err = ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
+			installerID, _, err = ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
 				InstallScript:    "hello",
 				InstallerFile:    tfr1,
 				StorageID:        "storage1",
@@ -532,14 +532,14 @@ func testActivityDetailsForSoftwareTitleIcon(t *testing.T, ds *Datastore) {
 				TeamID:           &teamID,
 				UserID:           user.ID,
 				BundleIdentifier: "foo.bundle.id",
-				ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+				ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 			})
 			require.NoError(t, err)
 
 			// Create installer in team 2 for the same title
-			tfr2, err := fleet.NewTempFileReader(strings.NewReader("world"), t.TempDir)
+			tfr2, err := automdm.NewTempFileReader(strings.NewReader("world"), t.TempDir)
 			require.NoError(t, err)
-			installer2ID, _, err = ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
+			installer2ID, _, err = ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
 				InstallScript:    "world",
 				InstallerFile:    tfr2,
 				StorageID:        "storage2",
@@ -550,19 +550,19 @@ func testActivityDetailsForSoftwareTitleIcon(t *testing.T, ds *Datastore) {
 				TeamID:           &tm2.ID,
 				UserID:           user.ID,
 				BundleIdentifier: "foo.bundle.id",
-				ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+				ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 			})
 			require.NoError(t, err)
 
 			// Create icons in both teams
-			_, err = ds.CreateOrUpdateSoftwareTitleIcon(ctx, &fleet.UploadSoftwareTitleIconPayload{
+			_, err = ds.CreateOrUpdateSoftwareTitleIcon(ctx, &automdm.UploadSoftwareTitleIconPayload{
 				TeamID:    teamID,
 				TitleID:   titleID,
 				StorageID: "icon-storage-1",
 				Filename:  "icon1.png",
 			})
 			require.NoError(t, err)
-			_, err = ds.CreateOrUpdateSoftwareTitleIcon(ctx, &fleet.UploadSoftwareTitleIconPayload{
+			_, err = ds.CreateOrUpdateSoftwareTitleIcon(ctx, &automdm.UploadSoftwareTitleIconPayload{
 				TeamID:    tm2.ID,
 				TitleID:   titleID,
 				StorageID: "icon-storage-2",
@@ -595,7 +595,7 @@ func testActivityDetailsForSoftwareTitleIcon(t *testing.T, ds *Datastore) {
 			require.NoError(t, err)
 
 			// create an in-house app that will create two titles
-			payload := fleet.UploadSoftwareInstallerPayload{
+			payload := automdm.UploadSoftwareInstallerPayload{
 				TeamID:           &teamID,
 				UserID:           user.ID,
 				Title:            "foo",
@@ -605,7 +605,7 @@ func testActivityDetailsForSoftwareTitleIcon(t *testing.T, ds *Datastore) {
 				Platform:         "ios",
 				Extension:        "ipa",
 				Version:          "1.2.3",
-				ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+				ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 			}
 			installerID, titleID, err = ds.MatchOrCreateSoftwareInstaller(ctx, &payload)
 			require.NoError(t, err)
@@ -618,9 +618,9 @@ func testActivityDetailsForSoftwareTitleIcon(t *testing.T, ds *Datastore) {
 			require.Equal(t, titleID, softwareInstallerTitleIds[1].ID)
 
 			// add some labels
-			label1, err := ds.NewLabel(ctx, &fleet.Label{Name: "label1"})
+			label1, err := ds.NewLabel(ctx, &automdm.Label{Name: "label1"})
 			require.NoError(t, err)
-			label2, err := ds.NewLabel(ctx, &fleet.Label{Name: "label2"})
+			label2, err := ds.NewLabel(ctx, &automdm.Label{Name: "label2"})
 			require.NoError(t, err)
 			// Insert exclude label
 			_, err = ds.writer(ctx).ExecContext(ctx,
@@ -633,14 +633,14 @@ func testActivityDetailsForSoftwareTitleIcon(t *testing.T, ds *Datastore) {
 				installerID, label2.ID, false)
 			require.NoError(t, err)
 			// Insert include all label
-			label3, err := ds.NewLabel(ctx, &fleet.Label{Name: "label3"})
+			label3, err := ds.NewLabel(ctx, &automdm.Label{Name: "label3"})
 			require.NoError(t, err)
 			_, err = ds.writer(ctx).ExecContext(ctx,
 				"INSERT INTO in_house_app_labels (in_house_app_id, label_id, exclude, require_all) VALUES (?, ?, ?, ?)",
 				installerID, label3.ID, false, true)
 			require.NoError(t, err)
 
-			_, err = ds.CreateOrUpdateSoftwareTitleIcon(ctx, &fleet.UploadSoftwareTitleIconPayload{
+			_, err = ds.CreateOrUpdateSoftwareTitleIcon(ctx, &automdm.UploadSoftwareTitleIconPayload{
 				TeamID:    teamID,
 				TitleID:   titleID,
 				StorageID: "storage-id-1",
@@ -697,7 +697,7 @@ func testDeleteIconsAssociatedWithTitlesWithoutInstallers(t *testing.T, ds *Data
 			before: func(ds *Datastore) {
 				teamID, titleID, err = createTeamAndSoftwareTitle(t, ctx, ds)
 				require.NoError(t, err)
-				_, err = ds.CreateOrUpdateSoftwareTitleIcon(ctx, &fleet.UploadSoftwareTitleIconPayload{
+				_, err = ds.CreateOrUpdateSoftwareTitleIcon(ctx, &automdm.UploadSoftwareTitleIconPayload{
 					TeamID:    teamID,
 					TitleID:   titleID,
 					StorageID: "storage-id-1",
@@ -727,9 +727,9 @@ func testDeleteIconsAssociatedWithTitlesWithoutInstallers(t *testing.T, ds *Data
 				require.NoError(t, err)
 
 				// create a software installer associated to the title
-				tfr1, err := fleet.NewTempFileReader(strings.NewReader("hello"), t.TempDir)
+				tfr1, err := automdm.NewTempFileReader(strings.NewReader("hello"), t.TempDir)
 				require.NoError(t, err)
-				_, _, err = ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
+				_, _, err = ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
 					InstallScript:    "hello",
 					InstallerFile:    tfr1,
 					StorageID:        "storage1",
@@ -740,7 +740,7 @@ func testDeleteIconsAssociatedWithTitlesWithoutInstallers(t *testing.T, ds *Data
 					TeamID:           &teamID,
 					UserID:           user.ID,
 					BundleIdentifier: "foo.bundle.id",
-					ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+					ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 				})
 				require.NoError(t, err)
 				var softwareInstallerTitleIds []struct {
@@ -751,7 +751,7 @@ func testDeleteIconsAssociatedWithTitlesWithoutInstallers(t *testing.T, ds *Data
 				require.Len(t, softwareInstallerTitleIds, 1)
 				require.Equal(t, titleID, softwareInstallerTitleIds[0].ID)
 
-				_, err = ds.CreateOrUpdateSoftwareTitleIcon(ctx, &fleet.UploadSoftwareTitleIconPayload{
+				_, err = ds.CreateOrUpdateSoftwareTitleIcon(ctx, &automdm.UploadSoftwareTitleIconPayload{
 					TeamID:    teamID,
 					TitleID:   titleID,
 					StorageID: "storage-id-1",
@@ -765,7 +765,7 @@ func testDeleteIconsAssociatedWithTitlesWithoutInstallers(t *testing.T, ds *Data
 				deletedTitleID64, err := result.LastInsertId()
 				deletedTitleID = uint(deletedTitleID64) //nolint:gosec
 				require.NoError(t, err)
-				_, err = ds.CreateOrUpdateSoftwareTitleIcon(ctx, &fleet.UploadSoftwareTitleIconPayload{
+				_, err = ds.CreateOrUpdateSoftwareTitleIcon(ctx, &automdm.UploadSoftwareTitleIconPayload{
 					TeamID:    teamID,
 					TitleID:   deletedTitleID,
 					StorageID: "storage-id-1",
@@ -802,14 +802,14 @@ func testDeleteIconsAssociatedWithTitlesWithoutInstallers(t *testing.T, ds *Data
 				_, err = ds.UpdateVPPTokenTeams(ctx, tok1.ID, []uint{})
 				require.NoError(t, err)
 
-				vppApp := &fleet.VPPApp{
+				vppApp := &automdm.VPPApp{
 					Name:    "foo",
 					TitleID: titleID,
-					IconURL: "fleetdm.com/icon.png",
-					VPPAppTeam: fleet.VPPAppTeam{
-						VPPAppID: fleet.VPPAppID{
+					IconURL: "automdm.com/icon.png",
+					VPPAppTeam: automdm.VPPAppTeam{
+						VPPAppID: automdm.VPPAppID{
 							AdamID:   "1",
-							Platform: fleet.MacOSPlatform,
+							Platform: automdm.MacOSPlatform,
 						},
 					},
 					BundleIdentifier: "foo.bundle.id",
@@ -825,7 +825,7 @@ func testDeleteIconsAssociatedWithTitlesWithoutInstallers(t *testing.T, ds *Data
 				require.Len(t, vppAppsTitleIds, 1)
 				require.Equal(t, titleID, vppAppsTitleIds[0].ID)
 
-				_, err = ds.CreateOrUpdateSoftwareTitleIcon(ctx, &fleet.UploadSoftwareTitleIconPayload{
+				_, err = ds.CreateOrUpdateSoftwareTitleIcon(ctx, &automdm.UploadSoftwareTitleIconPayload{
 					TeamID:    teamID,
 					TitleID:   titleID,
 					StorageID: "storage-id-1",
@@ -839,7 +839,7 @@ func testDeleteIconsAssociatedWithTitlesWithoutInstallers(t *testing.T, ds *Data
 				deletedTitleID64, err := result.LastInsertId()
 				deletedTitleID = uint(deletedTitleID64) //nolint:gosec
 				require.NoError(t, err)
-				_, err = ds.CreateOrUpdateSoftwareTitleIcon(ctx, &fleet.UploadSoftwareTitleIconPayload{
+				_, err = ds.CreateOrUpdateSoftwareTitleIcon(ctx, &automdm.UploadSoftwareTitleIconPayload{
 					TeamID:    teamID,
 					TitleID:   deletedTitleID,
 					StorageID: "storage-id-1",
@@ -867,11 +867,11 @@ func testDeleteIconsAssociatedWithTitlesWithoutInstallers(t *testing.T, ds *Data
 			name: "does not delete icons still associated with an in-house app",
 			before: func(ds *Datastore) {
 				user := test.NewUser(t, ds, "user1", "user1@example.com", false)
-				team, err := ds.NewTeam(ctx, &fleet.Team{Name: "team 1"})
+				team, err := ds.NewTeam(ctx, &automdm.Team{Name: "team 1"})
 				require.NoError(t, err)
 
 				// create an in-house app that will create two titles
-				payload := fleet.UploadSoftwareInstallerPayload{
+				payload := automdm.UploadSoftwareInstallerPayload{
 					TeamID:           &team.ID,
 					UserID:           user.ID,
 					Title:            "foo",
@@ -881,7 +881,7 @@ func testDeleteIconsAssociatedWithTitlesWithoutInstallers(t *testing.T, ds *Data
 					Platform:         "ios",
 					Extension:        "ipa",
 					Version:          "1.2.3",
-					ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+					ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 				}
 				_, titleID, err = ds.MatchOrCreateSoftwareInstaller(ctx, &payload)
 				require.NoError(t, err)
@@ -892,7 +892,7 @@ func testDeleteIconsAssociatedWithTitlesWithoutInstallers(t *testing.T, ds *Data
 				require.NoError(t, err)
 				require.Len(t, softwareInstallerTitleIds, 2) // iha create 2 titles
 				require.Equal(t, titleID, softwareInstallerTitleIds[1].ID)
-				_, err = ds.CreateOrUpdateSoftwareTitleIcon(ctx, &fleet.UploadSoftwareTitleIconPayload{
+				_, err = ds.CreateOrUpdateSoftwareTitleIcon(ctx, &automdm.UploadSoftwareTitleIconPayload{
 					TeamID:    team.ID,
 					TitleID:   titleID,
 					StorageID: "storage-id-1",
@@ -911,7 +911,7 @@ func testDeleteIconsAssociatedWithTitlesWithoutInstallers(t *testing.T, ds *Data
 				deletedTitleID64, err := result.LastInsertId()
 				deletedTitleID = uint(deletedTitleID64) //nolint:gosec
 				require.NoError(t, err)
-				_, err = ds.CreateOrUpdateSoftwareTitleIcon(ctx, &fleet.UploadSoftwareTitleIconPayload{
+				_, err = ds.CreateOrUpdateSoftwareTitleIcon(ctx, &automdm.UploadSoftwareTitleIconPayload{
 					TeamID:    team.ID,
 					TitleID:   deletedTitleID,
 					StorageID: "storage-id-1",

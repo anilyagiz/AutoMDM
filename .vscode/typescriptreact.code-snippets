@@ -1,5 +1,5 @@
 {
-	"Fleet - React stateless component with TS": {
+	"AutoMDM - React stateless component with TS": {
 		"scope": "typescriptreact",
 		"prefix": "rtsc",
 		"body": [
@@ -18,7 +18,7 @@
 		],
 		"description": "Creates a React stateless component with the typescrip interface setup"
 	},
-	"Fleet - baseClass classname": {
+	"AutoMDM - baseClass classname": {
 		"scope": "typescriptreact,javascriptreact",
 		"prefix": "bc",
 		"body": [

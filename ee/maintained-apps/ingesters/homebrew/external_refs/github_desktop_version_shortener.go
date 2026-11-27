@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	maintained_apps "github.com/fleetdm/fleet/v4/ee/maintained-apps"
+	maintained_apps "github.com/anilyagiz/automdm/v4/ee/maintained-apps"
 )
 
 // GitHubDesktopVersionShortener strips the git commit hash from GitHub Desktop versions.

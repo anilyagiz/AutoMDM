@@ -8,7 +8,7 @@ interface IPlusProps {
   size?: IconSizes;
 }
 
-const Plus = ({ color = "ui-fleet-black-75", size = "medium" }: IPlusProps) => {
+const Plus = ({ color = "ui-automdm-black-75", size = "medium" }: IPlusProps) => {
   return (
     <svg
       width={ICON_SIZES[size]}

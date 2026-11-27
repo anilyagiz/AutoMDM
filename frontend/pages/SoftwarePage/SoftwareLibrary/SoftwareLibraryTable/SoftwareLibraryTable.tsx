@@ -95,7 +95,7 @@ const SoftwareLibraryTable = ({
     (newTableQuery: ITableQueryData, changedParam: string) => {
       const newQueryParam: Record<string, string | number | undefined> = {
         query: newTableQuery.searchQuery,
-        fleet_id: teamId,
+        team_id: teamId,
         order_direction: newTableQuery.sortDirection,
         order_key: newTableQuery.sortHeader,
         page:
@@ -144,7 +144,7 @@ const SoftwareLibraryTable = ({
   const handleSelfServiceToggle = () => {
     const queryParams: Record<string, string | number | undefined> = {
       query,
-      fleet_id: teamId,
+      team_id: teamId,
       order_direction: orderDirection,
       order_key: orderKey,
       page: 0,
@@ -169,7 +169,7 @@ const SoftwareLibraryTable = ({
       row.original.id.toString()
     );
 
-    router.push(getPathWithQueryParams(detailsPath, { fleet_id: teamId }));
+    router.push(getPathWithQueryParams(detailsPath, { team_id: teamId }));
   };
 
   const renderSoftwareCount = () => {
@@ -195,7 +195,7 @@ const SoftwareLibraryTable = ({
   const onClickSettings = () => {
     router.push(
       getPathWithQueryParams(PATHS.SOFTWARE_LIBRARY_SETTINGS, {
-        fleet_id: teamId,
+        team_id: teamId,
       })
     );
   };
@@ -253,7 +253,7 @@ const SoftwareLibraryTable = ({
               info={
                 canAddSoftware
                   ? "Add software to your library to get started."
-                  : "Software added to this fleet's library will appear here."
+                  : "Software added to this team's library will appear here."
               }
               primaryButton={
                 canAddSoftware ? (
@@ -261,8 +261,8 @@ const SoftwareLibraryTable = ({
                     onClick={() =>
                       router.push(
                         getPathWithQueryParams(
-                          PATHS.SOFTWARE_ADD_FLEET_MAINTAINED,
-                          { fleet_id: teamId }
+                          PATHS.SOFTWARE_ADD_AUTOMDM_MAINTAINED,
+                          { team_id: teamId }
                         )
                       )
                     }

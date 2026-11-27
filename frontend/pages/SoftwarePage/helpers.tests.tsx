@@ -78,13 +78,13 @@ describe("getSelfServiceTooltip", () => {
     );
   });
 
-  it("returns Fleet Desktop self-service tooltip when both flags are false", () => {
+  it("returns AutoMDM Desktop self-service tooltip when both flags are false", () => {
     const tooltip = getSelfServiceTooltip(false, false);
 
     render(tooltip as React.ReactElement);
 
     expect(screen.getByText(/End users can install from/i)).toBeInTheDocument();
-    expect(screen.getByText(/Fleet Desktop/i)).toBeInTheDocument();
+    expect(screen.getByText(/AutoMDM Desktop/i)).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: /Self service/i })
     ).toBeInTheDocument();
@@ -362,22 +362,22 @@ describe("getDefaultAutoUpdateFromVersions", () => {
 });
 
 describe("rewriteVariableErrorReason", () => {
-  it("links the guide in a Fleet 5 removed variable error", () => {
+  it("links the guide in an AutoMDM 5 removed variable error", () => {
     render(
       <div>
         {rewriteVariableErrorReason(
-          'The "$FLEET_VAR_HOST_END_USER_EMAIL_IDP" variable is not available anymore. What to use instead: https://fleetdm.com/learn-more-about/fleet-5-upgrade'
+          'The "$AUTOMDM_VAR_HOST_END_USER_EMAIL_IDP" variable is not available anymore. What to use instead: https://automdm.com/learn-more-about/automdm-5-upgrade'
         )}
       </div>
     );
 
     expect(
       screen.getByText(
-        /Couldn't edit\. The "\$FLEET_VAR_HOST_END_USER_EMAIL_IDP" variable/
+        /Couldn't edit\. The "\$AUTOMDM_VAR_HOST_END_USER_EMAIL_IDP" variable/
       )
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: /fleet-5-upgrade/ })
+      screen.getByRole("link", { name: /automdm-5-upgrade/ })
     ).toBeInTheDocument();
   });
 });
@@ -403,7 +403,7 @@ describe("routeVersionNameError", () => {
             {
               name: "base",
               reason:
-                'A version named "Production" already exists for this app in this fleet.',
+                'A version named "Production" already exists for this app in this team.',
             },
           ],
         },
@@ -414,13 +414,13 @@ describe("routeVersionNameError", () => {
 
     expect(setServerErrors).toHaveBeenCalledWith({
       name:
-        'A version named "Production" already exists for this app in this fleet.',
+        'A version named "Production" already exists for this app in this team.',
     });
     expect(notifyError).not.toHaveBeenCalled();
   });
 
   // Regression guard: an unrelated error whose reason happens to contain
-  // "name" (e.g. an unsupported FLEET_VAR username) must stay in the toast,
+  // "name" (e.g. an unsupported AUTOMDM_VAR username) must stay in the toast,
   // not clobber the Name field.
   it("routes an unrelated `name`-containing reason to the toast", () => {
     const err = {
@@ -429,7 +429,7 @@ describe("routeVersionNameError", () => {
           errors: [
             {
               name: "base",
-              reason: "Unsupported variable $FLEET_VAR_NOT_A_USERNAME",
+              reason: "Unsupported variable $AUTOMDM_VAR_NOT_A_USERNAME",
             },
           ],
         },
@@ -444,7 +444,7 @@ describe("routeVersionNameError", () => {
 
     expect(setServerErrors).not.toHaveBeenCalled();
     expect(notifyError).toHaveBeenCalledWith(
-      "Unsupported variable $FLEET_VAR_NOT_A_USERNAME",
+      "Unsupported variable $AUTOMDM_VAR_NOT_A_USERNAME",
       {
         response: err,
       }
@@ -508,14 +508,14 @@ describe("routeVersionNameError", () => {
   // Must be rewritten so the admin sees the same copy Edit configuration uses
   // ("Couldn't edit. Variable \"...\" doesn't exist.") instead of the raw BE
   // reason.
-  it("rewrites an unknown $FLEET_VAR_ reason to the Edit configuration copy", () => {
+  it("rewrites an unknown $AUTOMDM_VAR_ reason to the Edit configuration copy", () => {
     const err = {
       response: {
         data: {
           errors: [
             {
               name: "base",
-              reason: "unsupported variable $FLEET_VAR_PW_BOGUS",
+              reason: "unsupported variable $AUTOMDM_VAR_PW_BOGUS",
             },
           ],
         },
@@ -532,7 +532,7 @@ describe("routeVersionNameError", () => {
     expect(
       notifyError
     ).toHaveBeenCalledWith(
-      `Couldn't edit. Variable "$FLEET_VAR_PW_BOGUS" doesn't exist.`,
+      `Couldn't edit. Variable "$AUTOMDM_VAR_PW_BOGUS" doesn't exist.`,
       { response: err }
     );
   });
@@ -540,14 +540,14 @@ describe("routeVersionNameError", () => {
   // A profile-only variable (e.g. NDES_SCEP_CHALLENGE) in a managed
   // configuration gets the profile-only explanation, matching Edit
   // configuration.
-  it("rewrites a profile-only $FLEET_VAR_ reason with the profile-only copy", () => {
+  it("rewrites a profile-only $AUTOMDM_VAR_ reason with the profile-only copy", () => {
     const err = {
       response: {
         data: {
           errors: [
             {
               name: "base",
-              reason: "unsupported variable $FLEET_VAR_NDES_SCEP_CHALLENGE",
+              reason: "unsupported variable $AUTOMDM_VAR_NDES_SCEP_CHALLENGE",
             },
           ],
         },
@@ -564,13 +564,13 @@ describe("routeVersionNameError", () => {
     expect(
       notifyError
     ).toHaveBeenCalledWith(
-      `Couldn't edit. Variable "$FLEET_VAR_NDES_SCEP_CHALLENGE" isn't supported in managed configuration. It can only be used in configuration profiles.`,
+      `Couldn't edit. Variable "$AUTOMDM_VAR_NDES_SCEP_CHALLENGE" isn't supported in managed configuration. It can only be used in configuration profiles.`,
       { response: err }
     );
   });
 
-  // Missing $FLEET_SECRET_ reasons also get the Edit configuration rewrite.
-  it("rewrites a missing $FLEET_SECRET_ reason to the Edit configuration copy", () => {
+  // Missing $AUTOMDM_SECRET_ reasons also get the Edit configuration rewrite.
+  it("rewrites a missing $AUTOMDM_SECRET_ reason to the Edit configuration copy", () => {
     const err = {
       response: {
         data: {
@@ -578,7 +578,7 @@ describe("routeVersionNameError", () => {
             {
               name: "base",
               reason:
-                'Couldn\'t add. Secret variable "$FLEET_SECRET_BLA" missing from database',
+                'Couldn\'t add. Secret variable "$AUTOMDM_SECRET_BLA" missing from database',
             },
           ],
         },
@@ -595,7 +595,7 @@ describe("routeVersionNameError", () => {
     expect(
       notifyError
     ).toHaveBeenCalledWith(
-      `Couldn't edit. Variable "$FLEET_SECRET_BLA" doesn't exist.`,
+      `Couldn't edit. Variable "$AUTOMDM_SECRET_BLA" doesn't exist.`,
       { response: err }
     );
   });

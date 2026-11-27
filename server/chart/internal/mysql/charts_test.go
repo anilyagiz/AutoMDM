@@ -5,14 +5,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/chart/internal/testutils"
+	"github.com/anilyagiz/automdm/v4/server/chart/internal/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // TestFindOnlineHostIDs covers the platform-specific online predicate and the
-// disabledFleetIDs filter: NULL team_id hosts are always retained, hosts in
-// disabled fleets are excluded, non-mobile hosts whose seen_time falls outside
+// disabledTeamIDs filter: NULL team_id hosts are always retained, hosts in
+// disabled teams are excluded, non-mobile hosts whose seen_time falls outside
 // their own check-in interval are excluded, and mobile hosts are evaluated via
 // their MDM activity signal (nano_seen_times.seen_time / detail_updated_at)
 // rather than host_seen_times.
@@ -25,8 +25,8 @@ func TestFindOnlineHostIDs(t *testing.T) {
 		fn   func(t *testing.T, tdb *testutils.TestDB, ds *Datastore)
 	}{
 		{"NoFilter", testFindOnlineEmptyDisabled},
-		{"SingleDisabledFleet", testFindOnlineSingleDisabled},
-		{"MultipleDisabledFleets", testFindOnlineMultipleDisabled},
+		{"SingleDisabledAutoMDM", testFindOnlineSingleDisabled},
+		{"MultipleDisabledTeams", testFindOnlineMultipleDisabled},
 		{"NullTeamHostsAlwaysIncluded", testFindOnlineNullTeamRetained},
 		{"OfflineHostsExcluded", testFindOnlineOfflineExcluded},
 		{"NonMobileWithoutSeenTimeExcluded", testFindOnlineNonMobileNoSeenTimeExcluded},
@@ -36,7 +36,7 @@ func TestFindOnlineHostIDs(t *testing.T) {
 		{"AndroidOfflineWhenDetailNever", testFindOnlineAndroidNever},
 		{"MobileNeverCheckedInExcluded", testFindOnlineMobileNeverCheckedIn},
 		{"MobileDisabledEnrollmentExcluded", testFindOnlineMobileDisabledEnrollment},
-		{"MobileDisabledFleetExcluded", testFindOnlineMobileDisabledFleet},
+		{"MobileDisabledAutoMDMExcluded", testFindOnlineMobileDisabledAutoMDM},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -50,7 +50,7 @@ func TestFindOnlineHostIDs(t *testing.T) {
 // host_seen_times / nano_enrollments).
 //
 // distributedInterval is in seconds; when 0, the table defaults apply (which
-// means the effective online window collapses to fleet.OnlineIntervalBuffer
+// means the effective online window collapses to automdm.OnlineIntervalBuffer
 // alone). When omitSeenTime is true, no host_seen_times row is inserted —
 // simulating an MDM-only mobile device.
 //
@@ -189,7 +189,7 @@ func testFindOnlineEmptyDisabled(t *testing.T, tdb *testutils.TestDB, ds *Datast
 
 	got, err := ds.FindOnlineHostIDs(ctx, now, nil)
 	require.NoError(t, err)
-	assert.ElementsMatch(t, ids, got, "with no fleet filter all online hosts are returned")
+	assert.ElementsMatch(t, ids, got, "with no team filter all online hosts are returned")
 }
 
 func testFindOnlineSingleDisabled(t *testing.T, tdb *testutils.TestDB, ds *Datastore) {
@@ -229,7 +229,7 @@ func testFindOnlineNullTeamRetained(t *testing.T, tdb *testutils.TestDB, ds *Dat
 		{teamID: 1, seenTime: onlineSeen(now), distributedInterval: defaultInterval}, // 1: excluded
 	})
 
-	// Disabling every fleet that exists must still return the NULL-team host.
+	// Disabling every team that exists must still return the NULL-team host.
 	got, err := ds.FindOnlineHostIDs(ctx, now, []uint{1})
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []uint{ids[0]}, got)
@@ -419,7 +419,7 @@ func u32(id uint) uint32 {
 // grouped per CVE as bitmaps, duplicate (cve, host) rows (several vulnerable
 // software rows on one host) collapse to a single bit, software- and OS-level
 // sources merge, the cves argument scopes the result, and hosts in disabled
-// fleets are excluded.
+// teams are excluded.
 func TestAffectedHostIDsByCVE(t *testing.T) {
 	tdb := testutils.SetupTestDB(t, "chart_mysql")
 	defer tdb.TruncateTables(t)
@@ -455,12 +455,12 @@ func TestAffectedHostIDsByCVE(t *testing.T) {
 			"software-side and OS-side hosts must merge under one CVE")
 	})
 
-	t.Run("DisabledFleetsExcluded", func(t *testing.T) {
+	t.Run("DisabledTeamsExcluded", func(t *testing.T) {
 		got, err := ds.AffectedHostIDsByCVE(ctx, []uint{1}, []string{"CVE-A", "CVE-B"})
 		require.NoError(t, err)
 		require.Len(t, got, 2)
 		assert.Equal(t, []uint32{u32(ids[0])}, got["CVE-A"].ToArray(),
-			"disabled-fleet host dropped; NULL-team host retained")
+			"disabled-automdm host dropped; NULL-team host retained")
 		assert.Equal(t, []uint32{u32(ids[2])}, got["CVE-B"].ToArray())
 	})
 
@@ -478,13 +478,13 @@ func TestAffectedHostIDsByCVE(t *testing.T) {
 	})
 }
 
-func testFindOnlineMobileDisabledFleet(t *testing.T, tdb *testutils.TestDB, ds *Datastore) {
+func testFindOnlineMobileDisabledAutoMDM(t *testing.T, tdb *testutils.TestDB, ds *Datastore) {
 	ctx := t.Context()
 	now := time.Now().UTC().Truncate(time.Second)
-	// The disabled-fleet exclusion applies to mobile hosts too: the iOS host in
-	// fleet 1 is dropped while the NULL-team iOS host is retained.
+	// The disabled-automdm exclusion applies to mobile hosts too: the iOS host in
+	// team 1 is dropped while the NULL-team iOS host is retained.
 	ids := seedHosts(t, tdb, []hostSeed{
-		{teamID: 1, platform: "ios", omitSeenTime: true, nanoLastSeen: mobileRecent(now)}, // 0: excluded (disabled fleet)
+		{teamID: 1, platform: "ios", omitSeenTime: true, nanoLastSeen: mobileRecent(now)}, // 0: excluded (disabled team)
 		{teamID: 0, platform: "ios", omitSeenTime: true, nanoLastSeen: mobileRecent(now)}, // 1: kept (NULL team)
 	})
 

@@ -9,12 +9,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server"
-	"github.com/fleetdm/fleet/v4/server/authz"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/logging"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/logging"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 )
 
 type runLiveQueryRequest struct {
@@ -41,17 +41,17 @@ type runLiveQueryResponse struct {
 	Summary summaryPayload `json:"summary"`
 	Err     error          `json:"error,omitempty"`
 
-	Results []fleet.QueryCampaignResult `json:"live_report_results"`
+	Results []automdm.QueryCampaignResult `json:"live_report_results"`
 }
 
 func (r runLiveQueryResponse) Error() error { return r.Err }
 
 type runOneLiveQueryResponse struct {
-	QueryID            uint                `json:"report_id"`
-	TargetedHostCount  int                 `json:"targeted_host_count"`
-	RespondedHostCount int                 `json:"responded_host_count"`
-	Results            []fleet.QueryResult `json:"results"`
-	Err                error               `json:"error,omitempty"`
+	QueryID            uint                  `json:"report_id"`
+	TargetedHostCount  int                   `json:"targeted_host_count"`
+	RespondedHostCount int                   `json:"responded_host_count"`
+	Results            []automdm.QueryResult `json:"results"`
+	Err                error                 `json:"error,omitempty"`
 }
 
 func (r runOneLiveQueryResponse) Error() error { return r.Err }
@@ -60,13 +60,13 @@ type runLiveQueryOnHostResponse struct {
 	HostID uint                `json:"host_id"`
 	Rows   []map[string]string `json:"rows"`
 	Query  string              `json:"query"`
-	Status fleet.HostStatus    `json:"status"`
+	Status automdm.HostStatus  `json:"status"`
 	Err    string              `json:"error,omitempty"`
 }
 
 func (r runLiveQueryOnHostResponse) Error() error { return nil }
 
-func runOneLiveQueryEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func runOneLiveQueryEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*runOneLiveQueryRequest)
 
 	// Only allow a host to be specified once in HostIDs
@@ -77,7 +77,7 @@ func runOneLiveQueryEndpoint(ctx context.Context, request interface{}, svc fleet
 		return nil, err
 	}
 	//goland:noinspection GoPreferNilSlice -- use an empty slice here so that API returns an empty array if there are no results
-	queryResults := []fleet.QueryResult{}
+	queryResults := []automdm.QueryResult{}
 	if len(campaignResults) > 0 {
 		if campaignResults[0].Err != nil {
 			return nil, campaignResults[0].Err
@@ -96,7 +96,7 @@ func runOneLiveQueryEndpoint(ctx context.Context, request interface{}, svc fleet
 	return res, nil
 }
 
-func runLiveQueryEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func runLiveQueryEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*runLiveQueryRequest)
 
 	// Only allow a query to be specified once
@@ -119,10 +119,10 @@ func runLiveQueryEndpoint(ctx context.Context, request interface{}, svc fleet.Se
 	return res, nil
 }
 
-func runLiveQueryOnHostEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func runLiveQueryOnHostEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*runLiveQueryOnHostRequest)
 
-	host, _, err := hostByIDOrIdentifier(ctx, svc, req.Identifier, func(hostID uint) (*fleet.HostLite, error) {
+	host, _, err := hostByIDOrIdentifier(ctx, svc, req.Identifier, func(hostID uint) (*automdm.HostLite, error) {
 		return svc.HostLiteByID(ctx, hostID)
 	})
 	if err != nil {
@@ -132,7 +132,7 @@ func runLiveQueryOnHostEndpoint(ctx context.Context, request interface{}, svc fl
 	return runLiveQueryOnHost(svc, ctx, host, req.Query)
 }
 
-func runLiveQueryOnHost(svc fleet.Service, ctx context.Context, host *fleet.HostLite, query string) (fleet.Errorer, error) {
+func runLiveQueryOnHost(svc automdm.Service, ctx context.Context, host *automdm.HostLite, query string) (automdm.Errorer, error) {
 	query = strings.TrimSpace(query)
 	if query == "" {
 		return nil, ctxerr.Wrap(ctx, badRequest("query is required"))
@@ -143,16 +143,16 @@ func runLiveQueryOnHost(svc fleet.Service, ctx context.Context, host *fleet.Host
 		Query:  query,
 	}
 
-	status := (&fleet.Host{
+	status := (&automdm.Host{
 		DistributedInterval: host.DistributedInterval,
 		ConfigTLSRefresh:    host.ConfigTLSRefresh,
 		SeenTime:            host.SeenTime,
 	}).Status(time.Now())
 	switch status {
-	case fleet.StatusOnline, fleet.StatusNew:
-		res.Status = fleet.StatusOnline
-	case fleet.StatusOffline, fleet.StatusMIA, fleet.StatusMissing:
-		res.Status = fleet.StatusOffline
+	case automdm.StatusOnline, automdm.StatusNew:
+		res.Status = automdm.StatusOnline
+	case automdm.StatusOffline, automdm.StatusMIA, automdm.StatusMissing:
+		res.Status = automdm.StatusOffline
 		return res, nil
 	default:
 		return nil, fmt.Errorf("unknown host status: %s", status)
@@ -188,10 +188,10 @@ const defaultLiveQueryRestPeriod = 25 * time.Second
 
 // LiveQueryRestPeriod is how long the synchronous live query endpoints wait for
 // hosts to report. It should always be less than the request timeout for any
-// load balancer/proxy between Fleet and the API client. An invalid or
+// load balancer/proxy between AutoMDM and the API client. An invalid or
 // non-positive value falls back to the default and is returned as the error.
 func LiveQueryRestPeriod() (time.Duration, error) {
-	period := os.Getenv("FLEET_LIVE_QUERY_REST_PERIOD")
+	period := os.Getenv("AUTOMDM_LIVE_QUERY_REST_PERIOD")
 	if period == "" {
 		return defaultLiveQueryRestPeriod, nil
 	}
@@ -200,13 +200,13 @@ func LiveQueryRestPeriod() (time.Duration, error) {
 		return defaultLiveQueryRestPeriod, err
 	}
 	if d <= 0 {
-		return defaultLiveQueryRestPeriod, fmt.Errorf("FLEET_LIVE_QUERY_REST_PERIOD must be positive, got %s", period)
+		return defaultLiveQueryRestPeriod, fmt.Errorf("AUTOMDM_LIVE_QUERY_REST_PERIOD must be positive, got %s", period)
 	}
 	return d, nil
 }
 
-func runLiveQuery(ctx context.Context, svc fleet.Service, queryIDs []uint, query string, hostIDs []uint) (
-	[]fleet.QueryCampaignResult, int, error,
+func runLiveQuery(ctx context.Context, svc automdm.Service, queryIDs []uint, query string, hostIDs []uint) (
+	[]automdm.QueryCampaignResult, int, error,
 ) {
 	duration, err := LiveQueryRestPeriod()
 	if err != nil {
@@ -237,14 +237,14 @@ func runLiveQuery(ctx context.Context, svc fleet.Service, queryIDs []uint, query
 
 func (svc *Service) RunLiveQueryDeadline(
 	ctx context.Context, queryIDs []uint, query string, hostIDs []uint, deadline time.Duration,
-) ([]fleet.QueryCampaignResult, int, error) {
+) ([]automdm.QueryCampaignResult, int, error) {
 	if len(queryIDs) == 0 || len(hostIDs) == 0 {
 		svc.authz.SkipAuthorization(ctx)
 		return nil, 0, ctxerr.Wrap(ctx, badRequest("query_ids and host_ids are required"))
 	}
 	wg := sync.WaitGroup{}
 
-	resultsCh := make(chan fleet.QueryCampaignResult)
+	resultsCh := make(chan automdm.QueryCampaignResult)
 
 	counterMutex := sync.Mutex{}
 	respondedHostIDs := make(map[uint]struct{})
@@ -262,14 +262,14 @@ func (svc *Service) RunLiveQueryDeadline(
 				queryString = query
 			}
 
-			campaign, err := svc.NewDistributedQueryCampaign(ctx, queryString, queryIDPtr, fleet.HostTargets{HostIDs: hostIDs})
+			campaign, err := svc.NewDistributedQueryCampaign(ctx, queryString, queryIDPtr, automdm.HostTargets{HostIDs: hostIDs})
 			if err != nil {
 				svc.logger.ErrorContext(ctx, "new distributed query campaign",
 					"queryString", queryString,
 					"queryID", queryID,
 					"err", err,
 				)
-				resultsCh <- fleet.QueryCampaignResult{QueryID: queryID, Error: ptr.String(err.Error()), Err: err}
+				resultsCh <- automdm.QueryCampaignResult{QueryID: queryID, Error: ptr.String(err.Error()), Err: err}
 				return
 			}
 			queryID = campaign.QueryID
@@ -284,7 +284,7 @@ func (svc *Service) RunLiveQueryDeadline(
 					svc.logger.ErrorContext(ctxWithoutCancel, "completing campaign (sync)",
 						"query.id", campaign.QueryID, "campaign.id", campaign.ID, "err", err,
 					)
-					resultsCh <- fleet.QueryCampaignResult{
+					resultsCh <- automdm.QueryCampaignResult{
 						QueryID: queryID,
 						Error:   ptr.String(err.Error()),
 						Err:     err,
@@ -297,12 +297,12 @@ func (svc *Service) RunLiveQueryDeadline(
 				svc.logger.ErrorContext(ctx, "get campaign reader",
 					"query.id", campaign.QueryID, "campaign.id", campaign.ID, "err", err,
 				)
-				resultsCh <- fleet.QueryCampaignResult{QueryID: queryID, Error: ptr.String(err.Error()), Err: err}
+				resultsCh <- automdm.QueryCampaignResult{QueryID: queryID, Error: ptr.String(err.Error()), Err: err}
 				return
 			}
 			defer cancelFunc()
 
-			var results []fleet.QueryResult
+			var results []automdm.QueryResult
 			timeout := time.After(deadline)
 
 			// We process stats along with results as they are sent back to the user.
@@ -328,8 +328,8 @@ func (svc *Service) RunLiveQueryDeadline(
 				select {
 				case res := <-readChan:
 					switch res := res.(type) {
-					case fleet.DistributedQueryResult:
-						results = append(results, fleet.QueryResult{HostID: res.Host.ID, Rows: res.Rows, Error: res.Error})
+					case automdm.DistributedQueryResult:
+						results = append(results, automdm.QueryResult{HostID: res.Host.ID, Rows: res.Rows, Error: res.Error})
 						counterMutex.Lock()
 						respondedHostIDs[res.Host.ID] = struct{}{}
 						counterMutex.Unlock()
@@ -348,7 +348,7 @@ func (svc *Service) RunLiveQueryDeadline(
 							break loop
 						}
 					case error:
-						resultsCh <- fleet.QueryCampaignResult{QueryID: queryID, Error: ptr.String(res.Error()), Err: res}
+						resultsCh <- automdm.QueryCampaignResult{QueryID: queryID, Error: ptr.String(res.Error()), Err: res}
 						return
 					}
 				case <-timeout:
@@ -357,7 +357,7 @@ func (svc *Service) RunLiveQueryDeadline(
 					break loop
 				}
 			}
-			resultsCh <- fleet.QueryCampaignResult{QueryID: queryID, Results: results}
+			resultsCh <- automdm.QueryCampaignResult{QueryID: queryID, Results: results}
 		}()
 	}
 
@@ -367,7 +367,7 @@ func (svc *Service) RunLiveQueryDeadline(
 		close(resultsCh)
 	}()
 
-	var results []fleet.QueryCampaignResult
+	var results []automdm.QueryCampaignResult
 	for result := range resultsCh {
 		results = append(results, result)
 	}
@@ -375,7 +375,7 @@ func (svc *Service) RunLiveQueryDeadline(
 	return results, len(respondedHostIDs), nil
 }
 
-func (svc *Service) GetCampaignReader(ctx context.Context, campaign *fleet.DistributedQueryCampaign) (<-chan interface{}, context.CancelFunc, error) {
+func (svc *Service) GetCampaignReader(ctx context.Context, campaign *automdm.DistributedQueryCampaign) (<-chan interface{}, context.CancelFunc, error) {
 	// Open the channel from which we will receive incoming query results
 	// (probably from the redis pubsub implementation)
 	cancelCtx, cancelFunc := context.WithCancel(ctx)
@@ -386,7 +386,7 @@ func (svc *Service) GetCampaignReader(ctx context.Context, campaign *fleet.Distr
 		return nil, nil, fmt.Errorf("cannot open read channel for campaign %d ", campaign.ID)
 	}
 
-	campaign.Status = fleet.QueryRunning
+	campaign.Status = automdm.QueryRunning
 	if err := svc.ds.SaveDistributedQueryCampaign(ctx, campaign); err != nil {
 		cancelFunc()
 		return nil, nil, ctxerr.Wrap(ctx, err, "error saving campaign state")
@@ -395,8 +395,8 @@ func (svc *Service) GetCampaignReader(ctx context.Context, campaign *fleet.Distr
 	return readChan, cancelFunc, nil
 }
 
-func (svc *Service) CompleteCampaign(ctx context.Context, campaign *fleet.DistributedQueryCampaign) error {
-	campaign.Status = fleet.QueryComplete
+func (svc *Service) CompleteCampaign(ctx context.Context, campaign *automdm.DistributedQueryCampaign) error {
+	campaign.Status = automdm.QueryComplete
 	err := svc.ds.SaveDistributedQueryCampaign(ctx, campaign)
 	if err != nil {
 		return ctxerr.Wrap(ctx, err, "saving distributed campaign after complete")

@@ -89,9 +89,9 @@ const DEFAULT_EJBCA_CERT_AUTHORITY_MOCK: ICertificatesEJBCA = {
   certificate_authority_name: "ManagementCA",
   certificate_profile_name: "ENDUSER",
   end_entity_profile_name: "EMPTY",
-  certificate_common_name: "$FLEET_VAR_HOST_HARDWARE_SERIAL",
-  username_template: "$FLEET_VAR_HOST_UUID",
-  certificate_user_principal_names: ["$FLEET_VAR_HOST_HARDWARE_SERIAL"],
+  certificate_common_name: "$AUTOMDM_VAR_HOST_HARDWARE_SERIAL",
+  username_template: "$AUTOMDM_VAR_HOST_UUID",
+  certificate_user_principal_names: ["$AUTOMDM_VAR_HOST_HARDWARE_SERIAL"],
   mtls_cert_expires_at: "2099-01-01T00:00:00Z",
 };
 

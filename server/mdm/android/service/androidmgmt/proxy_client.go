@@ -13,10 +13,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/dev_mode"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/dev_mode"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
 	"google.golang.org/api/androidmanagement/v1"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
@@ -24,23 +24,23 @@ import (
 
 const defaultProxyEndpoint = "https://fleetdm.com/api/android/"
 
-// ProxyClient connects to Google's Android Management API via a proxy, which is hosted at fleetdm.com by default.
+// ProxyClient connects to Google's Android Management API via a proxy, which is hosted at automdm.com by default.
 type ProxyClient struct {
 	logger        *slog.Logger
 	mgmt          *androidmanagement.Service
 	licenseKey    string
 	proxyEndpoint string
 
-	// secretMu guards fleetServerSecret, which is updated while requests are in flight.
-	secretMu          sync.RWMutex
-	fleetServerSecret string
+	// secretMu guards automdmServerSecret, which is updated while requests are in flight.
+	secretMu            sync.RWMutex
+	automdmServerSecret string
 }
 
 // Compile-time check to ensure that ProxyClient implements Client.
 var _ Client = &ProxyClient{}
 
 func NewProxyClient(ctx context.Context, logger *slog.Logger, licenseKey string, getenv dev_mode.GetEnv) Client {
-	proxyEndpoint := getenv("FLEET_DEV_ANDROID_PROXY_ENDPOINT")
+	proxyEndpoint := getenv("AUTOMDM_DEV_ANDROID_PROXY_ENDPOINT")
 	if proxyEndpoint == "" {
 		proxyEndpoint = defaultProxyEndpoint
 	}
@@ -59,9 +59,9 @@ func NewProxyClient(ctx context.Context, logger *slog.Logger, licenseKey string,
 	mgmt, err := androidmanagement.NewService(ctx,
 		option.WithEndpoint(proxyEndpoint),
 		option.WithLogger(slogLogger),
-		// The API key is required to exist but not used by this client. Instead, we use the FleetServerSecret as a bearer token.
+		// The API key is required to exist but not used by this client. Instead, we use the AutoMDMServerSecret as a bearer token.
 		option.WithAPIKey("not_used"),
-		option.WithHTTPClient(fleethttp.NewClient(fleethttp.WithNoTimeout())),
+		option.WithHTTPClient(automdmhttp.NewClient(automdmhttp.WithNoTimeout())),
 	)
 	if err != nil {
 		logger.ErrorContext(ctx, "creating android management service", "err", err)
@@ -78,14 +78,14 @@ func NewProxyClient(ctx context.Context, logger *slog.Logger, licenseKey string,
 func (p *ProxyClient) SetAuthenticationSecret(secret string) error {
 	p.secretMu.Lock()
 	defer p.secretMu.Unlock()
-	p.fleetServerSecret = secret
+	p.automdmServerSecret = secret
 	return nil
 }
 
 func (p *ProxyClient) authorization() string {
 	p.secretMu.RLock()
 	defer p.secretMu.RUnlock()
-	return "Bearer " + p.fleetServerSecret
+	return "Bearer " + p.automdmServerSecret
 }
 
 // SignupURLsCreate hits the unauthenticated endpoint of the proxy. If a record already exists for this serverURL,
@@ -97,7 +97,7 @@ func (p *ProxyClient) SignupURLsCreate(ctx context.Context, serverURL, callbackU
 	switch {
 	case isErrorCode(err, http.StatusConflict):
 		// The frontend looks for the text in this error. Please update the frontend code if modifying this error.
-		return nil, android.NewConflictError(fmt.Errorf("android enterprise already exists. For help, please contact Fleet support https://fleetdm.com/support: %w", err))
+		return nil, android.NewConflictError(fmt.Errorf("android enterprise already exists. For help, please contact AutoMDM support https://automdm.com/support: %w", err))
 	case err != nil:
 		return nil, fmt.Errorf("creating signup url: %w", err)
 	}
@@ -112,19 +112,19 @@ func (p *ProxyClient) SignupURLsCreate(ctx context.Context, serverURL, callbackU
 // we use a separate HTTP client in this method.
 func (p *ProxyClient) EnterprisesCreate(ctx context.Context, req EnterprisesCreateRequest) (EnterprisesCreateResponse, error) {
 	type proxyEnterprise struct {
-		FleetLicenseKey string                       `json:"fleetLicenseKey"`
-		PubSubPushURL   string                       `json:"pubsubPushUrl"`
-		EnterpriseToken string                       `json:"enterpriseToken"`
-		SignupURLName   string                       `json:"signupUrlName"`
-		Enterprise      androidmanagement.Enterprise `json:"enterprise"`
+		AutoMDMLicenseKey string                       `json:"automdmLicenseKey"`
+		PubSubPushURL     string                       `json:"pubsubPushUrl"`
+		EnterpriseToken   string                       `json:"enterpriseToken"`
+		SignupURLName     string                       `json:"signupUrlName"`
+		Enterprise        androidmanagement.Enterprise `json:"enterprise"`
 	}
 
-	client := fleethttp.NewClient(fleethttp.WithNoTimeout())
+	client := automdmhttp.NewClient(automdmhttp.WithNoTimeout())
 	pe := proxyEnterprise{
-		FleetLicenseKey: p.licenseKey,
-		PubSubPushURL:   req.PubSubPushURL,
-		EnterpriseToken: req.EnterpriseToken,
-		SignupURLName:   req.SignupURLName,
+		AutoMDMLicenseKey: p.licenseKey,
+		PubSubPushURL:     req.PubSubPushURL,
+		EnterpriseToken:   req.EnterpriseToken,
+		SignupURLName:     req.SignupURLName,
 		Enterprise: androidmanagement.Enterprise{
 			EnabledNotificationTypes: req.EnabledNotificationTypes,
 		},
@@ -160,16 +160,16 @@ func (p *ProxyClient) EnterprisesCreate(ctx context.Context, req EnterprisesCrea
 	}
 
 	type proxyEnterpriseResponse struct {
-		FleetServerSecret string `json:"fleetServerSecret"`
-		Name              string `json:"name"`
+		AutoMDMServerSecret string `json:"automdmServerSecret"`
+		Name                string `json:"name"`
 	}
 	var per proxyEnterpriseResponse
 	if err := json.UnmarshalRead(resp.Body, &per); err != nil {
 		return EnterprisesCreateResponse{}, fmt.Errorf("decoding enterprise response: %w", err)
 	}
 	return EnterprisesCreateResponse{
-		EnterpriseName:    per.Name,
-		FleetServerSecret: per.FleetServerSecret,
+		EnterpriseName:      per.Name,
+		AutoMDMServerSecret: per.AutoMDMServerSecret,
 	}, nil
 }
 
@@ -302,9 +302,9 @@ func (p *ProxyClient) EnterprisesList(ctx context.Context, serverURL string) ([]
 	call := p.mgmt.Enterprises.List().Context(ctx)
 	call.Header().Set("Authorization", p.authorization())
 	call.Header().Set("Origin", serverURL)
-	// NOTE: we don't call .Pages(...) here because the Fleet proxy takes care of
-	// listing enterprises on all pages and filtering those that belong to this Fleet instance:
-	// https://github.com/fleetdm/fleet/blob/ac960d64fce49175b4f3ee396ed30c27824450ea/website/api/controllers/android-proxy/get-android-enterprises.js#L74-L91
+	// NOTE: we don't call .Pages(...) here because the AutoMDM proxy takes care of
+	// listing enterprises on all pages and filtering those that belong to this AutoMDM instance:
+	// https://github.com/anilyagiz/automdm/blob/ac960d64fce49175b4f3ee396ed30c27824450ea/website/api/controllers/android-proxy/get-android-enterprises.js#L74-L91
 	resp, err := call.Do()
 	if err != nil {
 		// Convert proxy errors to proper googleapi.Error for service layer

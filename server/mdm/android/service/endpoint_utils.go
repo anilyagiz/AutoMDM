@@ -7,11 +7,11 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
-	eu "github.com/fleetdm/fleet/v4/server/platform/endpointer"
-	platform_http "github.com/fleetdm/fleet/v4/server/platform/http"
-	"github.com/fleetdm/fleet/v4/server/service/middleware/auth"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
+	eu "github.com/anilyagiz/automdm/v4/server/platform/endpointer"
+	platform_http "github.com/anilyagiz/automdm/v4/server/platform/http"
+	"github.com/anilyagiz/automdm/v4/server/service/middleware/auth"
 	"github.com/go-kit/kit/endpoint"
 	kithttp "github.com/go-kit/kit/transport/http"
 )
@@ -32,7 +32,7 @@ func makeDecoder(iface any, requestBodySizeLimit int64) kithttp.DecodeRequestFun
 }
 
 // handlerFunc is the handler function type for Android service endpoints.
-type handlerFunc func(ctx context.Context, request any, svc android.Service) fleet.Errorer
+type handlerFunc func(ctx context.Context, request any, svc android.Service) automdm.Errorer
 
 // Compile-time check to ensure that androidEndpointer implements Endpointer.
 var _ eu.Endpointer[handlerFunc] = &androidEndpointer{}
@@ -51,7 +51,7 @@ func (e *androidEndpointer) Service() any {
 	return e.svc
 }
 
-func newUserAuthenticatedEndpointer(fleetSvc fleet.Service, svc android.Service, opts []kithttp.ServerOption, r *eu.Router,
+func newUserAuthenticatedEndpointer(automdmSvc automdm.Service, svc android.Service, opts []kithttp.ServerOption, r *eu.Router,
 	versions ...string,
 ) *eu.CommonEndpointer[handlerFunc] {
 	return &eu.CommonEndpointer[handlerFunc]{
@@ -62,14 +62,14 @@ func newUserAuthenticatedEndpointer(fleetSvc fleet.Service, svc android.Service,
 		EncodeFn:      encodeResponse,
 		Opts:          opts,
 		AuthMiddleware: func(next endpoint.Endpoint) endpoint.Endpoint {
-			return auth.AuthenticatedUser(fleetSvc, auth.APIOnlyEndpointCheck(next))
+			return auth.AuthenticatedUser(automdmSvc, auth.APIOnlyEndpointCheck(next))
 		},
 		Router:   r,
 		Versions: versions,
 	}
 }
 
-func newNoAuthEndpointer(fleetSvc fleet.Service, svc android.Service, opts []kithttp.ServerOption, r *eu.Router,
+func newNoAuthEndpointer(automdmSvc automdm.Service, svc android.Service, opts []kithttp.ServerOption, r *eu.Router,
 	versions ...string,
 ) *eu.CommonEndpointer[handlerFunc] {
 	return &eu.CommonEndpointer[handlerFunc]{
@@ -80,7 +80,7 @@ func newNoAuthEndpointer(fleetSvc fleet.Service, svc android.Service, opts []kit
 		EncodeFn:      encodeResponse,
 		Opts:          opts,
 		AuthMiddleware: func(next endpoint.Endpoint) endpoint.Endpoint {
-			return auth.UnauthenticatedRequest(fleetSvc, next)
+			return auth.UnauthenticatedRequest(automdmSvc, next)
 		},
 		Router:   r,
 		Versions: versions,

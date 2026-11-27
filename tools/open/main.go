@@ -7,7 +7,7 @@ import (
 	"flag"
 	"fmt"
 
-	"github.com/fleetdm/fleet/v4/pkg/open"
+	"github.com/anilyagiz/automdm/v4/pkg/open"
 )
 
 func main() {

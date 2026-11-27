@@ -7,9 +7,9 @@ import { DATASET_LABEL, HistoricalDataConfigKey } from "interfaces/charts";
 const baseClass = "confirm-data-collection-disable-modal";
 
 interface IConfirmDataCollectionDisableModalProps {
-  scope: "global" | "fleet";
+  scope: "global" | "team";
   datasets: HistoricalDataConfigKey[];
-  fleetName?: string;
+  automdmName?: string;
   isUpdating?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
@@ -18,16 +18,16 @@ interface IConfirmDataCollectionDisableModalProps {
 const ConfirmDataCollectionDisableModal = ({
   scope,
   datasets,
-  fleetName,
+  automdmName,
   isUpdating,
   onConfirm,
   onCancel,
 }: IConfirmDataCollectionDisableModalProps): JSX.Element => {
   const heading =
     scope === "global"
-      ? "You're about to disable data collection across this Fleet deployment."
+      ? "You're about to disable data collection across this AutoMDM deployment."
       : `You're about to disable data collection for ${
-          fleetName ? `fleet "${fleetName}"` : "this fleet"
+          automdmName ? `team "${automdmName}"` : "this team"
         }.`;
 
   return (

@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/vulnrepo"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/vulnrepo"
 	"github.com/stretchr/testify/require"
 )
 
@@ -106,13 +106,13 @@ func TestArtifactFilename(t *testing.T) {
 func TestGetNeededUbuntuVersions(t *testing.T) {
 	tests := []struct {
 		name     string
-		osVers   *fleet.OSVersions
+		osVers   *automdm.OSVersions
 		expected []string
 	}{
 		{
 			name: "multiple ubuntu versions",
-			osVers: &fleet.OSVersions{
-				OSVersions: []fleet.OSVersion{
+			osVers: &automdm.OSVersions{
+				OSVersions: []automdm.OSVersion{
 					{Platform: "ubuntu", Version: "22.04.8 LTS"},
 					{Platform: "ubuntu", Version: "20.04.1 LTS"},
 				},
@@ -121,8 +121,8 @@ func TestGetNeededUbuntuVersions(t *testing.T) {
 		},
 		{
 			name: "duplicate ubuntu versions",
-			osVers: &fleet.OSVersions{
-				OSVersions: []fleet.OSVersion{
+			osVers: &automdm.OSVersions{
+				OSVersions: []automdm.OSVersion{
 					{Platform: "ubuntu", Version: "22.04.8 LTS"},
 					{Platform: "ubuntu", Version: "22.04.3 LTS"},
 					{Platform: "ubuntu", Version: "22.04.1 LTS"},
@@ -132,8 +132,8 @@ func TestGetNeededUbuntuVersions(t *testing.T) {
 		},
 		{
 			name: "non-ubuntu platforms ignored",
-			osVers: &fleet.OSVersions{
-				OSVersions: []fleet.OSVersion{
+			osVers: &automdm.OSVersions{
+				OSVersions: []automdm.OSVersion{
 					{Platform: "ubuntu", Version: "22.04.8 LTS"},
 					{Platform: "rhel", Version: "8.5"},
 					{Platform: "windows", Version: "10.0.19041"},
@@ -143,8 +143,8 @@ func TestGetNeededUbuntuVersions(t *testing.T) {
 		},
 		{
 			name: "no ubuntu platforms",
-			osVers: &fleet.OSVersions{
-				OSVersions: []fleet.OSVersion{
+			osVers: &automdm.OSVersions{
+				OSVersions: []automdm.OSVersion{
 					{Platform: "rhel", Version: "8.5"},
 					{Platform: "windows", Version: "10.0.19041"},
 				},
@@ -164,13 +164,13 @@ func TestGetNeededUbuntuVersions(t *testing.T) {
 func TestGetNeededRHELVersions(t *testing.T) {
 	tests := []struct {
 		name     string
-		osVers   *fleet.OSVersions
+		osVers   *automdm.OSVersions
 		expected []string
 	}{
 		{
 			name: "multiple RHEL versions",
-			osVers: &fleet.OSVersions{
-				OSVersions: []fleet.OSVersion{
+			osVers: &automdm.OSVersions{
+				OSVersions: []automdm.OSVersion{
 					{Platform: "rhel", Name: "Red Hat Enterprise Linux 8.10.0", Version: "8.10.0"},
 					{Platform: "rhel", Name: "Red Hat Enterprise Linux 9.4.0", Version: "9.4.0"},
 				},
@@ -179,8 +179,8 @@ func TestGetNeededRHELVersions(t *testing.T) {
 		},
 		{
 			name: "duplicate major versions deduplicated",
-			osVers: &fleet.OSVersions{
-				OSVersions: []fleet.OSVersion{
+			osVers: &automdm.OSVersions{
+				OSVersions: []automdm.OSVersion{
 					{Platform: "rhel", Name: "Red Hat Enterprise Linux 9.2.0", Version: "9.2.0"},
 					{Platform: "rhel", Name: "Red Hat Enterprise Linux 9.4.0", Version: "9.4.0"},
 				},
@@ -189,8 +189,8 @@ func TestGetNeededRHELVersions(t *testing.T) {
 		},
 		{
 			name: "Fedora skipped",
-			osVers: &fleet.OSVersions{
-				OSVersions: []fleet.OSVersion{
+			osVers: &automdm.OSVersions{
+				OSVersions: []automdm.OSVersion{
 					{Platform: "rhel", Name: "Red Hat Enterprise Linux 9.4.0", Version: "9.4.0"},
 					{Platform: "rhel", Name: "Fedora Linux 36.0.0", Version: "36.0.0"},
 				},
@@ -199,8 +199,8 @@ func TestGetNeededRHELVersions(t *testing.T) {
 		},
 		{
 			name: "non-RHEL platforms ignored",
-			osVers: &fleet.OSVersions{
-				OSVersions: []fleet.OSVersion{
+			osVers: &automdm.OSVersions{
+				OSVersions: []automdm.OSVersion{
 					{Platform: "rhel", Name: "Red Hat Enterprise Linux 9.4.0", Version: "9.4.0"},
 					{Platform: "ubuntu", Name: "Ubuntu 22.04.8 LTS", Version: "22.04.8 LTS"},
 					{Platform: "windows", Name: "Windows 10", Version: "10.0.19041"},
@@ -210,8 +210,8 @@ func TestGetNeededRHELVersions(t *testing.T) {
 		},
 		{
 			name: "no RHEL platforms",
-			osVers: &fleet.OSVersions{
-				OSVersions: []fleet.OSVersion{
+			osVers: &automdm.OSVersions{
+				OSVersions: []automdm.OSVersion{
 					{Platform: "ubuntu", Name: "Ubuntu 22.04.8 LTS", Version: "22.04.8 LTS"},
 				},
 			},
@@ -219,8 +219,8 @@ func TestGetNeededRHELVersions(t *testing.T) {
 		},
 		{
 			name: "only Fedora",
-			osVers: &fleet.OSVersions{
-				OSVersions: []fleet.OSVersion{
+			osVers: &automdm.OSVersions{
+				OSVersions: []automdm.OSVersion{
 					{Platform: "rhel", Name: "Fedora Linux 36.0.0", Version: "36.0.0"},
 				},
 			},
@@ -468,7 +468,7 @@ func TestRefreshAndroidUsesReleaseDate(t *testing.T) {
 func TestGetNeededAndroidVersions(t *testing.T) {
 	tests := []struct {
 		name     string
-		oses     []fleet.OperatingSystem
+		oses     []automdm.OperatingSystem
 		expected []string
 	}{
 		{
@@ -478,7 +478,7 @@ func TestGetNeededAndroidVersions(t *testing.T) {
 		},
 		{
 			name: "non-android ignored",
-			oses: []fleet.OperatingSystem{
+			oses: []automdm.OperatingSystem{
 				{Name: "Ubuntu", Version: "22.04", Platform: "ubuntu"},
 				{Name: "Windows", Version: "10.0.19042", Platform: "windows"},
 			},
@@ -486,7 +486,7 @@ func TestGetNeededAndroidVersions(t *testing.T) {
 		},
 		{
 			name: "bare versions",
-			oses: []fleet.OperatingSystem{
+			oses: []automdm.OperatingSystem{
 				{Name: "Android", Version: "16", Platform: "android"},
 				{Name: "Android", Version: "14", Platform: "android"},
 			},
@@ -494,7 +494,7 @@ func TestGetNeededAndroidVersions(t *testing.T) {
 		},
 		{
 			name: "versions with SPL deduplicated",
-			oses: []fleet.OperatingSystem{
+			oses: []automdm.OperatingSystem{
 				{Name: "Android", Version: "16 (2026-01-01)", Platform: "android"},
 				{Name: "Android", Version: "16 (2026-05-01)", Platform: "android"},
 				{Name: "Android", Version: "14 (2025-03-01)", Platform: "android"},
@@ -503,7 +503,7 @@ func TestGetNeededAndroidVersions(t *testing.T) {
 		},
 		{
 			name: "empty version skipped",
-			oses: []fleet.OperatingSystem{
+			oses: []automdm.OperatingSystem{
 				{Name: "Android", Version: "", Platform: "android"},
 				{Name: "Android", Version: "16", Platform: "android"},
 			},

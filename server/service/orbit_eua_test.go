@@ -10,12 +10,12 @@ import (
 	"testing"
 	"time"
 
-	hostidentity_types "github.com/fleetdm/fleet/v4/ee/pkg/hostidentity/types"
-	activity_api "github.com/fleetdm/fleet/v4/server/activity/api"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	microsoft_mdm "github.com/fleetdm/fleet/v4/server/mdm/microsoft"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	mysql_errors "github.com/fleetdm/fleet/v4/server/platform/mysql"
+	hostidentity_types "github.com/anilyagiz/automdm/v4/ee/pkg/hostidentity/types"
+	activity_api "github.com/anilyagiz/automdm/v4/server/activity/api"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	microsoft_mdm "github.com/anilyagiz/automdm/v4/server/mdm/microsoft"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	mysql_errors "github.com/anilyagiz/automdm/v4/server/platform/mysql"
 	"github.com/stretchr/testify/require"
 )
 
@@ -115,21 +115,21 @@ func TestProcessWindowsEUAToken(t *testing.T) {
 		svc := newTestServiceWithWSTEP(t, ds)
 		token := makeToken(t, svc, testUPN, testDeviceID)
 
-		ds.MDMWindowsGetEnrolledDeviceWithDeviceIDFunc = func(ctx context.Context, mdmDeviceID string) (*fleet.MDMWindowsEnrolledDevice, error) {
+		ds.MDMWindowsGetEnrolledDeviceWithDeviceIDFunc = func(ctx context.Context, mdmDeviceID string) (*automdm.MDMWindowsEnrolledDevice, error) {
 			require.Equal(t, testDeviceID, mdmDeviceID)
-			return &fleet.MDMWindowsEnrolledDevice{MDMDeviceID: testDeviceID, HostUUID: ""}, nil
+			return &automdm.MDMWindowsEnrolledDevice{MDMDeviceID: testDeviceID, HostUUID: ""}, nil
 		}
 		// First call returns not-found; second call (after insert) returns the account.
 		getByEmailCalls := 0
-		ds.GetMDMIdPAccountByEmailFunc = func(ctx context.Context, email string) (*fleet.MDMIdPAccount, error) {
+		ds.GetMDMIdPAccountByEmailFunc = func(ctx context.Context, email string) (*automdm.MDMIdPAccount, error) {
 			require.Equal(t, testUPN, email)
 			getByEmailCalls++
 			if getByEmailCalls == 1 {
 				return nil, mysql_errors.NotFound("MDMIdPAccount")
 			}
-			return &fleet.MDMIdPAccount{UUID: testAcctUUID, Email: testUPN, Username: testUPN}, nil
+			return &automdm.MDMIdPAccount{UUID: testAcctUUID, Email: testUPN, Username: testUPN}, nil
 		}
-		ds.InsertMDMIdPAccountFunc = func(ctx context.Context, account *fleet.MDMIdPAccount) error {
+		ds.InsertMDMIdPAccountFunc = func(ctx context.Context, account *automdm.MDMIdPAccount) error {
 			require.Equal(t, testUPN, account.Email)
 			return nil
 		}
@@ -147,12 +147,12 @@ func TestProcessWindowsEUAToken(t *testing.T) {
 		svc := newTestServiceWithWSTEP(t, ds)
 		token := makeToken(t, svc, testUPN, testDeviceID)
 
-		ds.MDMWindowsGetEnrolledDeviceWithDeviceIDFunc = func(ctx context.Context, mdmDeviceID string) (*fleet.MDMWindowsEnrolledDevice, error) {
-			return &fleet.MDMWindowsEnrolledDevice{MDMDeviceID: testDeviceID, HostUUID: ""}, nil
+		ds.MDMWindowsGetEnrolledDeviceWithDeviceIDFunc = func(ctx context.Context, mdmDeviceID string) (*automdm.MDMWindowsEnrolledDevice, error) {
+			return &automdm.MDMWindowsEnrolledDevice{MDMDeviceID: testDeviceID, HostUUID: ""}, nil
 		}
 		// Account exists — Insert should NOT be called.
-		ds.GetMDMIdPAccountByEmailFunc = func(ctx context.Context, email string) (*fleet.MDMIdPAccount, error) {
-			return &fleet.MDMIdPAccount{UUID: testAcctUUID, Email: testUPN, Username: "existing-username", Fullname: "Existing Name"}, nil
+		ds.GetMDMIdPAccountByEmailFunc = func(ctx context.Context, email string) (*automdm.MDMIdPAccount, error) {
+			return &automdm.MDMIdPAccount{UUID: testAcctUUID, Email: testUPN, Username: "existing-username", Fullname: "Existing Name"}, nil
 		}
 
 		_, _, idpAcctUUID, err := svc.processWindowsEUAToken(context.Background(), testHostUUID, token)
@@ -166,14 +166,14 @@ func TestProcessWindowsEUAToken(t *testing.T) {
 		svc := newTestServiceWithWSTEP(t, ds)
 		token := makeToken(t, svc, testUPN, testDeviceID)
 
-		ds.MDMWindowsGetEnrolledDeviceWithDeviceIDFunc = func(ctx context.Context, mdmDeviceID string) (*fleet.MDMWindowsEnrolledDevice, error) {
+		ds.MDMWindowsGetEnrolledDeviceWithDeviceIDFunc = func(ctx context.Context, mdmDeviceID string) (*automdm.MDMWindowsEnrolledDevice, error) {
 			// HostUUID already set — device was previously enrolled.
-			return &fleet.MDMWindowsEnrolledDevice{MDMDeviceID: testDeviceID, HostUUID: "existing-host-uuid"}, nil
+			return &automdm.MDMWindowsEnrolledDevice{MDMDeviceID: testDeviceID, HostUUID: "existing-host-uuid"}, nil
 		}
 		// Account already exists — re-enrollment after host deletion may
 		// have left the enrollment row populated but the mapping missing.
-		ds.GetMDMIdPAccountByEmailFunc = func(ctx context.Context, email string) (*fleet.MDMIdPAccount, error) {
-			return &fleet.MDMIdPAccount{UUID: testAcctUUID, Email: testUPN, Username: testUPN}, nil
+		ds.GetMDMIdPAccountByEmailFunc = func(ctx context.Context, email string) (*automdm.MDMIdPAccount, error) {
+			return &automdm.MDMIdPAccount{UUID: testAcctUUID, Email: testUPN, Username: testUPN}, nil
 		}
 
 		upn, deviceID, idpAcctUUID, err := svc.processWindowsEUAToken(context.Background(), testHostUUID, token)
@@ -189,7 +189,7 @@ func TestProcessWindowsEUAToken(t *testing.T) {
 		svc := newTestServiceWithWSTEP(t, ds)
 		token := makeToken(t, svc, testUPN, testDeviceID)
 
-		ds.MDMWindowsGetEnrolledDeviceWithDeviceIDFunc = func(ctx context.Context, mdmDeviceID string) (*fleet.MDMWindowsEnrolledDevice, error) {
+		ds.MDMWindowsGetEnrolledDeviceWithDeviceIDFunc = func(ctx context.Context, mdmDeviceID string) (*automdm.MDMWindowsEnrolledDevice, error) {
 			return nil, fmt.Errorf("idp_accounts read failed: %w", context.DeadlineExceeded)
 		}
 
@@ -197,7 +197,7 @@ func TestProcessWindowsEUAToken(t *testing.T) {
 		require.Error(t, err)
 		// same OrbitError shape as every other EnrollOrbit failure, with a generic
 		// message; the underlying error stays on the log line, not in the response
-		var orbitErr fleet.OrbitError
+		var orbitErr automdm.OrbitError
 		require.ErrorAs(t, err, &orbitErr)
 		require.Equal(t, "getting windows mdm enrollment for EUA token", orbitErr.Message)
 		require.NotContains(t, orbitErr.Message, "idp_accounts")
@@ -210,7 +210,7 @@ func TestProcessWindowsEUAToken(t *testing.T) {
 
 		_, _, _, err := svc.processWindowsEUAToken(context.Background(), testHostUUID, "this.is.not.a.valid.token")
 		require.Error(t, err)
-		var orbitErr *fleet.OrbitError
+		var orbitErr *automdm.OrbitError
 		require.ErrorAs(t, err, &orbitErr)
 		require.Equal(t, "END_USER_AUTH_REQUIRED", orbitErr.Message)
 		require.False(t, ds.MDMWindowsGetEnrolledDeviceWithDeviceIDFuncInvoked)
@@ -222,7 +222,7 @@ func TestProcessWindowsEUAToken(t *testing.T) {
 
 		_, _, _, err := svc.processWindowsEUAToken(context.Background(), testHostUUID, "any.token.value")
 		require.Error(t, err)
-		var orbitErr *fleet.OrbitError
+		var orbitErr *automdm.OrbitError
 		require.ErrorAs(t, err, &orbitErr)
 		require.Equal(t, "END_USER_AUTH_REQUIRED", orbitErr.Message)
 		require.False(t, ds.MDMWindowsGetEnrolledDeviceWithDeviceIDFuncInvoked)
@@ -233,13 +233,13 @@ func TestProcessWindowsEUAToken(t *testing.T) {
 		svc := newTestServiceWithWSTEP(t, ds)
 		token := makeToken(t, svc, testUPN, testDeviceID)
 
-		ds.MDMWindowsGetEnrolledDeviceWithDeviceIDFunc = func(ctx context.Context, mdmDeviceID string) (*fleet.MDMWindowsEnrolledDevice, error) {
+		ds.MDMWindowsGetEnrolledDeviceWithDeviceIDFunc = func(ctx context.Context, mdmDeviceID string) (*automdm.MDMWindowsEnrolledDevice, error) {
 			return nil, mysql_errors.NotFound("MDMWindowsEnrolledDevice")
 		}
 
 		_, _, _, err := svc.processWindowsEUAToken(context.Background(), testHostUUID, token)
 		require.Error(t, err)
-		var orbitErr *fleet.OrbitError
+		var orbitErr *automdm.OrbitError
 		require.ErrorAs(t, err, &orbitErr)
 		require.Equal(t, "END_USER_AUTH_REQUIRED", orbitErr.Message)
 	})
@@ -255,8 +255,8 @@ func TestGenerateWindowsEUAToken(t *testing.T) {
 		ds := new(mock.Store)
 		svc := newTestServiceWithWSTEP(t, ds)
 
-		ds.MDMWindowsGetEnrolledDeviceWithDeviceIDFunc = func(ctx context.Context, mdmDeviceID string) (*fleet.MDMWindowsEnrolledDevice, error) {
-			return &fleet.MDMWindowsEnrolledDevice{MDMDeviceID: testDeviceID, MDMEnrollUserID: testUPN}, nil
+		ds.MDMWindowsGetEnrolledDeviceWithDeviceIDFunc = func(ctx context.Context, mdmDeviceID string) (*automdm.MDMWindowsEnrolledDevice, error) {
+			return &automdm.MDMWindowsEnrolledDevice{MDMDeviceID: testDeviceID, MDMEnrollUserID: testUPN}, nil
 		}
 
 		token := svc.generateWindowsEUAToken(context.Background(), testDeviceID)
@@ -273,8 +273,8 @@ func TestGenerateWindowsEUAToken(t *testing.T) {
 		ds := new(mock.Store)
 		svc := newTestServiceWithWSTEP(t, ds)
 
-		ds.MDMWindowsGetEnrolledDeviceWithDeviceIDFunc = func(ctx context.Context, mdmDeviceID string) (*fleet.MDMWindowsEnrolledDevice, error) {
-			return &fleet.MDMWindowsEnrolledDevice{MDMDeviceID: testDeviceID, MDMEnrollUserID: ""}, nil
+		ds.MDMWindowsGetEnrolledDeviceWithDeviceIDFunc = func(ctx context.Context, mdmDeviceID string) (*automdm.MDMWindowsEnrolledDevice, error) {
+			return &automdm.MDMWindowsEnrolledDevice{MDMDeviceID: testDeviceID, MDMEnrollUserID: ""}, nil
 		}
 
 		require.Empty(t, svc.generateWindowsEUAToken(context.Background(), testDeviceID))
@@ -284,7 +284,7 @@ func TestGenerateWindowsEUAToken(t *testing.T) {
 		ds := new(mock.Store)
 		svc := newTestServiceWithWSTEP(t, ds)
 
-		ds.MDMWindowsGetEnrolledDeviceWithDeviceIDFunc = func(ctx context.Context, mdmDeviceID string) (*fleet.MDMWindowsEnrolledDevice, error) {
+		ds.MDMWindowsGetEnrolledDeviceWithDeviceIDFunc = func(ctx context.Context, mdmDeviceID string) (*automdm.MDMWindowsEnrolledDevice, error) {
 			return nil, mysql_errors.NotFound("MDMWindowsEnrolledDevice")
 		}
 
@@ -295,7 +295,7 @@ func TestGenerateWindowsEUAToken(t *testing.T) {
 		ds := new(mock.Store)
 		svc := newTestServiceWithWSTEP(t, ds)
 
-		ds.MDMWindowsGetEnrolledDeviceWithDeviceIDFunc = func(ctx context.Context, mdmDeviceID string) (*fleet.MDMWindowsEnrolledDevice, error) {
+		ds.MDMWindowsGetEnrolledDeviceWithDeviceIDFunc = func(ctx context.Context, mdmDeviceID string) (*automdm.MDMWindowsEnrolledDevice, error) {
 			return nil, sql.ErrConnDone
 		}
 
@@ -306,8 +306,8 @@ func TestGenerateWindowsEUAToken(t *testing.T) {
 		ds := new(mock.Store)
 		svc := &Service{ds: ds, logger: slog.New(slog.DiscardHandler)}
 
-		ds.MDMWindowsGetEnrolledDeviceWithDeviceIDFunc = func(ctx context.Context, mdmDeviceID string) (*fleet.MDMWindowsEnrolledDevice, error) {
-			return &fleet.MDMWindowsEnrolledDevice{MDMDeviceID: testDeviceID, MDMEnrollUserID: testUPN}, nil
+		ds.MDMWindowsGetEnrolledDeviceWithDeviceIDFunc = func(ctx context.Context, mdmDeviceID string) (*automdm.MDMWindowsEnrolledDevice, error) {
+			return &automdm.MDMWindowsEnrolledDevice{MDMDeviceID: testDeviceID, MDMEnrollUserID: testUPN}, nil
 		}
 
 		require.Empty(t, svc.generateWindowsEUAToken(context.Background(), testDeviceID))
@@ -318,59 +318,59 @@ func TestGenerateWindowsEUAToken(t *testing.T) {
 // enrollOrbitStore wraps mock.Store to make EnrollOrbit mockable
 type enrollOrbitStore struct {
 	*mock.Store
-	enrollOrbitFunc    func(ctx context.Context, opts ...fleet.DatastoreEnrollOrbitOption) (*fleet.Host, error)
+	enrollOrbitFunc    func(ctx context.Context, opts ...automdm.DatastoreEnrollOrbitOption) (*automdm.Host, error)
 	enrollOrbitInvoked bool
 }
 
-func (s *enrollOrbitStore) EnrollOrbit(ctx context.Context, opts ...fleet.DatastoreEnrollOrbitOption) (*fleet.Host, error) {
+func (s *enrollOrbitStore) EnrollOrbit(ctx context.Context, opts ...automdm.DatastoreEnrollOrbitOption) (*automdm.Host, error) {
 	s.enrollOrbitInvoked = true
 	return s.enrollOrbitFunc(ctx, opts...)
 }
 
 // TestEnrollOrbitWindowsReverseLink covers the reverse-link-by-serial branch of EnrollOrbit: a still-unlinked user-driven Windows
-// MDM enrollment whose device-reported serial matches the enrolling host gets linked (and the Windows enrollment default fleet
+// MDM enrollment whose device-reported serial matches the enrolling host gets linked (and the Windows enrollment default team
 // applied) before the enroll response returns; lookup failures never fail the enrollment.
 func TestEnrollOrbitWindowsReverseLink(t *testing.T) {
 	const testSerial = "SER-123"
 	defaultTeamID := uint(7)
 
-	hostInfo := fleet.OrbitHostInfo{
+	hostInfo := automdm.OrbitHostInfo{
 		HardwareUUID:   "hw-uuid-1",
 		HardwareSerial: testSerial,
 		Hostname:       "DESKTOP-1",
 		Platform:       "windows",
 	}
 
-	newSvc := func(t *testing.T) (fleet.Service, *enrollOrbitStore, *TestServerOpts) {
+	newSvc := func(t *testing.T) (automdm.Service, *enrollOrbitStore, *TestServerOpts) {
 		inner := new(mock.Store)
 		ds := &enrollOrbitStore{
 			Store: inner,
-			enrollOrbitFunc: func(ctx context.Context, opts ...fleet.DatastoreEnrollOrbitOption) (*fleet.Host, error) {
-				return &fleet.Host{ID: 42, UUID: "host-uuid-1", Platform: "windows"}, nil
+			enrollOrbitFunc: func(ctx context.Context, opts ...automdm.DatastoreEnrollOrbitOption) (*automdm.Host, error) {
+				return &automdm.Host{ID: 42, UUID: "host-uuid-1", Platform: "windows"}, nil
 			},
 		}
 		serverOpts := &TestServerOpts{}
 		svc, _ := newTestService(t, ds, nil, nil, serverOpts)
-		inner.VerifyEnrollSecretFunc = func(ctx context.Context, secret string) (*fleet.EnrollSecret, error) {
-			return &fleet.EnrollSecret{Secret: secret}, nil
+		inner.VerifyEnrollSecretFunc = func(ctx context.Context, secret string) (*automdm.EnrollSecret, error) {
+			return &automdm.EnrollSecret{Secret: secret}, nil
 		}
 		inner.GetHostIdentityCertByNameFunc = func(ctx context.Context, name string) (*hostidentity_types.HostIdentityCertificate, error) {
 			return nil, newNotFoundError()
 		}
-		inner.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-			cfg := &fleet.AppConfig{}
+		inner.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			cfg := &automdm.AppConfig{}
 			cfg.MDM.WindowsEnabledAndConfigured = true
 			return cfg, nil
 		}
 		inner.MaybeAssociateHostWithScimUserFunc = func(ctx context.Context, hostID uint) error { return nil }
-		inner.ClearEndUserAfterWindowsResetFunc = func(ctx context.Context, opts ...fleet.DatastoreEnrollOrbitOption) (bool, error) {
+		inner.ClearEndUserAfterWindowsResetFunc = func(ctx context.Context, opts ...automdm.DatastoreEnrollOrbitOption) (bool, error) {
 			return false, nil
 		}
 		// A reverse-link is the moment an Entra enrollment first has a host, so it is also when its deferred
 		// mdm_enrolled activity gets recorded.
-		inner.ListHostsLiteByUUIDsFunc = func(ctx context.Context, _ fleet.TeamFilter, uuids []string) ([]*fleet.Host, error) {
+		inner.ListHostsLiteByUUIDsFunc = func(ctx context.Context, _ automdm.TeamFilter, uuids []string) ([]*automdm.Host, error) {
 			require.Equal(t, []string{"host-uuid-1"}, uuids)
-			return []*fleet.Host{{ID: 42, UUID: "host-uuid-1", HardwareSerial: testSerial, Hostname: "DESKTOP-1"}}, nil
+			return []*automdm.Host{{ID: 42, UUID: "host-uuid-1", HardwareSerial: testSerial, Hostname: "DESKTOP-1"}}, nil
 		}
 		inner.MDMWindowsClaimEnrolledActivityFunc = func(ctx context.Context, mdmHardwareID string, claimedAt time.Time) (bool, error) {
 			return true, nil
@@ -384,8 +384,8 @@ func TestEnrollOrbitWindowsReverseLink(t *testing.T) {
 
 	t.Run("windows mdm not configured: no reverse-link attempted", func(t *testing.T) {
 		svc, ds, _ := newSvc(t)
-		ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-			return &fleet.AppConfig{}, nil
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{}, nil
 		}
 
 		nodeKey, err := svc.EnrollOrbit(t.Context(), hostInfo, "secret", "")
@@ -396,7 +396,7 @@ func TestEnrollOrbitWindowsReverseLink(t *testing.T) {
 
 	t.Run("no unlinked enrollment: enrollment succeeds without linking", func(t *testing.T) {
 		svc, ds, _ := newSvc(t)
-		ds.MDMWindowsGetUnlinkedEnrolledDeviceWithHardwareSerialFunc = func(ctx context.Context, serial string) (*fleet.MDMWindowsEnrolledDevice, error) {
+		ds.MDMWindowsGetUnlinkedEnrolledDeviceWithHardwareSerialFunc = func(ctx context.Context, serial string) (*automdm.MDMWindowsEnrolledDevice, error) {
 			require.Equal(t, testSerial, serial)
 			return nil, newNotFoundError()
 		}
@@ -411,7 +411,7 @@ func TestEnrollOrbitWindowsReverseLink(t *testing.T) {
 
 	t.Run("lookup error is non-fatal", func(t *testing.T) {
 		svc, ds, _ := newSvc(t)
-		ds.MDMWindowsGetUnlinkedEnrolledDeviceWithHardwareSerialFunc = func(ctx context.Context, serial string) (*fleet.MDMWindowsEnrolledDevice, error) {
+		ds.MDMWindowsGetUnlinkedEnrolledDeviceWithHardwareSerialFunc = func(ctx context.Context, serial string) (*automdm.MDMWindowsEnrolledDevice, error) {
 			return nil, errors.New("db unavailable")
 		}
 
@@ -421,15 +421,15 @@ func TestEnrollOrbitWindowsReverseLink(t *testing.T) {
 		require.False(t, ds.UpdateMDMWindowsEnrollmentsHostUUIDFuncInvoked)
 	})
 
-	t.Run("unlinked enrollment found: linked and default fleet assigned before returning", func(t *testing.T) {
+	t.Run("unlinked enrollment found: linked and default team assigned before returning", func(t *testing.T) {
 		svc, ds, serverOpts := newSvc(t)
-		device := &fleet.MDMWindowsEnrolledDevice{
+		device := &automdm.MDMWindowsEnrolledDevice{
 			ID:              1,
 			MDMDeviceID:     "device-1",
 			MDMEnrollUserID: "user@example.com", // valid UPN: user-driven enrollment
 			CreatedAt:       time.Now().UTC().Add(-2 * time.Minute),
 		}
-		ds.MDMWindowsGetUnlinkedEnrolledDeviceWithHardwareSerialFunc = func(ctx context.Context, serial string) (*fleet.MDMWindowsEnrolledDevice, error) {
+		ds.MDMWindowsGetUnlinkedEnrolledDeviceWithHardwareSerialFunc = func(ctx context.Context, serial string) (*automdm.MDMWindowsEnrolledDevice, error) {
 			return device, nil
 		}
 		ds.MDMWindowsClearDeletedHostTeamFunc = func(ctx context.Context, mdmDeviceID string) error { return nil }
@@ -438,31 +438,31 @@ func TestEnrollOrbitWindowsReverseLink(t *testing.T) {
 			require.Equal(t, "device-1", deviceID)
 			return true, nil
 		}
-		ds.MDMWindowsGetEnrolledDeviceWithDeviceIDFunc = func(ctx context.Context, deviceID string) (*fleet.MDMWindowsEnrolledDevice, error) {
+		ds.MDMWindowsGetEnrolledDeviceWithDeviceIDFunc = func(ctx context.Context, deviceID string) (*automdm.MDMWindowsEnrolledDevice, error) {
 			return device, nil
 		}
-		ds.GetWindowsEnrollmentDefaultFleetFunc = func(ctx context.Context) (*uint, string, error) {
+		ds.GetWindowsEnrollmentDefaultTeamFunc = func(ctx context.Context) (*uint, string, error) {
 			return &defaultTeamID, "Workstations", nil
 		}
-		ds.HostLiteByIDFunc = func(ctx context.Context, id uint) (*fleet.HostLite, error) {
-			return &fleet.HostLite{ID: id, CreatedAt: time.Now().UTC()}, nil
+		ds.HostLiteByIDFunc = func(ctx context.Context, id uint) (*automdm.HostLite, error) {
+			return &automdm.HostLite{ID: id, CreatedAt: time.Now().UTC()}, nil
 		}
 		var assignedTeamID *uint
-		ds.AddHostsToTeamFunc = func(ctx context.Context, params *fleet.AddHostsToTeamParams) error {
+		ds.AddHostsToTeamFunc = func(ctx context.Context, params *automdm.AddHostsToTeamParams) error {
 			assignedTeamID = params.TeamID
 			require.Equal(t, []uint{42}, params.HostIDs)
 			return nil
 		}
-		ds.BulkSetPendingMDMHostProfilesFunc = func(ctx context.Context, hostIDs []uint, teamIDs []uint, profileUUIDs []string, hostUUIDs []string) (fleet.MDMProfilesUpdates, error) {
-			return fleet.MDMProfilesUpdates{}, nil
+		ds.BulkSetPendingMDMHostProfilesFunc = func(ctx context.Context, hostIDs []uint, teamIDs []uint, profileUUIDs []string, hostUUIDs []string) (automdm.MDMProfilesUpdates, error) {
+			return automdm.MDMProfilesUpdates{}, nil
 		}
-		ds.ReplaceHostDeviceMappingFunc = func(ctx context.Context, hostID uint, mappings []*fleet.HostDeviceMapping, source string) error {
+		ds.ReplaceHostDeviceMappingFunc = func(ctx context.Context, hostID uint, mappings []*automdm.HostDeviceMapping, source string) error {
 			return nil
 		}
-		ds.ScimUserByUserNameOrEmailFunc = func(ctx context.Context, name string, email string) (*fleet.ScimUser, error) {
+		ds.ScimUserByUserNameOrEmailFunc = func(ctx context.Context, name string, email string) (*automdm.ScimUser, error) {
 			return nil, newNotFoundError()
 		}
-		ds.DeleteHostSCIMUserMappingFunc = func(ctx context.Context, hostID uint) ([]fleet.ActivityTypeResentCertificate, error) {
+		ds.DeleteHostSCIMUserMappingFunc = func(ctx context.Context, hostID uint) ([]automdm.ActivityTypeResentCertificate, error) {
 			return nil, nil
 		}
 		ds.DeleteUnusedWindowsMDMOneTimeEnrollSecretsFunc = func(ctx context.Context, enrollmentID uint) error {
@@ -470,9 +470,9 @@ func TestEnrollOrbitWindowsReverseLink(t *testing.T) {
 			return nil
 		}
 
-		var enrolledActivity *fleet.ActivityTypeMDMEnrolled
+		var enrolledActivity *automdm.ActivityTypeMDMEnrolled
 		serverOpts.ActivityMock.NewActivityFunc = func(_ context.Context, _ *activity_api.User, act activity_api.ActivityDetails) error {
-			if a, ok := act.(*fleet.ActivityTypeMDMEnrolled); ok {
+			if a, ok := act.(*automdm.ActivityTypeMDMEnrolled); ok {
 				enrolledActivity = a
 			}
 			return nil
@@ -482,8 +482,8 @@ func TestEnrollOrbitWindowsReverseLink(t *testing.T) {
 		require.NoError(t, err)
 		require.NotEmpty(t, nodeKey)
 		require.True(t, ds.UpdateMDMWindowsEnrollmentsHostUUIDFuncInvoked)
-		require.True(t, ds.DeleteUnusedWindowsMDMOneTimeEnrollSecretsFuncInvoked, "orbit enrolling proves fleetd runs on the device")
-		require.True(t, ds.AddHostsToTeamFuncInvoked, "default fleet must be assigned before EnrollOrbit returns")
+		require.True(t, ds.DeleteUnusedWindowsMDMOneTimeEnrollSecretsFuncInvoked, "orbit enrolling proves automdmd runs on the device")
+		require.True(t, ds.AddHostsToTeamFuncInvoked, "default team must be assigned before EnrollOrbit returns")
 		require.NotNil(t, assignedTeamID)
 		require.Equal(t, defaultTeamID, *assignedTeamID)
 
@@ -494,15 +494,15 @@ func TestEnrollOrbitWindowsReverseLink(t *testing.T) {
 		require.Equal(t, uint(42), enrolledActivity.HostID)
 		require.NotNil(t, enrolledActivity.HostSerial)
 		require.Equal(t, testSerial, *enrolledActivity.HostSerial)
-		require.Equal(t, fleet.MDMPlatformMicrosoft, enrolledActivity.MDMPlatform)
+		require.Equal(t, automdm.MDMPlatformMicrosoft, enrolledActivity.MDMPlatform)
 	})
 
 	t.Run("unlinked enrollment claims a host held by other hardware: refused", func(t *testing.T) {
 		svc, ds, _ := newSvc(t)
 		// The serial on the unlinked enrollment was asserted by that device over OMA-DM. If the host it names already
 		// belongs to different hardware, this reverse-link must not hand the host over.
-		ds.MDMWindowsGetUnlinkedEnrolledDeviceWithHardwareSerialFunc = func(ctx context.Context, serial string) (*fleet.MDMWindowsEnrolledDevice, error) {
-			return &fleet.MDMWindowsEnrolledDevice{
+		ds.MDMWindowsGetUnlinkedEnrolledDeviceWithHardwareSerialFunc = func(ctx context.Context, serial string) (*automdm.MDMWindowsEnrolledDevice, error) {
+			return &automdm.MDMWindowsEnrolledDevice{
 				ID: 1, MDMDeviceID: "device-1", MDMHardwareID: "claimant-hardware-id", MDMEnrollUserID: "user@example.com",
 			}, nil
 		}
@@ -517,7 +517,7 @@ func TestEnrollOrbitWindowsReverseLink(t *testing.T) {
 		require.NotEmpty(t, nodeKey)
 		require.True(t, ds.MDMWindowsConflictingEnrollmentHardwareIDFuncInvoked)
 		require.False(t, ds.UpdateMDMWindowsEnrollmentsHostUUIDFuncInvoked, "the host must not be relinked to the claimant")
-		require.False(t, ds.AddHostsToTeamFuncInvoked, "a refused link must not carry the default fleet with it")
+		require.False(t, ds.AddHostsToTeamFuncInvoked, "a refused link must not carry the default team with it")
 	})
 
 	const autopilotDeviceID = "efdb13f9-44d6-4f99-a93f-08833fccef82"
@@ -534,9 +534,9 @@ func TestEnrollOrbitWindowsReverseLink(t *testing.T) {
 	t.Run("the Autopilot device ID is tried before the serial", func(t *testing.T) {
 		svc, ds, _ := newSvc(t)
 		ownsAutopilotRecord(ds, 42)
-		ds.MDMWindowsGetUnlinkedEnrolledDeviceWithZTDRegistrationIDFunc = func(ctx context.Context, ztdRegistrationID string) (*fleet.MDMWindowsEnrolledDevice, error) {
+		ds.MDMWindowsGetUnlinkedEnrolledDeviceWithZTDRegistrationIDFunc = func(ctx context.Context, ztdRegistrationID string) (*automdm.MDMWindowsEnrolledDevice, error) {
 			require.Equal(t, autopilotDeviceID, ztdRegistrationID, "the device ID is normalized before it is looked up")
-			return &fleet.MDMWindowsEnrolledDevice{ID: 1, MDMDeviceID: "device-1", MDMHardwareID: "autopilot-hardware-id"}, nil
+			return &automdm.MDMWindowsEnrolledDevice{ID: 1, MDMDeviceID: "device-1", MDMHardwareID: "autopilot-hardware-id"}, nil
 		}
 		// Refuse the link so the test stops at the conflict check, which shows which enrollment was picked.
 		ds.MDMWindowsConflictingEnrollmentHardwareIDFunc = func(ctx context.Context, hostUUID, mdmHardwareID string) (bool, string, error) {
@@ -563,10 +563,10 @@ func TestEnrollOrbitWindowsReverseLink(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			svc, ds, _ := newSvc(t)
 			ownsAutopilotRecord(ds, 42)
-			ds.MDMWindowsGetUnlinkedEnrolledDeviceWithZTDRegistrationIDFunc = func(ctx context.Context, ztdRegistrationID string) (*fleet.MDMWindowsEnrolledDevice, error) {
+			ds.MDMWindowsGetUnlinkedEnrolledDeviceWithZTDRegistrationIDFunc = func(ctx context.Context, ztdRegistrationID string) (*automdm.MDMWindowsEnrolledDevice, error) {
 				return nil, tc.lookupErr
 			}
-			ds.MDMWindowsGetUnlinkedEnrolledDeviceWithHardwareSerialFunc = func(ctx context.Context, serial string) (*fleet.MDMWindowsEnrolledDevice, error) {
+			ds.MDMWindowsGetUnlinkedEnrolledDeviceWithHardwareSerialFunc = func(ctx context.Context, serial string) (*automdm.MDMWindowsEnrolledDevice, error) {
 				require.Equal(t, testSerial, serial)
 				return nil, newNotFoundError()
 			}
@@ -603,10 +603,10 @@ func TestEnrollOrbitWindowsReverseLink(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			svc, ds, _ := newSvc(t)
 			ds.HostIDByAutopilotDeviceIDFunc = tc.owner
-			ds.MDMWindowsGetUnlinkedEnrolledDeviceWithZTDRegistrationIDFunc = func(ctx context.Context, ztdRegistrationID string) (*fleet.MDMWindowsEnrolledDevice, error) {
+			ds.MDMWindowsGetUnlinkedEnrolledDeviceWithZTDRegistrationIDFunc = func(ctx context.Context, ztdRegistrationID string) (*automdm.MDMWindowsEnrolledDevice, error) {
 				return nil, newNotFoundError()
 			}
-			ds.MDMWindowsGetUnlinkedEnrolledDeviceWithHardwareSerialFunc = func(ctx context.Context, serial string) (*fleet.MDMWindowsEnrolledDevice, error) {
+			ds.MDMWindowsGetUnlinkedEnrolledDeviceWithHardwareSerialFunc = func(ctx context.Context, serial string) (*automdm.MDMWindowsEnrolledDevice, error) {
 				return nil, newNotFoundError()
 			}
 
@@ -621,10 +621,10 @@ func TestEnrollOrbitWindowsReverseLink(t *testing.T) {
 		svc, ds, _ := newSvc(t)
 		ownsAutopilotRecord(ds, 42)
 		otherSerial := "SER-OTHER"
-		ds.MDMWindowsGetUnlinkedEnrolledDeviceWithZTDRegistrationIDFunc = func(ctx context.Context, ztdRegistrationID string) (*fleet.MDMWindowsEnrolledDevice, error) {
-			return &fleet.MDMWindowsEnrolledDevice{ID: 1, MDMDeviceID: "device-1", MDMHardwareID: "other-hardware-id", HardwareSerial: &otherSerial}, nil
+		ds.MDMWindowsGetUnlinkedEnrolledDeviceWithZTDRegistrationIDFunc = func(ctx context.Context, ztdRegistrationID string) (*automdm.MDMWindowsEnrolledDevice, error) {
+			return &automdm.MDMWindowsEnrolledDevice{ID: 1, MDMDeviceID: "device-1", MDMHardwareID: "other-hardware-id", HardwareSerial: &otherSerial}, nil
 		}
-		ds.MDMWindowsGetUnlinkedEnrolledDeviceWithHardwareSerialFunc = func(ctx context.Context, serial string) (*fleet.MDMWindowsEnrolledDevice, error) {
+		ds.MDMWindowsGetUnlinkedEnrolledDeviceWithHardwareSerialFunc = func(ctx context.Context, serial string) (*automdm.MDMWindowsEnrolledDevice, error) {
 			return nil, newNotFoundError()
 		}
 
@@ -659,13 +659,13 @@ func TestEnrollOrbitWindowsReverseLink(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			svc, ds, _ := newSvc(t)
 			// Without Windows MDM there is no reverse link, so only the matching input is under test.
-			ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) { return &fleet.AppConfig{}, nil }
-			var received fleet.DatastoreEnrollOrbitConfig
-			ds.enrollOrbitFunc = func(ctx context.Context, opts ...fleet.DatastoreEnrollOrbitOption) (*fleet.Host, error) {
+			ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) { return &automdm.AppConfig{}, nil }
+			var received automdm.DatastoreEnrollOrbitConfig
+			ds.enrollOrbitFunc = func(ctx context.Context, opts ...automdm.DatastoreEnrollOrbitOption) (*automdm.Host, error) {
 				for _, opt := range opts {
 					opt(&received)
 				}
-				return &fleet.Host{ID: 42, UUID: "host-uuid-1", Platform: tc.platform}, nil
+				return &automdm.Host{ID: 42, UUID: "host-uuid-1", Platform: tc.platform}, nil
 			}
 
 			reported := hostInfo

@@ -1,8 +1,8 @@
 package microsoft_mdm
 
-import "github.com/fleetdm/fleet/v4/server/fleet"
+import "github.com/anilyagiz/automdm/v4/server/automdm"
 
-// BitLockerPINMinLength and BitLockerPINMaxLength bound a startup PIN. They match what Fleet's PIN policies set on the
+// BitLockerPINMinLength and BitLockerPINMaxLength bound a startup PIN. They match what AutoMDM's PIN policies set on the
 // host (see SystemDriveRequiresStartupAuthSpec.ConfigurePINPolicies), so this validation and Windows' own check agree.
 const (
 	BitLockerPINMinLength = 6
@@ -31,9 +31,9 @@ func ValidateBitLockerPIN(pin string) error {
 	case !printableASCII:
 		// The pre-boot PIN screen always uses the US English keyboard layout, so anything else could be set in Windows
 		// but never typed at startup.
-		return fleet.NewInvalidArgumentError("pin", BitLockerPINInvalidCharsMessage)
+		return automdm.NewInvalidArgumentError("pin", BitLockerPINInvalidCharsMessage)
 	case length < BitLockerPINMinLength || length > BitLockerPINMaxLength:
-		return fleet.NewInvalidArgumentError("pin", BitLockerPINLengthMessage)
+		return automdm.NewInvalidArgumentError("pin", BitLockerPINLengthMessage)
 	}
 	return nil
 }

@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/authz"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	hostctx "github.com/fleetdm/fleet/v4/server/contexts/host"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	hostctx "github.com/anilyagiz/automdm/v4/server/contexts/host"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
 )
 
 // Certificate template name validation constants
@@ -26,7 +26,7 @@ var certificateTemplateNameRegex = regexp.MustCompile(`^[a-zA-Z0-9 \-_]+$`)
 
 func validateCertificateTemplateSubjectName(subjectName string) error {
 	if strings.TrimSpace(subjectName) == "" {
-		return &fleet.BadRequestError{Message: "Certificate template subject name is required."}
+		return &automdm.BadRequestError{Message: "Certificate template subject name is required."}
 	}
 	return nil
 }
@@ -35,15 +35,15 @@ func validateCertificateTemplateSubjectName(subjectName string) error {
 // Returns a BadRequestError if validation fails.
 func validateCertificateTemplateName(name string) error {
 	if strings.TrimSpace(name) == "" {
-		return &fleet.BadRequestError{Message: "Certificate template name is required."}
+		return &automdm.BadRequestError{Message: "Certificate template name is required."}
 	}
 
 	if len(name) > maxCertificateTemplateNameLength {
-		return &fleet.BadRequestError{Message: fmt.Sprintf("Certificate template name is too long. Maximum is %d characters.", maxCertificateTemplateNameLength)}
+		return &automdm.BadRequestError{Message: fmt.Sprintf("Certificate template name is too long. Maximum is %d characters.", maxCertificateTemplateNameLength)}
 	}
 
 	if !certificateTemplateNameRegex.MatchString(name) {
-		return &fleet.BadRequestError{Message: "Invalid certificate template name. Only letters, numbers, spaces, dashes, and underscores are allowed."}
+		return &automdm.BadRequestError{Message: "Invalid certificate template name. Only letters, numbers, spaces, dashes, and underscores are allowed."}
 	}
 
 	return nil
@@ -51,7 +51,7 @@ func validateCertificateTemplateName(name string) error {
 
 type createCertificateTemplateRequest struct {
 	Name                   string `json:"name"`
-	TeamID                 uint   `json:"fleet_id"` // If not provided, intentionally defaults to 0 aka "No team"
+	TeamID                 uint   `json:"team_id"` // If not provided, intentionally defaults to 0 aka "No team"
 	CertificateAuthorityId uint   `json:"certificate_authority_id"`
 	SubjectName            string `json:"subject_name"`
 	SubjectAlternativeName string `json:"subject_alternative_name,omitempty"`
@@ -67,7 +67,7 @@ type createCertificateTemplateResponse struct {
 
 func (r createCertificateTemplateResponse) Error() error { return r.Err }
 
-func createCertificateTemplateEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func createCertificateTemplateEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*createCertificateTemplateRequest)
 	certificate, err := svc.CreateCertificateTemplate(ctx, req.Name, req.TeamID, req.CertificateAuthorityId, req.SubjectName, req.SubjectAlternativeName)
 	if err != nil {
@@ -82,8 +82,8 @@ func createCertificateTemplateEndpoint(ctx context.Context, request interface{},
 	}, nil
 }
 
-func (svc *Service) CreateCertificateTemplate(ctx context.Context, name string, teamID uint, certificateAuthorityID uint, subjectName string, subjectAlternativeName string) (*fleet.CertificateTemplateResponse, error) {
-	if err := svc.authz.Authorize(ctx, &fleet.CertificateTemplate{TeamID: teamID}, fleet.ActionWrite); err != nil {
+func (svc *Service) CreateCertificateTemplate(ctx context.Context, name string, teamID uint, certificateAuthorityID uint, subjectName string, subjectAlternativeName string) (*automdm.CertificateTemplateResponse, error) {
+	if err := svc.authz.Authorize(ctx, &automdm.CertificateTemplate{TeamID: teamID}, automdm.ActionWrite); err != nil {
 		return nil, err
 	}
 
@@ -94,7 +94,7 @@ func (svc *Service) CreateCertificateTemplate(ctx context.Context, name string, 
 		return nil, ctxerr.Wrap(ctx, err, "getting license")
 	}
 	if !lic.IsPremium() {
-		return nil, fleet.ErrMissingLicense
+		return nil, automdm.ErrMissingLicense
 	}
 
 	// Validate certificate template name
@@ -106,18 +106,18 @@ func (svc *Service) CreateCertificateTemplate(ctx context.Context, name string, 
 		return nil, err
 	}
 
-	if err := validateCertificateTemplateFleetVariables(subjectName); err != nil {
-		return nil, &fleet.BadRequestError{Message: err.Error()}
+	if err := validateCertificateTemplateAutoMDMVariables(subjectName); err != nil {
+		return nil, &automdm.BadRequestError{Message: err.Error()}
 	}
 
 	// Validate the optional SAN: format (token shape, KEY allow-list, length cap) and any
-	// $FLEET_VAR_* references against the same allow-list as subject_name.
+	// $AUTOMDM_VAR_* references against the same allow-list as subject_name.
 	if strings.TrimSpace(subjectAlternativeName) != "" {
 		if err := validateCertificateTemplateSubjectAlternativeName(subjectAlternativeName, ""); err != nil {
 			return nil, err
 		}
-		if err := validateCertificateTemplateFleetVariables(subjectAlternativeName); err != nil {
-			return nil, fleet.NewInvalidArgumentError("subject_alternative_name", err.Error())
+		if err := validateCertificateTemplateAutoMDMVariables(subjectAlternativeName); err != nil {
+			return nil, automdm.NewInvalidArgumentError("subject_alternative_name", err.Error())
 		}
 	}
 
@@ -127,11 +127,11 @@ func (svc *Service) CreateCertificateTemplate(ctx context.Context, name string, 
 		return nil, ctxerr.Wrap(ctx, err, "getting certificate authority")
 	}
 
-	if ca.Type != string(fleet.CATypeCustomSCEPProxy) {
-		return nil, &fleet.BadRequestError{Message: "Currently, only the custom_scep_proxy certificate authority is supported."}
+	if ca.Type != string(automdm.CATypeCustomSCEPProxy) {
+		return nil, &automdm.BadRequestError{Message: "Currently, only the custom_scep_proxy certificate authority is supported."}
 	}
 
-	certTemplate := &fleet.CertificateTemplate{
+	certTemplate := &automdm.CertificateTemplate{
 		Name:                   name,
 		TeamID:                 teamID,
 		CertificateAuthorityID: certificateAuthorityID,
@@ -145,7 +145,7 @@ func (svc *Service) CreateCertificateTemplate(ctx context.Context, name string, 
 	}
 
 	// Track which variables this template uses so SCIM can trigger resends when values change.
-	certVars := extractCertTemplateFleetVars(subjectName, subjectAlternativeName)
+	certVars := extractCertTemplateAutoMDMVars(subjectName, subjectAlternativeName)
 	if err := svc.ds.SetCertificateTemplateVariables(ctx, savedTemplate.ID, certVars); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "setting certificate template variables")
 	}
@@ -155,7 +155,7 @@ func (svc *Service) CreateCertificateTemplate(ctx context.Context, name string, 
 		return nil, ctxerr.Wrap(ctx, err, "creating pending certificate templates for existing hosts")
 	}
 
-	activity := fleet.ActivityTypeAddedCertificate{
+	activity := automdm.ActivityTypeAddedCertificate{
 		Name: name,
 	}
 	if teamID != 0 {
@@ -180,21 +180,21 @@ func (svc *Service) CreateCertificateTemplate(ctx context.Context, name string, 
 }
 
 type listCertificateTemplatesRequest struct {
-	fleet.ListOptions
+	automdm.ListOptions
 
 	// If not provided, intentionally defaults to 0 aka "No team"
-	TeamID uint `query:"fleet_id,optional"`
+	TeamID uint `query:"team_id,optional"`
 }
 
 type listCertificateTemplatesResponse struct {
-	Certificates []*fleet.CertificateTemplateResponseSummary `json:"certificates"`
-	Err          error                                       `json:"error,omitempty"`
-	Meta         *fleet.PaginationMetadata                   `json:"meta"`
+	Certificates []*automdm.CertificateTemplateResponseSummary `json:"certificates"`
+	Err          error                                         `json:"error,omitempty"`
+	Meta         *automdm.PaginationMetadata                   `json:"meta"`
 }
 
 func (r listCertificateTemplatesResponse) Error() error { return r.Err }
 
-func listCertificateTemplatesEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func listCertificateTemplatesEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*listCertificateTemplatesRequest)
 	certificates, paginationMetaData, err := svc.ListCertificateTemplates(ctx, req.TeamID, req.ListOptions)
 	if err != nil {
@@ -203,8 +203,8 @@ func listCertificateTemplatesEndpoint(ctx context.Context, request interface{}, 
 	return listCertificateTemplatesResponse{Certificates: certificates, Meta: paginationMetaData}, nil
 }
 
-func (svc *Service) ListCertificateTemplates(ctx context.Context, teamID uint, opts fleet.ListOptions) ([]*fleet.CertificateTemplateResponseSummary, *fleet.PaginationMetadata, error) {
-	if err := svc.authz.Authorize(ctx, &fleet.CertificateTemplate{TeamID: teamID}, fleet.ActionRead); err != nil {
+func (svc *Service) ListCertificateTemplates(ctx context.Context, teamID uint, opts automdm.ListOptions) ([]*automdm.CertificateTemplateResponseSummary, *automdm.PaginationMetadata, error) {
+	if err := svc.authz.Authorize(ctx, &automdm.CertificateTemplate{TeamID: teamID}, automdm.ActionRead); err != nil {
 		return nil, nil, err
 	}
 
@@ -213,7 +213,7 @@ func (svc *Service) ListCertificateTemplates(ctx context.Context, teamID uint, o
 
 	// custom ordering is not supported, always by sort by id
 	opts.OrderKey = "id"
-	opts.OrderDirection = fleet.OrderAscending
+	opts.OrderDirection = automdm.OrderAscending
 
 	// no matching query support
 	opts.MatchQuery = ""
@@ -234,13 +234,13 @@ type getDeviceCertificateTemplateRequest struct {
 }
 
 type getDeviceCertificateTemplateResponse struct {
-	Certificate *fleet.CertificateTemplateResponseForHost `json:"certificate"`
-	Err         error                                     `json:"error,omitempty"`
+	Certificate *automdm.CertificateTemplateResponseForHost `json:"certificate"`
+	Err         error                                       `json:"error,omitempty"`
 }
 
 func (r getDeviceCertificateTemplateResponse) Error() error { return r.Err }
 
-func getDeviceCertificateTemplateEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func getDeviceCertificateTemplateEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*getDeviceCertificateTemplateRequest)
 	certificate, err := svc.GetDeviceCertificateTemplate(ctx, req.ID)
 	if err != nil {
@@ -249,7 +249,7 @@ func getDeviceCertificateTemplateEndpoint(ctx context.Context, request interface
 	return getDeviceCertificateTemplateResponse{Certificate: certificate}, nil
 }
 
-func (svc *Service) GetDeviceCertificateTemplate(ctx context.Context, id uint) (*fleet.CertificateTemplateResponseForHost, error) {
+func (svc *Service) GetDeviceCertificateTemplate(ctx context.Context, id uint) (*automdm.CertificateTemplateResponseForHost, error) {
 	// skipauth: This endpoint uses node key authentication instead of user authentication.
 	svc.authz.SkipAuthorization(ctx)
 
@@ -269,12 +269,12 @@ func (svc *Service) GetDeviceCertificateTemplate(ctx context.Context, id uint) (
 		hostTeamID = *host.TeamID
 	}
 	if certificate.TeamID != hostTeamID {
-		return nil, fleet.NewPermissionError("host does not have access to this certificate template")
+		return nil, automdm.NewPermissionError("host does not have access to this certificate template")
 	}
 
 	// Memo for the host's end-user list, shared between subject_name and subject_alternative_name
-	// expansion so we don't double-fetch when both reference $FLEET_VAR_HOST_END_USER_IDP_USERNAME.
-	var endUsersMemo []fleet.HostEndUser
+	// expansion so we don't double-fetch when both reference $AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME.
+	var endUsersMemo []automdm.HostEndUser
 
 	subjectName, ok, err := svc.expandCertVar(ctx, certificate, certificate.SubjectName,
 		"Could not replace certificate variables", host, &endUsersMemo)
@@ -299,14 +299,14 @@ func (svc *Service) GetDeviceCertificateTemplate(ctx context.Context, id uint) (
 	}
 
 	// On-demand challenge creation for delivered status.
-	// If FleetChallenge is nil or empty, create one now (the challenge TTL starts from this moment).
-	if certificate.Status == fleet.CertificateTemplateDelivered {
-		if certificate.FleetChallenge == nil || *certificate.FleetChallenge == "" {
-			challenge, err := svc.ds.GetOrCreateFleetChallengeForCertificateTemplate(ctx, host.UUID, id)
+	// If AutoMDMChallenge is nil or empty, create one now (the challenge TTL starts from this moment).
+	if certificate.Status == automdm.CertificateTemplateDelivered {
+		if certificate.AutoMDMChallenge == nil || *certificate.AutoMDMChallenge == "" {
+			challenge, err := svc.ds.GetOrCreateAutoMDMChallengeForCertificateTemplate(ctx, host.UUID, id)
 			if err != nil {
-				return nil, ctxerr.Wrap(ctx, err, "create fleet challenge on-demand")
+				return nil, ctxerr.Wrap(ctx, err, "create automdm challenge on-demand")
 			}
-			certificate.FleetChallenge = &challenge
+			certificate.AutoMDMChallenge = &challenge
 		}
 	}
 
@@ -318,13 +318,13 @@ type getCertificateTemplateRequest struct {
 }
 
 type getCertificateTemplateResponse struct {
-	Certificate *fleet.CertificateTemplateResponse `json:"certificate"`
-	Err         error                              `json:"error,omitempty"`
+	Certificate *automdm.CertificateTemplateResponse `json:"certificate"`
+	Err         error                                `json:"error,omitempty"`
 }
 
 func (r getCertificateTemplateResponse) Error() error { return r.Err }
 
-func getCertificateTemplateEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func getCertificateTemplateEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*getCertificateTemplateRequest)
 	certificate, err := svc.GetCertificateTemplate(ctx, req.ID)
 	if err != nil {
@@ -333,8 +333,8 @@ func getCertificateTemplateEndpoint(ctx context.Context, request interface{}, sv
 	return getCertificateTemplateResponse{Certificate: certificate}, nil
 }
 
-func (svc *Service) GetCertificateTemplate(ctx context.Context, id uint) (*fleet.CertificateTemplateResponse, error) {
-	if err := svc.authz.Authorize(ctx, &fleet.CertificateTemplate{}, fleet.ActionList); err != nil {
+func (svc *Service) GetCertificateTemplate(ctx context.Context, id uint) (*automdm.CertificateTemplateResponse, error) {
+	if err := svc.authz.Authorize(ctx, &automdm.CertificateTemplate{}, automdm.ActionList); err != nil {
 		return nil, err
 	}
 
@@ -344,7 +344,7 @@ func (svc *Service) GetCertificateTemplate(ctx context.Context, id uint) (*fleet
 	}
 
 	notFoundErr := ctxerr.Wrap(ctx, common_mysql.NotFound("CertificateTemplate").WithID(id), "get certificate template")
-	if err := svc.authz.AuthorizeOrNotFound(ctx, &fleet.CertificateTemplate{TeamID: certificate.TeamID}, fleet.ActionRead, notFoundErr); err != nil {
+	if err := svc.authz.AuthorizeOrNotFound(ctx, &automdm.CertificateTemplate{TeamID: certificate.TeamID}, automdm.ActionRead, notFoundErr); err != nil {
 		return nil, err
 	}
 
@@ -360,7 +360,7 @@ type deleteCertificateTemplateResponse struct {
 
 func (r deleteCertificateTemplateResponse) Error() error { return r.Err }
 
-func deleteCertificateTemplateEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func deleteCertificateTemplateEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*deleteCertificateTemplateRequest)
 	err := svc.DeleteCertificateTemplate(ctx, req.ID)
 	if err != nil {
@@ -370,7 +370,7 @@ func deleteCertificateTemplateEndpoint(ctx context.Context, request interface{},
 }
 
 func (svc *Service) DeleteCertificateTemplate(ctx context.Context, certificateTemplateID uint) error {
-	if err := svc.authz.Authorize(ctx, &fleet.CertificateTemplate{}, fleet.ActionList); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.CertificateTemplate{}, automdm.ActionList); err != nil {
 		return err
 	}
 
@@ -380,7 +380,7 @@ func (svc *Service) DeleteCertificateTemplate(ctx context.Context, certificateTe
 	}
 
 	notFoundErr := ctxerr.Wrap(ctx, common_mysql.NotFound("CertificateTemplate").WithID(certificateTemplateID), "get certificate template for delete")
-	if err := svc.authz.AuthorizeOrNotFound(ctx, &fleet.CertificateTemplate{TeamID: certificate.TeamID}, fleet.ActionWrite, notFoundErr); err != nil {
+	if err := svc.authz.AuthorizeOrNotFound(ctx, &automdm.CertificateTemplate{TeamID: certificate.TeamID}, automdm.ActionWrite, notFoundErr); err != nil {
 		return err
 	}
 
@@ -392,7 +392,7 @@ func (svc *Service) DeleteCertificateTemplate(ctx context.Context, certificateTe
 		return ctxerr.Wrap(ctx, err, "setting host certificate templates to pending remove")
 	}
 
-	activity := fleet.ActivityTypeDeletedCertificate{
+	activity := automdm.ActivityTypeDeletedCertificate{
 		Name: certificate.Name,
 	}
 	if certificate.TeamID != 0 {
@@ -417,7 +417,7 @@ func (svc *Service) DeleteCertificateTemplate(ctx context.Context, certificateTe
 }
 
 type applyCertificateTemplateSpecsRequest struct {
-	Specs []*fleet.CertificateRequestSpec `json:"specs"`
+	Specs []*automdm.CertificateRequestSpec `json:"specs"`
 }
 
 type applyCertificateTemplateSpecsResponse struct {
@@ -426,7 +426,7 @@ type applyCertificateTemplateSpecsResponse struct {
 
 func (r applyCertificateTemplateSpecsResponse) Error() error { return r.Err }
 
-func applyCertificateTemplateSpecsEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func applyCertificateTemplateSpecsEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*applyCertificateTemplateSpecsRequest)
 	err := svc.ApplyCertificateTemplateSpecs(ctx, req.Specs)
 	if err != nil {
@@ -435,7 +435,7 @@ func applyCertificateTemplateSpecsEndpoint(ctx context.Context, request interfac
 	return applyCertificateTemplateSpecsResponse{}, nil
 }
 
-func (svc *Service) resolveTeamNamesForSpecs(ctx context.Context, specs []*fleet.CertificateRequestSpec) (map[string]uint, error) {
+func (svc *Service) resolveTeamNamesForSpecs(ctx context.Context, specs []*automdm.CertificateRequestSpec) (map[string]uint, error) {
 	teamNameToID := make(map[string]uint)
 
 	for _, spec := range specs {
@@ -443,10 +443,10 @@ func (svc *Service) resolveTeamNamesForSpecs(ctx context.Context, specs []*fleet
 			continue
 		}
 
-		if reason, removed := removedFleetName(spec.Team, false); removed {
-			return nil, fleet.NewInvalidArgumentError("specs.fleet", reason)
+		if reason, removed := removedAutoMDMName(spec.Team, false); removed {
+			return nil, automdm.NewInvalidArgumentError("specs.team", reason)
 		}
-		if spec.Team == "" || fleet.IsUnassignedFleetName(spec.Team) {
+		if spec.Team == "" || automdm.IsUnassignedTeamName(spec.Team) {
 			teamNameToID[spec.Team] = 0
 			continue
 		}
@@ -463,7 +463,7 @@ func (svc *Service) resolveTeamNamesForSpecs(ctx context.Context, specs []*fleet
 
 func (svc *Service) checkCertificateTemplateSpecAuthorization(ctx context.Context, teamNameToID map[string]uint) error {
 	for _, teamID := range teamNameToID {
-		if err := svc.authz.Authorize(ctx, &fleet.CertificateTemplate{TeamID: teamID}, fleet.ActionWrite); err != nil {
+		if err := svc.authz.Authorize(ctx, &automdm.CertificateTemplate{TeamID: teamID}, automdm.ActionWrite); err != nil {
 			return err
 		}
 	}
@@ -471,7 +471,7 @@ func (svc *Service) checkCertificateTemplateSpecAuthorization(ctx context.Contex
 	return nil
 }
 
-func (svc *Service) ApplyCertificateTemplateSpecs(ctx context.Context, specs []*fleet.CertificateRequestSpec) error {
+func (svc *Service) ApplyCertificateTemplateSpecs(ctx context.Context, specs []*automdm.CertificateRequestSpec) error {
 	teamNameToID, err := svc.resolveTeamNamesForSpecs(ctx, specs)
 	if err != nil {
 		svc.authz.SkipAuthorization(ctx)
@@ -489,7 +489,7 @@ func (svc *Service) ApplyCertificateTemplateSpecs(ctx context.Context, specs []*
 			return ctxerr.Wrap(ctx, err, "getting license")
 		}
 		if !lic.IsPremium() {
-			return fleet.ErrMissingLicense
+			return automdm.ErrMissingLicense
 		}
 	}
 
@@ -498,12 +498,12 @@ func (svc *Service) ApplyCertificateTemplateSpecs(ctx context.Context, specs []*
 	if err != nil {
 		return ctxerr.Wrap(ctx, err, "getting all certificate authorities")
 	}
-	casByID := make(map[uint]*fleet.CertificateAuthoritySummary)
+	casByID := make(map[uint]*automdm.CertificateAuthoritySummary)
 	for _, ca := range cas {
 		casByID[ca.ID] = ca
 	}
 
-	var certificates []*fleet.CertificateTemplate
+	var certificates []*automdm.CertificateTemplate
 	for _, spec := range specs {
 		// Validate certificate template name
 		if err := validateCertificateTemplateName(spec.Name); err != nil {
@@ -511,22 +511,22 @@ func (svc *Service) ApplyCertificateTemplateSpecs(ctx context.Context, specs []*
 		}
 
 		if err := validateCertificateTemplateSubjectName(spec.SubjectName); err != nil {
-			return &fleet.BadRequestError{Message: fmt.Sprintf("%s (certificate %s)", err.Error(), spec.Name)}
+			return &automdm.BadRequestError{Message: fmt.Sprintf("%s (certificate %s)", err.Error(), spec.Name)}
 		}
 
 		// Get the CA to validate its existence and type.
 		ca, ok := casByID[spec.CertificateAuthorityId]
 		if !ok {
-			return &fleet.BadRequestError{Message: fmt.Sprintf("certificate authority with ID %d not found (certificate %s)", spec.CertificateAuthorityId, spec.Name)}
+			return &automdm.BadRequestError{Message: fmt.Sprintf("certificate authority with ID %d not found (certificate %s)", spec.CertificateAuthorityId, spec.Name)}
 		}
 
-		if ca.Type != string(fleet.CATypeCustomSCEPProxy) {
-			return &fleet.BadRequestError{Message: fmt.Sprintf("Certificate `%s`: Currently, only the custom_scep_proxy certificate authority is supported.", spec.Name)}
+		if ca.Type != string(automdm.CATypeCustomSCEPProxy) {
+			return &automdm.BadRequestError{Message: fmt.Sprintf("Certificate `%s`: Currently, only the custom_scep_proxy certificate authority is supported.", spec.Name)}
 		}
 
-		// Validate Fleet variables in subject name
-		if err := validateCertificateTemplateFleetVariables(spec.SubjectName); err != nil {
-			return &fleet.BadRequestError{Message: fmt.Sprintf("%s (certificate %s)", err.Error(), spec.Name)}
+		// Validate AutoMDM variables in subject name
+		if err := validateCertificateTemplateAutoMDMVariables(spec.SubjectName); err != nil {
+			return &automdm.BadRequestError{Message: fmt.Sprintf("%s (certificate %s)", err.Error(), spec.Name)}
 		}
 
 		// Validate the optional SAN for format and variables.
@@ -534,15 +534,15 @@ func (svc *Service) ApplyCertificateTemplateSpecs(ctx context.Context, specs []*
 			if err := validateCertificateTemplateSubjectAlternativeName(spec.SubjectAlternativeName, spec.Name); err != nil {
 				return err
 			}
-			if err := validateCertificateTemplateFleetVariables(spec.SubjectAlternativeName); err != nil {
-				return fleet.NewInvalidArgumentError("subject_alternative_name",
+			if err := validateCertificateTemplateAutoMDMVariables(spec.SubjectAlternativeName); err != nil {
+				return automdm.NewInvalidArgumentError("subject_alternative_name",
 					fmt.Sprintf("%s (certificate %s)", err.Error(), spec.Name))
 			}
 		}
 
 		teamID := teamNameToID[spec.Team]
 
-		cert := &fleet.CertificateTemplate{
+		cert := &automdm.CertificateTemplate{
 			Name:                   spec.Name,
 			CertificateAuthorityID: spec.CertificateAuthorityId,
 			SubjectName:            spec.SubjectName,
@@ -570,7 +570,7 @@ func (svc *Service) ApplyCertificateTemplateSpecs(ctx context.Context, specs []*
 		if _, err := svc.ds.CreatePendingCertificateTemplatesForExistingHosts(ctx, tmpl.ID, cert.TeamID); err != nil {
 			return ctxerr.Wrap(ctx, err, "creating pending certificate templates for existing hosts")
 		}
-		certVars := extractCertTemplateFleetVars(cert.SubjectName, cert.SubjectAlternativeName)
+		certVars := extractCertTemplateAutoMDMVars(cert.SubjectName, cert.SubjectAlternativeName)
 		if err := svc.ds.SetCertificateTemplateVariables(ctx, tmpl.ID, certVars); err != nil {
 			return ctxerr.Wrap(ctx, err, "setting certificate template variables")
 		}
@@ -590,7 +590,7 @@ func (svc *Service) ApplyCertificateTemplateSpecs(ctx context.Context, specs []*
 		}
 
 		if err := svc.NewActivity(
-			ctx, authz.UserFromContext(ctx), &fleet.ActivityTypeEditedAndroidCertificate{
+			ctx, authz.UserFromContext(ctx), &automdm.ActivityTypeEditedAndroidCertificate{
 				TeamID:   tmID,
 				TeamName: tmName,
 			},
@@ -604,7 +604,7 @@ func (svc *Service) ApplyCertificateTemplateSpecs(ctx context.Context, specs []*
 
 type deleteCertificateTemplateSpecsRequest struct {
 	IDs    []uint `json:"ids"`
-	TeamID uint   `json:"fleet_id"` // If not provided, intentionally defaults to 0 aka "No team"
+	TeamID uint   `json:"team_id"` // If not provided, intentionally defaults to 0 aka "No team"
 }
 
 type deleteCertificateTemplateSpecsResponse struct {
@@ -613,7 +613,7 @@ type deleteCertificateTemplateSpecsResponse struct {
 
 func (r deleteCertificateTemplateSpecsResponse) Error() error { return r.Err }
 
-func deleteCertificateTemplateSpecsEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func deleteCertificateTemplateSpecsEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*deleteCertificateTemplateSpecsRequest)
 	err := svc.DeleteCertificateTemplateSpecs(ctx, req.IDs, req.TeamID)
 	if err != nil {
@@ -624,7 +624,7 @@ func deleteCertificateTemplateSpecsEndpoint(ctx context.Context, request interfa
 
 func (svc *Service) DeleteCertificateTemplateSpecs(ctx context.Context, certificateTemplateIDs []uint, teamID uint) error {
 	// Authorize team
-	if err := svc.authz.Authorize(ctx, &fleet.CertificateTemplate{TeamID: teamID}, fleet.ActionWrite); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.CertificateTemplate{TeamID: teamID}, automdm.ActionWrite); err != nil {
 		return err
 	}
 	// Authorize all ids are on team
@@ -638,10 +638,10 @@ func (svc *Service) DeleteCertificateTemplateSpecs(ctx context.Context, certific
 	}
 	if len(uniqueIDs) != len(certificateTemplates) {
 		return authz.ForbiddenWithInternal(
-			"can only delete templates from fleet parameter",
+			"can only delete templates from team parameter",
 			authz.UserFromContext(ctx),
-			&fleet.CertificateTemplate{TeamID: teamID},
-			fleet.ActionWrite,
+			&automdm.CertificateTemplate{TeamID: teamID},
+			automdm.ActionWrite,
 		)
 	}
 
@@ -674,7 +674,7 @@ func (svc *Service) DeleteCertificateTemplateSpecs(ctx context.Context, certific
 	}
 
 	if err := svc.NewActivity(
-		ctx, authz.UserFromContext(ctx), &fleet.ActivityTypeEditedAndroidCertificate{
+		ctx, authz.UserFromContext(ctx), &automdm.ActivityTypeEditedAndroidCertificate{
 			TeamID:   tmID,
 			TeamName: tmName,
 		},
@@ -705,21 +705,21 @@ type updateCertificateStatusResponse struct {
 
 func (r updateCertificateStatusResponse) Error() error { return r.Err }
 
-func updateCertificateStatusEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func updateCertificateStatusEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req, ok := request.(*updateCertificateStatusRequest)
 	if !ok {
 		return nil, errors.New("invalid request")
 	}
 
 	// Default operation_type to "install" if not provided.
-	opType := fleet.MDMOperationTypeInstall
+	opType := automdm.MDMOperationTypeInstall
 	if req.OperationType != nil && *req.OperationType != "" {
-		opType = fleet.MDMOperationType(*req.OperationType)
+		opType = automdm.MDMOperationType(*req.OperationType)
 	}
 
-	err := svc.UpdateCertificateStatus(ctx, &fleet.CertificateStatusUpdate{
+	err := svc.UpdateCertificateStatus(ctx, &automdm.CertificateStatusUpdate{
 		CertificateTemplateID: req.CertificateTemplateID,
-		Status:                fleet.MDMDeliveryStatus(req.Status),
+		Status:                automdm.MDMDeliveryStatus(req.Status),
 		Detail:                req.Detail,
 		OperationType:         opType,
 		NotValidBefore:        req.NotValidBefore,
@@ -733,22 +733,22 @@ func updateCertificateStatusEndpoint(ctx context.Context, request interface{}, s
 	return updateCertificateStatusResponse{}, nil
 }
 
-func (svc *Service) UpdateCertificateStatus(ctx context.Context, update *fleet.CertificateStatusUpdate) error {
+func (svc *Service) UpdateCertificateStatus(ctx context.Context, update *automdm.CertificateStatusUpdate) error {
 	// this is not a user-authenticated endpoint
 	svc.authz.SkipAuthorization(ctx)
 
 	host, ok := hostctx.FromContext(ctx)
 	if !ok {
-		return ctxerr.Wrap(ctx, fleet.NewAuthRequiredError("internal error: missing host from request context"))
+		return ctxerr.Wrap(ctx, automdm.NewAuthRequiredError("internal error: missing host from request context"))
 	}
 
 	// Validate the status.
 	if !update.Status.IsValid() {
-		return fleet.NewInvalidArgumentError("status", string(update.Status))
+		return automdm.NewInvalidArgumentError("status", string(update.Status))
 	}
 
 	if !update.OperationType.IsValid() {
-		return fleet.NewInvalidArgumentError("operation_type", string(update.OperationType))
+		return automdm.NewInvalidArgumentError("operation_type", string(update.OperationType))
 	}
 
 	// Use GetHostCertificateTemplateRecord to query the host_certificate_templates table directly,
@@ -766,11 +766,11 @@ func (svc *Service) UpdateCertificateStatus(ctx context.Context, update *fleet.C
 	// If operation_type is "remove" and status is "verified", delete the host_certificate_template row.
 	// This allows deletions even when there are race conditions or status sync issues
 	// (e.g., device reports removal before server transitions status).
-	if update.OperationType == fleet.MDMOperationTypeRemove && update.Status == fleet.MDMDeliveryVerified {
+	if update.OperationType == automdm.MDMOperationTypeRemove && update.Status == automdm.MDMDeliveryVerified {
 		return svc.ds.DeleteHostCertificateTemplate(ctx, host.UUID, update.CertificateTemplateID)
 	}
 
-	if record.Status != fleet.CertificateTemplateDelivered {
+	if record.Status != automdm.CertificateTemplateDelivered {
 		svc.logger.InfoContext(ctx, "ignoring certificate status update for non-delivered certificate", "host_uuid", host.UUID, "certificate_template_id", update.CertificateTemplateID, "current_status", record.Status, "new_status", update.Status)
 		return nil
 	}
@@ -780,20 +780,20 @@ func (svc *Service) UpdateCertificateStatus(ctx context.Context, update *fleet.C
 
 	// Log activity for install statuses (not removals). Failures are logged on every attempt
 	// (including retries) so IT admins have visibility into retry attempts.
-	if update.OperationType == fleet.MDMOperationTypeInstall {
-		var actStatus fleet.CertificateActivityStatus
+	if update.OperationType == automdm.MDMOperationTypeInstall {
+		var actStatus automdm.CertificateActivityStatus
 		switch update.Status {
-		case fleet.MDMDeliveryVerified:
-			actStatus = fleet.CertificateActivityInstalled
-		case fleet.MDMDeliveryFailed:
-			actStatus = fleet.CertificateActivityFailedInstall
+		case automdm.MDMDeliveryVerified:
+			actStatus = automdm.CertificateActivityInstalled
+		case automdm.MDMDeliveryFailed:
+			actStatus = automdm.CertificateActivityFailedInstall
 		}
 		if actStatus != "" {
 			detail := ""
 			if update.Detail != nil {
 				detail = *update.Detail
 			}
-			if err := svc.NewActivity(ctx, nil, fleet.ActivityTypeInstalledCertificate{
+			if err := svc.NewActivity(ctx, nil, automdm.ActivityTypeInstalledCertificate{
 				HostID:                host.ID,
 				HostDisplayName:       host.DisplayName(),
 				CertificateTemplateID: update.CertificateTemplateID,
@@ -810,8 +810,8 @@ func (svc *Service) UpdateCertificateStatus(ctx context.Context, update *fleet.C
 	}
 
 	// For failed installs, automatically retry if under the retry limit.
-	if update.OperationType == fleet.MDMOperationTypeInstall && update.Status == fleet.MDMDeliveryFailed {
-		if record.RetryCount < fleet.MaxCertificateInstallRetries {
+	if update.OperationType == automdm.MDMOperationTypeInstall && update.Status == automdm.MDMDeliveryFailed {
+		if record.RetryCount < automdm.MaxCertificateInstallRetries {
 			detail := ""
 			if update.Detail != nil {
 				detail = *update.Detail
@@ -841,7 +841,7 @@ type resendHostCertificateTemplateResponse struct {
 
 func (r resendHostCertificateTemplateResponse) Error() error { return r.Err }
 
-func resendHostCertificateTemplateEndpoint(ctx context.Context, request any, svc fleet.Service) (fleet.Errorer, error) {
+func resendHostCertificateTemplateEndpoint(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*resendHostCertificateTemplateRequest)
 	err := svc.ResendHostCertificateTemplate(ctx, req.ID, req.TemplateID)
 	if err != nil {
@@ -858,7 +858,7 @@ func (svc *Service) ResendHostCertificateTemplate(ctx context.Context, hostID ui
 		return ctxerr.Wrap(ctx, err)
 	}
 
-	if err := svc.authz.Authorize(ctx, &fleet.MDMConfigProfileAuthz{TeamID: host.TeamID}, fleet.ActionResend); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.MDMConfigProfileAuthz{TeamID: host.TeamID}, automdm.ActionResend); err != nil {
 		return ctxerr.Wrap(ctx, err)
 	}
 
@@ -867,8 +867,8 @@ func (svc *Service) ResendHostCertificateTemplate(ctx context.Context, hostID ui
 		return ctxerr.Wrap(ctx, err, "checking host certificate template")
 	}
 
-	if template.Status == fleet.CertificateTemplatePending {
-		return fleet.NewUserMessageError(errors.New("Couldn't resend pending certificate template."), http.StatusBadRequest)
+	if template.Status == automdm.CertificateTemplatePending {
+		return automdm.NewUserMessageError(errors.New("Couldn't resend pending certificate template."), http.StatusBadRequest)
 	}
 
 	if err := svc.ds.ResendHostCertificateTemplate(ctx, hostID, templateID); err != nil {
@@ -880,7 +880,7 @@ func (svc *Service) ResendHostCertificateTemplate(ctx context.Context, hostID ui
 		return ctxerr.Wrap(ctx, err, "getting certificate details")
 	}
 
-	if err := svc.NewActivity(ctx, authz.UserFromContext(ctx), fleet.ActivityTypeResentCertificate{
+	if err := svc.NewActivity(ctx, authz.UserFromContext(ctx), automdm.ActivityTypeResentCertificate{
 		HostID:                host.ID,
 		HostDisplayName:       host.DisplayName(),
 		CertificateTemplateID: certificate.ID,

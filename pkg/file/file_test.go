@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/pkg/file"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/pkg/file"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -128,7 +128,7 @@ func TestExtractInstallerMetadata(t *testing.T) {
 			wantName, wantVersion, wantHash, wantBundleIdentifier := parts[0], parts[1], parts[2], parts[3]
 			wantExtension := strings.TrimPrefix(filepath.Ext(dent.Name()), ".")
 
-			tfr, err := fleet.NewKeepFileReader(filepath.Join("testdata", "installers", dent.Name()))
+			tfr, err := automdm.NewKeepFileReader(filepath.Join("testdata", "installers", dent.Name()))
 			require.NoError(t, err)
 			defer tfr.Close()
 
@@ -209,8 +209,8 @@ func TestExtractFilenameFromURLPath(t *testing.T) {
 }
 
 func TestSHA256FromInstallerFile(t *testing.T) {
-	tmpFileReader := func(ident string) *fleet.TempFileReader {
-		tfr, err := fleet.NewTempFileReader(strings.NewReader(ident), t.TempDir)
+	tmpFileReader := func(ident string) *automdm.TempFileReader {
+		tfr, err := automdm.NewTempFileReader(strings.NewReader(ident), t.TempDir)
 		require.NoError(t, err)
 		return tfr
 	}

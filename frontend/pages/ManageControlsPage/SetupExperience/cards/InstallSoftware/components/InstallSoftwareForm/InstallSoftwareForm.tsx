@@ -22,7 +22,7 @@ const baseClass = "install-software-form";
 
 const manuallyInstallTooltipText = (
   <>
-    Disabled because you manually install Fleet&apos;s agent (
+    Disabled because you manually install AutoMDM&apos;s agent (
     <b>Bootstrap package {">"} Advanced options</b>). Use your bootstrap package
     to install software during the setup experience.
   </>
@@ -55,11 +55,11 @@ const getAddSoftwareUrl = (
       path = PATHS.SOFTWARE_ADD_PACKAGE;
       break;
     default:
-      path = PATHS.SOFTWARE_ADD_FLEET_MAINTAINED;
+      path = PATHS.SOFTWARE_ADD_AUTOMDM_MAINTAINED;
   }
 
   const params = {
-    fleet_id: teamId,
+    team_id: teamId,
     // Add android param to preselect Android dropdown on the Add App store page
     ...(platform === "android" && { platform }),
   };

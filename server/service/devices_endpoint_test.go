@@ -5,12 +5,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/optjson"
-	"github.com/fleetdm/fleet/v4/server/contexts/authz"
-	"github.com/fleetdm/fleet/v4/server/contexts/host"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/pkg/optjson"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/authz"
+	"github.com/anilyagiz/automdm/v4/server/contexts/host"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -19,7 +19,7 @@ func TestGetDeviceHostEndpointScrubbing(t *testing.T) {
 	ds := new(mock.Store)
 	svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{SkipCreateTestUsers: true})
 
-	h := &fleet.Host{
+	h := &automdm.Host{
 		ID:             1,
 		Hostname:       "test-host",
 		UUID:           "sensitive-uuid",
@@ -27,18 +27,18 @@ func TestGetDeviceHostEndpointScrubbing(t *testing.T) {
 		PrimaryMac:     "sensitive-mac",
 		TeamName:       ptr.String("sensitive-team"),
 		Platform:       "ios",
-		MDM: fleet.MDMHostData{
-			Profiles: &[]fleet.HostMDMProfile{
+		MDM: automdm.MDMHostData{
+			Profiles: &[]automdm.HostMDMProfile{
 				{Identifier: "sensitive-profile"},
 			},
 		},
 	}
 
-	ds.HostLiteFunc = func(ctx context.Context, id uint) (*fleet.Host, error) {
+	ds.HostLiteFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
 		return h, nil
 	}
 
-	ds.HostFunc = func(ctx context.Context, id uint) (*fleet.Host, error) {
+	ds.HostFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
 		return h, nil
 	}
 
@@ -46,60 +46,60 @@ func TestGetDeviceHostEndpointScrubbing(t *testing.T) {
 		return time.Now(), nil
 	}
 
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{
-			OrgInfo: fleet.OrgInfo{
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{
+			OrgInfo: automdm.OrgInfo{
 				OrgLogoURLDarkMode: "http://example.com/logo.png",
 			},
 		}, nil
 	}
 
-	ds.LoadHostSoftwareFunc = func(ctx context.Context, host *fleet.Host, includeVulnerabilities bool) error {
+	ds.LoadHostSoftwareFunc = func(ctx context.Context, host *automdm.Host, includeVulnerabilities bool) error {
 		return nil
 	}
-	ds.LoadHostMDMAppleDeviceVitalsFunc = func(ctx context.Context, host *fleet.Host) error {
-		host.HostMDMAppleDeviceVitals = fleet.HostMDMAppleDeviceVitals{
+	ds.LoadHostMDMAppleDeviceVitalsFunc = func(ctx context.Context, host *automdm.Host) error {
+		host.HostMDMAppleDeviceVitals = automdm.HostMDMAppleDeviceVitals{
 			PushToken: []byte("sensitive-push-token"),
-			ServiceSubscriptions: []fleet.MDMAppleServiceSubscription{
+			ServiceSubscriptions: []automdm.MDMAppleServiceSubscription{
 				{Slot: "CTSubscriptionSlotOne", PhoneNumber: new("+15555550100")},
 			},
-			AccessibilitySettings: &fleet.MDMAppleAccessibilitySettings{
+			AccessibilitySettings: &automdm.MDMAppleAccessibilitySettings{
 				VoiceOverEnabled: new(true),
 			},
 		}
 		return nil
 	}
-	ds.ListPoliciesForHostFunc = func(ctx context.Context, host *fleet.Host) ([]*fleet.HostPolicy, error) {
+	ds.ListPoliciesForHostFunc = func(ctx context.Context, host *automdm.Host) ([]*automdm.HostPolicy, error) {
 		return nil, nil
 	}
-	ds.ListHostUsersFunc = func(ctx context.Context, hostID uint) ([]fleet.HostUser, error) {
+	ds.ListHostUsersFunc = func(ctx context.Context, hostID uint) ([]automdm.HostUser, error) {
 		return nil, nil
 	}
-	ds.GetHostMDMFunc = func(ctx context.Context, hostID uint) (*fleet.HostMDM, error) {
+	ds.GetHostMDMFunc = func(ctx context.Context, hostID uint) (*automdm.HostMDM, error) {
 		return nil, nil
 	}
-	ds.GetHostMDMCheckinInfoFunc = func(ctx context.Context, hostUUID string) (*fleet.HostMDMCheckinInfo, error) {
+	ds.GetHostMDMCheckinInfoFunc = func(ctx context.Context, hostUUID string) (*automdm.HostMDMCheckinInfo, error) {
 		return nil, nil
 	}
-	ds.ListLabelsForHostFunc = func(ctx context.Context, hostID uint) ([]*fleet.Label, error) {
+	ds.ListLabelsForHostFunc = func(ctx context.Context, hostID uint) ([]*automdm.Label, error) {
 		return nil, nil
 	}
-	ds.ListHostBatteriesFunc = func(ctx context.Context, id uint) ([]*fleet.HostBattery, error) {
+	ds.ListHostBatteriesFunc = func(ctx context.Context, id uint) ([]*automdm.HostBattery, error) {
 		return nil, nil
 	}
-	ds.ListUpcomingHostMaintenanceWindowsFunc = func(ctx context.Context, hostID uint) ([]*fleet.HostMaintenanceWindow, error) {
+	ds.ListUpcomingHostMaintenanceWindowsFunc = func(ctx context.Context, hostID uint) ([]*automdm.HostMaintenanceWindow, error) {
 		return nil, nil
 	}
 	ds.IsHostDiskEncryptionKeyArchivedFunc = func(ctx context.Context, hostID uint) (bool, error) {
 		return false, nil
 	}
-	ds.GetHostLockWipeStatusFunc = func(ctx context.Context, host *fleet.Host) (*fleet.HostLockWipeStatus, error) {
-		return &fleet.HostLockWipeStatus{}, nil
+	ds.GetHostLockWipeStatusFunc = func(ctx context.Context, host *automdm.Host) (*automdm.HostLockWipeStatus, error) {
+		return &automdm.HostLockWipeStatus{}, nil
 	}
-	ds.ScimUserByHostIDFunc = func(ctx context.Context, hostID uint) (*fleet.ScimUser, error) {
+	ds.ScimUserByHostIDFunc = func(ctx context.Context, hostID uint) (*automdm.ScimUser, error) {
 		return nil, nil
 	}
-	ds.ListHostDeviceMappingFunc = func(ctx context.Context, id uint) ([]*fleet.HostDeviceMapping, error) {
+	ds.ListHostDeviceMappingFunc = func(ctx context.Context, id uint) ([]*automdm.HostDeviceMapping, error) {
 		return nil, nil
 	}
 	ds.ConditionalAccessBypassedAtFunc = func(ctx context.Context, hostID uint) (*time.Time, error) {
@@ -108,14 +108,14 @@ func TestGetDeviceHostEndpointScrubbing(t *testing.T) {
 	ds.GetHostGoogleDeviceIDFunc = func(ctx context.Context, hostUUID, customerID string) (string, error) {
 		return "sensitive-google-device-id", nil
 	}
-	ds.GetHostCustomHostVitalsFunc = func(ctx context.Context, hostID uint) ([]fleet.HostCustomHostVital, error) {
+	ds.GetHostCustomHostVitalsFunc = func(ctx context.Context, hostID uint) ([]automdm.HostCustomHostVital, error) {
 		return nil, nil
 	}
 	ds.GetHostPatchDeadlineAtFunc = func(ctx context.Context, hostID uint) (*time.Time, error) {
 		return nil, nil
 	}
-	ds.GetNanoMDMEnrollmentDetailsFunc = func(ctx context.Context, hostUUID string) (*fleet.NanoMDMEnrollmentDetails, error) {
-		return &fleet.NanoMDMEnrollmentDetails{}, nil
+	ds.GetNanoMDMEnrollmentDetailsFunc = func(ctx context.Context, hostUUID string) (*automdm.NanoMDMEnrollmentDetails, error) {
+		return &automdm.NanoMDMEnrollmentDetails{}, nil
 	}
 
 	// Inject host into context
@@ -147,7 +147,7 @@ func TestGetDeviceHostEndpointScrubbing(t *testing.T) {
 	assert.Nil(t, deviceResp.Host.Labels)
 	// Verify the new iOS/iPadOS device vitals (#49984) are scrubbed too, not
 	// just the fields that existed when this scrub block was first written.
-	assert.Equal(t, fleet.HostMDMAppleDeviceVitals{}, deviceResp.Host.HostMDMAppleDeviceVitals)
+	assert.Equal(t, automdm.HostMDMAppleDeviceVitals{}, deviceResp.Host.HostMDMAppleDeviceVitals)
 
 	// Verify scrubbed fields in License
 	assert.Empty(t, deviceResp.License.Organization)
@@ -164,8 +164,8 @@ func TestGetDeviceHostEndpointScrubbing(t *testing.T) {
 
 func TestGetDeviceHostEndpointNoScrubbingForMacOS(t *testing.T) {
 	ds := new(mock.Store)
-	testLicense := &fleet.LicenseInfo{
-		Tier:         fleet.TierPremium,
+	testLicense := &automdm.LicenseInfo{
+		Tier:         automdm.TierPremium,
 		Organization: "Test Org",
 		DeviceCount:  100,
 		Expiration:   time.Now().Add(24 * time.Hour),
@@ -175,7 +175,7 @@ func TestGetDeviceHostEndpointNoScrubbingForMacOS(t *testing.T) {
 		License:             testLicense,
 	})
 
-	h := &fleet.Host{
+	h := &automdm.Host{
 		ID:             1,
 		Hostname:       "test-host-mac",
 		UUID:           "visible-uuid",
@@ -183,18 +183,18 @@ func TestGetDeviceHostEndpointNoScrubbingForMacOS(t *testing.T) {
 		PrimaryMac:     "visible-mac",
 		TeamName:       ptr.String("visible-team"),
 		Platform:       "darwin",
-		MDM: fleet.MDMHostData{
-			Profiles: &[]fleet.HostMDMProfile{
+		MDM: automdm.MDMHostData{
+			Profiles: &[]automdm.HostMDMProfile{
 				{Identifier: "visible-profile"},
 			},
 		},
 	}
 
-	ds.HostLiteFunc = func(ctx context.Context, id uint) (*fleet.Host, error) {
+	ds.HostLiteFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
 		return h, nil
 	}
 
-	ds.HostFunc = func(ctx context.Context, id uint) (*fleet.Host, error) {
+	ds.HostFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
 		return h, nil
 	}
 
@@ -202,64 +202,64 @@ func TestGetDeviceHostEndpointNoScrubbingForMacOS(t *testing.T) {
 		return time.Now(), nil
 	}
 
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{
-			OrgInfo: fleet.OrgInfo{
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{
+			OrgInfo: automdm.OrgInfo{
 				OrgLogoURLDarkMode: "http://example.com/logo.png",
 			},
 		}, nil
 	}
 
-	ds.LoadHostSoftwareFunc = func(ctx context.Context, host *fleet.Host, includeVulnerabilities bool) error {
+	ds.LoadHostSoftwareFunc = func(ctx context.Context, host *automdm.Host, includeVulnerabilities bool) error {
 		return nil
 	}
-	ds.LoadHostMDMAppleDeviceVitalsFunc = func(ctx context.Context, host *fleet.Host) error {
+	ds.LoadHostMDMAppleDeviceVitalsFunc = func(ctx context.Context, host *automdm.Host) error {
 		return nil
 	}
-	ds.ListPoliciesForHostFunc = func(ctx context.Context, host *fleet.Host) ([]*fleet.HostPolicy, error) {
+	ds.ListPoliciesForHostFunc = func(ctx context.Context, host *automdm.Host) ([]*automdm.HostPolicy, error) {
 		return nil, nil
 	}
-	ds.ListHostUsersFunc = func(ctx context.Context, hostID uint) ([]fleet.HostUser, error) {
+	ds.ListHostUsersFunc = func(ctx context.Context, hostID uint) ([]automdm.HostUser, error) {
 		return nil, nil
 	}
-	ds.GetHostMDMFunc = func(ctx context.Context, hostID uint) (*fleet.HostMDM, error) {
+	ds.GetHostMDMFunc = func(ctx context.Context, hostID uint) (*automdm.HostMDM, error) {
 		return nil, nil
 	}
-	ds.GetHostMDMCheckinInfoFunc = func(ctx context.Context, hostUUID string) (*fleet.HostMDMCheckinInfo, error) {
+	ds.GetHostMDMCheckinInfoFunc = func(ctx context.Context, hostUUID string) (*automdm.HostMDMCheckinInfo, error) {
 		return nil, nil
 	}
-	ds.ListLabelsForHostFunc = func(ctx context.Context, hostID uint) ([]*fleet.Label, error) {
+	ds.ListLabelsForHostFunc = func(ctx context.Context, hostID uint) ([]*automdm.Label, error) {
 		return nil, nil
 	}
-	ds.ListHostBatteriesFunc = func(ctx context.Context, id uint) ([]*fleet.HostBattery, error) {
+	ds.ListHostBatteriesFunc = func(ctx context.Context, id uint) ([]*automdm.HostBattery, error) {
 		return nil, nil
 	}
-	ds.ListUpcomingHostMaintenanceWindowsFunc = func(ctx context.Context, hostID uint) ([]*fleet.HostMaintenanceWindow, error) {
+	ds.ListUpcomingHostMaintenanceWindowsFunc = func(ctx context.Context, hostID uint) ([]*automdm.HostMaintenanceWindow, error) {
 		return nil, nil
 	}
 	ds.IsHostDiskEncryptionKeyArchivedFunc = func(ctx context.Context, hostID uint) (bool, error) {
 		return false, nil
 	}
-	ds.GetHostLockWipeStatusFunc = func(ctx context.Context, host *fleet.Host) (*fleet.HostLockWipeStatus, error) {
-		return &fleet.HostLockWipeStatus{}, nil
+	ds.GetHostLockWipeStatusFunc = func(ctx context.Context, host *automdm.Host) (*automdm.HostLockWipeStatus, error) {
+		return &automdm.HostLockWipeStatus{}, nil
 	}
-	ds.ScimUserByHostIDFunc = func(ctx context.Context, hostID uint) (*fleet.ScimUser, error) {
+	ds.ScimUserByHostIDFunc = func(ctx context.Context, hostID uint) (*automdm.ScimUser, error) {
 		return nil, nil
 	}
-	ds.ListHostDeviceMappingFunc = func(ctx context.Context, id uint) ([]*fleet.HostDeviceMapping, error) {
+	ds.ListHostDeviceMappingFunc = func(ctx context.Context, id uint) ([]*automdm.HostDeviceMapping, error) {
 		return nil, nil
 	}
 	ds.ConditionalAccessBypassedAtFunc = func(ctx context.Context, hostID uint) (*time.Time, error) {
 		return nil, nil
 	}
-	ds.GetHostCustomHostVitalsFunc = func(ctx context.Context, hostID uint) ([]fleet.HostCustomHostVital, error) {
+	ds.GetHostCustomHostVitalsFunc = func(ctx context.Context, hostID uint) ([]automdm.HostCustomHostVital, error) {
 		return nil, nil
 	}
 	ds.GetHostPatchDeadlineAtFunc = func(ctx context.Context, hostID uint) (*time.Time, error) {
 		return nil, nil
 	}
-	ds.GetNanoMDMEnrollmentDetailsFunc = func(ctx context.Context, hostUUID string) (*fleet.NanoMDMEnrollmentDetails, error) {
-		return &fleet.NanoMDMEnrollmentDetails{}, nil
+	ds.GetNanoMDMEnrollmentDetailsFunc = func(ctx context.Context, hostUUID string) (*automdm.NanoMDMEnrollmentDetails, error) {
+		return &automdm.NanoMDMEnrollmentDetails{}, nil
 	}
 
 	// Inject host into context
@@ -303,7 +303,7 @@ func TestGetDeviceHostEndpointConditionalAccessBypass(t *testing.T) {
 
 	cases := []struct {
 		name                            string
-		conditionalAccessConfig         *fleet.ConditionalAccessSettings
+		conditionalAccessConfig         *automdm.ConditionalAccessSettings
 		expectedEnableConditionalAccess bool
 		expectedEnableBypass            bool
 	}{
@@ -315,7 +315,7 @@ func TestGetDeviceHostEndpointConditionalAccessBypass(t *testing.T) {
 		},
 		{
 			name:                    "ConditionalAccess set, bypass default (BypassDisabled not set)",
-			conditionalAccessConfig: &fleet.ConditionalAccessSettings{
+			conditionalAccessConfig: &automdm.ConditionalAccessSettings{
 				// BypassDisabled not set (Valid=false) -> bypass enabled by default
 			},
 			expectedEnableConditionalAccess: false,
@@ -323,7 +323,7 @@ func TestGetDeviceHostEndpointConditionalAccessBypass(t *testing.T) {
 		},
 		{
 			name: "ConditionalAccess set, bypass explicitly disabled",
-			conditionalAccessConfig: &fleet.ConditionalAccessSettings{
+			conditionalAccessConfig: &automdm.ConditionalAccessSettings{
 				BypassDisabled: optjson.SetBool(true),
 			},
 			expectedEnableConditionalAccess: false,
@@ -331,7 +331,7 @@ func TestGetDeviceHostEndpointConditionalAccessBypass(t *testing.T) {
 		},
 		{
 			name: "ConditionalAccess set, bypass explicitly enabled",
-			conditionalAccessConfig: &fleet.ConditionalAccessSettings{
+			conditionalAccessConfig: &automdm.ConditionalAccessSettings{
 				BypassDisabled: optjson.SetBool(false),
 			},
 			expectedEnableConditionalAccess: false,
@@ -344,77 +344,77 @@ func TestGetDeviceHostEndpointConditionalAccessBypass(t *testing.T) {
 			ds := new(mock.Store)
 			svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{SkipCreateTestUsers: true})
 
-			h := &fleet.Host{
+			h := &automdm.Host{
 				ID:       1,
 				Hostname: "test-host",
 				Platform: "darwin",
 				// TeamID is nil - host has no team
 			}
 
-			ds.HostLiteFunc = func(ctx context.Context, id uint) (*fleet.Host, error) {
+			ds.HostLiteFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
 				return h, nil
 			}
-			ds.HostFunc = func(ctx context.Context, id uint) (*fleet.Host, error) {
+			ds.HostFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
 				return h, nil
 			}
 			ds.GetHostIssuesLastUpdatedFunc = func(ctx context.Context, hostID uint) (time.Time, error) {
 				return time.Now(), nil
 			}
-			ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-				return &fleet.AppConfig{
-					OrgInfo: fleet.OrgInfo{
+			ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+				return &automdm.AppConfig{
+					OrgInfo: automdm.OrgInfo{
 						OrgLogoURLDarkMode: "http://example.com/logo.png",
 					},
 					ConditionalAccess: tc.conditionalAccessConfig,
 				}, nil
 			}
-			ds.LoadHostSoftwareFunc = func(ctx context.Context, host *fleet.Host, includeVulnerabilities bool) error {
+			ds.LoadHostSoftwareFunc = func(ctx context.Context, host *automdm.Host, includeVulnerabilities bool) error {
 				return nil
 			}
-			ds.ListPoliciesForHostFunc = func(ctx context.Context, host *fleet.Host) ([]*fleet.HostPolicy, error) {
+			ds.ListPoliciesForHostFunc = func(ctx context.Context, host *automdm.Host) ([]*automdm.HostPolicy, error) {
 				return nil, nil
 			}
-			ds.ListHostUsersFunc = func(ctx context.Context, hostID uint) ([]fleet.HostUser, error) {
+			ds.ListHostUsersFunc = func(ctx context.Context, hostID uint) ([]automdm.HostUser, error) {
 				return nil, nil
 			}
-			ds.GetHostMDMFunc = func(ctx context.Context, hostID uint) (*fleet.HostMDM, error) {
+			ds.GetHostMDMFunc = func(ctx context.Context, hostID uint) (*automdm.HostMDM, error) {
 				return nil, nil
 			}
-			ds.GetHostMDMCheckinInfoFunc = func(ctx context.Context, hostUUID string) (*fleet.HostMDMCheckinInfo, error) {
+			ds.GetHostMDMCheckinInfoFunc = func(ctx context.Context, hostUUID string) (*automdm.HostMDMCheckinInfo, error) {
 				return nil, nil
 			}
-			ds.ListLabelsForHostFunc = func(ctx context.Context, hostID uint) ([]*fleet.Label, error) {
+			ds.ListLabelsForHostFunc = func(ctx context.Context, hostID uint) ([]*automdm.Label, error) {
 				return nil, nil
 			}
-			ds.ListHostBatteriesFunc = func(ctx context.Context, id uint) ([]*fleet.HostBattery, error) {
+			ds.ListHostBatteriesFunc = func(ctx context.Context, id uint) ([]*automdm.HostBattery, error) {
 				return nil, nil
 			}
-			ds.ListUpcomingHostMaintenanceWindowsFunc = func(ctx context.Context, hostID uint) ([]*fleet.HostMaintenanceWindow, error) {
+			ds.ListUpcomingHostMaintenanceWindowsFunc = func(ctx context.Context, hostID uint) ([]*automdm.HostMaintenanceWindow, error) {
 				return nil, nil
 			}
 			ds.IsHostDiskEncryptionKeyArchivedFunc = func(ctx context.Context, hostID uint) (bool, error) {
 				return false, nil
 			}
-			ds.GetHostLockWipeStatusFunc = func(ctx context.Context, host *fleet.Host) (*fleet.HostLockWipeStatus, error) {
-				return &fleet.HostLockWipeStatus{}, nil
+			ds.GetHostLockWipeStatusFunc = func(ctx context.Context, host *automdm.Host) (*automdm.HostLockWipeStatus, error) {
+				return &automdm.HostLockWipeStatus{}, nil
 			}
-			ds.ScimUserByHostIDFunc = func(ctx context.Context, hostID uint) (*fleet.ScimUser, error) {
+			ds.ScimUserByHostIDFunc = func(ctx context.Context, hostID uint) (*automdm.ScimUser, error) {
 				return nil, nil
 			}
-			ds.ListHostDeviceMappingFunc = func(ctx context.Context, id uint) ([]*fleet.HostDeviceMapping, error) {
+			ds.ListHostDeviceMappingFunc = func(ctx context.Context, id uint) ([]*automdm.HostDeviceMapping, error) {
 				return nil, nil
 			}
 			ds.ConditionalAccessBypassedAtFunc = func(ctx context.Context, hostID uint) (*time.Time, error) {
 				return nil, nil
 			}
-			ds.GetHostCustomHostVitalsFunc = func(ctx context.Context, hostID uint) ([]fleet.HostCustomHostVital, error) {
+			ds.GetHostCustomHostVitalsFunc = func(ctx context.Context, hostID uint) ([]automdm.HostCustomHostVital, error) {
 				return nil, nil
 			}
 			ds.GetHostPatchDeadlineAtFunc = func(ctx context.Context, hostID uint) (*time.Time, error) {
 				return nil, nil
 			}
-			ds.GetNanoMDMEnrollmentDetailsFunc = func(ctx context.Context, hostUUID string) (*fleet.NanoMDMEnrollmentDetails, error) {
-				return &fleet.NanoMDMEnrollmentDetails{}, nil
+			ds.GetNanoMDMEnrollmentDetailsFunc = func(ctx context.Context, hostUUID string) (*automdm.NanoMDMEnrollmentDetails, error) {
+				return &automdm.NanoMDMEnrollmentDetails{}, nil
 			}
 
 			// Inject host into context

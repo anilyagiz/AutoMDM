@@ -7,21 +7,21 @@ import (
 	"errors"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/datastore/redis"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis"
 	redigo "github.com/gomodule/redigo/redis"
 )
 
 // RedisKeyValue is a key/value store with basic SET and GET operations and advanced operations
 // Items are removed via expiration (defined in the SET operation), or via the DEL command
 type RedisKeyValue struct {
-	pool       fleet.RedisPool
+	pool       automdm.RedisPool
 	testPrefix string // for tests, the key prefix to use to avoid conflicts
 }
 
 // New creates a new RedisKeyValue store.
-func New(pool fleet.RedisPool) *RedisKeyValue {
+func New(pool automdm.RedisPool) *RedisKeyValue {
 	return &RedisKeyValue{pool: pool}
 }
 
@@ -42,7 +42,7 @@ func (r *RedisKeyValue) Set(ctx context.Context, key string, value string, expir
 }
 
 // SetIfNotExists sets the given key to the given value with the given expiration, only if the key doesn't exist. It reports
-// whether the key was set, atomically across Fleet servers.
+// whether the key was set, atomically across AutoMDM servers.
 func (r *RedisKeyValue) SetIfNotExists(ctx context.Context, key string, value string, expireTime time.Duration) (bool, error) {
 	conn := redis.ConfigureDoer(r.pool, r.pool.Get())
 	defer conn.Close()

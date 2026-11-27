@@ -14,11 +14,11 @@ import (
 	"encoding/json"
 	"fmt"
 
-	authz_ctx "github.com/fleetdm/fleet/v4/server/contexts/authz"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	platform_authz "github.com/fleetdm/fleet/v4/server/platform/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	authz_ctx "github.com/anilyagiz/automdm/v4/server/contexts/authz"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	platform_authz "github.com/anilyagiz/automdm/v4/server/platform/authz"
 	"github.com/open-policy-agent/opa/rego"
 )
 
@@ -134,18 +134,18 @@ func (a *Authorizer) Authorize(ctx context.Context, object, action interface{}) 
 }
 
 // CanWriteSecretVariables reports whether the caller may set a secret variable's
-// value, which is the gate for resolving a $FLEET_SECRET_* reference into
+// value, which is the gate for resolving a $AUTOMDM_SECRET_* reference into
 // content other users can read.
 //
 // Call it only after the request's own Authorize call: Authorize marks the
 // authorization context as checked, so an earlier probe would satisfy the
 // middleware even when the primary check would have failed.
 func (a *Authorizer) CanWriteSecretVariables(ctx context.Context) bool {
-	return a.Authorize(ctx, &fleet.SecretVariable{}, fleet.ActionWrite) == nil
+	return a.Authorize(ctx, &automdm.SecretVariable{}, automdm.ActionWrite) == nil
 }
 
 // AuthorizeOrNotFound authorizes action on object. If that fails, it also
-// checks fleet.ActionRead on the same object; if the caller can't even read
+// checks automdm.ActionRead on the same object; if the caller can't even read
 // it, notFoundErr is returned instead of the original failure, so a resource
 // entirely outside the caller's visibility is indistinguishable from one that
 // doesn't exist. If the caller CAN read it, or notFoundErr is nil, the
@@ -159,7 +159,7 @@ func (a *Authorizer) AuthorizeOrNotFound(ctx context.Context, object, action any
 		return nil
 	}
 
-	if readErr := a.Authorize(ctx, object, fleet.ActionRead); readErr == nil || notFoundErr == nil {
+	if readErr := a.Authorize(ctx, object, automdm.ActionRead); readErr == nil || notFoundErr == nil {
 		return actionErr
 	}
 
@@ -227,7 +227,7 @@ func jsonToInterface(in interface{}) (interface{}, error) {
 
 // UserFromContext retrieves a user from the viewer context, returning nil if
 // there is no user.
-func UserFromContext(ctx context.Context) *fleet.User {
+func UserFromContext(ctx context.Context) *automdm.User {
 	vc, ok := viewer.FromContext(ctx)
 	if !ok {
 		return nil

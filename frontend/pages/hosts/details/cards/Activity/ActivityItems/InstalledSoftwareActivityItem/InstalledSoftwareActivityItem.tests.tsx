@@ -10,8 +10,8 @@ import InstalledSoftwareActivityItem from "./InstalledSoftwareActivityItem";
 const createInstallActivity = (skippedInstall?: boolean) =>
   createMockHostPastActivity({
     type: ActivityType.InstalledSoftware,
-    actor_full_name: "Fleet",
-    fleet_initiated: true,
+    actor_full_name: "AutoMDM",
+    automdm_initiated: true,
     details: {
       software_title: "Firefox",
       software_package: "Firefox.pkg",
@@ -52,11 +52,11 @@ describe("InstalledSoftwareActivityItem", () => {
     expect(screen.queryByText(/skipped install/)).not.toBeInTheDocument();
   });
 
-  it("attributes VPP auto-update installs to Fleet even when the payload carries a stale actor", () => {
+  it("attributes VPP auto-update installs to AutoMDM even when the payload carries a stale actor", () => {
     const activity = createMockHostPastActivity({
       type: ActivityType.InstalledAppStoreApp,
       actor_full_name: "Some Admin",
-      fleet_initiated: false,
+      automdm_initiated: false,
       details: {
         software_title: "Google Meet",
         host_display_name: "iPad",
@@ -75,7 +75,7 @@ describe("InstalledSoftwareActivityItem", () => {
       />
     );
 
-    expect(screen.getByText("Fleet")).toBeInTheDocument();
+    expect(screen.getByText("AutoMDM")).toBeInTheDocument();
     expect(screen.queryByText("Some Admin")).not.toBeInTheDocument();
   });
 
@@ -103,7 +103,7 @@ describe("InstalledSoftwareActivityItem", () => {
       createMockHostPastActivity({
         type: ActivityType.InstalledAppStoreApp,
         actor_full_name: "Some Admin",
-        fleet_initiated: false,
+        automdm_initiated: false,
         details: {
           software_title: "Google Meet",
           host_display_name: "iPad",
@@ -187,8 +187,8 @@ describe("InstalledSoftwareActivityItem", () => {
   it("shows the software_display_name override instead of the raw software_title", () => {
     const activity = createMockHostPastActivity({
       type: ActivityType.InstalledSoftware,
-      actor_full_name: "Fleet",
-      fleet_initiated: true,
+      actor_full_name: "AutoMDM",
+      automdm_initiated: true,
       details: {
         software_title: "Firefox",
         software_display_name: "Mozilla Firefox (managed)",

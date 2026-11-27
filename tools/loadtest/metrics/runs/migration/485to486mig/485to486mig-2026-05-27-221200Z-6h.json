@@ -9,7 +9,7 @@
       "end": "2026-05-27T22:12:00Z"
     }
   },
-  "fleet_server": {
+  "automdm_server": {
     "cpu_utilization": {
       "Average": 59.1,
       "Minimum": 54.51,
@@ -383,7 +383,7 @@
       "data_coverage": 1
     }
   },
-  "fleet_server_errors": {
+  "automdm_server_errors": {
     "error_count": 4852.0,
     "sample_messages": [
       "{\"ts\":\"2026-05-27T22:03:39Z\",\"level\":\"error\",\"component\":\"http\",\"method\":\"POST\",\"uri\":\"/api/osquery/distributed/write\",\"took\":87015491,\"host_id\":71404,\"ip_addr\":\"10.12.1.94\",\"x_for_ip_addr\":\"10.12.1.94\",\"ingestion-err\":\"ingesting query disk_encryption_windows: parsing bitlocker conversion_status \\\"\\\": strconv.Atoi: parsing \\\"\\\": invalid syntax\",\"err\":\"error in query ingestion\"}",

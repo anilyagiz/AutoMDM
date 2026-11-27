@@ -55,8 +55,8 @@ gh auth refresh -s project # This will give gh project access which is not inclu
 
 ```bash
 # Clone the repository
-git clone https://github.com/fleetdm/fleet.git
-cd fleet/tools/github-manage
+git clone https://github.com/anilyagiz/automdm.git
+cd automdm/tools/github-manage
 
 # Build the tool
 go build -o gm cmd/gm/*.go
@@ -200,15 +200,15 @@ leveraged work is always at the top:
 ### Start work
 
 Press `w` on an issue to start work: name a branch, then pick a local clone to
-work in — or choose **＋ create new fleet-… working dir** to clone a fresh copy
-first (you name it, jarvis prefixes `fleet-` and clones under your first
+work in — or choose **＋ create new team-… working dir** to clone a fresh copy
+first (you name it, jarvis prefixes `automdm-` and clones under your first
 `clone_base_dirs` entry). Either way jarvis branches off main, sets the issue to
 In progress, and launches a Claude session seeded with the issue context.
 
 ### 🌿 Branch cleanup
 
 Press `B` for the branch-cleanup view. It scans every git repo matching
-`branch_scan_glob` (default `fleet*`) under your `clone_base_dirs` and lists each
+`branch_scan_glob` (default `automdm*`) under your `clone_base_dirs` and lists each
 local branch tagged by state:
 
 - `pushed` — fully on origin, safe to delete (recoverable with a fetch)
@@ -242,13 +242,13 @@ We welcome contributions! Whether it's:
 
 ## 📄 License
 
-This project is part of the [Fleet](https://github.com/fleetdm/fleet) repository and follows the same licensing terms.
+This project is part of the [AutoMDM](https://github.com/anilyagiz/automdm) repository and follows the same licensing terms.
 
 ---
 
 <div align="center">
 
-**Built with 💪 by the Fleet team**
+**Built with 💪 by the AutoMDM team**
 
 *Making GitHub management a joy, one bulk operation at a time*
 

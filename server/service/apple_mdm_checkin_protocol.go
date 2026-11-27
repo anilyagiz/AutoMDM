@@ -11,17 +11,17 @@ import (
 	"time"
 	"uuid"
 
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxdb"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxdb"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/golang-jwt/jwt/v4"
 
-	apple_mdm "github.com/fleetdm/fleet/v4/server/mdm/apple"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
-	nanomdm_service "github.com/fleetdm/fleet/v4/server/mdm/nanomdm/service"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/service/certauth"
+	apple_mdm "github.com/anilyagiz/automdm/v4/server/mdm/apple"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
+	nanomdm_service "github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/service"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/service/certauth"
 )
 
 // This file contains the Apple MDM Check-in protocol service implementations.
@@ -30,11 +30,11 @@ import (
 // It does not contain all, as it's an ongoing effort to refactor methods and services over, the rest can most likely be found in apple_mdm.go
 
 type MDMAppleGetTokenService struct {
-	ds     fleet.Datastore
+	ds     automdm.Datastore
 	logger *slog.Logger
 }
 
-func NewMDMAppleGetTokenService(ds fleet.Datastore, logger *slog.Logger) *MDMAppleGetTokenService {
+func NewMDMAppleGetTokenService(ds automdm.Datastore, logger *slog.Logger) *MDMAppleGetTokenService {
 	return &MDMAppleGetTokenService{
 		ds:     ds,
 		logger: logger,
@@ -43,7 +43,7 @@ func NewMDMAppleGetTokenService(ds fleet.Datastore, logger *slog.Logger) *MDMApp
 
 func (s *MDMAppleGetTokenService) GetToken(r *mdm.Request, token *mdm.GetToken) (*mdm.GetTokenResponse, error) {
 	// * Once we support more than one, move to switch
-	if token.TokenServiceType != fleet.TokenServiceTypeMAID {
+	if token.TokenServiceType != automdm.TokenServiceTypeMAID {
 		return nil, nanomdm_service.NewHTTPStatusError(http.StatusBadRequest, ctxerr.New(r.Context, fmt.Sprintf("unsupported token service type: %s", token.TokenServiceType)))
 	}
 
@@ -64,7 +64,7 @@ func (s *MDMAppleGetTokenService) GetToken(r *mdm.Request, token *mdm.GetToken) 
 	}, nil
 }
 
-func (s *MDMAppleGetTokenService) getSigningToken(ctx context.Context, identifier string) (signingToken *fleet.ABMToken, source string, err error) {
+func (s *MDMAppleGetTokenService) getSigningToken(ctx context.Context, identifier string) (signingToken *automdm.ABMToken, source string, err error) {
 	abTokens, err := s.ds.ListABMTokens(ctx)
 	if err != nil {
 		return nil, "", nanomdm_service.NewHTTPStatusError(http.StatusInternalServerError, ctxerr.Wrap(ctx, err, "listing AB tokens"))
@@ -75,7 +75,7 @@ func (s *MDMAppleGetTokenService) getSigningToken(ctx context.Context, identifie
 	}
 
 	// find the default token (via is_default or the only one)
-	var defaultSigningToken *fleet.ABMToken
+	var defaultSigningToken *automdm.ABMToken
 	if len(abTokens) == 1 {
 		defaultSigningToken = abTokens[0]
 	} else {
@@ -88,7 +88,7 @@ func (s *MDMAppleGetTokenService) getSigningToken(ctx context.Context, identifie
 	}
 
 	liteHost, err := s.ds.HostLiteByIdentifier(ctx, identifier)
-	if err != nil && !fleet.IsNotFound(err) {
+	if err != nil && !automdm.IsNotFound(err) {
 		return nil, "", nanomdm_service.NewHTTPStatusError(http.StatusInternalServerError, ctxerr.Wrap(ctx, err, "getting host by identifier"))
 	}
 	if liteHost == nil {
@@ -100,11 +100,11 @@ func (s *MDMAppleGetTokenService) getSigningToken(ctx context.Context, identifie
 			return nil, "", nanomdm_service.NewHTTPStatusError(http.StatusBadRequest, ctxerr.New(ctx, "default AB token has no server UUID"))
 		}
 		// not found, so return the default token.
-		return defaultSigningToken, fleet.TokenSourceDefault, nil
+		return defaultSigningToken, automdm.TokenSourceDefault, nil
 	}
 
 	depAssignment, err := s.ds.GetHostDEPAssignment(ctx, liteHost.ID)
-	if err != nil && !fleet.IsNotFound(err) {
+	if err != nil && !automdm.IsNotFound(err) {
 		return nil, "", nanomdm_service.NewHTTPStatusError(http.StatusInternalServerError, ctxerr.Wrap(ctx, err, "getting host DEP assignment"))
 	}
 
@@ -116,7 +116,7 @@ func (s *MDMAppleGetTokenService) getSigningToken(ctx context.Context, identifie
 		s.logger.InfoContext(ctx, "Getting signing token from DEP assignment", "identifier", identifier, "abm_token_id", *depAssignment.ABMTokenID)
 
 		abToken, err := s.ds.GetABMTokenByID(ctx, *depAssignment.ABMTokenID)
-		if err != nil && !fleet.IsNotFound(err) {
+		if err != nil && !automdm.IsNotFound(err) {
 			return nil, "", nanomdm_service.NewHTTPStatusError(http.StatusInternalServerError, ctxerr.Wrap(ctx, err, "getting AB token by ID"))
 		}
 		if abToken == nil {
@@ -126,7 +126,7 @@ func (s *MDMAppleGetTokenService) getSigningToken(ctx context.Context, identifie
 			return nil, "", nanomdm_service.NewHTTPStatusError(http.StatusBadRequest, ctxerr.New(ctx, "host has DEP assignment but AB token has no server UUID"))
 		}
 
-		return abToken, fleet.TokenSourceDEPAssignment, nil
+		return abToken, automdm.TokenSourceDEPAssignment, nil
 	}
 
 	// for existing hosts that are not DEP assigned, return the default token if it exists, otherwise return an error.
@@ -135,7 +135,7 @@ func (s *MDMAppleGetTokenService) getSigningToken(ctx context.Context, identifie
 			return nil, "", nanomdm_service.NewHTTPStatusError(http.StatusBadRequest, ctxerr.New(ctx, "default AB token has no server UUID"))
 		}
 
-		return defaultSigningToken, fleet.TokenSourceDefault, nil
+		return defaultSigningToken, automdm.TokenSourceDefault, nil
 	}
 
 	return nil, "", nanomdm_service.NewHTTPStatusError(http.StatusBadRequest, ctxerr.New(ctx, "no default AB token found"))
@@ -146,19 +146,19 @@ type appleMAIDTokenClaims struct {
 	jwt.RegisteredClaims
 }
 
-func (s *MDMAppleGetTokenService) signMAIDToken(ctx context.Context, logger *slog.Logger, signingToken *fleet.ABMToken, identifier string) (string, error) {
+func (s *MDMAppleGetTokenService) signMAIDToken(ctx context.Context, logger *slog.Logger, signingToken *automdm.ABMToken, identifier string) (string, error) {
 	logger.InfoContext(ctx, "signing com.apple.maid token")
-	assets, err := s.ds.GetAllMDMConfigAssetsByName(ctx, []fleet.MDMAssetName{fleet.MDMAssetABMKey}, nil)
+	assets, err := s.ds.GetAllMDMConfigAssetsByName(ctx, []automdm.MDMAssetName{automdm.MDMAssetABMKey}, nil)
 	if err != nil {
 		return "", nanomdm_service.NewHTTPStatusError(http.StatusInternalServerError, ctxerr.Wrap(ctx, err, "getting ABM key asset"))
 	}
-	key, err := jwt.ParseRSAPrivateKeyFromPEM(assets[fleet.MDMAssetABMKey].Value)
+	key, err := jwt.ParseRSAPrivateKeyFromPEM(assets[automdm.MDMAssetABMKey].Value)
 	if err != nil {
 		return "", nanomdm_service.NewHTTPStatusError(http.StatusInternalServerError, ctxerr.Wrap(ctx, err, "parsing ABM key asset"))
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, &appleMAIDTokenClaims{
-		TokenServiceType: fleet.TokenServiceTypeMAID,
+		TokenServiceType: automdm.TokenServiceTypeMAID,
 		Issuer:           signingToken.ServerUUID,
 		IssuedAt:         jwt.NewNumericDate(time.Now()),
 		ID:               uuid.New().String(),
@@ -176,14 +176,14 @@ func (s *MDMAppleGetTokenService) signMAIDToken(ctx context.Context, logger *slo
 
 type certVerifierEnrollmentCheckinService struct {
 	nanomdm_service.CheckinAndCommandService
-	ds          fleet.Datastore
-	nanoStorage fleet.MDMAppleStore
+	ds          automdm.Datastore
+	nanoStorage automdm.MDMAppleStore
 	config      config.MDMConfig
 	logger      *slog.Logger
 }
 
 // newCertVerifierEnrollmentCheckinService wraps next with the certificate verifier enrollment check.
-func newCertVerifierEnrollmentCheckinService(next nanomdm_service.CheckinAndCommandService, ds fleet.Datastore, nanoStorage fleet.MDMAppleStore, config config.MDMConfig, logger *slog.Logger) nanomdm_service.CheckinAndCommandService {
+func newCertVerifierEnrollmentCheckinService(next nanomdm_service.CheckinAndCommandService, ds automdm.Datastore, nanoStorage automdm.MDMAppleStore, config config.MDMConfig, logger *slog.Logger) nanomdm_service.CheckinAndCommandService {
 	return &certVerifierEnrollmentCheckinService{CheckinAndCommandService: next, ds: ds, nanoStorage: nanoStorage, config: config, logger: logger}
 }
 
@@ -218,7 +218,7 @@ func (s *certVerifierEnrollmentCheckinService) Authenticate(r *mdm.Request, m *m
 			if info.HardwareSerial != "" && info.HardwareSerial != m.SerialNumber {
 				return s.reject(r, m, nil, "serial does not match the enrolled host")
 			}
-		case !fleet.IsNotFound(err):
+		case !automdm.IsNotFound(err):
 			return ctxerr.Wrap(r.Context, err, "getting host checkin info")
 		}
 	}
@@ -241,32 +241,32 @@ func (s *certVerifierEnrollmentCheckinService) Authenticate(r *mdm.Request, m *m
 
 	switch data.Purpose {
 	// ota_phase1 certificates only sign the OTA phase 2 request, so they're rejected by the default case.
-	case fleet.AppleMDMCertPurposeADE, fleet.AppleMDMCertPurposeOTAPhaseTwo:
+	case automdm.AppleMDMCertPurposeADE, automdm.AppleMDMCertPurposeOTAPhaseTwo:
 		if resolved.Type != mdm.Device {
 			return s.reject(r, m, data, "enrollment type does not match certificate purpose")
 		}
 		if !boundMatches(data.Serial, m.SerialNumber) || !boundMatches(data.UDID, m.UDID) {
 			return s.reject(r, m, data, "serial or UDID does not match certificate binding")
 		}
-	case fleet.AppleMDMCertPurposeACME:
+	case automdm.AppleMDMCertPurposeACME:
 		if resolved.Type != mdm.Device {
 			return s.reject(r, m, data, "enrollment type does not match certificate purpose")
 		}
 		if !boundMatches(data.Serial, m.SerialNumber) {
 			return s.reject(r, m, data, "serial does not match certificate binding")
 		}
-	case fleet.AppleMDMCertPurposeACMERenewal:
+	case automdm.AppleMDMCertPurposeACMERenewal:
 		if resolved.Type != mdm.Device {
 			return s.reject(r, m, data, "enrollment type does not match certificate purpose")
 		}
 		if !boundMatches(data.Serial, m.SerialNumber) || !boundMatches(data.EnrollmentID, resolved.DeviceChannelID) {
 			return s.reject(r, m, data, "serial or enrollment ID does not match certificate binding")
 		}
-	case fleet.AppleMDMCertPurposeSCEPRenewal:
+	case automdm.AppleMDMCertPurposeSCEPRenewal:
 		if !boundMatches(data.EnrollmentID, resolved.DeviceChannelID) {
 			return s.reject(r, m, data, "enrollment ID does not match certificate binding")
 		}
-	case fleet.AppleMDMCertPurposeADUE:
+	case automdm.AppleMDMCertPurposeADUE:
 		if resolved.Type != mdm.UserEnrollmentDevice {
 			return s.reject(r, m, data, "enrollment type does not match certificate purpose")
 		}
@@ -286,7 +286,7 @@ func (s *certVerifierEnrollmentCheckinService) Authenticate(r *mdm.Request, m *m
 		// the challenge was just consumed on the primary when the profile was handed out
 		challenge, err := s.ds.GetADUEEnrollmentChallenge(ctxdb.RequirePrimary(r.Context, true), token)
 		if err != nil {
-			if fleet.IsNotFound(err) {
+			if automdm.IsNotFound(err) {
 				return s.reject(r, m, data, "ADUE bearer token not found")
 			}
 			return ctxerr.Wrap(r.Context, err, "getting ADUE enrollment challenge")
@@ -316,7 +316,7 @@ func adueCertIdPAccountUUID(cert *x509.Certificate) (idpAccountUUID string, reas
 	if err != nil {
 		return "", "invalid certificate binding extension: " + err.Error()
 	}
-	if data == nil || data.Purpose != fleet.AppleMDMCertPurposeADUE || data.IDPAccountUUID == nil || *data.IDPAccountUUID == "" {
+	if data == nil || data.Purpose != automdm.AppleMDMCertPurposeADUE || data.IDPAccountUUID == nil || *data.IDPAccountUUID == "" {
 		return "", "certificate is not bound to an IdP account"
 	}
 	return *data.IDPAccountUUID, ""

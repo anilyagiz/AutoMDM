@@ -14,14 +14,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/mdm/mdmtest"
-	"github.com/fleetdm/fleet/v4/pkg/optjson"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	common_mdm "github.com/fleetdm/fleet/v4/server/mdm"
-	apple_mdm "github.com/fleetdm/fleet/v4/server/mdm/apple"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/pkg/mdm/mdmtest"
+	"github.com/anilyagiz/automdm/v4/pkg/optjson"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	common_mdm "github.com/anilyagiz/automdm/v4/server/mdm"
+	apple_mdm "github.com/anilyagiz/automdm/v4/server/mdm/apple"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
@@ -54,7 +54,7 @@ func (s *integrationMDMTestSuite) TestAppleDDMBatchUpload() {
 	}
 
 	// Non-configuration type should fail
-	res := s.Do("POST", "/api/latest/fleet/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{
+	res := s.Do("POST", "/api/latest/automdm/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{
 		{Name: "bad", Contents: []byte(`{"Type": "com.apple.activation", "Payload": "test"}`)},
 	}}, http.StatusUnprocessableEntity)
 
@@ -62,8 +62,8 @@ func (s *integrationMDMTestSuite) TestAppleDDMBatchUpload() {
 	require.Contains(t, errMsg, "Only configuration declarations (com.apple.configuration.) and management declarations (com.apple.management.) are supported")
 
 	// Types from our list of forbidden types should fail
-	for ft := range fleet.ForbiddenDeclTypes {
-		res = s.Do("POST", "/api/latest/fleet/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{
+	for ft := range automdm.ForbiddenDeclTypes {
+		res = s.Do("POST", "/api/latest/automdm/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{
 			{Name: "bad2", Contents: []byte(fmt.Sprintf(`{"Type": "%s", "Payload": "test"}`, ft))},
 		}}, http.StatusUnprocessableEntity)
 
@@ -72,7 +72,7 @@ func (s *integrationMDMTestSuite) TestAppleDDMBatchUpload() {
 	}
 
 	// "com.apple.configuration.management.status-subscriptions" type should fail
-	res = s.Do("POST", "/api/latest/fleet/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{
+	res = s.Do("POST", "/api/latest/automdm/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{
 		{Name: "bad2", Contents: []byte(`{"Type": "com.apple.configuration.management.status-subscriptions", "Payload": "test"}`)},
 	}}, http.StatusUnprocessableEntity)
 
@@ -80,7 +80,7 @@ func (s *integrationMDMTestSuite) TestAppleDDMBatchUpload() {
 	require.Contains(t, errMsg, "Declaration profile can't include status subscription type. To get host's vitals, please use queries and policies.")
 
 	// Two different payloads with the same name should fail
-	res = s.Do("POST", "/api/latest/fleet/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{
+	res = s.Do("POST", "/api/latest/automdm/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{
 		{Name: "bad2", Contents: newDeclBytes(1, `"foo": "bar"`)},
 		{Name: "bad2", Contents: newDeclBytes(2, `"baz": "bing"`)},
 	}}, http.StatusUnprocessableEntity)
@@ -88,7 +88,7 @@ func (s *integrationMDMTestSuite) TestAppleDDMBatchUpload() {
 	require.Contains(t, errMsg, "More than one configuration profile have the same name")
 
 	// Same identifier should fail
-	res = s.Do("POST", "/api/latest/fleet/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{
+	res = s.Do("POST", "/api/latest/automdm/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{
 		{Name: "N1", Contents: decls[0]},
 		{Name: "N2", Contents: decls[0]},
 	}}, http.StatusUnprocessableEntity)
@@ -96,13 +96,13 @@ func (s *integrationMDMTestSuite) TestAppleDDMBatchUpload() {
 	require.Contains(t, errMsg, "A declaration profile with this identifier already exists.")
 
 	// Create 2 declarations
-	s.Do("POST", "/api/latest/fleet/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{
+	s.Do("POST", "/api/latest/automdm/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{
 		{Name: "N1", Contents: decls[0]},
 		{Name: "N2", Contents: decls[1]},
 	}}, http.StatusNoContent)
 
 	var resp listMDMConfigProfilesResponse
-	s.DoJSON("GET", "/api/latest/fleet/configuration_profiles", &listMDMConfigProfilesRequest{}, http.StatusOK, &resp)
+	s.DoJSON("GET", "/api/latest/automdm/configuration_profiles", &listMDMConfigProfilesRequest{}, http.StatusOK, &resp)
 
 	require.Len(t, resp.Profiles, 2)
 	require.Equal(t, "N1", resp.Profiles[0].Name)
@@ -111,12 +111,12 @@ func (s *integrationMDMTestSuite) TestAppleDDMBatchUpload() {
 	require.Equal(t, "darwin", resp.Profiles[1].Platform)
 
 	// Create 2 new declarations. These should take the place of the first two.
-	s.Do("POST", "/api/latest/fleet/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{
+	s.Do("POST", "/api/latest/automdm/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{
 		{Name: "N3", Contents: decls[2]},
 		{Name: "N4", Contents: decls[3]},
 	}}, http.StatusNoContent)
 
-	s.DoJSON("GET", "/api/latest/fleet/configuration_profiles", &listMDMConfigProfilesRequest{}, http.StatusOK, &resp)
+	s.DoJSON("GET", "/api/latest/automdm/configuration_profiles", &listMDMConfigProfilesRequest{}, http.StatusOK, &resp)
 
 	require.Len(t, resp.Profiles, 2)
 	require.Equal(t, "N3", resp.Profiles[0].Name)
@@ -126,12 +126,12 @@ func (s *integrationMDMTestSuite) TestAppleDDMBatchUpload() {
 
 	// replace only 1 declaration, the other one should be the same
 
-	s.Do("POST", "/api/latest/fleet/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{
+	s.Do("POST", "/api/latest/automdm/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{
 		{Name: "N3", Contents: decls[2]},
 		{Name: "N5", Contents: decls[4]},
 	}}, http.StatusNoContent)
 
-	s.DoJSON("GET", "/api/latest/fleet/configuration_profiles", &listMDMConfigProfilesRequest{}, http.StatusOK, &resp)
+	s.DoJSON("GET", "/api/latest/automdm/configuration_profiles", &listMDMConfigProfilesRequest{}, http.StatusOK, &resp)
 
 	require.Len(t, resp.Profiles, 2)
 	require.Equal(t, "N3", resp.Profiles[0].Name)
@@ -141,12 +141,12 @@ func (s *integrationMDMTestSuite) TestAppleDDMBatchUpload() {
 
 	// update the declarations
 
-	s.Do("POST", "/api/latest/fleet/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{
+	s.Do("POST", "/api/latest/automdm/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{
 		{Name: "N3", Contents: newDeclBytes(2, `"foo": "bar"`)},
 		{Name: "N5", Contents: newDeclBytes(4, `"bing": "baz"`)},
 	}}, http.StatusNoContent)
 
-	s.DoJSON("GET", "/api/latest/fleet/configuration_profiles", &listMDMConfigProfilesRequest{}, http.StatusOK, &resp)
+	s.DoJSON("GET", "/api/latest/automdm/configuration_profiles", &listMDMConfigProfilesRequest{}, http.StatusOK, &resp)
 
 	require.Len(t, resp.Profiles, 2)
 	require.Equal(t, "N3", resp.Profiles[0].Name)
@@ -154,24 +154,24 @@ func (s *integrationMDMTestSuite) TestAppleDDMBatchUpload() {
 	require.Equal(t, "N5", resp.Profiles[1].Name)
 	require.Equal(t, "darwin", resp.Profiles[1].Platform)
 
-	var createResp fleet.CreateLabelResponse
-	s.DoJSON("POST", "/api/latest/fleet/labels", &fleet.LabelPayload{Name: "label_1", Query: "select 1"}, http.StatusOK, &createResp)
+	var createResp automdm.CreateLabelResponse
+	s.DoJSON("POST", "/api/latest/automdm/labels", &automdm.LabelPayload{Name: "label_1", Query: "select 1"}, http.StatusOK, &createResp)
 	require.NotZero(t, createResp.Label.ID)
 	require.Equal(t, "label_1", createResp.Label.Name)
 	lbl1 := createResp.Label.Label
 
-	s.DoJSON("POST", "/api/latest/fleet/labels", &fleet.LabelPayload{Name: "label_2", Query: "select 1"}, http.StatusOK, &createResp)
+	s.DoJSON("POST", "/api/latest/automdm/labels", &automdm.LabelPayload{Name: "label_2", Query: "select 1"}, http.StatusOK, &createResp)
 	require.NotZero(t, createResp.Label.ID)
 	require.Equal(t, "label_2", createResp.Label.Name)
 	lbl2 := createResp.Label.Label
 
 	// Add with the deprecated "labels" and the new LabelsIncludeAll field
-	s.Do("POST", "/api/latest/fleet/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{
+	s.Do("POST", "/api/latest/automdm/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{
 		{Name: "N5", Contents: decls[5], Labels: []string{lbl1.Name, lbl2.Name}},
 		{Name: "N6", Contents: decls[6], LabelsIncludeAll: []string{lbl1.Name}},
 	}}, http.StatusNoContent)
 
-	s.DoJSON("GET", "/api/latest/fleet/configuration_profiles", &listMDMConfigProfilesRequest{}, http.StatusOK, &resp)
+	s.DoJSON("GET", "/api/latest/automdm/configuration_profiles", &listMDMConfigProfilesRequest{}, http.StatusOK, &resp)
 
 	require.Len(t, resp.Profiles, 2)
 	require.Equal(t, "N5", resp.Profiles[0].Name)
@@ -190,12 +190,12 @@ func (s *integrationMDMTestSuite) TestAppleDDMBatchUpload() {
 	// A declaration with no PayloadScope defaults to the device channel.
 	userScoped := []byte(`{"Type":"com.apple.configuration.foo","Identifier":"com.fleet.userscoped","PayloadScope":"User","Payload":{"Enabled":true}}`)
 	deviceScoped := []byte(`{"Type":"com.apple.configuration.bar","Identifier":"com.fleet.devicescoped","Payload":{"Enabled":true}}`)
-	s.Do("POST", "/api/latest/fleet/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{
+	s.Do("POST", "/api/latest/automdm/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{
 		{Name: "UserScoped", Contents: userScoped},
 		{Name: "DeviceScoped", Contents: deviceScoped},
 	}}, http.StatusNoContent)
 
-	s.DoJSON("GET", "/api/latest/fleet/configuration_profiles", &listMDMConfigProfilesRequest{}, http.StatusOK, &resp)
+	s.DoJSON("GET", "/api/latest/automdm/configuration_profiles", &listMDMConfigProfilesRequest{}, http.StatusOK, &resp)
 	require.Len(t, resp.Profiles, 2)
 	uuidByName := make(map[string]string, len(resp.Profiles))
 	for _, p := range resp.Profiles {
@@ -204,11 +204,11 @@ func (s *integrationMDMTestSuite) TestAppleDDMBatchUpload() {
 
 	userDeclDB, err := s.ds.GetMDMAppleDeclaration(context.Background(), uuidByName["UserScoped"])
 	require.NoError(t, err)
-	require.Equal(t, fleet.PayloadScopeUser, userDeclDB.Scope)
+	require.Equal(t, automdm.PayloadScopeUser, userDeclDB.Scope)
 
 	deviceDeclDB, err := s.ds.GetMDMAppleDeclaration(context.Background(), uuidByName["DeviceScoped"])
 	require.NoError(t, err)
-	require.Equal(t, fleet.PayloadScopeSystem, deviceDeclDB.Scope)
+	require.Equal(t, automdm.PayloadScopeSystem, deviceDeclDB.Scope)
 }
 
 func (s *integrationMDMTestSuite) TestMDMAppleDeviceManagementRequests() {
@@ -220,7 +220,7 @@ func (s *integrationMDMTestSuite) TestMDMAppleDeviceManagementRequests() {
 		return strings.ToUpper(csum)
 	}
 
-	insertDeclaration := func(t *testing.T, decl fleet.MDMAppleDeclaration) {
+	insertDeclaration := func(t *testing.T, decl automdm.MDMAppleDeclaration) {
 		stmt := `
 INSERT INTO mdm_apple_declarations (
 	declaration_uuid,
@@ -246,7 +246,7 @@ INSERT INTO mdm_apple_declarations (
 		})
 	}
 
-	insertHostDeclaration := func(t *testing.T, hostUUID string, decl fleet.MDMAppleDeclaration) {
+	insertHostDeclaration := func(t *testing.T, hostUUID string, decl automdm.MDMAppleDeclaration) {
 		stmt := `
 INSERT INTO host_mdm_apple_declarations (
 	host_uuid,
@@ -260,8 +260,8 @@ INSERT INTO host_mdm_apple_declarations (
 		mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
 			_, err := q.ExecContext(context.Background(), stmt,
 				hostUUID,
-				fleet.MDMDeliveryPending,
-				fleet.MDMOperationTypeInstall,
+				automdm.MDMDeliveryPending,
+				automdm.MDMOperationTypeInstall,
 				calcChecksum(decl.RawJSON),
 				decl.DeclarationUUID,
 				decl.Identifier,
@@ -275,7 +275,7 @@ INSERT INTO host_mdm_apple_declarations (
 	then := time.Now().UTC().Truncate(time.Second).Add(-1 * time.Hour)
 
 	// insert a declaration with no team
-	noTeamDeclsByUUID := map[string]fleet.MDMAppleDeclaration{
+	noTeamDeclsByUUID := map[string]automdm.MDMAppleDeclaration{
 		"123": {
 			DeclarationUUID: "123",
 			TeamID:          ptr.Uint(0),
@@ -293,21 +293,21 @@ INSERT INTO host_mdm_apple_declarations (
 	insertDeclaration(t, noTeamDeclsByUUID["123"])
 	insertHostDeclaration(t, mdmDevice.UUID, noTeamDeclsByUUID["123"])
 
-	mapDeclsByChecksum := func(byUUID map[string]fleet.MDMAppleDeclaration) map[string]fleet.MDMAppleDeclaration {
-		byChecksum := make(map[string]fleet.MDMAppleDeclaration)
+	mapDeclsByChecksum := func(byUUID map[string]automdm.MDMAppleDeclaration) map[string]automdm.MDMAppleDeclaration {
+		byChecksum := make(map[string]automdm.MDMAppleDeclaration)
 		for _, d := range byUUID {
 			byChecksum[calcChecksum(d.RawJSON)] = byUUID[d.DeclarationUUID]
 		}
 		return byChecksum
 	}
 
-	assertDeclarationResponse := func(r *http.Response, expected fleet.MDMAppleDeclaration) {
+	assertDeclarationResponse := func(r *http.Response, expected automdm.MDMAppleDeclaration) {
 		require.NotNil(t, r)
 
 		// unmarsal the response and assert it's valid
-		var wantParsed fleet.MDMAppleDDMDeclarationResponse
+		var wantParsed automdm.MDMAppleDDMDeclarationResponse
 		require.NoError(t, json.Unmarshal(expected.RawJSON, &wantParsed))
-		var gotParsed fleet.MDMAppleDDMDeclarationResponse
+		var gotParsed automdm.MDMAppleDDMDeclarationResponse
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&gotParsed))
 		require.EqualValues(t, wantParsed.Payload, gotParsed.Payload)
 		require.Equal(t, calcChecksum(expected.RawJSON), gotParsed.ServerToken)
@@ -315,13 +315,13 @@ INSERT INTO host_mdm_apple_declarations (
 		// t.Logf("decoded: %+v", gotParsed)
 	}
 
-	checkTokensResp := func(t *testing.T, r fleet.MDMAppleDDMTokensResponse, expectedTimestamp time.Time, prevToken string) {
+	checkTokensResp := func(t *testing.T, r automdm.MDMAppleDDMTokensResponse, expectedTimestamp time.Time, prevToken string) {
 		require.Equal(t, expectedTimestamp, r.SyncTokens.Timestamp)
 		require.NotEmpty(t, r.SyncTokens.DeclarationsToken)
 		require.NotEqual(t, prevToken, r.SyncTokens.DeclarationsToken)
 	}
 
-	checkDeclarationItemsResp := func(t *testing.T, r fleet.MDMAppleDDMDeclarationItemsResponse, expectedDeclTok string, expectedDeclsByChecksum map[string]fleet.MDMAppleDeclaration) {
+	checkDeclarationItemsResp := func(t *testing.T, r automdm.MDMAppleDDMDeclarationItemsResponse, expectedDeclTok string, expectedDeclsByChecksum map[string]automdm.MDMAppleDeclaration) {
 		require.Equal(t, expectedDeclTok, r.DeclarationsToken)
 		// TODO(roberto): better assertions
 		require.NotEmpty(t, r.Declarations.Activations)
@@ -346,7 +346,7 @@ INSERT INTO host_mdm_apple_declarations (
 		currDeclToken = parsed.SyncTokens.DeclarationsToken
 
 		// insert a new declaration
-		noTeamDeclsByUUID["456"] = fleet.MDMAppleDeclaration{
+		noTeamDeclsByUUID["456"] = automdm.MDMAppleDeclaration{
 			DeclarationUUID: "456",
 			TeamID:          ptr.Uint(0),
 			Identifier:      "com.example2",
@@ -376,7 +376,7 @@ INSERT INTO host_mdm_apple_declarations (
 		checkDeclarationItemsResp(t, parseDeclarationItemsResp(t, r), currDeclToken, mapDeclsByChecksum(noTeamDeclsByUUID))
 
 		// insert a new declaration
-		noTeamDeclsByUUID["789"] = fleet.MDMAppleDeclaration{
+		noTeamDeclsByUUID["789"] = automdm.MDMAppleDeclaration{
 			DeclarationUUID: "789",
 			TeamID:          ptr.Uint(0),
 			Identifier:      "com.example3",
@@ -405,7 +405,7 @@ INSERT INTO host_mdm_apple_declarations (
 	})
 
 	t.Run("Status", func(t *testing.T) {
-		_, err := mdmDevice.DeclarativeManagement("status", fleet.MDMAppleDDMStatusReport{})
+		_, err := mdmDevice.DeclarativeManagement("status", automdm.MDMAppleDDMStatusReport{})
 		require.NoError(t, err)
 	})
 
@@ -418,7 +418,7 @@ INSERT INTO host_mdm_apple_declarations (
 		assertDeclarationResponse(r, want)
 
 		// insert a new declaration
-		noTeamDeclsByUUID["abc"] = fleet.MDMAppleDeclaration{
+		noTeamDeclsByUUID["abc"] = automdm.MDMAppleDeclaration{
 			DeclarationUUID: "abc",
 			TeamID:          ptr.Uint(0),
 			Identifier:      "com.example4",
@@ -459,7 +459,7 @@ INSERT INTO host_mdm_apple_declarations (
 	})
 }
 
-func parseTokensResp(t *testing.T, r *http.Response) fleet.MDMAppleDDMTokensResponse {
+func parseTokensResp(t *testing.T, r *http.Response) automdm.MDMAppleDDMTokensResponse {
 	require.NotNil(t, r)
 	b, err := io.ReadAll(r.Body)
 	require.NoError(t, err)
@@ -467,14 +467,14 @@ func parseTokensResp(t *testing.T, r *http.Response) fleet.MDMAppleDDMTokensResp
 	r.Body = io.NopCloser(bytes.NewBuffer(b))
 
 	// unmarshal the response to make sure it's valid
-	var tok fleet.MDMAppleDDMTokensResponse
+	var tok automdm.MDMAppleDDMTokensResponse
 	err = json.NewDecoder(r.Body).Decode(&tok)
 	require.NoError(t, err)
 
 	return tok
 }
 
-func parseDeclarationItemsResp(t *testing.T, r *http.Response) fleet.MDMAppleDDMDeclarationItemsResponse {
+func parseDeclarationItemsResp(t *testing.T, r *http.Response) automdm.MDMAppleDDMDeclarationItemsResponse {
 	require.NotNil(t, r)
 	b, err := io.ReadAll(r.Body)
 	require.NoError(t, err)
@@ -482,7 +482,7 @@ func parseDeclarationItemsResp(t *testing.T, r *http.Response) fleet.MDMAppleDDM
 	r.Body = io.NopCloser(bytes.NewBuffer(b))
 
 	// unmarshal the response to make sure it's valid
-	var di fleet.MDMAppleDDMDeclarationItemsResponse
+	var di automdm.MDMAppleDDMDeclarationItemsResponse
 	err = json.NewDecoder(r.Body).Decode(&di)
 	require.NoError(t, err)
 
@@ -493,8 +493,8 @@ func (s *integrationMDMTestSuite) TestAppleDDMSecretVariables() {
 	t := s.T()
 	_, mdmDevice := createHostThenEnrollMDM(s.ds, s.server.URL, t)
 
-	checkDeclarationItemsResp := func(t *testing.T, r fleet.MDMAppleDDMDeclarationItemsResponse, expectedDeclTok string,
-		expectedDeclsByToken map[string]fleet.MDMAppleDeclaration,
+	checkDeclarationItemsResp := func(t *testing.T, r automdm.MDMAppleDDMDeclarationItemsResponse, expectedDeclTok string,
+		expectedDeclsByToken map[string]automdm.MDMAppleDeclaration,
 	) {
 		require.Equal(t, expectedDeclTok, r.DeclarationsToken)
 		require.NotEmpty(t, r.Declarations.Activations)
@@ -536,35 +536,35 @@ func (s *integrationMDMTestSuite) TestAppleDDMSecretVariables() {
 	}
 	// Use secrets
 	myBash := "com.apple.bash1"
-	decls[1] = []byte(strings.ReplaceAll(string(decls[1]), myBash, "$"+fleet.ServerSecretPrefix+"BASH"))
+	decls[1] = []byte(strings.ReplaceAll(string(decls[1]), myBash, "$"+automdm.ServerSecretPrefix+"BASH"))
 
 	// Create declarations
-	profilesReq := batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{
+	profilesReq := batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{
 		{Name: "N0", Contents: decls[0]},
 		{Name: "N1", Contents: decls[1]},
 	}}
 	// First dry run
-	s.Do("POST", "/api/latest/fleet/mdm/profiles/batch", profilesReq, http.StatusNoContent, "dry_run", "true")
+	s.Do("POST", "/api/latest/automdm/mdm/profiles/batch", profilesReq, http.StatusNoContent, "dry_run", "true")
 
 	var resp listMDMConfigProfilesResponse
-	s.DoJSON("GET", "/api/latest/fleet/configuration_profiles", &listMDMConfigProfilesRequest{}, http.StatusOK, &resp)
+	s.DoJSON("GET", "/api/latest/automdm/configuration_profiles", &listMDMConfigProfilesRequest{}, http.StatusOK, &resp)
 	require.Empty(t, resp.Profiles)
 
 	// Add secrets to server
-	req := fleet.CreateSecretVariablesRequest{
-		SecretVariables: []fleet.SecretVariable{
+	req := automdm.CreateSecretVariablesRequest{
+		SecretVariables: []automdm.SecretVariable{
 			{
-				Name:  "FLEET_SECRET_BASH",
+				Name:  "AUTOMDM_SECRET_BASH",
 				Value: myBash,
 			},
 		},
 	}
-	secretResp := fleet.CreateSecretVariablesResponse{}
-	s.DoJSON("PUT", "/api/latest/fleet/spec/secret_variables", req, http.StatusOK, &secretResp)
+	secretResp := automdm.CreateSecretVariablesResponse{}
+	s.DoJSON("PUT", "/api/latest/automdm/spec/secret_variables", req, http.StatusOK, &secretResp)
 
 	// Now real run
-	s.Do("POST", "/api/latest/fleet/mdm/profiles/batch", profilesReq, http.StatusNoContent)
-	s.DoJSON("GET", "/api/latest/fleet/configuration_profiles", &listMDMConfigProfilesRequest{}, http.StatusOK, &resp)
+	s.Do("POST", "/api/latest/automdm/mdm/profiles/batch", profilesReq, http.StatusNoContent)
+	s.DoJSON("GET", "/api/latest/automdm/configuration_profiles", &listMDMConfigProfilesRequest{}, http.StatusOK, &resp)
 
 	require.Len(t, resp.Profiles, len(decls))
 	checkedProfiles := 0
@@ -579,7 +579,7 @@ func (s *integrationMDMTestSuite) TestAppleDDMSecretVariables() {
 	}
 	assert.Equal(t, len(decls), checkedProfiles)
 
-	getDeclaration := func(t *testing.T, name string) fleet.MDMAppleDeclaration {
+	getDeclaration := func(t *testing.T, name string) automdm.MDMAppleDeclaration {
 		stmt := `
 SELECT
 	declaration_uuid,
@@ -594,7 +594,7 @@ SELECT
 FROM mdm_apple_declarations
 WHERE name = ?`
 
-		var decl fleet.MDMAppleDeclaration
+		var decl automdm.MDMAppleDeclaration
 		mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
 			return sqlx.GetContext(context.Background(), q, &decl, stmt, name)
 		})
@@ -602,20 +602,20 @@ WHERE name = ?`
 	}
 	nameToIdentifier := make(map[string]string, 3)
 	nameToUUID := make(map[string]string, 3)
-	declsByToken := map[string]fleet.MDMAppleDeclaration{}
+	declsByToken := map[string]automdm.MDMAppleDeclaration{}
 	decl := getDeclaration(t, "N0")
 	nameToIdentifier["N0"] = decl.Identifier
 	nameToUUID["N0"] = decl.DeclarationUUID
-	declsByToken[decl.Token] = fleet.MDMAppleDeclaration{
+	declsByToken[decl.Token] = automdm.MDMAppleDeclaration{
 		Identifier: "com.fleet.config0",
 	}
 	decl = getDeclaration(t, "N1")
 	assert.NotContains(t, string(decl.RawJSON), myBash)
-	assert.Contains(t, string(decl.RawJSON), "$"+fleet.ServerSecretPrefix+"BASH")
+	assert.Contains(t, string(decl.RawJSON), "$"+automdm.ServerSecretPrefix+"BASH")
 	nameToIdentifier["N1"] = decl.Identifier
 	nameToUUID["N1"] = decl.DeclarationUUID
 	n1Token := decl.Token
-	declsByToken[decl.Token] = fleet.MDMAppleDeclaration{
+	declsByToken[decl.Token] = automdm.MDMAppleDeclaration{
 		Identifier: "com.fleet.config1",
 	}
 
@@ -637,7 +637,7 @@ WHERE name = ?`
 	declarationPath := fmt.Sprintf("declaration/configuration/%s", nameToIdentifier["N0"])
 	r, err = mdmDevice.DeclarativeManagement(declarationPath)
 	require.NoError(t, err)
-	var gotParsed fleet.MDMAppleDDMDeclarationResponse
+	var gotParsed automdm.MDMAppleDDMDeclarationResponse
 	require.NoError(t, json.NewDecoder(r.Body).Decode(&gotParsed))
 	assert.JSONEq(t, `{"ServiceType":"com.apple.bash0"}`, string(gotParsed.Payload))
 
@@ -648,8 +648,8 @@ WHERE name = ?`
 	assert.JSONEq(t, `{"ServiceType":"com.apple.bash1"}`, string(gotParsed.Payload))
 
 	// Upload the same profiles again -- nothing should change
-	s.Do("POST", "/api/latest/fleet/mdm/profiles/batch", profilesReq, http.StatusNoContent, "dry_run", "true")
-	s.Do("POST", "/api/latest/fleet/mdm/profiles/batch", profilesReq, http.StatusNoContent)
+	s.Do("POST", "/api/latest/automdm/mdm/profiles/batch", profilesReq, http.StatusNoContent, "dry_run", "true")
+	s.Do("POST", "/api/latest/automdm/mdm/profiles/batch", profilesReq, http.StatusNoContent)
 	s.awaitTriggerProfileSchedule(t)
 	// Get tokens again
 	r, err = mdmDevice.DeclarativeManagement("tokens")
@@ -664,27 +664,27 @@ WHERE name = ?`
 
 	// Change the secrets.
 	myBash = "my.new.bash"
-	req = fleet.CreateSecretVariablesRequest{
-		SecretVariables: []fleet.SecretVariable{
+	req = automdm.CreateSecretVariablesRequest{
+		SecretVariables: []automdm.SecretVariable{
 			{
-				Name:  "FLEET_SECRET_BASH",
+				Name:  "AUTOMDM_SECRET_BASH",
 				Value: myBash, // changed
 			},
 		},
 	}
-	s.DoJSON("PUT", "/api/latest/fleet/spec/secret_variables", req, http.StatusOK, &secretResp)
-	s.Do("POST", "/api/latest/fleet/mdm/profiles/batch", profilesReq, http.StatusNoContent, "dry_run", "true")
-	s.Do("POST", "/api/latest/fleet/mdm/profiles/batch", profilesReq, http.StatusNoContent)
+	s.DoJSON("PUT", "/api/latest/automdm/spec/secret_variables", req, http.StatusOK, &secretResp)
+	s.Do("POST", "/api/latest/automdm/mdm/profiles/batch", profilesReq, http.StatusNoContent, "dry_run", "true")
+	s.Do("POST", "/api/latest/automdm/mdm/profiles/batch", profilesReq, http.StatusNoContent)
 	// The token of the declaration with the updated secret should have changed.
 	decl = getDeclaration(t, "N1")
 	assert.NotContains(t, string(decl.RawJSON), myBash)
-	assert.Contains(t, string(decl.RawJSON), "$"+fleet.ServerSecretPrefix+"BASH")
+	assert.Contains(t, string(decl.RawJSON), "$"+automdm.ServerSecretPrefix+"BASH")
 	nameToIdentifier["N1"] = decl.Identifier
 	nameToUUID["N1"] = decl.DeclarationUUID
 	assert.NotEqual(t, n1Token, decl.Token)
 	// Update expected token
 	delete(declsByToken, n1Token)
-	declsByToken[decl.Token] = fleet.MDMAppleDeclaration{
+	declsByToken[decl.Token] = automdm.MDMAppleDeclaration{
 		Identifier: "com.fleet.config1",
 	}
 	s.awaitTriggerProfileSchedule(t)
@@ -714,16 +714,16 @@ WHERE name = ?`
 	assert.JSONEq(t, `{"ServiceType":"my.new.bash"}`, string(gotParsed.Payload))
 
 	// Delete the profiles
-	s.Do("DELETE", "/api/latest/fleet/configuration_profiles/"+nameToUUID["N0"], nil, http.StatusOK)
+	s.Do("DELETE", "/api/latest/automdm/configuration_profiles/"+nameToUUID["N0"], nil, http.StatusOK)
 
 	// Ensure we can delete without any MDM turned on.
 	appCfg, err := s.ds.AppConfig(t.Context())
 	require.NoError(t, err)
 	appCfg.MDM.EnabledAndConfigured = false
 	require.NoError(t, s.ds.SaveAppConfig(t.Context(), appCfg))
-	s.Do("DELETE", "/api/latest/fleet/configuration_profiles/"+nameToUUID["N1"], nil, http.StatusOK)
+	s.Do("DELETE", "/api/latest/automdm/configuration_profiles/"+nameToUUID["N1"], nil, http.StatusOK)
 
-	s.DoJSON("GET", "/api/latest/fleet/configuration_profiles", &listMDMConfigProfilesRequest{}, http.StatusOK, &resp)
+	s.DoJSON("GET", "/api/latest/automdm/configuration_profiles", &listMDMConfigProfilesRequest{}, http.StatusOK, &resp)
 	require.Empty(t, resp.Profiles)
 }
 
@@ -736,12 +736,12 @@ func (s *integrationMDMTestSuite) TestAppleDDMReconciliation() {
 			"labels_include_all": labelNames,
 		}
 		if teamID > 0 {
-			fields["fleet_id"] = []string{fmt.Sprintf("%d", teamID)}
+			fields["team_id"] = []string{fmt.Sprintf("%d", teamID)}
 		}
 		body, headers := generateNewProfileMultipartRequest(
 			t, identifier+".json", declarationForTest(identifier), s.token, fields,
 		)
-		res := s.DoRawWithHeaders("POST", "/api/latest/fleet/configuration_profiles", body.Bytes(), http.StatusOK, headers)
+		res := s.DoRawWithHeaders("POST", "/api/latest/automdm/configuration_profiles", body.Bytes(), http.StatusOK, headers)
 		var resp newMDMConfigProfileResponse
 		err := json.NewDecoder(res.Body).Decode(&resp)
 		require.NoError(t, err)
@@ -752,16 +752,16 @@ func (s *integrationMDMTestSuite) TestAppleDDMReconciliation() {
 
 	deleteDeclaration := func(declUUID string) {
 		var deleteResp deleteMDMConfigProfileResponse
-		s.DoJSON("DELETE", fmt.Sprintf("/api/latest/fleet/configuration_profiles/%s", declUUID), nil, http.StatusOK, &deleteResp)
+		s.DoJSON("DELETE", fmt.Sprintf("/api/latest/automdm/configuration_profiles/%s", declUUID), nil, http.StatusOK, &deleteResp)
 	}
 
 	// create a team
 	teamName := t.Name() + "team1"
-	team := &fleet.Team{
+	team := &automdm.Team{
 		Name: teamName,
 	}
 	var createTeamResp teamResponse
-	s.DoJSON("POST", "/api/latest/fleet/fleets", team, http.StatusOK, &createTeamResp)
+	s.DoJSON("POST", "/api/latest/automdm/teams", team, http.StatusOK, &createTeamResp)
 	require.NotZero(t, createTeamResp.Team.ID)
 	team = createTeamResp.Team
 
@@ -784,7 +784,7 @@ func (s *integrationMDMTestSuite) TestAppleDDMReconciliation() {
 	}
 
 	// create a windows host
-	_, err := s.ds.NewHost(context.Background(), &fleet.Host{
+	_, err := s.ds.NewHost(context.Background(), &automdm.Host{
 		ID:            1,
 		OsqueryHostID: ptr.String("non-macos-host"),
 		NodeKey:       ptr.String("non-macos-host"),
@@ -798,7 +798,7 @@ func (s *integrationMDMTestSuite) TestAppleDDMReconciliation() {
 	_, _ = createWindowsHostThenEnrollMDM(s.ds, s.server.URL, t)
 
 	// create a linux host
-	_, err = s.ds.NewHost(context.Background(), &fleet.Host{
+	_, err = s.ds.NewHost(context.Background(), &automdm.Host{
 		ID:            2,
 		OsqueryHostID: ptr.String("linux-host"),
 		NodeKey:       ptr.String("linux-host"),
@@ -809,7 +809,7 @@ func (s *integrationMDMTestSuite) TestAppleDDMReconciliation() {
 	require.NoError(t, err)
 
 	// create a host that's not enrolled into MDM
-	_, err = s.ds.NewHost(context.Background(), &fleet.Host{
+	_, err = s.ds.NewHost(context.Background(), &automdm.Host{
 		ID:            2,
 		OsqueryHostID: ptr.String("not-mdm-enrolled"),
 		NodeKey:       ptr.String("not-mdm-enrolled"),
@@ -870,7 +870,7 @@ func (s *integrationMDMTestSuite) TestAppleDDMReconciliation() {
 	checkDDMSync(deviceTwo)
 
 	// add device to the team
-	s.Do("POST", "/api/v1/fleet/hosts/transfer",
+	s.Do("POST", "/api/v1/automdm/hosts/transfer",
 		addHostsToTeamRequest{TeamID: &team.ID, HostIDs: []uint{mdmHost.ID}}, http.StatusOK)
 
 	// reconcile
@@ -902,7 +902,7 @@ func (s *integrationMDMTestSuite) TestAppleDDMReconciliation() {
 
 	// add a new host, this one belongs to the team
 	mdmHostThree, deviceThree := createHostThenEnrollMDM(s.ds, s.server.URL, t)
-	s.Do("POST", "/api/v1/fleet/hosts/transfer",
+	s.Do("POST", "/api/v1/automdm/hosts/transfer",
 		addHostsToTeamRequest{TeamID: &team.ID, HostIDs: []uint{mdmHostThree.ID}}, http.StatusOK)
 
 	// reconcile
@@ -920,7 +920,7 @@ func (s *integrationMDMTestSuite) TestAppleDDMReconciliation() {
 	checkNoCommands(deviceTwo)
 	checkNoCommands(deviceThree)
 
-	label, err := s.ds.NewLabel(ctx, &fleet.Label{Name: t.Name(), Query: "select 1;"})
+	label, err := s.ds.NewLabel(ctx, &automdm.Label{Name: t.Name(), Query: "select 1;"})
 	require.NoError(t, err)
 	// update label with host membership
 	mysqltest.ExecAdhocSQL(
@@ -1004,7 +1004,7 @@ func (s *integrationMDMTestSuite) TestAppleDDMAssetReconciliation() {
 	body, headers := generateNewProfileMultipartRequest(
 		t, declIdentifier+".json", declarationForTestWithAssetReference(declIdentifier, assetIdentifier), s.token, nil,
 	)
-	res := s.DoRawWithHeaders("POST", "/api/latest/fleet/configuration_profiles", body.Bytes(), http.StatusOK, headers)
+	res := s.DoRawWithHeaders("POST", "/api/latest/automdm/configuration_profiles", body.Bytes(), http.StatusOK, headers)
 	var newProfResp newMDMConfigProfileResponse
 	require.NoError(t, json.NewDecoder(res.Body).Decode(&newProfResp))
 	require.NotEmpty(t, newProfResp.ProfileUUID)
@@ -1071,8 +1071,8 @@ func (s *integrationMDMTestSuite) TestAppleDDMStatusReport() {
 	t := s.T()
 	ctx := context.Background()
 
-	assertHostDeclarations := func(hostUUID string, wantDecls []*fleet.MDMAppleHostDeclaration) {
-		var gotDecls []*fleet.MDMAppleHostDeclaration
+	assertHostDeclarations := func(hostUUID string, wantDecls []*automdm.MDMAppleHostDeclaration) {
+		var gotDecls []*automdm.MDMAppleHostDeclaration
 		mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
 			return sqlx.SelectContext(context.Background(), q, &gotDecls, `SELECT declaration_identifier, status, operation_type FROM host_mdm_apple_declarations WHERE host_uuid = ?`, hostUUID)
 		})
@@ -1082,23 +1082,23 @@ func (s *integrationMDMTestSuite) TestAppleDDMStatusReport() {
 	// create a host and then enroll in MDM.
 	mdmHost, device := createHostThenEnrollMDM(s.ds, s.server.URL, t)
 
-	declarations := []fleet.MDMProfileBatchPayload{
+	declarations := []automdm.MDMProfileBatchPayload{
 		{Name: "N1.json", Contents: declarationForTest("I1")},
 		{Name: "N2.json", Contents: declarationForTest("I2")},
 		{Name: "Unknown.json", Contents: declarationForTestWithType("I3", "com.apple.configuration.")},
 	}
 	// add global declarations
-	s.Do("POST", "/api/v1/fleet/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: declarations}, http.StatusNoContent)
+	s.Do("POST", "/api/v1/automdm/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: declarations}, http.StatusNoContent)
 
 	// reconcile profiles
 	err := ReconcileAppleDeclarationsBatched(ctx, s.ds, s.mdmCommander, s.logger)
 	require.NoError(t, err)
 
 	// declarations are ("install", "pending") after the cron run
-	assertHostDeclarations(mdmHost.UUID, []*fleet.MDMAppleHostDeclaration{
-		{Identifier: "I1", Status: &fleet.MDMDeliveryPending, OperationType: fleet.MDMOperationTypeInstall},
-		{Identifier: "I2", Status: &fleet.MDMDeliveryPending, OperationType: fleet.MDMOperationTypeInstall},
-		{Identifier: "I3", Status: &fleet.MDMDeliveryPending, OperationType: fleet.MDMOperationTypeInstall},
+	assertHostDeclarations(mdmHost.UUID, []*automdm.MDMAppleHostDeclaration{
+		{Identifier: "I1", Status: &automdm.MDMDeliveryPending, OperationType: automdm.MDMOperationTypeInstall},
+		{Identifier: "I2", Status: &automdm.MDMDeliveryPending, OperationType: automdm.MDMOperationTypeInstall},
+		{Identifier: "I3", Status: &automdm.MDMDeliveryPending, OperationType: automdm.MDMOperationTypeInstall},
 	})
 
 	// host gets a DDM sync call
@@ -1112,7 +1112,7 @@ func (s *integrationMDMTestSuite) TestAppleDDMStatusReport() {
 	require.NoError(t, err)
 	body, err := io.ReadAll(r.Body)
 	require.NoError(t, err)
-	var items fleet.MDMAppleDDMDeclarationItemsResponse
+	var items automdm.MDMAppleDDMDeclarationItemsResponse
 	require.NoError(t, json.Unmarshal(body, &items))
 
 	var i1ServerToken, i2ServerToken, i3ServerToken string
@@ -1128,44 +1128,44 @@ func (s *integrationMDMTestSuite) TestAppleDDMStatusReport() {
 	}
 
 	// declarations are ("install", "verifying") after the ack
-	assertHostDeclarations(mdmHost.UUID, []*fleet.MDMAppleHostDeclaration{
-		{Identifier: "I1", Status: &fleet.MDMDeliveryVerifying, OperationType: fleet.MDMOperationTypeInstall},
-		{Identifier: "I2", Status: &fleet.MDMDeliveryVerifying, OperationType: fleet.MDMOperationTypeInstall},
-		{Identifier: "I3", Status: &fleet.MDMDeliveryVerifying, OperationType: fleet.MDMOperationTypeInstall},
+	assertHostDeclarations(mdmHost.UUID, []*automdm.MDMAppleHostDeclaration{
+		{Identifier: "I1", Status: &automdm.MDMDeliveryVerifying, OperationType: automdm.MDMOperationTypeInstall},
+		{Identifier: "I2", Status: &automdm.MDMDeliveryVerifying, OperationType: automdm.MDMOperationTypeInstall},
+		{Identifier: "I3", Status: &automdm.MDMDeliveryVerifying, OperationType: automdm.MDMOperationTypeInstall},
 	})
 
 	// host sends a partial DDM report
-	report := fleet.MDMAppleDDMStatusReport{}
-	report.StatusItems.Management.Declarations.Configurations = []fleet.MDMAppleDDMStatusDeclaration{
-		{Active: true, Valid: fleet.MDMAppleDeclarationValid, Identifier: "I1", ServerToken: i1ServerToken},
+	report := automdm.MDMAppleDDMStatusReport{}
+	report.StatusItems.Management.Declarations.Configurations = []automdm.MDMAppleDDMStatusDeclaration{
+		{Active: true, Valid: automdm.MDMAppleDeclarationValid, Identifier: "I1", ServerToken: i1ServerToken},
 	}
 	_, err = device.DeclarativeManagement("status", report)
 	require.NoError(t, err)
-	assertHostDeclarations(mdmHost.UUID, []*fleet.MDMAppleHostDeclaration{
-		{Identifier: "I1", Status: &fleet.MDMDeliveryVerified, OperationType: fleet.MDMOperationTypeInstall},
-		{Identifier: "I2", Status: &fleet.MDMDeliveryVerifying, OperationType: fleet.MDMOperationTypeInstall},
-		{Identifier: "I3", Status: &fleet.MDMDeliveryVerifying, OperationType: fleet.MDMOperationTypeInstall},
+	assertHostDeclarations(mdmHost.UUID, []*automdm.MDMAppleHostDeclaration{
+		{Identifier: "I1", Status: &automdm.MDMDeliveryVerified, OperationType: automdm.MDMOperationTypeInstall},
+		{Identifier: "I2", Status: &automdm.MDMDeliveryVerifying, OperationType: automdm.MDMOperationTypeInstall},
+		{Identifier: "I3", Status: &automdm.MDMDeliveryVerifying, OperationType: automdm.MDMOperationTypeInstall},
 	})
 
 	// host sends a report with a wrong (could be old) server token for I2, nothing changes
-	report = fleet.MDMAppleDDMStatusReport{}
-	report.StatusItems.Management.Declarations.Configurations = []fleet.MDMAppleDDMStatusDeclaration{
-		{Active: true, Valid: fleet.MDMAppleDeclarationValid, Identifier: "I2", ServerToken: "foo"},
+	report = automdm.MDMAppleDDMStatusReport{}
+	report.StatusItems.Management.Declarations.Configurations = []automdm.MDMAppleDDMStatusDeclaration{
+		{Active: true, Valid: automdm.MDMAppleDeclarationValid, Identifier: "I2", ServerToken: "foo"},
 	}
 	_, err = device.DeclarativeManagement("status", report)
 	require.NoError(t, err)
-	assertHostDeclarations(mdmHost.UUID, []*fleet.MDMAppleHostDeclaration{
-		{Identifier: "I1", Status: &fleet.MDMDeliveryVerified, OperationType: fleet.MDMOperationTypeInstall},
-		{Identifier: "I2", Status: &fleet.MDMDeliveryVerifying, OperationType: fleet.MDMOperationTypeInstall},
-		{Identifier: "I3", Status: &fleet.MDMDeliveryVerifying, OperationType: fleet.MDMOperationTypeInstall},
+	assertHostDeclarations(mdmHost.UUID, []*automdm.MDMAppleHostDeclaration{
+		{Identifier: "I1", Status: &automdm.MDMDeliveryVerified, OperationType: automdm.MDMOperationTypeInstall},
+		{Identifier: "I2", Status: &automdm.MDMDeliveryVerifying, OperationType: automdm.MDMOperationTypeInstall},
+		{Identifier: "I3", Status: &automdm.MDMDeliveryVerifying, OperationType: automdm.MDMOperationTypeInstall},
 	})
 
 	// host sends a full report, declaration I2 is invalid
-	report = fleet.MDMAppleDDMStatusReport{}
-	report.StatusItems.Management.Declarations.Configurations = []fleet.MDMAppleDDMStatusDeclaration{
-		{Active: true, Valid: fleet.MDMAppleDeclarationValid, Identifier: "I1", ServerToken: i1ServerToken},
-		{Active: false, Valid: fleet.MDMAppleDeclarationInvalid, Identifier: "I2", ServerToken: i2ServerToken},
-		{Active: false, Valid: fleet.MDMAppleDeclarationUnknown, Identifier: "I3", ServerToken: i3ServerToken, Reasons: []fleet.MDMAppleDDMStatusErrorReason{
+	report = automdm.MDMAppleDDMStatusReport{}
+	report.StatusItems.Management.Declarations.Configurations = []automdm.MDMAppleDDMStatusDeclaration{
+		{Active: true, Valid: automdm.MDMAppleDeclarationValid, Identifier: "I1", ServerToken: i1ServerToken},
+		{Active: false, Valid: automdm.MDMAppleDeclarationInvalid, Identifier: "I2", ServerToken: i2ServerToken},
+		{Active: false, Valid: automdm.MDMAppleDeclarationUnknown, Identifier: "I3", ServerToken: i3ServerToken, Reasons: []automdm.MDMAppleDDMStatusErrorReason{
 			{
 				Code: "Error.UnknownDeclarationType",
 			},
@@ -1173,45 +1173,45 @@ func (s *integrationMDMTestSuite) TestAppleDDMStatusReport() {
 	}
 	_, err = device.DeclarativeManagement("status", report)
 	require.NoError(t, err)
-	assertHostDeclarations(mdmHost.UUID, []*fleet.MDMAppleHostDeclaration{
-		{Identifier: "I1", Status: &fleet.MDMDeliveryVerified, OperationType: fleet.MDMOperationTypeInstall},
-		{Identifier: "I2", Status: &fleet.MDMDeliveryFailed, OperationType: fleet.MDMOperationTypeInstall},
-		{Identifier: "I3", Status: &fleet.MDMDeliveryFailed, OperationType: fleet.MDMOperationTypeInstall},
+	assertHostDeclarations(mdmHost.UUID, []*automdm.MDMAppleHostDeclaration{
+		{Identifier: "I1", Status: &automdm.MDMDeliveryVerified, OperationType: automdm.MDMOperationTypeInstall},
+		{Identifier: "I2", Status: &automdm.MDMDeliveryFailed, OperationType: automdm.MDMOperationTypeInstall},
+		{Identifier: "I3", Status: &automdm.MDMDeliveryFailed, OperationType: automdm.MDMOperationTypeInstall},
 	})
 
 	// do a batch request, this time I2 is deleted
-	declarations = []fleet.MDMProfileBatchPayload{
+	declarations = []automdm.MDMProfileBatchPayload{
 		{Name: "N1.json", Contents: declarationForTest("I1")},
 	}
-	s.Do("POST", "/api/v1/fleet/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: declarations}, http.StatusNoContent)
+	s.Do("POST", "/api/v1/automdm/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: declarations}, http.StatusNoContent)
 
 	// reconcile profiles
 	err = ReconcileAppleDeclarationsBatched(ctx, s.ds, s.mdmCommander, s.logger)
 	require.NoError(t, err)
-	assertHostDeclarations(mdmHost.UUID, []*fleet.MDMAppleHostDeclaration{
-		{Identifier: "I1", Status: &fleet.MDMDeliveryVerified, OperationType: fleet.MDMOperationTypeInstall},
+	assertHostDeclarations(mdmHost.UUID, []*automdm.MDMAppleHostDeclaration{
+		{Identifier: "I1", Status: &automdm.MDMDeliveryVerified, OperationType: automdm.MDMOperationTypeInstall},
 	})
 
 	// host sends a report, declaration I2 is removed from the hosts_* table
-	report = fleet.MDMAppleDDMStatusReport{}
-	report.StatusItems.Management.Declarations.Configurations = []fleet.MDMAppleDDMStatusDeclaration{
-		{Active: true, Valid: fleet.MDMAppleDeclarationValid, Identifier: "I1", ServerToken: i1ServerToken},
+	report = automdm.MDMAppleDDMStatusReport{}
+	report.StatusItems.Management.Declarations.Configurations = []automdm.MDMAppleDDMStatusDeclaration{
+		{Active: true, Valid: automdm.MDMAppleDeclarationValid, Identifier: "I1", ServerToken: i1ServerToken},
 	}
 	_, err = device.DeclarativeManagement("status", report)
 	require.NoError(t, err)
-	assertHostDeclarations(mdmHost.UUID, []*fleet.MDMAppleHostDeclaration{
-		{Identifier: "I1", Status: &fleet.MDMDeliveryVerified, OperationType: fleet.MDMOperationTypeInstall},
+	assertHostDeclarations(mdmHost.UUID, []*automdm.MDMAppleHostDeclaration{
+		{Identifier: "I1", Status: &automdm.MDMDeliveryVerified, OperationType: automdm.MDMOperationTypeInstall},
 	})
 
 	// host sends a report, declaration I1 is failing after a while
-	report = fleet.MDMAppleDDMStatusReport{}
-	report.StatusItems.Management.Declarations.Configurations = []fleet.MDMAppleDDMStatusDeclaration{
-		{Active: false, Valid: fleet.MDMAppleDeclarationInvalid, Identifier: "I1", ServerToken: i1ServerToken},
+	report = automdm.MDMAppleDDMStatusReport{}
+	report.StatusItems.Management.Declarations.Configurations = []automdm.MDMAppleDDMStatusDeclaration{
+		{Active: false, Valid: automdm.MDMAppleDeclarationInvalid, Identifier: "I1", ServerToken: i1ServerToken},
 	}
 	_, err = device.DeclarativeManagement("status", report)
 	require.NoError(t, err)
-	assertHostDeclarations(mdmHost.UUID, []*fleet.MDMAppleHostDeclaration{
-		{Identifier: "I1", Status: &fleet.MDMDeliveryFailed, OperationType: fleet.MDMOperationTypeInstall},
+	assertHostDeclarations(mdmHost.UUID, []*automdm.MDMAppleHostDeclaration{
+		{Identifier: "I1", Status: &automdm.MDMDeliveryFailed, OperationType: automdm.MDMOperationTypeInstall},
 	})
 }
 
@@ -1226,8 +1226,8 @@ func (s *integrationMDMTestSuite) TestAppleUserScopedDDMEndToEnd() {
 	t := s.T()
 	ctx := context.Background()
 
-	assertHostDeclarations := func(hostUUID string, want []*fleet.MDMAppleHostDeclaration) {
-		var got []*fleet.MDMAppleHostDeclaration
+	assertHostDeclarations := func(hostUUID string, want []*automdm.MDMAppleHostDeclaration) {
+		var got []*automdm.MDMAppleHostDeclaration
 		mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
 			return sqlx.SelectContext(ctx, q, &got,
 				`SELECT declaration_identifier, status, operation_type, scope FROM host_mdm_apple_declarations WHERE host_uuid = ?`, hostUUID)
@@ -1240,17 +1240,17 @@ func (s *integrationMDMTestSuite) TestAppleUserScopedDDMEndToEnd() {
 	require.NoError(t, device.UserEnroll())
 
 	// One device-scoped and one user-scoped declaration.
-	declarations := []fleet.MDMProfileBatchPayload{
+	declarations := []automdm.MDMProfileBatchPayload{
 		{Name: "Device.json", Contents: declarationForTest("com.fleet.device")},
-		{Name: "User.json", Contents: declarationForTestWithScope("com.fleet.user", fleet.PayloadScopeUser)},
+		{Name: "User.json", Contents: declarationForTestWithScope("com.fleet.user", automdm.PayloadScopeUser)},
 	}
-	s.Do("POST", "/api/v1/fleet/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: declarations}, http.StatusNoContent)
+	s.Do("POST", "/api/v1/automdm/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: declarations}, http.StatusNoContent)
 
 	// After reconcile each declaration is pending on its own channel.
 	require.NoError(t, ReconcileAppleDeclarationsBatched(ctx, s.ds, s.mdmCommander, s.logger))
-	assertHostDeclarations(mdmHost.UUID, []*fleet.MDMAppleHostDeclaration{
-		{Identifier: "com.fleet.device", Status: &fleet.MDMDeliveryPending, OperationType: fleet.MDMOperationTypeInstall, Scope: fleet.PayloadScopeSystem},
-		{Identifier: "com.fleet.user", Status: &fleet.MDMDeliveryPending, OperationType: fleet.MDMOperationTypeInstall, Scope: fleet.PayloadScopeUser},
+	assertHostDeclarations(mdmHost.UUID, []*automdm.MDMAppleHostDeclaration{
+		{Identifier: "com.fleet.device", Status: &automdm.MDMDeliveryPending, OperationType: automdm.MDMOperationTypeInstall, Scope: automdm.PayloadScopeSystem},
+		{Identifier: "com.fleet.user", Status: &automdm.MDMDeliveryPending, OperationType: automdm.MDMOperationTypeInstall, Scope: automdm.PayloadScopeUser},
 	})
 
 	// The device channel gets its own DeclarativeManagement command...
@@ -1271,15 +1271,15 @@ func (s *integrationMDMTestSuite) TestAppleUserScopedDDMEndToEnd() {
 	require.NoError(t, err)
 
 	// After the acks, each channel's declaration transitions to verifying.
-	assertHostDeclarations(mdmHost.UUID, []*fleet.MDMAppleHostDeclaration{
-		{Identifier: "com.fleet.device", Status: &fleet.MDMDeliveryVerifying, OperationType: fleet.MDMOperationTypeInstall, Scope: fleet.PayloadScopeSystem},
-		{Identifier: "com.fleet.user", Status: &fleet.MDMDeliveryVerifying, OperationType: fleet.MDMOperationTypeInstall, Scope: fleet.PayloadScopeUser},
+	assertHostDeclarations(mdmHost.UUID, []*automdm.MDMAppleHostDeclaration{
+		{Identifier: "com.fleet.device", Status: &automdm.MDMDeliveryVerifying, OperationType: automdm.MDMOperationTypeInstall, Scope: automdm.PayloadScopeSystem},
+		{Identifier: "com.fleet.user", Status: &automdm.MDMDeliveryVerifying, OperationType: automdm.MDMOperationTypeInstall, Scope: automdm.PayloadScopeUser},
 	})
 
-	configsFor := func(r *http.Response) []fleet.MDMAppleDDMManifest {
+	configsFor := func(r *http.Response) []automdm.MDMAppleDDMManifest {
 		body, err := io.ReadAll(r.Body)
 		require.NoError(t, err)
-		var items fleet.MDMAppleDDMDeclarationItemsResponse
+		var items automdm.MDMAppleDDMDeclarationItemsResponse
 		require.NoError(t, json.Unmarshal(body, &items))
 		return items.Declarations.Configurations
 	}
@@ -1300,7 +1300,7 @@ func (s *integrationMDMTestSuite) TestAppleUserScopedDDMEndToEnd() {
 	require.Equal(t, "com.fleet.device", deviceConfigs[0].Identifier)
 
 	// The user-scoped declaration content is served on the user channel with the
-	// Fleet-only PayloadScope key stripped.
+	// AutoMDM-only PayloadScope key stripped.
 	cr, err := device.UserDeclarativeManagement("declaration/configuration/com.fleet.user")
 	require.NoError(t, err)
 	cbody, err := io.ReadAll(cr.Body)
@@ -1311,9 +1311,9 @@ func (s *integrationMDMTestSuite) TestAppleUserScopedDDMEndToEnd() {
 	require.NotContains(t, served, "PayloadScope", "PayloadScope must be stripped from the declaration served to the device")
 
 	// The user channel reports the declaration as valid+active.
-	report := fleet.MDMAppleDDMStatusReport{}
-	report.StatusItems.Management.Declarations.Configurations = []fleet.MDMAppleDDMStatusDeclaration{
-		{Active: true, Valid: fleet.MDMAppleDeclarationValid, Identifier: "com.fleet.user", ServerToken: userServerToken},
+	report := automdm.MDMAppleDDMStatusReport{}
+	report.StatusItems.Management.Declarations.Configurations = []automdm.MDMAppleDDMStatusDeclaration{
+		{Active: true, Valid: automdm.MDMAppleDeclarationValid, Identifier: "com.fleet.user", ServerToken: userServerToken},
 	}
 	_, err = device.UserDeclarativeManagement("status", report)
 	require.NoError(t, err)
@@ -1321,23 +1321,23 @@ func (s *integrationMDMTestSuite) TestAppleUserScopedDDMEndToEnd() {
 	// The user-scoped declaration is verified; the device-scoped one is untouched
 	// by the user-channel report (still verifying — its own status report hasn't
 	// arrived).
-	assertHostDeclarations(mdmHost.UUID, []*fleet.MDMAppleHostDeclaration{
-		{Identifier: "com.fleet.device", Status: &fleet.MDMDeliveryVerifying, OperationType: fleet.MDMOperationTypeInstall, Scope: fleet.PayloadScopeSystem},
-		{Identifier: "com.fleet.user", Status: &fleet.MDMDeliveryVerified, OperationType: fleet.MDMOperationTypeInstall, Scope: fleet.PayloadScopeUser},
+	assertHostDeclarations(mdmHost.UUID, []*automdm.MDMAppleHostDeclaration{
+		{Identifier: "com.fleet.device", Status: &automdm.MDMDeliveryVerifying, OperationType: automdm.MDMOperationTypeInstall, Scope: automdm.PayloadScopeSystem},
+		{Identifier: "com.fleet.user", Status: &automdm.MDMDeliveryVerified, OperationType: automdm.MDMOperationTypeInstall, Scope: automdm.PayloadScopeUser},
 	})
 
 	// --- Delete the user-scoped declaration only (device-scoped remains) ---
 	// Re-apply the batch without the user-scoped declaration.
-	s.Do("POST", "/api/v1/fleet/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{
+	s.Do("POST", "/api/v1/automdm/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{
 		{Name: "Device.json", Contents: declarationForTest("com.fleet.device")},
 	}}, http.StatusNoContent)
 	require.NoError(t, ReconcileAppleDeclarationsBatched(ctx, s.ds, s.mdmCommander, s.logger))
 
 	// The user-scoped declaration becomes a pending remove on the user channel;
 	// the device-scoped one is untouched.
-	assertHostDeclarations(mdmHost.UUID, []*fleet.MDMAppleHostDeclaration{
-		{Identifier: "com.fleet.device", Status: &fleet.MDMDeliveryVerifying, OperationType: fleet.MDMOperationTypeInstall, Scope: fleet.PayloadScopeSystem},
-		{Identifier: "com.fleet.user", Status: &fleet.MDMDeliveryPending, OperationType: fleet.MDMOperationTypeRemove, Scope: fleet.PayloadScopeUser},
+	assertHostDeclarations(mdmHost.UUID, []*automdm.MDMAppleHostDeclaration{
+		{Identifier: "com.fleet.device", Status: &automdm.MDMDeliveryVerifying, OperationType: automdm.MDMOperationTypeInstall, Scope: automdm.PayloadScopeSystem},
+		{Identifier: "com.fleet.user", Status: &automdm.MDMDeliveryPending, OperationType: automdm.MDMOperationTypeRemove, Scope: automdm.PayloadScopeUser},
 	})
 
 	// Only the user channel was poked: the device channel has no new command.
@@ -1358,19 +1358,19 @@ func (s *integrationMDMTestSuite) TestAppleUserScopedDDMEndToEnd() {
 
 	// The user channel reports the (now empty) set, clearing the pending remove.
 	// The device-scoped declaration is still present and untouched.
-	_, err = device.UserDeclarativeManagement("status", fleet.MDMAppleDDMStatusReport{})
+	_, err = device.UserDeclarativeManagement("status", automdm.MDMAppleDDMStatusReport{})
 	require.NoError(t, err)
-	assertHostDeclarations(mdmHost.UUID, []*fleet.MDMAppleHostDeclaration{
-		{Identifier: "com.fleet.device", Status: &fleet.MDMDeliveryVerifying, OperationType: fleet.MDMOperationTypeInstall, Scope: fleet.PayloadScopeSystem},
+	assertHostDeclarations(mdmHost.UUID, []*automdm.MDMAppleHostDeclaration{
+		{Identifier: "com.fleet.device", Status: &automdm.MDMDeliveryVerifying, OperationType: automdm.MDMOperationTypeInstall, Scope: automdm.PayloadScopeSystem},
 	})
 
 	// --- Delete the device-scoped declaration too (nothing remains) ---
-	s.Do("POST", "/api/v1/fleet/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{}}, http.StatusNoContent)
+	s.Do("POST", "/api/v1/automdm/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{}}, http.StatusNoContent)
 	require.NoError(t, ReconcileAppleDeclarationsBatched(ctx, s.ds, s.mdmCommander, s.logger))
 
 	// The device-scoped declaration becomes a pending remove on the device channel.
-	assertHostDeclarations(mdmHost.UUID, []*fleet.MDMAppleHostDeclaration{
-		{Identifier: "com.fleet.device", Status: &fleet.MDMDeliveryPending, OperationType: fleet.MDMOperationTypeRemove, Scope: fleet.PayloadScopeSystem},
+	assertHostDeclarations(mdmHost.UUID, []*automdm.MDMAppleHostDeclaration{
+		{Identifier: "com.fleet.device", Status: &automdm.MDMDeliveryPending, OperationType: automdm.MDMOperationTypeRemove, Scope: automdm.PayloadScopeSystem},
 	})
 
 	// This time only the device channel is poked; the user channel has no command.
@@ -1389,7 +1389,7 @@ func (s *integrationMDMTestSuite) TestAppleUserScopedDDMEndToEnd() {
 	require.Empty(t, configsFor(dr))
 
 	// The device channel reports the empty set, clearing the last pending remove.
-	_, err = device.DeclarativeManagement("status", fleet.MDMAppleDDMStatusReport{})
+	_, err = device.DeclarativeManagement("status", automdm.MDMAppleDDMStatusReport{})
 	require.NoError(t, err)
 	assertHostDeclarations(mdmHost.UUID, nil)
 }
@@ -1407,7 +1407,7 @@ func (s *integrationMDMTestSuite) TestAppleDDMResyncPokesWithoutDeltas() {
 	mdmHost, device := createHostThenEnrollMDM(s.ds, s.server.URL, t)
 
 	// One declaration, reconciled so it's installed and no longer changing.
-	s.Do("POST", "/api/v1/fleet/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{
+	s.Do("POST", "/api/v1/automdm/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{
 		{Name: "N1.json", Contents: declarationForTest("com.fleet.resync")},
 	}}, http.StatusNoContent)
 	require.NoError(t, ReconcileAppleDeclarationsBatched(ctx, s.ds, s.mdmCommander, s.logger))
@@ -1450,12 +1450,12 @@ func (s *integrationMDMTestSuite) TestDDMUnsupportedDevice() {
 	t := s.T()
 	s.setSkipWorkerJobs(t)
 	ctx := context.Background()
-	fleetHost, mdmDevice := createHostThenEnrollMDM(s.ds, s.server.URL, t)
+	automdmHost, mdmDevice := createHostThenEnrollMDM(s.ds, s.server.URL, t)
 
-	getProfiles := func(h *fleet.Host) map[string]*fleet.HostMDMAppleProfile {
+	getProfiles := func(h *automdm.Host) map[string]*automdm.HostMDMAppleProfile {
 		profs, err := s.ds.GetHostMDMAppleProfiles(ctx, h.UUID)
 		require.NoError(t, err)
-		out := make(map[string]*fleet.HostMDMAppleProfile, len(profs))
+		out := make(map[string]*automdm.HostMDMAppleProfile, len(profs))
 		for _, p := range profs {
 			p := p
 			out[p.Identifier] = &p
@@ -1464,21 +1464,21 @@ func (s *integrationMDMTestSuite) TestDDMUnsupportedDevice() {
 		return out
 	}
 
-	declarations := []fleet.MDMProfileBatchPayload{
+	declarations := []automdm.MDMProfileBatchPayload{
 		{Name: "N1.json", Contents: declarationForTest("I1")},
 		{Name: "N2.json", Contents: declarationForTest("I2")},
 	}
 	// add global declarations
-	s.Do("POST", "/api/v1/fleet/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: declarations}, http.StatusNoContent)
+	s.Do("POST", "/api/v1/automdm/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: declarations}, http.StatusNoContent)
 
 	// reconcile declarations
 	err := ReconcileAppleDeclarationsBatched(ctx, s.ds, s.mdmCommander, s.logger)
 	require.NoError(t, err)
 
 	// declaration is pending
-	profs := getProfiles(fleetHost)
-	require.Equal(t, &fleet.MDMDeliveryPending, profs["I1"].Status)
-	require.Equal(t, &fleet.MDMDeliveryPending, profs["I2"].Status)
+	profs := getProfiles(automdmHost)
+	require.Equal(t, &automdm.MDMDeliveryPending, profs["I1"].Status)
+	require.Equal(t, &automdm.MDMDeliveryPending, profs["I2"].Status)
 
 	cmd, err := mdmDevice.Idle()
 	require.NoError(t, err)
@@ -1497,10 +1497,10 @@ func (s *integrationMDMTestSuite) TestDDMUnsupportedDevice() {
 	require.Nil(t, cmd)
 
 	// profiles are failed
-	profs = getProfiles(fleetHost)
-	require.Equal(t, &fleet.MDMDeliveryFailed, profs["I1"].Status)
+	profs = getProfiles(automdmHost)
+	require.Equal(t, &automdm.MDMDeliveryFailed, profs["I1"].Status)
 	require.Contains(t, profs["I1"].Detail, "Feature Disabled")
-	require.Equal(t, &fleet.MDMDeliveryFailed, profs["I2"].Status)
+	require.Equal(t, &automdm.MDMDeliveryFailed, profs["I2"].Status)
 	require.Contains(t, profs["I2"].Detail, "Feature Disabled")
 }
 
@@ -1511,7 +1511,7 @@ func (s *integrationMDMTestSuite) TestDDMNoDeclarationsLeft() {
 	res, err := mdmDevice.DeclarativeManagement("tokens")
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, res.StatusCode)
-	var tok fleet.MDMAppleDDMTokensResponse
+	var tok automdm.MDMAppleDDMTokensResponse
 	err = json.NewDecoder(res.Body).Decode(&tok)
 	require.NoError(t, err)
 	require.Empty(t, tok.SyncTokens.DeclarationsToken)
@@ -1520,7 +1520,7 @@ func (s *integrationMDMTestSuite) TestDDMNoDeclarationsLeft() {
 	res, err = mdmDevice.DeclarativeManagement("declaration-items")
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, res.StatusCode)
-	var items fleet.MDMAppleDDMDeclarationItemsResponse
+	var items automdm.MDMAppleDDMDeclarationItemsResponse
 	err = json.NewDecoder(res.Body).Decode(&items)
 	require.NoError(t, err)
 	require.Empty(t, items.DeclarationsToken)
@@ -1557,12 +1557,12 @@ func (s *integrationMDMTestSuite) TestDDMTransactionRecording() {
 		require.Equal(t, want, got)
 	}
 
-	declarations := []fleet.MDMProfileBatchPayload{
+	declarations := []automdm.MDMProfileBatchPayload{
 		{Name: "N1.json", Contents: declarationForTest("I1")},
 		{Name: "N2.json", Contents: declarationForTest("I2")},
 	}
 	// add global declarations
-	s.Do("POST", "/api/v1/fleet/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: declarations}, http.StatusNoContent)
+	s.Do("POST", "/api/v1/automdm/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: declarations}, http.StatusNoContent)
 
 	// reconcile declarations
 	err := ReconcileAppleDeclarationsBatched(ctx, s.ds, s.mdmCommander, s.logger)
@@ -1585,7 +1585,7 @@ func (s *integrationMDMTestSuite) TestDDMTransactionRecording() {
 		RawJSON:      nil,
 	})
 
-	var items fleet.MDMAppleDDMDeclarationItemsResponse
+	var items automdm.MDMAppleDDMDeclarationItemsResponse
 	require.NoError(t, json.NewDecoder(res.Body).Decode(&items))
 	var i1ServerToken string
 	for _, d := range items.Declarations.Configurations {
@@ -1615,9 +1615,9 @@ func (s *integrationMDMTestSuite) TestDDMTransactionRecording() {
 		RawJSON:      nil,
 	})
 
-	report := fleet.MDMAppleDDMStatusReport{}
-	report.StatusItems.Management.Declarations.Configurations = []fleet.MDMAppleDDMStatusDeclaration{
-		{Active: true, Valid: fleet.MDMAppleDeclarationValid, Identifier: "I1", ServerToken: i1ServerToken},
+	report := automdm.MDMAppleDDMStatusReport{}
+	report.StatusItems.Management.Declarations.Configurations = []automdm.MDMAppleDDMStatusDeclaration{
+		{Active: true, Valid: automdm.MDMAppleDeclarationValid, Identifier: "I1", ServerToken: i1ServerToken},
 	}
 	_, err = mdmDevice.DeclarativeManagement("status", report)
 	require.NoError(t, err)
@@ -1635,7 +1635,7 @@ func (s *integrationMDMTestSuite) TestDDMTransactionRecording() {
 	})
 }
 
-func (s *integrationMDMTestSuite) TestAppleDDMFleetVariables() {
+func (s *integrationMDMTestSuite) TestAppleDDMAutoMDMVariables() {
 	t := s.T()
 	ctx := t.Context()
 
@@ -1652,17 +1652,17 @@ func (s *integrationMDMTestSuite) TestAppleDDMFleetVariables() {
 	require.NoError(t, err)
 
 	// Create a team and transfer host1 into it; host2 stays global (control)
-	team := &fleet.Team{Name: t.Name() + "team1"}
+	team := &automdm.Team{Name: t.Name() + "team1"}
 	var createTeamResp teamResponse
-	s.DoJSON("POST", "/api/latest/fleet/fleets", team, http.StatusOK, &createTeamResp)
+	s.DoJSON("POST", "/api/latest/automdm/teams", team, http.StatusOK, &createTeamResp)
 	require.NotZero(t, createTeamResp.Team.ID)
 	team = createTeamResp.Team
 
-	s.Do("POST", "/api/v1/fleet/hosts/transfer",
+	s.Do("POST", "/api/v1/automdm/hosts/transfer",
 		addHostsToTeamRequest{TeamID: &team.ID, HostIDs: []uint{host1.ID}}, http.StatusOK)
 
 	// Helper: read declaration from DB by name
-	getDeclaration := func(t *testing.T, name string) fleet.MDMAppleDeclaration {
+	getDeclaration := func(t *testing.T, name string) automdm.MDMAppleDeclaration {
 		stmt := `
 SELECT
 	declaration_uuid,
@@ -1676,7 +1676,7 @@ SELECT
 FROM mdm_apple_declarations
 WHERE name = ?`
 
-		var decl fleet.MDMAppleDeclaration
+		var decl automdm.MDMAppleDeclaration
 		mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
 			return sqlx.GetContext(ctx, q, &decl, stmt, name)
 		})
@@ -1715,8 +1715,8 @@ WHERE name = ?`
 		require.NoError(t, err)
 	}
 
-	checkDeclarationItemsResp := func(t *testing.T, r fleet.MDMAppleDDMDeclarationItemsResponse, expectedDeclTok string,
-		expectedDeclsByToken map[string]fleet.MDMAppleDeclaration,
+	checkDeclarationItemsResp := func(t *testing.T, r automdm.MDMAppleDDMDeclarationItemsResponse, expectedDeclTok string,
+		expectedDeclsByToken map[string]automdm.MDMAppleDeclaration,
 	) {
 		require.Equal(t, expectedDeclTok, r.DeclarationsToken)
 		require.NotEmpty(t, r.Declarations.Activations)
@@ -1735,12 +1735,12 @@ WHERE name = ?`
 	// Declaration payloads
 	declWithUUID := []byte(`{
 	"Type": "com.apple.configuration.management.test",
-	"Payload": {"Echo": "$FLEET_VAR_HOST_UUID"},
+	"Payload": {"Echo": "$AUTOMDM_VAR_HOST_UUID"},
 	"Identifier": "com.fleet.var.uuid"
 }`)
 	declWithSerial := []byte(`{
 	"Type": "com.apple.configuration.management.test",
-	"Payload": {"Echo": "$FLEET_VAR_HOST_HARDWARE_SERIAL"},
+	"Payload": {"Echo": "$AUTOMDM_VAR_HOST_HARDWARE_SERIAL"},
 	"Identifier": "com.fleet.var.serial"
 }`)
 	declPlain := []byte(`{
@@ -1753,32 +1753,32 @@ WHERE name = ?`
 
 	badDecl := []byte(`{
 	"Type": "com.apple.configuration.management.test",
-	"Payload": {"Echo": "$FLEET_VAR_NDES_SCEP_CHALLENGE"},
+	"Payload": {"Echo": "$AUTOMDM_VAR_NDES_SCEP_CHALLENGE"},
 	"Identifier": "com.fleet.bad"
 }`)
-	badReq := batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{
+	badReq := batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{
 		{Name: "BadDecl.json", Contents: badDecl},
 	}}
-	badRes := s.Do("POST", "/api/latest/fleet/mdm/profiles/batch", badReq, http.StatusBadRequest,
-		"fleet_id", teamIDStr)
+	badRes := s.Do("POST", "/api/latest/automdm/mdm/profiles/batch", badReq, http.StatusBadRequest,
+		"team_id", teamIDStr)
 	errMsg := extractServerErrorText(badRes.Body)
-	require.Contains(t, errMsg, "$FLEET_VAR_NDES_SCEP_CHALLENGE is not supported in DDM")
+	require.Contains(t, errMsg, "$AUTOMDM_VAR_NDES_SCEP_CHALLENGE is not supported in DDM")
 
 	// === Upload declarations with and without variables ===
 
-	profilesReq := batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{
+	profilesReq := batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{
 		{Name: "VarUUID.json", Contents: declWithUUID},
 		{Name: "VarSerial.json", Contents: declWithSerial},
 		{Name: "Plain.json", Contents: declPlain},
 	}}
-	s.Do("POST", "/api/latest/fleet/mdm/profiles/batch", profilesReq, http.StatusNoContent,
-		"fleet_id", teamIDStr)
+	s.Do("POST", "/api/latest/automdm/mdm/profiles/batch", profilesReq, http.StatusNoContent,
+		"team_id", teamIDStr)
 
 	// Verify raw JSON stored as-is (variables not expanded in storage)
 	dbDeclUUID := getDeclaration(t, "VarUUID.json")
-	assert.Contains(t, string(dbDeclUUID.RawJSON), "$FLEET_VAR_HOST_UUID")
+	assert.Contains(t, string(dbDeclUUID.RawJSON), "$AUTOMDM_VAR_HOST_UUID")
 	dbDeclSerial := getDeclaration(t, "VarSerial.json")
-	assert.Contains(t, string(dbDeclSerial.RawJSON), "$FLEET_VAR_HOST_HARDWARE_SERIAL")
+	assert.Contains(t, string(dbDeclSerial.RawJSON), "$AUTOMDM_VAR_HOST_HARDWARE_SERIAL")
 	dbDeclPlain := getDeclaration(t, "Plain.json")
 	assert.Contains(t, string(dbDeclPlain.RawJSON), "static-value")
 
@@ -1797,18 +1797,18 @@ WHERE name = ?`
 	require.NotEmpty(t, lastSyncDeclToken)
 
 	// Fetch individual declarations and verify substitution
-	var gotParsed fleet.MDMAppleDDMDeclarationResponse
+	var gotParsed automdm.MDMAppleDDMDeclarationResponse
 
 	r, err = mdmDevice1.DeclarativeManagement("declaration/configuration/com.fleet.var.uuid")
 	require.NoError(t, err)
 	require.NoError(t, json.NewDecoder(r.Body).Decode(&gotParsed))
 	assert.Contains(t, string(gotParsed.Payload), host1.UUID)
-	assert.NotContains(t, string(gotParsed.Payload), "$FLEET_VAR")
+	assert.NotContains(t, string(gotParsed.Payload), "$AUTOMDM_VAR")
 
 	r, err = mdmDevice1.DeclarativeManagement("declaration/configuration/com.fleet.var.serial")
 	require.NoError(t, err)
 	require.NoError(t, json.NewDecoder(r.Body).Decode(&gotParsed))
-	assert.NotContains(t, string(gotParsed.Payload), "$FLEET_VAR")
+	assert.NotContains(t, string(gotParsed.Payload), "$AUTOMDM_VAR")
 	// Verify the serial (which contains " and \) is properly JSON-escaped:
 	// the payload must be valid JSON and unmarshal to the original value.
 	var serialPayload struct{ Echo string }
@@ -1829,9 +1829,9 @@ WHERE name = ?`
 	require.Nil(t, varsUpdatedPlain)
 
 	// Build expected declaration-items map with effective tokens (incorporating variables_updated_at)
-	declsByToken := map[string]fleet.MDMAppleDeclaration{
-		fleet.EffectiveDDMToken(dbDeclUUID.Token, varsUpdatedUUID, nil, nil):     {Identifier: "com.fleet.var.uuid"},
-		fleet.EffectiveDDMToken(dbDeclSerial.Token, varsUpdatedSerial, nil, nil): {Identifier: "com.fleet.var.serial"},
+	declsByToken := map[string]automdm.MDMAppleDeclaration{
+		automdm.EffectiveDDMToken(dbDeclUUID.Token, varsUpdatedUUID, nil, nil):     {Identifier: "com.fleet.var.uuid"},
+		automdm.EffectiveDDMToken(dbDeclSerial.Token, varsUpdatedSerial, nil, nil): {Identifier: "com.fleet.var.serial"},
 		dbDeclPlain.Token: {Identifier: "com.fleet.plain"},
 	}
 
@@ -1848,14 +1848,14 @@ WHERE name = ?`
 	"Payload": {"Echo": "new-stuff"},
 	"Identifier": "com.fleet.new"
 }`)
-	profilesReqWithNew := batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{
+	profilesReqWithNew := batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{
 		{Name: "VarUUID.json", Contents: declWithUUID},
 		{Name: "VarSerial.json", Contents: declWithSerial},
 		{Name: "Plain.json", Contents: declPlain},
 		{Name: "NewDecl.json", Contents: newDecl},
 	}}
-	s.Do("POST", "/api/latest/fleet/mdm/profiles/batch", profilesReqWithNew, http.StatusNoContent,
-		"fleet_id", teamIDStr)
+	s.Do("POST", "/api/latest/automdm/mdm/profiles/batch", profilesReqWithNew, http.StatusNoContent,
+		"team_id", teamIDStr)
 
 	dbNewDecl := getDeclaration(t, "NewDecl.json")
 	assert.Contains(t, string(dbNewDecl.RawJSON), "new-stuff")
@@ -1872,9 +1872,9 @@ WHERE name = ?`
 	lastSyncDeclToken = tokens.SyncTokens.DeclarationsToken
 	require.NotEmpty(t, lastSyncDeclToken)
 
-	declsByToken = map[string]fleet.MDMAppleDeclaration{
-		fleet.EffectiveDDMToken(dbDeclUUID.Token, varsUpdatedUUID, nil, nil):     {Identifier: "com.fleet.var.uuid"},
-		fleet.EffectiveDDMToken(dbDeclSerial.Token, varsUpdatedSerial, nil, nil): {Identifier: "com.fleet.var.serial"},
+	declsByToken = map[string]automdm.MDMAppleDeclaration{
+		automdm.EffectiveDDMToken(dbDeclUUID.Token, varsUpdatedUUID, nil, nil):     {Identifier: "com.fleet.var.uuid"},
+		automdm.EffectiveDDMToken(dbDeclSerial.Token, varsUpdatedSerial, nil, nil): {Identifier: "com.fleet.var.serial"},
 		dbDeclPlain.Token: {Identifier: "com.fleet.plain"},
 		dbNewDecl.Token:   {Identifier: "com.fleet.new"},
 	}
@@ -1895,8 +1895,8 @@ WHERE name = ?`
 	// === No resend when unrelated declaration deleted ===
 
 	// new decl is not in profilesReq, so it will be deleted
-	s.Do("POST", "/api/latest/fleet/mdm/profiles/batch", profilesReq, http.StatusNoContent,
-		"fleet_id", teamIDStr)
+	s.Do("POST", "/api/latest/automdm/mdm/profiles/batch", profilesReq, http.StatusNoContent,
+		"team_id", teamIDStr)
 
 	s.awaitTriggerProfileSchedule(t)
 
@@ -1904,9 +1904,9 @@ WHERE name = ?`
 	checkDDMSync(mdmDevice1)
 	checkNoCommands(mdmDevice2)
 
-	declsByToken = map[string]fleet.MDMAppleDeclaration{
-		fleet.EffectiveDDMToken(dbDeclUUID.Token, varsUpdatedUUID, nil, nil):     {Identifier: "com.fleet.var.uuid"},
-		fleet.EffectiveDDMToken(dbDeclSerial.Token, varsUpdatedSerial, nil, nil): {Identifier: "com.fleet.var.serial"},
+	declsByToken = map[string]automdm.MDMAppleDeclaration{
+		automdm.EffectiveDDMToken(dbDeclUUID.Token, varsUpdatedUUID, nil, nil):     {Identifier: "com.fleet.var.uuid"},
+		automdm.EffectiveDDMToken(dbDeclSerial.Token, varsUpdatedSerial, nil, nil): {Identifier: "com.fleet.var.serial"},
 		dbDeclPlain.Token: {Identifier: "com.fleet.plain"},
 	}
 
@@ -1931,8 +1931,8 @@ WHERE name = ?`
 
 	// === No resend on no-op GitOps batch upload ===
 
-	s.Do("POST", "/api/latest/fleet/mdm/profiles/batch", profilesReq, http.StatusNoContent,
-		"fleet_id", teamIDStr)
+	s.Do("POST", "/api/latest/automdm/mdm/profiles/batch", profilesReq, http.StatusNoContent,
+		"team_id", teamIDStr)
 
 	s.awaitTriggerProfileSchedule(t)
 
@@ -1995,7 +1995,7 @@ WHERE name = ?`
 
 	// Create a third host on the same team as host1
 	host3, mdmDevice3 := createHostThenEnrollMDM(s.ds, s.server.URL, t)
-	s.Do("POST", "/api/v1/fleet/hosts/transfer",
+	s.Do("POST", "/api/v1/automdm/hosts/transfer",
 		addHostsToTeamRequest{TeamID: &team.ID, HostIDs: []uint{host3.ID}}, http.StatusOK)
 
 	// Let host3 complete its initial DDM sync
@@ -2012,8 +2012,8 @@ WHERE name = ?`
 	require.NotNil(t, host3InitVarsUpdatedSerial)
 
 	// Verify stable state: no-op batch upload triggers no commands for anyone
-	s.Do("POST", "/api/latest/fleet/mdm/profiles/batch", profilesReq, http.StatusNoContent,
-		"fleet_id", teamIDStr)
+	s.Do("POST", "/api/latest/automdm/mdm/profiles/batch", profilesReq, http.StatusNoContent,
+		"team_id", teamIDStr)
 	s.awaitTriggerProfileSchedule(t)
 	checkNoCommands(mdmDevice1)
 	checkNoCommands(mdmDevice2)
@@ -2062,17 +2062,17 @@ WHERE name = ?`
 
 	declWithIdpUsername := []byte(`{
 	"Type": "com.apple.configuration.management.test",
-	"Payload": {"Echo": "$FLEET_VAR_HOST_END_USER_IDP_USERNAME"},
+	"Payload": {"Echo": "$AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME"},
 	"Identifier": "com.fleet.var.idpusername"
 }`)
-	profilesReqWithIdp := batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{
+	profilesReqWithIdp := batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{
 		{Name: "VarUUID.json", Contents: declWithUUID},
 		{Name: "VarSerial.json", Contents: declWithSerial},
 		{Name: "Plain.json", Contents: declPlain},
 		{Name: "VarIdpUsername.json", Contents: declWithIdpUsername},
 	}}
-	s.Do("POST", "/api/latest/fleet/mdm/profiles/batch", profilesReqWithIdp, http.StatusNoContent,
-		"fleet_id", teamIDStr)
+	s.Do("POST", "/api/latest/automdm/mdm/profiles/batch", profilesReqWithIdp, http.StatusNoContent,
+		"team_id", teamIDStr)
 
 	dbDeclIdpUsername := getDeclaration(t, "VarIdpUsername.json")
 
@@ -2096,9 +2096,9 @@ WHERE name = ?`
 	// can't be resolved (no IdP user for this host), but it is still included
 	// in the DeclarationsToken computation so that the token matches the
 	// SQL-computed token from the tokens endpoint.
-	declsByToken = map[string]fleet.MDMAppleDeclaration{
-		fleet.EffectiveDDMToken(dbDeclUUID.Token, latestVarsUpdatedUUID, nil, nil):     {Identifier: "com.fleet.var.uuid"},
-		fleet.EffectiveDDMToken(dbDeclSerial.Token, latestVarsUpdatedSerial, nil, nil): {Identifier: "com.fleet.var.serial"},
+	declsByToken = map[string]automdm.MDMAppleDeclaration{
+		automdm.EffectiveDDMToken(dbDeclUUID.Token, latestVarsUpdatedUUID, nil, nil):     {Identifier: "com.fleet.var.uuid"},
+		automdm.EffectiveDDMToken(dbDeclSerial.Token, latestVarsUpdatedSerial, nil, nil): {Identifier: "com.fleet.var.serial"},
 		dbDeclPlain.Token: {Identifier: "com.fleet.plain"},
 	}
 
@@ -2110,16 +2110,16 @@ WHERE name = ?`
 	// Verify the IDP declaration is marked as failed after the declaration-items
 	// fetch (handleDeclarationItems detected unresolvable variables and excluded
 	// the declaration from the manifest).
-	var hostDecl fleet.MDMAppleHostDeclaration
+	var hostDecl automdm.MDMAppleHostDeclaration
 	mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
 		return sqlx.GetContext(ctx, q, &hostDecl,
 			`SELECT status, detail FROM host_mdm_apple_declarations WHERE host_uuid = ? AND declaration_uuid = ?`,
 			host1.UUID, dbDeclIdpUsername.DeclarationUUID)
 	})
 	require.NotNil(t, hostDecl.Status)
-	assert.Equal(t, fleet.MDMDeliveryFailed, *hostDecl.Status)
+	assert.Equal(t, automdm.MDMDeliveryFailed, *hostDecl.Status)
 	assert.Contains(t, hostDecl.Detail, "There is no IdP username for this host")
-	assert.Contains(t, hostDecl.Detail, "$FLEET_VAR_HOST_END_USER_IDP_USERNAME")
+	assert.Contains(t, hostDecl.Detail, "$AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME")
 
 	// Host1 fetches the IdP username configuration — variable resolution
 	// fails again (fallback path). The server returns an empty 200.
@@ -2154,19 +2154,19 @@ WHERE name = ?`
 	"Payload": {"Echo": "static-uuid-replacement"},
 	"Identifier": "com.fleet.var.uuid"
 }`)
-	profilesReqVarRemoved := batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{
+	profilesReqVarRemoved := batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{
 		{Name: "VarUUID.json", Contents: declUUIDNowStatic},
 		{Name: "VarSerial.json", Contents: declWithSerial},
 		{Name: "Plain.json", Contents: declPlain},
 		{Name: "VarIdpUsername.json", Contents: declWithIdpUsername},
 	}}
-	s.Do("POST", "/api/latest/fleet/mdm/profiles/batch", profilesReqVarRemoved, http.StatusNoContent,
-		"fleet_id", teamIDStr)
+	s.Do("POST", "/api/latest/automdm/mdm/profiles/batch", profilesReqVarRemoved, http.StatusNoContent,
+		"team_id", teamIDStr)
 
 	// Re-read the declaration from DB — content and token should have changed
 	dbDeclUUIDUpdated := getDeclaration(t, "VarUUID.json")
 	assert.Contains(t, string(dbDeclUUIDUpdated.RawJSON), "static-uuid-replacement")
-	assert.NotContains(t, string(dbDeclUUIDUpdated.RawJSON), "$FLEET_VAR")
+	assert.NotContains(t, string(dbDeclUUIDUpdated.RawJSON), "$AUTOMDM_VAR")
 	assert.NotEqual(t, dbDeclUUID.Token, dbDeclUUIDUpdated.Token)
 	// Declaration UUID stays the same (updated in place)
 	assert.Equal(t, dbDeclUUID.DeclarationUUID, dbDeclUUIDUpdated.DeclarationUUID)
@@ -2223,7 +2223,7 @@ func declarationForTestWithAssetReference(identifier string, assetReference stri
 }`, assetReference, identifier))
 }
 
-func declarationForTestWithScope(identifier string, scope fleet.PayloadScope) []byte {
+func declarationForTestWithScope(identifier string, scope automdm.PayloadScope) []byte {
 	return fmt.Appendf(nil, `
 {
     "Type": "com.apple.configuration.management.test",
@@ -2273,7 +2273,7 @@ func (s *integrationMDMTestSuite) TestAppleDDMCustomActivations() {
 		body, headers := generateMultipartRequestWithFiles(
 			t, "profile", fileName, content, s.token, nil, extraFiles,
 		)
-		return s.DoRawWithHeaders("POST", "/api/latest/fleet/configuration_profiles", body.Bytes(), wantStatus, headers)
+		return s.DoRawWithHeaders("POST", "/api/latest/automdm/configuration_profiles", body.Bytes(), wantStatus, headers)
 	}
 
 	t.Run("upload a declaration with an activation and read it back", func(t *testing.T) {
@@ -2286,13 +2286,13 @@ func (s *integrationMDMTestSuite) TestAppleDDMCustomActivations() {
 		require.NotEmpty(t, uploadResp.ProfileUUID)
 		t.Cleanup(func() {
 			var delResp deleteMDMConfigProfileResponse
-			s.DoJSON("DELETE", fmt.Sprintf("/api/latest/fleet/configuration_profiles/%s", uploadResp.ProfileUUID), nil, http.StatusOK, &delResp)
+			s.DoJSON("DELETE", fmt.Sprintf("/api/latest/automdm/configuration_profiles/%s", uploadResp.ProfileUUID), nil, http.StatusOK, &delResp)
 		})
 
 		// the list endpoint returns it, base64-encoded by encoding/json
 		var listResp listMDMConfigProfilesResponse
-		s.DoJSON("GET", "/api/latest/fleet/configuration_profiles", &listMDMConfigProfilesRequest{}, http.StatusOK, &listResp)
-		var found *fleet.MDMConfigProfilePayload
+		s.DoJSON("GET", "/api/latest/automdm/configuration_profiles", &listMDMConfigProfilesRequest{}, http.StatusOK, &listResp)
+		var found *automdm.MDMConfigProfilePayload
 		for _, p := range listResp.Profiles {
 			if p.ProfileUUID == uploadResp.ProfileUUID {
 				found = p
@@ -2302,7 +2302,7 @@ func (s *integrationMDMTestSuite) TestAppleDDMCustomActivations() {
 		require.JSONEq(t, string(activation), string(found.Activation))
 
 		// the raw body carries it as a base64 string, per the API reference
-		getRes := s.Do("GET", fmt.Sprintf("/api/latest/fleet/configuration_profiles/%s", uploadResp.ProfileUUID), nil, http.StatusOK)
+		getRes := s.Do("GET", fmt.Sprintf("/api/latest/automdm/configuration_profiles/%s", uploadResp.ProfileUUID), nil, http.StatusOK)
 		rawBody, err := io.ReadAll(getRes.Body)
 		require.NoError(t, err)
 		var asMap map[string]any
@@ -2321,11 +2321,11 @@ func (s *integrationMDMTestSuite) TestAppleDDMCustomActivations() {
 		require.NoError(t, json.NewDecoder(res.Body).Decode(&uploadResp))
 		t.Cleanup(func() {
 			var delResp deleteMDMConfigProfileResponse
-			s.DoJSON("DELETE", fmt.Sprintf("/api/latest/fleet/configuration_profiles/%s", uploadResp.ProfileUUID), nil, http.StatusOK, &delResp)
+			s.DoJSON("DELETE", fmt.Sprintf("/api/latest/automdm/configuration_profiles/%s", uploadResp.ProfileUUID), nil, http.StatusOK, &delResp)
 		})
 
 		// present but null, so the field is explicit rather than missing
-		getRes := s.Do("GET", fmt.Sprintf("/api/latest/fleet/configuration_profiles/%s", uploadResp.ProfileUUID), nil, http.StatusOK)
+		getRes := s.Do("GET", fmt.Sprintf("/api/latest/automdm/configuration_profiles/%s", uploadResp.ProfileUUID), nil, http.StatusOK)
 		rawBody, err := io.ReadAll(getRes.Body)
 		require.NoError(t, err)
 		var asMap map[string]any
@@ -2354,13 +2354,13 @@ func (s *integrationMDMTestSuite) TestAppleDDMCustomActivations() {
 			require.NotEmpty(t, uploadResp.ProfileUUID)
 			t.Cleanup(func() {
 				var delResp deleteMDMConfigProfileResponse
-				s.DoJSON("DELETE", fmt.Sprintf("/api/latest/fleet/configuration_profiles/%s", uploadResp.ProfileUUID), nil, http.StatusOK, &delResp)
+				s.DoJSON("DELETE", fmt.Sprintf("/api/latest/automdm/configuration_profiles/%s", uploadResp.ProfileUUID), nil, http.StatusOK, &delResp)
 			})
 		}
 
-		// both coexist in the same fleet
+		// both coexist in the same team
 		var listResp listMDMConfigProfilesResponse
-		s.DoJSON("GET", "/api/latest/fleet/configuration_profiles", &listMDMConfigProfilesRequest{}, http.StatusOK, &listResp)
+		s.DoJSON("GET", "/api/latest/automdm/configuration_profiles", &listMDMConfigProfilesRequest{}, http.StatusOK, &listResp)
 		var mgmtCount int
 		for _, p := range listResp.Profiles {
 			if strings.HasPrefix(p.Identifier, "com.fleet.ddm.mgmt.") {
@@ -2385,12 +2385,12 @@ func (s *integrationMDMTestSuite) TestAppleDDMCustomActivations() {
 		// tripping the authorization layer
 		mc := mobileconfigForTest("act-edit-not-ddm", "com.fleet.ddm.act.editnotddm")
 		body, headers := generateNewProfileMultipartRequest(t, "act-edit-not-ddm.mobileconfig", mc, s.token, nil)
-		res := s.DoRawWithHeaders("POST", "/api/latest/fleet/configuration_profiles", body.Bytes(), http.StatusOK, headers)
+		res := s.DoRawWithHeaders("POST", "/api/latest/automdm/configuration_profiles", body.Bytes(), http.StatusOK, headers)
 		var uploadResp newMDMConfigProfileResponse
 		require.NoError(t, json.NewDecoder(res.Body).Decode(&uploadResp))
 		t.Cleanup(func() {
 			var delResp deleteMDMConfigProfileResponse
-			s.DoJSON("DELETE", fmt.Sprintf("/api/latest/fleet/configuration_profiles/%s", uploadResp.ProfileUUID), nil, http.StatusOK, &delResp)
+			s.DoJSON("DELETE", fmt.Sprintf("/api/latest/automdm/configuration_profiles/%s", uploadResp.ProfileUUID), nil, http.StatusOK, &delResp)
 		})
 
 		activation := activationForTest("com.fleet.ddm.act.bad", "com.fleet.ddm.act.bad", "")
@@ -2399,7 +2399,7 @@ func (s *integrationMDMTestSuite) TestAppleDDMCustomActivations() {
 			map[string]multipartFile{"activation": {fileName: "activation.json", content: activation}},
 		)
 		patchRes := s.DoRawWithHeaders("PATCH",
-			fmt.Sprintf("/api/latest/fleet/configuration_profiles/%s", uploadResp.ProfileUUID),
+			fmt.Sprintf("/api/latest/automdm/configuration_profiles/%s", uploadResp.ProfileUUID),
 			patchBody.Bytes(), http.StatusUnprocessableEntity, patchHeaders)
 		require.Contains(t, extractServerErrorText(patchRes.Body),
 			"Activations are only supported for declaration (DDM) profiles")
@@ -2415,11 +2415,11 @@ func (s *integrationMDMTestSuite) TestAppleDDMCustomActivations() {
 		require.NoError(t, json.NewDecoder(res.Body).Decode(&uploadResp))
 		t.Cleanup(func() {
 			var delResp deleteMDMConfigProfileResponse
-			s.DoJSON("DELETE", fmt.Sprintf("/api/latest/fleet/configuration_profiles/%s", uploadResp.ProfileUUID), nil, http.StatusOK, &delResp)
+			s.DoJSON("DELETE", fmt.Sprintf("/api/latest/automdm/configuration_profiles/%s", uploadResp.ProfileUUID), nil, http.StatusOK, &delResp)
 		})
 
 		storedActivation := func() []byte {
-			getRes := s.Do("GET", fmt.Sprintf("/api/latest/fleet/configuration_profiles/%s", uploadResp.ProfileUUID), nil, http.StatusOK)
+			getRes := s.Do("GET", fmt.Sprintf("/api/latest/automdm/configuration_profiles/%s", uploadResp.ProfileUUID), nil, http.StatusOK)
 			var profResp getMDMConfigProfileResponse
 			require.NoError(t, json.NewDecoder(getRes.Body).Decode(&profResp))
 			return profResp.Activation
@@ -2427,7 +2427,7 @@ func (s *integrationMDMTestSuite) TestAppleDDMCustomActivations() {
 		patch := func(extraFields map[string][]string, files map[string]multipartFile) {
 			body, headers := generateMultipartRequestWithFiles(t, "profile", "", nil, s.token, extraFields, files)
 			s.DoRawWithHeaders("PATCH",
-				fmt.Sprintf("/api/latest/fleet/configuration_profiles/%s", uploadResp.ProfileUUID),
+				fmt.Sprintf("/api/latest/automdm/configuration_profiles/%s", uploadResp.ProfileUUID),
 				body.Bytes(), http.StatusOK, headers)
 		}
 
@@ -2470,7 +2470,7 @@ func (s *integrationMDMTestSuite) TestAppleDDMCustomActivations() {
 		require.NoError(t, json.NewDecoder(res.Body).Decode(&uploadResp))
 		t.Cleanup(func() {
 			var delResp deleteMDMConfigProfileResponse
-			s.DoJSON("DELETE", fmt.Sprintf("/api/latest/fleet/configuration_profiles/%s", uploadResp.ProfileUUID), nil, http.StatusOK, &delResp)
+			s.DoJSON("DELETE", fmt.Sprintf("/api/latest/automdm/configuration_profiles/%s", uploadResp.ProfileUUID), nil, http.StatusOK, &delResp)
 		})
 
 		// PATCH with only an activation: no profile part at all
@@ -2480,10 +2480,10 @@ func (s *integrationMDMTestSuite) TestAppleDDMCustomActivations() {
 			map[string]multipartFile{"activation": {fileName: "activation.json", content: updated}},
 		)
 		s.DoRawWithHeaders("PATCH",
-			fmt.Sprintf("/api/latest/fleet/configuration_profiles/%s", uploadResp.ProfileUUID),
+			fmt.Sprintf("/api/latest/automdm/configuration_profiles/%s", uploadResp.ProfileUUID),
 			body.Bytes(), http.StatusOK, headers)
 
-		getRes := s.Do("GET", fmt.Sprintf("/api/latest/fleet/configuration_profiles/%s", uploadResp.ProfileUUID), nil, http.StatusOK)
+		getRes := s.Do("GET", fmt.Sprintf("/api/latest/automdm/configuration_profiles/%s", uploadResp.ProfileUUID), nil, http.StatusOK)
 		var profResp getMDMConfigProfileResponse
 		require.NoError(t, json.NewDecoder(getRes.Body).Decode(&profResp))
 		require.JSONEq(t, string(updated), string(profResp.Activation), "activation should be replaced")
@@ -2497,8 +2497,8 @@ func (s *integrationMDMTestSuite) TestAppleDDMCustomActivations() {
 
 // TestAppleDDMOSUpdatesTargetVariables is the end-to-end version of the OS-update
 // DDM sync flow against an enrolled macOS host:
-//  1. the host is assigned Fleet's macOS OS-updates declaration, which resolves
-//     $FLEET_VAR_HOST_TARGET_OS_VERSION / $FLEET_VAR_HOST_TARGET_OS_DEADLINE. Its
+//  1. the host is assigned AutoMDM's macOS OS-updates declaration, which resolves
+//     $AUTOMDM_VAR_HOST_TARGET_OS_VERSION / $AUTOMDM_VAR_HOST_TARGET_OS_DEADLINE. Its
 //     target hasn't been computed yet, so the first DDM fetch defers the
 //     declaration: it is marked pending with a user-facing detail and served as
 //     an empty 200 (not failed).
@@ -2513,33 +2513,33 @@ func (s *integrationMDMTestSuite) TestAppleDDMOSUpdatesTargetVariables() {
 	// Enrolled macOS host, moved into a team configured for automatic OS updates.
 	host, mdmDevice := createHostThenEnrollMDM(s.ds, s.server.URL, t)
 
-	team := &fleet.Team{Name: t.Name() + "-team"}
+	team := &automdm.Team{Name: t.Name() + "-team"}
 	var createTeamResp teamResponse
-	s.DoJSON("POST", "/api/latest/fleet/fleets", team, http.StatusOK, &createTeamResp)
+	s.DoJSON("POST", "/api/latest/automdm/teams", team, http.StatusOK, &createTeamResp)
 	require.NotZero(t, createTeamResp.Team.ID)
 	team = createTeamResp.Team
-	s.Do("POST", "/api/v1/fleet/hosts/transfer",
+	s.Do("POST", "/api/v1/automdm/hosts/transfer",
 		addHostsToTeamRequest{TeamID: &team.ID, HostIDs: []uint{host.ID}}, http.StatusOK)
 
 	var modifyTeamRes teamResponse
-	teamPayload := &fleet.TeamPayload{
-		MDM: &fleet.TeamPayloadMDM{
-			MacOSUpdates: &fleet.AppleOSUpdateSettings{
+	teamPayload := &automdm.TeamPayload{
+		MDM: &automdm.TeamPayloadMDM{
+			MacOSUpdates: &automdm.AppleOSUpdateSettings{
 				MinimumVersion: optjson.SetString("latest"),
 				DeadlineDays:   optjson.SetInt(2),
 			},
 		},
 	}
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d", team.ID), teamPayload, http.StatusOK, &modifyTeamRes)
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d", team.ID), teamPayload, http.StatusOK, &modifyTeamRes)
 
-	// Fleet's macOS OS-updates declaration is scoped to the built-in "macOS 14+"
+	// AutoMDM's macOS OS-updates declaration is scoped to the built-in "macOS 14+"
 	// dynamic label, so the host has to be a member of it for the reconciler to
 	// assign the declaration.
-	lblIDs, err := s.ds.LabelIDsByName(ctx, []string{fleet.BuiltinLabelMacOS14Plus}, fleet.TeamFilter{})
+	lblIDs, err := s.ds.LabelIDsByName(ctx, []string{automdm.BuiltinLabelMacOS14Plus}, automdm.TeamFilter{})
 	require.NoError(t, err)
-	require.Contains(t, lblIDs, fleet.BuiltinLabelMacOS14Plus)
+	require.Contains(t, lblIDs, automdm.BuiltinLabelMacOS14Plus)
 	require.NoError(t, s.ds.RecordLabelQueryExecutions(ctx, host,
-		map[uint]*bool{lblIDs[fleet.BuiltinLabelMacOS14Plus]: new(true)}, time.Now(), false))
+		map[uint]*bool{lblIDs[automdm.BuiltinLabelMacOS14Plus]: new(true)}, time.Now(), false))
 
 	// The reconcile cron assigns the declaration to the host.
 	s.awaitTriggerProfileSchedule(t)
@@ -2560,7 +2560,7 @@ func (s *integrationMDMTestSuite) TestAppleDDMOSUpdatesTargetVariables() {
 			return sqlx.GetContext(ctx, q, &row,
 				`SELECT status, COALESCE(detail, '') AS detail, variables_updated_at, declaration_identifier
 				 FROM host_mdm_apple_declarations WHERE host_uuid = ? AND declaration_name = ?`,
-				host.UUID, common_mdm.FleetMacOSUpdatesProfileName)
+				host.UUID, common_mdm.AutoMDMMacOSUpdatesProfileName)
 		})
 		return row.Status, row.Detail, row.VariablesAt, row.Identifier
 	}
@@ -2577,7 +2577,7 @@ func (s *integrationMDMTestSuite) TestAppleDDMOSUpdatesTargetVariables() {
 
 	status, detail, _, _ := readDecl()
 	require.NotNil(t, status)
-	require.Equal(t, string(fleet.MDMDeliveryPending), *status)
+	require.Equal(t, string(automdm.MDMDeliveryPending), *status)
 	require.Contains(t, detail, "not yet available")
 
 	// === Phase 2: reconcile cron computes the target and bumps for resend ===
@@ -2585,7 +2585,7 @@ func (s *integrationMDMTestSuite) TestAppleDDMOSUpdatesTargetVariables() {
 	// Seed the cached Apple software-update assets so the cron resolves a version
 	// for the device without reaching out to GDMF (recent updated_at short-circuits
 	// the network fetch).
-	require.NoError(t, s.ds.UpsertAppleOSUpdates(ctx, map[string][]fleet.OSUpdateAsset{
+	require.NoError(t, s.ds.UpsertAppleOSUpdates(ctx, map[string][]automdm.OSUpdateAsset{
 		"macos": {{
 			ProductVersion:   "15.1",
 			Build:            "23B74",
@@ -2623,7 +2623,7 @@ func (s *integrationMDMTestSuite) TestAppleDDMOSUpdatesTargetVariables() {
 	body, err = io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	require.NoError(t, resp.Body.Close())
-	require.NotContains(t, string(body), "$FLEET_VAR")
+	require.NotContains(t, string(body), "$AUTOMDM_VAR")
 
 	var served struct {
 		Identifier string

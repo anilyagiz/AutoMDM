@@ -1,6 +1,6 @@
 .card {
   border-radius: $border-radius-large;
-  border: 1px solid $ui-fleet-black-10;
+  border: 1px solid $ui-automdm-black-10;
   // TODO - update this to be 40px per style guide
   padding: $pad-large;
 
@@ -42,10 +42,10 @@
 
   // color styles
   &__white {
-    background-color: $core-fleet-white;
+    background-color: $core-automdm-white;
 
     body.dark-mode & {
-      background-color: $ui-fleet-black-5;
+      background-color: $ui-automdm-black-5;
     }
   }
 

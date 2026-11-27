@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -15,10 +15,10 @@ func TestBatchActivitiesRun(t *testing.T) {
 	ds := new(mock.Store)
 
 	var canceled bool
-	var status fleet.ScheduledBatchExecutionStatus = fleet.ScheduledBatchExecutionScheduled
+	var status automdm.ScheduledBatchExecutionStatus = automdm.ScheduledBatchExecutionScheduled
 
-	ds.GetBatchActivityFunc = func(ctx context.Context, executionID string) (*fleet.BatchActivity, error) {
-		return &fleet.BatchActivity{
+	ds.GetBatchActivityFunc = func(ctx context.Context, executionID string) (*automdm.BatchActivity, error) {
+		return &automdm.BatchActivity{
 			BatchExecutionID: executionID,
 			Status:           status,
 			Canceled:         canceled,
@@ -44,7 +44,7 @@ func TestBatchActivitiesRun(t *testing.T) {
 	// Job is already started
 	ds.GetBatchActivityFuncInvoked = false
 	ds.RunScheduledBatchActivityFuncInvoked = false
-	status = fleet.ScheduledBatchExecutionStarted
+	status = automdm.ScheduledBatchExecutionStarted
 
 	err = batchWorker.Run(ctx, json.RawMessage(`{"execution_id": "abc"}`))
 	require.NoError(t, err)
@@ -54,7 +54,7 @@ func TestBatchActivitiesRun(t *testing.T) {
 	// Job was canceled
 	ds.GetBatchActivityFuncInvoked = false
 	ds.RunScheduledBatchActivityFuncInvoked = false
-	status = fleet.ScheduledBatchExecutionScheduled
+	status = automdm.ScheduledBatchExecutionScheduled
 	canceled = true
 
 	err = batchWorker.Run(ctx, json.RawMessage(`{"execution_id": "abc"}`))

@@ -7,7 +7,7 @@
 
 $displayNamePattern = '^Fork$'
 $publisher = "Fork"
-$taskName = "fleet-uninstall-fork"
+$taskName = "automdm-uninstall-fork"
 $appDir = "AppData\Local\Fork"  # in each user's profile
 $taskRunning = 267009  # SCHED_S_TASK_RUNNING
 $timeoutSeconds = 300

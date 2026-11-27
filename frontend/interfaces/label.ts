@@ -17,7 +17,7 @@ export default PropTypes.shape({
 export type LabelType = "regular" | "builtin";
 
 // Valid platform values for a dynamic label, mirroring the server's
-// ValidLabelPlatformVariants (server/fleet/labels.go). "" targets all
+// ValidLabelPlatformVariants (server/automdm/labels.go). "" targets all
 // platforms.
 export const LABEL_PLATFORMS = ["", "darwin", "windows", "linux"] as const;
 export type LabelPlatform = typeof LABEL_PLATFORMS[number];
@@ -137,8 +137,8 @@ export interface ILabel extends ILabelSummary {
   slug?: string; // e.g., "labels/13" | "online"
   target_type?: string; // e.g., "labels"
   author_id?: number;
-  fleet_id: number | null;
-  fleet_name?: string | null; // returned on individual label endpoints but not list endpoints
+  team_id: number | null;
+  team_name?: string | null; // returned on individual label endpoints but not list endpoints
 
   label_membership_type: LabelMembershipType;
 
@@ -153,7 +153,7 @@ export interface ILabel extends ILabelSummary {
   host_ids: number[] | null;
 }
 
-// corresponding to fleet>server>fleet>labels.go>LabelSpec
+// corresponding to team>server>team>labels.go>LabelSpec
 export interface ILabelSpecResponse {
   specs: {
     id: number;

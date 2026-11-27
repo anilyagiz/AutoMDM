@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -75,19 +75,19 @@ func TestAnalyze(t *testing.T) {
 
 	t.Run("host with old SPL is vulnerable to both", func(t *testing.T) {
 		ds := new(mock.Store)
-		ds.ListOSVulnerabilitiesByOSFunc = func(ctx context.Context, osID uint) ([]fleet.OSVulnerability, error) {
+		ds.ListOSVulnerabilitiesByOSFunc = func(ctx context.Context, osID uint) ([]automdm.OSVulnerability, error) {
 			return nil, nil // no existing vulns
 		}
-		ds.DeleteOSVulnerabilitiesFunc = func(ctx context.Context, vulns []fleet.OSVulnerability) error {
+		ds.DeleteOSVulnerabilitiesFunc = func(ctx context.Context, vulns []automdm.OSVulnerability) error {
 			return nil
 		}
-		var inserted []fleet.OSVulnerability
-		ds.InsertOSVulnerabilitiesFunc = func(ctx context.Context, vulns []fleet.OSVulnerability, source fleet.VulnerabilitySource) (int64, error) {
+		var inserted []automdm.OSVulnerability
+		ds.InsertOSVulnerabilitiesFunc = func(ctx context.Context, vulns []automdm.OSVulnerability, source automdm.VulnerabilitySource) (int64, error) {
 			inserted = append(inserted, vulns...)
 			return int64(len(vulns)), nil
 		}
 
-		os := fleet.OperatingSystem{
+		os := automdm.OperatingSystem{
 			ID:       1,
 			Name:     "Android",
 			Version:  "16 (2026-04-01)", // SPL before both fixes
@@ -101,7 +101,7 @@ func TestAnalyze(t *testing.T) {
 		cves := map[string]string{}
 		for _, v := range result {
 			require.Equal(t, uint(1), v.OSID)
-			require.Equal(t, fleet.AndroidOSVSource, v.Source)
+			require.Equal(t, automdm.AndroidOSVSource, v.Source)
 			cves[v.CVE] = *v.ResolvedInVersion
 		}
 		require.Equal(t, "16 (2026-05-01)", cves["CVE-2026-1111"])
@@ -110,19 +110,19 @@ func TestAnalyze(t *testing.T) {
 
 	t.Run("host with recent SPL is only vulnerable to later fix", func(t *testing.T) {
 		ds := new(mock.Store)
-		ds.ListOSVulnerabilitiesByOSFunc = func(ctx context.Context, osID uint) ([]fleet.OSVulnerability, error) {
+		ds.ListOSVulnerabilitiesByOSFunc = func(ctx context.Context, osID uint) ([]automdm.OSVulnerability, error) {
 			return nil, nil
 		}
-		ds.DeleteOSVulnerabilitiesFunc = func(ctx context.Context, vulns []fleet.OSVulnerability) error {
+		ds.DeleteOSVulnerabilitiesFunc = func(ctx context.Context, vulns []automdm.OSVulnerability) error {
 			return nil
 		}
-		var inserted []fleet.OSVulnerability
-		ds.InsertOSVulnerabilitiesFunc = func(ctx context.Context, vulns []fleet.OSVulnerability, source fleet.VulnerabilitySource) (int64, error) {
+		var inserted []automdm.OSVulnerability
+		ds.InsertOSVulnerabilitiesFunc = func(ctx context.Context, vulns []automdm.OSVulnerability, source automdm.VulnerabilitySource) (int64, error) {
 			inserted = append(inserted, vulns...)
 			return int64(len(vulns)), nil
 		}
 
-		os := fleet.OperatingSystem{
+		os := automdm.OperatingSystem{
 			ID:       2,
 			Name:     "Android",
 			Version:  "16 (2026-05-01)", // SPL after first fix, before second
@@ -137,17 +137,17 @@ func TestAnalyze(t *testing.T) {
 
 	t.Run("fully patched host has no vulnerabilities", func(t *testing.T) {
 		ds := new(mock.Store)
-		ds.ListOSVulnerabilitiesByOSFunc = func(ctx context.Context, osID uint) ([]fleet.OSVulnerability, error) {
+		ds.ListOSVulnerabilitiesByOSFunc = func(ctx context.Context, osID uint) ([]automdm.OSVulnerability, error) {
 			return nil, nil
 		}
-		ds.DeleteOSVulnerabilitiesFunc = func(ctx context.Context, vulns []fleet.OSVulnerability) error {
+		ds.DeleteOSVulnerabilitiesFunc = func(ctx context.Context, vulns []automdm.OSVulnerability) error {
 			return nil
 		}
-		ds.InsertOSVulnerabilitiesFunc = func(ctx context.Context, vulns []fleet.OSVulnerability, source fleet.VulnerabilitySource) (int64, error) {
+		ds.InsertOSVulnerabilitiesFunc = func(ctx context.Context, vulns []automdm.OSVulnerability, source automdm.VulnerabilitySource) (int64, error) {
 			return 0, nil
 		}
 
-		os := fleet.OperatingSystem{
+		os := automdm.OperatingSystem{
 			ID:       3,
 			Name:     "Android",
 			Version:  "16 (2026-06-01)", // SPL at the latest fix
@@ -161,17 +161,17 @@ func TestAnalyze(t *testing.T) {
 
 	t.Run("bare version with no SPL skips matching", func(t *testing.T) {
 		ds := new(mock.Store)
-		ds.ListOSVulnerabilitiesByOSFunc = func(ctx context.Context, osID uint) ([]fleet.OSVulnerability, error) {
+		ds.ListOSVulnerabilitiesByOSFunc = func(ctx context.Context, osID uint) ([]automdm.OSVulnerability, error) {
 			return nil, nil
 		}
-		ds.DeleteOSVulnerabilitiesFunc = func(ctx context.Context, vulns []fleet.OSVulnerability) error {
+		ds.DeleteOSVulnerabilitiesFunc = func(ctx context.Context, vulns []automdm.OSVulnerability) error {
 			return nil
 		}
-		ds.InsertOSVulnerabilitiesFunc = func(ctx context.Context, vulns []fleet.OSVulnerability, source fleet.VulnerabilitySource) (int64, error) {
+		ds.InsertOSVulnerabilitiesFunc = func(ctx context.Context, vulns []automdm.OSVulnerability, source automdm.VulnerabilitySource) (int64, error) {
 			return 0, nil
 		}
 
-		os := fleet.OperatingSystem{
+		os := automdm.OperatingSystem{
 			ID:       4,
 			Name:     "Android",
 			Version:  "16", // No SPL
@@ -186,33 +186,33 @@ func TestAnalyze(t *testing.T) {
 	t.Run("delta removes stale vulns when host is patched", func(t *testing.T) {
 		ds := new(mock.Store)
 		// Simulate existing vuln from a previous scan
-		ds.ListOSVulnerabilitiesByOSFunc = func(ctx context.Context, osID uint) ([]fleet.OSVulnerability, error) {
-			return []fleet.OSVulnerability{
+		ds.ListOSVulnerabilitiesByOSFunc = func(ctx context.Context, osID uint) ([]automdm.OSVulnerability, error) {
+			return []automdm.OSVulnerability{
 				{
 					OSID:              5,
 					CVE:               "CVE-2026-1111",
-					Source:            fleet.AndroidOSVSource,
+					Source:            automdm.AndroidOSVSource,
 					ResolvedInVersion: resolvedVersion("16", "2026-05-01"),
 				},
 				{
 					OSID:              5,
 					CVE:               "CVE-2026-2222",
-					Source:            fleet.AndroidOSVSource,
+					Source:            automdm.AndroidOSVSource,
 					ResolvedInVersion: resolvedVersion("16", "2026-06-01"),
 				},
 			}, nil
 		}
-		var deleted []fleet.OSVulnerability
-		ds.DeleteOSVulnerabilitiesFunc = func(ctx context.Context, vulns []fleet.OSVulnerability) error {
+		var deleted []automdm.OSVulnerability
+		ds.DeleteOSVulnerabilitiesFunc = func(ctx context.Context, vulns []automdm.OSVulnerability) error {
 			deleted = append(deleted, vulns...)
 			return nil
 		}
-		ds.InsertOSVulnerabilitiesFunc = func(ctx context.Context, vulns []fleet.OSVulnerability, source fleet.VulnerabilitySource) (int64, error) {
+		ds.InsertOSVulnerabilitiesFunc = func(ctx context.Context, vulns []automdm.OSVulnerability, source automdm.VulnerabilitySource) (int64, error) {
 			return 0, nil
 		}
 
 		// Host is now fully patched
-		os := fleet.OperatingSystem{
+		os := automdm.OperatingSystem{
 			ID:       5,
 			Name:     "Android",
 			Version:  "16 (2026-06-01)",
@@ -228,25 +228,25 @@ func TestAnalyze(t *testing.T) {
 	t.Run("bare version (no SPL) leaves existing vulns untouched", func(t *testing.T) {
 		ds := new(mock.Store)
 		// Existing findings from a previous scan of a patch-level version.
-		ds.ListOSVulnerabilitiesByOSFunc = func(ctx context.Context, osID uint) ([]fleet.OSVulnerability, error) {
-			return []fleet.OSVulnerability{
+		ds.ListOSVulnerabilitiesByOSFunc = func(ctx context.Context, osID uint) ([]automdm.OSVulnerability, error) {
+			return []automdm.OSVulnerability{
 				{
 					OSID:              8,
 					CVE:               "CVE-2026-1111",
-					Source:            fleet.AndroidOSVSource,
+					Source:            automdm.AndroidOSVSource,
 					ResolvedInVersion: resolvedVersion("16", "2026-05-01"),
 				},
 			}, nil
 		}
-		var deleted []fleet.OSVulnerability
-		ds.DeleteOSVulnerabilitiesFunc = func(ctx context.Context, vulns []fleet.OSVulnerability) error {
+		var deleted []automdm.OSVulnerability
+		ds.DeleteOSVulnerabilitiesFunc = func(ctx context.Context, vulns []automdm.OSVulnerability) error {
 			deleted = append(deleted, vulns...)
 			return nil
 		}
 
 		// Host reports a bare version with no security patch level, so we
 		// can't determine vulnerability status.
-		os := fleet.OperatingSystem{
+		os := automdm.OperatingSystem{
 			ID:       8,
 			Name:     "Android",
 			Version:  "16",
@@ -262,7 +262,7 @@ func TestAnalyze(t *testing.T) {
 
 	t.Run("no artifact for version returns nil", func(t *testing.T) {
 		ds := new(mock.Store)
-		os := fleet.OperatingSystem{
+		os := automdm.OperatingSystem{
 			ID:       6,
 			Name:     "Android",
 			Version:  "99 (2099-01-01)", // no artifact for version 99
@@ -282,7 +282,7 @@ func TestAnalyze(t *testing.T) {
 			[]byte("not gzip data"), 0o644))
 
 		ds := new(mock.Store)
-		os := fleet.OperatingSystem{
+		os := automdm.OperatingSystem{
 			ID:       7,
 			Name:     "Android",
 			Version:  "16 (2026-01-01)",
@@ -306,7 +306,7 @@ func TestAnalyze(t *testing.T) {
 		})
 
 		ds := new(mock.Store)
-		os := fleet.OperatingSystem{
+		os := automdm.OperatingSystem{
 			ID:       8,
 			Name:     "Android",
 			Version:  "16 (2026-01-01)",

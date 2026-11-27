@@ -269,7 +269,7 @@ describe("HostSoftwareTable", () => {
 
     const url = new URL(
       (router.replace as jest.Mock).mock.calls[0][0],
-      "http://fleet"
+      "http://automdm"
     );
     expect(url.searchParams.get("macos_applications")).toBe("true");
     expect(url.searchParams.get("ai_tool")).toBe("true");

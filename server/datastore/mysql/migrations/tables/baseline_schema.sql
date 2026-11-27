@@ -132,7 +132,7 @@ CREATE TABLE IF NOT EXISTS `activity_past` (
   `details` json DEFAULT NULL,
   `streamed` tinyint(1) NOT NULL DEFAULT '0',
   `user_email` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
-  `fleet_initiated` tinyint(1) NOT NULL DEFAULT '0',
+  `automdm_initiated` tinyint(1) NOT NULL DEFAULT '0',
   `host_only` tinyint(1) NOT NULL DEFAULT '0',
   `policy_id` bigint unsigned GENERATED ALWAYS AS (json_value(`details`, _utf8mb4'$.policy_id' returning unsigned)) VIRTUAL,
   `batch_row_uuid` binary(16) DEFAULT NULL,
@@ -242,7 +242,7 @@ CREATE TABLE IF NOT EXISTS `app_config_json` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-INSERT IGNORE INTO `app_config_json` VALUES (1,'{\"mdm\": {\"ios_updates\": {\"deadline\": null, \"deadline_days\": null, \"minimum_version\": null, \"update_new_hosts\": null}, \"macos_setup\": {\"script\": null, \"software\": null, \"bootstrap_package\": null, \"lock_end_user_info\": false, \"manual_agent_install\": null, \"macos_setup_assistant\": null, \"require_all_software_macos\": false, \"end_user_local_account_type\": \"admin\", \"enable_managed_local_account\": false, \"require_all_software_windows\": false, \"enable_end_user_authentication\": false, \"enable_release_device_manually\": false, \"macos_enable_bootstrap_package_during_migration\": false, \"macos_enable_bootstrap_package_during_manual_enrollment\": false}, \"macos_updates\": {\"deadline\": null, \"deadline_days\": null, \"minimum_version\": null, \"update_new_hosts\": false}, \"name_template\": null, \"ipados_updates\": {\"deadline\": null, \"deadline_days\": null, \"minimum_version\": null, \"update_new_hosts\": null}, \"linux_settings\": {\"enable_escrow_disk_encryption_key\": false}, \"macos_settings\": {\"custom_settings\": null, \"enable_disk_encryption\": false, \"enable_escrow_disk_encryption_key\": false}, \"macos_migration\": {\"mode\": \"\", \"enable\": false, \"webhook_url\": \"\"}, \"windows_updates\": {\"deadline_days\": null, \"grace_period_days\": null}, \"android_settings\": {\"certificates\": null, \"custom_settings\": null}, \"apple_server_url\": \"\", \"windows_settings\": {\"custom_settings\": null, \"require_bitlocker_pin\": false, \"enable_disk_encryption\": false, \"enable_managed_local_account\": false}, \"apple_bm_terms_expired\": false, \"apple_business_manager\": null, \"enable_disk_encryption\": false, \"enabled_and_configured\": false, \"end_user_authentication\": {\"idp_name\": \"\", \"metadata\": \"\", \"entity_id\": \"\", \"issuer_uri\": \"\", \"metadata_url\": \"\"}, \"windows_entra_client_ids\": [], \"windows_entra_tenant_ids\": [], \"enable_profile_validation\": true, \"volume_purchasing_program\": null, \"windows_migration_enabled\": false, \"apple_account_provisioning\": {\"oauth_idp_client_id\": null, \"oauth_idp_token_url\": null, \"oauth_idp_client_secret\": null}, \"windows_automatic_enrollment\": null, \"enable_recovery_lock_password\": false, \"windows_require_bitlocker_pin\": false, \"android_enabled_and_configured\": false, \"windows_enabled_and_configured\": false, \"apple_bm_enabled_and_configured\": false, \"apple_require_hardware_attestation\": false, \"microsoft_graph_credential_invalid\": false, \"enable_turn_on_windows_mdm_manually\": false, \"only_allow_apple_business_enrollment\": false}, \"gitops\": {\"exceptions\": {\"labels\": true, \"secrets\": true, \"software\": false}, \"repository_url\": \"\", \"gitops_mode_enabled\": false}, \"scripts\": null, \"features\": {\"historical_data\": {\"uptime\": true, \"vulnerabilities\": true}, \"enable_host_users\": true, \"enable_software_inventory\": false}, \"org_info\": {\"org_name\": \"\", \"contact_url\": \"\", \"org_logo_url\": \"\", \"org_logo_url_dark_mode\": \"\", \"org_logo_url_light_mode\": \"\", \"org_logo_url_light_background\": \"\"}, \"integrations\": {\"jira\": null, \"zendesk\": null, \"google_calendar\": null, \"conditional_access_enabled\": null, \"certificates_idp_client_ids\": null, \"certificates_idp_introspection_urls\": null, \"certificates_disable_host_end_user_binding\": null}, \"sso_settings\": {\"idp_name\": \"\", \"metadata\": \"\", \"entity_id\": \"\", \"enable_sso\": false, \"issuer_uri\": \"\", \"metadata_url\": \"\", \"idp_image_url\": \"\", \"sso_server_url\": \"\", \"enable_jit_role_sync\": false, \"enable_sso_idp_login\": false, \"enable_jit_provisioning\": false}, \"agent_options\": {\"config\": {\"options\": {\"logger_plugin\": \"tls\", \"pack_delimiter\": \"/\", \"logger_tls_period\": 10, \"distributed_plugin\": \"tls\", \"disable_distributed\": false, \"logger_tls_endpoint\": \"/api/osquery/log\", \"distributed_interval\": 10, \"distributed_tls_max_attempts\": 3}, \"decorators\": {\"load\": [\"SELECT uuid AS host_uuid FROM system_info;\", \"SELECT hostname AS hostname FROM system_info;\"]}}, \"overrides\": {}}, \"fleet_desktop\": {\"sso_enabled\": false, \"transparency_url\": \"\", \"alternative_browser_host\": \"\"}, \"smtp_settings\": {\"port\": 587, \"domain\": \"\", \"server\": \"\", \"password\": \"\", \"user_name\": \"\", \"configured\": false, \"enable_smtp\": false, \"enable_ssl_tls\": true, \"sender_address\": \"\", \"enable_start_tls\": true, \"verify_ssl_certs\": true, \"authentication_type\": \"0\", \"authentication_method\": \"0\"}, \"server_settings\": {\"server_url\": \"\", \"mcp_disabled\": false, \"enable_analytics\": false, \"query_report_cap\": 0, \"scripts_disabled\": false, \"deferred_save_host\": false, \"live_query_disabled\": false, \"ai_features_disabled\": false, \"query_reports_disabled\": false}, \"webhook_settings\": {\"interval\": \"0s\", \"activities_webhook\": {\"destination_url\": \"\", \"enable_activities_webhook\": false}, \"host_status_webhook\": {\"days_count\": 0, \"destination_url\": \"\", \"host_percentage\": 0, \"enable_host_status_webhook\": false}, \"vulnerabilities_webhook\": {\"destination_url\": \"\", \"host_batch_size\": 0, \"enable_vulnerabilities_webhook\": false}, \"failing_policies_webhook\": {\"policy_ids\": null, \"destination_url\": \"\", \"host_batch_size\": 0, \"enable_failing_policies_webhook\": false}}, \"host_expiry_settings\": {\"host_expiry_window\": 0, \"host_expiry_enabled\": false}, \"vulnerability_settings\": {\"databases_path\": \"\"}, \"activity_expiry_settings\": {\"activity_expiry_window\": 0, \"activity_expiry_enabled\": false, \"preserve_host_activities_on_reenrollment\": false}}',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP);
+INSERT IGNORE INTO `app_config_json` VALUES (1,'{\"mdm\": {\"ios_updates\": {\"deadline\": null, \"deadline_days\": null, \"minimum_version\": null, \"update_new_hosts\": null}, \"macos_setup\": {\"script\": null, \"software\": null, \"bootstrap_package\": null, \"lock_end_user_info\": false, \"manual_agent_install\": null, \"macos_setup_assistant\": null, \"require_all_software_macos\": false, \"end_user_local_account_type\": \"admin\", \"enable_managed_local_account\": false, \"require_all_software_windows\": false, \"enable_end_user_authentication\": false, \"enable_release_device_manually\": false, \"macos_enable_bootstrap_package_during_migration\": false, \"macos_enable_bootstrap_package_during_manual_enrollment\": false}, \"macos_updates\": {\"deadline\": null, \"deadline_days\": null, \"minimum_version\": null, \"update_new_hosts\": false}, \"name_template\": null, \"ipados_updates\": {\"deadline\": null, \"deadline_days\": null, \"minimum_version\": null, \"update_new_hosts\": null}, \"linux_settings\": {\"enable_escrow_disk_encryption_key\": false}, \"macos_settings\": {\"custom_settings\": null, \"enable_disk_encryption\": false, \"enable_escrow_disk_encryption_key\": false}, \"macos_migration\": {\"mode\": \"\", \"enable\": false, \"webhook_url\": \"\"}, \"windows_updates\": {\"deadline_days\": null, \"grace_period_days\": null}, \"android_settings\": {\"certificates\": null, \"custom_settings\": null}, \"apple_server_url\": \"\", \"windows_settings\": {\"custom_settings\": null, \"require_bitlocker_pin\": false, \"enable_disk_encryption\": false, \"enable_managed_local_account\": false}, \"apple_bm_terms_expired\": false, \"apple_business_manager\": null, \"enable_disk_encryption\": false, \"enabled_and_configured\": false, \"end_user_authentication\": {\"idp_name\": \"\", \"metadata\": \"\", \"entity_id\": \"\", \"issuer_uri\": \"\", \"metadata_url\": \"\"}, \"windows_entra_client_ids\": [], \"windows_entra_tenant_ids\": [], \"enable_profile_validation\": true, \"volume_purchasing_program\": null, \"windows_migration_enabled\": false, \"apple_account_provisioning\": {\"oauth_idp_client_id\": null, \"oauth_idp_token_url\": null, \"oauth_idp_client_secret\": null}, \"windows_automatic_enrollment\": null, \"enable_recovery_lock_password\": false, \"windows_require_bitlocker_pin\": false, \"android_enabled_and_configured\": false, \"windows_enabled_and_configured\": false, \"apple_bm_enabled_and_configured\": false, \"apple_require_hardware_attestation\": false, \"microsoft_graph_credential_invalid\": false, \"enable_turn_on_windows_mdm_manually\": false, \"only_allow_apple_business_enrollment\": false}, \"gitops\": {\"exceptions\": {\"labels\": true, \"secrets\": true, \"software\": false}, \"repository_url\": \"\", \"gitops_mode_enabled\": false}, \"scripts\": null, \"features\": {\"historical_data\": {\"uptime\": true, \"vulnerabilities\": true}, \"enable_host_users\": true, \"enable_software_inventory\": false}, \"org_info\": {\"org_name\": \"\", \"contact_url\": \"\", \"org_logo_url\": \"\", \"org_logo_url_dark_mode\": \"\", \"org_logo_url_light_mode\": \"\", \"org_logo_url_light_background\": \"\"}, \"integrations\": {\"jira\": null, \"zendesk\": null, \"google_calendar\": null, \"conditional_access_enabled\": null, \"certificates_idp_client_ids\": null, \"certificates_idp_introspection_urls\": null, \"certificates_disable_host_end_user_binding\": null}, \"sso_settings\": {\"idp_name\": \"\", \"metadata\": \"\", \"entity_id\": \"\", \"enable_sso\": false, \"issuer_uri\": \"\", \"metadata_url\": \"\", \"idp_image_url\": \"\", \"sso_server_url\": \"\", \"enable_jit_role_sync\": false, \"enable_sso_idp_login\": false, \"enable_jit_provisioning\": false}, \"agent_options\": {\"config\": {\"options\": {\"logger_plugin\": \"tls\", \"pack_delimiter\": \"/\", \"logger_tls_period\": 10, \"distributed_plugin\": \"tls\", \"disable_distributed\": false, \"logger_tls_endpoint\": \"/api/osquery/log\", \"distributed_interval\": 10, \"distributed_tls_max_attempts\": 3}, \"decorators\": {\"load\": [\"SELECT uuid AS host_uuid FROM system_info;\", \"SELECT hostname AS hostname FROM system_info;\"]}}, \"overrides\": {}}, \"automdm_desktop\": {\"sso_enabled\": false, \"transparency_url\": \"\", \"alternative_browser_host\": \"\"}, \"smtp_settings\": {\"port\": 587, \"domain\": \"\", \"server\": \"\", \"password\": \"\", \"user_name\": \"\", \"configured\": false, \"enable_smtp\": false, \"enable_ssl_tls\": true, \"sender_address\": \"\", \"enable_start_tls\": true, \"verify_ssl_certs\": true, \"authentication_type\": \"0\", \"authentication_method\": \"0\"}, \"server_settings\": {\"server_url\": \"\", \"mcp_disabled\": false, \"enable_analytics\": false, \"query_report_cap\": 0, \"scripts_disabled\": false, \"deferred_save_host\": false, \"live_query_disabled\": false, \"ai_features_disabled\": false, \"query_reports_disabled\": false}, \"webhook_settings\": {\"interval\": \"0s\", \"activities_webhook\": {\"destination_url\": \"\", \"enable_activities_webhook\": false}, \"host_status_webhook\": {\"days_count\": 0, \"destination_url\": \"\", \"host_percentage\": 0, \"enable_host_status_webhook\": false}, \"vulnerabilities_webhook\": {\"destination_url\": \"\", \"host_batch_size\": 0, \"enable_vulnerabilities_webhook\": false}, \"failing_policies_webhook\": {\"policy_ids\": null, \"destination_url\": \"\", \"host_batch_size\": 0, \"enable_failing_policies_webhook\": false}}, \"host_expiry_settings\": {\"host_expiry_window\": 0, \"host_expiry_enabled\": false}, \"vulnerability_settings\": {\"databases_path\": \"\"}, \"activity_expiry_settings\": {\"activity_expiry_window\": 0, \"activity_expiry_enabled\": false, \"preserve_host_activities_on_reenrollment\": false}}',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP);
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE IF NOT EXISTS `apple_software_update_assets` (
@@ -573,7 +573,7 @@ CREATE TABLE IF NOT EXISTS `eulas` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE IF NOT EXISTS `fleet_maintained_apps` (
+CREATE TABLE IF NOT EXISTS `automdm_maintained_apps` (
   `id` int unsigned NOT NULL AUTO_INCREMENT,
   `name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `slug` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -582,21 +582,21 @@ CREATE TABLE IF NOT EXISTS `fleet_maintained_apps` (
   `created_at` timestamp(6) NULL DEFAULT CURRENT_TIMESTAMP(6),
   `updated_at` timestamp(6) NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
   PRIMARY KEY (`id`),
-  UNIQUE KEY `idx_fleet_library_apps_token` (`slug`)
+  UNIQUE KEY `idx_automdm_library_apps_token` (`slug`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE IF NOT EXISTS `fleet_variables` (
+CREATE TABLE IF NOT EXISTS `automdm_variables` (
   `id` int unsigned NOT NULL AUTO_INCREMENT,
   `name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
   `is_prefix` tinyint(1) NOT NULL DEFAULT '0',
   `created_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
   PRIMARY KEY (`id`),
-  UNIQUE KEY `idx_fleet_variables_name_is_prefix` (`name`,`is_prefix`)
+  UNIQUE KEY `idx_automdm_variables_name_is_prefix` (`name`,`is_prefix`)
 ) ENGINE=InnoDB AUTO_INCREMENT=25 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-INSERT IGNORE INTO `fleet_variables` VALUES (1,'FLEET_VAR_NDES_SCEP_CHALLENGE',0,'2025-04-22 00:00:00.000000'),(2,'FLEET_VAR_NDES_SCEP_PROXY_URL',0,'2025-04-22 00:00:00.000000'),(3,'FLEET_VAR_HOST_END_USER_EMAIL_IDP',0,'2025-04-22 00:00:00.000000'),(4,'FLEET_VAR_HOST_HARDWARE_SERIAL',0,'2025-04-22 00:00:00.000000'),(5,'FLEET_VAR_HOST_END_USER_IDP_USERNAME',0,'2025-04-22 00:00:00.000000'),(6,'FLEET_VAR_HOST_END_USER_IDP_USERNAME_LOCAL_PART',0,'2025-04-22 00:00:00.000000'),(7,'FLEET_VAR_HOST_END_USER_IDP_GROUPS',0,'2025-04-22 00:00:00.000000'),(8,'FLEET_VAR_DIGICERT_DATA_',1,'2025-04-22 00:00:00.000000'),(9,'FLEET_VAR_DIGICERT_PASSWORD_',1,'2025-04-22 00:00:00.000000'),(10,'FLEET_VAR_CUSTOM_SCEP_CHALLENGE_',1,'2025-04-22 00:00:00.000000'),(11,'FLEET_VAR_CUSTOM_SCEP_PROXY_URL_',1,'2025-04-22 00:00:00.000000'),(12,'FLEET_VAR_SCEP_RENEWAL_ID',0,'2025-04-30 00:00:00.000000'),(13,'FLEET_VAR_HOST_END_USER_IDP_DEPARTMENT',0,'2025-06-27 00:00:00.000000'),(14,'FLEET_VAR_HOST_UUID',0,'2025-08-08 00:00:00.000000'),(15,'FLEET_VAR_HOST_END_USER_IDP_FULL_NAME',0,'2025-08-25 00:00:00.000000'),(16,'FLEET_VAR_SCEP_WINDOWS_CERTIFICATE_ID',0,'2025-10-22 00:00:00.000000'),(17,'FLEET_VAR_HOST_PLATFORM',0,'2025-11-19 00:00:00.000000'),(18,'FLEET_VAR_PSSO_DEVICE_REGISTRATION_TOKEN',0,'2026-06-19 00:00:00.000000'),(19,'FLEET_VAR_HOST_TARGET_OS_VERSION',0,'2026-07-27 00:00:00.000000'),(20,'FLEET_VAR_HOST_TARGET_OS_DEADLINE',0,'2026-07-27 00:00:00.000000'),(21,'FLEET_VAR_HOST_END_USER_IDP_EXTERNAL_ID',0,'2026-10-13 00:00:00.000000'),(22,'FLEET_VAR_EJBCA_DATA_',1,'2026-10-15 00:00:00.000000'),(23,'FLEET_VAR_EJBCA_PASSWORD_',1,'2026-10-15 00:00:00.000000'),(24,'FLEET_VAR_CONDITIONAL_ACCESS_SCEP_URL',0,'2026-10-15 00:00:00.000000');
+INSERT IGNORE INTO `automdm_variables` VALUES (1,'AUTOMDM_VAR_NDES_SCEP_CHALLENGE',0,'2025-04-22 00:00:00.000000'),(2,'AUTOMDM_VAR_NDES_SCEP_PROXY_URL',0,'2025-04-22 00:00:00.000000'),(3,'AUTOMDM_VAR_HOST_END_USER_EMAIL_IDP',0,'2025-04-22 00:00:00.000000'),(4,'AUTOMDM_VAR_HOST_HARDWARE_SERIAL',0,'2025-04-22 00:00:00.000000'),(5,'AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME',0,'2025-04-22 00:00:00.000000'),(6,'AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME_LOCAL_PART',0,'2025-04-22 00:00:00.000000'),(7,'AUTOMDM_VAR_HOST_END_USER_IDP_GROUPS',0,'2025-04-22 00:00:00.000000'),(8,'AUTOMDM_VAR_DIGICERT_DATA_',1,'2025-04-22 00:00:00.000000'),(9,'AUTOMDM_VAR_DIGICERT_PASSWORD_',1,'2025-04-22 00:00:00.000000'),(10,'AUTOMDM_VAR_CUSTOM_SCEP_CHALLENGE_',1,'2025-04-22 00:00:00.000000'),(11,'AUTOMDM_VAR_CUSTOM_SCEP_PROXY_URL_',1,'2025-04-22 00:00:00.000000'),(12,'AUTOMDM_VAR_SCEP_RENEWAL_ID',0,'2025-04-30 00:00:00.000000'),(13,'AUTOMDM_VAR_HOST_END_USER_IDP_DEPARTMENT',0,'2025-06-27 00:00:00.000000'),(14,'AUTOMDM_VAR_HOST_UUID',0,'2025-08-08 00:00:00.000000'),(15,'AUTOMDM_VAR_HOST_END_USER_IDP_FULL_NAME',0,'2025-08-25 00:00:00.000000'),(16,'AUTOMDM_VAR_SCEP_WINDOWS_CERTIFICATE_ID',0,'2025-10-22 00:00:00.000000'),(17,'AUTOMDM_VAR_HOST_PLATFORM',0,'2025-11-19 00:00:00.000000'),(18,'AUTOMDM_VAR_PSSO_DEVICE_REGISTRATION_TOKEN',0,'2026-06-19 00:00:00.000000'),(19,'AUTOMDM_VAR_HOST_TARGET_OS_VERSION',0,'2026-07-27 00:00:00.000000'),(20,'AUTOMDM_VAR_HOST_TARGET_OS_DEADLINE',0,'2026-07-27 00:00:00.000000'),(21,'AUTOMDM_VAR_HOST_END_USER_IDP_EXTERNAL_ID',0,'2026-10-13 00:00:00.000000'),(22,'AUTOMDM_VAR_EJBCA_DATA_',1,'2026-10-15 00:00:00.000000'),(23,'AUTOMDM_VAR_EJBCA_PASSWORD_',1,'2026-10-15 00:00:00.000000'),(24,'AUTOMDM_VAR_CONDITIONAL_ACCESS_SCEP_URL',0,'2026-10-15 00:00:00.000000');
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE IF NOT EXISTS `host_additional` (
@@ -702,7 +702,7 @@ CREATE TABLE IF NOT EXISTS `host_certificate_templates` (
   `id` int unsigned NOT NULL AUTO_INCREMENT,
   `host_uuid` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `certificate_template_id` int unsigned NOT NULL,
-  `fleet_challenge` char(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
+  `automdm_challenge` char(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
   `status` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -998,7 +998,7 @@ CREATE TABLE IF NOT EXISTS `host_managed_local_account_passwords` (
   `auto_rotate_at` timestamp(6) NULL DEFAULT NULL,
   `pending_encrypted_password` blob,
   `pending_command_uuid` varchar(127) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `initiated_by_fleet` tinyint(1) NOT NULL DEFAULT '0',
+  `initiated_by_team` tinyint(1) NOT NULL DEFAULT '0',
   `client_error` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
   `deleted` tinyint(1) NOT NULL DEFAULT '0',
   PRIMARY KEY (`host_uuid`),
@@ -1018,7 +1018,7 @@ CREATE TABLE IF NOT EXISTS `host_mdm` (
   `installed_from_dep` tinyint(1) NOT NULL DEFAULT '0',
   `mdm_id` int unsigned DEFAULT NULL,
   `is_server` tinyint(1) DEFAULT NULL,
-  `fleet_enroll_ref` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `automdm_enroll_ref` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
   `managed_apple_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `enrollment_status` enum('On (manual)','On (automatic)','Pending','Off','On (manual - personal)','On (personal)') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci GENERATED ALWAYS AS ((case when (`is_server` = 1) then NULL when ((`enrolled` = 1) and (`installed_from_dep` = 0) and (`is_personal_enrollment` = 1) and (`personal_enrollment_type` = _utf8mb4'manual_profile')) then _utf8mb4'On (manual - personal)' when ((`enrolled` = 1) and (`installed_from_dep` = 0) and (`is_personal_enrollment` = 1)) then _utf8mb4'On (personal)' when ((`enrolled` = 1) and (`installed_from_dep` = 0) and (`is_personal_enrollment` = 0)) then _utf8mb4'On (manual)' when ((`enrolled` = 1) and (`installed_from_dep` = 1) and (`is_personal_enrollment` = 0)) then _utf8mb4'On (automatic)' when ((`enrolled` = 0) and (`installed_from_dep` = 1)) then _utf8mb4'Pending' when ((`enrolled` = 0) and (`installed_from_dep` = 0)) then _utf8mb4'Off' else NULL end)) VIRTUAL,
   `created_at` timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
@@ -1038,7 +1038,7 @@ CREATE TABLE IF NOT EXISTS `host_mdm_actions` (
   `wipe_ref` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `unlock_pin` varchar(6) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `unlock_ref` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `fleet_platform` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `automdm_platform` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
   `clear_passcode_ref` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   PRIMARY KEY (`host_id`),
   KEY `idx_hma_lock_ref` (`lock_ref`),
@@ -1964,7 +1964,7 @@ CREATE TABLE IF NOT EXISTS `labels` (
   CONSTRAINT `labels_ibfk_2` FOREIGN KEY (`team_id`) REFERENCES `teams` (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=19 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-INSERT IGNORE INTO `labels` VALUES (1,'2024-04-03 00:00:00','2025-10-09 00:00:00','macOS 14+ (Sonoma+)','macOS hosts with version 14 and above','select 1 from os_version where platform = \'darwin\' and major >= 14;','',1,0,NULL,NULL,NULL),(2,'2024-06-28 00:00:00','2025-10-09 00:00:00','iOS','All iOS hosts','','',1,1,NULL,NULL,NULL),(3,'2024-06-28 00:00:00','2025-10-09 00:00:00','iPadOS','All iPadOS hosts','','',1,1,NULL,NULL,NULL),(4,'2024-09-27 00:00:00','2026-08-14 00:00:00','Fedora Linux','All Fedora hosts','select 1 from os_version where name like \'%fedora%\';','',1,0,NULL,NULL,NULL),(5,'2025-02-25 00:00:00','2025-10-09 00:00:00','Android','All Android hosts','','',1,1,NULL,NULL,NULL),(11,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,'All Hosts','All hosts which have enrolled in Fleet','select 1;','',1,0,NULL,NULL,NULL),(12,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,'macOS','All macOS hosts','select 1 from os_version where platform = \'darwin\';','',1,0,NULL,NULL,NULL),(13,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,'Ubuntu Linux','All Ubuntu hosts','select 1 from os_version where platform = \'ubuntu\' or platform_like like \'%ubuntu%\';','',1,0,NULL,NULL,NULL),(14,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,'CentOS Linux','All CentOS hosts','select 1 from os_version where platform = \'centos\' or name like \'%centos%\'','',1,0,NULL,NULL,NULL),(15,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,'MS Windows','All Windows hosts','select 1 from os_version where platform = \'windows\';','',1,0,NULL,NULL,NULL),(16,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,'Red Hat Linux','All Red Hat Enterprise Linux hosts','SELECT 1 FROM os_version WHERE name LIKE \'%red hat%\'','',1,0,NULL,NULL,NULL),(17,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,'All Linux','All Linux distributions','SELECT 1 FROM osquery_info WHERE build_platform LIKE \'%ubuntu%\' OR build_distro LIKE \'%centos%\';','',1,0,NULL,NULL,NULL),(18,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,'chrome','All Chrome hosts','select 1 from os_version where platform = \'chrome\';','',1,0,NULL,NULL,NULL);
+INSERT IGNORE INTO `labels` VALUES (1,'2024-04-03 00:00:00','2025-10-09 00:00:00','macOS 14+ (Sonoma+)','macOS hosts with version 14 and above','select 1 from os_version where platform = \'darwin\' and major >= 14;','',1,0,NULL,NULL,NULL),(2,'2024-06-28 00:00:00','2025-10-09 00:00:00','iOS','All iOS hosts','','',1,1,NULL,NULL,NULL),(3,'2024-06-28 00:00:00','2025-10-09 00:00:00','iPadOS','All iPadOS hosts','','',1,1,NULL,NULL,NULL),(4,'2024-09-27 00:00:00','2026-08-14 00:00:00','Fedora Linux','All Fedora hosts','select 1 from os_version where name like \'%fedora%\';','',1,0,NULL,NULL,NULL),(5,'2025-02-25 00:00:00','2025-10-09 00:00:00','Android','All Android hosts','','',1,1,NULL,NULL,NULL),(11,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,'All Hosts','All hosts which have enrolled in AutoMDM','select 1;','',1,0,NULL,NULL,NULL),(12,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,'macOS','All macOS hosts','select 1 from os_version where platform = \'darwin\';','',1,0,NULL,NULL,NULL),(13,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,'Ubuntu Linux','All Ubuntu hosts','select 1 from os_version where platform = \'ubuntu\' or platform_like like \'%ubuntu%\';','',1,0,NULL,NULL,NULL),(14,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,'CentOS Linux','All CentOS hosts','select 1 from os_version where platform = \'centos\' or name like \'%centos%\'','',1,0,NULL,NULL,NULL),(15,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,'MS Windows','All Windows hosts','select 1 from os_version where platform = \'windows\';','',1,0,NULL,NULL,NULL),(16,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,'Red Hat Linux','All Red Hat Enterprise Linux hosts','SELECT 1 FROM os_version WHERE name LIKE \'%red hat%\'','',1,0,NULL,NULL,NULL),(17,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,'All Linux','All Linux distributions','SELECT 1 FROM osquery_info WHERE build_platform LIKE \'%ubuntu%\' OR build_distro LIKE \'%centos%\';','',1,0,NULL,NULL,NULL),(18,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,'chrome','All Chrome hosts','select 1 from os_version where platform = \'chrome\';','',1,0,NULL,NULL,NULL);
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE IF NOT EXISTS `legacy_host_filevault_profiles` (
@@ -2396,7 +2396,7 @@ CREATE TABLE IF NOT EXISTS `mdm_configuration_profile_variables` (
   `id` int unsigned NOT NULL AUTO_INCREMENT,
   `apple_profile_uuid` varchar(37) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `windows_profile_uuid` varchar(37) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `fleet_variable_id` int unsigned NOT NULL,
+  `automdm_variable_id` int unsigned NOT NULL,
   `created_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
   `apple_declaration_uuid` varchar(37) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `android_profile_uuid` varchar(37) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -2404,14 +2404,14 @@ CREATE TABLE IF NOT EXISTS `mdm_configuration_profile_variables` (
   `apple_ddm_activation_uuid` varchar(37) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `vpp_app_team_id` int unsigned DEFAULT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `idx_mdm_configuration_profile_variables_apple_variable` (`apple_profile_uuid`,`fleet_variable_id`),
-  UNIQUE KEY `idx_mdm_configuration_profile_variables_windows_label_name` (`windows_profile_uuid`,`fleet_variable_id`),
-  UNIQUE KEY `idx_mdm_config_profile_vars_apple_decl_variable` (`apple_declaration_uuid`,`fleet_variable_id`),
-  UNIQUE KEY `idx_mdm_configuration_profile_variables_android_variable` (`android_profile_uuid`,`fleet_variable_id`),
-  UNIQUE KEY `idx_mdm_configuration_profile_variables_cert_template_variable` (`certificate_template_id`,`fleet_variable_id`),
-  UNIQUE KEY `idx_mdm_config_profile_vars_ddm_activation_variable` (`apple_ddm_activation_uuid`,`fleet_variable_id`),
-  UNIQUE KEY `idx_mdm_configuration_profile_variables_vpp_app_team_variable` (`vpp_app_team_id`,`fleet_variable_id`),
-  KEY `mdm_configuration_profile_variables_fleet_variable_id` (`fleet_variable_id`),
+  UNIQUE KEY `idx_mdm_configuration_profile_variables_apple_variable` (`apple_profile_uuid`,`automdm_variable_id`),
+  UNIQUE KEY `idx_mdm_configuration_profile_variables_windows_label_name` (`windows_profile_uuid`,`automdm_variable_id`),
+  UNIQUE KEY `idx_mdm_config_profile_vars_apple_decl_variable` (`apple_declaration_uuid`,`automdm_variable_id`),
+  UNIQUE KEY `idx_mdm_configuration_profile_variables_android_variable` (`android_profile_uuid`,`automdm_variable_id`),
+  UNIQUE KEY `idx_mdm_configuration_profile_variables_cert_template_variable` (`certificate_template_id`,`automdm_variable_id`),
+  UNIQUE KEY `idx_mdm_config_profile_vars_ddm_activation_variable` (`apple_ddm_activation_uuid`,`automdm_variable_id`),
+  UNIQUE KEY `idx_mdm_configuration_profile_variables_vpp_app_team_variable` (`vpp_app_team_id`,`automdm_variable_id`),
+  KEY `mdm_configuration_profile_variables_automdm_variable_id` (`automdm_variable_id`),
   CONSTRAINT `fk_mdm_configuration_profile_variables_android_profile_uuid` FOREIGN KEY (`android_profile_uuid`) REFERENCES `mdm_android_configuration_profiles` (`profile_uuid`) ON DELETE CASCADE,
   CONSTRAINT `fk_mdm_configuration_profile_variables_apple_declaration_uuid` FOREIGN KEY (`apple_declaration_uuid`) REFERENCES `mdm_apple_declarations` (`declaration_uuid`) ON DELETE CASCADE,
   CONSTRAINT `fk_mdm_configuration_profile_variables_apple_profile_uuid` FOREIGN KEY (`apple_profile_uuid`) REFERENCES `mdm_apple_configuration_profiles` (`profile_uuid`) ON DELETE CASCADE,
@@ -2419,7 +2419,7 @@ CREATE TABLE IF NOT EXISTS `mdm_configuration_profile_variables` (
   CONSTRAINT `fk_mdm_configuration_profile_variables_vpp_app_team_id` FOREIGN KEY (`vpp_app_team_id`) REFERENCES `vpp_apps_teams` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_mdm_configuration_profile_variables_windows_profile_uuid` FOREIGN KEY (`windows_profile_uuid`) REFERENCES `mdm_windows_configuration_profiles` (`profile_uuid`) ON DELETE CASCADE,
   CONSTRAINT `mdm_config_profile_variables_ddm_activation_fk` FOREIGN KEY (`apple_ddm_activation_uuid`) REFERENCES `mdm_apple_ddm_activations` (`activation_uuid`) ON DELETE CASCADE,
-  CONSTRAINT `mdm_configuration_profile_variables_fleet_variable_id` FOREIGN KEY (`fleet_variable_id`) REFERENCES `fleet_variables` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `mdm_configuration_profile_variables_automdm_variable_id` FOREIGN KEY (`automdm_variable_id`) REFERENCES `automdm_variables` (`id`) ON DELETE CASCADE,
   CONSTRAINT `ck_mdm_configuration_profile_variables_exactly_one` CHECK ((((((((if((`apple_profile_uuid` is null),0,1) + if((`windows_profile_uuid` is null),0,1)) + if((`apple_declaration_uuid` is null),0,1)) + if((`android_profile_uuid` is null),0,1)) + if((`certificate_template_id` is null),0,1)) + if((`vpp_app_team_id` is null),0,1)) + if((`apple_ddm_activation_uuid` is null),0,1)) = 1))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -2552,7 +2552,7 @@ CREATE TABLE IF NOT EXISTS `mdm_windows_enrollments` (
   `awaiting_configuration_at` datetime(6) DEFAULT NULL,
   `poll_schedule_relaxed` tinyint(1) NOT NULL DEFAULT '0',
   `has_pending_commands` tinyint(1) NOT NULL DEFAULT '0',
-  `fleetd_sync_capable` tinyint(1) NOT NULL DEFAULT '0',
+  `automdmd_sync_capable` tinyint(1) NOT NULL DEFAULT '0',
   `managed_local_account_escrowed` tinyint(1) NOT NULL DEFAULT '0',
   `hardware_serial` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `ztd_registration_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
@@ -2560,11 +2560,11 @@ CREATE TABLE IF NOT EXISTS `mdm_windows_enrollments` (
   `last_login_status_at` datetime(6) DEFAULT NULL,
   `enrolled_activity_at` datetime(6) DEFAULT NULL,
   `managed_local_account_rotation_requested` tinyint(1) NOT NULL DEFAULT '0',
-  `fleetd_bitlocker_pin_capable` tinyint(1) NOT NULL DEFAULT '0',
+  `automdmd_bitlocker_pin_capable` tinyint(1) NOT NULL DEFAULT '0',
   `bitlocker_pin_request_pending` tinyint(1) NOT NULL DEFAULT '0',
   `deleted_host_team_id` int unsigned DEFAULT NULL,
   `entra_device_id` binary(16) DEFAULT NULL,
-  `fleetd_present_at` datetime(6) DEFAULT NULL,
+  `automdmd_present_at` datetime(6) DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `idx_type` (`mdm_hardware_id`),
   KEY `idx_mdm_windows_enrollments_mdm_device_id` (`mdm_device_id`),
@@ -3643,13 +3643,13 @@ CREATE TABLE IF NOT EXISTS `software_installers` (
   `extension` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
   `uninstall_script_content_id` int unsigned NOT NULL,
   `updated_at` timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
-  `fleet_maintained_app_id` int unsigned DEFAULT NULL,
+  `automdm_maintained_app_id` int unsigned DEFAULT NULL,
   `install_during_setup` tinyint(1) NOT NULL DEFAULT '0',
   `upgrade_code` varchar(48) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
   `is_active` tinyint(1) NOT NULL DEFAULT '0',
   `patch_query` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `http_etag` varchar(512) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `dedup_token` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci GENERATED ALWAYS AS (if((`fleet_maintained_app_id` is null),`storage_id`,`version`)) VIRTUAL,
+  `dedup_token` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci GENERATED ALWAYS AS (if((`automdm_maintained_app_id` is null),`storage_id`,`version`)) VIRTUAL,
   `app_open_query` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT (_utf8mb4''),
   `install_script_edited` tinyint(1) NOT NULL DEFAULT '0',
   `uninstall_script_edited` tinyint(1) NOT NULL DEFAULT '0',
@@ -3661,7 +3661,7 @@ CREATE TABLE IF NOT EXISTS `software_installers` (
   KEY `fk_software_installers_team_id` (`team_id`),
   KEY `fk_software_installers_user_id` (`user_id`),
   KEY `fk_uninstall_script_content_id` (`uninstall_script_content_id`),
-  KEY `fk_software_installers_fleet_library_app_id` (`fleet_maintained_app_id`),
+  KEY `fk_software_installers_automdm_library_app_id` (`automdm_maintained_app_id`),
   KEY `idx_software_installers_team_url` (`global_or_team_id`,`url`(255)),
   CONSTRAINT `fk_software_installers_install_script_content_id` FOREIGN KEY (`install_script_content_id`) REFERENCES `script_contents` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
   CONSTRAINT `fk_software_installers_post_install_script_content_id` FOREIGN KEY (`post_install_script_content_id`) REFERENCES `script_contents` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
@@ -3669,7 +3669,7 @@ CREATE TABLE IF NOT EXISTS `software_installers` (
   CONSTRAINT `fk_software_installers_title` FOREIGN KEY (`title_id`) REFERENCES `software_titles` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT `fk_software_installers_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL,
   CONSTRAINT `fk_uninstall_script_content_id` FOREIGN KEY (`uninstall_script_content_id`) REFERENCES `script_contents` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
-  CONSTRAINT `software_installers_ibfk_1` FOREIGN KEY (`fleet_maintained_app_id`) REFERENCES `fleet_maintained_apps` (`id`) ON DELETE SET NULL
+  CONSTRAINT `software_installers_ibfk_1` FOREIGN KEY (`automdm_maintained_app_id`) REFERENCES `automdm_maintained_apps` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -3804,7 +3804,7 @@ CREATE TABLE IF NOT EXISTS `upcoming_activities` (
   `host_id` int unsigned NOT NULL,
   `priority` int NOT NULL DEFAULT '0',
   `user_id` int unsigned DEFAULT NULL,
-  `fleet_initiated` tinyint(1) NOT NULL DEFAULT '0',
+  `automdm_initiated` tinyint(1) NOT NULL DEFAULT '0',
   `activity_type` enum('script','software_install','software_uninstall','vpp_app_install','in_house_app_install') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `execution_id` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `payload` json NOT NULL,
@@ -3817,7 +3817,7 @@ CREATE TABLE IF NOT EXISTS `upcoming_activities` (
   KEY `idx_upcoming_activities_host_id_activity_type` (`activity_type`,`host_id`),
   KEY `fk_upcoming_activities_user_id` (`user_id`),
   KEY `idx_upcoming_activities_host_id_activated_at` (`host_id`,`activated_at`),
-  KEY `idx_upcoming_activities_activated_at_fleet_initiated` (`activated_at`,`fleet_initiated`,`created_at`,`host_id`),
+  KEY `idx_upcoming_activities_activated_at_automdm_initiated` (`activated_at`,`automdm_initiated`,`created_at`,`host_id`),
   CONSTRAINT `fk_upcoming_activities_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;

@@ -7,7 +7,7 @@
 
 $displayNamePattern = '^Telegram\ Desktop$'
 $publisher = "Telegram FZ-LLC"
-$taskName = "fleet-uninstall-telegram"
+$taskName = "automdm-uninstall-telegram"
 $appDir = "AppData\Roaming\Telegram Desktop"  # in each user's profile
 $taskRunning = 267009  # SCHED_S_TASK_RUNNING
 $timeoutSeconds = 300

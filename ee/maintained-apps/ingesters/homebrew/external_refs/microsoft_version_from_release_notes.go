@@ -5,8 +5,8 @@ import (
 	"strings"
 	"sync"
 
-	maintained_apps "github.com/fleetdm/fleet/v4/ee/maintained-apps"
-	macoffice "github.com/fleetdm/fleet/v4/server/vulnerabilities/macoffice"
+	maintained_apps "github.com/anilyagiz/automdm/v4/ee/maintained-apps"
+	macoffice "github.com/anilyagiz/automdm/v4/server/vulnerabilities/macoffice"
 )
 
 var (

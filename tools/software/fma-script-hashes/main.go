@@ -1,9 +1,9 @@
 // Command fma-script-hashes records the sha256 of every install and uninstall
-// script Fleet has published for a Fleet-maintained app, by walking all of the
+// script AutoMDM has published for an AutoMDM-maintained app, by walking all of the
 // manifest history in git up to the given commit.
 //
 // It feeds the migration that backfills software_installers.install_script_edited
-// and uninstall_script_edited: a hash that appears here was published by Fleet,
+// and uninstall_script_edited: a hash that appears here was published by AutoMDM,
 // anything else was written by an admin.
 //
 //	go run ./tools/software/fma-script-hashes -to <commit>
@@ -25,8 +25,8 @@ import (
 	"strings"
 	"time"
 
-	maintained_apps "github.com/fleetdm/fleet/v4/ee/maintained-apps"
-	"github.com/fleetdm/fleet/v4/pkg/file"
+	maintained_apps "github.com/anilyagiz/automdm/v4/ee/maintained-apps"
+	"github.com/anilyagiz/automdm/v4/pkg/file"
 )
 
 // written relative to the repository root, so the tool runs from anywhere

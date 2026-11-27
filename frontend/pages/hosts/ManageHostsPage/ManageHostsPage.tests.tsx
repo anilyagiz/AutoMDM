@@ -133,7 +133,7 @@ describe("ManageHostsPage", () => {
     expect(await screen.findByText("No hosts")).toBeInTheDocument();
     expect(
       screen.getByText(
-        /Fleet refers to computers, servers, and mobile devices as hosts/
+        /AutoMDM refers to computers, servers, and mobile devices as hosts/
       )
     ).toBeInTheDocument();
 
@@ -310,7 +310,7 @@ describe("ManageHostsPage", () => {
     expect(screen.getByText("Activity automations")).toBeInTheDocument();
   });
 
-  it("disables Activity automations on Fleet Free with a premium tooltip", async () => {
+  it("disables Activity automations on AutoMDM Free with a premium tooltip", async () => {
     setupHandlers(0);
     // mockAppContext is Free tier (isPremiumTier: false).
     const render = createCustomRenderer({
@@ -335,7 +335,7 @@ describe("ManageHostsPage", () => {
     await user.hover(screen.getByText("Activity automations"));
     expect(
       await screen.findByText(
-        "Activity automations are available in Fleet Premium."
+        "Activity automations are available in AutoMDM Premium."
       )
     ).toBeInTheDocument();
   });
@@ -343,16 +343,16 @@ describe("ManageHostsPage", () => {
   it("shows an error and keeps the modal closed when activity automations fail to load", async () => {
     setupHandlers(0);
     mockServer.use(
-      http.get(baseUrl("/fleets"), () => {
+      http.get(baseUrl("/teams"), () => {
         return HttpResponse.json({
-          fleets: [{ id: 1, name: "Team 1", description: "" }],
+          teams: [{ id: 1, name: "Team 1", description: "" }],
         });
       }),
-      http.get(baseUrl("/fleets/1/secrets"), () => {
+      http.get(baseUrl("/teams/1/secrets"), () => {
         return HttpResponse.json({ secrets: [] });
       }),
       // the activity automations settings load fails
-      http.get(baseUrl("/fleets/1"), () => {
+      http.get(baseUrl("/teams/1"), () => {
         return HttpResponse.json(
           { message: "internal error" },
           { status: 500 }
@@ -379,9 +379,9 @@ describe("ManageHostsPage", () => {
       const props = createMockProps({
         location: {
           pathname: "/hosts/manage",
-          search: "?fleet_id=1",
+          search: "?team_id=1",
           hash: "",
-          query: { fleet_id: "1" },
+          query: { team_id: "1" },
         },
       });
       const { user } = render(<ManageHostsPage {...(props as any)} />);
@@ -410,18 +410,18 @@ describe("ManageHostsPage", () => {
     }
   });
 
-  it("sends the App Store app version filter and the mapped fleet_name sort key from the URL with the host list and count requests", async () => {
+  it("sends the App Store app version filter and the mapped team_name sort key from the URL with the host list and count requests", async () => {
     let listedVersionId: string | null = null;
     let countedVersionId: string | null = null;
     let listedOrderKey: string | null = null;
     setupHandlers(0);
     mockServer.use(
-      http.get(baseUrl("/fleets"), () => {
+      http.get(baseUrl("/teams"), () => {
         return HttpResponse.json({
-          fleets: [{ id: 1, name: "Team 1", description: "" }],
+          teams: [{ id: 1, name: "Team 1", description: "" }],
         });
       }),
-      http.get(baseUrl("/fleets/1/secrets"), () => {
+      http.get(baseUrl("/teams/1/secrets"), () => {
         return HttpResponse.json({ secrets: [] });
       }),
       http.get(baseUrl("/hosts"), ({ request }) => {
@@ -454,10 +454,10 @@ describe("ManageHostsPage", () => {
       location: {
         pathname: "/hosts/manage",
         search:
-          "?fleet_id=1&software_title_id=12&software_status=failed&app_store_app_version_id=5&order_key=team_name",
+          "?team_id=1&software_title_id=12&software_status=failed&app_store_app_version_id=5&order_key=team_name",
         hash: "",
         query: {
-          fleet_id: "1",
+          team_id: "1",
           software_title_id: "12",
           software_status: "failed",
           app_store_app_version_id: "5",
@@ -470,8 +470,8 @@ describe("ManageHostsPage", () => {
     // open the hosts page filtered by an App Store app version, both requests should filter by that version
     await waitFor(() => expect(listedVersionId).toBe("5"));
     await waitFor(() => expect(countedVersionId).toBe("5"));
-    // a legacy team_name sort key in the URL is sent as fleet_name
-    expect(listedOrderKey).toBe("fleet_name");
+    // a legacy team_name sort key in the URL is sent as team_name
+    expect(listedOrderKey).toBe("team_name");
   });
 
   it("renders filtered empty state with enabled controls", async () => {
@@ -554,8 +554,8 @@ describe("ManageHostsPage", () => {
       platform: "darwin",
       os_name: "macOS",
       os_version: "14.0",
-      fleet_id: null,
-      fleet_name: null,
+      team_id: null,
+      team_name: null,
       primary_ip: "192.168.1.1",
       primary_mac: "00:00:00:00:00:00",
       seen_time: "2024-01-01T00:00:00Z",
@@ -591,24 +591,24 @@ describe("ManageHostsPage", () => {
       tier: "Free",
       isPremiumTier: false,
       hasSelection: false,
-      fleetColumn: false,
+      teamColumn: false,
     },
     {
       tier: "Premium",
       isPremiumTier: true,
       hasSelection: true,
-      fleetColumn: true,
+      teamColumn: true,
     },
     {
-      tier: "Premium with the Fleet column saved as hidden under team_name",
+      tier: "Premium with the Team column saved as hidden under team_name",
       isPremiumTier: true,
       hasSelection: true,
       savedHidden: "team_name",
-      fleetColumn: false,
+      teamColumn: false,
     },
   ])(
-    "for a technician on Fleet $tier: selection $hasSelection, Fleet column $fleetColumn",
-    async ({ isPremiumTier, hasSelection, savedHidden, fleetColumn }) => {
+    "for a technician on AutoMDM $tier: selection $hasSelection, Team column $teamColumn",
+    async ({ isPremiumTier, hasSelection, savedHidden, teamColumn }) => {
       setupHandlers(1, [
         {
           id: 1,
@@ -616,15 +616,15 @@ describe("ManageHostsPage", () => {
           display_name: "test-host",
           status: "online",
           platform: "darwin",
-          fleet_id: 1,
-          fleet_name: "Workstations",
+          team_id: 1,
+          team_name: "Workstations",
           issues: { total_issues_count: 0, failing_policies_count: 0 },
         },
       ]);
       mockServer.use(
-        http.get(baseUrl("/fleets"), () => {
+        http.get(baseUrl("/teams"), () => {
           return HttpResponse.json({
-            fleets: [{ id: 1, name: "Team 1", description: "" }],
+            teams: [{ id: 1, name: "Team 1", description: "" }],
           });
         })
       );
@@ -649,14 +649,14 @@ describe("ManageHostsPage", () => {
         },
       });
 
-      // Free redirects away any fleet_id; Premium waits for a valid one.
-      const fleetId = isPremiumTier ? "1" : undefined;
+      // Free redirects away any team_id; Premium waits for a valid one.
+      const automdmId = isPremiumTier ? "1" : undefined;
       const props = createMockProps({
         location: {
           pathname: "/hosts/manage",
-          search: fleetId ? `?fleet_id=${fleetId}` : "",
+          search: automdmId ? `?team_id=${automdmId}` : "",
           hash: "",
-          query: fleetId ? { fleet_id: fleetId } : {},
+          query: automdmId ? { team_id: automdmId } : {},
         },
       });
       render(<ManageHostsPage {...(props as any)} />);
@@ -664,9 +664,9 @@ describe("ManageHostsPage", () => {
       expect(await screen.findByText("1 host")).toBeInTheDocument();
       expect(screen.queryAllByRole("checkbox").length > 0).toBe(hasSelection);
 
-      // The Fleet column reads fleet_name and only exists on Premium, unless hidden. The table re-renders when the fleets load, so retry.
+      // The Team column reads team_name and only exists on Premium, unless hidden. The table re-renders when the teams load, so retry.
       await waitFor(() => {
-        expect(screen.queryByText("Workstations") !== null).toBe(fleetColumn);
+        expect(screen.queryByText("Workstations") !== null).toBe(teamColumn);
       });
     }
   );
@@ -681,8 +681,8 @@ describe("ManageHostsPage", () => {
       platform: "darwin",
       os_name: "macOS",
       os_version: "14.0",
-      fleet_id: null,
-      fleet_name: null,
+      team_id: null,
+      team_name: null,
       seen_time: "2024-01-01T00:00:00Z",
       issues: { total_issues_count: 0, failing_policies_count: 0 },
     };
@@ -759,10 +759,10 @@ describe("ManageHostsPage", () => {
       const props = createMockProps({
         location: {
           pathname: "/hosts/manage",
-          search: "?software_id=42&fleet_id=7&os_name=Ubuntu&os_version=22.04",
+          search: "?software_id=42&team_id=7&os_name=Ubuntu&os_version=22.04",
           query: {
             software_id: "42",
-            fleet_id: "7",
+            team_id: "7",
             os_name: "Ubuntu",
             os_version: "22.04",
           },
@@ -775,7 +775,7 @@ describe("ManageHostsPage", () => {
           pathname: "/hosts/manage",
           query: {
             software_version_id: "42",
-            fleet_id: "7",
+            team_id: "7",
             os_name: "Ubuntu",
             os_version: "22.04",
           },
@@ -816,7 +816,7 @@ describe("ManageHostsPage", () => {
       context: {
         app: {
           ...mockAppContext,
-          filteredHostsPath: "/hosts/manage?fleet_id=3",
+          filteredHostsPath: "/hosts/manage?team_id=3",
           setFilteredHostsPath,
         },
       },
@@ -825,13 +825,13 @@ describe("ManageHostsPage", () => {
     const props = createMockProps({
       location: {
         pathname: "/hosts/manage",
-        search: "?fleet_id=4&software_title_id=12",
-        query: { fleet_id: "4", software_title_id: "12" },
+        search: "?team_id=4&software_title_id=12",
+        query: { team_id: "4", software_title_id: "12" },
       },
     }) as any;
     render(<ManageHostsPage {...props} />);
 
-    // hosts opened from this list must not return to the fleet 3 list
+    // hosts opened from this list must not return to the team 3 list
     await waitFor(() => expect(setFilteredHostsPath).toHaveBeenCalledWith(""));
     expect(setFilteredHostsPath).not.toHaveBeenCalledWith(
       expect.stringContaining("software_title_id")

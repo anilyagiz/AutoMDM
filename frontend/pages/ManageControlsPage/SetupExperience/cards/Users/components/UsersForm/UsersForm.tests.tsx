@@ -134,7 +134,7 @@ describe("UsersForm", () => {
       await user.click(screen.getByRole("button", { name: "Save" }));
 
       expect(updateSpy).toHaveBeenCalledWith({
-        fleet_id: 0,
+        team_id: 0,
         enable_end_user_authentication: false,
       });
     });
@@ -148,7 +148,7 @@ describe("UsersForm", () => {
       await user.click(screen.getByRole("button", { name: "Save" }));
 
       expect(updateSpy).toHaveBeenCalledWith({
-        fleet_id: 0,
+        team_id: 0,
         enable_end_user_authentication: false,
         lock_end_user_info: false,
         macos_managed_local_account_enabled: false,
@@ -220,12 +220,12 @@ describe("UsersForm", () => {
     });
 
     // Both platforms go in one setup experience request, never through the
-    // config or fleet APIs. The untouched-toggle row also pins that the value
+    // config or team APIs. The untouched-toggle row also pins that the value
     // is sent on every save, not only when it changed.
     it.each([
       { target: "unassigned", currentTeamId: 0, turnOn: false },
       { target: "unassigned", currentTeamId: 0, turnOn: true },
-      { target: "a fleet", currentTeamId: 7, turnOn: true },
+      { target: "a team", currentTeamId: 7, turnOn: true },
     ])(
       "saves both platforms in one request for $target (turn on: $turnOn)",
       async ({ currentTeamId, turnOn }) => {
@@ -243,7 +243,7 @@ describe("UsersForm", () => {
 
         expect(spies.setup).toHaveBeenCalledTimes(1);
         expect(spies.setup).toHaveBeenCalledWith({
-          fleet_id: currentTeamId,
+          team_id: currentTeamId,
           enable_end_user_authentication: false,
           lock_end_user_info: false,
           macos_managed_local_account_enabled: false,
@@ -263,7 +263,7 @@ describe("UsersForm", () => {
       await user.click(screen.getByRole("button", { name: "Save" }));
 
       expect(spies.setup).toHaveBeenCalledWith({
-        fleet_id: 0,
+        team_id: 0,
         enable_end_user_authentication: false,
         windows_managed_local_account_enabled: true,
       });
@@ -282,12 +282,12 @@ describe("UsersForm", () => {
       );
     });
 
-    // Several other cards read the app config and the fleet from these same
-    // cache keys, so a save has to drop them. The fleet key is only
-    // invalidated when there is a fleet: unassigned has no such query.
+    // Several other cards read the app config and the team from these same
+    // cache keys, so a save has to drop them. The automdm key is only
+    // invalidated when there is a team: unassigned has no such query.
     it.each([
       { target: "unassigned", currentTeamId: 0, expectsTeamKey: false },
-      { target: "a fleet", currentTeamId: 7, expectsTeamKey: true },
+      { target: "a team", currentTeamId: 7, expectsTeamKey: true },
     ])(
       "invalidates the cached config for $target after saving",
       async ({ currentTeamId, expectsTeamKey }) => {

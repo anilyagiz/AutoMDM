@@ -16,19 +16,19 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/constant"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/pkg/download"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/oval"
 	"github.com/doug-martin/goqu/v9"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/constant"
-	"github.com/fleetdm/fleet/v4/pkg/download"
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/oval"
 	"github.com/google/go-github/v37/github"
 	"github.com/jmoiron/sqlx"
 )
 
 const (
-	owner         = "fleetdm"
+	owner         = "automdm"
 	repo          = "nvd"
 	cpeDBFilename = "cpe.sqlite"
 )
@@ -38,7 +38,7 @@ var cpeDBRegex = regexp.MustCompile(`^cpe-.*\.sqlite\.gz$`)
 // GetGithubNVDAsset looks at the last 10 releases and returns the first (release, asset) pair that
 // matches pred
 func GetGithubNVDAsset(pred func(rel *github.ReleaseAsset) bool) (*github.RepositoryRelease, *github.ReleaseAsset, error) {
-	ghClient := github.NewClient(fleethttp.NewGithubClient())
+	ghClient := github.NewClient(automdmhttp.NewGithubClient())
 
 	releases, _, err := ghClient.Repositories.ListReleases(
 		context.Background(),
@@ -108,7 +108,7 @@ func DownloadCPEDBFromGithub(vulnPath string, cpeDBURL string) error {
 		return err
 	}
 
-	githubClient := fleethttp.NewGithubClient()
+	githubClient := automdmhttp.NewGithubClient()
 	if err := download.DownloadAndExtract(githubClient, u, path); err != nil {
 		return fmt.Errorf("download and extract %s: %w", u.String(), err)
 	}
@@ -130,7 +130,7 @@ const (
 // Query 1 (vendor+product) and 2 (product-only) are cheap index lookups. Query 3 (full-text search)
 // is expensive. By running them sequentially and returning early on a match, the expensive full-text
 // search is skipped for most software.
-func cpeSearchQueries(software *fleet.Software) []cpeSearchQuery {
+func cpeSearchQueries(software *automdm.Software) []cpeSearchQuery {
 	var queries []cpeSearchQuery
 
 	// 1 - Try to match product and vendor terms (or product-only if no vendor info available)
@@ -185,7 +185,7 @@ func cpeSearchQueries(software *fleet.Software) []cpeSearchQuery {
 // cpeVendorMatchesSoftware returns true when the CPE item's vendor appears in
 // the software's vendor field. Used as a tiebreaker when multiple CPE candidates
 // pass cpeItemMatchesSoftware.
-func cpeVendorMatchesSoftware(item *IndexedCPEItem, software *fleet.Software) bool {
+func cpeVendorMatchesSoftware(item *IndexedCPEItem, software *automdm.Software) bool {
 	sVendor := strings.ToLower(software.Vendor)
 	if sVendor == "" {
 		return false
@@ -197,7 +197,7 @@ func cpeVendorMatchesSoftware(item *IndexedCPEItem, software *fleet.Software) bo
 
 // cpeTargetSWMatchesSoftware returns a score (0-3) indicating how well the CPE's vendor
 // and target_sw fields match the expected ecosystem for the software's source.
-func cpeTargetSWMatchesSoftware(item *IndexedCPEItem, software *fleet.Software) int {
+func cpeTargetSWMatchesSoftware(item *IndexedCPEItem, software *automdm.Software) int {
 	expectedTargetSW := targetSW(software)
 
 	if expectedTargetSW != "*" {
@@ -263,7 +263,7 @@ func cpeTargetSWMatchesSoftware(item *IndexedCPEItem, software *fleet.Software) 
 
 // cpeItemMatchesSoftware checks whether a CPE result's vendor/product terms all appear in the
 // software's name, vendor, and bundle identifier.
-func cpeItemMatchesSoftware(item *IndexedCPEItem, software *fleet.Software) bool {
+func cpeItemMatchesSoftware(item *IndexedCPEItem, software *automdm.Software) bool {
 	sName := strings.ToLower(software.Name)
 	for sN := range strings.SplitSeq(item.Product, "_") {
 		if !strings.Contains(sName, sN) {
@@ -285,7 +285,7 @@ func cpeItemMatchesSoftware(item *IndexedCPEItem, software *fleet.Software) bool
 }
 
 // resolveDeprecatedCPE follows the deprecation chain for the given CPE items to find a non-deprecated replacement.
-func resolveDeprecatedCPE(db *sqlx.DB, items []IndexedCPEItem, software *fleet.Software) (string, error) {
+func resolveDeprecatedCPE(db *sqlx.DB, items []IndexedCPEItem, software *automdm.Software) (string, error) {
 	for _, item := range items {
 		deprecatedItem := item
 		for {
@@ -320,19 +320,19 @@ var (
 	citrixName           = regexp.MustCompile(`Citrix Workspace [0-9]+`)
 	minioAltDate         = regexp.MustCompile(`^\d{14}$`)
 	softwareTransformers = []struct {
-		matches func(*fleet.Software) bool
-		mutate  func(context.Context, *fleet.Software, *slog.Logger)
+		matches func(*automdm.Software) bool
+		mutate  func(context.Context, *automdm.Software, *slog.Logger)
 	}{
 		{
 			// JetBrains EAP version numbers aren't what are used in CPEs; this handles the translation for Mac versions.
 			// See #22723 for background. Bundle identifier for EAPs also ends with "-EAP" but checking version makes it
 			// a bit easier to add other platforms later. EAP version numbers are e.g. EAP GO-243.21565.42, and checking
 			// here for the dash ensures that string splitting in the mutator always works without a bounds check.
-			matches: func(s *fleet.Software) bool {
+			matches: func(s *automdm.Software) bool {
 				return s.BundleIdentifier != "" && strings.HasPrefix(s.BundleIdentifier, "com.jetbrains.") &&
 					strings.HasPrefix(s.Version, "EAP ") && strings.Contains(s.Version, "-")
 			},
-			mutate: func(ctx context.Context, s *fleet.Software, logger *slog.Logger) {
+			mutate: func(ctx context.Context, s *automdm.Software, logger *slog.Logger) {
 				// 243 -> 2024.3
 				eapMajorVersion := strings.Split(strings.Split(s.Version, "-")[1], ".")[0]
 				yearBasedMajorVersion, err := strconv.Atoi("20" + eapMajorVersion[:2])
@@ -362,10 +362,10 @@ var (
 			},
 		},
 		{
-			matches: func(s *fleet.Software) bool {
+			matches: func(s *automdm.Software) bool {
 				return s.Source == "programs" && strings.HasPrefix(s.Name, "Python 3.")
 			},
-			mutate: func(ctx context.Context, s *fleet.Software, logger *slog.Logger) {
+			mutate: func(ctx context.Context, s *automdm.Software, logger *slog.Logger) {
 				versionComponents := strings.Split(s.Version, ".")
 				// Python 3 versions on Windows should always look like 3.14.102.0; if they don't we
 				// should bail out to avoid bad indexing panics.
@@ -400,10 +400,10 @@ var (
 			},
 		},
 		{
-			matches: func(s *fleet.Software) bool {
+			matches: func(s *automdm.Software) bool {
 				return s.Name == "Cloudflare WARP" && s.Source == "programs"
 			},
-			mutate: func(ctx context.Context, s *fleet.Software, logger *slog.Logger) {
+			mutate: func(ctx context.Context, s *automdm.Software, logger *slog.Logger) {
 				// Perform some sanity check on the version before mutating it.
 				parts := strings.Split(s.Version, ".")
 				if len(parts) <= 1 {
@@ -423,22 +423,22 @@ var (
 			},
 		},
 		{
-			matches: func(s *fleet.Software) bool {
+			matches: func(s *automdm.Software) bool {
 				return s.Source == "apps" && (s.Name == "Microsoft Teams.app" || s.Name == "Microsoft Teams classic.app")
 			},
-			mutate: func(ctx context.Context, s *fleet.Software, logger *slog.Logger) {
+			mutate: func(ctx context.Context, s *automdm.Software, logger *slog.Logger) {
 				if matches := macOSMSTeamsVersion.FindStringSubmatch(s.Version); len(matches) > 0 {
 					s.Version = fmt.Sprintf("%s.%s.00.%s", matches[1], matches[2], matches[3])
 				}
 			},
 		},
 		{
-			matches: func(s *fleet.Software) bool {
+			matches: func(s *automdm.Software) bool {
 				return citrixName.MatchString(s.Name) || s.Name == "Citrix Workspace.app" ||
 					(s.Source == "programs" && s.Vendor == "Citrix Systems, Inc." &&
 						strings.HasPrefix(s.Name, "Citrix Workspace"))
 			},
-			mutate: func(ctx context.Context, s *fleet.Software, logger *slog.Logger) {
+			mutate: func(ctx context.Context, s *automdm.Software, logger *slog.Logger) {
 				parts := strings.Split(s.Version, ".")
 				if len(parts) <= 1 {
 					logger.DebugContext(ctx, "failed to parse software version", "name", s.Name, "version", s.Version)
@@ -471,10 +471,10 @@ var (
 		},
 		{
 			// Trim the "RELEASE." prefix from Minio versions.
-			matches: func(s *fleet.Software) bool {
+			matches: func(s *automdm.Software) bool {
 				return s.Name == "minio" && strings.Contains(s.Version, "RELEASE.")
 			},
-			mutate: func(ctx context.Context, s *fleet.Software, logger *slog.Logger) {
+			mutate: func(ctx context.Context, s *automdm.Software, logger *slog.Logger) {
 				// trim the "RELEASE." prefix from the version
 				s.Version = strings.TrimPrefix(s.Version, "RELEASE.")
 				// trim any unexpected trailing characters
@@ -485,10 +485,10 @@ var (
 		},
 		{
 			// Convert the timestamp to NVD's format for Minio versions.
-			matches: func(s *fleet.Software) bool {
+			matches: func(s *automdm.Software) bool {
 				return s.Name == "minio" && minioAltDate.MatchString(s.Version)
 			},
-			mutate: func(ctx context.Context, s *fleet.Software, logger *slog.Logger) {
+			mutate: func(ctx context.Context, s *automdm.Software, logger *slog.Logger) {
 				timestamp, err := time.Parse("20060102150405", s.Version)
 				if err != nil {
 					logger.DebugContext(ctx, "failed to parse software version", "name", s.Name, "version", s.Version, "err", err)
@@ -500,10 +500,10 @@ var (
 		{
 			// Powershell preview versions 7.5* all have CVE-2025-21171
 			// Non-preview 7.5* do not
-			matches: func(s *fleet.Software) bool {
+			matches: func(s *automdm.Software) bool {
 				return strings.Contains(strings.ToLower(s.Name), "powershell")
 			},
-			mutate: func(ctx context.Context, s *fleet.Software, logger *slog.Logger) {
+			mutate: func(ctx context.Context, s *automdm.Software, logger *slog.Logger) {
 				parts := strings.Split(s.Version, ".")
 				if len(parts) < 3 {
 					return
@@ -528,12 +528,12 @@ var (
 		},
 		{
 			// MacVim uses dual versioning: MacVim release numbers (r178, r179, etc.) and bundled Vim versions (9.0.1897, 9.1.0, etc.)
-			// NVD CVEs reference MacVim release numbers, but Fleet inventories the bundled Vim version from macOS metadata.
+			// NVD CVEs reference MacVim release numbers, but AutoMDM inventories the bundled Vim version from macOS metadata.
 			// See https://github.com/macvim-dev/macvim/releases for version mappings.
-			matches: func(s *fleet.Software) bool {
+			matches: func(s *automdm.Software) bool {
 				return s.Name == "MacVim" && s.BundleIdentifier == "org.vim.MacVim" && s.Source == "apps"
 			},
-			mutate: func(ctx context.Context, s *fleet.Software, logger *slog.Logger) {
+			mutate: func(ctx context.Context, s *automdm.Software, logger *slog.Logger) {
 				vimToMacVimMap := map[string]string{
 					// r182 series
 					"9.1.2068": "182.1", // r182.1 (prerelease)
@@ -568,10 +568,10 @@ var (
 			// Homebrew's "imp" (Integrative Modeling Platform) is incorrectly matched against
 			// Horde IMP CPEs. Rename the Homebrew package to prevent incorrect CPE
 			// matching with horde:imp.
-			matches: func(s *fleet.Software) bool {
+			matches: func(s *automdm.Software) bool {
 				return s.Name == "imp" && s.Source == "homebrew_packages"
 			},
-			mutate: func(ctx context.Context, s *fleet.Software, logger *slog.Logger) {
+			mutate: func(ctx context.Context, s *automdm.Software, logger *slog.Logger) {
 				s.Name = "integrative-modeling-platform"
 			},
 		},
@@ -579,10 +579,10 @@ var (
 			// ninxsoft/Mist (macOS installer download tool) is incorrectly matched against
 			// mist.io/Mist CPEs. Rename the app to prevent incorrect CPE matching with mist:mist.
 			// See https://github.com/fleetdm/fleet/issues/37111
-			matches: func(s *fleet.Software) bool {
+			matches: func(s *automdm.Software) bool {
 				return s.BundleIdentifier == "com.ninxsoft.mist" && s.Source == "apps"
 			},
-			mutate: func(ctx context.Context, s *fleet.Software, logger *slog.Logger) {
+			mutate: func(ctx context.Context, s *automdm.Software, logger *slog.Logger) {
 				s.Name = "ninxsoft-mist"
 			},
 		},
@@ -590,10 +590,10 @@ var (
 			// 7-Zip on Windows installed with MSI reports versions like "24.09.00.0" but NVD uses "24.09".
 			// Strip trailing ".00.0" components to match NVD version format.
 			// See https://github.com/fleetdm/fleet/issues/36335
-			matches: func(s *fleet.Software) bool {
+			matches: func(s *automdm.Software) bool {
 				return strings.HasPrefix(s.Name, "7-Zip") && s.Source == "programs"
 			},
-			mutate: func(ctx context.Context, s *fleet.Software, logger *slog.Logger) {
+			mutate: func(ctx context.Context, s *automdm.Software, logger *slog.Logger) {
 				parts := strings.Split(s.Version, ".")
 				switch len(parts) {
 				case 0, 1:
@@ -609,7 +609,7 @@ var (
 	}
 )
 
-func mutateSoftware(ctx context.Context, software *fleet.Software, logger *slog.Logger) {
+func mutateSoftware(ctx context.Context, software *automdm.Software, logger *slog.Logger) {
 	for _, transformer := range softwareTransformers {
 		if transformer.matches(software) {
 			defer func() {
@@ -628,7 +628,7 @@ func mutateSoftware(ctx context.Context, software *fleet.Software, logger *slog.
 // any translations, and then lookup in the cpe database based on the title, product and vendor.
 //
 // Software any of `skip` reports true for is matched by another analyzer and gets no CPE.
-func CPEFromSoftware(ctx context.Context, logger *slog.Logger, db *sqlx.DB, software *fleet.Software, translations CPETranslations, reCache *regexpCache, skip []func(*fleet.Software) bool) (string, error) {
+func CPEFromSoftware(ctx context.Context, logger *slog.Logger, db *sqlx.DB, software *automdm.Software, translations CPETranslations, reCache *regexpCache, skip []func(*automdm.Software) bool) (string, error) {
 	if containsNonASCII(software.Name) {
 		logger.DebugContext(ctx, "skipping software with non-ascii characters", "software", software.Name, "version", software.Version, "source", software.Source)
 		return "", nil
@@ -641,14 +641,14 @@ func CPEFromSoftware(ctx context.Context, logger *slog.Logger, db *sqlx.DB, soft
 		return "", nil
 	}
 
-	// fleetd's Windows Installed apps entry, once fleetd renames it (fleet.CapabilityFleetAgentNames).
-	// The name alone matches the Fleet server's CPE, and other apps are also called "Fleet", so the
+	// automdmd's Windows Installed apps entry, once automdmd renames it (automdm.CapabilityAutoMDMAgentNames).
+	// The name alone matches the AutoMDM server's CPE, and other apps are also called "AutoMDM", so the
 	// publisher decides.
 	if software.Source == "programs" && software.Name == constant.AgentDisplayName && software.Vendor == constant.AgentPublisher {
 		return "", nil
 	}
 
-	if slices.ContainsFunc(skip, func(owned func(*fleet.Software) bool) bool { return owned(software) }) {
+	if slices.ContainsFunc(skip, func(owned func(*automdm.Software) bool) bool { return owned(software) }) {
 		return "", nil
 	}
 
@@ -782,12 +782,12 @@ func CPEFromSoftware(ctx context.Context, logger *slog.Logger, db *sqlx.DB, soft
 
 func consumeCPEBuffer(
 	ctx context.Context,
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	logger *slog.Logger,
-	batch []fleet.SoftwareCPE,
+	batch []automdm.SoftwareCPE,
 ) error {
-	var toDelete []fleet.SoftwareCPE
-	var toUpsert []fleet.SoftwareCPE
+	var toDelete []automdm.SoftwareCPE
+	var toUpsert []automdm.SoftwareCPE
 
 	for i := range batch {
 		// This could be because of a new translation rule or because we fixed a bug with the CPE
@@ -877,15 +877,15 @@ func BuildLinuxExclusionRegex() string {
 
 func TranslateSoftwareToCPE(
 	ctx context.Context,
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	vulnPath string,
 	logger *slog.Logger,
-	skip []func(*fleet.Software) bool,
+	skip []func(*automdm.Software) bool,
 ) error {
 	// Skip software from sources for which we will be using OVAL or goval-dictionary for vulnerability detection.
 	nonOvalIterator, err := ds.AllSoftwareIterator(
 		ctx,
-		fleet.SoftwareIterQueryOptions{
+		automdm.SoftwareIterQueryOptions{
 			// Also exclude iOS and iPadOS apps until we enable vulnerabilities support for them,
 			// and Adobe plugins, for which no vulnerability data source exists: CVEs for Adobe
 			// CEP/UXP extensions are only ever filed against the host Adobe application, so any
@@ -913,7 +913,7 @@ func TranslateSoftwareToCPE(
 
 	ubuntuKernelIterator, err := ds.AllSoftwareIterator(
 		ctx,
-		fleet.SoftwareIterQueryOptions{
+		automdm.SoftwareIterQueryOptions{
 			IncludedSources: []string{"deb_packages"},
 			NameMatch:       LinuxImageRegex,
 			NameExclude:     BuildLinuxExclusionRegex(),
@@ -938,11 +938,11 @@ func TranslateSoftwareToCPE(
 
 func translateSoftwareToCPEWithIterator(
 	ctx context.Context,
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	vulnPath string,
 	logger *slog.Logger,
-	iterator fleet.SoftwareIterator,
-	skip []func(*fleet.Software) bool,
+	iterator automdm.SoftwareIterator,
+	skip []func(*automdm.Software) bool,
 ) error {
 	dbPath := filepath.Join(vulnPath, cpeDBFilename)
 
@@ -960,7 +960,7 @@ func translateSoftwareToCPEWithIterator(
 
 	reCache := newRegexpCache()
 
-	var buffer []fleet.SoftwareCPE
+	var buffer []automdm.SoftwareCPE
 	bufferMaxSize := 500
 
 	for iterator.Next() {
@@ -977,7 +977,7 @@ func translateSoftwareToCPEWithIterator(
 				"source", software.Source,
 			)
 			// We want to continue here in case the software had an invalid CPE
-			// generated by a previous version of Fleet.
+			// generated by a previous version of AutoMDM.
 		} else {
 			cpe, err = CPEFromSoftware(ctx, logger, db, software, cpeTranslations, reCache, skip)
 			if err != nil {
@@ -996,7 +996,7 @@ func translateSoftwareToCPEWithIterator(
 			continue
 		}
 
-		buffer = append(buffer, fleet.SoftwareCPE{SoftwareID: software.ID, CPE: cpe})
+		buffer = append(buffer, automdm.SoftwareCPE{SoftwareID: software.ID, CPE: cpe})
 		if len(buffer) == bufferMaxSize {
 			if err = consumeCPEBuffer(ctx, ds, logger, buffer); err != nil {
 				return ctxerr.Wrap(ctx, err, "inserting cpe")

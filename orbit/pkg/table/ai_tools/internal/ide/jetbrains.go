@@ -10,10 +10,10 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/ai_tools/internal/classify"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/ai_tools/internal/paths"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/internal/fsutil"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/internal/homes"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/ai_tools/internal/classify"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/ai_tools/internal/paths"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/internal/fsutil"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/internal/homes"
 )
 
 // productDirRe matches a JetBrains per-product config directory, e.g.

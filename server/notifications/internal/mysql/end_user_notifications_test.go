@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/notifications/api"
-	platform_errors "github.com/fleetdm/fleet/v4/server/platform/errors"
+	"github.com/anilyagiz/automdm/v4/server/notifications/api"
+	platform_errors "github.com/anilyagiz/automdm/v4/server/platform/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -58,7 +58,7 @@ func newDarwinHost(t *testing.T, env *testEnv, name string, withOrbitInfo bool) 
 // newHostNotification gives the host a notification, then moves that
 // notification to the state the test needs, since every notification starts out
 // pending, unsent and never displayed. A displayed notification gets a
-// displayed_at, and attempts is how many times Fleet has tried to send it.
+// displayed_at, and attempts is how many times AutoMDM has tried to send it.
 func newHostNotification(t *testing.T, env *testEnv, hostID uint, kind string, status string, attempts uint, displayed bool) string {
 	t.Helper()
 	ctx := t.Context()
@@ -80,7 +80,7 @@ func newHostNotification(t *testing.T, env *testEnv, hostID uint, kind string, s
 	return created.UUID
 }
 
-// When an app on a host needs patching, Fleet either adds that app to a
+// When an app on a host needs patching, AutoMDM either adds that app to a
 // notification the host already has, or creates a new notification for the app.
 // GetNotificationAwaitingDisplay is what decides, and it only returns a
 // notification the end user has not seen. So an app that needs patching after a
@@ -106,18 +106,18 @@ func testGetNotificationAwaitingDisplay(t *testing.T, env *testEnv) {
 			wantNewNotificationForTheApp: true,
 		},
 		{
-			name:                   "an app is added to a notification Fleet has not sent to the host yet",
+			name:                   "an app is added to a notification AutoMDM has not sent to the host yet",
 			hostNotificationStatus: api.EndUserNotificationPending,
 		},
 		{
-			// Fleet marks a notification dispatched when it queues the script,
-			// up to a minute before Fleet Desktop puts the notification on screen
-			name:                     "an app is added to a notification Fleet sent but the end user has not seen",
+			// AutoMDM marks a notification dispatched when it queues the script,
+			// up to a minute before AutoMDM Desktop puts the notification on screen
+			name:                     "an app is added to a notification AutoMDM sent but the end user has not seen",
 			hostNotificationStatus:   api.EndUserNotificationDispatched,
 			hostNotificationAttempts: 1,
 		},
 		{
-			// the attempt failed, so Fleet will send the notification again and
+			// the attempt failed, so AutoMDM will send the notification again and
 			// the end user still has not seen anything
 			name:                     "an app is added to a notification waiting on another send attempt",
 			hostNotificationStatus:   api.EndUserNotificationPending,
@@ -176,7 +176,7 @@ func testGetNotificationAwaitingDisplay(t *testing.T, env *testEnv) {
 				require.NoError(t, err)
 			}
 
-			// an app on this host now needs patching, so Fleet looks for a
+			// an app on this host now needs patching, so AutoMDM looks for a
 			// test_kind notification to add that app to
 			awaiting, err := env.ds.GetNotificationAwaitingDisplay(ctx, hostID, "test_kind")
 			require.NoError(t, err)
@@ -473,7 +473,7 @@ func testListEndUserNotificationsToDispatch(t *testing.T, env *testEnv) {
 		assert.Equal(t, nextUUID, due[0].UUID)
 	})
 
-	// Fleet Desktop closes a toast ten minutes after displaying it, so a notification sent before then draws over it.
+	// AutoMDM Desktop closes a toast ten minutes after displaying it, so a notification sent before then draws over it.
 	t.Run("host with a dispatch notification displayed in the last ten minutes gets no new notification", func(t *testing.T) {
 		defer env.TruncateTables(t)
 		hostID := newDarwinHost(t, env, "dispatch-on-screen", true)

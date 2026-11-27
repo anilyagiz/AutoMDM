@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/tools/hangar/internal/settings"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/settings"
 )
 
 func TestProcIDAndLogChannel(t *testing.T) {
@@ -42,12 +42,12 @@ func TestServeArgs(t *testing.T) {
 
 func TestInitCAArgs(t *testing.T) {
 	got := InitCAArgs("/d/new", InitCAParams{
-		CommonName: "Fleet Windows SCEP CA", Organization: "Fleet Device Management Inc.",
+		CommonName: "AutoMDM Windows SCEP CA", Organization: "Fleet Device Management Inc.",
 		OrganizationalUnit: "Windows QA", Country: "US", KeySize: 2048, Years: 10,
 	})
 	want := []string{
 		"ca", "-init", "-depot", "/d/new",
-		"-common_name", "Fleet Windows SCEP CA",
+		"-common_name", "AutoMDM Windows SCEP CA",
 		"-organization", "Fleet Device Management Inc.",
 		"-organizational_unit", "Windows QA",
 		"-country", "US", "-keySize", "2048", "-years", "10",

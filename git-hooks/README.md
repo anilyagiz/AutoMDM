@@ -6,7 +6,7 @@ development workflow
 ## Introduction
 
 Git hooks are scripts that Git executes before or after events such as `commit` or `push`.  This
-document discusses the benefits of using a `push` hook for Fleet Developers.
+document discusses the benefits of using a `push` hook for AutoMDM Developers.
 
 ## Benefits
 
@@ -27,7 +27,7 @@ By reducing the number of failed builds, you free up CI resources for other task
 
 ## Getting Started
 
-1. Copy the `pre-push` to your fleet repo hooks directory
+1. Copy the `pre-push` to your automdm repo hooks directory
 
     ```bash
     cp ./git-hooks/backend/setup/pre-push ./.git/hooks/

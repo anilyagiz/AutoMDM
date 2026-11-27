@@ -13,12 +13,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/constant"
-	"github.com/fleetdm/fleet/v4/pkg/nettest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/govulndb"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/nvd/tools/cpedict"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/constant"
+	"github.com/anilyagiz/automdm/v4/pkg/nettest"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/govulndb"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/nvd/tools/cpedict"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -40,28 +40,28 @@ func TestCPEFromSoftware(t *testing.T) {
 	reCache := newRegexpCache()
 
 	// checking a version that exists works
-	cpe, err := CPEFromSoftware(t.Context(), slog.New(slog.DiscardHandler), db, &fleet.Software{Name: "Vendor Product-1.app", Version: "1.2.3", BundleIdentifier: "vendor", Source: "apps"}, nil, reCache, nil)
+	cpe, err := CPEFromSoftware(t.Context(), slog.New(slog.DiscardHandler), db, &automdm.Software{Name: "Vendor Product-1.app", Version: "1.2.3", BundleIdentifier: "vendor", Source: "apps"}, nil, reCache, nil)
 	require.NoError(t, err)
 	require.Equal(t, "cpe:2.3:a:vendor:product-1:1.2.3:*:*:*:*:macos:*:*", cpe)
 
 	// software another analyzer matches gets no CPE
-	skip := []func(*fleet.Software) bool{
-		func(s *fleet.Software) bool { return s.Source == "programs" },
-		func(s *fleet.Software) bool { return s.Name == "Vendor Product-1.app" },
+	skip := []func(*automdm.Software) bool{
+		func(s *automdm.Software) bool { return s.Source == "programs" },
+		func(s *automdm.Software) bool { return s.Name == "Vendor Product-1.app" },
 	}
-	cpe, err = CPEFromSoftware(t.Context(), slog.New(slog.DiscardHandler), db, &fleet.Software{Name: "Vendor Product-1.app", Version: "1.2.3", BundleIdentifier: "vendor", Source: "apps"}, nil, reCache, skip)
+	cpe, err = CPEFromSoftware(t.Context(), slog.New(slog.DiscardHandler), db, &automdm.Software{Name: "Vendor Product-1.app", Version: "1.2.3", BundleIdentifier: "vendor", Source: "apps"}, nil, reCache, skip)
 	require.NoError(t, err)
 	require.Empty(t, cpe)
 
 	// follows many deprecations
-	cpe, err = CPEFromSoftware(t.Context(), slog.New(slog.DiscardHandler), db, &fleet.Software{Name: "Vendor2 Product2.app", Version: "0.3", BundleIdentifier: "vendor2", Source: "apps"}, nil, reCache, nil)
+	cpe, err = CPEFromSoftware(t.Context(), slog.New(slog.DiscardHandler), db, &automdm.Software{Name: "Vendor2 Product2.app", Version: "0.3", BundleIdentifier: "vendor2", Source: "apps"}, nil, reCache, nil)
 	require.NoError(t, err)
 	require.Equal(t, "cpe:2.3:a:vendor2:product4:0.3:*:*:*:*:macos:*:*", cpe)
 
 	// When multiple CPE candidates share the same product name and no vendor info
 	// is available, ORDER BY ensures deterministic results across runs.
 	for range 5 {
-		cpe, err = CPEFromSoftware(t.Context(), slog.New(slog.DiscardHandler), db, &fleet.Software{
+		cpe, err = CPEFromSoftware(t.Context(), slog.New(slog.DiscardHandler), db, &automdm.Software{
 			Name: "Line", Version: "3.5.1", Source: "chrome_extensions",
 		}, nil, reCache, nil)
 		require.NoError(t, err)
@@ -69,7 +69,7 @@ func TestCPEFromSoftware(t *testing.T) {
 	}
 
 	// When vendor info is present and matches a CPE vendor, prefer that match.
-	cpe, err = CPEFromSoftware(t.Context(), slog.New(slog.DiscardHandler), db, &fleet.Software{
+	cpe, err = CPEFromSoftware(t.Context(), slog.New(slog.DiscardHandler), db, &automdm.Software{
 		Name: "Line", Version: "4.3.1", Vendor: "linecorp inc", Source: "apps",
 	}, nil, reCache, nil)
 	require.NoError(t, err)
@@ -77,44 +77,44 @@ func TestCPEFromSoftware(t *testing.T) {
 
 	// Deprecated CPE: when the only matching CPE is deprecated, follows the deprecation
 	// chain to find the non-deprecated replacement.
-	cpe, err = CPEFromSoftware(t.Context(), slog.New(slog.DiscardHandler), db, &fleet.Software{
+	cpe, err = CPEFromSoftware(t.Context(), slog.New(slog.DiscardHandler), db, &automdm.Software{
 		Name: "Widget", Version: "1.0", Vendor: "goodcorp inc", Source: "programs",
 	}, nil, reCache, nil)
 	require.NoError(t, err)
 	require.Equal(t, "cpe:2.3:a:goodcorp:correct_result:1.0:*:*:*:*:windows:*:*", cpe)
 
 	// Android apps are tagged with target_sw=android.
-	cpe, err = CPEFromSoftware(t.Context(), slog.New(slog.DiscardHandler), db, &fleet.Software{
+	cpe, err = CPEFromSoftware(t.Context(), slog.New(slog.DiscardHandler), db, &automdm.Software{
 		Name: "Vendor Product-1", Version: "1.2.3", ApplicationID: new("com.vendor.product1"), Source: "android_apps",
 	}, nil, reCache, nil)
 	require.NoError(t, err)
 	require.Equal(t, "cpe:2.3:a:vendor:product-1:1.2.3:*:*:*:*:android:*:*", cpe)
 
 	// The Android OS package gets no CPE, even when its name matches one.
-	cpe, err = CPEFromSoftware(t.Context(), slog.New(slog.DiscardHandler), db, &fleet.Software{
+	cpe, err = CPEFromSoftware(t.Context(), slog.New(slog.DiscardHandler), db, &automdm.Software{
 		Name: "Vendor Product-1", Version: "1.2.3", ApplicationID: new("android"), Source: "android_apps",
 	}, nil, reCache, nil)
 	require.NoError(t, err)
 	require.Empty(t, cpe)
 
-	// fleetd's renamed Installed apps entry gets no CPE; another app called "Fleet" still does.
-	cpe, err = CPEFromSoftware(t.Context(), slog.New(slog.DiscardHandler), db, &fleet.Software{
-		Name: "Fleet", Version: "1.64.0", Vendor: constant.AgentPublisher, Source: "programs",
+	// automdmd's renamed Installed apps entry gets no CPE; another app called "AutoMDM" still does.
+	cpe, err = CPEFromSoftware(t.Context(), slog.New(slog.DiscardHandler), db, &automdm.Software{
+		Name: "AutoMDM", Version: "1.64.0", Vendor: constant.AgentPublisher, Source: "programs",
 	}, nil, reCache, nil)
 	require.NoError(t, err)
 	require.Empty(t, cpe)
-	cpe, err = CPEFromSoftware(t.Context(), slog.New(slog.DiscardHandler), db, &fleet.Software{
-		Name: "Fleet", Version: "1.64.0", Vendor: "JetBrains s.r.o.", Source: "programs",
+	cpe, err = CPEFromSoftware(t.Context(), slog.New(slog.DiscardHandler), db, &automdm.Software{
+		Name: "AutoMDM", Version: "1.64.0", Vendor: "JetBrains s.r.o.", Source: "programs",
 	}, nil, reCache, nil)
 	require.NoError(t, err)
-	require.Equal(t, "cpe:2.3:a:jetbrains:fleet:1.64.0:*:*:*:*:windows:*:*", cpe)
+	require.Equal(t, "cpe:2.3:a:jetbrains:automdm:1.64.0:*:*:*:*:windows:*:*", cpe)
 
 	// Does not error on Unicode Names
-	_, err = CPEFromSoftware(t.Context(), slog.New(slog.DiscardHandler), db, &fleet.Software{Name: "Девушка Фонарём", Version: "1.2.3", BundleIdentifier: "vendor", Source: "apps"}, nil, reCache, nil)
+	_, err = CPEFromSoftware(t.Context(), slog.New(slog.DiscardHandler), db, &automdm.Software{Name: "Девушка Фонарём", Version: "1.2.3", BundleIdentifier: "vendor", Source: "apps"}, nil, reCache, nil)
 	require.NoError(t, err)
 
 	// Does not error on names that sanitize to empty (e.g. only special characters)
-	_, err = CPEFromSoftware(t.Context(), slog.New(slog.DiscardHandler), db, &fleet.Software{Name: "[", Version: "1.2.3", BundleIdentifier: "vendor", Source: "apps"}, nil,
+	_, err = CPEFromSoftware(t.Context(), slog.New(slog.DiscardHandler), db, &automdm.Software{Name: "[", Version: "1.2.3", BundleIdentifier: "vendor", Source: "apps"}, nil,
 		reCache, nil)
 	require.NoError(t, err)
 
@@ -133,14 +133,14 @@ func TestCPEFromSoftware(t *testing.T) {
 	for _, name := range ftsKeywordNames {
 		_, err = CPEFromSoftware(
 			t.Context(), slog.New(slog.DiscardHandler), db,
-			&fleet.Software{Name: name, Version: "1.0", Source: "programs"}, nil, reCache, nil,
+			&automdm.Software{Name: name, Version: "1.0", Source: "programs"}, nil, reCache, nil,
 		)
 		require.NoError(t, err, "software name %q should not cause FTS5 syntax error", name)
 	}
 
 	// Target_SW scoring: python_packages source should prefer python vendor over jenkins vendor
 	// when multiple CPE entries exist for the same product name.
-	cpe, err = CPEFromSoftware(t.Context(), slog.New(slog.DiscardHandler), db, &fleet.Software{
+	cpe, err = CPEFromSoftware(t.Context(), slog.New(slog.DiscardHandler), db, &automdm.Software{
 		Name: "requests", Version: "2.31.0", Source: "python_packages",
 	}, nil, reCache, nil)
 	require.NoError(t, err)
@@ -149,7 +149,7 @@ func TestCPEFromSoftware(t *testing.T) {
 
 	// Target_SW scoring: npm_packages source should prefer openjsf vendor over checkpoint vendor
 	// when the CPE has target_sw=node.js matching the expected target_sw.
-	cpe, err = CPEFromSoftware(t.Context(), slog.New(slog.DiscardHandler), db, &fleet.Software{
+	cpe, err = CPEFromSoftware(t.Context(), slog.New(slog.DiscardHandler), db, &automdm.Software{
 		Name: "express", Version: "4.18.0", Source: "npm_packages",
 	}, nil, reCache, nil)
 	require.NoError(t, err)
@@ -159,7 +159,7 @@ func TestCPEFromSoftware(t *testing.T) {
 	// Target_SW scoring with <product>_project fallback pattern.
 	// For duplicity from python_packages, neither vendor relates to Python ecosystem, but
 	// duplicity_project:duplicity follows the NVD "<product>_project" pattern for upstream CPEs.
-	cpe, err = CPEFromSoftware(t.Context(), slog.New(slog.DiscardHandler), db, &fleet.Software{
+	cpe, err = CPEFromSoftware(t.Context(), slog.New(slog.DiscardHandler), db, &automdm.Software{
 		Name: "duplicity", Version: "0.8.0", Source: "python_packages",
 	}, nil, reCache, nil)
 	require.NoError(t, err)
@@ -167,7 +167,7 @@ func TestCPEFromSoftware(t *testing.T) {
 		"should prefer duplicity_project (upstream) over debian (distro-specific) using _project pattern")
 
 	// Target_SW scoring: deb_packages source should prefer debian vendor for duplicity
-	cpe, err = CPEFromSoftware(t.Context(), slog.New(slog.DiscardHandler), db, &fleet.Software{
+	cpe, err = CPEFromSoftware(t.Context(), slog.New(slog.DiscardHandler), db, &automdm.Software{
 		Name: "duplicity", Version: "0.8.0", Source: "deb_packages",
 	}, nil, reCache, nil)
 	require.NoError(t, err)
@@ -192,7 +192,7 @@ func TestCPETranslations(t *testing.T) {
 	tt := []struct {
 		Name         string
 		Translations CPETranslations
-		Software     *fleet.Software
+		Software     *automdm.Software
 		Expected     string
 	}{
 		{
@@ -209,7 +209,7 @@ func TestCPETranslations(t *testing.T) {
 					},
 				},
 			},
-			Software: &fleet.Software{
+			Software: &automdm.Software{
 				Name:    "X",
 				Version: "1.2.3",
 				Source:  "apps",
@@ -230,7 +230,7 @@ func TestCPETranslations(t *testing.T) {
 					},
 				},
 			},
-			Software: &fleet.Software{
+			Software: &automdm.Software{
 				Name:    "Y",
 				Version: "1.2.3",
 				Source:  "apps",
@@ -251,7 +251,7 @@ func TestCPETranslations(t *testing.T) {
 					},
 				},
 			},
-			Software: &fleet.Software{
+			Software: &automdm.Software{
 				Name:    "Z",
 				Version: "1.2.3",
 				Source:  "apps",
@@ -273,7 +273,7 @@ func TestCPETranslations(t *testing.T) {
 					},
 				},
 			},
-			Software: &fleet.Software{
+			Software: &automdm.Software{
 				Name:    "X",
 				Version: "1.2.3",
 				Source:  "apps",
@@ -309,7 +309,7 @@ func TestSyncCPEDatabase(t *testing.T) {
 	// and this works afterwards
 	reCache := newRegexpCache()
 
-	software := &fleet.Software{
+	software := &automdm.Software{
 		Name:             "1Password.app",
 		Version:          "7.2.3",
 		BundleIdentifier: "com.1password.1password",
@@ -319,11 +319,11 @@ func TestSyncCPEDatabase(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "cpe:2.3:a:1password:1password:7.2.3:*:*:*:*:macos:*:*", cpe)
 
-	npmCPE, err := CPEFromSoftware(t.Context(), slog.New(slog.DiscardHandler), db, &fleet.Software{Name: "Adaltas Mixme 0.4.0 for Node.js", Version: "0.4.0", Source: "npm_packages"}, nil, reCache, nil)
+	npmCPE, err := CPEFromSoftware(t.Context(), slog.New(slog.DiscardHandler), db, &automdm.Software{Name: "Adaltas Mixme 0.4.0 for Node.js", Version: "0.4.0", Source: "npm_packages"}, nil, reCache, nil)
 	require.NoError(t, err)
 	assert.Equal(t, "cpe:2.3:a:adaltas:mixme:0.4.0:*:*:*:*:node.js:*:*", npmCPE)
 
-	windowsCPE, err := CPEFromSoftware(t.Context(), slog.New(slog.DiscardHandler), db, &fleet.Software{Name: "HP Storage Data Protector 8.0 for Windows 8", Version: "8.0", Source: "programs"}, nil, reCache, nil)
+	windowsCPE, err := CPEFromSoftware(t.Context(), slog.New(slog.DiscardHandler), db, &automdm.Software{Name: "HP Storage Data Protector 8.0 for Windows 8", Version: "8.0", Source: "programs"}, nil, reCache, nil)
 	require.NoError(t, err)
 	assert.Equal(t, "cpe:2.3:a:hp:storage_data_protector:8.0:*:*:*:*:windows:*:*", windowsCPE)
 
@@ -369,7 +369,7 @@ func TestSyncCPEDatabase(t *testing.T) {
 
 type fakeSoftwareIterator struct {
 	index     int
-	softwares []*fleet.Software
+	softwares []*automdm.Software
 	closed    bool
 }
 
@@ -377,7 +377,7 @@ func (f *fakeSoftwareIterator) Next() bool {
 	return f.index < len(f.softwares)
 }
 
-func (f *fakeSoftwareIterator) Value() (*fleet.Software, error) {
+func (f *fakeSoftwareIterator) Value() (*automdm.Software, error) {
 	s := f.softwares[f.index]
 	f.index++
 	return s, nil
@@ -390,16 +390,16 @@ func TestConsumeCPEBuffer(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("empty buffer", func(t *testing.T) {
-		var upserted []fleet.SoftwareCPE
-		var deleted []fleet.SoftwareCPE
+		var upserted []automdm.SoftwareCPE
+		var deleted []automdm.SoftwareCPE
 
 		ds := new(mock.Store)
-		ds.UpsertSoftwareCPEsFunc = func(ctx context.Context, cpes []fleet.SoftwareCPE) (int64, error) {
+		ds.UpsertSoftwareCPEsFunc = func(ctx context.Context, cpes []automdm.SoftwareCPE) (int64, error) {
 			upserted = append(upserted, cpes...)
 			return int64(len(upserted)), nil
 		}
 
-		ds.DeleteSoftwareCPEsFunc = func(ctx context.Context, cpes []fleet.SoftwareCPE) (int64, error) {
+		ds.DeleteSoftwareCPEsFunc = func(ctx context.Context, cpes []automdm.SoftwareCPE) (int64, error) {
 			deleted = append(deleted, cpes...)
 			return int64(len(deleted)), nil
 		}
@@ -410,21 +410,21 @@ func TestConsumeCPEBuffer(t *testing.T) {
 	})
 
 	t.Run("inserts and deletes accordantly", func(t *testing.T) {
-		var upserted []fleet.SoftwareCPE
-		var deleted []fleet.SoftwareCPE
+		var upserted []automdm.SoftwareCPE
+		var deleted []automdm.SoftwareCPE
 
 		ds := new(mock.Store)
-		ds.UpsertSoftwareCPEsFunc = func(ctx context.Context, cpes []fleet.SoftwareCPE) (int64, error) {
+		ds.UpsertSoftwareCPEsFunc = func(ctx context.Context, cpes []automdm.SoftwareCPE) (int64, error) {
 			upserted = append(upserted, cpes...)
 			return int64(len(upserted)), nil
 		}
 
-		ds.DeleteSoftwareCPEsFunc = func(ctx context.Context, cpes []fleet.SoftwareCPE) (int64, error) {
+		ds.DeleteSoftwareCPEsFunc = func(ctx context.Context, cpes []automdm.SoftwareCPE) (int64, error) {
 			deleted = append(deleted, cpes...)
 			return int64(len(deleted)), nil
 		}
 
-		cpes := []fleet.SoftwareCPE{
+		cpes := []automdm.SoftwareCPE{
 			{
 				SoftwareID: 1,
 				CPE:        "",
@@ -452,7 +452,7 @@ func TestTranslateSoftwareToCPE(t *testing.T) {
 
 	var cpes []string
 
-	ds.UpsertSoftwareCPEsFunc = func(ctx context.Context, vals []fleet.SoftwareCPE) (int64, error) {
+	ds.UpsertSoftwareCPEsFunc = func(ctx context.Context, vals []automdm.SoftwareCPE) (int64, error) {
 		for _, v := range vals {
 			cpes = append(cpes, v.CPE)
 		}
@@ -460,7 +460,7 @@ func TestTranslateSoftwareToCPE(t *testing.T) {
 	}
 
 	iterator := &fakeSoftwareIterator{
-		softwares: []*fleet.Software{
+		softwares: []*automdm.Software{
 			{
 				ID:               1,
 				Name:             "Product",
@@ -489,7 +489,7 @@ func TestTranslateSoftwareToCPE(t *testing.T) {
 		},
 	}
 
-	ds.AllSoftwareIteratorFunc = func(ctx context.Context, q fleet.SoftwareIterQueryOptions) (fleet.SoftwareIterator, error) {
+	ds.AllSoftwareIteratorFunc = func(ctx context.Context, q automdm.SoftwareIterQueryOptions) (automdm.SoftwareIterator, error) {
 		return iterator, nil
 	}
 
@@ -508,7 +508,7 @@ func TestTranslateSoftwareToCPE(t *testing.T) {
 	assert.True(t, iterator.closed)
 }
 
-// TestTranslateSoftwareToCPEExcludedSources tests that software from sources Fleet does not
+// TestTranslateSoftwareToCPEExcludedSources tests that software from sources AutoMDM does not
 // scan for vulnerabilities with NVD never reaches the CPE translation step. Adobe plugins are
 // excluded because no CVE data source maps an Adobe CEP/UXP extension to a CVE, so any match
 // would be a false positive borrowed from the host Adobe application. Go binaries are matched
@@ -519,7 +519,7 @@ func TestTranslateSoftwareToCPEExcludedSources(t *testing.T) {
 	ds := new(mock.Store)
 
 	var excludedSources [][]string
-	ds.AllSoftwareIteratorFunc = func(ctx context.Context, q fleet.SoftwareIterQueryOptions) (fleet.SoftwareIterator, error) {
+	ds.AllSoftwareIteratorFunc = func(ctx context.Context, q automdm.SoftwareIterQueryOptions) (automdm.SoftwareIterator, error) {
 		excludedSources = append(excludedSources, q.ExcludedSources)
 		return &fakeSoftwareIterator{}, nil
 	}
@@ -546,7 +546,7 @@ func TestTranslateSoftwareToCPEExcludedSources(t *testing.T) {
 
 // TestTranslateSoftwareToCPEIgnoreEmptyVersion tests that TranslateSoftwareToCPE ignores
 // software that was ingested with an empty version field. The test will simulate a previous
-// version of Fleet storing an incorrect CPE for the software, to test that an upgrade
+// version of AutoMDM storing an incorrect CPE for the software, to test that an upgrade
 // will clear out the invalid CPE from the DB.
 func TestTranslateSoftwareToCPEIgnoreEmptyVersion(t *testing.T) {
 	tempDir := t.TempDir()
@@ -555,15 +555,15 @@ func TestTranslateSoftwareToCPEIgnoreEmptyVersion(t *testing.T) {
 
 	// The incorrect CPE for the software should now be deleted because the ingested software doesn't
 	// have a version field.
-	ds.DeleteSoftwareCPEsFunc = func(ctx context.Context, cpes []fleet.SoftwareCPE) (int64, error) {
+	ds.DeleteSoftwareCPEsFunc = func(ctx context.Context, cpes []automdm.SoftwareCPE) (int64, error) {
 		require.Len(t, cpes, 1)
 		require.Equal(t, cpes[0].SoftwareID, uint(1))
 		return 1, nil
 	}
 
-	ds.AllSoftwareIteratorFunc = func(ctx context.Context, q fleet.SoftwareIterQueryOptions) (fleet.SoftwareIterator, error) {
+	ds.AllSoftwareIteratorFunc = func(ctx context.Context, q automdm.SoftwareIterQueryOptions) (automdm.SoftwareIterator, error) {
 		return &fakeSoftwareIterator{
-			softwares: []*fleet.Software{
+			softwares: []*automdm.Software{
 				{
 					ID:               1,
 					Name:             "foobar",
@@ -571,7 +571,7 @@ func TestTranslateSoftwareToCPEIgnoreEmptyVersion(t *testing.T) {
 					BundleIdentifier: "vendor2",
 					Source:           "apps",
 					// Set an incorrect CPE on the DB to simulate a CPE being generated incorrectly
-					// for this software on a previous version of Fleet.
+					// for this software on a previous version of AutoMDM.
 					GenerateCPE: "cpe:2.3:a:vendor2:foobar:*:*:*:*:*:macos:*:*",
 				},
 			},
@@ -612,7 +612,7 @@ func TestSyncsCPEFromURL(t *testing.T) {
 }
 
 func TestLegacyCPEDB(t *testing.T) {
-	// Older versions of fleet used "select * ..." when querying from the cpe and cpe_search tables
+	// Older versions of team used "select * ..." when querying from the cpe and cpe_search tables
 	// Ensure that this still works when generating the new cpe database.
 	type IndexedCPEItem struct {
 		ID         int     `json:"id" db:"rowid"`
@@ -649,7 +649,7 @@ func TestLegacyCPEDB(t *testing.T) {
 func TestCPEFromSoftwareIntegration(t *testing.T) {
 	// Note: make sure to run `go test` with "-tags fts5" for this test, since it uses sqlite.
 	testCases := []struct {
-		software fleet.Software
+		software automdm.Software
 		cpe      string
 	}{
 		// This should work but there are no CPE entries in the database despite CVE-2024-25659 existing, using
@@ -667,7 +667,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 		  },
 		*/
 		/*{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "TNMS",
 				BundleIdentifier: "TNMS_19.10.3",
 				Source:           "apps",
@@ -676,7 +676,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: "cpe:2.3:a:nokia:transcend_network_management_system:19.10.3:*:*:*:*:macos:*:*",
 		},*/
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "Oracle SQLDeveloper",
 				BundleIdentifier: "com.oracle.SQLDeveloper",
 				Source:           "apps",
@@ -685,7 +685,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: "cpe:2.3:a:oracle:sql_developer:24.3.1:*:*:*:*:macos:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "Poly Lens Desktop",
 				BundleIdentifier: "com.poly.lens.legacyhost.app",
 				Source:           "apps",
@@ -693,7 +693,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: "cpe:2.3:a:poly:lens:*:*:*:*:*:macos:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "BlueStacksMIM",
 				BundleIdentifier: "com.now.gg.BlueStacksMIM",
 				Source:           "apps",
@@ -702,7 +702,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: "cpe:2.3:a:bluestacks:bluestacks:4.100.1:*:*:*:*:macos:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "Adobe Acrobat Reader DC.app",
 				Source:           "apps",
 				Version:          "22.002.20191",
@@ -712,7 +712,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: "cpe:2.3:a:adobe:acrobat_reader_dc:22.002.20191:*:*:*:*:macos:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "Adobe Lightroom.app",
 				Source:           "apps",
 				Version:          "5.5",
@@ -723,7 +723,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 		{
 			// NVD distinguishes Lightroom from Lightroom Classic only by sw_edition, so without an
 			// explicit edition each app would match the other's CVEs.
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "Adobe Lightroom.app",
 				Source:           "apps",
 				Version:          "9.5",
@@ -731,7 +731,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:adobe:lightroom:9.5:*:*:*:desktop:macos:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "Adobe Lightroom Classic.app",
 				Source:           "apps",
 				Version:          "15.4.1",
@@ -739,7 +739,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:adobe:lightroom:15.4.1:*:*:*:classic:macos:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "Finder.app",
 				Source:           "apps",
 				Version:          "12.5",
@@ -748,7 +748,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:apple:finder:12.5:*:*:*:*:macos:*:*",
 		},
 		{ // Make sure we generate the expected CPE so we can match it downstream and drop the false negative vulns
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "Dota 2",
 				Source:           "apps",
 				Version:          "1.0", // default version; on ingestion it's actually blank
@@ -758,7 +758,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: "cpe:2.3:a:valvesoftware:dota_2:1.0:*:*:*:*:macos:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "Firefox.app",
 				Source:           "apps",
 				Version:          "105.0.1",
@@ -768,7 +768,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 		},
 		{ // Firefox Developer Edition tracks standard Firefox; its bundle's product
 			// token isn't a real NVD product, so a translation maps it to mozilla:firefox (#48689).
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "Firefox Developer Edition.app",
 				Source:           "apps",
 				Version:          "105.0.1",
@@ -777,7 +777,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:mozilla:firefox:105.0.1:*:*:*:*:macos:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "Google Chrome.app",
 				Source:           "apps",
 				Version:          "105.0.5195.125",
@@ -786,7 +786,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:google:chrome:105.0.5195.125:*:*:*:*:macos:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "iCloud.app",
 				Source:           "apps",
 				Version:          "1.0",
@@ -795,7 +795,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:apple:icloud:1.0:*:*:*:*:macos:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "Installer.app",
 				Source:           "apps",
 				Version:          "6.2.0",
@@ -804,7 +804,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:apple:installer:6.2.0:*:*:*:*:macos:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "Mail.app",
 				Source:           "apps",
 				Version:          "16.0",
@@ -814,7 +814,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 		},
 
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "Music.app",
 				Source:           "apps",
 				Version:          "1.2.5",
@@ -823,7 +823,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:apple:music:1.2.5:*:*:*:*:macos:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "OneDrive.app",
 				Source:           "apps",
 				Version:          "22.186.0904",
@@ -832,7 +832,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:microsoft:onedrive:22.186.0904:*:*:*:*:macos:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "osquery.app",
 				Source:           "apps",
 				Version:          "5.4.0",
@@ -841,7 +841,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:linuxfoundation:osquery:5.4.0:*:*:*:*:macos:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "Preview.app",
 				Source:           "apps",
 				Version:          "11.0",
@@ -850,7 +850,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:apple:preview:11.0:*:*:*:*:macos:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "Python.app",
 				Source:           "apps",
 				Version:          "3.8.9",
@@ -859,7 +859,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:python:python:3.8.9:-:*:*:*:macos:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "Python.app",
 				Source:           "apps",
 				Version:          "3.10.7",
@@ -868,7 +868,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:python:python:3.10.7:-:*:*:*:macos:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "Safari.app",
 				Source:           "apps",
 				Version:          "16.0",
@@ -877,7 +877,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:apple:safari:16.0:*:*:*:*:macos:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "Shortcuts.app",
 				Source:           "apps",
 				Version:          "5.0",
@@ -886,7 +886,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:apple:shortcuts:5.0:*:*:*:*:macos:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "Software Update.app",
 				Source:           "apps",
 				Version:          "6",
@@ -895,7 +895,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:apple:software_update:6:*:*:*:*:macos:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "Terminal.app",
 				Source:           "apps",
 				Version:          "2.12.7",
@@ -904,7 +904,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:apple:terminal:2.12.7:*:*:*:*:macos:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "TextEdit.app",
 				Source:           "apps",
 				Version:          "1.17",
@@ -913,7 +913,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:apple:textedit:1.17:*:*:*:*:macos:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "zoom.us.app",
 				Source:           "apps",
 				Version:          "5.11.6 (9890)",
@@ -922,7 +922,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:zoom:zoom:5.11.6.9890:*:*:*:*:macos:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "1Password – Password Manager",
 				Source:           "chrome_extensions",
 				Version:          "2.3.8",
@@ -931,7 +931,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:1password:1password:2.3.8:*:*:*:*:chrome:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "Adblock Plus - free ad blocker",
 				Source:           "chrome_extensions",
 				Version:          "3.14.2",
@@ -940,7 +940,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:adblockplus:adblock_plus:3.14.2:*:*:*:*:chrome:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "AdBlock - best ad blocker",
 				Source:           "chrome_extensions",
 				Version:          "5.1.1",
@@ -949,7 +949,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:getadblock:adblock:5.1.1:*:*:*:*:chrome:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "AdBlock - best ad blocker",
 				Source:           "chrome_extensions",
 				Version:          "5.1.2",
@@ -958,7 +958,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:getadblock:adblock:5.1.2:*:*:*:*:chrome:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "uBlock Origin",
 				Source:           "chrome_extensions",
 				Version:          "1.44.4",
@@ -967,7 +967,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:ublockorigin:ublock_origin:1.44.4:*:*:*:*:chrome:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "uBlock Origin",
 				Source:           "chrome_extensions",
 				Version:          "1.44.2",
@@ -976,7 +976,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:ublockorigin:ublock_origin:1.44.2:*:*:*:*:chrome:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "uBlock Origin",
 				Source:           "chrome_extensions",
 				Version:          "1.44.0",
@@ -985,7 +985,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:ublockorigin:ublock_origin:1.44.0:*:*:*:*:chrome:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "Bing",
 				Source:           "firefox_addons",
 				Version:          "1.3",
@@ -994,7 +994,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:microsoft:bing:1.3:*:*:*:*:firefox:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "DuckDuckGo",
 				Source:           "firefox_addons",
 				Version:          "1.1",
@@ -1003,7 +1003,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:duckduckgo:duckduckgo:1.1:*:*:*:*:firefox:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "node",
 				Source:           "homebrew_packages",
 				Version:          "18.9.0",
@@ -1012,7 +1012,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:nodejs:node.js:18.9.0:*:*:*:*:macos:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "1Password",
 				Source:           "programs",
 				Version:          "8.9.5",
@@ -1021,7 +1021,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:1password:1password:8.9.5:*:*:*:*:windows:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "7-Zip 22.01 (x64)",
 				Source:           "programs",
 				Version:          "22.01",
@@ -1030,7 +1030,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:7-zip:7-zip:22.01:*:*:*:*:windows:*:*",
 		}, /*
 			{ // See #29570
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "Adobe Acrobat DC (64-bit)",
 				Source:           "programs",
 				Version:          "22.002.20212",
@@ -1039,7 +1039,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:adobe:acrobat_dc:22.002.20212:*:*:*:*:windows:*:*",
 			},
 		*/{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "Brave",
 				Source:           "programs",
 				Version:          "105.1.43.93",
@@ -1048,7 +1048,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:brave:brave:105.1.43.93:*:*:*:*:windows:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "Docker Desktop",
 				Source:           "programs",
 				Version:          "4.12.0",
@@ -1057,7 +1057,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:docker:desktop:4.12.0:*:*:*:*:windows:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "Dropbox",
 				Source:           "programs",
 				Version:          "157.4.4808",
@@ -1066,7 +1066,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:dropbox:dropbox:157.4.4808:*:*:*:*:windows:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "Git",
 				Source:           "programs",
 				Version:          "2.37.1",
@@ -1075,7 +1075,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:git:git:2.37.1:*:*:*:*:windows:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "Google Chrome",
 				Source:           "programs",
 				Version:          "105.0.5195.127",
@@ -1084,7 +1084,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:google:chrome:105.0.5195.127:*:*:*:*:windows:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "Microsoft Edge",
 				Source:           "programs",
 				Version:          "105.0.1343.50",
@@ -1093,7 +1093,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:microsoft:edge_chromium:105.0.1343.50:*:*:*:*:windows:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "Microsoft OneDrive",
 				Source:           "programs",
 				Version:          "22.181.0828.0002",
@@ -1102,7 +1102,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:microsoft:onedrive:22.181.0828.0002:*:*:*:*:windows:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "Microsoft Visual Studio Code (User)",
 				Source:           "programs",
 				Version:          "1.71.2",
@@ -1111,7 +1111,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:microsoft:visual_studio_code:1.71.2:*:*:*:*:windows:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "Mozilla Firefox (x64 en-US)",
 				Source:           "programs",
 				Version:          "105.0.1",
@@ -1120,7 +1120,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:mozilla:firefox:105.0.1:*:*:*:*:windows:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "Node.js",
 				Source:           "programs",
 				Version:          "16.16.0",
@@ -1129,7 +1129,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:nodejs:node.js:16.16.0:*:*:*:*:windows:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "Oracle VM VirtualBox 6.1.38",
 				Source:           "programs",
 				Version:          "6.1.38",
@@ -1138,7 +1138,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:oracle:vm_virtualbox:6.1.38:*:*:*:*:windows:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "Python 3.10.6 (64-bit)",
 				Source:           "programs",
 				Version:          "3.10.6150.0",
@@ -1147,7 +1147,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:python:python:3.10.6:-:*:*:*:windows:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "Python 3.14.0a1 (64-bit)",
 				Source:  "programs",
 				Version: "3.14.101.0",
@@ -1155,7 +1155,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:python:python:3.14.0:alpha1:*:*:*:windows:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "Python 3.14.0b2 (64-bit)",
 				Source:  "programs",
 				Version: "3.14.112.0",
@@ -1163,7 +1163,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:python:python:3.14.0:beta2:*:*:*:windows:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "Python 3.14.0rc1 (64-bit)",
 				Source:  "programs",
 				Version: "3.14.121.0",
@@ -1171,7 +1171,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:python:python:3.14.0:rc1:*:*:*:windows:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "Visual Studio Community 2022",
 				Source:           "programs",
 				Version:          "17.2.5",
@@ -1180,7 +1180,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:microsoft:visual_studio_community:17.2.5:*:*:*:*:windows:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "VLC media player",
 				Source:           "programs",
 				Version:          "3.0.17.4",
@@ -1189,7 +1189,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:videolan:vlc_media_player:3.0.17.4:*:*:*:*:windows:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "Zoom",
 				Source:           "programs",
 				Version:          "5.11.1 (6602)",
@@ -1198,7 +1198,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:zoom:zoom:5.11.1.6602:*:*:*:*:windows:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "attrs",
 				Source:           "python_packages",
 				Version:          "21.2.0",
@@ -1207,7 +1207,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:attrs_project:attrs:21.2.0:*:*:*:*:python:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "Brotli",
 				Source:           "python_packages",
 				Version:          "1.0.9",
@@ -1216,14 +1216,14 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:google:brotli:1.0.9:*:*:*:*:python:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "brotli",
 				Source:  "homebrew_packages",
 				Version: "1.2.1",
 			}, cpe: "cpe:2.3:a:google:brotli:1.2.1:*:*:*:*:macos:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "click",
 				Source:           "python_packages",
 				Version:          "8.0.3",
@@ -1232,7 +1232,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:click_project:click:8.0.3:*:*:*:*:python:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "cryptography",
 				Source:           "python_packages",
 				Version:          "3.4.8",
@@ -1241,7 +1241,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:cryptography.io:cryptography:3.4.8:*:*:*:*:python:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "decorator",
 				Source:           "python_packages",
 				Version:          "4.4.2",
@@ -1250,7 +1250,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:python:decorator:4.4.2:*:*:*:*:python:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "duplicity",
 				Source:           "python_packages",
 				Version:          "0.8.21",
@@ -1259,7 +1259,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:duplicity_project:duplicity:0.8.21:*:*:*:*:python:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "duplicity",
 				Source:           "deb_packages",
 				Version:          "0.8.21",
@@ -1268,7 +1268,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:debian:duplicity:0.8.21:*:*:*:*:*:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "feedparser",
 				Source:           "python_packages",
 				Version:          "6.0.8",
@@ -1277,7 +1277,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:mark_pilgrim:feedparser:6.0.8:*:*:*:*:python:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "html5lib",
 				Source:           "python_packages",
 				Version:          "1.1",
@@ -1286,7 +1286,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:html5lib:html5lib:1.1:*:*:*:*:python:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "httplib2",
 				Source:           "python_packages",
 				Version:          "0.20.2",
@@ -1295,7 +1295,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:httplib2_project:httplib2:0.20.2:*:*:*:*:python:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "ipython",
 				Source:           "python_packages",
 				Version:          "7.31.1",
@@ -1304,7 +1304,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:ipython:ipython:7.31.1:*:*:*:*:python:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "keyring",
 				Source:           "python_packages",
 				Version:          "23.5.0",
@@ -1313,7 +1313,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:python:keyring:23.5.0:*:*:*:*:python:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "language-selector",
 				Source:           "python_packages",
 				Version:          "0.1",
@@ -1322,7 +1322,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:ubuntu_developers:language-selector:0.1:*:*:*:*:python:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "lxml",
 				Source:           "python_packages",
 				Version:          "4.8.0",
@@ -1331,7 +1331,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:lxml:lxml:4.8.0:*:*:*:*:python:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "lz4",
 				Source:           "python_packages",
 				Version:          "3.1.3+dfsg",
@@ -1340,7 +1340,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:lz4_project:lz4:3.1.3.dfsg:*:*:*:*:python:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "Mako",
 				Source:           "python_packages",
 				Version:          "1.1.3",
@@ -1349,7 +1349,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:sqlalchemy:mako:1.1.3:*:*:*:*:python:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "Markdown",
 				Source:           "python_packages",
 				Version:          "3.3.6",
@@ -1358,7 +1358,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:cebe:markdown:3.3.6:*:*:*:*:python:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "mechanize",
 				Source:           "python_packages",
 				Version:          "0.4.7",
@@ -1367,7 +1367,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:mechanize_project:mechanize:0.4.7:*:*:*:*:python:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "msgpack",
 				Source:           "python_packages",
 				Version:          "1.0.3",
@@ -1376,7 +1376,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:msgpack:msgpack:1.0.3:*:*:*:*:python:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "numpy",
 				Source:           "python_packages",
 				Version:          "1.21.5",
@@ -1385,7 +1385,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:numpy:numpy:1.21.5:*:*:*:*:python:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "oauthlib",
 				Source:           "python_packages",
 				Version:          "3.2.0",
@@ -1394,7 +1394,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:oauthlib_project:oauthlib:3.2.0:*:*:*:*:python:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "paramiko",
 				Source:           "python_packages",
 				Version:          "2.9.3",
@@ -1403,7 +1403,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:paramiko:paramiko:2.9.3:*:*:*:*:python:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "parso",
 				Source:           "python_packages",
 				Version:          "0.8.1",
@@ -1412,7 +1412,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:parso_project:parso:0.8.1:*:*:*:*:python:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "Pillow",
 				Source:           "python_packages",
 				Version:          "9.0.1",
@@ -1421,7 +1421,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:python:pillow:9.0.1:*:*:*:*:python:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "pip",
 				Source:           "python_packages",
 				Version:          "22.2.1",
@@ -1430,7 +1430,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:pypa:pip:22.2.1:*:*:*:*:python:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "protobuf",
 				Source:           "python_packages",
 				Version:          "3.12.4",
@@ -1439,7 +1439,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:golang:protobuf:3.12.4:*:*:*:*:python:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "Pygments",
 				Source:           "python_packages",
 				Version:          "2.11.2",
@@ -1448,7 +1448,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:pygments:pygments:2.11.2:*:*:*:*:python:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "PyJWT",
 				Source:           "python_packages",
 				Version:          "2.3.0",
@@ -1457,7 +1457,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:pyjwt_project:pyjwt:2.3.0:*:*:*:*:python:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "python-apt",
 				Source:           "python_packages",
 				Version:          "2.3.0+ubuntu2.1",
@@ -1466,7 +1466,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:debian:python-apt:2.3.0.ubuntu2.1:*:*:*:*:python:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "pyxdg",
 				Source:           "python_packages",
 				Version:          "0.27",
@@ -1475,7 +1475,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:python:pyxdg:0.27:*:*:*:*:python:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "PyYAML",
 				Source:           "python_packages",
 				Version:          "5.4.1",
@@ -1484,7 +1484,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:pyyaml:pyyaml:5.4.1:*:*:*:*:python:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "reportlab",
 				Source:           "python_packages",
 				Version:          "3.6.8",
@@ -1493,7 +1493,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:reportlab:reportlab:3.6.8:*:*:*:*:python:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "requests",
 				Source:           "python_packages",
 				Version:          "2.25.1",
@@ -1502,7 +1502,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:python:requests:2.25.1:*:*:*:*:python:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "scipy",
 				Source:           "python_packages",
 				Version:          "1.8.0",
@@ -1511,7 +1511,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:scipy:scipy:1.8.0:*:*:*:*:python:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "setuptools",
 				Source:           "python_packages",
 				Version:          "63.2.0",
@@ -1520,7 +1520,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:python:setuptools:63.2.0:*:*:*:*:python:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "urllib3",
 				Source:           "python_packages",
 				Version:          "1.26.5",
@@ -1529,7 +1529,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:python:urllib3:1.26.5:*:*:*:*:python:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "UTM.app",
 				Source:           "apps",
 				Version:          "3.2.4",
@@ -1537,7 +1537,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "Docs",
 				Source:           "chrome_extensions",
 				Version:          "0.10",
@@ -1546,7 +1546,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 		},
 		// We don't use NVD to detect Mac Office vulnerabilities so all these should have an empty CPE
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "Microsoft PowerPoint.app",
 				Source:           "apps",
 				Version:          "16.69.1",
@@ -1554,7 +1554,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "Microsoft Word.app",
 				Source:           "apps",
 				Version:          "16.69.1",
@@ -1562,7 +1562,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "Microsoft Excel.app",
 				Source:           "apps",
 				Version:          "16.69.1",
@@ -1570,7 +1570,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "Docker.app",
 				Source:           "apps",
 				Version:          "4.7.1",
@@ -1578,7 +1578,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:docker:desktop:4.7.1:*:*:*:*:macos:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "Docker Desktop.app",
 				Source:           "apps",
 				Version:          "4.16.2",
@@ -1586,7 +1586,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:docker:desktop:4.16.2:*:*:*:*:macos:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "Docker Desktop.app",
 				Source:           "apps",
 				Version:          "3.5.0",
@@ -1595,7 +1595,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 		},
 		// 2023-03-06: there are no entries for the docker python package at the NVD dataset.
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "docker",
 				Source:  "python_packages",
 				Version: "6.0.1",
@@ -1603,7 +1603,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 		},
 		// 2025-01-20: there are no entries for the jira python package at the NVD dataset.
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "jira",
 				Source:  "python_packages",
 				Version: "3.8.0",
@@ -1611,21 +1611,21 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 		},
 		// 2026-09-28: there are no entries for the bash python package at the NVD dataset, only GNU bash.
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "bash",
 				Source:  "python_packages",
 				Version: "0.6",
 			}, cpe: "",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "python3-bash",
 				Source:  "python_packages",
 				Version: "0.6",
 			}, cpe: "",
 		},
 		{ // checks vendor/product matching based on bundle name, including EAPs
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "GoLand EAP.app",
 				Source:           "apps",
 				Version:          "2022.3.99.123.456",
@@ -1635,7 +1635,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: "cpe:2.3:a:jetbrains:goland:2022.3.99.123.456:*:*:*:*:macos:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "IntelliJ IDEA Community Edition 2022.3.2",
 				Source:  "programs",
 				Version: "223.8617.56",
@@ -1644,7 +1644,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: "cpe:2.3:a:jetbrains:intellij_idea:223.8617.56:*:*:*:*:windows:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "IntelliJ IDEA.app",
 				Source:           "apps",
 				Version:          "2022.3.3",
@@ -1654,7 +1654,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: "cpe:2.3:a:jetbrains:intellij_idea:2022.3.3:*:*:*:*:macos:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "IntelliJ IDEA CE.app",
 				Source:           "apps",
 				Version:          "2022.3.3",
@@ -1664,7 +1664,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: "cpe:2.3:a:jetbrains:intellij_idea:2022.3.3:*:*:*:*:macos:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "intellij-idea-ce",
 				Source:           "homebrew_packages",
 				Version:          "2023.3.2,233.13135.103",
@@ -1674,7 +1674,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: "cpe:2.3:a:jetbrains:intellij_idea:2023.3.2.233.13135.103:*:*:*:*:macos:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "User PyCharm Custom Name.app", // 2023/10/31: The actual product name must be part of the app name per our code in CPEFromSoftware
 				Source:           "apps",
 				Version:          "2019.2",
@@ -1684,7 +1684,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: "cpe:2.3:a:jetbrains:pycharm:2019.2:*:*:*:*:macos:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "PyCharm Community Edition.app",
 				Source:           "apps",
 				Version:          "2022.1",
@@ -1694,7 +1694,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: "cpe:2.3:a:jetbrains:pycharm:2022.1:*:*:*:*:macos:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "eamodio.gitlens",
 				Source:  "vscode_extensions",
 				Version: "14.9.0",
@@ -1703,7 +1703,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: "cpe:2.3:a:gitkraken:gitlens:14.9.0:*:*:*:*:visual_studio_code:*:*",
 		},
 		{ // skipped because the Docker DX VSCode extension has no vulnerabilities, so a CPE hasn't been built
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "docker.docker",
 				Source:  "vscode_extensions",
 				Version: "0.6.0",
@@ -1712,7 +1712,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: ``,
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "ms-python.python",
 				Source:  "vscode_extensions",
 				Version: "2024.2.1",
@@ -1721,7 +1721,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: "cpe:2.3:a:microsoft:python_extension:2024.2.1:*:*:*:*:visual_studio_code:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "ms-toolsai.jupyter",
 				Source:  "vscode_extensions",
 				Version: "2024.2.0",
@@ -1730,7 +1730,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: "cpe:2.3:a:microsoft:jupyter:2024.2.0:*:*:*:*:visual_studio_code:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "ms-vsliveshare.vsliveshare",
 				Source:  "vscode_extensions",
 				Version: "1.0.5918",
@@ -1739,7 +1739,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: "cpe:2.3:a:microsoft:visual_studio_live_share:1.0.5918:*:*:*:*:visual_studio_code:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "dbaeumer.vscode-eslint",
 				Source:  "vscode_extensions",
 				Version: "2.4.4",
@@ -1748,7 +1748,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: "cpe:2.3:a:microsoft:visual_studio_code_eslint_extension:2.4.4:*:*:*:*:visual_studio_code:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "vscjava.vscode-maven",
 				Source:  "vscode_extensions",
 				Version: "0.44.0",
@@ -1757,7 +1757,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: "cpe:2.3:a:microsoft:vscode-maven:0.44.0:*:*:*:*:visual_studio_code:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "ms-vscode.powershell",
 				Source:  "vscode_extensions",
 				Version: "2024.0.0",
@@ -1766,7 +1766,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: "cpe:2.3:a:microsoft:powershell_extension:2024.0.0:*:*:*:*:visual_studio_code:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "ms-vscode-remote.vscode-remote-extensionpack",
 				Source:  "vscode_extensions",
 				Version: "0.25.0",
@@ -1775,7 +1775,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: "cpe:2.3:a:microsoft:remote_development:0.25.0:*:*:*:*:visual_studio_code:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "vknabel.vscode-swiftlint",
 				Source:  "vscode_extensions",
 				Version: "1.8.3",
@@ -1784,7 +1784,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: "cpe:2.3:a:swiftlint_project:swiftlint:1.8.3:*:*:*:*:visual_studio_code:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "vknabel.vscode-swiftformat",
 				Source:  "vscode_extensions",
 				Version: "1.6.7",
@@ -1793,7 +1793,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: "cpe:2.3:a:swiftformat_project:swiftformat:1.6.7:*:*:*:*:visual_studio_code:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "jbenden.c-cpp-flylint",
 				Source:  "vscode_extensions",
 				Version: "1.14.0",
@@ -1802,7 +1802,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: `cpe:2.3:a:c\/c\+\+_advanced_lint_project:c\/c\+\+_advanced_lint:1.14.0:*:*:*:*:visual_studio_code:*:*`,
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "stripe.vscode-stripe",
 				Source:  "vscode_extensions",
 				Version: "2.0.14",
@@ -1811,7 +1811,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: `cpe:2.3:a:stripe:stripe:2.0.14:*:*:*:*:visual_studio_code:*:*`,
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "vscodevim.vim",
 				Source:  "vscode_extensions",
 				Version: "1.27.2",
@@ -1820,7 +1820,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: `cpe:2.3:a:vim_project:vim:1.27.2:*:*:*:*:visual_studio_code:*:*`,
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "svelte.svelte-vscode",
 				Source:  "vscode_extensions",
 				Version: "108.3.1",
@@ -1829,7 +1829,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: `cpe:2.3:a:svelte:svelte:108.3.1:*:*:*:*:visual_studio_code:*:*`,
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "lextudio.restructuredtext",
 				Source:  "vscode_extensions",
 				Version: "189.3.0",
@@ -1838,7 +1838,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: `cpe:2.3:a:lextudio:restructuredtext:189.3.0:*:*:*:*:visual_studio_code:*:*`,
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "ms-vscode-remote.remote-containers",
 				Source:  "vscode_extensions",
 				Version: "0.348.0",
@@ -1847,7 +1847,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: `cpe:2.3:a:microsoft:remote:0.348.0:*:*:*:*:visual_studio_code:*:*`,
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "ms-kubernetes-tools.vscode-kubernetes-tools",
 				Source:  "vscode_extensions",
 				Version: "0.348.0",
@@ -1856,7 +1856,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: `cpe:2.3:a:microsoft:kubernetes_tools:0.348.0:*:*:*:*:visual_studio_code:*:*`,
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "ms-dotnettools.vscode-dotnet-sdk",
 				Source:  "vscode_extensions",
 				Version: "0.8.0",
@@ -1865,7 +1865,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: `cpe:2.3:a:microsoft:.net_education_bundle_sdk_install_tool:0.8.0:*:*:*:*:visual_studio_code:*:*`,
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "ms-dotnettools.vscode-dotnet-runtime",
 				Source:  "vscode_extensions",
 				Version: "2.0.2",
@@ -1874,7 +1874,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: `cpe:2.3:a:microsoft:.net_install_tool_for_extension_authors:2.0.2:*:*:*:*:visual_studio_code:*:*`,
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "ms-vscode-remote.remote-wsl",
 				Source:  "vscode_extensions",
 				Version: "0.86.0",
@@ -1883,7 +1883,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: `cpe:2.3:a:microsoft:windows_subsystem_for_linux:0.86.0:*:*:*:*:visual_studio_code:*:*`,
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "mongodb.mongodb-vscode",
 				Source:  "vscode_extensions",
 				Version: "1.5.0",
@@ -1892,7 +1892,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: `cpe:2.3:a:mongodb:mongodb:1.5.0:*:*:*:*:visual_studio_code:*:*`,
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "oracle.mysql-shell-for-vs-code",
 				Source:  "vscode_extensions",
 				Version: "1.14.2",
@@ -1901,7 +1901,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: `cpe:2.3:a:oracle:mysql_shell:1.14.2:*:*:*:*:visual_studio_code:*:*`,
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "snyk-security.snyk-vulnerability-scanner",
 				Source:  "vscode_extensions",
 				Version: "2.3.6",
@@ -1910,7 +1910,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: `cpe:2.3:a:snyk:snyk_security:2.3.6:*:*:*:*:visual_studio_code:*:*`,
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "sourcegraph.cody-ai",
 				Source:  "vscode_extensions",
 				Version: "1.8.0",
@@ -1923,7 +1923,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 		// in NVD's CPE database.
 		/*
 			{
-				software: fleet.Software{
+				software: automdm.Software{
 					Name:    "redhat.vscode-xml",
 					Source:  "vscode_extensions",
 					Version: "0.26.1",
@@ -1933,7 +1933,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			},
 		*/
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "github.vscode-pull-request-github",
 				Source:  "vscode_extensions",
 				Version: "0.82.0",
@@ -1947,14 +1947,14 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			// at all, indicating as of 10/3/25 there are no known CVEs in this extension, meaning
 			// it’s safe to skip matching this SW name to avoid the very broad match glob,
 			// cpe:2.3:a:golang:go:*:*:*:*:*:*:*:*, provided by NVD
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "golang.go",
 				Source:  "vscode_extensions",
 				Version: "0.50.0",
 			}, cpe: "",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "Google Chrome Helper.app",
 				Source:           "apps",
 				Version:          "111.0.5563.64",
@@ -1965,7 +1965,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: "",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "Acrobat Uninstaller.app",
 				Source:           "apps",
 				Version:          "6.0",
@@ -1976,7 +1976,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: "",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "UmbrellaMenu.app",
 				Source:           "apps",
 				Version:          "1.0",
@@ -1987,7 +1987,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: "",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "python@3.9",
 				Source:  "homebrew_packages",
 				Version: "3.9.18_2",
@@ -1996,7 +1996,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: `cpe:2.3:a:microsoft:python:3.9.18_2:*:*:*:*:macos:*:*`,
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "linux-image-5.4.0-105-custom",
 				Source:  "deb_packages",
 				Version: "5.4.0-105.118",
@@ -2005,7 +2005,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: "cpe:2.3:o:linux:linux_kernel:5.4.0-105.118:*:*:*:*:*:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "VirtualBox.app",
 				Source:           "apps",
 				Version:          "7.0.12",
@@ -2014,7 +2014,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: "cpe:2.3:a:oracle:virtualbox:7.0.12:*:*:*:*:macos:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "gh",
 				Source:           "deb_packages",
 				Version:          "2.61.0",
@@ -2023,7 +2023,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:github:cli:2.61.0:*:*:*:*:*:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "gh",
 				Source:           "homebrew_packages",
 				Version:          "2.61.0",
@@ -2032,7 +2032,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:github:cli:2.61.0:*:*:*:*:macos:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "vault",
 				Source:           "homebrew_packages",
 				Version:          "1.4.0",
@@ -2041,7 +2041,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:hashicorp:vault:1.4.0:*:*:*:*:macos:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "pass",
 				Source:           "homebrew_packages",
 				Version:          "1.7.4",
@@ -2050,14 +2050,14 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			}, cpe: "cpe:2.3:a:simple_password_store_project:simple_password_store:1.7.4:*:*:*:*:macos:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "Cloudflare WARP",
 				Source:  "programs",
 				Version: "25.1.861.0",
 			}, cpe: "cpe:2.3:a:cloudflare:warp:2025.1.861.0:*:*:*:*:windows:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:   "Microsoft Teams.app",
 				Source: "apps",
 				// Should not be mutated
@@ -2066,7 +2066,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: "cpe:2.3:a:microsoft:teams:25016.1904.3401.2239:*:*:*:*:macos:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:   "Microsoft Teams.app",
 				Source: "apps",
 				// Should be mutated
@@ -2075,7 +2075,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: "cpe:2.3:a:microsoft:teams:1.6.00.22155:*:*:*:*:macos:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "Citrix Workspace.app",
 				Source:  "apps",
 				Version: "24.11.10",
@@ -2083,7 +2083,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: "cpe:2.3:a:citrix:workspace:2411.10:*:*:*:*:macos:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "minio",
 				Source:  "homebrew_packages",
 				Version: "RELEASE.2025-02-28T09-55-16Z_1",
@@ -2091,7 +2091,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: "cpe:2.3:a:minio:minio:2025-02-28T09-55-16Z:*:*:*:*:macos:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "minio",
 				Source:  "homebrew_packages",
 				Version: "20200310000000",
@@ -2099,7 +2099,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: "cpe:2.3:a:minio:minio:2020-03-10T00-00-00Z:*:*:*:*:macos:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "dify",
 				Source:  "npm_packages",
 				Version: "0.11.0",
@@ -2107,7 +2107,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: "cpe:2.3:a:langgenius:dify:0.11.0:*:*:*:*:node.js:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "undici",
 				Source:  "npm_packages",
 				Version: "5.22.1",
@@ -2115,7 +2115,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: "cpe:2.3:a:nodejs:undici:5.22.1:*:*:*:*:node.js:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "vite",
 				Source:  "npm_packages",
 				Version: "4.3.9",
@@ -2123,7 +2123,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: "cpe:2.3:a:vitejs:vite:4.3.9:*:*:*:*:node.js:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "directus",
 				Source:  "npm_packages",
 				Version: "9.12.2",
@@ -2131,7 +2131,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: "cpe:2.3:a:monospace:directus:9.12.2:*:*:*:*:node.js:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "iTerm2",
 				Source:           "apps",
 				Version:          "3.5.14",
@@ -2140,7 +2140,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: "cpe:2.3:a:iterm2:iterm2:3.5.14:*:*:*:*:macos:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "iTerm2ImportStatus",
 				Source:           "apps",
 				Version:          "1.0",
@@ -2149,7 +2149,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: "", // Skip iTerm2ImportStatus since it is part of iTerm2 and doesn't have its own cpe
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "Firefox.app",
 				Source:  "apps",
 				Version: "137.0.2",
@@ -2157,7 +2157,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: "cpe:2.3:a:mozilla:firefox:137.0.2:*:*:*:*:macos:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "Firefox ESR.app",
 				Source:  "apps",
 				Version: "128.14.0",
@@ -2167,7 +2167,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 		{
 			// confirmed that as of Oct. 6 '25 there is no CPE and therefore no CVEs for this software in
 			// the NVD db, so safe to skip checking for one
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "Logi Bolt",
 				BundleIdentifier: "com.logi.bolt.app",
 				Source:           "apps",
@@ -2176,7 +2176,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: "",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "Snyk Security - Code, Open Source, Container, IaC Configurations",
 				Source:  "jetbrains_plugins",
 				Version: "2.4.9",
@@ -2187,7 +2187,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			// The Linear desktop app has no CPE of its own. Without a translation it matched
 			// linear:linear, the "Linear" WordPress plugin, and inherited its CVEs
 			// (CVE-2024-12496, CVE-2024-13709).
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "Linear.app",
 				BundleIdentifier: "com.linear",
 				Source:           "apps",
@@ -2199,7 +2199,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			// The Homebrew "codex" formula is the OpenAI Codex CLI, which has no CPE of its own.
 			// Without a translation it matched codexnotes:codex, a notes app, and inherited its
 			// CVEs (CVE-2021-43635).
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "codex",
 				Source:  "homebrew_packages",
 				Version: "0.165.0",
@@ -2210,7 +2210,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			// teamcity-cli installs as "teamcity" via the JetBrains Homebrew tap, but it is a
 			// separate product from the TeamCity CI server and has no CPE of its own, so it must
 			// not inherit the server's vulnerabilities.
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "teamcity",
 				Source:  "homebrew_packages",
 				Version: "1.2.1",
@@ -2218,7 +2218,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: "",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:          "VLC",
 				ApplicationID: new("org.videolan.vlc"),
 				Source:        "android_apps",
@@ -2227,7 +2227,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			cpe: "cpe:2.3:a:videolan:vlc:3.6.5:*:*:*:*:android:*:*",
 		},
 		{
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:          "Chrome",
 				ApplicationID: new("com.android.chrome"),
 				Source:        "android_apps",
@@ -2237,7 +2237,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 		},
 		{
 			// The Android OS package; OS vulnerabilities come from the Android OSV artifacts.
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:          "Android System",
 				ApplicationID: new("android"),
 				Source:        "android_apps",
@@ -2250,7 +2250,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 			// Corporation, version 26.x). It is not the Windows Photos app, which is a Store app and
 			// never appears in programs, and its 26.x version sorts below the 2022.x ranges of
 			// microsoft:photos CVEs such as CVE-2022-30168.
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "Photos",
 				Source:  "programs",
 				Vendor:  "Microsoft Corporation",
@@ -2260,7 +2260,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 		},
 		{
 			// The skip only applies to the exact "Photos" name.
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "Microsoft Photos",
 				Source:  "programs",
 				Vendor:  "Microsoft Corporation",
@@ -2271,15 +2271,15 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 		// Go toolchain installs are matched against the Go vulnerability database. By name they
 		// match ecies:go, an unrelated library.
 		{
-			software: fleet.Software{Name: "go", Source: "homebrew_packages", Version: "1.24.9"},
+			software: automdm.Software{Name: "go", Source: "homebrew_packages", Version: "1.24.9"},
 			cpe:      "",
 		},
 		{
-			software: fleet.Software{Name: "go@1.24", Source: "homebrew_packages", Version: "1.24.9"},
+			software: automdm.Software{Name: "go@1.24", Source: "homebrew_packages", Version: "1.24.9"},
 			cpe:      "",
 		},
 		{
-			software: fleet.Software{Name: "go", Source: "pacman_packages", Version: "1.24.9", Release: "1"},
+			software: automdm.Software{Name: "go", Source: "pacman_packages", Version: "1.24.9", Release: "1"},
 			cpe:      "",
 		},
 	}
@@ -2308,7 +2308,7 @@ func TestCPEFromSoftwareIntegration(t *testing.T) {
 
 	toolchains, err := govulndb.NewToolchainRules(govulndb.PublishedToolchainInstalls())
 	require.NoError(t, err)
-	skip := []func(*fleet.Software) bool{toolchains.IsToolchainInstall}
+	skip := []func(*automdm.Software) bool{toolchains.IsToolchainInstall}
 
 	for _, tt := range testCases {
 		tt := tt
@@ -2362,7 +2362,7 @@ func TestCPEVendorMatchesSoftware(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			item := &IndexedCPEItem{Vendor: tt.cpeVendor}
-			sw := &fleet.Software{Vendor: tt.softwareVendor}
+			sw := &automdm.Software{Vendor: tt.softwareVendor}
 			assert.Equal(t, tt.want, cpeVendorMatchesSoftware(item, sw))
 		})
 	}
@@ -2389,17 +2389,17 @@ func TestContainsNonASCII(t *testing.T) {
 func TestMutateSoftware(t *testing.T) {
 	for _, tc := range []struct {
 		name      string
-		s         *fleet.Software
-		sanitized *fleet.Software
+		s         *automdm.Software
+		sanitized *automdm.Software
 	}{
 		{
 			name: "Microsoft Teams.app on macOS",
-			s: &fleet.Software{
+			s: &automdm.Software{
 				Name:    "Microsoft Teams.app",
 				Source:  "apps",
 				Version: "1.00.622155",
 			},
-			sanitized: &fleet.Software{
+			sanitized: &automdm.Software{
 				Name:    "Microsoft Teams.app",
 				Source:  "apps",
 				Version: "1.6.00.22155",
@@ -2407,12 +2407,12 @@ func TestMutateSoftware(t *testing.T) {
 		},
 		{
 			name: "Microsoft Teams not on macOS",
-			s: &fleet.Software{
+			s: &automdm.Software{
 				Name:    "Microsoft Teams",
 				Source:  "programs",
 				Version: "1.6.00.22378",
 			},
-			sanitized: &fleet.Software{
+			sanitized: &automdm.Software{
 				Name:    "Microsoft Teams",
 				Source:  "programs",
 				Version: "1.6.00.22378",
@@ -2420,23 +2420,23 @@ func TestMutateSoftware(t *testing.T) {
 		},
 		{
 			name: "Other.app on macOS",
-			s: &fleet.Software{
+			s: &automdm.Software{
 				Name:    "Other.app",
 				Version: "1.2.3",
 			},
-			sanitized: &fleet.Software{
+			sanitized: &automdm.Software{
 				Name:    "Other.app",
 				Version: "1.2.3",
 			},
 		},
 		{
 			name: "Cloudflare WARP on Windows, version not using full year",
-			s: &fleet.Software{
+			s: &automdm.Software{
 				Name:    "Cloudflare WARP",
 				Version: "23.9.248.0",
 				Source:  "programs",
 			},
-			sanitized: &fleet.Software{
+			sanitized: &automdm.Software{
 				Name:    "Cloudflare WARP",
 				Version: "2023.9.248.0",
 				Source:  "programs",
@@ -2444,12 +2444,12 @@ func TestMutateSoftware(t *testing.T) {
 		},
 		{
 			name: "Cloudflare WARP on Windows, version using full year",
-			s: &fleet.Software{
+			s: &automdm.Software{
 				Name:    "Cloudflare WARP",
 				Version: "2023.9.248.0",
 				Source:  "programs",
 			},
-			sanitized: &fleet.Software{
+			sanitized: &automdm.Software{
 				Name:    "Cloudflare WARP",
 				Version: "2023.9.248.0",
 				Source:  "programs",
@@ -2457,12 +2457,12 @@ func TestMutateSoftware(t *testing.T) {
 		},
 		{
 			name: "Cloudflare WARP on Windows with invalid version",
-			s: &fleet.Software{
+			s: &automdm.Software{
 				Name:    "Cloudflare WARP",
 				Version: "foobar",
 				Source:  "programs",
 			},
-			sanitized: &fleet.Software{
+			sanitized: &automdm.Software{
 				Name:    "Cloudflare WARP",
 				Version: "foobar",
 				Source:  "programs",
@@ -2470,12 +2470,12 @@ func TestMutateSoftware(t *testing.T) {
 		},
 		{
 			name: "Cloudflare WARP on Windows with invalid version",
-			s: &fleet.Software{
+			s: &automdm.Software{
 				Name:    "Cloudflare WARP",
 				Version: "foo.bar",
 				Source:  "programs",
 			},
-			sanitized: &fleet.Software{
+			sanitized: &automdm.Software{
 				Name:    "Cloudflare WARP",
 				Version: "foo.bar",
 				Source:  "programs",
@@ -2483,22 +2483,22 @@ func TestMutateSoftware(t *testing.T) {
 		},
 		{
 			name: "Other on Windows",
-			s: &fleet.Software{
+			s: &automdm.Software{
 				Name:    "Other",
 				Version: "1.2.3",
 			},
-			sanitized: &fleet.Software{
+			sanitized: &automdm.Software{
 				Name:    "Other",
 				Version: "1.2.3",
 			},
 		},
 		{
 			name: "Citrix Workspace on Windows",
-			s: &fleet.Software{
+			s: &automdm.Software{
 				Name:    "Citrix Workspace 2309",
 				Version: "23.9.1.104",
 			},
-			sanitized: &fleet.Software{
+			sanitized: &automdm.Software{
 				Name:    "Citrix Workspace 2309",
 				Version: "2309.1.104",
 			},
@@ -2508,13 +2508,13 @@ func TestMutateSoftware(t *testing.T) {
 			// whose name carries no YYMM suffix must still be version-normalized,
 			// otherwise the raw file version (e.g. 25.7.1.6) leaks into the CPE.
 			name: "Citrix Workspace bare name on Windows (#46811)",
-			s: &fleet.Software{
+			s: &automdm.Software{
 				Name:    "Citrix Workspace",
 				Version: "25.7.1.6",
 				Source:  "programs",
 				Vendor:  "Citrix Systems, Inc.",
 			},
-			sanitized: &fleet.Software{
+			sanitized: &automdm.Software{
 				Name:    "Citrix Workspace",
 				Version: "2507.1.6",
 				Source:  "programs",
@@ -2525,13 +2525,13 @@ func TestMutateSoftware(t *testing.T) {
 			// Sibling components from the same install ("(DV)", "(SSON)", "(USB)",
 			// "Inside") also lack the YYMM suffix and must be normalized.
 			name: "Citrix Workspace component on Windows (#46811)",
-			s: &fleet.Software{
+			s: &automdm.Software{
 				Name:    "Citrix Workspace(DV)",
 				Version: "26.3.0.171",
 				Source:  "programs",
 				Vendor:  "Citrix Systems, Inc.",
 			},
-			sanitized: &fleet.Software{
+			sanitized: &automdm.Software{
 				Name:    "Citrix Workspace(DV)",
 				Version: "2603.0.171",
 				Source:  "programs",
@@ -2540,34 +2540,34 @@ func TestMutateSoftware(t *testing.T) {
 		},
 		{
 			name: "Citrix Workspace on Mac",
-			s: &fleet.Software{
+			s: &automdm.Software{
 				Name:    "Citrix Workspace.app",
 				Version: "23.9.1.104",
 			},
-			sanitized: &fleet.Software{
+			sanitized: &automdm.Software{
 				Name:    "Citrix Workspace.app",
 				Version: "2309.1.104",
 			},
 		},
 		{
 			name: "Citrix Workspace with correct versioning",
-			s: &fleet.Software{
+			s: &automdm.Software{
 				Name:    "Citrix Workspace.app",
 				Version: "2400.1.104",
 			},
-			sanitized: &fleet.Software{
+			sanitized: &automdm.Software{
 				Name:    "Citrix Workspace.app",
 				Version: "2400.1.104",
 			},
 		},
 		{
 			name: "MS Teams classic on MacOS",
-			s: &fleet.Software{
+			s: &automdm.Software{
 				Name:    "Microsoft Teams classic.app",
 				Source:  "apps",
 				Version: "1.00.634263",
 			},
-			sanitized: &fleet.Software{
+			sanitized: &automdm.Software{
 				Name:    "Microsoft Teams classic.app",
 				Source:  "apps",
 				Version: "1.6.00.34263",
@@ -2575,45 +2575,45 @@ func TestMutateSoftware(t *testing.T) {
 		},
 		{
 			name: "minio",
-			s: &fleet.Software{
+			s: &automdm.Software{
 				Name:    "minio",
 				Version: "RELEASE.2022-03-10T00-00-00Z",
 			},
-			sanitized: &fleet.Software{
+			sanitized: &automdm.Software{
 				Name:    "minio",
 				Version: "2022-03-10T00-00-00Z",
 			},
 		},
 		{
 			name: "minio",
-			s: &fleet.Software{
+			s: &automdm.Software{
 				Name:    "minio",
 				Version: "20200310000000",
 			},
-			sanitized: &fleet.Software{
+			sanitized: &automdm.Software{
 				Name:    "minio",
 				Version: "2020-03-10T00-00-00Z",
 			},
 		},
 		{
 			name: "minio with trailing garbage",
-			s: &fleet.Software{
+			s: &automdm.Software{
 				Name:    "minio",
 				Version: "RELEASE.2022-03-10T00-00-00Z_1",
 			},
-			sanitized: &fleet.Software{
+			sanitized: &automdm.Software{
 				Name:    "minio",
 				Version: "2022-03-10T00-00-00Z",
 			},
 		},
 		{
 			name: "JetBrains non-EAP",
-			s: &fleet.Software{
+			s: &automdm.Software{
 				Name:             "GoLand.app",
 				Version:          "2024.3.1",
 				BundleIdentifier: "com.jetbrains.goland",
 			},
-			sanitized: &fleet.Software{
+			sanitized: &automdm.Software{
 				Name:             "GoLand.app",
 				Version:          "2024.3.1",
 				BundleIdentifier: "com.jetbrains.goland",
@@ -2621,13 +2621,13 @@ func TestMutateSoftware(t *testing.T) {
 		},
 		{
 			name: "JetBrains EAP",
-			s: &fleet.Software{
+			s: &automdm.Software{
 				Name:             "GoLand.app",
 				Source:           "apps",
 				Version:          "EAP GO-243.21565.42",
 				BundleIdentifier: "com.jetbrains.goland-EAP",
 			},
-			sanitized: &fleet.Software{
+			sanitized: &automdm.Software{
 				Name:             "GoLand.app",
 				Source:           "apps",
 				Version:          "2024.2.99.21565.42",
@@ -2636,12 +2636,12 @@ func TestMutateSoftware(t *testing.T) {
 		},
 		{
 			name: "JetBrains year-wrapped EAP",
-			s: &fleet.Software{
+			s: &automdm.Software{
 				Name:             "IntelliJ IDEA CE",
 				Version:          "EAP IC-241.12345.67",
 				BundleIdentifier: "com.jetbrains.intellij-EAP",
 			},
-			sanitized: &fleet.Software{
+			sanitized: &automdm.Software{
 				Name:             "IntelliJ IDEA CE",
 				Version:          "2023.4.99.12345.67",
 				BundleIdentifier: "com.jetbrains.intellij-EAP",
@@ -2649,12 +2649,12 @@ func TestMutateSoftware(t *testing.T) {
 		},
 		{
 			name: "Python for Windows GA dot-zero",
-			s: &fleet.Software{
+			s: &automdm.Software{
 				Name:    "Python 3.12 (64-bit)",
 				Version: "3.12.150.1013",
 				Source:  "programs",
 			},
-			sanitized: &fleet.Software{
+			sanitized: &automdm.Software{
 				Name:    "Python 3.12 (64-bit)",
 				Version: "3.12.0",
 				Source:  "programs",
@@ -2662,12 +2662,12 @@ func TestMutateSoftware(t *testing.T) {
 		},
 		{
 			name: "Python for Windows GA patch release",
-			s: &fleet.Software{
+			s: &automdm.Software{
 				Name:    "Python 3.12.8 (64-bit)",
 				Version: "3.12.8150.0",
 				Source:  "programs",
 			},
-			sanitized: &fleet.Software{
+			sanitized: &automdm.Software{
 				Name:    "Python 3.12.8 (64-bit)",
 				Version: "3.12.8",
 				Source:  "programs",
@@ -2675,12 +2675,12 @@ func TestMutateSoftware(t *testing.T) {
 		},
 		{
 			name: "Python for Windows alpha",
-			s: &fleet.Software{
+			s: &automdm.Software{
 				Name:    "Python 3.14.0a4 (64-bit)",
 				Version: "3.14.104.1013",
 				Source:  "programs",
 			},
-			sanitized: &fleet.Software{
+			sanitized: &automdm.Software{
 				Name:    "Python 3.14.0a4 (64-bit)",
 				Version: "3.14.0a4",
 				Source:  "programs",
@@ -2688,12 +2688,12 @@ func TestMutateSoftware(t *testing.T) {
 		},
 		{
 			name: "Python for Windows beta",
-			s: &fleet.Software{
+			s: &automdm.Software{
 				Name:    "Python 3.14.0b3 (64-bit)",
 				Version: "3.14.113.1013",
 				Source:  "programs",
 			},
-			sanitized: &fleet.Software{
+			sanitized: &automdm.Software{
 				Name:    "Python 3.14.0b3 (64-bit)",
 				Version: "3.14.0b3",
 				Source:  "programs",
@@ -2701,12 +2701,12 @@ func TestMutateSoftware(t *testing.T) {
 		},
 		{
 			name: "Python for Windows RC",
-			s: &fleet.Software{
+			s: &automdm.Software{
 				Name:    "Python 3.14.0rc2 (64-bit)",
 				Version: "3.14.122.1013",
 				Source:  "programs",
 			},
-			sanitized: &fleet.Software{
+			sanitized: &automdm.Software{
 				Name:    "Python 3.14.0rc2 (64-bit)",
 				Version: "3.14.0rc2",
 				Source:  "programs",
@@ -2714,13 +2714,13 @@ func TestMutateSoftware(t *testing.T) {
 		},
 		{
 			name: "MacVim with known Vim version (9.0.1897 -> 178)",
-			s: &fleet.Software{
+			s: &automdm.Software{
 				Name:             "MacVim",
 				Version:          "9.0.1897",
 				Source:           "apps",
 				BundleIdentifier: "org.vim.MacVim",
 			},
-			sanitized: &fleet.Software{
+			sanitized: &automdm.Software{
 				Name:             "MacVim",
 				Version:          "178",
 				Source:           "apps",
@@ -2729,13 +2729,13 @@ func TestMutateSoftware(t *testing.T) {
 		},
 		{
 			name: "MacVim with known Vim version (9.1.0 -> 179)",
-			s: &fleet.Software{
+			s: &automdm.Software{
 				Name:             "MacVim",
 				Version:          "9.1.0",
 				Source:           "apps",
 				BundleIdentifier: "org.vim.MacVim",
 			},
-			sanitized: &fleet.Software{
+			sanitized: &automdm.Software{
 				Name:             "MacVim",
 				Version:          "179",
 				Source:           "apps",
@@ -2744,13 +2744,13 @@ func TestMutateSoftware(t *testing.T) {
 		},
 		{
 			name: "MacVim with prerelease Vim version (9.1.1577 -> 181.2)",
-			s: &fleet.Software{
+			s: &automdm.Software{
 				Name:             "MacVim",
 				Version:          "9.1.1577",
 				Source:           "apps",
 				BundleIdentifier: "org.vim.MacVim",
 			},
-			sanitized: &fleet.Software{
+			sanitized: &automdm.Software{
 				Name:             "MacVim",
 				Version:          "181.2",
 				Source:           "apps",
@@ -2759,13 +2759,13 @@ func TestMutateSoftware(t *testing.T) {
 		},
 		{
 			name: "MacVim with unknown Vim version (leaves as-is)",
-			s: &fleet.Software{
+			s: &automdm.Software{
 				Name:             "MacVim",
 				Version:          "9.2.9999",
 				Source:           "apps",
 				BundleIdentifier: "org.vim.MacVim",
 			},
-			sanitized: &fleet.Software{
+			sanitized: &automdm.Software{
 				Name:             "MacVim",
 				Version:          "9.2.9999",
 				Source:           "apps",
@@ -2774,12 +2774,12 @@ func TestMutateSoftware(t *testing.T) {
 		},
 		{
 			name: "MacVim from wrong source (not transformed)",
-			s: &fleet.Software{
+			s: &automdm.Software{
 				Name:    "MacVim",
 				Version: "9.0.1897",
 				Source:  "programs",
 			},
-			sanitized: &fleet.Software{
+			sanitized: &automdm.Software{
 				Name:    "MacVim",
 				Version: "9.0.1897",
 				Source:  "programs",
@@ -2787,12 +2787,12 @@ func TestMutateSoftware(t *testing.T) {
 		},
 		{
 			name: "Homebrew imp (Integrative Modeling Platform)",
-			s: &fleet.Software{
+			s: &automdm.Software{
 				Name:    "imp",
 				Version: "2.23.0_13",
 				Source:  "homebrew_packages",
 			},
-			sanitized: &fleet.Software{
+			sanitized: &automdm.Software{
 				Name:    "integrative-modeling-platform",
 				Version: "2.23.0_13",
 				Source:  "homebrew_packages",
@@ -2800,12 +2800,12 @@ func TestMutateSoftware(t *testing.T) {
 		},
 		{
 			name: "imp from non-Homebrew source (should not be renamed)",
-			s: &fleet.Software{
+			s: &automdm.Software{
 				Name:    "imp",
 				Version: "5.0.22",
 				Source:  "programs",
 			},
-			sanitized: &fleet.Software{
+			sanitized: &automdm.Software{
 				Name:    "imp",
 				Version: "5.0.22",
 				Source:  "programs",
@@ -2813,12 +2813,12 @@ func TestMutateSoftware(t *testing.T) {
 		},
 		{
 			name: "Homebrew imp with different version",
-			s: &fleet.Software{
+			s: &automdm.Software{
 				Name:    "imp",
 				Version: "2.20.0",
 				Source:  "homebrew_packages",
 			},
-			sanitized: &fleet.Software{
+			sanitized: &automdm.Software{
 				Name:    "integrative-modeling-platform",
 				Version: "2.20.0",
 				Source:  "homebrew_packages",
@@ -2826,13 +2826,13 @@ func TestMutateSoftware(t *testing.T) {
 		},
 		{
 			name: "ninxsoft Mist (macOS installer download tool)",
-			s: &fleet.Software{
+			s: &automdm.Software{
 				Name:             "Mist",
 				Version:          "0.30",
 				Source:           "apps",
 				BundleIdentifier: "com.ninxsoft.mist",
 			},
-			sanitized: &fleet.Software{
+			sanitized: &automdm.Software{
 				Name:             "ninxsoft-mist",
 				Version:          "0.30",
 				Source:           "apps",
@@ -2841,12 +2841,12 @@ func TestMutateSoftware(t *testing.T) {
 		},
 		{
 			name: "7-Zip on Windows with four-part MSI version",
-			s: &fleet.Software{
+			s: &automdm.Software{
 				Name:    "7-Zip 24.09 (x64)",
 				Version: "24.09.00.0",
 				Source:  "programs",
 			},
-			sanitized: &fleet.Software{
+			sanitized: &automdm.Software{
 				Name:    "7-Zip 24.09 (x64)",
 				Version: "24.09",
 				Source:  "programs",
@@ -2868,12 +2868,12 @@ func TestCitrixWorkspaceLTSR(t *testing.T) {
 
 	for _, tc := range []struct {
 		name     string
-		software fleet.Software
+		software automdm.Software
 		wantCPE  string
 	}{
 		{
 			name: "Citrix Workspace 2203 LTSR on Windows",
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "Citrix Workspace 2203",
 				Version: "22.3.1.41",
 				Source:  "programs",
@@ -2884,7 +2884,7 @@ func TestCitrixWorkspaceLTSR(t *testing.T) {
 		{
 			// #41790: cumulative updates (e.g. CU4 = 22.3.4000.4080) must be LTSR too.
 			name: "Citrix Workspace 2203 LTSR CU4 on Windows (#41790)",
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "Citrix Workspace 2203",
 				Version: "22.3.4000.4080",
 				Source:  "programs",
@@ -2894,7 +2894,7 @@ func TestCitrixWorkspaceLTSR(t *testing.T) {
 		},
 		{
 			name: "Citrix Workspace 2402 LTSR on Windows",
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "Citrix Workspace 2402",
 				Version: "24.2.0.65",
 				Source:  "programs",
@@ -2904,7 +2904,7 @@ func TestCitrixWorkspaceLTSR(t *testing.T) {
 		},
 		{
 			name: "Citrix Workspace non-LTSR on Windows",
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "Citrix Workspace 2309",
 				Version: "23.9.1.104",
 				Source:  "programs",
@@ -2914,7 +2914,7 @@ func TestCitrixWorkspaceLTSR(t *testing.T) {
 		},
 		{
 			name: "Citrix Workspace LTSR version on Mac (not programs source)",
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "Citrix Workspace.app",
 				Version: "24.2.0.65",
 				Source:  "apps",
@@ -2924,7 +2924,7 @@ func TestCitrixWorkspaceLTSR(t *testing.T) {
 		},
 		{
 			name: "Citrix Workspace 1912 LTSR on Windows",
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "Citrix Workspace 1912",
 				Version: "19.12.0.5",
 				Source:  "programs",
@@ -2934,7 +2934,7 @@ func TestCitrixWorkspaceLTSR(t *testing.T) {
 		},
 		{
 			name: "Citrix Workspace 2507.1 LTSR on Windows",
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:    "Citrix Workspace 2507",
 				Version: "25.7.1.50",
 				Source:  "programs",

@@ -10,8 +10,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 )
 
 const (
@@ -49,9 +49,9 @@ type splunkLogWriter struct {
 }
 
 func NewSplunkLogWriter(url, token, index, source, sourceType string, insecureSkipVerify bool, logger *slog.Logger) *splunkLogWriter {
-	clientOpts := []fleethttp.ClientOpt{fleethttp.WithTimeout(30 * time.Second)}
+	clientOpts := []automdmhttp.ClientOpt{automdmhttp.WithTimeout(30 * time.Second)}
 	if insecureSkipVerify {
-		clientOpts = append(clientOpts, fleethttp.WithTLSClientConfig(&tls.Config{
+		clientOpts = append(clientOpts, automdmhttp.WithTLSClientConfig(&tls.Config{
 			InsecureSkipVerify: true, //nolint:gosec // user-configured option for self-signed certs
 		}))
 	}
@@ -62,7 +62,7 @@ func NewSplunkLogWriter(url, token, index, source, sourceType string, insecureSk
 		index:      index,
 		source:     source,
 		sourceType: sourceType,
-		client:     fleethttp.NewClient(clientOpts...),
+		client:     automdmhttp.NewClient(clientOpts...),
 		logger:     logger,
 	}
 }

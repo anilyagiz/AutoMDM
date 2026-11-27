@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Script to update the fleet_maintained_apps list in testing-and-qa.yml
+# Script to update the automdm_maintained_apps list in testing-and-qa.yml
 # with any new apps from apps.json.
 #
 # This script:
@@ -15,7 +15,7 @@ set -euo pipefail
 # Get repository root
 REPO_ROOT="${GITHUB_WORKSPACE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 APPS_JSON="${REPO_ROOT}/ee/maintained-apps/outputs/apps.json"
-YAML_FILE="${REPO_ROOT}/it-and-security/fleets/testing-and-qa.yml"
+YAML_FILE="${REPO_ROOT}/it-and-security/teams/testing-and-qa.yml"
 TEMP_FILE=$(mktemp)
 
 # Check if required files exist
@@ -89,53 +89,53 @@ for app in "${DARWIN_APPS[@]+"${DARWIN_APPS[@]}"}" "${WINDOWS_APPS[@]+"${WINDOWS
     echo "  - $name ($slug)"
 done
 
-# Find the fleet_maintained_apps section boundaries
-FLEET_APPS_START=$(grep -n "fleet_maintained_apps:" "$YAML_FILE" | head -1 | cut -d: -f1)
-if [ -z "$FLEET_APPS_START" ]; then
-    echo "Error: Could not find fleet_maintained_apps section in YAML file" >&2
+# Find the automdm_maintained_apps section boundaries
+AUTOMDM_APPS_START=$(grep -n "automdm_maintained_apps:" "$YAML_FILE" | head -1 | cut -d: -f1)
+if [ -z "$AUTOMDM_APPS_START" ]; then
+    echo "Error: Could not find automdm_maintained_apps section in YAML file" >&2
     exit 1
 fi
 
-# Find where the fleet_maintained_apps section ends (next top-level key or end of file)
+# Find where the automdm_maintained_apps section ends (next top-level key or end of file)
 TOTAL_LINES=$(wc -l < "$YAML_FILE")
-FLEET_APPS_END=$TOTAL_LINES
-for ((i=$((FLEET_APPS_START + 1)); i<=TOTAL_LINES; i++)); do
+AUTOMDM_APPS_END=$TOTAL_LINES
+for ((i=$((AUTOMDM_APPS_START + 1)); i<=TOTAL_LINES; i++)); do
     line=$(sed -n "${i}p" "$YAML_FILE")
     # Check if this is a top-level key (starts at column 0, not indented)
     if [[ "$line" =~ ^[a-zA-Z] ]] && [[ ! "$line" =~ ^[[:space:]] ]]; then
-        FLEET_APPS_END=$((i - 1))
+        AUTOMDM_APPS_END=$((i - 1))
         break
     fi
 done
 
 # Find macOS and Windows comment lines
-MACOS_COMMENT_LINE=$(awk -v start="$FLEET_APPS_START" -v end="$FLEET_APPS_END" 'NR >= start && NR <= end && /# macOS apps/ {print NR; exit}' "$YAML_FILE")
-WINDOWS_COMMENT_LINE=$(awk -v start="$FLEET_APPS_START" -v end="$FLEET_APPS_END" 'NR >= start && NR <= end && /# Windows apps/ {print NR; exit}' "$YAML_FILE")
+MACOS_COMMENT_LINE=$(awk -v start="$AUTOMDM_APPS_START" -v end="$AUTOMDM_APPS_END" 'NR >= start && NR <= end && /# macOS apps/ {print NR; exit}' "$YAML_FILE")
+WINDOWS_COMMENT_LINE=$(awk -v start="$AUTOMDM_APPS_START" -v end="$AUTOMDM_APPS_END" 'NR >= start && NR <= end && /# Windows apps/ {print NR; exit}' "$YAML_FILE")
 
 # Find last darwin app and first windows app
-LAST_DARWIN_LINE=$(awk -v start="$FLEET_APPS_START" -v end="$FLEET_APPS_END" 'NR >= start && NR <= end && /\/darwin/ {last=NR} END {print last+0}' "$YAML_FILE")
-FIRST_WINDOWS_LINE=$(awk -v start="$FLEET_APPS_START" -v end="$FLEET_APPS_END" 'NR >= start && NR <= end && /\/windows/ {print NR; exit}' "$YAML_FILE")
+LAST_DARWIN_LINE=$(awk -v start="$AUTOMDM_APPS_START" -v end="$AUTOMDM_APPS_END" 'NR >= start && NR <= end && /\/darwin/ {last=NR} END {print last+0}' "$YAML_FILE")
+FIRST_WINDOWS_LINE=$(awk -v start="$AUTOMDM_APPS_START" -v end="$AUTOMDM_APPS_END" 'NR >= start && NR <= end && /\/windows/ {print NR; exit}' "$YAML_FILE")
 
 # Build the updated file
 {
-    # Copy everything before fleet_maintained_apps
-    head -n $((FLEET_APPS_START - 1)) "$YAML_FILE"
+    # Copy everything before automdm_maintained_apps
+    head -n $((AUTOMDM_APPS_START - 1)) "$YAML_FILE"
     
-    # Copy the fleet_maintained_apps: line
-    sed -n "${FLEET_APPS_START}p" "$YAML_FILE"
+    # Copy the automdm_maintained_apps: line
+    sed -n "${AUTOMDM_APPS_START}p" "$YAML_FILE"
     
     # Handle macOS section
     # Copy existing macOS apps (from start to last darwin or windows comment)
-    MACOS_SECTION_END=$FLEET_APPS_END
+    MACOS_SECTION_END=$AUTOMDM_APPS_END
     if [ -n "$WINDOWS_COMMENT_LINE" ]; then
         MACOS_SECTION_END=$((WINDOWS_COMMENT_LINE - 1))
     elif [ -n "$FIRST_WINDOWS_LINE" ]; then
         MACOS_SECTION_END=$((FIRST_WINDOWS_LINE - 1))
     fi
     
-    if [ "$MACOS_SECTION_END" -gt "$FLEET_APPS_START" ]; then
+    if [ "$MACOS_SECTION_END" -gt "$AUTOMDM_APPS_START" ]; then
         # Copy existing macOS section
-        sed -n "$((FLEET_APPS_START + 1)),${MACOS_SECTION_END}p" "$YAML_FILE"
+        sed -n "$((AUTOMDM_APPS_START + 1)),${MACOS_SECTION_END}p" "$YAML_FILE"
     fi
     
     # Add macOS comment if we have new macOS apps and comment doesn't exist
@@ -159,13 +159,13 @@ FIRST_WINDOWS_LINE=$(awk -v start="$FLEET_APPS_START" -v end="$FLEET_APPS_END" '
         # Copy Windows comment line
         sed -n "${WINDOWS_COMMENT_LINE}p" "$YAML_FILE"
         # Copy existing Windows apps
-        if [ "$WINDOWS_COMMENT_LINE" -lt "$FLEET_APPS_END" ]; then
-            sed -n "$((WINDOWS_COMMENT_LINE + 1)),${FLEET_APPS_END}p" "$YAML_FILE"
+        if [ "$WINDOWS_COMMENT_LINE" -lt "$AUTOMDM_APPS_END" ]; then
+            sed -n "$((WINDOWS_COMMENT_LINE + 1)),${AUTOMDM_APPS_END}p" "$YAML_FILE"
         fi
     elif [ -n "$FIRST_WINDOWS_LINE" ]; then
         # No Windows comment, but there are Windows apps
         # Copy existing Windows apps
-        sed -n "${FIRST_WINDOWS_LINE},${FLEET_APPS_END}p" "$YAML_FILE"
+        sed -n "${FIRST_WINDOWS_LINE},${AUTOMDM_APPS_END}p" "$YAML_FILE"
     elif [ ${#WINDOWS_APPS[@]} -gt 0 ]; then
         # No existing Windows apps, add comment
         echo "    # Windows apps"
@@ -181,9 +181,9 @@ FIRST_WINDOWS_LINE=$(awk -v start="$FLEET_APPS_START" -v end="$FLEET_APPS_END" '
         done
     fi
     
-    # Copy everything after fleet_maintained_apps section
-    if [ "$FLEET_APPS_END" -lt "$TOTAL_LINES" ]; then
-        tail -n +$((FLEET_APPS_END + 1)) "$YAML_FILE"
+    # Copy everything after automdm_maintained_apps section
+    if [ "$AUTOMDM_APPS_END" -lt "$TOTAL_LINES" ]; then
+        tail -n +$((AUTOMDM_APPS_END + 1)) "$YAML_FILE"
     fi
     
 } > "$TEMP_FILE"

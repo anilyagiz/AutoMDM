@@ -8,9 +8,9 @@ type ActivitiesWebhookSettings struct {
 	DestinationURL string
 }
 
-// HostActivitiesWebhook is one fleet's enabled host-activities webhook
+// HostActivitiesWebhook is one team's enabled host-activities webhook
 // destination, together with the subset of the activity's hosts belonging to
-// the fleet(s) configured with it.
+// the team(s) configured with it.
 type HostActivitiesWebhook struct {
 	DestinationURL string
 	HostIDs        []uint

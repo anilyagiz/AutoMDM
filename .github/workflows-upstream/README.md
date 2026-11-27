@@ -1,7 +1,7 @@
 # Github Actions
 
-Fleet uses Github Actions for continuous integration (CI). This document describes best practices
-and at patterns for writing and maintaining Fleet's Github Actions workflows.
+AutoMDM uses Github Actions for continuous integration (CI). This document describes best practices
+and at patterns for writing and maintaining AutoMDM's Github Actions workflows.
 
 ## Bash
 

@@ -8,9 +8,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
 )
 
 // traceSamplerPatchRequest is the PATCH payload. Fields are pointers so we can distinguish "unset" from a zero value. PATCH
@@ -26,7 +26,7 @@ type traceSamplerPatchRequest struct {
 //
 // PATCH is necessarily bespoke because no other /debug/ endpoint takes a request body. It validates ratios in [0, 1] and
 // persists the change. The replica's in memory sampler picks up the change on the next poller tick (default 60s).
-func patchTraceSamplerHandler(logger *slog.Logger, ds fleet.Datastore) http.HandlerFunc {
+func patchTraceSamplerHandler(logger *slog.Logger, ds automdm.Datastore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// The /debug auth middleware always installs the viewer in context. If it is missing here, the middleware was bypassed
 		// and we should refuse to record a change rather than silently log user_id=0. That value is indistinguishable from a

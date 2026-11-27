@@ -50,19 +50,19 @@ setup () {
     fi
 
     #
-    # Passphrases need to be exported for use by `fleetctl updates` commands.
+    # Passphrases need to be exported for use by `automdmctl updates` commands.
     #
 
     if [[ $ACTION == "release-to-edge" ]] || [[ $ACTION == "promote-edge-to-stable" ]] || [[ $ACTION == "release-swiftDialog-to-stable" ]]; then
-        FLEET_TARGETS_PASSPHRASE=$(op read "op://$TARGETS_PASSPHRASE_1PASSWORD_PATH")
-        export FLEET_TARGETS_PASSPHRASE
-        FLEET_SNAPSHOT_PASSPHRASE=$(op read "op://$SNAPSHOT_PASSPHRASE_1PASSWORD_PATH")
-        export FLEET_SNAPSHOT_PASSPHRASE
-        FLEET_TIMESTAMP_PASSPHRASE=$(op read "op://$TIMESTAMP_PASSPHRASE_1PASSWORD_PATH")
-        export FLEET_TIMESTAMP_PASSPHRASE
+        AUTOMDM_TARGETS_PASSPHRASE=$(op read "op://$TARGETS_PASSPHRASE_1PASSWORD_PATH")
+        export AUTOMDM_TARGETS_PASSPHRASE
+        AUTOMDM_SNAPSHOT_PASSPHRASE=$(op read "op://$SNAPSHOT_PASSPHRASE_1PASSWORD_PATH")
+        export AUTOMDM_SNAPSHOT_PASSPHRASE
+        AUTOMDM_TIMESTAMP_PASSPHRASE=$(op read "op://$TIMESTAMP_PASSPHRASE_1PASSWORD_PATH")
+        export AUTOMDM_TIMESTAMP_PASSPHRASE
     elif [[ $ACTION == "update-timestamp" ]]; then
-        FLEET_TIMESTAMP_PASSPHRASE=$(op read "op://$TIMESTAMP_PASSPHRASE_1PASSWORD_PATH")
-        export FLEET_TIMESTAMP_PASSPHRASE
+        AUTOMDM_TIMESTAMP_PASSPHRASE=$(op read "op://$TIMESTAMP_PASSPHRASE_1PASSWORD_PATH")
+        export AUTOMDM_TIMESTAMP_PASSPHRASE
     fi
 
     go build -o "$GO_TOOLS_DIRECTORY/replace" "$SCRIPT_DIR/../../tools/tuf/replace"
@@ -70,7 +70,7 @@ setup () {
 }
 
 pull_from_staging () {
-    echo "Pulling repository from updates-staging.fleetctl.com... (--dryrun first)"
+    echo "Pulling repository from updates-staging.automdmctl.com... (--dryrun first)"
     rclone sync --verbose --checksum r2://updates-staging "$REPOSITORY_DIRECTORY" --dry-run
     prompt "Check if the above --dry-run looks good (no output means nothing to update)."
     rclone sync --verbose --checksum r2://updates-staging "$REPOSITORY_DIRECTORY"
@@ -87,25 +87,25 @@ promote_component_edge_to_stable () {
     pushd "$TUF_DIRECTORY"
     case $component_name in
         orbit)
-            "$GIT_REPOSITORY_DIRECTORY/build/fleetctl" updates add --target "$REPOSITORY_DIRECTORY/targets/orbit/macos/edge/orbit" --platform macos --name orbit --version "$component_version" -t "$major.$minor" -t "$major" -t stable
-            "$GIT_REPOSITORY_DIRECTORY/build/fleetctl" updates add --target "$REPOSITORY_DIRECTORY/targets/orbit/linux/edge/orbit" --platform linux --name orbit --version "$component_version" -t "$major.$minor" -t "$major" -t stable
-            "$GIT_REPOSITORY_DIRECTORY/build/fleetctl" updates add --target "$REPOSITORY_DIRECTORY/targets/orbit/linux-arm64/edge/orbit" --platform linux-arm64 --name orbit --version "$component_version" -t "$major.$minor" -t "$major" -t stable
-            "$GIT_REPOSITORY_DIRECTORY/build/fleetctl" updates add --target "$REPOSITORY_DIRECTORY/targets/orbit/windows/edge/orbit.exe" --platform windows --name orbit --version "$component_version" -t "$major.$minor" -t "$major" -t stable
-            "$GIT_REPOSITORY_DIRECTORY/build/fleetctl" updates add --target "$REPOSITORY_DIRECTORY/targets/orbit/windows-arm64/edge/orbit.exe" --platform windows-arm64 --name orbit --version "$component_version" -t "$major.$minor" -t "$major" -t stable
+            "$GIT_REPOSITORY_DIRECTORY/build/automdmctl" updates add --target "$REPOSITORY_DIRECTORY/targets/orbit/macos/edge/orbit" --platform macos --name orbit --version "$component_version" -t "$major.$minor" -t "$major" -t stable
+            "$GIT_REPOSITORY_DIRECTORY/build/automdmctl" updates add --target "$REPOSITORY_DIRECTORY/targets/orbit/linux/edge/orbit" --platform linux --name orbit --version "$component_version" -t "$major.$minor" -t "$major" -t stable
+            "$GIT_REPOSITORY_DIRECTORY/build/automdmctl" updates add --target "$REPOSITORY_DIRECTORY/targets/orbit/linux-arm64/edge/orbit" --platform linux-arm64 --name orbit --version "$component_version" -t "$major.$minor" -t "$major" -t stable
+            "$GIT_REPOSITORY_DIRECTORY/build/automdmctl" updates add --target "$REPOSITORY_DIRECTORY/targets/orbit/windows/edge/orbit.exe" --platform windows --name orbit --version "$component_version" -t "$major.$minor" -t "$major" -t stable
+            "$GIT_REPOSITORY_DIRECTORY/build/automdmctl" updates add --target "$REPOSITORY_DIRECTORY/targets/orbit/windows-arm64/edge/orbit.exe" --platform windows-arm64 --name orbit --version "$component_version" -t "$major.$minor" -t "$major" -t stable
             ;;
         desktop)
-            "$GIT_REPOSITORY_DIRECTORY/build/fleetctl" updates add --target "$REPOSITORY_DIRECTORY/targets/desktop/macos/edge/desktop.app.tar.gz" --platform macos --name desktop --version "$component_version" -t "$major.$minor" -t "$major" -t stable
-            "$GIT_REPOSITORY_DIRECTORY/build/fleetctl" updates add --target "$REPOSITORY_DIRECTORY/targets/desktop/linux/edge/desktop.tar.gz" --platform linux --name desktop --version "$component_version" -t "$major.$minor" -t "$major" -t stable
-            "$GIT_REPOSITORY_DIRECTORY/build/fleetctl" updates add --target "$REPOSITORY_DIRECTORY/targets/desktop/linux-arm64/edge/desktop.tar.gz" --platform linux-arm64 --name desktop --version "$component_version" -t "$major.$minor" -t "$major" -t stable
-            "$GIT_REPOSITORY_DIRECTORY/build/fleetctl" updates add --target "$REPOSITORY_DIRECTORY/targets/desktop/windows/edge/fleet-desktop.exe" --platform windows --name desktop --version "$component_version" -t "$major.$minor" -t "$major" -t stable
-            "$GIT_REPOSITORY_DIRECTORY/build/fleetctl" updates add --target "$REPOSITORY_DIRECTORY/targets/desktop/windows-arm64/edge/fleet-desktop.exe" --platform windows-arm64 --name desktop --version "$component_version" -t "$major.$minor" -t "$major" -t stable
+            "$GIT_REPOSITORY_DIRECTORY/build/automdmctl" updates add --target "$REPOSITORY_DIRECTORY/targets/desktop/macos/edge/desktop.app.tar.gz" --platform macos --name desktop --version "$component_version" -t "$major.$minor" -t "$major" -t stable
+            "$GIT_REPOSITORY_DIRECTORY/build/automdmctl" updates add --target "$REPOSITORY_DIRECTORY/targets/desktop/linux/edge/desktop.tar.gz" --platform linux --name desktop --version "$component_version" -t "$major.$minor" -t "$major" -t stable
+            "$GIT_REPOSITORY_DIRECTORY/build/automdmctl" updates add --target "$REPOSITORY_DIRECTORY/targets/desktop/linux-arm64/edge/desktop.tar.gz" --platform linux-arm64 --name desktop --version "$component_version" -t "$major.$minor" -t "$major" -t stable
+            "$GIT_REPOSITORY_DIRECTORY/build/automdmctl" updates add --target "$REPOSITORY_DIRECTORY/targets/desktop/windows/edge/automdm-desktop.exe" --platform windows --name desktop --version "$component_version" -t "$major.$minor" -t "$major" -t stable
+            "$GIT_REPOSITORY_DIRECTORY/build/automdmctl" updates add --target "$REPOSITORY_DIRECTORY/targets/desktop/windows-arm64/edge/automdm-desktop.exe" --platform windows-arm64 --name desktop --version "$component_version" -t "$major.$minor" -t "$major" -t stable
             ;;
         osqueryd)
-            "$GIT_REPOSITORY_DIRECTORY/build/fleetctl" updates add --target "$REPOSITORY_DIRECTORY/targets/osqueryd/macos-app/edge/osqueryd.app.tar.gz" --platform macos-app --name osqueryd --version "$component_version" -t "$major.$minor" -t "$major" -t stable
-            "$GIT_REPOSITORY_DIRECTORY/build/fleetctl" updates add --target "$REPOSITORY_DIRECTORY/targets/osqueryd/linux/edge/osqueryd" --platform linux --name osqueryd --version "$component_version" -t "$major.$minor" -t "$major" -t stable
-            "$GIT_REPOSITORY_DIRECTORY/build/fleetctl" updates add --target "$REPOSITORY_DIRECTORY/targets/osqueryd/linux-arm64/edge/osqueryd" --platform linux-arm64 --name osqueryd --version "$component_version" -t "$major.$minor" -t "$major" -t stable
-            "$GIT_REPOSITORY_DIRECTORY/build/fleetctl" updates add --target "$REPOSITORY_DIRECTORY/targets/osqueryd/windows/edge/osqueryd.exe" --platform windows --name osqueryd --version "$component_version" -t "$major.$minor" -t "$major" -t stable
-            "$GIT_REPOSITORY_DIRECTORY/build/fleetctl" updates add --target "$REPOSITORY_DIRECTORY/targets/osqueryd/windows-arm64/edge/osqueryd.exe" --platform windows-arm64 --name osqueryd --version "$component_version" -t "$major.$minor" -t "$major" -t stable
+            "$GIT_REPOSITORY_DIRECTORY/build/automdmctl" updates add --target "$REPOSITORY_DIRECTORY/targets/osqueryd/macos-app/edge/osqueryd.app.tar.gz" --platform macos-app --name osqueryd --version "$component_version" -t "$major.$minor" -t "$major" -t stable
+            "$GIT_REPOSITORY_DIRECTORY/build/automdmctl" updates add --target "$REPOSITORY_DIRECTORY/targets/osqueryd/linux/edge/osqueryd" --platform linux --name osqueryd --version "$component_version" -t "$major.$minor" -t "$major" -t stable
+            "$GIT_REPOSITORY_DIRECTORY/build/automdmctl" updates add --target "$REPOSITORY_DIRECTORY/targets/osqueryd/linux-arm64/edge/osqueryd" --platform linux-arm64 --name osqueryd --version "$component_version" -t "$major.$minor" -t "$major" -t stable
+            "$GIT_REPOSITORY_DIRECTORY/build/automdmctl" updates add --target "$REPOSITORY_DIRECTORY/targets/osqueryd/windows/edge/osqueryd.exe" --platform windows --name osqueryd --version "$component_version" -t "$major.$minor" -t "$major" -t stable
+            "$GIT_REPOSITORY_DIRECTORY/build/automdmctl" updates add --target "$REPOSITORY_DIRECTORY/targets/osqueryd/windows-arm64/edge/osqueryd.exe" --platform windows-arm64 --name osqueryd --version "$component_version" -t "$major.$minor" -t "$major" -t stable
             ;;
         *)
             echo "Unknown component $component_name"
@@ -126,22 +126,22 @@ update_osquery_schema_and_flags () {
     branch_name=update-osquery-schema-v$version
     git checkout -b "$branch_name"
 
-    # 1. Update the version used to generate the osquery schema in Fleet.
+    # 1. Update the version used to generate the osquery schema in AutoMDM.
     pushd website
     "$GO_TOOLS_DIRECTORY/replace" ./config/custom.js "versionOfOsquerySchemaToUseWhenGeneratingDocumentation: .+\n" "versionOfOsquerySchemaToUseWhenGeneratingDocumentation: '$version',\n"
     npm install
     ./node_modules/sails/bin/sails.js run generate-merged-schema
     popd
     git add ./website/config/custom.js
-    git add ./schema/osquery_fleet_schema.json
+    git add ./schema/osquery_automdm_schema.json
 
     # 2. Update cli/flags.
     "$GO_TOOLS_DIRECTORY/replace" ./tools/osquery-agent-options/main.go "osqueryVersion = .+\n" "osqueryVersion = \"$version\"\n"
-    pushd server/fleet/
+    pushd server/automdm/
     go generate
     popd
     git add ./tools/osquery-agent-options/main.go
-    git add ./server/fleet/agent_options_generated.go
+    git add ./server/automdm/agent_options_generated.go
 
     # 3. Update osquery version used for dev/test.
     "$GO_TOOLS_DIRECTORY/replace" ./tools/tuf/test/create_repository.sh "OSQUERY_VERSION=.+\n" "OSQUERY_VERSION=$version\n"
@@ -160,8 +160,8 @@ update_osquery_schema_and_flags () {
 
 promote_edge_to_stable () {
     cd "$REPOSITORY_DIRECTORY"
-    if [[ $COMPONENT == "fleetd" ]]; then
-        echo "Promoting fleetd from edge to stable..."
+    if [[ $COMPONENT == "automdmd" ]]; then
+        echo "Promoting automdmd from edge to stable..."
         promote_component_edge_to_stable orbit "$VERSION"
         promote_component_edge_to_stable desktop "$VERSION"
     elif [[ $COMPONENT == "osqueryd" ]]; then
@@ -173,8 +173,8 @@ promote_edge_to_stable () {
     fi
 }
 
-release_fleetd_to_edge () {
-    echo "Releasing fleetd to edge..."
+release_automdmd_to_edge () {
+    echo "Releasing automdmd to edge..."
     ORBIT_TAG="orbit-v$VERSION"
     if [[ "$SKIP_PR_AND_TAG_PUSH" != "1" ]]; then
         prompt "A tag will be pushed to trigger a Github Action to build desktop and orbit."
@@ -198,29 +198,29 @@ release_fleetd_to_edge () {
         --github-username "$GITHUB_USERNAME" --github-api-token "$GITHUB_TOKEN" \
         --retry
     pushd "$TUF_DIRECTORY"
-    "$GIT_REPOSITORY_DIRECTORY/build/fleetctl" updates add --target "$ORBIT_ARTIFACT_DOWNLOAD_DIRECTORY/macos/orbit" --platform macos --name orbit --version "$VERSION" -t edge
-    "$GIT_REPOSITORY_DIRECTORY/build/fleetctl" updates add --target "$ORBIT_ARTIFACT_DOWNLOAD_DIRECTORY/linux/orbit" --platform linux --name orbit --version "$VERSION" -t edge
-    "$GIT_REPOSITORY_DIRECTORY/build/fleetctl" updates add --target "$ORBIT_ARTIFACT_DOWNLOAD_DIRECTORY/linux-arm64/orbit" --platform linux-arm64 --name orbit --version "$VERSION" -t edge
-    "$GIT_REPOSITORY_DIRECTORY/build/fleetctl" updates add --target "$ORBIT_ARTIFACT_DOWNLOAD_DIRECTORY/windows/orbit.exe" --platform windows --name orbit --version "$VERSION" -t edge
-    "$GIT_REPOSITORY_DIRECTORY/build/fleetctl" updates add --target "$ORBIT_ARTIFACT_DOWNLOAD_DIRECTORY/windows-arm64/orbit.exe" --platform windows-arm64 --name orbit --version "$VERSION" -t edge
-    "$GIT_REPOSITORY_DIRECTORY/build/fleetctl" updates add --target "$DESKTOP_ARTIFACT_DOWNLOAD_DIRECTORY/macos/desktop.app.tar.gz" --platform macos --name desktop --version "$VERSION" -t edge
-    "$GIT_REPOSITORY_DIRECTORY/build/fleetctl" updates add --target "$DESKTOP_ARTIFACT_DOWNLOAD_DIRECTORY/linux/desktop.tar.gz" --platform linux --name desktop --version "$VERSION" -t edge
-    "$GIT_REPOSITORY_DIRECTORY/build/fleetctl" updates add --target "$DESKTOP_ARTIFACT_DOWNLOAD_DIRECTORY/linux-arm64/desktop.tar.gz" --platform linux-arm64 --name desktop --version "$VERSION" -t edge
-    "$GIT_REPOSITORY_DIRECTORY/build/fleetctl" updates add --target "$DESKTOP_ARTIFACT_DOWNLOAD_DIRECTORY/windows/fleet-desktop.exe" --platform windows --name desktop --version "$VERSION" -t edge
-    "$GIT_REPOSITORY_DIRECTORY/build/fleetctl" updates add --target "$DESKTOP_ARTIFACT_DOWNLOAD_DIRECTORY/windows-arm64/fleet-desktop.exe" --platform windows-arm64 --name desktop --version "$VERSION" -t edge
+    "$GIT_REPOSITORY_DIRECTORY/build/automdmctl" updates add --target "$ORBIT_ARTIFACT_DOWNLOAD_DIRECTORY/macos/orbit" --platform macos --name orbit --version "$VERSION" -t edge
+    "$GIT_REPOSITORY_DIRECTORY/build/automdmctl" updates add --target "$ORBIT_ARTIFACT_DOWNLOAD_DIRECTORY/linux/orbit" --platform linux --name orbit --version "$VERSION" -t edge
+    "$GIT_REPOSITORY_DIRECTORY/build/automdmctl" updates add --target "$ORBIT_ARTIFACT_DOWNLOAD_DIRECTORY/linux-arm64/orbit" --platform linux-arm64 --name orbit --version "$VERSION" -t edge
+    "$GIT_REPOSITORY_DIRECTORY/build/automdmctl" updates add --target "$ORBIT_ARTIFACT_DOWNLOAD_DIRECTORY/windows/orbit.exe" --platform windows --name orbit --version "$VERSION" -t edge
+    "$GIT_REPOSITORY_DIRECTORY/build/automdmctl" updates add --target "$ORBIT_ARTIFACT_DOWNLOAD_DIRECTORY/windows-arm64/orbit.exe" --platform windows-arm64 --name orbit --version "$VERSION" -t edge
+    "$GIT_REPOSITORY_DIRECTORY/build/automdmctl" updates add --target "$DESKTOP_ARTIFACT_DOWNLOAD_DIRECTORY/macos/desktop.app.tar.gz" --platform macos --name desktop --version "$VERSION" -t edge
+    "$GIT_REPOSITORY_DIRECTORY/build/automdmctl" updates add --target "$DESKTOP_ARTIFACT_DOWNLOAD_DIRECTORY/linux/desktop.tar.gz" --platform linux --name desktop --version "$VERSION" -t edge
+    "$GIT_REPOSITORY_DIRECTORY/build/automdmctl" updates add --target "$DESKTOP_ARTIFACT_DOWNLOAD_DIRECTORY/linux-arm64/desktop.tar.gz" --platform linux-arm64 --name desktop --version "$VERSION" -t edge
+    "$GIT_REPOSITORY_DIRECTORY/build/automdmctl" updates add --target "$DESKTOP_ARTIFACT_DOWNLOAD_DIRECTORY/windows/automdm-desktop.exe" --platform windows --name desktop --version "$VERSION" -t edge
+    "$GIT_REPOSITORY_DIRECTORY/build/automdmctl" updates add --target "$DESKTOP_ARTIFACT_DOWNLOAD_DIRECTORY/windows-arm64/automdm-desktop.exe" --platform windows-arm64 --name desktop --version "$VERSION" -t edge
     popd
 }
 
-create_fleetd_release_pr () {
-    echo "Creating a PR against main for fleetd release changelog..."
-    BRANCH_NAME=release-fleetd-v$VERSION
+create_automdmd_release_pr () {
+    echo "Creating a PR against main for automdmd release changelog..."
+    BRANCH_NAME=release-automdmd-v$VERSION
     pushd "$GIT_REPOSITORY_DIRECTORY"
     # Create a branch to make the changelog update on.
     git checkout -b "${BRANCH_NAME}-changelog"
     make changelog-orbit version="$VERSION"
     ORBIT_CHANGELOG=orbit/CHANGELOG.md
     git add "$ORBIT_CHANGELOG"
-    git commit -m "Release fleetd $VERSION"
+    git commit -m "Release automdmd $VERSION"
     # Checkout the main branch.
     git checkout main
     # Create a new branch to cherry pick the changelog commit to.
@@ -228,7 +228,7 @@ create_fleetd_release_pr () {
     # Cherry pick the changelog commit to the new branch.
     git cherry-pick "${BRANCH_NAME}-changelog"
     # Create a new PR with the changelog.
-    gh pr create -f -B main -t "Update changelog for fleetd $VERSION release"
+    gh pr create -f -B main -t "Update changelog for automdmd $VERSION release"
     # Delete the changelog branch.
     git branch -D "${BRANCH_NAME}-changelog"
     popd
@@ -243,9 +243,9 @@ release_osqueryd_to_edge () {
         git checkout -b "$BRANCH_NAME"
         # Update the version used to build osqueryd targets.
         "$GO_TOOLS_DIRECTORY/replace" .github/workflows/generate-osqueryd-targets.yml "OSQUERY_VERSION: .+\n" "OSQUERY_VERSION: $VERSION\n"
-        # Update the version used to test fleetd changes.
-        "$GO_TOOLS_DIRECTORY/replace" .github/workflows/fleet-and-orbit.yml "OSQUERY_VERSION: .+\n" "OSQUERY_VERSION: $VERSION\n"
-        git add .github/workflows/generate-osqueryd-targets.yml .github/workflows/fleet-and-orbit.yml
+        # Update the version used to test automdmd changes.
+        "$GO_TOOLS_DIRECTORY/replace" .github/workflows/automdm-and-orbit.yml "OSQUERY_VERSION: .+\n" "OSQUERY_VERSION: $VERSION\n"
+        git add .github/workflows/generate-osqueryd-targets.yml .github/workflows/automdm-and-orbit.yml
         git commit -m "Bump osqueryd version to $VERSION"
         git push origin "$BRANCH_NAME"
         prompt "A PR will be created to trigger a Github Action to build osqueryd."
@@ -261,17 +261,17 @@ release_osqueryd_to_edge () {
         --github-api-token "$GITHUB_TOKEN" \
         --retry
     pushd "$TUF_DIRECTORY"
-    "$GIT_REPOSITORY_DIRECTORY/build/fleetctl" updates add --target "$OSQUERYD_ARTIFACT_DOWNLOAD_DIRECTORY/macos/osqueryd.app.tar.gz" --platform macos-app --name osqueryd --version "$VERSION" -t edge
-    "$GIT_REPOSITORY_DIRECTORY/build/fleetctl" updates add --target "$OSQUERYD_ARTIFACT_DOWNLOAD_DIRECTORY/linux/osqueryd" --platform linux --name osqueryd --version "$VERSION" -t edge
-    "$GIT_REPOSITORY_DIRECTORY/build/fleetctl" updates add --target "$OSQUERYD_ARTIFACT_DOWNLOAD_DIRECTORY/linux-arm64/osqueryd" --platform linux-arm64 --name osqueryd --version "$VERSION" -t edge
-    "$GIT_REPOSITORY_DIRECTORY/build/fleetctl" updates add --target "$OSQUERYD_ARTIFACT_DOWNLOAD_DIRECTORY/windows/osqueryd.exe" --platform windows --name osqueryd --version "$VERSION" -t edge
-    "$GIT_REPOSITORY_DIRECTORY/build/fleetctl" updates add --target "$OSQUERYD_ARTIFACT_DOWNLOAD_DIRECTORY/windows-arm64/osqueryd.exe" --platform windows-arm64 --name osqueryd --version "$VERSION" -t edge
+    "$GIT_REPOSITORY_DIRECTORY/build/automdmctl" updates add --target "$OSQUERYD_ARTIFACT_DOWNLOAD_DIRECTORY/macos/osqueryd.app.tar.gz" --platform macos-app --name osqueryd --version "$VERSION" -t edge
+    "$GIT_REPOSITORY_DIRECTORY/build/automdmctl" updates add --target "$OSQUERYD_ARTIFACT_DOWNLOAD_DIRECTORY/linux/osqueryd" --platform linux --name osqueryd --version "$VERSION" -t edge
+    "$GIT_REPOSITORY_DIRECTORY/build/automdmctl" updates add --target "$OSQUERYD_ARTIFACT_DOWNLOAD_DIRECTORY/linux-arm64/osqueryd" --platform linux-arm64 --name osqueryd --version "$VERSION" -t edge
+    "$GIT_REPOSITORY_DIRECTORY/build/automdmctl" updates add --target "$OSQUERYD_ARTIFACT_DOWNLOAD_DIRECTORY/windows/osqueryd.exe" --platform windows --name osqueryd --version "$VERSION" -t edge
+    "$GIT_REPOSITORY_DIRECTORY/build/automdmctl" updates add --target "$OSQUERYD_ARTIFACT_DOWNLOAD_DIRECTORY/windows-arm64/osqueryd.exe" --platform windows-arm64 --name osqueryd --version "$VERSION" -t edge
     popd
 }
 
 release_to_edge () {
-    if [[ $COMPONENT == "fleetd" ]]; then
-        release_fleetd_to_edge
+    if [[ $COMPONENT == "automdmd" ]]; then
+        release_automdmd_to_edge
     elif [[ $COMPONENT == "osqueryd" ]]; then
         release_osqueryd_to_edge
     else
@@ -282,7 +282,7 @@ release_to_edge () {
 
 update_timestamp () {
     pushd "$TUF_DIRECTORY"
-    "$GIT_REPOSITORY_DIRECTORY/build/fleetctl" updates timestamp
+    "$GIT_REPOSITORY_DIRECTORY/build/automdmctl" updates timestamp
     popd
 }
 
@@ -315,9 +315,9 @@ release_to_production () {
     echo "NOTE: You might see some clients failing to upgrade due to some sha256 mismatches."
     echo "These temporary failures are expected because it takes some time for caches to be invalidated (these errors should go away after a few minutes minutes)."
 
-    if [[ $COMPONENT == "fleetd" ]]; then
+    if [[ $COMPONENT == "automdmd" ]]; then
         # Match the version as a whole token so e.g. 1.2.3 doesn't match a 1.2.30 milestone.
-        milestones=$(curl -s 'https://api.github.com/repos/fleetdm/fleet/milestones?per_page=100' | jq -c --arg v "$VERSION" '[.[]|select(.title | test("(^|[^0-9.])" + ($v | gsub("\\."; "\\.")) + "($|[^0-9.])"))]')
+        milestones=$(curl -s 'https://api.github.com/repos/automdm/automdm/milestones?per_page=100' | jq -c --arg v "$VERSION" '[.[]|select(.title | test("(^|[^0-9.])" + ($v | gsub("\\."; "\\.")) + "($|[^0-9.])"))]')
         milestone_count=$(jq 'length' <<< "$milestones")
         milestone_title=""
         milestone_url=""
@@ -328,21 +328,21 @@ release_to_production () {
         prompt "Sleep 5 minutes and trigger workflow to update orbit/TUF.md"
         # Sleeping 5 minutes to allow for Cloudflare caches to clear.
         sleep 300
-        gh workflow run "Update documentation of current versions of TUF fleetd components"
-        conclude_fleetd_milestone
+        gh workflow run "Update documentation of current versions of TUF automdmd components"
+        conclude_automdmd_milestone
     fi
 }
 
 # Stories must go through confirm and celebrate instead of being closed with the rest of the milestone.
-conclude_fleetd_milestone () {
+conclude_automdmd_milestone () {
     if [[ -z $milestone_title ]]; then
         if [[ $milestone_count -gt 1 ]]; then
-            echo "Multiple milestones match fleetd $VERSION:"
+            echo "Multiple milestones match automdmd $VERSION:"
             jq -r '.[] | "  \(.title) \(.html_url)"' <<< "$milestones"
         else
-            echo "No milestone found for fleetd $VERSION."
+            echo "No milestone found for automdmd $VERSION."
         fi
-        prompt "When releasing to stable, conclude the milestone manually following https://fleetdm.com/handbook/engineering#conclude-current-milestone."
+        prompt "When releasing to stable, conclude the milestone manually following https://automdm.com/handbook/engineering#conclude-current-milestone."
         return
     fi
     printf "Is this a stable release? If so, this script will attempt to move %s stories to 'Confirm and celebrate' and close its bugs and sub-tasks now. [yes/no] " "$milestone_title"
@@ -362,7 +362,7 @@ conclude_fleetd_milestone () {
     fi
     echo "Running 'gm milestone view $milestone_title --all-issues --workflow milestone-close' (press q to exit when it finishes)..."
     (cd "$GIT_REPOSITORY_DIRECTORY/tools/github-manage" && go run ./cmd/gm milestone view "$milestone_title" --all-issues --workflow milestone-close)
-    prompt "Confirm all $milestone_title stories are in 'Confirm and celebrate' on https://github.com/orgs/fleetdm/projects/67, then close the $milestone_url milestone following https://fleetdm.com/handbook/engineering#conclude-current-milestone."
+    prompt "Confirm all $milestone_title stories are in 'Confirm and celebrate' on https://github.com/orgs/fleetdm/projects/67, then close the $milestone_url milestone following https://automdm.com/handbook/engineering#conclude-current-milestone."
 }
 
 prompt () {
@@ -379,14 +379,14 @@ prompt () {
 
 print_reminder () {
     if [[ $ACTION == "release-to-edge" ]]; then
-        if [[ $COMPONENT == "fleetd" ]]; then
-            prompt "To smoke test the release make sure to generate and install fleetd with 'fleetctl package [...] --update-url=https://updates-staging.fleetdm.com --update-interval=1m --orbit-channel=edge --desktop-channel=edge' on Linux amd64, Linux arm64, Windows, and macOS."
-            milestone_url=$(curl -s 'https://api.github.com/repos/fleetdm/fleet/milestones?per_page=100' | jq -r ".[]|select(.title | contains(\"$VERSION\")).html_url")
+        if [[ $COMPONENT == "automdmd" ]]; then
+            prompt "To smoke test the release make sure to generate and install automdmd with 'automdmctl package [...] --update-url=https://updates-staging.fleetdm.com --update-interval=1m --orbit-channel=edge --desktop-channel=edge' on Linux amd64, Linux arm64, Windows, and macOS."
+            milestone_url=$(curl -s 'https://api.github.com/repos/automdm/automdm/milestones?per_page=100' | jq -r ".[]|select(.title | contains(\"$VERSION\")).html_url")
             echo "Milestone checks:"
             if [[ -n $milestone_url ]]; then
-                prompt "1. It seems fleetd version $VERSION milestone is: $milestone_url"
+                prompt "1. It seems automdmd version $VERSION milestone is: $milestone_url"
             else
-                prompt "1. fleetd $VERSION has a milestone in https://github.com/fleetdm/fleet/milestones"
+                prompt "1. automdmd $VERSION has a milestone in https://github.com/anilyagiz/automdm/milestones"
             fi
             echo "Orbit changes:"
             cat orbit/changes/*
@@ -394,15 +394,15 @@ print_reminder () {
             prompt "2. All items above under orbit/changes/ correspond to a Github issue"
             prompt "3. All items in the $VERSION milestone are in 'Ready for release'"
         elif [[ $COMPONENT == "osqueryd" ]]; then
-            prompt "To smoke test the release make sure to generate and install fleetd with 'fleetctl package [...] --update-url=https://updates-staging.fleetdm.com --osqueryd-channel=edge --update-interval=1m' on Linux amd64, Linux arm64, Windows, and macOS."
+            prompt "To smoke test the release make sure to generate and install automdmd with 'automdmctl package [...] --update-url=https://updates-staging.fleetdm.com --osqueryd-channel=edge --update-interval=1m' on Linux amd64, Linux arm64, Windows, and macOS."
         fi
     elif [[ $ACTION == "promote-edge-to-stable" ]]; then
-        prompt "To smoke test the release make sure to generate and install fleetd with 'fleetctl package [...] --update-url=https://updates-staging.fleetdm.com --update-interval=1m' on Linux amd64, Linux arm64, Windows, and macOS."
+        prompt "To smoke test the release make sure to generate and install automdmd with 'automdmctl package [...] --update-url=https://updates-staging.fleetdm.com --update-interval=1m' on Linux amd64, Linux arm64, Windows, and macOS."
     elif [[ $ACTION == "update-timestamp" ]]; then
         :
     elif [[ $ACTION == "release-to-production" ]]; then
-        prompt "To smoke test the release make sure to generate and install fleetd with on Linux amd64, Linux arm64, Windows, and macOS. Use 'fleetctl package [...] --update-interval=1m --orbit-channel=edge --desktop-channel=edge' if you are releasing fleetd to 'edge' or 'fleetctl package [...] --update-interval=1m --osqueryd-channel=edge' if you are releasing osquery to 'edge'."
-    elif [[ $ACTION == "create-fleetd-release-pr" ]]; then
+        prompt "To smoke test the release make sure to generate and install automdmd with on Linux amd64, Linux arm64, Windows, and macOS. Use 'automdmctl package [...] --update-interval=1m --orbit-channel=edge --desktop-channel=edge' if you are releasing automdmd to 'edge' or 'automdmctl package [...] --update-interval=1m --osqueryd-channel=edge' if you are releasing osquery to 'edge'."
+    elif [[ $ACTION == "create-automdmd-release-pr" ]]; then
         :
     elif [[ $ACTION == "update-osquery-schema" ]]; then
         :
@@ -414,15 +414,15 @@ print_reminder () {
     fi
 }
 
-fleetctl_version_check () {
-    echo "Using '$GIT_REPOSITORY_DIRECTORY/build/fleetctl'"
-    "$GIT_REPOSITORY_DIRECTORY/build/fleetctl" --version
-    prompt "Make sure the fleetctl executable and version are correct."
+automdmctl_version_check () {
+    echo "Using '$GIT_REPOSITORY_DIRECTORY/build/automdmctl'"
+    "$GIT_REPOSITORY_DIRECTORY/build/automdmctl" --version
+    prompt "Make sure the automdmctl executable and version are correct."
 }
 
 release_swiftDialog_to_stable () {
     pushd "$TUF_DIRECTORY"
-    "$GIT_REPOSITORY_DIRECTORY/build/fleetctl" updates add --target "$SWIFT_DIALOG_PATH" --platform macos --name swiftDialog --version "$VERSION" -t stable
+    "$GIT_REPOSITORY_DIRECTORY/build/automdmctl" updates add --target "$SWIFT_DIALOG_PATH" --platform macos --name swiftDialog --version "$VERSION" -t stable
     popd
 }
 
@@ -431,14 +431,14 @@ print_reminder
 if [[ $ACTION == "release-to-edge" ]]; then
     trap clean_up EXIT
     setup
-    fleetctl_version_check
+    automdmctl_version_check
     pull_from_staging
     release_to_edge
     push_to_staging
 elif [[ $ACTION == "promote-edge-to-stable" ]]; then
     trap clean_up EXIT
     setup
-    fleetctl_version_check
+    automdmctl_version_check
     pull_from_staging
     promote_edge_to_stable
     push_to_staging
@@ -455,21 +455,21 @@ elif [[ $ACTION == "release-swiftDialog-to-stable" ]]; then
 
     trap clean_up EXIT
     setup
-    fleetctl_version_check
+    automdmctl_version_check
     pull_from_staging
     release_swiftDialog_to_stable
     push_to_staging
 elif [[ $ACTION == "update-timestamp" ]]; then
     trap clean_up EXIT
     setup
-    fleetctl_version_check
+    automdmctl_version_check
     pull_from_staging
     update_timestamp
     push_to_staging
 elif [[ $ACTION == "release-to-production" ]]; then
     release_to_production
-elif [[ $ACTION == "create-fleetd-release-pr" ]]; then
-    create_fleetd_release_pr
+elif [[ $ACTION == "create-automdmd-release-pr" ]]; then
+    create_automdmd_release_pr
 elif [[ $ACTION == "update-osquery-schema" ]]; then
     update_osquery_schema_and_flags "$VERSION"
 else

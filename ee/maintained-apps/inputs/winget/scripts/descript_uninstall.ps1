@@ -7,7 +7,7 @@
 
 $displayNamePattern = '^Descript \d'
 $publisher = "Descript, Inc."
-$taskName = "fleet-uninstall-descript"
+$taskName = "automdm-uninstall-descript"
 $appDir = "AppData\Local\Programs\Descript"  # in each user's profile
 $taskRunning = 267009  # SCHED_S_TASK_RUNNING
 $timeoutSeconds = 300

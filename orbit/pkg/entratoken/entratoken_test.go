@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -123,7 +123,7 @@ func (r *Runner) waitIdle(t *testing.T) {
 }
 
 func TestRunner(t *testing.T) {
-	req := &fleet.OrbitEntraDeviceTokenRequest{TenantID: testTenantID, ClientID: testClientID, Nonce: testHostUUID + ".mac"}
+	req := &automdm.OrbitEntraDeviceTokenRequest{TenantID: testTenantID, ClientID: testClientID, Nonce: testHostUUID + ".mac"}
 
 	t.Run("no request", func(t *testing.T) {
 		sender := &fakeSender{}
@@ -131,7 +131,7 @@ func TestRunner(t *testing.T) {
 			t.Fatal("unexpected token request")
 			return "", nil
 		})
-		require.NoError(t, r.Run(&fleet.OrbitConfig{}))
+		require.NoError(t, r.Run(&automdm.OrbitConfig{}))
 		r.waitIdle(t)
 		assert.Empty(t, sender.sent())
 	})
@@ -143,9 +143,9 @@ func TestRunner(t *testing.T) {
 			got = append(got, rr)
 			return "h.p.s", nil
 		})
-		require.NoError(t, r.Run(&fleet.OrbitConfig{EntraDeviceTokenRequest: req}))
+		require.NoError(t, r.Run(&automdm.OrbitConfig{EntraDeviceTokenRequest: req}))
 		r.waitIdle(t)
-		require.NoError(t, r.Run(&fleet.OrbitConfig{EntraDeviceTokenRequest: req}))
+		require.NoError(t, r.Run(&automdm.OrbitConfig{EntraDeviceTokenRequest: req}))
 		r.waitIdle(t)
 		assert.Equal(t, []string{"h.p.s"}, sender.sent())
 		require.Len(t, got, 1)
@@ -153,7 +153,7 @@ func TestRunner(t *testing.T) {
 
 		changed := *req
 		changed.TenantID = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d"
-		require.NoError(t, r.Run(&fleet.OrbitConfig{EntraDeviceTokenRequest: &changed}))
+		require.NoError(t, r.Run(&automdm.OrbitConfig{EntraDeviceTokenRequest: &changed}))
 		r.waitIdle(t)
 		assert.Len(t, sender.sent(), 2)
 
@@ -161,7 +161,7 @@ func TestRunner(t *testing.T) {
 		r.mu.Lock()
 		r.nextRun = time.Now().Add(-time.Second)
 		r.mu.Unlock()
-		require.NoError(t, r.Run(&fleet.OrbitConfig{EntraDeviceTokenRequest: &changed}))
+		require.NoError(t, r.Run(&automdm.OrbitConfig{EntraDeviceTokenRequest: &changed}))
 		r.waitIdle(t)
 		assert.Len(t, sender.sent(), 3)
 	})
@@ -174,7 +174,7 @@ func TestRunner(t *testing.T) {
 		})
 		other := *req
 		other.Nonce = "11111111-2222-3333-4444-555555555555.mac"
-		require.NoError(t, r.Run(&fleet.OrbitConfig{EntraDeviceTokenRequest: &other}))
+		require.NoError(t, r.Run(&automdm.OrbitConfig{EntraDeviceTokenRequest: &other}))
 		r.waitIdle(t)
 		assert.Empty(t, sender.sent())
 	})
@@ -194,7 +194,7 @@ func TestRunner(t *testing.T) {
 		})
 		r.minRetry = 20 * time.Millisecond
 		r.maxRetry = 50 * time.Millisecond
-		require.NoError(t, r.Run(&fleet.OrbitConfig{EntraDeviceTokenRequest: req}))
+		require.NoError(t, r.Run(&automdm.OrbitConfig{EntraDeviceTokenRequest: req}))
 		require.Eventually(t, func() bool { return len(sender.sent()) == 1 }, 5*time.Second, 5*time.Millisecond)
 		r.waitIdle(t)
 
@@ -212,7 +212,7 @@ func TestRunner(t *testing.T) {
 		assert.WithinDuration(t, time.Now().Add(refreshInterval), r.nextRun, 5*time.Second)
 	})
 
-	t.Run("retry stops when Fleet stops requesting the token", func(t *testing.T) {
+	t.Run("retry stops when AutoMDM stops requesting the token", func(t *testing.T) {
 		sender := &fakeSender{}
 		var calls atomic.Int32
 		r := newTestRunner(sender, func(context.Context, Request) (string, error) {
@@ -220,9 +220,9 @@ func TestRunner(t *testing.T) {
 			return "", errors.New("AADSTS50058")
 		})
 		r.minRetry = 50 * time.Millisecond
-		require.NoError(t, r.Run(&fleet.OrbitConfig{EntraDeviceTokenRequest: req}))
+		require.NoError(t, r.Run(&automdm.OrbitConfig{EntraDeviceTokenRequest: req}))
 		r.waitIdle(t)
-		require.NoError(t, r.Run(&fleet.OrbitConfig{}))
+		require.NoError(t, r.Run(&automdm.OrbitConfig{}))
 		time.Sleep(150 * time.Millisecond)
 		assert.EqualValues(t, 1, calls.Load())
 	})
@@ -242,10 +242,10 @@ func TestRunner(t *testing.T) {
 			}
 			return "h.p.s", nil
 		})
-		require.NoError(t, r.Run(&fleet.OrbitConfig{EntraDeviceTokenRequest: req}))
+		require.NoError(t, r.Run(&automdm.OrbitConfig{EntraDeviceTokenRequest: req}))
 		changed := *req
 		changed.TenantID = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d"
-		require.NoError(t, r.Run(&fleet.OrbitConfig{EntraDeviceTokenRequest: &changed}))
+		require.NoError(t, r.Run(&automdm.OrbitConfig{EntraDeviceTokenRequest: &changed}))
 		close(release)
 		require.Eventually(t, func() bool { return len(sender.sent()) == 2 }, 5*time.Second, 5*time.Millisecond)
 		r.waitIdle(t)

@@ -7,14 +7,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/datastore/redis/redistest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/fleet/policytest"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/automdm/policytest"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis/redistest"
+	"github.com/anilyagiz/automdm/v4/server/test"
 )
 
 func TestRedisFailingPolicySet(t *testing.T) {
-	for _, f := range []func(*testing.T, fleet.FailingPolicySet){
+	for _, f := range []func(*testing.T, automdm.FailingPolicySet){
 		policytest.RunFailingBasic,
 		policytest.RunFailing1000hosts,
 	} {
@@ -102,7 +102,7 @@ func runBenchmark(b *testing.B, policyCount, hostCount int, s *redisFailingPolic
 
 			for i := 0; i < checkInCount; i++ {
 				for policyID := 1; policyID < policyCount+1; policyID++ {
-					host := fleet.PolicySetHost{
+					host := automdm.PolicySetHost{
 						ID:       hostID,
 						Hostname: fmt.Sprintf("test.hostname.%d", hostID),
 					}
@@ -110,7 +110,7 @@ func runBenchmark(b *testing.B, policyCount, hostCount int, s *redisFailingPolic
 					if rand.Float64() < 0.5 {
 						err = s.AddHost(uint(policyID), host)
 					} else {
-						err = s.RemoveHosts(uint(policyID), []fleet.PolicySetHost{host})
+						err = s.RemoveHosts(uint(policyID), []automdm.PolicySetHost{host})
 					}
 					if err != nil {
 						b.Error(err)

@@ -12,7 +12,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/mdm/scep/kitlogadapter"
+	"github.com/anilyagiz/automdm/v4/server/mdm/scep/kitlogadapter"
 	"github.com/go-kit/kit/transport"
 	kithttp "github.com/go-kit/kit/transport/http"
 	"github.com/groob/finalizer/logutil"
@@ -237,14 +237,14 @@ func (e *TimeoutError) Error() string {
 // StatusCode implements the kithttp StatusCoder interface
 func (e *TimeoutError) StatusCode() int { return http.StatusRequestTimeout }
 
-// badRequestErrorInterface matches Fleet's bad request errors (e.g. fleet.BadRequestError),
+// badRequestErrorInterface matches AutoMDM's bad request errors (e.g. automdm.BadRequestError),
 // which signal a 400 through this method rather than a StatusCode method.
 type badRequestErrorInterface interface {
 	error
 	BadRequestError() []map[string]string
 }
 
-// errWithInternal matches errors that carry a detail kept out of the response body (e.g. fleet.BadRequestError).
+// errWithInternal matches errors that carry a detail kept out of the response body (e.g. automdm.BadRequestError).
 type errWithInternal interface {
 	error
 	Internal() string
@@ -287,7 +287,7 @@ func newSCEPResponseEncoder(logger *slog.Logger) kithttp.EncodeResponseFunc {
 }
 
 // ResponseStatusError is a SCEP server's HTTP error response. The status is a field rather than a
-// StatusCode method so that the error never sets the status of a Fleet response it reaches.
+// StatusCode method so that the error never sets the status of an AutoMDM response it reaches.
 type ResponseStatusError struct {
 	Code   int
 	Status string

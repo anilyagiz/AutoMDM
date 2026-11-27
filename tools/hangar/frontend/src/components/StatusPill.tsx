@@ -12,7 +12,7 @@ export function StatusPill({
   upText?: string;
   downText?: string;
 }) {
-  const color = up ? "var(--core-fleet-green)" : "var(--ui-error)";
+  const color = up ? "var(--core-automdm-green)" : "var(--ui-error)";
   const bg = up ? "var(--tint-success-soft)" : "var(--tint-danger-soft)";
   return (
     <div
@@ -35,7 +35,7 @@ export function StatusPill({
           fontSize: "var(--fs-xxx-small)",
           textTransform: "uppercase",
           letterSpacing: "0.05em",
-          color: "var(--core-fleet-white)",
+          color: "var(--core-automdm-white)",
           background: color,
           padding: "1px 5px",
           borderRadius: 3,

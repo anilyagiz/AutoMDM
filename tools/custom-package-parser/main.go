@@ -10,10 +10,10 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/pkg/file"
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/contexts/installersize"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/pkg/file"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/installersize"
 )
 
 func main() {
@@ -75,7 +75,7 @@ func output(metadata *file.InstallerMetadata) {
 
 func processPackageFromUrl(url string) (*file.InstallerMetadata, error) {
 	// Installers can be up to MaxSoftwareInstallerSize (10 GiB), which will not finish inside the default timeout.
-	client := fleethttp.NewClient(fleethttp.WithNoTimeout(), fleethttp.WithMaxResponseSize(installersize.MaxSoftwareInstallerSize))
+	client := automdmhttp.NewClient(automdmhttp.WithNoTimeout(), automdmhttp.WithMaxResponseSize(installersize.MaxSoftwareInstallerSize))
 
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
@@ -93,7 +93,7 @@ func processPackageFromUrl(url string) (*file.InstallerMetadata, error) {
 		return nil, fmt.Errorf("get request failed with status: %d", resp.StatusCode)
 	}
 
-	tfr, err := fleet.NewTempFileReader(resp.Body, nil)
+	tfr, err := automdm.NewTempFileReader(resp.Body, nil)
 	if err != nil {
 		return nil, fmt.Errorf("reading custom package: %d", resp.StatusCode)
 	}
@@ -111,7 +111,7 @@ func processPackageFromLocal(path string) (*file.InstallerMetadata, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open file: %s", err)
 	}
-	tfr := &fleet.TempFileReader{
+	tfr := &automdm.TempFileReader{
 		File: fp,
 	}
 

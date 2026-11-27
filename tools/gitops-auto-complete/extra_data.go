@@ -1,6 +1,6 @@
 package main
 
-// Data tables that Fleet's Go structs don't express but GitOps YAML relies on:
+// Data tables that AutoMDM's Go structs don't express but GitOps YAML relies on:
 // declarative apply notes, path-reference support, and installer-reference keys.
 
 // gitops sends a fully materialized config, so omitting a key normally resets it.
@@ -32,10 +32,10 @@ var declarativeExceptions = map[string]string{
 
 // pathReferenceDefinitions are the $defs that accept a `path` (one external file) in
 // place of inline content. pathsReferenceDefinitions additionally accept `paths` (a
-// single glob string). Defs whose Go type embeds fleet.BaseItem (reports, scripts,
+// single glob string). Defs whose Go type embeds automdm.BaseItem (reports, scripts,
 // configuration_profiles) already get both from reflection, so they aren't listed.
 var pathReferenceDefinitions = []string{
-	"GitOpsOrgSettings", "GitOpsFleetSettings", "AgentOptions", "ControlsWithTypes",
+	"GitOpsOrgSettings", "GitOpsAutoMDMSettings", "AgentOptions", "ControlsWithTypes",
 	"SoftwarePackageSpec",
 }
 
@@ -45,7 +45,7 @@ var pathsReferenceDefinitions = []string{
 
 // requiredKeyRule gates a $def: an item is valid if it has all the keys of any one of
 // its validKeyCombinations. So {{"a"},{"b"}} means "a or b" and {{"a","b"}} means
-// "a and b". Fleet enforces these at gitops apply time in validation code rather than
+// "a and b". AutoMDM enforces these at gitops apply time in validation code rather than
 // struct tags. Where an item can also be a file reference, path/paths are listed as
 // their own combinations.
 type requiredKeyRule struct {
@@ -75,7 +75,7 @@ var requiredKeys = []requiredKeyRule{
 	},
 	{
 		definition: "MaintainedAppSpec",
-		message:    "A fleet_maintained_apps entry must set slug (or reference a file with path/paths).",
+		message:    "An automdm_maintained_apps entry must set slug (or reference a file with path/paths).",
 		validKeyCombinations: [][]string{
 			{"slug"},
 			{"path"},

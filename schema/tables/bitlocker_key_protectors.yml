@@ -1,7 +1,7 @@
 name: bitlocker_key_protectors
 description: Returns what BitLocker key protectors are setup on the system.
 evented: false
-notes: This table is not a core osquery table. It is included as part of Fleet's agent ([fleetd](https://fleetdm.com/docs/get-started/anatomy#fleetd)).
+notes: This table is not a core osquery table. It is included as part of AutoMDM's agent ([automdmd](https://automdm.com/docs/get-started/anatomy#automdmd)).
 platforms:
   - windows
 columns:

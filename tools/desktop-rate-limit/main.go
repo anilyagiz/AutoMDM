@@ -8,42 +8,42 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
 	"github.com/google/uuid"
 )
 
 func main() {
-	fleetURL := flag.String("fleet_url", "", "URL (with protocol and port of Fleet server)")
-	fleetDesktopToken := flag.String("fleet_desktop_token", "", "Valid \"Fleet Desktop\" token")
+	automdmURL := flag.String("automdm_url", "", "URL (with protocol and port of AutoMDM server)")
+	automdmDesktopToken := flag.String("automdm_desktop_token", "", "Valid \"AutoMDM Desktop\" token")
 
 	flag.Parse()
 
-	if *fleetURL == "" {
-		log.Fatal("missing fleet_url argument")
+	if *automdmURL == "" {
+		log.Fatal("missing automdm_url argument")
 	}
 
-	c := fleethttp.NewClient(fleethttp.WithTLSClientConfig(&tls.Config{
+	c := automdmhttp.NewClient(automdmhttp.WithTLSClientConfig(&tls.Config{
 		// Ignoring "G402: TLS InsecureSkipVerify set true", this is only used for automated testing.
 		InsecureSkipVerify: true, //nolint:gosec
 	}))
 
 	endpoints := [][2]string{
-		{"GET", "/api/latest/fleet/device/%s/desktop"},
-		{"GET", "/api/latest/fleet/device/%s/transparency"},
-		{"POST", "/api/latest/fleet/device/%s/refetch"},
+		{"GET", "/api/latest/automdm/device/%s/desktop"},
+		{"GET", "/api/latest/automdm/device/%s/transparency"},
+		{"POST", "/api/latest/automdm/device/%s/refetch"},
 	}
 
 	start := time.Now()
 	for i := 1; ; i++ {
 		token := uuid.NewString()
 		endpoint := endpoints[0]
-		if *fleetDesktopToken != "" && (i%500 == 0) {
+		if *automdmDesktopToken != "" && (i%500 == 0) {
 			log.Print("Attempting good token")
-			token = *fleetDesktopToken
+			token = *automdmDesktopToken
 		} else {
 			endpoint = endpoints[i%len(endpoints)]
 		}
-		req, err := http.NewRequest(endpoint[0], *fleetURL+fmt.Sprintf(endpoint[1], token), nil)
+		req, err := http.NewRequest(endpoint[0], *automdmURL+fmt.Sprintf(endpoint[1], token), nil)
 		if err != nil {
 			panic(err)
 		}

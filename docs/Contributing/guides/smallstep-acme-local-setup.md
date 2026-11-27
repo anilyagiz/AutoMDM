@@ -1,6 +1,6 @@
 # Setting Up Smallstep Locally with ngrok and ACME Device Attestation
 
-This guide walks through setting up an open-source `step-ca` instance locally with ngrok for remote access, configured for Apple Managed Device Attestation (MDA) via ACME. It's intended for Engineering and QA testing of Fleet's ACME/MDA flows.
+This guide walks through setting up an open-source `step-ca` instance locally with ngrok for remote access, configured for Apple Managed Device Attestation (MDA) via ACME. It's intended for Engineering and QA testing of AutoMDM's ACME/MDA flows.
 
 ## Prerequisites
 
@@ -32,7 +32,7 @@ When prompted:
 - **PKI name**: `localdev` (or your preferred name)
 - **DNS names/IPs**: `localhost` (you'll use ngrok for remote access)
 - **Listen address**: `127.0.0.1:9443`
-- **First provisioner name**: `you@fleetdm.com` (or your identifier)
+- **First provisioner name**: `you@automdm.com` (or your identifier)
 - **Password**: Set a strong password or leave blank to generate one
 
 This creates the CA structure in `~/.step/`.
@@ -186,7 +186,7 @@ Create an ACME Certificate payload (`.mobileconfig` or via your MDM platform):
             <string>https://you-step.ngrok.app/acme/acme-mda/directory</string>
 
             <key>ClientIdentifier</key>
-            <string>$FLEET_VAR_HOST_HARDWARE_SERIAL</string>
+            <string>$AUTOMDM_VAR_HOST_HARDWARE_SERIAL</string>
 
             <key>KeyType</key>
             <string>ECSECPrimeRandom</string>
@@ -199,15 +199,15 @@ Create an ACME Certificate payload (`.mobileconfig` or via your MDM platform):
             <key>Subject</key>
             <array>
                 <array>
-                    <array><string>CN</string><string>$FLEET_VAR_HOST_HARDWARE_SERIAL</string></array>
+                    <array><string>CN</string><string>$AUTOMDM_VAR_HOST_HARDWARE_SERIAL</string></array>
                 </array>
                 <array>
-                    <array><string>OU</string><string>$FLEET_VAR_CERTIFICATE_RENEWAL_ID</string></array>
+                    <array><string>OU</string><string>$AUTOMDM_VAR_CERTIFICATE_RENEWAL_ID</string></array>
                 </array>
             </array>
             <key>DNSNames</key>
             <array>
-                <string>$FLEET_VAR_HOST_HARDWARE_SERIAL</string>
+                <string>$AUTOMDM_VAR_HOST_HARDWARE_SERIAL</string>
             </array>
             <key>ExtendedKeyUsage</key>
             <array>
@@ -236,7 +236,7 @@ Critical fields:
 
 ## Step 10: Deploy and Test
 
-1. Upload the profile to your MDM (Fleet, Jamf, Intune, etc.)
+1. Upload the profile to your MDM (AutoMDM, Jamf, Intune, etc.)
 2. Deploy to a test macOS device
 3. The device will:
    - Generate a hardware-bound EC key in Secure Enclave
@@ -286,7 +286,7 @@ curl --cacert $(step path)/certs/root_ca.crt https://you-step.ngrok.app/health
 Request a test certificate (JWK provisioner):
 
 ```bash
-step ca certificate localhost test.crt test.key --provisioner you@fleetdm.com
+step ca certificate localhost test.crt test.key --provisioner you@automdm.com
 ```
 
 Inspect a certificate:

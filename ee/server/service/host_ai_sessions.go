@@ -6,9 +6,9 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	platform_http "github.com/fleetdm/fleet/v4/server/platform/http"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	platform_http "github.com/anilyagiz/automdm/v4/server/platform/http"
 )
 
 var hostAISessionOrderKeys = []string{"started_at", "ended_at", "agent", "username", "model", "output_token_count"}
@@ -20,38 +20,38 @@ const hostAISessionsDefaultPerPage = 50
 // authorizeHostAISessions checks that the user can read the host's AI sessions: only admins and maintainers, since
 // sessions include commands and arguments that can contain secrets.
 func (svc *Service) authorizeHostAISessions(ctx context.Context, hostID uint) error {
-	if err := svc.authz.Authorize(ctx, &fleet.Host{}, fleet.ActionList); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.Host{}, automdm.ActionList); err != nil {
 		return err
 	}
 	host, err := svc.ds.HostLite(ctx, hostID)
 	if err != nil {
 		return ctxerr.Wrap(ctx, err, "get host lite")
 	}
-	return svc.authz.Authorize(ctx, &fleet.HostAISessionAuthz{TeamID: host.TeamID}, fleet.ActionRead)
+	return svc.authz.Authorize(ctx, &automdm.HostAISessionAuthz{TeamID: host.TeamID}, automdm.ActionRead)
 }
 
-func validateAISessionPerPage(invalid *fleet.InvalidArgumentError, perPage uint) {
+func validateAISessionPerPage(invalid *automdm.InvalidArgumentError, perPage uint) {
 	if perPage > platform_http.MaxPerPage {
 		invalid.Append("per_page", fmt.Sprintf("must be no greater than %d", platform_http.MaxPerPage))
 	}
 }
 
-func validateAISessionCategory(invalid *fleet.InvalidArgumentError, category fleet.AISessionCategory) {
+func validateAISessionCategory(invalid *automdm.InvalidArgumentError, category automdm.AISessionCategory) {
 	switch category {
-	case "", fleet.AISessionCategoryCommand, fleet.AISessionCategoryFileAccess:
+	case "", automdm.AISessionCategoryCommand, automdm.AISessionCategoryFileAccess:
 	default:
 		invalid.Append("category", `must be "command" or "file_access"`)
 	}
 }
 
-func (svc *Service) ListHostAISessions(ctx context.Context, hostID uint, opts fleet.HostAISessionListOptions) ([]*fleet.HostAISession, *fleet.PaginationMetadata, error) {
+func (svc *Service) ListHostAISessions(ctx context.Context, hostID uint, opts automdm.HostAISessionListOptions) ([]*automdm.HostAISession, *automdm.PaginationMetadata, error) {
 	if err := svc.authorizeHostAISessions(ctx, hostID); err != nil {
 		return nil, nil, err
 	}
 
-	invalid := &fleet.InvalidArgumentError{}
-	if opts.Agent != "" && !slices.Contains(fleet.AISessionAgents, opts.Agent) {
-		invalid.Append("agent", "must be one of: "+strings.Join(fleet.AISessionAgents, ", "))
+	invalid := &automdm.InvalidArgumentError{}
+	if opts.Agent != "" && !slices.Contains(automdm.AISessionAgents, opts.Agent) {
+		invalid.Append("agent", "must be one of: "+strings.Join(automdm.AISessionAgents, ", "))
 	}
 	validateAISessionCategory(invalid, opts.Category)
 	if opts.OrderKey == "" {
@@ -80,7 +80,7 @@ func (svc *Service) ListHostAISessions(ctx context.Context, hostID uint, opts fl
 	return sessions, meta, nil
 }
 
-func (svc *Service) GetHostAISession(ctx context.Context, hostID, aiSessionID uint) (*fleet.HostAISession, error) {
+func (svc *Service) GetHostAISession(ctx context.Context, hostID, aiSessionID uint) (*automdm.HostAISession, error) {
 	if err := svc.authorizeHostAISessions(ctx, hostID); err != nil {
 		return nil, err
 	}
@@ -91,12 +91,12 @@ func (svc *Service) GetHostAISession(ctx context.Context, hostID, aiSessionID ui
 	return session, nil
 }
 
-func (svc *Service) ListHostAISessionEvents(ctx context.Context, hostID, aiSessionID uint, opts fleet.HostAISessionEventListOptions) ([]*fleet.HostAISessionEvent, *fleet.PaginationMetadata, error) {
+func (svc *Service) ListHostAISessionEvents(ctx context.Context, hostID, aiSessionID uint, opts automdm.HostAISessionEventListOptions) ([]*automdm.HostAISessionEvent, *automdm.PaginationMetadata, error) {
 	if err := svc.authorizeHostAISessions(ctx, hostID); err != nil {
 		return nil, nil, err
 	}
 
-	invalid := &fleet.InvalidArgumentError{}
+	invalid := &automdm.InvalidArgumentError{}
 	validateAISessionCategory(invalid, opts.Category)
 	validateAISessionPerPage(invalid, opts.PerPage)
 	// The datastore ignores a cursor, which would return the first page again.

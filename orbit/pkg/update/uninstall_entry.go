@@ -4,18 +4,18 @@ import (
 	"encoding/hex"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/constant"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/constant"
 )
 
-// fleetdInstallerName is the product name of fleetd's MSI, which Installed apps shows until fleetd renames its entry.
-const fleetdInstallerName = "Fleet osquery"
+// automdmdInstallerName is the product name of automdmd's MSI, which Installed apps shows until automdmd renames its entry.
+const automdmdInstallerName = "AutoMDM osquery"
 
-// isFleetdUninstallEntry returns whether a Windows Installed apps entry is fleetd's. Other apps are called "Fleet" too,
-// so the name fleetd renames its entry to also needs Fleet's publisher. The installer's name is matched alone, as it
+// isAutoMDMdUninstallEntry returns whether a Windows Installed apps entry is automdmd's. Other apps are called "AutoMDM" too,
+// so the name automdmd renames its entry to also needs AutoMDM's publisher. The installer's name is matched alone, as it
 // always was.
-func isFleetdUninstallEntry(displayName, publisher string) bool {
+func isAutoMDMdUninstallEntry(displayName, publisher string) bool {
 	switch displayName {
-	case fleetdInstallerName:
+	case automdmdInstallerName:
 		return true
 	case constant.AgentDisplayName:
 		return publisher == constant.AgentPublisher

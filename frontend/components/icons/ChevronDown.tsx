@@ -9,7 +9,7 @@ interface IChevronProps {
 }
 
 const ChevronDown = ({
-  color = "core-fleet-black",
+  color = "core-automdm-black",
   size = "medium",
 }: IChevronProps) => {
   return (

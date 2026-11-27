@@ -1,5 +1,5 @@
-// Package enrollment is the client side of a SCEP PKCSReq exchange, shared by the Fleet server,
-// fleetd, and osquery-perf: fetch the CA certificates, send a CSR, and return the certificate the
+// Package enrollment is the client side of a SCEP PKCSReq exchange, shared by the AutoMDM server,
+// automdmd, and osquery-perf: fetch the CA certificates, send a CSR, and return the certificate the
 // CA issued for it. Callers build the CSR, the signer, and the HTTP client (TLS options, timeout).
 package enrollment
 
@@ -15,8 +15,8 @@ import (
 	"log/slog"
 	"time"
 
-	scepclient "github.com/fleetdm/fleet/v4/server/mdm/scep/client"
-	"github.com/fleetdm/fleet/v4/server/mdm/scep/kitlogadapter"
+	scepclient "github.com/anilyagiz/automdm/v4/server/mdm/scep/client"
+	"github.com/anilyagiz/automdm/v4/server/mdm/scep/kitlogadapter"
 	"github.com/smallstep/pkcs7"
 	smallstepscep "github.com/smallstep/scep"
 )

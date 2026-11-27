@@ -27,10 +27,10 @@ import (
 	"time"
 	"unicode/utf16"
 
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/cryptoutil"
-	"github.com/fleetdm/fleet/v4/server/mdm/scep/depot"
-	filedepot "github.com/fleetdm/fleet/v4/server/mdm/scep/depot/file"
-	scepserver "github.com/fleetdm/fleet/v4/server/mdm/scep/server"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/cryptoutil"
+	"github.com/anilyagiz/automdm/v4/server/mdm/scep/depot"
+	filedepot "github.com/anilyagiz/automdm/v4/server/mdm/scep/depot/file"
+	scepserver "github.com/anilyagiz/automdm/v4/server/mdm/scep/server"
 	"github.com/stretchr/testify/require"
 )
 

@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -21,8 +21,8 @@ const (
 	windowsSCEPStatusFailed    = "16"
 )
 
-// windowsSCEPStatusProbeMaxAttempts bounds how many status probes Fleet sends for one delivery. Each probe waits
-// fleet.WindowsSCEPStatusProbeDelay and fleetd wakes the device at most once a minute, so this covers roughly 15
+// windowsSCEPStatusProbeMaxAttempts bounds how many status probes AutoMDM sends for one delivery. Each probe waits
+// automdm.WindowsSCEPStatusProbeDelay and automdmd wakes the device at most once a minute, so this covers roughly 15
 // minutes. After that, the osquery certificate scan decides. A redelivery is a new install command, so it gets its own
 // probes.
 const windowsSCEPStatusProbeMaxAttempts = 15
@@ -36,11 +36,11 @@ type windowsSCEPVerifyingInstall struct {
 // A probe's command UUID is the prefix, the install command UUID and the attempt number, so the probes for a delivery
 // need no extra state and a late answer can't be applied to a later delivery.
 func windowsSCEPStatusProbeCmdUUID(installCmdUUID string, attempt int) string {
-	return fmt.Sprintf("%s%s-%d", fleet.WindowsSCEPStatusProbeCmdUUIDPrefix, installCmdUUID, attempt)
+	return fmt.Sprintf("%s%s-%d", automdm.WindowsSCEPStatusProbeCmdUUIDPrefix, installCmdUUID, attempt)
 }
 
 func parseWindowsSCEPStatusProbeCmdUUID(probeCmdUUID string) (installCmdUUID string, attempt int, ok bool) {
-	rest, ok := strings.CutPrefix(probeCmdUUID, fleet.WindowsSCEPStatusProbeCmdUUIDPrefix)
+	rest, ok := strings.CutPrefix(probeCmdUUID, automdm.WindowsSCEPStatusProbeCmdUUIDPrefix)
 	if !ok {
 		return "", 0, false
 	}
@@ -55,7 +55,7 @@ func parseWindowsSCEPStatusProbeCmdUUID(probeCmdUUID string) (installCmdUUID str
 	return rest[:i], attempt, true
 }
 
-func windowsSCEPStatusProbeCommand(installCmdUUID, profileUUID string, userScoped bool, attempt int) *fleet.MDMWindowsCommand {
+func windowsSCEPStatusProbeCommand(installCmdUUID, profileUUID string, userScoped bool, attempt int) *automdm.MDMWindowsCommand {
 	scope := "./Device"
 	if userScoped {
 		scope = "./User"
@@ -67,7 +67,7 @@ func windowsSCEPStatusProbeCommand(installCmdUUID, profileUUID string, userScope
 		`<Item><Target><LocURI>%s/Status</LocURI></Target></Item>`+
 		`<Item><Target><LocURI>%s/ErrorCode</LocURI></Target></Item>`+
 		`</Get>`, cmdUUID, node, node)
-	return &fleet.MDMWindowsCommand{
+	return &automdm.MDMWindowsCommand{
 		CommandUUID:  cmdUUID,
 		RawCommand:   []byte(raw),
 		TargetLocURI: node + "/Status",
@@ -75,7 +75,7 @@ func windowsSCEPStatusProbeCommand(installCmdUUID, profileUUID string, userScope
 }
 
 // nextWindowsSCEPStatusProbeCommand builds the probe that follows the given one, or returns nil once the attempts run out.
-func nextWindowsSCEPStatusProbeCommand(probe fleet.MDMWindowsCommand) *fleet.MDMWindowsCommand {
+func nextWindowsSCEPStatusProbeCommand(probe automdm.MDMWindowsCommand) *automdm.MDMWindowsCommand {
 	installCmdUUID, attempt, ok := parseWindowsSCEPStatusProbeCmdUUID(probe.CommandUUID)
 	if !ok || attempt >= windowsSCEPStatusProbeMaxAttempts {
 		return nil
@@ -95,7 +95,7 @@ func isUserScopedWindowsSCEPInstall(rawCommand []byte) bool {
 }
 
 // enqueueWindowsSCEPStatusProbeDB queues a probe for the enrollment. A probe that already exists, from a duplicate answer, is left alone.
-func (ds *Datastore) enqueueWindowsSCEPStatusProbeDB(ctx context.Context, tx sqlx.ExtContext, enrollmentID uint, cmd *fleet.MDMWindowsCommand) error {
+func (ds *Datastore) enqueueWindowsSCEPStatusProbeDB(ctx context.Context, tx sqlx.ExtContext, enrollmentID uint, cmd *automdm.MDMWindowsCommand) error {
 	// The probe's command UUID is deterministic, so a duplicate key means it is already queued.
 	err := ds.mdmWindowsInsertCommandForEnrollmentIDsDB(ctx, tx, []uint{enrollmentID}, cmd)
 	var existsErr *existsError
@@ -109,7 +109,7 @@ func (ds *Datastore) enqueueWindowsSCEPStatusProbeDB(ctx context.Context, tx sql
 // and only while that delivery is still verifying. Status 1 means the certificate is in the store. Status 16 means the
 // enrollment failed, or that the certificate was later removed, and is charged like any other delivery failure. It
 // reports whether a profile row changed and whether the delivery is still waiting for its certificate.
-func applyWindowsSCEPStatusProbeResultDB(ctx context.Context, tx sqlx.ExtContext, hostUUID, installCmdUUID string, results *fleet.SyncMLCmd,
+func applyWindowsSCEPStatusProbeResultDB(ctx context.Context, tx sqlx.ExtContext, hostUUID, installCmdUUID string, results *automdm.SyncMLCmd,
 ) (changed bool, waiting bool, err error) {
 	var status, errorCode string
 	if results != nil {
@@ -132,7 +132,7 @@ func applyWindowsSCEPStatusProbeResultDB(ctx context.Context, tx sqlx.ExtContext
 			UPDATE host_mdm_windows_profiles
 			SET status = ?, detail = ''
 			WHERE host_uuid = ? AND command_uuid = ? AND operation_type = ? AND status = ?`,
-			fleet.MDMDeliveryVerified, hostUUID, installCmdUUID, fleet.MDMOperationTypeInstall, fleet.MDMDeliveryVerifying)
+			automdm.MDMDeliveryVerified, hostUUID, installCmdUUID, automdm.MDMOperationTypeInstall, automdm.MDMDeliveryVerifying)
 		if err != nil {
 			return false, false, ctxerr.Wrap(ctx, err, "verify windows scep profile from status probe")
 		}
@@ -143,7 +143,7 @@ func applyWindowsSCEPStatusProbeResultDB(ctx context.Context, tx sqlx.ExtContext
 		var profileUUID string
 		if err := sqlx.GetContext(ctx, tx, &profileUUID,
 			`SELECT profile_uuid FROM host_mdm_windows_profiles WHERE host_uuid = ? AND command_uuid = ? AND operation_type = ?`,
-			hostUUID, installCmdUUID, fleet.MDMOperationTypeInstall); err != nil {
+			hostUUID, installCmdUUID, automdm.MDMOperationTypeInstall); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return false, false, nil
 			}
@@ -158,7 +158,7 @@ func applyWindowsSCEPStatusProbeResultDB(ctx context.Context, tx sqlx.ExtContext
 		SELECT EXISTS (
 			SELECT 1 FROM host_mdm_windows_profiles
 			WHERE host_uuid = ? AND command_uuid = ? AND operation_type = ? AND status = ?
-		)`, hostUUID, installCmdUUID, fleet.MDMOperationTypeInstall, fleet.MDMDeliveryVerifying); err != nil {
+		)`, hostUUID, installCmdUUID, automdm.MDMOperationTypeInstall, automdm.MDMDeliveryVerifying); err != nil {
 		return false, false, ctxerr.Wrap(ctx, err, "check windows scep profile still verifying")
 	}
 	return false, waiting, nil

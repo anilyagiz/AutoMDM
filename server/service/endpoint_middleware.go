@@ -8,20 +8,20 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/devicesso"
-	"github.com/fleetdm/fleet/v4/server/contexts/logging"
-	"github.com/fleetdm/fleet/v4/server/contexts/osqueryauth"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	middleware_log "github.com/fleetdm/fleet/v4/server/service/middleware/log"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/devicesso"
+	"github.com/anilyagiz/automdm/v4/server/contexts/logging"
+	"github.com/anilyagiz/automdm/v4/server/contexts/osqueryauth"
+	middleware_log "github.com/anilyagiz/automdm/v4/server/service/middleware/log"
 	kithttp "github.com/go-kit/kit/transport/http"
 
-	authz_ctx "github.com/fleetdm/fleet/v4/server/contexts/authz"
-	hostctx "github.com/fleetdm/fleet/v4/server/contexts/host"
+	authz_ctx "github.com/anilyagiz/automdm/v4/server/contexts/authz"
+	hostctx "github.com/anilyagiz/automdm/v4/server/contexts/host"
 	"github.com/go-kit/kit/endpoint"
 )
 
-// extractDeviceSSOSessionFromCookie stashes the Fleet Desktop device SSO session
+// extractDeviceSSOSessionFromCookie stashes the AutoMDM Desktop device SSO session
 // ID in the context.
 func extractDeviceSSOSessionFromCookie(ctx context.Context, r *http.Request) context.Context {
 	cookie, err := r.Cookie(cookieNameDeviceSSOSession)
@@ -57,18 +57,18 @@ func instrumentHostLogger(ctx context.Context, hostID uint, extras ...interface{
 // authenticatedDevice checks the validity of the device auth token
 // provided in the request, and attaches the corresponding host to the
 // context for the request.
-func authenticatedDevice(svc fleet.Service, logger *slog.Logger, next endpoint.Endpoint) endpoint.Endpoint {
+func authenticatedDevice(svc automdm.Service, logger *slog.Logger, next endpoint.Endpoint) endpoint.Endpoint {
 	authDeviceFunc := func(ctx context.Context, request any) (any, error) {
 		identifier, err := getDeviceAuthToken(request)
 		if err != nil {
 			return nil, err
 		}
 
-		var host *fleet.Host
+		var host *automdm.Host
 		var debug bool
 		var authnMethod authz_ctx.AuthenticationMethod
 
-		// Try token auth first (hot path for Fleet Desktop).
+		// Try token auth first (hot path for AutoMDM Desktop).
 		host, debug, err = svc.AuthenticateDevice(ctx, identifier)
 		if err == nil {
 			authnMethod = authz_ctx.AuthnDeviceToken
@@ -114,12 +114,12 @@ func authenticatedDevice(svc fleet.Service, logger *slog.Logger, next endpoint.E
 
 // DeviceAuthMiddleware authenticates a device token for endpoints owned by a
 // bounded context. Those contexts can't read the host that authenticatedDevice
-// leaves in hostctx, since it's a *fleet.Host, so the endpoint passed below
+// leaves in hostctx, since it's an *automdm.Host, so the endpoint passed below
 // sits between the two: it takes the host's ID and hands it to onHost, which
 // stores it however the context wants. That keeps this signature free of any
-// bounded context's types, and their contexts free of fleet ones.
+// bounded context's types, and their contexts free of team ones.
 func DeviceAuthMiddleware(
-	svc fleet.Service,
+	svc automdm.Service,
 	logger *slog.Logger,
 	onHost func(ctx context.Context, hostID uint) context.Context,
 ) endpoint.Middleware {
@@ -133,19 +133,19 @@ func DeviceAuthMiddleware(
 	}
 }
 
-// requireDeviceSSOSession enforces the Fleet Desktop SSO gate. It runs after
+// requireDeviceSSOSession enforces the AutoMDM Desktop SSO gate. It runs after
 // authenticatedDevice, so it applies however the host was identified: token or
 // device UUID in the URL.
 //
 // Rejections count toward the device routes' error limiter like any other
 // failure. A browser only sees one before it starts the SSO flow, so sustained
 // volume here is a scanner rather than an end user.
-func requireDeviceSSOSession(svc fleet.Service) endpoint.Middleware {
+func requireDeviceSSOSession(svc automdm.Service) endpoint.Middleware {
 	return func(next endpoint.Endpoint) endpoint.Endpoint {
 		return func(ctx context.Context, request any) (any, error) {
 			host, ok := hostctx.FromContext(ctx)
 			if !ok {
-				return nil, ctxerr.Wrap(ctx, fleet.NewAuthRequiredError("internal error: missing host from request context"))
+				return nil, ctxerr.Wrap(ctx, automdm.NewAuthRequiredError("internal error: missing host from request context"))
 			}
 
 			sessionID := devicesso.FromContext(ctx)
@@ -169,7 +169,7 @@ func getDeviceAuthToken(r interface{}) (string, error) {
 	if dat, ok := r.(interface{ DeviceAuthToken() string }); ok {
 		return dat.DeviceAuthToken(), nil
 	}
-	return "", fleet.NewAuthRequiredError("request type does not implement deviceAuthToken method. This is likely a Fleet programmer error.")
+	return "", automdm.NewAuthRequiredError("request type does not implement deviceAuthToken method. This is likely an AutoMDM programmer error.")
 }
 
 // authenticatedHost wraps an endpoint, checks the validity of the node_key
@@ -180,7 +180,7 @@ func getDeviceAuthToken(r interface{}) (string, error) {
 // authenticated the request via the Authorization: NodeKey <token> header,
 // the hostctx and related ctx setup is already in place and this middleware
 // becomes a passthrough.
-func authenticatedHost(svc fleet.Service, logger *slog.Logger, next endpoint.Endpoint) endpoint.Endpoint {
+func authenticatedHost(svc automdm.Service, logger *slog.Logger, next endpoint.Endpoint) endpoint.Endpoint {
 	authHostFunc := func(ctx context.Context, request interface{}) (interface{}, error) {
 		// HTTP pre-auth already authenticated the request and populated
 		// hostctx.
@@ -249,7 +249,7 @@ func authenticatedHost(svc fleet.Service, logger *slog.Logger, next endpoint.End
 }
 
 func authenticatedOrbitHost(
-	svc fleet.Service,
+	svc automdm.Service,
 	logger *slog.Logger,
 	next endpoint.Endpoint,
 	orbitNodeKeyGetter func(context.Context, interface{}) (string, error),
@@ -317,5 +317,5 @@ func getNodeKey(r interface{}) (string, error) {
 	if hnk, ok := r.(interface{ hostNodeKey() string }); ok {
 		return hnk.hostNodeKey(), nil
 	}
-	return "", newOsqueryError("request type does not implement hostNodeKey method. This is likely a Fleet programmer error.")
+	return "", newOsqueryError("request type does not implement hostNodeKey method. This is likely an AutoMDM programmer error.")
 }

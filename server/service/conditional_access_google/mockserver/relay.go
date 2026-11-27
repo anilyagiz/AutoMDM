@@ -14,12 +14,12 @@ import (
 )
 
 const (
-	relayPath         = "/api/v1/google-conditional-access"
-	signInPath        = relayPath + "/sign-in"
-	callbackPath      = relayPath + "/callback"
-	resultPathPrefix  = "/google-conditional-access/"
-	fleetRegisterPath = "/api/v1/fleet/google_conditional_access/register"
-	signInLifetime    = 10 * time.Minute
+	relayPath           = "/api/v1/google-conditional-access"
+	signInPath          = relayPath + "/sign-in"
+	callbackPath        = relayPath + "/callback"
+	resultPathPrefix    = "/google-conditional-access/"
+	automdmRegisterPath = "/api/v1/automdm/google_conditional_access/register"
+	signInLifetime      = 10 * time.Minute
 )
 
 type registration struct {
@@ -72,8 +72,8 @@ func (s *Server) handleCreateRegistration(w http.ResponseWriter, r *http.Request
 	s.registrations[req.CustomerID] = reg
 	s.mu.Unlock()
 
-	s.logger.InfoContext(r.Context(), "registered fleet server", "customer_id", req.CustomerID, "origin", origin)
-	writeJSON(w, http.StatusOK, map[string]string{"fleetServerSecret": reg.secret})
+	s.logger.InfoContext(r.Context(), "registered automdm server", "customer_id", req.CustomerID, "origin", origin)
+	writeJSON(w, http.StatusOK, map[string]string{"automdmServerSecret": reg.secret})
 }
 
 // registration returns a copy of the customer's registration, or nil.
@@ -91,7 +91,7 @@ func (s *Server) registration(customerID string) *registration {
 func (s *Server) handleDeleteRegistration(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		CustomerID string `json:"googleCustomerId"`
-		Secret     string `json:"fleetServerSecret"`
+		Secret     string `json:"automdmServerSecret"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -108,7 +108,7 @@ func (s *Server) handleDeleteRegistration(w http.ResponseWriter, r *http.Request
 		http.Error(w, "no registration matches the customer ID and secret", http.StatusNotFound)
 		return
 	}
-	s.logger.InfoContext(r.Context(), "deregistered fleet server", "customer_id", req.CustomerID)
+	s.logger.InfoContext(r.Context(), "deregistered automdm server", "customer_id", req.CustomerID)
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -178,25 +178,25 @@ func (s *Server) handleCallback(w http.ResponseWriter, r *http.Request) {
 
 	reg := s.registration(p.customerID)
 	if reg == nil {
-		s.redirectResult(w, r, "error", "The Fleet server is no longer registered.")
+		s.redirectResult(w, r, "error", "The AutoMDM server is no longer registered.")
 		return
 	}
 
-	result, err := s.callFleet(ctx, reg, map[string]any{
+	result, err := s.callAutoMDM(ctx, reg, map[string]any{
 		"token": p.token, "names": nonNil(lookup.Names), "customer": lookup.Customer, "email": lookup.Email,
 	})
 	if err != nil {
-		s.logger.ErrorContext(ctx, "fleet register call", "err", err)
+		s.logger.ErrorContext(ctx, "team register call", "err", err)
 		s.redirectResult(w, r, "error", err.Error())
 		return
 	}
-	s.logger.InfoContext(ctx, "fleet register call", "host_uuid", p.hostUUID, "names", lookup.Names, "result", result)
+	s.logger.InfoContext(ctx, "team register call", "host_uuid", p.hostUUID, "names", lookup.Names, "result", result)
 	s.redirectResult(w, r, result, "")
 }
 
-// callFleet sends the lookup to the Fleet server and returns its result.
-func (s *Server) callFleet(ctx context.Context, reg *registration, body any) (string, error) {
-	base := s.cfg.FleetURL
+// callAutoMDM sends the lookup to the AutoMDM server and returns its result.
+func (s *Server) callAutoMDM(ctx context.Context, reg *registration, body any) (string, error) {
+	base := s.cfg.AutoMDMURL
 	if base == "" {
 		base = reg.origin
 	}
@@ -204,26 +204,26 @@ func (s *Server) callFleet(ctx context.Context, reg *registration, body any) (st
 	if err != nil {
 		return "", err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, base+fleetRegisterPath, bytes.NewReader(b))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, base+automdmRegisterPath, bytes.NewReader(b))
 	if err != nil {
 		return "", err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+reg.secret)
-	resp, err := s.cfg.FleetClient.Do(req)
+	resp, err := s.cfg.AutoMDMClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("call the Fleet server: %w", err)
+		return "", fmt.Errorf("call the AutoMDM server: %w", err)
 	}
 	defer resp.Body.Close()
 	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("the Fleet server answered %d: %s", resp.StatusCode, strings.TrimSpace(string(respBody)))
+		return "", fmt.Errorf("the AutoMDM server answered %d: %s", resp.StatusCode, strings.TrimSpace(string(respBody)))
 	}
 	var out struct {
 		Result string `json:"result"`
 	}
 	if err := json.Unmarshal(respBody, &out); err != nil {
-		return "", fmt.Errorf("decode the Fleet server's answer: %w", err)
+		return "", fmt.Errorf("decode the AutoMDM server's answer: %w", err)
 	}
 	return out.Result, nil
 }

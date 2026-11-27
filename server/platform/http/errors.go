@@ -11,8 +11,8 @@ import (
 	"strings"
 	"sync"
 
+	platform_errors "github.com/anilyagiz/automdm/v4/server/platform/errors"
 	"github.com/docker/go-units"
-	platform_errors "github.com/fleetdm/fleet/v4/server/platform/errors"
 	"github.com/google/uuid"
 )
 
@@ -105,7 +105,7 @@ type PayloadTooLargeError struct {
 }
 
 func (e PayloadTooLargeError) Error() string {
-	return fmt.Sprintf("Request exceeds the max size limit of %s. Configure the limit: https://fleetdm.com/docs/configuration/fleet-server-configuration#server-default-max-request-body-size", units.HumanSize(float64(e.MaxRequestSize)))
+	return fmt.Sprintf("Request exceeds the max size limit of %s. Configure the limit: https://automdm.com/docs/configuration/automdm-server-configuration#server-default-max-request-body-size", units.HumanSize(float64(e.MaxRequestSize)))
 }
 
 func (e PayloadTooLargeError) Internal() string {
@@ -345,7 +345,7 @@ func (e *AuthRequiredError) IsClientError() bool {
 }
 
 // AuthUnavailableError is returned when a server-side failure, such as an
-// unreachable database, stops Fleet from checking the credentials.
+// unreachable database, stops AutoMDM from checking the credentials.
 type AuthUnavailableError struct {
 	internal string
 
@@ -373,7 +373,7 @@ func (e *AuthUnavailableError) StatusCode() int {
 }
 
 // DeviceSSORequiredError is returned by device endpoints when
-// fleet_desktop.sso_enabled is on and the request carries no valid device SSO
+// automdm_desktop.sso_enabled is on and the request carries no valid device SSO
 // session. It answers 401 like an invalid device token does, but its encoded
 // body carries an sso_required marker so the "My device" page starts the SSO
 // flow instead of reporting an invalid URL.
@@ -462,7 +462,7 @@ func (e *passwordResetRequiredError) IsClientError() bool {
 // disclosing information that a client should not have access to.
 const ForbiddenErrorMessage = "forbidden"
 
-// GenericErrorMessage replaces error text that describes Fleet's own internals
+// GenericErrorMessage replaces error text that describes AutoMDM's own internals
 // rather than the caller's request. Vague for the same reason as ForbiddenErrorMessage.
 const GenericErrorMessage = "The request could not be processed."
 

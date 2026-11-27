@@ -11,7 +11,7 @@ import mdmAPI from "services/entities/mdm";
 const baseClass = "add-asset-modal";
 
 const LEARN_MORE_URL =
-  "https://fleetdm.com/learn-more-about/configuration-profile-assets";
+  "https://automdm.com/learn-more-about/configuration-profile-assets";
 
 const DEFAULT_ERROR_MESSAGE = "Couldn't add asset. Please try again.";
 

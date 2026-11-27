@@ -1,10 +1,10 @@
-# Fleet API Development Guides
+# AutoMDM API Development Guides
 
-This directory contains guides for API development in Fleet.
+This directory contains guides for API development in AutoMDM.
 
 ## API Development
 
-- [Adding New Endpoints](adding-new-endpoints.md) - Guide for adding new endpoints to the Fleet API
+- [Adding New Endpoints](adding-new-endpoints.md) - Guide for adding new endpoints to the AutoMDM API
 
 ## Related Resources
 

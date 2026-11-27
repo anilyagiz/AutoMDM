@@ -11,28 +11,28 @@ jest.mock("services/entities/api_endpoints");
 
 const LIST_HOSTS: IApiEndpoint = {
   method: "GET",
-  path: "/api/v1/fleet/hosts",
+  path: "/api/v1/automdm/hosts",
   display_name: "List hosts",
   deprecated: false,
 };
 
 const UNINSTALL_SOFTWARE: IApiEndpoint = {
   method: "POST",
-  path: "/api/v1/fleet/hosts/:id/software/:software_title_id/uninstall",
+  path: "/api/v1/automdm/hosts/:id/software/:software_title_id/uninstall",
   display_name: "Uninstall software",
   deprecated: false,
 };
 
 const GET_HOST_SOFTWARE: IApiEndpoint = {
   method: "GET",
-  path: "/api/v1/fleet/hosts/:id/software",
+  path: "/api/v1/automdm/hosts/:id/software",
   display_name: "List host's software",
   deprecated: false,
 };
 
 const DEPRECATED_ENDPOINT: IApiEndpoint = {
   method: "GET",
-  path: "/api/v1/fleet/mdm/apple/profiles",
+  path: "/api/v1/automdm/mdm/apple/profiles",
   display_name: "List custom macOS settings (configuration profiles)",
   deprecated: true,
 };
@@ -230,7 +230,7 @@ describe("ApiEndpointSelectorTable", () => {
     const { user } = render(
       <ApiEndpointSelectorTable
         selectedEndpoints={[
-          { method: "get", path: "/api/v1/fleet/hosts/:host_id/software" },
+          { method: "get", path: "/api/v1/automdm/hosts/:host_id/software" },
         ]}
         onSelectionChange={onSelectionChange}
       />
@@ -252,7 +252,7 @@ describe("ApiEndpointSelectorTable", () => {
     const { user } = render(
       <ApiEndpointSelectorTable
         selectedEndpoints={[
-          { method: "get", path: "/api/v1/fleet/hosts/:host_id/software" },
+          { method: "get", path: "/api/v1/automdm/hosts/:host_id/software" },
         ]}
         onSelectionChange={jest.fn()}
       />

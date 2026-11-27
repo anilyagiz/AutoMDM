@@ -3,7 +3,7 @@ package command
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/fleetdm/fleet/v4/tools/dibble/pkg/seed"
+	"github.com/anilyagiz/automdm/v4/tools/dibble/pkg/seed"
 )
 
 func newReportsCmd() *cobra.Command {

@@ -8,19 +8,19 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/optjson"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxdb"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/pkg/optjson"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxdb"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
 )
 
 type nilCloner struct{}
 
-func (n *nilCloner) Clone() (fleet.Cloner, error) {
+func (n *nilCloner) Clone() (automdm.Cloner, error) {
 	var nn *nilCloner
 	return nn, nil
 }
@@ -28,18 +28,18 @@ func (n *nilCloner) Clone() (fleet.Cloner, error) {
 func TestClone(t *testing.T) {
 	tests := []struct {
 		name string
-		src  fleet.Cloner
-		want fleet.Cloner
+		src  automdm.Cloner
+		want automdm.Cloner
 	}{
 		{
 			name: "appconfig",
-			src: &fleet.AppConfig{
-				ServerSettings: fleet.ServerSettings{
+			src: &automdm.AppConfig{
+				ServerSettings: automdm.ServerSettings{
 					EnableAnalytics: true,
 				},
 			},
-			want: &fleet.AppConfig{
-				ServerSettings: fleet.ServerSettings{
+			want: &automdm.AppConfig{
+				ServerSettings: automdm.ServerSettings{
 					EnableAnalytics: true,
 				},
 			},
@@ -51,24 +51,24 @@ func TestClone(t *testing.T) {
 		},
 		{
 			name: "appconfig with nested slice",
-			src: &fleet.AppConfig{
-				ServerSettings: fleet.ServerSettings{
+			src: &automdm.AppConfig{
+				ServerSettings: automdm.ServerSettings{
 					DebugHostIDs: []uint{1, 2, 3},
 				},
 			},
-			want: &fleet.AppConfig{
-				ServerSettings: fleet.ServerSettings{
+			want: &automdm.AppConfig{
+				ServerSettings: automdm.ServerSettings{
 					DebugHostIDs: []uint{1, 2, 3},
 				},
 			},
 		},
 		{
 			name: "yara rule",
-			src: &fleet.YaraRule{
+			src: &automdm.YaraRule{
 				Name:     "test_rule.yar",
 				Contents: "rule TestRule { condition: true }",
 			},
-			want: &fleet.YaraRule{
+			want: &automdm.YaraRule{
 				Name:     "test_rule.yar",
 				Contents: "rule TestRule { condition: true }",
 			},
@@ -83,10 +83,10 @@ func TestClone(t *testing.T) {
 
 			// ensure that writing to src does not alter the cloned value (i.e. that
 			// the nested fields are deeply cloned too).
-			if src, ok := tc.src.(*fleet.AppConfig); ok {
+			if src, ok := tc.src.(*automdm.AppConfig); ok {
 				if len(src.ServerSettings.DebugHostIDs) > 0 {
 					src.ServerSettings.DebugHostIDs[0] = 999
-					require.NotEqual(t, src.ServerSettings.DebugHostIDs, clone.(*fleet.AppConfig).ServerSettings.DebugHostIDs)
+					require.NotEqual(t, src.ServerSettings.DebugHostIDs, clone.(*automdm.AppConfig).ServerSettings.DebugHostIDs)
 				}
 			}
 		})
@@ -99,20 +99,20 @@ func TestCachedAppConfig(t *testing.T) {
 	mockedDS := new(mock.Store)
 	ds := New(mockedDS)
 
-	var appConfigSet *fleet.AppConfig
-	mockedDS.NewAppConfigFunc = func(ctx context.Context, info *fleet.AppConfig) (*fleet.AppConfig, error) {
+	var appConfigSet *automdm.AppConfig
+	mockedDS.NewAppConfigFunc = func(ctx context.Context, info *automdm.AppConfig) (*automdm.AppConfig, error) {
 		appConfigSet = info
 		return info, nil
 	}
-	mockedDS.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
+	mockedDS.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
 		return appConfigSet, nil
 	}
-	mockedDS.SaveAppConfigFunc = func(ctx context.Context, info *fleet.AppConfig) error {
+	mockedDS.SaveAppConfigFunc = func(ctx context.Context, info *automdm.AppConfig) error {
 		appConfigSet = info
 		return nil
 	}
-	_, err := ds.NewAppConfig(context.Background(), &fleet.AppConfig{
-		Features: fleet.Features{
+	_, err := ds.NewAppConfig(context.Background(), &automdm.AppConfig{
+		Features: automdm.Features{
 			AdditionalQueries: ptr.RawMessage(json.RawMessage(`"TestCachedAppConfig"`)),
 		},
 	})
@@ -136,8 +136,8 @@ func TestCachedAppConfig(t *testing.T) {
 	})
 
 	t.Run("SaveAppConfig", func(t *testing.T) {
-		require.NoError(t, ds.SaveAppConfig(context.Background(), &fleet.AppConfig{
-			Features: fleet.Features{
+		require.NoError(t, ds.SaveAppConfig(context.Background(), &automdm.AppConfig{
+			Features: automdm.Features{
 				AdditionalQueries: ptr.RawMessage(json.RawMessage(`"NewSAVED"`)),
 			},
 		}))
@@ -151,9 +151,9 @@ func TestCachedAppConfig(t *testing.T) {
 	})
 
 	t.Run("External SaveAppConfig gets caught", func(t *testing.T) {
-		mockedDS.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-			return &fleet.AppConfig{
-				Features: fleet.Features{
+		mockedDS.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{
+				Features: automdm.Features{
 					AdditionalQueries: ptr.RawMessage(json.RawMessage(`"SavedSomewhereElse"`)),
 				},
 			}, nil
@@ -174,22 +174,22 @@ func TestBypassAppConfig(t *testing.T) {
 	mockedDS := new(mock.Store)
 	ds := New(mockedDS, WithAppConfigExpiration(time.Minute))
 
-	var appConfigSet *fleet.AppConfig
-	mockedDS.NewAppConfigFunc = func(ctx context.Context, info *fleet.AppConfig) (*fleet.AppConfig, error) {
+	var appConfigSet *automdm.AppConfig
+	mockedDS.NewAppConfigFunc = func(ctx context.Context, info *automdm.AppConfig) (*automdm.AppConfig, error) {
 		appConfigSet = info
 		return info, nil
 	}
-	mockedDS.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
+	mockedDS.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
 		return appConfigSet, nil
 	}
-	mockedDS.SaveAppConfigFunc = func(ctx context.Context, info *fleet.AppConfig) error {
+	mockedDS.SaveAppConfigFunc = func(ctx context.Context, info *automdm.AppConfig) error {
 		appConfigSet = info
 		return nil
 	}
 
 	// calling NewAppConfig initializes the cache
-	_, err := ds.NewAppConfig(context.Background(), &fleet.AppConfig{
-		OrgInfo: fleet.OrgInfo{
+	_, err := ds.NewAppConfig(context.Background(), &automdm.AppConfig{
+		OrgInfo: automdm.OrgInfo{
 			OrgName: "A",
 		},
 	})
@@ -244,54 +244,54 @@ func TestBypassAppConfig(t *testing.T) {
 	require.False(t, mockedDS.AppConfigFuncInvoked)
 }
 
-func TestCachedWindowsEnrollmentDefaultFleet(t *testing.T) {
+func TestCachedWindowsEnrollmentDefaultTeam(t *testing.T) {
 	t.Parallel()
 
 	mockedDS := new(mock.Store)
 	ds := New(mockedDS)
 	ctx := t.Context()
 
-	storedFleetID := new(uint(7))
-	mockedDS.GetWindowsEnrollmentDefaultFleetFunc = func(ctx context.Context) (*uint, string, error) {
-		if storedFleetID == nil {
+	storedTeamID := new(uint(7))
+	mockedDS.GetWindowsEnrollmentDefaultTeamFunc = func(ctx context.Context) (*uint, string, error) {
+		if storedTeamID == nil {
 			return nil, "", nil
 		}
-		return new(*storedFleetID), "Workstations", nil
+		return new(*storedTeamID), "Workstations", nil
 	}
-	mockedDS.SetWindowsEnrollmentDefaultFleetFunc = func(ctx context.Context, fleetID *uint) error {
-		storedFleetID = fleetID
+	mockedDS.SetWindowsEnrollmentDefaultTeamFunc = func(ctx context.Context, automdmID *uint) error {
+		storedTeamID = automdmID
 		return nil
 	}
 
 	// first read hits the DB and populates the cache
-	fleetID, fleetName, err := ds.GetWindowsEnrollmentDefaultFleet(ctx)
+	automdmID, automdmName, err := ds.GetWindowsEnrollmentDefaultTeam(ctx)
 	require.NoError(t, err)
-	require.NotNil(t, fleetID)
-	require.Equal(t, uint(7), *fleetID)
-	require.Equal(t, "Workstations", fleetName)
-	require.True(t, mockedDS.GetWindowsEnrollmentDefaultFleetFuncInvoked)
-	mockedDS.GetWindowsEnrollmentDefaultFleetFuncInvoked = false
+	require.NotNil(t, automdmID)
+	require.Equal(t, uint(7), *automdmID)
+	require.Equal(t, "Workstations", automdmName)
+	require.True(t, mockedDS.GetWindowsEnrollmentDefaultTeamFuncInvoked)
+	mockedDS.GetWindowsEnrollmentDefaultTeamFuncInvoked = false
 
 	// mutating the returned pointer must not poison the cache (clone semantics)
-	*fleetID = 99
+	*automdmID = 99
 
 	// second read is served from the cache
-	fleetID, fleetName, err = ds.GetWindowsEnrollmentDefaultFleet(ctx)
+	automdmID, automdmName, err = ds.GetWindowsEnrollmentDefaultTeam(ctx)
 	require.NoError(t, err)
-	require.NotNil(t, fleetID)
-	require.Equal(t, uint(7), *fleetID)
-	require.Equal(t, "Workstations", fleetName)
-	require.False(t, mockedDS.GetWindowsEnrollmentDefaultFleetFuncInvoked)
+	require.NotNil(t, automdmID)
+	require.Equal(t, uint(7), *automdmID)
+	require.Equal(t, "Workstations", automdmName)
+	require.False(t, mockedDS.GetWindowsEnrollmentDefaultTeamFuncInvoked)
 
 	// writing through the cached store invalidates the cached entry
-	require.NoError(t, ds.SetWindowsEnrollmentDefaultFleet(ctx, nil))
-	require.True(t, mockedDS.SetWindowsEnrollmentDefaultFleetFuncInvoked)
+	require.NoError(t, ds.SetWindowsEnrollmentDefaultTeam(ctx, nil))
+	require.True(t, mockedDS.SetWindowsEnrollmentDefaultTeamFuncInvoked)
 
-	fleetID, fleetName, err = ds.GetWindowsEnrollmentDefaultFleet(ctx)
+	automdmID, automdmName, err = ds.GetWindowsEnrollmentDefaultTeam(ctx)
 	require.NoError(t, err)
-	require.Nil(t, fleetID)
-	require.Empty(t, fleetName)
-	require.True(t, mockedDS.GetWindowsEnrollmentDefaultFleetFuncInvoked)
+	require.Nil(t, automdmID)
+	require.Empty(t, automdmName)
+	require.True(t, mockedDS.GetWindowsEnrollmentDefaultTeamFuncInvoked)
 }
 
 func TestCachedEULAMetadata(t *testing.T) {
@@ -301,9 +301,9 @@ func TestCachedEULAMetadata(t *testing.T) {
 	ds := New(mockedDS, WithEULAMetadataExpiration(time.Second))
 	ctx := t.Context()
 
-	stored := map[fleet.MDMEULAPlatform]*fleet.MDMEULA{}
-	reads := map[fleet.MDMEULAPlatform]int{}
-	mockedDS.MDMGetEULAMetadataFunc = func(ctx context.Context, platform fleet.MDMEULAPlatform) (*fleet.MDMEULA, error) {
+	stored := map[automdm.MDMEULAPlatform]*automdm.MDMEULA{}
+	reads := map[automdm.MDMEULAPlatform]int{}
+	mockedDS.MDMGetEULAMetadataFunc = func(ctx context.Context, platform automdm.MDMEULAPlatform) (*automdm.MDMEULA, error) {
 		reads[platform]++
 		eula, ok := stored[platform]
 		if !ok {
@@ -312,25 +312,25 @@ func TestCachedEULAMetadata(t *testing.T) {
 		clone := *eula
 		return &clone, nil
 	}
-	mockedDS.MDMInsertEULAFunc = func(ctx context.Context, eula *fleet.MDMEULA) error {
+	mockedDS.MDMInsertEULAFunc = func(ctx context.Context, eula *automdm.MDMEULA) error {
 		stored[eula.Platform] = eula
 		return nil
 	}
-	mockedDS.MDMDeleteEULAFunc = func(ctx context.Context, platform fleet.MDMEULAPlatform, token string) error {
+	mockedDS.MDMDeleteEULAFunc = func(ctx context.Context, platform automdm.MDMEULAPlatform, token string) error {
 		delete(stored, platform)
 		return nil
 	}
-	const windows = fleet.MDMEULAPlatformWindows
+	const windows = automdm.MDMEULAPlatformWindows
 
 	// "none uploaded" is cached too: it is the common answer
 	_, err := ds.MDMGetEULAMetadata(ctx, windows)
-	require.True(t, fleet.IsNotFound(err))
+	require.True(t, automdm.IsNotFound(err))
 	_, err = ds.MDMGetEULAMetadata(ctx, windows)
-	require.True(t, fleet.IsNotFound(err))
+	require.True(t, automdm.IsNotFound(err))
 	require.Equal(t, 1, reads[windows])
 
 	// a write through the cached store invalidates the entry
-	require.NoError(t, ds.MDMInsertEULA(ctx, &fleet.MDMEULA{Platform: windows, Token: "t1", Sha256: []byte{1, 2}}))
+	require.NoError(t, ds.MDMInsertEULA(ctx, &automdm.MDMEULA{Platform: windows, Token: "t1", Sha256: []byte{1, 2}}))
 	eula, err := ds.MDMGetEULAMetadata(ctx, windows)
 	require.NoError(t, err)
 	require.Equal(t, "t1", eula.Token)
@@ -344,20 +344,20 @@ func TestCachedEULAMetadata(t *testing.T) {
 	require.Equal(t, 2, reads[windows])
 
 	// platforms are cached independently
-	_, err = ds.MDMGetEULAMetadata(ctx, fleet.MDMEULAPlatformDarwin)
-	require.True(t, fleet.IsNotFound(err))
-	require.Equal(t, 1, reads[fleet.MDMEULAPlatformDarwin])
+	_, err = ds.MDMGetEULAMetadata(ctx, automdm.MDMEULAPlatformDarwin)
+	require.True(t, automdm.IsNotFound(err))
+	require.Equal(t, 1, reads[automdm.MDMEULAPlatformDarwin])
 
 	// deleting invalidates as well
 	require.NoError(t, ds.MDMDeleteEULA(ctx, windows, "t1"))
 	_, err = ds.MDMGetEULAMetadata(ctx, windows)
-	require.True(t, fleet.IsNotFound(err))
+	require.True(t, automdm.IsNotFound(err))
 	require.Equal(t, 3, reads[windows])
 
 	// a write on another instance is only seen once the entry expires
-	stored[windows] = &fleet.MDMEULA{Platform: windows, Token: "t2"}
+	stored[windows] = &automdm.MDMEULA{Platform: windows, Token: "t2"}
 	_, err = ds.MDMGetEULAMetadata(ctx, windows)
-	require.True(t, fleet.IsNotFound(err))
+	require.True(t, automdm.IsNotFound(err))
 	require.Eventually(t, func() bool {
 		eula, err := ds.MDMGetEULAMetadata(ctx, windows)
 		return err == nil && eula.Token == "t2"
@@ -394,11 +394,11 @@ func TestCachedTeamAgentOptions(t *testing.T) {
 }
 `)
 
-	testTeam := &fleet.Team{
+	testTeam := &automdm.Team{
 		ID:        1,
 		CreatedAt: time.Now(),
 		Name:      "test",
-		Config: fleet.TeamConfig{
+		Config: automdm.TeamConfig{
 			AgentOptions: &testOptions,
 		},
 	}
@@ -410,7 +410,7 @@ func TestCachedTeamAgentOptions(t *testing.T) {
 		}
 		return &testOptions, nil
 	}
-	mockedDS.SaveTeamFunc = func(ctx context.Context, team *fleet.Team) (*fleet.Team, error) {
+	mockedDS.SaveTeamFunc = func(ctx context.Context, team *automdm.Team) (*automdm.Team, error) {
 		return team, nil
 	}
 	mockedDS.DeleteTeamFunc = func(ctx context.Context, teamID uint) error {
@@ -437,11 +437,11 @@ func TestCachedTeamAgentOptions(t *testing.T) {
 	updateOptions := json.RawMessage(`
 {}
 `)
-	updateTeam := &fleet.Team{
+	updateTeam := &automdm.Team{
 		ID:        testTeam.ID,
 		CreatedAt: testTeam.CreatedAt,
 		Name:      testTeam.Name,
-		Config: fleet.TeamConfig{
+		Config: automdm.TeamConfig{
 			AgentOptions: &updateOptions,
 		},
 	}
@@ -478,30 +478,30 @@ func TestCachedTeamFeatures(t *testing.T) {
 
 	ao := json.RawMessage(`{}`)
 	aq := json.RawMessage(`{"foo": "bar"}`)
-	testFeatures := fleet.Features{
+	testFeatures := automdm.Features{
 		EnableHostUsers:         false,
 		EnableSoftwareInventory: true,
 		AdditionalQueries:       &aq,
 	}
 
-	testTeam := fleet.Team{
+	testTeam := automdm.Team{
 		ID:        1,
 		CreatedAt: time.Now(),
 		Name:      "test",
-		Config: fleet.TeamConfig{
+		Config: automdm.TeamConfig{
 			Features:     testFeatures,
 			AgentOptions: &ao,
 		},
 	}
 
 	deleted := false
-	mockedDS.TeamFeaturesFunc = func(ctx context.Context, teamID uint) (*fleet.Features, error) {
+	mockedDS.TeamFeaturesFunc = func(ctx context.Context, teamID uint) (*automdm.Features, error) {
 		if deleted {
 			return nil, errors.New("not found")
 		}
 		return &testFeatures, nil
 	}
-	mockedDS.SaveTeamFunc = func(ctx context.Context, team *fleet.Team) (*fleet.Team, error) {
+	mockedDS.SaveTeamFunc = func(ctx context.Context, team *automdm.Team) (*automdm.Team, error) {
 		return team, nil
 	}
 	mockedDS.DeleteTeamFunc = func(ctx context.Context, teamID uint) error {
@@ -530,16 +530,16 @@ func TestCachedTeamFeatures(t *testing.T) {
 
 	// saving a team updates features in cache
 	aq = json.RawMessage(`{"bar": "baz"}`)
-	updateFeatures := fleet.Features{
+	updateFeatures := automdm.Features{
 		EnableHostUsers:         true,
 		EnableSoftwareInventory: false,
 		AdditionalQueries:       &aq,
 	}
-	updateTeam := &fleet.Team{
+	updateTeam := &automdm.Team{
 		ID:        testTeam.ID,
 		CreatedAt: testTeam.CreatedAt,
 		Name:      testTeam.Name,
-		Config: fleet.TeamConfig{
+		Config: automdm.TeamConfig{
 			Features:     updateFeatures,
 			AgentOptions: &ao,
 		},
@@ -574,38 +574,38 @@ func TestCachedTeamMDMConfig(t *testing.T) {
 	ds := New(mockedDS, WithTeamMDMConfigExpiration(100*time.Millisecond))
 	ao := json.RawMessage(`{}`)
 
-	testMDMConfig := fleet.TeamMDM{
+	testMDMConfig := automdm.TeamMDM{
 		EnableDiskEncryption: true,
-		MacOSUpdates: fleet.AppleOSUpdateSettings{
+		MacOSUpdates: automdm.AppleOSUpdateSettings{
 			MinimumVersion: optjson.SetString("10.10.10"),
 			Deadline:       optjson.SetString("1992-03-01"),
 		},
-		MacOSSettings: fleet.MacOSSettings{
+		MacOSSettings: automdm.MacOSSettings{
 			EnableDiskEncryption: optjson.SetBool(false),
 		},
-		MacOSSetup: fleet.MacOSSetup{
-			Software: optjson.SetSlice([]*fleet.MacOSSetupSoftware{{AppStoreID: "a"}, {AppStoreID: "b"}}),
+		MacOSSetup: automdm.MacOSSetup{
+			Software: optjson.SetSlice([]*automdm.MacOSSetupSoftware{{AppStoreID: "a"}, {AppStoreID: "b"}}),
 		},
 	}
 
-	testTeam := fleet.Team{
+	testTeam := automdm.Team{
 		ID:        1,
 		CreatedAt: time.Now(),
 		Name:      "test",
-		Config: fleet.TeamConfig{
+		Config: automdm.TeamConfig{
 			MDM:          testMDMConfig,
 			AgentOptions: &ao,
 		},
 	}
 
 	deleted := false
-	mockedDS.TeamMDMConfigFunc = func(ctx context.Context, teamID uint) (*fleet.TeamMDM, error) {
+	mockedDS.TeamMDMConfigFunc = func(ctx context.Context, teamID uint) (*automdm.TeamMDM, error) {
 		if deleted {
 			return nil, errors.New("not found")
 		}
 		return &testMDMConfig, nil
 	}
-	mockedDS.SaveTeamFunc = func(ctx context.Context, team *fleet.Team) (*fleet.Team, error) {
+	mockedDS.SaveTeamFunc = func(ctx context.Context, team *automdm.Team) (*automdm.Team, error) {
 		return team, nil
 	}
 	mockedDS.DeleteTeamFunc = func(ctx context.Context, teamID uint) error {
@@ -629,24 +629,24 @@ func TestCachedTeamMDMConfig(t *testing.T) {
 	require.False(t, mockedDS.TeamMDMConfigFuncInvoked)
 
 	// changing some deep value doesn't affect the stored value
-	mdmConfig.MacOSSetup.Software.Value[0] = &fleet.MacOSSetupSoftware{AppStoreID: "c"}
+	mdmConfig.MacOSSetup.Software.Value[0] = &automdm.MacOSSetupSoftware{AppStoreID: "c"}
 	require.NotEqual(t, testMDMConfig, *mdmConfig)
 
 	// saving a team updates config in cache
-	updateMDMConfig := fleet.TeamMDM{
-		MacOSUpdates: fleet.AppleOSUpdateSettings{
+	updateMDMConfig := automdm.TeamMDM{
+		MacOSUpdates: automdm.AppleOSUpdateSettings{
 			MinimumVersion: optjson.SetString("13.13.13"),
 			Deadline:       optjson.SetString("2022-03-01"),
 		},
-		MacOSSettings: fleet.MacOSSettings{
+		MacOSSettings: automdm.MacOSSettings{
 			EnableDiskEncryption: optjson.SetBool(true),
 		},
 	}
-	updateTeam := &fleet.Team{
+	updateTeam := &automdm.Team{
 		ID:        testTeam.ID,
 		CreatedAt: testTeam.CreatedAt,
 		Name:      testTeam.Name,
-		Config: fleet.TeamConfig{
+		Config: automdm.TeamConfig{
 			MDM:          updateMDMConfig,
 			AgentOptions: &ao,
 		},
@@ -680,11 +680,11 @@ func TestCachedQueryByName(t *testing.T) {
 	mockedDS := new(mock.Store)
 	ds := New(mockedDS, WithQueryByNameExpiration(100*time.Millisecond))
 
-	testQuery := &fleet.Query{
+	testQuery := &automdm.Query{
 		ID:     1,
 		TeamID: ptr.Uint(1),
 	}
-	mockedDS.QueryByNameFunc = func(ctx context.Context, teamID *uint, name string) (*fleet.Query, error) {
+	mockedDS.QueryByNameFunc = func(ctx context.Context, teamID *uint, name string) (*automdm.Query, error) {
 		return testQuery, nil
 	}
 
@@ -697,7 +697,7 @@ func TestCachedQueryByName(t *testing.T) {
 	mockedDS.QueryByNameFuncInvoked = false
 
 	// change "stored" query.
-	testQuery = &fleet.Query{
+	testQuery = &automdm.Query{
 		ID:     1,
 		TeamID: ptr.Uint(2),
 	}
@@ -778,29 +778,29 @@ func TestGetAllMDMConfigAssetsByName(t *testing.T) {
 	mockedDS := new(mock.Store)
 	ds := New(mockedDS)
 
-	assetNames := []fleet.MDMAssetName{"asset1", "asset2", "asset3"}
-	assetMap := map[fleet.MDMAssetName]fleet.MDMConfigAsset{
+	assetNames := []automdm.MDMAssetName{"asset1", "asset2", "asset3"}
+	assetMap := map[automdm.MDMAssetName]automdm.MDMConfigAsset{
 		"asset1": {Name: "asset1", Value: []byte("value1")},
 		"asset2": {Name: "asset2", Value: []byte("value2")},
 		"asset3": {Name: "asset2", Value: []byte("value3")},
 	}
-	assetHashes := map[fleet.MDMAssetName]string{
+	assetHashes := map[automdm.MDMAssetName]string{
 		"asset1": "hash1",
 		"asset2": "hash2",
 		"asset3": "hash3",
 	}
 
-	mockedDS.GetAllMDMConfigAssetsHashesFunc = func(ctx context.Context, assetNames []fleet.MDMAssetName) (map[fleet.MDMAssetName]string, error) {
-		result := map[fleet.MDMAssetName]string{}
+	mockedDS.GetAllMDMConfigAssetsHashesFunc = func(ctx context.Context, assetNames []automdm.MDMAssetName) (map[automdm.MDMAssetName]string, error) {
+		result := map[automdm.MDMAssetName]string{}
 		for _, n := range assetNames {
 			result[n] = assetHashes[n]
 		}
 		return result, nil
 	}
 
-	mockedDS.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []fleet.MDMAssetName,
-		_ sqlx.QueryerContext) (map[fleet.MDMAssetName]fleet.MDMConfigAsset, error) {
-		result := map[fleet.MDMAssetName]fleet.MDMConfigAsset{}
+	mockedDS.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []automdm.MDMAssetName,
+		_ sqlx.QueryerContext) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
+		result := map[automdm.MDMAssetName]automdm.MDMConfigAsset{}
 		for _, n := range assetNames {
 			result[n] = assetMap[n]
 		}
@@ -808,7 +808,7 @@ func TestGetAllMDMConfigAssetsByName(t *testing.T) {
 	}
 
 	// returns cached assets if hashes match
-	result, err := ds.GetAllMDMConfigAssetsByName(context.Background(), []fleet.MDMAssetName{"asset1", "asset2"}, nil)
+	result, err := ds.GetAllMDMConfigAssetsByName(context.Background(), []automdm.MDMAssetName{"asset1", "asset2"}, nil)
 	require.NoError(t, err)
 
 	require.True(t, mockedDS.GetAllMDMConfigAssetsByNameFuncInvoked)
@@ -819,7 +819,7 @@ func TestGetAllMDMConfigAssetsByName(t *testing.T) {
 	require.Equal(t, assetMap["asset2"], result["asset2"])
 	require.NotContains(t, result, "asset3")
 
-	result, err = ds.GetAllMDMConfigAssetsByName(context.Background(), []fleet.MDMAssetName{"asset1", "asset2"}, nil)
+	result, err = ds.GetAllMDMConfigAssetsByName(context.Background(), []automdm.MDMAssetName{"asset1", "asset2"}, nil)
 	require.NoError(t, err)
 	require.False(t, mockedDS.GetAllMDMConfigAssetsByNameFuncInvoked)
 	require.True(t, mockedDS.GetAllMDMConfigAssetsHashesFuncInvoked)
@@ -832,7 +832,7 @@ func TestGetAllMDMConfigAssetsByName(t *testing.T) {
 	mockedDS.GetAllMDMConfigAssetsHashesFuncInvoked = false
 
 	// fetches missing assets from the db
-	result, err = ds.GetAllMDMConfigAssetsByName(context.Background(), []fleet.MDMAssetName{"asset1", "asset2", "asset3"}, nil)
+	result, err = ds.GetAllMDMConfigAssetsByName(context.Background(), []automdm.MDMAssetName{"asset1", "asset2", "asset3"}, nil)
 	require.NoError(t, err)
 	require.Equal(t, assetMap["asset1"], result["asset1"])
 	require.Equal(t, assetMap["asset2"], result["asset2"])
@@ -844,7 +844,7 @@ func TestGetAllMDMConfigAssetsByName(t *testing.T) {
 
 	// fetches updated assets from the db
 	assetHashes["asset1"] = "newhash"
-	assetMap["asset1"] = fleet.MDMConfigAsset{Name: "asset1", Value: []byte("newvalue")}
+	assetMap["asset1"] = automdm.MDMConfigAsset{Name: "asset1", Value: []byte("newvalue")}
 	result, err = ds.GetAllMDMConfigAssetsByName(context.Background(), assetNames, nil)
 	require.NoError(t, err)
 	require.Equal(t, assetMap["asset1"], result["asset1"])
@@ -856,21 +856,21 @@ func TestGetAllMDMConfigAssetsByName(t *testing.T) {
 	mockedDS.GetAllMDMConfigAssetsHashesFuncInvoked = false
 
 	// passes errors fetching assets from downstream
-	mockedDS.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []fleet.MDMAssetName,
-		_ sqlx.QueryerContext) (map[fleet.MDMAssetName]fleet.MDMConfigAsset, error) {
+	mockedDS.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []automdm.MDMAssetName,
+		_ sqlx.QueryerContext) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
 		return nil, errors.New("error fetching assets")
 	}
 
-	_, err = ds.GetAllMDMConfigAssetsByName(context.Background(), []fleet.MDMAssetName{"not exists"}, nil)
+	_, err = ds.GetAllMDMConfigAssetsByName(context.Background(), []automdm.MDMAssetName{"not exists"}, nil)
 	require.Error(t, err)
 	require.Equal(t, "error fetching assets", err.Error())
 
 	// passes errors fetching hashes from downstream
-	mockedDS.GetAllMDMConfigAssetsHashesFunc = func(ctx context.Context, assetNames []fleet.MDMAssetName) (map[fleet.MDMAssetName]string, error) {
+	mockedDS.GetAllMDMConfigAssetsHashesFunc = func(ctx context.Context, assetNames []automdm.MDMAssetName) (map[automdm.MDMAssetName]string, error) {
 		return nil, errors.New("error fetching hashes")
 	}
 
-	_, err = ds.GetAllMDMConfigAssetsByName(context.Background(), []fleet.MDMAssetName{"not exists"}, nil)
+	_, err = ds.GetAllMDMConfigAssetsByName(context.Background(), []automdm.MDMAssetName{"not exists"}, nil)
 	require.Error(t, err)
 	require.Equal(t, "error fetching hashes", err.Error())
 }
@@ -881,17 +881,17 @@ func TestCachedYaraRules(t *testing.T) {
 	mockedDS := new(mock.Store)
 	ds := New(mockedDS, WithYaraRuleByNameExpiration(100*time.Millisecond))
 
-	testRule1 := &fleet.YaraRule{
+	testRule1 := &automdm.YaraRule{
 		Name:     "rule1.yar",
 		Contents: "rule Rule1 { condition: true }",
 	}
-	testRule2 := &fleet.YaraRule{
+	testRule2 := &automdm.YaraRule{
 		Name:     "rule2.yar",
 		Contents: "rule Rule2 { condition: true }",
 	}
 
 	// Setup mock functions
-	mockedDS.YaraRuleByNameFunc = func(_ context.Context, name string) (*fleet.YaraRule, error) {
+	mockedDS.YaraRuleByNameFunc = func(_ context.Context, name string) (*automdm.YaraRule, error) {
 		switch name {
 		case "rule1.yar":
 			return testRule1, nil
@@ -902,7 +902,7 @@ func TestCachedYaraRules(t *testing.T) {
 		}
 	}
 
-	mockedDS.ApplyYaraRulesFunc = func(_ context.Context, _ []fleet.YaraRule) error {
+	mockedDS.ApplyYaraRulesFunc = func(_ context.Context, _ []automdm.YaraRule) error {
 		return nil
 	}
 
@@ -945,7 +945,7 @@ func TestCachedYaraRules(t *testing.T) {
 	require.False(t, mockedDS.YaraRuleByNameFuncInvoked) // from cache
 
 	// Test 5: ApplyYaraRules invalidates all cached rules
-	newRules := []fleet.YaraRule{
+	newRules := []automdm.YaraRule{
 		{Name: "rule1.yar", Contents: "rule Rule1Modified { condition: false }"},
 		{Name: "rule3.yar", Contents: "rule Rule3 { condition: true }"},
 	}
@@ -954,7 +954,7 @@ func TestCachedYaraRules(t *testing.T) {
 	require.True(t, mockedDS.ApplyYaraRulesFuncInvoked)
 
 	// Update mock to return modified rule
-	testRule1 = &fleet.YaraRule{
+	testRule1 = &automdm.YaraRule{
 		Name:     "rule1.yar",
 		Contents: "rule Rule1Modified { condition: false }",
 	}
@@ -984,7 +984,7 @@ func TestCachedYaraRules(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 
 	// Update mock to return a different value
-	testRule1 = &fleet.YaraRule{
+	testRule1 = &automdm.YaraRule{
 		Name:     "rule1.yar",
 		Contents: "rule Rule1Expired { condition: true }",
 	}
@@ -1015,7 +1015,7 @@ func TestCachedFMANamesByIdentifier(t *testing.T) {
 		return result, nil
 	}
 
-	mockedDS.UpsertMaintainedAppFunc = func(ctx context.Context, app *fleet.MaintainedApp) (*fleet.MaintainedApp, error) {
+	mockedDS.UpsertMaintainedAppFunc = func(ctx context.Context, app *automdm.MaintainedApp) (*automdm.MaintainedApp, error) {
 		return app, nil
 	}
 
@@ -1041,7 +1041,7 @@ func TestCachedFMANamesByIdentifier(t *testing.T) {
 	require.Equal(t, "Microsoft Visual Studio Code", names3["com.microsoft.VSCode"]) // still original
 
 	// Test 4: UpsertMaintainedApp invalidates cache
-	_, err = ds.UpsertMaintainedApp(context.Background(), &fleet.MaintainedApp{
+	_, err = ds.UpsertMaintainedApp(context.Background(), &automdm.MaintainedApp{
 		Name:             "New App",
 		Slug:             "new-app/darwin",
 		Platform:         "darwin",

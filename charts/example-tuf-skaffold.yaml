@@ -1,4 +1,4 @@
-# Copy this file to use from the top directory of fleet
+# Copy this file to use from the top directory of team
 apiVersion:  skaffold/v2beta28
 kind: Config
 build:

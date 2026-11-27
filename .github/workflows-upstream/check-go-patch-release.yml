@@ -3,8 +3,8 @@ name: Check for new Go patch release
 # Checks daily whether a new Go patch release is available for the Go version
 # used in the main go.mod. If so, it runs `make update-go version=<NEW_VERSION>`,
 # opens an automated PR with the changes, and creates two tracking issues on the
-# #g-orchestration board: one for updating Go in the Fleet server and one for
-# updating Go in fleetd.
+# #g-orchestration board: one for updating Go in the AutoMDM server and one for
+# updating Go in automdmd.
 
 on:
   workflow_dispatch:
@@ -28,7 +28,7 @@ jobs:
   check-go-patch-release:
     # Only run from main: a manual dispatch from a feature branch would check
     # out that branch and open a PR against main from stale/unrelated content.
-    if: github.repository == 'fleetdm/fleet' && github.ref == 'refs/heads/main'
+    if: github.repository == 'automdm/automdm' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: write # for peter-evans/create-pull-request to create branch
@@ -128,7 +128,7 @@ jobs:
 
             Generated automatically with `make update-go version=${{ steps.check.outputs.new_version }}`.
           body: |
-            Automated change from [GitHub action](https://github.com/fleetdm/fleet/actions/workflows/check-go-patch-release.yml).
+            Automated change from [GitHub action](https://github.com/anilyagiz/automdm/actions/workflows/check-go-patch-release.yml).
 
             Updates Go to the latest patch release, `${{ steps.check.outputs.new_version }}`, by running `make update-go version=${{ steps.check.outputs.new_version }}`.
 
@@ -137,11 +137,11 @@ jobs:
         uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
         env:
           NEW_GO_VERSION: ${{ steps.check.outputs.new_version }}
-          PROJECT_TOKEN: ${{ secrets.FLEET_GITHUB_TOKEN_PROJECTS }}
+          PROJECT_TOKEN: ${{ secrets.AUTOMDM_GITHUB_TOKEN_PROJECTS }}
         with:
           script: |
             const newVersion = process.env.NEW_GO_VERSION;
-            const runURL = `https://github.com/fleetdm/fleet/actions/runs/${context.runId}`;
+            const runURL = `https://github.com/anilyagiz/automdm/actions/runs/${context.runId}`;
 
             // component: short name used in the issue title and release mention;
             // description: longer form used in the issue body.
@@ -164,8 +164,8 @@ jobs:
             });
 
             const issuesToCreate = [
-              makeIssue('Fleet server', 'the **Fleet server**'),
-              makeIssue('fleetd', '**fleetd** (Orbit, Fleet Desktop, and osquery installers)'),
+              makeIssue('AutoMDM server', 'the **AutoMDM server**'),
+              makeIssue('automdmd', '**automdmd** (Orbit, AutoMDM Desktop, and osquery installers)'),
             ];
 
             // Idempotency: the workflow runs daily and the PR may stay open for a
@@ -206,12 +206,12 @@ jobs:
             }
 
             // --- Project board: add to #g-orchestration and set status to "Inbox" ---
-            // Requires a PAT stored as FLEET_GITHUB_TOKEN_PROJECTS with
+            // Requires a PAT stored as AUTOMDM_GITHUB_TOKEN_PROJECTS with
             // read/write access to organization projects.
             const projectToken = process.env.PROJECT_TOKEN;
             if (!projectToken) {
               core.warning(
-                'FLEET_GITHUB_TOKEN_PROJECTS secret is not configured — ' +
+                'AUTOMDM_GITHUB_TOKEN_PROJECTS secret is not configured — ' +
                 'issues were created but not added to the project board. ' +
                 'Create a fine-grained PAT with Organization Projects read/write scope.'
               );
@@ -289,13 +289,13 @@ jobs:
         with:
           payload: |
             {
-              "text": "${{ job.status }}\nhttps://github.com/fleetdm/fleet/actions/runs/${{ github.run_id }}",
+              "text": "${{ job.status }}\nhttps://github.com/anilyagiz/automdm/actions/runs/${{ github.run_id }}",
               "blocks": [
                 {
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "❌ The check Go patch release workflow failed\nhttps://github.com/fleetdm/fleet/actions/runs/${{ github.run_id }}"
+                    "text": "❌ The check Go patch release workflow failed\nhttps://github.com/anilyagiz/automdm/actions/runs/${{ github.run_id }}"
                   }
                 }
               ]

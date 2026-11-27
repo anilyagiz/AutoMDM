@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # dotPeek is installed by the JetBrains dotUltimate web installer, which downloads
 # the product at install time. /PerMachine=True keeps it out of the SYSTEM profile

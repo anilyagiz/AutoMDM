@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 
 $exeFilePath = "${env:INSTALLER_PATH}"
 $timeoutMinutes = 3
@@ -14,7 +14,7 @@ try {
 # with exit code 2 in about two seconds without writing anything. Several of its
 # message boxes have no silent-mode default - the one it shows when the previous
 # version's uninstaller returns non-zero is MB_OK with no /SD - and nobody can
-# answer them from Fleet's SYSTEM context, so that setup stays alive and every
+# answer them from AutoMDM's SYSTEM context, so that setup stays alive and every
 # later install on the host fails the same way until the process is gone. Stop
 # setup copies an earlier run left behind. Evernote's own files carry the same
 # version stamp, so match only images outside an install directory.

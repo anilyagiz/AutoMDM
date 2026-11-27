@@ -138,7 +138,7 @@ const RunScriptModal = ({
   const addScriptUrl = getPathWithQueryParams(
     PATHS.CONTROLS_SCRIPTS,
     isPremiumTier
-      ? { fleet_id: hostTeamId ?? APP_CONTEXT_NO_TEAM_ID }
+      ? { team_id: hostTeamId ?? APP_CONTEXT_NO_TEAM_ID }
       : undefined
   );
 

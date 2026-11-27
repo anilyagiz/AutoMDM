@@ -3,12 +3,12 @@
   "steps": [
     {
       "name": "step-1",
-      "path": "/software/add/fleet-maintained",
+      "path": "/software/add/automdm-maintained",
       "actions": [
         {
           "kind": "click",
           "selector": ".software-page__title",
-          "text": "option All fleets selected, 1 of 7. 7 results available. Use Up and Down to choose options, press En"
+          "text": "option All teams selected, 1 of 7. 7 results available. Use Up and Down to choose options, press En"
         },
         {
           "kind": "click",

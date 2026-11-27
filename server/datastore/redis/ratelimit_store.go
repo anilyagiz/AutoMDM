@@ -4,12 +4,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/gomodule/redigo/redis"
 )
 
 type ThrottledStore struct {
-	Pool      fleet.RedisPool
+	Pool      automdm.RedisPool
 	KeyPrefix string
 }
 

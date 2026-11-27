@@ -3,7 +3,7 @@
 # Sets all four hot corners to 0 (no action, != 6) for the console user so
 # the query passes. On a headless VM with no non-root console user this
 # no-ops. The plist is written by path as root so the script also works
-# under Fleet's script runner, where the per-user cfprefsd is unreachable
+# under AutoMDM's script runner, where the per-user cfprefsd is unreachable
 # (see CIS_2.7.1_fail.sh).
 user=$(/usr/bin/stat -f "%Su" /dev/console 2>/dev/null)
 if [ -n "$user" ] && [ "$user" != "root" ]; then

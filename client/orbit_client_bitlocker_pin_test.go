@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -28,13 +28,13 @@ func TestGetDiskEncryptionPINDetails(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, "/api/fleet/orbit/disk_encryption_pin/details", r.URL.Path)
+				assert.Equal(t, "/api/automdm/orbit/disk_encryption_pin/details", r.URL.Path)
 				w.WriteHeader(tc.status)
 				if tc.wantNotFound {
 					_, _ = w.Write([]byte(`{"message":"not found"}`))
 					return
 				}
-				assert.NoError(t, json.NewEncoder(w).Encode(fleet.OrbitGetDiskEncryptionPINDetailsResponse{
+				assert.NoError(t, json.NewEncoder(w).Encode(automdm.OrbitGetDiskEncryptionPINDetailsResponse{
 					PIN:         tc.wantPIN,
 					RequestUUID: tc.wantUUID,
 				}))
@@ -68,9 +68,9 @@ func TestSetDiskEncryptionPINResult(t *testing.T) {
 		{name: "no longer wanted", status: http.StatusNotFound, wantNotFound: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			var got fleet.OrbitPostDiskEncryptionPINResultRequest
+			var got automdm.OrbitPostDiskEncryptionPINResultRequest
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, "/api/fleet/orbit/disk_encryption_pin/result", r.URL.Path)
+				assert.Equal(t, "/api/automdm/orbit/disk_encryption_pin/result", r.URL.Path)
 				assert.NoError(t, json.NewDecoder(r.Body).Decode(&got))
 				w.WriteHeader(tc.status)
 			}))
@@ -79,16 +79,16 @@ func TestSetDiskEncryptionPINResult(t *testing.T) {
 			_, nodeKeyPath := newNodeKeyFile(t, "node-key")
 			oc := newReenrollTestClient(t, srv.URL, nodeKeyPath)
 
-			err := oc.SetDiskEncryptionPINResult("request-uuid", fleet.BitLockerPINRequestFailed, "PIN already set")
+			err := oc.SetDiskEncryptionPINResult("request-uuid", automdm.BitLockerPINRequestFailed, "PIN already set")
 			if tc.wantNotFound {
 				require.True(t, IsNotFoundErr(err))
 			} else {
 				require.NoError(t, err)
 			}
-			require.Equal(t, fleet.OrbitPostDiskEncryptionPINResultRequest{
+			require.Equal(t, automdm.OrbitPostDiskEncryptionPINResultRequest{
 				OrbitNodeKey: "node-key",
 				RequestUUID:  "request-uuid",
-				Outcome:      fleet.BitLockerPINRequestFailed,
+				Outcome:      automdm.BitLockerPINRequestFailed,
 				ClientError:  "PIN already set",
 			}, got)
 		})

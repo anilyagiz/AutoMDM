@@ -5,7 +5,7 @@
 
 Read `.github/ISSUE_TEMPLATE/sub-task.md` and fill in its sections. Don't write the template from memory. Reading it keeps the body in step when the template changes. Keep its HTML comments exactly as they are.
 
-The body says WHAT ships and how to tell it's done. `fleetdm/fleet` is public, and product, design, and QA read these issues too. So leave out file paths, line numbers, code or SQL blocks, function names, and why you didn't pick another option. All of that lives in the spec doc. Leave out customer names, Slack links, and Gong links too. Table names, endpoint paths, YAML keys, and JSON field names are fine, because they're the contract. Aim for 250 to 450 words, and follow the style rules in SKILL.md 3.1.
+The body says WHAT ships and how to tell it's done. `automdm/automdm` is public, and product, design, and QA read these issues too. So leave out file paths, line numbers, code or SQL blocks, function names, and why you didn't pick another option. All of that lives in the spec doc. Leave out customer names, Slack links, and Gong links too. Table names, endpoint paths, YAML keys, and JSON field names are fine, because they're the contract. Aim for 250 to 450 words, and follow the style rules in SKILL.md 3.1.
 
 ```markdown
 ## Related user story
@@ -48,7 +48,7 @@ Every sub-issue gets:
 - The parent story's `#g-*` product group label, from Stage 1.2.
 - `~sub-task`.
 - Type `Task`, set with `--type Task`. It's an issue type, not a label.
-- `~backend` for Go work (services, datastore, migrations, API, fleetctl and GitOps, agent) or `~frontend` for React and TypeScript work. Never both.
+- `~backend` for Go work (services, datastore, migrations, API, automdmctl and GitOps, agent) or `~frontend` for React and TypeScript work. Never both.
 - No milestone. The milestone belongs to the parent story, and sub-issues follow its schedule.
 - No t-shirt size or estimate. Sizes only go on the parent story.
 
@@ -60,7 +60,7 @@ The docs and QA sub-issue gets neither `~backend` nor `~frontend`.
 Write each body to a temp file with `mktemp`, and print every planned command:
 
 ```bash
-gh issue create --repo fleetdm/fleet \
+gh issue create --repo automdm/automdm \
   --title "<feature>: <area>" \
   --body-file "$BODY" \
   --label "<parent's #g-* label>" \
@@ -87,11 +87,11 @@ Run the approved commands, and note each new issue number.
 Link each issue as a native sub-issue, so it shows up in the parent's Sub-issues list. The REST endpoint needs the child's database ID, not its issue number:
 
 ```bash
-CHILD_ID=$(gh api repos/fleetdm/fleet/issues/<child> --jq .id)
-gh api -X POST repos/fleetdm/fleet/issues/<parent>/sub_issues -F sub_issue_id="$CHILD_ID"
+CHILD_ID=$(gh api repos/automdm/automdm/issues/<child> --jq .id)
+gh api -X POST repos/automdm/automdm/issues/<parent>/sub_issues -F sub_issue_id="$CHILD_ID"
 ```
 
-Check the links with `gh api repos/fleetdm/fleet/issues/<parent>/sub_issues --jq '.[] | "#\(.number) \(.title)"'`.
+Check the links with `gh api repos/automdm/automdm/issues/<parent>/sub_issues --jq '.[] | "#\(.number) \(.title)"'`.
 
 Then write the Engineering answers into the parent:
 

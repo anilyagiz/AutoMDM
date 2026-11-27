@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # Runs the Adobe Creative Cloud stub with silent flags, waits until the app is
 # registered in Programs and Features with a matching version, then stops the

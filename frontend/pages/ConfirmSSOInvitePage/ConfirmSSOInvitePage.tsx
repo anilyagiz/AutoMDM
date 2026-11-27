@@ -105,7 +105,7 @@ const ConfirmSSOInvitePage = ({
 
   return (
     <AuthenticationFormWrapper
-      header={isInvalidInvite ? "Invalid invite token" : "Welcome to Fleet"}
+      header={isInvalidInvite ? "Invalid invite token" : "Welcome to AutoMDM"}
       className={baseClass}
     >
       {renderContent()}

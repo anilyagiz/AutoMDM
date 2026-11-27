@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/internal/fsutil"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/internal/homes"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/internal/fsutil"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/internal/homes"
 	"github.com/stretchr/testify/require"
 )
 

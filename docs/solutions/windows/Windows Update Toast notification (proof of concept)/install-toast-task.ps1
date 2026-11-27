@@ -1,13 +1,13 @@
 <#
 .SYNOPSIS
-    Fleet Deployment Script: Install Windows Update Toast Notification Scheduled Task
-    Deploy via Fleet: Controls > Scripts > Add script
+    AutoMDM Deployment Script: Install Windows Update Toast Notification Scheduled Task
+    Deploy via AutoMDM: Controls > Scripts > Add script
 
 .DESCRIPTION
     This is a SINGLE-FILE deployment script. The toast notification script is
-    embedded inline below so Fleet can deploy it without needing a companion file.
+    embedded inline below so AutoMDM can deploy it without needing a companion file.
 
-    This script runs as SYSTEM (Fleet's default) and:
+    This script runs as SYSTEM (AutoMDM's default) and:
     1. Writes the embedded toast notification script to a local directory
     2. Creates a Scheduled Task that runs as the logged-in user
     3. Optionally triggers the task immediately for testing
@@ -17,7 +17,7 @@
     notification if updates are available (unless ForceShow is enabled).
 
 .NOTES
-    - Run this script via Fleet to deploy the toast notification system
+    - Run this script via AutoMDM to deploy the toast notification system
     - To uninstall, deploy the companion uninstall-toast-task.ps1
     - To test without real updates, set $ForceShow = $true below
 #>
@@ -26,9 +26,9 @@
 # CONFIGURATION
 # ============================================================
 
-$TaskName        = "FleetWindowsUpdateToast"
+$TaskName        = "AutoMDMWindowsUpdateToast"
 $TaskDescription = "Displays a toast notification when Windows updates are pending."
-$ScriptDir       = "$env:ProgramData\Fleet\ToastNotification"
+$ScriptDir       = "$env:ProgramData\AutoMDM\ToastNotification"
 $ScriptName      = "show-update-toast.ps1"
 $ScriptPath      = Join-Path $ScriptDir $ScriptName
 
@@ -97,7 +97,7 @@ $toastScriptContent = @"
 <#
 .SYNOPSIS
     Windows Update Nudge Toast Notification
-    Deployed by Fleet via scheduled task.
+    Deployed by AutoMDM via scheduled task.
 
 .DESCRIPTION
     Displays a native Windows toast notification reminding the user to install
@@ -118,7 +118,7 @@ $toastScriptContent = @"
 `$HeroMessage       = "Your device has pending security updates. Please restart to apply them and keep your device protected."
 `$ActionButtonText  = "Update Now"
 `$DismissButtonText = "Remind Me Later"
-`$LogoPath          = "`$env:ProgramData\Fleet\company-logo.png"
+`$LogoPath          = "`$env:ProgramData\AutoMDM\company-logo.png"
 `$CheckForUpdates   = $checkForUpdatesValue
 
 # ============================================================
@@ -297,5 +297,5 @@ if ($TriggerNow) {
 }
 
 Write-Host ""
-Write-Host "Done. To uninstall, run uninstall-toast-task.ps1 via Fleet."
+Write-Host "Done. To uninstall, run uninstall-toast-task.ps1 via AutoMDM."
 exit 0

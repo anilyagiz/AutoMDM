@@ -1,6 +1,6 @@
 import React from "react";
 
-import FleetMarkdown from "components/FleetMarkdown";
+import AutoMDMMarkdown from "components/AutoMDMMarkdown";
 
 interface IQueryTableExampleProps {
   example: string;
@@ -12,7 +12,7 @@ const QueryTableExample = ({ example }: IQueryTableExampleProps) => {
   return (
     <div className={baseClass}>
       <h3>Example</h3>
-      <FleetMarkdown markdown={example} name="query-table-example" />
+      <AutoMDMMarkdown markdown={example} name="query-table-example" />
     </div>
   );
 };

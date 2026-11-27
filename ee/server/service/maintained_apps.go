@@ -6,21 +6,21 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/file"
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/authz"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/dev_mode"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	maintained_apps "github.com/fleetdm/fleet/v4/server/mdm/maintainedapps"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/pkg/file"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	"github.com/anilyagiz/automdm/v4/server/dev_mode"
+	maintained_apps "github.com/anilyagiz/automdm/v4/server/mdm/maintainedapps"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 )
 
 // noCheckHash is used by homebrew to signal that a hash shouldn't be checked, and FMA carries this convention over
 const noCheckHash = "no_check"
 
-func (svc *Service) AddFleetMaintainedApp(
+func (svc *Service) AddAutoMDMMaintainedApp(
 	ctx context.Context,
 	teamID *uint,
 	appID uint,
@@ -28,13 +28,13 @@ func (svc *Service) AddFleetMaintainedApp(
 	selfService bool, automaticInstall bool,
 	labelsIncludeAny, labelsExcludeAny, labelsIncludeAll []string,
 ) (titleID uint, err error) {
-	if err := svc.authz.Authorize(ctx, &fleet.SoftwareInstaller{TeamID: teamID}, fleet.ActionWrite); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.SoftwareInstaller{TeamID: teamID}, automdm.ActionWrite); err != nil {
 		return 0, err
 	}
 
 	vc, ok := viewer.FromContext(ctx)
 	if !ok {
-		return 0, fleet.ErrNoContext
+		return 0, automdm.ErrNoContext
 	}
 
 	// validate labels before we do anything else
@@ -46,7 +46,7 @@ func (svc *Service) AddFleetMaintainedApp(
 	if err := svc.ds.ValidateEmbeddedSecrets(ctx, []string{installScript, postInstallScript, uninstallScript}); err != nil {
 		// We redo the validation on each script to find out which script has the missing secret.
 		// This is done to provide a more informative error message to the UI user.
-		var argErr *fleet.InvalidArgumentError
+		var argErr *automdm.InvalidArgumentError
 		argErr = svc.validateEmbeddedSecretsOnScript(ctx, "install script", &installScript, argErr)
 		argErr = svc.validateEmbeddedSecretsOnScript(ctx, "post-install script", &postInstallScript, argErr)
 		argErr = svc.validateEmbeddedSecretsOnScript(ctx, "uninstall script", &uninstallScript, argErr)
@@ -57,10 +57,10 @@ func (svc *Service) AddFleetMaintainedApp(
 		return 0, ctxerr.Wrap(ctx, err, "transient server issue validating embedded secrets")
 	}
 	if err := svc.ds.ValidateReferencedCustomHostVitals(ctx, []string{installScript, postInstallScript, uninstallScript}); err != nil {
-		if !fleet.IsInvalidReferencedCustomHostVitalsError(err) {
+		if !automdm.IsInvalidReferencedCustomHostVitalsError(err) {
 			return 0, ctxerr.Wrap(ctx, err, "validating referenced custom host vitals")
 		}
-		var argErr *fleet.InvalidArgumentError
+		var argErr *automdm.InvalidArgumentError
 		argErr = svc.validateReferencedCustomHostVitalsOnScript(ctx, "install script", &installScript, argErr)
 		argErr = svc.validateReferencedCustomHostVitalsOnScript(ctx, "post-install script", &postInstallScript, argErr)
 		argErr = svc.validateReferencedCustomHostVitalsOnScript(ctx, "uninstall script", &uninstallScript, argErr)
@@ -82,10 +82,10 @@ func (svc *Service) AddFleetMaintainedApp(
 
 	// Download installer from the URL
 	timeout := maintained_apps.InstallerTimeout
-	if v := dev_mode.Env("FLEET_DEV_MAINTAINED_APPS_INSTALLER_TIMEOUT"); v != "" {
+	if v := dev_mode.Env("AUTOMDM_DEV_MAINTAINED_APPS_INSTALLER_TIMEOUT"); v != "" {
 		timeout, _ = time.ParseDuration(v)
 	}
-	client := fleethttp.NewClient(fleethttp.WithTimeout(timeout))
+	client := automdmhttp.NewClient(automdmhttp.WithTimeout(timeout))
 	installerTFR, filename, err := maintained_apps.DownloadInstaller(ctx, app.InstallerURL, client)
 	if err != nil {
 		return 0, ctxerr.Wrap(ctx, err, "downloading app installer")
@@ -127,8 +127,8 @@ func (svc *Service) AddFleetMaintainedApp(
 		{"post-install script", postInstallScript},
 		{"uninstall script", uninstallScript},
 	} {
-		if err := fleet.ValidateSoftwareInstallerScript(sv.content, app.Platform); err != nil {
-			return 0, &fleet.BadRequestError{
+		if err := automdm.ValidateSoftwareInstallerScript(sv.content, app.Platform); err != nil {
+			return 0, &automdm.BadRequestError{
 				Message: fmt.Sprintf("Couldn't add. %s validation failed: %s", sv.name, err.Error()),
 			}
 		}
@@ -136,7 +136,7 @@ func (svc *Service) AddFleetMaintainedApp(
 
 	// validate the effective scripts, after empty inputs were defaulted from
 	// the maintained-app manifest above
-	if err := validateFleetVariablesOnInstallerScripts(ctx, &installScript, &postInstallScript, &uninstallScript); err != nil {
+	if err := validateAutoMDMVariablesOnInstallerScripts(ctx, &installScript, &postInstallScript, &uninstallScript); err != nil {
 		return 0, err
 	}
 
@@ -171,38 +171,38 @@ func (svc *Service) AddFleetMaintainedApp(
 		version = meta.Version
 	}
 
-	payload := &fleet.UploadSoftwareInstallerPayload{
-		InstallerFile:         installerTFR,
-		Title:                 appName,
-		UserID:                vc.UserID(),
-		TeamID:                teamID,
-		Version:               version,
-		Filename:              filename,
-		Platform:              app.Platform,
-		Source:                app.Source(),
-		Extension:             extension,
-		BundleIdentifier:      app.BundleIdentifier(),
-		UpgradeCode:           app.UpgradeCode,
-		StorageID:             app.SHA256,
-		FleetMaintainedAppID:  maintainedAppID,
-		FMAName:               app.Name,
-		PreInstallQuery:       preInstallQuery,
-		PostInstallScript:     postInstallScript,
-		SelfService:           selfService,
-		InstallScript:         installScript,
-		UninstallScript:       uninstallScript,
-		ValidatedLabels:       validatedLabels,
-		AutomaticInstall:      automaticInstall,
-		AutomaticInstallQuery: app.AutomaticInstallQuery,
-		Categories:            app.Categories,
-		URL:                   app.InstallerURL,
-		PatchQuery:            app.PatchQuery,
-		AppOpenQuery:          app.AppOpenQuery,
+	payload := &automdm.UploadSoftwareInstallerPayload{
+		InstallerFile:          installerTFR,
+		Title:                  appName,
+		UserID:                 vc.UserID(),
+		TeamID:                 teamID,
+		Version:                version,
+		Filename:               filename,
+		Platform:               app.Platform,
+		Source:                 app.Source(),
+		Extension:              extension,
+		BundleIdentifier:       app.BundleIdentifier(),
+		UpgradeCode:            app.UpgradeCode,
+		StorageID:              app.SHA256,
+		AutoMDMMaintainedAppID: maintainedAppID,
+		FMAName:                app.Name,
+		PreInstallQuery:        preInstallQuery,
+		PostInstallScript:      postInstallScript,
+		SelfService:            selfService,
+		InstallScript:          installScript,
+		UninstallScript:        uninstallScript,
+		ValidatedLabels:        validatedLabels,
+		AutomaticInstall:       automaticInstall,
+		AutomaticInstallQuery:  app.AutomaticInstallQuery,
+		Categories:             app.Categories,
+		URL:                    app.InstallerURL,
+		PatchQuery:             app.PatchQuery,
+		AppOpenQuery:           app.AppOpenQuery,
 	}
 
 	categories, catIDs, err := svc.removeDuplicateOrMissingCategories(ctx, ptr.ValOrZero(payload.TeamID), payload.Categories)
 	if err != nil {
-		return 0, ctxerr.Wrap(ctx, err, "filtering fleet-maintained app categories")
+		return 0, ctxerr.Wrap(ctx, err, "filtering automdm-maintained app categories")
 	}
 	payload.Categories = categories
 	payload.CategoryIDs = catIDs
@@ -246,7 +246,7 @@ func (svc *Service) AddFleetMaintainedApp(
 	}
 
 	actLabelsInclAny, actLabelsExclAny, actLabelsInclAll := activitySoftwareLabelsFromValidatedLabels(payload.ValidatedLabels)
-	if err := svc.NewActivity(ctx, vc.User, fleet.ActivityTypeAddedSoftware{
+	if err := svc.NewActivity(ctx, vc.User, automdm.ActivityTypeAddedSoftware{
 		SoftwareTitle:    payload.Title,
 		SoftwarePackage:  payload.Filename,
 		TeamName:         teamName,
@@ -271,13 +271,13 @@ func (svc *Service) AddFleetMaintainedApp(
 	return titleID, nil
 }
 
-func (svc *Service) ListFleetMaintainedApps(ctx context.Context, teamID *uint, opts fleet.MaintainedAppListOptions) ([]fleet.MaintainedApp, *fleet.PaginationMetadata, error) {
+func (svc *Service) ListAutoMDMMaintainedApps(ctx context.Context, teamID *uint, opts automdm.MaintainedAppListOptions) ([]automdm.MaintainedApp, *automdm.PaginationMetadata, error) {
 	var authErr error
 	// viewing the maintained app list without showing team-specific info can be done by anyone who can view individual FMAs
 	if teamID == nil {
-		authErr = svc.authz.Authorize(ctx, &fleet.MaintainedApp{}, fleet.ActionRead)
+		authErr = svc.authz.Authorize(ctx, &automdm.MaintainedApp{}, automdm.ActionRead)
 	} else { // viewing the maintained app list when showing team-specific info requires access to that team
-		authErr = svc.authz.Authorize(ctx, &fleet.SoftwareInstaller{TeamID: teamID}, fleet.ActionRead)
+		authErr = svc.authz.Authorize(ctx, &automdm.SoftwareInstaller{TeamID: teamID}, automdm.ActionRead)
 	}
 
 	if authErr != nil {
@@ -285,21 +285,21 @@ func (svc *Service) ListFleetMaintainedApps(ctx context.Context, teamID *uint, o
 	}
 
 	opts.IncludeMetadata = true
-	avail, meta, err := svc.ds.ListAvailableFleetMaintainedApps(ctx, teamID, opts)
+	avail, meta, err := svc.ds.ListAvailableAutoMDMMaintainedApps(ctx, teamID, opts)
 	if err != nil {
-		return nil, nil, ctxerr.Wrap(ctx, err, "listing available fleet maintained apps")
+		return nil, nil, ctxerr.Wrap(ctx, err, "listing available automdm maintained apps")
 	}
 
 	return avail, meta, nil
 }
 
-func (svc *Service) GetFleetMaintainedApp(ctx context.Context, appID uint, teamID *uint) (*fleet.MaintainedApp, error) {
+func (svc *Service) GetAutoMDMMaintainedApp(ctx context.Context, appID uint, teamID *uint) (*automdm.MaintainedApp, error) {
 	var authErr error
 	// viewing the maintained app without showing team-specific info can be done by anyone who can view individual FMAs
 	if teamID == nil {
-		authErr = svc.authz.Authorize(ctx, &fleet.MaintainedApp{}, fleet.ActionRead)
+		authErr = svc.authz.Authorize(ctx, &automdm.MaintainedApp{}, automdm.ActionRead)
 	} else { // viewing the maintained app when showing team-specific info requires access to that team
-		authErr = svc.authz.Authorize(ctx, &fleet.SoftwareInstaller{TeamID: teamID}, fleet.ActionRead)
+		authErr = svc.authz.Authorize(ctx, &automdm.SoftwareInstaller{TeamID: teamID}, automdm.ActionRead)
 	}
 
 	if authErr != nil {

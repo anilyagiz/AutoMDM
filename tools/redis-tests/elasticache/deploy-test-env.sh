@@ -4,8 +4,8 @@ set -euo pipefail
 # Configuration - use environment variables or defaults
 VPC_CIDR="10.0.0.0/16"
 SUBNET_CIDR="10.0.1.0/24"
-STACK_NAME="${STACK_NAME:-fleet-elasticache-iam-test}"
-KEY_NAME="${KEY_NAME:-fleet-test-key-$(date +%s)}"
+STACK_NAME="${STACK_NAME:-automdm-elasticache-iam-test}"
+KEY_NAME="${KEY_NAME:-automdm-test-key-$(date +%s)}"
 INSTANCE_TYPE="${INSTANCE_TYPE:-t3.micro}"
 
 

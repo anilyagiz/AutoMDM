@@ -7,7 +7,7 @@
 
 $displayNamePattern = '^Fellow$'
 $publisher = "Fellow Insights Inc."
-$taskName = "fleet-uninstall-fellow"
+$taskName = "automdm-uninstall-fellow"
 $appDir = "AppData\Local\Fellow"  # in each user's profile
 $taskRunning = 267009  # SCHED_S_TASK_RUNNING
 $timeoutSeconds = 300

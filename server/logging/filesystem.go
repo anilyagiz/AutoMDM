@@ -13,8 +13,8 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/fleetdm/fleet/v4/pkg/secure"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/pkg/secure"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 	lumberjack "gopkg.in/natefinch/lumberjack.v2"
 )
 
@@ -24,7 +24,7 @@ type filesystemLogWriter struct {
 
 // NewFilesystemLogWriter creates a logger that writes to a file.
 //
-// The logFile can be rotated by sending a `SIGHUP` signal to Fleet if
+// The logFile can be rotated by sending a `SIGHUP` signal to AutoMDM if
 // enableRotation is true
 //
 // The enableCompression argument is only used when enableRotation is true.

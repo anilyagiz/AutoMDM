@@ -10,13 +10,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/authz"
-	licensectx "github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
-	android_mock "github.com/fleetdm/fleet/v4/server/mdm/android/mock"
-	ds_mock "github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	licensectx "github.com/anilyagiz/automdm/v4/server/contexts/license"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
+	android_mock "github.com/anilyagiz/automdm/v4/server/mdm/android/mock"
+	ds_mock "github.com/anilyagiz/automdm/v4/server/mock"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,8 +25,8 @@ import (
 
 func premiumAdminCtx(t *testing.T) context.Context {
 	t.Helper()
-	ctx := licensectx.NewContext(t.Context(), &fleet.LicenseInfo{Tier: fleet.TierPremium})
-	return viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{GlobalRole: new(fleet.RoleAdmin)}})
+	ctx := licensectx.NewContext(t.Context(), &automdm.LicenseInfo{Tier: automdm.TierPremium})
+	return viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{GlobalRole: new(automdm.RoleAdmin)}})
 }
 
 func setupEEService(t *testing.T) (*Service, *ds_mock.Store, *android_mock.Client) {
@@ -37,13 +37,13 @@ func setupEEService(t *testing.T) (*Service, *ds_mock.Store, *android_mock.Clien
 	apiClient.InitCommonMocks()
 
 	// Default mocks
-	mockDS.AppConfigFunc = func(_ context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{MDM: fleet.MDM{AndroidEnabledAndConfigured: true}}, nil
+	mockDS.AppConfigFunc = func(_ context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{MDM: automdm.MDM{AndroidEnabledAndConfigured: true}}, nil
 	}
-	mockDS.GetAllMDMConfigAssetsByNameFunc = func(_ context.Context, names []fleet.MDMAssetName, _ sqlx.QueryerContext) (map[fleet.MDMAssetName]fleet.MDMConfigAsset, error) {
-		result := make(map[fleet.MDMAssetName]fleet.MDMConfigAsset, len(names))
+	mockDS.GetAllMDMConfigAssetsByNameFunc = func(_ context.Context, names []automdm.MDMAssetName, _ sqlx.QueryerContext) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
+		result := make(map[automdm.MDMAssetName]automdm.MDMConfigAsset, len(names))
 		for _, name := range names {
-			result[name] = fleet.MDMConfigAsset{Value: []byte("value")}
+			result[name] = automdm.MDMConfigAsset{Value: []byte("value")}
 		}
 		return result, nil
 	}
@@ -65,12 +65,12 @@ type stubCoreService struct {
 	ensuredPolicyTeamID []uint
 }
 
-func (s *stubCoreService) EnsureFleetDefaultPolicy(_ context.Context, enterpriseName string, teamID uint) (string, error) {
+func (s *stubCoreService) EnsureAutoMDMDefaultPolicy(_ context.Context, enterpriseName string, teamID uint) (string, error) {
 	s.ensuredPolicyTeamID = append(s.ensuredPolicyTeamID, teamID)
 	if s.ensurePolicyErr != nil {
 		return "", s.ensurePolicyErr
 	}
-	return enterpriseName + "/policies/" + android.FleetDefaultPolicyID(teamID), nil
+	return enterpriseName + "/policies/" + android.AutoMDMDefaultPolicyID(teamID), nil
 }
 
 func TestGetZeroTouchConfiguration_PremiumRequired(t *testing.T) {
@@ -78,22 +78,22 @@ func TestGetZeroTouchConfiguration_PremiumRequired(t *testing.T) {
 
 	// No license in context
 	_, err := svc.GetZeroTouchConfiguration(t.Context(), nil)
-	require.ErrorIs(t, err, fleet.ErrMissingLicense)
+	require.ErrorIs(t, err, automdm.ErrMissingLicense)
 }
 
 func TestGetZeroTouchConfiguration_FreeLicense(t *testing.T) {
 	svc, _, _ := setupEEService(t)
 
-	ctx := licensectx.NewContext(t.Context(), &fleet.LicenseInfo{Tier: fleet.TierFree})
+	ctx := licensectx.NewContext(t.Context(), &automdm.LicenseInfo{Tier: automdm.TierFree})
 	_, err := svc.GetZeroTouchConfiguration(ctx, nil)
-	require.ErrorIs(t, err, fleet.ErrMissingLicense)
+	require.ErrorIs(t, err, automdm.ErrMissingLicense)
 }
 
 func TestGetZeroTouchConfiguration_AndroidNotConfigured(t *testing.T) {
 	svc, mockDS, _ := setupEEService(t)
 
-	mockDS.AppConfigFunc = func(_ context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{MDM: fleet.MDM{AndroidEnabledAndConfigured: false}}, nil
+	mockDS.AppConfigFunc = func(_ context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{MDM: automdm.MDM{AndroidEnabledAndConfigured: false}}, nil
 	}
 
 	_, err := svc.GetZeroTouchConfiguration(premiumAdminCtx(t), nil)
@@ -107,9 +107,9 @@ func TestGetZeroTouchConfiguration_ReturnsExistingToken(t *testing.T) {
 	mockDS.GetZeroTouchEnrollmentTokenFunc = func(_ context.Context, teamID *uint) (*android.ZeroTouchToken, error) {
 		assert.Nil(t, teamID)
 		return &android.ZeroTouchToken{
-			TokenValue:      "existing-token-value",
-			ExpiresAt:       time.Now().Add(100 * 365 * 24 * time.Hour),
-			UsesFleetPolicy: true,
+			TokenValue:        "existing-token-value",
+			ExpiresAt:         time.Now().Add(100 * 365 * 24 * time.Hour),
+			UsesAutoMDMPolicy: true,
 		}, nil
 	}
 
@@ -146,7 +146,7 @@ func TestGetZeroTouchConfiguration_ReplacesLegacyToken(t *testing.T) {
 			return &android.Enterprise{EnterpriseID: "LC00test"}, nil
 		}
 		apiClient.EnterprisesEnrollmentTokensCreateFunc = func(_ context.Context, _ string, token *androidmanagement.EnrollmentToken) (*androidmanagement.EnrollmentToken, error) {
-			assert.Equal(t, "enterprises/LC00test/policies/fleet7", token.PolicyName)
+			assert.Equal(t, "enterprises/LC00test/policies/automdm7", token.PolicyName)
 			return &androidmanagement.EnrollmentToken{
 				Name:                "enterprises/LC00test/enrollmentTokens/new",
 				Value:               "new-token-value",
@@ -166,7 +166,7 @@ func TestGetZeroTouchConfiguration_ReplacesLegacyToken(t *testing.T) {
 		mockDS.ReplaceZeroTouchEnrollmentTokenFunc = func(_ context.Context, oldTokenName string, token *android.ZeroTouchToken) (*android.ZeroTouchToken, error) {
 			assert.Equal(t, legacy.TokenName, oldTokenName)
 			assert.Equal(t, &teamID, token.TeamID)
-			assert.True(t, token.UsesFleetPolicy)
+			assert.True(t, token.UsesAutoMDMPolicy)
 			return token, nil
 		}
 
@@ -188,7 +188,7 @@ func TestGetZeroTouchConfiguration_ReplacesLegacyToken(t *testing.T) {
 		assert.Equal(t, "legacy-token-value", enrollmentToken(t, resp))
 		assert.False(t, apiClient.EnterprisesEnrollmentTokensCreateFuncInvoked)
 		assert.False(t, mockDS.ReplaceZeroTouchEnrollmentTokenFuncInvoked)
-		assert.Contains(t, logs.String(), "fleet_id=7 ", "the fleet ID is logged, not its pointer")
+		assert.Contains(t, logs.String(), "team_id=7 ", "the team ID is logged, not its pointer")
 	})
 
 	t.Run("save failure keeps the old token", func(t *testing.T) {
@@ -202,11 +202,11 @@ func TestGetZeroTouchConfiguration_ReplacesLegacyToken(t *testing.T) {
 		resp, err := svc.GetZeroTouchConfiguration(premiumAdminCtx(t), &teamID)
 		require.NoError(t, err)
 		assert.Equal(t, "legacy-token-value", enrollmentToken(t, resp))
-		assert.Contains(t, logs.String(), "fleet_id=7 ", "the fleet ID is logged, not its pointer")
+		assert.Contains(t, logs.String(), "team_id=7 ", "the team ID is logged, not its pointer")
 	})
 }
 
-// A fleet without a token still gets one when its default policy can't be created; it points at the global
+// A team without a token still gets one when its default policy can't be created; it points at the global
 // policy and is marked as such, so the next view replaces it.
 func TestGetZeroTouchConfiguration_NewTokenFallsBackToGlobalPolicy(t *testing.T) {
 	svc, mockDS, apiClient := setupEEService(t)
@@ -227,7 +227,7 @@ func TestGetZeroTouchConfiguration_NewTokenFallsBackToGlobalPolicy(t *testing.T)
 		}, nil
 	}
 	mockDS.CreateZeroTouchEnrollmentTokenFunc = func(_ context.Context, token *android.ZeroTouchToken) (*android.ZeroTouchToken, error) {
-		assert.False(t, token.UsesFleetPolicy)
+		assert.False(t, token.UsesAutoMDMPolicy)
 		return token, nil
 	}
 
@@ -254,8 +254,8 @@ func TestGetZeroTouchConfiguration_CreatesTokenWhenNoneExists(t *testing.T) {
 		assert.Equal(t, zeroTouchTokenDuration, token.Duration)
 		assert.False(t, token.OneTimeOnly)
 		assert.Equal(t, "PERSONAL_USAGE_DISALLOWED", token.AllowPersonalUsage)
-		assert.Contains(t, token.AdditionalData, `"fleet_id"`)
-		assert.Equal(t, "enterprises/LC00test/policies/fleet0", token.PolicyName)
+		assert.Contains(t, token.AdditionalData, `"team_id"`)
+		assert.Equal(t, "enterprises/LC00test/policies/automdm0", token.PolicyName)
 		return &androidmanagement.EnrollmentToken{
 			Name:                "enterprises/LC00test/enrollmentTokens/abc123",
 			Value:               "new-token-value",
@@ -267,7 +267,7 @@ func TestGetZeroTouchConfiguration_CreatesTokenWhenNoneExists(t *testing.T) {
 		assert.Equal(t, "enterprises/LC00test/enrollmentTokens/abc123", token.TokenName)
 		assert.Equal(t, "new-token-value", token.TokenValue)
 		assert.Nil(t, token.TeamID)
-		assert.True(t, token.UsesFleetPolicy)
+		assert.True(t, token.UsesAutoMDMPolicy)
 		token.ID = 1
 		return token, nil
 	}
@@ -288,12 +288,12 @@ type notFoundError struct{}
 func (e *notFoundError) Error() string    { return "not found" }
 func (e *notFoundError) IsNotFound() bool { return true }
 
-func TestGetZeroTouchConfiguration_FleetSelection(t *testing.T) {
-	const existingFleetID uint = 3
+func TestGetZeroTouchConfiguration_AutoMDMSelection(t *testing.T) {
+	const existingAutoMDMID uint = 3
 
 	cases := []struct {
 		name               string
-		fleetID            *uint
+		automdmID          *uint
 		hasExistingToken   bool
 		wantTeamID         *uint
 		wantAdditionalData string
@@ -302,37 +302,37 @@ func TestGetZeroTouchConfiguration_FleetSelection(t *testing.T) {
 		wantAMAPICall      bool
 	}{
 		{
-			name:               "no fleet creates an Unassigned token",
-			fleetID:            nil,
+			name:               "no team creates an Unassigned token",
+			automdmID:          nil,
 			wantTeamID:         nil,
-			wantAdditionalData: `{"fleet_id":null}`,
+			wantAdditionalData: `{"team_id":null}`,
 			wantAMAPICall:      true,
 		},
 		{
-			name:               "fleet 0 is treated as Unassigned",
-			fleetID:            new(uint(0)),
+			name:               "team 0 is treated as Unassigned",
+			automdmID:          new(uint(0)),
 			wantTeamID:         nil,
-			wantAdditionalData: `{"fleet_id":null}`,
+			wantAdditionalData: `{"team_id":null}`,
 			wantAMAPICall:      true,
 		},
 		{
-			name:               "existing fleet creates a token for that fleet",
-			fleetID:            new(existingFleetID),
-			wantTeamID:         new(existingFleetID),
-			wantAdditionalData: `{"fleet_id":3}`,
+			name:               "existing team creates a token for that team",
+			automdmID:          new(existingAutoMDMID),
+			wantTeamID:         new(existingAutoMDMID),
+			wantAdditionalData: `{"team_id":3}`,
 			wantTeamExistsCall: true,
 			wantAMAPICall:      true,
 		},
 		{
-			name:               "existing fleet with a token reuses it",
-			fleetID:            new(existingFleetID),
+			name:               "existing team with a token reuses it",
+			automdmID:          new(existingAutoMDMID),
 			hasExistingToken:   true,
-			wantTeamID:         new(existingFleetID),
+			wantTeamID:         new(existingAutoMDMID),
 			wantTeamExistsCall: true,
 		},
 		{
-			name:               "missing fleet returns not found",
-			fleetID:            new(uint(999)),
+			name:               "missing team returns not found",
+			automdmID:          new(uint(999)),
 			wantNotFound:       true,
 			wantTeamExistsCall: true,
 		},
@@ -343,12 +343,12 @@ func TestGetZeroTouchConfiguration_FleetSelection(t *testing.T) {
 			svc, mockDS, apiClient := setupEEService(t)
 
 			mockDS.TeamExistsFunc = func(_ context.Context, id uint) (bool, error) {
-				return id == existingFleetID, nil
+				return id == existingAutoMDMID, nil
 			}
 			mockDS.GetZeroTouchEnrollmentTokenFunc = func(_ context.Context, teamID *uint) (*android.ZeroTouchToken, error) {
 				assert.Equal(t, c.wantTeamID, teamID)
 				if c.hasExistingToken {
-					return &android.ZeroTouchToken{TeamID: teamID, TokenValue: "existing-token-value", UsesFleetPolicy: true}, nil
+					return &android.ZeroTouchToken{TeamID: teamID, TokenValue: "existing-token-value", UsesAutoMDMPolicy: true}, nil
 				}
 				return nil, &notFoundError{}
 			}
@@ -369,7 +369,7 @@ func TestGetZeroTouchConfiguration_FleetSelection(t *testing.T) {
 				return token, nil
 			}
 
-			resp, err := svc.GetZeroTouchConfiguration(premiumAdminCtx(t), c.fleetID)
+			resp, err := svc.GetZeroTouchConfiguration(premiumAdminCtx(t), c.automdmID)
 			assert.Equal(t, c.wantTeamExistsCall, mockDS.TeamExistsFuncInvoked)
 			assert.Equal(t, c.wantAMAPICall, apiClient.EnterprisesEnrollmentTokensCreateFuncInvoked)
 
@@ -396,27 +396,27 @@ func TestGetZeroTouchConfiguration_FleetSelection(t *testing.T) {
 	}
 }
 
-func TestGetZeroTouchConfiguration_FleetCheckedAfterLicense(t *testing.T) {
+func TestGetZeroTouchConfiguration_AutoMDMCheckedAfterLicense(t *testing.T) {
 	svc, mockDS, _ := setupEEService(t)
 
-	ctx := licensectx.NewContext(t.Context(), &fleet.LicenseInfo{Tier: fleet.TierFree})
+	ctx := licensectx.NewContext(t.Context(), &automdm.LicenseInfo{Tier: automdm.TierFree})
 	_, err := svc.GetZeroTouchConfiguration(ctx, new(uint(1)))
-	require.ErrorIs(t, err, fleet.ErrMissingLicense)
+	require.ErrorIs(t, err, automdm.ErrMissingLicense)
 	assert.False(t, mockDS.TeamExistsFuncInvoked)
 }
 
-func TestGetZeroTouchConfiguration_NonAdminRejectedBeforeFleetLookup(t *testing.T) {
-	for _, role := range []string{fleet.RoleMaintainer, fleet.RoleObserver} {
+func TestGetZeroTouchConfiguration_NonAdminRejectedBeforeAutoMDMLookup(t *testing.T) {
+	for _, role := range []string{automdm.RoleMaintainer, automdm.RoleObserver} {
 		t.Run(role, func(t *testing.T) {
 			svc, mockDS, _ := setupEEService(t)
 
-			ctx := licensectx.NewContext(t.Context(), &fleet.LicenseInfo{Tier: fleet.TierPremium})
-			ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{GlobalRole: new(role)}})
+			ctx := licensectx.NewContext(t.Context(), &automdm.LicenseInfo{Tier: automdm.TierPremium})
+			ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{GlobalRole: new(role)}})
 
 			_, err := svc.GetZeroTouchConfiguration(ctx, new(uint(999)))
 			var authzErr *authz.Forbidden
 			require.ErrorAs(t, err, &authzErr)
-			assert.False(t, mockDS.TeamExistsFuncInvoked, "fleet existence must not leak to non-admins")
+			assert.False(t, mockDS.TeamExistsFuncInvoked, "team existence must not leak to non-admins")
 		})
 	}
 }

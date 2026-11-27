@@ -3,11 +3,11 @@ package service
 import (
 	"context"
 
-	"github.com/fleetdm/fleet/v4/pkg/str"
-	"github.com/fleetdm/fleet/v4/server/chart/api"
-	api_http "github.com/fleetdm/fleet/v4/server/chart/api/http"
-	eu "github.com/fleetdm/fleet/v4/server/platform/endpointer"
-	platform_http "github.com/fleetdm/fleet/v4/server/platform/http"
+	"github.com/anilyagiz/automdm/v4/pkg/str"
+	"github.com/anilyagiz/automdm/v4/server/chart/api"
+	api_http "github.com/anilyagiz/automdm/v4/server/chart/api/http"
+	eu "github.com/anilyagiz/automdm/v4/server/platform/endpointer"
+	platform_http "github.com/anilyagiz/automdm/v4/server/platform/http"
 	"github.com/go-kit/kit/endpoint"
 	kithttp "github.com/go-kit/kit/transport/http"
 )
@@ -16,14 +16,14 @@ import (
 // authMiddleware.
 func GetRoutes(svc api.Service, authMiddleware endpoint.Middleware) eu.HandlerRoutesFunc {
 	return func(r *eu.Router, opts []kithttp.ServerOption) {
-		attachFleetAPIRoutes(r, svc, authMiddleware, opts)
+		attachAutoMDMAPIRoutes(r, svc, authMiddleware, opts)
 	}
 }
 
-func attachFleetAPIRoutes(r *eu.Router, svc api.Service, authMiddleware endpoint.Middleware, opts []kithttp.ServerOption) {
+func attachAutoMDMAPIRoutes(r *eu.Router, svc api.Service, authMiddleware endpoint.Middleware, opts []kithttp.ServerOption) {
 	apiVersions := []string{"v1", "2022-04"}
 	ue := newChartEndpointer(svc, authMiddleware, opts, r, apiVersions...)
-	ue.GET("/api/_version_/fleet/charts/{metric}", getChartDataEndpoint, api_http.GetChartDataRequest{})
+	ue.GET("/api/_version_/automdm/charts/{metric}", getChartDataEndpoint, api_http.GetChartDataRequest{})
 }
 
 func getChartDataEndpoint(ctx context.Context, request any, svc api.Service) (platform_http.Errorer, error) {

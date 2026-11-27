@@ -22,9 +22,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/datastore/redis"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis"
 	redigo "github.com/gomodule/redigo/redis"
 )
 
@@ -48,7 +48,7 @@ type statusCoder interface {
 // Handler.Retrieve to retrieve all stored errors and optionally clear them
 // from the store. It is safe to call those methods concurrently.
 type Handler struct {
-	pool    fleet.RedisPool
+	pool    automdm.RedisPool
 	logger  *slog.Logger
 	ttl     time.Duration
 	running int32 // accessed atomically
@@ -63,7 +63,7 @@ type Handler struct {
 // NewHandler creates an error handler using the provided pool and logger,
 // storing unique instances of errors in Redis using the pool. It stops storing
 // errors when ctx is cancelled. Errors are kept for the duration of ttl.
-func NewHandler(ctx context.Context, pool fleet.RedisPool, logger *slog.Logger, ttl time.Duration) *Handler {
+func NewHandler(ctx context.Context, pool automdm.RedisPool, logger *slog.Logger, ttl time.Duration) *Handler {
 	eh := &Handler{
 		pool:   pool,
 		logger: logger,
@@ -76,7 +76,7 @@ func NewHandler(ctx context.Context, pool fleet.RedisPool, logger *slog.Logger, 
 	return eh
 }
 
-func newTestHandler(ctx context.Context, pool fleet.RedisPool, logger *slog.Logger, ttl time.Duration, onStart func(), onStore func(error)) *Handler {
+func newTestHandler(ctx context.Context, pool automdm.RedisPool, logger *slog.Logger, ttl time.Duration, onStart func(), onStore func(error)) *Handler {
 	eh := &Handler{
 		pool:   pool,
 		logger: logger,
@@ -164,10 +164,10 @@ func sha256b64(s string) string {
 
 func hashError(err error) string {
 	cause := ctxerr.Cause(err)
-	ferr := ctxerr.FleetCause(err)
+	ferr := ctxerr.AutoMDMCause(err)
 
 	var sb strings.Builder
-	// hash the cause type and message (it might not be a FleetError).
+	// hash the cause type and message (it might not be an AutoMDMError).
 	// For request-timeout errors only, all socket addresses in the
 	// message (both local and remote, IPs and ports) are normalized
 	// away so that occurrences differing only by those addresses
@@ -179,17 +179,17 @@ func hashError(err error) string {
 	}
 	fmt.Fprintf(&sb, "%T\n%s\n", cause, msg)
 
-	// hash the stack trace of the root FleetError in the chain
+	// hash the stack trace of the root AutoMDMError in the chain
 	if ferr != nil {
 		fmt.Fprint(&sb, strings.Join(ferr.Stack(), "\n"))
 	}
 
-	// hash the vital FleetError fields
-	if fleetdErr, ok := cause.(fleet.FleetdError); ok {
+	// hash the vital AutoMDMError fields
+	if automdmdErr, ok := cause.(automdm.AutoMDMdError); ok {
 		_, _ = fmt.Fprint(&sb,
-			fleetdErr.ErrorSource,
-			fleetdErr.ErrorSourceVersion,
-			fleetdErr.ErrorAdditionalInfo,
+			automdmdErr.ErrorSource,
+			automdmdErr.ErrorSourceVersion,
+			automdmdErr.ErrorAdditionalInfo,
 		)
 	}
 

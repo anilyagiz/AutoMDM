@@ -13,17 +13,17 @@ import (
 	"testing"
 
 	"github.com/WatchBeam/clock"
+	shared_mdm "github.com/anilyagiz/automdm/v4/pkg/mdm"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis/redistest"
+	apple_mdm "github.com/anilyagiz/automdm/v4/server/mdm/apple"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	mockredis "github.com/anilyagiz/automdm/v4/server/mock/redis"
+	svcmock "github.com/anilyagiz/automdm/v4/server/mock/service"
+	"github.com/anilyagiz/automdm/v4/server/sso"
 	"github.com/crewjam/saml"
-	shared_mdm "github.com/fleetdm/fleet/v4/pkg/mdm"
-	"github.com/fleetdm/fleet/v4/server/authz"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/datastore/redis/redistest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	apple_mdm "github.com/fleetdm/fleet/v4/server/mdm/apple"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	mockredis "github.com/fleetdm/fleet/v4/server/mock/redis"
-	svcmock "github.com/fleetdm/fleet/v4/server/mock/service"
-	"github.com/fleetdm/fleet/v4/server/sso"
 	"github.com/stretchr/testify/require"
 )
 
@@ -58,11 +58,11 @@ func inflateMDMAuthnRequest(t *testing.T, s string) *saml.AuthnRequest {
 	return &req
 }
 
-func mdmSSOTestAppConfig(serverURL string, idpConfigured bool) *fleet.AppConfig {
-	ac := &fleet.AppConfig{ServerSettings: fleet.ServerSettings{ServerURL: serverURL}}
+func mdmSSOTestAppConfig(serverURL string, idpConfigured bool) *automdm.AppConfig {
+	ac := &automdm.AppConfig{ServerSettings: automdm.ServerSettings{ServerURL: serverURL}}
 	if idpConfigured {
-		ac.MDM.EndUserAuthentication.SSOProviderSettings = fleet.SSOProviderSettings{
-			EntityID: "fleet",
+		ac.MDM.EndUserAuthentication.SSOProviderSettings = automdm.SSOProviderSettings{
+			EntityID: "automdm",
 			IDPName:  "TestIDP",
 			Metadata: mdmSSOTestMetadata,
 		}
@@ -70,17 +70,17 @@ func mdmSSOTestAppConfig(serverURL string, idpConfigured bool) *fleet.AppConfig 
 	return ac
 }
 
-func newMDMSSOTestService(t *testing.T, appConfig *fleet.AppConfig, cfg config.FleetConfig) (*Service, *mock.Store) {
+func newMDMSSOTestService(t *testing.T, appConfig *automdm.AppConfig, cfg config.AutoMDMConfig) (*Service, *mock.Store) {
 	t.Helper()
 
 	authorizer, err := authz.NewAuthorizer()
 	require.NoError(t, err)
 
 	ds := new(mock.Store)
-	ds.AppConfigFunc = func(_ context.Context) (*fleet.AppConfig, error) { return appConfig, nil }
+	ds.AppConfigFunc = func(_ context.Context) (*automdm.AppConfig, error) { return appConfig, nil }
 
 	svcMock := &svcmock.Service{}
-	svcMock.NewActivityFunc = func(_ context.Context, _ *fleet.User, _ fleet.ActivityDetails) error { return nil }
+	svcMock.NewActivityFunc = func(_ context.Context, _ *automdm.User, _ automdm.ActivityDetails) error { return nil }
 
 	kvs, _ := inMemoryKeyValueStore()
 
@@ -106,18 +106,18 @@ func TestInitiateMDMSSOACSURLWithURLPrefix(t *testing.T) {
 	}{
 		{
 			name:      "server_url includes the subpath",
-			serverURL: "https://fleet.example.com/apps/fleet",
+			serverURL: "https://automdm.example.com/apps/automdm",
 		},
 		{
 			name:      "server_url omits the subpath",
-			serverURL: "https://fleet.example.com",
+			serverURL: "https://automdm.example.com",
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := config.TestConfig()
-			cfg.Server.URLPrefix = "/apps/fleet"
+			cfg.Server.URLPrefix = "/apps/automdm"
 
 			svc, _ := newMDMSSOTestService(t, mdmSSOTestAppConfig(tc.serverURL, true), cfg)
 
@@ -133,7 +133,7 @@ func TestInitiateMDMSSOACSURLWithURLPrefix(t *testing.T) {
 			authReq := inflateMDMAuthnRequest(t, encoded)
 			require.NotNil(t, authReq.AssertionConsumerServiceURL)
 			require.Equal(t,
-				"https://fleet.example.com/apps/fleet/api/v1/fleet/mdm/sso/callback",
+				"https://automdm.example.com/apps/automdm/api/v1/automdm/mdm/sso/callback",
 				authReq.AssertionConsumerServiceURL,
 			)
 		})
@@ -142,25 +142,25 @@ func TestInitiateMDMSSOACSURLWithURLPrefix(t *testing.T) {
 
 func TestInitiateMDMSSOSetsNoRelayState(t *testing.T) {
 	svc, _ := newMDMSSOTestService(t,
-		mdmSSOTestAppConfig("https://fleet.example.com", true), config.TestConfig())
+		mdmSSOTestAppConfig("https://automdm.example.com", true), config.TestConfig())
 
 	// Each initiator names its own host UUID and only setup_experience's is
 	// seeded, so this also fails if the pending-prompt precondition is ever
 	// widened past setup_experience.
 	hostUUIDFor := func(initiator string) string { return "host-uuid-for-" + initiator }
-	seedEndUserAuthPrompt(t, svc, hostUUIDFor(fleet.SSOInitiatorOrbitSetupExperience))
+	seedEndUserAuthPrompt(t, svc, hostUUIDFor(automdm.SSOInitiatorOrbitSetupExperience))
 
 	for _, initiator := range []string{
-		fleet.SSOInitiatorOTAEnroll,
-		fleet.SSOInitiatorOrbitSetupExperience,
-		fleet.SSOInitiatorAppleMDMSSO,
-		fleet.SSOInitiatorAccountDrivenEnroll,
-		fleet.SSOInitiatorAccountDrivenEnroll + ":cf2b9a1e4d7c8f36b05e91a2d4c7e830f16b5a92",
+		automdm.SSOInitiatorOTAEnroll,
+		automdm.SSOInitiatorOrbitSetupExperience,
+		automdm.SSOInitiatorAppleMDMSSO,
+		automdm.SSOInitiatorAccountDrivenEnroll,
+		automdm.SSOInitiatorAccountDrivenEnroll + ":cf2b9a1e4d7c8f36b05e91a2d4c7e830f16b5a92",
 	} {
 		t.Run(initiator, func(t *testing.T) {
-			var deviceInfo *fleet.MDMAppleMachineInfo
-			if initiator == fleet.SSOInitiatorAppleMDMSSO {
-				deviceInfo = &fleet.MDMAppleMachineInfo{Serial: "SERIAL1", UDID: "udid-1"}
+			var deviceInfo *automdm.MDMAppleMachineInfo
+			if initiator == automdm.SSOInitiatorAppleMDMSSO {
+				deviceInfo = &automdm.MDMAppleMachineInfo{Serial: "SERIAL1", UDID: "udid-1"}
 			}
 			_, _, idpURL, err := svc.InitiateMDMSSO(t.Context(), initiator, "", hostUUIDFor(initiator), deviceInfo)
 			require.NoError(t, err)
@@ -174,39 +174,39 @@ func TestInitiateMDMSSOSetsNoRelayState(t *testing.T) {
 
 func TestInitiateMDMSSOAppleMDMSSORequiresDeviceIdentity(t *testing.T) {
 	svc, _ := newMDMSSOTestService(t,
-		mdmSSOTestAppConfig("https://fleet.example.com", true), config.TestConfig())
+		mdmSSOTestAppConfig("https://automdm.example.com", true), config.TestConfig())
 
 	for _, tc := range []struct {
 		name       string
-		deviceInfo *fleet.MDMAppleMachineInfo
+		deviceInfo *automdm.MDMAppleMachineInfo
 	}{
 		{"no deviceinfo", nil},
-		{"no serial", &fleet.MDMAppleMachineInfo{UDID: "udid-1"}},
-		{"no udid", &fleet.MDMAppleMachineInfo{Serial: "SERIAL1"}},
+		{"no serial", &automdm.MDMAppleMachineInfo{UDID: "udid-1"}},
+		{"no udid", &automdm.MDMAppleMachineInfo{Serial: "SERIAL1"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			_, _, idpURL, err := svc.InitiateMDMSSO(t.Context(), fleet.SSOInitiatorAppleMDMSSO, "", "", tc.deviceInfo)
-			var badReq *fleet.BadRequestError
+			_, _, idpURL, err := svc.InitiateMDMSSO(t.Context(), automdm.SSOInitiatorAppleMDMSSO, "", "", tc.deviceInfo)
+			var badReq *automdm.BadRequestError
 			require.ErrorAs(t, err, &badReq)
 			require.Empty(t, idpURL)
 		})
 	}
 
 	// other initiators don't need it
-	_, _, idpURL, err := svc.InitiateMDMSSO(t.Context(), fleet.SSOInitiatorOTAEnroll, "", "", nil)
+	_, _, idpURL, err := svc.InitiateMDMSSO(t.Context(), automdm.SSOInitiatorOTAEnroll, "", "", nil)
 	require.NoError(t, err)
 	require.NotEmpty(t, idpURL)
 }
 
 func TestDeviceSSOErrorURL(t *testing.T) {
 	require.Equal(t,
-		"https://fleet.example.com/device/abc123?sso_error=sso_disabled",
-		deviceSSOErrorURL("https://fleet.example.com/device/abc123", "sso_disabled"))
+		"https://automdm.example.com/device/abc123?sso_error=sso_disabled",
+		deviceSSOErrorURL("https://automdm.example.com/device/abc123", "sso_disabled"))
 
 	// an existing query string is preserved
 	require.Equal(t,
-		"https://fleet.example.com/device/abc123?setup_only=1&sso_error=sso_disabled",
-		deviceSSOErrorURL("https://fleet.example.com/device/abc123?setup_only=1", "sso_disabled"))
+		"https://automdm.example.com/device/abc123?setup_only=1&sso_error=sso_disabled",
+		deviceSSOErrorURL("https://automdm.example.com/device/abc123?setup_only=1", "sso_disabled"))
 }
 
 func TestMDMSSOCallbackEarlyFailureRedirects(t *testing.T) {
@@ -230,7 +230,7 @@ func TestMDMSSOCallbackEarlyFailureRedirects(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			svc, _ := newMDMSSOTestService(t,
-				mdmSSOTestAppConfig("https://fleet.example.com", tc.idpConfigured), config.TestConfig())
+				mdmSSOTestAppConfig("https://automdm.example.com", tc.idpConfigured), config.TestConfig())
 			redirectURL, byodCookie, deviceSessionID, deviceSessionDuration := svc.MDMSSOCallback(
 				t.Context(), "does-not-exist", []byte("<x/>"))
 
@@ -240,14 +240,14 @@ func TestMDMSSOCallbackEarlyFailureRedirects(t *testing.T) {
 			require.Zero(t, deviceSessionDuration)
 
 			require.Contains(t, []string{
-				apple_mdm.FleetUISSOCallbackError,
-				apple_mdm.FleetUISSOCallbackSessionExpired,
+				apple_mdm.AutoMDMUISSOCallbackError,
+				apple_mdm.AutoMDMUISSOCallbackSessionExpired,
 			}, redirectURL, "early-failure redirect must be one the endpoint can rewrite")
 		})
 	}
 }
 
-// seedEndUserAuthPrompt puts the service in the state a device is in after Fleet
+// seedEndUserAuthPrompt puts the service in the state a device is in after AutoMDM
 // answered its enroll request with END_USER_AUTH_REQUIRED.
 func seedEndUserAuthPrompt(t *testing.T, svc *Service, hostUUID string) {
 	t.Helper()
@@ -257,11 +257,11 @@ func seedEndUserAuthPrompt(t *testing.T, svc *Service, hostUUID string) {
 
 func TestInitiateMDMSSOSetupExperienceRequiresPendingPrompt(t *testing.T) {
 	// A host UUID is not a secret, so the unauthenticated setup experience SSO
-	// flow may only be started for a device Fleet just told to authenticate.
+	// flow may only be started for a device AutoMDM just told to authenticate.
 	// Otherwise any IdP user can bind any host to their own account.
 	testCases := []struct {
 		name string
-		// pendingFor is the host UUID Fleet answered END_USER_AUTH_REQUIRED for.
+		// pendingFor is the host UUID AutoMDM answered END_USER_AUTH_REQUIRED for.
 		pendingFor  string
 		hostUUID    string
 		storeFails  bool
@@ -297,7 +297,7 @@ func TestInitiateMDMSSOSetupExperienceRequiresPendingPrompt(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			svc, _ := newMDMSSOTestService(t,
-				mdmSSOTestAppConfig("https://fleet.example.com", true), config.TestConfig())
+				mdmSSOTestAppConfig("https://automdm.example.com", true), config.TestConfig())
 			seedEndUserAuthPrompt(t, svc, tc.pendingFor)
 			if tc.storeFails {
 				svc.keyValueStore = &mockredis.KeyValueStore{
@@ -308,7 +308,7 @@ func TestInitiateMDMSSOSetupExperienceRequiresPendingPrompt(t *testing.T) {
 			}
 
 			_, _, idpURL, err := svc.InitiateMDMSSO(
-				t.Context(), fleet.SSOInitiatorOrbitSetupExperience, "", tc.hostUUID, nil)
+				t.Context(), automdm.SSOInitiatorOrbitSetupExperience, "", tc.hostUUID, nil)
 			if tc.wantRefused {
 				require.Error(t, err)
 				require.Empty(t, idpURL)
@@ -322,20 +322,20 @@ func TestInitiateMDMSSOSetupExperienceRequiresPendingPrompt(t *testing.T) {
 
 func TestBindHostToIdPAccountFromSSO(t *testing.T) {
 	const hostUUID = "host-uuid-1"
-	acct := &fleet.MDMIdPAccount{UUID: "acct-uuid-new", Email: "new@example.com"}
+	acct := &automdm.MDMIdPAccount{UUID: "acct-uuid-new", Email: "new@example.com"}
 
-	newBindTestService := func(t *testing.T) (*Service, *mock.Store, *[]fleet.ActivityDetails) {
+	newBindTestService := func(t *testing.T) (*Service, *mock.Store, *[]automdm.ActivityDetails) {
 		t.Helper()
 
 		svc, ds := newMDMSSOTestService(t,
-			mdmSSOTestAppConfig("https://fleet.example.com", true), config.TestConfig())
-		ds.GetMDMIdPAccountByUUIDFunc = func(_ context.Context, uuid string) (*fleet.MDMIdPAccount, error) {
-			return &fleet.MDMIdPAccount{UUID: uuid, Email: "old@example.com"}, nil
+			mdmSSOTestAppConfig("https://automdm.example.com", true), config.TestConfig())
+		ds.GetMDMIdPAccountByUUIDFunc = func(_ context.Context, uuid string) (*automdm.MDMIdPAccount, error) {
+			return &automdm.MDMIdPAccount{UUID: uuid, Email: "old@example.com"}, nil
 		}
 
-		var activities []fleet.ActivityDetails
+		var activities []automdm.ActivityDetails
 		svc.Service.(*svcmock.Service).NewActivityFunc = func(
-			_ context.Context, _ *fleet.User, activity fleet.ActivityDetails,
+			_ context.Context, _ *automdm.User, activity automdm.ActivityDetails,
 		) error {
 			activities = append(activities, activity)
 			return nil
@@ -345,7 +345,7 @@ func TestBindHostToIdPAccountFromSSO(t *testing.T) {
 
 	testCases := []struct {
 		name string
-		// prompted is whether Fleet is still waiting on this device's end user.
+		// prompted is whether AutoMDM is still waiting on this device's end user.
 		// Once the device has enrolled the prompt is gone, and a sign-in that
 		// started before that may no longer overwrite what enrollment settled on.
 		prompted bool
@@ -353,7 +353,7 @@ func TestBindHostToIdPAccountFromSSO(t *testing.T) {
 		previousAcctUUID string
 		wantReplace      bool
 		// wantActivity is nil when nothing is recorded.
-		wantActivity fleet.ActivityDetails
+		wantActivity automdm.ActivityDetails
 	}{
 		{
 			// The ordinary first enrollment: no account is linked to the UUID,
@@ -361,16 +361,16 @@ func TestBindHostToIdPAccountFromSSO(t *testing.T) {
 			name:        "binds a prompted device that has nothing linked yet",
 			prompted:    true,
 			wantReplace: true,
-			wantActivity: fleet.ActivityTypeBoundHostToIdPAccount{
+			wantActivity: automdm.ActivityTypeBoundHostToIdPAccount{
 				HostUUID: hostUUID, IdPEmail: "new@example.com",
 			},
 		},
 		{
-			name:             "replaces while fleet is still waiting on the device",
+			name:             "replaces while team is still waiting on the device",
 			prompted:         true,
 			previousAcctUUID: "acct-uuid-old",
 			wantReplace:      true,
-			wantActivity: fleet.ActivityTypeBoundHostToIdPAccount{
+			wantActivity: automdm.ActivityTypeBoundHostToIdPAccount{
 				HostUUID: hostUUID, IdPEmail: "new@example.com", ReplacedIdPEmail: "old@example.com",
 			},
 		},
@@ -379,13 +379,13 @@ func TestBindHostToIdPAccountFromSSO(t *testing.T) {
 			// recorded rather than only logged.
 			name:             "does not take over the binding of a host that already enrolled",
 			previousAcctUUID: "acct-uuid-old",
-			wantActivity: fleet.ActivityTypeRefusedHostIdPAccountChange{
+			wantActivity: automdm.ActivityTypeRefusedHostIdPAccountChange{
 				HostUUID: hostUUID, IdPEmail: "new@example.com", ExistingIdPEmail: "old@example.com",
 			},
 		},
 		{
 			name: "still fills in a missing binding after enrollment",
-			wantActivity: fleet.ActivityTypeBoundHostToIdPAccount{
+			wantActivity: automdm.ActivityTypeBoundHostToIdPAccount{
 				HostUUID: hostUUID, IdPEmail: "new@example.com",
 			},
 		},
@@ -417,7 +417,7 @@ func TestBindHostToIdPAccountFromSSO(t *testing.T) {
 				require.Empty(t, *activities)
 				return
 			}
-			require.Equal(t, []fleet.ActivityDetails{tc.wantActivity}, *activities)
+			require.Equal(t, []automdm.ActivityDetails{tc.wantActivity}, *activities)
 		})
 	}
 

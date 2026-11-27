@@ -1,14 +1,14 @@
 /** The original mdm command status representation */
 export type CommandStatus = "Pending" | "Acknowledged" | "Error" | "NotNow";
 
-/** The fleet representation of command status */
-export type FleetCommandStatus = "ran" | "pending" | "failed";
+/** The team representation of command status */
+export type AutoMDMCommandStatus = "ran" | "pending" | "failed";
 
 export interface ICommand {
   host_uuid: string;
   command_uuid: string;
   status: CommandStatus;
-  command_status: FleetCommandStatus;
+  command_status: AutoMDMCommandStatus;
   updated_at: string;
   request_type: string;
   hostname: string;
@@ -17,7 +17,7 @@ export interface ICommand {
 
 /**
  * Apple MDM command types that can be canceled while still pending delivery.
- * Keep in sync with CancelableAppleMDMRequestTypes (server/fleet/apple_mdm.go).
+ * Keep in sync with CancelableAppleMDMRequestTypes (server/automdm/apple_mdm.go).
  */
 const CANCELABLE_REQUEST_TYPES = [
   "DeviceLock",
@@ -37,7 +37,7 @@ export const isCancelableCommand = (command: ICommand): boolean =>
   );
 
 /**
- * Shape of an mdm command result object returned by the Fleet API.
+ * Shape of an mdm command result object returned by the AutoMDM API.
  */
 export interface ICommandResult {
   host_uuid: string;

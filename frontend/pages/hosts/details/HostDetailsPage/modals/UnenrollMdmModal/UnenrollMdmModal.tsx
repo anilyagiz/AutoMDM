@@ -22,7 +22,7 @@ interface IUnenrollMdmModalProps {
   hostName: string;
   enrollmentStatus: MdmEnrollmentStatus | null;
   onlyAllowAppleBusinessEnrollment: boolean;
-  depAssignedToFleet: boolean;
+  depAssignedToAutoMDM: boolean;
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -33,7 +33,7 @@ const UnenrollMdmModal = ({
   hostName,
   enrollmentStatus,
   onlyAllowAppleBusinessEnrollment,
-  depAssignedToFleet,
+  depAssignedToAutoMDM,
   onClose,
   onSuccess,
 }: IUnenrollMdmModalProps) => {
@@ -89,7 +89,7 @@ const UnenrollMdmModal = ({
 
   const generateIosOrIpadosDescription = () => {
     if (onlyAllowAppleBusinessEnrollment) {
-      if (isAutomaticDeviceEnrollment(enrollmentStatus) && depAssignedToFleet) {
+      if (isAutomaticDeviceEnrollment(enrollmentStatus) && depAssignedToAutoMDM) {
         return (
           <p>
             Once MDM is turned off, this host will be able to re-enroll as long
@@ -139,7 +139,7 @@ const UnenrollMdmModal = ({
     if (isIPadOrIPhone(hostPlatform)) {
       return (
         <>
-          <p>Settings and apps added by Fleet will be removed.</p>
+          <p>Settings and apps added by AutoMDM will be removed.</p>
           {generateIosOrIpadosDescription()}
         </>
       );
@@ -157,10 +157,10 @@ const UnenrollMdmModal = ({
     }
 
     if (isMacOS(hostPlatform) && onlyAllowAppleBusinessEnrollment) {
-      if (isAutomaticDeviceEnrollment(enrollmentStatus) && depAssignedToFleet) {
+      if (isAutomaticDeviceEnrollment(enrollmentStatus) && depAssignedToAutoMDM) {
         return (
           <>
-            <p>Settings configured by Fleet will be removed.</p>
+            <p>Settings configured by AutoMDM will be removed.</p>
             <p>
               Once MDM is turned off, this host will be able to re-enroll as
               long as it remains in Apple Business.
@@ -171,7 +171,7 @@ const UnenrollMdmModal = ({
 
       return (
         <>
-          <p>Settings configured by Fleet will be removed.</p>
+          <p>Settings configured by AutoMDM will be removed.</p>
           <p>
             Once MDM is turned off, this host will not be able to re-enroll
             unless it&apos;s added to Apple Business.
@@ -180,10 +180,10 @@ const UnenrollMdmModal = ({
       );
     }
 
-    if (isMacOS(hostPlatform) && depAssignedToFleet) {
+    if (isMacOS(hostPlatform) && depAssignedToAutoMDM) {
       return (
         <>
-          <p>Settings configured by Fleet will be removed.</p>
+          <p>Settings configured by AutoMDM will be removed.</p>
           <p>The device will automatically turn on MDM again, unless wiped.</p>
         </>
       );
@@ -191,7 +191,7 @@ const UnenrollMdmModal = ({
 
     return (
       <>
-        <p>Settings configured by Fleet will be removed.</p>
+        <p>Settings configured by AutoMDM will be removed.</p>
         <p>
           To turn on MDM again, ask the device user to follow the{" "}
           <b>Turn on MDM</b> instructions on their <b>My device</b> page.

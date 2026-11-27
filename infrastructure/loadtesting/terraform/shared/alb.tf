@@ -2,7 +2,7 @@ module "s3_bucket_for_logs" {
   source  = "terraform-aws-modules/s3-bucket/aws"
   version = "3.15.1"
 
-  bucket = "fleet-loadtesting-alb-logs"
+  bucket = "automdm-loadtesting-alb-logs"
 
   # Allow deletion of non-empty bucket
   force_destroy = true
@@ -57,7 +57,7 @@ module "athena-s3-bucket" {
   source  = "terraform-aws-modules/s3-bucket/aws"
   version = "3.15.1"
 
-  bucket = "fleet-loadtesting-alb-logs-athena"
+  bucket = "automdm-loadtesting-alb-logs-athena"
 
   # Allow deletion of non-empty bucket
   force_destroy = true
@@ -105,12 +105,12 @@ module "athena-s3-bucket" {
 }
 
 resource "aws_athena_database" "logs" {
-  name   = "fleet_loadtesting_alb_logs"
+  name   = "automdm_loadtesting_alb_logs"
   bucket = module.athena-s3-bucket.s3_bucket_id
 }
 
 resource "aws_athena_workgroup" "logs" {
-  name = "fleet-loadtesting-logs"
+  name = "automdm-loadtesting-logs"
 
   configuration {
     enforce_workgroup_configuration    = true
@@ -129,7 +129,7 @@ resource "aws_athena_workgroup" "logs" {
 }
 
 resource "aws_alb" "main" {
-  name                       = "fleetdm"
+  name                       = "automdm"
   internal                   = false #tfsec:ignore:aws-elb-alb-not-public
   security_groups            = [aws_security_group.lb.id]
   subnets                    = module.vpc.public_subnets
@@ -145,7 +145,7 @@ resource "aws_alb" "main" {
 
 }
 
-resource "aws_alb_listener" "https-fleetdm" {
+resource "aws_alb_listener" "https-automdm" {
   load_balancer_arn = aws_alb.main.arn
   port              = 443
   protocol          = "HTTPS"

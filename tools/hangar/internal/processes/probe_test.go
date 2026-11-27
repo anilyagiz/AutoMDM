@@ -11,7 +11,7 @@ import (
 
 func TestServeTCPCheck(t *testing.T) {
 	// A real TLS server (self-signed test cert) should pass — the probe
-	// accepts any cert, like fleet's dev cert.
+	// accepts any cert, like team's dev cert.
 	ts := httptest.NewTLSServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
 	defer ts.Close()
 	u, err := url.Parse(ts.URL)

@@ -112,7 +112,7 @@ const NotifyBeforePatchingDetailsModal = ({
           iconName={failed ? "error" : "success"}
           message={
             <span>
-              Fleet {verb} end user {timeLabel} before patching
+              AutoMDM {verb} end user {timeLabel} before patching
               {titleList && <> {titleList}</>} on{" "}
               <strong>{hostName || "this host"}</strong>.
             </span>
@@ -163,14 +163,14 @@ const NotifyBeforePatchingDetailsModal = ({
             <p className={`${baseClass}__output-label`}>
               The{" "}
               <TooltipWrapper
-                tipContent="Fleet records the last 10,000 characters to prevent downtime."
+                tipContent="AutoMDM records the last 10,000 characters to prevent downtime."
                 tooltipClass={`${baseClass}__output-tooltip`}
                 delayInMs={500}
                 position="bottom-start"
               >
                 output recorded
               </TooltipWrapper>{" "}
-              when Fleet ran the script above:
+              when AutoMDM ran the script above:
             </p>
             <Textarea variant="code">{outputBlock}</Textarea>
           </div>

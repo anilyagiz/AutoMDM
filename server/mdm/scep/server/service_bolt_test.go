@@ -14,9 +14,9 @@ import (
 	"testing"
 	"time"
 
-	scepdepot "github.com/fleetdm/fleet/v4/server/mdm/scep/depot"
-	boltdepot "github.com/fleetdm/fleet/v4/server/mdm/scep/depot/bolt"
-	scepserver "github.com/fleetdm/fleet/v4/server/mdm/scep/server"
+	scepdepot "github.com/anilyagiz/automdm/v4/server/mdm/scep/depot"
+	boltdepot "github.com/anilyagiz/automdm/v4/server/mdm/scep/depot/bolt"
+	scepserver "github.com/anilyagiz/automdm/v4/server/mdm/scep/server"
 
 	"github.com/smallstep/scep"
 	bolt "go.etcd.io/bbolt"

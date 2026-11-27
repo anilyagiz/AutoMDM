@@ -14,7 +14,7 @@ import (
 )
 
 // Windows account flags (lmaccess.h). UF_DONT_EXPIRE_PASSWD keeps the account usable as a
-// break-glass login: Fleet owns the password lifecycle, so Windows must not expire it underneath us.
+// break-glass login: AutoMDM owns the password lifecycle, so Windows must not expire it underneath us.
 const (
 	ufScript           = 0x0001
 	ufNormalAccount    = 0x0200
@@ -38,12 +38,12 @@ const (
 )
 
 // logonUIHiddenAccountsKey holds a DWORD per account name; 0 hides the account from the sign-in
-// screen and from Settings > Accounts. There is no MDM CSP for this, which is why fleetd does it.
+// screen and from Settings > Accounts. There is no MDM CSP for this, which is why automdmd does it.
 const logonUIHiddenAccountsKey = `SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon\SpecialAccounts\UserList`
 
-// fleetAccountComment is written as the account's description at creation: it is how a later run tells an account Fleet
+// automdmAccountComment is written as the account's description at creation: it is how a later run tells an account AutoMDM
 // created from an unrelated account that happens to share the name. Do not change this string.
-const fleetAccountComment = "Fleet-managed local administrator account."
+const automdmAccountComment = "AutoMDM-managed local administrator account."
 
 var (
 	netapi32                 = windows.NewLazySystemDLL("netapi32.dll")
@@ -95,7 +95,7 @@ func provisionAccount(username, password string) error {
 }
 
 // ensureUser creates the account, or resets its password when it already exists. The reset branch is what lets a retry
-// recover an account whose password Fleet never successfully escrowed.
+// recover an account whose password AutoMDM never successfully escrowed.
 func ensureUser(username, password string) error {
 	namePtr, err := windows.UTF16PtrFromString(username)
 	if err != nil {
@@ -112,12 +112,12 @@ func ensureUser(username, password string) error {
 	}
 
 	if existing != nil {
-		// Only adopt an account Fleet created. Anything else with this name belongs to someone else, and resetting its
+		// Only adopt an account AutoMDM created. Anything else with this name belongs to someone else, and resetting its
 		// password and elevating it would be destructive; report it instead so it surfaces on the host rather than
 		// silently changing an account we do not own.
-		if existing.comment != fleetAccountComment {
+		if existing.comment != automdmAccountComment {
 			return fmt.Errorf(
-				"an account named %s already exists and was not created by Fleet, refusing to take it over", username)
+				"an account named %s already exists and was not created by AutoMDM, refusing to take it over", username)
 		}
 
 		info := userInfo1003{Password: passwordPtr}
@@ -132,12 +132,12 @@ func ensureUser(username, password string) error {
 			return accountError(fmt.Sprintf("Resetting password for %s", username), ret, len(password))
 		}
 		// Resetting the password is not enough to make the account usable again. If it was disabled, locked out, or had
-		// its never-expire flag removed after we created it, Fleet would escrow a password that cannot actually log in.
+		// its never-expire flag removed after we created it, AutoMDM would escrow a password that cannot actually log in.
 		// Only the flags we own are touched, so anything else set on the account is preserved.
 		return normalizeUserFlags(namePtr, username, existing.flags)
 	}
 
-	comment, err := windows.UTF16PtrFromString(fleetAccountComment)
+	comment, err := windows.UTF16PtrFromString(automdmAccountComment)
 	if err != nil {
 		return fmt.Errorf("converting comment: %w", err)
 	}
@@ -163,7 +163,7 @@ func ensureUser(username, password string) error {
 // accountError turns a netapi32 return code into an error, spelling out password-policy rejections.
 // Windows reports every one of those as NERR_PasswordTooShort, whose text lives in netmsg.dll rather
 // than the system message table, so Go cannot format it and the admin would otherwise see the reason
-// their break-glass account never appeared as a bare "winapi error #2245" in Fleet.
+// their break-glass account never appeared as a bare "winapi error #2245" in AutoMDM.
 func accountError(op string, ret uintptr, passwordLen int) error {
 	if ret == nerrPasswordTooShort || ret == errorPasswordRestriction {
 		return fmt.Errorf(
@@ -211,7 +211,7 @@ func lookupUser(namePtr *uint16) (*existingAccount, error) {
 	}
 }
 
-// normalizeUserFlags re-applies the flags Fleet depends on to an account that already existed:
+// normalizeUserFlags re-applies the flags AutoMDM depends on to an account that already existed:
 // enabled, not locked out, and password never expires. Other flags are left untouched.
 func normalizeUserFlags(namePtr *uint16, username string, current uint32) error {
 	desired := (current &^ (ufAccountDisable | ufLockout)) | ufDontExpirePasswd

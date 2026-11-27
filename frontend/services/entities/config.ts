@@ -83,7 +83,7 @@ export default {
   // of using our sendRequest method.
   loadSandboxExpiry: async () => {
     const instanceId = window.location.host.split(".")[0];
-    const url = "https://sandbox.fleetdm.com/expires";
+    const url = "https://sandbox.automdm.com/expires";
 
     try {
       const { data } = await axios.get<{ timestamp: string }>(url, {

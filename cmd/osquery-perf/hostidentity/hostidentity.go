@@ -14,10 +14,10 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttpsig"
-	scepclient "github.com/fleetdm/fleet/v4/server/mdm/scep/client"
-	"github.com/fleetdm/fleet/v4/server/mdm/scep/enrollment"
-	"github.com/fleetdm/fleet/v4/server/mdm/scep/x509util"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttpsig"
+	scepclient "github.com/anilyagiz/automdm/v4/server/mdm/scep/client"
+	"github.com/anilyagiz/automdm/v4/server/mdm/scep/enrollment"
+	"github.com/anilyagiz/automdm/v4/server/mdm/scep/x509util"
 	"github.com/remitly-oss/httpsig-go"
 )
 
@@ -48,7 +48,7 @@ func NewClient(config Config, useHTTPSignatures bool, httpMessageSignatureP384Pr
 	}
 }
 
-// RequestCertificate requests a host identity certificate from Fleet via SCEP
+// RequestCertificate requests a host identity certificate from AutoMDM via SCEP
 func (c *Client) RequestCertificate() error {
 	if !c.useHTTPSignatures {
 		return nil // Not needed if not using HTTP signatures
@@ -68,7 +68,7 @@ func (c *Client) RequestCertificate() error {
 	}
 
 	// Create SCEP client with no-op logger and 30-second timeout
-	scepURL := fmt.Sprintf("%s/api/fleet/orbit/host_identity/scep", c.config.ServerAddress)
+	scepURL := fmt.Sprintf("%s/api/automdm/orbit/host_identity/scep", c.config.ServerAddress)
 	timeout := 30 * time.Second
 	scepClient, err := scepclient.New(scepURL, slog.New(slog.DiscardHandler),
 		scepclient.WithTimeout(&timeout),
@@ -155,7 +155,7 @@ func (c *Client) RequestCertificate() error {
 		return fmt.Errorf("unsupported curve: %v", eccPrivateKey.Curve)
 	}
 
-	signer, err := fleethttpsig.Signer(fmt.Sprintf("%X", cert.SerialNumber), eccPrivateKey, algo)
+	signer, err := automdmhttpsig.Signer(fmt.Sprintf("%X", cert.SerialNumber), eccPrivateKey, algo)
 	if err != nil {
 		log.Printf("Agent %d: Failed to create HTTP signer: %v", c.config.AgentIndex, err)
 		return err

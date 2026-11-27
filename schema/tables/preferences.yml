@@ -6,7 +6,7 @@ examples: |-
   SELECT * FROM users CROSS JOIN preferences USING (username);
   ```
 notes: |-
-  - Querying this table requires joining against the `users` table. [Learn more](https://fleetdm.com/guides/osquery-consider-joining-against-the-users-table)
+  - Querying this table requires joining against the `users` table. [Learn more](https://automdm.com/guides/osquery-consider-joining-against-the-users-table)
   
   - The `value` column will be empty for keys that contain binary data.
 columns:

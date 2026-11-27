@@ -17,9 +17,9 @@ import (
 	"strings"
 	"time"
 
-	scepclient "github.com/fleetdm/fleet/v4/server/mdm/scep/client"
-	"github.com/fleetdm/fleet/v4/server/mdm/scep/kitlogadapter"
-	"github.com/fleetdm/fleet/v4/server/platform/logging"
+	scepclient "github.com/anilyagiz/automdm/v4/server/mdm/scep/client"
+	"github.com/anilyagiz/automdm/v4/server/mdm/scep/kitlogadapter"
+	"github.com/anilyagiz/automdm/v4/server/platform/logging"
 	"github.com/smallstep/scep"
 )
 

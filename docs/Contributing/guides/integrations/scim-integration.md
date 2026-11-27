@@ -13,7 +13,7 @@
 
 Sample provisioning settings that work. Capabilities can be disabled and attributes can be removed as needed.
 
-![Okta to Fleet provisioning](../../assets/SCIM-Okta-provisioning.png)
+![Okta to AutoMDM provisioning](../../assets/SCIM-Okta-provisioning.png)
 
 From our testing with Okta, we see the following behavior that is worth noting:
 - Okta does not use PATCH endpoint
@@ -24,7 +24,7 @@ From our testing with Okta, we see the following behavior that is worth noting:
 First, create at least one SCIM user:
 
 ```
-POST https://localhost:8080/api/latest/fleet/scim/Users
+POST https://localhost:8080/api/latest/automdm/scim/Users
 Authorization: Bearer <API key>
 {
     "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
@@ -48,12 +48,12 @@ Run test using [Runscope](https://www.runscope.com/). See [instructions](https:/
 
 - [SCIM guide](https://learn.microsoft.com/en-us/entra/identity/app-provisioning/use-scim-to-provision-users-and-groups)
 - [SCIM validator](https://scimvalidator.microsoft.com/)
-  - Note: only test attributes implemented by Fleet
+  - Note: only test attributes implemented by AutoMDM
 
-By default, Entra ID SCIM client is not fully SCIM 2.0 compliant. [See details](https://learn.microsoft.com/en-us/entra/identity/app-provisioning/application-provisioning-config-problem-scim-compatibility). Fleet server does not support Entra ID's non-SCIM compliant client. To use the SCIM compliant Entra ID client, you must append the following URL parameter to the Fleet server's path: `aadOptscim062020`. This parameter is processed by Entra ID, not by Fleet. So, the Fleet URL should look like this:
+By default, Entra ID SCIM client is not fully SCIM 2.0 compliant. [See details](https://learn.microsoft.com/en-us/entra/identity/app-provisioning/application-provisioning-config-problem-scim-compatibility). AutoMDM server does not support Entra ID's non-SCIM compliant client. To use the SCIM compliant Entra ID client, you must append the following URL parameter to the AutoMDM server's path: `aadOptscim062020`. This parameter is processed by Entra ID, not by AutoMDM. So, the AutoMDM URL should look like this:
 
 ```
-https://<server_url>/api/v1/fleet/scim?aadOptscim062020
+https://<server_url>/api/v1/automdm/scim?aadOptscim062020
 ```
 
 ### Testing Entra ID integration
@@ -67,7 +67,7 @@ We support the `emails` attribute, even though it is not called out in our custo
 
 To see our supported attributes, check the schema:
 ```
-GET https://localhost:8080/api/latest/fleet/scim/Schemas
+GET https://localhost:8080/api/latest/automdm/scim/Schemas
 ```
 
 Results (2025/05/06)
@@ -125,4 +125,4 @@ erDiagram
 ## Notes
 
 - Okta does not support nested groups
-- Entra ID provisions nested groups by sending group-type members (e.g. a PATCH that adds a child group as a member of its parent) rather than flattening them into user members. Fleet stores these direct parent-to-child edges in the `scim_group_group` table and resolves a user's effective (transitive) group membership by walking the graph. A nested group must be assigned to the SCIM app in Entra just like a top-level group; it is not provisioned automatically with its parent.
+- Entra ID provisions nested groups by sending group-type members (e.g. a PATCH that adds a child group as a member of its parent) rather than flattening them into user members. AutoMDM stores these direct parent-to-child edges in the `scim_group_group` table and resolves a user's effective (transitive) group membership by walking the graph. A nested group must be assigned to the SCIM app in Entra just like a top-level group; it is not provisioned automatically with its parent.

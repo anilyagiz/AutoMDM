@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # Cato Browser uses the Chromium installer, which is silent by default.
 # --system-level installs for all users; without it the browser lands in the

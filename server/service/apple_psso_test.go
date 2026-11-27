@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mock"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -93,10 +93,10 @@ func (pssoTestNotFoundError) IsNotFound() bool { return true }
 // pssoBootstrapMock wires a mock datastore over an in-memory asset map so the
 // bootstrap can be exercised without MySQL. GetAll returns a not-found error
 // when nothing matches (mirroring the real datastore) and Insert appends.
-func pssoBootstrapMock(store map[fleet.MDMAssetName]fleet.MDMConfigAsset) *mock.DataStore {
+func pssoBootstrapMock(store map[automdm.MDMAssetName]automdm.MDMConfigAsset) *mock.DataStore {
 	ds := new(mock.DataStore)
-	ds.GetAllMDMConfigAssetsByNameFunc = func(_ context.Context, names []fleet.MDMAssetName, _ sqlx.QueryerContext) (map[fleet.MDMAssetName]fleet.MDMConfigAsset, error) {
-		out := map[fleet.MDMAssetName]fleet.MDMConfigAsset{}
+	ds.GetAllMDMConfigAssetsByNameFunc = func(_ context.Context, names []automdm.MDMAssetName, _ sqlx.QueryerContext) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
+		out := map[automdm.MDMAssetName]automdm.MDMConfigAsset{}
 		for _, n := range names {
 			if a, ok := store[n]; ok {
 				out[n] = a
@@ -110,7 +110,7 @@ func pssoBootstrapMock(store map[fleet.MDMAssetName]fleet.MDMConfigAsset) *mock.
 		}
 		return out, nil
 	}
-	ds.InsertMDMConfigAssetsFunc = func(_ context.Context, assets []fleet.MDMConfigAsset, _ sqlx.ExtContext) error {
+	ds.InsertMDMConfigAssetsFunc = func(_ context.Context, assets []automdm.MDMConfigAsset, _ sqlx.ExtContext) error {
 		for _, a := range assets {
 			store[a.Name] = a
 		}
@@ -141,18 +141,18 @@ func TestBootstrapPSSOAssets(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("creates signing key, CA, and encryption key when all absent", func(t *testing.T) {
-		store := map[fleet.MDMAssetName]fleet.MDMConfigAsset{}
+		store := map[automdm.MDMAssetName]automdm.MDMConfigAsset{}
 		ds := pssoBootstrapMock(store)
 
 		require.NoError(t, bootstrapPSSOAssets(ctx, ds))
 		require.True(t, ds.InsertMDMConfigAssetsFuncInvoked)
-		require.Contains(t, store, fleet.MDMAssetPSSOSigningKey)
-		require.Contains(t, store, fleet.MDMAssetPSSOCACert)
-		require.Contains(t, store, fleet.MDMAssetPSSOEncryptionKey)
+		require.Contains(t, store, automdm.MDMAssetPSSOSigningKey)
+		require.Contains(t, store, automdm.MDMAssetPSSOCACert)
+		require.Contains(t, store, automdm.MDMAssetPSSOEncryptionKey)
 
-		signingKey := parsePEMSigningKey(t, store[fleet.MDMAssetPSSOSigningKey].Value)
-		caCert := parsePEMCert(t, store[fleet.MDMAssetPSSOCACert].Value)
-		encKey := parsePEMSigningKey(t, store[fleet.MDMAssetPSSOEncryptionKey].Value)
+		signingKey := parsePEMSigningKey(t, store[automdm.MDMAssetPSSOSigningKey].Value)
+		caCert := parsePEMCert(t, store[automdm.MDMAssetPSSOCACert].Value)
+		encKey := parsePEMSigningKey(t, store[automdm.MDMAssetPSSOEncryptionKey].Value)
 
 		assert.True(t, caCert.IsCA)
 		// The CA is self-signed by the signing key, so its public key is the
@@ -169,56 +169,56 @@ func TestBootstrapPSSOAssets(t *testing.T) {
 	})
 
 	t.Run("no-op when all already exist", func(t *testing.T) {
-		store := map[fleet.MDMAssetName]fleet.MDMConfigAsset{}
+		store := map[automdm.MDMAssetName]automdm.MDMConfigAsset{}
 		require.NoError(t, bootstrapPSSOAssets(ctx, pssoBootstrapMock(store)))
-		seededKey := store[fleet.MDMAssetPSSOSigningKey].Value
-		seededCA := store[fleet.MDMAssetPSSOCACert].Value
-		seededEnc := store[fleet.MDMAssetPSSOEncryptionKey].Value
+		seededKey := store[automdm.MDMAssetPSSOSigningKey].Value
+		seededCA := store[automdm.MDMAssetPSSOCACert].Value
+		seededEnc := store[automdm.MDMAssetPSSOEncryptionKey].Value
 
 		ds := pssoBootstrapMock(store)
 		require.NoError(t, bootstrapPSSOAssets(ctx, ds))
 		// Nothing re-inserted, and the existing assets are untouched.
 		assert.False(t, ds.InsertMDMConfigAssetsFuncInvoked)
-		assert.Equal(t, seededKey, store[fleet.MDMAssetPSSOSigningKey].Value)
-		assert.Equal(t, seededCA, store[fleet.MDMAssetPSSOCACert].Value)
-		assert.Equal(t, seededEnc, store[fleet.MDMAssetPSSOEncryptionKey].Value)
+		assert.Equal(t, seededKey, store[automdm.MDMAssetPSSOSigningKey].Value)
+		assert.Equal(t, seededCA, store[automdm.MDMAssetPSSOCACert].Value)
+		assert.Equal(t, seededEnc, store[automdm.MDMAssetPSSOEncryptionKey].Value)
 	})
 
 	t.Run("creates only the encryption key when signing and CA already exist", func(t *testing.T) {
-		store := map[fleet.MDMAssetName]fleet.MDMConfigAsset{}
+		store := map[automdm.MDMAssetName]automdm.MDMConfigAsset{}
 		require.NoError(t, bootstrapPSSOAssets(ctx, pssoBootstrapMock(store)))
-		existingKeyPEM := store[fleet.MDMAssetPSSOSigningKey].Value
-		existingCAPEM := store[fleet.MDMAssetPSSOCACert].Value
+		existingKeyPEM := store[automdm.MDMAssetPSSOSigningKey].Value
+		existingCAPEM := store[automdm.MDMAssetPSSOCACert].Value
 		// Simulate a deployment configured before the encryption key existed.
-		delete(store, fleet.MDMAssetPSSOEncryptionKey)
+		delete(store, automdm.MDMAssetPSSOEncryptionKey)
 
 		ds := pssoBootstrapMock(store)
 		require.NoError(t, bootstrapPSSOAssets(ctx, ds))
 		require.True(t, ds.InsertMDMConfigAssetsFuncInvoked)
 
 		// The signing key and CA are preserved; only the encryption key is minted.
-		assert.Equal(t, existingKeyPEM, store[fleet.MDMAssetPSSOSigningKey].Value)
-		assert.Equal(t, existingCAPEM, store[fleet.MDMAssetPSSOCACert].Value)
-		require.Contains(t, store, fleet.MDMAssetPSSOEncryptionKey)
-		encKey := parsePEMSigningKey(t, store[fleet.MDMAssetPSSOEncryptionKey].Value)
+		assert.Equal(t, existingKeyPEM, store[automdm.MDMAssetPSSOSigningKey].Value)
+		assert.Equal(t, existingCAPEM, store[automdm.MDMAssetPSSOCACert].Value)
+		require.Contains(t, store, automdm.MDMAssetPSSOEncryptionKey)
+		encKey := parsePEMSigningKey(t, store[automdm.MDMAssetPSSOEncryptionKey].Value)
 		signingKey := parsePEMSigningKey(t, existingKeyPEM)
 		assert.False(t, encKey.PublicKey.Equal(&signingKey.PublicKey))
 	})
 
 	t.Run("creates only the CA over the existing key when CA is missing", func(t *testing.T) {
-		store := map[fleet.MDMAssetName]fleet.MDMConfigAsset{}
+		store := map[automdm.MDMAssetName]automdm.MDMConfigAsset{}
 		// Seed a signing key only (e.g. a POC instance pre-dating the CA asset).
 		require.NoError(t, bootstrapPSSOAssets(ctx, pssoBootstrapMock(store)))
-		existingKeyPEM := store[fleet.MDMAssetPSSOSigningKey].Value
-		delete(store, fleet.MDMAssetPSSOCACert)
+		existingKeyPEM := store[automdm.MDMAssetPSSOSigningKey].Value
+		delete(store, automdm.MDMAssetPSSOCACert)
 
 		ds := pssoBootstrapMock(store)
 		require.NoError(t, bootstrapPSSOAssets(ctx, ds))
 
 		// The signing key is preserved (not regenerated) and the new CA is signed by it.
-		assert.Equal(t, existingKeyPEM, store[fleet.MDMAssetPSSOSigningKey].Value)
+		assert.Equal(t, existingKeyPEM, store[automdm.MDMAssetPSSOSigningKey].Value)
 		signingKey := parsePEMSigningKey(t, existingKeyPEM)
-		caCert := parsePEMCert(t, store[fleet.MDMAssetPSSOCACert].Value)
+		caCert := parsePEMCert(t, store[automdm.MDMAssetPSSOCACert].Value)
 		caPub, ok := caCert.PublicKey.(*ecdsa.PublicKey)
 		require.True(t, ok)
 		assert.True(t, caPub.Equal(&signingKey.PublicKey))

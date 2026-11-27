@@ -52,7 +52,7 @@
 }
 {{- end }}
 
-{{ define "fleet_detail_query_network_interface_unix" -}}
+{{ define "team_detail_query_network_interface_unix" -}}
 [
   {
     "address":"fe80::8cb:112d:ff51:1e5d%en0",
@@ -60,7 +60,7 @@
   }
 ]
 {{- end }}
-{{ define "fleet_detail_query_os_version" -}}
+{{ define "team_detail_query_os_version" -}}
 [
   {
     "arch": "x86_64",
@@ -76,7 +76,7 @@
   }
 ]
 {{- end }}
-{{ define "fleet_detail_query_os_unix_like" -}}
+{{ define "team_detail_query_os_unix_like" -}}
 [
   {
     "name":"Red Hat Enterprise Linux",
@@ -92,7 +92,7 @@
   }
 ]
 {{- end }}
-{{ define "fleet_detail_query_osquery_flags" -}}
+{{ define "team_detail_query_osquery_flags" -}}
 [
   {
     "name":"config_refresh",
@@ -108,7 +108,7 @@
   }
 ]
 {{- end }}
-{{ define "fleet_detail_query_osquery_info" -}}
+{{ define "team_detail_query_osquery_info" -}}
 [
   {
     "pid":"11287",
@@ -126,7 +126,7 @@
   }
 ]
 {{- end }}
-{{ define "fleet_detail_query_system_info" -}}
+{{ define "team_detail_query_system_info" -}}
 [
   {
     "hostname":"{{ .CachedString "hostname" }}",
@@ -147,7 +147,7 @@
   }
 ]
 {{- end }}
-{{ define "fleet_detail_query_uptime" -}}
+{{ define "team_detail_query_uptime" -}}
 [
   {
     "days":"0",
@@ -159,7 +159,7 @@
 ]
 {{- end }}
 
-{{ define "fleet_detail_query_timezone_unix" -}}
+{{ define "team_detail_query_timezone_unix" -}}
 [
   {
     "symlink_target_path":"/usr/share/zoneinfo/Etc/UTC"
@@ -168,7 +168,7 @@
 {{- end }}
 
 {{/* all hosts */}}
-{{ define "fleet_label_query_6" -}}
+{{ define "automdm_label_query_6" -}}
 [
   {
     "1": "1"
@@ -177,27 +177,27 @@
 {{- end }}
 
 {{/* All macOS hosts */}}
-{{ define "fleet_label_query_7" -}}
+{{ define "automdm_label_query_7" -}}
 []
 {{- end }}
 
 {{/* All Ubuntu hosts */}}
-{{ define "fleet_label_query_8" -}}
+{{ define "automdm_label_query_8" -}}
 []
 {{- end }}
 
 {{/* All CentOS hosts */}}
-{{ define "fleet_label_query_9" -}}
+{{ define "automdm_label_query_9" -}}
 []
 {{- end }}
 
 {{/* All Windows hosts */}}
-{{ define "fleet_label_query_10" -}}
+{{ define "automdm_label_query_10" -}}
 []
 {{- end }}
 
 {{/* All Red Hat hosts */}}
-{{ define "fleet_label_query_11" -}}
+{{ define "automdm_label_query_11" -}}
 [
   {
     "1": "1"
@@ -206,7 +206,7 @@
 {{- end }}
 
 {{/* All Linux distributions */}}
-{{ define "fleet_label_query_12" -}}
+{{ define "automdm_label_query_12" -}}
 [
   {
     "1": "1"

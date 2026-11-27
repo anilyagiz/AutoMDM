@@ -24,7 +24,7 @@ interface IManagedAccountModalProps {
   // We deferred this decision for now because this modal only displays for
   // Admin or Maintainer roles
   canRotatePassword: boolean;
-  /** The last rotation failed. The password shown is still the last one Fleet received. The reason the host
+  /** The last rotation failed. The password shown is still the last one AutoMDM received. The reason the host
    * reported is shown on the failure activity instead, not here. */
   rotationFailed?: boolean;
   onCancel: () => void;
@@ -123,7 +123,7 @@ const ManagedAccountModal = ({
           <>
             <div className={`${baseClass}__username`}>
               <span className={`${baseClass}__label`}>Username</span>
-              <span className={`${baseClass}__value`}>_fleetadmin</span>
+              <span className={`${baseClass}__value`}>_automdmadmin</span>
             </div>
             <InputFieldHiddenContent
               value={managedAccountData?.password ?? ""}

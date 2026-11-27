@@ -28,7 +28,7 @@ const EMPTY_END_USER_AUTH: IEndUserAuthentication = {
 
 const CONFIGURED_END_USER_AUTH: IEndUserAuthentication = {
   idp_name: "Okta",
-  entity_id: "https://fleet.example.com",
+  entity_id: "https://automdm.example.com",
   metadata_url: "https://idp.example.com/metadata",
   metadata: "",
   issuer_uri: "",
@@ -92,7 +92,7 @@ describe("EndUserAuthSection", () => {
 
     expect(screen.getByLabelText("Identity provider name")).toHaveValue("Okta");
     expect(screen.getByLabelText("Entity ID")).toHaveValue(
-      "https://fleet.example.com"
+      "https://automdm.example.com"
     );
     expect(screen.getByLabelText("Metadata URL")).toHaveValue(
       "https://idp.example.com/metadata"
@@ -141,7 +141,7 @@ describe("EndUserAuthSection", () => {
 
     await user.type(
       screen.getByLabelText("Entity ID"),
-      "https://fleet.example.com"
+      "https://automdm.example.com"
     );
     await user.tab();
 
@@ -287,7 +287,7 @@ describe("EndUserAuthSection", () => {
     );
     await user.type(
       screen.getByLabelText("Entity ID"),
-      "  https://fleet.example.com  "
+      "  https://automdm.example.com  "
     );
     await user.type(
       screen.getByLabelText("Metadata URL"),
@@ -300,7 +300,7 @@ describe("EndUserAuthSection", () => {
         mdm: {
           end_user_authentication: {
             idp_name: "Okta",
-            entity_id: "https://fleet.example.com",
+            entity_id: "https://automdm.example.com",
             metadata_url: "https://idp.example.com/metadata",
             metadata: "",
           },

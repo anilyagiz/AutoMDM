@@ -16,10 +16,10 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/logging"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/cryptoutil"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/logging"
+	"github.com/anilyagiz/automdm/v4/server/mdm/cryptoutil"
 )
 
 // HTTP paths for the Apple Platform SSO endpoints. All but the AASA path live
@@ -47,7 +47,7 @@ const pssoContentTypeLoginResponse = "application/platformsso-login-response+jwt
 type pssoNonceRequest struct{}
 
 // DecodeBody drains and discards the request body. Apple's AppSSOAgent POSTs a
-// urlencoded grant_type=srv_challenge form to the nonce endpoint, but Fleet
+// urlencoded grant_type=srv_challenge form to the nonce endpoint, but AutoMDM
 // needs nothing from it — it just mints a nonce. This method must exist so the
 // endpoint framework routes the form body here instead of trying to decode as JSON.
 func (pssoNonceRequest) DecodeBody(_ context.Context, r io.Reader, _ url.Values, _ []*x509.Certificate) error {
@@ -64,7 +64,7 @@ type pssoNonceResponse struct {
 
 func (r pssoNonceResponse) Error() error { return r.Err }
 
-func pssoNonceEndpoint(ctx context.Context, _ any, svc fleet.Service) (fleet.Errorer, error) {
+func pssoNonceEndpoint(ctx context.Context, _ any, svc automdm.Service) (automdm.Errorer, error) {
 	nonce, err := svc.PSSONonce(ctx)
 	if err != nil {
 		return pssoNonceResponse{Err: err}, nil
@@ -77,7 +77,7 @@ func pssoNonceEndpoint(ctx context.Context, _ any, svc fleet.Service) (fleet.Err
 ////////////////////////////////////////////////////////////////////////////////
 
 type pssoRegistrationRequest struct {
-	fleet.PSSODeviceRegistrationRequest
+	automdm.PSSODeviceRegistrationRequest
 }
 
 // DecodeBody parses the urlencoded form the extension POSTs. The reader is
@@ -104,7 +104,7 @@ func (r pssoRegistrationResponse) Error() error { return r.Err }
 
 func (r pssoRegistrationResponse) Status() int { return http.StatusNoContent }
 
-func pssoRegistrationEndpoint(ctx context.Context, request any, svc fleet.Service) (fleet.Errorer, error) {
+func pssoRegistrationEndpoint(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*pssoRegistrationRequest)
 	if err := svc.PSSORegisterDevice(ctx, req.PSSODeviceRegistrationRequest); err != nil {
 		return pssoRegistrationResponse{Err: err}, nil
@@ -130,7 +130,7 @@ func (req *pssoTokenRequest) DecodeBody(ctx context.Context, r io.Reader, _ url.
 	}
 	req.Assertion = form.Get("assertion")
 	if req.Assertion == "" {
-		return &fleet.BadRequestError{Message: "psso token: missing assertion"}
+		return &automdm.BadRequestError{Message: "psso token: missing assertion"}
 	}
 	return nil
 }
@@ -150,7 +150,7 @@ func (r pssoTokenResponse) HijackRender(ctx context.Context, w http.ResponseWrit
 	}
 }
 
-func pssoTokenEndpoint(ctx context.Context, request any, svc fleet.Service) (fleet.Errorer, error) {
+func pssoTokenEndpoint(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*pssoTokenRequest)
 	out, err := svc.PSSOToken(ctx, []byte(req.Assertion))
 	if err != nil {
@@ -179,7 +179,7 @@ func (r pssoJWKSResponse) HijackRender(ctx context.Context, w http.ResponseWrite
 	}
 }
 
-func pssoJWKSEndpoint(ctx context.Context, _ any, svc fleet.Service) (fleet.Errorer, error) {
+func pssoJWKSEndpoint(ctx context.Context, _ any, svc automdm.Service) (automdm.Errorer, error) {
 	body, err := svc.PSSOJWKS(ctx)
 	if err != nil {
 		return pssoJWKSResponse{Err: err}, nil
@@ -195,7 +195,7 @@ func pssoJWKSEndpoint(ctx context.Context, _ any, svc fleet.Service) (fleet.Erro
 // fetches to validate the extension's `authsrv:` entitlement against this
 // hostname. It stays a raw root-mux handler because the path is fixed by
 // Apple's spec and can't live under /api.
-func pssoAASAHandler(svc fleet.Service, _ *slog.Logger) http.Handler {
+func pssoAASAHandler(svc automdm.Service, _ *slog.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
@@ -225,7 +225,7 @@ func parseURLEncodedForm(ctx context.Context, r io.Reader) (url.Values, error) {
 	}
 	form, err := url.ParseQuery(string(raw))
 	if err != nil {
-		return nil, &fleet.BadRequestError{Message: "invalid urlencoded form body", InternalErr: err}
+		return nil, &automdm.BadRequestError{Message: "invalid urlencoded form body", InternalErr: err}
 	}
 	return form, nil
 }
@@ -233,38 +233,38 @@ func parseURLEncodedForm(ctx context.Context, r io.Reader) (url.Values, error) {
 // ----- core-side service-method stubs --------------------------------------
 //
 // All PSSO business logic lives in ee/server/service. The core stubs below
-// return fleet.ErrMissingLicense so unlicensed Fleet deployments respond with
+// return automdm.ErrMissingLicense so unlicensed AutoMDM deployments respond with
 // a well-formed error instead of 404. The ee implementation overrides these
 // methods on the embedded core Service.
 
 func (svc *Service) PSSONonce(ctx context.Context) (string, error) {
 	// skipauth: Implementation returns only the license error; nothing to authorize.
 	svc.authz.SkipAuthorization(ctx)
-	return "", fleet.ErrMissingLicense
+	return "", automdm.ErrMissingLicense
 }
 
-func (svc *Service) PSSORegisterDevice(ctx context.Context, _ fleet.PSSODeviceRegistrationRequest) error {
+func (svc *Service) PSSORegisterDevice(ctx context.Context, _ automdm.PSSODeviceRegistrationRequest) error {
 	// skipauth: Implementation returns only the license error; nothing to authorize.
 	svc.authz.SkipAuthorization(ctx)
-	return fleet.ErrMissingLicense
+	return automdm.ErrMissingLicense
 }
 
 func (svc *Service) PSSOToken(ctx context.Context, _ []byte) ([]byte, error) {
 	// skipauth: Implementation returns only the license error; nothing to authorize.
 	svc.authz.SkipAuthorization(ctx)
-	return nil, fleet.ErrMissingLicense
+	return nil, automdm.ErrMissingLicense
 }
 
 func (svc *Service) PSSOJWKS(ctx context.Context) ([]byte, error) {
 	// skipauth: Implementation returns only the license error; nothing to authorize.
 	svc.authz.SkipAuthorization(ctx)
-	return nil, fleet.ErrMissingLicense
+	return nil, automdm.ErrMissingLicense
 }
 
 func (svc *Service) PSSOAASA(ctx context.Context) ([]byte, error) {
 	// skipauth: Implementation returns only the license error; nothing to authorize.
 	svc.authz.SkipAuthorization(ctx)
-	return nil, fleet.ErrMissingLicense
+	return nil, automdm.ErrMissingLicense
 }
 
 // ----- PSSO asset bootstrap -------------------------------------------------
@@ -274,7 +274,7 @@ func (svc *Service) PSSOAASA(ctx context.Context) ([]byte, error) {
 // loads them back, using the standard PEM encodings written below.
 
 // pssoCAValidYears is the lifetime of the self-signed Platform SSO CA, matching
-// other CAs in fleet and minted once, when the feature is first configured.
+// other CAs in team and minted once, when the feature is first configured.
 const pssoCAValidYears = 10
 
 // bootstrapPSSOAssets ensures the Platform SSO signing key, its CA certificate
@@ -282,14 +282,14 @@ const pssoCAValidYears = 10
 // exist in mdm_config_assets. It runs when the feature is configured and is
 // idempotent: existing assets are never regenerated, so the signing key and
 // encryption key (both published via JWKS) and the CA remain stable.
-func bootstrapPSSOAssets(ctx context.Context, ds fleet.Datastore) error {
+func bootstrapPSSOAssets(ctx context.Context, ds automdm.Datastore) error {
 	assets, err := ds.GetAllMDMConfigAssetsByName(ctx,
-		[]fleet.MDMAssetName{fleet.MDMAssetPSSOSigningKey, fleet.MDMAssetPSSOCACert, fleet.MDMAssetPSSOEncryptionKey},
+		[]automdm.MDMAssetName{automdm.MDMAssetPSSOSigningKey, automdm.MDMAssetPSSOCACert, automdm.MDMAssetPSSOEncryptionKey},
 		nil,
 	)
 	// A partial result (some assets present, others missing) returns an error
 	// alongside the assets it did find; only a hard error with nothing usable is fatal.
-	if err != nil && !fleet.IsNotFound(err) && len(assets) == 0 {
+	if err != nil && !automdm.IsNotFound(err) && len(assets) == 0 {
 		return ctxerr.Wrap(ctx, err, "load psso assets")
 	}
 
@@ -297,9 +297,9 @@ func bootstrapPSSOAssets(ctx context.Context, ds fleet.Datastore) error {
 	haveCA := false
 	haveEnc := false
 	if assets != nil {
-		_, haveKey = assets[fleet.MDMAssetPSSOSigningKey]
-		_, haveCA = assets[fleet.MDMAssetPSSOCACert]
-		_, haveEnc = assets[fleet.MDMAssetPSSOEncryptionKey]
+		_, haveKey = assets[automdm.MDMAssetPSSOSigningKey]
+		_, haveCA = assets[automdm.MDMAssetPSSOCACert]
+		_, haveEnc = assets[automdm.MDMAssetPSSOEncryptionKey]
 	}
 	if haveKey && haveCA && haveEnc {
 		return nil
@@ -315,7 +315,7 @@ func bootstrapPSSOAssets(ctx context.Context, ds fleet.Datastore) error {
 		return ctxerr.Wrap(ctx, err, "parse existing psso signing key")
 	}
 
-	var toInsert []fleet.MDMConfigAsset
+	var toInsert []automdm.MDMConfigAsset
 	if signingKey == nil {
 		signingKey, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 		if err != nil {
@@ -325,8 +325,8 @@ func bootstrapPSSOAssets(ctx context.Context, ds fleet.Datastore) error {
 		if err != nil {
 			return ctxerr.Wrap(ctx, err, "marshal psso signing key")
 		}
-		toInsert = append(toInsert, fleet.MDMConfigAsset{
-			Name:  fleet.MDMAssetPSSOSigningKey,
+		toInsert = append(toInsert, automdm.MDMConfigAsset{
+			Name:  automdm.MDMAssetPSSOSigningKey,
 			Value: pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: der}),
 		})
 	}
@@ -335,8 +335,8 @@ func bootstrapPSSOAssets(ctx context.Context, ds fleet.Datastore) error {
 		if err != nil {
 			return ctxerr.Wrap(ctx, err, "create psso ca certificate")
 		}
-		toInsert = append(toInsert, fleet.MDMConfigAsset{
-			Name:  fleet.MDMAssetPSSOCACert,
+		toInsert = append(toInsert, automdm.MDMConfigAsset{
+			Name:  automdm.MDMAssetPSSOCACert,
 			Value: pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: caDER}),
 		})
 	}
@@ -345,8 +345,8 @@ func bootstrapPSSOAssets(ctx context.Context, ds fleet.Datastore) error {
 		if err != nil {
 			return ctxerr.Wrap(ctx, err, "generate psso encryption key")
 		}
-		toInsert = append(toInsert, fleet.MDMConfigAsset{
-			Name:  fleet.MDMAssetPSSOEncryptionKey,
+		toInsert = append(toInsert, automdm.MDMConfigAsset{
+			Name:  automdm.MDMAssetPSSOEncryptionKey,
 			Value: encKeyPEM,
 		})
 	}
@@ -373,8 +373,8 @@ func generatePSSOECPrivateKeyPEM() ([]byte, error) {
 
 // pssoSigningKeyFromAssets parses the PSSO signing key out of a loaded asset map,
 // returning (nil, nil) when it isn't present so the caller can mint a fresh one.
-func pssoSigningKeyFromAssets(assets map[fleet.MDMAssetName]fleet.MDMConfigAsset) (*ecdsa.PrivateKey, error) {
-	asset, ok := assets[fleet.MDMAssetPSSOSigningKey]
+func pssoSigningKeyFromAssets(assets map[automdm.MDMAssetName]automdm.MDMConfigAsset) (*ecdsa.PrivateKey, error) {
+	asset, ok := assets[automdm.MDMAssetPSSOSigningKey]
 	if !ok || len(asset.Value) == 0 {
 		return nil, nil
 	}
@@ -386,7 +386,7 @@ func pssoSigningKeyFromAssets(assets map[fleet.MDMAssetName]fleet.MDMConfigAsset
 }
 
 // selfSignPSSOCACert self-signs a Platform SSO CA certificate over signingKey.
-// Serial 1 matches Fleet's other self-signed CA roots (server/mdm/scep/depot):
+// Serial 1 matches AutoMDM's other self-signed CA roots (server/mdm/scep/depot):
 // the CA is the only self-signed certificate this key ever produces, so the
 // serial is unique by construction.
 func selfSignPSSOCACert(signingKey *ecdsa.PrivateKey) ([]byte, error) {
@@ -397,7 +397,7 @@ func selfSignPSSOCACert(signingKey *ecdsa.PrivateKey) ([]byte, error) {
 	now := time.Now()
 	tmpl := &x509.Certificate{
 		SerialNumber:          big.NewInt(1),
-		Subject:               pkix.Name{CommonName: "Fleet PSSO CA"},
+		Subject:               pkix.Name{CommonName: "AutoMDM PSSO CA"},
 		NotBefore:             now.Add(-time.Hour),
 		NotAfter:              now.AddDate(pssoCAValidYears, 0, 0),
 		IsCA:                  true,

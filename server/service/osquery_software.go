@@ -4,49 +4,49 @@ import (
 	"context"
 
 	"github.com/Masterminds/semver/v3"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
-// orbitSoftwareQuery is an extra software query backed by a fleetd table whose sources no other
-// query reports. While fleetd's extension is not yet registered with osqueryd, as right after a
+// orbitSoftwareQuery is an extra software query backed by an automdmd table whose sources no other
+// query reports. While automdmd's extension is not yet registered with osqueryd, as right after a
 // reboot, its discovery finds no table and osquery sends nothing for it, which the full replace
 // in directIngestSoftware would read as "none installed".
 type orbitSoftwareQuery struct {
 	sources []string
-	// An older fleetd never ran the query, so there is nothing to keep.
-	minFleetdVersion *semver.Version
+	// An older automdmd never ran the query, so there is nothing to keep.
+	minAutoMDMdVersion *semver.Version
 }
 
 // orbitSoftwareQueries lists, by detail query name, the queries whose rows are kept when the
 // query did not run. Only the sources a query alone reports are listed: ai_tools rows with its
 // pseudo-source are never stored, and the rows it flags on other sources survive on their own.
 var orbitSoftwareQueries = map[string]orbitSoftwareQuery{
-	"software_linux_fleetd_pacman": {
-		sources:          []string{"pacman_packages"},
-		minFleetdVersion: semver.MustParse("1.48.1"),
+	"software_linux_automdmd_pacman": {
+		sources:            []string{"pacman_packages"},
+		minAutoMDMdVersion: semver.MustParse("1.48.1"),
 	},
 	"software_go_binaries": {
-		sources:          []string{"go_binaries"},
-		minFleetdVersion: semver.MustParse("1.54.0"),
+		sources:            []string{"go_binaries"},
+		minAutoMDMdVersion: semver.MustParse("1.54.0"),
 	},
 	"software_adobe_plugins": {
-		sources:          []string{"adobe_plugins"},
-		minFleetdVersion: semver.MustParse("1.56.2"),
+		sources:            []string{"adobe_plugins"},
+		minAutoMDMdVersion: semver.MustParse("1.56.2"),
 	},
 	"software_ai_tools": {
-		sources:          []string{"ai_clis", "mcp_servers", "ai_skills"},
-		minFleetdVersion: semver.MustParse("1.59.0"),
+		sources:            []string{"ai_clis", "mcp_servers", "ai_skills"},
+		minAutoMDMdVersion: semver.MustParse("1.59.0"),
 	},
-	"software_linux_fleetd_nix": {
-		sources:          []string{"nix_packages"},
-		minFleetdVersion: semver.MustParse("1.63.0"),
+	"software_linux_automdmd_nix": {
+		sources:            []string{"nix_packages"},
+		minAutoMDMdVersion: semver.MustParse("1.63.0"),
 	},
 }
 
 // preservedSoftwareSources returns the sources of the skipped orbit software queries that were
-// sent to the host and whose table its fleetd ships. The fleetd version is read from
+// sent to the host and whose table its automdmd ships. The automdmd version is read from
 // host_orbit_info because orbit_info is itself an orbit table and misses the same batches.
-func (svc *Service) preservedSoftwareSources(ctx context.Context, host *fleet.Host, cfg *hostDetailQueryConfig, skipped []string) []string {
+func (svc *Service) preservedSoftwareSources(ctx context.Context, host *automdm.Host, cfg *hostDetailQueryConfig, skipped []string) []string {
 	var candidates []string
 	for _, name := range skipped {
 		if _, ok := orbitSoftwareQueries[name]; !ok {
@@ -61,27 +61,27 @@ func (svc *Service) preservedSoftwareSources(ctx context.Context, host *fleet.Ho
 	}
 
 	// A read failure keeps the rows: keeping is a no-op on a host that lacks the table.
-	var fleetdVersion *semver.Version
-	fleetdVersionString := "unknown"
+	var automdmdVersion *semver.Version
+	automdmdVersionString := "unknown"
 	info, err := svc.ds.GetHostOrbitInfo(ctx, host.ID)
 	switch {
-	case fleet.IsNotFound(err):
+	case automdm.IsNotFound(err):
 		return nil
 	case err != nil:
 		svc.logger.ErrorContext(ctx, "reading host orbit info", "host_id", host.ID, "err", err)
 	default:
-		fleetdVersion, err = fleet.VersionToSemverVersion(info.Version)
+		automdmdVersion, err = automdm.VersionToSemverVersion(info.Version)
 		if err != nil {
-			svc.logger.DebugContext(ctx, "unparseable fleetd version", "host_id", host.ID, "version", info.Version)
+			svc.logger.DebugContext(ctx, "unparseable automdmd version", "host_id", host.ID, "version", info.Version)
 			return nil
 		}
-		fleetdVersionString = info.Version
+		automdmdVersionString = info.Version
 	}
 
 	var kept, sources []string
 	for _, name := range candidates {
 		oq := orbitSoftwareQueries[name]
-		if fleetdVersion != nil && fleetdVersion.LessThan(oq.minFleetdVersion) {
+		if automdmdVersion != nil && automdmdVersion.LessThan(oq.minAutoMDMdVersion) {
 			continue
 		}
 		kept = append(kept, name)
@@ -91,7 +91,7 @@ func (svc *Service) preservedSoftwareSources(ctx context.Context, host *fleet.Ho
 		svc.logger.InfoContext(ctx, "orbit software queries did not run, keeping previously reported rows",
 			"queries", kept,
 			"sources", sources,
-			"fleetd_version", fleetdVersionString,
+			"automdmd_version", automdmdVersionString,
 			"host_id", host.ID,
 		)
 	}
@@ -106,7 +106,7 @@ var mainSoftwareQueries = []string{
 	hostDetailQueryPrefix + "software_linux",
 }
 
-func hasMainSoftwareResults(results fleet.OsqueryDistributedQueryResults) bool {
+func hasMainSoftwareResults(results automdm.OsqueryDistributedQueryResults) bool {
 	for _, query := range mainSoftwareQueries {
 		if _, ok := results[query]; ok {
 			return true

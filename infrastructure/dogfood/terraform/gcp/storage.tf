@@ -1,7 +1,7 @@
 data "google_client_config" "current" {}
 
 resource "google_service_account" "service_account" {
-  account_id = "fleet-svc"
+  account_id = "automdm-svc"
 }
 
 resource "google_storage_hmac_key" "key" {

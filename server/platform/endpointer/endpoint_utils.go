@@ -20,13 +20,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/contexts/logging"
-	platform_http "github.com/fleetdm/fleet/v4/server/platform/http"
-	platform_logging "github.com/fleetdm/fleet/v4/server/platform/logging"
-	"github.com/fleetdm/fleet/v4/server/platform/middleware/authzcheck"
-	"github.com/fleetdm/fleet/v4/server/platform/middleware/ratelimit"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
+	"github.com/anilyagiz/automdm/v4/server/contexts/logging"
+	platform_http "github.com/anilyagiz/automdm/v4/server/platform/http"
+	platform_logging "github.com/anilyagiz/automdm/v4/server/platform/logging"
+	"github.com/anilyagiz/automdm/v4/server/platform/middleware/authzcheck"
+	"github.com/anilyagiz/automdm/v4/server/platform/middleware/ratelimit"
 	"github.com/go-kit/kit/endpoint"
 	kithttp "github.com/go-kit/kit/transport/http"
 )
@@ -104,7 +104,7 @@ func allFields(ifv reflect.Value) []fieldPair {
 
 // requestFieldName returns the name a client uses for a struct field, so that
 // an error about a request refers to something the caller can find in the
-// payload they sent rather than to Fleet's internal Go field name.
+// payload they sent rather than to AutoMDM's internal Go field name.
 //
 // Falls back to the Go field name when the field carries no usable json or
 // query tag, which is the best available name in that case.
@@ -651,7 +651,7 @@ func MakeDecoder(
 				}
 			}
 
-			// Checked even when decoding failed, since an upload that sends team_id instead of fleet_id can fail there first. r.Form
+			// Checked even when decoding failed, since an upload that sends team_id instead of team_id can fail there first. r.Form
 			// also holds the query string, where uploads used to accept team_id too.
 			if r.MultipartForm != nil && !SkipsRemovedNamesScan(r.URL.Path) {
 				if err := RejectRemovedFormFields(r.Form); err != nil {
@@ -1199,7 +1199,7 @@ func getNameFromPathAndVerb(verb, path, startAt string) string {
 	if startAt != "" {
 		prefix += pathReplacer.Replace(startAt) + "_"
 	}
-	return prefix + pathReplacer.Replace(strings.TrimPrefix(strings.TrimRight(path, "/"), "/api/_version_/fleet/"))
+	return prefix + pathReplacer.Replace(strings.TrimPrefix(strings.TrimRight(path, "/"), "/api/_version_/automdm/"))
 }
 
 func (e *CommonEndpointer[H]) HandlePathHandler(path string, pathHandler func(path string) http.Handler, verb string) {

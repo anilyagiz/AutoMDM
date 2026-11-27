@@ -15,18 +15,18 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 )
 
-// aiSessionsPerEventsQuery is how many sessions one events query reads. They share fleetd's ~1 MiB result budget, so a
+// aiSessionsPerEventsQuery is how many sessions one events query reads. They share automdmd's ~1 MiB result budget, so a
 // cut ends the query early and the next detail refresh resumes.
 const aiSessionsPerEventsQuery = 5
 
-var aiSessionsPlatforms = append([]string{"darwin", "windows"}, fleet.HostLinuxOSs...)
+var aiSessionsPlatforms = append([]string{"darwin", "windows"}, automdm.HostLinuxOSs...)
 
-// aiSessionsDiscovery checks for a column the fleetd table only has once it reports what Fleet reads, so an older
-// fleetd isn't asked for missing columns.
+// aiSessionsDiscovery checks for a column the automdmd table only has once it reports what AutoMDM reads, so an older
+// automdmd isn't asked for missing columns.
 func aiSessionsDiscovery(table, column string) string {
 	return fmt.Sprintf(`SELECT 1 WHERE EXISTS (%s) AND EXISTS (SELECT 1 FROM pragma_table_info('%s') WHERE name = '%s')`,
 		discoveryTable(table), table, column)
@@ -34,11 +34,11 @@ func aiSessionsDiscovery(table, column string) string {
 
 // aiAgentSessions reads the sessions active in the last 7 days, by the host's own clock, however long ago they
 // started: a session is reported for as long as it's in use, and one idle for a week can't change anymore. A host
-// first reporting, as when the feature rolls out, sends only those. Sessions whose end is unknown (fleetd reports 0)
+// first reporting, as when the feature rolls out, sends only those. Sessions whose end is unknown (automdmd reports 0)
 // are left out.
 var aiAgentSessions = DetailQuery{
-	Description: "Fleet Premium only. Reads the AI coding agent sessions active in the last 7 days, by the host's clock. " +
-		"Sessions that are gone from the host's result are kept until 30 days after they were last active. Requires `fleetd`",
+	Description: "AutoMDM Premium only. Reads the AI coding agent sessions active in the last 7 days, by the host's clock. " +
+		"Sessions that are gone from the host's result are kept until 30 days after they were last active. Requires `automdmd`",
 	Query: `
 SELECT
   agent, session_id, agent_version, username, account_identifier, model, project_path, git_repository, git_branch,
@@ -55,20 +55,20 @@ WHERE ended_at >= (SELECT unix_time FROM time) - 604800`,
 // up to each session's first maxEvents and, when maxEventsPerRefresh is set, that many new ones per session.
 func aiAgentSessionEventsQuery(maxEvents, maxEventsPerRefresh int) DetailQuery {
 	return DetailQuery{
-		Description: "Fleet Premium only. Built for each host at every refresh from the AI sessions Fleet already stored, so a " +
+		Description: "AutoMDM Premium only. Built for each host at every refresh from the AI sessions AutoMDM already stored, so a " +
 			"session's tool calls trail the session by a refresh. Asks for the tool calls of up to 5 sessions that still need them, " +
-			"resuming after the calls Fleet already has, up to the session's first 10,000 by default " +
+			"resuming after the calls AutoMDM already has, up to the session's first 10,000 by default " +
 			"(`osquery_ai_session_max_tool_calls`) and, when `osquery_ai_session_max_tool_calls_per_refresh` is set, at most that " +
 			"many new calls per session. Each session's tool calls are preceded by a constant row naming the session as requested, " +
-			"so Fleet can tell a session that returned no calls from one it didn't ask for. After 3 requests in a row return no " +
-			"calls for a session, such as when its transcript is gone from the host, Fleet stops asking until the session is " +
-			"active again. Requires `fleetd`",
-		QueryFunc: func(ctx context.Context, logger *slog.Logger, host *fleet.Host, ds fleet.Datastore) (string, bool) {
+			"so AutoMDM can tell a session that returned no calls from one it didn't ask for. After 3 requests in a row return no " +
+			"calls for a session, such as when its transcript is gone from the host, AutoMDM stops asking until the session is " +
+			"active again. Requires `automdmd`",
+		QueryFunc: func(ctx context.Context, logger *slog.Logger, host *automdm.Host, ds automdm.Datastore) (string, bool) {
 			return buildAIAgentSessionEventsQuery(ctx, logger, host, ds, uint(maxEvents), uint(max(maxEventsPerRefresh, 0)))
 		},
 		Platforms: aiSessionsPlatforms,
 		Discovery: aiSessionsDiscovery("ai_agent_session_messages", "tool_call_index"),
-		DirectIngestFunc: func(ctx context.Context, logger *slog.Logger, host *fleet.Host, ds fleet.Datastore, rows []map[string]string) error {
+		DirectIngestFunc: func(ctx context.Context, logger *slog.Logger, host *automdm.Host, ds automdm.Datastore, rows []map[string]string) error {
 			return directIngestAIAgentSessionEvents(ctx, logger, host, ds, rows, uint(maxEvents))
 		},
 	}
@@ -81,15 +81,15 @@ func sqliteQuote(s string) string {
 // buildAIAgentSessionEventsQuery asks for the tool calls of the stored sessions that still need events, one UNION ALL
 // arm per session, each preceded by a constant row naming the session as asked for, so the ingestion can tell a session
 // that returned no tool calls from one it didn't ask about. Sessions are named by transcript_path rather than
-// session_id: naming a session_id lifts fleetd's 8 KB cap on each content value, so a single large tool call could fill
+// session_id: naming a session_id lifts automdmd's 8 KB cap on each content value, so a single large tool call could fill
 // the result.
 //
-// A session is resumed after the calls Fleet has stored (or from its first undecided call, when rereading). fleetd
-// applies the tool_call_index bound itself, so a call's first row is always one Fleet lacks: the arms share fleetd's
+// A session is resumed after the calls AutoMDM has stored (or from its first undecided call, when rereading). automdmd
+// applies the tool_call_index bound itself, so a call's first row is always one AutoMDM lacks: the arms share automdmd's
 // ~1 MiB result budget, and once it is spent each arm returns only that row. Calls from maxEvents on aren't asked for,
 // and a session catching up is asked for at most maxEventsPerRefresh calls when that is set. A reread isn't limited: its
 // calls are stored already, and one cut before the last stored call is repeated at the next refresh.
-func buildAIAgentSessionEventsQuery(ctx context.Context, logger *slog.Logger, host *fleet.Host, ds fleet.Datastore, maxEvents, maxEventsPerRefresh uint) (string, bool) {
+func buildAIAgentSessionEventsQuery(ctx context.Context, logger *slog.Logger, host *automdm.Host, ds automdm.Datastore, maxEvents, maxEventsPerRefresh uint) (string, bool) {
 	cursors, err := ds.ListHostAISessionsNeedingEvents(ctx, host.ID, aiSessionsPerEventsQuery, maxEvents)
 	if err != nil {
 		logger.ErrorContext(ctx, "QueryFunc - ai agent session events", "component", "service", "host_id", host.ID, "err", err)
@@ -145,7 +145,7 @@ func parseAISessionCount(s string) uint {
 	return uint(v)
 }
 
-// parseAISessionTime parses a fleetd Unix timestamp, where 0 means unknown.
+// parseAISessionTime parses an automdmd Unix timestamp, where 0 means unknown.
 func parseAISessionTime(s string) *time.Time {
 	v, err := strconv.ParseInt(s, 10, 64)
 	if err != nil || v <= 0 || v > maxAISessionUnix {
@@ -202,11 +202,11 @@ func mysqlJSONValues(values iter.Seq[any], depth int) bool {
 	return true
 }
 
-func directIngestAIAgentSessions(ctx context.Context, logger *slog.Logger, host *fleet.Host, ds fleet.Datastore, rows []map[string]string) error {
+func directIngestAIAgentSessions(ctx context.Context, logger *slog.Logger, host *automdm.Host, ds automdm.Datastore, rows []map[string]string) error {
 	if len(rows) == 0 {
 		return nil
 	}
-	sessions := make([]*fleet.HostAISession, 0, len(rows))
+	sessions := make([]*automdm.HostAISession, 0, len(rows))
 	for _, row := range rows {
 		// The events query names a session by these, and its SQL can't hold a NUL.
 		if row["agent"] == "" || row["session_id"] == "" ||
@@ -215,7 +215,7 @@ func directIngestAIAgentSessions(ctx context.Context, logger *slog.Logger, host 
 				"component", "service", "host_id", host.ID)
 			continue
 		}
-		sessions = append(sessions, &fleet.HostAISession{
+		sessions = append(sessions, &automdm.HostAISession{
 			Agent:                 row["agent"],
 			AgentSessionID:        row["session_id"],
 			AgentVersion:          row["agent_version"],
@@ -244,17 +244,17 @@ func directIngestAIAgentSessions(ctx context.Context, logger *slog.Logger, host 
 	return nil
 }
 
-func directIngestAIAgentSessionEvents(ctx context.Context, logger *slog.Logger, host *fleet.Host, ds fleet.Datastore, rows []map[string]string, maxEvents uint) error {
+func directIngestAIAgentSessionEvents(ctx context.Context, logger *slog.Logger, host *automdm.Host, ds automdm.Datastore, rows []map[string]string, maxEvents uint) error {
 	if len(rows) == 0 {
 		return nil
 	}
 	// The sessions the events were asked for: those with none in the result count an empty read.
-	var requested []*fleet.HostAISessionEventsCursor
-	events := make([]*fleet.HostAISessionEvent, 0, len(rows))
+	var requested []*automdm.HostAISessionEventsCursor
+	events := make([]*automdm.HostAISessionEvent, 0, len(rows))
 	for _, row := range rows {
 		if row["requested"] == "1" {
 			if row["agent"] != "" && row["session_id"] != "" {
-				requested = append(requested, &fleet.HostAISessionEventsCursor{Agent: row["agent"], AgentSessionID: row["session_id"]})
+				requested = append(requested, &automdm.HostAISessionEventsCursor{Agent: row["agent"], AgentSessionID: row["session_id"]})
 			}
 			continue
 		}
@@ -267,12 +267,12 @@ func directIngestAIAgentSessionEvents(ctx context.Context, logger *slog.Logger, 
 		if toolCallIndex >= uint64(maxEvents) {
 			continue
 		}
-		events = append(events, &fleet.HostAISessionEvent{
+		events = append(events, &automdm.HostAISessionEvent{
 			Agent:          row["agent"],
 			AgentSessionID: row["session_id"],
 			SessionEndedAt: parseAISessionTime(row["session_ended_at"]),
 			ToolCallIndex:  uint(toolCallIndex),
-			Action:         fleet.AISessionAction(row["action"]),
+			Action:         automdm.AISessionAction(row["action"]),
 			Target:         row["target"],
 			Decision:       row["decision"],
 			ExecutedAt:     parseAISessionTime(row["timestamp"]),
@@ -290,7 +290,7 @@ func directIngestAIAgentSessionEvents(ctx context.Context, logger *slog.Logger, 
 	return nil
 }
 
-// aiSessionEventPayload builds the tool call as stored: its name, id, and arguments. fleetd keeps JSON object and array
+// aiSessionEventPayload builds the tool call as stored: its name, id, and arguments. automdmd keeps JSON object and array
 // arguments valid even when it shortens them, so those are kept as JSON when MySQL accepts them; anything else is kept
 // as a string.
 func aiSessionEventPayload(toolName, toolUseID, content string) json.RawMessage {

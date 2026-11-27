@@ -11,13 +11,13 @@ import (
 	"time"
 
 	"github.com/RoaringBitmap/roaring"
-	"github.com/fleetdm/fleet/v4/server/chart"
-	"github.com/fleetdm/fleet/v4/server/chart/api"
-	"github.com/fleetdm/fleet/v4/server/chart/internal/types"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	platform_authz "github.com/fleetdm/fleet/v4/server/platform/authz"
-	platform_http "github.com/fleetdm/fleet/v4/server/platform/http"
+	"github.com/anilyagiz/automdm/v4/server/chart"
+	"github.com/anilyagiz/automdm/v4/server/chart/api"
+	"github.com/anilyagiz/automdm/v4/server/chart/internal/types"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
+	platform_authz "github.com/anilyagiz/automdm/v4/server/platform/authz"
+	platform_http "github.com/anilyagiz/automdm/v4/server/platform/http"
 )
 
 const (
@@ -60,15 +60,15 @@ func (s *Service) RegisterDataset(ds api.Dataset) {
 
 func (s *Service) CollectDatasets(ctx context.Context, now time.Time, scope api.CollectScopeFn) error {
 	for name, dataset := range s.datasets {
-		var disabledFleetIDs []uint
+		var disabledTeamIDs []uint
 		if scope != nil {
 			skip, disabled := scope(name)
 			if skip {
 				continue
 			}
-			disabledFleetIDs = disabled
+			disabledTeamIDs = disabled
 		}
-		if err := dataset.Collect(ctx, s.store, now, disabledFleetIDs); err != nil {
+		if err := dataset.Collect(ctx, s.store, now, disabledTeamIDs); err != nil {
 			// Log and continue — don't let one dataset failure block others.
 			if s.logger != nil {
 				s.logger.ErrorContext(ctx, "collect chart dataset", "dataset", name, "err", ctxerr.Wrap(ctx, err, "collect chart dataset"))
@@ -112,7 +112,7 @@ func (s *Service) GetChartData(ctx context.Context, metric string, opts api.Requ
 
 	if metric == api.MetricCVE && !license.IsPremium(ctx) {
 		return nil, platform_http.NewUserMessageError(
-			errors.New("the vulnerability exposure chart requires a Fleet Premium license"),
+			errors.New("the vulnerability exposure chart requires an AutoMDM Premium license"),
 			http.StatusPaymentRequired,
 		)
 	}
@@ -295,25 +295,25 @@ func (s *Service) ScrubDatasetGlobal(ctx context.Context, dataset string) error 
 	return s.store.DeleteAllForDataset(ctx, dataset, scrubBatchSize)
 }
 
-func (s *Service) ScrubDatasetFleet(ctx context.Context, dataset string, fleetIDs []uint) error {
-	if len(fleetIDs) == 0 {
-		// Defensive: an enqueue with an empty fleet list shouldn't happen, but
+func (s *Service) ScrubDatasetAutoMDM(ctx context.Context, dataset string, automdmIDs []uint) error {
+	if len(automdmIDs) == 0 {
+		// Defensive: an enqueue with an empty team list shouldn't happen, but
 		// if it does treat as a no-op rather than scanning the entire table.
 		if s.logger != nil {
-			s.logger.WarnContext(ctx, "chart fleet scrub invoked with empty fleet list", "dataset", dataset)
+			s.logger.WarnContext(ctx, "chart team scrub invoked with empty team list", "dataset", dataset)
 		}
 		return nil
 	}
-	hostIDs, err := s.store.HostIDsInFleets(ctx, fleetIDs)
+	hostIDs, err := s.store.HostIDsInTeams(ctx, automdmIDs)
 	if err != nil {
-		return ctxerr.Wrap(ctx, err, "load hosts for chart fleet scrub")
+		return ctxerr.Wrap(ctx, err, "load hosts for chart team scrub")
 	}
 	if len(hostIDs) == 0 {
-		// No hosts currently in any of those fleets — fleets may have been
+		// No hosts currently in any of those teams — teams may have been
 		// deleted or every host moved out before the scrub ran. Best-effort
 		// per design decision; no work to do.
 		if s.logger != nil {
-			s.logger.InfoContext(ctx, "chart fleet scrub: no hosts resolved", "dataset", dataset, "fleet_ids", fleetIDs)
+			s.logger.InfoContext(ctx, "chart team scrub: no hosts resolved", "dataset", dataset, "team_ids", automdmIDs)
 		}
 		return nil
 	}

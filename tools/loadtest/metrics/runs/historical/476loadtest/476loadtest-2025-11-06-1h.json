@@ -8,7 +8,7 @@
     "source": "spreadsheet-backfill",
     "sheet_row": 45
   },
-  "fleet_server": {
+  "automdm_server": {
     "cpu_utilization": {
       "Average": 75.0
     },
@@ -82,20 +82,20 @@
       }
     }
   ],
-  "fleet_server_errors": {
+  "automdm_server_errors": {
     "error_count": null
   },
   "backfill": {
-    "source": "Fleet release load testing results (Google Sheet), manual-logging era",
+    "source": "AutoMDM release load testing results (Google Sheet), manual-logging era",
     "purpose": "Baseline Test",
     "one_click": null,
     "notes": "Opened this bug for the errors and high DB load: <url>",
     "raw": {
       "full_day": "yes",
-      "fleet_containers": "30",
+      "automdm_containers": "30",
       "loadtest_containers": "200",
-      "fleet_cpu": "~75%",
-      "fleet_mem": "~4.5%",
+      "automdm_cpu": "~75%",
+      "automdm_mem": "~4.5%",
       "errors": "{\"component\":\"http\",\"err\":\"error in query ingestion\",\"host_i\u2026",
       "writer_top_sql": "DELETE FROM host_software\u2026",
       "writer_cpu": "~20%",

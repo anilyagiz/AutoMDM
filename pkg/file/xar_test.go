@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -94,8 +94,8 @@ func TestParseRealDistributionFiles(t *testing.T) {
 			expectedPackageIDs: []string{"org.mozilla.firefox"},
 		},
 		{
-			file:               "distribution-fleet.xml",
-			expectedName:       "Fleet osquery",
+			file:               "distribution-automdm.xml",
+			expectedName:       "AutoMDM osquery",
 			expectedVersion:    "42.0.0",
 			expectedBundleID:   "com.fleetdm.orbit",
 			expectedPackageIDs: []string{"com.fleetdm.orbit.base.pkg"},
@@ -388,7 +388,7 @@ func buildXAR(t *testing.T, name string, heap []byte) []byte {
 
 func TestExtractXARMetadataFileWithoutData(t *testing.T) {
 	extract := func(t *testing.T, pkg []byte) (*InstallerMetadata, error) {
-		tfr, err := fleet.NewTempFileReader(bytes.NewReader(pkg), t.TempDir)
+		tfr, err := automdm.NewTempFileReader(bytes.NewReader(pkg), t.TempDir)
 		require.NoError(t, err)
 		t.Cleanup(func() { tfr.Close() })
 		return ExtractInstallerMetadata(tfr)

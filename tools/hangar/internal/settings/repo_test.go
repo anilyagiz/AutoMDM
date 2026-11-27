@@ -19,8 +19,8 @@ func makeRepo(t *testing.T, dir, module string) {
 func TestProbe(t *testing.T) {
 	base := t.TempDir()
 
-	good := filepath.Join(base, "fleet")
-	makeRepo(t, good, "github.com/fleetdm/fleet/v4")
+	good := filepath.Join(base, "automdm")
+	makeRepo(t, good, "github.com/anilyagiz/automdm/v4")
 	if pr := probe(good); !pr.Valid {
 		t.Errorf("valid clone reported invalid: %+v", pr)
 	}
@@ -47,22 +47,22 @@ func TestProbe(t *testing.T) {
 	}
 }
 
-func TestDiscoverFleetRepos(t *testing.T) {
+func TestDiscoverAutoMDMRepos(t *testing.T) {
 	home := t.TempDir()
 
 	// Depth-1 clone under a dev root.
 	root := filepath.Join(home, "repositories")
-	makeRepo(t, filepath.Join(root, "fleet"), "github.com/fleetdm/fleet/v4")
+	makeRepo(t, filepath.Join(root, "automdm"), "github.com/anilyagiz/automdm/v4")
 	// A non-repo sibling that IS an org folder containing a clone (depth 2).
-	makeRepo(t, filepath.Join(root, "github-org", "fleet"), "github.com/fleetdm/fleet/v4")
+	makeRepo(t, filepath.Join(root, "github-org", "automdm"), "github.com/anilyagiz/automdm/v4")
 	// A noise dir that should be ignored.
 	if err := os.MkdirAll(filepath.Join(root, "unrelated"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	// ~/fleet one-off.
-	makeRepo(t, filepath.Join(home, "fleet"), "github.com/fleetdm/fleet/v4")
+	// ~/automdm one-off.
+	makeRepo(t, filepath.Join(home, "automdm"), "github.com/anilyagiz/automdm/v4")
 
-	got := discoverFleetRepos(home, []string{root})
+	got := discoverAutoMDMRepos(home, []string{root})
 
 	var paths []string
 	for _, r := range got {
@@ -82,45 +82,45 @@ func TestDiscoverFleetRepos(t *testing.T) {
 	}
 }
 
-func TestDiscoverFleetReposTwoSpellingsOfOneFolder(t *testing.T) {
+func TestDiscoverAutoMDMReposTwoSpellingsOfOneFolder(t *testing.T) {
 	home := t.TempDir()
-	clone := filepath.Join(home, "Code", "fleet")
-	makeRepo(t, clone, "github.com/fleetdm/fleet/v4")
+	clone := filepath.Join(home, "Code", "automdm")
+	makeRepo(t, clone, "github.com/anilyagiz/automdm/v4")
 
 	// The real devRoots list both; on a case-insensitive volume they're the
 	// same folder and must not list the clone twice.
-	got := discoverFleetRepos(home, []string{filepath.Join(home, "code"), filepath.Join(home, "Code")})
+	got := discoverAutoMDMRepos(home, []string{filepath.Join(home, "code"), filepath.Join(home, "Code")})
 	if len(got) != 1 || got[0].Path != clone {
 		t.Fatalf("got %+v, want just %s", got, clone)
 	}
 
-	if _, err := os.Stat(filepath.Join(home, "code", "fleet")); err != nil {
+	if _, err := os.Stat(filepath.Join(home, "code", "automdm")); err != nil {
 		return // case-sensitive volume: nothing more to check
 	}
 	// A typed or picked spelling comes back as the one on disk.
-	if pr := probe(filepath.Join(home, "code", "FLEET")); !pr.Valid || pr.Path != clone {
+	if pr := probe(filepath.Join(home, "code", "AUTOMDM")); !pr.Valid || pr.Path != clone {
 		t.Errorf("probe of another spelling = %+v, want valid %s", pr, clone)
 	}
 }
 
-func TestDetectFleetConfig(t *testing.T) {
+func TestDetectAutoMDMConfig(t *testing.T) {
 	repo := t.TempDir()
-	if got := DetectFleetConfig(repo); got != "" {
+	if got := DetectAutoMDMConfig(repo); got != "" {
 		t.Errorf("no config should yield empty, got %q", got)
 	}
 
-	if err := os.WriteFile(filepath.Join(repo, "fleet.yaml"), []byte("x: 1\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(repo, "automdm.yaml"), []byte("x: 1\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if got := DetectFleetConfig(repo); got != "fleet.yaml" {
-		t.Errorf("got %q, want fleet.yaml", got)
+	if got := DetectAutoMDMConfig(repo); got != "automdm.yaml" {
+		t.Errorf("got %q, want automdm.yaml", got)
 	}
 
-	// fleet.yml takes precedence (checked first).
-	if err := os.WriteFile(filepath.Join(repo, "fleet.yml"), []byte("x: 1\n"), 0o644); err != nil {
+	// automdm.yml takes precedence (checked first).
+	if err := os.WriteFile(filepath.Join(repo, "automdm.yml"), []byte("x: 1\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if got := DetectFleetConfig(repo); got != "fleet.yml" {
-		t.Errorf("got %q, want fleet.yml", got)
+	if got := DetectAutoMDMConfig(repo); got != "automdm.yml" {
+		t.Errorf("got %q, want automdm.yml", got)
 	}
 }

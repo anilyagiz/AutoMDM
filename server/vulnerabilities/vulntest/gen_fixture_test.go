@@ -11,11 +11,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/oval"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/utils"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/vulntest"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/oval"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/utils"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/vulntest"
 	"github.com/stretchr/testify/require"
 )
 
@@ -131,19 +131,19 @@ func TestGenerateVulnFixtures(t *testing.T) {
 	systems := []struct {
 		defDir      string
 		platformStr string
-		version     fleet.OSVersion
+		version     automdm.OSVersion
 		outPath     string
 	}{
 		{
 			defDir:      filepath.Join("rhel", "2026"),
 			platformStr: "rhel_08",
-			version:     fleet.OSVersion{Platform: "rhel", Name: "Red Hat Enterprise Linux 8.10.0"},
+			version:     automdm.OSVersion{Platform: "rhel", Name: "Red Hat Enterprise Linux 8.10.0"},
 			outPath:     filepath.Join(testdataRoot, "rhel", "software", "0810", "rhel_08-vulns.json.bz2"),
 		},
 		{
 			defDir:      filepath.Join("rhel", "2026"),
 			platformStr: "rhel_09",
-			version:     fleet.OSVersion{Platform: "rhel", Name: "Red Hat Enterprise Linux 9.4.0"},
+			version:     automdm.OSVersion{Platform: "rhel", Name: "Red Hat Enterprise Linux 9.4.0"},
 			outPath:     filepath.Join(testdataRoot, "rhel", "software", "0904", "rhel_09-vulns.json.bz2"),
 		},
 	}
@@ -193,7 +193,7 @@ func TestGenerateVulnFixtures(t *testing.T) {
 			require.NoError(t, err)
 
 			// Query stored vulns
-			storedVulns, err := ds.ListSoftwareVulnerabilitiesByHostIDsSource(ctx, []uint{h.ID}, fleet.RHELOVALSource)
+			storedVulns, err := ds.ListSoftwareVulnerabilitiesByHostIDsSource(ctx, []uint{h.ID}, automdm.RHELOVALSource)
 			require.NoError(t, err)
 
 			// Build softwareID → name lookup

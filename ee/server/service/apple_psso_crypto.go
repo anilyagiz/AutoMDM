@@ -5,7 +5,7 @@ package service
 // inbound claim types) live in server/mdm/apple/psso/pssocrypto so the server and
 // the PSSO client simulator share one implementation. What remains here is
 // server-only: it touches the datastore (resolving a device's registered key by
-// kid), Fleet's PSSO signing key, or the opaque key_context Fleet seals under a
+// kid), AutoMDM's PSSO signing key, or the opaque key_context AutoMDM seals under a
 // server key and the device round-trips verbatim.
 
 import (
@@ -20,9 +20,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/apple/psso/pssocrypto"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/mdm/apple/psso/pssocrypto"
 	jwt "github.com/golang-jwt/jwt/v4"
 	"golang.org/x/crypto/hkdf"
 )
@@ -30,7 +30,7 @@ import (
 // parsePSSOInboundJWT verifies the inbound compact JWS using the device's
 // signing pubkey (resolved by kid) and returns the parsed claims plus the
 // signing key row that matched (its HostUUID identifies the device).
-func (svc *Service) parsePSSOInboundJWT(ctx context.Context, jwtBytes []byte) (*pssocrypto.TokenClaims, *fleet.PSSOKey, error) {
+func (svc *Service) parsePSSOInboundJWT(ctx context.Context, jwtBytes []byte) (*pssocrypto.TokenClaims, *automdm.PSSOKey, error) {
 	// First parse without verification to extract kid.
 	unverified, _, err := jwt.NewParser(jwt.WithoutClaimsValidation()).ParseUnverified(string(jwtBytes), &pssocrypto.TokenClaims{})
 	if err != nil {
@@ -38,7 +38,7 @@ func (svc *Service) parsePSSOInboundJWT(ctx context.Context, jwtBytes []byte) (*
 	}
 	kid, _ := unverified.Header["kid"].(string)
 	if kid == "" {
-		return nil, nil, &fleet.BadRequestError{Message: "psso jwt missing kid header"}
+		return nil, nil, &automdm.BadRequestError{Message: "psso jwt missing kid header"}
 	}
 	kid = pssocrypto.CanonicalizeKID(kid)
 
@@ -46,8 +46,8 @@ func (svc *Service) parsePSSOInboundJWT(ctx context.Context, jwtBytes []byte) (*
 	if err != nil {
 		return nil, nil, ctxerr.Wrap(ctx, err, "look up psso key by kid")
 	}
-	if signKey.KeyType != fleet.PSSOKeyTypeSigning {
-		return nil, nil, &fleet.BadRequestError{Message: "psso jwt kid does not reference a signing key"}
+	if signKey.KeyType != automdm.PSSOKeyTypeSigning {
+		return nil, nil, &automdm.BadRequestError{Message: "psso jwt kid does not reference a signing key"}
 	}
 
 	pub, err := pssocrypto.ParseECPublicKeyPEM([]byte(signKey.PEM))
@@ -70,7 +70,7 @@ func (svc *Service) parsePSSOInboundJWT(ctx context.Context, jwtBytes []byte) (*
 	}
 	claims, ok := tok.Claims.(*pssocrypto.TokenClaims)
 	if !ok || !tok.Valid {
-		return nil, nil, &fleet.BadRequestError{Message: "psso jwt claims invalid"}
+		return nil, nil, &automdm.BadRequestError{Message: "psso jwt claims invalid"}
 	}
 	return claims, signKey, nil
 }
@@ -94,7 +94,7 @@ func (svc *Service) resolvePSSOEncryptionKey(ctx context.Context, hostUUID, apvB
 		return nil, ctxerr.Wrap(ctx, err, "parse apv party-info")
 	}
 	if len(fields) < 2 || string(fields[0]) != pssocrypto.APVPartyLabel {
-		return nil, &fleet.BadRequestError{Message: "psso: apv is not an Apple party-info blob"}
+		return nil, &automdm.BadRequestError{Message: "psso: apv is not an Apple party-info blob"}
 	}
 	encKeyRaw := fields[1]
 
@@ -103,11 +103,11 @@ func (svc *Service) resolvePSSOEncryptionKey(ctx context.Context, hostUUID, apvB
 	key, err := svc.ds.GetPSSOKey(ctx, kid)
 	switch {
 	case err == nil:
-		if key.KeyType != fleet.PSSOKeyTypeEncryption || key.HostUUID != hostUUID {
-			return nil, &fleet.BadRequestError{Message: "psso: apv key is not a registered encryption key for this device"}
+		if key.KeyType != automdm.PSSOKeyTypeEncryption || key.HostUUID != hostUUID {
+			return nil, &automdm.BadRequestError{Message: "psso: apv key is not a registered encryption key for this device"}
 		}
 		return pssocrypto.ParseECPublicKeyPEM([]byte(key.PEM))
-	case !fleet.IsNotFound(err):
+	case !automdm.IsNotFound(err):
 		return nil, ctxerr.Wrap(ctx, err, "look up encryption key by apv kid")
 	}
 
@@ -120,7 +120,7 @@ func (svc *Service) resolvePSSOEncryptionKey(ctx context.Context, hostUUID, apvB
 		return nil, ctxerr.Wrap(ctx, err, "list psso keys for apv fallback")
 	}
 	for _, k := range hostKeys {
-		if k.KeyType != fleet.PSSOKeyTypeEncryption {
+		if k.KeyType != automdm.PSSOKeyTypeEncryption {
 			continue
 		}
 		pub, err := pssocrypto.ParseECPublicKeyPEM([]byte(k.PEM))
@@ -132,11 +132,11 @@ func (svc *Service) resolvePSSOEncryptionKey(ctx context.Context, hostUUID, apvB
 			return pub, nil
 		}
 	}
-	return nil, &fleet.BadRequestError{Message: "psso: apv key is not a registered encryption key for this device"}
+	return nil, &automdm.BadRequestError{Message: "psso: apv key is not a registered encryption key for this device"}
 }
 
 // deriveKeyContextKey derives the AES-256 key that seals key_context blobs, from
-// Fleet's PSSO signing key. This lets the provisioned private key live
+// AutoMDM's PSSO signing key. This lets the provisioned private key live
 // statelessly inside the key_context the device round-trips between the key
 // request and key exchange — no per-device server storage.
 func deriveKeyContextKey(signingKey *ecdsa.PrivateKey) ([]byte, error) {
@@ -144,10 +144,10 @@ func deriveKeyContextKey(signingKey *ecdsa.PrivateKey) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return deriveSessionKey(ikm, []byte("fleetdm-psso-key-context-v1"))
+	return deriveSessionKey(ikm, []byte("automdm-psso-key-context-v1"))
 }
 
-// pssoKeyPurposeUserUnlock is the only key purpose Fleet provisions today: the
+// pssoKeyPurposeUserUnlock is the only key purpose AutoMDM provisions today: the
 // offline FileVault/keychain unlock key. It's recorded in the sealed key_context
 // so key exchange can validate it and future purposes can be distinguished.
 const pssoKeyPurposeUserUnlock = pssocrypto.KeyPurposeUserUnlock
@@ -215,7 +215,7 @@ func openKeyContext(keyContext string, kcKey []byte) (*pssoKeyContext, *ecdsa.Pr
 
 // pssoSessionInfo is the HKDF info string distinguishing PSSO-derived keys from
 // any other derivation the same input keying material could feed.
-var pssoSessionInfo = []byte("fleetdm-psso-session-key-v1")
+var pssoSessionInfo = []byte("automdm-psso-session-key-v1")
 
 // deriveSessionKey returns a 32-byte AES-256 key derived from ikm via
 // HKDF-SHA256. The salt parameter binds the derivation to a purpose (e.g. the
@@ -295,8 +295,8 @@ func decryptSymmetricBlob(blob []byte, sessionKey []byte) ([]byte, error) {
 }
 
 // signServerJWT returns a signed compact JWS with the given claims, using
-// Fleet's PSSO signing key. Used to wrap payloads that must be authenticated as
-// coming from Fleet (e.g. claims responses).
+// AutoMDM's PSSO signing key. Used to wrap payloads that must be authenticated as
+// coming from AutoMDM (e.g. claims responses).
 func (svc *Service) signServerJWT(ctx context.Context, claims jwt.Claims) ([]byte, error) {
 	key, kid, err := svc.getPSSOSigningKey(ctx)
 	if err != nil {

@@ -21,15 +21,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	"github.com/anilyagiz/automdm/v4/server/platform/endpointer"
+	platform_http "github.com/anilyagiz/automdm/v4/server/platform/http"
+	"github.com/anilyagiz/automdm/v4/server/service/contract"
+	"github.com/anilyagiz/automdm/v4/server/service/osquery_utils"
 	"github.com/docker/go-units"
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/platform/endpointer"
-	platform_http "github.com/fleetdm/fleet/v4/server/platform/http"
-	"github.com/fleetdm/fleet/v4/server/service/contract"
-	"github.com/fleetdm/fleet/v4/server/service/osquery_utils"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
@@ -55,7 +55,7 @@ func (s *integrationTestSuite) TestSlowOsqueryHost() {
 	req, err := http.NewRequest("POST", server.URL+"/api/v1/osquery/distributed/write", &slowReader{})
 	require.NoError(t, err)
 
-	client := fleethttp.NewClient()
+	client := automdmhttp.NewClient()
 
 	resp, err := client.Do(req)
 	require.NoError(t, err)
@@ -192,7 +192,7 @@ func (s *integrationTestSuite) TestOsqueryConfigETag() {
 	}
 	require.NoError(t, json.Unmarshal(prevAgentOptions, &currentOptions))
 	newPeriod := currentOptions.Config.Options.LoggerTLSPeriod + 7
-	s.DoRaw("PATCH", "/api/latest/fleet/config",
+	s.DoRaw("PATCH", "/api/latest/automdm/config",
 		[]byte(fmt.Sprintf(`{"agent_options":{"config":{"options":{"logger_tls_period":%d}}}}`, newPeriod)),
 		http.StatusOK)
 
@@ -218,9 +218,9 @@ func (s *integrationTestSuite) TestEnrollOsquery() {
 
 	// set the enroll secret
 	var applyResp applyEnrollSecretSpecResponse
-	s.DoJSON("POST", "/api/latest/fleet/spec/enroll_secret", applyEnrollSecretSpecRequest{
-		Spec: &fleet.EnrollSecretSpec{
-			Secrets: []*fleet.EnrollSecret{{Secret: t.Name()}},
+	s.DoJSON("POST", "/api/latest/automdm/spec/enroll_secret", applyEnrollSecretSpecRequest{
+		Spec: &automdm.EnrollSecretSpec{
+			Secrets: []*automdm.EnrollSecret{{Secret: t.Name()}},
 		},
 	}, http.StatusOK, &applyResp)
 
@@ -249,9 +249,9 @@ func (s *integrationTestSuite) TestEnrollOsquery() {
 	// validation existed. Simulate that by writing an empty secret directly via
 	// the datastore, bypassing the service-layer validation.
 	ctx := context.Background()
-	emptyTeam, err := s.ds.NewTeam(ctx, &fleet.Team{Name: t.Name() + "empty"})
+	emptyTeam, err := s.ds.NewTeam(ctx, &automdm.Team{Name: t.Name() + "empty"})
 	require.NoError(t, err)
-	require.NoError(t, s.ds.ApplyEnrollSecrets(ctx, &emptyTeam.ID, []*fleet.EnrollSecret{{Secret: "", TeamID: &emptyTeam.ID}}))
+	require.NoError(t, s.ds.ApplyEnrollSecrets(ctx, &emptyTeam.ID, []*automdm.EnrollSecret{{Secret: "", TeamID: &emptyTeam.ID}}))
 
 	// Enrolling with an empty or whitespace-only secret must be rejected as
 	// node_invalid, even though an empty secret exists in storage.
@@ -273,7 +273,7 @@ func (s *integrationTestSuite) TestTryingToEnrollWithTheWrongSecret() {
 	t := s.T()
 	ctx := context.Background()
 
-	h, err := s.ds.NewHost(ctx, &fleet.Host{
+	h, err := s.ds.NewHost(ctx, &automdm.Host{
 		HardwareSerial:   uuid.New().String(),
 		Platform:         "darwin",
 		LastEnrolledAt:   time.Now(),
@@ -283,7 +283,7 @@ func (s *integrationTestSuite) TestTryingToEnrollWithTheWrongSecret() {
 	require.NoError(t, err)
 
 	var resp endpointer.JsonError
-	s.DoJSON("POST", "/api/fleet/orbit/enroll", fleet.EnrollOrbitRequest{
+	s.DoJSON("POST", "/api/automdm/orbit/enroll", automdm.EnrollOrbitRequest{
 		EnrollSecret:   uuid.New().String(),
 		HardwareUUID:   h.UUID,
 		HardwareSerial: h.HardwareSerial,
@@ -295,15 +295,15 @@ func (s *integrationTestSuite) TestTryingToEnrollWithTheWrongSecret() {
 func (s *integrationTestSuite) TestDirectIngestScheduledQueryStats() {
 	t := s.T()
 
-	team1, err := s.ds.NewTeam(context.Background(), &fleet.Team{
+	team1, err := s.ds.NewTeam(context.Background(), &automdm.Team{
 		Name: "Foobar",
 	})
 	require.NoError(t, err)
-	team2, err := s.ds.NewTeam(context.Background(), &fleet.Team{
+	team2, err := s.ds.NewTeam(context.Background(), &automdm.Team{
 		Name: "Zoo",
 	})
 	require.NoError(t, err)
-	globalHost, err := s.ds.NewHost(context.Background(), &fleet.Host{
+	globalHost, err := s.ds.NewHost(context.Background(), &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -315,7 +315,7 @@ func (s *integrationTestSuite) TestDirectIngestScheduledQueryStats() {
 		Platform:        "darwin",
 	})
 	require.NoError(t, err)
-	team1Host, err := s.ds.NewHost(context.Background(), &fleet.Host{
+	team1Host, err := s.ds.NewHost(context.Background(), &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -328,49 +328,49 @@ func (s *integrationTestSuite) TestDirectIngestScheduledQueryStats() {
 		TeamID:          &team1.ID,
 	})
 	require.NoError(t, err)
-	scheduledGlobalQuery, err := s.ds.NewQuery(context.Background(), &fleet.Query{
+	scheduledGlobalQuery, err := s.ds.NewQuery(context.Background(), &automdm.Query{
 		Name:               "scheduled-global-query",
 		TeamID:             nil,
 		Interval:           10,
 		Platform:           "darwin",
 		AutomationsEnabled: true,
-		Logging:            fleet.LoggingSnapshot,
+		Logging:            automdm.LoggingSnapshot,
 		Description:        "foobar",
 		Query:              "SELECT * from time;",
 		Saved:              true,
 	})
 	require.NoError(t, err)
-	_, err = s.ds.NewQuery(context.Background(), &fleet.Query{
+	_, err = s.ds.NewQuery(context.Background(), &automdm.Query{
 		Name:               "non-scheduled-global-query",
 		TeamID:             nil,
 		Interval:           0,
 		Platform:           "darwin",
 		AutomationsEnabled: false,
-		Logging:            fleet.LoggingSnapshot,
+		Logging:            automdm.LoggingSnapshot,
 		Description:        "foobar",
 		Query:              "SELECT * from osquery_info;",
 		Saved:              true,
 	})
 	require.NoError(t, err)
-	scheduledTeam1Query1, err := s.ds.NewQuery(context.Background(), &fleet.Query{
+	scheduledTeam1Query1, err := s.ds.NewQuery(context.Background(), &automdm.Query{
 		Name:               "scheduled-team1-query1",
 		TeamID:             &team1.ID,
 		Interval:           20,
 		Platform:           "",
 		AutomationsEnabled: true,
-		Logging:            fleet.LoggingSnapshot,
+		Logging:            automdm.LoggingSnapshot,
 		Description:        "foobar",
 		Query:              "SELECT * from other;",
 		Saved:              true,
 	})
 	require.NoError(t, err)
-	scheduledTeam1Query2, err := s.ds.NewQuery(context.Background(), &fleet.Query{
+	scheduledTeam1Query2, err := s.ds.NewQuery(context.Background(), &automdm.Query{
 		Name:               "scheduled-team1-query2",
 		TeamID:             &team1.ID,
 		Interval:           90,
 		Platform:           "",
 		AutomationsEnabled: true,
-		Logging:            fleet.LoggingSnapshot,
+		Logging:            automdm.LoggingSnapshot,
 		Description:        "foobar",
 		Query:              "SELECT * from other;",
 		Saved:              true,
@@ -378,7 +378,7 @@ func (s *integrationTestSuite) TestDirectIngestScheduledQueryStats() {
 	require.NoError(t, err)
 	// Create a non-scheduled query to test that we filter it out when providing
 	// the queries in the osquery/config endpoint.
-	_, err = s.ds.NewQuery(context.Background(), &fleet.Query{
+	_, err = s.ds.NewQuery(context.Background(), &automdm.Query{
 		Name:               "non-scheduled-team1-query",
 		TeamID:             &team1.ID,
 		Interval:           0,
@@ -392,13 +392,13 @@ func (s *integrationTestSuite) TestDirectIngestScheduledQueryStats() {
 	require.NoError(t, err)
 	// Create a scheduled query but on another team to test that we filter it
 	// out when providing the queries in the osquery/config endpoint.
-	_, err = s.ds.NewQuery(context.Background(), &fleet.Query{
+	_, err = s.ds.NewQuery(context.Background(), &automdm.Query{
 		Name:               "scheduled-team2-query",
 		TeamID:             &team2.ID,
 		Interval:           40,
 		Platform:           "",
 		AutomationsEnabled: true,
-		Logging:            fleet.LoggingSnapshot,
+		Logging:            automdm.LoggingSnapshot,
 		Description:        "foobar",
 		Query:              "SELECT * from other;",
 		Saved:              true,
@@ -494,7 +494,7 @@ func (s *integrationTestSuite) TestDirectIngestScheduledQueryStats() {
 
 	appConfig, err := s.ds.AppConfig(context.Background())
 	require.NoError(t, err)
-	detailQueries := osquery_utils.GetDetailQueries(context.Background(), config.FleetConfig{
+	detailQueries := osquery_utils.GetDetailQueries(context.Background(), config.AutoMDMConfig{
 		App: config.AppConfig{
 			EnableScheduledQueryStats: true,
 		},
@@ -509,7 +509,7 @@ func (s *integrationTestSuite) TestDirectIngestScheduledQueryStats() {
 	require.NoError(t, err)
 
 	// Check that the received stats were stored in the DB as expected.
-	var scheduledQueriesStats []fleet.ScheduledQueryStats
+	var scheduledQueriesStats []automdm.ScheduledQueryStats
 	mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
 		return sqlx.SelectContext(
 			context.Background(), q, &scheduledQueriesStats,
@@ -578,7 +578,7 @@ func (s *integrationTestSuite) TestDirectIngestScheduledQueryStats() {
 	require.NoError(t, err)
 
 	// Check that the received stats were stored in the DB as expected.
-	scheduledQueriesStats = []fleet.ScheduledQueryStats{}
+	scheduledQueriesStats = []automdm.ScheduledQueryStats{}
 	mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
 		return sqlx.SelectContext(
 			context.Background(), q, &scheduledQueriesStats,
@@ -618,7 +618,7 @@ func (s *integrationTestSuite) TestDirectIngestScheduledQueryStats() {
 			} `json:"host"`
 		}
 		require.NoError(t, json.NewDecoder(body).Decode(&resp))
-		var packStats []fleet.PackStats
+		var packStats []automdm.PackStats
 		require.NoError(t, json.Unmarshal(resp.Host.PackStats, &packStats))
 		names := make([]string, 0, len(packStats))
 		for _, ps := range packStats {
@@ -636,12 +636,12 @@ func (s *integrationTestSuite) TestDirectIngestScheduledQueryStats() {
 		}
 	}
 
-	res := s.Do("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", team1Host.ID), nil, http.StatusOK)
+	res := s.Do("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", team1Host.ID), nil, http.StatusOK)
 	requireReportPackStats(res.Body)
 
 	token := "token-" + team1Host.UUID
 	require.NoError(t, s.ds.SetOrUpdateDeviceAuthToken(context.Background(), team1Host.ID, token))
-	res = s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token, nil, http.StatusOK)
+	res = s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token, nil, http.StatusOK)
 	requireReportPackStats(res.Body)
 }
 
@@ -650,8 +650,8 @@ func (s *integrationTestSuite) TestOsqueryBodySizeLimit() {
 
 	host := createOrbitEnrolledHost(t, "linux", "body-limit", s.ds)
 
-	logLimit := int(fleet.DefaultMaxOsqueryLogWriteSize)
-	distLimit := int(fleet.DefaultMaxOsqueryDistributedWriteSize)
+	logLimit := int(automdm.DefaultMaxOsqueryLogWriteSize)
+	distLimit := int(automdm.DefaultMaxOsqueryDistributedWriteSize)
 
 	// Body over the per-route default must be rejected with 413. The padding
 	// is inside a JSON string value so the body is syntactically valid up to
@@ -693,7 +693,7 @@ func (s *integrationTestSuite) TestOsqueryBodySizeLimit() {
 		Results:  map[string]json.RawMessage{},
 		Statuses: map[string]any{},
 		Messages: map[string]string{},
-		Stats:    map[string]*fleet.Stats{},
+		Stats:    map[string]*automdm.Stats{},
 	})
 	require.NoError(t, err)
 	s.DoRawNoAuth("POST", "/api/osquery/distributed/write", withinLimitDist, http.StatusOK)
@@ -714,7 +714,7 @@ func (s *integrationTestSuite) TestOsqueryBodySizeLimit() {
 		cfg.Osquery.MaxDistributedWriteBodySize = customLimit
 
 		_, customServer := RunServerForTestsWithDS(s.T(), s.ds, &TestServerOpts{
-			FleetConfig:         &cfg,
+			AutoMDMConfig:       &cfg,
 			SkipCreateTestUsers: true,
 		})
 		s.T().Cleanup(customServer.Close)
@@ -747,7 +747,7 @@ func (s *integrationTestSuite) TestOsqueryBodySizeLimit() {
 		cfg.Osquery.MaxDistributedWriteBodySize = 1 * units.MiB // ignored
 
 		_, customServer := RunServerForTestsWithDS(s.T(), s.ds, &TestServerOpts{
-			FleetConfig:         &cfg,
+			AutoMDMConfig:       &cfg,
 			SkipCreateTestUsers: true,
 		})
 		s.T().Cleanup(customServer.Close)
@@ -780,7 +780,7 @@ func (s *integrationTestSuite) TestOsqueryBodySizeLimit() {
 
 		cfg := config.TestConfig()
 		_, customServer := RunServerForTestsWithDS(s.T(), s.ds, &TestServerOpts{
-			FleetConfig:         &cfg,
+			AutoMDMConfig:       &cfg,
 			SkipCreateTestUsers: true,
 		})
 		s.T().Cleanup(customServer.Close)
@@ -827,7 +827,7 @@ func (s *integrationTestSuite) TestOsqueryBodySizeLimit() {
 		cfg.Osquery.MaxDistributedWriteBodySize = deprecatedLimit
 
 		_, customServer := RunServerForTestsWithDS(s.T(), s.ds, &TestServerOpts{
-			FleetConfig:         &cfg,
+			AutoMDMConfig:       &cfg,
 			SkipCreateTestUsers: true,
 		})
 		s.T().Cleanup(customServer.Close)
@@ -874,7 +874,7 @@ func (s *integrationTestSuite) TestOsqueryBodySizeLimit() {
 		cfg.Osquery.MaxDistributedWriteBodySize = deprecatedLimit
 
 		_, customServer := RunServerForTestsWithDS(s.T(), s.ds, &TestServerOpts{
-			FleetConfig:         &cfg,
+			AutoMDMConfig:       &cfg,
 			SkipCreateTestUsers: true,
 		})
 		s.T().Cleanup(customServer.Close)
@@ -918,7 +918,7 @@ func (s *integrationTestSuite) TestOsqueryBodySizeLimit() {
 		cfg.Osquery.AllowBodyAuthFallback = false
 
 		_, customServer := RunServerForTestsWithDS(s.T(), s.ds, &TestServerOpts{
-			FleetConfig:         &cfg,
+			AutoMDMConfig:       &cfg,
 			SkipCreateTestUsers: true,
 		})
 		s.T().Cleanup(customServer.Close)

@@ -7,32 +7,32 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/fleetdm/fleet/v4/pkg/spec"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/pkg/spec"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/go-kit/kit/endpoint"
 )
 
 type setupRequest struct {
-	Admin        *fleet.UserPayload `json:"admin"`
-	OrgInfo      *fleet.OrgInfo     `json:"org_info"`
-	ServerURL    *string            `json:"server_url,omitempty"`
-	EnrollSecret *string            `json:"osquery_enroll_secret,omitempty"`
+	Admin        *automdm.UserPayload `json:"admin"`
+	OrgInfo      *automdm.OrgInfo     `json:"org_info"`
+	ServerURL    *string              `json:"server_url,omitempty"`
+	EnrollSecret *string              `json:"osquery_enroll_secret,omitempty"`
 }
 
 type setupResponse struct {
-	Admin        *fleet.User    `json:"admin,omitempty"`
-	OrgInfo      *fleet.OrgInfo `json:"org_info,omitempty"`
-	ServerURL    *string        `json:"server_url"`
-	EnrollSecret *string        `json:"osquery_enroll_secret"`
-	Token        *string        `json:"token,omitempty"`
-	Err          error          `json:"error,omitempty"`
+	Admin        *automdm.User    `json:"admin,omitempty"`
+	OrgInfo      *automdm.OrgInfo `json:"org_info,omitempty"`
+	ServerURL    *string          `json:"server_url"`
+	EnrollSecret *string          `json:"osquery_enroll_secret"`
+	Token        *string          `json:"token,omitempty"`
+	Err          error            `json:"error,omitempty"`
 }
 
 func (r setupResponse) Error() error { return r.Err }
 
-func makeSetupEndpoint(svc fleet.Service, logger *slog.Logger, applyStarterLibrary func(ctx context.Context, serverURL, token string) error) endpoint.Endpoint {
+func makeSetupEndpoint(svc automdm.Service, logger *slog.Logger, applyStarterLibrary func(ctx context.Context, serverURL, token string) error) endpoint.Endpoint {
 	return func(ctx context.Context, request any) (any, error) {
 		req := request.(setupRequest)
 		if req.Admin == nil {
@@ -56,13 +56,13 @@ func makeSetupEndpoint(svc fleet.Service, logger *slog.Logger, applyStarterLibra
 		// Creating the initial admin is the only race-safe guard on this
 		// unauthenticated endpoint, so it must succeed before app config and
 		// enroll secrets are overwritten.
-		adminPayload.GlobalRole = ptr.String(fleet.RoleAdmin)
+		adminPayload.GlobalRole = ptr.String(automdm.RoleAdmin)
 		admin, err := svc.CreateInitialUser(ctx, adminPayload)
 		if err != nil {
 			return setupResponse{Err: err}, nil
 		}
 
-		config := &fleet.AppConfig{}
+		config := &automdm.AppConfig{}
 		if req.OrgInfo != nil {
 			config.OrgInfo = *req.OrgInfo
 		}
@@ -105,18 +105,18 @@ func makeSetupEndpoint(svc fleet.Service, logger *slog.Logger, applyStarterLibra
 	}
 }
 
-// ApplyStarterLibrary scaffolds the starter GitOps templates via `fleetctl new`
-// and applies them via `fleetctl gitops`, producing the same result as a user
+// ApplyStarterLibrary scaffolds the starter GitOps templates via `automdmctl new`
+// and applies them via `automdmctl gitops`, producing the same result as a user
 // running those commands manually.
 //
-// The runFleetctl callback should run the fleetctl CLI with the given arguments.
+// The runAutoMDMctl callback should run the automdmctl CLI with the given arguments.
 // This keeps the CLI dependency out of the service package.
 func ApplyStarterLibrary(
 	ctx context.Context,
 	serverURL string,
 	token string,
 	logger *slog.Logger,
-	runFleetctl func(args []string) error,
+	runAutoMDMctl func(args []string) error,
 ) error {
 	logger.DebugContext(ctx, "Applying starter library")
 
@@ -134,11 +134,11 @@ func ApplyStarterLibrary(
 
 	orgName := appConfig.OrgInfo.OrgName
 	if orgName == "" {
-		orgName = "Fleet"
+		orgName = "AutoMDM"
 	}
 
 	// Create a temp directory for the rendered templates.
-	tempDir, err := os.MkdirTemp("", "fleet-starter-*")
+	tempDir, err := os.MkdirTemp("", "automdm-starter-*")
 	if err != nil {
 		return fmt.Errorf("failed to create temp directory: %w", err)
 	}
@@ -146,22 +146,22 @@ func ApplyStarterLibrary(
 
 	outDir := filepath.Join(tempDir, "gitops")
 
-	// Render templates using `fleetctl new`.
-	if err := runFleetctl([]string{"new", "--org-name", orgName, "--dir", outDir}); err != nil {
-		return fmt.Errorf("fleetctl new: %w", err)
+	// Render templates using `automdmctl new`.
+	if err := runAutoMDMctl([]string{"new", "--org-name", orgName, "--dir", outDir}); err != nil {
+		return fmt.Errorf("automdmctl new: %w", err)
 	}
 
-	// Set env overrides so GitOpsFromFile can expand $FLEET_URL without
+	// Set env overrides so GitOpsFromFile can expand $AUTOMDM_URL without
 	// polluting the process environment.
 	spec.SetEnvOverrides(map[string]string{
-		"FLEET_URL": serverURL,
+		"AUTOMDM_URL": serverURL,
 	})
 	defer spec.SetEnvOverrides(nil)
 
-	// Write a temporary fleetctl config file with auth credentials.
-	configFile, err := os.CreateTemp(tempDir, "fleetctl-config-*.yml")
+	// Write a temporary automdmctl config file with auth credentials.
+	configFile, err := os.CreateTemp(tempDir, "automdmctl-config-*.yml")
 	if err != nil {
-		return fmt.Errorf("failed to create fleetctl config: %w", err)
+		return fmt.Errorf("failed to create automdmctl config: %w", err)
 	}
 	fmt.Fprintf(configFile, "contexts:\n  default:\n    address: %s\n    tls-skip-verify: true\n    token: %s\n",
 		serverURL, token)
@@ -171,21 +171,21 @@ func ApplyStarterLibrary(
 	args := []string{"gitops", "--config", configFile.Name(), "-f", filepath.Join(outDir, "default.yml")}
 
 	if appConfig.License != nil && appConfig.License.IsPremium() {
-		fleetDir := filepath.Join(outDir, "fleets")
-		entries, err := os.ReadDir(fleetDir)
+		automdmDir := filepath.Join(outDir, "teams")
+		entries, err := os.ReadDir(automdmDir)
 		if err != nil && !os.IsNotExist(err) {
-			return fmt.Errorf("failed to read fleets directory: %w", err)
+			return fmt.Errorf("failed to read teams directory: %w", err)
 		}
 		for _, entry := range entries {
 			if entry.IsDir() || filepath.Ext(entry.Name()) != ".yml" {
 				continue
 			}
-			args = append(args, "-f", filepath.Join(fleetDir, entry.Name()))
+			args = append(args, "-f", filepath.Join(automdmDir, entry.Name()))
 		}
 	}
 
-	if err := runFleetctl(args); err != nil {
-		return fmt.Errorf("fleetctl gitops: %w", err)
+	if err := runAutoMDMctl(args); err != nil {
+		return fmt.Errorf("automdmctl gitops: %w", err)
 	}
 
 	logger.DebugContext(ctx, "Starter library applied successfully")

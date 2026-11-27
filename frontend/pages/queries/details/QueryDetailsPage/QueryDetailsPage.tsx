@@ -60,7 +60,7 @@ interface IQueryDetailsPageProps {
   location: {
     pathname: string;
     query: {
-      fleet_id?: string;
+      team_id?: string;
       order_key?: string;
       order_direction?: string;
       host_id?: string;
@@ -159,12 +159,12 @@ const QueryDetailsPage = ({
   if (
     !isOnGlobalTeam &&
     !isStoredQueryLoading &&
-    storedQuery?.fleet_id &&
-    !(storedQuery?.fleet_id?.toString() === location.query.fleet_id)
+    storedQuery?.team_id &&
+    !(storedQuery?.team_id?.toString() === location.query.team_id)
   ) {
     router.push(
       getPathWithQueryParams(location.pathname, {
-        fleet_id: storedQuery?.fleet_id?.toString(),
+        team_id: storedQuery?.team_id?.toString(),
       })
     );
   }
@@ -260,9 +260,9 @@ const QueryDetailsPage = ({
 
   // Used to set host's team in AppContext for RBAC action buttons
   useEffect(() => {
-    if (storedQuery?.fleet_id) {
+    if (storedQuery?.team_id) {
       const querysTeam = availableTeams?.find(
-        (team) => team.id === storedQuery.fleet_id
+        (team) => team.id === storedQuery.team_id
       );
       setCurrentTeam(querysTeam);
     }
@@ -270,7 +270,7 @@ const QueryDetailsPage = ({
 
   // Updates title that shows up on browser tabs
   useEffect(() => {
-    // e.g., Discover TLS certificates | Queries | Fleet
+    // e.g., Discover TLS certificates | Queries | AutoMDM
     if (storedQuery?.name) {
       document.title = `${storedQuery.name} | Reports | ${DOCUMENT_TITLE_SUFFIX}`;
     } else {
@@ -302,7 +302,7 @@ const QueryDetailsPage = ({
   const canEditQuery =
     isGlobalAdmin ||
     isGlobalMaintainer ||
-    (isTeamMaintainerOrTeamAdmin && storedQuery?.fleet_id);
+    (isTeamMaintainerOrTeamAdmin && storedQuery?.team_id);
 
   const renderHeader = () => {
     const intervalLabel = FREQUENCY_DROPDOWN_OPTIONS.find(
@@ -318,7 +318,7 @@ const QueryDetailsPage = ({
       if (filteredQueriesPath) return filteredQueriesPath;
 
       return getPathWithQueryParams(PATHS.MANAGE_REPORTS, {
-        fleet_id: currentTeamId,
+        team_id: currentTeamId,
       });
     };
 
@@ -371,7 +371,7 @@ const QueryDetailsPage = ({
                                   PATHS.LIVE_REPORT(queryId),
                                   {
                                     host_id: hostId,
-                                    fleet_id: currentTeamId,
+                                    team_id: currentTeamId,
                                   }
                                 )
                               );
@@ -392,7 +392,7 @@ const QueryDetailsPage = ({
                       queryId &&
                         router.push(
                           getPathWithQueryParams(PATHS.EDIT_REPORT(queryId), {
-                            fleet_id: currentTeamId,
+                            team_id: currentTeamId,
                             host_id: hostId,
                           })
                         );

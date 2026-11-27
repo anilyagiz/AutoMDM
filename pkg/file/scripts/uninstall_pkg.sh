@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# Fleet extracts and saves package IDs.
+# AutoMDM extracts and saves package IDs.
 pkg_ids=$PACKAGE_ID
 
 # For each package id, get all .app folders associated with the package and remove them.
@@ -12,7 +12,7 @@ do
   # Check if this package id corresponds to a valid/installed package
   if [[ ! -z "$volume" ]]; then
     # Remove individual directories that end with ".app" belonging to the package.
-    # Only process directories that end with ".app" to prevent Fleet from removing top level directories.
+    # Only process directories that end with ".app" to prevent AutoMDM from removing top level directories.
     pkgutil --only-dirs --files "$pkg_id" | grep "\.app$" | sed -e 's@^@'"$volume""$location"'/@' | tr '\n' '\0' | xargs -n 1 -0 rm -rf
     # Remove receipts
     pkgutil --forget "$pkg_id"

@@ -13,30 +13,30 @@ jest.mock("services/entities/api_endpoints");
 
 const renderWithSetup = createCustomRenderer({ withBackendMock: true });
 
-const FLEET_ASSIGNED = {
+const AUTOMDM_ASSIGNED = {
   name: "CI token",
   global_role: null,
-  fleets: [createMockTeam({ id: 1, name: "Fleet 1", role: "observer" })],
+  teams: [createMockTeam({ id: 1, name: "AutoMDM 1", role: "observer" })],
 };
 
 const ENDPOINTS_SELECTED = {
   name: "CI token",
   global_role: null,
-  fleets: [createMockTeam({ id: 1, name: "Fleet 1", role: "observer" })],
-  api_endpoints: [{ method: "GET", path: "/api/v1/fleet/hosts" }],
+  teams: [createMockTeam({ id: 1, name: "AutoMDM 1", role: "observer" })],
+  api_endpoints: [{ method: "GET", path: "/api/v1/automdm/hosts" }],
 };
 
 const LIST_HOSTS: IApiEndpoint = {
   method: "GET",
-  path: "/api/v1/fleet/hosts",
+  path: "/api/v1/automdm/hosts",
   display_name: "List hosts",
   deprecated: false,
 };
 
-const LIST_HOSTS_GRANT = { method: "GET", path: "/api/v1/fleet/hosts" };
+const LIST_HOSTS_GRANT = { method: "GET", path: "/api/v1/automdm/hosts" };
 const REMOVED_ROUTE_GRANT = {
   method: "GET",
-  path: "/api/v1/fleet/mdm/profiles",
+  path: "/api/v1/automdm/mdm/profiles",
 };
 
 const WITH_REMOVED_ROUTE_GRANT = {
@@ -48,7 +48,7 @@ describe("ApiUserForm - component", () => {
   const defaultProps = {
     onCancel: noop,
     onSubmit: noop,
-    availableTeams: [createMockTeam({ id: 1, name: "Fleet 1" })],
+    availableTeams: [createMockTeam({ id: 1, name: "AutoMDM 1" })],
     isPremiumTier: true,
   };
 
@@ -97,29 +97,29 @@ describe("ApiUserForm - component", () => {
     expect(screen.queryByText("Enter a name")).not.toBeInTheDocument();
   });
 
-  it("renders the 'at least one fleet' error inline", async () => {
+  it("renders the 'at least one team' error inline", async () => {
     const { user } = renderWithSetup(<ApiUserForm {...defaultProps} />);
 
     await user.type(screen.getByLabelText("Name"), "CI token");
-    await user.click(screen.getByRole("radio", { name: "Assign to fleet(s)" }));
+    await user.click(screen.getByRole("radio", { name: "Assign to team(s)" }));
     await user.click(screen.getByRole("button", { name: "Add" }));
 
-    expect(screen.getByText("Select at least one fleet")).toBeInTheDocument();
+    expect(screen.getByText("Select at least one team")).toBeInTheDocument();
   });
 
-  it("clears the fleet error when the user switches back to global", async () => {
+  it("clears the automdm error when the user switches back to global", async () => {
     const { user } = renderWithSetup(<ApiUserForm {...defaultProps} />);
 
     await user.type(screen.getByLabelText("Name"), "CI token");
-    await user.click(screen.getByRole("radio", { name: "Assign to fleet(s)" }));
+    await user.click(screen.getByRole("radio", { name: "Assign to team(s)" }));
     await user.click(screen.getByRole("button", { name: "Add" }));
-    expect(screen.getByText("Select at least one fleet")).toBeInTheDocument();
+    expect(screen.getByText("Select at least one team")).toBeInTheDocument();
 
     // The requirement no longer applies, so its error must go immediately.
     await user.click(screen.getByRole("radio", { name: "Global user" }));
 
     expect(
-      screen.queryByText("Select at least one fleet")
+      screen.queryByText("Select at least one team")
     ).not.toBeInTheDocument();
   });
 
@@ -164,7 +164,7 @@ describe("ApiUserForm - component", () => {
     expect(onSubmit).toHaveBeenCalledWith({
       name: "CI token",
       global_role: "gitops",
-      fleets: [],
+      teams: [],
       api_endpoints: undefined,
     });
   });
@@ -179,10 +179,10 @@ describe("ApiUserForm - component", () => {
       />
     );
 
-    // The fleet and endpoint selectors are not rendered on free, so their rules
+    // The team and endpoint selectors are not rendered on free, so their rules
     // could never be satisfied and must not block submission.
     expect(
-      screen.queryByRole("radio", { name: "Assign to fleet(s)" })
+      screen.queryByRole("radio", { name: "Assign to team(s)" })
     ).not.toBeInTheDocument();
 
     await user.type(screen.getByLabelText("Name"), "CI token");
@@ -205,7 +205,7 @@ describe("ApiUserForm - component", () => {
 
     expect(screen.getByRole("radio", { name: "Global user" })).toBeDisabled();
     expect(
-      screen.getByRole("radio", { name: "Assign to fleet(s)" })
+      screen.getByRole("radio", { name: "Assign to team(s)" })
     ).toBeDisabled();
     expect(
       screen.getByRole("radio", { name: "All API endpoints" })
@@ -215,18 +215,18 @@ describe("ApiUserForm - component", () => {
     ).toBeDisabled();
   });
 
-  it("disables the fleet checkboxes while in flight", () => {
+  it("disables the team checkboxes while in flight", () => {
     renderWithSetup(
       <ApiUserForm
         {...defaultProps}
-        defaultData={FLEET_ASSIGNED}
+        defaultData={AUTOMDM_ASSIGNED}
         isSubmitting
       />
     );
 
     // Checkbox renders a div[role=checkbox], not a native input, so disabled
     // shows up as aria-disabled rather than the disabled attribute.
-    expect(screen.getByRole("checkbox", { name: "Fleet 1" })).toHaveAttribute(
+    expect(screen.getByRole("checkbox", { name: "AutoMDM 1" })).toHaveAttribute(
       "aria-disabled",
       "true"
     );
@@ -250,7 +250,7 @@ describe("ApiUserForm - component", () => {
 describe("ApiUserForm - stored grants the catalog no longer lists", () => {
   const defaultProps = {
     onCancel: noop,
-    availableTeams: [createMockTeam({ id: 1, name: "Fleet 1" })],
+    availableTeams: [createMockTeam({ id: 1, name: "AutoMDM 1" })],
     isPremiumTier: true,
     defaultData: WITH_REMOVED_ROUTE_GRANT,
   };

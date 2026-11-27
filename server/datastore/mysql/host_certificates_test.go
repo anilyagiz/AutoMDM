@@ -16,11 +16,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm"
-	"github.com/fleetdm/fleet/v4/server/platform/mysql/testing_utils"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm"
+	"github.com/anilyagiz/automdm/v4/server/platform/mysql/testing_utils"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -61,11 +61,11 @@ func TestHostCertificates(t *testing.T) {
 func testWindowsSCEPProfileVerification(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
-	mkHost := func(t *testing.T, suffix string) *fleet.Host {
+	mkHost := func(t *testing.T, suffix string) *automdm.Host {
 		t.Helper()
 		osqueryID := "wscep-osquery-" + suffix
 		nodeKey := "wscep-node-" + suffix
-		h, err := ds.NewHost(ctx, &fleet.Host{
+		h, err := ds.NewHost(ctx, &automdm.Host{
 			DetailUpdatedAt: time.Now(),
 			LabelUpdatedAt:  time.Now(),
 			PolicyUpdatedAt: time.Now(),
@@ -79,14 +79,14 @@ func testWindowsSCEPProfileVerification(t *testing.T, ds *Datastore) {
 		return h
 	}
 
-	upsertWinProfile := func(t *testing.T, h *fleet.Host, profileUUID, cmdUUID string, status fleet.MDMDeliveryStatus, retries int) {
+	upsertWinProfile := func(t *testing.T, h *automdm.Host, profileUUID, cmdUUID string, status automdm.MDMDeliveryStatus, retries int) {
 		t.Helper()
-		require.NoError(t, ds.BulkUpsertMDMWindowsHostProfiles(ctx, []*fleet.MDMWindowsBulkUpsertHostProfilePayload{{
+		require.NoError(t, ds.BulkUpsertMDMWindowsHostProfiles(ctx, []*automdm.MDMWindowsBulkUpsertHostProfilePayload{{
 			ProfileUUID:   profileUUID,
 			ProfileName:   "p-" + profileUUID,
 			HostUUID:      h.UUID,
 			CommandUUID:   cmdUUID,
-			OperationType: fleet.MDMOperationTypeInstall,
+			OperationType: automdm.MDMOperationTypeInstall,
 			Status:        &status,
 			Checksum:      []byte{1},
 		}}))
@@ -97,31 +97,31 @@ func testWindowsSCEPProfileVerification(t *testing.T, ds *Datastore) {
 		}
 	}
 
-	upsertHMMC := func(t *testing.T, h *fleet.Host, profileUUID string, caType fleet.CAConfigAssetType, nvb, nva *time.Time) {
+	upsertHMMC := func(t *testing.T, h *automdm.Host, profileUUID string, caType automdm.CAConfigAssetType, nvb, nva *time.Time) {
 		t.Helper()
-		hmmc := &fleet.MDMManagedCertificate{HostUUID: h.UUID, ProfileUUID: profileUUID, Type: caType, CAName: "ca-" + profileUUID}
+		hmmc := &automdm.MDMManagedCertificate{HostUUID: h.UUID, ProfileUUID: profileUUID, Type: caType, CAName: "ca-" + profileUUID}
 		if nva != nil {
 			hmmc.NotValidBefore = nvb
 			hmmc.NotValidAfter = nva
 			serial := "serial-" + profileUUID
 			hmmc.Serial = &serial
 		}
-		require.NoError(t, ds.BulkUpsertMDMManagedCertificates(ctx, []*fleet.MDMManagedCertificate{hmmc}))
+		require.NoError(t, ds.BulkUpsertMDMManagedCertificates(ctx, []*automdm.MDMManagedCertificate{hmmc}))
 	}
 
-	getProfile := func(t *testing.T, h *fleet.Host, profileUUID string) (fleet.MDMDeliveryStatus, string, int) {
+	getProfile := func(t *testing.T, h *automdm.Host, profileUUID string) (automdm.MDMDeliveryStatus, string, int) {
 		t.Helper()
 		return readWindowsHostProfile(t, ds, h.UUID, profileUUID)
 	}
 
 	// certWithRenewalID builds an ingestable host cert whose OU carries the profile's renewal-ID marker.
-	certWithRenewalID := func(t *testing.T, h *fleet.Host, renewalProfileUUID string, serial int64) *fleet.HostCertificateRecord {
+	certWithRenewalID := func(t *testing.T, h *automdm.Host, renewalProfileUUID string, serial int64) *automdm.HostCertificateRecord {
 		t.Helper()
 		tmpl := &x509.Certificate{
 			Subject: pkix.Name{
 				CommonName:         "device " + renewalProfileUUID,
 				Organization:       []string{"Org"},
-				OrganizationalUnit: []string{"fleet-" + renewalProfileUUID},
+				OrganizationalUnit: []string{"automdm-" + renewalProfileUUID},
 			},
 			Issuer:                pkix.Name{CommonName: "issuer.test.example.com", Organization: []string{"Issuer"}},
 			SerialNumber:          big.NewInt(serial),
@@ -139,7 +139,7 @@ func testWindowsSCEPProfileVerification(t *testing.T, ds *Datastore) {
 	// per-host rollup that GetMDMWindowsProfilesSummary reads current by itself. Drift is invisible until the hourly
 	// windows_profiles_status_reconcile cron heals it, so compare against a freshly reconciled value rather than just
 	// asserting the rollup row exists.
-	requireRollupMatchesReconcile := func(t *testing.T, hostUUID string, want fleet.MDMDeliveryStatus) {
+	requireRollupMatchesReconcile := func(t *testing.T, hostUUID string, want automdm.MDMDeliveryStatus) {
 		t.Helper()
 		got := readWindowsProfilesStatusRollup(t, ds)[hostUUID]
 		require.Equal(t, string(want), got)
@@ -148,17 +148,17 @@ func testWindowsSCEPProfileVerification(t *testing.T, ds *Datastore) {
 			"write path must keep the rollup in sync without a reconcile")
 	}
 
-	ingest := func(t *testing.T, h *fleet.Host, recs ...*fleet.HostCertificateRecord) {
+	ingest := func(t *testing.T, h *automdm.Host, recs ...*automdm.HostCertificateRecord) {
 		t.Helper()
-		require.NoError(t, ds.UpdateHostCertificates(ctx, h.ID, h.UUID, recs, fleet.HostCertificateOriginOsquery, nil))
+		require.NoError(t, ds.UpdateHostCertificates(ctx, h.ID, h.UUID, recs, automdm.HostCertificateOriginOsquery, nil))
 	}
 
-	ackVerified := func(t *testing.T, h *fleet.Host, cmdUUID string) {
+	ackVerified := func(t *testing.T, h *automdm.Host, cmdUUID string) {
 		t.Helper()
-		verified := fleet.MDMDeliveryVerified
+		verified := automdm.MDMDeliveryVerified
 		_, err := updateMDMWindowsHostProfileStatusFromResponseDB(ctx, ds.writer(ctx),
-			[]*fleet.MDMWindowsProfilePayload{{HostUUID: h.UUID, CommandUUID: cmdUUID, Status: &verified}},
-			fleet.WindowsUserContextPresent, true)
+			[]*automdm.MDMWindowsProfilePayload{{HostUUID: h.UUID, CommandUUID: cmdUUID, Status: &verified}},
+			automdm.WindowsUserContextPresent, true)
 		require.NoError(t, err)
 	}
 
@@ -177,7 +177,7 @@ func testWindowsSCEPProfileVerification(t *testing.T, ds *Datastore) {
 		require.NoError(t, err)
 	}
 
-	backdateProfile := func(t *testing.T, h *fleet.Host, profileUUID string, ago time.Duration) {
+	backdateProfile := func(t *testing.T, h *automdm.Host, profileUUID string, ago time.Duration) {
 		t.Helper()
 		_, err := ds.writer(ctx).ExecContext(ctx,
 			`UPDATE host_mdm_windows_profiles SET updated_at = DATE_SUB(NOW(), INTERVAL ? SECOND) WHERE host_uuid = ? AND profile_uuid = ?`,
@@ -186,11 +186,11 @@ func testWindowsSCEPProfileVerification(t *testing.T, ds *Datastore) {
 	}
 
 	// plainCert builds an ingestable host cert that does NOT carry any profile's renewal-ID marker.
-	plainCert := func(t *testing.T, h *fleet.Host, cn string, source fleet.HostCertificateSource, username string) *fleet.HostCertificateRecord {
+	plainCert := func(t *testing.T, h *automdm.Host, cn string, source automdm.HostCertificateSource, username string) *automdm.HostCertificateRecord {
 		t.Helper()
 		sum := make([]byte, 20)
 		copy(sum, cn)
-		return &fleet.HostCertificateRecord{
+		return &automdm.HostCertificateRecord{
 			HostID:            h.ID,
 			CommonName:        cn,
 			SubjectCommonName: cn,
@@ -205,17 +205,17 @@ func testWindowsSCEPProfileVerification(t *testing.T, ds *Datastore) {
 	// ACK status mapping: a proxied SCEP profile moves to "verifying" on the device's 2xx ACK
 	for i, tc := range []struct {
 		name   string
-		caType fleet.CAConfigAssetType // "" means no managed-certificate row
-		want   fleet.MDMDeliveryStatus
+		caType automdm.CAConfigAssetType // "" means no managed-certificate row
+		want   automdm.MDMDeliveryStatus
 	}{
-		{"proxied SCEP moves to verifying", fleet.CAConfigCustomSCEPProxy, fleet.MDMDeliveryVerifying},
-		{"non-certificate profile stays verified", "", fleet.MDMDeliveryVerified},
-		{"DigiCert profile stays verified", fleet.CAConfigDigiCert, fleet.MDMDeliveryVerified},
+		{"proxied SCEP moves to verifying", automdm.CAConfigCustomSCEPProxy, automdm.MDMDeliveryVerifying},
+		{"non-certificate profile stays verified", "", automdm.MDMDeliveryVerified},
+		{"DigiCert profile stays verified", automdm.CAConfigDigiCert, automdm.MDMDeliveryVerified},
 	} {
 		t.Run("ACK: "+tc.name, func(t *testing.T) {
 			h := mkHost(t, fmt.Sprintf("ack-%d", i))
 			p, cmd := "w-ack", "cmd-ack"
-			upsertWinProfile(t, h, p, cmd, fleet.MDMDeliveryPending, 0)
+			upsertWinProfile(t, h, p, cmd, automdm.MDMDeliveryPending, 0)
 			if tc.caType != "" {
 				upsertHMMC(t, h, p, tc.caType, nil, nil)
 			}
@@ -227,19 +227,19 @@ func testWindowsSCEPProfileVerification(t *testing.T, ds *Datastore) {
 
 	// Every CA type that carries a renewal-ID marker verifies the same way: the matcher records the observed certificate
 	// on the managed-certificate row and the profile flips to verified.
-	for i, caType := range []fleet.CAConfigAssetType{fleet.CAConfigCustomSCEPProxy, fleet.CAConfigConditionalAccess} {
+	for i, caType := range []automdm.CAConfigAssetType{automdm.CAConfigCustomSCEPProxy, automdm.CAConfigConditionalAccess} {
 		t.Run("cert observation flips verifying to verified: "+string(caType), func(t *testing.T) {
 			h := mkHost(t, fmt.Sprintf("flip-%d", i))
 			p := fmt.Sprintf("w-scep-flip-%d", i)
-			upsertWinProfile(t, h, p, "cmd-flip", fleet.MDMDeliveryVerifying, 0)
+			upsertWinProfile(t, h, p, "cmd-flip", automdm.MDMDeliveryVerifying, 0)
 			upsertHMMC(t, h, p, caType, nil, nil)
 
 			cert := certWithRenewalID(t, h, p, 7001+int64(i))
 			ingest(t, h, cert)
 
 			status, _, _ := getProfile(t, h, p)
-			require.Equal(t, fleet.MDMDeliveryVerified, status)
-			requireRollupMatchesReconcile(t, h.UUID, fleet.MDMDeliveryVerified)
+			require.Equal(t, automdm.MDMDeliveryVerified, status)
+			requireRollupMatchesReconcile(t, h.UUID, automdm.MDMDeliveryVerified)
 
 			hmmc, err := ds.GetWindowsHostMDMCertificateProfile(ctx, h.UUID, p, "ca-"+p)
 			require.NoError(t, err)
@@ -255,8 +255,8 @@ func testWindowsSCEPProfileVerification(t *testing.T, ds *Datastore) {
 	t.Run("cert observation self-heals failed to verified and clears detail", func(t *testing.T) {
 		h := mkHost(t, "heal")
 		p := "w-scep-heal"
-		upsertWinProfile(t, h, p, "cmd-heal", fleet.MDMDeliveryFailed, 0)
-		upsertHMMC(t, h, p, fleet.CAConfigCustomSCEPProxy, nil, nil)
+		upsertWinProfile(t, h, p, "cmd-heal", automdm.MDMDeliveryFailed, 0)
+		upsertHMMC(t, h, p, automdm.CAConfigCustomSCEPProxy, nil, nil)
 		_, err := ds.writer(ctx).ExecContext(ctx,
 			`UPDATE host_mdm_windows_profiles SET detail = ? WHERE host_uuid = ? AND profile_uuid = ?`,
 			"SCEP PKIOperation failed: HTTP 500", h.UUID, p)
@@ -265,7 +265,7 @@ func testWindowsSCEPProfileVerification(t *testing.T, ds *Datastore) {
 		ingest(t, h, certWithRenewalID(t, h, p, 7002))
 
 		status, detail, _ := getProfile(t, h, p)
-		require.Equal(t, fleet.MDMDeliveryVerified, status)
+		require.Equal(t, automdm.MDMDeliveryVerified, status)
 		require.Empty(t, detail)
 	})
 
@@ -275,57 +275,57 @@ func testWindowsSCEPProfileVerification(t *testing.T, ds *Datastore) {
 	t.Run("redelivery waits for a new certificate", func(t *testing.T) {
 		h := mkHost(t, "redeliver")
 		p := "w-redeliver"
-		upsertWinProfile(t, h, p, "cmd-redeliver-1", fleet.MDMDeliveryVerifying, 0)
-		upsertHMMC(t, h, p, fleet.CAConfigCustomSCEPProxy, nil, nil)
+		upsertWinProfile(t, h, p, "cmd-redeliver-1", automdm.MDMDeliveryVerifying, 0)
+		upsertHMMC(t, h, p, automdm.CAConfigCustomSCEPProxy, nil, nil)
 
 		// First issuance lands and verifies.
 		firstCert := certWithRenewalID(t, h, p, 7301)
 		ingest(t, h, firstCert)
 		status, _, _ := getProfile(t, h, p)
-		require.Equal(t, fleet.MDMDeliveryVerified, status)
+		require.Equal(t, automdm.MDMDeliveryVerified, status)
 
-		// Fleet redelivers. The reconciler preprocesses the profile again, which rewrites the managed-certificate row with a
+		// AutoMDM redelivers. The reconciler preprocesses the profile again, which rewrites the managed-certificate row with a
 		// fresh challenge and no observed certificate, and the host acknowledges the new command.
-		upsertHMMC(t, h, p, fleet.CAConfigCustomSCEPProxy, nil, nil)
-		upsertWinProfile(t, h, p, "cmd-redeliver-2", fleet.MDMDeliveryVerifying, 1)
+		upsertHMMC(t, h, p, automdm.CAConfigCustomSCEPProxy, nil, nil)
+		upsertWinProfile(t, h, p, "cmd-redeliver-2", automdm.MDMDeliveryVerifying, 1)
 
 		// The host still reports only the previous certificate: the new exchange has not produced one.
 		ingest(t, h, firstCert)
 		status, _, _ = getProfile(t, h, p)
-		require.Equal(t, fleet.MDMDeliveryVerifying, status,
+		require.Equal(t, automdm.MDMDeliveryVerifying, status,
 			"a certificate from the previous issuance must not verify a redelivery")
 
 		// The reissued certificate does.
 		ingest(t, h, firstCert, certWithRenewalID(t, h, p, 7302))
 		status, _, _ = getProfile(t, h, p)
-		require.Equal(t, fleet.MDMDeliveryVerified, status)
+		require.Equal(t, automdm.MDMDeliveryVerified, status)
 	})
 
 	t.Run("no matching cert keeps profile verifying", func(t *testing.T) {
 		h := mkHost(t, "nomatch")
 		p := "w-scep-nomatch"
-		upsertWinProfile(t, h, p, "cmd-nomatch", fleet.MDMDeliveryVerifying, 0)
-		upsertHMMC(t, h, p, fleet.CAConfigCustomSCEPProxy, nil, nil)
+		upsertWinProfile(t, h, p, "cmd-nomatch", automdm.MDMDeliveryVerifying, 0)
+		upsertHMMC(t, h, p, automdm.CAConfigCustomSCEPProxy, nil, nil)
 
 		// A cert for an unrelated profile: exercises the ingest path but matches nothing here.
 		ingest(t, h, certWithRenewalID(t, h, "w-unrelated-profile", 7003))
 
 		status, _, _ := getProfile(t, h, p)
-		require.Equal(t, fleet.MDMDeliveryVerifying, status)
+		require.Equal(t, automdm.MDMDeliveryVerifying, status)
 	})
 
 	t.Run("DigiCert profile not flipped even with observed cert dates", func(t *testing.T) {
 		h := mkHost(t, "digicert-flip")
 		p := "w-digicert-flip"
-		upsertWinProfile(t, h, p, "cmd-digicert-flip", fleet.MDMDeliveryVerifying, 0)
+		upsertWinProfile(t, h, p, "cmd-digicert-flip", automdm.MDMDeliveryVerifying, 0)
 		nvb := time.Now().Add(-time.Hour).Truncate(time.Second).UTC()
 		nva := time.Now().Add(365 * 24 * time.Hour).Truncate(time.Second).UTC()
-		upsertHMMC(t, h, p, fleet.CAConfigDigiCert, &nvb, &nva)
+		upsertHMMC(t, h, p, automdm.CAConfigDigiCert, &nvb, &nva)
 
 		ingest(t, h, certWithRenewalID(t, h, "w-trigger-only", 7004))
 
 		status, _, _ := getProfile(t, h, p)
-		require.Equal(t, fleet.MDMDeliveryVerifying, status)
+		require.Equal(t, automdm.MDMDeliveryVerifying, status)
 	})
 
 	// An upstream CA error is a delivery failure like any other, so it spends the profile's retries before it becomes
@@ -337,7 +337,7 @@ func testWindowsSCEPProfileVerification(t *testing.T, ds *Datastore) {
 		t.Run(fmt.Sprintf("proxy failure retries the profile at %d retries", retries), func(t *testing.T) {
 			h := mkHost(t, fmt.Sprintf("setfailed-retry-%d", retries))
 			p := "w-fail"
-			upsertWinProfile(t, h, p, "cmd-fail", fleet.MDMDeliveryVerifying, retries)
+			upsertWinProfile(t, h, p, "cmd-fail", automdm.MDMDeliveryVerifying, retries)
 
 			changed, retried, err := ds.SetMDMWindowsHostProfileFailedOrRetry(ctx, h.UUID, p, scepFailDetail, false)
 			require.NoError(t, err)
@@ -348,14 +348,14 @@ func testWindowsSCEPProfileVerification(t *testing.T, ds *Datastore) {
 			require.Empty(t, status, "a profile with retries left goes back to pending")
 			require.Empty(t, detail, "a pending profile must not surface the failed attempt's error")
 			require.Equal(t, retries+1, gotRetries)
-			requireRollupMatchesReconcile(t, h.UUID, fleet.MDMDeliveryPending)
+			requireRollupMatchesReconcile(t, h.UUID, automdm.MDMDeliveryPending)
 		})
 	}
 
 	t.Run("proxy failure is terminal once the retries are spent", func(t *testing.T) {
 		h := mkHost(t, "setfailed")
 		p := "w-fail"
-		upsertWinProfile(t, h, p, "cmd-fail", fleet.MDMDeliveryVerifying, mdm.MaxWindowsProfileRetries)
+		upsertWinProfile(t, h, p, "cmd-fail", automdm.MDMDeliveryVerifying, mdm.MaxWindowsProfileRetries)
 
 		changed, retried, err := ds.SetMDMWindowsHostProfileFailedOrRetry(ctx, h.UUID, p, scepFailDetail, false)
 		require.NoError(t, err)
@@ -363,10 +363,10 @@ func testWindowsSCEPProfileVerification(t *testing.T, ds *Datastore) {
 		require.False(t, retried)
 
 		status, detail, retries := getProfile(t, h, p)
-		require.Equal(t, fleet.MDMDeliveryFailed, status)
+		require.Equal(t, automdm.MDMDeliveryFailed, status)
 		require.Equal(t, scepFailDetail, detail)
 		require.Equal(t, mdm.MaxWindowsProfileRetries, retries)
-		requireRollupMatchesReconcile(t, h.UUID, fleet.MDMDeliveryFailed)
+		requireRollupMatchesReconcile(t, h.UUID, automdm.MDMDeliveryFailed)
 
 		changed, retried, err = ds.SetMDMWindowsHostProfileFailedOrRetry(ctx, h.UUID, p, scepFailDetail, false)
 		require.NoError(t, err)
@@ -379,17 +379,17 @@ func testWindowsSCEPProfileVerification(t *testing.T, ds *Datastore) {
 		require.True(t, changed, "a different failure replaces the detail")
 		require.False(t, retried)
 		status, detail, retries = getProfile(t, h, p)
-		require.Equal(t, fleet.MDMDeliveryFailed, status)
+		require.Equal(t, automdm.MDMDeliveryFailed, status)
 		require.Equal(t, otherDetail, detail)
 		require.Equal(t, mdm.MaxWindowsProfileRetries, retries)
 	})
 
-	// The SCEP CSP retries PKIOperation on its own schedule, so one Fleet delivery can produce a burst of upstream
+	// The SCEP CSP retries PKIOperation on its own schedule, so one AutoMDM delivery can produce a burst of upstream
 	// errors. Only the first may cost a retry; the rest arrive when a delivery is already queued and must be dropped.
 	t.Run("repeated proxy failures within one delivery spend a single retry", func(t *testing.T) {
 		h := mkHost(t, "setfailed-burst")
 		p := "w-fail-burst"
-		upsertWinProfile(t, h, p, "cmd-fail-burst", fleet.MDMDeliveryVerifying, 0)
+		upsertWinProfile(t, h, p, "cmd-fail-burst", automdm.MDMDeliveryVerifying, 0)
 
 		changed, retried, err := ds.SetMDMWindowsHostProfileFailedOrRetry(ctx, h.UUID, p, scepFailDetail, false)
 		require.NoError(t, err)
@@ -413,16 +413,16 @@ func testWindowsSCEPProfileVerification(t *testing.T, ds *Datastore) {
 	// the host acknowledged and is still verifying may be charged; any other row is left exactly as it was. PKIOperation
 	// keeps charging a delivery the host has not acknowledged yet.
 	for _, tc := range []struct {
-		status          fleet.MDMDeliveryStatus
+		status          automdm.MDMDeliveryStatus
 		onlyIfVerifying bool
 		retries         int
 		charged         bool
 	}{
-		{fleet.MDMDeliveryVerifying, true, 1, true},
-		{fleet.MDMDeliveryPending, true, 1, false},
-		{fleet.MDMDeliveryFailed, true, 1, false},
-		{fleet.MDMDeliveryVerified, true, 0, false},
-		{fleet.MDMDeliveryPending, false, 1, true},
+		{automdm.MDMDeliveryVerifying, true, 1, true},
+		{automdm.MDMDeliveryPending, true, 1, false},
+		{automdm.MDMDeliveryFailed, true, 1, false},
+		{automdm.MDMDeliveryVerified, true, 0, false},
+		{automdm.MDMDeliveryPending, false, 1, true},
 	} {
 		t.Run(fmt.Sprintf("proxy failure with onlyIfVerifying=%t on a %s profile", tc.onlyIfVerifying, tc.status), func(t *testing.T) {
 			h := mkHost(t, fmt.Sprintf("setfailed-only-verifying-%t-%s", tc.onlyIfVerifying, tc.status))
@@ -453,7 +453,7 @@ func testWindowsSCEPProfileVerification(t *testing.T, ds *Datastore) {
 	t.Run("proxy failure does not clobber verified", func(t *testing.T) {
 		h := mkHost(t, "setfailed-verified")
 		p := "w-fail-verified"
-		upsertWinProfile(t, h, p, "cmd-fail-verified", fleet.MDMDeliveryVerified, 0)
+		upsertWinProfile(t, h, p, "cmd-fail-verified", automdm.MDMDeliveryVerified, 0)
 
 		changed, retried, err := ds.SetMDMWindowsHostProfileFailedOrRetry(ctx, h.UUID, p, "SCEP GetCACert failed: timeout", false)
 		require.NoError(t, err)
@@ -461,18 +461,18 @@ func testWindowsSCEPProfileVerification(t *testing.T, ds *Datastore) {
 		require.False(t, retried)
 
 		status, _, gotRetries := getProfile(t, h, p)
-		require.Equal(t, fleet.MDMDeliveryVerified, status)
+		require.Equal(t, automdm.MDMDeliveryVerified, status)
 		require.Equal(t, 0, gotRetries)
 	})
 
-	// A challenge Fleet turned away (expired NDES password, rejected custom SCEP challenge) is not an install the host
+	// A challenge AutoMDM turned away (expired NDES password, rejected custom SCEP challenge) is not an install the host
 	// failed, so nothing is charged for it. It must not hand the budget back either.
 	t.Run("certificate profile resend neither charges nor refills the retries", func(t *testing.T) {
 		h := mkHost(t, "resend-cert")
 		p := "w-resend-cert"
 		// "verifying" is the realistic state for this path: the host acknowledged the profile and is mid-exchange when
 		// the stale challenge arrives. A terminal row is covered separately below.
-		upsertWinProfile(t, h, p, "cmd-resend-cert", fleet.MDMDeliveryVerifying, mdm.MaxWindowsProfileRetries-1)
+		upsertWinProfile(t, h, p, "cmd-resend-cert", automdm.MDMDeliveryVerifying, mdm.MaxWindowsProfileRetries-1)
 		_, err := ds.writer(ctx).ExecContext(ctx,
 			`UPDATE host_mdm_windows_profiles SET detail = ? WHERE host_uuid = ? AND profile_uuid = ?`,
 			"SCEP PKIOperation failed: HTTP 500", h.UUID, p)
@@ -484,23 +484,23 @@ func testWindowsSCEPProfileVerification(t *testing.T, ds *Datastore) {
 		require.Empty(t, status)
 		require.Empty(t, detail)
 		require.Equal(t, mdm.MaxWindowsProfileRetries-1, retries)
-		requireRollupMatchesReconcile(t, h.UUID, fleet.MDMDeliveryPending)
+		requireRollupMatchesReconcile(t, h.UUID, automdm.MDMDeliveryPending)
 
 		// The budget still runs out. Each step redelivers first (status back to verifying) so the failure is judged on
 		// the retry count and not short-circuited by the already-queued guard.
-		upsertWinProfile(t, h, p, "cmd-resend-cert-2", fleet.MDMDeliveryVerifying, mdm.MaxWindowsProfileRetries-1)
+		upsertWinProfile(t, h, p, "cmd-resend-cert-2", automdm.MDMDeliveryVerifying, mdm.MaxWindowsProfileRetries-1)
 		changed, retried, err := ds.SetMDMWindowsHostProfileFailedOrRetry(ctx, h.UUID, p, scepFailDetail, false)
 		require.NoError(t, err)
 		require.True(t, changed)
 		require.True(t, retried)
 
-		upsertWinProfile(t, h, p, "cmd-resend-cert-3", fleet.MDMDeliveryVerifying, mdm.MaxWindowsProfileRetries)
+		upsertWinProfile(t, h, p, "cmd-resend-cert-3", automdm.MDMDeliveryVerifying, mdm.MaxWindowsProfileRetries)
 		changed, retried, err = ds.SetMDMWindowsHostProfileFailedOrRetry(ctx, h.UUID, p, scepFailDetail, false)
 		require.NoError(t, err)
 		require.True(t, changed)
 		require.False(t, retried, "a challenge resend must not have refilled the budget")
 		status, detail, _ = getProfile(t, h, p)
-		require.Equal(t, fleet.MDMDeliveryFailed, status)
+		require.Equal(t, automdm.MDMDeliveryFailed, status)
 		require.Equal(t, scepFailDetail, detail)
 	})
 
@@ -509,9 +509,9 @@ func testWindowsSCEPProfileVerification(t *testing.T, ds *Datastore) {
 	t.Run("admin resend starts a new retry budget", func(t *testing.T) {
 		h := mkHost(t, "resend-admin")
 		p := "w-resend-admin"
-		upsertWinProfile(t, h, p, "cmd-resend-admin", fleet.MDMDeliveryFailed, mdm.MaxWindowsProfileRetries)
+		upsertWinProfile(t, h, p, "cmd-resend-admin", automdm.MDMDeliveryFailed, mdm.MaxWindowsProfileRetries)
 		insertConfigProfile(t, p, "resend-admin", false)
-		upsertHMMC(t, h, p, fleet.CAConfigCustomSCEPProxy, nil, nil)
+		upsertHMMC(t, h, p, automdm.CAConfigCustomSCEPProxy, nil, nil)
 
 		require.NoError(t, ds.ResendHostMDMProfile(ctx, h.UUID, p))
 
@@ -519,25 +519,25 @@ func testWindowsSCEPProfileVerification(t *testing.T, ds *Datastore) {
 		require.Empty(t, status)
 		require.Zero(t, retries)
 
-		upsertWinProfile(t, h, p, "cmd-resend-admin-2", fleet.MDMDeliveryVerifying, 0)
+		upsertWinProfile(t, h, p, "cmd-resend-admin-2", automdm.MDMDeliveryVerifying, 0)
 		backdateProfile(t, h, p, 2*time.Hour)
-		ingest(t, h, plainCert(t, h, "some-cert", fleet.SystemHostCertificate, ""))
+		ingest(t, h, plainCert(t, h, "some-cert", automdm.SystemHostCertificate, ""))
 
 		status, detail, retries := getProfile(t, h, p)
 		require.Empty(t, status)
 		require.Empty(t, detail)
 		require.Equal(t, 1, retries)
-		requireRollupMatchesReconcile(t, h.UUID, fleet.MDMDeliveryPending)
+		requireRollupMatchesReconcile(t, h.UUID, automdm.MDMDeliveryPending)
 	})
 
 	// Windows profiles are exempt from the "status must be pending" gate in validateIdentifier, so a straggling SCEP
 	// requeueing a failed one would quietly resurrect a profile that had already run out of retries.
 	for _, tc := range []struct {
 		name   string
-		status fleet.MDMDeliveryStatus
+		status automdm.MDMDeliveryStatus
 	}{
-		{"verified", fleet.MDMDeliveryVerified},
-		{"failed", fleet.MDMDeliveryFailed},
+		{"verified", automdm.MDMDeliveryVerified},
+		{"failed", automdm.MDMDeliveryFailed},
 	} {
 		t.Run("certificate profile resend leaves a "+tc.name+" profile alone", func(t *testing.T) {
 			h := mkHost(t, "resend-terminal-"+tc.name)
@@ -577,49 +577,49 @@ func testWindowsSCEPProfileVerification(t *testing.T, ds *Datastore) {
 		name        string
 		userScoped  bool
 		backdate    time.Duration // 0 = still within the grace window
-		certSource  fleet.HostCertificateSource
+		certSource  automdm.HostCertificateSource
 		username    string
 		retries     int
-		wantStatus  fleet.MDMDeliveryStatus // "" means pending, i.e. queued for another delivery
+		wantStatus  automdm.MDMDeliveryStatus // "" means pending, i.e. queued for another delivery
 		wantDetail  string
 		wantRetries int
-		caType      fleet.CAConfigAssetType
+		caType      automdm.CAConfigAssetType
 	}{
 		{
 			"device-scoped retries past grace when cert absent",
-			false, 2 * time.Hour, fleet.SystemHostCertificate, "", 0, "", "", 1, fleet.CAConfigCustomSCEPProxy,
+			false, 2 * time.Hour, automdm.SystemHostCertificate, "", 0, "", "", 1, automdm.CAConfigCustomSCEPProxy,
 		},
 		{
 			"device-scoped retries again on its last attempt",
-			false, 2 * time.Hour, fleet.SystemHostCertificate, "", mdm.MaxWindowsProfileRetries - 1, "", "", mdm.MaxWindowsProfileRetries,
-			fleet.CAConfigCustomSCEPProxy,
+			false, 2 * time.Hour, automdm.SystemHostCertificate, "", mdm.MaxWindowsProfileRetries - 1, "", "", mdm.MaxWindowsProfileRetries,
+			automdm.CAConfigCustomSCEPProxy,
 		},
 		{
 			"device-scoped fails past grace once the retries are spent",
-			false, 2 * time.Hour, fleet.SystemHostCertificate, "", mdm.MaxWindowsProfileRetries,
-			fleet.MDMDeliveryFailed, windowsSCEPCertNotFoundDetail, mdm.MaxWindowsProfileRetries, fleet.CAConfigCustomSCEPProxy,
+			false, 2 * time.Hour, automdm.SystemHostCertificate, "", mdm.MaxWindowsProfileRetries,
+			automdm.MDMDeliveryFailed, windowsSCEPCertNotFoundDetail, mdm.MaxWindowsProfileRetries, automdm.CAConfigCustomSCEPProxy,
 		},
 		{
 			"device-scoped stays verifying within grace",
-			false, 0, fleet.SystemHostCertificate, "", 0, fleet.MDMDeliveryVerifying, "", 0, fleet.CAConfigCustomSCEPProxy,
+			false, 0, automdm.SystemHostCertificate, "", 0, automdm.MDMDeliveryVerifying, "", 0, automdm.CAConfigCustomSCEPProxy,
 		},
 		{
 			"user-scoped stays verifying when no user cert observed",
-			true, 2 * time.Hour, fleet.SystemHostCertificate, "", 0, fleet.MDMDeliveryVerifying, "", 0, fleet.CAConfigCustomSCEPProxy,
+			true, 2 * time.Hour, automdm.SystemHostCertificate, "", 0, automdm.MDMDeliveryVerifying, "", 0, automdm.CAConfigCustomSCEPProxy,
 		},
 		{
 			"user-scoped retries past grace once a user cert is observed",
-			true, 2 * time.Hour, fleet.UserHostCertificate, "alice", 0, "", "", 1, fleet.CAConfigCustomSCEPProxy,
+			true, 2 * time.Hour, automdm.UserHostCertificate, "alice", 0, "", "", 1, automdm.CAConfigCustomSCEPProxy,
 		},
 		{
 			"user-scoped conditional access retries past grace once a user cert is observed",
-			true, 2 * time.Hour, fleet.UserHostCertificate, "alice", 0, "", "", 1, fleet.CAConfigConditionalAccess,
+			true, 2 * time.Hour, automdm.UserHostCertificate, "alice", 0, "", "", 1, automdm.CAConfigConditionalAccess,
 		},
 	} {
 		t.Run("backstop: "+tc.name, func(t *testing.T) {
 			h := mkHost(t, fmt.Sprintf("backstop-%d", i))
 			p := fmt.Sprintf("w-backstop-%d", i)
-			upsertWinProfile(t, h, p, "cmd-backstop", fleet.MDMDeliveryVerifying, tc.retries)
+			upsertWinProfile(t, h, p, "cmd-backstop", automdm.MDMDeliveryVerifying, tc.retries)
 			insertConfigProfile(t, p, fmt.Sprintf("backstop-%d", i), tc.userScoped)
 			upsertHMMC(t, h, p, tc.caType, nil, nil)
 			if tc.backdate > 0 {
@@ -637,32 +637,32 @@ func testWindowsSCEPProfileVerification(t *testing.T, ds *Datastore) {
 			// An empty wantStatus means the row went back to NULL, which the rollup reports as pending.
 			wantRollup := tc.wantStatus
 			if wantRollup == "" {
-				wantRollup = fleet.MDMDeliveryPending
+				wantRollup = automdm.MDMDeliveryPending
 			}
 			requireRollupMatchesReconcile(t, h.UUID, wantRollup)
 		})
 	}
 
 	// A profile the device's SCEP status reported as installed is backstopped too while its certificate never matched the
-	// renewal ID (the CA rewrote the subject), because Fleet can't renew it. A matched certificate keeps it verified.
+	// renewal ID (the CA rewrote the subject), because AutoMDM can't renew it. A matched certificate keeps it verified.
 	for _, matched := range []bool{false, true} {
 		t.Run(fmt.Sprintf("backstop on verified: certificate matched=%t", matched), func(t *testing.T) {
 			h := mkHost(t, fmt.Sprintf("backstop-verified-%t", matched))
 			p := fmt.Sprintf("w-backstop-verified-%t", matched)
-			upsertWinProfile(t, h, p, "cmd-backstop-verified", fleet.MDMDeliveryVerified, 0)
+			upsertWinProfile(t, h, p, "cmd-backstop-verified", automdm.MDMDeliveryVerified, 0)
 			insertConfigProfile(t, p, p, false)
 			nvb, nva := time.Now().Add(-time.Hour), time.Now().Add(time.Hour)
 			if matched {
-				upsertHMMC(t, h, p, fleet.CAConfigNDES, &nvb, &nva)
+				upsertHMMC(t, h, p, automdm.CAConfigNDES, &nvb, &nva)
 			} else {
-				upsertHMMC(t, h, p, fleet.CAConfigNDES, nil, nil)
+				upsertHMMC(t, h, p, automdm.CAConfigNDES, nil, nil)
 			}
 			backdateProfile(t, h, p, 2*time.Hour)
-			ingest(t, h, plainCert(t, h, "verified-cert", fleet.SystemHostCertificate, ""))
+			ingest(t, h, plainCert(t, h, "verified-cert", automdm.SystemHostCertificate, ""))
 
 			status, _, retries := getProfile(t, h, p)
 			if matched {
-				require.Equal(t, fleet.MDMDeliveryVerified, status)
+				require.Equal(t, automdm.MDMDeliveryVerified, status)
 				require.Zero(t, retries)
 			} else {
 				require.Empty(t, status, "queued for another delivery")
@@ -676,38 +676,38 @@ func testWindowsSCEPProfileVerification(t *testing.T, ds *Datastore) {
 	t.Run("backstop: a retried profile is not failed again until the next grace window", func(t *testing.T) {
 		h := mkHost(t, "backstop-regrace")
 		p := "w-backstop-regrace"
-		upsertWinProfile(t, h, p, "cmd-bs-regrace", fleet.MDMDeliveryVerifying, 0)
+		upsertWinProfile(t, h, p, "cmd-bs-regrace", automdm.MDMDeliveryVerifying, 0)
 		insertConfigProfile(t, p, "bs-regrace", false)
-		upsertHMMC(t, h, p, fleet.CAConfigCustomSCEPProxy, nil, nil)
+		upsertHMMC(t, h, p, automdm.CAConfigCustomSCEPProxy, nil, nil)
 		backdateProfile(t, h, p, 2*time.Hour)
 
-		ingest(t, h, plainCert(t, h, "regrace-cert", fleet.SystemHostCertificate, ""))
+		ingest(t, h, plainCert(t, h, "regrace-cert", automdm.SystemHostCertificate, ""))
 		status, _, retries := getProfile(t, h, p)
 		require.Empty(t, status)
 		require.Equal(t, 1, retries)
 
 		// Simulate the redelivery the retry triggers: back to verifying, with a fresh updated_at.
-		upsertWinProfile(t, h, p, "cmd-bs-regrace-2", fleet.MDMDeliveryVerifying, 1)
+		upsertWinProfile(t, h, p, "cmd-bs-regrace-2", automdm.MDMDeliveryVerifying, 1)
 
-		ingest(t, h, plainCert(t, h, "regrace-cert", fleet.SystemHostCertificate, ""))
+		ingest(t, h, plainCert(t, h, "regrace-cert", automdm.SystemHostCertificate, ""))
 		status, _, retries = getProfile(t, h, p)
-		require.Equal(t, fleet.MDMDeliveryVerifying, status)
+		require.Equal(t, automdm.MDMDeliveryVerifying, status)
 		require.Equal(t, 1, retries, "an ingest inside the grace window must not consume a retry")
 	})
 
 	t.Run("observed cert wins over the backstop even past grace", func(t *testing.T) {
 		h := mkHost(t, "backstop-flipwins")
 		p := "w-backstop-flipwins"
-		upsertWinProfile(t, h, p, "cmd-bs-flipwins", fleet.MDMDeliveryVerifying, 0)
+		upsertWinProfile(t, h, p, "cmd-bs-flipwins", automdm.MDMDeliveryVerifying, 0)
 		insertConfigProfile(t, p, "bs-flipwins", false)
-		upsertHMMC(t, h, p, fleet.CAConfigCustomSCEPProxy, nil, nil)
+		upsertHMMC(t, h, p, automdm.CAConfigCustomSCEPProxy, nil, nil)
 		backdateProfile(t, h, p, 2*time.Hour)
 
 		// The matching cert is present, so the verified-flip must win and the backstop must not fire.
 		ingest(t, h, certWithRenewalID(t, h, p, 7101))
 
 		status, _, _ := getProfile(t, h, p)
-		require.Equal(t, fleet.MDMDeliveryVerified, status)
+		require.Equal(t, automdm.MDMDeliveryVerified, status)
 	})
 }
 
@@ -741,27 +741,27 @@ func testUpdateAndListHostCertificates(t *testing.T, ds *Datastore) {
 	expected1 := createX509Cert("test.example.com", 24*time.Hour)
 	expected2 := createX509Cert("another.test.example.com", 48*time.Hour)
 
-	payload := []*fleet.HostCertificateRecord{
+	payload := []*automdm.HostCertificateRecord{
 		generateTestHostCertificateRecord(t, 1, &expected1),
 		generateTestHostCertificateRecord(t, 1, &expected2),
 	}
 
-	require.NoError(t, ds.UpdateHostCertificates(ctx, 1, "95816502-d8c0-462c-882f-39991cc89a0c", payload, fleet.HostCertificateOriginOsquery, nil))
+	require.NoError(t, ds.UpdateHostCertificates(ctx, 1, "95816502-d8c0-462c-882f-39991cc89a0c", payload, automdm.HostCertificateOriginOsquery, nil))
 
 	// verify that we saved the records correctly
-	certs, meta, err := ds.ListHostCertificates(ctx, 1, fleet.ListOptions{OrderKey: "common_name", IncludeMetadata: true})
+	certs, meta, err := ds.ListHostCertificates(ctx, 1, automdm.ListOptions{OrderKey: "common_name", IncludeMetadata: true})
 	require.NoError(t, err)
 	require.Len(t, certs, 2)
 	require.Equal(t, expected2.Subject.CommonName, certs[0].CommonName)
 	require.Equal(t, expected2.Subject.CommonName, certs[0].SubjectCommonName)
-	require.Equal(t, fleet.SystemHostCertificate, certs[0].Source)
+	require.Equal(t, automdm.SystemHostCertificate, certs[0].Source)
 	require.Equal(t, expected1.Subject.CommonName, certs[1].CommonName)
 	require.Equal(t, expected1.Subject.CommonName, certs[1].SubjectCommonName)
-	require.Equal(t, fleet.SystemHostCertificate, certs[1].Source)
+	require.Equal(t, automdm.SystemHostCertificate, certs[1].Source)
 	require.EqualValues(t, 2, meta.TotalResults)
 
 	// order by not_valid_after descending
-	certs, _, err = ds.ListHostCertificates(ctx, 1, fleet.ListOptions{OrderKey: "not_valid_after", OrderDirection: fleet.OrderAscending})
+	certs, _, err = ds.ListHostCertificates(ctx, 1, automdm.ListOptions{OrderKey: "not_valid_after", OrderDirection: automdm.OrderAscending})
 	require.NoError(t, err)
 	require.Len(t, certs, 2)
 	require.Equal(t, expected1.Subject.CommonName, certs[0].CommonName)
@@ -770,63 +770,63 @@ func testUpdateAndListHostCertificates(t *testing.T, ds *Datastore) {
 	require.Equal(t, expected2.Subject.CommonName, certs[1].SubjectCommonName)
 
 	// simulate removal of a certificate
-	require.NoError(t, ds.UpdateHostCertificates(ctx, 1, "95816502-d8c0-462c-882f-39991cc89a0c", []*fleet.HostCertificateRecord{payload[1]}, fleet.HostCertificateOriginOsquery, nil))
-	certs, _, err = ds.ListHostCertificates(ctx, 1, fleet.ListOptions{OrderKey: "common_name"})
+	require.NoError(t, ds.UpdateHostCertificates(ctx, 1, "95816502-d8c0-462c-882f-39991cc89a0c", []*automdm.HostCertificateRecord{payload[1]}, automdm.HostCertificateOriginOsquery, nil))
+	certs, _, err = ds.ListHostCertificates(ctx, 1, automdm.ListOptions{OrderKey: "common_name"})
 	require.NoError(t, err)
 	require.Len(t, certs, 1)
 	require.Equal(t, expected2.Subject.CommonName, certs[0].CommonName)
 	require.Equal(t, expected2.Subject.CommonName, certs[0].SubjectCommonName)
 
 	// re-add first certificate but as a "user" source
-	payload[0].Source = fleet.UserHostCertificate
+	payload[0].Source = automdm.UserHostCertificate
 	payload[0].Username = "A"
-	require.NoError(t, ds.UpdateHostCertificates(ctx, 1, "95816502-d8c0-462c-882f-39991cc89a0c", []*fleet.HostCertificateRecord{payload[0], payload[1]}, fleet.HostCertificateOriginOsquery, nil))
-	certs, _, err = ds.ListHostCertificates(ctx, 1, fleet.ListOptions{OrderKey: "common_name"})
+	require.NoError(t, ds.UpdateHostCertificates(ctx, 1, "95816502-d8c0-462c-882f-39991cc89a0c", []*automdm.HostCertificateRecord{payload[0], payload[1]}, automdm.HostCertificateOriginOsquery, nil))
+	certs, _, err = ds.ListHostCertificates(ctx, 1, automdm.ListOptions{OrderKey: "common_name"})
 	require.NoError(t, err)
 	require.Len(t, certs, 2)
 	require.Equal(t, expected2.Subject.CommonName, certs[0].CommonName)
 	require.Equal(t, expected2.Subject.CommonName, certs[0].SubjectCommonName)
-	require.Equal(t, fleet.SystemHostCertificate, certs[0].Source)
+	require.Equal(t, automdm.SystemHostCertificate, certs[0].Source)
 	require.Equal(t, "", certs[0].Username)
 	require.Equal(t, expected1.Subject.CommonName, certs[1].CommonName)
 	require.Equal(t, expected1.Subject.CommonName, certs[1].SubjectCommonName)
-	require.Equal(t, fleet.UserHostCertificate, certs[1].Source)
+	require.Equal(t, automdm.UserHostCertificate, certs[1].Source)
 	require.Equal(t, "A", certs[1].Username)
 
 	hostCert1SrcUserA := payload[0]
 	hostCert2SrcSys := payload[1]
 	expected3 := createX509Cert("multi.test.example.com", 24*time.Hour)
 	hostCert3SrcUserB := generateTestHostCertificateRecord(t, 1, &expected3)
-	hostCert3SrcUserB.Source = fleet.UserHostCertificate
+	hostCert3SrcUserB.Source = automdm.UserHostCertificate
 	hostCert3SrcUserB.Username = "B"
 	cloneC := *hostCert3SrcUserB // copy to create a new record
 	hostCert3SrcUserC := &cloneC
-	hostCert3SrcUserC.Source = fleet.UserHostCertificate
+	hostCert3SrcUserC.Source = automdm.UserHostCertificate
 	hostCert3SrcUserC.Username = "C"
 	cloneD := *hostCert3SrcUserB // copy to create a new record
 	hostCert3SrcUserD := &cloneD
-	hostCert3SrcUserD.Source = fleet.UserHostCertificate
+	hostCert3SrcUserD.Source = automdm.UserHostCertificate
 	hostCert3SrcUserD.Username = "D"
 	cases := []struct {
 		desc   string
-		ingest []*fleet.HostCertificateRecord
+		ingest []*automdm.HostCertificateRecord
 	}{
 		{desc: "nil slice", ingest: nil},
-		{desc: "cert 1 and 2", ingest: []*fleet.HostCertificateRecord{hostCert2SrcSys, hostCert1SrcUserA}},
-		{desc: "cert 2 and 3 (B, C)", ingest: []*fleet.HostCertificateRecord{hostCert2SrcSys, hostCert3SrcUserB, hostCert3SrcUserC}},
-		{desc: "no change", ingest: []*fleet.HostCertificateRecord{hostCert2SrcSys, hostCert3SrcUserB, hostCert3SrcUserC}},
-		{desc: "added cert 3 source (D)", ingest: []*fleet.HostCertificateRecord{hostCert2SrcSys, hostCert3SrcUserB, hostCert3SrcUserC, hostCert3SrcUserD}},
-		{desc: "removed cert3 source (B)", ingest: []*fleet.HostCertificateRecord{hostCert2SrcSys, hostCert3SrcUserC, hostCert3SrcUserD}},
-		{desc: "removed cert3 source (C)", ingest: []*fleet.HostCertificateRecord{hostCert2SrcSys, hostCert3SrcUserB, hostCert3SrcUserD}},
-		{desc: "cleared, added cert 1", ingest: []*fleet.HostCertificateRecord{hostCert1SrcUserA}},
-		{desc: "all cleared", ingest: []*fleet.HostCertificateRecord{}},
+		{desc: "cert 1 and 2", ingest: []*automdm.HostCertificateRecord{hostCert2SrcSys, hostCert1SrcUserA}},
+		{desc: "cert 2 and 3 (B, C)", ingest: []*automdm.HostCertificateRecord{hostCert2SrcSys, hostCert3SrcUserB, hostCert3SrcUserC}},
+		{desc: "no change", ingest: []*automdm.HostCertificateRecord{hostCert2SrcSys, hostCert3SrcUserB, hostCert3SrcUserC}},
+		{desc: "added cert 3 source (D)", ingest: []*automdm.HostCertificateRecord{hostCert2SrcSys, hostCert3SrcUserB, hostCert3SrcUserC, hostCert3SrcUserD}},
+		{desc: "removed cert3 source (B)", ingest: []*automdm.HostCertificateRecord{hostCert2SrcSys, hostCert3SrcUserC, hostCert3SrcUserD}},
+		{desc: "removed cert3 source (C)", ingest: []*automdm.HostCertificateRecord{hostCert2SrcSys, hostCert3SrcUserB, hostCert3SrcUserD}},
+		{desc: "cleared, added cert 1", ingest: []*automdm.HostCertificateRecord{hostCert1SrcUserA}},
+		{desc: "all cleared", ingest: []*automdm.HostCertificateRecord{}},
 	}
 	for _, c := range cases {
 		t.Log(c.desc)
 
-		err := ds.UpdateHostCertificates(ctx, 1, "95816502-d8c0-462c-882f-39991cc89a0c", c.ingest, fleet.HostCertificateOriginOsquery, nil)
+		err := ds.UpdateHostCertificates(ctx, 1, "95816502-d8c0-462c-882f-39991cc89a0c", c.ingest, automdm.HostCertificateOriginOsquery, nil)
 		require.NoError(t, err)
-		certs, _, err := ds.ListHostCertificates(ctx, 1, fleet.ListOptions{OrderKey: "common_name", TestSecondaryOrderKey: "username"})
+		certs, _, err := ds.ListHostCertificates(ctx, 1, automdm.ListOptions{OrderKey: "common_name", TestSecondaryOrderKey: "username"})
 		require.NoError(t, err)
 
 		require.Len(t, certs, len(c.ingest))
@@ -843,7 +843,7 @@ func testUpdatingHostMDMManagedCertificates(t *testing.T, ds *Datastore) {
 	// ingesting the associated certificate from the host
 	ctx := context.Background()
 	initialCPs := storeDummyConfigProfilesForTest(t, ds, 2)
-	host, err := ds.NewHost(ctx, &fleet.Host{
+	host, err := ds.NewHost(ctx, &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -855,28 +855,28 @@ func testUpdatingHostMDMManagedCertificates(t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 
-	err = ds.BulkUpsertMDMAppleHostProfiles(ctx, []*fleet.MDMAppleBulkUpsertHostProfilePayload{
+	err = ds.BulkUpsertMDMAppleHostProfiles(ctx, []*automdm.MDMAppleBulkUpsertHostProfilePayload{
 		{
 			ProfileUUID:       initialCPs[0].ProfileUUID,
 			ProfileIdentifier: initialCPs[0].Identifier,
 			ProfileName:       initialCPs[0].Name,
 			HostUUID:          host.UUID,
-			Status:            &fleet.MDMDeliveryPending,
-			OperationType:     fleet.MDMOperationTypeInstall,
+			Status:            &automdm.MDMDeliveryPending,
+			OperationType:     automdm.MDMOperationTypeInstall,
 			CommandUUID:       "command-uuid-1",
 			Checksum:          []byte("checksum1"),
-			Scope:             fleet.PayloadScopeSystem,
+			Scope:             automdm.PayloadScopeSystem,
 		},
 		{
 			ProfileUUID:       initialCPs[1].ProfileUUID,
 			ProfileIdentifier: initialCPs[1].Identifier,
 			ProfileName:       initialCPs[1].Name,
 			HostUUID:          host.UUID,
-			Status:            &fleet.MDMDeliveryPending,
-			OperationType:     fleet.MDMOperationTypeInstall,
+			Status:            &automdm.MDMDeliveryPending,
+			OperationType:     automdm.MDMOperationTypeInstall,
 			CommandUUID:       "command-uuid-2",
 			Checksum:          []byte("checksum2"),
-			Scope:             fleet.PayloadScopeSystem,
+			Scope:             automdm.PayloadScopeSystem,
 		},
 	},
 	)
@@ -884,18 +884,18 @@ func testUpdatingHostMDMManagedCertificates(t *testing.T, ds *Datastore) {
 
 	// Initial certificate state where a host has been requested to install but we have no metadata
 	challengeRetrievedAt := time.Now().Add(-time.Hour).UTC().Round(time.Microsecond)
-	err = ds.BulkUpsertMDMManagedCertificates(ctx, []*fleet.MDMManagedCertificate{
+	err = ds.BulkUpsertMDMManagedCertificates(ctx, []*automdm.MDMManagedCertificate{
 		{
 			HostUUID:    host.UUID,
 			ProfileUUID: initialCPs[0].ProfileUUID,
-			Type:        fleet.CAConfigCustomSCEPProxy,
+			Type:        automdm.CAConfigCustomSCEPProxy,
 			CAName:      "custom-ca",
 		},
 		{
 			HostUUID:             host.UUID,
 			ProfileUUID:          initialCPs[1].ProfileUUID,
 			ChallengeRetrievedAt: &challengeRetrievedAt,
-			Type:                 fleet.CAConfigSmallstep,
+			Type:                 automdm.CAConfigSmallstep,
 			CAName:               "step-ca",
 		},
 	})
@@ -904,7 +904,7 @@ func testUpdatingHostMDMManagedCertificates(t *testing.T, ds *Datastore) {
 	expected1 := x509.Certificate{
 		Subject: pkix.Name{
 			Country:      []string{"US"},
-			CommonName:   "MYHWSERIAL fleet-" + initialCPs[0].ProfileUUID,
+			CommonName:   "MYHWSERIAL automdm-" + initialCPs[0].ProfileUUID,
 			Organization: []string{"Org 1"},
 
 			OrganizationalUnit: []string{"Engineering"},
@@ -947,7 +947,7 @@ func testUpdatingHostMDMManagedCertificates(t *testing.T, ds *Datastore) {
 			CommonName:   "MYHWSERIAL 2",
 			Organization: []string{"Org 1"},
 
-			OrganizationalUnit: []string{"fleet-" + initialCPs[1].ProfileUUID},
+			OrganizationalUnit: []string{"automdm-" + initialCPs[1].ProfileUUID},
 		},
 		Issuer: pkix.Name{
 			Country:      []string{"US"},
@@ -964,16 +964,16 @@ func testUpdatingHostMDMManagedCertificates(t *testing.T, ds *Datastore) {
 		BasicConstraintsValid: true,
 	}
 
-	payload := []*fleet.HostCertificateRecord{
+	payload := []*automdm.HostCertificateRecord{
 		generateTestHostCertificateRecord(t, host.ID, &expected1),
 		generateTestHostCertificateRecord(t, host.ID, &expected2),
 		generateTestHostCertificateRecord(t, host.ID, &expected3),
 	}
 
-	require.NoError(t, ds.UpdateHostCertificates(context.Background(), host.ID, host.UUID, payload, fleet.HostCertificateOriginOsquery, nil))
+	require.NoError(t, ds.UpdateHostCertificates(context.Background(), host.ID, host.UUID, payload, automdm.HostCertificateOriginOsquery, nil))
 
 	// verify that we saved the records correctly
-	certs, _, err := ds.ListHostCertificates(context.Background(), 1, fleet.ListOptions{OrderKey: "common_name"})
+	certs, _, err := ds.ListHostCertificates(context.Background(), 1, automdm.ListOptions{OrderKey: "common_name"})
 	require.NoError(t, err)
 	require.Len(t, certs, 3)
 	require.Equal(t, expected3.Subject.CommonName, certs[0].CommonName)
@@ -990,7 +990,7 @@ func testUpdatingHostMDMManagedCertificates(t *testing.T, ds *Datastore) {
 	assert.Equal(t, host.UUID, profile.HostUUID)
 	assert.Equal(t, initialCPs[0].ProfileUUID, profile.ProfileUUID)
 	require.Nil(t, profile.ChallengeRetrievedAt)
-	assert.Equal(t, fleet.CAConfigCustomSCEPProxy, profile.Type)
+	assert.Equal(t, automdm.CAConfigCustomSCEPProxy, profile.Type)
 	require.NotNil(t, profile.Serial)
 	assert.Equal(t, fmt.Sprintf("%040s", expected1.SerialNumber.Text(16)), *profile.Serial)
 	require.NotNil(t, profile.NotValidBefore)
@@ -1007,7 +1007,7 @@ func testUpdatingHostMDMManagedCertificates(t *testing.T, ds *Datastore) {
 	assert.Equal(t, initialCPs[1].ProfileUUID, profile2.ProfileUUID)
 	require.NotNil(t, profile2.ChallengeRetrievedAt)
 	assert.Equal(t, &challengeRetrievedAt, profile2.ChallengeRetrievedAt)
-	assert.Equal(t, fleet.CAConfigSmallstep, profile2.Type)
+	assert.Equal(t, automdm.CAConfigSmallstep, profile2.Type)
 	require.NotNil(t, profile2.Serial)
 	assert.Equal(t, fmt.Sprintf("%040s", expected3.SerialNumber.Text(16)), *profile2.Serial)
 	require.NotNil(t, profile2.NotValidBefore)
@@ -1017,8 +1017,8 @@ func testUpdatingHostMDMManagedCertificates(t *testing.T, ds *Datastore) {
 	assert.Equal(t, "step-ca", profile2.CAName)
 
 	// simulate removal of a certificate
-	require.NoError(t, ds.UpdateHostCertificates(context.Background(), host.ID, "95816502-d8c0-462c-882f-39991cc89a0c", []*fleet.HostCertificateRecord{payload[1], payload[2]}, fleet.HostCertificateOriginOsquery, nil))
-	certs3, _, err := ds.ListHostCertificates(context.Background(), host.ID, fleet.ListOptions{OrderKey: "common_name"})
+	require.NoError(t, ds.UpdateHostCertificates(context.Background(), host.ID, "95816502-d8c0-462c-882f-39991cc89a0c", []*automdm.HostCertificateRecord{payload[1], payload[2]}, automdm.HostCertificateOriginOsquery, nil))
+	certs3, _, err := ds.ListHostCertificates(context.Background(), host.ID, automdm.ListOptions{OrderKey: "common_name"})
 	require.NoError(t, err)
 	require.Len(t, certs3, 2)
 	require.Equal(t, expected3.Subject.CommonName, certs3[0].CommonName)
@@ -1033,7 +1033,7 @@ func testUpdatingHostMDMManagedCertificates(t *testing.T, ds *Datastore) {
 	assert.Equal(t, host.UUID, profile.HostUUID)
 	assert.Equal(t, initialCPs[0].ProfileUUID, profile.ProfileUUID)
 	require.Nil(t, profile.ChallengeRetrievedAt)
-	assert.Equal(t, fleet.CAConfigCustomSCEPProxy, profile.Type)
+	assert.Equal(t, automdm.CAConfigCustomSCEPProxy, profile.Type)
 	require.NotNil(t, profile.Serial)
 	assert.Equal(t, fmt.Sprintf("%040s", expected1.SerialNumber.Text(16)), *profile.Serial)
 	require.NotNil(t, profile.NotValidBefore)
@@ -1053,7 +1053,7 @@ func checksumForTest(s string) []byte {
 func testMatcherRecoversStuckHMMCRows(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
-	host, err := ds.NewHost(ctx, &fleet.Host{
+	host, err := ds.NewHost(ctx, &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -1068,7 +1068,7 @@ func testMatcherRecoversStuckHMMCRows(t *testing.T, ds *Datastore) {
 	renewalCertTemplate := func(profileUUID, suffix string, notBefore, notAfter time.Time, serial int64) *x509.Certificate {
 		return &x509.Certificate{
 			Subject: pkix.Name{
-				CommonName:   "ABC123 WIFI fleet-" + profileUUID + suffix,
+				CommonName:   "ABC123 WIFI automdm-" + profileUUID + suffix,
 				Organization: []string{"Org"},
 			},
 			Issuer: pkix.Name{
@@ -1108,7 +1108,7 @@ func testMatcherRecoversStuckHMMCRows(t *testing.T, ds *Datastore) {
 		require.NoError(t, err)
 	}
 
-	getApple := func(t *testing.T, profileUUID, caName string) *fleet.HostMDMCertificateProfile {
+	getApple := func(t *testing.T, profileUUID, caName string) *automdm.HostMDMCertificateProfile {
 		t.Helper()
 		profile, err := ds.GetAppleHostMDMCertificateProfile(ctx, host.UUID, profileUUID, caName)
 		require.NoError(t, err)
@@ -1118,7 +1118,7 @@ func testMatcherRecoversStuckHMMCRows(t *testing.T, ds *Datastore) {
 
 	type seedOpts struct {
 		profileUUID string
-		certType    fleet.CAConfigAssetType
+		certType    automdm.CAConfigAssetType
 		caName      string
 		// Zero means hmmc is created with NULL validity columns.
 		populatedNotBefore time.Time
@@ -1126,18 +1126,18 @@ func testMatcherRecoversStuckHMMCRows(t *testing.T, ds *Datastore) {
 		populatedSerial    string
 	}
 
-	seedAppleProfile := func(t *testing.T, opts seedOpts, status fleet.MDMDeliveryStatus) {
+	seedAppleProfile := func(t *testing.T, opts seedOpts, status automdm.MDMDeliveryStatus) {
 		t.Helper()
-		require.NoError(t, ds.BulkUpsertMDMAppleHostProfiles(ctx, []*fleet.MDMAppleBulkUpsertHostProfilePayload{{
+		require.NoError(t, ds.BulkUpsertMDMAppleHostProfiles(ctx, []*automdm.MDMAppleBulkUpsertHostProfilePayload{{
 			ProfileUUID:   opts.profileUUID,
 			HostUUID:      host.UUID,
 			Status:        &status,
-			OperationType: fleet.MDMOperationTypeInstall,
+			OperationType: automdm.MDMOperationTypeInstall,
 			CommandUUID:   "cmd-" + opts.profileUUID,
 			Checksum:      checksumForTest(opts.profileUUID),
-			Scope:         fleet.PayloadScopeSystem,
+			Scope:         automdm.PayloadScopeSystem,
 		}}))
-		hmmc := &fleet.MDMManagedCertificate{
+		hmmc := &automdm.MDMManagedCertificate{
 			HostUUID:    host.UUID,
 			ProfileUUID: opts.profileUUID,
 			Type:        opts.certType,
@@ -1148,37 +1148,37 @@ func testMatcherRecoversStuckHMMCRows(t *testing.T, ds *Datastore) {
 			hmmc.NotValidAfter = &opts.populatedNotAfter
 			hmmc.Serial = ptr.String(opts.populatedSerial)
 		}
-		require.NoError(t, ds.BulkUpsertMDMManagedCertificates(ctx, []*fleet.MDMManagedCertificate{hmmc}))
+		require.NoError(t, ds.BulkUpsertMDMManagedCertificates(ctx, []*automdm.MDMManagedCertificate{hmmc}))
 	}
 
 	// Returns the generated records so callers re-pass them through triggerMatcher.
 	// generateTestHostCertificateRecord produces a fresh SHA1 each call, so a
 	// re-generation from the same template would land in toInsert.
-	seedHostCertificates := func(t *testing.T, certs []*x509.Certificate) []*fleet.HostCertificateRecord {
+	seedHostCertificates := func(t *testing.T, certs []*x509.Certificate) []*automdm.HostCertificateRecord {
 		t.Helper()
-		payload := make([]*fleet.HostCertificateRecord, 0, len(certs))
+		payload := make([]*automdm.HostCertificateRecord, 0, len(certs))
 		for _, c := range certs {
 			payload = append(payload, generateTestHostCertificateRecord(t, host.ID, c))
 		}
-		require.NoError(t, ds.UpdateHostCertificates(ctx, host.ID, host.UUID, payload, fleet.HostCertificateOriginOsquery, nil))
+		require.NoError(t, ds.UpdateHostCertificates(ctx, host.ID, host.UUID, payload, automdm.HostCertificateOriginOsquery, nil))
 		return payload
 	}
 
 	// Adds an unrelated cert to populate toInsert (the matcher's gate).
-	triggerMatcher := func(t *testing.T, existingRecs []*fleet.HostCertificateRecord, unrelatedSerial int64) {
+	triggerMatcher := func(t *testing.T, existingRecs []*automdm.HostCertificateRecord, unrelatedSerial int64) {
 		t.Helper()
-		payload := make([]*fleet.HostCertificateRecord, 0, len(existingRecs)+1)
+		payload := make([]*automdm.HostCertificateRecord, 0, len(existingRecs)+1)
 		payload = append(payload, existingRecs...)
 		unrelated := unrelatedCertTemplate(fmt.Sprintf("unrelated-%d", unrelatedSerial), 24*time.Hour, unrelatedSerial)
 		payload = append(payload, generateTestHostCertificateRecord(t, host.ID, unrelated))
-		require.NoError(t, ds.UpdateHostCertificates(ctx, host.ID, host.UUID, payload, fleet.HostCertificateOriginOsquery, nil))
+		require.NoError(t, ds.UpdateHostCertificates(ctx, host.ID, host.UUID, payload, automdm.HostCertificateOriginOsquery, nil))
 	}
 
 	t.Run("MissedIngestRecovered", func(t *testing.T) {
 		profileUUID := "missed-ingest"
 		freshCert := renewalCertTemplate(profileUUID, "", time.Now().Add(-time.Hour).Truncate(time.Second).UTC(), time.Now().Add(365*24*time.Hour).Truncate(time.Second).UTC(), 4001)
 		recs := seedHostCertificates(t, []*x509.Certificate{freshCert})
-		seedAppleProfile(t, seedOpts{profileUUID: profileUUID, certType: fleet.CAConfigCustomSCEPProxy, caName: "ca-missed"}, fleet.MDMDeliveryVerified)
+		seedAppleProfile(t, seedOpts{profileUUID: profileUUID, certType: automdm.CAConfigCustomSCEPProxy, caName: "ca-missed"}, automdm.MDMDeliveryVerified)
 		backdateHMMC(t, profileUUID, 5*time.Hour)
 
 		triggerMatcher(t, recs, 4002)
@@ -1194,7 +1194,7 @@ func testMatcherRecoversStuckHMMCRows(t *testing.T, ds *Datastore) {
 		profileUUID := "grace-boundary"
 		freshCert := renewalCertTemplate(profileUUID, "", time.Now().Add(-time.Hour).Truncate(time.Second).UTC(), time.Now().Add(365*24*time.Hour).Truncate(time.Second).UTC(), 4101)
 		recs := seedHostCertificates(t, []*x509.Certificate{freshCert})
-		seedAppleProfile(t, seedOpts{profileUUID: profileUUID, certType: fleet.CAConfigCustomSCEPProxy, caName: "ca-grace"}, fleet.MDMDeliveryVerified)
+		seedAppleProfile(t, seedOpts{profileUUID: profileUUID, certType: automdm.CAConfigCustomSCEPProxy, caName: "ca-grace"}, automdm.MDMDeliveryVerified)
 		backdateHMMC(t, profileUUID, 3*time.Hour) // within grace
 
 		triggerMatcher(t, recs, 4102)
@@ -1212,12 +1212,12 @@ func testMatcherRecoversStuckHMMCRows(t *testing.T, ds *Datastore) {
 		recs := seedHostCertificates(t, []*x509.Certificate{conflicting})
 		seedAppleProfile(t, seedOpts{
 			profileUUID:        profileUUID,
-			certType:           fleet.CAConfigDigiCert,
+			certType:           automdm.CAConfigDigiCert,
 			caName:             "ca-digicert",
 			populatedNotBefore: seededNotBefore,
 			populatedNotAfter:  seededNotAfter,
 			populatedSerial:    seededSerial,
-		}, fleet.MDMDeliveryVerified)
+		}, automdm.MDMDeliveryVerified)
 		backdateHMMC(t, profileUUID, 5*time.Hour)
 
 		triggerMatcher(t, recs, 4202)
@@ -1233,7 +1233,7 @@ func testMatcherRecoversStuckHMMCRows(t *testing.T, ds *Datastore) {
 		profileUUID := "pending-profile"
 		freshCert := renewalCertTemplate(profileUUID, "", time.Now().Add(-time.Hour).Truncate(time.Second).UTC(), time.Now().Add(365*24*time.Hour).Truncate(time.Second).UTC(), 4301)
 		recs := seedHostCertificates(t, []*x509.Certificate{freshCert})
-		seedAppleProfile(t, seedOpts{profileUUID: profileUUID, certType: fleet.CAConfigCustomSCEPProxy, caName: "ca-pending"}, fleet.MDMDeliveryPending)
+		seedAppleProfile(t, seedOpts{profileUUID: profileUUID, certType: automdm.CAConfigCustomSCEPProxy, caName: "ca-pending"}, automdm.MDMDeliveryPending)
 		backdateHMMC(t, profileUUID, 5*time.Hour)
 
 		triggerMatcher(t, recs, 4302)
@@ -1249,7 +1249,7 @@ func testMatcherRecoversStuckHMMCRows(t *testing.T, ds *Datastore) {
 		profileUUID := "failed-profile"
 		oldCert := renewalCertTemplate(profileUUID, "", time.Now().Add(-30*24*time.Hour).Truncate(time.Second).UTC(), time.Now().Add(60*24*time.Hour).Truncate(time.Second).UTC(), 4351)
 		recs := seedHostCertificates(t, []*x509.Certificate{oldCert})
-		seedAppleProfile(t, seedOpts{profileUUID: profileUUID, certType: fleet.CAConfigCustomSCEPProxy, caName: "ca-failed"}, fleet.MDMDeliveryFailed)
+		seedAppleProfile(t, seedOpts{profileUUID: profileUUID, certType: automdm.CAConfigCustomSCEPProxy, caName: "ca-failed"}, automdm.MDMDeliveryFailed)
 		backdateHMMC(t, profileUUID, 5*time.Hour)
 
 		triggerMatcher(t, recs, 4352)
@@ -1264,7 +1264,7 @@ func testMatcherRecoversStuckHMMCRows(t *testing.T, ds *Datastore) {
 		newerCert := renewalCertTemplate(profileUUID, "-new", time.Now().Add(-time.Hour).Truncate(time.Second).UTC(), time.Now().Add(365*24*time.Hour).Truncate(time.Second).UTC(), 4402)
 		// older first so result isn't iteration-order-dependent
 		recs := seedHostCertificates(t, []*x509.Certificate{olderCert, newerCert})
-		seedAppleProfile(t, seedOpts{profileUUID: profileUUID, certType: fleet.CAConfigCustomSCEPProxy, caName: "ca-tb"}, fleet.MDMDeliveryVerified)
+		seedAppleProfile(t, seedOpts{profileUUID: profileUUID, certType: automdm.CAConfigCustomSCEPProxy, caName: "ca-tb"}, automdm.MDMDeliveryVerified)
 		backdateHMMC(t, profileUUID, 5*time.Hour)
 
 		triggerMatcher(t, recs, 4403)
@@ -1280,11 +1280,11 @@ func testMatcherRecoversStuckHMMCRows(t *testing.T, ds *Datastore) {
 		profileUUID := "stable-list"
 		freshCert := renewalCertTemplate(profileUUID, "", time.Now().Add(-time.Hour).Truncate(time.Second).UTC(), time.Now().Add(365*24*time.Hour).Truncate(time.Second).UTC(), 4601)
 		recs := seedHostCertificates(t, []*x509.Certificate{freshCert})
-		seedAppleProfile(t, seedOpts{profileUUID: profileUUID, certType: fleet.CAConfigCustomSCEPProxy, caName: "ca-stable"}, fleet.MDMDeliveryVerified)
+		seedAppleProfile(t, seedOpts{profileUUID: profileUUID, certType: automdm.CAConfigCustomSCEPProxy, caName: "ca-stable"}, automdm.MDMDeliveryVerified)
 		backdateHMMC(t, profileUUID, 5*time.Hour)
 
 		// Re-pass the same records — toInsert will be empty, but recovery still runs.
-		require.NoError(t, ds.UpdateHostCertificates(ctx, host.ID, host.UUID, recs, fleet.HostCertificateOriginOsquery, nil))
+		require.NoError(t, ds.UpdateHostCertificates(ctx, host.ID, host.UUID, recs, automdm.HostCertificateOriginOsquery, nil))
 
 		got := getApple(t, profileUUID, "ca-stable")
 		require.NotNil(t, got.NotValidAfter)
@@ -1297,17 +1297,17 @@ func testMatcherRecoversStuckHMMCRows(t *testing.T, ds *Datastore) {
 		freshNotAfter := time.Now().Add(400 * 24 * time.Hour).Truncate(time.Second).UTC()
 		seedAppleProfile(t, seedOpts{
 			profileUUID:        profileUUID,
-			certType:           fleet.CAConfigCustomSCEPProxy,
+			certType:           automdm.CAConfigCustomSCEPProxy,
 			caName:             "ca-mono",
 			populatedNotBefore: freshNotBefore,
 			populatedNotAfter:  freshNotAfter,
 			populatedSerial:    fmt.Sprintf("%040s", "fresh"),
-		}, fleet.MDMDeliveryVerified)
+		}, automdm.MDMDeliveryVerified)
 		// older cert lands in toInsert; monotonic-forward must reject it.
 		olderCert := renewalCertTemplate(profileUUID, "-old", time.Now().Add(-48*time.Hour).Truncate(time.Second).UTC(), time.Now().Add(48*time.Hour).Truncate(time.Second).UTC(), 4501)
-		require.NoError(t, ds.UpdateHostCertificates(ctx, host.ID, host.UUID, []*fleet.HostCertificateRecord{
+		require.NoError(t, ds.UpdateHostCertificates(ctx, host.ID, host.UUID, []*automdm.HostCertificateRecord{
 			generateTestHostCertificateRecord(t, host.ID, olderCert),
-		}, fleet.HostCertificateOriginOsquery, nil))
+		}, automdm.HostCertificateOriginOsquery, nil))
 
 		got := getApple(t, profileUUID, "ca-mono")
 		require.NotNil(t, got.NotValidAfter)
@@ -1318,7 +1318,7 @@ func testMatcherRecoversStuckHMMCRows(t *testing.T, ds *Datastore) {
 // testInsertingHostMDMManagedCertificatesFromIngestion exercises the
 // non-proxied insert path: when a profile is installed on a host without an
 // existing host_mdm_managed_certificates row, an ingested cert whose Subject
-// carries the `fleet-<profile_uuid>` marker creates the row. Also validates
+// carries the `automdm-<profile_uuid>` marker creates the row. Also validates
 // that the matcher's SupportsRenewalID() guard does NOT skip empty/NULL
 // Type rows on subsequent ingestion (Decision 2.2 knock-on).
 func testInsertingHostMDMManagedCertificatesFromIngestion(t *testing.T, ds *Datastore) {
@@ -1333,7 +1333,7 @@ func testInsertingHostMDMManagedCertificatesFromIngestion(t *testing.T, ds *Data
 	proxiedProfileUUID := cps[1].ProfileUUID
 	noMatchProfileUUID := cps[2].ProfileUUID
 
-	host, err := ds.NewHost(ctx, &fleet.Host{
+	host, err := ds.NewHost(ctx, &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -1345,48 +1345,48 @@ func testInsertingHostMDMManagedCertificatesFromIngestion(t *testing.T, ds *Data
 	})
 	require.NoError(t, err)
 
-	require.NoError(t, ds.BulkUpsertMDMAppleHostProfiles(ctx, []*fleet.MDMAppleBulkUpsertHostProfilePayload{
+	require.NoError(t, ds.BulkUpsertMDMAppleHostProfiles(ctx, []*automdm.MDMAppleBulkUpsertHostProfilePayload{
 		{
 			ProfileUUID:       nonProxiedProfileUUID,
 			ProfileIdentifier: cps[0].Identifier,
 			ProfileName:       cps[0].Name,
 			HostUUID:          host.UUID,
-			Status:            &fleet.MDMDeliveryPending,
-			OperationType:     fleet.MDMOperationTypeInstall,
+			Status:            &automdm.MDMDeliveryPending,
+			OperationType:     automdm.MDMOperationTypeInstall,
 			CommandUUID:       "cmd-non-proxied",
 			Checksum:          []byte("0123456789abcdef"),
-			Scope:             fleet.PayloadScopeSystem,
+			Scope:             automdm.PayloadScopeSystem,
 		},
 		{
 			ProfileUUID:       proxiedProfileUUID,
 			ProfileIdentifier: cps[1].Identifier,
 			ProfileName:       cps[1].Name,
 			HostUUID:          host.UUID,
-			Status:            &fleet.MDMDeliveryPending,
-			OperationType:     fleet.MDMOperationTypeInstall,
+			Status:            &automdm.MDMDeliveryPending,
+			OperationType:     automdm.MDMOperationTypeInstall,
 			CommandUUID:       "cmd-proxied",
 			Checksum:          []byte("0123456789abcdef"),
-			Scope:             fleet.PayloadScopeSystem,
+			Scope:             automdm.PayloadScopeSystem,
 		},
 		{
 			ProfileUUID:       noMatchProfileUUID,
 			ProfileIdentifier: cps[2].Identifier,
 			ProfileName:       cps[2].Name,
 			HostUUID:          host.UUID,
-			Status:            &fleet.MDMDeliveryPending,
-			OperationType:     fleet.MDMOperationTypeInstall,
+			Status:            &automdm.MDMDeliveryPending,
+			OperationType:     automdm.MDMOperationTypeInstall,
 			CommandUUID:       "cmd-no-match",
 			Checksum:          []byte("0123456789abcdef"),
-			Scope:             fleet.PayloadScopeSystem,
+			Scope:             automdm.PayloadScopeSystem,
 		},
 	}))
 
 	// Pre-existing proxied hmmc row for proxiedProfileUUID.
-	require.NoError(t, ds.BulkUpsertMDMManagedCertificates(ctx, []*fleet.MDMManagedCertificate{
+	require.NoError(t, ds.BulkUpsertMDMManagedCertificates(ctx, []*automdm.MDMManagedCertificate{
 		{
 			HostUUID:    host.UUID,
 			ProfileUUID: proxiedProfileUUID,
-			Type:        fleet.CAConfigCustomSCEPProxy,
+			Type:        automdm.CAConfigCustomSCEPProxy,
 			CAName:      "custom-ca",
 		},
 	}))
@@ -1395,7 +1395,7 @@ func testInsertingHostMDMManagedCertificatesFromIngestion(t *testing.T, ds *Data
 	//   certNonProxied — Subject CN carries marker for nonProxiedProfileUUID,
 	//                    issued by a parent so IssuerCommonName is preserved
 	//   certProxied    — Subject OU carries marker for proxiedProfileUUID
-	//   certUnrelated  — no Fleet marker
+	//   certUnrelated  — no AutoMDM marker
 	notBefore := time.Now().Add(-time.Hour).Truncate(time.Second).UTC()
 	notAfter := time.Now().Add(24 * time.Hour).Truncate(time.Second).UTC()
 	customerCAParent := x509.Certificate{
@@ -1413,7 +1413,7 @@ func testInsertingHostMDMManagedCertificatesFromIngestion(t *testing.T, ds *Data
 	}
 	certNonProxied := x509.Certificate{
 		Subject: pkix.Name{
-			CommonName:   "MAC-SERIAL fleet-" + nonProxiedProfileUUID,
+			CommonName:   "MAC-SERIAL automdm-" + nonProxiedProfileUUID,
 			Country:      []string{"US"},
 			Organization: []string{"Org Non-Proxied"},
 		},
@@ -1430,7 +1430,7 @@ func testInsertingHostMDMManagedCertificatesFromIngestion(t *testing.T, ds *Data
 			CommonName:         "MAC-SERIAL Proxied",
 			Country:            []string{"US"},
 			Organization:       []string{"Org Proxied"},
-			OrganizationalUnit: []string{"fleet-" + proxiedProfileUUID},
+			OrganizationalUnit: []string{"automdm-" + proxiedProfileUUID},
 		},
 		Issuer: pkix.Name{
 			CommonName:   "Custom SCEP Issuer",
@@ -1464,18 +1464,18 @@ func testInsertingHostMDMManagedCertificatesFromIngestion(t *testing.T, ds *Data
 		NotAfter:              notAfter,
 		BasicConstraintsValid: true,
 	}
-	payload := []*fleet.HostCertificateRecord{
+	payload := []*automdm.HostCertificateRecord{
 		generateTestHostCertificateRecordWithParent(t, host.ID, &certNonProxied, &customerCAParent),
 		generateTestHostCertificateRecord(t, host.ID, &certProxied),
 		generateTestHostCertificateRecord(t, host.ID, &certUnrelated),
 	}
 
-	require.NoError(t, ds.UpdateHostCertificates(ctx, host.ID, host.UUID, payload, fleet.HostCertificateOriginOsquery, nil))
+	require.NoError(t, ds.UpdateHostCertificates(ctx, host.ID, host.UUID, payload, automdm.HostCertificateOriginOsquery, nil))
 
 	// nonProxiedProfileUUID — row was inserted with NULL Type, matching cert's metadata.
 	all, err := ds.ListHostMDMManagedCertificates(ctx, host.UUID)
 	require.NoError(t, err)
-	var nonProxiedRow, proxiedRow *fleet.MDMManagedCertificate
+	var nonProxiedRow, proxiedRow *automdm.MDMManagedCertificate
 	for _, r := range all {
 		switch r.ProfileUUID {
 		case nonProxiedProfileUUID:
@@ -1487,7 +1487,7 @@ func testInsertingHostMDMManagedCertificatesFromIngestion(t *testing.T, ds *Data
 		}
 	}
 	require.NotNil(t, nonProxiedRow, "non-proxied profile should have a created hmmc row")
-	assert.Equal(t, fleet.CAConfigAssetType(""), nonProxiedRow.Type, "Type should be NULL/empty for non-proxied row")
+	assert.Equal(t, automdm.CAConfigAssetType(""), nonProxiedRow.Type, "Type should be NULL/empty for non-proxied row")
 	assert.Equal(t, "non_proxied", nonProxiedRow.CAName, "CAName should be the fixed non-proxied sentinel, not derived from the cert")
 	require.NotNil(t, nonProxiedRow.Serial)
 	assert.Equal(t, fmt.Sprintf("%040s", certNonProxied.SerialNumber.Text(16)), *nonProxiedRow.Serial)
@@ -1496,7 +1496,7 @@ func testInsertingHostMDMManagedCertificatesFromIngestion(t *testing.T, ds *Data
 
 	// proxiedProfileUUID — existing row updated with cert's serial / dates by the matcher.
 	require.NotNil(t, proxiedRow)
-	assert.Equal(t, fleet.CAConfigCustomSCEPProxy, proxiedRow.Type, "Existing proxied Type preserved")
+	assert.Equal(t, automdm.CAConfigCustomSCEPProxy, proxiedRow.Type, "Existing proxied Type preserved")
 	require.NotNil(t, proxiedRow.Serial)
 	assert.Equal(t, fmt.Sprintf("%040s", certProxied.SerialNumber.Text(16)), *proxiedRow.Serial)
 
@@ -1510,16 +1510,16 @@ func testInsertingHostMDMManagedCertificatesFromIngestion(t *testing.T, ds *Data
 	// but later than the original so best-match-wins picks the renewed cert.
 	certRenewed.NotBefore = notBefore.Add(30 * time.Minute)
 	certRenewed.NotAfter = notAfter2
-	renewedPayload := []*fleet.HostCertificateRecord{
+	renewedPayload := []*automdm.HostCertificateRecord{
 		generateTestHostCertificateRecordWithParent(t, host.ID, &certRenewed, &customerCAParent),
 		generateTestHostCertificateRecord(t, host.ID, &certProxied),
 		generateTestHostCertificateRecord(t, host.ID, &certUnrelated),
 	}
-	require.NoError(t, ds.UpdateHostCertificates(ctx, host.ID, host.UUID, renewedPayload, fleet.HostCertificateOriginOsquery, nil))
+	require.NoError(t, ds.UpdateHostCertificates(ctx, host.ID, host.UUID, renewedPayload, automdm.HostCertificateOriginOsquery, nil))
 
 	all2, err := ds.ListHostMDMManagedCertificates(ctx, host.UUID)
 	require.NoError(t, err)
-	var nonProxiedRow2 *fleet.MDMManagedCertificate
+	var nonProxiedRow2 *automdm.MDMManagedCertificate
 	for _, r := range all2 {
 		if r.ProfileUUID == nonProxiedProfileUUID {
 			nonProxiedRow2 = r
@@ -1530,7 +1530,7 @@ func testInsertingHostMDMManagedCertificatesFromIngestion(t *testing.T, ds *Data
 	assert.Equal(t, notAfter2, *nonProxiedRow2.NotValidAfter, "matcher must advance not_valid_after on NULL-Type rows")
 	require.NotNil(t, nonProxiedRow2.Serial)
 	assert.Equal(t, fmt.Sprintf("%040s", certRenewed.SerialNumber.Text(16)), *nonProxiedRow2.Serial)
-	assert.Equal(t, fleet.CAConfigAssetType(""), nonProxiedRow2.Type, "Type should still be NULL/empty after update")
+	assert.Equal(t, automdm.CAConfigAssetType(""), nonProxiedRow2.Type, "Type should still be NULL/empty after update")
 }
 
 // testUpdateHostCertificatesReingestAfterSoftDelete covers the soft-delete-then-re-report cycle
@@ -1541,14 +1541,14 @@ func testUpdateHostCertificatesReingestAfterSoftDelete(t *testing.T, ds *Datasto
 		hostUUID = "windows-reingest-host-uuid"
 	)
 
-	cert := mkTestCertRecord(t, hostID, "reingest.example.com", fleet.UserHostCertificate, "alice")
+	cert := mkTestCertRecord(t, hostID, "reingest.example.com", automdm.UserHostCertificate, "alice")
 	sha1Hex := strings.ToUpper(hex.EncodeToString(cert.SHA1Sum))
-	scopes := []fleet.HostCertificateScope{{Source: fleet.UserHostCertificate, Username: "alice"}}
+	scopes := []automdm.HostCertificateScope{{Source: automdm.UserHostCertificate, Username: "alice"}}
 
 	ingest := func() {
 		reported := *cert // fresh copy each report; UpdateHostCertificates mutates the record
 		require.NoError(t, ds.UpdateHostCertificates(ctx, hostID, hostUUID,
-			[]*fleet.HostCertificateRecord{&reported}, fleet.HostCertificateOriginOsquery, scopes))
+			[]*automdm.HostCertificateRecord{&reported}, automdm.HostCertificateOriginOsquery, scopes))
 	}
 	softDeleteAll := func() {
 		ExecAdhocSQL(t, ds, func(q sqlx.ExtContext) error {
@@ -1598,10 +1598,10 @@ func testUpdateHostCertificatesReingestAfterSoftDelete(t *testing.T, ds *Datasto
 	require.Equal(t, map[string]uint{sha1Hex: liveID}, got)
 
 	// End to end: the certificate lists with its user source intact.
-	listed, _, err := ds.ListHostCertificates(ctx, hostID, fleet.ListOptions{})
+	listed, _, err := ds.ListHostCertificates(ctx, hostID, automdm.ListOptions{})
 	require.NoError(t, err)
 	require.Len(t, listed, 1)
-	require.Equal(t, fleet.UserHostCertificate, listed[0].Source)
+	require.Equal(t, automdm.UserHostCertificate, listed[0].Source)
 	require.Equal(t, "alice", listed[0].Username)
 
 	// With every row soft-deleted, the lookup returns nothing.
@@ -1622,11 +1622,11 @@ func testUpdateHostCertificatesSelfHealsDuplicates(t *testing.T, ds *Datastore) 
 		hostUUID = "dup-rows-host-uuid"
 	)
 
-	certSys := mkTestCertRecord(t, hostID, "dup-sys.example.com", fleet.SystemHostCertificate, "")
-	certPairSys := mkTestCertRecord(t, hostID, "dup-pair.example.com", fleet.SystemHostCertificate, "")
+	certSys := mkTestCertRecord(t, hostID, "dup-sys.example.com", automdm.SystemHostCertificate, "")
+	certPairSys := mkTestCertRecord(t, hostID, "dup-pair.example.com", automdm.SystemHostCertificate, "")
 	// The same certificate observed in a user scope too (two source rows, one cert row).
 	pairUserCopy := *certPairSys
-	pairUserCopy.Source = fleet.UserHostCertificate
+	pairUserCopy.Source = automdm.UserHostCertificate
 	pairUserCopy.Username = "alice"
 	certPairUser := &pairUserCopy
 
@@ -1635,8 +1635,8 @@ func testUpdateHostCertificatesSelfHealsDuplicates(t *testing.T, ds *Datastore) 
 		pairSysCopy := *certPairSys
 		pairUserCopyLocal := *certPairUser
 		require.NoError(t, ds.UpdateHostCertificates(ctx, hostID, hostUUID,
-			[]*fleet.HostCertificateRecord{&sysCopy, &pairSysCopy, &pairUserCopyLocal},
-			fleet.HostCertificateOriginOsquery, nil))
+			[]*automdm.HostCertificateRecord{&sysCopy, &pairSysCopy, &pairUserCopyLocal},
+			automdm.HostCertificateOriginOsquery, nil))
 	}
 
 	ingest()
@@ -1704,11 +1704,11 @@ func testUpdateHostCertificatesSelfHealsDuplicates(t *testing.T, ds *Datastore) 
 	}
 
 	// The API view is deduplicated again: exactly one row per (cert, source), with the right scopes surviving.
-	listed, _, err := ds.ListHostCertificates(ctx, hostID, fleet.ListOptions{OrderKey: "common_name", TestSecondaryOrderKey: "username"})
+	listed, _, err := ds.ListHostCertificates(ctx, hostID, automdm.ListOptions{OrderKey: "common_name", TestSecondaryOrderKey: "username"})
 	require.NoError(t, err)
 	type listedRow struct {
 		commonName string
-		source     fleet.HostCertificateSource
+		source     automdm.HostCertificateSource
 		username   string
 	}
 	got := make([]listedRow, 0, len(listed))
@@ -1716,9 +1716,9 @@ func testUpdateHostCertificatesSelfHealsDuplicates(t *testing.T, ds *Datastore) 
 		got = append(got, listedRow{l.CommonName, l.Source, l.Username})
 	}
 	require.Equal(t, []listedRow{
-		{"dup-pair.example.com", fleet.SystemHostCertificate, ""},
-		{"dup-pair.example.com", fleet.UserHostCertificate, "alice"},
-		{"dup-sys.example.com", fleet.SystemHostCertificate, ""},
+		{"dup-pair.example.com", automdm.SystemHostCertificate, ""},
+		{"dup-pair.example.com", automdm.UserHostCertificate, "alice"},
+		{"dup-sys.example.com", automdm.SystemHostCertificate, ""},
 	}, got)
 }
 
@@ -1731,16 +1731,16 @@ func testUpdateHostCertificatesPreciseSourceWrites(t *testing.T, ds *Datastore) 
 		hostUUID = "precise-writes-host-uuid"
 	)
 
-	base := mkTestCertRecord(t, hostID, "precise.example.com", fleet.SystemHostCertificate, "")
-	ingest := func(sources ...fleet.HostCertificateScope) {
-		records := make([]*fleet.HostCertificateRecord, 0, len(sources))
+	base := mkTestCertRecord(t, hostID, "precise.example.com", automdm.SystemHostCertificate, "")
+	ingest := func(sources ...automdm.HostCertificateScope) {
+		records := make([]*automdm.HostCertificateRecord, 0, len(sources))
 		for _, s := range sources {
 			rec := *base
 			rec.Source = s.Source
 			rec.Username = s.Username
 			records = append(records, &rec)
 		}
-		require.NoError(t, ds.UpdateHostCertificates(ctx, hostID, hostUUID, records, fleet.HostCertificateOriginOsquery, nil))
+		require.NoError(t, ds.UpdateHostCertificates(ctx, hostID, hostUUID, records, automdm.HostCertificateOriginOsquery, nil))
 	}
 
 	type sourceRow struct {
@@ -1760,8 +1760,8 @@ func testUpdateHostCertificatesPreciseSourceWrites(t *testing.T, ds *Datastore) 
 	}
 
 	ingest(
-		fleet.HostCertificateScope{Source: fleet.SystemHostCertificate},
-		fleet.HostCertificateScope{Source: fleet.UserHostCertificate, Username: "alice"},
+		automdm.HostCertificateScope{Source: automdm.SystemHostCertificate},
+		automdm.HostCertificateScope{Source: automdm.UserHostCertificate, Username: "alice"},
 	)
 	before := sourceRows()
 	require.Len(t, before, 2)
@@ -1771,8 +1771,8 @@ func testUpdateHostCertificatesPreciseSourceWrites(t *testing.T, ds *Datastore) 
 
 	// alice's scope is replaced by bob's; the system row must be untouched.
 	ingest(
-		fleet.HostCertificateScope{Source: fleet.SystemHostCertificate},
-		fleet.HostCertificateScope{Source: fleet.UserHostCertificate, Username: "bob"},
+		automdm.HostCertificateScope{Source: automdm.SystemHostCertificate},
+		automdm.HostCertificateScope{Source: automdm.UserHostCertificate, Username: "bob"},
 	)
 	after := sourceRows()
 	require.Len(t, after, 2)
@@ -1790,15 +1790,15 @@ func TestCleanupDeletedHostCerts(t *testing.T) {
 	cutoff := now.Add(-30 * 24 * time.Hour)
 
 	host := test.NewHost(t, ds, "cleanup", "", "cleanup-key", "cleanup-uuid", now)
-	ingest := func(origin fleet.HostCertificateOrigin, commonNames ...string) {
-		var certs []*fleet.HostCertificateRecord
+	ingest := func(origin automdm.HostCertificateOrigin, commonNames ...string) {
+		var certs []*automdm.HostCertificateRecord
 		for _, cn := range commonNames {
-			certs = append(certs, mkTestCertRecord(t, host.ID, cn, fleet.SystemHostCertificate, ""))
+			certs = append(certs, mkTestCertRecord(t, host.ID, cn, automdm.SystemHostCertificate, ""))
 		}
 		require.NoError(t, ds.UpdateHostCertificates(ctx, host.ID, host.UUID, certs, origin, nil))
 	}
-	ingest(fleet.HostCertificateOriginOsquery, "expired-a", "expired-b", "expired-c", "recent", "live")
-	ingest(fleet.HostCertificateOriginMDM, "expired-mdm")
+	ingest(automdm.HostCertificateOriginOsquery, "expired-a", "expired-b", "expired-c", "recent", "live")
+	ingest(automdm.HostCertificateOriginMDM, "expired-mdm")
 	// No datastore method soft-deletes with a past timestamp. Distinct timestamps fix the cursor order to a, b, c, since
 	// UpdateHostCertificates inserts in map iteration order, so the id order is random.
 	expired := now.Add(-60 * 24 * time.Hour)
@@ -1843,7 +1843,7 @@ func TestCleanupDeletedHostCerts(t *testing.T) {
 
 // mkTestCertRecord builds a HostCertificateRecord for hostID with a random serial, valid from an hour ago to 24 hours
 // from now, scoped to the given source and username.
-func mkTestCertRecord(t *testing.T, hostID uint, commonName string, source fleet.HostCertificateSource, username string) *fleet.HostCertificateRecord {
+func mkTestCertRecord(t *testing.T, hostID uint, commonName string, source automdm.HostCertificateSource, username string) *automdm.HostCertificateRecord {
 	tmpl := x509.Certificate{
 		Subject:               pkix.Name{CommonName: commonName, Organization: []string{"Org"}},
 		Issuer:                pkix.Name{CommonName: "issuer.example.com"},
@@ -1858,7 +1858,7 @@ func mkTestCertRecord(t *testing.T, hostID uint, commonName string, source fleet
 	return rec
 }
 
-func generateTestHostCertificateRecord(t *testing.T, hostID uint, template *x509.Certificate) *fleet.HostCertificateRecord {
+func generateTestHostCertificateRecord(t *testing.T, hostID uint, template *x509.Certificate) *automdm.HostCertificateRecord {
 	b, _, err := GenerateTestCertBytes(template)
 	require.NoError(t, err)
 
@@ -1868,14 +1868,14 @@ func generateTestHostCertificateRecord(t *testing.T, hostID uint, template *x509
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
 
-	return fleet.NewHostCertificateRecord(hostID, parsed)
+	return automdm.NewHostCertificateRecord(hostID, parsed)
 }
 
 // generateTestHostCertificateRecordWithParent creates a certificate signed by a parent certificate
 // allowing for different issuer attributes (like country code) than the certificate itself.
 // This is useful for testing scenarios where the certificate's subject country differs from
 // the issuer's country, which is common in real-world certificate chains.
-func generateTestHostCertificateRecordWithParent(t *testing.T, hostID uint, certTemplate, parentTemplate *x509.Certificate) *fleet.HostCertificateRecord {
+func generateTestHostCertificateRecordWithParent(t *testing.T, hostID uint, certTemplate, parentTemplate *x509.Certificate) *automdm.HostCertificateRecord {
 	// Generate parent key pair
 	parentPriv, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
@@ -1899,7 +1899,7 @@ func generateTestHostCertificateRecordWithParent(t *testing.T, hostID uint, cert
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
 
-	return fleet.NewHostCertificateRecord(hostID, parsed)
+	return automdm.NewHostCertificateRecord(hostID, parsed)
 }
 
 // testUpdateHostCertificatesWindowsScopeReconciliation exercises the observed-scopes reconciliation used by the Windows
@@ -1912,12 +1912,12 @@ func testUpdateHostCertificatesWindowsScopeReconciliation(t *testing.T, ds *Data
 		hostUUID = "windows-scope-host-uuid"
 	)
 
-	mkCert := func(commonName string, source fleet.HostCertificateSource, username string) *fleet.HostCertificateRecord {
+	mkCert := func(commonName string, source automdm.HostCertificateSource, username string) *automdm.HostCertificateRecord {
 		return mkTestCertRecord(t, hostID, commonName, source, username)
 	}
 
 	listKeys := func() []string {
-		certs, _, err := ds.ListHostCertificates(ctx, hostID, fleet.ListOptions{OrderKey: "common_name"})
+		certs, _, err := ds.ListHostCertificates(ctx, hostID, automdm.ListOptions{OrderKey: "common_name"})
 		require.NoError(t, err)
 		keys := make([]string, 0, len(certs))
 		for _, c := range certs {
@@ -1926,25 +1926,25 @@ func testUpdateHostCertificatesWindowsScopeReconciliation(t *testing.T, ds *Data
 		return keys
 	}
 
-	sysScope := fleet.HostCertificateScope{Source: fleet.SystemHostCertificate}
-	aliceScope := fleet.HostCertificateScope{Source: fleet.UserHostCertificate, Username: "alice"}
-	bobScope := fleet.HostCertificateScope{Source: fleet.UserHostCertificate, Username: "bob"}
+	sysScope := automdm.HostCertificateScope{Source: automdm.SystemHostCertificate}
+	aliceScope := automdm.HostCertificateScope{Source: automdm.UserHostCertificate, Username: "alice"}
+	bobScope := automdm.HostCertificateScope{Source: automdm.UserHostCertificate, Username: "bob"}
 
-	certSys := mkCert("sys.example.com", fleet.SystemHostCertificate, "")
-	certAlice := mkCert("alice-old.example.com", fleet.UserHostCertificate, "alice")
-	certBob := mkCert("bob.example.com", fleet.UserHostCertificate, "bob")
+	certSys := mkCert("sys.example.com", automdm.SystemHostCertificate, "")
+	certAlice := mkCert("alice-old.example.com", automdm.UserHostCertificate, "alice")
+	certBob := mkCert("bob.example.com", automdm.UserHostCertificate, "bob")
 	// shared cert: present in the System store and in alice's store (same SHA1, two sources).
-	sharedSys := mkCert("shared.example.com", fleet.SystemHostCertificate, "")
+	sharedSys := mkCert("shared.example.com", automdm.SystemHostCertificate, "")
 	sharedAliceClone := *sharedSys
 	sharedAlice := &sharedAliceClone
-	sharedAlice.Source = fleet.UserHostCertificate
+	sharedAlice.Source = automdm.UserHostCertificate
 	sharedAlice.Username = "alice"
 
 	// 1. Initial report: alice and bob both logged in.
 	require.NoError(t, ds.UpdateHostCertificates(ctx, hostID, hostUUID,
-		[]*fleet.HostCertificateRecord{certSys, certAlice, certBob, sharedSys, sharedAlice},
-		fleet.HostCertificateOriginOsquery,
-		[]fleet.HostCertificateScope{sysScope, aliceScope, bobScope}))
+		[]*automdm.HostCertificateRecord{certSys, certAlice, certBob, sharedSys, sharedAlice},
+		automdm.HostCertificateOriginOsquery,
+		[]automdm.HostCertificateScope{sysScope, aliceScope, bobScope}))
 	require.ElementsMatch(t, []string{
 		"sys.example.com|system|",
 		"alice-old.example.com|user|alice",
@@ -1955,9 +1955,9 @@ func testUpdateHostCertificatesWindowsScopeReconciliation(t *testing.T, ds *Data
 
 	// 2. Alice logs off: her hive is not loaded so her certs are simply absent.
 	require.NoError(t, ds.UpdateHostCertificates(ctx, hostID, hostUUID,
-		[]*fleet.HostCertificateRecord{certSys, certBob, sharedSys},
-		fleet.HostCertificateOriginOsquery,
-		[]fleet.HostCertificateScope{sysScope, bobScope}))
+		[]*automdm.HostCertificateRecord{certSys, certBob, sharedSys},
+		automdm.HostCertificateOriginOsquery,
+		[]automdm.HostCertificateScope{sysScope, bobScope}))
 	require.ElementsMatch(t, []string{
 		"sys.example.com|system|",
 		"alice-old.example.com|user|alice", // preserved (alice not observed)
@@ -1967,11 +1967,11 @@ func testUpdateHostCertificatesWindowsScopeReconciliation(t *testing.T, ds *Data
 	}, listKeys())
 
 	// 3. Alice logs back in but has removed her old cert and her copy of the shared cert, and installed a new one.
-	certAlice2 := mkCert("alice-new.example.com", fleet.UserHostCertificate, "alice")
+	certAlice2 := mkCert("alice-new.example.com", automdm.UserHostCertificate, "alice")
 	require.NoError(t, ds.UpdateHostCertificates(ctx, hostID, hostUUID,
-		[]*fleet.HostCertificateRecord{certSys, certBob, sharedSys, certAlice2},
-		fleet.HostCertificateOriginOsquery,
-		[]fleet.HostCertificateScope{sysScope, aliceScope, bobScope}))
+		[]*automdm.HostCertificateRecord{certSys, certBob, sharedSys, certAlice2},
+		automdm.HostCertificateOriginOsquery,
+		[]automdm.HostCertificateScope{sysScope, aliceScope, bobScope}))
 	require.ElementsMatch(t, []string{
 		"sys.example.com|system|",
 		"bob.example.com|user|bob",
@@ -1981,9 +1981,9 @@ func testUpdateHostCertificatesWindowsScopeReconciliation(t *testing.T, ds *Data
 
 	// 4. A System certificate removed while present in the report → deleted, since System scope is always observed.
 	require.NoError(t, ds.UpdateHostCertificates(ctx, hostID, hostUUID,
-		[]*fleet.HostCertificateRecord{certBob, sharedSys, certAlice2},
-		fleet.HostCertificateOriginOsquery,
-		[]fleet.HostCertificateScope{sysScope, aliceScope, bobScope}))
+		[]*automdm.HostCertificateRecord{certBob, sharedSys, certAlice2},
+		automdm.HostCertificateOriginOsquery,
+		[]automdm.HostCertificateScope{sysScope, aliceScope, bobScope}))
 	require.ElementsMatch(t, []string{
 		"bob.example.com|user|bob",
 		"shared.example.com|system|",
@@ -1992,9 +1992,9 @@ func testUpdateHostCertificatesWindowsScopeReconciliation(t *testing.T, ds *Data
 
 	// 5. Alice logs back in and re-installs the shared cert, so it is again in both the System store and her store.
 	require.NoError(t, ds.UpdateHostCertificates(ctx, hostID, hostUUID,
-		[]*fleet.HostCertificateRecord{certBob, sharedSys, sharedAlice, certAlice2},
-		fleet.HostCertificateOriginOsquery,
-		[]fleet.HostCertificateScope{sysScope, aliceScope, bobScope}))
+		[]*automdm.HostCertificateRecord{certBob, sharedSys, sharedAlice, certAlice2},
+		automdm.HostCertificateOriginOsquery,
+		[]automdm.HostCertificateScope{sysScope, aliceScope, bobScope}))
 	require.ElementsMatch(t, []string{
 		"bob.example.com|user|bob",
 		"shared.example.com|system|",
@@ -2006,9 +2006,9 @@ func testUpdateHostCertificatesWindowsScopeReconciliation(t *testing.T, ds *Data
 	// entirely. Its (observed) System source is dropped, but her (unobserved) source keeps the cert alive (it survives
 	// showing only her scope). alice's other cert is likewise preserved.
 	require.NoError(t, ds.UpdateHostCertificates(ctx, hostID, hostUUID,
-		[]*fleet.HostCertificateRecord{certBob},
-		fleet.HostCertificateOriginOsquery,
-		[]fleet.HostCertificateScope{sysScope, bobScope}))
+		[]*automdm.HostCertificateRecord{certBob},
+		automdm.HostCertificateOriginOsquery,
+		[]automdm.HostCertificateScope{sysScope, bobScope}))
 	require.ElementsMatch(t, []string{
 		"bob.example.com|user|bob",
 		"shared.example.com|user|alice", // System source dropped, alice's preserved
@@ -2020,7 +2020,7 @@ func testUpdateHostCertificatesSourcesIsolation(t *testing.T, ds *Datastore) {
 	// regression test for #30574
 	ctx := context.Background()
 
-	host1, err := ds.NewHost(ctx, &fleet.Host{
+	host1, err := ds.NewHost(ctx, &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -2032,7 +2032,7 @@ func testUpdateHostCertificatesSourcesIsolation(t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 
-	host2, err := ds.NewHost(ctx, &fleet.Host{
+	host2, err := ds.NewHost(ctx, &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -2078,80 +2078,80 @@ func testUpdateHostCertificatesSourcesIsolation(t *testing.T, ds *Datastore) {
 	parsed, err := x509.ParseCertificate(block.Bytes)
 	require.NoError(t, err)
 
-	host1Cert := fleet.NewHostCertificateRecord(host1.ID, parsed)
-	host1Cert.Source = fleet.UserHostCertificate
+	host1Cert := automdm.NewHostCertificateRecord(host1.ID, parsed)
+	host1Cert.Source = automdm.UserHostCertificate
 	host1Cert.Username = "jdoe"
 
-	host2Cert := fleet.NewHostCertificateRecord(host2.ID, parsed)
-	host2Cert.Source = fleet.UserHostCertificate
+	host2Cert := automdm.NewHostCertificateRecord(host2.ID, parsed)
+	host2Cert.Source = automdm.UserHostCertificate
 	host2Cert.Username = "jsmith"
 
 	// Add the same certificate to both hosts
-	require.NoError(t, ds.UpdateHostCertificates(ctx, host1.ID, host1.UUID, []*fleet.HostCertificateRecord{host1Cert}, fleet.HostCertificateOriginOsquery, nil))
-	require.NoError(t, ds.UpdateHostCertificates(ctx, host2.ID, host2.UUID, []*fleet.HostCertificateRecord{host2Cert}, fleet.HostCertificateOriginOsquery, nil))
+	require.NoError(t, ds.UpdateHostCertificates(ctx, host1.ID, host1.UUID, []*automdm.HostCertificateRecord{host1Cert}, automdm.HostCertificateOriginOsquery, nil))
+	require.NoError(t, ds.UpdateHostCertificates(ctx, host2.ID, host2.UUID, []*automdm.HostCertificateRecord{host2Cert}, automdm.HostCertificateOriginOsquery, nil))
 
 	// Verify both hosts have the correct certs, with the correct sources
-	host1Certs, _, err := ds.ListHostCertificates(ctx, host1.ID, fleet.ListOptions{})
+	host1Certs, _, err := ds.ListHostCertificates(ctx, host1.ID, automdm.ListOptions{})
 	require.NoError(t, err)
 	require.Len(t, host1Certs, 1)
-	require.Equal(t, fleet.UserHostCertificate, host1Certs[0].Source)
+	require.Equal(t, automdm.UserHostCertificate, host1Certs[0].Source)
 	require.Equal(t, "jdoe", host1Certs[0].Username)
 
-	host2Certs, _, err := ds.ListHostCertificates(ctx, host2.ID, fleet.ListOptions{})
+	host2Certs, _, err := ds.ListHostCertificates(ctx, host2.ID, automdm.ListOptions{})
 	require.NoError(t, err)
 	require.Len(t, host2Certs, 1)
-	require.Equal(t, fleet.UserHostCertificate, host2Certs[0].Source)
+	require.Equal(t, automdm.UserHostCertificate, host2Certs[0].Source)
 	require.Equal(t, "jsmith", host2Certs[0].Username)
 
 	// Trigger a change in host 2's cert sources to force delete/recreate of source records. Prior to the fix this
 	// wouldn't modify the correct certs because the DB query would return host 1's cert for the given hash.
-	host2CertUpdated := fleet.NewHostCertificateRecord(host2.ID, parsed)
-	host2CertUpdated.Source = fleet.UserHostCertificate
+	host2CertUpdated := automdm.NewHostCertificateRecord(host2.ID, parsed)
+	host2CertUpdated.Source = automdm.UserHostCertificate
 	host2CertUpdated.Username = "janesmith"
 
-	require.NoError(t, ds.UpdateHostCertificates(ctx, host2.ID, host2.UUID, []*fleet.HostCertificateRecord{host2CertUpdated}, fleet.HostCertificateOriginOsquery, nil))
+	require.NoError(t, ds.UpdateHostCertificates(ctx, host2.ID, host2.UUID, []*automdm.HostCertificateRecord{host2CertUpdated}, automdm.HostCertificateOriginOsquery, nil))
 
 	// Verify host1's certificate source was *not* updated
-	host1CertsAfter, _, err := ds.ListHostCertificates(ctx, host1.ID, fleet.ListOptions{})
+	host1CertsAfter, _, err := ds.ListHostCertificates(ctx, host1.ID, automdm.ListOptions{})
 	require.NoError(t, err)
 	require.Len(t, host1CertsAfter, 1)
 	require.Equal(t, "jdoe", host1CertsAfter[0].Username)
 
 	// Verify host2's certificate source *was* updated
-	host2CertsAfter, _, err := ds.ListHostCertificates(ctx, host2.ID, fleet.ListOptions{})
+	host2CertsAfter, _, err := ds.ListHostCertificates(ctx, host2.ID, automdm.ListOptions{})
 	require.NoError(t, err)
 	require.Len(t, host2CertsAfter, 1)
 	require.Equal(t, "janesmith", host2CertsAfter[0].Username)
 
 	// Verify no-op case
-	err = ds.UpdateHostCertificates(ctx, host2.ID, host2.UUID, []*fleet.HostCertificateRecord{host2CertUpdated}, fleet.HostCertificateOriginOsquery, nil)
+	err = ds.UpdateHostCertificates(ctx, host2.ID, host2.UUID, []*automdm.HostCertificateRecord{host2CertUpdated}, automdm.HostCertificateOriginOsquery, nil)
 	require.NoError(t, err)
 
 	// Verify host2's certificate source was updated
-	host2CertsNoop, _, err := ds.ListHostCertificates(ctx, host2.ID, fleet.ListOptions{})
+	host2CertsNoop, _, err := ds.ListHostCertificates(ctx, host2.ID, automdm.ListOptions{})
 	require.NoError(t, err)
 	require.Len(t, host2CertsNoop, 1)
-	require.Equal(t, fleet.UserHostCertificate, host2CertsNoop[0].Source)
+	require.Equal(t, automdm.UserHostCertificate, host2CertsNoop[0].Source)
 	require.Equal(t, "janesmith", host2CertsNoop[0].Username)
 
 	// Confirm that adding the cert to the system store gets picked up properly
-	systemCertOnHost2 := fleet.NewHostCertificateRecord(host2.ID, parsed)
-	systemCertOnHost2.Source = fleet.SystemHostCertificate
+	systemCertOnHost2 := automdm.NewHostCertificateRecord(host2.ID, parsed)
+	systemCertOnHost2.Source = automdm.SystemHostCertificate
 
-	require.NoError(t, ds.UpdateHostCertificates(ctx, host2.ID, host2.UUID, []*fleet.HostCertificateRecord{host2CertUpdated, systemCertOnHost2}, fleet.HostCertificateOriginOsquery, nil))
+	require.NoError(t, ds.UpdateHostCertificates(ctx, host2.ID, host2.UUID, []*automdm.HostCertificateRecord{host2CertUpdated, systemCertOnHost2}, automdm.HostCertificateOriginOsquery, nil))
 
 	// Verify host2 now has the certificate with both sources
-	host2CertsMultiSource, _, err := ds.ListHostCertificates(ctx, host2.ID, fleet.ListOptions{})
+	host2CertsMultiSource, _, err := ds.ListHostCertificates(ctx, host2.ID, automdm.ListOptions{})
 	require.NoError(t, err)
 	require.Len(t, host2CertsMultiSource, 2)
 	var hasUserCert, hasSystemCert bool
 	for _, cert := range host2CertsMultiSource {
-		if cert.Source == fleet.UserHostCertificate {
+		if cert.Source == automdm.UserHostCertificate {
 			require.Equal(t, "janesmith", cert.Username)
 			hasUserCert = true
 		} else {
 			require.Empty(t, cert.Username)
-			require.Equal(t, fleet.SystemHostCertificate, cert.Source)
+			require.Equal(t, automdm.SystemHostCertificate, cert.Source)
 			hasSystemCert = true
 		}
 	}
@@ -2159,10 +2159,10 @@ func testUpdateHostCertificatesSourcesIsolation(t *testing.T, ds *Datastore) {
 	require.True(t, hasSystemCert)
 
 	// Verify host1 still has only its original certificate source
-	host1CertsMultiSource, _, err := ds.ListHostCertificates(ctx, host1.ID, fleet.ListOptions{})
+	host1CertsMultiSource, _, err := ds.ListHostCertificates(ctx, host1.ID, automdm.ListOptions{})
 	require.NoError(t, err)
 	require.Len(t, host1CertsMultiSource, 1)
-	require.Equal(t, fleet.UserHostCertificate, host1CertsMultiSource[0].Source)
+	require.Equal(t, automdm.UserHostCertificate, host1CertsMultiSource[0].Source)
 	require.Equal(t, "jdoe", host1CertsMultiSource[0].Username)
 }
 
@@ -2172,7 +2172,7 @@ func testUpdateHostCertificatesSourcesIsolation(t *testing.T, ds *Datastore) {
 func testUpdateHostCertificatesOriginScopedDelete(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
-	host, err := ds.NewHost(ctx, &fleet.Host{
+	host, err := ds.NewHost(ctx, &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -2184,7 +2184,7 @@ func testUpdateHostCertificatesOriginScopedDelete(t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 
-	mkCert := func(commonName string) *fleet.HostCertificateRecord {
+	mkCert := func(commonName string) *automdm.HostCertificateRecord {
 		template := x509.Certificate{
 			Subject:               pkix.Name{CommonName: commonName, Organization: []string{"Org"}},
 			Issuer:                pkix.Name{CommonName: "issuer", Organization: []string{"Issuer"}},
@@ -2200,8 +2200,8 @@ func testUpdateHostCertificatesOriginScopedDelete(t *testing.T, ds *Datastore) {
 		block, _ := pem.Decode(certBytes)
 		parsed, err := x509.ParseCertificate(block.Bytes)
 		require.NoError(t, err)
-		rec := fleet.NewHostCertificateRecord(host.ID, parsed)
-		rec.Source = fleet.SystemHostCertificate
+		rec := automdm.NewHostCertificateRecord(host.ID, parsed)
+		rec.Source = automdm.SystemHostCertificate
 		return rec
 	}
 
@@ -2210,49 +2210,49 @@ func testUpdateHostCertificatesOriginScopedDelete(t *testing.T, ds *Datastore) {
 
 	// Initial state: osquery reports osqueryOnly; MDM reports mdmOnly.
 	require.NoError(t, ds.UpdateHostCertificates(ctx, host.ID, host.UUID,
-		[]*fleet.HostCertificateRecord{osqueryOnly}, fleet.HostCertificateOriginOsquery, nil))
+		[]*automdm.HostCertificateRecord{osqueryOnly}, automdm.HostCertificateOriginOsquery, nil))
 	require.NoError(t, ds.UpdateHostCertificates(ctx, host.ID, host.UUID,
-		[]*fleet.HostCertificateRecord{mdmOnly}, fleet.HostCertificateOriginMDM, nil))
+		[]*automdm.HostCertificateRecord{mdmOnly}, automdm.HostCertificateOriginMDM, nil))
 
-	certs, _, err := ds.ListHostCertificates(ctx, host.ID, fleet.ListOptions{})
+	certs, _, err := ds.ListHostCertificates(ctx, host.ID, automdm.ListOptions{})
 	require.NoError(t, err)
 	require.Len(t, certs, 2)
 
-	originByCN := func(certs []*fleet.HostCertificateRecord) map[string]fleet.HostCertificateOrigin {
-		m := make(map[string]fleet.HostCertificateOrigin, len(certs))
+	originByCN := func(certs []*automdm.HostCertificateRecord) map[string]automdm.HostCertificateOrigin {
+		m := make(map[string]automdm.HostCertificateOrigin, len(certs))
 		for _, c := range certs {
 			m[c.CommonName] = c.Origin
 		}
 		return m
 	}
-	require.Equal(t, map[string]fleet.HostCertificateOrigin{
-		"osquery-only": fleet.HostCertificateOriginOsquery,
-		"mdm-only":     fleet.HostCertificateOriginMDM,
+	require.Equal(t, map[string]automdm.HostCertificateOrigin{
+		"osquery-only": automdm.HostCertificateOriginOsquery,
+		"mdm-only":     automdm.HostCertificateOriginMDM,
 	}, originByCN(certs))
 
 	// Osquery sync runs again with an EMPTY cert list. The osquery-only cert
 	// should be soft-deleted, but the mdm-only cert must survive.
 	require.NoError(t, ds.UpdateHostCertificates(ctx, host.ID, host.UUID,
-		[]*fleet.HostCertificateRecord{}, fleet.HostCertificateOriginOsquery, nil))
+		[]*automdm.HostCertificateRecord{}, automdm.HostCertificateOriginOsquery, nil))
 
-	certs, _, err = ds.ListHostCertificates(ctx, host.ID, fleet.ListOptions{})
+	certs, _, err = ds.ListHostCertificates(ctx, host.ID, automdm.ListOptions{})
 	require.NoError(t, err)
 	require.Len(t, certs, 1, "mdm-only cert should survive an osquery sync that omits it")
 	require.Equal(t, "mdm-only", certs[0].CommonName)
-	require.Equal(t, fleet.HostCertificateOriginMDM, certs[0].Origin)
+	require.Equal(t, automdm.HostCertificateOriginMDM, certs[0].Origin)
 
 	// Now the symmetric case: osquery re-reports its cert, MDM sync runs with an
 	// empty list. The mdm-only cert should be soft-deleted, osquery-only survives.
 	require.NoError(t, ds.UpdateHostCertificates(ctx, host.ID, host.UUID,
-		[]*fleet.HostCertificateRecord{osqueryOnly}, fleet.HostCertificateOriginOsquery, nil))
+		[]*automdm.HostCertificateRecord{osqueryOnly}, automdm.HostCertificateOriginOsquery, nil))
 	require.NoError(t, ds.UpdateHostCertificates(ctx, host.ID, host.UUID,
-		[]*fleet.HostCertificateRecord{}, fleet.HostCertificateOriginMDM, nil))
+		[]*automdm.HostCertificateRecord{}, automdm.HostCertificateOriginMDM, nil))
 
-	certs, _, err = ds.ListHostCertificates(ctx, host.ID, fleet.ListOptions{})
+	certs, _, err = ds.ListHostCertificates(ctx, host.ID, automdm.ListOptions{})
 	require.NoError(t, err)
 	require.Len(t, certs, 1, "osquery-only cert should survive an MDM sync that omits it")
 	require.Equal(t, "osquery-only", certs[0].CommonName)
-	require.Equal(t, fleet.HostCertificateOriginOsquery, certs[0].Origin)
+	require.Equal(t, automdm.HostCertificateOriginOsquery, certs[0].Origin)
 }
 
 // testUpdateHostCertificatesOriginDowngrade verifies that osquery rediscovery
@@ -2261,7 +2261,7 @@ func testUpdateHostCertificatesOriginScopedDelete(t *testing.T, ds *Datastore) {
 func testUpdateHostCertificatesOriginDowngrade(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
-	host, err := ds.NewHost(ctx, &fleet.Host{
+	host, err := ds.NewHost(ctx, &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -2273,7 +2273,7 @@ func testUpdateHostCertificatesOriginDowngrade(t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 
-	mkCert := func(commonName string) *fleet.HostCertificateRecord {
+	mkCert := func(commonName string) *automdm.HostCertificateRecord {
 		template := x509.Certificate{
 			Subject:               pkix.Name{CommonName: commonName, Organization: []string{"Org"}},
 			Issuer:                pkix.Name{CommonName: "issuer", Organization: []string{"Issuer"}},
@@ -2289,8 +2289,8 @@ func testUpdateHostCertificatesOriginDowngrade(t *testing.T, ds *Datastore) {
 		block, _ := pem.Decode(certBytes)
 		parsed, err := x509.ParseCertificate(block.Bytes)
 		require.NoError(t, err)
-		rec := fleet.NewHostCertificateRecord(host.ID, parsed)
-		rec.Source = fleet.SystemHostCertificate
+		rec := automdm.NewHostCertificateRecord(host.ID, parsed)
+		rec.Source = automdm.SystemHostCertificate
 		return rec
 	}
 
@@ -2299,46 +2299,46 @@ func testUpdateHostCertificatesOriginDowngrade(t *testing.T, ds *Datastore) {
 
 	// MDM ingestion sees both certs first.
 	require.NoError(t, ds.UpdateHostCertificates(ctx, host.ID, host.UUID,
-		[]*fleet.HostCertificateRecord{rootCA, mdmDelivered}, fleet.HostCertificateOriginMDM, nil))
+		[]*automdm.HostCertificateRecord{rootCA, mdmDelivered}, automdm.HostCertificateOriginMDM, nil))
 
-	originByCN := func() map[string]fleet.HostCertificateOrigin {
-		certs, _, err := ds.ListHostCertificates(ctx, host.ID, fleet.ListOptions{})
+	originByCN := func() map[string]automdm.HostCertificateOrigin {
+		certs, _, err := ds.ListHostCertificates(ctx, host.ID, automdm.ListOptions{})
 		require.NoError(t, err)
-		m := make(map[string]fleet.HostCertificateOrigin, len(certs))
+		m := make(map[string]automdm.HostCertificateOrigin, len(certs))
 		for _, c := range certs {
 			m[c.CommonName] = c.Origin
 		}
 		return m
 	}
-	require.Equal(t, map[string]fleet.HostCertificateOrigin{
-		"user-installed-root-ca": fleet.HostCertificateOriginMDM,
-		"mdm-delivered-only":     fleet.HostCertificateOriginMDM,
+	require.Equal(t, map[string]automdm.HostCertificateOrigin{
+		"user-installed-root-ca": automdm.HostCertificateOriginMDM,
+		"mdm-delivered-only":     automdm.HostCertificateOriginMDM,
 	}, originByCN())
 
 	// Osquery rediscovers the Root CA; row downgrades. MDM-only cert unchanged.
 	require.NoError(t, ds.UpdateHostCertificates(ctx, host.ID, host.UUID,
-		[]*fleet.HostCertificateRecord{rootCA}, fleet.HostCertificateOriginOsquery, nil))
-	require.Equal(t, map[string]fleet.HostCertificateOrigin{
-		"user-installed-root-ca": fleet.HostCertificateOriginOsquery,
-		"mdm-delivered-only":     fleet.HostCertificateOriginMDM,
+		[]*automdm.HostCertificateRecord{rootCA}, automdm.HostCertificateOriginOsquery, nil))
+	require.Equal(t, map[string]automdm.HostCertificateOrigin{
+		"user-installed-root-ca": automdm.HostCertificateOriginOsquery,
+		"mdm-delivered-only":     automdm.HostCertificateOriginMDM,
 	}, originByCN())
 
 	// Downgrade is sticky across repeated osquery syncs.
 	require.NoError(t, ds.UpdateHostCertificates(ctx, host.ID, host.UUID,
-		[]*fleet.HostCertificateRecord{rootCA}, fleet.HostCertificateOriginOsquery, nil))
-	require.Equal(t, fleet.HostCertificateOriginOsquery, originByCN()["user-installed-root-ca"])
+		[]*automdm.HostCertificateRecord{rootCA}, automdm.HostCertificateOriginOsquery, nil))
+	require.Equal(t, automdm.HostCertificateOriginOsquery, originByCN()["user-installed-root-ca"])
 
 	// Source-scoped delete preserved: osquery omitting the MDM-only cert does not soft-delete it.
-	certs, _, err := ds.ListHostCertificates(ctx, host.ID, fleet.ListOptions{})
+	certs, _, err := ds.ListHostCertificates(ctx, host.ID, automdm.ListOptions{})
 	require.NoError(t, err)
 	require.Len(t, certs, 2)
 
 	// One-way: MDM rediscovery does not re-upgrade the downgraded row.
 	require.NoError(t, ds.UpdateHostCertificates(ctx, host.ID, host.UUID,
-		[]*fleet.HostCertificateRecord{rootCA, mdmDelivered}, fleet.HostCertificateOriginMDM, nil))
-	require.Equal(t, map[string]fleet.HostCertificateOrigin{
-		"user-installed-root-ca": fleet.HostCertificateOriginOsquery,
-		"mdm-delivered-only":     fleet.HostCertificateOriginMDM,
+		[]*automdm.HostCertificateRecord{rootCA, mdmDelivered}, automdm.HostCertificateOriginMDM, nil))
+	require.Equal(t, map[string]automdm.HostCertificateOrigin{
+		"user-installed-root-ca": automdm.HostCertificateOriginOsquery,
+		"mdm-delivered-only":     automdm.HostCertificateOriginMDM,
 	}, originByCN())
 }
 
@@ -2411,7 +2411,7 @@ func testHostCertificateWithInvalidCountryCode(t *testing.T, ds *Datastore) {
 		NotAfter:              time.Now().Add(365 * 24 * time.Hour).Truncate(time.Second).UTC(),
 	}
 
-	payload := []*fleet.HostCertificateRecord{
+	payload := []*automdm.HostCertificateRecord{
 		generateTestHostCertificateRecordWithParent(t, 1, &certWithLongSubjectCountryTemplate, &parentWithNormalCountryTemplate),
 		generateTestHostCertificateRecordWithParent(t, 1, &certWithNormalCountryTemplate, &parentWithLongIssuerCountryTemplate),
 	}
@@ -2423,10 +2423,10 @@ func testHostCertificateWithInvalidCountryCode(t *testing.T, ds *Datastore) {
 	payload[1].SubjectCountry = certWithNormalCountryTemplate.Subject.Country[0]
 	payload[1].IssuerCountry = parentWithLongIssuerCountryTemplate.Subject.Country[0]
 
-	require.NoError(t, ds.UpdateHostCertificates(ctx, 1, "95816502-d8c0-462c-882f-39991cc89a0c", payload, fleet.HostCertificateOriginOsquery, nil))
+	require.NoError(t, ds.UpdateHostCertificates(ctx, 1, "95816502-d8c0-462c-882f-39991cc89a0c", payload, automdm.HostCertificateOriginOsquery, nil))
 
 	// verify that we saved the records correctly
-	certs, _, err := ds.ListHostCertificates(ctx, 1, fleet.ListOptions{OrderKey: "common_name"})
+	certs, _, err := ds.ListHostCertificates(ctx, 1, automdm.ListOptions{OrderKey: "common_name"})
 	require.NoError(t, err)
 	require.Len(t, certs, 2)
 
@@ -2435,14 +2435,14 @@ func testHostCertificateWithInvalidCountryCode(t *testing.T, ds *Datastore) {
 	assert.Equal(t, []string{parentWithLongIssuerCountryTemplate.Subject.Country[0]}, []string{certs[0].IssuerCountry})
 	require.Equal(t, certWithNormalCountryTemplate.Subject.CommonName, certs[0].CommonName)
 	require.Equal(t, certWithNormalCountryTemplate.Subject.CommonName, certs[0].SubjectCommonName)
-	require.Equal(t, fleet.SystemHostCertificate, certs[0].Source)
+	require.Equal(t, automdm.SystemHostCertificate, certs[0].Source)
 
 	// Second certificate (long.example.com) - cert with long subject country, issuer with normal country
 	assert.Equal(t, []string{certWithLongSubjectCountryTemplate.Subject.Country[0]}, []string{certs[1].SubjectCountry})
 	assert.Equal(t, []string{parentWithNormalCountryTemplate.Subject.Country[0]}, []string{certs[1].IssuerCountry})
 	require.Equal(t, certWithLongSubjectCountryTemplate.Subject.CommonName, certs[1].CommonName)
 	require.Equal(t, certWithLongSubjectCountryTemplate.Subject.CommonName, certs[1].SubjectCommonName)
-	require.Equal(t, fleet.SystemHostCertificate, certs[1].Source)
+	require.Equal(t, automdm.SystemHostCertificate, certs[1].Source)
 }
 
 // testTruncateLongCertificateFields tests that all string fields in certificates are properly truncated
@@ -2516,10 +2516,10 @@ func testTruncateLongCertificateFields(t *testing.T, ds *Datastore) {
 	cert.IssuerOrganizationalUnit = longString300
 	cert.IssuerCommonName = longString256
 	cert.Username = longUsername260
-	cert.Source = fleet.UserHostCertificate
+	cert.Source = automdm.UserHostCertificate
 
 	// Create a host for testing
-	host, err := ds.NewHost(ctx, &fleet.Host{
+	host, err := ds.NewHost(ctx, &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -2532,11 +2532,11 @@ func testTruncateLongCertificateFields(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// Update certificates - this should trigger truncation
-	err = ds.UpdateHostCertificates(ctx, host.ID, host.UUID, []*fleet.HostCertificateRecord{cert}, fleet.HostCertificateOriginOsquery, nil)
+	err = ds.UpdateHostCertificates(ctx, host.ID, host.UUID, []*automdm.HostCertificateRecord{cert}, automdm.HostCertificateOriginOsquery, nil)
 	require.NoError(t, err)
 
 	// Retrieve the certificate and verify all fields were truncated
-	certs, _, err := ds.ListHostCertificates(ctx, host.ID, fleet.ListOptions{})
+	certs, _, err := ds.ListHostCertificates(ctx, host.ID, automdm.ListOptions{})
 	require.NoError(t, err)
 	require.Len(t, certs, 1)
 
@@ -2561,7 +2561,7 @@ func testTruncateLongCertificateFields(t *testing.T, ds *Datastore) {
 	assert.Equal(t, expectedCountry32D, savedCert.IssuerCountry, "IssuerCountry should be truncated to 32 chars")
 
 	// Verify non-string fields remain unchanged
-	assert.Equal(t, fleet.UserHostCertificate, savedCert.Source, "Source should not be changed")
+	assert.Equal(t, automdm.UserHostCertificate, savedCert.Source, "Source should not be changed")
 	assert.Equal(t, host.ID, savedCert.HostID, "HostID should not be changed")
 }
 
@@ -2569,7 +2569,7 @@ func testListHostCertificatesCountMatches(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
 	// create host
-	host, err := ds.NewHost(ctx, &fleet.Host{
+	host, err := ds.NewHost(ctx, &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -2608,17 +2608,17 @@ func testListHostCertificatesCountMatches(t *testing.T, ds *Datastore) {
 
 	// Update using ds.UpdateHostCertificates with two sources: system and user
 	certSys := *certRec
-	certSys.Source = fleet.SystemHostCertificate
+	certSys.Source = automdm.SystemHostCertificate
 	certSys.Username = ""
 
 	certUser := *certRec
-	certUser.Source = fleet.UserHostCertificate
+	certUser.Source = automdm.UserHostCertificate
 	certUser.Username = "alice"
 
-	require.NoError(t, ds.UpdateHostCertificates(ctx, host.ID, host.UUID, []*fleet.HostCertificateRecord{&certSys, &certUser}, fleet.HostCertificateOriginOsquery, nil))
+	require.NoError(t, ds.UpdateHostCertificates(ctx, host.ID, host.UUID, []*automdm.HostCertificateRecord{&certSys, &certUser}, automdm.HostCertificateOriginOsquery, nil))
 
 	// Now list with metadata
-	certs, meta, err := ds.ListHostCertificates(ctx, host.ID, fleet.ListOptions{IncludeMetadata: true})
+	certs, meta, err := ds.ListHostCertificates(ctx, host.ID, automdm.ListOptions{IncludeMetadata: true})
 	require.NoError(t, err)
 
 	require.NotNil(t, meta)
@@ -2635,7 +2635,7 @@ func testListHostCertificatesCountMatches(t *testing.T, ds *Datastore) {
 func testSoftDeleteMDMHostCertificatesForUnenrolledHosts(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
-	mkCert := func(hostID uint, commonName string) *fleet.HostCertificateRecord {
+	mkCert := func(hostID uint, commonName string) *automdm.HostCertificateRecord {
 		template := x509.Certificate{
 			Subject:               pkix.Name{CommonName: commonName},
 			Issuer:                pkix.Name{CommonName: "issuer"},
@@ -2650,11 +2650,11 @@ func testSoftDeleteMDMHostCertificatesForUnenrolledHosts(t *testing.T, ds *Datas
 		block, _ := pem.Decode(certBytes)
 		parsed, err := x509.ParseCertificate(block.Bytes)
 		require.NoError(t, err)
-		return fleet.NewHostCertificateRecord(hostID, parsed)
+		return automdm.NewHostCertificateRecord(hostID, parsed)
 	}
 
-	newHost := func(suffix string) *fleet.Host {
-		h, err := ds.NewHost(ctx, &fleet.Host{
+	newHost := func(suffix string) *automdm.Host {
+		h, err := ds.NewHost(ctx, &automdm.Host{
 			DetailUpdatedAt: time.Now(),
 			LabelUpdatedAt:  time.Now(),
 			PolicyUpdatedAt: time.Now(),
@@ -2672,29 +2672,29 @@ func testSoftDeleteMDMHostCertificatesForUnenrolledHosts(t *testing.T, ds *Datas
 	// Unenrolled host with both an osquery-origin and an mdm-origin cert.
 	unenrolled := newHost("unenrolled")
 	require.NoError(t, ds.UpdateHostCertificates(ctx, unenrolled.ID, unenrolled.UUID,
-		[]*fleet.HostCertificateRecord{mkCert(unenrolled.ID, "u-osquery")}, fleet.HostCertificateOriginOsquery, nil))
+		[]*automdm.HostCertificateRecord{mkCert(unenrolled.ID, "u-osquery")}, automdm.HostCertificateOriginOsquery, nil))
 	require.NoError(t, ds.UpdateHostCertificates(ctx, unenrolled.ID, unenrolled.UUID,
-		[]*fleet.HostCertificateRecord{mkCert(unenrolled.ID, "u-mdm")}, fleet.HostCertificateOriginMDM, nil))
-	require.NoError(t, ds.SetOrUpdateMDMData(ctx, unenrolled.ID, false, false, "https://mdm.example.com", false, "Fleet", "", fleet.PersonalEnrollmentTypeNone))
+		[]*automdm.HostCertificateRecord{mkCert(unenrolled.ID, "u-mdm")}, automdm.HostCertificateOriginMDM, nil))
+	require.NoError(t, ds.SetOrUpdateMDMData(ctx, unenrolled.ID, false, false, "https://mdm.example.com", false, "AutoMDM", "", automdm.PersonalEnrollmentTypeNone))
 
 	// Enrolled host with an mdm-origin cert that must NOT be swept.
 	enrolled := newHost("enrolled")
 	require.NoError(t, ds.UpdateHostCertificates(ctx, enrolled.ID, enrolled.UUID,
-		[]*fleet.HostCertificateRecord{mkCert(enrolled.ID, "e-mdm")}, fleet.HostCertificateOriginMDM, nil))
-	require.NoError(t, ds.SetOrUpdateMDMData(ctx, enrolled.ID, false, true, "https://mdm.example.com", false, "Fleet", "", fleet.PersonalEnrollmentTypeNone))
+		[]*automdm.HostCertificateRecord{mkCert(enrolled.ID, "e-mdm")}, automdm.HostCertificateOriginMDM, nil))
+	require.NoError(t, ds.SetOrUpdateMDMData(ctx, enrolled.ID, false, true, "https://mdm.example.com", false, "AutoMDM", "", automdm.PersonalEnrollmentTypeNone))
 
 	count, err := ds.SoftDeleteMDMHostCertificatesForUnenrolledHosts(ctx)
 	require.NoError(t, err)
 	require.EqualValues(t, 1, count)
 
 	// Unenrolled host: only the osquery cert remains.
-	certs, _, err := ds.ListHostCertificates(ctx, unenrolled.ID, fleet.ListOptions{})
+	certs, _, err := ds.ListHostCertificates(ctx, unenrolled.ID, automdm.ListOptions{})
 	require.NoError(t, err)
 	require.Len(t, certs, 1)
 	require.Equal(t, "u-osquery", certs[0].CommonName)
 
 	// Enrolled host: mdm cert untouched.
-	certs, _, err = ds.ListHostCertificates(ctx, enrolled.ID, fleet.ListOptions{})
+	certs, _, err = ds.ListHostCertificates(ctx, enrolled.ID, automdm.ListOptions{})
 	require.NoError(t, err)
 	require.Len(t, certs, 1)
 	require.Equal(t, "e-mdm", certs[0].CommonName)

@@ -2,12 +2,12 @@
 # opportunistically register for the currently logged-on console user (via a scheduled
 # task in their session) so the app is immediately visible without requiring sign-out.
 #
-# The Fleet agent runs as Local System on Windows, and Add-AppxPackage cannot run in that
+# The AutoMDM agent runs as Local System on Windows, and Add-AppxPackage cannot run in that
 # context (HRESULT 0x80073CF9). The scheduled task is the supported way to register a
 # package in a user session from a system-context script.
 
 $softwareName = "Claude"
-$taskName = "fleet-install-$softwareName.msix"
+$taskName = "automdm-install-$softwareName.msix"
 $scriptPath = "$env:PUBLIC\install-$softwareName.ps1"
 $exitCodeFile = "$env:PUBLIC\install-exitcode-$softwareName.txt"
 
@@ -85,7 +85,7 @@ try {
 
   # Claude's Cowork feature requires the Virtual Machine Platform optional feature. Enabling
   # an optional feature requires administrator privileges, which standard users don't have,
-  # so it must be done here in the machine context (the Fleet agent runs as Local System) and
+  # so it must be done here in the machine context (the AutoMDM agent runs as Local System) and
   # not in the per-user scheduled task below. -NoRestart defers the reboot that may be needed
   # for the feature to become fully active.
   # See https://support.claude.com/en/articles/12622703-deploy-claude-desktop-for-windows

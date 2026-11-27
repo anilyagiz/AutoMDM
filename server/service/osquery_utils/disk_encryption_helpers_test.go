@@ -5,9 +5,9 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/pkg/optjson"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/pkg/optjson"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -16,27 +16,27 @@ func TestIsDiskEncryptionEscrowEnabledForHost(t *testing.T) {
 	logger := slog.New(slog.DiscardHandler)
 
 	// a mixed state: macOS and Windows on, Linux off
-	mixedTeamMDM := &fleet.TeamMDM{
-		MacOSSettings: fleet.MacOSSettings{
+	mixedTeamMDM := &automdm.TeamMDM{
+		MacOSSettings: automdm.MacOSSettings{
 			EnableDiskEncryption:          optjson.SetBool(true),
 			EnableEscrowDiskEncryptionKey: optjson.SetBool(true),
 		},
-		WindowsSettings: fleet.WindowsSettings{
+		WindowsSettings: automdm.WindowsSettings{
 			EnableDiskEncryption: optjson.SetBool(true),
 		},
-		LinuxSettings: fleet.LinuxSettings{
+		LinuxSettings: automdm.LinuxSettings{
 			EnableEscrowDiskEncryptionKey: optjson.SetBool(false),
 		},
 	}
-	mixedGlobalMDM := fleet.MDM{
-		MacOSSettings: fleet.MacOSSettings{
+	mixedGlobalMDM := automdm.MDM{
+		MacOSSettings: automdm.MacOSSettings{
 			EnableDiskEncryption:          optjson.SetBool(true),
 			EnableEscrowDiskEncryptionKey: optjson.SetBool(true),
 		},
-		WindowsSettings: fleet.WindowsSettings{
+		WindowsSettings: automdm.WindowsSettings{
 			EnableDiskEncryption: optjson.SetBool(true),
 		},
-		LinuxSettings: fleet.LinuxSettings{
+		LinuxSettings: automdm.LinuxSettings{
 			EnableEscrowDiskEncryptionKey: optjson.SetBool(false),
 		},
 	}
@@ -53,9 +53,9 @@ func TestIsDiskEncryptionEscrowEnabledForHost(t *testing.T) {
 	} {
 		t.Run("team "+tc.name, func(t *testing.T) {
 			ds := new(mock.Store)
-			host := &fleet.Host{ID: 1, TeamID: new(uint(1)), Platform: tc.platform}
+			host := &automdm.Host{ID: 1, TeamID: new(uint(1)), Platform: tc.platform}
 
-			ds.TeamMDMConfigFunc = func(ctx context.Context, teamID uint) (*fleet.TeamMDM, error) {
+			ds.TeamMDMConfigFunc = func(ctx context.Context, teamID uint) (*automdm.TeamMDM, error) {
 				require.Equal(t, uint(1), teamID)
 				return mixedTeamMDM, nil
 			}
@@ -67,10 +67,10 @@ func TestIsDiskEncryptionEscrowEnabledForHost(t *testing.T) {
 
 		t.Run("global "+tc.name, func(t *testing.T) {
 			ds := new(mock.Store)
-			host := &fleet.Host{ID: 1, TeamID: nil, Platform: tc.platform}
+			host := &automdm.Host{ID: 1, TeamID: nil, Platform: tc.platform}
 
-			ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-				return &fleet.AppConfig{MDM: mixedGlobalMDM}, nil
+			ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+				return &automdm.AppConfig{MDM: mixedGlobalMDM}, nil
 			}
 
 			require.Equal(t, tc.want, IsDiskEncryptionEscrowEnabledForHost(ctx, logger, ds, host))
@@ -80,11 +80,11 @@ func TestIsDiskEncryptionEscrowEnabledForHost(t *testing.T) {
 
 	t.Run("macOS: escrow alone is enough", func(t *testing.T) {
 		ds := new(mock.Store)
-		host := &fleet.Host{ID: 1, TeamID: new(uint(1)), Platform: "darwin"}
+		host := &automdm.Host{ID: 1, TeamID: new(uint(1)), Platform: "darwin"}
 
-		ds.TeamMDMConfigFunc = func(ctx context.Context, teamID uint) (*fleet.TeamMDM, error) {
-			return &fleet.TeamMDM{
-				MacOSSettings: fleet.MacOSSettings{
+		ds.TeamMDMConfigFunc = func(ctx context.Context, teamID uint) (*automdm.TeamMDM, error) {
+			return &automdm.TeamMDM{
+				MacOSSettings: automdm.MacOSSettings{
 					EnableEscrowDiskEncryptionKey: optjson.SetBool(true),
 				},
 			}, nil
@@ -95,27 +95,27 @@ func TestIsDiskEncryptionEscrowEnabledForHost(t *testing.T) {
 
 	t.Run("macOS: enforcement alone escrows nothing", func(t *testing.T) {
 		ds := new(mock.Store)
-		host := &fleet.Host{ID: 1, TeamID: new(uint(1)), Platform: "darwin"}
+		host := &automdm.Host{ID: 1, TeamID: new(uint(1)), Platform: "darwin"}
 
-		ds.TeamMDMConfigFunc = func(ctx context.Context, teamID uint) (*fleet.TeamMDM, error) {
-			return &fleet.TeamMDM{
-				MacOSSettings: fleet.MacOSSettings{
+		ds.TeamMDMConfigFunc = func(ctx context.Context, teamID uint) (*automdm.TeamMDM, error) {
+			return &automdm.TeamMDM{
+				MacOSSettings: automdm.MacOSSettings{
 					EnableDiskEncryption: optjson.SetBool(true),
 				},
 			}, nil
 		}
 
-		// the profile carries no escrow payload, so no key reaches Fleet and
+		// the profile carries no escrow payload, so no key reaches AutoMDM and
 		// ingesting one would store a key nobody asked to be escrowed
 		require.False(t, IsDiskEncryptionEscrowEnabledForHost(ctx, logger, ds, host))
 	})
 
 	t.Run("team has disk encryption disabled", func(t *testing.T) {
 		ds := new(mock.Store)
-		host := &fleet.Host{ID: 1, TeamID: new(uint(1)), Platform: "darwin"}
+		host := &automdm.Host{ID: 1, TeamID: new(uint(1)), Platform: "darwin"}
 
-		ds.TeamMDMConfigFunc = func(ctx context.Context, teamID uint) (*fleet.TeamMDM, error) {
-			return &fleet.TeamMDM{}, nil
+		ds.TeamMDMConfigFunc = func(ctx context.Context, teamID uint) (*automdm.TeamMDM, error) {
+			return &automdm.TeamMDM{}, nil
 		}
 
 		require.False(t, IsDiskEncryptionEscrowEnabledForHost(ctx, logger, ds, host))
@@ -124,9 +124,9 @@ func TestIsDiskEncryptionEscrowEnabledForHost(t *testing.T) {
 
 	t.Run("nil team config returns false", func(t *testing.T) {
 		ds := new(mock.Store)
-		host := &fleet.Host{ID: 1, TeamID: new(uint(1)), Platform: "darwin"}
+		host := &automdm.Host{ID: 1, TeamID: new(uint(1)), Platform: "darwin"}
 
-		ds.TeamMDMConfigFunc = func(ctx context.Context, teamID uint) (*fleet.TeamMDM, error) {
+		ds.TeamMDMConfigFunc = func(ctx context.Context, teamID uint) (*automdm.TeamMDM, error) {
 			return nil, nil
 		}
 
@@ -135,10 +135,10 @@ func TestIsDiskEncryptionEscrowEnabledForHost(t *testing.T) {
 
 	t.Run("error getting team config returns false", func(t *testing.T) {
 		ds := new(mock.Store)
-		host := &fleet.Host{ID: 1, TeamID: new(uint(1)), Platform: "darwin"}
+		host := &automdm.Host{ID: 1, TeamID: new(uint(1)), Platform: "darwin"}
 
-		ds.TeamMDMConfigFunc = func(ctx context.Context, teamID uint) (*fleet.TeamMDM, error) {
-			return nil, &fleet.Error{Message: "db error"}
+		ds.TeamMDMConfigFunc = func(ctx context.Context, teamID uint) (*automdm.TeamMDM, error) {
+			return nil, &automdm.Error{Message: "db error"}
 		}
 
 		require.False(t, IsDiskEncryptionEscrowEnabledForHost(ctx, logger, ds, host))
@@ -146,10 +146,10 @@ func TestIsDiskEncryptionEscrowEnabledForHost(t *testing.T) {
 
 	t.Run("error getting app config returns false", func(t *testing.T) {
 		ds := new(mock.Store)
-		host := &fleet.Host{ID: 1, TeamID: nil, Platform: "darwin"}
+		host := &automdm.Host{ID: 1, TeamID: nil, Platform: "darwin"}
 
-		ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-			return nil, &fleet.Error{Message: "db error"}
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			return nil, &automdm.Error{Message: "db error"}
 		}
 
 		require.False(t, IsDiskEncryptionEscrowEnabledForHost(ctx, logger, ds, host))

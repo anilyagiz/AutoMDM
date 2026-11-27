@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/ai_tools/internal/proc"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/internal/fsutil"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/internal/homes"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/ai_tools/internal/proc"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/internal/fsutil"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/internal/homes"
 	"github.com/stretchr/testify/require"
 )
 
@@ -45,7 +45,7 @@ func TestScanConfigs(t *testing.T) {
 
 	write(t, filepath.Join(home, ".hermes", "config.yaml"), `
 mcp_servers:
-  fleet:
+  team:
     url: "http://localhost:8081/sse"
     transport: sse
     headers:
@@ -101,7 +101,7 @@ args = ["mcp"]
 		{"zedsrv", "local", "stdio"},
 		{"vs", "remote", "sse"},
 		{"cyaml", "local", "stdio"},
-		{"fleet", "remote", "sse"},
+		{"automdm", "remote", "sse"},
 		{"opendesign", "local", "stdio"},
 		{"repowise", "local", "stdio"},
 		{"gitnexus", "local", "stdio"},
@@ -126,20 +126,20 @@ args = ["mcp"]
 	if by["remote-api"].URL == "" {
 		t.Error("remote-api: expected non-empty URL")
 	}
-	if by["fleet"].URL != "http://localhost:8081/sse" {
-		t.Errorf("fleet URL=%q", by["fleet"].URL)
+	if by["automdm"].URL != "http://localhost:8081/sse" {
+		t.Errorf("automdm URL=%q", by["automdm"].URL)
 	}
-	if by["fleet"].Client != "hermes" {
-		t.Errorf("fleet client=%q want hermes", by["fleet"].Client)
+	if by["automdm"].Client != "hermes" {
+		t.Errorf("automdm client=%q want hermes", by["automdm"].Client)
 	}
-	if !strings.Contains(by["fleet"].RiskFlags, "cleartext_endpoint") {
-		t.Errorf("fleet risk_flags=%q missing cleartext_endpoint", by["fleet"].RiskFlags)
+	if !strings.Contains(by["automdm"].RiskFlags, "cleartext_endpoint") {
+		t.Errorf("team risk_flags=%q missing cleartext_endpoint", by["automdm"].RiskFlags)
 	}
-	if !strings.Contains(by["fleet"].RiskFlags, "plaintext_secret") {
-		t.Errorf("fleet risk_flags=%q missing plaintext_secret (Authorization header name)", by["fleet"].RiskFlags)
+	if !strings.Contains(by["automdm"].RiskFlags, "plaintext_secret") {
+		t.Errorf("team risk_flags=%q missing plaintext_secret (Authorization header name)", by["automdm"].RiskFlags)
 	}
-	if strings.Contains(by["fleet"].EnvKeys, "SECRET") || strings.Contains(by["fleet"].EnvKeys, "Bearer") {
-		t.Errorf("fleet env_keys leaked a header value: %q", by["fleet"].EnvKeys)
+	if strings.Contains(by["automdm"].EnvKeys, "SECRET") || strings.Contains(by["automdm"].EnvKeys, "Bearer") {
+		t.Errorf("team env_keys leaked a header value: %q", by["automdm"].EnvKeys)
 	}
 	if by["exa"].URL != "https://mcp.exa.ai/mcp" {
 		t.Errorf("exa URL=%q", by["exa"].URL)

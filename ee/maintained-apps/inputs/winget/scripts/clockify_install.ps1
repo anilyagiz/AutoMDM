@@ -1,11 +1,11 @@
 # Learn more about .msi install scripts:
-# http://fleetdm.com/learn-more-about/msi-install-scripts
+# http://automdm.com/learn-more-about/msi-install-scripts
 #
 # Clockify's installer creates its shortcuts in the profile of the account that
-# runs it, so a Fleet install would leave them in the Default user profile. This
+# runs it, so an AutoMDM install would leave them in the Default user profile. This
 # script adds a Start Menu shortcut for all users and removes those copies.
 
-$logFile = "${env:TEMP}/fleet-install-software.log"
+$logFile = "${env:TEMP}/automdm-install-software.log"
 $msiFilePath = "${env:INSTALLER_PATH}"
 $exePath = Join-Path $env:ProgramFiles "Clockify\ClockifyWindows.exe"
 $timeoutSeconds = 600

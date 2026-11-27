@@ -26,9 +26,9 @@ builds:
       - -s
       - -w
       - -linkmode external -extldflags "-static"
-      - -X github.com/fleetdm/fleet/v4/orbit/pkg/build.Version={{.Version}}
-      - -X github.com/fleetdm/fleet/v4/orbit/pkg/build.Commit={{.Commit}}
-      - -X github.com/fleetdm/fleet/v4/orbit/pkg/build.Date={{.Date}}
+      - -X github.com/anilyagiz/automdm/v4/orbit/pkg/build.Version={{.Version}}
+      - -X github.com/anilyagiz/automdm/v4/orbit/pkg/build.Commit={{.Commit}}
+      - -X github.com/anilyagiz/automdm/v4/orbit/pkg/build.Date={{.Date}}
 
 archives:
   - id: orbit

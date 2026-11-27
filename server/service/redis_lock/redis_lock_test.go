@@ -7,15 +7,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/datastore/redis/redistest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis/redistest"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestRedisLock(t *testing.T) {
-	for _, f := range []func(*testing.T, fleet.Lock){
+	for _, f := range []func(*testing.T, automdm.Lock){
 		testRedisAcquireLock,
 		testRedisSet,
 		testRedisGetAndDeleteConcurrent,
@@ -33,7 +33,7 @@ func TestRedisLock(t *testing.T) {
 	}
 }
 
-func setupRedis(t testing.TB, cluster, redir bool) fleet.Lock {
+func setupRedis(t testing.TB, cluster, redir bool) automdm.Lock {
 	pool := redistest.SetupRedis(t, t.Name(), cluster, redir, true)
 	return NewLockTest(t, pool)
 }
@@ -44,15 +44,15 @@ type TestName interface {
 
 // NewFailingTest creates a redis policy set for failing policies to be used
 // only in tests.
-func NewLockTest(t TestName, pool fleet.RedisPool) fleet.Lock {
+func NewLockTest(t TestName, pool automdm.RedisPool) automdm.Lock {
 	lock := &redisLock{
 		pool:       pool,
 		testPrefix: t.Name() + ":",
 	}
-	return fleet.Lock(lock)
+	return automdm.Lock(lock)
 }
 
-func testRedisAcquireLock(t *testing.T, lock fleet.Lock) {
+func testRedisAcquireLock(t *testing.T, lock automdm.Lock) {
 	ctx := context.Background()
 	result, err := lock.SetIfNotExist(ctx, "test", "1", 0)
 	require.NoError(t, err)
@@ -133,7 +133,7 @@ func testRedisAcquireLock(t *testing.T, lock fleet.Lock) {
 // atomically: when many callers race for the same key, exactly one gets the
 // value and all others get nil. This guards the single-use guarantee relied on
 // by one-time software installer download tokens.
-func testRedisGetAndDeleteConcurrent(t *testing.T, lock fleet.Lock) {
+func testRedisGetAndDeleteConcurrent(t *testing.T, lock automdm.Lock) {
 	ctx := context.Background()
 
 	const workers = 50
@@ -161,7 +161,7 @@ func testRedisGetAndDeleteConcurrent(t *testing.T, lock fleet.Lock) {
 	assert.Equal(t, int64(1), winners.Load(), "exactly one caller should consume the key")
 }
 
-func testRedisSet(t *testing.T, lock fleet.Lock) {
+func testRedisSet(t *testing.T, lock automdm.Lock) {
 	ctx := context.Background()
 
 	// Get a non-existent set

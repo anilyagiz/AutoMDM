@@ -2,7 +2,7 @@ import React from "react";
 
 import Button from "components/buttons/Button";
 import DataSet from "components/DataSet";
-import { HumanTimeDiffWithFleetLaunchCutoff } from "components/HumanTimeDiffWithDateTip";
+import { HumanTimeDiffWithTeamLaunchCutoff } from "components/HumanTimeDiffWithDateTip";
 import Modal from "components/Modal";
 import ModalFooter from "components/ModalFooter";
 import TooltipTruncatedText from "components/TooltipTruncatedText";
@@ -37,7 +37,7 @@ const renderBatteryLevel = (value?: number | null) =>
 
 const renderLastCloudBackupDate = (value?: string | null) =>
   value ? (
-    <HumanTimeDiffWithFleetLaunchCutoff timeString={value} />
+    <HumanTimeDiffWithTeamLaunchCutoff timeString={value} />
   ) : (
     DEFAULT_EMPTY_CELL_VALUE
   );
@@ -182,7 +182,7 @@ const renderServiceSubscriptions = (
   );
 };
 
-/** iOS/iPadOS vitals fields (see HostMDMAppleDeviceVitals, server/fleet/mdm_apple_device_vitals.go) */
+/** iOS/iPadOS vitals fields (see HostMDMAppleDeviceVitals, server/automdm/mdm_apple_device_vitals.go) */
 type VitalKey =
   | "udid"
   | "model_number"

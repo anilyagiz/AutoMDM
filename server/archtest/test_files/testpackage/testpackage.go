@@ -4,7 +4,7 @@ import (
 	"crypto" // for test
 	"fmt"
 
-	"github.com/fleetdm/fleet/v4/server/archtest/test_files/dependency"
+	"github.com/anilyagiz/automdm/v4/server/archtest/test_files/dependency"
 )
 
 func What(_ crypto.Decrypter) {

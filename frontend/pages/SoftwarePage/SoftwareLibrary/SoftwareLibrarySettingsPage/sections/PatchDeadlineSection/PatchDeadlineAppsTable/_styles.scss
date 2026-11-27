@@ -8,7 +8,7 @@
 
   &__list-title {
     font-weight: $bold;
-    color: $core-fleet-black;
+    color: $core-automdm-black;
   }
 
   &__row-content {
@@ -21,6 +21,6 @@
     // flex: 1 + min-width: 0 lets TooltipTruncatedText shrink and ellipsize.
     flex: 1;
     min-width: 0;
-    color: $core-fleet-black;
+    color: $core-automdm-black;
   }
 }

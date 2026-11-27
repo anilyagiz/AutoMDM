@@ -16,9 +16,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,8 +30,8 @@ func (s *integrationTestSuite) TestAndroidHostUUIDPropagation() {
 
 	// Create an Android host with a specific UUID
 	const expectedUUID = "TEST-UUID-12345-ANDROID"
-	host := &fleet.AndroidHost{
-		Host: &fleet.Host{
+	host := &automdm.AndroidHost{
+		Host: &automdm.Host{
 			Hostname:       "test-android-uuid",
 			ComputerName:   "AndroidTestDevice",
 			Platform:       "android",
@@ -60,7 +60,7 @@ func (s *integrationTestSuite) TestAndroidHostUUIDPropagation() {
 
 	// Test 1: Get the host, verify UUID is present
 	var getHostResp getHostResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", androidHost.Host.ID), nil, http.StatusOK, &getHostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", androidHost.Host.ID), nil, http.StatusOK, &getHostResp)
 	require.NotNil(t, getHostResp.Host)
 	require.Equal(t, expectedUUID, getHostResp.Host.UUID, "UUID should be returned in API response")
 	require.Equal(t, "AndroidTestDevice", getHostResp.Host.ComputerName)
@@ -76,17 +76,17 @@ func (s *integrationTestSuite) TestAndroidHostUUIDPropagation() {
 	require.NoError(t, err)
 
 	// Get the host again, verify UUID is still present
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", androidHost.Host.ID), nil, http.StatusOK, &getHostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", androidHost.Host.ID), nil, http.StatusOK, &getHostResp)
 	require.NotNil(t, getHostResp.Host)
 	require.Equal(t, expectedUUID, getHostResp.Host.UUID, "UUID should be preserved after host update")
 	require.Equal(t, "UpdatedAndroidDevice", getHostResp.Host.ComputerName)
 
 	// Test 3: List hosts, verify Android host UUID is included
 	var listHostsResp listHostsResponse
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &listHostsResp)
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &listHostsResp)
 
 	// Find our Android host in the list
-	var foundHost *fleet.HostResponse
+	var foundHost *automdm.HostResponse
 	for _, h := range listHostsResp.Hosts {
 		if h.ID == androidHost.Host.ID {
 			foundHost = &h
@@ -110,14 +110,14 @@ func (s *integrationTestSuite) TestListAndroidHostsInLabel() {
 	notAndroidHost := createOrbitEnrolledHost(t, "darwin", "-4", s.ds)
 
 	// list labels, has the built-in ones, capture All and Android
-	var listResp fleet.ListLabelsResponse
-	s.DoJSON("GET", "/api/latest/fleet/labels", nil, http.StatusOK, &listResp)
+	var listResp automdm.ListLabelsResponse
+	s.DoJSON("GET", "/api/latest/automdm/labels", nil, http.StatusOK, &listResp)
 	var allLblID, androidLblID uint
 	for _, lbl := range listResp.Labels {
 		switch lbl.Name {
-		case fleet.BuiltinLabelNameAllHosts:
+		case automdm.BuiltinLabelNameAllHosts:
 			allLblID = lbl.ID
-		case fleet.BuiltinLabelNameAndroid:
+		case automdm.BuiltinLabelNameAndroid:
 			androidLblID = lbl.ID
 		}
 	}
@@ -127,7 +127,7 @@ func (s *integrationTestSuite) TestListAndroidHostsInLabel() {
 	err := s.ds.AddLabelsToHost(ctx, notAndroidHost.ID, []uint{allLblID})
 	require.NoError(t, err)
 
-	pluckHostIDs := func(hosts []fleet.HostResponse) []uint {
+	pluckHostIDs := func(hosts []automdm.HostResponse) []uint {
 		ids := make([]uint, 0, len(hosts))
 		for _, h := range hosts {
 			ids = append(ids, h.ID)
@@ -137,24 +137,24 @@ func (s *integrationTestSuite) TestListAndroidHostsInLabel() {
 
 	// list hosts in all hosts
 	var listHostsResp listHostsResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/labels/%d/hosts", allLblID), nil, http.StatusOK, &listHostsResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/labels/%d/hosts", allLblID), nil, http.StatusOK, &listHostsResp)
 	require.Len(t, listHostsResp.Hosts, len(hostIDs)+1)
 	wantIDs := append([]uint{notAndroidHost.ID}, hostIDs...)
 	require.ElementsMatch(t, wantIDs, pluckHostIDs(listHostsResp.Hosts))
 
 	// count hosts in label
 	var countResp countHostsResponse
-	s.DoJSON("GET", "/api/latest/fleet/hosts/count", nil, http.StatusOK, &countResp, "label_id", fmt.Sprint(allLblID))
+	s.DoJSON("GET", "/api/latest/automdm/hosts/count", nil, http.StatusOK, &countResp, "label_id", fmt.Sprint(allLblID))
 	require.Equal(t, len(hostIDs)+1, countResp.Count)
 
 	// list android hosts
 	listHostsResp = listHostsResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/labels/%d/hosts", androidLblID), nil, http.StatusOK, &listHostsResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/labels/%d/hosts", androidLblID), nil, http.StatusOK, &listHostsResp)
 	require.Len(t, listHostsResp.Hosts, len(hostIDs))
 	require.ElementsMatch(t, hostIDs, pluckHostIDs(listHostsResp.Hosts))
 
 	countResp = countHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts/count", nil, http.StatusOK, &countResp, "label_id", fmt.Sprint(androidLblID))
+	s.DoJSON("GET", "/api/latest/automdm/hosts/count", nil, http.StatusOK, &countResp, "label_id", fmt.Sprint(androidLblID))
 	require.Equal(t, len(hostIDs), countResp.Count)
 }
 
@@ -167,7 +167,7 @@ func (s *integrationTestSuite) TestAndroidHostStorageInAPI() {
 
 	// individual host endpoint
 	var hostResp getHostResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", hostID), nil, http.StatusOK, &hostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", hostID), nil, http.StatusOK, &hostResp)
 
 	require.NotNil(t, hostResp.Host)
 	require.Equal(t, "android", hostResp.Host.Platform)
@@ -179,9 +179,9 @@ func (s *integrationTestSuite) TestAndroidHostStorageInAPI() {
 
 	// list endpoint includes storage data
 	var listResp listHostsResponse
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &listResp)
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &listResp)
 
-	var androidHost *fleet.HostResponse
+	var androidHost *automdm.HostResponse
 	for _, host := range listResp.Hosts {
 		if host.ID == hostID {
 			androidHost = &host
@@ -205,8 +205,8 @@ func (s *integrationTestSuite) TestAndroidHostStorageInAPI() {
 func createAndroidHosts(t *testing.T, ds *mysql.Datastore, count int, teamID *uint) []uint {
 	ids := make([]uint, 0, count)
 	for i := range count {
-		host := &fleet.AndroidHost{
-			Host: &fleet.Host{
+		host := &automdm.AndroidHost{
+			Host: &automdm.Host{
 				Hostname:       fmt.Sprintf("hostname%d", i),
 				ComputerName:   fmt.Sprintf("computer_name%d", i),
 				Platform:       "android",

@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
 // The types below follow the osquery TLS distributed protocol wire format.
@@ -37,11 +37,11 @@ func (r *distributedReadRequest) setRequestHeaders(req *http.Request) {
 // DistributedWriteRequest is the body of the osquery distributed/write
 // endpoint: results of the queries previously returned by distributed/read.
 type DistributedWriteRequest struct {
-	NodeKey  string                               `json:"node_key"`
-	Results  fleet.OsqueryDistributedQueryResults `json:"queries"`
-	Statuses map[string]fleet.OsqueryStatus       `json:"statuses"`
-	Messages map[string]string                    `json:"messages,omitempty"`
-	Stats    map[string]*fleet.Stats              `json:"stats,omitempty"`
+	NodeKey  string                                 `json:"node_key"`
+	Results  automdm.OsqueryDistributedQueryResults `json:"queries"`
+	Statuses map[string]automdm.OsqueryStatus       `json:"statuses"`
+	Messages map[string]string                      `json:"messages,omitempty"`
+	Stats    map[string]*automdm.Stats              `json:"stats,omitempty"`
 }
 
 func (r *DistributedWriteRequest) SetOrbitNodeKey(nodeKey string) { r.NodeKey = nodeKey }
@@ -90,7 +90,7 @@ func (r *osqueryConfigRequest) SetOrbitNodeKey(nodeKey string) { r.NodeKey = nod
 func (r *osqueryConfigRequest) setRequestHeaders(req *http.Request) {
 	setNodeKeyHeader(req, r.NodeKey)
 	if r.fallbackChange {
-		req.Header.Set(fleet.OsqueryConfigFallbackChangeHeader, "1")
+		req.Header.Set(automdm.OsqueryConfigFallbackChangeHeader, "1")
 	}
 }
 
@@ -99,7 +99,7 @@ func (r *osqueryConfigRequest) setRequestHeaders(req *http.Request) {
 // validator under the "etag" key when the server supports conditional
 // requests, or {"etag":"ok"} when etag is current. fallbackChange reports
 // that the previous fetch, a fallback poll, found the config changed (see
-// fleet.OsqueryConfigFallbackChangeHeader).
+// automdm.OsqueryConfigFallbackChangeHeader).
 func (oc *OrbitClient) OsqueryConfig(etag string, fallbackChange bool) (json.RawMessage, error) {
 	var resp json.RawMessage
 	req := &osqueryConfigRequest{ETag: etag, fallbackChange: fallbackChange}

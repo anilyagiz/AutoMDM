@@ -4,16 +4,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/platform/mysql/testing_utils"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/platform/mysql/testing_utils"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
 )
 
 // TestSoftwareIngestionAfterRemoteTitleCleanup reproduces software rows being written
 // with a NULL title_id when a software title is garbage-collected by the cleanup crons
-// running on a different Fleet instance (two datastore handles on one database), then
+// running on a different AutoMDM instance (two datastore handles on one database), then
 // re-reported by the host. The row must end up linked to a title.
 func TestSoftwareIngestionAfterRemoteTitleCleanup(t *testing.T) {
 	const dbName = "software_remote_title_gc"
@@ -25,8 +25,8 @@ func TestSoftwareIngestionAfterRemoteTitleCleanup(t *testing.T) {
 	ctx := t.Context()
 	host := test.NewHost(t, ds, "host1", "10.0.0.1", "hostkey1", "hostuuid1", time.Now())
 
-	uniqueSW := fleet.Software{Name: "UniqueApp", Version: "1.0.0", Source: "apps", BundleIdentifier: "com.example.uniqueapp"}
-	otherSW := fleet.Software{Name: "OtherApp", Version: "2.0.0", Source: "apps", BundleIdentifier: "com.example.otherapp"}
+	uniqueSW := automdm.Software{Name: "UniqueApp", Version: "1.0.0", Source: "apps", BundleIdentifier: "com.example.uniqueapp"}
+	otherSW := automdm.Software{Name: "OtherApp", Version: "2.0.0", Source: "apps", BundleIdentifier: "com.example.otherapp"}
 
 	uniqueAppTitleID := func() *uint {
 		var rows []struct {
@@ -40,13 +40,13 @@ func TestSoftwareIngestionAfterRemoteTitleCleanup(t *testing.T) {
 	}
 
 	// Initial report: creates the software rows and titles.
-	_, err := ds.UpdateHostSoftware(ctx, host.ID, []fleet.Software{uniqueSW, otherSW})
+	_, err := ds.UpdateHostSoftware(ctx, host.ID, []automdm.Software{uniqueSW, otherSW})
 	require.NoError(t, err)
 	require.NotNil(t, uniqueAppTitleID())
 
 	// The host uninstalls UniqueApp; no other host has it, so its software row and
 	// title are now orphaned.
-	_, err = ds.UpdateHostSoftware(ctx, host.ID, []fleet.Software{otherSW})
+	_, err = ds.UpdateHostSoftware(ctx, host.ID, []automdm.Software{otherSW})
 	require.NoError(t, err)
 
 	// The hourly cron cycle runs on the second instance, as in production
@@ -63,14 +63,14 @@ func TestSoftwareIngestionAfterRemoteTitleCleanup(t *testing.T) {
 
 	// The host reinstalls UniqueApp and reports it to the first instance. The row must
 	// end up linked to a title.
-	_, err = ds.UpdateHostSoftware(ctx, host.ID, []fleet.Software{uniqueSW, otherSW})
+	_, err = ds.UpdateHostSoftware(ctx, host.ID, []automdm.Software{uniqueSW, otherSW})
 	require.NoError(t, err)
 	require.NotNil(t, uniqueAppTitleID(), "software row was inserted with a NULL title_id")
 
 	// The row must stay linked on subsequent report cycles.
-	_, err = ds.UpdateHostSoftware(ctx, host.ID, []fleet.Software{uniqueSW})
+	_, err = ds.UpdateHostSoftware(ctx, host.ID, []automdm.Software{uniqueSW})
 	require.NoError(t, err)
-	_, err = ds.UpdateHostSoftware(ctx, host.ID, []fleet.Software{uniqueSW, otherSW})
+	_, err = ds.UpdateHostSoftware(ctx, host.ID, []automdm.Software{uniqueSW, otherSW})
 	require.NoError(t, err)
 	require.NotNil(t, uniqueAppTitleID(), "software row lost its title on a later cycle")
 }

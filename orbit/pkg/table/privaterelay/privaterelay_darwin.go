@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	tbl_common "github.com/fleetdm/fleet/v4/orbit/pkg/table/common"
+	tbl_common "github.com/anilyagiz/automdm/v4/orbit/pkg/table/common"
 	"github.com/osquery/osquery-go/plugin/table"
 )
 

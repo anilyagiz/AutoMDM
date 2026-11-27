@@ -6,11 +6,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/client"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/migration"
+	"github.com/anilyagiz/automdm/v4/client"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/migration"
 )
 
-func NewMDMMigrator(path string, frequency time.Duration, handler MDMMigratorHandler, mrw *migration.ReadWriter, fleetURL string, showCh chan struct{}) MDMMigrator {
+func NewMDMMigrator(path string, frequency time.Duration, handler MDMMigratorHandler, mrw *migration.ReadWriter, automdmURL string, showCh chan struct{}) MDMMigrator {
 	return &NoopMDMMigrator{}
 }
 

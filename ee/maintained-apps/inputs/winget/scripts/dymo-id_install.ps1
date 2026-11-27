@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # DYMO ID is an InstallShield 2016 setup launcher wrapping an MSI. /S runs the
 # InstallShield UI silently; /V passes args through to msiexec (/qn /norestart).

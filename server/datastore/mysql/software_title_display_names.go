@@ -4,10 +4,10 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxdb"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxdb"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -108,7 +108,7 @@ func (ds *Datastore) GetSoftwareTitleDisplayName(ctx context.Context, teamID *ui
 	}
 	displayName, err := ds.getSoftwareTitleDisplayName(ctx, tmID, titleID)
 	if err != nil {
-		if fleet.IsNotFound(err) {
+		if automdm.IsNotFound(err) {
 			return nil, nil
 		}
 		return nil, err

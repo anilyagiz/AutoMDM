@@ -49,7 +49,7 @@ const SetupExperienceScriptUploader = ({
 
   const manuallyInstallTooltipText = (
     <>
-      Disabled because you manually install Fleet&apos;s agent (
+      Disabled because you manually install AutoMDM&apos;s agent (
       <b>Bootstrap package {">"} Advanced options</b>). Use your bootstrap
       package to install software during the setup experience.
     </>

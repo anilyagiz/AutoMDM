@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/platform/mysql/testing_utils"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/platform/mysql/testing_utils"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
 	"github.com/tj/assert"
@@ -44,20 +44,20 @@ func TestWorkerFinalFailureNotifier(t *testing.T) {
 	ds := new(mock.Store)
 
 	argsJSON := json.RawMessage(`{"arg1":"foo"}`)
-	theJob := &fleet.Job{
+	theJob := &automdm.Job{
 		ID:      1,
 		Name:    "test",
 		Args:    &argsJSON,
-		State:   fleet.JobStateQueued,
+		State:   automdm.JobStateQueued,
 		Retries: 0,
 	}
-	ds.GetFilteredQueuedJobsFunc = func(ctx context.Context, maxNumJobs int, now time.Time, jobNames []string) ([]*fleet.Job, error) {
-		if theJob.State == fleet.JobStateQueued {
-			return []*fleet.Job{theJob}, nil
+	ds.GetFilteredQueuedJobsFunc = func(ctx context.Context, maxNumJobs int, now time.Time, jobNames []string) ([]*automdm.Job, error) {
+		if theJob.State == automdm.JobStateQueued {
+			return []*automdm.Job{theJob}, nil
 		}
 		return nil, nil
 	}
-	ds.UpdateJobFunc = func(ctx context.Context, id uint, job *fleet.Job) (*fleet.Job, error) {
+	ds.UpdateJobFunc = func(ctx context.Context, id uint, job *automdm.Job) (*automdm.Job, error) {
 		return job, nil
 	}
 
@@ -104,7 +104,7 @@ func TestWorker(t *testing.T) {
 
 	// set up mocks
 	getFilteredQueuedJobsCalled := 0
-	ds.GetFilteredQueuedJobsFunc = func(ctx context.Context, maxNumJobs int, now time.Time, jobNames []string) ([]*fleet.Job, error) {
+	ds.GetFilteredQueuedJobsFunc = func(ctx context.Context, maxNumJobs int, now time.Time, jobNames []string) ([]*automdm.Job, error) {
 		if getFilteredQueuedJobsCalled > 0 {
 			return nil, nil
 		}
@@ -112,7 +112,7 @@ func TestWorker(t *testing.T) {
 		require.Equal(t, 1, len(jobNames))
 		require.Equal(t, "test", jobNames[0])
 		argsJSON := json.RawMessage(`{"arg1":"foo"}`)
-		return []*fleet.Job{
+		return []*automdm.Job{
 			{
 				ID:   1,
 				Name: "test",
@@ -120,8 +120,8 @@ func TestWorker(t *testing.T) {
 			},
 		}, nil
 	}
-	ds.UpdateJobFunc = func(ctx context.Context, id uint, job *fleet.Job) (*fleet.Job, error) {
-		assert.Equal(t, fleet.JobStateSuccess, job.State)
+	ds.UpdateJobFunc = func(ctx context.Context, id uint, job *automdm.Job) (*automdm.Job, error) {
+		assert.Equal(t, automdm.JobStateSuccess, job.State)
 		return job, nil
 	}
 
@@ -156,24 +156,24 @@ func TestWorkerRetries(t *testing.T) {
 
 	// set up mocks
 	argsJSON := json.RawMessage(`{"arg1":"foo"}`)
-	theJob := &fleet.Job{
+	theJob := &automdm.Job{
 		ID:      1,
 		Name:    "test",
 		Args:    &argsJSON,
-		State:   fleet.JobStateQueued,
+		State:   automdm.JobStateQueued,
 		Retries: 0,
 	}
-	ds.GetFilteredQueuedJobsFunc = func(ctx context.Context, maxNumJobs int, now time.Time, jobNames []string) ([]*fleet.Job, error) {
-		if theJob.State == fleet.JobStateQueued {
-			return []*fleet.Job{theJob}, nil
+	ds.GetFilteredQueuedJobsFunc = func(ctx context.Context, maxNumJobs int, now time.Time, jobNames []string) ([]*automdm.Job, error) {
+		if theJob.State == automdm.JobStateQueued {
+			return []*automdm.Job{theJob}, nil
 		}
 		return nil, nil
 	}
 
 	jobFailed := false
-	ds.UpdateJobFunc = func(ctx context.Context, id uint, job *fleet.Job) (*fleet.Job, error) {
+	ds.UpdateJobFunc = func(ctx context.Context, id uint, job *automdm.Job) (*automdm.Job, error) {
 		assert.Equal(t, "unknown error", job.Error)
-		if job.State == fleet.JobStateFailure {
+		if job.State == automdm.JobStateFailure {
 			jobFailed = true
 			assert.Equal(t, maxRetries, job.Retries)
 		}
@@ -220,40 +220,40 @@ func TestWorkerMiddleJobFails(t *testing.T) {
 	ds := new(mock.Store)
 
 	// set up mocks
-	jobs := []*fleet.Job{
+	jobs := []*automdm.Job{
 		{
 			ID:      1,
 			Name:    "test",
-			State:   fleet.JobStateQueued,
+			State:   automdm.JobStateQueued,
 			Args:    ptr.RawMessage(json.RawMessage(`1`)),
 			Retries: 0,
 		},
 		{
 			ID:      2,
 			Name:    "test",
-			State:   fleet.JobStateQueued,
+			State:   automdm.JobStateQueued,
 			Args:    ptr.RawMessage(json.RawMessage(`2`)),
 			Retries: 0,
 		},
 		{
 			ID:      3,
 			Name:    "test",
-			State:   fleet.JobStateQueued,
+			State:   automdm.JobStateQueued,
 			Args:    ptr.RawMessage(json.RawMessage(`3`)),
 			Retries: 0,
 		},
 	}
-	ds.GetFilteredQueuedJobsFunc = func(ctx context.Context, maxNumJobs int, now time.Time, jobNames []string) ([]*fleet.Job, error) {
-		var queued []*fleet.Job
+	ds.GetFilteredQueuedJobsFunc = func(ctx context.Context, maxNumJobs int, now time.Time, jobNames []string) ([]*automdm.Job, error) {
+		var queued []*automdm.Job
 		for _, j := range jobs {
-			if j.State == fleet.JobStateQueued {
+			if j.State == automdm.JobStateQueued {
 				queued = append(queued, j)
 			}
 		}
 		return queued, nil
 	}
 
-	ds.UpdateJobFunc = func(ctx context.Context, id uint, job *fleet.Job) (*fleet.Job, error) {
+	ds.UpdateJobFunc = func(ctx context.Context, id uint, job *automdm.Job) (*automdm.Job, error) {
 		return job, nil
 	}
 
@@ -290,10 +290,10 @@ func TestWorkerMiddleJobFails(t *testing.T) {
 	ds.GetFilteredQueuedJobsFuncInvoked = false
 	ds.UpdateJobFuncInvoked = false
 
-	require.Equal(t, fleet.JobStateSuccess, jobs[0].State)
-	require.Equal(t, fleet.JobStateQueued, jobs[1].State)
+	require.Equal(t, automdm.JobStateSuccess, jobs[0].State)
+	require.Equal(t, automdm.JobStateQueued, jobs[1].State)
 	require.Equal(t, 1, jobs[1].Retries)
-	require.Equal(t, fleet.JobStateSuccess, jobs[2].State)
+	require.Equal(t, automdm.JobStateSuccess, jobs[2].State)
 	require.Equal(t, 3, jobCallCount)
 
 	// processing again only processes job 2 (still queued)
@@ -303,7 +303,7 @@ func TestWorkerMiddleJobFails(t *testing.T) {
 	require.True(t, ds.GetFilteredQueuedJobsFuncInvoked)
 	require.True(t, ds.UpdateJobFuncInvoked)
 
-	require.Equal(t, fleet.JobStateQueued, jobs[1].State)
+	require.Equal(t, automdm.JobStateQueued, jobs[1].State)
 	require.Equal(t, 2, jobs[1].Retries)
 	require.Equal(t, 4, jobCallCount)
 }
@@ -399,7 +399,7 @@ func TestWorkerWithRealDatastore(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, jobs)
 
-	var failedJob fleet.Job
+	var failedJob automdm.Job
 	mysqltest.ExecAdhocSQL(t, ds, func(q sqlx.ExtContext) error {
 		return sqlx.GetContext(ctx, q, &failedJob, "SELECT * FROM jobs WHERE id = ?", j2.ID)
 	})
@@ -431,7 +431,7 @@ func TestWorkerBatchesWithReplica(t *testing.T) {
 	const numJobs = 250
 	for range numJobs {
 		args := json.RawMessage(`"job"`)
-		_, err := ds.NewJob(ctx, &fleet.Job{Name: "test", Args: &args, State: fleet.JobStateQueued})
+		_, err := ds.NewJob(ctx, &automdm.Job{Name: "test", Args: &args, State: automdm.JobStateQueued})
 		require.NoError(t, err)
 	}
 	// replicate the queued jobs once, then let the replica lag behind

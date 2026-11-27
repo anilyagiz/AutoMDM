@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # PyCharm ships as a Nullsoft (NSIS) installer; /S runs it silently.
 
@@ -8,7 +8,7 @@ $exeFilePath = "${env:INSTALLER_PATH}"
 try {
 
 # In silent mode the installer refuses a non-empty install directory with a
-# message box. Fleet runs it as SYSTEM, where nobody can dismiss that box, so a
+# message box. AutoMDM runs it as SYSTEM, where nobody can dismiss that box, so a
 # reinstall of the same version would hang. Empty the directory first (it's
 # "PyCharm <ProductVersion>"), stopping PyCharm if it's running from there.
 # Unsaved changes are lost.

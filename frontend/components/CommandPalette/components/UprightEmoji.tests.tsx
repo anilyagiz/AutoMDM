@@ -61,9 +61,9 @@ describe("splitEmojiSegments", () => {
 
   it("handles a regional indicator pair (flag emoji) as one segment", () => {
     // 🇺🇸 = U+1F1FA U+1F1F8
-    expect(splitEmojiSegments("\u{1F1FA}\u{1F1F8} US fleet")).toEqual([
+    expect(splitEmojiSegments("\u{1F1FA}\u{1F1F8} US team")).toEqual([
       { text: "\u{1F1FA}\u{1F1F8}", isEmoji: true },
-      { text: " US fleet", isEmoji: false },
+      { text: " US team", isEmoji: false },
     ]);
   });
 

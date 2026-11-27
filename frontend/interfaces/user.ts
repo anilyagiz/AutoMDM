@@ -17,7 +17,7 @@ export default PropTypes.shape({
   mfa_enabled: PropTypes.bool,
   global_role: PropTypes.string,
   api_only: PropTypes.bool,
-  fleets: PropTypes.arrayOf(teamInterface),
+  teams: PropTypes.arrayOf(teamInterface),
 });
 
 export const USERS_ROLES = [
@@ -68,7 +68,7 @@ export interface IUser {
    * no live session. */
   last_activity_at: string | null;
   status?: UserStatus;
-  fleets: ITeam[];
+  teams: ITeam[];
   api_endpoints?: IApiEndpointRef[];
   position?: string;
 }
@@ -78,7 +78,7 @@ export interface IUser {
  */
 export interface IUserUpdateFormData {
   global_role?: UserRole | null;
-  fleets?: ITeam[];
+  teams?: ITeam[];
   name: string;
   email?: string;
   sso_enabled?: boolean;
@@ -104,7 +104,7 @@ export interface ICreateUserFormData {
   password?: string | null;
   sso_enabled?: boolean;
   mfa_enabled?: boolean;
-  fleets: ITeam[];
+  teams: ITeam[];
 }
 
 export interface IUpdateUserFormData {
@@ -115,7 +115,7 @@ export interface IUpdateUserFormData {
   password?: string | null;
   sso_enabled?: boolean;
   mfa_enabled?: boolean;
-  fleets?: ITeam[];
+  teams?: ITeam[];
   settings?: IUserSettings;
 }
 

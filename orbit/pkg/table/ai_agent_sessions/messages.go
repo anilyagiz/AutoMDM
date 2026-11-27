@@ -8,7 +8,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/fleetdm/fleet/v4/pkg/str"
+	"github.com/anilyagiz/automdm/v4/pkg/str"
 )
 
 const (

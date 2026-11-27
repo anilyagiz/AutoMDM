@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/oval"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/oval"
 	"github.com/stretchr/testify/require"
 )
 
@@ -372,13 +372,13 @@ func TestIsVulnerable(t *testing.T) {
 func TestMatchSoftwareToOSV(t *testing.T) {
 	tests := []struct {
 		name     string
-		software []fleet.Software
+		software []automdm.Software
 		artifact *OSVArtifact
-		expected []fleet.SoftwareVulnerability
+		expected []automdm.SoftwareVulnerability
 	}{
 		{
 			name: "Kernel package mapping",
-			software: []fleet.Software{
+			software: []automdm.Software{
 				{ID: 1, Name: "linux-image-5.15.0-94-generic", Version: "5.15.0-94-generic"},
 				{ID: 2, Name: "linux-signed-image-5.15.0-94-generic", Version: "5.15.0-94-generic"},
 			},
@@ -389,14 +389,14 @@ func TestMatchSoftwareToOSV(t *testing.T) {
 					},
 				},
 			},
-			expected: []fleet.SoftwareVulnerability{
+			expected: []automdm.SoftwareVulnerability{
 				{SoftwareID: 1, CVE: "CVE-2024-1111"},
 				{SoftwareID: 2, CVE: "CVE-2024-1111"},
 			},
 		},
 		{
 			name: "Regular package exact match",
-			software: []fleet.Software{
+			software: []automdm.Software{
 				{ID: 1, Name: "curl", Version: "7.68.0-1ubuntu2.21"},
 			},
 			artifact: &OSVArtifact{
@@ -406,13 +406,13 @@ func TestMatchSoftwareToOSV(t *testing.T) {
 					},
 				},
 			},
-			expected: []fleet.SoftwareVulnerability{
+			expected: []automdm.SoftwareVulnerability{
 				{SoftwareID: 1, CVE: "CVE-2024-2222"},
 			},
 		},
 		{
 			name: "Package not in artifact",
-			software: []fleet.Software{
+			software: []automdm.Software{
 				{ID: 1, Name: "unknown-package", Version: "1.0.0"},
 			},
 			artifact: &OSVArtifact{
@@ -422,11 +422,11 @@ func TestMatchSoftwareToOSV(t *testing.T) {
 					},
 				},
 			},
-			expected: []fleet.SoftwareVulnerability{},
+			expected: []automdm.SoftwareVulnerability{},
 		},
 		{
 			name: "Multiple vulnerabilities for same package",
-			software: []fleet.Software{
+			software: []automdm.Software{
 				{ID: 1, Name: "openssl", Version: "1.1.1f-1ubuntu2.20"},
 			},
 			artifact: &OSVArtifact{
@@ -437,14 +437,14 @@ func TestMatchSoftwareToOSV(t *testing.T) {
 					},
 				},
 			},
-			expected: []fleet.SoftwareVulnerability{
+			expected: []automdm.SoftwareVulnerability{
 				{SoftwareID: 1, CVE: "CVE-2024-3333"},
 				{SoftwareID: 1, CVE: "CVE-2024-4444"},
 			},
 		},
 		{
 			name: "Version doesn't match",
-			software: []fleet.Software{
+			software: []automdm.Software{
 				{ID: 1, Name: "curl", Version: "7.68.0-1ubuntu2.22"},
 			},
 			artifact: &OSVArtifact{
@@ -454,11 +454,11 @@ func TestMatchSoftwareToOSV(t *testing.T) {
 					},
 				},
 			},
-			expected: []fleet.SoftwareVulnerability{},
+			expected: []automdm.SoftwareVulnerability{},
 		},
 		{
 			name: "Kernel headers should not map to linux",
-			software: []fleet.Software{
+			software: []automdm.Software{
 				{ID: 1, Name: "linux-headers-5.15.0-94", Version: "5.15.0-94-generic"},
 			},
 			artifact: &OSVArtifact{
@@ -468,11 +468,11 @@ func TestMatchSoftwareToOSV(t *testing.T) {
 					},
 				},
 			},
-			expected: []fleet.SoftwareVulnerability{},
+			expected: []automdm.SoftwareVulnerability{},
 		},
 		{
 			name: "Range-based vulnerability matching",
-			software: []fleet.Software{
+			software: []automdm.Software{
 				{ID: 1, Name: "apache2", Version: "2.4.41"},
 			},
 			artifact: &OSVArtifact{
@@ -482,13 +482,13 @@ func TestMatchSoftwareToOSV(t *testing.T) {
 					},
 				},
 			},
-			expected: []fleet.SoftwareVulnerability{
+			expected: []automdm.SoftwareVulnerability{
 				{SoftwareID: 1, CVE: "CVE-2024-5555", ResolvedInVersion: ptr.String("2.4.50")},
 			},
 		},
 		{
 			name: "Range-based vulnerability matching with multiple fixed versions",
-			software: []fleet.Software{
+			software: []automdm.Software{
 				{ID: 1, Name: "apache2", Version: "2.4.41"},
 			},
 			artifact: &OSVArtifact{
@@ -499,14 +499,14 @@ func TestMatchSoftwareToOSV(t *testing.T) {
 					},
 				},
 			},
-			expected: []fleet.SoftwareVulnerability{
+			expected: []automdm.SoftwareVulnerability{
 				{SoftwareID: 1, CVE: "CVE-2024-5555", ResolvedInVersion: ptr.String("2.4.50")},
 				{SoftwareID: 1, CVE: "CVE-2024-6666", ResolvedInVersion: ptr.String("2.4.48")},
 			},
 		},
 		{
 			name: "emacs-common not vulnerable",
-			software: []fleet.Software{
+			software: []automdm.Software{
 				{ID: 60992, Name: "emacs-common", Version: "1:29.3+1-1ubuntu2"},
 			},
 			artifact: &OSVArtifact{
@@ -519,7 +519,7 @@ func TestMatchSoftwareToOSV(t *testing.T) {
 					},
 				},
 			},
-			expected: []fleet.SoftwareVulnerability{},
+			expected: []automdm.SoftwareVulnerability{},
 		},
 	}
 
@@ -548,7 +548,7 @@ func TestLoadArtifactRejectsEmpty(t *testing.T) {
 			file: "osv-ubuntu-2204-2026-03-30.json.gz",
 			body: `{"schema_version":"1.0.0","ubuntu_version":"2204","generated":"2026-03-30T00:00:00Z","total_cves":0,"total_packages":0,"vulnerabilities":{}}`,
 			load: func(dir string) error {
-				ver := fleet.OSVersion{Name: "Ubuntu 22.04.8 LTS", Version: "22.04.8 LTS"}
+				ver := automdm.OSVersion{Name: "Ubuntu 22.04.8 LTS", Version: "22.04.8 LTS"}
 				_, err := loadOSVArtifact(t.Context(), ver, dir, logger, time.Time{})
 				return err
 			},
@@ -558,7 +558,7 @@ func TestLoadArtifactRejectsEmpty(t *testing.T) {
 			file: "osv-rhel-9-2026-04-08.json.gz",
 			body: `{"schema_version":"1.0.0","rhel_version":"9","generated":"2026-04-08T00:00:00Z","total_cves":0,"total_packages":0,"vulnerabilities":{}}`,
 			load: func(dir string) error {
-				ver := fleet.OSVersion{Name: "Red Hat Enterprise Linux 9.0.0", Version: "9.0.0"}
+				ver := automdm.OSVersion{Name: "Red Hat Enterprise Linux 9.0.0", Version: "9.0.0"}
 				_, err := loadRHELOSVArtifact(t.Context(), ver, dir, logger, time.Time{})
 				return err
 			},
@@ -617,7 +617,7 @@ func TestLoadOSVArtifactZeroTimeUsesLatest(t *testing.T) {
 	// Test with zero time (simulates DisableDataSync=true)
 	ctx := context.Background()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	ver := fleet.OSVersion{Name: "Ubuntu 22.04.8 LTS", Version: "22.04.8 LTS"}
+	ver := automdm.OSVersion{Name: "Ubuntu 22.04.8 LTS", Version: "22.04.8 LTS"}
 
 	artifact, err := loadOSVArtifact(ctx, ver, tmpDir, logger, time.Time{})
 	require.NoError(t, err)
@@ -739,7 +739,7 @@ func TestIsVulnerableRPM(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.expected, isVulnerableRPM(buildRPMVer(fleet.Software{Version: tt.version, Release: tt.release, Epoch: tt.epoch}), tt.vuln))
+			require.Equal(t, tt.expected, isVulnerableRPM(buildRPMVer(automdm.Software{Version: tt.version, Release: tt.release, Epoch: tt.epoch}), tt.vuln))
 		})
 	}
 }
@@ -761,7 +761,7 @@ func TestMatchSoftwareToRHELOSV(t *testing.T) {
 	}
 
 	t.Run("regular package match", func(t *testing.T) {
-		software := []fleet.Software{
+		software := []automdm.Software{
 			{ID: 1, Name: "curl", Version: "7.76.1", Release: "26.el9_3.2"},
 		}
 		result := matchSoftwareToRHELOSV(software, artifact)
@@ -773,7 +773,7 @@ func TestMatchSoftwareToRHELOSV(t *testing.T) {
 	})
 
 	t.Run("package not in artifact", func(t *testing.T) {
-		software := []fleet.Software{
+		software := []automdm.Software{
 			{ID: 2, Name: "nginx", Version: "1.0", Release: "1.el9"},
 		}
 		result := matchSoftwareToRHELOSV(software, artifact)
@@ -781,7 +781,7 @@ func TestMatchSoftwareToRHELOSV(t *testing.T) {
 	})
 
 	t.Run("kernel-core maps to kernel", func(t *testing.T) {
-		software := []fleet.Software{
+		software := []automdm.Software{
 			{ID: 3, Name: "kernel-core", Version: "5.14.0", Release: "503.26.1.el9_5"},
 		}
 		result := matchSoftwareToRHELOSV(software, artifact)
@@ -792,7 +792,7 @@ func TestMatchSoftwareToRHELOSV(t *testing.T) {
 	})
 
 	t.Run("kernel-modules maps to kernel", func(t *testing.T) {
-		software := []fleet.Software{
+		software := []automdm.Software{
 			{ID: 4, Name: "kernel-modules", Version: "5.14.0", Release: "503.26.1.el9_5"},
 		}
 		result := matchSoftwareToRHELOSV(software, artifact)
@@ -801,7 +801,7 @@ func TestMatchSoftwareToRHELOSV(t *testing.T) {
 	})
 
 	t.Run("kernel-debug-core maps to kernel", func(t *testing.T) {
-		software := []fleet.Software{
+		software := []automdm.Software{
 			{ID: 5, Name: "kernel-debug-core", Version: "5.14.0", Release: "503.26.1.el9_5"},
 		}
 		result := matchSoftwareToRHELOSV(software, artifact)
@@ -810,7 +810,7 @@ func TestMatchSoftwareToRHELOSV(t *testing.T) {
 	})
 
 	t.Run("patched kernel not vulnerable", func(t *testing.T) {
-		software := []fleet.Software{
+		software := []automdm.Software{
 			{ID: 6, Name: "kernel-core", Version: "5.14.0", Release: "611.8.1.el9_7"},
 		}
 		result := matchSoftwareToRHELOSV(software, artifact)
@@ -818,7 +818,7 @@ func TestMatchSoftwareToRHELOSV(t *testing.T) {
 	})
 
 	t.Run("patched package with epoch not vulnerable", func(t *testing.T) {
-		software := []fleet.Software{
+		software := []automdm.Software{
 			{ID: 8, Name: "mod_ssl", Version: "2.4.62", Release: "13.el9_8.1", Epoch: new(uint32(1))},
 		}
 		result := matchSoftwareToRHELOSV(software, artifact)
@@ -826,7 +826,7 @@ func TestMatchSoftwareToRHELOSV(t *testing.T) {
 	})
 
 	t.Run("patched curl not vulnerable", func(t *testing.T) {
-		software := []fleet.Software{
+		software := []automdm.Software{
 			{ID: 7, Name: "curl", Version: "7.76.1", Release: "29.el9_4.2"},
 		}
 		result := matchSoftwareToRHELOSV(software, artifact)
@@ -841,16 +841,16 @@ func TestAnalyzeOSVScopesToPackageSources(t *testing.T) {
 
 	var requestedSources []string
 	ds.ListSoftwareForVulnDetectionByOSVersionFunc = func(
-		ctx context.Context, osVer fleet.OSVersion, sources []string,
-	) ([]fleet.Software, error) {
+		ctx context.Context, osVer automdm.OSVersion, sources []string,
+	) ([]automdm.Software, error) {
 		requestedSources = sources
 		return nil, nil
 	}
 
-	ver := fleet.OSVersion{Platform: "ubuntu", Name: "Ubuntu 22.04.1 LTS"}
-	matcher := func([]fleet.Software) []fleet.SoftwareVulnerability { return nil }
+	ver := automdm.OSVersion{Platform: "ubuntu", Name: "Ubuntu 22.04.1 LTS"}
+	matcher := func([]automdm.Software) []automdm.SoftwareVulnerability { return nil }
 
-	_, err := analyzeOSV(t.Context(), ds, ver, fleet.UbuntuOSVSource, matcher, false, slog.New(slog.DiscardHandler))
+	_, err := analyzeOSV(t.Context(), ds, ver, automdm.UbuntuOSVSource, matcher, false, slog.New(slog.DiscardHandler))
 	require.NoError(t, err)
 
 	require.Equal(t, oval.SupportedSoftwareSources, requestedSources)

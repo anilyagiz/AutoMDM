@@ -18,7 +18,7 @@ const IOS_USER_AGENT =
 const MACOS_USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
 const ENROLL_URL = "https://enterprise.google.com/android/enroll?et=test-token";
-const TOKEN_ENDPOINT = "/api/v1/fleet/android_enterprise/enrollment_token";
+const TOKEN_ENDPOINT = "/api/v1/automdm/android_enterprise/enrollment_token";
 
 // What jsdom reports instead of reloading. location's own properties are
 // unforgeable, so a reload can only be observed this way; the page's other two
@@ -70,7 +70,7 @@ const loadPage = async ({
     CSPNonce: "test-nonce",
     ErrorMessage: "",
     URLPrefix: urlPrefix,
-    EnrollURL: "https://fleet.example.com/enroll",
+    EnrollURL: "https://automdm.example.com/enroll",
   });
 
   navigations = [];
@@ -85,7 +85,7 @@ const loadPage = async ({
   // runs via window.eval.
   const pagePath = nextSteps ? "/enroll/next-steps" : "/enroll";
   dom = new JSDOM(html, {
-    url: `https://fleet.example.com${urlPrefix}${pagePath}${search}`,
+    url: `https://automdm.example.com${urlPrefix}${pagePath}${search}`,
     runScripts: "outside-only",
     virtualConsole,
   });
@@ -176,7 +176,7 @@ describe("enroll-ota.html — /enroll, Android", () => {
       `${TOKEN_ENDPOINT}?enroll_secret=test-secret`,
       expect.anything()
     );
-    expect(heading()).toBe("How to enroll your Android device to Fleet");
+    expect(heading()).toBe("How to enroll your Android device to AutoMDM");
     expect(doc.querySelector<HTMLAnchorElement>(".enroll-link")?.href).toBe(
       ENROLL_URL
     );
@@ -199,15 +199,15 @@ describe("enroll-ota.html — /enroll, Android", () => {
   });
 
   it("carries the enroll secret through, escaped, and honours a URL prefix", async () => {
-    await loadPage({ search: "?enroll_secret=a%2Bb%20c", urlPrefix: "/fleet" });
+    await loadPage({ search: "?enroll_secret=a%2Bb%20c", urlPrefix: "/automdm" });
 
     await clickEnroll();
 
     expect(navigations).toEqual([
-      "assign /fleet/enroll/next-steps?enroll_secret=a%2Bb%20c",
+      "assign /automdm/enroll/next-steps?enroll_secret=a%2Bb%20c",
     ]);
     expect(buildEnrollPath("/enroll/next-steps")).toBe(
-      "/fleet/enroll/next-steps?enroll_secret=a%2Bb%20c"
+      "/automdm/enroll/next-steps?enroll_secret=a%2Bb%20c"
     );
   });
 
@@ -298,10 +298,10 @@ describe("enroll-ota.html — /enroll/next-steps", () => {
   });
 
   it("points Try again at the enroll page under a URL prefix", async () => {
-    await loadPage({ nextSteps: true, urlPrefix: "/fleet" });
+    await loadPage({ nextSteps: true, urlPrefix: "/automdm" });
 
     expect(doc.querySelector(".try-again-link")?.getAttribute("href")).toBe(
-      "/fleet/enroll?enroll_secret=test-secret"
+      "/automdm/enroll?enroll_secret=test-secret"
     );
   });
 });

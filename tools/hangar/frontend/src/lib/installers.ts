@@ -27,7 +27,7 @@ export const UPDATE_LOCAL_TUF = "local-tuf";
 export function defaultInstallerOptions(): InstallerOptions {
   return {
     platforms: INSTALLER_PLATFORMS.map((p) => p.key),
-    fleet_desktop: true,
+    automdm_desktop: true,
     enable_scripts: true,
     debug: false,
     extra_flags: "",
@@ -39,7 +39,7 @@ export function defaultInstallerOptions(): InstallerOptions {
 }
 
 export function emptyInstallerTarget(): InstallerTarget {
-  return { team_id: null, team_name: "", fleet_url: "", enroll_secret: "" };
+  return { team_id: null, team_name: "", automdm_url: "", enroll_secret: "" };
 }
 
 export type JobStatus = "building" | "ok" | "failed";

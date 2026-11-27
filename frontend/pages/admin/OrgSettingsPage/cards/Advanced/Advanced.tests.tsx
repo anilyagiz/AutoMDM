@@ -215,12 +215,12 @@ describe("Advanced settings — MCP server", () => {
 
   it("links the MCP server help text to the guide", () => {
     renderAdvanced();
-    expect(screen.getByText(/ask questions about your fleet/)).toBeVisible();
+    expect(screen.getByText(/ask questions about your automdm/)).toBeVisible();
     const guideLinks = screen
       .getAllByRole("link", { name: /learn more/i })
       .filter(
         (link) =>
-          link.getAttribute("href") === "https://fleetdm.com/guides/fleet-mcp"
+          link.getAttribute("href") === "https://automdm.com/guides/automdm-mcp"
       );
     expect(guideLinks).toHaveLength(1);
   });
@@ -239,7 +239,7 @@ describe("Advanced settings — MCP server", () => {
     expect(screen.getByLabelText(/MCP server/)).not.toBeChecked();
   });
 
-  it("hides the MCP server checkbox on Fleet Free", () => {
+  it("hides the MCP server checkbox on AutoMDM Free", () => {
     renderAdvanced({ tier: "free" });
     expect(screen.queryByLabelText(/MCP server/)).not.toBeInTheDocument();
   });
@@ -267,7 +267,7 @@ describe("Advanced settings — AI sessions", () => {
     expect(screen.getByLabelText(/Store host AI sessions/)).not.toBeChecked();
   });
 
-  it("hides the Store host AI sessions checkbox on Fleet Free", () => {
+  it("hides the Store host AI sessions checkbox on AutoMDM Free", () => {
     renderAdvanced({ tier: "free" });
     expect(
       screen.queryByLabelText(/Store host AI sessions/)

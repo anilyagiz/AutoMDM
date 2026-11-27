@@ -8,7 +8,7 @@ import (
 	"slices"
 	"strconv"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/user"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/user"
 	"github.com/godbus/dbus/v5"
 	"github.com/rs/zerolog/log"
 )

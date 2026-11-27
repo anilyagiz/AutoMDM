@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	maintained_apps "github.com/fleetdm/fleet/v4/ee/maintained-apps"
+	maintained_apps "github.com/anilyagiz/automdm/v4/ee/maintained-apps"
 )
 
 // TemurinMSIVersion transforms an Eclipse Temurin (11+) version from the winget
@@ -18,7 +18,7 @@ import (
 // Installer registers: "17.0.21.10002" (patch × 10,000 + build, Adoptium's
 // formMSIProductVersion in adoptium/jenkins-helper)
 //
-// Regular releases ("17.0.21.9") are the same in both. Without this, Fleet
+// Regular releases ("17.0.21.9") are the same in both. Without this, AutoMDM
 // shows a version that never appears in inventory.
 func TemurinMSIVersion(app *maintained_apps.FMAManifestApp) (*maintained_apps.FMAManifestApp, error) {
 	parts := strings.Split(app.Version, ".")

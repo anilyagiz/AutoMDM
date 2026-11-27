@@ -18,9 +18,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/datastore/redis/redistest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis/redistest"
 	pkgErrors "github.com/pkg/errors" //nolint:depguard
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,7 +36,7 @@ func alwaysErrors() error { return pkgErrors.New("always errors") }
 
 func alwaysCallsAlwaysErrors() error { return alwaysErrors() }
 
-func alwaysFleetErrors() error { return ctxerr.New(ctx, "always fleet errors") }
+func alwaysAutoMDMErrors() error { return ctxerr.New(ctx, "always automdm errors") }
 
 func alwaysNewError(eh *Handler) error {
 	err := ctxerr.New(ctx, "always new errors")
@@ -72,13 +72,13 @@ func TestHashErr(t *testing.T) {
 	})
 
 	t.Run("different location, same error is different hash", func(t *testing.T) {
-		err1 := alwaysFleetErrors()
-		err2 := alwaysFleetErrors()
+		err1 := alwaysAutoMDMErrors()
+		err2 := alwaysAutoMDMErrors()
 		assert.NotEqual(t, hashError(err1), hashError(err2))
 	})
 
 	t.Run("same error, wrapped, same hash", func(t *testing.T) {
-		ferror1 := alwaysFleetErrors()
+		ferror1 := alwaysAutoMDMErrors()
 
 		w1, w2 := fmt.Errorf("wrap: %w", ferror1), pkgErrors.Wrap(ferror1, "wrap")
 		h1, h2 := hashError(w1), hashError(w2)
@@ -102,7 +102,7 @@ func TestHashErr(t *testing.T) {
 	})
 }
 
-func TestHashErrFleetError(t *testing.T) {
+func TestHashErrAutoMDMError(t *testing.T) {
 	t.Run("Marshal", func(t *testing.T) {
 		var m []interface{}
 
@@ -114,7 +114,7 @@ func TestHashErrFleetError(t *testing.T) {
 	})
 
 	t.Run("HashWrapped", func(t *testing.T) {
-		// hashing a fleet error that wraps a root error hashes to the same
+		// hashing an automdm error that wraps a root error hashes to the same
 		// value if it is from the same location, even if wrapped differently
 		// afterwards.
 		err := alwaysWrappedErr()
@@ -126,7 +126,7 @@ func TestHashErrFleetError(t *testing.T) {
 	})
 
 	t.Run("HashNew", func(t *testing.T) {
-		err := alwaysFleetErrors()
+		err := alwaysAutoMDMErrors()
 		werr := ctxerr.Wrap(ctx, err, "wrap ctxterr")
 		werr1, werr2 := pkgErrors.Wrap(err, "wrap pkg"), fmt.Errorf("wrap fmt: %w", err)
 		wantHash := hashError(err)
@@ -185,8 +185,8 @@ func TestUnwrapAll(t *testing.T) {
 	root := sql.ErrNoRows
 	werr := pkgErrors.Wrap(root, "pkg wrap")
 	gerr := fmt.Errorf("fmt wrap: %w", werr)
-	eerr := ctxerr.Wrap(ctx, gerr, "fleet wrap")
-	eerr2 := ctxerr.Wrap(ctx, eerr, "fleet wrap 2")
+	eerr := ctxerr.Wrap(ctx, gerr, "team wrap")
+	eerr2 := ctxerr.Wrap(ctx, eerr, "team wrap 2")
 
 	uw := ctxerr.Cause(eerr2)
 	assert.Equal(t, uw, root)
@@ -250,7 +250,7 @@ func TestErrorHandler(t *testing.T) {
 	})
 }
 
-func testErrorHandlerCollectsErrors(t *testing.T, pool fleet.RedisPool, wd string, flush bool) {
+func testErrorHandlerCollectsErrors(t *testing.T, pool automdm.RedisPool, wd string, flush bool) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	defer cancelFunc()
 
@@ -287,9 +287,9 @@ func testErrorHandlerCollectsErrors(t *testing.T, pool fleet.RedisPool, wd strin
       "timestamp": ".+"
     \},
     "stack": \[
-      "github\.com\/fleetdm\/fleet\/v4\/server\/errorstore\.alwaysNewError \(errors_test\.go\:\d+\)",
-      "github\.com\/fleetdm\/fleet\/v4\/server\/errorstore\.testErrorHandlerCollectsErrors \(errors_test\.go\:\d+\)",
-      "github\.com\/fleetdm\/fleet\/v4\/server\/errorstore\.TestErrorHandler\.func\d\.\d \(errors_test\.go\:\d+\)",
+      "github\.com\/automdm\/automdm\/v4\/server\/errorstore\.alwaysNewError \(errors_test\.go\:\d+\)",
+      "github\.com\/automdm\/automdm\/v4\/server\/errorstore\.testErrorHandlerCollectsErrors \(errors_test\.go\:\d+\)",
+      "github\.com\/automdm\/automdm\/v4\/server\/errorstore\.TestErrorHandler\.func\d\.\d \(errors_test\.go\:\d+\)",
       ".+",
       ".+"
     \]
@@ -309,7 +309,7 @@ func testErrorHandlerCollectsErrors(t *testing.T, pool fleet.RedisPool, wd strin
 	require.NoError(t, err)
 }
 
-func testErrorHandlerCollectsDifferentErrors(t *testing.T, pool fleet.RedisPool, wd string, flush bool) {
+func testErrorHandlerCollectsDifferentErrors(t *testing.T, pool automdm.RedisPool, wd string, flush bool) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	defer cancelFunc()
 
@@ -360,9 +360,9 @@ func testErrorHandlerCollectsDifferentErrors(t *testing.T, pool fleet.RedisPool,
       "timestamp": ".+"
     \},
     "stack": \[
-      "github\.com\/fleetdm\/fleet\/v4\/server\/errorstore\.alwaysNewErrorTwo \(errors_test\.go\:\d+\)",
-      "github\.com\/fleetdm\/fleet\/v4\/server\/errorstore\.testErrorHandlerCollectsDifferentErrors \(errors_test\.go\:\d+\)",
-      "github\.com\/fleetdm\/fleet\/v4\/server\/errorstore\.TestErrorHandler\.func\d\.\d \(errors_test\.go\:\d+\)",
+      "github\.com\/automdm\/automdm\/v4\/server\/errorstore\.alwaysNewErrorTwo \(errors_test\.go\:\d+\)",
+      "github\.com\/automdm\/automdm\/v4\/server\/errorstore\.testErrorHandlerCollectsDifferentErrors \(errors_test\.go\:\d+\)",
+      "github\.com\/automdm\/automdm\/v4\/server\/errorstore\.TestErrorHandler\.func\d\.\d \(errors_test\.go\:\d+\)",
       ".+",
       ".+"
     \]
@@ -376,9 +376,9 @@ func testErrorHandlerCollectsDifferentErrors(t *testing.T, pool fleet.RedisPool,
       "timestamp": ".+"
     \},
     "stack": \[
-      "github\.com\/fleetdm\/fleet\/v4\/server\/errorstore\.alwaysNewError \(errors_test\.go\:\d+\)",
-      "github\.com\/fleetdm\/fleet\/v4\/server\/errorstore\.testErrorHandlerCollectsDifferentErrors \(errors_test\.go\:\d+\)",
-      "github\.com\/fleetdm\/fleet\/v4\/server\/errorstore\.TestErrorHandler\.func\d.\d \(errors_test\.go\:\d+\)",
+      "github\.com\/automdm\/automdm\/v4\/server\/errorstore\.alwaysNewError \(errors_test\.go\:\d+\)",
+      "github\.com\/automdm\/automdm\/v4\/server\/errorstore\.testErrorHandlerCollectsDifferentErrors \(errors_test\.go\:\d+\)",
+      "github\.com\/automdm\/automdm\/v4\/server\/errorstore\.TestErrorHandler\.func\d.\d \(errors_test\.go\:\d+\)",
       ".+",
       ".+"
     \]

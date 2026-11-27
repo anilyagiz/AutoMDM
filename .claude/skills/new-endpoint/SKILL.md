@@ -1,13 +1,13 @@
 ---
 name: new-endpoint
-description: Scaffold a new Fleet API endpoint with request/response structs, endpoint function, service method, datastore interface, handler registration, and test stubs.
+description: Scaffold a new AutoMDM API endpoint with request/response structs, endpoint function, service method, datastore interface, handler registration, and test stubs.
 allowed-tools: Read, Write, Edit, Grep, Glob
 model: sonnet
 effort: high
 disable-model-invocation: true
 ---
 
-# Scaffold a New Fleet API Endpoint
+# Scaffold a New AutoMDM API Endpoint
 
 Create a new API endpoint for: $ARGUMENTS
 
@@ -15,7 +15,7 @@ Create a new API endpoint for: $ARGUMENTS
 
 ### 1. Gather Requirements
 - Resource name and HTTP method (GET/POST/PATCH/DELETE)
-- URL path (e.g., `/api/_version_/fleet/resource`)
+- URL path (e.g., `/api/_version_/automdm/resource`)
 - Request body fields (if any)
 - Response body fields
 - Which API version (use `StartingAtVersion("2022-04")` for new endpoints)
@@ -37,7 +37,7 @@ type myResourceRequest struct {
 }
 
 type myResourceResponse struct {
-    Resource *fleet.Resource `json:"resource,omitempty"`
+    Resource *automdm.Resource `json:"resource,omitempty"`
     Err      error           `json:"error,omitempty"`
 }
 
@@ -46,7 +46,7 @@ func (r myResourceResponse) Error() error { return r.Err }
 
 ### 4. Create Endpoint Function
 ```go
-func myResourceEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func myResourceEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
     req := request.(*myResourceRequest)
     result, err := svc.MyResource(ctx, req.ID)
     if err != nil {
@@ -57,20 +57,20 @@ func myResourceEndpoint(ctx context.Context, request interface{}, svc fleet.Serv
 ```
 
 ### 5. Add Service Interface Method
-In `server/fleet/service.go`, add the method to the `Service` interface.
+In `server/automdm/service.go`, add the method to the `Service` interface.
 
 ### 6. Implement Service Method
 In the appropriate `server/service/*.go` file:
-- Start with `svc.authz.Authorize(ctx, &fleet.Entity{}, fleet.ActionRead)`
+- Start with `svc.authz.Authorize(ctx, &automdm.Entity{}, automdm.ActionRead)`
 - Implement business logic
 - Wrap errors with `ctxerr.Wrap`
 
 ### 7. Add Datastore Interface Method (if needed)
-In `server/fleet/datastore.go`, add the method to the `Datastore` interface.
+In `server/automdm/datastore.go`, add the method to the `Datastore` interface.
 
 ### 8. Register in handler.go
 ```go
-ue.StartingAtVersion("2022-04").GET("/api/_version_/fleet/resource", myResourceEndpoint, myResourceRequest{})
+ue.StartingAtVersion("2022-04").GET("/api/_version_/automdm/resource", myResourceEndpoint, myResourceRequest{})
 ```
 
 ### 9. Create Test Stubs

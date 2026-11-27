@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/require"
 )
 
@@ -15,7 +15,7 @@ func TestTransient(t *testing.T) {
 	cause := errors.New("connection refused")
 	t.Run("a failure to get a response is transient and keeps its message", func(t *testing.T) {
 		err := Transient(t.Context(), cause)
-		transientErr, ok := errors.AsType[fleet.CertificateAuthorityTransientError](err)
+		transientErr, ok := errors.AsType[automdm.CertificateAuthorityTransientError](err)
 		require.True(t, ok)
 		require.Equal(t, cause.Error(), transientErr.Error())
 	})
@@ -35,7 +35,7 @@ func TestTransient(t *testing.T) {
 		http.StatusBadGateway: true, http.StatusServiceUnavailable: true, http.StatusGatewayTimeout: true,
 	} {
 		t.Run(http.StatusText(status), func(t *testing.T) {
-			_, ok := errors.AsType[fleet.CertificateAuthorityTransientError](TransientStatus(cause, status))
+			_, ok := errors.AsType[automdm.CertificateAuthorityTransientError](TransientStatus(cause, status))
 			require.Equal(t, want, ok)
 		})
 	}

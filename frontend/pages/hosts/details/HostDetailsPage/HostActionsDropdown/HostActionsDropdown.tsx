@@ -21,10 +21,10 @@ interface IHostActionsDropdownProps {
   hostMdmDeviceStatus: HostMdmDeviceStatusUIState;
   isEncryptionKeyAvailable?: boolean;
   isEncryptionKeyArchived?: boolean;
-  isConnectedToFleetMdm?: boolean;
+  isConnectedToAutoMDMMdm?: boolean;
   hostPlatform?: string;
   hostCpuType?: string;
-  isDEPAssignedToFleet?: boolean;
+  isDEPAssignedToAutoMDM?: boolean;
   onSelect: (value: string) => void;
   hostScriptsEnabled: boolean | null;
   isRecoveryLockPasswordEnabled?: boolean;
@@ -53,8 +53,8 @@ const HostActionsDropdown = ({
   hostMdmDeviceStatus,
   isEncryptionKeyAvailable,
   isEncryptionKeyArchived,
-  isConnectedToFleetMdm,
-  isDEPAssignedToFleet = false,
+  isConnectedToAutoMDMMdm,
+  isDEPAssignedToAutoMDM = false,
   hostPlatform = "",
   hostCpuType = "",
   hostScriptsEnabled = false,
@@ -112,8 +112,8 @@ const HostActionsDropdown = ({
     isTeamObserver,
     isHostOnline: hostStatus === "online",
     isEnrolledInMdm: isEnrolledInMdm(hostMdmEnrollmentStatus),
-    isConnectedToFleetMdm,
-    isDEPAssignedToFleet,
+    isConnectedToAutoMDMMdm,
+    isDEPAssignedToAutoMDM,
     isMacMdmEnabledAndConfigured,
     isAppleBusinessEnabledAndConfigured:
       globalConfig?.mdm?.apple_business_enabled_and_configured ?? false,

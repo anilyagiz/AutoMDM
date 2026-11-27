@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/datastore/redis"
-	"github.com/fleetdm/fleet/v4/server/datastore/redis/redistest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis/redistest"
 	redigo "github.com/gomodule/redigo/redis"
 	"github.com/mna/redisc"
 	"github.com/stretchr/testify/require"
@@ -69,7 +69,7 @@ func TestRedisPoolConfigureDoer(t *testing.T) {
 func TestEachNode(t *testing.T) {
 	const prefix = "TestEachNode:"
 
-	runTest := func(t *testing.T, pool fleet.RedisPool) {
+	runTest := func(t *testing.T, pool automdm.RedisPool) {
 		conn := pool.Get()
 		defer conn.Close()
 		if rc, err := redisc.RetryConn(conn, 3, 100*time.Millisecond); err == nil {
@@ -293,12 +293,12 @@ func TestReadOnlyConn(t *testing.T) {
 func TestRedisMode(t *testing.T) {
 	t.Run("standalone", func(t *testing.T) {
 		pool := redistest.SetupRedis(t, "zz", false, false, false)
-		require.Equal(t, pool.Mode(), fleet.RedisStandalone)
+		require.Equal(t, pool.Mode(), automdm.RedisStandalone)
 	})
 
 	t.Run("cluster", func(t *testing.T) {
 		pool := redistest.SetupRedis(t, "zz", true, false, false)
-		require.Equal(t, pool.Mode(), fleet.RedisCluster)
+		require.Equal(t, pool.Mode(), automdm.RedisCluster)
 	})
 }
 

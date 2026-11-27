@@ -1,8 +1,8 @@
-# This workflow tests packaging of fleetd with the `fleetctl package` command
+# This workflow tests packaging of automdmd with the `automdmctl package` command
 # on Linux (ubuntu-24.04).
 #
-# It fetches the targets: orbit, osquery and fleet-desktop from the default
-# (Fleet's) TUF server, https://tuf.fleetctl.com.
+# It fetches the targets: orbit, osquery and automdm-desktop from the default
+# (AutoMDM's) TUF server, https://tuf.fleetctl.com.
 #
 # All package types (deb, rpm, pkg.tar.zst, msi, pkg) are built on ubuntu-24.04.
 # Wine in the fleetdm/wix image (used for msi) fails on ubuntu-26.04
@@ -17,22 +17,22 @@ on:
       - patch-*
       - prepare-*
     paths:
-      - "cmd/fleetctl/**.go"
+      - "cmd/automdmctl/**.go"
       - "pkg/**.go"
       - "server/context/**.go"
       - "orbit/**.go"
-      - "ee/fleetctl/**.go"
-      - "tools/fleetctl-docker/**"
+      - "ee/automdmctl/**.go"
+      - "tools/automdmctl-docker/**"
       - "tools/wix-docker/**"
       - ".github/workflows/test-packaging.yml"
   pull_request:
     paths:
-      - "cmd/fleetctl/**.go"
+      - "cmd/automdmctl/**.go"
       - "pkg/**.go"
       - "server/context/**.go"
       - "orbit/**.go"
-      - "ee/fleetctl/**.go"
-      - "tools/fleetctl-docker/**"
+      - "ee/automdmctl/**.go"
+      - "tools/automdmctl-docker/**"
       - "tools/wix-docker/**"
       - ".github/workflows/test-packaging.yml"
   workflow_dispatch: # Manual
@@ -81,35 +81,35 @@ jobs:
         with:
           go-version-file: "go.mod"
 
-      - name: Build fleetctl
-        run: make fleetctl
+      - name: Build automdmctl
+        run: make automdmctl
 
       - name: Build DEB
-        run: ./build/fleetctl package --type deb --enroll-secret=foo --fleet-url=https://localhost:8080
+        run: ./build/automdmctl package --type deb --enroll-secret=foo --automdm-url=https://localhost:8080
 
-      - name: Build DEB with Fleet Desktop
-        run: ./build/fleetctl package --type deb --enroll-secret=foo --fleet-url=https://localhost:8080 --fleet-desktop
+      - name: Build DEB with AutoMDM Desktop
+        run: ./build/automdmctl package --type deb --enroll-secret=foo --automdm-url=https://localhost:8080 --automdm-desktop
 
       - name: Build RPM
-        run: ./build/fleetctl package --type rpm --enroll-secret=foo --fleet-url=https://localhost:8080
+        run: ./build/automdmctl package --type rpm --enroll-secret=foo --automdm-url=https://localhost:8080
 
-      - name: Build RPM with Fleet Desktop
-        run: ./build/fleetctl package --type rpm --enroll-secret=foo --fleet-url=https://localhost:8080 --fleet-desktop
+      - name: Build RPM with AutoMDM Desktop
+        run: ./build/automdmctl package --type rpm --enroll-secret=foo --automdm-url=https://localhost:8080 --automdm-desktop
 
       - name: Build PKG.TAR.ZST
-        run: ./build/fleetctl package --type pkg.tar.zst --enroll-secret=foo --fleet-url=https://localhost:8080
+        run: ./build/automdmctl package --type pkg.tar.zst --enroll-secret=foo --automdm-url=https://localhost:8080
 
-      - name: Build PKG.TAR.ZST with Fleet Desktop
-        run: ./build/fleetctl package --type pkg.tar.zst --enroll-secret=foo --fleet-url=https://localhost:8080 --fleet-desktop
+      - name: Build PKG.TAR.ZST with AutoMDM Desktop
+        run: ./build/automdmctl package --type pkg.tar.zst --enroll-secret=foo --automdm-url=https://localhost:8080 --automdm-desktop
 
       - name: Build MSI
-        run: ./build/fleetctl package --type msi --enroll-secret=foo --fleet-url=https://localhost:8080
+        run: ./build/automdmctl package --type msi --enroll-secret=foo --automdm-url=https://localhost:8080
 
-      - name: Build MSI with Fleet Desktop
-        run: ./build/fleetctl package --type msi --enroll-secret=foo --fleet-url=https://localhost:8080 --fleet-desktop
+      - name: Build MSI with AutoMDM Desktop
+        run: ./build/automdmctl package --type msi --enroll-secret=foo --automdm-url=https://localhost:8080 --automdm-desktop
 
       - name: Build PKG
-        run: ./build/fleetctl package --type pkg --enroll-secret=foo --fleet-url=https://localhost:8080
+        run: ./build/automdmctl package --type pkg --enroll-secret=foo --automdm-url=https://localhost:8080
 
-      - name: Build PKG with Fleet Desktop
-        run: ./build/fleetctl package --type pkg --enroll-secret=foo --fleet-url=https://localhost:8080 --fleet-desktop
+      - name: Build PKG with AutoMDM Desktop
+        run: ./build/automdmctl package --type pkg --enroll-secret=foo --automdm-url=https://localhost:8080 --automdm-desktop

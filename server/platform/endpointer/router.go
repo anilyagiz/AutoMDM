@@ -15,7 +15,7 @@ type Route struct {
 	Name    string
 	Methods []string
 	// Path is the path as registered, with the /_version_/ placeholder and the variable syntax the route table has always used,
-	// such as "/api/_version_/fleet/hosts/{id:[0-9]+}". A variable can carry one of the constraints in varConstraints.
+	// such as "/api/_version_/automdm/hosts/{id:[0-9]+}". A variable can carry one of the constraints in varConstraints.
 	Path string
 	// Versions are the API versions the route serves, "latest" included. They only apply to a Path with the placeholder.
 	Versions []string
@@ -26,7 +26,7 @@ type Route struct {
 // Template returns the route template: Path with the version placeholder spelled as the list of versions. API-only
 // authorization, span names and request body size overrides are keyed on it, so its format must not change.
 func (rt Route) Template() string {
-	return strings.Replace(rt.Path, "/_version_/", "/{fleetversion:(?:"+strings.Join(rt.Versions, "|")+")}/", 1)
+	return strings.Replace(rt.Path, "/_version_/", "/{automdmversion:(?:"+strings.Join(rt.Versions, "|")+")}/", 1)
 }
 
 func (rt Route) clone() Route {
@@ -35,7 +35,7 @@ func (rt Route) clone() Route {
 	return rt
 }
 
-// Router is Fleet's API router, a stdlib ServeMux underneath. It records every route registered through the endpointer, in
+// Router is AutoMDM's API router, a stdlib ServeMux underneath. It records every route registered through the endpointer, in
 // registration order, and puts the route template on the request context of each request it serves. Call Use before
 // registering routes, and register every route and call WrapHandlers before serving.
 type Router struct {

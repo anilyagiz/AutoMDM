@@ -47,7 +47,7 @@ const adminRender = createCustomRenderer({
       currentUser: {
         id: 1,
         name: "Test User",
-        email: "test@fleet.co",
+        email: "test@automdm.co",
         global_role: "admin",
       },
       config: createMockConfig(),
@@ -64,7 +64,7 @@ const adminRender = createCustomRenderer({
       isNoAccess: false,
       isOnlyObserver: false,
       availableTeams: [
-        { id: -1, name: "All fleets" },
+        { id: -1, name: "All teams" },
         { id: 1, name: "Engineering" },
         { id: 2, name: "Sales" },
       ],
@@ -80,7 +80,7 @@ const observerRender = createCustomRenderer({
       currentUser: {
         id: 2,
         name: "Observer",
-        email: "observer@fleet.co",
+        email: "observer@automdm.co",
         global_role: "observer",
       },
       config: createMockConfig(),
@@ -97,7 +97,7 @@ const observerRender = createCustomRenderer({
       isNoAccess: false,
       isOnlyObserver: true,
       availableTeams: [
-        { id: -1, name: "All fleets" },
+        { id: -1, name: "All teams" },
         { id: 1, name: "Engineering" },
       ],
       currentTeam: { id: 1, name: "Engineering" },
@@ -266,8 +266,8 @@ describe("CommandPalette", () => {
     it.todo("shows 'No results found.' for unmatched search");
   });
 
-  describe("Fleet switcher header", () => {
-    it("shows the current fleet on the header switcher button", async () => {
+  describe("Team switcher header", () => {
+    it("shows the current team on the header switcher button", async () => {
       const { user } = adminRender(<CommandPalette />);
       await openPalette(user);
 
@@ -275,7 +275,7 @@ describe("CommandPalette", () => {
       expect(switcher).toBeInTheDocument();
     });
 
-    it("navigates to the switch-fleet page when the header button is clicked", async () => {
+    it("navigates to the switch-team page when the header button is clicked", async () => {
       const { user } = adminRender(<CommandPalette />);
       await openPalette(user);
 
@@ -283,13 +283,13 @@ describe("CommandPalette", () => {
       await user.click(switcher);
 
       expect(
-        screen.getByPlaceholderText("Search a fleet...")
+        screen.getByPlaceholderText("Search a team...")
       ).toBeInTheDocument();
     });
   });
 
   describe("Keyboard shortcuts", () => {
-    it("opens the switch-fleet picker page on Cmd+Shift+F", async () => {
+    it("opens the switch-team picker page on Cmd+Shift+F", async () => {
       const { user } = adminRender(<CommandPalette />);
       await openPalette(user);
 
@@ -297,51 +297,51 @@ describe("CommandPalette", () => {
 
       await waitFor(() => {
         expect(
-          screen.getByPlaceholderText("Search a fleet...")
+          screen.getByPlaceholderText("Search a team...")
         ).toBeInTheDocument();
       });
     });
 
-    it("Cmd+Shift+F also opens the palette directly to switch-fleet from closed", async () => {
+    it("Cmd+Shift+F also opens the palette directly to switch-team from closed", async () => {
       const { user } = adminRender(<CommandPalette />);
       // Don't openPalette first — verify cold-start behavior.
       await user.keyboard("{Meta>}{Shift>}f{/Shift}{/Meta}");
 
       await waitFor(() => {
         expect(
-          screen.getByPlaceholderText("Search a fleet...")
+          screen.getByPlaceholderText("Search a team...")
         ).toBeInTheDocument();
       });
     });
 
-    it("Ctrl+Shift+F does NOT open switch-fleet on macOS (Cmd is required)", async () => {
+    it("Ctrl+Shift+F does NOT open switch-team on macOS (Cmd is required)", async () => {
       const { user } = adminRender(<CommandPalette />);
       await user.keyboard("{Control>}{Shift>}f{/Shift}{/Control}");
 
       expect(
-        screen.queryByPlaceholderText("Search a fleet...")
+        screen.queryByPlaceholderText("Search a team...")
       ).not.toBeInTheDocument();
     });
 
-    it("Ctrl+Shift+F opens switch-fleet on non-macOS platforms", async () => {
+    it("Ctrl+Shift+F opens switch-team on non-macOS platforms", async () => {
       setPlatform("Win32");
       const { user } = adminRender(<CommandPalette />);
       await user.keyboard("{Control>}{Shift>}f{/Shift}{/Control}");
 
       await waitFor(() => {
         expect(
-          screen.getByPlaceholderText("Search a fleet...")
+          screen.getByPlaceholderText("Search a team...")
         ).toBeInTheDocument();
       });
     });
 
-    it("Cmd+Shift+F does NOT open switch-fleet on non-macOS platforms", async () => {
+    it("Cmd+Shift+F does NOT open switch-team on non-macOS platforms", async () => {
       setPlatform("Win32");
       const { user } = adminRender(<CommandPalette />);
       await user.keyboard("{Meta>}{Shift>}f{/Shift}{/Meta}");
 
       expect(
-        screen.queryByPlaceholderText("Search a fleet...")
+        screen.queryByPlaceholderText("Search a team...")
       ).not.toBeInTheDocument();
     });
 
@@ -349,11 +349,11 @@ describe("CommandPalette", () => {
       const { user } = adminRender(<CommandPalette />);
       await openPalette(user);
 
-      // Navigate into the switch-fleet picker page
+      // Navigate into the switch-team picker page
       await user.keyboard("{Meta>}{Shift>}f{/Shift}{/Meta}");
       await waitFor(() => {
         expect(
-          screen.getByPlaceholderText("Search a fleet...")
+          screen.getByPlaceholderText("Search a team...")
         ).toBeInTheDocument();
       });
 
@@ -408,7 +408,7 @@ describe("CommandPalette", () => {
       await user.keyboard("{Meta>}{Shift>}f{/Shift}{/Meta}");
       await waitFor(() => {
         expect(
-          screen.getByPlaceholderText("Search a fleet...")
+          screen.getByPlaceholderText("Search a team...")
         ).toBeInTheDocument();
       });
 
@@ -432,7 +432,7 @@ describe("CommandPalette", () => {
   });
 
   describe("Dark mode reactivity", () => {
-    it("updates the toggle-dark-mode label on fleet-theme-change events", async () => {
+    it("updates the toggle-dark-mode label on automdm-theme-change events", async () => {
       const { user } = adminRender(<CommandPalette />);
       await openPalette(user);
 
@@ -442,7 +442,7 @@ describe("CommandPalette", () => {
       // Simulate the theme flipping to dark from elsewhere (system theme,
       // another tab, sibling component).
       window.dispatchEvent(
-        new CustomEvent("fleet-theme-change", { detail: { dark: true } })
+        new CustomEvent("automdm-theme-change", { detail: { dark: true } })
       );
 
       await waitFor(() => {
@@ -558,7 +558,7 @@ describe("CommandPalette", () => {
             currentUser: {
               id: 1,
               name: "No Access",
-              email: "noaccess@fleet.co",
+              email: "noaccess@automdm.co",
               global_role: null,
             },
             config: createMockConfig(),
@@ -581,7 +581,7 @@ describe("CommandPalette", () => {
             currentUser: {
               id: 1,
               name: "No Access",
-              email: "noaccess@fleet.co",
+              email: "noaccess@automdm.co",
               global_role: null,
             },
             config: createMockConfig(),
@@ -618,8 +618,8 @@ describe("CommandPalette", () => {
       expect(screen.queryByText("OS updates")).not.toBeInTheDocument();
     });
 
-    describe("Add profile for an admin of one fleet and technician of another", () => {
-      const mixedRoleRender = (currentFleetRoles: {
+    describe("Add profile for an admin of one team and technician of another", () => {
+      const mixedRoleRender = (currentTeamRoles: {
         isTeamAdmin: boolean;
         isTeamTechnician: boolean;
       }) =>
@@ -630,7 +630,7 @@ describe("CommandPalette", () => {
               currentUser: {
                 id: 3,
                 name: "Mixed roles",
-                email: "mixed@fleet.co",
+                email: "mixed@automdm.co",
                 global_role: null,
               },
               config: createMockConfig(),
@@ -641,7 +641,7 @@ describe("CommandPalette", () => {
               isGlobalTechnician: false,
               isAnyTeamTechnician: true,
               isTeamMaintainer: false,
-              ...currentFleetRoles,
+              ...currentTeamRoles,
               isPremiumTier: true,
               isNoAccess: false,
               isOnlyObserver: false,
@@ -654,7 +654,7 @@ describe("CommandPalette", () => {
           },
         })(<CommandPalette />);
 
-      it("shows it on the fleet they admin", async () => {
+      it("shows it on the team they admin", async () => {
         const { user } = mixedRoleRender({
           isTeamAdmin: true,
           isTeamTechnician: false,
@@ -664,7 +664,7 @@ describe("CommandPalette", () => {
         expect(screen.getByText("Add profile")).toBeInTheDocument();
       });
 
-      it("hides it on the fleet where they're a technician", async () => {
+      it("hides it on the team where they're a technician", async () => {
         const { user } = mixedRoleRender({
           isTeamAdmin: false,
           isTeamTechnician: true,

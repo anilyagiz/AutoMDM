@@ -1,5 +1,5 @@
 // Package markdown renders admin-supplied markdown into HTML that is safe to
-// embed in pages Fleet serves to end users.
+// embed in pages AutoMDM serves to end users.
 package markdown
 
 import (
@@ -745,9 +745,9 @@ func pairInlineTags(parent ast.Node, source []byte) {
 
 const (
 	// keptHTMLAttr holds the HTML a raw HTML node renders as.
-	keptHTMLAttr = "fleet-kept-html"
+	keptHTMLAttr = "automdm-kept-html"
 	// rejectedHTMLAttr holds why an HTML block with text can't be shown.
-	rejectedHTMLAttr = "fleet-rejected-html"
+	rejectedHTMLAttr = "automdm-rejected-html"
 )
 
 // rawHTMLTransformer decides, while parsing, what raw HTML is kept, and charges

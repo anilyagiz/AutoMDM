@@ -1,6 +1,6 @@
 package services
 
-import "github.com/fleetdm/fleet/tools/hangar/internal/troubleshoot"
+import "github.com/anilyagiz/automdm/tools/hangar/internal/troubleshoot"
 
 // TroubleshootService exposes port/pattern process scans and kill, plus a
 // running-container scan and docker stop. The process half mirrors

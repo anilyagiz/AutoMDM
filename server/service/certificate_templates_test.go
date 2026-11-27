@@ -6,24 +6,24 @@ import (
 	"strings"
 	"testing"
 
-	activity_api "github.com/fleetdm/fleet/v4/server/activity/api"
-	"github.com/fleetdm/fleet/v4/server/authz"
-	authz_ctx "github.com/fleetdm/fleet/v4/server/contexts/authz"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	activity_api "github.com/anilyagiz/automdm/v4/server/activity/api"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	authz_ctx "github.com/anilyagiz/automdm/v4/server/contexts/authz"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/stretchr/testify/require"
 )
 
 func TestCreateCertificateTemplate(t *testing.T) {
 	ds := new(mock.Store)
 	// Certificate templates are Premium-gated (CAs are Premium, and templates require a CA).
-	svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: &fleet.LicenseInfo{Tier: fleet.TierPremium}})
+	svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: &automdm.LicenseInfo{Tier: automdm.TierPremium}})
 
-	ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}})
+	ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}})
 
 	type TestCAID uint
 
@@ -34,27 +34,27 @@ func TestCreateCertificateTemplate(t *testing.T) {
 
 	const TeamID = 1
 
-	ds.GetCertificateAuthorityByIDFunc = func(ctx context.Context, id uint, includeSecrets bool) (*fleet.CertificateAuthority, error) {
+	ds.GetCertificateAuthorityByIDFunc = func(ctx context.Context, id uint, includeSecrets bool) (*automdm.CertificateAuthority, error) {
 		if id == uint(InvalidCATypeID) {
-			ca := fleet.CertificateAuthority{
+			ca := automdm.CertificateAuthority{
 				ID:   id,
-				Type: string(fleet.CATypeDigiCert),
+				Type: string(automdm.CATypeDigiCert),
 			}
 			return &ca, nil
 		}
 		if id == uint(ValidCATypeID) {
-			ca := fleet.CertificateAuthority{
+			ca := automdm.CertificateAuthority{
 				ID:   id,
-				Type: string(fleet.CATypeCustomSCEPProxy),
+				Type: string(automdm.CATypeCustomSCEPProxy),
 			}
 			return &ca, nil
 		}
 		return nil, errors.New("not found")
 	}
 
-	ds.CreateCertificateTemplateFunc = func(ctx context.Context, certificateTemplate *fleet.CertificateTemplate) (*fleet.CertificateTemplateResponse, error) {
-		return &fleet.CertificateTemplateResponse{
-			CertificateTemplateResponseSummary: fleet.CertificateTemplateResponseSummary{
+	ds.CreateCertificateTemplateFunc = func(ctx context.Context, certificateTemplate *automdm.CertificateTemplate) (*automdm.CertificateTemplateResponse, error) {
+		return &automdm.CertificateTemplateResponse{
+			CertificateTemplateResponseSummary: automdm.CertificateTemplateResponseSummary{
 				ID:   1,
 				Name: certificateTemplate.Name,
 			},
@@ -63,29 +63,29 @@ func TestCreateCertificateTemplate(t *testing.T) {
 	ds.CreatePendingCertificateTemplatesForExistingHostsFunc = func(ctx context.Context, certificateTemplateID uint, teamID uint) (int64, error) {
 		return 0, nil
 	}
-	ds.SetCertificateTemplateVariablesFunc = func(ctx context.Context, certTemplateID uint, fleetVars []fleet.FleetVarName) error {
+	ds.SetCertificateTemplateVariablesFunc = func(ctx context.Context, certTemplateID uint, automdmVars []automdm.AutoMDMVarName) error {
 		return nil
 	}
-	ds.TeamLiteFunc = func(ctx context.Context, tid uint) (*fleet.TeamLite, error) {
-		return &fleet.TeamLite{ID: tid, Name: "Yellow jackets"}, nil
+	ds.TeamLiteFunc = func(ctx context.Context, tid uint) (*automdm.TeamLite, error) {
+		return &automdm.TeamLite{ID: tid, Name: "Yellow jackets"}, nil
 	}
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
 	}
 	t.Run("Invalid CA type", func(t *testing.T) {
-		_, err := svc.CreateCertificateTemplate(ctx, "my template", TeamID, uint(InvalidCATypeID), "CN=$FLEET_VAR_HOST_UUID", "")
+		_, err := svc.CreateCertificateTemplate(ctx, "my template", TeamID, uint(InvalidCATypeID), "CN=$AUTOMDM_VAR_HOST_UUID", "")
 		require.Error(t, err)
 		// Check that the error is about invalid CA type
 		require.Contains(t, err.Error(), "Currently, only the custom_scep_proxy certificate authority is supported")
 	})
 
 	t.Run("Valid CA type", func(t *testing.T) {
-		_, err := svc.CreateCertificateTemplate(ctx, "my template", TeamID, uint(ValidCATypeID), "CN=$FLEET_VAR_HOST_UUID", "")
+		_, err := svc.CreateCertificateTemplate(ctx, "my template", TeamID, uint(ValidCATypeID), "CN=$AUTOMDM_VAR_HOST_UUID", "")
 		require.NoError(t, err)
 	})
 
 	t.Run("Missing CA", func(t *testing.T) {
-		_, err := svc.CreateCertificateTemplate(ctx, "my template", TeamID, 999, "CN=$FLEET_VAR_HOST_UUID", "")
+		_, err := svc.CreateCertificateTemplate(ctx, "my template", TeamID, 999, "CN=$AUTOMDM_VAR_HOST_UUID", "")
 		require.Error(t, err)
 		// Check that the error is about invalid CA type
 		require.Contains(t, err.Error(), "not found")
@@ -94,7 +94,7 @@ func TestCreateCertificateTemplate(t *testing.T) {
 	t.Run("Empty or whitespace-only name", func(t *testing.T) {
 		whitespaceNames := []string{"", " ", "  ", "\t", "\n", "   \t\n  "}
 		for _, name := range whitespaceNames {
-			_, err := svc.CreateCertificateTemplate(ctx, name, TeamID, uint(ValidCATypeID), "CN=$FLEET_VAR_HOST_UUID", "")
+			_, err := svc.CreateCertificateTemplate(ctx, name, TeamID, uint(ValidCATypeID), "CN=$AUTOMDM_VAR_HOST_UUID", "")
 			require.Error(t, err)
 			require.Contains(t, err.Error(), "Certificate template name is required")
 		}
@@ -102,7 +102,7 @@ func TestCreateCertificateTemplate(t *testing.T) {
 
 	t.Run("Name too long", func(t *testing.T) {
 		longName := strings.Repeat("a", 256)
-		_, err := svc.CreateCertificateTemplate(ctx, longName, TeamID, uint(ValidCATypeID), "CN=$FLEET_VAR_HOST_UUID", "")
+		_, err := svc.CreateCertificateTemplate(ctx, longName, TeamID, uint(ValidCATypeID), "CN=$AUTOMDM_VAR_HOST_UUID", "")
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "Certificate template name is too long")
 	})
@@ -139,7 +139,7 @@ func TestCreateCertificateTemplate(t *testing.T) {
 		}
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
-				_, err := svc.CreateCertificateTemplate(ctx, tc.name, TeamID, uint(ValidCATypeID), "CN=$FLEET_VAR_HOST_UUID", "")
+				_, err := svc.CreateCertificateTemplate(ctx, tc.name, TeamID, uint(ValidCATypeID), "CN=$AUTOMDM_VAR_HOST_UUID", "")
 				require.Error(t, err)
 				require.Contains(t, err.Error(), "Invalid certificate template name")
 			})
@@ -164,7 +164,7 @@ func TestCreateCertificateTemplate(t *testing.T) {
 		}
 		for _, name := range validNames {
 			t.Run(name, func(t *testing.T) {
-				_, err := svc.CreateCertificateTemplate(ctx, name, TeamID, uint(ValidCATypeID), "CN=$FLEET_VAR_HOST_UUID", "")
+				_, err := svc.CreateCertificateTemplate(ctx, name, TeamID, uint(ValidCATypeID), "CN=$AUTOMDM_VAR_HOST_UUID", "")
 				require.NoError(t, err)
 			})
 		}
@@ -184,17 +184,17 @@ func TestCreateCertificateTemplateSubjectAlternativeName(t *testing.T) {
 	const ValidCATypeID = uint(2)
 	const TeamID = 1
 
-	makePremiumService := func(t *testing.T) (fleet.Service, context.Context, *mock.Store) {
+	makePremiumService := func(t *testing.T) (automdm.Service, context.Context, *mock.Store) {
 		ds := new(mock.Store)
-		svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: &fleet.LicenseInfo{Tier: fleet.TierPremium}})
-		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}})
+		svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: &automdm.LicenseInfo{Tier: automdm.TierPremium}})
+		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}})
 
-		ds.GetCertificateAuthorityByIDFunc = func(ctx context.Context, id uint, includeSecrets bool) (*fleet.CertificateAuthority, error) {
-			return &fleet.CertificateAuthority{ID: id, Type: string(fleet.CATypeCustomSCEPProxy)}, nil
+		ds.GetCertificateAuthorityByIDFunc = func(ctx context.Context, id uint, includeSecrets bool) (*automdm.CertificateAuthority, error) {
+			return &automdm.CertificateAuthority{ID: id, Type: string(automdm.CATypeCustomSCEPProxy)}, nil
 		}
-		ds.CreateCertificateTemplateFunc = func(ctx context.Context, certificateTemplate *fleet.CertificateTemplate) (*fleet.CertificateTemplateResponse, error) {
-			return &fleet.CertificateTemplateResponse{
-				CertificateTemplateResponseSummary: fleet.CertificateTemplateResponseSummary{
+		ds.CreateCertificateTemplateFunc = func(ctx context.Context, certificateTemplate *automdm.CertificateTemplate) (*automdm.CertificateTemplateResponse, error) {
+			return &automdm.CertificateTemplateResponse{
+				CertificateTemplateResponseSummary: automdm.CertificateTemplateResponseSummary{
 					ID:                     1,
 					Name:                   certificateTemplate.Name,
 					SubjectName:            certificateTemplate.SubjectName,
@@ -206,14 +206,14 @@ func TestCreateCertificateTemplateSubjectAlternativeName(t *testing.T) {
 		ds.CreatePendingCertificateTemplatesForExistingHostsFunc = func(ctx context.Context, certificateTemplateID uint, teamID uint) (int64, error) {
 			return 0, nil
 		}
-		ds.SetCertificateTemplateVariablesFunc = func(ctx context.Context, certTemplateID uint, fleetVars []fleet.FleetVarName) error {
+		ds.SetCertificateTemplateVariablesFunc = func(ctx context.Context, certTemplateID uint, automdmVars []automdm.AutoMDMVarName) error {
 			return nil
 		}
-		ds.TeamLiteFunc = func(ctx context.Context, tid uint) (*fleet.TeamLite, error) {
-			return &fleet.TeamLite{ID: tid, Name: "Yellow jackets"}, nil
+		ds.TeamLiteFunc = func(ctx context.Context, tid uint) (*automdm.TeamLite, error) {
+			return &automdm.TeamLite{ID: tid, Name: "Yellow jackets"}, nil
 		}
-		ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-			return &fleet.AppConfig{}, nil
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{}, nil
 		}
 		return svc, ctx, ds
 	}
@@ -221,8 +221,8 @@ func TestCreateCertificateTemplateSubjectAlternativeName(t *testing.T) {
 	t.Run("Premium tenant with valid SAN succeeds and round-trips the value", func(t *testing.T) {
 		svc, ctx, ds := makePremiumService(t)
 
-		san := "DNS=wifi.example.com, UPN=$FLEET_VAR_HOST_END_USER_IDP_USERNAME, EMAIL=$FLEET_VAR_HOST_END_USER_IDP_USERNAME"
-		resp, err := svc.CreateCertificateTemplate(ctx, "wifi", TeamID, ValidCATypeID, "CN=$FLEET_VAR_HOST_UUID", san)
+		san := "DNS=wifi.example.com, UPN=$AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME, EMAIL=$AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME"
+		resp, err := svc.CreateCertificateTemplate(ctx, "wifi", TeamID, ValidCATypeID, "CN=$AUTOMDM_VAR_HOST_UUID", san)
 		require.NoError(t, err)
 		require.Equal(t, san, resp.SubjectAlternativeName)
 		require.True(t, ds.CreateCertificateTemplateFuncInvoked)
@@ -233,16 +233,16 @@ func TestCreateCertificateTemplateSubjectAlternativeName(t *testing.T) {
 		// gated by a Premium check at the top of Service.CreateCertificateTemplate. SAN-bearing
 		// payloads are not the only ones rejected.
 		ds := new(mock.Store)
-		svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: &fleet.LicenseInfo{Tier: fleet.TierFree}})
-		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}})
+		svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: &automdm.LicenseInfo{Tier: automdm.TierFree}})
+		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}})
 
 		// With SAN.
-		_, err := svc.CreateCertificateTemplate(ctx, "wifi-with-san", TeamID, ValidCATypeID, "CN=$FLEET_VAR_HOST_UUID", "DNS=example.com")
-		require.ErrorIs(t, err, fleet.ErrMissingLicense)
+		_, err := svc.CreateCertificateTemplate(ctx, "wifi-with-san", TeamID, ValidCATypeID, "CN=$AUTOMDM_VAR_HOST_UUID", "DNS=example.com")
+		require.ErrorIs(t, err, automdm.ErrMissingLicense)
 
 		// Without SAN also rejected.
-		_, err = svc.CreateCertificateTemplate(ctx, "wifi-no-san", TeamID, ValidCATypeID, "CN=$FLEET_VAR_HOST_UUID", "")
-		require.ErrorIs(t, err, fleet.ErrMissingLicense)
+		_, err = svc.CreateCertificateTemplate(ctx, "wifi-no-san", TeamID, ValidCATypeID, "CN=$AUTOMDM_VAR_HOST_UUID", "")
+		require.ErrorIs(t, err, automdm.ErrMissingLicense)
 	})
 
 	t.Run("Format failures return InvalidArgumentError scoped to the SAN field", func(t *testing.T) {
@@ -260,9 +260,9 @@ func TestCreateCertificateTemplateSubjectAlternativeName(t *testing.T) {
 		}
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
-				_, err := svc.CreateCertificateTemplate(ctx, "wifi", TeamID, ValidCATypeID, "CN=$FLEET_VAR_HOST_UUID", tc.san)
+				_, err := svc.CreateCertificateTemplate(ctx, "wifi", TeamID, ValidCATypeID, "CN=$AUTOMDM_VAR_HOST_UUID", tc.san)
 				require.Error(t, err)
-				var iae *fleet.InvalidArgumentError
+				var iae *automdm.InvalidArgumentError
 				require.ErrorAs(t, err, &iae)
 				require.True(t, iae.HasErrors())
 				details := iae.Invalid()
@@ -276,23 +276,23 @@ func TestCreateCertificateTemplateSubjectAlternativeName(t *testing.T) {
 	t.Run("Unsupported variable in SAN is rejected", func(t *testing.T) {
 		svc, ctx, _ := makePremiumService(t)
 
-		_, err := svc.CreateCertificateTemplate(ctx, "wifi", TeamID, ValidCATypeID, "CN=$FLEET_VAR_HOST_UUID", "EMAIL=$FLEET_VAR_NDES_SCEP_CHALLENGE")
+		_, err := svc.CreateCertificateTemplate(ctx, "wifi", TeamID, ValidCATypeID, "CN=$AUTOMDM_VAR_HOST_UUID", "EMAIL=$AUTOMDM_VAR_NDES_SCEP_CHALLENGE")
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "FLEET_VAR_NDES_SCEP_CHALLENGE")
+		require.Contains(t, err.Error(), "AUTOMDM_VAR_NDES_SCEP_CHALLENGE")
 	})
 
 	t.Run("All supported HOST variables accepted in SAN", func(t *testing.T) {
 		svc, ctx, _ := makePremiumService(t)
 
-		san := "DNS=$FLEET_VAR_HOST_UUID, EMAIL=$FLEET_VAR_HOST_END_USER_IDP_USERNAME, " +
-			"UPN=$FLEET_VAR_HOST_END_USER_IDP_USERNAME_LOCAL_PART, " +
-			"URI=$FLEET_VAR_HOST_END_USER_IDP_GROUPS, " +
-			"DNS=$FLEET_VAR_HOST_END_USER_IDP_DEPARTMENT, " +
-			"EMAIL=$FLEET_VAR_HOST_END_USER_IDP_FULL_NAME, " +
-			"URI=$FLEET_VAR_HOST_END_USER_IDP_EXTERNAL_ID, " +
-			"DNS=$FLEET_VAR_HOST_PLATFORM, " +
-			"DNS=$FLEET_VAR_HOST_HARDWARE_SERIAL"
-		resp, err := svc.CreateCertificateTemplate(ctx, "all-vars", TeamID, ValidCATypeID, "CN=$FLEET_VAR_HOST_UUID", san)
+		san := "DNS=$AUTOMDM_VAR_HOST_UUID, EMAIL=$AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME, " +
+			"UPN=$AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME_LOCAL_PART, " +
+			"URI=$AUTOMDM_VAR_HOST_END_USER_IDP_GROUPS, " +
+			"DNS=$AUTOMDM_VAR_HOST_END_USER_IDP_DEPARTMENT, " +
+			"EMAIL=$AUTOMDM_VAR_HOST_END_USER_IDP_FULL_NAME, " +
+			"URI=$AUTOMDM_VAR_HOST_END_USER_IDP_EXTERNAL_ID, " +
+			"DNS=$AUTOMDM_VAR_HOST_PLATFORM, " +
+			"DNS=$AUTOMDM_VAR_HOST_HARDWARE_SERIAL"
+		resp, err := svc.CreateCertificateTemplate(ctx, "all-vars", TeamID, ValidCATypeID, "CN=$AUTOMDM_VAR_HOST_UUID", san)
 		require.NoError(t, err)
 		require.Equal(t, san, resp.SubjectAlternativeName)
 	})
@@ -333,8 +333,8 @@ func TestValidateCertificateTemplateSubjectAlternativeName(t *testing.T) {
 			if tc.expectError {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tc.errContains)
-				// Validator must return a typed *fleet.InvalidArgumentError scoped to the SAN field (HTTP 422).
-				var iae *fleet.InvalidArgumentError
+				// Validator must return a typed *automdm.InvalidArgumentError scoped to the SAN field (HTTP 422).
+				var iae *automdm.InvalidArgumentError
 				require.ErrorAs(t, err, &iae)
 				require.True(t, iae.HasErrors())
 				details := iae.Invalid()
@@ -350,41 +350,41 @@ func TestValidateCertificateTemplateSubjectAlternativeName(t *testing.T) {
 func TestApplyCertificateTemplateSpecs(t *testing.T) {
 	ds := new(mock.Store)
 	// Certificate templates are Premium-gated.
-	svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: &fleet.LicenseInfo{Tier: fleet.TierPremium}})
+	svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: &automdm.LicenseInfo{Tier: automdm.TierPremium}})
 
-	ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}})
+	ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}})
 
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
 	}
 
-	ds.TeamLiteFunc = func(ctx context.Context, id uint) (*fleet.TeamLite, error) {
-		return &fleet.TeamLite{
+	ds.TeamLiteFunc = func(ctx context.Context, id uint) (*automdm.TeamLite, error) {
+		return &automdm.TeamLite{
 			ID:   id,
 			Name: "Test Team",
 		}, nil
 	}
 
 	// Set up certificate authority mocks
-	certAuthorities := []*fleet.CertificateAuthority{
+	certAuthorities := []*automdm.CertificateAuthority{
 		{
 			ID:        1,
 			Name:      ptr.String("Test CA 1"),
-			Type:      string(fleet.CATypeCustomSCEPProxy),
+			Type:      string(automdm.CATypeCustomSCEPProxy),
 			URL:       ptr.String("https://ca1.example.com"),
 			Challenge: ptr.String("challenge1"),
 		},
 		{
 			ID:        2,
 			Name:      ptr.String("Test CA 2"),
-			Type:      string(fleet.CATypeCustomSCEPProxy),
+			Type:      string(automdm.CATypeCustomSCEPProxy),
 			URL:       ptr.String("https://ca2.example.com"),
 			Challenge: ptr.String("challenge2"),
 		},
 		{
 			ID:                            3,
 			Name:                          ptr.String("Test CA 3"),
-			Type:                          string(fleet.CATypeDigiCert),
+			Type:                          string(automdm.CATypeDigiCert),
 			URL:                           ptr.String("https://ca3.example.com"),
 			Challenge:                     ptr.String("challenge3"),
 			CertificateCommonName:         ptr.String("foo"),
@@ -395,10 +395,10 @@ func TestApplyCertificateTemplateSpecs(t *testing.T) {
 		},
 	}
 
-	ds.ListCertificateAuthoritiesFunc = func(ctx context.Context) ([]*fleet.CertificateAuthoritySummary, error) {
-		summaries := make([]*fleet.CertificateAuthoritySummary, 0, len(certAuthorities))
+	ds.ListCertificateAuthoritiesFunc = func(ctx context.Context) ([]*automdm.CertificateAuthoritySummary, error) {
+		summaries := make([]*automdm.CertificateAuthoritySummary, 0, len(certAuthorities))
 		for _, ca := range certAuthorities {
-			summaries = append(summaries, &fleet.CertificateAuthoritySummary{
+			summaries = append(summaries, &automdm.CertificateAuthoritySummary{
 				ID:   ca.ID,
 				Name: *ca.Name,
 				Type: ca.Type,
@@ -408,10 +408,10 @@ func TestApplyCertificateTemplateSpecs(t *testing.T) {
 	}
 
 	// Track certificate templates that are created
-	var createdCertificates []fleet.CertificateTemplate
+	var createdCertificates []automdm.CertificateTemplate
 	var nextTemplateID uint = 100
 
-	ds.BatchUpsertCertificateTemplatesFunc = func(ctx context.Context, certificates []*fleet.CertificateTemplate) ([]uint, error) {
+	ds.BatchUpsertCertificateTemplatesFunc = func(ctx context.Context, certificates []*automdm.CertificateTemplate) ([]uint, error) {
 		createdCertificates = nil
 		createdMap := make([]uint, 0, len(certificates))
 		for _, cert := range certificates {
@@ -421,11 +421,11 @@ func TestApplyCertificateTemplateSpecs(t *testing.T) {
 		return createdMap, nil
 	}
 
-	ds.GetCertificateTemplatesByTeamIDFunc = func(ctx context.Context, teamID uint, opts fleet.ListOptions) ([]*fleet.CertificateTemplateResponseSummary, *fleet.PaginationMetadata, error) {
-		var result []*fleet.CertificateTemplateResponseSummary
+	ds.GetCertificateTemplatesByTeamIDFunc = func(ctx context.Context, teamID uint, opts automdm.ListOptions) ([]*automdm.CertificateTemplateResponseSummary, *automdm.PaginationMetadata, error) {
+		var result []*automdm.CertificateTemplateResponseSummary
 		for _, cert := range createdCertificates {
 			if cert.TeamID == teamID {
-				result = append(result, &fleet.CertificateTemplateResponseSummary{
+				result = append(result, &automdm.CertificateTemplateResponseSummary{
 					ID:   nextTemplateID,
 					Name: cert.Name,
 				})
@@ -438,13 +438,13 @@ func TestApplyCertificateTemplateSpecs(t *testing.T) {
 	ds.CreatePendingCertificateTemplatesForExistingHostsFunc = func(ctx context.Context, certificateTemplateID uint, teamID uint) (int64, error) {
 		return 0, nil
 	}
-	ds.SetCertificateTemplateVariablesFunc = func(ctx context.Context, certTemplateID uint, fleetVars []fleet.FleetVarName) error {
+	ds.SetCertificateTemplateVariablesFunc = func(ctx context.Context, certTemplateID uint, automdmVars []automdm.AutoMDMVarName) error {
 		return nil
 	}
 
-	ds.GetCertificateTemplateByTeamIDAndNameFunc = func(ctx context.Context, teamID uint, name string) (*fleet.CertificateTemplateResponse, error) {
-		return &fleet.CertificateTemplateResponse{
-			CertificateTemplateResponseSummary: fleet.CertificateTemplateResponseSummary{
+	ds.GetCertificateTemplateByTeamIDAndNameFunc = func(ctx context.Context, teamID uint, name string) (*automdm.CertificateTemplateResponse, error) {
+		return &automdm.CertificateTemplateResponse{
+			CertificateTemplateResponseSummary: automdm.CertificateTemplateResponseSummary{
 				ID:   nextTemplateID,
 				Name: name,
 			},
@@ -453,7 +453,7 @@ func TestApplyCertificateTemplateSpecs(t *testing.T) {
 	}
 
 	t.Run("Valid CA types", func(t *testing.T) {
-		err := svc.ApplyCertificateTemplateSpecs(ctx, []*fleet.CertificateRequestSpec{
+		err := svc.ApplyCertificateTemplateSpecs(ctx, []*automdm.CertificateRequestSpec{
 			{
 				Name:                   "Template 1",
 				CertificateAuthorityId: 1,
@@ -474,7 +474,7 @@ func TestApplyCertificateTemplateSpecs(t *testing.T) {
 	})
 
 	t.Run("Invalid CA type", func(t *testing.T) {
-		err := svc.ApplyCertificateTemplateSpecs(ctx, []*fleet.CertificateRequestSpec{
+		err := svc.ApplyCertificateTemplateSpecs(ctx, []*automdm.CertificateRequestSpec{
 			{
 				Name:                   "Template 3",
 				CertificateAuthorityId: 3,
@@ -486,7 +486,7 @@ func TestApplyCertificateTemplateSpecs(t *testing.T) {
 	})
 
 	t.Run("Missing CA", func(t *testing.T) {
-		err := svc.ApplyCertificateTemplateSpecs(ctx, []*fleet.CertificateRequestSpec{
+		err := svc.ApplyCertificateTemplateSpecs(ctx, []*automdm.CertificateRequestSpec{
 			{
 				Name:                   "Template 4",
 				CertificateAuthorityId: 4,
@@ -498,7 +498,7 @@ func TestApplyCertificateTemplateSpecs(t *testing.T) {
 	})
 
 	t.Run("Empty name", func(t *testing.T) {
-		err := svc.ApplyCertificateTemplateSpecs(ctx, []*fleet.CertificateRequestSpec{
+		err := svc.ApplyCertificateTemplateSpecs(ctx, []*automdm.CertificateRequestSpec{
 			{
 				Name:                   "",
 				CertificateAuthorityId: 1,
@@ -510,7 +510,7 @@ func TestApplyCertificateTemplateSpecs(t *testing.T) {
 	})
 
 	t.Run("Whitespace-only name", func(t *testing.T) {
-		err := svc.ApplyCertificateTemplateSpecs(ctx, []*fleet.CertificateRequestSpec{
+		err := svc.ApplyCertificateTemplateSpecs(ctx, []*automdm.CertificateRequestSpec{
 			{
 				Name:                   "   ",
 				CertificateAuthorityId: 1,
@@ -522,7 +522,7 @@ func TestApplyCertificateTemplateSpecs(t *testing.T) {
 	})
 
 	t.Run("Name with invalid characters", func(t *testing.T) {
-		err := svc.ApplyCertificateTemplateSpecs(ctx, []*fleet.CertificateRequestSpec{
+		err := svc.ApplyCertificateTemplateSpecs(ctx, []*automdm.CertificateRequestSpec{
 			{
 				Name:                   "template@name",
 				CertificateAuthorityId: 1,
@@ -535,7 +535,7 @@ func TestApplyCertificateTemplateSpecs(t *testing.T) {
 
 	t.Run("Name too long", func(t *testing.T) {
 		longName := strings.Repeat("a", 256)
-		err := svc.ApplyCertificateTemplateSpecs(ctx, []*fleet.CertificateRequestSpec{
+		err := svc.ApplyCertificateTemplateSpecs(ctx, []*automdm.CertificateRequestSpec{
 			{
 				Name:                   longName,
 				CertificateAuthorityId: 1,
@@ -547,7 +547,7 @@ func TestApplyCertificateTemplateSpecs(t *testing.T) {
 	})
 
 	t.Run("Whitespace-only subject name", func(t *testing.T) {
-		err := svc.ApplyCertificateTemplateSpecs(ctx, []*fleet.CertificateRequestSpec{
+		err := svc.ApplyCertificateTemplateSpecs(ctx, []*automdm.CertificateRequestSpec{
 			{
 				Name:                   "Template 2",
 				CertificateAuthorityId: 1,
@@ -565,16 +565,16 @@ func TestApplyCertificateTemplateSpecs(t *testing.T) {
 	// (validator semantics, single-cert Create) are covered in TestValidateCertificateTemplate*
 	// and TestCreateCertificateTemplate*.
 	t.Run("Invalid SAN rejected with cert-name suffix in subject_alternative_name field", func(t *testing.T) {
-		err := svc.ApplyCertificateTemplateSpecs(ctx, []*fleet.CertificateRequestSpec{
+		err := svc.ApplyCertificateTemplateSpecs(ctx, []*automdm.CertificateRequestSpec{
 			{
 				Name:                   "Template SAN bad",
 				CertificateAuthorityId: 1,
-				SubjectName:            "CN=$FLEET_VAR_HOST_UUID",
+				SubjectName:            "CN=$AUTOMDM_VAR_HOST_UUID",
 				SubjectAlternativeName: "FOO=bar",
 			},
 		})
 		require.Error(t, err)
-		var iae *fleet.InvalidArgumentError
+		var iae *automdm.InvalidArgumentError
 		require.ErrorAs(t, err, &iae)
 		details := iae.Invalid()
 		require.Len(t, details, 1)
@@ -591,25 +591,25 @@ func TestReplaceCertificateVariables(t *testing.T) {
 	familyName := "Doe"
 	dept := "Engineering"
 
-	ds.ScimUserByHostIDFunc = func(ctx context.Context, hostID uint) (*fleet.ScimUser, error) {
-		return &fleet.ScimUser{
+	ds.ScimUserByHostIDFunc = func(ctx context.Context, hostID uint) (*automdm.ScimUser, error) {
+		return &automdm.ScimUser{
 			UserName:   "jane@example.com",
 			GivenName:  &givenName,
 			FamilyName: &familyName,
 			Department: &dept,
 			ExternalID: new("00u1abcd2EFGH3ijk4x7"),
-			Groups: []fleet.ScimUserGroup{
+			Groups: []automdm.ScimUserGroup{
 				{DisplayName: "admins"},
 				{DisplayName: "devs"},
 			},
 		}, nil
 	}
-	ds.ListHostDeviceMappingFunc = func(ctx context.Context, hostID uint) ([]*fleet.HostDeviceMapping, error) {
+	ds.ListHostDeviceMappingFunc = func(ctx context.Context, hostID uint) ([]*automdm.HostDeviceMapping, error) {
 		return nil, nil
 	}
 
 	svc := &Service{ds: ds}
-	host := &fleet.Host{
+	host := &automdm.Host{
 		ID:             1,
 		UUID:           "host-uuid-123",
 		HardwareSerial: "SERIAL-456",
@@ -617,122 +617,122 @@ func TestReplaceCertificateVariables(t *testing.T) {
 	}
 
 	t.Run("HOST_UUID", func(t *testing.T) {
-		result, err := svc.replaceCertificateVariables(t.Context(), "CN=$FLEET_VAR_HOST_UUID", host, nil)
+		result, err := svc.replaceCertificateVariables(t.Context(), "CN=$AUTOMDM_VAR_HOST_UUID", host, nil)
 		require.NoError(t, err)
 		require.Equal(t, "CN=host-uuid-123", result)
 	})
 
 	t.Run("HOST_HARDWARE_SERIAL", func(t *testing.T) {
-		result, err := svc.replaceCertificateVariables(t.Context(), "CN=$FLEET_VAR_HOST_HARDWARE_SERIAL", host, nil)
+		result, err := svc.replaceCertificateVariables(t.Context(), "CN=$AUTOMDM_VAR_HOST_HARDWARE_SERIAL", host, nil)
 		require.NoError(t, err)
 		require.Equal(t, "CN=SERIAL-456", result)
 	})
 
 	t.Run("HOST_PLATFORM", func(t *testing.T) {
-		result, err := svc.replaceCertificateVariables(t.Context(), "O=$FLEET_VAR_HOST_PLATFORM", host, nil)
+		result, err := svc.replaceCertificateVariables(t.Context(), "O=$AUTOMDM_VAR_HOST_PLATFORM", host, nil)
 		require.NoError(t, err)
 		require.Equal(t, "O=android", result)
 	})
 
 	t.Run("HOST_END_USER_IDP_USERNAME", func(t *testing.T) {
-		result, err := svc.replaceCertificateVariables(t.Context(), "CN=$FLEET_VAR_HOST_END_USER_IDP_USERNAME", host, nil)
+		result, err := svc.replaceCertificateVariables(t.Context(), "CN=$AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME", host, nil)
 		require.NoError(t, err)
 		require.Equal(t, "CN=jane@example.com", result)
 	})
 
 	t.Run("HOST_END_USER_IDP_USERNAME_LOCAL_PART", func(t *testing.T) {
-		result, err := svc.replaceCertificateVariables(t.Context(), "CN=$FLEET_VAR_HOST_END_USER_IDP_USERNAME_LOCAL_PART", host, nil)
+		result, err := svc.replaceCertificateVariables(t.Context(), "CN=$AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME_LOCAL_PART", host, nil)
 		require.NoError(t, err)
 		require.Equal(t, "CN=jane", result)
 	})
 
 	t.Run("HOST_END_USER_IDP_GROUPS", func(t *testing.T) {
-		result, err := svc.replaceCertificateVariables(t.Context(), "OU=$FLEET_VAR_HOST_END_USER_IDP_GROUPS", host, nil)
+		result, err := svc.replaceCertificateVariables(t.Context(), "OU=$AUTOMDM_VAR_HOST_END_USER_IDP_GROUPS", host, nil)
 		require.NoError(t, err)
 		// Comma between groups is escaped so it's not mistaken for a DN separator.
 		require.Equal(t, `OU=admins\,devs`, result)
 	})
 
 	t.Run("HOST_END_USER_IDP_DEPARTMENT", func(t *testing.T) {
-		result, err := svc.replaceCertificateVariables(t.Context(), "OU=$FLEET_VAR_HOST_END_USER_IDP_DEPARTMENT", host, nil)
+		result, err := svc.replaceCertificateVariables(t.Context(), "OU=$AUTOMDM_VAR_HOST_END_USER_IDP_DEPARTMENT", host, nil)
 		require.NoError(t, err)
 		require.Equal(t, "OU=Engineering", result)
 	})
 
 	t.Run("HOST_END_USER_IDP_FULL_NAME", func(t *testing.T) {
-		result, err := svc.replaceCertificateVariables(t.Context(), "CN=$FLEET_VAR_HOST_END_USER_IDP_FULL_NAME", host, nil)
+		result, err := svc.replaceCertificateVariables(t.Context(), "CN=$AUTOMDM_VAR_HOST_END_USER_IDP_FULL_NAME", host, nil)
 		require.NoError(t, err)
 		require.Equal(t, "CN=Jane Doe", result)
 	})
 
 	t.Run("HOST_END_USER_IDP_EXTERNAL_ID", func(t *testing.T) {
-		result, err := svc.replaceCertificateVariables(t.Context(), "UID=$FLEET_VAR_HOST_END_USER_IDP_EXTERNAL_ID", host, nil)
+		result, err := svc.replaceCertificateVariables(t.Context(), "UID=$AUTOMDM_VAR_HOST_END_USER_IDP_EXTERNAL_ID", host, nil)
 		require.NoError(t, err)
 		require.Equal(t, "UID=00u1abcd2EFGH3ijk4x7", result)
 	})
 
 	t.Run("multiple variables in one string", func(t *testing.T) {
-		input := "CN=$FLEET_VAR_HOST_END_USER_IDP_USERNAME,O=$FLEET_VAR_HOST_PLATFORM,OU=$FLEET_VAR_HOST_END_USER_IDP_DEPARTMENT"
+		input := "CN=$AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME,O=$AUTOMDM_VAR_HOST_PLATFORM,OU=$AUTOMDM_VAR_HOST_END_USER_IDP_DEPARTMENT"
 		result, err := svc.replaceCertificateVariables(t.Context(), input, host, nil)
 		require.NoError(t, err)
 		require.Equal(t, "CN=jane@example.com,O=android,OU=Engineering", result)
 	})
 
 	t.Run("endUsersMemo is populated on first call and reused", func(t *testing.T) {
-		var memo []fleet.HostEndUser
-		_, err := svc.replaceCertificateVariables(t.Context(), "CN=$FLEET_VAR_HOST_END_USER_IDP_USERNAME", host, &memo)
+		var memo []automdm.HostEndUser
+		_, err := svc.replaceCertificateVariables(t.Context(), "CN=$AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME", host, &memo)
 		require.NoError(t, err)
 		require.NotNil(t, memo)
 		require.Len(t, memo, 1)
 
 		// Second call reuses the memo without hitting the datastore again.
 		ds.ScimUserByHostIDFuncInvoked = false
-		_, err = svc.replaceCertificateVariables(t.Context(), "CN=$FLEET_VAR_HOST_END_USER_IDP_FULL_NAME", host, &memo)
+		_, err = svc.replaceCertificateVariables(t.Context(), "CN=$AUTOMDM_VAR_HOST_END_USER_IDP_FULL_NAME", host, &memo)
 		require.NoError(t, err)
 		require.False(t, ds.ScimUserByHostIDFuncInvoked)
 	})
 
 	t.Run("missing IDP user returns error", func(t *testing.T) {
-		ds.ScimUserByHostIDFunc = func(ctx context.Context, hostID uint) (*fleet.ScimUser, error) {
+		ds.ScimUserByHostIDFunc = func(ctx context.Context, hostID uint) (*automdm.ScimUser, error) {
 			return nil, &notFoundError{}
 		}
-		_, err := svc.replaceCertificateVariables(t.Context(), "CN=$FLEET_VAR_HOST_END_USER_IDP_USERNAME", host, nil)
+		_, err := svc.replaceCertificateVariables(t.Context(), "CN=$AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME", host, nil)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "does not have an IDP user")
 	})
 
 	t.Run("missing groups returns error", func(t *testing.T) {
-		ds.ScimUserByHostIDFunc = func(ctx context.Context, hostID uint) (*fleet.ScimUser, error) {
-			return &fleet.ScimUser{UserName: "jane@example.com"}, nil
+		ds.ScimUserByHostIDFunc = func(ctx context.Context, hostID uint) (*automdm.ScimUser, error) {
+			return &automdm.ScimUser{UserName: "jane@example.com"}, nil
 		}
-		_, err := svc.replaceCertificateVariables(t.Context(), "OU=$FLEET_VAR_HOST_END_USER_IDP_GROUPS", host, nil)
+		_, err := svc.replaceCertificateVariables(t.Context(), "OU=$AUTOMDM_VAR_HOST_END_USER_IDP_GROUPS", host, nil)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "does not have IDP groups")
 	})
 
 	t.Run("missing department returns error", func(t *testing.T) {
-		ds.ScimUserByHostIDFunc = func(ctx context.Context, hostID uint) (*fleet.ScimUser, error) {
-			return &fleet.ScimUser{UserName: "jane@example.com"}, nil
+		ds.ScimUserByHostIDFunc = func(ctx context.Context, hostID uint) (*automdm.ScimUser, error) {
+			return &automdm.ScimUser{UserName: "jane@example.com"}, nil
 		}
-		_, err := svc.replaceCertificateVariables(t.Context(), "OU=$FLEET_VAR_HOST_END_USER_IDP_DEPARTMENT", host, nil)
+		_, err := svc.replaceCertificateVariables(t.Context(), "OU=$AUTOMDM_VAR_HOST_END_USER_IDP_DEPARTMENT", host, nil)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "does not have an IDP department")
 	})
 
 	t.Run("missing full name returns error", func(t *testing.T) {
-		ds.ScimUserByHostIDFunc = func(ctx context.Context, hostID uint) (*fleet.ScimUser, error) {
-			return &fleet.ScimUser{UserName: "jane@example.com"}, nil
+		ds.ScimUserByHostIDFunc = func(ctx context.Context, hostID uint) (*automdm.ScimUser, error) {
+			return &automdm.ScimUser{UserName: "jane@example.com"}, nil
 		}
-		_, err := svc.replaceCertificateVariables(t.Context(), "CN=$FLEET_VAR_HOST_END_USER_IDP_FULL_NAME", host, nil)
+		_, err := svc.replaceCertificateVariables(t.Context(), "CN=$AUTOMDM_VAR_HOST_END_USER_IDP_FULL_NAME", host, nil)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "does not have an IDP full name")
 	})
 
 	t.Run("missing external ID returns error", func(t *testing.T) {
-		ds.ScimUserByHostIDFunc = func(ctx context.Context, hostID uint) (*fleet.ScimUser, error) {
-			return &fleet.ScimUser{UserName: "jane@example.com"}, nil
+		ds.ScimUserByHostIDFunc = func(ctx context.Context, hostID uint) (*automdm.ScimUser, error) {
+			return &automdm.ScimUser{UserName: "jane@example.com"}, nil
 		}
-		_, err := svc.replaceCertificateVariables(t.Context(), "UID=$FLEET_VAR_HOST_END_USER_IDP_EXTERNAL_ID", host, nil)
+		_, err := svc.replaceCertificateVariables(t.Context(), "UID=$AUTOMDM_VAR_HOST_END_USER_IDP_EXTERNAL_ID", host, nil)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "does not have an IDP external ID")
 	})
@@ -744,118 +744,118 @@ func TestReplaceCertificateVariables(t *testing.T) {
 	})
 
 	t.Run("unsupported variable returns error", func(t *testing.T) {
-		_, err := svc.replaceCertificateVariables(t.Context(), "CN=$FLEET_VAR_NDES_SCEP_CHALLENGE", host, nil)
+		_, err := svc.replaceCertificateVariables(t.Context(), "CN=$AUTOMDM_VAR_NDES_SCEP_CHALLENGE", host, nil)
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "unsupported Fleet variable")
+		require.Contains(t, err.Error(), "unsupported AutoMDM variable")
 	})
 
 	t.Run("dollar signs in values are substituted literally", func(t *testing.T) {
-		ds.ScimUserByHostIDFunc = func(ctx context.Context, hostID uint) (*fleet.ScimUser, error) {
-			return &fleet.ScimUser{
+		ds.ScimUserByHostIDFunc = func(ctx context.Context, hostID uint) (*automdm.ScimUser, error) {
+			return &automdm.ScimUser{
 				UserName:   "jane@example.com",
 				Department: new("R$1D"),
 				ExternalID: new("tenant$1"),
 			}, nil
 		}
 		result, err := svc.replaceCertificateVariables(t.Context(),
-			"UID=$FLEET_VAR_HOST_END_USER_IDP_EXTERNAL_ID,OU=$FLEET_VAR_HOST_END_USER_IDP_DEPARTMENT", host, nil)
+			"UID=$AUTOMDM_VAR_HOST_END_USER_IDP_EXTERNAL_ID,OU=$AUTOMDM_VAR_HOST_END_USER_IDP_DEPARTMENT", host, nil)
 		require.NoError(t, err)
 		require.Equal(t, "UID=tenant$1,OU=R$1D", result)
 	})
 
 	t.Run("special characters are RFC 4514 escaped", func(t *testing.T) {
 		dept := "Sales, Marketing + Ops"
-		ds.ScimUserByHostIDFunc = func(ctx context.Context, hostID uint) (*fleet.ScimUser, error) {
-			return &fleet.ScimUser{
+		ds.ScimUserByHostIDFunc = func(ctx context.Context, hostID uint) (*automdm.ScimUser, error) {
+			return &automdm.ScimUser{
 				UserName:   "jane@example.com",
 				GivenName:  &givenName,
 				FamilyName: &familyName,
 				Department: &dept,
-				Groups: []fleet.ScimUserGroup{
+				Groups: []automdm.ScimUserGroup{
 					{DisplayName: "group<A>"},
 					{DisplayName: `group"B"`},
 				},
 			}, nil
 		}
-		result, err := svc.replaceCertificateVariables(t.Context(), "OU=$FLEET_VAR_HOST_END_USER_IDP_DEPARTMENT", host, nil)
+		result, err := svc.replaceCertificateVariables(t.Context(), "OU=$AUTOMDM_VAR_HOST_END_USER_IDP_DEPARTMENT", host, nil)
 		require.NoError(t, err)
 		require.Equal(t, `OU=Sales\, Marketing \+ Ops`, result)
 
-		result, err = svc.replaceCertificateVariables(t.Context(), "OU=$FLEET_VAR_HOST_END_USER_IDP_GROUPS", host, nil)
+		result, err = svc.replaceCertificateVariables(t.Context(), "OU=$AUTOMDM_VAR_HOST_END_USER_IDP_GROUPS", host, nil)
 		require.NoError(t, err)
 		require.Equal(t, `OU=group\<A\>\,group\"B\"`, result)
 	})
 }
 
-func TestExtractCertTemplateFleetVars(t *testing.T) {
+func TestExtractCertTemplateAutoMDMVars(t *testing.T) {
 	t.Run("extracts from subject_name and SAN", func(t *testing.T) {
-		vars := extractCertTemplateFleetVars(
-			"CN=$FLEET_VAR_HOST_UUID",
-			"EMAIL=$FLEET_VAR_HOST_END_USER_IDP_USERNAME, DNS=$FLEET_VAR_HOST_PLATFORM",
+		vars := extractCertTemplateAutoMDMVars(
+			"CN=$AUTOMDM_VAR_HOST_UUID",
+			"EMAIL=$AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME, DNS=$AUTOMDM_VAR_HOST_PLATFORM",
 		)
-		require.ElementsMatch(t, []fleet.FleetVarName{
-			fleet.FleetVarHostUUID,
-			fleet.FleetVarHostEndUserIDPUsername,
-			fleet.FleetVarHostPlatform,
+		require.ElementsMatch(t, []automdm.AutoMDMVarName{
+			automdm.AutoMDMVarHostUUID,
+			automdm.AutoMDMVarHostEndUserIDPUsername,
+			automdm.AutoMDMVarHostPlatform,
 		}, vars)
 	})
 
 	t.Run("returns nil for no variables", func(t *testing.T) {
-		vars := extractCertTemplateFleetVars("CN=static", "DNS=example.com")
+		vars := extractCertTemplateAutoMDMVars("CN=static", "DNS=example.com")
 		require.Nil(t, vars)
 	})
 
 	t.Run("deduplicates across subject and SAN", func(t *testing.T) {
-		vars := extractCertTemplateFleetVars(
-			"CN=$FLEET_VAR_HOST_UUID",
-			"DNS=$FLEET_VAR_HOST_UUID",
+		vars := extractCertTemplateAutoMDMVars(
+			"CN=$AUTOMDM_VAR_HOST_UUID",
+			"DNS=$AUTOMDM_VAR_HOST_UUID",
 		)
-		require.Equal(t, []fleet.FleetVarName{fleet.FleetVarHostUUID}, vars)
+		require.Equal(t, []automdm.AutoMDMVarName{automdm.AutoMDMVarHostUUID}, vars)
 	})
 }
 
 func TestCreateCertificateTemplateVariableTracking(t *testing.T) {
 	ds := new(mock.Store)
-	svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: &fleet.LicenseInfo{Tier: fleet.TierPremium}})
-	ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{GlobalRole: new(fleet.RoleAdmin)}})
+	svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: &automdm.LicenseInfo{Tier: automdm.TierPremium}})
+	ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{GlobalRole: new(automdm.RoleAdmin)}})
 
-	ds.GetCertificateAuthorityByIDFunc = func(ctx context.Context, id uint, includeSecrets bool) (*fleet.CertificateAuthority, error) {
-		return &fleet.CertificateAuthority{ID: id, Type: string(fleet.CATypeCustomSCEPProxy)}, nil
+	ds.GetCertificateAuthorityByIDFunc = func(ctx context.Context, id uint, includeSecrets bool) (*automdm.CertificateAuthority, error) {
+		return &automdm.CertificateAuthority{ID: id, Type: string(automdm.CATypeCustomSCEPProxy)}, nil
 	}
-	ds.CreateCertificateTemplateFunc = func(ctx context.Context, ct *fleet.CertificateTemplate) (*fleet.CertificateTemplateResponse, error) {
-		return &fleet.CertificateTemplateResponse{
-			CertificateTemplateResponseSummary: fleet.CertificateTemplateResponseSummary{ID: 42, Name: ct.Name},
+	ds.CreateCertificateTemplateFunc = func(ctx context.Context, ct *automdm.CertificateTemplate) (*automdm.CertificateTemplateResponse, error) {
+		return &automdm.CertificateTemplateResponse{
+			CertificateTemplateResponseSummary: automdm.CertificateTemplateResponseSummary{ID: 42, Name: ct.Name},
 			TeamID:                             ct.TeamID,
 		}, nil
 	}
 	ds.CreatePendingCertificateTemplatesForExistingHostsFunc = func(ctx context.Context, certID uint, teamID uint) (int64, error) {
 		return 0, nil
 	}
-	ds.TeamLiteFunc = func(ctx context.Context, tid uint) (*fleet.TeamLite, error) {
-		return &fleet.TeamLite{ID: tid, Name: "team"}, nil
+	ds.TeamLiteFunc = func(ctx context.Context, tid uint) (*automdm.TeamLite, error) {
+		return &automdm.TeamLite{ID: tid, Name: "team"}, nil
 	}
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
 	}
 
-	var capturedVars []fleet.FleetVarName
-	ds.SetCertificateTemplateVariablesFunc = func(ctx context.Context, certTemplateID uint, fleetVars []fleet.FleetVarName) error {
+	var capturedVars []automdm.AutoMDMVarName
+	ds.SetCertificateTemplateVariablesFunc = func(ctx context.Context, certTemplateID uint, automdmVars []automdm.AutoMDMVarName) error {
 		require.Equal(t, uint(42), certTemplateID)
-		capturedVars = fleetVars
+		capturedVars = automdmVars
 		return nil
 	}
 
 	_, err := svc.CreateCertificateTemplate(
 		ctx, "wifi-cert", 1, 1,
-		"CN=$FLEET_VAR_HOST_END_USER_IDP_USERNAME",
-		"DNS=$FLEET_VAR_HOST_UUID, EMAIL=$FLEET_VAR_HOST_END_USER_IDP_DEPARTMENT",
+		"CN=$AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME",
+		"DNS=$AUTOMDM_VAR_HOST_UUID, EMAIL=$AUTOMDM_VAR_HOST_END_USER_IDP_DEPARTMENT",
 	)
 	require.NoError(t, err)
 	require.True(t, ds.SetCertificateTemplateVariablesFuncInvoked)
-	require.ElementsMatch(t, []fleet.FleetVarName{
-		fleet.FleetVarHostEndUserIDPUsername,
-		fleet.FleetVarHostUUID,
-		fleet.FleetVarHostEndUserIDPDepartment,
+	require.ElementsMatch(t, []automdm.AutoMDMVarName{
+		automdm.AutoMDMVarHostEndUserIDPUsername,
+		automdm.AutoMDMVarHostUUID,
+		automdm.AutoMDMVarHostEndUserIDPDepartment,
 	}, capturedVars)
 }
 
@@ -871,34 +871,34 @@ func TestResendHostCertificateTemplate(t *testing.T) {
 		templateName = "My Cert"
 	)
 
-	ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}})
+	ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}})
 
-	ds.HostLiteFunc = func(ctx context.Context, id uint) (*fleet.Host, error) {
+	ds.HostLiteFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
 		if id == hostID {
 			tid := teamID
-			return &fleet.Host{ID: id, TeamID: &tid}, nil
+			return &automdm.Host{ID: id, TeamID: &tid}, nil
 		}
 		return nil, errors.New("host not found")
 	}
 
-	ds.GetCertificateTemplateByIdFunc = func(ctx context.Context, id uint) (*fleet.CertificateTemplateResponse, error) {
-		return &fleet.CertificateTemplateResponse{
-			CertificateTemplateResponseSummary: fleet.CertificateTemplateResponseSummary{
+	ds.GetCertificateTemplateByIdFunc = func(ctx context.Context, id uint) (*automdm.CertificateTemplateResponse, error) {
+		return &automdm.CertificateTemplateResponse{
+			CertificateTemplateResponseSummary: automdm.CertificateTemplateResponseSummary{
 				ID:   id,
 				Name: templateName,
 			},
 		}, nil
 	}
 
-	ds.GetCertificateTemplateByIdForHostFunc = func(ctx context.Context, id uint, hostUUID string) (*fleet.CertificateTemplateResponseForHost, error) {
-		return &fleet.CertificateTemplateResponseForHost{
-			CertificateTemplateResponse: fleet.CertificateTemplateResponse{
-				CertificateTemplateResponseSummary: fleet.CertificateTemplateResponseSummary{
+	ds.GetCertificateTemplateByIdForHostFunc = func(ctx context.Context, id uint, hostUUID string) (*automdm.CertificateTemplateResponseForHost, error) {
+		return &automdm.CertificateTemplateResponseForHost{
+			CertificateTemplateResponse: automdm.CertificateTemplateResponse{
+				CertificateTemplateResponseSummary: automdm.CertificateTemplateResponseSummary{
 					ID:   id,
 					Name: templateName,
 				},
 			},
-			Status: fleet.CertificateTemplateDelivered,
+			Status: automdm.CertificateTemplateDelivered,
 		}, nil
 	}
 
@@ -909,9 +909,9 @@ func TestResendHostCertificateTemplate(t *testing.T) {
 			return nil
 		}
 
-		var capturedActivity fleet.ActivityTypeResentCertificate
+		var capturedActivity automdm.ActivityTypeResentCertificate
 		opts.ActivityMock.NewActivityFunc = func(_ context.Context, _ *activity_api.User, activity activity_api.ActivityDetails) error {
-			act, ok := activity.(fleet.ActivityTypeResentCertificate)
+			act, ok := activity.(automdm.ActivityTypeResentCertificate)
 			require.True(t, ok, "expected ActivityTypeResentCertificate, got %T", activity)
 			capturedActivity = act
 			return nil
@@ -947,15 +947,15 @@ func TestResendHostCertificateTemplate(t *testing.T) {
 	})
 
 	t.Run("returns 400 when template is pending for host", func(t *testing.T) {
-		ds.GetCertificateTemplateByIdForHostFunc = func(ctx context.Context, id uint, hostUUID string) (*fleet.CertificateTemplateResponseForHost, error) {
-			return &fleet.CertificateTemplateResponseForHost{
-				CertificateTemplateResponse: fleet.CertificateTemplateResponse{
-					CertificateTemplateResponseSummary: fleet.CertificateTemplateResponseSummary{
+		ds.GetCertificateTemplateByIdForHostFunc = func(ctx context.Context, id uint, hostUUID string) (*automdm.CertificateTemplateResponseForHost, error) {
+			return &automdm.CertificateTemplateResponseForHost{
+				CertificateTemplateResponse: automdm.CertificateTemplateResponse{
+					CertificateTemplateResponseSummary: automdm.CertificateTemplateResponseSummary{
 						ID:   id,
 						Name: templateName,
 					},
 				},
-				Status: fleet.CertificateTemplatePending,
+				Status: automdm.CertificateTemplatePending,
 			}, nil
 		}
 		ds.ResendHostCertificateTemplateFuncInvoked = false
@@ -980,31 +980,31 @@ func TestGetCertificateTemplate(t *testing.T) {
 		templateName      = "Certificate Template - Test"
 	)
 
-	globalAdmin := &fleet.User{GlobalRole: new(fleet.RoleAdmin)}
-	globalObserver := &fleet.User{GlobalRole: new(fleet.RoleObserver)}
-	teamAdmin := &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: teamID}, Role: fleet.RoleAdmin}}}
-	otherTeamAdmin := &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: teamID + 1}, Role: fleet.RoleAdmin}}}
+	globalAdmin := &automdm.User{GlobalRole: new(automdm.RoleAdmin)}
+	globalObserver := &automdm.User{GlobalRole: new(automdm.RoleObserver)}
+	teamAdmin := &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: teamID}, Role: automdm.RoleAdmin}}}
+	otherTeamAdmin := &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: teamID + 1}, Role: automdm.RoleAdmin}}}
 
 	type getTestOpts struct {
-		svc     fleet.Service
+		svc     automdm.Service
 		ctx     context.Context
 		ds      *mock.Store
 		authCtx *authz_ctx.AuthorizationContext
 	}
 
-	setup := func(t *testing.T, user *fleet.User) *getTestOpts {
+	setup := func(t *testing.T, user *automdm.User) *getTestOpts {
 		ds := new(mock.Store)
 		svc, ctx := newTestService(t, ds, nil, nil)
 
-		ds.GetCertificateTemplateByIdFunc = func(ctx context.Context, id uint) (*fleet.CertificateTemplateResponse, error) {
+		ds.GetCertificateTemplateByIdFunc = func(ctx context.Context, id uint) (*automdm.CertificateTemplateResponse, error) {
 			switch id {
 			case noTeamTemplateID, teamTemplateID:
 				templateTeamID := uint(0)
 				if id == teamTemplateID {
 					templateTeamID = teamID
 				}
-				return &fleet.CertificateTemplateResponse{
-					CertificateTemplateResponseSummary: fleet.CertificateTemplateResponseSummary{
+				return &automdm.CertificateTemplateResponse{
+					CertificateTemplateResponseSummary: automdm.CertificateTemplateResponseSummary{
 						ID:   id,
 						Name: templateName,
 					},
@@ -1025,7 +1025,7 @@ func TestGetCertificateTemplate(t *testing.T) {
 	t.Run("successful read", func(t *testing.T) {
 		for _, tc := range []struct {
 			name       string
-			user       *fleet.User
+			user       *automdm.User
 			templateID uint
 			wantTeamID uint
 		}{
@@ -1050,7 +1050,7 @@ func TestGetCertificateTemplate(t *testing.T) {
 	t.Run("forbidden error", func(t *testing.T) {
 		for _, tc := range []struct {
 			name       string
-			user       *fleet.User
+			user       *automdm.User
 			templateID uint
 		}{
 			{name: "global observer reading a 'no team' template", user: globalObserver, templateID: noTeamTemplateID},
@@ -1067,7 +1067,7 @@ func TestGetCertificateTemplate(t *testing.T) {
 				require.Contains(t, err.Error(), authz.ForbiddenErrorMessage)
 
 				if tc.templateID == missingTemplateID {
-					require.False(t, fleet.IsNotFound(err), "must not disclose that the template is missing")
+					require.False(t, automdm.IsNotFound(err), "must not disclose that the template is missing")
 				}
 			})
 		}
@@ -1076,7 +1076,7 @@ func TestGetCertificateTemplate(t *testing.T) {
 	t.Run("not found error", func(t *testing.T) {
 		for _, tc := range []struct {
 			name       string
-			user       *fleet.User
+			user       *automdm.User
 			templateID uint
 		}{
 			{name: "global admin reading a missing template", user: globalAdmin, templateID: missingTemplateID},
@@ -1090,7 +1090,7 @@ func TestGetCertificateTemplate(t *testing.T) {
 				require.Error(t, err)
 				require.Nil(t, certificate)
 				require.True(t, tt.authCtx.Checked(), "authorization must be checked even when the template is missing")
-				require.True(t, fleet.IsNotFound(err))
+				require.True(t, automdm.IsNotFound(err))
 				require.NotContains(t, err.Error(), authz.ForbiddenErrorMessage)
 			})
 		}
@@ -1104,36 +1104,36 @@ func TestDeleteCertificateTemplate(t *testing.T) {
 		missingTemplateID = uint(999)
 		teamID            = uint(10)
 		templateName      = "Certificate Template - Test"
-		teamName          = "Fleet Team - Test"
+		teamName          = "AutoMDM Team - Test"
 	)
 
-	globalAdmin := &fleet.User{GlobalRole: new(fleet.RoleAdmin)}
-	globalObserver := &fleet.User{GlobalRole: new(fleet.RoleObserver)}
-	teamAdmin := &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: teamID}, Role: fleet.RoleAdmin}}}
-	otherTeamAdmin := &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: teamID + 1}, Role: fleet.RoleAdmin}}}
+	globalAdmin := &automdm.User{GlobalRole: new(automdm.RoleAdmin)}
+	globalObserver := &automdm.User{GlobalRole: new(automdm.RoleObserver)}
+	teamAdmin := &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: teamID}, Role: automdm.RoleAdmin}}}
+	otherTeamAdmin := &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: teamID + 1}, Role: automdm.RoleAdmin}}}
 
 	type deleteTestOpts struct {
-		svc     fleet.Service
+		svc     automdm.Service
 		ctx     context.Context
 		ds      *mock.Store
 		opts    *TestServerOpts
 		authCtx *authz_ctx.AuthorizationContext
 	}
 
-	setup := func(t *testing.T, user *fleet.User) *deleteTestOpts {
+	setup := func(t *testing.T, user *automdm.User) *deleteTestOpts {
 		ds := new(mock.Store)
 		opts := &TestServerOpts{}
 		svc, ctx := newTestService(t, ds, nil, nil, opts)
 
-		ds.GetCertificateTemplateByIdFunc = func(ctx context.Context, id uint) (*fleet.CertificateTemplateResponse, error) {
+		ds.GetCertificateTemplateByIdFunc = func(ctx context.Context, id uint) (*automdm.CertificateTemplateResponse, error) {
 			switch id {
 			case noTeamTemplateID, teamTemplateID:
 				templateTeamID := uint(0)
 				if id == teamTemplateID {
 					templateTeamID = teamID
 				}
-				return &fleet.CertificateTemplateResponse{
-					CertificateTemplateResponseSummary: fleet.CertificateTemplateResponseSummary{
+				return &automdm.CertificateTemplateResponse{
+					CertificateTemplateResponseSummary: automdm.CertificateTemplateResponseSummary{
 						ID:   id,
 						Name: templateName,
 					},
@@ -1149,11 +1149,11 @@ func TestDeleteCertificateTemplate(t *testing.T) {
 		ds.SetHostCertificateTemplatesToPendingRemoveFunc = func(ctx context.Context, certificateTemplateID uint) error {
 			return nil
 		}
-		ds.TeamLiteFunc = func(ctx context.Context, tid uint) (*fleet.TeamLite, error) {
-			return &fleet.TeamLite{ID: tid, Name: teamName}, nil
+		ds.TeamLiteFunc = func(ctx context.Context, tid uint) (*automdm.TeamLite, error) {
+			return &automdm.TeamLite{ID: tid, Name: teamName}, nil
 		}
-		ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-			return &fleet.AppConfig{}, nil
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{}, nil
 		}
 
 		authCtx := &authz_ctx.AuthorizationContext{}
@@ -1166,7 +1166,7 @@ func TestDeleteCertificateTemplate(t *testing.T) {
 	t.Run("successful deletion", func(t *testing.T) {
 		for _, tc := range []struct {
 			name       string
-			user       *fleet.User
+			user       *automdm.User
 			templateID uint
 		}{
 			{name: "global admin deletes a team template", user: globalAdmin, templateID: teamTemplateID},
@@ -1176,9 +1176,9 @@ func TestDeleteCertificateTemplate(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				tt := setup(t, tc.user)
 
-				var capturedActivity fleet.ActivityTypeDeletedCertificate
+				var capturedActivity automdm.ActivityTypeDeletedCertificate
 				tt.opts.ActivityMock.NewActivityFunc = func(_ context.Context, _ *activity_api.User, activity activity_api.ActivityDetails) error {
-					act, ok := activity.(fleet.ActivityTypeDeletedCertificate)
+					act, ok := activity.(automdm.ActivityTypeDeletedCertificate)
 					require.True(t, ok, "expected ActivityTypeDeletedCertificate, got %T", activity)
 					capturedActivity = act
 					return nil
@@ -1207,7 +1207,7 @@ func TestDeleteCertificateTemplate(t *testing.T) {
 	t.Run("forbidden error", func(t *testing.T) {
 		for _, tc := range []struct {
 			name       string
-			user       *fleet.User
+			user       *automdm.User
 			templateID uint
 		}{
 			{name: "global observer deleting a 'no team' template", user: globalObserver, templateID: noTeamTemplateID},
@@ -1224,7 +1224,7 @@ func TestDeleteCertificateTemplate(t *testing.T) {
 				require.False(t, tt.ds.DeleteCertificateTemplateFuncInvoked)
 
 				if tc.templateID == missingTemplateID {
-					require.False(t, fleet.IsNotFound(err), "must not disclose that the template is missing")
+					require.False(t, automdm.IsNotFound(err), "must not disclose that the template is missing")
 				}
 			})
 		}
@@ -1233,7 +1233,7 @@ func TestDeleteCertificateTemplate(t *testing.T) {
 	t.Run("not found error", func(t *testing.T) {
 		for _, tc := range []struct {
 			name       string
-			user       *fleet.User
+			user       *automdm.User
 			templateID uint
 		}{
 			{name: "global admin deleting a missing template", user: globalAdmin, templateID: missingTemplateID},
@@ -1246,7 +1246,7 @@ func TestDeleteCertificateTemplate(t *testing.T) {
 				err := tt.svc.DeleteCertificateTemplate(tt.ctx, tc.templateID)
 				require.Error(t, err)
 				require.True(t, tt.authCtx.Checked(), "authorization must be checked even when the template is missing")
-				require.True(t, fleet.IsNotFound(err))
+				require.True(t, automdm.IsNotFound(err))
 				require.NotContains(t, err.Error(), authz.ForbiddenErrorMessage)
 				require.False(t, tt.ds.DeleteCertificateTemplateFuncInvoked)
 			})

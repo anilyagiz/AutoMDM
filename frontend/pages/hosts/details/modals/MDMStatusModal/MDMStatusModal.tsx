@@ -34,7 +34,7 @@ import hostAPI, {
 } from "services/entities/hosts";
 import {
   DEFAULT_EMPTY_CELL_VALUE,
-  INITIAL_FLEET_DATE,
+  INITIAL_AUTOMDM_DATE,
   LEARN_MORE_ABOUT_BASE_LINK,
   MDM_STATUS_PENDING_TOOLTIP_BY_PLATFORM,
   MDM_STATUS_TOOLTIP,
@@ -46,7 +46,7 @@ import { getPathWithQueryParams } from "utilities/url";
 const baseClass = "mdm-status-modal";
 
 interface IMDMStatusModal {
-  fleetId: number | null;
+  automdmId: number | null;
   hostId: number;
   platform: HostPlatform;
   enrollmentStatus: MdmEnrollmentStatus;
@@ -54,7 +54,7 @@ interface IMDMStatusModal {
   router: InjectedRouter;
   isPremiumTier?: boolean;
   lastMDMCheckIn: string | null;
-  connectedToFleet?: boolean;
+  connectedToAutoMDM?: boolean;
   onSuccessfulCheckIn: () => void;
   user: IUser | null;
   onExit: () => void;
@@ -110,7 +110,7 @@ const getProfileStatusUI = (raw?: string | null) => {
 };
 
 const DEFAULT_DEP_ERROR_MESSAGE =
-  "Fleet can't retrieve data from Apple right now. Please try again later.";
+  "AutoMDM can't retrieve data from Apple right now. Please try again later.";
 
 const parseDate = (value?: string | null) => {
   if (!value) {
@@ -121,7 +121,7 @@ const parseDate = (value?: string | null) => {
   return Number.isNaN(date.getTime()) ? null : date;
 };
 
-// Without a retry time from Apple, Fleet retries a throttled assignment after 24 hours.
+// Without a retry time from Apple, AutoMDM retries a throttled assignment after 24 hours.
 export const getThrottleCopy = (
   responseUpdatedAt?: string | null,
   throttledRetryAfter?: string | null
@@ -170,7 +170,7 @@ interface IProfileRowItem {
 }
 
 const MDMStatusModal = ({
-  fleetId,
+  automdmId,
   hostId,
   user,
   enrollmentStatus,
@@ -178,7 +178,7 @@ const MDMStatusModal = ({
   isPremiumTier = false,
   platform,
   lastMDMCheckIn,
-  connectedToFleet = false,
+  connectedToAutoMDM = false,
   onSuccessfulCheckIn,
   router,
   onExit,
@@ -205,7 +205,7 @@ const MDMStatusModal = ({
   const handleClickStatusRow = () => {
     const path = getPathWithQueryParams(paths.MANAGE_HOSTS, {
       mdm_enrollment_status: enrollmentFilterValue,
-      fleet_id: fleetId,
+      team_id: automdmId,
     });
     router.push(path);
   };
@@ -252,7 +252,7 @@ const MDMStatusModal = ({
 
     const path = getPathWithQueryParams(paths.MANAGE_HOSTS, {
       dep_assign_profile_response: responseParam,
-      fleet_id: fleetId,
+      team_id: automdmId,
     });
 
     router.push(path);
@@ -298,10 +298,10 @@ const MDMStatusModal = ({
       canTriggerAPNSPing({
         platform,
         mdm: {
-          connected_to_fleet: connectedToFleet,
+          connected_to_automdm: connectedToAutoMDM,
           enrollment_status: enrollmentStatus,
         },
-      }) && permissions.isGlobalOrTeamObserverOrAbove(user, fleetId ?? null);
+      }) && permissions.isGlobalOrTeamObserverOrAbove(user, automdmId ?? null);
 
     return (
       <>
@@ -380,7 +380,7 @@ const MDMStatusModal = ({
       },
     ];
 
-    if (lastMDMCheckIn !== null || connectedToFleet) {
+    if (lastMDMCheckIn !== null || connectedToAutoMDM) {
       data.push({
         id: "mdm-checkin",
         value: lastMDMCheckIn ?? "",
@@ -446,9 +446,9 @@ const MDMStatusModal = ({
         label: "Throttled",
         tooltip: (
           <>
-            Migration or new Mac setup won&apos;t work. Fleet hit Apple&apos;s
+            Migration or new Mac setup won&apos;t work. AutoMDM hit Apple&apos;s
             API rate limit when preparing the macOS Setup Assistant for this
-            host. Fleet will try again{" "}
+            host. AutoMDM will try again{" "}
             {getThrottleCopy(
               depAssignmentData.host_dep_assignment?.response_updated_at,
               depAssignmentData.host_dep_assignment?.throttled_retry_after
@@ -461,7 +461,7 @@ const MDMStatusModal = ({
         tooltip: (
           <>
             Migration or new Mac setup won&apos;t work. Apple&apos;s servers
-            rejected the request to assign a profile to a host. Fleet will try
+            rejected the request to assign a profile to a host. AutoMDM will try
             again every hour.
           </>
         ),
@@ -472,7 +472,7 @@ const MDMStatusModal = ({
           <>
             Migration or new Mac setup won&apos;t work. Details are not
             accessible from Apple Business (AB). Verify the host is assigned to
-            your MDM server and Fleet has access permissions.
+            your MDM server and AutoMDM has access permissions.
           </>
         ),
       },
@@ -495,7 +495,7 @@ const MDMStatusModal = ({
         // Follow current pattern of international time format for dates in UI
         status:
           !depDevice.profile_assign_time ||
-          depDevice.profile_assign_time < INITIAL_FLEET_DATE
+          depDevice.profile_assign_time < INITIAL_AUTOMDM_DATE
             ? "Never"
             : internationalTimeFormat(new Date(depDevice.profile_assign_time)),
       },
@@ -512,7 +512,7 @@ const MDMStatusModal = ({
         // Follow current pattern of international time format for dates in UI
         status:
           !depDevice.profile_push_time ||
-          depDevice.profile_push_time < INITIAL_FLEET_DATE
+          depDevice.profile_push_time < INITIAL_AUTOMDM_DATE
             ? "Never"
             : internationalTimeFormat(new Date(depDevice.profile_push_time)),
       },

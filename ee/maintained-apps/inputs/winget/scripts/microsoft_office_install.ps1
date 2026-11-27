@@ -5,7 +5,7 @@
 # /configure. This makes the install behavior fully determined by this script
 # and immune to changes in the remote config (e.g. Display Level flipping to
 # Full, or the product set changing) and to that URL being unreachable.
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 
 $exeFilePath = "${env:INSTALLER_PATH}"
 
@@ -15,7 +15,7 @@ $exeFilePath = "${env:INSTALLER_PATH}"
 #   Display Level="None"  -> fully silent, no setup UI is shown.
 #   AcceptEULA="TRUE"     -> license terms are accepted automatically, so the
 #                            user is not prompted on first launch of an Office
-#                            app (required for a hands-off fleet deployment).
+#                            app (required for a hands-off automdm deployment).
 #   RemoveMSI             -> removes any pre-existing MSI (volume/perpetual)
 #                            Office before installing Click-to-Run.
 # Visio/Project install only when a matching MSI product is already present
@@ -49,7 +49,7 @@ $configXml = @'
 
 # Write the configuration next to the installer. Use .NET WriteAllText so the
 # file is UTF-8 without a BOM, which the Office Deployment Tool parses cleanly.
-$configPath = Join-Path $env:TEMP "fleet-office-config.xml"
+$configPath = Join-Path $env:TEMP "automdm-office-config.xml"
 [System.IO.File]::WriteAllText($configPath, $configXml, (New-Object System.Text.UTF8Encoding $false))
 
 $exitCode = 0

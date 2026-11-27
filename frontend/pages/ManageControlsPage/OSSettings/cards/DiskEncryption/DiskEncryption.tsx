@@ -56,7 +56,7 @@ const getPlatformTabPath = (
   teamId: number
 ) =>
   getPathWithQueryParams(PATHS.CONTROLS_DISK_ENCRYPTION_PLATFORM(platform), {
-    fleet_id: teamId,
+    team_id: teamId,
   });
 
 const MDM_REQUIRED_EMPTY_STATES: Partial<
@@ -137,7 +137,7 @@ const DiskEncryption = ({
 
   const [isSaving, setIsSaving] = useState(false);
 
-  // Linux escrow is handled by fleetd, so it doesn't depend on MDM
+  // Linux escrow is handled by automdmd, so it doesn't depend on MDM
   const isPlatformMdmEnabled: Record<
     DiskEncryptionSettingsPlatform,
     boolean
@@ -182,7 +182,7 @@ const DiskEncryption = ({
     refetchOnWindowFocus: false,
     retry: false,
     enabled: currentTeamId !== 0,
-    select: (res) => res.fleet,
+    select: (res) => res.team,
     onSuccess: (res) => {
       const settings = getDiskEncryptionSettings(res?.mdm);
       setFormSettings(settings);
@@ -314,7 +314,7 @@ const DiskEncryption = ({
         platform === "macos" ? (
           <>
             Most users enable both. Check only this if another tool (like
-            XCreds) turns on FileVault and you only want Fleet to store the key.{" "}
+            XCreds) turns on FileVault and you only want AutoMDM to store the key.{" "}
             <CustomLink
               text="Learn more"
               url={`${LEARN_MORE_ABOUT_BASE_LINK}/mdm-disk-encryption`}

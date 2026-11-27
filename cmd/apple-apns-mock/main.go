@@ -12,8 +12,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/datastore/redis"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis"
 )
 
 func main() {
@@ -108,8 +108,8 @@ func run() error {
 }
 
 // newRedisPool builds the pool the way tools/redis-stress does: no
-// config.FleetConfig needed, and NewPool auto-detects cluster mode.
-func newRedisPool(address, username, password string, database int, useTLS bool, maxOpenConns int, connWaitTimeout time.Duration) (fleet.RedisPool, error) {
+// config.AutoMDMConfig needed, and NewPool auto-detects cluster mode.
+func newRedisPool(address, username, password string, database int, useTLS bool, maxOpenConns int, connWaitTimeout time.Duration) (automdm.RedisPool, error) {
 	return redis.NewPool(redis.PoolConfig{
 		Server:                    address,
 		Username:                  username,

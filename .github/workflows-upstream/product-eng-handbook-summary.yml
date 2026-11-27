@@ -127,7 +127,7 @@ jobs:
           # Build the prompt
           PROMPT="You are summarizing changes to a company handbook for a Slack post.
 
-          Below are the commits, associated pull requests, and diffs made to the Product Design and Engineering sections of the Fleet handbook in the past week (since ${SINCE_DATE}).
+          Below are the commits, associated pull requests, and diffs made to the Product Design and Engineering sections of the AutoMDM handbook in the past week (since ${SINCE_DATE}).
 
           COMMITS:
           ${COMMITS}

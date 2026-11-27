@@ -61,8 +61,8 @@ const selectFileNamed = async (container: HTMLElement, name: string) => {
   await userEvent.upload(input, file, { applyAccept: false });
 };
 
-const TARGET_BANNER_COPY = /If multiple versions target the same host, Fleet will deploy the one that was added first\./i;
-const IPA_DUAL_PLATFORM_COPY = /Fleet adds this app for both iOS and iPadOS\. Edit each platform separately\. Changes to one don't apply to the other\./i;
+const TARGET_BANNER_COPY = /If multiple versions target the same host, AutoMDM will deploy the one that was added first\./i;
+const IPA_DUAL_PLATFORM_COPY = /AutoMDM adds this app for both iOS and iPadOS\. Edit each platform separately\. Changes to one don't apply to the other\./i;
 
 describe("PackageForm", () => {
   describe("Target section on the single-package Add flow", () => {

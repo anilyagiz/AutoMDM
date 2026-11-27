@@ -94,7 +94,7 @@
   }
 
   &--none {
-    color: $ui-fleet-black-50;
+    color: $ui-automdm-black-50;
   }
 
   // Read-only cells (rendered for roles that can't open the automations modal)
@@ -116,7 +116,7 @@
   align-items: center;
   width: 24px;
   height: 24px;
-  background-color: $ui-fleet-black-33;
+  background-color: $ui-automdm-black-33;
   border-radius: 4px;
   flex-shrink: 0;
   overflow: hidden;
@@ -126,7 +126,7 @@
   flex: 1;
   min-width: 0;
   font-style: italic;
-  color: $ui-fleet-black-75;
+  color: $ui-automdm-black-75;
 }
 
 .automations__edit-button {

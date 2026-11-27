@@ -1,5 +1,5 @@
 // Package processes is the spawn/log/lifecycle manager for every child
-// process Hangar runs (fleet serve, docker compose, osquery-perf, builds,
+// process Hangar runs (automdm serve, docker compose, osquery-perf, builds,
 // ...). Ported from src-tauri/src/processes.rs.
 //
 // It's decoupled from Wails via the Emitter interface so the engine is
@@ -34,7 +34,7 @@ type ProcInfo struct {
 	// tell when a running process predates a config change.
 	EnvKeys []string `json:"env_keys"`
 	// Meta is non-secret detail the caller attached at start, returned as
-	// given (e.g. the push URL fleet serve was started with).
+	// given (e.g. the push URL automdm serve was started with).
 	Meta map[string]string `json:"meta"`
 }
 

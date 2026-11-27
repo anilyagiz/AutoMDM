@@ -10,7 +10,7 @@ const defaultProps = {
 
 const getSwitchByLabelText = (text: string) => {
   const label = screen.getByText(text);
-  const wrapper = label.closest(".fleet-slider__wrapper");
+  const wrapper = label.closest(".automdm-slider__wrapper");
   if (!wrapper) throw new Error(`Wrapper not found for "${text}"`);
   const btn = wrapper.querySelector('button[role="switch"]');
   if (!btn) throw new Error(`Switch button not found for "${text}"`);

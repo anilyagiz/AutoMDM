@@ -71,7 +71,7 @@ module "loadtest" {
     subnets                       = data.terraform_remote_state.shared.outputs.vpc.private_subnets
     elasticache_subnet_group_name = data.terraform_remote_state.shared.outputs.vpc.elasticache_subnet_group_name
     allowed_cidrs                 = concat(data.terraform_remote_state.shared.outputs.vpc.private_subnets_cidr_blocks, local.vpn_cidr_blocks)
-    # fleet-vpc has subnets in all 3 availability zones
+    # automdm-vpc has subnets in all 3 availability zones
     availability_zones = ["us-east-2a", "us-east-2b", "us-east-2c"]
     parameter = [
       { name = "client-output-buffer-limit-pubsub-hard-limit", value = 0 },
@@ -93,12 +93,12 @@ module "loadtest" {
       retention_in_days = 365
     }
   }
-  fleet_config = {
-    image               = local.fleet_image
+  automdm_config = {
+    image               = local.automdm_image
     family              = local.customer
-    command             = ["fleet", "serve", "--dev"]
-    mem                 = var.fleet_task_memory
-    cpu                 = var.fleet_task_cpu
+    command             = ["automdm", "serve", "--dev"]
+    mem                 = var.automdm_task_memory
+    cpu                 = var.automdm_task_cpu
     security_group_name = local.customer
     networking = {
       ingress_sources = {
@@ -109,12 +109,12 @@ module "loadtest" {
     }
     extra_load_balancers = [{
       target_group_arn = resource.aws_lb_target_group.internal.arn
-      container_name   = "fleet"
+      container_name   = "automdm"
       container_port   = 8080
     }]
     autoscaling = {
-      min_capacity                 = var.fleet_task_count
-      max_capacity                 = var.fleet_task_count
+      min_capacity                 = var.automdm_task_count
+      max_capacity                 = var.automdm_task_count
       cpu_tracking_target_value    = 70
       memory_tracking_target_value = 70
     }
@@ -133,9 +133,9 @@ module "loadtest" {
       }
     }
     extra_iam_policies = concat(
-      module.osquery-carve.fleet_extra_iam_policies,
-      module.ses.fleet_extra_iam_policies,
-      # module.logging_firehose.fleet_extra_iam_policies,
+      module.osquery-carve.automdm_extra_iam_policies,
+      module.ses.automdm_extra_iam_policies,
+      # module.logging_firehose.automdm_extra_iam_policies,
     )
     # Add these for MDM or cloudfront
     extra_execution_iam_policies = concat(
@@ -146,10 +146,10 @@ module "loadtest" {
       ],
     )
     extra_environment_variables = merge(
-      module.osquery-carve.fleet_extra_environment_variables,
+      module.osquery-carve.automdm_extra_environment_variables,
       module.vuln-processing.extra_environment_variables,
-      module.ses.fleet_extra_environment_variables,
-      # module.logging_firehose.fleet_extra_environment_variables,
+      module.ses.automdm_extra_environment_variables,
+      # module.logging_firehose.automdm_extra_environment_variables,
       local.extra_environment_variables,
     )
     extra_secrets = merge(
@@ -157,7 +157,7 @@ module "loadtest" {
       # module.cloudfront-software-installers.extra_secrets,
       local.extra_secrets
     )
-    private_key_secret_name = "${local.customer}-fleet-server-private-key"
+    private_key_secret_name = "${local.customer}-automdm-server-private-key"
     software_installers = {
       # bucket_prefix shortened to allow for terraform.workspace values with longer names
       bucket_prefix  = "${terraform.workspace}-sw-inst-"
@@ -246,15 +246,15 @@ module "vuln-processing" {
   execution_iam_role_arn              = module.loadtest.byo-db.byo-ecs.execution_iam_role_arn
   subnets                             = module.loadtest.byo-db.byo-ecs.service.network_configuration[0].subnets
   security_groups                     = module.loadtest.byo-db.byo-ecs.service.network_configuration[0].security_groups
-  fleet_config                        = module.loadtest.byo-db.byo-ecs.fleet_config
+  automdm_config                        = module.loadtest.byo-db.byo-ecs.automdm_config
   task_role_arn                       = module.loadtest.byo-db.byo-ecs.iam_role_arn
-  fleet_server_private_key_secret_arn = module.loadtest.byo-db.byo-ecs.fleet_server_private_key_secret_arn
+  automdm_server_private_key_secret_arn = module.loadtest.byo-db.byo-ecs.automdm_server_private_key_secret_arn
   awslogs_config = {
-    group  = module.loadtest.byo-db.byo-ecs.fleet_config.awslogs.name
-    region = module.loadtest.byo-db.byo-ecs.fleet_config.awslogs.region
-    prefix = module.loadtest.byo-db.byo-ecs.fleet_config.awslogs.prefix
+    group  = module.loadtest.byo-db.byo-ecs.automdm_config.awslogs.name
+    region = module.loadtest.byo-db.byo-ecs.automdm_config.awslogs.region
+    prefix = module.loadtest.byo-db.byo-ecs.automdm_config.awslogs.prefix
   }
-  fleet_s3_software_installers_config = module.loadtest.byo-db.byo-ecs.fleet_s3_software_installers_config
+  automdm_s3_software_installers_config = module.loadtest.byo-db.byo-ecs.automdm_s3_software_installers_config
 }
 
 module "mdm" {

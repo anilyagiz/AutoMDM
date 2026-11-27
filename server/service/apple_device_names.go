@@ -8,10 +8,10 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	apple_mdm "github.com/fleetdm/fleet/v4/server/mdm/apple"
-	"github.com/fleetdm/fleet/v4/server/variables"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	apple_mdm "github.com/anilyagiz/automdm/v4/server/mdm/apple"
+	"github.com/anilyagiz/automdm/v4/server/variables"
 	"github.com/google/uuid"
 )
 
@@ -23,7 +23,7 @@ import (
 var reconcileHostDeviceNamesBatchSize = 500
 
 // secretExpansion memoizes the result of expanding the custom (secret) variables
-// in a host name template. err is set (e.g. fleet.MissingSecretsError) when a
+// in a host name template. err is set (e.g. automdm.MissingSecretsError) when a
 // referenced secret is undefined.
 type secretExpansion struct {
 	value string
@@ -37,7 +37,7 @@ type secretExpansion struct {
 // resolved name unusable → failed).
 func ReconcileHostDeviceNames(
 	ctx context.Context,
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	commander *apple_mdm.MDMAppleCommander,
 	logger *slog.Logger,
 ) error {
@@ -72,7 +72,7 @@ func ReconcileHostDeviceNames(
 
 	noTeamTemplate := appConfig.MDM.HostNameTemplate.Value
 	templates := make(map[uint]string) // team ID → name template
-	// secretsExpanded caches the result of expanding $FLEET_SECRET_* custom
+	// secretsExpanded caches the result of expanding $AUTOMDM_SECRET_* custom
 	// variables for a given raw template. Secret values are global (name-keyed,
 	// host-independent), so the same template expands to the same string for
 	// every host — expand once per distinct template rather than per host.
@@ -88,7 +88,7 @@ func ReconcileHostDeviceNames(
 			if !ok {
 				mdmConfig, err := ds.TeamMDMConfig(ctx, *host.TeamID)
 				if err != nil {
-					if fleet.IsNotFound(err) {
+					if automdm.IsNotFound(err) {
 						// team deleted between cron runs
 						templates[*host.TeamID] = ""
 						continue
@@ -107,11 +107,11 @@ func ReconcileHostDeviceNames(
 			continue
 		}
 
-		// Expand any custom (secret, $FLEET_SECRET_*) variables before resolving
+		// Expand any custom (secret, $AUTOMDM_SECRET_*) variables before resolving
 		// the built-in host variables. Secret values are global and
 		// host-independent, so this is memoized per distinct template.
 		expandedTmpl := tmpl
-		if len(fleet.ContainsPrefixVars(tmpl, fleet.ServerSecretPrefix)) > 0 {
+		if len(automdm.ContainsPrefixVars(tmpl, automdm.ServerSecretPrefix)) > 0 {
 			exp, ok := secretsExpanded[tmpl]
 			if !ok {
 				value, expandErr := ds.ExpandEmbeddedSecrets(ctx, tmpl)
@@ -119,7 +119,7 @@ func ReconcileHostDeviceNames(
 				secretsExpanded[tmpl] = exp
 			}
 			if exp.err != nil {
-				if !fleet.IsMissingSecretsError(exp.err) {
+				if !automdm.IsMissingSecretsError(exp.err) {
 					// A transient failure (e.g. a DB error while fetching/decrypting
 					// the secret). Abort the batch so the next cron tick retries,
 					// exactly like the team-config lookup error above — don't
@@ -132,7 +132,7 @@ func ReconcileHostDeviceNames(
 				// defensive path: fail the row with the reason and don't send a
 				// command. On a write error, log and move on rather than aborting the
 				// batch, consistent with the other outcomes below.
-				if err := ds.SetHostDeviceNameStatus(ctx, host.HostUUID, fleet.MDMDeliveryFailed, nil, "",
+				if err := ds.SetHostDeviceNameStatus(ctx, host.HostUUID, automdm.MDMDeliveryFailed, nil, "",
 					exp.err.Error()); err != nil {
 					logger.ErrorContext(ctx, "mark device name row failed for missing secret", "host_uuid", host.HostUUID, "err", err)
 				}
@@ -141,17 +141,17 @@ func ReconcileHostDeviceNames(
 			expandedTmpl = exp.value
 		}
 
-		// Expand any custom host vital ($FLEET_HOST_VITAL_<id>) references with this
+		// Expand any custom host vital ($AUTOMDM_HOST_VITAL_<id>) references with this
 		// host's stored value. Unlike secrets, vital values are per-host, so this
 		// can't be memoized across hosts sharing a template.
-		if len(fleet.FindCustomHostVitalIDs(expandedTmpl)) > 0 {
+		if len(automdm.FindCustomHostVitalIDs(expandedTmpl)) > 0 {
 			withVitals, vitalErr := ds.ExpandCustomHostVitals(ctx, host.HostID, expandedTmpl)
 			if vitalErr != nil {
-				if _, ok := errors.AsType[*fleet.MissingCustomHostVitalValueError](vitalErr); !ok {
+				if _, ok := errors.AsType[*automdm.MissingCustomHostVitalValueError](vitalErr); !ok {
 					return ctxerr.Wrap(ctx, vitalErr, "expand host name template custom host vitals")
 				}
 				// A referenced vital exists but has no value set for this host.
-				if err := ds.SetHostDeviceNameStatus(ctx, host.HostUUID, fleet.MDMDeliveryFailed, nil, "",
+				if err := ds.SetHostDeviceNameStatus(ctx, host.HostUUID, automdm.MDMDeliveryFailed, nil, "",
 					vitalErr.Error()); err != nil {
 					logger.ErrorContext(ctx, "mark device name row failed for missing custom host vital value", "host_uuid", host.HostUUID, "err", err)
 				}
@@ -160,7 +160,7 @@ func ReconcileHostDeviceNames(
 			expandedTmpl = withVitals
 		}
 
-		resolved := fleet.ResolveHostNameTemplate(expandedTmpl, &fleet.Host{
+		resolved := automdm.ResolveHostNameTemplate(expandedTmpl, &automdm.Host{
 			UUID:           host.HostUUID,
 			HardwareSerial: host.HardwareSerial,
 			Platform:       host.Platform,
@@ -179,7 +179,7 @@ func ReconcileHostDeviceNames(
 			// The host is missing IdP data the template needs; fail the row with the
 			// profile-style detail. On a write error, log and move on rather than
 			// aborting the batch, consistent with the other outcomes below.
-			if err := ds.SetHostDeviceNameStatus(ctx, host.HostUUID, fleet.MDMDeliveryFailed, nil, "",
+			if err := ds.SetHostDeviceNameStatus(ctx, host.HostUUID, automdm.MDMDeliveryFailed, nil, "",
 				idpFailDetail); err != nil {
 				logger.ErrorContext(ctx, "mark device name row failed for idp resolution", "host_uuid", host.HostUUID, "err", err)
 			}
@@ -188,13 +188,13 @@ func ReconcileHostDeviceNames(
 		resolved = resolvedWithIDP
 
 		switch {
-		case len(resolved) > fleet.MaxResolvedHostNameBytes:
+		case len(resolved) > automdm.MaxResolvedHostNameBytes:
 			// The resolved name is not stored: it can exceed the column width,
 			// and failed rows are never compared against reported names. On a
 			// write error, log and move on so one bad host doesn't abort the
 			// batch (matches the enqueue branch below); the row stays queued and
 			// a later cron run retries it.
-			if err := ds.SetHostDeviceNameStatus(ctx, host.HostUUID, fleet.MDMDeliveryFailed, nil, "",
+			if err := ds.SetHostDeviceNameStatus(ctx, host.HostUUID, automdm.MDMDeliveryFailed, nil, "",
 				"Resolved name exceeds 63 bytes."); err != nil {
 				logger.ErrorContext(ctx, "mark device name row failed for too-long name", "host_uuid", host.HostUUID, "err", err)
 				continue
@@ -204,12 +204,12 @@ func ReconcileHostDeviceNames(
 		case resolved == host.ComputerName && host.NameReportedSinceEnrollment:
 			// The device already carries the resolved name; no command needed.
 			// On a write error, log and move on rather than aborting the batch.
-			if err := ds.SetHostDeviceNameStatus(ctx, host.HostUUID, fleet.MDMDeliveryVerified, nil, resolved, ""); err != nil {
+			if err := ds.SetHostDeviceNameStatus(ctx, host.HostUUID, automdm.MDMDeliveryVerified, nil, resolved, ""); err != nil {
 				logger.ErrorContext(ctx, "mark device name row verified for matching name", "host_uuid", host.HostUUID, "err", err)
 				continue
 			}
 		default:
-			cmdUUID := fleet.DeviceNameCommandUUIDPrefix + uuid.NewString()
+			cmdUUID := automdm.DeviceNameCommandUUIDPrefix + uuid.NewString()
 			if err := commander.DeviceNameSettingWithoutNotifications(ctx, host.HostUUID, cmdUUID, resolved); err != nil {
 				// The command was not persisted; leave the row queued so the
 				// next cron run retries this host, and move on so one bad
@@ -222,7 +222,7 @@ func ReconcileHostDeviceNames(
 			// the UUID so every device in this batch is woken with a single APNs
 			// push instead of one request per host.
 			notify = append(notify, host.HostUUID)
-			if err := ds.SetHostDeviceNameStatus(ctx, host.HostUUID, fleet.MDMDeliveryPending, &cmdUUID, resolved, ""); err != nil {
+			if err := ds.SetHostDeviceNameStatus(ctx, host.HostUUID, automdm.MDMDeliveryPending, &cmdUUID, resolved, ""); err != nil {
 				// The command was sent but recording it failed; log and move on
 				// rather than aborting the batch, consistent with the
 				// enqueue-failure handling above. The row stays queued and a
@@ -263,13 +263,13 @@ func ReconcileHostDeviceNames(
 //     populated for this host — the caller marks the host's row Failed with it,
 //     exactly as a profile install would fail;
 //   - an error only for a datastore failure, which the caller treats as transient.
-func resolveHostNameIDPVars(ctx context.Context, ds fleet.Datastore, name string, hostID uint) (resolved string, failDetail string, err error) {
+func resolveHostNameIDPVars(ctx context.Context, ds automdm.Datastore, name string, hostID uint) (resolved string, failDetail string, err error) {
 	// Collect the IdP variables used, longest-first (variables.Find sorts that way)
 	// so ..._IDP_USERNAME_LOCAL_PART is substituted before ..._IDP_USERNAME, whose
 	// regexps have no trailing boundary — matching the profile processor's order.
 	var idpVars []string
 	for _, v := range variables.Find(name) {
-		if fleet.IsHostNameTemplateIDPVar(v) {
+		if automdm.IsHostNameTemplateIDPVar(v) {
 			idpVars = append(idpVars, v)
 		}
 	}
@@ -277,11 +277,11 @@ func resolveHostNameIDPVars(ctx context.Context, ds fleet.Datastore, name string
 		return name, "", nil
 	}
 
-	users, err := fleet.GetEndUsers(ctx, ds, hostID)
+	users, err := automdm.GetEndUsers(ctx, ds, hostID)
 	if err != nil {
 		return "", "", ctxerr.Wrap(ctx, err, "get end users for device name")
 	}
-	var user *fleet.HostEndUser
+	var user *automdm.HostEndUser
 	if len(users) > 0 && users[0].IdpUserName != "" {
 		user = &users[0]
 	}
@@ -302,55 +302,55 @@ func resolveHostNameIDPVars(ctx context.Context, ds fleet.Datastore, name string
 // variable in a template from a single GetEndUsers call. On success it returns the
 // value and the variable's regexp; otherwise ok is false and detail carries the
 // profile-style failure message.
-func resolveHostNameIDPValue(user *fleet.HostEndUser, fleetVar string) (value string, rx *regexp.Regexp, ok bool, detail string) {
-	noGroupsErr := fmt.Sprintf("There are no IdP groups for this host. Fleet couldn't populate $FLEET_VAR_%s.", fleet.FleetVarHostEndUserIDPGroups)
-	noDepartmentErr := fmt.Sprintf("There is no IdP department for this host. Fleet couldn't populate $FLEET_VAR_%s.", fleet.FleetVarHostEndUserIDPDepartment)
-	noFullnameErr := fmt.Sprintf("There is no IdP full name for this host. Fleet couldn't populate $FLEET_VAR_%s.", fleet.FleetVarHostEndUserIDPFullname)
-	noExternalIDErr := fmt.Sprintf("There is no IdP external ID for this host. Fleet couldn't populate $FLEET_VAR_%s.", fleet.FleetVarHostEndUserIDPExternalID)
+func resolveHostNameIDPValue(user *automdm.HostEndUser, automdmVar string) (value string, rx *regexp.Regexp, ok bool, detail string) {
+	noGroupsErr := fmt.Sprintf("There are no IdP groups for this host. AutoMDM couldn't populate $AUTOMDM_VAR_%s.", automdm.AutoMDMVarHostEndUserIDPGroups)
+	noDepartmentErr := fmt.Sprintf("There is no IdP department for this host. AutoMDM couldn't populate $AUTOMDM_VAR_%s.", automdm.AutoMDMVarHostEndUserIDPDepartment)
+	noFullnameErr := fmt.Sprintf("There is no IdP full name for this host. AutoMDM couldn't populate $AUTOMDM_VAR_%s.", automdm.AutoMDMVarHostEndUserIDPFullname)
+	noExternalIDErr := fmt.Sprintf("There is no IdP external ID for this host. AutoMDM couldn't populate $AUTOMDM_VAR_%s.", automdm.AutoMDMVarHostEndUserIDPExternalID)
 
 	if user == nil {
-		switch fleetVar {
-		case string(fleet.FleetVarHostEndUserIDPGroups):
+		switch automdmVar {
+		case string(automdm.AutoMDMVarHostEndUserIDPGroups):
 			return "", nil, false, noGroupsErr
-		case string(fleet.FleetVarHostEndUserIDPDepartment):
+		case string(automdm.AutoMDMVarHostEndUserIDPDepartment):
 			return "", nil, false, noDepartmentErr
-		case string(fleet.FleetVarHostEndUserIDPFullname):
+		case string(automdm.AutoMDMVarHostEndUserIDPFullname):
 			return "", nil, false, noFullnameErr
-		case string(fleet.FleetVarHostEndUserIDPExternalID):
+		case string(automdm.AutoMDMVarHostEndUserIDPExternalID):
 			return "", nil, false, noExternalIDErr
 		default:
-			return "", nil, false, fmt.Sprintf("There is no IdP username for this host. Fleet couldn't populate $FLEET_VAR_%s.", fleetVar)
+			return "", nil, false, fmt.Sprintf("There is no IdP username for this host. AutoMDM couldn't populate $AUTOMDM_VAR_%s.", automdmVar)
 		}
 	}
 
-	switch fleetVar {
-	case string(fleet.FleetVarHostEndUserIDPUsername):
-		return user.IdpUserName, fleet.FleetVarHostEndUserIDPUsernameRegexp, true, ""
-	case string(fleet.FleetVarHostEndUserIDPUsernameLocalPart):
-		return fleet.EmailLocalPart(user.IdpUserName), fleet.FleetVarHostEndUserIDPUsernameLocalPartRegexp, true, ""
-	case string(fleet.FleetVarHostEndUserIDPGroups):
+	switch automdmVar {
+	case string(automdm.AutoMDMVarHostEndUserIDPUsername):
+		return user.IdpUserName, automdm.AutoMDMVarHostEndUserIDPUsernameRegexp, true, ""
+	case string(automdm.AutoMDMVarHostEndUserIDPUsernameLocalPart):
+		return automdm.EmailLocalPart(user.IdpUserName), automdm.AutoMDMVarHostEndUserIDPUsernameLocalPartRegexp, true, ""
+	case string(automdm.AutoMDMVarHostEndUserIDPGroups):
 		if len(user.IdpGroups) == 0 {
 			return "", nil, false, noGroupsErr
 		}
-		return strings.Join(user.IdpGroups, ","), fleet.FleetVarHostEndUserIDPGroupsRegexp, true, ""
-	case string(fleet.FleetVarHostEndUserIDPDepartment):
+		return strings.Join(user.IdpGroups, ","), automdm.AutoMDMVarHostEndUserIDPGroupsRegexp, true, ""
+	case string(automdm.AutoMDMVarHostEndUserIDPDepartment):
 		if user.Department == "" {
 			return "", nil, false, noDepartmentErr
 		}
-		return user.Department, fleet.FleetVarHostEndUserIDPDepartmentRegexp, true, ""
-	case string(fleet.FleetVarHostEndUserIDPFullname):
+		return user.Department, automdm.AutoMDMVarHostEndUserIDPDepartmentRegexp, true, ""
+	case string(automdm.AutoMDMVarHostEndUserIDPFullname):
 		fullName := strings.TrimSpace(user.IdpFullName)
 		if fullName == "" {
 			return "", nil, false, noFullnameErr
 		}
-		return fullName, fleet.FleetVarHostEndUserIDPFullnameRegexp, true, ""
-	case string(fleet.FleetVarHostEndUserIDPExternalID):
+		return fullName, automdm.AutoMDMVarHostEndUserIDPFullnameRegexp, true, ""
+	case string(automdm.AutoMDMVarHostEndUserIDPExternalID):
 		if user.IdpID == "" {
 			return "", nil, false, noExternalIDErr
 		}
-		return user.IdpID, fleet.FleetVarHostEndUserIDPExternalIDRegexp, true, ""
+		return user.IdpID, automdm.AutoMDMVarHostEndUserIDPExternalIDRegexp, true, ""
 	default:
-		return "", nil, false, fmt.Sprintf("Fleet couldn't populate $FLEET_VAR_%s.", fleetVar)
+		return "", nil, false, fmt.Sprintf("AutoMDM couldn't populate $AUTOMDM_VAR_%s.", automdmVar)
 	}
 }
 
@@ -363,12 +363,12 @@ func (svc *Service) reconcileHostDeviceNameReport(ctx context.Context, hostUUID,
 	logDeviceNameRetry(ctx, svc.logger, outcome, "renamed on device", "host_uuid", hostUUID, "reported_name", reportedName)
 }
 
-func logDeviceNameRetry(ctx context.Context, logger *slog.Logger, outcome fleet.DeviceNameRetryOutcome, reason string, attrs ...any) {
+func logDeviceNameRetry(ctx context.Context, logger *slog.Logger, outcome automdm.DeviceNameRetryOutcome, reason string, attrs ...any) {
 	attrs = append(attrs, "reason", reason)
 	switch outcome {
-	case fleet.DeviceNameRetried:
+	case automdm.DeviceNameRetried:
 		logger.DebugContext(ctx, "re-enforcing host name template", attrs...)
-	case fleet.DeviceNameRetriesExhausted:
+	case automdm.DeviceNameRetriesExhausted:
 		logger.DebugContext(ctx, "host name template retries exhausted, marked failed", attrs...)
 	}
 }

@@ -50,7 +50,7 @@ const TargetChipSelector = ({
       disabled={disabled}
       onClick={(e) => onClick(entity)(e)}
     >
-      <Icon name={isSelected ? "check" : "plus"} color="ui-fleet-black-75" />
+      <Icon name={isSelected ? "check" : "plus"} color="ui-automdm-black-75" />
       <span className="selector-name">{displayText()}</span>
     </button>
   );

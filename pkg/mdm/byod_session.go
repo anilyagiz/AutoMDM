@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/WatchBeam/clock"
-	"github.com/fleetdm/fleet/v4/server"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 )
 
 const (
@@ -27,7 +27,7 @@ type BYODIdPSession struct {
 }
 
 // CreateBYODIdPSession returns the opaque id to hand back in the cookie.
-func CreateBYODIdPSession(ctx context.Context, kv fleet.KeyValueStore, clk clock.Clock, idpAccountUUID string) (string, error) {
+func CreateBYODIdPSession(ctx context.Context, kv automdm.KeyValueStore, clk clock.Clock, idpAccountUUID string) (string, error) {
 	if kv == nil {
 		return "", ctxerr.New(ctx, "byod idp session store not configured")
 	}
@@ -51,7 +51,7 @@ func CreateBYODIdPSession(ctx context.Context, kv fleet.KeyValueStore, clk clock
 // ConsumeBYODIdPSession ends a session once the flow it authenticated has
 // completed. The key is overwritten rather than deleted so this works on any
 // store; ValidateBYODIdPSession rejects the expired record until it is dropped.
-func ConsumeBYODIdPSession(ctx context.Context, kv fleet.KeyValueStore, clk clock.Clock, sessionID string) error {
+func ConsumeBYODIdPSession(ctx context.Context, kv automdm.KeyValueStore, clk clock.Clock, sessionID string) error {
 	if kv == nil {
 		return ctxerr.New(ctx, "byod idp session store not configured")
 	}
@@ -67,26 +67,26 @@ func ConsumeBYODIdPSession(ctx context.Context, kv fleet.KeyValueStore, clk cloc
 
 // ValidateBYODIdPSession returns an AuthRequiredError for an unknown or expired
 // session; any other error is the store failing.
-func ValidateBYODIdPSession(ctx context.Context, kv fleet.KeyValueStore, clk clock.Clock, sessionID string) (string, error) {
+func ValidateBYODIdPSession(ctx context.Context, kv automdm.KeyValueStore, clk clock.Clock, sessionID string) (string, error) {
 	if kv == nil {
 		return "", ctxerr.New(ctx, "byod idp session store not configured")
 	}
 	if sessionID == "" {
-		return "", ctxerr.Wrap(ctx, fleet.NewAuthRequiredError("byod idp session not found"))
+		return "", ctxerr.Wrap(ctx, automdm.NewAuthRequiredError("byod idp session not found"))
 	}
 	val, err := kv.Get(ctx, byodIdPSessionKeyPrefix+sessionID)
 	if err != nil {
 		return "", ctxerr.Wrap(ctx, err, "get byod idp session")
 	}
 	if val == nil {
-		return "", ctxerr.Wrap(ctx, fleet.NewAuthRequiredError("byod idp session not found"))
+		return "", ctxerr.Wrap(ctx, automdm.NewAuthRequiredError("byod idp session not found"))
 	}
 	var session BYODIdPSession
 	if err := json.Unmarshal([]byte(*val), &session); err != nil {
 		return "", ctxerr.Wrap(ctx, err, "unmarshal byod idp session")
 	}
 	if !clk.Now().Before(session.ExpiresAt) {
-		return "", ctxerr.Wrap(ctx, fleet.NewAuthRequiredError("byod idp session expired"))
+		return "", ctxerr.Wrap(ctx, automdm.NewAuthRequiredError("byod idp session expired"))
 	}
 	return session.IdPAccountUUID, nil
 }

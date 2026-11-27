@@ -1,6 +1,6 @@
 // Header name for signaling base64-encoded scripts to bypass WAF rules
 // that may block requests containing shell/PowerShell script patterns.
-export const SCRIPTS_ENCODED_HEADER = "X-Fleet-Scripts-Encoded";
+export const SCRIPTS_ENCODED_HEADER = "X-AutoMDM-Scripts-Encoded";
 
 /**
  * Base64 encode a script string with proper UTF-8 handling.

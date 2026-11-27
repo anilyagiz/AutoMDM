@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/mdm/nanodep/client"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanodep/storage"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanodep/tokenpki"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanodep/client"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanodep/storage"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanodep/tokenpki"
 )
 
 // Run runs a battery of tests on the storage.AllStorage returned by storageFn.

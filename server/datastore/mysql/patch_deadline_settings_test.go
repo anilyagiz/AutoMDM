@@ -3,7 +3,7 @@ package mysql
 import (
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/require"
 )
 
@@ -31,20 +31,20 @@ func testPatchDeadlineSettingsGetDefault(t *testing.T, ds *Datastore) {
 	for _, teamID := range []uint{0, 42} {
 		got, err := ds.GetPatchDeadlineSettings(t.Context(), teamID)
 		require.NoError(t, err)
-		require.Equal(t, fleet.DefaultPatchDeadlineSettings(teamID), got)
+		require.Equal(t, automdm.DefaultPatchDeadlineSettings(teamID), got)
 	}
 }
 
 func testPatchDeadlineSettingsSetGet(t *testing.T, ds *Datastore) {
-	require.NoError(t, ds.SetPatchDeadlineSettings(t.Context(), fleet.PatchDeadlineSettings{
+	require.NoError(t, ds.SetPatchDeadlineSettings(t.Context(), automdm.PatchDeadlineSettings{
 		TeamID: 7, Days: []string{"wednesday"}, Time: "09:30",
 	}))
 	got, err := ds.GetPatchDeadlineSettings(t.Context(), 7)
 	require.NoError(t, err)
-	require.Equal(t, &fleet.PatchDeadlineSettings{TeamID: 7, Days: []string{"wednesday"}, Time: "09:30"}, got)
+	require.Equal(t, &automdm.PatchDeadlineSettings{TeamID: 7, Days: []string{"wednesday"}, Time: "09:30"}, got)
 
 	// The SET column returns days in week order regardless of the order written.
-	require.NoError(t, ds.SetPatchDeadlineSettings(t.Context(), fleet.PatchDeadlineSettings{
+	require.NoError(t, ds.SetPatchDeadlineSettings(t.Context(), automdm.PatchDeadlineSettings{
 		TeamID: 7, Days: []string{"friday", "monday"}, Time: "09:30",
 	}))
 	got, err = ds.GetPatchDeadlineSettings(t.Context(), 7)
@@ -53,19 +53,19 @@ func testPatchDeadlineSettingsSetGet(t *testing.T, ds *Datastore) {
 }
 
 func testPatchDeadlineSettingsSetReplaces(t *testing.T, ds *Datastore) {
-	require.NoError(t, ds.SetPatchDeadlineSettings(t.Context(), fleet.PatchDeadlineSettings{
+	require.NoError(t, ds.SetPatchDeadlineSettings(t.Context(), automdm.PatchDeadlineSettings{
 		TeamID: 3, Days: []string{"monday", "tuesday"}, Time: "08:00",
 	}))
-	require.NoError(t, ds.SetPatchDeadlineSettings(t.Context(), fleet.PatchDeadlineSettings{
+	require.NoError(t, ds.SetPatchDeadlineSettings(t.Context(), automdm.PatchDeadlineSettings{
 		TeamID: 3, Days: []string{"sunday"}, Time: "23:59",
 	}))
 	got, err := ds.GetPatchDeadlineSettings(t.Context(), 3)
 	require.NoError(t, err)
-	require.Equal(t, &fleet.PatchDeadlineSettings{TeamID: 3, Days: []string{"sunday"}, Time: "23:59"}, got)
+	require.Equal(t, &automdm.PatchDeadlineSettings{TeamID: 3, Days: []string{"sunday"}, Time: "23:59"}, got)
 }
 
 func testPatchDeadlineSettingsTeamsIndependent(t *testing.T, ds *Datastore) {
-	want := []fleet.PatchDeadlineSettings{
+	want := []automdm.PatchDeadlineSettings{
 		{TeamID: 0, Days: []string{"monday"}, Time: "06:00"},
 		{TeamID: 1, Days: []string{"thursday", "friday"}, Time: "12:15"},
 		{TeamID: 2, Days: []string{"saturday"}, Time: "18:45"},

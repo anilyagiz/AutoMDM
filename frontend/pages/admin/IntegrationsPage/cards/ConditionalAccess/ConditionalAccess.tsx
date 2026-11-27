@@ -43,7 +43,7 @@ const baseClass = "conditional-access";
 const troubleshootLink = (
   <CustomLink
     text="Learn more"
-    url="https://fleetdm.com/guides/entra-conditional-access-integration#troubleshooting"
+    url="https://automdm.com/guides/entra-conditional-access-integration#troubleshooting"
     newTab
     variant="flash-message-link"
   />
@@ -296,7 +296,7 @@ const ConditionalAccess = () => {
         ) {
           notify.error(
             <>
-              Couldn&apos;t connect. Fleet didn&apos;t get permissions for
+              Couldn&apos;t connect. AutoMDM didn&apos;t get permissions for
               Entra. Please try again and accept the permissions.{" "}
               {troubleshootLink}
             </>
@@ -307,18 +307,18 @@ const ConditionalAccess = () => {
         ) {
           notify.error(
             <>
-              Couldn&apos;t connect. Entra didn&apos;t create Fleet&apos;s
-              compliance policy. Have an Entra admin who&apos;s also a Fleet
+              Couldn&apos;t connect. Entra didn&apos;t create AutoMDM&apos;s
+              compliance policy. Have an Entra admin who&apos;s also an AutoMDM
               admin select <b>Connect</b> and approve permissions in one
               session. {troubleshootLink}
             </>
           );
         } else if (
-          setup_error.includes('No "Fleet conditional access" Entra ID group')
+          setup_error.includes('No "AutoMDM conditional access" Entra ID group')
         ) {
           notify.error(
             <>
-              Couldn&apos;t connect. Create a group named &quot;Fleet
+              Couldn&apos;t connect. Create a group named &quot;AutoMDM
               conditional access&quot; in Entra and try again.{" "}
               <CustomLink
                 text="Learn how"
@@ -333,7 +333,7 @@ const ConditionalAccess = () => {
         ) {
           notify.error(
             <>
-              Couldn&apos;t connect. Fleet couldn&apos;t access your Entra
+              Couldn&apos;t connect. AutoMDM couldn&apos;t access your Entra
               tenant. Please try again. {troubleshootLink}
             </>
           );
@@ -344,7 +344,7 @@ const ConditionalAccess = () => {
           //
           // For troubleshooting:
           //  - The API response contains the setup_error.
-          //  - The Fleet server logs the error.
+          //  - The AutoMDM server logs the error.
           //  - The MS proxy stores the error in its database.
           notify.error(
             <>
@@ -513,7 +513,7 @@ const ConditionalAccess = () => {
               key={platform}
               name={platform}
               size="small-medium"
-              color="ui-fleet-black-50"
+              color="ui-automdm-black-50"
             />
           ))}
         </span>
@@ -736,7 +736,7 @@ const ConditionalAccess = () => {
     if (googleStatus?.state === "pending") {
       return (
         <SectionCard header={header} iconName="pending" cta={googleCta}>
-          Fleet is connecting to Google. If this doesn&apos;t change, edit the
+          AutoMDM is connecting to Google. If this doesn&apos;t change, edit the
           settings and save to try again.
         </SectionCard>
       );
@@ -746,7 +746,7 @@ const ConditionalAccess = () => {
     if (googleStatus?.state === "deleted") {
       return (
         <SectionCard header={header} iconName="error" cta={googleCta}>
-          Fleet couldn&apos;t finish deleting Google conditional access. Delete
+          AutoMDM couldn&apos;t finish deleting Google conditional access. Delete
           it again, or edit the settings and save to reconnect.
         </SectionCard>
       );
@@ -755,7 +755,7 @@ const ConditionalAccess = () => {
     return (
       <SectionCard header={header} iconName="error" cta={googleCta}>
         {googleStatus?.error_message ||
-          "Fleet couldn't connect to Google. Edit the settings and try again."}
+          "AutoMDM couldn't connect to Google. Edit the settings and try again."}
       </SectionCard>
     );
   };

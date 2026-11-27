@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/require"
 )
 
@@ -30,12 +30,12 @@ func TestChallenges(t *testing.T) {
 
 func testConsumeChallengeScope(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
-	scope := fleet.ChallengeScope{HostUUID: "host-a", ProfileUUID: "a-profile-1", CAName: "ca-1"}
+	scope := automdm.ChallengeScope{HostUUID: "host-a", ProfileUUID: "a-profile-1", CAName: "ca-1"}
 
 	challenge, err := ds.NewChallenge(ctx, scope)
 	require.NoError(t, err)
 
-	for name, other := range map[string]fleet.ChallengeScope{
+	for name, other := range map[string]automdm.ChallengeScope{
 		"another host":    {HostUUID: "host-b", ProfileUUID: "a-profile-1", CAName: "ca-1"},
 		"another profile": {HostUUID: "host-a", ProfileUUID: "a-profile-2", CAName: "ca-1"},
 		"another CA":      {HostUUID: "host-a", ProfileUUID: "a-profile-1", CAName: "ca-2"},
@@ -60,19 +60,19 @@ func testConsumeChallengeWithoutScope(t *testing.T, ds *Datastore) {
 	_, err := ds.writer(ctx).ExecContext(ctx, `INSERT INTO challenges (challenge) VALUES (?)`, challenge)
 	require.NoError(t, err)
 
-	require.ErrorIs(t, ds.ConsumeChallenge(ctx, challenge, fleet.ChallengeScope{}), sql.ErrNoRows)
-	require.ErrorIs(t, ds.ConsumeChallenge(ctx, challenge, fleet.ChallengeScope{HostUUID: "host-a", ProfileUUID: "a-profile-1"}),
+	require.ErrorIs(t, ds.ConsumeChallenge(ctx, challenge, automdm.ChallengeScope{}), sql.ErrNoRows)
+	require.ErrorIs(t, ds.ConsumeChallenge(ctx, challenge, automdm.ChallengeScope{HostUUID: "host-a", ProfileUUID: "a-profile-1"}),
 		sql.ErrNoRows)
 }
 
 func testConsumeChallengeExpired(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
-	scope := fleet.ChallengeScope{HostUUID: "host-a", ProfileUUID: "a-profile-1", CAName: "ca-1"}
+	scope := automdm.ChallengeScope{HostUUID: "host-a", ProfileUUID: "a-profile-1", CAName: "ca-1"}
 
 	challenge, err := ds.NewChallenge(ctx, scope)
 	require.NoError(t, err)
 	_, err = ds.writer(ctx).ExecContext(ctx, `UPDATE challenges SET created_at = ? WHERE challenge = ?`,
-		time.Now().Add(-2*fleet.OneTimeChallengeTTL), challenge)
+		time.Now().Add(-2*automdm.OneTimeChallengeTTL), challenge)
 	require.NoError(t, err)
 
 	require.ErrorIs(t, ds.ConsumeChallenge(ctx, challenge, scope), sql.ErrNoRows)

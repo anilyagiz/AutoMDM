@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/WatchBeam/clock"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	mockredis "github.com/fleetdm/fleet/v4/server/mock/redis"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	mockredis "github.com/anilyagiz/automdm/v4/server/mock/redis"
 	"github.com/stretchr/testify/require"
 )
 
@@ -30,10 +30,10 @@ func TestBYODIdPSession(t *testing.T) {
 
 	// The reference the client would have sent is not a session id.
 	_, err = ValidateBYODIdPSession(ctx, kv, clk, "idp-account-uuid")
-	require.ErrorAs(t, err, new(*fleet.AuthRequiredError))
+	require.ErrorAs(t, err, new(*automdm.AuthRequiredError))
 
 	_, err = ValidateBYODIdPSession(ctx, kv, clk, "")
-	require.ErrorAs(t, err, new(*fleet.AuthRequiredError))
+	require.ErrorAs(t, err, new(*automdm.AuthRequiredError))
 
 	clk.AddTime(BYODIdPSessionTTL - time.Second)
 	got, err = ValidateBYODIdPSession(ctx, kv, clk, sessionID)
@@ -43,21 +43,21 @@ func TestBYODIdPSession(t *testing.T) {
 	// The expiry instant itself is out; the window is closed, not half-open.
 	clk.AddTime(time.Second)
 	_, err = ValidateBYODIdPSession(ctx, kv, clk, sessionID)
-	require.ErrorAs(t, err, new(*fleet.AuthRequiredError))
+	require.ErrorAs(t, err, new(*automdm.AuthRequiredError))
 
 	// Consuming ends the session immediately, before the store drops the key.
 	sessionID, err = CreateBYODIdPSession(ctx, kv, clk, "idp-account-uuid")
 	require.NoError(t, err)
 	require.NoError(t, ConsumeBYODIdPSession(ctx, kv, clk, sessionID))
 	_, err = ValidateBYODIdPSession(ctx, kv, clk, sessionID)
-	require.ErrorAs(t, err, new(*fleet.AuthRequiredError))
+	require.ErrorAs(t, err, new(*automdm.AuthRequiredError))
 
 	// A missing or failing store is not the user being signed out.
 	_, err = ValidateBYODIdPSession(ctx, nil, clk, sessionID)
 	require.Error(t, err)
-	require.NotErrorAs(t, err, new(*fleet.AuthRequiredError))
+	require.NotErrorAs(t, err, new(*automdm.AuthRequiredError))
 	broken := &mockredis.KeyValueStore{GetFunc: func(context.Context, string) (*string, error) { return nil, errors.New("redis down") }}
 	_, err = ValidateBYODIdPSession(ctx, broken, clk, sessionID)
 	require.ErrorContains(t, err, "redis down")
-	require.NotErrorAs(t, err, new(*fleet.AuthRequiredError))
+	require.NotErrorAs(t, err, new(*automdm.AuthRequiredError))
 }

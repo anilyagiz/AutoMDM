@@ -12,7 +12,7 @@ flowchart LR
 
     subgraph Tunnel_path
         ngrok["ngrok public URL"]
-        LocalApp["Your Fleet server"]
+        LocalApp["Your AutoMDM server"]
     end
 
     Client -->|TLS + Client Cert| Proxy
@@ -25,9 +25,9 @@ flowchart LR
 * You own a domain, e.g. `example.site`, or some domain.
 * You will use a subdomain, e.g. `mtls.example.site` or whatever you choose.
 * You have a **client CA certificate** (root or intermediate) that signs all valid client certificates (e.g. `client-ca.crt`).
-* You have a backend (ngrok URL) that you want to forward to (i.e. `https://my-fleet-server.ngrok.io`).
+* You have a backend (ngrok URL) that you want to forward to (i.e. `https://my-automdm-server.ngrok.io`).
 * You have access to the DigitalOcean or another cloud provider.
-* Replace `example.site` and `my-fleet-server.ngrok.io` in this guide with your own values.
+* Replace `example.site` and `my-automdm-server.ngrok.io` in this guide with your own values.
 
 ---
 
@@ -140,9 +140,9 @@ mtls.example.site {
   }
 
   # Reverse proxy to your ngrok backend
-  reverse_proxy https://my-fleet-server.ngrok.io {
+  reverse_proxy https://my-automdm-server.ngrok.io {
     # Make ngrok happy:
-    header_up Host my-fleet-server.ngrok.io
+    header_up Host my-automdm-server.ngrok.io
 
     # Forward headers for client certificate information
     # Use DER base64 encoding (PEM has newlines which break HTTP headers). Note: AWS ALB sends URL-encoded PEM format in X-Amzn-Mtls-Clientcert-Leaf.
@@ -177,7 +177,7 @@ If things go well, Caddy should:
 * Obtain a TLS certificate for `mtls.example.site` from Let’s Encrypt automatically
 * Accept HTTPS connections at that hostname
 * Require that connecting clients present a valid certificate signed by your CA
-* If the client’s certificate is valid, proxy requests to `https://my-fleet-server.ngrok.io`
+* If the client’s certificate is valid, proxy requests to `https://my-automdm-server.ngrok.io`
 * Forward `X-Client-Cert` header with the PEM of the client’s certificate and `X-Client-Cert-Serial` header with the serial number to the backend
 
 You can test with `curl` from a client that has a valid certificate:
@@ -197,7 +197,7 @@ X-Client-Cert-Issuer: CN=My CA
 
 If you use a certificate not signed by your CA (or no certificate), the handshake should fail (client is rejected).
 
-> **Note for Okta conditional access:** Caddy sends the certificate serial number in **decimal** format (as shown above), while AWS ALB sends it in **hexadecimal** format. If you're using this Caddy setup with Okta conditional access, you must configure Fleet to parse the serial number in decimal format by setting [`conditional_access.cert_serial_format`](https://fleetdm.com/docs/configuration/fleet-server-configuration#conditional-access) to `decimal`.
+> **Note for Okta conditional access:** Caddy sends the certificate serial number in **decimal** format (as shown above), while AWS ALB sends it in **hexadecimal** format. If you're using this Caddy setup with Okta conditional access, you must configure AutoMDM to parse the serial number in decimal format by setting [`conditional_access.cert_serial_format`](https://automdm.com/docs/configuration/automdm-server-configuration#conditional-access) to `decimal`.
 
 ---
 

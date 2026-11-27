@@ -75,8 +75,8 @@ const StatusMessage = ({
         // Expected API message: "A script is already running on this host. Please wait about 1 minute to let it finish."
         return <StatusMessageRunning />;
       }
-      // The API message is fleetctl copy; strip the "Go to Fleet and check
-      // Host details > Activities to see script results." pointer — Fleet
+      // The API message is automdmctl copy; strip the "Go to AutoMDM and check
+      // Host details > Activities to see script results." pointer — AutoMDM
       // gave up at the server timeout, there are no results to go see, and
       // if the host does report back late the result will appear on this
       // same view.
@@ -84,17 +84,17 @@ const StatusMessage = ({
         <StatusMessageError
           message={message
             .replace(
-              /\s*Go to Fleet and check Host details > Activities to see script results\.?/,
+              /\s*Go to AutoMDM and check Host details > Activities to see script results\.?/,
               ""
             )
             .trim()}
         />
       );
     case -2:
-      // Expected API message: "Scripts are disabled for this host. To run scripts, deploy the fleetd agent with scripts enabled."
+      // Expected API message: "Scripts are disabled for this host. To run scripts, deploy the automdmd agent with scripts enabled."
       return <StatusMessageError message={message} />;
     case -1: {
-      // message should look like: "Timeout. Fleet stopped the script after 600 seconds to protect host performance.";
+      // message should look like: "Timeout. AutoMDM stopped the script after 600 seconds to protect host performance.";
       const timeOutValue = message.match(/(\d+\s(?:seconds))/);
 
       // should always be there, but handle cleanly if not
@@ -109,7 +109,7 @@ const StatusMessage = ({
 
       const modMessage = (
         <>
-          Timeout. Fleet stopped the script {varText}to protect host
+          Timeout. AutoMDM stopped the script {varText}to protect host
           performance.
         </>
       );
@@ -147,7 +147,7 @@ const ScriptOutput = ({
           <>
             The{" "}
             <TooltipWrapper
-              tipContent="Fleet records the last 10,000 characters to prevent downtime."
+              tipContent="AutoMDM records the last 10,000 characters to prevent downtime."
               tooltipClass={`${baseClass}__output-tooltip`}
               delayInMs={500}
             >

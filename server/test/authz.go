@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	platform_authz "github.com/fleetdm/fleet/v4/server/platform/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	platform_authz "github.com/anilyagiz/automdm/v4/server/platform/authz"
 	"github.com/stretchr/testify/require"
 )
 
@@ -28,7 +28,7 @@ func RequireErrKind(t *testing.T, want, got error) {
 		require.True(t, platform_authz.IsForbidden(got), "expected a forbidden error, got %v", got)
 	case ErrNotFound:
 		require.Error(t, got)
-		require.True(t, fleet.IsNotFound(got), "expected a not-found error, got %v", got)
+		require.True(t, automdm.IsNotFound(got), "expected a not-found error, got %v", got)
 	default:
 		t.Fatalf("unknown expected-error marker: %v", want)
 	}

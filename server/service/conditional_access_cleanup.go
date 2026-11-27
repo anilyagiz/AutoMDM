@@ -7,8 +7,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 )
 
 // deleteDuplicateOktaSCEPScript is the macOS shell script that removes
@@ -38,7 +38,7 @@ func buildOktaCACleanupScript(username string) (string, bool) {
 	}
 	return fmt.Sprintf("#!/bin/bash\nset -- -y -u %s %s\n%s",
 		shellSingleQuote(username),
-		shellSingleQuote(fleet.ConditionalAccessOktaCertificateCN),
+		shellSingleQuote(automdm.ConditionalAccessOktaCertificateCN),
 		deleteDuplicateOktaSCEPScript,
 	), true
 }
@@ -72,7 +72,7 @@ func (svc *MDMAppleCheckinAndCommandService) maybeRunOktaCACleanupScript(ctx con
 		return nil
 	}
 
-	if _, err := svc.ds.NewInternalHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+	if _, err := svc.ds.NewInternalHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 		HostID:         target.HostID,
 		ScriptContents: script,
 		SyncRequest:    false,

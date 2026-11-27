@@ -11,9 +11,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/fleetdm/fleet/v4/pkg/mdm/profilevalidation"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/pkg/mdm/profilevalidation"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 )
 
 // profileValidationTypeWords maps Apple schema types and Windows DDF formats to
@@ -95,7 +95,7 @@ func profileValidationEditMessage(f profilevalidation.Finding, windows bool) str
 	return "Couldn't edit profile. " + profileValidationSentence(f, windows) + profileValidationUIHint
 }
 
-// profileValidationBatchMessage is the batch endpoint error (GitOps, fleetctl
+// profileValidationBatchMessage is the batch endpoint error (GitOps, automdmctl
 // apply, batch API), naming the failing profile.
 func profileValidationBatchMessage(profileName string, f profilevalidation.Finding, windows bool) string {
 	return fmt.Sprintf("Couldn't edit configuration_profiles. \"%s\": %s To skip validation, set `enable_profile_validation` to false in your GitOps configuration.",
@@ -196,7 +196,7 @@ func (svc *Service) validateProfileSchemaWith(ctx context.Context, schema *profi
 		// The structural checks already accepted the profile. The error isn't
 		// logged because its text can quote profile content.
 		svc.logger.Log(ctx, max(level, slog.LevelInfo), "profile schema validation skipped: profile not readable by validator",
-			"profile_name", name, "fleet_id", teamID)
+			"profile_name", name, "team_id", teamID)
 		return nil
 	}
 	v := schema.Version
@@ -204,13 +204,13 @@ func (svc *Service) validateProfileSchemaWith(ctx context.Context, schema *profi
 		svc.logger.Log(ctx, level, "profile schema validation finding",
 			"code", f.Code, "payload_type", f.PayloadType, "key_path", f.KeyPath,
 			"expected", f.Expected, "actual", f.Actual,
-			"profile_name", name, "fleet_id", teamID, "strict", mode == profilevalidation.ModeStrict,
+			"profile_name", name, "team_id", teamID, "strict", mode == profilevalidation.ModeStrict,
 			"apple_release", v.Apple.Release, "windows_release", v.Windows.Release)
 	}
 	if len(findings) > maxLoggedProfileFindings {
 		svc.logger.Log(ctx, level, "profile schema validation findings not logged",
 			"not_logged", len(findings)-maxLoggedProfileFindings, "total", len(findings),
-			"profile_name", name, "fleet_id", teamID, "strict", mode == profilevalidation.ModeStrict)
+			"profile_name", name, "team_id", teamID, "strict", mode == profilevalidation.ModeStrict)
 	}
 	if len(findings) == 0 {
 		return nil
@@ -229,7 +229,7 @@ func profileValidationUserError(err error, edit bool) error {
 	if edit {
 		msg = profileValidationEditMessage(pvErr.findings[0], pvErr.windows)
 	}
-	return fleet.NewInvalidArgumentError("profile", msg)
+	return automdm.NewInvalidArgumentError("profile", msg)
 }
 
 // validateBatchProfileSchemas runs lenient validation over a batch's new or
@@ -238,19 +238,19 @@ func profileValidationUserError(err error, edit bool) error {
 // is validated secret-expanded and compared unexpanded.
 func (svc *Service) validateBatchProfileSchemas(
 	ctx context.Context,
-	appCfg *fleet.AppConfig,
+	appCfg *automdm.AppConfig,
 	teamID uint,
-	expanded map[int]fleet.MDMProfileBatchPayload,
-	raw []fleet.MDMProfileBatchPayload,
-	appleProfiles map[int]*fleet.MDMAppleConfigProfile,
-	appleDecls map[int]*fleet.MDMAppleDeclaration,
-	windowsProfiles map[int]*fleet.MDMWindowsConfigProfile,
+	expanded map[int]automdm.MDMProfileBatchPayload,
+	raw []automdm.MDMProfileBatchPayload,
+	appleProfiles map[int]*automdm.MDMAppleConfigProfile,
+	appleDecls map[int]*automdm.MDMAppleDeclaration,
+	windowsProfiles map[int]*automdm.MDMWindowsConfigProfile,
 ) error {
 	if !appCfg.MDM.EnableProfileValidation {
 		return nil
 	}
 	// Only new or changed content is validated, compared unexpanded against what
-	// the fleet stores, matched the way the datastore matches on save.
+	// the team stores, matched the way the datastore matches on save.
 	stored, err := svc.ds.GetMDMProfileChecksums(ctx, teamID)
 	if err != nil {
 		return ctxerr.Wrap(ctx, err, "get stored profile checksums")
@@ -286,8 +286,8 @@ func (svc *Service) validateBatchProfileSchemas(
 		}
 		if pvErr, ok := errors.AsType[*profileValidationError](err); ok {
 			// "profiles" rather than the profile's name: the message already names it,
-			// and fleetctl would prefix a matching name again
-			return fleet.NewInvalidArgumentError("profiles", profileValidationBatchMessage(name, pvErr.findings[0], pvErr.windows))
+			// and automdmctl would prefix a matching name again
+			return automdm.NewInvalidArgumentError("profiles", profileValidationBatchMessage(name, pvErr.findings[0], pvErr.windows))
 		}
 		if err != nil {
 			return err

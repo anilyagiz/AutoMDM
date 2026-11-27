@@ -8,7 +8,7 @@ interface IRefresh {
   size?: IconSizes;
 }
 
-const Run = ({ color = "ui-fleet-black-75", size = "medium" }: IRefresh) => {
+const Run = ({ color = "ui-automdm-black-75", size = "medium" }: IRefresh) => {
   return (
     <svg
       width={ICON_SIZES[size]}

@@ -63,7 +63,7 @@ const RenewAbmModal = ({
         <p>
           Follow the step-by-step guide to renew.{" "}
           <CustomLink
-            url="https://fleetdm.com/learn-more-about/renew-abm"
+            url="https://automdm.com/learn-more-about/renew-abm"
             text="Learn how"
             newTab
           />

@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	maintained_apps "github.com/fleetdm/fleet/v4/ee/maintained-apps"
+	maintained_apps "github.com/anilyagiz/automdm/v4/ee/maintained-apps"
 )
 
 // makeVersionShortener returns a manifest enricher that truncates the
@@ -65,7 +65,7 @@ var (
 
 // Apps whose CFBundleVersion is the full cask version. Their patched queries
 // compare bundle_version against the unshortened cask version (see the
-// homebrew ingester), so the shortened version only changes what Fleet shows.
+// homebrew ingester), so the shortened version only changes what AutoMDM shows.
 var (
 	OpenMediaVersionShortener               = makeVersionShortener(2) // 4K apps: "26.3.5" → "26.3"
 	GoogleEarthProVersionShortener          = makeVersionShortener(2) // "7.3.7.1327" → "7.3"
@@ -179,7 +179,7 @@ func SmallstepAgentVersionTransformer(app *maintained_apps.FMAManifestApp) (*mai
 // RaspberryPiImagerVersionTransformer prepends "v" to match what macOS reports as
 // bundle_short_version for Raspberry Pi Imager (e.g. "2.0.11.1" → "v2.0.11.1"; the
 // app's CFBundleShortVersionString carries the upstream GitHub release tag's "v"
-// prefix). Without this, Fleet Desktop's own "update available" check treats the
+// prefix). Without this, AutoMDM Desktop's own "update available" check treats the
 // "v" prefix as making the installed version older, showing a phantom update.
 func RaspberryPiImagerVersionTransformer(app *maintained_apps.FMAManifestApp) (*maintained_apps.FMAManifestApp, error) {
 	if app.Version == "" {

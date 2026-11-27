@@ -94,7 +94,7 @@ const PREMIUM_ONLY_TYPE_KEYS = new Set(
   SOFTWARE_TYPES.filter((t) => t.premiumOnly).map((t) => t.key)
 );
 
-/** Drops filters the API rejects on Fleet Free, which a URL copied from a
+/** Drops filters the API rejects on AutoMDM Free, which a URL copied from a
  * Premium server can still carry. */
 export const removePremiumOnlyFilters = (
   filters: ISoftwareFilters

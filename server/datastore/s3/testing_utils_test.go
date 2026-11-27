@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/config"
 	"github.com/stretchr/testify/require"
 )
 
@@ -20,7 +20,7 @@ const (
 )
 
 var testEndpoint = func() string {
-	if port := os.Getenv("FLEET_S3_PORT"); port != "" {
+	if port := os.Getenv("AUTOMDM_S3_PORT"); port != "" {
 		return "http://localhost:" + port
 	}
 	return "http://localhost:9000"

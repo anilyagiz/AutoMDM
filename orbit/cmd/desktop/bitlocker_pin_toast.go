@@ -8,13 +8,13 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/toast"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/toast"
 	"github.com/rs/zerolog/log"
 )
 
 const (
 	bitLockerPINToastTag   = "bitlocker-pin"
-	bitLockerPINToastGroup = "fleet-desktop"
+	bitLockerPINToastGroup = "automdm-desktop"
 	// createPINQuery is what tells the My device page to open the Create PIN modal.
 	createPINQuery = "?create_pin=1"
 	// bitLockerPINToastLifetime clears an ignored toast from Notification Center before its link stops working.
@@ -25,9 +25,9 @@ const (
 	bitLockerPINToastButton = "Create PIN"
 )
 
-// bitLockerPINToast asks the end user, through a Windows toast, to create the BitLocker startup PIN their fleet requires.
+// bitLockerPINToast asks the end user, through a Windows toast, to create the BitLocker startup PIN their team requires.
 // It pops up once per Windows login, and later posts only keep the Notification Center copy's link current. Orbit also
-// restarts Fleet Desktop within a login, so a per-user marker file records the login that last saw the popup. Failures are
+// restarts AutoMDM Desktop within a login, so a per-user marker file records the login that last saw the popup. Failures are
 // logged and swallowed, because the My device banner remains.
 type bitLockerPINToast struct {
 	show   func(toast.Notification) error
@@ -62,7 +62,7 @@ func newBitLockerPINToast(markerPath, loginID string) *bitLockerPINToast {
 	return t
 }
 
-// submit reconciles the toast with a Fleet Desktop summary in the background, because PowerShell can take seconds to start.
+// submit reconciles the toast with an AutoMDM Desktop summary in the background, because PowerShell can take seconds to start.
 // Waiting for the lock does not preserve order, so an update that gets it after a newer summary was submitted is dropped.
 func (t *bitLockerPINToast) submit(needsPIN bool, deviceURL string) {
 	seq := t.submitted.Add(1)

@@ -42,7 +42,7 @@ func (i BugIssue) ProductGroup() string {
 var bugsAverageOpenCmd = &cobra.Command{
 	Use:   "average-open-days",
 	Short: "Calculate the average number of days bugs are open",
-	Long: `Calculate the average number of days bugs are open for the fleetdm/fleet repository.
+	Long: `Calculate the average number of days bugs are open for the automdm/automdm repository.
 
 This command fetches all open issues with the "bug" label and calculates
 the average number of days they have been open.
@@ -63,7 +63,7 @@ Usage:
 
 		// Fetch all open bugs using gh CLI
 		if verbose {
-			fmt.Println("Fetching open bugs from fleetdm/fleet...")
+			fmt.Println("Fetching open bugs from automdm/automdm...")
 		}
 
 		bugs, err := fetchOpenBugs(limit)
@@ -174,7 +174,7 @@ Usage:
 	},
 }
 
-// fetchOpenBugs fetches all open issues with the "bug" label from fleetdm/fleet
+// fetchOpenBugs fetches all open issues with the "bug" label from automdm/automdm
 func fetchOpenBugs(limit int) ([]BugIssue, error) {
 	if limit <= 0 {
 		limit = 1000 // Default high limit to get all bugs
@@ -183,7 +183,7 @@ func fetchOpenBugs(limit int) ([]BugIssue, error) {
 	// Use gh CLI to fetch open issues with bug label
 	// The gh CLI handles pagination internally with --limit
 	command := fmt.Sprintf(
-		"gh issue list --repo fleetdm/fleet --state open --label bug --json number,title,createdAt,milestone,labels --limit %d",
+		"gh issue list --repo automdm/automdm --state open --label bug --json number,title,createdAt,milestone,labels --limit %d",
 		limit,
 	)
 

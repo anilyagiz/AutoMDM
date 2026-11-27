@@ -54,16 +54,16 @@ describe("TransferHostModal", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows Add a fleet link when user is global admin", () => {
+  it("shows Add a team link when user is global admin", () => {
     setup({ isGlobalAdmin: true });
 
-    expect(screen.getByText(/Add a fleet/i)).toBeInTheDocument();
+    expect(screen.getByText(/Add an automdm/i)).toBeInTheDocument();
   });
 
-  it("does not show Add a fleet link when not global admin", () => {
+  it("does not show Add a team link when not global admin", () => {
     setup({ isGlobalAdmin: false });
 
-    expect(screen.queryByText(/Add a fleet/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Add an automdm/i)).not.toBeInTheDocument();
   });
 
   it("disables Transfer button until a team is selected", () => {
@@ -73,10 +73,10 @@ describe("TransferHostModal", () => {
     expect(transferButton).toBeDisabled();
   });
 
-  it("filters out current host team from dropdown options and includes No fleet when allowed", async () => {
+  it("filters out current host team from dropdown options and includes No team when allowed", async () => {
     const { user } = setup({ hostsTeamId: 1 });
 
-    const dropdown = screen.getByText(/Select a fleet/i);
+    const dropdown = screen.getByText(/Select an automdm/i);
 
     await user.click(dropdown);
 
@@ -85,10 +85,10 @@ describe("TransferHostModal", () => {
     expect(screen.queryByText("Team Alpha")).not.toBeInTheDocument();
   });
 
-  it("does not allow transferring to No fleet again when host is already on no team", async () => {
+  it("does not allow transferring to No team again when host is already on no team", async () => {
     const { user } = setup({ hostsTeamId: 0 });
 
-    const dropdown = screen.getByText(/Select a fleet/i);
+    const dropdown = screen.getByText(/Select an automdm/i);
     await user.click(dropdown);
 
     expect(screen.queryByText("Unassigned")).not.toBeInTheDocument();
@@ -96,7 +96,7 @@ describe("TransferHostModal", () => {
     expect(screen.getByText("Team Beta")).toBeInTheDocument();
   });
 
-  it("lists fleets alphabetically, ignoring case, with Unassigned last", async () => {
+  it("lists teams alphabetically, ignoring case, with Unassigned last", async () => {
     const { user } = setup({
       teams: [
         { id: 1, name: "Zeta" },
@@ -107,7 +107,7 @@ describe("TransferHostModal", () => {
       hostsTeamId: 4,
     });
 
-    await user.click(screen.getByText(/Select a fleet/i));
+    await user.click(screen.getByText(/Select an automdm/i));
 
     const options = await screen.findAllByTestId("dropdown-option");
     expect(options.map((option) => option.textContent)).toEqual([
@@ -121,7 +121,7 @@ describe("TransferHostModal", () => {
   it("enables Transfer after selecting a team and calls onSubmit with selected team", async () => {
     const { user, onSubmit } = setup({ hostsTeamId: 1 });
 
-    const dropdown = screen.getByText(/Select a fleet/i);
+    const dropdown = screen.getByText(/Select an automdm/i);
 
     // Custom dropdown path: open then click an option
     await user.click(dropdown);
@@ -135,10 +135,10 @@ describe("TransferHostModal", () => {
     expect(onSubmit).toHaveBeenCalledTimes(1);
   });
 
-  it("supports selecting No fleet and passes through the no-team object shape", async () => {
+  it("supports selecting No team and passes through the no-team object shape", async () => {
     const { user, onSubmit } = setup({ hostsTeamId: 1 });
 
-    const dropdown = screen.getByText(/Select a fleet/i);
+    const dropdown = screen.getByText(/Select an automdm/i);
     await user.click(dropdown);
     const options = await screen.findAllByTestId("dropdown-option");
     const noTeamOption = options.find((el) =>

@@ -7,7 +7,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/token"
+	"github.com/anilyagiz/automdm/v4/server/contexts/token"
 	"github.com/igm/sockjs-go/v3/sockjs"
 )
 
@@ -30,7 +30,7 @@ type JSONMessage struct {
 }
 
 // Conn is a wrapper for a standard websocket connection with utility methods
-// added for interacting with Fleet specific message types.
+// added for interacting with AutoMDM specific message types.
 type Conn struct {
 	sockjs.Session
 }
@@ -86,7 +86,7 @@ func (c *Conn) ReadJSONMessage() (*JSONMessage, error) {
 	return msg, nil
 }
 
-// authData defines the data used to authenticate a Fleet frontend client over
+// authData defines the data used to authenticate an AutoMDM frontend client over
 // a websocket connection.
 type authData struct {
 	Token token.Token `json:"token"`

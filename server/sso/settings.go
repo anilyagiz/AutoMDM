@@ -7,15 +7,15 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/crewjam/saml"
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/fleet"
 )
 
 // GetMetadata returns the parsed IdP metadata from the config.MetadataURL or config.Metadata.
 // If config.MetadataURL is set, then it's used to request the metadata.
 // If config.MetadataURL is not set, then config.Metadata is used.
-func GetMetadata(config *fleet.SSOProviderSettings) (*saml.EntityDescriptor, error) {
+func GetMetadata(config *automdm.SSOProviderSettings) (*saml.EntityDescriptor, error) {
 	if config.MetadataURL == "" && config.Metadata == "" {
 		return nil, fmt.Errorf("missing metadata for idp %q", config.IDPName)
 	}
@@ -35,7 +35,7 @@ func GetMetadata(config *fleet.SSOProviderSettings) (*saml.EntityDescriptor, err
 }
 
 func getMetadata(metadataURL string) ([]byte, error) {
-	client := fleethttp.NewClient(fleethttp.WithTimeout(5 * time.Second))
+	client := automdmhttp.NewClient(automdmhttp.WithTimeout(5 * time.Second))
 	request, err := http.NewRequest(http.MethodGet, metadataURL, nil)
 	if err != nil {
 		return nil, err

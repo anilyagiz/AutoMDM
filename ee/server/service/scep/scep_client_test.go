@@ -14,10 +14,10 @@ import (
 	"time"
 
 	"github.com/WatchBeam/clock"
-	"github.com/fleetdm/fleet/v4/ee/server/service/scep/sceptest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/scep/enrollment"
-	"github.com/fleetdm/fleet/v4/server/mdm/scep/x509util"
+	"github.com/anilyagiz/automdm/v4/ee/server/service/scep/sceptest"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/scep/enrollment"
+	"github.com/anilyagiz/automdm/v4/server/mdm/scep/x509util"
 	smallstepscep "github.com/smallstep/scep"
 	"github.com/stretchr/testify/require"
 )
@@ -73,7 +73,7 @@ func TestEnrollmentClientGetCertificate(t *testing.T) {
 			t.Run(name, func(t *testing.T) {
 				_, err := newClient().GetCertificate(t.Context(), tc.url, csr)
 				require.ErrorContains(t, err, tc.wantMessage)
-				transient, ok := errors.AsType[fleet.CertificateAuthorityTransientError](err)
+				transient, ok := errors.AsType[automdm.CertificateAuthorityTransientError](err)
 				require.Equal(t, tc.wantTransient, ok)
 				if ok {
 					require.Equal(t, enrollmentRetryAfterSeconds, transient.RetryAfterSeconds)

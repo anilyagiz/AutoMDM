@@ -4,11 +4,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	microsoft_mdm "github.com/fleetdm/fleet/v4/server/mdm/microsoft"
-	"github.com/fleetdm/fleet/v4/server/platform/logging/testutils"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	microsoft_mdm "github.com/anilyagiz/automdm/v4/server/mdm/microsoft"
+	"github.com/anilyagiz/automdm/v4/server/platform/logging/testutils"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,11 +17,11 @@ import (
 // enrollWindowsHostInMDMForTest inserts a Windows MDM enrollment for the host and mirrors what osquery's
 // directIngestMDMWindows does (host_mdm.enrolled = 1 once the device's registry confirms MDM enrollment), making the
 // host eligible for the Windows profile reconcilers. Returns the enrolled device row, reloaded so its ID is set.
-func enrollWindowsHostInMDMForTest(t *testing.T, ds fleet.Datastore, host *fleet.Host) *fleet.MDMWindowsEnrolledDevice {
+func enrollWindowsHostInMDMForTest(t *testing.T, ds automdm.Datastore, host *automdm.Host) *automdm.MDMWindowsEnrolledDevice {
 	t.Helper()
 	ctx := t.Context()
 
-	dev := &fleet.MDMWindowsEnrolledDevice{
+	dev := &automdm.MDMWindowsEnrolledDevice{
 		MDMDeviceID:            uuid.New().String(),
 		MDMHardwareID:          uuid.New().String() + uuid.New().String(),
 		MDMDeviceState:         microsoft_mdm.MDMDeviceStateEnrolled,
@@ -35,7 +35,7 @@ func enrollWindowsHostInMDMForTest(t *testing.T, ds fleet.Datastore, host *fleet
 	}
 	require.NoError(t, ds.MDMWindowsInsertEnrolledDevice(ctx, dev))
 	require.NoError(t, ds.SetOrUpdateMDMData(ctx, host.ID, false, true,
-		"https://example.com", false, fleet.WellKnownMDMFleet, "", fleet.PersonalEnrollmentTypeNone))
+		"https://example.com", false, automdm.WellKnownMDMAutoMDM, "", automdm.PersonalEnrollmentTypeNone))
 
 	dev, err := ds.MDMWindowsGetEnrolledDeviceWithDeviceID(ctx, dev.MDMDeviceID)
 	require.NoError(t, err)
@@ -58,7 +58,7 @@ func TestReconcileWindowsProfilesAfterTeamAddDeferred(t *testing.T) {
 	appCfg.MDM.WindowsEnabledAndConfigured = true
 	require.NoError(t, ds.SaveAppConfig(ctx, appCfg))
 
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "deferred-recon-after-team-add"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "deferred-recon-after-team-add"})
 	require.NoError(t, err)
 	profileUUID := mysqltest.InsertWindowsProfileForTest(t, ds, team.ID)
 
@@ -82,7 +82,7 @@ func TestReconcileWindowsProfilesAfterTeamAddDeferred(t *testing.T) {
 	// Sanity: the snapshot+compute path must surface the host+profile pair, otherwise the cron has nothing to dispatch.
 	hosts, allProfiles, hostLabels, currentByHost, err := ds.GetWindowsProfileReconcileSnapshot(ctx, "", 10_000)
 	require.NoError(t, err)
-	profilesByTeam := make(map[uint][]*fleet.WindowsProfileForReconcile)
+	profilesByTeam := make(map[uint][]*automdm.WindowsProfileForReconcile)
 	profilesWithBrokenLabels := make(map[string]struct{})
 	for _, p := range allProfiles {
 		profilesByTeam[p.TeamID] = append(profilesByTeam[p.TeamID], p)
@@ -108,7 +108,7 @@ func TestReconcileWindowsProfilesAfterTeamAddDeferred(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, rowsAfter, 1, "cron must enqueue the team's Windows profile for the new host")
 	assert.Equal(t, profileUUID, rowsAfter[0].ProfileUUID)
-	assert.Equal(t, fleet.MDMOperationTypeInstall, rowsAfter[0].OperationType)
+	assert.Equal(t, automdm.MDMOperationTypeInstall, rowsAfter[0].OperationType)
 }
 
 // TestReconcileWindowsProfilesForEnrollingHost is the real-DB seam test for the per-host path: a freshly enrolled
@@ -124,7 +124,7 @@ func TestReconcileWindowsProfilesForEnrollingHost(t *testing.T) {
 	appCfg.MDM.WindowsEnabledAndConfigured = true
 	require.NoError(t, ds.SaveAppConfig(ctx, appCfg))
 
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "per-host-recon-enroll"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "per-host-recon-enroll"})
 	require.NoError(t, err)
 	profileUUID := mysqltest.InsertWindowsProfileForTest(t, ds, team.ID)
 
@@ -146,9 +146,9 @@ func TestReconcileWindowsProfilesForEnrollingHost(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, rows, 1, "per-host reconcile must queue the team's Windows profile at enrollment")
 	assert.Equal(t, profileUUID, rows[0].ProfileUUID)
-	assert.Equal(t, fleet.MDMOperationTypeInstall, rows[0].OperationType)
+	assert.Equal(t, automdm.MDMOperationTypeInstall, rows[0].OperationType)
 	require.NotNil(t, rows[0].Status)
-	assert.Equal(t, fleet.MDMDeliveryPending, *rows[0].Status)
+	assert.Equal(t, automdm.MDMDeliveryPending, *rows[0].Status)
 
 	cmds, err := ds.MDMWindowsGetPendingCommands(ctx, dev.ID)
 	require.NoError(t, err)

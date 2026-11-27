@@ -4,11 +4,11 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
 type idPAccountGetter interface {
-	GetMDMIdPAccountByUUID(ctx context.Context, uuid string) (*fleet.MDMIdPAccount, error)
+	GetMDMIdPAccountByUUID(ctx context.Context, uuid string) (*automdm.MDMIdPAccount, error)
 }
 
 // LogHostIdPAccountLinkChange records a change of the host's IdP account link
@@ -17,7 +17,7 @@ type idPAccountGetter interface {
 func LogHostIdPAccountLinkChange(
 	ctx context.Context,
 	ds idPAccountGetter,
-	newActivity fleet.NewActivityFunc,
+	newActivity automdm.NewActivityFunc,
 	logger *slog.Logger,
 	hostUUID, previousAcctUUID, acctUUID string,
 ) {
@@ -36,14 +36,14 @@ func LogHostIdPAccountLinkChange(
 		return
 	}
 
-	var act fleet.ActivityDetails
+	var act automdm.ActivityDetails
 	if acctUUID == "" {
-		act = fleet.ActivityTypeUnboundHostFromIdPAccount{
+		act = automdm.ActivityTypeUnboundHostFromIdPAccount{
 			HostUUID: hostUUID,
 			IdPEmail: email,
 		}
 	} else {
-		act = fleet.ActivityTypeBoundHostToIdPAccount{
+		act = automdm.ActivityTypeBoundHostToIdPAccount{
 			HostUUID:         hostUUID,
 			IdPEmail:         email,
 			ReplacedIdPEmail: IdPAccountEmailForActivity(ctx, ds, logger, previousAcctUUID),
@@ -66,7 +66,7 @@ func IdPAccountEmailForActivity(ctx context.Context, ds idPAccountGetter, logger
 	switch {
 	case err == nil && acct != nil:
 		return acct.Email
-	case err != nil && !fleet.IsNotFound(err):
+	case err != nil && !automdm.IsNotFound(err):
 		logger.ErrorContext(ctx, "get idp account for link activity",
 			"err", err, "account_uuid", acctUUID)
 	}

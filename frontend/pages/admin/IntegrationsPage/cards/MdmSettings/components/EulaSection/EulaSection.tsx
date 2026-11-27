@@ -96,7 +96,7 @@ const EulaSection = ({ eulas }: IEulaSectionProps) => {
           <>
             Require end users to agree to terms during initial setup.{" "}
             <CustomLink
-              url="https://fleetdm.com/learn-more-about/end-user-license-agreement"
+              url="https://automdm.com/learn-more-about/end-user-license-agreement"
               text="Learn more"
               newTab
             />

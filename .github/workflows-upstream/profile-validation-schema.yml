@@ -34,7 +34,7 @@ jobs:
         with:
           egress-policy: audit
 
-      - name: Checkout Fleet
+      - name: Checkout AutoMDM
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -89,7 +89,7 @@ jobs:
         with:
           egress-policy: audit
 
-      - name: Checkout Fleet
+      - name: Checkout AutoMDM
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: main
@@ -121,8 +121,8 @@ jobs:
       - name: Create or update pull request
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
-          # A PAT, not GITHUB_TOKEN, so CI runs on the PR; fleet-release PRs skip the PR template check.
-          token: ${{ secrets.FLEET_RELEASE_GITHUB_PAT }}
+          # A PAT, not GITHUB_TOKEN, so CI runs on the PR; automdm-release PRs skip the PR template check.
+          token: ${{ secrets.AUTOMDM_RELEASE_GITHUB_PAT }}
           base: main
           branch: profile-validation-schema-update
           delete-branch: true

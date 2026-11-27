@@ -1,20 +1,20 @@
 locals {
   customer_free = "${local.customer}-free"
   extra_environment_variables_free = {
-    FLEET_LOGGING_DEBUG                        = "true"
-    FLEET_LOGGING_JSON                         = "true"
-    FLEET_MYSQL_MAX_OPEN_CONNS                 = "25"
-    FLEET_MYSQL_CONN_MAX_LIFETIME              = "14400"
-    FLEET_MYSQL_READ_REPLICA_CONN_MAX_LIFETIME = "14400"
-    FLEET_VULNERABILITIES_DATABASES_PATH       = "/home/fleet"
-    FLEET_SERVER_GZIP_RESPONSES                = "true"
+    AUTOMDM_LOGGING_DEBUG                        = "true"
+    AUTOMDM_LOGGING_JSON                         = "true"
+    AUTOMDM_MYSQL_MAX_OPEN_CONNS                 = "25"
+    AUTOMDM_MYSQL_CONN_MAX_LIFETIME              = "14400"
+    AUTOMDM_MYSQL_READ_REPLICA_CONN_MAX_LIFETIME = "14400"
+    AUTOMDM_VULNERABILITIES_DATABASES_PATH       = "/home/automdm"
+    AUTOMDM_SERVER_GZIP_RESPONSES                = "true"
 
 
     # Load TLS Certificate for RDS Authentication
-    FLEET_MYSQL_TLS_CA                  = local.cert_path
-    FLEET_MYSQL_READ_REPLICA_TLS_CA     = local.cert_path
-    FLEET_MYSQL_READ_REPLICA_TLS_CONFIG = "custom"
-    FLEET_ENABLE_LOG_TOPICS             = "deprecated-field-names"
+    AUTOMDM_MYSQL_TLS_CA                  = local.cert_path
+    AUTOMDM_MYSQL_READ_REPLICA_TLS_CA     = local.cert_path
+    AUTOMDM_MYSQL_READ_REPLICA_TLS_CONFIG = "custom"
+    AUTOMDM_ENABLE_LOG_TOPICS             = "deprecated-field-names"
   }
 
   /* 
@@ -121,7 +121,7 @@ module "free" {
       retention_in_days = 365
     }
   }
-  fleet_config = {
+  automdm_config = {
     image               = local.geolite2_image
     family              = local.customer_free
     security_group_name = local.customer_free
@@ -145,9 +145,9 @@ module "free" {
         policy_name = "${local.customer_free}-iam-policy-execution"
       }
     }
-    extra_iam_policies          = module.ses-free.fleet_extra_iam_policies
-    extra_environment_variables = merge(module.ses-free.fleet_extra_environment_variables, local.extra_environment_variables_free, module.geolite2.extra_environment_variables)
-    private_key_secret_name     = "${local.customer_free}-fleet-server-private-key"
+    extra_iam_policies          = module.ses-free.automdm_extra_iam_policies
+    extra_environment_variables = merge(module.ses-free.automdm_extra_environment_variables, local.extra_environment_variables_free, module.geolite2.extra_environment_variables)
+    private_key_secret_name     = "${local.customer_free}-automdm-server-private-key"
     volumes = [
       {
         name = "rds-tls-certs"

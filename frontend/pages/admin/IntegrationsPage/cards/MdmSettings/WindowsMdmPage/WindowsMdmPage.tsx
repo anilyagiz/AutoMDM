@@ -21,13 +21,13 @@ import { getErrorMessage } from "./helpers";
 
 const baseClass = "windows-mdm-page";
 
-const UNASSIGNED_FLEET = "";
+const UNASSIGNED_TEAM = "";
 
 interface ISetWindowsMdmOptions {
   enableMdm: boolean;
   enableAutoMigration: boolean;
   turnOnProgrammatically: boolean;
-  defaultFleet: string;
+  defaultAutoMDM: string;
   router: InjectedRouter;
 }
 
@@ -35,7 +35,7 @@ const useSetWindowsMdm = ({
   enableMdm,
   enableAutoMigration,
   turnOnProgrammatically,
-  defaultFleet,
+  defaultAutoMDM,
   router,
 }: ISetWindowsMdmOptions) => {
   const { setConfig, isPremiumTier } = useContext(AppContext);
@@ -51,9 +51,9 @@ const useSetWindowsMdm = ({
           // derive the value to avoid re-saving a stale "enabled" state.
           windows_mdm_migration_enabled:
             enableMdm && turnOnProgrammatically && enableAutoMigration,
-          // The default fleet for user-driven enrollment is Premium only; the backend rejects it otherwise.
+          // The default team for user-driven enrollment is Premium only; the backend rejects it otherwise.
           ...(isPremiumTier && {
-            windows_automatic_enrollment: { default_fleet: defaultFleet },
+            windows_automatic_enrollment: { default_team: defaultAutoMDM },
           }),
         },
         true
@@ -85,8 +85,8 @@ const WindowsMdmPage = ({ router }: IWindowsMdmPageProps) => {
   const [turnOnProgrammatically, setTurnOnProgrammatically] = useState(
     !(config?.mdm?.enable_turn_on_windows_mdm_manually ?? false)
   );
-  const [defaultFleet, setDefaultFleet] = useState(
-    config?.mdm?.windows_automatic_enrollment?.default_fleet ?? UNASSIGNED_FLEET
+  const [defaultAutoMDM, setDefaultTeam] = useState(
+    config?.mdm?.windows_automatic_enrollment?.default_team ?? UNASSIGNED_TEAM
   );
 
   const isConnectedToEntra = !!config?.mdm?.windows_entra_tenant_ids?.length;
@@ -95,7 +95,7 @@ const WindowsMdmPage = ({ router }: IWindowsMdmPageProps) => {
     enableMdm: mdmOn,
     enableAutoMigration: autoMigration,
     turnOnProgrammatically,
-    defaultFleet,
+    defaultAutoMDM,
     router,
   });
 
@@ -115,35 +115,35 @@ const WindowsMdmPage = ({ router }: IWindowsMdmPageProps) => {
     setAutoMigration(!autoMigration);
   };
 
-  const onChangeDefaultFleet = (option: SingleValue<CustomOptionType>) => {
-    setDefaultFleet(option?.value ?? UNASSIGNED_FLEET);
+  const onChangeDefaultTeam = (option: SingleValue<CustomOptionType>) => {
+    setDefaultTeam(option?.value ?? UNASSIGNED_TEAM);
   };
 
   const onSaveMdm = () => {
     updateWindowsMdm();
   };
 
-  const fleetOptions: CustomOptionType[] = [
-    { label: "Unassigned", value: UNASSIGNED_FLEET },
+  const automdmOptions: CustomOptionType[] = [
+    { label: "Unassigned", value: UNASSIGNED_TEAM },
     ...(availableTeams ?? [])
       .filter((t) => t.id > 0)
       .map((t) => ({ label: t.name, value: t.name })),
   ];
 
-  const defaultFleetDropdown = (
+  const defaultTeamDropdown = (
     <DropdownWrapper
-      name="default-fleet"
-      label="Default fleet"
-      ariaLabel="Default fleet"
-      labelClassname={`${baseClass}__default-fleet-label`}
-      options={fleetOptions}
-      value={defaultFleet}
-      onChange={onChangeDefaultFleet}
+      name="default-team"
+      label="Default team"
+      ariaLabel="Default team"
+      labelClassname={`${baseClass}__default-team-label`}
+      options={automdmOptions}
+      value={defaultAutoMDM}
+      onChange={onChangeDefaultTeam}
       isDisabled={!mdmOn || !isConnectedToEntra || gitOpsModeEnabled}
       disabledTooltipContent={
         !isConnectedToEntra ? (
           <>
-            Fleet must be connected to Entra to set a default fleet.{" "}
+            AutoMDM must be connected to Entra to set a default team.{" "}
             <CustomLink
               text="Learn more"
               url={PATHS.ADMIN_INTEGRATIONS_AUTOMATIC_ENROLLMENT_WINDOWS}
@@ -155,11 +155,11 @@ const WindowsMdmPage = ({ router }: IWindowsMdmPageProps) => {
       }
       helpText={
         <>
-          New hosts that turn on MDM before installing Fleet&apos;s agent are
-          assigned to this fleet.{" "}
+          New hosts that turn on MDM before installing AutoMDM&apos;s agent are
+          assigned to this team.{" "}
           <CustomLink
             text="Learn more"
-            url="https://fleetdm.com/learn-more-about/windows-default-fleet"
+            url="https://automdm.com/learn-more-about/windows-default-team"
             newTab
           />
         </>
@@ -169,13 +169,13 @@ const WindowsMdmPage = ({ router }: IWindowsMdmPageProps) => {
 
   const programmaticToggleTooltip = (
     <>
-      When enabled, MDM is turned on when Fleet&apos;s agent is installed. When
+      When enabled, MDM is turned on when AutoMDM&apos;s agent is installed. When
       disabled, end users turn on MDM manually in{" "}
       <b>Settings &gt; Access work or school</b> (requires Microsoft Entra).
       Only applies to manual enrollment.{" "}
       <CustomLink
         text="Learn more"
-        url="https://fleetdm.com/learn-more-about/mdm-enrollment"
+        url="https://automdm.com/learn-more-about/mdm-enrollment"
         newTab
         variant="tooltip-link"
       />
@@ -193,7 +193,7 @@ const WindowsMdmPage = ({ router }: IWindowsMdmPageProps) => {
           />
         </div>
         <h1>Windows MDM</h1>
-        {/* No submit button, so Enter in the default fleet dropdown would navigate. */}
+        {/* No submit button, so Enter in the default team dropdown would navigate. */}
         <form onSubmit={(evt) => evt.preventDefault()}>
           <Slider
             value={mdmOn}
@@ -221,7 +221,7 @@ const WindowsMdmPage = ({ router }: IWindowsMdmPageProps) => {
               Automatically migrate hosts connected to another MDM solution
             </Checkbox>
           )}
-          {isPremiumTier && defaultFleetDropdown}
+          {isPremiumTier && defaultTeamDropdown}
           <GitOpsModeTooltipWrapper
             tipOffset={8}
             renderChildren={(disableChildren) => (

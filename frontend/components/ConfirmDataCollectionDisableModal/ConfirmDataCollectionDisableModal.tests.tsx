@@ -35,12 +35,12 @@ describe("ConfirmDataCollectionDisableModal", () => {
   it("uses global-scoped copy when scope is 'global'", () => {
     renderModal({ scope: "global" });
     expect(
-      screen.getByText(/across this Fleet deployment/i)
+      screen.getByText(/across this AutoMDM deployment/i)
     ).toBeInTheDocument();
   });
 
-  it("uses fleet-scoped copy referencing the fleet name when scope is 'fleet'", () => {
-    renderModal({ scope: "fleet", fleetName: "Engineering" });
+  it("uses team-scoped copy referencing the team name when scope is 'team'", () => {
+    renderModal({ scope: "team", automdmName: "Engineering" });
     expect(screen.getByText(/Engineering/)).toBeInTheDocument();
   });
 

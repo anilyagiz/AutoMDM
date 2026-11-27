@@ -1,8 +1,8 @@
 # apple-apns-mock
 
-A mock of Apple's push notification service (APNs) for load testing Fleet's Apple MDM. Fleet sends it the same push requests it sends to `api.push.apple.com`, and simulated devices receive them over server-sent events (SSE). Built for [#30816](https://github.com/fleetdm/fleet/issues/30816).
+A mock of Apple's push notification service (APNs) for load testing AutoMDM's Apple MDM. AutoMDM sends it the same push requests it sends to `api.push.apple.com`, and simulated devices receive them over server-sent events (SSE). Built for [#30816](https://github.com/fleetdm/fleet/issues/30816).
 
-Instances are interchangeable: they coordinate through Redis, so Fleet can push to any of them and it reaches whichever holds the device's stream. Redis is required.
+Instances are interchangeable: they coordinate through Redis, so AutoMDM can push to any of them and it reaches whichever holds the device's stream. Redis is required.
 
 See [the design doc](../../docs/Contributing/mdm/apple/apple-apns-mock.md) for how it fits into load testing.
 
@@ -38,7 +38,7 @@ Expired pushes need no sweeping: pending keys carry a Redis TTL.
 
 | Endpoint | Caller | Description |
 | --- | --- | --- |
-| `POST /3/device/{token}` | Fleet server | Accept a push. Same path shape as real APNs. |
+| `POST /3/device/{token}` | AutoMDM server | Accept a push. Same path shape as real APNs. |
 | `GET /events?token=<hex>` | Simulated devices | Long-lived SSE stream of pushes for one device token. |
 | `GET /healthz` | Infra | Liveness check. |
 | `GET /memstats` | Operator | Go runtime memory |
@@ -46,7 +46,7 @@ Expired pushes need no sweeping: pending keys carry a Redis TTL.
 
 ## Push requests
 
-The mock accepts exactly what Fleet's buford client (`server/mdm/nanomdm/push/buford`) sends today: a POST with the JSON body `{"mdm":"<PushMagic>"}` and no `apns-*` headers. `TestE2EBufordCompatibility` in `e2e_test.go` drives the mock through that client to keep this true. The mock also honors these [request headers](https://developer.apple.com/documentation/usernotifications/sending-notification-requests-to-apns#Send-a-POST-request-to-APNs) when present (parsing lives in `parsePushHeaders`, `handlers.go`):
+The mock accepts exactly what AutoMDM's buford client (`server/mdm/nanomdm/push/buford`) sends today: a POST with the JSON body `{"mdm":"<PushMagic>"}` and no `apns-*` headers. `TestE2EBufordCompatibility` in `e2e_test.go` drives the mock through that client to keep this true. The mock also honors these [request headers](https://developer.apple.com/documentation/usernotifications/sending-notification-requests-to-apns#Send-a-POST-request-to-APNs) when present (parsing lives in `parsePushHeaders`, `handlers.go`):
 
 | Header | Behavior |
 | --- | --- |
@@ -98,11 +98,11 @@ curl -i -X POST http://localhost:8379/3/device/746f6b656e414243 \
 curl -s http://localhost:8379/stats   # cluster totals cover both instances
 ```
 
-To push to a device enrolled in a local Fleet instance, or to compare against real APNs responses, use `tools/mdm/apple/apnspush -direct`.
+To push to a device enrolled in a local AutoMDM instance, or to compare against real APNs responses, use `tools/mdm/apple/apnspush -direct`.
 
 ## How instances coordinate
 
-A device's stream and Fleet's push for that device usually land on different instances, so every push goes through Redis:
+A device's stream and AutoMDM's push for that device usually land on different instances, so every push goes through Redis:
 
 ```
 push at any instance    SET <prefix>pending:<token> <ping> GET PX <ttl>
@@ -130,7 +130,7 @@ REDIS_TEST=1 go test -race ./cmd/apple-apns-mock/...
 
 ## Differences from real APNs
 
-- Plain HTTP/1.1, no client certificate check — there is no Apple APNs certificate to validate against. Fleet's push client doesn't require HTTP/2 from the server.
+- Plain HTTP/1.1, no client certificate check — there is no Apple APNs certificate to validate against. AutoMDM's push client doesn't require HTTP/2 from the server.
 - Any even-length hex token is accepted. Real APNs also enforces the 32-byte token length, but mdmtest and osquery-perf derive variable-length tokens (`hex("token" + serial)`).
 - Not all APNs error codes are exercised.
 

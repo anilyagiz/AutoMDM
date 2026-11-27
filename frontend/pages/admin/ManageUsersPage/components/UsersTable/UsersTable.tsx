@@ -33,12 +33,12 @@ const ADD_USER_OPTIONS: IDropdownOption[] = [
   {
     label: "Regular user",
     value: "human",
-    helpText: "A human with access to Fleet",
+    helpText: "A human with access to AutoMDM",
   },
   {
     label: "API-only user",
     value: "api",
-    helpText: "For GitOps or Fleet API automations",
+    helpText: "For GitOps or AutoMDM API automations",
   },
 ];
 

@@ -54,7 +54,7 @@ export const WithTwoButtons: Story = {
 export const Small: Story = {
   args: {
     header: "No software",
-    info: "Add software to install on hosts in this fleet.",
+    info: "Add software to install on hosts in this team.",
     primaryButton: <Button>Add software</Button>,
     width: "small",
   },
@@ -75,7 +75,7 @@ export const InfoOnly: Story = {
 export const List: Story = {
   args: {
     variant: "list",
-    header: "No batch scripts started for this fleet",
+    header: "No batch scripts started for this team",
     info: "When a script is run on multiple hosts, progress will appear here.",
   },
 };
@@ -119,7 +119,7 @@ export const FormWithLongInfo: Story = {
   args: {
     variant: "form",
     header: "Require end user authentication during setup",
-    info: "Connect Fleet to your identity provider (IdP) to get started.",
+    info: "Connect AutoMDM to your identity provider (IdP) to get started.",
     primaryButton: <Button>Connect</Button>,
   },
 };

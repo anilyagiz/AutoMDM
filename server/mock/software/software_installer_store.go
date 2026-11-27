@@ -8,10 +8,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
-var _ fleet.SoftwareInstallerStore = (*SoftwareInstallerStore)(nil)
+var _ automdm.SoftwareInstallerStore = (*SoftwareInstallerStore)(nil)
 
 type GetFunc func(ctx context.Context, installerID string) (io.ReadCloser, int64, error)
 

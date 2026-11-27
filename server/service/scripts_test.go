@@ -8,22 +8,22 @@ import (
 	"testing"
 	"time"
 
-	activity_api "github.com/fleetdm/fleet/v4/server/activity/api"
-	"github.com/fleetdm/fleet/v4/server/authz"
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	platform_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
-	"github.com/fleetdm/fleet/v4/server/platform/mysql/testing_utils"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/test"
+	activity_api "github.com/anilyagiz/automdm/v4/server/activity/api"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	platform_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/platform/mysql/testing_utils"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/stretchr/testify/require"
 )
 
 func TestHostRunScript(t *testing.T) {
 	ds := new(mock.Store)
-	license := &fleet.LicenseInfo{Tier: fleet.TierPremium, Expiration: time.Now().Add(24 * time.Hour)}
+	license := &automdm.LicenseInfo{Tier: automdm.TierPremium, Expiration: time.Now().Add(24 * time.Hour)}
 	svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: license, SkipCreateTestUsers: true})
 
 	// use a custom implementation of checkAuthErr as the service call will fail
@@ -38,13 +38,13 @@ func TestHostRunScript(t *testing.T) {
 		}
 	}
 
-	teamHost := &fleet.Host{ID: 1, Hostname: "host-team", TeamID: ptr.Uint(1), SeenTime: time.Now(), OrbitNodeKey: ptr.String("abc")}
-	noTeamHost := &fleet.Host{ID: 2, Hostname: "host-no-team", TeamID: nil, SeenTime: time.Now(), OrbitNodeKey: ptr.String("def")}
-	nonExistingHost := &fleet.Host{ID: 3, Hostname: "no-such-host", TeamID: nil}
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil
+	teamHost := &automdm.Host{ID: 1, Hostname: "host-team", TeamID: ptr.Uint(1), SeenTime: time.Now(), OrbitNodeKey: ptr.String("abc")}
+	noTeamHost := &automdm.Host{ID: 2, Hostname: "host-no-team", TeamID: nil, SeenTime: time.Now(), OrbitNodeKey: ptr.String("def")}
+	nonExistingHost := &automdm.Host{ID: 3, Hostname: "no-such-host", TeamID: nil}
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
 	}
-	ds.HostFunc = func(ctx context.Context, hostID uint) (*fleet.Host, error) {
+	ds.HostFunc = func(ctx context.Context, hostID uint) (*automdm.Host, error) {
 		if hostID == 1 {
 			return teamHost, nil
 		}
@@ -53,14 +53,14 @@ func TestHostRunScript(t *testing.T) {
 		}
 		return nil, newNotFoundError()
 	}
-	ds.NewHostScriptExecutionRequestFunc = func(ctx context.Context, request *fleet.HostScriptRequestPayload) (*fleet.HostScriptResult, error) {
-		return &fleet.HostScriptResult{HostID: request.HostID, ScriptContents: request.ScriptContents, ExecutionID: "abc"}, nil
+	ds.NewHostScriptExecutionRequestFunc = func(ctx context.Context, request *automdm.HostScriptRequestPayload) (*automdm.HostScriptResult, error) {
+		return &automdm.HostScriptResult{HostID: request.HostID, ScriptContents: request.ScriptContents, ExecutionID: "abc"}, nil
 	}
-	ds.ListPendingHostScriptExecutionsFunc = func(ctx context.Context, hostID uint) ([]*fleet.HostScriptResult, error) {
+	ds.ListPendingHostScriptExecutionsFunc = func(ctx context.Context, hostID uint) ([]*automdm.HostScriptResult, error) {
 		return nil, nil
 	}
-	ds.ScriptFunc = func(ctx context.Context, id uint) (*fleet.Script, error) {
-		return &fleet.Script{ID: id}, nil
+	ds.ScriptFunc = func(ctx context.Context, id uint) (*automdm.Script, error) {
+		return &automdm.Script{ID: id}, nil
 	}
 	ds.GetScriptContentsFunc = func(ctx context.Context, id uint) ([]byte, error) {
 		return []byte("echo"), nil
@@ -73,241 +73,241 @@ func TestHostRunScript(t *testing.T) {
 	t.Run("authorization checks", func(t *testing.T) {
 		testCases := []struct {
 			name                  string
-			user                  *fleet.User
+			user                  *automdm.User
 			scriptID              *uint
 			shouldFailTeamWrite   bool
 			shouldFailGlobalWrite bool
 		}{
 			{
 				name:                  "global admin",
-				user:                  &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)},
+				user:                  &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)},
 				shouldFailTeamWrite:   false,
 				shouldFailGlobalWrite: false,
 			},
 			{
 				name:                  "global admin saved",
-				user:                  &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)},
+				user:                  &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)},
 				scriptID:              ptr.Uint(1),
 				shouldFailTeamWrite:   false,
 				shouldFailGlobalWrite: false,
 			},
 			{
 				name:                  "global maintainer",
-				user:                  &fleet.User{GlobalRole: ptr.String(fleet.RoleMaintainer)},
+				user:                  &automdm.User{GlobalRole: ptr.String(automdm.RoleMaintainer)},
 				shouldFailTeamWrite:   false,
 				shouldFailGlobalWrite: false,
 			},
 			{
 				name:                  "global maintainer saved",
-				user:                  &fleet.User{GlobalRole: ptr.String(fleet.RoleMaintainer)},
+				user:                  &automdm.User{GlobalRole: ptr.String(automdm.RoleMaintainer)},
 				scriptID:              ptr.Uint(1),
 				shouldFailTeamWrite:   false,
 				shouldFailGlobalWrite: false,
 			},
 			{
 				name:                  "global observer",
-				user:                  &fleet.User{GlobalRole: ptr.String(fleet.RoleObserver)},
+				user:                  &automdm.User{GlobalRole: ptr.String(automdm.RoleObserver)},
 				shouldFailTeamWrite:   true,
 				shouldFailGlobalWrite: true,
 			},
 			{
 				name:                  "global observer saved",
-				user:                  &fleet.User{GlobalRole: ptr.String(fleet.RoleObserver)},
+				user:                  &automdm.User{GlobalRole: ptr.String(automdm.RoleObserver)},
 				scriptID:              ptr.Uint(1),
 				shouldFailTeamWrite:   true,
 				shouldFailGlobalWrite: true,
 			},
 			{
 				name:                  "global observer+",
-				user:                  &fleet.User{GlobalRole: ptr.String(fleet.RoleObserverPlus)},
+				user:                  &automdm.User{GlobalRole: ptr.String(automdm.RoleObserverPlus)},
 				shouldFailTeamWrite:   true,
 				shouldFailGlobalWrite: true,
 			},
 			{
 				name:                  "global observer+ saved",
-				user:                  &fleet.User{GlobalRole: ptr.String(fleet.RoleObserverPlus)},
+				user:                  &automdm.User{GlobalRole: ptr.String(automdm.RoleObserverPlus)},
 				scriptID:              ptr.Uint(1),
 				shouldFailTeamWrite:   true,
 				shouldFailGlobalWrite: true,
 			},
 			{
 				name:                  "global gitops",
-				user:                  &fleet.User{GlobalRole: ptr.String(fleet.RoleGitOps)},
+				user:                  &automdm.User{GlobalRole: ptr.String(automdm.RoleGitOps)},
 				shouldFailTeamWrite:   true,
 				shouldFailGlobalWrite: true,
 			},
 			{
 				name:                  "global gitops saved",
-				user:                  &fleet.User{GlobalRole: ptr.String(fleet.RoleGitOps)},
+				user:                  &automdm.User{GlobalRole: ptr.String(automdm.RoleGitOps)},
 				scriptID:              ptr.Uint(1),
 				shouldFailTeamWrite:   true,
 				shouldFailGlobalWrite: true,
 			},
 			{
 				name:                  "global technician",
-				user:                  &fleet.User{GlobalRole: new(fleet.RoleTechnician)},
+				user:                  &automdm.User{GlobalRole: new(automdm.RoleTechnician)},
 				shouldFailTeamWrite:   true,
 				shouldFailGlobalWrite: true,
 			},
 			{
 				name:                  "global technician saved",
-				user:                  &fleet.User{GlobalRole: new(fleet.RoleTechnician)},
+				user:                  &automdm.User{GlobalRole: new(automdm.RoleTechnician)},
 				scriptID:              new(uint(1)),
 				shouldFailTeamWrite:   false,
 				shouldFailGlobalWrite: false,
 			},
 			{
 				name:                  "team admin, belongs to team",
-				user:                  &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleAdmin}}},
+				user:                  &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleAdmin}}},
 				shouldFailTeamWrite:   false,
 				shouldFailGlobalWrite: true,
 			},
 			{
 				name:                  "team admin, belongs to team, saved",
-				user:                  &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleAdmin}}},
+				user:                  &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleAdmin}}},
 				scriptID:              ptr.Uint(1),
 				shouldFailTeamWrite:   false,
 				shouldFailGlobalWrite: true,
 			},
 			{
 				name:                  "team maintainer, belongs to team",
-				user:                  &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleMaintainer}}},
+				user:                  &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleMaintainer}}},
 				shouldFailTeamWrite:   false,
 				shouldFailGlobalWrite: true,
 			},
 			{
 				name:                  "team maintainer, belongs to team, saved",
-				user:                  &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleMaintainer}}},
+				user:                  &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleMaintainer}}},
 				scriptID:              ptr.Uint(1),
 				shouldFailTeamWrite:   false,
 				shouldFailGlobalWrite: true,
 			},
 			{
 				name:                  "team observer, belongs to team",
-				user:                  &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleObserver}}},
+				user:                  &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserver}}},
 				shouldFailTeamWrite:   true,
 				shouldFailGlobalWrite: true,
 			},
 			{
 				name:                  "team observer, belongs to team, saved",
-				user:                  &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleObserver}}},
+				user:                  &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserver}}},
 				scriptID:              ptr.Uint(1),
 				shouldFailTeamWrite:   true,
 				shouldFailGlobalWrite: true,
 			},
 			{
 				name:                  "team observer+, belongs to team",
-				user:                  &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleObserverPlus}}},
+				user:                  &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserverPlus}}},
 				shouldFailTeamWrite:   true,
 				shouldFailGlobalWrite: true,
 			},
 			{
 				name:                  "team observer+, belongs to team, saved",
-				user:                  &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleObserverPlus}}},
+				user:                  &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserverPlus}}},
 				scriptID:              ptr.Uint(1),
 				shouldFailTeamWrite:   true,
 				shouldFailGlobalWrite: true,
 			},
 			{
 				name:                  "team gitops, belongs to team",
-				user:                  &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleGitOps}}},
+				user:                  &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleGitOps}}},
 				shouldFailTeamWrite:   true,
 				shouldFailGlobalWrite: true,
 			},
 			{
 				name:                  "team gitops, belongs to team, saved",
-				user:                  &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleGitOps}}},
+				user:                  &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleGitOps}}},
 				scriptID:              ptr.Uint(1),
 				shouldFailTeamWrite:   true,
 				shouldFailGlobalWrite: true,
 			},
 			{
 				name:                  "team technician, belongs to team",
-				user:                  &fleet.User{Teams: []fleet.UserTeam{{ID: 1, Role: fleet.RoleTechnician}}},
+				user:                  &automdm.User{Teams: []automdm.UserTeam{{ID: 1, Role: automdm.RoleTechnician}}},
 				shouldFailTeamWrite:   true,
 				shouldFailGlobalWrite: true,
 			},
 			{
 				name:                  "team technician, belongs to team, saved",
-				user:                  &fleet.User{Teams: []fleet.UserTeam{{ID: 1, Role: fleet.RoleTechnician}}},
+				user:                  &automdm.User{Teams: []automdm.UserTeam{{ID: 1, Role: automdm.RoleTechnician}}},
 				scriptID:              new(uint(1)),
 				shouldFailTeamWrite:   false,
 				shouldFailGlobalWrite: true,
 			},
 			{
 				name:                  "team admin, DOES NOT belong to team",
-				user:                  &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 2}, Role: fleet.RoleAdmin}}},
+				user:                  &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleAdmin}}},
 				shouldFailTeamWrite:   true,
 				shouldFailGlobalWrite: true,
 			},
 			{
 				name:                  "team admin, DOES NOT belong to team, saved",
-				user:                  &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 2}, Role: fleet.RoleAdmin}}},
+				user:                  &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleAdmin}}},
 				scriptID:              ptr.Uint(1),
 				shouldFailTeamWrite:   true,
 				shouldFailGlobalWrite: true,
 			},
 			{
 				name:                  "team maintainer, DOES NOT belong to team",
-				user:                  &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 2}, Role: fleet.RoleMaintainer}}},
+				user:                  &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleMaintainer}}},
 				shouldFailTeamWrite:   true,
 				shouldFailGlobalWrite: true,
 			},
 			{
 				name:                  "team maintainer, DOES NOT belong to team, saved",
-				user:                  &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 2}, Role: fleet.RoleMaintainer}}},
+				user:                  &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleMaintainer}}},
 				scriptID:              ptr.Uint(1),
 				shouldFailTeamWrite:   true,
 				shouldFailGlobalWrite: true,
 			},
 			{
 				name:                  "team observer, DOES NOT belong to team",
-				user:                  &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 2}, Role: fleet.RoleObserver}}},
+				user:                  &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleObserver}}},
 				shouldFailTeamWrite:   true,
 				shouldFailGlobalWrite: true,
 			},
 			{
 				name:                  "team observer, DOES NOT belong to team, saved",
-				user:                  &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 2}, Role: fleet.RoleObserver}}},
+				user:                  &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleObserver}}},
 				scriptID:              ptr.Uint(1),
 				shouldFailTeamWrite:   true,
 				shouldFailGlobalWrite: true,
 			},
 			{
 				name:                  "team observer+, DOES NOT belong to team",
-				user:                  &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 2}, Role: fleet.RoleObserverPlus}}},
+				user:                  &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleObserverPlus}}},
 				shouldFailTeamWrite:   true,
 				shouldFailGlobalWrite: true,
 			},
 			{
 				name:                  "team observer+, DOES NOT belong to team, saved",
-				user:                  &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 2}, Role: fleet.RoleObserverPlus}}},
+				user:                  &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleObserverPlus}}},
 				scriptID:              ptr.Uint(1),
 				shouldFailTeamWrite:   true,
 				shouldFailGlobalWrite: true,
 			},
 			{
 				name:                  "team gitops, DOES NOT belong to team",
-				user:                  &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 2}, Role: fleet.RoleGitOps}}},
+				user:                  &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleGitOps}}},
 				shouldFailTeamWrite:   true,
 				shouldFailGlobalWrite: true,
 			},
 			{
 				name:                  "team gitops, DOES NOT belong to team, saved",
-				user:                  &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 2}, Role: fleet.RoleGitOps}}},
+				user:                  &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleGitOps}}},
 				scriptID:              ptr.Uint(1),
 				shouldFailTeamWrite:   true,
 				shouldFailGlobalWrite: true,
 			},
 			{
 				name:                  "team technician, DOES NOT belong to team",
-				user:                  &fleet.User{Teams: []fleet.UserTeam{{ID: 2, Role: fleet.RoleTechnician}}},
+				user:                  &automdm.User{Teams: []automdm.UserTeam{{ID: 2, Role: automdm.RoleTechnician}}},
 				shouldFailTeamWrite:   true,
 				shouldFailGlobalWrite: true,
 			},
 			{
 				name:                  "team technician, DOES NOT belong to team, saved",
-				user:                  &fleet.User{Teams: []fleet.UserTeam{{ID: 2, Role: fleet.RoleTechnician}}},
+				user:                  &automdm.User{Teams: []automdm.UserTeam{{ID: 2, Role: automdm.RoleTechnician}}},
 				scriptID:              new(uint(1)),
 				shouldFailTeamWrite:   true,
 				shouldFailGlobalWrite: true,
@@ -321,14 +321,14 @@ func TestHostRunScript(t *testing.T) {
 				if tt.scriptID != nil {
 					contents = ""
 				}
-				_, err := svc.RunHostScript(ctx, &fleet.HostScriptRequestPayload{HostID: noTeamHost.ID, ScriptContents: contents, ScriptID: tt.scriptID}, 0)
+				_, err := svc.RunHostScript(ctx, &automdm.HostScriptRequestPayload{HostID: noTeamHost.ID, ScriptContents: contents, ScriptID: tt.scriptID}, 0)
 				checkAuthErr(t, tt.shouldFailGlobalWrite, err)
-				_, err = svc.RunHostScript(ctx, &fleet.HostScriptRequestPayload{HostID: teamHost.ID, ScriptContents: contents, ScriptID: tt.scriptID}, 0)
+				_, err = svc.RunHostScript(ctx, &automdm.HostScriptRequestPayload{HostID: teamHost.ID, ScriptContents: contents, ScriptID: tt.scriptID}, 0)
 				checkAuthErr(t, tt.shouldFailTeamWrite, err)
 
 				if tt.scriptID == nil {
 					// a non-existing host is authorized as for global write (because we can't know what team it belongs to)
-					_, err = svc.RunHostScript(ctx, &fleet.HostScriptRequestPayload{HostID: nonExistingHost.ID, ScriptContents: "abc"}, 0)
+					_, err = svc.RunHostScript(ctx, &automdm.HostScriptRequestPayload{HostID: nonExistingHost.ID, ScriptContents: "abc"}, 0)
 					checkAuthErr(t, tt.shouldFailGlobalWrite, err)
 				}
 
@@ -337,9 +337,9 @@ func TestHostRunScript(t *testing.T) {
 					ds.GetScriptIDByNameFunc = func(ctx context.Context, name string, teamID *uint) (uint, error) {
 						return *tt.scriptID, nil
 					}
-					_, err = svc.RunHostScript(ctx, &fleet.HostScriptRequestPayload{HostID: noTeamHost.ID, ScriptContents: "", ScriptID: nil, ScriptName: "Foo", TeamID: 1}, 1)
+					_, err = svc.RunHostScript(ctx, &automdm.HostScriptRequestPayload{HostID: noTeamHost.ID, ScriptContents: "", ScriptID: nil, ScriptName: "Foo", TeamID: 1}, 1)
 					checkAuthErr(t, tt.shouldFailGlobalWrite, err)
-					_, err = svc.RunHostScript(ctx, &fleet.HostScriptRequestPayload{HostID: teamHost.ID, ScriptContents: "", ScriptID: nil, ScriptName: "Foo", TeamID: 1}, 1)
+					_, err = svc.RunHostScript(ctx, &automdm.HostScriptRequestPayload{HostID: teamHost.ID, ScriptContents: "", ScriptID: nil, ScriptName: "Foo", TeamID: 1}, 1)
 					checkAuthErr(t, tt.shouldFailTeamWrite, err)
 				}
 			})
@@ -353,8 +353,8 @@ func TestHostRunScript(t *testing.T) {
 			wantErr string
 		}{
 			{"empty script", "", "One of 'script_id', 'script_contents', or 'script_name' is required."},
-			{"overly long script", strings.Repeat("a", fleet.UnsavedScriptMaxRuneLen+1), "Script is too large."},
-			{"large script", strings.Repeat("a", fleet.UnsavedScriptMaxRuneLen), ""},
+			{"overly long script", strings.Repeat("a", automdm.UnsavedScriptMaxRuneLen+1), "Script is too large."},
+			{"large script", strings.Repeat("a", automdm.UnsavedScriptMaxRuneLen), ""},
 			{"invalid utf8", "\xff\xfa", "Wrong data format."},
 			{"valid without hashbang", "echo 'a'", ""},
 			{"valid with posix hashbang", "#!/bin/sh\necho 'a'", ""},
@@ -372,7 +372,7 @@ func TestHostRunScript(t *testing.T) {
 		ctx = viewer.NewContext(ctx, viewer.Viewer{User: test.UserAdmin})
 		for _, tt := range testCases {
 			t.Run(tt.name, func(t *testing.T) {
-				_, err := svc.RunHostScript(ctx, &fleet.HostScriptRequestPayload{HostID: noTeamHost.ID, ScriptContents: tt.script}, 0)
+				_, err := svc.RunHostScript(ctx, &automdm.HostScriptRequestPayload{HostID: noTeamHost.ID, ScriptContents: tt.script}, 0)
 				if tt.wantErr != "" {
 					require.ErrorContains(t, err, tt.wantErr)
 				} else {
@@ -385,7 +385,7 @@ func TestHostRunScript(t *testing.T) {
 
 func TestGetScriptResult(t *testing.T) {
 	ds := new(mock.Store)
-	license := &fleet.LicenseInfo{Tier: fleet.TierPremium, Expiration: time.Now().Add(24 * time.Hour)}
+	license := &automdm.LicenseInfo{Tier: automdm.TierPremium, Expiration: time.Now().Add(24 * time.Hour)}
 	svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: license, SkipCreateTestUsers: true})
 
 	const (
@@ -403,25 +403,25 @@ func TestGetScriptResult(t *testing.T) {
 		}
 	}
 
-	teamHost := &fleet.Host{ID: 1, Hostname: "host-team", TeamID: ptr.Uint(1), SeenTime: time.Now()}
-	noTeamHost := &fleet.Host{ID: 2, Hostname: "host-no-team", TeamID: nil, SeenTime: time.Now()}
-	nonExistingHost := &fleet.Host{ID: 3, Hostname: "no-such-host", TeamID: nil}
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil
+	teamHost := &automdm.Host{ID: 1, Hostname: "host-team", TeamID: ptr.Uint(1), SeenTime: time.Now()}
+	noTeamHost := &automdm.Host{ID: 2, Hostname: "host-no-team", TeamID: nil, SeenTime: time.Now()}
+	nonExistingHost := &automdm.Host{ID: 3, Hostname: "no-such-host", TeamID: nil}
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
 	}
-	ds.GetHostScriptExecutionResultFunc = func(ctx context.Context, executionID string) (*fleet.HostScriptResult, error) {
+	ds.GetHostScriptExecutionResultFunc = func(ctx context.Context, executionID string) (*automdm.HostScriptResult, error) {
 		switch executionID {
 		case noTeamHostExecID:
-			return &fleet.HostScriptResult{HostID: noTeamHost.ID, ScriptContents: "abc", ExecutionID: executionID}, nil
+			return &automdm.HostScriptResult{HostID: noTeamHost.ID, ScriptContents: "abc", ExecutionID: executionID}, nil
 		case teamHostExecID:
-			return &fleet.HostScriptResult{HostID: teamHost.ID, ScriptContents: "abc", ExecutionID: executionID}, nil
+			return &automdm.HostScriptResult{HostID: teamHost.ID, ScriptContents: "abc", ExecutionID: executionID}, nil
 		case nonExistingHostExecID:
-			return &fleet.HostScriptResult{HostID: nonExistingHost.ID, ScriptContents: "abc", ExecutionID: executionID}, nil
+			return &automdm.HostScriptResult{HostID: nonExistingHost.ID, ScriptContents: "abc", ExecutionID: executionID}, nil
 		default:
 			return nil, newNotFoundError()
 		}
 	}
-	ds.HostLiteFunc = func(ctx context.Context, hostID uint) (*fleet.Host, error) {
+	ds.HostLiteFunc = func(ctx context.Context, hostID uint) (*automdm.Host, error) {
 		if hostID == 1 {
 			return teamHost, nil
 		}
@@ -433,97 +433,97 @@ func TestGetScriptResult(t *testing.T) {
 
 	testCases := []struct {
 		name                 string
-		user                 *fleet.User
+		user                 *automdm.User
 		shouldFailTeamRead   bool
 		shouldFailGlobalRead bool
 	}{
 		{
 			name:                 "global admin",
-			user:                 &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)},
+			user:                 &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)},
 			shouldFailTeamRead:   false,
 			shouldFailGlobalRead: false,
 		},
 		{
 			name:                 "global maintainer",
-			user:                 &fleet.User{GlobalRole: ptr.String(fleet.RoleMaintainer)},
+			user:                 &automdm.User{GlobalRole: ptr.String(automdm.RoleMaintainer)},
 			shouldFailTeamRead:   false,
 			shouldFailGlobalRead: false,
 		},
 		{
 			name:                 "global observer",
-			user:                 &fleet.User{GlobalRole: ptr.String(fleet.RoleObserver)},
+			user:                 &automdm.User{GlobalRole: ptr.String(automdm.RoleObserver)},
 			shouldFailTeamRead:   false,
 			shouldFailGlobalRead: false,
 		},
 		{
 			name:                 "global observer+",
-			user:                 &fleet.User{GlobalRole: ptr.String(fleet.RoleObserverPlus)},
+			user:                 &automdm.User{GlobalRole: ptr.String(automdm.RoleObserverPlus)},
 			shouldFailTeamRead:   false,
 			shouldFailGlobalRead: false,
 		},
 		{
 			name:                 "global gitops",
-			user:                 &fleet.User{GlobalRole: ptr.String(fleet.RoleGitOps)},
+			user:                 &automdm.User{GlobalRole: ptr.String(automdm.RoleGitOps)},
 			shouldFailTeamRead:   true,
 			shouldFailGlobalRead: true,
 		},
 		{
 			name:                 "team admin, belongs to team",
-			user:                 &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleAdmin}}},
+			user:                 &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleAdmin}}},
 			shouldFailTeamRead:   false,
 			shouldFailGlobalRead: true,
 		},
 		{
 			name:                 "team maintainer, belongs to team",
-			user:                 &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleMaintainer}}},
+			user:                 &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleMaintainer}}},
 			shouldFailTeamRead:   false,
 			shouldFailGlobalRead: true,
 		},
 		{
 			name:                 "team observer, belongs to team",
-			user:                 &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleObserver}}},
+			user:                 &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserver}}},
 			shouldFailTeamRead:   false,
 			shouldFailGlobalRead: true,
 		},
 		{
 			name:                 "team observer+, belongs to team",
-			user:                 &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleObserverPlus}}},
+			user:                 &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserverPlus}}},
 			shouldFailTeamRead:   false,
 			shouldFailGlobalRead: true,
 		},
 		{
 			name:                 "team gitops, belongs to team",
-			user:                 &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleGitOps}}},
+			user:                 &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleGitOps}}},
 			shouldFailTeamRead:   true,
 			shouldFailGlobalRead: true,
 		},
 		{
 			name:                 "team admin, DOES NOT belong to team",
-			user:                 &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 2}, Role: fleet.RoleAdmin}}},
+			user:                 &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleAdmin}}},
 			shouldFailTeamRead:   true,
 			shouldFailGlobalRead: true,
 		},
 		{
 			name:                 "team maintainer, DOES NOT belong to team",
-			user:                 &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 2}, Role: fleet.RoleMaintainer}}},
+			user:                 &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleMaintainer}}},
 			shouldFailTeamRead:   true,
 			shouldFailGlobalRead: true,
 		},
 		{
 			name:                 "team observer, DOES NOT belong to team",
-			user:                 &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 2}, Role: fleet.RoleObserver}}},
+			user:                 &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleObserver}}},
 			shouldFailTeamRead:   true,
 			shouldFailGlobalRead: true,
 		},
 		{
 			name:                 "team observer+, DOES NOT belong to team",
-			user:                 &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 2}, Role: fleet.RoleObserverPlus}}},
+			user:                 &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleObserverPlus}}},
 			shouldFailTeamRead:   true,
 			shouldFailGlobalRead: true,
 		},
 		{
 			name:                 "team gitops, DOES NOT belong to team",
-			user:                 &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 2}, Role: fleet.RoleGitOps}}},
+			user:                 &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleGitOps}}},
 			shouldFailTeamRead:   true,
 			shouldFailGlobalRead: true,
 		},
@@ -546,16 +546,16 @@ func TestGetScriptResult(t *testing.T) {
 
 func TestSavedScripts(t *testing.T) {
 	ds := new(mock.Store)
-	license := &fleet.LicenseInfo{Tier: fleet.TierPremium, Expiration: time.Now().Add(24 * time.Hour)}
+	license := &automdm.LicenseInfo{Tier: automdm.TierPremium, Expiration: time.Now().Add(24 * time.Hour)}
 	svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: license, SkipCreateTestUsers: true})
 
 	withLFContents := "echo\necho"
 	withCRLFContents := "echo\r\necho"
 
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
 	}
-	ds.NewScriptFunc = func(ctx context.Context, script *fleet.Script) (*fleet.Script, error) {
+	ds.NewScriptFunc = func(ctx context.Context, script *automdm.Script) (*automdm.Script, error) {
 		require.Equal(t, withLFContents, script.ScriptContents)
 		newScript := *script
 		newScript.ID = 1
@@ -565,12 +565,12 @@ func TestSavedScripts(t *testing.T) {
 		team1ScriptID  = 1
 		noTeamScriptID = 2
 	)
-	ds.ScriptFunc = func(ctx context.Context, id uint) (*fleet.Script, error) {
+	ds.ScriptFunc = func(ctx context.Context, id uint) (*automdm.Script, error) {
 		switch id {
 		case team1ScriptID:
-			return &fleet.Script{ID: id, TeamID: ptr.Uint(1)}, nil
+			return &automdm.Script{ID: id, TeamID: ptr.Uint(1)}, nil
 		default:
-			return &fleet.Script{ID: id}, nil
+			return &automdm.Script{ID: id}, nil
 		}
 	}
 	ds.GetScriptContentsFunc = func(ctx context.Context, id uint) ([]byte, error) {
@@ -579,11 +579,11 @@ func TestSavedScripts(t *testing.T) {
 	ds.DeleteScriptFunc = func(ctx context.Context, id uint) error {
 		return nil
 	}
-	ds.ListScriptsFunc = func(ctx context.Context, teamID *uint, opt fleet.ListOptions) ([]*fleet.Script, *fleet.PaginationMetadata, error) {
-		return nil, &fleet.PaginationMetadata{}, nil
+	ds.ListScriptsFunc = func(ctx context.Context, teamID *uint, opt automdm.ListOptions) ([]*automdm.Script, *automdm.PaginationMetadata, error) {
+		return nil, &automdm.PaginationMetadata{}, nil
 	}
-	ds.TeamWithExtrasFunc = func(ctx context.Context, id uint) (*fleet.Team, error) {
-		return &fleet.Team{ID: 0}, nil
+	ds.TeamWithExtrasFunc = func(ctx context.Context, id uint) (*automdm.Team, error) {
+		return &automdm.Team{ID: 0}, nil
 	}
 	ds.ValidateEmbeddedSecretsFunc = func(ctx context.Context, documents []string) error {
 		return nil
@@ -594,7 +594,7 @@ func TestSavedScripts(t *testing.T) {
 
 	testCases := []struct {
 		name                  string
-		user                  *fleet.User
+		user                  *automdm.User
 		shouldFailTeamWrite   bool
 		shouldFailGlobalWrite bool
 		shouldFailTeamRead    bool
@@ -602,7 +602,7 @@ func TestSavedScripts(t *testing.T) {
 	}{
 		{
 			name:                  "global admin",
-			user:                  &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)},
+			user:                  &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)},
 			shouldFailTeamWrite:   false,
 			shouldFailGlobalWrite: false,
 			shouldFailTeamRead:    false,
@@ -610,7 +610,7 @@ func TestSavedScripts(t *testing.T) {
 		},
 		{
 			name:                  "global maintainer",
-			user:                  &fleet.User{GlobalRole: ptr.String(fleet.RoleMaintainer)},
+			user:                  &automdm.User{GlobalRole: ptr.String(automdm.RoleMaintainer)},
 			shouldFailTeamWrite:   false,
 			shouldFailGlobalWrite: false,
 			shouldFailTeamRead:    false,
@@ -618,7 +618,7 @@ func TestSavedScripts(t *testing.T) {
 		},
 		{
 			name:                  "global observer",
-			user:                  &fleet.User{GlobalRole: ptr.String(fleet.RoleObserver)},
+			user:                  &automdm.User{GlobalRole: ptr.String(automdm.RoleObserver)},
 			shouldFailTeamWrite:   true,
 			shouldFailGlobalWrite: true,
 			shouldFailTeamRead:    false,
@@ -626,7 +626,7 @@ func TestSavedScripts(t *testing.T) {
 		},
 		{
 			name:                  "global observer+",
-			user:                  &fleet.User{GlobalRole: ptr.String(fleet.RoleObserverPlus)},
+			user:                  &automdm.User{GlobalRole: ptr.String(automdm.RoleObserverPlus)},
 			shouldFailTeamWrite:   true,
 			shouldFailGlobalWrite: true,
 			shouldFailTeamRead:    false,
@@ -634,7 +634,7 @@ func TestSavedScripts(t *testing.T) {
 		},
 		{
 			name:                  "global gitops",
-			user:                  &fleet.User{GlobalRole: ptr.String(fleet.RoleGitOps)},
+			user:                  &automdm.User{GlobalRole: ptr.String(automdm.RoleGitOps)},
 			shouldFailTeamWrite:   false,
 			shouldFailGlobalWrite: false,
 			shouldFailTeamRead:    true,
@@ -642,7 +642,7 @@ func TestSavedScripts(t *testing.T) {
 		},
 		{
 			name:                  "team admin, belongs to team",
-			user:                  &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleAdmin}}},
+			user:                  &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleAdmin}}},
 			shouldFailTeamWrite:   false,
 			shouldFailGlobalWrite: true,
 			shouldFailTeamRead:    false,
@@ -650,7 +650,7 @@ func TestSavedScripts(t *testing.T) {
 		},
 		{
 			name:                  "team maintainer, belongs to team",
-			user:                  &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleMaintainer}}},
+			user:                  &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleMaintainer}}},
 			shouldFailTeamWrite:   false,
 			shouldFailGlobalWrite: true,
 			shouldFailTeamRead:    false,
@@ -658,7 +658,7 @@ func TestSavedScripts(t *testing.T) {
 		},
 		{
 			name:                  "team observer, belongs to team",
-			user:                  &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleObserver}}},
+			user:                  &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserver}}},
 			shouldFailTeamWrite:   true,
 			shouldFailGlobalWrite: true,
 			shouldFailTeamRead:    false,
@@ -666,7 +666,7 @@ func TestSavedScripts(t *testing.T) {
 		},
 		{
 			name:                  "team observer+, belongs to team",
-			user:                  &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleObserverPlus}}},
+			user:                  &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserverPlus}}},
 			shouldFailTeamWrite:   true,
 			shouldFailGlobalWrite: true,
 			shouldFailTeamRead:    false,
@@ -674,7 +674,7 @@ func TestSavedScripts(t *testing.T) {
 		},
 		{
 			name:                  "team gitops, belongs to team",
-			user:                  &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleGitOps}}},
+			user:                  &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleGitOps}}},
 			shouldFailTeamWrite:   false,
 			shouldFailGlobalWrite: true,
 			shouldFailTeamRead:    true,
@@ -682,7 +682,7 @@ func TestSavedScripts(t *testing.T) {
 		},
 		{
 			name:                  "team admin, DOES NOT belong to team",
-			user:                  &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 2}, Role: fleet.RoleAdmin}}},
+			user:                  &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleAdmin}}},
 			shouldFailTeamWrite:   true,
 			shouldFailGlobalWrite: true,
 			shouldFailTeamRead:    true,
@@ -690,7 +690,7 @@ func TestSavedScripts(t *testing.T) {
 		},
 		{
 			name:                  "team maintainer, DOES NOT belong to team",
-			user:                  &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 2}, Role: fleet.RoleMaintainer}}},
+			user:                  &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleMaintainer}}},
 			shouldFailTeamWrite:   true,
 			shouldFailGlobalWrite: true,
 			shouldFailTeamRead:    true,
@@ -698,7 +698,7 @@ func TestSavedScripts(t *testing.T) {
 		},
 		{
 			name:                  "team observer, DOES NOT belong to team",
-			user:                  &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 2}, Role: fleet.RoleObserver}}},
+			user:                  &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleObserver}}},
 			shouldFailTeamWrite:   true,
 			shouldFailGlobalWrite: true,
 			shouldFailTeamRead:    true,
@@ -706,7 +706,7 @@ func TestSavedScripts(t *testing.T) {
 		},
 		{
 			name:                  "team observer+, DOES NOT belong to team",
-			user:                  &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 2}, Role: fleet.RoleObserverPlus}}},
+			user:                  &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleObserverPlus}}},
 			shouldFailTeamWrite:   true,
 			shouldFailGlobalWrite: true,
 			shouldFailTeamRead:    true,
@@ -714,7 +714,7 @@ func TestSavedScripts(t *testing.T) {
 		},
 		{
 			name:                  "team gitops, DOES NOT belong to team",
-			user:                  &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 2}, Role: fleet.RoleGitOps}}},
+			user:                  &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleGitOps}}},
 			shouldFailTeamWrite:   true,
 			shouldFailGlobalWrite: true,
 			shouldFailTeamRead:    true,
@@ -729,7 +729,7 @@ func TestSavedScripts(t *testing.T) {
 			checkAuthErr(t, tt.shouldFailGlobalWrite, err)
 			err = svc.DeleteScript(ctx, noTeamScriptID)
 			checkAuthErr(t, tt.shouldFailGlobalWrite, err)
-			_, _, err = svc.ListScripts(ctx, nil, fleet.ListOptions{})
+			_, _, err = svc.ListScripts(ctx, nil, automdm.ListOptions{})
 			checkAuthErr(t, tt.shouldFailGlobalRead, err)
 			_, _, err = svc.GetScript(ctx, noTeamScriptID, false)
 			checkAuthErr(t, tt.shouldFailGlobalRead, err)
@@ -740,7 +740,7 @@ func TestSavedScripts(t *testing.T) {
 			checkAuthErr(t, tt.shouldFailTeamWrite, err)
 			err = svc.DeleteScript(ctx, team1ScriptID)
 			checkAuthErr(t, tt.shouldFailTeamWrite, err)
-			_, _, err = svc.ListScripts(ctx, ptr.Uint(1), fleet.ListOptions{})
+			_, _, err = svc.ListScripts(ctx, ptr.Uint(1), automdm.ListOptions{})
 			checkAuthErr(t, tt.shouldFailTeamRead, err)
 			_, _, err = svc.GetScript(ctx, team1ScriptID, false)
 			checkAuthErr(t, tt.shouldFailTeamRead, err)
@@ -752,106 +752,106 @@ func TestSavedScripts(t *testing.T) {
 
 func TestHostScriptDetailsAuth(t *testing.T) {
 	ds := new(mock.Store)
-	license := &fleet.LicenseInfo{Tier: fleet.TierPremium, Expiration: time.Now().Add(24 * time.Hour)}
+	license := &automdm.LicenseInfo{Tier: automdm.TierPremium, Expiration: time.Now().Add(24 * time.Hour)}
 	svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: license, SkipCreateTestUsers: true})
 
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
 	}
 
 	testCases := []struct {
 		name                 string
-		user                 *fleet.User
+		user                 *automdm.User
 		shouldFailTeamRead   bool
 		shouldFailGlobalRead bool
 	}{
 		{
 			name:                 "global admin",
-			user:                 &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)},
+			user:                 &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)},
 			shouldFailTeamRead:   false,
 			shouldFailGlobalRead: false,
 		},
 		{
 			name:                 "global maintainer",
-			user:                 &fleet.User{GlobalRole: ptr.String(fleet.RoleMaintainer)},
+			user:                 &automdm.User{GlobalRole: ptr.String(automdm.RoleMaintainer)},
 			shouldFailTeamRead:   false,
 			shouldFailGlobalRead: false,
 		},
 		{
 			name:                 "global observer",
-			user:                 &fleet.User{GlobalRole: ptr.String(fleet.RoleObserver)},
+			user:                 &automdm.User{GlobalRole: ptr.String(automdm.RoleObserver)},
 			shouldFailTeamRead:   false,
 			shouldFailGlobalRead: false,
 		},
 		{
 			name:                 "global observer+",
-			user:                 &fleet.User{GlobalRole: ptr.String(fleet.RoleObserverPlus)},
+			user:                 &automdm.User{GlobalRole: ptr.String(automdm.RoleObserverPlus)},
 			shouldFailTeamRead:   false,
 			shouldFailGlobalRead: false,
 		},
 		{
 			name:                 "global gitops",
-			user:                 &fleet.User{GlobalRole: ptr.String(fleet.RoleGitOps)},
+			user:                 &automdm.User{GlobalRole: ptr.String(automdm.RoleGitOps)},
 			shouldFailTeamRead:   true,
 			shouldFailGlobalRead: true,
 		},
 		{
 			name:                 "team admin, belongs to team",
-			user:                 &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleAdmin}}},
+			user:                 &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleAdmin}}},
 			shouldFailTeamRead:   false,
 			shouldFailGlobalRead: true,
 		},
 		{
 			name:                 "team maintainer, belongs to team",
-			user:                 &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleMaintainer}}},
+			user:                 &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleMaintainer}}},
 			shouldFailTeamRead:   false,
 			shouldFailGlobalRead: true,
 		},
 		{
 			name:                 "team observer, belongs to team",
-			user:                 &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleObserver}}},
+			user:                 &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserver}}},
 			shouldFailTeamRead:   false,
 			shouldFailGlobalRead: true,
 		},
 		{
 			name:                 "team observer+, belongs to team",
-			user:                 &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleObserverPlus}}},
+			user:                 &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserverPlus}}},
 			shouldFailTeamRead:   false,
 			shouldFailGlobalRead: true,
 		},
 		{
 			name:                 "team gitops, belongs to team",
-			user:                 &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleGitOps}}},
+			user:                 &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleGitOps}}},
 			shouldFailTeamRead:   true,
 			shouldFailGlobalRead: true,
 		},
 		{
 			name:                 "team admin, DOES NOT belong to team",
-			user:                 &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 2}, Role: fleet.RoleAdmin}}},
+			user:                 &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleAdmin}}},
 			shouldFailTeamRead:   true,
 			shouldFailGlobalRead: true,
 		},
 		{
 			name:                 "team maintainer, DOES NOT belong to team",
-			user:                 &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 2}, Role: fleet.RoleMaintainer}}},
+			user:                 &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleMaintainer}}},
 			shouldFailTeamRead:   true,
 			shouldFailGlobalRead: true,
 		},
 		{
 			name:                 "team observer, DOES NOT belong to team",
-			user:                 &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 2}, Role: fleet.RoleObserver}}},
+			user:                 &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleObserver}}},
 			shouldFailTeamRead:   true,
 			shouldFailGlobalRead: true,
 		},
 		{
 			name:                 "team observer+, DOES NOT belong to team",
-			user:                 &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 2}, Role: fleet.RoleObserverPlus}}},
+			user:                 &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleObserverPlus}}},
 			shouldFailTeamRead:   true,
 			shouldFailGlobalRead: true,
 		},
 		{
 			name:                 "team gitops, DOES NOT belong to team",
-			user:                 &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 2}, Role: fleet.RoleGitOps}}},
+			user:                 &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleGitOps}}},
 			shouldFailTeamRead:   true,
 			shouldFailGlobalRead: true,
 		},
@@ -861,42 +861,42 @@ func TestHostScriptDetailsAuth(t *testing.T) {
 			ctx = viewer.NewContext(ctx, viewer.Viewer{User: tt.user})
 
 			t.Run("no team host script details", func(t *testing.T) {
-				ds.HostLiteFunc = func(ctx context.Context, hostID uint) (*fleet.Host, error) {
+				ds.HostLiteFunc = func(ctx context.Context, hostID uint) (*automdm.Host, error) {
 					require.Equal(t, uint(42), hostID)
-					return &fleet.Host{ID: hostID}, nil
+					return &automdm.Host{ID: hostID}, nil
 				}
-				ds.GetHostScriptDetailsFunc = func(ctx context.Context, hostID uint, teamID *uint, opts fleet.ListOptions, hostPlatform string) ([]*fleet.HostScriptDetail, *fleet.PaginationMetadata, error) {
+				ds.GetHostScriptDetailsFunc = func(ctx context.Context, hostID uint, teamID *uint, opts automdm.ListOptions, hostPlatform string) ([]*automdm.HostScriptDetail, *automdm.PaginationMetadata, error) {
 					require.Nil(t, teamID)
-					return []*fleet.HostScriptDetail{}, nil, nil
+					return []*automdm.HostScriptDetail{}, nil, nil
 				}
-				_, _, err := svc.GetHostScriptDetails(ctx, 42, fleet.ListOptions{})
+				_, _, err := svc.GetHostScriptDetails(ctx, 42, automdm.ListOptions{})
 				checkAuthErr(t, tt.shouldFailGlobalRead, err)
 			})
 
 			t.Run("team host script details", func(t *testing.T) {
-				ds.HostLiteFunc = func(ctx context.Context, hostID uint) (*fleet.Host, error) {
+				ds.HostLiteFunc = func(ctx context.Context, hostID uint) (*automdm.Host, error) {
 					require.Equal(t, uint(42), hostID)
-					return &fleet.Host{ID: hostID, TeamID: ptr.Uint(1)}, nil
+					return &automdm.Host{ID: hostID, TeamID: ptr.Uint(1)}, nil
 				}
-				ds.GetHostScriptDetailsFunc = func(ctx context.Context, hostID uint, teamID *uint, opts fleet.ListOptions, hostPlatform string) ([]*fleet.HostScriptDetail, *fleet.PaginationMetadata, error) {
+				ds.GetHostScriptDetailsFunc = func(ctx context.Context, hostID uint, teamID *uint, opts automdm.ListOptions, hostPlatform string) ([]*automdm.HostScriptDetail, *automdm.PaginationMetadata, error) {
 					require.NotNil(t, teamID)
 					require.Equal(t, uint(1), *teamID)
-					return []*fleet.HostScriptDetail{}, nil, nil
+					return []*automdm.HostScriptDetail{}, nil, nil
 				}
-				_, _, err := svc.GetHostScriptDetails(ctx, 42, fleet.ListOptions{})
+				_, _, err := svc.GetHostScriptDetails(ctx, 42, automdm.ListOptions{})
 				checkAuthErr(t, tt.shouldFailTeamRead, err)
 			})
 
 			t.Run("host not found", func(t *testing.T) {
-				ds.HostLiteFunc = func(ctx context.Context, hostID uint) (*fleet.Host, error) {
+				ds.HostLiteFunc = func(ctx context.Context, hostID uint) (*automdm.Host, error) {
 					require.Equal(t, uint(43), hostID)
 					return nil, &notFoundError{}
 				}
-				_, _, err := svc.GetHostScriptDetails(ctx, 43, fleet.ListOptions{})
+				_, _, err := svc.GetHostScriptDetails(ctx, 43, automdm.ListOptions{})
 				if tt.shouldFailGlobalRead {
 					checkAuthErr(t, tt.shouldFailGlobalRead, err)
 				} else {
-					require.True(t, fleet.IsNotFound(err))
+					require.True(t, automdm.IsNotFound(err))
 				}
 			})
 		})
@@ -905,66 +905,66 @@ func TestHostScriptDetailsAuth(t *testing.T) {
 
 func TestBatchScriptExecute(t *testing.T) {
 	ds := new(mock.Store)
-	license := &fleet.LicenseInfo{Tier: fleet.TierPremium, Expiration: time.Now().Add(24 * time.Hour)}
+	license := &automdm.LicenseInfo{Tier: automdm.TierPremium, Expiration: time.Now().Add(24 * time.Hour)}
 	svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: license, SkipCreateTestUsers: true})
 
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
 	}
 
 	t.Run("error if hosts do not all belong to the same team as script", func(t *testing.T) {
-		ds.ListHostsLiteByIDsFunc = func(ctx context.Context, ids []uint) ([]*fleet.Host, error) {
-			return []*fleet.Host{
+		ds.ListHostsLiteByIDsFunc = func(ctx context.Context, ids []uint) ([]*automdm.Host, error) {
+			return []*automdm.Host{
 				{ID: 1, TeamID: ptr.Uint(1)},
 				{ID: 2, TeamID: ptr.Uint(1)},
 				{ID: 3, TeamID: ptr.Uint(2)},
 			}, nil
 		}
-		ds.ScriptFunc = func(ctx context.Context, id uint) (*fleet.Script, error) {
+		ds.ScriptFunc = func(ctx context.Context, id uint) (*automdm.Script, error) {
 			if id == 1 {
-				return &fleet.Script{ID: id, TeamID: ptr.Uint(1)}, nil
+				return &automdm.Script{ID: id, TeamID: ptr.Uint(1)}, nil
 			}
-			return &fleet.Script{ID: id}, nil
+			return &automdm.Script{ID: id}, nil
 		}
-		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}})
+		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}})
 		_, err := svc.BatchScriptExecute(ctx, 1, []uint{1, 2, 3}, nil, nil)
 		require.Error(t, err)
-		require.ErrorContains(t, err, "all hosts must be on the same fleet as the script")
+		require.ErrorContains(t, err, "all hosts must be on the same team as the script")
 	})
 
 	t.Run("error if both host_ids and filters are specified", func(t *testing.T) {
-		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}})
+		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}})
 		_, err := svc.BatchScriptExecute(ctx, 1, []uint{1, 2, 3}, &map[string]interface{}{"foo": "bar"}, nil)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "cannot specify both host_ids and filters")
 	})
 
 	t.Run("error if filters are specified but no team_id", func(t *testing.T) {
-		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}})
+		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}})
 		_, err := svc.BatchScriptExecute(ctx, 1, nil, &map[string]interface{}{"label_id": float64(123)}, nil)
 		require.Error(t, err)
-		require.ErrorContains(t, err, "filters must include a fleet filter")
+		require.ErrorContains(t, err, "filters must include a team filter")
 	})
 
 	t.Run("error if filters match too many hosts", func(t *testing.T) {
-		hosts := make([]*fleet.Host, 5001)
+		hosts := make([]*automdm.Host, 5001)
 		for i := 0; i < 5001; i++ {
-			hosts[i] = &fleet.Host{ID: uint(i + 1), TeamID: ptr.Uint(1)} // nolint:gosec // ignore G115
+			hosts[i] = &automdm.Host{ID: uint(i + 1), TeamID: ptr.Uint(1)} // nolint:gosec // ignore G115
 		}
-		ds.ListHostsFunc = func(ctx context.Context, filter fleet.TeamFilter, opt fleet.HostListOptions) ([]*fleet.Host, error) {
+		ds.ListHostsFunc = func(ctx context.Context, filter automdm.TeamFilter, opt automdm.HostListOptions) ([]*automdm.Host, error) {
 			return hosts, nil
 		}
-		ds.ListHostsLiteByIDsFunc = func(ctx context.Context, ids []uint) ([]*fleet.Host, error) {
+		ds.ListHostsLiteByIDsFunc = func(ctx context.Context, ids []uint) ([]*automdm.Host, error) {
 			return hosts, nil
 		}
-		ds.ScriptFunc = func(ctx context.Context, id uint) (*fleet.Script, error) {
+		ds.ScriptFunc = func(ctx context.Context, id uint) (*automdm.Script, error) {
 			if id == 1 {
-				return &fleet.Script{ID: id, TeamID: ptr.Uint(1)}, nil
+				return &automdm.Script{ID: id, TeamID: ptr.Uint(1)}, nil
 			}
-			return &fleet.Script{ID: id}, nil
+			return &automdm.Script{ID: id}, nil
 		}
-		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}})
-		_, err := svc.BatchScriptExecute(ctx, 1, nil, &map[string]any{"fleet_id": float64(1)}, nil)
+		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}})
+		_, err := svc.BatchScriptExecute(ctx, 1, nil, &map[string]any{"team_id": float64(1)}, nil)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "too_many_hosts")
 	})
@@ -975,33 +975,33 @@ func TestBatchScriptExecute(t *testing.T) {
 			requestedHostIds = hostIDs
 			return "", errors.New("ok")
 		}
-		ds.ListHostsLiteByIDsFunc = func(ctx context.Context, ids []uint) ([]*fleet.Host, error) {
-			return []*fleet.Host{
+		ds.ListHostsLiteByIDsFunc = func(ctx context.Context, ids []uint) ([]*automdm.Host, error) {
+			return []*automdm.Host{
 				{ID: 1, TeamID: ptr.Uint(1)},
 				{ID: 2, TeamID: ptr.Uint(1)},
 			}, nil
 		}
-		ds.ScriptFunc = func(ctx context.Context, id uint) (*fleet.Script, error) {
+		ds.ScriptFunc = func(ctx context.Context, id uint) (*automdm.Script, error) {
 			if id == 1 {
-				return &fleet.Script{ID: id, TeamID: ptr.Uint(1)}, nil
+				return &automdm.Script{ID: id, TeamID: ptr.Uint(1)}, nil
 			}
-			return &fleet.Script{ID: id}, nil
+			return &automdm.Script{ID: id}, nil
 		}
-		ds.ListHostsFunc = func(ctx context.Context, filter fleet.TeamFilter, opt fleet.HostListOptions) ([]*fleet.Host, error) {
-			return []*fleet.Host{
+		ds.ListHostsFunc = func(ctx context.Context, filter automdm.TeamFilter, opt automdm.HostListOptions) ([]*automdm.Host, error) {
+			return []*automdm.Host{
 				{ID: 3, TeamID: ptr.Uint(1)},
 				{ID: 4, TeamID: ptr.Uint(1)},
 			}, nil
 		}
 
-		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}})
+		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}})
 		_, err := svc.BatchScriptExecute(ctx, 1, []uint{1, 2}, nil, nil)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "ok")
 		require.Equal(t, []uint{1, 2}, requestedHostIds)
 
-		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}})
-		_, err = svc.BatchScriptExecute(ctx, 1, nil, &map[string]any{"fleet_id": float64(1)}, nil)
+		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}})
+		_, err = svc.BatchScriptExecute(ctx, 1, nil, &map[string]any{"team_id": float64(1)}, nil)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "ok")
 		require.Equal(t, []uint{3, 4}, requestedHostIds)
@@ -1018,11 +1018,11 @@ func TestBatchScriptExecute(t *testing.T) {
 		}
 
 		// The script and the hosts it runs on all belong to team 1.
-		ds.ScriptFunc = func(ctx context.Context, id uint) (*fleet.Script, error) {
-			return &fleet.Script{ID: id, TeamID: new(uint(1))}, nil
+		ds.ScriptFunc = func(ctx context.Context, id uint) (*automdm.Script, error) {
+			return &automdm.Script{ID: id, TeamID: new(uint(1))}, nil
 		}
-		ds.ListHostsLiteByIDsFunc = func(ctx context.Context, ids []uint) ([]*fleet.Host, error) {
-			return []*fleet.Host{
+		ds.ListHostsLiteByIDsFunc = func(ctx context.Context, ids []uint) ([]*automdm.Host, error) {
+			return []*automdm.Host{
 				{ID: 1, TeamID: new(uint(1))},
 				{ID: 2, TeamID: new(uint(1))},
 			}, nil
@@ -1035,77 +1035,77 @@ func TestBatchScriptExecute(t *testing.T) {
 
 		testCases := []struct {
 			name       string
-			user       *fleet.User
+			user       *automdm.User
 			shouldFail bool
 		}{
 			{
 				name:       "global admin",
-				user:       &fleet.User{GlobalRole: new(fleet.RoleAdmin)},
+				user:       &automdm.User{GlobalRole: new(automdm.RoleAdmin)},
 				shouldFail: false,
 			},
 			{
 				name:       "global maintainer",
-				user:       &fleet.User{GlobalRole: new(fleet.RoleMaintainer)},
+				user:       &automdm.User{GlobalRole: new(automdm.RoleMaintainer)},
 				shouldFail: false,
 			},
 			{
 				name:       "global observer",
-				user:       &fleet.User{GlobalRole: new(fleet.RoleObserver)},
+				user:       &automdm.User{GlobalRole: new(automdm.RoleObserver)},
 				shouldFail: true,
 			},
 			{
 				name:       "global observer+",
-				user:       &fleet.User{GlobalRole: new(fleet.RoleObserverPlus)},
+				user:       &automdm.User{GlobalRole: new(automdm.RoleObserverPlus)},
 				shouldFail: true,
 			},
 			{
 				name:       "global gitops",
-				user:       &fleet.User{GlobalRole: new(fleet.RoleGitOps)},
+				user:       &automdm.User{GlobalRole: new(automdm.RoleGitOps)},
 				shouldFail: true,
 			},
 			{
 				name:       "global technician",
-				user:       &fleet.User{GlobalRole: new(fleet.RoleTechnician)},
+				user:       &automdm.User{GlobalRole: new(automdm.RoleTechnician)},
 				shouldFail: true,
 			},
 			{
 				name:       "team admin, belongs to script team",
-				user:       &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleAdmin}}},
+				user:       &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleAdmin}}},
 				shouldFail: false,
 			},
 			{
 				name:       "team maintainer, belongs to script team",
-				user:       &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleMaintainer}}},
+				user:       &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleMaintainer}}},
 				shouldFail: false,
 			},
 			{
 				name:       "team observer, belongs to script team",
-				user:       &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleObserver}}},
+				user:       &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserver}}},
 				shouldFail: true,
 			},
 			{
 				name:       "team observer+, belongs to script team",
-				user:       &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleObserverPlus}}},
+				user:       &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserverPlus}}},
 				shouldFail: true,
 			},
 			{
 				name:       "team gitops, belongs to script team",
-				user:       &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleGitOps}}},
+				user:       &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleGitOps}}},
 				shouldFail: true,
 			},
 			{
 				name:       "team technician, belongs to script team",
-				user:       &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleTechnician}}},
+				user:       &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleTechnician}}},
 				shouldFail: true,
 			},
 			{
 				name:       "team admin, does not belong to script team",
-				user:       &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 2}, Role: fleet.RoleAdmin}}},
+				user:       &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleAdmin}}},
 				shouldFail: true,
 			},
 			{
 				name:       "team maintainer, does not belong to script team",
-				user:       &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 2}, Role: fleet.RoleMaintainer}}},
+				user:       &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleMaintainer}}},
 				shouldFail: true,
 			},
 		}
@@ -1139,16 +1139,16 @@ func TestWipeHostRequestDecodeBody(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			sut := fleet.WipeHostRequest{}
+			sut := automdm.WipeHostRequest{}
 			err := sut.DecodeBody(t.Context(), tc.body, nil, nil)
 
 			switch {
 			case tc.expectedRemoved:
-				var invalid *fleet.InvalidArgumentError
+				var invalid *automdm.InvalidArgumentError
 				require.ErrorAs(t, err, &invalid)
 				require.Equal(t, []map[string]string{{
 					"name":   "windows",
-					"reason": `The "windows" parameter is not available anymore. What to use instead: https://fleetdm.com/learn-more-about/fleet-5-upgrade`,
+					"reason": `The "windows" parameter is not available anymore. What to use instead: https://automdm.com/learn-more-about/automdm-5-upgrade`,
 				}}, invalid.Invalid())
 			case tc.expectedError != "":
 				require.ErrorContains(t, err, tc.expectedError)
@@ -1161,109 +1161,109 @@ func TestWipeHostRequestDecodeBody(t *testing.T) {
 
 func TestBatchScriptCancel(t *testing.T) {
 	ds := new(mock.Store)
-	license := &fleet.LicenseInfo{Tier: fleet.TierPremium, Expiration: time.Now().Add(24 * time.Hour)}
+	license := &automdm.LicenseInfo{Tier: automdm.TierPremium, Expiration: time.Now().Add(24 * time.Hour)}
 	svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: license, SkipCreateTestUsers: true})
 
 	t.Run("not found", func(t *testing.T) {
-		ds.ListBatchScriptExecutionsFunc = func(ctx context.Context, f fleet.BatchExecutionStatusFilter) ([]fleet.BatchActivity, error) {
+		ds.ListBatchScriptExecutionsFunc = func(ctx context.Context, f automdm.BatchExecutionStatusFilter) ([]automdm.BatchActivity, error) {
 			return nil, platform_mysql.NotFound("batch execution").WithName(*f.ExecutionID)
 		}
 		t.Run("global admin → not-found", func(t *testing.T) {
-			ctx := viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}})
+			ctx := viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}})
 			err := svc.BatchScriptCancel(ctx, "unknown-id")
 			require.Error(t, err)
-			require.True(t, fleet.IsNotFound(err))
+			require.True(t, automdm.IsNotFound(err))
 		})
 
 		t.Run("team admin → forbidden, no leak", func(t *testing.T) {
-			ctx := viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{
-				Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleAdmin}},
+			ctx := viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{
+				Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleAdmin}},
 			}})
 			err := svc.BatchScriptCancel(ctx, "unknown-id")
 			require.Error(t, err)
 			require.Equal(t, (&authz.Forbidden{}).Error(), err.Error())
-			require.False(t, fleet.IsNotFound(err))
+			require.False(t, automdm.IsNotFound(err))
 		})
 
 		t.Run("real DB error → wrapped, not IsNotFound", func(t *testing.T) {
-			ds.ListBatchScriptExecutionsFunc = func(ctx context.Context, f fleet.BatchExecutionStatusFilter) ([]fleet.BatchActivity, error) {
+			ds.ListBatchScriptExecutionsFunc = func(ctx context.Context, f automdm.BatchExecutionStatusFilter) ([]automdm.BatchActivity, error) {
 				return nil, errors.New("connection refused")
 			}
-			ctx := viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}})
+			ctx := viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}})
 			err := svc.BatchScriptCancel(ctx, "any-id")
 			require.Error(t, err)
-			require.False(t, fleet.IsNotFound(err))
+			require.False(t, automdm.IsNotFound(err))
 		})
 	})
 }
 
 func TestBatchScriptExecutionStatus(t *testing.T) {
 	ds := new(mock.Store)
-	license := &fleet.LicenseInfo{Tier: fleet.TierPremium, Expiration: time.Now().Add(24 * time.Hour)}
+	license := &automdm.LicenseInfo{Tier: automdm.TierPremium, Expiration: time.Now().Add(24 * time.Hour)}
 	svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: license, SkipCreateTestUsers: true})
 
 	t.Run("not found", func(t *testing.T) {
-		ds.ListBatchScriptExecutionsFunc = func(ctx context.Context, f fleet.BatchExecutionStatusFilter) ([]fleet.BatchActivity, error) {
+		ds.ListBatchScriptExecutionsFunc = func(ctx context.Context, f automdm.BatchExecutionStatusFilter) ([]automdm.BatchActivity, error) {
 			return nil, platform_mysql.NotFound("batch execution").WithName(*f.ExecutionID)
 		}
 		t.Run("global admin → not-found", func(t *testing.T) {
-			ctx := viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}})
+			ctx := viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}})
 			_, err := svc.BatchScriptExecutionStatus(ctx, "unknown-id")
 			require.Error(t, err)
-			require.True(t, fleet.IsNotFound(err))
+			require.True(t, automdm.IsNotFound(err))
 		})
 
 		t.Run("team admin → forbidden, no leak", func(t *testing.T) {
-			ctx := viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{
-				Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleAdmin}},
+			ctx := viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{
+				Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleAdmin}},
 			}})
 			_, err := svc.BatchScriptExecutionStatus(ctx, "unknown-id")
 			require.Error(t, err)
 			require.Equal(t, (&authz.Forbidden{}).Error(), err.Error())
-			require.False(t, fleet.IsNotFound(err))
+			require.False(t, automdm.IsNotFound(err))
 		})
 
 		t.Run("real DB error → wrapped, not IsNotFound", func(t *testing.T) {
-			ds.ListBatchScriptExecutionsFunc = func(ctx context.Context, f fleet.BatchExecutionStatusFilter) ([]fleet.BatchActivity, error) {
+			ds.ListBatchScriptExecutionsFunc = func(ctx context.Context, f automdm.BatchExecutionStatusFilter) ([]automdm.BatchActivity, error) {
 				return nil, errors.New("connection refused")
 			}
-			ctx := viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}})
+			ctx := viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}})
 			_, err := svc.BatchScriptExecutionStatus(ctx, "any-id")
 			require.Error(t, err)
-			require.False(t, fleet.IsNotFound(err))
+			require.False(t, automdm.IsNotFound(err))
 		})
 	})
 }
 
-func TestScriptFleetVariablesValidation(t *testing.T) {
-	newSvc := func(t *testing.T, tier string) (fleet.Service, context.Context, *mock.Store) {
+func TestScriptAutoMDMVariablesValidation(t *testing.T) {
+	newSvc := func(t *testing.T, tier string) (automdm.Service, context.Context, *mock.Store) {
 		ds := new(mock.Store)
-		lic := &fleet.LicenseInfo{Tier: tier, Expiration: time.Now().Add(24 * time.Hour)}
+		lic := &automdm.LicenseInfo{Tier: tier, Expiration: time.Now().Add(24 * time.Hour)}
 		svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: lic, SkipCreateTestUsers: true})
-		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{ID: 1, GlobalRole: new(fleet.RoleAdmin)}})
+		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{ID: 1, GlobalRole: new(automdm.RoleAdmin)}})
 
-		ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-			return &fleet.AppConfig{}, nil
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{}, nil
 		}
-		ds.HostFunc = func(ctx context.Context, hostID uint) (*fleet.Host, error) {
-			return &fleet.Host{ID: hostID, SeenTime: time.Now(), OrbitNodeKey: new("abc")}, nil
+		ds.HostFunc = func(ctx context.Context, hostID uint) (*automdm.Host, error) {
+			return &automdm.Host{ID: hostID, SeenTime: time.Now(), OrbitNodeKey: new("abc")}, nil
 		}
-		ds.ListPendingHostScriptExecutionsFunc = func(ctx context.Context, hostID uint) ([]*fleet.HostScriptResult, error) {
+		ds.ListPendingHostScriptExecutionsFunc = func(ctx context.Context, hostID uint) ([]*automdm.HostScriptResult, error) {
 			return nil, nil
 		}
-		ds.NewHostScriptExecutionRequestFunc = func(ctx context.Context, request *fleet.HostScriptRequestPayload) (*fleet.HostScriptResult, error) {
-			return &fleet.HostScriptResult{HostID: request.HostID, ScriptContents: request.ScriptContents, ExecutionID: "exec-1"}, nil
+		ds.NewHostScriptExecutionRequestFunc = func(ctx context.Context, request *automdm.HostScriptRequestPayload) (*automdm.HostScriptResult, error) {
+			return &automdm.HostScriptResult{HostID: request.HostID, ScriptContents: request.ScriptContents, ExecutionID: "exec-1"}, nil
 		}
-		ds.NewScriptFunc = func(ctx context.Context, script *fleet.Script) (*fleet.Script, error) {
+		ds.NewScriptFunc = func(ctx context.Context, script *automdm.Script) (*automdm.Script, error) {
 			newScript := *script
 			newScript.ID = 1
 			return &newScript, nil
 		}
-		ds.ScriptFunc = func(ctx context.Context, id uint) (*fleet.Script, error) {
-			return &fleet.Script{ID: id, Name: "test.sh"}, nil
+		ds.ScriptFunc = func(ctx context.Context, id uint) (*automdm.Script, error) {
+			return &automdm.Script{ID: id, Name: "test.sh"}, nil
 		}
-		ds.UpdateScriptContentsFunc = func(ctx context.Context, scriptID uint, contents string) (*fleet.Script, error) {
-			return &fleet.Script{ID: scriptID, Name: "test.sh", ScriptContents: contents}, nil
+		ds.UpdateScriptContentsFunc = func(ctx context.Context, scriptID uint, contents string) (*automdm.Script, error) {
+			return &automdm.Script{ID: scriptID, Name: "test.sh", ScriptContents: contents}, nil
 		}
 		ds.ValidateEmbeddedSecretsFunc = func(ctx context.Context, documents []string) error {
 			return nil
@@ -1272,21 +1272,21 @@ func TestScriptFleetVariablesValidation(t *testing.T) {
 	}
 
 	const (
-		supportedVarContents   = "echo $FLEET_VAR_HOST_UUID on ${FLEET_VAR_HOST_PLATFORM}"
-		unsupportedVarContents = "echo $FLEET_VAR_NONEXISTENT"
-		unsupportedVarErrMsg   = "Fleet variable $FLEET_VAR_NONEXISTENT is not supported in scripts."
+		supportedVarContents   = "echo $AUTOMDM_VAR_HOST_UUID on ${AUTOMDM_VAR_HOST_PLATFORM}"
+		unsupportedVarContents = "echo $AUTOMDM_VAR_NONEXISTENT"
+		unsupportedVarErrMsg   = "AutoMDM variable $AUTOMDM_VAR_NONEXISTENT is not supported in scripts."
 	)
 
 	t.Run("premium", func(t *testing.T) {
-		svc, ctx, ds := newSvc(t, fleet.TierPremium)
+		svc, ctx, ds := newSvc(t, automdm.TierPremium)
 
 		t.Run("run host script", func(t *testing.T) {
-			_, err := svc.RunHostScript(ctx, &fleet.HostScriptRequestPayload{HostID: 1, ScriptContents: unsupportedVarContents}, 0)
+			_, err := svc.RunHostScript(ctx, &automdm.HostScriptRequestPayload{HostID: 1, ScriptContents: unsupportedVarContents}, 0)
 			require.ErrorContains(t, err, unsupportedVarErrMsg)
 
-			res, err := svc.RunHostScript(ctx, &fleet.HostScriptRequestPayload{HostID: 1, ScriptContents: supportedVarContents}, 0)
+			res, err := svc.RunHostScript(ctx, &automdm.HostScriptRequestPayload{HostID: 1, ScriptContents: supportedVarContents}, 0)
 			require.NoError(t, err)
-			// contents are stored unexpanded; they resolve when fleetd fetches the script
+			// contents are stored unexpanded; they resolve when automdmd fetches the script
 			require.Equal(t, supportedVarContents, res.ScriptContents)
 		})
 
@@ -1309,8 +1309,8 @@ func TestScriptFleetVariablesValidation(t *testing.T) {
 		})
 
 		t.Run("batch set scripts", func(t *testing.T) {
-			badPayload := []fleet.ScriptPayload{{Name: "test.sh", ScriptContents: []byte(unsupportedVarContents)}}
-			goodPayload := []fleet.ScriptPayload{{Name: "test.sh", ScriptContents: []byte(supportedVarContents)}}
+			badPayload := []automdm.ScriptPayload{{Name: "test.sh", ScriptContents: []byte(unsupportedVarContents)}}
+			goodPayload := []automdm.ScriptPayload{{Name: "test.sh", ScriptContents: []byte(supportedVarContents)}}
 
 			// unsupported variables are rejected on dry run too, keyed on the
 			// indexed field so callers can tell which script failed
@@ -1320,10 +1320,10 @@ func TestScriptFleetVariablesValidation(t *testing.T) {
 				require.ErrorContains(t, err, "scripts[0]", "dryRun=%v", dryRun)
 			}
 
-			ds.BatchSetScriptsFunc = func(ctx context.Context, tmID *uint, scripts []*fleet.Script) ([]fleet.ScriptResponse, error) {
+			ds.BatchSetScriptsFunc = func(ctx context.Context, tmID *uint, scripts []*automdm.Script) ([]automdm.ScriptResponse, error) {
 				require.Len(t, scripts, 1)
 				require.Equal(t, supportedVarContents, scripts[0].ScriptContents)
-				return []fleet.ScriptResponse{{ID: 1, Name: "test.sh"}}, nil
+				return []automdm.ScriptResponse{{ID: 1, Name: "test.sh"}}, nil
 			}
 			_, err := svc.BatchSetScripts(ctx, nil, nil, goodPayload, false)
 			require.NoError(t, err)
@@ -1332,30 +1332,30 @@ func TestScriptFleetVariablesValidation(t *testing.T) {
 	})
 
 	t.Run("free returns license error for any variable", func(t *testing.T) {
-		svc, ctx, _ := newSvc(t, fleet.TierFree)
+		svc, ctx, _ := newSvc(t, automdm.TierFree)
 
 		for name, contents := range map[string]string{
 			"supported":   supportedVarContents,
 			"unsupported": unsupportedVarContents,
 		} {
 			t.Run(name, func(t *testing.T) {
-				_, err := svc.RunHostScript(ctx, &fleet.HostScriptRequestPayload{HostID: 1, ScriptContents: contents}, 0)
-				require.ErrorIs(t, err, fleet.ErrMissingLicense)
+				_, err := svc.RunHostScript(ctx, &automdm.HostScriptRequestPayload{HostID: 1, ScriptContents: contents}, 0)
+				require.ErrorIs(t, err, automdm.ErrMissingLicense)
 
 				_, err = svc.NewScript(ctx, nil, "test.sh", strings.NewReader(contents))
-				require.ErrorIs(t, err, fleet.ErrMissingLicense)
+				require.ErrorIs(t, err, automdm.ErrMissingLicense)
 
 				_, err = svc.UpdateScript(ctx, 1, strings.NewReader(contents))
-				require.ErrorIs(t, err, fleet.ErrMissingLicense)
+				require.ErrorIs(t, err, automdm.ErrMissingLicense)
 
 				_, err = svc.BatchSetScripts(ctx, nil, nil,
-					[]fleet.ScriptPayload{{Name: "test.sh", ScriptContents: []byte(contents)}}, true)
-				require.ErrorIs(t, err, fleet.ErrMissingLicense)
+					[]automdm.ScriptPayload{{Name: "test.sh", ScriptContents: []byte(contents)}}, true)
+				require.ErrorIs(t, err, automdm.ErrMissingLicense)
 			})
 		}
 
 		t.Run("variable-free scripts still work", func(t *testing.T) {
-			res, err := svc.RunHostScript(ctx, &fleet.HostScriptRequestPayload{HostID: 1, ScriptContents: "echo hello"}, 0)
+			res, err := svc.RunHostScript(ctx, &automdm.HostScriptRequestPayload{HostID: 1, ScriptContents: "echo hello"}, 0)
 			require.NoError(t, err)
 			require.Equal(t, "echo hello", res.ScriptContents)
 
@@ -1365,46 +1365,46 @@ func TestScriptFleetVariablesValidation(t *testing.T) {
 	})
 }
 
-func TestBatchSetScriptsDryRunNewFleet(t *testing.T) {
+func TestBatchSetScriptsDryRunNewTeam(t *testing.T) {
 	ds := new(mock.Store)
-	lic := &fleet.LicenseInfo{Tier: fleet.TierPremium, Expiration: time.Now().Add(24 * time.Hour)}
+	lic := &automdm.LicenseInfo{Tier: automdm.TierPremium, Expiration: time.Now().Add(24 * time.Hour)}
 	svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: lic, SkipCreateTestUsers: true})
-	ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{ID: 1, GlobalRole: new(fleet.RoleAdmin)}})
+	ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{ID: 1, GlobalRole: new(automdm.RoleAdmin)}})
 
-	ds.TeamByNameFunc = func(ctx context.Context, name string) (*fleet.Team, error) {
+	ds.TeamByNameFunc = func(ctx context.Context, name string) (*automdm.Team, error) {
 		return nil, &notFoundError{}
 	}
-	ds.GetDuplicateStringGroupsUnderCollationFunc = func(ctx context.Context, values []string) ([]fleet.DuplicateStringGroup, error) {
+	ds.GetDuplicateStringGroupsUnderCollationFunc = func(ctx context.Context, values []string) ([]automdm.DuplicateStringGroup, error) {
 		if len(values) == 2 && values[0] == values[1] {
-			return []fleet.DuplicateStringGroup{{Indices: []int{0, 1}}}, nil
+			return []automdm.DuplicateStringGroup{{Indices: []int{0, 1}}}, nil
 		}
 		return nil, nil
 	}
 
-	newFleet := new("New fleet")
+	newAutoMDM := new("New team")
 	cases := []struct {
 		name     string
-		payloads []fleet.ScriptPayload
+		payloads []automdm.ScriptPayload
 		wantErr  string
 	}{
 		{
 			"unsupported interpreter",
-			[]fleet.ScriptPayload{{Name: "unsupported.sh", ScriptContents: []byte("#!/usr/bin/perl\nprint \"hello\";")}},
+			[]automdm.ScriptPayload{{Name: "unsupported.sh", ScriptContents: []byte("#!/usr/bin/perl\nprint \"hello\";")}},
 			"Interpreter not supported",
 		},
 		{
 			"unsupported file type",
-			[]fleet.ScriptPayload{{Name: "script.txt", ScriptContents: []byte("echo hello")}},
+			[]automdm.ScriptPayload{{Name: "script.txt", ScriptContents: []byte("echo hello")}},
 			"File type not supported",
 		},
 		{
-			"unsupported Fleet variable",
-			[]fleet.ScriptPayload{{Name: "vars.sh", ScriptContents: []byte("echo $FLEET_VAR_NONEXISTENT")}},
-			"Fleet variable $FLEET_VAR_NONEXISTENT is not supported in scripts.",
+			"unsupported AutoMDM variable",
+			[]automdm.ScriptPayload{{Name: "vars.sh", ScriptContents: []byte("echo $AUTOMDM_VAR_NONEXISTENT")}},
+			"AutoMDM variable $AUTOMDM_VAR_NONEXISTENT is not supported in scripts.",
 		},
 		{
 			"duplicate names",
-			[]fleet.ScriptPayload{
+			[]automdm.ScriptPayload{
 				{Name: "dup.sh", ScriptContents: []byte("echo one")},
 				{Name: "dup.sh", ScriptContents: []byte("echo two")},
 			},
@@ -1412,14 +1412,14 @@ func TestBatchSetScriptsDryRunNewFleet(t *testing.T) {
 		},
 		{
 			"valid payload",
-			[]fleet.ScriptPayload{{Name: "valid.sh", ScriptContents: []byte("#!/bin/sh\necho hello")}},
+			[]automdm.ScriptPayload{{Name: "valid.sh", ScriptContents: []byte("#!/bin/sh\necho hello")}},
 			"",
 		},
 		{"empty payload", nil, ""},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			res, err := svc.BatchSetScripts(ctx, nil, newFleet, c.payloads, true)
+			res, err := svc.BatchSetScripts(ctx, nil, newAutoMDM, c.payloads, true)
 			if c.wantErr != "" {
 				require.ErrorContains(t, err, c.wantErr)
 			} else {
@@ -1431,35 +1431,35 @@ func TestBatchSetScriptsDryRunNewFleet(t *testing.T) {
 	}
 
 	t.Run("real run still fails", func(t *testing.T) {
-		_, err := svc.BatchSetScripts(ctx, nil, newFleet, nil, false)
-		require.True(t, fleet.IsNotFound(err))
+		_, err := svc.BatchSetScripts(ctx, nil, newAutoMDM, nil, false)
+		require.True(t, automdm.IsNotFound(err))
 		require.False(t, ds.BatchSetScriptsFuncInvoked)
 	})
 
-	t.Run("fleet-scoped user can't validate for a new fleet", func(t *testing.T) {
-		teamCtx := viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{
+	t.Run("team-scoped user can't validate for a new team", func(t *testing.T) {
+		teamCtx := viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{
 			ID:    2,
-			Teams: []fleet.UserTeam{{ID: 1, Role: fleet.RoleAdmin}},
+			Teams: []automdm.UserTeam{{ID: 1, Role: automdm.RoleAdmin}},
 		}})
-		_, err := svc.BatchSetScripts(teamCtx, nil, newFleet, nil, true)
+		_, err := svc.BatchSetScripts(teamCtx, nil, newAutoMDM, nil, true)
 		checkAuthErr(t, true, err)
 	})
 }
 
 func TestUpdateScriptValidatesFileType(t *testing.T) {
 	ds := new(mock.Store)
-	lic := &fleet.LicenseInfo{Tier: fleet.TierPremium, Expiration: time.Now().Add(24 * time.Hour)}
+	lic := &automdm.LicenseInfo{Tier: automdm.TierPremium, Expiration: time.Now().Add(24 * time.Hour)}
 	svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: lic, SkipCreateTestUsers: true})
-	ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{ID: 1, GlobalRole: new(fleet.RoleAdmin)}})
+	ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{ID: 1, GlobalRole: new(automdm.RoleAdmin)}})
 
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
 	}
-	ds.ScriptFunc = func(ctx context.Context, id uint) (*fleet.Script, error) {
-		return &fleet.Script{ID: id, Name: map[uint]string{1: "fix.py", 2: "fix.ps1", 3: "fix.sh"}[id]}, nil
+	ds.ScriptFunc = func(ctx context.Context, id uint) (*automdm.Script, error) {
+		return &automdm.Script{ID: id, Name: map[uint]string{1: "fix.py", 2: "fix.ps1", 3: "fix.sh"}[id]}, nil
 	}
-	ds.UpdateScriptContentsFunc = func(ctx context.Context, scriptID uint, contents string) (*fleet.Script, error) {
-		return &fleet.Script{ID: scriptID, ScriptContents: contents}, nil
+	ds.UpdateScriptContentsFunc = func(ctx context.Context, scriptID uint, contents string) (*automdm.Script, error) {
+		return &automdm.Script{ID: scriptID, ScriptContents: contents}, nil
 	}
 	ds.ValidateEmbeddedSecretsFunc = func(ctx context.Context, documents []string) error {
 		return nil
@@ -1493,7 +1493,7 @@ func TestUpdateScriptValidatesFileType(t *testing.T) {
 				return
 			}
 			require.ErrorContains(t, err, tc.wantErr)
-			var invalidArgErr *fleet.InvalidArgumentError
+			var invalidArgErr *automdm.InvalidArgumentError
 			require.ErrorAs(t, err, &invalidArgErr)
 			require.False(t, ds.UpdateScriptContentsFuncInvoked)
 		})
@@ -1505,12 +1505,12 @@ func TestBatchScriptCancelReplicaLag(t *testing.T) {
 	ds := mysqltest.CreateMySQLDSWithOptions(t, opts)
 	defer ds.Close()
 
-	serverOpts := &TestServerOpts{License: &fleet.LicenseInfo{Tier: fleet.TierPremium}, SkipCreateTestUsers: true}
+	serverOpts := &TestServerOpts{License: &automdm.LicenseInfo{Tier: automdm.TierPremium}, SkipCreateTestUsers: true}
 	svc, ctx := newTestService(t, ds, nil, nil, serverOpts)
 
-	var canceledActivities []fleet.ActivityTypeBatchScriptCanceled
+	var canceledActivities []automdm.ActivityTypeBatchScriptCanceled
 	serverOpts.ActivityMock.NewActivityFunc = func(_ context.Context, _ *activity_api.User, activity activity_api.ActivityDetails) error {
-		if a, ok := activity.(fleet.ActivityTypeBatchScriptCanceled); ok {
+		if a, ok := activity.(automdm.ActivityTypeBatchScriptCanceled); ok {
 			canceledActivities = append(canceledActivities, a)
 		}
 		return nil
@@ -1526,7 +1526,7 @@ func TestBatchScriptCancelReplicaLag(t *testing.T) {
 	test.SetOrbitEnrollment(t, host2, ds)
 	test.SetOrbitEnrollment(t, host3, ds)
 
-	script, err := ds.NewScript(ctx, &fleet.Script{Name: "script1.sh", ScriptContents: "echo hi"})
+	script, err := ds.NewScript(ctx, &automdm.Script{Name: "script1.sh", ScriptContents: "echo hi"})
 	require.NoError(t, err)
 
 	// start a batch run on all 3 hosts and make it available to the replica
@@ -1548,6 +1548,6 @@ func TestBatchScriptCancelReplicaLag(t *testing.T) {
 	// read the batch from the replica, it should not have the canceled count yet
 	replicaBatch, err := ds.GetBatchActivity(ctx, batchID)
 	require.NoError(t, err)
-	require.Equal(t, fleet.ScheduledBatchExecutionStarted, replicaBatch.Status)
+	require.Equal(t, automdm.ScheduledBatchExecutionStarted, replicaBatch.Status)
 	require.Nil(t, replicaBatch.NumCanceled)
 }

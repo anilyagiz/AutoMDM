@@ -64,7 +64,7 @@ type Blob struct {
 
 // NewBitmap builds a *roaring.Bitmap from a host ID list. Calls RunOptimize
 // before returning so that subsequent serialization (via BitmapToBlob) is
-// byte-deterministic for the input set. Host IDs of 0 are skipped — Fleet
+// byte-deterministic for the input set. Host IDs of 0 are skipped — AutoMDM
 // host IDs are AUTO_INCREMENT starting at 1.
 func NewBitmap(ids []uint) *roaring.Bitmap {
 	rb := roaring.New()
@@ -178,7 +178,7 @@ func (e errUnknownEncoding) Error() string {
 
 // BitmapToHostIDs returns the set bits of a *roaring.Bitmap as a sorted []uint.
 // Thin convenience over roaring.Bitmap.ToArray (which returns []uint32) for
-// callers that work in uint at the Fleet boundary.
+// callers that work in uint at the AutoMDM boundary.
 func BitmapToHostIDs(rb *roaring.Bitmap) []uint {
 	if rb == nil {
 		return nil

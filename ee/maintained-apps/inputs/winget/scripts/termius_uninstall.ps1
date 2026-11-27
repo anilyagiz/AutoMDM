@@ -7,7 +7,7 @@
 
 $displayNamePattern = '^Termius \d'
 $publisher = "Termius Corporation"
-$taskName = "fleet-uninstall-termius"
+$taskName = "automdm-uninstall-termius"
 $appDir = "AppData\Local\Programs\Termius"  # in each user's profile
 $taskRunning = 267009  # SCHED_S_TASK_RUNNING
 $timeoutSeconds = 300

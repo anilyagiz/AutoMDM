@@ -1,6 +1,6 @@
-# Fleet license key generation
+# AutoMDM license key generation
 
-This directory contains the Node script for generating Fleet license keys.
+This directory contains the Node script for generating AutoMDM license keys.
 
 ## Usage
 

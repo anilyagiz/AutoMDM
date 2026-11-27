@@ -14,8 +14,8 @@ html:has(body.dark-mode) {
 }
 
 body {
-  color: $ui-fleet-black-75;
-  background-color: $core-fleet-white;
+  color: $ui-automdm-black-75;
+  background-color: $core-automdm-white;
   padding: 0;
   margin: 0;
   font-family: "Inter", sans-serif;
@@ -74,7 +74,7 @@ h1,
 h2,
 h3 {
   line-height: 1.2;
-  color: $core-fleet-black;
+  color: $core-automdm-black;
   font-weight: 600;
   margin: 0;
 }
@@ -107,7 +107,7 @@ b {
 
 .__react_component_tooltip {
   a {
-    color: $core-fleet-white;
+    color: $core-automdm-white;
   }
 }
 
@@ -202,7 +202,7 @@ form,
       }
     }
     code {
-      color: $ui-fleet-black-75;
+      color: $ui-automdm-black-75;
       background-color: $ui-light-grey;
       padding: $pad-xxsmall;
       font-family: "SourceCodePro", $monospace;
@@ -244,9 +244,9 @@ button {
   // instead of forcing white.
   &:-webkit-autofill,
   &:autofill {
-    box-shadow: 0 0 0 1000px $core-fleet-white inset;
-    -webkit-text-fill-color: $core-fleet-black !important; //sass-lint:disable-line no-important
-    caret-color: $core-fleet-black;
+    box-shadow: 0 0 0 1000px $core-automdm-white inset;
+    -webkit-text-fill-color: $core-automdm-black !important; //sass-lint:disable-line no-important
+    caret-color: $core-automdm-black;
   }
 }
 
@@ -331,47 +331,47 @@ body.dark-mode .site-nav-item:not(.dup-org-logo):hover {
 
 body.dark-mode .card .button--secondary:hover,
 body.dark-mode .card .button--subdued:hover {
-  background-color: $core-fleet-white;
+  background-color: $core-automdm-white;
 }
 
 // A modal inside a card inherits the .card hover above, which matches the
 // modal surface and hides it. Restore the normal secondary/subdued hover.
 body.dark-mode .modal__modal_container .button--secondary:hover,
 body.dark-mode .modal__modal_container .button--subdued:hover {
-  background-color: $ui-fleet-black-5;
+  background-color: $ui-automdm-black-5;
 }
 
 body.dark-mode .checkbox-unchecked-state {
-  fill: $core-fleet-white;
-  stroke: $ui-fleet-black-25;
+  fill: $core-automdm-white;
+  stroke: $ui-automdm-black-25;
 }
 
 // react-select v2 (DropdownWrapper) uses inline styles via COLORS proxy,
 // so !important is needed to override them in dark mode.
 body.dark-mode .react-select__control {
-  background-color: $ui-fleet-black-5 !important;
+  background-color: $ui-automdm-black-5 !important;
 }
 
-// Button-style dropdowns hardcode their hover to $ui-fleet-black-5, which
-// matches the card surface. Darken to $core-fleet-white on cards, like the
+// Button-style dropdowns hardcode their hover to $ui-automdm-black-5, which
+// matches the card surface. Darken to $core-automdm-white on cards, like the
 // .card button rule above. One selector per dropdown component.
 body.dark-mode .card .dropdown-wrapper__button .react-select__control:hover,
 body.dark-mode .card .actions-dropdown-select__control:hover {
-  background-color: $core-fleet-white !important;
+  background-color: $core-automdm-white !important;
 }
 
 // Legacy react-select v1 (Dropdown) uses SCSS-applied backgrounds.
 body.dark-mode .Select .Select-control,
 body.dark-mode .Select .Select-control .Select-value,
 body.dark-mode .Select .Select-value {
-  background-color: $ui-fleet-black-5;
+  background-color: $ui-automdm-black-5;
 }
 
 hr {
   margin-top: $pad-xlarge;
   margin-bottom: $pad-xlarge;
   border: none;
-  border-bottom: 1px solid $ui-fleet-black-10;
+  border-bottom: 1px solid $ui-automdm-black-10;
 }
 
 dl {

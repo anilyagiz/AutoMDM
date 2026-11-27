@@ -21,14 +21,14 @@ Otherwise, you may encounter issues where the micromdm server rejects certain re
 previously issued certificates (by default the server limits reissuance to 14 days before expiration.
 This issue manifests as a failure to install the SCEP profile and an error in micromdm server logs similar to below:
 ```
-ts=2025-06-12T16:52:27.40632Z caller=service.go:87 msg="failed to sign CSR" err="DN /OU=FLEET DEVICE MANAGEMENT/CN=C02ABC123XYZ WIFI fleet-af18e381e-f5db-47fd-8026-1a91599f18e6 already exists"
+ts=2025-06-12T16:52:27.40632Z caller=service.go:87 msg="failed to sign CSR" err="DN /OU=AUTOMDM DEVICE MANAGEMENT/CN=C02ABC123XYZ WIFI automdm-af18e381e-f5db-47fd-8026-1a91599f18e6 already exists"
 ```
 
-Note also that automatic renewal of certificates in Fleet depends on the host vitals record in the
+Note also that automatic renewal of certificates in AutoMDM depends on the host vitals record in the
 `hosts_mdm_managed_certificates` table. To test automatic renewal, you can manipulate the
 `not_valid_before` and `not_valid_after` columns in that table to simulate an expiring certificate.
 For example, set `not_valid_after` to a date 30 days after today, and `not_valid_before` to a date
-30 days prior to today. Then use `fleetctl trigger -name=cleanups_then_aggregation` to trigger the
+30 days prior to today. Then use `automdmctl trigger -name=cleanups_then_aggregation` to trigger the
 cron job that checks for expiring certificates and renews them.
 
 ## Implementation details
@@ -49,14 +49,14 @@ title: Add/edit custom SCEP integration
 sequenceDiagram
     autonumber
     actor admin as Admin
-    participant fleet as Fleet server
+    participant automdm as AutoMDM server
     participant scep as Custom SCEP server
-    admin->>+fleet: Save configs
-    fleet->>fleet: Validate inputs
-    fleet->>+scep: GetCACert
-    scep-->>-fleet: CA certificate
-    fleet->>fleet: Encrypt SCEP challenge
-    fleet-->>-admin: Done
+    admin->>+automdm: Save configs
+    automdm->>automdm: Validate inputs
+    automdm->>+scep: GetCACert
+    scep-->>-automdm: CA certificate
+    automdm->>automdm: Encrypt SCEP challenge
+    automdm-->>-admin: Done
 ```
 
 ```mermaid
@@ -67,48 +67,48 @@ sequenceDiagram
     autonumber
     actor admin as Admin
     participant host as Host
-    participant fleet as Fleet server
+    participant automdm as AutoMDM server
     participant scep as Custom SCEP server
     participant apple as Apple
-    admin->>+fleet: Upload SCEP Apple configuration profile
-    fleet->>fleet: Validate profile
-    fleet-->>-admin: OK
+    admin->>+automdm: Upload SCEP Apple configuration profile
+    automdm->>automdm: Validate profile
+    automdm-->>-admin: OK
 
-    fleet--)+fleet: Process profiles every 30 seconds
-    fleet->>fleet: Validate profile
-    fleet->>fleet: Decrypt challenge
-    fleet->>fleet: Inject Fleet variables
-    fleet->>+apple: Push notification (APNS)
-    apple-->>-fleet: OK
-    deactivate fleet
+    automdm--)+automdm: Process profiles every 30 seconds
+    automdm->>automdm: Validate profile
+    automdm->>automdm: Decrypt challenge
+    automdm->>automdm: Inject AutoMDM variables
+    automdm->>+apple: Push notification (APNS)
+    apple-->>-automdm: OK
+    deactivate automdm
 
-    host--)+fleet: Idle message
-    fleet-->>-host: SCEP profile
+    host--)+automdm: Idle message
+    automdm-->>-host: SCEP profile
     activate host
     host->>host: Generate private key
-    host->>+fleet: SCEP: GetCACaps
-    fleet->>+scep: SCEP: GetCACaps
-    scep-->>-fleet: CA capabilities
-    fleet-->>-host: CA capabilities
-    host->>+fleet: SCEP: GetCACert
-    fleet->>+scep: SCEP: GetCACert
-    scep-->>-fleet: CA certificate
-    fleet-->>-host: CA certificate
-    host->>+fleet: SCEP: PKCSReq
-    fleet->>+scep: SCEP: PKCSReq
-    scep-->>-fleet: Encrypted certificate
-    fleet-->>-host: Encrypted certificate
+    host->>+automdm: SCEP: GetCACaps
+    automdm->>+scep: SCEP: GetCACaps
+    scep-->>-automdm: CA capabilities
+    automdm-->>-host: CA capabilities
+    host->>+automdm: SCEP: GetCACert
+    automdm->>+scep: SCEP: GetCACert
+    scep-->>-automdm: CA certificate
+    automdm-->>-host: CA certificate
+    host->>+automdm: SCEP: PKCSReq
+    automdm->>+scep: SCEP: PKCSReq
+    scep-->>-automdm: Encrypted certificate
+    automdm-->>-host: Encrypted certificate
     host->>host: Add certificate to keychain
-    host-->>-fleet: Acknowledged message
-    activate fleet
-    fleet-->>-host: Empty
+    host-->>-automdm: Acknowledged message
+    activate automdm
+    automdm-->>-host: Empty
 
-    host->>+fleet: Read
-    fleet-->>-host: Get profiles command (once an hour)
+    host->>+automdm: Read
+    automdm-->>-host: Get profiles command (once an hour)
     
-    host->>+fleet: Write (profiles)
-    fleet->>fleet: SCEP profile Verified
-    fleet-->>-host: OK
+    host->>+automdm: Write (profiles)
+    automdm->>automdm: SCEP profile Verified
+    automdm-->>-host: OK
 ```
 
 ## Sample SCEP profile
@@ -124,7 +124,7 @@ sequenceDiagram
           <key>PayloadContent</key>
           <dict>
              <key>Challenge</key>
-             <string>$FLEET_VAR_CUSTOM_SCEP_CHALLENGE_CA_NAME</string>
+             <string>$AUTOMDM_VAR_CUSTOM_SCEP_CHALLENGE_CA_NAME</string>
              <key>Key Type</key>
              <string>RSA</string>
              <key>Key Usage</key>
@@ -136,18 +136,18 @@ sequenceDiagram
                         <array>
                           <array>
                             <string>CN</string>
-                            <string>%SerialNumber% WIFI $FLEET_VAR_CERTIFICATE_RENEWAL_ID</string>
+                            <string>%SerialNumber% WIFI $AUTOMDM_VAR_CERTIFICATE_RENEWAL_ID</string>
                           </array>
                         </array>
                         <array>
                           <array>
                             <string>OU</string>
-                            <string>FLEET DEVICE MANAGEMENT</string>
+                            <string>AUTOMDM DEVICE MANAGEMENT</string>
                           </array>
                         </array>
                     </array>
              <key>URL</key>
-             <string>$FLEET_VAR_CUSTOM_SCEP_PROXY_URL_CA_NAME</string>
+             <string>$AUTOMDM_VAR_CUSTOM_SCEP_PROXY_URL_CA_NAME</string>
           </dict>
           <key>PayloadDisplayName</key>
           <string>WIFI SCEP</string>
@@ -164,7 +164,7 @@ sequenceDiagram
     <key>PayloadDisplayName</key>
     <string>SCEP proxy cert</string>
     <key>PayloadIdentifier</key>
-    <string>Fleet.WiFi</string>
+    <string>AutoMDM.WiFi</string>
     <key>PayloadType</key>
     <string>Configuration</string>
     <key>PayloadUUID</key>

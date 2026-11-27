@@ -2,7 +2,7 @@ import classnames from "classnames";
 import React from "react";
 
 // @ts-ignore
-import FleetIcon from "components/icons/FleetIcon";
+import AutoMDMIcon from "components/icons/AutoMDMIcon";
 import { isLinuxLike } from "interfaces/platform";
 import { ISelectTargetsEntity } from "interfaces/target";
 
@@ -35,7 +35,7 @@ const TargetIcon = ({ target }: ITargetIconProps): JSX.Element => {
     }`]: isTargetHost(target),
   });
 
-  return <FleetIcon name={iconName()} className={targetClasses} />;
+  return <AutoMDMIcon name={iconName()} className={targetClasses} />;
 };
 
 export default TargetIcon;

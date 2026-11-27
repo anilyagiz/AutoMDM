@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/mdm/acme/internal/types"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/mdm/acme/internal/types"
 )
 
 // This file does not handle normal authentication, but the ACME concept of authorization as part of the protocol.

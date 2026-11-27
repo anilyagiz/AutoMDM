@@ -1,6 +1,6 @@
 import React from "react";
 
-import FleetsDropdown from "components/FleetsDropdown";
+import AutoMDMsDropdown from "components/AutoMDMsDropdown";
 import { ITeamSummary } from "interfaces/team";
 
 interface ITeamsHeader {
@@ -19,9 +19,9 @@ const TeamsHeader = ({
   if (userTeams) {
     if (userTeams.length > 1 || isOnGlobalTeam) {
       return (
-        <FleetsDropdown
-          currentUserFleets={userTeams}
-          selectedFleetId={currentTeamId}
+        <AutoMDMsDropdown
+          currentUserTeams={userTeams}
+          selectedAutoMDMId={currentTeamId}
           onChange={onTeamChange}
           includeUnassigned
         />

@@ -32,11 +32,11 @@
 
   &__page-subtitle {
     font-size: $x-small;
-    color: $ui-fleet-black-75;
+    color: $ui-automdm-black-75;
     margin: 0;
   }
 
-  &__fleet-name {
+  &__team-name {
     overflow-wrap: anywhere;
   }
 
@@ -77,7 +77,7 @@
     height: 18px;
   }
 
-  &__policy-name-fleet-name,
+  &__policy-name-team-name,
   &__description,
   &__resolution {
     .button--text-icon {
@@ -86,7 +86,7 @@
     }
   }
 
-  &__policy-name-fleet-name {
+  &__policy-name-team-name {
     display: flex;
     flex-direction: column;
     gap: $pad-small;
@@ -130,7 +130,7 @@
       margin-top: $pad-small;
     }
 
-    .fleet-checkbox__label {
+    .automdm-checkbox__label {
       transform: translateY(2px);
     }
   }

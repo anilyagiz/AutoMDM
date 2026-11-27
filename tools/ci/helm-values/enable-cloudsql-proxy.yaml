@@ -1,12 +1,12 @@
 ## Section: Kubernetes
-# All settings related to how Fleet is deployed in Kubernetes
-hostName: fleet.localhost
-replicas: 3 # The number of Fleet instances to deploy
-imageTag: 3.6.0 # Version of Fleet to deploy
+# All settings related to how AutoMDM is deployed in Kubernetes
+hostName: automdm.localhost
+replicas: 3 # The number of AutoMDM instances to deploy
+imageTag: 3.6.0 # Version of AutoMDM to deploy
 createIngress: true # Whether or not to automatically create an Ingress
 ingressAnnotations: {} # Additional annotation to add to the Ingress
-podAnnotations: {} # Additional annotations to add to the Fleet pod
-serviceAccountAnnotations: {} # Additional annotations to add to the Fleet service account
+podAnnotations: {} # Additional annotations to add to the AutoMDM pod
+serviceAccountAnnotations: {} # Additional annotations to add to the AutoMDM service account
 resources:
   limits:
     cpu: 1 # 1GHz
@@ -15,13 +15,13 @@ resources:
     cpu: 0.1 # 100Mhz
     memory: 50Mi
 
-## Section: Fleet
-# All of the settings relating to configuring the Fleet server
-fleet:
+## Section: AutoMDM
+# All of the settings relating to configuring the AutoMDM server
+automdm:
   listenPort: 8080
   # Name of the Secret resource storing TLS and S3 bucket secrets
-  secretName: fleet
-  # Whether or not to run `fleet db prepare` to run SQL migrations before starting Fleet
+  secretName: automdm
+  # Whether or not to run `automdm db prepare` to run SQL migrations before starting AutoMDM
   # WARNING: This may cause database corruption if more than one migration is attempted at a time
   autoApplySQLMigrations: false
   tls:
@@ -51,7 +51,7 @@ fleet:
       stsAssumeRoleARN: ""
 
 ## Section: osquery
-# All of the settings related to osquery's interactions with the Fleet server 
+# All of the settings related to osquery's interactions with the AutoMDM server 
 osquery:
   # Name of the secret resource containing optional secrets for AWS credentials
   secretName: osquery
@@ -59,7 +59,7 @@ osquery:
   labelUpdateInterval: 30m
   detailUpdateInterval: 30m
 
-  # To change where Fleet store the logs sent from osquery, set the values below
+  # To change where AutoMDM store the logs sent from osquery, set the values below
   logging:
     statusPlugin: filesystem
     resultPlugin: filesystem
@@ -101,8 +101,8 @@ database:
   # Name of the Secret resource containing MySQL password and TLS secrets
   secretName: mysql
   address: 127.0.0.1:3306
-  database: fleet
-  username: fleet
+  database: automdm
+  username: automdm
   passwordKey: mysql-password
   maxOpenConns: 50
   maxIdleConns: 50
@@ -127,7 +127,7 @@ cache:
 ## Section: GKE
 # Settings that make running on Google Kubernetes Engine easier
 gke:
-  # The CloudSQL Proxy runs as a container in the Fleet Pod that proxies connections to a Cloud SQL instance
+  # The CloudSQL Proxy runs as a container in the AutoMDM Pod that proxies connections to a Cloud SQL instance
   cloudSQL:
     enableProxy: true
     imageTag: 1.17-alpine

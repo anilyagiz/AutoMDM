@@ -77,7 +77,7 @@ const createMockPolicy = (overrides?: Partial<IPolicy>): IPolicy => ({
   author_email: "admin@example.com",
   resolution: "",
   platform: "darwin",
-  fleet_id: 1,
+  team_id: 1,
   created_at: "2026-01-01T00:00:00Z",
   updated_at: "2026-01-01T00:00:00Z",
   critical: false,
@@ -193,7 +193,7 @@ const renderWithHandle = (
       teamIdForApi={1}
       automationsConfig={undefined}
       globalConfig={undefined}
-      fleetName="Test Fleet"
+      automdmName="Test AutoMDM"
       selectedPlatforms={["darwin"]}
       {...componentProps}
     />
@@ -484,7 +484,7 @@ describe("PolicyAutomationsFields — payload", () => {
     expect(continuous).toHaveAttribute("aria-disabled", "true");
 
     const icon = container.querySelector(
-      ".policy-automations-fields__continuous .fleet-checkbox__icon"
+      ".policy-automations-fields__continuous .automdm-checkbox__icon"
     );
     expect(icon).not.toBeNull();
     await user.hover(icon as Element);
@@ -578,7 +578,7 @@ describe("PolicyAutomationsFields — payload", () => {
     expect(continuous).toHaveAttribute("aria-disabled", "true");
 
     const icon = container.querySelector(
-      ".policy-automations-fields__continuous .fleet-checkbox__icon"
+      ".policy-automations-fields__continuous .automdm-checkbox__icon"
     );
     expect(icon).not.toBeNull();
     await user.hover(icon as Element);
@@ -661,7 +661,7 @@ describe("PolicyAutomationsFields — Resend configuration profile row", () => {
         teamIdForApi={1}
         automationsConfig={undefined}
         globalConfig={undefined}
-        fleetName="Test Fleet"
+        automdmName="Test AutoMDM"
         selectedPlatforms={["darwin"]}
       />
     );
@@ -782,7 +782,7 @@ describe("PolicyAutomationsFields — Automation dropdown", () => {
     expect(screen.getByText("None")).toBeInTheDocument();
   });
 
-  it("offers every automation for a fleet policy", async () => {
+  it("offers every automation for a team policy", async () => {
     const { user } = renderWithHandle(undefined, undefined, {
       automationsConfig: webhookConfig,
     });
@@ -797,7 +797,7 @@ describe("PolicyAutomationsFields — Automation dropdown", () => {
     ]);
   });
 
-  it("only offers webhook or ticket for an All fleets policy", async () => {
+  it("only offers webhook or ticket for an All teams policy", async () => {
     const { user } = renderWithHandle(undefined, undefined, {
       isGlobalPolicy: true,
       teamIdForApi: undefined,
@@ -818,7 +818,7 @@ describe("PolicyAutomationsFields — Automation dropdown", () => {
     );
   });
 
-  it("disables automations that aren't turned on for the fleet", async () => {
+  it("disables automations that aren't turned on for the team", async () => {
     const { user } = renderWithHandle();
     const options = await openAutomationOptions(user);
     const disabled = options
@@ -991,7 +991,7 @@ describe("PolicyAutomationsFields — Automation dropdown", () => {
           teamIdForApi={1}
           automationsConfig={webhookConfig}
           globalConfig={undefined}
-          fleetName="Test Fleet"
+          automdmName="Test AutoMDM"
           selectedPlatforms={["darwin"]}
         />
       );
@@ -1010,7 +1010,7 @@ describe("PolicyAutomationsFields — Automation dropdown", () => {
           teamIdForApi={1}
           automationsConfig={webhookConfig}
           globalConfig={undefined}
-          fleetName="Test Fleet"
+          automdmName="Test AutoMDM"
           selectedPlatforms={["darwin"]}
         />
       );

@@ -22,7 +22,7 @@ import softwareAPI, {
 
 import { RESULT_PREFIXES } from "./constants";
 import HighlightedLabel from "./HighlightedLabel";
-import getFleetSuffix from "./pickerCopy";
+import getTeamSuffix from "./pickerCopy";
 import usePickerSearch from "./usePickerSearch";
 
 const baseClass = "command-palette";
@@ -75,16 +75,16 @@ const SoftwarePicker = ({
       ? currentTeam.id
       : undefined;
 
-  const fleetSuffix = getFleetSuffix(currentTeam);
+  const automdmSuffix = getTeamSuffix(currentTeam);
 
   // For library copy ("No software in X's library.") we need a possessive
-  // form. Library is hidden on All fleets so that branch shouldn't
+  // form. Library is hidden on All teams so that branch shouldn't
   // render here, but we still default defensively.
   const libraryOwner = (() => {
     if (currentTeam && currentTeam.id > 0)
       return `${currentTeam.name}'s library`;
     if (currentTeam?.id === APP_CONTEXT_NO_TEAM_ID)
-      return "this fleet's library";
+      return "this team's library";
     return "the library";
   })();
 
@@ -131,8 +131,8 @@ const SoftwarePicker = ({
         : `No software in ${libraryOwner}.`;
     } else {
       emptyMessage = debouncedQuery
-        ? `No software matches "${debouncedQuery}"${fleetSuffix}.`
-        : `No software found${fleetSuffix}.`;
+        ? `No software matches "${debouncedQuery}"${automdmSuffix}.`
+        : `No software found${automdmSuffix}.`;
     }
     return <div className={`${baseClass}__empty`}>{emptyMessage}</div>;
   }

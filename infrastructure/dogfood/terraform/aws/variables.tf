@@ -1,33 +1,33 @@
 locals {
-  name = "fleetdm"
+  name = "automdm"
 }
 
 variable "prefix" {
-  default = "fleet"
+  default = "automdm"
 }
 
-variable "domain_fleetdm" {
+variable "domain_automdm" {
   default = "dogfood.fleetdm.com"
 }
 
 variable "osquery_results_s3_bucket" {
-  default = "fleet-osquery-results-archive"
+  default = "automdm-osquery-results-archive"
 }
 
 variable "osquery_status_s3_bucket" {
-  default = "fleet-osquery-status-archive"
+  default = "automdm-osquery-status-archive"
 }
 
 variable "vulnerabilities_path" {
-  default = "/home/fleet"
+  default = "/home/automdm"
 }
 
-variable "fleet_backend_cpu" {
+variable "automdm_backend_cpu" {
   default = 256
   type    = number
 }
 
-variable "fleet_backend_mem" {
+variable "automdm_backend_mem" {
   default = 512
   type    = number
 }
@@ -41,18 +41,18 @@ variable "logging_json" {
 }
 
 variable "database_user" {
-  description = "database user fleet will authenticate and query with"
-  default     = "fleet"
+  description = "database user automdm will authenticate and query with"
+  default     = "automdm"
 }
 
 variable "database_name" {
-  description = "the name of the database fleet will create/use"
-  default     = "fleet"
+  description = "the name of the database automdm will create/use"
+  default     = "automdm"
 }
 
-variable "fleet_image" {
+variable "automdm_image" {
   description = "the name of the container image to run"
-  default     = "fleetdm/fleet:v4.95.0"
+  default     = "automdm/automdm:v4.95.0"
 }
 
 variable "software_inventory" {
@@ -62,7 +62,7 @@ variable "software_inventory" {
 
 variable "vuln_db_path" {
   description = "the path to save the vuln database"
-  default     = "/home/fleet"
+  default     = "/home/automdm"
 }
 
 variable "cpu_migrate" {
@@ -77,13 +77,13 @@ variable "mem_migrate" {
   type        = number
 }
 
-variable "fleet_max_capacity" {
-  description = "maximum number of fleet containers to run"
+variable "automdm_max_capacity" {
+  description = "maximum number of automdm containers to run"
   default     = 5
 }
 
-variable "fleet_min_capacity" {
-  description = "minimum number of fleet containers to run"
+variable "automdm_min_capacity" {
+  description = "minimum number of automdm containers to run"
   default     = 1
 }
 
@@ -97,13 +97,13 @@ variable "cpu_tracking_target_value" {
   default     = 60
 }
 
-variable "fleet_license" {
-  description = "Fleet Premium license key"
+variable "automdm_license" {
+  description = "AutoMDM Premium license key"
   default     = ""
 }
 
 variable "cloudwatch_log_retention" {
-  description = "number of days to keep logs around for fleet services"
+  description = "number of days to keep logs around for automdm services"
   default     = 1
 }
 

@@ -7,11 +7,11 @@ import (
 	"mime/multipart"
 	"net/http"
 
-	"github.com/fleetdm/fleet/v4/server/authz"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/platform/endpointer"
-	platform_http "github.com/fleetdm/fleet/v4/server/platform/http"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/platform/endpointer"
+	platform_http "github.com/anilyagiz/automdm/v4/server/platform/http"
 )
 
 //////////////////////////////////////////////////////////////////////////////
@@ -19,18 +19,18 @@ import (
 //////////////////////////////////////////////////////////////////////////////
 
 type getAppStoreAppsRequest struct {
-	TeamID     uint  `query:"fleet_id"`
+	TeamID     uint  `query:"team_id"`
 	VPPTokenID *uint `query:"vpp_token_id,optional"`
 }
 
 type getAppStoreAppsResponse struct {
-	AppStoreApps []*fleet.VPPApp `json:"app_store_apps"`
-	Err          error           `json:"error,omitempty"`
+	AppStoreApps []*automdm.VPPApp `json:"app_store_apps"`
+	Err          error             `json:"error,omitempty"`
 }
 
 func (r getAppStoreAppsResponse) Error() error { return r.Err }
 
-func getAppStoreAppsEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func getAppStoreAppsEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*getAppStoreAppsRequest)
 	apps, err := svc.GetAppStoreApps(ctx, &req.TeamID, req.VPPTokenID)
 	if err != nil {
@@ -40,12 +40,12 @@ func getAppStoreAppsEndpoint(ctx context.Context, request interface{}, svc fleet
 	return &getAppStoreAppsResponse{AppStoreApps: apps}, nil
 }
 
-func (svc *Service) GetAppStoreApps(ctx context.Context, _ *uint, _ *uint) ([]*fleet.VPPApp, error) {
+func (svc *Service) GetAppStoreApps(ctx context.Context, _ *uint, _ *uint) ([]*automdm.VPPApp, error) {
 	// skipauth: No authorization check needed due to implementation returning
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return nil, fleet.ErrMissingLicense
+	return nil, automdm.ErrMissingLicense
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -53,21 +53,21 @@ func (svc *Service) GetAppStoreApps(ctx context.Context, _ *uint, _ *uint) ([]*f
 //////////////////////////////////////////////////////////////////////////////
 
 type addAppStoreAppRequest struct {
-	TeamID              *uint                           `json:"fleet_id"`
-	AppStoreID          string                          `json:"app_store_id"`
-	Platform            fleet.InstallableDevicePlatform `json:"platform"`
-	SelfService         bool                            `json:"self_service"`
-	AutomaticInstall    bool                            `json:"automatic_install"`
-	LabelsIncludeAny    []string                        `json:"labels_include_any"`
-	LabelsExcludeAny    []string                        `json:"labels_exclude_any"`
-	LabelsIncludeAll    []string                        `json:"labels_include_all"`
-	Categories          []string                        `json:"categories"`
-	Configuration       json.RawMessage                 `json:"configuration,omitempty"`
-	Name                string                          `json:"name"`
-	AutoUpdateEnabled   *bool                           `json:"auto_update_enabled,omitempty"`
-	AutoUpdateStartTime *string                         `json:"auto_update_window_start,omitempty"`
-	AutoUpdateEndTime   *string                         `json:"auto_update_window_end,omitempty"`
-	VPPTokenID          *uint                           `json:"vpp_token_id"`
+	TeamID              *uint                             `json:"team_id"`
+	AppStoreID          string                            `json:"app_store_id"`
+	Platform            automdm.InstallableDevicePlatform `json:"platform"`
+	SelfService         bool                              `json:"self_service"`
+	AutomaticInstall    bool                              `json:"automatic_install"`
+	LabelsIncludeAny    []string                          `json:"labels_include_any"`
+	LabelsExcludeAny    []string                          `json:"labels_exclude_any"`
+	LabelsIncludeAll    []string                          `json:"labels_include_all"`
+	Categories          []string                          `json:"categories"`
+	Configuration       json.RawMessage                   `json:"configuration,omitempty"`
+	Name                string                            `json:"name"`
+	AutoUpdateEnabled   *bool                             `json:"auto_update_enabled,omitempty"`
+	AutoUpdateStartTime *string                           `json:"auto_update_window_start,omitempty"`
+	AutoUpdateEndTime   *string                           `json:"auto_update_window_end,omitempty"`
+	VPPTokenID          *uint                             `json:"vpp_token_id"`
 }
 
 type addAppStoreAppResponse struct {
@@ -79,9 +79,9 @@ type addAppStoreAppResponse struct {
 
 func (r addAppStoreAppResponse) Error() error { return r.Err }
 
-func addAppStoreAppEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func addAppStoreAppEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*addAppStoreAppRequest)
-	addedApp, err := svc.AddAppStoreApp(ctx, req.TeamID, fleet.VPPAppTeam{
+	addedApp, err := svc.AddAppStoreApp(ctx, req.TeamID, automdm.VPPAppTeam{
 		AdamID:               req.AppStoreID,
 		Platform:             req.Platform,
 		VersionName:          req.Name,
@@ -104,12 +104,12 @@ func addAppStoreAppEndpoint(ctx context.Context, request interface{}, svc fleet.
 	return &addAppStoreAppResponse{TitleID: addedApp.TitleID, Name: addedApp.Name, VersionID: addedApp.AppTeamID}, nil
 }
 
-func (svc *Service) AddAppStoreApp(ctx context.Context, _ *uint, _ fleet.VPPAppTeam) (*fleet.VPPApp, error) {
+func (svc *Service) AddAppStoreApp(ctx context.Context, _ *uint, _ automdm.VPPAppTeam) (*automdm.VPPApp, error) {
 	// skipauth: No authorization check needed due to implementation returning
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return nil, fleet.ErrMissingLicense
+	return nil, automdm.ErrMissingLicense
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -118,7 +118,7 @@ func (svc *Service) AddAppStoreApp(ctx context.Context, _ *uint, _ fleet.VPPAppT
 
 type updateAppStoreAppRequest struct {
 	TitleID           uint            `url:"title_id"`
-	TeamID            *uint           `json:"fleet_id"`
+	TeamID            *uint           `json:"team_id"`
 	VersionID         *uint           `json:"version_id"`
 	Name              *string         `json:"name"`
 	SelfService       *bool           `json:"self_service"`
@@ -139,16 +139,16 @@ type updateAppStoreAppRequest struct {
 }
 
 type updateAppStoreAppResponse struct {
-	AppStoreApp *fleet.VPPAppStoreApp `json:"app_store_app,omitempty"`
-	Err         error                 `json:"error,omitempty"`
+	AppStoreApp *automdm.VPPAppStoreApp `json:"app_store_app,omitempty"`
+	Err         error                   `json:"error,omitempty"`
 }
 
 func (r updateAppStoreAppResponse) Error() error { return r.Err }
 
-func updateAppStoreAppEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func updateAppStoreAppEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*updateAppStoreAppRequest)
 
-	updatedApp, activity, err := svc.UpdateAppStoreApp(ctx, req.TitleID, req.TeamID, fleet.AppStoreAppUpdatePayload{
+	updatedApp, activity, err := svc.UpdateAppStoreApp(ctx, req.TitleID, req.TeamID, automdm.AppStoreAppUpdatePayload{
 		VersionID:        req.VersionID,
 		VersionName:      req.Name,
 		SelfService:      req.SelfService,
@@ -158,7 +158,7 @@ func updateAppStoreAppEndpoint(ctx context.Context, request interface{}, svc fle
 		Categories:       req.Categories,
 		Configuration:    req.Configuration,
 		DisplayName:      req.DisplayName,
-		SoftwareAutoUpdateConfig: fleet.SoftwareAutoUpdateConfig{
+		SoftwareAutoUpdateConfig: automdm.SoftwareAutoUpdateConfig{
 			AutoUpdateEnabled:   req.AutoUpdateEnabled,
 			AutoUpdateStartTime: req.AutoUpdateStartTime,
 			AutoUpdateEndTime:   req.AutoUpdateEndTime,
@@ -175,12 +175,12 @@ func updateAppStoreAppEndpoint(ctx context.Context, request interface{}, svc fle
 	return updateAppStoreAppResponse{AppStoreApp: updatedApp}, nil
 }
 
-func (svc *Service) UpdateAppStoreApp(ctx context.Context, titleID uint, teamID *uint, payload fleet.AppStoreAppUpdatePayload) (*fleet.VPPAppStoreApp, *fleet.ActivityEditedAppStoreApp, error) {
+func (svc *Service) UpdateAppStoreApp(ctx context.Context, titleID uint, teamID *uint, payload automdm.AppStoreAppUpdatePayload) (*automdm.VPPAppStoreApp, *automdm.ActivityEditedAppStoreApp, error) {
 	// skipauth: No authorization check needed due to implementation returning
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return nil, nil, fleet.ErrMissingLicense
+	return nil, nil, automdm.ErrMissingLicense
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -196,14 +196,14 @@ func (uploadVPPTokenRequest) DecodeRequest(ctx context.Context, r *http.Request)
 
 	err := r.ParseMultipartForm(platform_http.MaxMultipartFormSize)
 	if err != nil {
-		return nil, &fleet.BadRequestError{
+		return nil, &automdm.BadRequestError{
 			Message:     "failed to parse multipart form",
 			InternalErr: err,
 		}
 	}
 
 	if len(r.MultipartForm.File["token"]) == 0 {
-		return nil, &fleet.BadRequestError{
+		return nil, &automdm.BadRequestError{
 			Message:     "token multipart field is required",
 			InternalErr: err,
 		}
@@ -215,8 +215,8 @@ func (uploadVPPTokenRequest) DecodeRequest(ctx context.Context, r *http.Request)
 }
 
 type uploadVPPTokenResponse struct {
-	Err   error             `json:"error,omitempty"`
-	Token *fleet.VPPTokenDB `json:"token,omitempty"`
+	Err   error               `json:"error,omitempty"`
+	Token *automdm.VPPTokenDB `json:"token,omitempty"`
 }
 
 func (r uploadVPPTokenResponse) Status() int { return http.StatusAccepted }
@@ -225,7 +225,7 @@ func (r uploadVPPTokenResponse) Error() error {
 	return r.Err
 }
 
-func uploadVPPTokenEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func uploadVPPTokenEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*uploadVPPTokenRequest)
 	file, err := req.File.Open()
 	if err != nil {
@@ -241,16 +241,16 @@ func uploadVPPTokenEndpoint(ctx context.Context, request interface{}, svc fleet.
 	return uploadVPPTokenResponse{Token: tok}, nil
 }
 
-func (svc *Service) UploadVPPToken(ctx context.Context, file io.ReadSeeker) (*fleet.VPPTokenDB, error) {
+func (svc *Service) UploadVPPToken(ctx context.Context, file io.ReadSeeker) (*automdm.VPPTokenDB, error) {
 	// skipauth: No authorization check needed due to implementation returning
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return nil, fleet.ErrMissingLicense
+	return nil, automdm.ErrMissingLicense
 }
 
 ////////////////////////////////////////////////////
-// PATCH /api/_version_/fleet/vpp_tokens/%d/renew //
+// PATCH /api/_version_/automdm/vpp_tokens/%d/renew //
 ////////////////////////////////////////////////////
 
 type patchVPPTokenRenewRequest struct {
@@ -263,14 +263,14 @@ func (patchVPPTokenRenewRequest) DecodeRequest(ctx context.Context, r *http.Requ
 
 	err := r.ParseMultipartForm(platform_http.MaxMultipartFormSize)
 	if err != nil {
-		return nil, &fleet.BadRequestError{
+		return nil, &automdm.BadRequestError{
 			Message:     "failed to parse multipart form",
 			InternalErr: err,
 		}
 	}
 
 	if len(r.MultipartForm.File["token"]) == 0 {
-		return nil, &fleet.BadRequestError{
+		return nil, &automdm.BadRequestError{
 			Message:     "token multipart field is required",
 			InternalErr: err,
 		}
@@ -289,8 +289,8 @@ func (patchVPPTokenRenewRequest) DecodeRequest(ctx context.Context, r *http.Requ
 }
 
 type patchVPPTokenRenewResponse struct {
-	Err   error             `json:"error,omitempty"`
-	Token *fleet.VPPTokenDB `json:"token,omitempty"`
+	Err   error               `json:"error,omitempty"`
+	Token *automdm.VPPTokenDB `json:"token,omitempty"`
 }
 
 func (r patchVPPTokenRenewResponse) Status() int { return http.StatusAccepted }
@@ -299,7 +299,7 @@ func (r patchVPPTokenRenewResponse) Error() error {
 	return r.Err
 }
 
-func patchVPPTokenRenewEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func patchVPPTokenRenewEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*patchVPPTokenRenewRequest)
 	file, err := req.File.Open()
 	if err != nil {
@@ -315,31 +315,31 @@ func patchVPPTokenRenewEndpoint(ctx context.Context, request interface{}, svc fl
 	return patchVPPTokenRenewResponse{Token: tok}, nil
 }
 
-func (svc *Service) UpdateVPPToken(ctx context.Context, tokenID uint, token io.ReadSeeker) (*fleet.VPPTokenDB, error) {
+func (svc *Service) UpdateVPPToken(ctx context.Context, tokenID uint, token io.ReadSeeker) (*automdm.VPPTokenDB, error) {
 	// skipauth: No authorization check needed due to implementation returning
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return nil, fleet.ErrMissingLicense
+	return nil, automdm.ErrMissingLicense
 }
 
 /////////////////////////////////////////////////////
-// PATCH /api/_version_/fleet/vpp_tokens/%d/fleets //
+// PATCH /api/_version_/automdm/vpp_tokens/%d/teams //
 /////////////////////////////////////////////////////
 
 type patchVPPTokensTeamsRequest struct {
 	ID      uint   `url:"id"`
-	TeamIDs []uint `json:"fleets"`
+	TeamIDs []uint `json:"teams"`
 }
 
 type patchVPPTokensTeamsResponse struct {
-	Token *fleet.VPPTokenDB `json:"token,omitempty"`
-	Err   error             `json:"error,omitempty"`
+	Token *automdm.VPPTokenDB `json:"token,omitempty"`
+	Err   error               `json:"error,omitempty"`
 }
 
 func (r patchVPPTokensTeamsResponse) Error() error { return r.Err }
 
-func patchVPPTokensTeams(ctx context.Context, request any, svc fleet.Service) (fleet.Errorer, error) {
+func patchVPPTokensTeams(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*patchVPPTokensTeamsRequest)
 
 	tok, err := svc.UpdateVPPTokenTeams(ctx, req.ID, req.TeamIDs)
@@ -349,50 +349,50 @@ func patchVPPTokensTeams(ctx context.Context, request any, svc fleet.Service) (f
 	return patchVPPTokensTeamsResponse{Token: tok}, nil
 }
 
-func (svc *Service) UpdateVPPTokenTeams(ctx context.Context, tokenID uint, teamIDs []uint) (*fleet.VPPTokenDB, error) {
+func (svc *Service) UpdateVPPTokenTeams(ctx context.Context, tokenID uint, teamIDs []uint) (*automdm.VPPTokenDB, error) {
 	// skipauth: No authorization check needed due to implementation returning
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return nil, fleet.ErrMissingLicense
+	return nil, automdm.ErrMissingLicense
 }
 
 /////////////////////////////////////////
-// GET /api/_version_/fleet/vpp_tokens //
+// GET /api/_version_/automdm/vpp_tokens //
 /////////////////////////////////////////
 
 type getVPPTokensRequest struct{}
 
 type getVPPTokensResponse struct {
-	Tokens []*fleet.VPPTokenDB `json:"vpp_tokens"`
-	Err    error               `json:"error,omitempty"`
+	Tokens []*automdm.VPPTokenDB `json:"vpp_tokens"`
+	Err    error                 `json:"error,omitempty"`
 }
 
 func (r getVPPTokensResponse) Error() error { return r.Err }
 
-func getVPPTokens(ctx context.Context, request any, svc fleet.Service) (fleet.Errorer, error) {
+func getVPPTokens(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
 	tokens, err := svc.GetVPPTokens(ctx)
 	if err != nil {
 		return getVPPTokensResponse{Err: err}, nil
 	}
 
 	if tokens == nil {
-		tokens = []*fleet.VPPTokenDB{}
+		tokens = []*automdm.VPPTokenDB{}
 	}
 
 	return getVPPTokensResponse{Tokens: tokens}, nil
 }
 
-func (svc *Service) GetVPPTokens(ctx context.Context) ([]*fleet.VPPTokenDB, error) {
+func (svc *Service) GetVPPTokens(ctx context.Context) ([]*automdm.VPPTokenDB, error) {
 	// skipauth: No authorization check needed due to implementation returning
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return nil, fleet.ErrMissingLicense
+	return nil, automdm.ErrMissingLicense
 }
 
 ///////////////////////////////////////////////
-// DELETE /api/_version_/fleet/vpp_tokens/%d //
+// DELETE /api/_version_/automdm/vpp_tokens/%d //
 ///////////////////////////////////////////////
 
 type deleteVPPTokenRequest struct {
@@ -407,7 +407,7 @@ func (r deleteVPPTokenResponse) Error() error { return r.Err }
 
 func (r deleteVPPTokenResponse) Status() int { return http.StatusNoContent }
 
-func deleteVPPToken(ctx context.Context, request any, svc fleet.Service) (fleet.Errorer, error) {
+func deleteVPPToken(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*deleteVPPTokenRequest)
 
 	err := svc.DeleteVPPToken(ctx, req.ID)
@@ -423,7 +423,7 @@ func (svc *Service) DeleteVPPToken(ctx context.Context, tokenID uint) error {
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return fleet.ErrMissingLicense
+	return automdm.ErrMissingLicense
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -441,7 +441,7 @@ func (createAndroidWebAppRequest) DecodeRequest(ctx context.Context, r *http.Req
 
 	err := r.ParseMultipartForm(platform_http.MaxMultipartFormSize)
 	if err != nil {
-		return nil, &fleet.BadRequestError{
+		return nil, &automdm.BadRequestError{
 			Message:     "failed to parse multipart form",
 			InternalErr: err,
 		}
@@ -449,13 +449,13 @@ func (createAndroidWebAppRequest) DecodeRequest(ctx context.Context, r *http.Req
 
 	title := r.FormValue("title")
 	if title == "" {
-		return nil, &fleet.BadRequestError{Message: "title multipart field is required"}
+		return nil, &automdm.BadRequestError{Message: "title multipart field is required"}
 	}
 	decoded.Title = title
 
 	url := r.FormValue("url")
 	if url == "" {
-		return nil, &fleet.BadRequestError{Message: "url multipart field is required"}
+		return nil, &automdm.BadRequestError{Message: "url multipart field is required"}
 	}
 	decoded.URL = url
 
@@ -473,7 +473,7 @@ type createAndroidWebAppResponse struct {
 
 func (r createAndroidWebAppResponse) Error() error { return r.Err }
 
-func createAndroidWebAppEndpoint(ctx context.Context, request any, svc fleet.Service) (fleet.Errorer, error) {
+func createAndroidWebAppEndpoint(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*createAndroidWebAppRequest)
 
 	var iconReader io.Reader
@@ -498,5 +498,5 @@ func (svc *Service) CreateAndroidWebApp(ctx context.Context, title, startURL str
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return "", fleet.ErrMissingLicense
+	return "", automdm.ErrMissingLicense
 }

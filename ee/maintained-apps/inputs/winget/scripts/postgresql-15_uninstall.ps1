@@ -53,7 +53,7 @@ if ($existingArgs -notmatch '(?i)--mode\s+unattended') {
 Write-Host "Uninstall command: $exePath"
 Write-Host "Uninstall args: $existingArgs"
 
-# The uninstaller deletes files one at a time and can outlast Fleet's 5-minute
+# The uninstaller deletes files one at a time and can outlast AutoMDM's 5-minute
 # script timeout. pgAdmin 4 holds most of them and its uninstall step doesn't
 # use them, so delete that folder first; the uninstaller skips missing files.
 $pgAdminDir = Join-Path (Split-Path -Parent $exePath) "pgAdmin 4"

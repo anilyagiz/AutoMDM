@@ -12,9 +12,9 @@ import (
 	"net/url"
 	"time"
 
-	scepclient "github.com/fleetdm/fleet/v4/server/mdm/scep/client"
-	"github.com/fleetdm/fleet/v4/server/mdm/scep/enrollment"
-	"github.com/fleetdm/fleet/v4/server/mdm/scep/x509util"
+	scepclient "github.com/anilyagiz/automdm/v4/server/mdm/scep/client"
+	"github.com/anilyagiz/automdm/v4/server/mdm/scep/enrollment"
+	"github.com/anilyagiz/automdm/v4/server/mdm/scep/x509util"
 	smallstepscep "github.com/smallstep/scep"
 )
 

@@ -72,7 +72,7 @@ const config = {
   module: {
     rules: [
       {
-        // Fleet-maintained app icons: always emitted as separate files, never
+        // AutoMDM-maintained app icons: always emitted as separate files, never
         // inlined as data URLs. There are thousands of them and a page renders at
         // most a screenful, so inlining any of them would put bytes in the
         // bundle that almost no page load needs.

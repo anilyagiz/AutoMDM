@@ -49,7 +49,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/fleetdm/fleet/tools/hangar/internal/buildinfo"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/buildinfo"
 )
 
 const (

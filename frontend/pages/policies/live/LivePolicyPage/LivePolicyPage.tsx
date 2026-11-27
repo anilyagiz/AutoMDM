@@ -25,7 +25,7 @@ interface ILivePolicyPageProps {
   params: Params;
   location: {
     pathname: string;
-    query: { host_ids?: string; fleet_id?: string; from?: string };
+    query: { host_ids?: string; team_id?: string; from?: string };
     search: string;
   };
 }
@@ -80,7 +80,7 @@ const LivePolicyPage = ({
         ? PATHS.POLICY_DETAILS(policyId)
         : PATHS.MANAGE_POLICIES;
 
-      router.push(getPathWithQueryParams(path, { fleet_id: teamIdForApi }));
+      router.push(getPathWithQueryParams(path, { team_id: teamIdForApi }));
     }
   }, [disabledLiveQuery, policyId, router, teamIdForApi]);
 
@@ -166,7 +166,7 @@ const LivePolicyPage = ({
           : PATHS.POLICY_DETAILS(policyId);
     }
 
-    router.push(getPathWithQueryParams(path, { fleet_id: teamIdForApi }));
+    router.push(getPathWithQueryParams(path, { team_id: teamIdForApi }));
   }, [policyId, location.query.from, router, teamIdForApi]);
 
   const renderScreen = () => {

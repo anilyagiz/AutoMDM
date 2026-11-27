@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -18,12 +18,12 @@ func TestNewOrbitClientBypassEndUserAuth(t *testing.T) {
 	newClient := func(bypassEndUserAuth bool) *OrbitClient {
 		oc, err := NewOrbitClient(
 			t.TempDir(),
-			"https://fleet.example.com",
+			"https://automdm.example.com",
 			"",
 			true,
 			"secret",
 			nil,
-			fleet.OrbitHostInfo{HardwareUUID: "uuid", Hostname: "host"},
+			automdm.OrbitHostInfo{HardwareUUID: "uuid", Hostname: "host"},
 			nil,
 			nil,
 			"",
@@ -34,13 +34,13 @@ func TestNewOrbitClientBypassEndUserAuth(t *testing.T) {
 	}
 
 	// With bypass enabled, orbit must not advertise the end-user auth capability.
-	require.NotContains(t, newClient(true).ClientCapabilities, fleet.CapabilityEndUserAuth)
+	require.NotContains(t, newClient(true).ClientCapabilities, automdm.CapabilityEndUserAuth)
 
 	// Without bypass, capabilities are unchanged from the default set.
-	require.Equal(t, fleet.GetOrbitClientCapabilities(), newClient(false).ClientCapabilities)
+	require.Equal(t, automdm.GetOrbitClientCapabilities(), newClient(false).ClientCapabilities)
 }
 
-func clientWithConfig(t *testing.T, cfg *fleet.OrbitConfig) *OrbitClient {
+func clientWithConfig(t *testing.T, cfg *automdm.OrbitConfig) *OrbitClient {
 	srv := &configServer{}
 	srv.set(*cfg)
 	return newNudgeTestClient(t, srv)
@@ -58,7 +58,7 @@ func TestOrbitClientResponseHeaderTimeout(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	oc, err := NewOrbitClient(t.TempDir(), srv.URL, "", true, "secret", nil,
-		fleet.OrbitHostInfo{HardwareUUID: "uuid", Hostname: "host"}, nil, nil, "", false)
+		automdm.OrbitHostInfo{HardwareUUID: "uuid", Hostname: "host"}, nil, nil, "", false)
 	require.NoError(t, err)
 	_, err = oc.DownloadSoftwareInstallerFromURL(srv.URL+"/app.pkg", "app.pkg", t.TempDir(), nil)
 	require.ErrorContains(t, err, "timeout awaiting response headers")
@@ -69,14 +69,14 @@ func TestConfigReceiverCalls(t *testing.T) {
 
 	testmsg := json.RawMessage(`"testing"`)
 
-	rfunc1 := fleet.OrbitConfigReceiverFunc(func(cfg *fleet.OrbitConfig) error {
+	rfunc1 := automdm.OrbitConfigReceiverFunc(func(cfg *automdm.OrbitConfig) error {
 		if !reflect.DeepEqual(cfg.Flags, testmsg) {
 			return errors.New("not equal testmsg")
 		}
 		called1 = true
 		return nil
 	})
-	rfunc2 := fleet.OrbitConfigReceiverFunc(func(cfg *fleet.OrbitConfig) error {
+	rfunc2 := automdm.OrbitConfigReceiverFunc(func(cfg *automdm.OrbitConfig) error {
 		if !reflect.DeepEqual(cfg.Flags, testmsg) {
 			return errors.New("not equal testmsg")
 		}
@@ -84,7 +84,7 @@ func TestConfigReceiverCalls(t *testing.T) {
 		return nil
 	})
 
-	client := clientWithConfig(t, &fleet.OrbitConfig{Flags: testmsg})
+	client := clientWithConfig(t, &automdm.OrbitConfig{Flags: testmsg})
 	client.RegisterConfigReceiver(rfunc1)
 	client.RegisterConfigReceiver(rfunc2)
 
@@ -98,28 +98,28 @@ func TestConfigReceiverCalls(t *testing.T) {
 func TestConfigReceiverErrors(t *testing.T) {
 	var called1, called2 bool
 
-	rfunc1 := fleet.OrbitConfigReceiverFunc(func(cfg *fleet.OrbitConfig) error {
+	rfunc1 := automdm.OrbitConfigReceiverFunc(func(cfg *automdm.OrbitConfig) error {
 		called1 = true
 		return nil
 	})
-	rfunc2 := fleet.OrbitConfigReceiverFunc(func(cfg *fleet.OrbitConfig) error {
+	rfunc2 := automdm.OrbitConfigReceiverFunc(func(cfg *automdm.OrbitConfig) error {
 		called2 = true
 		return nil
 	})
 	err1 := errors.New("error1")
 	err2 := errors.New("error2")
-	efunc1 := fleet.OrbitConfigReceiverFunc(func(cfg *fleet.OrbitConfig) error {
+	efunc1 := automdm.OrbitConfigReceiverFunc(func(cfg *automdm.OrbitConfig) error {
 		return err1
 	})
-	efunc2 := fleet.OrbitConfigReceiverFunc(func(cfg *fleet.OrbitConfig) error {
+	efunc2 := automdm.OrbitConfigReceiverFunc(func(cfg *automdm.OrbitConfig) error {
 		return err2
 	})
 	// Make sure we don't get stuck or crash on receiver panic
-	pfunc := fleet.OrbitConfigReceiverFunc(func(cfg *fleet.OrbitConfig) error {
+	pfunc := automdm.OrbitConfigReceiverFunc(func(cfg *automdm.OrbitConfig) error {
 		panic("woah")
 	})
 
-	client := clientWithConfig(t, &fleet.OrbitConfig{})
+	client := clientWithConfig(t, &automdm.OrbitConfig{})
 	client.RegisterConfigReceiver(efunc1)
 	client.RegisterConfigReceiver(rfunc1)
 	client.RegisterConfigReceiver(efunc2)
@@ -135,13 +135,13 @@ func TestConfigReceiverErrors(t *testing.T) {
 }
 
 func TestExecuteConfigReceiversCancel(t *testing.T) {
-	client := clientWithConfig(t, &fleet.OrbitConfig{})
+	client := clientWithConfig(t, &automdm.OrbitConfig{})
 	client.DefaultConfigPollInterval = 100 * time.Millisecond
 
 	var calls1, calls2 int
 	requiredCalls := 4
 
-	cfunc := fleet.OrbitConfigReceiverFunc(func(cfg *fleet.OrbitConfig) error {
+	cfunc := automdm.OrbitConfigReceiverFunc(func(cfg *automdm.OrbitConfig) error {
 		calls1++
 		if calls1 == requiredCalls {
 			client.receiverUpdateCancelFunc()
@@ -149,7 +149,7 @@ func TestExecuteConfigReceiversCancel(t *testing.T) {
 		return nil
 	})
 
-	rfunc := fleet.OrbitConfigReceiverFunc(func(cfg *fleet.OrbitConfig) error {
+	rfunc := automdm.OrbitConfigReceiverFunc(func(cfg *automdm.OrbitConfig) error {
 		calls2++
 		return nil
 	})
@@ -165,13 +165,13 @@ func TestExecuteConfigReceiversCancel(t *testing.T) {
 }
 
 func TestExecuteConfigReceiversInterrupt(t *testing.T) {
-	client := clientWithConfig(t, &fleet.OrbitConfig{})
+	client := clientWithConfig(t, &automdm.OrbitConfig{})
 	defer client.receiverUpdateCancelFunc()
 
 	client.DefaultConfigPollInterval = 100 * time.Millisecond
 
 	var called bool
-	rfunc := fleet.OrbitConfigReceiverFunc(func(cfg *fleet.OrbitConfig) error {
+	rfunc := automdm.OrbitConfigReceiverFunc(func(cfg *automdm.OrbitConfig) error {
 		called = true
 		return nil
 	})
@@ -198,13 +198,13 @@ func TestExecuteConfigReceiversInterrupt(t *testing.T) {
 }
 
 func TestExecuteConfigReceiversNoBackoffOnError(t *testing.T) {
-	client := clientWithConfig(t, &fleet.OrbitConfig{})
+	client := clientWithConfig(t, &automdm.OrbitConfig{})
 	client.DefaultConfigPollInterval = 500 * time.Millisecond
 
 	var callTimes []time.Time
 	targetCalls := 4
 
-	rfunc := fleet.OrbitConfigReceiverFunc(func(cfg *fleet.OrbitConfig) error {
+	rfunc := automdm.OrbitConfigReceiverFunc(func(cfg *automdm.OrbitConfig) error {
 		callTimes = append(callTimes, time.Now())
 		if len(callTimes) >= targetCalls {
 			client.receiverUpdateCancelFunc()

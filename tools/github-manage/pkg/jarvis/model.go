@@ -37,7 +37,7 @@ const (
 	modeStartWork                  // naming a branch + picking a clone to start work in
 	modeProjectSelect              // picking primary project boards (the P picker)
 	modeConfirmBranchDelete        // confirming a local-branch deletion in the cleanup view
-	modeNewClone                   // naming a fresh fleet-* working dir to clone for Start Work
+	modeNewClone                   // naming a fresh automdm-* working dir to clone for Start Work
 )
 
 // Model is the Bubble Tea model for the jarvis dashboard.
@@ -81,7 +81,7 @@ type Model struct {
 	focusList   []WorkItem
 	focusCursor int
 
-	// Branch cleanup view: local branches across the configured fleet folders.
+	// Branch cleanup view: local branches across the configured team folders.
 	branchView    bool
 	branchRows    []BranchRow
 	branchCursor  int
@@ -108,7 +108,7 @@ type Model struct {
 	startClones      []CloneStatus
 	startCloneCursor int
 	// New-clone sub-flow: when the user picks "create new" in the clone picker,
-	// startBranch stashes the entered branch and newCloneInput names the fleet-*
+	// startBranch stashes the entered branch and newCloneInput names the automdm-*
 	// folder to clone into before the normal Start Work steps run.
 	startBranch   string
 	newCloneInput textinput.Model
@@ -318,7 +318,7 @@ func (m *Model) mostRecentProject(issueKey string) int {
 }
 
 func (m *Model) orgProjectURL(number int) string {
-	org := "fleetdm"
+	org := "automdm"
 	if i := strings.IndexByte(m.repo, '/'); i > 0 {
 		org = m.repo[:i]
 	}
@@ -923,11 +923,11 @@ type branchDeleteDoneMsg struct {
 	failed  int
 }
 
-// scanBranchesCmd scans the configured fleet folders for local branches in the
+// scanBranchesCmd scans the configured team folders for local branches in the
 // background. When prune is set it fetches + prunes each repo first (network).
 func scanBranchesCmd(baseDirs []string, glob string, prune bool) tea.Cmd {
 	return func() tea.Msg {
-		return branchScanMsg{rows: ScanFleetBranches(baseDirs, glob, prune), pruned: prune}
+		return branchScanMsg{rows: ScanAutoMDMBranches(baseDirs, glob, prune), pruned: prune}
 	}
 }
 

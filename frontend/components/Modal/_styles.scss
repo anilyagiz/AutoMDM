@@ -1,7 +1,7 @@
 .modal {
   &__background {
     @include position(fixed, 0 0 0 0);
-    background-color: $core-fleet-black-overlay-40;
+    background-color: $core-automdm-black-overlay-40;
     z-index: 101;
     overflow: auto;
     display: flex;
@@ -21,7 +21,7 @@
     opacity: 0; // Used for transitions between modals
     transition: opacity 150ms ease-out, visibility 0s 150ms; // Used for transitions between modals
 
-    .fleet-checkbox__tick:after {
+    .automdm-checkbox__tick:after {
       visibility: hidden;
     }
   }
@@ -74,7 +74,7 @@
     font-weight: $regular;
     text-align: left;
     padding-bottom: $pad-xsmall;
-    border-bottom: 1px solid $ui-fleet-black-10;
+    border-bottom: 1px solid $ui-automdm-black-10;
     display: flex;
     justify-content: space-between;
     min-height: 37px;
@@ -92,7 +92,7 @@
     // Fixed widths below exceed the narrowest supported viewport (768px), so
     // cap every modal to the window minus a gutter on each side.
     max-width: calc(100vw - #{$pad-large} * 2);
-    background-color: $core-fleet-white;
+    background-color: $core-automdm-white;
     padding: $pad-xxlarge;
     border-radius: 8px;
     animation: scale-up 150ms ease-out;

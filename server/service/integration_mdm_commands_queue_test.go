@@ -21,13 +21,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/mdm/mdmtest"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	apple_mdm "github.com/fleetdm/fleet/v4/server/mdm/apple"
-	"github.com/fleetdm/fleet/v4/server/mdm/microsoft/syncml"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/pkg/mdm/mdmtest"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	apple_mdm "github.com/anilyagiz/automdm/v4/server/mdm/apple"
+	"github.com/anilyagiz/automdm/v4/server/mdm/microsoft/syncml"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
@@ -81,7 +81,7 @@ func (s *integrationMDMTestSuite) TestEnqueueMDMCommand() {
 
 	// call with unknown host UUID
 	uuid1 := uuid.New().String()
-	s.Do("POST", "/api/latest/fleet/commands/run",
+	s.Do("POST", "/api/latest/automdm/commands/run",
 		runMDMCommandRequest{
 			// explicitly use standard encoding to make sure it also works
 			// see #11384
@@ -91,16 +91,16 @@ func (s *integrationMDMTestSuite) TestEnqueueMDMCommand() {
 
 	// get command results returns 404, that command does not exist
 	var getMDMCmdResp getMDMCommandResultsResponse
-	s.DoJSON("GET", "/api/latest/fleet/commands/results", nil, http.StatusNotFound, &getMDMCmdResp, "command_uuid", uuid1)
+	s.DoJSON("GET", "/api/latest/automdm/commands/results", nil, http.StatusNotFound, &getMDMCmdResp, "command_uuid", uuid1)
 
 	// list commands returns empty set
 	var listCmdResp listMDMCommandsResponse
-	s.DoJSON("GET", "/api/latest/fleet/commands", nil, http.StatusOK, &listCmdResp,
+	s.DoJSON("GET", "/api/latest/automdm/commands", nil, http.StatusOK, &listCmdResp,
 		"host_identifier", mdmDevice.UUID, "request_type", "ProfileList")
 	require.Empty(t, listCmdResp.Results)
 
 	// call with unenrolled host UUID
-	res := s.Do("POST", "/api/latest/fleet/commands/run",
+	res := s.Do("POST", "/api/latest/automdm/commands/run",
 		runMDMCommandRequest{
 			Command:   base64Cmd(newRawCmd(uuid.New().String())),
 			HostUUIDs: []string{unenrolledHost.UUID},
@@ -112,7 +112,7 @@ func (s *integrationMDMTestSuite) TestEnqueueMDMCommand() {
 	linuxHost := createOrbitEnrolledHost(t, "linux", "h1", s.ds)
 	windowsHost := createOrbitEnrolledHost(t, "windows", "h2", s.ds)
 	// call with unenrolled host UUID
-	res = s.Do("POST", "/api/latest/fleet/commands/run",
+	res = s.Do("POST", "/api/latest/automdm/commands/run",
 		runMDMCommandRequest{
 			Command:   base64Cmd(newRawCmd(uuid.New().String())),
 			HostUUIDs: []string{linuxHost.UUID, windowsHost.UUID},
@@ -121,7 +121,7 @@ func (s *integrationMDMTestSuite) TestEnqueueMDMCommand() {
 	require.Contains(t, errMsg, "one or more hosts have MDM turned off")
 
 	// call with payload that is not a valid, plist-encoded MDM command
-	res = s.Do("POST", "/api/latest/fleet/commands/run",
+	res = s.Do("POST", "/api/latest/automdm/commands/run",
 		runMDMCommandRequest{
 			Command:   base64Cmd(string(mobileconfigForTest("test config profile", uuid.New().String()))),
 			HostUUIDs: []string{mdmDevice.UUID},
@@ -133,7 +133,7 @@ func (s *integrationMDMTestSuite) TestEnqueueMDMCommand() {
 	uuid2 := uuid.New().String()
 	rawCmd := newRawCmd(uuid2)
 	var resp runMDMCommandResponse
-	s.DoJSON("POST", "/api/latest/fleet/commands/run",
+	s.DoJSON("POST", "/api/latest/automdm/commands/run",
 		runMDMCommandRequest{
 			Command:   base64Cmd(rawCmd),
 			HostUUIDs: []string{mdmDevice.UUID},
@@ -145,11 +145,11 @@ func (s *integrationMDMTestSuite) TestEnqueueMDMCommand() {
 	require.Equal(t, "ProfileList", resp.RequestType)
 
 	// the command exists but no results yet
-	s.DoJSON("GET", "/api/latest/fleet/commands/results", nil, http.StatusOK, &getMDMCmdResp, "command_uuid", uuid2)
+	s.DoJSON("GET", "/api/latest/automdm/commands/results", nil, http.StatusOK, &getMDMCmdResp, "command_uuid", uuid2)
 	require.Len(t, getMDMCmdResp.Results, 1)
 	require.NotZero(t, getMDMCmdResp.Results[0].UpdatedAt)
 	getMDMCmdResp.Results[0].UpdatedAt = time.Time{}
-	require.Equal(t, &fleet.MDMCommandResult{
+	require.Equal(t, &automdm.MDMCommandResult{
 		HostUUID:    mdmDevice.UUID,
 		CommandUUID: uuid2,
 		Status:      "Pending",
@@ -170,11 +170,11 @@ func (s *integrationMDMTestSuite) TestEnqueueMDMCommand() {
 	})
 	require.NoError(t, err)
 
-	s.DoJSON("GET", "/api/latest/fleet/commands/results", nil, http.StatusOK, &getMDMCmdResp, "command_uuid", uuid2)
+	s.DoJSON("GET", "/api/latest/automdm/commands/results", nil, http.StatusOK, &getMDMCmdResp, "command_uuid", uuid2)
 	require.Len(t, getMDMCmdResp.Results, 1)
 	require.NotZero(t, getMDMCmdResp.Results[0].UpdatedAt)
 	getMDMCmdResp.Results[0].UpdatedAt = time.Time{}
-	require.Equal(t, &fleet.MDMCommandResult{
+	require.Equal(t, &automdm.MDMCommandResult{
 		HostUUID:    mdmDevice.UUID,
 		CommandUUID: uuid2,
 		Status:      "Acknowledged",
@@ -185,16 +185,16 @@ func (s *integrationMDMTestSuite) TestEnqueueMDMCommand() {
 	}, getMDMCmdResp.Results[0])
 
 	// list commands returns that command
-	s.DoJSON("GET", "/api/latest/fleet/commands", nil, http.StatusOK, &listCmdResp,
+	s.DoJSON("GET", "/api/latest/automdm/commands", nil, http.StatusOK, &listCmdResp,
 		"host_identifier", mdmDevice.UUID, "request_type", "ProfileList")
 	require.Len(t, listCmdResp.Results, 1)
 	require.NotZero(t, listCmdResp.Results[0].UpdatedAt)
 	listCmdResp.Results[0].UpdatedAt = time.Time{}
-	require.Equal(t, &fleet.MDMCommand{
+	require.Equal(t, &automdm.MDMCommand{
 		HostUUID:      mdmDevice.UUID,
 		CommandUUID:   uuid2,
 		Status:        "Acknowledged",
-		CommandStatus: fleet.MDMCommandStatusFilterRan,
+		CommandStatus: automdm.MDMCommandStatusFilterRan,
 		RequestType:   "ProfileList",
 		Hostname:      "test-host",
 	}, listCmdResp.Results[0])
@@ -208,7 +208,7 @@ func (s *integrationMDMTestSuite) TestEnqueueMDMCommandWithSecret() {
 
 	// list commands should return all the commands we sent
 	var listCmdResp listMDMCommandsResponse
-	s.DoJSON("GET", "/api/latest/fleet/commands", nil, http.StatusOK, &listCmdResp, "host_identifier", mdmClient.UUID)
+	s.DoJSON("GET", "/api/latest/automdm/commands", nil, http.StatusOK, &listCmdResp, "host_identifier", mdmClient.UUID)
 	require.Empty(t, listCmdResp.Results)
 
 	base64Cmd := func(rawCmd string) string {
@@ -227,7 +227,7 @@ func (s *integrationMDMTestSuite) TestEnqueueMDMCommandWithSecret() {
         <key>RequestType</key>
         <string>ProfileList</string>
 		<key>SecretValue</key>
-		<string>$FLEET_SECRET_VALUE</string>
+		<string>$AUTOMDM_SECRET_VALUE</string>
     </dict>
     <key>CommandUUID</key>
     <string>%s</string>
@@ -237,22 +237,22 @@ func (s *integrationMDMTestSuite) TestEnqueueMDMCommandWithSecret() {
 
 	// Load secret(s)
 	secretValue := "*abc123*"
-	req := fleet.CreateSecretVariablesRequest{
-		SecretVariables: []fleet.SecretVariable{
+	req := automdm.CreateSecretVariablesRequest{
+		SecretVariables: []automdm.SecretVariable{
 			{
-				Name:  "FLEET_SECRET_VALUE",
+				Name:  "AUTOMDM_SECRET_VALUE",
 				Value: secretValue,
 			},
 		},
 	}
-	secretResp := fleet.CreateSecretVariablesResponse{}
-	s.DoJSON("PUT", "/api/latest/fleet/spec/secret_variables", req, http.StatusOK, &secretResp)
+	secretResp := automdm.CreateSecretVariablesResponse{}
+	s.DoJSON("PUT", "/api/latest/automdm/spec/secret_variables", req, http.StatusOK, &secretResp)
 
 	// call with enrolled host UUID
 	uuid2 := uuid.New().String()
 	rawCmd := newRawCmd(uuid2)
 	var resp runMDMCommandResponse
-	s.DoJSON("POST", "/api/latest/fleet/commands/run",
+	s.DoJSON("POST", "/api/latest/automdm/commands/run",
 		runMDMCommandRequest{
 			Command:   base64Cmd(rawCmd),
 			HostUUIDs: []string{mdmClient.UUID},
@@ -264,26 +264,26 @@ func (s *integrationMDMTestSuite) TestEnqueueMDMCommandWithSecret() {
 	require.Equal(t, "ProfileList", resp.RequestType)
 
 	// 1 command queued up
-	s.DoJSON("GET", "/api/latest/fleet/commands", nil, http.StatusOK, &listCmdResp, "host_identifier", mdmClient.UUID)
+	s.DoJSON("GET", "/api/latest/automdm/commands", nil, http.StatusOK, &listCmdResp, "host_identifier", mdmClient.UUID)
 	require.Len(t, listCmdResp.Results, 1)
 
 	cmd, err := mdmClient.Idle()
 	require.NoError(t, err)
 	require.NotNil(t, cmd)
 	assert.Contains(t, string(cmd.Raw), secretValue)
-	assert.NotContains(t, string(cmd.Raw), "FLEET_SECRET_VALUE")
+	assert.NotContains(t, string(cmd.Raw), "AUTOMDM_SECRET_VALUE")
 }
 
 func (s *integrationMDMTestSuite) TestListMDMCommandsHostOutsideUsersTeams() {
 	t := s.T()
 	ctx := t.Context()
 
-	team1, err := s.ds.NewTeam(ctx, &fleet.Team{Name: t.Name() + "_team1"})
+	team1, err := s.ds.NewTeam(ctx, &automdm.Team{Name: t.Name() + "_team1"})
 	require.NoError(t, err)
-	team2, err := s.ds.NewTeam(ctx, &fleet.Team{Name: t.Name() + "_team2"})
+	team2, err := s.ds.NewTeam(ctx, &automdm.Team{Name: t.Name() + "_team2"})
 	require.NoError(t, err)
-	newHost := func(name string, teamID uint) *fleet.Host {
-		h, err := s.ds.NewHost(ctx, &fleet.Host{
+	newHost := func(name string, teamID uint) *automdm.Host {
+		h, err := s.ds.NewHost(ctx, &automdm.Host{
 			Hostname:       name,
 			OsqueryHostID:  new(name),
 			NodeKey:        new(name),
@@ -298,10 +298,10 @@ func (s *integrationMDMTestSuite) TestListMDMCommandsHostOutsideUsersTeams() {
 	ownHost := newHost(t.Name()+"-own", team1.ID)
 	otherHost := newHost(t.Name()+"-other", team2.ID)
 
-	observer := &fleet.User{
+	observer := &automdm.User{
 		Name:  t.Name() + "_observer",
 		Email: t.Name() + "_observer@example.com",
-		Teams: []fleet.UserTeam{{Team: *team1, Role: fleet.RoleObserver}},
+		Teams: []automdm.UserTeam{{Team: *team1, Role: automdm.RoleObserver}},
 	}
 	require.NoError(t, observer.SetPassword(test.GoodPassword, 10, 10))
 	_, err = s.ds.NewUser(ctx, observer)
@@ -310,7 +310,7 @@ func (s *integrationMDMTestSuite) TestListMDMCommandsHostOutsideUsersTeams() {
 	t.Cleanup(func() { s.token = s.getTestAdminToken() })
 
 	notFoundBody := func(identifier string) string {
-		res := s.DoRaw("GET", "/api/latest/fleet/commands", nil, http.StatusNotFound, "host_identifier", identifier)
+		res := s.DoRaw("GET", "/api/latest/automdm/commands", nil, http.StatusNotFound, "host_identifier", identifier)
 		return extractServerErrorText(res.Body)
 	}
 	// A host in another team looks exactly like one that doesn't exist.
@@ -320,11 +320,11 @@ func (s *integrationMDMTestSuite) TestListMDMCommandsHostOutsideUsersTeams() {
 	}
 
 	var listResp listMDMCommandsResponse
-	s.DoJSON("GET", "/api/latest/fleet/commands", nil, http.StatusOK, &listResp, "host_identifier", ownHost.UUID)
+	s.DoJSON("GET", "/api/latest/automdm/commands", nil, http.StatusOK, &listResp, "host_identifier", ownHost.UUID)
 	require.Empty(t, listResp.Results)
 
 	// A hostname shared with a host in another team resolves to the user's own host.
-	shared, err := s.ds.NewHost(ctx, &fleet.Host{
+	shared, err := s.ds.NewHost(ctx, &automdm.Host{
 		Hostname:       ownHost.Hostname,
 		OsqueryHostID:  new(t.Name() + "-shared"),
 		NodeKey:        new(t.Name() + "-shared"),
@@ -335,7 +335,7 @@ func (s *integrationMDMTestSuite) TestListMDMCommandsHostOutsideUsersTeams() {
 	})
 	require.NoError(t, err)
 	require.NotEqual(t, ownHost.ID, shared.ID)
-	s.DoJSON("GET", "/api/latest/fleet/commands", nil, http.StatusOK, &listResp, "host_identifier", ownHost.Hostname)
+	s.DoJSON("GET", "/api/latest/automdm/commands", nil, http.StatusOK, &listResp, "host_identifier", ownHost.Hostname)
 	require.Empty(t, listResp.Results)
 }
 
@@ -343,7 +343,7 @@ func (s *integrationMDMTestSuite) TestListMDMCommands() {
 	t := s.T()
 
 	// host_identifier is required, also when other filters are set.
-	const hostRequiredMsg = `The "host_identifier" parameter is now required. Learn more: https://fleetdm.com/learn-more-about/fleet-5-upgrade`
+	const hostRequiredMsg = `The "host_identifier" parameter is now required. Learn more: https://automdm.com/learn-more-about/automdm-5-upgrade`
 	for _, query := range []string{
 		"",
 		"?host_identifier=",
@@ -352,18 +352,18 @@ func (s *integrationMDMTestSuite) TestListMDMCommands() {
 		"?request_type=ProfileList",
 		"?per_page=10",
 	} {
-		res := s.DoRaw("GET", "/api/latest/fleet/commands"+query, nil, http.StatusBadRequest)
+		res := s.DoRaw("GET", "/api/latest/automdm/commands"+query, nil, http.StatusBadRequest)
 		require.Contains(t, extractServerErrorText(res.Body), hostRequiredMsg, query)
 	}
 
 	// Invalid command_status
-	res := s.DoRaw("GET", "/api/latest/fleet/commands?host_identifier=some-uuid&command_status=invalid-status", nil, http.StatusBadRequest)
+	res := s.DoRaw("GET", "/api/latest/automdm/commands?host_identifier=some-uuid&command_status=invalid-status", nil, http.StatusBadRequest)
 	errMsg := extractServerErrorText(res.Body)
 	require.Contains(t, errMsg, `command_status only accepts the following values:`)
 
 	// Command status when host identifier resolves to Windows host
 	ctx := context.Background()
-	h, err := s.ds.NewHost(ctx, &fleet.Host{
+	h, err := s.ds.NewHost(ctx, &automdm.Host{
 		Hostname:      "test-win-host-name",
 		OsqueryHostID: new("1337"),
 		NodeKey:       new("1337"),
@@ -371,40 +371,40 @@ func (s *integrationMDMTestSuite) TestListMDMCommands() {
 		Platform:      "windows",
 	})
 	require.NoError(t, err)
-	res = s.DoRaw("GET", fmt.Sprintf("/api/latest/fleet/commands?host_identifier=%s&command_status=ran", h.UUID), nil, http.StatusBadRequest)
+	res = s.DoRaw("GET", fmt.Sprintf("/api/latest/automdm/commands?host_identifier=%s&command_status=ran", h.UUID), nil, http.StatusBadRequest)
 	errMsg = extractServerErrorText(res.Body)
 	require.Contains(t, errMsg, `"command_status" filter is only available for macOS, iOS, iPadOS, and Android hosts`)
 
 	// per_page above the documented maximum is rejected with a clear message.
-	res = s.DoRaw("GET", fmt.Sprintf("/api/latest/fleet/commands?host_identifier=%s&per_page=1001", h.UUID), nil, http.StatusBadRequest)
+	res = s.DoRaw("GET", fmt.Sprintf("/api/latest/automdm/commands?host_identifier=%s&per_page=1001", h.UUID), nil, http.StatusBadRequest)
 	errMsg = extractServerErrorText(res.Body)
 	require.Contains(t, errMsg, "Please set a per_page limit of 1000 or less")
 
 	// per_page at the cap is accepted.
-	s.DoRaw("GET", fmt.Sprintf("/api/latest/fleet/commands?host_identifier=%s&per_page=1000", h.UUID), nil, http.StatusOK)
+	s.DoRaw("GET", fmt.Sprintf("/api/latest/automdm/commands?host_identifier=%s&per_page=1000", h.UUID), nil, http.StatusOK)
 
 	// page above the cap is rejected so the inner LIMIT (page*per_page+per_page+1)
 	// stays bounded.
-	res = s.DoRaw("GET", fmt.Sprintf("/api/latest/fleet/commands?host_identifier=%s&page=101", h.UUID), nil, http.StatusBadRequest)
+	res = s.DoRaw("GET", fmt.Sprintf("/api/latest/automdm/commands?host_identifier=%s&page=101", h.UUID), nil, http.StatusBadRequest)
 	errMsg = extractServerErrorText(res.Body)
 	require.Contains(t, errMsg, "Please set page to 100 or less")
 
 	// page at the cap is accepted.
-	s.DoRaw("GET", fmt.Sprintf("/api/latest/fleet/commands?host_identifier=%s&page=100", h.UUID), nil, http.StatusOK)
+	s.DoRaw("GET", fmt.Sprintf("/api/latest/automdm/commands?host_identifier=%s&page=100", h.UUID), nil, http.StatusOK)
 
 	// order_key not in the allowlist is rejected by the secure list-options
 	// helper (defense against SQL injection via crafted ORDER BY). The
 	// helper's InvalidOrderKeyError implements the validation-error
 	// interface, so the response is a 422.
-	res = s.DoRaw("GET", fmt.Sprintf("/api/latest/fleet/commands?host_identifier=%s&order_key=not_a_column", h.UUID), nil, http.StatusUnprocessableEntity)
+	res = s.DoRaw("GET", fmt.Sprintf("/api/latest/automdm/commands?host_identifier=%s&order_key=not_a_column", h.UUID), nil, http.StatusUnprocessableEntity)
 	errMsg = extractServerErrorText(res.Body)
 	require.Contains(t, errMsg, "not_a_column")
 
-	s.DoRaw("GET", fmt.Sprintf("/api/latest/fleet/commands?host_identifier=%s&order_key=hostname", h.UUID), nil, http.StatusOK)
+	s.DoRaw("GET", fmt.Sprintf("/api/latest/automdm/commands?host_identifier=%s&order_key=hostname", h.UUID), nil, http.StatusOK)
 
 	// A host-scoped request succeeds.
 	var listResp listMDMCommandsResponse
-	s.DoJSON("GET", "/api/latest/fleet/commands", nil, http.StatusOK, &listResp, "host_identifier", h.UUID)
+	s.DoJSON("GET", "/api/latest/automdm/commands", nil, http.StatusOK, &listResp, "host_identifier", h.UUID)
 	require.Empty(t, listResp.Results)
 }
 
@@ -412,7 +412,7 @@ func (s *integrationMDMTestSuite) TestMDMWindowsCommandResults() {
 	ctx := context.Background()
 	t := s.T()
 
-	h, err := s.ds.NewHost(ctx, &fleet.Host{
+	h, err := s.ds.NewHost(ctx, &automdm.Host{
 		Hostname:      "test-win-host-name",
 		OsqueryHostID: new("1337"),
 		NodeKey:       new("1337"),
@@ -421,7 +421,7 @@ func (s *integrationMDMTestSuite) TestMDMWindowsCommandResults() {
 	})
 	require.NoError(t, err)
 
-	dev := &fleet.MDMWindowsEnrolledDevice{
+	dev := &automdm.MDMWindowsEnrolledDevice{
 		MDMDeviceID:            "test-device-id",
 		MDMHardwareID:          "test-hardware-id",
 		MDMDeviceState:         "ds",
@@ -481,7 +481,7 @@ func (s *integrationMDMTestSuite) TestMDMWindowsCommandResults() {
 	})
 
 	var resp getMDMCommandResultsResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/commands/results?command_uuid=%s", cmdUUID), nil, http.StatusOK, &resp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/commands/results?command_uuid=%s", cmdUUID), nil, http.StatusOK, &resp)
 	require.Len(t, resp.Results, 1)
 	require.Equal(t, dev.HostUUID, resp.Results[0].HostUUID)
 	require.Equal(t, cmdUUID, resp.Results[0].CommandUUID)
@@ -491,7 +491,7 @@ func (s *integrationMDMTestSuite) TestMDMWindowsCommandResults() {
 	require.Equal(t, h.Hostname, resp.Results[0].Hostname)
 
 	resp = getMDMCommandResultsResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/commands/results?command_uuid=%s", uuid.New().String()), nil, http.StatusNotFound, &resp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/commands/results?command_uuid=%s", uuid.New().String()), nil, http.StatusNotFound, &resp)
 	require.Empty(t, resp.Results)
 }
 
@@ -541,28 +541,28 @@ func (s *integrationMDMTestSuite) TestRunMDMCommands() {
 	var runResp runMDMCommandResponse
 
 	// no host provided
-	s.DoJSON("POST", "/api/latest/fleet/commands/run", &runMDMCommandRequest{
+	s.DoJSON("POST", "/api/latest/automdm/commands/run", &runMDMCommandRequest{
 		Command: base64.StdEncoding.EncodeToString([]byte(macRawCmd)),
 	}, http.StatusNotFound, &runResp)
 
 	// mix of mdm and non-mdm hosts
-	s.DoJSON("POST", "/api/latest/fleet/commands/run", &runMDMCommandRequest{
+	s.DoJSON("POST", "/api/latest/automdm/commands/run", &runMDMCommandRequest{
 		Command:   base64.StdEncoding.EncodeToString([]byte(macRawCmd)),
 		HostUUIDs: []string{enrolledMac.UUID, unenrolledMac.UUID},
 	}, http.StatusPreconditionFailed, &runResp)
-	s.DoJSON("POST", "/api/latest/fleet/commands/run", &runMDMCommandRequest{
+	s.DoJSON("POST", "/api/latest/automdm/commands/run", &runMDMCommandRequest{
 		Command:   base64.StdEncoding.EncodeToString([]byte(winRawCmd)),
 		HostUUIDs: []string{enrolledWindows.UUID, unenrolledWindows.UUID},
 	}, http.StatusPreconditionFailed, &runResp)
 
 	// mix of windows and macos hosts
-	s.DoJSON("POST", "/api/latest/fleet/commands/run", &runMDMCommandRequest{
+	s.DoJSON("POST", "/api/latest/automdm/commands/run", &runMDMCommandRequest{
 		Command:   base64.StdEncoding.EncodeToString([]byte(macRawCmd)),
 		HostUUIDs: []string{enrolledMac.UUID, enrolledWindows.UUID},
 	}, http.StatusUnprocessableEntity, &runResp)
 
 	// windows only, invalid command
-	res := s.Do("POST", "/api/latest/fleet/commands/run", &runMDMCommandRequest{
+	res := s.Do("POST", "/api/latest/automdm/commands/run", &runMDMCommandRequest{
 		Command:   base64.StdEncoding.EncodeToString([]byte(macRawCmd)),
 		HostUUIDs: []string{enrolledWindows.UUID},
 	}, http.StatusUnprocessableEntity)
@@ -570,7 +570,7 @@ func (s *integrationMDMTestSuite) TestRunMDMCommands() {
 	require.Contains(t, errMsg, "You can run only <Exec> command type")
 
 	// macOS only, invalid command
-	res = s.Do("POST", "/api/latest/fleet/commands/run", &runMDMCommandRequest{
+	res = s.Do("POST", "/api/latest/automdm/commands/run", &runMDMCommandRequest{
 		Command:   base64.StdEncoding.EncodeToString([]byte(winRawCmd)),
 		HostUUIDs: []string{enrolledMac.UUID},
 	}, http.StatusUnsupportedMediaType)
@@ -579,14 +579,14 @@ func (s *integrationMDMTestSuite) TestRunMDMCommands() {
 
 	// valid windows
 	runResp = runMDMCommandResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/commands/run", &runMDMCommandRequest{
+	s.DoJSON("POST", "/api/latest/automdm/commands/run", &runMDMCommandRequest{
 		Command:   base64.StdEncoding.EncodeToString([]byte(winRawCmd)),
 		HostUUIDs: []string{enrolledWindows.UUID},
 	}, http.StatusOK, &runResp)
 	require.NotEmpty(t, runResp.CommandUUID)
 	require.Equal(t, "windows", runResp.Platform)
 	require.Equal(t, "./SetValues", runResp.RequestType)
-	s.lastActivityMatches(fleet.ActivityTypeRanCustomMDMCommand{}.ActivityName(), fmt.Sprintf(`{
+	s.lastActivityMatches(automdm.ActivityTypeRanCustomMDMCommand{}.ActivityName(), fmt.Sprintf(`{
 		"host_id": %d,
 		"host_display_name": %q,
 		"host_uuid": %q,
@@ -597,14 +597,14 @@ func (s *integrationMDMTestSuite) TestRunMDMCommands() {
 
 	// valid macOS
 	runResp = runMDMCommandResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/commands/run", &runMDMCommandRequest{
+	s.DoJSON("POST", "/api/latest/automdm/commands/run", &runMDMCommandRequest{
 		Command:   base64.StdEncoding.EncodeToString([]byte(macRawCmd)),
 		HostUUIDs: []string{enrolledMac.UUID},
 	}, http.StatusOK, &runResp)
 	require.NotEmpty(t, runResp.CommandUUID)
 	require.Equal(t, "darwin", runResp.Platform)
 	require.Equal(t, "ShutDownDevice", runResp.RequestType)
-	s.lastActivityMatches(fleet.ActivityTypeRanCustomMDMCommand{}.ActivityName(), fmt.Sprintf(`{
+	s.lastActivityMatches(automdm.ActivityTypeRanCustomMDMCommand{}.ActivityName(), fmt.Sprintf(`{
 		"host_id": %d,
 		"host_display_name": %q,
 		"host_uuid": %q,
@@ -638,17 +638,17 @@ func (s *integrationMDMTestSuite) TestAppleMDMCommandCleanup() {
 	// processing key is the per-host lock between the two
 	s.awaitTriggerProfileSchedule(t)
 	s.awaitRunAppleMDMWorkerSchedule()
-	require.NoError(t, s.keyValueStore.Delete(ctx, fleet.MDMProfileProcessingKeyPrefix+":"+macHost.UUID))
-	s.Do("POST", "/api/v1/fleet/mdm/profiles/batch", appleProfilesBatchRequest([][]byte{
+	require.NoError(t, s.keyValueStore.Delete(ctx, automdm.MDMProfileProcessingKeyPrefix+":"+macHost.UUID))
+	s.Do("POST", "/api/v1/automdm/mdm/profiles/batch", appleProfilesBatchRequest([][]byte{
 		mobileconfigForTest("N1", "I1"),
 	}), http.StatusNoContent)
 	s.awaitTriggerProfileSchedule(t)
 	s.awaitRunAppleMDMWorkerSchedule()
 
-	iphoneHost, err := s.ds.NewHost(ctx, &fleet.Host{
+	iphoneHost, err := s.ds.NewHost(ctx, &automdm.Host{
 		HardwareSerial:  mdmtest.RandSerialNumber(),
 		UUID:            strings.ToUpper(uuid.NewString()),
-		Platform:        string(fleet.IOSPlatform),
+		Platform:        string(automdm.IOSPlatform),
 		DetailUpdatedAt: time.Now().Add(-2 * time.Hour),
 	})
 	require.NoError(t, err)
@@ -660,7 +660,7 @@ func (s *integrationMDMTestSuite) TestAppleMDMCommandCleanup() {
 	iphone.UUID = iphoneHost.UUID
 	iphone.SerialNumber = iphoneHost.HardwareSerial
 	require.NoError(t, iphone.Enroll())
-	require.NoError(t, apple_mdm.IOSiPadOSRefetch(ctx, s.ds, s.mdmCommander, s.logger, s.fleetSvc.NewActivity, 1000))
+	require.NoError(t, apple_mdm.IOSiPadOSRefetch(ctx, s.ds, s.mdmCommander, s.logger, s.automdmSvc.NewActivity, 1000))
 
 	// both devices answer everything they are served
 	var profileCmds []string
@@ -679,7 +679,7 @@ func (s *integrationMDMTestSuite) TestAppleMDMCommandCleanup() {
 	cmd, err = iphone.Idle()
 	require.NoError(t, err)
 	for cmd != nil {
-		if strings.HasPrefix(cmd.CommandUUID, fleet.RefetchBaseCommandUUIDPrefix) {
+		if strings.HasPrefix(cmd.CommandUUID, automdm.RefetchBaseCommandUUIDPrefix) {
 			refetchCmds = append(refetchCmds, cmd.CommandUUID)
 		}
 		switch cmd.Command.RequestType {
@@ -703,7 +703,7 @@ func (s *integrationMDMTestSuite) TestAppleMDMCommandCleanup() {
 		return err
 	})
 
-	_, stats, err := s.ds.CleanupNanoCommands(ctx, fleet.MDMAppleCommandCleanupOptions{
+	_, stats, err := s.ds.CleanupNanoCommands(ctx, automdm.MDMAppleCommandCleanupOptions{
 		ShortRetention:    24 * time.Hour,
 		StandardRetention: 30 * 24 * time.Hour,
 		MaxRowDeletions:   1000,
@@ -734,8 +734,8 @@ func (s *integrationMDMTestSuite) TestAppleMDMCommandCleanup() {
 	listed := map[string]struct{}{}
 	for _, hostUUID := range []string{macHost.UUID, iphoneHost.UUID} {
 		var listResp listMDMCommandsResponse
-		s.DoJSON("GET", "/api/latest/fleet/commands", nil, http.StatusOK, &listResp,
-			"host_identifier", hostUUID, "per_page", fmt.Sprint(fleet.MaxMDMCommandsPerPage))
+		s.DoJSON("GET", "/api/latest/automdm/commands", nil, http.StatusOK, &listResp,
+			"host_identifier", hostUUID, "per_page", fmt.Sprint(automdm.MaxMDMCommandsPerPage))
 		for _, c := range listResp.Results {
 			listed[c.CommandUUID] = struct{}{}
 		}
@@ -789,12 +789,12 @@ func (s *integrationMDMTestSuite) TestAppleCustomCommandRejectsHostSecretVariabl
         <key>FileVaultUnlock</key>
         <dict>
             <key>Password</key>
-            <string>` + fleet.HostSecretPlaceholder(fleet.HostSecretFileVaultKey) + `</string>
+            <string>` + automdm.HostSecretPlaceholder(automdm.HostSecretFileVaultKey) + `</string>
         </dict>`,
 		"VerifyRecoveryLock": `        <key>RequestType</key>
         <string>VerifyRecoveryLock</string>
         <key>Password</key>
-        <string>${` + fleet.HostSecretPrefix + fleet.HostSecretRecoveryLockPassword + `}</string>`,
+        <string>${` + automdm.HostSecretPrefix + automdm.HostSecretRecoveryLockPassword + `}</string>`,
 		"Settings": `        <key>RequestType</key>
         <string>Settings</string>
         <key>Settings</key>
@@ -803,7 +803,7 @@ func (s *integrationMDMTestSuite) TestAppleCustomCommandRejectsHostSecretVariabl
                 <key>Item</key>
                 <string>DeviceName</string>
                 <key>DeviceName</key>
-                <string>` + fleet.HostSecretPlaceholder(fleet.HostSecretMDMUnlockToken) + `</string>
+                <string>` + automdm.HostSecretPlaceholder(automdm.HostSecretMDMUnlockToken) + `</string>
             </dict>
         </array>`,
 	}
@@ -812,11 +812,11 @@ func (s *integrationMDMTestSuite) TestAppleCustomCommandRejectsHostSecretVariabl
 		t.Run(name, func(t *testing.T) {
 			cmdUUID := uuid.NewString()
 			encoded := base64.StdEncoding.EncodeToString([]byte(rawCmd(cmdUUID, command)))
-			res := s.Do("POST", "/api/latest/fleet/commands/run",
+			res := s.Do("POST", "/api/latest/automdm/commands/run",
 				&runMDMCommandRequest{Command: encoded, HostUUIDs: []string{mdmDevice.UUID}}, http.StatusBadRequest)
 			assert.Contains(t, extractServerErrorText(res.Body), "is reserved")
 
-			s.DoJSON("GET", "/api/latest/fleet/commands/results", nil, http.StatusNotFound, &getMDMCommandResultsResponse{}, "command_uuid", cmdUUID)
+			s.DoJSON("GET", "/api/latest/automdm/commands/results", nil, http.StatusNotFound, &getMDMCommandResultsResponse{}, "command_uuid", cmdUUID)
 			cmd, err := mdmDevice.Idle()
 			require.NoError(t, err)
 			require.Nil(t, cmd)
@@ -836,13 +836,13 @@ func (s *integrationMDMTestSuite) TestAppleCommandWithHostSecretFromCustomVariab
 	}, "MacBookPro16,1")
 	require.NoError(t, mdmDevice.Enroll())
 	const pendingPassword = "pending-recovery-lock-password"
-	require.NoError(t, s.ds.SetHostsRecoveryLockPasswords(ctx, []fleet.HostRecoveryLockPasswordPayload{
+	require.NoError(t, s.ds.SetHostsRecoveryLockPasswords(ctx, []automdm.HostRecoveryLockPasswordPayload{
 		{HostUUID: mdmDevice.UUID, Password: pendingPassword, PendingSetCommandUUID: uuid.NewString()},
 	}))
 
 	// a custom variable whose value is a host-secret placeholder
-	s.Do("POST", "/api/latest/fleet/custom_variables", fleet.CreateSecretVariableRequest{
-		Name: "RESERVED_ALIAS", Value: fleet.HostSecretPlaceholder(fleet.HostSecretRecoveryLockPendingPassword),
+	s.Do("POST", "/api/latest/automdm/custom_variables", automdm.CreateSecretVariableRequest{
+		Name: "RESERVED_ALIAS", Value: automdm.HostSecretPlaceholder(automdm.HostSecretRecoveryLockPendingPassword),
 	}, http.StatusOK)
 
 	cmdUUID := uuid.NewString()
@@ -855,13 +855,13 @@ func (s *integrationMDMTestSuite) TestAppleCommandWithHostSecretFromCustomVariab
         <key>RequestType</key>
         <string>VerifyRecoveryLock</string>
         <key>Password</key>
-        <string>$FLEET_SECRET_RESERVED_ALIAS</string>
+        <string>$AUTOMDM_SECRET_RESERVED_ALIAS</string>
     </dict>
     <key>CommandUUID</key>
     <string>%s</string>
 </dict>
 </plist>`, cmdUUID)
-	s.Do("POST", "/api/latest/fleet/commands/run", &runMDMCommandRequest{
+	s.Do("POST", "/api/latest/automdm/commands/run", &runMDMCommandRequest{
 		Command: base64.StdEncoding.EncodeToString([]byte(rawCmd)), HostUUIDs: []string{mdmDevice.UUID},
 	}, http.StatusOK)
 
@@ -873,7 +873,7 @@ func (s *integrationMDMTestSuite) TestAppleCommandWithHostSecretFromCustomVariab
 	}
 	require.Nil(t, cmd)
 	var resp getMDMCommandResultsResponse
-	s.DoJSON("GET", "/api/latest/fleet/commands/results", nil, http.StatusOK, &resp, "command_uuid", cmdUUID)
+	s.DoJSON("GET", "/api/latest/automdm/commands/results", nil, http.StatusOK, &resp, "command_uuid", cmdUUID)
 	require.Len(t, resp.Results, 1)
 	assert.Equal(t, "Error", resp.Results[0].Status)
 	assert.Contains(t, string(resp.Results[0].Result), "comes from a custom variable")
@@ -884,21 +884,21 @@ func (s *integrationMDMTestSuite) TestWindowsUndeliverableCommandsFail() {
 	host, mdmDevice := createWindowsHostThenEnrollMDM(s.ds, s.server.URL, t)
 
 	// a custom variable whose value is a host-secret placeholder
-	s.Do("POST", "/api/latest/fleet/custom_variables", fleet.CreateSecretVariableRequest{
-		Name: "WINDOWS_RESERVED_ALIAS", Value: fleet.HostSecretPlaceholder(fleet.HostSecretEnrollSecret),
+	s.Do("POST", "/api/latest/automdm/custom_variables", automdm.CreateSecretVariableRequest{
+		Name: "WINDOWS_RESERVED_ALIAS", Value: automdm.HostSecretPlaceholder(automdm.HostSecretEnrollSecret),
 	}, http.StatusOK)
 
 	runCmd := func(data string) string {
 		cmdUUID := uuid.NewString()
 		rawCmd := `<Exec><CmdID>` + cmdUUID + `</CmdID><Item><Target><LocURI>./Device/Vendor/MSFT/Reboot/RebootNow</LocURI></Target>` +
 			`<Data>` + data + `</Data></Item></Exec>`
-		s.Do("POST", "/api/latest/fleet/commands/run", &runMDMCommandRequest{
+		s.Do("POST", "/api/latest/automdm/commands/run", &runMDMCommandRequest{
 			Command: base64.StdEncoding.EncodeToString([]byte(rawCmd)), HostUUIDs: []string{host.UUID},
 		}, http.StatusOK)
 		return cmdUUID
 	}
-	aliasCmd := runCmd("$FLEET_SECRET_WINDOWS_RESERVED_ALIAS")
-	missingCmd := runCmd("$FLEET_SECRET_WINDOWS_MISSING")
+	aliasCmd := runCmd("$AUTOMDM_SECRET_WINDOWS_RESERVED_ALIAS")
+	missingCmd := runCmd("$AUTOMDM_SECRET_WINDOWS_MISSING")
 	goodCmd := runCmd("1")
 
 	// the session goes through: the good command is delivered, and the other two are reported as failed
@@ -909,23 +909,23 @@ func (s *integrationMDMTestSuite) TestWindowsUndeliverableCommandsFail() {
 	require.NotContains(t, cmds, missingCmd)
 	for cmdUUID, reason := range map[string]string{
 		aliasCmd:   "comes from a custom variable",
-		missingCmd: "custom variable not found: $FLEET_SECRET_WINDOWS_MISSING",
+		missingCmd: "custom variable not found: $AUTOMDM_SECRET_WINDOWS_MISSING",
 	} {
 		var resp getMDMCommandResultsResponse
-		s.DoJSON("GET", "/api/latest/fleet/commands/results", nil, http.StatusOK, &resp, "command_uuid", cmdUUID)
+		s.DoJSON("GET", "/api/latest/automdm/commands/results", nil, http.StatusOK, &resp, "command_uuid", cmdUUID)
 		require.Len(t, resp.Results, 1)
 		assert.Equal(t, syncml.CmdStatusBadRequest, resp.Results[0].Status)
 		assert.Contains(t, string(resp.Results[0].Result), reason)
 	}
 	var listResp listMDMCommandsResponse
-	s.DoJSON("GET", "/api/latest/fleet/commands", nil, http.StatusOK, &listResp, "host_identifier", host.UUID)
-	statuses := make(map[string]fleet.MDMCommandStatusFilter, len(listResp.Results))
+	s.DoJSON("GET", "/api/latest/automdm/commands", nil, http.StatusOK, &listResp, "host_identifier", host.UUID)
+	statuses := make(map[string]automdm.MDMCommandStatusFilter, len(listResp.Results))
 	for _, c := range listResp.Results {
 		statuses[c.CommandUUID] = c.CommandStatus
 	}
-	assert.Equal(t, map[string]fleet.MDMCommandStatusFilter{
-		aliasCmd:   fleet.MDMCommandStatusFilterFailed,
-		missingCmd: fleet.MDMCommandStatusFilterFailed,
-		goodCmd:    fleet.MDMCommandStatusFilterPending,
+	assert.Equal(t, map[string]automdm.MDMCommandStatusFilter{
+		aliasCmd:   automdm.MDMCommandStatusFilterFailed,
+		missingCmd: automdm.MDMCommandStatusFilterFailed,
+		goodCmd:    automdm.MDMCommandStatusFilterPending,
 	}, statuses)
 }

@@ -15,7 +15,7 @@ const AGGREGATE_STATUS_DISPLAY_OPTIONS: IAggregateDisplayOption[] = [
     value: "verified",
     text: "Verified",
     iconName: "verified",
-    tooltipText: <>These hosts applied all OS settings. Fleet verified.</>,
+    tooltipText: <>These hosts applied all OS settings. AutoMDM verified.</>,
   },
   {
     value: "verifying",
@@ -23,7 +23,7 @@ const AGGREGATE_STATUS_DISPLAY_OPTIONS: IAggregateDisplayOption[] = [
     iconName: "successPartial",
     tooltipText: (
       <>
-        These hosts acknowledged all MDM commands to apply OS settings. Fleet is
+        These hosts acknowledged all MDM commands to apply OS settings. AutoMDM is
         verifying the OS settings are applied.
       </>
     ),

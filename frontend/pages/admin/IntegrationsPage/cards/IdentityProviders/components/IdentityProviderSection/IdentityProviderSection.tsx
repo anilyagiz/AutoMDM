@@ -150,7 +150,7 @@ const IdentityProviderSection = () => {
       <PageDescription
         content={
           <>
-            Connect Fleet to your IdP to sync end user information (e.g. groups)
+            Connect AutoMDM to your IdP to sync end user information (e.g. groups)
             to hosts.
           </>
         }

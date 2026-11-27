@@ -5,12 +5,12 @@
   box-sizing: border-box;
   width: 100%;
   padding: $pad-medium;
-  background-color: $ui-fleet-black-5;
-  border: 1px solid $ui-fleet-black-10;
+  background-color: $ui-automdm-black-5;
+  border: 1px solid $ui-automdm-black-10;
   border-radius: 8px;
 
   &__label {
     font-size: $x-small;
-    color: $ui-fleet-black-75;
+    color: $ui-automdm-black-75;
   }
 }

@@ -8,7 +8,7 @@
 ## Summary (47m averages)
 
 ```
-Fleet Server:  CPU=56.66%  Mem=9.24%  Containers=40
+AutoMDM Server:  CPU=56.66%  Mem=9.24%  Containers=40
 Loadtest:      CPU=7.69%  Mem=11.04%  Containers=38
 apns-mock:     CPU=6.76%  Mem=33.25%  Containers=2  (averaged across containers)
                PerTask CPU avg=6.76% max=14.16%   Mem avg=33.25% max=39.6%
@@ -41,7 +41,7 @@ Top SQL (reader-2):
   #4 load=0.1  SELECT `q` . NAME , `q` . QUERY , `q` . `team_id` , `q` . `schedule_interval` , 
   #5 load=0.1  SELECT `id` , `host_id` , `execution_id` , `script_id` , `created_at` FROM ( SEL
 ALB:           Latency=0s  5xx=12453  Requests=99715465  Traffic=192662.24MB
-Fleet Errors:  Count=0.0
+AutoMDM Errors:  Count=0.0
 apns-mock Errors: Count=2.0
 RDS Writer:    FreeMem=27.02GB  CacheHit=100%  Disk=29.66GB  Threads=3.64  IOPS=12.1%
                SelectLat=0.33ms  InsertLat=3.56ms

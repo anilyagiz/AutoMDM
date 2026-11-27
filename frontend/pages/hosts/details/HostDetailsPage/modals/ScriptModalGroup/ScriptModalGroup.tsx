@@ -95,7 +95,7 @@ const ScriptModalGroup = ({
   );
 
   // Note: Script metadata and script content require two separate API calls
-  // Source: https://fleetdm.com/docs/rest-api/rest-api#example-get-script
+  // Source: https://automdm.com/docs/rest-api/rest-api#example-get-script
   // So to get script name, we pass it into this modal instead of another API call
   // If in future iterations we want more script metadata, call scriptAPI.getScript()
   // and consider refactoring .getScript to return script content as well
@@ -175,7 +175,7 @@ const ScriptModalGroup = ({
     <>
       <RunScriptModal
         currentUser={currentUser}
-        hostTeamId={host.fleet_id}
+        hostTeamId={host.team_id}
         hostPlatform={host.platform}
         onClickRun={onClikRunBeforeConfirmation}
         onClose={onCloseScriptModalGroup}
@@ -207,7 +207,7 @@ const ScriptModalGroup = ({
         isHidden={currentModal !== ModalGroupOption.ConfirmRun}
       />
       <ScriptDetailsModal
-        hostTeamId={host.fleet_id}
+        hostTeamId={host.team_id}
         selectedScriptDetails={selectedScript}
         // script id and details both passed to accomodate various instances of this component, some
         // in a slightly different context

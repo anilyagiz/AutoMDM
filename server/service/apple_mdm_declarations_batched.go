@@ -6,9 +6,9 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	apple_mdm "github.com/fleetdm/fleet/v4/server/mdm/apple"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	apple_mdm "github.com/anilyagiz/automdm/v4/server/mdm/apple"
 	"github.com/google/uuid"
 )
 
@@ -47,7 +47,7 @@ var reconcileAppleDeclarationsScanBudget = 8 * time.Second
 // there's only one implementation.
 func ReconcileAppleDeclarationsBatched(
 	ctx context.Context,
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	commander *apple_mdm.MDMAppleCommander,
 	logger *slog.Logger,
 ) (err error) {
@@ -127,13 +127,13 @@ func ReconcileAppleDeclarationsBatched(
 			"cursor", cursor, "hosts_in_batch", len(hosts), "declaration_count", len(allDecls))
 
 		if len(hosts) == 0 {
-			// Reached the end of the host space (or empty fleet): reset the cursor so the next pass restarts from the beginning.
+			// Reached the end of the host space (or empty team): reset the cursor so the next pass restarts from the beginning.
 			commitCursor = ""
 			break
 		}
 
 		declsWithBrokenLabel := make(map[string]struct{})
-		declsByTeam := make(map[uint][]*fleet.AppleDeclarationForReconcile, 4)
+		declsByTeam := make(map[uint][]*automdm.AppleDeclarationForReconcile, 4)
 		for _, d := range allDecls {
 			declsByTeam[d.TeamID] = append(declsByTeam[d.TeamID], d)
 
@@ -198,11 +198,11 @@ func ReconcileAppleDeclarationsBatched(
 		// Undeliverable user-scoped removes are deleted, not written as pending.
 		writeRows := declRowsToWrite
 		if len(userRemovesToDelete) > 0 {
-			skip := make(map[*fleet.MDMAppleHostDeclaration]struct{}, len(userRemovesToDelete))
+			skip := make(map[*automdm.MDMAppleHostDeclaration]struct{}, len(userRemovesToDelete))
 			for _, r := range userRemovesToDelete {
 				skip[r] = struct{}{}
 			}
-			writeRows = make([]*fleet.MDMAppleHostDeclaration, 0, len(declRowsToWrite))
+			writeRows = make([]*automdm.MDMAppleHostDeclaration, 0, len(declRowsToWrite))
 			for _, r := range declRowsToWrite {
 				if _, ok := skip[r]; !ok {
 					writeRows = append(writeRows, r)
@@ -223,7 +223,7 @@ func ReconcileAppleDeclarationsBatched(
 		// The bulk upsert writes status but not detail, so persist the user-facing
 		// detail for user-scoped declarations we failed above.
 		for _, f := range failedUserDecls {
-			if serr := ds.SetHostMDMAppleDeclarationStatus(ctx, f.hostUUID, f.declarationUUID, &fleet.MDMDeliveryFailed, f.detail, nil); serr != nil {
+			if serr := ds.SetHostMDMAppleDeclarationStatus(ctx, f.hostUUID, f.declarationUUID, &automdm.MDMDeliveryFailed, f.detail, nil); serr != nil {
 				err = ctxerr.Wrap(ctx, serr, "setting failed user-scoped declaration detail")
 				return err
 			}
@@ -308,7 +308,7 @@ func ReconcileAppleDeclarationsBatched(
 // declarationHostsWithWork returns the host UUIDs that have at least one device- or user-channel declaration change in this
 // window, in the order hosts are given (ascending by uuid). The drain loop uses this both to count delivered hosts against the
 // cap and to pick the contiguous prefix to deliver when the cap is reached mid-window.
-func declarationHostsWithWork(hosts []*fleet.AppleHostReconcileInfo, changedDeviceHostUUIDs, changedUserHostUUIDs []string) []string {
+func declarationHostsWithWork(hosts []*automdm.AppleHostReconcileInfo, changedDeviceHostUUIDs, changedUserHostUUIDs []string) []string {
 	work := make(map[string]struct{}, len(changedDeviceHostUUIDs)+len(changedUserHostUUIDs))
 	for _, u := range changedDeviceHostUUIDs {
 		work[u] = struct{}{}
@@ -338,8 +338,8 @@ func filterStringsBySet(in []string, allowed map[string]struct{}) []string {
 
 // filterDeclarationRowsByHost returns only the rows whose HostUUID is in the allowed set, preserving order. Filtering by host
 // (rather than by row) keeps every row for a delivered host together, so a host is never written half-reconciled.
-func filterDeclarationRowsByHost(rows []*fleet.MDMAppleHostDeclaration, allowed map[string]struct{}) []*fleet.MDMAppleHostDeclaration {
-	out := make([]*fleet.MDMAppleHostDeclaration, 0, len(rows))
+func filterDeclarationRowsByHost(rows []*automdm.MDMAppleHostDeclaration, allowed map[string]struct{}) []*automdm.MDMAppleHostDeclaration {
+	out := make([]*automdm.MDMAppleHostDeclaration, 0, len(rows))
 	for _, r := range rows {
 		if _, ok := allowed[r.HostUUID]; ok {
 			out = append(out, r)
@@ -374,30 +374,30 @@ type failedUserDeclaration struct {
 func resolveUserChannelDeliveries(
 	ctx context.Context,
 	logger *slog.Logger,
-	hosts []*fleet.AppleHostReconcileInfo,
+	hosts []*automdm.AppleHostReconcileInfo,
 	changedUserHostUUIDs []string,
-	declRowsToWrite []*fleet.MDMAppleHostDeclaration,
+	declRowsToWrite []*automdm.MDMAppleHostDeclaration,
 	getUserEnrollmentID func(hostUUID string) (string, error),
-) (enrollmentIDsToSend []string, failed []failedUserDeclaration, toDelete []*fleet.MDMAppleHostDeclaration, err error) {
+) (enrollmentIDsToSend []string, failed []failedUserDeclaration, toDelete []*automdm.MDMAppleHostDeclaration, err error) {
 	if len(changedUserHostUUIDs) == 0 {
 		return nil, nil, nil, nil
 	}
 
-	hostsByUUID := make(map[string]*fleet.AppleHostReconcileInfo, len(hosts))
+	hostsByUUID := make(map[string]*automdm.AppleHostReconcileInfo, len(hosts))
 	for _, h := range hosts {
 		hostsByUUID[h.UUID] = h
 	}
 
-	userInstallRowsByHost := make(map[string][]*fleet.MDMAppleHostDeclaration)
-	userRemoveRowsByHost := make(map[string][]*fleet.MDMAppleHostDeclaration)
+	userInstallRowsByHost := make(map[string][]*automdm.MDMAppleHostDeclaration)
+	userRemoveRowsByHost := make(map[string][]*automdm.MDMAppleHostDeclaration)
 	for _, row := range declRowsToWrite {
-		if row.Scope != fleet.PayloadScopeUser {
+		if row.Scope != automdm.PayloadScopeUser {
 			continue
 		}
 		switch row.OperationType {
-		case fleet.MDMOperationTypeInstall:
+		case automdm.MDMOperationTypeInstall:
 			userInstallRowsByHost[row.HostUUID] = append(userInstallRowsByHost[row.HostUUID], row)
-		case fleet.MDMOperationTypeRemove:
+		case automdm.MDMOperationTypeRemove:
 			userRemoveRowsByHost[row.HostUUID] = append(userRemoveRowsByHost[row.HostUUID], row)
 		}
 	}
@@ -426,9 +426,9 @@ func resolveUserChannelDeliveries(
 		host := hostsByUUID[hostUUID]
 
 		switch {
-		case host != nil && fleet.IsAppleMobilePlatform(host.Platform):
+		case host != nil && automdm.IsAppleMobilePlatform(host.Platform):
 			for _, row := range installRows {
-				row.Status = &fleet.MDMDeliveryFailed
+				row.Status = &automdm.MDMDeliveryFailed
 				failed = append(failed, failedUserDeclaration{
 					hostUUID: hostUUID, declarationUUID: row.DeclarationUUID,
 					detail: "This setting couldn't be enforced because the user channel isn't available on iOS and iPadOS hosts.",
@@ -447,10 +447,10 @@ func resolveUserChannelDeliveries(
 
 		default:
 			for _, row := range installRows {
-				row.Status = &fleet.MDMDeliveryFailed
+				row.Status = &automdm.MDMDeliveryFailed
 				failed = append(failed, failedUserDeclaration{
 					hostUUID: hostUUID, declarationUUID: row.DeclarationUUID,
-					detail: "This setting couldn't be enforced because the user channel doesn't exist for this host. Currently, Fleet creates the user channel for hosts that automatically enroll.",
+					detail: "This setting couldn't be enforced because the user channel doesn't exist for this host. Currently, AutoMDM creates the user channel for hosts that automatically enroll.",
 				})
 			}
 			logger.WarnContext(ctx, "ddm batched reconcile: no user channel after grace window, failing user-scoped declarations",

@@ -2,8 +2,8 @@
 // <config-dir>/perf-configs.json. Ported from src-tauri/src/perf_configs.rs.
 //
 // v1 stores everything (including enroll_secret and the SCEP challenge) as
-// plain text — these are dev-only credentials for local fleet-perf
-// simulation, the same security boundary as ~/.fleet/config and the rest
+// plain text — these are dev-only credentials for local automdm-perf
+// simulation, the same security boundary as ~/.automdm/config and the rest
 // of the Hangar settings file.
 //
 // All functions take an explicit directory so they're hermetically

@@ -8,14 +8,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/pkg/removednames"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/pkg/removednames"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestSubstituteFleetVarsAndVitalsInAndroidAppConfig(t *testing.T) {
+func TestSubstituteAutoMDMVarsAndVitalsInAndroidAppConfig(t *testing.T) {
 	ctx := t.Context()
 	host := AndroidAppConfigSubstitutionHost{
 		HostID:         42,
@@ -26,45 +26,45 @@ func TestSubstituteFleetVarsAndVitalsInAndroidAppConfig(t *testing.T) {
 	emptyDS := new(mock.Store)
 
 	t.Run("nil config returns nil", func(t *testing.T) {
-		got, err := SubstituteFleetVarsAndVitalsInAndroidAppConfig(ctx, emptyDS, nil, host)
+		got, err := SubstituteAutoMDMVarsAndVitalsInAndroidAppConfig(ctx, emptyDS, nil, host)
 		require.NoError(t, err)
 		require.Nil(t, got)
 	})
 
 	t.Run("empty config returns empty", func(t *testing.T) {
-		got, err := SubstituteFleetVarsAndVitalsInAndroidAppConfig(ctx, emptyDS, []byte{}, host)
+		got, err := SubstituteAutoMDMVarsAndVitalsInAndroidAppConfig(ctx, emptyDS, []byte{}, host)
 		require.NoError(t, err)
 		require.Empty(t, got)
 	})
 
 	t.Run("config without variables returns unchanged", func(t *testing.T) {
 		cfg := []byte(`{"managedConfiguration": {"key": "plain"}}`)
-		got, err := SubstituteFleetVarsAndVitalsInAndroidAppConfig(ctx, emptyDS, cfg, host)
+		got, err := SubstituteAutoMDMVarsAndVitalsInAndroidAppConfig(ctx, emptyDS, cfg, host)
 		require.NoError(t, err)
 		require.Equal(t, cfg, got)
 	})
 
 	t.Run("HOST_UUID substituted", func(t *testing.T) {
-		cfg := []byte(`{"managedConfiguration": {"deviceId": "$FLEET_VAR_HOST_UUID"}}`)
-		got, err := SubstituteFleetVarsAndVitalsInAndroidAppConfig(ctx, emptyDS, cfg, host)
+		cfg := []byte(`{"managedConfiguration": {"deviceId": "$AUTOMDM_VAR_HOST_UUID"}}`)
+		got, err := SubstituteAutoMDMVarsAndVitalsInAndroidAppConfig(ctx, emptyDS, cfg, host)
 		require.NoError(t, err)
 		require.Contains(t, string(got), "host-uuid-1")
-		require.NotContains(t, string(got), "$FLEET_VAR_HOST_UUID")
+		require.NotContains(t, string(got), "$AUTOMDM_VAR_HOST_UUID")
 		// Verify it's still valid JSON
 		require.True(t, json.Valid(got))
 	})
 
 	t.Run("HOST_UUID with braces substituted", func(t *testing.T) {
-		cfg := []byte(`{"managedConfiguration": {"deviceId": "${FLEET_VAR_HOST_UUID}"}}`)
-		got, err := SubstituteFleetVarsAndVitalsInAndroidAppConfig(ctx, emptyDS, cfg, host)
+		cfg := []byte(`{"managedConfiguration": {"deviceId": "${AUTOMDM_VAR_HOST_UUID}"}}`)
+		got, err := SubstituteAutoMDMVarsAndVitalsInAndroidAppConfig(ctx, emptyDS, cfg, host)
 		require.NoError(t, err)
 		require.Contains(t, string(got), "host-uuid-1")
-		require.NotContains(t, string(got), "${FLEET_VAR_HOST_UUID}")
+		require.NotContains(t, string(got), "${AUTOMDM_VAR_HOST_UUID}")
 	})
 
 	t.Run("HOST_HARDWARE_SERIAL substituted", func(t *testing.T) {
-		cfg := []byte(`{"managedConfiguration": {"serial": "$FLEET_VAR_HOST_HARDWARE_SERIAL"}}`)
-		got, err := SubstituteFleetVarsAndVitalsInAndroidAppConfig(ctx, emptyDS, cfg, host)
+		cfg := []byte(`{"managedConfiguration": {"serial": "$AUTOMDM_VAR_HOST_HARDWARE_SERIAL"}}`)
+		got, err := SubstituteAutoMDMVarsAndVitalsInAndroidAppConfig(ctx, emptyDS, cfg, host)
 		require.NoError(t, err)
 		require.Contains(t, string(got), "ABC123")
 	})
@@ -72,31 +72,31 @@ func TestSubstituteFleetVarsAndVitalsInAndroidAppConfig(t *testing.T) {
 	t.Run("HOST_HARDWARE_SERIAL empty returns error", func(t *testing.T) {
 		noSerialHost := host
 		noSerialHost.HardwareSerial = ""
-		cfg := []byte(`{"managedConfiguration": {"serial": "$FLEET_VAR_HOST_HARDWARE_SERIAL"}}`)
-		got, err := SubstituteFleetVarsAndVitalsInAndroidAppConfig(ctx, emptyDS, cfg, noSerialHost)
+		cfg := []byte(`{"managedConfiguration": {"serial": "$AUTOMDM_VAR_HOST_HARDWARE_SERIAL"}}`)
+		got, err := SubstituteAutoMDMVarsAndVitalsInAndroidAppConfig(ctx, emptyDS, cfg, noSerialHost)
 		require.ErrorIs(t, err, ErrUnresolvableAndroidAppConfigVar)
 		require.Nil(t, got)
 	})
 
 	t.Run("HOST_PLATFORM substituted", func(t *testing.T) {
-		cfg := []byte(`{"managedConfiguration": {"platform": "$FLEET_VAR_HOST_PLATFORM"}}`)
-		got, err := SubstituteFleetVarsAndVitalsInAndroidAppConfig(ctx, emptyDS, cfg, host)
+		cfg := []byte(`{"managedConfiguration": {"platform": "$AUTOMDM_VAR_HOST_PLATFORM"}}`)
+		got, err := SubstituteAutoMDMVarsAndVitalsInAndroidAppConfig(ctx, emptyDS, cfg, host)
 		require.NoError(t, err)
 		require.Contains(t, string(got), "android")
 	})
 
-	t.Run("removed HOST_END_USER_EMAIL_IDP is unresolvable with its Fleet 5 message", func(t *testing.T) {
-		cfg := []byte(`{"managedConfiguration": {"email": "${FLEET_VAR_HOST_END_USER_EMAIL_IDP}"}}`)
-		got, err := SubstituteFleetVarsAndVitalsInAndroidAppConfig(ctx, emptyDS, cfg, host)
+	t.Run("removed HOST_END_USER_EMAIL_IDP is unresolvable with its AutoMDM 5 message", func(t *testing.T) {
+		cfg := []byte(`{"managedConfiguration": {"email": "${AUTOMDM_VAR_HOST_END_USER_EMAIL_IDP}"}}`)
+		got, err := SubstituteAutoMDMVarsAndVitalsInAndroidAppConfig(ctx, emptyDS, cfg, host)
 		require.ErrorIs(t, err, ErrUnresolvableAndroidAppConfigVar)
-		require.EqualError(t, err, `The "$FLEET_VAR_HOST_END_USER_EMAIL_IDP" variable is not available anymore. `+
+		require.EqualError(t, err, `The "$AUTOMDM_VAR_HOST_END_USER_EMAIL_IDP" variable is not available anymore. `+
 			`What to use instead: `+removednames.GuideURL)
 		require.Nil(t, got)
 	})
 
 	t.Run("multiple variables substituted independently", func(t *testing.T) {
-		cfg := []byte(`{"managedConfiguration": {"uuid": "$FLEET_VAR_HOST_UUID", "serial": "$FLEET_VAR_HOST_HARDWARE_SERIAL", "platform": "$FLEET_VAR_HOST_PLATFORM"}}`)
-		got, err := SubstituteFleetVarsAndVitalsInAndroidAppConfig(ctx, emptyDS, cfg, host)
+		cfg := []byte(`{"managedConfiguration": {"uuid": "$AUTOMDM_VAR_HOST_UUID", "serial": "$AUTOMDM_VAR_HOST_HARDWARE_SERIAL", "platform": "$AUTOMDM_VAR_HOST_PLATFORM"}}`)
+		got, err := SubstituteAutoMDMVarsAndVitalsInAndroidAppConfig(ctx, emptyDS, cfg, host)
 		require.NoError(t, err)
 		s := string(got)
 		require.Contains(t, s, "host-uuid-1")
@@ -108,8 +108,8 @@ func TestSubstituteFleetVarsAndVitalsInAndroidAppConfig(t *testing.T) {
 	t.Run("JSON special chars in value are escaped", func(t *testing.T) {
 		specialHost := host
 		specialHost.HardwareSerial = `serial"with\special`
-		cfg := []byte(`{"managedConfiguration": {"serial": "$FLEET_VAR_HOST_HARDWARE_SERIAL"}}`)
-		got, err := SubstituteFleetVarsAndVitalsInAndroidAppConfig(ctx, emptyDS, cfg, specialHost)
+		cfg := []byte(`{"managedConfiguration": {"serial": "$AUTOMDM_VAR_HOST_HARDWARE_SERIAL"}}`)
+		got, err := SubstituteAutoMDMVarsAndVitalsInAndroidAppConfig(ctx, emptyDS, cfg, specialHost)
 		require.NoError(t, err)
 		require.True(t, json.Valid(got), "result must be valid JSON: %s", string(got))
 		// Parse and verify the value round-trips correctly
@@ -120,17 +120,17 @@ func TestSubstituteFleetVarsAndVitalsInAndroidAppConfig(t *testing.T) {
 
 	t.Run("IDP username substituted", func(t *testing.T) {
 		ds := new(mock.Store)
-		ds.HostIDsByIdentifierFunc = func(ctx context.Context, filter fleet.TeamFilter, identifiers []string) ([]uint, error) {
+		ds.HostIDsByIdentifierFunc = func(ctx context.Context, filter automdm.TeamFilter, identifiers []string) ([]uint, error) {
 			return []uint{42}, nil
 		}
-		ds.ScimUserByHostIDFunc = func(ctx context.Context, hostID uint) (*fleet.ScimUser, error) {
-			return &fleet.ScimUser{UserName: "jdoe@example.com", GivenName: new("John"), FamilyName: new("Doe")}, nil
+		ds.ScimUserByHostIDFunc = func(ctx context.Context, hostID uint) (*automdm.ScimUser, error) {
+			return &automdm.ScimUser{UserName: "jdoe@example.com", GivenName: new("John"), FamilyName: new("Doe")}, nil
 		}
-		ds.ListHostDeviceMappingFunc = func(ctx context.Context, hostID uint) ([]*fleet.HostDeviceMapping, error) {
+		ds.ListHostDeviceMappingFunc = func(ctx context.Context, hostID uint) ([]*automdm.HostDeviceMapping, error) {
 			return nil, nil
 		}
-		cfg := []byte(`{"managedConfiguration": {"user": "$FLEET_VAR_HOST_END_USER_IDP_USERNAME"}}`)
-		got, err := SubstituteFleetVarsAndVitalsInAndroidAppConfig(ctx, ds, cfg, host)
+		cfg := []byte(`{"managedConfiguration": {"user": "$AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME"}}`)
+		got, err := SubstituteAutoMDMVarsAndVitalsInAndroidAppConfig(ctx, ds, cfg, host)
 		require.NoError(t, err)
 		require.Contains(t, string(got), "jdoe@example.com")
 		require.True(t, json.Valid(got))
@@ -138,17 +138,17 @@ func TestSubstituteFleetVarsAndVitalsInAndroidAppConfig(t *testing.T) {
 
 	t.Run("IDP username local part substituted", func(t *testing.T) {
 		ds := new(mock.Store)
-		ds.HostIDsByIdentifierFunc = func(ctx context.Context, filter fleet.TeamFilter, identifiers []string) ([]uint, error) {
+		ds.HostIDsByIdentifierFunc = func(ctx context.Context, filter automdm.TeamFilter, identifiers []string) ([]uint, error) {
 			return []uint{42}, nil
 		}
-		ds.ScimUserByHostIDFunc = func(ctx context.Context, hostID uint) (*fleet.ScimUser, error) {
-			return &fleet.ScimUser{UserName: "jdoe@example.com", GivenName: new("John"), FamilyName: new("Doe")}, nil
+		ds.ScimUserByHostIDFunc = func(ctx context.Context, hostID uint) (*automdm.ScimUser, error) {
+			return &automdm.ScimUser{UserName: "jdoe@example.com", GivenName: new("John"), FamilyName: new("Doe")}, nil
 		}
-		ds.ListHostDeviceMappingFunc = func(ctx context.Context, hostID uint) ([]*fleet.HostDeviceMapping, error) {
+		ds.ListHostDeviceMappingFunc = func(ctx context.Context, hostID uint) ([]*automdm.HostDeviceMapping, error) {
 			return nil, nil
 		}
-		cfg := []byte(`{"managedConfiguration": {"user": "$FLEET_VAR_HOST_END_USER_IDP_USERNAME_LOCAL_PART"}}`)
-		got, err := SubstituteFleetVarsAndVitalsInAndroidAppConfig(ctx, ds, cfg, host)
+		cfg := []byte(`{"managedConfiguration": {"user": "$AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME_LOCAL_PART"}}`)
+		got, err := SubstituteAutoMDMVarsAndVitalsInAndroidAppConfig(ctx, ds, cfg, host)
 		require.NoError(t, err)
 		require.Contains(t, string(got), "jdoe")
 		require.NotContains(t, string(got), "@example.com")
@@ -157,42 +157,42 @@ func TestSubstituteFleetVarsAndVitalsInAndroidAppConfig(t *testing.T) {
 
 	t.Run("IDP external ID substituted", func(t *testing.T) {
 		ds := new(mock.Store)
-		ds.HostIDsByIdentifierFunc = func(ctx context.Context, filter fleet.TeamFilter, identifiers []string) ([]uint, error) {
+		ds.HostIDsByIdentifierFunc = func(ctx context.Context, filter automdm.TeamFilter, identifiers []string) ([]uint, error) {
 			return []uint{42}, nil
 		}
-		ds.ScimUserByHostIDFunc = func(ctx context.Context, hostID uint) (*fleet.ScimUser, error) {
-			return &fleet.ScimUser{UserName: "jdoe@example.com", ExternalID: new("00u1abcd2EFGH3ijk4x7")}, nil
+		ds.ScimUserByHostIDFunc = func(ctx context.Context, hostID uint) (*automdm.ScimUser, error) {
+			return &automdm.ScimUser{UserName: "jdoe@example.com", ExternalID: new("00u1abcd2EFGH3ijk4x7")}, nil
 		}
-		ds.ListHostDeviceMappingFunc = func(ctx context.Context, hostID uint) ([]*fleet.HostDeviceMapping, error) {
+		ds.ListHostDeviceMappingFunc = func(ctx context.Context, hostID uint) ([]*automdm.HostDeviceMapping, error) {
 			return nil, nil
 		}
-		cfg := []byte(`{"managedConfiguration": {"id": "$FLEET_VAR_HOST_END_USER_IDP_EXTERNAL_ID"}}`)
-		got, err := SubstituteFleetVarsAndVitalsInAndroidAppConfig(ctx, ds, cfg, host)
+		cfg := []byte(`{"managedConfiguration": {"id": "$AUTOMDM_VAR_HOST_END_USER_IDP_EXTERNAL_ID"}}`)
+		got, err := SubstituteAutoMDMVarsAndVitalsInAndroidAppConfig(ctx, ds, cfg, host)
 		require.NoError(t, err)
 		require.JSONEq(t, `{"managedConfiguration": {"id": "00u1abcd2EFGH3ijk4x7"}}`, string(got))
 	})
 
 	t.Run("IDP external ID missing returns error", func(t *testing.T) {
 		ds := new(mock.Store)
-		ds.HostIDsByIdentifierFunc = func(ctx context.Context, filter fleet.TeamFilter, identifiers []string) ([]uint, error) {
+		ds.HostIDsByIdentifierFunc = func(ctx context.Context, filter automdm.TeamFilter, identifiers []string) ([]uint, error) {
 			return []uint{42}, nil
 		}
-		ds.ScimUserByHostIDFunc = func(ctx context.Context, hostID uint) (*fleet.ScimUser, error) {
-			return &fleet.ScimUser{UserName: "jdoe@example.com"}, nil
+		ds.ScimUserByHostIDFunc = func(ctx context.Context, hostID uint) (*automdm.ScimUser, error) {
+			return &automdm.ScimUser{UserName: "jdoe@example.com"}, nil
 		}
-		ds.ListHostDeviceMappingFunc = func(ctx context.Context, hostID uint) ([]*fleet.HostDeviceMapping, error) {
+		ds.ListHostDeviceMappingFunc = func(ctx context.Context, hostID uint) ([]*automdm.HostDeviceMapping, error) {
 			return nil, nil
 		}
-		cfg := []byte(`{"managedConfiguration": {"id": "$FLEET_VAR_HOST_END_USER_IDP_EXTERNAL_ID"}}`)
-		got, err := SubstituteFleetVarsAndVitalsInAndroidAppConfig(ctx, ds, cfg, host)
+		cfg := []byte(`{"managedConfiguration": {"id": "$AUTOMDM_VAR_HOST_END_USER_IDP_EXTERNAL_ID"}}`)
+		got, err := SubstituteAutoMDMVarsAndVitalsInAndroidAppConfig(ctx, ds, cfg, host)
 		require.ErrorIs(t, err, ErrUnresolvableAndroidAppConfigVar)
 		require.ErrorContains(t, err, "There is no IdP external ID for this host.")
 		require.Nil(t, got)
 	})
 
 	t.Run("unsupported variable returns error", func(t *testing.T) {
-		cfg := []byte(`{"managedConfiguration": {"chal": "$FLEET_VAR_NDES_SCEP_CHALLENGE"}}`)
-		got, err := SubstituteFleetVarsAndVitalsInAndroidAppConfig(ctx, emptyDS, cfg, host)
+		cfg := []byte(`{"managedConfiguration": {"chal": "$AUTOMDM_VAR_NDES_SCEP_CHALLENGE"}}`)
+		got, err := SubstituteAutoMDMVarsAndVitalsInAndroidAppConfig(ctx, emptyDS, cfg, host)
 		require.ErrorIs(t, err, ErrUnresolvableAndroidAppConfigVar)
 		require.Nil(t, got)
 	})
@@ -201,26 +201,26 @@ func TestSubstituteFleetVarsAndVitalsInAndroidAppConfig(t *testing.T) {
 		ds := new(mock.Store)
 		ds.ExpandCustomHostVitalsFunc = func(ctx context.Context, hostID uint, document string) (string, error) {
 			require.EqualValues(t, 42, hostID)
-			require.Contains(t, document, "$FLEET_HOST_VITAL_7")
+			require.Contains(t, document, "$AUTOMDM_HOST_VITAL_7")
 			return `{"managedConfiguration": {"assetTag": "asset-123"}}`, nil
 		}
-		cfg := []byte(`{"managedConfiguration": {"assetTag": "$FLEET_HOST_VITAL_7"}}`)
-		got, err := SubstituteFleetVarsAndVitalsInAndroidAppConfig(ctx, ds, cfg, host)
+		cfg := []byte(`{"managedConfiguration": {"assetTag": "$AUTOMDM_HOST_VITAL_7"}}`)
+		got, err := SubstituteAutoMDMVarsAndVitalsInAndroidAppConfig(ctx, ds, cfg, host)
 		require.NoError(t, err)
 		require.Contains(t, string(got), "asset-123")
 		require.True(t, ds.ExpandCustomHostVitalsFuncInvoked)
 	})
 
-	t.Run("custom host vital alongside a Fleet variable, both substituted", func(t *testing.T) {
+	t.Run("custom host vital alongside an AutoMDM variable, both substituted", func(t *testing.T) {
 		ds := new(mock.Store)
 		ds.ExpandCustomHostVitalsFunc = func(ctx context.Context, hostID uint, document string) (string, error) {
-			// Called after the $FLEET_VAR_ substitution above has already run, so
+			// Called after the $AUTOMDM_VAR_ substitution above has already run, so
 			// the document should carry the resolved UUID, not the token.
 			require.Contains(t, document, "host-uuid-1")
-			return strings.ReplaceAll(document, "$FLEET_HOST_VITAL_7", "asset-123"), nil
+			return strings.ReplaceAll(document, "$AUTOMDM_HOST_VITAL_7", "asset-123"), nil
 		}
-		cfg := []byte(`{"managedConfiguration": {"uuid": "$FLEET_VAR_HOST_UUID", "assetTag": "$FLEET_HOST_VITAL_7"}}`)
-		got, err := SubstituteFleetVarsAndVitalsInAndroidAppConfig(ctx, ds, cfg, host)
+		cfg := []byte(`{"managedConfiguration": {"uuid": "$AUTOMDM_VAR_HOST_UUID", "assetTag": "$AUTOMDM_HOST_VITAL_7"}}`)
+		got, err := SubstituteAutoMDMVarsAndVitalsInAndroidAppConfig(ctx, ds, cfg, host)
 		require.NoError(t, err)
 		s := string(got)
 		require.Contains(t, s, "host-uuid-1")
@@ -230,21 +230,21 @@ func TestSubstituteFleetVarsAndVitalsInAndroidAppConfig(t *testing.T) {
 	t.Run("custom host vital with no value set for host returns error", func(t *testing.T) {
 		ds := new(mock.Store)
 		ds.ExpandCustomHostVitalsFunc = func(ctx context.Context, hostID uint, document string) (string, error) {
-			return "", &fleet.MissingCustomHostVitalValueError{MissingIDs: []uint{7}}
+			return "", &automdm.MissingCustomHostVitalValueError{MissingIDs: []uint{7}}
 		}
-		cfg := []byte(`{"managedConfiguration": {"assetTag": "$FLEET_HOST_VITAL_7"}}`)
-		got, err := SubstituteFleetVarsAndVitalsInAndroidAppConfig(ctx, ds, cfg, host)
-		var missing *fleet.MissingCustomHostVitalValueError
+		cfg := []byte(`{"managedConfiguration": {"assetTag": "$AUTOMDM_HOST_VITAL_7"}}`)
+		got, err := SubstituteAutoMDMVarsAndVitalsInAndroidAppConfig(ctx, ds, cfg, host)
+		var missing *automdm.MissingCustomHostVitalValueError
 		require.ErrorAs(t, err, &missing)
 		require.Nil(t, got)
 	})
 }
 
-func TestContainsFleetVarOrCustomHostVital(t *testing.T) {
-	require.True(t, ContainsFleetVarOrCustomHostVital([]byte(`{"a": "$FLEET_VAR_HOST_UUID"}`)))
-	require.True(t, ContainsFleetVarOrCustomHostVital([]byte(`{"a": "$FLEET_HOST_VITAL_7"}`)))
-	require.False(t, ContainsFleetVarOrCustomHostVital([]byte(`{"a": "plain"}`)))
-	require.False(t, ContainsFleetVarOrCustomHostVital([]byte(`{"a": "FLEET_HOST_VITAL_no_dollar_sign"}`)))
+func TestContainsAutoMDMVarOrCustomHostVital(t *testing.T) {
+	require.True(t, ContainsAutoMDMVarOrCustomHostVital([]byte(`{"a": "$AUTOMDM_VAR_HOST_UUID"}`)))
+	require.True(t, ContainsAutoMDMVarOrCustomHostVital([]byte(`{"a": "$AUTOMDM_HOST_VITAL_7"}`)))
+	require.False(t, ContainsAutoMDMVarOrCustomHostVital([]byte(`{"a": "plain"}`)))
+	require.False(t, ContainsAutoMDMVarOrCustomHostVital([]byte(`{"a": "AUTOMDM_HOST_VITAL_no_dollar_sign"}`)))
 }
 
 func TestJsonEscapeString(t *testing.T) {
@@ -275,10 +275,10 @@ func TestIsUnresolvableAndroidAppConfigForHost(t *testing.T) {
 		err  error
 		want bool
 	}{
-		{"missing vital value", &fleet.MissingCustomHostVitalValueError{MissingIDs: []uint{1}}, true},
-		{"wrapped missing vital value", fmt.Errorf("substitute: %w", &fleet.MissingCustomHostVitalValueError{MissingIDs: []uint{1}}), true},
-		{"unresolvable fleet var", &UnresolvableAndroidAppConfigVarError{FleetVar: "HOST_END_USER_IDP_USERNAME"}, true},
-		{"wrapped unresolvable fleet var", fmt.Errorf("substitute: %w", &UnresolvableAndroidAppConfigVarError{FleetVar: "HOST_END_USER_IDP_USERNAME"}), true},
+		{"missing vital value", &automdm.MissingCustomHostVitalValueError{MissingIDs: []uint{1}}, true},
+		{"wrapped missing vital value", fmt.Errorf("substitute: %w", &automdm.MissingCustomHostVitalValueError{MissingIDs: []uint{1}}), true},
+		{"unresolvable automdm var", &UnresolvableAndroidAppConfigVarError{AutoMDMVar: "HOST_END_USER_IDP_USERNAME"}, true},
+		{"wrapped unresolvable automdm var", fmt.Errorf("substitute: %w", &UnresolvableAndroidAppConfigVarError{AutoMDMVar: "HOST_END_USER_IDP_USERNAME"}), true},
 		{"unrelated error", errors.New("db is down"), false},
 		{"nil", nil, false},
 	}
@@ -351,7 +351,7 @@ func TestBuildApplicationPoliciesWithConfig(t *testing.T) {
 		assert.Equal(t, "GRANT", policies[0].PermissionGrants[0].Policy)
 	})
 
-	t.Run("stored packageName and installType never override Fleet's values", func(t *testing.T) {
+	t.Run("stored packageName and installType never override AutoMDM's values", func(t *testing.T) {
 		configs := map[string][]byte{
 			"com.example.app": []byte(`{"packageName": "com.example.other", "installType": "KIOSK"}`),
 		}

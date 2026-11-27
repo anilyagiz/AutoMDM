@@ -44,7 +44,7 @@ const MicrosoftEntraSection = ({
     }
   );
 
-  // Fleet stores at most one credential.
+  // AutoMDM stores at most one credential.
   const credential = credentialsResponse?.microsoft_graph_credentials[0];
 
   const navigateToWindowsEnrollment = () => {

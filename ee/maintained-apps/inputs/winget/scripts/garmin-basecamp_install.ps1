@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # Garmin BaseCamp is a WiX Burn bundle; /quiet /norestart runs it silently and
 # installs machine-wide.

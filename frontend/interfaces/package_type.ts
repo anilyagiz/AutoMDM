@@ -1,4 +1,4 @@
-const fleetMaintainedPackageTypes = ["dmg", "zip"] as const;
+const automdmMaintainedPackageTypes = ["dmg", "zip"] as const;
 const unixPackageTypes = ["pkg", "deb", "rpm", "dmg", "zip", "tar.gz"] as const;
 const windowsPackageTypes = ["msi", "msix", "exe", "zip"] as const;
 const scriptOnlyPackageTypes = ["sh", "ps1", "py"] as const;
@@ -12,13 +12,13 @@ export const packageTypes = [
 
 export type WindowsPackageType = typeof windowsPackageTypes[number];
 export type UnixPackageType = typeof unixPackageTypes[number];
-export type FleetMaintainedPackageType = typeof fleetMaintainedPackageTypes[number];
+export type AutoMDMMaintainedPackageType = typeof automdmMaintainedPackageTypes[number];
 export type ScriptOnlyPackageType = typeof scriptOnlyPackageTypes[number];
 export type IosIpadosPackageType = typeof iosIpadosPackageTypes[number];
 export type PackageType =
   | WindowsPackageType
   | UnixPackageType
-  | FleetMaintainedPackageType
+  | AutoMDMMaintainedPackageType
   | ScriptOnlyPackageType
   | IosIpadosPackageType;
 
@@ -30,10 +30,10 @@ export const isUnixPackageType = (s: unknown): s is UnixPackageType => {
   return unixPackageTypes.includes(s as UnixPackageType);
 };
 
-export const isFleetMaintainedPackageType = (
+export const isAutoMDMMaintainedPackageType = (
   s: unknown
-): s is FleetMaintainedPackageType => {
-  return fleetMaintainedPackageTypes.includes(s as FleetMaintainedPackageType);
+): s is AutoMDMMaintainedPackageType => {
+  return automdmMaintainedPackageTypes.includes(s as AutoMDMMaintainedPackageType);
 };
 
 export const isIosIpadosPackageType = (

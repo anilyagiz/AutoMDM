@@ -10,8 +10,8 @@ import (
 	"time"
 	"uuid"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 	"github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
 )
@@ -26,7 +26,7 @@ type encryptionKey struct {
 
 func (ds *Datastore) SetOrUpdateHostDiskEncryptionKey(
 	ctx context.Context,
-	host *fleet.Host,
+	host *automdm.Host,
 	encryptedBase64Key,
 	clientError string,
 	decryptable *bool,
@@ -63,7 +63,7 @@ VALUES
 	}
 
 	// An agent reporting a failure sends no key, and overwriting the stored one with that empty value would take the
-	// only recovery key Fleet can show an admin away from a host that is still encrypted. Record the error on its own
+	// only recovery key AutoMDM can show an admin away from a host that is still encrypted. Record the error on its own
 	// and leave the key, and its decryptable flag, alone.
 	if incomingKey.Base == "" && clientError != "" {
 		_, err = ds.writer(ctx).ExecContext(ctx, `
@@ -94,7 +94,7 @@ WHERE host_id = ?
 	return archived, nil
 }
 
-func (ds *Datastore) getExistingHostDiskEncryptionKey(ctx context.Context, host *fleet.Host) (encryptionKey, error) {
+func (ds *Datastore) getExistingHostDiskEncryptionKey(ctx context.Context, host *automdm.Host) (encryptionKey, error) {
 	getExistingKeyStmt := `SELECT base64_encrypted, base64_encrypted_salt FROM host_disk_encryption_keys WHERE host_id = ?`
 	var existingKey encryptionKey
 	err := sqlx.GetContext(ctx, ds.reader(ctx), &existingKey, getExistingKeyStmt, host.ID)
@@ -115,7 +115,7 @@ func (ds *Datastore) getExistingHostDiskEncryptionKey(ctx context.Context, host 
 // Returns whether the key was archived.
 func (ds *Datastore) archiveHostDiskEncryptionKey(
 	ctx context.Context,
-	host *fleet.Host,
+	host *automdm.Host,
 	incomingKey encryptionKey,
 	existingKey encryptionKey,
 ) (bool, error) {
@@ -146,7 +146,7 @@ DELETE FROM host_disk_encryption_keys WHERE host_id = ? AND key_slot = ?`, hostI
 
 func (ds *Datastore) SaveLUKSData(
 	ctx context.Context,
-	host *fleet.Host,
+	host *automdm.Host,
 	encryptedBase64Passphrase string,
 	encryptedBase64Salt string,
 	keySlot *uint,
@@ -213,7 +213,7 @@ WHERE host_id = ?
 	return archived, nil
 }
 
-func (ds *Datastore) GetHostEscrowState(ctx context.Context, hostID uint) (*fleet.HostEscrowState, error) {
+func (ds *Datastore) GetHostEscrowState(ctx context.Context, hostID uint) (*automdm.HostEscrowState, error) {
 	// client_error is ignored on purpose: a stale error must not hide a retry in flight.
 	var row struct {
 		Pending     bool   `db:"reset_requested"`
@@ -224,11 +224,11 @@ SELECT reset_requested, TIMESTAMPDIFF(MICROSECOND, escrow_sent_at, NOW(6)) AS si
 FROM host_disk_encryption_keys WHERE host_id = ?`, hostID)
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
-		return &fleet.HostEscrowState{}, nil
+		return &automdm.HostEscrowState{}, nil
 	case err != nil:
 		return nil, ctxerr.Wrap(ctx, err, "getting host escrow state")
 	}
-	state := &fleet.HostEscrowState{Pending: row.Pending}
+	state := &automdm.HostEscrowState{Pending: row.Pending}
 	if row.SinceMicros != nil {
 		since := time.Duration(*row.SinceMicros) * time.Microsecond
 		state.SinceLastActivity = &since
@@ -271,7 +271,7 @@ INSERT INTO host_disk_encryption_keys
 	if err != nil {
 		return err
 	}
-	ds.notifyOrbitConfig(ctx, ds.writer(ctx), fleet.AgentWSReasonDiskEncryption, hostID)
+	ds.notifyOrbitConfig(ctx, ds.writer(ctx), automdm.AgentWSReasonDiskEncryption, hostID)
 	return nil
 }
 
@@ -280,13 +280,13 @@ func (ds *Datastore) AssertHasNoEncryptionKeyStored(ctx context.Context, hostID 
 	err := sqlx.GetContext(ctx, ds.reader(ctx), &hasKeyCount, `
           SELECT COUNT(*) FROM host_disk_encryption_keys WHERE host_id = ? AND base64_encrypted != ''`, hostID)
 	if hasKeyCount > 0 {
-		return &fleet.BadRequestError{Message: "Key has already been escrowed for this host"}
+		return &automdm.BadRequestError{Message: "Key has already been escrowed for this host"}
 	}
 
 	return err
 }
 
-func (ds *Datastore) GetUnverifiedDiskEncryptionKeys(ctx context.Context) ([]fleet.HostDiskEncryptionKey, error) {
+func (ds *Datastore) GetUnverifiedDiskEncryptionKeys(ctx context.Context) ([]automdm.HostDiskEncryptionKey, error) {
 	// NOTE(mna): currently we only verify encryption keys for macOS,
 	// Windows/bitlocker uses a different approach where orbit sends the
 	// encryption key and we encrypt it server-side with the server private
@@ -295,7 +295,7 @@ func (ds *Datastore) GetUnverifiedDiskEncryptionKeys(ctx context.Context) ([]fle
 	// To avoid sending Windows-related keys to verify as part of this call, we
 	// only return rows that have a non-empty encryption key (for Windows, the
 	// key is blanked if an error occurred trying to retrieve it on the host).
-	var keys []fleet.HostDiskEncryptionKey
+	var keys []automdm.HostDiskEncryptionKey
 	err := sqlx.SelectContext(ctx, ds.reader(ctx), &keys, `
           SELECT
             base64_encrypted,
@@ -333,15 +333,15 @@ func (ds *Datastore) SetHostsDiskEncryptionKeyStatus(
 		}
 		if !decryptable {
 			// macOS hosts with an undecryptable key are asked to rotate it.
-			ds.notifyOrbitConfig(ctx, ds.writer(ctx), fleet.AgentWSReasonDiskEncryption, chunk...)
+			ds.notifyOrbitConfig(ctx, ds.writer(ctx), automdm.AgentWSReasonDiskEncryption, chunk...)
 		}
 	}
 
 	return nil
 }
 
-func (ds *Datastore) GetHostDiskEncryptionKey(ctx context.Context, hostID uint) (*fleet.HostDiskEncryptionKey, error) {
-	var key fleet.HostDiskEncryptionKey
+func (ds *Datastore) GetHostDiskEncryptionKey(ctx context.Context, hostID uint) (*automdm.HostDiskEncryptionKey, error) {
+	var key automdm.HostDiskEncryptionKey
 	err := sqlx.GetContext(ctx, ds.reader(ctx), &key, `
 SELECT
 	host_id, 
@@ -365,7 +365,7 @@ WHERE host_id = ?`, hostID)
 	return &key, nil
 }
 
-func (ds *Datastore) GetHostArchivedDiskEncryptionKey(ctx context.Context, host *fleet.Host, allowArchivedSerialLookup bool) (*fleet.HostArchivedDiskEncryptionKey, error) {
+func (ds *Datastore) GetHostArchivedDiskEncryptionKey(ctx context.Context, host *automdm.Host, allowArchivedSerialLookup bool) (*automdm.HostArchivedDiskEncryptionKey, error) {
 	// TODO: Are we sure that host id is the right way to find the archived key? Are we concerned
 	// about cases where host with the same hardware serial has been deleted and recreated? If we
 	// learn that this is a real world concern, we should consider using the hardware serial as the primary
@@ -384,7 +384,7 @@ FROM host_disk_encryption_keys_archive
 ORDER BY created_at DESC
 LIMIT 1`
 
-	var key fleet.HostArchivedDiskEncryptionKey
+	var key automdm.HostArchivedDiskEncryptionKey
 	err := sqlx.GetContext(ctx, ds.reader(ctx), &key, fmt.Sprintf(sqlFmt, `WHERE host_id = ?`), host.ID)
 	if err == sql.ErrNoRows && host.HardwareSerial != "" && allowArchivedSerialLookup {
 		// If we didn't find a key by host ID, try to find it by hardware serial.
@@ -502,7 +502,7 @@ WHERE host_id = ? AND rotation_command_uuid = ?`, hostID, cmdUUID)
 	return affected == 1, nil
 }
 
-func (ds *Datastore) GetHostByDiskEncryptionKeyRotationCommand(ctx context.Context, cmdUUID string) (*fleet.Host, error) {
+func (ds *Datastore) GetHostByDiskEncryptionKeyRotationCommand(ctx context.Context, cmdUUID string) (*automdm.Host, error) {
 	var hostID uint
 	err := sqlx.GetContext(ctx, ds.reader(ctx), &hostID,
 		`SELECT host_id FROM host_disk_encryption_keys WHERE rotation_command_uuid = ?`, cmdUUID)
@@ -539,8 +539,8 @@ WHERE host_id = ? AND base64_encrypted = ?`, newBase64Encrypted, hostID, current
 // Legacy Windows keys, encrypted to the WSTEP certificate by older releases
 ////////////////////////////////////////////////////////////////////////////////
 
-func (ds *Datastore) ListWSTEPEncryptedDiskEncryptionKeys(ctx context.Context, afterHostID uint, limit int) ([]fleet.HostDiskEncryptionKey, error) {
-	var keys []fleet.HostDiskEncryptionKey
+func (ds *Datastore) ListWSTEPEncryptedDiskEncryptionKeys(ctx context.Context, afterHostID uint, limit int) ([]automdm.HostDiskEncryptionKey, error) {
+	var keys []automdm.HostDiskEncryptionKey
 	// The marked rows are the migration's work queue, served by the (wstep_encrypted, host_id) index so a run that
 	// finds the queue empty costs one probe. Marking a row undecryptable takes it out of the queue; the decryptable
 	// filter only guards rows marked by an older version of this job.
@@ -553,8 +553,8 @@ LIMIT ?`, afterHostID, limit)
 	return keys, ctxerr.Wrap(ctx, err, "list WSTEP encrypted disk encryption keys")
 }
 
-func (ds *Datastore) ListWSTEPEncryptedArchivedDiskEncryptionKeys(ctx context.Context, afterID uint, limit int) ([]fleet.HostArchivedDiskEncryptionKey, error) {
-	var keys []fleet.HostArchivedDiskEncryptionKey
+func (ds *Datastore) ListWSTEPEncryptedArchivedDiskEncryptionKeys(ctx context.Context, afterID uint, limit int) ([]automdm.HostArchivedDiskEncryptionKey, error) {
+	var keys []automdm.HostArchivedDiskEncryptionKey
 	err := sqlx.SelectContext(ctx, ds.reader(ctx), &keys, `
 SELECT id, host_id, base64_encrypted, created_at, wstep_encrypted
 FROM host_disk_encryption_keys_archive
@@ -579,7 +579,7 @@ WHERE id = ? AND base64_encrypted = ?`, newBase64Encrypted, id, currentBase64Enc
 	return n > 0, nil
 }
 
-func (ds *Datastore) MarkWindowsDiskEncryptionKeysUndecryptable(ctx context.Context, keys []fleet.HostDiskEncryptionKey) error {
+func (ds *Datastore) MarkWindowsDiskEncryptionKeysUndecryptable(ctx context.Context, keys []automdm.HostDiskEncryptionKey) error {
 	if len(keys) == 0 {
 		return nil
 	}
@@ -603,14 +603,14 @@ WHERE (host_id, base64_encrypted) IN (%s)`, placeholders), args...); err != nil 
 	for _, k := range keys {
 		hostIDs = append(hostIDs, k.HostID)
 	}
-	ds.notifyOrbitConfig(ctx, ds.writer(ctx), fleet.AgentWSReasonDiskEncryption, hostIDs...)
+	ds.notifyOrbitConfig(ctx, ds.writer(ctx), automdm.AgentWSReasonDiskEncryption, hostIDs...)
 	return nil
 }
 
 func (ds *Datastore) CleanupDiskEncryptionKeysOnTeamChange(ctx context.Context, hostIDs []uint, newTeamID *uint) error {
 	diskEncryption, err := ds.GetConfigEnableDiskEncryption(ctx, newTeamID)
 	if err != nil {
-		return ctxerr.Wrap(ctx, err, "get destination fleet disk encryption settings")
+		return ctxerr.Wrap(ctx, err, "get destination team disk encryption settings")
 	}
 	return ds.withTx(ctx, func(tx sqlx.ExtContext) error {
 		return cleanupDiskEncryptionKeysOnTeamChangeDB(ctx, tx, hostIDs, diskEncryption)
@@ -618,9 +618,9 @@ func (ds *Datastore) CleanupDiskEncryptionKeysOnTeamChange(ctx context.Context, 
 }
 
 // cleanupDiskEncryptionKeysOnTeamChangeDB drops the escrowed keys of moved hosts
-// whose platform no longer escrows to Fleet in the destination fleet. Each
+// whose platform no longer escrows to AutoMDM in the destination team. Each
 // platform has its own setting.
-func cleanupDiskEncryptionKeysOnTeamChangeDB(ctx context.Context, tx sqlx.ExtContext, hostIDs []uint, diskEncryption fleet.DiskEncryptionConfig) error {
+func cleanupDiskEncryptionKeysOnTeamChangeDB(ctx context.Context, tx sqlx.ExtContext, hostIDs []uint, diskEncryption automdm.DiskEncryptionConfig) error {
 	if len(hostIDs) == 0 {
 		return nil
 	}
@@ -639,11 +639,11 @@ func cleanupDiskEncryptionKeysOnTeamChangeDB(ctx context.Context, tx sqlx.ExtCon
 
 	toDelete := make([]uint, 0, len(hosts))
 	for _, h := range hosts {
-		// FleetPlatform() rather than a platform list in SQL, so this agrees with
+		// AutoMDMPlatform() rather than a platform list in SQL, so this agrees with
 		// every other per-platform decision in the codebase
-		host := fleet.Host{Platform: h.Platform}
+		host := automdm.Host{Platform: h.Platform}
 		var keep bool
-		switch host.FleetPlatform() {
+		switch host.AutoMDMPlatform() {
 		case "darwin":
 			keep = diskEncryption.MacOSEscrowEnabled
 		case "windows":
@@ -657,7 +657,7 @@ func cleanupDiskEncryptionKeysOnTeamChangeDB(ctx context.Context, tx sqlx.ExtCon
 	}
 
 	if err := bulkDeleteHostDiskEncryptionKeysDB(ctx, tx, toDelete); err != nil {
-		return ctxerr.Wrap(ctx, err, "bulk delete host disk encryption keys on fleet change")
+		return ctxerr.Wrap(ctx, err, "bulk delete host disk encryption keys on team change")
 	}
 	return nil
 }
@@ -696,7 +696,7 @@ WHERE host_uuid = ? ORDER BY created_at DESC, id DESC LIMIT 1`, pending, hostUUI
 }
 
 // QueueBitLockerPINRequest stores the end user's encrypted BitLocker startup PIN for the agent to collect.
-func (ds *Datastore) QueueBitLockerPINRequest(ctx context.Context, host *fleet.Host, encryptedPIN string) error {
+func (ds *Datastore) QueueBitLockerPINRequest(ctx context.Context, host *automdm.Host, encryptedPIN string) error {
 	const stmt = `
 INSERT INTO host_bitlocker_pin_requests (host_id, request_uuid, pin_encrypted, status, client_error, created_at, updated_at)
 VALUES (?, ?, ?, ?, '', NOW(6), NOW(6))
@@ -710,21 +710,21 @@ ON DUPLICATE KEY UPDATE
 	return ds.withTx(ctx, func(tx sqlx.ExtContext) error {
 		// A fresh id per submission is what lets a late outcome for a superseded PIN be recognized and ignored.
 		requestID := uuid.NewV7()
-		if _, err := tx.ExecContext(ctx, stmt, host.ID, requestID[:], encryptedPIN, fleet.BitLockerPINRequestPending); err != nil {
+		if _, err := tx.ExecContext(ctx, stmt, host.ID, requestID[:], encryptedPIN, automdm.BitLockerPINRequestPending); err != nil {
 			return ctxerr.Wrap(ctx, err, "queue bitlocker pin request")
 		}
 		if err := setBitLockerPINPendingFlag(ctx, tx, host.UUID, true); err != nil {
 			return err
 		}
-		ds.notifyOrbitConfig(ctx, tx, fleet.AgentWSReasonDiskEncryption, host.ID)
+		ds.notifyOrbitConfig(ctx, tx, automdm.AgentWSReasonDiskEncryption, host.ID)
 		return nil
 	})
 }
 
 // GetBitLockerPINRequest returns where a host's PIN submission stands, for the My device page to poll. It never returns the PIN
 // itself, and reports notFound when the host has no submission.
-func (ds *Datastore) GetBitLockerPINRequest(ctx context.Context, hostID uint) (*fleet.HostBitLockerPINRequest, error) {
-	var req fleet.HostBitLockerPINRequest
+func (ds *Datastore) GetBitLockerPINRequest(ctx context.Context, hostID uint) (*automdm.HostBitLockerPINRequest, error) {
+	var req automdm.HostBitLockerPINRequest
 	err := sqlx.GetContext(ctx, ds.reader(ctx), &req, `
 SELECT status, client_error, created_at, updated_at FROM host_bitlocker_pin_requests WHERE host_id = ?`, hostID)
 	switch {
@@ -737,7 +737,7 @@ SELECT status, client_error, created_at, updated_at FROM host_bitlocker_pin_requ
 }
 
 // TakeBitLockerPINRequest hands the encrypted PIN to the agent exactly once, then clears it.
-func (ds *Datastore) TakeBitLockerPINRequest(ctx context.Context, host *fleet.Host) (string, string, error) {
+func (ds *Datastore) TakeBitLockerPINRequest(ctx context.Context, host *automdm.Host) (string, string, error) {
 	var (
 		encryptedPIN string
 		requestUUID  string
@@ -755,7 +755,7 @@ WHERE host_id = ?
 	AND status = ?
 	AND pin_encrypted IS NOT NULL
 	AND created_at > DATE_SUB(NOW(6), INTERVAL ? SECOND)
-FOR UPDATE`, host.ID, fleet.BitLockerPINRequestPending, int(fleet.BitLockerPINRequestTTL.Seconds()))
+FOR UPDATE`, host.ID, automdm.BitLockerPINRequestPending, int(automdm.BitLockerPINRequestTTL.Seconds()))
 		switch {
 		case errors.Is(err, sql.ErrNoRows):
 			// Nothing to collect. Commit the cleared flag rather than returning an error.
@@ -766,7 +766,7 @@ FOR UPDATE`, host.ID, fleet.BitLockerPINRequestPending, int(fleet.BitLockerPINRe
 
 		if _, err := tx.ExecContext(ctx, `
 UPDATE host_bitlocker_pin_requests SET status = ?, pin_encrypted = NULL WHERE host_id = ?`,
-			fleet.BitLockerPINRequestDelivered, host.ID); err != nil {
+			automdm.BitLockerPINRequestDelivered, host.ID); err != nil {
 			return ctxerr.Wrap(ctx, err, "mark bitlocker pin request delivered")
 		}
 		if err := setBitLockerPINPendingFlag(ctx, tx, host.UUID, false); err != nil {
@@ -788,7 +788,7 @@ UPDATE host_bitlocker_pin_requests SET status = ?, pin_encrypted = NULL WHERE ho
 // SetBitLockerPINRequestOutcome records what the agent did with the PIN it collected. The row is kept on success
 // rather than deleted, so the waiting page has a positive signal to poll for.
 func (ds *Datastore) SetBitLockerPINRequestOutcome(
-	ctx context.Context, host *fleet.Host, requestUUID string, outcome fleet.BitLockerPINRequestStatus, clientError string,
+	ctx context.Context, host *automdm.Host, requestUUID string, outcome automdm.BitLockerPINRequestStatus, clientError string,
 ) error {
 	// The age guard matches HostBitLockerPINRequest.Expired, so an outcome the My device page has already reported as timed
 	// out cannot be accepted between the timeout and the hourly cleanup and flip the page back.
@@ -804,8 +804,8 @@ WHERE host_id = ? AND request_uuid = ? AND status = ?
 	}
 
 	return ds.withTx(ctx, func(tx sqlx.ExtContext) error {
-		res, err := tx.ExecContext(ctx, stmt, outcome, clientError, host.ID, requestID[:], fleet.BitLockerPINRequestDelivered,
-			int(fleet.BitLockerPINResultTimeout.Seconds()))
+		res, err := tx.ExecContext(ctx, stmt, outcome, clientError, host.ID, requestID[:], automdm.BitLockerPINRequestDelivered,
+			int(automdm.BitLockerPINResultTimeout.Seconds()))
 		if err != nil {
 			return ctxerr.Wrap(ctx, err, "set bitlocker pin request outcome")
 		}
@@ -834,9 +834,9 @@ UPDATE host_bitlocker_pin_requests
 SET status = ?, pin_encrypted = NULL, client_error = ?
 WHERE (status = ? AND created_at <= DATE_SUB(NOW(6), INTERVAL ? SECOND))
 	OR (status = ? AND updated_at <= DATE_SUB(NOW(6), INTERVAL ? SECOND))`
-	if _, err := ds.writer(ctx).ExecContext(ctx, expireStmt, fleet.BitLockerPINRequestFailed, fleet.BitLockerPINRequestTimedOutError,
-		fleet.BitLockerPINRequestPending, int(fleet.BitLockerPINRequestTTL.Seconds()),
-		fleet.BitLockerPINRequestDelivered, int(fleet.BitLockerPINResultTimeout.Seconds())); err != nil {
+	if _, err := ds.writer(ctx).ExecContext(ctx, expireStmt, automdm.BitLockerPINRequestFailed, automdm.BitLockerPINRequestTimedOutError,
+		automdm.BitLockerPINRequestPending, int(automdm.BitLockerPINRequestTTL.Seconds()),
+		automdm.BitLockerPINRequestDelivered, int(automdm.BitLockerPINResultTimeout.Seconds())); err != nil {
 		return ctxerr.Wrap(ctx, err, "expire unfinished bitlocker pin requests")
 	}
 
@@ -848,14 +848,14 @@ JOIN hosts h ON h.id = r.host_id
 JOIN mdm_windows_enrollments e ON e.host_uuid = h.uuid
 SET e.bitlocker_pin_request_pending = 0
 WHERE r.status != ? AND e.bitlocker_pin_request_pending = 1`
-	if _, err := ds.writer(ctx).ExecContext(ctx, clearFlagStmt, fleet.BitLockerPINRequestPending); err != nil {
+	if _, err := ds.writer(ctx).ExecContext(ctx, clearFlagStmt, automdm.BitLockerPINRequestPending); err != nil {
 		return ctxerr.Wrap(ctx, err, "clear stale bitlocker pin pending flags")
 	}
 
 	const reapStmt = `
 DELETE FROM host_bitlocker_pin_requests
 WHERE status IN (?, ?) AND updated_at <= DATE_SUB(NOW(6), INTERVAL ? SECOND)`
-	if _, err := ds.writer(ctx).ExecContext(ctx, reapStmt, fleet.BitLockerPINRequestSet, fleet.BitLockerPINRequestFailed,
+	if _, err := ds.writer(ctx).ExecContext(ctx, reapStmt, automdm.BitLockerPINRequestSet, automdm.BitLockerPINRequestFailed,
 		int(bitLockerPINRequestRetention.Seconds())); err != nil {
 		return ctxerr.Wrap(ctx, err, "reap finished bitlocker pin requests")
 	}
@@ -863,7 +863,7 @@ WHERE status IN (?, ?) AND updated_at <= DATE_SUB(NOW(6), INTERVAL ? SECOND)`
 }
 
 // DeleteBitLockerPINRequest drops a host's PIN submission.
-func (ds *Datastore) DeleteBitLockerPINRequest(ctx context.Context, host *fleet.Host) error {
+func (ds *Datastore) DeleteBitLockerPINRequest(ctx context.Context, host *automdm.Host) error {
 	return ds.withTx(ctx, func(tx sqlx.ExtContext) error {
 		if _, err := tx.ExecContext(ctx,
 			`DELETE FROM host_bitlocker_pin_requests WHERE host_id = ?`, host.ID); err != nil {

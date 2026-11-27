@@ -29,7 +29,7 @@ columns:
   - name: crypto_user_uuid
     type: text
     required: false
-    description: The UUID of the cryptographic user. For `LocalOpenDirectory` rows, this is the user account's GeneratedUID, which can be joined to [users.uuid](https://fleetdm.com/tables/users) to get the username.
+    description: The UUID of the cryptographic user. For `LocalOpenDirectory` rows, this is the user account's GeneratedUID, which can be joined to [users.uuid](https://automdm.com/tables/users) to get the username.
   - name: type
     type: text
     required: false
@@ -40,5 +40,5 @@ columns:
     type: integer
     required: false
     description: Whether this cryptographic user is an APFS volume owner (1) or not (0).
-notes: This table is not a core osquery table. It is included as part of Fleet's agent ([fleetd](https://fleetdm.com/docs/get-started/anatomy#fleetd)).
+notes: This table is not a core osquery table. It is included as part of AutoMDM's agent ([automdmd](https://automdm.com/docs/get-started/anatomy#automdmd)).
 evented: false

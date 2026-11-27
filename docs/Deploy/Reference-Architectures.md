@@ -1,74 +1,74 @@
 # Reference architectures
 
-## The Fleet binary
+## The AutoMDM binary
 
-The Fleet application contains two single static binaries which provide web based administration, a REST API, and a [CLI interface](https://fleetdm.com/guides/fleetctl).
+The AutoMDM application contains two single static binaries which provide web based administration, a REST API, and a [CLI interface](https://automdm.com/guides/automdmctl).
 
-The `fleet` binary contains:
-- The [Fleet TLS web server](https://fleetdm.com/docs/configuration/fleet-server-configuration) (no external webserver is required but it supports a proxy if desired)
-- The Fleet web interface
-- The Fleet application management [REST API](https://fleetdm.com/docs/using-fleet/rest-api)
-- The Fleet osquery API endpoints
+The `automdm` binary contains:
+- The [AutoMDM TLS web server](https://automdm.com/docs/configuration/automdm-server-configuration) (no external webserver is required but it supports a proxy if desired)
+- The AutoMDM web interface
+- The AutoMDM application management [REST API](https://automdm.com/docs/using-automdm/rest-api)
+- The AutoMDM osquery API endpoints
 
-The `fleetctl` binary is the CLI interface which allows management of your deployment, scriptable live queries, and easy integration into your existing logging, alerting, reporting, and management infrastructure.
+The `automdmctl` binary is the CLI interface which allows management of your deployment, scriptable live queries, and easy integration into your existing logging, alerting, reporting, and management infrastructure.
 
-Both binaries are available for download from our [repo](https://github.com/fleetdm/fleet/releases).
+Both binaries are available for download from our [repo](https://github.com/anilyagiz/automdm/releases).
 
 Once you've downloaded the binaries, extract the files to your desired location:
 
 ```
-tar -xf fleet_v*_linux.tar.gz # Extract the Fleet binary
-sudo cp fleet_v*_linux/fleet /usr/bin/ # Copy the the Fleet binary to /usr/bin
-fleet version # Sanity check to make sure it runs as expected
+tar -xf automdm_v*_linux.tar.gz # Extract the AutoMDM binary
+sudo cp automdm_v*_linux/automdm /usr/bin/ # Copy the the AutoMDM binary to /usr/bin
+automdm version # Sanity check to make sure it runs as expected
 ```
 
 ## Infrastructure dependencies
 
-Fleet currently has three infrastructure dependencies: MySQL, Redis, and a TLS certificate.
+AutoMDM currently has three infrastructure dependencies: MySQL, Redis, and a TLS certificate.
 
-![Fleet's architecture diagram](https://raw.githubusercontent.com/fleetdm/fleet/main/docs/images/fleet-architecture-diagram.png)
+![AutoMDM's architecture diagram](https://raw.githubusercontent.com/automdm/automdm/main/docs/images/automdm-architecture-diagram.png)
 
 ### MySQL
 
-Fleet uses MySQL extensively as its main database. Many cloud providers (such as [AWS](https://aws.amazon.com/rds/mysql/) and [GCP](https://cloud.google.com/sql/)) host reliable MySQL services which you may consider for this purpose. A well-supported MySQL [Docker image](https://hub.docker.com/_/mysql/) also exists if you would rather run MySQL in a container. 
-For more information on how to configure the `fleet` binary to use the correct MySQL instance, see the [MySQL configuration](https://fleetdm.com/docs/configuration/fleet-server-configuration#mysql) documentation.
+AutoMDM uses MySQL extensively as its main database. Many cloud providers (such as [AWS](https://aws.amazon.com/rds/mysql/) and [GCP](https://cloud.google.com/sql/)) host reliable MySQL services which you may consider for this purpose. A well-supported MySQL [Docker image](https://hub.docker.com/_/mysql/) also exists if you would rather run MySQL in a container. 
+For more information on how to configure the `automdm` binary to use the correct MySQL instance, see the [MySQL configuration](https://automdm.com/docs/configuration/automdm-server-configuration#mysql) documentation.
 
-Fleet requires at least MySQL version 8.0.44, and is tested using the InnoDB storage engine [with versions 8.0.44, 8.4.8, and 9.5.0](https://github.com/fleetdm/fleet/blob/main/.github/workflows/test-go.yaml#L73-L90). MySQL 9.6.0 is currently incompatible.
+AutoMDM requires at least MySQL version 8.0.44, and is tested using the InnoDB storage engine [with versions 8.0.44, 8.4.8, and 9.5.0](https://github.com/anilyagiz/automdm/blob/main/.github/workflows/test-go.yaml#L73-L90). MySQL 9.6.0 is currently incompatible.
 
-There are many "drop-in replacements" for MySQL available. If you'd like to experiment with some bleeding-edge technology and use Fleet with one of these alternative database servers, we think that's awesome! Please be aware they are not officially supported and that it is very important to set up a dev environment to thoroughly test new releases.
+There are many "drop-in replacements" for MySQL available. If you'd like to experiment with some bleeding-edge technology and use AutoMDM with one of these alternative database servers, we think that's awesome! Please be aware they are not officially supported and that it is very important to set up a dev environment to thoroughly test new releases.
 
-Fleet supports single-writer database setups: one writable primary with read replicas. Multi-writer or group-replication MySQL setups are not supported.
+AutoMDM supports single-writer database setups: one writable primary with read replicas. Multi-writer or group-replication MySQL setups are not supported.
 
-> If you use multiple databases per database server for multiple Fleet instances, you'll need to provision more resources for your database server to ensure performance. You can experiment with finding the right resourcing for your needs.
+> If you use multiple databases per database server for multiple AutoMDM instances, you'll need to provision more resources for your database server to ensure performance. You can experiment with finding the right resourcing for your needs.
 
 ### Redis
 
-Fleet uses Redis to ingest and queue the results of distributed queries, cache data, etc. Many cloud providers (such as [AWS](https://aws.amazon.com/elasticache/) and [GCP](https://console.cloud.google.com/launcher/details/click-to-deploy-images/redis)) host reliable Redis services which you may consider for this purpose. A well supported Redis [Docker image](https://hub.docker.com/_/redis/) also exists if you would rather run Redis in a container. For more information on how to configure the `fleet` binary to use the correct Redis instance, see the [Redis configuration](https://fleetdm.com/docs/configuration/fleet-server-configuration#redis) documentation.
+AutoMDM uses Redis to ingest and queue the results of distributed queries, cache data, etc. Many cloud providers (such as [AWS](https://aws.amazon.com/elasticache/) and [GCP](https://console.cloud.google.com/launcher/details/click-to-deploy-images/redis)) host reliable Redis services which you may consider for this purpose. A well supported Redis [Docker image](https://hub.docker.com/_/redis/) also exists if you would rather run Redis in a container. For more information on how to configure the `automdm` binary to use the correct Redis instance, see the [Redis configuration](https://automdm.com/docs/configuration/automdm-server-configuration#redis) documentation.
 
 ## Systemd
 
 ### Run with systemd
 
-Once you've verified that you can run Fleet in your shell, you'll likely want to keep Fleet running in the background and after the server reboots. To do that we recommend using [systemd](https://coreos.com/os/docs/latest/getting-started-with-systemd.html).
+Once you've verified that you can run AutoMDM in your shell, you'll likely want to keep AutoMDM running in the background and after the server reboots. To do that we recommend using [systemd](https://coreos.com/os/docs/latest/getting-started-with-systemd.html).
 
-Below is a sample unit file, assuming a `fleet` user exists on the system. Any user with sufficient
+Below is a sample unit file, assuming an `automdm` user exists on the system. Any user with sufficient
 permissions to execute the binary, open the configuration files, and write the log files can be
 used. It is also possible to run as `root`, though as with any other web server it is discouraged
-to run Fleet as `root`.
+to run AutoMDM as `root`.
 
 ```systemd
 
 [Unit]
-Description=Fleet
+Description=AutoMDM
 After=network.target
 
 [Service]
-User=fleet
-Group=fleet
+User=automdm
+Group=automdm
 LimitNOFILE=8192
-ExecStart=/usr/local/bin/fleet serve \
+ExecStart=/usr/local/bin/automdm serve \
   --mysql_address=127.0.0.1:3306 \
-  --mysql_database=fleet \
+  --mysql_database=automdm \
   --mysql_username=root \
   --mysql_password=toor \
   --redis_address=127.0.0.1:6379 \
@@ -80,40 +80,40 @@ ExecStart=/usr/local/bin/fleet serve \
 WantedBy=multi-user.target
 ```
 
-Once you created the file, you need to move it to `/etc/systemd/system/fleet.service` and start the service.
+Once you created the file, you need to move it to `/etc/systemd/system/automdm.service` and start the service.
 
 ```sh
-sudo mv fleet.service /etc/systemd/system/fleet.service
-sudo systemctl start fleet.service
-sudo systemctl status fleet.service
+sudo mv automdm.service /etc/systemd/system/automdm.service
+sudo systemctl start automdm.service
+sudo systemctl status automdm.service
 
-sudo journalctl -u fleet.service -f
+sudo journalctl -u automdm.service -f
 ```
 
 ### Making changes
 
-Sometimes you'll need to update the systemd unit file defining the service. To do that, first open /etc/systemd/system/fleet.service in a text editor, and make your modifications.
+Sometimes you'll need to update the systemd unit file defining the service. To do that, first open /etc/systemd/system/automdm.service in a text editor, and make your modifications.
 
 Then, run
 
 ```sh
 sudo systemctl daemon-reload
-sudo systemctl restart fleet.service
+sudo systemctl restart automdm.service
 ```
 
 ## TLS certificate
 
-In order for osqueryd clients to connect, the connection to Fleet must use TLS. The TLS connection may be terminated by Fleet itself, or by a proxy serving traffic to Fleet.
+In order for osqueryd clients to connect, the connection to AutoMDM must use TLS. The TLS connection may be terminated by AutoMDM itself, or by a proxy serving traffic to AutoMDM.
 
 - The CNAME or one of the Subject Alternate Names (SANs) on the certificate must match the hostname that osquery clients use to connect to the server/proxy.
-- If you intend to have your Fleet instance on a subdomain, your certificate can have a wildcard SAN. So `fleet.example.com` should match a SAN of `*.example.com`
+- If you intend to have your AutoMDM instance on a subdomain, your certificate can have a wildcard SAN. So `automdm.example.com` should match a SAN of `*.example.com`
 - If self-signed certificates are used, the full certificate chain must be provided to osquery via the `--tls_server_certs` flag.
-- If Fleet terminates TLS, consider using an ECDSA (rather than RSA) certificate, as RSA certificates have been associated with [performance problems in Fleet due to Go's standard library TLS implementation](https://github.com/fleetdm/fleet/issues/655).
+- If AutoMDM terminates TLS, consider using an ECDSA (rather than RSA) certificate, as RSA certificates have been associated with [performance problems in AutoMDM due to Go's standard library TLS implementation](https://github.com/fleetdm/fleet/issues/655).
 
 
 ## Using a proxy
 
-In enterprise environments where Fleet operates behind a proxy, you may need to configure proxy settings to enable services requiring outbound traffic, such as [vulnerability processing](https://fleetdm.com/docs/using-fleet/vulnerability-processing#vulnerability-processing) or [device management](https://fleetdm.com/device-management). Fleet automatically uses the `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` environment variables. `NO_PROXY` is an exclusion list — hosts listed here connect directly, bypassing the proxy. It does not provide a fallback.
+In enterprise environments where AutoMDM operates behind a proxy, you may need to configure proxy settings to enable services requiring outbound traffic, such as [vulnerability processing](https://automdm.com/docs/using-automdm/vulnerability-processing#vulnerability-processing) or [device management](https://automdm.com/device-management). AutoMDM automatically uses the `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` environment variables. `NO_PROXY` is an exclusion list — hosts listed here connect directly, bypassing the proxy. It does not provide a fallback.
 
 
 For example, to configure the proxy in a systemd service file:
@@ -125,13 +125,13 @@ Environment="HTTPS_PROXY=http(s)://PROXY_URL:PORT/"
 Environment="NO_PROXY=localhost,127.0.0.1,::1"
 ```
 
-> Note: If HTTP_PROXY/HTTPS_PROXY points at a loopback or private address, Fleet's private network blocking may block it. See [server_allow_private_network_integrations](https://fleetdm.com/docs/configuration/fleet-server-configuration#server-allow-private-network-integrations).
+> Note: If HTTP_PROXY/HTTPS_PROXY points at a loopback or private address, AutoMDM's private network blocking may block it. See [server_allow_private_network_integrations](https://automdm.com/docs/configuration/automdm-server-configuration#server-allow-private-network-integrations).
 
-Also, allow the Fleet server to reach the following routes for the features you use.
+Also, allow the AutoMDM server to reach the following routes for the features you use.
 
 ### Apple MDM
 
-Learn more about [Apple MDM](https://fleetdm.com/guides/apple-mdm-setup) and [App Store apps](https://fleetdm.com/guides/install-app-store-apps).
+Learn more about [Apple MDM](https://automdm.com/guides/apple-mdm-setup) and [App Store apps](https://automdm.com/guides/install-app-store-apps).
 
 | Route | Reason |
 |---|---|
@@ -145,19 +145,19 @@ Learn more about [Apple MDM](https://fleetdm.com/guides/apple-mdm-setup) and [Ap
 
 ### Windows MDM
 
-Learn more about [Windows MDM](https://fleetdm.com/guides/windows-mdm-setup).
+Learn more about [Windows MDM](https://automdm.com/guides/windows-mdm-setup).
 
 | Route | Reason |
 |---|---|
-| `download.fleetdm.com` | Install Fleet's agent (fleetd) on Windows hosts. |
+| `download.fleetdm.com` | Install AutoMDM's agent (automdmd) on Windows hosts. |
 | `login.microsoftonline.com` | Verify Windows automatic enrollment with Microsoft Entra, and sign in to Microsoft Graph. |
 | `graph.microsoft.com` | Sync Windows Autopilot devices. |
 
 ### Android MDM
 
-Learn more about [Android MDM](https://fleetdm.com/guides/android-mdm-setup).
+Learn more about [Android MDM](https://automdm.com/guides/android-mdm-setup).
 
-Fleet calls the [Android Management API](https://developers.google.com/android/management) through fleetdm.com, so the Fleet server doesn't need to reach Google. Allowlist the whole `fleetdm.com/api/android/*` prefix, because new routes are added over time.
+AutoMDM calls the [Android Management API](https://developers.google.com/android/management) through automdm.com, so the AutoMDM server doesn't need to reach Google. Allowlist the whole `fleetdm.com/api/android/*` prefix, because new routes are added over time.
 
 | Route | Reason |
 |---|---|
@@ -177,29 +177,29 @@ Fleet calls the [Android Management API](https://developers.google.com/android/m
 | `GET /api/android/v1/enterprises/:enterpriseId/applications/:applicationId` | Get Google Play app details. |
 | `POST /api/android/v1/enterprises/:enterpriseId/webApps` | Create web apps. |
 
-### Fleet-maintained apps
+### AutoMDM-maintained apps
 
-Learn more about [Fleet-maintained apps](https://fleetdm.com/guides/fleet-maintained-apps).
+Learn more about [AutoMDM-maintained apps](https://automdm.com/guides/automdm-maintained-apps).
 
 | Route | Reason |
 |---|---|
-| `maintained-apps.fleetdm.com` | Get the Fleet-maintained apps catalog. Fleet also downloads each app's installer from its vendor's URL. |
-| `raw.githubusercontent.com/fleetdm/fleet/*` | A fallback for the catalog, if `maintained-apps.fleetdm.com` is unreachable. |
+| `maintained-apps.fleetdm.com` | Get the AutoMDM-maintained apps catalog. AutoMDM also downloads each app's installer from its vendor's URL. |
+| `raw.githubusercontent.com/automdm/automdm/*` | A fallback for the catalog, if `maintained-apps.fleetdm.com` is unreachable. |
 
 ### Conditional access
 
-Learn more about [conditional access](https://fleetdm.com/guides/conditional-access).
+Learn more about [conditional access](https://automdm.com/guides/conditional-access).
 
 | Route | Reason |
 |---|---|
-| `fleetdm.com/api/v1/microsoft-compliance-partner*` | [Microsoft Entra conditional access](https://fleetdm.com/guides/entra-conditional-access-integration). Fleet reaches Entra through fleetdm.com. |
-| `fleetdm.com/api/v1/google-conditional-access*` | [Google conditional access](https://fleetdm.com/guides/google-conditional-access-integration). Connect and disconnect your Fleet server. The end user's Google sign-in on iPhones and iPads goes through fleetdm.com. |
+| `fleetdm.com/api/v1/microsoft-compliance-partner*` | [Microsoft Entra conditional access](https://automdm.com/guides/entra-conditional-access-integration). AutoMDM reaches Entra through automdm.com. |
+| `fleetdm.com/api/v1/google-conditional-access*` | [Google conditional access](https://automdm.com/guides/google-conditional-access-integration). Connect and disconnect your AutoMDM server. The end user's Google sign-in on iPhones and iPads goes through automdm.com. |
 | `oauth2.googleapis.com` | Google conditional access. Sign in to Google with your service account. |
 | `cloudidentity.googleapis.com` | Google conditional access. Find devices in Google and mark them as managed. |
 
 ### Vulnerability processing
 
-Learn more about [vulnerability processing](https://fleetdm.com/guides/vulnerability-processing).
+Learn more about [vulnerability processing](https://automdm.com/guides/vulnerability-processing).
 
 | Route | Reason |
 |---|---|
@@ -208,11 +208,11 @@ Learn more about [vulnerability processing](https://fleetdm.com/guides/vulnerabi
 | `www.cisa.gov` | Download CISA's Known Exploited Vulnerabilities (KEV) catalog. |
 | Upstream OVAL sources | Download OVAL definitions for Linux distributions that OSV doesn't cover, like Fedora. The sources are listed in [`oval_sources.json`](https://github.com/fleetdm/nvd/blob/master/oval_sources.json). |
 
-You can point some feeds at a mirror with [`cpe_database_url`](https://fleetdm.com/docs/configuration/fleet-server-configuration#cpe-database-url), [`cpe_translations_url`](https://fleetdm.com/docs/configuration/fleet-server-configuration#cpe-translations-url), [`cve_feed_prefix_url`](https://fleetdm.com/docs/configuration/fleet-server-configuration#cve-feed-prefix-url), and [`cisa_known_exploits_url`](https://fleetdm.com/docs/configuration/fleet-server-configuration#cisa-known-exploits-url). To stop all of these downloads, use [`disable_data_sync`](https://fleetdm.com/docs/configuration/fleet-server-configuration#disable-data-sync) and provide the files yourself.
+You can point some feeds at a mirror with [`cpe_database_url`](https://automdm.com/docs/configuration/automdm-server-configuration#cpe-database-url), [`cpe_translations_url`](https://automdm.com/docs/configuration/automdm-server-configuration#cpe-translations-url), [`cve_feed_prefix_url`](https://automdm.com/docs/configuration/automdm-server-configuration#cve-feed-prefix-url), and [`cisa_known_exploits_url`](https://automdm.com/docs/configuration/automdm-server-configuration#cisa-known-exploits-url). To stop all of these downloads, use [`disable_data_sync`](https://automdm.com/docs/configuration/automdm-server-configuration#disable-data-sync) and provide the files yourself.
 
 ### Google Calendar
 
-Learn more about [calendar events](https://fleetdm.com/guides/using-maintenance-windows).
+Learn more about [calendar events](https://automdm.com/guides/using-maintenance-windows).
 
 | Route | Reason |
 |---|---|
@@ -221,7 +221,7 @@ Learn more about [calendar events](https://fleetdm.com/guides/using-maintenance-
 
 ### Google Workspace
 
-Learn more about [syncing IdP host vitals from Google Workspace](https://fleetdm.com/guides/foreign-vitals-map-idp-users-to-hosts#google-workspace).
+Learn more about [syncing IdP host vitals from Google Workspace](https://automdm.com/guides/foreign-vitals-map-idp-users-to-hosts#google-workspace).
 
 | Route | Reason |
 |---|---|
@@ -230,35 +230,35 @@ Learn more about [syncing IdP host vitals from Google Workspace](https://fleetdm
 
 ### Usage statistics
 
-Learn more about [usage statistics](https://fleetdm.com/guides/fleet-usage-statistics).
+Learn more about [usage statistics](https://automdm.com/guides/automdm-usage-statistics).
 
 | Route | Reason |
 |---|---|
-| `fleetdm.com/api/v1/webhooks/receive-usage-analytics` | Send usage statistics. On by default. Fleet Free can turn it off with [`enable_analytics`](https://fleetdm.com/docs/configuration/yaml-files#server-settings). |
+| `fleetdm.com/api/v1/webhooks/receive-usage-analytics` | Send usage statistics. On by default. AutoMDM Free can turn it off with [`enable_analytics`](https://automdm.com/docs/configuration/yaml-files#server-settings). |
 
 ### Policy autofill
 
-Learn more about [policy autofill](https://fleetdm.com/guides/fleet-ai-assisted-policy-descriptions-and-resolutions).
+Learn more about [policy autofill](https://automdm.com/guides/automdm-ai-assisted-policy-descriptions-and-resolutions).
 
 | Route | Reason |
 |---|---|
-| `fleetdm.com/api/v1/get-human-interpretation-from-osquery-sql` | Autofill a policy's description and resolution. On by default. Turn off with [`ai_features_disabled`](https://fleetdm.com/docs/configuration/yaml-files#server-settings). |
+| `fleetdm.com/api/v1/get-human-interpretation-from-osquery-sql` | Autofill a policy's description and resolution. On by default. Turn off with [`ai_features_disabled`](https://automdm.com/docs/configuration/yaml-files#server-settings). |
 
 ## Public IPs of devices
 
-Fleet attempts to deduce the public IP of devices from well-known HTTP headers received on requests made by Fleet's agent (fleetd).
+AutoMDM attempts to deduce the public IP of devices from well-known HTTP headers received on requests made by AutoMDM's agent (automdmd).
 
 The HTTP request headers are checked in the following order:
-1. If `True-Client-IP` header is set, then Fleet will extract its value.
-2. If `X-Real-IP` header is set, then Fleet will extract its value.
-3. If `X-Forwarded-For` header is set, then Fleet will extract the first comma-separated value.
-4. If none of the above headers are present in the HTTP request then Fleet will attempt to use the remote address of the TCP connection (note that on deployments with ingress proxies the remote address seen by Fleet is the IP of the ingress proxy).
+1. If `True-Client-IP` header is set, then AutoMDM will extract its value.
+2. If `X-Real-IP` header is set, then AutoMDM will extract its value.
+3. If `X-Forwarded-For` header is set, then AutoMDM will extract the first comma-separated value.
+4. If none of the above headers are present in the HTTP request then AutoMDM will attempt to use the remote address of the TCP connection (note that on deployments with ingress proxies the remote address seen by AutoMDM is the IP of the ingress proxy).
 
 
 ## Reference configuration strategies
 
-You can easily run Fleet on a single VPS that would be capable of supporting hundreds if not thousands of hosts, but
-this page details an [opinionated view](https://github.com/fleetdm/fleet/tree/main/infrastructure/dogfood/terraform/aws-tf-module) of running Fleet in a production environment, as
+You can easily run AutoMDM on a single VPS that would be capable of supporting hundreds if not thousands of hosts, but
+this page details an [opinionated view](https://github.com/anilyagiz/automdm/tree/main/infrastructure/dogfood/terraform/aws-tf-module) of running AutoMDM in a production environment, as
 well as different configuration strategies to enable High Availability (HA).
 
 ### Availability components
@@ -269,21 +269,21 @@ There are a few strategies that can be used to ensure high availability:
 
 #### Database HA
 
-Fleet recommends RDS Aurora MySQL when running on AWS with [backups](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/Aurora.Managing.Backups.html) turned on. It is also
+AutoMDM recommends RDS Aurora MySQL when running on AWS with [backups](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/Aurora.Managing.Backups.html) turned on. It is also
 possible to dynamically scale read replicas to increase performance and [enable database fail-over](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/Concepts.AuroraHighAvailability.html).
 It is also possible to use [Aurora Global](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-global-database.html) to
-span multiple regions for more advanced configurations (_not included in the [reference terraform](https://github.com/fleetdm/fleet/tree/main/infrastructure/dogfood/terraform/aws-tf-module)_).
+span multiple regions for more advanced configurations (_not included in the [reference terraform](https://github.com/anilyagiz/automdm/tree/main/infrastructure/dogfood/terraform/aws-tf-module)_).
 
-In some cases adding a read replica can increase database performance for specific access patterns. In scenarios when automating the API or with `fleetctl`, there can be benefits to read performance.
+In some cases adding a read replica can increase database performance for specific access patterns. In scenarios when automating the API or with `automdmctl`, there can be benefits to read performance.
 
-**Note: Fleet servers need to talk to a writer in the same datacenter. Cross region replication can be used for failover but writes need to be local.**
+**Note: AutoMDM servers need to talk to a writer in the same datacenter. Cross region replication can be used for failover but writes need to be local.**
 
 #### Traffic load balancing
 Load balancing enables distributing request traffic over many instances of the backend application. Using [AWS Application
-Load Balancer](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/introduction.html) can also [offload SSL termination](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/create-https-listener.html), freeing Fleet to spend the majority of its allocated compute dedicated 
+Load Balancer](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/introduction.html) can also [offload SSL termination](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/create-https-listener.html), freeing AutoMDM to spend the majority of its allocated compute dedicated 
 to its core functionality.
 
-_**Note if using [terraform reference architecture](https://github.com/fleetdm/fleet/tree/main/infrastructure/dogfood/terraform/aws-tf-module) all configurations can dynamically scale based on load(cpu/memory) and all configurations
+_**Note if using [terraform reference architecture](https://github.com/anilyagiz/automdm/tree/main/infrastructure/dogfood/terraform/aws-tf-module) all configurations can dynamically scale based on load(cpu/memory) and all configurations
 assume On-Demand pricing (savings are available through Reserved Instances). Calculations do not take into account NAT gateway charges or other networking related ingress/egress costs.**_
 
 ### Cloud providers
@@ -294,7 +294,7 @@ assume On-Demand pricing (savings are available through Reserved Instances). Cal
 
 ###### Up to 300 hosts
 
-| Fleet instances | CPU   | RAM |
+| AutoMDM instances | CPU   | RAM |
 | --------------- | ----- | --- |
 | 1 Pro           | 2 CPU | 4GB |
 
@@ -303,7 +303,7 @@ assume On-Demand pricing (savings are available through Reserved Instances). Cal
 | Redis        | Render Key Value             | Starter (256 MB) | 1     |
 | MySQL        | MySQL 8.0 (private service)  | Standard (2GB)   | 1     |
 
-To deploy this configuration, see [Deploy Fleet on Render](https://fleetdm.com/guides/deploy-fleet-on-render).
+To deploy this configuration, see [Deploy AutoMDM on Render](https://automdm.com/guides/deploy-automdm-on-render).
 
 
 #### AWS
@@ -312,7 +312,7 @@ To deploy this configuration, see [Deploy Fleet on Render](https://fleetdm.com/g
 
 ###### [Up to 5000 hosts](https://calculator.aws/#/estimate?id=cc26267f829536383e9b1b449ca0c56f0e844084)
 
-| Fleet instances | CPU Units      | RAM | FLEET_MYSQL_MAX_OPEN_CONNS |
+| AutoMDM instances | CPU Units      | RAM | AUTOMDM_MYSQL_MAX_OPEN_CONNS |
 | --------------- | -------------- | --- | -------------------------- |
 | 6 Fargate tasks | 1024 CPU Units | 4GB | 10                         |
 
@@ -323,7 +323,7 @@ To deploy this configuration, see [Deploy Fleet on Render](https://fleetdm.com/g
 
 ###### [Up to 10000 hosts](https://calculator.aws/#/estimate?id=5ea231525450b1cd4fa847f4564351d2c17d2ee2)
 
-| Fleet instances | CPU Units      | RAM | FLEET_MYSQL_MAX_OPEN_CONNS |
+| AutoMDM instances | CPU Units      | RAM | AUTOMDM_MYSQL_MAX_OPEN_CONNS |
 | --------------- | -------------- | --- | -------------------------- |
 | 8 Fargate tasks | 1024 CPU Units | 4GB | 10                         |
 
@@ -334,7 +334,7 @@ To deploy this configuration, see [Deploy Fleet on Render](https://fleetdm.com/g
 
 ###### [Up to 25000 hosts](https://calculator.aws/#/estimate?id=4700e7a36ef34b84ae9ad4f444690f1df2ca3753)
 
-| Fleet instances  | CPU Units      | RAM | FLEET_MYSQL_MAX_OPEN_CONNS |
+| AutoMDM instances  | CPU Units      | RAM | AUTOMDM_MYSQL_MAX_OPEN_CONNS |
 | ---------------- | -------------- | --- | -------------------------- |
 | 10 Fargate tasks | 1024 CPU Units | 4GB | 20                         |
 
@@ -345,7 +345,7 @@ To deploy this configuration, see [Deploy Fleet on Render](https://fleetdm.com/g
 
 ###### [Up to 50000 hosts](https://calculator.aws/#/estimate?id=3887d782a8f6cfeb9e0463686b5629aeb4cd678e)
 
-| Fleet instances  | CPU Units      | RAM | FLEET_MYSQL_MAX_OPEN_CONNS |
+| AutoMDM instances  | CPU Units      | RAM | AUTOMDM_MYSQL_MAX_OPEN_CONNS |
 | ---------------- | -------------- | --- | -------------------------- |
 | 15 Fargate tasks | 1024 CPU Units | 4GB | 20                         |
 
@@ -356,7 +356,7 @@ To deploy this configuration, see [Deploy Fleet on Render](https://fleetdm.com/g
 
 ###### [Up to 80000 hosts](https://calculator.aws/#/estimate?id=7d0dee9241aff55fc733a9eead816baea14aee21)
 
-| Fleet instances  | CPU Units      | RAM | FLEET_MYSQL_MAX_OPEN_CONNS |
+| AutoMDM instances  | CPU Units      | RAM | AUTOMDM_MYSQL_MAX_OPEN_CONNS |
 | ---------------- | -------------- | --- | -------------------------- |
 | 20 Fargate tasks | 1024 CPU Units | 4GB | 20                         |
 
@@ -367,7 +367,7 @@ To deploy this configuration, see [Deploy Fleet on Render](https://fleetdm.com/g
 
 ###### [Up to 100000 hosts](https://calculator.aws/#/estimate?id=cd17a0dda5e1ee5f919ac0a2a0ea8a6e1557e307)
 
-| Fleet instances  | CPU Units      | RAM | FLEET_MYSQL_MAX_OPEN_CONNS |
+| AutoMDM instances  | CPU Units      | RAM | AUTOMDM_MYSQL_MAX_OPEN_CONNS |
 | ---------------- | -------------- | --- | -------------------------- |
 | 25 Fargate tasks | 1024 CPU Units | 4GB | 20                         |
 
@@ -378,7 +378,7 @@ To deploy this configuration, see [Deploy Fleet on Render](https://fleetdm.com/g
 
 ###### [Up to 150000 hosts](https://calculator.aws/#/estimate?id=a53e31063df9e5941b0c4b019b03ca2bd226fd48)
 
-| Fleet instances  | CPU Units      | RAM | FLEET_MYSQL_MAX_OPEN_CONNS |
+| AutoMDM instances  | CPU Units      | RAM | AUTOMDM_MYSQL_MAX_OPEN_CONNS |
 | ---------------- | -------------- | --- | -------------------------- |
 | 40 Fargate tasks | 1024 CPU Units | 4GB | 20                         |
 
@@ -389,7 +389,7 @@ To deploy this configuration, see [Deploy Fleet on Render](https://fleetdm.com/g
 
 ###### [Up to 300000 hosts](https://calculator.aws/#/estimate?id=1f54ccc80e27a78f192b0e9db02ab957eff0c26c)
 
-| Fleet instances  | CPU Units      | RAM | FLEET_MYSQL_MAX_OPEN_CONNS |
+| AutoMDM instances  | CPU Units      | RAM | AUTOMDM_MYSQL_MAX_OPEN_CONNS |
 | ---------------- | -------------- | --- | -------------------------- |
 | 70 Fargate tasks | 1024 CPU Units | 4GB | 20                         |
 
@@ -419,11 +419,11 @@ Additional addons are available such as:
 - [Monitoring via Cloudwatch alarms](https://github.com/fleetdm/fleet-terraform/tree/main/addons/monitoring)
 - [Cloudfront for software installers](https://github.com/fleetdm/fleet-terraform/tree/main/addons/cloudfront-software-installers)
 
-Some AWS services used in the provider reference architecture are billed as pay-per-use such as Firehose. This means that osquery scheduled report frequency can have a direct correlation to how much these services cost, something to keep in mind when configuring Fleet in AWS.
+Some AWS services used in the provider reference architecture are billed as pay-per-use such as Firehose. This means that osquery scheduled report frequency can have a direct correlation to how much these services cost, something to keep in mind when configuring AutoMDM in AWS.
 
 ###### S3 configuration for AWS deployments
 
-When using IAM Roles for Service Accounts (IRSA) with Amazon Elastic Kubernetes Service (EKS) or Elastic Container Service (ECS) task roles, do not set any `endpoint_url` S3 configuration. It overrides all AWS API calls (not just S3) and breaks token-based authentication. Use `region` instead. Also set `region` explicitly; if omitted, Fleet defaults to `us-east-1` for region discovery. See the [S3 configuration reference](https://fleetdm.com/docs/configuration/fleet-server-configuration#s3_software_installers_endpoint_url) for details.
+When using IAM Roles for Service Accounts (IRSA) with Amazon Elastic Kubernetes Service (EKS) or Elastic Container Service (ECS) task roles, do not set any `endpoint_url` S3 configuration. It overrides all AWS API calls (not just S3) and breaks token-based authentication. Use `region` instead. Also set `region` explicitly; if omitted, AutoMDM defaults to `us-east-1` for region discovery. See the [S3 configuration reference](https://automdm.com/docs/configuration/automdm-server-configuration#s3_software_installers_endpoint_url) for details.
 
 ###### AWS Terraform CI/CD IAM permissions
 The following permissions are the minimum required to apply AWS terraform resources:
@@ -471,18 +471,18 @@ The following permissions are the minimum required to apply AWS terraform resour
 
 #### GCP
 
-GCP reference architecture can be found in [the Fleet repository](https://github.com/fleetdm/fleet/tree/main/infrastructure/dogfood/terraform/gcp). This configuration includes:
+GCP reference architecture can be found in [the AutoMDM repository](https://github.com/anilyagiz/automdm/tree/main/infrastructure/dogfood/terraform/gcp). This configuration includes:
 
-- Cloud Run (Fleet backend)
-- Cloud SQL MySQL 8.0 (Fleet database)
-- Memorystore Redis (Fleet cache & live report orchestrator)
+- Cloud Run (AutoMDM backend)
+- Cloud SQL MySQL 8.0 (AutoMDM database)
+- Memorystore Redis (AutoMDM cache & live report orchestrator)
 
-GCP support for add/install software and file carve features is coming soon. Get [community support](https://chat.osquery.io/c/fleet).
+GCP support for add/install software and file carve features is coming soon. Get [community support](https://chat.osquery.io/c/automdm).
 
 ##### Example configuration breakpoints
 ###### [Up to 1000 hosts](https://cloud.google.com/products/calculator/#id=59670518-9af4-4044-af4a-cc100a9bed2f)
 
-| Fleet instances | CPU | RAM |
+| AutoMDM instances | CPU | RAM |
 | --------------- | --- | --- |
 | 2 Cloud Run     | 1   | 2GB |
 
@@ -493,7 +493,7 @@ GCP support for add/install software and file carve features is coming soon. Get
 
 ###### [Up to 25000 hosts](https://cloud.google.com/products/calculator/#id=fadbb96c-967c-4397-9921-743d75b98d42)
 
-| Fleet instances | CPU | RAM |
+| AutoMDM instances | CPU | RAM |
 | --------------- | --- | --- |
 | 10 Cloud Run    | 1   | 2GB |
 
@@ -505,7 +505,7 @@ GCP support for add/install software and file carve features is coming soon. Get
 
 ###### [Up to 150000 hosts](https://cloud.google.com/products/calculator/#id=baff774c-d294-491f-a9da-dd97bbfa8ef2)
 
-| Fleet instances | CPU   | RAM |
+| AutoMDM instances | CPU   | RAM |
 | --------------- | ----- | --- |
 | 30 Cloud Run    | 1 CPU | 2GB |
 
@@ -516,11 +516,11 @@ GCP support for add/install software and file carve features is coming soon. Get
 
 #### Azure
 
-Coming soon. Get [community support](https://chat.osquery.io/c/fleet).
+Coming soon. Get [community support](https://chat.osquery.io/c/automdm).
 
 #### Render
 
-Fleet's [Render Blueprint](https://github.com/fleetdm/fleet/blob/main/render.yaml) uses [Render's infrastructure as code](https://render.com/docs/infrastructure-as-code) to provision the Fleet server, MySQL, and Redis. For instructions, see [Deploy Fleet on Render](https://fleetdm.com/guides/deploy-fleet-on-render).
+AutoMDM's [Render Blueprint](https://github.com/anilyagiz/automdm/blob/main/render.yaml) uses [Render's infrastructure as code](https://render.com/docs/infrastructure-as-code) to provision the AutoMDM server, MySQL, and Redis. For instructions, see [Deploy AutoMDM on Render](https://automdm.com/guides/deploy-automdm-on-render).
 
 ##### Digital Ocean
 
@@ -530,104 +530,104 @@ alerts:
 - rule: DEPLOYMENT_FAILED
 - rule: DOMAIN_FAILED
 databases:
-- cluster_name: fleet-redis
+- cluster_name: automdm-redis
   engine: REDIS
-  name: fleet-redis
+  name: automdm-redis
   production: true
   version: "6"
-- cluster_name: fleet-mysql
-  db_name: fleet
-  db_user: fleet
+- cluster_name: automdm-mysql
+  db_name: automdm
+  db_user: automdm
   engine: MYSQL
-  name: fleet-mysql
+  name: automdm-mysql
   production: true
   version: "8"
 domains:
-- domain: demo.fleetdm.com
+- domain: demo.automdm.com
   type: PRIMARY
 envs:
-- key: FLEET_MYSQL_ADDRESS
+- key: AUTOMDM_MYSQL_ADDRESS
   scope: RUN_TIME
-  value: ${fleet-mysql.HOSTNAME}:${fleet-mysql.PORT}
-- key: FLEET_MYSQL_PASSWORD
+  value: ${automdm-mysql.HOSTNAME}:${automdm-mysql.PORT}
+- key: AUTOMDM_MYSQL_PASSWORD
   scope: RUN_TIME
-  value: ${fleet-mysql.PASSWORD}
-- key: FLEET_MYSQL_USERNAME
+  value: ${automdm-mysql.PASSWORD}
+- key: AUTOMDM_MYSQL_USERNAME
   scope: RUN_TIME
-  value: ${fleet-mysql.USERNAME}
-- key: FLEET_MYSQL_DATABASE
+  value: ${automdm-mysql.USERNAME}
+- key: AUTOMDM_MYSQL_DATABASE
   scope: RUN_TIME
-  value: ${fleet-mysql.DATABASE}
-- key: FLEET_REDIS_ADDRESS
+  value: ${automdm-mysql.DATABASE}
+- key: AUTOMDM_REDIS_ADDRESS
   scope: RUN_TIME
-  value: ${fleet-redis.HOSTNAME}:${fleet-redis.PORT}
-- key: FLEET_SERVER_TLS
+  value: ${automdm-redis.HOSTNAME}:${automdm-redis.PORT}
+- key: AUTOMDM_SERVER_TLS
   scope: RUN_AND_BUILD_TIME
   value: "false"
-- key: FLEET_REDIS_PASSWORD
+- key: AUTOMDM_REDIS_PASSWORD
   scope: RUN_AND_BUILD_TIME
-  value: ${fleet-redis.PASSWORD}
-- key: FLEET_REDIS_USE_TLS
+  value: ${automdm-redis.PASSWORD}
+- key: AUTOMDM_REDIS_USE_TLS
   scope: RUN_AND_BUILD_TIME
   value: "true"
 jobs:
 - envs:
   - key: DATABASE_URL
     scope: RUN_TIME
-    value: ${fleet-redis.DATABASE_URL}
+    value: ${automdm-redis.DATABASE_URL}
   image:
-    registry: fleetdm
+    registry: automdm
     registry_type: DOCKER_HUB
-    repository: fleet
+    repository: automdm
     tag: latest
   instance_count: 1
   instance_size_slug: basic-xs
   kind: PRE_DEPLOY
-  name: fleet-migrate
-  run_command: fleet prepare --no-prompt=true db
+  name: automdm-migrate
+  run_command: automdm prepare --no-prompt=true db
   source_dir: /
-name: fleet
+name: automdm
 region: nyc
 services:
 - envs:
-  - key: FLEET_VULNERABILITIES_DATABASES_PATH
+  - key: AUTOMDM_VULNERABILITIES_DATABASES_PATH
     scope: RUN_TIME
-    value: /home/fleet
+    value: /home/automdm
   health_check:
     http_path: /healthz
   http_port: 8080
   image:
-    registry: fleetdm
+    registry: automdm
     registry_type: DOCKER_HUB
-    repository: fleet
+    repository: automdm
     tag: latest
   instance_count: 1
   instance_size_slug: basic-xs
-  name: fleet
+  name: automdm
   routes:
   - path: /
-  run_command: fleet serve
+  run_command: automdm serve
   source_dir: /
 ```
 
 
-## Monitoring Fleet
+## Monitoring AutoMDM
 
 ### Health checks
 
-Fleet exposes a basic health check at the `/healthz` endpoint. This is the interface to use for simple monitoring and load-balancer health checks.
+AutoMDM exposes a basic health check at the `/healthz` endpoint. This is the interface to use for simple monitoring and load-balancer health checks.
 
-The `/healthz` endpoint will return an `HTTP 200` status if the server is running and has healthy connections to MySQL and Redis. If there are any problems, the endpoint will return an `HTTP 500` status. Details about failing checks are logged in the Fleet server logs.
+The `/healthz` endpoint will return an `HTTP 200` status if the server is running and has healthy connections to MySQL and Redis. If there are any problems, the endpoint will return an `HTTP 500` status. Details about failing checks are logged in the AutoMDM server logs.
 
 Individual checks can be run by providing the `check` URL parameter (e.x., `/healthz?check=mysql` or `/healthz?check=redis`).
 
-The MySQL check confirms that the primary database is reachable and isn't in read-only mode (for example, after an Aurora failover). If a read replica is configured, it also confirms that the replica is reachable. The check uses its own connection to each database, so it passes even when requests are using every connection in the pool. It fails if MySQL doesn't answer within 3 seconds. Each Fleet server opens 1 extra MySQL connection for this check (2 with a read replica), in addition to `FLEET_MYSQL_MAX_OPEN_CONNS`.
+The MySQL check confirms that the primary database is reachable and isn't in read-only mode (for example, after an Aurora failover). If a read replica is configured, it also confirms that the replica is reachable. The check uses its own connection to each database, so it passes even when requests are using every connection in the pool. It fails if MySQL doesn't answer within 3 seconds. Each AutoMDM server opens 1 extra MySQL connection for this check (2 with a read replica), in addition to `AUTOMDM_MYSQL_MAX_OPEN_CONNS`.
 
 Because the check doesn't share connections with requests, it doesn't detect a server whose connection pool stays full. Under heavy load, this keeps the load balancer from replacing a server that's still working through requests. If the pool never frees up, for example because of a bug, the server keeps passing the health check while its requests time out. To catch this, alert on request errors and response times, as described in [Alerting](#alerting).
 
 ### Metrics
 
-Fleet exposes server metrics in a format compatible with [Prometheus](https://prometheus.io/).
+AutoMDM exposes server metrics in a format compatible with [Prometheus](https://prometheus.io/).
 
 Prometheus can be configured to use a wide range of service discovery mechanisms within AWS, GCP, Azure, Kubernetes, and more. See the Prometheus [configuration documentation](https://prometheus.io/docs/prometheus/latest/configuration/configuration/) for more information.
 
@@ -664,27 +664,27 @@ Prometheus provides basic graphing capabilities, and integrates tightly with [Gr
 
 ### Traces
 
-In addition to metrics, Fleet can export distributed traces using [OpenTelemetry](https://opentelemetry.io/) (OTLP). Traces show the lifecycle of a request as it flows through the Fleet server, including database queries and cron jobs, which is useful for diagnosing latency and errors that are hard to reproduce outside production.
+In addition to metrics, AutoMDM can export distributed traces using [OpenTelemetry](https://opentelemetry.io/) (OTLP). Traces show the lifecycle of a request as it flows through the AutoMDM server, including database queries and cron jobs, which is useful for diagnosing latency and errors that are hard to reproduce outside production.
 
 #### Enabling traces
 
-Set the following on each Fleet server, then point it at an OTLP collector such as [SigNoz](https://signoz.io/), [Grafana Tempo](https://grafana.com/oss/tempo/), or any OpenTelemetry-compatible backend:
+Set the following on each AutoMDM server, then point it at an OTLP collector such as [SigNoz](https://signoz.io/), [Grafana Tempo](https://grafana.com/oss/tempo/), or any OpenTelemetry-compatible backend:
 
 ```bash
-export FLEET_LOGGING_TRACING_ENABLED=true
+export AUTOMDM_LOGGING_TRACING_ENABLED=true
 export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
-export OTEL_SERVICE_NAME=fleet
+export OTEL_SERVICE_NAME=automdm
 # Optional: export logs alongside traces.
-export FLEET_LOGGING_OTEL_LOGS_ENABLED=true
+export AUTOMDM_LOGGING_OTEL_LOGS_ENABLED=true
 ```
 
-See [logging_tracing_enabled](https://fleetdm.com/docs/configuration/fleet-server-configuration#logging-tracing-enabled) for the full list of related settings. For a local development setup, see [tools/signoz](https://github.com/fleetdm/fleet/tree/main/tools/signoz).
+See [logging_tracing_enabled](https://automdm.com/docs/configuration/automdm-server-configuration#logging-tracing-enabled) for the full list of related settings. For a local development setup, see [tools/signoz](https://github.com/anilyagiz/automdm/tree/main/tools/signoz).
 
 #### Multiple environments
 
-When you run more than one Fleet deployment (for example, `production`, `staging`, and `dev`) and send their telemetry to the same observability backend, keep the service name the same and distinguish deployments by environment instead.
+When you run more than one AutoMDM deployment (for example, `production`, `staging`, and `dev`) and send their telemetry to the same observability backend, keep the service name the same and distinguish deployments by environment instead.
 
-Leave `OTEL_SERVICE_NAME` at its default of `fleet` on every deployment. This keeps all of your Fleet instances grouped under a single service so dashboards, service maps, and alerts treat them as one application. Then set the deployment environment through `OTEL_RESOURCE_ATTRIBUTES`, which lets you filter and compare environments within that service.
+Leave `OTEL_SERVICE_NAME` at its default of `automdm` on every deployment. This keeps all of your AutoMDM instances grouped under a single service so dashboards, service maps, and alerts treat them as one application. Then set the deployment environment through `OTEL_RESOURCE_ATTRIBUTES`, which lets you filter and compare environments within that service.
 
 Set two attributes for the environment:
 
@@ -694,15 +694,15 @@ Set two attributes for the environment:
 For example, on a development deployment:
 
 ```bash
-export OTEL_SERVICE_NAME=fleet
+export OTEL_SERVICE_NAME=automdm
 export OTEL_RESOURCE_ATTRIBUTES=deployment.environment.name=dev,deployment.environment=dev
 ```
 
-Use a distinct value (such as `production`, `staging`, or `dev`) on each deployment, and keep both attributes in sync. Fleet's [SigNoz dashboards](https://github.com/fleetdm/fleet/tree/main/tools/signoz) include an environment selector backed by these attributes.
+Use a distinct value (such as `production`, `staging`, or `dev`) on each deployment, and keep both attributes in sync. AutoMDM's [SigNoz dashboards](https://github.com/anilyagiz/automdm/tree/main/tools/signoz) include an environment selector backed by these attributes.
 
 #### Sampling
 
-Tracing every request on a large fleet would emit an unsustainable volume of spans: agent endpoints such as osquery distributed read/write and orbit check-ins dominate request volume. Fleet uses route-aware head sampling so tracing can stay enabled in production at a reasonable cost. Each route is assigned to a tier:
+Tracing every request on a large fleet would emit an unsustainable volume of spans: agent endpoints such as osquery distributed read/write and orbit check-ins dominate request volume. AutoMDM uses route-aware head sampling so tracing can stay enabled in production at a reasonable cost. Each route is assigned to a tier:
 
 | Tier | Default sample rate | Routes |
 | ---- | ------------------- | ------ |
@@ -711,80 +711,80 @@ Tracing every request on a large fleet would emit an unsustainable volume of spa
 | Standard | 2% | Admin and UI read endpoints (hosts, software, policies, dashboard, etc.). |
 | Always | 100% | Everything else: enrollment, MDM command flows, SCEP, GitOps applies, and cron jobs. These are low-volume and load-bearing, so they are never down-sampled. |
 
-When a request arrives with a sampled parent trace (for example, propagated from another service), Fleet honors that decision so distributed traces stay coherent.
+When a request arrives with a sampled parent trace (for example, propagated from another service), AutoMDM honors that decision so distributed traces stay coherent.
 
-Sampling is controlled entirely by Fleet's route-aware sampler; the standard `OTEL_TRACES_SAMPLER` environment variables are not honored.
+Sampling is controlled entirely by AutoMDM's route-aware sampler; the standard `OTEL_TRACES_SAMPLER` environment variables are not honored.
 
 Because traces are head-sampled, the tracing backend receives only the sampled spans; it does not see the full request volume. For total request counts and error rates, use the OpenTelemetry metrics pipeline rather than traces.
 
 #### Adjusting sampling at runtime
 
-The two sample rates and a full-sampling override can be changed at runtime through an admin-only debug endpoint, without restarting the server. This is useful for opening a temporary high-resolution window while reproducing an issue. See [Adjust trace sampling](https://fleetdm.com/docs/rest-api/rest-api#adjust-trace-sampling) in the REST API reference.
+The two sample rates and a full-sampling override can be changed at runtime through an admin-only debug endpoint, without restarting the server. This is useful for opening a temporary high-resolution window while reproducing an issue. See [Adjust trace sampling](https://automdm.com/docs/rest-api/rest-api#adjust-trace-sampling) in the REST API reference.
 
 For example, to capture every span for a short debugging window:
 
 ```bash
-curl -k -X PATCH "https://<fleet-server>/debug/trace_sampler" \
+curl -k -X PATCH "https://<automdm-server>/debug/trace_sampler" \
   -H "Authorization: Bearer <token>" \
   -d '{"force_full": true}'
 ```
 
-Each Fleet server polls for changes about once a minute, so an update applies across all servers within roughly a minute. Remember to revert `force_full` to `false` once finished; running at 100% on a large fleet produces a very high span volume.
+Each AutoMDM server polls for changes about once a minute, so an update applies across all servers within roughly a minute. Remember to revert `force_full` to `false` once finished; running at 100% on a large fleet produces a very high span volume.
 
-### Fleet server performance
+### AutoMDM server performance
 
-Fleet is designed to scale to hundreds of thousands of online hosts. The Fleet server scales horizontally to support higher load.
+AutoMDM is designed to scale to hundreds of thousands of online hosts. The AutoMDM server scales horizontally to support higher load.
 
 #### Horizontal scaling
 
-Scaling Fleet horizontally is as simple as running more Fleet server processes connected to the same MySQL and Redis backing stores. Typically, operators front Fleet server nodes with a load balancer that will distribute requests to the servers. All APIs in Fleet are designed to work in this arrangement by simply configuring clients to connect to the load balancer.
+Scaling AutoMDM horizontally is as simple as running more AutoMDM server processes connected to the same MySQL and Redis backing stores. Typically, operators front AutoMDM server nodes with a load balancer that will distribute requests to the servers. All APIs in AutoMDM are designed to work in this arrangement by simply configuring clients to connect to the load balancer.
 
 #### Availability
 
-The Fleet/osquery system is resilient to loss of availability. Osquery agents will continue executing the existing configuration and buffering result logs during downtime due to lack of network connectivity, server maintenance, or any other reason. Buffering in osquery can be configured with the `--buffered_log_max` flag.
+The AutoMDM/osquery system is resilient to loss of availability. Osquery agents will continue executing the existing configuration and buffering result logs during downtime due to lack of network connectivity, server maintenance, or any other reason. Buffering in osquery can be configured with the `--buffered_log_max` flag.
 
-Note that short downtimes are expected during [Fleet server upgrades](https://fleetdm.com/docs/deploying/upgrading-fleet) that require database migrations.
+Note that short downtimes are expected during [AutoMDM server upgrades](https://automdm.com/docs/deploying/upgrading-automdm) that require database migrations.
 
 #### Debugging performance issues
 
 ##### MySQL and Redis
 
-If performance issues are encountered with the MySQL and Redis servers, use the extensive resources available online to optimize and understand these problems. Please [file an issue](https://github.com/fleetdm/fleet/issues/new/choose) with details about the problem so that Fleet developers can work to fix them.
+If performance issues are encountered with the MySQL and Redis servers, use the extensive resources available online to optimize and understand these problems. Please [file an issue](https://github.com/fleetdm/fleet/issues/new/choose) with details about the problem so that AutoMDM developers can work to fix them.
 
-##### Fleet server
+##### AutoMDM server
 
-For performance issues in the Fleet server process, please [file an issue](https://github.com/fleetdm/fleet/issues/new/choose) with details about the scenario, and attach a debug archive. Debug archives can also be submitted confidentially through other support channels.
+For performance issues in the AutoMDM server process, please [file an issue](https://github.com/fleetdm/fleet/issues/new/choose) with details about the scenario, and attach a debug archive. Debug archives can also be submitted confidentially through other support channels.
 
-###### Generate debug archive (Fleet 3.4.0+)
+###### Generate debug archive (AutoMDM 3.4.0+)
 
-Use the `fleetctl debug archive` command to generate an archive of Fleet's full suite of debug profiles. See the [fleetctl setup guide](https://fleetdm.com/docs/using-fleet/fleetctl-cli) for details on configuring `fleetctl`.
+Use the `automdmctl debug archive` command to generate an archive of AutoMDM's full suite of debug profiles. See the [automdmctl setup guide](https://automdm.com/docs/using-automdm/automdmctl-cli) for details on configuring `automdmctl`.
 
 The generated `.tar.gz` archive will be available in the current directory.
 
 ###### Targeting individual servers
 
-In most configurations, the `fleetctl` client is configured to make requests to a load balancer that will proxy the requests to each server instance. This can be problematic when trying to debug a performance issue on a specific server. To target an individual server, create a new `fleetctl` context that uses the direct address of the server.
+In most configurations, the `automdmctl` client is configured to make requests to a load balancer that will proxy the requests to each server instance. This can be problematic when trying to debug a performance issue on a specific server. To target an individual server, create a new `automdmctl` context that uses the direct address of the server.
 
 For example:
 
 ```sh
-fleetctl config set --context server-a --address https://server-a:8080
-fleetctl login --context server-a
-fleetctl debug archive --context server-a
+automdmctl config set --context server-a --address https://server-a:8080
+automdmctl login --context server-a
+automdmctl debug archive --context server-a
 ```
 
 ###### Confidential information
 
-The `fleetctl debug archive` command retrieves information generated by Go's [`net/http/pprof`](https://golang.org/pkg/net/http/pprof/) package. In most scenarios this should not include sensitive information, however it does include command line arguments to the Fleet server. If the Fleet server receives sensitive credentials via CLI argument (not environment variables or config file), this information should be scrubbed from the archive in the `cmdline` file.
+The `automdmctl debug archive` command retrieves information generated by Go's [`net/http/pprof`](https://golang.org/pkg/net/http/pprof/) package. In most scenarios this should not include sensitive information, however it does include command line arguments to the AutoMDM server. If the AutoMDM server receives sensitive credentials via CLI argument (not environment variables or config file), this information should be scrubbed from the archive in the `cmdline` file.
 
 
 
 ## Community projects
 
-Below are some projects created by Fleet community members. These projects provide additional solutions for deploying Fleet. Please submit a pull request if you'd like your project featured.
+Below are some projects created by AutoMDM community members. These projects provide additional solutions for deploying AutoMDM. Please submit a pull request if you'd like your project featured.
 
-- [CptOfEvilMinions/FleetDM-Automation](https://github.com/CptOfEvilMinions/FleetDM-Automation) - Ansible and Docker code to set up Fleet
+- [CptOfEvilMinions/AutoMDM-Automation](https://github.com/CptOfEvilMinions/AutoMDM-Automation) - Ansible and Docker code to set up AutoMDM
 
 <meta name="pageOrderInSection" value="400">
-<meta name="description" value="An opinionated view of running Fleet in a production environment, and configuration strategies to enable high availability.">
+<meta name="description" value="An opinionated view of running AutoMDM in a production environment, and configuration strategies to enable high availability.">
 <meta name="keywordsForDocsearch" value="production deployment, reverse proxy">

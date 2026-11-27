@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # CodeMeter Runtime Kit ships as a vendor bootstrapper embedding the runtime
 # MSI. The documented unattended install passes /q to the bootstrapper and

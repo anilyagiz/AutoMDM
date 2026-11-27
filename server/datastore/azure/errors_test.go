@@ -15,10 +15,10 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/bloberror"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/datastore/cloudstorage"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/datastore/cloudstorage"
 	"github.com/stretchr/testify/require"
 )
 
@@ -239,7 +239,7 @@ func TestStoreOperationsMisconfiguredErrors(t *testing.T) {
 			t.Run("get", func(t *testing.T) {
 				_, _, err := installers.Get(t.Context(), "installer")
 				if containerNotFound {
-					require.True(t, fleet.IsNotFound(err))
+					require.True(t, automdm.IsNotFound(err))
 					return
 				}
 				check(t, err, want)
@@ -265,7 +265,7 @@ func TestStoreOperationsMisconfiguredErrors(t *testing.T) {
 				check(t, err, want)
 			})
 			t.Run("org logo delete", func(t *testing.T) {
-				err := logos.Delete(t.Context(), fleet.OrgLogoModeLight)
+				err := logos.Delete(t.Context(), automdm.OrgLogoModeLight)
 				if containerNotFound {
 					require.NoError(t, err)
 					return
@@ -286,13 +286,13 @@ func TestStoreOperationsBlobNotFound(t *testing.T) {
 	require.NoError(t, err)
 
 	_, _, err = installers.Get(t.Context(), "installer")
-	require.True(t, fleet.IsNotFound(err))
+	require.True(t, automdm.IsNotFound(err))
 
 	exists, err := installers.Exists(t.Context(), "installer")
 	require.NoError(t, err)
 	require.False(t, exists)
 
-	require.NoError(t, logos.Delete(t.Context(), fleet.OrgLogoModeLight))
+	require.NoError(t, logos.Delete(t.Context(), automdm.OrgLogoModeLight))
 }
 
 // TestStoreOperationsOtherErrorsAreNotMisconfigured checks that other Azure errors get no prefix.

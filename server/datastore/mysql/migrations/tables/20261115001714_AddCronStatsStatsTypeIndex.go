@@ -9,7 +9,7 @@ func init() {
 }
 
 func Up_20261115001714(tx *sql.Tx) error {
-	// GetLatestCronStats runs on every cron schedule tick on every Fleet
+	// GetLatestCronStats runs on every cron schedule tick on every AutoMDM
 	// server, once for stats_type = 'scheduled' and once for
 	// stats_type = 'triggered'. With only (name, created_at) indexed, the
 	// 'triggered' half scans every cron_stats row for the schedule name

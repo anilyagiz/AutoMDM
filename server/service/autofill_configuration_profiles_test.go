@@ -12,18 +12,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/authz"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/dev_mode"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/dev_mode"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// fakeConfigProfileGenerator stands in for fleetdm.com, answering registration with the status and body set for
+// fakeConfigProfileGenerator stands in for automdm.com, answering registration with the status and body set for
 // it, and each generation route with the status and body set on it.
 type fakeConfigProfileGenerator struct {
 	srv *httptest.Server
@@ -51,7 +51,7 @@ func newFakeConfigProfileGenerator(t *testing.T) *fakeConfigProfileGenerator {
 		status:         http.StatusOK,
 		canceledCh:     make(chan struct{}, 16),
 		registerStatus: http.StatusOK,
-		registerBody:   `{"fleetServerSecret": "registered-secret"}`,
+		registerBody:   `{"automdmServerSecret": "registered-secret"}`,
 	}
 	f.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		f.calls.Add(1)
@@ -114,16 +114,16 @@ func (f *fakeConfigProfileGenerator) setDelay(t *testing.T, delay time.Duration)
 }
 
 // newAutofillTestService returns a service with an unexpired license of the given tier and a license key.  On
-// Fleet Free it has already registered with fleetdm.com, so requests go straight to the generator.
-func newAutofillTestService(t *testing.T, tier string, mutateConfig func(*fleet.AppConfig)) (fleet.Service, context.Context, *mock.Store) {
-	return newAutofillTestServiceWithLicense(t, &fleet.LicenseInfo{Tier: tier, Expiration: time.Now().Add(time.Hour)}, "test-license-key", mutateConfig)
+// AutoMDM Free it has already registered with automdm.com, so requests go straight to the generator.
+func newAutofillTestService(t *testing.T, tier string, mutateConfig func(*automdm.AppConfig)) (automdm.Service, context.Context, *mock.Store) {
+	return newAutofillTestServiceWithLicense(t, &automdm.LicenseInfo{Tier: tier, Expiration: time.Now().Add(time.Hour)}, "test-license-key", mutateConfig)
 }
 
-func newAutofillTestServiceWithLicense(t *testing.T, lic *fleet.LicenseInfo, licenseKey string, mutateConfig func(*fleet.AppConfig)) (fleet.Service, context.Context, *mock.Store) {
+func newAutofillTestServiceWithLicense(t *testing.T, lic *automdm.LicenseInfo, licenseKey string, mutateConfig func(*automdm.AppConfig)) (automdm.Service, context.Context, *mock.Store) {
 	ds := new(mock.Store)
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		cfg := &fleet.AppConfig{}
-		cfg.ServerSettings.ServerURL = "https://fleet.example.com"
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		cfg := &automdm.AppConfig{}
+		cfg.ServerSettings.ServerURL = "https://automdm.example.com"
 		cfg.MDM.EnabledAndConfigured = true
 		cfg.MDM.WindowsEnabledAndConfigured = true
 		if mutateConfig != nil {
@@ -131,21 +131,21 @@ func newAutofillTestServiceWithLicense(t *testing.T, lic *fleet.LicenseInfo, lic
 		}
 		return cfg, nil
 	}
-	ds.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, names []fleet.MDMAssetName, _ sqlx.QueryerContext) (map[fleet.MDMAssetName]fleet.MDMConfigAsset, error) {
-		return map[fleet.MDMAssetName]fleet.MDMConfigAsset{
-			fleet.MDMAssetProfileGeneratorFleetServerSecret: {Name: fleet.MDMAssetProfileGeneratorFleetServerSecret, Value: []byte("stored-secret")},
+	ds.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, names []automdm.MDMAssetName, _ sqlx.QueryerContext) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
+		return map[automdm.MDMAssetName]automdm.MDMConfigAsset{
+			automdm.MDMAssetProfileGeneratorAutoMDMServerSecret: {Name: automdm.MDMAssetProfileGeneratorAutoMDMServerSecret, Value: []byte("stored-secret")},
 		}, nil
 	}
-	fleetConfig := config.TestConfig()
-	fleetConfig.License.Key = licenseKey
-	fleetConfig.Server.PrivateKey = "test-private-key-not-used-by-mock"
-	svc, ctx := newTestServiceWithConfig(t, ds, fleetConfig, nil, nil, &TestServerOpts{License: lic})
+	automdmConfig := config.TestConfig()
+	automdmConfig.License.Key = licenseKey
+	automdmConfig.Server.PrivateKey = "test-private-key-not-used-by-mock"
+	svc, ctx := newTestServiceWithConfig(t, ds, automdmConfig, nil, nil, &TestServerOpts{License: lic})
 	return svc, test.UserContext(ctx, test.UserAdmin), ds
 }
 
 func requireAutofillError(t *testing.T, err error, field string, reasonContains string, clientError bool) {
 	t.Helper()
-	var autofillErr *fleet.AutofillConfigProfileError
+	var autofillErr *automdm.AutofillConfigProfileError
 	require.ErrorAs(t, err, &autofillErr)
 	assert.Equal(t, field, autofillErr.Field)              // nolint:nilaway // require.ErrorAs fails the test when it's nil
 	assert.Contains(t, autofillErr.Reason, reasonContains) // nolint:nilaway // require.ErrorAs fails the test when it's nil
@@ -158,7 +158,7 @@ func TestAutofillConfigProfileBaseURL(t *testing.T) {
 
 	// Without dev mode the variable is ignored, so a stray value can't redirect a production server.
 	t.Setenv(autofillConfigProfileBaseURLEnvVar, "http://localhost:2024")
-	assert.Equal(t, "https://fleetdm.com", autofillConfigProfileBaseURL())
+	assert.Equal(t, "https://automdm.com", autofillConfigProfileBaseURL())
 
 	dev_mode.SetOverride(autofillConfigProfileBaseURLEnvVar, "http://localhost:2024/", t)
 	assert.Equal(t, "http://localhost:2024", autofillConfigProfileBaseURL())
@@ -169,14 +169,14 @@ func TestAutofillConfigProfileRequestValidation(t *testing.T) {
 
 	cases := []struct {
 		name         string
-		mutateConfig func(*fleet.AppConfig)
+		mutateConfig func(*automdm.AppConfig)
 		instructions string
 		platform     string
 		check        func(t *testing.T, err error)
 	}{
 		{
 			name:         "AI features disabled",
-			mutateConfig: func(c *fleet.AppConfig) { c.ServerSettings.AIFeaturesDisabled = true },
+			mutateConfig: func(c *automdm.AppConfig) { c.ServerSettings.AIFeaturesDisabled = true },
 			instructions: "Turn off AirDrop", platform: "apple",
 			check: func(t *testing.T, err error) { requireBadRequest(t, err, "AI features are disabled") },
 		},
@@ -192,29 +192,29 @@ func TestAutofillConfigProfileRequestValidation(t *testing.T) {
 		},
 		{
 			name:         "instructions over the limit",
-			instructions: strings.Repeat("é", fleet.MaxAutofillConfigProfileInstructionsLength+1), platform: "apple",
+			instructions: strings.Repeat("é", automdm.MaxAutofillConfigProfileInstructionsLength+1), platform: "apple",
 			check: func(t *testing.T, err error) { requireBadRequest(t, err, "2,000 characters") },
 		},
 		{
 			name:         "Apple MDM off",
-			mutateConfig: func(c *fleet.AppConfig) { c.MDM.EnabledAndConfigured = false },
+			mutateConfig: func(c *automdm.AppConfig) { c.MDM.EnabledAndConfigured = false },
 			instructions: "Turn off AirDrop", platform: "apple",
 			check: func(t *testing.T, err error) {
-				requireAutofillError(t, err, "base", fleet.AppleMDMNotConfiguredMessage, true)
+				requireAutofillError(t, err, "base", automdm.AppleMDMNotConfiguredMessage, true)
 			},
 		},
 		{
 			name:         "Windows MDM off",
-			mutateConfig: func(c *fleet.AppConfig) { c.MDM.WindowsEnabledAndConfigured = false },
+			mutateConfig: func(c *automdm.AppConfig) { c.MDM.WindowsEnabledAndConfigured = false },
 			instructions: "Require a password", platform: "windows",
 			check: func(t *testing.T, err error) {
-				requireAutofillError(t, err, "base", fleet.WindowsMDMNotConfiguredMessage, true)
+				requireAutofillError(t, err, "base", automdm.WindowsMDMNotConfiguredMessage, true)
 			},
 		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			svc, ctx, _ := newAutofillTestService(t, fleet.TierPremium, c.mutateConfig)
+			svc, ctx, _ := newAutofillTestService(t, automdm.TierPremium, c.mutateConfig)
 			before := gen.calls.Load()
 
 			_, err := svc.AutofillConfigProfileContent(ctx, c.instructions, c.platform, 0)
@@ -222,19 +222,19 @@ func TestAutofillConfigProfileRequestValidation(t *testing.T) {
 			_, _, err = svc.AutofillConfigProfileNameDescription(ctx, c.instructions, c.platform)
 			c.check(t, err)
 
-			assert.Equal(t, before, gen.calls.Load(), "fleetdm.com must not be called")
+			assert.Equal(t, before, gen.calls.Load(), "automdm.com must not be called")
 		})
 	}
 
 	t.Run("instructions at the limit are sent", func(t *testing.T) {
-		svc, ctx, _ := newAutofillTestService(t, fleet.TierPremium, nil)
+		svc, ctx, _ := newAutofillTestService(t, automdm.TierPremium, nil)
 		gen.respond(http.StatusOK, `{"name": "Name", "description": "Description"}`)
-		_, _, err := svc.AutofillConfigProfileNameDescription(ctx, strings.Repeat("é", fleet.MaxAutofillConfigProfileInstructionsLength), "apple")
+		_, _, err := svc.AutofillConfigProfileNameDescription(ctx, strings.Repeat("é", automdm.MaxAutofillConfigProfileInstructionsLength), "apple")
 		require.NoError(t, err)
 	})
 }
 
-// requireAutofillAuthz checks only the authorization outcome: an allowed request reaches fleetdm.com, which this
+// requireAutofillAuthz checks only the authorization outcome: an allowed request reaches automdm.com, which this
 // test's fake answers with an error.
 func requireAutofillAuthz(t *testing.T, allowed bool, err error) {
 	t.Helper()
@@ -242,7 +242,7 @@ func requireAutofillAuthz(t *testing.T, allowed bool, err error) {
 	var authzErr *authz.Forbidden
 	if allowed {
 		assert.NotErrorAs(t, err, &authzErr, "expected the request to be authorized")
-		var autofillErr *fleet.AutofillConfigProfileError
+		var autofillErr *automdm.AutofillConfigProfileError
 		assert.ErrorAs(t, err, &autofillErr)
 		return
 	}
@@ -251,21 +251,21 @@ func requireAutofillAuthz(t *testing.T, allowed bool, err error) {
 
 func requireBadRequest(t *testing.T, err error, contains string) {
 	t.Helper()
-	var badReq *fleet.BadRequestError
+	var badReq *automdm.BadRequestError
 	require.ErrorAs(t, err, &badReq)
 	assert.Contains(t, badReq.Message, contains) // nolint:nilaway // require.ErrorAs fails the test when it's nil
 }
 
 func TestAutofillConfigProfileAuthorization(t *testing.T) {
 	gen := newFakeConfigProfileGenerator(t)
-	// Every authorized request gets as far as fleetdm.com and fails there, so the checks don't need datastore mocks.
+	// Every authorized request gets as far as automdm.com and fails there, so the checks don't need datastore mocks.
 	gen.respond(http.StatusInternalServerError, `{}`)
 
-	svc, ctx, _ := newAutofillTestService(t, fleet.TierPremium, nil)
+	svc, ctx, _ := newAutofillTestService(t, automdm.TierPremium, nil)
 
 	cases := []struct {
 		name                string
-		user                *fleet.User
+		user                *automdm.User
 		contentAllowed      bool
 		nameDescriptAllowed bool
 	}{
@@ -275,7 +275,7 @@ func TestAutofillConfigProfileAuthorization(t *testing.T) {
 		{"global technician", test.UserTechnician, false, false},
 		{"global observer", test.UserObserver, false, false},
 		{"global observer+", test.UserObserverPlus, false, false},
-		// Unassigned (fleet_id 0) is global, so team roles can't generate content for it.
+		// Unassigned (team_id 0) is global, so team roles can't generate content for it.
 		{"team maintainer", test.UserTeamMaintainerTeam1, false, true},
 		{"team admin", test.UserTeamAdminTeam1, false, true},
 		{"team gitops", test.UserTeamGitOpsTeam1, false, true},
@@ -297,7 +297,7 @@ func TestAutofillConfigProfileAuthorization(t *testing.T) {
 
 func TestAutofillConfigProfileUpstreamFailures(t *testing.T) {
 	gen := newFakeConfigProfileGenerator(t)
-	svc, ctx, _ := newAutofillTestService(t, fleet.TierPremium, nil)
+	svc, ctx, _ := newAutofillTestService(t, automdm.TierPremium, nil)
 
 	t.Run("request carries the platform and the license key", func(t *testing.T) {
 		gen.respond(http.StatusOK, `{"name": "Disable AirDrop (macOS)", "description": "Sets allowAirDrop to false."}`)
@@ -309,7 +309,7 @@ func TestAutofillConfigProfileUpstreamFailures(t *testing.T) {
 		gen.mu.Lock()
 		defer gen.mu.Unlock()
 		assert.Equal(t, autofillConfigProfileNameDescriptionPath, gen.lastPath)
-		assert.Equal(t, map[string]any{"naturalLanguageInstructions": "Turn off AirDrop", "platform": "apple", "fleetLicenseKey": "test-license-key"}, gen.lastBody)
+		assert.Equal(t, map[string]any{"naturalLanguageInstructions": "Turn off AirDrop", "platform": "apple", "automdmLicenseKey": "test-license-key"}, gen.lastBody)
 	})
 
 	failures := []struct {
@@ -336,7 +336,7 @@ func TestAutofillConfigProfileUpstreamFailures(t *testing.T) {
 	t.Run("unreachable", func(t *testing.T) {
 		closed := httptest.NewServer(http.NotFoundHandler())
 		closed.Close()
-		// Restored rather than cleared: clearing would send the remaining subtests to the real fleetdm.com.
+		// Restored rather than cleared: clearing would send the remaining subtests to the real automdm.com.
 		dev_mode.SetOverride(autofillConfigProfileBaseURLEnvVar, closed.URL)
 		t.Cleanup(func() { dev_mode.SetOverride(autofillConfigProfileBaseURLEnvVar, gen.srv.URL) })
 		_, err := svc.AutofillConfigProfileContent(ctx, "Turn off AirDrop", "apple", 0)
@@ -362,7 +362,7 @@ func TestAutofillConfigProfileUpstreamFailures(t *testing.T) {
 		time.AfterFunc(50*time.Millisecond, cancel)
 		_, err := svc.AutofillConfigProfileContent(reqCtx, "Turn off AirDrop", "apple", 0)
 		require.ErrorIs(t, err, context.Canceled)
-		var autofillErr *fleet.AutofillConfigProfileError
+		var autofillErr *automdm.AutofillConfigProfileError
 		assert.NotErrorAs(t, err, &autofillErr, "a disconnect isn't an AI service failure")
 
 		select {
@@ -395,9 +395,9 @@ func TestAutofillConfigProfileUpstreamFailures(t *testing.T) {
 	})
 }
 
-func TestAutofillConfigProfileFleetFree(t *testing.T) {
+func TestAutofillConfigProfileAutoMDMFree(t *testing.T) {
 	gen := newFakeConfigProfileGenerator(t)
-	svc, ctx, ds := newAutofillTestService(t, fleet.TierFree, nil)
+	svc, ctx, ds := newAutofillTestService(t, automdm.TierFree, nil)
 
 	t.Run("an OS updates declaration gets the license message", func(t *testing.T) {
 		ds.ExpandEmbeddedSecretsAndUpdatedAtFunc = func(ctx context.Context, document string) (string, *time.Time, error) {
@@ -415,13 +415,13 @@ func TestAutofillConfigProfileFleetFree(t *testing.T) {
 		gen.respond(http.StatusOK, string(body))
 
 		_, err = svc.AutofillConfigProfileContent(ctx, "Update Macs to macOS 26.1 by December 15", "apple", 0)
-		requireAutofillError(t, err, "natural_language_instructions", "Fleet Premium", true)
+		requireAutofillError(t, err, "natural_language_instructions", "AutoMDM Premium", true)
 	})
 }
 
 func TestAutofillConfigProfileUsageStatistics(t *testing.T) {
 	gen := newFakeConfigProfileGenerator(t)
-	svc, ctx, ds := newAutofillTestService(t, fleet.TierPremium, nil)
+	svc, ctx, ds := newAutofillTestService(t, automdm.TierPremium, nil)
 	ds.ExpandEmbeddedSecretsAndUpdatedAtFunc = func(ctx context.Context, document string) (string, *time.Time, error) {
 		return document, nil, nil
 	}
@@ -457,7 +457,7 @@ func TestAutofillConfigProfileUsageStatistics(t *testing.T) {
 	gen.respond(http.StatusOK, declaration)
 	profile, err := svc.AutofillConfigProfileContent(ctx, "Require a passcode", "apple", 0)
 	require.NoError(t, err)
-	assert.Equal(t, fleet.AutofillConfigProfileTypeDeclaration, profile.Type)
+	assert.Equal(t, automdm.AutofillConfigProfileTypeDeclaration, profile.Type)
 	assert.Equal(t, []string{"apple", "apple"}, counted)
 }
 
@@ -465,14 +465,14 @@ func TestAutofillConfigProfileCredentials(t *testing.T) {
 	gen := newFakeConfigProfileGenerator(t)
 	nameAndDescription := `{"name": "Disable AirDrop (macOS)", "description": "Sets allowAirDrop to false."}`
 
-	// A Fleet Free service that hasn't registered, storing the secret it gets in memory.  Each lookup of the
+	// An AutoMDM Free service that hasn't registered, storing the secret it gets in memory.  Each lookup of the
 	// secret is sent on lookups, if set.
 	var lookups chan struct{}
-	newUnregisteredService := func(t *testing.T, lic *fleet.LicenseInfo, licenseKey string) (fleet.Service, context.Context, *mock.Store, func() string) {
+	newUnregisteredService := func(t *testing.T, lic *automdm.LicenseInfo, licenseKey string) (automdm.Service, context.Context, *mock.Store, func() string) {
 		svc, ctx, ds := newAutofillTestServiceWithLicense(t, lic, licenseKey, nil)
 		var mu sync.Mutex
 		var stored string
-		ds.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, names []fleet.MDMAssetName, _ sqlx.QueryerContext) (map[fleet.MDMAssetName]fleet.MDMConfigAsset, error) {
+		ds.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, names []automdm.MDMAssetName, _ sqlx.QueryerContext) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
 			if lookups != nil {
 				lookups <- struct{}{}
 			}
@@ -481,14 +481,14 @@ func TestAutofillConfigProfileCredentials(t *testing.T) {
 			if stored == "" {
 				return nil, newNotFoundError()
 			}
-			return map[fleet.MDMAssetName]fleet.MDMConfigAsset{
-				fleet.MDMAssetProfileGeneratorFleetServerSecret: {Name: fleet.MDMAssetProfileGeneratorFleetServerSecret, Value: []byte(stored)},
+			return map[automdm.MDMAssetName]automdm.MDMConfigAsset{
+				automdm.MDMAssetProfileGeneratorAutoMDMServerSecret: {Name: automdm.MDMAssetProfileGeneratorAutoMDMServerSecret, Value: []byte(stored)},
 			}, nil
 		}
-		ds.InsertOrReplaceMDMConfigAssetFunc = func(ctx context.Context, asset fleet.MDMConfigAsset) error {
+		ds.InsertOrReplaceMDMConfigAssetFunc = func(ctx context.Context, asset automdm.MDMConfigAsset) error {
 			mu.Lock()
 			defer mu.Unlock()
-			require.Equal(t, fleet.MDMAssetProfileGeneratorFleetServerSecret, asset.Name)
+			require.Equal(t, automdm.MDMAssetProfileGeneratorAutoMDMServerSecret, asset.Name)
 			stored = string(asset.Value)
 			return nil
 		}
@@ -508,25 +508,25 @@ func TestAutofillConfigProfileCredentials(t *testing.T) {
 		gen.mu.Unlock()
 		t.Cleanup(func() {
 			gen.mu.Lock()
-			gen.registerStatus, gen.registerBody, gen.registerDelay = http.StatusOK, `{"fleetServerSecret": "registered-secret"}`, 0
+			gen.registerStatus, gen.registerBody, gen.registerDelay = http.StatusOK, `{"automdmServerSecret": "registered-secret"}`, 0
 			gen.mu.Unlock()
 		})
 	}
-	expiredPremium := func() *fleet.LicenseInfo {
-		return &fleet.LicenseInfo{Tier: fleet.TierPremium, Expiration: time.Now().Add(-time.Hour)}
+	expiredPremium := func() *automdm.LicenseInfo {
+		return &automdm.LicenseInfo{Tier: automdm.TierPremium, Expiration: time.Now().Add(-time.Hour)}
 	}
 
 	t.Run("an unexpired Premium license sends its key, never registers, and needs no private key", func(t *testing.T) {
 		resetCounts()
 		testSetEmptyPrivateKey = true
 		t.Cleanup(func() { testSetEmptyPrivateKey = false })
-		svc, ctx, ds := newAutofillTestService(t, fleet.TierPremium, nil)
+		svc, ctx, ds := newAutofillTestService(t, automdm.TierPremium, nil)
 		gen.respond(http.StatusOK, nameAndDescription)
 
 		_, _, err := svc.AutofillConfigProfileNameDescription(ctx, "Turn off AirDrop", "apple")
 		require.NoError(t, err)
 		gen.mu.Lock()
-		assert.Equal(t, "test-license-key", gen.lastBody["fleetLicenseKey"])
+		assert.Equal(t, "test-license-key", gen.lastBody["automdmLicenseKey"])
 		assert.Empty(t, gen.lastAuthorization)
 		gen.mu.Unlock()
 		assert.Zero(t, gen.registrations.Load())
@@ -535,12 +535,12 @@ func TestAutofillConfigProfileCredentials(t *testing.T) {
 
 	for _, c := range []struct {
 		name       string
-		lic        *fleet.LicenseInfo
+		lic        *automdm.LicenseInfo
 		licenseKey string
 	}{
-		{"Fleet Free", &fleet.LicenseInfo{Tier: fleet.TierFree}, ""},
+		{"AutoMDM Free", &automdm.LicenseInfo{Tier: automdm.TierFree}, ""},
 		{"an expired license", expiredPremium(), "test-license-key"},
-		{"Premium with no license key configured", &fleet.LicenseInfo{Tier: fleet.TierPremium, Expiration: time.Now().Add(time.Hour)}, ""},
+		{"Premium with no license key configured", &automdm.LicenseInfo{Tier: automdm.TierPremium, Expiration: time.Now().Add(time.Hour)}, ""},
 	} {
 		t.Run(c.name+" registers on first use, then reuses the secret", func(t *testing.T) {
 			resetCounts()
@@ -552,9 +552,9 @@ func TestAutofillConfigProfileCredentials(t *testing.T) {
 			assert.EqualValues(t, 1, gen.registrations.Load())
 			assert.Equal(t, "registered-secret", storedSecret())
 			gen.mu.Lock()
-			assert.Equal(t, map[string]any{"fleetServerUrl": "https://fleet.example.com"}, gen.lastRegistration)
+			assert.Equal(t, map[string]any{"automdmServerUrl": "https://automdm.example.com"}, gen.lastRegistration)
 			assert.Equal(t, "Bearer registered-secret", gen.lastAuthorization)
-			assert.NotContains(t, gen.lastBody, "fleetLicenseKey")
+			assert.NotContains(t, gen.lastBody, "automdmLicenseKey")
 			gen.mu.Unlock()
 
 			_, _, err = svc.AutofillConfigProfileNameDescription(ctx, "Turn off AirDrop", "apple")
@@ -565,10 +565,10 @@ func TestAutofillConfigProfileCredentials(t *testing.T) {
 
 	t.Run("concurrent first requests share one registration", func(t *testing.T) {
 		resetCounts()
-		svc, ctx, _, _ := newUnregisteredService(t, &fleet.LicenseInfo{Tier: fleet.TierFree}, "")
+		svc, ctx, _, _ := newUnregisteredService(t, &automdm.LicenseInfo{Tier: automdm.TierFree}, "")
 		gen.respond(http.StatusOK, nameAndDescription)
 		const requests = 5
-		// fleetdm.com answers the registration only once every request has found no secret, and the registration
+		// automdm.com answers the registration only once every request has found no secret, and the registration
 		// has checked again, so they all overlap the first registration.
 		lookups = make(chan struct{}, 2*requests)
 		gate := make(chan struct{})
@@ -607,7 +607,7 @@ func TestAutofillConfigProfileCredentials(t *testing.T) {
 
 	t.Run("a request waiting on another's registration stops when its own context ends", func(t *testing.T) {
 		resetCounts()
-		svc, ctx, _, storedSecret := newUnregisteredService(t, &fleet.LicenseInfo{Tier: fleet.TierFree}, "")
+		svc, ctx, _, storedSecret := newUnregisteredService(t, &automdm.LicenseInfo{Tier: automdm.TierFree}, "")
 		gen.respond(http.StatusOK, nameAndDescription)
 		gate := make(chan struct{})
 		openGate := sync.OnceFunc(func() { close(gate) })
@@ -630,7 +630,7 @@ func TestAutofillConfigProfileCredentials(t *testing.T) {
 		}()
 		require.Eventually(t, func() bool { return gen.registrations.Load() == 1 }, 2*time.Second, 10*time.Millisecond)
 
-		// The second shares it, and is canceled while fleetdm.com hasn't answered.
+		// The second shares it, and is canceled while automdm.com hasn't answered.
 		reqCtx, cancel := context.WithCancel(ctx)
 		time.AfterFunc(50*time.Millisecond, cancel)
 		started := time.Now()
@@ -652,7 +652,7 @@ func TestAutofillConfigProfileCredentials(t *testing.T) {
 
 	t.Run("a rejected secret is reported as unavailable and doesn't register again", func(t *testing.T) {
 		resetCounts()
-		svc, ctx, _ := newAutofillTestService(t, fleet.TierFree, nil)
+		svc, ctx, _ := newAutofillTestService(t, automdm.TierFree, nil)
 		gen.respond(http.StatusUnauthorized, `Unauthorized`)
 
 		_, err := svc.AutofillConfigProfileContent(ctx, "Turn off AirDrop", "apple", 0)
@@ -665,18 +665,18 @@ func TestAutofillConfigProfileCredentials(t *testing.T) {
 		gen.mu.Unlock()
 	})
 
-	t.Run("without a private key, Fleet Free is a 422 with no outbound call", func(t *testing.T) {
+	t.Run("without a private key, AutoMDM Free is a 422 with no outbound call", func(t *testing.T) {
 		testSetEmptyPrivateKey = true
 		t.Cleanup(func() { testSetEmptyPrivateKey = false })
-		for _, lic := range []*fleet.LicenseInfo{{Tier: fleet.TierFree}, expiredPremium()} {
+		for _, lic := range []*automdm.LicenseInfo{{Tier: automdm.TierFree}, expiredPremium()} {
 			resetCounts()
 			svc, ctx, _, _ := newUnregisteredService(t, lic, "test-license-key")
 			_, err := svc.AutofillConfigProfileContent(ctx, "Turn off AirDrop", "apple", 0)
-			requireAutofillError(t, err, "base", fleet.AutofillConfigProfileMissingPrivateKeyReason, true)
-			assert.Equal(t, fleet.AutofillConfigProfileContentErrorMessage, autofillErrorOf(t, err).Message)
+			requireAutofillError(t, err, "base", automdm.AutofillConfigProfileMissingPrivateKeyReason, true)
+			assert.Equal(t, automdm.AutofillConfigProfileContentErrorMessage, autofillErrorOf(t, err).Message)
 			_, _, err = svc.AutofillConfigProfileNameDescription(ctx, "Turn off AirDrop", "apple")
-			requireAutofillError(t, err, "base", fleet.AutofillConfigProfileMissingPrivateKeyReason, true)
-			assert.Equal(t, fleet.AutofillConfigProfileNameDescriptionErrorMessage, autofillErrorOf(t, err).Message)
+			requireAutofillError(t, err, "base", automdm.AutofillConfigProfileMissingPrivateKeyReason, true)
+			assert.Equal(t, automdm.AutofillConfigProfileNameDescriptionErrorMessage, autofillErrorOf(t, err).Message)
 			assert.Zero(t, gen.calls.Load())
 		}
 	})
@@ -695,36 +695,36 @@ func TestAutofillConfigProfileCredentials(t *testing.T) {
 	for _, f := range failedRegistrations {
 		t.Run("a registration that fails is reported as an AI service failure: "+f.name, func(t *testing.T) {
 			resetCounts()
-			svc, ctx, _, storedSecret := newUnregisteredService(t, &fleet.LicenseInfo{Tier: fleet.TierFree}, "")
+			svc, ctx, _, storedSecret := newUnregisteredService(t, &automdm.LicenseInfo{Tier: automdm.TierFree}, "")
 			setRegistration(t, f.status, f.body, 0)
 
 			_, err := svc.AutofillConfigProfileContent(ctx, "Turn off AirDrop", "apple", 0)
 			requireAutofillError(t, err, "base", f.reason, false)
-			assert.Equal(t, fleet.AutofillConfigProfileContentErrorMessage, autofillErrorOf(t, err).Message)
+			assert.Equal(t, automdm.AutofillConfigProfileContentErrorMessage, autofillErrorOf(t, err).Message)
 			assert.Empty(t, storedSecret())
 			assert.EqualValues(t, 1, gen.calls.Load(), "nothing is generated without a secret")
 		})
 	}
 
-	t.Run("fleetdm.com's limit is a 429 with Retry-After on both endpoints", func(t *testing.T) {
-		svc, ctx, _ := newAutofillTestService(t, fleet.TierFree, nil)
+	t.Run("automdm.com's limit is a 429 with Retry-After on both endpoints", func(t *testing.T) {
+		svc, ctx, _ := newAutofillTestService(t, automdm.TierFree, nil)
 		resetsAt := time.Now().Add(48 * time.Hour).UTC().Truncate(time.Second)
 		gen.respond(http.StatusTooManyRequests, `{"error": "generationLimitReached", "resetsAt": "`+resetsAt.Format(time.RFC3339)+`"}`)
 
 		_, err := svc.AutofillConfigProfileContent(ctx, "Turn off AirDrop", "apple", 0)
-		requireAutofillError(t, err, "base", fleet.AutofillConfigProfileLimitReachedReason, true)
+		requireAutofillError(t, err, "base", automdm.AutofillConfigProfileLimitReachedReason, true)
 		limitErr := autofillErrorOf(t, err)
 		assert.Equal(t, http.StatusTooManyRequests, limitErr.StatusCode())
-		assert.Equal(t, fleet.AutofillConfigProfileContentErrorMessage, limitErr.Message)
+		assert.Equal(t, automdm.AutofillConfigProfileContentErrorMessage, limitErr.Message)
 		assert.InDelta(t, 48*60*60, limitErr.RetryAfterSeconds, 5)
 
 		_, _, err = svc.AutofillConfigProfileNameDescription(ctx, "Turn off AirDrop", "apple")
-		requireAutofillError(t, err, "base", fleet.AutofillConfigProfileLimitReachedReason, true)
+		requireAutofillError(t, err, "base", automdm.AutofillConfigProfileLimitReachedReason, true)
 		limitErr = autofillErrorOf(t, err)
 		assert.Equal(t, http.StatusTooManyRequests, limitErr.StatusCode())
-		assert.Equal(t, fleet.AutofillConfigProfileNameDescriptionErrorMessage, limitErr.Message)
+		assert.Equal(t, automdm.AutofillConfigProfileNameDescriptionErrorMessage, limitErr.Message)
 
-		// A 429 that isn't the limit, such as a rate limit in front of fleetdm.com, is an outage like any other.
+		// A 429 that isn't the limit, such as a rate limit in front of automdm.com, is an outage like any other.
 		gen.respond(http.StatusTooManyRequests, `Too Many Requests`)
 		_, err = svc.AutofillConfigProfileContent(ctx, "Turn off AirDrop", "apple", 0)
 		requireAutofillError(t, err, "base", "The AI service is unavailable.", false)
@@ -735,7 +735,7 @@ func TestAutofillLimitErrorRetryAfter(t *testing.T) {
 	ctx := t.Context()
 	now := time.Date(2026, time.November, 30, 23, 0, 0, 0, time.UTC)
 	retryAfter := func(body string) int {
-		err := autofillLimitError(ctx, fleet.AutofillConfigProfileContentErrorMessage, http.StatusTooManyRequests, []byte(body), now)
+		err := autofillLimitError(ctx, automdm.AutofillConfigProfileContentErrorMessage, http.StatusTooManyRequests, []byte(body), now)
 		require.Error(t, err)
 		return autofillErrorOf(t, err).RetryAfterSeconds
 	}
@@ -752,9 +752,9 @@ func TestAutofillLimitErrorRetryAfter(t *testing.T) {
 	require.NoError(t, autofillLimitError(ctx, "", http.StatusOK, []byte(`{"error": "generationLimitReached"}`), now))
 }
 
-func autofillErrorOf(t *testing.T, err error) *fleet.AutofillConfigProfileError {
+func autofillErrorOf(t *testing.T, err error) *automdm.AutofillConfigProfileError {
 	t.Helper()
-	var autofillErr *fleet.AutofillConfigProfileError
+	var autofillErr *automdm.AutofillConfigProfileError
 	require.ErrorAs(t, err, &autofillErr)
 	return autofillErr
 }

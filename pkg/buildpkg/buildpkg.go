@@ -1,4 +1,4 @@
-// Package buildpkg contains utilities to build Fleet components.
+// Package buildpkg contains utilities to build AutoMDM components.
 package buildpkg
 
 import (

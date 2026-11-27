@@ -4,9 +4,9 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -23,15 +23,15 @@ func (ds *Datastore) TestPrimaryDB() *sqlx.DB {
 	return ds.primary
 }
 
-// TestReplica returns the replica fleet.DBReader for use by test helpers.
+// TestReplica returns the replica automdm.DBReader for use by test helpers.
 // It must not be used from production code.
-func (ds *Datastore) TestReplica() fleet.DBReader {
+func (ds *Datastore) TestReplica() automdm.DBReader {
 	return ds.replica
 }
 
 // TestSetReplica overrides the replica for use by test helpers. It must not
 // be used from production code.
-func (ds *Datastore) TestSetReplica(r fleet.DBReader) {
+func (ds *Datastore) TestSetReplica(r automdm.DBReader) {
 	ds.replica = r
 	ds.healthReplica = nil
 }
@@ -53,7 +53,7 @@ func (ds *Datastore) TestWriter(ctx context.Context) *sqlx.DB {
 }
 
 // TestReader returns the reader DB for use by test helpers.
-func (ds *Datastore) TestReader(ctx context.Context) fleet.DBReader {
+func (ds *Datastore) TestReader(ctx context.Context) automdm.DBReader {
 	return ds.reader(ctx)
 }
 

@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # A silent install closes Bambu Studio if it's running. The installer also runs
 # its bundled WebView2 Runtime and Visual C++ 2019 installers, which can leave

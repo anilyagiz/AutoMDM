@@ -5,7 +5,7 @@ run(){
 	local OPTIND
 
   #default values
-	output="fleetd_installers"
+	output="automdmd_installers"
 	flags+="--disable-open-folder"
 
   #Read flags
@@ -16,11 +16,11 @@ run(){
 				source=($OPTARG);;
 			p) #types of installers to create. Pass an individual flag for each type
 				types+=($OPTARG);;
-			u) #Fleet server url
+			u) #AutoMDM server url
 				url=($OPTARG);;
-			f) #Additional flags to apply to `fleetctl package`
+			f) #Additional flags to apply to `automdmctl package`
 				flags+=($OPTARG);;
-			d) #include Fleet Desktop
+			d) #include AutoMDM Desktop
 				flags+="--desktop";;
 			o) #Directory for created packages
 		    output=($OPTARG);;
@@ -78,9 +78,9 @@ spec:
       - secret: ${secret}
 EOF
 
-  # Apply the new team to fleet
-	echo "Adding $team_name team to Fleet"
-	fleetctl apply -f config.yml $dry_run
+  # Apply the new team to team
+	echo "Adding $team_name team to AutoMDM"
+	automdmctl apply -f config.yml $dry_run
 	rm -f config.yml 
 }
 
@@ -103,7 +103,7 @@ generate_packages(){
   #In the team directory, create a package for each specified type
 	for type in ${types[@]}
     do
-      fleetctl package ${flags[@]} --type=$type --fleet-url=$url --enroll-secret=$secret --outfile="fleetd-$name_formatted.$type"
+      automdmctl package ${flags[@]} --type=$type --automdm-url=$url --enroll-secret=$secret --outfile="automdmd-$name_formatted.$type"
     done
   
   

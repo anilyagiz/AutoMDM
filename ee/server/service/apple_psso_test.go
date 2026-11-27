@@ -12,21 +12,21 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/optjson"
-	"github.com/fleetdm/fleet/v4/server/authz"
-	authz_ctx "github.com/fleetdm/fleet/v4/server/contexts/authz"
-	"github.com/fleetdm/fleet/v4/server/dev_mode"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/apple/psso/pssocrypto"
-	"github.com/fleetdm/fleet/v4/server/mdm/apple/psso/regtoken"
-	"github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/pkg/optjson"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	authz_ctx "github.com/anilyagiz/automdm/v4/server/contexts/authz"
+	"github.com/anilyagiz/automdm/v4/server/dev_mode"
+	"github.com/anilyagiz/automdm/v4/server/mdm/apple/psso/pssocrypto"
+	"github.com/anilyagiz/automdm/v4/server/mdm/apple/psso/regtoken"
+	"github.com/anilyagiz/automdm/v4/server/mock"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // pssoTestConfig describes the resolved configuration the PSSO flows read:
-// public IdP fields + Fleet server URL from AppConfig, and the IdP client
+// public IdP fields + AutoMDM server URL from AppConfig, and the IdP client
 // secret from mdm_config_assets. The feature is "configured" only when all of
 // them are present.
 type pssoTestConfig struct {
@@ -38,7 +38,7 @@ type pssoTestConfig struct {
 
 func configuredPSSOTestConfig() pssoTestConfig {
 	return pssoTestConfig{ //nolint:gosec // G101: test value only, not a real credential
-		serverURL: "https://fleet.example.com",
+		serverURL: "https://automdm.example.com",
 		tokenURL:  "https://idp.example.com/oauth2/v1/token",
 		clientID:  "client-id",
 		secret:    "client-secret",
@@ -48,20 +48,20 @@ func configuredPSSOTestConfig() pssoTestConfig {
 func newPSSOTestService(t *testing.T, cfg pssoTestConfig) (*Service, context.Context) {
 	t.Helper()
 	ds := new(mock.Store)
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		ac := &fleet.AppConfig{}
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		ac := &automdm.AppConfig{}
 		ac.ServerSettings.ServerURL = cfg.serverURL
-		ac.MDM.AppleAccountProvisioning = fleet.AppleAccountProvisioning{
+		ac.MDM.AppleAccountProvisioning = automdm.AppleAccountProvisioning{
 			OAuthIdPTokenURL: optjson.SetString(cfg.tokenURL),
 			OAuthIdPClientID: optjson.SetString(cfg.clientID),
 		}
 		return ac, nil
 	}
-	ds.GetAllMDMConfigAssetsByNameFunc = func(_ context.Context, names []fleet.MDMAssetName, _ sqlx.QueryerContext) (map[fleet.MDMAssetName]fleet.MDMConfigAsset, error) {
-		out := map[fleet.MDMAssetName]fleet.MDMConfigAsset{}
+	ds.GetAllMDMConfigAssetsByNameFunc = func(_ context.Context, names []automdm.MDMAssetName, _ sqlx.QueryerContext) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
+		out := map[automdm.MDMAssetName]automdm.MDMConfigAsset{}
 		if cfg.secret != "" {
-			out[fleet.MDMAssetAppleAccountProvisioningIdPClientSecret] = fleet.MDMConfigAsset{
-				Name:  fleet.MDMAssetAppleAccountProvisioningIdPClientSecret,
+			out[automdm.MDMAssetAppleAccountProvisioningIdPClientSecret] = automdm.MDMConfigAsset{
+				Name:  automdm.MDMAssetAppleAccountProvisioningIdPClientSecret,
 				Value: []byte(cfg.secret),
 			}
 		}
@@ -77,7 +77,7 @@ func newPSSOTestService(t *testing.T, cfg pssoTestConfig) (*Service, context.Con
 	}, ctx
 }
 
-// memNonceStore is a minimal in-memory fleet.PSSONonceStore.
+// memNonceStore is a minimal in-memory automdm.PSSONonceStore.
 type memNonceStore struct {
 	nonces         map[string]struct{}
 	usedAssertions map[string]struct{}
@@ -127,16 +127,16 @@ func TestPSSO_EndpointsGatedOnConfiguration(t *testing.T) {
 		// Device-facing endpoints return a 400.
 		_, err := svc.PSSONonce(ctx)
 		require.ErrorIs(t, err, errPSSONotConfigured)
-		err = svc.PSSORegisterDevice(ctx, fleet.PSSODeviceRegistrationRequest{})
+		err = svc.PSSORegisterDevice(ctx, automdm.PSSODeviceRegistrationRequest{})
 		require.ErrorIs(t, err, errPSSONotConfigured)
 		_, err = svc.PSSOToken(ctx, []byte("ignored"))
 		require.ErrorIs(t, err, errPSSONotConfigured)
 
 		// Discovery endpoints return a 404.
 		_, err = svc.PSSOJWKS(ctx)
-		require.True(t, fleet.IsNotFound(err), "jwks should be 404, got %v", err)
+		require.True(t, automdm.IsNotFound(err), "jwks should be 404, got %v", err)
 		_, err = svc.PSSOAASA(ctx)
-		require.True(t, fleet.IsNotFound(err), "aasa should be 404, got %v", err)
+		require.True(t, automdm.IsNotFound(err), "aasa should be 404, got %v", err)
 	}
 
 	// The client secret is only required by the token (password login) flow, so
@@ -162,7 +162,7 @@ func TestPSSO_AASAAppIDs(t *testing.T) {
 		return doc.AuthSrv.Apps
 	}
 
-	t.Run("default publishes Fleet's production app IDs", func(t *testing.T) {
+	t.Run("default publishes AutoMDM's production app IDs", func(t *testing.T) {
 		svc, ctx := newPSSOTestService(t, configuredPSSOTestConfig())
 		body, err := svc.PSSOAASA(ctx)
 		require.NoError(t, err)
@@ -172,11 +172,11 @@ func TestPSSO_AASAAppIDs(t *testing.T) {
 		}, parseApps(t, body))
 	})
 
-	// A contributor signing under their own team sets FLEET_DEV_PSSO_AASA_APP_IDS
+	// A contributor signing under their own team sets AUTOMDM_DEV_PSSO_AASA_APP_IDS
 	// (honored only under --dev) so the AASA matches their binary; the override
 	// adds to the defaults and strips surrounding whitespace.
 	t.Run("dev override adds to the published app IDs", func(t *testing.T) {
-		dev_mode.SetOverride("FLEET_DEV_PSSO_AASA_APP_IDS", "5K28R5ZUK5.com.fleetdm.pssotesting, 5K28R5ZUK5.com.fleetdm.pssotesting.extension", t)
+		dev_mode.SetOverride("AUTOMDM_DEV_PSSO_AASA_APP_IDS", "5K28R5ZUK5.com.fleetdm.pssotesting, 5K28R5ZUK5.com.fleetdm.pssotesting.extension", t)
 		svc, ctx := newPSSOTestService(t, configuredPSSOTestConfig())
 		body, err := svc.PSSOAASA(ctx)
 		require.NoError(t, err)
@@ -205,10 +205,10 @@ func TestPSSO_NonceIssuedAndConsumedWhenConfigured(t *testing.T) {
 	require.NoError(t, svc.consumePSSORequestNonce(ctx, nonce))
 	err = svc.consumePSSORequestNonce(ctx, nonce)
 	require.Error(t, err)
-	var bre *fleet.BadRequestError
+	var bre *automdm.BadRequestError
 	require.ErrorAs(t, err, &bre)
 
-	// A nonce Fleet never issued is rejected.
+	// A nonce AutoMDM never issued is rejected.
 	err = svc.consumePSSORequestNonce(ctx, "never-issued")
 	require.Error(t, err)
 	// And the claim is required at all.
@@ -253,14 +253,14 @@ func TestPSSO_JWKSIncludesSigningAndEncryptionKeys(t *testing.T) {
 	signPEM := mustECPrivateKeyPEM(t, signKey)
 	encPEM := mustECPrivateKeyPEM(t, encKey)
 
-	ds.GetAllMDMConfigAssetsByNameFunc = func(_ context.Context, names []fleet.MDMAssetName, _ sqlx.QueryerContext) (map[fleet.MDMAssetName]fleet.MDMConfigAsset, error) {
-		out := map[fleet.MDMAssetName]fleet.MDMConfigAsset{}
+	ds.GetAllMDMConfigAssetsByNameFunc = func(_ context.Context, names []automdm.MDMAssetName, _ sqlx.QueryerContext) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
+		out := map[automdm.MDMAssetName]automdm.MDMConfigAsset{}
 		for _, n := range names {
 			switch n {
-			case fleet.MDMAssetPSSOSigningKey:
-				out[n] = fleet.MDMConfigAsset{Name: n, Value: signPEM}
-			case fleet.MDMAssetPSSOEncryptionKey:
-				out[n] = fleet.MDMConfigAsset{Name: n, Value: encPEM}
+			case automdm.MDMAssetPSSOSigningKey:
+				out[n] = automdm.MDMConfigAsset{Name: n, Value: signPEM}
+			case automdm.MDMAssetPSSOEncryptionKey:
+				out[n] = automdm.MDMConfigAsset{Name: n, Value: encPEM}
 			}
 		}
 		return out, nil
@@ -302,11 +302,11 @@ func TestPSSO_JWKSIncludesSigningAndEncryptionKeys(t *testing.T) {
 func TestPSSORegisterDevice_RequiresValidToken(t *testing.T) {
 	const hostUUID = "A72B07D0-2E08-45CE-9423-1FCAFFAEC390"
 
-	fleetKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	automdmKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
-	fleetKeyDER, err := x509.MarshalECPrivateKey(fleetKey)
+	automdmKeyDER, err := x509.MarshalECPrivateKey(automdmKey)
 	require.NoError(t, err)
-	fleetKeyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: fleetKeyDER})
+	automdmKeyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: automdmKeyDER})
 
 	devSigning, signingKID := mustDevicePSSOKey(t)
 	devEncryption, encryptionKID := mustDevicePSSOKey(t)
@@ -314,29 +314,29 @@ func TestPSSORegisterDevice_RequiresValidToken(t *testing.T) {
 	newSvc := func(t *testing.T) (*Service, context.Context, *mock.Store) {
 		svc, ctx := newPSSOTestService(t, configuredPSSOTestConfig())
 		ds := svc.ds.(*mock.Store)
-		ds.GetAllMDMConfigAssetsByNameFunc = func(_ context.Context, names []fleet.MDMAssetName, _ sqlx.QueryerContext) (map[fleet.MDMAssetName]fleet.MDMConfigAsset, error) {
-			out := map[fleet.MDMAssetName]fleet.MDMConfigAsset{}
+		ds.GetAllMDMConfigAssetsByNameFunc = func(_ context.Context, names []automdm.MDMAssetName, _ sqlx.QueryerContext) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
+			out := map[automdm.MDMAssetName]automdm.MDMConfigAsset{}
 			for _, n := range names {
 				switch n {
-				case fleet.MDMAssetAppleAccountProvisioningIdPClientSecret:
-					out[n] = fleet.MDMConfigAsset{Name: n, Value: []byte("client-secret")}
-				case fleet.MDMAssetPSSOSigningKey:
-					out[n] = fleet.MDMConfigAsset{Name: n, Value: fleetKeyPEM}
+				case automdm.MDMAssetAppleAccountProvisioningIdPClientSecret:
+					out[n] = automdm.MDMConfigAsset{Name: n, Value: []byte("client-secret")}
+				case automdm.MDMAssetPSSOSigningKey:
+					out[n] = automdm.MDMConfigAsset{Name: n, Value: automdmKeyPEM}
 				}
 			}
 			return out, nil
 		}
-		ds.HostByUUIDFunc = func(_ context.Context, uuid string) (*fleet.Host, error) {
+		ds.HostByUUIDFunc = func(_ context.Context, uuid string) (*automdm.Host, error) {
 			if uuid != hostUUID {
 				return nil, &testNotFoundError{}
 			}
-			return &fleet.Host{UUID: uuid}, nil
+			return &automdm.Host{UUID: uuid}, nil
 		}
 		return svc, ctx, ds
 	}
 
-	validReq := func(token string) fleet.PSSODeviceRegistrationRequest {
-		return fleet.PSSODeviceRegistrationRequest{
+	validReq := func(token string) automdm.PSSODeviceRegistrationRequest {
+		return automdm.PSSODeviceRegistrationRequest{
 			DeviceUUID:          hostUUID,
 			DeviceSigningKey:    devSigning,
 			DeviceEncryptionKey: devEncryption,
@@ -349,14 +349,14 @@ func TestPSSORegisterDevice_RequiresValidToken(t *testing.T) {
 	t.Run("valid token registers and derives host from the token subject", func(t *testing.T) {
 		svc, ctx, ds := newSvc(t)
 		var storedUUID string
-		var storedKeys []fleet.PSSOKey
-		ds.SetOrUpdatePSSODeviceFunc = func(_ context.Context, uuid string, keys []fleet.PSSOKey) error {
+		var storedKeys []automdm.PSSOKey
+		ds.SetOrUpdatePSSODeviceFunc = func(_ context.Context, uuid string, keys []automdm.PSSOKey) error {
 			storedUUID = uuid
 			storedKeys = keys
 			return nil
 		}
 
-		token, err := regtoken.Mint(fleetKey, hostUUID, time.Now())
+		token, err := regtoken.Mint(automdmKey, hostUUID, time.Now())
 		require.NoError(t, err)
 
 		require.NoError(t, svc.PSSORegisterDevice(ctx, validReq(token)))
@@ -370,7 +370,7 @@ func TestPSSORegisterDevice_RequiresValidToken(t *testing.T) {
 
 	t.Run("key id that does not match its key is rejected", func(t *testing.T) {
 		svc, ctx, ds := newSvc(t)
-		token, err := regtoken.Mint(fleetKey, hostUUID, time.Now())
+		token, err := regtoken.Mint(automdmKey, hostUUID, time.Now())
 		require.NoError(t, err)
 
 		req := validReq(token)
@@ -402,7 +402,7 @@ func TestPSSORegisterDevice_RequiresValidToken(t *testing.T) {
 
 	t.Run("token bound to a non-enrolled host is rejected", func(t *testing.T) {
 		svc, ctx, ds := newSvc(t)
-		token, err := regtoken.Mint(fleetKey, "11111111-2222-3333-4444-555555555555", time.Now())
+		token, err := regtoken.Mint(automdmKey, "11111111-2222-3333-4444-555555555555", time.Now())
 		require.NoError(t, err)
 
 		err = svc.PSSORegisterDevice(ctx, validReq(token))

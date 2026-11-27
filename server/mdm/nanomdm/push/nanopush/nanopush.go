@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/push"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/push"
 	"golang.org/x/net/http2"
 )
 
@@ -29,7 +29,7 @@ func ClientWithCert(client *http.Client, cert *tls.Certificate) (*http.Client, e
 		MinVersion:   tls.VersionTLS12,
 	}
 	if client.Transport == nil {
-		client.Transport = &http.Transport{} // nolint: gocritic // allow not using fleethttp.NewClient
+		client.Transport = &http.Transport{} // nolint: gocritic // allow not using automdmhttp.NewClient
 	}
 	transport := client.Transport.(*http.Transport)
 	transport.TLSClientConfig = config

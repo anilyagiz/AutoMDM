@@ -3,7 +3,7 @@
 // Usage: go run seed_android.go <private_key_32bytes> <enterprise_id> <pubsub_token>
 //
 // Generates SQL to seed android_enterprises and mdm_config_assets with
-// values encrypted using the given Fleet server private key.
+// values encrypted using the given AutoMDM server private key.
 //
 // Example:
 //   go run seed_android.go 'TwmSR]%_$x7$rt[VveeRjjc$3c18ln:2' LC03k6enk8 my-pubsub-token
@@ -42,11 +42,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Encrypt a fleet server secret (can be any value, mock doesn't validate it)
-	fleetSecret := "mock-fleet-server-secret-for-loadtest"
-	encSecret, err := encrypt([]byte(fleetSecret), key)
+	// Encrypt an automdm server secret (can be any value, mock doesn't validate it)
+	automdmSecret := "mock-automdm-server-secret-for-loadtest"
+	encSecret, err := encrypt([]byte(automdmSecret), key)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "encrypt fleet secret: %v\n", err)
+		fmt.Fprintf(os.Stderr, "encrypt automdm secret: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -62,12 +62,12 @@ func main() {
 	fmt.Println("DELETE FROM android_devices;")
 	fmt.Println("DELETE FROM hosts WHERE platform = 'android';")
 	fmt.Println("DELETE FROM android_enterprises;")
-	fmt.Println("DELETE FROM mdm_config_assets WHERE name IN ('android_pubsub_token', 'android_fleet_server_secret');")
+	fmt.Println("DELETE FROM mdm_config_assets WHERE name IN ('android_pubsub_token', 'android_automdm_server_secret');")
 	fmt.Println()
 	fmt.Printf("INSERT INTO android_enterprises (signup_name, enterprise_id, signup_token, pubsub_topic_id, user_id) VALUES ('loadtest-signup', '%s', 'loadtest-token', 'loadtest-topic', 1);\n", enterpriseID)
 	fmt.Println()
 	fmt.Printf("INSERT INTO mdm_config_assets (name, value, md5_checksum) VALUES ('android_pubsub_token', 0x%s, 0x%s);\n", hexToken, md5Token)
-	fmt.Printf("INSERT INTO mdm_config_assets (name, value, md5_checksum) VALUES ('android_fleet_server_secret', 0x%s, 0x%s);\n", hexSecret, md5Secret)
+	fmt.Printf("INSERT INTO mdm_config_assets (name, value, md5_checksum) VALUES ('android_automdm_server_secret', 0x%s, 0x%s);\n", hexSecret, md5Secret)
 	fmt.Println()
 	fmt.Println("-- Enable Android MDM")
 	fmt.Println("UPDATE app_config_json SET json_value = JSON_SET(json_value, '$.mdm.android_enabled_and_configured', true) WHERE id = 1;")

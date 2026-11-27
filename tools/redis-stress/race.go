@@ -10,8 +10,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/datastore/redis"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis"
 	redigo "github.com/gomodule/redigo/redis"
 )
 
@@ -33,7 +33,7 @@ func runRace(args []string) {
 		fmt.Fprintf(fs.Output(), "  conn1 := pool.Get(); conn1.Do(\"SET\", k, v, \"PX\", ttl); conn1.Close()\n")
 		fmt.Fprintf(fs.Output(), "  conn2 := pool.Get(); conn2.Do(\"GET\", k);                conn2.Close()\n")
 		fmt.Fprintf(fs.Output(), "and reports any GET that returns nil immediately after a successful SET.\n")
-		fmt.Fprintf(fs.Output(), "This mirrors how Fleet's RedisKeyValue.Set/.Get use the connection pool.\n\n")
+		fmt.Fprintf(fs.Output(), "This mirrors how AutoMDM's RedisKeyValue.Set/.Get use the connection pool.\n\n")
 		fmt.Fprintf(fs.Output(), "FLAGS:\n")
 		fs.PrintDefaults()
 	}
@@ -143,7 +143,7 @@ func validateRaceFlags(workers, iterations int, ttl time.Duration) error {
 // each on a fresh pool connection. If explicitReadOnly is true, the GET conn
 // is marked read-only before ConfigureDoer wraps it — only effective in
 // cluster mode with ClusterReadFromReplica=true on the pool.
-func raceOnce(pool fleet.RedisPool, key, expected string, ttlMs int64, explicitReadOnly bool, s *raceStats) error {
+func raceOnce(pool automdm.RedisPool, key, expected string, ttlMs int64, explicitReadOnly bool, s *raceStats) error {
 	// SET via the standard connection routing.
 	conn := redis.ConfigureDoer(pool, pool.Get())
 	_, err := redigo.String(conn.Do("SET", key, expected, "PX", ttlMs))
@@ -168,7 +168,7 @@ func raceOnce(pool fleet.RedisPool, key, expected string, ttlMs int64, explicitR
 	// cluster mode with follow-redirects), which does not implement
 	// ReadOnly() error. Calling ReadOnlyConn after ConfigureDoer would
 	// silently no-op via the type-assertion-fail path in
-	// redisc.ReadOnlyConn (whose error Fleet's wrapper discards), and the
+	// redisc.ReadOnlyConn (whose error AutoMDM's wrapper discards), and the
 	// GET would still go to the primary.
 	getConn := pool.Get()
 	if explicitReadOnly {

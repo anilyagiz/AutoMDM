@@ -21,7 +21,7 @@ const ActivityAutomationDetailsModal = ({
       <>
         <div className={`${baseClass}__modal-content`}>
           <Textarea
-            label="Fleet will send a JSON payload to this URL whenever a new activity
+            label="AutoMDM will send a JSON payload to this URL whenever a new activity
             is generated:"
             className={`${baseClass}__webhook-url`}
             variant="code"

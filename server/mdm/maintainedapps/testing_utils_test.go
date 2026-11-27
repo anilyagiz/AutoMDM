@@ -10,16 +10,16 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/dev_mode"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/dev_mode"
 	"github.com/stretchr/testify/require"
 )
 
 // SyncApps ingests the maintained apps from the apps list manifest
 // to fill the library of maintained apps with valid data for tests.
 // It returns the results of the ingestion as a slice of
-// fleet.MaintainedApps.
-func SyncApps(t *testing.T, ds fleet.Datastore) []fleet.MaintainedApp {
+// automdm.MaintainedApps.
+func SyncApps(t *testing.T, ds automdm.Datastore) []automdm.MaintainedApp {
 	_, filename, _, _ := runtime.Caller(0)
 	base := filepath.Dir(filepath.Dir(filepath.Dir(filepath.Dir(filename))))
 	outputsDir := filepath.Join(base, "ee/maintained-apps/outputs")
@@ -41,10 +41,10 @@ func SyncApps(t *testing.T, ds fleet.Datastore) []fleet.MaintainedApp {
 
 	// not using t.Setenv because we want the env var to be unset on return of
 	// this call
-	dev_mode.SetOverride("FLEET_DEV_MAINTAINED_APPS_BASE_URL", srv.URL)
-	defer dev_mode.ClearOverride("FLEET_DEV_MAINTAINED_APPS_BASE_URL")
-	dev_mode.SetOverride("FLEET_DEV_MAINTAINED_APPS_FALLBACK_BASE_URL", srv.URL)
-	defer dev_mode.ClearOverride("FLEET_DEV_MAINTAINED_APPS_FALLBACK_BASE_URL")
+	dev_mode.SetOverride("AUTOMDM_DEV_MAINTAINED_APPS_BASE_URL", srv.URL)
+	defer dev_mode.ClearOverride("AUTOMDM_DEV_MAINTAINED_APPS_BASE_URL")
+	dev_mode.SetOverride("AUTOMDM_DEV_MAINTAINED_APPS_FALLBACK_BASE_URL", srv.URL)
+	defer dev_mode.ClearOverride("AUTOMDM_DEV_MAINTAINED_APPS_FALLBACK_BASE_URL")
 
 	err := SyncAppsList(context.Background(), ds)
 	require.NoError(t, err)
@@ -53,7 +53,7 @@ func SyncApps(t *testing.T, ds fleet.Datastore) []fleet.MaintainedApp {
 	// GetPerPage returns DefaultPerPage (effectively unbounded), so this helper
 	// gets the full set in a single page for tests, which should not depend on
 	// the order.
-	apps, _, err := ds.ListAvailableFleetMaintainedApps(context.Background(), nil, fleet.MaintainedAppListOptions{})
+	apps, _, err := ds.ListAvailableAutoMDMMaintainedApps(context.Background(), nil, automdm.MaintainedAppListOptions{})
 	require.NoError(t, err)
 	return apps
 }
@@ -79,7 +79,7 @@ func ExpectedAppSlugs(t *testing.T) []string {
 	return slugs
 }
 
-func SyncAndRemoveApps(t *testing.T, ds fleet.Datastore) {
+func SyncAndRemoveApps(t *testing.T, ds automdm.Datastore) {
 	_, filename, _, _ := runtime.Caller(0)
 	base := filepath.Dir(filepath.Dir(filepath.Dir(filepath.Dir(filename))))
 	outputsDir := filepath.Join(base, "ee/maintained-apps/outputs")
@@ -101,13 +101,13 @@ func SyncAndRemoveApps(t *testing.T, ds fleet.Datastore) {
 
 	// not using t.Setenv because we want the env var to be unset on return of
 	// this call
-	dev_mode.SetOverride("FLEET_DEV_MAINTAINED_APPS_BASE_URL", srv.URL)
-	defer dev_mode.ClearOverride("FLEET_DEV_MAINTAINED_APPS_BASE_URL")
+	dev_mode.SetOverride("AUTOMDM_DEV_MAINTAINED_APPS_BASE_URL", srv.URL)
+	defer dev_mode.ClearOverride("AUTOMDM_DEV_MAINTAINED_APPS_BASE_URL")
 
 	err = SyncAppsList(context.Background(), ds)
 	require.NoError(t, err)
 
-	originalApps, _, err := ds.ListAvailableFleetMaintainedApps(context.Background(), nil, fleet.MaintainedAppListOptions{})
+	originalApps, _, err := ds.ListAvailableAutoMDMMaintainedApps(context.Background(), nil, automdm.MaintainedAppListOptions{})
 	require.NoError(t, err)
 
 	require.Equal(t, len(appsFile.Apps), len(originalApps))
@@ -119,7 +119,7 @@ func SyncAndRemoveApps(t *testing.T, ds fleet.Datastore) {
 	err = SyncAppsList(context.Background(), ds)
 	require.NoError(t, err)
 
-	modifiedApps, _, err := ds.ListAvailableFleetMaintainedApps(context.Background(), nil, fleet.MaintainedAppListOptions{})
+	modifiedApps, _, err := ds.ListAvailableAutoMDMMaintainedApps(context.Background(), nil, automdm.MaintainedAppListOptions{})
 	require.NoError(t, err)
 
 	require.Equal(t, len(appsFile.Apps), len(modifiedApps))
@@ -134,7 +134,7 @@ func SyncAndRemoveApps(t *testing.T, ds fleet.Datastore) {
 	err = SyncAppsList(context.Background(), ds)
 	require.NoError(t, err)
 
-	modifiedApps, _, err = ds.ListAvailableFleetMaintainedApps(context.Background(), nil, fleet.MaintainedAppListOptions{})
-	require.ErrorIs(t, err, &fleet.NoMaintainedAppsInDatabaseError{})
+	modifiedApps, _, err = ds.ListAvailableAutoMDMMaintainedApps(context.Background(), nil, automdm.MaintainedAppListOptions{})
+	require.ErrorIs(t, err, &automdm.NoMaintainedAppsInDatabaseError{})
 	require.Empty(t, modifiedApps)
 }

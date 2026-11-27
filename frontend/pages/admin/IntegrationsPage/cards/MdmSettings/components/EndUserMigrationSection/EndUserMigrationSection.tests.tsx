@@ -281,7 +281,7 @@ describe("EndUserMigrationSection", () => {
     render(<EndUserMigrationSection router={mockRouter} />);
 
     expect(
-      screen.getByText("This feature is included in Fleet Premium.")
+      screen.getByText("This feature is included in AutoMDM Premium.")
     ).toBeInTheDocument();
   });
 });

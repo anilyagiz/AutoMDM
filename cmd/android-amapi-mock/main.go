@@ -1,12 +1,12 @@
 // Command android-amapi-mock is a lightweight mock of Google's Android Management API
-// for load testing Fleet with fake Android devices.
+// for load testing AutoMDM with fake Android devices.
 //
 // It serves two roles:
-//  1. AMAPI surface — Fleet calls these endpoints (policy patches, device patches, commands, etc.).
+//  1. AMAPI surface — AutoMDM calls these endpoints (policy patches, device patches, commands, etc.).
 //     For registered fake devices, it returns canned responses. For real devices, it forwards
 //     requests to the real Google AMAPI using service account credentials.
 //  2. Coordination API — osquery-perf's Android agents call these to register devices and poll for
-//     state (policy versions, pending commands) so they can send realistic PubSub messages to Fleet.
+//     state (policy versions, pending commands) so they can send realistic PubSub messages to AutoMDM.
 //
 // Usage:
 //
@@ -28,7 +28,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
 )
 
 // fakeDevice holds the in-memory state for a single fake Android device.
@@ -41,7 +41,7 @@ type fakeDevice struct {
 	PolicyName           string   `json:"policy_name"`
 	PendingCommands      []string `json:"pending_commands"`
 	PendingCertificates  []uint   `json:"pending_certificates"`
-	// AgentEnrollSecret is the enroll secret in the Fleet agent's last managed configuration, which the simulated agent
+	// AgentEnrollSecret is the enroll secret in the AutoMDM agent's last managed configuration, which the simulated agent
 	// enrolls orbit with.
 	AgentEnrollSecret string `json:"agent_enroll_secret"`
 }
@@ -58,9 +58,9 @@ type deviceStore struct {
 	byESID map[string]*fakeDevice
 	// byName maps AMAPI device resource name -> device
 	byName map[string]*fakeDevice
-	// deletedESIDs and deletedNames record devices Fleet deleted through AMAPI. Deletion is a
+	// deletedESIDs and deletedNames record devices AutoMDM deleted through AMAPI. Deletion is a
 	// real unenrollment, not lost state, so such a device must never come back: a device that
-	// registered again after being deleted would re-enroll itself in Fleet and produce an
+	// registered again after being deleted would re-enroll itself in AutoMDM and produce an
 	// unenroll/enroll flip-flop.
 	//
 	// Both keys are needed. A delete that arrives while this process has forgotten the device
@@ -80,7 +80,7 @@ type deviceStore struct {
 	enterprises map[string]struct{}
 
 	// policyVersions tracks the latest version for each policy name.
-	// Fleet uses per-device policies named enterprises/{id}/policies/{hostUUID}.
+	// AutoMDM uses per-device policies named enterprises/{id}/policies/{hostUUID}.
 	// policyVersion is the counter versions are issued from; it is guarded by policyMu so
 	// issuing a version and recording it against a policy is one atomic step.
 	policyMu       sync.RWMutex
@@ -92,14 +92,14 @@ type deviceStore struct {
 
 	// requirePolicies makes policy actions fail with 404 on a policy that was never created,
 	// as AMAPI does. Off by default: after a restart every policy would look missing until its
-	// device registers again or Fleet patches it.
+	// device registers again or AutoMDM patches it.
 	requirePolicies bool
 
-	// agentPackage is the Fleet agent's package name, whose managed configuration carries the enroll secret.
+	// agentPackage is the AutoMDM agent's package name, whose managed configuration carries the enroll secret.
 	agentPackage string
 }
 
-// defaultAgentPackage is Fleet's default mdm.android_agent.package.
+// defaultAgentPackage is AutoMDM's default mdm.android_agent.package.
 const defaultAgentPackage = "com.fleetdm.agent"
 
 func newDeviceStore() *deviceStore {
@@ -119,7 +119,7 @@ func newDeviceStore() *deviceStore {
 
 // maxTrackedEnterprises bounds the set noteEnterprise fills. The IDs are taken from request
 // paths, so an unbounded set would grow with junk from anything that can reach the mock. A load
-// test addresses one enterprise, and the one Fleet is using is recorded on its first request,
+// test addresses one enterprise, and the one AutoMDM is using is recorded on its first request,
 // long before a limit this size is reached.
 const maxTrackedEnterprises = 1000
 
@@ -204,10 +204,10 @@ func (ds *deviceStore) policyExists(policyName string) bool {
 
 // raisePolicyVersionCounter pulls the counter up to a version a device reports when it
 // registers again after this process lost its state, so versions issued from here on stay
-// above the version the device already told Fleet about.
+// above the version the device already told AutoMDM about.
 //
 // It deliberately does NOT record the version against the policy: doing so would let a
-// device claim a high applied version that this process never issued, and Fleet verifies
+// device claim a high applied version that this process never issued, and AutoMDM verifies
 // profiles whose included_in_policy_version is <= the applied version — so pending profiles
 // would flip to Verified without the policy ever having been applied, hiding the very
 // "stuck in Pending" bugs this harness exists to find.
@@ -229,7 +229,7 @@ func (ds *deviceStore) raisePolicyVersionCounter(version int64) {
 // A device's policy is only changed by a registration that actually reports one (d.PolicyName
 // is set). A registration without a policy — a freshly started agent, or one whose reported
 // version was rejected — leaves the known policy alone: overwriting it with the default policy
-// at version 0 would tell Fleet the applied policy regressed and strand every profile already
+// at version 0 would tell AutoMDM the applied policy regressed and strand every profile already
 // delivered. A new device with no reported policy starts on the default policy.
 //
 // It reports false, and registers nothing, for a device that was deleted. The check shares
@@ -266,8 +266,8 @@ func (ds *deviceStore) register(d *fakeDevice) bool {
 	}
 
 	if d.PolicyName == "" && d.EnterpriseID != "" {
-		// A real device enrolls on the policy Fleet's enrollment token names, its default
-		// policy. Fleet only moves devices off that policy by ID, so any other name strands
+		// A real device enrolls on the policy AutoMDM's enrollment token names, its default
+		// policy. AutoMDM only moves devices off that policy by ID, so any other name strands
 		// them there.
 		d.PolicyName = fmt.Sprintf("enterprises/%s/policies/%d", d.EnterpriseID, android.DefaultAndroidPolicyID)
 		d.PolicyVersion = 0
@@ -335,8 +335,8 @@ func main() {
 	errorRate := flag.Float64("error-rate", 0.01, "Fraction of AMAPI requests that return 429/5xx errors [0, 1]")
 	requirePolicies := flag.Bool("require-policies", false, "Fail policy actions (e.g. modifyPolicyApplications) with 404 on a policy that was never created, as AMAPI does")
 	var policyOpts policyOptions
-	flag.BoolVar(&policyOpts.rejectDefaultPolicyApps, "reject-default-policy-apps", false, "Fail any change to the app list of a default policy (policies/1 or a fleet's policies/fleet<id>) with 400. Fleet only manages apps in host-specific policies, so such a request is a Fleet bug")
-	agentPackage := flag.String("agent-package", defaultAgentPackage, "Package name of the Fleet Android agent (Fleet's mdm.android_agent.package), whose enroll secret simulated devices enroll with")
+	flag.BoolVar(&policyOpts.rejectDefaultPolicyApps, "reject-default-policy-apps", false, "Fail any change to the app list of a default policy (policies/1 or a team's policies/automdm<id>) with 400. AutoMDM only manages apps in host-specific policies, so such a request is an AutoMDM bug")
+	agentPackage := flag.String("agent-package", defaultAgentPackage, "Package name of the AutoMDM Android agent (AutoMDM's mdm.android_agent.package), whose enroll secret simulated devices enroll with")
 	flag.Parse()
 
 	// Fall back to env var if flag not provided (for ECS Secrets Manager injection)
@@ -392,7 +392,7 @@ func newMux(store *deviceStore, google *googleForwarder, latencyMean time.Durati
 	}
 
 	// noteEnt records the enterprise a request addresses before handling it, so that an
-	// enterprise Fleet is actively using is reported by GET /v1/enterprises even when no fake
+	// enterprise AutoMDM is actively using is reported by GET /v1/enterprises even when no fake
 	// device has been registered against it.
 	noteEnt := func(h http.HandlerFunc) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
@@ -449,7 +449,7 @@ func deviceName(r *http.Request) string {
 }
 
 // policyID returns the policy ID from path values with any action suffix removed.
-// Fleet names per-device policies after the host UUID (the enterpriseSpecificID for
+// Team names per-device policies after the host UUID (the enterpriseSpecificID for
 // Android), so callers can use this to look up the fake device the policy belongs to.
 func policyID(r *http.Request) string {
 	return trimAction(r.PathValue("pid"))

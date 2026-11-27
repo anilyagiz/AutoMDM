@@ -7,9 +7,9 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	apple_mdm "github.com/fleetdm/fleet/v4/server/mdm/apple"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	apple_mdm "github.com/anilyagiz/automdm/v4/server/mdm/apple"
 )
 
 // reconcileAppleProfilesBatchSize is the scan window: how many enrolled Apple hosts the reconciler reads per snapshot.
@@ -45,9 +45,9 @@ var reconcileAppleProfilesScanBudget = 12 * time.Second
 // for the cron, the per-host enrollment path, and the DDM reconciler.
 func ReconcileAppleProfilesBatched(
 	ctx context.Context,
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	commander *apple_mdm.MDMAppleCommander,
-	redisKeyValue fleet.AdvancedKeyValueStore,
+	redisKeyValue automdm.AdvancedKeyValueStore,
 	logger *slog.Logger,
 	certProfilesLimit int,
 	useOneTimeEnrollSecrets bool,
@@ -60,18 +60,18 @@ func ReconcileAppleProfilesBatched(
 		return nil
 	}
 
-	assets, err := ds.GetAllMDMConfigAssetsByName(ctx, []fleet.MDMAssetName{
-		fleet.MDMAssetCACert,
+	assets, err := ds.GetAllMDMConfigAssetsByName(ctx, []automdm.MDMAssetName{
+		automdm.MDMAssetCACert,
 	}, nil)
 	if err != nil {
 		return ctxerr.Wrap(ctx, err, "getting Apple SCEP")
 	}
-	block, _ := pem.Decode(assets[fleet.MDMAssetCACert].Value)
+	block, _ := pem.Decode(assets[automdm.MDMAssetCACert].Value)
 	if block == nil || block.Type != "CERTIFICATE" {
 		return ctxerr.New(ctx, "failed to decode PEM block from SCEP certificate")
 	}
-	if err := ensureFleetProfiles(ctx, ds, logger, block.Bytes, useOneTimeEnrollSecrets); err != nil {
-		logger.ErrorContext(ctx, "unable to ensure fleetd configuration profiles are in place", "details", err)
+	if err := ensureAutoMDMProfiles(ctx, ds, logger, block.Bytes, useOneTimeEnrollSecrets); err != nil {
+		logger.ErrorContext(ctx, "unable to ensure automdmd configuration profiles are in place", "details", err)
 	}
 
 	// Read the cursor; on error, treat as start-of-pass and continue. A stale or missing cursor is harmless because the
@@ -126,13 +126,13 @@ func ReconcileAppleProfilesBatched(
 			"cursor", cursor, "hosts_in_batch", len(hosts), "profile_count", len(allProfiles))
 
 		if len(hosts) == 0 {
-			// Reached the end of the host space (or empty fleet): reset the cursor so the next pass restarts from the beginning.
+			// Reached the end of the host space (or empty team): reset the cursor so the next pass restarts from the beginning.
 			commitCursor = ""
 			return nil
 		}
 
 		profilesWithBrokenLabel := make(map[string]struct{})
-		profilesByTeam := make(map[uint][]*fleet.AppleProfileForReconcile, 4)
+		profilesByTeam := make(map[uint][]*automdm.AppleProfileForReconcile, 4)
 		for _, p := range allProfiles {
 			profilesByTeam[p.TeamID] = append(profilesByTeam[p.TeamID], p)
 			if p.HasBrokenLabel() {
@@ -141,7 +141,7 @@ func ReconcileAppleProfilesBatched(
 		}
 
 		toInstall, toRemove, optInChanges := apple_mdm.ComputeReconcileDeltas(hosts, hostLabels, currentByHost, profilesByTeam, profilesWithBrokenLabel, optInsByHost)
-		toInstall = fleet.FilterMacOSOnlyProfilesFromIOSIPadOS(toInstall)
+		toInstall = automdm.FilterMacOSOnlyProfilesFromIOSIPadOS(toInstall)
 
 		logger.DebugContext(ctx, "batched reconcile: computed deltas",
 			"to_install", len(toInstall), "to_remove", len(toRemove))
@@ -218,7 +218,7 @@ func ReconcileAppleProfilesBatched(
 // appleHostsWithWork returns the host UUIDs that have at least one install or remove in this window, in the order hosts are
 // given (ascending by uuid). The drain loop uses this both to count delivered hosts against the cap and to pick the contiguous
 // prefix to deliver when the cap is reached mid-window.
-func appleHostsWithWork(hosts []*fleet.AppleHostReconcileInfo, toInstall, toRemove []*fleet.MDMAppleProfilePayload) []string {
+func appleHostsWithWork(hosts []*automdm.AppleHostReconcileInfo, toInstall, toRemove []*automdm.MDMAppleProfilePayload) []string {
 	work := make(map[string]struct{})
 	for _, p := range toInstall {
 		work[p.HostUUID] = struct{}{}
@@ -237,8 +237,8 @@ func appleHostsWithWork(hosts []*fleet.AppleHostReconcileInfo, toInstall, toRemo
 
 // filterApplePayloadsByHost returns only the payloads whose HostUUID is in the allowed set, preserving order. Used to trim a
 // window's deltas to the hosts that fit under the per-tick delivery cap.
-func filterApplePayloadsByHost(payloads []*fleet.MDMAppleProfilePayload, allowed map[string]struct{}) []*fleet.MDMAppleProfilePayload {
-	out := make([]*fleet.MDMAppleProfilePayload, 0, len(payloads))
+func filterApplePayloadsByHost(payloads []*automdm.MDMAppleProfilePayload, allowed map[string]struct{}) []*automdm.MDMAppleProfilePayload {
+	out := make([]*automdm.MDMAppleProfilePayload, 0, len(payloads))
 	for _, p := range payloads {
 		if _, ok := allowed[p.HostUUID]; ok {
 			out = append(out, p)

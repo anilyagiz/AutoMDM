@@ -5,7 +5,7 @@
 
 $displayNamePattern = '^Postman x64 '
 $publisher = "Postman"
-$taskName = "fleet-uninstall-postman"
+$taskName = "automdm-uninstall-postman"
 $taskRunning = 267009  # SCHED_S_TASK_RUNNING
 $timeoutSeconds = 600
 $exitCode = 0
@@ -117,8 +117,8 @@ function Invoke-UninstallerAsUser {
 
 try {
     # Left behind only if an install was interrupted.
-    if (Get-ScheduledTask -TaskName "fleet-install-postman" -ErrorAction SilentlyContinue) {
-        Unregister-ScheduledTask -TaskName "fleet-install-postman" -Confirm:$false -ErrorAction SilentlyContinue
+    if (Get-ScheduledTask -TaskName "automdm-install-postman" -ErrorAction SilentlyContinue) {
+        Unregister-ScheduledTask -TaskName "automdm-install-postman" -Confirm:$false -ErrorAction SilentlyContinue
     }
 
     foreach ($entry in @(Get-PostmanEntries)) {

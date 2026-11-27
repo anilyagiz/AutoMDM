@@ -39,13 +39,13 @@ interface IWrapperProps {
   location: {
     pathname: string;
     search: string;
-    query: { fleet_id?: string; add_category?: string };
+    query: { team_id?: string; add_category?: string };
     hash?: string;
   };
-  fleetId?: number;
+  automdmId?: number;
 }
 
-const SectionWrapper = ({ router, location, fleetId = 1 }: IWrapperProps) => {
+const SectionWrapper = ({ router, location, automdmId = 1 }: IWrapperProps) => {
   const {
     isGlobalAdmin,
     isGlobalMaintainer,
@@ -62,7 +62,7 @@ const SectionWrapper = ({ router, location, fleetId = 1 }: IWrapperProps) => {
     <SelfServiceCategoriesSection
       router={router}
       location={location}
-      fleetId={fleetId}
+      automdmId={automdmId}
       isRouteOk
       canManage={canManage}
       gitOpsModeEnabled={gitOpsModeEnabled}
@@ -83,8 +83,8 @@ const baseProps = {
   router: createMockRouter(),
   location: {
     pathname: "/software/library/settings/categories",
-    search: "?fleet_id=1",
-    query: { fleet_id: "1" },
+    search: "?team_id=1",
+    query: { team_id: "1" },
     hash: "",
   },
 };
@@ -107,7 +107,7 @@ const premiumAdminGitOpsContext = {
     config: createMockConfig({
       gitops: {
         gitops_mode_enabled: true,
-        repository_url: "https://github.com/example/fleet-gitops",
+        repository_url: "https://github.com/example/automdm-gitops",
         exceptions: { labels: false, software: false, secrets: true },
       },
     }),
@@ -267,7 +267,7 @@ describe("SelfServiceCategoriesSection", () => {
 
     expect(
       await within(modal).findByText(
-        "A self-service category with this name already exists in this fleet."
+        "A self-service category with this name already exists in this team."
       )
     ).toBeInTheDocument();
     expect(notify.success).not.toHaveBeenCalled();
@@ -324,7 +324,7 @@ describe("SelfServiceCategoriesSection", () => {
 
     expect(
       await within(modal).findByText(
-        "A self-service category with this name already exists in this fleet."
+        "A self-service category with this name already exists in this team."
       )
     ).toBeInTheDocument();
     expect(notify.success).not.toHaveBeenCalled();
@@ -582,8 +582,8 @@ describe("SelfServiceCategoriesSection ?add_category=1 deep-link", () => {
     router,
     location: {
       pathname: "/software/library/settings/categories",
-      search: "?fleet_id=1&add_category=1",
-      query: { fleet_id: "1", add_category: "1" },
+      search: "?team_id=1&add_category=1",
+      query: { team_id: "1", add_category: "1" },
       hash: "",
     },
   });
@@ -606,7 +606,7 @@ describe("SelfServiceCategoriesSection ?add_category=1 deep-link", () => {
 
     expect(router.replace).toHaveBeenCalledWith({
       pathname: "/software/library/settings/categories",
-      query: { fleet_id: "1" },
+      query: { team_id: "1" },
     });
   });
 
@@ -622,8 +622,8 @@ describe("SelfServiceCategoriesSection ?add_category=1 deep-link", () => {
       router,
       location: {
         pathname: "/software/library/settings/categories",
-        search: "?fleet_id=1",
-        query: { fleet_id: "1" },
+        search: "?team_id=1",
+        query: { team_id: "1" },
         hash: "",
       },
     };
@@ -661,7 +661,7 @@ describe("SelfServiceCategoriesSection ?add_category=1 deep-link", () => {
     await waitFor(() => {
       expect(router.replace).toHaveBeenCalledWith({
         pathname: "/software/library/settings/categories",
-        query: { fleet_id: "1" },
+        query: { team_id: "1" },
       });
     });
 
@@ -692,7 +692,7 @@ describe("SelfServiceCategoriesSection ?add_category=1 deep-link", () => {
     await waitFor(() => {
       expect(router.replace).toHaveBeenCalledWith({
         pathname: "/software/library/settings/categories",
-        query: { fleet_id: "1" },
+        query: { team_id: "1" },
       });
     });
 

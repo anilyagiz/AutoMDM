@@ -8,9 +8,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
 	"github.com/jmoiron/sqlx"
 	"golang.org/x/text/unicode/norm"
 )
@@ -21,32 +21,32 @@ var customHostVitalAllowedOrderKeys = common_mysql.OrderKeyAllowlist{
 	"updated_at": "updated_at",
 }
 
-func (ds *Datastore) CreateCustomHostVital(ctx context.Context, name string) (fleet.CustomHostVital, error) {
+func (ds *Datastore) CreateCustomHostVital(ctx context.Context, name string) (automdm.CustomHostVital, error) {
 	res, err := ds.writer(ctx).ExecContext(ctx,
 		`INSERT INTO custom_host_vitals (name) VALUES (?)`,
 		name,
 	)
 	if err != nil {
 		if IsDuplicate(err) {
-			return fleet.CustomHostVital{}, ctxerr.Wrap(ctx, alreadyExists("name", name), "found duplicate")
+			return automdm.CustomHostVital{}, ctxerr.Wrap(ctx, alreadyExists("name", name), "found duplicate")
 		}
-		return fleet.CustomHostVital{}, ctxerr.Wrap(ctx, err, "insert custom host vital")
+		return automdm.CustomHostVital{}, ctxerr.Wrap(ctx, err, "insert custom host vital")
 	}
 	id, _ := res.LastInsertId()
-	return fleet.CustomHostVital{ID: uint(id), Name: name}, nil //nolint:gosec // dismiss G115
+	return automdm.CustomHostVital{ID: uint(id), Name: name}, nil //nolint:gosec // dismiss G115
 }
 
-func (ds *Datastore) ListCustomHostVitals(ctx context.Context, opt fleet.ListOptions) (
-	customHostVitals []fleet.CustomHostVital, meta *fleet.PaginationMetadata, count int, err error,
+func (ds *Datastore) ListCustomHostVitals(ctx context.Context, opt automdm.ListOptions) (
+	customHostVitals []automdm.CustomHostVital, meta *automdm.PaginationMetadata, count int, err error,
 ) {
 	stmt := `SELECT id, name, created_at, updated_at FROM custom_host_vitals WHERE true`
 
 	// normalize the name for full Unicode support (Unicode equivalence).
 	// Search matches the name OR the variable name (the derived
-	// `$FLEET_HOST_VITAL_<id>` token). The second column is a hardcoded SQL
+	// `$AUTOMDM_HOST_VITAL_<id>` token). The second column is a hardcoded SQL
 	// expression (not user input); searchLike escapes the LIKE pattern.
 	normMatch := norm.NFC.String(opt.MatchQuery)
-	whereClauses, args := searchLike("", nil, normMatch, "name", `CONCAT('$FLEET_HOST_VITAL_', id)`)
+	whereClauses, args := searchLike("", nil, normMatch, "name", `CONCAT('$AUTOMDM_HOST_VITAL_', id)`)
 	stmt += whereClauses
 
 	// perform a second query to grab the count
@@ -67,7 +67,7 @@ func (ds *Datastore) ListCustomHostVitals(ctx context.Context, opt fleet.ListOpt
 	}
 
 	if opt.IncludeMetadata {
-		meta = &fleet.PaginationMetadata{
+		meta = &automdm.PaginationMetadata{
 			HasPreviousResults: opt.Page > 0,
 			TotalResults:       uint(count), //nolint:gosec // dismiss G115
 		}
@@ -81,16 +81,16 @@ func (ds *Datastore) ListCustomHostVitals(ctx context.Context, opt fleet.ListOpt
 	return customHostVitals, meta, count, nil
 }
 
-func (ds *Datastore) UpdateCustomHostVital(ctx context.Context, id uint, name string) (fleet.CustomHostVital, error) {
+func (ds *Datastore) UpdateCustomHostVital(ctx context.Context, id uint, name string) (automdm.CustomHostVital, error) {
 	res, err := ds.writer(ctx).ExecContext(ctx,
 		`UPDATE custom_host_vitals SET name = ? WHERE id = ?`,
 		name, id,
 	)
 	if err != nil {
 		if IsDuplicate(err) {
-			return fleet.CustomHostVital{}, ctxerr.Wrap(ctx, alreadyExists("name", name), "found duplicate")
+			return automdm.CustomHostVital{}, ctxerr.Wrap(ctx, alreadyExists("name", name), "found duplicate")
 		}
-		return fleet.CustomHostVital{}, ctxerr.Wrap(ctx, err, "update custom host vital")
+		return automdm.CustomHostVital{}, ctxerr.Wrap(ctx, err, "update custom host vital")
 	}
 	affected, _ := res.RowsAffected()
 	if affected == 0 {
@@ -102,12 +102,12 @@ func (ds *Datastore) UpdateCustomHostVital(ctx context.Context, id uint, name st
 		if err := sqlx.GetContext(ctx, ds.writer(ctx), &exists,
 			`SELECT 1 FROM custom_host_vitals WHERE id = ?`, id); err != nil {
 			if err == sql.ErrNoRows {
-				return fleet.CustomHostVital{}, ctxerr.Wrap(ctx, notFound("CustomHostVital").WithID(id))
+				return automdm.CustomHostVital{}, ctxerr.Wrap(ctx, notFound("CustomHostVital").WithID(id))
 			}
-			return fleet.CustomHostVital{}, ctxerr.Wrap(ctx, err, "check custom host vital exists")
+			return automdm.CustomHostVital{}, ctxerr.Wrap(ctx, err, "check custom host vital exists")
 		}
 	}
-	return fleet.CustomHostVital{ID: id, Name: name}, nil
+	return automdm.CustomHostVital{ID: id, Name: name}, nil
 }
 
 func (ds *Datastore) DeleteCustomHostVital(ctx context.Context, id uint) (name string, err error) {
@@ -124,7 +124,7 @@ func (ds *Datastore) DeleteCustomHostVital(ctx context.Context, id uint) (name s
 		if usedByInfo, err := ds.customHostVitalUsedBy(ctx, tx, id, name); err != nil {
 			return ctxerr.Wrap(ctx, err, "checking custom host vital references")
 		} else if usedByInfo != nil {
-			return ctxerr.Wrap(ctx, &fleet.CustomHostVitalUsedError{CustomHostVitalUsedInfo: *usedByInfo}, "found custom host vital in use")
+			return ctxerr.Wrap(ctx, &automdm.CustomHostVitalUsedError{CustomHostVitalUsedInfo: *usedByInfo}, "found custom host vital in use")
 		}
 
 		if _, err := tx.ExecContext(ctx, `DELETE FROM custom_host_vitals WHERE id = ?`, id); err != nil {
@@ -138,15 +138,15 @@ func (ds *Datastore) DeleteCustomHostVital(ctx context.Context, id uint) (name s
 	return name, nil
 }
 
-// customHostVitalRefEntity is a script or profile scanned for $FLEET_HOST_VITAL_<id>
+// customHostVitalRefEntity is a script or profile scanned for $AUTOMDM_HOST_VITAL_<id>
 // references during delete-protection.
 type customHostVitalRefEntity struct {
 	// Type is the entity type, "script", "apple_profile", "apple_declaration", or "windows_profile".
 	Type string `db:"entity"`
 	// Name is the name of the entity.
 	Name string `db:"name"`
-	// FleetName is the name of the fleet (team) the entity belongs to.
-	FleetName string `db:"team_name"`
+	// AutoMDMName is the name of the team (team) the entity belongs to.
+	AutoMDMName string `db:"team_name"`
 	// Contents is the content of the entity (script's/profile's body).
 	Contents string `db:"contents"`
 }
@@ -154,16 +154,16 @@ type customHostVitalRefEntity struct {
 // customHostVitalUsedBy scans scripts, Apple configuration profiles, Apple
 // declarations, Windows configuration profiles, Android configuration
 // profiles, software installer scripts, setup-experience scripts, and
-// team/No-team host name templates for a $FLEET_HOST_VITAL_<id> (or
-// ${FLEET_HOST_VITAL_<id>}) reference to the given vital id, then separately
+// team/No-team host name templates for a $AUTOMDM_HOST_VITAL_<id> (or
+// ${AUTOMDM_HOST_VITAL_<id>}) reference to the given vital id, then separately
 // checks host-vitals labels (which reference the vital by id in their
-// criteria JSON, not via the token). It returns a *fleet.CustomHostVitalUsedInfo
+// criteria JSON, not via the token). It returns an *automdm.CustomHostVitalUsedInfo
 // describing the first referencing entity found, or nil if unreferenced.
 // Mirrors the scan structure of DeleteSecretVariable. The second return is a
 // real DB error.
-func (ds *Datastore) customHostVitalUsedBy(ctx context.Context, tx sqlx.ExtContext, id uint, name string) (*fleet.CustomHostVitalUsedInfo, error) {
+func (ds *Datastore) customHostVitalUsedBy(ctx context.Context, tx sqlx.ExtContext, id uint, name string) (*automdm.CustomHostVitalUsedInfo, error) {
 	// The token embeds the numeric id (survives renames), so match by id, not name.
-	token := fmt.Sprintf("%s%d", fleet.CustomHostVitalPrefix, id)
+	token := fmt.Sprintf("%s%d", automdm.CustomHostVitalPrefix, id)
 
 	// Each scan mirrors DeleteSecretVariable: pull the content column of every
 	// script/profile/declaration and check for the token in Go (os.Expand-based,
@@ -253,7 +253,7 @@ func (ds *Datastore) customHostVitalUsedBy(ctx context.Context, tx sqlx.ExtConte
 		},
 		// Host name templates aren't scripts/profiles, but the token can appear in
 		// a team's (or "No team"'s) name_template, same as DeleteSecretVariable
-		// scans for $FLEET_SECRET_* there. A team's name_template is a plain
+		// scans for $AUTOMDM_SECRET_* there. A team's name_template is a plain
 		// string that always serializes into the config JSON (as "" when unset),
 		// and the No-team template is an optjson that serializes to null when
 		// unset, so filter both on a non-empty resolved value rather than
@@ -278,14 +278,14 @@ func (ds *Datastore) customHostVitalUsedBy(ctx context.Context, tx sqlx.ExtConte
 			return nil, ctxerr.Wrap(ctx, err, scan.desc)
 		}
 		for _, e := range entities {
-			if fleet.ContainsVar(e.Contents, token) {
-				return &fleet.CustomHostVitalUsedInfo{
+			if automdm.ContainsVar(e.Contents, token) {
+				return &automdm.CustomHostVitalUsedInfo{
 					CustomHostVitalID:   id,
 					CustomHostVitalName: name,
-					Entity: fleet.EntityUsingCustomHostVital{
-						Type:      fleet.CustomHostVitalEntity(e.Type),
-						Name:      e.Name,
-						FleetName: e.FleetName,
+					Entity: automdm.EntityUsingCustomHostVital{
+						Type:        automdm.CustomHostVitalEntity(e.Type),
+						Name:        e.Name,
+						AutoMDMName: e.AutoMDMName,
 					},
 				}, nil
 			}
@@ -293,22 +293,22 @@ func (ds *Datastore) customHostVitalUsedBy(ctx context.Context, tx sqlx.ExtConte
 	}
 
 	// Host-vitals labels reference the vital by id inside their criteria JSON
-	// (not by the $FLEET_HOST_VITAL_<id> token), so they need a structured check
+	// (not by the $AUTOMDM_HOST_VITAL_<id> token), so they need a structured check
 	// rather than the content-token scan above.
 	var labels []struct {
-		Name      string          `db:"name"`
-		FleetName string          `db:"team_name"`
-		Criteria  json.RawMessage `db:"criteria"`
+		Name        string          `db:"name"`
+		AutoMDMName string          `db:"team_name"`
+		Criteria    json.RawMessage `db:"criteria"`
 	}
 	labelStmt := `SELECT l.name, COALESCE(t.name, 'Unassigned') AS team_name, l.criteria
 		FROM labels l
 		LEFT JOIN teams t ON t.id = l.team_id
 		WHERE l.label_membership_type = ? AND l.criteria IS NOT NULL`
-	if err := sqlx.SelectContext(ctx, tx, &labels, labelStmt, fleet.LabelMembershipTypeHostVitals); err != nil {
+	if err := sqlx.SelectContext(ctx, tx, &labels, labelStmt, automdm.LabelMembershipTypeHostVitals); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "get host vitals label criteria")
 	}
 	for _, l := range labels {
-		var criteria fleet.HostVitalCriteria
+		var criteria automdm.HostVitalCriteria
 		// A label with malformed criteria is already broken; skip it rather than
 		// block the delete on it.
 		if err := json.Unmarshal(l.Criteria, &criteria); err != nil {
@@ -317,13 +317,13 @@ func (ds *Datastore) customHostVitalUsedBy(ctx context.Context, tx sqlx.ExtConte
 			continue
 		}
 		if criteria.CustomHostVitalID != nil && *criteria.CustomHostVitalID == id {
-			return &fleet.CustomHostVitalUsedInfo{
+			return &automdm.CustomHostVitalUsedInfo{
 				CustomHostVitalID:   id,
 				CustomHostVitalName: name,
-				Entity: fleet.EntityUsingCustomHostVital{
-					Type:      fleet.CustomHostVitalEntityLabel,
-					Name:      l.Name,
-					FleetName: l.FleetName,
+				Entity: automdm.EntityUsingCustomHostVital{
+					Type:        automdm.CustomHostVitalEntityLabel,
+					Name:        l.Name,
+					AutoMDMName: l.AutoMDMName,
 				},
 			}, nil
 		}
@@ -345,7 +345,7 @@ func (ds *Datastore) SetHostCustomHostVitalValue(ctx context.Context, hostID uin
 
 		// Re-queue any MDM profiles/declarations already delivered to this host
 		// that reference the vital, so the reconcilers re-expand
-		// $FLEET_HOST_VITAL_<id> with the new value. Runs in the same transaction
+		// $AUTOMDM_HOST_VITAL_<id> with the new value. Runs in the same transaction
 		// as the value write so the reconciler never reads a stale value.
 		if err := resendMDMProfilesForCustomHostVital(ctx, tx, hostID, vitalID); err != nil {
 			return ctxerr.Wrap(ctx, err, "resend mdm profiles for custom host vital value change")
@@ -372,14 +372,14 @@ func (ds *Datastore) SetHostCustomHostVitalValue(ctx context.Context, hostID uin
 
 // resendMDMProfilesForCustomHostVital resets the status of the Apple/Windows/
 // Android configuration profiles and Apple DDM declarations already delivered
-// to the host that reference $FLEET_HOST_VITAL_<vitalID>, so the reconcilers
+// to the host that reference $AUTOMDM_HOST_VITAL_<vitalID>, so the reconcilers
 // resend them with the host's newly-set value. Mirrors triggerResendProfilesUsingVariables,
 // but matches by profile/declaration content because custom host vitals aren't
 // tracked in mdm_configuration_profile_variables. Declarations only reset status
 // (the DDM reconciler re-stamps variables_updated_at, cache-busting the token).
 //
 // Unlike the IdP resend, this deliberately omits certificate templates: a
-// vital can't reach them (they only take fleet_variables). Android managed app
+// vital can't reach them (they only take automdm_variables). Android managed app
 // config is handled separately by resendAndroidAppConfigsForCustomHostVital.
 func resendMDMProfilesForCustomHostVital(ctx context.Context, tx sqlx.ExtContext, hostID, vitalID uint) error {
 	var hostUUID string
@@ -394,12 +394,12 @@ func resendMDMProfilesForCustomHostVital(ctx context.Context, tx sqlx.ExtContext
 	// ${...}-aware, by ContainsVar in Go. The INSTR prefix filter in SQL only
 	// narrows candidates; it deliberately over-matches (ignores the id) so the
 	// Go pass does the authoritative match.
-	varName := fmt.Sprintf("%s%d", fleet.CustomHostVitalPrefix, vitalID)
+	varName := fmt.Sprintf("%s%d", automdm.CustomHostVitalPrefix, vitalID)
 
 	// These SELECTs filter on host_uuid first — the leftmost column of each
 	// host-profile table's PRIMARY KEY (host_uuid, {profile,declaration}_uuid) —
 	// so the INSTR content match only evaluates this one host's rows, not the
-	// whole table; cost is independent of fleet size.
+	// whole table; cost is independent of team size.
 	const (
 		customHostVitalResendAppleProfilesSelectStmt = `SELECT hmap.profile_uuid AS uuid, macp.mobileconfig AS contents
 			FROM host_mdm_apple_profiles hmap
@@ -470,13 +470,13 @@ func resendMDMProfilesForCustomHostVital(ctx context.Context, tx sqlx.ExtContext
 			Contents string `db:"contents"`
 		}
 		if err := sqlx.SelectContext(ctx, tx, &rows, tgt.selectStmt,
-			hostUUID, fleet.MDMOperationTypeInstall, fleet.CustomHostVitalPrefix); err != nil {
+			hostUUID, automdm.MDMOperationTypeInstall, automdm.CustomHostVitalPrefix); err != nil {
 			return ctxerr.Wrap(ctx, err, "select "+tgt.desc+" referencing custom host vital")
 		}
 
 		var uuids []string
 		for _, r := range rows {
-			if fleet.ContainsVar(r.Contents, varName) {
+			if automdm.ContainsVar(r.Contents, varName) {
 				uuids = append(uuids, r.UUID)
 			}
 		}
@@ -484,7 +484,7 @@ func resendMDMProfilesForCustomHostVital(ctx context.Context, tx sqlx.ExtContext
 			continue
 		}
 
-		stmt, args, err := sqlx.In(tgt.updateStmt, hostUUID, fleet.MDMOperationTypeInstall, uuids)
+		stmt, args, err := sqlx.In(tgt.updateStmt, hostUUID, automdm.MDMOperationTypeInstall, uuids)
 		if err != nil {
 			return ctxerr.Wrap(ctx, err, "build resend update for "+tgt.desc)
 		}
@@ -504,10 +504,10 @@ func resendMDMProfilesForCustomHostVital(ctx context.Context, tx sqlx.ExtContext
 }
 
 // Flags the host's Android apps whose configuration references
-// $FLEET_HOST_VITAL_<vitalID>, so the Android app reconciler will send them
+// $AUTOMDM_HOST_VITAL_<vitalID>, so the Android app reconciler will send them
 // with the new value.
 func resendAndroidAppConfigsForCustomHostVital(ctx context.Context, tx sqlx.ExtContext, hostID, vitalID uint) error {
-	varName := fmt.Sprintf("%s%d", fleet.CustomHostVitalPrefix, vitalID)
+	varName := fmt.Sprintf("%s%d", automdm.CustomHostVitalPrefix, vitalID)
 
 	const selectStmt = `
 SELECT
@@ -531,7 +531,7 @@ WHERE
 
 	var appTeamIDs []uint
 	for _, candidate := range candidates {
-		if !fleet.ContainsVar(candidate.Configuration, varName) {
+		if !automdm.ContainsVar(candidate.Configuration, varName) {
 			continue
 		}
 		appTeamIDs = append(appTeamIDs, candidate.AppTeamID)
@@ -545,7 +545,7 @@ WHERE
 // Mirrors queueManagedConfigResendJobs, which can't be reused because custom
 // host vitals aren't tracked in mdm_configuration_profile_variables.
 func resendAppleAppStoreAppConfigsForCustomHostVital(ctx context.Context, tx sqlx.ExtContext, hostID, vitalID uint) error {
-	varName := fmt.Sprintf("%s%d", fleet.CustomHostVitalPrefix, vitalID)
+	varName := fmt.Sprintf("%s%d", automdm.CustomHostVitalPrefix, vitalID)
 
 	// Skip a version when the host is in scope for an earlier version of the
 	// same app: the host gets the configuration of that earlier version.
@@ -572,13 +572,13 @@ WHERE
 		AppTeamID     uint   `db:"app_team_id"`
 		Configuration string `db:"configuration"`
 	}
-	if err := sqlx.SelectContext(ctx, tx, &candidates, selectStmt, hostID, fleet.AndroidPlatform, varName); err != nil {
+	if err := sqlx.SelectContext(ctx, tx, &candidates, selectStmt, hostID, automdm.AndroidPlatform, varName); err != nil {
 		return ctxerr.Wrap(ctx, err, "select apple app store app configs referencing custom host vital")
 	}
 
 	var appTeamIDs []uint
 	for _, candidate := range candidates {
-		if fleet.ContainsVar(candidate.Configuration, varName) {
+		if automdm.ContainsVar(candidate.Configuration, varName) {
 			appTeamIDs = append(appTeamIDs, candidate.AppTeamID)
 		}
 	}
@@ -602,8 +602,8 @@ WHERE hvsi.host_id = ? AND vat.id IN (?) AND hvsi.canceled = 0`, hostID, appTeam
 	return nil
 }
 
-func (ds *Datastore) GetHostCustomHostVitals(ctx context.Context, hostID uint) ([]fleet.HostCustomHostVital, error) {
-	var vitals []fleet.HostCustomHostVital
+func (ds *Datastore) GetHostCustomHostVitals(ctx context.Context, hostID uint) ([]automdm.HostCustomHostVital, error) {
+	var vitals []automdm.HostCustomHostVital
 	err := sqlx.SelectContext(ctx, ds.reader(ctx), &vitals, `
 		SELECT chv.id AS custom_host_vital_id, chv.name, COALESCE(hchv.value, '') AS value
 		FROM custom_host_vitals chv
@@ -618,13 +618,13 @@ func (ds *Datastore) GetHostCustomHostVitals(ctx context.Context, hostID uint) (
 	return vitals, nil
 }
 
-// ExpandCustomHostVitals substitutes $FLEET_HOST_VITAL_<id> tokens in the
+// ExpandCustomHostVitals substitutes $AUTOMDM_HOST_VITAL_<id> tokens in the
 // document with the given host's stored values, applying format-aware escaping
 // (JSON/XML) like expandEmbeddedSecrets. If a referenced vital has no value for
 // the host (no row, or an empty value), it returns a MissingCustomHostVitalValueError
 // so delivery fails rather than substituting an empty value (product decision).
 func (ds *Datastore) ExpandCustomHostVitals(ctx context.Context, hostID uint, document string) (string, error) {
-	refIDs := fleet.FindCustomHostVitalIDs(document)
+	refIDs := automdm.FindCustomHostVitalIDs(document)
 	if len(refIDs) == 0 {
 		return document, nil
 	}
@@ -656,14 +656,14 @@ func (ds *Datastore) ExpandCustomHostVitals(ctx context.Context, hostID uint, do
 	}
 	if len(missingIDs) > 0 {
 		// The vital exists (validated on upload); the host just has no value for it.
-		return "", &fleet.MissingCustomHostVitalValueError{MissingIDs: missingIDs, MissingNames: missingNames}
+		return "", &automdm.MissingCustomHostVitalValueError{MissingIDs: missingIDs, MissingNames: missingNames}
 	}
 
 	expanded, _ := expandDocumentVars(document, func(s string) (string, bool) {
-		if !strings.HasPrefix(s, fleet.CustomHostVitalPrefix) {
+		if !strings.HasPrefix(s, automdm.CustomHostVitalPrefix) {
 			return "", false
 		}
-		id, parseErr := strconv.ParseUint(strings.TrimPrefix(s, fleet.CustomHostVitalPrefix), 10, strconv.IntSize)
+		id, parseErr := strconv.ParseUint(strings.TrimPrefix(s, automdm.CustomHostVitalPrefix), 10, strconv.IntSize)
 		if parseErr != nil {
 			return "", false
 		}
@@ -674,7 +674,7 @@ func (ds *Datastore) ExpandCustomHostVitals(ctx context.Context, hostID uint, do
 	return expanded, nil
 }
 
-// ValidateReferencedCustomHostVitals parses $FLEET_HOST_VITAL_<id> tokens from
+// ValidateReferencedCustomHostVitals parses $AUTOMDM_HOST_VITAL_<id> tokens from
 // the given documents and verifies every referenced id resolves to a definition.
 // Mirrors ValidateEmbeddedSecrets. Returns a MissingCustomHostVitalsError listing
 // any unknown ids.
@@ -683,22 +683,22 @@ func (ds *Datastore) ValidateReferencedCustomHostVitals(ctx context.Context, doc
 	var malformed []string
 	seenMalformed := make(map[string]struct{})
 	for _, document := range documents {
-		// A $FLEET_HOST_VITAL_<x> token whose <x> isn't a valid ID (e.g. a typo like
-		// $FLEET_HOST_VITAL_asset_tag) is rejected rather than silently delivered as
-		// a literal token, matching how $FLEET_VAR_*/$FLEET_SECRET_* reject unknowns.
-		for _, ref := range fleet.ContainsMalformedCustomHostVitalRefs(document) {
+		// A $AUTOMDM_HOST_VITAL_<x> token whose <x> isn't a valid ID (e.g. a typo like
+		// $AUTOMDM_HOST_VITAL_asset_tag) is rejected rather than silently delivered as
+		// a literal token, matching how $AUTOMDM_VAR_*/$AUTOMDM_SECRET_* reject unknowns.
+		for _, ref := range automdm.ContainsMalformedCustomHostVitalRefs(document) {
 			if _, ok := seenMalformed[ref]; ok {
 				continue
 			}
 			seenMalformed[ref] = struct{}{}
 			malformed = append(malformed, ref)
 		}
-		for _, id := range fleet.FindCustomHostVitalIDs(document) {
+		for _, id := range automdm.FindCustomHostVitalIDs(document) {
 			wantIDs[id] = struct{}{}
 		}
 	}
 	if len(malformed) > 0 {
-		return &fleet.InvalidCustomHostVitalRefError{Refs: malformed}
+		return &automdm.InvalidCustomHostVitalRefError{Refs: malformed}
 	}
 	if len(wantIDs) == 0 {
 		return nil
@@ -726,12 +726,12 @@ func (ds *Datastore) ValidateReferencedCustomHostVitals(ctx context.Context, doc
 		}
 	}
 	if len(missingIDs) > 0 {
-		return &fleet.MissingCustomHostVitalsError{MissingIDs: missingIDs}
+		return &automdm.MissingCustomHostVitalsError{MissingIDs: missingIDs}
 	}
 	return nil
 }
 
-func (ds *Datastore) GetCustomHostVitals(ctx context.Context, ids []uint) ([]fleet.CustomHostVital, error) {
+func (ds *Datastore) GetCustomHostVitals(ctx context.Context, ids []uint) ([]automdm.CustomHostVital, error) {
 	stmt, args, err := sqlx.In(`
 		SELECT id, name, created_at, updated_at
 		FROM custom_host_vitals
@@ -740,14 +740,14 @@ func (ds *Datastore) GetCustomHostVitals(ctx context.Context, ids []uint) ([]fle
 		return nil, ctxerr.Wrap(ctx, err, "build custom host vitals query")
 	}
 
-	var vitals []fleet.CustomHostVital
+	var vitals []automdm.CustomHostVital
 	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &vitals, stmt, args...); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "get custom host vitals")
 	}
 	return vitals, nil
 }
 
-func (ds *Datastore) UpsertCustomHostVitals(ctx context.Context, vitals []fleet.CustomHostVital) (created []fleet.CustomHostVital, deleted []fleet.CustomHostVital, err error) {
+func (ds *Datastore) UpsertCustomHostVitals(ctx context.Context, vitals []automdm.CustomHostVital) (created []automdm.CustomHostVital, deleted []automdm.CustomHostVital, err error) {
 	incomingNames := make(map[string]struct{}, len(vitals))
 	for _, v := range vitals {
 		incomingNames[v.Name] = struct{}{}
@@ -756,7 +756,7 @@ func (ds *Datastore) UpsertCustomHostVitals(ctx context.Context, vitals []fleet.
 	err = ds.withRetryTxx(ctx, func(tx sqlx.ExtContext) error {
 		created, deleted = nil, nil
 
-		var existing []fleet.CustomHostVital
+		var existing []automdm.CustomHostVital
 		if err := sqlx.SelectContext(ctx, tx, &existing, `SELECT id, name FROM custom_host_vitals`); err != nil {
 			return ctxerr.Wrap(ctx, err, "list existing custom host vitals")
 		}
@@ -782,7 +782,7 @@ func (ds *Datastore) UpsertCustomHostVitals(ctx context.Context, vitals []fleet.
 				return ctxerr.Wrap(ctx, err, "checking custom host vital references")
 			}
 			if usedByInfo != nil {
-				return ctxerr.Wrap(ctx, &fleet.CustomHostVitalUsedError{CustomHostVitalUsedInfo: *usedByInfo}, "found custom host vital in use")
+				return ctxerr.Wrap(ctx, &automdm.CustomHostVitalUsedError{CustomHostVitalUsedInfo: *usedByInfo}, "found custom host vital in use")
 			}
 		}
 
@@ -808,7 +808,7 @@ func (ds *Datastore) UpsertCustomHostVitals(ctx context.Context, vitals []fleet.
 				return ctxerr.Wrap(ctx, err, "insert custom host vital")
 			}
 			id, _ := res.LastInsertId()
-			created = append(created, fleet.CustomHostVital{ID: uint(id), Name: name}) //nolint:gosec // dismiss G115
+			created = append(created, automdm.CustomHostVital{ID: uint(id), Name: name}) //nolint:gosec // dismiss G115
 		}
 
 		return nil

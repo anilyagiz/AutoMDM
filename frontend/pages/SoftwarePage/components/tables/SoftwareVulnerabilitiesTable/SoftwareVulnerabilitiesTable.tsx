@@ -16,7 +16,7 @@ import { AppContext } from "context/app";
 import { DisplayPlatform } from "interfaces/platform";
 import { ISoftwareVulnerability } from "interfaces/software";
 import PATHS from "router/paths";
-import { CONTACT_FLEET_LINK } from "utilities/constants";
+import { CONTACT_AUTOMDM_LINK } from "utilities/constants";
 import { getPathWithQueryParams } from "utilities/url";
 
 import generateTableConfig from "./SoftwareVulnerabilitiesTableConfig";
@@ -39,8 +39,8 @@ const NoVulnsDetected = ({ itemName }: INoVulnsDetectedProps): JSX.Element => {
         <>
           Expecting to see vulnerabilities?{" "}
           <CustomLink
-            url={"https://fleetdm.com/guides/vulnerability-processing#coverage"}
-            text="What Fleet covers"
+            url={"https://automdm.com/guides/vulnerability-processing#coverage"}
+            text="What AutoMDM covers"
             newTab
           />
         </>
@@ -57,7 +57,7 @@ export const VulnsNotSupported = ({
     info={
       <>
         Interested in vulnerabilities in {platformText ?? "this platform"}?{" "}
-        <CustomLink url={CONTACT_FLEET_LINK} text="Let us know" newTab />
+        <CustomLink url={CONTACT_AUTOMDM_LINK} text="Let us know" newTab />
       </>
     }
   />
@@ -98,7 +98,7 @@ const SoftwareVulnerabilitiesTable = ({
       const softwareVulnerabilityDetailsPath = getPathWithQueryParams(
         PATHS.SOFTWARE_VULNERABILITY_DETAILS(cveName),
         {
-          fleet_id: teamIdForApi,
+          team_id: teamIdForApi,
         }
       );
 

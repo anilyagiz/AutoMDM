@@ -1,9 +1,9 @@
 # GoToMeeting MSI machine-wide install.
 #   G2MINSTALLFORALLUSERS=1 installs for all users (the installer defaults to
-#   per-user, G2MINSTALLFORALLUSERS=0). Fleet runs elevated, so this produces a
+#   per-user, G2MINSTALLFORALLUSERS=0). AutoMDM runs elevated, so this produces a
 #   machine-wide install.
 
-$logFile = "${env:TEMP}/fleet-install-software.log"
+$logFile = "${env:TEMP}/automdm-install-software.log"
 
 try {
 

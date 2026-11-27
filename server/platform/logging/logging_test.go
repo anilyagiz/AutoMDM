@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/fleetdm/fleet/v4/server/platform/logging/testutils"
+	"github.com/anilyagiz/automdm/v4/server/platform/logging/testutils"
 )
 
 // newTestLogger creates a slog logger with a buffer for capturing output.

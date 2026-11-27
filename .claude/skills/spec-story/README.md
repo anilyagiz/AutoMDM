@@ -1,6 +1,6 @@
 # /spec-story
 
-`/spec-story` splits a Fleet story into sub-issues that engineers can build in parallel. It writes a technical spec doc for the engineers and a short WHAT-only body for each sub-issue. Once you approve, it creates the sub-issues, links them under the parent story, and fills in the parent's Engineering section.
+`/spec-story` splits an AutoMDM story into sub-issues that engineers can build in parallel. It writes a technical spec doc for the engineers and a short WHAT-only body for each sub-issue. Once you approve, it creates the sub-issues, links them under the parent story, and fills in the parent's Engineering section.
 
 
 ## Run it
@@ -17,13 +17,13 @@ It works in four stages: Understand, Skeleton, Draft, and Create. It stops for y
 You don't need to ask for any of these:
 
 - **Research.** It searches GitHub issues and PRs, Slack, git history, and Gong (when the story names a customer). Each source gets its own parallel subagent.
-- **Schema first.** It reads `server/datastore/mysql/schema.sql` and the migrations since the Fleet 5 baseline before it digs into code.
+- **Schema first.** It reads `server/datastore/mysql/schema.sql` and the migrations since the AutoMDM 5 baseline before it digs into code.
 - **Figma.** It pulls the `Ready` page by `node-id` and copies dev notes, tooltips, and messages word for word. It skips the cover page, which only links to the issue.
-- **Split.** It splits work by skill (backend, frontend, fleetctl and GitOps, agent) and keeps tightly linked work together. It always adds a Documentation and engineering QA sub-issue.
+- **Split.** It splits work by skill (backend, frontend, automdmctl and GitOps, agent) and keeps tightly linked work together. It always adds a Documentation and engineering QA sub-issue.
 - **Checks.** Before the skeleton gate, it reviews the design for data model, security, scalability, simplicity, and scope. A separate subagent rechecks every `file:line`, schema, and GitHub claim, first on the skeleton and again on the draft.
 - **Labels.** Every sub-issue gets the parent story's `#g-*` product group label. It reads the story's t-shirt size from the Release planning project. Sub-issues don't get a size.
-- **Two outputs.** The spec doc holds the HOW, like code anchors, code shapes, and reasons. GitHub bodies hold the WHAT, since `fleetdm/fleet` is public and code anchors go stale.
-- **Style.** It writes in Fleet's plain, casual style from `handbook/company/writing.md`.
+- **Two outputs.** The spec doc holds the HOW, like code anchors, code shapes, and reasons. GitHub bodies hold the WHAT, since `automdm/automdm` is public and code anchors go stale.
+- **Style.** It writes in AutoMDM's plain, casual style from `handbook/company/writing.md`.
 
 
 ## What to give it

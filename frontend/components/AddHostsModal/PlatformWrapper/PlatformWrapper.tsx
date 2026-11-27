@@ -98,7 +98,7 @@ const PlatformWrapper = ({
 
   const flagfileContent = `# Server
 --tls_hostname=${tlsHostname}
---tls_server_certs=fleet.pem
+--tls_server_certs=automdm.pem
 # Enrollment
 --host_identifier=instance
 --enroll_secret_path=secret.txt
@@ -150,7 +150,7 @@ const PlatformWrapper = ({
     evt.preventDefault();
 
     if (certificate && isValidPemCertificate(certificate)) {
-      const filename = "fleet.pem";
+      const filename = "automdm.pem";
       const file = new global.window.File([certificate], filename, {
         type: "application/x-pem-file",
       });
@@ -158,26 +158,26 @@ const PlatformWrapper = ({
       FileSaver.saveAs(file);
     } else {
       notify.error(
-        "Your certificate could not be downloaded. Please check your Fleet configuration."
+        "Your certificate could not be downloaded. Please check your AutoMDM configuration."
       );
     }
     return false;
   };
 
-  const renderFleetCertificateBlock = (type: "plain" | "tooltip") => {
+  const renderAutoMDMCertificateBlock = (type: "plain" | "tooltip") => {
     return (
-      <div className={`${baseClass}__advanced--fleet-certificate`}>
+      <div className={`${baseClass}__advanced--automdm-certificate`}>
         {type === "plain" ? (
           <div className={`${baseClass}__advanced--heading`}>
-            Download your Fleet certificate
+            Download your AutoMDM certificate
           </div>
         ) : (
           <div
             className={`${baseClass}__advanced--heading download-certificate--tooltip`}
           >
             Download your{" "}
-            <TooltipWrapper tipContent="A Fleet certificate is required if Fleet is running with a self signed or otherwise untrusted certificate.">
-              Fleet certificate:
+            <TooltipWrapper tipContent="An AutoMDM certificate is required if AutoMDM is running with a self signed or otherwise untrusted certificate.">
+              AutoMDM certificate:
             </TooltipWrapper>
           </div>
         )}
@@ -191,14 +191,14 @@ const PlatformWrapper = ({
             <p>
               {type === "plain" && (
                 <>
-                  Prove the TLS certificate used by the Fleet server to enable
+                  Prove the TLS certificate used by the AutoMDM server to enable
                   secure connections from osquery:
                   <br />
                 </>
               )}
               <Button
                 variant="secondary"
-                className={`${baseClass}__fleet-certificate-download`}
+                className={`${baseClass}__automdm-certificate-download`}
                 onClick={onDownloadCertificate}
                 icon="download"
                 iconPosition="right"
@@ -208,10 +208,10 @@ const PlatformWrapper = ({
             </p>
           ) : (
             <p className={`${baseClass}__certificate-error`}>
-              <em>Fleet failed to load your certificate.</em>
+              <em>AutoMDM failed to load your certificate.</em>
               <span>
-                If you&apos;re able to access Fleet at a private or secure
-                (HTTPS) IP address, please log into Fleet at this address to
+                If you&apos;re able to access AutoMDM at a private or secure
+                (HTTPS) IP address, please log into AutoMDM at this address to
                 load your certificate.
               </span>
             </p>
@@ -222,10 +222,10 @@ const PlatformWrapper = ({
 
   const renderInstallerString = (packageType: string) => {
     return packageType === "advanced"
-      ? `fleetctl package --type=YOUR_TYPE --enable-scripts --fleet-url=${config?.server_settings.server_url} --enroll-secret=${enrollSecret} --fleet-certificate=PATH_TO_YOUR_CERTIFICATE/fleet.pem`
-      : `fleetctl package --type=${packageType} --enable-scripts ${
-          hostType === "workstation" ? "--fleet-desktop " : ""
-        }--fleet-url=${
+      ? `automdmctl package --type=YOUR_TYPE --enable-scripts --automdm-url=${config?.server_settings.server_url} --enroll-secret=${enrollSecret} --automdm-certificate=PATH_TO_YOUR_CERTIFICATE/automdm.pem`
+      : `automdmctl package --type=${packageType} --enable-scripts ${
+          hostType === "workstation" ? "--automdm-desktop " : ""
+        }--automdm-url=${
           config?.server_settings.server_url
         } --enroll-secret=${enrollSecret}`;
   };
@@ -235,10 +235,10 @@ const PlatformWrapper = ({
       <>
         {packageType !== "plain-osquery" && (
           <span className={`${baseClass}__cta`}>
-            Use this command to generate Fleet&apos;s agent.{" "}
+            Use this command to generate AutoMDM&apos;s agent.{" "}
             <CustomLink
               className={`${baseClass}__command-line-tool`}
-              url={`${LEARN_MORE_ABOUT_BASE_LINK}/generate-fleets-agent`}
+              url={`${LEARN_MORE_ABOUT_BASE_LINK}/generate-teams-agent`}
               text="Learn how"
               newTab
             />
@@ -253,7 +253,7 @@ const PlatformWrapper = ({
       extensionId: "fleeedmmihkfkeemmipgmhhjemlljidg",
       installationUrl: "https://chrome.fleetdm.com/updates.xml",
       policyForExtension: `{
-  "fleet_url": {
+  "automdm_url": {
     "Value": "${config?.server_settings.server_url}"
   },
   "enroll_secret": {
@@ -298,7 +298,7 @@ const PlatformWrapper = ({
             <InfoBanner className={`${baseClass}__chromeos--instructions`}>
               For a step-by-step guide, see the documentation page for&nbsp;
               <CustomLink
-                url="https://fleetdm.com/docs/using-fleet/adding-hosts#enroll-chromebooks"
+                url="https://automdm.com/docs/using-automdm/adding-hosts#enroll-chromebooks"
                 text="adding hosts"
                 newTab
                 multiline
@@ -364,7 +364,7 @@ const PlatformWrapper = ({
     if (packageType === "advanced") {
       return (
         <>
-          {renderFleetCertificateBlock("tooltip")}
+          {renderAutoMDMCertificateBlock("tooltip")}
           <div className={`${baseClass}__advanced--installer`}>
             <InputField
               readOnly
@@ -374,7 +374,7 @@ const PlatformWrapper = ({
               label={renderLabel(packageType)}
               type="textarea"
               value={renderInstallerString(packageType)}
-              helpText="Distribute your package to add hosts to Fleet."
+              helpText="Distribute your package to add hosts to AutoMDM."
             />
           </div>
           <div>
@@ -402,7 +402,7 @@ const PlatformWrapper = ({
                   Download your enroll secret:
                 </p>
                 <p>
-                  Osquery uses an enroll secret to authenticate with the Fleet
+                  Osquery uses an enroll secret to authenticate with the AutoMDM
                   server.
                   <br />
                   <Button
@@ -415,7 +415,7 @@ const PlatformWrapper = ({
                   </Button>
                 </p>
               </div>
-              {renderFleetCertificateBlock("plain")}
+              {renderAutoMDMCertificateBlock("plain")}
               <div className={`${baseClass}__advanced--flagfile`}>
                 <p className={`${baseClass}__advanced--heading`}>
                   Download your flagfile:

@@ -5,7 +5,7 @@
 //
 // This package operates by storing a single redis key for host
 // targeting information. This key has a known prefix, and the data
-// is a bitfield representing _all_ the hosts in fleet.
+// is a bitfield representing _all_ the hosts in team.
 //
 // In this model, a live query creation is a few redis writes. While a host
 // checkin needs to scan the keys stored in a set representing all active live
@@ -72,9 +72,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/datastore/redis"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis"
 	redigo "github.com/gomodule/redigo/redis"
 	"golang.org/x/sync/singleflight"
 )
@@ -94,7 +94,7 @@ const (
 
 type redisLiveQuery struct {
 	// connection pool
-	pool fleet.RedisPool
+	pool automdm.RedisPool
 	// in memory cache
 	cache memCache
 	// in memory cache expiration
@@ -165,7 +165,7 @@ func (r *redisLiveQuery) hasReverseActiveQueries() bool {
 // smallTargetThreshold is the maximum number of targeted hosts for a query to
 // use the reverse per-host index instead of the bitfield; a value of 0 disables
 // the reverse index entirely (kill-switch), so all queries use the bitfield.
-func NewRedisLiveQuery(pool fleet.RedisPool, logger *slog.Logger, memCacheExp time.Duration, smallTargetThreshold int) *redisLiveQuery {
+func NewRedisLiveQuery(pool automdm.RedisPool, logger *slog.Logger, memCacheExp time.Duration, smallTargetThreshold int) *redisLiveQuery {
 	return &redisLiveQuery{
 		pool:                 pool,
 		cache:                newMemCache(),
@@ -1347,7 +1347,7 @@ func (r *redisLiveQuery) RecordQueryResultsLastFetched(rowIDs []uint, fetchedAt 
 		return fmt.Errorf("record query results last fetched: %w", err)
 	}
 	if added == 0 {
-		return fleet.ErrQueryResultsLastFetchedFull
+		return automdm.ErrQueryResultsLastFetchedFull
 	}
 	return nil
 }
@@ -1410,7 +1410,7 @@ func (r *redisLiveQuery) ClearProcessedQueryResultsLastFetched() error {
 const queryReportWriteSlotsKey = "query_report_write_slots"
 
 // AcquireQueryReportWriteSlot uses leases rather than a counter so slots held by a server that
-// dies are freed. Expiry is based on the Fleet servers' clocks, so clock skew between them only
+// dies are freed. Expiry is based on the AutoMDM servers' clocks, so clock skew between them only
 // shortens or extends leases by that much.
 func (r *redisLiveQuery) AcquireQueryReportWriteSlot(token string, limit int, lease time.Duration) (bool, error) {
 	// KEYS[1]: slots set

@@ -1,7 +1,7 @@
 package oval_parsed
 
 import (
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
 type RpmInfoTest struct {
@@ -15,7 +15,7 @@ type RpmInfoTest struct {
 // Eval evaluates the given test against a host's installed packages.
 // If test evaluates to true, returns all Software involved with the test match, otherwise will
 // return nil.
-func (t *RpmInfoTest) Eval(packages []fleet.Software) ([]fleet.Software, error) {
+func (t *RpmInfoTest) Eval(packages []automdm.Software) ([]automdm.Software, error) {
 	if len(packages) == 0 {
 		return nil, nil
 	}
@@ -39,10 +39,10 @@ func (t *RpmInfoTest) Eval(packages []fleet.Software) ([]fleet.Software, error) 
 //	nObjects: How many items in the set defined by the OVAL Object set exists in the system.
 //	nStates: How many items in the set defined by the OVAL Object set satisfy the state requirements.
 //	Slice with software matching both the object and state criteria.
-func (t *RpmInfoTest) matches(software []fleet.Software) (int, int, []fleet.Software, error) {
+func (t *RpmInfoTest) matches(software []automdm.Software) (int, int, []automdm.Software, error) {
 	var nObjects int
 	var nState int
-	var matches []fleet.Software
+	var matches []automdm.Software
 
 	for _, p := range software {
 		for _, o := range t.Objects {

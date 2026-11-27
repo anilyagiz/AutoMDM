@@ -6,16 +6,16 @@ import {
 
 import {
   getHostsReportColumns,
-  STRIP_FLEET_SCOPED_FILTERS_ON_ALL_FLEETS,
+  STRIP_TEAM_SCOPED_FILTERS_ON_ALL_TEAMS,
 } from "./helpers";
 
-describe("STRIP_FLEET_SCOPED_FILTERS_ON_ALL_FLEETS", () => {
+describe("STRIP_TEAM_SCOPED_FILTERS_ON_ALL_TEAMS", () => {
   const rebuild = (query: string, newTeamId: number) =>
     rebuildQueryStringWithTeamId(
       query,
       newTeamId,
       2,
-      STRIP_FLEET_SCOPED_FILTERS_ON_ALL_FLEETS
+      STRIP_TEAM_SCOPED_FILTERS_ON_ALL_TEAMS
     );
 
   it.each([
@@ -24,25 +24,25 @@ describe("STRIP_FLEET_SCOPED_FILTERS_ON_ALL_FLEETS", () => {
     "os_settings_disk_encryption=verified",
     "macos_bootstrap_package=failed",
     "software_status=failed",
-  ])("drops %s when switching to All fleets", (filter) => {
+  ])("drops %s when switching to All teams", (filter) => {
     expect(
       rebuild(
-        `?fleet_id=2&${filter}&query=mac&order_key=name`,
+        `?team_id=2&${filter}&query=mac&order_key=name`,
         APP_CONTEXT_ALL_TEAMS_ID
       )
     ).toBe("?query=mac&order_key=name");
   });
 
-  it("keeps the filter when switching to another fleet", () => {
-    expect(rebuild("?fleet_id=2&os_settings=pending", 3)).toBe(
-      "?fleet_id=3&os_settings=pending"
+  it("keeps the filter when switching to another team", () => {
+    expect(rebuild("?team_id=2&os_settings=pending", 3)).toBe(
+      "?team_id=3&os_settings=pending"
     );
   });
 
-  it("keeps the filter when switching to No fleet", () => {
+  it("keeps the filter when switching to No team", () => {
     expect(
-      rebuild("?fleet_id=2&os_settings=pending", APP_CONTEXT_NO_TEAM_ID)
-    ).toBe("?fleet_id=0&os_settings=pending");
+      rebuild("?team_id=2&os_settings=pending", APP_CONTEXT_NO_TEAM_ID)
+    ).toBe("?team_id=0&os_settings=pending");
   });
 });
 

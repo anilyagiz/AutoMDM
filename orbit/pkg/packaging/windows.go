@@ -16,12 +16,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/constant"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/packaging/wix"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/update"
-	"github.com/fleetdm/fleet/v4/pkg/file"
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/pkg/secure"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/constant"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/packaging/wix"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/update"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/pkg/file"
+	"github.com/anilyagiz/automdm/v4/pkg/secure"
 	"github.com/josephspurrier/goversioninfo"
 	"github.com/rs/zerolog/log"
 	"golang.org/x/mod/semver"
@@ -32,7 +32,7 @@ const wixDownload = "https://github.com/wixtoolset/wix3/releases/download/wix314
 // BuildMSI builds a Windows .msi.
 // Note: this function is not safe for concurrent use
 func BuildMSI(opt Options) (string, error) {
-	// fleetctl's default, so the update targets below and the file name agree.
+	// automdmctl's default, so the update targets below and the file name agree.
 	if opt.Architecture == "" {
 		opt.Architecture = ArchAmd64
 	}
@@ -131,15 +131,15 @@ func BuildMSI(opt Options) (string, error) {
 		return "", fmt.Errorf("write certs.pem: %w", err)
 	}
 
-	if opt.FleetCertificate != "" {
-		if err := writeFleetServerCertificate(opt, orbitRoot); err != nil {
-			return "", fmt.Errorf("write fleet server certificate: %w", err)
+	if opt.AutoMDMCertificate != "" {
+		if err := writeAutoMDMServerCertificate(opt, orbitRoot); err != nil {
+			return "", fmt.Errorf("write automdm server certificate: %w", err)
 		}
 	}
 
-	if opt.FleetTLSClientCertificate != "" {
-		if err := writeFleetClientCertificate(opt, orbitRoot); err != nil {
-			return "", fmt.Errorf("write fleet client certificate: %w", err)
+	if opt.AutoMDMTLSClientCertificate != "" {
+		if err := writeAutoMDMClientCertificate(opt, orbitRoot); err != nil {
+			return "", fmt.Errorf("write automdm client certificate: %w", err)
 		}
 	}
 
@@ -206,7 +206,7 @@ func BuildMSI(opt Options) (string, error) {
 			wineChecked = true
 
 			fmt.Printf("Downloading wix from %s\n", wixDownload)
-			client := fleethttp.NewClient(fleethttp.WithNoTimeout())
+			client := automdmhttp.NewClient(automdmhttp.WithNoTimeout())
 			absWixDir = filepath.Join(tmpDir, "wix")
 			if err = downloadAndExtractZip(client, wixDownload, absWixDir); err != nil {
 				return "", err
@@ -420,16 +420,16 @@ func createVersionInfo(vParts []string, manifestPath string) (*goversioninfo.Ver
 			FileSubType:   "00",
 		},
 		StringFileInfo: goversioninfo.StringFileInfo{
-			Comments:         "Fleet osquery",
+			Comments:         "AutoMDM osquery",
 			CompanyName:      constant.AgentPublisher,
-			FileDescription:  "Fleet osquery installer",
+			FileDescription:  "AutoMDM osquery installer",
 			FileVersion:      version,
 			InternalName:     "",
 			LegalCopyright:   copyright,
 			LegalTrademarks:  "",
 			OriginalFilename: "",
 			PrivateBuild:     "",
-			ProductName:      "Fleet osquery",
+			ProductName:      "AutoMDM osquery",
 			ProductVersion:   version,
 			SpecialBuild:     "",
 		},

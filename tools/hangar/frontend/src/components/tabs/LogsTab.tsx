@@ -47,8 +47,8 @@ const LOG_MIN_ROW_WIDTH_PX = 600;
 const FOLLOW_BOTTOM_TOLERANCE_PX = 40;
 
 export function LogsTab({ server }: { server: ServerProfile }) {
-  // Logs are per-server: each server's fleet-serve output lives in its own
-  // structured channel (fleet-serve-<id>).
+  // Logs are per-server: each server's automdm-serve output lives in its own
+  // structured channel (automdm-serve-<id>).
   const SOURCE = serveChannel(server.id);
   const [windowMs, setWindowMs] = useState<number | null>(10 * 60_000);
   const [search, setSearch] = useState("");
@@ -227,9 +227,9 @@ export function LogsTab({ server }: { server: ServerProfile }) {
               fontSize: "var(--fs-xx-small)",
               background: follow ? "var(--tint-success-soft)" : undefined,
               borderColor: follow
-                ? "var(--core-fleet-green)"
+                ? "var(--core-automdm-green)"
                 : "var(--app-border)",
-              color: follow ? "var(--core-fleet-green)" : "var(--app-text-dim)",
+              color: follow ? "var(--core-automdm-green)" : "var(--app-text-dim)",
             }}
           >
             <span className={`dot ${follow ? "run" : "idle"}`} /> Follow
@@ -330,7 +330,7 @@ export function LogsTab({ server }: { server: ServerProfile }) {
             }}
           >
             No log lines in this window. Start{" "}
-            <span className="mono">fleet serve</span> from the Server tab, then
+            <span className="mono">automdm serve</span> from the Server tab, then
             come back.
           </div>
         ) : (
@@ -415,7 +415,7 @@ function SnapshotToast({
         right: "var(--pad-medium)",
         bottom: 36,
         background: "var(--app-surface)",
-        border: "1px solid var(--core-fleet-green)",
+        border: "1px solid var(--core-automdm-green)",
         borderRadius: "var(--radius-md)",
         padding: "8px 12px",
         display: "flex",
@@ -426,7 +426,7 @@ function SnapshotToast({
         zIndex: 20,
       }}
     >
-      <span style={{ color: "var(--core-fleet-green)" }}>✓ Saved</span>
+      <span style={{ color: "var(--core-automdm-green)" }}>✓ Saved</span>
       <span className="mono" title={path}>
         {basename}
       </span>
@@ -552,11 +552,11 @@ function WindowPicker({
               padding: "3px 10px",
               fontSize: "var(--fs-xx-small)",
               borderRadius: "var(--radius)",
-              background: active ? "var(--core-fleet-green)" : undefined,
+              background: active ? "var(--core-automdm-green)" : undefined,
               borderColor: active
-                ? "var(--core-fleet-green)"
+                ? "var(--core-automdm-green)"
                 : "var(--app-border)",
-              color: active ? "var(--core-fleet-white)" : "var(--app-text-dim)",
+              color: active ? "var(--core-automdm-white)" : "var(--app-text-dim)",
               fontWeight: active ? 600 : 400,
             }}
           >

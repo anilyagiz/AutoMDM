@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/utils"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/utils"
 )
 
 type ObjectInfoState struct {
@@ -23,7 +23,7 @@ type ObjectInfoState struct {
 }
 
 // EvalSoftware evaluates the software against the specified state.
-func (sta ObjectInfoState) EvalSoftware(s fleet.Software) (bool, error) {
+func (sta ObjectInfoState) EvalSoftware(s automdm.Software) (bool, error) {
 	var results []bool
 
 	if sta.Name != nil {
@@ -109,7 +109,7 @@ func (sta ObjectInfoState) EvalSoftware(s fleet.Software) (bool, error) {
 	return sta.Operator.Eval(results...), nil
 }
 
-func (sta ObjectInfoState) EvalOSVersion(version fleet.OSVersion) (bool, error) {
+func (sta ObjectInfoState) EvalOSVersion(version automdm.OSVersion) (bool, error) {
 	var results []bool
 
 	// If 'sta' is used for specifying the state of a RpmVerifyFile test, 'Name' refers to the name of the

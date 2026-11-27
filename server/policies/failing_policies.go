@@ -9,8 +9,8 @@ import (
 	"log/slog"
 	"net/url"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 )
 
 // FailingPolicyAutomationType is the type of automations supported for
@@ -38,10 +38,10 @@ type FailingPolicyAutomationConfig struct {
 // enabled for that policy.
 func TriggerFailingPoliciesAutomation(
 	ctx context.Context,
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	logger *slog.Logger,
-	failingPoliciesSet fleet.FailingPolicySet,
-	sendFunc func(*fleet.Policy, FailingPolicyAutomationConfig) error,
+	failingPoliciesSet automdm.FailingPolicySet,
+	sendFunc func(*automdm.Policy, FailingPolicyAutomationConfig) error,
 ) error {
 	appConfig, err := ds.AppConfig(ctx)
 	if err != nil {
@@ -114,7 +114,7 @@ func TriggerFailingPoliciesAutomation(
 			}
 
 			if cfg.AutomationType == "" {
-				logger.DebugContext(ctx, "default fleet automation disabled", "policyID", policyID)
+				logger.DebugContext(ctx, "default team automation disabled", "policyID", policyID)
 				if err := failingPoliciesSet.RemoveSet(policy.ID); err != nil {
 					logger.ErrorContext(ctx, "failed to remove policy from set", "policyID", policyID, "err", err)
 				}
@@ -131,18 +131,18 @@ func TriggerFailingPoliciesAutomation(
 			switch {
 			case errors.Is(err, sql.ErrNoRows):
 				// shouldn't happen, unless the team was deleted after the policy was retrieved above
-				logger.DebugContext(ctx, "fleet does not exist", "fleet_id", *policy.TeamID)
+				logger.DebugContext(ctx, "team does not exist", "team_id", *policy.TeamID)
 				if err := failingPoliciesSet.RemoveSet(policy.ID); err != nil {
 					logger.ErrorContext(ctx, "failed to remove policy from set", "policyID", policy.ID, "err", err)
 				}
 				continue
 			case err != nil:
-				logger.ErrorContext(ctx, "failed to get fleet", "fleet_id", *policy.TeamID, "err", err)
+				logger.ErrorContext(ctx, "failed to get team", "team_id", *policy.TeamID, "err", err)
 				continue
 			}
 
 			if teamCfg.AutomationType == "" {
-				logger.DebugContext(ctx, "fleet automation disabled", "fleet_id", *policy.TeamID, "policyID", policyID)
+				logger.DebugContext(ctx, "team automation disabled", "team_id", *policy.TeamID, "policyID", policyID)
 				if err := failingPoliciesSet.RemoveSet(policy.ID); err != nil {
 					logger.ErrorContext(ctx, "failed to remove policy from set", "policyID", policyID, "err", err)
 				}
@@ -158,7 +158,7 @@ func TriggerFailingPoliciesAutomation(
 	return nil
 }
 
-func buildFailingPolicyAutomationConfig(webhookSettings fleet.FailingPoliciesWebhookSettings, intgs fleet.Integrations) (FailingPolicyAutomationConfig, error) {
+func buildFailingPolicyAutomationConfig(webhookSettings automdm.FailingPoliciesWebhookSettings, intgs automdm.Integrations) (FailingPolicyAutomationConfig, error) {
 	cfg := FailingPolicyAutomationConfig{}
 
 	automation := getActiveAutomation(webhookSettings, intgs)
@@ -181,7 +181,7 @@ func buildFailingPolicyAutomationConfig(webhookSettings fleet.FailingPoliciesWeb
 	return cfg, nil
 }
 
-func makeTeamConfigCache(ds fleet.Datastore, globalIntgs fleet.Integrations) func(ctx context.Context, teamID uint) (FailingPolicyAutomationConfig, error) {
+func makeTeamConfigCache(ds automdm.Datastore, globalIntgs automdm.Integrations) func(ctx context.Context, teamID uint) (FailingPolicyAutomationConfig, error) {
 	teamCfgs := make(map[uint]FailingPolicyAutomationConfig)
 
 	return func(ctx context.Context, teamID uint) (FailingPolicyAutomationConfig, error) {
@@ -210,7 +210,7 @@ func makeTeamConfigCache(ds fleet.Datastore, globalIntgs fleet.Integrations) fun
 	}
 }
 
-func makeDefaultTeamConfigCache(ds fleet.Datastore, globalIntgs fleet.Integrations, logger *slog.Logger) func(ctx context.Context) (FailingPolicyAutomationConfig, error) {
+func makeDefaultTeamConfigCache(ds automdm.Datastore, globalIntgs automdm.Integrations, logger *slog.Logger) func(ctx context.Context) (FailingPolicyAutomationConfig, error) {
 	var cached *FailingPolicyAutomationConfig
 	var cachedErr error
 
@@ -228,21 +228,21 @@ func makeDefaultTeamConfigCache(ds fleet.Datastore, globalIntgs fleet.Integratio
 		defaultTeamConfig, err := ds.DefaultTeamConfig(ctx)
 		if err != nil {
 			cachedErr = err
-			logger.ErrorContext(ctx, "failed to get default fleet config", "err", err)
+			logger.ErrorContext(ctx, "failed to get default automdm config", "err", err)
 			return cfg, err
 		}
 
 		intgs, err := defaultTeamConfig.Integrations.MatchWithIntegrations(globalIntgs)
 		if err != nil {
 			cachedErr = err
-			logger.ErrorContext(ctx, "failed to match default fleet integrations", "err", err)
+			logger.ErrorContext(ctx, "failed to match default team integrations", "err", err)
 			return cfg, err
 		}
 
 		cfg, err = buildFailingPolicyAutomationConfig(defaultTeamConfig.WebhookSettings.FailingPoliciesWebhook, intgs)
 		if err != nil {
 			// Log error but don't fail - just disable automation
-			logger.ErrorContext(ctx, "failed to build default fleet automation config", "err", err)
+			logger.ErrorContext(ctx, "failed to build default team automation config", "err", err)
 			cfg = FailingPolicyAutomationConfig{} // Return empty config
 		}
 
@@ -251,7 +251,7 @@ func makeDefaultTeamConfigCache(ds fleet.Datastore, globalIntgs fleet.Integratio
 	}
 }
 
-func getActiveAutomation(webhook fleet.FailingPoliciesWebhookSettings, intgs fleet.Integrations) FailingPolicyAutomationType {
+func getActiveAutomation(webhook automdm.FailingPoliciesWebhookSettings, intgs automdm.Integrations) FailingPolicyAutomationType {
 	// only one automation (i.e. webhook or integration) can be enabled at a
 	// time, enforced when updating the appconfig or the team config.
 	if webhook.Enable {

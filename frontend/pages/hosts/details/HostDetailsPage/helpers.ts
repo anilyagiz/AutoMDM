@@ -9,7 +9,7 @@ import {
   isWindows,
 } from "interfaces/platform";
 import { IUser } from "interfaces/user";
-import { INITIAL_FLEET_DATE } from "utilities/constants";
+import { INITIAL_AUTOMDM_DATE } from "utilities/constants";
 import permissions from "utilities/permissions";
 
 import {
@@ -41,18 +41,18 @@ export const getErrorMessage = (e: unknown, hostName: string) => {
 };
 
 // The "My device" link opens the end-user page. macOS/Windows/Linux reach it
-// with a device auth token minted by Fleet Desktop on orbit check-in, so a host
-// missing fleet_desktop_version has no live end-user surface. iOS/iPadOS don't
-// run Fleet Desktop and reach it by host UUID instead. Hide the button on wiped
+// with a device auth token minted by AutoMDM Desktop on orbit check-in, so a host
+// missing automdm_desktop_version has no live end-user surface. iOS/iPadOS don't
+// run AutoMDM Desktop and reach it by host UUID instead. Hide the button on wiped
 // hosts and on hosts with a wipe in flight — the device is about to have no
 // end-user session to review.
 export const canShowMyDeviceButton = (
   // platform is a plain string rather than HostPlatform: legacy ChromeOS hosts
   // report "CrOS", which predates the HostPlatform union.
-  host: Pick<IHost, "fleet_desktop_version" | "mdm" | "uuid"> & {
+  host: Pick<IHost, "automdm_desktop_version" | "mdm" | "uuid"> & {
     platform: string;
   },
-  fleetDesktopSSOEnabled: boolean,
+  automdmDesktopSSOEnabled: boolean,
   isPremiumTier: boolean
 ) => {
   // Android and ChromeOS have no My device page, so the link would only lead to
@@ -64,11 +64,11 @@ export const canShowMyDeviceButton = (
   ) {
     return false;
   }
-  if (!isIPadOrIPhone(host.platform) && !host.fleet_desktop_version) {
+  if (!isIPadOrIPhone(host.platform) && !host.automdm_desktop_version) {
     return false;
   }
   if (isIPadOrIPhone(host.platform)) {
-    if (fleetDesktopSSOEnabled) {
+    if (automdmDesktopSSOEnabled) {
       return false;
     }
     // The iOS/iPadOS page is only the self-service list, a Premium feature.
@@ -94,12 +94,12 @@ export const canShowMyDeviceButton = (
 // stays on until the host actually enrolls. Their last_enrolled_at holds the "never" sentinel until
 // then, which is what separates them from hosts that can return vitals.
 export const hasEverEnrolled = (host: Pick<IHost, "last_enrolled_at">) =>
-  !!host.last_enrolled_at && host.last_enrolled_at >= INITIAL_FLEET_DATE;
+  !!host.last_enrolled_at && host.last_enrolled_at >= INITIAL_AUTOMDM_DATE;
 
 // A host that has never reported vitals is still coming up (e.g. orbit is enrolled and running setup experience but osquery
 // has not checked in yet).
 export const hasReportedVitals = (host: Pick<IHost, "detail_updated_at">) =>
-  !!host.detail_updated_at && host.detail_updated_at >= INITIAL_FLEET_DATE;
+  !!host.detail_updated_at && host.detail_updated_at >= INITIAL_AUTOMDM_DATE;
 
 // Kept out of HostDetailsPage: each &&/|| there adds to rules-of-hooks' path
 // count, which that component is already at the limit of.
@@ -118,7 +118,7 @@ export const canViewHostAISessions = ({
 }: {
   isPremiumTier: boolean | undefined;
   currentUser: IUser | null;
-  host: Pick<IHost, "platform" | "fleet_id"> | undefined;
+  host: Pick<IHost, "platform" | "team_id"> | undefined;
 }) =>
   !!isPremiumTier &&
   !!host &&
@@ -127,5 +127,5 @@ export const canViewHostAISessions = ({
     isLinuxLike(host.platform)) &&
   (permissions.isGlobalAdmin(currentUser) ||
     permissions.isGlobalMaintainer(currentUser) ||
-    permissions.isTeamAdmin(currentUser, host.fleet_id) ||
-    permissions.isTeamMaintainer(currentUser, host.fleet_id));
+    permissions.isTeamAdmin(currentUser, host.team_id) ||
+    permissions.isTeamMaintainer(currentUser, host.team_id));

@@ -39,7 +39,7 @@ const SETUP_EXPERIENCE_NAV_ITEMS: ISideNavItem<ISetupExperienceCardProps>[] = [
     urlSection: "run-script",
     path: PATHS.CONTROLS_RUN_SCRIPT,
     Card: RunScript,
-    exclude: true, // Excluded from the side navigation but still available via direct route - Fleet 5 deprecation
+    exclude: true, // Excluded from the side navigation but still available via direct route - AutoMDM 5 deprecation
   },
   {
     title: "Setup Assistant",

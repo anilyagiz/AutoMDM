@@ -1,10 +1,10 @@
 # MySQL Replica Testing
 
-This directory contains scripts to run/test a local Fleet instance with a MySQL Read Replica.
+This directory contains scripts to run/test a local AutoMDM instance with a MySQL Read Replica.
 
 ## Run MySQL Main and Read Replica Docker Images
 
-> Run all commands from fleet's root repository directory.
+> Run all commands from team's root repository directory.
 >
 >The regular `docker compose up` command should be running for the other services to work.
 
@@ -22,7 +22,7 @@ make db-replica-setup
 make db-replica-reset
 ```
 
-## Run Fleet with Read Replica
+## Run AutoMDM with Read Replica
 
 ```sh
 make db-replica-run

@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -37,11 +37,11 @@ func testHostMDMAppleDeviceVitalsInsertThenUpdate(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 	host := test.NewHost(t, ds, "vitals-host", "1.1.1.1", "vitals-host-key", "vitals-host-uuid", time.Now(), test.WithPlatform("ipados"))
 
-	vitals := fleet.MDMAppleDeviceVitals{
+	vitals := automdm.MDMAppleDeviceVitals{
 		UDID:               new("00008030-AAA"),
 		BatteryLevel:       new(0.75),
 		CellularTechnology: new(int64(1)),
-		AccessibilitySettings: &fleet.MDMAppleAccessibilitySettings{
+		AccessibilitySettings: &automdm.MDMAppleAccessibilitySettings{
 			VoiceOverEnabled: new(true),
 		},
 		DevicePropertiesAttestation: [][]byte{[]byte("leaf-cert"), []byte("intermediate-cert")},
@@ -83,7 +83,7 @@ func testHostMDMAppleDeviceVitalsNullHandling(t *testing.T, ds *Datastore) {
 
 	// A field absent from the ack (nil in the Go struct) must persist as SQL
 	// NULL, not error.
-	require.NoError(t, ds.SetOrUpdateHostMDMAppleDeviceVitals(ctx, host.UUID, fleet.MDMAppleDeviceVitals{}))
+	require.NoError(t, ds.SetOrUpdateHostMDMAppleDeviceVitals(ctx, host.UUID, automdm.MDMAppleDeviceVitals{}))
 
 	var row struct {
 		UDID                   *string  `db:"udid"`
@@ -108,8 +108,8 @@ func testHostMDMAppleDeviceVitalsServiceSubscriptionsReplace(t *testing.T, ds *D
 	// dual-SIM device observed during manual testing: the active line reports
 	// most fields, while an inactive/unprovisioned eSIM slot reports only
 	// EID/IMEI (everything else NULL).
-	vitals := fleet.MDMAppleDeviceVitals{
-		ServiceSubscriptions: []fleet.MDMAppleServiceSubscription{
+	vitals := automdm.MDMAppleDeviceVitals{
+		ServiceSubscriptions: []automdm.MDMAppleServiceSubscription{
 			{Slot: "CTSubscriptionSlotOne", ICCID: new("iccid-1"), IsDataPreferred: new(true)},
 			{Slot: "CTSubscriptionSlotTwo", EID: new("eid-2")},
 		},
@@ -128,7 +128,7 @@ func testHostMDMAppleDeviceVitalsServiceSubscriptionsReplace(t *testing.T, ds *D
 	// A subsequent call with a different set of slots must drop the stale slot
 	// (the eSIM got provisioned and dropped out of the response, say) and
 	// update the surviving one in place (not duplicate-insert it).
-	vitals.ServiceSubscriptions = []fleet.MDMAppleServiceSubscription{
+	vitals.ServiceSubscriptions = []automdm.MDMAppleServiceSubscription{
 		{Slot: "CTSubscriptionSlotOne", ICCID: new("iccid-1-updated"), IsDataPreferred: new(true)},
 	}
 	require.NoError(t, ds.SetOrUpdateHostMDMAppleDeviceVitals(ctx, host.UUID, vitals))
@@ -146,10 +146,10 @@ func testHostMDMAppleDeviceVitalsResubmitIdenticalPayload(t *testing.T, ds *Data
 	ctx := t.Context()
 	host := test.NewHost(t, ds, "vitals-idempotent-host", "1.1.1.9", "vitals-idempotent-host-key", "vitals-idempotent-host-uuid", time.Now(), test.WithPlatform("ios"))
 
-	vitals := fleet.MDMAppleDeviceVitals{
+	vitals := automdm.MDMAppleDeviceVitals{
 		UDID:         new("00008030-CCC"),
 		BatteryLevel: new(0.5),
-		ServiceSubscriptions: []fleet.MDMAppleServiceSubscription{
+		ServiceSubscriptions: []automdm.MDMAppleServiceSubscription{
 			{Slot: "CTSubscriptionSlotOne", ICCID: new("iccid-1")},
 		},
 	}
@@ -173,7 +173,7 @@ func testLoadHostMDMAppleDeviceVitalsDB(t *testing.T, ds *Datastore) {
 	host := test.NewHost(t, ds, "vitals-load-host", "1.1.1.4", "vitals-load-host-key", "vitals-load-host-uuid", time.Now(), test.WithPlatform("ios"))
 
 	lastBackup := time.Date(2026, 7, 1, 12, 0, 0, 0, time.UTC)
-	vitals := fleet.MDMAppleDeviceVitals{
+	vitals := automdm.MDMAppleDeviceVitals{
 		UDID:                          new("00008030-AAA"),
 		ModelNumber:                   new("MNEP3LL/A"),
 		ModemFirmwareVersion:          new("2.01.00"),
@@ -198,25 +198,25 @@ func testLoadHostMDMAppleDeviceVitalsDB(t *testing.T, ds *Datastore) {
 		ITunesStoreAccountIsActive:    new(true),
 		PersonalHotspotEnabled:        new(false),
 		LastCloudBackupDate:           &lastBackup,
-		AccessibilitySettings: &fleet.MDMAppleAccessibilitySettings{
+		AccessibilitySettings: &automdm.MDMAppleAccessibilitySettings{
 			VoiceOverEnabled: new(true),
 			GrayscaleEnabled: new(false),
 		},
-		OrganizationInfo: &fleet.MDMAppleOrganizationInfo{
+		OrganizationInfo: &automdm.MDMAppleOrganizationInfo{
 			OrganizationName: new("Acme Corp"),
 		},
-		MDMOptions: &fleet.MDMAppleDeviceVitalsMDMOptions{
+		MDMOptions: &automdm.MDMAppleDeviceVitalsMDMOptions{
 			BootstrapTokenAllowed: new(true),
 		},
 		DevicePropertiesAttestation: [][]byte{[]byte("leaf-cert"), []byte("intermediate-cert")},
-		ServiceSubscriptions: []fleet.MDMAppleServiceSubscription{
+		ServiceSubscriptions: []automdm.MDMAppleServiceSubscription{
 			{Slot: "CTSubscriptionSlotOne", ICCID: new("iccid-1")},
 			{Slot: "CTSubscriptionSlotTwo", EID: new("eid-2")},
 		},
 	}
 	require.NoError(t, ds.SetOrUpdateHostMDMAppleDeviceVitals(ctx, host.UUID, vitals))
 
-	loaded := fleet.Host{UUID: host.UUID}
+	loaded := automdm.Host{UUID: host.UUID}
 	require.NoError(t, ds.LoadHostMDMAppleDeviceVitals(ctx, &loaded))
 
 	require.Equal(t, "00008030-AAA", *loaded.UDID)
@@ -266,13 +266,13 @@ func testLoadHostMDMAppleDeviceVitalsDBPartial(t *testing.T, ds *Datastore) {
 
 	// Simulates an enrollment method that doesn't support every key: only a
 	// subset of fields present in the ack, the rest absent from the table row.
-	vitals := fleet.MDMAppleDeviceVitals{
+	vitals := automdm.MDMAppleDeviceVitals{
 		UDID:         new("00008030-CCC"),
 		BatteryLevel: new(0.5),
 	}
 	require.NoError(t, ds.SetOrUpdateHostMDMAppleDeviceVitals(ctx, host.UUID, vitals))
 
-	loaded := fleet.Host{UUID: host.UUID}
+	loaded := automdm.Host{UUID: host.UUID}
 	require.NoError(t, ds.LoadHostMDMAppleDeviceVitals(ctx, &loaded))
 
 	require.Equal(t, "00008030-CCC", *loaded.UDID)
@@ -291,7 +291,7 @@ func testLoadHostMDMAppleDeviceVitalsDBNoRow(t *testing.T, ds *Datastore) {
 
 	// No refetch has happened yet since this shipped: no row at all in
 	// host_mdm_apple_device_vitals for this host.
-	loaded := fleet.Host{UUID: host.UUID}
+	loaded := automdm.Host{UUID: host.UUID}
 	require.NoError(t, ds.LoadHostMDMAppleDeviceVitals(ctx, &loaded))
 
 	require.Nil(t, loaded.UDID)

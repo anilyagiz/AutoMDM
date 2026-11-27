@@ -37,7 +37,7 @@ const FeaturesSection = ({
               !disableChildren && (
                 <>
                   When disabled, removes the ability to run live reports (ad hoc
-                  reports executed via the UI or fleetctl).
+                  reports executed via the UI or automdmctl).
                   <br />
                   <i>
                     (Default: <strong>On</strong>)
@@ -80,7 +80,7 @@ const FeaturesSection = ({
               )
             }
             helpText={
-              "Only policy queries (SQL) and profile prompts are sent to the LLM. Fleet doesn't use this data to train models."
+              "Only policy queries (SQL) and profile prompts are sent to the LLM. AutoMDM doesn't use this data to train models."
             }
           >
             Generative AI
@@ -104,7 +104,7 @@ const FeaturesSection = ({
               !disableChildren && (
                 <>
                   Currently supported for Apple and Windows configuration
-                  profiles. When disabled, Fleet does not check that each
+                  profiles. When disabled, AutoMDM does not check that each
                   setting it recognizes has a value of the expected type.
                   <br />
                   <i>
@@ -133,7 +133,7 @@ const FeaturesSection = ({
                 !disableChildren && (
                   <>
                     When disabled, AI harnesses (e.g. Claude) can&apos;t connect
-                    to Fleet&apos;s MCP server.
+                    to AutoMDM&apos;s MCP server.
                     <br />
                     <i>
                       (Default: <strong>On</strong>)
@@ -143,11 +143,11 @@ const FeaturesSection = ({
               }
               helpText={
                 <>
-                  Connect Fleet&apos;s MCP server to your AI harness (Claude,
+                  Connect AutoMDM&apos;s MCP server to your AI harness (Claude,
                   Codex, Copilot, etc.) so that you can ask questions about your
-                  fleet.{" "}
+                  team.{" "}
                   <CustomLink
-                    url="https://fleetdm.com/guides/fleet-mcp"
+                    url="https://automdm.com/guides/automdm-mcp"
                     text="Learn more"
                     newTab
                   />

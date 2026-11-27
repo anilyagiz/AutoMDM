@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/ee/server/service/scep/sceptest"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/ee/server/service/scep/sceptest"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

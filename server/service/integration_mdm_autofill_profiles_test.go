@@ -13,11 +13,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/optjson"
-	"github.com/fleetdm/fleet/v4/server/dev_mode"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/apple/mobileconfig"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/pkg/optjson"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/dev_mode"
+	"github.com/anilyagiz/automdm/v4/server/mdm/apple/mobileconfig"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -26,18 +26,18 @@ func (s *integrationMDMTestSuite) TestAutofillConfigProfiles() {
 	t := s.T()
 	ctx := t.Context()
 
-	s.Do("PATCH", "/api/latest/fleet/config", json.RawMessage(`{"server_settings": {"ai_features_disabled": false}}`), http.StatusOK)
+	s.Do("PATCH", "/api/latest/automdm/config", json.RawMessage(`{"server_settings": {"ai_features_disabled": false}}`), http.StatusOK)
 
-	// The suite's license has no expiration, so it counts as expired and Fleet authenticates with a registration
+	// The suite's license has no expiration, so it counts as expired and AutoMDM authenticates with a registration
 	// secret, which starts out unregistered and is cleaned up afterward.
 	deleteSecret := func(ctx context.Context) {
-		require.NoError(t, s.ds.HardDeleteMDMConfigAsset(ctx, fleet.MDMAssetProfileGeneratorFleetServerSecret))
+		require.NoError(t, s.ds.HardDeleteMDMConfigAsset(ctx, automdm.MDMAssetProfileGeneratorAutoMDMServerSecret))
 	}
 	deleteSecret(ctx)
 	// t.Context() is already canceled when cleanups run.
 	t.Cleanup(func() { deleteSecret(context.Background()) })
 
-	// A stand-in for fleetdm.com that registers Fleet and answers the profile route with whatever the subtest set.
+	// A stand-in for automdm.com that registers AutoMDM and answers the profile route with whatever the subtest set.
 	// A generation status other than 0 replaces the answer on both generation routes.
 	var mu sync.Mutex
 	var contentBody string
@@ -53,7 +53,7 @@ func (s *integrationMDMTestSuite) TestAutofillConfigProfiles() {
 		if r.URL.Path == autofillConfigProfileRegisterPath {
 			registrations++
 			_ = json.NewDecoder(r.Body).Decode(&lastRegistration)
-			_, _ = w.Write([]byte(`{"fleetServerSecret": "integration-secret"}`))
+			_, _ = w.Write([]byte(`{"automdmServerSecret": "integration-secret"}`))
 			return
 		}
 		lastRequest = nil
@@ -107,34 +107,34 @@ func (s *integrationMDMTestSuite) TestAutofillConfigProfiles() {
 	}
 	requireContentError := func(t *testing.T, params map[string]any, field, reasonContains string) {
 		t.Helper()
-		resp := s.Do("POST", "/api/latest/fleet/autofill/configuration_profile/content", params, http.StatusUnprocessableEntity)
+		resp := s.Do("POST", "/api/latest/automdm/autofill/configuration_profile/content", params, http.StatusUnprocessableEntity)
 		var body autofillErrorBody
 		require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
-		require.Equal(t, fleet.AutofillConfigProfileContentErrorMessage, body.Message)
+		require.Equal(t, automdm.AutofillConfigProfileContentErrorMessage, body.Message)
 		require.Len(t, body.Errors, 1)
 		assert.Equal(t, field, body.Errors[0]["name"])
 		assert.Contains(t, body.Errors[0]["reason"], reasonContains)
 	}
 
-	team, err := s.ds.NewTeam(ctx, &fleet.Team{Name: t.Name()})
+	team, err := s.ds.NewTeam(ctx, &automdm.Team{Name: t.Name()})
 	require.NoError(t, err)
-	otherTeam, err := s.ds.NewTeam(ctx, &fleet.Team{Name: t.Name() + "-other"})
+	otherTeam, err := s.ds.NewTeam(ctx, &automdm.Team{Name: t.Name() + "-other"})
 	require.NoError(t, err)
 
 	createdProfileActivities := map[string]struct{}{
-		fleet.ActivityTypeCreatedMacosProfile{}.ActivityName():       {},
-		fleet.ActivityTypeCreatedDeclarationProfile{}.ActivityName(): {},
-		fleet.ActivityTypeCreatedWindowsProfile{}.ActivityName():     {},
+		automdm.ActivityTypeCreatedMacosProfile{}.ActivityName():       {},
+		automdm.ActivityTypeCreatedDeclarationProfile{}.ActivityName(): {},
+		automdm.ActivityTypeCreatedWindowsProfile{}.ActivityName():     {},
 	}
 	countProfilesAndActivities := func() (int, int) {
 		var profiles, activities int
 		for _, teamID := range []uint{0, team.ID} {
 			var listResp listMDMConfigProfilesResponse
-			s.DoJSON("GET", "/api/latest/fleet/configuration_profiles", nil, http.StatusOK, &listResp, "fleet_id", fmt.Sprint(teamID), "per_page", "1000")
+			s.DoJSON("GET", "/api/latest/automdm/configuration_profiles", nil, http.StatusOK, &listResp, "team_id", fmt.Sprint(teamID), "per_page", "1000")
 			profiles += len(listResp.Profiles)
 		}
 		var actResp listActivitiesResponse
-		s.DoJSON("GET", "/api/latest/fleet/activities", nil, http.StatusOK, &actResp, "per_page", "10000")
+		s.DoJSON("GET", "/api/latest/automdm/activities", nil, http.StatusOK, &actResp, "per_page", "10000")
 		for _, a := range actResp.Activities {
 			if _, ok := createdProfileActivities[a.Type]; ok {
 				activities++
@@ -178,32 +178,32 @@ func (s *integrationMDMTestSuite) TestAutofillConfigProfiles() {
 </dict>
 </plist>`
 
-	t.Run("Fleet Free registers once with the server URL and reuses the secret", func(t *testing.T) {
+	t.Run("AutoMDM Free registers once with the server URL and reuses the secret", func(t *testing.T) {
 		appConfig, err := s.ds.AppConfig(ctx)
 		require.NoError(t, err)
 		for range 2 {
-			s.Do("POST", "/api/latest/fleet/autofill/configuration_profile/name_description", map[string]any{
+			s.Do("POST", "/api/latest/automdm/autofill/configuration_profile/name_description", map[string]any{
 				"natural_language_instructions": "Turn off AirDrop", "platform": "apple",
 			}, http.StatusOK)
 		}
 		assert.Equal(t, 1, registrationCount())
 		mu.Lock()
-		assert.Equal(t, map[string]any{"fleetServerUrl": appConfig.ServerSettings.ServerURL}, lastRegistration)
+		assert.Equal(t, map[string]any{"automdmServerUrl": appConfig.ServerSettings.ServerURL}, lastRegistration)
 		assert.Equal(t, "Bearer integration-secret", lastAuthorization)
 		mu.Unlock()
 
-		assets, err := s.ds.GetAllMDMConfigAssetsByName(ctx, []fleet.MDMAssetName{fleet.MDMAssetProfileGeneratorFleetServerSecret}, nil)
+		assets, err := s.ds.GetAllMDMConfigAssetsByName(ctx, []automdm.MDMAssetName{automdm.MDMAssetProfileGeneratorAutoMDMServerSecret}, nil)
 		require.NoError(t, err)
-		assert.Equal(t, "integration-secret", string(assets[fleet.MDMAssetProfileGeneratorFleetServerSecret].Value))
+		assert.Equal(t, "integration-secret", string(assets[automdm.MDMAssetProfileGeneratorAutoMDMServerSecret].Value))
 	})
 
 	t.Run("an unexpired Premium license sends its key and never registers", func(t *testing.T) {
 		// A second server on the same database, since the suite's license can't change while its server runs.
-		premiumConfig := s.fleetCfg
+		premiumConfig := s.automdmCfg
 		premiumConfig.License.Key = "integration-license-key"
 		_, premiumServer := RunServerForTestsWithDS(t, s.ds, &TestServerOpts{
-			License:             &fleet.LicenseInfo{Tier: fleet.TierPremium, Expiration: time.Now().Add(time.Hour)},
-			FleetConfig:         &premiumConfig,
+			License:             &automdm.LicenseInfo{Tier: automdm.TierPremium, Expiration: time.Now().Add(time.Hour)},
+			AutoMDMConfig:       &premiumConfig,
 			SkipCreateTestUsers: true,
 		})
 		testSetEmptyPrivateKey = true
@@ -212,7 +212,7 @@ func (s *integrationMDMTestSuite) TestAutofillConfigProfiles() {
 
 		reqBody, err := json.Marshal(map[string]any{"natural_language_instructions": "Turn off AirDrop", "platform": "apple"})
 		require.NoError(t, err)
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, premiumServer.URL+"/api/latest/fleet/autofill/configuration_profile/name_description", bytes.NewReader(reqBody))
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, premiumServer.URL+"/api/latest/automdm/autofill/configuration_profile/name_description", bytes.NewReader(reqBody))
 		require.NoError(t, err)
 		req.Header.Set("Authorization", "Bearer "+s.token)
 		resp, err := http.DefaultClient.Do(req)
@@ -222,7 +222,7 @@ func (s *integrationMDMTestSuite) TestAutofillConfigProfiles() {
 
 		assert.Equal(t, registrationsBefore, registrationCount())
 		mu.Lock()
-		assert.Equal(t, map[string]any{"naturalLanguageInstructions": "Turn off AirDrop", "platform": "apple", "fleetLicenseKey": "integration-license-key"}, lastRequest)
+		assert.Equal(t, map[string]any{"naturalLanguageInstructions": "Turn off AirDrop", "platform": "apple", "automdmLicenseKey": "integration-license-key"}, lastRequest)
 		assert.Empty(t, lastAuthorization)
 		mu.Unlock()
 	})
@@ -230,11 +230,11 @@ func (s *integrationMDMTestSuite) TestAutofillConfigProfiles() {
 	t.Run("mobileconfig named after its root PayloadDisplayName", func(t *testing.T) {
 		generate("mobileconfig", mobileconfigWithNestedName)
 		var resp autofillConfigProfileContentResponse
-		s.DoJSON("POST", "/api/latest/fleet/autofill/configuration_profile/content", map[string]any{
-			"natural_language_instructions": "Turn off AirDrop", "platform": "apple", "fleet_id": team.ID,
+		s.DoJSON("POST", "/api/latest/automdm/autofill/configuration_profile/content", map[string]any{
+			"natural_language_instructions": "Turn off AirDrop", "platform": "apple", "team_id": team.ID,
 		}, http.StatusOK, &resp)
 		require.NotNil(t, resp.AutofilledConfigProfile)
-		assert.Equal(t, fleet.AutofillConfigProfileTypeMobileconfig, resp.Type)
+		assert.Equal(t, automdm.AutofillConfigProfileTypeMobileconfig, resp.Type)
 		require.NotNil(t, resp.Name)
 		assert.Equal(t, "AirDrop Disabled", *resp.Name)
 		assert.Equal(t, mobileconfigWithNestedName, resp.Content)
@@ -248,7 +248,7 @@ func (s *integrationMDMTestSuite) TestAutofillConfigProfiles() {
 
 	t.Run("declaration and Windows profiles have a null name", func(t *testing.T) {
 		generate("ddm", `{"Type": "com.apple.configuration.passcode.settings", "Identifier": "com.example.passcode", "Payload": {"RequirePasscode": true}}`)
-		resp := s.Do("POST", "/api/latest/fleet/autofill/configuration_profile/content", map[string]any{
+		resp := s.Do("POST", "/api/latest/automdm/autofill/configuration_profile/content", map[string]any{
 			"natural_language_instructions": "Require a passcode", "platform": "apple",
 		}, http.StatusOK)
 		raw, err := io.ReadAll(resp.Body)
@@ -257,10 +257,10 @@ func (s *integrationMDMTestSuite) TestAutofillConfigProfiles() {
 
 		generate("csp", `<Replace><Item><Meta><Format xmlns="syncml:metinf">int</Format></Meta><Target><LocURI>./Device/Vendor/MSFT/Policy/Config/DeviceLock/DevicePasswordEnabled</LocURI></Target><Data>0</Data></Item></Replace>`)
 		var winResp autofillConfigProfileContentResponse
-		s.DoJSON("POST", "/api/latest/fleet/autofill/configuration_profile/content", map[string]any{
-			"natural_language_instructions": "Require a password", "platform": "windows", "fleet_id": team.ID,
+		s.DoJSON("POST", "/api/latest/automdm/autofill/configuration_profile/content", map[string]any{
+			"natural_language_instructions": "Require a password", "platform": "windows", "team_id": team.ID,
 		}, http.StatusOK, &winResp)
-		assert.Equal(t, fleet.AutofillConfigProfileTypeWindows, winResp.Type)
+		assert.Equal(t, automdm.AutofillConfigProfileTypeWindows, winResp.Type)
 		assert.Nil(t, winResp.Name)
 	})
 
@@ -338,12 +338,12 @@ func (s *integrationMDMTestSuite) TestAutofillConfigProfiles() {
 			for _, c := range cases {
 				t.Run(fmt.Sprintf("%s setting %t", c.name, on), func(t *testing.T) {
 					generate(c.profileType, c.profile)
-					resp := s.Do("POST", "/api/latest/fleet/autofill/configuration_profile/content", map[string]any{
+					resp := s.Do("POST", "/api/latest/automdm/autofill/configuration_profile/content", map[string]any{
 						"natural_language_instructions": "Make a profile", "platform": c.platform,
 					}, http.StatusUnprocessableEntity)
 					var body autofillErrorBody
 					require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
-					require.Equal(t, fleet.AutofillConfigProfileContentErrorMessage, body.Message)
+					require.Equal(t, automdm.AutofillConfigProfileContentErrorMessage, body.Message)
 					var reasons []string
 					for _, e := range body.Errors {
 						assert.Equal(t, "base", e["name"])
@@ -358,19 +358,19 @@ func (s *integrationMDMTestSuite) TestAutofillConfigProfiles() {
 
 	t.Run("profiles that pass strict validation are returned", func(t *testing.T) {
 		setProfileValidation(true)
-		chrome := autofillMobileconfig("com.google.Chrome", `<key>HomepageLocation</key><string>https://fleetdm.com</string>`)
+		chrome := autofillMobileconfig("com.google.Chrome", `<key>HomepageLocation</key><string>https://automdm.com</string>`)
 		generate("mobileconfig", chrome)
 		var resp autofillConfigProfileContentResponse
-		s.DoJSON("POST", "/api/latest/fleet/autofill/configuration_profile/content", map[string]any{
+		s.DoJSON("POST", "/api/latest/automdm/autofill/configuration_profile/content", map[string]any{
 			"natural_language_instructions": "Set the Chrome homepage", "platform": "apple",
 		}, http.StatusOK, &resp)
 		assert.Equal(t, chrome, resp.Content)
 
 		// built from Chrome's ADMX template, using the generator's AppName
-		winChrome := `<Replace><Item><Target><LocURI>./Device/Vendor/MSFT/Policy/Config/GoogleChrome~Policy~googlechrome~Startup/HomepageLocation</LocURI></Target><Meta><Format xmlns="syncml:metinf">chr</Format></Meta><Data><![CDATA[<enabled/><data id="HomepageLocation" value="https://fleetdm.com"/>]]></Data></Item></Replace>`
+		winChrome := `<Replace><Item><Target><LocURI>./Device/Vendor/MSFT/Policy/Config/GoogleChrome~Policy~googlechrome~Startup/HomepageLocation</LocURI></Target><Meta><Format xmlns="syncml:metinf">chr</Format></Meta><Data><![CDATA[<enabled/><data id="HomepageLocation" value="https://automdm.com"/>]]></Data></Item></Replace>`
 		generate("csp", winChrome)
 		var winResp autofillConfigProfileContentResponse
-		s.DoJSON("POST", "/api/latest/fleet/autofill/configuration_profile/content", map[string]any{
+		s.DoJSON("POST", "/api/latest/automdm/autofill/configuration_profile/content", map[string]any{
 			"natural_language_instructions": "Set the Chrome homepage", "platform": "windows",
 		}, http.StatusOK, &winResp)
 		assert.Equal(t, winChrome, winResp.Content)
@@ -378,14 +378,14 @@ func (s *integrationMDMTestSuite) TestAutofillConfigProfiles() {
 
 	t.Run("name and description", func(t *testing.T) {
 		var resp autofillConfigProfileNameDescriptionResponse
-		s.DoJSON("POST", "/api/latest/fleet/autofill/configuration_profile/name_description", map[string]any{
+		s.DoJSON("POST", "/api/latest/automdm/autofill/configuration_profile/name_description", map[string]any{
 			"natural_language_instructions": "Turn off AirDrop", "platform": "apple",
 		}, http.StatusOK, &resp)
 		assert.Equal(t, "Disable AirDrop (macOS)", resp.Name)
 		assert.Equal(t, "Sets allowAirDrop to false.", resp.Description)
 	})
 
-	t.Run("checks run against the requested fleet", func(t *testing.T) {
+	t.Run("checks run against the requested team", func(t *testing.T) {
 		// FileVault is reserved while custom disk encryption is off.
 		generate("mobileconfig", fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
 <plist version="1.0"><dict>
@@ -402,27 +402,27 @@ func (s *integrationMDMTestSuite) TestAutofillConfigProfiles() {
 	<key>PayloadType</key><string>Configuration</string>
 	<key>PayloadUUID</key><string>3B2C3D4E-5F60-4718-8293-A4B5C6D7E8F9</string>
 	<key>PayloadVersion</key><integer>1</integer>
-</dict></plist>`, mobileconfig.FleetFileVaultPayloadType))
+</dict></plist>`, mobileconfig.AutoMDMFileVaultPayloadType))
 		requireContentError(t, map[string]any{"natural_language_instructions": "Turn on FileVault", "platform": "apple"},
 			"natural_language_instructions", mobileconfig.DiskEncryptionProfileRestrictionErrMsg)
 
-		// OS updates configured on one fleet: the same declaration passes for the other fleet and fails for this one.
-		// Compared across two fleets rather than against Unassigned, whose OS updates other tests in the suite set.
-		team.Config.MDM.MacOSUpdates = fleet.AppleOSUpdateSettings{MinimumVersion: optjson.SetString("26.1"), Deadline: optjson.SetString("2026-12-31")}
-		team.Config.MDM.WindowsUpdates = fleet.WindowsUpdates{DeadlineDays: optjson.SetInt(1), GracePeriodDays: optjson.SetInt(1)}
+		// OS updates configured on one team: the same declaration passes for the other team and fails for this one.
+		// Compared across two teams rather than against Unassigned, whose OS updates other tests in the suite set.
+		team.Config.MDM.MacOSUpdates = automdm.AppleOSUpdateSettings{MinimumVersion: optjson.SetString("26.1"), Deadline: optjson.SetString("2026-12-31")}
+		team.Config.MDM.WindowsUpdates = automdm.WindowsUpdates{DeadlineDays: optjson.SetInt(1), GracePeriodDays: optjson.SetInt(1)}
 		_, err := s.ds.SaveTeam(ctx, team)
 		require.NoError(t, err)
 
 		generate("ddm", `{"Type": "com.apple.configuration.softwareupdate.enforcement.specific", "Identifier": "com.example.os-update", "Payload": {"TargetOSVersion": "26.1", "TargetLocalDateTime": "2026-12-15T18:00:00"}}`)
-		s.Do("POST", "/api/latest/fleet/autofill/configuration_profile/content", map[string]any{
-			"natural_language_instructions": "Update Macs to 26.1", "platform": "apple", "fleet_id": otherTeam.ID,
+		s.Do("POST", "/api/latest/automdm/autofill/configuration_profile/content", map[string]any{
+			"natural_language_instructions": "Update Macs to 26.1", "platform": "apple", "team_id": otherTeam.ID,
 		}, http.StatusOK)
-		requireContentError(t, map[string]any{"natural_language_instructions": "Update Macs to 26.1", "platform": "apple", "fleet_id": team.ID},
-			"natural_language_instructions", fleet.OSUpdatesAlreadyConfiguredErrorMessage)
+		requireContentError(t, map[string]any{"natural_language_instructions": "Update Macs to 26.1", "platform": "apple", "team_id": team.ID},
+			"natural_language_instructions", automdm.OSUpdatesAlreadyConfiguredErrorMessage)
 
 		generate("csp", `<Replace><Item><Meta><Format xmlns="syncml:metinf">int</Format></Meta><Target><LocURI>./Device/Vendor/MSFT/Policy/Config/Update/DeferFeatureUpdatesPeriodInDays</LocURI></Target><Data>90</Data></Item></Replace>`)
-		requireContentError(t, map[string]any{"natural_language_instructions": "Defer feature updates by 90 days", "platform": "windows", "fleet_id": team.ID},
-			"natural_language_instructions", fleet.OSUpdatesAlreadyConfiguredErrorMessage)
+		requireContentError(t, map[string]any{"natural_language_instructions": "Defer feature updates by 90 days", "platform": "windows", "team_id": team.ID},
+			"natural_language_instructions", automdm.OSUpdatesAlreadyConfiguredErrorMessage)
 
 		// A declaration can't reference an asset that doesn't exist.
 		generate("ddm", `{"Type": "com.apple.configuration.account.caldav", "Identifier": "com.example.caldav", "Payload": {"HostName": "cal.example.com", "AuthenticationCredentialsAssetReference": "com.example.missing-asset"}}`)
@@ -454,47 +454,47 @@ func (s *integrationMDMTestSuite) TestAutofillConfigProfiles() {
 
 		requireContentError(t, map[string]any{"natural_language_instructions": "Turn off AirDrop", "platform": "apple"}, "base", "unavailable")
 
-		resp := s.Do("POST", "/api/latest/fleet/autofill/configuration_profile/name_description", map[string]any{
+		resp := s.Do("POST", "/api/latest/automdm/autofill/configuration_profile/name_description", map[string]any{
 			"natural_language_instructions": "Turn off AirDrop", "platform": "apple",
 		}, http.StatusUnprocessableEntity)
 		var body autofillErrorBody
 		require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
-		assert.Equal(t, fleet.AutofillConfigProfileNameDescriptionErrorMessage, body.Message)
+		assert.Equal(t, automdm.AutofillConfigProfileNameDescriptionErrorMessage, body.Message)
 		assert.Equal(t, "base", body.Errors[0]["name"])
 	})
 
-	t.Run("requests stopped before calling fleetdm.com", func(t *testing.T) {
+	t.Run("requests stopped before calling automdm.com", func(t *testing.T) {
 		before := callCount()
 
-		s.Do("POST", "/api/latest/fleet/autofill/configuration_profile/content", map[string]any{
+		s.Do("POST", "/api/latest/automdm/autofill/configuration_profile/content", map[string]any{
 			"natural_language_instructions": "Turn off the camera", "platform": "android",
 		}, http.StatusBadRequest)
 
-		s.Do("PATCH", "/api/latest/fleet/config", json.RawMessage(`{"mdm": {"windows_mdm_enabled": false}}`), http.StatusOK)
+		s.Do("PATCH", "/api/latest/automdm/config", json.RawMessage(`{"mdm": {"windows_mdm_enabled": false}}`), http.StatusOK)
 		t.Cleanup(func() {
-			s.Do("PATCH", "/api/latest/fleet/config", json.RawMessage(`{"mdm": {"windows_mdm_enabled": true}}`), http.StatusOK)
+			s.Do("PATCH", "/api/latest/automdm/config", json.RawMessage(`{"mdm": {"windows_mdm_enabled": true}}`), http.StatusOK)
 		})
-		requireContentError(t, map[string]any{"natural_language_instructions": "Require a password", "platform": "windows"}, "base", fleet.WindowsMDMNotConfiguredMessage)
+		requireContentError(t, map[string]any{"natural_language_instructions": "Require a password", "platform": "windows"}, "base", automdm.WindowsMDMNotConfiguredMessage)
 
-		s.Do("PATCH", "/api/latest/fleet/config", json.RawMessage(`{"server_settings": {"ai_features_disabled": true}}`), http.StatusOK)
+		s.Do("PATCH", "/api/latest/automdm/config", json.RawMessage(`{"server_settings": {"ai_features_disabled": true}}`), http.StatusOK)
 		t.Cleanup(func() {
-			s.Do("PATCH", "/api/latest/fleet/config", json.RawMessage(`{"server_settings": {"ai_features_disabled": false}}`), http.StatusOK)
+			s.Do("PATCH", "/api/latest/automdm/config", json.RawMessage(`{"server_settings": {"ai_features_disabled": false}}`), http.StatusOK)
 		})
-		s.Do("POST", "/api/latest/fleet/autofill/configuration_profile/content", map[string]any{
+		s.Do("POST", "/api/latest/automdm/autofill/configuration_profile/content", map[string]any{
 			"natural_language_instructions": "Turn off AirDrop", "platform": "apple",
 		}, http.StatusBadRequest)
-		s.Do("POST", "/api/latest/fleet/autofill/configuration_profile/name_description", map[string]any{
+		s.Do("POST", "/api/latest/automdm/autofill/configuration_profile/name_description", map[string]any{
 			"natural_language_instructions": "Turn off AirDrop", "platform": "apple",
 		}, http.StatusBadRequest)
 
 		assert.Equal(t, before, callCount())
 	})
 
-	t.Run("fleet maintainer is limited to their fleet", func(t *testing.T) {
-		u := &fleet.User{
+	t.Run("team maintainer is limited to their team", func(t *testing.T) {
+		u := &automdm.User{
 			Name:  "autofill team maintainer",
 			Email: "autofill-maintainer@example.com",
-			Teams: []fleet.UserTeam{{Team: *team, Role: fleet.RoleMaintainer}},
+			Teams: []automdm.UserTeam{{Team: *team, Role: automdm.RoleMaintainer}},
 		}
 		require.NoError(t, u.SetPassword(test.GoodPassword, 10, 10))
 		_, err := s.ds.NewUser(ctx, u)
@@ -502,24 +502,24 @@ func (s *integrationMDMTestSuite) TestAutofillConfigProfiles() {
 		s.setTokenForTest(t, u.Email, test.GoodPassword)
 
 		generate("mobileconfig", mobileconfigWithNestedName)
-		s.Do("POST", "/api/latest/fleet/autofill/configuration_profile/content", map[string]any{
-			"natural_language_instructions": "Turn off AirDrop", "platform": "apple", "fleet_id": team.ID,
+		s.Do("POST", "/api/latest/automdm/autofill/configuration_profile/content", map[string]any{
+			"natural_language_instructions": "Turn off AirDrop", "platform": "apple", "team_id": team.ID,
 		}, http.StatusOK)
-		s.Do("POST", "/api/latest/fleet/autofill/configuration_profile/content", map[string]any{
-			"natural_language_instructions": "Turn off AirDrop", "platform": "apple", "fleet_id": otherTeam.ID,
+		s.Do("POST", "/api/latest/automdm/autofill/configuration_profile/content", map[string]any{
+			"natural_language_instructions": "Turn off AirDrop", "platform": "apple", "team_id": otherTeam.ID,
 		}, http.StatusForbidden)
-		s.Do("POST", "/api/latest/fleet/autofill/configuration_profile/name_description", map[string]any{
+		s.Do("POST", "/api/latest/automdm/autofill/configuration_profile/name_description", map[string]any{
 			"natural_language_instructions": "Turn off AirDrop", "platform": "apple",
 		}, http.StatusOK)
 	})
 
-	t.Run("fleetdm.com's limit is a 429 with Retry-After on both endpoints", func(t *testing.T) {
+	t.Run("automdm.com's limit is a 429 with Retry-After on both endpoints", func(t *testing.T) {
 		resetsAt := time.Now().Add(72 * time.Hour).UTC().Truncate(time.Second)
 		setGenerationResponse(t, http.StatusTooManyRequests, `{"error": "generationLimitReached", "resetsAt": "`+resetsAt.Format(time.RFC3339)+`"}`)
 
 		for path, message := range map[string]string{
-			"/api/latest/fleet/autofill/configuration_profile/content":          fleet.AutofillConfigProfileContentErrorMessage,
-			"/api/latest/fleet/autofill/configuration_profile/name_description": fleet.AutofillConfigProfileNameDescriptionErrorMessage,
+			"/api/latest/automdm/autofill/configuration_profile/content":          automdm.AutofillConfigProfileContentErrorMessage,
+			"/api/latest/automdm/autofill/configuration_profile/name_description": automdm.AutofillConfigProfileNameDescriptionErrorMessage,
 		} {
 			resp := s.Do("POST", path, map[string]any{"natural_language_instructions": "Turn off AirDrop", "platform": "apple"}, http.StatusTooManyRequests)
 			retryAfter, err := strconv.Atoi(resp.Header.Get("Retry-After"))
@@ -528,7 +528,7 @@ func (s *integrationMDMTestSuite) TestAutofillConfigProfiles() {
 			var body autofillErrorBody
 			require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
 			assert.Equal(t, message, body.Message)
-			assert.Equal(t, []map[string]string{{"name": "base", "reason": fleet.AutofillConfigProfileLimitReachedReason}}, body.Errors)
+			assert.Equal(t, []map[string]string{{"name": "base", "reason": automdm.AutofillConfigProfileLimitReachedReason}}, body.Errors)
 		}
 	})
 
@@ -539,19 +539,19 @@ func (s *integrationMDMTestSuite) TestAutofillConfigProfiles() {
 		assert.Equal(t, before, registrationCount())
 	})
 
-	t.Run("without a private key, Fleet Free is a 422 with no outbound call", func(t *testing.T) {
+	t.Run("without a private key, AutoMDM Free is a 422 with no outbound call", func(t *testing.T) {
 		testSetEmptyPrivateKey = true
 		t.Cleanup(func() { testSetEmptyPrivateKey = false })
 		before := callCount()
 
-		requireContentError(t, map[string]any{"natural_language_instructions": "Turn off AirDrop", "platform": "apple"}, "base", fleet.AutofillConfigProfileMissingPrivateKeyReason)
-		resp := s.Do("POST", "/api/latest/fleet/autofill/configuration_profile/name_description", map[string]any{
+		requireContentError(t, map[string]any{"natural_language_instructions": "Turn off AirDrop", "platform": "apple"}, "base", automdm.AutofillConfigProfileMissingPrivateKeyReason)
+		resp := s.Do("POST", "/api/latest/automdm/autofill/configuration_profile/name_description", map[string]any{
 			"natural_language_instructions": "Turn off AirDrop", "platform": "apple",
 		}, http.StatusUnprocessableEntity)
 		var body autofillErrorBody
 		require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
-		assert.Equal(t, fleet.AutofillConfigProfileNameDescriptionErrorMessage, body.Message)
-		assert.Equal(t, []map[string]string{{"name": "base", "reason": fleet.AutofillConfigProfileMissingPrivateKeyReason}}, body.Errors)
+		assert.Equal(t, automdm.AutofillConfigProfileNameDescriptionErrorMessage, body.Message)
+		assert.Equal(t, []map[string]string{{"name": "base", "reason": automdm.AutofillConfigProfileMissingPrivateKeyReason}}, body.Errors)
 
 		assert.Equal(t, before, callCount())
 	})
@@ -562,23 +562,23 @@ func (s *integrationMDMTestSuite) TestAutofillConfigProfiles() {
 		assert.Equal(t, activitiesBefore, activitiesAfter)
 	})
 
-	t.Run("fleet_id requires premium license", func(t *testing.T) {
+	t.Run("team_id requires premium license", func(t *testing.T) {
 		_, freeServer := RunServerForTestsWithDS(t, s.ds, &TestServerOpts{
-			License:             &fleet.LicenseInfo{Tier: fleet.TierFree},
-			FleetConfig:         &s.fleetCfg,
+			License:             &automdm.LicenseInfo{Tier: automdm.TierFree},
+			AutoMDMConfig:       &s.automdmCfg,
 			SkipCreateTestUsers: true,
 		})
 		before := registrationCount()
-		reqBody, err := json.Marshal(map[string]any{"natural_language_instructions": "Turn off AirDrop", "platform": "apple", "fleet_id": 1})
+		reqBody, err := json.Marshal(map[string]any{"natural_language_instructions": "Turn off AirDrop", "platform": "apple", "team_id": 1})
 		require.NoError(t, err)
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, freeServer.URL+"/api/latest/fleet/autofill/configuration_profile/content", bytes.NewReader(reqBody))
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, freeServer.URL+"/api/latest/automdm/autofill/configuration_profile/content", bytes.NewReader(reqBody))
 		require.NoError(t, err)
 		resp, err := http.DefaultClient.Do(req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 		errText := extractServerErrorText(resp.Body)
-		require.Contains(t, errText, "fleet_id requires a premium license")
+		require.Contains(t, errText, "team_id requires a premium license")
 		assert.Equal(t, before, registrationCount())
 	})
 }

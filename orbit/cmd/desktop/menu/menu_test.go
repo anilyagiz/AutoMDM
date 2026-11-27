@@ -3,8 +3,8 @@ package menu
 import (
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -135,7 +135,7 @@ func TestManagerWithMockFactory(t *testing.T) {
 	})
 
 	t.Run("set connected state", func(t *testing.T) {
-		summary := &fleet.DesktopSummary{
+		summary := &automdm.DesktopSummary{
 			SelfService: ptr.Bool(true),
 		}
 		manager.SetConnected(summary, false)
@@ -159,7 +159,7 @@ func TestManagerWithMockFactory(t *testing.T) {
 
 	t.Run("set connected state free tier", func(t *testing.T) {
 		// Test free tier - self-service should be hidden
-		summary := &fleet.DesktopSummary{
+		summary := &automdm.DesktopSummary{
 			SelfService: ptr.Bool(true), // Even if enabled in summary, free tier overrides it
 		}
 		manager.SetConnected(summary, true) // true = free tier
@@ -183,7 +183,7 @@ func TestManagerWithMockFactory(t *testing.T) {
 
 	t.Run("set offline state", func(t *testing.T) {
 		// First, set connected state with self-service enabled
-		summary := &fleet.DesktopSummary{
+		summary := &automdm.DesktopSummary{
 			SelfService: ptr.Bool(true),
 		}
 		manager.SetConnected(summary, false)

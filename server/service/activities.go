@@ -5,38 +5,38 @@ import (
 	"log/slog"
 	"net/http"
 
-	activity_api "github.com/fleetdm/fleet/v4/server/activity/api"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/apple/vpp"
-	notifications_api "github.com/fleetdm/fleet/v4/server/notifications/api"
+	activity_api "github.com/anilyagiz/automdm/v4/server/activity/api"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	"github.com/anilyagiz/automdm/v4/server/mdm/apple/vpp"
+	notifications_api "github.com/anilyagiz/automdm/v4/server/notifications/api"
 )
 
-func (svc *Service) GetActivitiesWebhookSettings(ctx context.Context) (fleet.ActivitiesWebhookSettings, error) {
+func (svc *Service) GetActivitiesWebhookSettings(ctx context.Context) (automdm.ActivitiesWebhookSettings, error) {
 	appConfig, err := svc.ds.AppConfig(ctx)
 	if err != nil {
-		return fleet.ActivitiesWebhookSettings{}, ctxerr.Wrap(ctx, err, "get app config for activities webhook")
+		return automdm.ActivitiesWebhookSettings{}, ctxerr.Wrap(ctx, err, "get app config for activities webhook")
 	}
 	return appConfig.WebhookSettings.ActivitiesWebhook, nil
 }
 
 // GetHostActivitiesWebhookSettings returns the enabled host-activities webhook
-// settings of the fleets the given hosts belong to, deduplicated by fleet and
+// settings of the teams the given hosts belong to, deduplicated by team and
 // destination URL. Like GetActivitiesWebhookSettings, it reads settings
 // without an authz check because it is an internal provider hook for the
 // activity bounded context, not an endpoint.
 //
 // Perf note: this runs for every host-linked activity on Premium, enabled or
 // not. DefaultTeamConfig is served from the datastore cache but TeamLite is
-// not, so named-fleet hosts cost one lite host read plus one team read per
+// not, so named-automdm hosts cost one lite host read plus one team read per
 // activity.
-func (svc *Service) GetHostActivitiesWebhookSettings(ctx context.Context, hostIDs []uint) ([]fleet.HostActivitiesWebhookDelivery, error) {
+func (svc *Service) GetHostActivitiesWebhookSettings(ctx context.Context, hostIDs []uint) ([]automdm.HostActivitiesWebhookDelivery, error) {
 	if !license.IsPremium(ctx) {
 		return nil, nil
 	}
-	settings, err := fleet.ResolveHostActivitiesWebhooks(ctx, svc.ds, hostIDs)
+	settings, err := automdm.ResolveHostActivitiesWebhooks(ctx, svc.ds, hostIDs)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "resolve host activities webhooks")
 	}
@@ -47,7 +47,7 @@ func (svc *Service) ActivateNextUpcomingActivityForHost(ctx context.Context, hos
 	return svc.ds.ActivateNextUpcomingActivityForHost(ctx, hostID, fromCompletedExecID)
 }
 
-func (svc *Service) NewActivity(ctx context.Context, user *fleet.User, activity activity_api.ActivityDetails) error {
+func (svc *Service) NewActivity(ctx context.Context, user *automdm.User, activity activity_api.ActivityDetails) error {
 	var apiUser *activity_api.User
 	if user != nil {
 		apiUser = &activity_api.User{
@@ -61,7 +61,7 @@ func (svc *Service) NewActivity(ctx context.Context, user *fleet.User, activity 
 }
 
 // NewActivities creates one activity per item of activities, with the cost of a few queries for the whole batch.
-func (svc *Service) NewActivities(ctx context.Context, user *fleet.User, activities []activity_api.ActivityDetails) error {
+func (svc *Service) NewActivities(ctx context.Context, user *automdm.User, activities []activity_api.ActivityDetails) error {
 	var apiUser *activity_api.User
 	if user != nil {
 		apiUser = &activity_api.User{
@@ -79,23 +79,23 @@ func (svc *Service) NewActivities(ctx context.Context, user *fleet.User, activit
 ////////////////////////////////////////////////////////////////////////////////
 
 type listHostUpcomingActivitiesRequest struct {
-	Identifier  string            `url:"id"`
-	ListOptions fleet.ListOptions `url:"list_options"`
+	Identifier  string              `url:"id"`
+	ListOptions automdm.ListOptions `url:"list_options"`
 }
 
 type listHostUpcomingActivitiesResponse struct {
-	Meta       *fleet.PaginationMetadata `json:"meta"`
-	Activities []*fleet.UpcomingActivity `json:"activities"`
-	Count      uint                      `json:"count"`
-	Err        error                     `json:"error,omitempty"`
+	Meta       *automdm.PaginationMetadata `json:"meta"`
+	Activities []*automdm.UpcomingActivity `json:"activities"`
+	Count      uint                        `json:"count"`
+	Err        error                       `json:"error,omitempty"`
 }
 
 func (r listHostUpcomingActivitiesResponse) Error() error { return r.Err }
 
-func listHostUpcomingActivitiesEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func listHostUpcomingActivitiesEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*listHostUpcomingActivitiesRequest)
-	var meta *fleet.PaginationMetadata
-	acts, _, err := hostByIDOrIdentifier(ctx, svc, req.Identifier, func(hostID uint) (acts []*fleet.UpcomingActivity, err error) {
+	var meta *automdm.PaginationMetadata
+	acts, _, err := hostByIDOrIdentifier(ctx, svc, req.Identifier, func(hostID uint) (acts []*automdm.UpcomingActivity, err error) {
 		acts, meta, err = svc.ListHostUpcomingActivities(ctx, hostID, req.ListOptions)
 		return acts, err
 	})
@@ -108,10 +108,10 @@ func listHostUpcomingActivitiesEndpoint(ctx context.Context, request interface{}
 
 // ListHostUpcomingActivities returns a slice of upcoming activities for the
 // specified host.
-func (svc *Service) ListHostUpcomingActivities(ctx context.Context, hostID uint, opt fleet.ListOptions) ([]*fleet.UpcomingActivity, *fleet.PaginationMetadata, error) {
+func (svc *Service) ListHostUpcomingActivities(ctx context.Context, hostID uint, opt automdm.ListOptions) ([]*automdm.UpcomingActivity, *automdm.PaginationMetadata, error) {
 	// First ensure the user has access to list hosts, then check the specific
 	// host once team_id is loaded.
-	if err := svc.authz.Authorize(ctx, &fleet.Host{}, fleet.ActionList); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.Host{}, automdm.ActionList); err != nil {
 		return nil, nil, err
 	}
 	host, err := svc.ds.HostLite(ctx, hostID)
@@ -119,7 +119,7 @@ func (svc *Service) ListHostUpcomingActivities(ctx context.Context, hostID uint,
 		return nil, nil, ctxerr.Wrap(ctx, err, "get host")
 	}
 	// Authorize again with team loaded now that we have team_id
-	if err := svc.authz.Authorize(ctx, host, fleet.ActionRead); err != nil {
+	if err := svc.authz.Authorize(ctx, host, automdm.ActionRead); err != nil {
 		return nil, nil, err
 	}
 
@@ -128,7 +128,7 @@ func (svc *Service) ListHostUpcomingActivities(ctx context.Context, hostID uint,
 	// custom ordering is not supported, always by upcoming queue order
 	// (acual order is in the query, not set via ListOptions)
 	opt.OrderKey = ""
-	opt.OrderDirection = fleet.OrderAscending
+	opt.OrderDirection = automdm.OrderAscending
 	// no matching query support
 	opt.MatchQuery = ""
 	// always include metadata
@@ -153,7 +153,7 @@ type cancelHostUpcomingActivityResponse struct {
 func (r cancelHostUpcomingActivityResponse) Error() error { return r.Err }
 func (r cancelHostUpcomingActivityResponse) Status() int  { return http.StatusNoContent }
 
-func cancelHostUpcomingActivityEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func cancelHostUpcomingActivityEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*cancelHostUpcomingActivityRequest)
 	err := svc.CancelHostUpcomingActivity(ctx, req.HostID, req.ActivityID)
 	if err != nil {
@@ -165,7 +165,7 @@ func cancelHostUpcomingActivityEndpoint(ctx context.Context, request interface{}
 func (svc *Service) CancelHostUpcomingActivity(ctx context.Context, hostID uint, executionID string) error {
 	// First ensure the user has access to list hosts, then check the specific
 	// host once team_id is loaded.
-	if err := svc.authz.Authorize(ctx, &fleet.Host{}, fleet.ActionList); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.Host{}, automdm.ActionList); err != nil {
 		return err
 	}
 	host, err := svc.ds.HostLite(ctx, hostID)
@@ -173,13 +173,13 @@ func (svc *Service) CancelHostUpcomingActivity(ctx context.Context, hostID uint,
 		return ctxerr.Wrap(ctx, err, "get host")
 	}
 	// Authorize again with team loaded now that we have team_id
-	if err := svc.authz.Authorize(ctx, host, fleet.ActionCancelHostActivity); err != nil {
+	if err := svc.authz.Authorize(ctx, host, automdm.ActionCancelHostActivity); err != nil {
 		return err
 	}
 
 	vc, ok := viewer.FromContext(ctx)
 	if !ok {
-		return fleet.ErrNoContext
+		return automdm.ErrNoContext
 	}
 
 	// prevent cancellation of lock/wipe that are already activated
@@ -188,8 +188,8 @@ func (svc *Service) CancelHostUpcomingActivity(ctx context.Context, hostID uint,
 		return err
 	}
 	if actMeta.ActivatedAt != nil &&
-		(actMeta.WellKnownAction == fleet.WellKnownActionLock || actMeta.WellKnownAction == fleet.WellKnownActionWipe) {
-		return &fleet.BadRequestError{
+		(actMeta.WellKnownAction == automdm.WellKnownActionLock || actMeta.WellKnownAction == automdm.WellKnownActionWipe) {
+		return &automdm.BadRequestError{
 			Message: "Couldn't cancel activity. Lock and wipe can't be canceled if they're about to run to prevent you from losing access to the host.",
 		}
 	}
@@ -210,7 +210,7 @@ func (svc *Service) CancelHostUpcomingActivity(ctx context.Context, hostID uint,
 
 	// fail the notification too, the notify script is the only thing that reports its outcome
 	notificationUUID, notificationErr := svc.notificationsSvc.NotificationUUIDForExecution(ctx, executionID)
-	if notificationErr != nil && !fleet.IsNotFound(notificationErr) {
+	if notificationErr != nil && !automdm.IsNotFound(notificationErr) {
 		svc.logger.ErrorContext(ctx, "failed to look up the end user notification a canceled script belongs to",
 			"err", notificationErr, "host_id", host.ID, "execution_id", executionID)
 	}
@@ -230,7 +230,7 @@ func (svc *Service) CancelHostUpcomingActivity(ctx context.Context, hostID uint,
 	if pastAct != nil {
 		// If a VPP install was canceled, release the reserved license seat
 		// (if any). Best-effort: failures shouldn't block the cancel response.
-		if _, isVPPCancel := pastAct.(fleet.ActivityTypeCanceledInstallAppStoreApp); isVPPCancel {
+		if _, isVPPCancel := pastAct.(automdm.ActivityTypeCanceledInstallAppStoreApp); isVPPCancel {
 			if rErr := svc.releaseVPPSeat(ctx, host, releaseInfo, releaseLookupErr); rErr != nil {
 				svc.logger.ErrorContext(ctx, "failed to release reserved VPP license on cancel",
 					"err", rErr, "host_id", host.ID, "execution_id", executionID)
@@ -251,9 +251,9 @@ func (svc *Service) CancelHostUpcomingActivity(ctx context.Context, hostID uint,
 // non-empty) AND no other still-active install for the same (host, adam_id)
 // needs the seat. Personal-enrollment hosts are disassociated by clientUserId
 // (matching how they were assigned); device-enrolled hosts by serial number.
-func (svc *Service) releaseVPPSeat(ctx context.Context, host *fleet.Host, info *fleet.VPPInstallReleaseInfo, lookupErr error) error {
+func (svc *Service) releaseVPPSeat(ctx context.Context, host *automdm.Host, info *automdm.VPPInstallReleaseInfo, lookupErr error) error {
 	if lookupErr != nil {
-		if fleet.IsNotFound(lookupErr) {
+		if automdm.IsNotFound(lookupErr) {
 			return nil
 		}
 		return ctxerr.Wrap(ctx, lookupErr, "get vpp install release info")
@@ -268,19 +268,19 @@ func (svc *Service) releaseVPPSeat(ctx context.Context, host *fleet.Host, info *
 	}
 	tokenDB, err := svc.ds.GetVPPToken(ctx, *info.VPPTokenID)
 	if err != nil {
-		if fleet.IsNotFound(err) {
+		if automdm.IsNotFound(err) {
 			return nil
 		}
 		return ctxerr.Wrap(ctx, err, "get vpp token for seat release")
 	}
 
 	hostMDM, err := svc.ds.GetHostMDM(ctx, host.ID)
-	if err != nil && !fleet.IsNotFound(err) {
+	if err != nil && !automdm.IsNotFound(err) {
 		return ctxerr.Wrap(ctx, err, "get host mdm for seat release")
 	}
 	isPersonal := hostMDM != nil && hostMDM.IsPersonalEnrollment
 
-	// PricingParam: STDQ is the standard tier used by Fleet's install path.
+	// PricingParam: STDQ is the standard tier used by AutoMDM's install path.
 	// If a customer uses PLUS we'd need to look up the asset here — defer until
 	// observed in the wild.
 	req := &vpp.DisassociateAssetsRequest{
@@ -289,14 +289,14 @@ func (svc *Service) releaseVPPSeat(ctx context.Context, host *fleet.Host, info *
 	if isPersonal {
 		managedAppleID, err := svc.ds.GetHostManagedAppleID(ctx, host.ID)
 		if err != nil || managedAppleID == "" {
-			if err != nil && !fleet.IsNotFound(err) {
+			if err != nil && !automdm.IsNotFound(err) {
 				return ctxerr.Wrap(ctx, err, "get managed apple id for seat release")
 			}
 			return nil
 		}
 		clientUser, err := svc.ds.GetVPPClientUser(ctx, tokenDB.ID, managedAppleID)
 		if err != nil {
-			if fleet.IsNotFound(err) {
+			if automdm.IsNotFound(err) {
 				return nil
 			}
 			return ctxerr.Wrap(ctx, err, "get vpp client user for seat release")
@@ -312,7 +312,7 @@ func (svc *Service) releaseVPPSeat(ctx context.Context, host *fleet.Host, info *
 	return nil
 }
 
-func cancelActivitiesAndNotificationsForHost(ctx context.Context, ds fleet.Datastore, notificationsSvc fleet.NotificationsWriteService, logger *slog.Logger, hostID uint) error {
+func cancelActivitiesAndNotificationsForHost(ctx context.Context, ds automdm.Datastore, notificationsSvc automdm.NotificationsWriteService, logger *slog.Logger, hostID uint) error {
 	_, err := ds.BatchCancelAllHostUpcomingActivities(ctx, hostID)
 	if err != nil {
 		return ctxerr.Wrap(ctx, err, "cancel upcoming activities")

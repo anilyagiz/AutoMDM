@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -19,12 +19,12 @@ func TestToggleReceiver(t *testing.T) {
 	assert.False(t, Enabled(rootDir))
 
 	// Config without the directive: no change, no restart.
-	require.NoError(t, receiver.Run(&fleet.OrbitConfig{}))
+	require.NoError(t, receiver.Run(&automdm.OrbitConfig{}))
 	assert.False(t, Enabled(rootDir))
 	assert.Empty(t, restarts)
 
 	// Directive turns the transport on: persisted + restart.
-	cfgOn := &fleet.OrbitConfig{WebSocketTransport: &fleet.OrbitWebSocketTransportConfig{Enabled: true}}
+	cfgOn := &automdm.OrbitConfig{WebSocketTransport: &automdm.OrbitWebSocketTransportConfig{Enabled: true}}
 	require.NoError(t, receiver.Run(cfgOn))
 	assert.True(t, Enabled(rootDir))
 	assert.Len(t, restarts, 1)
@@ -34,12 +34,12 @@ func TestToggleReceiver(t *testing.T) {
 	assert.Len(t, restarts, 1)
 
 	// Directive disappears (server flag turned off): persisted + restart.
-	require.NoError(t, receiver.Run(&fleet.OrbitConfig{}))
+	require.NoError(t, receiver.Run(&automdm.OrbitConfig{}))
 	assert.False(t, Enabled(rootDir))
 	assert.Len(t, restarts, 2)
 
 	// Explicit Enabled=false behaves like an absent directive.
-	require.NoError(t, receiver.Run(&fleet.OrbitConfig{WebSocketTransport: &fleet.OrbitWebSocketTransportConfig{Enabled: false}}))
+	require.NoError(t, receiver.Run(&automdm.OrbitConfig{WebSocketTransport: &automdm.OrbitWebSocketTransportConfig{Enabled: false}}))
 	assert.Len(t, restarts, 2)
 }
 
@@ -48,8 +48,8 @@ func TestToggleReceiverOsqueryConfig(t *testing.T) {
 	var restarts []string
 	receiver := NewToggleReceiver(rootDir, func(reason string) { restarts = append(restarts, reason) })
 
-	cfg := func(enabled bool, osqueryConfigPollInterval *int) *fleet.OrbitConfig {
-		return &fleet.OrbitConfig{WebSocketTransport: &fleet.OrbitWebSocketTransportConfig{
+	cfg := func(enabled bool, osqueryConfigPollInterval *int) *automdm.OrbitConfig {
+		return &automdm.OrbitConfig{WebSocketTransport: &automdm.OrbitWebSocketTransportConfig{
 			Enabled:                   enabled,
 			OsqueryConfigPollInterval: osqueryConfigPollInterval,
 		}}

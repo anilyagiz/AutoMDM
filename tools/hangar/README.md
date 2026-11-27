@@ -1,12 +1,12 @@
-# Fleet Hangar
+# AutoMDM Hangar
 
-A desktop control panel for [Fleet](https://github.com/fleetdm/fleet) contributors, built
+A desktop control panel for [AutoMDM](https://github.com/anilyagiz/automdm) contributors, built
 with Go and [Wails 3](https://v3alpha.wails.io). Bundles the daily tasks of working on a
-Fleet clone (checking out branches, building, running `fleet serve`, tailing logs, managing
-the dev MySQL, driving `fleetctl`, applying GitOps repos, spinning up `osquery-perf`) into
+AutoMDM clone (checking out branches, building, running `automdm serve`, tailing logs, managing
+the dev MySQL, driving `automdmctl`, applying GitOps repos, spinning up `osquery-perf`) into
 one app. macOS-first.
 
-**Why Go?** To match the rest of the repo so Fleet engineers can contribute to it. The
+**Why Go?** To match the rest of the repo so AutoMDM engineers can contribute to it. The
 backend is plain Go (`os/exec`, `syscall`, goroutines); only the desktop shell is Wails.
 Hangar began as a Rust/Tauri app; it was ported to Go and that port is now the canonical
 implementation.
@@ -18,7 +18,7 @@ implementation.
   - `processes` — spawn/log/lifecycle engine: child-process management, streamed log readers
     (level detection, secret scrubbing, on-disk rotation, in-memory ring), `running.json`
     crash-recovery, SIGTERM→SIGKILL on process groups, docker-compose orchestration, TLS probe
-  - `settings`, `gitrepo`, `db`, `gitops`, `fleetctl`, `deps`, `troubleshoot`, `perf`,
+  - `settings`, `gitrepo`, `db`, `gitops`, `automdmctl`, `deps`, `troubleshoot`, `perf`,
     `perfconfig` — one per former `src-tauri/src/*.rs` module
   - `paths` (macOS dirs + path safety), `shellpath` (login-shell PATH warming), `traymenu`
     (tray menu model)
@@ -51,10 +51,10 @@ Then, from this directory:
 
 ```sh
 task dev       # live-reload dev mode (Vite + Go)
-task build     # type-check + production build -> bin/fleet-hangar
-task package   # build + bundle + ad-hoc sign -> "bin/Fleet Hangar.app"
-task dist      # zip the existing .app into a shareable "bin/Fleet Hangar.zip"
-task pkg       # wrap the existing .app into a Fleet-installable "bin/Fleet Hangar.pkg"
+task build     # type-check + production build -> bin/automdm-hangar
+task package   # build + bundle + ad-hoc sign -> "bin/AutoMDM Hangar.app"
+task dist      # zip the existing .app into a shareable "bin/AutoMDM Hangar.zip"
+task pkg       # wrap the existing .app into an AutoMDM-installable "bin/AutoMDM Hangar.pkg"
 go test ./...  # backend unit tests
 ```
 
@@ -67,52 +67,52 @@ wails3 generate bindings -clean=true -ts
 
 ## Notes
 
-- **Names.** The bundle is `Fleet Hangar.app` (the `PRODUCT_NAME` Taskfile var) so Finder,
-  Launchpad, and Spotlight show "Fleet Hangar". The executable inside stays `fleet-hangar`
+- **Names.** The bundle is `AutoMDM Hangar.app` (the `PRODUCT_NAME` Taskfile var) so Finder,
+  Launchpad, and Spotlight show "AutoMDM Hangar". The executable inside stays `automdm-hangar`
   (the `APP_NAME` var) — it's also reused for the `-server` binary and Docker image tags,
   where a space would break things. The **bundle identifier** is `com.fleetdm.fleet-hangar`
   — the same ID the original Rust app used, so settings written by it carry over untouched.
   Settings live under `~/Library/Application Support/<id>/` and logs under
   `~/Library/Logs/<id>/`; DB backups live in `<repo>/db-backups/`.
 - **Distribution.** `task package` produces only an ad-hoc-signed `.app`; `task dist` zips
-  whatever bundle is in `bin/` into `bin/Fleet Hangar.zip` (via `ditto`, so the signature
+  whatever bundle is in `bin/` into `bin/AutoMDM Hangar.zip` (via `ditto`, so the signature
   survives) for handoff. Two paths:
   - *Quick / trusted teammate:* `task package` → `task dist`, then the recipient clears
-    quarantine after unzipping: `xattr -dr com.apple.quarantine "/path/to/Fleet Hangar.app"`
+    quarantine after unzipping: `xattr -dr com.apple.quarantine "/path/to/AutoMDM Hangar.app"`
     (an ad-hoc-signed app from another machine is otherwise blocked by Gatekeeper).
   - *Clean install anywhere:* configure `SIGN_IDENTITY` + `KEYCHAIN_PROFILE` in
     `build/darwin/Taskfile.yml`, run `task darwin:sign:notarize` (Developer ID sign +
     Apple notarization), then `task dist`. No quarantine step needed.
 
   `dist` never rebuilds, so running it after `sign:notarize` preserves the notarized signature.
-- **Install onto hosts via Fleet.** `task pkg` wraps the existing `bin/Fleet Hangar.app` into
-  `bin/Fleet Hangar.pkg` — a component installer that drops the app into `/Applications`. Upload
-  it under *Fleet > Software > Add software > Custom package*; Fleet reads the identifier and
+- **Install onto hosts via AutoMDM.** `task pkg` wraps the existing `bin/AutoMDM Hangar.app` into
+  `bin/AutoMDM Hangar.pkg` — a component installer that drops the app into `/Applications`. Upload
+  it under *AutoMDM > Software > Add software > Custom package*; AutoMDM reads the identifier and
   version from the app's `Info.plist` to track install status. Like `dist`, it never rebuilds, so
   notarize first (`task darwin:sign:notarize`) for real hosts — an ad-hoc build installs cleanly
   only because a pkg install skips the quarantine flag.
 
-- **fleetd packages.** The Installers tab runs `fleetctl package` for every platform and
+- **automdmd packages.** The Installers tab runs `automdmctl package` for every platform and
   architecture (macOS `.pkg`; `.msi`, `.deb`, `.rpm` and Arch `.pkg.tar.zst` for amd64 and arm64)
-  for a fleetctl context: it reads the context's Fleet server for its `server_url` and fleets, and
-  bakes in the picked fleet's enroll secret. If the server can't be read (down, expired token,
-  untrusted certificate), or there's no context, the Fleet URL and secret are typed in instead.
+  for an automdmctl context: it reads the context's AutoMDM server for its `server_url` and teams, and
+  bakes in the picked team's enroll secret. If the server can't be read (down, expired token,
+  untrusted certificate), or there's no context, the AutoMDM URL and secret are typed in instead.
   Packages land in `<file server directory>/packages/<context>/` when python http.server has a
   directory set, and the tab's *Start sharing* runs that same python http.server (one folder and
   port, set in Settings), with install commands per package. Without a directory they go in
   `<server 1's repo>/packages/` (gitignored) and aren't shared, since python would serve the whole
-  repo. A context pointing at one of Hangar's servers builds with that server's own `fleetctl`.
-  The selected platforms build at the same time, one `fleetctl package` each, so a full set takes
+  repo. A context pointing at one of Hangar's servers builds with that server's own `automdmctl`.
+  The selected platforms build at the same time, one `automdmctl package` each, so a full set takes
   about as long as the slowest `.msi`; each log line is tagged with its platform. `.msi` builds
   need Docker.
 - **Mock APNs.** osquery-perf won't start simulated macOS hosts that can enroll in MDM, or any
   iOS/iPadOS host, without a mock APNs server (`--mdm_apns_url`). The osquery-perf tab's *Mock
   APNs* card runs one for the run's target server: `cmd/apple-apns-mock` from server 1's clone, on
   that server's Redis. Start stays off until that clone has the mock, the Redis answers `PING` and
-  the port is free, so it can't start into an immediate exit. A `fleet serve` started while the
-  mock runs pushes to it through `FLEET_DEV_MDM_APPLE_PUSH_SERVER_URL`; Fleet reads that only at
+  the port is free, so it can't start into an immediate exit. An `automdm serve` started while the
+  mock runs pushes to it through `AUTOMDM_DEV_MDM_APPLE_PUSH_SERVER_URL`; AutoMDM reads that only at
   startup, so starting the mock restarts a running serve, and the Server tab offers a restart
-  after it stops. Fleet sends every Apple push to that one URL, so while serve pushes to the mock,
+  after it stops. AutoMDM sends every Apple push to that one URL, so while serve pushes to the mock,
   real Apple devices on that server get none. Start all doesn't start it, and its card is on the
   Server tab only while it runs. See [the mock's design
   doc](../../docs/Contributing/mdm/apple/apple-apns-mock.md).
@@ -125,15 +125,15 @@ and build time, into three places that would otherwise disagree:
 
 | Where | What it shows | Fed by |
 |---|---|---|
-| `--version` | `Fleet Hangar 1.1.0 (a1b2c3d, built …Z)` | `-ldflags -X` → `internal/buildinfo` |
+| `--version` | `AutoMDM Hangar 1.1.0 (a1b2c3d, built …Z)` | `-ldflags -X` → `internal/buildinfo` |
 | Settings sidebar (bottom) | `v1.1.0 · a1b2c3d`, click to copy the full string | same |
 | `hangar.log`, first line of every session | same | same |
-| `Info.plist` → Finder, `task pkg`, Fleet inventory | `CFBundleShortVersionString`, `CFBundleVersion`, `FleetHangarGitCommit` | `PlistBuddy` at bundle time |
+| `Info.plist` → Finder, `task pkg`, AutoMDM inventory | `CFBundleShortVersionString`, `CFBundleVersion`, `AutoMDMHangarGitCommit` | `PlistBuddy` at bundle time |
 
 Check any bundle without launching it:
 
 ```sh
-"/Applications/Fleet Hangar.app/Contents/MacOS/fleet-hangar" --version
+"/Applications/AutoMDM Hangar.app/Contents/MacOS/automdm-hangar" --version
 ```
 
 The commit carries a `-dirty` suffix when the working tree had uncommitted changes — the normal
@@ -141,7 +141,7 @@ state of a build made to test a branch, and worth knowing when someone reports w
 build made outside the task pipeline (a bare `go build`, `go run`, a test binary) reports
 `dev (unknown)`, so an unstamped build can't be mistaken for a release.
 
-Bumping the version is what makes an install register as an upgrade: Fleet's software inventory
+Bumping the version is what makes an install register as an upgrade: AutoMDM's software inventory
 keys off `CFBundleShortVersionString`, so shipping two different builds both claiming `1.0.0`
 leaves hosts reporting the old version.
 
@@ -149,7 +149,7 @@ leaves hosts reporting the old version.
 
 Two different things live in `~/Library/Logs/com.fleetdm.fleet-hangar/`:
 
-- **`<channel>.log`** — the output of the processes Hangar spawns (`fleet-serve-s1`, `scep-scep1`,
+- **`<channel>.log`** — the output of the processes Hangar spawns (`automdm-serve-s1`, `scep-scep1`,
   `tuf-build`, `installers-build`, ...). This is what the Logs tab shows, and its *Reveal in Finder* button opens this
   folder. Rotated at 16 MB, one generation kept as `.log.1`.
 - **`hangar.log`** — Hangar's own diagnostics: startup, the macOS sleep/wake and screen-change
@@ -184,8 +184,8 @@ zip -j ~/Desktop/hangar-logs.zip ~/Library/Logs/com.fleetdm.fleet-hangar/hangar.
 The glob picks up `hangar.log.1` too, in case the log rotated and the crash landed in the previous
 generation. Worth collecting alongside it: the build (bottom of the Settings sidebar), roughly when
 it happened and what the Mac was doing (lid closed, monitor plugged or unplugged, idle), whether
-their `fleet serve`/ngrok survived — that separates "Hangar died" from "everything died" — and
-`~/Library/Logs/DiagnosticReports/Fleet Hangar*.ips` if it exists. That last one won't exist for a
+their `automdm serve`/ngrok survived — that separates "Hangar died" from "everything died" — and
+`~/Library/Logs/DiagnosticReports/AutoMDM Hangar*.ips` if it exists. That last one won't exist for a
 Go `fatal error`, which prints its dump and calls `exit(2)` — a normal exit as far as macOS is
 concerned, and the reason these crashes left no trace at all before `hangar.log`. A segfault down
 in the Objective-C/webview layer does die by signal and does produce one.

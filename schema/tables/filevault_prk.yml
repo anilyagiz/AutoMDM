@@ -7,5 +7,5 @@ columns:
     type: text
     required: false
     description: The base64-encoded contents of the encrypted FileVault personal recovery key stored at `/var/db/FileVaultPRK.dat` (see also https://developer.apple.com/documentation/devicemanagement/fderecoverykeyescrow)
-notes: This table is not a core osquery table. It is included as part of Fleet's agent ([fleetd](https://fleetdm.com/docs/get-started/anatomy#fleetd)).
+notes: This table is not a core osquery table. It is included as part of AutoMDM's agent ([automdmd](https://automdm.com/docs/get-started/anatomy#automdmd)).
 evented: false

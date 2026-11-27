@@ -1,4 +1,4 @@
-# **Windows Update Toast Notifications for Fleet (PoC)**
+# **Windows Update Toast Notifications for AutoMDM (PoC)**
 
 ## **What This Is**
 
@@ -11,8 +11,8 @@ Windows.UI.Notifications API that ships with Windows 10 and Windows 11.
 
 ## **Why It\'s Needed**
 
-Fleet scripts run as SYSTEM. Toast notifications require a user session
-to display. The workaround: Fleet deploys a script that creates a
+AutoMDM scripts run as SYSTEM. Toast notifications require a user session
+to display. The workaround: AutoMDM deploys a script that creates a
 Scheduled Task running as the logged-in user. The scheduled task runs
 the actual toast notification script in user context.
 
@@ -23,13 +23,13 @@ the actual toast notification script in user context.
                                                                            Context**
   -------------------------- --------------------------------------------- -----------
   install-toast-task.ps1     Deployment script. Embeds the toast script    SYSTEM
-                             inline, writes it to disk, creates a          (Fleet)
+                             inline, writes it to disk, creates a          (AutoMDM)
                              Scheduled Task as the logged-in user.         
                              Self-contained, single-file. Deploy via       
-                             Fleet.                                        
+                             AutoMDM.                                        
 
   uninstall-toast-task.ps1   Cleanup script. Removes the scheduled task,   SYSTEM
-                             deletes deployed files, clears toast history  (Fleet)
+                             deletes deployed files, clears toast history  (AutoMDM)
                              from Action Center. Idempotent.               
 
   show-update-toast.ps1      Standalone toast notification script for      User
@@ -40,15 +40,15 @@ the actual toast notification script in user context.
 
 ## **How It Works**
 
-1.  Fleet runs install-toast-task.ps1 as SYSTEM
+1.  AutoMDM runs install-toast-task.ps1 as SYSTEM
 
 2.  Script detects the logged-in user via explorer.exe process owner
     > (fallback: query user)
 
 3.  Writes the toast notification script to
-    > C:\\ProgramData\\Fleet\\ToastNotification\\show-update-toast.ps1
+    > C:\\ProgramData\\AutoMDM\\ToastNotification\\show-update-toast.ps1
 
-4.  Creates a Scheduled Task named FleetWindowsUpdateToast that:
+4.  Creates a Scheduled Task named AutoMDMWindowsUpdateToast that:
 
     -   Runs as the logged-in user (interactive, non-elevated)
 
@@ -108,7 +108,7 @@ install-toast-task.ps1.
 
   \$DismissButtonText   \"Remind Me Later\"                        Dismiss button label
 
-  \$LogoPath            C:\\ProgramData\\Fleet\\company-logo.png   Path to a company logo
+  \$LogoPath            C:\\ProgramData\\AutoMDM\\company-logo.png   Path to a company logo
                                                                    (PNG). If the file
                                                                    exists, it shows as a
                                                                    circular icon on the
@@ -134,23 +134,23 @@ production, swap the trigger in the install script:
 
 
 
-## **Deployment via Fleet**
+## **Deployment via AutoMDM**
 
 ### **Install**
 
-1.  Upload install-toast-task.ps1 to Fleet: Controls \> Scripts \> Add
+1.  Upload install-toast-task.ps1 to AutoMDM: Controls \> Scripts \> Add
     > script
 
 2.  Run it against the target hosts
 
 3.  Verify the scheduled task exists on the device:
 
-4.  Get-ScheduledTask -TaskName \"FleetWindowsUpdateToast\" \|
+4.  Get-ScheduledTask -TaskName \"AutoMDMWindowsUpdateToast\" \|
     > Format-List
 
 ### **Uninstall**
 
-1.  Upload uninstall-toast-task.ps1 to Fleet: Controls \> Scripts \> Add
+1.  Upload uninstall-toast-task.ps1 to AutoMDM: Controls \> Scripts \> Add
     > script
 
 2.  Run it against the target hosts
@@ -161,7 +161,7 @@ production, swap the trigger in the install script:
 ### **Custom Branding**
 
 To add a company logo, deploy a PNG file to
-C:\\ProgramData\\Fleet\\company-logo.png on target devices before
+C:\\ProgramData\\AutoMDM\\company-logo.png on target devices before
 running the install script. The toast notification will display it as a
 circular icon overlay.
 
@@ -171,21 +171,21 @@ On a target device, run in PowerShell:
 
 # Check the scheduled task exists and is ready
 
-Get-ScheduledTask -TaskName \"FleetWindowsUpdateToast\" \| Format-List
+Get-ScheduledTask -TaskName \"AutoMDMWindowsUpdateToast\" \| Format-List
 TaskName, State, Description
 
 \# Check the deployed script exists
 
 Test-Path
-\"C:\\ProgramData\\Fleet\\ToastNotification\\show-update-toast.ps1\"
+\"C:\\ProgramData\\AutoMDM\\ToastNotification\\show-update-toast.ps1\"
 
 \# Manually trigger the task
 
-Start-ScheduledTask -TaskName \"FleetWindowsUpdateToast\"
+Start-ScheduledTask -TaskName \"AutoMDMWindowsUpdateToast\"
 
 \# Check last run result (0 = success)
 
-Get-ScheduledTaskInfo -TaskName \"FleetWindowsUpdateToast\" \|
+Get-ScheduledTaskInfo -TaskName \"AutoMDMWindowsUpdateToast\" \|
 Select-Object LastRunTime, LastTaskResult
 
 
@@ -210,10 +210,10 @@ Select-Object LastRunTime, LastTaskResult
 -   **Notification expiry:** Toasts expire after 8 hours. If the user
     > does not interact with it, it disappears from Action Center.
 
--   **Fleet script context:** Fleet currently runs all scripts as SYSTEM
+-   **AutoMDM script context:** AutoMDM currently runs all scripts as SYSTEM
     > (see
     > [[fleetdm/fleet#32587]{.underline}](https://github.com/fleetdm/fleet/issues/32587)).
-    > The scheduled task workaround is necessary until Fleet supports
+    > The scheduled task workaround is necessary until AutoMDM supports
     > Contextual script execution.
 
 ## **References**
@@ -224,8 +224,8 @@ Select-Object LastRunTime, LastTaskResult
 -   [[Toast notification XML
     > schema]{.underline}](https://learn.microsoft.com/en-us/windows/apps/design/shell/tiles-and-notifications/toast-xml-schema)
 
--   [[Fleet:
-    > Scripts]{.underline}](https://fleetdm.com/docs/using-fleet/scripts)
+-   [[AutoMDM:
+    > Scripts]{.underline}](https://automdm.com/docs/using-automdm/scripts)
 
--   [[Fleet issue #32587: Contextual script
+-   [[AutoMDM issue #32587: Contextual script
     > execution]{.underline}](https://github.com/fleetdm/fleet/issues/32587)

@@ -9,10 +9,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/logging"
-	"github.com/fleetdm/fleet/v4/server/contexts/redact"
-	platform_http "github.com/fleetdm/fleet/v4/server/platform/http"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/logging"
+	"github.com/anilyagiz/automdm/v4/server/contexts/redact"
+	platform_http "github.com/anilyagiz/automdm/v4/server/platform/http"
 	kithttp "github.com/go-kit/kit/transport/http"
 	"github.com/go-sql-driver/mysql"
 )
@@ -75,7 +75,7 @@ type conflictErrorInterface interface {
 }
 
 // safeReason returns the text that may be sent to the client for err, replacing
-// infrastructure detail that describes Fleet rather than the caller's request.
+// infrastructure detail that describes AutoMDM rather than the caller's request.
 func safeReason(err error, reason string) string {
 	// An ErrWithInternal has already separated its safe message from its detail.
 	if _, ok := errors.AsType[platform_http.ErrWithInternal](err); ok {

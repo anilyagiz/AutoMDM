@@ -10,87 +10,87 @@ import (
 	"slices"
 	"strconv"
 
-	"github.com/fleetdm/fleet/v4/server"
-	"github.com/fleetdm/fleet/v4/server/authz"
-	authz_ctx "github.com/fleetdm/fleet/v4/server/contexts/authz"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	authz_ctx "github.com/anilyagiz/automdm/v4/server/contexts/authz"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
 // Create Label
 ////////////////////////////////////////////////////////////////////////////////
 
-func createLabelEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.CreateLabelRequest)
+func createLabelEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.CreateLabelRequest)
 
 	label, hostIDs, err := svc.NewLabel(ctx, req.LabelPayload)
 	if err != nil {
-		return fleet.CreateLabelResponse{Err: err}, nil
+		return automdm.CreateLabelResponse{Err: err}, nil
 	}
 
 	labelResp, err := labelResponseForLabel(label, hostIDs)
 	if err != nil {
-		return fleet.CreateLabelResponse{Err: err}, nil
+		return automdm.CreateLabelResponse{Err: err}, nil
 	}
 
-	return fleet.CreateLabelResponse{Label: *labelResp}, nil
+	return automdm.CreateLabelResponse{Label: *labelResp}, nil
 }
 
-func (svc *Service) NewLabel(ctx context.Context, p fleet.LabelPayload) (*fleet.Label, []uint, error) {
-	if err := svc.authz.Authorize(ctx, &fleet.Label{}, fleet.ActionCreate); err != nil {
+func (svc *Service) NewLabel(ctx context.Context, p automdm.LabelPayload) (*automdm.Label, []uint, error) {
+	if err := svc.authz.Authorize(ctx, &automdm.Label{}, automdm.ActionCreate); err != nil {
 		return nil, nil, err
 	}
 	vc, ok := viewer.FromContext(ctx)
 	if !ok {
-		return nil, nil, fleet.ErrNoContext
+		return nil, nil, automdm.ErrNoContext
 	}
 
 	if len(p.Hosts) > 0 && len(p.HostIDs) > 0 {
-		return nil, nil, fleet.NewInvalidArgumentError("hosts", `Only one of either "hosts" or "host_ids" can be included in the request.`)
+		return nil, nil, automdm.NewInvalidArgumentError("hosts", `Only one of either "hosts" or "host_ids" can be included in the request.`)
 	}
 
-	filter := fleet.TeamFilter{User: vc.User, IncludeObserver: true}
+	filter := automdm.TeamFilter{User: vc.User, IncludeObserver: true}
 
-	label := &fleet.Label{
-		LabelType:           fleet.LabelTypeRegular,
-		LabelMembershipType: fleet.LabelMembershipTypeDynamic,
+	label := &automdm.Label{
+		LabelType:           automdm.LabelTypeRegular,
+		LabelMembershipType: automdm.LabelMembershipTypeDynamic,
 		AuthorID:            ptr.Uint(vc.UserID()),
 	}
 
 	if p.Name == "" {
-		return nil, nil, fleet.NewInvalidArgumentError("name", "missing required argument")
+		return nil, nil, automdm.NewInvalidArgumentError("name", "missing required argument")
 	}
 	label.Name = p.Name
 
 	if p.Criteria != nil {
 		if p.Query != "" || (len(p.Hosts) > 0 || len(p.HostIDs) > 0) {
-			return nil, nil, fleet.NewInvalidArgumentError("criteria", `Only one of "criteria", "query" or "hosts/host_ids" can be included in the request.`)
+			return nil, nil, automdm.NewInvalidArgumentError("criteria", `Only one of "criteria", "query" or "hosts/host_ids" can be included in the request.`)
 		}
-		label.LabelMembershipType = fleet.LabelMembershipTypeHostVitals
+		label.LabelMembershipType = automdm.LabelMembershipTypeHostVitals
 		labelCriteriaJson, err := json.Marshal(p.Criteria)
 		if err != nil {
-			return nil, nil, fleet.NewInvalidArgumentError("criteria", fmt.Sprintf("invalid criteria: %s", err.Error()))
+			return nil, nil, automdm.NewInvalidArgumentError("criteria", fmt.Sprintf("invalid criteria: %s", err.Error()))
 		}
 		label.HostVitalsCriteria = ptr.RawMessage(json.RawMessage(labelCriteriaJson))
 		// Attempt to calculate a query from the criteria.
 		_, _, err = label.CalculateHostVitalsQuery()
 		if err != nil {
-			return nil, nil, fleet.NewInvalidArgumentError("criteria", fmt.Sprintf("invalid criteria: %s", err.Error()))
+			return nil, nil, automdm.NewInvalidArgumentError("criteria", fmt.Sprintf("invalid criteria: %s", err.Error()))
 		}
 		if err := svc.validateCustomHostVitalCriteria(ctx, label.HostVitalsCriteria); err != nil {
 			return nil, nil, err
 		}
 	} else {
 		if p.Query != "" && (len(p.Hosts) > 0 || len(p.HostIDs) > 0) {
-			return nil, nil, fleet.NewInvalidArgumentError("query", `Only one of "criteria", "query" or "hosts/host_ids" can be included in the request.`)
+			return nil, nil, automdm.NewInvalidArgumentError("query", `Only one of "criteria", "query" or "hosts/host_ids" can be included in the request.`)
 		}
 		label.Query = p.Query
 		if p.Query == "" {
-			label.LabelMembershipType = fleet.LabelMembershipTypeManual
+			label.LabelMembershipType = automdm.LabelMembershipTypeManual
 		}
 	}
 
@@ -98,7 +98,7 @@ func (svc *Service) NewLabel(ctx context.Context, p fleet.LabelPayload) (*fleet.
 	label.Description = p.Description
 
 	// Validate field combinations for the inferred membership type
-	if err := fleet.ValidateLabelMembershipFields(&fleet.LabelSpec{
+	if err := automdm.ValidateLabelMembershipFields(&automdm.LabelSpec{
 		Name:                label.Name,
 		Query:               label.Query,
 		Platform:            label.Platform,
@@ -107,12 +107,12 @@ func (svc *Service) NewLabel(ctx context.Context, p fleet.LabelPayload) (*fleet.
 	}); err != nil {
 		return nil, nil, err
 	}
-	if err := fleet.ValidateLabelFieldLengths(label.Name, label.Description); err != nil {
+	if err := automdm.ValidateLabelFieldLengths(label.Name, label.Description); err != nil {
 		return nil, nil, err
 	}
 
-	if reserved, ok := fleet.IsReservedLabelName(label.Name); ok {
-		return nil, nil, fleet.NewInvalidArgumentError("name", fmt.Sprintf("cannot add label '%s' because it conflicts with the name of a built-in label", reserved))
+	if reserved, ok := automdm.IsReservedLabelName(label.Name); ok {
+		return nil, nil, automdm.NewInvalidArgumentError("name", fmt.Sprintf("cannot add label '%s' because it conflicts with the name of a built-in label", reserved))
 	}
 
 	// For a manual label, resolve the target hosts and verify the caller is
@@ -121,7 +121,7 @@ func (svc *Service) NewLabel(ctx context.Context, p fleet.LabelPayload) (*fleet.
 	// another team by supplying their IDs.
 	var err error
 	var manualHostIDs []uint
-	if label.LabelMembershipType == fleet.LabelMembershipTypeManual {
+	if label.LabelMembershipType == automdm.LabelMembershipTypeManual {
 		manualHostIDs = p.HostIDs
 		if len(p.Hosts) > 0 {
 			manualHostIDs, err = svc.ds.HostIDsByLabelIdentifier(ctx, filter, p.Hosts)
@@ -140,15 +140,15 @@ func (svc *Service) NewLabel(ctx context.Context, p fleet.LabelPayload) (*fleet.
 		return nil, nil, err
 	}
 
-	if err := svc.NewActivity(ctx, vc.User, fleet.ActivityTypeCreatedLabel{
+	if err := svc.NewActivity(ctx, vc.User, automdm.ActivityTypeCreatedLabel{
 		ID:   label.ID,
 		Name: label.Name,
-		// NOTE: Set FleetID and FleetName as soon as NewLabel supports creating labels on teams.
+		// NOTE: Set AutoMDMID and AutoMDMName as soon as NewLabel supports creating labels on teams.
 	}); err != nil {
 		return nil, nil, ctxerr.Wrap(ctx, err, "create activity for label creation")
 	}
 
-	if label.LabelMembershipType == fleet.LabelMembershipTypeManual {
+	if label.LabelMembershipType == automdm.LabelMembershipTypeManual {
 		return svc.ds.UpdateLabelMembershipByHostIDs(ctx, *label, manualHostIDs, filter)
 	}
 	return label, nil, nil
@@ -162,9 +162,9 @@ func (svc *Service) validateCustomHostVitalCriteria(ctx context.Context, raw *js
 	if raw == nil {
 		return nil
 	}
-	var criteria fleet.HostVitalCriteria
+	var criteria automdm.HostVitalCriteria
 	if err := json.Unmarshal(*raw, &criteria); err != nil {
-		return fleet.NewInvalidArgumentError("criteria", fmt.Sprintf("invalid criteria: %s", err.Error()))
+		return automdm.NewInvalidArgumentError("criteria", fmt.Sprintf("invalid criteria: %s", err.Error()))
 	}
 	if criteria.CustomHostVitalID == nil {
 		return nil
@@ -176,7 +176,7 @@ func (svc *Service) validateCustomHostVitalCriteria(ctx context.Context, raw *js
 		return ctxerr.Wrap(ctx, err, "validate custom host vital criteria")
 	}
 	if len(existing) == 0 {
-		return fleet.NewInvalidArgumentError("criteria", fmt.Sprintf("custom host vital %d does not exist", id))
+		return automdm.NewInvalidArgumentError("criteria", fmt.Sprintf("custom host vital %d does not exist", id))
 	}
 	return nil
 }
@@ -205,12 +205,12 @@ func (svc *Service) authorizeWriteLabelOnHosts(ctx context.Context, hostIDs []ui
 	}
 	for _, id := range hostIDs {
 		if _, ok := foundIDs[id]; !ok {
-			return fleet.NewInvalidArgumentError("host_ids", fmt.Sprintf("host %d does not exist", id))
+			return automdm.NewInvalidArgumentError("host_ids", fmt.Sprintf("host %d does not exist", id))
 		}
 	}
 
 	for _, host := range hosts {
-		if err := svc.authz.Authorize(ctx, host, fleet.ActionWriteHostLabel); err != nil {
+		if err := svc.authz.Authorize(ctx, host, automdm.ActionWriteHostLabel); err != nil {
 			return ctxerr.Wrap(ctx, err)
 		}
 	}
@@ -221,64 +221,64 @@ func (svc *Service) authorizeWriteLabelOnHosts(ctx context.Context, hostIDs []ui
 // Modify Label
 ////////////////////////////////////////////////////////////////////////////////
 
-func modifyLabelEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.ModifyLabelRequest)
+func modifyLabelEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.ModifyLabelRequest)
 	label, hostIDs, err := svc.ModifyLabel(ctx, req.ID, req.ModifyLabelPayload)
 	if err != nil {
-		return fleet.ModifyLabelResponse{Err: err}, nil
+		return automdm.ModifyLabelResponse{Err: err}, nil
 	}
 
 	labelResp, err := labelResponseForLabelWithTeamName(label, hostIDs)
 	if err != nil {
-		return fleet.ModifyLabelResponse{Err: err}, nil
+		return automdm.ModifyLabelResponse{Err: err}, nil
 	}
 
-	return fleet.ModifyLabelResponse{Label: *labelResp}, err
+	return automdm.ModifyLabelResponse{Label: *labelResp}, err
 }
 
-func (svc *Service) ModifyLabel(ctx context.Context, id uint, payload fleet.ModifyLabelPayload) (*fleet.LabelWithTeamName, []uint, error) {
+func (svc *Service) ModifyLabel(ctx context.Context, id uint, payload automdm.ModifyLabelPayload) (*automdm.LabelWithTeamName, []uint, error) {
 	vc, ok := viewer.FromContext(ctx)
 	if !ok {
 		svc.SkipAuth(ctx)
-		return nil, nil, fleet.ErrNoContext
+		return nil, nil, automdm.ErrNoContext
 	}
 
 	if len(payload.Hosts) > 0 && len(payload.HostIDs) > 0 {
 		svc.SkipAuth(ctx)
-		return nil, nil, fleet.NewInvalidArgumentError("hosts", `Only one of either "hosts" or "host_ids" can be included in the request.`)
+		return nil, nil, automdm.NewInvalidArgumentError("hosts", `Only one of either "hosts" or "host_ids" can be included in the request.`)
 	}
 
-	filter := fleet.TeamFilter{User: vc.User, IncludeObserver: true}
+	filter := automdm.TeamFilter{User: vc.User, IncludeObserver: true}
 
 	// DB query will filter labels the user can't see; auth check filters labels the user can't write
 	label, _, err := svc.ds.Label(ctx, id, filter)
 	if err != nil {
 		// If we get a retrieval error, 403-wrap it if a user can't write global labels so we don't leak info
-		if authErr := svc.authz.Authorize(ctx, fleet.Label{}, fleet.ActionWrite); authErr != nil {
+		if authErr := svc.authz.Authorize(ctx, automdm.Label{}, automdm.ActionWrite); authErr != nil {
 			return nil, nil, authErr
 		}
 		return nil, nil, err
 	}
-	if err := svc.authz.Authorize(ctx, label, fleet.ActionWrite); err != nil {
+	if err := svc.authz.Authorize(ctx, label, automdm.ActionWrite); err != nil {
 		return nil, nil, err
 	}
 
-	if label.LabelType == fleet.LabelTypeBuiltIn {
-		return nil, nil, fleet.NewInvalidArgumentError("label_type", fmt.Sprintf("cannot modify built-in label '%s'", label.Name))
+	if label.LabelType == automdm.LabelTypeBuiltIn {
+		return nil, nil, automdm.NewInvalidArgumentError("label_type", fmt.Sprintf("cannot modify built-in label '%s'", label.Name))
 	}
-	if label.LabelMembershipType != fleet.LabelMembershipTypeManual && (payload.Hosts != nil || payload.HostIDs != nil) {
-		return nil, nil, fleet.NewInvalidArgumentError("hosts", `"hosts" or "host_ids" can only be provided for a manual label`)
+	if label.LabelMembershipType != automdm.LabelMembershipTypeManual && (payload.Hosts != nil || payload.HostIDs != nil) {
+		return nil, nil, automdm.NewInvalidArgumentError("hosts", `"hosts" or "host_ids" can only be provided for a manual label`)
 	}
 	if payload.Name != nil {
-		if reserved, ok := fleet.IsReservedLabelName(*payload.Name); ok {
-			return nil, nil, fleet.NewInvalidArgumentError("name", fmt.Sprintf("cannot rename label to '%s' because it conflicts with the name of a built-in label", reserved))
+		if reserved, ok := automdm.IsReservedLabelName(*payload.Name); ok {
+			return nil, nil, automdm.NewInvalidArgumentError("name", fmt.Sprintf("cannot rename label to '%s' because it conflicts with the name of a built-in label", reserved))
 		}
 		label.Name = *payload.Name
 	}
 	if payload.Description != nil {
 		label.Description = *payload.Description
 	}
-	if err := fleet.ValidateLabelFieldLengths(label.Name, label.Description); err != nil {
+	if err := automdm.ValidateLabelFieldLengths(label.Name, label.Description); err != nil {
 		return nil, nil, err
 	}
 
@@ -307,11 +307,11 @@ func (svc *Service) ModifyLabel(ctx context.Context, id uint, payload fleet.Modi
 		return nil, nil, err
 	}
 
-	if err := svc.NewActivity(ctx, vc.User, fleet.ActivityTypeEditedLabel{
-		ID:        saved.ID,
-		Name:      saved.Name,
-		FleetID:   saved.TeamID,
-		FleetName: saved.TeamName,
+	if err := svc.NewActivity(ctx, vc.User, automdm.ActivityTypeEditedLabel{
+		ID:          saved.ID,
+		Name:        saved.Name,
+		AutoMDMID:   saved.TeamID,
+		AutoMDMName: saved.TeamName,
 	}); err != nil {
 		return nil, nil, ctxerr.Wrap(ctx, err, "create activity for label edit")
 	}
@@ -323,29 +323,29 @@ func (svc *Service) ModifyLabel(ctx context.Context, id uint, payload fleet.Modi
 // Get Label
 ////////////////////////////////////////////////////////////////////////////////
 
-func getLabelEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.GetLabelRequest)
+func getLabelEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.GetLabelRequest)
 	label, hostIDs, err := svc.GetLabel(ctx, req.ID)
 	if err != nil {
-		return fleet.GetLabelResponse{Err: err}, nil
+		return automdm.GetLabelResponse{Err: err}, nil
 	}
 	resp, err := labelResponseForLabelWithTeamName(label, hostIDs)
 	if err != nil {
-		return fleet.GetLabelResponse{Err: err}, nil
+		return automdm.GetLabelResponse{Err: err}, nil
 	}
-	return fleet.GetLabelResponse{Label: *resp}, nil
+	return automdm.GetLabelResponse{Label: *resp}, nil
 }
 
-func (svc *Service) GetLabel(ctx context.Context, id uint) (*fleet.LabelWithTeamName, []uint, error) {
+func (svc *Service) GetLabel(ctx context.Context, id uint) (*automdm.LabelWithTeamName, []uint, error) {
 	// authz intentionally casts a wide net here; we filter unauthorized labels out at the data store level
-	if err := svc.authz.Authorize(ctx, &fleet.Label{}, fleet.ActionRead); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.Label{}, automdm.ActionRead); err != nil {
 		return nil, nil, err
 	}
 	vc, ok := viewer.FromContext(ctx)
 	if !ok {
-		return nil, nil, fleet.ErrNoContext
+		return nil, nil, automdm.ErrNoContext
 	}
-	filter := fleet.TeamFilter{User: vc.User, IncludeObserver: true}
+	filter := automdm.TeamFilter{User: vc.User, IncludeObserver: true}
 
 	return svc.ds.Label(ctx, id, filter)
 }
@@ -354,8 +354,8 @@ func (svc *Service) GetLabel(ctx context.Context, id uint) (*fleet.LabelWithTeam
 // List Labels
 ////////////////////////////////////////////////////////////////////////////////
 
-func listLabelsEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.ListLabelsRequest)
+func listLabelsEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.ListLabelsRequest)
 
 	includeHostCounts := true
 	if req.IncludeHostCounts != nil {
@@ -364,14 +364,14 @@ func listLabelsEndpoint(ctx context.Context, request interface{}, svc fleet.Serv
 
 	labels, err := svc.ListLabels(ctx, req.ListOptions, getTeamIDOrZeroForGlobal(req.TeamID), includeHostCounts)
 	if err != nil {
-		return fleet.ListLabelsResponse{Err: err}, nil
+		return automdm.ListLabelsResponse{Err: err}, nil
 	}
 
-	resp := fleet.ListLabelsResponse{}
+	resp := automdm.ListLabelsResponse{}
 	for _, label := range labels {
 		labelResp, err := labelResponseForLabel(label, nil)
 		if err != nil {
-			return fleet.ListLabelsResponse{Err: err}, nil
+			return automdm.ListLabelsResponse{Err: err}, nil
 		}
 		resp.Labels = append(resp.Labels, *labelResp)
 	}
@@ -394,18 +394,18 @@ func getTeamIDOrZeroForGlobal(stringID *string) *uint {
 	return nil
 }
 
-func (svc *Service) ListLabels(ctx context.Context, opt fleet.ListOptions, teamID *uint, includeHostCounts bool) ([]*fleet.Label, error) {
-	if err := svc.authz.Authorize(ctx, &fleet.Label{TeamID: teamID}, fleet.ActionRead); err != nil {
+func (svc *Service) ListLabels(ctx context.Context, opt automdm.ListOptions, teamID *uint, includeHostCounts bool) ([]*automdm.Label, error) {
+	if err := svc.authz.Authorize(ctx, &automdm.Label{TeamID: teamID}, automdm.ActionRead); err != nil {
 		return nil, err
 	}
 
 	vc, ok := viewer.FromContext(ctx)
 	if !ok {
-		return nil, fleet.ErrNoContext
+		return nil, automdm.ErrNoContext
 	}
 
 	if !license.IsPremium(ctx) && teamID != nil && *teamID > 0 {
-		return nil, fleet.ErrMissingLicense
+		return nil, automdm.ErrMissingLicense
 	}
 
 	// TODO(mna): ListLabels doesn't currently return the hostIDs members of the
@@ -414,11 +414,11 @@ func (svc *Service) ListLabels(ctx context.Context, opt fleet.ListOptions, teamI
 	// would probably be to do it in 2 queries : grab all label IDs from the
 	// list, then select hostID+labelID tuples in one query (where labelID IN
 	// <list of ids>)and fill the hostIDs per label.
-	return svc.ds.ListLabels(ctx, fleet.TeamFilter{User: vc.User, IncludeObserver: true, TeamID: teamID}, opt, includeHostCounts)
+	return svc.ds.ListLabels(ctx, automdm.TeamFilter{User: vc.User, IncludeObserver: true, TeamID: teamID}, opt, includeHostCounts)
 }
 
-func labelResponseForLabel(label *fleet.Label, hostIDs []uint) (*fleet.LabelResponse, error) {
-	return &fleet.LabelResponse{
+func labelResponseForLabel(label *automdm.Label, hostIDs []uint) (*automdm.LabelResponse, error) {
+	return &automdm.LabelResponse{
 		Label:       *label,
 		DisplayText: label.Name,
 		Count:       label.HostCount,
@@ -426,8 +426,8 @@ func labelResponseForLabel(label *fleet.Label, hostIDs []uint) (*fleet.LabelResp
 	}, nil
 }
 
-func labelResponseForLabelWithTeamName(label *fleet.LabelWithTeamName, hostIDs []uint) (*fleet.LabelWithTeamNameResponse, error) {
-	return &fleet.LabelWithTeamNameResponse{
+func labelResponseForLabelWithTeamName(label *automdm.LabelWithTeamName, hostIDs []uint) (*automdm.LabelWithTeamNameResponse, error) {
+	return &automdm.LabelWithTeamNameResponse{
 		LabelWithTeamName: *label,
 		DisplayText:       label.Name,
 		Count:             label.HostCount,
@@ -439,70 +439,70 @@ func labelResponseForLabelWithTeamName(label *fleet.LabelWithTeamName, hostIDs [
 // Labels Summary
 ////////////////////////////////////////////////////////////////////////////////
 
-func getLabelsSummaryEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.GetLabelsSummaryRequest)
+func getLabelsSummaryEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.GetLabelsSummaryRequest)
 
 	labels, err := svc.LabelsSummary(ctx, getTeamIDOrZeroForGlobal(req.TeamID))
 	if err != nil {
-		return fleet.GetLabelsSummaryResponse{Err: err}, nil
+		return automdm.GetLabelsSummaryResponse{Err: err}, nil
 	}
-	return fleet.GetLabelsSummaryResponse{Labels: labels}, nil
+	return automdm.GetLabelsSummaryResponse{Labels: labels}, nil
 }
 
-func (svc *Service) LabelsSummary(ctx context.Context, teamID *uint) ([]*fleet.LabelSummary, error) {
-	if err := svc.authz.Authorize(ctx, &fleet.Label{TeamID: teamID}, fleet.ActionRead); err != nil {
+func (svc *Service) LabelsSummary(ctx context.Context, teamID *uint) ([]*automdm.LabelSummary, error) {
+	if err := svc.authz.Authorize(ctx, &automdm.Label{TeamID: teamID}, automdm.ActionRead); err != nil {
 		return nil, err
 	}
 
 	vc, ok := viewer.FromContext(ctx)
 	if !ok {
-		return nil, fleet.ErrNoContext
+		return nil, automdm.ErrNoContext
 	}
 
 	if !license.IsPremium(ctx) && teamID != nil && *teamID > 0 {
-		return nil, fleet.ErrMissingLicense
+		return nil, automdm.ErrMissingLicense
 	}
 
-	return svc.ds.LabelsSummary(ctx, fleet.TeamFilter{User: vc.User, IncludeObserver: true, TeamID: teamID})
+	return svc.ds.LabelsSummary(ctx, automdm.TeamFilter{User: vc.User, IncludeObserver: true, TeamID: teamID})
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // List Hosts in Label
 ////////////////////////////////////////////////////////////////////////////////
 
-func listHostsInLabelEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.ListHostsInLabelRequest)
+func listHostsInLabelEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.ListHostsInLabelRequest)
 	hosts, err := svc.ListHostsInLabel(ctx, req.ID, req.ListOptions)
 	if err != nil {
 		return listHostsResponse{Err: err}, nil
 	}
 
-	var mdmSolution *fleet.MDMSolution
+	var mdmSolution *automdm.MDMSolution
 	if req.ListOptions.MDMIDFilter != nil {
 		var err error
 		mdmSolution, err = svc.GetMDMSolution(ctx, *req.ListOptions.MDMIDFilter)
-		if err != nil && !fleet.IsNotFound(err) { // ignore not found, just return nil for the MDM solution in that case
+		if err != nil && !automdm.IsNotFound(err) { // ignore not found, just return nil for the MDM solution in that case
 			return listHostsResponse{Err: err}, nil
 		}
 	}
 
-	hostResponses := make([]fleet.HostResponse, len(hosts))
+	hostResponses := make([]automdm.HostResponse, len(hosts))
 	for i, host := range hosts {
-		h := fleet.HostResponseForHost(ctx, svc, host)
+		h := automdm.HostResponseForHost(ctx, svc, host)
 		hostResponses[i] = *h
 	}
 	return listHostsResponse{Hosts: hostResponses, MDMSolution: mdmSolution}, nil
 }
 
-func (svc *Service) ListHostsInLabel(ctx context.Context, lid uint, opt fleet.HostListOptions) ([]*fleet.Host, error) {
-	if err := svc.authz.Authorize(ctx, &fleet.Label{}, fleet.ActionRead); err != nil {
+func (svc *Service) ListHostsInLabel(ctx context.Context, lid uint, opt automdm.HostListOptions) ([]*automdm.Host, error) {
+	if err := svc.authz.Authorize(ctx, &automdm.Label{}, automdm.ActionRead); err != nil {
 		return nil, err
 	}
 	vc, ok := viewer.FromContext(ctx)
 	if !ok {
-		return nil, fleet.ErrNoContext
+		return nil, automdm.ErrNoContext
 	}
-	filter := fleet.TeamFilter{User: vc.User, IncludeObserver: true}
+	filter := automdm.TeamFilter{User: vc.User, IncludeObserver: true}
 
 	hosts, err := svc.ds.ListHostsInLabel(ctx, filter, lid, opt)
 	if err != nil {
@@ -537,8 +537,8 @@ func (svc *Service) ListHostsInLabel(ctx context.Context, lid uint, opt fleet.Ho
 					host.MDM.PendingAction = ptr.String(string(status.PendingAction()))
 				} else {
 					// Host has no MDM actions, set defaults
-					host.MDM.DeviceStatus = ptr.String(string(fleet.DeviceStatusUnlocked))
-					host.MDM.PendingAction = ptr.String(string(fleet.PendingActionNone))
+					host.MDM.DeviceStatus = ptr.String(string(automdm.DeviceStatusUnlocked))
+					host.MDM.PendingAction = ptr.String(string(automdm.PendingActionNone))
 				}
 				suppressAndroidBYODWipeStatus(host)
 			}
@@ -552,53 +552,53 @@ func (svc *Service) ListHostsInLabel(ctx context.Context, lid uint, opt fleet.Ho
 // Delete Label By ID
 ////////////////////////////////////////////////////////////////////////////////
 
-func deleteLabelByIDEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.DeleteLabelByIDRequest)
+func deleteLabelByIDEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.DeleteLabelByIDRequest)
 	err := svc.DeleteLabelByID(ctx, req.ID)
 	if err != nil {
-		return fleet.DeleteLabelByIDResponse{Err: err}, nil
+		return automdm.DeleteLabelByIDResponse{Err: err}, nil
 	}
-	return fleet.DeleteLabelByIDResponse{}, nil
+	return automdm.DeleteLabelByIDResponse{}, nil
 }
 
 func (svc *Service) DeleteLabelByID(ctx context.Context, id uint) error {
 	vc, ok := viewer.FromContext(ctx)
 	if !ok {
 		svc.SkipAuth(ctx)
-		return fleet.ErrNoContext
+		return automdm.ErrNoContext
 	}
-	filter := fleet.TeamFilter{User: vc.User, IncludeObserver: true}
+	filter := automdm.TeamFilter{User: vc.User, IncludeObserver: true}
 
 	// need to grab the label first to see if we have permission to delete it;
 	// if the label doesn't exist global users will see the true 404, other users will get a 403
 	label, _, err := svc.ds.Label(ctx, id, filter)
 	if err != nil {
 		// If we get a retrieval error, 403-wrap it if a user can't write global labels so we don't leak info
-		if authErr := svc.authz.Authorize(ctx, fleet.Label{}, fleet.ActionWrite); authErr != nil {
+		if authErr := svc.authz.Authorize(ctx, automdm.Label{}, automdm.ActionWrite); authErr != nil {
 			return authErr
 		}
 		return err
 	}
-	if err := svc.authz.Authorize(ctx, label, fleet.ActionWrite); err != nil {
+	if err := svc.authz.Authorize(ctx, label, automdm.ActionWrite); err != nil {
 		return err
 	}
 
-	if label.LabelType == fleet.LabelTypeBuiltIn {
-		return fleet.NewInvalidArgumentError("label_type", fmt.Sprintf("cannot delete built-in label '%s'", label.Name))
+	if label.LabelType == automdm.LabelTypeBuiltIn {
+		return automdm.NewInvalidArgumentError("label_type", fmt.Sprintf("cannot delete built-in label '%s'", label.Name))
 	}
-	if reserved, ok := fleet.IsReservedLabelName(label.Name); ok {
-		return fleet.NewInvalidArgumentError("name", fmt.Sprintf("cannot delete built-in label '%s'", reserved))
+	if reserved, ok := automdm.IsReservedLabelName(label.Name); ok {
+		return automdm.NewInvalidArgumentError("name", fmt.Sprintf("cannot delete built-in label '%s'", reserved))
 	}
 
 	if err := svc.ds.DeleteLabel(ctx, label.ID); err != nil {
 		return err
 	}
 
-	if err := svc.NewActivity(ctx, vc.User, fleet.ActivityTypeDeletedLabel{
-		ID:        label.ID,
-		Name:      label.Name,
-		FleetID:   label.TeamID,
-		FleetName: label.TeamName,
+	if err := svc.NewActivity(ctx, vc.User, automdm.ActivityTypeDeletedLabel{
+		ID:          label.ID,
+		Name:        label.Name,
+		AutoMDMID:   label.TeamID,
+		AutoMDMName: label.TeamName,
 	}); err != nil {
 		return ctxerr.Wrap(ctx, err, "create activity for label deletion")
 	}
@@ -609,32 +609,32 @@ func (svc *Service) DeleteLabelByID(ctx context.Context, id uint) error {
 // Apply Label Specs
 ////////////////////////////////////////////////////////////////////////////////
 
-func applyLabelSpecsEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.ApplyLabelSpecsRequest)
+func applyLabelSpecsEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.ApplyLabelSpecsRequest)
 	err := svc.ApplyLabelSpecs(ctx, req.Specs, req.TeamID, req.LabelsToMove)
 	if err != nil {
-		return fleet.ApplyLabelSpecsResponse{Err: err}, nil
+		return automdm.ApplyLabelSpecsResponse{Err: err}, nil
 	}
-	return fleet.ApplyLabelSpecsResponse{}, nil
+	return automdm.ApplyLabelSpecsResponse{}, nil
 }
 
-func (svc *Service) ApplyLabelSpecs(ctx context.Context, specs []*fleet.LabelSpec, teamID *uint, labelsToMove []fleet.LabelToMove) error {
-	if err := svc.authz.Authorize(ctx, &fleet.Label{TeamID: teamID}, fleet.ActionWrite); err != nil {
+func (svc *Service) ApplyLabelSpecs(ctx context.Context, specs []*automdm.LabelSpec, teamID *uint, labelsToMove []automdm.LabelToMove) error {
+	if err := svc.authz.Authorize(ctx, &automdm.Label{TeamID: teamID}, automdm.ActionWrite); err != nil {
 		return err
 	}
 	user, ok := viewer.FromContext(ctx)
 	if !ok || user.User == nil {
-		return fleet.ErrNoContext
+		return automdm.ErrNoContext
 	}
 	if !license.IsPremium(ctx) && teamID != nil && *teamID > 0 {
-		return fleet.ErrMissingLicense
+		return automdm.ErrMissingLicense
 	}
 
-	regularSpecs := make([]*fleet.LabelSpec, 0, len(specs))
-	var builtInSpecs []*fleet.LabelSpec
+	regularSpecs := make([]*automdm.LabelSpec, 0, len(specs))
+	var builtInSpecs []*automdm.LabelSpec
 	var builtInSpecNames []string
 
-	// A name moving from several fleets appears once per fleet.
+	// A name moving from several teams appears once per team.
 	var namesToMove []string
 	for _, l := range labelsToMove {
 		if !slices.Contains(namesToMove, l.Name) {
@@ -645,36 +645,36 @@ func (svc *Service) ApplyLabelSpecs(ctx context.Context, specs []*fleet.LabelSpe
 
 	for _, spec := range specs {
 		// Validate mutually exclusive field combinations per label membership type
-		if err := fleet.ValidateLabelMembershipFields(spec); err != nil {
+		if err := automdm.ValidateLabelMembershipFields(spec); err != nil {
 			return err.WithStatus(http.StatusUnprocessableEntity)
 		}
-		if err := fleet.ValidateLabelFieldLengths(spec.Name, spec.Description); err != nil {
+		if err := automdm.ValidateLabelFieldLengths(spec.Name, spec.Description); err != nil {
 			return err.WithStatus(http.StatusUnprocessableEntity)
 		}
 		// Validate host vitals criteria structurally (unknown vital, missing
 		// custom_host_vital_id, etc.) and that any referenced custom vital
 		// exists, mirroring the checks in NewLabel so a bad spec fails at apply
 		// rather than silently matching no hosts at cron evaluation time.
-		if spec.LabelMembershipType == fleet.LabelMembershipTypeHostVitals {
-			if _, _, err := (&fleet.Label{HostVitalsCriteria: spec.HostVitalsCriteria}).CalculateHostVitalsQuery(); err != nil {
-				return fleet.NewInvalidArgumentError("criteria", fmt.Sprintf("invalid criteria: %s", err.Error())).WithStatus(http.StatusUnprocessableEntity)
+		if spec.LabelMembershipType == automdm.LabelMembershipTypeHostVitals {
+			if _, _, err := (&automdm.Label{HostVitalsCriteria: spec.HostVitalsCriteria}).CalculateHostVitalsQuery(); err != nil {
+				return automdm.NewInvalidArgumentError("criteria", fmt.Sprintf("invalid criteria: %s", err.Error())).WithStatus(http.StatusUnprocessableEntity)
 			}
 			if err := svc.validateCustomHostVitalCriteria(ctx, spec.HostVitalsCriteria); err != nil {
 				return err
 			}
 		}
-		if spec.LabelType == fleet.LabelTypeBuiltIn {
+		if spec.LabelType == automdm.LabelTypeBuiltIn {
 			// We allow specs to contain built-in labels as long as they are not being modified.
 			// This allows the user to do the following workflow without manually removing built-in labels:
-			// 1. fleetctl get labels --yaml > labels.yml
+			// 1. automdmctl get labels --yaml > labels.yml
 			// 2. (Optional) Edit labels.yml
-			// 3. fleetctl apply -f labels.yml
+			// 3. automdmctl apply -f labels.yml
 			builtInSpecs = append(builtInSpecs, spec)
 			builtInSpecNames = append(builtInSpecNames, spec.Name)
 			continue
 		}
-		if reserved, ok := fleet.IsReservedLabelName(spec.Name); ok {
-			return fleet.NewUserMessageError(
+		if reserved, ok := automdm.IsReservedLabelName(spec.Name); ok {
+			return automdm.NewUserMessageError(
 				ctxerr.Errorf(
 					ctx,
 					"cannot add label '%s' because it conflicts with the name of a built-in label",
@@ -688,10 +688,10 @@ func (svc *Service) ApplyLabelSpecs(ctx context.Context, specs []*fleet.LabelSpe
 
 		// make sure we're only upserting labels on the team we specified; individual spec teams aren't used on writes
 		if spec.TeamID != nil {
-			return fleet.NewUserMessageError(
+			return automdm.NewUserMessageError(
 				ctxerr.New(
 					ctx,
-					"When applying fleet label specs, provide the fleet label by URL query string parameter rather than within the JSON request body",
+					"When applying team label specs, provide the team label by URL query string parameter rather than within the JSON request body",
 				), http.StatusUnprocessableEntity)
 		}
 		spec.TeamID = teamID
@@ -699,7 +699,7 @@ func (svc *Service) ApplyLabelSpecs(ctx context.Context, specs []*fleet.LabelSpe
 	}
 
 	if len(specLabelNamesNeedingMoving) != len(namesToMove) {
-		return fleet.NewUserMessageError(
+		return automdm.NewUserMessageError(
 			ctxerr.New(ctx, "label names to move list was not a subset of specified labels"),
 			http.StatusConflict,
 		)
@@ -707,7 +707,7 @@ func (svc *Service) ApplyLabelSpecs(ctx context.Context, specs []*fleet.LabelSpe
 
 	// If built-in labels have been provided, ensure that they are not attempted to be modified
 	if len(builtInSpecs) > 0 {
-		labelMap, err := svc.ds.LabelsByName(ctx, builtInSpecNames, fleet.TeamFilter{}) // built-in labels are all global
+		labelMap, err := svc.ds.LabelsByName(ctx, builtInSpecNames, automdm.TeamFilter{}) // built-in labels are all global
 		if err != nil {
 			return err
 		}
@@ -717,9 +717,9 @@ func (svc *Service) ApplyLabelSpecs(ctx context.Context, specs []*fleet.LabelSpe
 				label.Description != spec.Description ||
 				label.Query != spec.Query ||
 				label.Platform != spec.Platform ||
-				label.LabelType != fleet.LabelTypeBuiltIn ||
+				label.LabelType != automdm.LabelTypeBuiltIn ||
 				label.LabelMembershipType != spec.LabelMembershipType {
-				return fleet.NewUserMessageError(
+				return automdm.NewUserMessageError(
 					ctxerr.Errorf(ctx, "cannot modify or add built-in label '%s'", spec.Name), http.StatusUnprocessableEntity,
 				)
 			}
@@ -735,7 +735,7 @@ func (svc *Service) ApplyLabelSpecs(ctx context.Context, specs []*fleet.LabelSpe
 	for _, s := range regularSpecs {
 		regularSpecNames = append(regularSpecNames, s.Name)
 	}
-	reservedNames := slices.Sorted(maps.Keys(fleet.ReservedLabelNames()))
+	reservedNames := slices.Sorted(maps.Keys(automdm.ReservedLabelNames()))
 	equalNameGroups, err := svc.ds.GetDuplicateStringGroupsUnderCollation(ctx, append(slices.Clone(regularSpecNames), reservedNames...))
 	if err != nil {
 		return ctxerr.Wrap(ctx, err, "checking for duplicate label names")
@@ -747,13 +747,13 @@ func (svc *Service) ApplyLabelSpecs(ctx context.Context, specs []*fleet.LabelSpe
 			continue
 		}
 		if last := group.Indices[len(group.Indices)-1]; last >= len(regularSpecNames) {
-			return fleet.NewUserMessageError(
+			return automdm.NewUserMessageError(
 				ctxerr.Errorf(ctx, "cannot add label '%s' because it conflicts with the name of a built-in label",
 					reservedNames[last-len(regularSpecNames)]),
 				http.StatusUnprocessableEntity,
 			)
 		}
-		return fleet.NewUserMessageError(
+		return automdm.NewUserMessageError(
 			ctxerr.Errorf(ctx, "Couldn't edit labels. More than one label has the same name: %q", regularSpecNames[group.Indices[1]]),
 			http.StatusUnprocessableEntity,
 		)
@@ -765,7 +765,7 @@ func (svc *Service) ApplyLabelSpecs(ctx context.Context, specs []*fleet.LabelSpe
 	// description, platform, query, label membership type, host vitals criteria,
 	// and manual-label host membership), so we skip the activity only when an
 	// existing label already matches the spec for those fields.
-	scopeFilter := fleet.TeamFilter{User: user.User, IncludeObserver: true}
+	scopeFilter := automdm.TeamFilter{User: user.User, IncludeObserver: true}
 	if teamID != nil {
 		scopeFilter.TeamID = teamID // filter to fetch team labels only
 	} else {
@@ -775,7 +775,7 @@ func (svc *Service) ApplyLabelSpecs(ctx context.Context, specs []*fleet.LabelSpe
 	if err != nil {
 		return ctxerr.Wrap(ctx, err, "look up labels before apply")
 	}
-	beforeByName := make(map[string]*fleet.Label, len(beforeApply))
+	beforeByName := make(map[string]*automdm.Label, len(beforeApply))
 	for name, l := range beforeApply {
 		if labelMatchesTeamScope(l, teamID) {
 			beforeByName[name] = l
@@ -790,7 +790,7 @@ func (svc *Service) ApplyLabelSpecs(ctx context.Context, specs []*fleet.LabelSpe
 	beforeHostIDs := make(map[string][]uint)
 	for _, spec := range regularSpecs {
 		existing, ok := beforeByName[spec.Name]
-		if !ok || existing.LabelMembershipType != fleet.LabelMembershipTypeManual || spec.Hosts == nil {
+		if !ok || existing.LabelMembershipType != automdm.LabelMembershipTypeManual || spec.Hosts == nil {
 			continue
 		}
 		ids, err := svc.ds.LabelMembershipHostIDs(ctx, existing.ID)
@@ -836,20 +836,20 @@ func (svc *Service) ApplyLabelSpecs(ctx context.Context, specs []*fleet.LabelSpe
 			if fieldsMatch && hostsMatch {
 				continue
 			}
-			if err := svc.NewActivity(ctx, user.User, fleet.ActivityTypeEditedLabel{
-				ID:        label.ID,
-				Name:      label.Name,
-				FleetID:   label.TeamID,
-				FleetName: teamName,
+			if err := svc.NewActivity(ctx, user.User, automdm.ActivityTypeEditedLabel{
+				ID:          label.ID,
+				Name:        label.Name,
+				AutoMDMID:   label.TeamID,
+				AutoMDMName: teamName,
 			}); err != nil {
 				return ctxerr.Wrap(ctx, err, "create activity for edited label via spec")
 			}
 		} else {
-			if err := svc.NewActivity(ctx, user.User, fleet.ActivityTypeCreatedLabel{
-				ID:        label.ID,
-				Name:      label.Name,
-				FleetID:   label.TeamID,
-				FleetName: teamName,
+			if err := svc.NewActivity(ctx, user.User, automdm.ActivityTypeCreatedLabel{
+				ID:          label.ID,
+				Name:        label.Name,
+				AutoMDMID:   label.TeamID,
+				AutoMDMName: teamName,
 			}); err != nil {
 				return ctxerr.Wrap(ctx, err, "create activity for created label via spec")
 			}
@@ -858,7 +858,7 @@ func (svc *Service) ApplyLabelSpecs(ctx context.Context, specs []*fleet.LabelSpe
 	return nil
 }
 
-func labelMatchesTeamScope(l *fleet.Label, teamID *uint) bool {
+func labelMatchesTeamScope(l *automdm.Label, teamID *uint) bool {
 	if teamID == nil {
 		return l.TeamID == nil
 	}
@@ -870,7 +870,7 @@ func labelMatchesTeamScope(l *fleet.Label, teamID *uint) bool {
 // description, query, label_membership_type, and host vitals criteria. Host
 // membership for manual labels is compared separately by snapshotting host
 // IDs around the apply.
-func labelSpecMatchesLabel(spec *fleet.LabelSpec, label *fleet.Label) bool {
+func labelSpecMatchesLabel(spec *automdm.LabelSpec, label *automdm.Label) bool {
 	if spec.Description != label.Description {
 		return false
 	}
@@ -937,67 +937,67 @@ func uintSetsEqual(a, b []uint) bool {
 // Get Label Specs
 ////////////////////////////////////////////////////////////////////////////////
 
-func getLabelSpecsEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.GetLabelSpecsRequest)
+func getLabelSpecsEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.GetLabelSpecsRequest)
 	specs, err := svc.GetLabelSpecs(ctx, req.TeamID)
 	if err != nil {
-		return fleet.GetLabelSpecsResponse{Err: err}, nil
+		return automdm.GetLabelSpecsResponse{Err: err}, nil
 	}
-	return fleet.GetLabelSpecsResponse{Specs: specs}, nil
+	return automdm.GetLabelSpecsResponse{Specs: specs}, nil
 }
 
-func (svc *Service) GetLabelSpecs(ctx context.Context, teamID *uint) ([]*fleet.LabelSpec, error) {
-	if err := svc.authz.Authorize(ctx, &fleet.Label{TeamID: teamID}, fleet.ActionRead); err != nil {
+func (svc *Service) GetLabelSpecs(ctx context.Context, teamID *uint) ([]*automdm.LabelSpec, error) {
+	if err := svc.authz.Authorize(ctx, &automdm.Label{TeamID: teamID}, automdm.ActionRead); err != nil {
 		return nil, err
 	}
 
 	if !license.IsPremium(ctx) && teamID != nil && *teamID > 0 {
-		return nil, fleet.ErrMissingLicense
+		return nil, automdm.ErrMissingLicense
 	}
 
 	vc, ok := viewer.FromContext(ctx)
 	if !ok {
-		return nil, fleet.ErrNoContext
+		return nil, automdm.ErrNoContext
 	}
 
-	return svc.ds.GetLabelSpecs(ctx, fleet.TeamFilter{User: vc.User, IncludeObserver: true, TeamID: teamID})
+	return svc.ds.GetLabelSpecs(ctx, automdm.TeamFilter{User: vc.User, IncludeObserver: true, TeamID: teamID})
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // Get Label Spec
 ////////////////////////////////////////////////////////////////////////////////
 
-func getLabelSpecEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.GetLabelSpecRequest)
-	spec, err := svc.GetLabelSpec(ctx, req.Name, req.FleetID)
+func getLabelSpecEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.GetLabelSpecRequest)
+	spec, err := svc.GetLabelSpec(ctx, req.Name, req.AutoMDMID)
 	if err != nil {
-		return fleet.GetLabelSpecResponse{Err: err}, nil
+		return automdm.GetLabelSpecResponse{Err: err}, nil
 	}
-	return fleet.GetLabelSpecResponse{Spec: spec}, nil
+	return automdm.GetLabelSpecResponse{Spec: spec}, nil
 }
 
-func (svc *Service) GetLabelSpec(ctx context.Context, name string, fleetID *uint) (*fleet.LabelSpec, error) {
-	if err := svc.authz.Authorize(ctx, &fleet.Label{TeamID: fleetID}, fleet.ActionRead); err != nil {
+func (svc *Service) GetLabelSpec(ctx context.Context, name string, automdmID *uint) (*automdm.LabelSpec, error) {
+	if err := svc.authz.Authorize(ctx, &automdm.Label{TeamID: automdmID}, automdm.ActionRead); err != nil {
 		return nil, err
 	}
 
-	if !license.IsPremium(ctx) && fleetID != nil && *fleetID > 0 {
-		return nil, fleet.ErrMissingLicense
+	if !license.IsPremium(ctx) && automdmID != nil && *automdmID > 0 {
+		return nil, automdm.ErrMissingLicense
 	}
 
 	vc, ok := viewer.FromContext(ctx)
 	if !ok {
-		return nil, fleet.ErrNoContext
+		return nil, automdm.ErrNoContext
 	}
 
-	return svc.ds.GetLabelSpec(ctx, fleet.TeamFilter{User: vc.User, IncludeObserver: true, TeamID: fleetID}, name)
+	return svc.ds.GetLabelSpec(ctx, automdm.TeamFilter{User: vc.User, IncludeObserver: true, TeamID: automdmID}, name)
 }
 
-func (svc *Service) BatchValidateLabels(ctx context.Context, teamID *uint, labelNames []string) (map[string]fleet.LabelIdent, error) {
+func (svc *Service) BatchValidateLabels(ctx context.Context, teamID *uint, labelNames []string) (map[string]automdm.LabelIdent, error) {
 	if authctx, ok := authz_ctx.FromContext(ctx); !ok {
-		return nil, fleet.NewAuthRequiredError("batch validate labels: missing authorization context")
+		return nil, automdm.NewAuthRequiredError("batch validate labels: missing authorization context")
 	} else if !authctx.Checked() {
-		return nil, fleet.NewAuthRequiredError("batch validate labels: method requires previous authorization")
+		return nil, automdm.NewAuthRequiredError("batch validate labels: method requires previous authorization")
 	}
 
 	if len(labelNames) == 0 {
@@ -1012,7 +1012,7 @@ func (svc *Service) BatchValidateLabels(ctx context.Context, teamID *uint, label
 	}
 
 	if len(found) != len(uniqueNames) {
-		return nil, fleet.NewMissingLabelError(uniqueNames, found)
+		return nil, automdm.NewMissingLabelError(uniqueNames, found)
 	}
 
 	scoped, err := loadLabelsToAssociate(ctx, svc.ds, teamID, labelNames, authz.UserFromContext(ctx))
@@ -1020,9 +1020,9 @@ func (svc *Service) BatchValidateLabels(ctx context.Context, teamID *uint, label
 		return nil, ctxerr.Wrap(ctx, err, "verify labels to associate")
 	}
 
-	byName := make(map[string]fleet.LabelIdent, len(scoped))
+	byName := make(map[string]automdm.LabelIdent, len(scoped))
 	for labelName, label := range scoped {
-		byName[labelName] = fleet.LabelIdent{
+		byName[labelName] = automdm.LabelIdent{
 			LabelName: labelName,
 			LabelID:   label.ID,
 		}

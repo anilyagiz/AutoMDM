@@ -24,7 +24,7 @@ const CUSTOMER_ID = "customer_id";
 const ADMIN_EMAIL = "admin_email";
 const SERVICE_ACCOUNT_KEY = "service_account_key";
 
-// Matches the server's check in server/fleet/conditional_access_google.go.
+// Matches the server's check in server/automdm/conditional_access_google.go.
 const GOOGLE_CUSTOMER_ID_REGEX = /^C[0-9A-Za-z]{6,32}$/;
 
 interface IFormData {
@@ -35,10 +35,10 @@ interface IFormData {
 
 const SERVICE_ACCOUNT_KEY_PLACEHOLDER = `{
   "type": "service_account",
-  "project_id": "fleet-conditional-access",
+  "project_id": "automdm-conditional-access",
   "private_key_id": "<private key id>",
   "private_key": "-----BEGIN PRIVATE KEY-----\\n<private key>\\n-----END PRIVATE KEY-----\\n",
-  "client_email": "fleet@fleet-conditional-access.iam.gserviceaccount.com",
+  "client_email": "team@automdm-conditional-access.iam.gserviceaccount.com",
   "client_id": "<client id>",
   "token_uri": "https://oauth2.googleapis.com/token",
   "universe_domain": "googleapis.com"
@@ -237,7 +237,7 @@ const GoogleConditionalAccessModal = ({
         <p>
           Mark company-owned iPhones, iPads, and Android hosts as managed in
           Google, so Google Context-Aware Access can block sign-in from hosts
-          that aren&apos;t managed by Fleet.{" "}
+          that aren&apos;t managed by AutoMDM.{" "}
           <CustomLink
             url={`${LEARN_MORE_ABOUT_BASE_LINK}/google-conditional-access`}
             text="Learn more"
@@ -265,7 +265,7 @@ const GoogleConditionalAccessModal = ({
           renderChildren={(disableChildren) => (
             <InputField
               label="Admin email"
-              helpText="Fleet marks devices as managed using this Google Workspace admin account."
+              helpText="AutoMDM marks devices as managed using this Google Workspace admin account."
               {...getTextFieldProps(ADMIN_EMAIL)}
               disabled={isSubmitting || disableChildren}
             />

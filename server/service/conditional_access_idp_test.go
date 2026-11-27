@@ -11,11 +11,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/authz"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
 )
@@ -28,10 +28,10 @@ func TestConditionalAccessGetIdPSigningCertAuth(t *testing.T) {
 	svc, ctx := newTestServiceWithConfig(t, ds, cfg, nil, nil)
 
 	// Mock the datastore to return a valid IdP certificate
-	ds.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []fleet.MDMAssetName, _ sqlx.QueryerContext) (map[fleet.MDMAssetName]fleet.MDMConfigAsset, error) {
-		return map[fleet.MDMAssetName]fleet.MDMConfigAsset{
-			fleet.MDMAssetConditionalAccessIDPCert: {
-				Name:  fleet.MDMAssetConditionalAccessIDPCert,
+	ds.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []automdm.MDMAssetName, _ sqlx.QueryerContext) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
+		return map[automdm.MDMAssetName]automdm.MDMConfigAsset{
+			automdm.MDMAssetConditionalAccessIDPCert: {
+				Name:  automdm.MDMAssetConditionalAccessIDPCert,
 				Value: []byte("-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----"),
 			},
 		}, nil
@@ -39,7 +39,7 @@ func TestConditionalAccessGetIdPSigningCertAuth(t *testing.T) {
 
 	testCases := []struct {
 		name       string
-		user       *fleet.User
+		user       *automdm.User
 		shouldFail bool
 	}{
 		{"global admin", test.UserAdmin, false},
@@ -83,9 +83,9 @@ func TestConditionalAccessGetIdPSigningCert(t *testing.T) {
 		ctx = test.UserContext(ctx, test.UserAdmin)
 
 		certPEM, err := svc.ConditionalAccessGetIdPSigningCert(ctx)
-		var badReqErr *fleet.BadRequestError
+		var badReqErr *automdm.BadRequestError
 		require.ErrorAs(t, err, &badReqErr)
-		require.Contains(t, err.Error(), "Fleet server private key is not configured")
+		require.Contains(t, err.Error(), "AutoMDM server private key is not configured")
 		require.Nil(t, certPEM)
 	})
 }
@@ -95,32 +95,32 @@ func TestConditionalAccessGetIdPAppleProfileAuth(t *testing.T) {
 	ds := new(mock.Store)
 	cfg := config.TestConfig()
 	cfg.Server.PrivateKey = "test-private-key"
-	svc, ctx := newTestServiceWithConfig(t, ds, cfg, nil, nil, &TestServerOpts{License: &fleet.LicenseInfo{Tier: fleet.TierPremium}})
+	svc, ctx := newTestServiceWithConfig(t, ds, cfg, nil, nil, &TestServerOpts{License: &automdm.LicenseInfo{Tier: automdm.TierPremium}})
 
 	// Mock valid certificate
 	certPEM := generateTestCertPEM(t)
 
 	// Mock the datastore methods
-	ds.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []fleet.MDMAssetName, _ sqlx.QueryerContext) (map[fleet.MDMAssetName]fleet.MDMConfigAsset, error) {
-		return map[fleet.MDMAssetName]fleet.MDMConfigAsset{
-			fleet.MDMAssetConditionalAccessCACert: {
-				Name:  fleet.MDMAssetConditionalAccessCACert,
+	ds.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []automdm.MDMAssetName, _ sqlx.QueryerContext) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
+		return map[automdm.MDMAssetName]automdm.MDMConfigAsset{
+			automdm.MDMAssetConditionalAccessCACert: {
+				Name:  automdm.MDMAssetConditionalAccessCACert,
 				Value: certPEM,
 			},
 		}, nil
 	}
 
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{
-			ServerSettings: fleet.ServerSettings{
-				ServerURL: "https://fleet.example.com",
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{
+			ServerSettings: automdm.ServerSettings{
+				ServerURL: "https://automdm.example.com",
 			},
 		}, nil
 	}
 
 	testCases := []struct {
 		name       string
-		user       *fleet.User
+		user       *automdm.User
 		shouldFail bool
 	}{
 		{"global admin", test.UserAdmin, false},
@@ -153,7 +153,7 @@ func TestConditionalAccessGetIdPAppleProfileAuth(t *testing.T) {
 				// Verify the profile contains expected content
 				profileStr := string(profileData)
 				require.Contains(t, profileStr, "com.fleetdm.conditional-access")
-				require.Contains(t, profileStr, "https://okta.fleet.example.com")
+				require.Contains(t, profileStr, "https://okta.automdm.example.com")
 			}
 		})
 	}
@@ -192,7 +192,7 @@ func TestConditionalAccessGetIdPAppleProfile(t *testing.T) {
 		cfg.Server.PrivateKey = "test-private-key"
 		svc, ctx := newTestServiceWithConfig(t, ds, cfg, nil, nil)
 		profileData, err := svc.ConditionalAccessGetIdPAppleProfile(test.UserContext(ctx, test.UserAdmin))
-		require.ErrorIs(t, err, fleet.ErrMissingLicense)
+		require.ErrorIs(t, err, automdm.ErrMissingLicense)
 		require.Nil(t, profileData)
 	})
 
@@ -200,13 +200,13 @@ func TestConditionalAccessGetIdPAppleProfile(t *testing.T) {
 		ds := new(mock.Store)
 		cfg := config.TestConfig()
 		cfg.Server.PrivateKey = "" // Not configured
-		svc, ctx := newTestServiceWithConfig(t, ds, cfg, nil, nil, &TestServerOpts{License: &fleet.LicenseInfo{Tier: fleet.TierPremium}})
+		svc, ctx := newTestServiceWithConfig(t, ds, cfg, nil, nil, &TestServerOpts{License: &automdm.LicenseInfo{Tier: automdm.TierPremium}})
 		ctx = test.UserContext(ctx, test.UserAdmin)
 
 		profileData, err := svc.ConditionalAccessGetIdPAppleProfile(ctx)
-		var badReqErr *fleet.BadRequestError
+		var badReqErr *automdm.BadRequestError
 		require.ErrorAs(t, err, &badReqErr)
-		require.Contains(t, err.Error(), "Fleet server private key is not configured")
+		require.Contains(t, err.Error(), "AutoMDM server private key is not configured")
 		require.Nil(t, profileData)
 	})
 
@@ -214,22 +214,22 @@ func TestConditionalAccessGetIdPAppleProfile(t *testing.T) {
 		ds := new(mock.Store)
 		cfg := config.TestConfig()
 		cfg.Server.PrivateKey = "test-private-key"
-		svc, ctx := newTestServiceWithConfig(t, ds, cfg, nil, nil, &TestServerOpts{License: &fleet.LicenseInfo{Tier: fleet.TierPremium}})
+		svc, ctx := newTestServiceWithConfig(t, ds, cfg, nil, nil, &TestServerOpts{License: &automdm.LicenseInfo{Tier: automdm.TierPremium}})
 		ctx = test.UserContext(ctx, test.UserAdmin)
 
-		ds.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []fleet.MDMAssetName, _ sqlx.QueryerContext) (map[fleet.MDMAssetName]fleet.MDMConfigAsset, error) {
-			return map[fleet.MDMAssetName]fleet.MDMConfigAsset{
-				fleet.MDMAssetConditionalAccessCACert: {
-					Name:  fleet.MDMAssetConditionalAccessCACert,
+		ds.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []automdm.MDMAssetName, _ sqlx.QueryerContext) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
+			return map[automdm.MDMAssetName]automdm.MDMConfigAsset{
+				automdm.MDMAssetConditionalAccessCACert: {
+					Name:  automdm.MDMAssetConditionalAccessCACert,
 					Value: certPEM,
 				},
 			}, nil
 		}
 
-		ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-			return &fleet.AppConfig{
-				ServerSettings: fleet.ServerSettings{
-					ServerURL: "https://fleet.example.com:8080",
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{
+				ServerSettings: automdm.ServerSettings{
+					ServerURL: "https://automdm.example.com:8080",
 				},
 			}, nil
 		}
@@ -243,16 +243,16 @@ func TestConditionalAccessGetIdPAppleProfile(t *testing.T) {
 		require.Contains(t, profileStr, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>")
 		require.Contains(t, profileStr, "<!DOCTYPE plist")
 
-		// Fleet fills in the SCEP URL and a one-time challenge for each host at delivery.
-		require.Regexp(t, `<key>URL</key>\s*<string>\$FLEET_VAR_CONDITIONAL_ACCESS_SCEP_URL</string>`, profileStr)
-		require.Regexp(t, `<key>Challenge</key>\s*<string>\$FLEET_VAR_CONDITIONAL_ACCESS_SCEP_CHALLENGE</string>`, profileStr)
-		require.Contains(t, profileStr, "https://okta.fleet.example.com:8080")
-		vars, err := validateConfigProfileFleetVariables(profileStr, &fleet.LicenseInfo{Tier: fleet.TierPremium}, &fleet.GroupedCertificateAuthorities{})
+		// AutoMDM fills in the SCEP URL and a one-time challenge for each host at delivery.
+		require.Regexp(t, `<key>URL</key>\s*<string>\$AUTOMDM_VAR_CONDITIONAL_ACCESS_SCEP_URL</string>`, profileStr)
+		require.Regexp(t, `<key>Challenge</key>\s*<string>\$AUTOMDM_VAR_CONDITIONAL_ACCESS_SCEP_CHALLENGE</string>`, profileStr)
+		require.Contains(t, profileStr, "https://okta.automdm.example.com:8080")
+		vars, err := validateConfigProfileAutoMDMVariables(profileStr, &automdm.LicenseInfo{Tier: automdm.TierPremium}, &automdm.GroupedCertificateAuthorities{})
 		require.NoError(t, err)
 		require.ElementsMatch(t, []string{
-			string(fleet.FleetVarConditionalAccessSCEPURL),
-			string(fleet.FleetVarConditionalAccessSCEPChallenge),
-			string(fleet.FleetVarCertificateRenewalID),
+			string(automdm.AutoMDMVarConditionalAccessSCEPURL),
+			string(automdm.AutoMDMVarConditionalAccessSCEPChallenge),
+			string(automdm.AutoMDMVarCertificateRenewalID),
 		}, vars)
 
 		// Verify payload identifiers
@@ -264,16 +264,16 @@ func TestConditionalAccessGetIdPAppleProfile(t *testing.T) {
 		// Top-level PayloadIdentifier and certificate CN must match the
 		// shared constants so the InstallProfile-ack cleanup hook can
 		// reliably gate on them.
-		require.Contains(t, profileStr, fleet.ConditionalAccessOktaProfileIdentifier)
-		require.Contains(t, profileStr, fleet.ConditionalAccessOktaCertificateCN)
+		require.Contains(t, profileStr, automdm.ConditionalAccessOktaProfileIdentifier)
+		require.Contains(t, profileStr, automdm.ConditionalAccessOktaCertificateCN)
 
 		// Verify the renewal-ID marker is in the SCEP payload's Subject OU
 		// so auto-renewal activates by default. Substituted to
-		// fleet-<profile_uuid> at delivery time; Fleet's own SCEP CA
+		// automdm-<profile_uuid> at delivery time; AutoMDM's own SCEP CA
 		// preserves OU in the issued cert.
-		require.Contains(t, profileStr, "$FLEET_VAR_CERTIFICATE_RENEWAL_ID")
+		require.Contains(t, profileStr, "$AUTOMDM_VAR_CERTIFICATE_RENEWAL_ID")
 		require.Regexp(t,
-			`(?s)<key>Subject</key>.*<string>OU</string>\s*<string>\$FLEET_VAR_CERTIFICATE_RENEWAL_ID</string>`,
+			`(?s)<key>Subject</key>.*<string>OU</string>\s*<string>\$AUTOMDM_VAR_CERTIFICATE_RENEWAL_ID</string>`,
 			profileStr,
 			"renewal-ID marker must be in Subject OU, not CN",
 		)
@@ -283,11 +283,11 @@ func TestConditionalAccessGetIdPAppleProfile(t *testing.T) {
 		ds := new(mock.Store)
 		cfg := config.TestConfig()
 		cfg.Server.PrivateKey = "test-private-key"
-		svc, ctx := newTestServiceWithConfig(t, ds, cfg, nil, nil, &TestServerOpts{License: &fleet.LicenseInfo{Tier: fleet.TierPremium}})
+		svc, ctx := newTestServiceWithConfig(t, ds, cfg, nil, nil, &TestServerOpts{License: &automdm.LicenseInfo{Tier: automdm.TierPremium}})
 		ctx = test.UserContext(ctx, test.UserAdmin)
 
-		ds.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []fleet.MDMAssetName, _ sqlx.QueryerContext) (map[fleet.MDMAssetName]fleet.MDMConfigAsset, error) {
-			return map[fleet.MDMAssetName]fleet.MDMConfigAsset{}, nil
+		ds.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []automdm.MDMAssetName, _ sqlx.QueryerContext) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
+			return map[automdm.MDMAssetName]automdm.MDMConfigAsset{}, nil
 		}
 
 		profileData, err := svc.ConditionalAccessGetIdPAppleProfile(ctx)
@@ -300,13 +300,13 @@ func TestConditionalAccessGetIdPAppleProfile(t *testing.T) {
 		ds := new(mock.Store)
 		cfg := config.TestConfig()
 		cfg.Server.PrivateKey = "test-private-key"
-		svc, ctx := newTestServiceWithConfig(t, ds, cfg, nil, nil, &TestServerOpts{License: &fleet.LicenseInfo{Tier: fleet.TierPremium}})
+		svc, ctx := newTestServiceWithConfig(t, ds, cfg, nil, nil, &TestServerOpts{License: &automdm.LicenseInfo{Tier: automdm.TierPremium}})
 		ctx = test.UserContext(ctx, test.UserAdmin)
 
-		ds.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []fleet.MDMAssetName, _ sqlx.QueryerContext) (map[fleet.MDMAssetName]fleet.MDMConfigAsset, error) {
-			return map[fleet.MDMAssetName]fleet.MDMConfigAsset{
-				fleet.MDMAssetConditionalAccessCACert: {
-					Name:  fleet.MDMAssetConditionalAccessCACert,
+		ds.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []automdm.MDMAssetName, _ sqlx.QueryerContext) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
+			return map[automdm.MDMAssetName]automdm.MDMConfigAsset{
+				automdm.MDMAssetConditionalAccessCACert: {
+					Name:  automdm.MDMAssetConditionalAccessCACert,
 					Value: []byte("not a valid PEM"),
 				},
 			}, nil
@@ -322,7 +322,7 @@ func TestConditionalAccessGetIdPAppleProfile(t *testing.T) {
 		ds := new(mock.Store)
 		cfg := config.TestConfig()
 		cfg.Server.PrivateKey = "test-private-key"
-		svc, ctx := newTestServiceWithConfig(t, ds, cfg, nil, nil, &TestServerOpts{License: &fleet.LicenseInfo{Tier: fleet.TierPremium}})
+		svc, ctx := newTestServiceWithConfig(t, ds, cfg, nil, nil, &TestServerOpts{License: &automdm.LicenseInfo{Tier: automdm.TierPremium}})
 		ctx = test.UserContext(ctx, test.UserAdmin)
 
 		// Valid PEM structure but invalid DER content
@@ -331,10 +331,10 @@ func TestConditionalAccessGetIdPAppleProfile(t *testing.T) {
 			Bytes: []byte("invalid DER data"),
 		})
 
-		ds.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []fleet.MDMAssetName, _ sqlx.QueryerContext) (map[fleet.MDMAssetName]fleet.MDMConfigAsset, error) {
-			return map[fleet.MDMAssetName]fleet.MDMConfigAsset{
-				fleet.MDMAssetConditionalAccessCACert: {
-					Name:  fleet.MDMAssetConditionalAccessCACert,
+		ds.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []automdm.MDMAssetName, _ sqlx.QueryerContext) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
+			return map[automdm.MDMAssetName]automdm.MDMConfigAsset{
+				automdm.MDMAssetConditionalAccessCACert: {
+					Name:  automdm.MDMAssetConditionalAccessCACert,
 					Value: invalidCertPEM,
 				},
 			}, nil
@@ -350,28 +350,28 @@ func TestConditionalAccessGetIdPAppleProfile(t *testing.T) {
 		ds := new(mock.Store)
 		cfg := config.TestConfig()
 		cfg.Server.PrivateKey = "test-private-key"
-		svc, ctx := newTestServiceWithConfig(t, ds, cfg, nil, nil, &TestServerOpts{License: &fleet.LicenseInfo{Tier: fleet.TierPremium}})
+		svc, ctx := newTestServiceWithConfig(t, ds, cfg, nil, nil, &TestServerOpts{License: &automdm.LicenseInfo{Tier: automdm.TierPremium}})
 		ctx = test.UserContext(ctx, test.UserAdmin)
 
-		ds.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []fleet.MDMAssetName, _ sqlx.QueryerContext) (map[fleet.MDMAssetName]fleet.MDMConfigAsset, error) {
-			return map[fleet.MDMAssetName]fleet.MDMConfigAsset{
-				fleet.MDMAssetConditionalAccessCACert: {
-					Name:  fleet.MDMAssetConditionalAccessCACert,
+		ds.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []automdm.MDMAssetName, _ sqlx.QueryerContext) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
+			return map[automdm.MDMAssetName]automdm.MDMConfigAsset{
+				automdm.MDMAssetConditionalAccessCACert: {
+					Name:  automdm.MDMAssetConditionalAccessCACert,
 					Value: certPEM,
 				},
 			}, nil
 		}
 
-		ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-			return &fleet.AppConfig{
-				ServerSettings: fleet.ServerSettings{
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{
+				ServerSettings: automdm.ServerSettings{
 					ServerURL: "",
 				},
 			}, nil
 		}
 
 		profileData, err := svc.ConditionalAccessGetIdPAppleProfile(ctx)
-		var badReqErr *fleet.BadRequestError
+		var badReqErr *automdm.BadRequestError
 		require.ErrorAs(t, err, &badReqErr)
 		require.Contains(t, err.Error(), "server URL is not configured")
 		require.Nil(t, profileData)
@@ -381,21 +381,21 @@ func TestConditionalAccessGetIdPAppleProfile(t *testing.T) {
 		ds := new(mock.Store)
 		cfg := config.TestConfig()
 		cfg.Server.PrivateKey = "test-private-key"
-		svc, ctx := newTestServiceWithConfig(t, ds, cfg, nil, nil, &TestServerOpts{License: &fleet.LicenseInfo{Tier: fleet.TierPremium}})
+		svc, ctx := newTestServiceWithConfig(t, ds, cfg, nil, nil, &TestServerOpts{License: &automdm.LicenseInfo{Tier: automdm.TierPremium}})
 		ctx = test.UserContext(ctx, test.UserAdmin)
 
-		ds.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []fleet.MDMAssetName, _ sqlx.QueryerContext) (map[fleet.MDMAssetName]fleet.MDMConfigAsset, error) {
-			return map[fleet.MDMAssetName]fleet.MDMConfigAsset{
-				fleet.MDMAssetConditionalAccessCACert: {
-					Name:  fleet.MDMAssetConditionalAccessCACert,
+		ds.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []automdm.MDMAssetName, _ sqlx.QueryerContext) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
+			return map[automdm.MDMAssetName]automdm.MDMConfigAsset{
+				automdm.MDMAssetConditionalAccessCACert: {
+					Name:  automdm.MDMAssetConditionalAccessCACert,
 					Value: certPEM,
 				},
 			}, nil
 		}
 
-		ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-			return &fleet.AppConfig{
-				ServerSettings: fleet.ServerSettings{
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{
+				ServerSettings: automdm.ServerSettings{
 					ServerURL: "://invalid-url",
 				},
 			}, nil
@@ -411,22 +411,22 @@ func TestConditionalAccessGetIdPAppleProfile(t *testing.T) {
 		ds := new(mock.Store)
 		cfg := config.TestConfig()
 		cfg.Server.PrivateKey = "test-private-key"
-		svc, ctx := newTestServiceWithConfig(t, ds, cfg, nil, nil, &TestServerOpts{License: &fleet.LicenseInfo{Tier: fleet.TierPremium}})
+		svc, ctx := newTestServiceWithConfig(t, ds, cfg, nil, nil, &TestServerOpts{License: &automdm.LicenseInfo{Tier: automdm.TierPremium}})
 		ctx = test.UserContext(ctx, test.UserAdmin)
 
-		ds.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []fleet.MDMAssetName, _ sqlx.QueryerContext) (map[fleet.MDMAssetName]fleet.MDMConfigAsset, error) {
-			return map[fleet.MDMAssetName]fleet.MDMConfigAsset{
-				fleet.MDMAssetConditionalAccessCACert: {
-					Name:  fleet.MDMAssetConditionalAccessCACert,
+		ds.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []automdm.MDMAssetName, _ sqlx.QueryerContext) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
+			return map[automdm.MDMAssetName]automdm.MDMConfigAsset{
+				automdm.MDMAssetConditionalAccessCACert: {
+					Name:  automdm.MDMAssetConditionalAccessCACert,
 					Value: certPEM,
 				},
 			}, nil
 		}
 
-		ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-			return &fleet.AppConfig{
-				ServerSettings: fleet.ServerSettings{
-					ServerURL: "https://fleet.example.com",
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{
+				ServerSettings: automdm.ServerSettings{
+					ServerURL: "https://automdm.example.com",
 				},
 			}, nil
 		}

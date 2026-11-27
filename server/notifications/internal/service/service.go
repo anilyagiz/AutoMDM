@@ -8,10 +8,10 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/notifications"
-	"github.com/fleetdm/fleet/v4/server/notifications/api"
-	"github.com/fleetdm/fleet/v4/server/notifications/internal/types"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/notifications"
+	"github.com/anilyagiz/automdm/v4/server/notifications/api"
+	"github.com/anilyagiz/automdm/v4/server/notifications/internal/types"
 )
 
 type Service struct {

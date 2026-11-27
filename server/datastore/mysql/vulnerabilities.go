@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -34,8 +34,8 @@ const vulnFirstDetectedAtExpr = `LEAST(
 	COALESCE(vuln_sc_first.first_detected_at, vuln_osv_first.first_detected_at),
 	COALESCE(vuln_osv_first.first_detected_at, vuln_sc_first.first_detected_at))`
 
-func (ds *Datastore) Vulnerability(ctx context.Context, cve string, teamID *uint, includeCVEScores bool) (*fleet.VulnerabilityWithMetadata, error) {
-	var vuln fleet.VulnerabilityWithMetadata
+func (ds *Datastore) Vulnerability(ctx context.Context, cve string, teamID *uint, includeCVEScores bool) (*automdm.VulnerabilityWithMetadata, error) {
+	var vuln automdm.VulnerabilityWithMetadata
 
 	eeSelectStmt := `
 		SELECT DISTINCT
@@ -122,7 +122,7 @@ func (ds *Datastore) Vulnerability(ctx context.Context, cve string, teamID *uint
 		if teamID == nil {
 			msg = "global"
 		} else {
-			msg = fmt.Sprintf("fleet %d", *teamID)
+			msg = fmt.Sprintf("team %d", *teamID)
 		}
 		return nil, ctxerr.Wrap(ctx, notFound(fmt.Sprintf("Vulnerability for %s", msg)).WithName(cve))
 	}
@@ -130,13 +130,13 @@ func (ds *Datastore) Vulnerability(ctx context.Context, cve string, teamID *uint
 	return &vuln, nil
 }
 
-func (ds *Datastore) OSVersionsByCVE(ctx context.Context, cve string, teamID *uint) (vos []*fleet.VulnerableOS, updatedAt time.Time, err error) {
-	var teamFilter *fleet.TeamFilter
+func (ds *Datastore) OSVersionsByCVE(ctx context.Context, cve string, teamID *uint) (vos []*automdm.VulnerableOS, updatedAt time.Time, err error) {
+	var teamFilter *automdm.TeamFilter
 	if teamID != nil {
-		teamFilter = &fleet.TeamFilter{TeamID: teamID}
+		teamFilter = &automdm.TeamFilter{TeamID: teamID}
 	}
 	osvs, err := ds.OSVersions(ctx, teamFilter, nil, nil, nil)
-	if err != nil && !fleet.IsNotFound(err) {
+	if err != nil && !automdm.IsNotFound(err) {
 		return nil, updatedAt, ctxerr.Wrap(ctx, err, "fetching team OS versions")
 	}
 
@@ -186,7 +186,7 @@ func (ds *Datastore) OSVersionsByCVE(ctx context.Context, cve string, teamID *ui
 	for _, osv := range osvs.OSVersions {
 		for _, id := range verResolvedDedup {
 			if osv.OSVersionID == id.OSVersionID {
-				vos = append(vos, &fleet.VulnerableOS{
+				vos = append(vos, &automdm.VulnerableOS{
 					OSVersion:         osv,
 					ResolvedInVersion: id.ResolvedVersion,
 				})
@@ -197,7 +197,7 @@ func (ds *Datastore) OSVersionsByCVE(ctx context.Context, cve string, teamID *ui
 	return
 }
 
-func (ds *Datastore) SoftwareByCVE(ctx context.Context, cve string, teamID *uint) (vs []*fleet.VulnerableSoftware, updatedAt time.Time, err error) {
+func (ds *Datastore) SoftwareByCVE(ctx context.Context, cve string, teamID *uint) (vs []*automdm.VulnerableSoftware, updatedAt time.Time, err error) {
 	var args []interface{}
 	selectStmt := `
 		SELECT
@@ -272,7 +272,7 @@ var vulnerabilitiesOuterOrderKeys = common_mysql.OrderKeyAllowlist{
 	"hosts_count_updated_at": "p.hosts_count_updated_at",
 }
 
-func (ds *Datastore) ListVulnerabilities(ctx context.Context, opt fleet.VulnListOptions) ([]fleet.VulnerabilityWithMetadata, *fleet.PaginationMetadata, error) {
+func (ds *Datastore) ListVulnerabilities(ctx context.Context, opt automdm.VulnListOptions) ([]automdm.VulnerabilityWithMetadata, *automdm.PaginationMetadata, error) {
 	opt.ListOptions.IncludeMetadata = !(opt.ListOptions.UsesCursorPagination())
 
 	selectStmt, args, err := buildListVulnerabilitiesSQL(&opt)
@@ -280,14 +280,14 @@ func (ds *Datastore) ListVulnerabilities(ctx context.Context, opt fleet.VulnList
 		return nil, nil, ctxerr.Wrap(ctx, err, "list vulnerabilities")
 	}
 
-	var vulns []fleet.VulnerabilityWithMetadata
+	var vulns []automdm.VulnerabilityWithMetadata
 	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &vulns, selectStmt, args...); err != nil {
 		return nil, nil, ctxerr.Wrap(ctx, err, "list vulnerabilities")
 	}
 
-	var metaData *fleet.PaginationMetadata
+	var metaData *automdm.PaginationMetadata
 	if opt.ListOptions.IncludeMetadata {
-		metaData = &fleet.PaginationMetadata{HasPreviousResults: opt.ListOptions.Page > 0}
+		metaData = &automdm.PaginationMetadata{HasPreviousResults: opt.ListOptions.Page > 0}
 		if len(vulns) > int(opt.ListOptions.PerPage) { //nolint:gosec // dismiss G115
 			metaData.HasNextResults = true
 			vulns = vulns[:len(vulns)-1]
@@ -319,7 +319,7 @@ func (ds *Datastore) ListVulnerabilities(ctx context.Context, opt fleet.VulnList
 // GROUP BY MIN with one index seek per CVE (loose index scan), while a
 // correlated MIN reads every row for the CVE. The joins also stand in for the
 // EXISTS filter, which would otherwise make MySQL go back to per-row lookups.
-func buildListVulnerabilitiesSQL(opt *fleet.VulnListOptions) (string, []any, error) {
+func buildListVulnerabilitiesSQL(opt *automdm.VulnListOptions) (string, []any, error) {
 	sortByCreatedAt := opt.ListOptions.OrderKey == "created_at"
 	_, cmOrderKey := vulnerabilitiesCMOrderKeys[opt.ListOptions.OrderKey]
 	needCMInInner := cmOrderKey || opt.KnownExploit
@@ -388,7 +388,7 @@ func buildListVulnerabilitiesSQL(opt *fleet.VulnListOptions) (string, []any, err
 	// query_results.go for prior art using TestSecondaryOrderKey for this.
 	if opt.ListOptions.OrderKey != "" && opt.ListOptions.OrderKey != "cve" {
 		opt.ListOptions.TestSecondaryOrderKey = "cve"
-		opt.ListOptions.TestSecondaryOrderDirection = fleet.OrderAscending
+		opt.ListOptions.TestSecondaryOrderDirection = automdm.OrderAscending
 	}
 
 	innerSQL, args, err := appendListOptionsWithCursorToSQLSecure(innerSQL, args, &opt.ListOptions, vulnerabilitiesAllowedOrderKeys)
@@ -436,7 +436,7 @@ func buildListVulnerabilitiesSQL(opt *fleet.VulnListOptions) (string, []any, err
 	// as `cm`, so the inner's `vhc.*` references are out of scope here.
 	if orderCol, ok := vulnerabilitiesOuterOrderKeys[opt.ListOptions.OrderKey]; ok && orderCol != "" {
 		direction := "ASC"
-		if opt.ListOptions.OrderDirection == fleet.OrderDescending {
+		if opt.ListOptions.OrderDirection == automdm.OrderDescending {
 			direction = "DESC"
 		}
 		outer.WriteString(fmt.Sprintf(" ORDER BY %s %s", orderCol, direction))
@@ -448,7 +448,7 @@ func buildListVulnerabilitiesSQL(opt *fleet.VulnListOptions) (string, []any, err
 	return outer.String(), args, nil
 }
 
-func (ds *Datastore) CountVulnerabilities(ctx context.Context, opt fleet.VulnListOptions) (uint, error) {
+func (ds *Datastore) CountVulnerabilities(ctx context.Context, opt automdm.VulnListOptions) (uint, error) {
 	// vhc.cve is already unique within a (global_stats, team_id) scope due to
 	// the existing UNIQUE KEY (cve, team_id, global_stats), so COUNT(*) gives
 	// the same result as COUNT(DISTINCT vhc.cve) but lets the optimizer pick
@@ -813,7 +813,7 @@ func (ds *Datastore) insertHostCountsIntoTable(ctx context.Context, tx sqlx.ExtC
 	return nil
 }
 
-func (ds *Datastore) IsCVEKnownToFleet(ctx context.Context, cve string) (bool, error) {
+func (ds *Datastore) IsCVEKnownToAutoMDM(ctx context.Context, cve string) (bool, error) {
 	var known bool
 	err := sqlx.GetContext(ctx, ds.reader(ctx), &known, `
 		SELECT
@@ -822,7 +822,7 @@ func (ds *Datastore) IsCVEKnownToFleet(ctx context.Context, cve string) (bool, e
 			OR EXISTS (SELECT 1 FROM operating_system_vulnerabilities WHERE cve = ?)`,
 		cve, cve, cve)
 	if err != nil {
-		return false, ctxerr.Wrap(ctx, err, "checking if CVE is known to Fleet")
+		return false, ctxerr.Wrap(ctx, err, "checking if CVE is known to AutoMDM")
 	}
 	return known, nil
 }

@@ -10,7 +10,7 @@
     },
     "note": "24k hosts, non-MDM team transfer Ducks->Geese at 19:07:18Z (10.6s). PR 52371: host-load query 0.09 AAS vs 3.28 on main in issue 46894."
   },
-  "fleet_server": {
+  "automdm_server": {
     "cpu_utilization": {
       "Average": 41.14,
       "Minimum": 0,
@@ -315,7 +315,7 @@
       "data_coverage": 0.5
     }
   },
-  "fleet_server_errors": {
+  "automdm_server_errors": {
     "error_count": 0.0,
     "sample_messages": []
   },

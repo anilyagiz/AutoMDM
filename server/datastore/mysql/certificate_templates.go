@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/crypto"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/crypto"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -46,8 +46,8 @@ const certificateTemplateResponseSql = `
 	INNER JOIN certificate_authorities ON certificate_templates.certificate_authority_id = certificate_authorities.id
 `
 
-func (ds *Datastore) GetCertificateTemplateById(ctx context.Context, id uint) (*fleet.CertificateTemplateResponse, error) {
-	var template fleet.CertificateTemplateResponse
+func (ds *Datastore) GetCertificateTemplateById(ctx context.Context, id uint) (*automdm.CertificateTemplateResponse, error) {
+	var template automdm.CertificateTemplateResponse
 	if err := sqlx.GetContext(ctx, ds.reader(ctx), &template, certificateTemplateResponseSql+`
 		WHERE certificate_templates.id = ?
 	`, id); err != nil {
@@ -60,8 +60,8 @@ func (ds *Datastore) GetCertificateTemplateById(ctx context.Context, id uint) (*
 	return &template, nil
 }
 
-func (ds *Datastore) GetCertificateTemplatesByIdsAndTeam(ctx context.Context, ids []uint, teamID uint) ([]*fleet.CertificateTemplateResponse, error) {
-	var certificateTemplates []*fleet.CertificateTemplateResponse
+func (ds *Datastore) GetCertificateTemplatesByIdsAndTeam(ctx context.Context, ids []uint, teamID uint) ([]*automdm.CertificateTemplateResponse, error) {
+	var certificateTemplates []*automdm.CertificateTemplateResponse
 
 	if len(ids) == 0 {
 		return certificateTemplates, nil
@@ -81,8 +81,8 @@ func (ds *Datastore) GetCertificateTemplatesByIdsAndTeam(ctx context.Context, id
 	return certificateTemplates, nil
 }
 
-func (ds *Datastore) GetCertificateTemplateByTeamIDAndName(ctx context.Context, teamID uint, name string) (*fleet.CertificateTemplateResponse, error) {
-	var template fleet.CertificateTemplateResponse
+func (ds *Datastore) GetCertificateTemplateByTeamIDAndName(ctx context.Context, teamID uint, name string) (*automdm.CertificateTemplateResponse, error) {
+	var template automdm.CertificateTemplateResponse
 	if err := sqlx.GetContext(ctx, ds.reader(ctx), &template, certificateTemplateResponseSql+`
 		WHERE certificate_templates.team_id = ? AND certificate_templates.name = ?
 	`, teamID, name); err != nil {
@@ -93,9 +93,9 @@ func (ds *Datastore) GetCertificateTemplateByTeamIDAndName(ctx context.Context, 
 }
 
 // GetCertificateTemplateByIdForHost gets a certificate template by ID with host-specific status and challenge.
-// This is used when a host (fleetd/Android agent) requests its certificate.
-func (ds *Datastore) GetCertificateTemplateByIdForHost(ctx context.Context, id uint, hostUUID string) (*fleet.CertificateTemplateResponseForHost, error) {
-	var template fleet.CertificateTemplateResponseForHost
+// This is used when a host (automdmd/Android agent) requests its certificate.
+func (ds *Datastore) GetCertificateTemplateByIdForHost(ctx context.Context, id uint, hostUUID string) (*automdm.CertificateTemplateResponseForHost, error) {
+	var template automdm.CertificateTemplateResponseForHost
 	stmt := fmt.Sprintf(`
 		SELECT
 			certificate_templates.id,
@@ -110,7 +110,7 @@ func (ds *Datastore) GetCertificateTemplateByIdForHost(ctx context.Context, id u
 			certificate_authorities.challenge_encrypted AS scep_challenge_encrypted,
 			host_certificate_templates.status AS status,
 			COALESCE(BIN_TO_UUID(host_certificate_templates.uuid, true), '') AS uuid,
-			host_certificate_templates.fleet_challenge AS fleet_challenge
+			host_certificate_templates.automdm_challenge AS automdm_challenge
 		FROM certificate_templates
 		INNER JOIN certificate_authorities ON certificate_templates.certificate_authority_id = certificate_authorities.id
 		INNER JOIN host_certificate_templates
@@ -118,7 +118,7 @@ func (ds *Datastore) GetCertificateTemplateByIdForHost(ctx context.Context, id u
 			AND host_certificate_templates.host_uuid = ?
 			AND host_certificate_templates.operation_type = '%s'
 		WHERE certificate_templates.id = ?
-	`, fleet.MDMOperationTypeInstall)
+	`, automdm.MDMOperationTypeInstall)
 	if err := sqlx.GetContext(ctx, ds.reader(ctx), &template, stmt, hostUUID, id); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ctxerr.Wrap(ctx, notFound("CertificateTemplateForHost"))
@@ -127,7 +127,7 @@ func (ds *Datastore) GetCertificateTemplateByIdForHost(ctx context.Context, id u
 	}
 
 	// Only include challenges if status is "delivered"
-	if template.Status == fleet.CertificateTemplateDelivered {
+	if template.Status == automdm.CertificateTemplateDelivered {
 		if template.SCEPChallengeEncrypted != nil {
 			decryptedChallenge, err := crypto.DecryptAESGCM(template.SCEPChallengeEncrypted, ds.serverPrivateKey)
 			if err != nil {
@@ -138,13 +138,13 @@ func (ds *Datastore) GetCertificateTemplateByIdForHost(ctx context.Context, id u
 	} else {
 		// Ensure challenges are nil if not in delivered status
 		template.SCEPChallenge = nil
-		template.FleetChallenge = nil
+		template.AutoMDMChallenge = nil
 	}
 
 	return &template, nil
 }
 
-func (ds *Datastore) GetCertificateTemplatesByTeamID(ctx context.Context, teamID uint, opts fleet.ListOptions) ([]*fleet.CertificateTemplateResponseSummary, *fleet.PaginationMetadata, error) {
+func (ds *Datastore) GetCertificateTemplatesByTeamID(ctx context.Context, teamID uint, opts automdm.ListOptions) ([]*automdm.CertificateTemplateResponseSummary, *automdm.PaginationMetadata, error) {
 	// for no team pass 0 as teamID
 	args := []any{teamID}
 
@@ -172,18 +172,18 @@ func (ds *Datastore) GetCertificateTemplatesByTeamID(ctx context.Context, teamID
 		return nil, nil, ctxerr.Wrap(ctx, err, "apply list options")
 	}
 
-	templates := []*fleet.CertificateTemplateResponseSummary{}
+	templates := []*automdm.CertificateTemplateResponseSummary{}
 	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &templates, stmtPaged, args...); err != nil {
 		return nil, nil, ctxerr.Wrap(ctx, err, "getting certificate_templates by team_id")
 	}
 
-	var metaData *fleet.PaginationMetadata
+	var metaData *automdm.PaginationMetadata
 	if opts.IncludeMetadata {
 		var count uint
 		if err := sqlx.GetContext(ctx, ds.reader(ctx), &count, countStmt, args...); err != nil {
 			return nil, nil, ctxerr.Wrap(ctx, err, "counting certificate templates")
 		}
-		metaData = &fleet.PaginationMetadata{HasPreviousResults: opts.Page > 0, TotalResults: count}
+		metaData = &automdm.PaginationMetadata{HasPreviousResults: opts.Page > 0, TotalResults: count}
 		if len(templates) > int(opts.PerPage) { //nolint:gosec // dismiss G115
 			metaData.HasNextResults = true
 			templates = templates[:len(templates)-1]
@@ -193,7 +193,7 @@ func (ds *Datastore) GetCertificateTemplatesByTeamID(ctx context.Context, teamID
 	return templates, metaData, nil
 }
 
-func (ds *Datastore) CreateCertificateTemplate(ctx context.Context, certificateTemplate *fleet.CertificateTemplate) (*fleet.CertificateTemplateResponse, error) {
+func (ds *Datastore) CreateCertificateTemplate(ctx context.Context, certificateTemplate *automdm.CertificateTemplate) (*automdm.CertificateTemplateResponse, error) {
 	sanArg := subjectAlternativeNameForStorage(certificateTemplate.SubjectAlternativeName)
 	result, err := ds.writer(ctx).ExecContext(ctx, `
 		INSERT INTO certificate_templates (
@@ -222,8 +222,8 @@ func (ds *Datastore) CreateCertificateTemplate(ctx context.Context, certificateT
 		storedSAN = certificateTemplate.SubjectAlternativeName
 	}
 
-	return &fleet.CertificateTemplateResponse{
-		CertificateTemplateResponseSummary: fleet.CertificateTemplateResponseSummary{
+	return &automdm.CertificateTemplateResponse{
+		CertificateTemplateResponseSummary: automdm.CertificateTemplateResponseSummary{
 			ID:                     uint(id), //nolint:gosec
 			Name:                   certificateTemplate.Name,
 			SubjectName:            certificateTemplate.SubjectName,
@@ -254,7 +254,7 @@ func (ds *Datastore) DeleteCertificateTemplate(ctx context.Context, id uint) err
 	return nil
 }
 
-func (ds *Datastore) BatchUpsertCertificateTemplates(ctx context.Context, certificateTemplates []*fleet.CertificateTemplate) ([]uint, error) {
+func (ds *Datastore) BatchUpsertCertificateTemplates(ctx context.Context, certificateTemplates []*automdm.CertificateTemplate) ([]uint, error) {
 	if len(certificateTemplates) == 0 {
 		return nil, nil
 	}
@@ -327,32 +327,32 @@ func (ds *Datastore) BatchDeleteCertificateTemplates(ctx context.Context, certif
 
 // setCertTemplateVariableAssociations replaces the variable associations for a
 // certificate template in mdm_configuration_profile_variables. It deletes
-// existing rows and inserts fresh ones for the given fleetVars.
-func setCertTemplateVariableAssociations(ctx context.Context, tx sqlx.ExtContext, certTemplateID uint, fleetVars []fleet.FleetVarName) error {
+// existing rows and inserts fresh ones for the given automdmVars.
+func setCertTemplateVariableAssociations(ctx context.Context, tx sqlx.ExtContext, certTemplateID uint, automdmVars []automdm.AutoMDMVarName) error {
 	// Always clear existing associations first.
 	if _, err := tx.ExecContext(ctx, `DELETE FROM mdm_configuration_profile_variables WHERE certificate_template_id = ?`, certTemplateID); err != nil {
 		return ctxerr.Wrap(ctx, err, "deleting cert template variable associations")
 	}
 
-	if len(fleetVars) == 0 {
+	if len(automdmVars) == 0 {
 		return nil
 	}
 
-	// Load fleet variable definitions to map names to IDs.
+	// Load automdm variable definitions to map names to IDs.
 	type varDef struct {
 		ID       uint   `db:"id"`
 		Name     string `db:"name"`
 		IsPrefix bool   `db:"is_prefix"`
 	}
 	var varDefs []varDef
-	if err := sqlx.SelectContext(ctx, tx, &varDefs, `SELECT id, name, is_prefix FROM fleet_variables`); err != nil {
-		return ctxerr.Wrap(ctx, err, "loading fleet variables")
+	if err := sqlx.SelectContext(ctx, tx, &varDefs, `SELECT id, name, is_prefix FROM automdm_variables`); err != nil {
+		return ctxerr.Wrap(ctx, err, "loading automdm variables")
 	}
 
 	var values strings.Builder
 	var args []any
-	for _, v := range fleetVars {
-		varWithPrefix := "FLEET_VAR_" + string(v)
+	for _, v := range automdmVars {
+		varWithPrefix := "AUTOMDM_VAR_" + string(v)
 		for _, def := range varDefs {
 			match := (!def.IsPrefix && def.Name == varWithPrefix) || (def.IsPrefix && strings.HasPrefix(varWithPrefix, def.Name))
 			if match {
@@ -368,9 +368,9 @@ func setCertTemplateVariableAssociations(ctx context.Context, tx sqlx.ExtContext
 	}
 
 	stmt := fmt.Sprintf(`
-		INSERT INTO mdm_configuration_profile_variables (certificate_template_id, fleet_variable_id)
+		INSERT INTO mdm_configuration_profile_variables (certificate_template_id, automdm_variable_id)
 		VALUES %s
-		ON DUPLICATE KEY UPDATE fleet_variable_id = VALUES(fleet_variable_id)
+		ON DUPLICATE KEY UPDATE automdm_variable_id = VALUES(automdm_variable_id)
 	`, strings.TrimSuffix(values.String(), ","))
 
 	if _, err := tx.ExecContext(ctx, stmt, args...); err != nil {
@@ -379,11 +379,11 @@ func setCertTemplateVariableAssociations(ctx context.Context, tx sqlx.ExtContext
 	return nil
 }
 
-func (ds *Datastore) SetCertificateTemplateVariables(ctx context.Context, certTemplateID uint, fleetVars []fleet.FleetVarName) error {
-	return setCertTemplateVariableAssociations(ctx, ds.writer(ctx), certTemplateID, fleetVars)
+func (ds *Datastore) SetCertificateTemplateVariables(ctx context.Context, certTemplateID uint, automdmVars []automdm.AutoMDMVarName) error {
+	return setCertTemplateVariableAssociations(ctx, ds.writer(ctx), certTemplateID, automdmVars)
 }
 
-func (ds *Datastore) GetHostCertificateTemplates(ctx context.Context, hostUUID string) ([]fleet.HostCertificateTemplate, error) {
+func (ds *Datastore) GetHostCertificateTemplates(ctx context.Context, hostUUID string) ([]automdm.HostCertificateTemplate, error) {
 	if hostUUID == "" {
 		return nil, errors.New("hostUUID cannot be empty")
 	}
@@ -399,7 +399,7 @@ SELECT
 FROM host_certificate_templates
 WHERE host_uuid = ?`
 
-	var hTemplates []fleet.HostCertificateTemplate
+	var hTemplates []automdm.HostCertificateTemplate
 	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &hTemplates, stmt, hostUUID); err != nil {
 		return nil, err
 	}
@@ -418,7 +418,7 @@ func (ds *Datastore) CreatePendingCertificateTemplatesForExistingHosts(
 		INSERT INTO host_certificate_templates (
 			host_uuid,
 			certificate_template_id,
-			fleet_challenge,
+			automdm_challenge,
 			status,
 			operation_type,
 			name,
@@ -440,7 +440,7 @@ func (ds *Datastore) CreatePendingCertificateTemplatesForExistingHosts(
 			hosts.platform = '%s' AND
 			host_mdm.enrolled = 1
 		ON DUPLICATE KEY UPDATE host_uuid = host_uuid
-	`, fleet.CertificateTemplatePending, fleet.MDMOperationTypeInstall, fleet.AndroidPlatform)
+	`, automdm.CertificateTemplatePending, automdm.MDMOperationTypeInstall, automdm.AndroidPlatform)
 	result, err := ds.writer(ctx).ExecContext(ctx, stmt, certificateTemplateID, teamID, teamID)
 	if err != nil {
 		return 0, ctxerr.Wrap(ctx, err, "create pending certificate templates for hosts")
@@ -483,13 +483,13 @@ func (ds *Datastore) CreatePendingCertificateTemplatesForNewHost(
 			status = '%s',
 			operation_type = '%s',
 			retry_count = 0,
-			fleet_challenge = NULL,
+			automdm_challenge = NULL,
 			not_valid_before = NULL,
 			not_valid_after = NULL,
 			serial = NULL,
 			detail = NULL
-	`, fleet.CertificateTemplatePending, fleet.MDMOperationTypeInstall,
-		fleet.CertificateTemplatePending, fleet.MDMOperationTypeInstall)
+	`, automdm.CertificateTemplatePending, automdm.MDMOperationTypeInstall,
+		automdm.CertificateTemplatePending, automdm.MDMOperationTypeInstall)
 	result, err := ds.writer(ctx).ExecContext(ctx, stmt, hostUUID, teamID)
 	if err != nil {
 		return 0, ctxerr.Wrap(ctx, err, "create pending certificate templates for new host")
@@ -508,7 +508,7 @@ func (ds *Datastore) ResendHostCertificateTemplate(ctx context.Context, hostID u
 			hosts h ON h.uuid = hct.host_uuid
 		SET
 			hct.uuid = UUID_TO_BIN(UUID(), true),
-			hct.fleet_challenge = NULL,
+			hct.automdm_challenge = NULL,
 			hct.not_valid_before = NULL,
 			hct.not_valid_after = NULL,
 			hct.serial = NULL,
@@ -518,13 +518,13 @@ func (ds *Datastore) ResendHostCertificateTemplate(ctx context.Context, hostID u
 		WHERE
 			h.id = ? AND
 			hct.certificate_template_id = ?
-		`, fleet.MaxCertificateInstallRetries+1)
+		`, automdm.MaxCertificateInstallRetries+1)
 
 	const deleteChallenge = `
 		DELETE c FROM
 			challenges c
 		INNER JOIN
-			host_certificate_templates hct ON hct.fleet_challenge = c.challenge
+			host_certificate_templates hct ON hct.automdm_challenge = c.challenge
 		INNER JOIN
 			hosts h ON h.uuid = hct.host_uuid
 		WHERE
@@ -538,7 +538,7 @@ func (ds *Datastore) ResendHostCertificateTemplate(ctx context.Context, hostID u
 			return ctxerr.Wrap(ctx, err, "deleting challenges associated with resent certificate template")
 		}
 
-		results, err := tx.ExecContext(ctx, stmt, fleet.CertificateTemplatePending, hostID, templateID)
+		results, err := tx.ExecContext(ctx, stmt, automdm.CertificateTemplatePending, hostID, templateID)
 		if err != nil {
 			return ctxerr.Wrap(ctx, err, "updating host certificate template uuid")
 		}

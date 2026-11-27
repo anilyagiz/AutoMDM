@@ -8,9 +8,9 @@ const baseClass = "create-linux-key-modal";
 
 interface ICreateLinuxKeyModal {
   isTriggeringCreateLinuxKey: boolean;
-  /** fleetd is already handling an earlier request, so no new pop-up is coming. */
+  /** automdmd is already handling an earlier request, so no new pop-up is coming. */
   isEscrowInFlight: boolean;
-  /** Seconds until the server accepts a new request if fleetd reports nothing (Retry-After). */
+  /** Seconds until the server accepts a new request if automdmd reports nothing (Retry-After). */
   retryAfterSeconds?: number;
   onExit: () => void;
 }
@@ -40,7 +40,7 @@ const CreateLinuxKeyModal = ({
 
   const renderInFlightBody = () => (
     <>
-      <p>Fleet is already asking this device for a disk encryption key.</p>
+      <p>AutoMDM is already asking this device for a disk encryption key.</p>
       <p>
         On Ubuntu with TPM-backed disk encryption this happens in the background
         and no pop-up appears. Close this window and select <b>Refetch</b> on
@@ -54,7 +54,7 @@ const CreateLinuxKeyModal = ({
           might be behind this window.
         </li>
         <li>
-          If you already entered your passphrase, Fleet is finishing up. Close
+          If you already entered your passphrase, AutoMDM is finishing up. Close
           this window, wait a couple of minutes, and select <b>Refetch</b> on
           your <b>My device</b> page.
         </li>
@@ -71,7 +71,7 @@ const CreateLinuxKeyModal = ({
   const renderModalBody = () => (
     <>
       <p>
-        On Ubuntu with TPM-backed disk encryption, Fleet backs up your recovery
+        On Ubuntu with TPM-backed disk encryption, AutoMDM backs up your recovery
         key automatically in the background — no further action is needed. The
         yellow <b>Disk Encryption</b> banner will clear within 1 hour.
       </p>
@@ -88,7 +88,7 @@ const CreateLinuxKeyModal = ({
         <li>
           You&apos;re done. The yellow <b>Disk Encryption</b> banner will go
           away in 1 hour. To remove this banner sooner, wait a couple of minutes
-          for Fleet to create a new key. Then, close this window and select{" "}
+          for AutoMDM to create a new key. Then, close this window and select{" "}
           <b>Refetch</b> on your <b>My device</b> page.
         </li>
         <li>

@@ -7,7 +7,7 @@
 #
 # Removing the MSI directly orphans the bundle: its uninstall then no-ops
 # (returns 0) and leaves the "Microsoft PowerBI Desktop (x64)" registration
-# behind, which is what Fleet's osquery-based validator keeps detecting.
+# behind, which is what AutoMDM's osquery-based validator keeps detecting.
 #
 # Correct approach: uninstall via the BUNDLE first. It removes both the MSI and
 # its own registration. Burn relaunches a cached copy of itself and spawns

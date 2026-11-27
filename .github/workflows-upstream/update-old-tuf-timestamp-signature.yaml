@@ -30,10 +30,10 @@ jobs:
         with:
           egress-policy: audit
 
-      - name: Checkout fleetctl install script
+      - name: Checkout automdmctl install script
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          sparse-checkout: website/assets/resources/install-fleetctl.sh
+          sparse-checkout: website/assets/resources/install-automdmctl.sh
           sparse-checkout-cone-mode: false
           persist-credentials: false
 
@@ -43,29 +43,29 @@ jobs:
           role-to-assume: ${{ env.AWS_IAM_ROLE }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Install fleetctl
+      - name: Install automdmctl
         run: |
-          bash website/assets/resources/install-fleetctl.sh
-          echo "$HOME/.fleetctl" >> "$GITHUB_PATH"
+          bash website/assets/resources/install-automdmctl.sh
+          echo "$HOME/.automdmctl" >> "$GITHUB_PATH"
 
       - name: Pull metadata files
         run: |
           mkdir -p keys repository staged
-          aws s3 cp s3://fleet-tuf-repo/timestamp.json ./repository/timestamp.json
-          aws s3 cp s3://fleet-tuf-repo/snapshot.json ./repository/snapshot.json
-          aws s3 cp s3://fleet-tuf-repo/targets.json ./repository/targets.json
-          aws s3 cp s3://fleet-tuf-repo/root.json ./repository/root.json
+          aws s3 cp s3://automdm-tuf-repo/timestamp.json ./repository/timestamp.json
+          aws s3 cp s3://automdm-tuf-repo/snapshot.json ./repository/snapshot.json
+          aws s3 cp s3://automdm-tuf-repo/targets.json ./repository/targets.json
+          aws s3 cp s3://automdm-tuf-repo/root.json ./repository/root.json
           cat ./repository/timestamp.json
 
       - name: Update timestamp
         env:
           BASE64_ENCRYPTED_TIMESTAMP_KEY_CONTENTS: ${{ secrets.BASE64_ENCRYPTED_TIMESTAMP_KEY }}
-          FLEET_TIMESTAMP_PASSPHRASE: ${{ secrets.TUF_TIMESTAMP_PASSPHRASE }}
+          AUTOMDM_TIMESTAMP_PASSPHRASE: ${{ secrets.TUF_TIMESTAMP_PASSPHRASE }}
         run: |
           echo "$BASE64_ENCRYPTED_TIMESTAMP_KEY_CONTENTS" | base64 -d > ./keys/timestamp.json
-          fleetctl updates timestamp --path .
+          automdmctl updates timestamp --path .
 
       - name: Push timestamp.json
         run: |
           cat ./repository/timestamp.json
-          aws s3 cp ./repository/timestamp.json s3://fleet-tuf-repo/timestamp.json
+          aws s3 cp ./repository/timestamp.json s3://automdm-tuf-repo/timestamp.json

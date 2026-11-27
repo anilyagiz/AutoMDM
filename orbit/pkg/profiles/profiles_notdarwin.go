@@ -2,9 +2,9 @@
 
 package profiles
 
-import "github.com/fleetdm/fleet/v4/server/fleet"
+import "github.com/anilyagiz/automdm/v4/server/automdm"
 
-func GetFleetdConfig() (*fleet.MDMAppleFleetdConfig, error) {
+func GetAutoMDMdConfig() (*automdm.MDMAppleAutoMDMdConfig, error) {
 	return nil, ErrNotImplemented
 }
 

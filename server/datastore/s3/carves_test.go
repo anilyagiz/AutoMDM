@@ -9,20 +9,20 @@ import (
 	"testing"
 	"time"
 
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
 	awss3 "github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/fleet"
 	"github.com/stretchr/testify/require"
 )
 
-// stubCarveMetadataStore implements fleet.CarveStore using only in-memory
+// stubCarveMetadataStore implements automdm.CarveStore using only in-memory
 // state. It is used by tests that do not require a real S3 backend.
 type stubCarveMetadataStore struct {
-	carves []*fleet.CarveMetadata
+	carves []*automdm.CarveMetadata
 	// lastListOpts records the options of the most recent ListCarves call so
 	// tests can assert how CleanupCarves queries the metadata store.
-	lastListOpts fleet.CarveListOptions
+	lastListOpts automdm.CarveListOptions
 	// listCarvesCalled records whether ListCarves was invoked.
 	listCarvesCalled bool
 	// expiredIDs accumulates the ids passed to ExpireCarves.
@@ -31,10 +31,10 @@ type stubCarveMetadataStore struct {
 	updateCarveCalled bool
 }
 
-func (s *stubCarveMetadataStore) NewCarve(_ context.Context, metadata *fleet.CarveMetadata) (*fleet.CarveMetadata, error) {
+func (s *stubCarveMetadataStore) NewCarve(_ context.Context, metadata *automdm.CarveMetadata) (*automdm.CarveMetadata, error) {
 	return metadata, nil
 }
-func (s *stubCarveMetadataStore) UpdateCarve(_ context.Context, _ *fleet.CarveMetadata) error {
+func (s *stubCarveMetadataStore) UpdateCarve(_ context.Context, _ *automdm.CarveMetadata) error {
 	s.updateCarveCalled = true
 	return nil
 }
@@ -42,25 +42,25 @@ func (s *stubCarveMetadataStore) ExpireCarves(_ context.Context, ids []int64) er
 	s.expiredIDs = append(s.expiredIDs, ids...)
 	return nil
 }
-func (s *stubCarveMetadataStore) Carve(_ context.Context, _ int64) (*fleet.CarveMetadata, error) {
+func (s *stubCarveMetadataStore) Carve(_ context.Context, _ int64) (*automdm.CarveMetadata, error) {
 	return nil, nil
 }
-func (s *stubCarveMetadataStore) CarveBySessionId(_ context.Context, _ string) (*fleet.CarveMetadata, error) {
+func (s *stubCarveMetadataStore) CarveBySessionId(_ context.Context, _ string) (*automdm.CarveMetadata, error) {
 	return nil, nil
 }
-func (s *stubCarveMetadataStore) CarveByName(_ context.Context, _ string) (*fleet.CarveMetadata, error) {
+func (s *stubCarveMetadataStore) CarveByName(_ context.Context, _ string) (*automdm.CarveMetadata, error) {
 	return nil, nil
 }
-func (s *stubCarveMetadataStore) ListCarves(_ context.Context, opt fleet.CarveListOptions) ([]*fleet.CarveMetadata, error) {
+func (s *stubCarveMetadataStore) ListCarves(_ context.Context, opt automdm.CarveListOptions) ([]*automdm.CarveMetadata, error) {
 	s.listCarvesCalled = true
 	s.lastListOpts = opt
 	// Mirror the real datastore: honor ordering by created_at so the S3 listing
 	// window CleanupCarves derives from the first/last elements is meaningful.
-	carves := append([]*fleet.CarveMetadata(nil), s.carves...)
+	carves := append([]*automdm.CarveMetadata(nil), s.carves...)
 	if opt.OrderKey == "created_at" {
 		sort.SliceStable(carves, func(i, j int) bool {
 			less := carves[i].CreatedAt.Before(carves[j].CreatedAt)
-			if opt.OrderDirection == fleet.OrderDescending {
+			if opt.OrderDirection == automdm.OrderDescending {
 				return !less
 			}
 			return less
@@ -68,10 +68,10 @@ func (s *stubCarveMetadataStore) ListCarves(_ context.Context, opt fleet.CarveLi
 	}
 	return carves, nil
 }
-func (s *stubCarveMetadataStore) NewBlock(_ context.Context, _ *fleet.CarveMetadata, _ int64, _ []byte) error {
+func (s *stubCarveMetadataStore) NewBlock(_ context.Context, _ *automdm.CarveMetadata, _ int64, _ []byte) error {
 	return nil
 }
-func (s *stubCarveMetadataStore) GetBlock(_ context.Context, _ *fleet.CarveMetadata, _ int64) ([]byte, error) {
+func (s *stubCarveMetadataStore) GetBlock(_ context.Context, _ *automdm.CarveMetadata, _ int64) ([]byte, error) {
 	return nil, nil
 }
 func (s *stubCarveMetadataStore) CleanupCarves(_ context.Context, _ time.Time) (int, error) {
@@ -104,10 +104,10 @@ func TestCleanupCarvesMarksS3AbsentCarvesExpired(t *testing.T) {
 	// Two carves whose uploads have completed (MaxBlock == BlockCount-1).
 	// carve1 will have a corresponding S3 object; carve2 will not.
 	baseTime := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)
-	carve1 := &fleet.CarveMetadata{ID: 1, Name: "session-with-s3", CreatedAt: baseTime, BlockCount: 1, MaxBlock: 0}
-	carve2 := &fleet.CarveMetadata{ID: 2, Name: "session-without-s3", CreatedAt: baseTime.Add(30 * time.Minute), BlockCount: 1, MaxBlock: 0}
+	carve1 := &automdm.CarveMetadata{ID: 1, Name: "session-with-s3", CreatedAt: baseTime, BlockCount: 1, MaxBlock: 0}
+	carve2 := &automdm.CarveMetadata{ID: 2, Name: "session-without-s3", CreatedAt: baseTime.Add(30 * time.Minute), BlockCount: 1, MaxBlock: 0}
 
-	stub := &stubCarveMetadataStore{carves: []*fleet.CarveMetadata{carve1, carve2}}
+	stub := &stubCarveMetadataStore{carves: []*automdm.CarveMetadata{carve1, carve2}}
 
 	store, err := NewCarveStore(config.S3Config{
 		CarvesBucket:           bucket,
@@ -161,11 +161,11 @@ func TestCleanupCarvesSkipsInFlightCarves(t *testing.T) {
 
 	baseTime := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)
 	// completed: upload finished (MaxBlock == BlockCount-1), object absent from S3.
-	completed := &fleet.CarveMetadata{ID: 1, Name: "completed-absent", CreatedAt: baseTime, BlockCount: 1, MaxBlock: 0}
+	completed := &automdm.CarveMetadata{ID: 1, Name: "completed-absent", CreatedAt: baseTime, BlockCount: 1, MaxBlock: 0}
 	// inFlight: upload still in progress (MaxBlock < BlockCount-1), object not yet listable.
-	inFlight := &fleet.CarveMetadata{ID: 2, Name: "in-flight", CreatedAt: baseTime.Add(30 * time.Minute), BlockCount: 3, MaxBlock: 0}
+	inFlight := &automdm.CarveMetadata{ID: 2, Name: "in-flight", CreatedAt: baseTime.Add(30 * time.Minute), BlockCount: 3, MaxBlock: 0}
 
-	stub := &stubCarveMetadataStore{carves: []*fleet.CarveMetadata{completed, inFlight}}
+	stub := &stubCarveMetadataStore{carves: []*automdm.CarveMetadata{completed, inFlight}}
 
 	store, err := NewCarveStore(config.S3Config{
 		CarvesBucket:           bucket,
@@ -207,7 +207,7 @@ func TestCleanupCarvesQueriesOldestFirst(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, "created_at", stub.lastListOpts.OrderKey, "cleanup must order carves by created_at")
-	require.Equal(t, fleet.OrderAscending, stub.lastListOpts.OrderDirection, "cleanup must order carves ascending (oldest first)")
+	require.Equal(t, automdm.OrderAscending, stub.lastListOpts.OrderDirection, "cleanup must order carves ascending (oldest first)")
 	require.False(t, stub.lastListOpts.Expired, "cleanup must only consider non-expired carves")
 }
 
@@ -225,10 +225,10 @@ func TestCleanupCarvesExpiresAbsentAndBatchesWrites(t *testing.T) {
 	const prefix = "carvetest/"
 
 	base := time.Date(2024, 6, 1, 10, 0, 0, 0, time.UTC)
-	present := &fleet.CarveMetadata{ID: 1, Name: "present", CreatedAt: base, BlockCount: 1, MaxBlock: 0}
-	absentA := &fleet.CarveMetadata{ID: 2, Name: "absent-a", CreatedAt: base.Add(time.Minute), BlockCount: 1, MaxBlock: 0}
-	absentB := &fleet.CarveMetadata{ID: 3, Name: "absent-b", CreatedAt: base.Add(2 * time.Minute), BlockCount: 1, MaxBlock: 0}
-	stub := &stubCarveMetadataStore{carves: []*fleet.CarveMetadata{present, absentA, absentB}}
+	present := &automdm.CarveMetadata{ID: 1, Name: "present", CreatedAt: base, BlockCount: 1, MaxBlock: 0}
+	absentA := &automdm.CarveMetadata{ID: 2, Name: "absent-a", CreatedAt: base.Add(time.Minute), BlockCount: 1, MaxBlock: 0}
+	absentB := &automdm.CarveMetadata{ID: 3, Name: "absent-b", CreatedAt: base.Add(2 * time.Minute), BlockCount: 1, MaxBlock: 0}
+	stub := &stubCarveMetadataStore{carves: []*automdm.CarveMetadata{present, absentA, absentB}}
 
 	store, err := NewCarveStore(config.S3Config{
 		CarvesBucket:           bucket,
@@ -287,9 +287,9 @@ func TestCleanupCarvesSkipsCarvesYoungerThan24h(t *testing.T) {
 
 	// Neither carve has an object in S3 (empty bucket). Only the old one is old
 	// enough to be reconciled; the recent one must be left untouched.
-	old := &fleet.CarveMetadata{ID: 1, Name: "old-gone", CreatedAt: now.Add(-48 * time.Hour), BlockCount: 1, MaxBlock: 0}
-	recent := &fleet.CarveMetadata{ID: 2, Name: "recent-gone", CreatedAt: now.Add(-1 * time.Hour), BlockCount: 1, MaxBlock: 0}
-	stub := &stubCarveMetadataStore{carves: []*fleet.CarveMetadata{old, recent}}
+	old := &automdm.CarveMetadata{ID: 1, Name: "old-gone", CreatedAt: now.Add(-48 * time.Hour), BlockCount: 1, MaxBlock: 0}
+	recent := &automdm.CarveMetadata{ID: 2, Name: "recent-gone", CreatedAt: now.Add(-1 * time.Hour), BlockCount: 1, MaxBlock: 0}
+	stub := &stubCarveMetadataStore{carves: []*automdm.CarveMetadata{old, recent}}
 
 	store, err := NewCarveStore(config.S3Config{
 		CarvesBucket:           bucket,
@@ -325,8 +325,8 @@ func TestCleanupCarvesDisabled(t *testing.T) {
 	// An old carve with no S3 object would normally be expired; with cleanup
 	// disabled it must be left alone. No S3 backend is needed because the store
 	// returns before doing any work.
-	old := &fleet.CarveMetadata{ID: 1, Name: "old-gone", CreatedAt: time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC), BlockCount: 1, MaxBlock: 0}
-	stub := &stubCarveMetadataStore{carves: []*fleet.CarveMetadata{old}}
+	old := &automdm.CarveMetadata{ID: 1, Name: "old-gone", CreatedAt: time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC), BlockCount: 1, MaxBlock: 0}
+	stub := &stubCarveMetadataStore{carves: []*automdm.CarveMetadata{old}}
 	store := &CarveStore{metadatadb: stub, cleanupDisabled: true}
 
 	cleaned, err := store.CleanupCarves(t.Context(), time.Now())
@@ -347,8 +347,8 @@ func (f fakeHeadObjectAPI) HeadObject(_ context.Context, in *awss3.HeadObjectInp
 
 // oldCompletedCarve returns a carve old enough to pass the 24h floor with a
 // completed upload, so cleanup will probe it.
-func oldCompletedCarve(id int64, name string) *fleet.CarveMetadata {
-	return &fleet.CarveMetadata{
+func oldCompletedCarve(id int64, name string) *automdm.CarveMetadata {
+	return &automdm.CarveMetadata{
 		ID:         id,
 		Name:       name,
 		CreatedAt:  time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
@@ -363,7 +363,7 @@ func oldCompletedCarve(id int64, name string) *fleet.CarveMetadata {
 // still exist.
 func TestCleanupCarvesDoesNotExpireOnTransientProbeError(t *testing.T) {
 	carve := oldCompletedCarve(1, "maybe-gone")
-	stub := &stubCarveMetadataStore{carves: []*fleet.CarveMetadata{carve}}
+	stub := &stubCarveMetadataStore{carves: []*automdm.CarveMetadata{carve}}
 	store := &CarveStore{
 		s3store:    &s3store{prefix: "carvetest/", bucket: "test-bucket"},
 		metadatadb: stub,
@@ -386,7 +386,7 @@ func TestCleanupCarvesPartialFailureExpiresOnlyConfirmedAbsent(t *testing.T) {
 	present := oldCompletedCarve(1, "present")
 	absent := oldCompletedCarve(2, "absent")
 	flaky := oldCompletedCarve(3, "flaky")
-	stub := &stubCarveMetadataStore{carves: []*fleet.CarveMetadata{present, absent, flaky}}
+	stub := &stubCarveMetadataStore{carves: []*automdm.CarveMetadata{present, absent, flaky}}
 	store := &CarveStore{
 		s3store:    &s3store{prefix: "carvetest/", bucket: "test-bucket"},
 		metadatadb: stub,
@@ -417,7 +417,7 @@ func TestCleanupCarvesPartialFailureExpiresOnlyConfirmedAbsent(t *testing.T) {
 // updates when collecting results. Run with -race to catch data races.
 func TestCleanupCarvesConcurrentProbesAllAbsent(t *testing.T) {
 	const n = 100
-	carves := make([]*fleet.CarveMetadata, n)
+	carves := make([]*automdm.CarveMetadata, n)
 	for i := range carves {
 		carves[i] = oldCompletedCarve(int64(i+1), fmt.Sprintf("gone-%03d", i))
 	}

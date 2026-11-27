@@ -8,7 +8,7 @@ interface IPencil {
   size?: IconSizes;
 }
 
-const Pencil = ({ color = "ui-fleet-black-75", size = "medium" }: IPencil) => {
+const Pencil = ({ color = "ui-automdm-black-75", size = "medium" }: IPencil) => {
   return (
     <svg
       width={ICON_SIZES[size]}

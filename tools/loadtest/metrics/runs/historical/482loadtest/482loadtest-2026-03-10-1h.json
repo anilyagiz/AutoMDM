@@ -8,7 +8,7 @@
     "source": "spreadsheet-backfill",
     "sheet_row": 61
   },
-  "fleet_server": {
+  "automdm_server": {
     "cpu_utilization": {
       "Average": 58.0
     },
@@ -81,20 +81,20 @@
       }
     }
   ],
-  "fleet_server_errors": {
+  "automdm_server_errors": {
     "error_count": null
   },
   "backfill": {
-    "source": "Fleet release load testing results (Google Sheet), manual-logging era",
-    "purpose": "Baseline test with 25 fleet containers",
+    "source": "AutoMDM release load testing results (Google Sheet), manual-logging era",
+    "purpose": "Baseline test with 25 automdm containers",
     "one_click": "yes",
     "notes": "We tried using 25 containers which led to higher DB load, we\u2026",
     "raw": {
       "full_day": "yes",
-      "fleet_containers": "25",
+      "automdm_containers": "25",
       "loadtest_containers": "200",
-      "fleet_cpu": "~58%",
-      "fleet_mem": "~4.0%",
+      "automdm_cpu": "~58%",
+      "automdm_mem": "~4.0%",
       "errors": "Numerous errors related to server crashes due to high DB loa\u2026",
       "writer_top_sql": "DELETE FROM `host_softwar\u2026",
       "writer_cpu": "~24%",

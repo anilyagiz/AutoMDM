@@ -14,9 +14,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,7 +29,7 @@ var (
 )
 
 func getTestMailpitSMTPPort() uint {
-	if port := os.Getenv("FLEET_MAILPIT_SMTP_PORT"); port != "" {
+	if port := os.Getenv("AUTOMDM_MAILPIT_SMTP_PORT"); port != "" {
 		if p, err := strconv.ParseUint(port, 10, 32); err == nil && p > 0 {
 			return uint(p)
 		}
@@ -38,14 +38,14 @@ func getTestMailpitSMTPPort() uint {
 }
 
 func getTestMailpitWebURL() string {
-	if port := os.Getenv("FLEET_MAILPIT_WEB_PORT"); port != "" {
+	if port := os.Getenv("AUTOMDM_MAILPIT_WEB_PORT"); port != "" {
 		return "http://127.0.0.1:" + port
 	}
 	return "http://127.0.0.1:8026"
 }
 
 func getTestSMTP4DevSMTPPort() uint {
-	if port := os.Getenv("FLEET_SMTP4DEV_SMTP_PORT"); port != "" {
+	if port := os.Getenv("AUTOMDM_SMTP4DEV_SMTP_PORT"); port != "" {
 		if p, err := strconv.ParseUint(port, 10, 32); err == nil && p > 0 {
 			return uint(p)
 		}
@@ -53,7 +53,7 @@ func getTestSMTP4DevSMTPPort() uint {
 	return 1027
 }
 
-var testFunctions = [...]func(*testing.T, fleet.MailService){
+var testFunctions = [...]func(*testing.T, automdm.MailService){
 	testSMTPPlainAuth,
 	testSMTPPlainAuthInvalidCreds,
 	testSMTPSkipVerify,
@@ -63,10 +63,10 @@ var testFunctions = [...]func(*testing.T, fleet.MailService){
 }
 
 func TestCanSendMail(t *testing.T) {
-	settings := fleet.SMTPSettings{
+	settings := automdm.SMTPSettings{
 		SMTPConfigured:           true,
-		SMTPAuthenticationType:   fleet.AuthTypeNameUserNamePassword,
-		SMTPAuthenticationMethod: fleet.AuthMethodNamePlain,
+		SMTPAuthenticationType:   automdm.AuthTypeNameUserNamePassword,
+		SMTPAuthenticationMethod: automdm.AuthMethodNamePlain,
 		SMTPUserName:             "mailpit-username",
 		SMTPPassword:             "mailpit-password",
 		SMTPEnableTLS:            false,
@@ -80,12 +80,12 @@ func TestCanSendMail(t *testing.T) {
 	r, err := NewService(config.TestConfig())
 	require.NoError(t, err)
 	require.True(t, r.CanSendEmail(settings))
-	require.False(t, r.CanSendEmail(fleet.SMTPSettings{}))
+	require.False(t, r.CanSendEmail(automdm.SMTPSettings{}))
 }
 
 func TestMail(t *testing.T) {
 	// This mail test requires mailhog and mailpit (ports read from env vars
-	// FLEET_MAILPIT_SMTP_PORT, FLEET_SMTP4DEV_SMTP_PORT, FLEET_MAILPIT_WEB_PORT).
+	// AUTOMDM_MAILPIT_SMTP_PORT, AUTOMDM_SMTP4DEV_SMTP_PORT, AUTOMDM_MAILPIT_WEB_PORT).
 	if _, ok := os.LookupEnv("MAIL_TEST"); !ok {
 		t.Skip("Mail tests are disabled")
 	}
@@ -100,14 +100,14 @@ func TestMail(t *testing.T) {
 	}
 }
 
-func testSMTPPlainAuth(t *testing.T, mailer fleet.MailService) {
-	mail := fleet.Email{
+func testSMTPPlainAuth(t *testing.T, mailer automdm.MailService) {
+	mail := automdm.Email{
 		Subject: "smtp plain auth",
-		To:      []string{"john@fleet.co"},
-		SMTPSettings: fleet.SMTPSettings{
+		To:      []string{"john@automdm.co"},
+		SMTPSettings: automdm.SMTPSettings{
 			SMTPConfigured:           true,
-			SMTPAuthenticationType:   fleet.AuthTypeNameUserNamePassword,
-			SMTPAuthenticationMethod: fleet.AuthMethodNamePlain,
+			SMTPAuthenticationType:   automdm.AuthTypeNameUserNamePassword,
+			SMTPAuthenticationMethod: automdm.AuthMethodNamePlain,
 			SMTPUserName:             "mailpit-username",
 			SMTPPassword:             "mailpit-password",
 			SMTPEnableTLS:            false,
@@ -126,14 +126,14 @@ func testSMTPPlainAuth(t *testing.T, mailer fleet.MailService) {
 	assert.Nil(t, err)
 }
 
-func testSMTPPlainAuthInvalidCreds(t *testing.T, mailer fleet.MailService) {
-	mail := fleet.Email{
+func testSMTPPlainAuthInvalidCreds(t *testing.T, mailer automdm.MailService) {
+	mail := automdm.Email{
 		Subject: "smtp plain auth with invalid credentials",
-		To:      []string{"john@fleet.co"},
-		SMTPSettings: fleet.SMTPSettings{
+		To:      []string{"john@automdm.co"},
+		SMTPSettings: automdm.SMTPSettings{
 			SMTPConfigured:           true,
-			SMTPAuthenticationType:   fleet.AuthTypeNameUserNamePassword,
-			SMTPAuthenticationMethod: fleet.AuthMethodNamePlain,
+			SMTPAuthenticationType:   automdm.AuthTypeNameUserNamePassword,
+			SMTPAuthenticationMethod: automdm.AuthMethodNamePlain,
 			SMTPUserName:             "mailpit-username",
 			SMTPPassword:             "wrong",
 			SMTPEnableTLS:            false,
@@ -152,14 +152,14 @@ func testSMTPPlainAuthInvalidCreds(t *testing.T, mailer fleet.MailService) {
 	assert.Error(t, err)
 }
 
-func testSMTPSkipVerify(t *testing.T, mailer fleet.MailService) {
-	mail := fleet.Email{
+func testSMTPSkipVerify(t *testing.T, mailer automdm.MailService) {
+	mail := automdm.Email{
 		Subject: "skip verify",
-		To:      []string{"john@fleet.co"},
-		SMTPSettings: fleet.SMTPSettings{
+		To:      []string{"john@automdm.co"},
+		SMTPSettings: automdm.SMTPSettings{
 			SMTPConfigured:           true,
-			SMTPAuthenticationType:   fleet.AuthTypeNameUserNamePassword,
-			SMTPAuthenticationMethod: fleet.AuthMethodNamePlain,
+			SMTPAuthenticationType:   automdm.AuthTypeNameUserNamePassword,
+			SMTPAuthenticationMethod: automdm.AuthMethodNamePlain,
 			SMTPUserName:             "mailpit-username",
 			SMTPPassword:             "mailpit-password",
 			SMTPEnableTLS:            true,
@@ -178,13 +178,13 @@ func testSMTPSkipVerify(t *testing.T, mailer fleet.MailService) {
 	assert.Nil(t, err)
 }
 
-func testSMTPNoAuthWithTLS(t *testing.T, mailer fleet.MailService) {
-	mail := fleet.Email{
+func testSMTPNoAuthWithTLS(t *testing.T, mailer automdm.MailService) {
+	mail := automdm.Email{
 		Subject: "no auth",
 		To:      []string{"bob@foo.com"},
-		SMTPSettings: fleet.SMTPSettings{
+		SMTPSettings: automdm.SMTPSettings{
 			SMTPConfigured:         true,
-			SMTPAuthenticationType: fleet.AuthTypeNameNone,
+			SMTPAuthenticationType: automdm.AuthTypeNameNone,
 			SMTPEnableTLS:          true,
 			SMTPVerifySSLCerts:     true,
 			SMTPEnableStartTLS:     true,
@@ -201,16 +201,16 @@ func testSMTPNoAuthWithTLS(t *testing.T, mailer fleet.MailService) {
 	assert.Nil(t, err)
 }
 
-func testSMTPDomain(t *testing.T, mailer fleet.MailService) {
+func testSMTPDomain(t *testing.T, mailer automdm.MailService) {
 	randomAddress := uuid.NewString() + "@example.com"
 
-	mail := fleet.Email{
+	mail := automdm.Email{
 		Subject: "custom client hello",
 		To:      []string{"bob@foo.com"},
-		SMTPSettings: fleet.SMTPSettings{
+		SMTPSettings: automdm.SMTPSettings{
 			SMTPConfigured:           true,
-			SMTPAuthenticationType:   fleet.AuthTypeNameUserNamePassword,
-			SMTPAuthenticationMethod: fleet.AuthMethodNamePlain,
+			SMTPAuthenticationType:   automdm.AuthTypeNameUserNamePassword,
+			SMTPAuthenticationMethod: automdm.AuthMethodNamePlain,
 			SMTPUserName:             "mailpit-username",
 			SMTPPassword:             "mailpit-password",
 			SMTPEnableTLS:            false,
@@ -280,14 +280,14 @@ func getLastRawMailpitMessageFrom(t *testing.T, address string) string {
 	return string(rawMail)
 }
 
-func testMailTest(t *testing.T, mailer fleet.MailService) {
-	mail := fleet.Email{
+func testMailTest(t *testing.T, mailer automdm.MailService) {
+	mail := automdm.Email{
 		Subject: "test tester",
 		To:      []string{"bob@foo.com"},
-		SMTPSettings: fleet.SMTPSettings{
+		SMTPSettings: automdm.SMTPSettings{
 			SMTPConfigured:           true,
-			SMTPAuthenticationType:   fleet.AuthTypeNameUserNamePassword,
-			SMTPAuthenticationMethod: fleet.AuthMethodNamePlain,
+			SMTPAuthenticationType:   automdm.AuthTypeNameUserNamePassword,
+			SMTPAuthenticationMethod: automdm.AuthMethodNamePlain,
 			SMTPUserName:             "foo",
 			SMTPPassword:             "bar",
 			SMTPEnableTLS:            true,
@@ -367,7 +367,7 @@ func startFakeSMTPServerFailingSTARTTLS(t *testing.T) (host string, port uint) {
 	return "127.0.0.1", uint(addr.Port) //nolint:gosec // dismiss G115 — TCPAddr.Port is in [0, 65535]
 }
 
-// fakeMailer satisfies fleet.Mailer without depending on bindata templates.
+// fakeMailer satisfies automdm.Mailer without depending on bindata templates.
 type fakeMailer struct{}
 
 func (fakeMailer) Message() ([]byte, error) { return []byte("Subject: test\r\n\r\nbody\r\n"), nil }
@@ -375,13 +375,13 @@ func (fakeMailer) Message() ([]byte, error) { return []byte("Subject: test\r\n\r
 func TestSendMailSTARTTLSFailureWithoutSSLTLS(t *testing.T) {
 	host, port := startFakeSMTPServerFailingSTARTTLS(t)
 
-	err := Test(mailService{}, fleet.Email{
+	err := Test(mailService{}, automdm.Email{
 		Subject: "test",
 		To:      []string{"to@example.com"},
-		SMTPSettings: fleet.SMTPSettings{
+		SMTPSettings: automdm.SMTPSettings{
 			SMTPConfigured:           true,
-			SMTPAuthenticationType:   fleet.AuthTypeNameNone,
-			SMTPAuthenticationMethod: fleet.AuthMethodNamePlain,
+			SMTPAuthenticationType:   automdm.AuthTypeNameNone,
+			SMTPAuthenticationMethod: automdm.AuthMethodNamePlain,
 			SMTPVerifySSLCerts:       true,
 			SMTPEnableTLS:            false,
 			SMTPEnableStartTLS:       true,
@@ -398,13 +398,13 @@ func TestSendMailSTARTTLSFailureWithoutSSLTLS(t *testing.T) {
 func TestSendMailSTARTTLSFailureWithVerifyOff(t *testing.T) {
 	host, port := startFakeSMTPServerFailingSTARTTLS(t)
 
-	err := Test(mailService{}, fleet.Email{
+	err := Test(mailService{}, automdm.Email{
 		Subject: "test",
 		To:      []string{"to@example.com"},
-		SMTPSettings: fleet.SMTPSettings{
+		SMTPSettings: automdm.SMTPSettings{
 			SMTPConfigured:           true,
-			SMTPAuthenticationType:   fleet.AuthTypeNameNone,
-			SMTPAuthenticationMethod: fleet.AuthMethodNamePlain,
+			SMTPAuthenticationType:   automdm.AuthTypeNameNone,
+			SMTPAuthenticationMethod: automdm.AuthMethodNamePlain,
 			SMTPVerifySSLCerts:       false, // user opted into skip-verify
 			SMTPEnableTLS:            false,
 			SMTPEnableStartTLS:       true,
@@ -421,7 +421,7 @@ func TestSendMailSTARTTLSFailureWithVerifyOff(t *testing.T) {
 
 func Test_getFrom(t *testing.T) {
 	type args struct {
-		e fleet.Email
+		e automdm.Email
 	}
 	tests := []struct {
 		name    string
@@ -432,8 +432,8 @@ func Test_getFrom(t *testing.T) {
 		{
 			name: "should return SMTP formatted From string",
 			args: args{
-				e: fleet.Email{
-					SMTPSettings: fleet.SMTPSettings{
+				e: automdm.Email{
+					SMTPSettings: automdm.SMTPSettings{
 						SMTPSenderAddress: "foo@bar.com",
 					},
 				},

@@ -6,7 +6,7 @@ interface IMissingHostsProps {
   color?: Colors;
 }
 
-const MissingHosts = ({ color = "ui-fleet-black-75" }: IMissingHostsProps) => {
+const MissingHosts = ({ color = "ui-automdm-black-75" }: IMissingHostsProps) => {
   return (
     <svg
       width="32"

@@ -1,9 +1,9 @@
 # Simulate slow network
 
-The following guide allows the developer/tester to simulate a "slow" connection from Fleet to Redis/MySQL.
-(It could be used in a similar way to simulate a slow Fleet server too.)
+The following guide allows the developer/tester to simulate a "slow" connection from AutoMDM to Redis/MySQL.
+(It could be used in a similar way to simulate a slow AutoMDM server too.)
 
-The guide assumes you'll build and run the Fleet server locally with the `make fleet` and `./build/fleet serve` commands.
+The guide assumes you'll build and run the AutoMDM server locally with the `make automdm` and `./build/automdm serve` commands.
 
 (Has been tested on macOS only.)
 
@@ -24,10 +24,10 @@ Add the following service to the main `docker-compose.yml`:
 docker-compose up
 ```
 
-## 2. Build Fleet
+## 2. Build AutoMDM
 
 ```sh
-make fleet
+make automdm
 ```
 
 ## 3. Create a new proxy
@@ -39,11 +39,11 @@ curl -s -XPOST -d '{"name" : "mysql", "listen" : "toxiproxy:22220", "upstream" :
 {"name":"mysql","listen":"172.30.0.9:22220","upstream":"mysql:3306","enabled":true,"toxics":[]}%
 ```
 
-## 4. Run fleet
+## 4. Run team
 
-Run fleet as usual but connect to MySQL via the proxy created in step (3):
+Run team as usual but connect to MySQL via the proxy created in step (3):
 ```sh
-./build/fleet serve --dev --dev_license --logging_debug --mysql_address localhost:22220 2>&1 | tee ~/fleet.txt
+./build/automdm serve --dev --dev_license --logging_debug --mysql_address localhost:22220 2>&1 | tee ~/automdm.txt
 ```
 
 ## 5. Configure proxy with latency/jitter
@@ -55,4 +55,4 @@ curl -s -XPOST -d '{"type" : "latency", "attributes" : {"latency" : 1000, "jitte
 ```
 
 <meta name="pageOrderInSection" value="1400">
-<meta name="description" value="A guide for simulating slow connections from a local Fleet server to a Redis or MySQL database">
+<meta name="description" value="A guide for simulating slow connections from a local AutoMDM server to a Redis or MySQL database">

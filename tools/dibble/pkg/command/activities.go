@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/fleetdm/fleet/v4/tools/dibble/pkg/seed"
+	"github.com/anilyagiz/automdm/v4/tools/dibble/pkg/seed"
 )
 
 // categoryHelp tells reviewers what each subcommand actually plants. Keep
@@ -18,7 +18,7 @@ var categoryHelp = map[string]string{
 	seed.CategorySoftware:     "software and app store apps lifecycle: install, uninstall, add, edit, delete, canceled installs, setup experience software.",
 	seed.CategoryHosts:        "per-host actions: lock / unlock / wipe, enroll / unenroll, disk encryption key access, recovery lock, managed local accounts, cleared passcode, conditional access bypass.",
 	seed.CategoryUsers:        "auth and user management: SSO, login, failed login, create / delete user, global and team role changes.",
-	seed.CategoryTeams:        "team (fleet) lifecycle: created, deleted, applied spec, transferred hosts.",
+	seed.CategoryTeams:        "team (team) lifecycle: created, deleted, applied spec, transferred hosts.",
 	seed.CategoryPolicies:     "policy CRUD plus applied_spec_policy.",
 	seed.CategoryQueries:      "saved + live queries (and legacy packs): created, edited, deleted, applied spec, live query.",
 	seed.CategoryLabels:       "label CRUD: created, edited, deleted.",
@@ -40,7 +40,7 @@ var categoryHelp = map[string]string{
 //	dibble activities software     # software / app store apps lifecycle
 //	dibble activities hosts        # per-host actions (lock, wipe, enroll, ...)
 //	dibble activities users        # auth + user management
-//	dibble activities teams        # team / fleet lifecycle
+//	dibble activities teams        # team / team lifecycle
 //	dibble activities policies     # policy CRUD
 //	dibble activities queries      # saved + live queries (and packs)
 //	dibble activities labels       # label CRUD
@@ -52,7 +52,7 @@ func newActivitiesCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:   "activities",
 		Short: "Seed fake activities directly into MySQL (non-idempotent)",
-		Long: `Activities aren't seed-able via the Fleet API — they're written by
+		Long: `Activities aren't seed-able via the AutoMDM API — they're written by
 NewActivity inside the service layer as a side effect of every state-changing
 endpoint. dibble shortcuts that by writing rows directly to MySQL, one per
 activity type per batch.
@@ -62,7 +62,7 @@ labels, users, scripts, etc.) is prefixed with "*" so faked rows are obvious
 in the activity feed and host activity card. Each run also stamps a unique
 tag onto names so re-running dibble produces fresh, distinguishable entries.
 
-Requires direct access to the Fleet MySQL instance — the default DSN matches
+Requires direct access to the AutoMDM MySQL instance — the default DSN matches
 the local docker-compose dev environment.`,
 		// Show subcommand help when invoked bare.
 		Args: cobra.NoArgs,
@@ -72,7 +72,7 @@ the local docker-compose dev environment.`,
 	}
 
 	addCommonFlags := func(cmd *cobra.Command) {
-		cmd.Flags().String("dsn", "fleet:insecure@tcp(localhost:3306)/fleet", "MySQL DSN")
+		cmd.Flags().String("dsn", "automdm:insecure@tcp(localhost:3306)/automdm", "MySQL DSN")
 		cmd.Flags().Uint("actor-id", 1, "user_id stamped on inserted rows (must exist in users)")
 		cmd.Flags().String("actor-name", "*Dibble Admin", "user_name stamped on inserted rows")
 		cmd.Flags().String("actor-email", "*admin@example.com", "user_email stamped on inserted rows")

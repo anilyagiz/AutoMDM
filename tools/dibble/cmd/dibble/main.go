@@ -1,4 +1,4 @@
-// Command dibble is Fleet's one-stop test data seeder.
+// Command dibble is AutoMDM's one-stop test data seeder.
 //
 // Run `dibble` with no arguments for an interactive wizard. Pass subcommands
 // like `dibble users` or `dibble all` to script it.
@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/fleetdm/fleet/v4/tools/dibble/pkg/command"
+	"github.com/anilyagiz/automdm/v4/tools/dibble/pkg/command"
 )
 
 func main() {

@@ -3,7 +3,7 @@ export type TabId =
   | "logs"
   | "database"
   | "git"
-  | "fleetctl"
+  | "automdmctl"
   | "gitops"
   | "osquery-perf"
   | "scep"
@@ -23,7 +23,7 @@ const SERVER_TABS: { id: TabId; label: string }[] = [
 
 // Global tabs: shared services / tools that don't depend on the active server.
 const GLOBAL_TABS: { id: TabId; label: string }[] = [
-  { id: "fleetctl", label: "fleetctl" },
+  { id: "automdmctl", label: "automdmctl" },
   { id: "gitops", label: "GitOps" },
   { id: "osquery-perf", label: "osquery-perf" },
   { id: "scep", label: "SCEP" },

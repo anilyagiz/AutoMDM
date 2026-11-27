@@ -25,8 +25,8 @@ const labelSummariesHandler = http.get(baseUrl("/labels/summary"), () => {
   return HttpResponse.json({ labels: MOCK_LABELS });
 });
 
-const teamsHandler = http.get(baseUrl("/fleets"), () => {
-  return HttpResponse.json({ fleets: MOCK_TEAMS });
+const teamsHandler = http.get(baseUrl("/teams"), () => {
+  return HttpResponse.json({ teams: MOCK_TEAMS });
 });
 
 const defaultProps = {
@@ -55,7 +55,7 @@ describe("SelectTargets - team disabling", () => {
   describe("plain observer (not observer+)", () => {
     const plainObserverOnBothTeams = createMockUser({
       global_role: null,
-      fleets: [
+      teams: [
         { ...MOCK_TEAMS[0], role: "observer" },
         { ...MOCK_TEAMS[1], role: "observer" },
       ],
@@ -171,7 +171,7 @@ describe("SelectTargets - team disabling", () => {
   describe("observer+ user", () => {
     const observerPlusOnBothTeams = createMockUser({
       global_role: null,
-      fleets: [
+      teams: [
         { ...MOCK_TEAMS[0], role: "observer_plus" },
         { ...MOCK_TEAMS[1], role: "observer_plus" },
       ],
@@ -233,7 +233,7 @@ describe("SelectTargets - team disabling", () => {
   describe("multi-team user with mixed roles (admin on team 1, observer on team 2)", () => {
     const adminObsUser = createMockUser({
       global_role: null,
-      fleets: [
+      teams: [
         { ...MOCK_TEAMS[0], role: "admin" },
         { ...MOCK_TEAMS[1], role: "observer" },
       ],
@@ -324,7 +324,7 @@ describe("SelectTargets - team disabling", () => {
   describe("global observer", () => {
     const globalObserver = createMockUser({
       global_role: "observer",
-      fleets: [],
+      teams: [],
     });
 
     it("disables all teams (including Unassigned) for live policies", async () => {
@@ -438,10 +438,10 @@ describe("SelectTargets - team disabling", () => {
   });
 
   describe("helper text visibility", () => {
-    it("shows helper text when some fleets are disabled", async () => {
+    it("shows helper text when some teams are disabled", async () => {
       const plainObserver = createMockUser({
         global_role: "observer",
-        fleets: [],
+        teams: [],
       });
 
       const render = createCustomRenderer({
@@ -465,15 +465,15 @@ describe("SelectTargets - team disabling", () => {
 
       await waitFor(() => {
         expect(
-          screen.getByText("Results limited to fleets you can access.")
+          screen.getByText("Results limited to teams you can access.")
         ).toBeInTheDocument();
       });
     });
 
-    it("does not show helper text when no fleets are disabled", async () => {
+    it("does not show helper text when no teams are disabled", async () => {
       const globalAdmin = createMockUser({
         global_role: "admin",
-        fleets: [],
+        teams: [],
       });
 
       const render = createCustomRenderer({
@@ -500,7 +500,7 @@ describe("SelectTargets - team disabling", () => {
         expect(getTeamButton("Team Alpha")).toBeInTheDocument();
       });
       expect(
-        screen.queryByText("Results limited to fleets you can access.")
+        screen.queryByText("Results limited to teams you can access.")
       ).not.toBeInTheDocument();
     });
   });
@@ -508,7 +508,7 @@ describe("SelectTargets - team disabling", () => {
   describe("global observer+", () => {
     const globalObserverPlus = createMockUser({
       global_role: "observer_plus",
-      fleets: [],
+      teams: [],
     });
 
     it("enables all teams for global observer+ even on live policies", async () => {

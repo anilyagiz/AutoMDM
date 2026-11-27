@@ -7,12 +7,12 @@ platforms:
   - linux
 evented: false
 examples: |-
-  List the Google Chrome accounts logged in to with `fleetdm.com` email addresses, joined to the
-  [users](https://fleetdm.com/tables/users) table, to see the description of the operating system
+  List the Google Chrome accounts logged in to with `automdm.com` email addresses, joined to the
+  [users](https://automdm.com/tables/users) table, to see the description of the operating system
   account that owns it.
 
   ```
-  SELECT gp.email, gp.username, u.description FROM google_chrome_profiles gp JOIN users u ON gp.username=u.username WHERE gp.email LIKE '%fleetdm.com';
+  SELECT gp.email, gp.username, u.description FROM google_chrome_profiles gp JOIN users u ON gp.username=u.username WHERE gp.email LIKE '%automdm.com';
   ```
 columns:
   - name: email

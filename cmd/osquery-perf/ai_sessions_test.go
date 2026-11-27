@@ -9,25 +9,25 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/service/osquery_utils"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/service/osquery_utils"
 	"github.com/stretchr/testify/require"
 )
 
-// buildAISessionEventsQuery builds the events query the way Fleet does for a host whose stored sessions are cursors.
-func buildAISessionEventsQuery(t *testing.T, cursors []*fleet.HostAISessionEventsCursor) string {
+// buildAISessionEventsQuery builds the events query the way AutoMDM does for a host whose stored sessions are cursors.
+func buildAISessionEventsQuery(t *testing.T, cursors []*automdm.HostAISessionEventsCursor) string {
 	ds := new(mock.Store)
-	ds.ListHostAISessionsNeedingEventsFunc = func(_ context.Context, _ uint, _ int, _ uint) ([]*fleet.HostAISessionEventsCursor, error) {
+	ds.ListHostAISessionsNeedingEventsFunc = func(_ context.Context, _ uint, _ int, _ uint) ([]*automdm.HostAISessionEventsCursor, error) {
 		return cursors, nil
 	}
-	ctx := license.NewContext(t.Context(), &fleet.LicenseInfo{Tier: fleet.TierPremium})
-	cfg := config.FleetConfig{Osquery: config.OsqueryConfig{AISessionMaxToolCalls: fleet.DefaultHostAISessionMaxEvents}}
+	ctx := license.NewContext(t.Context(), &automdm.LicenseInfo{Tier: automdm.TierPremium})
+	cfg := config.AutoMDMConfig{Osquery: config.OsqueryConfig{AISessionMaxToolCalls: automdm.DefaultHostAISessionMaxEvents}}
 	q, ok := osquery_utils.GetDetailQueries(ctx, cfg, nil, nil, osquery_utils.Integrations{}, nil)["ai_agent_session_events"]
 	require.True(t, ok)
-	query, ok := q.QueryFunc(ctx, slog.New(slog.DiscardHandler), &fleet.Host{ID: 1}, ds)
+	query, ok := q.QueryFunc(ctx, slog.New(slog.DiscardHandler), &automdm.Host{ID: 1}, ds)
 	require.True(t, ok)
 	return query
 }
@@ -36,8 +36,8 @@ func testAISessionsSim(t *testing.T, cfg aiSessionsConfig, now time.Time) *aiSes
 	return newAISessionsSim(cfg, "macos", 1, now)
 }
 
-func cursorFor(s *aiSession, now time.Time) *fleet.HostAISessionEventsCursor {
-	return &fleet.HostAISessionEventsCursor{
+func cursorFor(s *aiSession, now time.Time) *automdm.HostAISessionEventsCursor {
+	return &automdm.HostAISessionEventsCursor{
 		Agent:          s.agentName(),
 		AgentSessionID: s.id(),
 		TranscriptPath: s.transcriptPath(),
@@ -73,7 +73,7 @@ func TestAISessionsConfigValidate(t *testing.T) {
 	require.Error(t, aiSessionsConfig{prob: 1.5}.validate())
 	require.Error(t, aiSessionsConfig{longProb: -0.1}.validate())
 	require.Error(t, aiSessionsConfig{initialCount: -1}.validate())
-	// fleetd reads at most 5,000 sessions per agent, so a host must stay under it over the 7 days it reports.
+	// automdmd reads at most 5,000 sessions per agent, so a host must stay under it over the 7 days it reports.
 	require.Error(t, aiSessionsConfig{initialCount: 2000, perDay: 430}.validate())
 }
 
@@ -92,7 +92,7 @@ func TestAISessionsSessionsRows(t *testing.T) {
 			"input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens", "transcript_path",
 			"transcript_size_bytes",
 		}, slices.Collect(maps.Keys(r)))
-		require.Contains(t, fleet.AISessionAgents, r["agent"])
+		require.Contains(t, automdm.AISessionAgents, r["agent"])
 		agents[r["agent"]] = struct{}{}
 		ended, err := strconv.ParseInt(r["ended_at"], 10, 64)
 		require.NoError(t, err)
@@ -120,16 +120,16 @@ func TestAISessionsReportedAfterWindow(t *testing.T) {
 	stored := cursorFor(old, now)
 	stored.EventCount = 10
 
-	// A session past the reporting window is no longer listed, but its transcript is still on the host, so Fleet can
+	// A session past the reporting window is no longer listed, but its transcript is still on the host, so AutoMDM can
 	// still catch up on its tool calls.
 	require.Empty(t, s.sessionsRows(now))
-	rows := s.eventsRows(buildAISessionEventsQuery(t, []*fleet.HostAISessionEventsCursor{stored}), now)
+	rows := s.eventsRows(buildAISessionEventsQuery(t, []*automdm.HostAISessionEventsCursor{stored}), now)
 	require.Equal(t, seqUint(10, 40), aiEventIndexes(t, rows, old.id()))
 
 	// Once the agent has deleted its transcript, only the requested row comes back.
 	later := now.Add(23 * 24 * time.Hour)
 	s.sessionsRows(later)
-	rows = s.eventsRows(buildAISessionEventsQuery(t, []*fleet.HostAISessionEventsCursor{stored}), later)
+	rows = s.eventsRows(buildAISessionEventsQuery(t, []*automdm.HostAISessionEventsCursor{stored}), later)
 	require.Len(t, rows, 1)
 	require.Equal(t, "1", rows[0]["requested"])
 }
@@ -148,11 +148,11 @@ func TestAISessionsEventsQuery(t *testing.T) {
 	reread := cursorFor(codex, now)
 	reread.EventCount = 40
 	reread.RereadFromToolCallIndex = new(uint(31))
-	gone := &fleet.HostAISessionEventsCursor{
-		Agent: "claude_code", AgentSessionID: "deleted", TranscriptPath: "/Users/fleet/.claude/projects/gone.jsonl",
+	gone := &automdm.HostAISessionEventsCursor{
+		Agent: "claude_code", AgentSessionID: "deleted", TranscriptPath: "/Users/automdm/.claude/projects/gone.jsonl",
 		EndedAt: new(now.Add(-time.Hour)),
 	}
-	query := buildAISessionEventsQuery(t, []*fleet.HostAISessionEventsCursor{cursorFor(claude, now), behind, reread, gone})
+	query := buildAISessionEventsQuery(t, []*automdm.HostAISessionEventsCursor{cursorFor(claude, now), behind, reread, gone})
 
 	rows := s.eventsRows(query, now)
 	requested := make(map[string]map[string]string)
@@ -209,14 +209,14 @@ func TestAISessionsEventsPaging(t *testing.T) {
 		long = append(long, s.addSession(0, now.Add(-20*time.Hour), 10*time.Second, 3000, true))
 	}
 
-	// Read the sessions the way Fleet does: resume each after the last call it stored, and give up on one after three
+	// Read the sessions the way AutoMDM does: resume each after the last call it stored, and give up on one after three
 	// reads that return nothing.
 	collected := make(map[string][]uint)
 	emptyReads := make(map[string]int)
 	refreshes := 0
 	for ; ; refreshes++ {
 		require.Less(t, refreshes, 100)
-		var cursors []*fleet.HostAISessionEventsCursor
+		var cursors []*automdm.HostAISessionEventsCursor
 		for _, sess := range long {
 			if len(collected[sess.id()]) >= 3000 || emptyReads[sess.id()] >= 3 {
 				continue
@@ -229,7 +229,7 @@ func TestAISessionsEventsPaging(t *testing.T) {
 			break
 		}
 		rows := s.eventsRows(buildAISessionEventsQuery(t, cursors), now)
-		// fleetd caps a result at about 1 MiB, letting each table call past it with its first row up to twice that.
+		// automdmd caps a result at about 1 MiB, letting each table call past it with its first row up to twice that.
 		require.LessOrEqual(t, s.lastEventsBytes, 2*aiSessionMaxResultBytes)
 		for _, c := range cursors {
 			pos := aiEventIndexes(t, rows, c.AgentSessionID)
@@ -252,7 +252,7 @@ func TestAISessionsActive(t *testing.T) {
 
 	undecided := func(now time.Time) []string {
 		var idx []string
-		rows := s.eventsRows(buildAISessionEventsQuery(t, []*fleet.HostAISessionEventsCursor{cursorFor(sess, now)}), now)
+		rows := s.eventsRows(buildAISessionEventsQuery(t, []*automdm.HostAISessionEventsCursor{cursorFor(sess, now)}), now)
 		for _, r := range rows {
 			if r["requested"] == "0" && r["decision"] == "" {
 				idx = append(idx, r["tool_call_index"])
@@ -267,7 +267,7 @@ func TestAISessionsActive(t *testing.T) {
 	require.Equal(t, start.Add(20*30*time.Second), sess.endedAt(t1))
 	first := undecided(t1)
 	require.NotEmpty(t, first)
-	require.Len(t, s.eventsRows(buildAISessionEventsQuery(t, []*fleet.HostAISessionEventsCursor{cursorFor(sess, t1)}), t1), 21)
+	require.Len(t, s.eventsRows(buildAISessionEventsQuery(t, []*automdm.HostAISessionEventsCursor{cursorFor(sess, t1)}), t1), 21)
 
 	// Once it moves on, those calls get their outcome.
 	t2 := start.Add(30 * time.Minute)
@@ -288,7 +288,7 @@ func TestAISessionsIncomplete(t *testing.T) {
 
 	t.Run("deleted transcripts", func(t *testing.T) {
 		s := testAISessionsSim(t, aiSessionsConfig{initialCount: 30, deletedProb: 1}, now)
-		paths := make(map[string]*fleet.HostAISessionEventsCursor)
+		paths := make(map[string]*automdm.HostAISessionEventsCursor)
 		for _, sess := range s.sessions {
 			paths[sess.id()] = cursorFor(sess, now)
 		}
@@ -313,10 +313,10 @@ func TestAISessionsIncomplete(t *testing.T) {
 		for _, r := range rows {
 			sess := s.byID(r["session_id"])
 			require.NotNil(t, sess)
-			// fleetd counts more tool calls than it returns for the session.
+			// automdmd counts more tool calls than it returns for the session.
 			require.Equal(t, strconv.Itoa(sess.callsAt(now)+sess.uncounted), r["tool_calls"])
 			require.Positive(t, sess.uncounted)
-			events := s.eventsRows(buildAISessionEventsQuery(t, []*fleet.HostAISessionEventsCursor{cursorFor(sess, now)}), now)
+			events := s.eventsRows(buildAISessionEventsQuery(t, []*automdm.HostAISessionEventsCursor{cursorFor(sess, now)}), now)
 			require.Len(t, aiEventIndexes(t, events, sess.id()), sess.callsAt(now))
 		}
 	})

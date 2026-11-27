@@ -29,7 +29,7 @@
       &__header {
         margin: 0 0 $pad-medium 0;
         font-size: $small;
-        color: $core-fleet-black;
+        color: $core-automdm-black;
         font-weight: $bold;
       }
 
@@ -95,7 +95,7 @@
   }
 
   .status {
-    color: $core-fleet-black;
+    color: $core-automdm-black;
     text-transform: capitalize;
 
     &--online {
@@ -112,7 +112,7 @@
 
     &--offline {
       &:before {
-        background-color: $ui-fleet-black-50;
+        background-color: $ui-automdm-black-50;
         border-radius: 100%;
         content: " ";
         display: inline-block;

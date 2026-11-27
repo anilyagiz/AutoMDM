@@ -13,8 +13,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/blakesmith/ar"
-	"github.com/fleetdm/fleet/v4/server/fleet"
 	"github.com/stretchr/testify/require"
 )
 
@@ -27,11 +27,11 @@ func setLimits(t *testing.T, plist, member, toc int64) {
 	t.Cleanup(func() { maxPlistSize, maxMetadataMemberSize, maxXARTOCSize = prevPlist, prevMember, prevTOC })
 }
 
-func keepFileReader(t *testing.T, name string, contents []byte) *fleet.TempFileReader {
+func keepFileReader(t *testing.T, name string, contents []byte) *automdm.TempFileReader {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), name)
 	require.NoError(t, os.WriteFile(path, contents, 0o600))
-	tfr, err := fleet.NewKeepFileReader(path)
+	tfr, err := automdm.NewKeepFileReader(path)
 	require.NoError(t, err)
 	t.Cleanup(func() { tfr.Close() })
 	return tfr
@@ -47,7 +47,7 @@ func zlibCompress(t *testing.T, b []byte) []byte {
 	return buf.Bytes()
 }
 
-func ipaWithInfoPlist(t *testing.T, plist string) *fleet.TempFileReader {
+func ipaWithInfoPlist(t *testing.T, plist string) *automdm.TempFileReader {
 	t.Helper()
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)

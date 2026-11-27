@@ -26,7 +26,7 @@ const baseClass = "self-service-categories-section";
 const SelfServiceCategoriesSection = ({
   router,
   location,
-  fleetId,
+  automdmId,
   isRouteOk,
   canManage,
   gitOpsModeEnabled,
@@ -61,8 +61,8 @@ const SelfServiceCategoriesSection = ({
     ISelfServiceCategoriesResponse,
     Error
   >(
-    ["selfServiceCategories", fleetId],
-    () => selfServiceCategoriesAPI.getCategories(fleetId),
+    ["selfServiceCategories", automdmId],
+    () => selfServiceCategoriesAPI.getCategories(automdmId),
     {
       enabled: isRouteOk,
       refetchOnWindowFocus: false,
@@ -70,7 +70,7 @@ const SelfServiceCategoriesSection = ({
   );
 
   const invalidateList = () => {
-    queryClient.invalidateQueries(["selfServiceCategories", fleetId]);
+    queryClient.invalidateQueries(["selfServiceCategories", automdmId]);
   };
 
   const onAddSuccess = () => {
@@ -202,7 +202,7 @@ const SelfServiceCategoriesSection = ({
 
       {showAddModal && (
         <AddCategoryModal
-          fleetId={fleetId}
+          automdmId={automdmId}
           onExit={() => setShowAddModal(false)}
           onSuccess={onAddSuccess}
         />

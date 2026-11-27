@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # Tableau Reader ships as a WiX Burn bundle.
 #   /quiet /norestart   - standard Burn silent install

@@ -14,7 +14,7 @@ const meta: Meta<typeof Avatar> = {
     design: {
       type: "figma",
       url:
-        "https://www.figma.com/file/qbjRu8jf01BzEfdcge1dgu/Fleet-style-guide-2022-(WIP)?node-id=210-11078",
+        "https://www.figma.com/file/qbjRu8jf01BzEfdcge1dgu/AutoMDM-style-guide-2022-(WIP)?node-id=210-11078",
     },
   },
 };
@@ -31,8 +31,8 @@ export const Small: Story = {
   },
 };
 
-export const UseFleetAvatar: Story = {
+export const UseAutoMDMAvatar: Story = {
   args: {
-    useFleetAvatar: true,
+    useAutoMDMAvatar: true,
   },
 };

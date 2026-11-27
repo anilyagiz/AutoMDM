@@ -9,19 +9,19 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxdb"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	platform_http "github.com/fleetdm/fleet/v4/server/platform/http"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxdb"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	platform_http "github.com/anilyagiz/automdm/v4/server/platform/http"
 )
 
-const orgLogoMaxFileSize = fleet.OrgLogoMaxFileSize
+const orgLogoMaxFileSize = automdm.OrgLogoMaxFileSize
 
-// PUT /api/v1/fleet/logo
+// PUT /api/v1/automdm/logo
 
 type putOrgLogoRequest struct {
-	Mode fleet.OrgLogoMode
+	Mode automdm.OrgLogoMode
 	Body []byte
 }
 
@@ -37,28 +37,28 @@ func (putOrgLogoRequest) DecodeRequest(_ context.Context, r *http.Request) (any,
 		return nil, err
 	}
 	if err := r.ParseMultipartForm(platform_http.MaxMultipartFormSize); err != nil {
-		return nil, &fleet.BadRequestError{
+		return nil, &automdm.BadRequestError{
 			Message:     "failed to parse multipart form",
 			InternalErr: err,
 		}
 	}
 	files := r.MultipartForm.File["logo"]
 	if len(files) == 0 {
-		return nil, &fleet.BadRequestError{Message: "missing 'logo' file in multipart form"}
+		return nil, &automdm.BadRequestError{Message: "missing 'logo' file in multipart form"}
 	}
 	f, err := files[0].Open()
 	if err != nil {
-		return nil, &fleet.BadRequestError{Message: "failed to open uploaded logo", InternalErr: err}
+		return nil, &automdm.BadRequestError{Message: "failed to open uploaded logo", InternalErr: err}
 	}
 	defer f.Close()
 	body, err := io.ReadAll(io.LimitReader(f, orgLogoMaxFileSize+1))
 	if err != nil {
-		return nil, &fleet.BadRequestError{Message: "failed to read uploaded logo", InternalErr: err}
+		return nil, &automdm.BadRequestError{Message: "failed to read uploaded logo", InternalErr: err}
 	}
 	return putOrgLogoRequest{Mode: mode, Body: body}, nil
 }
 
-func putOrgLogoEndpoint(ctx context.Context, request any, svc fleet.Service) (fleet.Errorer, error) {
+func putOrgLogoEndpoint(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(putOrgLogoRequest)
 	if err := svc.UploadOrgLogo(ctx, req.Mode, bytes.NewReader(req.Body)); err != nil {
 		return putOrgLogoResponse{Err: err}, nil
@@ -66,10 +66,10 @@ func putOrgLogoEndpoint(ctx context.Context, request any, svc fleet.Service) (fl
 	return putOrgLogoResponse{}, nil
 }
 
-// DELETE /api/v1/fleet/logo
+// DELETE /api/v1/automdm/logo
 
 type deleteOrgLogoRequest struct {
-	Mode fleet.OrgLogoMode
+	Mode automdm.OrgLogoMode
 }
 
 type deleteOrgLogoResponse struct {
@@ -86,7 +86,7 @@ func (deleteOrgLogoRequest) DecodeRequest(_ context.Context, r *http.Request) (a
 	return deleteOrgLogoRequest{Mode: mode}, nil
 }
 
-func deleteOrgLogoEndpoint(ctx context.Context, request any, svc fleet.Service) (fleet.Errorer, error) {
+func deleteOrgLogoEndpoint(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(deleteOrgLogoRequest)
 	if err := svc.DeleteOrgLogo(ctx, req.Mode); err != nil {
 		return deleteOrgLogoResponse{Err: err}, nil
@@ -94,10 +94,10 @@ func deleteOrgLogoEndpoint(ctx context.Context, request any, svc fleet.Service) 
 	return deleteOrgLogoResponse{}, nil
 }
 
-// GET /api/latest/fleet/logo
+// GET /api/latest/automdm/logo
 
 type getOrgLogoRequest struct {
-	Mode fleet.OrgLogoMode
+	Mode automdm.OrgLogoMode
 }
 
 type getOrgLogoResponse struct {
@@ -111,7 +111,7 @@ func (r getOrgLogoResponse) HijackRender(_ context.Context, w http.ResponseWrite
 	if r.Err != nil {
 		return
 	}
-	contentType := fleet.ContentTypeForOrgLogo(r.Body)
+	contentType := automdm.ContentTypeForOrgLogo(r.Body)
 	if contentType == "" {
 		contentType = "application/octet-stream"
 	}
@@ -136,20 +136,20 @@ func (getOrgLogoRequest) DecodeRequest(_ context.Context, r *http.Request) (any,
 		raw = r.URL.Query().Get("mode")
 	}
 	if raw == "" {
-		return nil, &fleet.BadRequestError{Message: "mode query parameter is required (light or dark)"}
+		return nil, &automdm.BadRequestError{Message: "mode query parameter is required (light or dark)"}
 	}
-	m := fleet.OrgLogoMode(raw)
+	m := automdm.OrgLogoMode(raw)
 	// GET serves a single stored file. OrgLogoModeAll is rejected even
 	// though it's a recognized request mode for PUT/DELETE.
 	if !m.IsStorable() {
-		return nil, &fleet.BadRequestError{
+		return nil, &automdm.BadRequestError{
 			Message: fmt.Sprintf("invalid mode %q: must be 'light' or 'dark'", raw),
 		}
 	}
 	return getOrgLogoRequest{Mode: m}, nil
 }
 
-func getOrgLogoEndpoint(ctx context.Context, request any, svc fleet.Service) (fleet.Errorer, error) {
+func getOrgLogoEndpoint(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(getOrgLogoRequest)
 	body, _, err := svc.GetOrgLogo(ctx, req.Mode)
 	if err != nil {
@@ -162,13 +162,13 @@ func getOrgLogoEndpoint(ctx context.Context, request any, svc fleet.Service) (fl
 // DELETE endpoints. Empty defaults to OrgLogoModeAll. All three values
 // (light / dark / all) are valid here; the GET endpoint has its own
 // stricter parser since "all" doesn't make sense when serving bytes.
-func parseLogoModeQuery(raw string) (fleet.OrgLogoMode, error) {
+func parseLogoModeQuery(raw string) (automdm.OrgLogoMode, error) {
 	if raw == "" {
-		return fleet.OrgLogoModeAll, nil
+		return automdm.OrgLogoModeAll, nil
 	}
-	m := fleet.OrgLogoMode(raw)
+	m := automdm.OrgLogoMode(raw)
 	if !m.IsValid() {
-		return "", &fleet.BadRequestError{
+		return "", &automdm.BadRequestError{
 			Message: fmt.Sprintf("invalid mode %q: must be 'light', 'dark', or 'all'", raw),
 		}
 	}
@@ -177,12 +177,12 @@ func parseLogoModeQuery(raw string) (fleet.OrgLogoMode, error) {
 
 // Service implementation
 
-func (svc *Service) UploadOrgLogo(ctx context.Context, mode fleet.OrgLogoMode, content io.ReadSeeker) error {
-	if err := svc.authz.Authorize(ctx, &fleet.AppConfig{}, fleet.ActionWrite); err != nil {
+func (svc *Service) UploadOrgLogo(ctx context.Context, mode automdm.OrgLogoMode, content io.ReadSeeker) error {
+	if err := svc.authz.Authorize(ctx, &automdm.AppConfig{}, automdm.ActionWrite); err != nil {
 		return err
 	}
 	if !mode.IsValid() {
-		return &fleet.BadRequestError{Message: fmt.Sprintf("invalid mode %q", mode)}
+		return &automdm.BadRequestError{Message: fmt.Sprintf("invalid mode %q", mode)}
 	}
 	if svc.orgLogoStore == nil {
 		return ctxerr.New(ctx, "org logo store not configured")
@@ -194,12 +194,12 @@ func (svc *Service) UploadOrgLogo(ctx context.Context, mode fleet.OrgLogoMode, c
 	if err != nil {
 		return ctxerr.Wrap(ctx, err, "buffering logo content")
 	}
-	if err := fleet.ValidateOrgLogoBytes(body); err != nil {
+	if err := automdm.ValidateOrgLogoBytes(body); err != nil {
 		return err
 	}
 
 	modes := mode.Modes()
-	var stored []fleet.OrgLogoMode
+	var stored []automdm.OrgLogoMode
 	for _, m := range modes {
 		if err := svc.orgLogoStore.Put(ctx, m, bytes.NewReader(body)); err != nil {
 			// Best-effort rollback so the store doesn't end up with a
@@ -218,7 +218,7 @@ func (svc *Service) UploadOrgLogo(ctx context.Context, mode fleet.OrgLogoMode, c
 	}
 
 	if vc, ok := viewer.FromContext(ctx); ok {
-		if err := svc.NewActivity(ctx, vc.User, fleet.ActivityTypeChangedOrgLogo{
+		if err := svc.NewActivity(ctx, vc.User, automdm.ActivityTypeChangedOrgLogo{
 			Mode: string(mode),
 		}); err != nil {
 			return ctxerr.Wrap(ctx, err, "create changed_org_logo activity")
@@ -227,12 +227,12 @@ func (svc *Service) UploadOrgLogo(ctx context.Context, mode fleet.OrgLogoMode, c
 	return nil
 }
 
-func (svc *Service) DeleteOrgLogo(ctx context.Context, mode fleet.OrgLogoMode) error {
-	if err := svc.authz.Authorize(ctx, &fleet.AppConfig{}, fleet.ActionWrite); err != nil {
+func (svc *Service) DeleteOrgLogo(ctx context.Context, mode automdm.OrgLogoMode) error {
+	if err := svc.authz.Authorize(ctx, &automdm.AppConfig{}, automdm.ActionWrite); err != nil {
 		return err
 	}
 	if !mode.IsValid() {
-		return &fleet.BadRequestError{Message: fmt.Sprintf("invalid mode %q", mode)}
+		return &automdm.BadRequestError{Message: fmt.Sprintf("invalid mode %q", mode)}
 	}
 	if svc.orgLogoStore == nil {
 		return ctxerr.New(ctx, "org logo store not configured")
@@ -247,8 +247,8 @@ func (svc *Service) DeleteOrgLogo(ctx context.Context, mode fleet.OrgLogoMode) e
 	modes := mode.Modes()
 	// AppConfig URL fields that were non-empty before this call.
 	var clearedURL bool
-	// Modes whose logo is Fleet-hosted (a blob lives in the store).
-	var modesWithBlob []fleet.OrgLogoMode
+	// Modes whose logo is AutoMDM-hosted (a blob lives in the store).
+	var modesWithBlob []automdm.OrgLogoMode
 	for _, m := range modes {
 		if getOrgLogoURL(&ac.OrgInfo, m) != "" {
 			setOrgLogoURL(&ac.OrgInfo, m, "")
@@ -285,7 +285,7 @@ func (svc *Service) DeleteOrgLogo(ctx context.Context, mode fleet.OrgLogoMode) e
 	}
 
 	if vc, ok := viewer.FromContext(ctx); ok {
-		if err := svc.NewActivity(ctx, vc.User, fleet.ActivityTypeDeletedOrgLogo{
+		if err := svc.NewActivity(ctx, vc.User, automdm.ActivityTypeDeletedOrgLogo{
 			Mode: string(mode),
 		}); err != nil {
 			return ctxerr.Wrap(ctx, err, "create deleted_org_logo activity")
@@ -295,33 +295,33 @@ func (svc *Service) DeleteOrgLogo(ctx context.Context, mode fleet.OrgLogoMode) e
 }
 
 // getOrgLogoURL returns the URL for the given mode.
-func getOrgLogoURL(o *fleet.OrgInfo, mode fleet.OrgLogoMode) string {
+func getOrgLogoURL(o *automdm.OrgInfo, mode automdm.OrgLogoMode) string {
 	switch mode {
-	case fleet.OrgLogoModeLight:
+	case automdm.OrgLogoModeLight:
 		return o.OrgLogoURLLightMode
-	case fleet.OrgLogoModeDark:
+	case automdm.OrgLogoModeDark:
 		return o.OrgLogoURLDarkMode
 	}
 	return ""
 }
 
 // setOrgLogoURL sets the URL for the given mode.
-func setOrgLogoURL(o *fleet.OrgInfo, mode fleet.OrgLogoMode, url string) {
+func setOrgLogoURL(o *automdm.OrgInfo, mode automdm.OrgLogoMode, url string) {
 	switch mode {
-	case fleet.OrgLogoModeLight:
+	case automdm.OrgLogoModeLight:
 		o.OrgLogoURLLightMode = url
-	case fleet.OrgLogoModeDark:
+	case automdm.OrgLogoModeDark:
 		o.OrgLogoURLDarkMode = url
 	}
 }
 
-func (svc *Service) GetOrgLogo(ctx context.Context, mode fleet.OrgLogoMode) ([]byte, int64, error) {
+func (svc *Service) GetOrgLogo(ctx context.Context, mode automdm.OrgLogoMode) ([]byte, int64, error) {
 	svc.authz.SkipAuthorization(ctx)
 	if svc.orgLogoStore == nil {
 		return nil, 0, ctxerr.New(ctx, "org logo store not configured")
 	}
 	if !mode.IsStorable() {
-		return nil, 0, &fleet.BadRequestError{Message: fmt.Sprintf("invalid mode %q: must be 'light' or 'dark'", mode)}
+		return nil, 0, &automdm.BadRequestError{Message: fmt.Sprintf("invalid mode %q: must be 'light' or 'dark'", mode)}
 	}
 	// Discard the metadata size: we cap reads at orgLogoMaxFileSize and
 	// derive the response size from the actual bytes read so an oversized
@@ -342,20 +342,20 @@ func (svc *Service) GetOrgLogo(ctx context.Context, mode fleet.OrgLogoMode) ([]b
 	}
 	// Re-validate on read so a blob planted directly in the object store
 	// (bypassing the upload API) is still rejected.
-	if err := fleet.ValidateOrgLogoBytes(body); err != nil {
+	if err := automdm.ValidateOrgLogoBytes(body); err != nil {
 		return nil, 0, ctxerr.Wrap(ctx, err, "stored org logo failed validation")
 	}
 	return body, int64(len(body)), nil
 }
 
 // orgLogoServingURL builds the URL persisted in AppConfig after an upload. The `v` param is a cache-buster (ignored server-side; only `mode` is read).
-func orgLogoServingURL(mode fleet.OrgLogoMode) string {
-	return fmt.Sprintf("/api/latest/fleet/logo?mode=%s&v=%d", mode, time.Now().UnixNano())
+func orgLogoServingURL(mode automdm.OrgLogoMode) string {
+	return fmt.Sprintf("/api/latest/automdm/logo?mode=%s&v=%d", mode, time.Now().UnixNano())
 }
 
 // updateOrgLogoURLs sets (uploaded=true) or clears (uploaded=false) the
 // AppConfig URL fields for the given modes.
-func (svc *Service) updateOrgLogoURLs(ctx context.Context, modes []fleet.OrgLogoMode, uploaded bool) error {
+func (svc *Service) updateOrgLogoURLs(ctx context.Context, modes []automdm.OrgLogoMode, uploaded bool) error {
 	// Bypass the AppConfig cache so this read-modify-write picks up any
 	// concurrent writes to other fields (e.g. a settings PATCH that
 	// landed between the upload start and now). Otherwise we'd save a

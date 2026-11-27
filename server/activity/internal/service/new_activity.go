@@ -9,12 +9,12 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/anilyagiz/automdm/v4/server/activity/api"
+	"github.com/anilyagiz/automdm/v4/server/activity/internal/types"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	eu "github.com/anilyagiz/automdm/v4/server/platform/endpointer"
+	platformhttp "github.com/anilyagiz/automdm/v4/server/platform/http"
 	"github.com/cenkalti/backoff/v4"
-	"github.com/fleetdm/fleet/v4/server/activity/api"
-	"github.com/fleetdm/fleet/v4/server/activity/internal/types"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	eu "github.com/fleetdm/fleet/v4/server/platform/endpointer"
-	platformhttp "github.com/fleetdm/fleet/v4/server/platform/http"
 	kithttp "github.com/go-kit/kit/transport/http"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -117,13 +117,13 @@ func (s *Service) NewActivities(ctx context.Context, user *api.User, activities 
 	return s.store.NewActivities(ctx, user, activities, detailsBytes, timestamp)
 }
 
-// fireHostActivitiesWebhooks fires the per-fleet host activities webhooks for activities linked to hosts whose fleets have the webhook
+// fireHostActivitiesWebhooks fires the per-team host activities webhooks for activities linked to hosts whose teams have the webhook
 // enabled. detailsBytes[i] holds the stored details of activities[i].
 //
-// Per-fleet payloads carry host_ids for activities whose stored details don't already identify their hosts (batch automation
+// Per-team payloads carry host_ids for activities whose stored details don't already identify their hosts (batch automation
 // activities). The list is injected at fire time only: batches can span thousands of hosts, so storing it would bloat every affected
 // host's feed response and expose the full batch to any user who can read one of its hosts. Each delivery gets only the host IDs
-// belonging to the fleet(s) behind its destination, so one fleet's endpoint never sees another fleet's hosts. The global webhook
+// belonging to the team(s) behind its destination, so one team's endpoint never sees another team's hosts. The global webhook
 // payload is intentionally left as stored (matching its pre-existing format).
 func (s *Service) fireHostActivitiesWebhooks(
 	ctx context.Context, user *api.User, activities []api.ActivityDetails, detailsBytes [][]byte, timestamp time.Time,
@@ -145,7 +145,7 @@ func (s *Service) fireHostActivitiesWebhooks(
 	hooks, err := s.providers.GetHostActivitiesWebhooks(ctx, hostIDs)
 	if err != nil {
 		// A transient failure here must not fail the surrounding operation recording the activities. Partial results are discarded:
-		// an incomplete hook list could deliver to some fleets and silently miss others.
+		// an incomplete hook list could deliver to some teams and silently miss others.
 		s.logger.ErrorContext(ctx, "get host activities webhooks",
 			slog.String("activity", activities[0].ActivityName()), slog.Int("activities", len(activities)), slog.String("err", err.Error()))
 		return
@@ -168,7 +168,7 @@ func (s *Service) fireHostActivitiesWebhooks(
 	}
 }
 
-// detailsWithHostIDs returns the details to use in one per-fleet host
+// detailsWithHostIDs returns the details to use in one per-team host
 // activities webhook delivery: when the stored details carry no host
 // identifier of their own (no host_id and no non-empty host_ids), it returns
 // a copy with the delivery's host_ids added. On any failure it falls back to

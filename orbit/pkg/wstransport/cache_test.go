@@ -3,7 +3,7 @@ package wstransport
 import (
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/client"
+	"github.com/anilyagiz/automdm/v4/client"
 	"github.com/stretchr/testify/assert"
 )
 

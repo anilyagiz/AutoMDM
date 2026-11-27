@@ -5,13 +5,13 @@ package bootstrap
 import (
 	"log/slog"
 
-	"github.com/fleetdm/fleet/v4/server/notifications"
-	"github.com/fleetdm/fleet/v4/server/notifications/api"
-	"github.com/fleetdm/fleet/v4/server/notifications/internal/mysql"
-	"github.com/fleetdm/fleet/v4/server/notifications/internal/service"
-	eu "github.com/fleetdm/fleet/v4/server/platform/endpointer"
-	platform_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
-	"github.com/fleetdm/fleet/v4/server/platform/tracing"
+	"github.com/anilyagiz/automdm/v4/server/notifications"
+	"github.com/anilyagiz/automdm/v4/server/notifications/api"
+	"github.com/anilyagiz/automdm/v4/server/notifications/internal/mysql"
+	"github.com/anilyagiz/automdm/v4/server/notifications/internal/service"
+	eu "github.com/anilyagiz/automdm/v4/server/platform/endpointer"
+	platform_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/platform/tracing"
 	"github.com/go-kit/kit/endpoint"
 )
 

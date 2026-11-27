@@ -1,7 +1,7 @@
 # The MSI refuses to install without IACCEPTMSODBCSQLLICENSETERMS=YES, which the
 # default MSI install script does not pass.
 
-$logFile = "${env:TEMP}/fleet-install-software.log"
+$logFile = "${env:TEMP}/automdm-install-software.log"
 
 try {
 

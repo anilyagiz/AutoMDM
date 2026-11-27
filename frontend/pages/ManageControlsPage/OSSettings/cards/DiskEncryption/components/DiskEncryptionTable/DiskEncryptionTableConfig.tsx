@@ -115,14 +115,14 @@ const STATUS_CELL_VALUES: Record<DiskEncryptionStatus, IStatusCellValue> = {
     statusName: "verified",
     value: "verified",
     tooltip:
-      "These hosts turned disk encryption on and sent their key to Fleet. Fleet verified with osquery.",
+      "These hosts turned disk encryption on and sent their key to AutoMDM. AutoMDM verified with osquery.",
   },
   verifying: {
     displayName: "Verifying",
     statusName: "successPartial",
     value: "verifying",
     tooltip:
-      "These hosts acknowledged the MDM command to turn on disk encryption. Fleet is verifying with osquery and retrieving the disk encryption key. This may take up to one hour.",
+      "These hosts acknowledged the MDM command to turn on disk encryption. AutoMDM is verifying with osquery and retrieving the disk encryption key. This may take up to one hour.",
   },
   action_required: {
     displayName: "Action required",
@@ -166,15 +166,15 @@ const STATUS_ORDER = [
   "removing_enforcement",
 ] as const;
 
-/** Enforce-only (macOS enforce on, escrow off) hosts never send Fleet a key,
+/** Enforce-only (macOS enforce on, escrow off) hosts never send AutoMDM a key,
  * so these statuses drop the key phrasing. */
 const ENFORCE_ONLY_STATUS_TOOLTIPS: Partial<
   Record<DiskEncryptionStatus, string>
 > = {
   verified:
-    "These hosts turned disk encryption on. Fleet verified with osquery.",
+    "These hosts turned disk encryption on. AutoMDM verified with osquery.",
   verifying:
-    "These hosts acknowledged the MDM command to turn on disk encryption. Fleet is verifying with osquery. This may take up to one hour.",
+    "These hosts acknowledged the MDM command to turn on disk encryption. AutoMDM is verifying with osquery. This may take up to one hour.",
 };
 
 export const generateTableData = (

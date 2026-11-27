@@ -9,25 +9,25 @@ import (
 	"time"
 
 	"github.com/WatchBeam/clock"
-	"github.com/fleetdm/fleet/v4/pkg/optjson"
-	"github.com/fleetdm/fleet/v4/server/config"
-	authz_ctx "github.com/fleetdm/fleet/v4/server/contexts/authz"
-	hostctx "github.com/fleetdm/fleet/v4/server/contexts/host"
-	"github.com/fleetdm/fleet/v4/server/datastore/redis/redistest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	redismock "github.com/fleetdm/fleet/v4/server/mock/redis"
-	"github.com/fleetdm/fleet/v4/server/sso"
+	"github.com/anilyagiz/automdm/v4/pkg/optjson"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	authz_ctx "github.com/anilyagiz/automdm/v4/server/contexts/authz"
+	hostctx "github.com/anilyagiz/automdm/v4/server/contexts/host"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis/redistest"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	redismock "github.com/anilyagiz/automdm/v4/server/mock/redis"
+	"github.com/anilyagiz/automdm/v4/server/sso"
 	"github.com/stretchr/testify/require"
 )
 
-func newDeviceSSOTestService(t *testing.T, ds fleet.Datastore, sessionDuration time.Duration) (*Service, func(key string) *string, *clock.MockClock) {
+func newDeviceSSOTestService(t *testing.T, ds automdm.Datastore, sessionDuration time.Duration) (*Service, func(key string) *string, *clock.MockClock) {
 	t.Helper()
 	svc := newTestService(t, ds)
 	mockClock := clock.NewMockClock()
 	kvs, getKey := inMemoryKeyValueStore()
 	svc.clock = mockClock
-	svc.config = config.FleetConfig{Session: config.SessionConfig{Duration: sessionDuration}}
+	svc.config = config.AutoMDMConfig{Session: config.SessionConfig{Duration: sessionDuration}}
 	svc.keyValueStore = kvs
 	return svc, getKey, mockClock
 }
@@ -36,7 +36,7 @@ func TestCreateDeviceSSOSession(t *testing.T) {
 	svc, getKey, mockClock := newDeviceSSOTestService(t, new(mock.Store), time.Hour)
 
 	ctx := t.Context()
-	host := &fleet.Host{ID: 42, UUID: "host-uuid-1"}
+	host := &automdm.Host{ID: 42, UUID: "host-uuid-1"}
 
 	sessionID, ttl, err := svc.createDeviceSSOSession(ctx, host, "idp-acct-uuid")
 	require.NoError(t, err)
@@ -50,7 +50,7 @@ func TestCreateDeviceSSOSession(t *testing.T) {
 	stored := getKey(deviceSSOSessionKeyPrefix + sessionID)
 	require.NotNil(t, stored)
 
-	var session fleet.DeviceSSOSession
+	var session automdm.DeviceSSOSession
 	require.NoError(t, json.Unmarshal([]byte(*stored), &session))
 	require.Equal(t, host.ID, session.HostID)
 	require.Equal(t, "idp-acct-uuid", session.IdPAccountUUID)
@@ -61,7 +61,7 @@ func TestDeviceSSOSessionExpires(t *testing.T) {
 	svc, _, mockClock := newDeviceSSOTestService(t, new(mock.Store), time.Hour)
 
 	ctx := t.Context()
-	sessionID, _, err := svc.createDeviceSSOSession(ctx, &fleet.Host{ID: 42, UUID: "host-uuid-1"}, "idp-acct-uuid")
+	sessionID, _, err := svc.createDeviceSSOSession(ctx, &automdm.Host{ID: 42, UUID: "host-uuid-1"}, "idp-acct-uuid")
 	require.NoError(t, err)
 
 	// still valid just before the deadline
@@ -89,9 +89,9 @@ func TestDeviceSSOSessionUnknownIDNotFound(t *testing.T) {
 func TestInitiateDeviceSSO(t *testing.T) {
 	const devTok = "device-auth-token-abc123"
 
-	idp := func(ac *fleet.AppConfig) {
-		ac.MDM.EndUserAuthentication.SSOProviderSettings = fleet.SSOProviderSettings{
-			EntityID: "fleet",
+	idp := func(ac *automdm.AppConfig) {
+		ac.MDM.EndUserAuthentication.SSOProviderSettings = automdm.SSOProviderSettings{
+			EntityID: "automdm",
 			IDPName:  "TestIDP",
 			Metadata: mdmSSOTestMetadata,
 		}
@@ -100,37 +100,37 @@ func TestInitiateDeviceSSO(t *testing.T) {
 	cases := []struct {
 		name      string
 		noHost    bool
-		appConfig func() fleet.AppConfig
+		appConfig func() automdm.AppConfig
 		wantErr   string
 	}{
 		{
 			name:      "no host resolved from the device token",
 			noHost:    true,
 			wantErr:   "Authentication required",
-			appConfig: func() fleet.AppConfig { return fleet.AppConfig{} },
+			appConfig: func() automdm.AppConfig { return automdm.AppConfig{} },
 		},
 		{
 			name:      "sso disabled",
 			wantErr:   "is not enabled",
-			appConfig: func() fleet.AppConfig { return fleet.AppConfig{} },
+			appConfig: func() automdm.AppConfig { return automdm.AppConfig{} },
 		},
 		{
 			name:    "sso enabled but no IdP configured",
 			wantErr: "no IdP is configured",
-			appConfig: func() fleet.AppConfig {
-				var ac fleet.AppConfig
-				ac.FleetDesktop.SSOEnabled = true
+			appConfig: func() automdm.AppConfig {
+				var ac automdm.AppConfig
+				ac.AutoMDMDesktop.SSOEnabled = true
 				return ac
 			},
 		},
 		{
 			name:    "alternative browser host differs from the ACS host",
 			wantErr: "same host",
-			appConfig: func() fleet.AppConfig {
-				var ac fleet.AppConfig
-				ac.FleetDesktop.SSOEnabled = true
-				ac.FleetDesktop.AlternativeBrowserHost = "proxy.example.com"
-				ac.ServerSettings.ServerURL = "https://fleet.example.com"
+			appConfig: func() automdm.AppConfig {
+				var ac automdm.AppConfig
+				ac.AutoMDMDesktop.SSOEnabled = true
+				ac.AutoMDMDesktop.AlternativeBrowserHost = "proxy.example.com"
+				ac.ServerSettings.ServerURL = "https://automdm.example.com"
 				idp(&ac)
 				return ac
 			},
@@ -138,10 +138,10 @@ func TestInitiateDeviceSSO(t *testing.T) {
 		{
 			name:    "custom Apple MDM URL differs from the server URL",
 			wantErr: "same host",
-			appConfig: func() fleet.AppConfig {
-				var ac fleet.AppConfig
-				ac.FleetDesktop.SSOEnabled = true
-				ac.ServerSettings.ServerURL = "https://fleet.example.com"
+			appConfig: func() automdm.AppConfig {
+				var ac automdm.AppConfig
+				ac.AutoMDMDesktop.SSOEnabled = true
+				ac.ServerSettings.ServerURL = "https://automdm.example.com"
 				ac.MDM.AppleServerURL = "https://mdm.example.com"
 				idp(&ac)
 				return ac
@@ -149,43 +149,43 @@ func TestInitiateDeviceSSO(t *testing.T) {
 		},
 		{
 			name: "no alternative browser host",
-			appConfig: func() fleet.AppConfig {
-				var ac fleet.AppConfig
-				ac.FleetDesktop.SSOEnabled = true
-				ac.ServerSettings.ServerURL = "https://fleet.example.com"
+			appConfig: func() automdm.AppConfig {
+				var ac automdm.AppConfig
+				ac.AutoMDMDesktop.SSOEnabled = true
+				ac.ServerSettings.ServerURL = "https://automdm.example.com"
 				idp(&ac)
 				return ac
 			},
 		},
 		{
 			name: "alternative browser host equals the server host",
-			appConfig: func() fleet.AppConfig {
-				var ac fleet.AppConfig
-				ac.FleetDesktop.SSOEnabled = true
-				ac.FleetDesktop.AlternativeBrowserHost = "fleet.example.com"
-				ac.ServerSettings.ServerURL = "https://fleet.example.com"
+			appConfig: func() automdm.AppConfig {
+				var ac automdm.AppConfig
+				ac.AutoMDMDesktop.SSOEnabled = true
+				ac.AutoMDMDesktop.AlternativeBrowserHost = "automdm.example.com"
+				ac.ServerSettings.ServerURL = "https://automdm.example.com"
 				idp(&ac)
 				return ac
 			},
 		},
 		{
 			name: "alternative browser host differs only by port",
-			appConfig: func() fleet.AppConfig {
-				var ac fleet.AppConfig
-				ac.FleetDesktop.SSOEnabled = true
-				ac.FleetDesktop.AlternativeBrowserHost = "fleet.example.com:8443"
-				ac.ServerSettings.ServerURL = "https://fleet.example.com"
+			appConfig: func() automdm.AppConfig {
+				var ac automdm.AppConfig
+				ac.AutoMDMDesktop.SSOEnabled = true
+				ac.AutoMDMDesktop.AlternativeBrowserHost = "automdm.example.com:8443"
+				ac.ServerSettings.ServerURL = "https://automdm.example.com"
 				idp(&ac)
 				return ac
 			},
 		},
 		{
 			name: "apple server url equals the server url",
-			appConfig: func() fleet.AppConfig {
-				var ac fleet.AppConfig
-				ac.FleetDesktop.SSOEnabled = true
-				ac.ServerSettings.ServerURL = "https://fleet.example.com"
-				ac.MDM.AppleServerURL = "https://fleet.example.com"
+			appConfig: func() automdm.AppConfig {
+				var ac automdm.AppConfig
+				ac.AutoMDMDesktop.SSOEnabled = true
+				ac.ServerSettings.ServerURL = "https://automdm.example.com"
+				ac.MDM.AppleServerURL = "https://automdm.example.com"
 				idp(&ac)
 				return ac
 			},
@@ -195,7 +195,7 @@ func TestInitiateDeviceSSO(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			ds := new(mock.Store)
-			ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
+			ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
 				ac := c.appConfig()
 				return &ac, nil
 			}
@@ -205,7 +205,7 @@ func TestInitiateDeviceSSO(t *testing.T) {
 
 			ctx := t.Context()
 			if !c.noHost {
-				ctx = hostctx.NewContext(ctx, &fleet.Host{ID: 1, UUID: "host-uuid-1"})
+				ctx = hostctx.NewContext(ctx, &automdm.Host{ID: 1, UUID: "host-uuid-1"})
 			}
 
 			initiation, err := svc.InitiateDeviceSSO(ctx, "/device/"+devTok)
@@ -214,10 +214,10 @@ func TestInitiateDeviceSSO(t *testing.T) {
 				require.Error(t, err)
 				require.ErrorContains(t, err, c.wantErr)
 				if c.noHost {
-					var authRequired *fleet.AuthRequiredError
+					var authRequired *automdm.AuthRequiredError
 					require.ErrorAs(t, err, &authRequired)
 				} else {
-					var badReq *fleet.BadRequestError
+					var badReq *automdm.BadRequestError
 					require.ErrorAs(t, err, &badReq)
 				}
 				return
@@ -230,7 +230,7 @@ func TestInitiateDeviceSSO(t *testing.T) {
 			require.NoError(t, err)
 
 			require.Equal(t,
-				string(fleet.SSORelayState(fleet.SSOInitiatorFleetDesktop)),
+				string(automdm.SSORelayState(automdm.SSOInitiatorAutoMDMDesktop)),
 				idpURL.Query().Get("RelayState"))
 			require.NotContains(t, idpURL.RawQuery, devTok)
 		})
@@ -238,21 +238,21 @@ func TestInitiateDeviceSSO(t *testing.T) {
 }
 
 func TestRequireDeviceSSOSession(t *testing.T) {
-	host := &fleet.Host{ID: 1, UUID: "host-uuid-1", Platform: "darwin"}
-	otherHost := &fleet.Host{ID: 2, UUID: "host-uuid-2", Platform: "darwin"}
+	host := &automdm.Host{ID: 1, UUID: "host-uuid-1", Platform: "darwin"}
+	otherHost := &automdm.Host{ID: 2, UUID: "host-uuid-2", Platform: "darwin"}
 
 	// sessionFor returns a session ID for h, or "" for the callers that stand in for
 	// a browser with no cookie yet.
 	type sessionFor func(t *testing.T, svc *Service, ctx context.Context) string
 	noSession := func(*testing.T, *Service, context.Context) string { return "" }
-	sessionOf := func(h *fleet.Host) sessionFor {
+	sessionOf := func(h *automdm.Host) sessionFor {
 		return func(t *testing.T, svc *Service, ctx context.Context) string {
 			sessionID, _, err := svc.createDeviceSSOSession(ctx, h, "idp-acct-uuid")
 			require.NoError(t, err)
 			return sessionID
 		}
 	}
-	sessionOfWithIDP := func(h *fleet.Host, idpAcctUUID string) sessionFor {
+	sessionOfWithIDP := func(h *automdm.Host, idpAcctUUID string) sessionFor {
 		return func(t *testing.T, svc *Service, ctx context.Context) string {
 			sessionID, _, err := svc.createDeviceSSOSession(ctx, h, idpAcctUUID)
 			require.NoError(t, err)
@@ -266,11 +266,11 @@ func TestRequireDeviceSSOSession(t *testing.T) {
 		ssoEnabled            bool
 		platform              string // defaults to darwin
 		awaitingConfiguration bool   // darwin only: the Setup Assistant flag
-		setupExperienceStatus fleet.SetupExperienceStatusResultStatus
+		setupExperienceStatus automdm.SetupExperienceStatusResultStatus
 		session               sessionFor
 		advanceClock          time.Duration
-		deviceMappings        []*fleet.HostDeviceMapping // host_emails rows for the host
-		idpAccounts           map[string]string          // email -> mdm_idp_accounts.uuid; absent means no such account
+		deviceMappings        []*automdm.HostDeviceMapping // host_emails rows for the host
+		idpAccounts           map[string]string            // email -> mdm_idp_accounts.uuid; absent means no such account
 
 		wantSSORequired   bool
 		wantMismatch      bool
@@ -320,7 +320,7 @@ func TestRequireDeviceSSOSession(t *testing.T) {
 			name:                  "linux host mid setup experience is exempt",
 			ssoEnabled:            true,
 			platform:              "ubuntu",
-			setupExperienceStatus: fleet.SetupExperienceStatusRunning,
+			setupExperienceStatus: automdm.SetupExperienceStatusRunning,
 			session:               noSession,
 			wantSessionLookup:     true,
 		},
@@ -328,7 +328,7 @@ func TestRequireDeviceSSOSession(t *testing.T) {
 			name:                  "windows host mid setup experience is exempt",
 			ssoEnabled:            true,
 			platform:              "windows",
-			setupExperienceStatus: fleet.SetupExperienceStatusPending,
+			setupExperienceStatus: automdm.SetupExperienceStatusPending,
 			session:               noSession,
 			wantSessionLookup:     true,
 		},
@@ -336,7 +336,7 @@ func TestRequireDeviceSSOSession(t *testing.T) {
 			name:                  "linux host past setup experience requires sso",
 			ssoEnabled:            true,
 			platform:              "ubuntu",
-			setupExperienceStatus: fleet.SetupExperienceStatusSuccess,
+			setupExperienceStatus: automdm.SetupExperienceStatusSuccess,
 			session:               noSession,
 			wantSSORequired:       true,
 			wantSessionLookup:     true,
@@ -352,9 +352,9 @@ func TestRequireDeviceSSOSession(t *testing.T) {
 			name:        "host with no IdP-sourced email is not validated against an IdP user",
 			ssoEnabled:  true,
 			authnMethod: authz_ctx.AuthnDeviceURL,
-			deviceMappings: []*fleet.HostDeviceMapping{
-				{Email: "chrome@example.com", Source: fleet.DeviceMappingGoogleChromeProfiles},
-				{Email: "custom@example.com", Source: fleet.DeviceMappingCustomReplacement},
+			deviceMappings: []*automdm.HostDeviceMapping{
+				{Email: "chrome@example.com", Source: automdm.DeviceMappingGoogleChromeProfiles},
+				{Email: "custom@example.com", Source: automdm.DeviceMappingCustomReplacement},
 			},
 			idpAccounts:       map[string]string{"chrome@example.com": "chrome-uuid", "custom@example.com": "custom-uuid"},
 			session:           sessionOfWithIDP(host, "nobody-uuid"),
@@ -364,8 +364,8 @@ func TestRequireDeviceSSOSession(t *testing.T) {
 			name:        "session minted by the host's IdP user allows the request",
 			ssoEnabled:  true,
 			authnMethod: authz_ctx.AuthnDeviceURL,
-			deviceMappings: []*fleet.HostDeviceMapping{
-				{Email: "alice@example.com", Source: fleet.DeviceMappingMDMIdpAccounts},
+			deviceMappings: []*automdm.HostDeviceMapping{
+				{Email: "alice@example.com", Source: automdm.DeviceMappingMDMIdpAccounts},
 			},
 			idpAccounts:       map[string]string{"alice@example.com": "alice-uuid"},
 			session:           sessionOfWithIDP(host, "alice-uuid"),
@@ -379,8 +379,8 @@ func TestRequireDeviceSSOSession(t *testing.T) {
 			name:        "manually assigned IdP user allows the request",
 			ssoEnabled:  true,
 			authnMethod: authz_ctx.AuthnDeviceURL,
-			deviceMappings: []*fleet.HostDeviceMapping{
-				{Email: "manual@example.com", Source: fleet.DeviceMappingMDMIdpAccounts},
+			deviceMappings: []*automdm.HostDeviceMapping{
+				{Email: "manual@example.com", Source: automdm.DeviceMappingMDMIdpAccounts},
 			},
 			idpAccounts:       map[string]string{"manual@example.com": "manual-uuid"},
 			session:           sessionOfWithIDP(host, "manual-uuid"),
@@ -392,9 +392,9 @@ func TestRequireDeviceSSOSession(t *testing.T) {
 			name:        "any of the host's IdP users allows the request",
 			ssoEnabled:  true,
 			authnMethod: authz_ctx.AuthnDeviceURL,
-			deviceMappings: []*fleet.HostDeviceMapping{
-				{Email: "alice@example.com", Source: fleet.DeviceMappingMDMIdpAccounts},
-				{Email: "bob@example.com", Source: fleet.DeviceMappingMDMIdpAccounts},
+			deviceMappings: []*automdm.HostDeviceMapping{
+				{Email: "alice@example.com", Source: automdm.DeviceMappingMDMIdpAccounts},
+				{Email: "bob@example.com", Source: automdm.DeviceMappingMDMIdpAccounts},
 			},
 			idpAccounts:       map[string]string{"alice@example.com": "alice-uuid", "bob@example.com": "bob-uuid"},
 			session:           sessionOfWithIDP(host, "bob-uuid"),
@@ -406,9 +406,9 @@ func TestRequireDeviceSSOSession(t *testing.T) {
 			name:        "email with no IdP account does not shadow a later match",
 			ssoEnabled:  true,
 			authnMethod: authz_ctx.AuthnDeviceURL,
-			deviceMappings: []*fleet.HostDeviceMapping{
-				{Email: "ghost@example.com", Source: fleet.DeviceMappingMDMIdpAccounts},
-				{Email: "alice@example.com", Source: fleet.DeviceMappingMDMIdpAccounts},
+			deviceMappings: []*automdm.HostDeviceMapping{
+				{Email: "ghost@example.com", Source: automdm.DeviceMappingMDMIdpAccounts},
+				{Email: "alice@example.com", Source: automdm.DeviceMappingMDMIdpAccounts},
 			},
 			idpAccounts:       map[string]string{"alice@example.com": "alice-uuid"},
 			session:           sessionOfWithIDP(host, "alice-uuid"),
@@ -418,9 +418,9 @@ func TestRequireDeviceSSOSession(t *testing.T) {
 			name:        "session minted by another IdP user is rejected",
 			ssoEnabled:  true,
 			authnMethod: authz_ctx.AuthnDeviceURL,
-			deviceMappings: []*fleet.HostDeviceMapping{
-				{Email: "alice@example.com", Source: fleet.DeviceMappingMDMIdpAccounts},
-				{Email: "bob@example.com", Source: fleet.DeviceMappingMDMIdpAccounts},
+			deviceMappings: []*automdm.HostDeviceMapping{
+				{Email: "alice@example.com", Source: automdm.DeviceMappingMDMIdpAccounts},
+				{Email: "bob@example.com", Source: automdm.DeviceMappingMDMIdpAccounts},
 			},
 			idpAccounts:       map[string]string{"alice@example.com": "alice-uuid", "bob@example.com": "bob-uuid"},
 			session:           sessionOfWithIDP(host, "someone-elses-uuid"),
@@ -431,8 +431,8 @@ func TestRequireDeviceSSOSession(t *testing.T) {
 			name:        "host whose only IdP email has no account is rejected",
 			ssoEnabled:  true,
 			authnMethod: authz_ctx.AuthnDeviceURL,
-			deviceMappings: []*fleet.HostDeviceMapping{
-				{Email: "ghost@example.com", Source: fleet.DeviceMappingMDMIdpAccounts},
+			deviceMappings: []*automdm.HostDeviceMapping{
+				{Email: "ghost@example.com", Source: automdm.DeviceMappingMDMIdpAccounts},
 			},
 			session:           sessionOfWithIDP(host, "alice-uuid"),
 			wantMismatch:      true,
@@ -444,8 +444,8 @@ func TestRequireDeviceSSOSession(t *testing.T) {
 			name:        "device token auth is not checked against the host's IdP users",
 			ssoEnabled:  true,
 			authnMethod: authz_ctx.AuthnDeviceToken,
-			deviceMappings: []*fleet.HostDeviceMapping{
-				{Email: "alice@example.com", Source: fleet.DeviceMappingMDMIdpAccounts},
+			deviceMappings: []*automdm.HostDeviceMapping{
+				{Email: "alice@example.com", Source: automdm.DeviceMappingMDMIdpAccounts},
 			},
 			idpAccounts:       map[string]string{"alice@example.com": "alice-uuid"},
 			session:           sessionOfWithIDP(host, "someone-elses-uuid"),
@@ -456,9 +456,9 @@ func TestRequireDeviceSSOSession(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			ds := new(mock.Store)
-			ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-				var ac fleet.AppConfig
-				ac.FleetDesktop.SSOEnabled = c.ssoEnabled
+			ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+				var ac automdm.AppConfig
+				ac.AutoMDMDesktop.SSOEnabled = c.ssoEnabled
 				return &ac, nil
 			}
 			caseHost := *host
@@ -466,21 +466,21 @@ func TestRequireDeviceSSOSession(t *testing.T) {
 				require.Equal(t, caseHost.UUID, hostUUID)
 				return c.awaitingConfiguration, nil
 			}
-			ds.ListSetupExperienceResultsByHostUUIDFunc = func(ctx context.Context, hostUUID string, teamID uint) ([]*fleet.SetupExperienceStatusResult, error) {
-				return []*fleet.SetupExperienceStatusResult{
+			ds.ListSetupExperienceResultsByHostUUIDFunc = func(ctx context.Context, hostUUID string, teamID uint) ([]*automdm.SetupExperienceStatusResult, error) {
+				return []*automdm.SetupExperienceStatusResult{
 					{Name: "install something", Status: c.setupExperienceStatus, HostUUID: hostUUID, SoftwareInstallerID: new(uint(1))},
 				}, nil
 			}
-			ds.ListHostDeviceMappingFunc = func(ctx context.Context, id uint) ([]*fleet.HostDeviceMapping, error) {
+			ds.ListHostDeviceMappingFunc = func(ctx context.Context, id uint) ([]*automdm.HostDeviceMapping, error) {
 				require.Equal(t, caseHost.ID, id)
 				return c.deviceMappings, nil
 			}
-			ds.GetMDMIdPAccountByEmailFunc = func(ctx context.Context, email string) (*fleet.MDMIdPAccount, error) {
+			ds.GetMDMIdPAccountByEmailFunc = func(ctx context.Context, email string) (*automdm.MDMIdPAccount, error) {
 				uuid, ok := c.idpAccounts[email]
 				if !ok {
 					return nil, &notFoundError{}
 				}
-				return &fleet.MDMIdPAccount{UUID: uuid, Email: email}, nil
+				return &automdm.MDMIdPAccount{UUID: uuid, Email: email}, nil
 			}
 
 			svc, getKey, mockClock := newDeviceSSOTestService(t, ds, time.Hour)
@@ -503,10 +503,10 @@ func TestRequireDeviceSSOSession(t *testing.T) {
 
 			switch {
 			case c.wantSSORequired:
-				var ssoRequired *fleet.DeviceSSORequiredError
+				var ssoRequired *automdm.DeviceSSORequiredError
 				require.ErrorAs(t, err, &ssoRequired)
 			case c.wantMismatch:
-				var badRequest *fleet.BadRequestError
+				var badRequest *automdm.BadRequestError
 				require.ErrorAs(t, err, &badRequest)
 				require.Equal(t, "mismatched SSO user for this device", badRequest.Message)
 			default:
@@ -514,7 +514,7 @@ func TestRequireDeviceSSOSession(t *testing.T) {
 			}
 
 			// With the setting off nothing is looked up at all: no session read and
-			// no setup experience query, so a Fleet running without the feature
+			// no setup experience query, so an AutoMDM running without the feature
 			// pays nothing for it.
 			if !c.wantSessionLookup {
 				require.Nil(t, getKey(deviceSSOSessionKeyPrefix+sessionID))
@@ -525,12 +525,12 @@ func TestRequireDeviceSSOSession(t *testing.T) {
 }
 
 func TestRequireDeviceSSOSessionSetupExperienceSurvivesStoreFailure(t *testing.T) {
-	host := &fleet.Host{ID: 1, UUID: "host-uuid-1", Platform: "darwin"}
+	host := &automdm.Host{ID: 1, UUID: "host-uuid-1", Platform: "darwin"}
 
 	ds := new(mock.Store)
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		var ac fleet.AppConfig
-		ac.FleetDesktop.SSOEnabled = true
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		var ac automdm.AppConfig
+		ac.AutoMDMDesktop.SSOEnabled = true
 		return &ac, nil
 	}
 	ds.GetHostAwaitingConfigurationFunc = func(ctx context.Context, hostUUID string) (bool, error) {
@@ -549,9 +549,9 @@ func TestRequireDeviceSSOSessionSetupExperienceSurvivesStoreFailure(t *testing.T
 
 func TestRequireDeviceSSOSessionMissingSetupExperienceRow(t *testing.T) {
 	ds := new(mock.Store)
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		var ac fleet.AppConfig
-		ac.FleetDesktop.SSOEnabled = true
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		var ac automdm.AppConfig
+		ac.AutoMDMDesktop.SSOEnabled = true
 		return &ac, nil
 	}
 	// Hosts that never ran setup experience have no row at all.
@@ -561,15 +561,15 @@ func TestRequireDeviceSSOSessionMissingSetupExperienceRow(t *testing.T) {
 
 	svc, _, _ := newDeviceSSOTestService(t, ds, time.Hour)
 
-	var ssoRequired *fleet.DeviceSSORequiredError
-	require.ErrorAs(t, svc.RequireDeviceSSOSession(t.Context(), &fleet.Host{ID: 1, UUID: "host-uuid-1", Platform: "darwin"}, ""), &ssoRequired)
+	var ssoRequired *automdm.DeviceSSORequiredError
+	require.ErrorAs(t, svc.RequireDeviceSSOSession(t.Context(), &automdm.Host{ID: 1, UUID: "host-uuid-1", Platform: "darwin"}, ""), &ssoRequired)
 }
 
 func TestRequireDeviceSSOSessionStoreFailure(t *testing.T) {
 	ds := new(mock.Store)
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		var ac fleet.AppConfig
-		ac.FleetDesktop.SSOEnabled = true
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		var ac automdm.AppConfig
+		ac.AutoMDMDesktop.SSOEnabled = true
 		return &ac, nil
 	}
 	ds.GetHostAwaitingConfigurationFunc = func(ctx context.Context, hostUUID string) (bool, error) {
@@ -583,15 +583,15 @@ func TestRequireDeviceSSOSessionStoreFailure(t *testing.T) {
 		},
 	}
 
-	err := svc.RequireDeviceSSOSession(t.Context(), &fleet.Host{ID: 1, UUID: "host-uuid-1", Platform: "darwin"}, "some-session")
+	err := svc.RequireDeviceSSOSession(t.Context(), &automdm.Host{ID: 1, UUID: "host-uuid-1", Platform: "darwin"}, "some-session")
 
 	require.ErrorContains(t, err, "redis is down")
-	var ssoRequired *fleet.DeviceSSORequiredError
+	var ssoRequired *automdm.DeviceSSORequiredError
 	require.NotErrorAs(t, err, &ssoRequired, "a broken session store must not read as a prompt to sign in")
 }
 
 func TestHostNeedsBitLockerPINPrompt(t *testing.T) {
-	createPIN := new(fleet.ActionRequiredCreatePIN)
+	createPIN := new(automdm.ActionRequiredCreatePIN)
 	for _, tc := range []struct {
 		name              string
 		windowsEnabled    bool
@@ -599,15 +599,15 @@ func TestHostNeedsBitLockerPINPrompt(t *testing.T) {
 		teamRequiresPIN   bool
 		pinSet            bool
 		capable           bool
-		actionRequired    *fleet.ActionRequiredState
+		actionRequired    *automdm.ActionRequiredState
 		wantPrompt        bool
 		wantStateQueried  bool
 		wantStatusQueried bool
 	}{
-		{name: "fleet does not require a PIN: no host queries", windowsEnabled: true},
+		{name: "team does not require a PIN: no host queries", windowsEnabled: true},
 		{name: "disk encryption off: no host queries", pinRequired: true},
 		{name: "PIN already set: no host queries", windowsEnabled: true, pinRequired: true, pinSet: true},
-		{name: "fleetd cannot apply a PIN: status not queried", windowsEnabled: true, pinRequired: true, wantStateQueried: true},
+		{name: "automdmd cannot apply a PIN: status not queried", windowsEnabled: true, pinRequired: true, wantStateQueried: true},
 		{
 			name: "host needs a PIN: prompt", windowsEnabled: true, pinRequired: true, capable: true, actionRequired: createPIN,
 			wantPrompt: true, wantStateQueried: true, wantStatusQueried: true,
@@ -625,19 +625,19 @@ func TestHostNeedsBitLockerPINPrompt(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ds := new(mock.Store)
 			svc, _ := newTestServiceWithMock(t, ds)
-			ds.TeamMDMConfigFunc = func(context.Context, uint) (*fleet.TeamMDM, error) {
-				return &fleet.TeamMDM{WindowsSettings: fleet.WindowsSettings{EnableDiskEncryption: optjson.SetBool(true)}, RequireBitLockerPIN: true}, nil
+			ds.TeamMDMConfigFunc = func(context.Context, uint) (*automdm.TeamMDM, error) {
+				return &automdm.TeamMDM{WindowsSettings: automdm.WindowsSettings{EnableDiskEncryption: optjson.SetBool(true)}, RequireBitLockerPIN: true}, nil
 			}
-			ds.GetMDMWindowsHostConfigStateFunc = func(context.Context, string) (*fleet.MDMWindowsHostConfigState, error) {
-				return &fleet.MDMWindowsHostConfigState{FleetdBitLockerPINCapable: tc.capable}, nil
+			ds.GetMDMWindowsHostConfigStateFunc = func(context.Context, string) (*automdm.MDMWindowsHostConfigState, error) {
+				return &automdm.MDMWindowsHostConfigState{AutoMDMdBitLockerPINCapable: tc.capable}, nil
 			}
-			ds.GetMDMWindowsBitLockerStatusFunc = func(context.Context, *fleet.Host) (*fleet.HostMDMDiskEncryption, error) {
-				return &fleet.HostMDMDiskEncryption{ActionRequired: tc.actionRequired}, nil
+			ds.GetMDMWindowsBitLockerStatusFunc = func(context.Context, *automdm.Host) (*automdm.HostMDMDiskEncryption, error) {
+				return &automdm.HostMDMDiskEncryption{ActionRequired: tc.actionRequired}, nil
 			}
-			appCfg := &fleet.AppConfig{}
+			appCfg := &automdm.AppConfig{}
 			appCfg.MDM.WindowsSettings.EnableDiskEncryption = optjson.SetBool(tc.windowsEnabled)
 			appCfg.MDM.RequireBitLockerPIN = optjson.SetBool(tc.pinRequired)
-			host := &fleet.Host{ID: 1, UUID: "win-uuid", Platform: "windows", TPMPINSet: tc.pinSet}
+			host := &automdm.Host{ID: 1, UUID: "win-uuid", Platform: "windows", TPMPINSet: tc.pinSet}
 			if tc.teamRequiresPIN {
 				host.TeamID = new(uint(7))
 			}

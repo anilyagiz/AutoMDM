@@ -1,4 +1,4 @@
-module github.com/fleetdm/fleet/v4/tools/ci/setboolcheck
+module github.com/anilyagiz/automdm/v4/tools/ci/setboolcheck
 
 go 1.27.4
 

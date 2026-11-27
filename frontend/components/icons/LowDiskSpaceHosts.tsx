@@ -7,7 +7,7 @@ interface ILowDiskSpaceHostsProps {
 }
 
 const LowDiskSpaceHosts = ({
-  color = "ui-fleet-black-75",
+  color = "ui-automdm-black-75",
 }: ILowDiskSpaceHostsProps) => {
   return (
     <svg

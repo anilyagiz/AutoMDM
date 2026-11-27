@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
@@ -80,7 +80,7 @@ func testStoreDDMStatusReportSkipsRemoveRows(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
 	// Create a test host
-	host, err := ds.NewHost(ctx, &fleet.Host{
+	host, err := ds.NewHost(ctx, &automdm.Host{
 		Hostname:        "test-host-ddm-status",
 		UUID:            "test-host-uuid-ddm-status",
 		HardwareSerial:  "ABC123-DDM-STATUS",
@@ -127,23 +127,23 @@ func testStoreDDMStatusReportSkipsRemoveRows(t *testing.T, ds *Datastore) {
 
 	// Build the updates slice as if the device is reporting status.
 	// The device always reports operation_type='install' for all declarations.
-	updates := []*fleet.MDMAppleHostDeclaration{
+	updates := []*automdm.MDMAppleHostDeclaration{
 		{
 			Token:         tokenA,
-			Status:        new(fleet.MDMDeliveryStatus),
-			OperationType: fleet.MDMOperationTypeInstall,
+			Status:        new(automdm.MDMDeliveryStatus),
+			OperationType: automdm.MDMOperationTypeInstall,
 		},
 		{
 			Token:         tokenB,
-			Status:        new(fleet.MDMDeliveryStatus),
-			OperationType: fleet.MDMOperationTypeInstall,
+			Status:        new(automdm.MDMDeliveryStatus),
+			OperationType: automdm.MDMOperationTypeInstall,
 		},
 	}
-	*updates[0].Status = fleet.MDMDeliveryVerified
-	*updates[1].Status = fleet.MDMDeliveryVerified
+	*updates[0].Status = automdm.MDMDeliveryVerified
+	*updates[1].Status = automdm.MDMDeliveryVerified
 
 	// Call the method under test
-	err = ds.MDMAppleStoreDDMStatusReport(ctx, host.UUID, fleet.PayloadScopeSystem, updates)
+	err = ds.MDMAppleStoreDDMStatusReport(ctx, host.UUID, automdm.PayloadScopeSystem, updates)
 	require.NoError(t, err)
 
 	// Assert the end state.
@@ -177,7 +177,7 @@ func testStoreDDMStatusReportSkipsRemoveRows(t *testing.T, ds *Datastore) {
 func testDDMChannelScopeIsolation(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
-	host, err := ds.NewHost(ctx, &fleet.Host{
+	host, err := ds.NewHost(ctx, &automdm.Host{
 		Hostname:        "test-host-ddm-scope",
 		UUID:            "test-host-uuid-ddm-scope",
 		HardwareSerial:  "ABC123-DDM-SCOPE",
@@ -191,18 +191,18 @@ func testDDMChannelScopeIsolation(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 	setupMDMDeviceAndEnrollment(t, ds, ctx, host.UUID, host.HardwareSerial)
 
-	devDecl, err := ds.NewMDMAppleDeclaration(ctx, &fleet.MDMAppleDeclaration{
+	devDecl, err := ds.NewMDMAppleDeclaration(ctx, &automdm.MDMAppleDeclaration{
 		Name:       "DeviceDecl",
 		Identifier: "com.example.device",
 		RawJSON:    []byte(`{"Type":"com.apple.configuration.test","Identifier":"com.example.device"}`),
-		Scope:      fleet.PayloadScopeSystem,
+		Scope:      automdm.PayloadScopeSystem,
 	}, nil)
 	require.NoError(t, err)
-	userDecl, err := ds.NewMDMAppleDeclaration(ctx, &fleet.MDMAppleDeclaration{
+	userDecl, err := ds.NewMDMAppleDeclaration(ctx, &automdm.MDMAppleDeclaration{
 		Name:       "UserDecl",
 		Identifier: "com.example.user",
 		RawJSON:    []byte(`{"Type":"com.apple.configuration.test","Identifier":"com.example.user"}`),
-		Scope:      fleet.PayloadScopeUser,
+		Scope:      automdm.PayloadScopeUser,
 	}, nil)
 	require.NoError(t, err)
 
@@ -216,55 +216,55 @@ func testDDMChannelScopeIsolation(t *testing.T, ds *Datastore) {
 	devToken := readBinaryToken(devDecl.DeclarationUUID)
 	userToken := readBinaryToken(userDecl.DeclarationUUID)
 
-	pending := fleet.MDMDeliveryPending
-	require.NoError(t, ds.BulkUpsertMDMAppleHostDeclarations(ctx, []*fleet.MDMAppleHostDeclaration{
+	pending := automdm.MDMDeliveryPending
+	require.NoError(t, ds.BulkUpsertMDMAppleHostDeclarations(ctx, []*automdm.MDMAppleHostDeclaration{
 		{
 			HostUUID: host.UUID, DeclarationUUID: devDecl.DeclarationUUID, Name: devDecl.Name,
-			Identifier: devDecl.Identifier, Status: &pending, OperationType: fleet.MDMOperationTypeInstall,
-			Token: string(devToken), Scope: fleet.PayloadScopeSystem,
+			Identifier: devDecl.Identifier, Status: &pending, OperationType: automdm.MDMOperationTypeInstall,
+			Token: string(devToken), Scope: automdm.PayloadScopeSystem,
 		},
 		{
 			HostUUID: host.UUID, DeclarationUUID: userDecl.DeclarationUUID, Name: userDecl.Name,
-			Identifier: userDecl.Identifier, Status: &pending, OperationType: fleet.MDMOperationTypeInstall,
-			Token: string(userToken), Scope: fleet.PayloadScopeUser,
+			Identifier: userDecl.Identifier, Status: &pending, OperationType: automdm.MDMOperationTypeInstall,
+			Token: string(userToken), Scope: automdm.PayloadScopeUser,
 		},
 	}))
 
 	// Tokens are computed per channel and differ.
-	sysTok, err := ds.MDMAppleDDMDeclarationsToken(ctx, host.UUID, fleet.PayloadScopeSystem)
+	sysTok, err := ds.MDMAppleDDMDeclarationsToken(ctx, host.UUID, automdm.PayloadScopeSystem)
 	require.NoError(t, err)
-	usrTok, err := ds.MDMAppleDDMDeclarationsToken(ctx, host.UUID, fleet.PayloadScopeUser)
+	usrTok, err := ds.MDMAppleDDMDeclarationsToken(ctx, host.UUID, automdm.PayloadScopeUser)
 	require.NoError(t, err)
 	require.NotEmpty(t, sysTok.DeclarationsToken)
 	require.NotEmpty(t, usrTok.DeclarationsToken)
 	require.NotEqual(t, sysTok.DeclarationsToken, usrTok.DeclarationsToken)
 
 	// Declaration items are scoped to their channel.
-	sysItems, err := ds.MDMAppleDDMDeclarationItems(ctx, host.UUID, fleet.PayloadScopeSystem)
+	sysItems, err := ds.MDMAppleDDMDeclarationItems(ctx, host.UUID, automdm.PayloadScopeSystem)
 	require.NoError(t, err)
 	require.Len(t, sysItems, 1)
 	require.Equal(t, "com.example.device", sysItems[0].Identifier)
 
-	usrItems, err := ds.MDMAppleDDMDeclarationItems(ctx, host.UUID, fleet.PayloadScopeUser)
+	usrItems, err := ds.MDMAppleDDMDeclarationItems(ctx, host.UUID, automdm.PayloadScopeUser)
 	require.NoError(t, err)
 	require.Len(t, usrItems, 1)
 	require.Equal(t, "com.example.user", usrItems[0].Identifier)
 
 	// The declaration response respects scope: the user declaration is not served
 	// on the device channel and vice versa.
-	_, err = ds.MDMAppleDDMDeclarationsResponse(ctx, "com.example.user", host.UUID, fleet.PayloadScopeSystem)
-	require.True(t, fleet.IsNotFound(err))
-	gotUser, err := ds.MDMAppleDDMDeclarationsResponse(ctx, "com.example.user", host.UUID, fleet.PayloadScopeUser)
+	_, err = ds.MDMAppleDDMDeclarationsResponse(ctx, "com.example.user", host.UUID, automdm.PayloadScopeSystem)
+	require.True(t, automdm.IsNotFound(err))
+	gotUser, err := ds.MDMAppleDDMDeclarationsResponse(ctx, "com.example.user", host.UUID, automdm.PayloadScopeUser)
 	require.NoError(t, err)
 	require.Equal(t, userDecl.DeclarationUUID, gotUser.DeclarationUUID)
 
-	_, err = ds.MDMAppleDDMDeclarationsResponse(ctx, "com.example.device", host.UUID, fleet.PayloadScopeUser)
-	require.True(t, fleet.IsNotFound(err))
+	_, err = ds.MDMAppleDDMDeclarationsResponse(ctx, "com.example.device", host.UUID, automdm.PayloadScopeUser)
+	require.True(t, automdm.IsNotFound(err))
 
 	// A status report on the user channel only transitions user-scoped rows.
-	verified := fleet.MDMDeliveryVerified
-	err = ds.MDMAppleStoreDDMStatusReport(ctx, host.UUID, fleet.PayloadScopeUser, []*fleet.MDMAppleHostDeclaration{
-		{Token: fmt.Sprintf("%X", userToken), Status: &verified, OperationType: fleet.MDMOperationTypeInstall},
+	verified := automdm.MDMDeliveryVerified
+	err = ds.MDMAppleStoreDDMStatusReport(ctx, host.UUID, automdm.PayloadScopeUser, []*automdm.MDMAppleHostDeclaration{
+		{Token: fmt.Sprintf("%X", userToken), Status: &verified, OperationType: automdm.MDMOperationTypeInstall},
 	})
 	require.NoError(t, err)
 
@@ -307,7 +307,7 @@ func testCleanUpDuplicateRemoveInstallAcrossBatches(t *testing.T, ds *Datastore)
 
 	// Create the declaration so we have a realistic token to share between the
 	// remove (D1) and install (D2) host rows.
-	decl, err := ds.NewMDMAppleDeclaration(ctx, &fleet.MDMAppleDeclaration{
+	decl, err := ds.NewMDMAppleDeclaration(ctx, &automdm.MDMAppleDeclaration{
 		DeclarationUUID: "decl-new",
 		Name:            "New Declaration",
 		Identifier:      "com.example.cleanup",
@@ -325,10 +325,10 @@ func testCleanUpDuplicateRemoveInstallAcrossBatches(t *testing.T, ds *Datastore)
 	})
 
 	// Create 3 hosts, all enrolled
-	hosts := make([]*fleet.Host, 3)
+	hosts := make([]*automdm.Host, 3)
 	for i := range 3 {
 		hostUUID := fmt.Sprintf("cleanup-host-%d", i)
-		newHost, err := ds.NewHost(ctx, &fleet.Host{
+		newHost, err := ds.NewHost(ctx, &automdm.Host{
 			Hostname:        fmt.Sprintf("cleanup-host-%d", i),
 			UUID:            hostUUID,
 			HardwareSerial:  fmt.Sprintf("CLEANUP-%d", i),
@@ -345,20 +345,20 @@ func testCleanUpDuplicateRemoveInstallAcrossBatches(t *testing.T, ds *Datastore)
 		setupMDMDeviceAndEnrollment(t, ds, ctx, hostUUID, hosts[i].HardwareSerial)
 	}
 
-	pending := fleet.MDMDeliveryPending
+	pending := automdm.MDMDeliveryPending
 
 	// First bulk upsert: write the stale "remove" rows for the old declaration (D1).
 	// cleanUpDuplicateRemoveInstall is a no-op for this batch because it contains no
 	// installs.
-	removeRows := make([]*fleet.MDMAppleHostDeclaration, 0, len(hosts))
+	removeRows := make([]*automdm.MDMAppleHostDeclaration, 0, len(hosts))
 	for _, h := range hosts {
-		removeRows = append(removeRows, &fleet.MDMAppleHostDeclaration{
+		removeRows = append(removeRows, &automdm.MDMAppleHostDeclaration{
 			HostUUID:        h.UUID,
 			DeclarationUUID: "decl-old",
 			Name:            "Old Declaration",
 			Identifier:      decl.Identifier,
 			Status:          &pending,
-			OperationType:   fleet.MDMOperationTypeRemove,
+			OperationType:   automdm.MDMOperationTypeRemove,
 			Token:           string(token),
 		})
 	}
@@ -367,15 +367,15 @@ func testCleanUpDuplicateRemoveInstallAcrossBatches(t *testing.T, ds *Datastore)
 	// Second bulk upsert: write the "install" rows for the new declaration (D2). The
 	// cleanup runs after this batch and must find the matching remove rows committed
 	// by the first batch.
-	installRows := make([]*fleet.MDMAppleHostDeclaration, 0, len(hosts))
+	installRows := make([]*automdm.MDMAppleHostDeclaration, 0, len(hosts))
 	for _, h := range hosts {
-		installRows = append(installRows, &fleet.MDMAppleHostDeclaration{
+		installRows = append(installRows, &automdm.MDMAppleHostDeclaration{
 			HostUUID:        h.UUID,
 			DeclarationUUID: decl.DeclarationUUID,
 			Name:            decl.Name,
 			Identifier:      decl.Identifier,
 			Status:          &pending,
-			OperationType:   fleet.MDMOperationTypeInstall,
+			OperationType:   automdm.MDMOperationTypeInstall,
 			Token:           string(token),
 		})
 	}
@@ -451,7 +451,7 @@ func testGetAppleDDMAsset(t *testing.T, ds *Datastore) {
 		ctx := t.Context()
 		asset, err := ds.GetAppleDDMAsset(ctx, "fake-uuid")
 		require.Error(t, err)
-		require.True(t, fleet.IsNotFound(err))
+		require.True(t, automdm.IsNotFound(err))
 		require.Nil(t, asset)
 	})
 
@@ -479,7 +479,7 @@ func testGetAppleDDMAssetForDownload(t *testing.T, ds *Datastore) {
 		ctx := t.Context()
 		asset, err := ds.GetAppleDDMAssetForDownload(ctx, "fake-uuid")
 		require.Error(t, err)
-		require.True(t, fleet.IsNotFound(err))
+		require.True(t, automdm.IsNotFound(err))
 		require.Nil(t, asset)
 	})
 
@@ -510,7 +510,7 @@ func testDeleteAppleDDMAsset(t *testing.T, ds *Datastore) {
 		ctx := t.Context()
 		err := ds.DeleteAppleDDMAsset(ctx, "fake-uuid")
 		require.Error(t, err)
-		require.True(t, fleet.IsNotFound(err))
+		require.True(t, automdm.IsNotFound(err))
 	})
 
 	t.Run("returns error for empty asset UUID", func(t *testing.T) {
@@ -536,7 +536,7 @@ func testDeleteAppleDDMAsset(t *testing.T, ds *Datastore) {
 
 		// Insert a declaration, and decl<->asset association.
 		declUUID := uuid.NewString()
-		decl, err := ds.NewMDMAppleDeclaration(ctx, &fleet.MDMAppleDeclaration{
+		decl, err := ds.NewMDMAppleDeclaration(ctx, &automdm.MDMAppleDeclaration{
 			DeclarationUUID: declUUID,
 			Identifier:      "declaration.identifier",
 			Name:            "decl-name",
@@ -572,7 +572,7 @@ func testBatchSetAppleDDMAssets(t *testing.T, ds *Datastore) {
 	}
 
 	// Create two new assets.
-	changes, err := ds.BatchSetAppleDDMAssets(ctx, nil, []*fleet.MDMAppleDDMAssetToSet{
+	changes, err := ds.BatchSetAppleDDMAssets(ctx, nil, []*automdm.MDMAppleDDMAssetToSet{
 		{Name: "a", Identifier: "id.a", Type: "com.apple.asset.data", Data: assetData("com.apple.asset.data", "id.a", "https://example.com/a")},
 		{Name: "b", Identifier: "id.b", Type: "com.apple.asset.data", Data: assetData("com.apple.asset.data", "id.b", "https://example.com/b")},
 	})
@@ -587,7 +587,7 @@ func testBatchSetAppleDDMAssets(t *testing.T, ds *Datastore) {
 
 	// Re-applying the same content is a no-op: uploaded_at must not change and
 	// no changes are reported.
-	changes, err = ds.BatchSetAppleDDMAssets(ctx, nil, []*fleet.MDMAppleDDMAssetToSet{
+	changes, err = ds.BatchSetAppleDDMAssets(ctx, nil, []*automdm.MDMAppleDDMAssetToSet{
 		{Name: "a", Identifier: "id.a", Type: "com.apple.asset.data", Data: assetData("com.apple.asset.data", "id.a", "https://example.com/a")},
 		{Name: "b", Identifier: "id.b", Type: "com.apple.asset.data", Data: assetData("com.apple.asset.data", "id.b", "https://example.com/b")},
 	})
@@ -598,7 +598,7 @@ func testBatchSetAppleDDMAssets(t *testing.T, ds *Datastore) {
 	require.True(t, uploadedAt("id.a").Equal(firstUploaded))
 
 	// Editing an asset's payload bumps uploaded_at and is reported as edited.
-	changes, err = ds.BatchSetAppleDDMAssets(ctx, nil, []*fleet.MDMAppleDDMAssetToSet{
+	changes, err = ds.BatchSetAppleDDMAssets(ctx, nil, []*automdm.MDMAppleDDMAssetToSet{
 		{Name: "a", Identifier: "id.a", Type: "com.apple.asset.data", Data: assetData("com.apple.asset.data", "id.a", "https://example.com/a-edited")},
 		{Name: "b", Identifier: "id.b", Type: "com.apple.asset.data", Data: assetData("com.apple.asset.data", "id.b", "https://example.com/b")},
 	})
@@ -609,7 +609,7 @@ func testBatchSetAppleDDMAssets(t *testing.T, ds *Datastore) {
 	require.True(t, uploadedAt("id.a").After(firstUploaded))
 
 	// Omitting an asset deletes it and is reported as deleted.
-	changes, err = ds.BatchSetAppleDDMAssets(ctx, nil, []*fleet.MDMAppleDDMAssetToSet{
+	changes, err = ds.BatchSetAppleDDMAssets(ctx, nil, []*automdm.MDMAppleDDMAssetToSet{
 		{Name: "a", Identifier: "id.a", Type: "com.apple.asset.data", Data: assetData("com.apple.asset.data", "id.a", "https://example.com/a-edited")},
 	})
 	require.NoError(t, err)
@@ -621,15 +621,15 @@ func testBatchSetAppleDDMAssets(t *testing.T, ds *Datastore) {
 	require.Len(t, assets, 1)
 
 	// Changing an existing asset's type (same identifier) is rejected.
-	_, err = ds.BatchSetAppleDDMAssets(ctx, nil, []*fleet.MDMAppleDDMAssetToSet{
+	_, err = ds.BatchSetAppleDDMAssets(ctx, nil, []*automdm.MDMAppleDDMAssetToSet{
 		{Name: "a", Identifier: "id.a", Type: "com.apple.asset.other", Data: assetData("com.apple.asset.other", "id.a", "https://example.com/a-edited")},
 	})
 	require.Error(t, err)
-	var conflictErr *fleet.ConflictError
+	var conflictErr *automdm.ConflictError
 	require.ErrorAs(t, err, &conflictErr)
 
 	// Deleting an asset that is still referenced by a declaration is rejected.
-	decl, err := ds.NewMDMAppleDeclaration(ctx, &fleet.MDMAppleDeclaration{
+	decl, err := ds.NewMDMAppleDeclaration(ctx, &automdm.MDMAppleDeclaration{
 		Identifier: "decl.identifier",
 		Name:       "decl-name",
 		RawJSON:    []byte(`{"foo":"bar"}`),
@@ -720,7 +720,7 @@ func testGetAppleDDMAssetForDelivery(t *testing.T, ds *Datastore) {
 
 	const identifier = "com.example.shared.asset"
 
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "ddm-delivery-team"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "ddm-delivery-team"})
 	require.NoError(t, err)
 
 	// Same identifier in two different teams (global vs a real team). The unique
@@ -734,14 +734,14 @@ func testGetAppleDDMAssetForDelivery(t *testing.T, ds *Datastore) {
 	// A declaration in each team that references its team's asset. Delivery is
 	// now scoped through the host's installed declarations, so the asset is only
 	// reachable via a declaration that references it.
-	globalDecl, err := ds.NewMDMAppleDeclaration(ctx, &fleet.MDMAppleDeclaration{
+	globalDecl, err := ds.NewMDMAppleDeclaration(ctx, &automdm.MDMAppleDeclaration{
 		Name:                "GlobalDecl",
 		Identifier:          "com.example.globalDecl",
 		RawJSON:             []byte(`{"Type":"com.apple.configuration.test","Identifier":"com.example.globalDecl"}`),
 		AssetReferenceUUIDs: []string{globalAssetUUID},
 	}, nil)
 	require.NoError(t, err)
-	teamDecl, err := ds.NewMDMAppleDeclaration(ctx, &fleet.MDMAppleDeclaration{
+	teamDecl, err := ds.NewMDMAppleDeclaration(ctx, &automdm.MDMAppleDeclaration{
 		TeamID:              &team.ID,
 		Name:                "TeamDecl",
 		Identifier:          "com.example.teamDecl",
@@ -752,7 +752,7 @@ func testGetAppleDDMAssetForDelivery(t *testing.T, ds *Datastore) {
 
 	// A global host that has the global declaration installed, and a team host
 	// that has the team declaration installed.
-	globalHost, err := ds.NewHost(ctx, &fleet.Host{
+	globalHost, err := ds.NewHost(ctx, &automdm.Host{
 		Hostname:        "ddm-delivery-global",
 		UUID:            "ddm-delivery-global-uuid",
 		HardwareSerial:  "DDM-DELIVERY-GLOBAL",
@@ -765,7 +765,7 @@ func testGetAppleDDMAssetForDelivery(t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 
-	teamHost, err := ds.NewHost(ctx, &fleet.Host{
+	teamHost, err := ds.NewHost(ctx, &automdm.Host{
 		Hostname:        "ddm-delivery-team",
 		UUID:            "ddm-delivery-team-uuid",
 		HardwareSerial:  "DDM-DELIVERY-TEAM",
@@ -777,7 +777,7 @@ func testGetAppleDDMAssetForDelivery(t *testing.T, ds *Datastore) {
 		Platform:        "darwin",
 	})
 	require.NoError(t, err)
-	require.NoError(t, ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team.ID, []uint{teamHost.ID})))
+	require.NoError(t, ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team.ID, []uint{teamHost.ID})))
 
 	insertHostDeclaration(t, ds, ctx, globalHost.UUID, globalDecl.DeclarationUUID, "global-token", "verified", "install", globalDecl.Identifier)
 	insertHostDeclaration(t, ds, ctx, teamHost.UUID, teamDecl.DeclarationUUID, "team-token", "verified", "install", teamDecl.Identifier)
@@ -797,7 +797,7 @@ func testGetAppleDDMAssetForDelivery(t *testing.T, ds *Datastore) {
 	t.Run("does not return an asset the host does not reference", func(t *testing.T) {
 		// A host with no declaration referencing the asset gets nothing, even
 		// though an asset with this identifier exists in its team.
-		bareHost, err := ds.NewHost(ctx, &fleet.Host{
+		bareHost, err := ds.NewHost(ctx, &automdm.Host{
 			Hostname:        "ddm-delivery-bare",
 			UUID:            "ddm-delivery-bare-uuid",
 			HardwareSerial:  "DDM-DELIVERY-BARE",
@@ -812,14 +812,14 @@ func testGetAppleDDMAssetForDelivery(t *testing.T, ds *Datastore) {
 
 		_, err = ds.GetAppleDDMAssetForDelivery(ctx, identifier, bareHost.UUID)
 		require.Error(t, err)
-		require.True(t, fleet.IsNotFound(err))
+		require.True(t, automdm.IsNotFound(err))
 	})
 
 	t.Run("does not leak an asset from another team", func(t *testing.T) {
 		// A team host that (incorrectly) references the global declaration must
 		// not receive the global asset, because the asset's team_id does not
 		// match the host's team_id.
-		mismatchHost, err := ds.NewHost(ctx, &fleet.Host{
+		mismatchHost, err := ds.NewHost(ctx, &automdm.Host{
 			Hostname:        "ddm-delivery-mismatch",
 			UUID:            "ddm-delivery-mismatch-uuid",
 			HardwareSerial:  "DDM-DELIVERY-MISMATCH",
@@ -831,18 +831,18 @@ func testGetAppleDDMAssetForDelivery(t *testing.T, ds *Datastore) {
 			Platform:        "darwin",
 		})
 		require.NoError(t, err)
-		require.NoError(t, ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team.ID, []uint{mismatchHost.ID})))
+		require.NoError(t, ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team.ID, []uint{mismatchHost.ID})))
 		insertHostDeclaration(t, ds, ctx, mismatchHost.UUID, globalDecl.DeclarationUUID, "mismatch-token", "verified", "install", globalDecl.Identifier)
 
 		_, err = ds.GetAppleDDMAssetForDelivery(ctx, identifier, mismatchHost.UUID)
 		require.Error(t, err)
-		require.True(t, fleet.IsNotFound(err))
+		require.True(t, automdm.IsNotFound(err))
 	})
 
 	t.Run("unknown host is not found", func(t *testing.T) {
 		_, err := ds.GetAppleDDMAssetForDelivery(ctx, identifier, "does-not-exist-uuid")
 		require.Error(t, err)
-		require.True(t, fleet.IsNotFound(err))
+		require.True(t, automdm.IsNotFound(err))
 	})
 
 	t.Run("missing identifier is an error", func(t *testing.T) {
@@ -863,14 +863,14 @@ func testGetAppleDDMAssetsReferencedByDeclarations(t *testing.T, ds *Datastore) 
 	require.NoError(t, err)
 
 	// declA references both assets, declB references only asset1.
-	declA, err := ds.NewMDMAppleDeclaration(ctx, &fleet.MDMAppleDeclaration{
+	declA, err := ds.NewMDMAppleDeclaration(ctx, &automdm.MDMAppleDeclaration{
 		Name:                "DeclA",
 		Identifier:          "com.example.declA",
 		RawJSON:             []byte(`{"Type":"com.apple.configuration.test","Identifier":"com.example.declA"}`),
 		AssetReferenceUUIDs: []string{asset1UUID, asset2UUID},
 	}, nil)
 	require.NoError(t, err)
-	declB, err := ds.NewMDMAppleDeclaration(ctx, &fleet.MDMAppleDeclaration{
+	declB, err := ds.NewMDMAppleDeclaration(ctx, &automdm.MDMAppleDeclaration{
 		Name:                "DeclB",
 		Identifier:          "com.example.declB",
 		RawJSON:             []byte(`{"Type":"com.apple.configuration.test","Identifier":"com.example.declB"}`),
@@ -911,12 +911,12 @@ func testUpsertDeclarationAssetReferences(t *testing.T, ds *Datastore) {
 	asset2UUID, err := ds.CreateAppleDDMAsset(ctx, "upsert-asset-two", "com.example.upsert.two", []byte(`{"a":2}`), nil)
 	require.NoError(t, err)
 
-	newDecl := func(refs []string) *fleet.MDMAppleDeclaration {
-		return &fleet.MDMAppleDeclaration{
+	newDecl := func(refs []string) *automdm.MDMAppleDeclaration {
+		return &automdm.MDMAppleDeclaration{
 			Name:                "UpsertDecl",
 			Identifier:          "com.example.upsertDecl",
 			RawJSON:             []byte(`{"Type":"com.apple.configuration.test","Identifier":"com.example.upsertDecl"}`),
-			Scope:               fleet.PayloadScopeSystem,
+			Scope:               automdm.PayloadScopeSystem,
 			AssetReferenceUUIDs: refs,
 		}
 	}
@@ -930,30 +930,30 @@ func testUpsertDeclarationAssetReferences(t *testing.T, ds *Datastore) {
 		return got
 	}
 
-	created, err := ds.SetOrUpdateMDMAppleDeclaration(ctx, newDecl([]string{asset1UUID}), nil, fleet.MDMAppleActivationApply)
+	created, err := ds.SetOrUpdateMDMAppleDeclaration(ctx, newDecl([]string{asset1UUID}), nil, automdm.MDMAppleActivationApply)
 	require.NoError(t, err)
 	require.ElementsMatch(t, []string{asset1UUID}, refsFor(created.DeclarationUUID))
 
 	// Re-sending identical contents keeps the existing declaration UUID; the
 	// references must be written against that UUID, not a freshly generated one.
-	updated, err := ds.SetOrUpdateMDMAppleDeclaration(ctx, newDecl([]string{asset1UUID}), nil, fleet.MDMAppleActivationApply)
+	updated, err := ds.SetOrUpdateMDMAppleDeclaration(ctx, newDecl([]string{asset1UUID}), nil, automdm.MDMAppleActivationApply)
 	require.NoError(t, err)
 	require.Equal(t, created.DeclarationUUID, updated.DeclarationUUID)
 	require.ElementsMatch(t, []string{asset1UUID}, refsFor(created.DeclarationUUID))
 
 	// Adding a reference on an edit.
-	updated, err = ds.SetOrUpdateMDMAppleDeclaration(ctx, newDecl([]string{asset1UUID, asset2UUID}), nil, fleet.MDMAppleActivationApply)
+	updated, err = ds.SetOrUpdateMDMAppleDeclaration(ctx, newDecl([]string{asset1UUID, asset2UUID}), nil, automdm.MDMAppleActivationApply)
 	require.NoError(t, err)
 	require.Equal(t, created.DeclarationUUID, updated.DeclarationUUID)
 	require.ElementsMatch(t, []string{asset1UUID, asset2UUID}, refsFor(created.DeclarationUUID))
 
 	// Dropping a reference on an edit removes the stale row.
-	_, err = ds.SetOrUpdateMDMAppleDeclaration(ctx, newDecl([]string{asset2UUID}), nil, fleet.MDMAppleActivationApply)
+	_, err = ds.SetOrUpdateMDMAppleDeclaration(ctx, newDecl([]string{asset2UUID}), nil, automdm.MDMAppleActivationApply)
 	require.NoError(t, err)
 	require.ElementsMatch(t, []string{asset2UUID}, refsFor(created.DeclarationUUID))
 
 	// Dropping all references clears them.
-	_, err = ds.SetOrUpdateMDMAppleDeclaration(ctx, newDecl(nil), nil, fleet.MDMAppleActivationApply)
+	_, err = ds.SetOrUpdateMDMAppleDeclaration(ctx, newDecl(nil), nil, automdm.MDMAppleActivationApply)
 	require.NoError(t, err)
 	require.Empty(t, refsFor(created.DeclarationUUID))
 }
@@ -961,7 +961,7 @@ func testUpsertDeclarationAssetReferences(t *testing.T, ds *Datastore) {
 func testDDMAssetsUpdatedAtRoundTripAndToken(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
-	host, err := ds.NewHost(ctx, &fleet.Host{
+	host, err := ds.NewHost(ctx, &automdm.Host{
 		Hostname:        "test-host-assets-token",
 		UUID:            "test-host-uuid-assets-token",
 		HardwareSerial:  "ASSETS-TOKEN-1",
@@ -975,11 +975,11 @@ func testDDMAssetsUpdatedAtRoundTripAndToken(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 	setupMDMDeviceAndEnrollment(t, ds, ctx, host.UUID, host.HardwareSerial)
 
-	decl, err := ds.NewMDMAppleDeclaration(ctx, &fleet.MDMAppleDeclaration{
+	decl, err := ds.NewMDMAppleDeclaration(ctx, &automdm.MDMAppleDeclaration{
 		Name:       "AssetTokenDecl",
 		Identifier: "com.example.assettoken",
 		RawJSON:    []byte(`{"Type":"com.apple.configuration.test","Identifier":"com.example.assettoken"}`),
-		Scope:      fleet.PayloadScopeSystem,
+		Scope:      automdm.PayloadScopeSystem,
 	}, nil)
 	require.NoError(t, err)
 
@@ -988,29 +988,29 @@ func testDDMAssetsUpdatedAtRoundTripAndToken(t *testing.T, ds *Datastore) {
 		return sqlx.GetContext(ctx, q, &token, "SELECT token FROM mdm_apple_declarations WHERE declaration_uuid = ?", decl.DeclarationUUID)
 	})
 
-	pending := fleet.MDMDeliveryPending
+	pending := automdm.MDMDeliveryPending
 
 	// First: install the declaration WITHOUT any assets_updated_at.
-	require.NoError(t, ds.BulkUpsertMDMAppleHostDeclarations(ctx, []*fleet.MDMAppleHostDeclaration{
+	require.NoError(t, ds.BulkUpsertMDMAppleHostDeclarations(ctx, []*automdm.MDMAppleHostDeclaration{
 		{
 			HostUUID: host.UUID, DeclarationUUID: decl.DeclarationUUID, Name: decl.Name,
-			Identifier: decl.Identifier, Status: &pending, OperationType: fleet.MDMOperationTypeInstall,
-			Token: string(token), Scope: fleet.PayloadScopeSystem,
+			Identifier: decl.Identifier, Status: &pending, OperationType: automdm.MDMOperationTypeInstall,
+			Token: string(token), Scope: automdm.PayloadScopeSystem,
 		},
 	}))
 
-	tokBefore, err := ds.MDMAppleDDMDeclarationsToken(ctx, host.UUID, fleet.PayloadScopeSystem)
+	tokBefore, err := ds.MDMAppleDDMDeclarationsToken(ctx, host.UUID, automdm.PayloadScopeSystem)
 	require.NoError(t, err)
 	require.NotEmpty(t, tokBefore.DeclarationsToken)
 
 	// Now simulate an asset-only update: same declaration/token, but with
 	// assets_updated_at stamped (as the reconciler would do).
 	assetsUpdatedAt := time.Now().UTC().Truncate(time.Microsecond)
-	require.NoError(t, ds.BulkUpsertMDMAppleHostDeclarations(ctx, []*fleet.MDMAppleHostDeclaration{
+	require.NoError(t, ds.BulkUpsertMDMAppleHostDeclarations(ctx, []*automdm.MDMAppleHostDeclaration{
 		{
 			HostUUID: host.UUID, DeclarationUUID: decl.DeclarationUUID, Name: decl.Name,
-			Identifier: decl.Identifier, Status: &pending, OperationType: fleet.MDMOperationTypeInstall,
-			Token: string(token), Scope: fleet.PayloadScopeSystem, AssetsUpdatedAt: &assetsUpdatedAt,
+			Identifier: decl.Identifier, Status: &pending, OperationType: automdm.MDMOperationTypeInstall,
+			Token: string(token), Scope: automdm.PayloadScopeSystem, AssetsUpdatedAt: &assetsUpdatedAt,
 		},
 	}))
 
@@ -1027,13 +1027,13 @@ func testDDMAssetsUpdatedAtRoundTripAndToken(t *testing.T, ds *Datastore) {
 	// The SQL-computed declarations token must change once assets_updated_at is set,
 	// even though the declaration's static token is unchanged. This is what causes
 	// the host to re-sync on an asset-only update.
-	tokAfter, err := ds.MDMAppleDDMDeclarationsToken(ctx, host.UUID, fleet.PayloadScopeSystem)
+	tokAfter, err := ds.MDMAppleDDMDeclarationsToken(ctx, host.UUID, automdm.PayloadScopeSystem)
 	require.NoError(t, err)
 	require.NotEqual(t, tokBefore.DeclarationsToken, tokAfter.DeclarationsToken)
 
 	// And it must match the Go-side EffectiveDDMToken over the same inputs, proving
 	// the token endpoint and the declaration-items endpoint agree.
-	items, err := ds.MDMAppleDDMDeclarationItems(ctx, host.UUID, fleet.PayloadScopeSystem)
+	items, err := ds.MDMAppleDDMDeclarationItems(ctx, host.UUID, automdm.PayloadScopeSystem)
 	require.NoError(t, err)
 	require.Len(t, items, 1)
 	require.NotNil(t, items[0].AssetsUpdatedAt)

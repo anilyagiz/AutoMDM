@@ -7,7 +7,7 @@
 
 $displayNamePattern = '^Discord$'
 $publisher = "Discord Inc."
-$taskName = "fleet-uninstall-discord"
+$taskName = "automdm-uninstall-discord"
 $appDir = "AppData\Local\Discord"  # in each user's profile
 $taskRunning = 267009  # SCHED_S_TASK_RUNNING
 $timeoutSeconds = 300

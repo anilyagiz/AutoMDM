@@ -10,13 +10,13 @@ const DEFAULT_VULNERABILITY: IVulnerability = {
   hosts_count: 1234,
   hosts_count_updated_at: "2023-12-20T15:23:57Z",
   details_link: "https://nvd.nist.gov/vuln/detail/CVE-2022-30190",
-  cvss_score: 7.8, // Available in Fleet Premium
-  epss_probability: 0.9729, // Available in Fleet Premium
-  cisa_known_exploit: true, // Available in Fleet Premium
-  cve_published: "2022-06-01T00:15:00Z", // Available in Fleet Premium
+  cvss_score: 7.8, // Available in AutoMDM Premium
+  epss_probability: 0.9729, // Available in AutoMDM Premium
+  cisa_known_exploit: true, // Available in AutoMDM Premium
+  cve_published: "2022-06-01T00:15:00Z", // Available in AutoMDM Premium
   cve_description:
-    "Microsoft Windows Support Diagnostic Tool (MSDT) Remote Code Execution Vulnerability.", // Available in Fleet Premium
-  resolved_in_version: "", // Available in Fleet Premium
+    "Microsoft Windows Support Diagnostic Tool (MSDT) Remote Code Execution Vulnerability.", // Available in AutoMDM Premium
+  resolved_in_version: "", // Available in AutoMDM Premium
 };
 
 const DEFAULT_VULNERABILITY_DETAILS: IVulnerabilityResponse = {

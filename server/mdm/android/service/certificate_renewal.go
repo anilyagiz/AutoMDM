@@ -5,13 +5,13 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 )
 
 // RenewCertificateTemplates identifies Android certificate templates that are approaching
 // expiration and marks them for renewal by updating their status.
-func RenewCertificateTemplates(ctx context.Context, ds fleet.Datastore, logger *slog.Logger) error {
+func RenewCertificateTemplates(ctx context.Context, ds automdm.Datastore, logger *slog.Logger) error {
 	const batchSize = 1000
 	templates, err := ds.GetAndroidCertificateTemplatesForRenewal(ctx, time.Now(), batchSize)
 	if err != nil {

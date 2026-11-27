@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/dialog"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/kdialog"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/zenity"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/dialog"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/kdialog"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/zenity"
 )
 
 func main() {

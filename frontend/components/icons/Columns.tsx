@@ -9,7 +9,7 @@ interface IColumnsProps {
 }
 
 const Columns = ({
-  color = "ui-fleet-black-75",
+  color = "ui-automdm-black-75",
   size = "medium",
 }: IColumnsProps) => {
   return (

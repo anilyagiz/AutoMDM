@@ -87,7 +87,7 @@ const ConfirmationPage = ({
               <td>{orgName}</td>
             </tr>
             <tr>
-              <th>Fleet URL:</th>
+              <th>AutoMDM URL:</th>
               <td>
                 <span className={`${baseClass}__table-url`} title={serverUrl}>
                   {serverUrl}
@@ -101,7 +101,7 @@ const ConfirmationPage = ({
       </div>
       <p className={`${baseClass}__help-text`}>
         Fleet Device Management Inc. periodically collects information about
-        your instance. Sending usage statistics from your Fleet instance is
+        your instance. Sending usage statistics from your AutoMDM instance is
         optional and can be disabled in settings.
       </p>
       <div className="button-wrap--center">

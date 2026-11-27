@@ -1,4 +1,4 @@
-// Package calendartest is not imported in production code, so it will not be compiled for Fleet server.
+// Package calendartest is not imported in production code, so it will not be compiled for AutoMDM server.
 package calendartest
 
 import (
@@ -16,7 +16,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 	_ "github.com/mattn/go-sqlite3"
 	"google.golang.org/api/calendar/v3"
 )

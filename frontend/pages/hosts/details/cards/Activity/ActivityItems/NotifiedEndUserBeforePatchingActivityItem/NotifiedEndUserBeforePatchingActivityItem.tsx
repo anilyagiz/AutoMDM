@@ -41,7 +41,7 @@ const NotifiedEndUserBeforePatchingActivityItem = ({
       onCancel={onCancel}
       isSoloActivity={isSoloActivity}
     >
-      <strong>Fleet</strong> {verb} end user {timeLabel} before patching
+      <strong>AutoMDM</strong> {verb} end user {timeLabel} before patching
       {titleList && <> {titleList}</>} on this host.
     </ActivityItem>
   );

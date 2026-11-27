@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/VividCortex/mysqlerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 	"github.com/cenkalti/backoff/v4"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
 	"github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
 )
@@ -50,7 +50,7 @@ func TriggerFatalError(ctx context.Context, err error) {
 	})
 }
 
-var DoRetryErr = errors.New("fleet datastore retry")
+var DoRetryErr = errors.New("team datastore retry")
 
 type wrappedTx struct {
 	*sqlx.Tx

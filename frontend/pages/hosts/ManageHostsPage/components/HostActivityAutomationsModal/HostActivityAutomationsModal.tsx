@@ -22,7 +22,7 @@ export interface IHostActivityAutomationsFormData {
 
 interface IHostActivityAutomationsModal {
   automationSettings?: IWebhookHostActivities | null;
-  fleetName: string;
+  automdmName: string;
   onSubmit: (formData: IHostActivityAutomationsFormData) => void;
   onExit: () => void;
   isUpdating: boolean;
@@ -30,7 +30,7 @@ interface IHostActivityAutomationsModal {
 
 const HostActivityAutomationsModal = ({
   automationSettings,
-  fleetName,
+  automdmName,
   onSubmit,
   onExit,
   isUpdating,
@@ -132,7 +132,7 @@ const HostActivityAutomationsModal = ({
             documentation for{" "}
             {
               <CustomLink
-                url="https://fleetdm.com/learn-more-about/host-audit-logs"
+                url="https://automdm.com/learn-more-about/host-audit-logs"
                 text="audit logs"
                 newTab
               />
@@ -153,8 +153,8 @@ const HostActivityAutomationsModal = ({
     >
       <div className={`${baseClass} form`}>
         <p>
-          Send webhooks for host-level activities on the <b>{fleetName}</b>{" "}
-          fleet. These activities can be found on individual host detail pages
+          Send webhooks for host-level activities on the <b>{automdmName}</b>{" "}
+          team. These activities can be found on individual host detail pages
           under <b>Activity &gt; Past</b>.
         </p>
         <Slider
@@ -174,7 +174,7 @@ const HostActivityAutomationsModal = ({
             name="url"
             value={formData.url}
             error={formErrors.url}
-            helpText="Fleet will send a JSON payload to this URL whenever a new activity is generated."
+            helpText="AutoMDM will send a JSON payload to this URL whenever a new activity is generated."
             disabled={!formData.enabled || gitOpsModeEnabled}
           />
         </div>

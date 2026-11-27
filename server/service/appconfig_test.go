@@ -15,18 +15,18 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/pkg/optjson"
-	activity_api "github.com/fleetdm/fleet/v4/server/activity/api"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	nanodep_client "github.com/fleetdm/fleet/v4/server/mdm/nanodep/client"
-	mdmtest "github.com/fleetdm/fleet/v4/server/mdm/testing_utils"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	nanodep_mock "github.com/fleetdm/fleet/v4/server/mock/nanodep"
-	"github.com/fleetdm/fleet/v4/server/platform/endpointer"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/pkg/optjson"
+	activity_api "github.com/anilyagiz/automdm/v4/server/activity/api"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	nanodep_client "github.com/anilyagiz/automdm/v4/server/mdm/nanodep/client"
+	mdmtest "github.com/anilyagiz/automdm/v4/server/mdm/testing_utils"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	nanodep_mock "github.com/anilyagiz/automdm/v4/server/mock/nanodep"
+	"github.com/anilyagiz/automdm/v4/server/platform/endpointer"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -41,101 +41,101 @@ func TestAppConfigAuth(t *testing.T) {
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	defer srv.Close()
 
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{
-			OrgInfo: fleet.OrgInfo{
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{
+			OrgInfo: automdm.OrgInfo{
 				OrgName: "Test",
 			},
-			ServerSettings: fleet.ServerSettings{
+			ServerSettings: automdm.ServerSettings{
 				ServerURL: srv.URL,
 			},
 		}, nil
 	}
-	ds.SaveAppConfigFunc = func(ctx context.Context, conf *fleet.AppConfig) error {
+	ds.SaveAppConfigFunc = func(ctx context.Context, conf *automdm.AppConfig) error {
 		return nil
 	}
 
-	ds.SaveABMTokenFunc = func(ctx context.Context, tok *fleet.ABMToken) error {
+	ds.SaveABMTokenFunc = func(ctx context.Context, tok *automdm.ABMToken) error {
 		return nil
 	}
 
-	ds.ListVPPTokensFunc = func(ctx context.Context) ([]*fleet.VPPTokenDB, error) {
-		return []*fleet.VPPTokenDB{}, nil
+	ds.ListVPPTokensFunc = func(ctx context.Context) ([]*automdm.VPPTokenDB, error) {
+		return []*automdm.VPPTokenDB{}, nil
 	}
 
-	ds.ListABMTokensFunc = func(ctx context.Context) ([]*fleet.ABMToken, error) {
-		return []*fleet.ABMToken{}, nil
+	ds.ListABMTokensFunc = func(ctx context.Context) ([]*automdm.ABMToken, error) {
+		return []*automdm.ABMToken{}, nil
 	}
 
 	testCases := []struct {
 		name            string
-		user            *fleet.User
+		user            *automdm.User
 		shouldFailWrite bool
 		shouldFailRead  bool
 	}{
 		{
 			"global admin",
-			&fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)},
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)},
 			false,
 			false,
 		},
 		{
 			"global maintainer",
-			&fleet.User{GlobalRole: ptr.String(fleet.RoleMaintainer)},
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleMaintainer)},
 			true,
 			false,
 		},
 		{
 			"global observer",
-			&fleet.User{GlobalRole: ptr.String(fleet.RoleObserver)},
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleObserver)},
 			true,
 			false,
 		},
 		{
 			"global observer+",
-			&fleet.User{GlobalRole: ptr.String(fleet.RoleObserverPlus)},
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleObserverPlus)},
 			true,
 			false,
 		},
 		{
 			"global gitops",
-			&fleet.User{GlobalRole: ptr.String(fleet.RoleGitOps)},
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleGitOps)},
 			false,
 			false,
 		},
 		{
 			"team admin",
-			&fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleAdmin}}},
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleAdmin}}},
 			true,
 			false,
 		},
 		{
 			"team maintainer",
-			&fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleMaintainer}}},
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleMaintainer}}},
 			true,
 			false,
 		},
 		{
 			"team observer",
-			&fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleObserver}}},
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserver}}},
 			true,
 			false,
 		},
 		{
 			"team observer+",
-			&fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleObserverPlus}}},
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserverPlus}}},
 			true,
 			false,
 		},
 		{
 			"team gitops",
-			&fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleGitOps}}},
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleGitOps}}},
 			true,
 			false,
 		},
 		{
 			"user without roles",
-			&fleet.User{ID: 777},
+			&automdm.User{ID: 777},
 			true,
 			true,
 		},
@@ -147,7 +147,7 @@ func TestAppConfigAuth(t *testing.T) {
 			_, err := svc.AppConfigObfuscated(ctx)
 			checkAuthErr(t, tt.shouldFailRead, err)
 
-			_, err = svc.ModifyAppConfig(ctx, []byte(`{}`), fleet.ApplySpecOptions{})
+			_, err = svc.ModifyAppConfig(ctx, []byte(`{}`), automdm.ApplySpecOptions{})
 			checkAuthErr(t, tt.shouldFailWrite, err)
 
 			_, err = svc.CertificateChain(ctx)
@@ -165,20 +165,20 @@ func TestModifyAppConfigHostExpiryWindow(t *testing.T) {
 		t.Run(fmt.Sprintf("enabled with window %d is rejected", window), func(t *testing.T) {
 			ds := new(mock.Store)
 			svc, ctx := newTestServiceWithConfig(t, ds, config.TestConfig(), nil, nil, &TestServerOpts{
-				License: &fleet.LicenseInfo{Tier: fleet.TierFree},
+				License: &automdm.LicenseInfo{Tier: automdm.TierFree},
 			})
-			ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{GlobalRole: new(fleet.RoleAdmin)}})
-			ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-				return &fleet.AppConfig{
-					OrgInfo:        fleet.OrgInfo{OrgName: "Test"},
-					ServerSettings: fleet.ServerSettings{ServerURL: "https://example.org"},
+			ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{GlobalRole: new(automdm.RoleAdmin)}})
+			ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+				return &automdm.AppConfig{
+					OrgInfo:        automdm.OrgInfo{OrgName: "Test"},
+					ServerSettings: automdm.ServerSettings{ServerURL: "https://example.org"},
 				}, nil
 			}
-			ds.SaveAppConfigFunc = func(ctx context.Context, conf *fleet.AppConfig) error { return nil }
+			ds.SaveAppConfigFunc = func(ctx context.Context, conf *automdm.AppConfig) error { return nil }
 
 			body := fmt.Sprintf(`{"host_expiry_settings":{"host_expiry_enabled":true,"host_expiry_window":%d}}`, window)
-			_, err := svc.ModifyAppConfig(ctx, []byte(body), fleet.ApplySpecOptions{})
-			var invalid *fleet.InvalidArgumentError
+			_, err := svc.ModifyAppConfig(ctx, []byte(body), automdm.ApplySpecOptions{})
+			var invalid *automdm.InvalidArgumentError
 			require.ErrorAs(t, err, &invalid)
 			require.Contains(t, fmt.Sprintf("%+v", invalid.Errors), "host_expiry_settings.host_expiry_window")
 			require.ErrorContains(t, err, "When enabling host expiry, host expiry window must be a positive number.")
@@ -190,19 +190,19 @@ func TestModifyAppConfigHostExpiryWindow(t *testing.T) {
 func TestModifyAppConfigWebhookPolicyIDsRemoved(t *testing.T) {
 	ds := new(mock.Store)
 	svc, ctx := newTestServiceWithConfig(t, ds, config.TestConfig(), nil, nil, &TestServerOpts{
-		License: &fleet.LicenseInfo{Tier: fleet.TierFree},
+		License: &automdm.LicenseInfo{Tier: automdm.TierFree},
 	})
-	ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{GlobalRole: new(fleet.RoleAdmin)}})
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{
-			OrgInfo:        fleet.OrgInfo{OrgName: "Test"},
-			ServerSettings: fleet.ServerSettings{ServerURL: "https://example.org"},
+	ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{GlobalRole: new(automdm.RoleAdmin)}})
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{
+			OrgInfo:        automdm.OrgInfo{OrgName: "Test"},
+			ServerSettings: automdm.ServerSettings{ServerURL: "https://example.org"},
 		}, nil
 	}
-	ds.SaveAppConfigFunc = func(ctx context.Context, conf *fleet.AppConfig) error { return nil }
-	ds.ListABMTokensFunc = func(ctx context.Context) ([]*fleet.ABMToken, error) { return nil, nil }
+	ds.SaveAppConfigFunc = func(ctx context.Context, conf *automdm.AppConfig) error { return nil }
+	ds.ListABMTokensFunc = func(ctx context.Context) ([]*automdm.ABMToken, error) { return nil, nil }
 
-	for _, opts := range []fleet.ApplySpecOptions{{}, {DryRun: true}} {
+	for _, opts := range []automdm.ApplySpecOptions{{}, {DryRun: true}} {
 		for _, body := range []string{
 			`{"webhook_settings": {"failing_policies_webhook": {"policy_ids": [1, 2]}}}`,
 			`{"webhook_settings": {"failing_policies_webhook": {"policy_ids": []}}}`,
@@ -215,7 +215,7 @@ func TestModifyAppConfigWebhookPolicyIDsRemoved(t *testing.T) {
 	}
 	require.False(t, ds.SaveAppConfigFuncInvoked)
 
-	_, err := svc.ModifyAppConfig(ctx, []byte(`{"webhook_settings": {"failing_policies_webhook": {"destination_url": "https://example.com"}}}`), fleet.ApplySpecOptions{})
+	_, err := svc.ModifyAppConfig(ctx, []byte(`{"webhook_settings": {"failing_policies_webhook": {"destination_url": "https://example.com"}}}`), automdm.ApplySpecOptions{})
 	require.NoError(t, err)
 }
 
@@ -224,56 +224,56 @@ func TestModifyAppConfigWebhookPolicyIDsRemoved(t *testing.T) {
 // payload validation, both of which reject the apply before persisting. The
 // happy-path persist round-trip is covered by integration tests.
 func TestModifyAppConfigVulnExposureFilters(t *testing.T) {
-	setup := func(t *testing.T, tier string) (fleet.Service, context.Context, *mock.Store) {
+	setup := func(t *testing.T, tier string) (automdm.Service, context.Context, *mock.Store) {
 		ds := new(mock.Store)
 		cfg := config.TestConfig()
 		svc, ctx := newTestServiceWithConfig(t, ds, cfg, nil, nil, &TestServerOpts{
-			License: &fleet.LicenseInfo{Tier: tier},
+			License: &automdm.LicenseInfo{Tier: tier},
 		})
-		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{GlobalRole: new(fleet.RoleAdmin)}})
-		ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-			return &fleet.AppConfig{
-				OrgInfo:        fleet.OrgInfo{OrgName: "Test"},
-				ServerSettings: fleet.ServerSettings{ServerURL: "https://example.org"},
+		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{GlobalRole: new(automdm.RoleAdmin)}})
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{
+				OrgInfo:        automdm.OrgInfo{OrgName: "Test"},
+				ServerSettings: automdm.ServerSettings{ServerURL: "https://example.org"},
 			}, nil
 		}
-		ds.SaveAppConfigFunc = func(ctx context.Context, conf *fleet.AppConfig) error { return nil }
+		ds.SaveAppConfigFunc = func(ctx context.Context, conf *automdm.AppConfig) error { return nil }
 		return svc, ctx, ds
 	}
 
 	payload := `{"features":{"vulnerability_exposure_historical_reporting":{%s}}}`
 
 	t.Run("free tier rejects the feature", func(t *testing.T) {
-		svc, ctx, ds := setup(t, fleet.TierFree)
+		svc, ctx, ds := setup(t, automdm.TierFree)
 		body := fmt.Sprintf(payload, `"has_known_exploit":true`)
-		_, err := svc.ModifyAppConfig(ctx, []byte(body), fleet.ApplySpecOptions{})
+		_, err := svc.ModifyAppConfig(ctx, []byte(body), automdm.ApplySpecOptions{})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "vulnerability_exposure_historical_reporting")
 		require.False(t, ds.SaveAppConfigFuncInvoked, "config should not be saved when rejected")
 	})
 
 	t.Run("premium rejects an invalid software category", func(t *testing.T) {
-		svc, ctx, ds := setup(t, fleet.TierPremium)
+		svc, ctx, ds := setup(t, automdm.TierPremium)
 		body := fmt.Sprintf(payload, `"software_filters":["os","bogus"]`)
-		_, err := svc.ModifyAppConfig(ctx, []byte(body), fleet.ApplySpecOptions{})
+		_, err := svc.ModifyAppConfig(ctx, []byte(body), automdm.ApplySpecOptions{})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "software_filters")
 		require.False(t, ds.SaveAppConfigFuncInvoked, "config should not be saved when rejected")
 	})
 
 	t.Run("premium rejects inverted EPSS bounds", func(t *testing.T) {
-		svc, ctx, ds := setup(t, fleet.TierPremium)
+		svc, ctx, ds := setup(t, automdm.TierPremium)
 		body := fmt.Sprintf(payload, `"epss_min":80,"epss_max":20`)
-		_, err := svc.ModifyAppConfig(ctx, []byte(body), fleet.ApplySpecOptions{})
+		_, err := svc.ModifyAppConfig(ctx, []byte(body), automdm.ApplySpecOptions{})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "epss_min")
 		require.False(t, ds.SaveAppConfigFuncInvoked, "config should not be saved when rejected")
 	})
 
 	t.Run("premium rejects an empty software_filters list", func(t *testing.T) {
-		svc, ctx, ds := setup(t, fleet.TierPremium)
+		svc, ctx, ds := setup(t, automdm.TierPremium)
 		body := fmt.Sprintf(payload, `"software_filters":[]`)
-		_, err := svc.ModifyAppConfig(ctx, []byte(body), fleet.ApplySpecOptions{})
+		_, err := svc.ModifyAppConfig(ctx, []byte(body), automdm.ApplySpecOptions{})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "software_filters")
 		require.Contains(t, err.Error(), "at least one")
@@ -282,25 +282,25 @@ func TestModifyAppConfigVulnExposureFilters(t *testing.T) {
 }
 
 func TestModifyAppConfigIdPIntrospection(t *testing.T) {
-	setup := func(t *testing.T, tier string, ds *mock.Store) (fleet.Service, context.Context) {
+	setup := func(t *testing.T, tier string, ds *mock.Store) (automdm.Service, context.Context) {
 		cfg := config.TestConfig()
 		svc, ctx := newTestServiceWithConfig(t, ds, cfg, nil, nil, &TestServerOpts{
-			License: &fleet.LicenseInfo{Tier: tier},
+			License: &automdm.LicenseInfo{Tier: tier},
 		})
-		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{GlobalRole: new(fleet.RoleAdmin)}})
-		stored := &fleet.AppConfig{
-			OrgInfo:        fleet.OrgInfo{OrgName: "Test"},
-			ServerSettings: fleet.ServerSettings{ServerURL: "https://example.org"},
+		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{GlobalRole: new(automdm.RoleAdmin)}})
+		stored := &automdm.AppConfig{
+			OrgInfo:        automdm.OrgInfo{OrgName: "Test"},
+			ServerSettings: automdm.ServerSettings{ServerURL: "https://example.org"},
 		}
-		ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
 			return stored.Copy(), nil
 		}
-		ds.SaveAppConfigFunc = func(ctx context.Context, conf *fleet.AppConfig) error {
+		ds.SaveAppConfigFunc = func(ctx context.Context, conf *automdm.AppConfig) error {
 			*stored = *conf
 			return nil
 		}
-		ds.ListVPPTokensFunc = func(ctx context.Context) ([]*fleet.VPPTokenDB, error) { return nil, nil }
-		ds.ListABMTokensFunc = func(ctx context.Context) ([]*fleet.ABMToken, error) { return nil, nil }
+		ds.ListVPPTokensFunc = func(ctx context.Context) ([]*automdm.VPPTokenDB, error) { return nil, nil }
+		ds.ListABMTokensFunc = func(ctx context.Context) ([]*automdm.ABMToken, error) { return nil, nil }
 		return svc, ctx
 	}
 
@@ -312,11 +312,11 @@ func TestModifyAppConfigIdPIntrospection(t *testing.T) {
 	// Free tier rejects both allowlists by name and saves nothing. Disabling the binding is a
 	// relaxation rather than a licensed feature, so it passes on any tier.
 	freeDS := new(mock.Store)
-	freeSvc, freeCtx := setup(t, fleet.TierFree, freeDS)
-	_, err := freeSvc.ModifyAppConfig(freeCtx, []byte(body), fleet.ApplySpecOptions{})
+	freeSvc, freeCtx := setup(t, automdm.TierFree, freeDS)
+	_, err := freeSvc.ModifyAppConfig(freeCtx, []byte(body), automdm.ApplySpecOptions{})
 	// Error() reports only the first entry plus a count, and InvalidArgument keeps its fields
 	// unexported, so format the list to assert every setting was named.
-	invalid := new(fleet.InvalidArgumentError)
+	invalid := new(automdm.InvalidArgumentError)
 	require.ErrorAs(t, err, &invalid)
 	rejected := fmt.Sprintf("%+v", invalid.Errors)
 	require.Contains(t, rejected, "integrations.certificates_idp_introspection_urls")
@@ -325,8 +325,8 @@ func TestModifyAppConfigIdPIntrospection(t *testing.T) {
 	require.False(t, freeDS.SaveAppConfigFuncInvoked)
 
 	// Premium accepts them, and stores the URL as given rather than canonicalized.
-	premiumSvc, premiumCtx := setup(t, fleet.TierPremium, new(mock.Store))
-	saved, err := premiumSvc.ModifyAppConfig(premiumCtx, []byte(body), fleet.ApplySpecOptions{})
+	premiumSvc, premiumCtx := setup(t, automdm.TierPremium, new(mock.Store))
+	saved, err := premiumSvc.ModifyAppConfig(premiumCtx, []byte(body), automdm.ApplySpecOptions{})
 	require.NoError(t, err)
 	require.Equal(t, []string{"https://Company.Okta.com:443/oauth2/v1/introspect/"}, saved.Integrations.CertificatesIdPIntrospectionURLs.Value)
 	require.Equal(t, []string{"abc"}, saved.Integrations.CertificatesIdPClientIDs.Value)
@@ -340,51 +340,51 @@ func TestVersion(t *testing.T) {
 
 	testCases := []struct {
 		name string
-		user *fleet.User
+		user *automdm.User
 	}{
 		{
 			"global admin",
-			&fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)},
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)},
 		},
 		{
 			"global maintainer",
-			&fleet.User{GlobalRole: ptr.String(fleet.RoleMaintainer)},
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleMaintainer)},
 		},
 		{
 			"global observer",
-			&fleet.User{GlobalRole: ptr.String(fleet.RoleObserver)},
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleObserver)},
 		},
 		{
 			"global observer+",
-			&fleet.User{GlobalRole: ptr.String(fleet.RoleObserverPlus)},
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleObserverPlus)},
 		},
 		{
 			"global gitops",
-			&fleet.User{GlobalRole: ptr.String(fleet.RoleGitOps)},
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleGitOps)},
 		},
 		{
 			"team admin",
-			&fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleAdmin}}},
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleAdmin}}},
 		},
 		{
 			"team maintainer",
-			&fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleMaintainer}}},
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleMaintainer}}},
 		},
 		{
 			"team observer",
-			&fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleObserver}}},
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserver}}},
 		},
 		{
 			"team observer+",
-			&fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleObserverPlus}}},
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserverPlus}}},
 		},
 		{
 			"team gitops",
-			&fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleGitOps}}},
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleGitOps}}},
 		},
 		{
 			"user without roles",
-			&fleet.User{ID: 777},
+			&automdm.User{ID: 777},
 		},
 	}
 	for _, tt := range testCases {
@@ -400,59 +400,59 @@ func TestEnrollSecretAuth(t *testing.T) {
 	ds := new(mock.Store)
 	svc, ctx := newTestService(t, ds, nil, nil)
 
-	ds.ApplyEnrollSecretsFunc = func(ctx context.Context, tid *uint, secrets []*fleet.EnrollSecret) error {
+	ds.ApplyEnrollSecretsFunc = func(ctx context.Context, tid *uint, secrets []*automdm.EnrollSecret) error {
 		return nil
 	}
-	ds.GetEnrollSecretsFunc = func(ctx context.Context, tid *uint) ([]*fleet.EnrollSecret, error) {
+	ds.GetEnrollSecretsFunc = func(ctx context.Context, tid *uint) ([]*automdm.EnrollSecret, error) {
 		return nil, nil
 	}
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) { return &fleet.AppConfig{}, nil }
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) { return &automdm.AppConfig{}, nil }
 
 	testCases := []struct {
 		name            string
-		user            *fleet.User
+		user            *automdm.User
 		shouldFailWrite bool
 		shouldFailRead  bool
 	}{
 		{
 			"global admin",
-			&fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)},
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)},
 			false,
 			false,
 		},
 		{
 			"global maintainer",
-			&fleet.User{GlobalRole: ptr.String(fleet.RoleMaintainer)},
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleMaintainer)},
 			false,
 			false,
 		},
 		{
 			"global observer",
-			&fleet.User{GlobalRole: ptr.String(fleet.RoleObserver)},
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleObserver)},
 			true,
 			true,
 		},
 		{
 			"team admin",
-			&fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleAdmin}}},
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleAdmin}}},
 			true,
 			true,
 		},
 		{
 			"team maintainer",
-			&fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleMaintainer}}},
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleMaintainer}}},
 			true,
 			true,
 		},
 		{
 			"team observer",
-			&fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleObserver}}},
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserver}}},
 			true,
 			true,
 		},
 		{
 			"user",
-			&fleet.User{ID: 777},
+			&automdm.User{ID: 777},
 			true,
 			true,
 		},
@@ -462,7 +462,7 @@ func TestEnrollSecretAuth(t *testing.T) {
 			ctx := viewer.NewContext(ctx, viewer.Viewer{User: tt.user})
 
 			err := svc.ApplyEnrollSecretSpec(
-				ctx, &fleet.EnrollSecretSpec{Secrets: []*fleet.EnrollSecret{{Secret: "ABC"}}}, fleet.ApplySpecOptions{},
+				ctx, &automdm.EnrollSecretSpec{Secrets: []*automdm.EnrollSecret{{Secret: "ABC"}}}, automdm.ApplySpecOptions{},
 			)
 			checkAuthErr(t, tt.shouldFailWrite, err)
 
@@ -486,7 +486,7 @@ func TestApplyEnrollSecretWithGlobalEnrollConfig(t *testing.T) {
 		return true, nil
 	}
 	err := svc.ApplyEnrollSecretSpec(
-		ctx, &fleet.EnrollSecretSpec{Secrets: []*fleet.EnrollSecret{{Secret: "ABC"}}}, fleet.ApplySpecOptions{DryRun: true},
+		ctx, &automdm.EnrollSecretSpec{Secrets: []*automdm.EnrollSecret{{Secret: "ABC"}}}, automdm.ApplySpecOptions{DryRun: true},
 	)
 	assert.True(t, ds.IsEnrollSecretAvailableFuncInvoked)
 	assert.NoError(t, err)
@@ -499,7 +499,7 @@ func TestApplyEnrollSecretWithGlobalEnrollConfig(t *testing.T) {
 		return false, nil
 	}
 	err = svc.ApplyEnrollSecretSpec(
-		ctx, &fleet.EnrollSecretSpec{Secrets: []*fleet.EnrollSecret{{Secret: "ABC"}}}, fleet.ApplySpecOptions{DryRun: true},
+		ctx, &automdm.EnrollSecretSpec{Secrets: []*automdm.EnrollSecret{{Secret: "ABC"}}}, automdm.ApplySpecOptions{DryRun: true},
 	)
 	assert.True(t, ds.IsEnrollSecretAvailableFuncInvoked)
 	assert.ErrorContains(t, err, "secret is already being used")
@@ -510,22 +510,22 @@ func TestApplyEnrollSecretWithGlobalEnrollConfig(t *testing.T) {
 		return false, assert.AnError
 	}
 	err = svc.ApplyEnrollSecretSpec(
-		ctx, &fleet.EnrollSecretSpec{Secrets: []*fleet.EnrollSecret{{Secret: "ABC"}}}, fleet.ApplySpecOptions{DryRun: true},
+		ctx, &automdm.EnrollSecretSpec{Secrets: []*automdm.EnrollSecret{{Secret: "ABC"}}}, automdm.ApplySpecOptions{DryRun: true},
 	)
 	assert.True(t, ds.IsEnrollSecretAvailableFuncInvoked)
 	assert.Equal(t, assert.AnError, err)
 
-	ds.GetEnrollSecretsFunc = func(ctx context.Context, teamID *uint) ([]*fleet.EnrollSecret, error) {
+	ds.GetEnrollSecretsFunc = func(ctx context.Context, teamID *uint) ([]*automdm.EnrollSecret, error) {
 		return nil, nil
 	}
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) { return &fleet.AppConfig{}, nil }
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) { return &automdm.AppConfig{}, nil }
 
 	ds.IsEnrollSecretAvailableFunc = nil
-	ds.ApplyEnrollSecretsFunc = func(ctx context.Context, teamID *uint, secrets []*fleet.EnrollSecret) error {
+	ds.ApplyEnrollSecretsFunc = func(ctx context.Context, teamID *uint, secrets []*automdm.EnrollSecret) error {
 		return nil
 	}
 	err = svc.ApplyEnrollSecretSpec(
-		ctx, &fleet.EnrollSecretSpec{Secrets: []*fleet.EnrollSecret{{Secret: "ABC"}}}, fleet.ApplySpecOptions{},
+		ctx, &automdm.EnrollSecretSpec{Secrets: []*automdm.EnrollSecret{{Secret: "ABC"}}}, automdm.ApplySpecOptions{},
 	)
 	require.True(t, ds.ApplyEnrollSecretsFuncInvoked)
 	require.NoError(t, err)
@@ -575,57 +575,57 @@ func setupCertificateChain(t *testing.T) (server *httptest.Server, teardown func
 }
 
 func TestSSONotPresent(t *testing.T) {
-	invalid := &fleet.InvalidArgumentError{}
-	var p fleet.AppConfig
-	validateSSOSettings(p, &fleet.AppConfig{}, invalid, &fleet.LicenseInfo{}, false)
+	invalid := &automdm.InvalidArgumentError{}
+	var p automdm.AppConfig
+	validateSSOSettings(p, &automdm.AppConfig{}, invalid, &automdm.LicenseInfo{}, false)
 	assert.False(t, invalid.HasErrors())
 }
 
 func TestNeedFieldsPresent(t *testing.T) {
-	invalid := &fleet.InvalidArgumentError{}
-	config := fleet.AppConfig{
-		SSOSettings: &fleet.SSOSettings{
+	invalid := &automdm.InvalidArgumentError{}
+	config := automdm.AppConfig{
+		SSOSettings: &automdm.SSOSettings{
 			EnableSSO: true,
-			SSOProviderSettings: fleet.SSOProviderSettings{
-				EntityID:    "fleet",
+			SSOProviderSettings: automdm.SSOProviderSettings{
+				EntityID:    "automdm",
 				MetadataURL: "http://isser.metadata.com",
 				IDPName:     "onelogin",
 			},
 		},
 	}
-	validateSSOSettings(config, &fleet.AppConfig{}, invalid, &fleet.LicenseInfo{}, false)
+	validateSSOSettings(config, &automdm.AppConfig{}, invalid, &automdm.LicenseInfo{}, false)
 	assert.False(t, invalid.HasErrors())
 }
 
 func TestShortIDPName(t *testing.T) {
-	invalid := &fleet.InvalidArgumentError{}
-	config := fleet.AppConfig{
-		SSOSettings: &fleet.SSOSettings{
+	invalid := &automdm.InvalidArgumentError{}
+	config := automdm.AppConfig{
+		SSOSettings: &automdm.SSOSettings{
 			EnableSSO: true,
-			SSOProviderSettings: fleet.SSOProviderSettings{
-				EntityID:    "fleet",
+			SSOProviderSettings: automdm.SSOProviderSettings{
+				EntityID:    "automdm",
 				MetadataURL: "http://isser.metadata.com",
-				// A customer once found the Fleet server erroring when they used "SSO" for their IdP name.
+				// A customer once found the AutoMDM server erroring when they used "SSO" for their IdP name.
 				IDPName: "SSO",
 			},
 		},
 	}
-	validateSSOSettings(config, &fleet.AppConfig{}, invalid, &fleet.LicenseInfo{}, false)
+	validateSSOSettings(config, &automdm.AppConfig{}, invalid, &automdm.LicenseInfo{}, false)
 	assert.False(t, invalid.HasErrors())
 }
 
 func TestMissingMetadata(t *testing.T) {
-	invalid := &fleet.InvalidArgumentError{}
-	config := fleet.AppConfig{
-		SSOSettings: &fleet.SSOSettings{
+	invalid := &automdm.InvalidArgumentError{}
+	config := automdm.AppConfig{
+		SSOSettings: &automdm.SSOSettings{
 			EnableSSO: true,
-			SSOProviderSettings: fleet.SSOProviderSettings{
-				EntityID: "fleet",
+			SSOProviderSettings: automdm.SSOProviderSettings{
+				EntityID: "automdm",
 				IDPName:  "onelogin",
 			},
 		},
 	}
-	validateSSOSettings(config, &fleet.AppConfig{}, invalid, &fleet.LicenseInfo{}, false)
+	validateSSOSettings(config, &automdm.AppConfig{}, invalid, &automdm.LicenseInfo{}, false)
 	require.True(t, invalid.HasErrors())
 	assert.Contains(t, invalid.Error(), "metadata")
 	assert.Contains(t, invalid.Error(), "either metadata or metadata_url must be defined")
@@ -638,18 +638,18 @@ func TestMissingMetadata(t *testing.T) {
 // metadata. GitOps (overwrite=true) rejects them, preventing the silent
 // SSO wipe described in the issue.
 func TestSSOOverwrite(t *testing.T) {
-	existing := &fleet.AppConfig{
-		SSOSettings: &fleet.SSOSettings{
+	existing := &automdm.AppConfig{
+		SSOSettings: &automdm.SSOSettings{
 			EnableSSO: true,
-			SSOProviderSettings: fleet.SSOProviderSettings{
-				EntityID:    "fleet",
+			SSOProviderSettings: automdm.SSOProviderSettings{
+				EntityID:    "automdm",
 				IDPName:     "onelogin",
 				MetadataURL: "https://idp.example.com/metadata",
 			},
 		},
 	}
-	incomingMissingMetadata := fleet.AppConfig{
-		SSOSettings: &fleet.SSOSettings{
+	incomingMissingMetadata := automdm.AppConfig{
+		SSOSettings: &automdm.SSOSettings{
 			EnableSSO: true,
 			// No metadata, no metadata_url — and no entity_id / idp_name either,
 			// matching the partial-update shape a UI PATCH might send.
@@ -657,14 +657,14 @@ func TestSSOOverwrite(t *testing.T) {
 	}
 
 	t.Run("REST PATCH preserves partial-update behavior", func(t *testing.T) {
-		invalid := &fleet.InvalidArgumentError{}
-		validateSSOSettings(incomingMissingMetadata, existing, invalid, &fleet.LicenseInfo{}, false /* overwrite */)
+		invalid := &automdm.InvalidArgumentError{}
+		validateSSOSettings(incomingMissingMetadata, existing, invalid, &automdm.LicenseInfo{}, false /* overwrite */)
 		assert.False(t, invalid.HasErrors(), "PATCH with partial update should succeed; existing metadata fills the gap")
 	})
 
 	t.Run("GitOps overwrite rejects empty metadata", func(t *testing.T) {
-		invalid := &fleet.InvalidArgumentError{}
-		validateSSOSettings(incomingMissingMetadata, existing, invalid, &fleet.LicenseInfo{}, true /* overwrite */)
+		invalid := &automdm.InvalidArgumentError{}
+		validateSSOSettings(incomingMissingMetadata, existing, invalid, &automdm.LicenseInfo{}, true /* overwrite */)
 		require.True(t, invalid.HasErrors(), "GitOps overwrite must reject the broken declaration")
 		// InvalidArgumentError.Error() truncates after the first error; check the
 		// underlying field list via Invalid() so we can assert all three required
@@ -685,24 +685,24 @@ func TestSSOOverwrite(t *testing.T) {
 		// `if newAppConfig.SSOSettings != nil`). At the validator level this
 		// translates to "validator is a no-op when SSOSettings is nil"; assert
 		// that contract here.
-		invalid := &fleet.InvalidArgumentError{}
-		validateSSOSettings(fleet.AppConfig{SSOSettings: nil}, existing, invalid, &fleet.LicenseInfo{}, true /* overwrite */)
+		invalid := &automdm.InvalidArgumentError{}
+		validateSSOSettings(automdm.AppConfig{SSOSettings: nil}, existing, invalid, &automdm.LicenseInfo{}, true /* overwrite */)
 		assert.False(t, invalid.HasErrors())
 	})
 
 	t.Run("GitOps overwrite accepts valid full declaration", func(t *testing.T) {
-		invalid := &fleet.InvalidArgumentError{}
-		fullConfig := fleet.AppConfig{
-			SSOSettings: &fleet.SSOSettings{
+		invalid := &automdm.InvalidArgumentError{}
+		fullConfig := automdm.AppConfig{
+			SSOSettings: &automdm.SSOSettings{
 				EnableSSO: true,
-				SSOProviderSettings: fleet.SSOProviderSettings{
-					EntityID:    "fleet",
+				SSOProviderSettings: automdm.SSOProviderSettings{
+					EntityID:    "automdm",
 					IDPName:     "onelogin",
 					MetadataURL: "https://idp.example.com/metadata",
 				},
 			},
 		}
-		validateSSOSettings(fullConfig, existing, invalid, &fleet.LicenseInfo{}, true /* overwrite */)
+		validateSSOSettings(fullConfig, existing, invalid, &automdm.LicenseInfo{}, true /* overwrite */)
 		assert.False(t, invalid.HasErrors())
 	})
 }
@@ -711,24 +711,24 @@ func TestSSOOverwrite(t *testing.T) {
 // end-user authentication SSO code path, which goes through
 // validateSSOProviderSettings directly (no validateSSOSettings wrapper).
 func TestSSOProviderSettingsOverwriteMDM(t *testing.T) {
-	existing := fleet.SSOProviderSettings{
-		EntityID:    "fleet",
+	existing := automdm.SSOProviderSettings{
+		EntityID:    "automdm",
 		IDPName:     "onelogin",
 		MetadataURL: "https://idp.example.com/metadata",
 	}
-	incomingMissingMetadata := fleet.SSOProviderSettings{
+	incomingMissingMetadata := automdm.SSOProviderSettings{
 		// All fields empty — simulating a GitOps overwrite that clears MDM EUA
 		// metadata while leaving the flag on.
 	}
 
 	t.Run("REST PATCH preserves partial-update behavior", func(t *testing.T) {
-		invalid := &fleet.InvalidArgumentError{}
+		invalid := &automdm.InvalidArgumentError{}
 		validateSSOProviderSettings(&incomingMissingMetadata, existing, invalid, false /* overwrite */)
 		assert.False(t, invalid.HasErrors())
 	})
 
 	t.Run("GitOps overwrite rejects empty metadata", func(t *testing.T) {
-		invalid := &fleet.InvalidArgumentError{}
+		invalid := &automdm.InvalidArgumentError{}
 		validateSSOProviderSettings(&incomingMissingMetadata, existing, invalid, true /* overwrite */)
 		require.True(t, invalid.HasErrors())
 		assert.Contains(t, invalid.Error(), "either metadata or metadata_url must be defined")
@@ -741,19 +741,19 @@ func TestSSOValidationValidatesSchemaInMetadataURL(t *testing.T) {
 	schemas = append(schemas, "asdfaklsdfjalksdfja")
 
 	for _, scheme := range schemas {
-		actual := &fleet.InvalidArgumentError{}
-		sut := fleet.AppConfig{
-			SSOSettings: &fleet.SSOSettings{
+		actual := &automdm.InvalidArgumentError{}
+		sut := automdm.AppConfig{
+			SSOSettings: &automdm.SSOSettings{
 				EnableSSO: true,
-				SSOProviderSettings: fleet.SSOProviderSettings{
-					EntityID:    "fleet",
+				SSOProviderSettings: automdm.SSOProviderSettings{
+					EntityID:    "automdm",
 					IDPName:     "onelogin",
 					MetadataURL: fmt.Sprintf("%s://somehost", scheme),
 				},
 			},
 		}
 
-		validateSSOSettings(sut, &fleet.AppConfig{}, actual, &fleet.LicenseInfo{}, false)
+		validateSSOSettings(sut, &automdm.AppConfig{}, actual, &automdm.LicenseInfo{}, false)
 
 		require.Equal(t, scheme == "http" || scheme == "https", !actual.HasErrors())
 		require.Equal(t, scheme == "http" || scheme == "https", !strings.Contains(actual.Error(), "metadata_url"))
@@ -762,12 +762,12 @@ func TestSSOValidationValidatesSchemaInMetadataURL(t *testing.T) {
 }
 
 func TestJITProvisioning(t *testing.T) {
-	config := fleet.AppConfig{
-		SSOSettings: &fleet.SSOSettings{
+	config := automdm.AppConfig{
+		SSOSettings: &automdm.SSOSettings{
 			EnableSSO:             true,
 			EnableJITProvisioning: true,
-			SSOProviderSettings: fleet.SSOProviderSettings{
-				EntityID:    "fleet",
+			SSOProviderSettings: automdm.SSOProviderSettings{
+				EntityID:    "automdm",
 				IDPName:     "onelogin",
 				MetadataURL: "http://isser.metadata.com",
 			},
@@ -775,28 +775,28 @@ func TestJITProvisioning(t *testing.T) {
 	}
 
 	t.Run("doesn't allow to enable JIT provisioning without a premium license", func(t *testing.T) {
-		invalid := &fleet.InvalidArgumentError{}
-		validateSSOSettings(config, &fleet.AppConfig{}, invalid, &fleet.LicenseInfo{}, false)
+		invalid := &automdm.InvalidArgumentError{}
+		validateSSOSettings(config, &automdm.AppConfig{}, invalid, &automdm.LicenseInfo{}, false)
 		require.True(t, invalid.HasErrors())
 		assert.Contains(t, invalid.Error(), "enable_jit_provisioning")
 		assert.Contains(t, invalid.Error(), "missing or invalid license")
 	})
 
 	t.Run("allows JIT provisioning to be enabled with a premium license", func(t *testing.T) {
-		invalid := &fleet.InvalidArgumentError{}
-		validateSSOSettings(config, &fleet.AppConfig{}, invalid, &fleet.LicenseInfo{Tier: fleet.TierPremium}, false)
+		invalid := &automdm.InvalidArgumentError{}
+		validateSSOSettings(config, &automdm.AppConfig{}, invalid, &automdm.LicenseInfo{Tier: automdm.TierPremium}, false)
 		require.False(t, invalid.HasErrors())
 	})
 
 	t.Run("doesn't care if JIT provisioning is set to false on free licenses", func(t *testing.T) {
-		invalid := &fleet.InvalidArgumentError{}
-		oldConfig := &fleet.AppConfig{
-			SSOSettings: &fleet.SSOSettings{
+		invalid := &automdm.InvalidArgumentError{}
+		oldConfig := &automdm.AppConfig{
+			SSOSettings: &automdm.SSOSettings{
 				EnableJITProvisioning: false,
 			},
 		}
 		config.SSOSettings.EnableJITProvisioning = false
-		validateSSOSettings(config, oldConfig, invalid, &fleet.LicenseInfo{}, false)
+		validateSSOSettings(config, oldConfig, invalid, &automdm.LicenseInfo{}, false)
 		require.False(t, invalid.HasErrors())
 	})
 }
@@ -810,31 +810,31 @@ func TestAppConfigSecretsObfuscated(t *testing.T) {
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	defer srv.Close()
 
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{
-			SMTPSettings: &fleet.SMTPSettings{
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{
+			SMTPSettings: &automdm.SMTPSettings{
 				SMTPPassword: "smtppassword",
 			},
-			Integrations: fleet.Integrations{
-				Jira: []*fleet.JiraIntegration{
+			Integrations: automdm.Integrations{
+				Jira: []*automdm.JiraIntegration{
 					{APIToken: "jiratoken"},
 				},
-				Zendesk: []*fleet.ZendeskIntegration{
+				Zendesk: []*automdm.ZendeskIntegration{
 					{APIToken: "zendesktoken"},
 				},
-				GoogleCalendar: []*fleet.GoogleCalendarIntegration{
-					{ApiKey: fleet.GoogleCalendarApiKey{Values: map[string]string{
-						"type":                         "service_account",
-						"project_id":                   "test-project-123",
-						"private_key_id":               "key-id-456",
-						fleet.GoogleCalendarPrivateKey: "-----BEGIN PRIVATE KEY-----\nMIIE...\n-----END PRIVATE KEY-----",
-						fleet.GoogleCalendarEmail:      "test@test-project.iam.gserviceaccount.com",
-						"client_id":                    "123456789",
-						"auth_uri":                     "https://accounts.google.com/o/oauth2/auth",
-						"token_uri":                    "https://oauth2.googleapis.com/token",
-						"auth_provider_x509_cert_url":  "https://www.googleapis.com/oauth2/v1/certs",
-						"client_x509_cert_url":         "https://www.googleapis.com/robot/v1/metadata/x509/test",
-						"universe_domain":              "googleapis.com",
+				GoogleCalendar: []*automdm.GoogleCalendarIntegration{
+					{ApiKey: automdm.GoogleCalendarApiKey{Values: map[string]string{
+						"type":                           "service_account",
+						"project_id":                     "test-project-123",
+						"private_key_id":                 "key-id-456",
+						automdm.GoogleCalendarPrivateKey: "-----BEGIN PRIVATE KEY-----\nMIIE...\n-----END PRIVATE KEY-----",
+						automdm.GoogleCalendarEmail:      "test@test-project.iam.gserviceaccount.com",
+						"client_id":                      "123456789",
+						"auth_uri":                       "https://accounts.google.com/o/oauth2/auth",
+						"token_uri":                      "https://oauth2.googleapis.com/token",
+						"auth_provider_x509_cert_url":    "https://www.googleapis.com/oauth2/v1/certs",
+						"client_x509_cert_url":           "https://www.googleapis.com/robot/v1/metadata/x509/test",
+						"universe_domain":                "googleapis.com",
 					}}},
 				},
 			},
@@ -843,62 +843,62 @@ func TestAppConfigSecretsObfuscated(t *testing.T) {
 
 	testCases := []struct {
 		name       string
-		user       *fleet.User
+		user       *automdm.User
 		shouldFail bool
 	}{
 		{
 			"global admin",
-			&fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)},
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)},
 			false,
 		},
 		{
 			"global maintainer",
-			&fleet.User{GlobalRole: ptr.String(fleet.RoleMaintainer)},
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleMaintainer)},
 			false,
 		},
 		{
 			"global observer",
-			&fleet.User{GlobalRole: ptr.String(fleet.RoleObserver)},
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleObserver)},
 			false,
 		},
 		{
 			"global observer+",
-			&fleet.User{GlobalRole: ptr.String(fleet.RoleObserverPlus)},
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleObserverPlus)},
 			false,
 		},
 		{
 			"global gitops",
-			&fleet.User{GlobalRole: ptr.String(fleet.RoleGitOps)},
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleGitOps)},
 			false,
 		},
 		{
 			"team admin",
-			&fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleAdmin}}},
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleAdmin}}},
 			false,
 		},
 		{
 			"team maintainer",
-			&fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleMaintainer}}},
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleMaintainer}}},
 			false,
 		},
 		{
 			"team observer",
-			&fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleObserver}}},
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserver}}},
 			false,
 		},
 		{
 			"team observer+",
-			&fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleObserverPlus}}},
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserverPlus}}},
 			false,
 		},
 		{
 			"team gitops",
-			&fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleGitOps}}},
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleGitOps}}},
 			false,
 		},
 		{
 			"user without roles",
-			&fleet.User{ID: 777},
+			&automdm.User{ID: 777},
 			true,
 		},
 	}
@@ -911,9 +911,9 @@ func TestAppConfigSecretsObfuscated(t *testing.T) {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
-				require.Equal(t, ac.SMTPSettings.SMTPPassword, fleet.MaskedPassword)
-				require.Equal(t, ac.Integrations.Jira[0].APIToken, fleet.MaskedPassword)
-				require.Equal(t, ac.Integrations.Zendesk[0].APIToken, fleet.MaskedPassword)
+				require.Equal(t, ac.SMTPSettings.SMTPPassword, automdm.MaskedPassword)
+				require.Equal(t, ac.Integrations.Jira[0].APIToken, automdm.MaskedPassword)
+				require.Equal(t, ac.Integrations.Zendesk[0].APIToken, automdm.MaskedPassword)
 				// Verify Google Calendar API key is masked (will serialize to "********")
 				require.True(t, ac.Integrations.GoogleCalendar[0].ApiKey.IsMasked())
 			}
@@ -928,42 +928,42 @@ func TestModifyAppConfigSMTPConfigured(t *testing.T) {
 	svc, ctx := newTestService(t, ds, nil, nil)
 
 	// SMTP is initially enabled and configured.
-	dsAppConfig := &fleet.AppConfig{
-		OrgInfo: fleet.OrgInfo{
+	dsAppConfig := &automdm.AppConfig{
+		OrgInfo: automdm.OrgInfo{
 			OrgName: "Test",
 		},
-		ServerSettings: fleet.ServerSettings{
+		ServerSettings: automdm.ServerSettings{
 			ServerURL: "https://example.org",
 		},
-		SMTPSettings: &fleet.SMTPSettings{
+		SMTPSettings: &automdm.SMTPSettings{
 			SMTPEnabled:    true,
 			SMTPConfigured: true,
 		},
 	}
 
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
 		return dsAppConfig, nil
 	}
-	ds.SaveAppConfigFunc = func(ctx context.Context, conf *fleet.AppConfig) error {
+	ds.SaveAppConfigFunc = func(ctx context.Context, conf *automdm.AppConfig) error {
 		*dsAppConfig = *conf
 		return nil
 	}
 
-	ds.SaveABMTokenFunc = func(ctx context.Context, tok *fleet.ABMToken) error {
+	ds.SaveABMTokenFunc = func(ctx context.Context, tok *automdm.ABMToken) error {
 		return nil
 	}
 
-	ds.ListVPPTokensFunc = func(ctx context.Context) ([]*fleet.VPPTokenDB, error) {
-		return []*fleet.VPPTokenDB{}, nil
+	ds.ListVPPTokensFunc = func(ctx context.Context) ([]*automdm.VPPTokenDB, error) {
+		return []*automdm.VPPTokenDB{}, nil
 	}
 
-	ds.ListABMTokensFunc = func(ctx context.Context) ([]*fleet.ABMToken, error) {
-		return []*fleet.ABMToken{}, nil
+	ds.ListABMTokensFunc = func(ctx context.Context) ([]*automdm.ABMToken, error) {
+		return []*automdm.ABMToken{}, nil
 	}
 
 	// Disable SMTP.
-	newAppConfig := fleet.AppConfig{
-		SMTPSettings: &fleet.SMTPSettings{
+	newAppConfig := automdm.AppConfig{
+		SMTPSettings: &automdm.SMTPSettings{
 			SMTPEnabled:    false,
 			SMTPConfigured: true,
 		},
@@ -972,9 +972,9 @@ func TestModifyAppConfigSMTPConfigured(t *testing.T) {
 	require.NoError(t, err)
 	b = []byte(`{"smtp_settings":` + string(b) + `}`)
 
-	admin := &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}
+	admin := &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}
 	ctx = viewer.NewContext(ctx, viewer.Viewer{User: admin})
-	updatedAppConfig, err := svc.ModifyAppConfig(ctx, b, fleet.ApplySpecOptions{})
+	updatedAppConfig, err := svc.ModifyAppConfig(ctx, b, automdm.ApplySpecOptions{})
 	require.NoError(t, err)
 
 	// After disabling SMTP, the app config should be "not configured".
@@ -984,27 +984,27 @@ func TestModifyAppConfigSMTPConfigured(t *testing.T) {
 	require.False(t, dsAppConfig.SMTPSettings.SMTPConfigured)
 }
 
-// TestAppConfigFleetDesktopSettings tests that Fleet Premium licensees can set Fleet Desktop custom settings and that
-// Fleet Free licensees are restricted.
-func TestModifyAppConfigFleetDesktopSettings(t *testing.T) {
+// TestAppConfigAutoMDMDesktopSettings tests that AutoMDM Premium licensees can set AutoMDM Desktop custom settings and that
+// AutoMDM Free licensees are restricted.
+func TestModifyAppConfigAutoMDMDesktopSettings(t *testing.T) {
 	ds := new(mock.Store)
 
-	admin := &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}
+	admin := &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}
 
 	testCases := []struct {
 		name             string
 		licenseTier      string
-		initialSettings  fleet.FleetDesktopSettings
-		newSettings      fleet.FleetDesktopSettings
-		expectedSettings fleet.FleetDesktopSettings
+		initialSettings  automdm.AutoMDMDesktopSettings
+		newSettings      automdm.AutoMDMDesktopSettings
+		expectedSettings automdm.AutoMDMDesktopSettings
 		invalid          []map[string]string
 	}{
 		{
 			name:             "modifying Desktop settings on Free Tier",
-			licenseTier:      fleet.TierFree,
-			initialSettings:  fleet.FleetDesktopSettings{},
-			newSettings:      fleet.FleetDesktopSettings{TransparencyURL: "customURL", AlternativeBrowserHost: "something.com"},
-			expectedSettings: fleet.FleetDesktopSettings{},
+			licenseTier:      automdm.TierFree,
+			initialSettings:  automdm.AutoMDMDesktopSettings{},
+			newSettings:      automdm.AutoMDMDesktopSettings{TransparencyURL: "customURL", AlternativeBrowserHost: "something.com"},
+			expectedSettings: automdm.AutoMDMDesktopSettings{},
 			invalid: []map[string]string{
 				{"name": "transparency_url", "reason": "missing or invalid license"},
 				{"name": "alternative_browser_host", "reason": "missing or invalid license"},
@@ -1012,31 +1012,31 @@ func TestModifyAppConfigFleetDesktopSettings(t *testing.T) {
 		},
 		{
 			name:             "modifying Desktop settings on Premium Tier",
-			licenseTier:      fleet.TierPremium,
-			initialSettings:  fleet.FleetDesktopSettings{},
-			newSettings:      fleet.FleetDesktopSettings{TransparencyURL: "customURL", AlternativeBrowserHost: "something.com"},
-			expectedSettings: fleet.FleetDesktopSettings{TransparencyURL: "customURL", AlternativeBrowserHost: "something.com"},
+			licenseTier:      automdm.TierPremium,
+			initialSettings:  automdm.AutoMDMDesktopSettings{},
+			newSettings:      automdm.AutoMDMDesktopSettings{TransparencyURL: "customURL", AlternativeBrowserHost: "something.com"},
+			expectedSettings: automdm.AutoMDMDesktopSettings{TransparencyURL: "customURL", AlternativeBrowserHost: "something.com"},
 		},
 		{
 			name:             "empty values on Free tier",
-			licenseTier:      fleet.TierFree,
-			initialSettings:  fleet.FleetDesktopSettings{},
-			newSettings:      fleet.FleetDesktopSettings{},
-			expectedSettings: fleet.FleetDesktopSettings{},
+			licenseTier:      automdm.TierFree,
+			initialSettings:  automdm.AutoMDMDesktopSettings{},
+			newSettings:      automdm.AutoMDMDesktopSettings{},
+			expectedSettings: automdm.AutoMDMDesktopSettings{},
 		},
 		{
 			name:             "empty values on Premium tier",
-			licenseTier:      fleet.TierPremium,
-			initialSettings:  fleet.FleetDesktopSettings{},
-			newSettings:      fleet.FleetDesktopSettings{},
-			expectedSettings: fleet.FleetDesktopSettings{},
+			licenseTier:      automdm.TierPremium,
+			initialSettings:  automdm.AutoMDMDesktopSettings{},
+			newSettings:      automdm.AutoMDMDesktopSettings{},
+			expectedSettings: automdm.AutoMDMDesktopSettings{},
 		},
 		{
 			name:             "using invalid values",
-			licenseTier:      fleet.TierPremium,
-			initialSettings:  fleet.FleetDesktopSettings{},
-			newSettings:      fleet.FleetDesktopSettings{TransparencyURL: "@:13.com", AlternativeBrowserHost: "@:12.com"},
-			expectedSettings: fleet.FleetDesktopSettings{},
+			licenseTier:      automdm.TierPremium,
+			initialSettings:  automdm.AutoMDMDesktopSettings{},
+			newSettings:      automdm.AutoMDMDesktopSettings{TransparencyURL: "@:13.com", AlternativeBrowserHost: "@:12.com"},
+			expectedSettings: automdm.AutoMDMDesktopSettings{},
 			invalid: []map[string]string{
 				{"name": "transparency_url", "reason": "parse \"@:13.com\": first path segment in URL cannot contain colon"},
 				{"name": "alternative_browser_host", "reason": "must be a valid hostname or IP address"},
@@ -1044,10 +1044,10 @@ func TestModifyAppConfigFleetDesktopSettings(t *testing.T) {
 		},
 		{
 			name:             "enabling SSO on Free Tier",
-			licenseTier:      fleet.TierFree,
-			initialSettings:  fleet.FleetDesktopSettings{},
-			newSettings:      fleet.FleetDesktopSettings{SSOEnabled: true},
-			expectedSettings: fleet.FleetDesktopSettings{},
+			licenseTier:      automdm.TierFree,
+			initialSettings:  automdm.AutoMDMDesktopSettings{},
+			newSettings:      automdm.AutoMDMDesktopSettings{SSOEnabled: true},
+			expectedSettings: automdm.AutoMDMDesktopSettings{},
 			invalid: []map[string]string{
 				{"name": "sso_enabled", "reason": "missing or invalid license"},
 			},
@@ -1056,67 +1056,67 @@ func TestModifyAppConfigFleetDesktopSettings(t *testing.T) {
 
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
-			svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: &fleet.LicenseInfo{Tier: tt.licenseTier}})
+			svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: &automdm.LicenseInfo{Tier: tt.licenseTier}})
 			ctx = viewer.NewContext(ctx, viewer.Viewer{User: admin})
 
-			dsAppConfig := &fleet.AppConfig{
-				OrgInfo: fleet.OrgInfo{
+			dsAppConfig := &automdm.AppConfig{
+				OrgInfo: automdm.OrgInfo{
 					OrgName: "Test",
 				},
-				ServerSettings: fleet.ServerSettings{
+				ServerSettings: automdm.ServerSettings{
 					ServerURL: "https://example.org",
 				},
-				FleetDesktop: tt.initialSettings,
+				AutoMDMDesktop: tt.initialSettings,
 			}
 
-			ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
+			ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
 				return dsAppConfig, nil
 			}
-			ds.SaveAppConfigFunc = func(ctx context.Context, conf *fleet.AppConfig) error {
+			ds.SaveAppConfigFunc = func(ctx context.Context, conf *automdm.AppConfig) error {
 				*dsAppConfig = *conf
 				return nil
 			}
 
-			ds.SaveABMTokenFunc = func(ctx context.Context, tok *fleet.ABMToken) error {
+			ds.SaveABMTokenFunc = func(ctx context.Context, tok *automdm.ABMToken) error {
 				return nil
 			}
-			ds.ListVPPTokensFunc = func(ctx context.Context) ([]*fleet.VPPTokenDB, error) {
-				return []*fleet.VPPTokenDB{}, nil
+			ds.ListVPPTokensFunc = func(ctx context.Context) ([]*automdm.VPPTokenDB, error) {
+				return []*automdm.VPPTokenDB{}, nil
 			}
-			ds.ListABMTokensFunc = func(ctx context.Context) ([]*fleet.ABMToken, error) {
-				return []*fleet.ABMToken{}, nil
+			ds.ListABMTokensFunc = func(ctx context.Context) ([]*automdm.ABMToken, error) {
+				return []*automdm.ABMToken{}, nil
 			}
 
 			ac, err := svc.AppConfigObfuscated(ctx)
 			require.NoError(t, err)
-			require.Equal(t, tt.initialSettings.TransparencyURL, ac.FleetDesktop.TransparencyURL)
-			require.Equal(t, tt.initialSettings.AlternativeBrowserHost, ac.FleetDesktop.AlternativeBrowserHost)
+			require.Equal(t, tt.initialSettings.TransparencyURL, ac.AutoMDMDesktop.TransparencyURL)
+			require.Equal(t, tt.initialSettings.AlternativeBrowserHost, ac.AutoMDMDesktop.AlternativeBrowserHost)
 
 			raw, err := json.Marshal(tt.newSettings)
 			require.NoError(t, err)
-			raw = []byte(`{"fleet_desktop":` + string(raw) + `}`)
-			modified, err := svc.ModifyAppConfig(ctx, raw, fleet.ApplySpecOptions{})
+			raw = []byte(`{"automdm_desktop":` + string(raw) + `}`)
+			modified, err := svc.ModifyAppConfig(ctx, raw, automdm.ApplySpecOptions{})
 
 			if len(tt.invalid) != 0 {
-				var invalid *fleet.InvalidArgumentError
+				var invalid *automdm.InvalidArgumentError
 				ok := errors.As(err, &invalid)
 				require.True(t, ok)
 				require.Equal(t, tt.invalid, invalid.Invalid())
 			}
 			if modified != nil {
-				require.Equal(t, tt.expectedSettings.TransparencyURL, modified.FleetDesktop.TransparencyURL)
-				require.Equal(t, tt.expectedSettings.AlternativeBrowserHost, modified.FleetDesktop.AlternativeBrowserHost)
-				require.Equal(t, tt.expectedSettings.SSOEnabled, modified.FleetDesktop.SSOEnabled)
+				require.Equal(t, tt.expectedSettings.TransparencyURL, modified.AutoMDMDesktop.TransparencyURL)
+				require.Equal(t, tt.expectedSettings.AlternativeBrowserHost, modified.AutoMDMDesktop.AlternativeBrowserHost)
+				require.Equal(t, tt.expectedSettings.SSOEnabled, modified.AutoMDMDesktop.SSOEnabled)
 
 				ac, err = svc.AppConfigObfuscated(ctx)
 				require.NoError(t, err)
-				require.Equal(t, tt.expectedSettings.TransparencyURL, ac.FleetDesktop.TransparencyURL)
-				require.Equal(t, tt.expectedSettings.AlternativeBrowserHost, ac.FleetDesktop.AlternativeBrowserHost)
-				require.Equal(t, tt.expectedSettings.SSOEnabled, ac.FleetDesktop.SSOEnabled)
+				require.Equal(t, tt.expectedSettings.TransparencyURL, ac.AutoMDMDesktop.TransparencyURL)
+				require.Equal(t, tt.expectedSettings.AlternativeBrowserHost, ac.AutoMDMDesktop.AlternativeBrowserHost)
+				require.Equal(t, tt.expectedSettings.SSOEnabled, ac.AutoMDMDesktop.SSOEnabled)
 			}
 
-			expectedURL := fleet.DefaultTransparencyURL
-			expectedSecureframeURL := fleet.SecureframeTransparencyURL
+			expectedURL := automdm.DefaultTransparencyURL
+			expectedSecureframeURL := automdm.SecureframeTransparencyURL
 			if tt.expectedSettings.TransparencyURL != "" {
 				expectedURL = tt.expectedSettings.TransparencyURL
 				expectedSecureframeURL = tt.expectedSettings.TransparencyURL
@@ -1128,7 +1128,7 @@ func TestModifyAppConfigFleetDesktopSettings(t *testing.T) {
 
 			cfg := config.TestConfig()
 			cfg.Partnerships.EnableSecureframe = true
-			svc, ctx = newTestServiceWithConfig(t, ds, cfg, nil, nil, &TestServerOpts{License: &fleet.LicenseInfo{Tier: tt.licenseTier}})
+			svc, ctx = newTestServiceWithConfig(t, ds, cfg, nil, nil, &TestServerOpts{License: &automdm.LicenseInfo{Tier: tt.licenseTier}})
 			ctx = viewer.NewContext(ctx, viewer.Viewer{User: admin})
 			transparencyURL, err = svc.GetTransparencyURL(ctx)
 			require.NoError(t, err)
@@ -1137,22 +1137,22 @@ func TestModifyAppConfigFleetDesktopSettings(t *testing.T) {
 	}
 }
 
-func TestModifyAppConfigFleetDesktopSSOActivities(t *testing.T) {
-	admin := &fleet.User{GlobalRole: new(fleet.RoleAdmin)}
-	configuredIdP := fleet.MDMEndUserAuthentication{SSOProviderSettings: fleet.SSOProviderSettings{
+func TestModifyAppConfigAutoMDMDesktopSSOActivities(t *testing.T) {
+	admin := &automdm.User{GlobalRole: new(automdm.RoleAdmin)}
+	configuredIdP := automdm.MDMEndUserAuthentication{SSOProviderSettings: automdm.SSOProviderSettings{
 		IDPName:     "Test IdP",
 		EntityID:    "https://idp.example.com/entity",
 		MetadataURL: "https://idp.example.com/metadata",
 	}}
 
-	newSvc := func(t *testing.T, licenseTier string, initialSSOEnabled bool, initialIdP fleet.MDMEndUserAuthentication) (
-		fleet.Service, context.Context, *fleet.AppConfig, *[]string,
+	newSvc := func(t *testing.T, licenseTier string, initialSSOEnabled bool, initialIdP automdm.MDMEndUserAuthentication) (
+		automdm.Service, context.Context, *automdm.AppConfig, *[]string,
 	) {
 		ds := new(mock.Store)
-		dsAppConfig := &fleet.AppConfig{
-			OrgInfo:        fleet.OrgInfo{OrgName: "Test"},
-			ServerSettings: fleet.ServerSettings{ServerURL: "https://example.org"},
-			FleetDesktop:   fleet.FleetDesktopSettings{SSOEnabled: initialSSOEnabled},
+		dsAppConfig := &automdm.AppConfig{
+			OrgInfo:        automdm.OrgInfo{OrgName: "Test"},
+			ServerSettings: automdm.ServerSettings{ServerURL: "https://example.org"},
+			AutoMDMDesktop: automdm.AutoMDMDesktopSettings{SSOEnabled: initialSSOEnabled},
 		}
 		dsAppConfig.MDM.EndUserAuthentication = initialIdP
 
@@ -1160,19 +1160,19 @@ func TestModifyAppConfigFleetDesktopSSOActivities(t *testing.T) {
 		// mutates the struct it reads in place while validating, even on
 		// requests that ultimately fail, so returning the same pointer would
 		// leak those in-progress mutations into dsAppConfig on error paths.
-		ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) { return dsAppConfig.Copy(), nil }
-		ds.SaveAppConfigFunc = func(ctx context.Context, conf *fleet.AppConfig) error {
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) { return dsAppConfig.Copy(), nil }
+		ds.SaveAppConfigFunc = func(ctx context.Context, conf *automdm.AppConfig) error {
 			*dsAppConfig = *conf
 			return nil
 		}
-		ds.SaveABMTokenFunc = func(ctx context.Context, tok *fleet.ABMToken) error { return nil }
-		ds.ListVPPTokensFunc = func(ctx context.Context) ([]*fleet.VPPTokenDB, error) { return []*fleet.VPPTokenDB{}, nil }
-		ds.ListABMTokensFunc = func(ctx context.Context) ([]*fleet.ABMToken, error) { return []*fleet.ABMToken{}, nil }
+		ds.SaveABMTokenFunc = func(ctx context.Context, tok *automdm.ABMToken) error { return nil }
+		ds.ListVPPTokensFunc = func(ctx context.Context) ([]*automdm.VPPTokenDB, error) { return []*automdm.VPPTokenDB{}, nil }
+		ds.ListABMTokensFunc = func(ctx context.Context) ([]*automdm.ABMToken, error) { return []*automdm.ABMToken{}, nil }
 		ds.TeamIDsWithSetupExperienceIdPEnabledFunc = func(ctx context.Context) ([]uint, error) { return nil, nil }
 		// Changing MDM.EndUserAuthentication triggers a DEP profile re-sync job.
-		ds.NewJobFunc = func(ctx context.Context, job *fleet.Job) (*fleet.Job, error) { return job, nil }
+		ds.NewJobFunc = func(ctx context.Context, job *automdm.Job) (*automdm.Job, error) { return job, nil }
 
-		opts := &TestServerOpts{License: &fleet.LicenseInfo{Tier: licenseTier}}
+		opts := &TestServerOpts{License: &automdm.LicenseInfo{Tier: licenseTier}}
 		svc, ctx := newTestService(t, ds, nil, nil, opts)
 		ctx = viewer.NewContext(ctx, viewer.Viewer{User: admin})
 
@@ -1186,101 +1186,101 @@ func TestModifyAppConfigFleetDesktopSSOActivities(t *testing.T) {
 	}
 
 	t.Run("premium enabling SSO and IdP in the same payload succeeds", func(t *testing.T) {
-		svc, ctx, dsAppConfig, firedActivities := newSvc(t, fleet.TierPremium, false, fleet.MDMEndUserAuthentication{})
+		svc, ctx, dsAppConfig, firedActivities := newSvc(t, automdm.TierPremium, false, automdm.MDMEndUserAuthentication{})
 
 		raw, err := json.Marshal(map[string]any{
-			"fleet_desktop": fleet.FleetDesktopSettings{SSOEnabled: true},
-			"mdm":           map[string]any{"end_user_authentication": configuredIdP},
+			"automdm_desktop": automdm.AutoMDMDesktopSettings{SSOEnabled: true},
+			"mdm":             map[string]any{"end_user_authentication": configuredIdP},
 		})
 		require.NoError(t, err)
-		modified, err := svc.ModifyAppConfig(ctx, raw, fleet.ApplySpecOptions{})
+		modified, err := svc.ModifyAppConfig(ctx, raw, automdm.ApplySpecOptions{})
 		require.NoError(t, err)
-		require.True(t, modified.FleetDesktop.SSOEnabled)
-		require.True(t, dsAppConfig.FleetDesktop.SSOEnabled)
-		require.Equal(t, []string{fleet.ActivityTypeEnabledSSOFleetDesktop{}.ActivityName()}, *firedActivities)
+		require.True(t, modified.AutoMDMDesktop.SSOEnabled)
+		require.True(t, dsAppConfig.AutoMDMDesktop.SSOEnabled)
+		require.Equal(t, []string{automdm.ActivityTypeEnabledSSOAutoMDMDesktop{}.ActivityName()}, *firedActivities)
 	})
 
 	t.Run("disabling SSO fires the disabled activity", func(t *testing.T) {
-		svc, ctx, dsAppConfig, firedActivities := newSvc(t, fleet.TierPremium, true, configuredIdP)
+		svc, ctx, dsAppConfig, firedActivities := newSvc(t, automdm.TierPremium, true, configuredIdP)
 
-		raw := []byte(`{"fleet_desktop":{"sso_enabled":false}}`)
-		modified, err := svc.ModifyAppConfig(ctx, raw, fleet.ApplySpecOptions{})
+		raw := []byte(`{"automdm_desktop":{"sso_enabled":false}}`)
+		modified, err := svc.ModifyAppConfig(ctx, raw, automdm.ApplySpecOptions{})
 		require.NoError(t, err)
-		require.False(t, modified.FleetDesktop.SSOEnabled)
-		require.False(t, dsAppConfig.FleetDesktop.SSOEnabled)
-		require.Equal(t, []string{fleet.ActivityTypeDisabledSSOFleetDesktop{}.ActivityName()}, *firedActivities)
+		require.False(t, modified.AutoMDMDesktop.SSOEnabled)
+		require.False(t, dsAppConfig.AutoMDMDesktop.SSOEnabled)
+		require.Equal(t, []string{automdm.ActivityTypeDisabledSSOAutoMDMDesktop{}.ActivityName()}, *firedActivities)
 	})
 
 	t.Run("reasserting the same value fires no activity", func(t *testing.T) {
-		svc, ctx, dsAppConfig, firedActivities := newSvc(t, fleet.TierPremium, true, configuredIdP)
+		svc, ctx, dsAppConfig, firedActivities := newSvc(t, automdm.TierPremium, true, configuredIdP)
 
-		raw := []byte(`{"fleet_desktop":{"sso_enabled":true}}`)
-		modified, err := svc.ModifyAppConfig(ctx, raw, fleet.ApplySpecOptions{})
+		raw := []byte(`{"automdm_desktop":{"sso_enabled":true}}`)
+		modified, err := svc.ModifyAppConfig(ctx, raw, automdm.ApplySpecOptions{})
 		require.NoError(t, err)
-		require.True(t, modified.FleetDesktop.SSOEnabled)
-		require.True(t, dsAppConfig.FleetDesktop.SSOEnabled)
+		require.True(t, modified.AutoMDMDesktop.SSOEnabled)
+		require.True(t, dsAppConfig.AutoMDMDesktop.SSOEnabled)
 		require.Empty(t, *firedActivities)
 	})
 
 	t.Run("free tier downgrade resets the stored value and fires the disabled activity", func(t *testing.T) {
-		svc, ctx, dsAppConfig, firedActivities := newSvc(t, fleet.TierFree, true, configuredIdP)
+		svc, ctx, dsAppConfig, firedActivities := newSvc(t, automdm.TierFree, true, configuredIdP)
 
 		raw := []byte(`{"org_info":{"org_name":"Renamed"}}`)
-		modified, err := svc.ModifyAppConfig(ctx, raw, fleet.ApplySpecOptions{})
+		modified, err := svc.ModifyAppConfig(ctx, raw, automdm.ApplySpecOptions{})
 		require.NoError(t, err)
-		require.False(t, modified.FleetDesktop.SSOEnabled)
-		require.False(t, dsAppConfig.FleetDesktop.SSOEnabled)
+		require.False(t, modified.AutoMDMDesktop.SSOEnabled)
+		require.False(t, dsAppConfig.AutoMDMDesktop.SSOEnabled)
 		require.Equal(t, "Renamed", dsAppConfig.OrgInfo.OrgName)
-		require.Equal(t, []string{fleet.ActivityTypeDisabledSSOFleetDesktop{}.ActivityName()}, *firedActivities)
+		require.Equal(t, []string{automdm.ActivityTypeDisabledSSOAutoMDMDesktop{}.ActivityName()}, *firedActivities)
 	})
 
 	t.Run("gitops omitting sso_enabled turns it off", func(t *testing.T) {
-		svc, ctx, dsAppConfig, firedActivities := newSvc(t, fleet.TierPremium, true, configuredIdP)
-		dsAppConfig.FleetDesktop.TransparencyURL = "https://kept.example.com"
+		svc, ctx, dsAppConfig, firedActivities := newSvc(t, automdm.TierPremium, true, configuredIdP)
+		dsAppConfig.AutoMDMDesktop.TransparencyURL = "https://kept.example.com"
 
 		raw := []byte(`{"org_info":{"org_name":"Test"}}`)
-		modified, err := svc.ModifyAppConfig(ctx, raw, fleet.ApplySpecOptions{Overwrite: true})
+		modified, err := svc.ModifyAppConfig(ctx, raw, automdm.ApplySpecOptions{Overwrite: true})
 		require.NoError(t, err)
-		require.False(t, modified.FleetDesktop.SSOEnabled)
-		require.False(t, dsAppConfig.FleetDesktop.SSOEnabled)
+		require.False(t, modified.AutoMDMDesktop.SSOEnabled)
+		require.False(t, dsAppConfig.AutoMDMDesktop.SSOEnabled)
 		// Overwrite also replaces Features, which emits its own activities here,
 		// so assert on the SSO ones rather than the whole list.
-		require.Contains(t, *firedActivities, fleet.ActivityTypeDisabledSSOFleetDesktop{}.ActivityName())
-		require.NotContains(t, *firedActivities, fleet.ActivityTypeEnabledSSOFleetDesktop{}.ActivityName())
+		require.Contains(t, *firedActivities, automdm.ActivityTypeDisabledSSOAutoMDMDesktop{}.ActivityName())
+		require.NotContains(t, *firedActivities, automdm.ActivityTypeEnabledSSOAutoMDMDesktop{}.ActivityName())
 		// The reset is scoped to sso_enabled: siblings still preserve on omit.
-		require.Equal(t, "https://kept.example.com", dsAppConfig.FleetDesktop.TransparencyURL)
+		require.Equal(t, "https://kept.example.com", dsAppConfig.AutoMDMDesktop.TransparencyURL)
 	})
 
 	t.Run("free tier reset fires no activity when already disabled", func(t *testing.T) {
-		svc, ctx, dsAppConfig, firedActivities := newSvc(t, fleet.TierFree, false, fleet.MDMEndUserAuthentication{})
+		svc, ctx, dsAppConfig, firedActivities := newSvc(t, automdm.TierFree, false, automdm.MDMEndUserAuthentication{})
 
 		raw := []byte(`{"org_info":{"org_name":"Renamed"}}`)
-		_, err := svc.ModifyAppConfig(ctx, raw, fleet.ApplySpecOptions{})
+		_, err := svc.ModifyAppConfig(ctx, raw, automdm.ApplySpecOptions{})
 		require.NoError(t, err)
-		require.False(t, dsAppConfig.FleetDesktop.SSOEnabled)
+		require.False(t, dsAppConfig.AutoMDMDesktop.SSOEnabled)
 		require.Empty(t, *firedActivities)
 	})
 }
 
 func TestModifyAppConfigEnableProfileValidation(t *testing.T) {
-	admin := &fleet.User{GlobalRole: new(fleet.RoleAdmin)}
+	admin := &automdm.User{GlobalRole: new(automdm.RoleAdmin)}
 
-	newSvc := func(t *testing.T, initial bool) (fleet.Service, context.Context, *fleet.AppConfig) {
+	newSvc := func(t *testing.T, initial bool) (automdm.Service, context.Context, *automdm.AppConfig) {
 		ds := new(mock.Store)
-		dsAppConfig := &fleet.AppConfig{
-			OrgInfo:        fleet.OrgInfo{OrgName: "Test"},
-			ServerSettings: fleet.ServerSettings{ServerURL: "https://example.org"},
+		dsAppConfig := &automdm.AppConfig{
+			OrgInfo:        automdm.OrgInfo{OrgName: "Test"},
+			ServerSettings: automdm.ServerSettings{ServerURL: "https://example.org"},
 		}
 		dsAppConfig.MDM.EnableProfileValidation = initial
-		ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) { return dsAppConfig.Copy(), nil }
-		ds.SaveAppConfigFunc = func(ctx context.Context, conf *fleet.AppConfig) error {
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) { return dsAppConfig.Copy(), nil }
+		ds.SaveAppConfigFunc = func(ctx context.Context, conf *automdm.AppConfig) error {
 			*dsAppConfig = *conf
 			return nil
 		}
-		ds.ListVPPTokensFunc = func(ctx context.Context) ([]*fleet.VPPTokenDB, error) { return []*fleet.VPPTokenDB{}, nil }
-		ds.ListABMTokensFunc = func(ctx context.Context) ([]*fleet.ABMToken, error) { return []*fleet.ABMToken{}, nil }
+		ds.ListVPPTokensFunc = func(ctx context.Context) ([]*automdm.VPPTokenDB, error) { return []*automdm.VPPTokenDB{}, nil }
+		ds.ListABMTokensFunc = func(ctx context.Context) ([]*automdm.ABMToken, error) { return []*automdm.ABMToken{}, nil }
 
-		opts := &TestServerOpts{License: &fleet.LicenseInfo{Tier: fleet.TierPremium}}
+		opts := &TestServerOpts{License: &automdm.LicenseInfo{Tier: automdm.TierPremium}}
 		svc, ctx := newTestService(t, ds, nil, nil, opts)
 		opts.ActivityMock.NewActivityFunc = func(context.Context, *activity_api.User, activity_api.ActivityDetails) error { return nil }
 		return svc, viewer.NewContext(ctx, viewer.Viewer{User: admin}), dsAppConfig
@@ -1302,7 +1302,7 @@ func TestModifyAppConfigEnableProfileValidation(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			svc, ctx, dsAppConfig := newSvc(t, c.initial)
-			modified, err := svc.ModifyAppConfig(ctx, []byte(c.body), fleet.ApplySpecOptions{Overwrite: c.overwrite})
+			modified, err := svc.ModifyAppConfig(ctx, []byte(c.body), automdm.ApplySpecOptions{Overwrite: c.overwrite})
 			require.NoError(t, err)
 			require.Equal(t, c.want, modified.MDM.EnableProfileValidation)
 			require.Equal(t, c.want, dsAppConfig.MDM.EnableProfileValidation)
@@ -1315,40 +1315,40 @@ func TestModifyAppConfigEnableProfileValidation(t *testing.T) {
 // the cron, which enforces on MDM.EnabledAndConfigured rather than the license,
 // stops applying it) and preserved on Premium.
 func TestModifyAppConfigHostNameTemplateDowngrade(t *testing.T) {
-	admin := &fleet.User{GlobalRole: new(fleet.RoleAdmin)}
+	admin := &automdm.User{GlobalRole: new(automdm.RoleAdmin)}
 
 	for _, tt := range []struct {
 		name        string
 		licenseTier string
 		expected    string
 	}{
-		{"cleared on Free", fleet.TierFree, ""},
-		{"preserved on Premium", fleet.TierPremium, "iPad $FLEET_VAR_HOST_HARDWARE_SERIAL"},
+		{"cleared on Free", automdm.TierFree, ""},
+		{"preserved on Premium", automdm.TierPremium, "iPad $AUTOMDM_VAR_HOST_HARDWARE_SERIAL"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			ds := new(mock.Store)
-			svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: &fleet.LicenseInfo{Tier: tt.licenseTier}})
+			svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: &automdm.LicenseInfo{Tier: tt.licenseTier}})
 			ctx = viewer.NewContext(ctx, viewer.Viewer{User: admin})
 
-			dsAppConfig := &fleet.AppConfig{
-				OrgInfo:        fleet.OrgInfo{OrgName: "Test"},
-				ServerSettings: fleet.ServerSettings{ServerURL: "https://example.org"},
+			dsAppConfig := &automdm.AppConfig{
+				OrgInfo:        automdm.OrgInfo{OrgName: "Test"},
+				ServerSettings: automdm.ServerSettings{ServerURL: "https://example.org"},
 			}
 			// Seed a template as though it had been set while premium.
-			dsAppConfig.MDM.HostNameTemplate = optjson.SetString("iPad $FLEET_VAR_HOST_HARDWARE_SERIAL")
+			dsAppConfig.MDM.HostNameTemplate = optjson.SetString("iPad $AUTOMDM_VAR_HOST_HARDWARE_SERIAL")
 
-			ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) { return dsAppConfig, nil }
-			ds.SaveAppConfigFunc = func(ctx context.Context, conf *fleet.AppConfig) error {
+			ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) { return dsAppConfig, nil }
+			ds.SaveAppConfigFunc = func(ctx context.Context, conf *automdm.AppConfig) error {
 				*dsAppConfig = *conf
 				return nil
 			}
-			ds.SaveABMTokenFunc = func(ctx context.Context, tok *fleet.ABMToken) error { return nil }
-			ds.ListVPPTokensFunc = func(ctx context.Context) ([]*fleet.VPPTokenDB, error) { return []*fleet.VPPTokenDB{}, nil }
-			ds.ListABMTokensFunc = func(ctx context.Context) ([]*fleet.ABMToken, error) { return []*fleet.ABMToken{}, nil }
+			ds.SaveABMTokenFunc = func(ctx context.Context, tok *automdm.ABMToken) error { return nil }
+			ds.ListVPPTokensFunc = func(ctx context.Context) ([]*automdm.VPPTokenDB, error) { return []*automdm.VPPTokenDB{}, nil }
+			ds.ListABMTokensFunc = func(ctx context.Context) ([]*automdm.ABMToken, error) { return []*automdm.ABMToken{}, nil }
 
 			// A benign change that doesn't touch the template: the downgrade reset,
 			// not validation, is what clears it.
-			modified, err := svc.ModifyAppConfig(ctx, []byte(`{"org_info": {"org_name": "Test2"}}`), fleet.ApplySpecOptions{})
+			modified, err := svc.ModifyAppConfig(ctx, []byte(`{"org_info": {"org_name": "Test2"}}`), automdm.ApplySpecOptions{})
 			require.NoError(t, err)
 			require.Equal(t, tt.expected, modified.MDM.HostNameTemplate.Value)
 			require.Equal(t, tt.expected, dsAppConfig.MDM.HostNameTemplate.Value)
@@ -1361,43 +1361,43 @@ func TestModifyAppConfigHostNameTemplateDowngrade(t *testing.T) {
 // invalid input (422) while a datastore failure propagates as a server error rather
 // than being misclassified as invalid input.
 func TestModifyAppConfigHostNameTemplateSecretErrors(t *testing.T) {
-	admin := &fleet.User{GlobalRole: new(fleet.RoleAdmin)}
+	admin := &automdm.User{GlobalRole: new(automdm.RoleAdmin)}
 
-	newSvc := func(t *testing.T, validateErr error) (fleet.Service, context.Context, *mock.Store) {
+	newSvc := func(t *testing.T, validateErr error) (automdm.Service, context.Context, *mock.Store) {
 		ds := new(mock.Store)
-		svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: &fleet.LicenseInfo{Tier: fleet.TierPremium}})
+		svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: &automdm.LicenseInfo{Tier: automdm.TierPremium}})
 		ctx = viewer.NewContext(ctx, viewer.Viewer{User: admin})
 
-		dsAppConfig := &fleet.AppConfig{
-			OrgInfo:        fleet.OrgInfo{OrgName: "Test"},
-			ServerSettings: fleet.ServerSettings{ServerURL: "https://example.org"},
+		dsAppConfig := &automdm.AppConfig{
+			OrgInfo:        automdm.OrgInfo{OrgName: "Test"},
+			ServerSettings: automdm.ServerSettings{ServerURL: "https://example.org"},
 		}
-		ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) { return dsAppConfig, nil }
-		ds.SaveAppConfigFunc = func(ctx context.Context, conf *fleet.AppConfig) error { *dsAppConfig = *conf; return nil }
-		ds.SaveABMTokenFunc = func(ctx context.Context, tok *fleet.ABMToken) error { return nil }
-		ds.ListVPPTokensFunc = func(ctx context.Context) ([]*fleet.VPPTokenDB, error) { return []*fleet.VPPTokenDB{}, nil }
-		ds.ListABMTokensFunc = func(ctx context.Context) ([]*fleet.ABMToken, error) { return []*fleet.ABMToken{}, nil }
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) { return dsAppConfig, nil }
+		ds.SaveAppConfigFunc = func(ctx context.Context, conf *automdm.AppConfig) error { *dsAppConfig = *conf; return nil }
+		ds.SaveABMTokenFunc = func(ctx context.Context, tok *automdm.ABMToken) error { return nil }
+		ds.ListVPPTokensFunc = func(ctx context.Context) ([]*automdm.VPPTokenDB, error) { return []*automdm.VPPTokenDB{}, nil }
+		ds.ListABMTokensFunc = func(ctx context.Context) ([]*automdm.ABMToken, error) { return []*automdm.ABMToken{}, nil }
 		ds.ValidateEmbeddedSecretsFunc = func(ctx context.Context, documents []string) error { return validateErr }
 		return svc, ctx, ds
 	}
 
 	// A change to a template that references a secret, so validation runs.
-	body := []byte(`{"mdm":{"name_template":"WS-$FLEET_SECRET_TOKEN"}}`)
+	body := []byte(`{"mdm":{"name_template":"WS-$AUTOMDM_SECRET_TOKEN"}}`)
 
 	t.Run("missing secret is invalid input (422)", func(t *testing.T) {
-		svc, ctx, ds := newSvc(t, &fleet.MissingSecretsError{MissingSecrets: []string{"TOKEN"}})
-		_, err := svc.ModifyAppConfig(ctx, body, fleet.ApplySpecOptions{})
+		svc, ctx, ds := newSvc(t, &automdm.MissingSecretsError{MissingSecrets: []string{"TOKEN"}})
+		_, err := svc.ModifyAppConfig(ctx, body, automdm.ApplySpecOptions{})
 		require.Error(t, err)
-		var argErr *fleet.InvalidArgumentError
+		var argErr *automdm.InvalidArgumentError
 		require.ErrorAs(t, err, &argErr)
 		require.False(t, ds.SaveAppConfigFuncInvoked)
 	})
 
 	t.Run("datastore error propagates as a server error, not 422", func(t *testing.T) {
 		svc, ctx, ds := newSvc(t, errors.New("database is down"))
-		_, err := svc.ModifyAppConfig(ctx, body, fleet.ApplySpecOptions{})
+		_, err := svc.ModifyAppConfig(ctx, body, automdm.ApplySpecOptions{})
 		require.Error(t, err)
-		var argErr *fleet.InvalidArgumentError
+		var argErr *automdm.InvalidArgumentError
 		require.NotErrorAs(t, err, &argErr, "a datastore error must not be reported as invalid input")
 		require.False(t, ds.SaveAppConfigFuncInvoked)
 	})
@@ -1408,87 +1408,87 @@ func TestModifyAppConfigHostNameTemplateSecretErrors(t *testing.T) {
 func TestTransparencyURLDowngradeLicense(t *testing.T) {
 	ds := new(mock.Store)
 
-	admin := &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}
+	admin := &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}
 
 	cfg := config.TestConfig()
-	svc, ctx := newTestServiceWithConfig(t, ds, cfg, nil, nil, &TestServerOpts{License: &fleet.LicenseInfo{Tier: "free"}})
+	svc, ctx := newTestServiceWithConfig(t, ds, cfg, nil, nil, &TestServerOpts{License: &automdm.LicenseInfo{Tier: "free"}})
 	ctx = viewer.NewContext(ctx, viewer.Viewer{User: admin})
 
-	dsAppConfig := &fleet.AppConfig{
-		OrgInfo: fleet.OrgInfo{
+	dsAppConfig := &automdm.AppConfig{
+		OrgInfo: automdm.OrgInfo{
 			OrgName: "Test",
 		},
-		ServerSettings: fleet.ServerSettings{
+		ServerSettings: automdm.ServerSettings{
 			ServerURL: "https://example.org",
 		},
-		FleetDesktop: fleet.FleetDesktopSettings{TransparencyURL: "https://example.com/transparency"},
+		AutoMDMDesktop: automdm.AutoMDMDesktopSettings{TransparencyURL: "https://example.com/transparency"},
 	}
 
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
 		return dsAppConfig, nil
 	}
 
-	ds.SaveAppConfigFunc = func(ctx context.Context, conf *fleet.AppConfig) error {
+	ds.SaveAppConfigFunc = func(ctx context.Context, conf *automdm.AppConfig) error {
 		*dsAppConfig = *conf
 		return nil
 	}
 
-	ds.SaveABMTokenFunc = func(ctx context.Context, tok *fleet.ABMToken) error {
+	ds.SaveABMTokenFunc = func(ctx context.Context, tok *automdm.ABMToken) error {
 		return nil
 	}
 
-	ds.ListVPPTokensFunc = func(ctx context.Context) ([]*fleet.VPPTokenDB, error) {
-		return []*fleet.VPPTokenDB{}, nil
+	ds.ListVPPTokensFunc = func(ctx context.Context) ([]*automdm.VPPTokenDB, error) {
+		return []*automdm.VPPTokenDB{}, nil
 	}
 
-	ds.ListABMTokensFunc = func(ctx context.Context) ([]*fleet.ABMToken, error) {
-		return []*fleet.ABMToken{}, nil
+	ds.ListABMTokensFunc = func(ctx context.Context) ([]*automdm.ABMToken, error) {
+		return []*automdm.ABMToken{}, nil
 	}
 
 	ac, err := svc.AppConfigObfuscated(ctx)
 	require.NoError(t, err)
-	require.Equal(t, "https://example.com/transparency", ac.FleetDesktop.TransparencyURL)
+	require.Equal(t, "https://example.com/transparency", ac.AutoMDMDesktop.TransparencyURL)
 
 	// delivered URL should be the default one
 	transparencyUrl, err := svc.GetTransparencyURL(ctx)
 	require.NoError(t, err)
-	require.Equal(t, fleet.DefaultTransparencyURL, transparencyUrl)
+	require.Equal(t, automdm.DefaultTransparencyURL, transparencyUrl)
 
 	// delivered URL should be the Secureframe one if we have that config value set
 	cfg.Partnerships.EnableSecureframe = true
-	svc, ctx = newTestServiceWithConfig(t, ds, cfg, nil, nil, &TestServerOpts{License: &fleet.LicenseInfo{Tier: "free"}})
+	svc, ctx = newTestServiceWithConfig(t, ds, cfg, nil, nil, &TestServerOpts{License: &automdm.LicenseInfo{Tier: "free"}})
 	ctx = viewer.NewContext(ctx, viewer.Viewer{User: admin})
 	transparencyUrl, err = svc.GetTransparencyURL(ctx)
 	require.NoError(t, err)
-	require.Equal(t, fleet.SecureframeTransparencyURL, transparencyUrl)
+	require.Equal(t, automdm.SecureframeTransparencyURL, transparencyUrl)
 
 	// setting transparency url fails
-	raw, err := json.Marshal(fleet.FleetDesktopSettings{TransparencyURL: "https://f1337.com/transparency"})
+	raw, err := json.Marshal(automdm.AutoMDMDesktopSettings{TransparencyURL: "https://f1337.com/transparency"})
 	require.NoError(t, err)
-	raw = []byte(`{"fleet_desktop":` + string(raw) + `}`)
-	_, err = svc.ModifyAppConfig(ctx, raw, fleet.ApplySpecOptions{})
+	raw = []byte(`{"automdm_desktop":` + string(raw) + `}`)
+	_, err = svc.ModifyAppConfig(ctx, raw, automdm.ApplySpecOptions{})
 	require.Error(t, err)
 	require.ErrorContains(t, err, "missing or invalid license")
 
 	// setting unrelated config value does not fail and resets transparency url to ""
-	raw, err = json.Marshal(fleet.OrgInfo{OrgName: "f1337"})
+	raw, err = json.Marshal(automdm.OrgInfo{OrgName: "f1337"})
 	require.NoError(t, err)
 	raw = []byte(`{"org_info":` + string(raw) + `}`)
-	modified, err := svc.ModifyAppConfig(ctx, raw, fleet.ApplySpecOptions{})
+	modified, err := svc.ModifyAppConfig(ctx, raw, automdm.ApplySpecOptions{})
 	require.NoError(t, err)
 	require.NotNil(t, modified)
-	require.Equal(t, "", modified.FleetDesktop.TransparencyURL)
+	require.Equal(t, "", modified.AutoMDMDesktop.TransparencyURL)
 	ac, err = svc.AppConfigObfuscated(ctx)
 	require.NoError(t, err)
 	require.Equal(t, "f1337", ac.OrgInfo.OrgName)
-	require.Equal(t, "", ac.FleetDesktop.TransparencyURL)
+	require.Equal(t, "", ac.AutoMDMDesktop.TransparencyURL)
 }
 
 func TestMDMConfig(t *testing.T) {
 	ds := new(mock.Store)
 	depStorage := new(nanodep_mock.Storage)
 
-	admin := &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}
+	admin := &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}
 
 	depSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -1501,32 +1501,32 @@ func TestMDMConfig(t *testing.T) {
 	}))
 	t.Cleanup(depSrv.Close)
 
-	defaultMDMAppConfig := func(changes ...func(*fleet.MDM)) fleet.MDM {
-		mdm := fleet.MDM{
+	defaultMDMAppConfig := func(changes ...func(*automdm.MDM)) automdm.MDM {
+		mdm := automdm.MDM{
 			HostNameTemplate: optjson.String{Set: true},
-			AppleAccountProvisioning: fleet.AppleAccountProvisioning{
+			AppleAccountProvisioning: automdm.AppleAccountProvisioning{
 				OAuthIdPTokenURL: optjson.String{Set: true},
 				OAuthIdPClientID: optjson.String{Set: true},
 			},
-			AppleBusinessManager: optjson.Slice[fleet.MDMAppleABMAssignmentInfo]{Set: true, Value: []fleet.MDMAppleABMAssignmentInfo{}},
-			MacOSSetup: fleet.MacOSSetup{
+			AppleBusinessManager: optjson.Slice[automdm.MDMAppleABMAssignmentInfo]{Set: true, Value: []automdm.MDMAppleABMAssignmentInfo{}},
+			MacOSSetup: automdm.MacOSSetup{
 				EnableReleaseDeviceManually:      optjson.SetBool(false),
 				EnableManagedLocalAccount:        optjson.SetBool(false),
 				EndUserLocalAccountType:          optjson.SetString("admin"),
 				LockEndUserInfo:                  optjson.SetBool(false),
-				Software:                         optjson.Slice[*fleet.MacOSSetupSoftware]{Set: true, Value: []*fleet.MacOSSetupSoftware{}},
+				Software:                         optjson.Slice[*automdm.MacOSSetupSoftware]{Set: true, Value: []*automdm.MacOSSetupSoftware{}},
 				ManualAgentInstall:               optjson.Bool{Set: true},
 				EnableManagedLocalAccountWindows: optjson.SetBool(false),
 			},
-			MacOSUpdates:   fleet.AppleOSUpdateSettings{MinimumVersion: optjson.String{Set: true}, Deadline: optjson.String{Set: true}, DeadlineDays: optjson.Int{Set: true}, UpdateNewHosts: optjson.Bool{Set: true}},
-			IOSUpdates:     fleet.AppleOSUpdateSettings{MinimumVersion: optjson.String{Set: true}, Deadline: optjson.String{Set: true}, DeadlineDays: optjson.Int{Set: true}},
-			IPadOSUpdates:  fleet.AppleOSUpdateSettings{MinimumVersion: optjson.String{Set: true}, Deadline: optjson.String{Set: true}, DeadlineDays: optjson.Int{Set: true}},
-			WindowsUpdates: fleet.WindowsUpdates{DeadlineDays: optjson.Int{Set: true}, GracePeriodDays: optjson.Int{Set: true}},
-			WindowsSettings: fleet.WindowsSettings{
+			MacOSUpdates:   automdm.AppleOSUpdateSettings{MinimumVersion: optjson.String{Set: true}, Deadline: optjson.String{Set: true}, DeadlineDays: optjson.Int{Set: true}, UpdateNewHosts: optjson.Bool{Set: true}},
+			IOSUpdates:     automdm.AppleOSUpdateSettings{MinimumVersion: optjson.String{Set: true}, Deadline: optjson.String{Set: true}, DeadlineDays: optjson.Int{Set: true}},
+			IPadOSUpdates:  automdm.AppleOSUpdateSettings{MinimumVersion: optjson.String{Set: true}, Deadline: optjson.String{Set: true}, DeadlineDays: optjson.Int{Set: true}},
+			WindowsUpdates: automdm.WindowsUpdates{DeadlineDays: optjson.Int{Set: true}, GracePeriodDays: optjson.Int{Set: true}},
+			WindowsSettings: automdm.WindowsSettings{
 				RequireBitLockerPIN: optjson.Bool{Set: true},
 			},
-			AndroidSettings: fleet.AndroidSettings{
-				Certificates: optjson.Slice[fleet.CertificateTemplateSpec]{Set: true, Value: []fleet.CertificateTemplateSpec{}},
+			AndroidSettings: automdm.AndroidSettings{
+				Certificates: optjson.Slice[automdm.CertificateTemplateSpec]{Set: true, Value: []automdm.CertificateTemplateSpec{}},
 			},
 			RequireBitLockerPIN:        optjson.Bool{Set: true, Value: false},
 			EnableRecoveryLockPassword: optjson.Bool{Set: true, Value: false},
@@ -1542,15 +1542,15 @@ func TestMDMConfig(t *testing.T) {
 
 	const licenseErr = "missing or invalid license"
 	const notFoundErr = "doesn't exist"
-	abm := func(team string) optjson.Slice[fleet.MDMAppleABMAssignmentInfo] {
-		return optjson.SetSlice([]fleet.MDMAppleABMAssignmentInfo{{OrganizationName: "abm-org", Default: true, MacOSTeam: team}})
+	abm := func(team string) optjson.Slice[automdm.MDMAppleABMAssignmentInfo] {
+		return optjson.SetSlice([]automdm.MDMAppleABMAssignmentInfo{{OrganizationName: "abm-org", Default: true, MacOSTeam: team}})
 	}
 	testCases := []struct {
 		name          string
 		licenseTier   string
-		oldMDM        fleet.MDM
-		newMDM        fleet.MDM
-		expectedMDM   fleet.MDM
+		oldMDM        automdm.MDM
+		newMDM        automdm.MDM
+		expectedMDM   automdm.MDM
 		expectedError string
 		findTeam      bool
 		// hasBootstrapPackage is whether the no team bootstrap package was uploaded (e.g. via the UI)
@@ -1564,28 +1564,28 @@ func TestMDMConfig(t *testing.T) {
 		{
 			name:          "newDefaultTeamNoLicense",
 			licenseTier:   "free",
-			newMDM:        fleet.MDM{AppleBusinessManager: abm("foobar")},
+			newMDM:        automdm.MDM{AppleBusinessManager: abm("foobar")},
 			expectedError: licenseErr,
 		},
 		{
 			name:          "notFoundNew",
 			licenseTier:   "premium",
-			newMDM:        fleet.MDM{AppleBusinessManager: abm("foobar")},
+			newMDM:        automdm.MDM{AppleBusinessManager: abm("foobar")},
 			expectedError: notFoundErr,
 		},
 		{
 			name:          "notFoundEdit",
 			licenseTier:   "premium",
-			oldMDM:        fleet.MDM{AppleBusinessManager: abm("foobar")},
-			newMDM:        fleet.MDM{AppleBusinessManager: abm("bar")},
+			oldMDM:        automdm.MDM{AppleBusinessManager: abm("foobar")},
+			newMDM:        automdm.MDM{AppleBusinessManager: abm("bar")},
 			expectedError: notFoundErr,
 		},
 		{
 			name:        "foundNew",
 			licenseTier: "premium",
 			findTeam:    true,
-			newMDM:      fleet.MDM{AppleBusinessManager: abm("foobar")},
-			expectedMDM: defaultMDMAppConfig(func(m *fleet.MDM) {
+			newMDM:      automdm.MDM{AppleBusinessManager: abm("foobar")},
+			expectedMDM: defaultMDMAppConfig(func(m *automdm.MDM) {
 				m.AppleBusinessManager = abm("foobar")
 			}),
 		},
@@ -1593,9 +1593,9 @@ func TestMDMConfig(t *testing.T) {
 			name:        "foundEdit",
 			licenseTier: "premium",
 			findTeam:    true,
-			oldMDM:      fleet.MDM{AppleBusinessManager: abm("bar")},
-			newMDM:      fleet.MDM{AppleBusinessManager: abm("foobar")},
-			expectedMDM: defaultMDMAppConfig(func(m *fleet.MDM) {
+			oldMDM:      automdm.MDM{AppleBusinessManager: abm("bar")},
+			newMDM:      automdm.MDM{AppleBusinessManager: abm("foobar")},
+			expectedMDM: defaultMDMAppConfig(func(m *automdm.MDM) {
 				m.AppleBusinessManager = abm("foobar")
 			}),
 		},
@@ -1605,12 +1605,12 @@ func TestMDMConfig(t *testing.T) {
 			// change would.
 			name:        "deadlineDaysFree",
 			licenseTier: "free",
-			oldMDM: fleet.MDM{MacOSUpdates: fleet.AppleOSUpdateSettings{
-				MinimumVersion: optjson.SetString(fleet.AppleOSUpdateLatestVersion),
+			oldMDM: automdm.MDM{MacOSUpdates: automdm.AppleOSUpdateSettings{
+				MinimumVersion: optjson.SetString(automdm.AppleOSUpdateLatestVersion),
 				DeadlineDays:   optjson.SetInt(14),
 			}},
-			newMDM: fleet.MDM{MacOSUpdates: fleet.AppleOSUpdateSettings{
-				MinimumVersion: optjson.SetString(fleet.AppleOSUpdateLatestVersion),
+			newMDM: automdm.MDM{MacOSUpdates: automdm.AppleOSUpdateSettings{
+				MinimumVersion: optjson.SetString(automdm.AppleOSUpdateLatestVersion),
 				DeadlineDays:   optjson.SetInt(21),
 			}},
 			expectedError: "macos_updates.minimum_version " + licenseErr,
@@ -1620,12 +1620,12 @@ func TestMDMConfig(t *testing.T) {
 			// reported field has to follow the one that changed.
 			name:        "deadlineDaysFreeIOS",
 			licenseTier: "free",
-			oldMDM: fleet.MDM{IOSUpdates: fleet.AppleOSUpdateSettings{
-				MinimumVersion: optjson.SetString(fleet.AppleOSUpdateLatestVersion),
+			oldMDM: automdm.MDM{IOSUpdates: automdm.AppleOSUpdateSettings{
+				MinimumVersion: optjson.SetString(automdm.AppleOSUpdateLatestVersion),
 				DeadlineDays:   optjson.SetInt(14),
 			}},
-			newMDM: fleet.MDM{IOSUpdates: fleet.AppleOSUpdateSettings{
-				MinimumVersion: optjson.SetString(fleet.AppleOSUpdateLatestVersion),
+			newMDM: automdm.MDM{IOSUpdates: automdm.AppleOSUpdateSettings{
+				MinimumVersion: optjson.SetString(automdm.AppleOSUpdateLatestVersion),
 				DeadlineDays:   optjson.SetInt(21),
 			}},
 			expectedError: "ios_updates.minimum_version " + licenseErr,
@@ -1633,12 +1633,12 @@ func TestMDMConfig(t *testing.T) {
 		{
 			name:        "deadlineDaysFreeIPadOS",
 			licenseTier: "free",
-			oldMDM: fleet.MDM{IPadOSUpdates: fleet.AppleOSUpdateSettings{
-				MinimumVersion: optjson.SetString(fleet.AppleOSUpdateLatestVersion),
+			oldMDM: automdm.MDM{IPadOSUpdates: automdm.AppleOSUpdateSettings{
+				MinimumVersion: optjson.SetString(automdm.AppleOSUpdateLatestVersion),
 				DeadlineDays:   optjson.SetInt(14),
 			}},
-			newMDM: fleet.MDM{IPadOSUpdates: fleet.AppleOSUpdateSettings{
-				MinimumVersion: optjson.SetString(fleet.AppleOSUpdateLatestVersion),
+			newMDM: automdm.MDM{IPadOSUpdates: automdm.AppleOSUpdateSettings{
+				MinimumVersion: optjson.SetString(automdm.AppleOSUpdateLatestVersion),
 				DeadlineDays:   optjson.SetInt(21),
 			}},
 			expectedError: "ipados_updates.minimum_version " + licenseErr,
@@ -1647,31 +1647,31 @@ func TestMDMConfig(t *testing.T) {
 			name:          "ssoFree",
 			licenseTier:   "free",
 			findTeam:      true,
-			newMDM:        fleet.MDM{EndUserAuthentication: fleet.MDMEndUserAuthentication{SSOProviderSettings: fleet.SSOProviderSettings{EntityID: "foo"}}},
+			newMDM:        automdm.MDM{EndUserAuthentication: automdm.MDMEndUserAuthentication{SSOProviderSettings: automdm.SSOProviderSettings{EntityID: "foo"}}},
 			expectedError: licenseErr,
 		},
 		{
 			name:        "ssoFreeNoChanges",
 			licenseTier: "free",
 			findTeam:    true,
-			newMDM:      fleet.MDM{EndUserAuthentication: fleet.MDMEndUserAuthentication{SSOProviderSettings: fleet.SSOProviderSettings{EntityID: "foo"}}},
-			oldMDM:      fleet.MDM{EndUserAuthentication: fleet.MDMEndUserAuthentication{SSOProviderSettings: fleet.SSOProviderSettings{EntityID: "foo"}}},
-			expectedMDM: defaultMDMAppConfig(func(m *fleet.MDM) {
-				m.EndUserAuthentication.SSOProviderSettings = fleet.SSOProviderSettings{EntityID: "foo"}
+			newMDM:      automdm.MDM{EndUserAuthentication: automdm.MDMEndUserAuthentication{SSOProviderSettings: automdm.SSOProviderSettings{EntityID: "foo"}}},
+			oldMDM:      automdm.MDM{EndUserAuthentication: automdm.MDMEndUserAuthentication{SSOProviderSettings: automdm.SSOProviderSettings{EntityID: "foo"}}},
+			expectedMDM: defaultMDMAppConfig(func(m *automdm.MDM) {
+				m.EndUserAuthentication.SSOProviderSettings = automdm.SSOProviderSettings{EntityID: "foo"}
 			}),
 		},
 		{
 			name:        "ssoAllFields",
 			licenseTier: "premium",
 			findTeam:    true,
-			newMDM: fleet.MDM{EndUserAuthentication: fleet.MDMEndUserAuthentication{SSOProviderSettings: fleet.SSOProviderSettings{
-				EntityID:    "fleet",
+			newMDM: automdm.MDM{EndUserAuthentication: automdm.MDMEndUserAuthentication{SSOProviderSettings: automdm.SSOProviderSettings{
+				EntityID:    "automdm",
 				MetadataURL: "http://isser.metadata.com",
 				IDPName:     "onelogin",
 			}}},
-			expectedMDM: defaultMDMAppConfig(func(m *fleet.MDM) {
-				m.EndUserAuthentication.SSOProviderSettings = fleet.SSOProviderSettings{
-					EntityID:    "fleet",
+			expectedMDM: defaultMDMAppConfig(func(m *automdm.MDM) {
+				m.EndUserAuthentication.SSOProviderSettings = automdm.SSOProviderSettings{
+					EntityID:    "automdm",
 					MetadataURL: "http://isser.metadata.com",
 					IDPName:     "onelogin",
 				}
@@ -1681,13 +1681,13 @@ func TestMDMConfig(t *testing.T) {
 			name:        "ssoShortEntityID",
 			licenseTier: "premium",
 			findTeam:    true,
-			newMDM: fleet.MDM{EndUserAuthentication: fleet.MDMEndUserAuthentication{SSOProviderSettings: fleet.SSOProviderSettings{
+			newMDM: automdm.MDM{EndUserAuthentication: automdm.MDMEndUserAuthentication{SSOProviderSettings: automdm.SSOProviderSettings{
 				EntityID:    "f",
 				MetadataURL: "http://isser.metadata.com",
 				IDPName:     "onelogin",
 			}}},
-			expectedMDM: defaultMDMAppConfig(func(m *fleet.MDM) {
-				m.EndUserAuthentication.SSOProviderSettings = fleet.SSOProviderSettings{
+			expectedMDM: defaultMDMAppConfig(func(m *automdm.MDM) {
+				m.EndUserAuthentication.SSOProviderSettings = automdm.SSOProviderSettings{
 					EntityID:    "f",
 					MetadataURL: "http://isser.metadata.com",
 					IDPName:     "onelogin",
@@ -1698,8 +1698,8 @@ func TestMDMConfig(t *testing.T) {
 			name:        "ssoMissingMetadata",
 			licenseTier: "premium",
 			findTeam:    true,
-			newMDM: fleet.MDM{EndUserAuthentication: fleet.MDMEndUserAuthentication{SSOProviderSettings: fleet.SSOProviderSettings{
-				EntityID: "fleet",
+			newMDM: automdm.MDM{EndUserAuthentication: automdm.MDMEndUserAuthentication{SSOProviderSettings: automdm.SSOProviderSettings{
+				EntityID: "automdm",
 				IDPName:  "onelogin",
 			}}},
 			expectedError: "either metadata or metadata_url must be defined",
@@ -1708,8 +1708,8 @@ func TestMDMConfig(t *testing.T) {
 			name:        "ssoMultiMetadata",
 			licenseTier: "premium",
 			findTeam:    true,
-			newMDM: fleet.MDM{EndUserAuthentication: fleet.MDMEndUserAuthentication{SSOProviderSettings: fleet.SSOProviderSettings{
-				EntityID:    "fleet",
+			newMDM: automdm.MDM{EndUserAuthentication: automdm.MDMEndUserAuthentication{SSOProviderSettings: automdm.SSOProviderSettings{
+				EntityID:    "automdm",
 				Metadata:    "not-empty",
 				MetadataURL: "not-empty",
 				IDPName:     "onelogin",
@@ -1720,8 +1720,8 @@ func TestMDMConfig(t *testing.T) {
 			name:        "ssoIdPName",
 			licenseTier: "premium",
 			findTeam:    true,
-			newMDM: fleet.MDM{EndUserAuthentication: fleet.MDMEndUserAuthentication{SSOProviderSettings: fleet.SSOProviderSettings{
-				EntityID: "fleet",
+			newMDM: automdm.MDM{EndUserAuthentication: automdm.MDMEndUserAuthentication{SSOProviderSettings: automdm.SSOProviderSettings{
+				EntityID: "automdm",
 				Metadata: "not-empty",
 			}}},
 			expectedError: "idp_name required",
@@ -1733,21 +1733,21 @@ func TestMDMConfig(t *testing.T) {
 			// gap-fill must not clobber them with the flat/AND value)
 			name:        "nullsKeepMixedDiskEncryptionState",
 			licenseTier: "premium",
-			oldMDM: fleet.MDM{
+			oldMDM: automdm.MDM{
 				EnableDiskEncryption: optjson.SetBool(false),
-				MacOSSettings: fleet.MacOSSettings{
+				MacOSSettings: automdm.MacOSSettings{
 					EnableDiskEncryption:          optjson.SetBool(true),
 					EnableEscrowDiskEncryptionKey: optjson.SetBool(true),
 				},
-				WindowsSettings: fleet.WindowsSettings{
+				WindowsSettings: automdm.WindowsSettings{
 					EnableDiskEncryption: optjson.SetBool(false),
 				},
-				LinuxSettings: fleet.LinuxSettings{
+				LinuxSettings: automdm.LinuxSettings{
 					EnableEscrowDiskEncryptionKey: optjson.SetBool(false),
 				},
 			},
-			newMDM: fleet.MDM{},
-			expectedMDM: defaultMDMAppConfig(func(m *fleet.MDM) {
+			newMDM: automdm.MDM{},
+			expectedMDM: defaultMDMAppConfig(func(m *automdm.MDM) {
 				m.EnableDiskEncryption = optjson.SetBool(false)
 				m.MacOSSettings.EnableDiskEncryption = optjson.SetBool(true)
 				m.MacOSSettings.EnableEscrowDiskEncryptionKey = optjson.SetBool(true)
@@ -1758,10 +1758,10 @@ func TestMDMConfig(t *testing.T) {
 		{
 			name:        "disableDiskEncryption",
 			licenseTier: "premium",
-			newMDM: fleet.MDM{
+			newMDM: automdm.MDM{
 				EnableDiskEncryption: optjson.SetBool(false),
 			},
-			expectedMDM: defaultMDMAppConfig(func(m *fleet.MDM) {
+			expectedMDM: defaultMDMAppConfig(func(m *automdm.MDM) {
 				// the deprecated flat toggle fans out to every per-platform setting
 				m.EnableDiskEncryption = optjson.SetBool(false)
 				m.MacOSSettings.EnableDiskEncryption = optjson.SetBool(false)
@@ -1775,56 +1775,56 @@ func TestMDMConfig(t *testing.T) {
 			licenseTier: "premium",
 			// validateMDM sees the merged config, where a flat toggle write has
 			// already fanned out to the per-platform fields
-			oldMDM: fleet.MDM{
+			oldMDM: automdm.MDM{
 				EnableDiskEncryption: optjson.SetBool(true),
-				WindowsSettings:      fleet.WindowsSettings{EnableDiskEncryption: optjson.SetBool(true)},
+				WindowsSettings:      automdm.WindowsSettings{EnableDiskEncryption: optjson.SetBool(true)},
 				RequireBitLockerPIN:  optjson.SetBool(true),
 			},
-			newMDM: fleet.MDM{
+			newMDM: automdm.MDM{
 				EnableDiskEncryption: optjson.SetBool(false),
-				WindowsSettings:      fleet.WindowsSettings{EnableDiskEncryption: optjson.SetBool(false)},
+				WindowsSettings:      automdm.WindowsSettings{EnableDiskEncryption: optjson.SetBool(false)},
 				RequireBitLockerPIN:  optjson.SetBool(true),
 			},
-			expectedError: fleet.CantDisableDiskEncryptionIfPINRequiredErrMsg,
+			expectedError: automdm.CantDisableDiskEncryptionIfPINRequiredErrMsg,
 		},
 		{
 			name:        "try to enable disk encryption with TPM PIN enabled",
 			licenseTier: "premium",
-			oldMDM: fleet.MDM{
+			oldMDM: automdm.MDM{
 				EnableDiskEncryption: optjson.SetBool(false),
 				RequireBitLockerPIN:  optjson.SetBool(false),
 			},
-			newMDM: fleet.MDM{
+			newMDM: automdm.MDM{
 				EnableDiskEncryption: optjson.SetBool(false),
 				RequireBitLockerPIN:  optjson.SetBool(true),
 			},
-			expectedError: fleet.CantEnablePINRequiredIfDiskEncryptionEnabled,
+			expectedError: automdm.CantEnablePINRequiredIfDiskEncryptionEnabled,
 		},
 		{
 			name:        "try to disable disk encryption with TPM PIN enabled when disk encryption prev enabled",
 			licenseTier: "premium",
-			oldMDM: fleet.MDM{
+			oldMDM: automdm.MDM{
 				EnableDiskEncryption: optjson.SetBool(true),
-				WindowsSettings:      fleet.WindowsSettings{EnableDiskEncryption: optjson.SetBool(true)},
+				WindowsSettings:      automdm.WindowsSettings{EnableDiskEncryption: optjson.SetBool(true)},
 				RequireBitLockerPIN:  optjson.SetBool(false),
 			},
-			newMDM: fleet.MDM{
+			newMDM: automdm.MDM{
 				EnableDiskEncryption: optjson.SetBool(false),
-				WindowsSettings:      fleet.WindowsSettings{EnableDiskEncryption: optjson.SetBool(false)},
+				WindowsSettings:      automdm.WindowsSettings{EnableDiskEncryption: optjson.SetBool(false)},
 				RequireBitLockerPIN:  optjson.SetBool(true),
 			},
-			expectedError: fleet.CantDisableDiskEncryptionIfPINRequiredErrMsg,
+			expectedError: automdm.CantDisableDiskEncryptionIfPINRequiredErrMsg,
 		},
 		{
 			name:        "macos_manual_agent_install enabled without bootstrap package",
 			licenseTier: "premium",
-			oldMDM: fleet.MDM{
-				MacOSSetup: fleet.MacOSSetup{
+			oldMDM: automdm.MDM{
+				MacOSSetup: automdm.MacOSSetup{
 					ManualAgentInstall: optjson.SetBool(false),
 				},
 			},
-			newMDM: fleet.MDM{
-				MacOSSetup: fleet.MacOSSetup{
+			newMDM: automdm.MDM{
+				MacOSSetup: automdm.MacOSSetup{
 					ManualAgentInstall: optjson.SetBool(true),
 				},
 			},
@@ -1833,10 +1833,10 @@ func TestMDMConfig(t *testing.T) {
 		{
 			name:        "bootstrap package for manual enrollment enabled without bootstrap package",
 			licenseTier: "premium",
-			oldMDM:      fleet.MDM{EnabledAndConfigured: true},
-			newMDM: fleet.MDM{
+			oldMDM:      automdm.MDM{EnabledAndConfigured: true},
+			newMDM: automdm.MDM{
 				EnabledAndConfigured: true,
-				MacOSSetup:           fleet.MacOSSetup{MacOSEnableBootstrapPackageDuringManualEnrollment: true},
+				MacOSSetup:           automdm.MacOSSetup{MacOSEnableBootstrapPackageDuringManualEnrollment: true},
 			},
 			expectedError: "setup_experience.macos_enable_bootstrap_package_during_manual_enrollment Couldn't enable macos_enable_bootstrap_package_during_manual_enrollment. To use this option, first specify a bootstrap package.",
 		},
@@ -1844,15 +1844,15 @@ func TestMDMConfig(t *testing.T) {
 			name:                "bootstrap package settings enabled with a bootstrap package uploaded via the UI",
 			licenseTier:         "premium",
 			hasBootstrapPackage: true,
-			oldMDM:              fleet.MDM{EnabledAndConfigured: true},
-			newMDM: fleet.MDM{
+			oldMDM:              automdm.MDM{EnabledAndConfigured: true},
+			newMDM: automdm.MDM{
 				EnabledAndConfigured: true,
-				MacOSSetup: fleet.MacOSSetup{
+				MacOSSetup: automdm.MacOSSetup{
 					MacOSEnableBootstrapPackageDuringManualEnrollment: true,
 					MacOSEnableBootstrapPackageDuringMigration:        true,
 				},
 			},
-			expectedMDM: defaultMDMAppConfig(func(m *fleet.MDM) {
+			expectedMDM: defaultMDMAppConfig(func(m *automdm.MDM) {
 				m.EnabledAndConfigured = true
 				m.MacOSSetup.MacOSEnableBootstrapPackageDuringManualEnrollment = true
 				m.MacOSSetup.MacOSEnableBootstrapPackageDuringMigration = true
@@ -1861,49 +1861,49 @@ func TestMDMConfig(t *testing.T) {
 		{
 			name:        "bootstrap package for migration enabled without bootstrap package",
 			licenseTier: "premium",
-			oldMDM:      fleet.MDM{EnabledAndConfigured: true},
-			newMDM: fleet.MDM{
+			oldMDM:      automdm.MDM{EnabledAndConfigured: true},
+			newMDM: automdm.MDM{
 				EnabledAndConfigured: true,
-				MacOSSetup:           fleet.MacOSSetup{MacOSEnableBootstrapPackageDuringMigration: true},
+				MacOSSetup:           automdm.MacOSSetup{MacOSEnableBootstrapPackageDuringMigration: true},
 			},
 			expectedError: "setup_experience.macos_enable_bootstrap_package_during_migration Couldn't enable macos_enable_bootstrap_package_during_migration. To use this option, first specify a bootstrap package.",
 		},
 		{
 			name:        "bootstrap package for manual enrollment requires premium",
 			licenseTier: "free",
-			newMDM: fleet.MDM{
-				MacOSSetup: fleet.MacOSSetup{MacOSEnableBootstrapPackageDuringManualEnrollment: true},
+			newMDM: automdm.MDM{
+				MacOSSetup: automdm.MacOSSetup{MacOSEnableBootstrapPackageDuringManualEnrollment: true},
 			},
 			expectedError: "setup_experience.macos_enable_bootstrap_package_during_manual_enrollment " + licenseErr,
 		},
 		{
 			name:        "bootstrap package for manual enrollment requires MDM enabled",
 			licenseTier: "premium",
-			newMDM: fleet.MDM{
-				MacOSSetup: fleet.MacOSSetup{MacOSEnableBootstrapPackageDuringManualEnrollment: true},
+			newMDM: automdm.MDM{
+				MacOSSetup: automdm.MacOSSetup{MacOSEnableBootstrapPackageDuringManualEnrollment: true},
 			},
-			expectedError: "setup_experience.macos_enable_bootstrap_package_during_manual_enrollment Couldn't update setup_experience because MDM features aren't turned on in Fleet.",
+			expectedError: "setup_experience.macos_enable_bootstrap_package_during_manual_enrollment Couldn't update setup_experience because MDM features aren't turned on in AutoMDM.",
 		},
 		{
 			name:        "bootstrap package for migration requires premium",
 			licenseTier: "free",
-			newMDM: fleet.MDM{
-				MacOSSetup: fleet.MacOSSetup{MacOSEnableBootstrapPackageDuringMigration: true},
+			newMDM: automdm.MDM{
+				MacOSSetup: automdm.MacOSSetup{MacOSEnableBootstrapPackageDuringMigration: true},
 			},
 			expectedError: "setup_experience.macos_enable_bootstrap_package_during_migration " + licenseErr,
 		},
 		{
 			name:        "bootstrap package for migration requires MDM enabled",
 			licenseTier: "premium",
-			newMDM: fleet.MDM{
-				MacOSSetup: fleet.MacOSSetup{MacOSEnableBootstrapPackageDuringMigration: true},
+			newMDM: automdm.MDM{
+				MacOSSetup: automdm.MacOSSetup{MacOSEnableBootstrapPackageDuringMigration: true},
 			},
-			expectedError: "setup_experience.macos_enable_bootstrap_package_during_migration Couldn't update setup_experience because MDM features aren't turned on in Fleet.",
+			expectedError: "setup_experience.macos_enable_bootstrap_package_during_migration Couldn't update setup_experience because MDM features aren't turned on in AutoMDM.",
 		},
 		{
 			name:        "windows entra client IDs require premium",
 			licenseTier: "free",
-			newMDM: fleet.MDM{
+			newMDM: automdm.MDM{
 				WindowsEntraClientIDs: optjson.SetSlice([]string{"11111111-1111-1111-1111-111111111111"}),
 			},
 			expectedError: licenseErr,
@@ -1911,7 +1911,7 @@ func TestMDMConfig(t *testing.T) {
 		{
 			name:        "windows entra client IDs require Windows MDM enabled",
 			licenseTier: "premium",
-			newMDM: fleet.MDM{
+			newMDM: automdm.MDM{
 				WindowsEntraClientIDs: optjson.SetSlice([]string{"11111111-1111-1111-1111-111111111111"}),
 			},
 			expectedError: "Couldn't set Windows Entra client IDs, Windows MDM is not enabled.",
@@ -1919,7 +1919,7 @@ func TestMDMConfig(t *testing.T) {
 		{
 			name:        "windows entra client ID must be a valid GUID",
 			licenseTier: "premium",
-			newMDM: fleet.MDM{
+			newMDM: automdm.MDM{
 				WindowsEntraClientIDs: optjson.SetSlice([]string{"not-a-guid"}),
 			},
 			expectedError: "Invalid Entra client ID: not-a-guid",
@@ -1927,13 +1927,13 @@ func TestMDMConfig(t *testing.T) {
 		{
 			name:        "try to disable End User Authentication with Lock End User Info enabled",
 			licenseTier: "premium",
-			newMDM: fleet.MDM{
-				MacOSSetup: fleet.MacOSSetup{
+			newMDM: automdm.MDM{
+				MacOSSetup: automdm.MacOSSetup{
 					LockEndUserInfo:             optjson.SetBool(true),
 					EnableEndUserAuthentication: false,
 				},
-				EndUserAuthentication: fleet.MDMEndUserAuthentication{SSOProviderSettings: fleet.SSOProviderSettings{
-					EntityID:    "fleet",
+				EndUserAuthentication: automdm.MDMEndUserAuthentication{SSOProviderSettings: automdm.SSOProviderSettings{
+					EntityID:    "automdm",
 					MetadataURL: "http://isser.metadata.com",
 					IDPName:     "onelogin",
 				}},
@@ -1943,7 +1943,7 @@ func TestMDMConfig(t *testing.T) {
 		{
 			name:        "apple MDM server URL no protocol",
 			licenseTier: "premium",
-			newMDM: fleet.MDM{
+			newMDM: automdm.MDM{
 				AppleServerURL: "bogus.url.com",
 			},
 			expectedError: "mdmAppleServerURL must include a URL scheme",
@@ -1951,7 +1951,7 @@ func TestMDMConfig(t *testing.T) {
 		{
 			name:        "apple MDM server URL invalid protocol",
 			licenseTier: "premium",
-			newMDM: fleet.MDM{
+			newMDM: automdm.MDM{
 				AppleServerURL: "ftp://bogus.url.com",
 			},
 			expectedError: "mdmAppleServerURL URL scheme must be http or https",
@@ -1959,7 +1959,7 @@ func TestMDMConfig(t *testing.T) {
 		{
 			name:        "apple MDM server invalid URL",
 			licenseTier: "premium",
-			newMDM: fleet.MDM{
+			newMDM: automdm.MDM{
 				AppleServerURL: "http://[::1]:namedport",
 			},
 			expectedError: "mdmAppleServerURL must be a valid URL",
@@ -1967,7 +1967,7 @@ func TestMDMConfig(t *testing.T) {
 		{
 			name:        "apple MDM server no host",
 			licenseTier: "premium",
-			newMDM: fleet.MDM{
+			newMDM: automdm.MDM{
 				AppleServerURL: "http:///path-only",
 			},
 			expectedError: "mdmAppleServerURL must include a host",
@@ -1975,8 +1975,8 @@ func TestMDMConfig(t *testing.T) {
 		{
 			name:        "end user account type standard with disabled managed local account",
 			licenseTier: "premium",
-			newMDM: fleet.MDM{
-				MacOSSetup: fleet.MacOSSetup{
+			newMDM: automdm.MDM{
+				MacOSSetup: automdm.MacOSSetup{
 					EndUserLocalAccountType:   optjson.SetString("standard"),
 					EnableManagedLocalAccount: optjson.SetBool(false),
 				},
@@ -1986,8 +1986,8 @@ func TestMDMConfig(t *testing.T) {
 		{
 			name:        "end user account type none with disabled managed local account",
 			licenseTier: "premium",
-			newMDM: fleet.MDM{
-				MacOSSetup: fleet.MacOSSetup{
+			newMDM: automdm.MDM{
+				MacOSSetup: automdm.MacOSSetup{
 					EndUserLocalAccountType:   optjson.SetString("none"),
 					EnableManagedLocalAccount: optjson.SetBool(false),
 				},
@@ -1997,18 +1997,18 @@ func TestMDMConfig(t *testing.T) {
 		{
 			name:        "end user auth fields strips leading and trailing whitespace",
 			licenseTier: "premium",
-			newMDM: fleet.MDM{
-				EndUserAuthentication: fleet.MDMEndUserAuthentication{
-					SSOProviderSettings: fleet.SSOProviderSettings{
-						EntityID: "  fleet  ",
+			newMDM: automdm.MDM{
+				EndUserAuthentication: automdm.MDMEndUserAuthentication{
+					SSOProviderSettings: automdm.SSOProviderSettings{
+						EntityID: "  team  ",
 						Metadata: "  not-empty\r\n",
 						IDPName:  "  onelogin  ",
 					},
 				},
 			},
-			expectedMDM: defaultMDMAppConfig(func(m *fleet.MDM) {
-				m.EndUserAuthentication.SSOProviderSettings = fleet.SSOProviderSettings{
-					EntityID: "fleet",
+			expectedMDM: defaultMDMAppConfig(func(m *automdm.MDM) {
+				m.EndUserAuthentication.SSOProviderSettings = automdm.SSOProviderSettings{
+					EntityID: "automdm",
 					Metadata: "not-empty",
 					IDPName:  "onelogin",
 				}
@@ -2018,20 +2018,20 @@ func TestMDMConfig(t *testing.T) {
 
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
-			svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: &fleet.LicenseInfo{Tier: tt.licenseTier}, DEPStorage: depStorage})
+			svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: &automdm.LicenseInfo{Tier: tt.licenseTier}, DEPStorage: depStorage})
 			ctx = viewer.NewContext(ctx, viewer.Viewer{User: admin})
 
-			dsAppConfig := &fleet.AppConfig{
-				OrgInfo:        fleet.OrgInfo{OrgName: "Test"},
-				ServerSettings: fleet.ServerSettings{ServerURL: "https://example.org"},
+			dsAppConfig := &automdm.AppConfig{
+				OrgInfo:        automdm.OrgInfo{OrgName: "Test"},
+				ServerSettings: automdm.ServerSettings{ServerURL: "https://example.org"},
 				MDM:            tt.oldMDM,
 			}
 
-			ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
+			ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
 				return dsAppConfig, nil
 			}
 
-			ds.SaveAppConfigFunc = func(ctx context.Context, conf *fleet.AppConfig) error {
+			ds.SaveAppConfigFunc = func(ctx context.Context, conf *automdm.AppConfig) error {
 				*dsAppConfig = *conf
 				return nil
 			}
@@ -2040,32 +2040,32 @@ func TestMDMConfig(t *testing.T) {
 			ds.HasAppleUpdateConfigProfileConfiguredFunc = func(context.Context, uint) (bool, error) {
 				return false, nil
 			}
-			ds.TeamByNameFunc = func(ctx context.Context, name string) (*fleet.Team, error) {
+			ds.TeamByNameFunc = func(ctx context.Context, name string) (*automdm.Team, error) {
 				if tt.findTeam {
-					return &fleet.Team{}, nil
+					return &automdm.Team{}, nil
 				}
 				return nil, sql.ErrNoRows
 			}
-			ds.NewMDMAppleEnrollmentProfileFunc = func(ctx context.Context, enrollmentPayload fleet.MDMAppleEnrollmentProfilePayload) (*fleet.MDMAppleEnrollmentProfile, error) {
-				return &fleet.MDMAppleEnrollmentProfile{}, nil
+			ds.NewMDMAppleEnrollmentProfileFunc = func(ctx context.Context, enrollmentPayload automdm.MDMAppleEnrollmentProfilePayload) (*automdm.MDMAppleEnrollmentProfile, error) {
+				return &automdm.MDMAppleEnrollmentProfile{}, nil
 			}
-			ds.GetMDMAppleBootstrapPackageMetaFunc = func(ctx context.Context, teamID uint) (*fleet.MDMAppleBootstrapPackage, error) {
+			ds.GetMDMAppleBootstrapPackageMetaFunc = func(ctx context.Context, teamID uint) (*automdm.MDMAppleBootstrapPackage, error) {
 				if tt.hasBootstrapPackage {
-					return &fleet.MDMAppleBootstrapPackage{TeamID: teamID}, nil
+					return &automdm.MDMAppleBootstrapPackage{TeamID: teamID}, nil
 				}
 				return nil, &notFoundError{}
 			}
-			ds.GetMDMAppleEnrollmentProfileByTypeFunc = func(ctx context.Context, typ fleet.MDMAppleEnrollmentType) (*fleet.MDMAppleEnrollmentProfile, error) {
+			ds.GetMDMAppleEnrollmentProfileByTypeFunc = func(ctx context.Context, typ automdm.MDMAppleEnrollmentType) (*automdm.MDMAppleEnrollmentProfile, error) {
 				raw := json.RawMessage("{}")
-				return &fleet.MDMAppleEnrollmentProfile{DEPProfile: &raw}, nil
+				return &automdm.MDMAppleEnrollmentProfile{DEPProfile: &raw}, nil
 			}
-			ds.NewJobFunc = func(ctx context.Context, job *fleet.Job) (*fleet.Job, error) {
+			ds.NewJobFunc = func(ctx context.Context, job *automdm.Job) (*automdm.Job, error) {
 				return job, nil
 			}
-			ds.ListABMTokensFunc = func(ctx context.Context) ([]*fleet.ABMToken, error) {
-				return []*fleet.ABMToken{{ID: 1}}, nil
+			ds.ListABMTokensFunc = func(ctx context.Context) ([]*automdm.ABMToken, error) {
+				return []*automdm.ABMToken{{ID: 1}}, nil
 			}
-			ds.SaveABMTokenFunc = func(ctx context.Context, token *fleet.ABMToken) error {
+			ds.SaveABMTokenFunc = func(ctx context.Context, token *automdm.ABMToken) error {
 				return nil
 			}
 			depStorage.RetrieveConfigFunc = func(p0 context.Context, p1 string) (*nanodep_client.Config, error) {
@@ -2077,14 +2077,14 @@ func TestMDMConfig(t *testing.T) {
 			depStorage.StoreAssignerProfileFunc = func(ctx context.Context, name string, profileUUID string) error {
 				return nil
 			}
-			ds.SaveABMTokenFunc = func(ctx context.Context, tok *fleet.ABMToken) error {
+			ds.SaveABMTokenFunc = func(ctx context.Context, tok *automdm.ABMToken) error {
 				return nil
 			}
-			ds.ListVPPTokensFunc = func(ctx context.Context) ([]*fleet.VPPTokenDB, error) {
-				return []*fleet.VPPTokenDB{}, nil
+			ds.ListVPPTokensFunc = func(ctx context.Context) ([]*automdm.VPPTokenDB, error) {
+				return []*automdm.VPPTokenDB{}, nil
 			}
-			ds.ListABMTokensFunc = func(ctx context.Context) ([]*fleet.ABMToken, error) {
-				return []*fleet.ABMToken{{OrganizationName: "abm-org"}}, nil
+			ds.ListABMTokensFunc = func(ctx context.Context) ([]*automdm.ABMToken, error) {
+				return []*automdm.ABMToken{{OrganizationName: "abm-org"}}, nil
 			}
 			ds.GetABMTokenCountFunc = func(ctx context.Context) (int, error) {
 				return 1, nil
@@ -2092,9 +2092,9 @@ func TestMDMConfig(t *testing.T) {
 			ds.SetABMTokenDefaultFunc = func(ctx context.Context, tokenID uint) error {
 				return nil
 			}
-			ds.TeamsSummaryFunc = func(ctx context.Context) ([]*fleet.TeamSummary, error) {
+			ds.TeamsSummaryFunc = func(ctx context.Context) ([]*automdm.TeamSummary, error) {
 				if tt.findTeam {
-					return []*fleet.TeamSummary{{ID: 1, Name: "foobar"}}, nil
+					return []*automdm.TeamSummary{{ID: 1, Name: "foobar"}}, nil
 				}
 				return nil, nil
 			}
@@ -2106,7 +2106,7 @@ func TestMDMConfig(t *testing.T) {
 			raw, err := json.Marshal(tt.newMDM)
 			require.NoError(t, err)
 			raw = []byte(`{"mdm":` + string(raw) + `}`)
-			modified, err := svc.ModifyAppConfig(ctx, raw, fleet.ApplySpecOptions{})
+			modified, err := svc.ModifyAppConfig(ctx, raw, automdm.ApplySpecOptions{})
 			if tt.expectedError != "" {
 				require.Error(t, err)
 				require.ErrorContains(t, err, tt.expectedError)
@@ -2128,20 +2128,20 @@ func TestMDMConfig(t *testing.T) {
 // builds payloads with json.Marshal of a whole fleet.MDM, and optjson emits an
 // explicit null for every unset field, which clears the value on the way in.
 func TestModifyAppConfigClearsStaleAppleOSUpdateDeadline(t *testing.T) {
-	admin := &fleet.User{GlobalRole: new(fleet.RoleAdmin)}
+	admin := &automdm.User{GlobalRole: new(automdm.RoleAdmin)}
 
-	latest := fleet.AppleOSUpdateSettings{
-		MinimumVersion: optjson.SetString(fleet.AppleOSUpdateLatestVersion),
+	latest := automdm.AppleOSUpdateSettings{
+		MinimumVersion: optjson.SetString(automdm.AppleOSUpdateLatestVersion),
 		DeadlineDays:   optjson.SetInt(14),
 	}
 
 	// 14.6.1 is a macOS version present in the GDMF fixture.
-	specific := fleet.AppleOSUpdateSettings{
+	specific := automdm.AppleOSUpdateSettings{
 		MinimumVersion: optjson.SetString("14.6.1"),
 		Deadline:       optjson.SetString("2026-09-01"),
 	}
 
-	setup := func(t *testing.T, stored fleet.MDM) (fleet.Service, context.Context) {
+	setup := func(t *testing.T, stored automdm.MDM) (automdm.Service, context.Context) {
 		// validateMDM checks minimum_version against GDMF unconditionally, so
 		// serve Apple's asset list from the local fixture. Without this the
 		// subtests reach out to Apple and start failing whenever a version stops
@@ -2149,41 +2149,41 @@ func TestModifyAppConfigClearsStaleAppleOSUpdateDeadline(t *testing.T) {
 		mdmtest.StartNewAppleGDMFTestServer(t)
 
 		ds := new(mock.Store)
-		svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: &fleet.LicenseInfo{Tier: fleet.TierPremium}})
+		svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: &automdm.LicenseInfo{Tier: automdm.TierPremium}})
 		ctx = viewer.NewContext(ctx, viewer.Viewer{User: admin})
 
-		dsAppConfig := &fleet.AppConfig{
-			OrgInfo:        fleet.OrgInfo{OrgName: "Test"},
-			ServerSettings: fleet.ServerSettings{ServerURL: "https://example.org"},
+		dsAppConfig := &automdm.AppConfig{
+			OrgInfo:        automdm.OrgInfo{OrgName: "Test"},
+			ServerSettings: automdm.ServerSettings{ServerURL: "https://example.org"},
 			MDM:            stored,
 		}
-		ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
 			return dsAppConfig, nil
 		}
-		ds.SaveAppConfigFunc = func(ctx context.Context, conf *fleet.AppConfig) error {
+		ds.SaveAppConfigFunc = func(ctx context.Context, conf *automdm.AppConfig) error {
 			*dsAppConfig = *conf
 			return nil
 		}
 		ds.HasAppleUpdateConfigProfileConfiguredFunc = func(context.Context, uint) (bool, error) {
 			return false, nil
 		}
-		ds.ListABMTokensFunc = func(ctx context.Context) ([]*fleet.ABMToken, error) {
-			return []*fleet.ABMToken{}, nil
+		ds.ListABMTokensFunc = func(ctx context.Context) ([]*automdm.ABMToken, error) {
+			return []*automdm.ABMToken{}, nil
 		}
-		ds.ListVPPTokensFunc = func(ctx context.Context) ([]*fleet.VPPTokenDB, error) {
-			return []*fleet.VPPTokenDB{}, nil
+		ds.ListVPPTokensFunc = func(ctx context.Context) ([]*automdm.VPPTokenDB, error) {
+			return []*automdm.VPPTokenDB{}, nil
 		}
 		// changing OS updates reconciles the reserved software-update
 		// declaration, so the write path has to be stubbed for the success cases
 		// to get past validation.
-		ds.LabelIDsByNameFunc = func(ctx context.Context, names []string, tmFilter fleet.TeamFilter) (map[string]uint, error) {
+		ds.LabelIDsByNameFunc = func(ctx context.Context, names []string, tmFilter automdm.TeamFilter) (map[string]uint, error) {
 			ids := make(map[string]uint, len(names))
 			for i, name := range names {
 				ids[name] = uint(i + 1) //nolint:gosec // G115: small test values
 			}
 			return ids, nil
 		}
-		ds.SetOrUpdateMDMAppleDeclarationFunc = func(ctx context.Context, d *fleet.MDMAppleDeclaration, usesFleetVars []fleet.FleetVarName, activationAction fleet.MDMAppleActivationAction) (*fleet.MDMAppleDeclaration, error) {
+		ds.SetOrUpdateMDMAppleDeclarationFunc = func(ctx context.Context, d *automdm.MDMAppleDeclaration, usesAutoMDMVars []automdm.AutoMDMVarName, activationAction automdm.MDMAppleActivationAction) (*automdm.MDMAppleDeclaration, error) {
 			return d, nil
 		}
 		ds.DeleteMDMAppleDeclarationByNameFunc = func(ctx context.Context, teamID *uint, name string) error {
@@ -2193,11 +2193,11 @@ func TestModifyAppConfigClearsStaleAppleOSUpdateDeadline(t *testing.T) {
 	}
 
 	t.Run("macOS switching to a specific version", func(t *testing.T) {
-		svc, ctx := setup(t, fleet.MDM{MacOSUpdates: latest})
+		svc, ctx := setup(t, automdm.MDM{MacOSUpdates: latest})
 
 		modified, err := svc.ModifyAppConfig(ctx,
 			[]byte(`{"mdm":{"macos_updates":{"minimum_version":"14.6.1","deadline":"2026-09-01"}}}`),
-			fleet.ApplySpecOptions{})
+			automdm.ApplySpecOptions{})
 		require.NoError(t, err)
 
 		require.Equal(t, "14.6.1", modified.MDM.MacOSUpdates.MinimumVersion.Value)
@@ -2208,14 +2208,14 @@ func TestModifyAppConfigClearsStaleAppleOSUpdateDeadline(t *testing.T) {
 	t.Run("switching into latest mode drops the stored deadline", func(t *testing.T) {
 		// the mirror case: "latest" derives its deadline from deadline_days, so a
 		// stored deadline is what's stale here.
-		svc, ctx := setup(t, fleet.MDM{MacOSUpdates: specific})
+		svc, ctx := setup(t, automdm.MDM{MacOSUpdates: specific})
 
 		modified, err := svc.ModifyAppConfig(ctx,
 			[]byte(`{"mdm":{"macos_updates":{"minimum_version":"latest","deadline_days":14}}}`),
-			fleet.ApplySpecOptions{})
+			automdm.ApplySpecOptions{})
 		require.NoError(t, err)
 
-		require.Equal(t, fleet.AppleOSUpdateLatestVersion, modified.MDM.MacOSUpdates.MinimumVersion.Value)
+		require.Equal(t, automdm.AppleOSUpdateLatestVersion, modified.MDM.MacOSUpdates.MinimumVersion.Value)
 		require.Equal(t, 14, modified.MDM.MacOSUpdates.DeadlineDays.Value)
 		require.Empty(t, modified.MDM.MacOSUpdates.Deadline.Value)
 
@@ -2227,11 +2227,11 @@ func TestModifyAppConfigClearsStaleAppleOSUpdateDeadline(t *testing.T) {
 	})
 
 	t.Run("an explicitly supplied deadline is still rejected in latest mode", func(t *testing.T) {
-		svc, ctx := setup(t, fleet.MDM{MacOSUpdates: specific})
+		svc, ctx := setup(t, automdm.MDM{MacOSUpdates: specific})
 
 		_, err := svc.ModifyAppConfig(ctx,
 			[]byte(`{"mdm":{"macos_updates":{"minimum_version":"latest","deadline":"2026-09-01","deadline_days":14}}}`),
-			fleet.ApplySpecOptions{})
+			automdm.ApplySpecOptions{})
 		require.Error(t, err)
 		require.ErrorContains(t, err, `deadline cannot be set when minimum_version is set to "latest"`)
 	})
@@ -2239,11 +2239,11 @@ func TestModifyAppConfigClearsStaleAppleOSUpdateDeadline(t *testing.T) {
 	t.Run("clearing enforcement entirely", func(t *testing.T) {
 		// turning enforcement off also leaves "latest" mode, so the stored
 		// deadline_days must not block it either.
-		svc, ctx := setup(t, fleet.MDM{MacOSUpdates: latest})
+		svc, ctx := setup(t, automdm.MDM{MacOSUpdates: latest})
 
 		modified, err := svc.ModifyAppConfig(ctx,
 			[]byte(`{"mdm":{"macos_updates":{"minimum_version":"","deadline":""}}}`),
-			fleet.ApplySpecOptions{})
+			automdm.ApplySpecOptions{})
 		require.NoError(t, err)
 
 		require.Empty(t, modified.MDM.MacOSUpdates.MinimumVersion.Value)
@@ -2254,22 +2254,22 @@ func TestModifyAppConfigClearsStaleAppleOSUpdateDeadline(t *testing.T) {
 	// enforcement rather than set a version to keep Apple's supported-version
 	// list out of it.
 	t.Run("iOS clearing enforcement", func(t *testing.T) {
-		svc, ctx := setup(t, fleet.MDM{IOSUpdates: latest})
+		svc, ctx := setup(t, automdm.MDM{IOSUpdates: latest})
 
 		modified, err := svc.ModifyAppConfig(ctx,
 			[]byte(`{"mdm":{"ios_updates":{"minimum_version":"","deadline":""}}}`),
-			fleet.ApplySpecOptions{})
+			automdm.ApplySpecOptions{})
 		require.NoError(t, err)
 
 		require.False(t, modified.MDM.IOSUpdates.DeadlineDays.Valid)
 	})
 
 	t.Run("iPadOS clearing enforcement", func(t *testing.T) {
-		svc, ctx := setup(t, fleet.MDM{IPadOSUpdates: latest})
+		svc, ctx := setup(t, automdm.MDM{IPadOSUpdates: latest})
 
 		modified, err := svc.ModifyAppConfig(ctx,
 			[]byte(`{"mdm":{"ipados_updates":{"minimum_version":"","deadline":""}}}`),
-			fleet.ApplySpecOptions{})
+			automdm.ApplySpecOptions{})
 		require.NoError(t, err)
 
 		require.False(t, modified.MDM.IPadOSUpdates.DeadlineDays.Valid)
@@ -2278,59 +2278,59 @@ func TestModifyAppConfigClearsStaleAppleOSUpdateDeadline(t *testing.T) {
 	t.Run("an explicitly supplied deadline_days is still rejected", func(t *testing.T) {
 		// the caller sent it, so this is a real mistake and has to keep failing
 		// with the error that explains the constraint.
-		svc, ctx := setup(t, fleet.MDM{MacOSUpdates: latest})
+		svc, ctx := setup(t, automdm.MDM{MacOSUpdates: latest})
 
 		_, err := svc.ModifyAppConfig(ctx,
 			[]byte(`{"mdm":{"macos_updates":{"minimum_version":"14.6.1","deadline":"2026-09-01","deadline_days":14}}}`),
-			fleet.ApplySpecOptions{})
+			automdm.ApplySpecOptions{})
 		require.Error(t, err)
 		require.ErrorContains(t, err, `deadline_days can only be set when minimum_version is set to "latest"`)
 	})
 
 	t.Run("latest mode is untouched when the payload omits the platform", func(t *testing.T) {
-		svc, ctx := setup(t, fleet.MDM{MacOSUpdates: latest})
+		svc, ctx := setup(t, automdm.MDM{MacOSUpdates: latest})
 
 		modified, err := svc.ModifyAppConfig(ctx,
 			[]byte(`{"org_info":{"org_name":"Renamed"}}`),
-			fleet.ApplySpecOptions{})
+			automdm.ApplySpecOptions{})
 		require.NoError(t, err)
 
-		require.Equal(t, fleet.AppleOSUpdateLatestVersion, modified.MDM.MacOSUpdates.MinimumVersion.Value)
+		require.Equal(t, automdm.AppleOSUpdateLatestVersion, modified.MDM.MacOSUpdates.MinimumVersion.Value)
 		require.Equal(t, 14, modified.MDM.MacOSUpdates.DeadlineDays.Value)
 	})
 }
 
 func TestModifyAppConfigWindowsEntraClientIDNormalization(t *testing.T) {
 	ds := new(mock.Store)
-	admin := &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}
+	admin := &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}
 
 	// Windows MDM must be enabled to set client IDs, which requires a configured WSTEP cert/key pair.
 	cfg := config.TestConfig()
 	cfg.MDM.WindowsWSTEPIdentityCert = "testdata/server.pem"
 	cfg.MDM.WindowsWSTEPIdentityKey = "testdata/server.key"
-	svc, ctx := newTestServiceWithConfig(t, ds, cfg, nil, nil, &TestServerOpts{License: &fleet.LicenseInfo{Tier: fleet.TierPremium}})
+	svc, ctx := newTestServiceWithConfig(t, ds, cfg, nil, nil, &TestServerOpts{License: &automdm.LicenseInfo{Tier: automdm.TierPremium}})
 	ctx = viewer.NewContext(ctx, viewer.Viewer{User: admin})
 
-	dsAppConfig := &fleet.AppConfig{
-		OrgInfo:        fleet.OrgInfo{OrgName: "Test"},
-		ServerSettings: fleet.ServerSettings{ServerURL: "https://example.org"},
-		MDM:            fleet.MDM{WindowsEnabledAndConfigured: true},
+	dsAppConfig := &automdm.AppConfig{
+		OrgInfo:        automdm.OrgInfo{OrgName: "Test"},
+		ServerSettings: automdm.ServerSettings{ServerURL: "https://example.org"},
+		MDM:            automdm.MDM{WindowsEnabledAndConfigured: true},
 	}
 
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
 		return dsAppConfig, nil
 	}
-	var saved *fleet.AppConfig
-	ds.SaveAppConfigFunc = func(ctx context.Context, conf *fleet.AppConfig) error {
+	var saved *automdm.AppConfig
+	ds.SaveAppConfigFunc = func(ctx context.Context, conf *automdm.AppConfig) error {
 		*dsAppConfig = *conf
 		saved = conf
 		return nil
 	}
-	ds.ListABMTokensFunc = func(ctx context.Context) ([]*fleet.ABMToken, error) {
-		return []*fleet.ABMToken{}, nil
+	ds.ListABMTokensFunc = func(ctx context.Context) ([]*automdm.ABMToken, error) {
+		return []*automdm.ABMToken{}, nil
 	}
-	ds.ListVPPTokensFunc = func(ctx context.Context) ([]*fleet.VPPTokenDB, error) {
-		return []*fleet.VPPTokenDB{}, nil
+	ds.ListVPPTokensFunc = func(ctx context.Context) ([]*automdm.VPPTokenDB, error) {
+		return []*automdm.VPPTokenDB{}, nil
 	}
 
 	// Mixed case plus a case-only duplicate. They should be normalized to lower-case and de-duplicated.
@@ -2338,7 +2338,7 @@ func TestModifyAppConfigWindowsEntraClientIDNormalization(t *testing.T) {
 		`"AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA",` +
 		`"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",` +
 		`"BBBBBBBB-bbbb-BBBB-bbbb-BBBBBBBBBBBB"]}}`)
-	modified, err := svc.ModifyAppConfig(ctx, raw, fleet.ApplySpecOptions{})
+	modified, err := svc.ModifyAppConfig(ctx, raw, automdm.ApplySpecOptions{})
 	require.NoError(t, err)
 
 	want := []string{
@@ -2351,7 +2351,7 @@ func TestModifyAppConfigWindowsEntraClientIDNormalization(t *testing.T) {
 }
 
 func TestModifyAppConfigAppleAccountProvisioning(t *testing.T) {
-	admin := &fleet.User{GlobalRole: new(fleet.RoleAdmin)}
+	admin := &automdm.User{GlobalRole: new(automdm.RoleAdmin)}
 
 	const (
 		tokenURL  = "https://idp.example.com/oauth2/v1/token"   //nolint:gosec // G101: test URL, not a credential
@@ -2363,8 +2363,8 @@ func TestModifyAppConfigAppleAccountProvisioning(t *testing.T) {
 	// configuredAAP returns a stored AppConfig section as it looks once the
 	// feature is configured: public fields present, secret stripped (it lives in
 	// mdm_config_assets, never in the JSON).
-	configuredAAP := func() fleet.AppleAccountProvisioning {
-		return fleet.AppleAccountProvisioning{
+	configuredAAP := func() automdm.AppleAccountProvisioning {
+		return automdm.AppleAccountProvisioning{
 			OAuthIdPTokenURL: optjson.SetString(tokenURL),
 			OAuthIdPClientID: optjson.SetString(clientID),
 		}
@@ -2382,37 +2382,37 @@ func TestModifyAppConfigAppleAccountProvisioning(t *testing.T) {
 	type trackers struct {
 		insertedSecret *string
 		deleted        bool
-		saved          *fleet.AppConfig
+		saved          *automdm.AppConfig
 		activityFired  bool
 		verifiedSecret *string
 	}
 
-	setup := func(t *testing.T, tier string, stored fleet.AppleAccountProvisioning, verifyErr error) (fleet.Service, context.Context, *mock.Store, *trackers) {
+	setup := func(t *testing.T, tier string, stored automdm.AppleAccountProvisioning, verifyErr error) (automdm.Service, context.Context, *mock.Store, *trackers) {
 		ds := new(mock.Store)
 		cfg := config.TestConfig()
 		cfg.Server.PrivateKey = "test-private-key-not-used-by-mock"
-		opts := &TestServerOpts{License: &fleet.LicenseInfo{Tier: tier}}
+		opts := &TestServerOpts{License: &automdm.LicenseInfo{Tier: tier}}
 		svc, ctx := newTestServiceWithConfig(t, ds, cfg, nil, nil, opts)
 		ctx = viewer.NewContext(ctx, viewer.Viewer{User: admin})
 
 		tr := &trackers{}
-		if tier == fleet.TierPremium {
+		if tier == automdm.TierPremium {
 			// Stand in for the IdP check so these cases don't reach the network.
-			svc.SetEnterpriseOverrides(fleet.EnterpriseOverrides{
-				VerifyAppleAccountProvisioning: func(_ context.Context, settings fleet.AppleAccountProvisioning, clientSecret string) error {
+			svc.SetEnterpriseOverrides(automdm.EnterpriseOverrides{
+				VerifyAppleAccountProvisioning: func(_ context.Context, settings automdm.AppleAccountProvisioning, clientSecret string) error {
 					require.True(t, settings.Configured())
 					tr.verifiedSecret = &clientSecret
 					return verifyErr
 				},
 			})
 		}
-		dsAppConfig := &fleet.AppConfig{
-			OrgInfo:        fleet.OrgInfo{OrgName: "Test"},
-			ServerSettings: fleet.ServerSettings{ServerURL: "https://example.org"},
-			MDM:            fleet.MDM{AppleAccountProvisioning: stored},
+		dsAppConfig := &automdm.AppConfig{
+			OrgInfo:        automdm.OrgInfo{OrgName: "Test"},
+			ServerSettings: automdm.ServerSettings{ServerURL: "https://example.org"},
+			MDM:            automdm.MDM{AppleAccountProvisioning: stored},
 		}
-		ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) { return dsAppConfig, nil }
-		ds.SaveAppConfigFunc = func(ctx context.Context, conf *fleet.AppConfig) error {
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) { return dsAppConfig, nil }
+		ds.SaveAppConfigFunc = func(ctx context.Context, conf *automdm.AppConfig) error {
 			// Snapshot at save time: the mock hands back the same pointer that
 			// ModifyAppConfig mutates (and later obfuscates) in place, unlike a
 			// real DB read which returns a fresh copy.
@@ -2420,21 +2420,21 @@ func TestModifyAppConfigAppleAccountProvisioning(t *testing.T) {
 			*dsAppConfig = *conf
 			return nil
 		}
-		ds.ListABMTokensFunc = func(ctx context.Context) ([]*fleet.ABMToken, error) { return []*fleet.ABMToken{}, nil }
-		ds.ListVPPTokensFunc = func(ctx context.Context) ([]*fleet.VPPTokenDB, error) { return []*fleet.VPPTokenDB{}, nil }
+		ds.ListABMTokensFunc = func(ctx context.Context) ([]*automdm.ABMToken, error) { return []*automdm.ABMToken{}, nil }
+		ds.ListVPPTokensFunc = func(ctx context.Context) ([]*automdm.VPPTokenDB, error) { return []*automdm.VPPTokenDB{}, nil }
 
 		// A configured feature implies a stored secret; report it as `secret` so
 		// resending that value is detected as unchanged.
-		ds.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, names []fleet.MDMAssetName, _ sqlx.QueryerContext) (map[fleet.MDMAssetName]fleet.MDMConfigAsset, error) {
+		ds.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, names []automdm.MDMAssetName, _ sqlx.QueryerContext) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
 			if !stored.Configured() {
 				return nil, newNotFoundError()
 			}
-			return map[fleet.MDMAssetName]fleet.MDMConfigAsset{
-				fleet.MDMAssetAppleAccountProvisioningIdPClientSecret: {Name: fleet.MDMAssetAppleAccountProvisioningIdPClientSecret, Value: []byte(secret)},
+			return map[automdm.MDMAssetName]automdm.MDMConfigAsset{
+				automdm.MDMAssetAppleAccountProvisioningIdPClientSecret: {Name: automdm.MDMAssetAppleAccountProvisioningIdPClientSecret, Value: []byte(secret)},
 			}, nil
 		}
-		ds.InsertOrReplaceMDMConfigAssetFunc = func(ctx context.Context, asset fleet.MDMConfigAsset) error {
-			require.Equal(t, fleet.MDMAssetAppleAccountProvisioningIdPClientSecret, asset.Name)
+		ds.InsertOrReplaceMDMConfigAssetFunc = func(ctx context.Context, asset automdm.MDMConfigAsset) error {
+			require.Equal(t, automdm.MDMAssetAppleAccountProvisioningIdPClientSecret, asset.Name)
 			v := string(asset.Value)
 			tr.insertedSecret = &v
 			return nil
@@ -2442,16 +2442,16 @@ func TestModifyAppConfigAppleAccountProvisioning(t *testing.T) {
 		// Configuring the feature triggers bootstrapPSSOAssets, which mints and
 		// inserts the PSSO signing key + CA. The secret assertions don't touch
 		// these, so a no-op stub is enough to keep the bootstrap from panicking.
-		ds.InsertMDMConfigAssetsFunc = func(ctx context.Context, _ []fleet.MDMConfigAsset, _ sqlx.ExtContext) error {
+		ds.InsertMDMConfigAssetsFunc = func(ctx context.Context, _ []automdm.MDMConfigAsset, _ sqlx.ExtContext) error {
 			return nil
 		}
-		ds.DeleteMDMConfigAssetsByNameFunc = func(ctx context.Context, names []fleet.MDMAssetName) error {
-			require.Equal(t, []fleet.MDMAssetName{fleet.MDMAssetAppleAccountProvisioningIdPClientSecret}, names)
+		ds.DeleteMDMConfigAssetsByNameFunc = func(ctx context.Context, names []automdm.MDMAssetName) error {
+			require.Equal(t, []automdm.MDMAssetName{automdm.MDMAssetAppleAccountProvisioningIdPClientSecret}, names)
 			tr.deleted = true
 			return nil
 		}
 		opts.ActivityMock.NewActivityFunc = func(_ context.Context, _ *activity_api.User, act activity_api.ActivityDetails) error {
-			if _, ok := act.(fleet.ActivityTypeEditedAccountProvisioning); ok {
+			if _, ok := act.(automdm.ActivityTypeEditedAccountProvisioning); ok {
 				tr.activityFired = true
 			}
 			return nil
@@ -2462,7 +2462,7 @@ func TestModifyAppConfigAppleAccountProvisioning(t *testing.T) {
 	cases := []struct {
 		name      string
 		tier      string
-		stored    fleet.AppleAccountProvisioning
+		stored    automdm.AppleAccountProvisioning
 		body      string
 		overwrite bool // GitOps (overwrite) mode rather than a PATCH
 		dryRun    bool
@@ -2471,90 +2471,90 @@ func TestModifyAppConfigAppleAccountProvisioning(t *testing.T) {
 	}{
 		{
 			name: "configure stores secret and masks response",
-			tier: fleet.TierPremium,
+			tier: automdm.TierPremium,
 			body: fmt.Sprintf(`{"mdm":{"apple_account_provisioning":{"oauth_idp_token_url":%q,"oauth_idp_client_id":%q,"oauth_idp_client_secret":%q}}}`, tokenURL, clientID, secret),
 			want: asserts{insertedSecret: new(secret), wantMasked: true, wantActivity: true, verifiedSecret: new(secret)},
 		},
 		{
 			name: "free tier rejected",
-			tier: fleet.TierFree,
+			tier: automdm.TierFree,
 			body: fmt.Sprintf(`{"mdm":{"apple_account_provisioning":{"oauth_idp_token_url":%q,"oauth_idp_client_id":%q,"oauth_idp_client_secret":%q}}}`, tokenURL, clientID, secret),
 			want: asserts{wantErr: ErrMissingLicense.Error()},
 		},
 		{
 			name: "invalid token url rejected",
-			tier: fleet.TierPremium,
+			tier: automdm.TierPremium,
 			body: fmt.Sprintf(`{"mdm":{"apple_account_provisioning":{"oauth_idp_token_url":"not-a-url","oauth_idp_client_id":%q,"oauth_idp_client_secret":%q}}}`, clientID, secret),
 			want: asserts{wantErr: "must be a valid https URL"},
 		},
 		{
 			name: "http token url rejected",
-			tier: fleet.TierPremium,
+			tier: automdm.TierPremium,
 			body: fmt.Sprintf(`{"mdm":{"apple_account_provisioning":{"oauth_idp_token_url":"http://idp.example.com/oauth2/v1/token","oauth_idp_client_id":%q,"oauth_idp_client_secret":%q}}}`, clientID, secret),
 			want: asserts{wantErr: "must be a valid https URL"},
 		},
 		{
 			name:   "changing token url without new secret rejected",
-			tier:   fleet.TierPremium,
+			tier:   automdm.TierPremium,
 			stored: configuredAAP(),
-			body:   fmt.Sprintf(`{"mdm":{"apple_account_provisioning":{"oauth_idp_token_url":%q,"oauth_idp_client_id":%q,"oauth_idp_client_secret":%q}}}`, tokenURL2, clientID, fleet.MaskedPassword),
+			body:   fmt.Sprintf(`{"mdm":{"apple_account_provisioning":{"oauth_idp_token_url":%q,"oauth_idp_client_id":%q,"oauth_idp_client_secret":%q}}}`, tokenURL2, clientID, automdm.MaskedPassword),
 			want:   asserts{wantErr: "must be provided when changing oauth_idp_token_url"},
 		},
 		{
 			name:   "changing token url with new secret replaces",
-			tier:   fleet.TierPremium,
+			tier:   automdm.TierPremium,
 			stored: configuredAAP(),
 			body:   fmt.Sprintf(`{"mdm":{"apple_account_provisioning":{"oauth_idp_token_url":%q,"oauth_idp_client_id":%q,"oauth_idp_client_secret":%q}}}`, tokenURL2, clientID, "rotated-secret"),
 			want:   asserts{insertedSecret: new("rotated-secret"), wantMasked: true, wantActivity: true, verifiedSecret: new("rotated-secret")},
 		},
 		{
 			name:   "masked secret preserved on unrelated change",
-			tier:   fleet.TierPremium,
+			tier:   automdm.TierPremium,
 			stored: configuredAAP(),
-			body:   fmt.Sprintf(`{"mdm":{"apple_account_provisioning":{"oauth_idp_token_url":%q,"oauth_idp_client_id":"new-client-id","oauth_idp_client_secret":%q}}}`, tokenURL, fleet.MaskedPassword),
+			body:   fmt.Sprintf(`{"mdm":{"apple_account_provisioning":{"oauth_idp_token_url":%q,"oauth_idp_client_id":"new-client-id","oauth_idp_client_secret":%q}}}`, tokenURL, automdm.MaskedPassword),
 			want:   asserts{wantMasked: true, wantActivity: true, verifiedSecret: new(secret)}, // client_id changed; checked with the stored secret, which is preserved
 		},
 		{
 			name:   "clearing config soft-deletes secret",
-			tier:   fleet.TierPremium,
+			tier:   automdm.TierPremium,
 			stored: configuredAAP(),
 			body:   `{"mdm":{"apple_account_provisioning":{"oauth_idp_token_url":"","oauth_idp_client_id":"","oauth_idp_client_secret":""}}}`,
 			want:   asserts{deleted: true, wantActivity: true},
 		},
 		{
 			name: "public fields without secret rejected",
-			tier: fleet.TierPremium,
+			tier: automdm.TierPremium,
 			body: fmt.Sprintf(`{"mdm":{"apple_account_provisioning":{"oauth_idp_token_url":%q,"oauth_idp_client_id":%q,"oauth_idp_client_secret":""}}}`, tokenURL, clientID),
 			want: asserts{wantErr: "must be set together with oauth_idp_token_url and oauth_idp_client_id"},
 		},
 		{
 			name: "only token url rejected",
-			tier: fleet.TierPremium,
+			tier: automdm.TierPremium,
 			body: fmt.Sprintf(`{"mdm":{"apple_account_provisioning":{"oauth_idp_token_url":%q,"oauth_idp_client_id":"","oauth_idp_client_secret":""}}}`, tokenURL),
 			want: asserts{wantErr: "must all be set together, or all be empty"},
 		},
 		{
 			name: "only client id rejected",
-			tier: fleet.TierPremium,
+			tier: automdm.TierPremium,
 			body: fmt.Sprintf(`{"mdm":{"apple_account_provisioning":{"oauth_idp_token_url":"","oauth_idp_client_id":%q,"oauth_idp_client_secret":""}}}`, clientID),
 			want: asserts{wantErr: "must all be set together, or all be empty"},
 		},
 		{
 			name: "only secret rejected",
-			tier: fleet.TierPremium,
+			tier: automdm.TierPremium,
 			body: fmt.Sprintf(`{"mdm":{"apple_account_provisioning":{"oauth_idp_token_url":"","oauth_idp_client_id":"","oauth_idp_client_secret":%q}}}`, secret),
 			want: asserts{wantErr: "must all be set together, or all be empty"},
 		},
 		{
 			name:      "gitops with all fields stores secret",
-			tier:      fleet.TierPremium,
+			tier:      automdm.TierPremium,
 			overwrite: true,
 			body:      fmt.Sprintf(`{"mdm":{"apple_account_provisioning":{"oauth_idp_token_url":%q,"oauth_idp_client_id":%q,"oauth_idp_client_secret":%q}}}`, tokenURL, clientID, secret),
 			want:      asserts{insertedSecret: new(secret), wantMasked: true, wantActivity: true, verifiedSecret: new(secret)},
 		},
 		{
 			name:      "gitops public fields without secret rejected",
-			tier:      fleet.TierPremium,
+			tier:      automdm.TierPremium,
 			overwrite: true,
 			body:      fmt.Sprintf(`{"mdm":{"apple_account_provisioning":{"oauth_idp_token_url":%q,"oauth_idp_client_id":%q}}}`, tokenURL, clientID),
 			want:      asserts{wantErr: "must be set together with oauth_idp_token_url and oauth_idp_client_id"},
@@ -2563,7 +2563,7 @@ func TestModifyAppConfigAppleAccountProvisioning(t *testing.T) {
 			// GitOps is declarative: an already-stored secret does NOT satisfy the
 			// requirement; the secret must be present in the config itself.
 			name:      "gitops reapply without secret rejected",
-			tier:      fleet.TierPremium,
+			tier:      automdm.TierPremium,
 			overwrite: true,
 			stored:    configuredAAP(),
 			body:      fmt.Sprintf(`{"mdm":{"apple_account_provisioning":{"oauth_idp_token_url":%q,"oauth_idp_client_id":%q}}}`, tokenURL, clientID),
@@ -2571,7 +2571,7 @@ func TestModifyAppConfigAppleAccountProvisioning(t *testing.T) {
 		},
 		{
 			name:      "gitops omitting section clears secret",
-			tier:      fleet.TierPremium,
+			tier:      automdm.TierPremium,
 			overwrite: true,
 			stored:    configuredAAP(),
 			body:      `{"mdm":{}}`,
@@ -2581,7 +2581,7 @@ func TestModifyAppConfigAppleAccountProvisioning(t *testing.T) {
 			// No actual change: same public fields and same secret value. The
 			// stored secret is left untouched and no activity is emitted.
 			name:   "reapply identical config emits no activity",
-			tier:   fleet.TierPremium,
+			tier:   automdm.TierPremium,
 			stored: configuredAAP(),
 			body:   fmt.Sprintf(`{"mdm":{"apple_account_provisioning":{"oauth_idp_token_url":%q,"oauth_idp_client_id":%q,"oauth_idp_client_secret":%q}}}`, tokenURL, clientID, secret),
 			want:   asserts{wantMasked: true}, // no insert, no delete, no activity
@@ -2590,7 +2590,7 @@ func TestModifyAppConfigAppleAccountProvisioning(t *testing.T) {
 			// GitOps resends the secret on every run; unchanged settings must not
 			// contact the IdP.
 			name:      "gitops reapply of identical config skips the IdP check",
-			tier:      fleet.TierPremium,
+			tier:      automdm.TierPremium,
 			overwrite: true,
 			stored:    configuredAAP(),
 			body:      fmt.Sprintf(`{"mdm":{"apple_account_provisioning":{"oauth_idp_token_url":%q,"oauth_idp_client_id":%q,"oauth_idp_client_secret":%q}}}`, tokenURL, clientID, secret),
@@ -2599,38 +2599,38 @@ func TestModifyAppConfigAppleAccountProvisioning(t *testing.T) {
 		{
 			// The UI omits the masked secret when saving an unchanged form.
 			name:   "UI resave of unchanged config skips the IdP check",
-			tier:   fleet.TierPremium,
+			tier:   automdm.TierPremium,
 			stored: configuredAAP(),
 			body:   fmt.Sprintf(`{"mdm":{"apple_account_provisioning":{"oauth_idp_token_url":%q,"oauth_idp_client_id":%q}}}`, tokenURL, clientID),
 			want:   asserts{wantMasked: true},
 		},
 		{
 			name:   "new secret alone is checked",
-			tier:   fleet.TierPremium,
+			tier:   automdm.TierPremium,
 			stored: configuredAAP(),
 			body:   fmt.Sprintf(`{"mdm":{"apple_account_provisioning":{"oauth_idp_token_url":%q,"oauth_idp_client_id":%q,"oauth_idp_client_secret":"rotated-secret"}}}`, tokenURL, clientID),
 			want:   asserts{insertedSecret: new("rotated-secret"), wantMasked: true, wantActivity: true, verifiedSecret: new("rotated-secret")},
 		},
 		{
 			name:      "IdP rejection blocks the save",
-			tier:      fleet.TierPremium,
+			tier:      automdm.TierPremium,
 			body:      fmt.Sprintf(`{"mdm":{"apple_account_provisioning":{"oauth_idp_token_url":%q,"oauth_idp_client_id":%q,"oauth_idp_client_secret":%q}}}`, tokenURL, clientID, secret),
-			verifyErr: fleet.NewInvalidArgumentError("mdm.apple_account_provisioning", "Your IdP rejected the client ID or client secret (invalid_client)."),
+			verifyErr: automdm.NewInvalidArgumentError("mdm.apple_account_provisioning", "Your IdP rejected the client ID or client secret (invalid_client)."),
 			want:      asserts{wantErr: "Your IdP rejected the client ID or client secret", verifiedSecret: new(secret)},
 		},
 		{
 			name:   "dry run checks with the IdP without saving",
-			tier:   fleet.TierPremium,
+			tier:   automdm.TierPremium,
 			dryRun: true,
 			body:   fmt.Sprintf(`{"mdm":{"apple_account_provisioning":{"oauth_idp_token_url":%q,"oauth_idp_client_id":%q,"oauth_idp_client_secret":%q}}}`, tokenURL, clientID, secret),
 			want:   asserts{verifiedSecret: new(secret)},
 		},
 		{
 			name:      "dry run reports an IdP rejection",
-			tier:      fleet.TierPremium,
+			tier:      automdm.TierPremium,
 			dryRun:    true,
 			body:      fmt.Sprintf(`{"mdm":{"apple_account_provisioning":{"oauth_idp_token_url":%q,"oauth_idp_client_id":%q,"oauth_idp_client_secret":%q}}}`, tokenURL, clientID, secret),
-			verifyErr: fleet.NewInvalidArgumentError("mdm.apple_account_provisioning.oauth_idp_token_url", "Fleet couldn't get an OAuth response from the token URL"),
+			verifyErr: automdm.NewInvalidArgumentError("mdm.apple_account_provisioning.oauth_idp_token_url", "AutoMDM couldn't get an OAuth response from the token URL"),
 			want:      asserts{wantErr: "couldn't get an OAuth response", verifiedSecret: new(secret)},
 		},
 	}
@@ -2639,7 +2639,7 @@ func TestModifyAppConfigAppleAccountProvisioning(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			svc, ctx, ds, tr := setup(t, tc.tier, tc.stored, tc.verifyErr)
 
-			modified, err := svc.ModifyAppConfig(ctx, []byte(tc.body), fleet.ApplySpecOptions{Overwrite: tc.overwrite, DryRun: tc.dryRun})
+			modified, err := svc.ModifyAppConfig(ctx, []byte(tc.body), automdm.ApplySpecOptions{Overwrite: tc.overwrite, DryRun: tc.dryRun})
 			if tc.want.verifiedSecret != nil {
 				require.NotNil(t, tr.verifiedSecret, "expected the IdP check")
 				require.Equal(t, *tc.want.verifiedSecret, *tr.verifiedSecret)
@@ -2673,7 +2673,7 @@ func TestModifyAppConfigAppleAccountProvisioning(t *testing.T) {
 			require.Empty(t, tr.saved.MDM.AppleAccountProvisioning.OAuthIdPClientSecret.Value)
 
 			if tc.want.wantMasked {
-				require.Equal(t, fleet.MaskedPassword, modified.MDM.AppleAccountProvisioning.OAuthIdPClientSecret.Value)
+				require.Equal(t, automdm.MaskedPassword, modified.MDM.AppleAccountProvisioning.OAuthIdPClientSecret.Value)
 			} else {
 				require.Empty(t, modified.MDM.AppleAccountProvisioning.OAuthIdPClientSecret.Value)
 			}
@@ -2696,15 +2696,15 @@ func TestValidateMDMEndUserAuthScope(t *testing.T) {
 	// isn't reachable for calling the unexported validateMDM).
 	svc := &Service{ds: ds}
 	ctx := t.Context()
-	premium := &fleet.LicenseInfo{Tier: fleet.TierPremium}
+	premium := &automdm.LicenseInfo{Tier: automdm.TierPremium}
 
-	completeIdP := fleet.SSOProviderSettings{EntityID: "fleet", IDPName: "Okta", MetadataURL: "https://idp.example.com/metadata"}
+	completeIdP := automdm.SSOProviderSettings{EntityID: "automdm", IDPName: "Okta", MetadataURL: "https://idp.example.com/metadata"}
 	// errFields renders all (name: reason) pairs since Error() only summarizes.
-	errFields := func(e *fleet.InvalidArgumentError) string { return fmt.Sprintf("%+v", e.Errors) }
-	mkMDM := func(sso fleet.SSOProviderSettings, noTeamEUA bool) *fleet.MDM {
-		return &fleet.MDM{
-			EndUserAuthentication: fleet.MDMEndUserAuthentication{SSOProviderSettings: sso},
-			MacOSSetup:            fleet.MacOSSetup{EnableEndUserAuthentication: noTeamEUA},
+	errFields := func(e *automdm.InvalidArgumentError) string { return fmt.Sprintf("%+v", e.Errors) }
+	mkMDM := func(sso automdm.SSOProviderSettings, noTeamEUA bool) *automdm.MDM {
+		return &automdm.MDM{
+			EndUserAuthentication: automdm.MDMEndUserAuthentication{SSOProviderSettings: sso},
+			MacOSSetup:            automdm.MacOSSetup{EnableEndUserAuthentication: noTeamEUA},
 		}
 	}
 
@@ -2712,8 +2712,8 @@ func TestValidateMDMEndUserAuthScope(t *testing.T) {
 		// metadata_url present but missing entity_id and idp_name, with global
 		// EUA on (unchanged true->true, to avoid the setup-assistant web URL
 		// check that fires only when the flag changes) -> euaStrict fires.
-		incoming := fleet.SSOProviderSettings{MetadataURL: "https://idp.example.com/metadata"}
-		invalid := &fleet.InvalidArgumentError{}
+		incoming := automdm.SSOProviderSettings{MetadataURL: "https://idp.example.com/metadata"}
+		invalid := &automdm.InvalidArgumentError{}
 		err := svc.validateMDM(ctx, premium, mkMDM(completeIdP, true), mkMDM(incoming, true), optjson.String{}, invalid, true)
 		require.NoError(t, err)
 		require.True(t, invalid.HasErrors())
@@ -2730,8 +2730,8 @@ func TestValidateMDMEndUserAuthScope(t *testing.T) {
 		ds.TeamIDsWithSetupExperienceIdPEnabledFunc = func(ctx context.Context) ([]uint, error) {
 			return []uint{1}, nil // a stored team has EUA (stale)
 		}
-		degraded := fleet.SSOProviderSettings{EntityID: "fleet", IDPName: "Okta"} // metadata/url blank
-		invalid := &fleet.InvalidArgumentError{}
+		degraded := automdm.SSOProviderSettings{EntityID: "automdm", IDPName: "Okta"} // metadata/url blank
+		invalid := &automdm.InvalidArgumentError{}
 		err := svc.validateMDM(ctx, premium, mkMDM(completeIdP, false), mkMDM(degraded, false), optjson.String{}, invalid, true)
 		require.NoError(t, err)
 		require.False(t, invalid.HasErrors())
@@ -2741,8 +2741,8 @@ func TestValidateMDMEndUserAuthScope(t *testing.T) {
 		ds.TeamIDsWithSetupExperienceIdPEnabledFunc = func(ctx context.Context) ([]uint, error) {
 			return []uint{}, nil
 		}
-		invalid := &fleet.InvalidArgumentError{}
-		err := svc.validateMDM(ctx, premium, mkMDM(completeIdP, false), mkMDM(fleet.SSOProviderSettings{}, false), optjson.String{}, invalid, true)
+		invalid := &automdm.InvalidArgumentError{}
+		err := svc.validateMDM(ctx, premium, mkMDM(completeIdP, false), mkMDM(automdm.SSOProviderSettings{}, false), optjson.String{}, invalid, true)
 		require.NoError(t, err)
 		require.False(t, invalid.HasErrors())
 	})
@@ -2751,38 +2751,38 @@ func TestValidateMDMEndUserAuthScope(t *testing.T) {
 func TestDiskEncryptionSetting(t *testing.T) {
 	ds := new(mock.Store)
 
-	admin := &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}
+	admin := &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}
 	t.Run("enableDiskEncryptionWithNoPrivateKey", func(t *testing.T) {
 		testConfig = config.TestConfig()
 		testConfig.Server.PrivateKey = ""
-		svc, ctx := newTestServiceWithConfig(t, ds, testConfig, nil, nil, &TestServerOpts{License: &fleet.LicenseInfo{Tier: fleet.TierPremium}})
+		svc, ctx := newTestServiceWithConfig(t, ds, testConfig, nil, nil, &TestServerOpts{License: &automdm.LicenseInfo{Tier: automdm.TierPremium}})
 		ctx = viewer.NewContext(ctx, viewer.Viewer{User: admin})
 
-		dsAppConfig := &fleet.AppConfig{
-			OrgInfo:        fleet.OrgInfo{OrgName: "Test"},
-			ServerSettings: fleet.ServerSettings{ServerURL: "https://example.org"},
-			MDM:            fleet.MDM{},
+		dsAppConfig := &automdm.AppConfig{
+			OrgInfo:        automdm.OrgInfo{OrgName: "Test"},
+			ServerSettings: automdm.ServerSettings{ServerURL: "https://example.org"},
+			MDM:            automdm.MDM{},
 		}
 
-		ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
 			return dsAppConfig, nil
 		}
 
-		ds.SaveAppConfigFunc = func(ctx context.Context, conf *fleet.AppConfig) error {
+		ds.SaveAppConfigFunc = func(ctx context.Context, conf *automdm.AppConfig) error {
 			*dsAppConfig = *conf
 			return nil
 		}
-		ds.TeamByNameFunc = func(ctx context.Context, name string) (*fleet.Team, error) {
+		ds.TeamByNameFunc = func(ctx context.Context, name string) (*automdm.Team, error) {
 			return nil, sql.ErrNoRows
 		}
-		ds.NewMDMAppleEnrollmentProfileFunc = func(ctx context.Context, enrollmentPayload fleet.MDMAppleEnrollmentProfilePayload) (*fleet.MDMAppleEnrollmentProfile, error) {
-			return &fleet.MDMAppleEnrollmentProfile{}, nil
+		ds.NewMDMAppleEnrollmentProfileFunc = func(ctx context.Context, enrollmentPayload automdm.MDMAppleEnrollmentProfilePayload) (*automdm.MDMAppleEnrollmentProfile, error) {
+			return &automdm.MDMAppleEnrollmentProfile{}, nil
 		}
-		ds.GetMDMAppleEnrollmentProfileByTypeFunc = func(ctx context.Context, typ fleet.MDMAppleEnrollmentType) (*fleet.MDMAppleEnrollmentProfile, error) {
+		ds.GetMDMAppleEnrollmentProfileByTypeFunc = func(ctx context.Context, typ automdm.MDMAppleEnrollmentType) (*automdm.MDMAppleEnrollmentProfile, error) {
 			raw := json.RawMessage("{}")
-			return &fleet.MDMAppleEnrollmentProfile{DEPProfile: &raw}, nil
+			return &automdm.MDMAppleEnrollmentProfile{DEPProfile: &raw}, nil
 		}
-		ds.NewJobFunc = func(ctx context.Context, job *fleet.Job) (*fleet.Job, error) {
+		ds.NewJobFunc = func(ctx context.Context, job *automdm.Job) (*automdm.Job, error) {
 			return job, nil
 		}
 
@@ -2790,12 +2790,12 @@ func TestDiskEncryptionSetting(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, dsAppConfig.MDM, ac.MDM)
 
-		raw, err := json.Marshal(fleet.MDM{
+		raw, err := json.Marshal(automdm.MDM{
 			EnableDiskEncryption: optjson.SetBool(true),
 		})
 		require.NoError(t, err)
 		raw = []byte(`{"mdm":` + string(raw) + `}`)
-		_, err = svc.ModifyAppConfig(ctx, raw, fleet.ApplySpecOptions{})
+		_, err = svc.ModifyAppConfig(ctx, raw, automdm.ApplySpecOptions{})
 		require.Error(t, err)
 		require.ErrorContains(t, err, "Missing required private key")
 	})
@@ -2823,49 +2823,49 @@ func TestModifyAppConfigSMTPSSOAgentOptions(t *testing.T) {
     }
   }
 }`)
-	dsAppConfig := &fleet.AppConfig{
-		OrgInfo: fleet.OrgInfo{
+	dsAppConfig := &automdm.AppConfig{
+		OrgInfo: automdm.OrgInfo{
 			OrgName: "Test",
 		},
-		ServerSettings: fleet.ServerSettings{
+		ServerSettings: automdm.ServerSettings{
 			ServerURL: "https://example.org",
 		},
-		SMTPSettings: &fleet.SMTPSettings{
+		SMTPSettings: &automdm.SMTPSettings{
 			SMTPEnabled:       true,
 			SMTPConfigured:    true,
 			SMTPSenderAddress: "foobar@example.com",
 		},
-		SSOSettings: &fleet.SSOSettings{
+		SSOSettings: &automdm.SSOSettings{
 			EnableSSO: true,
-			SSOProviderSettings: fleet.SSOProviderSettings{
+			SSOProviderSettings: automdm.SSOProviderSettings{
 				MetadataURL: "foobar.example.com/metadata",
 			},
 		},
 		AgentOptions: &agentOptions,
 	}
 
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
 		return dsAppConfig, nil
 	}
-	ds.SaveAppConfigFunc = func(ctx context.Context, conf *fleet.AppConfig) error {
+	ds.SaveAppConfigFunc = func(ctx context.Context, conf *automdm.AppConfig) error {
 		*dsAppConfig = *conf
 		return nil
 	}
-	ds.SaveABMTokenFunc = func(ctx context.Context, tok *fleet.ABMToken) error {
+	ds.SaveABMTokenFunc = func(ctx context.Context, tok *automdm.ABMToken) error {
 		return nil
 	}
-	ds.ListVPPTokensFunc = func(ctx context.Context) ([]*fleet.VPPTokenDB, error) {
-		return []*fleet.VPPTokenDB{}, nil
+	ds.ListVPPTokensFunc = func(ctx context.Context) ([]*automdm.VPPTokenDB, error) {
+		return []*automdm.VPPTokenDB{}, nil
 	}
-	ds.ListABMTokensFunc = func(ctx context.Context) ([]*fleet.ABMToken, error) {
-		return []*fleet.ABMToken{}, nil
+	ds.ListABMTokensFunc = func(ctx context.Context) ([]*automdm.ABMToken, error) {
+		return []*automdm.ABMToken{}, nil
 	}
 
 	// Not sending smtp_settings, sso_settings or agent_settings will do nothing.
 	b := []byte(`{}`)
-	admin := &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}
+	admin := &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}
 	ctx = viewer.NewContext(ctx, viewer.Viewer{User: admin})
-	updatedAppConfig, err := svc.ModifyAppConfig(ctx, b, fleet.ApplySpecOptions{})
+	updatedAppConfig, err := svc.ModifyAppConfig(ctx, b, automdm.ApplySpecOptions{})
 	require.NoError(t, err)
 
 	require.True(t, updatedAppConfig.SMTPSettings.SMTPEnabled)
@@ -2878,7 +2878,7 @@ func TestModifyAppConfigSMTPSSOAgentOptions(t *testing.T) {
 	// Not sending sso_settings or agent settings will not change them, and
 	// sending SMTP settings will change them.
 	b = []byte(`{"smtp_settings": {"enable_smtp": false}}`)
-	updatedAppConfig, err = svc.ModifyAppConfig(ctx, b, fleet.ApplySpecOptions{})
+	updatedAppConfig, err = svc.ModifyAppConfig(ctx, b, automdm.ApplySpecOptions{})
 	require.NoError(t, err)
 
 	require.False(t, updatedAppConfig.SMTPSettings.SMTPEnabled)
@@ -2891,7 +2891,7 @@ func TestModifyAppConfigSMTPSSOAgentOptions(t *testing.T) {
 	// Not sending smtp_settings or agent settings will not change them, and
 	// sending SSO settings will change them.
 	b = []byte(`{"sso_settings": {"enable_sso": false}}`)
-	updatedAppConfig, err = svc.ModifyAppConfig(ctx, b, fleet.ApplySpecOptions{})
+	updatedAppConfig, err = svc.ModifyAppConfig(ctx, b, automdm.ApplySpecOptions{})
 	require.NoError(t, err)
 
 	require.False(t, updatedAppConfig.SMTPSettings.SMTPEnabled)
@@ -2920,7 +2920,7 @@ func TestModifyAppConfigSMTPSSOAgentOptions(t *testing.T) {
   }
 }`)
 	b = []byte(`{"agent_options": ` + string(newAgentOptions) + `}`)
-	updatedAppConfig, err = svc.ModifyAppConfig(ctx, b, fleet.ApplySpecOptions{})
+	updatedAppConfig, err = svc.ModifyAppConfig(ctx, b, automdm.ApplySpecOptions{})
 	require.NoError(t, err)
 
 	require.False(t, updatedAppConfig.SMTPSettings.SMTPEnabled)
@@ -2935,7 +2935,7 @@ func TestModifyAppConfigSMTPSSOAgentOptions(t *testing.T) {
 func TestModifyEnableAnalytics(t *testing.T) {
 	ds := new(mock.Store)
 
-	admin := &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}
+	admin := &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}
 
 	testCases := []struct {
 		name                  string
@@ -2950,73 +2950,73 @@ func TestModifyEnableAnalytics(t *testing.T) {
 		shouldFailModify      bool
 	}{
 		{
-			name:            "fleet free",
+			name:            "automdm free",
 			expectedEnabled: false,
 			initialEnabled:  true,
 			newEnabled:      false,
-			licenseTier:     fleet.TierFree,
+			licenseTier:     automdm.TierFree,
 		},
 		{
-			name:            "fleet premium",
+			name:            "automdm premium",
 			expectedEnabled: true,
 			initialEnabled:  true,
 			newEnabled:      false,
-			licenseTier:     fleet.TierPremium,
+			licenseTier:     automdm.TierPremium,
 		},
 		{
-			name:                  "fleet premium with allow disable telemetry",
+			name:                  "automdm premium with allow disable telemetry",
 			expectedEnabled:       false,
 			initialEnabled:        true,
 			newEnabled:            false,
-			licenseTier:           fleet.TierPremium,
+			licenseTier:           automdm.TierPremium,
 			allowDisableTelemetry: true,
 		},
 	}
 
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
-			svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: &fleet.LicenseInfo{Tier: tt.licenseTier, AllowDisableTelemetry: tt.allowDisableTelemetry}})
+			svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: &automdm.LicenseInfo{Tier: tt.licenseTier, AllowDisableTelemetry: tt.allowDisableTelemetry}})
 			ctx = viewer.NewContext(ctx, viewer.Viewer{User: admin})
 
-			dsAppConfig := &fleet.AppConfig{
-				OrgInfo: fleet.OrgInfo{
+			dsAppConfig := &automdm.AppConfig{
+				OrgInfo: automdm.OrgInfo{
 					OrgName: "Test",
 				},
-				ServerSettings: fleet.ServerSettings{
+				ServerSettings: automdm.ServerSettings{
 					EnableAnalytics: true,
 					ServerURL:       "https://localhost:8080",
 				},
 			}
 
-			ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
+			ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
 				return dsAppConfig, nil
 			}
 
-			ds.SaveAppConfigFunc = func(ctx context.Context, conf *fleet.AppConfig) error {
+			ds.SaveAppConfigFunc = func(ctx context.Context, conf *automdm.AppConfig) error {
 				*dsAppConfig = *conf
 				return nil
 			}
 
-			ds.SaveABMTokenFunc = func(ctx context.Context, tok *fleet.ABMToken) error {
+			ds.SaveABMTokenFunc = func(ctx context.Context, tok *automdm.ABMToken) error {
 				return nil
 			}
 
-			ds.ListVPPTokensFunc = func(ctx context.Context) ([]*fleet.VPPTokenDB, error) {
-				return []*fleet.VPPTokenDB{}, nil
+			ds.ListVPPTokensFunc = func(ctx context.Context) ([]*automdm.VPPTokenDB, error) {
+				return []*automdm.VPPTokenDB{}, nil
 			}
 
-			ds.ListABMTokensFunc = func(ctx context.Context) ([]*fleet.ABMToken, error) {
-				return []*fleet.ABMToken{}, nil
+			ds.ListABMTokensFunc = func(ctx context.Context) ([]*automdm.ABMToken, error) {
+				return []*automdm.ABMToken{}, nil
 			}
 
 			ac, err := svc.AppConfigObfuscated(ctx)
 			require.NoError(t, err)
 			require.Equal(t, tt.initialEnabled, ac.ServerSettings.EnableAnalytics)
 
-			raw, err := json.Marshal(fleet.ServerSettings{EnableAnalytics: tt.newEnabled, ServerURL: "https://localhost:8080"})
+			raw, err := json.Marshal(automdm.ServerSettings{EnableAnalytics: tt.newEnabled, ServerURL: "https://localhost:8080"})
 			require.NoError(t, err)
 			raw = []byte(`{"server_settings":` + string(raw) + `}`)
-			modified, err := svc.ModifyAppConfig(ctx, raw, fleet.ApplySpecOptions{})
+			modified, err := svc.ModifyAppConfig(ctx, raw, automdm.ApplySpecOptions{})
 			require.NoError(t, err)
 
 			if modified != nil {
@@ -3103,11 +3103,11 @@ func TestValidAddress(t *testing.T) {
 		{name: "label 64 chars (too long)", hostname: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.com", expected: false},
 
 		// Real-world examples
-		{name: "fleet server URL", hostname: "fleet.example.com", expected: true},
+		{name: "automdm server URL", hostname: "automdm.example.com", expected: true},
 		{name: "AWS endpoint", hostname: "s3.us-west-2.amazonaws.com", expected: true},
 		{name: "internal hostname", hostname: "db-primary-01.internal", expected: true},
-		{name: "gibberish", hostname: "asdfasdfasdfashttps://lucas-fleet.ngrok.app", expected: false},
-		{name: "gibberish II", hostname: "asdfasdfasdfashttps://lucas-fleet.ngrok.app:9800", expected: false},
+		{name: "gibberish", hostname: "asdfasdfasdfashttps://lucas-automdm.ngrok.app", expected: false},
+		{name: "gibberish II", hostname: "asdfasdfasdfashttps://lucas-automdm.ngrok.app:9800", expected: false},
 		{name: "hostname with port", hostname: "example:8080", expected: true},
 	}
 
@@ -3126,54 +3126,54 @@ func TestModifyAppConfigGoogleCalendarAPIKey(t *testing.T) {
 	svc, ctx := newTestService(t, ds, nil, nil)
 
 	// Initial config with Google Calendar integration
-	dsAppConfig := &fleet.AppConfig{
-		OrgInfo: fleet.OrgInfo{
+	dsAppConfig := &automdm.AppConfig{
+		OrgInfo: automdm.OrgInfo{
 			OrgName: "Test",
 		},
-		ServerSettings: fleet.ServerSettings{
+		ServerSettings: automdm.ServerSettings{
 			ServerURL: "https://example.org",
 		},
-		Integrations: fleet.Integrations{
-			GoogleCalendar: []*fleet.GoogleCalendarIntegration{
+		Integrations: automdm.Integrations{
+			GoogleCalendar: []*automdm.GoogleCalendarIntegration{
 				{
 					Domain: "example.com",
-					ApiKey: fleet.GoogleCalendarApiKey{Values: map[string]string{
-						fleet.GoogleCalendarEmail:      "test@example.com",
-						fleet.GoogleCalendarPrivateKey: "original-private-key",
-						"project_id":                   "original-project",
+					ApiKey: automdm.GoogleCalendarApiKey{Values: map[string]string{
+						automdm.GoogleCalendarEmail:      "test@example.com",
+						automdm.GoogleCalendarPrivateKey: "original-private-key",
+						"project_id":                     "original-project",
 					}},
 				},
 			},
 		},
 	}
 
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
 		return dsAppConfig.Copy(), nil
 	}
-	ds.SaveAppConfigFunc = func(ctx context.Context, conf *fleet.AppConfig) error {
+	ds.SaveAppConfigFunc = func(ctx context.Context, conf *automdm.AppConfig) error {
 		*dsAppConfig = *conf
 		return nil
 	}
-	ds.SaveABMTokenFunc = func(ctx context.Context, tok *fleet.ABMToken) error {
+	ds.SaveABMTokenFunc = func(ctx context.Context, tok *automdm.ABMToken) error {
 		return nil
 	}
-	ds.ListVPPTokensFunc = func(ctx context.Context) ([]*fleet.VPPTokenDB, error) {
-		return []*fleet.VPPTokenDB{}, nil
+	ds.ListVPPTokensFunc = func(ctx context.Context) ([]*automdm.VPPTokenDB, error) {
+		return []*automdm.VPPTokenDB{}, nil
 	}
-	ds.ListABMTokensFunc = func(ctx context.Context) ([]*fleet.ABMToken, error) {
-		return []*fleet.ABMToken{}, nil
+	ds.ListABMTokensFunc = func(ctx context.Context) ([]*automdm.ABMToken, error) {
+		return []*automdm.ABMToken{}, nil
 	}
 
-	admin := &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}
+	admin := &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}
 	ctx = viewer.NewContext(ctx, viewer.Viewer{User: admin})
 
 	t.Run("preserve API key when omitted (no changes)", func(t *testing.T) {
 		// Reset to original state
 		dsAppConfig.Integrations.GoogleCalendar[0].Domain = "example.com"
-		dsAppConfig.Integrations.GoogleCalendar[0].ApiKey = fleet.GoogleCalendarApiKey{Values: map[string]string{
-			fleet.GoogleCalendarEmail:      "test@example.com",
-			fleet.GoogleCalendarPrivateKey: "original-private-key",
-			"project_id":                   "original-project",
+		dsAppConfig.Integrations.GoogleCalendar[0].ApiKey = automdm.GoogleCalendarApiKey{Values: map[string]string{
+			automdm.GoogleCalendarEmail:      "test@example.com",
+			automdm.GoogleCalendarPrivateKey: "original-private-key",
+			"project_id":                     "original-project",
 		}}
 
 		// Update without including api_key_json (simulates frontend sending masked value)
@@ -3185,14 +3185,14 @@ func TestModifyAppConfigGoogleCalendarAPIKey(t *testing.T) {
 			}
 		}`
 
-		updatedAppConfig, err := svc.ModifyAppConfig(ctx, []byte(updateJSON), fleet.ApplySpecOptions{})
+		updatedAppConfig, err := svc.ModifyAppConfig(ctx, []byte(updateJSON), automdm.ApplySpecOptions{})
 		require.NoError(t, err)
 
 		// API key should be preserved (check datastore, not returned config which is obfuscated)
 		require.Len(t, dsAppConfig.Integrations.GoogleCalendar, 1)
 		require.Equal(t, "example.com", dsAppConfig.Integrations.GoogleCalendar[0].Domain)
-		require.Equal(t, "test@example.com", dsAppConfig.Integrations.GoogleCalendar[0].ApiKey.Values[fleet.GoogleCalendarEmail])
-		require.Equal(t, "original-private-key", dsAppConfig.Integrations.GoogleCalendar[0].ApiKey.Values[fleet.GoogleCalendarPrivateKey])
+		require.Equal(t, "test@example.com", dsAppConfig.Integrations.GoogleCalendar[0].ApiKey.Values[automdm.GoogleCalendarEmail])
+		require.Equal(t, "original-private-key", dsAppConfig.Integrations.GoogleCalendar[0].ApiKey.Values[automdm.GoogleCalendarPrivateKey])
 		require.Equal(t, "original-project", dsAppConfig.Integrations.GoogleCalendar[0].ApiKey.Values["project_id"])
 
 		// Returned config should be obfuscated (masked)
@@ -3202,10 +3202,10 @@ func TestModifyAppConfigGoogleCalendarAPIKey(t *testing.T) {
 	t.Run("preserve API key when updating only domain", func(t *testing.T) {
 		// Reset to original state
 		dsAppConfig.Integrations.GoogleCalendar[0].Domain = "example.com"
-		dsAppConfig.Integrations.GoogleCalendar[0].ApiKey = fleet.GoogleCalendarApiKey{Values: map[string]string{
-			fleet.GoogleCalendarEmail:      "test@example.com",
-			fleet.GoogleCalendarPrivateKey: "original-private-key",
-			"project_id":                   "original-project",
+		dsAppConfig.Integrations.GoogleCalendar[0].ApiKey = automdm.GoogleCalendarApiKey{Values: map[string]string{
+			automdm.GoogleCalendarEmail:      "test@example.com",
+			automdm.GoogleCalendarPrivateKey: "original-private-key",
+			"project_id":                     "original-project",
 		}}
 
 		// Update only domain, omit api_key_json
@@ -3217,14 +3217,14 @@ func TestModifyAppConfigGoogleCalendarAPIKey(t *testing.T) {
 			}
 		}`
 
-		updatedAppConfig, err := svc.ModifyAppConfig(ctx, []byte(updateJSON), fleet.ApplySpecOptions{})
+		updatedAppConfig, err := svc.ModifyAppConfig(ctx, []byte(updateJSON), automdm.ApplySpecOptions{})
 		require.NoError(t, err)
 
 		// Domain should be updated, API key preserved (check datastore)
 		require.Len(t, dsAppConfig.Integrations.GoogleCalendar, 1)
 		require.Equal(t, "newdomain.com", dsAppConfig.Integrations.GoogleCalendar[0].Domain)
-		require.Equal(t, "test@example.com", dsAppConfig.Integrations.GoogleCalendar[0].ApiKey.Values[fleet.GoogleCalendarEmail])
-		require.Equal(t, "original-private-key", dsAppConfig.Integrations.GoogleCalendar[0].ApiKey.Values[fleet.GoogleCalendarPrivateKey])
+		require.Equal(t, "test@example.com", dsAppConfig.Integrations.GoogleCalendar[0].ApiKey.Values[automdm.GoogleCalendarEmail])
+		require.Equal(t, "original-private-key", dsAppConfig.Integrations.GoogleCalendar[0].ApiKey.Values[automdm.GoogleCalendarPrivateKey])
 		require.Equal(t, "original-project", dsAppConfig.Integrations.GoogleCalendar[0].ApiKey.Values["project_id"])
 
 		// Returned config should be obfuscated (masked)
@@ -3234,10 +3234,10 @@ func TestModifyAppConfigGoogleCalendarAPIKey(t *testing.T) {
 	t.Run("replace API key when new one provided (not merge)", func(t *testing.T) {
 		// Reset to original state
 		dsAppConfig.Integrations.GoogleCalendar[0].Domain = "example.com"
-		dsAppConfig.Integrations.GoogleCalendar[0].ApiKey = fleet.GoogleCalendarApiKey{Values: map[string]string{
-			fleet.GoogleCalendarEmail:      "test@example.com",
-			fleet.GoogleCalendarPrivateKey: "original-private-key",
-			"project_id":                   "original-project",
+		dsAppConfig.Integrations.GoogleCalendar[0].ApiKey = automdm.GoogleCalendarApiKey{Values: map[string]string{
+			automdm.GoogleCalendarEmail:      "test@example.com",
+			automdm.GoogleCalendarPrivateKey: "original-private-key",
+			"project_id":                     "original-project",
 		}}
 
 		// Provide new API key with different fields
@@ -3254,14 +3254,14 @@ func TestModifyAppConfigGoogleCalendarAPIKey(t *testing.T) {
 			}
 		}`
 
-		updatedAppConfig, err := svc.ModifyAppConfig(ctx, []byte(updateJSON), fleet.ApplySpecOptions{})
+		updatedAppConfig, err := svc.ModifyAppConfig(ctx, []byte(updateJSON), automdm.ApplySpecOptions{})
 		require.NoError(t, err)
 
 		// API key should be completely replaced (not merged) - check datastore
 		require.Len(t, dsAppConfig.Integrations.GoogleCalendar, 1)
 		require.Equal(t, "example.com", dsAppConfig.Integrations.GoogleCalendar[0].Domain)
-		require.Equal(t, "new@example.com", dsAppConfig.Integrations.GoogleCalendar[0].ApiKey.Values[fleet.GoogleCalendarEmail])
-		require.Equal(t, "new-private-key", dsAppConfig.Integrations.GoogleCalendar[0].ApiKey.Values[fleet.GoogleCalendarPrivateKey])
+		require.Equal(t, "new@example.com", dsAppConfig.Integrations.GoogleCalendar[0].ApiKey.Values[automdm.GoogleCalendarEmail])
+		require.Equal(t, "new-private-key", dsAppConfig.Integrations.GoogleCalendar[0].ApiKey.Values[automdm.GoogleCalendarPrivateKey])
 		require.Equal(t, "new-value", dsAppConfig.Integrations.GoogleCalendar[0].ApiKey.Values["new_field"])
 		// Old fields should NOT be present (confirms replacement, not merge)
 		_, hasOldProject := dsAppConfig.Integrations.GoogleCalendar[0].ApiKey.Values["project_id"]
@@ -3274,9 +3274,9 @@ func TestModifyAppConfigGoogleCalendarAPIKey(t *testing.T) {
 	t.Run("validation passes with preserved API key", func(t *testing.T) {
 		// Reset to valid state
 		dsAppConfig.Integrations.GoogleCalendar[0].Domain = "example.com"
-		dsAppConfig.Integrations.GoogleCalendar[0].ApiKey = fleet.GoogleCalendarApiKey{Values: map[string]string{
-			fleet.GoogleCalendarEmail:      "valid@example.com",
-			fleet.GoogleCalendarPrivateKey: "-----BEGIN PRIVATE KEY-----\nvalid-key\n-----END PRIVATE KEY-----",
+		dsAppConfig.Integrations.GoogleCalendar[0].ApiKey = automdm.GoogleCalendarApiKey{Values: map[string]string{
+			automdm.GoogleCalendarEmail:      "valid@example.com",
+			automdm.GoogleCalendarPrivateKey: "-----BEGIN PRIVATE KEY-----\nvalid-key\n-----END PRIVATE KEY-----",
 		}}
 
 		// Update without api_key_json (should preserve valid key and pass validation)
@@ -3288,13 +3288,13 @@ func TestModifyAppConfigGoogleCalendarAPIKey(t *testing.T) {
 			}
 		}`
 
-		updatedAppConfig, err := svc.ModifyAppConfig(ctx, []byte(updateJSON), fleet.ApplySpecOptions{})
+		updatedAppConfig, err := svc.ModifyAppConfig(ctx, []byte(updateJSON), automdm.ApplySpecOptions{})
 		require.NoError(t, err)
 
 		// Should succeed with preserved API key (check datastore)
 		require.Len(t, dsAppConfig.Integrations.GoogleCalendar, 1)
-		require.Equal(t, "valid@example.com", dsAppConfig.Integrations.GoogleCalendar[0].ApiKey.Values[fleet.GoogleCalendarEmail])
-		require.Equal(t, "-----BEGIN PRIVATE KEY-----\nvalid-key\n-----END PRIVATE KEY-----", dsAppConfig.Integrations.GoogleCalendar[0].ApiKey.Values[fleet.GoogleCalendarPrivateKey])
+		require.Equal(t, "valid@example.com", dsAppConfig.Integrations.GoogleCalendar[0].ApiKey.Values[automdm.GoogleCalendarEmail])
+		require.Equal(t, "-----BEGIN PRIVATE KEY-----\nvalid-key\n-----END PRIVATE KEY-----", dsAppConfig.Integrations.GoogleCalendar[0].ApiKey.Values[automdm.GoogleCalendarPrivateKey])
 
 		// Returned config should be obfuscated (masked)
 		require.True(t, updatedAppConfig.Integrations.GoogleCalendar[0].ApiKey.IsMasked())
@@ -3303,10 +3303,10 @@ func TestModifyAppConfigGoogleCalendarAPIKey(t *testing.T) {
 	t.Run("preserve API key when masked value sent", func(t *testing.T) {
 		// Reset to original state
 		dsAppConfig.Integrations.GoogleCalendar[0].Domain = "example.com"
-		dsAppConfig.Integrations.GoogleCalendar[0].ApiKey = fleet.GoogleCalendarApiKey{Values: map[string]string{
-			fleet.GoogleCalendarEmail:      "test@example.com",
-			fleet.GoogleCalendarPrivateKey: "original-private-key",
-			"project_id":                   "original-project",
+		dsAppConfig.Integrations.GoogleCalendar[0].ApiKey = automdm.GoogleCalendarApiKey{Values: map[string]string{
+			automdm.GoogleCalendarEmail:      "test@example.com",
+			automdm.GoogleCalendarPrivateKey: "original-private-key",
+			"project_id":                     "original-project",
 		}}
 
 		// Send masked api_key_json (simulates frontend sending back obfuscated value)
@@ -3319,14 +3319,14 @@ func TestModifyAppConfigGoogleCalendarAPIKey(t *testing.T) {
 			}
 		}`
 
-		updatedAppConfig, err := svc.ModifyAppConfig(ctx, []byte(updateJSON), fleet.ApplySpecOptions{})
+		updatedAppConfig, err := svc.ModifyAppConfig(ctx, []byte(updateJSON), automdm.ApplySpecOptions{})
 		require.NoError(t, err)
 
 		// API key should be preserved, not overwritten with masked values (check datastore)
 		require.Len(t, dsAppConfig.Integrations.GoogleCalendar, 1)
 		require.Equal(t, "example.com", dsAppConfig.Integrations.GoogleCalendar[0].Domain)
-		require.Equal(t, "test@example.com", dsAppConfig.Integrations.GoogleCalendar[0].ApiKey.Values[fleet.GoogleCalendarEmail])
-		require.Equal(t, "original-private-key", dsAppConfig.Integrations.GoogleCalendar[0].ApiKey.Values[fleet.GoogleCalendarPrivateKey])
+		require.Equal(t, "test@example.com", dsAppConfig.Integrations.GoogleCalendar[0].ApiKey.Values[automdm.GoogleCalendarEmail])
+		require.Equal(t, "original-private-key", dsAppConfig.Integrations.GoogleCalendar[0].ApiKey.Values[automdm.GoogleCalendarPrivateKey])
 		require.Equal(t, "original-project", dsAppConfig.Integrations.GoogleCalendar[0].ApiKey.Values["project_id"])
 
 		// Returned config should be obfuscated (masked)
@@ -3337,43 +3337,43 @@ func TestModifyAppConfigGoogleCalendarAPIKey(t *testing.T) {
 func TestModifyAppConfigGoogleWorkspace(t *testing.T) {
 	ds := new(mock.Store)
 	// Google Workspace IdP is premium-only.
-	svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: &fleet.LicenseInfo{Tier: fleet.TierPremium}})
+	svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: &automdm.LicenseInfo{Tier: automdm.TierPremium}})
 
-	gwIntegration := []*fleet.GoogleWorkspaceIntegration{
+	gwIntegration := []*automdm.GoogleWorkspaceIntegration{
 		{
 			Domain:                "example.com",
 			ImpersonatedUserEmail: "admin@example.com",
-			ApiKey: fleet.GoogleCalendarApiKey{Values: map[string]string{
-				fleet.GoogleCalendarEmail:      "svc@example.com",
-				fleet.GoogleCalendarPrivateKey: "original-private-key",
+			ApiKey: automdm.GoogleCalendarApiKey{Values: map[string]string{
+				automdm.GoogleCalendarEmail:      "svc@example.com",
+				automdm.GoogleCalendarPrivateKey: "original-private-key",
 			}},
 		},
 	}
 
-	dsAppConfig := &fleet.AppConfig{
-		OrgInfo:        fleet.OrgInfo{OrgName: "Test"},
-		ServerSettings: fleet.ServerSettings{ServerURL: "https://example.org"},
-		Integrations: fleet.Integrations{
+	dsAppConfig := &automdm.AppConfig{
+		OrgInfo:        automdm.OrgInfo{OrgName: "Test"},
+		ServerSettings: automdm.ServerSettings{ServerURL: "https://example.org"},
+		Integrations: automdm.Integrations{
 			GoogleWorkspace: gwIntegration,
 		},
 	}
 
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
 		return dsAppConfig.Copy(), nil
 	}
-	ds.SaveAppConfigFunc = func(ctx context.Context, conf *fleet.AppConfig) error {
+	ds.SaveAppConfigFunc = func(ctx context.Context, conf *automdm.AppConfig) error {
 		*dsAppConfig = *conf
 		return nil
 	}
-	ds.SaveABMTokenFunc = func(ctx context.Context, tok *fleet.ABMToken) error { return nil }
-	ds.ListVPPTokensFunc = func(ctx context.Context) ([]*fleet.VPPTokenDB, error) {
-		return []*fleet.VPPTokenDB{}, nil
+	ds.SaveABMTokenFunc = func(ctx context.Context, tok *automdm.ABMToken) error { return nil }
+	ds.ListVPPTokensFunc = func(ctx context.Context) ([]*automdm.VPPTokenDB, error) {
+		return []*automdm.VPPTokenDB{}, nil
 	}
-	ds.ListABMTokensFunc = func(ctx context.Context) ([]*fleet.ABMToken, error) {
-		return []*fleet.ABMToken{}, nil
+	ds.ListABMTokensFunc = func(ctx context.Context) ([]*automdm.ABMToken, error) {
+		return []*automdm.ABMToken{}, nil
 	}
 
-	admin := &fleet.User{GlobalRole: new(fleet.RoleAdmin)}
+	admin := &automdm.User{GlobalRole: new(automdm.RoleAdmin)}
 	ctx = viewer.NewContext(ctx, viewer.Viewer{User: admin})
 
 	reset := func() {
@@ -3390,12 +3390,12 @@ func TestModifyAppConfigGoogleWorkspace(t *testing.T) {
 				}]
 			}
 		}`
-		updated, err := svc.ModifyAppConfig(ctx, []byte(updateJSON), fleet.ApplySpecOptions{})
+		updated, err := svc.ModifyAppConfig(ctx, []byte(updateJSON), automdm.ApplySpecOptions{})
 		require.NoError(t, err)
 		require.Len(t, dsAppConfig.Integrations.GoogleWorkspace, 1)
 		require.Equal(t, "newdomain.com", dsAppConfig.Integrations.GoogleWorkspace[0].Domain)
 		require.Equal(t, "newadmin@example.com", dsAppConfig.Integrations.GoogleWorkspace[0].ImpersonatedUserEmail)
-		require.Equal(t, "original-private-key", dsAppConfig.Integrations.GoogleWorkspace[0].ApiKey.Values[fleet.GoogleCalendarPrivateKey])
+		require.Equal(t, "original-private-key", dsAppConfig.Integrations.GoogleWorkspace[0].ApiKey.Values[automdm.GoogleCalendarPrivateKey])
 		require.True(t, updated.Integrations.GoogleWorkspace[0].ApiKey.IsMasked())
 	})
 
@@ -3410,7 +3410,7 @@ func TestModifyAppConfigGoogleWorkspace(t *testing.T) {
 				}]
 			}
 		}`
-		_, err := svc.ModifyAppConfig(ctx, []byte(updateJSON), fleet.ApplySpecOptions{})
+		_, err := svc.ModifyAppConfig(ctx, []byte(updateJSON), automdm.ApplySpecOptions{})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "impersonated_user_email")
 	})
@@ -3425,7 +3425,7 @@ func TestModifyAppConfigGoogleWorkspace(t *testing.T) {
 				]
 			}
 		}`
-		_, err := svc.ModifyAppConfig(ctx, []byte(updateJSON), fleet.ApplySpecOptions{})
+		_, err := svc.ModifyAppConfig(ctx, []byte(updateJSON), automdm.ApplySpecOptions{})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "google_workspace")
 	})
@@ -3433,23 +3433,23 @@ func TestModifyAppConfigGoogleWorkspace(t *testing.T) {
 
 func TestModifyAppConfigGoogleWorkspaceRequiresPremium(t *testing.T) {
 	ds := new(mock.Store)
-	svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: &fleet.LicenseInfo{Tier: fleet.TierFree}})
+	svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: &automdm.LicenseInfo{Tier: automdm.TierFree}})
 
-	dsAppConfig := &fleet.AppConfig{
-		OrgInfo:        fleet.OrgInfo{OrgName: "Test"},
-		ServerSettings: fleet.ServerSettings{ServerURL: "https://example.org"},
+	dsAppConfig := &automdm.AppConfig{
+		OrgInfo:        automdm.OrgInfo{OrgName: "Test"},
+		ServerSettings: automdm.ServerSettings{ServerURL: "https://example.org"},
 	}
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
 		return dsAppConfig.Copy(), nil
 	}
 	saveCalled := false
-	ds.SaveAppConfigFunc = func(ctx context.Context, conf *fleet.AppConfig) error {
+	ds.SaveAppConfigFunc = func(ctx context.Context, conf *automdm.AppConfig) error {
 		saveCalled = true
 		*dsAppConfig = *conf
 		return nil
 	}
 
-	admin := &fleet.User{GlobalRole: new(fleet.RoleAdmin)}
+	admin := &automdm.User{GlobalRole: new(automdm.RoleAdmin)}
 	ctx = viewer.NewContext(ctx, viewer.Viewer{User: admin})
 
 	updateJSON := `{
@@ -3461,7 +3461,7 @@ func TestModifyAppConfigGoogleWorkspaceRequiresPremium(t *testing.T) {
 			}]
 		}
 	}`
-	_, err := svc.ModifyAppConfig(ctx, []byte(updateJSON), fleet.ApplySpecOptions{})
+	_, err := svc.ModifyAppConfig(ctx, []byte(updateJSON), automdm.ApplySpecOptions{})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "integrations.google_workspace")
 	require.Contains(t, err.Error(), "missing or invalid license")
@@ -3469,7 +3469,7 @@ func TestModifyAppConfigGoogleWorkspaceRequiresPremium(t *testing.T) {
 }
 
 func TestModifyAppConfigGitOpsExceptionActivities(t *testing.T) {
-	admin := &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}
+	admin := &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}
 
 	type exceptionActivity struct {
 		name      string // activity name: "enabled_gitops_exception" or "disabled_gitops_exception"
@@ -3478,19 +3478,19 @@ func TestModifyAppConfigGitOpsExceptionActivities(t *testing.T) {
 
 	testCases := []struct {
 		name        string
-		initial     fleet.GitOpsExceptions
+		initial     automdm.GitOpsExceptions
 		patch       string
 		expectFired []exceptionActivity
 	}{
 		{
 			name:        "no change fires no activity",
-			initial:     fleet.GitOpsExceptions{Labels: true, Software: false, Secrets: true},
+			initial:     automdm.GitOpsExceptions{Labels: true, Software: false, Secrets: true},
 			patch:       `{"gitops": {"exceptions": {"labels": true, "software": false, "secrets": true}}}`,
 			expectFired: nil,
 		},
 		{
 			name:    "single field flip fires one activity",
-			initial: fleet.GitOpsExceptions{Labels: false, Software: false, Secrets: true},
+			initial: automdm.GitOpsExceptions{Labels: false, Software: false, Secrets: true},
 			patch:   `{"gitops": {"exceptions": {"labels": true, "software": false, "secrets": true}}}`,
 			expectFired: []exceptionActivity{
 				{name: "enabled_gitops_exception", exception: "labels"},
@@ -3498,7 +3498,7 @@ func TestModifyAppConfigGitOpsExceptionActivities(t *testing.T) {
 		},
 		{
 			name:    "multiple field flips fire one activity each, in order",
-			initial: fleet.GitOpsExceptions{Labels: false, Software: true, Secrets: false},
+			initial: automdm.GitOpsExceptions{Labels: false, Software: true, Secrets: false},
 			patch:   `{"gitops": {"exceptions": {"labels": true, "software": false, "secrets": true}}}`,
 			expectFired: []exceptionActivity{
 				{name: "enabled_gitops_exception", exception: "labels"},
@@ -3511,47 +3511,47 @@ func TestModifyAppConfigGitOpsExceptionActivities(t *testing.T) {
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
 			ds := new(mock.Store)
-			opts := &TestServerOpts{License: &fleet.LicenseInfo{Tier: fleet.TierPremium}}
+			opts := &TestServerOpts{License: &automdm.LicenseInfo{Tier: automdm.TierPremium}}
 			svc, ctx := newTestService(t, ds, nil, nil, opts)
 			ctx = viewer.NewContext(ctx, viewer.Viewer{User: admin})
 
-			dsAppConfig := &fleet.AppConfig{
-				OrgInfo:        fleet.OrgInfo{OrgName: "Test"},
-				ServerSettings: fleet.ServerSettings{ServerURL: "https://example.org"},
-				GitOpsConfig: fleet.GitOpsConfig{
+			dsAppConfig := &automdm.AppConfig{
+				OrgInfo:        automdm.OrgInfo{OrgName: "Test"},
+				ServerSettings: automdm.ServerSettings{ServerURL: "https://example.org"},
+				GitOpsConfig: automdm.GitOpsConfig{
 					GitopsModeEnabled: true,
 					RepositoryURL:     "https://example.com/repo",
 					Exceptions:        tt.initial,
 				},
 			}
 
-			ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
+			ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
 				return dsAppConfig, nil
 			}
-			ds.SaveAppConfigFunc = func(ctx context.Context, conf *fleet.AppConfig) error {
+			ds.SaveAppConfigFunc = func(ctx context.Context, conf *automdm.AppConfig) error {
 				*dsAppConfig = *conf
 				return nil
 			}
-			ds.SaveABMTokenFunc = func(ctx context.Context, tok *fleet.ABMToken) error { return nil }
-			ds.ListVPPTokensFunc = func(ctx context.Context) ([]*fleet.VPPTokenDB, error) {
-				return []*fleet.VPPTokenDB{}, nil
+			ds.SaveABMTokenFunc = func(ctx context.Context, tok *automdm.ABMToken) error { return nil }
+			ds.ListVPPTokensFunc = func(ctx context.Context) ([]*automdm.VPPTokenDB, error) {
+				return []*automdm.VPPTokenDB{}, nil
 			}
-			ds.ListABMTokensFunc = func(ctx context.Context) ([]*fleet.ABMToken, error) {
-				return []*fleet.ABMToken{}, nil
+			ds.ListABMTokensFunc = func(ctx context.Context) ([]*automdm.ABMToken, error) {
+				return []*automdm.ABMToken{}, nil
 			}
 
 			var fired []exceptionActivity
 			opts.ActivityMock.NewActivityFunc = func(_ context.Context, _ *activity_api.User, act activity_api.ActivityDetails) error {
 				switch ex := act.(type) {
-				case fleet.ActivityTypeEnabledGitOpsException:
+				case automdm.ActivityTypeEnabledGitOpsException:
 					fired = append(fired, exceptionActivity{name: act.ActivityName(), exception: ex.Exception})
-				case fleet.ActivityTypeDisabledGitOpsException:
+				case automdm.ActivityTypeDisabledGitOpsException:
 					fired = append(fired, exceptionActivity{name: act.ActivityName(), exception: ex.Exception})
 				}
 				return nil
 			}
 
-			_, err := svc.ModifyAppConfig(ctx, []byte(tt.patch), fleet.ApplySpecOptions{})
+			_, err := svc.ModifyAppConfig(ctx, []byte(tt.patch), automdm.ApplySpecOptions{})
 			require.NoError(t, err)
 			require.Equal(t, tt.expectFired, fired)
 		})
@@ -3559,34 +3559,34 @@ func TestModifyAppConfigGitOpsExceptionActivities(t *testing.T) {
 
 	t.Run("no activity is emitted when SaveAppConfig fails", func(t *testing.T) {
 		ds := new(mock.Store)
-		opts := &TestServerOpts{License: &fleet.LicenseInfo{Tier: fleet.TierPremium}}
+		opts := &TestServerOpts{License: &automdm.LicenseInfo{Tier: automdm.TierPremium}}
 		svc, ctx := newTestService(t, ds, nil, nil, opts)
 		ctx = viewer.NewContext(ctx, viewer.Viewer{User: admin})
 
-		dsAppConfig := &fleet.AppConfig{
-			OrgInfo:        fleet.OrgInfo{OrgName: "Test"},
-			ServerSettings: fleet.ServerSettings{ServerURL: "https://example.org"},
-			GitOpsConfig: fleet.GitOpsConfig{
+		dsAppConfig := &automdm.AppConfig{
+			OrgInfo:        automdm.OrgInfo{OrgName: "Test"},
+			ServerSettings: automdm.ServerSettings{ServerURL: "https://example.org"},
+			GitOpsConfig: automdm.GitOpsConfig{
 				GitopsModeEnabled: true,
 				RepositoryURL:     "https://example.com/repo",
-				Exceptions:        fleet.GitOpsExceptions{Labels: false, Software: false, Secrets: false},
+				Exceptions:        automdm.GitOpsExceptions{Labels: false, Software: false, Secrets: false},
 			},
 		}
 
-		ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) { return dsAppConfig, nil }
-		ds.SaveAppConfigFunc = func(ctx context.Context, conf *fleet.AppConfig) error {
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) { return dsAppConfig, nil }
+		ds.SaveAppConfigFunc = func(ctx context.Context, conf *automdm.AppConfig) error {
 			return errors.New("save failed")
 		}
-		ds.SaveABMTokenFunc = func(ctx context.Context, tok *fleet.ABMToken) error { return nil }
-		ds.ListVPPTokensFunc = func(ctx context.Context) ([]*fleet.VPPTokenDB, error) { return []*fleet.VPPTokenDB{}, nil }
-		ds.ListABMTokensFunc = func(ctx context.Context) ([]*fleet.ABMToken, error) { return []*fleet.ABMToken{}, nil }
+		ds.SaveABMTokenFunc = func(ctx context.Context, tok *automdm.ABMToken) error { return nil }
+		ds.ListVPPTokensFunc = func(ctx context.Context) ([]*automdm.VPPTokenDB, error) { return []*automdm.VPPTokenDB{}, nil }
+		ds.ListABMTokensFunc = func(ctx context.Context) ([]*automdm.ABMToken, error) { return []*automdm.ABMToken{}, nil }
 
 		var fired []exceptionActivity
 		opts.ActivityMock.NewActivityFunc = func(_ context.Context, _ *activity_api.User, act activity_api.ActivityDetails) error {
 			switch ex := act.(type) {
-			case fleet.ActivityTypeEnabledGitOpsException:
+			case automdm.ActivityTypeEnabledGitOpsException:
 				fired = append(fired, exceptionActivity{name: act.ActivityName(), exception: ex.Exception})
-			case fleet.ActivityTypeDisabledGitOpsException:
+			case automdm.ActivityTypeDisabledGitOpsException:
 				fired = append(fired, exceptionActivity{name: act.ActivityName(), exception: ex.Exception})
 			}
 			return nil
@@ -3594,103 +3594,103 @@ func TestModifyAppConfigGitOpsExceptionActivities(t *testing.T) {
 
 		_, err := svc.ModifyAppConfig(ctx,
 			[]byte(`{"gitops": {"exceptions": {"labels": true, "software": true, "secrets": true}}}`),
-			fleet.ApplySpecOptions{})
+			automdm.ApplySpecOptions{})
 		require.Error(t, err)
 		require.Empty(t, fired, "no exception activity should be emitted when SaveAppConfig fails")
 	})
 }
 
 // TestModifyAppConfigGitOpsHistoricalDataDefaults guards against the bug
-// where an older fleetctl (<=4.84) running gitops would wipe a deployment's
+// where an older automdmctl (<=4.84) running gitops would wipe a deployment's
 // previously-persisted historical_data sub-keys to false because the field
 // was absent from its payload and the Overwrite branch couldn't tell
 // "absent" from "false". Per policy, absent must always mean true.
 func TestModifyAppConfigGitOpsHistoricalDataDefaults(t *testing.T) {
-	admin := &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}
+	admin := &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}
 
 	testCases := []struct {
 		name      string
-		initial   fleet.HistoricalDataSettings
+		initial   automdm.HistoricalDataSettings
 		payload   string
 		overwrite bool
-		expected  fleet.HistoricalDataSettings
+		expected  automdm.HistoricalDataSettings
 	}{
 		{
-			name:      "overwrite: payload omits historical_data entirely (old fleetctl)",
-			initial:   fleet.HistoricalDataSettings{Uptime: true, Vulnerabilities: true},
+			name:      "overwrite: payload omits historical_data entirely (old automdmctl)",
+			initial:   automdm.HistoricalDataSettings{Uptime: true, Vulnerabilities: true},
 			payload:   `{"features":{"enable_software_inventory":true}}`,
 			overwrite: true,
-			expected:  fleet.HistoricalDataSettings{Uptime: true, Vulnerabilities: true},
+			expected:  automdm.HistoricalDataSettings{Uptime: true, Vulnerabilities: true},
 		},
 		{
 			name:      "overwrite: payload omits historical_data, prior values were false",
-			initial:   fleet.HistoricalDataSettings{Uptime: false, Vulnerabilities: false},
+			initial:   automdm.HistoricalDataSettings{Uptime: false, Vulnerabilities: false},
 			payload:   `{"features":{"enable_software_inventory":true}}`,
 			overwrite: true,
-			expected:  fleet.HistoricalDataSettings{Uptime: true, Vulnerabilities: true},
+			expected:  automdm.HistoricalDataSettings{Uptime: true, Vulnerabilities: true},
 		},
 		{
 			name:      "overwrite: payload sets historical_data to empty map",
-			initial:   fleet.HistoricalDataSettings{Uptime: true, Vulnerabilities: true},
+			initial:   automdm.HistoricalDataSettings{Uptime: true, Vulnerabilities: true},
 			payload:   `{"features":{"historical_data":{}}}`,
 			overwrite: true,
-			expected:  fleet.HistoricalDataSettings{Uptime: true, Vulnerabilities: true},
+			expected:  automdm.HistoricalDataSettings{Uptime: true, Vulnerabilities: true},
 		},
 		{
 			name:      "overwrite: payload partially specifies historical_data (uptime false)",
-			initial:   fleet.HistoricalDataSettings{Uptime: true, Vulnerabilities: true},
+			initial:   automdm.HistoricalDataSettings{Uptime: true, Vulnerabilities: true},
 			payload:   `{"features":{"historical_data":{"uptime":false}}}`,
 			overwrite: true,
-			expected:  fleet.HistoricalDataSettings{Uptime: false, Vulnerabilities: true},
+			expected:  automdm.HistoricalDataSettings{Uptime: false, Vulnerabilities: true},
 		},
 		{
 			name:      "overwrite: payload fully specifies historical_data",
-			initial:   fleet.HistoricalDataSettings{Uptime: true, Vulnerabilities: true},
+			initial:   automdm.HistoricalDataSettings{Uptime: true, Vulnerabilities: true},
 			payload:   `{"features":{"historical_data":{"uptime":false,"vulnerabilities":false}}}`,
 			overwrite: true,
-			expected:  fleet.HistoricalDataSettings{Uptime: false, Vulnerabilities: false},
+			expected:  automdm.HistoricalDataSettings{Uptime: false, Vulnerabilities: false},
 		},
 		{
 			name:      "patch (non-overwrite): payload omits historical_data, prior values preserved",
-			initial:   fleet.HistoricalDataSettings{Uptime: false, Vulnerabilities: true},
+			initial:   automdm.HistoricalDataSettings{Uptime: false, Vulnerabilities: true},
 			payload:   `{"org_info":{"org_name":"Renamed"}}`,
 			overwrite: false,
-			expected:  fleet.HistoricalDataSettings{Uptime: false, Vulnerabilities: true},
+			expected:  automdm.HistoricalDataSettings{Uptime: false, Vulnerabilities: true},
 		},
 	}
 
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
 			ds := new(mock.Store)
-			opts := &TestServerOpts{License: &fleet.LicenseInfo{Tier: fleet.TierPremium}}
+			opts := &TestServerOpts{License: &automdm.LicenseInfo{Tier: automdm.TierPremium}}
 			svc, ctx := newTestService(t, ds, nil, nil, opts)
 			ctx = viewer.NewContext(ctx, viewer.Viewer{User: admin})
 
-			dsAppConfig := &fleet.AppConfig{
-				OrgInfo:        fleet.OrgInfo{OrgName: "Test"},
-				ServerSettings: fleet.ServerSettings{ServerURL: "https://example.org"},
-				Features: fleet.Features{
+			dsAppConfig := &automdm.AppConfig{
+				OrgInfo:        automdm.OrgInfo{OrgName: "Test"},
+				ServerSettings: automdm.ServerSettings{ServerURL: "https://example.org"},
+				Features: automdm.Features{
 					EnableHostUsers:         true,
 					EnableSoftwareInventory: true,
 					HistoricalData:          tt.initial,
 				},
 			}
 
-			ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) { return dsAppConfig, nil }
-			ds.SaveAppConfigFunc = func(ctx context.Context, conf *fleet.AppConfig) error {
+			ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) { return dsAppConfig, nil }
+			ds.SaveAppConfigFunc = func(ctx context.Context, conf *automdm.AppConfig) error {
 				*dsAppConfig = *conf
 				return nil
 			}
-			ds.SaveABMTokenFunc = func(ctx context.Context, tok *fleet.ABMToken) error { return nil }
-			ds.ListVPPTokensFunc = func(ctx context.Context) ([]*fleet.VPPTokenDB, error) { return []*fleet.VPPTokenDB{}, nil }
-			ds.ListABMTokensFunc = func(ctx context.Context) ([]*fleet.ABMToken, error) { return []*fleet.ABMToken{}, nil }
+			ds.SaveABMTokenFunc = func(ctx context.Context, tok *automdm.ABMToken) error { return nil }
+			ds.ListVPPTokensFunc = func(ctx context.Context) ([]*automdm.VPPTokenDB, error) { return []*automdm.VPPTokenDB{}, nil }
+			ds.ListABMTokensFunc = func(ctx context.Context) ([]*automdm.ABMToken, error) { return []*automdm.ABMToken{}, nil }
 			// historical_data disable flips enqueue a scrub job.
 			ds.HasQueuedJobWithArgsFunc = func(ctx context.Context, name string, args json.RawMessage) (bool, error) {
 				return false, nil
 			}
-			ds.NewJobFunc = func(ctx context.Context, job *fleet.Job) (*fleet.Job, error) { return job, nil }
+			ds.NewJobFunc = func(ctx context.Context, job *automdm.Job) (*automdm.Job, error) { return job, nil }
 
-			updated, err := svc.ModifyAppConfig(ctx, []byte(tt.payload), fleet.ApplySpecOptions{Overwrite: tt.overwrite})
+			updated, err := svc.ModifyAppConfig(ctx, []byte(tt.payload), automdm.ApplySpecOptions{Overwrite: tt.overwrite})
 			require.NoError(t, err)
 			require.Equal(t, tt.expected, updated.Features.HistoricalData)
 			require.Equal(t, tt.expected, dsAppConfig.Features.HistoricalData)
@@ -3701,7 +3701,7 @@ func TestModifyAppConfigGitOpsHistoricalDataDefaults(t *testing.T) {
 // server_settings is merged rather than replaced in overwrite mode, so a GitOps
 // payload without mcp_disabled keeps the server's value.
 func TestModifyAppConfigGitOpsMCPDisabled(t *testing.T) {
-	admin := &fleet.User{GlobalRole: new(fleet.RoleAdmin)}
+	admin := &automdm.User{GlobalRole: new(automdm.RoleAdmin)}
 
 	testCases := []struct {
 		name     string
@@ -3719,28 +3719,28 @@ func TestModifyAppConfigGitOpsMCPDisabled(t *testing.T) {
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
 			ds := new(mock.Store)
-			opts := &TestServerOpts{License: &fleet.LicenseInfo{Tier: fleet.TierPremium}}
+			opts := &TestServerOpts{License: &automdm.LicenseInfo{Tier: automdm.TierPremium}}
 			svc, ctx := newTestService(t, ds, nil, nil, opts)
 			ctx = viewer.NewContext(ctx, viewer.Viewer{User: admin})
 
-			dsAppConfig := &fleet.AppConfig{
-				OrgInfo:        fleet.OrgInfo{OrgName: "Test"},
-				ServerSettings: fleet.ServerSettings{ServerURL: "https://example.org", MCPDisabled: tt.initial},
+			dsAppConfig := &automdm.AppConfig{
+				OrgInfo:        automdm.OrgInfo{OrgName: "Test"},
+				ServerSettings: automdm.ServerSettings{ServerURL: "https://example.org", MCPDisabled: tt.initial},
 			}
-			ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) { return dsAppConfig, nil }
-			ds.SaveAppConfigFunc = func(ctx context.Context, conf *fleet.AppConfig) error {
+			ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) { return dsAppConfig, nil }
+			ds.SaveAppConfigFunc = func(ctx context.Context, conf *automdm.AppConfig) error {
 				*dsAppConfig = *conf
 				return nil
 			}
-			ds.SaveABMTokenFunc = func(ctx context.Context, tok *fleet.ABMToken) error { return nil }
-			ds.ListVPPTokensFunc = func(ctx context.Context) ([]*fleet.VPPTokenDB, error) { return []*fleet.VPPTokenDB{}, nil }
-			ds.ListABMTokensFunc = func(ctx context.Context) ([]*fleet.ABMToken, error) { return []*fleet.ABMToken{}, nil }
+			ds.SaveABMTokenFunc = func(ctx context.Context, tok *automdm.ABMToken) error { return nil }
+			ds.ListVPPTokensFunc = func(ctx context.Context) ([]*automdm.VPPTokenDB, error) { return []*automdm.VPPTokenDB{}, nil }
+			ds.ListABMTokensFunc = func(ctx context.Context) ([]*automdm.ABMToken, error) { return []*automdm.ABMToken{}, nil }
 			ds.HasQueuedJobWithArgsFunc = func(ctx context.Context, name string, args json.RawMessage) (bool, error) {
 				return false, nil
 			}
-			ds.NewJobFunc = func(ctx context.Context, job *fleet.Job) (*fleet.Job, error) { return job, nil }
+			ds.NewJobFunc = func(ctx context.Context, job *automdm.Job) (*automdm.Job, error) { return job, nil }
 
-			updated, err := svc.ModifyAppConfig(ctx, []byte(tt.payload), fleet.ApplySpecOptions{Overwrite: true})
+			updated, err := svc.ModifyAppConfig(ctx, []byte(tt.payload), automdm.ApplySpecOptions{Overwrite: true})
 			require.NoError(t, err)
 			require.Equal(t, tt.expected, updated.ServerSettings.MCPDisabled)
 			require.Equal(t, tt.expected, dsAppConfig.ServerSettings.MCPDisabled)
@@ -3751,7 +3751,7 @@ func TestModifyAppConfigGitOpsMCPDisabled(t *testing.T) {
 // Unlike the rest of server_settings, ai_sessions_disabled follows the YAML in overwrite mode: a GitOps payload
 // without it turns collection back on.
 func TestModifyAppConfigGitOpsAISessionsDisabled(t *testing.T) {
-	admin := &fleet.User{GlobalRole: new(fleet.RoleAdmin)}
+	admin := &automdm.User{GlobalRole: new(automdm.RoleAdmin)}
 
 	testCases := []struct {
 		name      string
@@ -3771,32 +3771,32 @@ func TestModifyAppConfigGitOpsAISessionsDisabled(t *testing.T) {
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
 			ds := new(mock.Store)
-			opts := &TestServerOpts{License: &fleet.LicenseInfo{Tier: fleet.TierPremium}}
+			opts := &TestServerOpts{License: &automdm.LicenseInfo{Tier: automdm.TierPremium}}
 			svc, ctx := newTestService(t, ds, nil, nil, opts)
 			ctx = viewer.NewContext(ctx, viewer.Viewer{User: admin})
 
-			dsAppConfig := &fleet.AppConfig{
-				OrgInfo: fleet.OrgInfo{OrgName: "Test"},
-				ServerSettings: fleet.ServerSettings{
+			dsAppConfig := &automdm.AppConfig{
+				OrgInfo: automdm.OrgInfo{OrgName: "Test"},
+				ServerSettings: automdm.ServerSettings{
 					ServerURL:          "https://example.org",
 					AISessionsDisabled: tt.initial,
 					MCPDisabled:        true,
 				},
 			}
-			ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) { return dsAppConfig, nil }
-			ds.SaveAppConfigFunc = func(ctx context.Context, conf *fleet.AppConfig) error {
+			ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) { return dsAppConfig, nil }
+			ds.SaveAppConfigFunc = func(ctx context.Context, conf *automdm.AppConfig) error {
 				*dsAppConfig = *conf
 				return nil
 			}
-			ds.SaveABMTokenFunc = func(ctx context.Context, tok *fleet.ABMToken) error { return nil }
-			ds.ListVPPTokensFunc = func(ctx context.Context) ([]*fleet.VPPTokenDB, error) { return []*fleet.VPPTokenDB{}, nil }
-			ds.ListABMTokensFunc = func(ctx context.Context) ([]*fleet.ABMToken, error) { return []*fleet.ABMToken{}, nil }
+			ds.SaveABMTokenFunc = func(ctx context.Context, tok *automdm.ABMToken) error { return nil }
+			ds.ListVPPTokensFunc = func(ctx context.Context) ([]*automdm.VPPTokenDB, error) { return []*automdm.VPPTokenDB{}, nil }
+			ds.ListABMTokensFunc = func(ctx context.Context) ([]*automdm.ABMToken, error) { return []*automdm.ABMToken{}, nil }
 			ds.HasQueuedJobWithArgsFunc = func(ctx context.Context, name string, args json.RawMessage) (bool, error) {
 				return false, nil
 			}
-			ds.NewJobFunc = func(ctx context.Context, job *fleet.Job) (*fleet.Job, error) { return job, nil }
+			ds.NewJobFunc = func(ctx context.Context, job *automdm.Job) (*automdm.Job, error) { return job, nil }
 
-			updated, err := svc.ModifyAppConfig(ctx, []byte(tt.payload), fleet.ApplySpecOptions{Overwrite: tt.overwrite})
+			updated, err := svc.ModifyAppConfig(ctx, []byte(tt.payload), automdm.ApplySpecOptions{Overwrite: tt.overwrite})
 			require.NoError(t, err)
 			require.Equal(t, tt.expected, updated.ServerSettings.AISessionsDisabled)
 			require.Equal(t, tt.expected, dsAppConfig.ServerSettings.AISessionsDisabled)
@@ -3839,7 +3839,7 @@ func TestDiffStringSlices(t *testing.T) {
 // TestModifyAppConfigManagedLocalAccount covers the no-team (team 0) path through PATCH /config for both managed
 // local account platform toggles, which ModifyTeam doesn't handle.
 func TestModifyAppConfigManagedLocalAccount(t *testing.T) {
-	admin := &fleet.User{GlobalRole: new(fleet.RoleAdmin)}
+	admin := &automdm.User{GlobalRole: new(automdm.RoleAdmin)}
 
 	testCases := []struct {
 		name               string
@@ -3974,11 +3974,11 @@ func TestModifyAppConfigManagedLocalAccount(t *testing.T) {
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
 			ds := new(mock.Store)
-			tier := fleet.TierPremium
+			tier := automdm.TierPremium
 			if tt.freeTier {
-				tier = fleet.TierFree
+				tier = automdm.TierFree
 			}
-			opts := &TestServerOpts{License: &fleet.LicenseInfo{Tier: tier}}
+			opts := &TestServerOpts{License: &automdm.LicenseInfo{Tier: tier}}
 			// keeping Windows MDM enabled across the PATCH requires a configured WSTEP cert/key pair
 			cfg := config.TestConfig()
 			cfg.MDM.WindowsWSTEPIdentityCert = "testdata/server.pem"
@@ -3986,36 +3986,36 @@ func TestModifyAppConfigManagedLocalAccount(t *testing.T) {
 			svc, ctx := newTestServiceWithConfig(t, ds, cfg, nil, nil, opts)
 			ctx = viewer.NewContext(ctx, viewer.Viewer{User: admin})
 
-			dsAppConfig := &fleet.AppConfig{
-				OrgInfo:        fleet.OrgInfo{OrgName: "Test"},
-				ServerSettings: fleet.ServerSettings{ServerURL: "https://example.org"},
+			dsAppConfig := &automdm.AppConfig{
+				OrgInfo:        automdm.OrgInfo{OrgName: "Test"},
+				ServerSettings: automdm.ServerSettings{ServerURL: "https://example.org"},
 			}
 			dsAppConfig.MDM.EnabledAndConfigured = !tt.appleMDMOff
 			dsAppConfig.MDM.WindowsEnabledAndConfigured = !tt.windowsMDMOff
 			dsAppConfig.MDM.MacOSSetup.EnableManagedLocalAccount = optjson.SetBool(tt.startMacOS)
 			dsAppConfig.MDM.MacOSSetup.EnableManagedLocalAccountWindows = optjson.SetBool(tt.startWindows)
 
-			ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) { return dsAppConfig, nil }
-			ds.SaveAppConfigFunc = func(ctx context.Context, conf *fleet.AppConfig) error {
+			ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) { return dsAppConfig, nil }
+			ds.SaveAppConfigFunc = func(ctx context.Context, conf *automdm.AppConfig) error {
 				*dsAppConfig = *conf
 				return nil
 			}
-			ds.SaveABMTokenFunc = func(ctx context.Context, tok *fleet.ABMToken) error { return nil }
-			ds.ListVPPTokensFunc = func(ctx context.Context) ([]*fleet.VPPTokenDB, error) { return []*fleet.VPPTokenDB{}, nil }
-			ds.ListABMTokensFunc = func(ctx context.Context) ([]*fleet.ABMToken, error) { return []*fleet.ABMToken{}, nil }
+			ds.SaveABMTokenFunc = func(ctx context.Context, tok *automdm.ABMToken) error { return nil }
+			ds.ListVPPTokensFunc = func(ctx context.Context) ([]*automdm.VPPTokenDB, error) { return []*automdm.VPPTokenDB{}, nil }
+			ds.ListABMTokensFunc = func(ctx context.Context) ([]*automdm.ABMToken, error) { return []*automdm.ABMToken{}, nil }
 
 			var gotActivities []string
 			opts.ActivityMock.NewActivityFunc = func(_ context.Context, _ *activity_api.User, act activity_api.ActivityDetails) error {
 				switch a := act.(type) {
-				case fleet.ActivityTypeEnabledManagedLocalAccount:
+				case automdm.ActivityTypeEnabledManagedLocalAccount:
 					gotActivities = append(gotActivities, a.ActivityName()+":"+a.Platform)
-				case fleet.ActivityTypeDisabledManagedLocalAccount:
+				case automdm.ActivityTypeDisabledManagedLocalAccount:
 					gotActivities = append(gotActivities, a.ActivityName()+":"+a.Platform)
 				}
 				return nil
 			}
 
-			_, err := svc.ModifyAppConfig(ctx, []byte(tt.patch), fleet.ApplySpecOptions{})
+			_, err := svc.ModifyAppConfig(ctx, []byte(tt.patch), automdm.ApplySpecOptions{})
 
 			if tt.wantErr != "" {
 				require.Error(t, err)
@@ -4033,7 +4033,7 @@ func TestModifyAppConfigManagedLocalAccount(t *testing.T) {
 
 func TestProcessAppleOSUpdateSettingsDeadlineDays(t *testing.T) {
 	ctx := context.Background()
-	lic := &fleet.LicenseInfo{Tier: fleet.TierPremium}
+	lic := &automdm.LicenseInfo{Tier: automdm.TierPremium}
 
 	// sentinel is returned by the override so the change is observable without
 	// standing up the activity service: reaching the override means the settings
@@ -4042,9 +4042,9 @@ func TestProcessAppleOSUpdateSettingsDeadlineDays(t *testing.T) {
 
 	newSvc := func(called *bool) *Service {
 		svc := &Service{ds: new(mock.Store)}
-		svc.SetEnterpriseOverrides(fleet.EnterpriseOverrides{
-			MDMAppleEditedAppleOSUpdates: func(ctx context.Context, teamID *uint, appleDevice fleet.AppleDevice,
-				updates fleet.AppleOSUpdateSettings,
+		svc.SetEnterpriseOverrides(automdm.EnterpriseOverrides{
+			MDMAppleEditedAppleOSUpdates: func(ctx context.Context, teamID *uint, appleDevice automdm.AppleDevice,
+				updates automdm.AppleOSUpdateSettings,
 			) error {
 				*called = true
 				return sentinel
@@ -4053,17 +4053,17 @@ func TestProcessAppleOSUpdateSettingsDeadlineDays(t *testing.T) {
 		return svc
 	}
 
-	latest := func(days optjson.Int) fleet.AppleOSUpdateSettings {
-		return fleet.AppleOSUpdateSettings{
-			MinimumVersion: optjson.SetString(fleet.AppleOSUpdateLatestVersion),
+	latest := func(days optjson.Int) automdm.AppleOSUpdateSettings {
+		return automdm.AppleOSUpdateSettings{
+			MinimumVersion: optjson.SetString(automdm.AppleOSUpdateLatestVersion),
 			DeadlineDays:   days,
 		}
 	}
 
 	cases := []struct {
 		name        string
-		old         fleet.AppleOSUpdateSettings
-		new         fleet.AppleOSUpdateSettings
+		old         automdm.AppleOSUpdateSettings
+		new         automdm.AppleOSUpdateSettings
 		wantUpdated bool
 	}{
 		{
@@ -4093,7 +4093,7 @@ func TestProcessAppleOSUpdateSettingsDeadlineDays(t *testing.T) {
 		{
 			name:        "minimum_version changed",
 			old:         latest(optjson.SetInt(14)),
-			new:         fleet.AppleOSUpdateSettings{MinimumVersion: optjson.SetString("15.7.8"), Deadline: optjson.SetString("2026-09-01")},
+			new:         automdm.AppleOSUpdateSettings{MinimumVersion: optjson.SetString("15.7.8"), Deadline: optjson.SetString("2026-09-01")},
 			wantUpdated: true,
 		},
 	}
@@ -4103,7 +4103,7 @@ func TestProcessAppleOSUpdateSettingsDeadlineDays(t *testing.T) {
 			var called bool
 			svc := newSvc(&called)
 
-			err := svc.processAppleOSUpdateSettings(ctx, lic, fleet.MacOS, tc.old, tc.new)
+			err := svc.processAppleOSUpdateSettings(ctx, lic, automdm.MacOS, tc.old, tc.new)
 			if tc.wantUpdated {
 				require.ErrorIs(t, err, sentinel, "expected the OS updates change to be detected")
 				require.True(t, called)
@@ -4116,7 +4116,7 @@ func TestProcessAppleOSUpdateSettingsDeadlineDays(t *testing.T) {
 }
 
 func TestModifyAppConfigWindowsEnrollment(t *testing.T) {
-	admin := &fleet.User{GlobalRole: new(fleet.RoleAdmin)}
+	admin := &automdm.User{GlobalRole: new(automdm.RoleAdmin)}
 	teamID := uint(7)
 
 	type testCase struct {
@@ -4128,14 +4128,14 @@ func TestModifyAppConfigWindowsEnrollment(t *testing.T) {
 		expectSet      bool
 		expectSetTo    *uint
 		expectActivity bool
-		// expectStoredName is the default_fleet value the saved app config JSON must carry
+		// expectStoredName is the default_team value the saved app config JSON must carry
 		expectStoredName string
 	}
 	testCases := []testCase{
 		{
-			name:             "set to existing fleet",
-			licenseTier:      fleet.TierPremium,
-			payload:          `{"mdm":{"windows_automatic_enrollment":{"default_fleet":"Workstations"}}}`,
+			name:             "set to existing team",
+			licenseTier:      automdm.TierPremium,
+			payload:          `{"mdm":{"windows_automatic_enrollment":{"default_team":"Workstations"}}}`,
 			expectSet:        true,
 			expectSetTo:      &teamID,
 			expectActivity:   true,
@@ -4143,8 +4143,8 @@ func TestModifyAppConfigWindowsEnrollment(t *testing.T) {
 		},
 		{
 			name:             "unchanged value writes nothing",
-			licenseTier:      fleet.TierPremium,
-			payload:          `{"mdm":{"windows_automatic_enrollment":{"default_fleet":"Workstations"}}}`,
+			licenseTier:      automdm.TierPremium,
+			payload:          `{"mdm":{"windows_automatic_enrollment":{"default_team":"Workstations"}}}`,
 			currentTeamID:    &teamID,
 			expectSet:        false,
 			expectActivity:   false,
@@ -4152,8 +4152,8 @@ func TestModifyAppConfigWindowsEnrollment(t *testing.T) {
 		},
 		{
 			name:           "clear with empty string",
-			licenseTier:    fleet.TierPremium,
-			payload:        `{"mdm":{"windows_automatic_enrollment":{"default_fleet":""}}}`,
+			licenseTier:    automdm.TierPremium,
+			payload:        `{"mdm":{"windows_automatic_enrollment":{"default_team":""}}}`,
 			currentTeamID:  &teamID,
 			expectSet:      true,
 			expectSetTo:    nil,
@@ -4161,8 +4161,8 @@ func TestModifyAppConfigWindowsEnrollment(t *testing.T) {
 		},
 		{
 			name:           "clear with Unassigned",
-			licenseTier:    fleet.TierPremium,
-			payload:        `{"mdm":{"windows_automatic_enrollment":{"default_fleet":"Unassigned"}}}`,
+			licenseTier:    automdm.TierPremium,
+			payload:        `{"mdm":{"windows_automatic_enrollment":{"default_team":"Unassigned"}}}`,
 			currentTeamID:  &teamID,
 			expectSet:      true,
 			expectSetTo:    nil,
@@ -4170,8 +4170,8 @@ func TestModifyAppConfigWindowsEnrollment(t *testing.T) {
 		},
 		{
 			name:           "clear with Unassigned in a different case",
-			licenseTier:    fleet.TierPremium,
-			payload:        `{"mdm":{"windows_automatic_enrollment":{"default_fleet":"unassigned"}}}`,
+			licenseTier:    automdm.TierPremium,
+			payload:        `{"mdm":{"windows_automatic_enrollment":{"default_team":"unassigned"}}}`,
 			currentTeamID:  &teamID,
 			expectSet:      true,
 			expectSetTo:    nil,
@@ -4179,36 +4179,36 @@ func TestModifyAppConfigWindowsEnrollment(t *testing.T) {
 		},
 		{
 			name:           "clear with Unassigned when already cleared writes nothing",
-			licenseTier:    fleet.TierPremium,
-			payload:        `{"mdm":{"windows_automatic_enrollment":{"default_fleet":"Unassigned"}}}`,
+			licenseTier:    automdm.TierPremium,
+			payload:        `{"mdm":{"windows_automatic_enrollment":{"default_team":"Unassigned"}}}`,
 			expectSet:      false,
 			expectActivity: false,
 		},
 		{
 			name:           "clear with Unassigned allowed without premium",
-			licenseTier:    fleet.TierFree,
-			payload:        `{"mdm":{"windows_automatic_enrollment":{"default_fleet":"Unassigned"}}}`,
+			licenseTier:    automdm.TierFree,
+			payload:        `{"mdm":{"windows_automatic_enrollment":{"default_team":"Unassigned"}}}`,
 			currentTeamID:  &teamID,
 			expectSet:      true,
 			expectSetTo:    nil,
 			expectActivity: true,
 		},
 		{
-			name:        "unknown fleet name is invalid",
-			licenseTier: fleet.TierPremium,
-			payload:     `{"mdm":{"windows_automatic_enrollment":{"default_fleet":"Nope"}}}`,
-			expectErr:   `fleet "Nope" doesn't exist`,
+			name:        "unknown team name is invalid",
+			licenseTier: automdm.TierPremium,
+			payload:     `{"mdm":{"windows_automatic_enrollment":{"default_team":"Nope"}}}`,
+			expectErr:   `team "Nope" doesn't exist`,
 		},
 		{
 			name:        "premium required to set",
-			licenseTier: fleet.TierFree,
-			payload:     `{"mdm":{"windows_automatic_enrollment":{"default_fleet":"Workstations"}}}`,
+			licenseTier: automdm.TierFree,
+			payload:     `{"mdm":{"windows_automatic_enrollment":{"default_team":"Workstations"}}}`,
 			expectErr:   "missing or invalid license",
 		},
 		{
 			name:             "unchanged value tolerated without premium",
-			licenseTier:      fleet.TierFree,
-			payload:          `{"mdm":{"windows_automatic_enrollment":{"default_fleet":"Workstations"}}}`,
+			licenseTier:      automdm.TierFree,
+			payload:          `{"mdm":{"windows_automatic_enrollment":{"default_team":"Workstations"}}}`,
 			currentTeamID:    &teamID,
 			expectSet:        false,
 			expectActivity:   false,
@@ -4216,7 +4216,7 @@ func TestModifyAppConfigWindowsEnrollment(t *testing.T) {
 		},
 		{
 			name:           "omitted key is a no-op",
-			licenseTier:    fleet.TierPremium,
+			licenseTier:    automdm.TierPremium,
 			payload:        `{"org_info":{"org_name":"Test2"}}`,
 			currentTeamID:  &teamID,
 			expectSet:      false,
@@ -4224,7 +4224,7 @@ func TestModifyAppConfigWindowsEnrollment(t *testing.T) {
 		},
 		{
 			name:           "null keeps the persisted setting",
-			licenseTier:    fleet.TierPremium,
+			licenseTier:    automdm.TierPremium,
 			payload:        `{"mdm":{"windows_automatic_enrollment":null}}`,
 			currentTeamID:  &teamID,
 			expectSet:      false,
@@ -4232,7 +4232,7 @@ func TestModifyAppConfigWindowsEnrollment(t *testing.T) {
 		},
 		{
 			name:           "null tolerated without premium",
-			licenseTier:    fleet.TierFree,
+			licenseTier:    automdm.TierFree,
 			payload:        `{"mdm":{"windows_automatic_enrollment":null}}`,
 			currentTeamID:  &teamID,
 			expectSet:      false,
@@ -4240,8 +4240,8 @@ func TestModifyAppConfigWindowsEnrollment(t *testing.T) {
 		},
 		{
 			name:           "clear with empty string allowed without premium",
-			licenseTier:    fleet.TierFree,
-			payload:        `{"mdm":{"windows_automatic_enrollment":{"default_fleet":""}}}`,
+			licenseTier:    automdm.TierFree,
+			payload:        `{"mdm":{"windows_automatic_enrollment":{"default_team":""}}}`,
 			currentTeamID:  &teamID,
 			expectSet:      true,
 			expectSetTo:    nil,
@@ -4252,7 +4252,7 @@ func TestModifyAppConfigWindowsEnrollment(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			ds := new(mock.Store)
-			opts := &TestServerOpts{License: &fleet.LicenseInfo{Tier: tc.licenseTier}}
+			opts := &TestServerOpts{License: &automdm.LicenseInfo{Tier: tc.licenseTier}}
 			svc, ctx := newTestService(t, ds, nil, nil, opts)
 			ctx = viewer.NewContext(ctx, viewer.Viewer{User: admin})
 
@@ -4262,34 +4262,34 @@ func TestModifyAppConfigWindowsEnrollment(t *testing.T) {
 				return nil
 			}
 
-			dsAppConfig := &fleet.AppConfig{
-				OrgInfo:        fleet.OrgInfo{OrgName: "Test"},
-				ServerSettings: fleet.ServerSettings{ServerURL: "https://example.org"},
+			dsAppConfig := &automdm.AppConfig{
+				OrgInfo:        automdm.OrgInfo{OrgName: "Test"},
+				ServerSettings: automdm.ServerSettings{ServerURL: "https://example.org"},
 			}
-			ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) { return dsAppConfig, nil }
-			ds.SaveAppConfigFunc = func(ctx context.Context, conf *fleet.AppConfig) error { *dsAppConfig = *conf; return nil }
-			ds.SaveABMTokenFunc = func(ctx context.Context, tok *fleet.ABMToken) error { return nil }
-			ds.ListVPPTokensFunc = func(ctx context.Context) ([]*fleet.VPPTokenDB, error) { return []*fleet.VPPTokenDB{}, nil }
-			ds.ListABMTokensFunc = func(ctx context.Context) ([]*fleet.ABMToken, error) { return []*fleet.ABMToken{}, nil }
-			ds.TeamByNameFunc = func(ctx context.Context, name string) (*fleet.Team, error) {
+			ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) { return dsAppConfig, nil }
+			ds.SaveAppConfigFunc = func(ctx context.Context, conf *automdm.AppConfig) error { *dsAppConfig = *conf; return nil }
+			ds.SaveABMTokenFunc = func(ctx context.Context, tok *automdm.ABMToken) error { return nil }
+			ds.ListVPPTokensFunc = func(ctx context.Context) ([]*automdm.VPPTokenDB, error) { return []*automdm.VPPTokenDB{}, nil }
+			ds.ListABMTokensFunc = func(ctx context.Context) ([]*automdm.ABMToken, error) { return []*automdm.ABMToken{}, nil }
+			ds.TeamByNameFunc = func(ctx context.Context, name string) (*automdm.Team, error) {
 				if name == "Workstations" {
-					return &fleet.Team{ID: teamID, Name: "Workstations"}, nil
+					return &automdm.Team{ID: teamID, Name: "Workstations"}, nil
 				}
 				return nil, newNotFoundError()
 			}
-			ds.GetWindowsEnrollmentDefaultFleetFunc = func(ctx context.Context) (*uint, string, error) {
+			ds.GetWindowsEnrollmentDefaultTeamFunc = func(ctx context.Context) (*uint, string, error) {
 				if tc.currentTeamID != nil {
 					return tc.currentTeamID, "Workstations", nil
 				}
 				return nil, "", nil
 			}
 			var setTo *uint
-			ds.SetWindowsEnrollmentDefaultFleetFunc = func(ctx context.Context, id *uint) error {
+			ds.SetWindowsEnrollmentDefaultTeamFunc = func(ctx context.Context, id *uint) error {
 				setTo = id
 				return nil
 			}
 
-			_, err := svc.ModifyAppConfig(ctx, []byte(tc.payload), fleet.ApplySpecOptions{})
+			_, err := svc.ModifyAppConfig(ctx, []byte(tc.payload), automdm.ApplySpecOptions{})
 			if tc.expectErr != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tc.expectErr)
@@ -4297,17 +4297,17 @@ func TestModifyAppConfigWindowsEnrollment(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			require.Equal(t, tc.expectSet, ds.SetWindowsEnrollmentDefaultFleetFuncInvoked)
+			require.Equal(t, tc.expectSet, ds.SetWindowsEnrollmentDefaultTeamFuncInvoked)
 			if tc.expectSet {
 				require.Equal(t, tc.expectSetTo, setTo)
 			}
 			if tc.expectActivity {
-				require.Contains(t, activities, "edited_windows_enrollment_default_fleet")
+				require.Contains(t, activities, "edited_windows_enrollment_default_team")
 			} else {
-				require.NotContains(t, activities, "edited_windows_enrollment_default_fleet")
+				require.NotContains(t, activities, "edited_windows_enrollment_default_team")
 			}
-			require.Equal(t, tc.expectStoredName, dsAppConfig.MDM.WindowsAutomaticEnrollment.Value.DefaultFleet,
-				"the app config JSON must store the canonical fleet name")
+			require.Equal(t, tc.expectStoredName, dsAppConfig.MDM.WindowsAutomaticEnrollment.Value.DefaultAutoMDM,
+				"the app config JSON must store the canonical team name")
 		})
 	}
 }
@@ -4316,7 +4316,7 @@ func TestModifyAppConfigWindowsEnrollment(t *testing.T) {
 // eligible for SCEP renewal, so the stored exclusions and any in-flight renewals
 // have to be dropped for the next cron run to re-evaluate every host.
 func TestModifyAppConfigAppleBusinessEnrollmentCertRenewals(t *testing.T) {
-	admin := &fleet.User{GlobalRole: new(fleet.RoleAdmin)}
+	admin := &automdm.User{GlobalRole: new(automdm.RoleAdmin)}
 
 	testCases := []struct {
 		name             string
@@ -4366,7 +4366,7 @@ func TestModifyAppConfigAppleBusinessEnrollmentCertRenewals(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			ds := new(mock.Store)
-			opts := &TestServerOpts{License: &fleet.LicenseInfo{Tier: fleet.TierPremium}}
+			opts := &TestServerOpts{License: &automdm.LicenseInfo{Tier: automdm.TierPremium}}
 			svc, ctx := newTestService(t, ds, nil, nil, opts)
 			ctx = viewer.NewContext(ctx, viewer.Viewer{User: admin})
 
@@ -4376,24 +4376,24 @@ func TestModifyAppConfigAppleBusinessEnrollmentCertRenewals(t *testing.T) {
 				return nil
 			}
 
-			dsAppConfig := &fleet.AppConfig{
-				OrgInfo:        fleet.OrgInfo{OrgName: "Test"},
-				ServerSettings: fleet.ServerSettings{ServerURL: "https://example.org"},
-				MDM: fleet.MDM{
+			dsAppConfig := &automdm.AppConfig{
+				OrgInfo:        automdm.OrgInfo{OrgName: "Test"},
+				ServerSettings: automdm.ServerSettings{ServerURL: "https://example.org"},
+				MDM: automdm.MDM{
 					EnabledAndConfigured:             true,
 					OnlyAllowAppleBusinessEnrollment: tc.oldOnlyAB,
 					AppleRequireHardwareAttestation:  tc.oldAttestation,
 				},
 			}
-			ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) { return dsAppConfig, nil }
-			ds.SaveAppConfigFunc = func(ctx context.Context, conf *fleet.AppConfig) error { *dsAppConfig = *conf; return nil }
-			ds.SaveABMTokenFunc = func(ctx context.Context, tok *fleet.ABMToken) error { return nil }
-			ds.ListVPPTokensFunc = func(ctx context.Context) ([]*fleet.VPPTokenDB, error) { return []*fleet.VPPTokenDB{}, nil }
-			ds.ListABMTokensFunc = func(ctx context.Context) ([]*fleet.ABMToken, error) { return []*fleet.ABMToken{}, nil }
+			ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) { return dsAppConfig, nil }
+			ds.SaveAppConfigFunc = func(ctx context.Context, conf *automdm.AppConfig) error { *dsAppConfig = *conf; return nil }
+			ds.SaveABMTokenFunc = func(ctx context.Context, tok *automdm.ABMToken) error { return nil }
+			ds.ListVPPTokensFunc = func(ctx context.Context) ([]*automdm.VPPTokenDB, error) { return []*automdm.VPPTokenDB{}, nil }
+			ds.ListABMTokensFunc = func(ctx context.Context) ([]*automdm.ABMToken, error) { return []*automdm.ABMToken{}, nil }
 			ds.ClearCertRenewalExclusionsFunc = func(ctx context.Context) error { return nil }
 			ds.ResetPendingCertRenewalsFunc = func(ctx context.Context) error { return nil }
 
-			_, err := svc.ModifyAppConfig(ctx, []byte(tc.payload), fleet.ApplySpecOptions{})
+			_, err := svc.ModifyAppConfig(ctx, []byte(tc.payload), automdm.ApplySpecOptions{})
 			require.NoError(t, err)
 
 			// both run together: clearing exclusions without cancelling in-flight
@@ -4412,22 +4412,22 @@ func TestModifyAppConfigAppleBusinessEnrollmentCertRenewals(t *testing.T) {
 }
 
 func TestDiskEncryptionPrecedence(t *testing.T) {
-	admin := &fleet.User{GlobalRole: new(fleet.RoleAdmin)}
+	admin := &automdm.User{GlobalRole: new(automdm.RoleAdmin)}
 
 	// stored state: windows on, everything else off (the flat toggle reads as
 	// the AND of the four, so it's false)
-	mixedStored := func() fleet.MDM {
-		return fleet.MDM{
+	mixedStored := func() automdm.MDM {
+		return automdm.MDM{
 			EnableDiskEncryption: optjson.SetBool(false),
-			MacOSSettings: fleet.MacOSSettings{
+			MacOSSettings: automdm.MacOSSettings{
 				EnableDiskEncryption:          optjson.SetBool(false),
 				EnableEscrowDiskEncryptionKey: optjson.SetBool(false),
 			},
-			WindowsSettings: fleet.WindowsSettings{EnableDiskEncryption: optjson.SetBool(true)},
-			LinuxSettings:   fleet.LinuxSettings{EnableEscrowDiskEncryptionKey: optjson.SetBool(false)},
+			WindowsSettings: automdm.WindowsSettings{EnableDiskEncryption: optjson.SetBool(true)},
+			LinuxSettings:   automdm.LinuxSettings{EnableEscrowDiskEncryptionKey: optjson.SetBool(false)},
 		}
 	}
-	allOff := func() fleet.MDM {
+	allOff := func() automdm.MDM {
 		m := mixedStored()
 		m.WindowsSettings.EnableDiskEncryption = optjson.SetBool(false)
 		return m
@@ -4435,10 +4435,10 @@ func TestDiskEncryptionPrecedence(t *testing.T) {
 
 	for _, tc := range []struct {
 		name          string
-		stored        fleet.MDM
+		stored        automdm.MDM
 		payload       string
 		expectedError string
-		check         func(t *testing.T, mdm fleet.MDM)
+		check         func(t *testing.T, mdm automdm.MDM)
 	}{
 		{
 			name:   "changing flat and per-platform to disagreeing values conflicts",
@@ -4452,7 +4452,7 @@ func TestDiskEncryptionPrecedence(t *testing.T) {
 			stored: allOff(),
 			payload: `{"mdm": {"enable_disk_encryption": false,
 				"windows_settings": {"enable_disk_encryption": true}}}`,
-			check: func(t *testing.T, mdm fleet.MDM) {
+			check: func(t *testing.T, mdm automdm.MDM) {
 				require.True(t, mdm.WindowsSettings.EnableDiskEncryption.Value)
 				require.False(t, mdm.MacOSSettings.EnableDiskEncryption.Value)
 				require.False(t, mdm.LinuxSettings.EnableEscrowDiskEncryptionKey.Value)
@@ -4464,7 +4464,7 @@ func TestDiskEncryptionPrecedence(t *testing.T) {
 			stored: mixedStored(),
 			payload: `{"mdm": {"enable_disk_encryption": true,
 				"windows_settings": {"enable_disk_encryption": true}}}`,
-			check: func(t *testing.T, mdm fleet.MDM) {
+			check: func(t *testing.T, mdm automdm.MDM) {
 				require.True(t, mdm.MacOSSettings.EnableDiskEncryption.Value)
 				require.True(t, mdm.MacOSSettings.EnableEscrowDiskEncryptionKey.Value)
 				require.True(t, mdm.WindowsSettings.EnableDiskEncryption.Value)
@@ -4476,7 +4476,7 @@ func TestDiskEncryptionPrecedence(t *testing.T) {
 			name:    "flat toggle alone fans out over a mixed stored state",
 			stored:  mixedStored(),
 			payload: `{"mdm": {"enable_disk_encryption": false}}`,
-			check: func(t *testing.T, mdm fleet.MDM) {
+			check: func(t *testing.T, mdm automdm.MDM) {
 				require.False(t, mdm.WindowsSettings.EnableDiskEncryption.Value)
 				require.False(t, mdm.EnableDiskEncryption.Value)
 			},
@@ -4486,32 +4486,32 @@ func TestDiskEncryptionPrecedence(t *testing.T) {
 			ds := new(mock.Store)
 			cfg := config.TestConfig()
 			cfg.Server.PrivateKey = "test-private-key-not-used-by-mock"
-			svc, ctx := newTestServiceWithConfig(t, ds, cfg, nil, nil, &TestServerOpts{License: &fleet.LicenseInfo{Tier: fleet.TierPremium}})
+			svc, ctx := newTestServiceWithConfig(t, ds, cfg, nil, nil, &TestServerOpts{License: &automdm.LicenseInfo{Tier: automdm.TierPremium}})
 			ctx = viewer.NewContext(ctx, viewer.Viewer{User: admin})
 
-			dsAppConfig := &fleet.AppConfig{
-				OrgInfo:        fleet.OrgInfo{OrgName: "Test"},
-				ServerSettings: fleet.ServerSettings{ServerURL: "https://example.org"},
+			dsAppConfig := &automdm.AppConfig{
+				OrgInfo:        automdm.OrgInfo{OrgName: "Test"},
+				ServerSettings: automdm.ServerSettings{ServerURL: "https://example.org"},
 				MDM:            tc.stored,
 			}
-			ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
+			ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
 				return dsAppConfig, nil
 			}
-			ds.SaveAppConfigFunc = func(ctx context.Context, conf *fleet.AppConfig) error {
+			ds.SaveAppConfigFunc = func(ctx context.Context, conf *automdm.AppConfig) error {
 				*dsAppConfig = *conf
 				return nil
 			}
-			ds.TeamByNameFunc = func(ctx context.Context, name string) (*fleet.Team, error) {
+			ds.TeamByNameFunc = func(ctx context.Context, name string) (*automdm.Team, error) {
 				return nil, sql.ErrNoRows
 			}
-			ds.ListABMTokensFunc = func(ctx context.Context) ([]*fleet.ABMToken, error) {
-				return []*fleet.ABMToken{}, nil
+			ds.ListABMTokensFunc = func(ctx context.Context) ([]*automdm.ABMToken, error) {
+				return []*automdm.ABMToken{}, nil
 			}
-			ds.ListVPPTokensFunc = func(ctx context.Context) ([]*fleet.VPPTokenDB, error) {
-				return []*fleet.VPPTokenDB{}, nil
+			ds.ListVPPTokensFunc = func(ctx context.Context) ([]*automdm.VPPTokenDB, error) {
+				return []*automdm.VPPTokenDB{}, nil
 			}
 
-			modified, err := svc.ModifyAppConfig(ctx, []byte(tc.payload), fleet.ApplySpecOptions{})
+			modified, err := svc.ModifyAppConfig(ctx, []byte(tc.payload), automdm.ApplySpecOptions{})
 			if tc.expectedError != "" {
 				require.Error(t, err)
 				require.ErrorContains(t, err, tc.expectedError)
@@ -4525,7 +4525,7 @@ func TestDiskEncryptionPrecedence(t *testing.T) {
 }
 
 func TestAuthSettings(t *testing.T) {
-	newSvc := func(t *testing.T, useOneTimeEnrollSecrets, windowsOneTimeEnrollSecrets bool) (fleet.Service, context.Context) {
+	newSvc := func(t *testing.T, useOneTimeEnrollSecrets, windowsOneTimeEnrollSecrets bool) (automdm.Service, context.Context) {
 		ds := new(mock.Store)
 		cfg := config.TestConfig()
 		cfg.MDM.AppleOneTimeEnrollSecrets = useOneTimeEnrollSecrets
@@ -4542,7 +4542,7 @@ func TestAuthSettings(t *testing.T) {
 
 	t.Run("reported when the flag is on, to any user who can read the config", func(t *testing.T) {
 		svc, ctx := newSvc(t, true, false)
-		for _, user := range []*fleet.User{test.UserAdmin, test.UserObserver} {
+		for _, user := range []*automdm.User{test.UserAdmin, test.UserObserver} {
 			settings, err := svc.AuthSettings(test.UserContext(ctx, user))
 			require.NoError(t, err)
 			require.NotNil(t, settings)
@@ -4554,7 +4554,7 @@ func TestAuthSettings(t *testing.T) {
 		svc, ctx := newSvc(t, false, true)
 		settings, err := svc.AuthSettings(test.UserContext(ctx, test.UserAdmin))
 		require.NoError(t, err)
-		require.Equal(t, &fleet.AuthSettings{MDMWindowsOneTimeEnrollSecrets: true}, settings)
+		require.Equal(t, &automdm.AuthSettings{MDMWindowsOneTimeEnrollSecrets: true}, settings)
 	})
 
 	t.Run("reported when only the Android flag is on", func(t *testing.T) {
@@ -4564,7 +4564,7 @@ func TestAuthSettings(t *testing.T) {
 		svc, ctx := newTestServiceWithConfig(t, ds, cfg, nil, nil)
 		settings, err := svc.AuthSettings(test.UserContext(ctx, test.UserAdmin))
 		require.NoError(t, err)
-		require.Equal(t, &fleet.AuthSettings{MDMAndroidOneTimeEnrollSecrets: true}, settings)
+		require.Equal(t, &automdm.AuthSettings{MDMAndroidOneTimeEnrollSecrets: true}, settings)
 	})
 
 	t.Run("requires an authenticated user", func(t *testing.T) {
@@ -4581,48 +4581,48 @@ func TestStagedUploadAvailable(t *testing.T) {
 		tier      string
 		want      bool
 	}{
-		{true, "installers", fleet.TierPremium, true},
-		{false, "installers", fleet.TierPremium, false},
-		{true, "", fleet.TierPremium, false},
-		{true, "installers", fleet.TierFree, false},
+		{true, "installers", automdm.TierPremium, true},
+		{false, "installers", automdm.TierPremium, false},
+		{true, "", automdm.TierPremium, false},
+		{true, "installers", automdm.TierFree, false},
 	} {
 		cfg := config.TestConfig()
 		cfg.S3.SoftwareInstallersSignedURL = c.signedURL
 		cfg.S3.SoftwareInstallersBucket = c.bucket
-		svc, ctx := newTestServiceWithConfig(t, new(mock.Store), cfg, nil, nil, &TestServerOpts{License: &fleet.LicenseInfo{Tier: c.tier}})
+		svc, ctx := newTestServiceWithConfig(t, new(mock.Store), cfg, nil, nil, &TestServerOpts{License: &automdm.LicenseInfo{Tier: c.tier}})
 		require.Equal(t, c.want, svc.StagedUploadAvailable(ctx), "%+v", c)
 	}
 }
 
-func TestValidateAssignmentsFleetNames(t *testing.T) {
-	newSvc := func(teams ...*fleet.TeamSummary) *Service {
+func TestValidateAssignmentsTeamNames(t *testing.T) {
+	newSvc := func(teams ...*automdm.TeamSummary) *Service {
 		ds := new(mock.Store)
-		ds.TeamsSummaryFunc = func(context.Context) ([]*fleet.TeamSummary, error) {
+		ds.TeamsSummaryFunc = func(context.Context) ([]*automdm.TeamSummary, error) {
 			return teams, nil
 		}
-		ds.ListVPPTokensFunc = func(context.Context) ([]*fleet.VPPTokenDB, error) {
-			return []*fleet.VPPTokenDB{{ID: 1, Location: "HQ"}}, nil
+		ds.ListVPPTokensFunc = func(context.Context) ([]*automdm.VPPTokenDB, error) {
+			return []*automdm.VPPTokenDB{{ID: 1, Location: "HQ"}}, nil
 		}
-		ds.ListABMTokensFunc = func(context.Context) ([]*fleet.ABMToken, error) {
-			return []*fleet.ABMToken{{ID: 1, OrganizationName: "HQ"}}, nil
+		ds.ListABMTokensFunc = func(context.Context) ([]*automdm.ABMToken, error) {
+			return []*automdm.ABMToken{{ID: 1, OrganizationName: "HQ"}}, nil
 		}
 		return &Service{ds: ds}
 	}
-	lic := &fleet.LicenseInfo{Tier: fleet.TierPremium}
-	// AB takes fleet names like VPP, so it is checked with the same fleets.
-	validateABM := func(svc *Service, macOSFleet string) ([]*fleet.ABMToken, *fleet.InvalidArgumentError) {
-		var mdm fleet.MDM
-		mdm.AppleBusinessManager = optjson.SetSlice([]fleet.MDMAppleABMAssignmentInfo{{OrganizationName: "HQ", MacOSTeam: macOSFleet}})
-		invalid := &fleet.InvalidArgumentError{}
-		tokens, _, err := svc.validateABMAssignments(t.Context(), &mdm, &fleet.MDM{}, invalid, lic)
+	lic := &automdm.LicenseInfo{Tier: automdm.TierPremium}
+	// AB takes team names like VPP, so it is checked with the same teams.
+	validateABM := func(svc *Service, macOSAutoMDM string) ([]*automdm.ABMToken, *automdm.InvalidArgumentError) {
+		var mdm automdm.MDM
+		mdm.AppleBusinessManager = optjson.SetSlice([]automdm.MDMAppleABMAssignmentInfo{{OrganizationName: "HQ", MacOSTeam: macOSAutoMDM}})
+		invalid := &automdm.InvalidArgumentError{}
+		tokens, _, err := svc.validateABMAssignments(t.Context(), &mdm, &automdm.MDM{}, invalid, lic)
 		require.NoError(t, err)
 		return tokens, invalid
 	}
 
-	t.Run("a fleet name in decomposed form resolves to that fleet", func(t *testing.T) {
-		svc := newSvc(&fleet.TeamSummary{ID: 1, Name: "Caf\u00e9 Macs"})
-		invalid := &fleet.InvalidArgumentError{}
-		got, err := svc.validateVPPAssignments(t.Context(), []fleet.MDMAppleVolumePurchasingProgramInfo{
+	t.Run("a team name in decomposed form resolves to that team", func(t *testing.T) {
+		svc := newSvc(&automdm.TeamSummary{ID: 1, Name: "Caf\u00e9 Macs"})
+		invalid := &automdm.InvalidArgumentError{}
+		got, err := svc.validateVPPAssignments(t.Context(), []automdm.MDMAppleVolumePurchasingProgramInfo{
 			{Location: "HQ", Teams: []string{"Cafe\u0301 Macs"}},
 		}, invalid, lic)
 		require.NoError(t, err)
@@ -4630,33 +4630,33 @@ func TestValidateAssignmentsFleetNames(t *testing.T) {
 		require.Equal(t, map[uint][]uint{1: {1}}, got)
 	})
 
-	t.Run("Unassigned is rejected while fleets are named Unassigned", func(t *testing.T) {
+	t.Run("Unassigned is rejected while teams are named Unassigned", func(t *testing.T) {
 		svc := newSvc(
-			&fleet.TeamSummary{ID: 1, Name: "Workstations"},
-			&fleet.TeamSummary{ID: 7, Name: "unassigned"},
-			&fleet.TeamSummary{ID: 8, Name: "Unassigned"},
+			&automdm.TeamSummary{ID: 1, Name: "Workstations"},
+			&automdm.TeamSummary{ID: 7, Name: "unassigned"},
+			&automdm.TeamSummary{ID: 8, Name: "Unassigned"},
 		)
-		invalid := &fleet.InvalidArgumentError{}
-		got, err := svc.validateVPPAssignments(t.Context(), []fleet.MDMAppleVolumePurchasingProgramInfo{
-			{Location: "HQ", Teams: []string{fleet.DisplayNameNoTeam, "Workstations"}},
+		invalid := &automdm.InvalidArgumentError{}
+		got, err := svc.validateVPPAssignments(t.Context(), []automdm.MDMAppleVolumePurchasingProgramInfo{
+			{Location: "HQ", Teams: []string{automdm.DisplayNameNoTeam, "Workstations"}},
 		}, invalid, lic)
 		require.NoError(t, err)
 		require.Nil(t, got)
-		require.ErrorContains(t, invalid, `fleets with the reserved name Unassigned must be renamed before you assign a VPP token to Unassigned: "Unassigned", "unassigned"`)
+		require.ErrorContains(t, invalid, `teams with the reserved name Unassigned must be renamed before you assign a VPP token to Unassigned: "Unassigned", "unassigned"`)
 		_, invalid = validateABM(svc, "unassigned")
-		require.ErrorContains(t, invalid, `fleets with the reserved name Unassigned must be renamed before you assign an Apple Business token to Unassigned: "Unassigned", "unassigned"`)
+		require.ErrorContains(t, invalid, `teams with the reserved name Unassigned must be renamed before you assign an Apple Business token to Unassigned: "Unassigned", "unassigned"`)
 	})
 
-	t.Run("AB takes Unassigned in any letter case as fleet 0", func(t *testing.T) {
-		tokens, invalid := validateABM(newSvc(&fleet.TeamSummary{ID: 1, Name: "Workstations"}), "UNASSIGNED")
+	t.Run("AB takes Unassigned in any letter case as team 0", func(t *testing.T) {
+		tokens, invalid := validateABM(newSvc(&automdm.TeamSummary{ID: 1, Name: "Workstations"}), "UNASSIGNED")
 		require.False(t, invalid.HasErrors(), invalid.Error())
 		require.Nil(t, tokens[0].MacOSDefaultTeamID)
 	})
 
-	t.Run("other fleets still work while a fleet is named Unassigned", func(t *testing.T) {
-		svc := newSvc(&fleet.TeamSummary{ID: 1, Name: "Workstations"}, &fleet.TeamSummary{ID: 7, Name: "unassigned"})
-		invalid := &fleet.InvalidArgumentError{}
-		got, err := svc.validateVPPAssignments(t.Context(), []fleet.MDMAppleVolumePurchasingProgramInfo{
+	t.Run("other teams still work while a team is named Unassigned", func(t *testing.T) {
+		svc := newSvc(&automdm.TeamSummary{ID: 1, Name: "Workstations"}, &automdm.TeamSummary{ID: 7, Name: "unassigned"})
+		invalid := &automdm.InvalidArgumentError{}
+		got, err := svc.validateVPPAssignments(t.Context(), []automdm.MDMAppleVolumePurchasingProgramInfo{
 			{Location: "HQ", Teams: []string{"Workstations"}},
 		}, invalid, lic)
 		require.NoError(t, err)
@@ -4665,22 +4665,22 @@ func TestValidateAssignmentsFleetNames(t *testing.T) {
 	})
 }
 
-func TestValidateVPPAssignmentsManyTokensPerFleet(t *testing.T) {
+func TestValidateVPPAssignmentsManyTokensPerTeam(t *testing.T) {
 	ds := new(mock.Store)
-	ds.TeamsSummaryFunc = func(context.Context) ([]*fleet.TeamSummary, error) {
-		return []*fleet.TeamSummary{{ID: 1, Name: "Workstations"}}, nil
+	ds.TeamsSummaryFunc = func(context.Context) ([]*automdm.TeamSummary, error) {
+		return []*automdm.TeamSummary{{ID: 1, Name: "Workstations"}}, nil
 	}
-	ds.ListVPPTokensFunc = func(context.Context) ([]*fleet.VPPTokenDB, error) {
-		return []*fleet.VPPTokenDB{{ID: 1, Location: "HQ"}, {ID: 2, Location: "EU"}}, nil
+	ds.ListVPPTokensFunc = func(context.Context) ([]*automdm.VPPTokenDB, error) {
+		return []*automdm.VPPTokenDB{{ID: 1, Location: "HQ"}, {ID: 2, Location: "EU"}}, nil
 	}
 	svc := &Service{ds: ds}
-	lic := &fleet.LicenseInfo{Tier: fleet.TierPremium}
+	lic := &automdm.LicenseInfo{Tier: automdm.TierPremium}
 
-	t.Run("a fleet under two tokens passes", func(t *testing.T) {
-		invalid := &fleet.InvalidArgumentError{}
-		got, err := svc.validateVPPAssignments(t.Context(), []fleet.MDMAppleVolumePurchasingProgramInfo{
-			{Location: "HQ", Teams: []string{"Workstations", fleet.DisplayNameNoTeam}},
-			{Location: "EU", Teams: []string{"Workstations", fleet.DisplayNameNoTeam}},
+	t.Run("a team under two tokens passes", func(t *testing.T) {
+		invalid := &automdm.InvalidArgumentError{}
+		got, err := svc.validateVPPAssignments(t.Context(), []automdm.MDMAppleVolumePurchasingProgramInfo{
+			{Location: "HQ", Teams: []string{"Workstations", automdm.DisplayNameNoTeam}},
+			{Location: "EU", Teams: []string{"Workstations", automdm.DisplayNameNoTeam}},
 		}, invalid, lic)
 		require.NoError(t, err)
 		require.False(t, invalid.HasErrors())
@@ -4688,9 +4688,9 @@ func TestValidateVPPAssignmentsManyTokensPerFleet(t *testing.T) {
 	})
 
 	t.Run("Unassigned is the same as No team", func(t *testing.T) {
-		for _, name := range []string{fleet.DisplayNameNoTeam, "unassigned"} {
-			invalid := &fleet.InvalidArgumentError{}
-			got, err := svc.validateVPPAssignments(t.Context(), []fleet.MDMAppleVolumePurchasingProgramInfo{
+		for _, name := range []string{automdm.DisplayNameNoTeam, "unassigned"} {
+			invalid := &automdm.InvalidArgumentError{}
+			got, err := svc.validateVPPAssignments(t.Context(), []automdm.MDMAppleVolumePurchasingProgramInfo{
 				{Location: "HQ", Teams: []string{name, "Workstations"}},
 			}, invalid, lic)
 			require.NoError(t, err)
@@ -4699,21 +4699,21 @@ func TestValidateVPPAssignmentsManyTokensPerFleet(t *testing.T) {
 		}
 	})
 
-	t.Run("All fleets can't mix with other fleets on one token", func(t *testing.T) {
-		invalid := &fleet.InvalidArgumentError{}
-		_, err := svc.validateVPPAssignments(t.Context(), []fleet.MDMAppleVolumePurchasingProgramInfo{
-			{Location: "HQ", Teams: []string{fleet.DisplayNameAllTeams, "Workstations"}},
+	t.Run("All teams can't mix with other teams on one token", func(t *testing.T) {
+		invalid := &automdm.InvalidArgumentError{}
+		_, err := svc.validateVPPAssignments(t.Context(), []automdm.MDMAppleVolumePurchasingProgramInfo{
+			{Location: "HQ", Teams: []string{automdm.DisplayNameAllTeams, "Workstations"}},
 		}, invalid, lic)
 		require.NoError(t, err)
 		require.True(t, invalid.HasErrors())
 	})
 
 	t.Run("a token listed twice is rejected", func(t *testing.T) {
-		invalid := &fleet.InvalidArgumentError{}
-		got, err := svc.validateVPPAssignments(t.Context(), []fleet.MDMAppleVolumePurchasingProgramInfo{
+		invalid := &automdm.InvalidArgumentError{}
+		got, err := svc.validateVPPAssignments(t.Context(), []automdm.MDMAppleVolumePurchasingProgramInfo{
 			{Location: "HQ", Teams: []string{"Workstations"}},
-			{Location: "EU", Teams: []string{fleet.DisplayNameNoTeam}},
-			{Location: "HQ", Teams: []string{fleet.DisplayNameNoTeam}},
+			{Location: "EU", Teams: []string{automdm.DisplayNameNoTeam}},
+			{Location: "HQ", Teams: []string{automdm.DisplayNameNoTeam}},
 		}, invalid, lic)
 		require.NoError(t, err)
 		require.Nil(t, got)
@@ -4721,20 +4721,20 @@ func TestValidateVPPAssignmentsManyTokensPerFleet(t *testing.T) {
 	})
 
 	t.Run("every repeated token is reported once", func(t *testing.T) {
-		invalid := &fleet.InvalidArgumentError{}
-		got, err := svc.validateVPPAssignments(t.Context(), []fleet.MDMAppleVolumePurchasingProgramInfo{
+		invalid := &automdm.InvalidArgumentError{}
+		got, err := svc.validateVPPAssignments(t.Context(), []automdm.MDMAppleVolumePurchasingProgramInfo{
 			{Location: "HQ", Teams: []string{"Workstations"}},
 			{Location: "EU", Teams: []string{"Workstations"}},
-			{Location: "HQ", Teams: []string{fleet.DisplayNameNoTeam}},
-			{Location: "EU", Teams: []string{fleet.DisplayNameNoTeam}},
-			{Location: "HQ", Teams: []string{fleet.DisplayNameNoTeam}},
+			{Location: "HQ", Teams: []string{automdm.DisplayNameNoTeam}},
+			{Location: "EU", Teams: []string{automdm.DisplayNameNoTeam}},
+			{Location: "HQ", Teams: []string{automdm.DisplayNameNoTeam}},
 		}, invalid, lic)
 		require.NoError(t, err)
 		require.Nil(t, got)
 		reason := func(loc string) map[string]string {
 			return map[string]string{
 				"name":   "mdm.volume_purchasing_program",
-				"reason": fmt.Sprintf("Couldn't apply. VPP token %q is listed more than once. List each token once, with all of its fleets.", loc),
+				"reason": fmt.Sprintf("Couldn't apply. VPP token %q is listed more than once. List each token once, with all of its teams.", loc),
 			}
 		}
 		require.Equal(t, []map[string]string{reason("HQ"), reason("EU")}, invalid.Invalid())
@@ -4744,9 +4744,9 @@ func TestValidateVPPAssignmentsManyTokensPerFleet(t *testing.T) {
 func TestValidateSMTPPasswordForNewDestination(t *testing.T) {
 	t.Parallel()
 
-	stored := fleet.SMTPSettings{
+	stored := automdm.SMTPSettings{
 		SMTPServer: "smtp.example.com", SMTPPort: 587, SMTPUserName: "user", SMTPPassword: "stored",
-		SMTPAuthenticationType: fleet.AuthTypeNameUserNamePassword,
+		SMTPAuthenticationType: automdm.AuthTypeNameUserNamePassword,
 	}
 	for _, c := range []struct {
 		name    string
@@ -4763,12 +4763,12 @@ func TestValidateSMTPPasswordForNewDestination(t *testing.T) {
 		{"server without password auth", `{"server": "smtp2.example.com", "authentication_type": "authtype_none"}`, false},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			var incoming fleet.SMTPSettings
+			var incoming automdm.SMTPSettings
 			require.NoError(t, json.Unmarshal([]byte(c.payload), &incoming))
 			merged := stored
 			require.NoError(t, json.Unmarshal([]byte(c.payload), &merged))
 
-			invalid := &fleet.InvalidArgumentError{}
+			invalid := &automdm.InvalidArgumentError{}
 			validateSMTPPasswordForNewDestination(&incoming, stored, &merged, invalid)
 			require.Equal(t, c.invalid, invalid.HasErrors())
 		})
@@ -4776,14 +4776,14 @@ func TestValidateSMTPPasswordForNewDestination(t *testing.T) {
 
 	t.Run("password auth turned on", func(t *testing.T) {
 		old := stored
-		old.SMTPAuthenticationType = fleet.AuthTypeNameNone
-		invalid := &fleet.InvalidArgumentError{}
-		validateSMTPPasswordForNewDestination(&fleet.SMTPSettings{}, old, &stored, invalid)
+		old.SMTPAuthenticationType = automdm.AuthTypeNameNone
+		invalid := &automdm.InvalidArgumentError{}
+		validateSMTPPasswordForNewDestination(&automdm.SMTPSettings{}, old, &stored, invalid)
 		require.True(t, invalid.HasErrors())
 	})
 
 	t.Run("smtp_settings not in the request", func(t *testing.T) {
-		invalid := &fleet.InvalidArgumentError{}
+		invalid := &automdm.InvalidArgumentError{}
 		validateSMTPPasswordForNewDestination(nil, stored, &stored, invalid)
 		require.False(t, invalid.HasErrors())
 	})

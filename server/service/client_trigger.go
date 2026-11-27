@@ -9,7 +9,7 @@ import (
 
 // TriggerCronSchedule attempts to trigger an ad-hoc run of the named cron schedule.
 func (c *Client) TriggerCronSchedule(name string) error {
-	verb, path := http.MethodPost, "/api/latest/fleet/trigger"
+	verb, path := http.MethodPost, "/api/latest/automdm/trigger"
 
 	query := url.Values{}
 	query.Set("name", name)

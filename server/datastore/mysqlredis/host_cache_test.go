@@ -10,11 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/datastore/redis"
-	"github.com/fleetdm/fleet/v4/server/datastore/redis/redistest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis/redistest"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
 	redigo "github.com/gomodule/redigo/redis"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -26,7 +26,7 @@ import (
 // hostCacheTestCleanupPrefix is the key-prefix passed to redistest.SetupRedis so
 // every run cleans up only keys owned by these tests (redistest requires a
 // prefix to prevent concurrent tests from clobbering each other's keys).
-const hostCacheTestCleanupPrefix = "fleet:hostcache:v2"
+const hostCacheTestCleanupPrefix = "automdm:hostcache:v2"
 
 // hostCacheFamily parameterizes the load-path tests across both cache families (osquery `LoadHostByNodeKey`
 // and orbit `LoadHostByOrbitNodeKey`). Every end-to-end override test runs once per family; field-fidelity is
@@ -39,13 +39,13 @@ type hostCacheFamily struct {
 	cacheFamily
 	name       string
 	sampleKey  string
-	load       func(*Datastore, context.Context, string) (*fleet.Host, error)
-	setMock    func(*mock.DataStore, func(context.Context, string) (*fleet.Host, error))
+	load       func(*Datastore, context.Context, string) (*automdm.Host, error)
+	setMock    func(*mock.DataStore, func(context.Context, string) (*automdm.Host, error))
 	getInvoked func(*mock.DataStore) bool
 	setInvoked func(*mock.DataStore, bool)
-	// buildHost returns a minimally-populated *fleet.Host whose relevant node_key pointer matches the
+	// buildHost returns a minimally-populated *automdm.Host whose relevant node_key pointer matches the
 	// argument, so the cache put under this family will succeed.
-	buildHost func(id uint, key string) *fleet.Host
+	buildHost func(id uint, key string) *automdm.Host
 }
 
 var hostCacheFamilies = []hostCacheFamily{
@@ -53,40 +53,40 @@ var hostCacheFamilies = []hostCacheFamily{
 		cacheFamily: osqueryCacheFamily,
 		name:        "osquery",
 		sampleKey:   "nk-test",
-		load: func(d *Datastore, ctx context.Context, k string) (*fleet.Host, error) {
+		load: func(d *Datastore, ctx context.Context, k string) (*automdm.Host, error) {
 			return d.LoadHostByNodeKey(ctx, k)
 		},
-		setMock: func(ds *mock.DataStore, f func(context.Context, string) (*fleet.Host, error)) {
+		setMock: func(ds *mock.DataStore, f func(context.Context, string) (*automdm.Host, error)) {
 			ds.LoadHostByNodeKeyFunc = f
 		},
 		getInvoked: func(ds *mock.DataStore) bool { return ds.LoadHostByNodeKeyFuncInvoked },
 		setInvoked: func(ds *mock.DataStore, v bool) { ds.LoadHostByNodeKeyFuncInvoked = v },
-		buildHost: func(id uint, k string) *fleet.Host {
+		buildHost: func(id uint, k string) *automdm.Host {
 			kp := k
-			return &fleet.Host{ID: id, NodeKey: &kp, Hostname: "h-" + k}
+			return &automdm.Host{ID: id, NodeKey: &kp, Hostname: "h-" + k}
 		},
 	},
 	{
 		cacheFamily: orbitCacheFamily,
 		name:        "orbit",
 		sampleKey:   "onk-test",
-		load: func(d *Datastore, ctx context.Context, k string) (*fleet.Host, error) {
+		load: func(d *Datastore, ctx context.Context, k string) (*automdm.Host, error) {
 			return d.LoadHostByOrbitNodeKey(ctx, k)
 		},
-		setMock: func(ds *mock.DataStore, f func(context.Context, string) (*fleet.Host, error)) {
+		setMock: func(ds *mock.DataStore, f func(context.Context, string) (*automdm.Host, error)) {
 			ds.LoadHostByOrbitNodeKeyFunc = f
 		},
 		getInvoked: func(ds *mock.DataStore) bool { return ds.LoadHostByOrbitNodeKeyFuncInvoked },
 		setInvoked: func(ds *mock.DataStore, v bool) { ds.LoadHostByOrbitNodeKeyFuncInvoked = v },
-		buildHost: func(id uint, k string) *fleet.Host {
+		buildHost: func(id uint, k string) *automdm.Host {
 			kp := k
-			return &fleet.Host{ID: id, OrbitNodeKey: &kp, Hostname: "h-" + k}
+			return &automdm.Host{ID: id, OrbitNodeKey: &kp, Hostname: "h-" + k}
 		},
 	},
 }
 
 func TestHostCacheHelpers(t *testing.T) {
-	runTest := func(t *testing.T, pool fleet.RedisPool) {
+	runTest := func(t *testing.T, pool automdm.RedisPool) {
 		ctx := t.Context()
 		ds := new(mock.Store)
 		wrapped := New(ds, pool, WithHostCache(30*time.Second))
@@ -97,7 +97,7 @@ func TestHostCacheHelpers(t *testing.T) {
 			nk := "node-put-get"
 			teamID := uint(42)
 			certTrue := true
-			stored := &fleet.Host{
+			stored := &automdm.Host{
 				ID:                  7,
 				NodeKey:             &nk,
 				TeamID:              &teamID,
@@ -152,7 +152,7 @@ func TestHostCacheHelpers(t *testing.T) {
 
 			nk := "node-both"
 			wrapped.hostCachePutNotFoundByNodeKey(ctx, nk)
-			wrapped.hostCachePutByNodeKey(ctx, &fleet.Host{ID: 9, NodeKey: &nk, Hostname: "wins"})
+			wrapped.hostCachePutByNodeKey(ctx, &automdm.Host{ID: 9, NodeKey: &nk, Hostname: "wins"})
 
 			loaded, result := wrapped.hostCacheGetByNodeKey(ctx, nk)
 			require.Equal(t, hostCacheLookupHit, result)
@@ -169,7 +169,7 @@ func TestHostCacheHelpers(t *testing.T) {
 			// node_key regardless of which are live," so we populate all three to verify the
 			// delete clears them all.
 			nk := "node-del-nk"
-			wrapped.hostCachePutByNodeKey(ctx, &fleet.Host{ID: 10, NodeKey: &nk})
+			wrapped.hostCachePutByNodeKey(ctx, &automdm.Host{ID: 10, NodeKey: &nk})
 			wrapped.hostCachePutNotFoundByNodeKey(ctx, nk)
 
 			wrapped.hostCacheDeleteByNodeKey(ctx, nk, 10, "update")
@@ -194,7 +194,7 @@ func TestHostCacheHelpers(t *testing.T) {
 			t.Cleanup(func() { cleanupHostCacheKeys(t, pool) })
 
 			nk := "node-del-id"
-			wrapped.hostCachePutByNodeKey(ctx, &fleet.Host{ID: 11, NodeKey: &nk})
+			wrapped.hostCachePutByNodeKey(ctx, &automdm.Host{ID: 11, NodeKey: &nk})
 
 			wrapped.hostCacheDeleteByID(ctx, 11, "team")
 
@@ -250,7 +250,7 @@ func TestLoadHost_CacheDisabled(t *testing.T) {
 		t.Run(fam.name, func(t *testing.T) {
 			ctx := t.Context()
 			ds := new(mock.DataStore)
-			fam.setMock(ds, func(_ context.Context, k string) (*fleet.Host, error) {
+			fam.setMock(ds, func(_ context.Context, k string) (*automdm.Host, error) {
 				return fam.buildHost(1, k), nil
 			})
 			wrapped := New(ds, redistest.NopRedis()) // no WithHostCache
@@ -269,12 +269,12 @@ func TestLoadHost_CacheDisabled(t *testing.T) {
 }
 
 func TestLoadHost_Override(t *testing.T) {
-	runFamily := func(t *testing.T, fam hostCacheFamily, pool fleet.RedisPool) {
+	runFamily := func(t *testing.T, fam hostCacheFamily, pool automdm.RedisPool) {
 		t.Run("cache miss then hit", func(t *testing.T) {
 			t.Cleanup(func() { cleanupHostCacheKeys(t, pool) })
 			ctx := t.Context()
 			ds := new(mock.DataStore)
-			fam.setMock(ds, func(_ context.Context, k string) (*fleet.Host, error) {
+			fam.setMock(ds, func(_ context.Context, k string) (*automdm.Host, error) {
 				return fam.buildHost(1, k), nil
 			})
 			wrapped := New(ds, pool, WithHostCache(30*time.Second))
@@ -297,7 +297,7 @@ func TestLoadHost_Override(t *testing.T) {
 			ctx := t.Context()
 			ds := new(mock.DataStore)
 			var callCount atomic.Int32
-			fam.setMock(ds, func(_ context.Context, _ string) (*fleet.Host, error) {
+			fam.setMock(ds, func(_ context.Context, _ string) (*automdm.Host, error) {
 				callCount.Add(1)
 				return nil, common_mysql.NotFound("Host")
 			})
@@ -305,13 +305,13 @@ func TestLoadHost_Override(t *testing.T) {
 
 			_, err := fam.load(wrapped, ctx, fam.sampleKey+"-absent")
 			require.Error(t, err)
-			assert.True(t, fleet.IsNotFound(err))
+			assert.True(t, automdm.IsNotFound(err))
 			assert.Equal(t, int32(1), callCount.Load())
 
 			// Second call hits the negative cache; inner is not invoked.
 			_, err = fam.load(wrapped, ctx, fam.sampleKey+"-absent")
 			require.Error(t, err)
-			assert.True(t, fleet.IsNotFound(err))
+			assert.True(t, automdm.IsNotFound(err))
 			assert.Equal(t, int32(1), callCount.Load(), "negative cache should have served the second call")
 		})
 
@@ -321,7 +321,7 @@ func TestLoadHost_Override(t *testing.T) {
 			ds := new(mock.DataStore)
 			transient := errors.New("simulated timeout")
 			var callCount atomic.Int32
-			fam.setMock(ds, func(_ context.Context, _ string) (*fleet.Host, error) {
+			fam.setMock(ds, func(_ context.Context, _ string) (*automdm.Host, error) {
 				callCount.Add(1)
 				return nil, transient
 			})
@@ -343,7 +343,7 @@ func TestLoadHost_Override(t *testing.T) {
 			ds := new(mock.DataStore)
 			var callCount atomic.Int32
 			release := make(chan struct{})
-			fam.setMock(ds, func(_ context.Context, k string) (*fleet.Host, error) {
+			fam.setMock(ds, func(_ context.Context, k string) (*automdm.Host, error) {
 				callCount.Add(1)
 				<-release
 				return fam.buildHost(42, k), nil
@@ -353,7 +353,7 @@ func TestLoadHost_Override(t *testing.T) {
 			const goroutines = 20
 			var wg sync.WaitGroup
 			errs := make([]error, goroutines)
-			hosts := make([]*fleet.Host, goroutines)
+			hosts := make([]*automdm.Host, goroutines)
 			for i := range goroutines {
 				wg.Add(1)
 				go func(i int) {
@@ -389,7 +389,7 @@ func TestLoadHost_Override(t *testing.T) {
 
 			ds := new(mock.DataStore)
 			release := make(chan struct{})
-			fam.setMock(ds, func(innerCtx context.Context, k string) (*fleet.Host, error) {
+			fam.setMock(ds, func(innerCtx context.Context, k string) (*automdm.Host, error) {
 				<-release
 				// The inner ctx should not observe the canceling caller's
 				// Done signal. If it does, this returns ctx.Err() and the
@@ -403,7 +403,7 @@ func TestLoadHost_Override(t *testing.T) {
 
 			cancellableCtx, cancel := context.WithCancel(t.Context())
 			joinerCtx := t.Context()
-			var joinerHost *fleet.Host
+			var joinerHost *automdm.Host
 			var joinerErr error
 
 			// Start the CANCELLABLE caller first and give it time to enter
@@ -456,7 +456,7 @@ func TestLoadHost_RedisErrorFallsThrough(t *testing.T) {
 		t.Run(fam.name, func(t *testing.T) {
 			ctx := t.Context()
 			ds := new(mock.DataStore)
-			fam.setMock(ds, func(_ context.Context, k string) (*fleet.Host, error) {
+			fam.setMock(ds, func(_ context.Context, k string) (*automdm.Host, error) {
 				return fam.buildHost(1, k), nil
 			})
 			wrapped := New(ds, errPool{}, WithHostCache(30*time.Second))
@@ -481,7 +481,7 @@ func TestLoadHost_RedisErrorFallsThrough(t *testing.T) {
 // host that has both agents enrolled. This is the cross-family property that
 // per-family override tests can't express.
 func TestHostCacheUnifiedInvalidation(t *testing.T) {
-	runTest := func(t *testing.T, pool fleet.RedisPool) {
+	runTest := func(t *testing.T, pool automdm.RedisPool) {
 		t.Cleanup(func() { cleanupHostCacheKeys(t, pool) })
 		ctx := t.Context()
 		ds := new(mock.DataStore)
@@ -489,7 +489,7 @@ func TestHostCacheUnifiedInvalidation(t *testing.T) {
 
 		nk := "nk-both"
 		onk := "onk-both"
-		host := &fleet.Host{ID: 99, NodeKey: &nk, OrbitNodeKey: &onk, Hostname: "both"}
+		host := &automdm.Host{ID: 99, NodeKey: &nk, OrbitNodeKey: &onk, Hostname: "both"}
 		wrapped.hostCachePutByNodeKey(ctx, host)
 		wrapped.hostCachePutByOrbitNodeKey(ctx, host)
 
@@ -517,7 +517,7 @@ func TestHostCacheUnifiedInvalidation(t *testing.T) {
 	})
 }
 
-// errPool is a minimal fleet.RedisPool whose connections always fail. Used to
+// errPool is a minimal automdm.RedisPool whose connections always fail. Used to
 // prove the cache layer swallows Redis errors and falls through to the DB
 // without propagating to the caller.
 type errPool struct{}
@@ -525,7 +525,7 @@ type errPool struct{}
 func (errPool) Get() redigo.Conn                   { return errConn{} }
 func (errPool) Close() error                       { return nil }
 func (errPool) Stats() map[string]redigo.PoolStats { return nil }
-func (errPool) Mode() fleet.RedisMode              { return fleet.RedisStandalone }
+func (errPool) Mode() automdm.RedisMode            { return automdm.RedisStandalone }
 
 type errConn struct{}
 
@@ -542,7 +542,7 @@ func (errConn) Receive() (any, error)              { return nil, errRedisDown }
 // state doesn't leak across cases. Uses redis.ScanKeys which walks every node
 // in cluster mode (not just the one backing pool.Get()), so subtests running
 // against a cluster pool are fully isolated.
-func cleanupHostCacheKeys(t *testing.T, pool fleet.RedisPool) {
+func cleanupHostCacheKeys(t *testing.T, pool automdm.RedisPool) {
 	t.Helper()
 
 	for _, sub := range []string{":nk:*", ":nk_miss:*", ":id2nk:*", ":onk:*", ":onk_miss:*", ":id2onk:*"} {
@@ -558,14 +558,14 @@ func cleanupHostCacheKeys(t *testing.T, pool fleet.RedisPool) {
 	}
 }
 
-// hostFieldsGen produces *fleet.Host values that exercise every field
+// hostFieldsGen produces *automdm.Host values that exercise every field
 // LoadHostByNodeKey or LoadHostByOrbitNodeKey populates from the database.
 // Pointer fields randomly choose between nil and a generated value so the
 // generator covers both omitempty-skipped and present cases.
 //
 // Fields the generator deliberately leaves at zero:
 //   - NetworkInterfaces and DiskEncryptionKeyEscrowed are tagged json:"-" on
-//     fleet.Host and are NOT shadowed by hostCacheEnvelope. They round-trip
+//     automdm.Host and are NOT shadowed by hostCacheEnvelope. They round-trip
 //     to zero by design; varying them would make the round-trip test fail
 //     for a non-bug reason.
 //   - HostSoftware (embedded) is not loaded by the cache's SQL queries; we
@@ -575,8 +575,8 @@ func cleanupHostCacheKeys(t *testing.T, pool fleet.RedisPool) {
 // JSON encoding does not preserve time.Location names or the monotonic clock
 // reading. Testing those would conflate JSON's known representation choice
 // with cache-specific bugs.
-func hostFieldsGen() *rapid.Generator[*fleet.Host] {
-	return rapid.Custom(func(t *rapid.T) *fleet.Host {
+func hostFieldsGen() *rapid.Generator[*automdm.Host] {
+	return rapid.Custom(func(t *rapid.T) *automdm.Host {
 		// Bound to year-1970 through ~year-2096 to stay safely within RFC3339's
 		// 4-digit-year encoding range.
 		drawTime := func(label string) time.Time {
@@ -621,7 +621,7 @@ func hostFieldsGen() *rapid.Generator[*fleet.Host] {
 		// which JSON cannot encode at all (would error rather than mismatch).
 		boundedFloat := rapid.Float64Range(0, 1_000_000)
 
-		h := &fleet.Host{
+		h := &automdm.Host{
 			ID:                          uint(rapid.Uint64Range(0, 1<<32).Draw(t, "id")),
 			OsqueryHostID:               drawPtrString("osquery_host_id"),
 			DetailUpdatedAt:             drawTime("detail_updated"),
@@ -670,12 +670,12 @@ func hostFieldsGen() *rapid.Generator[*fleet.Host] {
 			HasHostIdentityCert:         drawPtrBool("has_cert"),
 			// Orbit-specific fields. LoadHostByOrbitNodeKey populates these;
 			// LoadHostByNodeKey leaves them nil. Either is a valid input.
-			DEPAssignedToFleet:        drawPtrBool("dep"),
+			DEPAssignedToAutoMDM:      drawPtrBool("dep"),
 			DiskEncryptionEnabled:     drawPtrBool("enc"),
 			BitLockerProtectionStatus: rapid.Ptr(rapid.IntRange(0, 2), true).Draw(t, "bitlocker_protection_status"),
 			TPMPINSet:                 rapid.Bool().Draw(t, "tpm_pin_set"),
 			TeamName:                  drawPtrString("team_name"),
-			MDM:                       fleet.MDMHostData{EncryptionKeyAvailable: rapid.Bool().Draw(t, "mdm_eka")},
+			MDM:                       automdm.MDMHostData{EncryptionKeyAvailable: rapid.Bool().Draw(t, "mdm_eka")},
 		}
 		h.CreatedAt = drawTime("created_at")
 		h.UpdatedAt = drawTime("updated_at")
@@ -689,7 +689,7 @@ func hostFieldsGen() *rapid.Generator[*fleet.Host] {
 // every pointer, varying time values, varying string contents), and the
 // envelope must round-trip every one of them.
 //
-// Catches regressions that an example test cannot: a new fleet.Host field
+// Catches regressions that an example test cannot: a new automdm.Host field
 // added without omitempty whose JSON shape we did not anticipate, a field
 // type change that breaks the JSON encoder for some inputs (e.g. the
 // time.Duration trap that v2 surfaced), or a hidden interaction between
@@ -699,13 +699,13 @@ func TestPBT_HostCacheEnvelopeRoundTrip(t *testing.T) {
 		orig := hostFieldsGen().Draw(t, "host")
 
 		raw, err := json.Marshal(envelopeFromHost(orig))
-		require.NoError(t, err, "marshal must not fail for any generated *fleet.Host")
+		require.NoError(t, err, "marshal must not fail for any generated *automdm.Host")
 
 		envelope := new(hostCacheEnvelope)
 		require.NoError(t, json.Unmarshal(raw, envelope), "unmarshal must accept any output of marshal")
 		got := envelope.toHost()
 
-		ignoreUnexported := cmpopts.IgnoreUnexported(fleet.Host{}, fleet.MDMHostData{})
+		ignoreUnexported := cmpopts.IgnoreUnexported(automdm.Host{}, automdm.MDMHostData{})
 		if diff := cmp.Diff(orig, got, ignoreUnexported); diff != "" {
 			t.Fatalf("round-trip mismatch (-orig +got):\n%s", diff)
 		}

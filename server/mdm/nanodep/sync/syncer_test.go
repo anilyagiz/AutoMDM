@@ -9,17 +9,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/mdm/nanodep/client"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanodep/godep"
-	depsync "github.com/fleetdm/fleet/v4/server/mdm/nanodep/sync"
-	nanodep_mock "github.com/fleetdm/fleet/v4/server/mock/nanodep"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanodep/client"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanodep/godep"
+	depsync "github.com/anilyagiz/automdm/v4/server/mdm/nanodep/sync"
+	nanodep_mock "github.com/anilyagiz/automdm/v4/server/mock/nanodep"
 	"github.com/stretchr/testify/require"
 )
 
 // TestSyncerCursorNotAdvancedOnCallbackError verifies that when the callback
 // returns an error, the cursor is not advanced. Without this guard, a
 // context-cancel mid-upsert would advance the cursor past unprocessed device
-// events, dropping those devices permanently from Fleet.
+// events, dropping those devices permanently from AutoMDM.
 func TestSyncerCursorNotAdvancedOnCallbackError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)

@@ -6,12 +6,12 @@ package windowsupdatetable
 
 import (
 	"context"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/windows/windowsupdate"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/windows/windowsupdate"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/tablehelpers"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/tablehelpers"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 )

@@ -14,13 +14,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxdb"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	hostctx "github.com/fleetdm/fleet/v4/server/contexts/host"
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/contexts/token"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/service/conditional_access_google"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxdb"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	hostctx "github.com/anilyagiz/automdm/v4/server/contexts/host"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
+	"github.com/anilyagiz/automdm/v4/server/contexts/token"
+	"github.com/anilyagiz/automdm/v4/server/service/conditional_access_google"
 )
 
 // googleRegistrationTokenTTL bounds the Google sign-in started from the web clip.
@@ -28,12 +28,12 @@ const googleRegistrationTokenTTL = 15 * time.Minute
 
 // activeGoogleConditionalAccess is the integration as the device flows use it.
 type activeGoogleConditionalAccess struct {
-	settings    fleet.GoogleConditionalAccessIntegration
-	integration *fleet.ConditionalAccessGoogleIntegration
+	settings    automdm.GoogleConditionalAccessIntegration
+	integration *automdm.ConditionalAccessGoogleIntegration
 }
 
-// activeGoogleConditionalAccess returns nil when the device flows are off: on Fleet Free,
-// without the setting, before fleetdm.com registered this server, and while the
+// activeGoogleConditionalAccess returns nil when the device flows are off: on AutoMDM Free,
+// without the setting, before automdm.com registered this server, and while the
 // integration is deleted.
 func (svc *Service) activeGoogleConditionalAccess(ctx context.Context) (*activeGoogleConditionalAccess, error) {
 	if lic, _ := license.FromContext(ctx); lic == nil || !lic.IsPremium() || svc.googleConditionalAccess == nil {
@@ -51,7 +51,7 @@ func (svc *Service) activeGoogleConditionalAccess(ctx context.Context) (*activeG
 	if err != nil {
 		return nil, err
 	}
-	if integration == nil || !integration.Registered() || integration.State == fleet.ConditionalAccessGoogleStateDeleted {
+	if integration == nil || !integration.Registered() || integration.State == automdm.ConditionalAccessGoogleStateDeleted {
 		return nil, nil
 	}
 	return &activeGoogleConditionalAccess{settings: *settings, integration: integration}, nil
@@ -59,22 +59,22 @@ func (svc *Service) activeGoogleConditionalAccess(ctx context.Context) (*activeG
 
 // googleConditionalAccessEligible reports whether the host is a company-owned mobile
 // device, the only kind whose Google account is let in.
-func (svc *Service) googleConditionalAccessEligible(ctx context.Context, host *fleet.Host) (bool, error) {
-	if !fleet.IsMobilePlatform(host.Platform) {
+func (svc *Service) googleConditionalAccessEligible(ctx context.Context, host *automdm.Host) (bool, error) {
+	if !automdm.IsMobilePlatform(host.Platform) {
 		return false, nil
 	}
 	hostMDM, err := svc.ds.GetHostMDM(ctx, host.ID)
 	switch {
-	case fleet.IsNotFound(err):
+	case automdm.IsNotFound(err):
 		return false, nil
 	case err != nil:
 		return false, ctxerr.Wrap(ctx, err, "get host mdm")
 	}
-	return hostMDM.EnrollmentStatus() == fleet.MDMEnrollmentStatusAutomatic, nil
+	return hostMDM.EnrollmentStatus() == automdm.MDMEnrollmentStatusAutomatic, nil
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// POST /api/_version_/fleet/device/{token}/conditional_access/google
+// POST /api/_version_/automdm/device/{token}/conditional_access/google
 ////////////////////////////////////////////////////////////////////////////////
 
 type getDeviceGoogleConditionalAccessRequest struct {
@@ -86,16 +86,16 @@ func (r *getDeviceGoogleConditionalAccessRequest) deviceAuthToken() string {
 }
 
 type getDeviceGoogleConditionalAccessResponse struct {
-	*fleet.GoogleConditionalAccessDeviceStatus
+	*automdm.GoogleConditionalAccessDeviceStatus
 	Err error `json:"error,omitempty"`
 }
 
 func (r getDeviceGoogleConditionalAccessResponse) Error() error { return r.Err }
 
-func getDeviceGoogleConditionalAccessEndpoint(ctx context.Context, _ any, svc fleet.Service) (fleet.Errorer, error) {
+func getDeviceGoogleConditionalAccessEndpoint(ctx context.Context, _ any, svc automdm.Service) (automdm.Errorer, error) {
 	host, ok := hostctx.FromContext(ctx)
 	if !ok {
-		err := ctxerr.Wrap(ctx, fleet.NewAuthRequiredError("internal error: missing host from request context"))
+		err := ctxerr.Wrap(ctx, automdm.NewAuthRequiredError("internal error: missing host from request context"))
 		return getDeviceGoogleConditionalAccessResponse{Err: err}, nil
 	}
 	status, err := svc.GetGoogleConditionalAccessDeviceStatus(ctx, host)
@@ -105,13 +105,13 @@ func getDeviceGoogleConditionalAccessEndpoint(ctx context.Context, _ any, svc fl
 	return getDeviceGoogleConditionalAccessResponse{GoogleConditionalAccessDeviceStatus: status}, nil
 }
 
-func (svc *Service) GetGoogleConditionalAccessDeviceStatus(ctx context.Context, host *fleet.Host) (*fleet.GoogleConditionalAccessDeviceStatus, error) {
+func (svc *Service) GetGoogleConditionalAccessDeviceStatus(ctx context.Context, host *automdm.Host) (*automdm.GoogleConditionalAccessDeviceStatus, error) {
 	// skipauth: The host is authenticated by its device token or UUID.
 	svc.authz.SkipAuthorization(ctx)
 
 	// Counting an attempt is a read-then-write.
 	ctx = ctxdb.RequirePrimary(ctx, true)
-	status := &fleet.GoogleConditionalAccessDeviceStatus{}
+	status := &automdm.GoogleConditionalAccessDeviceStatus{}
 	active, err := svc.googleConditionalAccessSignInRequired(ctx, host)
 	if err != nil || active == nil {
 		return status, err
@@ -141,7 +141,7 @@ func (svc *Service) GetGoogleConditionalAccessDeviceStatus(ctx context.Context, 
 	return status, nil
 }
 
-func (svc *Service) GoogleConditionalAccessSignInRequired(ctx context.Context, host *fleet.Host) (bool, error) {
+func (svc *Service) GoogleConditionalAccessSignInRequired(ctx context.Context, host *automdm.Host) (bool, error) {
 	// skipauth: The host is authenticated by its device token or UUID.
 	svc.authz.SkipAuthorization(ctx)
 
@@ -152,9 +152,9 @@ func (svc *Service) GoogleConditionalAccessSignInRequired(ctx context.Context, h
 // googleConditionalAccessSignInRequired returns the active integration when the host
 // should sign in to Google: a company-owned iOS or iPadOS host that isn't registered. It
 // only reads.
-func (svc *Service) googleConditionalAccessSignInRequired(ctx context.Context, host *fleet.Host) (*activeGoogleConditionalAccess, error) {
+func (svc *Service) googleConditionalAccessSignInRequired(ctx context.Context, host *automdm.Host) (*activeGoogleConditionalAccess, error) {
 	// Android hosts don't sign in: the sync cron registers them.
-	if !fleet.IsAppleMobilePlatform(host.Platform) {
+	if !automdm.IsAppleMobilePlatform(host.Platform) {
 		return nil, nil
 	}
 	active, err := svc.activeGoogleConditionalAccess(ctx)
@@ -166,7 +166,7 @@ func (svc *Service) googleConditionalAccessSignInRequired(ctx context.Context, h
 		return nil, err
 	}
 	device, err := svc.ds.GetGoogleConditionalAccessDevice(ctx, host.UUID, active.settings.CustomerID)
-	if err != nil && !fleet.IsNotFound(err) {
+	if err != nil && !automdm.IsNotFound(err) {
 		return nil, ctxerr.Wrap(ctx, err, "get google conditional access device")
 	}
 	if device.Registered() {
@@ -190,31 +190,31 @@ func hashGoogleRegistrationToken(regToken string) []byte {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// POST /api/_version_/fleet/google_conditional_access/register
+// POST /api/_version_/automdm/google_conditional_access/register
 ////////////////////////////////////////////////////////////////////////////////
 
 type registerGoogleConditionalAccessDeviceRequest struct {
-	fleet.GoogleConditionalAccessRegistration
+	automdm.GoogleConditionalAccessRegistration
 	secret string
 }
 
 func (registerGoogleConditionalAccessDeviceRequest) DecodeRequest(ctx context.Context, r *http.Request) (any, error) {
 	var req registerGoogleConditionalAccessDeviceRequest
 	if err := json.NewDecoder(r.Body).Decode(&req.GoogleConditionalAccessRegistration); err != nil {
-		return nil, ctxerr.Wrap(ctx, &fleet.BadRequestError{Message: "invalid request body", InternalErr: err})
+		return nil, ctxerr.Wrap(ctx, &automdm.BadRequestError{Message: "invalid request body", InternalErr: err})
 	}
 	req.secret = string(token.FromHTTPRequest(r))
 	return &req, nil
 }
 
 type registerGoogleConditionalAccessDeviceResponse struct {
-	Result fleet.GoogleConditionalAccessRegisterResult `json:"result,omitempty"`
-	Err    error                                       `json:"error,omitempty"`
+	Result automdm.GoogleConditionalAccessRegisterResult `json:"result,omitempty"`
+	Err    error                                         `json:"error,omitempty"`
 }
 
 func (r registerGoogleConditionalAccessDeviceResponse) Error() error { return r.Err }
 
-func registerGoogleConditionalAccessDeviceEndpoint(ctx context.Context, request any, svc fleet.Service) (fleet.Errorer, error) {
+func registerGoogleConditionalAccessDeviceEndpoint(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*registerGoogleConditionalAccessDeviceRequest)
 	result, err := svc.RegisterGoogleConditionalAccessDevice(ctx, req.secret, req.GoogleConditionalAccessRegistration)
 	if err != nil {
@@ -224,9 +224,9 @@ func registerGoogleConditionalAccessDeviceEndpoint(ctx context.Context, request 
 }
 
 func (svc *Service) RegisterGoogleConditionalAccessDevice(
-	ctx context.Context, secret string, reg fleet.GoogleConditionalAccessRegistration,
-) (fleet.GoogleConditionalAccessRegisterResult, error) {
-	// skipauth: fleetdm.com authenticates with this server's secret, checked below.
+	ctx context.Context, secret string, reg automdm.GoogleConditionalAccessRegistration,
+) (automdm.GoogleConditionalAccessRegisterResult, error) {
+	// skipauth: automdm.com authenticates with this server's secret, checked below.
 	svc.authz.SkipAuthorization(ctx)
 
 	ctx = ctxdb.RequirePrimary(ctx, true)
@@ -235,14 +235,14 @@ func (svc *Service) RegisterGoogleConditionalAccessDevice(
 		return "", err
 	}
 	if active == nil || subtle.ConstantTimeCompare([]byte(secret), []byte(active.integration.ProxyServerSecret)) != 1 {
-		return "", fleet.NewAuthFailedError("invalid google conditional access secret")
+		return "", automdm.NewAuthFailedError("invalid google conditional access secret")
 	}
 	result, err := svc.registerGoogleConditionalAccessDevice(ctx, active, reg)
 	if err != nil {
-		// fleetdm.com shows the result page, so the failure is recorded here.
+		// automdm.com shows the result page, so the failure is recorded here.
 		svc.logger.ErrorContext(ctx, "register google conditional access device", "err", err)
 		ctxerr.Handle(ctx, err)
-		return fleet.GoogleConditionalAccessRegisterError, nil
+		return automdm.GoogleConditionalAccessRegisterError, nil
 	}
 	return result, nil
 }
@@ -250,67 +250,67 @@ func (svc *Service) RegisterGoogleConditionalAccessDevice(
 // registerGoogleConditionalAccessDevice stores the names Google's lookup returned on the
 // token's host, which binds it to their device, and marks them.
 func (svc *Service) registerGoogleConditionalAccessDevice(
-	ctx context.Context, active *activeGoogleConditionalAccess, reg fleet.GoogleConditionalAccessRegistration,
-) (fleet.GoogleConditionalAccessRegisterResult, error) {
+	ctx context.Context, active *activeGoogleConditionalAccess, reg automdm.GoogleConditionalAccessRegistration,
+) (automdm.GoogleConditionalAccessRegisterResult, error) {
 	customerID := active.settings.CustomerID
 	if reg.Token == "" {
-		return fleet.GoogleConditionalAccessRegisterNotAllowed, nil
+		return automdm.GoogleConditionalAccessRegisterNotAllowed, nil
 	}
 	// Consuming the token resets the attempt counter whatever the result.
 	hostUUID, err := svc.ds.ConsumeGoogleConditionalAccessRegistrationToken(ctx, customerID, hashGoogleRegistrationToken(reg.Token))
 	switch {
-	case fleet.IsNotFound(err):
+	case automdm.IsNotFound(err):
 		svc.logger.InfoContext(ctx, "google conditional access register with an unknown, used or expired token")
-		return fleet.GoogleConditionalAccessRegisterNotAllowed, nil
+		return automdm.GoogleConditionalAccessRegisterNotAllowed, nil
 	case err != nil:
 		return "", ctxerr.Wrap(ctx, err, "consume google registration token")
 	}
 	host, err := svc.ds.HostByUUID(ctx, hostUUID)
 	switch {
-	case fleet.IsNotFound(err):
-		return fleet.GoogleConditionalAccessRegisterNotAllowed, nil
+	case automdm.IsNotFound(err):
+		return automdm.GoogleConditionalAccessRegisterNotAllowed, nil
 	case err != nil:
 		return "", ctxerr.Wrap(ctx, err, "get host by uuid")
 	}
-	if !fleet.IsAppleMobilePlatform(host.Platform) {
-		return fleet.GoogleConditionalAccessRegisterNotAllowed, nil
+	if !automdm.IsAppleMobilePlatform(host.Platform) {
+		return automdm.GoogleConditionalAccessRegisterNotAllowed, nil
 	}
 	eligible, err := svc.googleConditionalAccessEligible(ctx, host)
 	if err != nil {
 		return "", err
 	}
 	if !eligible {
-		return fleet.GoogleConditionalAccessRegisterNotAllowed, nil
+		return automdm.GoogleConditionalAccessRegisterNotAllowed, nil
 	}
 	if !sameGoogleCustomer(reg.Customer, customerID) {
 		svc.logger.WarnContext(ctx, "google conditional access sign-in from another Workspace",
 			"host_id", host.ID, "customer", reg.Customer)
-		return fleet.GoogleConditionalAccessRegisterNotAllowed, nil
+		return automdm.GoogleConditionalAccessRegisterNotAllowed, nil
 	}
 	names := dedupeDeviceUserNames(reg.Names)
 	if len(names) == 0 {
-		return fleet.GoogleConditionalAccessRegisterNotFound, nil
+		return automdm.GoogleConditionalAccessRegisterNotFound, nil
 	}
 	// The names are stored and sent to Google as they come, so a lookup with one that isn't
 	// a DeviceUser, or with more than a sign-in registers, is refused whole.
-	if len(names) > fleet.GoogleConditionalAccessMaxSignInDeviceUsers ||
-		slices.ContainsFunc(names, func(name string) bool { return !fleet.ValidGoogleDeviceUserName(name) }) {
-		svc.logger.WarnContext(ctx, "refused the google device users fleetdm.com sent", "host_id", host.ID, "names", len(names))
-		return fleet.GoogleConditionalAccessRegisterError, nil
+	if len(names) > automdm.GoogleConditionalAccessMaxSignInDeviceUsers ||
+		slices.ContainsFunc(names, func(name string) bool { return !automdm.ValidGoogleDeviceUserName(name) }) {
+		svc.logger.WarnContext(ctx, "refused the google device users automdm.com sent", "host_id", host.ID, "names", len(names))
+		return automdm.GoogleConditionalAccessRegisterError, nil
 	}
 
 	err = svc.ds.RecordGoogleConditionalAccessRegistration(ctx, host.UUID, customerID, names)
-	if conflict, ok := errors.AsType[*fleet.GoogleConditionalAccessDeviceUserConflictError](err); ok {
+	if conflict, ok := errors.AsType[*automdm.GoogleConditionalAccessDeviceUserConflictError](err); ok {
 		svc.logger.WarnContext(ctx, "refused a google device user registered to another host",
 			"host_id", host.ID, "device_user_name", conflict.Name)
-		return fleet.GoogleConditionalAccessRegisterNotAllowed, nil
+		return automdm.GoogleConditionalAccessRegisterNotAllowed, nil
 	}
 	if err != nil {
 		return "", ctxerr.Wrap(ctx, err, "record google conditional access registration")
 	}
 
 	// The host is registered from here on, so nothing below changes the result or stops
-	// when fleetdm.com disconnects: a failure is logged, and the cron marks what stays pending.
+	// when automdm.com disconnects: a failure is logged, and the cron marks what stays pending.
 	ctx = context.WithoutCancel(ctx)
 	logFailure := func(err error) {
 		svc.logger.ErrorContext(ctx, "finish google device registration", "host_id", host.ID, "err", err)
@@ -331,7 +331,7 @@ func (svc *Service) registerGoogleConditionalAccessDevice(
 	if email == "" {
 		svc.logger.WarnContext(ctx, "google conditional access sign-in without a usable email, its activity names no account", "host_id", host.ID)
 	}
-	if err := svc.finishGoogleDeviceRegistration(ctx, ci, host, names, nil, fleet.ActivityTypeSetHostGoogleDeviceID{
+	if err := svc.finishGoogleDeviceRegistration(ctx, ci, host, names, nil, automdm.ActivityTypeSetHostGoogleDeviceID{
 		HostID:          host.ID,
 		HostDisplayName: host.DisplayName(),
 		GoogleDeviceID:  googleDeviceID,
@@ -340,7 +340,7 @@ func (svc *Service) registerGoogleConditionalAccessDevice(
 	}); err != nil {
 		logFailure(err)
 	}
-	return fleet.GoogleConditionalAccessRegisterDone, nil
+	return automdm.GoogleConditionalAccessRegisterDone, nil
 }
 
 // finishGoogleDeviceRegistration logs the activity of a registration that is already
@@ -348,8 +348,8 @@ func (svc *Service) registerGoogleConditionalAccessDevice(
 // the caller disconnects, and returns the activity's error: a failed mark stays pending
 // for the cron. ci is nil when there is no client to mark with.
 func (svc *Service) finishGoogleDeviceRegistration(
-	ctx context.Context, ci conditional_access_google.CloudIdentity, host *fleet.Host, names []string,
-	user *fleet.User, activity fleet.ActivityTypeSetHostGoogleDeviceID,
+	ctx context.Context, ci conditional_access_google.CloudIdentity, host *automdm.Host, names []string,
+	user *automdm.User, activity automdm.ActivityTypeSetHostGoogleDeviceID,
 ) error {
 	ctx = context.WithoutCancel(ctx)
 	activityErr := svc.NewActivity(ctx, user, activity)
@@ -379,19 +379,19 @@ func (svc *Service) googleCloudIdentity(ctx context.Context, active *activeGoogl
 
 // checkHostGoogleDevice refuses a device an admin named for a host when Google ties the
 // host to other records. Only an Android host can be checked: its record carries the
-// Android Management device ID. An iOS or iPadOS record has nothing Fleet can compare.
+// Android Management device ID. An iOS or iPadOS record has nothing AutoMDM can compare.
 // Google mints its device ID, keeps no serial number at basic mobile management, and
 // shows the host UUID from Gmail's configuration to no admin API: only the end user's
 // lookup matches it, which is what the sign-in runs. For those hosts the caller is
 // trusted to name the host's device.
 func (svc *Service) checkHostGoogleDevice(
-	ctx context.Context, ci conditional_access_google.CloudIdentity, host *fleet.Host, googleDeviceID string,
+	ctx context.Context, ci conditional_access_google.CloudIdentity, host *automdm.Host, googleDeviceID string,
 ) error {
-	if !fleet.IsAndroidPlatform(host.Platform) {
+	if !automdm.IsAndroidPlatform(host.Platform) {
 		return nil
 	}
 	androidHost, err := svc.ds.AndroidHostLiteByHostUUID(ctx, host.UUID)
-	if err != nil && !fleet.IsNotFound(err) {
+	if err != nil && !automdm.IsNotFound(err) {
 		return ctxerr.Wrap(ctx, err, "get android host")
 	}
 	var deviceIDs []string
@@ -399,11 +399,11 @@ func (svc *Service) checkHostGoogleDevice(
 	// would match every record that has none.
 	if androidHost != nil && androidHost.Device != nil && androidHost.Device.DeviceID != "" {
 		if deviceIDs, err = ci.FindDeviceIDs(ctx, androidHost.Device.DeviceID); err != nil {
-			return ctxerr.Wrap(ctx, fleet.NewBadGatewayError("Couldn't get the host's device from Google", err), "find google devices of android host")
+			return ctxerr.Wrap(ctx, automdm.NewBadGatewayError("Couldn't get the host's device from Google", err), "find google devices of android host")
 		}
 	}
 	if !slices.ContainsFunc(deviceIDs, func(id string) bool { return strings.EqualFold(id, googleDeviceID) }) {
-		return fleet.NewInvalidArgumentError("google_device_id", "Google device ID doesn't match this host's device in Google.")
+		return automdm.NewInvalidArgumentError("google_device_id", "Google device ID doesn't match this host's device in Google.")
 	}
 	return nil
 }
@@ -412,7 +412,7 @@ func (svc *Service) checkHostGoogleDevice(
 // the errors the Google device ID endpoint answers with.
 func listGoogleDeviceUserNames(ctx context.Context, ci conditional_access_google.CloudIdentity, googleDeviceID string) ([]string, error) {
 	names, err := ci.ListDeviceUserNames(ctx, googleDeviceID)
-	if conditional_access_google.IsStale(err) && !fleet.IsNotFound(err) {
+	if conditional_access_google.IsStale(err) && !automdm.IsNotFound(err) {
 		// A 403 means the device left the Workspace, unless Google refuses the delegation
 		// for every device, which reads as an unknown ID without this check.
 		if checkErr := ci.CheckDelegation(ctx); checkErr != nil {
@@ -420,20 +420,20 @@ func listGoogleDeviceUserNames(ctx context.Context, ci conditional_access_google
 		}
 	}
 	switch {
-	case fleet.IsNotFound(err) || conditional_access_google.IsStale(err):
-		return nil, fleet.NewInvalidArgumentError("google_device_id", "Google has no device with this ID.")
+	case automdm.IsNotFound(err) || conditional_access_google.IsStale(err):
+		return nil, automdm.NewInvalidArgumentError("google_device_id", "Google has no device with this ID.")
 	case err != nil:
-		return nil, ctxerr.Wrap(ctx, fleet.NewBadGatewayError("Couldn't get the device's users from Google", err), "list google device users")
+		return nil, ctxerr.Wrap(ctx, automdm.NewBadGatewayError("Couldn't get the device's users from Google", err), "list google device users")
 	}
 	if names = dedupeDeviceUserNames(names); len(names) == 0 {
-		return nil, fleet.NewInvalidArgumentError("google_device_id", "This device has no users in Google.")
+		return nil, automdm.NewInvalidArgumentError("google_device_id", "This device has no users in Google.")
 	}
 	return names, nil
 }
 
 // markGoogleDeviceUsers marks the names just stored on the host. They are stored
 // either way: a failed mark stays pending with its error and the cron retries it.
-func (svc *Service) markGoogleDeviceUsers(ctx context.Context, ci conditional_access_google.CloudIdentity, host *fleet.Host, names []string) {
+func (svc *Service) markGoogleDeviceUsers(ctx context.Context, ci conditional_access_google.CloudIdentity, host *automdm.Host, names []string) {
 	for _, name := range names {
 		if err := markGoogleDeviceUser(ctx, svc.ds, ci, name, host.UUID); err != nil {
 			svc.logger.ErrorContext(ctx, "mark google device user", "device_user_name", name, "err", err)
@@ -445,11 +445,11 @@ func (svc *Service) markGoogleDeviceUsers(ctx context.Context, ci conditional_ac
 // markGoogleDeviceUser writes MANAGED on a pending name. A refusal from Google is
 // recorded on the name and returned; the sync cron decides whether Google still has it.
 func markGoogleDeviceUser(
-	ctx context.Context, ds fleet.Datastore, ci conditional_access_google.CloudIdentity, name, hostUUID string,
+	ctx context.Context, ds automdm.Datastore, ci conditional_access_google.CloudIdentity, name, hostUUID string,
 ) error {
-	pending, managed := fleet.GoogleConditionalAccessDeviceUserPending, fleet.GoogleConditionalAccessDeviceUserManaged
-	du := fleet.GoogleConditionalAccessDeviceUser{HostUUID: hostUUID, Name: name, State: pending}
-	if markErr := ci.SetClientState(ctx, name, fleet.GoogleConditionalAccessDesiredClientState(du)); markErr != nil {
+	pending, managed := automdm.GoogleConditionalAccessDeviceUserPending, automdm.GoogleConditionalAccessDeviceUserManaged
+	du := automdm.GoogleConditionalAccessDeviceUser{HostUUID: hostUUID, Name: name, State: pending}
+	if markErr := ci.SetClientState(ctx, name, automdm.GoogleConditionalAccessDesiredClientState(du)); markErr != nil {
 		msg := markErr.Error()
 		if _, err := ds.UpdateGoogleConditionalAccessDeviceUserState(ctx, name, pending, pending, &msg); err != nil {
 			return ctxerr.Wrap(ctx, errors.Join(markErr, err), "record google device user error")
@@ -462,7 +462,7 @@ func markGoogleDeviceUser(
 	return nil
 }
 
-// googleSignInEmail returns the email fleetdm.com sent when it is an address, since an
+// googleSignInEmail returns the email automdm.com sent when it is an address, since an
 // activity shows it as the account that bound the host. 320 is the longest one can be.
 func googleSignInEmail(email string) string {
 	email = strings.TrimSpace(email)

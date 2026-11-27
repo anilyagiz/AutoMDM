@@ -9,7 +9,7 @@ func init() {
 	MigrationClient.AddMigration(Up_20261111085717, Down_20261111085717)
 }
 
-// macOSSetupRenames are the stored setup experience settings renamed for Fleet 5. Parent is the dot path of the object
+// macOSSetupRenames are the stored setup experience settings renamed for AutoMDM 5. Parent is the dot path of the object
 // holding the key, the same in every config table. The parent is renamed first, so the nested keys are found under
 // setup_experience.
 var macOSSetupRenames = []struct{ Parent, Old, New string }{

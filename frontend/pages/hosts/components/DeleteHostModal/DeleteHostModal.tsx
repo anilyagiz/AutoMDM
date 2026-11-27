@@ -34,7 +34,7 @@ interface IDeleteHostModalProps {
   /** Set when every host being deleted shares a platform, so the modal can
    * show the per-platform copy instead of the generic bulk copy. */
   platform?: HostPlatform;
-  isMdmEnrolledInFleet?: boolean;
+  isMdmEnrolledInTeam?: boolean;
   mdmEnrollmentStatus?: MdmEnrollmentStatus | null;
   isUpdating: boolean;
 }
@@ -47,7 +47,7 @@ const DeleteHostModal = ({
   hostsCount,
   hostName,
   platform,
-  isMdmEnrolledInFleet,
+  isMdmEnrolledInTeam,
   mdmEnrollmentStatus,
   isUpdating,
 }: IDeleteHostModalProps): JSX.Element => {
@@ -106,7 +106,7 @@ const DeleteHostModal = ({
 
   const renderMacOneTimeSecretBody = () => {
     // Hosts enrolled through Apple Business come back as pending hosts and
-    // can renew their own enrollment. Manually enrolled hosts need fleetd
+    // can renew their own enrollment. Manually enrolled hosts need automdmd
     // reinstalled to get a new one-time secret.
     const reEnrollInstructions =
       mdmEnrollmentStatus === "On (automatic)" ? (
@@ -117,14 +117,14 @@ const DeleteHostModal = ({
         </>
       ) : (
         <>
-          To re-enroll {them}, turn on MDM manually or reinstall Fleet&apos;s
+          To re-enroll {them}, turn on MDM manually or reinstall AutoMDM&apos;s
           agent.
         </>
       );
     return (
       <>
         <p>
-          This will remove <b>{hostText()}</b> from Fleet. It won&apos;t turn
+          This will remove <b>{hostText()}</b> from AutoMDM. It won&apos;t turn
           off MDM or remove company data. {learnMoreLink}
         </p>
         <p>
@@ -142,13 +142,13 @@ const DeleteHostModal = ({
     if (isIPadOrIPhone(platform) || isAndroid(platform)) {
       const action = getMobileReEnrollAction(
         platform,
-        !!isMdmEnrolledInFleet,
+        !!isMdmEnrolledInTeam,
         mdmEnrollmentStatus ?? null
       );
       return (
         <>
           <p>
-            {removeAllDataSentence(" from Fleet")} It won&apos;t remove data
+            {removeAllDataSentence(" from AutoMDM")} It won&apos;t remove data
             from {isPlural ? "the hosts" : "the host"}.
             {!action && <> {learnMoreLink}</>}
           </p>
@@ -161,7 +161,7 @@ const DeleteHostModal = ({
         </>
       );
     }
-    if (isMacOS(platform) && isMdmEnrolledInFleet && useOneTimeEnrollSecrets) {
+    if (isMacOS(platform) && isMdmEnrolledInTeam && useOneTimeEnrollSecrets) {
       return renderMacOneTimeSecretBody();
     }
     if (isMacOS(platform) || isWindows(platform) || isLinuxLike(platform)) {
@@ -173,7 +173,7 @@ const DeleteHostModal = ({
             )}
           </p>
           <p>
-            {theseHosts} will re-enroll unless Fleet&apos;s agent is
+            {theseHosts} will re-enroll unless AutoMDM&apos;s agent is
             uninstalled. {learnMoreLink}
           </p>
         </>
@@ -197,7 +197,7 @@ const DeleteHostModal = ({
         )}
         <ul>
           <li>
-            macOS, Windows, or Linux hosts will re-appear unless Fleet&apos;s
+            macOS, Windows, or Linux hosts will re-appear unless AutoMDM&apos;s
             agent is uninstalled. {learnMoreLink}
           </li>
           <li>

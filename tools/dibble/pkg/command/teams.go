@@ -3,14 +3,14 @@ package command
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/fleetdm/fleet/v4/tools/dibble/pkg/seed"
+	"github.com/anilyagiz/automdm/v4/tools/dibble/pkg/seed"
 )
 
 func newTeamsCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "teams",
-		Aliases: []string{"fleets"},
-		Short:   "Seed teams (aka fleets)",
+		Aliases: []string{"teams"},
+		Short:   "Seed teams (aka teams)",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := requireConfig(); err != nil {
 				return err

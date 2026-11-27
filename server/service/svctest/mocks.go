@@ -5,26 +5,26 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/scep/depot"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/scep/depot"
 )
 
 // mockMailService is the no-op mailer used by the test service.
 type mockMailService struct {
-	SendEmailFn func(e fleet.Email) error
+	SendEmailFn func(e automdm.Email) error
 	Invoked     bool
 }
 
-func (svc *mockMailService) SendEmail(_ context.Context, e fleet.Email) error {
+func (svc *mockMailService) SendEmail(_ context.Context, e automdm.Email) error {
 	svc.Invoked = true
 	return svc.SendEmailFn(e)
 }
 
-func (svc *mockMailService) CanSendEmail(smtpSettings fleet.SMTPSettings) bool {
+func (svc *mockMailService) CanSendEmail(smtpSettings automdm.SMTPSettings) bool {
 	return smtpSettings.SMTPConfigured
 }
 
-// nopEnrollHostLimiter is a no-op fleet.EnrollHostLimiter for tests.
+// nopEnrollHostLimiter is a no-op automdm.EnrollHostLimiter for tests.
 type nopEnrollHostLimiter struct{}
 
 func (nopEnrollHostLimiter) CanEnrollNewHost(_ context.Context) (bool, error) {

@@ -13,7 +13,7 @@ const baseClass = "feed-list-item";
 
 interface IFeedListItemProps {
   children: ReactNode;
-  useFleetAvatar: boolean;
+  useAutoMDMAvatar: boolean;
   createdAt: Date;
   useAPIOnlyAvatar?: boolean;
   gravatarURL?: string;
@@ -28,7 +28,7 @@ interface IFeedListItemProps {
 
 const FeedListItem = ({
   children,
-  useFleetAvatar,
+  useAutoMDMAvatar,
   createdAt,
   gravatarURL,
   useAPIOnlyAvatar = false,
@@ -54,7 +54,7 @@ const FeedListItem = ({
           user={{ gravatar_url: gravatarURL }}
           size="small"
           hasWhiteBackground
-          useFleetAvatar={useFleetAvatar}
+          useAutoMDMAvatar={useAutoMDMAvatar}
           useApiOnlyAvatar={useAPIOnlyAvatar}
         />
         <div className={`${baseClass}__avatar-lower-dash`} />
@@ -100,7 +100,7 @@ const FeedListItem = ({
             >
               <Icon
                 name="close"
-                color="ui-fleet-black-75"
+                color="ui-automdm-black-75"
                 className={`${baseClass}__close-icon`}
               />
             </Button>

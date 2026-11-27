@@ -6,8 +6,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/mdm/acme/internal/types"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/mdm/acme/internal/types"
 	"github.com/jmoiron/sqlx"
 )
 

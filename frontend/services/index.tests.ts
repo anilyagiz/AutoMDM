@@ -58,7 +58,7 @@ describe("direct upload to storage", () => {
     });
     expect(seen.presign).toEqual({
       target: "software_package",
-      fleet_id: 3,
+      team_id: 3,
       size: 3,
     });
     expect(seen.storageAuth).toBeNull();
@@ -67,7 +67,7 @@ describe("direct upload to storage", () => {
     expect(seen.form?.has("software")).toBe(false);
   });
 
-  it("add package sends the file to Fleet when direct upload is off", async () => {
+  it("add package sends the file to AutoMDM when direct upload is off", async () => {
     const seen = setup("/software/package");
     await softwareAPI.addSoftwarePackage({
       data: { software: file, selfService: false } as never,
@@ -79,7 +79,7 @@ describe("direct upload to storage", () => {
   });
 
   it.each(["403", "network"] as const)(
-    "a %s storage failure rejects without registering or sending the file to Fleet",
+    "a %s storage failure rejects without registering or sending the file to AutoMDM",
     async (storage) => {
       const seen = setup("/software/package", "post", { storage });
       await expect(
@@ -127,7 +127,7 @@ describe("direct upload to storage", () => {
     await mdmAPI.uploadBootstrapPackage(file, 0, true);
     expect(seen.presign).toEqual({
       target: "bootstrap_package",
-      fleet_id: 0,
+      team_id: 0,
       size: 3,
     });
     expect(seen.storageAuth).toBeNull();
@@ -136,7 +136,7 @@ describe("direct upload to storage", () => {
     expect(seen.form?.has("package")).toBe(false);
   });
 
-  it("bootstrap package sends the file to Fleet when direct upload is off", async () => {
+  it("bootstrap package sends the file to AutoMDM when direct upload is off", async () => {
     const seen = setup("/bootstrap");
     await mdmAPI.uploadBootstrapPackage(file, 0);
     expect(seen.presign).toBeUndefined();

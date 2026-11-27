@@ -19,7 +19,7 @@ import (
 
 const powerShellTimeout = 30 * time.Second
 
-// Show posts the toast for the logged-in user. It must run in the user's session, so Fleet Desktop calls it, not orbit.
+// Show posts the toast for the logged-in user. It must run in the user's session, so AutoMDM Desktop calls it, not orbit.
 func Show(n Notification) error {
 	if !appIDRegistered() {
 		return ErrAppIDNotRegistered
@@ -43,10 +43,10 @@ func Remove(tag, group string) error {
 	return runPowerShell(removeScript, removeScriptEnv(tag, group))
 }
 
-// RegisterFleetDesktopAppID registers Fleet Desktop's AppUserModelID so its toasts are labeled "Fleet Desktop" with its
+// RegisterAutoMDMDesktopAppID registers AutoMDM Desktop's AppUserModelID so its toasts are labeled "AutoMDM Desktop" with its
 // icon. Windows reads IconUri as an image file path, so the icon is written to iconPath first. Orbit calls this as SYSTEM
 // at every start, so the file and values are only written when they differ.
-func RegisterFleetDesktopAppID(iconPath string, icon []byte) error {
+func RegisterAutoMDMDesktopAppID(iconPath string, icon []byte) error {
 	if current, err := os.ReadFile(iconPath); err != nil || !bytes.Equal(current, icon) {
 		if err := writeIcon(iconPath, icon); err != nil {
 			return err
@@ -59,7 +59,7 @@ func RegisterFleetDesktopAppID(iconPath string, icon []byte) error {
 	}
 	defer k.Close()
 	for _, value := range []struct{ name, data string }{
-		{name: "DisplayName", data: fleetDesktopDisplayName},
+		{name: "DisplayName", data: automdmDesktopDisplayName},
 		{name: "IconUri", data: iconPath},
 	} {
 		if current, _, err := k.GetStringValue(value.name); err == nil && current == value.data {
@@ -73,31 +73,31 @@ func RegisterFleetDesktopAppID(iconPath string, icon []byte) error {
 }
 
 const (
-	appIDKeyPath            = `Software\Classes\AppUserModelId\` + FleetDesktopAppID
-	fleetDesktopDisplayName = "Fleet Desktop"
+	appIDKeyPath              = `Software\Classes\AppUserModelId\` + AutoMDMDesktopAppID
+	automdmDesktopDisplayName = "AutoMDM Desktop"
 )
 
 // writeIcon replaces the icon in one step, so the shell never reads a half-written file.
 func writeIcon(iconPath string, icon []byte) error {
 	temp, err := os.CreateTemp(filepath.Dir(iconPath), filepath.Base(iconPath)+".*")
 	if err != nil {
-		return fmt.Errorf("creating the Fleet Desktop icon: %w", err)
+		return fmt.Errorf("creating the AutoMDM Desktop icon: %w", err)
 	}
 	defer os.Remove(temp.Name())
 	// The shell reads the icon as the logged-in user, so it has to be readable by everyone.
 	if err := temp.Chmod(0o644); err != nil { //nolint:gosec
-		return fmt.Errorf("setting permissions on the Fleet Desktop icon: %w", err)
+		return fmt.Errorf("setting permissions on the AutoMDM Desktop icon: %w", err)
 	}
 	if _, err := temp.Write(icon); err != nil {
-		return fmt.Errorf("writing the Fleet Desktop icon: %w", err)
+		return fmt.Errorf("writing the AutoMDM Desktop icon: %w", err)
 	}
 	if err := temp.Close(); err != nil {
-		return fmt.Errorf("closing the Fleet Desktop icon: %w", err)
+		return fmt.Errorf("closing the AutoMDM Desktop icon: %w", err)
 	}
 	return os.Rename(temp.Name(), iconPath)
 }
 
-// appIDRegistered reports whether orbit has registered Fleet Desktop's AppUserModelID.
+// appIDRegistered reports whether orbit has registered AutoMDM Desktop's AppUserModelID.
 func appIDRegistered() bool {
 	k, err := registry.OpenKey(registry.LOCAL_MACHINE, appIDKeyPath, registry.QUERY_VALUE)
 	if err != nil {

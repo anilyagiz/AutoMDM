@@ -5,8 +5,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/service"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/service"
 	"github.com/micromdm/plist"
 )
 

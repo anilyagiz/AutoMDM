@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
 )
@@ -50,10 +50,10 @@ func testConditionalAccessGoogleIntegration(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
 	_, err := ds.GetGoogleConditionalAccessIntegration(ctx)
-	require.True(t, fleet.IsNotFound(err))
+	require.True(t, automdm.IsNotFound(err))
 
-	pending := &fleet.ConditionalAccessGoogleIntegration{
-		State: fleet.ConditionalAccessGoogleStateRegistrationFailed, ErrorMessage: new("fleetdm.com unavailable"),
+	pending := &automdm.ConditionalAccessGoogleIntegration{
+		State: automdm.ConditionalAccessGoogleStateRegistrationFailed, ErrorMessage: new("automdm.com unavailable"),
 	}
 	require.NoError(t, ds.SaveGoogleConditionalAccessIntegration(ctx, pending))
 	got, err := ds.GetGoogleConditionalAccessIntegration(ctx)
@@ -62,9 +62,9 @@ func testConditionalAccessGoogleIntegration(t *testing.T, ds *Datastore) {
 	require.False(t, got.Registered())
 
 	// Saving again updates the single row in place.
-	connected := &fleet.ConditionalAccessGoogleIntegration{
+	connected := &automdm.ConditionalAccessGoogleIntegration{
 		ProxyServerSecret: "secret",
-		State:             fleet.ConditionalAccessGoogleStateConnected,
+		State:             automdm.ConditionalAccessGoogleStateConnected,
 	}
 	require.NoError(t, ds.SaveGoogleConditionalAccessIntegration(ctx, connected))
 	// Saving the same values again is still a no-op insert-wise.
@@ -88,9 +88,9 @@ func testConditionalAccessGoogleConcurrentFirstSave(t *testing.T, ds *Datastore)
 	for i := range n {
 		wg.Go(func() {
 			<-start
-			errs[i] = ds.SaveGoogleConditionalAccessIntegration(ctx, &fleet.ConditionalAccessGoogleIntegration{
+			errs[i] = ds.SaveGoogleConditionalAccessIntegration(ctx, &automdm.ConditionalAccessGoogleIntegration{
 				ProxyServerSecret: fmt.Sprintf("secret-%02d", i),
-				State:             fleet.ConditionalAccessGoogleStatePending,
+				State:             automdm.ConditionalAccessGoogleStatePending,
 			})
 		})
 	}
@@ -151,7 +151,7 @@ func testConditionalAccessGoogleDeviceUsers(t *testing.T, ds *Datastore) {
 	require.Len(t, googleDeviceUserNames(t, ds, "C02cajzvg"), 3)
 
 	// The rows of other customers are deleted in batches, keeping the integration.
-	integration := &fleet.ConditionalAccessGoogleIntegration{ProxyServerSecret: "secret", State: fleet.ConditionalAccessGoogleStateConnected}
+	integration := &automdm.ConditionalAccessGoogleIntegration{ProxyServerSecret: "secret", State: automdm.ConditionalAccessGoogleStateConnected}
 	require.NoError(t, ds.SaveGoogleConditionalAccessIntegration(ctx, integration))
 	deleted, err := ds.DeleteGoogleConditionalAccessDevicesExcept(ctx, "C02cajzvg", 1)
 	require.NoError(t, err)
@@ -182,11 +182,11 @@ func googleTokenHash(token string) []byte {
 	return h[:]
 }
 
-func googleDeviceUserStates(t *testing.T, ds *Datastore, hostUUID string) map[string]fleet.GoogleConditionalAccessDeviceUserState {
-	var rows []fleet.GoogleConditionalAccessDeviceUser
+func googleDeviceUserStates(t *testing.T, ds *Datastore, hostUUID string) map[string]automdm.GoogleConditionalAccessDeviceUserState {
+	var rows []automdm.GoogleConditionalAccessDeviceUser
 	require.NoError(t, sqlx.SelectContext(t.Context(), ds.reader(t.Context()), &rows,
 		`SELECT host_uuid, device_user_name, state, error_message, updated_at FROM google_conditional_access_device_users WHERE host_uuid = ?`, hostUUID))
-	states := make(map[string]fleet.GoogleConditionalAccessDeviceUserState, len(rows))
+	states := make(map[string]automdm.GoogleConditionalAccessDeviceUserState, len(rows))
 	for _, r := range rows {
 		states[r.Name] = r.State
 	}
@@ -246,16 +246,16 @@ func testConditionalAccessGoogleRegistrationAttempts(t *testing.T, ds *Datastore
 	const expires = 10 * time.Minute
 
 	_, err := ds.GetGoogleConditionalAccessDevice(ctx, "uuid-1", customer)
-	require.True(t, fleet.IsNotFound(err))
+	require.True(t, automdm.IsNotFound(err))
 
 	// Each attempt is counted, up to the cap.
-	for i := range fleet.GoogleConditionalAccessMaxRegistrationAttempts {
+	for i := range automdm.GoogleConditionalAccessMaxRegistrationAttempts {
 		ok, err := ds.StartGoogleConditionalAccessRegistration(ctx, "uuid-1", customer, googleTokenHash(fmt.Sprint("t", i)), expires)
 		require.NoError(t, err)
 		require.True(t, ok)
 	}
 	attempts, firstAt := googleRegistrationAttempts(t, ds, "uuid-1")
-	require.EqualValues(t, fleet.GoogleConditionalAccessMaxRegistrationAttempts, attempts)
+	require.EqualValues(t, automdm.GoogleConditionalAccessMaxRegistrationAttempts, attempts)
 	require.NotNil(t, firstAt)
 	dev, err := ds.GetGoogleConditionalAccessDevice(ctx, "uuid-1", customer)
 	require.NoError(t, err)
@@ -267,7 +267,7 @@ func testConditionalAccessGoogleRegistrationAttempts(t *testing.T, ds *Datastore
 	require.NoError(t, err)
 	require.False(t, ok)
 	_, err = ds.ConsumeGoogleConditionalAccessRegistrationToken(ctx, customer, googleTokenHash("t-blocked"))
-	require.True(t, fleet.IsNotFound(err))
+	require.True(t, automdm.IsNotFound(err))
 
 	// Once the first attempt is older than the window, the count starts over.
 	_, err = ds.writer(ctx).ExecContext(ctx, `UPDATE google_conditional_access_devices
@@ -284,14 +284,14 @@ func testConditionalAccessGoogleRegistrationAttempts(t *testing.T, ds *Datastore
 	// Only the latest token is valid. It is consumed once, for its customer only, and
 	// consuming it resets the counter.
 	_, err = ds.ConsumeGoogleConditionalAccessRegistrationToken(ctx, customer, googleTokenHash("t2"))
-	require.True(t, fleet.IsNotFound(err))
+	require.True(t, automdm.IsNotFound(err))
 	_, err = ds.ConsumeGoogleConditionalAccessRegistrationToken(ctx, "C03other", googleTokenHash("t-new"))
-	require.True(t, fleet.IsNotFound(err))
+	require.True(t, automdm.IsNotFound(err))
 	hostUUID, err := ds.ConsumeGoogleConditionalAccessRegistrationToken(ctx, customer, googleTokenHash("t-new"))
 	require.NoError(t, err)
 	require.Equal(t, "uuid-1", hostUUID)
 	_, err = ds.ConsumeGoogleConditionalAccessRegistrationToken(ctx, customer, googleTokenHash("t-new"))
-	require.True(t, fleet.IsNotFound(err))
+	require.True(t, automdm.IsNotFound(err))
 	attempts, firstAt = googleRegistrationAttempts(t, ds, "uuid-1")
 	require.Zero(t, attempts)
 	require.Nil(t, firstAt)
@@ -301,7 +301,7 @@ func testConditionalAccessGoogleRegistrationAttempts(t *testing.T, ds *Datastore
 	require.NoError(t, err)
 	require.True(t, ok)
 	_, err = ds.ConsumeGoogleConditionalAccessRegistrationToken(ctx, customer, googleTokenHash("t-expired"))
-	require.True(t, fleet.IsNotFound(err))
+	require.True(t, automdm.IsNotFound(err))
 
 	// Another customer takes the row over: its names go and the counter starts over.
 	require.NoError(t, ds.RecordGoogleConditionalAccessRegistration(ctx, "uuid-2", customer, []string{"devices/d2/deviceUsers/1"}))
@@ -314,7 +314,7 @@ func testConditionalAccessGoogleRegistrationAttempts(t *testing.T, ds *Datastore
 	require.NoError(t, err)
 	require.True(t, ok)
 	_, err = ds.GetGoogleConditionalAccessDevice(ctx, "uuid-2", customer)
-	require.True(t, fleet.IsNotFound(err))
+	require.True(t, automdm.IsNotFound(err))
 	dev, err = ds.GetGoogleConditionalAccessDevice(ctx, "uuid-2", "C03other")
 	require.NoError(t, err)
 	require.Empty(t, dev.DeviceUsers)
@@ -357,9 +357,9 @@ func testConditionalAccessGoogleConcurrentRegistrationStarts(t *testing.T, ds *D
 			require.True(t, started[i])
 		}
 	}
-	require.Equal(t, fleet.GoogleConditionalAccessMaxRegistrationAttempts, sharedStarted)
+	require.Equal(t, automdm.GoogleConditionalAccessMaxRegistrationAttempts, sharedStarted)
 	attempts, _ := googleRegistrationAttempts(t, ds, "uuid-shared")
-	require.EqualValues(t, fleet.GoogleConditionalAccessMaxRegistrationAttempts, attempts)
+	require.EqualValues(t, automdm.GoogleConditionalAccessMaxRegistrationAttempts, attempts)
 }
 
 func testConditionalAccessGoogleRecordRegistration(t *testing.T, ds *Datastore) {
@@ -381,17 +381,17 @@ func testConditionalAccessGoogleRecordRegistration(t *testing.T, ds *Datastore) 
 	require.True(t, dev.Registered())
 	require.False(t, dev.Managed())
 	for _, du := range dev.DeviceUsers {
-		require.Equal(t, fleet.GoogleConditionalAccessDeviceUserPending, du.State)
+		require.Equal(t, automdm.GoogleConditionalAccessDeviceUserPending, du.State)
 	}
 	_, err = ds.ConsumeGoogleConditionalAccessRegistrationToken(ctx, customer, googleTokenHash("t1"))
-	require.True(t, fleet.IsNotFound(err))
+	require.True(t, automdm.IsNotFound(err))
 
 	ok, err = ds.UpdateGoogleConditionalAccessDeviceUserState(ctx, "devices/d1/deviceUsers/a",
-		fleet.GoogleConditionalAccessDeviceUserPending, fleet.GoogleConditionalAccessDeviceUserManaged, nil)
+		automdm.GoogleConditionalAccessDeviceUserPending, automdm.GoogleConditionalAccessDeviceUserManaged, nil)
 	require.NoError(t, err)
 	require.True(t, ok)
 	ok, err = ds.UpdateGoogleConditionalAccessDeviceUserState(ctx, "devices/d1/deviceUsers/b",
-		fleet.GoogleConditionalAccessDeviceUserPending, fleet.GoogleConditionalAccessDeviceUserManaged, nil)
+		automdm.GoogleConditionalAccessDeviceUserPending, automdm.GoogleConditionalAccessDeviceUserManaged, nil)
 	require.NoError(t, err)
 	require.True(t, ok)
 	dev, err = ds.GetGoogleConditionalAccessDevice(ctx, "uuid-1", customer)
@@ -403,7 +403,7 @@ func testConditionalAccessGoogleRecordRegistration(t *testing.T, ds *Datastore) 
 	require.NoError(t, err)
 	require.True(t, ok)
 	err = ds.RecordGoogleConditionalAccessRegistration(ctx, "uuid-2", customer, []string{"devices/d2/deviceUsers/a", "devices/d1/deviceUsers/b"})
-	var conflict *fleet.GoogleConditionalAccessDeviceUserConflictError
+	var conflict *automdm.GoogleConditionalAccessDeviceUserConflictError
 	require.ErrorAs(t, err, &conflict)
 	require.NotNil(t, conflict)
 	require.Equal(t, "devices/d1/deviceUsers/b", conflict.Name)
@@ -418,8 +418,8 @@ func testConditionalAccessGoogleRecordRegistration(t *testing.T, ds *Datastore) 
 	_, err = ds.writer(ctx).ExecContext(ctx, `UPDATE google_conditional_access_devices SET customer_id = 'C03old' WHERE host_uuid = ?`, "uuid-1")
 	require.NoError(t, err)
 	require.NoError(t, ds.RecordGoogleConditionalAccessRegistration(ctx, "uuid-2", customer, []string{"devices/d1/deviceUsers/b"}))
-	require.Equal(t, map[string]fleet.GoogleConditionalAccessDeviceUserState{
-		"devices/d1/deviceUsers/a": fleet.GoogleConditionalAccessDeviceUserManaged,
+	require.Equal(t, map[string]automdm.GoogleConditionalAccessDeviceUserState{
+		"devices/d1/deviceUsers/a": automdm.GoogleConditionalAccessDeviceUserManaged,
 	}, googleDeviceUserStates(t, ds, "uuid-1"))
 	_, err = ds.writer(ctx).ExecContext(ctx, `UPDATE google_conditional_access_devices SET customer_id = ? WHERE host_uuid = ?`, customer, "uuid-1")
 	require.NoError(t, err)
@@ -428,35 +428,35 @@ func testConditionalAccessGoogleRecordRegistration(t *testing.T, ds *Datastore) 
 	// a name no longer returned is queued for unmark, and a stale one is deleted.
 	require.NoError(t, ds.RecordGoogleConditionalAccessRegistration(ctx, "uuid-3", customer,
 		[]string{"devices/d3/deviceUsers/keep", "devices/d3/deviceUsers/drop", "devices/d3/deviceUsers/stale", "devices/d3/deviceUsers/back"}))
-	for name, to := range map[string]fleet.GoogleConditionalAccessDeviceUserState{
-		"devices/d3/deviceUsers/keep":  fleet.GoogleConditionalAccessDeviceUserManaged,
-		"devices/d3/deviceUsers/drop":  fleet.GoogleConditionalAccessDeviceUserManaged,
-		"devices/d3/deviceUsers/stale": fleet.GoogleConditionalAccessDeviceUserStale,
-		"devices/d3/deviceUsers/back":  fleet.GoogleConditionalAccessDeviceUserUnmanaging,
+	for name, to := range map[string]automdm.GoogleConditionalAccessDeviceUserState{
+		"devices/d3/deviceUsers/keep":  automdm.GoogleConditionalAccessDeviceUserManaged,
+		"devices/d3/deviceUsers/drop":  automdm.GoogleConditionalAccessDeviceUserManaged,
+		"devices/d3/deviceUsers/stale": automdm.GoogleConditionalAccessDeviceUserStale,
+		"devices/d3/deviceUsers/back":  automdm.GoogleConditionalAccessDeviceUserUnmanaging,
 	} {
-		ok, err := ds.UpdateGoogleConditionalAccessDeviceUserState(ctx, name, fleet.GoogleConditionalAccessDeviceUserPending, to, new("err"))
+		ok, err := ds.UpdateGoogleConditionalAccessDeviceUserState(ctx, name, automdm.GoogleConditionalAccessDeviceUserPending, to, new("err"))
 		require.NoError(t, err)
 		require.True(t, ok)
 	}
 	require.NoError(t, ds.RecordGoogleConditionalAccessRegistration(ctx, "uuid-3", customer,
 		[]string{"devices/d3/deviceUsers/keep", "devices/d3/deviceUsers/back", "devices/d3/deviceUsers/new"}))
-	require.Equal(t, map[string]fleet.GoogleConditionalAccessDeviceUserState{
-		"devices/d3/deviceUsers/keep": fleet.GoogleConditionalAccessDeviceUserPending,
-		"devices/d3/deviceUsers/back": fleet.GoogleConditionalAccessDeviceUserPending,
-		"devices/d3/deviceUsers/new":  fleet.GoogleConditionalAccessDeviceUserPending,
-		"devices/d3/deviceUsers/drop": fleet.GoogleConditionalAccessDeviceUserUnmanaging,
+	require.Equal(t, map[string]automdm.GoogleConditionalAccessDeviceUserState{
+		"devices/d3/deviceUsers/keep": automdm.GoogleConditionalAccessDeviceUserPending,
+		"devices/d3/deviceUsers/back": automdm.GoogleConditionalAccessDeviceUserPending,
+		"devices/d3/deviceUsers/new":  automdm.GoogleConditionalAccessDeviceUserPending,
+		"devices/d3/deviceUsers/drop": automdm.GoogleConditionalAccessDeviceUserUnmanaging,
 	}, googleDeviceUserStates(t, ds, "uuid-3"))
 	dev, err = ds.GetGoogleConditionalAccessDevice(ctx, "uuid-3", customer)
 	require.NoError(t, err)
 	for _, du := range dev.DeviceUsers {
-		if du.State == fleet.GoogleConditionalAccessDeviceUserPending {
+		if du.State == automdm.GoogleConditionalAccessDeviceUserPending {
 			require.Nil(t, du.ErrorMessage, du.Name)
 		}
 	}
 
 	// A state update is skipped when the name moved on.
 	ok, err = ds.UpdateGoogleConditionalAccessDeviceUserState(ctx, "devices/d3/deviceUsers/drop",
-		fleet.GoogleConditionalAccessDeviceUserPending, fleet.GoogleConditionalAccessDeviceUserManaged, nil)
+		automdm.GoogleConditionalAccessDeviceUserPending, automdm.GoogleConditionalAccessDeviceUserManaged, nil)
 	require.NoError(t, err)
 	require.False(t, ok)
 
@@ -466,7 +466,7 @@ func testConditionalAccessGoogleRecordRegistration(t *testing.T, ds *Datastore) 
 			SET updated_at = NOW(6) - INTERVAL 1 HOUR WHERE device_user_name = ?`, "devices/d3/deviceUsers/keep")
 		require.NoError(t, err)
 		ok, err = ds.UpdateGoogleConditionalAccessDeviceUserState(ctx, "devices/d3/deviceUsers/keep",
-			fleet.GoogleConditionalAccessDeviceUserPending, fleet.GoogleConditionalAccessDeviceUserPending, new("HTTP 500"))
+			automdm.GoogleConditionalAccessDeviceUserPending, automdm.GoogleConditionalAccessDeviceUserPending, new("HTTP 500"))
 		require.NoError(t, err)
 		require.True(t, ok)
 		dev, err = ds.GetGoogleConditionalAccessDevice(ctx, "uuid-3", customer)
@@ -522,13 +522,13 @@ func testConditionalAccessGoogleConcurrentRegistrationRecords(t *testing.T, ds *
 			winner = hostUUID
 			continue
 		}
-		var conflict *fleet.GoogleConditionalAccessDeviceUserConflictError
+		var conflict *automdm.GoogleConditionalAccessDeviceUserConflictError
 		require.ErrorAs(t, errs[i], &conflict)
 		require.False(t, googleDeviceRowExists(t, ds, hostUUID))
 	}
 	require.NotEmpty(t, winner)
-	require.Equal(t, map[string]fleet.GoogleConditionalAccessDeviceUserState{
-		shared: fleet.GoogleConditionalAccessDeviceUserPending,
+	require.Equal(t, map[string]automdm.GoogleConditionalAccessDeviceUserState{
+		shared: automdm.GoogleConditionalAccessDeviceUserPending,
 	}, googleDeviceUserStates(t, ds, winner))
 }
 
@@ -537,13 +537,13 @@ func testConditionalAccessGoogleSyncQueries(t *testing.T, ds *Datastore) {
 	const customer = "C02cajzvg"
 
 	live := newTestHostWithPlatform(t, ds, "live", "ios", nil)
-	require.NoError(t, ds.SetOrUpdateMDMData(ctx, live.ID, false, true, "https://example.com", true, fleet.WellKnownMDMFleet, "", fleet.PersonalEnrollmentTypeNone))
+	require.NoError(t, ds.SetOrUpdateMDMData(ctx, live.ID, false, true, "https://example.com", true, automdm.WellKnownMDMAutoMDM, "", automdm.PersonalEnrollmentTypeNone))
 	require.NoError(t, ds.RecordGoogleConditionalAccessRegistration(ctx, live.UUID, customer, []string{"devices/d1/deviceUsers/a", "devices/d1/deviceUsers/b"}))
 	// A row whose host was deleted.
 	require.NoError(t, ds.RecordGoogleConditionalAccessRegistration(ctx, "gone-uuid", customer, []string{"devices/d2/deviceUsers/a"}))
 	require.NoError(t, ds.RecordGoogleConditionalAccessRegistration(ctx, "other-uuid", "C03other", []string{"devices/d3/deviceUsers/a"}))
 
-	list := func(f fleet.GoogleConditionalAccessDeviceUserFilter) []string {
+	list := func(f automdm.GoogleConditionalAccessDeviceUserFilter) []string {
 		dus, err := ds.ListGoogleConditionalAccessDeviceUsers(ctx, f)
 		require.NoError(t, err)
 		var names []string
@@ -552,25 +552,25 @@ func testConditionalAccessGoogleSyncQueries(t *testing.T, ds *Datastore) {
 		}
 		return names
 	}
-	pending := []fleet.GoogleConditionalAccessDeviceUserState{fleet.GoogleConditionalAccessDeviceUserPending}
+	pending := []automdm.GoogleConditionalAccessDeviceUserState{automdm.GoogleConditionalAccessDeviceUserPending}
 	require.Equal(t, []string{"devices/d1/deviceUsers/a", "devices/d1/deviceUsers/b", "devices/d2/deviceUsers/a"},
-		list(fleet.GoogleConditionalAccessDeviceUserFilter{CustomerID: customer, States: pending, Limit: 10}))
+		list(automdm.GoogleConditionalAccessDeviceUserFilter{CustomerID: customer, States: pending, Limit: 10}))
 	require.Equal(t, []string{"devices/d1/deviceUsers/a", "devices/d1/deviceUsers/b"},
-		list(fleet.GoogleConditionalAccessDeviceUserFilter{CustomerID: customer, States: pending, HostExists: true, Limit: 10}))
+		list(automdm.GoogleConditionalAccessDeviceUserFilter{CustomerID: customer, States: pending, HostExists: true, Limit: 10}))
 	require.Equal(t, []string{"devices/d1/deviceUsers/b"},
-		list(fleet.GoogleConditionalAccessDeviceUserFilter{CustomerID: customer, States: pending, AfterName: "devices/d1/deviceUsers/a", Limit: 1}))
+		list(automdm.GoogleConditionalAccessDeviceUserFilter{CustomerID: customer, States: pending, AfterName: "devices/d1/deviceUsers/a", Limit: 1}))
 	require.Equal(t, []string{"devices/d3/deviceUsers/a"},
-		list(fleet.GoogleConditionalAccessDeviceUserFilter{CustomerID: "C03other", States: pending, Limit: 10}))
-	require.Empty(t, list(fleet.GoogleConditionalAccessDeviceUserFilter{CustomerID: customer,
-		States: []fleet.GoogleConditionalAccessDeviceUserState{fleet.GoogleConditionalAccessDeviceUserUnmanaging}, Limit: 10}))
+		list(automdm.GoogleConditionalAccessDeviceUserFilter{CustomerID: "C03other", States: pending, Limit: 10}))
+	require.Empty(t, list(automdm.GoogleConditionalAccessDeviceUserFilter{CustomerID: customer,
+		States: []automdm.GoogleConditionalAccessDeviceUserState{automdm.GoogleConditionalAccessDeviceUserUnmanaging}, Limit: 10}))
 
 	// Queueing the unmark of the deleted host's row.
 	queued, err := ds.QueueGoogleConditionalAccessUnmarkOfUnenrolledHosts(ctx, customer, 10)
 	require.NoError(t, err)
 	require.Equal(t, 1, queued)
-	unmanaging := []fleet.GoogleConditionalAccessDeviceUserState{fleet.GoogleConditionalAccessDeviceUserUnmanaging}
+	unmanaging := []automdm.GoogleConditionalAccessDeviceUserState{automdm.GoogleConditionalAccessDeviceUserUnmanaging}
 	require.Equal(t, []string{"devices/d2/deviceUsers/a"},
-		list(fleet.GoogleConditionalAccessDeviceUserFilter{CustomerID: customer, States: unmanaging, Limit: 10}))
+		list(automdm.GoogleConditionalAccessDeviceUserFilter{CustomerID: customer, States: unmanaging, Limit: 10}))
 
 	// Only a name queued for unmark is deleted once unmarked, and the row goes with it.
 	require.False(t, deleteUnmarked(t, ds, "devices/d1/deviceUsers/a"))
@@ -588,7 +588,7 @@ func testConditionalAccessGoogleSyncQueries(t *testing.T, ds *Datastore) {
 	bm2 := newTestHostWithPlatform(t, ds, "bm2", "android", nil)
 	registered := newTestHostWithPlatform(t, ds, "registered", "ios", nil)
 	personal := newTestHostWithPlatform(t, ds, "personal", "ios", nil)
-	for i, h := range []*fleet.Host{bm1, bm2, registered, live, personal} {
+	for i, h := range []*automdm.Host{bm1, bm2, registered, live, personal} {
 		if h == live {
 			// A row of the customer whose names are all gone.
 			_, err := ds.writer(ctx).ExecContext(ctx,
@@ -598,12 +598,12 @@ func testConditionalAccessGoogleSyncQueries(t *testing.T, ds *Datastore) {
 			insertMigratedGoogleDeviceID(t, ds, h.UUID, fmt.Sprint("gdid-", i))
 		}
 		automatic := h != personal
-		require.NoError(t, ds.SetOrUpdateMDMData(ctx, h.ID, false, true, "https://example.com", automatic, fleet.WellKnownMDMFleet, "", fleet.PersonalEnrollmentTypeNone))
+		require.NoError(t, ds.SetOrUpdateMDMData(ctx, h.ID, false, true, "https://example.com", automatic, automdm.WellKnownMDMAutoMDM, "", automdm.PersonalEnrollmentTypeNone))
 	}
 	require.NoError(t, ds.RecordGoogleConditionalAccessRegistration(ctx, registered.UUID, customer, []string{"devices/gdid-2/deviceUsers/a"}))
 	got, err := ds.ListGoogleConditionalAccessBookmarkHosts(ctx, customer, 0, 10)
 	require.NoError(t, err)
-	want := []fleet.GoogleConditionalAccessBookmarkHost{
+	want := []automdm.GoogleConditionalAccessBookmarkHost{
 		{HostID: live.ID, HostUUID: live.UUID, GoogleDeviceID: "gdid-3"},
 		{HostID: bm1.ID, HostUUID: bm1.UUID, GoogleDeviceID: "gdid-0"},
 		{HostID: bm2.ID, HostUUID: bm2.UUID, GoogleDeviceID: "gdid-1"},
@@ -622,7 +622,7 @@ func testConditionalAccessGoogleDeleteHosts(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 	const customer = "C02cajzvg"
 
-	register := func(h *fleet.Host) string {
+	register := func(h *automdm.Host) string {
 		name := "devices/" + h.UUID + "/deviceUsers/a"
 		require.NoError(t, ds.RecordGoogleConditionalAccessRegistration(ctx, h.UUID, customer, []string{name}))
 		return name
@@ -636,7 +636,7 @@ func testConditionalAccessGoogleDeleteHosts(t *testing.T, ds *Datastore) {
 	require.True(t, ok)
 	stale := newTestHostWithPlatform(t, ds, "stale", "android", nil)
 	ok, err = ds.UpdateGoogleConditionalAccessDeviceUserState(ctx, register(stale),
-		fleet.GoogleConditionalAccessDeviceUserPending, fleet.GoogleConditionalAccessDeviceUserStale, nil)
+		automdm.GoogleConditionalAccessDeviceUserPending, automdm.GoogleConditionalAccessDeviceUserStale, nil)
 	require.NoError(t, err)
 	require.True(t, ok)
 	migrated := newTestHostWithPlatform(t, ds, "migrated", "ios", nil)
@@ -646,7 +646,7 @@ func testConditionalAccessGoogleDeleteHosts(t *testing.T, ds *Datastore) {
 	_, err = ds.writer(ctx).ExecContext(ctx, `UPDATE hosts SET uuid = '' WHERE id = ?`, noUUID.ID)
 	require.NoError(t, err)
 	insertMigratedGoogleDeviceID(t, ds, "", "device-no-uuid")
-	// Another host row keeps this UUID, in another case, so the device is still in Fleet.
+	// Another host row keeps this UUID, in another case, so the device is still in AutoMDM.
 	shared := newTestHostWithPlatform(t, ds, "shared", "ios", nil)
 	sharedName := register(shared)
 	test.NewHost(t, ds, "shared-dup", "", "shared-dup-"+shared.UUID, strings.ToUpper(shared.UUID), time.Now(), test.WithPlatform("ios"))
@@ -654,25 +654,25 @@ func testConditionalAccessGoogleDeleteHosts(t *testing.T, ds *Datastore) {
 	require.NoError(t, ds.DeleteHosts(ctx, []uint{registered.ID, unregistered.ID, stale.ID, migrated.ID, noUUID.ID, shared.ID}))
 	require.Equal(t, "device-no-uuid", googleDeviceID(t, ds, ""))
 
-	require.Equal(t, map[string]fleet.GoogleConditionalAccessDeviceUserState{
-		"devices/" + registered.UUID + "/deviceUsers/a": fleet.GoogleConditionalAccessDeviceUserUnmanaging,
+	require.Equal(t, map[string]automdm.GoogleConditionalAccessDeviceUserState{
+		"devices/" + registered.UUID + "/deviceUsers/a": automdm.GoogleConditionalAccessDeviceUserUnmanaging,
 	}, googleDeviceUserStates(t, ds, registered.UUID))
 	require.False(t, googleDeviceRowExists(t, ds, unregistered.UUID))
 	require.False(t, googleDeviceRowExists(t, ds, stale.UUID))
-	// The device ID is released at once, also when Fleet never stored names for it.
+	// The device ID is released at once, also when AutoMDM never stored names for it.
 	require.Empty(t, googleDeviceID(t, ds, registered.UUID))
 	require.False(t, googleDeviceRowExists(t, ds, migrated.UUID))
 
-	require.Equal(t, map[string]fleet.GoogleConditionalAccessDeviceUserState{
-		sharedName: fleet.GoogleConditionalAccessDeviceUserPending,
+	require.Equal(t, map[string]automdm.GoogleConditionalAccessDeviceUserState{
+		sharedName: automdm.GoogleConditionalAccessDeviceUserPending,
 	}, googleDeviceUserStates(t, ds, shared.UUID))
 	require.Equal(t, shared.UUID, googleDeviceID(t, ds, shared.UUID))
 	// The surviving row isn't MDM-enrolled, which is left to the sweep of unenrolled hosts.
 	queued, err := ds.QueueGoogleConditionalAccessUnmarkOfUnenrolledHosts(ctx, customer, 10)
 	require.NoError(t, err)
 	require.Equal(t, 1, queued)
-	require.Equal(t, map[string]fleet.GoogleConditionalAccessDeviceUserState{
-		sharedName: fleet.GoogleConditionalAccessDeviceUserUnmanaging,
+	require.Equal(t, map[string]automdm.GoogleConditionalAccessDeviceUserState{
+		sharedName: automdm.GoogleConditionalAccessDeviceUserUnmanaging,
 	}, googleDeviceUserStates(t, ds, shared.UUID))
 }
 
@@ -687,7 +687,7 @@ func testConditionalAccessGoogleUnmarkUnenrolledHosts(t *testing.T, ds *Datastor
 	newHost := func(name, platform string, enrolled, companyOwned bool) string {
 		h := newTestHostWithPlatform(t, ds, name, platform, nil)
 		require.NoError(t, ds.SetOrUpdateMDMData(ctx, h.ID, false, enrolled, "https://example.com", companyOwned,
-			fleet.WellKnownMDMFleet, "", fleet.PersonalEnrollmentTypeNone))
+			automdm.WellKnownMDMAutoMDM, "", automdm.PersonalEnrollmentTypeNone))
 		return h.UUID
 	}
 
@@ -712,15 +712,15 @@ func testConditionalAccessGoogleUnmarkUnenrolledHosts(t *testing.T, ds *Datastor
 		require.Equal(t, want, queued)
 	}
 
-	state := func(hostUUID string) fleet.GoogleConditionalAccessDeviceUserState {
+	state := func(hostUUID string) automdm.GoogleConditionalAccessDeviceUserState {
 		return googleDeviceUserStates(t, ds, hostUUID)["devices/"+hostUUID+"/deviceUsers/a"]
 	}
 	for _, hostUUID := range late {
-		require.Equal(t, fleet.GoogleConditionalAccessDeviceUserUnmanaging, state(hostUUID), hostUUID)
+		require.Equal(t, automdm.GoogleConditionalAccessDeviceUserUnmanaging, state(hostUUID), hostUUID)
 		require.Empty(t, googleDeviceID(t, ds, hostUUID), hostUUID)
 	}
 	for _, hostUUID := range append(kept, "other-uuid") {
-		require.Equal(t, fleet.GoogleConditionalAccessDeviceUserPending, state(hostUUID), hostUUID)
+		require.Equal(t, automdm.GoogleConditionalAccessDeviceUserPending, state(hostUUID), hostUUID)
 		require.Equal(t, hostUUID, googleDeviceID(t, ds, hostUUID), hostUUID)
 	}
 }
@@ -728,7 +728,7 @@ func testConditionalAccessGoogleUnmarkUnenrolledHosts(t *testing.T, ds *Datastor
 func testConditionalAccessGoogleDeviceID(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 	const customer = googleTestCustomer
-	pending := fleet.GoogleConditionalAccessDeviceUserPending
+	pending := automdm.GoogleConditionalAccessDeviceUserPending
 
 	// A sign-in sets the ID to the device of the first name and stores the names of
 	// every device.
@@ -745,13 +745,13 @@ func testConditionalAccessGoogleDeviceID(t *testing.T, ds *Datastore) {
 	// longer has for unmark.
 	require.NoError(t, ds.RecordGoogleConditionalAccessRegistration(ctx, "uuid-1", customer, []string{"devices/d3/deviceUsers/a"}))
 	require.Equal(t, "d3", googleDeviceID(t, ds, "uuid-1"))
-	ok, err := ds.UpdateGoogleConditionalAccessDeviceUserState(ctx, "devices/d3/deviceUsers/a", pending, fleet.GoogleConditionalAccessDeviceUserStale, nil)
+	ok, err := ds.UpdateGoogleConditionalAccessDeviceUserState(ctx, "devices/d3/deviceUsers/a", pending, automdm.GoogleConditionalAccessDeviceUserStale, nil)
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.NoError(t, ds.RecordGoogleConditionalAccessRegistration(ctx, "uuid-1", customer, []string{"devices/d4/deviceUsers/a"}))
 	require.Equal(t, "d4", googleDeviceID(t, ds, "uuid-1"))
-	unmanaging := fleet.GoogleConditionalAccessDeviceUserUnmanaging
-	require.Equal(t, map[string]fleet.GoogleConditionalAccessDeviceUserState{
+	unmanaging := automdm.GoogleConditionalAccessDeviceUserUnmanaging
+	require.Equal(t, map[string]automdm.GoogleConditionalAccessDeviceUserState{
 		"devices/d1/deviceUsers/a": unmanaging, "devices/d2/deviceUsers/a": unmanaging, "devices/d4/deviceUsers/a": pending,
 	}, googleDeviceUserStates(t, ds, "uuid-1"))
 	// Once the ID is removed, the row goes with the last name unmarked.
@@ -770,7 +770,7 @@ func testConditionalAccessGoogleDeviceID(t *testing.T, ds *Datastore) {
 	// The error names the DeviceUser the device came from.
 	insertMigratedGoogleDeviceID(t, ds, "uuid-migrated", "d5")
 	err = ds.RecordGoogleConditionalAccessRegistration(ctx, "uuid-2", customer, []string{"not-a-device-user", "devices/d5/deviceUsers/a"})
-	var conflict *fleet.GoogleConditionalAccessDeviceUserConflictError
+	var conflict *automdm.GoogleConditionalAccessDeviceUserConflictError
 	require.ErrorAs(t, err, &conflict)
 	require.NotNil(t, conflict)
 	require.Equal(t, "devices/d5/deviceUsers/a", conflict.Name)
@@ -807,13 +807,13 @@ func testConditionalAccessGoogleDeviceID(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 	require.Equal(t, 1, queued)
 	require.Empty(t, googleDeviceID(t, ds, "uuid-3"))
-	require.Equal(t, map[string]fleet.GoogleConditionalAccessDeviceUserState{
-		"devices/d6/deviceUsers/a": fleet.GoogleConditionalAccessDeviceUserUnmanaging,
+	require.Equal(t, map[string]automdm.GoogleConditionalAccessDeviceUserState{
+		"devices/d6/deviceUsers/a": automdm.GoogleConditionalAccessDeviceUserUnmanaging,
 	}, googleDeviceUserStates(t, ds, "uuid-3"))
 
-	require.Equal(t, "d1", fleet.GoogleDeviceIDFromDeviceUserName("devices/d1/deviceUsers/a"))
+	require.Equal(t, "d1", automdm.GoogleDeviceIDFromDeviceUserName("devices/d1/deviceUsers/a"))
 	for _, malformed := range []string{"", "devices/", "devices/d1", "d1/deviceUsers/a", "devices//deviceUsers/a"} {
-		require.Empty(t, fleet.GoogleDeviceIDFromDeviceUserName(malformed), malformed)
+		require.Empty(t, automdm.GoogleDeviceIDFromDeviceUserName(malformed), malformed)
 	}
 }
 
@@ -821,14 +821,14 @@ func testConditionalAccessGoogleUnresolvedAndroidHosts(t *testing.T, ds *Datasto
 	ctx := t.Context()
 	const customer = "C02cajzvg"
 
-	newAndroid := func(name string, companyOwned bool) fleet.GoogleConditionalAccessAndroidHost {
+	newAndroid := func(name string, companyOwned bool) automdm.GoogleConditionalAccessAndroidHost {
 		ah := createAndroidHost(name)
 		ah.Device.DeviceID = "amapi-" + name
 		created, err := ds.NewAndroidHost(ctx, ah, companyOwned)
 		require.NoError(t, err)
-		return fleet.GoogleConditionalAccessAndroidHost{HostID: created.Host.ID, HostUUID: created.Host.UUID, AndroidDeviceID: "amapi-" + name}
+		return automdm.GoogleConditionalAccessAndroidHost{HostID: created.Host.ID, HostUUID: created.Host.UUID, AndroidDeviceID: "amapi-" + name}
 	}
-	list := func(customerID string, minAttempts, maxAttempts, limit int) []fleet.GoogleConditionalAccessAndroidHost {
+	list := func(customerID string, minAttempts, maxAttempts, limit int) []automdm.GoogleConditionalAccessAndroidHost {
 		got, err := ds.ListGoogleConditionalAccessUnresolvedAndroidHosts(ctx, customerID, minAttempts, maxAttempts, limit)
 		require.NoError(t, err)
 		return got
@@ -845,19 +845,19 @@ func testConditionalAccessGoogleUnresolvedAndroidHosts(t *testing.T, ds *Datasto
 	require.NoError(t, err)
 	// An iOS host is never listed.
 	ios := newTestHostWithPlatform(t, ds, "ios", "ios", nil)
-	require.NoError(t, ds.SetOrUpdateMDMData(ctx, ios.ID, false, true, "https://example.com", true, fleet.WellKnownMDMFleet, "", fleet.PersonalEnrollmentTypeNone))
+	require.NoError(t, ds.SetOrUpdateMDMData(ctx, ios.ID, false, true, "https://example.com", true, automdm.WellKnownMDMAutoMDM, "", automdm.PersonalEnrollmentTypeNone))
 
 	require.NoError(t, ds.RecordGoogleConditionalAccessRegistration(ctx, registered.HostUUID, customer, []string{"devices/reg/deviceUsers/a"}))
 	// A host whose only name went stale is resolved again.
 	require.NoError(t, ds.RecordGoogleConditionalAccessRegistration(ctx, stale.HostUUID, customer, []string{"devices/stale/deviceUsers/a"}))
 	ok, err := ds.UpdateGoogleConditionalAccessDeviceUserState(ctx, "devices/stale/deviceUsers/a",
-		fleet.GoogleConditionalAccessDeviceUserPending, fleet.GoogleConditionalAccessDeviceUserStale, nil)
+		automdm.GoogleConditionalAccessDeviceUserPending, automdm.GoogleConditionalAccessDeviceUserStale, nil)
 	require.NoError(t, err)
 	require.True(t, ok)
 	// A bookmark-era row has no customer yet, and no attempts.
 	insertMigratedGoogleDeviceID(t, ds, bookmark.HostUUID, "gdid-bookmark")
 
-	want := []fleet.GoogleConditionalAccessAndroidHost{fresh, retried, stale, bookmark}
+	want := []automdm.GoogleConditionalAccessAndroidHost{fresh, retried, stale, bookmark}
 	require.Equal(t, want, list(customer, 0, 0, 10))
 	require.Equal(t, want[:2], list(customer, 0, 0, 2))
 
@@ -867,11 +867,11 @@ func testConditionalAccessGoogleUnresolvedAndroidHosts(t *testing.T, ds *Datasto
 		require.NoError(t, ds.CountGoogleConditionalAccessResolutionAttempt(ctx, retried.HostUUID, customer))
 	}
 	require.NoError(t, ds.CountGoogleConditionalAccessResolutionAttempt(ctx, fresh.HostUUID, customer))
-	require.Equal(t, []fleet.GoogleConditionalAccessAndroidHost{stale, bookmark, fresh, retried}, list(customer, 0, 0, 10))
-	require.Equal(t, []fleet.GoogleConditionalAccessAndroidHost{stale, bookmark, fresh}, list(customer, 0, 2, 10))
+	require.Equal(t, []automdm.GoogleConditionalAccessAndroidHost{stale, bookmark, fresh, retried}, list(customer, 0, 0, 10))
+	require.Equal(t, []automdm.GoogleConditionalAccessAndroidHost{stale, bookmark, fresh}, list(customer, 0, 2, 10))
 	// The hosts tried that many times are listed apart, so the two never overlap.
-	require.Equal(t, []fleet.GoogleConditionalAccessAndroidHost{retried}, list(customer, 2, 0, 10))
-	require.Equal(t, []fleet.GoogleConditionalAccessAndroidHost{fresh}, list(customer, 1, 2, 10))
+	require.Equal(t, []automdm.GoogleConditionalAccessAndroidHost{retried}, list(customer, 2, 0, 10))
+	require.Equal(t, []automdm.GoogleConditionalAccessAndroidHost{fresh}, list(customer, 1, 2, 10))
 
 	// An attempt on a bookmark-era row keeps its device ID.
 	require.NoError(t, ds.CountGoogleConditionalAccessResolutionAttempt(ctx, bookmark.HostUUID, customer))
@@ -880,15 +880,15 @@ func testConditionalAccessGoogleUnresolvedAndroidHosts(t *testing.T, ds *Datasto
 	require.Equal(t, "gdid-bookmark", id)
 
 	// Another customer's attempts and names don't count.
-	require.Equal(t, []fleet.GoogleConditionalAccessAndroidHost{fresh, retried, registered, stale, bookmark}, list("C03other", 0, 1, 10))
+	require.Equal(t, []automdm.GoogleConditionalAccessAndroidHost{fresh, retried, registered, stale, bookmark}, list("C03other", 0, 1, 10))
 
 	// Recording a registration resets the count.
 	require.NoError(t, ds.RecordGoogleConditionalAccessRegistration(ctx, retried.HostUUID, customer, []string{"devices/retried/deviceUsers/a"}))
 	ok, err = ds.UpdateGoogleConditionalAccessDeviceUserState(ctx, "devices/retried/deviceUsers/a",
-		fleet.GoogleConditionalAccessDeviceUserPending, fleet.GoogleConditionalAccessDeviceUserStale, nil)
+		automdm.GoogleConditionalAccessDeviceUserPending, automdm.GoogleConditionalAccessDeviceUserStale, nil)
 	require.NoError(t, err)
 	require.True(t, ok)
-	require.Equal(t, []fleet.GoogleConditionalAccessAndroidHost{retried, stale, fresh, bookmark}, list(customer, 0, 0, 10))
+	require.Equal(t, []automdm.GoogleConditionalAccessAndroidHost{retried, stale, fresh, bookmark}, list(customer, 0, 0, 10))
 }
 
 func testConditionalAccessGoogleAndroidUnenroll(t *testing.T, ds *Datastore) {
@@ -896,31 +896,31 @@ func testConditionalAccessGoogleAndroidUnenroll(t *testing.T, ds *Datastore) {
 	const customer = "C02cajzvg"
 
 	host := newTestHostWithPlatform(t, ds, "android-unenroll", "android", nil)
-	require.NoError(t, ds.SetOrUpdateMDMData(ctx, host.ID, false, true, "https://fleet.example.com", true,
-		fleet.WellKnownMDMFleet, "", fleet.PersonalEnrollmentTypeNone))
+	require.NoError(t, ds.SetOrUpdateMDMData(ctx, host.ID, false, true, "https://automdm.example.com", true,
+		automdm.WellKnownMDMAutoMDM, "", automdm.PersonalEnrollmentTypeNone))
 	name := "devices/" + host.UUID + "/deviceUsers/a"
 	require.NoError(t, ds.RecordGoogleConditionalAccessRegistration(ctx, host.UUID, customer, []string{name}))
 
 	unenrolled, err := ds.SetAndroidHostUnenrolled(ctx, host.ID)
 	require.NoError(t, err)
 	require.True(t, unenrolled)
-	require.Equal(t, map[string]fleet.GoogleConditionalAccessDeviceUserState{
-		name: fleet.GoogleConditionalAccessDeviceUserUnmanaging,
+	require.Equal(t, map[string]automdm.GoogleConditionalAccessDeviceUserState{
+		name: automdm.GoogleConditionalAccessDeviceUserUnmanaging,
 	}, googleDeviceUserStates(t, ds, host.UUID))
 }
 
 func testConditionalAccessGoogleSetIntegrationState(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
-	connected := []fleet.ConditionalAccessGoogleState{fleet.ConditionalAccessGoogleStateConnected}
+	connected := []automdm.ConditionalAccessGoogleState{automdm.ConditionalAccessGoogleStateConnected}
 
-	ok, err := ds.SetGoogleConditionalAccessIntegrationState(ctx, "secret", connected, fleet.ConditionalAccessGoogleStateDelegationFailed, nil)
+	ok, err := ds.SetGoogleConditionalAccessIntegrationState(ctx, "secret", connected, automdm.ConditionalAccessGoogleStateDelegationFailed, nil)
 	require.NoError(t, err)
 	require.False(t, ok)
 
-	require.NoError(t, ds.SaveGoogleConditionalAccessIntegration(ctx, &fleet.ConditionalAccessGoogleIntegration{
-		ProxyServerSecret: "secret", State: fleet.ConditionalAccessGoogleStateConnected,
+	require.NoError(t, ds.SaveGoogleConditionalAccessIntegration(ctx, &automdm.ConditionalAccessGoogleIntegration{
+		ProxyServerSecret: "secret", State: automdm.ConditionalAccessGoogleStateConnected,
 	}))
-	getState := func() (fleet.ConditionalAccessGoogleState, *string) {
+	getState := func() (automdm.ConditionalAccessGoogleState, *string) {
 		got, err := ds.GetGoogleConditionalAccessIntegration(ctx)
 		require.NoError(t, err)
 		return got.State, got.ErrorMessage
@@ -928,26 +928,26 @@ func testConditionalAccessGoogleSetIntegrationState(t *testing.T, ds *Datastore)
 
 	// A registration replaced since the caller read it is left alone.
 	ok, err = ds.SetGoogleConditionalAccessIntegrationState(ctx, "old-secret", connected,
-		fleet.ConditionalAccessGoogleStateDelegationFailed, new("denied"))
+		automdm.ConditionalAccessGoogleStateDelegationFailed, new("denied"))
 	require.NoError(t, err)
 	require.False(t, ok)
 	state, msg := getState()
-	require.Equal(t, fleet.ConditionalAccessGoogleStateConnected, state)
+	require.Equal(t, automdm.ConditionalAccessGoogleStateConnected, state)
 	require.Nil(t, msg)
 
 	// So is one no longer in one of the given states.
 	ok, err = ds.SetGoogleConditionalAccessIntegrationState(ctx, "secret",
-		[]fleet.ConditionalAccessGoogleState{fleet.ConditionalAccessGoogleStateDelegationFailed},
-		fleet.ConditionalAccessGoogleStateConnected, nil)
+		[]automdm.ConditionalAccessGoogleState{automdm.ConditionalAccessGoogleStateDelegationFailed},
+		automdm.ConditionalAccessGoogleStateConnected, nil)
 	require.NoError(t, err)
 	require.False(t, ok)
 
 	ok, err = ds.SetGoogleConditionalAccessIntegrationState(ctx, "secret", connected,
-		fleet.ConditionalAccessGoogleStateDelegationFailed, new("denied"))
+		automdm.ConditionalAccessGoogleStateDelegationFailed, new("denied"))
 	require.NoError(t, err)
 	require.True(t, ok)
 	state, msg = getState()
-	require.Equal(t, fleet.ConditionalAccessGoogleStateDelegationFailed, state)
+	require.Equal(t, automdm.ConditionalAccessGoogleStateDelegationFailed, state)
 	require.Equal(t, new("denied"), msg)
 }
 
@@ -974,15 +974,15 @@ func testConditionalAccessGooglePurgeDeletedIntegration(t *testing.T, ds *Datast
 
 	// Without a row, or with a live one, nothing is deleted.
 	require.False(t, purge(later, 10))
-	require.NoError(t, ds.SaveGoogleConditionalAccessIntegration(ctx, &fleet.ConditionalAccessGoogleIntegration{
-		ProxyServerSecret: "secret", State: fleet.ConditionalAccessGoogleStateConnected,
+	require.NoError(t, ds.SaveGoogleConditionalAccessIntegration(ctx, &automdm.ConditionalAccessGoogleIntegration{
+		ProxyServerSecret: "secret", State: automdm.ConditionalAccessGoogleStateConnected,
 	}))
 	require.False(t, purge(later, 10))
 	require.Equal(t, 3, countDevices())
 
 	// A deleted row newer than the cutoff is kept.
-	require.NoError(t, ds.SaveGoogleConditionalAccessIntegration(ctx, &fleet.ConditionalAccessGoogleIntegration{
-		State: fleet.ConditionalAccessGoogleStateDeleted,
+	require.NoError(t, ds.SaveGoogleConditionalAccessIntegration(ctx, &automdm.ConditionalAccessGoogleIntegration{
+		State: automdm.ConditionalAccessGoogleStateDeleted,
 	}))
 	require.False(t, purge(time.Now().Add(-time.Hour), 10))
 	require.Equal(t, 3, countDevices())
@@ -995,7 +995,7 @@ func testConditionalAccessGooglePurgeDeletedIntegration(t *testing.T, ds *Datast
 	require.False(t, purge(later, 2))
 	require.Zero(t, countDevices())
 	_, err = ds.GetGoogleConditionalAccessIntegration(ctx)
-	require.True(t, fleet.IsNotFound(err))
+	require.True(t, automdm.IsNotFound(err))
 	require.Equal(t, "gdid-bookmark", googleDeviceID(t, ds, "uuid-bookmark"))
 }
 
@@ -1012,9 +1012,9 @@ func testConditionalAccessGoogleFailureTimes(t *testing.T, ds *Datastore) {
 		})
 	}
 	backdate()
-	list := func() fleet.GoogleConditionalAccessDeviceUser {
-		dus, err := ds.ListGoogleConditionalAccessDeviceUsers(ctx, fleet.GoogleConditionalAccessDeviceUserFilter{
-			CustomerID: customer, States: []fleet.GoogleConditionalAccessDeviceUserState{fleet.GoogleConditionalAccessDeviceUserPending}, Limit: 10,
+	list := func() automdm.GoogleConditionalAccessDeviceUser {
+		dus, err := ds.ListGoogleConditionalAccessDeviceUsers(ctx, automdm.GoogleConditionalAccessDeviceUserFilter{
+			CustomerID: customer, States: []automdm.GoogleConditionalAccessDeviceUserState{automdm.GoogleConditionalAccessDeviceUserPending}, Limit: 10,
 		})
 		require.NoError(t, err)
 		require.Len(t, dus, 1)
@@ -1024,7 +1024,7 @@ func testConditionalAccessGoogleFailureTimes(t *testing.T, ds *Datastore) {
 	require.Equal(t, before.CreatedAt, before.UpdatedAt)
 
 	// A repeated failure with the same message still moves updated_at, which the backoff reads.
-	pending := fleet.GoogleConditionalAccessDeviceUserPending
+	pending := automdm.GoogleConditionalAccessDeviceUserPending
 	ok, err := ds.UpdateGoogleConditionalAccessDeviceUserState(ctx, name, pending, pending, new("HTTP 500"))
 	require.NoError(t, err)
 	require.True(t, ok)
@@ -1048,8 +1048,8 @@ func testConditionalAccessGoogleFailureTimes(t *testing.T, ds *Datastore) {
 	// So does queueing a name for unmark, by a registration that drops it or for a host
 	// that is gone. A name already queued keeps its backoff.
 	queuedAt := func() map[string]time.Time {
-		dus, err := ds.ListGoogleConditionalAccessDeviceUsers(ctx, fleet.GoogleConditionalAccessDeviceUserFilter{
-			CustomerID: customer, States: []fleet.GoogleConditionalAccessDeviceUserState{fleet.GoogleConditionalAccessDeviceUserUnmanaging}, Limit: 10,
+		dus, err := ds.ListGoogleConditionalAccessDeviceUsers(ctx, automdm.GoogleConditionalAccessDeviceUserFilter{
+			CustomerID: customer, States: []automdm.GoogleConditionalAccessDeviceUserState{automdm.GoogleConditionalAccessDeviceUserUnmanaging}, Limit: 10,
 		})
 		require.NoError(t, err)
 		at := make(map[string]time.Time, len(dus))

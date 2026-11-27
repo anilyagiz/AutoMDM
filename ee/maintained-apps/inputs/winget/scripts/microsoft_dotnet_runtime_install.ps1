@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # The .NET Runtime ships as a WiX "burn" bootstrapper (.exe). It installs
 # machine-wide and registers its own ARP entry. Silent switches come from the

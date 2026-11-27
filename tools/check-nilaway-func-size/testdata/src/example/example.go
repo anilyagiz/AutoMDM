@@ -26,7 +26,7 @@ func smallEnough(a int) int {
 }
 
 // closuresAreNotGated keeps its own CFG small while nesting a heavily branching function literal.
-// nilaway only size-checks literals under its experimental-anonymous-function flag, which Fleet does
+// nilaway only size-checks literals under its experimental-anonymous-function flag, which AutoMDM does
 // not enable, so this must not be reported.
 func closuresAreNotGated() func(int) int {
 	return func(n int) int {

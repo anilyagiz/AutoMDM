@@ -8,7 +8,7 @@ resource "random_pet" "db_secret_postfix" {
 }
 
 resource "aws_secretsmanager_secret" "database_password_secret" {
-  name       = "/fleet/database/password/master-2-${random_pet.db_secret_postfix.id}"
+  name       = "/automdm/database/password/master-2-${random_pet.db_secret_postfix.id}"
   kms_key_id = aws_kms_key.main.id
   # No need to keep these around to potentially break re-using the same
   # workspace.
@@ -38,10 +38,10 @@ module "aurora_mysql" { #tfsec:ignore:aws-rds-enable-performance-insights-encryp
 
   iam_database_authentication_enabled = true
   storage_encrypted                   = true
-  master_username                     = "fleet"
+  master_username                     = "automdm"
   master_password                     = random_password.database_password.result
   create_random_password              = false
-  database_name                       = "fleet"
+  database_name                       = "automdm"
   enable_http_endpoint                = false
   performance_insights_enabled        = true
   enabled_cloudwatch_logs_exports     = ["slowquery"]

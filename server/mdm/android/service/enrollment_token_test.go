@@ -8,11 +8,11 @@ import (
 	"os"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
-	android_mock "github.com/fleetdm/fleet/v4/server/mdm/android/mock"
-	"github.com/fleetdm/fleet/v4/server/mdm/android/service/androidmgmt"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
+	android_mock "github.com/anilyagiz/automdm/v4/server/mdm/android/mock"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android/service/androidmgmt"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/androidmanagement/v1"
@@ -26,16 +26,16 @@ func TestCreateEnrollmentTokenUniformInvalidSecretError(t *testing.T) {
 	androidAPIClient := android_mock.Client{}
 	androidAPIClient.InitCommonMocks()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	fleetDS := InitCommonDSMocks()
-	fleetDS.Store.VerifyEnrollSecretFunc = func(ctx context.Context, secret string) (*fleet.EnrollSecret, error) {
+	automdmDS := InitCommonDSMocks()
+	automdmDS.Store.VerifyEnrollSecretFunc = func(ctx context.Context, secret string) (*automdm.EnrollSecret, error) {
 		return nil, &notFoundError{}
 	}
-	svc, err := NewServiceWithClient(logger, fleetDS, &androidAPIClient, "test-private-key", &fleetDS.DataStore, noopNewActivity, config.AndroidAgentConfig{})
+	svc, err := NewServiceWithClient(logger, automdmDS, &androidAPIClient, "test-private-key", &automdmDS.DataStore, noopNewActivity, config.AndroidAgentConfig{})
 	require.NoError(t, err)
 
 	badSecretErr := func(configured bool, idpSessionID string) error {
-		fleetDS.Store.AppConfigFunc = func(_ context.Context) (*fleet.AppConfig, error) {
-			appCfg := &fleet.AppConfig{}
+		automdmDS.Store.AppConfigFunc = func(_ context.Context) (*automdm.AppConfig, error) {
+			appCfg := &automdm.AppConfig{}
 			appCfg.MDM.AndroidEnabledAndConfigured = configured
 			return appCfg, nil
 		}
@@ -49,7 +49,7 @@ func TestCreateEnrollmentTokenUniformInvalidSecretError(t *testing.T) {
 	// auth error if the secret is verified before idP session validation.
 	errIdPSession := badSecretErr(true, "bogus-session")
 
-	var authFailed *fleet.AuthFailedError
+	var authFailed *automdm.AuthFailedError
 	require.ErrorAs(t, errNotConfigured, &authFailed)
 	require.ErrorAs(t, errConfigured, &authFailed)
 	require.ErrorAs(t, errIdPSession, &authFailed)
@@ -57,8 +57,8 @@ func TestCreateEnrollmentTokenUniformInvalidSecretError(t *testing.T) {
 	require.Equal(t, errConfigured.Error(), errIdPSession.Error())
 }
 
-// Enrollment tokens point at the enrolling fleet's default policy, so its passcode is set during setup.
-func TestCreateEnrollmentTokenUsesFleetDefaultPolicy(t *testing.T) {
+// Enrollment tokens point at the enrolling team's default policy, so its passcode is set during setup.
+func TestCreateEnrollmentTokenUsesAutoMDMDefaultPolicy(t *testing.T) {
 	const enterpriseName = "enterprises/LC00test"
 	teamID := uint(4)
 
@@ -73,33 +73,33 @@ func TestCreateEnrollmentTokenUsesFleetDefaultPolicy(t *testing.T) {
 	}{
 		{
 			name:           "unassigned",
-			wantPatched:    []string{enterpriseName + "/policies/fleet0"},
-			wantPolicyName: enterpriseName + "/policies/fleet0",
+			wantPatched:    []string{enterpriseName + "/policies/automdm0"},
+			wantPolicyName: enterpriseName + "/policies/automdm0",
 		},
 		{
-			name:           "fleet",
+			name:           "automdm",
 			secretTeamID:   &teamID,
-			wantPatched:    []string{enterpriseName + "/policies/fleet4"},
-			wantPolicyName: enterpriseName + "/policies/fleet4",
+			wantPatched:    []string{enterpriseName + "/policies/automdm4"},
+			wantPolicyName: enterpriseName + "/policies/automdm4",
 		},
 		{
-			name:           "fleet policy already sent",
+			name:           "team policy already sent",
 			secretTeamID:   &teamID,
 			checksums:      map[uint][]byte{teamID: []byte("checksum")},
-			wantPolicyName: enterpriseName + "/policies/fleet4",
+			wantPolicyName: enterpriseName + "/policies/automdm4",
 		},
 		{
-			name:           "rejected passcode settings fall back to the base settings in the fleet policy",
+			name:           "rejected passcode settings fall back to the base settings in the team policy",
 			secretTeamID:   &teamID,
 			rejectPasscode: true,
-			wantPatched:    []string{enterpriseName + "/policies/fleet4", enterpriseName + "/policies/fleet4"},
-			wantPolicyName: enterpriseName + "/policies/fleet4",
+			wantPatched:    []string{enterpriseName + "/policies/automdm4", enterpriseName + "/policies/automdm4"},
+			wantPolicyName: enterpriseName + "/policies/automdm4",
 		},
 		{
 			name:           "falls back to the global policy when the patch fails",
 			secretTeamID:   &teamID,
 			patchErr:       errors.New("quota"),
-			wantPatched:    []string{enterpriseName + "/policies/fleet4"},
+			wantPatched:    []string{enterpriseName + "/policies/automdm4"},
 			wantPolicyName: enterpriseName + "/policies/1",
 		},
 	}
@@ -123,37 +123,37 @@ func TestCreateEnrollmentTokenUsesFleetDefaultPolicy(t *testing.T) {
 				return &androidmanagement.EnrollmentToken{Value: "token"}, nil
 			}
 
-			fleetDS := InitCommonDSMocks()
-			fleetDS.Store.VerifyEnrollSecretFunc = func(_ context.Context, _ string) (*fleet.EnrollSecret, error) {
-				return &fleet.EnrollSecret{Secret: "secret", TeamID: c.secretTeamID}, nil
+			automdmDS := InitCommonDSMocks()
+			automdmDS.Store.VerifyEnrollSecretFunc = func(_ context.Context, _ string) (*automdm.EnrollSecret, error) {
+				return &automdm.EnrollSecret{Secret: "secret", TeamID: c.secretTeamID}, nil
 			}
-			fleetDS.Store.TeamLiteFunc = func(_ context.Context, id uint) (*fleet.TeamLite, error) {
-				return &fleet.TeamLite{ID: id}, nil
+			automdmDS.Store.TeamLiteFunc = func(_ context.Context, id uint) (*automdm.TeamLite, error) {
+				return &automdm.TeamLite{ID: id}, nil
 			}
-			fleetDS.Store.AppConfigFunc = func(_ context.Context) (*fleet.AppConfig, error) {
-				appCfg := &fleet.AppConfig{}
+			automdmDS.Store.AppConfigFunc = func(_ context.Context) (*automdm.AppConfig, error) {
+				appCfg := &automdm.AppConfig{}
 				appCfg.MDM.AndroidEnabledAndConfigured = true
 				return appCfg, nil
 			}
-			fleetDS.Store.GetEnterpriseFunc = func(_ context.Context) (*android.Enterprise, error) {
+			automdmDS.Store.GetEnterpriseFunc = func(_ context.Context) (*android.Enterprise, error) {
 				return &android.Enterprise{EnterpriseID: "LC00test"}, nil
 			}
-			fleetDS.Store.GetAllMDMConfigAssetsByNameFunc = func(_ context.Context, _ []fleet.MDMAssetName, _ sqlx.QueryerContext) (map[fleet.MDMAssetName]fleet.MDMConfigAsset, error) {
-				return map[fleet.MDMAssetName]fleet.MDMConfigAsset{fleet.MDMAssetAndroidFleetServerSecret: {Value: []byte("secret")}}, nil
+			automdmDS.Store.GetAllMDMConfigAssetsByNameFunc = func(_ context.Context, _ []automdm.MDMAssetName, _ sqlx.QueryerContext) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
+				return map[automdm.MDMAssetName]automdm.MDMConfigAsset{automdm.MDMAssetAndroidAutoMDMServerSecret: {Value: []byte("secret")}}, nil
 			}
-			fleetDS.Store.GetAndroidFleetDefaultPolicyChecksumsFunc = func(_ context.Context) (map[uint][]byte, error) {
+			automdmDS.Store.GetAndroidAutoMDMDefaultPolicyChecksumsFunc = func(_ context.Context) (map[uint][]byte, error) {
 				return c.checksums, nil
 			}
-			fleetDS.Store.ListAndroidFleetDefaultPolicyProfilesFunc = func(_ context.Context, gotTeamID *uint) ([]*fleet.MDMAndroidConfigProfile, error) {
+			automdmDS.Store.ListAndroidAutoMDMDefaultPolicyProfilesFunc = func(_ context.Context, gotTeamID *uint) ([]*automdm.MDMAndroidConfigProfile, error) {
 				require.NotNil(t, gotTeamID)
-				return []*fleet.MDMAndroidConfigProfile{{Name: "passcode", TeamID: gotTeamID, RawJSON: []byte(`{"passwordPolicies": [{"passwordMinimumLength": 6}]}`)}}, nil
+				return []*automdm.MDMAndroidConfigProfile{{Name: "passcode", TeamID: gotTeamID, RawJSON: []byte(`{"passwordPolicies": [{"passwordMinimumLength": 6}]}`)}}, nil
 			}
 			var savedTeamIDs []uint
-			fleetDS.Store.MarkAndroidFleetDefaultPolicyUnverifiedFunc = func(_ context.Context, gotTeamID uint) error {
+			automdmDS.Store.MarkAndroidAutoMDMDefaultPolicyUnverifiedFunc = func(_ context.Context, gotTeamID uint) error {
 				savedTeamIDs = append(savedTeamIDs, gotTeamID)
 				return nil
 			}
-			svc, err := NewServiceWithClient(slog.New(slog.DiscardHandler), fleetDS, &androidAPIClient, "test-private-key", &fleetDS.DataStore, noopNewActivity, config.AndroidAgentConfig{})
+			svc, err := NewServiceWithClient(slog.New(slog.DiscardHandler), automdmDS, &androidAPIClient, "test-private-key", &automdmDS.DataStore, noopNewActivity, config.AndroidAgentConfig{})
 			require.NoError(t, err)
 
 			_, err = svc.CreateEnrollmentToken(t.Context(), "secret", "", true)

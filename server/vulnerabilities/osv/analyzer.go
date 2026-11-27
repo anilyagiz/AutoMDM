@@ -10,10 +10,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	feednvd "github.com/fleetdm/fleet/v4/server/vulnerabilities/nvd/tools/cvefeed/nvd"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/oval"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/utils"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	feednvd "github.com/anilyagiz/automdm/v4/server/vulnerabilities/nvd/tools/cvefeed/nvd"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/oval"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/utils"
 )
 
 const (
@@ -50,19 +50,19 @@ type OSVVulnerability struct {
 	Versions   []string  `json:"versions,omitempty"`
 }
 
-type softwareMatcher func(software []fleet.Software) []fleet.SoftwareVulnerability
+type softwareMatcher func(software []automdm.Software) []automdm.SoftwareVulnerability
 
 const softwareBatchSize = 5000
 
 func analyzeOSV(
 	ctx context.Context,
-	ds fleet.Datastore,
-	ver fleet.OSVersion,
-	source fleet.VulnerabilitySource,
+	ds automdm.Datastore,
+	ver automdm.OSVersion,
+	source automdm.VulnerabilitySource,
 	matcher softwareMatcher,
 	collectVulns bool,
 	logger *slog.Logger,
-) ([]fleet.SoftwareVulnerability, error) {
+) ([]automdm.SoftwareVulnerability, error) {
 	// Get distinct software for this OS version (replaces per-host ListSoftwareForVulnDetection).
 	// Scoped to the package sources OSV covers: a Go binary or npm package that happens to share
 	// a distro package's name must not be compared against distro advisories.
@@ -86,7 +86,7 @@ func analyzeOSV(
 		totalDelete   int
 		matchTime     time.Duration
 		existingTime  time.Duration
-		allNewVulns   []fleet.SoftwareVulnerability
+		allNewVulns   []automdm.SoftwareVulnerability
 	)
 
 	for i := 0; i < len(software); i += softwareBatchSize {
@@ -122,11 +122,11 @@ func analyzeOSV(
 
 		// Delete stale vulnerabilities for this chunk.
 		if len(toDelete) > 0 {
-			toDeleteMap := make(map[string]fleet.SoftwareVulnerability, len(toDelete))
+			toDeleteMap := make(map[string]automdm.SoftwareVulnerability, len(toDelete))
 			for _, v := range toDelete {
 				toDeleteMap[v.Key()] = v
 			}
-			if err := utils.BatchProcess(toDeleteMap, func(v []fleet.SoftwareVulnerability) error {
+			if err := utils.BatchProcess(toDeleteMap, func(v []automdm.SoftwareVulnerability) error {
 				return ds.DeleteSoftwareVulnerabilities(ctx, v)
 			}, vulnBatchSize); err != nil {
 				return nil, fmt.Errorf("deleting stale vulnerabilities: %w", err)
@@ -136,7 +136,7 @@ func analyzeOSV(
 		// Deduplicate and insert new vulnerabilities for this chunk.
 		if len(toInsert) > 0 {
 			seen := make(map[string]struct{}, len(toInsert))
-			dedupedInsert := make([]fleet.SoftwareVulnerability, 0, len(toInsert))
+			dedupedInsert := make([]automdm.SoftwareVulnerability, 0, len(toInsert))
 			for _, v := range toInsert {
 				if _, ok := seen[v.Key()]; !ok {
 					seen[v.Key()] = struct{}{}
@@ -177,13 +177,13 @@ func analyzeOSV(
 // Analyze scans all hosts for vulnerabilities based on the OSV artifacts for their platform
 func Analyze(
 	ctx context.Context,
-	ds fleet.Datastore,
-	ver fleet.OSVersion,
+	ds automdm.Datastore,
+	ver automdm.OSVersion,
 	vulnPath string,
 	collectVulns bool,
 	logger *slog.Logger,
 	date time.Time,
-) ([]fleet.SoftwareVulnerability, error) {
+) ([]automdm.SoftwareVulnerability, error) {
 	if strings.ToLower(ver.Platform) != "ubuntu" {
 		return nil, ErrUnsupportedPlatform
 	}
@@ -193,13 +193,13 @@ func Analyze(
 		return nil, fmt.Errorf("loading OSV artifact: %w", err)
 	}
 
-	return analyzeOSV(ctx, ds, ver, fleet.UbuntuOSVSource, func(sw []fleet.Software) []fleet.SoftwareVulnerability {
+	return analyzeOSV(ctx, ds, ver, automdm.UbuntuOSVSource, func(sw []automdm.Software) []automdm.SoftwareVulnerability {
 		return matchSoftwareToOSV(sw, artifact)
 	}, collectVulns, logger)
 }
 
 // loadOSVArtifact loads the full OSV artifact for the given Ubuntu version
-func loadOSVArtifact(ctx context.Context, ver fleet.OSVersion, vulnPath string, logger *slog.Logger, date time.Time) (*OSVArtifact, error) {
+func loadOSVArtifact(ctx context.Context, ver automdm.OSVersion, vulnPath string, logger *slog.Logger, date time.Time) (*OSVArtifact, error) {
 	// Extract Ubuntu version (e.g., "22.04.8 LTS" -> "2204")
 	ubuntuVer := extractUbuntuVersion(ver.Version)
 	if ubuntuVer == "" {
@@ -229,8 +229,8 @@ func loadOSVArtifact(ctx context.Context, ver fleet.OSVersion, vulnPath string, 
 }
 
 // matchSoftwareToOSV matches software against OSV vulnerabilities
-func matchSoftwareToOSV(software []fleet.Software, artifact *OSVArtifact) []fleet.SoftwareVulnerability {
-	var result []fleet.SoftwareVulnerability
+func matchSoftwareToOSV(software []automdm.Software, artifact *OSVArtifact) []automdm.SoftwareVulnerability {
+	var result []automdm.SoftwareVulnerability
 
 	for _, sw := range software {
 		packageName := sw.Name
@@ -258,7 +258,7 @@ func matchSoftwareToOSV(software []fleet.Software, artifact *OSVArtifact) []flee
 					fixed := vuln.Fixed // Create a copy to get a stable pointer
 					resolvedIn = &fixed
 				}
-				result = append(result, fleet.SoftwareVulnerability{
+				result = append(result, automdm.SoftwareVulnerability{
 					SoftwareID:        sw.ID,
 					CVE:               vuln.CVE,
 					ResolvedInVersion: resolvedIn,
@@ -420,8 +420,8 @@ var rhelKernelPackages = map[string]struct{}{
 }
 
 // matchSoftwareToRHELOSV matches RPM software against RHEL OSV vulnerabilities.
-func matchSoftwareToRHELOSV(software []fleet.Software, artifact *RHELOSVArtifact) []fleet.SoftwareVulnerability {
-	var result []fleet.SoftwareVulnerability
+func matchSoftwareToRHELOSV(software []automdm.Software, artifact *RHELOSVArtifact) []automdm.SoftwareVulnerability {
+	var result []automdm.SoftwareVulnerability
 
 	for _, sw := range software {
 		packageName := sw.Name
@@ -444,7 +444,7 @@ func matchSoftwareToRHELOSV(software []fleet.Software, artifact *RHELOSVArtifact
 					fixed := vuln.Fixed
 					resolvedIn = &fixed
 				}
-				result = append(result, fleet.SoftwareVulnerability{
+				result = append(result, automdm.SoftwareVulnerability{
 					SoftwareID:        sw.ID,
 					CVE:               vuln.CVE,
 					ResolvedInVersion: resolvedIn,
@@ -458,7 +458,7 @@ func matchSoftwareToRHELOSV(software []fleet.Software, artifact *RHELOSVArtifact
 
 // buildRPMVer returns the "[epoch:]version[-release]" string of an RPM package. A missing epoch is
 // left out, which Rpmvercmp compares as epoch 0.
-func buildRPMVer(sw fleet.Software) string {
+func buildRPMVer(sw automdm.Software) string {
 	v := sw.Version
 	if sw.Release != "" {
 		v += "-" + sw.Release
@@ -494,13 +494,13 @@ func isVulnerableRPM(rpmVer string, vuln OSVVulnerability) bool {
 // AnalyzeRHEL scans all hosts for RHEL vulnerabilities based on OSV artifacts.
 func AnalyzeRHEL(
 	ctx context.Context,
-	ds fleet.Datastore,
-	ver fleet.OSVersion,
+	ds automdm.Datastore,
+	ver automdm.OSVersion,
 	vulnPath string,
 	collectVulns bool,
 	logger *slog.Logger,
 	date time.Time,
-) ([]fleet.SoftwareVulnerability, error) {
+) ([]automdm.SoftwareVulnerability, error) {
 	if strings.ToLower(ver.Platform) != "rhel" {
 		return nil, ErrUnsupportedPlatform
 	}
@@ -515,13 +515,13 @@ func AnalyzeRHEL(
 		return nil, fmt.Errorf("loading RHEL OSV artifact: %w", err)
 	}
 
-	return analyzeOSV(ctx, ds, ver, fleet.RHELOSVSource, func(sw []fleet.Software) []fleet.SoftwareVulnerability {
+	return analyzeOSV(ctx, ds, ver, automdm.RHELOSVSource, func(sw []automdm.Software) []automdm.SoftwareVulnerability {
 		return matchSoftwareToRHELOSV(sw, artifact)
 	}, collectVulns, logger)
 }
 
 // loadRHELOSVArtifact loads the RHEL OSV artifact for the given OS version.
-func loadRHELOSVArtifact(ctx context.Context, ver fleet.OSVersion, vulnPath string, logger *slog.Logger, date time.Time) (*RHELOSVArtifact, error) {
+func loadRHELOSVArtifact(ctx context.Context, ver automdm.OSVersion, vulnPath string, logger *slog.Logger, date time.Time) (*RHELOSVArtifact, error) {
 	rhelVer := extractRHELMajorVersion(ver.Version)
 	if rhelVer == "" {
 		return nil, fmt.Errorf("could not extract RHEL version from %s", ver.Name)

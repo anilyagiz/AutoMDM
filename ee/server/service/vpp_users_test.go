@@ -8,9 +8,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/dev_mode"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/dev_mode"
+	"github.com/anilyagiz/automdm/v4/server/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -18,11 +18,11 @@ import (
 func setupFakeVPPServer(t *testing.T, handler http.HandlerFunc) {
 	t.Helper()
 	server := httptest.NewServer(handler)
-	dev_mode.SetOverride("FLEET_DEV_VPP_URL", server.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_VPP_URL", server.URL, t)
 	t.Cleanup(server.Close)
 }
 
-func newTestServiceWithDS(ds fleet.Datastore) *Service {
+func newTestServiceWithDS(ds automdm.Datastore) *Service {
 	return &Service{ds: ds}
 }
 
@@ -31,8 +31,8 @@ func TestEnsureVPPClientUser_NewUser(t *testing.T) {
 		hostID         = uint(7)
 		managedAppleID = "user@example.com"
 	)
-	tokenDB := &fleet.VPPTokenDB{ID: 42, Token: "valid-token"}
-	host := &fleet.Host{ID: hostID}
+	tokenDB := &automdm.VPPTokenDB{ID: 42, Token: "valid-token"}
+	host := &automdm.Host{ID: hostID}
 
 	var registerCalls int
 	setupFakeVPPServer(t, func(w http.ResponseWriter, r *http.Request) {
@@ -68,13 +68,13 @@ func TestEnsureVPPClientUser_NewUser(t *testing.T) {
 		require.Equal(t, hostID, id)
 		return managedAppleID, nil
 	}
-	ds.GetVPPClientUserFunc = func(_ context.Context, tokenID uint, mAppleID string) (*fleet.VPPClientUser, error) {
+	ds.GetVPPClientUserFunc = func(_ context.Context, tokenID uint, mAppleID string) (*automdm.VPPClientUser, error) {
 		require.Equal(t, tokenDB.ID, tokenID)
 		require.Equal(t, managedAppleID, mAppleID)
 		return nil, &notFoundError{}
 	}
-	var insertedRow *fleet.VPPClientUser
-	ds.InsertVPPClientUserFunc = func(_ context.Context, row *fleet.VPPClientUser) error {
+	var insertedRow *automdm.VPPClientUser
+	ds.InsertVPPClientUserFunc = func(_ context.Context, row *automdm.VPPClientUser) error {
 		insertedRow = row
 		return nil
 	}
@@ -89,15 +89,15 @@ func TestEnsureVPPClientUser_NewUser(t *testing.T) {
 	require.Equal(t, tokenDB.ID, insertedRow.VPPTokenID)
 	require.Equal(t, managedAppleID, insertedRow.ManagedAppleID)
 	require.Equal(t, clientUserID, insertedRow.ClientUserID)
-	require.Equal(t, fleet.VPPClientUserStatusRegistered, insertedRow.Status)
+	require.Equal(t, automdm.VPPClientUserStatusRegistered, insertedRow.Status)
 	require.NotNil(t, insertedRow.AppleUserID)
 	require.Equal(t, "98765", *insertedRow.AppleUserID)
 }
 
 func TestEnsureVPPClientUser_ExistingRegisteredUser(t *testing.T) {
 	const managedAppleID = "user@example.com"
-	tokenDB := &fleet.VPPTokenDB{ID: 1, Token: "tok"}
-	host := &fleet.Host{ID: 1}
+	tokenDB := &automdm.VPPTokenDB{ID: 1, Token: "tok"}
+	host := &automdm.Host{ID: 1}
 
 	// Apple must NOT be called on cache hit.
 	setupFakeVPPServer(t, func(w http.ResponseWriter, r *http.Request) {
@@ -108,12 +108,12 @@ func TestEnsureVPPClientUser_ExistingRegisteredUser(t *testing.T) {
 	ds.GetHostManagedAppleIDFunc = func(_ context.Context, _ uint) (string, error) {
 		return managedAppleID, nil
 	}
-	ds.GetVPPClientUserFunc = func(_ context.Context, _ uint, _ string) (*fleet.VPPClientUser, error) {
-		return &fleet.VPPClientUser{
+	ds.GetVPPClientUserFunc = func(_ context.Context, _ uint, _ string) (*automdm.VPPClientUser, error) {
+		return &automdm.VPPClientUser{
 			VPPTokenID:     tokenDB.ID,
 			ManagedAppleID: managedAppleID,
 			ClientUserID:   "cached-uuid",
-			Status:         fleet.VPPClientUserStatusRegistered,
+			Status:         automdm.VPPClientUserStatusRegistered,
 		}, nil
 	}
 
@@ -129,8 +129,8 @@ func TestEnsureVPPClientUser_ExistingRegisteredUser(t *testing.T) {
 // user via the v1 endpoint rather than returning the stale row.
 func TestEnsureVPPClientUser_PendingRowReregisters(t *testing.T) {
 	const managedAppleID = "user@example.com"
-	tokenDB := &fleet.VPPTokenDB{ID: 1, Token: "tok"}
-	host := &fleet.Host{ID: 1}
+	tokenDB := &automdm.VPPTokenDB{ID: 1, Token: "tok"}
+	host := &automdm.Host{ID: 1}
 
 	var registerCalls int
 	setupFakeVPPServer(t, func(w http.ResponseWriter, r *http.Request) {
@@ -153,15 +153,15 @@ func TestEnsureVPPClientUser_PendingRowReregisters(t *testing.T) {
 	ds.GetHostManagedAppleIDFunc = func(_ context.Context, _ uint) (string, error) {
 		return managedAppleID, nil
 	}
-	ds.GetVPPClientUserFunc = func(_ context.Context, _ uint, _ string) (*fleet.VPPClientUser, error) {
-		return &fleet.VPPClientUser{
+	ds.GetVPPClientUserFunc = func(_ context.Context, _ uint, _ string) (*automdm.VPPClientUser, error) {
+		return &automdm.VPPClientUser{
 			VPPTokenID:     tokenDB.ID,
 			ManagedAppleID: managedAppleID,
 			ClientUserID:   "stale-pending-uuid",
-			Status:         fleet.VPPClientUserStatusPending,
+			Status:         automdm.VPPClientUserStatusPending,
 		}, nil
 	}
-	ds.InsertVPPClientUserFunc = func(_ context.Context, _ *fleet.VPPClientUser) error {
+	ds.InsertVPPClientUserFunc = func(_ context.Context, _ *automdm.VPPClientUser) error {
 		return nil
 	}
 
@@ -175,8 +175,8 @@ func TestEnsureVPPClientUser_PendingRowReregisters(t *testing.T) {
 
 func TestEnsureVPPClientUser_AppleErrorSurfacesAndSkipsInsert(t *testing.T) {
 	const managedAppleID = "missing@example.com"
-	tokenDB := &fleet.VPPTokenDB{ID: 1, Token: "tok"}
-	host := &fleet.Host{ID: 1}
+	tokenDB := &automdm.VPPTokenDB{ID: 1, Token: "tok"}
+	host := &automdm.Host{ID: 1}
 
 	// v1 reports application-level errors synchronously — no Apple-side user
 	// exists, so we should surface the error and skip the DB write entirely.
@@ -192,10 +192,10 @@ func TestEnsureVPPClientUser_AppleErrorSurfacesAndSkipsInsert(t *testing.T) {
 	ds.GetHostManagedAppleIDFunc = func(_ context.Context, _ uint) (string, error) {
 		return managedAppleID, nil
 	}
-	ds.GetVPPClientUserFunc = func(_ context.Context, _ uint, _ string) (*fleet.VPPClientUser, error) {
+	ds.GetVPPClientUserFunc = func(_ context.Context, _ uint, _ string) (*automdm.VPPClientUser, error) {
 		return nil, &notFoundError{}
 	}
-	ds.InsertVPPClientUserFunc = func(_ context.Context, _ *fleet.VPPClientUser) error {
+	ds.InsertVPPClientUserFunc = func(_ context.Context, _ *automdm.VPPClientUser) error {
 		t.Fatal("InsertVPPClientUser must not be called when v1 register-user returns an error")
 		return nil
 	}
@@ -208,8 +208,8 @@ func TestEnsureVPPClientUser_AppleErrorSurfacesAndSkipsInsert(t *testing.T) {
 }
 
 func TestEnsureVPPClientUser_MissingManagedAppleID(t *testing.T) {
-	tokenDB := &fleet.VPPTokenDB{ID: 1, Token: "tok"}
-	host := &fleet.Host{ID: 1}
+	tokenDB := &automdm.VPPTokenDB{ID: 1, Token: "tok"}
+	host := &automdm.Host{ID: 1}
 
 	// Apple must not be called.
 	setupFakeVPPServer(t, func(w http.ResponseWriter, r *http.Request) {
@@ -227,7 +227,7 @@ func TestEnsureVPPClientUser_MissingManagedAppleID(t *testing.T) {
 	require.Contains(t, err.Error(), "Managed Apple ID")
 
 	// User-facing message surface — important since this is shown to admins.
-	var ume *fleet.UserMessageError
+	var ume *automdm.UserMessageError
 	require.ErrorAs(t, err, &ume)
 	require.Equal(t, http.StatusUnprocessableEntity, ume.StatusCode())
 

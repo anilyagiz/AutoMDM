@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Checks handbook changes on the current branch for problems that break the
-# fleetdm.com build, fail CI, or break links people already use.
+# automdm.com build, fail CI, or break links people already use.
 #
 # Usage (from anywhere in the repo):
 #   bash .claude/skills/handbook-pr/scripts/check-handbook-diff.sh [base-ref]
@@ -41,7 +41,7 @@ slugify() {
     paste -sd- -
 }
 
-# The fleetdm.com path for a handbook file: handbook/it/README.md -> handbook/it
+# The automdm.com path for a handbook file: handbook/it/README.md -> handbook/it
 url_path() {
   local p="${1%.md}"
   p="${p%/README}"
@@ -67,12 +67,12 @@ if [ -n "$outside" ]; then
   printf '%s\n' "$outside" | sed 's/^/         /'
 fi
 
-# Deleted or moved pages change a fleetdm.com URL.
+# Deleted or moved pages change an automdm.com URL.
 while IFS=$'\t' read -r status old new; do
   [ -z "$status" ] && continue
   case "$status" in
-    D) [[ "$old" == *.md ]] && warn "$old was deleted. Links to https://fleetdm.com/$(url_path "$old") will 404. Search the repo for that path and update links." ;;
-    R*) [[ "$old" == *.md ]] && warn "$old was moved to $new. Links to https://fleetdm.com/$(url_path "$old") will 404. Search the repo for that path and update links." ;;
+    D) [[ "$old" == *.md ]] && warn "$old was deleted. Links to https://automdm.com/$(url_path "$old") will 404. Search the repo for that path and update links." ;;
+    R*) [[ "$old" == *.md ]] && warn "$old was moved to $new. Links to https://automdm.com/$(url_path "$old") will 404. Search the repo for that path and update links." ;;
   esac
 done < <(g diff --name-status -M "$base" -- handbook/)
 
@@ -95,7 +95,7 @@ records=$(
 
 re_heading='^(>[[:space:]]*)?#{1,6}[[:space:]]'
 re_here='\[(click )?here\]'
-re_fleetdm='(^|[^a-zA-Z./@-])(FleetDM|fleetDM)([^a-zA-Z.]|$)'
+re_automdm='(^|[^a-zA-Z./@-])(AutoMDM|automdm)([^a-zA-Z.]|$)'
 re_maintainer='<meta name="maintainedBy" value="([A-Za-z0-9-]+)"'
 re_dri='^[-[:space:]]*dri:[[:space:]]*"?([A-Za-z0-9-]+)"?'
 
@@ -116,7 +116,7 @@ while IFS=$'\t' read -r kind file ln text; do
     fi
     [ "$kind" = "A" ] || continue
     loc="$file:$ln"
-    [[ "$text" == *"@fleetdm.com"* ]] && err "$loc has an @fleetdm.com email address, which fails the website build. Use @example.com, or link to a Slack channel or handbook section."
+    [[ "$text" == *"@automdm.com"* ]] && err "$loc has an @automdm.com email address, which fails the website build. Use @example.com, or link to a Slack channel or handbook section."
     shopt -s nocasematch
     [[ "$text" =~ $re_here ]] && err "$loc uses \"here\" as link text, which fails the docs CI check. Link descriptive words instead."
     shopt -u nocasematch
@@ -125,9 +125,9 @@ while IFS=$'\t' read -r kind file ln text; do
         warn "$loc has {{ }} outside inline code, which can fail the website build. Wrap it in backticks."
     fi
     [[ "$text" == *"—"* ]] && warn "$loc has an em dash. writing.md prefers a comma, a colon, or a new sentence."
-    [[ "$text" == *"](#"* ]] && warn "$loc links with a relative anchor. Use the full https://fleetdm.com/$(url_path "$file")#... URL."
+    [[ "$text" == *"](#"* ]] && warn "$loc links with a relative anchor. Use the full https://automdm.com/$(url_path "$file")#... URL."
     [[ "$text" == *"](./"* || "$text" == *"](../"* ]] && warn "$loc uses a relative path in a link or image. Use a full https:// URL."
-    [[ "$text" =~ $re_fleetdm ]] && warn "$loc says \"${BASH_REMATCH[2]}\". Use \"Fleet\" in prose."
+    [[ "$text" =~ $re_automdm ]] && warn "$loc says \"${BASH_REMATCH[2]}\". Use \"AutoMDM\" in prose."
     if [[ "$text" =~ $re_maintainer ]]; then
       new_handles+="${BASH_REMATCH[1]}"$'\t'"$loc"$'\n'
     fi
@@ -144,7 +144,7 @@ while IFS=$'\t' read -r file slug text; do
   [ -z "$slug" ] && continue
   printf '%s' "$added_headings" | grep -qxF "$file"$'\t'"$slug" && continue
   page=$(url_path "$file")
-  warn "$file: heading \"$text\" was renamed or removed, so https://fleetdm.com/$page#$slug no longer resolves. Update these links in this PR (links in Slack and GitHub issues can't be checked):"
+  warn "$file: heading \"$text\" was renamed or removed, so https://automdm.com/$page#$slug no longer resolves. Update these links in this PR (links in Slack and GitHub issues can't be checked):"
   matches=$(
     g grep -n -F -e "$page#$slug" -e "$(basename "$file")#$slug" -- . ':!node_modules' 2>/dev/null
     g grep -n -F -e "(#$slug)" -- "$file" 2>/dev/null

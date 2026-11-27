@@ -3,11 +3,11 @@ package service
 // Agent (orbit and osquery) tests for the enterprise (premium) suite.
 //
 // Belongs here: orbit enrollment and re-enrollment (IdP device mapping, end user auth tokens,
-// fleet assignment), orbit config (extensions), and osquery distributed reads and detail queries
+// team assignment), orbit config (extensions), and osquery distributed reads and detail queries
 // that depend on premium features.
 //
 // Does not belong here: setup experience status (integration_enterprise_setup_experience_test.go),
-// fleet label distributed reads/writes (integration_enterprise_labels_test.go), and Fleet Desktop
+// team label distributed reads/writes (integration_enterprise_labels_test.go), and AutoMDM Desktop
 // device endpoints (integration_enterprise_desktop_test.go).
 
 import (
@@ -25,12 +25,12 @@ import (
 	"testing"
 	"time"
 
-	shared_mdm "github.com/fleetdm/fleet/v4/pkg/mdm"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	microsoft_mdm "github.com/fleetdm/fleet/v4/server/mdm/microsoft"
-	"github.com/fleetdm/fleet/v4/server/service/contract"
-	"github.com/fleetdm/fleet/v4/server/service/redis_key_value"
+	shared_mdm "github.com/anilyagiz/automdm/v4/pkg/mdm"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	microsoft_mdm "github.com/anilyagiz/automdm/v4/server/mdm/microsoft"
+	"github.com/anilyagiz/automdm/v4/server/service/contract"
+	"github.com/anilyagiz/automdm/v4/server/service/redis_key_value"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
@@ -50,12 +50,12 @@ func (s *integrationEnterpriseTestSuite) TestDistributedReadWithFeatures() {
 
 	// Team config has only additional queries enabled
 	a := json.RawMessage(`{"time": "SELECT * FROM time"}`)
-	team, err := s.ds.NewTeam(context.Background(), &fleet.Team{
+	team, err := s.ds.NewTeam(context.Background(), &automdm.Team{
 		ID:          8324,
 		Name:        "team1_" + t.Name(),
 		Description: "desc team1_" + t.Name(),
-		Config: fleet.TeamConfig{
-			Features: fleet.Features{
+		Config: automdm.TeamConfig{
+			Features: automdm.Features{
 				EnableHostUsers:         false,
 				EnableSoftwareInventory: false,
 				AdditionalQueries:       &a,
@@ -65,7 +65,7 @@ func (s *integrationEnterpriseTestSuite) TestDistributedReadWithFeatures() {
 	require.NoError(t, err)
 
 	// Create a host without a team
-	host, err := s.ds.NewHost(context.Background(), &fleet.Host{
+	host, err := s.ds.NewHost(context.Background(), &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -88,14 +88,14 @@ func (s *integrationEnterpriseTestSuite) TestDistributedReadWithFeatures() {
 	req := getDistributedQueriesRequest{NodeKey: *host.NodeKey}
 	var dqResp getDistributedQueriesResponse
 	s.DoJSON("POST", "/api/osquery/distributed/read", req, http.StatusOK, &dqResp)
-	require.Contains(t, dqResp.Queries, "fleet_detail_query_users")
-	require.Contains(t, dqResp.Queries, "fleet_detail_query_software_macos")
-	require.Contains(t, dqResp.Queries, "fleet_detail_query_software_ai_tools")
-	require.Contains(t, dqResp.Discovery["fleet_detail_query_software_ai_tools"], "name = 'ai_tools'")
-	require.NotContains(t, dqResp.Queries, "fleet_additional_query_time")
+	require.Contains(t, dqResp.Queries, "team_detail_query_users")
+	require.Contains(t, dqResp.Queries, "team_detail_query_software_macos")
+	require.Contains(t, dqResp.Queries, "team_detail_query_software_ai_tools")
+	require.Contains(t, dqResp.Discovery["team_detail_query_software_ai_tools"], "name = 'ai_tools'")
+	require.NotContains(t, dqResp.Queries, "automdm_additional_query_time")
 
 	// add the host to team1
-	err = s.ds.AddHostsToTeam(context.Background(), fleet.NewAddHostsToTeamParams(&team.ID, []uint{host.ID}))
+	err = s.ds.AddHostsToTeam(context.Background(), automdm.NewAddHostsToTeamParams(&team.ID, []uint{host.ID}))
 	require.NoError(t, err)
 
 	err = s.ds.UpdateHostRefetchRequested(context.Background(), host.ID, true)
@@ -103,10 +103,10 @@ func (s *integrationEnterpriseTestSuite) TestDistributedReadWithFeatures() {
 	req = getDistributedQueriesRequest{NodeKey: *host.NodeKey}
 	dqResp = getDistributedQueriesResponse{}
 	s.DoJSON("POST", "/api/osquery/distributed/read", req, http.StatusOK, &dqResp)
-	require.NotContains(t, dqResp.Queries, "fleet_detail_query_users")
-	require.NotContains(t, dqResp.Queries, "fleet_detail_query_software_macos")
-	require.NotContains(t, dqResp.Queries, "fleet_detail_query_software_ai_tools")
-	require.Contains(t, dqResp.Queries, "fleet_additional_query_time")
+	require.NotContains(t, dqResp.Queries, "team_detail_query_users")
+	require.NotContains(t, dqResp.Queries, "team_detail_query_software_macos")
+	require.NotContains(t, dqResp.Queries, "team_detail_query_software_ai_tools")
+	require.Contains(t, dqResp.Queries, "automdm_additional_query_time")
 }
 
 func (s *integrationEnterpriseTestSuite) TestSoftwareAIToolsKeptWhenQueryDidNotRun() {
@@ -135,12 +135,12 @@ func (s *integrationEnterpriseTestSuite) TestSoftwareAIToolsKeptWhenQueryDidNotR
 			Results:  results,
 			Statuses: statuses,
 			Messages: map[string]string{},
-			Stats:    map[string]*fleet.Stats{},
+			Stats:    map[string]*automdm.Stats{},
 		}, http.StatusOK, &submitDistributedQueryResultsResponse{})
 	}
 	aiToolNames := func() []string {
 		var resp getHostSoftwareResponse
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/software", host.ID), nil, http.StatusOK, &resp, "ai_tool", "true")
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/software", host.ID), nil, http.StatusOK, &resp, "ai_tool", "true")
 		names := make([]string, 0, len(resp.Software))
 		for _, sw := range resp.Software {
 			names = append(names, sw.Name)
@@ -152,7 +152,7 @@ func (s *integrationEnterpriseTestSuite) TestSoftwareAIToolsKeptWhenQueryDidNotR
 	withAITools := map[string]json.RawMessage{macOSQuery: json.RawMessage("[" + safari + "]"), aiToolsQuery: json.RawMessage("[" + codex + "," + github + "]")}
 	withoutAITools := map[string]json.RawMessage{macOSQuery: json.RawMessage("[" + safari + "]")}
 
-	// A fleetd older than the ai_tools table never ran the query, so nothing is kept.
+	// An automdmd older than the ai_tools table never ran the query, so nothing is kept.
 	require.NoError(t, s.ds.SetOrUpdateHostOrbitInfo(ctx, host.ID, "1.58.2", sql.NullString{}, sql.NullBool{}))
 	submit(withAITools, map[string]any{macOSQuery: 0, aiToolsQuery: 0})
 	require.Equal(t, []string{"Codex", "github"}, aiToolNames())
@@ -198,7 +198,7 @@ func (s *integrationEnterpriseTestSuite) TestSoftwarePacmanPackagesKeptWhenQuery
 	require.NoError(t, s.ds.SetOrUpdateHostOrbitInfo(ctx, host.ID, "1.48.1", sql.NullString{}, sql.NullBool{}))
 
 	linuxQuery := hostDetailQueryPrefix + "software_linux"
-	pacmanQuery := hostDetailQueryPrefix + "software_linux_fleetd_pacman"
+	pacmanQuery := hostDetailQueryPrefix + "software_linux_automdmd_pacman"
 	requests := `{"name": "requests", "version": "2.32.3", "source": "python_packages", "installed_path": "/usr/lib/python3.13/site-packages"}`
 	pacman := `{"name": "pacman", "version": "7.0.0", "source": "pacman_packages", "release": "2", "arch": "x86_64"}`
 	zsh := `{"name": "zsh", "version": "5.9", "source": "pacman_packages", "release": "5", "arch": "x86_64"}`
@@ -209,12 +209,12 @@ func (s *integrationEnterpriseTestSuite) TestSoftwarePacmanPackagesKeptWhenQuery
 			Results:  results,
 			Statuses: statuses,
 			Messages: map[string]string{},
-			Stats:    map[string]*fleet.Stats{},
+			Stats:    map[string]*automdm.Stats{},
 		}, http.StatusOK, &submitDistributedQueryResultsResponse{})
 	}
 	softwareNames := func() []string {
 		var resp getHostSoftwareResponse
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/software", host.ID), nil, http.StatusOK, &resp)
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/software", host.ID), nil, http.StatusOK, &resp)
 		names := make([]string, 0, len(resp.Software))
 		for _, sw := range resp.Software {
 			names = append(names, sw.Name)
@@ -229,7 +229,7 @@ func (s *integrationEnterpriseTestSuite) TestSoftwarePacmanPackagesKeptWhenQuery
 	)
 	require.Equal(t, []string{"pacman", "requests", "zsh"}, softwareNames())
 
-	// Discovery found no fleetd_pacman_packages table: on Arch that is the whole package inventory.
+	// Discovery found no automdmd_pacman_packages table: on Arch that is the whole package inventory.
 	submit(map[string]json.RawMessage{linuxQuery: json.RawMessage("[" + requests + "]")}, map[string]any{linuxQuery: 0})
 	require.Equal(t, []string{"pacman", "requests", "zsh"}, softwareNames())
 
@@ -252,17 +252,17 @@ func (s *integrationEnterpriseTestSuite) TestOrbitConfigExtensions() {
 		require.NoError(t, err)
 	}()
 
-	foobarLabel, err := s.ds.NewLabel(ctx, &fleet.Label{
+	foobarLabel, err := s.ds.NewLabel(ctx, &automdm.Label{
 		Name:  "Foobar",
 		Query: "SELECT 1;",
 	})
 	require.NoError(t, err)
-	zoobarLabel, err := s.ds.NewLabel(ctx, &fleet.Label{
+	zoobarLabel, err := s.ds.NewLabel(ctx, &automdm.Label{
 		Name:  "Zoobar",
 		Query: "SELECT 1;",
 	})
 	require.NoError(t, err)
-	allHostsLabel, err := s.ds.GetLabelSpec(ctx, fleet.TeamFilter{}, "All hosts")
+	allHostsLabel, err := s.ds.GetLabelSpec(ctx, automdm.TeamFilter{}, "All hosts")
 	require.NoError(t, err)
 
 	orbitDarwinClient := createOrbitEnrolledHost(t, "darwin", "foobar1", s.ds)
@@ -288,7 +288,7 @@ func (s *integrationEnterpriseTestSuite) TestOrbitConfigExtensions() {
 	require.NoError(t, err)
 
 	// Attempt to add labels to extensions.
-	s.DoRaw("PATCH", "/api/latest/fleet/config", []byte(`{
+	s.DoRaw("PATCH", "/api/latest/automdm/config", []byte(`{
   "agent_options": {
 	"config": {
 		"options": {
@@ -344,8 +344,8 @@ func (s *integrationEnterpriseTestSuite) TestOrbitConfigExtensions() {
   }
 }`), http.StatusOK)
 
-	resp := fleet.OrbitGetConfigResponse{}
-	s.DoJSON("POST", "/api/fleet/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *orbitDarwinClient.OrbitNodeKey)), http.StatusOK, &resp)
+	resp := automdm.OrbitGetConfigResponse{}
+	s.DoJSON("POST", "/api/automdm/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *orbitDarwinClient.OrbitNodeKey)), http.StatusOK, &resp)
 	require.JSONEq(t, `{
 	"hello_mars_macos": {
 		"channel": "stable",
@@ -353,8 +353,8 @@ func (s *integrationEnterpriseTestSuite) TestOrbitConfigExtensions() {
 	}
   }`, string(resp.Extensions))
 
-	resp = fleet.OrbitGetConfigResponse{}
-	s.DoJSON("POST", "/api/fleet/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *orbitLinuxClient.OrbitNodeKey)), http.StatusOK, &resp)
+	resp = automdm.OrbitGetConfigResponse{}
+	s.DoJSON("POST", "/api/automdm/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *orbitLinuxClient.OrbitNodeKey)), http.StatusOK, &resp)
 	require.JSONEq(t, `{
 	"hello_world_linux": {
 		"channel": "stable",
@@ -362,8 +362,8 @@ func (s *integrationEnterpriseTestSuite) TestOrbitConfigExtensions() {
 	}
   }`, string(resp.Extensions))
 
-	resp = fleet.OrbitGetConfigResponse{}
-	s.DoJSON("POST", "/api/fleet/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *orbitWindowsClient.OrbitNodeKey)), http.StatusOK, &resp)
+	resp = automdm.OrbitGetConfigResponse{}
+	s.DoJSON("POST", "/api/automdm/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *orbitWindowsClient.OrbitNodeKey)), http.StatusOK, &resp)
 	require.Empty(t, string(resp.Extensions))
 
 	// orbitDarwinClient is now also a member of the 'Foobar' label.
@@ -372,8 +372,8 @@ func (s *integrationEnterpriseTestSuite) TestOrbitConfigExtensions() {
 	}, time.Now(), false)
 	require.NoError(t, err)
 
-	resp = fleet.OrbitGetConfigResponse{}
-	s.DoJSON("POST", "/api/fleet/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *orbitDarwinClient.OrbitNodeKey)), http.StatusOK, &resp)
+	resp = automdm.OrbitGetConfigResponse{}
+	s.DoJSON("POST", "/api/automdm/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *orbitDarwinClient.OrbitNodeKey)), http.StatusOK, &resp)
 	require.JSONEq(t, `{
 	"hello_world_macos": {
 		"channel": "stable",
@@ -391,12 +391,12 @@ func (s *integrationEnterpriseTestSuite) TestOrbitConfigExtensions() {
 	}, time.Now(), false)
 	require.NoError(t, err)
 
-	resp = fleet.OrbitGetConfigResponse{}
-	s.DoJSON("POST", "/api/fleet/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *orbitLinuxClient.OrbitNodeKey)), http.StatusOK, &resp)
+	resp = automdm.OrbitGetConfigResponse{}
+	s.DoJSON("POST", "/api/automdm/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *orbitLinuxClient.OrbitNodeKey)), http.StatusOK, &resp)
 	require.Empty(t, string(resp.Extensions))
 
 	// Attempt to set non-existent labels in the config.
-	s.DoRaw("PATCH", "/api/latest/fleet/config", []byte(`{
+	s.DoRaw("PATCH", "/api/latest/automdm/config", []byte(`{
   "agent_options": {
 	"config": {
 		"options": {
@@ -427,7 +427,7 @@ func (s *integrationEnterpriseTestSuite) TestAIAgentSessionsDetailQueries() {
 	t := s.T()
 	ctx := t.Context()
 
-	host, err := s.ds.NewHost(ctx, &fleet.Host{
+	host, err := s.ds.NewHost(ctx, &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -463,18 +463,18 @@ func (s *integrationEnterpriseTestSuite) TestAIAgentSessionsDetailQueries() {
 			Results:  map[string]json.RawMessage{name: json.RawMessage(rows)},
 			Statuses: map[string]any{},
 			Messages: map[string]string{},
-			Stats:    map[string]*fleet.Stats{},
+			Stats:    map[string]*automdm.Stats{},
 		}, http.StatusOK, &resp)
 	}
 
 	// No sessions stored yet: sessions are asked for, events aren't.
 	dqResp := readQueries()
-	require.Contains(t, dqResp.Queries, "fleet_detail_query_ai_agent_sessions")
-	require.Contains(t, dqResp.Discovery["fleet_detail_query_ai_agent_sessions"], "name = 'ai_agent_sessions'")
-	require.NotContains(t, dqResp.Queries, "fleet_detail_query_ai_agent_session_events")
+	require.Contains(t, dqResp.Queries, "team_detail_query_ai_agent_sessions")
+	require.Contains(t, dqResp.Discovery["team_detail_query_ai_agent_sessions"], "name = 'ai_agent_sessions'")
+	require.NotContains(t, dqResp.Queries, "team_detail_query_ai_agent_session_events")
 
 	// Every session is collected from its first call.
-	submit("fleet_detail_query_ai_agent_sessions", `[{
+	submit("team_detail_query_ai_agent_sessions", `[{
 		"agent": "claude_code", "session_id": "s1", "username": "alice", "account_identifier": "alice@example.com",
 		"started_at": "T+0", "ended_at": "T+7200", "tool_calls": "4",
 		"transcript_path": "/Users/alice/.claude/projects/app/s1.jsonl"
@@ -484,15 +484,15 @@ func (s *integrationEnterpriseTestSuite) TestAIAgentSessionsDetailQueries() {
 		"transcript_path": "/Users/alice/.claude/projects/app/s2.jsonl"
 	}]`)
 	dqResp = readQueries()
-	require.Contains(t, dqResp.Queries, "fleet_detail_query_ai_agent_session_events")
-	eventsQuery := dqResp.Queries["fleet_detail_query_ai_agent_session_events"]
+	require.Contains(t, dqResp.Queries, "team_detail_query_ai_agent_session_events")
+	eventsQuery := dqResp.Queries["team_detail_query_ai_agent_session_events"]
 	require.Contains(t, eventsQuery, "transcript_path = '/Users/alice/.claude/projects/app/s1.jsonl' AND block_type = 'tool_use' AND tool_call_index >= 0 AND tool_call_index < 10000\n")
 	require.Contains(t, eventsQuery, "transcript_path = '/Users/alice/.claude/projects/app/s2.jsonl' AND block_type = 'tool_use' AND tool_call_index >= 0")
 	require.Contains(t, eventsQuery, fmt.Sprintf("%d AS session_ended_at", base+7200))
-	require.Contains(t, dqResp.Discovery["fleet_detail_query_ai_agent_session_events"], "name = 'ai_agent_session_messages'")
+	require.Contains(t, dqResp.Discovery["team_detail_query_ai_agent_session_events"], "name = 'ai_agent_session_messages'")
 
 	// s1's call 3 was still running when read.
-	submit("fleet_detail_query_ai_agent_session_events", `[
+	submit("team_detail_query_ai_agent_session_events", `[
 		{"agent": "claude_code", "session_id": "s1", "tool_call_index": "0", "tool_name": "Read",
 		 "tool_use_id": "toolu_0", "action": "read", "target": "go.mod", "decision": "allowed", "timestamp": "T+1000",
 		 "content": "{\"file_path\":\"go.mod\"}", "content_length": "22", "truncated": "0", "session_ended_at": "T+7200"},
@@ -512,20 +512,20 @@ func (s *integrationEnterpriseTestSuite) TestAIAgentSessionsDetailQueries() {
 
 	// Both sessions are caught up, and neither has been active since: nothing to ask for.
 	dqResp = readQueries()
-	require.Contains(t, dqResp.Queries, "fleet_detail_query_ai_agent_sessions")
-	require.NotContains(t, dqResp.Queries, "fleet_detail_query_ai_agent_session_events")
+	require.Contains(t, dqResp.Queries, "team_detail_query_ai_agent_sessions")
+	require.NotContains(t, dqResp.Queries, "team_detail_query_ai_agent_session_events")
 
 	// One write on the host recorded call 3's result along with call 4: catching up comes first.
-	submit("fleet_detail_query_ai_agent_sessions", `[{
+	submit("team_detail_query_ai_agent_sessions", `[{
 		"agent": "claude_code", "session_id": "s1", "username": "alice", "account_identifier": "alice@example.com",
 		"started_at": "T+0", "ended_at": "T+10000", "tool_calls": "5",
 		"transcript_path": "/Users/alice/.claude/projects/app/s1.jsonl"
 	}]`)
 	dqResp = readQueries()
-	eventsQuery = dqResp.Queries["fleet_detail_query_ai_agent_session_events"]
+	eventsQuery = dqResp.Queries["team_detail_query_ai_agent_session_events"]
 	require.Contains(t, eventsQuery, "transcript_path = '/Users/alice/.claude/projects/app/s1.jsonl' AND block_type = 'tool_use' AND tool_call_index >= 4")
 	require.NotContains(t, eventsQuery, "s2.jsonl")
-	submit("fleet_detail_query_ai_agent_session_events", `[
+	submit("team_detail_query_ai_agent_session_events", `[
 		{"agent": "claude_code", "session_id": "s1", "tool_call_index": "4", "tool_name": "Bash",
 		 "tool_use_id": "toolu_5", "action": "execute", "target": "go test", "decision": "allowed", "timestamp": "T+9000",
 		 "content": "{\"command\":\"go test\"}", "session_ended_at": "T+10000"}
@@ -533,9 +533,9 @@ func (s *integrationEnterpriseTestSuite) TestAIAgentSessionsDetailQueries() {
 
 	// Caught up, the write that may hold call 3's decision is read again from that call.
 	dqResp = readQueries()
-	eventsQuery = dqResp.Queries["fleet_detail_query_ai_agent_session_events"]
+	eventsQuery = dqResp.Queries["team_detail_query_ai_agent_session_events"]
 	require.Contains(t, eventsQuery, "transcript_path = '/Users/alice/.claude/projects/app/s1.jsonl' AND block_type = 'tool_use' AND tool_call_index >= 3")
-	submit("fleet_detail_query_ai_agent_session_events", `[
+	submit("team_detail_query_ai_agent_session_events", `[
 		{"agent": "claude_code", "session_id": "s1", "tool_call_index": "3", "tool_name": "Agent",
 		 "tool_use_id": "toolu_3", "action": "other", "target": "", "decision": "allowed", "timestamp": "T+7000",
 		 "content": "{\"prompt\":\"explore\"}", "session_ended_at": "T+10000"},
@@ -544,7 +544,7 @@ func (s *integrationEnterpriseTestSuite) TestAIAgentSessionsDetailQueries() {
 		 "content": "{\"command\":\"go test\"}", "session_ended_at": "T+10000"}
 	]`)
 	dqResp = readQueries()
-	require.NotContains(t, dqResp.Queries, "fleet_detail_query_ai_agent_session_events")
+	require.NotContains(t, dqResp.Queries, "team_detail_query_ai_agent_session_events")
 
 	var stored []struct {
 		AgentSessionID string `db:"agent_session_id"`
@@ -587,36 +587,36 @@ func (s *integrationEnterpriseTestSuite) TestAIAgentSessionsDetailQueries() {
 	require.True(t, truncated[2].Truncated)
 
 	// Turned off in the org settings, neither query is sent, and the stored sessions stay.
-	s.Do("PATCH", "/api/latest/fleet/config", json.RawMessage(`{"server_settings":{"ai_sessions_disabled":true}}`), http.StatusOK)
+	s.Do("PATCH", "/api/latest/automdm/config", json.RawMessage(`{"server_settings":{"ai_sessions_disabled":true}}`), http.StatusOK)
 	t.Cleanup(func() {
-		s.Do("PATCH", "/api/latest/fleet/config", json.RawMessage(`{"server_settings":{"ai_sessions_disabled":false}}`), http.StatusOK)
+		s.Do("PATCH", "/api/latest/automdm/config", json.RawMessage(`{"server_settings":{"ai_sessions_disabled":false}}`), http.StatusOK)
 	})
 	dqResp = readQueries()
-	require.NotContains(t, dqResp.Queries, "fleet_detail_query_ai_agent_sessions")
-	require.NotContains(t, dqResp.Queries, "fleet_detail_query_ai_agent_session_events")
+	require.NotContains(t, dqResp.Queries, "team_detail_query_ai_agent_sessions")
+	require.NotContains(t, dqResp.Queries, "team_detail_query_ai_agent_session_events")
 	var storedSessions int
 	mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
 		return sqlx.GetContext(ctx, q, &storedSessions, `SELECT COUNT(*) FROM host_ai_sessions WHERE host_id = ?`, host.ID)
 	})
 	require.Positive(t, storedSessions)
 
-	s.Do("PATCH", "/api/latest/fleet/config", json.RawMessage(`{"server_settings":{"ai_sessions_disabled":false}}`), http.StatusOK)
-	require.Contains(t, readQueries().Queries, "fleet_detail_query_ai_agent_sessions")
+	s.Do("PATCH", "/api/latest/automdm/config", json.RawMessage(`{"server_settings":{"ai_sessions_disabled":false}}`), http.StatusOK)
+	require.Contains(t, readQueries().Queries, "team_detail_query_ai_agent_sessions")
 }
 
-func genDistributedReqWithEntraJoinUser(host *fleet.Host, userEmail string) submitDistributedQueryResultsRequestShim {
+func genDistributedReqWithEntraJoinUser(host *automdm.Host, userEmail string) submitDistributedQueryResultsRequestShim {
 	results := make(map[string]json.RawMessage)
 	rows := "[]"
 	if userEmail != "" {
 		rows = fmt.Sprintf(`[{"user_email": "%s"}]`, userEmail)
 	}
-	results["fleet_detail_query_entra_join_user_windows"] = json.RawMessage(rows)
+	results["team_detail_query_entra_join_user_windows"] = json.RawMessage(rows)
 	return submitDistributedQueryResultsRequestShim{
 		NodeKey:  *host.NodeKey,
 		Results:  results,
 		Statuses: make(map[string]any),
 		Messages: make(map[string]string),
-		Stats:    map[string]*fleet.Stats{},
+		Stats:    map[string]*automdm.Stats{},
 	}
 }
 
@@ -632,16 +632,16 @@ func (s *integrationEnterpriseTestSuite) TestOrbitOsqueryReEnrollDoesNotChangeTe
 	teamASecret := "team-a-reenroll-secret" //nolint:gosec // G101: test value only
 	teamBSecret := "team-b-reenroll-secret" //nolint:gosec // G101: test value only
 
-	teamA, err := s.ds.NewTeam(ctx, &fleet.Team{
+	teamA, err := s.ds.NewTeam(ctx, &automdm.Team{
 		Name:    t.Name() + "_teamA",
-		Secrets: []*fleet.EnrollSecret{{Secret: teamASecret}},
+		Secrets: []*automdm.EnrollSecret{{Secret: teamASecret}},
 	})
 	require.NoError(t, err)
 
 	// Team B exists only to own teamBSecret. The host should never end up in it.
-	_, err = s.ds.NewTeam(ctx, &fleet.Team{
+	_, err = s.ds.NewTeam(ctx, &automdm.Team{
 		Name:    t.Name() + "_teamB",
-		Secrets: []*fleet.EnrollSecret{{Secret: teamBSecret}},
+		Secrets: []*automdm.EnrollSecret{{Secret: teamBSecret}},
 	})
 	require.NoError(t, err)
 
@@ -652,7 +652,7 @@ func (s *integrationEnterpriseTestSuite) TestOrbitOsqueryReEnrollDoesNotChangeTe
 
 		// Initial orbit enroll with team A's secret — host should be created in team A.
 		var orbitResp enrollOrbitResponse
-		s.DoJSON("POST", "/api/fleet/orbit/enroll", fleet.EnrollOrbitRequest{
+		s.DoJSON("POST", "/api/automdm/orbit/enroll", automdm.EnrollOrbitRequest{
 			EnrollSecret:   teamASecret,
 			HardwareUUID:   hostUUID,
 			HardwareSerial: hostSerial,
@@ -669,7 +669,7 @@ func (s *integrationEnterpriseTestSuite) TestOrbitOsqueryReEnrollDoesNotChangeTe
 
 		// Re-enroll the same host using team B's secret. team_id must not change.
 		var reorbitResp enrollOrbitResponse
-		s.DoJSON("POST", "/api/fleet/orbit/enroll", fleet.EnrollOrbitRequest{
+		s.DoJSON("POST", "/api/automdm/orbit/enroll", automdm.EnrollOrbitRequest{
 			EnrollSecret:   teamBSecret,
 			HardwareUUID:   hostUUID,
 			HardwareSerial: hostSerial,
@@ -750,7 +750,7 @@ func (s *integrationEnterpriseTestSuite) TestOrbitOsqueryReEnrollDoesNotChangeTe
 // must populate host_emails so the hosts list endpoint returns
 // device_mapping. The flow being exercised is:
 //
-//  1. Orbit calls /api/fleet/orbit/enroll. End User Auth is required, there
+//  1. Orbit calls /api/automdm/orbit/enroll. End User Auth is required, there
 //     is no IdP association for this host UUID yet, so the server returns
 //     END_USER_AUTH_REQUIRED.
 //  2. Orbit opens a browser, the user authenticates, and the SSO callback
@@ -759,7 +759,7 @@ func (s *integrationEnterpriseTestSuite) TestOrbitOsqueryReEnrollDoesNotChangeTe
 //     (the hosts row does not exist yet at this point — only the IdP-side
 //     tables are populated). We simulate that callback by inserting the
 //     same rows directly.
-//  3. Orbit retries /api/fleet/orbit/enroll. EnrollOrbit creates the hosts
+//  3. Orbit retries /api/automdm/orbit/enroll. EnrollOrbit creates the hosts
 //     row, and the post-EnrollOrbit reconcile in server/service/orbit.go
 //     calls AssociateHostMDMIdPAccount to populate host_emails.
 //
@@ -782,12 +782,12 @@ func (s *integrationEnterpriseTestSuite) TestOrbitEnrollWithIdPPopulatesDeviceMa
 	// and writes via s.ds bypass the running server's cached AppConfig
 	// wrapper. Team config is read via TeamLite (not in the cached layer),
 	// so a direct s.ds write is visible to the server immediately.
-	team, err := s.ds.NewTeam(ctx, &fleet.Team{
+	team, err := s.ds.NewTeam(ctx, &automdm.Team{
 		Name:        t.Name(),
 		Description: t.Name(),
-		Config: fleet.TeamConfig{
-			MDM: fleet.TeamMDM{
-				MacOSSetup: fleet.MacOSSetup{
+		Config: automdm.TeamConfig{
+			MDM: automdm.TeamMDM{
+				MacOSSetup: automdm.MacOSSetup{
 					EnableEndUserAuthentication: true,
 				},
 			},
@@ -802,15 +802,15 @@ func (s *integrationEnterpriseTestSuite) TestOrbitEnrollWithIdPPopulatesDeviceMa
 	})
 
 	enrollSecret := t.Name() + "-secret"
-	require.NoError(t, s.ds.ApplyEnrollSecrets(ctx, &team.ID, []*fleet.EnrollSecret{{Secret: enrollSecret}}))
+	require.NoError(t, s.ds.ApplyEnrollSecrets(ctx, &team.ID, []*automdm.EnrollSecret{{Secret: enrollSecret}}))
 
 	// Orbit client capabilities — Linux and Windows orbit builds advertise
-	// CapabilityEndUserAuth. The X-Fleet-Capabilities header is an
+	// CapabilityEndUserAuth. The X-AutoMDM-Capabilities header is an
 	// informational hint only: EUA gating must hold regardless of what
 	// the client advertises.
-	var caps fleet.CapabilityMap
-	caps.PopulateFromString(string(fleet.CapabilityEndUserAuth))
-	capsHeaders := map[string]string{fleet.CapabilitiesHeader: caps.String()}
+	var caps automdm.CapabilityMap
+	caps.PopulateFromString(string(automdm.CapabilityEndUserAuth))
+	capsHeaders := map[string]string{automdm.CapabilitiesHeader: caps.String()}
 
 	runFlow := func(t *testing.T, platform, platformLike string) {
 		hostUUID := uuid.New().String()
@@ -818,7 +818,7 @@ func (s *integrationEnterpriseTestSuite) TestOrbitEnrollWithIdPPopulatesDeviceMa
 		hostName := strings.ReplaceAll(t.Name(), "/", "-") + ".local"
 		idpEmail := strings.ReplaceAll(uuid.NewString(), "-", "") + "@example.com"
 
-		enrollBody, err := json.Marshal(fleet.EnrollOrbitRequest{
+		enrollBody, err := json.Marshal(automdm.EnrollOrbitRequest{
 			EnrollSecret:   enrollSecret,
 			HardwareUUID:   hostUUID,
 			HardwareSerial: hostSerial,
@@ -831,7 +831,7 @@ func (s *integrationEnterpriseTestSuite) TestOrbitEnrollWithIdPPopulatesDeviceMa
 
 		// Step 1: First orbit enrollment attempt — no IdP linked yet, so the
 		// server returns END_USER_AUTH_REQUIRED (HTTP 401).
-		res := s.DoRawWithHeaders("POST", "/api/fleet/orbit/enroll", enrollBody, http.StatusUnauthorized, capsHeaders)
+		res := s.DoRawWithHeaders("POST", "/api/automdm/orbit/enroll", enrollBody, http.StatusUnauthorized, capsHeaders)
 		respBody, err := io.ReadAll(res.Body)
 		res.Body.Close()
 		require.NoError(t, err)
@@ -842,7 +842,7 @@ func (s *integrationEnterpriseTestSuite) TestOrbitEnrollWithIdPPopulatesDeviceMa
 		// before reaching EnrollOrbit.
 		_, err = s.ds.HostLiteByIdentifier(ctx, hostUUID)
 		require.Error(t, err)
-		require.True(t, fleet.IsNotFound(err))
+		require.True(t, automdm.IsNotFound(err))
 
 		// The 401 also records the marker, without which the setup experience
 		// SSO flow below would refuse to start for this host UUID.
@@ -855,9 +855,9 @@ func (s *integrationEnterpriseTestSuite) TestOrbitEnrollWithIdPPopulatesDeviceMa
 		// IdP account and linking it to the host UUID. This matches what
 		// ee/server/service/mdm.go's mdmSSOHandleCallbackAuth does after the
 		// browser-based SSO completes (the user authenticates against the IdP,
-		// the SAML response lands at /api/v1/fleet/mdm/sso/callback, and the
+		// the SAML response lands at /api/v1/automdm/mdm/sso/callback, and the
 		// initiator is SSOInitiatorOrbitSetupExperience).
-		require.NoError(t, s.ds.InsertMDMIdPAccount(ctx, &fleet.MDMIdPAccount{
+		require.NoError(t, s.ds.InsertMDMIdPAccount(ctx, &automdm.MDMIdPAccount{
 			Username: idpEmail,
 			Fullname: "Test User",
 			Email:    idpEmail,
@@ -881,7 +881,7 @@ func (s *integrationEnterpriseTestSuite) TestOrbitEnrollWithIdPPopulatesDeviceMa
 		// Step 3: Orbit retries the enrollment — EnrollOrbit creates the hosts
 		// row and the post-EnrollOrbit reconcile in orbit.go calls
 		// AssociateHostMDMIdPAccount, which populates host_emails.
-		res = s.DoRawWithHeaders("POST", "/api/fleet/orbit/enroll", enrollBody, http.StatusOK, capsHeaders)
+		res = s.DoRawWithHeaders("POST", "/api/automdm/orbit/enroll", enrollBody, http.StatusOK, capsHeaders)
 		var orbitResp enrollOrbitResponse
 		require.NoError(t, json.NewDecoder(res.Body).Decode(&orbitResp))
 		res.Body.Close()
@@ -904,7 +904,7 @@ func (s *integrationEnterpriseTestSuite) TestOrbitEnrollWithIdPPopulatesDeviceMa
 		require.Len(t, dms, 1,
 			"host_emails must be populated after the post-EnrollOrbit reconcile (issue #45066)")
 		require.Equal(t, idpEmail, dms[0].Email)
-		require.Equal(t, fleet.DeviceMappingMDMIdpAccounts, dms[0].Source)
+		require.Equal(t, automdm.DeviceMappingMDMIdpAccounts, dms[0].Source)
 	}
 
 	t.Run("linux", func(t *testing.T) {
@@ -926,7 +926,7 @@ func (s *integrationEnterpriseTestSuite) TestOrbitReEnrollSkipsEndUserAuth() {
 
 	// Create a team with End User Authentication DISABLED, so the first enrollment succeeds without an SSO prompt and the
 	// host gets an orbit node key (the "previously enrolled" state).
-	team, err := s.ds.NewTeam(ctx, &fleet.Team{
+	team, err := s.ds.NewTeam(ctx, &automdm.Team{
 		Name:        t.Name(),
 		Description: t.Name(),
 	})
@@ -936,15 +936,15 @@ func (s *integrationEnterpriseTestSuite) TestOrbitReEnrollSkipsEndUserAuth() {
 	})
 
 	enrollSecret := t.Name() + "-secret"
-	require.NoError(t, s.ds.ApplyEnrollSecrets(ctx, &team.ID, []*fleet.EnrollSecret{{Secret: enrollSecret}}))
+	require.NoError(t, s.ds.ApplyEnrollSecrets(ctx, &team.ID, []*automdm.EnrollSecret{{Secret: enrollSecret}}))
 
-	var caps fleet.CapabilityMap
-	caps.PopulateFromString(string(fleet.CapabilityEndUserAuth))
-	capsHeaders := map[string]string{fleet.CapabilitiesHeader: caps.String()}
+	var caps automdm.CapabilityMap
+	caps.PopulateFromString(string(automdm.CapabilityEndUserAuth))
+	capsHeaders := map[string]string{automdm.CapabilitiesHeader: caps.String()}
 
 	runFlow := func(t *testing.T, platform, platformLike string) {
 		hostUUID := uuid.New().String()
-		enrollBody, err := json.Marshal(fleet.EnrollOrbitRequest{
+		enrollBody, err := json.Marshal(automdm.EnrollOrbitRequest{
 			EnrollSecret:   enrollSecret,
 			HardwareUUID:   hostUUID,
 			HardwareSerial: uuid.New().String(),
@@ -956,7 +956,7 @@ func (s *integrationEnterpriseTestSuite) TestOrbitReEnrollSkipsEndUserAuth() {
 		require.NoError(t, err)
 
 		// First enrollment with EUA disabled: succeeds and stores an orbit node key.
-		res := s.DoRawWithHeaders("POST", "/api/fleet/orbit/enroll", enrollBody, http.StatusOK, capsHeaders)
+		res := s.DoRawWithHeaders("POST", "/api/automdm/orbit/enroll", enrollBody, http.StatusOK, capsHeaders)
 		var orbitResp enrollOrbitResponse
 		require.NoError(t, json.NewDecoder(res.Body).Decode(&orbitResp))
 		res.Body.Close()
@@ -974,7 +974,7 @@ func (s *integrationEnterpriseTestSuite) TestOrbitReEnrollSkipsEndUserAuth() {
 
 		// Re-enroll the same host. There is no IdP association, so before the fix this returned END_USER_AUTH_REQUIRED. The
 		// host is already orbit-enrolled, so enrollment must now succeed without prompting.
-		res = s.DoRawWithHeaders("POST", "/api/fleet/orbit/enroll", enrollBody, http.StatusOK, capsHeaders)
+		res = s.DoRawWithHeaders("POST", "/api/automdm/orbit/enroll", enrollBody, http.StatusOK, capsHeaders)
 		orbitResp = enrollOrbitResponse{}
 		require.NoError(t, json.NewDecoder(res.Body).Decode(&orbitResp))
 		res.Body.Close()
@@ -1002,17 +1002,17 @@ func (s *integrationEnterpriseTestSuite) TestOrbitReEnrollSkipsEndUserAuth() {
 
 // TestOrbitEnrollWithEUAToken covers the Windows MSI EUA-token branch in
 // EnrollOrbit (the `case platform == "windows" && euaToken != ""` arm of the
-// End User Auth switch in server/service/orbit.go). This is the flow Fleet
-// uses when it enqueues a fleetd MSI install command on a Windows host that
+// End User Auth switch in server/service/orbit.go). This is the flow AutoMDM
+// uses when it enqueues an automdmd MSI install command on a Windows host that
 // already enrolled in Windows MDM with an Azure UPN: the MSI carries a
-// Fleet-signed EUA JWT so orbit can finish enrollment without prompting the
+// AutoMDM-signed EUA JWT so orbit can finish enrollment without prompting the
 // user for SSO again.
 //
 // The test exercises the full server-side flow:
 //
 //  1. An mdm_windows_enrollments row exists for some MDM device, with a
 //     valid Azure UPN captured during MDM enrollment.
-//  2. The orbit request to /api/fleet/orbit/enroll carries a Fleet-signed
+//  2. The orbit request to /api/automdm/orbit/enroll carries an AutoMDM-signed
 //     EUA token (issued in production by svc.generateWindowsEUAToken).
 //  3. processWindowsEUAToken validates the JWT and resolves the mdm IdP
 //     account for the UPN (creating one if needed).
@@ -1038,12 +1038,12 @@ func (s *integrationEnterpriseTestSuite) TestOrbitEnrollWithEUAToken() {
 	// Team with End User Authentication enabled so the orbit handler reaches
 	// the EUA switch. Team config is read via TeamLite which is not in the
 	// caching layer, so direct s.ds writes are visible to the server.
-	team, err := s.ds.NewTeam(ctx, &fleet.Team{
+	team, err := s.ds.NewTeam(ctx, &automdm.Team{
 		Name:        t.Name(),
 		Description: t.Name(),
-		Config: fleet.TeamConfig{
-			MDM: fleet.TeamMDM{
-				MacOSSetup: fleet.MacOSSetup{
+		Config: automdm.TeamConfig{
+			MDM: automdm.TeamMDM{
+				MacOSSetup: automdm.MacOSSetup{
 					EnableEndUserAuthentication: true,
 				},
 			},
@@ -1055,7 +1055,7 @@ func (s *integrationEnterpriseTestSuite) TestOrbitEnrollWithEUAToken() {
 	})
 
 	enrollSecret := t.Name() + "-secret"
-	require.NoError(t, s.ds.ApplyEnrollSecrets(ctx, &team.ID, []*fleet.EnrollSecret{{Secret: enrollSecret}}))
+	require.NoError(t, s.ds.ApplyEnrollSecrets(ctx, &team.ID, []*automdm.EnrollSecret{{Secret: enrollSecret}}))
 
 	// Pre-create the Windows MDM enrollment that the EUA token will reference.
 	// In production this row is written when the device enrolls in Windows
@@ -1065,7 +1065,7 @@ func (s *integrationEnterpriseTestSuite) TestOrbitEnrollWithEUAToken() {
 	hostSerial := uuid.New().String()
 	mdmDeviceID := uuid.New().String()
 	idpEmail := strings.ReplaceAll(uuid.NewString(), "-", "") + "@example.com"
-	require.NoError(t, s.ds.MDMWindowsInsertEnrolledDevice(ctx, &fleet.MDMWindowsEnrolledDevice{
+	require.NoError(t, s.ds.MDMWindowsInsertEnrolledDevice(ctx, &automdm.MDMWindowsEnrolledDevice{
 		MDMDeviceID:            mdmDeviceID,
 		MDMHardwareID:          uuid.New().String(),
 		MDMDeviceState:         "enrolled",
@@ -1087,11 +1087,11 @@ func (s *integrationEnterpriseTestSuite) TestOrbitEnrollWithEUAToken() {
 	// Capabilities header — the EUA branch requires the orbit client to
 	// advertise CapabilityEndUserAuth, otherwise the switch falls through
 	// with a logged warning and enrollment is allowed without EUA.
-	var caps fleet.CapabilityMap
-	caps.PopulateFromString(string(fleet.CapabilityEndUserAuth))
-	capsHeaders := map[string]string{fleet.CapabilitiesHeader: caps.String()}
+	var caps automdm.CapabilityMap
+	caps.PopulateFromString(string(automdm.CapabilityEndUserAuth))
+	capsHeaders := map[string]string{automdm.CapabilitiesHeader: caps.String()}
 
-	enrollBody, err := json.Marshal(fleet.EnrollOrbitRequest{
+	enrollBody, err := json.Marshal(automdm.EnrollOrbitRequest{
 		EnrollSecret:   enrollSecret,
 		HardwareUUID:   hostUUID,
 		HardwareSerial: hostSerial,
@@ -1104,7 +1104,7 @@ func (s *integrationEnterpriseTestSuite) TestOrbitEnrollWithEUAToken() {
 
 	// Single orbit enroll call — the EUA token authenticates the user, so
 	// no second retry is required (unlike the browser-SSO flow).
-	res := s.DoRawWithHeaders("POST", "/api/fleet/orbit/enroll", enrollBody, http.StatusOK, capsHeaders)
+	res := s.DoRawWithHeaders("POST", "/api/automdm/orbit/enroll", enrollBody, http.StatusOK, capsHeaders)
 	var orbitResp enrollOrbitResponse
 	require.NoError(t, json.NewDecoder(res.Body).Decode(&orbitResp))
 	res.Body.Close()
@@ -1122,14 +1122,14 @@ func (s *integrationEnterpriseTestSuite) TestOrbitEnrollWithEUAToken() {
 	require.NoError(t, err)
 	require.Len(t, dms, 1, "host_emails must be populated after EUA-token orbit enrollment (issue #45066)")
 	require.Equal(t, idpEmail, dms[0].Email)
-	require.Equal(t, fleet.DeviceMappingMDMIdpAccounts, dms[0].Source)
+	require.Equal(t, automdm.DeviceMappingMDMIdpAccounts, dms[0].Source)
 }
 
 func (s *integrationEnterpriseTestSuite) TestEntraJoinUserDetailQueryPopulatesIdPVitals() {
 	t := s.T()
 	ctx := t.Context()
 
-	scimUserID, err := s.ds.CreateScimUser(ctx, &fleet.ScimUser{
+	scimUserID, err := s.ds.CreateScimUser(ctx, &automdm.ScimUser{
 		UserName:   "join.user@example.com",
 		GivenName:  new("Join"),
 		FamilyName: new("User"),
@@ -1143,9 +1143,9 @@ func (s *integrationEnterpriseTestSuite) TestEntraJoinUserDetailQueryPopulatesId
 
 	host := createOrbitEnrolledHost(t, "windows", "entra-join", s.ds)
 
-	getEndUsers := func() []fleet.HostEndUser {
+	getEndUsers := func() []automdm.HostEndUser {
 		var hostResp getHostResponse
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", host.ID), nil, http.StatusOK, &hostResp)
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", host.ID), nil, http.StatusOK, &hostResp)
 		return hostResp.Host.EndUsers
 	}
 	submit := func(userEmail string) {
@@ -1167,19 +1167,19 @@ func (s *integrationEnterpriseTestSuite) TestEntraJoinUserDetailQueryPopulatesId
 	// the mapping is reported under the mdm_idp_accounts source, like the manual one,
 	// on the single-host endpoint and on the hosts list
 	var mappingResp listHostDeviceMappingResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/device_mapping", host.ID), nil, http.StatusOK, &mappingResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/device_mapping", host.ID), nil, http.StatusOK, &mappingResp)
 	require.Len(t, mappingResp.DeviceMapping, 1)
 	require.Equal(t, "join.user@example.com", mappingResp.DeviceMapping[0].Email)
-	require.Equal(t, fleet.DeviceMappingMDMIdpAccounts, mappingResp.DeviceMapping[0].Source)
+	require.Equal(t, automdm.DeviceMappingMDMIdpAccounts, mappingResp.DeviceMapping[0].Source)
 	var listResp listHostsResponse
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &listResp, "device_mapping", "true", "query", host.Hostname)
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &listResp, "device_mapping", "true", "query", host.Hostname)
 	require.Len(t, listResp.Hosts, 1)
 	require.NotNil(t, listResp.Hosts[0].DeviceMapping)
-	var listMappings []fleet.HostDeviceMapping
+	var listMappings []automdm.HostDeviceMapping
 	require.NoError(t, json.Unmarshal(*listResp.Hosts[0].DeviceMapping, &listMappings))
 	require.Len(t, listMappings, 1)
 	require.Equal(t, "join.user@example.com", listMappings[0].Email)
-	require.Equal(t, fleet.DeviceMappingMDMIdpAccounts, listMappings[0].Source)
+	require.Equal(t, automdm.DeviceMappingMDMIdpAccounts, listMappings[0].Source)
 
 	// no rows (left Entra, or joined without a user): the mapping is removed
 	submit("")
@@ -1192,19 +1192,19 @@ func (s *integrationEnterpriseTestSuite) TestEntraJoinUserDetailQueryPopulatesId
 	// mapped again, then an admin clears it and the next refresh refills it
 	submit("join.user@example.com")
 	require.Len(t, getEndUsers(), 1)
-	s.Do("DELETE", fmt.Sprintf("/api/latest/fleet/hosts/%d/device_mapping/idp", host.ID), deleteHostIDPRequest{}, http.StatusNoContent)
+	s.Do("DELETE", fmt.Sprintf("/api/latest/automdm/hosts/%d/device_mapping/idp", host.ID), deleteHostIDPRequest{}, http.StatusNoContent)
 	require.Empty(t, getEndUsers())
 	submit("join.user@example.com")
 	require.Len(t, getEndUsers(), 1)
 
 	// a manually set IdP username wins over what the device reports
 	var putResp putHostDeviceMappingResponse
-	s.DoJSON("PUT", fmt.Sprintf("/api/latest/fleet/hosts/%d/device_mapping", host.ID),
+	s.DoJSON("PUT", fmt.Sprintf("/api/latest/automdm/hosts/%d/device_mapping", host.ID),
 		putHostDeviceMappingRequest{Email: "manual.user@example.com", Source: "idp"}, http.StatusOK, &putResp)
 	submit("join.user@example.com")
 	endUsers = getEndUsers()
 	require.Len(t, endUsers, 1)
 	require.Equal(t, "manual.user@example.com", endUsers[0].IdpUserName)
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/device_mapping", host.ID), nil, http.StatusOK, &mappingResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/device_mapping", host.ID), nil, http.StatusOK, &mappingResp)
 	require.Len(t, mappingResp.DeviceMapping, 1)
 }

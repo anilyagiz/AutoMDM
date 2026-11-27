@@ -13,7 +13,7 @@ interface IDownloadCSRProps {
 }
 
 const downloadCSRFile = (data: { csr: string }) => {
-  downloadBase64ToFile(data.csr, "fleet-mdm-apple.csr");
+  downloadBase64ToFile(data.csr, "automdm-mdm-apple.csr");
 };
 
 // TODO: why can't we use Content-Dispostion for these? We're only getting one file back now.

@@ -135,7 +135,7 @@ func TestMunkiPackageVersions(t *testing.T) {
 	})
 
 	t.Run("app without a short version falls back to CFBundleVersion", func(t *testing.T) {
-		// Matches what the apps table and Fleet's inventory report in that case.
+		// Matches what the apps table and AutoMDM's inventory report in that case.
 		const distributionXML = `<?xml version="1.0" encoding="utf-8" standalone="yes"?>
 <installer-script minSpecVersion="2">
     <pkg-ref id="com.googlecode.munki.core" version="7.4.1.5894">#munkitools_core.pkg</pkg-ref>

@@ -55,7 +55,7 @@ def summarize_databases(databases: Dict[str, Any]) -> str:
             or details.get("cluster_engine_version")
             or "unknown"
         )
-        db_name = details.get("cluster_database_name") or "fleet"
+        db_name = details.get("cluster_database_name") or "team"
 
         if cluster_endpoint:
             lines.append(f"  Cluster endpoint: {cluster_endpoint}")

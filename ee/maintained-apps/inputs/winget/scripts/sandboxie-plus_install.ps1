@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # Sandboxie-Plus uses an Inno Setup installer. Installing over an existing
 # version closes the Sandboxie-Plus window, ends every sandboxed program, and
@@ -7,7 +7,7 @@
 # download of newer templates and translations is turned off.
 
 $exeFilePath = "${env:INSTALLER_PATH}"
-$logFile = Join-Path ([System.IO.Path]::GetTempPath()) "fleet-sandboxie-plus-install.log"
+$logFile = Join-Path ([System.IO.Path]::GetTempPath()) "automdm-sandboxie-plus-install.log"
 $timeoutSeconds = 480
 
 try {

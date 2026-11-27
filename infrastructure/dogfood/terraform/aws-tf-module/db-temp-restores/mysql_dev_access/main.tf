@@ -31,7 +31,7 @@ variable "developers" {
 variable "database_name" {
   description = "Database to grant privileges on"
   type        = string
-  default     = "fleet"
+  default     = "automdm"
 }
 
 #####################################

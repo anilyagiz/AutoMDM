@@ -120,7 +120,7 @@ const SelectedTeamsForm = ({
 
   return (
     <ul className={`${baseClass}__list`}>
-      <li className={`${baseClass}__header`}>Fleets</li>
+      <li className={`${baseClass}__header`}>Teams</li>
       {teamsFormList.map((teamItem) => {
         const { isChecked, name, role, id } = teamItem;
         return (

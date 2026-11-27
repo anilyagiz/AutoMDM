@@ -9,7 +9,7 @@ interface IAndroidProps {
 }
 
 const Android = ({
-  color = "ui-fleet-black-75",
+  color = "ui-automdm-black-75",
   size = "medium",
 }: IAndroidProps) => {
   return (

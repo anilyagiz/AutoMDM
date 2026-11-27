@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	notifications_api "github.com/fleetdm/fleet/v4/server/notifications/api"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	notifications_api "github.com/anilyagiz/automdm/v4/server/notifications/api"
 	"github.com/google/uuid"
 )
 
@@ -69,7 +69,7 @@ type MockNotificationsService struct {
 	mu sync.Mutex
 }
 
-var _ fleet.NotificationsWriteService = (*MockNotificationsService)(nil)
+var _ automdm.NotificationsWriteService = (*MockNotificationsService)(nil)
 
 func (m *MockNotificationsService) RecordOutcome(ctx context.Context, executionID string, exitCode int64, output string) error {
 	m.mu.Lock()

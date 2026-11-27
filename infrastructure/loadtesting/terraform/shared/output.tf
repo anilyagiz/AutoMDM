@@ -7,7 +7,7 @@ output "alb" {
 }
 
 output "alb-listener" {
-  value = aws_alb_listener.https-fleetdm
+  value = aws_alb_listener.https-automdm
 }
 
 output "vpc" {

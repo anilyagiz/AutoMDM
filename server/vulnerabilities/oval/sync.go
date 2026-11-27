@@ -12,18 +12,18 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/download"
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/pkg/download"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 
 	"github.com/google/go-github/v37/github"
 )
 
 func ghNvdFileGetter() func(string) (io.ReadCloser, error) {
-	ghClient := fleethttp.NewGithubClient()
+	ghClient := automdmhttp.NewGithubClient()
 	return func(file string) (io.ReadCloser, error) {
 		src, r, err := github.NewClient(ghClient).Repositories.DownloadContents(
-			context.Background(), "fleetdm", "nvd", file, nil)
+			context.Background(), "automdm", "nvd", file, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -53,7 +53,7 @@ func downloadDecompressed(client *http.Client) func(string, string) error {
 	}
 }
 
-func whatToDownload(osVers *fleet.OSVersions, existing map[string]struct{}, date time.Time) []Platform {
+func whatToDownload(osVers *automdm.OSVersions, existing map[string]struct{}, date time.Time) []Platform {
 	var r []Platform
 	for _, os := range osVers.OSVersions {
 		platform := NewPlatform(os.Platform, os.Name)
@@ -158,7 +158,7 @@ func Sync(dstDir string, platforms []Platform) error {
 		}
 	}
 
-	client := fleethttp.NewClient(fleethttp.WithNoTimeout())
+	client := automdmhttp.NewClient(automdmhttp.WithNoTimeout())
 	dwn := downloadDecompressed(client)
 	for _, platform := range platforms {
 		defFile, err := downloadDefinitions(sources, platform, dwn)
@@ -188,7 +188,7 @@ func Sync(dstDir string, platforms []Platform) error {
 // Returns a slice of Platforms of the newly downloaded OVAL files.
 func Refresh(
 	ctx context.Context,
-	versions *fleet.OSVersions,
+	versions *automdm.OSVersions,
 	vulnPath string,
 ) ([]Platform, error) {
 	now := time.Now()

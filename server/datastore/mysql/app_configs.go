@@ -10,14 +10,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxdb"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxdb"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
 	"github.com/jmoiron/sqlx"
 )
 
-func (ds *Datastore) NewAppConfig(ctx context.Context, info *fleet.AppConfig) (*fleet.AppConfig, error) {
+func (ds *Datastore) NewAppConfig(ctx context.Context, info *automdm.AppConfig) (*automdm.AppConfig, error) {
 	info.ApplyDefaultsForNewInstalls()
 
 	if err := ds.SaveAppConfig(ctx, info); err != nil {
@@ -36,19 +36,19 @@ func (ds *Datastore) GetCurrentTime(ctx context.Context) (time.Time, error) {
 	return now, nil
 }
 
-func (ds *Datastore) AppConfig(ctx context.Context) (*fleet.AppConfig, error) {
+func (ds *Datastore) AppConfig(ctx context.Context) (*automdm.AppConfig, error) {
 	return appConfigDB(ctx, ds.reader(ctx))
 }
 
-func appConfigDB(ctx context.Context, q sqlx.QueryerContext) (*fleet.AppConfig, error) {
-	info := &fleet.AppConfig{}
+func appConfigDB(ctx context.Context, q sqlx.QueryerContext) (*automdm.AppConfig, error) {
+	info := &automdm.AppConfig{}
 	var bytes []byte
 	err := sqlx.GetContext(ctx, q, &bytes, `SELECT json_value FROM app_config_json LIMIT 1`)
 	if err != nil && err != sql.ErrNoRows {
 		return nil, ctxerr.Wrap(ctx, err, "selecting app config")
 	}
 	if err == sql.ErrNoRows {
-		return &fleet.AppConfig{}, nil
+		return &automdm.AppConfig{}, nil
 	}
 
 	info.ApplyDefaults()
@@ -60,15 +60,15 @@ func appConfigDB(ctx context.Context, q sqlx.QueryerContext) (*fleet.AppConfig, 
 	return info, nil
 }
 
-func (ds *Datastore) AppConfigUrls(ctx context.Context) (*fleet.AppConfigUrls, error) {
-	info := &fleet.AppConfigUrls{}
+func (ds *Datastore) AppConfigUrls(ctx context.Context) (*automdm.AppConfigUrls, error) {
+	info := &automdm.AppConfigUrls{}
 	var bytes []byte
 	err := sqlx.GetContext(ctx, ds.reader(ctx), &bytes, `SELECT json_value FROM app_config_json LIMIT 1`)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, ctxerr.Wrap(ctx, err, "selecting app config urls")
 	}
 	if errors.Is(err, sql.ErrNoRows) {
-		return &fleet.AppConfigUrls{}, nil
+		return &automdm.AppConfigUrls{}, nil
 	}
 
 	err = json.Unmarshal(bytes, info)
@@ -78,7 +78,7 @@ func (ds *Datastore) AppConfigUrls(ctx context.Context) (*fleet.AppConfigUrls, e
 	return info, nil
 }
 
-func (ds *Datastore) SaveAppConfig(ctx context.Context, info *fleet.AppConfig) error {
+func (ds *Datastore) SaveAppConfig(ctx context.Context, info *automdm.AppConfig) error {
 	return ds.withTx(ctx, func(tx sqlx.ExtContext) error {
 		configBytes, err := json.Marshal(info)
 		if err != nil {
@@ -98,15 +98,15 @@ func (ds *Datastore) SaveAppConfig(ctx context.Context, info *fleet.AppConfig) e
 	})
 }
 
-func (ds *Datastore) InsertOrReplaceMDMConfigAsset(ctx context.Context, asset fleet.MDMConfigAsset) error {
+func (ds *Datastore) InsertOrReplaceMDMConfigAsset(ctx context.Context, asset automdm.MDMConfigAsset) error {
 	return ds.insertOrReplaceConfigAsset(ctx, ds.writer(ctx), asset)
 }
 
-func (ds *Datastore) insertOrReplaceConfigAsset(ctx context.Context, tx sqlx.ExtContext, asset fleet.MDMConfigAsset) error {
-	assets, err := ds.GetAllMDMConfigAssetsByName(ctx, []fleet.MDMAssetName{asset.Name}, tx)
+func (ds *Datastore) insertOrReplaceConfigAsset(ctx context.Context, tx sqlx.ExtContext, asset automdm.MDMConfigAsset) error {
+	assets, err := ds.GetAllMDMConfigAssetsByName(ctx, []automdm.MDMAssetName{asset.Name}, tx)
 	if err != nil {
-		if fleet.IsNotFound(err) {
-			return ds.InsertMDMConfigAssets(ctx, []fleet.MDMConfigAsset{asset}, tx)
+		if automdm.IsNotFound(err) {
+			return ds.InsertMDMConfigAssets(ctx, []automdm.MDMConfigAsset{asset}, tx)
 		}
 		return ctxerr.Wrap(ctx, err, "get all mdm config assets by name")
 	}
@@ -120,7 +120,7 @@ func (ds *Datastore) insertOrReplaceConfigAsset(ctx context.Context, tx sqlx.Ext
 		return ctxerr.New(ctx, fmt.Sprintf("asset not found for name %s", asset.Name))
 	}
 	if !bytes.Equal(currentAsset.Value, asset.Value) {
-		return ds.ReplaceMDMConfigAssets(ctx, []fleet.MDMConfigAsset{asset}, tx)
+		return ds.ReplaceMDMConfigAssets(ctx, []automdm.MDMConfigAsset{asset}, tx)
 	}
 	// asset already exists and is the same, so not need to update
 	return nil
@@ -136,12 +136,12 @@ func (ds *Datastore) SetAndroidEnabledAndConfigured(ctx context.Context, configu
 	return ds.SaveAppConfig(ctx, appConfig)
 }
 
-func (ds *Datastore) VerifyEnrollSecret(ctx context.Context, secret string) (*fleet.EnrollSecret, error) {
+func (ds *Datastore) VerifyEnrollSecret(ctx context.Context, secret string) (*automdm.EnrollSecret, error) {
 	if strings.TrimSpace(secret) == "" {
 		return nil, ctxerr.Wrap(ctx, notFound("EnrollSecret"), "no matching secret found")
 	}
 
-	var s fleet.EnrollSecret
+	var s automdm.EnrollSecret
 	err := sqlx.GetContext(ctx, ds.reader(ctx), &s, "SELECT team_id FROM enroll_secrets WHERE secret = ?", secret)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -175,13 +175,13 @@ func (ds *Datastore) IsEnrollSecretAvailable(ctx context.Context, secret string,
 	return false, nil
 }
 
-func (ds *Datastore) ApplyEnrollSecrets(ctx context.Context, teamID *uint, secrets []*fleet.EnrollSecret) error {
+func (ds *Datastore) ApplyEnrollSecrets(ctx context.Context, teamID *uint, secrets []*automdm.EnrollSecret) error {
 	return ds.withRetryTxx(ctx, func(tx sqlx.ExtContext) error {
 		return applyEnrollSecretsDB(ctx, tx, teamID, secrets)
 	})
 }
 
-func applyEnrollSecretsDB(ctx context.Context, q sqlx.ExtContext, teamID *uint, secrets []*fleet.EnrollSecret) error {
+func applyEnrollSecretsDB(ctx context.Context, q sqlx.ExtContext, teamID *uint, secrets []*automdm.EnrollSecret) error {
 	// NOTE: this is called from within a transaction (either from
 	// ApplyEnrollSecrets or saveTeamSecretsDB). We don't do a simple DELETE then
 	// INSERT as we need to keep the existing created_at timestamps of
@@ -205,7 +205,7 @@ func applyEnrollSecretsDB(ctx context.Context, q sqlx.ExtContext, teamID *uint, 
 
 	// first, load the existing secrets and their created_at timestamp
 	const loadStmt = `SELECT secret, created_at FROM enroll_secrets WHERE `
-	var existingSecrets []*fleet.EnrollSecret
+	var existingSecrets []*automdm.EnrollSecret
 	if err := sqlx.SelectContext(ctx, q, &existingSecrets, loadStmt+teamWhere, args...); err != nil {
 		return ctxerr.Wrap(ctx, err, "load existing secrets")
 	}
@@ -245,7 +245,7 @@ func applyEnrollSecretsDB(ctx context.Context, q sqlx.ExtContext, teamID *uint, 
 		if _, err := q.ExecContext(ctx, sql, args...); err != nil {
 			if IsDuplicate(err) {
 				// Obfuscate the secret in the error message
-				err = alreadyExists("secret", fleet.MaskedPassword)
+				err = alreadyExists("secret", automdm.MaskedPassword)
 			}
 			return ctxerr.Wrap(ctx, err, "insert secrets")
 		}
@@ -253,11 +253,11 @@ func applyEnrollSecretsDB(ctx context.Context, q sqlx.ExtContext, teamID *uint, 
 	return nil
 }
 
-func (ds *Datastore) GetEnrollSecrets(ctx context.Context, teamID *uint) ([]*fleet.EnrollSecret, error) {
+func (ds *Datastore) GetEnrollSecrets(ctx context.Context, teamID *uint) ([]*automdm.EnrollSecret, error) {
 	return getEnrollSecretsDB(ctx, ds.reader(ctx), teamID)
 }
 
-func getEnrollSecretsDB(ctx context.Context, q sqlx.QueryerContext, teamID *uint) ([]*fleet.EnrollSecret, error) {
+func getEnrollSecretsDB(ctx context.Context, q sqlx.QueryerContext, teamID *uint) ([]*automdm.EnrollSecret, error) {
 	var args []interface{}
 	sql := "SELECT secret, team_id, created_at FROM enroll_secrets WHERE "
 	// MySQL requires comparing NULL with IS. NULL = NULL evaluates to FALSE.
@@ -268,14 +268,14 @@ func getEnrollSecretsDB(ctx context.Context, q sqlx.QueryerContext, teamID *uint
 		args = append(args, teamID)
 	}
 	sql += " ORDER BY secret" // secret is the primary key
-	var secrets []*fleet.EnrollSecret
+	var secrets []*automdm.EnrollSecret
 	if err := sqlx.SelectContext(ctx, q, &secrets, sql, args...); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "get secrets")
 	}
 	return secrets, nil
 }
 
-func (ds *Datastore) AggregateEnrollSecretPerTeam(ctx context.Context) ([]*fleet.EnrollSecret, error) {
+func (ds *Datastore) AggregateEnrollSecretPerTeam(ctx context.Context) ([]*automdm.EnrollSecret, error) {
 	query := `
           SELECT
              COALESCE((
@@ -301,32 +301,32 @@ func (ds *Datastore) AggregateEnrollSecretPerTeam(ctx context.Context) ([]*fleet
              ORDER BY
                 created_at DESC LIMIT 1)
 	`
-	var secrets []*fleet.EnrollSecret
+	var secrets []*automdm.EnrollSecret
 	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &secrets, query); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "get secrets")
 	}
 	return secrets, nil
 }
 
-func (ds *Datastore) GetConfigEnableDiskEncryption(ctx context.Context, teamID *uint) (fleet.DiskEncryptionConfig, error) {
+func (ds *Datastore) GetConfigEnableDiskEncryption(ctx context.Context, teamID *uint) (automdm.DiskEncryptionConfig, error) {
 	if teamID != nil && *teamID > 0 {
 		tc, err := ds.TeamMDMConfig(ctx, *teamID)
 		if err != nil {
-			return fleet.DiskEncryptionConfig{}, err
+			return automdm.DiskEncryptionConfig{}, err
 		}
 		return tc.DiskEncryptionConfig(), nil
 	}
 	ac, err := ds.AppConfig(ctx)
 	if err != nil {
-		return fleet.DiskEncryptionConfig{}, err
+		return automdm.DiskEncryptionConfig{}, err
 	}
 	return ac.MDM.DiskEncryptionConfig(), nil
 }
 
-// bootstrapPackageAllowedDuringMigration reports whether hosts migrating to Fleet in the team (or
+// bootstrapPackageAllowedDuringMigration reports whether hosts migrating to AutoMDM in the team (or
 // no team) get the bootstrap package, matching the decision made by the Apple MDM worker.
 func (ds *Datastore) bootstrapPackageAllowedDuringMigration(ctx context.Context, teamID *uint) (bool, error) {
-	if fleet.BootstrapPackageDuringMigrationEnvEnabled() {
+	if automdm.BootstrapPackageDuringMigrationEnvEnabled() {
 		return true, nil
 	}
 	if !license.IsPremium(ctx) {
@@ -338,7 +338,7 @@ func (ds *Datastore) bootstrapPackageAllowedDuringMigration(ctx context.Context,
 			return false, ctxerr.Wrap(ctx, err, "get team mdm config")
 		}
 		if tc == nil {
-			return false, errors.New("fleet MDM config was nil but no error")
+			return false, errors.New("automdm MDM config was nil but no error")
 		}
 		return tc.MacOSSetup.MacOSEnableBootstrapPackageDuringMigration, nil
 	}
@@ -349,13 +349,13 @@ func (ds *Datastore) bootstrapPackageAllowedDuringMigration(ctx context.Context,
 	return ac.MDM.MacOSSetup.MacOSEnableBootstrapPackageDuringMigration, nil
 }
 
-func (ds *Datastore) ApplyYaraRules(ctx context.Context, rules []fleet.YaraRule) error {
+func (ds *Datastore) ApplyYaraRules(ctx context.Context, rules []automdm.YaraRule) error {
 	return ds.withRetryTxx(ctx, func(tx sqlx.ExtContext) error {
 		return applyYaraRulesDB(ctx, tx, rules)
 	})
 }
 
-func applyYaraRulesDB(ctx context.Context, q sqlx.ExtContext, rules []fleet.YaraRule) error {
+func applyYaraRulesDB(ctx context.Context, q sqlx.ExtContext, rules []automdm.YaraRule) error {
 	// First, load existing rules to check if there are any changes
 	existingRules, err := getYaraRulesDB(ctx, q)
 	if err != nil {
@@ -371,7 +371,7 @@ func applyYaraRulesDB(ctx context.Context, q sqlx.ExtContext, rules []fleet.Yara
 	newMap := make(map[string]string, len(rules))
 	for _, rule := range rules {
 		if _, exists := newMap[rule.Name]; exists {
-			return ctxerr.Wrap(ctx, &fleet.BadRequestError{Message: fmt.Sprintf("duplicate YARA rule name: %s", rule.Name)}, "duplicate rule name")
+			return ctxerr.Wrap(ctx, &automdm.BadRequestError{Message: fmt.Sprintf("duplicate YARA rule name: %s", rule.Name)}, "duplicate rule name")
 		}
 		newMap[rule.Name] = rule.Contents
 	}
@@ -387,7 +387,7 @@ func applyYaraRulesDB(ctx context.Context, q sqlx.ExtContext, rules []fleet.Yara
 	}
 
 	// Determine which rules to insert (new or updated)
-	var toInsert []fleet.YaraRule
+	var toInsert []automdm.YaraRule
 	for _, rule := range rules {
 		existingContent, exists := existingMap[rule.Name]
 		if !exists || existingContent != rule.Contents {
@@ -430,23 +430,23 @@ func applyYaraRulesDB(ctx context.Context, q sqlx.ExtContext, rules []fleet.Yara
 	return nil
 }
 
-func (ds *Datastore) GetYaraRules(ctx context.Context) ([]fleet.YaraRule, error) {
+func (ds *Datastore) GetYaraRules(ctx context.Context) ([]automdm.YaraRule, error) {
 	return getYaraRulesDB(ctx, ds.reader(ctx))
 }
 
 // getYaraRulesDB is a helper to get YARA rules using a specific database connection/transaction
-func getYaraRulesDB(ctx context.Context, q sqlx.QueryerContext) ([]fleet.YaraRule, error) {
+func getYaraRulesDB(ctx context.Context, q sqlx.QueryerContext) ([]automdm.YaraRule, error) {
 	sql := "SELECT name, contents FROM yara_rules"
-	rules := []fleet.YaraRule{}
+	rules := []automdm.YaraRule{}
 	if err := sqlx.SelectContext(ctx, q, &rules, sql); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "get yara rules")
 	}
 	return rules, nil
 }
 
-func (ds *Datastore) YaraRuleByName(ctx context.Context, name string) (*fleet.YaraRule, error) {
+func (ds *Datastore) YaraRuleByName(ctx context.Context, name string) (*automdm.YaraRule, error) {
 	query := "SELECT name, contents FROM yara_rules WHERE name = ?"
-	rule := fleet.YaraRule{}
+	rule := automdm.YaraRule{}
 	if err := sqlx.GetContext(ctx, ds.reader(ctx), &rule, query, name); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ctxerr.Wrap(ctx, notFound("YaraRule"), "no yara rule with provided name")

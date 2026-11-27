@@ -45,7 +45,7 @@ class CertificateEnrollmentHandlerTest {
         val template = TestCertificateTemplateFactory.create(
             name = "device-cert",
             scepChallenge = "secret123",
-            subjectName = "CN=Device123,O=FleetDM",
+            subjectName = "CN=Device123,O=AutoMDM",
         )
 
         val result = handler.handleEnrollment(template, TestCertificateTemplateFactory.DEFAULT_SCEP_URL)
@@ -55,7 +55,7 @@ class CertificateEnrollmentHandlerTest {
         assertEquals(TestCertificateTemplateFactory.DEFAULT_SCEP_URL, mockScepClient.capturedScepUrl)
         assertEquals("secret123", mockScepClient.capturedConfig?.scepChallenge)
         assertEquals("device-cert", mockScepClient.capturedConfig?.name)
-        assertEquals("CN=Device123,O=FleetDM", mockScepClient.capturedConfig?.subjectName)
+        assertEquals("CN=Device123,O=AutoMDM", mockScepClient.capturedConfig?.subjectName)
 
         // Verify success
         assertTrue(result is CertificateEnrollmentHandler.EnrollmentResult.Success)

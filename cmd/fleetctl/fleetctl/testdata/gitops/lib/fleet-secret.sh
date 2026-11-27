@@ -1,1 +1,0 @@
-echo "$FLEET_SECRET_NAME"

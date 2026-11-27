@@ -1,10 +1,10 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 
 $exeFilePath = "${env:INSTALLER_PATH}"
 
 # The installer defaults to the running user's %LOCALAPPDATA%, which is the
-# SYSTEM profile when Fleet installs it, so pass a machine-wide location.
+# SYSTEM profile when AutoMDM installs it, so pass a machine-wide location.
 $installDir = Join-Path $env:ProgramFiles "Scrivener3"
 
 try {

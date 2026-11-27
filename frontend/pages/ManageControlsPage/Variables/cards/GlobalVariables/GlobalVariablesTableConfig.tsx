@@ -8,7 +8,7 @@ import TooltipTruncatedTextCell from "components/TableContainer/DataTable/Toolti
 import { IVariable } from "interfaces/variables";
 
 export const getTokenFromVariableName = (variableName: string): string =>
-  `$FLEET_SECRET_${variableName.toUpperCase()}`;
+  `$AUTOMDM_SECRET_${variableName.toUpperCase()}`;
 
 interface IHeaderProps {
   column: {

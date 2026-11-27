@@ -1,9 +1,9 @@
 package update
 
-import "github.com/fleetdm/fleet/v4/server/fleet"
+import "github.com/anilyagiz/automdm/v4/server/automdm"
 
 // OrbitConfigFetcher allows fetching Orbit configuration.
 type OrbitConfigFetcher interface {
 	// GetConfig returns the Orbit configuration.
-	GetConfig() (*fleet.OrbitConfig, error)
+	GetConfig() (*automdm.OrbitConfig, error)
 }

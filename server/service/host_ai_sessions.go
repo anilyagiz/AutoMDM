@@ -3,12 +3,12 @@ package service
 import (
 	"context"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
 type listHostAISessionsRequest struct {
-	Identifier  string            `url:"id"`
-	ListOptions fleet.ListOptions `url:"list_options"`
+	Identifier  string              `url:"id"`
+	ListOptions automdm.ListOptions `url:"list_options"`
 	// OrderDirection is order_direction as sent, since the direction defaults to descending and ListOptions can't
 	// tell an unset direction from an explicit "asc".
 	OrderDirection string `query:"order_direction,optional"`
@@ -17,26 +17,26 @@ type listHostAISessionsRequest struct {
 }
 
 type listHostAISessionsResponse struct {
-	AISessions []*fleet.HostAISession    `json:"ai_sessions"`
-	Count      uint                      `json:"count"`
-	Meta       *fleet.PaginationMetadata `json:"meta,omitempty"`
-	Err        error                     `json:"error,omitempty"`
+	AISessions []*automdm.HostAISession    `json:"ai_sessions"`
+	Count      uint                        `json:"count"`
+	Meta       *automdm.PaginationMetadata `json:"meta,omitempty"`
+	Err        error                       `json:"error,omitempty"`
 }
 
 func (r listHostAISessionsResponse) Error() error { return r.Err }
 
-func listHostAISessionsEndpoint(ctx context.Context, request any, svc fleet.Service) (fleet.Errorer, error) {
+func listHostAISessionsEndpoint(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*listHostAISessionsRequest)
 	opts := req.ListOptions
 	if req.OrderDirection == "" {
-		opts.OrderDirection = fleet.OrderDescending
+		opts.OrderDirection = automdm.OrderDescending
 	}
-	var meta *fleet.PaginationMetadata
-	sessions, _, err := hostByIDOrIdentifier(ctx, svc, req.Identifier, func(hostID uint) (sessions []*fleet.HostAISession, err error) {
-		sessions, meta, err = svc.ListHostAISessions(ctx, hostID, fleet.HostAISessionListOptions{
+	var meta *automdm.PaginationMetadata
+	sessions, _, err := hostByIDOrIdentifier(ctx, svc, req.Identifier, func(hostID uint) (sessions []*automdm.HostAISession, err error) {
+		sessions, meta, err = svc.ListHostAISessions(ctx, hostID, automdm.HostAISessionListOptions{
 			ListOptions: opts,
 			Agent:       req.Agent,
-			Category:    fleet.AISessionCategory(req.Category),
+			Category:    automdm.AISessionCategory(req.Category),
 		})
 		return sessions, err
 	})
@@ -50,12 +50,12 @@ func listHostAISessionsEndpoint(ctx context.Context, request any, svc fleet.Serv
 	return resp, nil
 }
 
-func (svc *Service) ListHostAISessions(ctx context.Context, hostID uint, opts fleet.HostAISessionListOptions) ([]*fleet.HostAISession, *fleet.PaginationMetadata, error) {
+func (svc *Service) ListHostAISessions(ctx context.Context, hostID uint, opts automdm.HostAISessionListOptions) ([]*automdm.HostAISession, *automdm.PaginationMetadata, error) {
 	// skipauth: No authorization check needed due to implementation returning
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return nil, nil, fleet.ErrMissingLicense
+	return nil, nil, automdm.ErrMissingLicense
 }
 
 type getHostAISessionRequest struct {
@@ -64,15 +64,15 @@ type getHostAISessionRequest struct {
 }
 
 type getHostAISessionResponse struct {
-	AISession *fleet.HostAISession `json:"ai_session"`
-	Err       error                `json:"error,omitempty"`
+	AISession *automdm.HostAISession `json:"ai_session"`
+	Err       error                  `json:"error,omitempty"`
 }
 
 func (r getHostAISessionResponse) Error() error { return r.Err }
 
-func getHostAISessionEndpoint(ctx context.Context, request any, svc fleet.Service) (fleet.Errorer, error) {
+func getHostAISessionEndpoint(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*getHostAISessionRequest)
-	session, _, err := hostByIDOrIdentifier(ctx, svc, req.Identifier, func(hostID uint) (*fleet.HostAISession, error) {
+	session, _, err := hostByIDOrIdentifier(ctx, svc, req.Identifier, func(hostID uint) (*automdm.HostAISession, error) {
 		return svc.GetHostAISession(ctx, hostID, req.AISessionID)
 	})
 	if err != nil {
@@ -81,37 +81,37 @@ func getHostAISessionEndpoint(ctx context.Context, request any, svc fleet.Servic
 	return getHostAISessionResponse{AISession: session}, nil
 }
 
-func (svc *Service) GetHostAISession(ctx context.Context, hostID, aiSessionID uint) (*fleet.HostAISession, error) {
+func (svc *Service) GetHostAISession(ctx context.Context, hostID, aiSessionID uint) (*automdm.HostAISession, error) {
 	// skipauth: No authorization check needed due to implementation returning
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return nil, fleet.ErrMissingLicense
+	return nil, automdm.ErrMissingLicense
 }
 
 type listHostAISessionEventsRequest struct {
-	Identifier  string            `url:"id"`
-	AISessionID uint              `url:"ai_session_id"`
-	ListOptions fleet.ListOptions `url:"list_options"`
-	Category    string            `query:"category,optional"`
+	Identifier  string              `url:"id"`
+	AISessionID uint                `url:"ai_session_id"`
+	ListOptions automdm.ListOptions `url:"list_options"`
+	Category    string              `query:"category,optional"`
 }
 
 type listHostAISessionEventsResponse struct {
-	Events []*fleet.HostAISessionEvent `json:"events"`
-	Count  uint                        `json:"count"`
-	Meta   *fleet.PaginationMetadata   `json:"meta,omitempty"`
-	Err    error                       `json:"error,omitempty"`
+	Events []*automdm.HostAISessionEvent `json:"events"`
+	Count  uint                          `json:"count"`
+	Meta   *automdm.PaginationMetadata   `json:"meta,omitempty"`
+	Err    error                         `json:"error,omitempty"`
 }
 
 func (r listHostAISessionEventsResponse) Error() error { return r.Err }
 
-func listHostAISessionEventsEndpoint(ctx context.Context, request any, svc fleet.Service) (fleet.Errorer, error) {
+func listHostAISessionEventsEndpoint(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*listHostAISessionEventsRequest)
-	var meta *fleet.PaginationMetadata
-	events, _, err := hostByIDOrIdentifier(ctx, svc, req.Identifier, func(hostID uint) (events []*fleet.HostAISessionEvent, err error) {
-		events, meta, err = svc.ListHostAISessionEvents(ctx, hostID, req.AISessionID, fleet.HostAISessionEventListOptions{
+	var meta *automdm.PaginationMetadata
+	events, _, err := hostByIDOrIdentifier(ctx, svc, req.Identifier, func(hostID uint) (events []*automdm.HostAISessionEvent, err error) {
+		events, meta, err = svc.ListHostAISessionEvents(ctx, hostID, req.AISessionID, automdm.HostAISessionEventListOptions{
 			ListOptions: req.ListOptions,
-			Category:    fleet.AISessionCategory(req.Category),
+			Category:    automdm.AISessionCategory(req.Category),
 		})
 		return events, err
 	})
@@ -125,10 +125,10 @@ func listHostAISessionEventsEndpoint(ctx context.Context, request any, svc fleet
 	return resp, nil
 }
 
-func (svc *Service) ListHostAISessionEvents(ctx context.Context, hostID, aiSessionID uint, opts fleet.HostAISessionEventListOptions) ([]*fleet.HostAISessionEvent, *fleet.PaginationMetadata, error) {
+func (svc *Service) ListHostAISessionEvents(ctx context.Context, hostID, aiSessionID uint, opts automdm.HostAISessionEventListOptions) ([]*automdm.HostAISessionEvent, *automdm.PaginationMetadata, error) {
 	// skipauth: No authorization check needed due to implementation returning
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return nil, nil, fleet.ErrMissingLicense
+	return nil, nil, automdm.ErrMissingLicense
 }

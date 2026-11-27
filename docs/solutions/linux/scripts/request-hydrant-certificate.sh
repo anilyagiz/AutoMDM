@@ -1,5 +1,5 @@
 #!/bin/bash
-# Script template used in this guide: https://fleetdm.com/guides/connect-end-user-to-wifi-with-certificate#hydrant
+# Script template used in this guide: https://automdm.com/guides/connect-end-user-to-wifi-with-certificate#hydrant
 set -e
 
 # Load the end user information, IdP token and IdP client ID.
@@ -17,10 +17,10 @@ openssl req -new -sha256 -key /opt/company/CustomerUserNetworkAccess.key -out Cu
 CSR=$(sed 's/$/\\n/' CustomerUserNetworkAccess.csr | tr -d '\n')
 REQUEST='{ "csr": "'"${CSR}"'", "idp_oauth_url":"'"${URL}"'", "idp_token": "'"${TOKEN}"'", "idp_client_id": "'"${CLIENT_ID}"'", "return_pem_certificate": true }'
 
-curl 'https://<Fleet-server-URL>/api/latest/fleet/certificate_authorities/<Hydrant-CA-ID>/request_certificate' \
+curl 'https://<AutoMDM-server-URL>/api/latest/automdm/certificate_authorities/<Hydrant-CA-ID>/request_certificate' \
   -X 'POST' \
   -H 'accept: application/json, text/plain, */*' \
-  -H 'authorization: Bearer '"$FLEET_SECRET_REQUEST_CERTIFICATE_API_TOKEN" \
+  -H 'authorization: Bearer '"$AUTOMDM_SECRET_REQUEST_CERTIFICATE_API_TOKEN" \
   -H 'content-type: application/json' \
   --data-raw "${REQUEST}" -o response.json
 

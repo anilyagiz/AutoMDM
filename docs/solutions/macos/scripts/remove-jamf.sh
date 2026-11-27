@@ -1,6 +1,6 @@
 #!/bin/bash
 # This script runs one last recon and then removes the Jamf framework.
-# Must be run as root. Deploy with Fleet, NOT Jamf Pro.
+# Must be run as root. Deploy with AutoMDM, NOT Jamf Pro.
 
 if [ "$(id -u)" -ne 0 ]; then
     echo "This script must be run as root." >&2

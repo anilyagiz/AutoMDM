@@ -119,8 +119,8 @@ interface IHostActionConfigOptions {
   isTeamObserver: boolean;
   isHostOnline: boolean;
   isEnrolledInMdm: boolean;
-  isConnectedToFleetMdm?: boolean;
-  isDEPAssignedToFleet: boolean;
+  isConnectedToAutoMDMMdm?: boolean;
+  isDEPAssignedToAutoMDM: boolean;
   isMacMdmEnabledAndConfigured: boolean;
   isAppleBusinessEnabledAndConfigured: boolean;
   isWindowsMdmEnabledAndConfigured: boolean;
@@ -174,7 +174,7 @@ const canTurnOffMdm = (config: IHostActionConfigOptions) => {
     isTeamAdmin,
     isTeamMaintainer,
     isEnrolledInMdm,
-    isConnectedToFleetMdm,
+    isConnectedToAutoMDMMdm,
     isMacMdmEnabledAndConfigured,
     isAndroidMdmEnabledAndConfigured,
   } = config;
@@ -188,7 +188,7 @@ const canTurnOffMdm = (config: IHostActionConfigOptions) => {
     (isAndroidWithUnenroll ||
       (isAppleDevice(hostPlatform) && isMacMdmEnabledAndConfigured)) &&
     isEnrolledInMdm &&
-    isConnectedToFleetMdm &&
+    isConnectedToAutoMDMMdm &&
     (isGlobalAdmin || isGlobalMaintainer || isTeamAdmin || isTeamMaintainer)
   );
 };
@@ -204,7 +204,7 @@ const canLockHost = ({
   isMacMdmEnabledAndConfigured,
   isAndroidMdmEnabledAndConfigured,
   isEnrolledInMdm,
-  isConnectedToFleetMdm,
+  isConnectedToAutoMDMMdm,
   isGlobalAdmin,
   isGlobalMaintainer,
   isTeamAdmin,
@@ -214,7 +214,7 @@ const canLockHost = ({
   // apple device hosts can be locked if they are enrolled in MDM and the MDM is enabled
   const isLockableMacOSDevice =
     hostPlatform === "darwin" &&
-    isConnectedToFleetMdm &&
+    isConnectedToAutoMDMMdm &&
     isMacMdmEnabledAndConfigured &&
     isEnrolledInMdm;
 
@@ -223,7 +223,7 @@ const canLockHost = ({
   const isLockableIosOrIpadDevice =
     isIPadOrIPhone(hostPlatform) &&
     isAutomaticDeviceEnrollment(hostMdmEnrollmentStatus) &&
-    isConnectedToFleetMdm &&
+    isConnectedToAutoMDMMdm &&
     isMacMdmEnabledAndConfigured &&
     isEnrolledInMdm;
 
@@ -231,7 +231,7 @@ const canLockHost = ({
   const isLockableAndroidDevice =
     isAndroid(hostPlatform) &&
     isAndroidMdmEnabledAndConfigured &&
-    isConnectedToFleetMdm &&
+    isConnectedToAutoMDMMdm &&
     isEnrolledInMdm;
 
   return (
@@ -251,7 +251,7 @@ const canWipeHost = ({
   isGlobalMaintainer,
   isTeamAdmin,
   isTeamMaintainer,
-  isConnectedToFleetMdm,
+  isConnectedToAutoMDMMdm,
   isEnrolledInMdm,
   isMacMdmEnabledAndConfigured,
   isWindowsMdmEnabledAndConfigured,
@@ -266,7 +266,7 @@ const canWipeHost = ({
   // Windows and Apple devices (i.e. macOS, iOS, iPadOS, windows) have the same
   // conditions and can be wiped if they are enrolled in MDM and the MDM is enabled.
   const canWipeWindowsOrAppleOS =
-    hostMdmEnabled && isConnectedToFleetMdm && isEnrolledInMdm;
+    hostMdmEnabled && isConnectedToAutoMDMMdm && isEnrolledInMdm;
 
   // Personal (BYOD) iOS and iPadOS hosts cannot be wiped.
   const isPersonalIosOrIpadosDevice =
@@ -280,11 +280,11 @@ const canWipeHost = ({
   const canWipeAndroid =
     isAndroid(hostPlatform) &&
     isAndroidMdmEnabledAndConfigured &&
-    isConnectedToFleetMdm &&
+    isConnectedToAutoMDMMdm &&
     isEnrolledInMdm &&
     isAndroidCOBO(hostMdmEnrollmentStatus);
 
-  // Wipe is a Fleet Premium feature for macOS, Windows, Linux and iOS/iPadOS, but is available on Fleet Free for
+  // Wipe is an AutoMDM Premium feature for macOS, Windows, Linux and iOS/iPadOS, but is available on AutoMDM Free for
   // Android (COBO) hosts. canWipeAndroid is already gated to Android COBO, so OR-ing it with isPremiumTier keeps the
   // other platforms Premium-only.
   return (
@@ -305,17 +305,17 @@ const canUnlock = ({
   isGlobalMaintainer,
   isTeamAdmin,
   isTeamMaintainer,
-  isConnectedToFleetMdm,
+  isConnectedToAutoMDMMdm,
   isEnrolledInMdm,
   isMacMdmEnabledAndConfigured,
   hostPlatform,
   hostMdmDeviceStatus,
 }: IHostActionConfigOptions) => {
-  // apple device hosts can be unlocked if they are enrolled in the Fleet MDM and the
+  // apple device hosts can be unlocked if they are enrolled in the AutoMDM and the
   // MDM is enabled and configured.
   const canUnlockApple =
     isAppleDevice(hostPlatform) &&
-    isConnectedToFleetMdm &&
+    isConnectedToAutoMDMMdm &&
     isMacMdmEnabledAndConfigured &&
     isEnrolledInMdm;
 
@@ -359,7 +359,7 @@ const canDeleteHost = (config: IHostActionConfigOptions) => {
 const canShowDiskEncryption = (config: IHostActionConfigOptions) => {
   const {
     isPremiumTier,
-    isConnectedToFleetMdm,
+    isConnectedToAutoMDMMdm,
     isEncryptionKeyAvailable,
     isEncryptionKeyArchived,
     hostPlatform,
@@ -370,11 +370,11 @@ const canShowDiskEncryption = (config: IHostActionConfigOptions) => {
   if (isMobilePlatform(hostPlatform)) {
     return false;
   }
-  // For Apple devices, the encryption key is only available when connected to Fleet MDM
-  if (isAppleDevice(hostPlatform) && !isConnectedToFleetMdm) {
+  // For Apple devices, the encryption key is only available when connected to AutoMDM
+  if (isAppleDevice(hostPlatform) && !isConnectedToAutoMDMMdm) {
     return false;
   }
-  // Fleet never serves a Linux host's archived key: the current key is only
+  // AutoMDM never serves a Linux host's archived key: the current key is only
   // removed once its LUKS slot is proven gone, so the archived one is dead.
   if (isLinuxLike(hostPlatform)) {
     return isEncryptionKeyAvailable;
@@ -385,7 +385,7 @@ const canShowDiskEncryption = (config: IHostActionConfigOptions) => {
 const canShowRecoveryLockPassword = (config: IHostActionConfigOptions) => {
   const {
     isPremiumTier,
-    isConnectedToFleetMdm,
+    isConnectedToAutoMDMMdm,
     hostPlatform,
     hostCpuType,
     isRecoveryLockPasswordEnabled,
@@ -401,7 +401,7 @@ const canShowRecoveryLockPassword = (config: IHostActionConfigOptions) => {
   if (hostCpuType !== "" && !hostCpuType.includes("arm64")) {
     return false;
   }
-  if (!isConnectedToFleetMdm) {
+  if (!isConnectedToAutoMDMMdm) {
     return false;
   }
   // A password may exist on a host whose current team has the setting
@@ -413,15 +413,15 @@ const canShowRecoveryLockPassword = (config: IHostActionConfigOptions) => {
 const canShowManagedAccount = (config: IHostActionConfigOptions) => {
   const {
     isPremiumTier,
-    isConnectedToFleetMdm,
+    isConnectedToAutoMDMMdm,
     hostPlatform,
     hostMdmEnrollmentStatus,
     isManagedLocalAccountEnabled,
   } = config;
   if (!isPremiumTier) return false;
   if (hostPlatform !== "darwin" && hostPlatform !== "windows") return false;
-  if (!isConnectedToFleetMdm) return false;
-  // Automatic device enrollment is an Apple ADE concept. On Windows the account is created by fleetd after any MDM
+  if (!isConnectedToAutoMDMMdm) return false;
+  // Automatic device enrollment is an Apple ADE concept. On Windows the account is created by automdmd after any MDM
   // enrollment, so the managedAccountStatus fallback below is what tells us a row exists for this host.
   if (
     hostPlatform === "darwin" &&
@@ -469,7 +469,7 @@ const canReleaseFromAB = (config: IHostActionConfigOptions) => {
     return false;
   }
 
-  if (!config.isDEPAssignedToFleet) {
+  if (!config.isDEPAssignedToAutoMDM) {
     return false;
   }
 
@@ -514,7 +514,7 @@ const canClearPasscode = (config: IHostActionConfigOptions) => {
     return (
       config.isAndroidMdmEnabledAndConfigured &&
       config.isEnrolledInMdm &&
-      !!config.isConnectedToFleetMdm
+      !!config.isConnectedToAutoMDMMdm
     );
   }
 
@@ -535,7 +535,7 @@ const canClearPasscode = (config: IHostActionConfigOptions) => {
     return false;
   }
 
-  if (!config.isConnectedToFleetMdm) {
+  if (!config.isConnectedToAutoMDMMdm) {
     return false;
   }
 
@@ -745,7 +745,7 @@ export const getDropdownOptionTooltipContent = (
       <>
         To {tooltipAction[value]} this host, deploy the
         <br />
-        fleetd agent with --enable-scripts and
+        automdmd agent with --enable-scripts and
         <br />
         refetch host vitals
       </>
@@ -924,7 +924,7 @@ const modifyOptions = (
     if (managedAccountOption) {
       managedAccountOption.disabled = true;
       if (managedAccountStatus === "pending") {
-        // No password yet. On macOS the AccountConfiguration command hasn't been acked; on Windows fleetd hasn't escrowed a password yet.
+        // No password yet. On macOS the AccountConfiguration command hasn't been acked; on Windows automdmd hasn't escrowed a password yet.
         managedAccountOption.tooltipContent = (
           <>
             The managed account is still being
@@ -946,7 +946,7 @@ const modifyOptions = (
           </>
         );
       } else if (hostPlatform === "windows") {
-        // Unlike macOS, the Windows setting is declarative: fleetd provisions already-enrolled hosts too, so this is a "not yet" rather than a "never".
+        // Unlike macOS, the Windows setting is declarative: automdmd provisions already-enrolled hosts too, so this is a "not yet" rather than a "never".
         managedAccountOption.tooltipContent = (
           <>
             The managed account hasn&apos;t been

@@ -1,26 +1,26 @@
 import { AxiosError, isAxiosError } from "axios";
 
 /**
- * IFleetApiError is the shape of a Fleet API error. It represents an element of the `errors`
- * array in a Fleet API response for failed requests (see `IFleetApiResponseWithErrors`).
+ * IAutoMDMApiError is the shape of an AutoMDM API error. It represents an element of the `errors`
+ * array in an AutoMDM API response for failed requests (see `IAutoMDMApiResponseWithErrors`).
  */
-export interface IFleetApiError {
+export interface IAutoMDMApiError {
   name: string;
   reason: string;
 }
 
 /**
- * IApiError is the shape of a Fleet API response for failed requests.
+ * IApiError is the shape of an AutoMDM API response for failed requests.
  *
- * TODO: Rename to IFleetApiResponseWithErrors
+ * TODO: Rename to IAutoMDMApiResponseWithErrors
  */
 export interface IApiError {
   message: string;
-  errors: IFleetApiError[];
+  errors: IAutoMDMApiError[];
   uuid?: string;
 }
 
-export const isFleetApiError = (err: unknown): err is IFleetApiError => {
+export const isAutoMDMApiError = (err: unknown): err is IAutoMDMApiError => {
   if (!err || typeof err !== "object" || !("name" in err && "reason" in err)) {
     return false;
   }
@@ -84,71 +84,71 @@ const isRecordWithResponseDataErrors = (
   return true;
 };
 
-interface IFilterFleetErrorBase {
+interface IFilterAutoMDMErrorBase {
   nameEquals?: string;
   reasonIncludes?: string;
 }
 
-interface IFilterFleetErrorName extends IFilterFleetErrorBase {
+interface IFilterAutoMDMErrorName extends IFilterAutoMDMErrorBase {
   nameEquals: string;
   reasonIncludes?: never;
 }
 
-interface IFilterFleetErrorReason extends IFilterFleetErrorBase {
+interface IFilterAutoMDMErrorReason extends IFilterAutoMDMErrorBase {
   nameEquals?: never;
   reasonIncludes: string;
 }
 
-// FilterFleetError is the shape of a filter that can be applied to to filter Fleet
-// server errors. It is the union of FilterFleetErrorName and FilterFleetErrorReason,
+// FilterAutoMDMError is the shape of a filter that can be applied to to filter AutoMDM
+// server errors. It is the union of FilterAutoMDMErrorName and FilterAutoMDMErrorReason,
 // which ensures that only one of `nameEquals` or `reasonIncludes` can be specified.
-type IFilterFleetError = IFilterFleetErrorName | IFilterFleetErrorReason;
+type IFilterAutoMDMError = IFilterAutoMDMErrorName | IFilterAutoMDMErrorReason;
 
-const filterFleetErrorNameEquals = (errs: unknown[], value: string) => {
+const filterAutoMDMErrorNameEquals = (errs: unknown[], value: string) => {
   if (!value || !errs?.length) {
     return undefined;
   }
-  return errs?.find((e) => isFleetApiError(e) && e.name === value) as
-    | IFleetApiError
+  return errs?.find((e) => isAutoMDMApiError(e) && e.name === value) as
+    | IAutoMDMApiError
     | undefined;
 };
 
-const filterFleetErrorReasonIncludes = (errs: unknown[], value: string) => {
+const filterAutoMDMErrorReasonIncludes = (errs: unknown[], value: string) => {
   if (!value || !errs?.length) {
     return undefined;
   }
-  return errs?.find((e) => isFleetApiError(e) && e.reason?.includes(value)) as
-    | IFleetApiError
+  return errs?.find((e) => isAutoMDMApiError(e) && e.reason?.includes(value)) as
+    | IAutoMDMApiError
     | undefined;
 };
 
-const getReasonFromErrors = (errors: unknown[], filter?: IFilterFleetError) => {
+const getReasonFromErrors = (errors: unknown[], filter?: IFilterAutoMDMError) => {
   if (!errors.length) {
     return "";
   }
 
-  let fleetError: IFleetApiError | undefined;
+  let automdmError: IAutoMDMApiError | undefined;
   if (filter?.nameEquals) {
-    fleetError = filterFleetErrorNameEquals(errors, filter.nameEquals);
+    automdmError = filterAutoMDMErrorNameEquals(errors, filter.nameEquals);
   } else if (filter?.reasonIncludes) {
-    fleetError = filterFleetErrorReasonIncludes(errors, filter.reasonIncludes);
+    automdmError = filterAutoMDMErrorReasonIncludes(errors, filter.reasonIncludes);
   } else {
-    fleetError = isFleetApiError(errors[0]) ? errors[0] : undefined;
+    automdmError = isAutoMDMApiError(errors[0]) ? errors[0] : undefined;
   }
 
-  return fleetError?.reason || "";
+  return automdmError?.reason || "";
 };
 
 const getReasonFromRecordWithDataErrors = (
   r: IRecordWithDataErrors,
-  filter?: IFilterFleetError
+  filter?: IFilterAutoMDMError
 ): string => {
   return getReasonFromErrors(r.data.errors, filter);
 };
 
 const getReasonFromAxiosError = (
   ae: AxiosError,
-  filter?: IFilterFleetError
+  filter?: IFilterAutoMDMError
 ): string => {
   return isRecordWithDataErrors(ae.response)
     ? getReasonFromRecordWithDataErrors(ae.response, filter)
@@ -160,7 +160,7 @@ const getReasonFromAxiosError = (
  * other `Record`-like object with the general shape as follows:
  * `{ response: { data: { errors: unknown[] } } }`
  *
- * It attempts to extract a `reason` from a Fleet API error (i.e. an object
+ * It attempts to extract a `reason` from an AutoMDM API error (i.e. an object
  * with `name` and `reason` properties) in the `errors` array, if present.
  * Other in values in the payload are generally ignored.
  *
@@ -172,7 +172,7 @@ const getReasonFromAxiosError = (
  */
 export const getErrorReason = (
   payload: unknown | undefined,
-  filter?: IFilterFleetError
+  filter?: IFilterAutoMDMError
 ): string => {
   if (isAxiosError(payload)) {
     return getReasonFromAxiosError(payload, filter);
@@ -193,9 +193,9 @@ export const getErrorReason = (
   return "";
 };
 
-// getFleetApiErrors returns the Fleet API errors in a payload of any shape
+// getAutoMDMApiErrors returns the AutoMDM API errors in a payload of any shape
 // getErrorReason accepts.
-const getFleetApiErrors = (payload: unknown): IFleetApiError[] => {
+const getAutoMDMApiErrors = (payload: unknown): IAutoMDMApiError[] => {
   let errors: unknown[] = [];
   if (isAxiosError(payload)) {
     errors = isRecordWithDataErrors(payload.response)
@@ -208,11 +208,11 @@ const getFleetApiErrors = (payload: unknown): IFleetApiError[] => {
   } else if (isRecordWithErrors(payload)) {
     errors = payload.errors;
   }
-  return errors.filter(isFleetApiError);
+  return errors.filter(isAutoMDMApiError);
 };
 
 /**
- * splitServerErrors sorts the Fleet API errors in a payload into the ones that
+ * splitServerErrors sorts the AutoMDM API errors in a payload into the ones that
  * belong to a form field and the reasons of the rest. `nameMap` maps each
  * field key to the API error `name` reported for it. A field takes the first
  * matching error; errors with an empty reason are ignored.
@@ -228,7 +228,7 @@ export const splitServerErrors = <K extends string>(
 
   const fieldErrors: Partial<Record<K, string>> = {};
   const otherReasons: string[] = [];
-  getFleetApiErrors(payload).forEach(({ name, reason }) => {
+  getAutoMDMApiErrors(payload).forEach(({ name, reason }) => {
     if (!reason) {
       return;
     }
@@ -262,7 +262,7 @@ export const ignoreAxiosError = (err: AxiosError, ignoreStatuses: number[]) => {
 
 /**
  * expandErrorReasonRequired attempts to expand the error reason for a required
- * field error. It looks for a Fleet API error with a `reason` of `"required"`
+ * field error. It looks for an AutoMDM API error with a `reason` of `"required"`
  * in the `errors` array of the payload. If found, it returns the `name` of the
  * error with the string `"required"` appended. Otherwise, it returns the
  * error reason as is.
@@ -270,10 +270,10 @@ export const ignoreAxiosError = (err: AxiosError, ignoreStatuses: number[]) => {
 export const expandErrorReasonRequired = (err: unknown) => {
   if (isRecordWithDataErrors(err)) {
     const found = err.data.errors.find(
-      (e) => isFleetApiError(e) && e.reason === "required"
+      (e) => isAutoMDMApiError(e) && e.reason === "required"
     );
     if (found) {
-      return `${(found as IFleetApiError).name} required`;
+      return `${(found as IAutoMDMApiError).name} required`;
     }
   }
   return getErrorReason(err);

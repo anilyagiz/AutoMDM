@@ -6,12 +6,12 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/assets"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/cryptoutil"
-	"github.com/fleetdm/fleet/v4/server/mdm/scep/kitlogadapter"
-	scepserver "github.com/fleetdm/fleet/v4/server/mdm/scep/server"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/mdm/assets"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/cryptoutil"
+	"github.com/anilyagiz/automdm/v4/server/mdm/scep/kitlogadapter"
+	scepserver "github.com/anilyagiz/automdm/v4/server/mdm/scep/server"
 	"github.com/smallstep/scep"
 )
 
@@ -26,7 +26,7 @@ type service struct {
 	/// info logging is implemented in the service middleware layer.
 	debugLogger *slog.Logger
 
-	ds fleet.MDMAssetRetriever
+	ds automdm.MDMAssetRetriever
 }
 
 func (svc *service) GetCACaps(ctx context.Context) ([]byte, error) {
@@ -44,11 +44,11 @@ func (svc *service) GetCACert(ctx context.Context, _ string) ([]byte, int, error
 
 func (svc *service) PKIOperation(ctx context.Context, data []byte) ([]byte, error) {
 	if len(data) == 0 {
-		return nil, &fleet.BadRequestError{Message: "missing data for PKIOperation"}
+		return nil, &automdm.BadRequestError{Message: "missing data for PKIOperation"}
 	}
 
 	if err := cryptoutil.ValidateBERDepth(data, cryptoutil.MaxBERDepth); err != nil {
-		return nil, &fleet.BadRequestError{
+		return nil, &automdm.BadRequestError{
 			Message:     "invalid request body",
 			InternalErr: err,
 		}
@@ -57,7 +57,7 @@ func (svc *service) PKIOperation(ctx context.Context, data []byte) ([]byte, erro
 	msg, err := scep.ParsePKIMessage(data, scep.WithLogger(kitlogadapter.NewLogger(svc.debugLogger)))
 	if err != nil {
 		// The body is not a valid SCEP pkiMessage, which is a client error.
-		return nil, &fleet.BadRequestError{
+		return nil, &automdm.BadRequestError{
 			Message:     "invalid request body",
 			InternalErr: err,
 		}
@@ -107,7 +107,7 @@ func (svc *service) GetNextCACert(ctx context.Context) ([]byte, error) {
 }
 
 // NewService creates a new scep service
-func NewSCEPService(ds fleet.MDMAssetRetriever, signer scepserver.CSRSignerContext, logger *slog.Logger) scepserver.Service {
+func NewSCEPService(ds automdm.MDMAssetRetriever, signer scepserver.CSRSignerContext, logger *slog.Logger) scepserver.Service {
 	return &service{
 		signer:      signer,
 		debugLogger: slog.New(slog.DiscardHandler),

@@ -21,7 +21,7 @@ const renderModal = (
   return render(
     <SoftwareIpaInstallDetailsModal
       details={{
-        fleetInstallStatus: "pending_install",
+        automdmInstallStatus: "pending_install",
         hostDisplayName: "Marko's MacBook Pro",
         appName: "Logic Pro",
         commandUuid: "uuid-installed",
@@ -49,14 +49,14 @@ describe("SoftwareIpaInstallDetailsModal component", () => {
     renderModal({
       details: {
         commandUuid: "notnow-uuid",
-        fleetInstallStatus: "pending_install",
+        automdmInstallStatus: "pending_install",
         hostDisplayName: "Marko's MacBook Pro",
         appName: "Logic Pro",
       },
     });
 
     await waitFor(() => {
-      expect(screen.getByText(/Fleet tried to install/i)).toBeInTheDocument();
+      expect(screen.getByText(/AutoMDM tried to install/i)).toBeInTheDocument();
     });
     expect(
       screen.getByText(
@@ -69,7 +69,7 @@ describe("SoftwareIpaInstallDetailsModal component", () => {
     renderModal({
       details: {
         commandUuid: "acknowledged-uuid",
-        fleetInstallStatus: "pending_install",
+        automdmInstallStatus: "pending_install",
         hostDisplayName: "Marko's MacBook Pro",
         appName: "Logic Pro",
       },
@@ -89,14 +89,14 @@ describe("SoftwareIpaInstallDetailsModal component", () => {
     renderModal({
       details: {
         commandUuid: "uuid-installed",
-        fleetInstallStatus: "installed",
+        automdmInstallStatus: "installed",
         hostDisplayName: "Marko's MacBook Pro",
         appName: "Logic Pro",
       },
     });
 
     await waitFor(() => {
-      expect(screen.getByText(/Fleet installed/i)).toBeInTheDocument();
+      expect(screen.getByText(/AutoMDM installed/i)).toBeInTheDocument();
     });
     expect(screen.getByText(/Logic Pro/i)).toBeInTheDocument();
     expect(screen.getByText(/Marko's MacBook Pro/i)).toBeInTheDocument();
@@ -108,7 +108,7 @@ describe("SoftwareIpaInstallDetailsModal component", () => {
     renderModal({
       details: {
         commandUuid: "uuid-installed",
-        fleetInstallStatus: "installed",
+        automdmInstallStatus: "installed",
         hostDisplayName: "Marko's MacBook Pro",
         appName: "Logic Pro",
         activityCreatedAt: fiveMinutesAgo,
@@ -120,11 +120,11 @@ describe("SoftwareIpaInstallDetailsModal component", () => {
     });
   });
 
-  it("renders manual install message when installed not through Fleet", async () => {
+  it("renders manual install message when installed not through AutoMDM", async () => {
     renderModal({
       details: {
         commandUuid: "",
-        fleetInstallStatus: "installed",
+        automdmInstallStatus: "installed",
         hostDisplayName: "Marko's MacBook Pro",
         appName: "Logic Pro",
       },
@@ -141,14 +141,14 @@ describe("SoftwareIpaInstallDetailsModal component", () => {
     renderModal({
       details: {
         commandUuid: "uuid-installed",
-        fleetInstallStatus: "installed",
+        automdmInstallStatus: "installed",
         hostDisplayName: "",
         appName: "Logic Pro",
       },
     });
 
     await waitFor(() => {
-      expect(screen.getByText(/Fleet installed/i)).toBeInTheDocument();
+      expect(screen.getByText(/AutoMDM installed/i)).toBeInTheDocument();
       expect(screen.getByText(/the host/i)).toBeInTheDocument();
       expect(screen.getByTestId("success-icon")).toBeInTheDocument();
     });
@@ -158,7 +158,7 @@ describe("SoftwareIpaInstallDetailsModal component", () => {
     renderModal({
       details: {
         commandUuid: "uuid-failed-installed",
-        fleetInstallStatus: "failed_install",
+        automdmInstallStatus: "failed_install",
         hostDisplayName: "Marko's MacBook Pro",
         appName: "Logic Pro",
       },
@@ -194,7 +194,7 @@ describe("SoftwareIpaInstallDetailsModal component", () => {
     renderModal({
       details: {
         commandUuid: "uuid-failed",
-        fleetInstallStatus: "failed_install",
+        automdmInstallStatus: "failed_install",
         hostDisplayName: "Marko's MacBook Pro",
         appName: "Logic Pro",
       },
@@ -223,7 +223,7 @@ describe("SoftwareIpaInstallDetailsModal component", () => {
       onCancel,
       details: {
         commandUuid: "uuid-installed",
-        fleetInstallStatus: "installed",
+        automdmInstallStatus: "installed",
         hostDisplayName: "Marko's MacBook Pro",
         appName: "Logic Pro",
       },
@@ -244,7 +244,7 @@ describe("SoftwareIpaInstallDetailsModal component", () => {
       deviceAuthToken: "test_token_123",
       details: {
         commandUuid: "uuid-failed",
-        fleetInstallStatus: "failed_install",
+        automdmInstallStatus: "failed_install",
         hostDisplayName: "Marko's MacBook Pro",
         appName: "Logic Pro",
       },
@@ -272,7 +272,7 @@ describe("SoftwareIpaInstallDetailsModal component", () => {
     renderModal({
       details: {
         commandUuid: "acknowledged-uuid",
-        fleetInstallStatus: "pending_install",
+        automdmInstallStatus: "pending_install",
         hostDisplayName: "Marko's MacBook Pro",
         appName: "Logic Pro",
       },

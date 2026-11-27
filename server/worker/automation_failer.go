@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	jira "github.com/andygrunwald/go-jira"
-	"github.com/fleetdm/fleet/v4/server/service/externalsvc"
+	"github.com/anilyagiz/automdm/v4/server/service/externalsvc"
 	zendesk "github.com/nukosuke/go-zendesk/zendesk"
 )
 

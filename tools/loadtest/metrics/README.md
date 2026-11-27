@@ -1,15 +1,15 @@
 # Load test metrics
 
-Collect and compare AWS CloudWatch metrics for Fleet load test environments. Use these
+Collect and compare AWS CloudWatch metrics for AutoMDM load test environments. Use these
 scripts to capture a point-in-time synopsis of a running load test and to diff runs
 against each other to catch regressions release-over-release.
 
 - `collect-metrics.sh` — discovers a load test environment's AWS resources from its
   Terraform workspace name, pulls CloudWatch metrics averaged over a lookback interval,
   and writes a `.json` data file plus a human-readable `.md` synopsis (with threshold alerts).
-  Covers ECS (Fleet server + loadtest containers), RDS writer/readers (including
+  Covers ECS (AutoMDM server + loadtest containers), RDS writer/readers (including
   Performance Insights top SQL and active sessions), Redis, ALB (avg/p95/p99 latency,
-  target and ELB 5xx, request/traffic volume), Fleet server log errors, and container
+  target and ELB 5xx, request/traffic volume), AutoMDM server log errors, and container
   restart health. Each CloudWatch metric records a `data_coverage` ratio (fraction of
   the window with datapoints) so partial-window runs are detectable.
 - `compare-metrics.sh` — diffs two or more runs side by side and flags deltas as
@@ -65,8 +65,8 @@ moment the script ran, so historical collections are self-describing and sort in
 order; the wall-clock run time is recorded separately as `metadata.collected_at`.
 
 > The `--workspace` value is not free-form — `collect-metrics.sh` derives AWS resource
-> names from it (`fleet-<ws>-backend`, `fleetdm-<ws>-mysql`, `fleet-<ws>-redis`,
-> `fleet-<ws>-apns-mock`, …), so it must match the actual Terraform workspace.
+> names from it (`automdm-<ws>-backend`, `automdm-<ws>-mysql`, `automdm-<ws>-redis`,
+> `automdm-<ws>-apns-mock`, …), so it must match the actual Terraform workspace.
 
 ### MDM runs
 
@@ -161,7 +161,7 @@ collection bugs:
 - `alb.target_response_time.Average` is `0` — an over-aggressive rounding step
   flattened seconds-scale averages. Use p95/p99 (present in newer runs) going forward.
 - `container_health` start-spread/uptime fields are `null`/empty, and on macOS the
-  `fleet_server_errors` window was shifted by the collector's UTC offset.
+  `automdm_server_errors` window was shifted by the collector's UTC offset.
 
 ## Submitting results
 
@@ -169,7 +169,7 @@ After a load test, commit the run so the history stays useful for future compari
 
 1. Collect with the right category so the files land in the correct folder, e.g.
    `./collect-metrics.sh --workspace 486loadtest --category baseline`.
-2. **Review `fleet_server_errors.sample_messages` in the `.json` before committing.**
+2. **Review `automdm_server_errors.sample_messages` in the `.json` before committing.**
    These are raw server log lines headed for a public repo. The collector redacts
    token-like strings automatically, but eyeball them anyway — don't commit
    anything that looks like a secret, customer data, or an internal URL.

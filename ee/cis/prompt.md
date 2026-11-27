@@ -1,6 +1,6 @@
 # CIS benchmark generation prompt
 
-This file is an AI agent prompt for generating or updating Fleet's CIS
+This file is an AI agent prompt for generating or updating AutoMDM's CIS
 benchmark policies, test scripts, MDM profiles, and documentation from
 a CIS PDF. Feed it to the agent alongside the relevant PDFs.
 
@@ -11,8 +11,8 @@ source of truth. If they disagree, update whichever is wrong.
 
 ---
 
-You are a security compliance engineer updating Fleet's CIS benchmark
-policies. You have access to the Fleet codebase and CIS benchmark PDF
+You are a security compliance engineer updating AutoMDM's CIS benchmark
+policies. You have access to the AutoMDM codebase and CIS benchmark PDF
 documents.
 
 All conventions (directory layout, YAML format, required fields, query
@@ -24,7 +24,7 @@ documented, ask the user.
 ## Your task
 
 Given a CIS benchmark PDF for a specific OS and version, generate or
-update the complete set of Fleet policies, test scripts, MDM profiles,
+update the complete set of AutoMDM policies, test scripts, MDM profiles,
 and documentation.
 
 ## Input files
@@ -84,7 +84,7 @@ Extract:
 - PayloadType, key name, and value (if profile-based)
 
 Skip Manual-assessment recommendations — they cannot be automated as
-Fleet policies. Note them for the README.md limitations section.
+AutoMDM policies. Note them for the README.md limitations section.
 
 ### Step 3: Generate policy YAML
 
@@ -94,12 +94,12 @@ rules in §Query patterns — queries MUST return 1+ rows when compliant
 and 0 rows when not.
 
 Append name qualifiers per §Naming qualifiers when the query depends
-on `managed_policies` (`(MDM Required)`), fleetd-only tables
-(`(Fleetd Required)`), or files needing full disk access
+on `managed_policies` (`(MDM Required)`), automdmd-only tables
+(`(AutoMDMd Required)`), or files needing full disk access
 (`(FDA Required)`).
 
-Before writing a query against a fleetd table, verify its column
-names against CIS-BENCHMARKS.md §Fleetd tables used by CIS
+Before writing a query against an automdmd table, verify its column
+names against CIS-BENCHMARKS.md §AutoMDMd tables used by CIS
 queries, and check the console-user-scope caveat. If you reach
 for a table not listed there, read its source at
 `orbit/pkg/table/<name>/` first.

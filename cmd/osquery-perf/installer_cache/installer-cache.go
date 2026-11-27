@@ -7,10 +7,10 @@ import (
 	"strings"
 	"sync"
 
-	fleetclient "github.com/fleetdm/fleet/v4/client"
-	"github.com/fleetdm/fleet/v4/cmd/osquery-perf/osquery_perf"
-	"github.com/fleetdm/fleet/v4/pkg/file"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	automdmclient "github.com/anilyagiz/automdm/v4/client"
+	"github.com/anilyagiz/automdm/v4/cmd/osquery-perf/osquery_perf"
+	"github.com/anilyagiz/automdm/v4/pkg/file"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
 // Metadata holds the metadata for software installers.
@@ -22,7 +22,7 @@ type Metadata struct {
 	Stats *osquery_perf.Stats
 }
 
-func (c *Metadata) Get(installer *fleet.SoftwareInstallDetails, orbitClient *fleetclient.OrbitClient) (meta *file.InstallerMetadata,
+func (c *Metadata) Get(installer *automdm.SoftwareInstallDetails, orbitClient *automdmclient.OrbitClient) (meta *file.InstallerMetadata,
 	cacheMiss bool, err error,
 ) {
 	c.mu.Lock()
@@ -44,7 +44,7 @@ func (c *Metadata) Get(installer *fleet.SoftwareInstallDetails, orbitClient *fle
 	return meta, cacheMiss, nil
 }
 
-func (c *Metadata) populateMetadata(installer *fleet.SoftwareInstallDetails, orbitClient *fleetclient.OrbitClient) (*file.InstallerMetadata,
+func (c *Metadata) populateMetadata(installer *automdm.SoftwareInstallDetails, orbitClient *automdmclient.OrbitClient) (*file.InstallerMetadata,
 	error,
 ) {
 	tmpDir, err := os.MkdirTemp("", "")
@@ -77,7 +77,7 @@ func (c *Metadata) populateMetadata(installer *fleet.SoftwareInstallDetails, orb
 		}
 	}
 
-	// Installer might from a Fleet-maintained app. If so, it might be a .dmg or .zip.
+	// Installer might from an AutoMDM-maintained app. If so, it might be a .dmg or .zip.
 	// file.ExtractInstallerMetadata doesn't support .dmg or .zip files, so we have to create
 	// an InstallerMetadata manually.
 	var extension string
@@ -96,7 +96,7 @@ func (c *Metadata) populateMetadata(installer *fleet.SoftwareInstallDetails, orb
 	}
 
 	// Figure out what we're actually installing here and add it to software inventory
-	tfr, err := fleet.NewKeepFileReader(installerPath)
+	tfr, err := automdm.NewKeepFileReader(installerPath)
 	if err != nil {
 		c.Stats.IncrementOrbitErrors()
 		log.Println("level=error, open installer:", err)

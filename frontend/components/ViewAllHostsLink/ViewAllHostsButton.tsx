@@ -79,7 +79,7 @@ const ViewAllHostsButton = ({
         <Icon
           name="chevron-right"
           className={`${baseClass}__icon`}
-          color="ui-fleet-black-75"
+          color="ui-automdm-black-75"
         />
       )}
     </Button>

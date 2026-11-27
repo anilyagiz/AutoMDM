@@ -4,23 +4,23 @@ import (
 	"context"
 	"fmt"
 
-	authz_ctx "github.com/fleetdm/fleet/v4/server/contexts/authz"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	authz_ctx "github.com/anilyagiz/automdm/v4/server/contexts/authz"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 )
 
-func (s *Service) NewACMEEnrollment(ctx context.Context, hostIdentifier string, purpose fleet.AppleMDMCertPurpose, enrollmentID *string) (string, error) {
+func (s *Service) NewACMEEnrollment(ctx context.Context, hostIdentifier string, purpose automdm.AppleMDMCertPurpose, enrollmentID *string) (string, error) {
 	// skipauth: No authorization check needed; caller is authenticated via DEP device identity.
 	if az, ok := authz_ctx.FromContext(ctx); ok {
 		az.SetChecked()
 	}
 
 	switch purpose {
-	case fleet.AppleMDMCertPurposeACME:
+	case automdm.AppleMDMCertPurposeACME:
 		if enrollmentID != nil {
 			return "", ctxerr.New(ctx, "an acme enrollment can't carry an enrollment ID")
 		}
-	case fleet.AppleMDMCertPurposeACMERenewal:
+	case automdm.AppleMDMCertPurposeACMERenewal:
 		if enrollmentID == nil || *enrollmentID == "" {
 			return "", ctxerr.New(ctx, "an acme_renewal enrollment requires an enrollment ID")
 		}

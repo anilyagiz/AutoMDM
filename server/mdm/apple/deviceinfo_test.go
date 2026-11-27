@@ -107,13 +107,13 @@ func TestVerifyMachineInfoSignatureAccountDrivenCapture(t *testing.T) {
 	require.NoError(t, VerifyMachineInfoSignature(p7))
 }
 
-// TestOTAPhase2FleetSignatureCapture verifies a real OTA phase-2 request body
-// captured from a lab iPhone. Phase 2 is signed by the Fleet SCEP identity the
+// TestOTAPhase2AutoMDMSignatureCapture verifies a real OTA phase-2 request body
+// captured from a lab iPhone. Phase 2 is signed by the AutoMDM SCEP identity the
 // device obtained in phase 1 (not the Apple device identity), so it's verified
 // with smallstep's p7.Verify() — a standard CMS signature check — rather than
 // the Apple device-CA verifier. This pins the behavior the OTA decoder relies
-// on: a genuine Fleet-signed body verifies, and tampering the content breaks it.
-func TestOTAPhase2FleetSignatureCapture(t *testing.T) {
+// on: a genuine AutoMDM-signed body verifies, and tampering the content breaks it.
+func TestOTAPhase2AutoMDMSignatureCapture(t *testing.T) {
 	buf, err := os.ReadFile("testdata/deviceinfo/ota-phase2-iphone.der")
 	require.NoError(t, err)
 
@@ -122,9 +122,9 @@ func TestOTAPhase2FleetSignatureCapture(t *testing.T) {
 
 	signer := p7.GetOnlySigner()
 	require.NotNil(t, signer)
-	require.Equal(t, "Fleet Identity", signer.Subject.CommonName)
+	require.Equal(t, "AutoMDM Identity", signer.Subject.CommonName)
 
-	// genuine Fleet-signed phase-2 body verifies (signature over the
+	// genuine AutoMDM-signed phase-2 body verifies (signature over the
 	// authenticated attributes, plus messageDigest == hash(content))
 	require.NoError(t, p7.Verify())
 

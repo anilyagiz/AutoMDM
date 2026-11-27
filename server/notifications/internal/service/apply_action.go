@@ -3,9 +3,9 @@ package service
 import (
 	"context"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/notifications/api"
-	"github.com/fleetdm/fleet/v4/server/notifications/internal/types"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/notifications/api"
+	"github.com/anilyagiz/automdm/v4/server/notifications/internal/types"
 )
 
 func (s *Service) ApplyAction(ctx context.Context, hostID uint, notificationUUID string, action api.EndUserNotificationAction) (*api.NotificationView, error) {
@@ -29,7 +29,7 @@ func (s *Service) ApplyAction(ctx context.Context, hostID uint, notificationUUID
 	switch *action.Action {
 	case api.EndUserNotificationActionVerify:
 		// TODO: end users should be able to send the time they displayed a
-		// notification at. Currently Fleet uses the script queue to implement
+		// notification at. Currently AutoMDM uses the script queue to implement
 		// notification so their displayed at time is set when the script
 		// returns a successful code.
 

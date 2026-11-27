@@ -25,10 +25,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
@@ -65,7 +65,7 @@ func (s *integrationTestSuite) TestAppConfigDetailQueryOverridesRemoved() {
 	t := s.T()
 	ctx := t.Context()
 
-	res := s.Do("PATCH", "/api/latest/fleet/config", map[string]any{
+	res := s.Do("PATCH", "/api/latest/automdm/config", map[string]any{
 		"features": map[string]any{"detail_query_overrides": map[string]any{"users": nil}},
 	}, http.StatusBadRequest)
 	require.Contains(t, extractServerErrorText(res.Body), `unsupported key provided: "detail_query_overrides"`)
@@ -76,7 +76,7 @@ func (s *integrationTestSuite) TestAppConfigDetailQueryOverridesRemoved() {
     enable_host_users: true
 `))
 
-	// Configs saved by an older Fleet can still hold overrides, so seed them directly.
+	// Configs saved by an older AutoMDM can still hold overrides, so seed them directly.
 	var previousRawConfig string
 	mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
 		if err := sqlx.GetContext(ctx, q, &previousRawConfig, "SELECT json_value FROM app_config_json"); err != nil {
@@ -94,10 +94,10 @@ func (s *integrationTestSuite) TestAppConfigDetailQueryOverridesRemoved() {
 	})
 
 	var rawConfig map[string]any
-	s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &rawConfig)
+	s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &rawConfig)
 	require.NotContains(t, rawConfig["features"], "detail_query_overrides")
 
-	host, err := s.ds.NewHost(ctx, &fleet.Host{
+	host, err := s.ds.NewHost(ctx, &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -114,8 +114,8 @@ func (s *integrationTestSuite) TestAppConfigDetailQueryOverridesRemoved() {
 
 	var dqResp getDistributedQueriesResponse
 	s.DoJSON("POST", "/api/osquery/distributed/read", getDistributedQueriesRequest{NodeKey: *host.NodeKey}, http.StatusOK, &dqResp)
-	require.Contains(t, dqResp.Queries["fleet_detail_query_users"], "FROM users")
-	require.Contains(t, dqResp.Queries["fleet_detail_query_software_macos"], "FROM apps")
+	require.Contains(t, dqResp.Queries["team_detail_query_users"], "FROM users")
+	require.Contains(t, dqResp.Queries["team_detail_query_software_macos"], "FROM apps")
 
 	// Saves re-marshal the whole config from the struct, so the stale key disappears without a migration.
 	s.applyConfig([]byte(`
@@ -135,33 +135,33 @@ func (s *integrationTestSuite) TestRemovedReportServerSettingsKeys() {
 
 	original := s.getConfig().ServerSettings
 	t.Cleanup(func() {
-		s.DoRaw("PATCH", "/api/latest/fleet/config", fmt.Appendf(nil,
+		s.DoRaw("PATCH", "/api/latest/automdm/config", fmt.Appendf(nil,
 			`{"server_settings": {"live_reporting_disabled": %t, "discard_reports_data": %t, "report_cap": %d}}`,
 			original.LiveQueryDisabled, original.QueryReportsDisabled, original.QueryReportCap), http.StatusOK)
 	})
 
-	s.DoRaw("PATCH", "/api/latest/fleet/config",
+	s.DoRaw("PATCH", "/api/latest/automdm/config",
 		[]byte(`{"server_settings": {"live_reporting_disabled": true, "discard_reports_data": true, "report_cap": 1234}}`), http.StatusOK)
 
 	removedMsg := func(key string) string {
-		return `The "` + key + `" parameter is not available anymore. What to use instead: https://fleetdm.com/learn-more-about/fleet-5-upgrade`
+		return `The "` + key + `" parameter is not available anymore. What to use instead: https://automdm.com/learn-more-about/automdm-5-upgrade`
 	}
 	for _, tc := range []struct{ name, path, body, want string }{
-		{"live_query_disabled", "/api/latest/fleet/config", `{"server_settings": {"live_query_disabled": false}}`, removedMsg("live_query_disabled")},
-		{"query_reports_disabled", "/api/latest/fleet/config", `{"server_settings": {"query_reports_disabled": false}}`, removedMsg("query_reports_disabled")},
-		{"query_report_cap", "/api/latest/fleet/config", `{"server_settings": {"query_report_cap": 5}}`, removedMsg("query_report_cap")},
-		{"dry run", "/api/latest/fleet/config?dry_run=true", `{"server_settings": {"query_report_cap": 5}}`, removedMsg("query_report_cap")},
-		{"force", "/api/latest/fleet/config?force=true", `{"server_settings": {"query_report_cap": 5}}`, removedMsg("query_report_cap")},
+		{"live_query_disabled", "/api/latest/automdm/config", `{"server_settings": {"live_query_disabled": false}}`, removedMsg("live_query_disabled")},
+		{"query_reports_disabled", "/api/latest/automdm/config", `{"server_settings": {"query_reports_disabled": false}}`, removedMsg("query_reports_disabled")},
+		{"query_report_cap", "/api/latest/automdm/config", `{"server_settings": {"query_report_cap": 5}}`, removedMsg("query_report_cap")},
+		{"dry run", "/api/latest/automdm/config?dry_run=true", `{"server_settings": {"query_report_cap": 5}}`, removedMsg("query_report_cap")},
+		{"force", "/api/latest/automdm/config?force=true", `{"server_settings": {"query_report_cap": 5}}`, removedMsg("query_report_cap")},
 		{
-			"old and new together", "/api/latest/fleet/config",
+			"old and new together", "/api/latest/automdm/config",
 			`{"server_settings": {"report_cap": 5, "query_report_cap": 5}}`, removedMsg("query_report_cap"),
 		},
 		{
-			"differently cased", "/api/latest/fleet/config",
+			"differently cased", "/api/latest/automdm/config",
 			`{"SERVER_SETTINGS": {"Live_Query_Disabled": false}}`, removedMsg("Live_Query_Disabled"),
 		},
 		{
-			"with another setting", "/api/latest/fleet/config",
+			"with another setting", "/api/latest/automdm/config",
 			`{"org_info": {"org_name": "set by a rejected request"}, "server_settings": {"query_reports_disabled": false}}`,
 			removedMsg("query_reports_disabled"),
 		},
@@ -183,7 +183,7 @@ func (s *integrationTestSuite) TestRemovedReportServerSettingsKeys() {
 	var raw struct {
 		ServerSettings map[string]any `json:"server_settings"`
 	}
-	s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &raw)
+	s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &raw)
 	require.Equal(t, true, raw.ServerSettings["live_reporting_disabled"])
 	require.Equal(t, true, raw.ServerSettings["discard_reports_data"])
 	require.EqualValues(t, 1234, raw.ServerSettings["report_cap"])
@@ -236,7 +236,7 @@ func (s *integrationTestSuite) TestAppConfigDeprecatedFields() {
 		"host_settings":   {"enable_software_inventory": true},
 		"server_settings": {"enable_analytics": false},
 	}
-	s.Do("PATCH", "/api/latest/fleet/config", appConfigSpec, http.StatusOK)
+	s.Do("PATCH", "/api/latest/automdm/config", appConfigSpec, http.StatusOK)
 	config = s.getConfig()
 	require.True(t, config.Features.EnableSoftwareInventory)
 
@@ -260,7 +260,7 @@ func (s *integrationTestSuite) TestAppConfigDeprecatedFields() {
 	})
 
 	var resp appConfigResponse
-	s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &resp)
+	s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &resp)
 	require.False(t, resp.Features.EnableHostUsers)
 	require.True(t, resp.Features.EnableSoftwareInventory)
 	require.NotNil(t, resp.Features.AdditionalQueries)
@@ -281,7 +281,7 @@ func (s *integrationTestSuite) TestAppConfigHistoricalData() {
 	// PATCHed the AppConfig (the suite shares state), so an earlier no-op
 	// SaveAppConfig with a zero-value Features could have stamped
 	// historical_data={false,false} into the stored JSON.
-	s.Do("PATCH", "/api/latest/fleet/config",
+	s.Do("PATCH", "/api/latest/automdm/config",
 		map[string]any{"features": map[string]any{"historical_data": map[string]any{"uptime": true, "vulnerabilities": true}}},
 		http.StatusOK)
 	cfg := s.getConfig()
@@ -292,49 +292,49 @@ func (s *integrationTestSuite) TestAppConfigHistoricalData() {
 	// Snapshot the most recent activity ID (any type) as a watermark so we can
 	// confirm a new disabled_historical_dataset row is actually emitted.
 	preDisableWatermark := s.lastActivityMatches("", "", 0)
-	s.Do("PATCH", "/api/latest/fleet/config",
+	s.Do("PATCH", "/api/latest/automdm/config",
 		map[string]any{"features": map[string]any{"historical_data": map[string]any{"vulnerabilities": false}}},
 		http.StatusOK)
 	cfg = s.getConfig()
 	require.True(t, cfg.Features.HistoricalData.Uptime, "uptime preserved when omitted from PATCH")
 	require.False(t, cfg.Features.HistoricalData.Vulnerabilities)
 
-	// A new disabled_historical_dataset activity for vulnerabilities, no fleet scope.
+	// A new disabled_historical_dataset activity for vulnerabilities, no team scope.
 	require.Greater(t, s.lastActivityOfTypeMatches(
-		fleet.ActivityTypeDisabledHistoricalDataset{}.ActivityName(),
-		`{"dataset":"vulnerabilities","fleet_id":null,"fleet_name":null}`,
+		automdm.ActivityTypeDisabledHistoricalDataset{}.ActivityName(),
+		`{"dataset":"vulnerabilities","team_id":null,"team_name":null}`,
 		0,
 	), preDisableWatermark, "new disable activity emitted for PATCH")
 
 	// PATCH the same value back — no new activity should be emitted.
 	priorActivityID := s.lastActivityOfTypeMatches(
-		fleet.ActivityTypeDisabledHistoricalDataset{}.ActivityName(), "", 0,
+		automdm.ActivityTypeDisabledHistoricalDataset{}.ActivityName(), "", 0,
 	)
-	s.Do("PATCH", "/api/latest/fleet/config",
+	s.Do("PATCH", "/api/latest/automdm/config",
 		map[string]any{"features": map[string]any{"historical_data": map[string]any{"vulnerabilities": false}}},
 		http.StatusOK)
 	require.Equal(t, priorActivityID, s.lastActivityOfTypeMatches(
-		fleet.ActivityTypeDisabledHistoricalDataset{}.ActivityName(), "", 0,
+		automdm.ActivityTypeDisabledHistoricalDataset{}.ActivityName(), "", 0,
 	), "no new activity for no-op PATCH")
 
 	// Flip both in one PATCH — re-enable vulnerabilities, disable uptime → 2 activities.
 	// Use the most recent activity ID (any type) as a watermark; the new
 	// enabled/disabled activities for this PATCH must have IDs greater than it.
 	preFlipWatermark := s.lastActivityMatches("", "", 0)
-	s.Do("PATCH", "/api/latest/fleet/config",
+	s.Do("PATCH", "/api/latest/automdm/config",
 		map[string]any{"features": map[string]any{"historical_data": map[string]any{"uptime": false, "vulnerabilities": true}}},
 		http.StatusOK)
 	cfg = s.getConfig()
 	require.False(t, cfg.Features.HistoricalData.Uptime)
 	require.True(t, cfg.Features.HistoricalData.Vulnerabilities)
 	require.Greater(t, s.lastActivityOfTypeMatches(
-		fleet.ActivityTypeEnabledHistoricalDataset{}.ActivityName(),
-		`{"dataset":"vulnerabilities","fleet_id":null,"fleet_name":null}`,
+		automdm.ActivityTypeEnabledHistoricalDataset{}.ActivityName(),
+		`{"dataset":"vulnerabilities","team_id":null,"team_name":null}`,
 		0,
 	), preFlipWatermark, "new enable activity emitted for vulnerabilities re-enable")
 	require.Greater(t, s.lastActivityOfTypeMatches(
-		fleet.ActivityTypeDisabledHistoricalDataset{}.ActivityName(),
-		`{"dataset":"uptime","fleet_id":null,"fleet_name":null}`,
+		automdm.ActivityTypeDisabledHistoricalDataset{}.ActivityName(),
+		`{"dataset":"uptime","team_id":null,"team_name":null}`,
 		0,
 	), preFlipWatermark, "new disable activity emitted for uptime")
 
@@ -374,7 +374,7 @@ func (s *integrationTestSuite) TestExternalIntegrationsConfig() {
 	// create a test http server to act as the Jira and Zendesk server
 	srvURL := startExternalServiceWebServer(t)
 
-	s.DoRaw("PATCH", "/api/v1/fleet/config", []byte(fmt.Sprintf(`{
+	s.DoRaw("PATCH", "/api/v1/automdm/config", []byte(fmt.Sprintf(`{
 		"integrations": {
 			"jira": [{
 				"url": %q,
@@ -390,12 +390,12 @@ func (s *integrationTestSuite) TestExternalIntegrationsConfig() {
 	require.Len(t, config.Integrations.Jira, 1)
 	require.Equal(t, srvURL, config.Integrations.Jira[0].URL)
 	require.Equal(t, "ok", config.Integrations.Jira[0].Username)
-	require.Equal(t, fleet.MaskedPassword, config.Integrations.Jira[0].APIToken)
+	require.Equal(t, automdm.MaskedPassword, config.Integrations.Jira[0].APIToken)
 	require.Equal(t, "qux", config.Integrations.Jira[0].ProjectKey)
 	require.True(t, config.Integrations.Jira[0].EnableSoftwareVulnerabilities)
 
 	// add a second, disabled Jira integration
-	s.DoRaw("PATCH", "/api/v1/fleet/config", []byte(fmt.Sprintf(`{
+	s.DoRaw("PATCH", "/api/v1/automdm/config", []byte(fmt.Sprintf(`{
 		"integrations": {
 			"jira": [
 				{
@@ -422,20 +422,20 @@ func (s *integrationTestSuite) TestExternalIntegrationsConfig() {
 	// first integration
 	require.Equal(t, srvURL, config.Integrations.Jira[0].URL)
 	require.Equal(t, "ok", config.Integrations.Jira[0].Username)
-	require.Equal(t, fleet.MaskedPassword, config.Integrations.Jira[0].APIToken)
+	require.Equal(t, automdm.MaskedPassword, config.Integrations.Jira[0].APIToken)
 	require.Equal(t, "qux", config.Integrations.Jira[0].ProjectKey)
 	require.True(t, config.Integrations.Jira[0].EnableSoftwareVulnerabilities)
 
 	// second integration
 	require.Equal(t, srvURL, config.Integrations.Jira[1].URL)
 	require.Equal(t, "ok", config.Integrations.Jira[1].Username)
-	require.Equal(t, fleet.MaskedPassword, config.Integrations.Jira[1].APIToken)
+	require.Equal(t, automdm.MaskedPassword, config.Integrations.Jira[1].APIToken)
 	require.Equal(t, "qux2", config.Integrations.Jira[1].ProjectKey)
 	require.False(t, config.Integrations.Jira[1].EnableSoftwareVulnerabilities)
 
 	// make an unrelated appconfig change, should not remove the integrations
 	var appCfgResp appConfigResponse
-	s.DoJSON("PATCH", "/api/v1/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/v1/automdm/config", json.RawMessage(`{
 		"org_info": {
 			"org_name": "test-integrations"
 		}
@@ -444,7 +444,7 @@ func (s *integrationTestSuite) TestExternalIntegrationsConfig() {
 	require.Len(t, appCfgResp.Integrations.Jira, 2)
 
 	// delete first Jira integration
-	s.DoRaw("PATCH", "/api/v1/fleet/config", []byte(fmt.Sprintf(`{
+	s.DoRaw("PATCH", "/api/v1/automdm/config", []byte(fmt.Sprintf(`{
 		"integrations": {
 			"jira": [
 				{
@@ -462,7 +462,7 @@ func (s *integrationTestSuite) TestExternalIntegrationsConfig() {
 	require.Equal(t, "qux2", config.Integrations.Jira[0].ProjectKey)
 
 	// replace Jira integration
-	s.DoRaw("PATCH", "/api/v1/fleet/config", []byte(fmt.Sprintf(`{
+	s.DoRaw("PATCH", "/api/v1/automdm/config", []byte(fmt.Sprintf(`{
 		"integrations": {
 			"jira": [
 				{
@@ -482,7 +482,7 @@ func (s *integrationTestSuite) TestExternalIntegrationsConfig() {
 	require.False(t, config.Integrations.Jira[0].EnableSoftwareVulnerabilities)
 
 	// try adding Jira integration without sending API token
-	s.DoRaw("PATCH", "/api/v1/fleet/config", []byte(fmt.Sprintf(`{
+	s.DoRaw("PATCH", "/api/v1/automdm/config", []byte(fmt.Sprintf(`{
 		"integrations": {
 			"jira": [
 				{
@@ -503,7 +503,7 @@ func (s *integrationTestSuite) TestExternalIntegrationsConfig() {
 	}`, srvURL)), http.StatusBadRequest)
 
 	// try adding Jira integration with masked API token
-	s.DoRaw("PATCH", "/api/v1/fleet/config", []byte(fmt.Sprintf(`{
+	s.DoRaw("PATCH", "/api/v1/automdm/config", []byte(fmt.Sprintf(`{
 		"integrations": {
 			"jira": [
 				{
@@ -522,10 +522,10 @@ func (s *integrationTestSuite) TestExternalIntegrationsConfig() {
 				}
 			]
 		}
-	}`, srvURL, fleet.MaskedPassword)), http.StatusBadRequest)
+	}`, srvURL, automdm.MaskedPassword)), http.StatusBadRequest)
 
 	// edit Jira integration without sending API token
-	s.DoRaw("PATCH", "/api/v1/fleet/config", []byte(fmt.Sprintf(`{
+	s.DoRaw("PATCH", "/api/v1/automdm/config", []byte(fmt.Sprintf(`{
 		"integrations": {
 			"jira": [
 				{
@@ -544,7 +544,7 @@ func (s *integrationTestSuite) TestExternalIntegrationsConfig() {
 	require.True(t, config.Integrations.Jira[0].EnableSoftwareVulnerabilities)
 
 	// edit Jira integration with masked API token
-	s.DoRaw("PATCH", "/api/v1/fleet/config", []byte(fmt.Sprintf(`{
+	s.DoRaw("PATCH", "/api/v1/automdm/config", []byte(fmt.Sprintf(`{
 		"integrations": {
 			"jira": [
 				{
@@ -556,7 +556,7 @@ func (s *integrationTestSuite) TestExternalIntegrationsConfig() {
 				}
 			]
 		}
-	}`, srvURL, fleet.MaskedPassword)), http.StatusOK)
+	}`, srvURL, automdm.MaskedPassword)), http.StatusOK)
 
 	config = s.getConfig()
 	require.Len(t, config.Integrations.Jira, 1)
@@ -564,7 +564,7 @@ func (s *integrationTestSuite) TestExternalIntegrationsConfig() {
 	require.False(t, config.Integrations.Jira[0].EnableSoftwareVulnerabilities)
 
 	// edit Jira integration sending explicit "" as API token
-	s.DoRaw("PATCH", "/api/v1/fleet/config", []byte(fmt.Sprintf(`{
+	s.DoRaw("PATCH", "/api/v1/automdm/config", []byte(fmt.Sprintf(`{
 		"integrations": {
 			"jira": [
 				{
@@ -584,7 +584,7 @@ func (s *integrationTestSuite) TestExternalIntegrationsConfig() {
 	require.True(t, config.Integrations.Jira[0].EnableSoftwareVulnerabilities)
 
 	// unknown fields fails as bad request
-	s.DoRaw("PATCH", "/api/v1/fleet/config", []byte(fmt.Sprintf(`{
+	s.DoRaw("PATCH", "/api/v1/automdm/config", []byte(fmt.Sprintf(`{
 		"integrations": {
 			"jira": [{
 				"url": %q,
@@ -594,7 +594,7 @@ func (s *integrationTestSuite) TestExternalIntegrationsConfig() {
 	}`, srvURL)), http.StatusBadRequest)
 
 	// unknown project key fails as bad request
-	s.DoRaw("PATCH", "/api/v1/fleet/config", []byte(fmt.Sprintf(`{
+	s.DoRaw("PATCH", "/api/v1/automdm/config", []byte(fmt.Sprintf(`{
 		"integrations": {
 			"jira": [
 				{
@@ -606,10 +606,10 @@ func (s *integrationTestSuite) TestExternalIntegrationsConfig() {
 				}
 			]
 		}
-	}`, srvURL, fleet.MaskedPassword)), http.StatusBadRequest)
+	}`, srvURL, automdm.MaskedPassword)), http.StatusBadRequest)
 
 	// cannot have two integrations enabled at the same time
-	s.DoRaw("PATCH", "/api/v1/fleet/config", []byte(fmt.Sprintf(`{
+	s.DoRaw("PATCH", "/api/v1/automdm/config", []byte(fmt.Sprintf(`{
 		"integrations": {
 			"jira": [
 				{
@@ -631,7 +631,7 @@ func (s *integrationTestSuite) TestExternalIntegrationsConfig() {
 	}`, srvURL)), http.StatusUnprocessableEntity)
 
 	// cannot have two jira integrations with the same project key
-	s.DoRaw("PATCH", "/api/v1/fleet/config", []byte(fmt.Sprintf(`{
+	s.DoRaw("PATCH", "/api/v1/automdm/config", []byte(fmt.Sprintf(`{
 		"integrations": {
 			"jira": [
 				{
@@ -654,7 +654,7 @@ func (s *integrationTestSuite) TestExternalIntegrationsConfig() {
 
 	// even disabled integrations are tested for Jira connection and credentials,
 	// so this fails because the 2nd one uses the "fail" username.
-	s.DoRaw("PATCH", "/api/v1/fleet/config", []byte(fmt.Sprintf(`{
+	s.DoRaw("PATCH", "/api/v1/automdm/config", []byte(fmt.Sprintf(`{
 		"integrations": {
 			"jira": [
 				{
@@ -676,7 +676,7 @@ func (s *integrationTestSuite) TestExternalIntegrationsConfig() {
 	}`, srvURL)), http.StatusBadRequest)
 
 	// cannot enable webhook with a jira integration already enabled
-	s.DoRaw("PATCH", "/api/v1/fleet/config", []byte(`{
+	s.DoRaw("PATCH", "/api/v1/automdm/config", []byte(`{
 		"webhook_settings": {
 			"vulnerabilities_webhook": {
 				"enable_vulnerabilities_webhook": true,
@@ -688,7 +688,7 @@ func (s *integrationTestSuite) TestExternalIntegrationsConfig() {
 	}`), http.StatusUnprocessableEntity)
 
 	// disable jira, now we can enable webhook
-	s.DoRaw("PATCH", "/api/v1/fleet/config", []byte(fmt.Sprintf(`{
+	s.DoRaw("PATCH", "/api/v1/automdm/config", []byte(fmt.Sprintf(`{
 		"integrations": {
 		"jira": [{
 			"url": %q,
@@ -709,7 +709,7 @@ func (s *integrationTestSuite) TestExternalIntegrationsConfig() {
 	}`, srvURL)), http.StatusOK)
 
 	// cannot enable jira with webhook already enabled
-	s.DoRaw("PATCH", "/api/v1/fleet/config", []byte(fmt.Sprintf(`{
+	s.DoRaw("PATCH", "/api/v1/automdm/config", []byte(fmt.Sprintf(`{
 		"integrations": {
 			"jira": [{
 				"url": %q,
@@ -722,7 +722,7 @@ func (s *integrationTestSuite) TestExternalIntegrationsConfig() {
 	}`, srvURL)), http.StatusUnprocessableEntity)
 
 	// disable webhook, enable jira with wrong credentials
-	s.DoRaw("PATCH", "/api/v1/fleet/config", []byte(fmt.Sprintf(`{
+	s.DoRaw("PATCH", "/api/v1/automdm/config", []byte(fmt.Sprintf(`{
 		"integrations": {
 			"jira": [{
 				"url": %q,
@@ -744,7 +744,7 @@ func (s *integrationTestSuite) TestExternalIntegrationsConfig() {
 
 	// update jira config to correct credentials (need to disable webhook too as
 	// last request failed)
-	s.DoRaw("PATCH", "/api/v1/fleet/config", []byte(fmt.Sprintf(`{
+	s.DoRaw("PATCH", "/api/v1/automdm/config", []byte(fmt.Sprintf(`{
 		"integrations": {
 			"jira": [{
 				"url": %q,
@@ -766,14 +766,14 @@ func (s *integrationTestSuite) TestExternalIntegrationsConfig() {
 
 	// if no jira nor zendesk integrations are provided, does not remove integrations
 	appCfgResp = appConfigResponse{}
-	s.DoJSON("PATCH", "/api/v1/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/v1/automdm/config", json.RawMessage(`{
 		"integrations": {}
 	}`), http.StatusOK, &appCfgResp)
 	require.Len(t, appCfgResp.Integrations.Jira, 1)
 
 	// if explicitly-empty arrays are provided, remove all integrations
 	appCfgResp = appConfigResponse{}
-	s.DoJSON("PATCH", "/api/v1/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/v1/automdm/config", json.RawMessage(`{
 		"integrations": {
 			"jira": [],
 			"zendesk": []
@@ -784,7 +784,7 @@ func (s *integrationTestSuite) TestExternalIntegrationsConfig() {
 	// set environmental varible to use Zendesk test client
 	t.Setenv("TEST_ZENDESK_CLIENT", "true")
 	// create zendesk integration
-	s.DoRaw("PATCH", "/api/v1/fleet/config", []byte(fmt.Sprintf(`{
+	s.DoRaw("PATCH", "/api/v1/automdm/config", []byte(fmt.Sprintf(`{
 		"integrations": {
 			"zendesk": [{
 				"url": %q,
@@ -801,12 +801,12 @@ func (s *integrationTestSuite) TestExternalIntegrationsConfig() {
 	require.Len(t, config.Integrations.Zendesk, 1)
 	require.Equal(t, srvURL, config.Integrations.Zendesk[0].URL)
 	require.Equal(t, "ok@example.com", config.Integrations.Zendesk[0].Email)
-	require.Equal(t, fleet.MaskedPassword, config.Integrations.Zendesk[0].APIToken)
+	require.Equal(t, automdm.MaskedPassword, config.Integrations.Zendesk[0].APIToken)
 	require.Equal(t, int64(122), config.Integrations.Zendesk[0].GroupID)
 	require.True(t, config.Integrations.Zendesk[0].EnableSoftwareVulnerabilities)
 
 	// add a second, disabled Zendesk integration
-	s.DoRaw("PATCH", "/api/v1/fleet/config", []byte(fmt.Sprintf(`{
+	s.DoRaw("PATCH", "/api/v1/automdm/config", []byte(fmt.Sprintf(`{
 		"integrations": {
 			"zendesk": [
 				{
@@ -834,20 +834,20 @@ func (s *integrationTestSuite) TestExternalIntegrationsConfig() {
 	// first integration
 	require.Equal(t, srvURL, config.Integrations.Zendesk[0].URL)
 	require.Equal(t, "ok@example.com", config.Integrations.Zendesk[0].Email)
-	require.Equal(t, fleet.MaskedPassword, config.Integrations.Zendesk[0].APIToken)
+	require.Equal(t, automdm.MaskedPassword, config.Integrations.Zendesk[0].APIToken)
 	require.Equal(t, int64(122), config.Integrations.Zendesk[0].GroupID)
 	require.True(t, config.Integrations.Zendesk[0].EnableSoftwareVulnerabilities)
 
 	// second integration
 	require.Equal(t, srvURL, config.Integrations.Zendesk[1].URL)
 	require.Equal(t, "test123@example.com", config.Integrations.Zendesk[1].Email)
-	require.Equal(t, fleet.MaskedPassword, config.Integrations.Zendesk[1].APIToken)
+	require.Equal(t, automdm.MaskedPassword, config.Integrations.Zendesk[1].APIToken)
 	require.Equal(t, int64(123), config.Integrations.Zendesk[1].GroupID)
 	require.False(t, config.Integrations.Zendesk[1].EnableSoftwareVulnerabilities)
 
 	// make an unrelated appconfig change, should not remove the integrations
 	appCfgResp = appConfigResponse{}
-	s.DoJSON("PATCH", "/api/v1/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/v1/automdm/config", json.RawMessage(`{
 		"org_info": {
 			"org_name": "test-integrations-zendesk"
 		}
@@ -856,7 +856,7 @@ func (s *integrationTestSuite) TestExternalIntegrationsConfig() {
 	require.Len(t, appCfgResp.Integrations.Zendesk, 2)
 
 	// delete first Zendesk integration
-	s.DoRaw("PATCH", "/api/v1/fleet/config", []byte(fmt.Sprintf(`{
+	s.DoRaw("PATCH", "/api/v1/automdm/config", []byte(fmt.Sprintf(`{
 		"integrations": {
 			"zendesk": [
 				{
@@ -875,7 +875,7 @@ func (s *integrationTestSuite) TestExternalIntegrationsConfig() {
 	require.Equal(t, int64(123), config.Integrations.Zendesk[0].GroupID)
 
 	// replace Zendesk integration
-	s.DoRaw("PATCH", "/api/v1/fleet/config", []byte(fmt.Sprintf(`{
+	s.DoRaw("PATCH", "/api/v1/automdm/config", []byte(fmt.Sprintf(`{
 		"integrations": {
 			"zendesk": [
 				{
@@ -896,7 +896,7 @@ func (s *integrationTestSuite) TestExternalIntegrationsConfig() {
 	require.False(t, config.Integrations.Zendesk[0].EnableSoftwareVulnerabilities)
 
 	// try adding Zendesk integration without sending API token
-	s.DoRaw("PATCH", "/api/v1/fleet/config", []byte(fmt.Sprintf(`{
+	s.DoRaw("PATCH", "/api/v1/automdm/config", []byte(fmt.Sprintf(`{
 		"integrations": {
 			"zendesk": [
 				{
@@ -917,7 +917,7 @@ func (s *integrationTestSuite) TestExternalIntegrationsConfig() {
 	}`, srvURL)), http.StatusBadRequest)
 
 	// try adding Zendesk integration with masked API token
-	s.DoRaw("PATCH", "/api/v1/fleet/config", []byte(fmt.Sprintf(`{
+	s.DoRaw("PATCH", "/api/v1/automdm/config", []byte(fmt.Sprintf(`{
 		"integrations": {
 			"zendesk": [
 				{
@@ -936,10 +936,10 @@ func (s *integrationTestSuite) TestExternalIntegrationsConfig() {
 				}
 			]
 		}
-	}`, srvURL, fleet.MaskedPassword)), http.StatusBadRequest)
+	}`, srvURL, automdm.MaskedPassword)), http.StatusBadRequest)
 
 	// edit Zendesk integration without sending API token
-	s.DoRaw("PATCH", "/api/v1/fleet/config", []byte(fmt.Sprintf(`{
+	s.DoRaw("PATCH", "/api/v1/automdm/config", []byte(fmt.Sprintf(`{
 		"integrations": {
 			"zendesk": [
 				{
@@ -959,7 +959,7 @@ func (s *integrationTestSuite) TestExternalIntegrationsConfig() {
 	require.True(t, config.Integrations.Zendesk[0].EnableSoftwareVulnerabilities)
 
 	// edit Zendesk integration with masked API token
-	s.DoRaw("PATCH", "/api/v1/fleet/config", []byte(fmt.Sprintf(`{
+	s.DoRaw("PATCH", "/api/v1/automdm/config", []byte(fmt.Sprintf(`{
 		"integrations": {
 			"zendesk": [
 				{
@@ -971,7 +971,7 @@ func (s *integrationTestSuite) TestExternalIntegrationsConfig() {
 				}
 			]
 		}
-	}`, srvURL, fleet.MaskedPassword)), http.StatusOK)
+	}`, srvURL, automdm.MaskedPassword)), http.StatusOK)
 
 	config = s.getConfig()
 	require.Empty(t, config.Integrations.Jira)
@@ -980,7 +980,7 @@ func (s *integrationTestSuite) TestExternalIntegrationsConfig() {
 	require.False(t, config.Integrations.Zendesk[0].EnableSoftwareVulnerabilities)
 
 	// edit Zendesk integration with explicit "" API token
-	s.DoRaw("PATCH", "/api/v1/fleet/config", []byte(fmt.Sprintf(`{
+	s.DoRaw("PATCH", "/api/v1/automdm/config", []byte(fmt.Sprintf(`{
 		"integrations": {
 			"zendesk": [
 				{
@@ -1001,7 +1001,7 @@ func (s *integrationTestSuite) TestExternalIntegrationsConfig() {
 	require.True(t, config.Integrations.Zendesk[0].EnableSoftwareVulnerabilities)
 
 	// unknown fields fails as bad request
-	s.DoRaw("PATCH", "/api/v1/fleet/config", []byte(fmt.Sprintf(`{
+	s.DoRaw("PATCH", "/api/v1/automdm/config", []byte(fmt.Sprintf(`{
 		"integrations": {
 			"zendesk": [{
 				"url": %q,
@@ -1011,7 +1011,7 @@ func (s *integrationTestSuite) TestExternalIntegrationsConfig() {
 	}`, srvURL)), http.StatusBadRequest)
 
 	// unknown group id fails as bad request
-	s.DoRaw("PATCH", "/api/v1/fleet/config", []byte(fmt.Sprintf(`{
+	s.DoRaw("PATCH", "/api/v1/automdm/config", []byte(fmt.Sprintf(`{
 		"integrations": {
 			"zendesk": [{
 				"url": %q,
@@ -1024,7 +1024,7 @@ func (s *integrationTestSuite) TestExternalIntegrationsConfig() {
 	}`, srvURL)), http.StatusBadRequest)
 
 	// cannot have two zendesk integrations enabled at the same time
-	s.DoRaw("PATCH", "/api/v1/fleet/config", []byte(fmt.Sprintf(`{
+	s.DoRaw("PATCH", "/api/v1/automdm/config", []byte(fmt.Sprintf(`{
 		"integrations": {
 			"zendesk": [
 				{
@@ -1046,7 +1046,7 @@ func (s *integrationTestSuite) TestExternalIntegrationsConfig() {
 	}`, srvURL)), http.StatusUnprocessableEntity)
 
 	// cannot have two zendesk integrations with the same group id
-	s.DoRaw("PATCH", "/api/v1/fleet/config", []byte(fmt.Sprintf(`{
+	s.DoRaw("PATCH", "/api/v1/automdm/config", []byte(fmt.Sprintf(`{
 		"integrations": {
 			"zendesk": [
 				{
@@ -1069,7 +1069,7 @@ func (s *integrationTestSuite) TestExternalIntegrationsConfig() {
 
 	// even disabled integrations are tested for Zendesk connection and credentials,
 	// so this fails because the 2nd one uses the "fail" token.
-	s.DoRaw("PATCH", "/api/v1/fleet/config", []byte(fmt.Sprintf(`{
+	s.DoRaw("PATCH", "/api/v1/automdm/config", []byte(fmt.Sprintf(`{
 		"integrations": {
 			"zendesk": [
 				{
@@ -1091,7 +1091,7 @@ func (s *integrationTestSuite) TestExternalIntegrationsConfig() {
 	}`, srvURL)), http.StatusBadRequest)
 
 	// cannot enable webhook with a zendesk integration already enabled
-	s.DoRaw("PATCH", "/api/v1/fleet/config", []byte(`{
+	s.DoRaw("PATCH", "/api/v1/automdm/config", []byte(`{
 		"webhook_settings": {
 			"vulnerabilities_webhook": {
 				"enable_vulnerabilities_webhook": true,
@@ -1103,7 +1103,7 @@ func (s *integrationTestSuite) TestExternalIntegrationsConfig() {
 	}`), http.StatusUnprocessableEntity)
 
 	// disable zendesk, now we can enable webhook
-	s.DoRaw("PATCH", "/api/v1/fleet/config", []byte(fmt.Sprintf(`{
+	s.DoRaw("PATCH", "/api/v1/automdm/config", []byte(fmt.Sprintf(`{
 		"integrations": {
 			"zendesk": [{
 				"url": %q,
@@ -1124,7 +1124,7 @@ func (s *integrationTestSuite) TestExternalIntegrationsConfig() {
 	}`, srvURL)), http.StatusOK)
 
 	// cannot enable zendesk with webhook already enabled
-	s.DoRaw("PATCH", "/api/v1/fleet/config", []byte(fmt.Sprintf(`{
+	s.DoRaw("PATCH", "/api/v1/automdm/config", []byte(fmt.Sprintf(`{
 		"integrations": {
 			"zendesk": [{
 				"url": %q,
@@ -1137,7 +1137,7 @@ func (s *integrationTestSuite) TestExternalIntegrationsConfig() {
 	}`, srvURL)), http.StatusUnprocessableEntity)
 
 	// disable webhook, enable zendesk with wrong credentials
-	s.DoRaw("PATCH", "/api/v1/fleet/config", []byte(fmt.Sprintf(`{
+	s.DoRaw("PATCH", "/api/v1/automdm/config", []byte(fmt.Sprintf(`{
 		"integrations": {
 			"zendesk": [{
 				"url": %q,
@@ -1159,7 +1159,7 @@ func (s *integrationTestSuite) TestExternalIntegrationsConfig() {
 
 	// update zendesk config to correct credentials (need to disable webhook too as
 	// last request failed)
-	s.DoRaw("PATCH", "/api/v1/fleet/config", []byte(fmt.Sprintf(`{
+	s.DoRaw("PATCH", "/api/v1/automdm/config", []byte(fmt.Sprintf(`{
 		"integrations": {
 			"zendesk": [{
 				"url": %q,
@@ -1180,7 +1180,7 @@ func (s *integrationTestSuite) TestExternalIntegrationsConfig() {
 	}`, srvURL)), http.StatusOK)
 
 	// can have jira enabled and zendesk disabled
-	s.DoRaw("PATCH", "/api/v1/fleet/config", []byte(fmt.Sprintf(`{
+	s.DoRaw("PATCH", "/api/v1/automdm/config", []byte(fmt.Sprintf(`{
 		"integrations": {
 			"jira": [{
 				"url": %q,
@@ -1205,7 +1205,7 @@ func (s *integrationTestSuite) TestExternalIntegrationsConfig() {
 	require.False(t, config.Integrations.Zendesk[0].EnableSoftwareVulnerabilities)
 
 	// can have jira disabled and zendesk enabled
-	s.DoRaw("PATCH", "/api/v1/fleet/config", []byte(fmt.Sprintf(`{
+	s.DoRaw("PATCH", "/api/v1/automdm/config", []byte(fmt.Sprintf(`{
 		"integrations": {
 			"jira": [{
 				"url": %q,
@@ -1230,7 +1230,7 @@ func (s *integrationTestSuite) TestExternalIntegrationsConfig() {
 	require.True(t, config.Integrations.Zendesk[0].EnableSoftwareVulnerabilities)
 
 	// cannot have both jira enabled and zendesk enabled
-	s.DoRaw("PATCH", "/api/v1/fleet/config", []byte(fmt.Sprintf(`{
+	s.DoRaw("PATCH", "/api/v1/automdm/config", []byte(fmt.Sprintf(`{
 		"integrations": {
 			"jira": [{
 				"url": %q,
@@ -1251,7 +1251,7 @@ func (s *integrationTestSuite) TestExternalIntegrationsConfig() {
 
 	// if no jira nor zendesk integrations are provided, does not remove integrations
 	appCfgResp = appConfigResponse{}
-	s.DoJSON("PATCH", "/api/v1/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/v1/automdm/config", json.RawMessage(`{
 		"integrations": {}
 	}`), http.StatusOK, &appCfgResp)
 	require.Len(t, appCfgResp.Integrations.Jira, 1)
@@ -1259,7 +1259,7 @@ func (s *integrationTestSuite) TestExternalIntegrationsConfig() {
 
 	// remove all integrations on exit, so that other tests can enable the
 	// webhook as needed
-	s.DoRaw("PATCH", "/api/v1/fleet/config", []byte(`{
+	s.DoRaw("PATCH", "/api/v1/automdm/config", []byte(`{
 		"integrations": {
 		"jira": [],
 		"zendesk": []
@@ -1270,7 +1270,7 @@ func (s *integrationTestSuite) TestExternalIntegrationsConfig() {
 	require.Empty(t, config.Integrations.Zendesk)
 
 	// enable webhooks
-	s.DoRaw("PATCH", "/api/v1/fleet/config", []byte(`{
+	s.DoRaw("PATCH", "/api/v1/automdm/config", []byte(`{
 		"webhook_settings": {
 			"activities_webhook": {
 				"enable_activities_webhook": true,
@@ -1304,7 +1304,7 @@ func (s *integrationTestSuite) TestGoogleCalendarIntegrations() {
 	privateKey := "-----BEGIN PRIVATE KEY-----\nXXXXX\n-----END"
 	domain := "example.com"
 	s.DoRaw(
-		"PATCH", "/api/v1/fleet/config", []byte(fmt.Sprintf(
+		"PATCH", "/api/v1/automdm/config", []byte(fmt.Sprintf(
 			`{
 		"integrations": {
 			"google_calendar": [{
@@ -1326,7 +1326,7 @@ func (s *integrationTestSuite) TestGoogleCalendarIntegrations() {
 
 	// Add 2nd config -- not allowed at this time
 	s.DoRaw(
-		"PATCH", "/api/v1/fleet/config", []byte(fmt.Sprintf(
+		"PATCH", "/api/v1/automdm/config", []byte(fmt.Sprintf(
 			`{
 		"integrations": {
 			"google_calendar": [{
@@ -1351,7 +1351,7 @@ func (s *integrationTestSuite) TestGoogleCalendarIntegrations() {
 	// Make an unrelated config change, should not remove the integrations
 	var appCfgResp appConfigResponse
 	s.DoJSON(
-		"PATCH", "/api/v1/fleet/config", json.RawMessage(
+		"PATCH", "/api/v1/automdm/config", json.RawMessage(
 			`{
 		"org_info": {
 			"org_name": "test-google-calendar-integrations"
@@ -1365,7 +1365,7 @@ func (s *integrationTestSuite) TestGoogleCalendarIntegrations() {
 	// Update calendar config
 	domain = "new.com"
 	s.DoRaw(
-		"PATCH", "/api/v1/fleet/config", []byte(fmt.Sprintf(
+		"PATCH", "/api/v1/automdm/config", []byte(fmt.Sprintf(
 			`{
 		"integrations": {
 			"google_calendar": [{
@@ -1387,7 +1387,7 @@ func (s *integrationTestSuite) TestGoogleCalendarIntegrations() {
 	// Clearing other integrations does not clear Google Calendar integration
 	appCfgResp = appConfigResponse{}
 	s.DoJSON(
-		"PATCH", "/api/v1/fleet/config", json.RawMessage(
+		"PATCH", "/api/v1/automdm/config", json.RawMessage(
 			`{
 		"integrations": {
 			"jira": [],
@@ -1401,7 +1401,7 @@ func (s *integrationTestSuite) TestGoogleCalendarIntegrations() {
 	// Clearing Google Calendar integration
 	appCfgResp = appConfigResponse{}
 	s.DoJSON(
-		"PATCH", "/api/v1/fleet/config", json.RawMessage(
+		"PATCH", "/api/v1/automdm/config", json.RawMessage(
 			`{
 		"integrations": {
 			"google_calendar": []
@@ -1413,7 +1413,7 @@ func (s *integrationTestSuite) TestGoogleCalendarIntegrations() {
 
 	// Try adding Google Calendar integration without sending private key -- not allowed
 	s.DoRaw(
-		"PATCH", "/api/v1/fleet/config", []byte(fmt.Sprintf(
+		"PATCH", "/api/v1/automdm/config", []byte(fmt.Sprintf(
 			`{
 		"integrations": {
 			"google_calendar": [{
@@ -1429,7 +1429,7 @@ func (s *integrationTestSuite) TestGoogleCalendarIntegrations() {
 
 	// Empty email -- not allowed
 	s.DoRaw(
-		"PATCH", "/api/v1/fleet/config", []byte(fmt.Sprintf(
+		"PATCH", "/api/v1/automdm/config", []byte(fmt.Sprintf(
 			`{
 		"integrations": {
 			"google_calendar": [{
@@ -1446,7 +1446,7 @@ func (s *integrationTestSuite) TestGoogleCalendarIntegrations() {
 
 	// Empty domain -- not allowed
 	s.DoRaw(
-		"PATCH", "/api/v1/fleet/config", []byte(fmt.Sprintf(
+		"PATCH", "/api/v1/automdm/config", []byte(fmt.Sprintf(
 			`{
 		"integrations": {
 			"google_calendar": [{
@@ -1463,7 +1463,7 @@ func (s *integrationTestSuite) TestGoogleCalendarIntegrations() {
 
 	// Unknown fields fails as bad request
 	s.DoRaw(
-		"PATCH", "/api/v1/fleet/config", []byte(fmt.Sprintf(
+		"PATCH", "/api/v1/automdm/config", []byte(fmt.Sprintf(
 			`{
 		"integrations": {
 			"google_calendar": [{
@@ -1481,7 +1481,7 @@ func (s *integrationTestSuite) TestGoogleCalendarIntegrations() {
 
 	// Null api_key_json -- fails validation
 	s.DoRaw(
-		"PATCH", "/api/v1/fleet/config", []byte(fmt.Sprintf(
+		"PATCH", "/api/v1/automdm/config", []byte(fmt.Sprintf(
 			`{
 		"integrations": {
 			"google_calendar": [{
@@ -1494,38 +1494,38 @@ func (s *integrationTestSuite) TestGoogleCalendarIntegrations() {
 	)
 }
 
-// Free tier must not expose or accept fleet_desktop.sso_enabled, and must not
+// Free tier must not expose or accept automdm_desktop.sso_enabled, and must not
 // let a value stored under a premium license (before a downgrade) block
 // unrelated config changes.
-func (s *integrationTestSuite) TestFleetDesktopSSOFreeTier() {
+func (s *integrationTestSuite) TestAutoMDMDesktopSSOFreeTier() {
 	t := s.T()
 	ctx := t.Context()
 
 	// PATCH attempting to enable it is rejected with the license error
-	res := s.Do("PATCH", "/api/latest/fleet/config", json.RawMessage(`{"fleet_desktop":{"sso_enabled":true}}`), http.StatusUnprocessableEntity)
+	res := s.Do("PATCH", "/api/latest/automdm/config", json.RawMessage(`{"automdm_desktop":{"sso_enabled":true}}`), http.StatusUnprocessableEntity)
 	require.Contains(t, extractServerErrorText(res.Body), "missing or invalid license")
 
 	// seed a value as if it had been set while premium, then downgraded
 	appCfg, err := s.ds.AppConfig(ctx)
 	require.NoError(t, err)
-	appCfg.FleetDesktop.SSOEnabled = true
+	appCfg.AutoMDMDesktop.SSOEnabled = true
 	require.NoError(t, s.ds.SaveAppConfig(ctx, appCfg))
 
-	// GET /config rebuilds FleetDesktopSettings field by field and premium-gates
+	// GET /config rebuilds AutoMDMDesktopSettings field by field and premium-gates
 	// the values, so the stored flag must read back as false here
 	var acResp appConfigResponse
-	s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
-	require.False(t, acResp.FleetDesktop.SSOEnabled)
+	s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
+	require.False(t, acResp.AutoMDMDesktop.SSOEnabled)
 
 	// an unrelated PATCH still succeeds and resets the stored value rather than
 	// failing on a premium-only setting left over from the downgrade
 	acResp = appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{"host_expiry_settings":{"host_expiry_enabled":false}}`), http.StatusOK, &acResp)
-	require.False(t, acResp.FleetDesktop.SSOEnabled)
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{"host_expiry_settings":{"host_expiry_enabled":false}}`), http.StatusOK, &acResp)
+	require.False(t, acResp.AutoMDMDesktop.SSOEnabled)
 
 	appCfg, err = s.ds.AppConfig(ctx)
 	require.NoError(t, err)
-	require.False(t, appCfg.FleetDesktop.SSOEnabled)
+	require.False(t, appCfg.AutoMDMDesktop.SSOEnabled)
 }
 
 func (s *integrationTestSuite) TestAppConfig() {
@@ -1534,9 +1534,9 @@ func (s *integrationTestSuite) TestAppConfig() {
 
 	// get the app config
 	var acResp appConfigResponse
-	s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
+	s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
 	assert.Equal(t, "free", acResp.License.Tier)
-	assert.Equal(t, "FleetTest", acResp.OrgInfo.OrgName) // set in SetupSuite
+	assert.Equal(t, "AutoMDMTest", acResp.OrgInfo.OrgName) // set in SetupSuite
 	assert.False(t, acResp.MDM.AppleBMTermsExpired)
 	assert.False(t, acResp.ActivityExpirySettings.ActivityExpiryEnabled)
 	assert.Zero(t, acResp.ActivityExpirySettings.ActivityExpiryWindow)
@@ -1546,7 +1546,7 @@ func (s *integrationTestSuite) TestAppConfig() {
 	expectedMaxPackageSize := config.TestConfig().Server.MaxInstallerSizeBytes
 	assert.Equal(t, expectedMaxPackageSize, acResp.MaxSoftwarePackageSize)
 	assert.False(t, acResp.StagedUploadAvailable)
-	s.Do("POST", "/api/latest/fleet/staged_upload", createStagedUploadRequest{Target: fleet.StagedUploadTargetBootstrapPackage, Size: 1}, http.StatusPaymentRequired)
+	s.Do("POST", "/api/latest/automdm/staged_upload", createStagedUploadRequest{Target: automdm.StagedUploadTargetBootstrapPackage, Size: 1}, http.StatusPaymentRequired)
 
 	// set the apple BM terms expired flag, and the enabled and configured flags,
 	// we'll check again at the end of this test to make sure they weren't
@@ -1560,7 +1560,7 @@ func (s *integrationTestSuite) TestAppConfig() {
 	require.NoError(t, err)
 
 	acResp = appConfigResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
+	s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
 	assert.True(t, acResp.MDM.AppleBMTermsExpired)
 	assert.True(t, acResp.MDM.AppleBMEnabledAndConfigured)
 	assert.True(t, acResp.MDM.EnabledAndConfigured)
@@ -1568,7 +1568,7 @@ func (s *integrationTestSuite) TestAppConfig() {
 	// no server settings set for the URL, so not possible to test the
 	// certificate endpoint
 	acResp = appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
     "org_info": {
         "org_name": "test"
     }
@@ -1579,70 +1579,70 @@ func (s *integrationTestSuite) TestAppConfig() {
 	// the global agent options were not modified by the last call, so the
 	// corresponding activity should not have been created.
 	var listActivities listActivitiesResponse
-	s.DoJSON("GET", "/api/latest/fleet/activities", nil, http.StatusOK, &listActivities, "order_key", "id", "order_direction", "desc")
+	s.DoJSON("GET", "/api/latest/automdm/activities", nil, http.StatusOK, &listActivities, "order_key", "id", "order_direction", "desc")
 	if len(listActivities.Activities) > 1 {
 		// if there is an activity, make sure it is not edited_agent_options
-		require.NotEqual(t, fleet.ActivityTypeEditedAgentOptions{}.ActivityName(), listActivities.Activities[0].Type)
+		require.NotEqual(t, automdm.ActivityTypeEditedAgentOptions{}.ActivityName(), listActivities.Activities[0].Type)
 	}
 
 	// and it did not update the appconfig
-	s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
+	s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
 	require.Contains(t, string(*acResp.AgentOptions), `"logger_plugin": "tls"`) // default agent options has this setting
 
 	// Invalid activity expiry window.
 	acResp = appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
     "activity_expiry_settings": {
         "activity_expiry_enabled": true,
         "activity_expiry_window": -1
     }
   }`), http.StatusUnprocessableEntity, &acResp)
-	s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
+	s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
 	require.False(t, acResp.ActivityExpirySettings.ActivityExpiryEnabled)
 	require.Zero(t, acResp.ActivityExpirySettings.ActivityExpiryWindow)
 
 	// Valid activity expiry window.
 	acResp = appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
     "activity_expiry_settings": {
         "activity_expiry_enabled": true,
         "activity_expiry_window": 42
     }
   }`), http.StatusOK, &acResp)
-	s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
+	s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
 	require.True(t, acResp.ActivityExpirySettings.ActivityExpiryEnabled)
 	require.Equal(t, 42, acResp.ActivityExpirySettings.ActivityExpiryWindow)
 
 	// Invalid host expiry window (0 and negative) while enabled.
 	for _, window := range []int{-1, 0} {
 		acResp = appConfigResponse{}
-		s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(fmt.Sprintf(`{
+		s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(fmt.Sprintf(`{
     "host_expiry_settings": {
         "host_expiry_enabled": true,
         "host_expiry_window": %d
     }
   }`, window)), http.StatusUnprocessableEntity, &acResp)
-		s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
+		s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
 		require.False(t, acResp.HostExpirySettings.HostExpiryEnabled)
 		require.Zero(t, acResp.HostExpirySettings.HostExpiryWindow)
 	}
 
 	// Valid host expiry window.
 	acResp = appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
     "host_expiry_settings": {
         "host_expiry_enabled": true,
         "host_expiry_window": 42
     }
   }`), http.StatusOK, &acResp)
-	s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
+	s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
 	require.True(t, acResp.HostExpirySettings.HostExpiryEnabled)
 	require.Equal(t, 42, acResp.HostExpirySettings.HostExpiryWindow)
 
 	// The window is not validated while host expiry is disabled, matching the
-	// fleet-level setting. This also resets the suite to the default (disabled).
+	// team-level setting. This also resets the suite to the default (disabled).
 	acResp = appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
     "host_expiry_settings": {
         "host_expiry_enabled": false,
         "host_expiry_window": -1
@@ -1651,7 +1651,7 @@ func (s *integrationTestSuite) TestAppConfig() {
 	require.False(t, acResp.HostExpirySettings.HostExpiryEnabled)
 	require.Equal(t, -1, acResp.HostExpirySettings.HostExpiryWindow)
 	acResp = appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
     "host_expiry_settings": {
         "host_expiry_enabled": false,
         "host_expiry_window": 0
@@ -1662,7 +1662,7 @@ func (s *integrationTestSuite) TestAppConfig() {
 	// preserve_host_activities_on_reenrollment round-trip.
 	initialPreserve := acResp.ActivityExpirySettings.PreserveHostActivitiesOnReenrollment
 	acResp = appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
     "activity_expiry_settings": {
         "preserve_host_activities_on_reenrollment": true
     }
@@ -1672,7 +1672,7 @@ func (s *integrationTestSuite) TestAppConfig() {
 	require.Equal(t, 42, acResp.ActivityExpirySettings.ActivityExpiryWindow)
 
 	acResp = appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
     "activity_expiry_settings": {
         "preserve_host_activities_on_reenrollment": false
     }
@@ -1681,7 +1681,7 @@ func (s *integrationTestSuite) TestAppConfig() {
 
 	// Restore initial value to keep subsequent tests order-independent.
 	acResp = appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(fmt.Sprintf(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(fmt.Sprintf(`{
     "activity_expiry_settings": {
         "preserve_host_activities_on_reenrollment": %t
     }
@@ -1691,7 +1691,7 @@ func (s *integrationTestSuite) TestAppConfig() {
 	// Disable AI features.
 	acResp = appConfigResponse{}
 	s.DoJSON(
-		"PATCH", "/api/latest/fleet/config", json.RawMessage(
+		"PATCH", "/api/latest/automdm/config", json.RawMessage(
 			`{
     "server_settings": {
         "ai_features_disabled": true
@@ -1699,127 +1699,127 @@ func (s *integrationTestSuite) TestAppConfig() {
   }`,
 		), http.StatusOK, &acResp,
 	)
-	s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
+	s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
 	assert.True(t, acResp.ServerSettings.AIFeaturesDisabled)
 
 	// test a change that does clear the agent options (the field is provided but empty).
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 		"agent_options": {}
   }`), http.StatusOK, &acResp)
-	s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
+	s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
 	require.Equal(t, "{}", string(*acResp.AgentOptions))
 	assert.True(t, acResp.MDM.AppleBMTermsExpired)
 
 	// test a change that does modify the agent options.
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 		"agent_options": { "config": {"views": {"foo": "bar"}} }
   }`), http.StatusOK, &acResp)
-	s.DoJSON("GET", "/api/latest/fleet/activities", nil, http.StatusOK, &listActivities, "order_key", "id", "order_direction", "desc")
+	s.DoJSON("GET", "/api/latest/automdm/activities", nil, http.StatusOK, &listActivities, "order_key", "id", "order_direction", "desc")
 	require.Greater(t, len(listActivities.Activities), 1)
-	require.Equal(t, fleet.ActivityTypeEditedAgentOptions{}.ActivityName(), listActivities.Activities[0].Type)
+	require.Equal(t, automdm.ActivityTypeEditedAgentOptions{}.ActivityName(), listActivities.Activities[0].Type)
 	require.NotNil(t, listActivities.Activities[0].Details)
-	assert.JSONEq(t, `{"global": true, "fleet_id": null, "fleet_name": null}`, string(*listActivities.Activities[0].Details))
+	assert.JSONEq(t, `{"global": true, "team_id": null, "team_name": null}`, string(*listActivities.Activities[0].Details))
 
 	// try to set invalid agent options
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 		"agent_options": { "config": {"nope": true} }
   }`), http.StatusBadRequest, &acResp)
 	// did not update the appconfig
-	s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
+	s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
 	require.NotContains(t, string(*acResp.AgentOptions), `"nope"`)
 
 	// try to set an invalid agent options logger_tls_endpoint (must start with "/")
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 		"agent_options": { "config": {"options": {"logger_tls_endpoint": "not-a-rooted-path"}} }
   }`), http.StatusBadRequest, &acResp)
 	// did not update the appconfig
-	s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
+	s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
 	require.NotContains(t, string(*acResp.AgentOptions), `"not-a-rooted-path"`)
 
 	// try to set a valid agent options logger_tls_endpoint
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 		"agent_options": { "config": {"options": {"logger_tls_endpoint": "/rooted-path"}} }
   }`), http.StatusOK, &acResp)
-	s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
+	s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
 	require.Contains(t, string(*acResp.AgentOptions), `"/rooted-path"`)
 
 	// force-set invalid agent options
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 		"agent_options": { "config": {"nope": true} }
   }`), http.StatusOK, &acResp, "force", "true")
 	require.Contains(t, string(*acResp.AgentOptions), `"nope"`)
 
 	// dry-run valid agent options
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 		"agent_options": { "config": {"views":{"yep": "ok"}} }
   }`), http.StatusOK, &acResp, "dry_run", "true")
 	require.NotContains(t, string(*acResp.AgentOptions), `"yep"`)
 	require.Contains(t, string(*acResp.AgentOptions), `"nope"`)
 
 	// dry-run invalid agent options
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 		"agent_options": { "config": {"invalid": true} }
   }`), http.StatusBadRequest, &acResp, "dry_run", "true")
-	s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
+	s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
 	require.NotContains(t, string(*acResp.AgentOptions), `"invalid"`)
 
 	// set valid agent options command-line flag
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 		"agent_options": { "command_line_flags": {"enable_tables":"table1"}}
   }`), http.StatusOK, &acResp)
-	s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
+	s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
 	require.Contains(t, string(*acResp.AgentOptions), `"enable_tables": "table1"`)
 
 	// set invalid agent options command-line flag
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 		"agent_options": { "command_line_flags": {"no_such_flag":true}}
   }`), http.StatusBadRequest, &acResp)
-	s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
+	s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
 	require.Contains(t, string(*acResp.AgentOptions), `"enable_tables": "table1"`)
 	require.NotContains(t, string(*acResp.AgentOptions), `"no_such_flag"`)
 
 	// set invalid value for a valid agent options command-line flag
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 		"agent_options": { "command_line_flags": {"enable_tables":true}}
   }`), http.StatusBadRequest, &acResp)
-	s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
+	s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
 	require.Contains(t, string(*acResp.AgentOptions), `"enable_tables": "table1"`)
 
 	// force-set invalid value for a valid agent options command-line flag
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 		"agent_options": { "command_line_flags": {"enable_tables":true}}
   }`), http.StatusOK, &acResp, "force", "true")
-	s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
+	s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
 	require.NotContains(t, string(*acResp.AgentOptions), `"enable_tables": "table1"`)
 	require.Contains(t, string(*acResp.AgentOptions), `"enable_tables": true`)
 
 	// dry-run valid appconfig that uses legacy settings (returns error)
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 		"host_settings": { "additional_queries": {"foo": "bar"} }
   }`), http.StatusBadRequest, &acResp, "dry_run", "true")
-	s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
+	s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
 	require.Nil(t, acResp.Features.AdditionalQueries)
 
 	// without dry-run, the valid appconfig that uses legacy settings is accepted
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 		"host_settings": { "additional_queries": {"foo": "bar"} }
   }`), http.StatusOK, &acResp, "dry_run", "false")
-	s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
+	s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
 	require.NotNil(t, acResp.Features.AdditionalQueries)
 	require.Contains(t, string(*acResp.Features.AdditionalQueries), `"foo": "bar"`)
 
 	var verResp versionResponse
-	s.DoJSON("GET", "/api/latest/fleet/version", nil, http.StatusOK, &verResp)
+	s.DoJSON("GET", "/api/latest/automdm/version", nil, http.StatusOK, &verResp)
 	assert.NotEmpty(t, verResp.Branch)
 
-	// fleetctl 4's version check gets 426 even with a valid token, and fleetctl 5's still gets the version.
+	// automdmctl 4's version check gets 426 even with a valid token, and automdmctl 5's still gets the version.
 	versionHeaders := func(userAgent string) map[string]string {
 		return map[string]string{
 			"Authorization": "Bearer " + s.token, "User-Agent": userAgent, "Content-Type": "application/json", "Accept": "application/json",
 		}
 	}
-	s.DoRawWithHeaders("GET", "/api/latest/fleet/version", nil, http.StatusUpgradeRequired, versionHeaders("Go-http-client/1.1")).Body.Close()
-	verRes := s.DoRawWithHeaders("GET", "/api/latest/fleet/version", nil, http.StatusOK, versionHeaders("fleetctl/unknown"))
+	s.DoRawWithHeaders("GET", "/api/latest/automdm/version", nil, http.StatusUpgradeRequired, versionHeaders("Go-http-client/1.1")).Body.Close()
+	verRes := s.DoRawWithHeaders("GET", "/api/latest/automdm/version", nil, http.StatusOK, versionHeaders("automdmctl/unknown"))
 	verResp = versionResponse{}
 	require.NoError(t, json.NewDecoder(verRes.Body).Decode(&verResp))
 	verRes.Body.Close()
@@ -1827,17 +1827,17 @@ func (s *integrationTestSuite) TestAppConfig() {
 
 	// get enroll secrets, none yet
 	var specResp getEnrollSecretSpecResponse
-	s.DoJSON("GET", "/api/latest/fleet/spec/enroll_secret", nil, http.StatusOK, &specResp)
+	s.DoJSON("GET", "/api/latest/automdm/spec/enroll_secret", nil, http.StatusOK, &specResp)
 	assert.Empty(t, specResp.Spec.Secrets)
 
 	seenActivitiesIDs := map[uint]struct{}{}
-	activityName := fleet.ActivityTypeEditedEnrollSecrets{}.ActivityName()
+	activityName := automdm.ActivityTypeEditedEnrollSecrets{}.ActivityName()
 
 	// apply spec, one secret
 	var applyResp applyEnrollSecretSpecResponse
-	s.DoJSON("POST", "/api/latest/fleet/spec/enroll_secret", applyEnrollSecretSpecRequest{
-		Spec: &fleet.EnrollSecretSpec{
-			Secrets: []*fleet.EnrollSecret{{Secret: "XYZ"}},
+	s.DoJSON("POST", "/api/latest/automdm/spec/enroll_secret", applyEnrollSecretSpecRequest{
+		Spec: &automdm.EnrollSecretSpec{
+			Secrets: []*automdm.EnrollSecret{{Secret: "XYZ"}},
 		},
 	}, http.StatusOK, &applyResp)
 
@@ -1846,9 +1846,9 @@ func (s *integrationTestSuite) TestAppConfig() {
 	require.Len(t, seenActivitiesIDs, 1)
 
 	// applying the same secret again shouldn't create a new activity since we are only interested in mutations
-	s.DoJSON("POST", "/api/latest/fleet/spec/enroll_secret", applyEnrollSecretSpecRequest{
-		Spec: &fleet.EnrollSecretSpec{
-			Secrets: []*fleet.EnrollSecret{{Secret: "XYZ"}},
+	s.DoJSON("POST", "/api/latest/automdm/spec/enroll_secret", applyEnrollSecretSpecRequest{
+		Spec: &automdm.EnrollSecretSpec{
+			Secrets: []*automdm.EnrollSecret{{Secret: "XYZ"}},
 		},
 	}, http.StatusOK, &applyResp)
 
@@ -1856,18 +1856,18 @@ func (s *integrationTestSuite) TestAppConfig() {
 	require.Len(t, seenActivitiesIDs, 1)
 
 	// apply spec, too many secrets
-	s.DoJSON("POST", "/api/latest/fleet/spec/enroll_secret", applyEnrollSecretSpecRequest{
-		Spec: &fleet.EnrollSecretSpec{
-			Secrets: createEnrollSecrets(t, fleet.MaxEnrollSecretsCount+1),
+	s.DoJSON("POST", "/api/latest/automdm/spec/enroll_secret", applyEnrollSecretSpecRequest{
+		Spec: &automdm.EnrollSecretSpec{
+			Secrets: createEnrollSecrets(t, automdm.MaxEnrollSecretsCount+1),
 		},
 	}, http.StatusUnprocessableEntity, &applyResp)
 
 	// apply spec, empty and whitespace-only secrets are rejected
-	s.DoJSON("POST", "/api/latest/fleet/spec/enroll_secret", applyEnrollSecretSpecRequest{
-		Spec: &fleet.EnrollSecretSpec{Secrets: []*fleet.EnrollSecret{{Secret: ""}}},
+	s.DoJSON("POST", "/api/latest/automdm/spec/enroll_secret", applyEnrollSecretSpecRequest{
+		Spec: &automdm.EnrollSecretSpec{Secrets: []*automdm.EnrollSecret{{Secret: ""}}},
 	}, http.StatusUnprocessableEntity, &applyResp)
-	s.DoJSON("POST", "/api/latest/fleet/spec/enroll_secret", applyEnrollSecretSpecRequest{
-		Spec: &fleet.EnrollSecretSpec{Secrets: []*fleet.EnrollSecret{{Secret: "   "}}},
+	s.DoJSON("POST", "/api/latest/automdm/spec/enroll_secret", applyEnrollSecretSpecRequest{
+		Spec: &automdm.EnrollSecretSpec{Secrets: []*automdm.EnrollSecret{{Secret: "   "}}},
 	}, http.StatusUnprocessableEntity, &applyResp)
 
 	// error conditions should create new activities
@@ -1875,53 +1875,53 @@ func (s *integrationTestSuite) TestAppConfig() {
 	require.Len(t, seenActivitiesIDs, 1)
 
 	// get enroll secrets, one
-	s.DoJSON("GET", "/api/latest/fleet/spec/enroll_secret", nil, http.StatusOK, &specResp)
+	s.DoJSON("GET", "/api/latest/automdm/spec/enroll_secret", nil, http.StatusOK, &specResp)
 	require.Len(t, specResp.Spec.Secrets, 1)
 	assert.Equal(t, "XYZ", specResp.Spec.Secrets[0].Secret)
 
 	// remove secret just to prevent affecting other tests
-	s.DoJSON("POST", "/api/latest/fleet/spec/enroll_secret", applyEnrollSecretSpecRequest{
-		Spec: &fleet.EnrollSecretSpec{},
+	s.DoJSON("POST", "/api/latest/automdm/spec/enroll_secret", applyEnrollSecretSpecRequest{
+		Spec: &automdm.EnrollSecretSpec{},
 	}, http.StatusOK, &applyResp)
 
 	// removing the secret should create a new activity entry
 	seenActivitiesIDs[s.lastActivityMatches(activityName, "", 0)] = struct{}{}
 	require.Len(t, seenActivitiesIDs, 2)
 
-	s.DoJSON("GET", "/api/latest/fleet/spec/enroll_secret", nil, http.StatusOK, &specResp)
+	s.DoJSON("GET", "/api/latest/automdm/spec/enroll_secret", nil, http.StatusOK, &specResp)
 	require.Empty(t, specResp.Spec.Secrets)
 
 	// try to update the apple business terms flag via PATCH /config
 	// request is ok but modified value is ignored
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 		"mdm": { "apple_business_terms_expired": false }
   }`), http.StatusOK, &acResp)
 	assert.True(t, acResp.MDM.AppleBMTermsExpired)
 
 	// try to update the mdm configured flags via PATCH /config
 	// request is ok but modified value is ignored
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 	  "mdm": { "enabled_and_configured": false, "apple_business_enabled_and_configured": false }
   }`), http.StatusOK, &acResp)
 	assert.True(t, acResp.MDM.EnabledAndConfigured)
 	assert.True(t, acResp.MDM.AppleBMEnabledAndConfigured)
 
 	// set the macos disk encryption field, fails due to license
-	res := s.Do("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	res := s.Do("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 		"mdm": { "enable_disk_encryption": true }
   }`), http.StatusUnprocessableEntity)
 	errMsg := extractServerErrorText(res.Body)
 	assert.Contains(t, errMsg, "missing or invalid license")
 
 	// legacy config
-	res = s.Do("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	res = s.Do("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 		"mdm": { "apple_settings": { "enable_disk_encryption": true } }
   }`), http.StatusUnprocessableEntity)
 	errMsg = extractServerErrorText(res.Body)
 	assert.Contains(t, errMsg, "missing or invalid license")
 
 	// try to set Okta conditional access settings, which is premium only
-	res = s.Do("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	res = s.Do("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 		"conditional_access": {
 			"okta_idp_id": "https://www.okta.com/saml2/service-provider/test",
 			"okta_assertion_consumer_service_url": "https://dev-test.okta.com/sso/saml2/test",
@@ -1933,7 +1933,7 @@ func (s *integrationTestSuite) TestAppConfig() {
 	assert.Contains(t, errMsg, "missing or invalid license")
 
 	// try to set the windows updates, which is premium only
-	res = s.Do("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	res = s.Do("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 		"mdm": { "windows_updates": {"deadline_days": 1, "grace_period_days": 0} }
   }`), http.StatusUnprocessableEntity)
 	errMsg = extractServerErrorText(res.Body)
@@ -1941,15 +1941,15 @@ func (s *integrationTestSuite) TestAppConfig() {
 
 	// try to enable Windows MDM, impossible without the WSTEP certs
 	// (only set in mdm integrations tests)
-	res = s.Do("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	res = s.Do("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 		"mdm": { "windows_mdm_enabled": true }
   }`), http.StatusUnprocessableEntity)
 	errMsg = extractServerErrorText(res.Body)
-	assert.Contains(t, errMsg, "Please configure Fleet with a certificate and key pair first.")
+	assert.Contains(t, errMsg, "Please configure AutoMDM with a certificate and key pair first.")
 
 	// verify that the Apple BM terms expired flag was never modified
 	acResp = appConfigResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
+	s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
 	assert.True(t, acResp.MDM.AppleBMTermsExpired)
 
 	// set the apple BM terms back to false
@@ -1963,15 +1963,15 @@ func (s *integrationTestSuite) TestAppConfig() {
 
 	// test setting the default app config we use for new installs (this check
 	// ensures that the default config passes the validation)
-	var defAppCfg fleet.AppConfig
+	var defAppCfg automdm.AppConfig
 	defAppCfg.ApplyDefaultsForNewInstalls()
 	// must set org name and server settings
 	defAppCfg.OrgInfo.OrgName = acResp.OrgInfo.OrgName
 	defAppCfg.ServerSettings.ServerURL = acResp.ServerSettings.ServerURL
-	s.DoRaw("PATCH", "/api/latest/fleet/config", jsonMustMarshal(t, defAppCfg), http.StatusOK)
+	s.DoRaw("PATCH", "/api/latest/automdm/config", jsonMustMarshal(t, defAppCfg), http.StatusOK)
 
 	// turn on GitOps mode, premium only
-	res = s.Do("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	res = s.Do("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 			"gitops": { "gitops_mode_enabled": true, "repository_url": "" }
 	  }`), http.StatusUnprocessableEntity)
 	errMsg = extractServerErrorText(res.Body)
@@ -2002,17 +2002,17 @@ func (s *integrationTestSuite) TestOrgLogoUpload() {
 		}
 	}
 
-	// 1. Upload as admin: 200, AppConfig URL set to the Fleet-hosted serving
+	// 1. Upload as admin: 200, AppConfig URL set to the AutoMDM-hosted serving
 	// path, GET returns the bytes back with the right content type.
 	body, headers := buildLogoBody("logo.png", pngBytes)
-	s.DoRawWithHeaders("PUT", "/api/v1/fleet/logo?mode=light", body, http.StatusOK, headers)
+	s.DoRawWithHeaders("PUT", "/api/v1/automdm/logo?mode=light", body, http.StatusOK, headers)
 
 	var acResp appConfigResponse
-	s.DoJSON("GET", "/api/v1/fleet/config", nil, http.StatusOK, &acResp)
-	require.Contains(t, acResp.OrgInfo.OrgLogoURLLightMode, "/api/latest/fleet/logo")
+	s.DoJSON("GET", "/api/v1/automdm/config", nil, http.StatusOK, &acResp)
+	require.Contains(t, acResp.OrgInfo.OrgLogoURLLightMode, "/api/latest/automdm/logo")
 	require.Contains(t, acResp.OrgInfo.OrgLogoURLLightMode, "mode=light")
 
-	res := s.DoRawNoAuth("GET", "/api/latest/fleet/logo?mode=light", nil, http.StatusOK)
+	res := s.DoRawNoAuth("GET", "/api/latest/automdm/logo?mode=light", nil, http.StatusOK)
 	gotBody, err := io.ReadAll(res.Body)
 	require.NoError(t, res.Body.Close())
 	require.NoError(t, err)
@@ -2022,14 +2022,14 @@ func (s *integrationTestSuite) TestOrgLogoUpload() {
 	// 2. Upload a second mode (dark) as admin so the delete-lifecycle assertions
 	// at the bottom can confirm modes are independent.
 	body, headers = buildLogoBody("dark.png", pngBytes)
-	s.DoRawWithHeaders("PUT", "/api/v1/fleet/logo?mode=dark", body, http.StatusOK, headers)
+	s.DoRawWithHeaders("PUT", "/api/v1/automdm/logo?mode=dark", body, http.StatusOK, headers)
 
 	// 3. Auth: a maintainer is rejected.
 	maintainerEmail := "maintainer-logo@example.com"
-	maintainerUser := &fleet.User{
+	maintainerUser := &automdm.User{
 		Name:       "Maintainer Logo",
 		Email:      maintainerEmail,
-		GlobalRole: new(fleet.RoleMaintainer),
+		GlobalRole: new(automdm.RoleMaintainer),
 	}
 	require.NoError(t, maintainerUser.SetPassword(test.GoodPassword, 10, 10))
 	_, err = s.ds.NewUser(t.Context(), maintainerUser)
@@ -2037,63 +2037,63 @@ func (s *integrationTestSuite) TestOrgLogoUpload() {
 
 	s.token = s.getCachedUserToken(maintainerEmail, test.GoodPassword)
 	body, headers = buildLogoBody("nope.png", pngBytes)
-	s.DoRawWithHeaders("PUT", "/api/v1/fleet/logo?mode=light", body, http.StatusForbidden, headers)
+	s.DoRawWithHeaders("PUT", "/api/v1/automdm/logo?mode=light", body, http.StatusForbidden, headers)
 	s.token = s.getTestAdminToken()
 
 	// 4. A non-image payload is rejected at upload time.
 	body, headers = buildLogoBody("not-an-image.png", []byte("plain text, definitely not a PNG"))
-	s.DoRawWithHeaders("PUT", "/api/v1/fleet/logo?mode=light", body, http.StatusBadRequest, headers)
+	s.DoRawWithHeaders("PUT", "/api/v1/automdm/logo?mode=light", body, http.StatusBadRequest, headers)
 
 	// 5. DELETE clears the URL field and the GET endpoint returns 404 for
 	// the affected mode while the other mode is unaffected.
-	s.Do("DELETE", "/api/v1/fleet/logo", nil, http.StatusOK, "mode", "light")
+	s.Do("DELETE", "/api/v1/automdm/logo", nil, http.StatusOK, "mode", "light")
 
-	s.DoJSON("GET", "/api/v1/fleet/config", nil, http.StatusOK, &acResp)
+	s.DoJSON("GET", "/api/v1/automdm/config", nil, http.StatusOK, &acResp)
 	require.Empty(t, acResp.OrgInfo.OrgLogoURLLightMode)
-	require.Contains(t, acResp.OrgInfo.OrgLogoURLDarkMode, "/api/latest/fleet/logo")
+	require.Contains(t, acResp.OrgInfo.OrgLogoURLDarkMode, "/api/latest/automdm/logo")
 
-	res = s.DoRawNoAuth("GET", "/api/latest/fleet/logo?mode=light", nil, http.StatusNotFound)
+	res = s.DoRawNoAuth("GET", "/api/latest/automdm/logo?mode=light", nil, http.StatusNotFound)
 	require.NoError(t, res.Body.Close())
 
 	// 6. DELETE is idempotent — a second DELETE for the same mode (now
 	// empty) returns 200 with no error.
-	s.Do("DELETE", "/api/v1/fleet/logo", nil, http.StatusOK, "mode", "light")
+	s.Do("DELETE", "/api/v1/automdm/logo", nil, http.StatusOK, "mode", "light")
 
 	// 7. DELETE on an external URL (no blob) clears the URL field.
-	s.DoRaw("PATCH", "/api/latest/fleet/config", []byte(`{
+	s.DoRaw("PATCH", "/api/latest/automdm/config", []byte(`{
 		"org_info": {
 			"org_logo_url_dark_mode": "https://placehold.co/100",
 			"org_logo_url_light_mode": "https://placehold.co/200"
 		}
 	}`), http.StatusOK)
 
-	s.Do("DELETE", "/api/v1/fleet/logo", nil, http.StatusOK, "mode", "dark")
-	s.DoJSON("GET", "/api/v1/fleet/config", nil, http.StatusOK, &acResp)
+	s.Do("DELETE", "/api/v1/automdm/logo", nil, http.StatusOK, "mode", "dark")
+	s.DoJSON("GET", "/api/v1/automdm/config", nil, http.StatusOK, &acResp)
 	require.Empty(t, acResp.OrgInfo.OrgLogoURLDarkMode)
 	require.Equal(t, "https://placehold.co/200", acResp.OrgInfo.OrgLogoURLLightMode)
 
-	// 8. PATCH transitioning a Fleet-hosted URL to an external URL must
+	// 8. PATCH transitioning an AutoMDM-hosted URL to an external URL must
 	// preserve the external URL and delete the previously-stored blob.
 	body, headers = buildLogoBody("light2.png", pngBytes)
-	s.DoRawWithHeaders("PUT", "/api/v1/fleet/logo?mode=light", body, http.StatusOK, headers)
-	s.DoJSON("GET", "/api/v1/fleet/config", nil, http.StatusOK, &acResp)
-	require.Contains(t, acResp.OrgInfo.OrgLogoURLLightMode, "/api/latest/fleet/logo")
+	s.DoRawWithHeaders("PUT", "/api/v1/automdm/logo?mode=light", body, http.StatusOK, headers)
+	s.DoJSON("GET", "/api/v1/automdm/config", nil, http.StatusOK, &acResp)
+	require.Contains(t, acResp.OrgInfo.OrgLogoURLLightMode, "/api/latest/automdm/logo")
 
-	s.DoRaw("PATCH", "/api/latest/fleet/config", []byte(`{
+	s.DoRaw("PATCH", "/api/latest/automdm/config", []byte(`{
 		"org_info": {
 			"org_logo_url_light_mode": "https://placehold.co/300"
 		}
 	}`), http.StatusOK)
-	s.DoJSON("GET", "/api/v1/fleet/config", nil, http.StatusOK, &acResp)
+	s.DoJSON("GET", "/api/v1/automdm/config", nil, http.StatusOK, &acResp)
 	require.Equal(t, "https://placehold.co/300", acResp.OrgInfo.OrgLogoURLLightMode)
 
 	// The orphan blob is actually gone: GET /logo?mode=light returns 404.
-	res = s.DoRawNoAuth("GET", "/api/latest/fleet/logo?mode=light", nil, http.StatusNotFound)
+	res = s.DoRawNoAuth("GET", "/api/latest/automdm/logo?mode=light", nil, http.StatusNotFound)
 	require.NoError(t, res.Body.Close())
 
 	// And the cleanup recorded a deleted_org_logo activity.
 	activities := listActivitiesResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/activities", nil, http.StatusOK, &activities)
+	s.DoJSON("GET", "/api/latest/automdm/activities", nil, http.StatusOK, &activities)
 	var sawAutoCleanupActivity bool
 	for _, a := range activities.Activities {
 		if a.Type != "deleted_org_logo" || a.Details == nil {
@@ -2102,7 +2102,7 @@ func (s *integrationTestSuite) TestOrgLogoUpload() {
 		var d struct {
 			Mode string `json:"mode"`
 		}
-		if err := json.Unmarshal(*a.Details, &d); err == nil && d.Mode == string(fleet.OrgLogoModeLight) {
+		if err := json.Unmarshal(*a.Details, &d); err == nil && d.Mode == string(automdm.OrgLogoModeLight) {
 			sawAutoCleanupActivity = true
 			break
 		}
@@ -2115,29 +2115,29 @@ func (s *integrationTestSuite) TestRemovedOrgLogoConfigKeys() {
 
 	const darkURL = "https://example.com/dark.png"
 	const lightURL = "https://example.com/light.png"
-	s.Do("PATCH", "/api/latest/fleet/config", json.RawMessage(fmt.Sprintf(
+	s.Do("PATCH", "/api/latest/automdm/config", json.RawMessage(fmt.Sprintf(
 		`{"org_info": {"org_logo_url_dark_mode": %q, "org_logo_url_light_mode": %q}}`, darkURL, lightURL)), http.StatusOK)
 	t.Cleanup(func() {
-		s.Do("PATCH", "/api/latest/fleet/config",
+		s.Do("PATCH", "/api/latest/automdm/config",
 			json.RawMessage(`{"org_info": {"org_logo_url_dark_mode": "", "org_logo_url_light_mode": ""}}`), http.StatusOK)
 	})
 
 	removedMsg := func(key string) string {
-		return `The "` + key + `" parameter is not available anymore. What to use instead: https://fleetdm.com/learn-more-about/fleet-5-upgrade`
+		return `The "` + key + `" parameter is not available anymore. What to use instead: https://automdm.com/learn-more-about/automdm-5-upgrade`
 	}
 	for _, tc := range []struct{ name, key string }{
 		{"dark", "org_logo_url"},
 		{"light", "org_logo_url_light_background"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			res := s.DoRaw("PATCH", "/api/latest/fleet/config", fmt.Appendf(nil, `{"org_info": {%q: "https://example.com/new.png"}}`, tc.key),
+			res := s.DoRaw("PATCH", "/api/latest/automdm/config", fmt.Appendf(nil, `{"org_info": {%q: "https://example.com/new.png"}}`, tc.key),
 				http.StatusUnprocessableEntity)
 			require.Contains(t, extractServerErrorText(res.Body), removedMsg(tc.key))
 		})
 	}
 
 	// nothing was saved by the rejected requests, and responses only use the new keys
-	res := s.DoRaw("GET", "/api/latest/fleet/config", nil, http.StatusOK)
+	res := s.DoRaw("GET", "/api/latest/automdm/config", nil, http.StatusOK)
 	var raw struct {
 		OrgInfo map[string]any `json:"org_info"`
 	}
@@ -2151,7 +2151,7 @@ func (s *integrationTestSuite) TestRemovedOrgLogoConfigKeys() {
 	host := createOrbitEnrolledHost(t, "darwin", t.Name(), s.ds)
 	token := "removed_org_logo_keys_token" //nolint:gosec // G101: test value, not a real credential
 	createDeviceTokenForHost(t, s.ds, host.ID, token)
-	res = s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token, nil, http.StatusOK)
+	res = s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token, nil, http.StatusOK)
 	var deviceResp map[string]any
 	require.NoError(t, json.NewDecoder(res.Body).Decode(&deviceResp))
 	require.NoError(t, res.Body.Close())

@@ -7,7 +7,7 @@ import (
 )
 
 // LicenseChecker is the interface for checking license properties.
-// This interface is implemented by fleet.LicenseInfo
+// This interface is implemented by automdm.LicenseInfo
 type LicenseChecker interface {
 	IsPremium() bool
 	IsAllowDisableTelemetry() bool

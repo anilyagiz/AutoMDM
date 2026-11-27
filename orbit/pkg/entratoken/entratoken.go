@@ -19,7 +19,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
 	"github.com/google/uuid"
 )
 
@@ -47,8 +47,8 @@ var nonceRe = regexp.MustCompile(`^[A-Za-z0-9._-]{1,256}$`)
 
 var errNonceForAnotherHost = errors.New("nonce was not generated for this host")
 
-// nonceIsForHost reports whether Fleet generated the nonce for the host with the given hardware
-// UUID; Fleet prefixes each host's nonce with its UUID.
+// nonceIsForHost reports whether AutoMDM generated the nonce for the host with the given hardware
+// UUID; AutoMDM prefixes each host's nonce with its UUID.
 func nonceIsForHost(nonce, hardwareUUID string) bool {
 	nonceHost, _, _ := strings.Cut(nonce, ".")
 	return hardwareUUID != "" && strings.EqualFold(nonceHost, hardwareUUID)
@@ -166,7 +166,7 @@ func redeemCode(ctx context.Context, r Request, code string) (string, error) {
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	resp, err := fleethttp.NewClient(fleethttp.WithTimeout(30 * time.Second)).Do(req)
+	resp, err := automdmhttp.NewClient(automdmhttp.WithTimeout(30 * time.Second)).Do(req)
 	if err != nil {
 		return "", fmt.Errorf("token request: %w", err)
 	}

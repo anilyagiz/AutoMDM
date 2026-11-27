@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/maintainedapps/maintainedappstest"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/maintainedapps/maintainedappstest"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
 )
@@ -79,18 +79,18 @@ func TestMaintainedApps(t *testing.T) {
 func testUpsertMaintainedApps(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
-	listSavedApps := func() []fleet.MaintainedApp {
-		var apps []fleet.MaintainedApp
+	listSavedApps := func() []automdm.MaintainedApp {
+		var apps []automdm.MaintainedApp
 		ExecAdhocSQL(t, ds, func(q sqlx.ExtContext) error {
-			return sqlx.SelectContext(ctx, q, &apps, "SELECT name, platform, slug FROM fleet_maintained_apps ORDER BY slug")
+			return sqlx.SelectContext(ctx, q, &apps, "SELECT name, platform, slug FROM automdm_maintained_apps ORDER BY slug")
 		})
 		return apps
 	}
 
 	expectedApps := maintainedappstest.SyncApps(t, ds)
-	var expectedAppsBaseInfo []fleet.MaintainedApp
+	var expectedAppsBaseInfo []automdm.MaintainedApp
 	for _, app := range expectedApps {
-		expectedAppsBaseInfo = append(expectedAppsBaseInfo, fleet.MaintainedApp{
+		expectedAppsBaseInfo = append(expectedAppsBaseInfo, automdm.MaintainedApp{
 			Name:     app.Name,
 			Platform: app.Platform,
 			Slug:     app.Slug,
@@ -104,7 +104,7 @@ func testUpsertMaintainedApps(t *testing.T, ds *Datastore) {
 	require.ElementsMatch(t, expectedAppsBaseInfo, listSavedApps())
 
 	// upsert the figma app, changing the version
-	_, err := ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{
+	_, err := ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{
 		Name:     "Figma 2",
 		Slug:     "figma/darwin",
 		Platform: "darwin",
@@ -128,7 +128,7 @@ func testSync(t *testing.T, ds *Datastore) {
 	expectedSlugs := maintainedappstest.ExpectedAppSlugs(t)
 	var actualSlugs []string
 	ExecAdhocSQL(t, ds, func(q sqlx.ExtContext) error {
-		return sqlx.SelectContext(context.Background(), q, &actualSlugs, "SELECT slug FROM fleet_maintained_apps ORDER BY slug")
+		return sqlx.SelectContext(context.Background(), q, &actualSlugs, "SELECT slug FROM automdm_maintained_apps ORDER BY slug")
 	})
 	require.ElementsMatch(t, expectedSlugs, actualSlugs)
 }
@@ -137,38 +137,38 @@ func testListAndGetAvailableApps(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
 	user := test.NewUser(t, ds, "Zaphod Beeblebrox", "zaphod@example.com", true)
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "Team 1"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "Team 1"})
 	require.NoError(t, err)
-	team2, err := ds.NewTeam(ctx, &fleet.Team{Name: "Team 2"})
+	team2, err := ds.NewTeam(ctx, &automdm.Team{Name: "Team 2"})
 	require.NoError(t, err)
 
 	// Testing search that returns no results; nothing inserted yet case
-	_, _, err = ds.ListAvailableFleetMaintainedApps(ctx, &team1.ID, fleet.MaintainedAppListOptions{ListOptions: fleet.ListOptions{IncludeMetadata: true}})
-	require.ErrorIs(t, err, &fleet.NoMaintainedAppsInDatabaseError{})
+	_, _, err = ds.ListAvailableAutoMDMMaintainedApps(ctx, &team1.ID, automdm.MaintainedAppListOptions{ListOptions: automdm.ListOptions{IncludeMetadata: true}})
+	require.ErrorIs(t, err, &automdm.NoMaintainedAppsInDatabaseError{})
 
-	maintained1, err := ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{
+	maintained1, err := ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{
 		Name:             "Maintained1",
 		Slug:             "maintained1",
 		Platform:         "darwin",
-		UniqueIdentifier: "fleet.maintained1",
+		UniqueIdentifier: "automdm.maintained1",
 	})
 
 	require.NoError(t, err)
-	maintained2, err := ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{
+	maintained2, err := ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{
 		Name:             "Maintained2",
 		Slug:             "maintained2",
 		Platform:         "darwin",
-		UniqueIdentifier: "fleet.maintained2",
+		UniqueIdentifier: "automdm.maintained2",
 	})
 	require.NoError(t, err)
-	maintained3, err := ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{
+	maintained3, err := ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{
 		Name:             "Maintained3",
 		Slug:             "maintained3",
 		Platform:         "darwin",
-		UniqueIdentifier: "fleet.maintained3",
+		UniqueIdentifier: "automdm.maintained3",
 	})
 	require.NoError(t, err)
-	maintained4, err := ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{
+	maintained4, err := ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{
 		Name:             "Maintained4",
 		Slug:             "maintained4",
 		Platform:         "windows",
@@ -184,7 +184,7 @@ func testListAndGetAvailableApps(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 	require.Equal(t, maintained1, gotApp)
 
-	expectedApps := []fleet.MaintainedApp{
+	expectedApps := []automdm.MaintainedApp{
 		{
 			ID:       maintained1.ID,
 			Name:     maintained1.Name,
@@ -212,21 +212,21 @@ func testListAndGetAvailableApps(t *testing.T, ds *Datastore) {
 	}
 
 	// Testing pagination
-	apps, meta, err := ds.ListAvailableFleetMaintainedApps(ctx, &team1.ID, fleet.MaintainedAppListOptions{ListOptions: fleet.ListOptions{IncludeMetadata: true}})
+	apps, meta, err := ds.ListAvailableAutoMDMMaintainedApps(ctx, &team1.ID, automdm.MaintainedAppListOptions{ListOptions: automdm.ListOptions{IncludeMetadata: true}})
 	require.NoError(t, err)
 	require.Len(t, apps, 4)
 	require.EqualValues(t, meta.TotalResults, 4)
 	require.Equal(t, expectedApps, apps)
 	require.False(t, meta.HasNextResults)
 
-	apps, meta, err = ds.ListAvailableFleetMaintainedApps(ctx, &team1.ID, fleet.MaintainedAppListOptions{ListOptions: fleet.ListOptions{PerPage: 1, IncludeMetadata: true}})
+	apps, meta, err = ds.ListAvailableAutoMDMMaintainedApps(ctx, &team1.ID, automdm.MaintainedAppListOptions{ListOptions: automdm.ListOptions{PerPage: 1, IncludeMetadata: true}})
 	require.NoError(t, err)
 	require.Len(t, apps, 1)
 	require.EqualValues(t, meta.TotalResults, 4)
 	require.Equal(t, expectedApps[:1], apps)
 	require.True(t, meta.HasNextResults)
 
-	apps, meta, err = ds.ListAvailableFleetMaintainedApps(ctx, &team1.ID, fleet.MaintainedAppListOptions{ListOptions: fleet.ListOptions{PerPage: 1, Page: 1, IncludeMetadata: true}})
+	apps, meta, err = ds.ListAvailableAutoMDMMaintainedApps(ctx, &team1.ID, automdm.MaintainedAppListOptions{ListOptions: automdm.ListOptions{PerPage: 1, Page: 1, IncludeMetadata: true}})
 	require.NoError(t, err)
 	require.Len(t, apps, 1)
 	require.EqualValues(t, meta.TotalResults, 4)
@@ -234,7 +234,7 @@ func testListAndGetAvailableApps(t *testing.T, ds *Datastore) {
 	require.True(t, meta.HasNextResults)
 	require.True(t, meta.HasPreviousResults)
 
-	apps, meta, err = ds.ListAvailableFleetMaintainedApps(ctx, &team1.ID, fleet.MaintainedAppListOptions{ListOptions: fleet.ListOptions{PerPage: 1, Page: 2, IncludeMetadata: true}})
+	apps, meta, err = ds.ListAvailableAutoMDMMaintainedApps(ctx, &team1.ID, automdm.MaintainedAppListOptions{ListOptions: automdm.ListOptions{PerPage: 1, Page: 2, IncludeMetadata: true}})
 	require.NoError(t, err)
 	require.Len(t, apps, 1)
 	require.EqualValues(t, meta.TotalResults, 4)
@@ -242,7 +242,7 @@ func testListAndGetAvailableApps(t *testing.T, ds *Datastore) {
 	require.True(t, meta.HasNextResults)
 	require.True(t, meta.HasPreviousResults)
 
-	apps, meta, err = ds.ListAvailableFleetMaintainedApps(ctx, &team1.ID, fleet.MaintainedAppListOptions{ListOptions: fleet.ListOptions{PerPage: 1, Page: 3, IncludeMetadata: true}})
+	apps, meta, err = ds.ListAvailableAutoMDMMaintainedApps(ctx, &team1.ID, automdm.MaintainedAppListOptions{ListOptions: automdm.ListOptions{PerPage: 1, Page: 3, IncludeMetadata: true}})
 	require.NoError(t, err)
 	require.Len(t, apps, 1)
 	require.EqualValues(t, meta.TotalResults, 4)
@@ -251,7 +251,7 @@ func testListAndGetAvailableApps(t *testing.T, ds *Datastore) {
 	require.True(t, meta.HasPreviousResults)
 
 	// Testing search
-	apps, meta, err = ds.ListAvailableFleetMaintainedApps(ctx, &team1.ID, fleet.MaintainedAppListOptions{ListOptions: fleet.ListOptions{MatchQuery: "Maintained4", IncludeMetadata: true}})
+	apps, meta, err = ds.ListAvailableAutoMDMMaintainedApps(ctx, &team1.ID, automdm.MaintainedAppListOptions{ListOptions: automdm.ListOptions{MatchQuery: "Maintained4", IncludeMetadata: true}})
 	require.NoError(t, err)
 	require.Len(t, apps, 1)
 	require.EqualValues(t, 1, meta.TotalResults)
@@ -260,7 +260,7 @@ func testListAndGetAvailableApps(t *testing.T, ds *Datastore) {
 	require.False(t, meta.HasPreviousResults)
 
 	// Testing search that returns no results; non-error case
-	apps, meta, err = ds.ListAvailableFleetMaintainedApps(ctx, &team1.ID, fleet.MaintainedAppListOptions{ListOptions: fleet.ListOptions{MatchQuery: "Maintained5", IncludeMetadata: true}})
+	apps, meta, err = ds.ListAvailableAutoMDMMaintainedApps(ctx, &team1.ID, automdm.MaintainedAppListOptions{ListOptions: automdm.ListOptions{MatchQuery: "Maintained5", IncludeMetadata: true}})
 	require.NoError(t, err)
 	require.Len(t, apps, 0)
 	require.EqualValues(t, 0, meta.TotalResults)
@@ -271,57 +271,57 @@ func testListAndGetAvailableApps(t *testing.T, ds *Datastore) {
 	// Test including software title ID for existing apps (installers)
 
 	/// Irrelevant package
-	_, _, err = ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
+	_, _, err = ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
 		Title:            "Irrelevant Software",
 		TeamID:           &team1.ID,
 		InstallScript:    "nothing",
 		Filename:         "foo.pkg",
 		UserID:           user.ID,
-		Platform:         string(fleet.MacOSPlatform),
+		Platform:         string(automdm.MacOSPlatform),
 		BundleIdentifier: "irrelevant_1",
-		ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+		ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 	})
 	require.NoError(t, err)
 
-	apps, meta, err = ds.ListAvailableFleetMaintainedApps(ctx, &team1.ID, fleet.MaintainedAppListOptions{ListOptions: fleet.ListOptions{IncludeMetadata: true}})
+	apps, meta, err = ds.ListAvailableAutoMDMMaintainedApps(ctx, &team1.ID, automdm.MaintainedAppListOptions{ListOptions: automdm.ListOptions{IncludeMetadata: true}})
 	require.NoError(t, err)
 	require.Len(t, apps, 4)
 	require.EqualValues(t, meta.TotalResults, 4)
 	require.Equal(t, expectedApps, apps)
 
 	/// Correct package on a different team
-	_, _, err = ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
+	_, _, err = ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
 		Title:            "Maintained1",
 		TeamID:           &team2.ID,
 		InstallScript:    "nothing",
 		Filename:         "foo.pkg",
 		UserID:           user.ID,
-		Platform:         string(fleet.MacOSPlatform),
-		BundleIdentifier: "fleet.maintained1",
-		ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+		Platform:         string(automdm.MacOSPlatform),
+		BundleIdentifier: "automdm.maintained1",
+		ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 	})
 	require.NoError(t, err)
 
-	apps, meta, err = ds.ListAvailableFleetMaintainedApps(ctx, &team1.ID, fleet.MaintainedAppListOptions{ListOptions: fleet.ListOptions{IncludeMetadata: true}})
+	apps, meta, err = ds.ListAvailableAutoMDMMaintainedApps(ctx, &team1.ID, automdm.MaintainedAppListOptions{ListOptions: automdm.ListOptions{IncludeMetadata: true}})
 	require.NoError(t, err)
 	require.Len(t, apps, 4)
 	require.EqualValues(t, meta.TotalResults, 4)
 	require.Equal(t, expectedApps, apps)
 
 	/// Correct package on the right team with the wrong platform
-	_, titleID, err := ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
+	_, titleID, err := ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
 		Title:            "Maintained1",
 		TeamID:           &team1.ID,
 		InstallScript:    "nothing",
 		Filename:         "foo.pkg",
 		UserID:           user.ID,
-		Platform:         string(fleet.IOSPlatform),
-		BundleIdentifier: "fleet.maintained1",
-		ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+		Platform:         string(automdm.IOSPlatform),
+		BundleIdentifier: "automdm.maintained1",
+		ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 	})
 	require.NoError(t, err)
 
-	apps, meta, err = ds.ListAvailableFleetMaintainedApps(ctx, &team1.ID, fleet.MaintainedAppListOptions{ListOptions: fleet.ListOptions{IncludeMetadata: true}})
+	apps, meta, err = ds.ListAvailableAutoMDMMaintainedApps(ctx, &team1.ID, automdm.MaintainedAppListOptions{ListOptions: automdm.ListOptions{IncludeMetadata: true}})
 	require.NoError(t, err)
 	require.Len(t, apps, 4)
 	require.EqualValues(t, meta.TotalResults, 4)
@@ -333,11 +333,11 @@ func testListAndGetAvailableApps(t *testing.T, ds *Datastore) {
 
 	/// Correct team and platform
 	ExecAdhocSQL(t, ds, func(q sqlx.ExtContext) error {
-		_, err := q.ExecContext(ctx, "UPDATE software_installers SET platform = ? WHERE platform = ?", fleet.MacOSPlatform, fleet.IOSPlatform)
+		_, err := q.ExecContext(ctx, "UPDATE software_installers SET platform = ? WHERE platform = ?", automdm.MacOSPlatform, automdm.IOSPlatform)
 		return err
 	})
 
-	apps, meta, err = ds.ListAvailableFleetMaintainedApps(ctx, &team1.ID, fleet.MaintainedAppListOptions{ListOptions: fleet.ListOptions{IncludeMetadata: true}})
+	apps, meta, err = ds.ListAvailableAutoMDMMaintainedApps(ctx, &team1.ID, automdm.MaintainedAppListOptions{ListOptions: automdm.ListOptions{IncludeMetadata: true}})
 	require.NoError(t, err)
 	require.Len(t, apps, 4)
 	require.EqualValues(t, meta.TotalResults, 4)
@@ -354,25 +354,25 @@ func testListAndGetAvailableApps(t *testing.T, ds *Datastore) {
 	require.Equal(t, maintained1, gotApp)
 
 	// we haven't added the windows app yet, so we shouldn't have a title ID for it
-	apps, meta, err = ds.ListAvailableFleetMaintainedApps(ctx, &team1.ID, fleet.MaintainedAppListOptions{ListOptions: fleet.ListOptions{IncludeMetadata: true}})
+	apps, meta, err = ds.ListAvailableAutoMDMMaintainedApps(ctx, &team1.ID, automdm.MaintainedAppListOptions{ListOptions: automdm.ListOptions{IncludeMetadata: true}})
 	require.NoError(t, err)
 	require.Len(t, apps, 4)
 	require.EqualValues(t, meta.TotalResults, 4)
 	require.Nil(t, apps[3].TitleID)
 
 	// add Windows app
-	_, windowsTitleID, err := ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
+	_, windowsTitleID, err := ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
 		Title:           "Maintained4 (MSI)",
 		TeamID:          &team1.ID,
 		InstallScript:   "nothing",
 		Filename:        "foo.msi",
 		UserID:          user.ID,
 		Platform:        "windows",
-		ValidatedLabels: &fleet.LabelIdentsWithScope{},
+		ValidatedLabels: &automdm.LabelIdentsWithScope{},
 	})
 	require.NoError(t, err)
 
-	apps, meta, err = ds.ListAvailableFleetMaintainedApps(ctx, &team1.ID, fleet.MaintainedAppListOptions{ListOptions: fleet.ListOptions{IncludeMetadata: true}})
+	apps, meta, err = ds.ListAvailableAutoMDMMaintainedApps(ctx, &team1.ID, automdm.MaintainedAppListOptions{ListOptions: automdm.ListOptions{IncludeMetadata: true}})
 	require.NoError(t, err)
 	require.Len(t, apps, 4)
 	require.EqualValues(t, meta.TotalResults, 4)
@@ -390,12 +390,12 @@ func testListAndGetAvailableApps(t *testing.T, ds *Datastore) {
 	test.CreateInsertGlobalVPPToken(t, ds)
 
 	// irrelevant vpp app
-	vppIrrelevant := &fleet.VPPApp{
+	vppIrrelevant := &automdm.VPPApp{
 		Name: "irrelevant_app",
-		VPPAppTeam: fleet.VPPAppTeam{
-			VPPAppID: fleet.VPPAppID{
+		VPPAppTeam: automdm.VPPAppTeam{
+			VPPAppID: automdm.VPPAppID{
 				AdamID:   "1",
-				Platform: fleet.MacOSPlatform,
+				Platform: automdm.MacOSPlatform,
 			},
 		},
 		BundleIdentifier: "irrelevant_2",
@@ -403,48 +403,48 @@ func testListAndGetAvailableApps(t *testing.T, ds *Datastore) {
 	_, err = ds.InsertVPPAppWithTeam(ctx, vppIrrelevant, &team1.ID, nil)
 	require.NoError(t, err)
 
-	apps, meta, err = ds.ListAvailableFleetMaintainedApps(ctx, &team1.ID, fleet.MaintainedAppListOptions{ListOptions: fleet.ListOptions{IncludeMetadata: true}})
+	apps, meta, err = ds.ListAvailableAutoMDMMaintainedApps(ctx, &team1.ID, automdm.MaintainedAppListOptions{ListOptions: automdm.ListOptions{IncludeMetadata: true}})
 	require.NoError(t, err)
 	require.Len(t, apps, 4)
 	require.EqualValues(t, meta.TotalResults, 4)
 	require.Equal(t, expectedApps, apps)
 
 	// right vpp app, wrong team
-	vppMaintained2 := &fleet.VPPApp{
+	vppMaintained2 := &automdm.VPPApp{
 		Name: "Maintained 2",
-		VPPAppTeam: fleet.VPPAppTeam{
-			VPPAppID: fleet.VPPAppID{
+		VPPAppTeam: automdm.VPPAppTeam{
+			VPPAppID: automdm.VPPAppID{
 				AdamID:   "2",
-				Platform: fleet.MacOSPlatform,
+				Platform: automdm.MacOSPlatform,
 			},
 		},
-		BundleIdentifier: "fleet.maintained2",
+		BundleIdentifier: "automdm.maintained2",
 	}
 	vppApp, err := ds.InsertVPPAppWithTeam(ctx, vppMaintained2, &team2.ID, nil)
 	require.NoError(t, err)
 
-	apps, meta, err = ds.ListAvailableFleetMaintainedApps(ctx, &team1.ID, fleet.MaintainedAppListOptions{ListOptions: fleet.ListOptions{IncludeMetadata: true}})
+	apps, meta, err = ds.ListAvailableAutoMDMMaintainedApps(ctx, &team1.ID, automdm.MaintainedAppListOptions{ListOptions: automdm.ListOptions{IncludeMetadata: true}})
 	require.NoError(t, err)
 	require.Len(t, apps, 4)
 	require.EqualValues(t, meta.TotalResults, 4)
 	require.Equal(t, expectedApps, apps)
 
 	// right app, right team, wrong platform
-	vppMaintained3 := &fleet.VPPApp{
+	vppMaintained3 := &automdm.VPPApp{
 		Name: "Maintained 3",
-		VPPAppTeam: fleet.VPPAppTeam{
-			VPPAppID: fleet.VPPAppID{
+		VPPAppTeam: automdm.VPPAppTeam{
+			VPPAppID: automdm.VPPAppID{
 				AdamID:   "3",
-				Platform: fleet.IOSPlatform,
+				Platform: automdm.IOSPlatform,
 			},
 		},
-		BundleIdentifier: "fleet.maintained3",
+		BundleIdentifier: "automdm.maintained3",
 	}
 
 	_, err = ds.InsertVPPAppWithTeam(ctx, vppMaintained3, &team1.ID, nil)
 	require.NoError(t, err)
 
-	apps, meta, err = ds.ListAvailableFleetMaintainedApps(ctx, &team1.ID, fleet.MaintainedAppListOptions{ListOptions: fleet.ListOptions{IncludeMetadata: true}})
+	apps, meta, err = ds.ListAvailableAutoMDMMaintainedApps(ctx, &team1.ID, automdm.MaintainedAppListOptions{ListOptions: automdm.ListOptions{IncludeMetadata: true}})
 	require.NoError(t, err)
 	require.Len(t, apps, 4)
 	require.EqualValues(t, meta.TotalResults, 4)
@@ -458,7 +458,7 @@ func testListAndGetAvailableApps(t *testing.T, ds *Datastore) {
 	_, err = ds.InsertVPPAppWithTeam(ctx, vppMaintained2, &team1.ID, nil)
 	require.NoError(t, err)
 
-	apps, meta, err = ds.ListAvailableFleetMaintainedApps(ctx, &team1.ID, fleet.MaintainedAppListOptions{ListOptions: fleet.ListOptions{IncludeMetadata: true}})
+	apps, meta, err = ds.ListAvailableAutoMDMMaintainedApps(ctx, &team1.ID, automdm.MaintainedAppListOptions{ListOptions: automdm.ListOptions{IncludeMetadata: true}})
 	require.NoError(t, err)
 	require.Len(t, apps, 4)
 	require.EqualValues(t, meta.TotalResults, 4)
@@ -471,7 +471,7 @@ func testListAndGetAvailableApps(t *testing.T, ds *Datastore) {
 	require.Equal(t, maintained2, gotApp)
 
 	// viewing with no team selected shouldn't include any title IDs
-	apps, meta, err = ds.ListAvailableFleetMaintainedApps(ctx, nil, fleet.MaintainedAppListOptions{ListOptions: fleet.ListOptions{IncludeMetadata: true}})
+	apps, meta, err = ds.ListAvailableAutoMDMMaintainedApps(ctx, nil, automdm.MaintainedAppListOptions{ListOptions: automdm.ListOptions{IncludeMetadata: true}})
 	require.NoError(t, err)
 	require.Len(t, apps, 4)
 	require.EqualValues(t, meta.TotalResults, 4)
@@ -492,18 +492,18 @@ func testListAndGetAvailableApps(t *testing.T, ds *Datastore) {
 
 	// add a custom Maintained3 package to Unassigned, the Maintained3 FMA should show as added
 	// for Unassigned only
-	_, unassignedTitleID, err := ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
+	_, unassignedTitleID, err := ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
 		Title:            "Maintained3",
 		InstallScript:    "nothing",
 		Filename:         "maintained3.pkg",
 		UserID:           user.ID,
-		Platform:         string(fleet.MacOSPlatform),
-		BundleIdentifier: "fleet.maintained3",
-		ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+		Platform:         string(automdm.MacOSPlatform),
+		BundleIdentifier: "automdm.maintained3",
+		ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 	})
 	require.NoError(t, err)
 
-	apps, meta, err = ds.ListAvailableFleetMaintainedApps(ctx, new(uint(0)), fleet.MaintainedAppListOptions{IncludeMetadata: true})
+	apps, meta, err = ds.ListAvailableAutoMDMMaintainedApps(ctx, new(uint(0)), automdm.MaintainedAppListOptions{IncludeMetadata: true})
 	require.NoError(t, err)
 	require.Len(t, apps, 4)
 	require.EqualValues(t, 4, meta.TotalResults)
@@ -523,7 +523,7 @@ func testListAndGetAvailableApps(t *testing.T, ds *Datastore) {
 	// Ordering: the combined-by-app view is only meaningfully sortable by name,
 	// so "name" is the one allowed order key. expectedApps is declared in
 	// ascending name order, so we derive the expected name sequences from it.
-	appNames := func(apps []fleet.MaintainedApp) []string {
+	appNames := func(apps []automdm.MaintainedApp) []string {
 		got := make([]string, 0, len(apps))
 		for _, a := range apps {
 			got = append(got, a.Name)
@@ -537,19 +537,19 @@ func testListAndGetAvailableApps(t *testing.T, ds *Datastore) {
 	}
 
 	t.Run("order_name_ascending", func(t *testing.T) {
-		result, _, err := ds.ListAvailableFleetMaintainedApps(ctx, &team1.ID, fleet.MaintainedAppListOptions{ListOptions: fleet.ListOptions{OrderKey: "name", OrderDirection: fleet.OrderAscending, PerPage: 10, IncludeMetadata: true}})
+		result, _, err := ds.ListAvailableAutoMDMMaintainedApps(ctx, &team1.ID, automdm.MaintainedAppListOptions{ListOptions: automdm.ListOptions{OrderKey: "name", OrderDirection: automdm.OrderAscending, PerPage: 10, IncludeMetadata: true}})
 		require.NoError(t, err)
 		require.Equal(t, ascNames, appNames(result))
 	})
 
 	t.Run("order_name_descending", func(t *testing.T) {
-		result, _, err := ds.ListAvailableFleetMaintainedApps(ctx, &team1.ID, fleet.MaintainedAppListOptions{ListOptions: fleet.ListOptions{OrderKey: "name", OrderDirection: fleet.OrderDescending, PerPage: 10, IncludeMetadata: true}})
+		result, _, err := ds.ListAvailableAutoMDMMaintainedApps(ctx, &team1.ID, automdm.MaintainedAppListOptions{ListOptions: automdm.ListOptions{OrderKey: "name", OrderDirection: automdm.OrderDescending, PerPage: 10, IncludeMetadata: true}})
 		require.NoError(t, err)
 		require.Equal(t, descNames, appNames(result))
 	})
 
 	t.Run("empty_order_key_defaults_to_name", func(t *testing.T) {
-		result, _, err := ds.ListAvailableFleetMaintainedApps(ctx, &team1.ID, fleet.MaintainedAppListOptions{ListOptions: fleet.ListOptions{PerPage: 10, IncludeMetadata: true}})
+		result, _, err := ds.ListAvailableAutoMDMMaintainedApps(ctx, &team1.ID, automdm.MaintainedAppListOptions{ListOptions: automdm.ListOptions{PerPage: 10, IncludeMetadata: true}})
 		require.NoError(t, err)
 		require.Equal(t, ascNames, appNames(result))
 	})
@@ -559,7 +559,7 @@ func testListAndGetAvailableApps(t *testing.T, ds *Datastore) {
 	// silently falling back to name ordering.
 	for _, key := range []string{"id", "platform", "slug", "h.node_key"} {
 		t.Run("rejects_"+key, func(t *testing.T) {
-			_, _, err := ds.ListAvailableFleetMaintainedApps(ctx, &team1.ID, fleet.MaintainedAppListOptions{ListOptions: fleet.ListOptions{OrderKey: key, IncludeMetadata: true}})
+			_, _, err := ds.ListAvailableAutoMDMMaintainedApps(ctx, &team1.ID, automdm.MaintainedAppListOptions{ListOptions: automdm.ListOptions{OrderKey: key, IncludeMetadata: true}})
 			require.Error(t, err)
 		})
 	}
@@ -571,30 +571,30 @@ func testSyncAndRemoveApps(t *testing.T, ds *Datastore) {
 
 func testGetMaintainedAppBySlug(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "Team 1"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "Team 1"})
 	require.NoError(t, err)
-	team2, err := ds.NewTeam(ctx, &fleet.Team{Name: "Team 2"})
+	team2, err := ds.NewTeam(ctx, &automdm.Team{Name: "Team 2"})
 	require.NoError(t, err)
 	user := test.NewUser(t, ds, "green banana", "yellow@banana.com", true)
 	require.NoError(t, err)
 
 	// maintained app 1
-	maintainedApp, err := ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{
+	maintainedApp, err := ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{
 		Name:             "Maintained1",
 		Slug:             "maintained1",
 		Platform:         "darwin",
-		UniqueIdentifier: "fleet.maintained1",
+		UniqueIdentifier: "automdm.maintained1",
 	})
 	require.NoError(t, err)
-	_, titleId1, err := ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
+	_, titleId1, err := ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
 		Title:            maintainedApp.Name,
 		TeamID:           &team1.ID,
 		InstallScript:    "echo Installing MaintainedAppForTeam1",
 		Filename:         "maintained-app-team1.pkg",
 		UserID:           user.ID,
-		Platform:         string(fleet.MacOSPlatform),
+		Platform:         string(automdm.MacOSPlatform),
 		BundleIdentifier: maintainedApp.UniqueIdentifier,
-		ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+		ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 		URL:              "https://example.com/maintained-app-team1.pkg",
 	})
 	require.NoError(t, err)
@@ -603,58 +603,58 @@ func testGetMaintainedAppBySlug(t *testing.T, ds *Datastore) {
 	require.Equal(t, "https://example.com/maintained-app-team1.pkg", installer1.URL)
 
 	// maintained app 2
-	maintainedApp2, err := ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{
+	maintainedApp2, err := ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{
 		Name:             "Maintained2",
 		Slug:             "maintained2",
 		Platform:         "darwin",
-		UniqueIdentifier: "fleet.maintained2",
+		UniqueIdentifier: "automdm.maintained2",
 	})
 	require.NoError(t, err)
-	_, _, err = ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
+	_, _, err = ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
 		Title:            maintainedApp2.Name,
 		TeamID:           &team2.ID,
 		InstallScript:    "echo Installing MaintainedAppForTeam1",
 		Filename:         "maintained-app-team2.pkg",
 		UserID:           user.ID,
-		Platform:         string(fleet.MacOSPlatform),
+		Platform:         string(automdm.MacOSPlatform),
 		BundleIdentifier: maintainedApp2.UniqueIdentifier,
-		ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+		ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 	})
 	require.NoError(t, err)
 
 	// get app 1 with no team specified
 	gotApp, err := ds.GetMaintainedAppBySlug(ctx, "maintained1", nil)
 	require.NoError(t, err)
-	require.Equal(t, &fleet.MaintainedApp{
+	require.Equal(t, &automdm.MaintainedApp{
 		ID:               maintainedApp.ID,
 		Name:             "Maintained1",
 		Slug:             "maintained1",
 		Platform:         "darwin",
-		UniqueIdentifier: "fleet.maintained1",
+		UniqueIdentifier: "automdm.maintained1",
 		TitleID:          nil,
 	}, gotApp)
 
 	// get app 1 with correct team specified
 	gotApp, err = ds.GetMaintainedAppBySlug(ctx, "maintained1", &team1.ID)
 	require.NoError(t, err)
-	require.Equal(t, &fleet.MaintainedApp{
+	require.Equal(t, &automdm.MaintainedApp{
 		ID:               maintainedApp.ID,
 		Name:             "Maintained1",
 		Slug:             "maintained1",
 		Platform:         "darwin",
-		UniqueIdentifier: "fleet.maintained1",
+		UniqueIdentifier: "automdm.maintained1",
 		TitleID:          &titleId1,
 	}, gotApp)
 
 	// get app 1 with team 2, so no title id exists
 	gotApp, err = ds.GetMaintainedAppBySlug(ctx, "maintained1", &team2.ID)
 	require.NoError(t, err)
-	require.Equal(t, &fleet.MaintainedApp{
+	require.Equal(t, &automdm.MaintainedApp{
 		ID:               maintainedApp.ID,
 		Name:             "Maintained1",
 		Slug:             "maintained1",
 		Platform:         "darwin",
-		UniqueIdentifier: "fleet.maintained1",
+		UniqueIdentifier: "automdm.maintained1",
 		TitleID:          nil,
 	}, gotApp)
 }
@@ -662,18 +662,18 @@ func testGetMaintainedAppBySlug(t *testing.T, ds *Datastore) {
 func testListAvailableAppsWindows(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "Team 1"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "Team 1"})
 	require.NoError(t, err)
 	user := test.NewUser(t, ds, "Alice", "alice@example.com", true)
 
-	maintained1, err := ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{
+	maintained1, err := ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{
 		Name:             "Maintained1",
 		Slug:             "maintained1",
 		Platform:         "windows",
 		UniqueIdentifier: "Maintained1 (MSI)",
 	})
 	require.NoError(t, err)
-	maintained2, err := ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{
+	maintained2, err := ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{
 		Name:             "Maintained2",
 		Slug:             "maintained2",
 		Platform:         "darwin",
@@ -681,7 +681,7 @@ func testListAvailableAppsWindows(t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 
-	expectedApps := []fleet.MaintainedApp{
+	expectedApps := []automdm.MaintainedApp{
 		{
 			ID:       maintained1.ID,
 			Name:     maintained1.Name,
@@ -695,7 +695,7 @@ func testListAvailableAppsWindows(t *testing.T, ds *Datastore) {
 			Slug:     "maintained2",
 		},
 	}
-	apps, _, err := ds.ListAvailableFleetMaintainedApps(ctx, &team1.ID, fleet.MaintainedAppListOptions{ListOptions: fleet.ListOptions{IncludeMetadata: true}})
+	apps, _, err := ds.ListAvailableAutoMDMMaintainedApps(ctx, &team1.ID, automdm.MaintainedAppListOptions{ListOptions: automdm.ListOptions{IncludeMetadata: true}})
 	require.NoError(t, err)
 	require.Len(t, apps, 2)
 	require.Nil(t, apps[0].TitleID)
@@ -704,23 +704,23 @@ func testListAvailableAppsWindows(t *testing.T, ds *Datastore) {
 
 	// upload an installer that will create a title with a similar name, but with
 	// an upgrade code so that unique identifier doesn't match
-	_, titleID, err := ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
-		Title:                "Maintained1 (MSI)",
-		UpgradeCode:          "{UPGRADE-CODE}",
-		Source:               "programs",
-		StorageID:            "storageid1",
-		Filename:             "maintained1.msi",
-		Extension:            "msi",
-		Platform:             "windows",
-		Version:              "1.0",
-		UserID:               user.ID,
-		TeamID:               &team1.ID,
-		ValidatedLabels:      &fleet.LabelIdentsWithScope{},
-		FleetMaintainedAppID: ptr.Uint(maintained1.ID),
+	_, titleID, err := ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
+		Title:                  "Maintained1 (MSI)",
+		UpgradeCode:            "{UPGRADE-CODE}",
+		Source:                 "programs",
+		StorageID:              "storageid1",
+		Filename:               "maintained1.msi",
+		Extension:              "msi",
+		Platform:               "windows",
+		Version:                "1.0",
+		UserID:                 user.ID,
+		TeamID:                 &team1.ID,
+		ValidatedLabels:        &automdm.LabelIdentsWithScope{},
+		AutoMDMMaintainedAppID: ptr.Uint(maintained1.ID),
 	})
 	require.NoError(t, err)
 	// create a pkg installer that should not match by similar name
-	_, _, err = ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
+	_, _, err = ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
 		Title:            "Maintained2 ",
 		BundleIdentifier: "Maintained2.ShallNotBeMatched",
 		Source:           "apps",
@@ -731,12 +731,12 @@ func testListAvailableAppsWindows(t *testing.T, ds *Datastore) {
 		Version:          "1.0",
 		UserID:           user.ID,
 		TeamID:           &team1.ID,
-		ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+		ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 	})
 	require.NoError(t, err)
 
 	// the windows app should be found using using name, because the existing software title has an upgrade code
-	apps, _, err = ds.ListAvailableFleetMaintainedApps(ctx, &team1.ID, fleet.MaintainedAppListOptions{ListOptions: fleet.ListOptions{IncludeMetadata: true}})
+	apps, _, err = ds.ListAvailableAutoMDMMaintainedApps(ctx, &team1.ID, automdm.MaintainedAppListOptions{ListOptions: automdm.ListOptions{IncludeMetadata: true}})
 	require.NoError(t, err)
 	require.Len(t, apps, 2)
 	require.NotNil(t, apps[0].TitleID)
@@ -753,12 +753,12 @@ func testListAvailableAppsWindows(t *testing.T, ds *Datastore) {
 func testListAvailableAppsByNameAndFilters(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "Team Filters"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "Team Filters"})
 	require.NoError(t, err)
 	user := test.NewUser(t, ds, "Filter Tester", "filters@example.com", true)
 
-	mkApp := func(name, slug, platform, ident string) *fleet.MaintainedApp {
-		app, err := ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{
+	mkApp := func(name, slug, platform, ident string) *automdm.MaintainedApp {
+		app, err := ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{
 			Name: name, Slug: slug, Platform: platform, UniqueIdentifier: ident,
 		})
 		require.NoError(t, err)
@@ -773,22 +773,22 @@ func testListAvailableAppsByNameAndFilters(t *testing.T, ds *Datastore) {
 	mkApp("Delta", "delta/darwin", "darwin", "com.example.delta")
 	mkApp("Delta", "delta/windows", "windows", "Delta (MSI)")
 
-	appNames := func(apps []fleet.MaintainedApp) []string {
+	appNames := func(apps []automdm.MaintainedApp) []string {
 		out := make([]string, len(apps))
 		for i, a := range apps {
 			out[i] = a.Name
 		}
 		return out
 	}
-	listOpts := func(o fleet.ListOptions) fleet.MaintainedAppListOptions {
+	listOpts := func(o automdm.ListOptions) automdm.MaintainedAppListOptions {
 		o.IncludeMetadata = true
-		return fleet.MaintainedAppListOptions{ListOptions: o}
+		return automdm.MaintainedAppListOptions{ListOptions: o}
 	}
 
 	// Unfiltered: 6 installable platform entries (the count: alpha+delta each ship
 	// on two platforms) across 4 app names, 6 rows returned (the raw per-platform
 	// entries the UI combines into 4 rows).
-	apps, meta, err := ds.ListAvailableFleetMaintainedApps(ctx, &team.ID, listOpts(fleet.ListOptions{}))
+	apps, meta, err := ds.ListAvailableAutoMDMMaintainedApps(ctx, &team.ID, listOpts(automdm.ListOptions{}))
 	require.NoError(t, err)
 	require.EqualValues(t, 6, meta.TotalResults)
 	require.Len(t, apps, 6)
@@ -797,7 +797,7 @@ func testListAvailableAppsByNameAndFilters(t *testing.T, ds *Datastore) {
 	// Pagination is by app name: a page of 2 apps that includes a dual-platform
 	// app returns ALL of that app's rows, so an app is never split across a page
 	// boundary. Page 0 => Alpha (darwin+windows) + Beta (darwin) = 3 rows.
-	apps, meta, err = ds.ListAvailableFleetMaintainedApps(ctx, &team.ID, listOpts(fleet.ListOptions{PerPage: 2}))
+	apps, meta, err = ds.ListAvailableAutoMDMMaintainedApps(ctx, &team.ID, listOpts(automdm.ListOptions{PerPage: 2}))
 	require.NoError(t, err)
 	require.EqualValues(t, 6, meta.TotalResults)
 	require.True(t, meta.HasNextResults)
@@ -805,7 +805,7 @@ func testListAvailableAppsByNameAndFilters(t *testing.T, ds *Datastore) {
 	require.Equal(t, []string{"Alpha", "Alpha", "Beta"}, appNames(apps))
 
 	// Page 1 => Delta (darwin+windows) + Gamma (windows) = 3 rows.
-	apps, meta, err = ds.ListAvailableFleetMaintainedApps(ctx, &team.ID, listOpts(fleet.ListOptions{PerPage: 2, Page: 1}))
+	apps, meta, err = ds.ListAvailableAutoMDMMaintainedApps(ctx, &team.ID, listOpts(automdm.ListOptions{PerPage: 2, Page: 1}))
 	require.NoError(t, err)
 	require.True(t, meta.HasPreviousResults)
 	require.False(t, meta.HasNextResults)
@@ -813,27 +813,27 @@ func testListAvailableAppsByNameAndFilters(t *testing.T, ds *Datastore) {
 
 	// Platform filter (darwin): keeps apps that have a macOS entry (Alpha, Beta,
 	// Delta) and returns all of their rows so the UI can still show both columns.
-	apps, meta, err = ds.ListAvailableFleetMaintainedApps(ctx, &team.ID, fleet.MaintainedAppListOptions{Platform: "darwin", ListOptions: fleet.ListOptions{IncludeMetadata: true}})
+	apps, meta, err = ds.ListAvailableAutoMDMMaintainedApps(ctx, &team.ID, automdm.MaintainedAppListOptions{Platform: "darwin", ListOptions: automdm.ListOptions{IncludeMetadata: true}})
 	require.NoError(t, err)
 	require.EqualValues(t, 3, meta.TotalResults)
 	require.ElementsMatch(t, []string{"Alpha", "Alpha", "Beta", "Delta", "Delta"}, appNames(apps))
 
 	// Platform filter (windows): keeps Alpha, Gamma, Delta.
-	apps, meta, err = ds.ListAvailableFleetMaintainedApps(ctx, &team.ID, fleet.MaintainedAppListOptions{Platform: "windows", ListOptions: fleet.ListOptions{IncludeMetadata: true}})
+	apps, meta, err = ds.ListAvailableAutoMDMMaintainedApps(ctx, &team.ID, automdm.MaintainedAppListOptions{Platform: "windows", ListOptions: automdm.ListOptions{IncludeMetadata: true}})
 	require.NoError(t, err)
 	require.EqualValues(t, 3, meta.TotalResults)
 	require.ElementsMatch(t, []string{"Alpha", "Alpha", "Gamma", "Delta", "Delta"}, appNames(apps))
 
 	// Add Beta (macOS-only) to the team so it is no longer "available".
-	_, _, err = ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
+	_, _, err = ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
 		Title:            beta.Name,
 		TeamID:           &team.ID,
 		InstallScript:    "nothing",
 		Filename:         "beta.pkg",
 		UserID:           user.ID,
-		Platform:         string(fleet.MacOSPlatform),
+		Platform:         string(automdm.MacOSPlatform),
 		BundleIdentifier: beta.UniqueIdentifier,
-		ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+		ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 	})
 	require.NoError(t, err)
 
@@ -841,19 +841,19 @@ func testListAvailableAppsByNameAndFilters(t *testing.T, ds *Datastore) {
 	// three apps, which still have at least one not-yet-added platform. The count
 	// is the 5 not-yet-added platform entries (Alpha macOS+Windows, Gamma Windows,
 	// Delta macOS+Windows).
-	apps, meta, err = ds.ListAvailableFleetMaintainedApps(ctx, &team.ID, fleet.MaintainedAppListOptions{AvailableOnly: true, ListOptions: fleet.ListOptions{IncludeMetadata: true}})
+	apps, meta, err = ds.ListAvailableAutoMDMMaintainedApps(ctx, &team.ID, automdm.MaintainedAppListOptions{AvailableOnly: true, ListOptions: automdm.ListOptions{IncludeMetadata: true}})
 	require.NoError(t, err)
 	require.EqualValues(t, 5, meta.TotalResults)
 	require.NotContains(t, appNames(apps), "Beta")
 
 	// Without the filter, Beta is still listed (as added).
-	apps, _, err = ds.ListAvailableFleetMaintainedApps(ctx, &team.ID, listOpts(fleet.ListOptions{}))
+	apps, _, err = ds.ListAvailableAutoMDMMaintainedApps(ctx, &team.ID, listOpts(automdm.ListOptions{}))
 	require.NoError(t, err)
 	require.Contains(t, appNames(apps), "Beta")
 
 	// Platform and available-only combine: macOS apps not yet added are Alpha
 	// and Delta (Beta's macOS entry is added; Gamma has no macOS entry).
-	apps, meta, err = ds.ListAvailableFleetMaintainedApps(ctx, &team.ID, fleet.MaintainedAppListOptions{Platform: "darwin", AvailableOnly: true, ListOptions: fleet.ListOptions{IncludeMetadata: true}})
+	apps, meta, err = ds.ListAvailableAutoMDMMaintainedApps(ctx, &team.ID, automdm.MaintainedAppListOptions{Platform: "darwin", AvailableOnly: true, ListOptions: automdm.ListOptions{IncludeMetadata: true}})
 	require.NoError(t, err)
 	require.EqualValues(t, 2, meta.TotalResults)
 	require.ElementsMatch(t, []string{"Alpha", "Alpha", "Delta", "Delta"}, appNames(apps))
@@ -865,11 +865,11 @@ func testListAvailableAppsByNameAndFilters(t *testing.T, ds *Datastore) {
 func testListAvailableAppsSharedName(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "Team Shared Name"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "Team Shared Name"})
 	require.NoError(t, err)
 
 	mkApp := func(name, slug, platform, ident string) {
-		_, err := ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{
+		_, err := ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{
 			Name: name, Slug: slug, Platform: platform, UniqueIdentifier: ident,
 		})
 		require.NoError(t, err)
@@ -878,8 +878,8 @@ func testListAvailableAppsSharedName(t *testing.T, ds *Datastore) {
 	mkApp("Gemini", "gemini/darwin", "darwin", "com.macpaw.site.Gemini2")
 	mkApp("Gemini", "google-gemini/darwin", "darwin", "com.google.GeminiMacOS")
 
-	assertTwoGeminis := func(opt fleet.MaintainedAppListOptions) {
-		apps, meta, err := ds.ListAvailableFleetMaintainedApps(ctx, &team.ID, opt)
+	assertTwoGeminis := func(opt automdm.MaintainedAppListOptions) {
+		apps, meta, err := ds.ListAvailableAutoMDMMaintainedApps(ctx, &team.ID, opt)
 		require.NoError(t, err)
 		// Both apps counted (not collapsed by shared name) ...
 		require.EqualValues(t, 2, meta.TotalResults)
@@ -892,13 +892,13 @@ func testListAvailableAppsSharedName(t *testing.T, ds *Datastore) {
 	}
 
 	// Count must equal rows unfiltered and with the macOS platform filter.
-	assertTwoGeminis(fleet.MaintainedAppListOptions{ListOptions: fleet.ListOptions{IncludeMetadata: true}})
-	assertTwoGeminis(fleet.MaintainedAppListOptions{Platform: "darwin", ListOptions: fleet.ListOptions{IncludeMetadata: true}})
+	assertTwoGeminis(automdm.MaintainedAppListOptions{ListOptions: automdm.ListOptions{IncludeMetadata: true}})
+	assertTwoGeminis(automdm.MaintainedAppListOptions{Platform: "darwin", ListOptions: automdm.ListOptions{IncludeMetadata: true}})
 
 	// list one app name per page, the first page should hold both Geminis because they share a name
-	assertTwoGeminis(fleet.MaintainedAppListOptions{PerPage: 1, IncludeMetadata: true})
+	assertTwoGeminis(automdm.MaintainedAppListOptions{PerPage: 1, IncludeMetadata: true})
 
-	slugs := func(apps []fleet.MaintainedApp) []string {
+	slugs := func(apps []automdm.MaintainedApp) []string {
 		out := make([]string, 0, len(apps))
 		for _, app := range apps {
 			out = append(out, app.Slug)
@@ -913,19 +913,19 @@ func testListAvailableAppsSharedName(t *testing.T, ds *Datastore) {
 	mkApp("Zen Browser", "zen-browser/windows", "windows", "Zen Browser")
 
 	// list one app name per page, the first page should hold both Docker Desktop entries
-	page0, meta0, err := ds.ListAvailableFleetMaintainedApps(ctx, &team.ID, fleet.MaintainedAppListOptions{ListOptions: fleet.ListOptions{PerPage: 1, IncludeMetadata: true}})
+	page0, meta0, err := ds.ListAvailableAutoMDMMaintainedApps(ctx, &team.ID, automdm.MaintainedAppListOptions{ListOptions: automdm.ListOptions{PerPage: 1, IncludeMetadata: true}})
 	require.NoError(t, err)
 	require.True(t, meta0.HasNextResults)
 	require.ElementsMatch(t, []string{"docker-desktop/darwin", "docker/windows"}, slugs(page0))
 
 	// list the third page, after Docker Desktop and Gemini, it should hold both Zen Browser entries
-	page2, meta2, err := ds.ListAvailableFleetMaintainedApps(ctx, &team.ID, fleet.MaintainedAppListOptions{PerPage: 1, Page: 2, IncludeMetadata: true})
+	page2, meta2, err := ds.ListAvailableAutoMDMMaintainedApps(ctx, &team.ID, automdm.MaintainedAppListOptions{PerPage: 1, Page: 2, IncludeMetadata: true})
 	require.NoError(t, err)
 	require.False(t, meta2.HasNextResults)
 	require.ElementsMatch(t, []string{"zen/darwin", "zen-browser/windows"}, slugs(page2))
 
 	// list with the Windows platform filter, the page should still hold both Docker Desktop entries
-	windowsPage, _, err := ds.ListAvailableFleetMaintainedApps(ctx, &team.ID, fleet.MaintainedAppListOptions{Platform: "windows", PerPage: 1, IncludeMetadata: true})
+	windowsPage, _, err := ds.ListAvailableAutoMDMMaintainedApps(ctx, &team.ID, automdm.MaintainedAppListOptions{Platform: "windows", PerPage: 1, IncludeMetadata: true})
 	require.NoError(t, err)
 	require.ElementsMatch(t, []string{"docker-desktop/darwin", "docker/windows"}, slugs(windowsPage))
 }
@@ -933,11 +933,11 @@ func testListAvailableAppsSharedName(t *testing.T, ds *Datastore) {
 func testListAvailableAppsSearchIgnoresPlatformSuffix(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "Team Suffix Search"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "Team Suffix Search"})
 	require.NoError(t, err)
 
 	mkApp := func(name, slug, platform, ident string) {
-		_, err := ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{
+		_, err := ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{
 			Name: name, Slug: slug, Platform: platform, UniqueIdentifier: ident,
 		})
 		require.NoError(t, err)
@@ -949,7 +949,7 @@ func testListAvailableAppsSearchIgnoresPlatformSuffix(t *testing.T, ds *Datastor
 	mkApp("Google Credential Provider for Windows", "gcpw/windows", "windows", "GCPW")
 
 	search := func(q string) []string {
-		apps, _, err := ds.ListAvailableFleetMaintainedApps(ctx, &team.ID, fleet.MaintainedAppListOptions{MatchQuery: q, IncludeMetadata: true})
+		apps, _, err := ds.ListAvailableAutoMDMMaintainedApps(ctx, &team.ID, automdm.MaintainedAppListOptions{MatchQuery: q, IncludeMetadata: true})
 		require.NoError(t, err)
 		var slugs []string
 		for _, a := range apps {
@@ -969,8 +969,8 @@ func testListAvailableAppsSearchIgnoresPlatformSuffix(t *testing.T, ds *Datastor
 	mkApp("Pagedsearch One for macOS", "pagedsearch-one/darwin", "darwin", "com.example.pagedsearch-one")
 	mkApp("Pagedsearch One for Windows", "pagedsearch-one/windows", "windows", "Pagedsearch One")
 	mkApp("Pagedsearch Two", "pagedsearch-two/darwin", "darwin", "com.example.pagedsearch-two")
-	searchOpts := fleet.MaintainedAppListOptions{MatchQuery: "Pagedsearch", IncludeMetadata: true, PerPage: 1}
-	apps, meta, err := ds.ListAvailableFleetMaintainedApps(ctx, &team.ID, searchOpts)
+	searchOpts := automdm.MaintainedAppListOptions{MatchQuery: "Pagedsearch", IncludeMetadata: true, PerPage: 1}
+	apps, meta, err := ds.ListAvailableAutoMDMMaintainedApps(ctx, &team.ID, searchOpts)
 	require.NoError(t, err)
 	require.Len(t, apps, 2)
 	require.Equal(t, "pagedsearch-one/darwin", apps[0].Slug)
@@ -979,7 +979,7 @@ func testListAvailableAppsSearchIgnoresPlatformSuffix(t *testing.T, ds *Datastor
 	require.True(t, meta.HasNextResults)
 
 	searchOpts.Page = 1
-	apps, meta, err = ds.ListAvailableFleetMaintainedApps(ctx, &team.ID, searchOpts)
+	apps, meta, err = ds.ListAvailableAutoMDMMaintainedApps(ctx, &team.ID, searchOpts)
 	require.NoError(t, err)
 	require.Len(t, apps, 1)
 	require.Equal(t, "pagedsearch-two/darwin", apps[0].Slug)
@@ -992,7 +992,7 @@ func testSoftwareTitleRenamingWindows(t *testing.T, ds *Datastore) {
 	user := test.NewUser(t, ds, "Alice", "alice@example.com", true)
 	host1 := test.NewHost(t, ds, "host1", "", "host1key", "host1uuid", time.Now())
 
-	software1 := []fleet.Software{
+	software1 := []automdm.Software{
 		{Name: "Goodbye 1.00 (x64)", Version: "1.0", Source: "programs"},
 		{Name: "Hello 1.00 (x64)", Version: "1.0", Source: "programs", UpgradeCode: ptr.String("{123456}")},
 	}
@@ -1001,21 +1001,21 @@ func testSoftwareTitleRenamingWindows(t *testing.T, ds *Datastore) {
 	require.NoError(t, ds.SyncHostsSoftware(ctx, time.Now()))
 	require.NoError(t, ds.SyncHostsSoftwareTitles(ctx, time.Now()))
 
-	opts := fleet.SoftwareTitleListOptions{ListOptions: fleet.ListOptions{OrderKey: "name"}}
-	sw, _, _, err := ds.ListSoftwareTitles(ctx, opts, fleet.TeamFilter{})
+	opts := automdm.SoftwareTitleListOptions{ListOptions: automdm.ListOptions{OrderKey: "name"}}
+	sw, _, _, err := ds.ListSoftwareTitles(ctx, opts, automdm.TeamFilter{})
 	require.NoError(t, err)
 	require.Len(t, sw, 2)
 	require.Equal(t, "Goodbye 1.00 (x64)", sw[0].Name)
 	require.Equal(t, "Hello 1.00 (x64)", sw[1].Name)
 
-	maintained3, err := ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{
+	maintained3, err := ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{
 		Name:             "goodbye",
 		Slug:             "goodbye/windows",
 		Platform:         "windows",
 		UniqueIdentifier: "Goodbye 1.00 (x64)",
 	})
 	require.NoError(t, err)
-	maintained4, err := ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{
+	maintained4, err := ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{
 		Name:             "Hello",
 		Slug:             "hello/windows",
 		Platform:         "windows",
@@ -1023,43 +1023,43 @@ func testSoftwareTitleRenamingWindows(t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 
-	sw, _, _, err = ds.ListSoftwareTitles(ctx, opts, fleet.TeamFilter{})
+	sw, _, _, err = ds.ListSoftwareTitles(ctx, opts, automdm.TeamFilter{})
 	require.NoError(t, err)
 	require.Len(t, sw, 2)
 	require.Equal(t, "Goodbye 1.00 (x64)", sw[0].Name)
 	require.Equal(t, "Hello 1.00 (x64)", sw[1].Name)
 
-	_, _, err = ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
-		Title:                "Goodbye 1.00 (x64)",
-		Source:               "programs",
-		StorageID:            "storageid1",
-		Filename:             "goodbye.msi",
-		Extension:            "msi",
-		Platform:             "windows",
-		Version:              "1.0",
-		UserID:               user.ID,
-		ValidatedLabels:      &fleet.LabelIdentsWithScope{},
-		FleetMaintainedAppID: &maintained3.ID,
+	_, _, err = ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
+		Title:                  "Goodbye 1.00 (x64)",
+		Source:                 "programs",
+		StorageID:              "storageid1",
+		Filename:               "goodbye.msi",
+		Extension:              "msi",
+		Platform:               "windows",
+		Version:                "1.0",
+		UserID:                 user.ID,
+		ValidatedLabels:        &automdm.LabelIdentsWithScope{},
+		AutoMDMMaintainedAppID: &maintained3.ID,
 	})
 	require.NoError(t, err)
-	_, _, err = ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
-		Title:                "Hello",
-		UpgradeCode:          "{123456}",
-		Source:               "programs",
-		StorageID:            "storageid2",
-		Filename:             "hello.msi",
-		Extension:            "msi",
-		Platform:             "windows",
-		Version:              "1.0",
-		UserID:               user.ID,
-		ValidatedLabels:      &fleet.LabelIdentsWithScope{},
-		FleetMaintainedAppID: &maintained4.ID,
+	_, _, err = ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
+		Title:                  "Hello",
+		UpgradeCode:            "{123456}",
+		Source:                 "programs",
+		StorageID:              "storageid2",
+		Filename:               "hello.msi",
+		Extension:              "msi",
+		Platform:               "windows",
+		Version:                "1.0",
+		UserID:                 user.ID,
+		ValidatedLabels:        &automdm.LabelIdentsWithScope{},
+		AutoMDMMaintainedAppID: &maintained4.ID,
 	})
 	require.NoError(t, err)
 
 	// After uploading installers, Goodbye 1.00 (x64) has no upgrade code so it
 	// keeps its name, and Hello 1.00 (x64) updates to just Hello as it has one.
-	sw, _, _, err = ds.ListSoftwareTitles(ctx, opts, fleet.TeamFilter{})
+	sw, _, _, err = ds.ListSoftwareTitles(ctx, opts, automdm.TeamFilter{})
 	require.NoError(t, err)
 	require.Len(t, sw, 2)
 	require.Equal(t, "Goodbye 1.00 (x64)", sw[0].Name)
@@ -1070,7 +1070,7 @@ func testReconcileSoftwareNames(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
 	// Create a host to associate software with
-	host, err := ds.NewHost(ctx, &fleet.Host{
+	host, err := ds.NewHost(ctx, &automdm.Host{
 		Hostname:        "test-host",
 		Platform:        "darwin",
 		OsqueryHostID:   ptr.String("osquery-host-id"),
@@ -1083,7 +1083,7 @@ func testReconcileSoftwareNames(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// Create software entries with osquery-reported name ("Code" instead of "Microsoft Visual Studio Code")
-	software := []fleet.Software{
+	software := []automdm.Software{
 		{
 			Name:             "Code",
 			Version:          "1.85.0",
@@ -1107,7 +1107,7 @@ func testReconcileSoftwareNames(t *testing.T, ds *Datastore) {
 	require.Equal(t, "Code", softwareTitleName(t, ds, "com.microsoft.VSCode"))
 
 	// Now upsert an FMA with the canonical name
-	_, err = ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{
+	_, err = ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{
 		Name:             "Microsoft Visual Studio Code",
 		Slug:             "visual-studio-code/darwin",
 		Platform:         "darwin",
@@ -1129,7 +1129,7 @@ func testReconcileSoftwareNames(t *testing.T, ds *Datastore) {
 	require.Equal(t, "Microsoft Visual Studio Code", softwareTitleName(t, ds, "com.microsoft.VSCode"))
 
 	// Verify upserting the same FMA again and reconciling doesn't cause issues (idempotent)
-	_, err = ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{
+	_, err = ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{
 		Name:             "Microsoft Visual Studio Code",
 		Slug:             "visual-studio-code/darwin",
 		Platform:         "darwin",
@@ -1144,7 +1144,7 @@ func testReconcileSoftwareNames(t *testing.T, ds *Datastore) {
 
 	// Verify Windows FMA does NOT update darwin software entries
 	// First create darwin software with a different bundle_id
-	software2 := []fleet.Software{
+	software2 := []automdm.Software{
 		{
 			Name:             "Some App",
 			Version:          "1.0.0",
@@ -1156,7 +1156,7 @@ func testReconcileSoftwareNames(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// Upsert a Windows FMA - should not affect darwin software
-	_, err = ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{
+	_, err = ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{
 		Name:             "Some App Windows",
 		Slug:             "some-app/windows",
 		Platform:         "windows",
@@ -1176,20 +1176,20 @@ func testReconcileSoftwareNamesSharedIdentifier(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
 	user := test.NewUser(t, ds, "Ford Prefect", "ford@example.com", true)
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "Team Firefox"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "Team Firefox"})
 	require.NoError(t, err)
 
 	host := newTestHostWithPlatform(t, ds, "firefox-host", "darwin", nil)
 
 	// Two FMAs that share the same macOS bundle identifier.
-	firefox, err := ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{
+	firefox, err := ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{
 		Name:             "Mozilla Firefox",
 		Slug:             "firefox/darwin",
 		Platform:         "darwin",
 		UniqueIdentifier: "org.mozilla.firefox",
 	})
 	require.NoError(t, err)
-	_, err = ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{
+	_, err = ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{
 		Name:             "Mozilla Firefox ESR",
 		Slug:             "firefox@esr/darwin",
 		Platform:         "darwin",
@@ -1198,7 +1198,7 @@ func testReconcileSoftwareNamesSharedIdentifier(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// A host reports Firefox via osquery (name "Firefox.app"), with no FMA added.
-	_, err = ds.UpdateHostSoftware(ctx, host.ID, []fleet.Software{
+	_, err = ds.UpdateHostSoftware(ctx, host.ID, []automdm.Software{
 		{Name: "Firefox.app", Version: "120.0", Source: "apps", BundleIdentifier: "org.mozilla.firefox"},
 	})
 	require.NoError(t, err)
@@ -1215,17 +1215,17 @@ func testReconcileSoftwareNamesSharedIdentifier(t *testing.T, ds *Datastore) {
 	require.Equal(t, []string{"Firefox.app"}, softwareNames(t, ds, "org.mozilla.firefox"))
 
 	// Add the Firefox (non-ESR) FMA, linking the existing title to a specific FMA.
-	_, titleID, err := ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
-		Title:                "Mozilla Firefox",
-		TeamID:               &team.ID,
-		Source:               "apps",
-		InstallScript:        "nothing",
-		Filename:             "Firefox.dmg",
-		UserID:               user.ID,
-		Platform:             string(fleet.MacOSPlatform),
-		BundleIdentifier:     "org.mozilla.firefox",
-		FleetMaintainedAppID: &firefox.ID,
-		ValidatedLabels:      &fleet.LabelIdentsWithScope{},
+	_, titleID, err := ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
+		Title:                  "Mozilla Firefox",
+		TeamID:                 &team.ID,
+		Source:                 "apps",
+		InstallScript:          "nothing",
+		Filename:               "Firefox.dmg",
+		UserID:                 user.ID,
+		Platform:               string(automdm.MacOSPlatform),
+		BundleIdentifier:       "org.mozilla.firefox",
+		AutoMDMMaintainedAppID: &firefox.ID,
+		ValidatedLabels:        &automdm.LabelIdentsWithScope{},
 	})
 	require.NoError(t, err)
 
@@ -1256,20 +1256,20 @@ func testReconcileSoftwareNamesBatched(t *testing.T, ds *Datastore) {
 	t.Cleanup(func() { maintainedAppNameReconcileBatchSize = oldBatchSize })
 
 	user := test.NewUser(t, ds, "Zaphod Beeblebrox", "zaphod@example.com", true)
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "Team Batched"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "Team Batched"})
 	require.NoError(t, err)
 
 	host := newTestHostWithPlatform(t, ds, "batched-host", "darwin", nil)
 
 	// Seven versions of one app, so the rename spans four batches of two. Plus an
 	// unrelated app with no FMA, which must never be renamed.
-	var software []fleet.Software
+	var software []automdm.Software
 	for _, version := range []string{"1.0", "2.0", "3.0", "4.0", "5.0", "6.0", "7.0"} {
-		software = append(software, fleet.Software{
+		software = append(software, automdm.Software{
 			Name: "Code", Version: version, Source: "apps", BundleIdentifier: "com.microsoft.VSCode",
 		})
 	}
-	software = append(software, fleet.Software{
+	software = append(software, automdm.Software{
 		Name: "Unrelated", Version: "1.0", Source: "apps", BundleIdentifier: "com.example.unrelated",
 	})
 	_, err = ds.UpdateHostSoftware(ctx, host.ID, software)
@@ -1277,7 +1277,7 @@ func testReconcileSoftwareNamesBatched(t *testing.T, ds *Datastore) {
 
 	require.Equal(t, slices.Repeat([]string{"Code"}, 7), softwareNames(t, ds, "com.microsoft.VSCode"))
 
-	vscode, err := ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{
+	vscode, err := ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{
 		Name:             "Microsoft Visual Studio Code",
 		Slug:             "visual-studio-code/darwin",
 		Platform:         "darwin",
@@ -1298,21 +1298,21 @@ func testReconcileSoftwareNamesBatched(t *testing.T, ds *Datastore) {
 
 	// Link the title to the FMA via an installer and change the canonical name, so
 	// pass 1 (by installer link) has to walk all seven rows too.
-	_, _, err = ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
-		Title:                "Microsoft Visual Studio Code",
-		TeamID:               &team.ID,
-		Source:               "apps",
-		InstallScript:        "nothing",
-		Filename:             "VSCode.dmg",
-		UserID:               user.ID,
-		Platform:             string(fleet.MacOSPlatform),
-		BundleIdentifier:     "com.microsoft.VSCode",
-		FleetMaintainedAppID: &vscode.ID,
-		ValidatedLabels:      &fleet.LabelIdentsWithScope{},
+	_, _, err = ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
+		Title:                  "Microsoft Visual Studio Code",
+		TeamID:                 &team.ID,
+		Source:                 "apps",
+		InstallScript:          "nothing",
+		Filename:               "VSCode.dmg",
+		UserID:                 user.ID,
+		Platform:               string(automdm.MacOSPlatform),
+		BundleIdentifier:       "com.microsoft.VSCode",
+		AutoMDMMaintainedAppID: &vscode.ID,
+		ValidatedLabels:        &automdm.LabelIdentsWithScope{},
 	})
 	require.NoError(t, err)
 
-	_, err = ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{
+	_, err = ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{
 		Name:             "Visual Studio Code",
 		Slug:             "visual-studio-code/darwin",
 		Platform:         "darwin",
@@ -1351,9 +1351,9 @@ func testReconcileSoftwareNamesDiscoveryWindowed(t *testing.T, ds *Datastore) {
 
 	host := newTestHostWithPlatform(t, ds, "windowed-host", "darwin", nil)
 
-	var software []fleet.Software
+	var software []automdm.Software
 	for _, version := range []string{"1.0", "2.0", "3.0", "4.0", "5.0", "6.0", "7.0"} {
-		software = append(software, fleet.Software{
+		software = append(software, automdm.Software{
 			Name: "Code", Version: version, Source: "apps", BundleIdentifier: "com.microsoft.VSCode",
 		})
 	}
@@ -1394,8 +1394,8 @@ func softwareNames(t *testing.T, ds *Datastore, bundleID string) []string {
 
 // upsertDarwinFMA upserts a darwin maintained app. Call it once per app: the upsert's
 // ON DUPLICATE KEY UPDATE reports no insert id, so a repeat call returns ID 0.
-func upsertDarwinFMA(t *testing.T, ds *Datastore, appName, bundleID, slug string) *fleet.MaintainedApp {
-	app, err := ds.UpsertMaintainedApp(t.Context(), &fleet.MaintainedApp{
+func upsertDarwinFMA(t *testing.T, ds *Datastore, appName, bundleID, slug string) *automdm.MaintainedApp {
+	app, err := ds.UpsertMaintainedApp(t.Context(), &automdm.MaintainedApp{
 		Name:             appName,
 		Slug:             slug,
 		Platform:         "darwin",
@@ -1408,18 +1408,18 @@ func upsertDarwinFMA(t *testing.T, ds *Datastore, appName, bundleID, slug string
 
 // addDarwinFMAInstaller adds app to a team as an installer, linked to the software title
 // carrying titleBundleID. It returns that title's ID.
-func addDarwinFMAInstaller(t *testing.T, ds *Datastore, userID uint, teamID *uint, app *fleet.MaintainedApp, titleBundleID string) uint {
-	_, titleID, err := ds.MatchOrCreateSoftwareInstaller(t.Context(), &fleet.UploadSoftwareInstallerPayload{
-		Title:                app.Name,
-		TeamID:               teamID,
-		Source:               "apps",
-		InstallScript:        "nothing",
-		Filename:             app.Name + ".dmg",
-		UserID:               userID,
-		Platform:             string(fleet.MacOSPlatform),
-		BundleIdentifier:     titleBundleID,
-		FleetMaintainedAppID: &app.ID,
-		ValidatedLabels:      &fleet.LabelIdentsWithScope{},
+func addDarwinFMAInstaller(t *testing.T, ds *Datastore, userID uint, teamID *uint, app *automdm.MaintainedApp, titleBundleID string) uint {
+	_, titleID, err := ds.MatchOrCreateSoftwareInstaller(t.Context(), &automdm.UploadSoftwareInstallerPayload{
+		Title:                  app.Name,
+		TeamID:                 teamID,
+		Source:                 "apps",
+		InstallScript:          "nothing",
+		Filename:               app.Name + ".dmg",
+		UserID:                 userID,
+		Platform:               string(automdm.MacOSPlatform),
+		BundleIdentifier:       titleBundleID,
+		AutoMDMMaintainedAppID: &app.ID,
+		ValidatedLabels:        &automdm.LabelIdentsWithScope{},
 	})
 	require.NoError(t, err)
 	return titleID
@@ -1433,12 +1433,12 @@ func testReconcileSoftwareNamesOrphanedInstaller(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
 	user := test.NewUser(t, ds, "Trillian", "trillian@example.com", true)
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "Team Orphan"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "Team Orphan"})
 	require.NoError(t, err)
 
 	host := newTestHostWithPlatform(t, ds, "orphan-host", "darwin", nil)
 
-	_, err = ds.UpdateHostSoftware(ctx, host.ID, []fleet.Software{
+	_, err = ds.UpdateHostSoftware(ctx, host.ID, []automdm.Software{
 		{Name: "Code", Version: "1.0", Source: "apps", BundleIdentifier: "com.microsoft.VSCode"},
 	})
 	require.NoError(t, err)
@@ -1465,12 +1465,12 @@ func testReconcileSoftwareNamesIdentifierWinsOverInstallerLink(t *testing.T, ds 
 	ctx := t.Context()
 
 	user := test.NewUser(t, ds, "Slartibartfast", "slarti@example.com", true)
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "Team Precedence"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "Team Precedence"})
 	require.NoError(t, err)
 
 	// An app whose identifier is com.example.identifier, so that identifier maps
 	// unambiguously to "Identifier Name".
-	_, err = ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{
+	_, err = ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{
 		Name:             "Identifier Name",
 		Slug:             "identifier-name/darwin",
 		Platform:         "darwin",
@@ -1498,14 +1498,14 @@ func testReconcileSoftwareNamesMultiTeamInstallers(t *testing.T, ds *Datastore) 
 	ctx := t.Context()
 
 	user := test.NewUser(t, ds, "Marvin", "marvin@example.com", true)
-	teamA, err := ds.NewTeam(ctx, &fleet.Team{Name: "Team A"})
+	teamA, err := ds.NewTeam(ctx, &automdm.Team{Name: "Team A"})
 	require.NoError(t, err)
-	teamB, err := ds.NewTeam(ctx, &fleet.Team{Name: "Team B"})
+	teamB, err := ds.NewTeam(ctx, &automdm.Team{Name: "Team B"})
 	require.NoError(t, err)
 
 	host := newTestHostWithPlatform(t, ds, "multi-team-host", "darwin", nil)
 
-	_, err = ds.UpdateHostSoftware(ctx, host.ID, []fleet.Software{
+	_, err = ds.UpdateHostSoftware(ctx, host.ID, []automdm.Software{
 		{Name: "Code", Version: "1.0", Source: "apps", BundleIdentifier: "com.microsoft.VSCode"},
 	})
 	require.NoError(t, err)
@@ -1535,7 +1535,7 @@ func testReconcileSoftwareNamesLeavesMobileSiblings(t *testing.T, ds *Datastore)
 
 	host := newTestHostWithPlatform(t, ds, "sibling-host", "darwin", nil)
 
-	_, err := ds.UpdateHostSoftware(ctx, host.ID, []fleet.Software{
+	_, err := ds.UpdateHostSoftware(ctx, host.ID, []automdm.Software{
 		{Name: "Code", Version: "1.0", Source: "apps", BundleIdentifier: "com.microsoft.VSCode"},
 	})
 	require.NoError(t, err)
@@ -1564,7 +1564,7 @@ func testReconcileSoftwareNamesLeavesMobileSiblings(t *testing.T, ds *Datastore)
 		return nil
 	})
 
-	_, err = ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{
+	_, err = ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{
 		Name:             "Microsoft Visual Studio Code",
 		Slug:             "visual-studio-code/darwin",
 		Platform:         "darwin",
@@ -1607,17 +1607,17 @@ func testListAvailableAppsSharedIdentifier(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
 	user := test.NewUser(t, ds, "Arthur Dent", "arthur@example.com", true)
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "Team 42"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "Team 42"})
 	require.NoError(t, err)
 
-	firefox, err := ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{
+	firefox, err := ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{
 		Name:             "Mozilla Firefox",
 		Slug:             "firefox/darwin",
 		Platform:         "darwin",
 		UniqueIdentifier: "org.mozilla.firefox",
 	})
 	require.NoError(t, err)
-	esr, err := ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{
+	esr, err := ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{
 		Name:             "Mozilla Firefox ESR",
 		Slug:             "firefox@esr/darwin",
 		Platform:         "darwin",
@@ -1626,7 +1626,7 @@ func testListAvailableAppsSharedIdentifier(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	titleIDFor := func(appID uint) *uint {
-		apps, _, err := ds.ListAvailableFleetMaintainedApps(ctx, &team.ID, fleet.MaintainedAppListOptions{})
+		apps, _, err := ds.ListAvailableAutoMDMMaintainedApps(ctx, &team.ID, automdm.MaintainedAppListOptions{})
 		require.NoError(t, err)
 		for _, a := range apps {
 			if a.ID == appID {
@@ -1641,18 +1641,18 @@ func testListAvailableAppsSharedIdentifier(t *testing.T, ds *Datastore) {
 	require.Nil(t, titleIDFor(firefox.ID))
 	require.Nil(t, titleIDFor(esr.ID))
 
-	// Add the Firefox (non-ESR) FMA, linked via fleet_maintained_app_id.
-	_, titleID, err := ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
-		Title:                "Mozilla Firefox",
-		TeamID:               &team.ID,
-		Source:               "apps",
-		InstallScript:        "nothing",
-		Filename:             "Firefox.dmg",
-		UserID:               user.ID,
-		Platform:             string(fleet.MacOSPlatform),
-		BundleIdentifier:     "org.mozilla.firefox",
-		FleetMaintainedAppID: &firefox.ID,
-		ValidatedLabels:      &fleet.LabelIdentsWithScope{},
+	// Add the Firefox (non-ESR) FMA, linked via automdm_maintained_app_id.
+	_, titleID, err := ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
+		Title:                  "Mozilla Firefox",
+		TeamID:                 &team.ID,
+		Source:                 "apps",
+		InstallScript:          "nothing",
+		Filename:               "Firefox.dmg",
+		UserID:                 user.ID,
+		Platform:               string(automdm.MacOSPlatform),
+		BundleIdentifier:       "org.mozilla.firefox",
+		AutoMDMMaintainedAppID: &firefox.ID,
+		ValidatedLabels:        &automdm.LabelIdentsWithScope{},
 	})
 	require.NoError(t, err)
 
@@ -1661,8 +1661,8 @@ func testListAvailableAppsSharedIdentifier(t *testing.T, ds *Datastore) {
 	require.Nil(t, titleIDFor(esr.ID))
 
 	// The "available only" filter must still surface ESR but hide Firefox.
-	availApps, _, err := ds.ListAvailableFleetMaintainedApps(ctx, &team.ID,
-		fleet.MaintainedAppListOptions{AvailableOnly: true})
+	availApps, _, err := ds.ListAvailableAutoMDMMaintainedApps(ctx, &team.ID,
+		automdm.MaintainedAppListOptions{AvailableOnly: true})
 	require.NoError(t, err)
 	var slugs []string
 	for _, a := range availApps {
@@ -1671,20 +1671,20 @@ func testListAvailableAppsSharedIdentifier(t *testing.T, ds *Datastore) {
 	require.Contains(t, slugs, "firefox@esr/darwin")
 	require.NotContains(t, slugs, "firefox/darwin")
 
-	// add a Firefox VPP app to another fleet, the VPP app should get the same software title as the Firefox installer
+	// add a Firefox VPP app to another team, the VPP app should get the same software title as the Firefox installer
 	test.CreateInsertGlobalVPPToken(t, ds)
-	otherTeam, err := ds.NewTeam(ctx, &fleet.Team{Name: "Team 43"})
+	otherTeam, err := ds.NewTeam(ctx, &automdm.Team{Name: "Team 43"})
 	require.NoError(t, err)
-	vppFirefox, err := ds.InsertVPPAppWithTeam(ctx, &fleet.VPPApp{
+	vppFirefox, err := ds.InsertVPPAppWithTeam(ctx, &automdm.VPPApp{
 		Name:             "Mozilla Firefox",
 		AdamID:           "firefox",
-		Platform:         fleet.MacOSPlatform,
+		Platform:         automdm.MacOSPlatform,
 		BundleIdentifier: "org.mozilla.firefox",
 	}, &otherTeam.ID, nil)
 	require.NoError(t, err)
 	require.Equal(t, titleID, vppFirefox.TitleID)
 
-	// move the Firefox VPP app into this fleet, the Firefox FMA should show as added and the ESR FMA should not
+	// move the Firefox VPP app into this team, the Firefox FMA should show as added and the ESR FMA should not
 	ExecAdhocSQL(t, ds, func(q sqlx.ExtContext) error {
 		_, err := q.ExecContext(ctx, "UPDATE vpp_apps_teams SET team_id = ?, global_or_team_id = ? WHERE adam_id = 'firefox'", team.ID, team.ID)
 		return err
@@ -1702,7 +1702,7 @@ func testGetFMANamesByIdentifier(t *testing.T, ds *Datastore) {
 	require.Empty(t, names)
 
 	// Add some darwin FMAs
-	_, err = ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{
+	_, err = ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{
 		Name:             "Microsoft Visual Studio Code",
 		Slug:             "visual-studio-code/darwin",
 		Platform:         "darwin",
@@ -1710,7 +1710,7 @@ func testGetFMANamesByIdentifier(t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 
-	_, err = ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{
+	_, err = ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{
 		Name:             "1Password",
 		Slug:             "1password/darwin",
 		Platform:         "darwin",
@@ -1719,7 +1719,7 @@ func testGetFMANamesByIdentifier(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// Add a Windows FMA - should NOT be returned (only darwin)
-	_, err = ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{
+	_, err = ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{
 		Name:             "Microsoft Visual Studio Code",
 		Slug:             "visual-studio-code/windows",
 		Platform:         "windows",
@@ -1740,14 +1740,14 @@ func testGetFMANamesByIdentifier(t *testing.T, ds *Datastore) {
 
 	// Two FMAs sharing a bundle identifier (Firefox/ESR) must be omitted, not
 	// resolved to whichever was inserted last.
-	_, err = ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{
+	_, err = ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{
 		Name:             "Mozilla Firefox",
 		Slug:             "firefox/darwin",
 		Platform:         "darwin",
 		UniqueIdentifier: "org.mozilla.firefox",
 	})
 	require.NoError(t, err)
-	_, err = ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{
+	_, err = ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{
 		Name:             "Mozilla Firefox ESR",
 		Slug:             "firefox@esr/darwin",
 		Platform:         "darwin",
@@ -1774,7 +1774,7 @@ func testGetWindowsFMAMatches(t *testing.T, ds *Datastore) {
 
 	// A catalog entry alone is not enough: only FMAs added via an installer are
 	// returned, since that deliberate install is what bounds name-prefix matching.
-	_, err = ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{
+	_, err = ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{
 		Name:             "Obsidian",
 		Slug:             "obsidian/windows",
 		Platform:         "windows",
@@ -1792,31 +1792,31 @@ func testGetWindowsFMAMatches(t *testing.T, ds *Datastore) {
 	addWindowsFMAWithInstaller(t, ds, user.ID, "CPU-Z", "CPUID CPU-Z", "cpu-z/windows")
 
 	// A darwin FMA with an installer must not be returned.
-	darwinApp, err := ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{
+	darwinApp, err := ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{
 		Name:             "Granola",
 		Slug:             "granola/darwin",
 		Platform:         "darwin",
 		UniqueIdentifier: "com.granola.app",
 	})
 	require.NoError(t, err)
-	_, _, err = ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
-		Title:                "Granola",
-		Source:               "apps",
-		StorageID:            "storageid-granola-darwin",
-		Filename:             "granola.pkg",
-		Extension:            "pkg",
-		Platform:             "darwin",
-		Version:              "1.0.0",
-		BundleIdentifier:     "com.granola.app",
-		UserID:               user.ID,
-		ValidatedLabels:      &fleet.LabelIdentsWithScope{},
-		FleetMaintainedAppID: &darwinApp.ID,
+	_, _, err = ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
+		Title:                  "Granola",
+		Source:                 "apps",
+		StorageID:              "storageid-granola-darwin",
+		Filename:               "granola.pkg",
+		Extension:              "pkg",
+		Platform:               "darwin",
+		Version:                "1.0.0",
+		BundleIdentifier:       "com.granola.app",
+		UserID:                 user.ID,
+		ValidatedLabels:        &automdm.LabelIdentsWithScope{},
+		AutoMDMMaintainedAppID: &darwinApp.ID,
 	})
 	require.NoError(t, err)
 
 	names, err = ds.GetWindowsFMAMatches(ctx)
 	require.NoError(t, err)
-	byName := make(map[string]*fleet.MaintainedApp, len(names))
+	byName := make(map[string]*automdm.MaintainedApp, len(names))
 	for i := range names {
 		byName[names[i].Name] = &names[i]
 	}
@@ -1832,13 +1832,13 @@ func testGetWindowsFMAMatches(t *testing.T, ds *Datastore) {
 	require.Equal(t, []string{"Granola"}, byName["Granola"].WinMatchPrefixes())
 
 	// A darwin app yields no prefixes even if the other fields are populated.
-	darwin := fleet.MaintainedApp{
+	darwin := automdm.MaintainedApp{
 		Name: "Granola", UniqueIdentifier: "com.granola.app",
 		Platform: "darwin", TitleID: new(uint(1)), TitleName: "Granola",
 	}
 	require.Empty(t, darwin.WinMatchPrefixes())
 	// So does a Windows app with no resolved title.
-	noTitle := fleet.MaintainedApp{Name: "Granola", UniqueIdentifier: "Granola", Platform: "windows"}
+	noTitle := automdm.MaintainedApp{Name: "Granola", UniqueIdentifier: "Granola", Platform: "windows"}
 	require.Empty(t, noTitle.WinMatchPrefixes())
 }
 
@@ -1851,7 +1851,7 @@ func testWindowsFMANameOnIngest(t *testing.T, ds *Datastore) {
 	host := test.NewHost(t, ds, "host1", "", "host1key", "host1uuid", time.Now())
 
 	// FMA + installer create the canonical "Granola" title first.
-	maintained, err := ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{
+	maintained, err := ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{
 		Name:             "Granola",
 		Slug:             "granola/windows",
 		Platform:         "windows",
@@ -1859,7 +1859,7 @@ func testWindowsFMANameOnIngest(t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 	// A "Zoom" FMA to exercise the negative (non-)match case below.
-	_, err = ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{
+	_, err = ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{
 		Name:             "Zoom",
 		Slug:             "zoom/windows",
 		Platform:         "windows",
@@ -1867,23 +1867,23 @@ func testWindowsFMANameOnIngest(t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 
-	_, canonicalTitleID, err := ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
-		Title:                "Granola",
-		Source:               "programs",
-		StorageID:            "storageid1",
-		Filename:             "granola.exe",
-		Extension:            "exe",
-		Platform:             "windows",
-		Version:              "7.373.2",
-		UserID:               user.ID,
-		ValidatedLabels:      &fleet.LabelIdentsWithScope{},
-		FleetMaintainedAppID: &maintained.ID,
+	_, canonicalTitleID, err := ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
+		Title:                  "Granola",
+		Source:                 "programs",
+		StorageID:              "storageid1",
+		Filename:               "granola.exe",
+		Extension:              "exe",
+		Platform:               "windows",
+		Version:                "7.373.2",
+		UserID:                 user.ID,
+		ValidatedLabels:        &automdm.LabelIdentsWithScope{},
+		AutoMDMMaintainedAppID: &maintained.ID,
 	})
 	require.NoError(t, err)
 
 	// Ingest host inventory with the version in the name, plus an unrelated app
 	// that merely shares a prefix with the "Zoom" FMA (no trailing space -> no match).
-	software := []fleet.Software{
+	software := []automdm.Software{
 		{Name: "Granola 7.373.2", Version: "7.373.2", Source: "programs"},
 		{Name: "Zoombie 5.0", Version: "5.0", Source: "programs"},
 	}
@@ -1932,7 +1932,7 @@ func testReconcileWindowsSoftwareTitles(t *testing.T, ds *Datastore) {
 
 	// Ingest two versions BEFORE any FMA exists -> two separate versioned titles
 	// (the mismatched state). Include an unrelated "Zoombie" app and an MSI app.
-	software := []fleet.Software{
+	software := []automdm.Software{
 		{Name: "Granola 7.373.1", Version: "7.373.1", Source: "programs"},
 		{Name: "Granola 7.373.2", Version: "7.373.2", Source: "programs"},
 		{Name: "Zoombie 5.0", Version: "5.0", Source: "programs"},
@@ -2020,7 +2020,7 @@ func testWindowsFMAReconcileSameNameUpgradeCodeTitle(t *testing.T, ds *Datastore
 
 	// Inventory first, so only a versioned title exists and the installer below has no
 	// same-named title to reuse.
-	_, err := ds.UpdateHostSoftware(ctx, host.ID, []fleet.Software{
+	_, err := ds.UpdateHostSoftware(ctx, host.ID, []automdm.Software{
 		{Name: "Granola 7.373.2", Version: "7.373.2", Source: "programs"},
 	})
 	require.NoError(t, err)
@@ -2069,7 +2069,7 @@ func testWindowsFMAReconcileAfterCatalogRename(t *testing.T, ds *Datastore) {
 	host := test.NewHost(t, ds, "host1", "", "host1key", "host1uuid", time.Now())
 
 	// Inventory first, so a versioned title exists before the installer appears.
-	_, err := ds.UpdateHostSoftware(ctx, host.ID, []fleet.Software{
+	_, err := ds.UpdateHostSoftware(ctx, host.ID, []automdm.Software{
 		{Name: "Zoom 6.1.0", Version: "6.1.0", Source: "programs"},
 	})
 	require.NoError(t, err)
@@ -2077,7 +2077,7 @@ func testWindowsFMAReconcileAfterCatalogRename(t *testing.T, ds *Datastore) {
 	installerTitleID := addWindowsFMAWithInstaller(t, ds, user.ID, "Zoom", "Zoom", "zoom/windows")
 
 	// A later catalog sync renames the app; the installer's title keeps the old name.
-	_, err = ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{
+	_, err = ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{
 		Name:             "Zoom Workplace",
 		Slug:             "zoom/windows",
 		Platform:         "windows",
@@ -2112,7 +2112,7 @@ func testWindowsFMAIngestAfterCatalogRename(t *testing.T, ds *Datastore) {
 	installerTitleID := addWindowsFMAWithInstaller(t, ds, user.ID, "Zoom", "Zoom", "zoom/windows")
 
 	// A later catalog sync renames the app; the installer's title keeps the old name.
-	_, err := ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{
+	_, err := ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{
 		Name:             "Zoom Workplace",
 		Slug:             "zoom/windows",
 		Platform:         "windows",
@@ -2121,7 +2121,7 @@ func testWindowsFMAIngestAfterCatalogRename(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// Inventory arrives after the rename, so it goes through ingestion, not reconcile.
-	_, err = ds.UpdateHostSoftware(ctx, host.ID, []fleet.Software{
+	_, err = ds.UpdateHostSoftware(ctx, host.ID, []automdm.Software{
 		{Name: "Zoom 6.1.0", Version: "6.1.0", Source: "programs"},
 	})
 	require.NoError(t, err)
@@ -2150,20 +2150,20 @@ func testWindowsFMAUninstallActionAvailable(t *testing.T, ds *Datastore) {
 
 	addWindowsFMAWithInstaller(t, ds, user.ID, "Granola", "Granola", "granola/windows")
 
-	_, err := ds.UpdateHostSoftware(ctx, host.ID, []fleet.Software{
+	_, err := ds.UpdateHostSoftware(ctx, host.ID, []automdm.Software{
 		{Name: "Granola 7.373.2", Version: "7.373.2", Source: "programs"},
 	})
 	require.NoError(t, err)
 	require.NoError(t, ds.SyncHostsSoftware(ctx, time.Now()))
 	require.NoError(t, ds.SyncHostsSoftwareTitles(ctx, time.Now()))
 
-	sw, _, err := ds.ListHostSoftware(ctx, host, fleet.HostSoftwareTitleListOptions{
-		ListOptions:                fleet.ListOptions{PerPage: 50},
+	sw, _, err := ds.ListHostSoftware(ctx, host, automdm.HostSoftwareTitleListOptions{
+		ListOptions:                automdm.ListOptions{PerPage: 50},
 		IncludeAvailableForInstall: true,
 	})
 	require.NoError(t, err)
 
-	var found *fleet.HostSoftwareWithInstaller
+	var found *automdm.HostSoftwareWithInstaller
 	for _, s := range sw {
 		if s.Name == "Granola" {
 			found = s
@@ -2187,22 +2187,22 @@ func testWindowsFMAMultiTeamInstallersShareTitle(t *testing.T, ds *Datastore) {
 	titleID := addWindowsFMAWithInstaller(t, ds, user.ID, "Granola", "Granola", "granola/windows")
 
 	// Same app on a second team, reusing the same title.
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "team A"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "team A"})
 	require.NoError(t, err)
 	app, err := ds.GetMaintainedAppBySlug(ctx, "granola/windows", nil)
 	require.NoError(t, err)
-	_, teamTitleID, err := ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
-		TeamID:               &team.ID,
-		Title:                "Granola",
-		Source:               "programs",
-		StorageID:            "storageid-granola-team",
-		Filename:             "granola.exe",
-		Extension:            "exe",
-		Platform:             "windows",
-		Version:              "1.0.0",
-		UserID:               user.ID,
-		ValidatedLabels:      &fleet.LabelIdentsWithScope{},
-		FleetMaintainedAppID: &app.ID,
+	_, teamTitleID, err := ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
+		TeamID:                 &team.ID,
+		Title:                  "Granola",
+		Source:                 "programs",
+		StorageID:              "storageid-granola-team",
+		Filename:               "granola.exe",
+		Extension:              "exe",
+		Platform:               "windows",
+		Version:                "1.0.0",
+		UserID:                 user.ID,
+		ValidatedLabels:        &automdm.LabelIdentsWithScope{},
+		AutoMDMMaintainedAppID: &app.ID,
 	})
 	require.NoError(t, err)
 	require.Equal(t, titleID, teamTitleID, "both teams' installers should share one title")
@@ -2213,7 +2213,7 @@ func testWindowsFMAMultiTeamInstallersShareTitle(t *testing.T, ds *Datastore) {
 	require.NotNil(t, names[0].TitleID)
 	require.Equal(t, titleID, *names[0].TitleID)
 
-	_, err = ds.UpdateHostSoftware(ctx, host.ID, []fleet.Software{
+	_, err = ds.UpdateHostSoftware(ctx, host.ID, []automdm.Software{
 		{Name: "Granola 7.373.2", Version: "7.373.2", Source: "programs"},
 	})
 	require.NoError(t, err)
@@ -2243,10 +2243,10 @@ func testWindowsFMAExcludedWhenSpanningTitles(t *testing.T, ds *Datastore) {
 		_, err := q.ExecContext(ctx,
 			`INSERT INTO software_installers
 			   (global_or_team_id, title_id, storage_id, filename, extension, version,
-			    install_script_content_id, platform, fleet_maintained_app_id, package_ids,
+			    install_script_content_id, platform, automdm_maintained_app_id, package_ids,
 			    uninstall_script_content_id, patch_query)
 			 SELECT 7, (SELECT id FROM software_titles WHERE name = 'Granola Other'), 'sid-other', 'g2.exe', 'exe', '2.0',
-			        si.install_script_content_id, 'windows', si.fleet_maintained_app_id, '',
+			        si.install_script_content_id, 'windows', si.automdm_maintained_app_id, '',
 			        si.uninstall_script_content_id, si.patch_query
 			 FROM software_installers si LIMIT 1`)
 		return err
@@ -2288,7 +2288,7 @@ func testWindowsFMANameWithLikeWildcards(t *testing.T, ds *Datastore) {
 	host := test.NewHost(t, ds, "host1", "", "host1key", "host1uuid", time.Now())
 
 	// Inventory first so the titles below are stale candidates for the reconcile pass.
-	_, err := ds.UpdateHostSoftware(ctx, host.ID, []fleet.Software{
+	_, err := ds.UpdateHostSoftware(ctx, host.ID, []automdm.Software{
 		{Name: "C_C 1.0", Version: "1.0", Source: "programs"},
 		{Name: "CXC 2.0", Version: "2.0", Source: "programs"},
 	})
@@ -2325,7 +2325,7 @@ func testWindowsFMAMatchesCache(t *testing.T, ds *Datastore) {
 	host := test.NewHost(t, ds, "host1", "", "host1key", "host1uuid", time.Now())
 
 	// Warm the cache while no app is added, so the entry is an empty set.
-	_, err := ds.UpdateHostSoftware(ctx, host.ID, []fleet.Software{
+	_, err := ds.UpdateHostSoftware(ctx, host.ID, []automdm.Software{
 		{Name: "Unrelated 1.0", Version: "1.0", Source: "programs"},
 	})
 	require.NoError(t, err)
@@ -2333,7 +2333,7 @@ func testWindowsFMAMatchesCache(t *testing.T, ds *Datastore) {
 	canonicalID := addWindowsFMAWithInstaller(t, ds, user.ID, "Granola", "Granola", "granola/windows")
 
 	// Within the TTL the cached empty set is still in use, so no collapsing happens.
-	_, err = ds.UpdateHostSoftware(ctx, host.ID, []fleet.Software{
+	_, err = ds.UpdateHostSoftware(ctx, host.ID, []automdm.Software{
 		{Name: "Unrelated 1.0", Version: "1.0", Source: "programs"},
 		{Name: "Granola 7.373.1", Version: "7.373.1", Source: "programs"},
 	})
@@ -2344,7 +2344,7 @@ func testWindowsFMAMatchesCache(t *testing.T, ds *Datastore) {
 	// After expiry a newly reported version lands on the installer's title. The cached
 	// set stays in place and is simply stale, which is what a real TTL lapse looks like.
 	ds.expireWindowsFMAMatchesCache()
-	_, err = ds.UpdateHostSoftware(ctx, host.ID, []fleet.Software{
+	_, err = ds.UpdateHostSoftware(ctx, host.ID, []automdm.Software{
 		{Name: "Unrelated 1.0", Version: "1.0", Source: "programs"},
 		{Name: "Granola 7.373.1", Version: "7.373.1", Source: "programs"},
 		{Name: "Granola 7.441.6", Version: "7.441.6", Source: "programs"},
@@ -2374,7 +2374,7 @@ func testWindowsFMAMergeWithoutPrefixes(t *testing.T, ds *Datastore) {
 
 	// Inventory first, so the software sits on a versioned title that a working merge
 	// would move. That is what makes "nothing moved" a meaningful assertion.
-	_, err := ds.UpdateHostSoftware(ctx, host.ID, []fleet.Software{
+	_, err := ds.UpdateHostSoftware(ctx, host.ID, []automdm.Software{
 		{Name: "Granola 7.373.2", Version: "7.373.2", Source: "programs"},
 	})
 	require.NoError(t, err)
@@ -2385,22 +2385,22 @@ func testWindowsFMAMergeWithoutPrefixes(t *testing.T, ds *Datastore) {
 
 	cases := []struct {
 		name string
-		app  fleet.MaintainedApp
+		app  automdm.MaintainedApp
 	}{
 		// Every name field blank: no prefixes, so nothing can be matched.
-		{"no names", fleet.MaintainedApp{Platform: "windows", TitleID: &titleID}},
+		{"no names", automdm.MaintainedApp{Platform: "windows", TitleID: &titleID}},
 		// Not a Windows app: WinMatchPrefixes declines regardless of the names.
-		{"not windows", fleet.MaintainedApp{
+		{"not windows", automdm.MaintainedApp{
 			Name: "Granola", UniqueIdentifier: "Granola", TitleName: "Granola",
 			Platform: "darwin", TitleID: &titleID,
 		}},
 		// No destination title at all.
-		{"no title", fleet.MaintainedApp{Name: "Granola", UniqueIdentifier: "Granola", Platform: "windows"}},
+		{"no title", automdm.MaintainedApp{Name: "Granola", UniqueIdentifier: "Granola", Platform: "windows"}},
 	}
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			apps := []fleet.MaintainedApp{c.app}
+			apps := []automdm.MaintainedApp{c.app}
 
 			// The scan builds the WHERE clause from the prefixes, so it must find no work
 			// rather than emit an empty predicate.
@@ -2426,7 +2426,7 @@ func testWindowsFMAMergeMovesAllReferences(t *testing.T, ds *Datastore) {
 	host := test.NewHost(t, ds, "host1", "", "host1key", "host1uuid", time.Now())
 
 	// Inventory first, so a versioned title exists for the installer to merge.
-	_, err := ds.UpdateHostSoftware(ctx, host.ID, []fleet.Software{
+	_, err := ds.UpdateHostSoftware(ctx, host.ID, []automdm.Software{
 		{Name: "Granola 7.373.2", Version: "7.373.2", Source: "programs"},
 	})
 	require.NoError(t, err)
@@ -2527,7 +2527,7 @@ func testWindowsFMAMergeMultipleDestinations(t *testing.T, ds *Datastore) {
 	host := test.NewHost(t, ds, "host1", "", "host1key", "host1uuid", time.Now())
 
 	// Two unrelated apps, each reported with a version in the name, before either is added.
-	_, err := ds.UpdateHostSoftware(ctx, host.ID, []fleet.Software{
+	_, err := ds.UpdateHostSoftware(ctx, host.ID, []automdm.Software{
 		{Name: "Granola 7.373.2", Version: "7.373.2", Source: "programs"},
 		{Name: "Obsidian 1.5.3", Version: "1.5.3", Source: "programs"},
 	})
@@ -2555,7 +2555,7 @@ func testWindowsFMAIngestIgnoresOtherSources(t *testing.T, ds *Datastore) {
 
 	addWindowsFMAWithInstaller(t, ds, user.ID, "Granola", "Granola", "granola/windows")
 
-	_, err := ds.UpdateHostSoftware(ctx, host.ID, []fleet.Software{
+	_, err := ds.UpdateHostSoftware(ctx, host.ID, []automdm.Software{
 		{Name: "Granola 9.9.9", Version: "9.9.9", Source: "chrome_extensions", ExtensionID: "abc"},
 	})
 	require.NoError(t, err)
@@ -2578,7 +2578,7 @@ func testWindowsFMAReconcileIndependentOfCatalogSync(t *testing.T, ds *Datastore
 	user := test.NewUser(t, ds, "Alice", "alice@example.com", true)
 	host := test.NewHost(t, ds, "host1", "", "host1key", "host1uuid", time.Now())
 
-	_, err := ds.UpdateHostSoftware(ctx, host.ID, []fleet.Software{
+	_, err := ds.UpdateHostSoftware(ctx, host.ID, []automdm.Software{
 		{Name: "Granola 7.373.2", Version: "7.373.2", Source: "programs"},
 	})
 	require.NoError(t, err)
@@ -2623,12 +2623,12 @@ func titleIDForTitleNamed(t *testing.T, ds *Datastore, name string) uint {
 }
 
 // addWindowsFMAWithInstaller creates a Windows FMA plus an installer that owns the
-// canonical title, mirroring an admin adding a Fleet-maintained app to no team.
+// canonical title, mirroring an admin adding an AutoMDM-maintained app to no team.
 func addWindowsFMAWithInstaller(t *testing.T, ds *Datastore, userID uint, name, uniqueIdentifier, slug string) uint {
 	t.Helper()
 	ctx := t.Context()
 
-	app, err := ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{
+	app, err := ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{
 		Name:             name,
 		Slug:             slug,
 		Platform:         "windows",
@@ -2636,17 +2636,17 @@ func addWindowsFMAWithInstaller(t *testing.T, ds *Datastore, userID uint, name, 
 	})
 	require.NoError(t, err)
 
-	_, titleID, err := ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
-		Title:                name,
-		Source:               "programs",
-		StorageID:            "storageid-" + slug,
-		Filename:             slug + ".exe",
-		Extension:            "exe",
-		Platform:             "windows",
-		Version:              "1.0.0",
-		UserID:               userID,
-		ValidatedLabels:      &fleet.LabelIdentsWithScope{},
-		FleetMaintainedAppID: &app.ID,
+	_, titleID, err := ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
+		Title:                  name,
+		Source:                 "programs",
+		StorageID:              "storageid-" + slug,
+		Filename:               slug + ".exe",
+		Extension:              "exe",
+		Platform:               "windows",
+		Version:                "1.0.0",
+		UserID:                 userID,
+		ValidatedLabels:        &automdm.LabelIdentsWithScope{},
+		AutoMDMMaintainedAppID: &app.ID,
 	})
 	require.NoError(t, err)
 
@@ -2689,7 +2689,7 @@ func testWindowsFMAMatchByUniqueIdentifier(t *testing.T, ds *Datastore) {
 
 	canonicalID := addWindowsFMAWithInstaller(t, ds, user.ID, "CPU-Z", "CPUID CPU-Z", "cpu-z/windows")
 
-	_, err := ds.UpdateHostSoftware(ctx, host.ID, []fleet.Software{
+	_, err := ds.UpdateHostSoftware(ctx, host.ID, []automdm.Software{
 		{Name: "CPUID CPU-Z 2.16", Version: "2.16", Source: "programs"},
 	})
 	require.NoError(t, err)
@@ -2703,7 +2703,7 @@ func testWindowsFMAMatchByUniqueIdentifier(t *testing.T, ds *Datastore) {
 	require.Zero(t, countTitlesNamed(t, ds, "CPUID CPU-Z 2.16"), "no versioned title should be created")
 }
 
-// testWindowsFMAMatchByNameWhenIdentifierStale: fleet_maintained_apps.unique_identifier
+// testWindowsFMAMatchByNameWhenIdentifierStale: automdm_maintained_apps.unique_identifier
 // is synced from apps.json, whose entries are only ever appended, so some Windows apps
 // carry a version-bearing identifier frozen at the version current when they were added
 // (e.g. notion/windows records "Notion 6.1.0"). Matching must still work off the name.
@@ -2715,7 +2715,7 @@ func testWindowsFMAMatchByNameWhenIdentifierStale(t *testing.T, ds *Datastore) {
 
 	canonicalID := addWindowsFMAWithInstaller(t, ds, user.ID, "Notion", "Notion 6.1.0", "notion/windows")
 
-	_, err := ds.UpdateHostSoftware(ctx, host.ID, []fleet.Software{
+	_, err := ds.UpdateHostSoftware(ctx, host.ID, []automdm.Software{
 		{Name: "Notion 7.2.0", Version: "7.2.0", Source: "programs"},
 	})
 	require.NoError(t, err)
@@ -2741,7 +2741,7 @@ func testWindowsFMANotRenamedWithUpgradeCode(t *testing.T, ds *Datastore) {
 
 	addWindowsFMAWithInstaller(t, ds, user.ID, "Granola", "Granola", "granola/windows")
 
-	_, err := ds.UpdateHostSoftware(ctx, host.ID, []fleet.Software{
+	_, err := ds.UpdateHostSoftware(ctx, host.ID, []automdm.Software{
 		{Name: "Granola 7.373.2", Version: "7.373.2", Source: "programs", UpgradeCode: new("{11111111-1111-1111-1111-111111111111}")},
 	})
 	require.NoError(t, err)
@@ -2759,7 +2759,7 @@ func testWindowsFMANoCollapseWithoutInstaller(t *testing.T, ds *Datastore) {
 
 	host := test.NewHost(t, ds, "host1", "", "host1key", "host1uuid", time.Now())
 
-	_, err := ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{
+	_, err := ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{
 		Name:             "Granola",
 		Slug:             "granola/windows",
 		Platform:         "windows",
@@ -2767,7 +2767,7 @@ func testWindowsFMANoCollapseWithoutInstaller(t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 
-	_, err = ds.UpdateHostSoftware(ctx, host.ID, []fleet.Software{
+	_, err = ds.UpdateHostSoftware(ctx, host.ID, []automdm.Software{
 		{Name: "Granola 7.373.2", Version: "7.373.2", Source: "programs"},
 	})
 	require.NoError(t, err)
@@ -2794,7 +2794,7 @@ func testWindowsFMAAmbiguousMatchIsNoOp(t *testing.T, ds *Datastore) {
 	addWindowsFMAWithInstaller(t, ds, user.ID, "Acme Reader", "Acme", "acme-reader/windows")
 	addWindowsFMAWithInstaller(t, ds, user.ID, "Acme Writer", "Acme", "acme-writer/windows")
 
-	_, err := ds.UpdateHostSoftware(ctx, host.ID, []fleet.Software{
+	_, err := ds.UpdateHostSoftware(ctx, host.ID, []automdm.Software{
 		{Name: "Acme 3.0", Version: "3.0", Source: "programs"},
 	})
 	require.NoError(t, err)
@@ -2813,7 +2813,7 @@ func testWindowsFMAReconcileMovesTitleReferences(t *testing.T, ds *Datastore) {
 	host := test.NewHost(t, ds, "host1", "", "host1key", "host1uuid", time.Now())
 
 	// Inventory first, so a versioned title exists before the FMA installer appears.
-	_, err := ds.UpdateHostSoftware(ctx, host.ID, []fleet.Software{
+	_, err := ds.UpdateHostSoftware(ctx, host.ID, []automdm.Software{
 		{Name: "Granola 7.373.2", Version: "7.373.2", Source: "programs"},
 	})
 	require.NoError(t, err)
@@ -2877,7 +2877,7 @@ func testWindowsFMAReconcilePinConflict(t *testing.T, ds *Datastore) {
 	user := test.NewUser(t, ds, "Alice", "alice@example.com", true)
 	host := test.NewHost(t, ds, "host1", "", "host1key", "host1uuid", time.Now())
 
-	_, err := ds.UpdateHostSoftware(ctx, host.ID, []fleet.Software{
+	_, err := ds.UpdateHostSoftware(ctx, host.ID, []automdm.Software{
 		{Name: "Granola 7.373.2", Version: "7.373.2", Source: "programs"},
 	})
 	require.NoError(t, err)

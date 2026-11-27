@@ -12,12 +12,12 @@ import (
 	"time"
 
 	"github.com/WatchBeam/clock"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
-	android_mock "github.com/fleetdm/fleet/v4/server/mdm/android/mock"
-	"github.com/fleetdm/fleet/v4/server/mdm/android/service/androidmgmt"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
+	android_mock "github.com/anilyagiz/automdm/v4/server/mdm/android/mock"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android/service/androidmgmt"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/androidmanagement/v1"
@@ -67,8 +67,8 @@ func requireAckedAsUnverified(t *testing.T, err error) {
 
 func TestPubSubTokenComparison(t *testing.T) {
 	svc, mockDS, _ := newVerifyTestService(t)
-	mockDS.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{MDM: fleet.MDM{AndroidEnabledAndConfigured: true}}, nil
+	mockDS.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{MDM: automdm.MDM{AndroidEnabledAndConfigured: true}}, nil
 	}
 
 	// InitCommonDSMocks stores "value" as the token.
@@ -89,18 +89,18 @@ func TestPubSubTokenComparison(t *testing.T) {
 				require.NoError(t, err)
 				return
 			}
-			var authErr *fleet.AuthFailedError
+			var authErr *automdm.AuthFailedError
 			require.ErrorAs(t, err, &authErr)
 		})
 	}
 
 	t.Run("an empty stored token matches nothing", func(t *testing.T) {
-		mockDS.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []fleet.MDMAssetName,
+		mockDS.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []automdm.MDMAssetName,
 			queryerContext sqlx.QueryerContext,
-		) (map[fleet.MDMAssetName]fleet.MDMConfigAsset, error) {
-			return map[fleet.MDMAssetName]fleet.MDMConfigAsset{fleet.MDMAssetAndroidPubSubToken: {Value: []byte{}}}, nil
+		) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
+			return map[automdm.MDMAssetName]automdm.MDMConfigAsset{automdm.MDMAssetAndroidPubSubToken: {Value: []byte{}}}, nil
 		}
-		var authErr *fleet.AuthFailedError
+		var authErr *automdm.AuthFailedError
 		require.ErrorAs(t, svc.authenticatePubSub(t.Context(), ""), &authErr)
 	})
 }
@@ -161,15 +161,15 @@ func TestPubSubReenrollmentVerifiedWithAMAPI(t *testing.T) {
 
 	newReenroll := func(t *testing.T) (*Service, *AndroidMockDS, *android_mock.Client, *android.PubSubMessage, androidmanagement.Device) {
 		svc, mockDS, client := newVerifyTestService(t)
-		setupReenrollMocks(t, mockDS, &fleet.AndroidHost{
-			Host: &fleet.Host{ID: existingHostID, UUID: testBrandTestSerialHashed},
+		setupReenrollMocks(t, mockDS, &automdm.AndroidHost{
+			Host: &automdm.Host{ID: existingHostID, UUID: testBrandTestSerialHashed},
 			Device: &android.Device{
 				HostID:               existingHostID,
 				DeviceID:             "device-old",
 				EnterpriseSpecificID: new(testBrandTestSerialHashed),
 			},
 		})
-		mockDS.AndroidResetOnReenrollmentFunc = func(ctx context.Context, hostID uint, hostUUID string, preserve bool) ([]*fleet.User, []fleet.ActivityDetails, error) {
+		mockDS.AndroidResetOnReenrollmentFunc = func(ctx context.Context, hostID uint, hostUUID string, preserve bool) ([]*automdm.User, []automdm.ActivityDetails, error) {
 			return nil, nil, nil
 		}
 		enrollTokenData, err := json.Marshal(enrollmentTokenRequest{EnrollSecret: "global"})
@@ -265,12 +265,12 @@ func TestPubSubReenrollmentVerifiedWithAMAPI(t *testing.T) {
 		require.False(t, mockDS.AndroidResetOnReenrollmentFuncInvoked)
 	})
 
-	t.Run("a device new to Fleet is not looked up", func(t *testing.T) {
+	t.Run("a device new to AutoMDM is not looked up", func(t *testing.T) {
 		svc, mockDS, client, msg, _ := newReenroll(t)
-		mockDS.AndroidHostLiteFunc = func(ctx context.Context, esID string) (*fleet.AndroidHost, error) {
+		mockDS.AndroidHostLiteFunc = func(ctx context.Context, esID string) (*automdm.AndroidHost, error) {
 			return nil, common_mysql.NotFound("android host")
 		}
-		mockDS.NewAndroidHostFunc = func(ctx context.Context, host *fleet.AndroidHost, companyOwned bool) (*fleet.AndroidHost, error) {
+		mockDS.NewAndroidHostFunc = func(ctx context.Context, host *automdm.AndroidHost, companyOwned bool) (*automdm.AndroidHost, error) {
 			host.Host.ID = existingHostID
 			return host, nil
 		}
@@ -279,7 +279,7 @@ func TestPubSubReenrollmentVerifiedWithAMAPI(t *testing.T) {
 		require.True(t, mockDS.NewAndroidHostFuncInvoked)
 	})
 
-	// Creating a host for a device ID Fleet already has moves that device record to the new host.
+	// Creating a host for a device ID AutoMDM already has moves that device record to the new host.
 	for _, tc := range []struct {
 		name        string
 		amapiDevice func(payload androidmanagement.Device) *androidmanagement.Device
@@ -297,14 +297,14 @@ func TestPubSubReenrollmentVerifiedWithAMAPI(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			svc, mockDS, client, msg, payload := newReenroll(t)
-			mockDS.AndroidHostLiteFunc = func(ctx context.Context, esID string) (*fleet.AndroidHost, error) {
+			mockDS.AndroidHostLiteFunc = func(ctx context.Context, esID string) (*automdm.AndroidHost, error) {
 				return nil, common_mysql.NotFound("android host")
 			}
 			mockDS.AndroidDeviceExistsByDeviceIDFunc = func(ctx context.Context, deviceID string) (bool, error) {
 				require.Equal(t, "verify-reenroll", deviceID)
 				return true, nil
 			}
-			mockDS.NewAndroidHostFunc = func(ctx context.Context, host *fleet.AndroidHost, companyOwned bool) (*fleet.AndroidHost, error) {
+			mockDS.NewAndroidHostFunc = func(ctx context.Context, host *automdm.AndroidHost, companyOwned bool) (*automdm.AndroidHost, error) {
 				host.Host.ID = existingHostID + 1
 				return host, nil
 			}
@@ -441,7 +441,7 @@ func TestPubSubStatusReportDeviceChangeVerifiedWithAMAPI(t *testing.T) {
 	const hostID = uint(11)
 	const hostUUID = "VERIFY-DEVICE-CHANGE-HOST"
 
-	newDeviceChange := func(t *testing.T) (*Service, *AndroidMockDS, *android_mock.Client, *fleet.AndroidHost) {
+	newDeviceChange := func(t *testing.T) (*Service, *AndroidMockDS, *android_mock.Client, *automdm.AndroidHost) {
 		svc, mockDS, client := newVerifyTestService(t)
 		host := wireDedupHost(t, mockDS, hostID, hostUUID)
 		host.Device.DeviceID = "current-device"
@@ -494,7 +494,7 @@ func TestPubSubStatusReportDeviceChangeVerifiedWithAMAPI(t *testing.T) {
 		client.EnterprisesDevicesGetFunc = func(ctx context.Context, name string) (*androidmanagement.Device, error) {
 			return nil, amapiNotFound()
 		}
-		mockDS.UpdateAndroidHostFunc = func(ctx context.Context, h *fleet.AndroidHost, fromEnroll, companyOwned bool) error {
+		mockDS.UpdateAndroidHostFunc = func(ctx context.Context, h *automdm.AndroidHost, fromEnroll, companyOwned bool) error {
 			host.Device.DeviceID = h.Device.DeviceID
 			return nil
 		}
@@ -519,8 +519,8 @@ func TestPubSubCommandVerifiedWithAMAPI(t *testing.T) {
 
 	newCommand := func(t *testing.T, commandType android.MDMAndroidCommandType, currentDeviceID string) (*Service, *AndroidMockDS, *android_mock.Client, *string) {
 		svc, mockDS, client := newVerifyTestService(t)
-		mockDS.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-			return &fleet.AppConfig{MDM: fleet.MDM{AndroidEnabledAndConfigured: true}}, nil
+		mockDS.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{MDM: automdm.MDM{AndroidEnabledAndConfigured: true}}, nil
 		}
 		mockDS.GetMDMAndroidCommandByOperationNameFunc = func(ctx context.Context, name string) (*android.MDMAndroidCommand, error) {
 			return &android.MDMAndroidCommand{
@@ -531,14 +531,14 @@ func TestPubSubCommandVerifiedWithAMAPI(t *testing.T) {
 				Status:        string(android.MDMAndroidCommandStatusPending),
 			}, nil
 		}
-		mockDS.AndroidHostLiteByHostUUIDFunc = func(ctx context.Context, hostUUID string) (*fleet.AndroidHost, error) {
-			return &fleet.AndroidHost{
-				Host:   &fleet.Host{ID: 7, UUID: hostUUID},
+		mockDS.AndroidHostLiteByHostUUIDFunc = func(ctx context.Context, hostUUID string) (*automdm.AndroidHost, error) {
+			return &automdm.AndroidHost{
+				Host:   &automdm.Host{ID: 7, UUID: hostUUID},
 				Device: &android.Device{HostID: 7, DeviceID: currentDeviceID},
 			}, nil
 		}
-		mockDS.GetHostMDMFunc = func(ctx context.Context, id uint) (*fleet.HostMDM, error) {
-			return &fleet.HostMDM{}, nil
+		mockDS.GetHostMDMFunc = func(ctx context.Context, id uint) (*automdm.HostMDM, error) {
+			return &automdm.HostMDM{}, nil
 		}
 		mockDS.SetAndroidHostUnenrolledFunc = func(ctx context.Context, id uint) (bool, error) { return false, nil }
 		var status string
@@ -668,7 +668,7 @@ func TestPubSubCommandVerifiedWithAMAPI(t *testing.T) {
 }
 
 // TestPubSubAcknowledgedWipeRedelivery covers a COMMAND for a WIPE that is already acknowledged.
-// Fleet re-runs the unenroll so a failed first delivery recovers, but an acknowledged WIPE survives
+// AutoMDM re-runs the unenroll so a failed first delivery recovers, but an acknowledged WIPE survives
 // a re-enrollment, so a redelivery of one issued to an earlier enrollment must not unenroll the host.
 func TestPubSubAcknowledgedWipeRedelivery(t *testing.T) {
 	const opName = "enterprises/E/devices/old-device/operations/wipe-1"
@@ -692,8 +692,8 @@ func TestPubSubAcknowledgedWipeRedelivery(t *testing.T) {
 				}
 				return &androidmanagement.Device{Name: name, State: "ACTIVE"}, nil
 			}
-			mockDS.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-				return &fleet.AppConfig{MDM: fleet.MDM{AndroidEnabledAndConfigured: true}}, nil
+			mockDS.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+				return &automdm.AppConfig{MDM: automdm.MDM{AndroidEnabledAndConfigured: true}}, nil
 			}
 			mockDS.GetMDMAndroidCommandByOperationNameFunc = func(ctx context.Context, name string) (*android.MDMAndroidCommand, error) {
 				return &android.MDMAndroidCommand{
@@ -704,14 +704,14 @@ func TestPubSubAcknowledgedWipeRedelivery(t *testing.T) {
 					Status:        string(android.MDMAndroidCommandStatusAcknowledged),
 				}, nil
 			}
-			mockDS.AndroidHostLiteByHostUUIDFunc = func(ctx context.Context, hostUUID string) (*fleet.AndroidHost, error) {
-				return &fleet.AndroidHost{
-					Host:   &fleet.Host{ID: 7, UUID: hostUUID},
+			mockDS.AndroidHostLiteByHostUUIDFunc = func(ctx context.Context, hostUUID string) (*automdm.AndroidHost, error) {
+				return &automdm.AndroidHost{
+					Host:   &automdm.Host{ID: 7, UUID: hostUUID},
 					Device: &android.Device{HostID: 7, DeviceID: tc.currentDeviceID},
 				}, nil
 			}
-			mockDS.GetHostMDMFunc = func(ctx context.Context, id uint) (*fleet.HostMDM, error) {
-				return &fleet.HostMDM{}, nil
+			mockDS.GetHostMDMFunc = func(ctx context.Context, id uint) (*automdm.HostMDM, error) {
+				return &automdm.HostMDM{}, nil
 			}
 			mockDS.SetAndroidHostUnenrolledFunc = func(ctx context.Context, id uint) (bool, error) { return false, nil }
 

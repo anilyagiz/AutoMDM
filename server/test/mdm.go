@@ -9,19 +9,19 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/require"
 	"github.com/tj/assert"
 )
 
-func CreateVPPTokenData(expiration time.Time, orgName, location string) (*fleet.VPPTokenData, error) {
+func CreateVPPTokenData(expiration time.Time, orgName, location string) (*automdm.VPPTokenData, error) {
 	var randBytes [32]byte
 	_, err := rand.Read(randBytes[:])
 	if err != nil {
 		return nil, fmt.Errorf("generating random bytes: %w", err)
 	}
 	token := base64.StdEncoding.EncodeToString(randBytes[:])
-	raw := fleet.VPPTokenRaw{
+	raw := automdm.VPPTokenRaw{
 		OrgName: orgName,
 		Token:   token,
 		ExpDate: expiration.Format("2006-01-02T15:04:05Z0700"),
@@ -32,10 +32,10 @@ func CreateVPPTokenData(expiration time.Time, orgName, location string) (*fleet.
 	}
 
 	base64Token := base64.StdEncoding.EncodeToString(rawJson)
-	return &fleet.VPPTokenData{Token: base64Token, Location: location}, nil
+	return &automdm.VPPTokenData{Token: base64Token, Location: location}, nil
 }
 
-func CreateInsertGlobalVPPToken(t *testing.T, ds fleet.Datastore) *fleet.VPPTokenDB {
+func CreateInsertGlobalVPPToken(t *testing.T, ds automdm.Datastore) *automdm.VPPTokenDB {
 	ctx := context.Background()
 	dataToken, err := CreateVPPTokenData(time.Now().Add(24*time.Hour), "Donkey Kong", "Jungle")
 	require.NoError(t, err)
@@ -90,8 +90,8 @@ func GenerateMDMAppleProfile(ident, displayName, uuid string) string {
 `, ident, displayName, uuid)
 }
 
-func ToMDMAppleConfigProfile(p *fleet.MDMConfigProfilePayload) *fleet.MDMAppleConfigProfile {
-	return &fleet.MDMAppleConfigProfile{
+func ToMDMAppleConfigProfile(p *automdm.MDMConfigProfilePayload) *automdm.MDMAppleConfigProfile {
+	return &automdm.MDMAppleConfigProfile{
 		Identifier:   p.Identifier,
 		Name:         p.Name,
 		ProfileUUID:  p.ProfileUUID,
@@ -99,24 +99,24 @@ func ToMDMAppleConfigProfile(p *fleet.MDMConfigProfilePayload) *fleet.MDMAppleCo
 	}
 }
 
-func ToMDMWindowsConfigProfile(p *fleet.MDMConfigProfilePayload) *fleet.MDMWindowsConfigProfile {
-	return &fleet.MDMWindowsConfigProfile{
+func ToMDMWindowsConfigProfile(p *automdm.MDMConfigProfilePayload) *automdm.MDMWindowsConfigProfile {
+	return &automdm.MDMWindowsConfigProfile{
 		Name:        p.Name,
 		SyncML:      p.Checksum, // not important for the test
 		ProfileUUID: p.ProfileUUID,
 	}
 }
 
-func ToMDMAppleDecl(p *fleet.MDMConfigProfilePayload) *fleet.MDMAppleDeclaration {
-	return &fleet.MDMAppleDeclaration{
+func ToMDMAppleDecl(p *automdm.MDMConfigProfilePayload) *automdm.MDMAppleDeclaration {
+	return &automdm.MDMAppleDeclaration{
 		Name:            p.Name,
 		Identifier:      p.Identifier,
 		DeclarationUUID: p.ProfileUUID,
 	}
 }
 
-func ToMDMAndroidConfigProfile(p *fleet.MDMConfigProfilePayload) *fleet.MDMAndroidConfigProfile {
-	return &fleet.MDMAndroidConfigProfile{
+func ToMDMAndroidConfigProfile(p *automdm.MDMConfigProfilePayload) *automdm.MDMAndroidConfigProfile {
+	return &automdm.MDMAndroidConfigProfile{
 		Name:        p.Name,
 		ProfileUUID: p.ProfileUUID,
 	}

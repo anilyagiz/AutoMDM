@@ -12,10 +12,10 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/dev_mode"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/apple/apple_apps"
-	"github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/dev_mode"
+	"github.com/anilyagiz/automdm/v4/server/mdm/apple/apple_apps"
+	"github.com/anilyagiz/automdm/v4/server/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -27,7 +27,7 @@ type metadataCall struct {
 	token   string
 }
 
-// fakeMetadataServer plays the role of both Fleet's metadata proxy and
+// fakeMetadataServer plays the role of both AutoMDM's metadata proxy and
 // Apple's /assets endpoint for refresh tests. It records each metadata
 // request as a metadataCall and yields whatever app payload the test
 // configured.
@@ -162,7 +162,7 @@ func makeRegionConfig(metaSrvURL string) apple_apps.Config {
 func TestRefreshVersionsGroupsByCountry(t *testing.T) {
 	metaSrv, vppSrv, fake := newFakeServers(t)
 	cfg := makeRegionConfig(metaSrv.URL)
-	dev_mode.SetOverride("FLEET_DEV_VPP_URL", vppSrv.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_VPP_URL", vppSrv.URL, t)
 
 	// Set up: 3 apps. Two anchored to "us", one anchored to "de". Two
 	// tokens, one US and one DE. Expect exactly one Apple call per
@@ -173,25 +173,25 @@ func TestRefreshVersionsGroupsByCountry(t *testing.T) {
 		"de-token-secret": {"300"},
 	}
 
-	apps := []*fleet.VPPApp{
-		{VPPAppTeam: fleet.VPPAppTeam{VPPAppID: fleet.VPPAppID{AdamID: "100", Platform: fleet.MacOSPlatform}}, Name: "old-name", LatestVersion: "0.1", IconURL: "old", CountryCode: "us"},
-		{VPPAppTeam: fleet.VPPAppTeam{VPPAppID: fleet.VPPAppID{AdamID: "200", Platform: fleet.MacOSPlatform}}, Name: "old-name", LatestVersion: "0.1", IconURL: "old", CountryCode: "us"},
-		{VPPAppTeam: fleet.VPPAppTeam{VPPAppID: fleet.VPPAppID{AdamID: "300", Platform: fleet.MacOSPlatform}}, Name: "old-name", LatestVersion: "0.1", IconURL: "old", CountryCode: "de"},
+	apps := []*automdm.VPPApp{
+		{VPPAppTeam: automdm.VPPAppTeam{VPPAppID: automdm.VPPAppID{AdamID: "100", Platform: automdm.MacOSPlatform}}, Name: "old-name", LatestVersion: "0.1", IconURL: "old", CountryCode: "us"},
+		{VPPAppTeam: automdm.VPPAppTeam{VPPAppID: automdm.VPPAppID{AdamID: "200", Platform: automdm.MacOSPlatform}}, Name: "old-name", LatestVersion: "0.1", IconURL: "old", CountryCode: "us"},
+		{VPPAppTeam: automdm.VPPAppTeam{VPPAppID: automdm.VPPAppID{AdamID: "300", Platform: automdm.MacOSPlatform}}, Name: "old-name", LatestVersion: "0.1", IconURL: "old", CountryCode: "de"},
 	}
-	tokens := []*fleet.VPPTokenDB{
+	tokens := []*automdm.VPPTokenDB{
 		{ID: 1, OrgName: "us-org", CountryCode: "us", Token: "us-token-secret"},
 		{ID: 2, OrgName: "de-org", CountryCode: "de", Token: "de-token-secret"},
 	}
 
 	ds := &mock.DataStore{}
-	ds.GetAllVPPAppsFunc = func(ctx context.Context) ([]*fleet.VPPApp, error) {
+	ds.GetAllVPPAppsFunc = func(ctx context.Context) ([]*automdm.VPPApp, error) {
 		return apps, nil
 	}
-	ds.ListVPPTokensFunc = func(ctx context.Context) ([]*fleet.VPPTokenDB, error) {
+	ds.ListVPPTokensFunc = func(ctx context.Context) ([]*automdm.VPPTokenDB, error) {
 		return tokens, nil
 	}
-	var inserted []*fleet.VPPApp
-	ds.InsertVPPAppsFunc = func(ctx context.Context, in []*fleet.VPPApp) error {
+	var inserted []*automdm.VPPApp
+	ds.InsertVPPAppsFunc = func(ctx context.Context, in []*automdm.VPPApp) error {
 		inserted = append(inserted, in...)
 		return nil
 	}
@@ -223,26 +223,26 @@ func TestRefreshVersionsGroupsByCountry(t *testing.T) {
 func TestRefreshVersionsSkipsAdamIDsWithNoOwningToken(t *testing.T) {
 	metaSrv, vppSrv, fake := newFakeServers(t)
 	cfg := makeRegionConfig(metaSrv.URL)
-	dev_mode.SetOverride("FLEET_DEV_VPP_URL", vppSrv.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_VPP_URL", vppSrv.URL, t)
 
-	// adamID 999 is anchored to "fr" but no token in Fleet (any country)
+	// adamID 999 is anchored to "fr" but no token in AutoMDM (any country)
 	// owns it — should be silently skipped.
 	fake.versions = map[string]string{"100": "10.0", "999": "99.0"}
 	fake.owned = map[string][]string{"us-token": {"100"}}
 
-	apps := []*fleet.VPPApp{
-		{VPPAppTeam: fleet.VPPAppTeam{VPPAppID: fleet.VPPAppID{AdamID: "100", Platform: fleet.MacOSPlatform}}, LatestVersion: "0.1", CountryCode: "us"},
-		{VPPAppTeam: fleet.VPPAppTeam{VPPAppID: fleet.VPPAppID{AdamID: "999", Platform: fleet.MacOSPlatform}}, LatestVersion: "0.1", CountryCode: "fr"},
+	apps := []*automdm.VPPApp{
+		{VPPAppTeam: automdm.VPPAppTeam{VPPAppID: automdm.VPPAppID{AdamID: "100", Platform: automdm.MacOSPlatform}}, LatestVersion: "0.1", CountryCode: "us"},
+		{VPPAppTeam: automdm.VPPAppTeam{VPPAppID: automdm.VPPAppID{AdamID: "999", Platform: automdm.MacOSPlatform}}, LatestVersion: "0.1", CountryCode: "fr"},
 	}
-	tokens := []*fleet.VPPTokenDB{
+	tokens := []*automdm.VPPTokenDB{
 		{ID: 1, OrgName: "us-org", CountryCode: "us", Token: "us-token"},
 	}
 
 	ds := &mock.DataStore{}
-	ds.GetAllVPPAppsFunc = func(ctx context.Context) ([]*fleet.VPPApp, error) { return apps, nil }
-	ds.ListVPPTokensFunc = func(ctx context.Context) ([]*fleet.VPPTokenDB, error) { return tokens, nil }
-	var inserted []*fleet.VPPApp
-	ds.InsertVPPAppsFunc = func(ctx context.Context, in []*fleet.VPPApp) error {
+	ds.GetAllVPPAppsFunc = func(ctx context.Context) ([]*automdm.VPPApp, error) { return apps, nil }
+	ds.ListVPPTokensFunc = func(ctx context.Context) ([]*automdm.VPPTokenDB, error) { return tokens, nil }
+	var inserted []*automdm.VPPApp
+	ds.InsertVPPAppsFunc = func(ctx context.Context, in []*automdm.VPPApp) error {
 		inserted = append(inserted, in...)
 		return nil
 	}
@@ -258,9 +258,9 @@ func TestRefreshVersionsSkipsAdamIDsWithNoOwningToken(t *testing.T) {
 func TestRefreshVersionsReanchorsWhenAnchoredCountryHasNoOwner(t *testing.T) {
 	metaSrv, vppSrv, fake := newFakeServers(t)
 	cfg := makeRegionConfig(metaSrv.URL)
-	dev_mode.SetOverride("FLEET_DEV_VPP_URL", vppSrv.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_VPP_URL", vppSrv.URL, t)
 
-	// adamID 100 is anchored to "us" but no US token in Fleet owns it (e.g.
+	// adamID 100 is anchored to "us" but no US token in AutoMDM owns it (e.g.
 	// the original US token was deleted). The DE token owns the app, so the
 	// refresh should re-anchor 100 to "de" and fetch metadata from the DE
 	// storefront.
@@ -272,35 +272,35 @@ func TestRefreshVersionsReanchorsWhenAnchoredCountryHasNoOwner(t *testing.T) {
 		"de-token-secret": {"100"},
 	}
 
-	apps := []*fleet.VPPApp{
+	apps := []*automdm.VPPApp{
 		{
-			VPPAppTeam:    fleet.VPPAppTeam{VPPAppID: fleet.VPPAppID{AdamID: "100", Platform: fleet.MacOSPlatform}},
+			VPPAppTeam:    automdm.VPPAppTeam{VPPAppID: automdm.VPPAppID{AdamID: "100", Platform: automdm.MacOSPlatform}},
 			Name:          "Todoist US",
 			LatestVersion: "0.1",
 			IconURL:       "us-icon",
 			CountryCode:   "us",
 		},
 	}
-	tokens := []*fleet.VPPTokenDB{
+	tokens := []*automdm.VPPTokenDB{
 		{ID: 1, OrgName: "de-org", CountryCode: "de", Token: "de-token-secret"},
 	}
 
 	ds := &mock.DataStore{}
-	ds.GetAllVPPAppsFunc = func(ctx context.Context) ([]*fleet.VPPApp, error) { return apps, nil }
-	ds.ListVPPTokensFunc = func(ctx context.Context) ([]*fleet.VPPTokenDB, error) { return tokens, nil }
+	ds.GetAllVPPAppsFunc = func(ctx context.Context) ([]*automdm.VPPApp, error) { return apps, nil }
+	ds.ListVPPTokensFunc = func(ctx context.Context) ([]*automdm.VPPTokenDB, error) { return tokens, nil }
 	var reanchored []struct {
 		adamID  string
 		country string
 	}
-	ds.UpdateVPPAppCountryCodeFunc = func(ctx context.Context, adamID string, _ fleet.InstallableDevicePlatform, country string) error {
+	ds.UpdateVPPAppCountryCodeFunc = func(ctx context.Context, adamID string, _ automdm.InstallableDevicePlatform, country string) error {
 		reanchored = append(reanchored, struct {
 			adamID  string
 			country string
 		}{adamID, country})
 		return nil
 	}
-	var inserted []*fleet.VPPApp
-	ds.InsertVPPAppsFunc = func(ctx context.Context, in []*fleet.VPPApp) error {
+	var inserted []*automdm.VPPApp
+	ds.InsertVPPAppsFunc = func(ctx context.Context, in []*automdm.VPPApp) error {
 		inserted = append(inserted, in...)
 		return nil
 	}
@@ -323,7 +323,7 @@ func TestRefreshVersionsReanchorsWhenAnchoredCountryHasNoOwner(t *testing.T) {
 func TestRefreshVersionsCustomB2BAppPicksOwningToken(t *testing.T) {
 	metaSrv, vppSrv, fake := newFakeServers(t)
 	cfg := makeRegionConfig(metaSrv.URL)
-	dev_mode.SetOverride("FLEET_DEV_VPP_URL", vppSrv.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_VPP_URL", vppSrv.URL, t)
 
 	// Two US tokens; the custom B2B app is owned only by the second one.
 	// We must end up calling Apple with token-2's secret and the custom
@@ -334,18 +334,18 @@ func TestRefreshVersionsCustomB2BAppPicksOwningToken(t *testing.T) {
 		"token-2-secret": {"500"},
 	}
 
-	apps := []*fleet.VPPApp{
-		{VPPAppTeam: fleet.VPPAppTeam{VPPAppID: fleet.VPPAppID{AdamID: "500", Platform: fleet.MacOSPlatform}}, LatestVersion: "0.0", CountryCode: "us"},
+	apps := []*automdm.VPPApp{
+		{VPPAppTeam: automdm.VPPAppTeam{VPPAppID: automdm.VPPAppID{AdamID: "500", Platform: automdm.MacOSPlatform}}, LatestVersion: "0.0", CountryCode: "us"},
 	}
-	tokens := []*fleet.VPPTokenDB{
+	tokens := []*automdm.VPPTokenDB{
 		{ID: 1, OrgName: "alpha", CountryCode: "us", Token: "token-1-secret"},
 		{ID: 2, OrgName: "beta", CountryCode: "us", Token: "token-2-secret"},
 	}
 
 	ds := &mock.DataStore{}
-	ds.GetAllVPPAppsFunc = func(ctx context.Context) ([]*fleet.VPPApp, error) { return apps, nil }
-	ds.ListVPPTokensFunc = func(ctx context.Context) ([]*fleet.VPPTokenDB, error) { return tokens, nil }
-	ds.InsertVPPAppsFunc = func(ctx context.Context, in []*fleet.VPPApp) error { return nil }
+	ds.GetAllVPPAppsFunc = func(ctx context.Context) ([]*automdm.VPPApp, error) { return apps, nil }
+	ds.ListVPPTokensFunc = func(ctx context.Context) ([]*automdm.VPPTokenDB, error) { return tokens, nil }
+	ds.InsertVPPAppsFunc = func(ctx context.Context, in []*automdm.VPPApp) error { return nil }
 
 	require.NoError(t, RefreshVersions(t.Context(), ds, cfg))
 
@@ -363,7 +363,7 @@ func TestRefreshVersionsCustomB2BAppPicksOwningToken(t *testing.T) {
 func TestRefreshVersionsAnchoredErrorBlocksFallback(t *testing.T) {
 	metaSrv, vppSrv, fake := newFakeServers(t)
 	cfg := makeRegionConfig(metaSrv.URL)
-	dev_mode.SetOverride("FLEET_DEV_VPP_URL", vppSrv.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_VPP_URL", vppSrv.URL, t)
 
 	// adamID 100 anchored to "us", US token's GetAssets call errors out.
 	// A DE token does own the app, but the anchored-country error must
@@ -375,29 +375,29 @@ func TestRefreshVersionsAnchoredErrorBlocksFallback(t *testing.T) {
 	}
 	fake.failTok = map[string]bool{"us-token-secret": true}
 
-	apps := []*fleet.VPPApp{
+	apps := []*automdm.VPPApp{
 		{
-			VPPAppTeam:    fleet.VPPAppTeam{VPPAppID: fleet.VPPAppID{AdamID: "100", Platform: fleet.MacOSPlatform}},
+			VPPAppTeam:    automdm.VPPAppTeam{VPPAppID: automdm.VPPAppID{AdamID: "100", Platform: automdm.MacOSPlatform}},
 			Name:          "Anchored App",
 			LatestVersion: "0.1",
 			IconURL:       "icon",
 			CountryCode:   "us",
 		},
 	}
-	tokens := []*fleet.VPPTokenDB{
+	tokens := []*automdm.VPPTokenDB{
 		{ID: 1, OrgName: "us-org", CountryCode: "us", Token: "us-token-secret"},
 		{ID: 2, OrgName: "de-org", CountryCode: "de", Token: "de-token-secret"},
 	}
 
 	ds := &mock.DataStore{}
-	ds.GetAllVPPAppsFunc = func(ctx context.Context) ([]*fleet.VPPApp, error) { return apps, nil }
-	ds.ListVPPTokensFunc = func(ctx context.Context) ([]*fleet.VPPTokenDB, error) { return tokens, nil }
+	ds.GetAllVPPAppsFunc = func(ctx context.Context) ([]*automdm.VPPApp, error) { return apps, nil }
+	ds.ListVPPTokensFunc = func(ctx context.Context) ([]*automdm.VPPTokenDB, error) { return tokens, nil }
 	var reanchored []string
-	ds.UpdateVPPAppCountryCodeFunc = func(ctx context.Context, adamID string, _ fleet.InstallableDevicePlatform, country string) error {
+	ds.UpdateVPPAppCountryCodeFunc = func(ctx context.Context, adamID string, _ automdm.InstallableDevicePlatform, country string) error {
 		reanchored = append(reanchored, adamID+"->"+country)
 		return nil
 	}
-	ds.InsertVPPAppsFunc = func(ctx context.Context, in []*fleet.VPPApp) error {
+	ds.InsertVPPAppsFunc = func(ctx context.Context, in []*automdm.VPPApp) error {
 		return errors.New("should not be called when only anchored-country lookup errors")
 	}
 
@@ -419,7 +419,7 @@ func TestRefreshVersionsAnchoredErrorBlocksFallback(t *testing.T) {
 func TestRefreshVersionsDivergentPerPlatformAnchors(t *testing.T) {
 	metaSrv, vppSrv, fake := newFakeServers(t)
 	cfg := makeRegionConfig(metaSrv.URL)
-	dev_mode.SetOverride("FLEET_DEV_VPP_URL", vppSrv.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_VPP_URL", vppSrv.URL, t)
 
 	// adamID 100 has macOS anchored to "us" and iOS anchored to "de". Each
 	// storefront's token owns the app via GetAssets.
@@ -433,37 +433,37 @@ func TestRefreshVersionsDivergentPerPlatformAnchors(t *testing.T) {
 		"de-token-secret": {"100"},
 	}
 
-	apps := []*fleet.VPPApp{
+	apps := []*automdm.VPPApp{
 		{
-			VPPAppTeam:    fleet.VPPAppTeam{VPPAppID: fleet.VPPAppID{AdamID: "100", Platform: fleet.MacOSPlatform}},
+			VPPAppTeam:    automdm.VPPAppTeam{VPPAppID: automdm.VPPAppID{AdamID: "100", Platform: automdm.MacOSPlatform}},
 			Name:          "Todoist US (old)",
 			LatestVersion: "0.1",
 			IconURL:       "us-icon",
 			CountryCode:   "us",
 		},
 		{
-			VPPAppTeam:    fleet.VPPAppTeam{VPPAppID: fleet.VPPAppID{AdamID: "100", Platform: fleet.IOSPlatform}},
+			VPPAppTeam:    automdm.VPPAppTeam{VPPAppID: automdm.VPPAppID{AdamID: "100", Platform: automdm.IOSPlatform}},
 			Name:          "Todoist DE (old)",
 			LatestVersion: "0.1",
 			IconURL:       "de-icon",
 			CountryCode:   "de",
 		},
 	}
-	tokens := []*fleet.VPPTokenDB{
+	tokens := []*automdm.VPPTokenDB{
 		{ID: 1, OrgName: "us-org", CountryCode: "us", Token: "us-token-secret"},
 		{ID: 2, OrgName: "de-org", CountryCode: "de", Token: "de-token-secret"},
 	}
 
 	ds := &mock.DataStore{}
-	ds.GetAllVPPAppsFunc = func(ctx context.Context) ([]*fleet.VPPApp, error) { return apps, nil }
-	ds.ListVPPTokensFunc = func(ctx context.Context) ([]*fleet.VPPTokenDB, error) { return tokens, nil }
+	ds.GetAllVPPAppsFunc = func(ctx context.Context) ([]*automdm.VPPApp, error) { return apps, nil }
+	ds.ListVPPTokensFunc = func(ctx context.Context) ([]*automdm.VPPTokenDB, error) { return tokens, nil }
 	var reanchored []string
-	ds.UpdateVPPAppCountryCodeFunc = func(ctx context.Context, adamID string, p fleet.InstallableDevicePlatform, country string) error {
+	ds.UpdateVPPAppCountryCodeFunc = func(ctx context.Context, adamID string, p automdm.InstallableDevicePlatform, country string) error {
 		reanchored = append(reanchored, fmt.Sprintf("%s/%s->%s", adamID, p, country))
 		return nil
 	}
-	var inserted []*fleet.VPPApp
-	ds.InsertVPPAppsFunc = func(ctx context.Context, in []*fleet.VPPApp) error {
+	var inserted []*automdm.VPPApp
+	ds.InsertVPPAppsFunc = func(ctx context.Context, in []*automdm.VPPApp) error {
 		inserted = append(inserted, in...)
 		return nil
 	}
@@ -483,12 +483,12 @@ func TestRefreshVersionsDivergentPerPlatformAnchors(t *testing.T) {
 	require.Equal(t, "de-token-secret", regions["de"].token)
 
 	// Both rows should have been updated with their own storefront's name.
-	byPlatform := map[fleet.InstallableDevicePlatform]*fleet.VPPApp{}
+	byPlatform := map[automdm.InstallableDevicePlatform]*automdm.VPPApp{}
 	for _, a := range inserted {
 		byPlatform[a.Platform] = a
 	}
-	mac := byPlatform[fleet.MacOSPlatform]
-	ios := byPlatform[fleet.IOSPlatform]
+	mac := byPlatform[automdm.MacOSPlatform]
+	ios := byPlatform[automdm.IOSPlatform]
 	require.NotNil(t, mac, "macOS row missing from inserted")
 	require.NotNil(t, ios, "iOS row missing from inserted")
 	require.Equal(t, "Todoist US", mac.Name)
@@ -501,9 +501,9 @@ func TestRefreshVersionsDivergentPerPlatformAnchors(t *testing.T) {
 func TestRefreshVersionsPartialFallbackOnlyTouchesPickedRow(t *testing.T) {
 	metaSrv, vppSrv, fake := newFakeServers(t)
 	cfg := makeRegionConfig(metaSrv.URL)
-	dev_mode.SetOverride("FLEET_DEV_VPP_URL", vppSrv.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_VPP_URL", vppSrv.URL, t)
 
-	// macOS row anchored to "us" with a US token still in Fleet.
+	// macOS row anchored to "us" with a US token still in AutoMDM.
 	// iOS row anchored to "de" but the DE token has been deleted; the US
 	// token also owns the app, so iOS falls back and re-anchors to "us".
 	// macOS must NOT be re-anchored.
@@ -511,59 +511,59 @@ func TestRefreshVersionsPartialFallbackOnlyTouchesPickedRow(t *testing.T) {
 	fake.apps = map[string]map[string]string{"us": {"100": "Todoist US"}}
 	fake.owned = map[string][]string{"us-token-secret": {"100"}}
 
-	apps := []*fleet.VPPApp{
+	apps := []*automdm.VPPApp{
 		{
-			VPPAppTeam:    fleet.VPPAppTeam{VPPAppID: fleet.VPPAppID{AdamID: "100", Platform: fleet.MacOSPlatform}},
+			VPPAppTeam:    automdm.VPPAppTeam{VPPAppID: automdm.VPPAppID{AdamID: "100", Platform: automdm.MacOSPlatform}},
 			Name:          "Todoist US (old)",
 			LatestVersion: "0.1",
 			IconURL:       "us-icon",
 			CountryCode:   "us",
 		},
 		{
-			VPPAppTeam:    fleet.VPPAppTeam{VPPAppID: fleet.VPPAppID{AdamID: "100", Platform: fleet.IOSPlatform}},
+			VPPAppTeam:    automdm.VPPAppTeam{VPPAppID: automdm.VPPAppID{AdamID: "100", Platform: automdm.IOSPlatform}},
 			Name:          "Todoist DE (old)",
 			LatestVersion: "0.1",
 			IconURL:       "de-icon",
 			CountryCode:   "de",
 		},
 	}
-	tokens := []*fleet.VPPTokenDB{
+	tokens := []*automdm.VPPTokenDB{
 		{ID: 1, OrgName: "us-org", CountryCode: "us", Token: "us-token-secret"},
 	}
 
 	ds := &mock.DataStore{}
-	ds.GetAllVPPAppsFunc = func(ctx context.Context) ([]*fleet.VPPApp, error) { return apps, nil }
-	ds.ListVPPTokensFunc = func(ctx context.Context) ([]*fleet.VPPTokenDB, error) { return tokens, nil }
+	ds.GetAllVPPAppsFunc = func(ctx context.Context) ([]*automdm.VPPApp, error) { return apps, nil }
+	ds.ListVPPTokensFunc = func(ctx context.Context) ([]*automdm.VPPTokenDB, error) { return tokens, nil }
 	var reanchored []string
-	ds.UpdateVPPAppCountryCodeFunc = func(ctx context.Context, adamID string, p fleet.InstallableDevicePlatform, country string) error {
+	ds.UpdateVPPAppCountryCodeFunc = func(ctx context.Context, adamID string, p automdm.InstallableDevicePlatform, country string) error {
 		reanchored = append(reanchored, fmt.Sprintf("%s/%s->%s", adamID, p, country))
 		return nil
 	}
-	ds.InsertVPPAppsFunc = func(ctx context.Context, in []*fleet.VPPApp) error { return nil }
+	ds.InsertVPPAppsFunc = func(ctx context.Context, in []*automdm.VPPApp) error { return nil }
 
 	require.NoError(t, RefreshVersions(t.Context(), ds, cfg))
 
-	require.Equal(t, []string{fmt.Sprintf("100/%s->us", fleet.IOSPlatform)}, reanchored,
+	require.Equal(t, []string{fmt.Sprintf("100/%s->us", automdm.IOSPlatform)}, reanchored,
 		"only the iOS row should be re-anchored; macOS row keeps its own anchor")
 }
 
 func TestRefreshVersionsSkipsAppsWithEmptyCountryCode(t *testing.T) {
 	metaSrv, vppSrv, fake := newFakeServers(t)
 	cfg := makeRegionConfig(metaSrv.URL)
-	dev_mode.SetOverride("FLEET_DEV_VPP_URL", vppSrv.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_VPP_URL", vppSrv.URL, t)
 
-	apps := []*fleet.VPPApp{
-		{VPPAppTeam: fleet.VPPAppTeam{VPPAppID: fleet.VPPAppID{AdamID: "100", Platform: fleet.MacOSPlatform}}, LatestVersion: "0.1", CountryCode: ""},
+	apps := []*automdm.VPPApp{
+		{VPPAppTeam: automdm.VPPAppTeam{VPPAppID: automdm.VPPAppID{AdamID: "100", Platform: automdm.MacOSPlatform}}, LatestVersion: "0.1", CountryCode: ""},
 	}
-	tokens := []*fleet.VPPTokenDB{
+	tokens := []*automdm.VPPTokenDB{
 		{ID: 1, OrgName: "us-org", CountryCode: "us", Token: "us-token"},
 	}
 	fake.owned = map[string][]string{"us-token": {"100"}}
 
 	ds := &mock.DataStore{}
-	ds.GetAllVPPAppsFunc = func(ctx context.Context) ([]*fleet.VPPApp, error) { return apps, nil }
-	ds.ListVPPTokensFunc = func(ctx context.Context) ([]*fleet.VPPTokenDB, error) { return tokens, nil }
-	ds.InsertVPPAppsFunc = func(ctx context.Context, in []*fleet.VPPApp) error {
+	ds.GetAllVPPAppsFunc = func(ctx context.Context) ([]*automdm.VPPApp, error) { return apps, nil }
+	ds.ListVPPTokensFunc = func(ctx context.Context) ([]*automdm.VPPTokenDB, error) { return tokens, nil }
+	ds.InsertVPPAppsFunc = func(ctx context.Context, in []*automdm.VPPApp) error {
 		return errors.New("should not be called")
 	}
 

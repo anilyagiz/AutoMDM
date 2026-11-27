@@ -6,8 +6,8 @@ import { notify } from "components/ToastNotification";
 import { IMdmVppToken } from "interfaces/mdm";
 import mdmAppleAPI from "services/entities/mdm_apple";
 
-import VppFleetsSelector from "../VppFleetsSelector";
-import { fleetsForApi, valueFromToken } from "../VppFleetsSelector/helpers";
+import VppTeamsSelector from "../VppTeamsSelector";
+import { teamsForApi, valueFromToken } from "../VppTeamsSelector/helpers";
 
 const baseClass = "edit-teams-vpp-modal";
 
@@ -31,7 +31,7 @@ const EditTeamsVppModal = ({
     try {
       await mdmAppleAPI.editVppTeams({
         tokenId: currentToken.id,
-        teamIds: fleetsForApi(value),
+        teamIds: teamsForApi(value),
       });
       notify.success("Edited successfully.");
       onSuccess();
@@ -45,7 +45,7 @@ const EditTeamsVppModal = ({
   return (
     <Modal
       className={baseClass}
-      title="Edit fleets"
+      title="Edit teams"
       onExit={onCancel}
       width="large"
       isContentDisabled={isSaving}
@@ -56,9 +56,9 @@ const EditTeamsVppModal = ({
         autoComplete="off"
       >
         <p>
-          Edit fleets for <b>{currentToken.org_name}</b>.
+          Edit teams for <b>{currentToken.org_name}</b>.
         </p>
-        <VppFleetsSelector
+        <VppTeamsSelector
           value={value}
           onChange={setValue}
           tooltipPosition="top-start"

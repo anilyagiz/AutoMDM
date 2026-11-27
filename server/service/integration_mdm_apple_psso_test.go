@@ -15,16 +15,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/mdm/mdmtest"
-	"github.com/fleetdm/fleet/v4/pkg/optjson"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/apple/psso/regtoken"
+	"github.com/anilyagiz/automdm/v4/pkg/mdm/mdmtest"
+	"github.com/anilyagiz/automdm/v4/pkg/optjson"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/apple/psso/regtoken"
 	jwt "github.com/golang-jwt/jwt/v4"
 	"github.com/stretchr/testify/require"
 )
 
 // pssoMockIdP is a stand-in OAuth2 ROPG (Resource Owner Password Grant) token
-// endpoint. Fleet's PSSO login flow POSTs grant_type=password here and reads the
+// endpoint. AutoMDM's PSSO login flow POSTs grant_type=password here and reads the
 // user's claims out of the returned id_token, which it does not signature-verify
 // (it trusts the direct TLS channel), so the token can be signed with any key.
 type pssoMockIdP struct {
@@ -75,7 +75,7 @@ func (m *pssoMockIdP) lastGrantType() string {
 // the (substituted) registration token, device registration, password login
 // against a mocked IdP (plaintext and encrypted-on-the-wire), TokenToUserMapping
 // claim forwarding, the offline-unlock key request/exchange, and the required
-// error cases. The minted id_token is validated against Fleet's published JWKS.
+// error cases. The minted id_token is validated against AutoMDM's published JWKS.
 func (s *integrationMDMTestSuite) TestApplePlatformSSO() {
 	t := s.T()
 	ctx := context.Background()
@@ -90,7 +90,7 @@ func (s *integrationMDMTestSuite) TestApplePlatformSSO() {
 	)
 
 	// Mocked OAuth ROPG IdP. The id_token carries an "accountName" custom claim
-	// (the account* prefix is what Fleet forwards into the minted id_token for the
+	// (the account* prefix is what AutoMDM forwards into the minted id_token for the
 	// profile's TokenToUserMapping to map to the macOS short name).
 	idp := &pssoMockIdP{
 		validUser: validUser,
@@ -140,7 +140,7 @@ func (s *integrationMDMTestSuite) TestApplePlatformSSO() {
 	require.Equal(t, http.StatusOK, status)
 	require.Contains(t, string(aasaBody), "com.fleetdm.fleet-desktop.pssoextension")
 
-	// Registration must present a valid Fleet-signed token bound to this host.
+	// Registration must present a valid AutoMDM-signed token bound to this host.
 	t.Run("registration requires a valid token", func(t *testing.T) {
 		dev.SetRegistrationToken("")
 		require.Error(t, dev.Register(), "empty token must be rejected")
@@ -153,7 +153,7 @@ func (s *integrationMDMTestSuite) TestApplePlatformSSO() {
 		forged, err := regtoken.Mint(wrongKey, host.UUID, time.Now())
 		require.NoError(t, err)
 		dev.SetRegistrationToken(forged)
-		require.Error(t, dev.Register(), "token signed by a non-Fleet key must be rejected")
+		require.Error(t, dev.Register(), "token signed by a non-AutoMDM key must be rejected")
 
 		gotDev, err := s.ds.GetPSSODevice(ctx, host.UUID)
 		require.True(t, err != nil || gotDev == nil, "no device should be registered after failures")
@@ -164,7 +164,7 @@ func (s *integrationMDMTestSuite) TestApplePlatformSSO() {
 	s.uploadApplePSSOProfile(serverHost.Host)
 	// The per-host profile-processing key debounces reconciliation; clear it so
 	// the next schedule run delivers the newly uploaded profile.
-	require.NoError(t, s.keyValueStore.Delete(ctx, fleet.MDMProfileProcessingKeyPrefix+":"+mdmDevice.UUID))
+	require.NoError(t, s.keyValueStore.Delete(ctx, automdm.MDMProfileProcessingKeyPrefix+":"+mdmDevice.UUID))
 	s.awaitTriggerProfileSchedule(t)
 
 	regToken := s.deliverApplePSSORegToken(t, mdmDevice, dev)
@@ -189,7 +189,7 @@ func (s *integrationMDMTestSuite) TestApplePlatformSSO() {
 		require.Equal(t, validPass, assertion["password"])
 		require.Equal(t, "password", assertion["grant_type"])
 
-		// The device validates the response id_token against Fleet's published JWKS.
+		// The device validates the response id_token against AutoMDM's published JWKS.
 		claims, err := dev.ValidateIDToken(res.IDToken)
 		require.NoError(t, err)
 		require.Equal(t, clientID, claims["aud"])
@@ -255,7 +255,7 @@ func (s *integrationMDMTestSuite) TestApplePlatformSSO() {
 
 // enableApplePSSO configures the macOS account-provisioning (Platform SSO)
 // feature: it points the IdP at the mock token URL, stores the client secret,
-// and bootstraps Fleet's PSSO signing/CA/encryption assets. The config is set
+// and bootstraps AutoMDM's PSSO signing/CA/encryption assets. The config is set
 // directly (not via the API) so the mock IdP can use a plain-http URL — the
 // API's https validation is covered by the appconfig tests. Cleanup restores
 // the AppConfig and deletes the inserted config assets so the shared suite
@@ -267,23 +267,23 @@ func (s *integrationMDMTestSuite) enableApplePSSO(t *testing.T, tokenURL, client
 	require.NoError(t, err)
 	orig := appCfg.MDM.AppleAccountProvisioning
 
-	appCfg.MDM.AppleAccountProvisioning = fleet.AppleAccountProvisioning{
+	appCfg.MDM.AppleAccountProvisioning = automdm.AppleAccountProvisioning{
 		OAuthIdPTokenURL: optjson.SetString(tokenURL),
 		OAuthIdPClientID: optjson.SetString(clientID),
 	}
 	require.NoError(t, s.ds.SaveAppConfig(ctx, appCfg))
-	require.NoError(t, s.ds.InsertMDMConfigAssets(ctx, []fleet.MDMConfigAsset{
-		{Name: fleet.MDMAssetAppleAccountProvisioningIdPClientSecret, Value: []byte(secret)},
+	require.NoError(t, s.ds.InsertMDMConfigAssets(ctx, []automdm.MDMConfigAsset{
+		{Name: automdm.MDMAssetAppleAccountProvisioningIdPClientSecret, Value: []byte(secret)},
 	}, nil))
 	require.NoError(t, bootstrapPSSOAssets(ctx, s.ds))
 
 	t.Cleanup(func() {
 		ctx := context.Background()
-		_ = s.ds.DeleteMDMConfigAssetsByName(ctx, []fleet.MDMAssetName{
-			fleet.MDMAssetAppleAccountProvisioningIdPClientSecret,
-			fleet.MDMAssetPSSOSigningKey,
-			fleet.MDMAssetPSSOCACert,
-			fleet.MDMAssetPSSOEncryptionKey,
+		_ = s.ds.DeleteMDMConfigAssetsByName(ctx, []automdm.MDMAssetName{
+			automdm.MDMAssetAppleAccountProvisioningIdPClientSecret,
+			automdm.MDMAssetPSSOSigningKey,
+			automdm.MDMAssetPSSOCACert,
+			automdm.MDMAssetPSSOEncryptionKey,
 		})
 		appCfg, err := s.ds.AppConfig(ctx)
 		if err != nil {
@@ -294,14 +294,14 @@ func (s *integrationMDMTestSuite) enableApplePSSO(t *testing.T, tokenURL, client
 	})
 }
 
-// uploadApplePSSOProfile uploads the Fleet Platform SSO configuration profile
-// (carrying the $FLEET_VAR_PSSO_DEVICE_REGISTRATION_TOKEN variable) as a no-team
+// uploadApplePSSOProfile uploads the AutoMDM Platform SSO configuration profile
+// (carrying the $AUTOMDM_VAR_PSSO_DEVICE_REGISTRATION_TOKEN variable) as a no-team
 // profile so it reconciles onto the enrolled host.
 func (s *integrationMDMTestSuite) uploadApplePSSOProfile(serverHost string) {
-	profile := strings.ReplaceAll(applePSSOProfileTemplate, "fleet.example.com", serverHost)
-	s.Do("POST", "/api/latest/fleet/mdm/profiles/batch", batchSetMDMProfilesRequest{
-		Profiles: []fleet.MDMProfileBatchPayload{
-			{Name: "Fleet Platform SSO", Contents: []byte(profile)},
+	profile := strings.ReplaceAll(applePSSOProfileTemplate, "automdm.example.com", serverHost)
+	s.Do("POST", "/api/latest/automdm/mdm/profiles/batch", batchSetMDMProfilesRequest{
+		Profiles: []automdm.MDMProfileBatchPayload{
+			{Name: "AutoMDM Platform SSO", Contents: []byte(profile)},
 		},
 	}, http.StatusNoContent)
 }
@@ -325,7 +325,7 @@ func (s *integrationMDMTestSuite) deliverApplePSSORegToken(t *testing.T, mdmDevi
 	return token
 }
 
-// mockOIDCIDToken builds an id_token JWT the mock IdP returns. Fleet reads the
+// mockOIDCIDToken builds an id_token JWT the mock IdP returns. AutoMDM reads the
 // claims without verifying the signature, so any signing key works.
 func mockOIDCIDToken(t *testing.T, claims jwt.MapClaims) string {
 	t.Helper()
@@ -351,9 +351,9 @@ func decodeJWSClaims(t *testing.T, compact string) map[string]any {
 	return claims
 }
 
-// applePSSOProfileTemplate is a Fleet Platform SSO v2 (com.apple.extensiblesso,
+// applePSSOProfileTemplate is an AutoMDM Platform SSO v2 (com.apple.extensiblesso,
 // UseSharedDeviceKeys) configuration profile whose RegistrationToken is the
-// Fleet variable. "fleet.example.com" is replaced with the test server host.
+// AutoMDM variable. "automdm.example.com" is replaced with the test server host.
 const applePSSOProfileTemplate = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -364,12 +364,12 @@ const applePSSOProfileTemplate = `<?xml version="1.0" encoding="UTF-8"?>
 			<key>ExtensionData</key>
 			<dict>
 				<key>BaseURL</key>
-				<string>https://fleet.example.com</string>
+				<string>https://automdm.example.com</string>
 			</dict>
 			<key>ExtensionIdentifier</key>
 			<string>com.fleetdm.fleet-desktop.pssoextension</string>
 			<key>PayloadDisplayName</key>
-			<string>Fleet Extensible Single Sign-On</string>
+			<string>AutoMDM Extensible Single Sign-On</string>
 			<key>PayloadIdentifier</key>
 			<string>com.apple.extensiblesso.AF68D4CF-1250-4FF4-AFFB-1176DB539C49</string>
 			<key>PayloadType</key>
@@ -388,7 +388,7 @@ const applePSSOProfileTemplate = `<?xml version="1.0" encoding="UTF-8"?>
 				<true/>
 			</dict>
 			<key>RegistrationToken</key>
-			<string>$FLEET_VAR_PSSO_DEVICE_REGISTRATION_TOKEN</string>
+			<string>$AUTOMDM_VAR_PSSO_DEVICE_REGISTRATION_TOKEN</string>
 			<key>ScreenLockedBehavior</key>
 			<string>DoNotHandle</string>
 			<key>TeamIdentifier</key>
@@ -397,12 +397,12 @@ const applePSSOProfileTemplate = `<?xml version="1.0" encoding="UTF-8"?>
 			<string>Redirect</string>
 			<key>URLs</key>
 			<array>
-				<string>https://fleet.example.com</string>
+				<string>https://automdm.example.com</string>
 			</array>
 		</dict>
 	</array>
 	<key>PayloadDisplayName</key>
-	<string>Fleet Platform SSO</string>
+	<string>AutoMDM Platform SSO</string>
 	<key>PayloadIdentifier</key>
 	<string>com.fleetdm.platformsso.fleet.A72B07D0-2E08-45CE-9423-1FCAFFAEC390</string>
 	<key>PayloadType</key>

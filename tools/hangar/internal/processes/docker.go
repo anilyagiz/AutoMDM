@@ -7,7 +7,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/fleetdm/fleet/tools/hangar/internal/shellpath"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/shellpath"
 )
 
 // dockerCmd builds a `docker ...` command with the login-shell PATH applied

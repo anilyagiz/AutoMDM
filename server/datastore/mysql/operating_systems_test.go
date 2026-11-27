@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -31,7 +31,7 @@ func TestListOperatingSystems(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, list, len(seedByID))
 
-	osByID := make(map[uint]fleet.OperatingSystem)
+	osByID := make(map[uint]automdm.OperatingSystem)
 	for _, os := range list {
 		osByID[os.ID] = os
 	}
@@ -88,7 +88,7 @@ func TestUpdateHostOperatingSystem(t *testing.T) {
 	ds := CreateMySQLDS(t)
 
 	testHostID := uint(42)
-	testOS := fleet.OperatingSystem{
+	testOS := automdm.OperatingSystem{
 		Name:          "Ubuntu",
 		Version:       "16.04.7 LTS",
 		Arch:          "x86_64",
@@ -170,7 +170,7 @@ func TestUniqueOS(t *testing.T) {
 	ds := CreateMySQLDS(t)
 
 	testHostIDs := make([]uint, 50)
-	testOS := fleet.OperatingSystem{
+	testOS := automdm.OperatingSystem{
 		Name:          "Ubuntu",
 		Version:       "16.04.7 LTS",
 		Arch:          "x86_64",
@@ -201,12 +201,12 @@ func TestMaybeNewOperatingSystem(t *testing.T) {
 	seedOperatingSystems(t, ds)
 	list, err := ds.ListOperatingSystems(ctx)
 	require.NoError(t, err)
-	osByID := make(map[uint]fleet.OperatingSystem)
+	osByID := make(map[uint]automdm.OperatingSystem)
 	for _, os := range list {
 		osByID[os.ID] = os
 	}
 
-	testOS := fleet.OperatingSystem{
+	testOS := automdm.OperatingSystem{
 		Name:          "Ubuntu",
 		Version:       "16.04.7 LTS",
 		Arch:          "x86_64",
@@ -224,7 +224,7 @@ func TestMaybeNewOperatingSystem(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, len(osByID)+1, len(list))
 
-	osByID = make(map[uint]fleet.OperatingSystem)
+	osByID = make(map[uint]automdm.OperatingSystem)
 	for _, os := range list {
 		osByID[os.ID] = os
 	}
@@ -240,7 +240,7 @@ func TestMaybeNewOperatingSystem(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, len(osByID), len(list))
 
-	osByID = make(map[uint]fleet.OperatingSystem)
+	osByID = make(map[uint]automdm.OperatingSystem)
 	for _, os := range list {
 		osByID[os.ID] = os
 	}
@@ -258,7 +258,7 @@ func TestMaybeNewOperatingSystem(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, len(osByID)+1, len(list))
 
-	osByID = make(map[uint]fleet.OperatingSystem)
+	osByID = make(map[uint]automdm.OperatingSystem)
 	for _, os := range list {
 		osByID[os.ID] = os
 	}
@@ -363,11 +363,11 @@ func TestCleanupHostOperatingSystems(t *testing.T) {
 	testOSs, err := ds.ListOperatingSystems(ctx)
 	require.NoError(t, err)
 
-	testHosts := make([]*fleet.Host, 10)
-	osByHostID := make(map[uint]fleet.OperatingSystem)
+	testHosts := make([]*automdm.Host, 10)
+	osByHostID := make(map[uint]automdm.OperatingSystem)
 
 	for i := range testHosts {
-		h, err := ds.NewHost(context.Background(), &fleet.Host{
+		h, err := ds.NewHost(context.Background(), &automdm.Host{
 			DetailUpdatedAt: time.Now(),
 			LabelUpdatedAt:  time.Now(),
 			PolicyUpdatedAt: time.Now(),
@@ -403,7 +403,7 @@ func TestCleanupHostOperatingSystems(t *testing.T) {
 		list, err := ds.ListOperatingSystems(ctx)
 		require.NoError(t, err)
 
-		byID := make(map[uint]fleet.OperatingSystem)
+		byID := make(map[uint]automdm.OperatingSystem)
 		for _, os := range list {
 			byID[os.ID] = os
 		}
@@ -454,8 +454,8 @@ func TestCleanupHostOperatingSystems(t *testing.T) {
 	assertDeletedOS([]uint{testOSs[0].ID})
 }
 
-func seedOperatingSystems(t *testing.T, ds *Datastore) map[uint]fleet.OperatingSystem {
-	osSeeds := []fleet.OperatingSystem{
+func seedOperatingSystems(t *testing.T, ds *Datastore) map[uint]automdm.OperatingSystem {
+	osSeeds := []automdm.OperatingSystem{
 		{
 			Name:           "Microsoft Windows 11 Enterprise Evaluation",
 			Version:        "10.0.22000.795",
@@ -498,7 +498,7 @@ func seedOperatingSystems(t *testing.T, ds *Datastore) map[uint]fleet.OperatingS
 			OSVersionID:   5,
 		},
 	}
-	storedById := make(map[uint]fleet.OperatingSystem)
+	storedById := make(map[uint]automdm.OperatingSystem)
 	for _, os := range osSeeds {
 		stored, err := newOperatingSystemDB(context.Background(), ds.writer(context.Background()), os)
 		require.NoError(t, err)
@@ -508,6 +508,6 @@ func seedOperatingSystems(t *testing.T, ds *Datastore) map[uint]fleet.OperatingS
 	return storedById
 }
 
-func isSameOS(t *testing.T, os1 fleet.OperatingSystem, os2 fleet.OperatingSystem) bool {
+func isSameOS(t *testing.T, os1 automdm.OperatingSystem, os2 automdm.OperatingSystem) bool {
 	return assert.ElementsMatch(t, []string{os1.Name, os1.Version, os1.Arch, os1.KernelVersion, os1.Platform}, []string{os2.Name, os2.Version, os2.Arch, os2.KernelVersion, os2.Platform})
 }

@@ -7,17 +7,17 @@ import (
 	"github.com/Masterminds/semver/v3"
 )
 
-// FleetFlags is the set of flags to pass to osquery when connecting to Fleet.
-func FleetFlags(osqueryVersion string, fleetURL *url.URL) []string {
-	hostname, prefix := fleetURL.Host, fleetURL.Path
+// AutoMDMFlags is the set of flags to pass to osquery when connecting to AutoMDM.
+func AutoMDMFlags(osqueryVersion string, automdmURL *url.URL) []string {
+	hostname, prefix := automdmURL.Host, automdmURL.Path
 	flags := []string{
 		"--tls_hostname=" + hostname,
 		"--enroll_tls_endpoint=" + path.Join(prefix, "/api/v1/osquery/enroll"),
 		"--config_plugin=tls",
 		"--config_tls_endpoint=" + path.Join(prefix, "/api/v1/osquery/config"),
 		// Osquery defaults config_refresh to 0 which is probably not ideal for
-		// a client connected to Fleet. Users can always override this in the
-		// config they serve via Fleet.
+		// a client connected to AutoMDM. Users can always override this in the
+		// config they serve via AutoMDM.
 		"--config_refresh=60",
 		"--disable_distributed=false",
 		"--distributed_plugin=tls",

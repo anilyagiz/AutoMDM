@@ -3,7 +3,7 @@ package oval_parsed
 import (
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/require"
 )
 
@@ -16,13 +16,13 @@ func TestDpkgInfoTestEvalNoHostList(t *testing.T) {
 			require.NoError(t, err)
 			require.Nil(t, r)
 
-			r, err = sut.Eval(make([]fleet.Software, 0))
+			r, err = sut.Eval(make([]automdm.Software, 0))
 			require.NoError(t, err)
 			require.Nil(t, r)
 		})
 
 		t.Run("test matches NObjects", func(t *testing.T) {
-			packages := []fleet.Software{
+			packages := []automdm.Software{
 				{
 					Name:    "firefox",
 					Version: "1.2",
@@ -46,7 +46,7 @@ func TestDpkgInfoTestEvalNoHostList(t *testing.T) {
 		})
 
 		t.Run("test matches NStates", func(t *testing.T) {
-			packages := []fleet.Software{
+			packages := []automdm.Software{
 				{
 					Name:    "firefox",
 					Version: "1.2",

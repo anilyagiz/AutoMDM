@@ -9,16 +9,16 @@ const dashboardHTML = `<!doctype html>
 <meta charset="utf-8">
 <title>agentws-viz</title>
 <style>
-  /* Fleet design tokens (frontend/styles/var/colors.scss, 2025 branding). */
+  /* AutoMDM design tokens (frontend/styles/var/colors.scss, 2025 branding). */
   :root {
     --bg: #f9fafc;            /* ui-off-white */
-    --card: #ffffff;          /* core-fleet-white */
-    --border: #e2e4ea;        /* ui-fleet-black-10 */
-    --row-hover: #f9fafc;     /* ui-fleet-blue-10 */
-    --text: #192147;          /* core-fleet-black */
-    --text-secondary: #515774;/* ui-fleet-black-75 */
-    --dim: #8b8fa2;           /* ui-fleet-black-50 */
-    --green: #009a7d;         /* core-fleet-green */
+    --card: #ffffff;          /* core-automdm-white */
+    --border: #e2e4ea;        /* ui-automdm-black-10 */
+    --row-hover: #f9fafc;     /* ui-automdm-blue-10 */
+    --text: #192147;          /* core-automdm-black */
+    --text-secondary: #515774;/* ui-automdm-black-75 */
+    --dim: #8b8fa2;           /* ui-automdm-black-50 */
+    --green: #009a7d;         /* core-automdm-green */
     --blue: #6a67fe;          /* core-vibrant-blue */
     --blue-10: #f1f0ff;       /* ui-vibrant-blue-10 */
     --success: #3db67b;       /* ui-success */
@@ -91,7 +91,7 @@ const dashboardHTML = `<!doctype html>
 <body>
 <header>
   <div id="status"></div>
-  <h1>agentws <span class="sub">— live WebSocket connections per Fleet instance</span></h1>
+  <h1>agentws <span class="sub">— live WebSocket connections per AutoMDM instance</span></h1>
   <div id="banner"></div>
 </header>
 
@@ -216,12 +216,12 @@ const OS_ICONS = {
   linux: '<path d="M8 1.5c-1.6 0-2.5 1.2-2.5 2.8 0 .9.1 1.6-.3 2.4-.5 1-1.4 1.9-1.7 3.2-.2.9 0 1.8.4 2.4l-.7.4c-.3.2-.3.6 0 .8.8.5 2 .9 3 .9h3.6c1 0 2.2-.4 3-.9.3-.2.3-.6 0-.8l-.7-.4c.4-.6.6-1.5.4-2.4-.3-1.3-1.2-2.2-1.7-3.2-.4-.8-.3-1.5-.3-2.4 0-1.6-.9-2.8-2.5-2.8zM6.7 5.2c.3 0 .5.3.5.6s-.2.6-.5.6-.5-.3-.5-.6.2-.6.5-.6zm2.6 0c.3 0 .5.3.5.6s-.2.6-.5.6-.5-.3-.5-.6.2-.6.5-.6zM6.6 6.9c.4.3.9.5 1.4.5s1-.2 1.4-.5c.2.4.3.9.3 1.4 0 1.7-.8 3.2-1.7 3.2s-1.7-1.5-1.7-3.2c0-.5.1-1 .3-1.4z"/>',
 };
 
-// osIcon maps a fleet platform string to one of the OS_ICONS keys.
+// osIcon maps an automdm platform string to one of the OS_ICONS keys.
 function osIcon(platform) {
   const p = (platform || "").toLowerCase();
   if (p === "darwin" || p === "macos") return "apple";
   if (p === "windows") return "windows";
-  // Fleet reports Linux hosts by distro (ubuntu, debian, rhel, fedora, ...).
+  // AutoMDM reports Linux hosts by distro (ubuntu, debian, rhel, fedora, ...).
   const linux = ["linux", "ubuntu", "debian", "rhel", "centos", "fedora", "arch",
     "gentoo", "amzn", "pop", "kali", "linuxmint", "opensuse", "sles", "nixos", "void", "tuxedo"];
   if (linux.some(d => p.includes(d))) return "linux";
@@ -361,7 +361,7 @@ function render(conns, readStats, data) {
     for (const id of ["bytesin", "bytesout", "orbitreads", "legacyreads"]) {
       const el = $(id);
       el.textContent = "off";
-      el.title = "metrics require the server to run with debug logging (FLEET_LOGGING_DEBUG=1)";
+      el.title = "metrics require the server to run with debug logging (AUTOMDM_LOGGING_DEBUG=1)";
     }
   } else {
     $("bytesin").textContent = fmtBytes(bytesIn);
@@ -455,7 +455,7 @@ async function pollInstance(id) {
   if (!resp.ok) throw new Error(await resp.text() || resp.status);
   const data = await resp.json();
   if (!data.enabled) {
-    throw new Error("websocket transport is disabled on the server (set FLEET_WEBSOCKET_TRANSPORT_ENABLED=1)");
+    throw new Error("websocket transport is disabled on the server (set AUTOMDM_WEBSOCKET_TRANSPORT_ENABLED=1)");
   }
   // Swap the module-level aliases to this instance's state for the
   // synchronous diff below, then swap the active tab's state back.
@@ -497,7 +497,7 @@ async function poll() {
     }
     if (info.disabled) {
       $("status").className = "err";
-      $("banner").textContent = "websocket transport is disabled on the server (set FLEET_WEBSOCKET_TRANSPORT_ENABLED=1)";
+      $("banner").textContent = "websocket transport is disabled on the server (set AUTOMDM_WEBSOCKET_TRANSPORT_ENABLED=1)";
       return;
     }
     if (ids.length === 0) {

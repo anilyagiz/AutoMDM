@@ -10,7 +10,7 @@
       font-size: $x-small;
       // Override react-select's hardcoded `.Select-value { color: #aaa; }` so
       // the selected value uses themed text color (esp. needed for dark mode).
-      color: $core-fleet-black;
+      color: $core-automdm-black;
     }
   }
 
@@ -25,7 +25,7 @@
     display: block;
     font-size: $x-small;
     font-weight: $regular;
-    color: $core-fleet-black;
+    color: $core-automdm-black;
     margin-bottom: $pad-xsmall;
 
     &--error {
@@ -65,31 +65,31 @@
 
 .Select {
   &.dropdown__select {
-    border: 1px solid $ui-fleet-black-10;
+    border: 1px solid $ui-automdm-black-10;
     border-radius: $border-radius;
 
     &:hover:not(.is-disabled) {
       box-shadow: none;
-      border-color: $ui-fleet-black-50;
+      border-color: $ui-automdm-black-50;
     }
   }
 
   .Select-control {
-    background-color: $core-fleet-white;
+    background-color: $core-automdm-white;
     border: 0;
     border-radius: $border-radius;
     cursor: pointer;
 
     .Select-value {
       font-size: $x-small;
-      background-color: $core-fleet-white;
+      background-color: $core-automdm-white;
     }
   }
 
   .Select-value {
     font-size: $x-small;
     border-radius: $border-radius;
-    background-color: $core-fleet-white;
+    background-color: $core-automdm-white;
 
     .Select-value-icon {
       border: 0;
@@ -100,17 +100,17 @@
       margin: 0 5px;
       text-align: center;
       font-size: $small;
-      color: $ui-fleet-black-50;
+      color: $ui-automdm-black-50;
       transition: color 150ms ease-in-out;
 
       &:hover {
-        color: $core-fleet-black;
+        color: $core-automdm-black;
       }
     }
 
     .Select-value-label {
       font-size: $x-small;
-      color: $core-fleet-black;
+      color: $core-automdm-black;
       vertical-align: middle;
     }
   }
@@ -126,20 +126,20 @@
 
   &.is-focused:not(.is-disabled) {
     &.dropdown__select {
-      border: 1px solid $ui-fleet-black-50;
+      border: 1px solid $ui-automdm-black-50;
     }
   }
 
   // Override react-select's hardcoded white background on focus/open so the
   // control stays themed (critical for dark mode).
   &.is-focused > .Select-control {
-    background-color: $core-fleet-white;
+    background-color: $core-automdm-white;
   }
 
   &.is-focused:not(.is-open) > .Select-control {
     box-shadow: none;
-    border-color: $ui-fleet-black-75; // Override blue border on focus
-    background-color: $core-fleet-white;
+    border-color: $ui-automdm-black-75; // Override blue border on focus
+    background-color: $core-automdm-white;
   }
 
   // Theme the selected-value icon at rest. Without this the icon falls back to
@@ -148,7 +148,7 @@
   // hover/open rules below shift it to the -over shade for interaction
   // feedback.
   .dropdown__custom-value .dropdown__icon svg path {
-    fill: $ui-fleet-black-75;
+    fill: $ui-automdm-black-75;
   }
 
   &.is-open {
@@ -157,44 +157,44 @@
         transform: rotate(180deg);
         transition: transform 0.25s ease;
         path {
-          fill: $ui-fleet-black-75-over;
+          fill: $ui-automdm-black-75-over;
         }
       }
     }
     .dropdown__custom-value .dropdown__icon {
       svg path {
-        fill: $ui-fleet-black-75-over;
+        fill: $ui-automdm-black-75-over;
       }
     }
     > .Select-control {
       border-radius: $border-radius;
       // Override react-select's hardcoded white background when open.
-      background-color: $core-fleet-white;
+      background-color: $core-automdm-white;
     }
   }
   :hover {
     .dropdown__custom-arrow .dropdown__icon {
       svg {
         path {
-          fill: $ui-fleet-black-75-over;
+          fill: $ui-automdm-black-75-over;
         }
       }
     }
     .dropdown__custom-value .dropdown__icon {
       svg path {
-        fill: $ui-fleet-black-75-over;
+        fill: $ui-automdm-black-75-over;
       }
     }
 
     &.is-open {
       .dropdown__custom-arrow .dropdown__icon {
         svg path {
-          fill: $ui-fleet-black-75-over;
+          fill: $ui-automdm-black-75-over;
         }
       }
       .dropdown__custom-value .dropdown__icon {
         svg path {
-          fill: $ui-fleet-black-75-over;
+          fill: $ui-automdm-black-75-over;
         }
       }
     }
@@ -207,20 +207,20 @@
   &.has-value.Select--single,
   &.has-value.is-pseudo-focused.Select--single {
     > .Select-control .Select-value .Select-value-label {
-      color: $core-fleet-black;
+      color: $core-automdm-black;
       font-size: $x-small;
     }
   }
 
   &.has-value.is-disabled {
     > .Select-control .Select-value .Select-value-label {
-      color: $ui-fleet-black-50;
+      color: $ui-automdm-black-50;
     }
   }
 
   .Select-menu-outer {
-    background-color: $core-fleet-white;
-    box-shadow: 0 0 0 1px $ui-fleet-black-10;
+    background-color: $core-automdm-white;
+    box-shadow: 0 0 0 1px $ui-automdm-black-10;
     z-index: 6;
     overflow: hidden;
     max-height: 198px; // Fits 4 options without scrolling
@@ -240,7 +240,7 @@
   }
 
   .Select-option {
-    color: $core-fleet-black;
+    color: $core-automdm-black;
     background-color: transparent;
     font-size: $x-small;
     margin: 0;
@@ -249,20 +249,20 @@
     border-radius: $border-radius;
 
     &.is-selected {
-      background-color: $ui-fleet-black-5;
+      background-color: $ui-automdm-black-5;
       font-weight: bold;
     }
 
     &.is-focused {
-      background-color: $ui-fleet-black-5;
+      background-color: $ui-automdm-black-5;
 
       .Select-icon {
-        color: $ui-fleet-black-10;
+        color: $ui-automdm-black-10;
       }
     }
 
     &:active {
-      background-color: $ui-fleet-black-75-down;
+      background-color: $ui-automdm-black-75-down;
     }
 
     &:last-child {
@@ -271,7 +271,7 @@
     }
 
     &.is-disabled {
-      color: $ui-fleet-black-50;
+      color: $ui-automdm-black-50;
       font-style: italic;
 
       .Select-icon {
@@ -286,22 +286,22 @@
   }
 
   .Select-placeholder {
-    color: $ui-fleet-black-50;
+    color: $ui-automdm-black-50;
     font-size: $x-small;
     line-height: 34px;
     box-sizing: border-box;
   }
 
   .Select-clear-zone {
-    color: $ui-fleet-black-50;
+    color: $ui-automdm-black-50;
     transition: color 150ms ease-in-out;
 
     &:hover {
-      color: $core-fleet-black;
+      color: $core-automdm-black;
     }
   }
   .Select-input {
-    color: $core-fleet-black;
+    color: $core-automdm-black;
     font-size: $x-small;
     box-sizing: border-box;
     height: 34px;
@@ -327,7 +327,7 @@
       flex-grow: 1;
 
       .Select-value {
-        border: 1px solid $ui-fleet-black-50;
+        border: 1px solid $ui-automdm-black-50;
         vertical-align: middle;
         align-items: center;
         margin-top: 0;
@@ -351,12 +351,12 @@
 
     .Select-option {
       &.is-disabled {
-        color: $ui-fleet-black-50;
+        color: $ui-automdm-black-50;
         cursor: default;
 
         &.is-focused {
-          background-color: $ui-fleet-black-10;
-          color: $core-fleet-white;
+          background-color: $ui-automdm-black-10;
+          color: $core-automdm-white;
         }
       }
     }
@@ -376,7 +376,7 @@
 .form-field {
   &__label {
     &--disabled {
-      color: $ui-fleet-black-50;
+      color: $ui-automdm-black-50;
     }
   }
 }

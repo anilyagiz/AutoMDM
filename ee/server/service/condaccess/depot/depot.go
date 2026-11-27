@@ -12,13 +12,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/anilyagiz/automdm/v4/pkg/certificate"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/mdm/assets"
+	"github.com/anilyagiz/automdm/v4/server/mdm/scep/depot"
 	"github.com/cenkalti/backoff/v4"
-	"github.com/fleetdm/fleet/v4/pkg/certificate"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/assets"
-	"github.com/fleetdm/fleet/v4/server/mdm/scep/depot"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -27,15 +27,15 @@ const maxCommonNameLength = 64
 // ConditionalAccessSCEPDepot is a MySQL-backed SCEP certificate depot for conditional access.
 type ConditionalAccessSCEPDepot struct {
 	db     *sqlx.DB
-	ds     fleet.Datastore
+	ds     automdm.Datastore
 	logger *slog.Logger
-	config *config.FleetConfig
+	config *config.AutoMDMConfig
 }
 
 var _ depot.Depot = (*ConditionalAccessSCEPDepot)(nil)
 
 // NewConditionalAccessSCEPDepot creates and returns a *ConditionalAccessSCEPDepot.
-func NewConditionalAccessSCEPDepot(db *sqlx.DB, ds fleet.Datastore, logger *slog.Logger, cfg *config.FleetConfig) (*ConditionalAccessSCEPDepot, error) {
+func NewConditionalAccessSCEPDepot(db *sqlx.DB, ds automdm.Datastore, logger *slog.Logger, cfg *config.AutoMDMConfig) (*ConditionalAccessSCEPDepot, error) {
 	if err := db.Ping(); err != nil {
 		return nil, err
 	}
@@ -50,8 +50,8 @@ func NewConditionalAccessSCEPDepot(db *sqlx.DB, ds fleet.Datastore, logger *slog
 // CA returns the CA's certificate and private key.
 func (d *ConditionalAccessSCEPDepot) CA(_ []byte) ([]*x509.Certificate, *rsa.PrivateKey, error) {
 	cert, err := assets.KeyPair(context.Background(), d.ds,
-		fleet.MDMAssetConditionalAccessCACert,
-		fleet.MDMAssetConditionalAccessCAKey)
+		automdm.MDMAssetConditionalAccessCACert,
+		automdm.MDMAssetConditionalAccessCAKey)
 	if err != nil {
 		return nil, nil, fmt.Errorf("getting assets: %w", err)
 	}
@@ -87,8 +87,8 @@ func (d *ConditionalAccessSCEPDepot) HasCN(cn string, allowTime int, cert *x509.
 
 // Put stores a certificate under the given name.
 // The certificate must contain a SAN URI with the device UUID in one of the deviceUUIDURIPrefixes formats, such as
-// urn:device:fleet:uuid:<uuid>
-// The UUID is used to look up the host in Fleet, and the certificate is only issued
+// urn:device:automdm:uuid:<uuid>
+// The UUID is used to look up the host in AutoMDM, and the certificate is only issued
 // if the host exists. Old certificates for the same host are automatically revoked.
 func (d *ConditionalAccessSCEPDepot) Put(name string, crt *x509.Certificate) error {
 	if crt.Subject.CommonName == "" || len(crt.Subject.CommonName) > maxCommonNameLength {
@@ -114,7 +114,7 @@ func (d *ConditionalAccessSCEPDepot) Put(name string, crt *x509.Certificate) err
 	if cooldown > 0 {
 		existingCertCreatedAt, err := d.ds.GetConditionalAccessCertCreatedAtByHostID(context.Background(), host.ID)
 		switch {
-		case err != nil && !fleet.IsNotFound(err):
+		case err != nil && !automdm.IsNotFound(err):
 			return fmt.Errorf("checking existing certificate: %w", err)
 		case err == nil:
 			// Certificate exists, check if rate limit applies
@@ -162,7 +162,7 @@ func (d *ConditionalAccessSCEPDepot) Put(name string, crt *x509.Certificate) err
 
 // deviceUUIDURIPrefixes are the accepted SAN URI prefixes. Apple profiles use the first; Windows profiles use the
 // platform-neutral second.
-var deviceUUIDURIPrefixes = []string{"urn:device:apple:uuid:", "urn:device:fleet:uuid:"}
+var deviceUUIDURIPrefixes = []string{"urn:device:apple:uuid:", "urn:device:automdm:uuid:"}
 
 // extractUUIDFromCert extracts the device UUID from the SAN URI field.
 // Returns the UUID portion or empty string if not found.

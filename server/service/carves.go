@@ -11,12 +11,12 @@ import (
 	"strings"
 	"time"
 
-	carvestorectx "github.com/fleetdm/fleet/v4/server/contexts/carvestore"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	hostctx "github.com/fleetdm/fleet/v4/server/contexts/host"
-	"github.com/fleetdm/fleet/v4/server/contexts/logging"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	carvestorectx "github.com/anilyagiz/automdm/v4/server/contexts/carvestore"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	hostctx "github.com/anilyagiz/automdm/v4/server/contexts/host"
+	"github.com/anilyagiz/automdm/v4/server/contexts/logging"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/google/uuid"
 )
 
@@ -24,22 +24,22 @@ import (
 // List Carves
 ////////////////////////////////////////////////////////////////////////////////
 
-func listCarvesEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.ListCarvesRequest)
+func listCarvesEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.ListCarvesRequest)
 	carves, err := svc.ListCarves(ctx, req.ListOptions)
 	if err != nil {
-		return fleet.ListCarvesResponse{Err: err}, nil
+		return automdm.ListCarvesResponse{Err: err}, nil
 	}
 
-	resp := fleet.ListCarvesResponse{}
+	resp := automdm.ListCarvesResponse{}
 	for _, carve := range carves {
 		resp.Carves = append(resp.Carves, *carve)
 	}
 	return resp, nil
 }
 
-func (svc *Service) ListCarves(ctx context.Context, opt fleet.CarveListOptions) ([]*fleet.CarveMetadata, error) {
-	if err := svc.authz.Authorize(ctx, &fleet.CarveMetadata{}, fleet.ActionRead); err != nil {
+func (svc *Service) ListCarves(ctx context.Context, opt automdm.CarveListOptions) ([]*automdm.CarveMetadata, error) {
+	if err := svc.authz.Authorize(ctx, &automdm.CarveMetadata{}, automdm.ActionRead); err != nil {
 		return nil, err
 	}
 
@@ -50,18 +50,18 @@ func (svc *Service) ListCarves(ctx context.Context, opt fleet.CarveListOptions) 
 // Get Carve
 ////////////////////////////////////////////////////////////////////////////////
 
-func getCarveEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.GetCarveRequest)
+func getCarveEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.GetCarveRequest)
 	carve, err := svc.GetCarve(ctx, req.ID)
 	if err != nil {
-		return fleet.GetCarveResponse{Err: err}, nil
+		return automdm.GetCarveResponse{Err: err}, nil
 	}
 
-	return fleet.GetCarveResponse{Carve: *carve}, nil
+	return automdm.GetCarveResponse{Carve: *carve}, nil
 }
 
-func (svc *Service) GetCarve(ctx context.Context, id int64) (*fleet.CarveMetadata, error) {
-	if err := svc.authz.Authorize(ctx, &fleet.CarveMetadata{}, fleet.ActionRead); err != nil {
+func (svc *Service) GetCarve(ctx context.Context, id int64) (*automdm.CarveMetadata, error) {
+	if err := svc.authz.Authorize(ctx, &automdm.CarveMetadata{}, automdm.ActionRead); err != nil {
 		return nil, err
 	}
 
@@ -72,18 +72,18 @@ func (svc *Service) GetCarve(ctx context.Context, id int64) (*fleet.CarveMetadat
 // Get Carve Block
 ////////////////////////////////////////////////////////////////////////////////
 
-func getCarveBlockEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.GetCarveBlockRequest)
+func getCarveBlockEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.GetCarveBlockRequest)
 	data, err := svc.GetBlock(ctx, req.ID, req.BlockId)
 	if err != nil {
-		return fleet.GetCarveBlockResponse{Err: err}, nil
+		return automdm.GetCarveBlockResponse{Err: err}, nil
 	}
 
-	return fleet.GetCarveBlockResponse{Data: data}, nil
+	return automdm.GetCarveBlockResponse{Data: data}, nil
 }
 
 func (svc *Service) GetBlock(ctx context.Context, carveId, blockId int64) ([]byte, error) {
-	if err := svc.authz.Authorize(ctx, &fleet.CarveMetadata{}, fleet.ActionRead); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.CarveMetadata{}, automdm.ActionRead); err != nil {
 		return nil, err
 	}
 
@@ -112,10 +112,10 @@ func (svc *Service) GetBlock(ctx context.Context, carveId, blockId int64) ([]byt
 // Begin File Carve
 ////////////////////////////////////////////////////////////////////////////////
 
-func carveBeginEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.CarveBeginRequest)
+func carveBeginEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.CarveBeginRequest)
 
-	payload := fleet.CarveBeginPayload{
+	payload := automdm.CarveBeginPayload{
 		BlockCount: req.BlockCount,
 		BlockSize:  req.BlockSize,
 		CarveSize:  req.CarveSize,
@@ -125,10 +125,10 @@ func carveBeginEndpoint(ctx context.Context, request interface{}, svc fleet.Serv
 
 	carve, err := svc.CarveBegin(ctx, payload)
 	if err != nil {
-		return fleet.CarveBeginResponse{Err: err}, nil
+		return automdm.CarveBeginResponse{Err: err}, nil
 	}
 
-	return fleet.CarveBeginResponse{SessionId: carve.SessionId, Success: true}, nil
+	return automdm.CarveBeginResponse{SessionId: carve.SessionId, Success: true}, nil
 }
 
 const (
@@ -136,7 +136,7 @@ const (
 	maxBlockSize = 256 * 1024 * 1024      // 256MB
 )
 
-func (svc *Service) CarveBegin(ctx context.Context, payload fleet.CarveBeginPayload) (*fleet.CarveMetadata, error) {
+func (svc *Service) CarveBegin(ctx context.Context, payload automdm.CarveBeginPayload) (*automdm.CarveMetadata, error) {
 	// skipauth: Authorization is currently for user endpoints only.
 	svc.authz.SkipAuthorization(ctx)
 
@@ -170,7 +170,7 @@ func (svc *Service) CarveBegin(ctx context.Context, payload fleet.CarveBeginPayl
 	}
 
 	now := time.Now().UTC()
-	carve := &fleet.CarveMetadata{
+	carve := &automdm.CarveMetadata{
 		Name:       fmt.Sprintf("%s-%s-%s", host.Hostname, now.Format(time.RFC3339), payload.RequestId),
 		HostId:     host.ID,
 		BlockCount: payload.BlockCount,
@@ -196,19 +196,19 @@ func (svc *Service) CarveBegin(ctx context.Context, payload fleet.CarveBeginPayl
 
 // decodeCarveBlockRequest is a service-local wrapper that owns the streaming
 // DecodeRequest used by the unauthenticated /osquery/carve/block endpoint.
-// The wrapper lives here (not in server/fleet) because it uses carvestorectx,
-// which imports server/fleet and would create a cycle.
+// The wrapper lives here (not in server/automdm) because it uses carvestorectx,
+// which imports server/automdm and would create a cycle.
 type decodeCarveBlockRequest struct{}
 
 // DecodeRequest for the /api/v1/osquery/carve/block endpoint performs raw JSON parsing
 // to prevent DoS attacks on this unauthenticated endpoint.
 // Carve block requests are authenticated by their "session_id" and "request_id".
 // The osquery API sends the "session_id" and "request_id" in the JSON object in the body that
-// also includes the "data" field with the actual "block". If Fleet parses the full JSON to extract
-// the "session_id" and "request_id" then attackers could DoS Fleet by sending big JSON documents.
+// also includes the "data" field with the actual "block". If AutoMDM parses the full JSON to extract
+// the "session_id" and "request_id" then attackers could DoS AutoMDM by sending big JSON documents.
 // To prevent such an attack, we rely on the stability of the osquery carve endpoints (they have been
 // stable for many years) and parse the body field by field. The "session_id" and "request_id" always
-// come before the "data" field; thus Fleet will extract "session_id" and "request_id", perform authentication
+// come before the "data" field; thus AutoMDM will extract "session_id" and "request_id", perform authentication
 // and if the credentials are valid parse and decode the "data" field.
 //
 // The Authorization: NodeKey <token> header (validated by the HTTP pre-auth
@@ -226,7 +226,7 @@ func (decodeCarveBlockRequest) DecodeRequest(ctx context.Context, req *http.Requ
 
 	newAuthRequiredError := func(err error) error {
 		// We don't want to return details to clients.
-		return ctxerr.Wrap(ctx, fleet.NewAuthFailedError(err.Error()), "authentication error")
+		return ctxerr.Wrap(ctx, automdm.NewAuthFailedError(err.Error()), "authentication error")
 	}
 
 	readUntil := func(maxToRead int, endChar byte) (string, error) {
@@ -356,7 +356,7 @@ func (decodeCarveBlockRequest) DecodeRequest(ctx context.Context, req *http.Requ
 	}
 	data = data[:n]
 
-	return &fleet.CarveBlockRequest{
+	return &automdm.CarveBlockRequest{
 		BlockId:   blockID,
 		SessionId: sessionID,
 		RequestId: requestID,
@@ -364,10 +364,10 @@ func (decodeCarveBlockRequest) DecodeRequest(ctx context.Context, req *http.Requ
 	}, nil
 }
 
-func carveBlockEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.CarveBlockRequest)
+func carveBlockEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.CarveBlockRequest)
 
-	payload := fleet.CarveBlockPayload{
+	payload := automdm.CarveBlockPayload{
 		SessionId: req.SessionId,
 		RequestId: req.RequestId,
 		BlockId:   req.BlockId,
@@ -376,13 +376,13 @@ func carveBlockEndpoint(ctx context.Context, request interface{}, svc fleet.Serv
 
 	err := svc.CarveBlock(ctx, payload)
 	if err != nil {
-		return fleet.CarveBlockResponse{Err: err}, nil
+		return automdm.CarveBlockResponse{Err: err}, nil
 	}
 
-	return fleet.CarveBlockResponse{Success: true}, nil
+	return automdm.CarveBlockResponse{Success: true}, nil
 }
 
-func (svc *Service) CarveBlock(ctx context.Context, payload fleet.CarveBlockPayload) error {
+func (svc *Service) CarveBlock(ctx context.Context, payload automdm.CarveBlockPayload) error {
 	// skipauth: Authorization is currently for user endpoints only.
 	svc.authz.SkipAuthorization(ctx)
 
@@ -438,7 +438,7 @@ func (svc *Service) CarveBlock(ctx context.Context, payload fleet.CarveBlockPayl
 	return nil
 }
 
-func (svc *Service) validateCarveBlock(payload fleet.CarveBlockPayload, carve *fleet.CarveMetadata) error {
+func (svc *Service) validateCarveBlock(payload automdm.CarveBlockPayload, carve *automdm.CarveMetadata) error {
 	if payload.BlockId > carve.BlockCount-1 {
 		return fmt.Errorf("block_id exceeds expected max (%d): %d", carve.BlockCount-1, payload.BlockId)
 	}

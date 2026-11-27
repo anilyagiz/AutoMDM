@@ -3,7 +3,7 @@ package oval_parsed
 import (
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/require"
 )
 
@@ -42,7 +42,7 @@ func TestOvalParsedDefinition(t *testing.T) {
 			}
 			sut := Definition{Criteria: &criteria}
 			require.False(t, sut.Eval(nil, nil))
-			require.False(t, sut.Eval(make(map[int]bool), make(map[int][]fleet.Software)))
+			require.False(t, sut.Eval(make(map[int]bool), make(map[int][]automdm.Software)))
 		})
 
 		t.Run("with OS tests result only", func(t *testing.T) {
@@ -76,7 +76,7 @@ func TestOvalParsedDefinition(t *testing.T) {
 					nil,
 				}
 				OSTsts := make(map[int]bool)
-				pkgTsts := map[int][]fleet.Software{
+				pkgTsts := map[int][]automdm.Software{
 					1: {{ID: 1}},
 					2: nil,
 					3: {{ID: 2}},
@@ -109,7 +109,7 @@ func TestOvalParsedDefinition(t *testing.T) {
 			}
 
 			OSTsts := make(map[int]bool)
-			pkgTsts := map[int][]fleet.Software{
+			pkgTsts := map[int][]automdm.Software{
 				1: nil,
 				2: nil,
 				3: {{ID: 2}},
@@ -136,7 +136,7 @@ func TestOvalParsedDefinition(t *testing.T) {
 			}
 
 			OSTsts := make(map[int]bool)
-			pkgTsts := map[int][]fleet.Software{
+			pkgTsts := map[int][]automdm.Software{
 				2: nil,
 				3: {{ID: 2}},
 			}
@@ -189,7 +189,7 @@ func TestOvalParsedDefinition(t *testing.T) {
 			}
 
 			OSTsts := make(map[int]bool)
-			pkgTsts := map[int][]fleet.Software{
+			pkgTsts := map[int][]automdm.Software{
 				1: nil,
 				2: {{ID: 1}},
 				3: nil,
@@ -249,7 +249,7 @@ func TestOvalParsedDefinition(t *testing.T) {
 			}
 
 			OSTsts := make(map[int]bool)
-			pkgTsts := map[int][]fleet.Software{
+			pkgTsts := map[int][]automdm.Software{
 				1: nil,
 				2: {{ID: 1}},
 				3: nil,

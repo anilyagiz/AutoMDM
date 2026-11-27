@@ -20,7 +20,7 @@ const TurnOnWindowsMdmCard = ({
       header="Turn on Windows MDM"
       cta={<Button onClick={onClickTurnOn}>Turn on</Button>}
     >
-      Turn MDM on for Windows hosts with fleetd.
+      Turn MDM on for Windows hosts with automdmd.
     </SectionCard>
   );
 };

@@ -1,22 +1,22 @@
 # Committing changes
 - [External contributors](#external-contributors)
-- [Fleet Device Management team members](#fleet-device-management-team-members)
+- [Fleet Device Management team members](#automdm-device-management-team-members)
 - [Pull requests](#pull-requests)
   - [Merging pull requests](#merging-pull-requests)
   - [Commit messages](#commit-messages)
 
 ## External contributors
 
-Fleet does not require a CLA for external contributions. External contributors can submit pull requests (PRs) following the [pull requests instructions](#pull-requests). After you submit a PR, it goes through [Fleet's community PR process](https://fleetdm.com/handbook/engineering#review-a-community-pull-request).
+AutoMDM does not require a CLA for external contributions. External contributors can submit pull requests (PRs) following the [pull requests instructions](#pull-requests). After you submit a PR, it goes through [AutoMDM's community PR process](https://automdm.com/handbook/engineering#review-a-community-pull-request).
 
 ## Fleet Device Management team members
 Fleet Device Management team members may not copy queries from external sources except when that content has an explicit license allowing such use or permission has been granted by the creator.
 
 ## Pull requests
 
-Each developer (internal or external) creates a fork of the Fleet repository, committing changes to a branch within their fork. Developers submit changes by PR to be merged into Fleet.
+Each developer (internal or external) creates a fork of the AutoMDM repository, committing changes to a branch within their fork. Developers submit changes by PR to be merged into AutoMDM.
 
-GitHub Actions automatically runs testers and linters on each PR. Please make sure that these checks pass. Checks can be run locally as described in [Testing.md](https://fleetdm.com/docs/contributing/testing-and-local-development).
+GitHub Actions automatically runs testers and linters on each PR. Please make sure that these checks pass. Checks can be run locally as described in [Testing.md](https://automdm.com/docs/contributing/testing-and-local-development).
 
 Mark the PR as a "Draft" for the features still in progress. This helps make it clear which PRs are ready for review and merge.
 
@@ -35,7 +35,7 @@ There are two ways to write CHANGELOG files:
 1. Having an individual responsible for writing the changes as part of the release process
 2. Writing the changelog collaboratively and whoever creates the release just collects the text and organizes the information rather than generating it
 
-Fleet is doing 2, using the concept of changes files.
+AutoMDM is doing 2, using the concept of changes files.
 
 #### What is it?
 
@@ -73,7 +73,7 @@ This is very dependent on the case. It'll be very unlikely, but sometimes a PR h
 
 #### Why not just add it directly to the CHANGELOG as unreleased?
 
-The reason we are adding one file per change, roughly, is to prevent merging conflicts. If everybody working on Fleet would edit the CHANGELOG file, every PR will have a conflict as soon as one is merged, and collaboration will be very complicated.
+The reason we are adding one file per change, roughly, is to prevent merging conflicts. If everybody working on AutoMDM would edit the CHANGELOG file, every PR will have a conflict as soon as one is merged, and collaboration will be very complicated.
 
 ### Merging pull requests
 
@@ -109,4 +109,4 @@ Keep in mind that the commit title and description are what developers see when 
 Keeping to around 80 character line lengths helps with rendering when folks have narrow, tiled terminal windows.
 
 <meta name="pageOrderInSection" value="400">
-<meta name="description" value="A guide to contributing to the Fleet GitHub repository.">
+<meta name="description" value="A guide to contributing to the AutoMDM GitHub repository.">

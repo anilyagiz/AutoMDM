@@ -10,23 +10,23 @@ import (
 	"net/url"
 	"reflect"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/capabilities"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	eu "github.com/fleetdm/fleet/v4/server/platform/endpointer"
-	platform_http "github.com/fleetdm/fleet/v4/server/platform/http"
-	"github.com/fleetdm/fleet/v4/server/platform/jsondecode"
-	"github.com/fleetdm/fleet/v4/server/service/middleware/auth"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/capabilities"
+	eu "github.com/anilyagiz/automdm/v4/server/platform/endpointer"
+	platform_http "github.com/anilyagiz/automdm/v4/server/platform/http"
+	"github.com/anilyagiz/automdm/v4/server/platform/jsondecode"
+	"github.com/anilyagiz/automdm/v4/server/service/middleware/auth"
 	"github.com/go-kit/kit/endpoint"
 	kithttp "github.com/go-kit/kit/transport/http"
 )
 
 func makeDecoder(iface any, requestBodySizeLimit int64) kithttp.DecodeRequestFunc {
-	return eu.MakeDecoder(iface, jsonDecode, parseCustomTags, isBodyDecoder, decodeBody, fleetQueryDecoder, requestBodySizeLimit)
+	return eu.MakeDecoder(iface, jsonDecode, parseCustomTags, isBodyDecoder, decodeBody, automdmQueryDecoder, requestBodySizeLimit)
 }
 
-// fleetQueryDecoder handles fleet-specific query parameter decoding, such as
-// converting the order_direction string to the fleet.OrderDirection int type.
-func fleetQueryDecoder(queryTagName, queryVal string, field reflect.Value) (bool, error) {
+// automdmQueryDecoder handles automdm-specific query parameter decoding, such as
+// converting the order_direction string to the automdm.OrderDirection int type.
+func automdmQueryDecoder(queryTagName, queryVal string, field reflect.Value) (bool, error) {
 	// Only handle int fields for order_direction
 	if field.Kind() != reflect.Int {
 		return false, nil
@@ -36,11 +36,11 @@ func fleetQueryDecoder(queryTagName, queryVal string, field reflect.Value) (bool
 		var direction int
 		switch queryVal {
 		case "desc":
-			direction = int(fleet.OrderDescending)
+			direction = int(automdm.OrderDescending)
 		case "asc":
-			direction = int(fleet.OrderAscending)
+			direction = int(automdm.OrderAscending)
 		default:
-			return false, &fleet.BadRequestError{Message: "unknown order_direction: " + queryVal}
+			return false, &automdm.BadRequestError{Message: "unknown order_direction: " + queryVal}
 		}
 		field.SetInt(int64(direction))
 		return true, nil
@@ -120,29 +120,29 @@ func isBodyDecoder(v reflect.Value) bool {
 	return ok
 }
 
-// handlerFunc is the handler function type for the main Fleet service endpoints.
-type handlerFunc func(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error)
+// handlerFunc is the handler function type for the main AutoMDM service endpoints.
+type handlerFunc func(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error)
 
-// Compile-time check to ensure that fleetEndpointer implements Endpointer.
-var _ eu.Endpointer[handlerFunc] = &fleetEndpointer{}
+// Compile-time check to ensure that automdmEndpointer implements Endpointer.
+var _ eu.Endpointer[handlerFunc] = &automdmEndpointer{}
 
-type fleetEndpointer struct {
-	svc fleet.Service
+type automdmEndpointer struct {
+	svc automdm.Service
 }
 
-func (e *fleetEndpointer) CallHandlerFunc(f handlerFunc, ctx context.Context, request any, svc any) (platform_http.Errorer, error) {
-	return f(ctx, request, svc.(fleet.Service))
+func (e *automdmEndpointer) CallHandlerFunc(f handlerFunc, ctx context.Context, request any, svc any) (platform_http.Errorer, error) {
+	return f(ctx, request, svc.(automdm.Service))
 }
 
-func (e *fleetEndpointer) Service() any {
+func (e *automdmEndpointer) Service() any {
 	return e.svc
 }
 
-func newUserAuthenticatedEndpointer(svc fleet.Service, opts []kithttp.ServerOption, r *eu.Router,
+func newUserAuthenticatedEndpointer(svc automdm.Service, opts []kithttp.ServerOption, r *eu.Router,
 	versions ...string,
 ) *eu.CommonEndpointer[handlerFunc] {
 	return &eu.CommonEndpointer[handlerFunc]{
-		EP: &fleetEndpointer{
+		EP: &automdmEndpointer{
 			svc: svc,
 		},
 		MakeDecoderFn: makeDecoder,
@@ -156,11 +156,11 @@ func newUserAuthenticatedEndpointer(svc fleet.Service, opts []kithttp.ServerOpti
 	}
 }
 
-func newNoAuthEndpointer(svc fleet.Service, opts []kithttp.ServerOption, r *eu.Router,
+func newNoAuthEndpointer(svc automdm.Service, opts []kithttp.ServerOption, r *eu.Router,
 	versions ...string,
 ) *eu.CommonEndpointer[handlerFunc] {
 	return &eu.CommonEndpointer[handlerFunc]{
-		EP: &fleetEndpointer{
+		EP: &automdmEndpointer{
 			svc: svc,
 		},
 		MakeDecoderFn: makeDecoder,
@@ -174,14 +174,14 @@ func newNoAuthEndpointer(svc fleet.Service, opts []kithttp.ServerOption, r *eu.R
 	}
 }
 
-func newOrbitNoAuthEndpointer(svc fleet.Service, opts []kithttp.ServerOption, r *eu.Router,
+func newOrbitNoAuthEndpointer(svc automdm.Service, opts []kithttp.ServerOption, r *eu.Router,
 	versions ...string,
 ) *eu.CommonEndpointer[handlerFunc] {
 	// Add the capabilities reported by Orbit to the request context
 	opts = append(opts, capabilitiesContextFunc())
 
 	return &eu.CommonEndpointer[handlerFunc]{
-		EP: &fleetEndpointer{
+		EP: &automdmEndpointer{
 			svc: svc,
 		},
 		MakeDecoderFn: makeDecoder,
@@ -196,45 +196,45 @@ func newOrbitNoAuthEndpointer(svc fleet.Service, opts []kithttp.ServerOption, r 
 }
 
 func badRequest(msg string) error {
-	return &fleet.BadRequestError{Message: msg}
+	return &automdm.BadRequestError{Message: msg}
 }
 
 func badRequestf(format string, a ...any) error {
-	return &fleet.BadRequestError{
+	return &automdm.BadRequestError{
 		Message: fmt.Sprintf(format, a...),
 	}
 }
 
 // newDeviceAuthenticatedEndpointer returns the endpointer for device endpoints.
-// Its routes are subject to the Fleet Desktop SSO gate; see
+// Its routes are subject to the AutoMDM Desktop SSO gate; see
 // newDeviceSSOExemptEndpointer for the exceptions.
-func newDeviceAuthenticatedEndpointer(svc fleet.Service, logger *slog.Logger, opts []kithttp.ServerOption, r *eu.Router,
+func newDeviceAuthenticatedEndpointer(svc automdm.Service, logger *slog.Logger, opts []kithttp.ServerOption, r *eu.Router,
 	versions ...string,
 ) *eu.CommonEndpointer[handlerFunc] {
 	return deviceAuthenticatedEndpointer(svc, logger, opts, r, true, versions...)
 }
 
 // newDeviceSSOExemptEndpointer returns an endpointer for the device endpoints
-// that stay reachable with fleet_desktop.sso_enabled on and no device SSO
+// that stay reachable with automdm_desktop.sso_enabled on and no device SSO
 // session.
-func newDeviceSSOExemptEndpointer(svc fleet.Service, logger *slog.Logger, opts []kithttp.ServerOption, r *eu.Router,
+func newDeviceSSOExemptEndpointer(svc automdm.Service, logger *slog.Logger, opts []kithttp.ServerOption, r *eu.Router,
 	versions ...string,
 ) *eu.CommonEndpointer[handlerFunc] {
 	return deviceAuthenticatedEndpointer(svc, logger, opts, r, false, versions...)
 }
 
-func deviceAuthenticatedEndpointer(svc fleet.Service, logger *slog.Logger, opts []kithttp.ServerOption, r *eu.Router,
+func deviceAuthenticatedEndpointer(svc automdm.Service, logger *slog.Logger, opts []kithttp.ServerOption, r *eu.Router,
 	ssoGate bool, versions ...string,
 ) *eu.CommonEndpointer[handlerFunc] {
-	// Make the Fleet Desktop device SSO session available to the auth middleware
+	// Make the AutoMDM Desktop device SSO session available to the auth middleware
 	opts = append(opts, kithttp.ServerBefore(extractDeviceSSOSessionFromCookie))
-	// Inject the fleet.CapabilitiesHeader header to the response for device endpoints
-	opts = append(opts, capabilitiesResponseFunc(fleet.GetServerDeviceCapabilities()))
+	// Inject the automdm.CapabilitiesHeader header to the response for device endpoints
+	opts = append(opts, capabilitiesResponseFunc(automdm.GetServerDeviceCapabilities()))
 	// Add the capabilities reported by the device to the request context
 	opts = append(opts, capabilitiesContextFunc())
 
 	ep := &eu.CommonEndpointer[handlerFunc]{
-		EP: &fleetEndpointer{
+		EP: &automdmEndpointer{
 			svc: svc,
 		},
 		MakeDecoderFn: makeDecoder,
@@ -252,11 +252,11 @@ func deviceAuthenticatedEndpointer(svc fleet.Service, logger *slog.Logger, opts 
 	return ep.AppendCustomMiddlewareAfterAuth(requireDeviceSSOSession(svc))
 }
 
-func newHostAuthenticatedEndpointer(svc fleet.Service, logger *slog.Logger, opts []kithttp.ServerOption, r *eu.Router,
+func newHostAuthenticatedEndpointer(svc automdm.Service, logger *slog.Logger, opts []kithttp.ServerOption, r *eu.Router,
 	versions ...string,
 ) *eu.CommonEndpointer[handlerFunc] {
 	return &eu.CommonEndpointer[handlerFunc]{
-		EP: &fleetEndpointer{
+		EP: &automdmEndpointer{
 			svc: svc,
 		},
 		MakeDecoderFn: makeDecoder,
@@ -271,19 +271,19 @@ func newHostAuthenticatedEndpointer(svc fleet.Service, logger *slog.Logger, opts
 }
 
 func androidAuthenticatedEndpointer(
-	svc fleet.Service,
+	svc automdm.Service,
 	logger *slog.Logger,
 	opts []kithttp.ServerOption,
 	r *eu.Router,
 	versions ...string,
 ) *eu.CommonEndpointer[handlerFunc] {
-	// Inject the fleet.Capabilities header to the response for Orbit hosts
-	opts = append(opts, capabilitiesResponseFunc(fleet.GetServerOrbitCapabilities()))
+	// Inject the automdm.Capabilities header to the response for Orbit hosts
+	opts = append(opts, capabilitiesResponseFunc(automdm.GetServerOrbitCapabilities()))
 	// Add the capabilities reported by Orbit to the request context
 	opts = append(opts, capabilitiesContextFunc())
 
 	return &eu.CommonEndpointer[handlerFunc]{
-		EP: &fleetEndpointer{
+		EP: &automdmEndpointer{
 			svc: svc,
 		},
 		MakeDecoderFn: makeDecoder,
@@ -297,17 +297,17 @@ func androidAuthenticatedEndpointer(
 	}
 }
 
-func newOrbitAuthenticatedEndpointer(svc fleet.Service, logger *slog.Logger, opts []kithttp.ServerOption, r *eu.Router,
+func newOrbitAuthenticatedEndpointer(svc automdm.Service, logger *slog.Logger, opts []kithttp.ServerOption, r *eu.Router,
 	versions ...string,
 ) *eu.CommonEndpointer[handlerFunc] {
-	// Inject the fleet.Capabilities header to the response for Orbit hosts
-	opts = append(opts, capabilitiesResponseFunc(fleet.GetServerOrbitCapabilities()))
+	// Inject the automdm.Capabilities header to the response for Orbit hosts
+	opts = append(opts, capabilitiesResponseFunc(automdm.GetServerOrbitCapabilities()))
 	// Add the capabilities reported by Orbit to the request context
 	opts = append(opts, capabilitiesContextFunc())
 	opts = append(opts, kithttp.ServerBefore(orbitConfigFallbackChangesContext))
 
 	return &eu.CommonEndpointer[handlerFunc]{
-		EP: &fleetEndpointer{
+		EP: &automdmEndpointer{
 			svc: svc,
 		},
 		MakeDecoderFn: makeDecoder,
@@ -321,7 +321,7 @@ func newOrbitAuthenticatedEndpointer(svc fleet.Service, logger *slog.Logger, opt
 	}
 }
 
-func capabilitiesResponseFunc(capabilities fleet.CapabilityMap) kithttp.ServerOption {
+func capabilitiesResponseFunc(capabilities automdm.CapabilityMap) kithttp.ServerOption {
 	return kithttp.ServerAfter(func(ctx context.Context, w http.ResponseWriter) context.Context {
 		writeCapabilitiesHeader(w, capabilities)
 		return ctx
@@ -332,12 +332,12 @@ func capabilitiesContextFunc() kithttp.ServerOption {
 	return kithttp.ServerBefore(capabilities.NewContext)
 }
 
-func writeCapabilitiesHeader(w http.ResponseWriter, capabilities fleet.CapabilityMap) {
+func writeCapabilitiesHeader(w http.ResponseWriter, capabilities automdm.CapabilityMap) {
 	if len(capabilities) == 0 {
 		return
 	}
 
-	w.Header().Set(fleet.CapabilitiesHeader, capabilities.String())
+	w.Header().Set(automdm.CapabilitiesHeader, capabilities.String())
 }
 
 // parseMultipartForm parses an upload. The request body is already capped, by MakeDecoder at the route's size limit or, for software

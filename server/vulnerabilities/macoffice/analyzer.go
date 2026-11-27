@@ -9,10 +9,10 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/io"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/utils"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/io"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/utils"
 )
 
 // getLatestReleaseNotes returns the most recent Mac Office release notes asset (based on the date in the
@@ -53,11 +53,11 @@ func getLatestReleaseNotes(vulnPath string) (ReleaseNotes, error) {
 // collectVulnerabilities compares 'software' against all 'release notes' returning all detected
 // vulnerabilities.
 func collectVulnerabilities(
-	software *fleet.Software,
+	software *automdm.Software,
 	product ProductType,
 	relNotes ReleaseNotes,
-) []fleet.SoftwareVulnerability {
-	var vulns []fleet.SoftwareVulnerability
+) []automdm.SoftwareVulnerability {
+	var vulns []automdm.SoftwareVulnerability
 	for _, relNote := range relNotes {
 		// We only care about release notes with set versions and with security updates,
 		// 'relNotes' should only contain valid release notes, but this check not expensive.
@@ -70,7 +70,7 @@ func collectVulnerabilities(
 		}
 
 		for _, cve := range relNote.CollectVulnerabilities(product) {
-			vulns = append(vulns, fleet.SoftwareVulnerability{
+			vulns = append(vulns, automdm.SoftwareVulnerability{
 				SoftwareID: software.ID,
 				CVE:        cve,
 			})
@@ -82,17 +82,17 @@ func collectVulnerabilities(
 // getStoredVulnerabilities return all stored vulnerabilities for 'softwareID'
 func getStoredVulnerabilities(
 	ctx context.Context,
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	softwareID uint,
-) ([]fleet.SoftwareVulnerability, error) {
+) ([]automdm.SoftwareVulnerability, error) {
 	storedSoftware, err := ds.SoftwareByID(ctx, softwareID, nil, false, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	var result []fleet.SoftwareVulnerability
+	var result []automdm.SoftwareVulnerability
 	for _, v := range storedSoftware.Vulnerabilities {
-		result = append(result, fleet.SoftwareVulnerability{
+		result = append(result, automdm.SoftwareVulnerability{
 			SoftwareID: storedSoftware.ID,
 			CVE:        v.CVE,
 		})
@@ -102,14 +102,14 @@ func getStoredVulnerabilities(
 
 func updateVulnsInDB(
 	ctx context.Context,
-	ds fleet.Datastore,
-	detected []fleet.SoftwareVulnerability,
-	existing []fleet.SoftwareVulnerability,
-) ([]fleet.SoftwareVulnerability, error) {
+	ds automdm.Datastore,
+	detected []automdm.SoftwareVulnerability,
+	existing []automdm.SoftwareVulnerability,
+) ([]automdm.SoftwareVulnerability, error) {
 	toInsert, toDelete := utils.VulnsDelta(detected, existing)
 
 	// Remove any possible dups...
-	toInsertSet := make(map[string]fleet.SoftwareVulnerability, len(toInsert))
+	toInsertSet := make(map[string]automdm.SoftwareVulnerability, len(toInsert))
 	for _, i := range toInsert {
 		toInsertSet[i.Key()] = i
 	}
@@ -119,22 +119,22 @@ func updateVulnsInDB(
 		return nil, err
 	}
 
-	allVulns := make([]fleet.SoftwareVulnerability, 0, len(toInsertSet))
+	allVulns := make([]automdm.SoftwareVulnerability, 0, len(toInsertSet))
 	for _, v := range toInsertSet {
 		allVulns = append(allVulns, v)
 	}
 
-	return ds.InsertSoftwareVulnerabilities(ctx, allVulns, fleet.MacOfficeReleaseNotesSource)
+	return ds.InsertSoftwareVulnerabilities(ctx, allVulns, automdm.MacOfficeReleaseNotesSource)
 }
 
 // Analyze uses the most recent Mac Office release notes asset in 'vulnPath' for detecting
 // vulnerabilities on Mac Office apps.
 func Analyze(
 	ctx context.Context,
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	vulnPath string,
 	collectVulns bool,
-) ([]fleet.SoftwareVulnerability, error) {
+) ([]automdm.SoftwareVulnerability, error) {
 	relNotes, err := getLatestReleaseNotes(vulnPath)
 	if err != nil {
 		return nil, err
@@ -158,14 +158,14 @@ func Analyze(
 		return nil, errors.New("MacOffice release notes contain no valid security updates (possible corrupted feed)")
 	}
 
-	queryParams := fleet.SoftwareIterQueryOptions{IncludedSources: []string{"apps"}}
+	queryParams := automdm.SoftwareIterQueryOptions{IncludedSources: []string{"apps"}}
 	iter, err := ds.AllSoftwareIterator(ctx, queryParams)
 	if err != nil {
 		return nil, err
 	}
 	defer iter.Close()
 
-	var vulnerabilities []fleet.SoftwareVulnerability
+	var vulnerabilities []automdm.SoftwareVulnerability
 	for iter.Next() {
 		software, err := iter.Value()
 		if err != nil {

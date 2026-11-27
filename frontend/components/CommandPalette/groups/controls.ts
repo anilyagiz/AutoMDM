@@ -17,7 +17,7 @@ const buildControlsItems = (
   } = ctx;
   const { hasTeamOrUnassigned } = derived;
 
-  // Controls pages don't support "All fleets" (includeAllTeams: false),
+  // Controls pages don't support "All teams" (includeAllTeams: false),
   // so only show when a team or unassigned is selected. Also gated by
   // canAccessControls (maintainers, admins, technicians).
   if (!canAccessControls || !hasTeamOrUnassigned) return [];
@@ -113,7 +113,7 @@ const buildControlsItems = (
             ]
           : []),
         // Host names — Premium-only, admin/maintainer only. Supported for
-        // both fleets and "No team" / Unassigned.
+        // both teams and "No team" / Unassigned.
         ...(isPremiumTier && isAdminOrMaintainer
           ? [
               {

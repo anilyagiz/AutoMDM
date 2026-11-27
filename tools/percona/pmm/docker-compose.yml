@@ -16,7 +16,7 @@ services:
       - pmm-server
     networks:
       - default
-      - fleet_default
+      - automdm_default
     environment:
       PMM_AGENT_SERVER_ADDRESS: pmm-server:443
       PMM_AGENT_SERVER_INSECURE_TLS: "1"
@@ -33,5 +33,5 @@ volumes:
   pmm-client-data:
 
 networks:
-  fleet_default:
+  automdm_default:
     external: true

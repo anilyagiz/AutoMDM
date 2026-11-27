@@ -6,18 +6,18 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/assets"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/http/mdm"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/assets"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/http/mdm"
 )
 
 var _ mdm.CertVerifier = (*SCEPVerifier)(nil)
 
 type SCEPVerifier struct {
-	ds fleet.MDMAssetRetriever
+	ds automdm.MDMAssetRetriever
 }
 
-func NewSCEPVerifier(ds fleet.MDMAssetRetriever) *SCEPVerifier {
+func NewSCEPVerifier(ds automdm.MDMAssetRetriever) *SCEPVerifier {
 	return &SCEPVerifier{
 		ds: ds,
 	}
@@ -33,13 +33,13 @@ func (s *SCEPVerifier) Verify(ctx context.Context, cert *x509.Certificate) error
 		Roots:     x509.NewCertPool(),
 	}
 
-	rootCert, err := assets.X509Cert(ctx, s.ds, fleet.MDMAssetCACert)
+	rootCert, err := assets.X509Cert(ctx, s.ds, automdm.MDMAssetCACert)
 	if err != nil {
 		return fmt.Errorf("loading existing assets from the database: %w", err)
 	}
 	opts.Roots.AddCert(rootCert)
 
-	// the default SCEP cert issued by fleet doesn't have any extra key
+	// the default SCEP cert issued by team doesn't have any extra key
 	// usages, however, customers might configure the server with any
 	// certificate they want (generally for touchless MDM migrations)
 	//

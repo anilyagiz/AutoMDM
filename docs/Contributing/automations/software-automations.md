@@ -1,10 +1,10 @@
 # Software automation architecture
 
-This document provides an overview of Fleet's software automation architecture.
+This document provides an overview of AutoMDM's software automation architecture.
 
 ## Introduction
 
-Software automation in Fleet enable organizations automatically install or update software based on a [policy](https://fleetdm.com/securing/what-are-fleet-policies).
+Software automation in AutoMDM enable organizations automatically install or update software based on a [policy](https://automdm.com/securing/what-are-automdm-policies).
 
 ## Architecture overview
 

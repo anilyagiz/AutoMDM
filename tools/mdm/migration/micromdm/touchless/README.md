@@ -3,7 +3,7 @@
 This Go script reads information from a MicroMDM database and outputs:
 
 - SCEP, APNs and ADE certificates.
-- A file with MySQL statements to import the records into a Fleet database.
+- A file with MySQL statements to import the records into an AutoMDM database.
 
 ### Usage
 

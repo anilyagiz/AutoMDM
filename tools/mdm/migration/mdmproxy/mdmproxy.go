@@ -26,9 +26,9 @@ type mdmProxy struct {
 	migratePercentage int
 	existingServerURL string
 	existingHostname  string
-	fleetServerURL    string
+	automdmServerURL  string
 	existingProxy     *httputil.ReverseProxy
-	fleetProxy        *httputil.ReverseProxy
+	automdmProxy      *httputil.ReverseProxy
 	// mutex is used to sync reads/updates to the migrateUDIDs and migratePercentage
 	mutex sync.RWMutex
 	// token is used to authenticate updates to the migrateUDIDs and migratePercentage
@@ -119,13 +119,13 @@ func (m *mdmProxy) handleProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Migrated UDIDs go to the Fleet server, otherwise requests go to the existing server.
+	// Migrated UDIDs go to the AutoMDM server, otherwise requests go to the existing server.
 	if udid != "" && m.isUDIDMigrated(udid) {
-		log.Printf("%s %s (%s) -> Fleet", r.Method, r.URL.String(), udid)
+		log.Printf("%s %s (%s) -> AutoMDM", r.Method, r.URL.String(), udid)
 		if m.debug {
-			log.Printf("Fleet request: %s", string(body))
+			log.Printf("AutoMDM request: %s", string(body))
 		}
-		m.fleetProxy.ServeHTTP(w, r)
+		m.automdmProxy.ServeHTTP(w, r)
 	} else {
 		log.Printf("%s %s (%s) -> Existing", r.Method, r.URL.String(), udid)
 		m.existingProxy.ServeHTTP(w, r)
@@ -273,7 +273,7 @@ func udidIncludedByPercentage(udid string, percentage int) bool {
 func makeExistingProxy(existingURL, existingDNSName string) *httputil.ReverseProxy {
 	targetURL, err := url.Parse(existingURL)
 	if err != nil {
-		panic("failed to parse fleet-url: " + err.Error())
+		panic("failed to parse automdm-url: " + err.Error())
 	}
 	proxy := httputil.NewSingleHostReverseProxy(targetURL)
 
@@ -285,10 +285,10 @@ func makeExistingProxy(existingURL, existingDNSName string) *httputil.ReversePro
 	return proxy
 }
 
-func makeFleetProxy(fleetURL string, debug bool) *httputil.ReverseProxy {
-	targetURL, err := url.Parse(fleetURL)
+func makeAutoMDMProxy(automdmURL string, debug bool) *httputil.ReverseProxy {
+	targetURL, err := url.Parse(automdmURL)
 	if err != nil {
-		panic("failed to parse fleet-url: " + err.Error())
+		panic("failed to parse automdm-url: " + err.Error())
 	}
 	proxy := httputil.NewSingleHostReverseProxy(targetURL)
 	if debug {
@@ -303,7 +303,7 @@ func makeFleetProxy(fleetURL string, debug bool) *httputil.ReverseProxy {
 			}
 			r.Body = io.NopCloser(bytes.NewReader(b))
 
-			log.Println("Fleet response: ", string(b))
+			log.Println("AutoMDM response: ", string(b))
 
 			return nil
 		}
@@ -316,8 +316,8 @@ func main() {
 	authToken := flag.String("auth-token", "", "Auth token for remote flag updates (remote updates disabled if not provided)")
 	existingURL := flag.String("existing-url", "", "Existing MDM server URL (full path) (required)")
 	existingHostname := flag.String("existing-hostname", "", "Hostname for existing MDM server (eg. 'mdm.example.com') (required)")
-	fleetURL := flag.String("fleet-url", "", "Fleet MDM server URL (full path) (required)")
-	migratePercentage := flag.Int("migrate-percentage", 0, "Percentage of clients to migrate from existing MDM to Fleet")
+	automdmURL := flag.String("automdm-url", "", "AutoMDM server URL (full path) (required)")
+	migratePercentage := flag.Int("migrate-percentage", 0, "Percentage of clients to migrate from existing MDM to AutoMDM")
 	migrateUDIDs := flag.String("migrate-udids", "", "Space/newline-delimited list of UDIDs to migrate always")
 	serverAddr := flag.String("server-address", ":8080", "Address for server to listen on")
 	debug := flag.Bool("debug", false, "Enable debug logging")
@@ -333,12 +333,12 @@ func main() {
 	proxy := mdmProxy{
 		token:             *authToken,
 		existingServerURL: *existingURL,
-		fleetServerURL:    *fleetURL,
+		automdmServerURL:  *automdmURL,
 		existingHostname:  *existingHostname,
 		migratePercentage: *migratePercentage,
 		migrateUDIDs:      udids,
 		existingProxy:     makeExistingProxy(*existingURL, *existingHostname),
-		fleetProxy:        makeFleetProxy(*fleetURL, *debug),
+		automdmProxy:      makeAutoMDMProxy(*automdmURL, *debug),
 		debug:             *debug,
 		logSkipped:        *logSkipped,
 	}
@@ -359,15 +359,15 @@ func main() {
 	if *existingHostname == "" {
 		log.Fatal("--existing-hostname must be set")
 	}
-	if *fleetURL == "" {
-		log.Fatal("--fleet-url must be set")
+	if *automdmURL == "" {
+		log.Fatal("--automdm-url must be set")
 	}
 
 	log.Printf("--migrate-udids set: %v", udids)
 	log.Printf("--migrate-percentage set: %d", *migratePercentage)
 	log.Printf("--existing-url set: %s", *existingURL)
 	log.Printf("--existing-hostname set: %s", *existingHostname)
-	log.Printf("--fleet-url set: %s", *fleetURL)
+	log.Printf("--automdm-url set: %s", *automdmURL)
 	log.Printf("--debug set: %v", *debug)
 	log.Printf("--log-skipped set: %v", *logSkipped)
 	if *authToken != "" {

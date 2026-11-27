@@ -6,12 +6,12 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/fleetdm/fleet/v4/server/chart/api"
-	"github.com/fleetdm/fleet/v4/server/chart/internal/mysql"
-	"github.com/fleetdm/fleet/v4/server/chart/internal/service"
-	platform_authz "github.com/fleetdm/fleet/v4/server/platform/authz"
-	eu "github.com/fleetdm/fleet/v4/server/platform/endpointer"
-	platform_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/chart/api"
+	"github.com/anilyagiz/automdm/v4/server/chart/internal/mysql"
+	"github.com/anilyagiz/automdm/v4/server/chart/internal/service"
+	platform_authz "github.com/anilyagiz/automdm/v4/server/platform/authz"
+	eu "github.com/anilyagiz/automdm/v4/server/platform/endpointer"
+	platform_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
 	"github.com/go-kit/kit/endpoint"
 	"github.com/jmoiron/sqlx"
 )

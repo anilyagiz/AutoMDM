@@ -135,7 +135,7 @@ func collectBomPaths(srcDir string) ([]*bomPath, error) {
 		sort.Slice(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
 
 		for _, de := range entries {
-			// The fleetd payload is built only from files the packaging code
+			// The automdmd payload is built only from files the packaging code
 			// writes directly and from TUF target tarballs unpacked by
 			// extractTarGz, which rejects any tar entry that is not a regular
 			// file or directory. The orbit "current" symlink is created by the
@@ -159,7 +159,7 @@ func collectBomPaths(srcDir string) ([]*bomPath, error) {
 				if err != nil {
 					return err
 				}
-				p.size = uint32(len(contents)) //nolint:gosec // fleetd payload files are well under 4GB
+				p.size = uint32(len(contents)) //nolint:gosec // automdmd payload files are well under 4GB
 				p.checksum = bomChecksum(contents)
 			}
 			out = append(out, p)

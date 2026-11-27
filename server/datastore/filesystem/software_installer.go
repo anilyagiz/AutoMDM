@@ -8,15 +8,15 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 )
 
 const softwareInstallersPrefix = "software-installers"
 
 type installerNotFoundError struct{}
 
-var _ fleet.NotFoundError = (*installerNotFoundError)(nil)
+var _ automdm.NotFoundError = (*installerNotFoundError)(nil)
 
 func (p installerNotFoundError) Error() string {
 	return "installer not found"

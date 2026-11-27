@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/config"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -18,14 +18,14 @@ import (
 // The router registers the stdlib mux with the per-version expansions of a route template but hands WithRouteTag the
 // unexpanded template, so these two spellings of one route disagree. That mismatch is what these tests pin down.
 const (
-	stdlibPattern = "/api/latest/fleet/hosts/{id}"
-	routeTemplate = "/api/{fleetversion:(?:v1|2022-04|latest)}/fleet/hosts/{id:[0-9]+}"
+	stdlibPattern = "/api/latest/automdm/hosts/{id}"
+	routeTemplate = "/api/{automdmversion:(?:v1|2022-04|latest)}/automdm/hosts/{id:[0-9]+}"
 )
 
 // TestWithRouteTag serves the two production wrappings through a stdlib ServeMux, which is what populates r.Pattern. The span
 // column is the only one WithRouteTag controls, and WrapHandler on its own has to leave both columns to otelhttp.
 func TestWithRouteTag(t *testing.T) {
-	cfg := config.FleetConfig{}
+	cfg := config.AutoMDMConfig{}
 	cfg.Logging.TracingEnabled = true
 	require.True(t, cfg.OTELEnabled())
 
@@ -60,7 +60,7 @@ func TestWithRouteTag(t *testing.T) {
 
 			mux := http.NewServeMux()
 			mux.Handle(stdlibPattern, tc.wrap(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })))
-			mux.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "http://example.com/api/latest/fleet/hosts/42", nil))
+			mux.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "http://example.com/api/latest/automdm/hosts/42", nil))
 			require.NoError(t, tracerProvider.ForceFlush(t.Context()))
 
 			ended := spans.Ended()

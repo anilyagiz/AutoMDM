@@ -1,15 +1,15 @@
-# This workflow can be used to test DB upgrades between two Fleet versions.
+# This workflow can be used to test DB upgrades between two AutoMDM versions.
 name: DB upgrade test
 
 on:
   workflow_dispatch: # allow manual action
     inputs:
       from-version:
-        description: "Docker tag of Fleet starting version, e.g. 'v4.64.2'"
+        description: "Docker tag of AutoMDM starting version, e.g. 'v4.64.2'"
         required: true
         type: string
       to-version:
-        description: "Docker tag of Fleet version to upgrade to, e.g. 'rc-minor-fleet-v4.65.0'"
+        description: "Docker tag of AutoMDM version to upgrade to, e.g. 'rc-minor-automdm-v4.65.0'"
         required: true
         type: string
 
@@ -44,4 +44,4 @@ jobs:
       - name: Run upgrade test
         run: |
           cd tools/upgrade
-          FLEET_VERSION_A=${{ github.event.inputs.from-version }} FLEET_VERSION_B=${{ github.event.inputs.to-version }} go test -v
+          AUTOMDM_VERSION_A=${{ github.event.inputs.from-version }} AUTOMDM_VERSION_B=${{ github.event.inputs.to-version }} go test -v

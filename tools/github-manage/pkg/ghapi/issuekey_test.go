@@ -3,14 +3,14 @@ package ghapi
 import "testing"
 
 func TestIssueRefKey(t *testing.T) {
-	if got := IssueRefKey("fleetdm/fleet", 123); got != "fleetdm/fleet#123" {
+	if got := IssueRefKey("automdm/automdm", 123); got != "fleetdm/fleet#123" {
 		t.Errorf("IssueRefKey = %q", got)
 	}
 	// Case-insensitive: GitHub repo names are, so the key must normalize.
-	if IssueRefKey("FleetDM/Fleet", 123) != IssueRefKey("fleetdm/fleet", 123) {
+	if IssueRefKey("AutoMDM/AutoMDM", 123) != IssueRefKey("automdm/automdm", 123) {
 		t.Error("IssueRefKey should be case-insensitive on the repo")
 	}
-	if got := IssueRefKey("fleetdm/fleet", 0); got != "" {
+	if got := IssueRefKey("automdm/automdm", 0); got != "" {
 		t.Errorf("number 0 (draft) should have no key, got %q", got)
 	}
 }
@@ -29,13 +29,13 @@ func TestProjectItemRepoFullNameAndKey(t *testing.T) {
 		},
 		{
 			"from Repository URL field",
-			ProjectItem{Repository: "https://github.com/fleetdm/fleet", Content: ProjectItemContent{Number: 7}},
-			"fleetdm/fleet", "fleetdm/fleet#7",
+			ProjectItem{Repository: "https://github.com/anilyagiz/automdm", Content: ProjectItemContent{Number: 7}},
+			"automdm/automdm", "fleetdm/fleet#7",
 		},
 		{
 			"from bare owner/name Repository field",
-			ProjectItem{Repository: "fleetdm/fleet", Content: ProjectItemContent{Number: 7}},
-			"fleetdm/fleet", "fleetdm/fleet#7",
+			ProjectItem{Repository: "automdm/automdm", Content: ProjectItemContent{Number: 7}},
+			"automdm/automdm", "fleetdm/fleet#7",
 		},
 		{
 			"unknown repo still keys by number",

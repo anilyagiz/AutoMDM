@@ -2,9 +2,9 @@
 
 Cluster-aware Redis stress tool with two modes.
 
-Both modes use Fleet's own `redis.NewPool` (`server/datastore/redis`), so
+Both modes use AutoMDM's own `redis.NewPool` (`server/datastore/redis`), so
 cluster topology, redirection handling, and connection routing match what the
-real Fleet server does in production.
+real AutoMDM server does in production.
 
 ## Modes
 
@@ -52,13 +52,13 @@ conn2 := pool.Get(); conn2.Do("GET", k);                conn2.Close()
 ```
 
 and counts any `GET` that returns `nil` immediately after a successful `SET`
-on the same key. This mirrors how Fleet's
+on the same key. This mirrors how AutoMDM's
 `server/service/redis_key_value.RedisKeyValue` does its `Set` / `Get` —
 fresh connection per call.
 
 ```sh
 # default — cluster mode, reads through ConfigureDoer (i.e., not explicitly
-# routed to replicas; same path Fleet uses today)
+# routed to replicas; same path AutoMDM uses today)
 go run ./tools/redis-stress race -addr 127.0.0.1:7001 -workers 50 -iterations 2000
 
 # explicit replica reads — useful for testing what a deployment with an
@@ -114,7 +114,7 @@ docker compose -f docker-compose.yml -f docker-compose-redis-cluster.yml up -d \
 Verify the cluster came up:
 
 ```sh
-docker exec fleet-redis-cluster-1-1 redis-cli -p 7001 cluster info | grep cluster_state
+docker exec automdm-redis-cluster-1-1 redis-cli -p 7001 cluster info | grep cluster_state
 # cluster_state:ok
 ```
 
@@ -136,10 +136,10 @@ deployment where reads can fall behind writes), pause one of the replica
 nodes mid-test:
 
 ```sh
-docker pause fleet-redis-cluster-4-1
+docker pause automdm-redis-cluster-4-1
 go run ./tools/redis-stress race \
   -addr 127.0.0.1:7001 -explicit-readonly -workers 20 -iterations 500
-docker unpause fleet-redis-cluster-4-1
+docker unpause automdm-redis-cluster-4-1
 ```
 
 With `-explicit-readonly` *and* a paused replica, you should see non-zero

@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/Masterminds/semver/v3"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/nvd/tools/wfn"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/nvd/tools/wfn"
 )
 
 // CPEMatchingRuleSpec allows you to match against a CPE. Version ranges are supported via SemVer constraints.
@@ -61,7 +61,7 @@ func (rule CPEMatchingRule) CPEMatches(cpeMeta *wfn.Attributes) bool {
 		return !rule.IgnoreIf(cpeMeta)
 	}
 
-	ver, err := fleet.VersionToSemverVersion(wfn.StripSlashes(cpeMeta.Version))
+	ver, err := automdm.VersionToSemverVersion(wfn.StripSlashes(cpeMeta.Version))
 	if err != nil {
 		return false
 	}

@@ -90,7 +90,7 @@ const getProfileMessageSuffix = (
   if (isPremiumTier) {
     messageSuffix = teamName ? (
       <>
-        {platformDisplayName} hosts assigned to the <b>{teamName}</b> fleet
+        {platformDisplayName} hosts assigned to the <b>{teamName}</b> team
       </>
     ) : (
       <>unassigned {platformDisplayName} hosts</>
@@ -103,7 +103,7 @@ const getHostTeamAssignmentSuffix = (teamName?: string | null) => {
   return teamName ? (
     <>
       {" "}
-      assigned to the <b>{teamName}</b> fleet
+      assigned to the <b>{teamName}</b> team
     </>
   ) : (
     <> that are unassigned</>
@@ -119,10 +119,10 @@ const getEditedProfileMessage = (
   const suffix = getProfileMessageSuffix(
     isPremiumTier,
     platform,
-    activity.details?.fleet_name
+    activity.details?.team_name
   );
   // profile_name is set only when a single profile was edited in place;
-  // fleetctl/GitOps batch edits omit it
+  // automdmctl/GitOps batch edits omit it
   if (profileName) {
     return (
       <>
@@ -131,7 +131,7 @@ const getEditedProfileMessage = (
       </>
     );
   }
-  return <> edited configuration profiles for {suffix} via fleetctl.</>;
+  return <> edited configuration profiles for {suffix} via automdmctl.</>;
 };
 
 // Returns the display label for a historical-dataset config key. Known keys
@@ -159,7 +159,7 @@ const getMacOSSetupAssistantMessage = (
   const suffix = teamName ? (
     <>
       {" "}
-      that automatically enroll to the <b>{teamName}</b> fleet
+      that automatically enroll to the <b>{teamName}</b> team
     </>
   ) : (
     <>that automatically enroll to unassigned</>
@@ -227,29 +227,29 @@ const TAGGED_TEMPLATES = {
     );
   },
   editPackCtlActivityTemplate: () => {
-    return "edited a pack using fleetctl.";
+    return "edited a pack using automdmctl.";
   },
   editPolicyCtlActivityTemplate: () => {
-    return "edited policies using fleetctl.";
+    return "edited policies using automdmctl.";
   },
   editQueryCtlActivityTemplate: (activity: IActivity) => {
     const count = activity.details?.specs?.length;
     return typeof count === "undefined" || count === 1
-      ? "edited a report using fleetctl."
-      : "edited reports using fleetctl.";
+      ? "edited a report using automdmctl."
+      : "edited reports using automdmctl.";
   },
   editSoftwareCtlActivityTemplate: () => {
-    return "edited software using fleetctl.";
+    return "edited software using automdmctl.";
   },
   editTeamCtlActivityTemplate: (activity: IActivity) => {
-    const count = activity.details?.fleets?.length;
-    return count === 1 && activity.details?.fleets ? (
+    const count = activity.details?.teams?.length;
+    return count === 1 && activity.details?.teams ? (
       <>
-        edited the <b>{activity.details?.fleets[0].name}</b> fleet using
-        fleetctl.
+        edited the <b>{activity.details?.teams[0].name}</b> team using
+        automdmctl.
       </>
     ) : (
-      `edited multiple fleets using fleetctl.`
+      `edited multiple teams using automdmctl.`
     );
   },
   editAgentOptions: (activity: IActivity) => {
@@ -257,12 +257,12 @@ const TAGGED_TEMPLATES = {
       "edited agent options."
     ) : (
       <>
-        edited agent options on <b>{activity.details?.fleet_name}</b> fleet.
+        edited agent options on <b>{activity.details?.team_name}</b> team.
       </>
     );
   },
   userAddedBySSOTempalte: () => {
-    return "was added to Fleet by SSO.";
+    return "was added to AutoMDM by SSO.";
   },
   userLoggedIn: (activity: IActivity) => {
     return (
@@ -363,7 +363,7 @@ const TAGGED_TEMPLATES = {
       return (
         <>
           was assigned the <b>{role}</b> role
-          {isPremiumTier && " for all fleets"}
+          {isPremiumTier && " for all teams"}
           {jit && " via just-in-time (JIT) provisioning"}.
         </>
       );
@@ -371,7 +371,7 @@ const TAGGED_TEMPLATES = {
     return (
       <>
         changed <b>{user_email}</b> to <b>{role}</b>
-        {isPremiumTier && " for all fleets"}.
+        {isPremiumTier && " for all teams"}.
       </>
     );
   },
@@ -382,7 +382,7 @@ const TAGGED_TEMPLATES = {
       return (
         <>
           was removed as <b>{role}</b>
-          {isPremiumTier && " for all fleets"}
+          {isPremiumTier && " for all teams"}
           {jit && " via just-in-time (JIT) provisioning"}.
         </>
       );
@@ -390,42 +390,42 @@ const TAGGED_TEMPLATES = {
     return (
       <>
         removed <b>{user_email}</b> as <b>{role}</b>
-        {isPremiumTier && " for all fleets"}.
+        {isPremiumTier && " for all teams"}.
       </>
     );
   },
   userChangedTeamRole: (activity: IActivity) => {
-    const { user_email, role, fleet_name, jit } = activity.details || {};
+    const { user_email, role, team_name, jit } = activity.details || {};
 
     if (isPassiveRoleActivity(activity)) {
       return (
         <>
-          was assigned the <b>{role}</b> role for the <b>{fleet_name}</b> fleet
+          was assigned the <b>{role}</b> role for the <b>{team_name}</b> team
           {jit && " via just-in-time (JIT) provisioning"}.
         </>
       );
     }
     return (
       <>
-        changed <b>{user_email}</b> to <b>{role}</b> for the <b>{fleet_name}</b>{" "}
-        fleet.
+        changed <b>{user_email}</b> to <b>{role}</b> for the <b>{team_name}</b>{" "}
+        team.
       </>
     );
   },
   userDeletedTeamRole: (activity: IActivity) => {
-    const { user_email, fleet_name, jit } = activity.details || {};
+    const { user_email, team_name, jit } = activity.details || {};
 
     if (isPassiveRoleActivity(activity)) {
       return (
         <>
-          was removed from the <b>{fleet_name}</b> fleet
+          was removed from the <b>{team_name}</b> team
           {jit && " via just-in-time (JIT) provisioning"}.
         </>
       );
     }
     return (
       <>
-        removed <b>{user_email}</b> from the <b>{fleet_name}</b> fleet.
+        removed <b>{user_email}</b> from the <b>{team_name}</b> team.
       </>
     );
   },
@@ -451,19 +451,19 @@ const TAGGED_TEMPLATES = {
     }
     return <>rejected an enrollment for {host}.</>;
   },
-  fleetEnrolled: (activity: IActivity) => {
+  automdmEnrolled: (activity: IActivity) => {
     const { host_display_name, host_serial } = activity.details || {};
     if (!host_display_name) {
       return host_serial ? (
         <>
-          A host with serial number <b>{host_serial}</b> enrolled in Fleet.
+          A host with serial number <b>{host_serial}</b> enrolled in AutoMDM.
         </>
       ) : (
-        <>A host enrolled in Fleet.</>
+        <>A host enrolled in AutoMDM.</>
       );
     }
     // Skip the serial suffix if the display name already ends with " (serial)"
-    // (the "Model (Serial)" fallback format from fleet.HostDisplayName).
+    // (the "Model (Serial)" fallback format from team.HostDisplayName).
     const showSerial =
       !!host_serial && !host_display_name.endsWith(`(${host_serial})`);
     return (
@@ -472,7 +472,7 @@ const TAGGED_TEMPLATES = {
           {host_display_name}
           {showSerial ? ` (${host_serial})` : ""}
         </b>{" "}
-        enrolled in Fleet.
+        enrolled in AutoMDM.
       </>
     );
   },
@@ -485,7 +485,7 @@ const TAGGED_TEMPLATES = {
       ? "automatic"
       : "manual";
     // Skip the serial suffix if the display name already ends with " (serial)"
-    // (the "Model (Serial)" fallback format from fleet.HostDisplayName).
+    // (the "Model (Serial)" fallback format from team.HostDisplayName).
     const showSerial =
       !!host_display_name &&
       !!host_serial &&
@@ -509,7 +509,7 @@ const TAGGED_TEMPLATES = {
     if (isAndroid(platform) || isIPadOrIPhone(platform)) {
       return (
         <>
-          <b>{host_display_name}</b> enrolled to Fleet.
+          <b>{host_display_name}</b> enrolled to AutoMDM.
         </>
       );
     }
@@ -541,12 +541,12 @@ const TAGGED_TEMPLATES = {
     if (isAndroid(platform) || isIPadOrIPhone(platform)) {
       return actor_full_name ? (
         <>
-          <b>{actor_full_name}</b> told Fleet to unenroll{" "}
+          <b>{actor_full_name}</b> told AutoMDM to unenroll{" "}
           <b>{host_display_name}.</b>
         </>
       ) : (
         <>
-          <b>{host_display_name}</b> is unenrolled from Fleet.
+          <b>{host_display_name}</b> is unenrolled from AutoMDM.
         </>
       );
     }
@@ -555,7 +555,7 @@ const TAGGED_TEMPLATES = {
       <>
         {actor_full_name ? (
           <>
-            <b>{actor_full_name}</b> told Fleet to turn off mobile device
+            <b>{actor_full_name}</b> told AutoMDM to turn off mobile device
             management (MDM) for
           </>
         ) : (
@@ -583,9 +583,9 @@ const TAGGED_TEMPLATES = {
       <>(deadline: {activity.details.deadline})</>
     ) : null;
 
-    const teamSection = activity.details?.fleet_id ? (
+    const teamSection = activity.details?.team_id ? (
       <>
-        the <b>{activity.details.fleet_name}</b> fleet
+        the <b>{activity.details.team_name}</b> team
       </>
     ) : (
       <>unassigned</>
@@ -616,9 +616,9 @@ const TAGGED_TEMPLATES = {
     applePlatform: AppleDisplayPlatform,
     activity: IActivity
   ) => {
-    const teamSection = activity.details?.fleet_id ? (
+    const teamSection = activity.details?.team_id ? (
       <>
-        the <b>{activity.details.fleet_name}</b> fleet
+        the <b>{activity.details.team_name}</b> team
       </>
     ) : (
       <>unassigned</>
@@ -637,9 +637,9 @@ const TAGGED_TEMPLATES = {
     applePlatform: AppleDisplayPlatform,
     activity: IActivity
   ) => {
-    const teamSection = activity.details?.fleet_id ? (
+    const teamSection = activity.details?.team_id ? (
       <>
-        the <b>{activity.details.fleet_name}</b> fleet
+        the <b>{activity.details.team_name}</b> team
       </>
     ) : (
       <>unassigned</>
@@ -750,10 +750,10 @@ const TAGGED_TEMPLATES = {
       <>
         {" "}
         enabled managed local accounts for{" "}
-        {activity.details?.fleet_name ? (
+        {activity.details?.team_name ? (
           <>
             {platformDisplay} hosts assigned to the{" "}
-            <b>{activity.details.fleet_name}</b> fleet.
+            <b>{activity.details.team_name}</b> team.
           </>
         ) : (
           `unassigned ${platformDisplay} hosts.`
@@ -769,10 +769,10 @@ const TAGGED_TEMPLATES = {
       <>
         {" "}
         disabled managed local accounts for{" "}
-        {activity.details?.fleet_name ? (
+        {activity.details?.team_name ? (
           <>
             {platformDisplay} hosts assigned to the{" "}
-            <b>{activity.details.fleet_name}</b> fleet.
+            <b>{activity.details.team_name}</b> team.
           </>
         ) : (
           `unassigned ${platformDisplay} hosts.`
@@ -841,7 +841,7 @@ const TAGGED_TEMPLATES = {
         {getProfileMessageSuffix(
           isPremiumTier,
           "apple",
-          activity.details?.fleet_name
+          activity.details?.team_name
         )}
         .
       </>
@@ -864,7 +864,7 @@ const TAGGED_TEMPLATES = {
         {getProfileMessageSuffix(
           isPremiumTier,
           "apple",
-          activity.details?.fleet_name
+          activity.details?.team_name
         )}
         .
       </>
@@ -890,7 +890,7 @@ const TAGGED_TEMPLATES = {
         {getProfileMessageSuffix(
           isPremiumTier,
           "android",
-          activity.details?.fleet_name
+          activity.details?.team_name
         )}
         .
       </>
@@ -913,7 +913,7 @@ const TAGGED_TEMPLATES = {
         {getProfileMessageSuffix(
           isPremiumTier,
           "android",
-          activity.details?.fleet_name
+          activity.details?.team_name
         )}
         .
       </>
@@ -930,9 +930,9 @@ const TAGGED_TEMPLATES = {
         {getProfileMessageSuffix(
           isPremiumTier,
           "android",
-          activity.details?.fleet_name
+          activity.details?.team_name
         )}{" "}
-        via fleetctl.
+        via automdmctl.
       </>
     );
   },
@@ -992,7 +992,7 @@ const TAGGED_TEMPLATES = {
         {getProfileMessageSuffix(
           isPremiumTier,
           "windows",
-          activity.details?.fleet_name
+          activity.details?.team_name
         )}
         .
       </>
@@ -1015,7 +1015,7 @@ const TAGGED_TEMPLATES = {
         {getProfileMessageSuffix(
           isPremiumTier,
           "windows",
-          activity.details?.fleet_name
+          activity.details?.team_name
         )}
         .
       </>
@@ -1033,12 +1033,12 @@ const TAGGED_TEMPLATES = {
       windows: "Windows",
       linux: "Linux",
     };
-    // a null platform means the activity was recorded before Fleet 4.92, when
+    // a null platform means the activity was recorded before AutoMDM 4.92, when
     // one setting covered every platform. An unexpected value renders as-is.
     const platformDisplay = platform
       ? displayNames[platform] ?? platform
       : "all";
-    const suffix = getHostTeamAssignmentSuffix(activity.details?.fleet_name);
+    const suffix = getHostTeamAssignmentSuffix(activity.details?.team_name);
     return (
       <>
         edited disk encryption settings for {platformDisplay} hosts{suffix}.
@@ -1046,25 +1046,25 @@ const TAGGED_TEMPLATES = {
     );
   },
   enabledRecoveryLockPasswords: (activity: IActivity) => {
-    const suffix = getHostTeamAssignmentSuffix(activity.details?.fleet_name);
+    const suffix = getHostTeamAssignmentSuffix(activity.details?.team_name);
     return <>enforced Recovery Lock passwords for hosts {suffix}.</>;
   },
   disabledRecoveryLockPasswords: (activity: IActivity) => {
-    const suffix = getHostTeamAssignmentSuffix(activity.details?.fleet_name);
+    const suffix = getHostTeamAssignmentSuffix(activity.details?.team_name);
     return <>removed Recovery Lock password enforcement for hosts {suffix}.</>;
   },
   changedMacOSSetupAssistant: (activity: IActivity) => {
     return getMacOSSetupAssistantMessage(
       "added",
       activity.details?.name,
-      activity.details?.fleet_name
+      activity.details?.team_name
     );
   },
   deletedMacOSSetupAssistant: (activity: IActivity) => {
     return getMacOSSetupAssistantMessage(
       "deleted",
       activity.details?.name,
-      activity.details?.fleet_name
+      activity.details?.team_name
     );
   },
   defaultActivityTemplate: (activity: IActivity) => {
@@ -1096,9 +1096,9 @@ const TAGGED_TEMPLATES = {
           ""
         )}
         for macOS hosts that automatically enroll to{" "}
-        {activity.details?.fleet_name ? (
+        {activity.details?.team_name ? (
           <>
-            the <b>{activity.details.fleet_name}</b> fleet
+            the <b>{activity.details.team_name}</b> team
           </>
         ) : (
           `unassigned`
@@ -1135,9 +1135,9 @@ const TAGGED_TEMPLATES = {
           ""
         )}
         for macOS hosts that automatically enroll to{" "}
-        {activity.details?.fleet_name ? (
+        {activity.details?.team_name ? (
           <>
-            the <b>{activity.details.fleet_name}</b> fleet
+            the <b>{activity.details.team_name}</b> team
           </>
         ) : (
           `unassigned`
@@ -1151,9 +1151,9 @@ const TAGGED_TEMPLATES = {
       <>
         {" "}
         required end user authentication for hosts that automatically enroll to{" "}
-        {activity.details?.fleet_name ? (
+        {activity.details?.team_name ? (
           <>
-            the <b>{activity.details.fleet_name}</b> fleet
+            the <b>{activity.details.team_name}</b> team
           </>
         ) : (
           `unassigned`
@@ -1164,15 +1164,15 @@ const TAGGED_TEMPLATES = {
   },
   enabledHistoricalDataset: (activity: IActivity) => {
     const datasetLabel = getHistoricalDatasetLabel(activity.details?.dataset);
-    const fleetName = activity.details?.fleet_name;
+    const automdmName = activity.details?.team_name;
     return (
       <>
         {" "}
         enabled data collection for <b>{datasetLabel}</b>
-        {fleetName ? (
+        {automdmName ? (
           <>
             {" "}
-            for the <b>{fleetName}</b> fleet
+            for the <b>{automdmName}</b> team
           </>
         ) : null}
         .
@@ -1181,15 +1181,15 @@ const TAGGED_TEMPLATES = {
   },
   disabledHistoricalDataset: (activity: IActivity) => {
     const datasetLabel = getHistoricalDatasetLabel(activity.details?.dataset);
-    const fleetName = activity.details?.fleet_name;
+    const automdmName = activity.details?.team_name;
     return (
       <>
         {" "}
         disabled data collection for <b>{datasetLabel}</b>
-        {fleetName ? (
+        {automdmName ? (
           <>
             {" "}
-            for the <b>{fleetName}</b> fleet
+            for the <b>{automdmName}</b> team
           </>
         ) : null}
         .
@@ -1202,9 +1202,9 @@ const TAGGED_TEMPLATES = {
         {" "}
         removed end user authentication requirement for hosts that automatically
         enroll to{" "}
-        {activity.details?.fleet_name ? (
+        {activity.details?.team_name ? (
           <>
-            the <b>{activity.details.fleet_name}</b> fleet
+            the <b>{activity.details.team_name}</b> team
           </>
         ) : (
           `unassigned`
@@ -1215,12 +1215,12 @@ const TAGGED_TEMPLATES = {
   },
   transferredHosts: (activity: IActivity) => {
     const hostNames = activity.details?.host_display_names || [];
-    const teamName = activity.details?.fleet_name;
+    const teamName = activity.details?.team_name;
     if (hostNames.length === 1) {
       return (
         <>
           {" "}
-          transferred host <b>{hostNames[0]}</b> to {teamName ? `fleet ` : ""}
+          transferred host <b>{hostNames[0]}</b> to {teamName ? `team ` : ""}
           <b>{teamName || `unassigned`}</b>.
         </>
       );
@@ -1228,7 +1228,7 @@ const TAGGED_TEMPLATES = {
     return (
       <>
         {" "}
-        transferred {hostNames.length} hosts to {teamName ? `fleet ` : ""}
+        transferred {hostNames.length} hosts to {teamName ? `team ` : ""}
         <b>{teamName || `unassigned`}</b>.
       </>
     );
@@ -1238,18 +1238,18 @@ const TAGGED_TEMPLATES = {
     return (
       <>
         {" "}
-        told Fleet to turn on MDM features for all Windows hosts (servers
+        told AutoMDM to turn on MDM features for all Windows hosts (servers
         excluded).
       </>
     );
   },
   disabledWindowsMdm: () => {
-    return <> told Fleet to turn off Windows MDM features.</>;
+    return <> told AutoMDM to turn off Windows MDM features.</>;
   },
   enabledGitOpsMode: () => "enabled GitOps mode in the UI.",
   disabledGitOpsMode: () => "disabled GitOps mode in the UI.",
-  ssoFleetDesktop: (state: string) =>
-    `${state} single sign-on (SSO) for Fleet Desktop.`,
+  ssoAutoMDMDesktop: (state: string) =>
+    `${state} single sign-on (SSO) for AutoMDM Desktop.`,
   enabledGitOpsException: (activity: IActivity) => {
     const exception = activity.details?.exception ?? "";
     return `enabled the ${exception} exception for GitOps.`;
@@ -1258,12 +1258,12 @@ const TAGGED_TEMPLATES = {
     const exception = activity.details?.exception ?? "";
     return `disabled the ${exception} exception for GitOps.`;
   },
-  editedWindowsEnrollmentDefaultFleet: (activity: IActivity) => {
+  editedWindowsEnrollmentDefaultTeam: (activity: IActivity) => {
     return (
       <>
         {" "}
-        edited the default fleet for Windows hosts to{" "}
-        <b>{activity.details?.fleet_name || "Unassigned"}</b>.
+        edited the default team for Windows hosts to{" "}
+        <b>{activity.details?.team_name || "Unassigned"}</b>.
       </>
     );
   },
@@ -1271,7 +1271,7 @@ const TAGGED_TEMPLATES = {
     return (
       <>
         {" "}
-        told Fleet to automatically migrate Windows hosts connected to another
+        told AutoMDM to automatically migrate Windows hosts connected to another
         MDM solution.
       </>
     );
@@ -1280,7 +1280,7 @@ const TAGGED_TEMPLATES = {
     return (
       <>
         {" "}
-        told Fleet to stop migrating Windows hosts connected to another MDM
+        told AutoMDM to stop migrating Windows hosts connected to another MDM
         solution.
       </>
     );
@@ -1361,9 +1361,9 @@ const TAGGED_TEMPLATES = {
           "a script "
         )}
         to{" "}
-        {activity.details?.fleet_name ? (
+        {activity.details?.team_name ? (
           <>
-            the <b>{activity.details.fleet_name}</b> fleet
+            the <b>{activity.details.team_name}</b> team
           </>
         ) : (
           `unassigned`
@@ -1386,9 +1386,9 @@ const TAGGED_TEMPLATES = {
           "a script "
         )}
         for{" "}
-        {activity.details?.fleet_name ? (
+        {activity.details?.team_name ? (
           <>
-            the <b>{activity.details.fleet_name}</b> fleet
+            the <b>{activity.details.team_name}</b> team
           </>
         ) : (
           `unassigned`
@@ -1411,9 +1411,9 @@ const TAGGED_TEMPLATES = {
           "a script "
         )}
         from{" "}
-        {activity.details?.fleet_name ? (
+        {activity.details?.team_name ? (
           <>
-            the <b>{activity.details.fleet_name}</b> fleet
+            the <b>{activity.details.team_name}</b> team
           </>
         ) : (
           `unassigned`
@@ -1427,14 +1427,14 @@ const TAGGED_TEMPLATES = {
       <>
         {" "}
         edited scripts for{" "}
-        {activity.details?.fleet_name ? (
+        {activity.details?.team_name ? (
           <>
-            the <b>{activity.details.fleet_name}</b> fleet
+            the <b>{activity.details.team_name}</b> team
           </>
         ) : (
           `unassigned`
         )}{" "}
-        via fleetctl.
+        via automdmctl.
       </>
     );
   },
@@ -1442,9 +1442,9 @@ const TAGGED_TEMPLATES = {
     const deadlineDays = activity.details?.deadline_days;
     const gracePeriodDays = activity.details?.grace_period_days;
     const isCleared = deadlineDays === undefined || deadlineDays === null;
-    const teamText = activity.details?.fleet_name ? (
+    const teamText = activity.details?.team_name ? (
       <>
-        the <b>{activity.details.fleet_name}</b> fleet
+        the <b>{activity.details.team_name}</b> team
       </>
     ) : (
       `unassigned`
@@ -1472,13 +1472,13 @@ const TAGGED_TEMPLATES = {
   },
   deletedMultipleSavedQuery: (activity: IActivity) => {
     let teamText;
-    if (activity.details?.fleet_id === -1) {
+    if (activity.details?.team_id === -1) {
       teamText = " globally";
-    } else if (activity.details?.fleet_name) {
+    } else if (activity.details?.team_name) {
       teamText = (
         <>
           {" "}
-          on the <b>{activity.details.fleet_name}</b> fleet
+          on the <b>{activity.details.team_name}</b> team
         </>
       );
     } else {
@@ -1558,7 +1558,7 @@ const TAGGED_TEMPLATES = {
         {getProfileMessageSuffix(
           isPremiumTier,
           "apple",
-          activity.details?.fleet_name
+          activity.details?.team_name
         )}
         .
       </>
@@ -1573,7 +1573,7 @@ const TAGGED_TEMPLATES = {
         {getProfileMessageSuffix(
           isPremiumTier,
           "apple",
-          activity.details?.fleet_name
+          activity.details?.team_name
         )}
         .
       </>
@@ -1584,10 +1584,10 @@ const TAGGED_TEMPLATES = {
     const suffix = getProfileMessageSuffix(
       isPremiumTier,
       "apple",
-      activity.details?.fleet_name
+      activity.details?.team_name
     );
     // profile_name is set only when a single declaration was edited in
-    // place; fleetctl/GitOps batch edits omit it
+    // place; automdmctl/GitOps batch edits omit it
     if (profileName) {
       return (
         <>
@@ -1597,11 +1597,11 @@ const TAGGED_TEMPLATES = {
         </>
       );
     }
-    return <> edited declaration (DDM) profiles for {suffix} via fleetctl.</>;
+    return <> edited declaration (DDM) profiles for {suffix} via automdmctl.</>;
   },
 
   resentConfigProfile: (activity: IActivity) => {
-    const actor = activity.actor_full_name ? activity.actor_full_name : "Fleet";
+    const actor = activity.actor_full_name ? activity.actor_full_name : "AutoMDM";
     return (
       <>
         <b>{actor}</b> resent <b>{activity.details?.profile_name}</b> to{" "}
@@ -1637,9 +1637,9 @@ const TAGGED_TEMPLATES = {
       <>
         {" "}
         added <b>{activity.details?.software_package}</b> to{" "}
-        {activity.details?.fleet_name ? (
+        {activity.details?.team_name ? (
           <>
-            the <b>{activity.details?.fleet_name}</b> fleet.
+            the <b>{activity.details?.team_name}</b> team.
           </>
         ) : (
           `unassigned.`
@@ -1652,9 +1652,9 @@ const TAGGED_TEMPLATES = {
       <>
         {" "}
         edited <b>{activity.details?.software_package}</b> on{" "}
-        {activity.details?.fleet_name ? (
+        {activity.details?.team_name ? (
           <>
-            the <b>{activity.details?.fleet_name}</b> fleet.
+            the <b>{activity.details?.team_name}</b> team.
           </>
         ) : (
           `unassigned.`
@@ -1667,9 +1667,9 @@ const TAGGED_TEMPLATES = {
       <>
         {" "}
         deleted <b>{activity.details?.software_package}</b> from{" "}
-        {activity.details?.fleet_name ? (
+        {activity.details?.team_name ? (
           <>
-            the <b>{activity.details?.fleet_name}</b> fleet.
+            the <b>{activity.details?.team_name}</b> team.
           </>
         ) : (
           `unassigned.`
@@ -1834,16 +1834,16 @@ const TAGGED_TEMPLATES = {
     preposition: "to" | "in" | "from"
   ) => (activity: IActivity) => {
     const categoryName = activity.details?.self_service_category_name;
-    const fleetName = activity.details?.fleet_name;
+    const automdmName = activity.details?.team_name;
     return (
       <>
         {" "}
         {action} {categoryName ? <b>{categoryName}</b> : "a"} self-service
         category
-        {fleetName ? (
+        {automdmName ? (
           <>
             {" "}
-            {preposition} the <b>{fleetName}</b> fleet
+            {preposition} the <b>{automdmName}</b> team
           </>
         ) : null}
         .
@@ -1897,10 +1897,10 @@ const TAGGED_TEMPLATES = {
         {makeVersionSuffix(swPlatform, versionName)}{" "}
         {swPlatform ? `(${PLATFORM_DISPLAY_NAMES[swPlatform]}) ` : ""}
         to{" "}
-        {activity.details?.fleet_name ? (
+        {activity.details?.team_name ? (
           <>
             {" "}
-            the <b>{activity.details?.fleet_name}</b> fleet.
+            the <b>{activity.details?.team_name}</b> team.
           </>
         ) : (
           `unassigned.`
@@ -1926,10 +1926,10 @@ const TAGGED_TEMPLATES = {
         {makeVersionSuffix(platform, versionName)}{" "}
         {platform ? `(${PLATFORM_DISPLAY_NAMES[platform]}) ` : ""}
         on{" "}
-        {activity.details?.fleet_name ? (
+        {activity.details?.team_name ? (
           <>
             {" "}
-            the <b>{activity.details?.fleet_name}</b> fleet.
+            the <b>{activity.details?.team_name}</b> team.
           </>
         ) : (
           `unassigned.`
@@ -1955,10 +1955,10 @@ const TAGGED_TEMPLATES = {
         {makeVersionSuffix(platform, versionName)}{" "}
         {platform ? `(${PLATFORM_DISPLAY_NAMES[platform]}) ` : ""}
         from{" "}
-        {activity.details?.fleet_name ? (
+        {activity.details?.team_name ? (
           <>
             {" "}
-            the <b>{activity.details?.fleet_name}</b> fleet.
+            the <b>{activity.details?.team_name}</b> team.
           </>
         ) : (
           `unassigned.`
@@ -2033,7 +2033,7 @@ const TAGGED_TEMPLATES = {
     <> edited conditional access end user experience.</>
   ),
   enabledConditionalAccessAutomations: (activity: IActivity) => {
-    const teamName = activity.details?.fleet_name;
+    const teamName = activity.details?.team_name;
     return (
       <>
         {" "}
@@ -2041,7 +2041,7 @@ const TAGGED_TEMPLATES = {
         {teamName ? (
           <>
             {" "}
-            the <b>{teamName}</b> fleet
+            the <b>{teamName}</b> team
           </>
         ) : (
           `unassigned`
@@ -2051,7 +2051,7 @@ const TAGGED_TEMPLATES = {
     );
   },
   disabledConditionalAccessAutomations: (activity: IActivity) => {
-    const teamName = activity.details?.fleet_name;
+    const teamName = activity.details?.team_name;
     return (
       <>
         {" "}
@@ -2059,7 +2059,7 @@ const TAGGED_TEMPLATES = {
         {teamName ? (
           <>
             {" "}
-            the <b>{teamName}</b> fleet
+            the <b>{teamName}</b> team
           </>
         ) : (
           `unassigned`
@@ -2148,13 +2148,13 @@ const TAGGED_TEMPLATES = {
   },
   createdSavedQuery: (activity: IActivity) => {
     let teamText;
-    if (activity.details?.fleet_id === -1) {
+    if (activity.details?.team_id === -1) {
       teamText = " globally";
-    } else if (activity.details?.fleet_name) {
+    } else if (activity.details?.team_name) {
       teamText = (
         <>
           {" "}
-          on the <b>{activity.details.fleet_name}</b> fleet
+          on the <b>{activity.details.team_name}</b> team
         </>
       );
     } else {
@@ -2170,13 +2170,13 @@ const TAGGED_TEMPLATES = {
   },
   editedSavedQuery: (activity: IActivity) => {
     let teamText;
-    if (activity.details?.fleet_id === -1) {
+    if (activity.details?.team_id === -1) {
       teamText = " globally";
-    } else if (activity.details?.fleet_name) {
+    } else if (activity.details?.team_name) {
       teamText = (
         <>
           {" "}
-          on the <b>{activity.details.fleet_name}</b> fleet
+          on the <b>{activity.details.team_name}</b> team
         </>
       );
     } else {
@@ -2192,13 +2192,13 @@ const TAGGED_TEMPLATES = {
   },
   deletedSavedQuery: (activity: IActivity) => {
     let teamText;
-    if (activity.details?.fleet_id === -1) {
+    if (activity.details?.team_id === -1) {
       teamText = " globally";
-    } else if (activity.details?.fleet_name) {
+    } else if (activity.details?.team_name) {
       teamText = (
         <>
           {" "}
-          on the <b>{activity.details.fleet_name}</b> fleet
+          on the <b>{activity.details.team_name}</b> team
         </>
       );
     } else {
@@ -2214,20 +2214,20 @@ const TAGGED_TEMPLATES = {
   },
   createdPolicy: (activity: IActivity) => {
     let teamText;
-    if (activity.details?.fleet_id === -1) {
+    if (activity.details?.team_id === -1) {
       teamText = " globally";
-    } else if (activity.details?.fleet_id === 0) {
+    } else if (activity.details?.team_id === 0) {
       teamText = (
         <>
           {" "}
           for <b>Unassigned</b>
         </>
       );
-    } else if (activity.details?.fleet_name) {
+    } else if (activity.details?.team_name) {
       teamText = (
         <>
           {" "}
-          on the <b>{activity.details.fleet_name}</b> fleet
+          on the <b>{activity.details.team_name}</b> team
         </>
       );
     } else {
@@ -2244,20 +2244,20 @@ const TAGGED_TEMPLATES = {
   },
   editedPolicy: (activity: IActivity) => {
     let teamText;
-    if (activity.details?.fleet_id === -1) {
+    if (activity.details?.team_id === -1) {
       teamText = " globally";
-    } else if (activity.details?.fleet_id === 0) {
+    } else if (activity.details?.team_id === 0) {
       teamText = (
         <>
           {" "}
           for <b>Unassigned</b>
         </>
       );
-    } else if (activity.details?.fleet_name) {
+    } else if (activity.details?.team_name) {
       teamText = (
         <>
           {" "}
-          on the <b>{activity.details.fleet_name}</b> fleet
+          on the <b>{activity.details.team_name}</b> team
         </>
       );
     } else {
@@ -2274,20 +2274,20 @@ const TAGGED_TEMPLATES = {
   },
   deletedPolicy: (activity: IActivity) => {
     let teamText;
-    if (activity.details?.fleet_id === -1) {
+    if (activity.details?.team_id === -1) {
       teamText = " globally";
-    } else if (activity.details?.fleet_id === 0) {
+    } else if (activity.details?.team_id === 0) {
       teamText = (
         <>
           {" "}
           for <b>Unassigned</b>
         </>
       );
-    } else if (activity.details?.fleet_name) {
+    } else if (activity.details?.team_name) {
       teamText = (
         <>
           {" "}
-          on the <b>{activity.details.fleet_name}</b> fleet
+          on the <b>{activity.details.team_name}</b> team
         </>
       );
     } else {
@@ -2303,8 +2303,8 @@ const TAGGED_TEMPLATES = {
     );
   },
   resetPolicy: (activity: IActivity) => {
-    // A host-scoped reset is described by the host; the policy's fleet scope
-    // ("globally", "on the X fleet") would read as if all hosts were reset.
+    // A host-scoped reset is described by the host; the policy's team scope
+    // ("globally", "on the X team") would read as if all hosts were reset.
     if (activity.details?.host_display_name) {
       return (
         <>
@@ -2316,20 +2316,20 @@ const TAGGED_TEMPLATES = {
     }
 
     let teamText;
-    if (activity.details?.fleet_id === -1) {
+    if (activity.details?.team_id === -1) {
       teamText = " globally";
-    } else if (activity.details?.fleet_id === 0) {
+    } else if (activity.details?.team_id === 0) {
       teamText = (
         <>
           {" "}
           for <b>Unassigned</b>
         </>
       );
-    } else if (activity.details?.fleet_name) {
+    } else if (activity.details?.team_name) {
       teamText = (
         <>
           {" "}
-          on the <b>{activity.details.fleet_name}</b> fleet
+          on the <b>{activity.details.team_name}</b> team
         </>
       );
     } else {
@@ -2392,10 +2392,10 @@ const TAGGED_TEMPLATES = {
     );
   },
   createdLabel: (activity: IActivity) => {
-    const fleetText = activity.details?.fleet_name ? (
+    const automdmText = activity.details?.team_name ? (
       <>
         {" "}
-        on the <b>{activity.details.fleet_name}</b> fleet
+        on the <b>{activity.details.team_name}</b> team
       </>
     ) : (
       ""
@@ -2404,15 +2404,15 @@ const TAGGED_TEMPLATES = {
       <>
         {" "}
         created a label <b>{activity.details?.label_name}</b>
-        {fleetText}.
+        {automdmText}.
       </>
     );
   },
   editedLabel: (activity: IActivity) => {
-    const fleetText = activity.details?.fleet_name ? (
+    const automdmText = activity.details?.team_name ? (
       <>
         {" "}
-        on the <b>{activity.details.fleet_name}</b> fleet
+        on the <b>{activity.details.team_name}</b> team
       </>
     ) : (
       ""
@@ -2421,15 +2421,15 @@ const TAGGED_TEMPLATES = {
       <>
         {" "}
         edited the label <b>{activity.details?.label_name}</b>
-        {fleetText}.
+        {automdmText}.
       </>
     );
   },
   deletedLabel: (activity: IActivity) => {
-    const fleetText = activity.details?.fleet_name ? (
+    const automdmText = activity.details?.team_name ? (
       <>
         {" "}
-        on the <b>{activity.details.fleet_name}</b> fleet
+        on the <b>{activity.details.team_name}</b> team
       </>
     ) : (
       ""
@@ -2438,7 +2438,7 @@ const TAGGED_TEMPLATES = {
       <>
         {" "}
         deleted the label <b>{activity.details?.label_name}</b>
-        {fleetText}.
+        {automdmText}.
       </>
     );
   },
@@ -2494,7 +2494,7 @@ const TAGGED_TEMPLATES = {
     );
   },
   editedSetupExperienceSoftware: (activity: IActivity) => {
-    const { platform, fleet_name, fleet_id } = activity.details || {};
+    const { platform, team_name, team_id } = activity.details || {};
 
     let platformText = "";
     switch (platform) {
@@ -2515,11 +2515,11 @@ const TAGGED_TEMPLATES = {
       <>
         {" "}
         edited setup experience software for {platformText} hosts that enroll to{" "}
-        {fleet_id === API_NO_TEAM_ID ? (
+        {team_id === API_NO_TEAM_ID ? (
           `unassigned`
         ) : (
           <>
-            the <b>{fleet_name}</b> fleet
+            the <b>{team_name}</b> team
           </>
         )}
         .
@@ -2527,14 +2527,14 @@ const TAGGED_TEMPLATES = {
     );
   },
   createdSetupExperienceScript: (activity: IActivity) => {
-    const { script_name, fleet_name } = activity.details || {};
+    const { script_name, team_name } = activity.details || {};
     return (
       <>
         {" "}
         added setup experience script <b>{script_name}</b> for{" "}
-        {fleet_name ? (
+        {team_name ? (
           <>
-            the <b>{fleet_name}</b> fleet
+            the <b>{team_name}</b> team
           </>
         ) : (
           `unassigned`
@@ -2544,14 +2544,14 @@ const TAGGED_TEMPLATES = {
     );
   },
   deletedSetupExperienceScript: (activity: IActivity) => {
-    const { script_name, fleet_name } = activity.details || {};
+    const { script_name, team_name } = activity.details || {};
     return (
       <>
         {" "}
         deleted setup experience script <b>{script_name}</b> for{" "}
-        {fleet_name ? (
+        {team_name ? (
           <>
-            the <b>{fleet_name}</b> fleet
+            the <b>{team_name}</b> team
           </>
         ) : (
           `unassigned`
@@ -2572,10 +2572,10 @@ const TAGGED_TEMPLATES = {
     );
   },
   createdCert: (activity: IActivity) => {
-    const { name, fleet_name } = activity.details || {};
-    const teamText = fleet_name ? (
+    const { name, team_name } = activity.details || {};
+    const teamText = team_name ? (
       <>
-        assigned to the <b>{fleet_name}</b>
+        assigned to the <b>{team_name}</b>
       </>
     ) : (
       <>with no</>
@@ -2584,15 +2584,15 @@ const TAGGED_TEMPLATES = {
     return (
       <>
         added certificate {name ? <b>{name} </b> : ""}to Android hosts{" "}
-        {teamText} fleet.
+        {teamText} team.
       </>
     );
   },
   deletedCert: (activity: IActivity) => {
-    const { name, fleet_name } = activity.details || {};
-    const teamText = fleet_name ? (
+    const { name, team_name } = activity.details || {};
+    const teamText = team_name ? (
       <>
-        assigned to the <b>{fleet_name}</b>
+        assigned to the <b>{team_name}</b>
       </>
     ) : (
       <>with no</>
@@ -2601,19 +2601,19 @@ const TAGGED_TEMPLATES = {
     return (
       <>
         deleted certificate {name ? <b>{name} </b> : ""}from Android hosts{" "}
-        {teamText} fleet.
+        {teamText} team.
       </>
     );
   },
   editedEnrollSecrets: (activity: IActivity, isPremiumTier: boolean) => {
-    let { fleet_name } = activity.details || {};
-    if (isPremiumTier && !fleet_name) {
-      fleet_name = "Unassigned";
+    let { team_name } = activity.details || {};
+    if (isPremiumTier && !team_name) {
+      team_name = "Unassigned";
     }
-    const postFix = fleet_name ? (
+    const postFix = team_name ? (
       <>
         {" "}
-        for <b>{fleet_name}</b>
+        for <b>{team_name}</b>
       </>
     ) : (
       <></>
@@ -2728,9 +2728,9 @@ const TAGGED_TEMPLATES = {
       <>
         {" "}
         edited patch deadline for{" "}
-        {details.fleet_name ? (
+        {details.team_name ? (
           <>
-            <b>{details.fleet_name}</b> fleet
+            <b>{details.team_name}</b> team
           </>
         ) : (
           <b>Unassigned</b>
@@ -2758,7 +2758,7 @@ const getDetail = (activity: IActivity, isPremiumTier: boolean) => {
     case ActivityType.AppliedSpecSoftware: {
       return TAGGED_TEMPLATES.editSoftwareCtlActivityTemplate();
     }
-    case ActivityType.AppliedSpecFleet: {
+    case ActivityType.AppliedSpecTeam: {
       return TAGGED_TEMPLATES.editTeamCtlActivityTemplate(activity);
     }
     case ActivityType.EditedAgentOptions: {
@@ -2791,14 +2791,14 @@ const getDetail = (activity: IActivity, isPremiumTier: boolean) => {
     case ActivityType.UserDeletedGlobalRole: {
       return TAGGED_TEMPLATES.userDeletedGlobalRole(activity, isPremiumTier);
     }
-    case ActivityType.UserChangedFleetRole: {
+    case ActivityType.UserChangedTeamRole: {
       return TAGGED_TEMPLATES.userChangedTeamRole(activity);
     }
-    case ActivityType.UserDeletedFleetRole: {
+    case ActivityType.UserDeletedTeamRole: {
       return TAGGED_TEMPLATES.userDeletedTeamRole(activity);
     }
-    case ActivityType.FleetEnrolled: {
-      return TAGGED_TEMPLATES.fleetEnrolled(activity);
+    case ActivityType.AutoMDMEnrolled: {
+      return TAGGED_TEMPLATES.automdmEnrolled(activity);
     }
     case ActivityType.HostEnrollmentRejected: {
       return TAGGED_TEMPLATES.hostEnrollmentRejected(activity);
@@ -3001,11 +3001,11 @@ const getDetail = (activity: IActivity, isPremiumTier: boolean) => {
     case ActivityType.DisabledGitOpsMode: {
       return TAGGED_TEMPLATES.disabledGitOpsMode();
     }
-    case ActivityType.EnabledSSOFleetDesktop: {
-      return TAGGED_TEMPLATES.ssoFleetDesktop("enabled");
+    case ActivityType.EnabledSSOAutoMDMDesktop: {
+      return TAGGED_TEMPLATES.ssoAutoMDMDesktop("enabled");
     }
-    case ActivityType.DisabledSSOFleetDesktop: {
-      return TAGGED_TEMPLATES.ssoFleetDesktop("disabled");
+    case ActivityType.DisabledSSOAutoMDMDesktop: {
+      return TAGGED_TEMPLATES.ssoAutoMDMDesktop("disabled");
     }
     case ActivityType.EnabledGitOpsException: {
       return TAGGED_TEMPLATES.enabledGitOpsException(activity);
@@ -3019,8 +3019,8 @@ const getDetail = (activity: IActivity, isPremiumTier: boolean) => {
     case ActivityType.DisabledWindowsMdmMigration: {
       return TAGGED_TEMPLATES.disabledWindowsMdmMigration();
     }
-    case ActivityType.EditedWindowsEnrollmentDefaultFleet: {
-      return TAGGED_TEMPLATES.editedWindowsEnrollmentDefaultFleet(activity);
+    case ActivityType.EditedWindowsEnrollmentDefaultTeam: {
+      return TAGGED_TEMPLATES.editedWindowsEnrollmentDefaultTeam(activity);
     }
     case ActivityType.RanCustomMdmCommand: {
       return TAGGED_TEMPLATES.ranCustomMdmCommand(activity);
@@ -3379,14 +3379,14 @@ const GlobalActivityItem = ({
 
   const renderActivityPrefix = () => {
     const DEFAULT_ACTOR_DISPLAY = (
-      <b>{activity.fleet_initiated ? "Fleet" : activity.actor_full_name} </b>
+      <b>{activity.automdm_initiated ? "AutoMDM" : activity.actor_full_name} </b>
     );
 
     switch (activity.type) {
       case ActivityType.UserChangedGlobalRole:
       case ActivityType.UserDeletedGlobalRole:
-      case ActivityType.UserChangedFleetRole:
-      case ActivityType.UserDeletedFleetRole:
+      case ActivityType.UserChangedTeamRole:
+      case ActivityType.UserDeletedTeamRole:
         return isPassiveRoleActivity(activity) ? (
           <b>{activity.details?.user_email} </b>
         ) : (
@@ -3399,15 +3399,15 @@ const GlobalActivityItem = ({
         // template (e.g. "<title> was installed on <host> (self-service).")
         // without an actor prefix.
         if (activity.details?.self_service) return null;
-        // Auto-update installs are Fleet-initiated even if the stored actor
-        // says otherwise (e.g. legacy rows written before the fleet_initiated
+        // Auto-update installs are AutoMDM-initiated even if the stored actor
+        // says otherwise (e.g. legacy rows written before the automdm_initiated
         // flag was wired up).
-        if (activity.details?.from_auto_update) return <b>Fleet </b>;
+        if (activity.details?.from_auto_update) return <b>AutoMDM </b>;
         // A missing actor here means the initiating admin has been deleted
         // since the install was queued (the LEFT JOIN on users returns nil).
         // Trim so whitespace-only names also count as missing. Fall back to
-        // Fleet so the sentence doesn't render as a blank actor.
-        if (!activity.actor_full_name?.trim()) return <b>Fleet </b>;
+        // AutoMDM so the sentence doesn't render as a blank actor.
+        if (!activity.actor_full_name?.trim()) return <b>AutoMDM </b>;
         return DEFAULT_ACTOR_DISPLAY;
       case ActivityType.InstalledAllSelfServiceSoftware:
         // The template carries the "End user" subject for this roll-up.
@@ -3429,7 +3429,7 @@ const GlobalActivityItem = ({
       // these activities have more complicated logic to
       // determine if we display the actor name so we will handle that in the
       // template function
-      case ActivityType.FleetEnrolled:
+      case ActivityType.AutoMDMEnrolled:
       case ActivityType.MdmUnenrolled:
       case ActivityType.MdmEnrolled:
       case ActivityType.ResentConfigurationProfile:

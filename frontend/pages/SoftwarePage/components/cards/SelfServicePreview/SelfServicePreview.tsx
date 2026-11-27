@@ -4,7 +4,7 @@
  * Non-mobile preview modal:
  * - uses HTML/CSS instead for maintainability as the self-service UI changes
  * - dynamic name/icon
- * - shows a static "All" dropdown trigger when the fleet has categories, mirroring
+ * - shows a static "All" dropdown trigger when the team has categories, mirroring
  *   the CategoryFilter on the real self-service page
  *
  * Mobile preview modal:
@@ -63,7 +63,7 @@ const SelfServicePreview = ({
           <img
             className={`${baseClass}__preview-img--mobile`}
             src={PreviewSelfServiceMobileIcon}
-            alt="Preview icon on Fleet Desktop > Self service"
+            alt="Preview icon on AutoMDM Desktop > Self service"
           />
         </div>
         <div className={`${baseClass}__self-service-preview--mobile`}>
@@ -99,7 +99,7 @@ const SelfServicePreview = ({
           {hasCategories && (
             <div className={`${baseClass}__static-dropdown`} aria-hidden="true">
               <span className={`${baseClass}__static-dropdown-label`}>All</span>
-              <Icon name="chevron-down" color="ui-fleet-black-75" />
+              <Icon name="chevron-down" color="ui-automdm-black-75" />
             </div>
           )}
           <SearchField placeholder="Search by name" onChange={noop} disabled />

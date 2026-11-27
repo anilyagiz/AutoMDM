@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/version"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/server/version"
 	"github.com/stretchr/testify/require"
 )
 
@@ -34,7 +34,7 @@ func TestInstallerFilenameExtraction(t *testing.T) {
 	defer srv.Close()
 
 	// follow redirect and fall back to URL, after sanitization, when we don't have a content-disposition header
-	client := fleethttp.NewClient(fleethttp.WithTimeout(time.Second))
+	client := automdmhttp.NewClient(automdmhttp.WithTimeout(time.Second))
 	_, filename, err := DownloadInstaller(context.Background(), srv.URL+"/redirect", client)
 	require.NoError(t, err)
 	require.Equal(t, "redirected package.exe", filename)
@@ -64,8 +64,8 @@ func TestDownloadInstallerUserAgent(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client := fleethttp.NewClient(fleethttp.WithTimeout(time.Second))
+	client := automdmhttp.NewClient(automdmhttp.WithTimeout(time.Second))
 	_, _, err := DownloadInstaller(context.Background(), srv.URL+"/installer.pkg", client)
 	require.NoError(t, err)
-	require.Equal(t, "fleet/"+version.Version().Version+" Go-http-client/1.1", installerUserAgent())
+	require.Equal(t, "automdm/"+version.Version().Version+" Go-http-client/1.1", installerUserAgent())
 }

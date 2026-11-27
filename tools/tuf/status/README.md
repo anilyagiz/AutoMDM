@@ -1,7 +1,7 @@
 # TUF status
 
-The TUF status tool can be used to process information of a Fleet TUF repository hosted on AWS S3 or Cloudflare R2.
-The default URL is Fleet's TUF: https://updates.fleetctl.com.
+The TUF status tool can be used to process information of an AutoMDM TUF repository hosted on AWS S3 or Cloudflare R2.
+The default URL is AutoMDM's TUF: https://updates.automdmctl.com.
 
 # Get the version numbers of a channel
 

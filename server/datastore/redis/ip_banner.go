@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/gomodule/redigo/redis"
 )
 
@@ -19,7 +19,7 @@ import (
 // - The CheckBanned operation can be used before running a request to check whether an IP is banned.
 // - The RunRequest operation is to be executed with the result of every request (success or failure).
 type IPBanner struct {
-	pool      fleet.RedisPool
+	pool      automdm.RedisPool
 	keyPrefix string
 
 	// allowedConsecutiveFailuresCount is the allowed number of failed requests for an IP.
@@ -33,7 +33,7 @@ type IPBanner struct {
 
 // NewIPBanner creates an IPBanner backed by Redis.
 func NewIPBanner(
-	pool fleet.RedisPool,
+	pool automdm.RedisPool,
 	keyPrefix string,
 	allowedConsecutiveFailuresCount int,
 	allowedConsecutiveFailuresTimeWindow time.Duration,

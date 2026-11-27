@@ -12,14 +12,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/pkg/mdm/mdmtest"
-	"github.com/fleetdm/fleet/v4/server/datastore/redis/redistest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	microsoft_mdm "github.com/fleetdm/fleet/v4/server/mdm/microsoft"
-	"github.com/fleetdm/fleet/v4/server/platform/logging/testutils"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/service/contract"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/pkg/mdm/mdmtest"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis/redistest"
+	microsoft_mdm "github.com/anilyagiz/automdm/v4/server/mdm/microsoft"
+	"github.com/anilyagiz/automdm/v4/server/platform/logging/testutils"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/service/contract"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -46,8 +46,8 @@ func (s *integrationLoggerTestSuite) SetupSuite() {
 	redisPool := redistest.SetupRedis(s.T(), "zz", false, false, false)
 
 	users, server := RunServerForTestsWithDS(s.T(), s.ds, &TestServerOpts{
-		License: &fleet.LicenseInfo{
-			Tier: fleet.TierPremium,
+		License: &automdm.LicenseInfo{
+			Tier: automdm.TierPremium,
 		},
 		Logger: logger,
 		Pool:   redisPool,
@@ -71,10 +71,10 @@ func (s *integrationLoggerTestSuite) TestLogger() {
 		"name":        "somequery",
 		"description": "desc",
 		"query":       "select 1 from osquery;",
-		"fleet_id":    nil,
+		"team_id":     nil,
 	}
-	var createResp fleet.CreateQueryResponse
-	s.DoJSON("POST", "/api/latest/fleet/reports", params, http.StatusOK, &createResp)
+	var createResp automdm.CreateQueryResponse
+	s.DoJSON("POST", "/api/latest/automdm/reports", params, http.StatusOK, &createResp)
 
 	records := s.handler.Records()
 	require.Len(t, records, 3)
@@ -87,16 +87,16 @@ func (s *integrationLoggerTestSuite) TestLogger() {
 		case 0:
 			assert.Equal(t, slog.LevelInfo, rec.Level)
 			assert.Equal(t, "POST", attrs["method"])
-			assert.Equal(t, "/api/latest/fleet/login", attrs["uri"])
+			assert.Equal(t, "/api/latest/automdm/login", attrs["uri"])
 		case 1:
 			assert.Equal(t, slog.LevelDebug, rec.Level)
 			assert.Equal(t, "GET", attrs["method"])
-			assert.Equal(t, "/api/latest/fleet/config", attrs["uri"])
+			assert.Equal(t, "/api/latest/automdm/config", attrs["uri"])
 			assert.Equal(t, "admin1@example.com", attrs["user"])
 		case 2:
 			assert.Equal(t, slog.LevelDebug, rec.Level)
 			assert.Equal(t, "POST", attrs["method"])
-			assert.Equal(t, "/api/latest/fleet/reports", attrs["uri"])
+			assert.Equal(t, "/api/latest/automdm/reports", attrs["uri"])
 			assert.Equal(t, "admin1@example.com", attrs["user"])
 			assert.Equal(t, "somequery", attrs["name"])
 			assert.Equal(t, "select 1 from osquery;", attrs["sql"])
@@ -116,19 +116,19 @@ func (s *integrationLoggerTestSuite) TestLoggerLogin() {
 	}
 
 	testCases := []struct {
-		loginRequest   fleet.LoginRequest
+		loginRequest   automdm.LoginRequest
 		expectedStatus int
 		expectedLevel  slog.Level
 		expectedAttrs  []expectedAttr
 	}{
 		{
-			loginRequest:   fleet.LoginRequest{Email: testUsers["admin1"].Email, Password: testUsers["admin1"].PlaintextPassword},
+			loginRequest:   automdm.LoginRequest{Email: testUsers["admin1"].Email, Password: testUsers["admin1"].PlaintextPassword},
 			expectedStatus: http.StatusOK,
 			expectedLevel:  slog.LevelInfo,
 			expectedAttrs:  []expectedAttr{{"email", testUsers["admin1"].Email}},
 		},
 		{
-			loginRequest:   fleet.LoginRequest{Email: testUsers["admin1"].Email, Password: "n074v411dp455w02d"},
+			loginRequest:   automdm.LoginRequest{Email: testUsers["admin1"].Email, Password: "n074v411dp455w02d"},
 			expectedStatus: http.StatusUnauthorized,
 			expectedLevel:  slog.LevelInfo,
 			expectedAttrs: []expectedAttr{
@@ -137,7 +137,7 @@ func (s *integrationLoggerTestSuite) TestLoggerLogin() {
 			},
 		},
 		{
-			loginRequest:   fleet.LoginRequest{Email: "h4x0r@3x4mp13.c0m", Password: "n074v411dp455w02d"},
+			loginRequest:   automdm.LoginRequest{Email: "h4x0r@3x4mp13.c0m", Password: "n074v411dp455w02d"},
 			expectedStatus: http.StatusUnauthorized,
 			expectedLevel:  slog.LevelInfo,
 			expectedAttrs: []expectedAttr{
@@ -146,9 +146,9 @@ func (s *integrationLoggerTestSuite) TestLoggerLogin() {
 			},
 		},
 	}
-	var resp fleet.LoginResponse
+	var resp automdm.LoginResponse
 	for _, tt := range testCases {
-		s.DoJSON("POST", "/api/latest/fleet/login", tt.loginRequest, tt.expectedStatus, &resp)
+		s.DoJSON("POST", "/api/latest/automdm/login", tt.loginRequest, tt.expectedStatus, &resp)
 
 		records := s.handler.Records()
 		require.Len(t, records, 1)
@@ -167,7 +167,7 @@ func (s *integrationLoggerTestSuite) TestLoggerLogin() {
 func (s *integrationLoggerTestSuite) TestOsqueryEndpointsLogErrors() {
 	t := s.T()
 
-	_, err := s.ds.NewHost(context.Background(), &fleet.Host{
+	_, err := s.ds.NewHost(context.Background(), &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -183,7 +183,7 @@ func (s *integrationLoggerTestSuite) TestOsqueryEndpointsLogErrors() {
 
 	requestBody := io.NopCloser(bytes.NewBuffer([]byte(`{"node_key":"1234","log_type":"status","data":[}`)))
 	req, _ := http.NewRequest("POST", s.server.URL+"/api/osquery/log", requestBody)
-	client := fleethttp.NewClient()
+	client := automdmhttp.NewClient()
 	resp, err := client.Do(req)
 	require.NoError(t, err)
 	jsn := struct {
@@ -221,7 +221,7 @@ func (s *integrationLoggerTestSuite) TestOsqueryEndpointsLogErrors() {
 func (s *integrationLoggerTestSuite) TestSubmitLog() {
 	t := s.T()
 
-	h, err := s.ds.NewHost(context.Background(), &fleet.Host{
+	h, err := s.ds.NewHost(context.Background(), &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -306,7 +306,7 @@ func (s *integrationLoggerTestSuite) TestSubmitLog() {
 
 func (s *integrationLoggerTestSuite) TestEnrollOsqueryLogsErrors() {
 	t := s.T()
-	_, err := s.ds.NewHost(context.Background(), &fleet.Host{
+	_, err := s.ds.NewHost(context.Background(), &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -357,7 +357,7 @@ func (s *integrationLoggerTestSuite) TestSetupExperienceEULAMetadataDoesNotLogEr
 	require.NoError(t, err)
 
 	s.token = getTestAdminToken(t, s.server)
-	s.Do("GET", "/api/v1/fleet/setup_experience/eula/metadata", nil, http.StatusNotFound)
+	s.Do("GET", "/api/v1/automdm/setup_experience/eula/metadata", nil, http.StatusNotFound)
 
 	records := s.handler.Records()
 	require.Len(t, records, 2) // Login and not found

@@ -28,7 +28,7 @@ interface IActionsDropdownProps {
   className?: string;
   menuAlign?: "right" | "left" | "default";
   menuPlacement?: "top" | "bottom" | "auto";
-  /** Mirrors Fleet's Primary/Secondary/Subdued button styles — see #35329.
+  /** Mirrors AutoMDM's Primary/Secondary/Subdued button styles — see #35329.
    *  Default: "subdued" */
   variant?: "primary" | "secondary" | "subdued";
   buttonLabel?: string;
@@ -39,7 +39,7 @@ interface IActionsDropdownProps {
 }
 
 const getOptionBackgroundColor = (state: { isFocused: boolean }) => {
-  return state.isFocused ? COLORS["ui-fleet-black-5"] : "transparent";
+  return state.isFocused ? COLORS["ui-automdm-black-5"] : "transparent";
 };
 
 const getControlBackgroundColor = (variant: string | undefined) => {
@@ -81,8 +81,8 @@ const CustomDropdownIndicator = (
     selectProps.menuIsOpen ||
     variant === "subdued" ||
     variant === "secondary"
-      ? "ui-fleet-black-75"
-      : "core-fleet-black";
+      ? "ui-automdm-black-75"
+      : "core-automdm-black";
 
   return (
     <components.DropdownIndicator {...props} className={baseClass}>
@@ -210,7 +210,7 @@ const ActionsDropdown = ({
   const toggleMenu = () => setMenuIsOpen((isOpen) => !isOpen);
 
   // Same Control-replacement approach as the primary variant: the trigger is a
-  // real Button so it gets Fleet's button styles — including the square
+  // real Button so it gets AutoMDM's button styles — including the square
   // icon-only treatment for a lone Icon child — and focus handling for free.
   const renderIconTriggerButton = () => (
     <Button
@@ -251,7 +251,7 @@ const ActionsDropdown = ({
       <span>{buttonLabel || "Actions"}</span>
       <Icon
         name="chevron-down"
-        color="core-fleet-white"
+        color="core-automdm-white"
         className={`actions-dropdown__icon${
           menuIsOpen ? " actions-dropdown__icon--open" : ""
         }`}
@@ -279,32 +279,32 @@ const ActionsDropdown = ({
       backgroundColor: getControlBackgroundColor(variant),
       border:
         variant === "secondary"
-          ? `1px solid ${COLORS["ui-fleet-black-25"]}` // Match secondary button border — see #35329
+          ? `1px solid ${COLORS["ui-automdm-black-25"]}` // Match secondary button border — see #35329
           : 0,
       boxSizing: "border-box",
       boxShadow: "none",
       cursor: "pointer",
       "&:hover": {
-        background: COLORS["ui-fleet-black-5"], // Match button hover
+        background: COLORS["ui-automdm-black-5"], // Match button hover
         boxShadow: "none",
         ".actions-dropdown-select__placeholder": {
-          color: COLORS["ui-fleet-black-75-over"],
+          color: COLORS["ui-automdm-black-75-over"],
         },
         ".actions-dropdown-select__indicator path": {
-          fill: COLORS["ui-fleet-black-75-over"],
+          fill: COLORS["ui-automdm-black-75-over"],
         },
       },
       "&:active": {
         background:
           variant === "secondary"
-            ? COLORS["ui-fleet-black-10"] // Match secondary button active — see #35329
-            : COLORS["ui-fleet-black-5"], // Match button hover
+            ? COLORS["ui-automdm-black-10"] // Match secondary button active — see #35329
+            : COLORS["ui-automdm-black-5"], // Match button hover
         ".actions-dropdown-select__indicator path": {
-          fill: COLORS["ui-fleet-black-75-down"],
+          fill: COLORS["ui-automdm-black-75-down"],
         },
       },
       ...(state.menuIsOpen && {
-        background: COLORS["ui-fleet-black-5"], // Match button hover
+        background: COLORS["ui-automdm-black-5"], // Match button hover
         ".actions-dropdown-select__indicator svg": {
           transform: "rotate(180deg)",
           transition: "transform 0.25s ease",
@@ -321,7 +321,7 @@ const ActionsDropdown = ({
       // matches Button's own `::after` focus ring visual weight.
       ...(state.isFocused &&
         isKeyboardFocus && {
-          outline: `1px solid ${COLORS["core-fleet-black"]}`,
+          outline: `1px solid ${COLORS["core-automdm-black"]}`,
           outlineOffset: "-1px",
         }),
     }),
@@ -329,8 +329,8 @@ const ActionsDropdown = ({
       ...provided,
       color:
         state.isFocused || variant === "subdued" || variant === "secondary"
-          ? COLORS["ui-fleet-black-75"]
-          : COLORS["core-fleet-black"],
+          ? COLORS["ui-automdm-black-75"]
+          : COLORS["core-automdm-black"],
       fontSize: "14px",
       fontWeight:
         variant === "subdued" || variant === "secondary" ? "600" : undefined,
@@ -371,8 +371,8 @@ const ActionsDropdown = ({
     }),
     menu: (provided) => ({
       ...provided,
-      backgroundColor: COLORS["core-fleet-white"],
-      boxShadow: `0 2px 6px rgba(0, 0, 0, 0.1), 0 0 0 1px ${COLORS["ui-fleet-black-10"]}`,
+      backgroundColor: COLORS["core-automdm-white"],
+      boxShadow: `0 2px 6px rgba(0, 0, 0, 0.1), 0 0 0 1px ${COLORS["ui-automdm-black-10"]}`,
       borderRadius: "4px",
       zIndex: 6,
       border: 0,
@@ -418,15 +418,15 @@ const ActionsDropdown = ({
       "&:hover": {
         backgroundColor: state.isDisabled
           ? "transparent"
-          : COLORS["ui-fleet-black-5"],
+          : COLORS["ui-automdm-black-5"],
       },
       "&:active": {
         backgroundColor: state.isDisabled
           ? "transparent"
-          : COLORS["ui-fleet-black-5"],
+          : COLORS["ui-automdm-black-5"],
       },
       ...(state.isDisabled && {
-        color: COLORS["ui-fleet-black-50"],
+        color: COLORS["ui-automdm-black-50"],
         fontStyle: "italic",
       }),
     }),
@@ -467,7 +467,7 @@ const ActionsDropdown = ({
         isOptionDisabled={(option) => !!option.disabled}
         menuPlacement={menuPlacement ?? (insideTable ? "auto" : "bottom")}
         menuPortalTarget={insideTable ? document.body : undefined}
-        {...{ variant }} // Allows CustomDropdownIndicator to be ui-fleet-black-75 for variant: "subdued"
+        {...{ variant }} // Allows CustomDropdownIndicator to be ui-automdm-black-75 for variant: "subdued"
       />
     </div>
   );

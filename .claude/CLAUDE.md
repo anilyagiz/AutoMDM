@@ -2,9 +2,9 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## About Fleet
+## About AutoMDM
 
-Fleet is an open-source platform for IT and security teams: device management (MDM), vulnerability reporting, osquery fleet management, and security monitoring. Go backend, React/TypeScript frontend, manages thousands of devices across macOS, Windows, Linux, iOS, iPadOS, Android, and ChromeOS.
+AutoMDM is an open-source platform for IT and security teams: device management (MDM), vulnerability reporting, osquery team management, and security monitoring. Go backend, React/TypeScript frontend, manages thousands of devices across macOS, Windows, Linux, iOS, iPadOS, Android, and ChromeOS.
 
 ## Architecture
 
@@ -12,13 +12,13 @@ Fleet is an open-source platform for IT and security teams: device management (M
 HTTP request → `server/service/handler.go` routes → endpoint function (decode request) → service method (auth + business logic) → datastore method (SQL) → response struct
 
 ### Key layers
-- **Types & interfaces**: `server/fleet/` — `Service` in `service.go`, `Datastore` in `datastore.go`
+- **Types & interfaces**: `server/automdm/` — `Service` in `service.go`, `Datastore` in `datastore.go`
 - **Service implementations**: `server/service/` — business logic, auth checks
 - **Datastore (MySQL)**: `server/datastore/mysql/` — SQL queries, migrations
 - **Enterprise features**: `ee/server/service/` — wraps core service with license checks
 - **MDM**: `server/mdm/` — Apple, Microsoft, Android device management
 - **Frontend**: `frontend/pages/` (routes), `frontend/components/` (reusable UI), `frontend/services/` (API client)
-- **CLI tools**: `cmd/fleet/` (server), `cmd/fleetctl/` (management CLI), `orbit/` (agent)
+- **CLI tools**: `cmd/automdm/` (server), `cmd/automdmctl/` (management CLI), `orbit/` (agent)
 
 ### Enterprise vs core
 - Core features: no special build tags, available in all deployments
@@ -28,16 +28,16 @@ HTTP request → `server/service/handler.go` routes → endpoint function (decod
 ## Terminology
 
 The following terms were recently renamed. Use the new terms in conversation and new code, but don't rename existing variables or API parameters without guidance:
-- **"Teams" → "Fleets"** — the concept of grouping hosts. Legacy code still uses `team_id`, `teams` table, etc.
+- **"Teams" → "Teams"** — the concept of grouping hosts. Legacy code still uses `team_id`, `teams` table, etc.
 - **"Queries" → "Reports"** — what was formerly a "query" in the product is now a "report." The word "query" now refers solely to a SQL query, which is one aspect of a report.
 
 ## Code comments
 
 Keep comments concise and sparse — a diff should be mostly code, not comments. Comment to explain non-obvious "why" (constraints, gotchas, why the expected approach wasn't used), never to restate what the code obviously does, narrate the change, or cite the issue/PR that prompted it.
 
-## Fleet-specific patterns
+## AutoMDM-specific patterns
 
-Go and API conventions (ctxerr error wrapping, error types, request/response structs, auth, slog, `new(expression)` pointers, endpoint registration) auto-load from `.claude/rules/` when you edit matching files — see `rules/fleet-go-backend.md`, `rules/fleet-api.md`, and `rules/fleet-database.md`. Reference example: `server/service/vulnerabilities.go`.
+Go and API conventions (ctxerr error wrapping, error types, request/response structs, auth, slog, `new(expression)` pointers, endpoint registration) auto-load from `.claude/rules/` when you edit matching files — see `rules/automdm-go-backend.md`, `rules/automdm-api.md`, and `rules/automdm-database.md`. Reference example: `server/service/vulnerabilities.go`.
 
 ## Before writing a fix
 
@@ -61,7 +61,7 @@ Check the `Makefile` for the full list of available targets. Key ones below.
 
 ### Building and running
 ```bash
-make build          # Build fleet + fleetctl
+make build          # Build automdm + automdmctl
 make serve          # Start dev server (or: make up)
 make generate-dev   # Webpack watch mode for frontend dev
 make deps           # Install dependencies
@@ -69,7 +69,7 @@ make deps           # Install dependencies
 
 ### Testing
 ```bash
-go test ./server/fleet/...                                          # Quick (no external deps)
+go test ./server/automdm/...                                          # Quick (no external deps)
 MYSQL_TEST=1 go test ./server/datastore/mysql/...                   # MySQL integration
 MYSQL_TEST=1 REDIS_TEST=1 go test ./server/service/...              # Service integration
 MYSQL_TEST=1 go test -run TestFunctionName ./server/datastore/mysql/... # Specific test
@@ -98,19 +98,19 @@ make db-reset                       # Reset dev database
 | `integration-core` | `server/service/integration_*_test.go` | `MYSQL_TEST=1 REDIS_TEST=1` |
 | `integration-enterprise` | `ee/server/service/integration_*_test.go` | `MYSQL_TEST=1 REDIS_TEST=1` |
 | `integration-mdm` | MDM integration tests | `MYSQL_TEST=1 REDIS_TEST=1` |
-| `fleetctl` | `cmd/fleetctl/...` | varies |
+| `automdmctl` | `cmd/automdmctl/...` | varies |
 | `vuln` | `server/vulnerabilities/...` | varies |
 | `main` | Everything else | varies |
 
 ## Skills and agents
 
-Type `/` to see available skills. Key ones: `/test`, `/lint`, `/review-pr`, `/fix-ci`, `/spec-story`, `/new-endpoint`, `/new-migration`, `/bump-migration`, `/project`, `/fleet-gitops`, `/find-related-tests`.
+Type `/` to see available skills. Key ones: `/test`, `/lint`, `/review-pr`, `/fix-ci`, `/spec-story`, `/new-endpoint`, `/new-migration`, `/bump-migration`, `/project`, `/automdm-gitops`, `/find-related-tests`.
 
-Agents: **go-reviewer** (proactive after Go edits), **frontend-reviewer** (proactive after TS edits), **fleet-security-auditor** (on-demand for auth/MDM/security).
+Agents: **go-reviewer** (proactive after Go edits), **frontend-reviewer** (proactive after TS edits), **automdm-security-auditor** (on-demand for auth/MDM/security).
 
 ## Documentation
 
-All Fleet documentation lives in this repo. Check these sources before searching the web:
+All AutoMDM documentation lives in this repo. Check these sources before searching the web:
 
 - **`docs/`** — User-facing docs: feature guides, REST API reference, configuration, deployment, contributing
 - **`handbook/`** — Internal procedures: engineering practices, company policies, product design

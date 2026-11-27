@@ -9,14 +9,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/tools/hangar/internal/mdmassets"
-	"github.com/fleetdm/fleet/tools/hangar/internal/paths"
-	"github.com/fleetdm/fleet/tools/hangar/internal/settings"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/mdmassets"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/paths"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/settings"
 )
 
 // MdmAssetsService runs the in-repo tools/mdm/assets exporter and persists saved
 // export configs. A separate top-level tab drives it; it's independent of the
-// active Fleet server (the export targets whatever MySQL the config points at).
+// active AutoMDM server (the export targets whatever MySQL the config points at).
 // Thin adapter over internal/mdmassets.
 type MdmAssetsService struct{}
 

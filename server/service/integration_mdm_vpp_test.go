@@ -2,7 +2,7 @@ package service
 
 // VPP (App Store app) tests for the MDM suite.
 //
-// Belongs here: associating App Store apps with fleets (single and batch), installing them on hosts,
+// Belongs here: associating App Store apps with teams (single and batch), installing them on hosts,
 // their icons, filtering by MDM status, and refreshing app versions.
 //
 // Does not belong here: VPP apps installed by policy automations (integration_mdm_vpp_policy_automations_test.go),
@@ -21,18 +21,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/dev_mode"
-	android_service "github.com/fleetdm/fleet/v4/server/mdm/android/service"
-	"github.com/fleetdm/fleet/v4/server/mdm/android/service/androidmgmt"
-	"github.com/fleetdm/fleet/v4/server/mdm/apple/apple_apps"
+	"github.com/anilyagiz/automdm/v4/server/dev_mode"
+	android_service "github.com/anilyagiz/automdm/v4/server/mdm/android/service"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android/service/androidmgmt"
+	"github.com/anilyagiz/automdm/v4/server/mdm/apple/apple_apps"
 	"google.golang.org/api/androidmanagement/v1"
 
-	"github.com/fleetdm/fleet/v4/pkg/mdm/mdmtest"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/apple/vpp"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/pkg/mdm/mdmtest"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	"github.com/anilyagiz/automdm/v4/server/mdm/apple/vpp"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	micromdm "github.com/micromdm/micromdm/mdm/mdm"
@@ -44,21 +44,21 @@ import (
 func (s *integrationMDMTestSuite) TestBatchAssociateAppStoreApps() {
 	t := s.T()
 	s.setSkipWorkerJobs(t)
-	batchURL := "/api/latest/fleet/software/app_store_apps/batch"
+	batchURL := "/api/latest/automdm/software/app_store_apps/batch"
 
 	// non-existent team
-	s.Do("POST", batchURL, batchAssociateAppStoreAppsRequest{}, http.StatusNotFound, "fleet_name", "foo")
+	s.Do("POST", batchURL, batchAssociateAppStoreAppsRequest{}, http.StatusNotFound, "team_name", "foo")
 
 	// create a team
-	tmGood, err := s.ds.NewTeam(context.Background(), &fleet.Team{
+	tmGood, err := s.ds.NewTeam(context.Background(), &automdm.Team{
 		Name:        t.Name() + " good",
 		Description: "desc",
-		Secrets:     []*fleet.EnrollSecret{{Secret: "goodsecret"}},
+		Secrets:     []*automdm.EnrollSecret{{Secret: "goodsecret"}},
 	})
 	require.NoError(t, err)
 
 	// create a team
-	tmEmpty, err := s.ds.NewTeam(context.Background(), &fleet.Team{
+	tmEmpty, err := s.ds.NewTeam(context.Background(), &automdm.Team{
 		Name:        t.Name() + " empty",
 		Description: "desc",
 	})
@@ -67,32 +67,32 @@ func (s *integrationMDMTestSuite) TestBatchAssociateAppStoreApps() {
 	var batchAssociateResponse batchAssociateAppStoreAppsResponse
 
 	// No vpp token set, but request is empty so it succeeds (clears VPP apps for the team).
-	s.DoJSON("POST", batchURL, batchAssociateAppStoreAppsRequest{}, http.StatusOK, &batchAssociateResponse, "fleet_name", tmGood.Name)
+	s.DoJSON("POST", batchURL, batchAssociateAppStoreAppsRequest{}, http.StatusOK, &batchAssociateResponse, "team_name", tmGood.Name)
 	require.Empty(t, batchAssociateResponse.Apps)
 
 	// No vpp token set, try association
 	// FIXME
-	// s.Do("POST", batchURL, batchAssociateAppStoreAppsRequest{Apps: []fleet.VPPBatchPayload{{AppStoreID: s.appleVPPConfigSrvConfig.Assets[0].AdamID}}}, http.StatusUnprocessableEntity, "fleet_name", tmGood.Name)
+	// s.Do("POST", batchURL, batchAssociateAppStoreAppsRequest{Apps: []automdm.VPPBatchPayload{{AppStoreID: s.appleVPPConfigSrvConfig.Assets[0].AdamID}}}, http.StatusUnprocessableEntity, "team_name", tmGood.Name)
 
 	// Valid token
 	orgName := "Fleet Device Management Inc."
 	token := "mycooltoken"
 	expTime := time.Now().Add(200 * time.Hour).UTC().Round(time.Second)
-	expDate := expTime.Format(fleet.VPPTimeFormat)
+	expDate := expTime.Format(automdm.VPPTimeFormat)
 	tokenJSON := fmt.Sprintf(`{"expDate":"%s","token":"%s","orgName":"%s"}`, expDate, token, orgName)
-	dev_mode.SetOverride("FLEET_DEV_VPP_URL", s.appleVPPConfigSrv.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_VPP_URL", s.appleVPPConfigSrv.URL, t)
 	var vppRes uploadVPPTokenResponse
-	s.uploadDataViaForm("/api/latest/fleet/vpp_tokens", "token", "token.vpptoken", []byte(base64.StdEncoding.EncodeToString([]byte(tokenJSON))), http.StatusAccepted, "", &vppRes)
+	s.uploadDataViaForm("/api/latest/automdm/vpp_tokens", "token", "token.vpptoken", []byte(base64.StdEncoding.EncodeToString([]byte(tokenJSON))), http.StatusAccepted, "", &vppRes)
 
 	var resPatchVPP patchVPPTokensTeamsResponse
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/vpp_tokens/%d/fleets", vppRes.Token.ID), patchVPPTokensTeamsRequest{TeamIDs: []uint{}}, http.StatusOK, &resPatchVPP)
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/vpp_tokens/%d/teams", vppRes.Token.ID), patchVPPTokensTeamsRequest{TeamIDs: []uint{}}, http.StatusOK, &resPatchVPP)
 
 	// Remove all vpp associations from team with no members
-	s.DoJSON("POST", batchURL, batchAssociateAppStoreAppsRequest{}, http.StatusOK, &batchAssociateResponse, "fleet_name", tmGood.Name)
+	s.DoJSON("POST", batchURL, batchAssociateAppStoreAppsRequest{}, http.StatusOK, &batchAssociateResponse, "team_name", tmGood.Name)
 	require.Empty(t, batchAssociateResponse.Apps)
 
 	// host with valid serial number
-	hValid, err := s.ds.NewHost(context.Background(), &fleet.Host{
+	hValid, err := s.ds.NewHost(context.Background(), &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -104,7 +104,7 @@ func (s *integrationMDMTestSuite) TestBatchAssociateAppStoreApps() {
 		Platform:        "darwin",
 	})
 	require.NoError(t, err)
-	err = s.ds.AddHostsToTeam(context.Background(), fleet.NewAddHostsToTeamParams(&tmGood.ID, []uint{hValid.ID}))
+	err = s.ds.AddHostsToTeam(context.Background(), automdm.NewAddHostsToTeamParams(&tmGood.ID, []uint{hValid.ID}))
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -114,7 +114,7 @@ func (s *integrationMDMTestSuite) TestBatchAssociateAppStoreApps() {
 	require.Empty(t, assoc)
 
 	// Remove all vpp associations from team with no members
-	s.DoJSON("POST", batchURL, batchAssociateAppStoreAppsRequest{}, http.StatusOK, &batchAssociateResponse, "fleet_name", tmGood.Name)
+	s.DoJSON("POST", batchURL, batchAssociateAppStoreAppsRequest{}, http.StatusOK, &batchAssociateResponse, "team_name", tmGood.Name)
 	require.Empty(t, batchAssociateResponse.Apps)
 
 	// Incorrect type check
@@ -133,36 +133,36 @@ func (s *integrationMDMTestSuite) TestBatchAssociateAppStoreApps() {
 			},
 		},
 	}
-	badTypeReq := s.Do("POST", batchURL, incorrectTypes, http.StatusBadRequest, "fleet_name", tmGood.Name)
+	badTypeReq := s.Do("POST", batchURL, incorrectTypes, http.StatusBadRequest, "team_name", tmGood.Name)
 	badTypeBody := extractServerErrorText(badTypeReq.Body)
 	assert.Contains(t, badTypeBody, "must be a string")
 
 	// Associating an app we don't own
-	s.Do("POST", batchURL, batchAssociateAppStoreAppsRequest{Apps: []fleet.VPPBatchPayload{{AppStoreID: "fake-app"}}}, http.StatusUnprocessableEntity, "fleet_name", tmGood.Name)
+	s.Do("POST", batchURL, batchAssociateAppStoreAppsRequest{Apps: []automdm.VPPBatchPayload{{AppStoreID: "fake-app"}}}, http.StatusUnprocessableEntity, "team_name", tmGood.Name)
 
 	assoc, err = s.ds.GetAssignedVPPApps(ctx, &tmGood.ID)
 	require.NoError(t, err)
 	require.Empty(t, assoc)
 
 	// Associating an app we own
-	s.DoJSON("POST", batchURL, batchAssociateAppStoreAppsRequest{Apps: []fleet.VPPBatchPayload{
+	s.DoJSON("POST", batchURL, batchAssociateAppStoreAppsRequest{Apps: []automdm.VPPBatchPayload{
 		{AppStoreID: s.appleVPPConfigSrvConfig.Assets[0].AdamID},
-	}}, http.StatusOK, &batchAssociateResponse, "fleet_name", tmGood.Name)
+	}}, http.StatusOK, &batchAssociateResponse, "team_name", tmGood.Name)
 	require.Len(t, batchAssociateResponse.Apps, 1)
 
 	assoc, err = s.ds.GetAssignedVPPApps(ctx, &tmGood.ID)
 	require.NoError(t, err)
 	require.Len(t, assoc, 1)
-	assert.Contains(t, assoc, fleet.VPPAppID{AdamID: s.appleVPPConfigSrvConfig.Assets[0].AdamID, Platform: fleet.MacOSPlatform})
+	assert.Contains(t, assoc, automdm.VPPAppID{AdamID: s.appleVPPConfigSrvConfig.Assets[0].AdamID, Platform: automdm.MacOSPlatform})
 
 	// Associating one good and one bad app
 	s.Do(
 		"POST",
 		batchURL,
-		batchAssociateAppStoreAppsRequest{Apps: []fleet.VPPBatchPayload{
+		batchAssociateAppStoreAppsRequest{Apps: []automdm.VPPBatchPayload{
 			{AppStoreID: s.appleVPPConfigSrvConfig.Assets[0].AdamID},
 			{AppStoreID: "fake-app"},
-		}}, http.StatusUnprocessableEntity, "fleet_name", tmGood.Name,
+		}}, http.StatusUnprocessableEntity, "team_name", tmGood.Name,
 	)
 
 	assoc, err = s.ds.GetAssignedVPPApps(ctx, &tmGood.ID)
@@ -170,16 +170,16 @@ func (s *integrationMDMTestSuite) TestBatchAssociateAppStoreApps() {
 	require.Len(t, assoc, 1)
 
 	// Add a label
-	clr := fleet.CreateLabelResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/labels", fleet.CreateLabelRequest{
+	clr := automdm.CreateLabelResponse{}
+	s.DoJSON("POST", "/api/latest/automdm/labels", automdm.CreateLabelRequest{
 		Name:  "label1" + t.Name(),
 		Query: "SELECT 1;",
 	}, http.StatusOK, &clr)
 
 	label1 := clr.Label
 
-	clr = fleet.CreateLabelResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/labels", fleet.CreateLabelRequest{
+	clr = automdm.CreateLabelResponse{}
+	s.DoJSON("POST", "/api/latest/automdm/labels", automdm.CreateLabelRequest{
 		Name:  "label2" + t.Name(),
 		Query: "SELECT 2;",
 	}, http.StatusOK, &clr)
@@ -192,29 +192,29 @@ func (s *integrationMDMTestSuite) TestBatchAssociateAppStoreApps() {
 		"POST",
 		batchURL,
 		batchAssociateAppStoreAppsRequest{
-			Apps: []fleet.VPPBatchPayload{
+			Apps: []automdm.VPPBatchPayload{
 				{AppStoreID: s.appleVPPConfigSrvConfig.Assets[0].AdamID},
 				{AppStoreID: s.appleVPPConfigSrvConfig.Assets[1].AdamID, SelfService: true, Categories: []string{"Browsers"}, LabelsIncludeAll: []string{label1.Name, label2.Name}},
 			},
-		}, http.StatusOK, &batchAssociateResponse, "fleet_name", tmGood.Name,
+		}, http.StatusOK, &batchAssociateResponse, "team_name", tmGood.Name,
 	)
 	afterAssociation := time.Now()
 	require.Len(t, batchAssociateResponse.Apps, 4)
 	assoc, err = s.ds.GetAssignedVPPApps(ctx, &tmGood.ID)
 	require.NoError(t, err)
 	require.Len(t, assoc, 4)
-	assert.Contains(t, assoc, fleet.VPPAppID{AdamID: s.appleVPPConfigSrvConfig.Assets[0].AdamID, Platform: fleet.MacOSPlatform})
-	assert.Contains(t, assoc, fleet.VPPAppID{AdamID: s.appleVPPConfigSrvConfig.Assets[1].AdamID, Platform: fleet.IOSPlatform})
-	assert.Contains(t, assoc, fleet.VPPAppID{AdamID: s.appleVPPConfigSrvConfig.Assets[1].AdamID, Platform: fleet.IPadOSPlatform})
-	meta, err := s.ds.GetVPPAppMetadataByAdamIDPlatformTeamID(ctx, s.appleVPPConfigSrvConfig.Assets[1].AdamID, fleet.MacOSPlatform, &tmGood.ID)
+	assert.Contains(t, assoc, automdm.VPPAppID{AdamID: s.appleVPPConfigSrvConfig.Assets[0].AdamID, Platform: automdm.MacOSPlatform})
+	assert.Contains(t, assoc, automdm.VPPAppID{AdamID: s.appleVPPConfigSrvConfig.Assets[1].AdamID, Platform: automdm.IOSPlatform})
+	assert.Contains(t, assoc, automdm.VPPAppID{AdamID: s.appleVPPConfigSrvConfig.Assets[1].AdamID, Platform: automdm.IPadOSPlatform})
+	meta, err := s.ds.GetVPPAppMetadataByAdamIDPlatformTeamID(ctx, s.appleVPPConfigSrvConfig.Assets[1].AdamID, automdm.MacOSPlatform, &tmGood.ID)
 	require.NoError(t, err)
 
 	var listSwTitles listSoftwareTitlesResponse
-	s.DoJSON("GET", "/api/latest/fleet/software/titles", nil, http.StatusOK, &listSwTitles, "fleet_id", fmt.Sprint(tmGood.ID))
+	s.DoJSON("GET", "/api/latest/automdm/software/titles", nil, http.StatusOK, &listSwTitles, "team_id", fmt.Sprint(tmGood.ID))
 	for _, st := range listSwTitles.SoftwareTitles {
 		if st.AppStoreApps[0].AppStoreID == s.appleVPPConfigSrvConfig.Assets[1].AdamID {
 			var getSWTitle getSoftwareTitleResponse
-			s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/software/titles/%d", st.ID), nil, http.StatusOK, &getSWTitle, "fleet_id", fmt.Sprint(tmGood.ID))
+			s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/software/titles/%d", st.ID), nil, http.StatusOK, &getSWTitle, "team_id", fmt.Sprint(tmGood.ID))
 			s.ElementsMatch([]string{"🌎 Browsers"}, getSWTitle.SoftwareTitle.AppStoreApps[0].Categories)
 			var labelNames []string
 			for _, l := range getSWTitle.SoftwareTitle.AppStoreApps[0].LabelsIncludeAll {
@@ -224,14 +224,14 @@ func (s *integrationMDMTestSuite) TestBatchAssociateAppStoreApps() {
 		}
 	}
 
-	actual := assoc[fleet.VPPAppID{AdamID: s.appleVPPConfigSrvConfig.Assets[1].AdamID, Platform: fleet.MacOSPlatform}]
+	actual := assoc[automdm.VPPAppID{AdamID: s.appleVPPConfigSrvConfig.Assets[1].AdamID, Platform: automdm.MacOSPlatform}]
 	require.NotNil(t, meta.VPPTokenID)
 	// Only macOS version should be self-service
-	assert.Equal(t, fleet.VPPAppTeam{
-		AdamID: s.appleVPPConfigSrvConfig.Assets[1].AdamID, Platform: fleet.MacOSPlatform,
+	assert.Equal(t, automdm.VPPAppTeam{
+		AdamID: s.appleVPPConfigSrvConfig.Assets[1].AdamID, Platform: automdm.MacOSPlatform,
 		SelfService:        true,
 		InstallDuringSetup: new(false),
-		VersionName:        fleet.DefaultAppStoreAppVersionName,
+		VersionName:        automdm.DefaultAppStoreAppVersionName,
 		AppTeamID:          meta.AppTeamID,
 		VPPTokenID:         meta.VPPTokenID,
 		AddedAt:            actual.AddedAt,
@@ -246,67 +246,67 @@ func (s *integrationMDMTestSuite) TestBatchAssociateAppStoreApps() {
 		"POST",
 		batchURL,
 		batchAssociateAppStoreAppsRequest{
-			Apps: []fleet.VPPBatchPayload{
+			Apps: []automdm.VPPBatchPayload{
 				{AppStoreID: s.appleVPPConfigSrvConfig.Assets[0].AdamID, SelfService: true},
 				{AppStoreID: s.appleVPPConfigSrvConfig.Assets[1].AdamID, SelfService: false},
 			},
-		}, http.StatusOK, &batchAssociateResponse, "fleet_name", tmGood.Name,
+		}, http.StatusOK, &batchAssociateResponse, "team_name", tmGood.Name,
 	)
 	require.Len(t, batchAssociateResponse.Apps, 4)
 	assoc, err = s.ds.GetAssignedVPPApps(ctx, &tmGood.ID)
 	require.NoError(t, err)
 	require.Len(t, assoc, 4)
-	meta, err = s.ds.GetVPPAppMetadataByAdamIDPlatformTeamID(ctx, s.appleVPPConfigSrvConfig.Assets[0].AdamID, fleet.MacOSPlatform, &tmGood.ID)
+	meta, err = s.ds.GetVPPAppMetadataByAdamIDPlatformTeamID(ctx, s.appleVPPConfigSrvConfig.Assets[0].AdamID, automdm.MacOSPlatform, &tmGood.ID)
 	require.NoError(t, err)
-	actual = assoc[fleet.VPPAppID{AdamID: s.appleVPPConfigSrvConfig.Assets[0].AdamID, Platform: fleet.MacOSPlatform}]
-	assert.Equal(t, fleet.VPPAppTeam{
-		AdamID: s.appleVPPConfigSrvConfig.Assets[0].AdamID, Platform: fleet.MacOSPlatform,
+	actual = assoc[automdm.VPPAppID{AdamID: s.appleVPPConfigSrvConfig.Assets[0].AdamID, Platform: automdm.MacOSPlatform}]
+	assert.Equal(t, automdm.VPPAppTeam{
+		AdamID: s.appleVPPConfigSrvConfig.Assets[0].AdamID, Platform: automdm.MacOSPlatform,
 		SelfService:        true,
 		InstallDuringSetup: new(false),
-		VersionName:        fleet.DefaultAppStoreAppVersionName,
+		VersionName:        automdm.DefaultAppStoreAppVersionName,
 		AppTeamID:          meta.AppTeamID,
 		VPPTokenID:         meta.VPPTokenID,
 		AddedAt:            actual.AddedAt,
 	}, actual)
-	meta, err = s.ds.GetVPPAppMetadataByAdamIDPlatformTeamID(ctx, s.appleVPPConfigSrvConfig.Assets[1].AdamID, fleet.IOSPlatform, &tmGood.ID)
+	meta, err = s.ds.GetVPPAppMetadataByAdamIDPlatformTeamID(ctx, s.appleVPPConfigSrvConfig.Assets[1].AdamID, automdm.IOSPlatform, &tmGood.ID)
 	require.NoError(t, err)
-	actual = assoc[fleet.VPPAppID{AdamID: s.appleVPPConfigSrvConfig.Assets[1].AdamID, Platform: fleet.IOSPlatform}]
-	assert.Equal(t, fleet.VPPAppTeam{
-		AdamID: s.appleVPPConfigSrvConfig.Assets[1].AdamID, Platform: fleet.IOSPlatform,
+	actual = assoc[automdm.VPPAppID{AdamID: s.appleVPPConfigSrvConfig.Assets[1].AdamID, Platform: automdm.IOSPlatform}]
+	assert.Equal(t, automdm.VPPAppTeam{
+		AdamID: s.appleVPPConfigSrvConfig.Assets[1].AdamID, Platform: automdm.IOSPlatform,
 		InstallDuringSetup: new(false),
-		VersionName:        fleet.DefaultAppStoreAppVersionName,
+		VersionName:        automdm.DefaultAppStoreAppVersionName,
 		AppTeamID:          meta.AppTeamID,
 		VPPTokenID:         meta.VPPTokenID,
 		AddedAt:            actual.AddedAt,
 	}, actual)
-	meta, err = s.ds.GetVPPAppMetadataByAdamIDPlatformTeamID(ctx, s.appleVPPConfigSrvConfig.Assets[1].AdamID, fleet.IPadOSPlatform, &tmGood.ID)
+	meta, err = s.ds.GetVPPAppMetadataByAdamIDPlatformTeamID(ctx, s.appleVPPConfigSrvConfig.Assets[1].AdamID, automdm.IPadOSPlatform, &tmGood.ID)
 	require.NoError(t, err)
-	actual = assoc[fleet.VPPAppID{AdamID: s.appleVPPConfigSrvConfig.Assets[1].AdamID, Platform: fleet.IPadOSPlatform}]
-	assert.Equal(t, fleet.VPPAppTeam{
-		AdamID: s.appleVPPConfigSrvConfig.Assets[1].AdamID, Platform: fleet.IPadOSPlatform,
+	actual = assoc[automdm.VPPAppID{AdamID: s.appleVPPConfigSrvConfig.Assets[1].AdamID, Platform: automdm.IPadOSPlatform}]
+	assert.Equal(t, automdm.VPPAppTeam{
+		AdamID: s.appleVPPConfigSrvConfig.Assets[1].AdamID, Platform: automdm.IPadOSPlatform,
 		InstallDuringSetup: new(false),
-		VersionName:        fleet.DefaultAppStoreAppVersionName,
+		VersionName:        automdm.DefaultAppStoreAppVersionName,
 		AppTeamID:          meta.AppTeamID,
 		VPPTokenID:         meta.VPPTokenID,
 		AddedAt:            actual.AddedAt,
 	}, actual)
-	meta, err = s.ds.GetVPPAppMetadataByAdamIDPlatformTeamID(ctx, s.appleVPPConfigSrvConfig.Assets[1].AdamID, fleet.MacOSPlatform, &tmGood.ID)
+	meta, err = s.ds.GetVPPAppMetadataByAdamIDPlatformTeamID(ctx, s.appleVPPConfigSrvConfig.Assets[1].AdamID, automdm.MacOSPlatform, &tmGood.ID)
 	require.NoError(t, err)
-	actual = assoc[fleet.VPPAppID{AdamID: s.appleVPPConfigSrvConfig.Assets[1].AdamID, Platform: fleet.MacOSPlatform}]
-	assert.Equal(t, fleet.VPPAppTeam{
-		AdamID: s.appleVPPConfigSrvConfig.Assets[1].AdamID, Platform: fleet.MacOSPlatform,
+	actual = assoc[automdm.VPPAppID{AdamID: s.appleVPPConfigSrvConfig.Assets[1].AdamID, Platform: automdm.MacOSPlatform}]
+	assert.Equal(t, automdm.VPPAppTeam{
+		AdamID: s.appleVPPConfigSrvConfig.Assets[1].AdamID, Platform: automdm.MacOSPlatform,
 		InstallDuringSetup: new(false),
-		VersionName:        fleet.DefaultAppStoreAppVersionName,
+		VersionName:        automdm.DefaultAppStoreAppVersionName,
 		AppTeamID:          meta.AppTeamID,
 		VPPTokenID:         meta.VPPTokenID,
 		AddedAt:            actual.AddedAt,
 	}, actual)
 
 	// Associate an app with a team with no team members
-	s.DoJSON("POST", batchURL, batchAssociateAppStoreAppsRequest{Apps: []fleet.VPPBatchPayload{{AppStoreID: s.appleVPPConfigSrvConfig.Assets[0].AdamID}}}, http.StatusOK, &batchAssociateResponse, "fleet_name", tmEmpty.Name)
+	s.DoJSON("POST", batchURL, batchAssociateAppStoreAppsRequest{Apps: []automdm.VPPBatchPayload{{AppStoreID: s.appleVPPConfigSrvConfig.Assets[0].AdamID}}}, http.StatusOK, &batchAssociateResponse, "team_name", tmEmpty.Name)
 
 	// Remove all vpp associations
-	s.DoJSON("POST", batchURL, batchAssociateAppStoreAppsRequest{}, http.StatusOK, &batchAssociateResponse, "fleet_name", tmGood.Name)
+	s.DoJSON("POST", batchURL, batchAssociateAppStoreAppsRequest{}, http.StatusOK, &batchAssociateResponse, "team_name", tmGood.Name)
 	require.Empty(t, batchAssociateResponse.Apps)
 
 	assoc, err = s.ds.GetAssignedVPPApps(ctx, &tmGood.ID)
@@ -315,7 +315,7 @@ func (s *integrationMDMTestSuite) TestBatchAssociateAppStoreApps() {
 
 	// Test InstallDuringSetup
 	// Helper functions for verifying what's enabled for setup experience
-	getReturnedSetupExperienceAdamIDs := func(titles []fleet.SoftwareTitleListResult) []string {
+	getReturnedSetupExperienceAdamIDs := func(titles []automdm.SoftwareTitleListResult) []string {
 		var adamIDs []string
 		for _, title := range titles {
 			if (title.AppStoreApp != nil && title.AppStoreApp.InstallDuringSetup != nil && *title.AppStoreApp.InstallDuringSetup == true) ||
@@ -329,11 +329,11 @@ func (s *integrationMDMTestSuite) TestBatchAssociateAppStoreApps() {
 	checkSetupExperienceVPP := func(t *testing.T, platform string, teamID uint, expectedAdamIDs []string) {
 		var respGetSetupExperience getSetupExperienceSoftwareResponse
 		s.DoJSON(
-			"GET", "/api/latest/fleet/setup_experience/software", getSetupExperienceSoftwareRequest{},
+			"GET", "/api/latest/automdm/setup_experience/software", getSetupExperienceSoftwareRequest{},
 			http.StatusOK,
 			&respGetSetupExperience,
 			"platform", platform,
-			"fleet_id", fmt.Sprint(teamID),
+			"team_id", fmt.Sprint(teamID),
 		)
 		assert.ElementsMatch(t, getReturnedSetupExperienceAdamIDs(respGetSetupExperience.SoftwareTitles), expectedAdamIDs)
 	}
@@ -343,7 +343,7 @@ func (s *integrationMDMTestSuite) TestBatchAssociateAppStoreApps() {
 		"POST",
 		batchURL,
 		batchAssociateAppStoreAppsRequest{
-			Apps: []fleet.VPPBatchPayload{
+			Apps: []automdm.VPPBatchPayload{
 				// macOS only
 				{AppStoreID: s.appleVPPConfigSrvConfig.Assets[0].AdamID, InstallDuringSetup: new(true)},
 				// macOS, iOS, iPadOS
@@ -351,19 +351,19 @@ func (s *integrationMDMTestSuite) TestBatchAssociateAppStoreApps() {
 				// iPadOS only
 				{AppStoreID: s.appleVPPConfigSrvConfig.Assets[2].AdamID, SelfService: true, InstallDuringSetup: new(true)},
 			},
-		}, http.StatusOK, &batchAssociateResponse, "fleet_name", tmGood.Name,
+		}, http.StatusOK, &batchAssociateResponse, "team_name", tmGood.Name,
 	)
 
 	checkSetupExperienceVPP(t, "macos", tmGood.ID, []string{s.appleVPPConfigSrvConfig.Assets[0].AdamID, s.appleVPPConfigSrvConfig.Assets[1].AdamID})
-	checkSetupExperienceVPP(t, string(fleet.IPadOSPlatform), tmGood.ID, []string{s.appleVPPConfigSrvConfig.Assets[1].AdamID, s.appleVPPConfigSrvConfig.Assets[2].AdamID})
-	checkSetupExperienceVPP(t, string(fleet.IOSPlatform), tmGood.ID, []string{s.appleVPPConfigSrvConfig.Assets[1].AdamID})
+	checkSetupExperienceVPP(t, string(automdm.IPadOSPlatform), tmGood.ID, []string{s.appleVPPConfigSrvConfig.Assets[1].AdamID, s.appleVPPConfigSrvConfig.Assets[2].AdamID})
+	checkSetupExperienceVPP(t, string(automdm.IOSPlatform), tmGood.ID, []string{s.appleVPPConfigSrvConfig.Assets[1].AdamID})
 
 	// Associate with the SetupExperience flag set to nil = no change
 	s.DoJSON(
 		"POST",
 		batchURL,
 		batchAssociateAppStoreAppsRequest{
-			Apps: []fleet.VPPBatchPayload{
+			Apps: []automdm.VPPBatchPayload{
 				// macOS only
 				{AppStoreID: s.appleVPPConfigSrvConfig.Assets[0].AdamID, InstallDuringSetup: nil},
 				// macOS, iOS, iPadOS
@@ -371,19 +371,19 @@ func (s *integrationMDMTestSuite) TestBatchAssociateAppStoreApps() {
 				// iPadOS only
 				{AppStoreID: s.appleVPPConfigSrvConfig.Assets[2].AdamID, SelfService: true, InstallDuringSetup: nil},
 			},
-		}, http.StatusOK, &batchAssociateResponse, "fleet_name", tmGood.Name,
+		}, http.StatusOK, &batchAssociateResponse, "team_name", tmGood.Name,
 	)
 
 	checkSetupExperienceVPP(t, "macos", tmGood.ID, []string{s.appleVPPConfigSrvConfig.Assets[0].AdamID, s.appleVPPConfigSrvConfig.Assets[1].AdamID})
-	checkSetupExperienceVPP(t, string(fleet.IPadOSPlatform), tmGood.ID, []string{s.appleVPPConfigSrvConfig.Assets[1].AdamID, s.appleVPPConfigSrvConfig.Assets[2].AdamID})
-	checkSetupExperienceVPP(t, string(fleet.IOSPlatform), tmGood.ID, []string{s.appleVPPConfigSrvConfig.Assets[1].AdamID})
+	checkSetupExperienceVPP(t, string(automdm.IPadOSPlatform), tmGood.ID, []string{s.appleVPPConfigSrvConfig.Assets[1].AdamID, s.appleVPPConfigSrvConfig.Assets[2].AdamID})
+	checkSetupExperienceVPP(t, string(automdm.IOSPlatform), tmGood.ID, []string{s.appleVPPConfigSrvConfig.Assets[1].AdamID})
 
 	// Associate with the SetupExperience flag set to false
 	s.DoJSON(
 		"POST",
 		batchURL,
 		batchAssociateAppStoreAppsRequest{
-			Apps: []fleet.VPPBatchPayload{
+			Apps: []automdm.VPPBatchPayload{
 				// macOS only
 				{AppStoreID: s.appleVPPConfigSrvConfig.Assets[0].AdamID, InstallDuringSetup: new(false)},
 				// macOS, iOS, iPadOS
@@ -391,21 +391,21 @@ func (s *integrationMDMTestSuite) TestBatchAssociateAppStoreApps() {
 				// iPadOS only
 				{AppStoreID: s.appleVPPConfigSrvConfig.Assets[2].AdamID, SelfService: true, InstallDuringSetup: new(false)},
 			},
-		}, http.StatusOK, &batchAssociateResponse, "fleet_name", tmGood.Name,
+		}, http.StatusOK, &batchAssociateResponse, "team_name", tmGood.Name,
 	)
 
 	checkSetupExperienceVPP(t, "macos", tmGood.ID, []string{})
-	checkSetupExperienceVPP(t, string(fleet.IPadOSPlatform), tmGood.ID, []string{})
-	checkSetupExperienceVPP(t, string(fleet.IOSPlatform), tmGood.ID, []string{})
+	checkSetupExperienceVPP(t, string(automdm.IPadOSPlatform), tmGood.ID, []string{})
+	checkSetupExperienceVPP(t, string(automdm.IOSPlatform), tmGood.ID, []string{})
 
 	// ===================================================
 	//                   Android apps
 	// ===================================================
 
 	// Android MDM not set up yet, should fail
-	resp := s.Do("POST", batchURL, batchAssociateAppStoreAppsRequest{Apps: []fleet.VPPBatchPayload{
-		{AppStoreID: s.appleVPPConfigSrvConfig.Assets[0].AdamID}, {AppStoreID: "com.foo.bar", Platform: fleet.AndroidPlatform},
-	}}, http.StatusBadRequest, "fleet_name", tmGood.Name)
+	resp := s.Do("POST", batchURL, batchAssociateAppStoreAppsRequest{Apps: []automdm.VPPBatchPayload{
+		{AppStoreID: s.appleVPPConfigSrvConfig.Assets[0].AdamID}, {AppStoreID: "com.foo.bar", Platform: automdm.AndroidPlatform},
+	}}, http.StatusBadRequest, "team_name", tmGood.Name)
 
 	s.Contains(extractServerErrorText(resp.Body), "Android MDM is not enabled")
 
@@ -415,9 +415,9 @@ func (s *integrationMDMTestSuite) TestBatchAssociateAppStoreApps() {
 	s.androidAPIClient.EnterprisesApplicationsFunc = func(ctx context.Context, enterpriseName string, packageName string) (*androidmanagement.Application, error) {
 		return nil, &notFoundError{}
 	}
-	resp = s.Do("POST", batchURL, batchAssociateAppStoreAppsRequest{Apps: []fleet.VPPBatchPayload{
-		{AppStoreID: s.appleVPPConfigSrvConfig.Assets[0].AdamID}, {AppStoreID: "com.app.not.found", Platform: fleet.AndroidPlatform},
-	}}, http.StatusUnprocessableEntity, "fleet_name", tmGood.Name)
+	resp = s.Do("POST", batchURL, batchAssociateAppStoreAppsRequest{Apps: []automdm.VPPBatchPayload{
+		{AppStoreID: s.appleVPPConfigSrvConfig.Assets[0].AdamID}, {AppStoreID: "com.app.not.found", Platform: automdm.AndroidPlatform},
+	}}, http.StatusUnprocessableEntity, "team_name", tmGood.Name)
 
 	s.Contains(extractServerErrorText(resp.Body), "Validation Failed: Couldn't add software. The application ID \"com.app.not.found\" isn't available in Play Store. Please find ID on the Play Store and try again.")
 
@@ -430,9 +430,9 @@ func (s *integrationMDMTestSuite) TestBatchAssociateAppStoreApps() {
 	require.NoError(t, err)
 	require.Len(t, secrets, 1)
 
-	assets, err := s.ds.GetAllMDMConfigAssetsByName(ctx, []fleet.MDMAssetName{fleet.MDMAssetAndroidPubSubToken}, nil)
+	assets, err := s.ds.GetAllMDMConfigAssetsByName(ctx, []automdm.MDMAssetName{automdm.MDMAssetAndroidPubSubToken}, nil)
 	require.NoError(t, err)
-	pubsubToken := assets[fleet.MDMAssetAndroidPubSubToken]
+	pubsubToken := assets[automdm.MDMAssetAndroidPubSubToken]
 	require.NotEmpty(t, pubsubToken.Value)
 
 	deviceID1 := createAndroidDeviceID("test-android")
@@ -456,11 +456,11 @@ func (s *integrationMDMTestSuite) TestBatchAssociateAppStoreApps() {
 			PubSubMessage: *enrollmentMessage,
 		}
 
-		s.Do("POST", "/api/v1/fleet/android_enterprise/pubsub", &req, http.StatusOK, "token", string(pubsubToken.Value))
+		s.Do("POST", "/api/v1/automdm/android_enterprise/pubsub", &req, http.StatusOK, "token", string(pubsubToken.Value))
 	}
 
 	var hosts listHostsResponse
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &hosts, "query", enterpriseSpecificID1)
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &hosts, "query", enterpriseSpecificID1)
 
 	assert.Len(t, hosts.Hosts, 1)
 
@@ -501,21 +501,21 @@ func (s *integrationMDMTestSuite) TestBatchAssociateAppStoreApps() {
 
 	chromeAppID := "com.google.chrome"
 	driveAppID := "com.google.drive"
-	s.DoJSON("POST", batchURL, batchAssociateAppStoreAppsRequest{Apps: []fleet.VPPBatchPayload{
+	s.DoJSON("POST", batchURL, batchAssociateAppStoreAppsRequest{Apps: []automdm.VPPBatchPayload{
 		{AppStoreID: s.appleVPPConfigSrvConfig.Assets[0].AdamID},
-		{AppStoreID: chromeAppID, Platform: fleet.AndroidPlatform},
-		{AppStoreID: driveAppID, Platform: fleet.AndroidPlatform},
-	}}, http.StatusOK, &batchAssociateResponse, "fleet_name", tmGood.Name)
+		{AppStoreID: chromeAppID, Platform: automdm.AndroidPlatform},
+		{AppStoreID: driveAppID, Platform: automdm.AndroidPlatform},
+	}}, http.StatusOK, &batchAssociateResponse, "team_name", tmGood.Name)
 	require.Len(t, batchAssociateResponse.Apps, 3)
 
 	assoc, err = s.ds.GetAssignedVPPApps(ctx, &tmGood.ID)
 	require.NoError(t, err)
 	require.Len(t, assoc, 3)
 
-	for _, a := range []fleet.VPPAppID{
-		{AdamID: s.appleVPPConfigSrvConfig.Assets[0].AdamID, Platform: fleet.MacOSPlatform},
-		{AdamID: chromeAppID, Platform: fleet.AndroidPlatform},
-		{AdamID: driveAppID, Platform: fleet.AndroidPlatform},
+	for _, a := range []automdm.VPPAppID{
+		{AdamID: s.appleVPPConfigSrvConfig.Assets[0].AdamID, Platform: automdm.MacOSPlatform},
+		{AdamID: chromeAppID, Platform: automdm.AndroidPlatform},
+		{AdamID: driveAppID, Platform: automdm.AndroidPlatform},
 	} {
 		assert.Contains(t, assoc, a)
 	}
@@ -526,19 +526,19 @@ func (s *integrationMDMTestSuite) TestBatchAssociateAppStoreApps() {
 	clear(sentAppLists)
 
 	// Remove an app
-	s.DoJSON("POST", batchURL, batchAssociateAppStoreAppsRequest{Apps: []fleet.VPPBatchPayload{
+	s.DoJSON("POST", batchURL, batchAssociateAppStoreAppsRequest{Apps: []automdm.VPPBatchPayload{
 		{AppStoreID: s.appleVPPConfigSrvConfig.Assets[0].AdamID, DisplayName: "VPPAppUpdatedName"},
-		{AppStoreID: driveAppID, Platform: fleet.AndroidPlatform, DisplayName: "DriveUpdatedName"},
-	}}, http.StatusOK, &batchAssociateResponse, "fleet_name", tmGood.Name)
+		{AppStoreID: driveAppID, Platform: automdm.AndroidPlatform, DisplayName: "DriveUpdatedName"},
+	}}, http.StatusOK, &batchAssociateResponse, "team_name", tmGood.Name)
 	require.Len(t, batchAssociateResponse.Apps, 2)
 
 	assoc, err = s.ds.GetAssignedVPPApps(ctx, &tmGood.ID)
 	require.NoError(t, err)
 	require.Len(t, assoc, 2)
 
-	for _, a := range []fleet.VPPAppID{
-		{AdamID: s.appleVPPConfigSrvConfig.Assets[0].AdamID, Platform: fleet.MacOSPlatform},
-		{AdamID: driveAppID, Platform: fleet.AndroidPlatform},
+	for _, a := range []automdm.VPPAppID{
+		{AdamID: s.appleVPPConfigSrvConfig.Assets[0].AdamID, Platform: automdm.MacOSPlatform},
+		{AdamID: driveAppID, Platform: automdm.AndroidPlatform},
 	} {
 		assert.Contains(t, assoc, a)
 	}
@@ -549,7 +549,7 @@ func (s *integrationMDMTestSuite) TestBatchAssociateAppStoreApps() {
 	require.Equal(t, map[string][]string{enterpriseSpecificID1: {chromeAppID}}, removedApps)
 	clear(removedApps)
 
-	s.DoJSON("GET", "/api/latest/fleet/software/titles", nil, http.StatusOK, &listSwTitles, "fleet_id", fmt.Sprint(tmGood.ID))
+	s.DoJSON("GET", "/api/latest/automdm/software/titles", nil, http.StatusOK, &listSwTitles, "team_id", fmt.Sprint(tmGood.ID))
 
 	s.Len(listSwTitles.SoftwareTitles, 2)
 	for _, sw := range listSwTitles.SoftwareTitles {
@@ -564,20 +564,20 @@ func (s *integrationMDMTestSuite) TestBatchAssociateAppStoreApps() {
 	adamIDWithAllPlatforms := s.appleVPPConfigSrvConfig.Assets[1].AdamID
 
 	// change display names
-	setDisplayNames := func(expectedAppCount int, expectedApps ...fleet.VPPBatchPayload) {
-		displayNameToAppStoreID := make(map[fleet.VPPAppID]string)
+	setDisplayNames := func(expectedAppCount int, expectedApps ...automdm.VPPBatchPayload) {
+		displayNameToAppStoreID := make(map[automdm.VPPAppID]string)
 
 		for _, e := range expectedApps {
 			if e.Platform == "" {
-				for _, p := range []fleet.InstallableDevicePlatform{fleet.IOSPlatform, fleet.IPadOSPlatform, fleet.MacOSPlatform} {
+				for _, p := range []automdm.InstallableDevicePlatform{automdm.IOSPlatform, automdm.IPadOSPlatform, automdm.MacOSPlatform} {
 					e.Platform = p
-					displayNameToAppStoreID[fleet.VPPAppID{AdamID: e.AppStoreID, Platform: e.Platform}] = e.DisplayName
+					displayNameToAppStoreID[automdm.VPPAppID{AdamID: e.AppStoreID, Platform: e.Platform}] = e.DisplayName
 				}
 			}
-			displayNameToAppStoreID[fleet.VPPAppID{AdamID: e.AppStoreID, Platform: e.Platform}] = e.DisplayName
+			displayNameToAppStoreID[automdm.VPPAppID{AdamID: e.AppStoreID, Platform: e.Platform}] = e.DisplayName
 		}
 
-		s.DoJSON("POST", batchURL, batchAssociateAppStoreAppsRequest{Apps: expectedApps}, http.StatusOK, &batchAssociateResponse, "fleet_name", tmGood.Name)
+		s.DoJSON("POST", batchURL, batchAssociateAppStoreAppsRequest{Apps: expectedApps}, http.StatusOK, &batchAssociateResponse, "team_name", tmGood.Name)
 		require.Len(t, batchAssociateResponse.Apps, expectedAppCount)
 
 		assoc, err = s.ds.GetAssignedVPPApps(ctx, &tmGood.ID)
@@ -592,11 +592,11 @@ func (s *integrationMDMTestSuite) TestBatchAssociateAppStoreApps() {
 		s.awaitTriggerAndroidProfileSchedule(t)
 		require.Empty(t, sentAppLists)
 
-		s.DoJSON("GET", "/api/latest/fleet/software/titles", nil, http.StatusOK, &listSwTitles, "fleet_id", fmt.Sprint(tmGood.ID))
+		s.DoJSON("GET", "/api/latest/automdm/software/titles", nil, http.StatusOK, &listSwTitles, "team_id", fmt.Sprint(tmGood.ID))
 
 		s.Len(listSwTitles.SoftwareTitles, expectedAppCount)
 		for _, sw := range listSwTitles.SoftwareTitles {
-			id, ok := displayNameToAppStoreID[fleet.VPPAppID{AdamID: sw.AppStoreApps[0].AppStoreID, Platform: sw.AppStoreApps[0].Platform}]
+			id, ok := displayNameToAppStoreID[automdm.VPPAppID{AdamID: sw.AppStoreApps[0].AppStoreID, Platform: sw.AppStoreApps[0].Platform}]
 			s.True(ok)
 			s.Equal(id, sw.DisplayName)
 		}
@@ -604,12 +604,12 @@ func (s *integrationMDMTestSuite) TestBatchAssociateAppStoreApps() {
 
 	setDisplayNames(
 		4,
-		fleet.VPPBatchPayload{
+		automdm.VPPBatchPayload{
 			AppStoreID:  driveAppID,
-			Platform:    fleet.AndroidPlatform,
+			Platform:    automdm.AndroidPlatform,
 			DisplayName: "AndroidUpdated2",
 		},
-		fleet.VPPBatchPayload{
+		automdm.VPPBatchPayload{
 			AppStoreID:  adamIDWithAllPlatforms,
 			SelfService: true,
 			DisplayName: "AppleUpdated2",
@@ -618,20 +618,20 @@ func (s *integrationMDMTestSuite) TestBatchAssociateAppStoreApps() {
 
 	setDisplayNames(
 		3,
-		fleet.VPPBatchPayload{
+		automdm.VPPBatchPayload{
 			AppStoreID:  driveAppID,
-			Platform:    fleet.AndroidPlatform,
+			Platform:    automdm.AndroidPlatform,
 			DisplayName: "AndroidUpdated2",
 		},
-		fleet.VPPBatchPayload{
+		automdm.VPPBatchPayload{
 			AppStoreID:  adamIDWithAllPlatforms,
-			Platform:    fleet.MacOSPlatform,
+			Platform:    automdm.MacOSPlatform,
 			SelfService: true,
 			DisplayName: "AppleUpdated2",
 		},
-		fleet.VPPBatchPayload{
+		automdm.VPPBatchPayload{
 			AppStoreID:  adamIDWithAllPlatforms,
-			Platform:    fleet.IOSPlatform,
+			Platform:    automdm.IOSPlatform,
 			SelfService: true,
 			DisplayName: "IOSAPP",
 		},
@@ -639,12 +639,12 @@ func (s *integrationMDMTestSuite) TestBatchAssociateAppStoreApps() {
 
 	setDisplayNames(
 		4,
-		fleet.VPPBatchPayload{
+		automdm.VPPBatchPayload{
 			AppStoreID:  driveAppID,
-			Platform:    fleet.AndroidPlatform,
+			Platform:    automdm.AndroidPlatform,
 			DisplayName: "",
 		},
-		fleet.VPPBatchPayload{
+		automdm.VPPBatchPayload{
 			AppStoreID:  adamIDWithAllPlatforms,
 			SelfService: true,
 			DisplayName: "",
@@ -657,46 +657,46 @@ func (s *integrationMDMTestSuite) TestVPPApps() {
 	s.setSkipWorkerJobs(t)
 
 	// Invalid token
-	dev_mode.SetOverride("FLEET_DEV_VPP_URL", s.appleVPPConfigSrv.URL+"?invalidToken", t)
-	s.uploadDataViaForm("/api/latest/fleet/vpp_tokens", "token", "token.vpptoken", []byte("foobar"), http.StatusUnprocessableEntity, "Invalid token. Please provide a valid content token from Apple Business.", nil)
+	dev_mode.SetOverride("AUTOMDM_DEV_VPP_URL", s.appleVPPConfigSrv.URL+"?invalidToken", t)
+	s.uploadDataViaForm("/api/latest/automdm/vpp_tokens", "token", "token.vpptoken", []byte("foobar"), http.StatusUnprocessableEntity, "Invalid token. Please provide a valid content token from Apple Business.", nil)
 	// Attempt to renew an invalid (nonexistent) token, should fail
-	s.uploadDataViaFormWithVerb("/api/latest/fleet/vpp_tokens/999/renew", "PATCH", "token", "token.vpptoken", []byte(base64.StdEncoding.EncodeToString([]byte("foobar"))), http.StatusUnprocessableEntity, "Invalid token. Please provide a valid content token from Apple Business.", nil)
+	s.uploadDataViaFormWithVerb("/api/latest/automdm/vpp_tokens/999/renew", "PATCH", "token", "token.vpptoken", []byte(base64.StdEncoding.EncodeToString([]byte("foobar"))), http.StatusUnprocessableEntity, "Invalid token. Please provide a valid content token from Apple Business.", nil)
 
 	// Simulate a server error from the Apple API
-	dev_mode.SetOverride("FLEET_DEV_VPP_URL", s.appleVPPConfigSrv.URL+"?serverError", t)
-	s.uploadDataViaForm("/api/latest/fleet/vpp_tokens", "token", "token.vpptoken", []byte("foobar"), http.StatusInternalServerError, "Apple VPP endpoint returned error: Internal server error (error number: 9603)", nil)
+	dev_mode.SetOverride("AUTOMDM_DEV_VPP_URL", s.appleVPPConfigSrv.URL+"?serverError", t)
+	s.uploadDataViaForm("/api/latest/automdm/vpp_tokens", "token", "token.vpptoken", []byte("foobar"), http.StatusInternalServerError, "Apple VPP endpoint returned error: Internal server error (error number: 9603)", nil)
 
 	// Valid token
 	orgName := "Fleet Device Management Inc."
-	location := "Fleet Location One"
+	location := "AutoMDM Location One"
 	token := "mycooltoken"
 	expTime := time.Now().Add(200 * time.Hour).UTC().Round(time.Second)
-	expDate := expTime.Format(fleet.VPPTimeFormat)
+	expDate := expTime.Format(automdm.VPPTimeFormat)
 	tokenJSON := fmt.Sprintf(`{"expDate":"%s","token":"%s","orgName":"%s"}`, expDate, token, orgName)
-	dev_mode.SetOverride("FLEET_DEV_VPP_URL", s.appleVPPConfigSrv.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_VPP_URL", s.appleVPPConfigSrv.URL, t)
 	var validToken uploadVPPTokenResponse
-	s.uploadDataViaForm("/api/latest/fleet/vpp_tokens", "token", "token.vpptoken", []byte(base64.StdEncoding.EncodeToString([]byte(tokenJSON))), http.StatusAccepted, "", &validToken)
+	s.uploadDataViaForm("/api/latest/automdm/vpp_tokens", "token", "token.vpptoken", []byte(base64.StdEncoding.EncodeToString([]byte(tokenJSON))), http.StatusAccepted, "", &validToken)
 
-	s.lastActivityMatches(fleet.ActivityEnabledVPP{}.ActivityName(), "", 0)
+	s.lastActivityMatches(automdm.ActivityEnabledVPP{}.ActivityName(), "", 0)
 
 	// Renew valid token
 	expTime = expTime.Add(24 * time.Hour).UTC().Round(time.Second)
-	expDate = expTime.Format(fleet.VPPTimeFormat)
+	expDate = expTime.Format(automdm.VPPTimeFormat)
 	tokenJSON = fmt.Sprintf(`{"expDate":"%s","token":"%s","orgName":"%s"}`, expDate, token, orgName)
-	s.uploadDataViaFormWithVerb(fmt.Sprintf("/api/latest/fleet/vpp_tokens/%d/renew", validToken.Token.ID), "PATCH", "token", "token.vpptoken", []byte(base64.StdEncoding.EncodeToString([]byte(tokenJSON))), http.StatusAccepted, "", &validToken)
+	s.uploadDataViaFormWithVerb(fmt.Sprintf("/api/latest/automdm/vpp_tokens/%d/renew", validToken.Token.ID), "PATCH", "token", "token.vpptoken", []byte(base64.StdEncoding.EncodeToString([]byte(tokenJSON))), http.StatusAccepted, "", &validToken)
 	// Valid token bytes, but non-existent token ID. Should get not found
-	s.uploadDataViaFormWithVerb("/api/latest/fleet/vpp_tokens/999/renew", "PATCH", "token", "token.vpptoken", []byte(base64.StdEncoding.EncodeToString([]byte(tokenJSON))), http.StatusNotFound, "VPPToken was not found in the datastore", nil)
+	s.uploadDataViaFormWithVerb("/api/latest/automdm/vpp_tokens/999/renew", "PATCH", "token", "token.vpptoken", []byte(base64.StdEncoding.EncodeToString([]byte(tokenJSON))), http.StatusNotFound, "VPPToken was not found in the datastore", nil)
 
 	// Get the token
 	var resp getVPPTokensResponse
-	s.DoJSON("GET", "/api/latest/fleet/vpp_tokens", &getVPPTokensRequest{}, http.StatusOK, &resp)
+	s.DoJSON("GET", "/api/latest/automdm/vpp_tokens", &getVPPTokensRequest{}, http.StatusOK, &resp)
 	require.NoError(t, resp.Err)
 	require.Len(t, resp.Tokens, 1)
 	require.Equal(t, orgName, resp.Tokens[0].OrgName)
 	require.Equal(t, location, resp.Tokens[0].Location)
 	require.Equal(t, expTime, resp.Tokens[0].RenewDate)
 
-	getSoftwareTitleIDFromApp := func(app *fleet.VPPApp) uint {
+	getSoftwareTitleIDFromApp := func(app *automdm.VPPApp) uint {
 		var titleID uint
 		mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
 			ctx := context.Background()
@@ -709,31 +709,31 @@ func (s *integrationMDMTestSuite) TestVPPApps() {
 	t.Run("vpp apps with labels", func(t *testing.T) {
 		// Create a team
 		var newTeamResp teamResponse
-		s.DoJSON("POST", "/api/latest/fleet/fleets", &createTeamRequest{Name: new("Team Labels" + t.Name())}, http.StatusOK, &newTeamResp)
+		s.DoJSON("POST", "/api/latest/automdm/teams", &createTeamRequest{Name: new("Team Labels" + t.Name())}, http.StatusOK, &newTeamResp)
 		team := newTeamResp.Team
 
 		// Add an MDM macOS host to the team
 		host, mdmDevice := createHostThenEnrollMDM(s.ds, s.server.URL, t)
 		orbitKey := setOrbitEnrollment(t, host, s.ds)
 		host.OrbitNodeKey = &orbitKey
-		s.Do("POST", "/api/latest/fleet/hosts/transfer", &addHostsToTeamRequest{HostIDs: []uint{host.ID}, TeamID: &team.ID}, http.StatusOK)
+		s.Do("POST", "/api/latest/automdm/hosts/transfer", &addHostsToTeamRequest{HostIDs: []uint{host.ID}, TeamID: &team.ID}, http.StatusOK)
 
 		// Associate team to the VPP token.
 		var resPatchVPP patchVPPTokensTeamsResponse
-		s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/vpp_tokens/%d/fleets", resp.Tokens[0].ID), patchVPPTokensTeamsRequest{TeamIDs: []uint{team.ID}}, http.StatusOK, &resPatchVPP)
+		s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/vpp_tokens/%d/teams", resp.Tokens[0].ID), patchVPPTokensTeamsRequest{TeamIDs: []uint{team.ID}}, http.StatusOK, &resPatchVPP)
 
-		var createLabelResp fleet.CreateLabelResponse
-		s.DoJSON("POST", "/api/latest/fleet/labels", &fleet.LabelPayload{Name: "label1" + t.Name()}, http.StatusOK, &createLabelResp)
+		var createLabelResp automdm.CreateLabelResponse
+		s.DoJSON("POST", "/api/latest/automdm/labels", &automdm.LabelPayload{Name: "label1" + t.Name()}, http.StatusOK, &createLabelResp)
 		l1 := createLabelResp.Label
 		require.NotNil(t, l1)
 
-		s.DoJSON("POST", "/api/latest/fleet/labels", &fleet.LabelPayload{Name: "label2" + t.Name()}, http.StatusOK, &createLabelResp)
+		s.DoJSON("POST", "/api/latest/automdm/labels", &automdm.LabelPayload{Name: "label2" + t.Name()}, http.StatusOK, &createLabelResp)
 		l2 := createLabelResp.Label
 		require.NotNil(t, l2)
 
-		includeAnyApp := fleet.VPPApp{
+		includeAnyApp := automdm.VPPApp{
 			AdamID:           "1",
-			Platform:         fleet.MacOSPlatform,
+			Platform:         automdm.MacOSPlatform,
 			Name:             "App 1",
 			BundleIdentifier: "a-1",
 			IconURL:          "https://example.com/images/1/512x512.png",
@@ -749,31 +749,31 @@ func (s *integrationMDMTestSuite) TestVPPApps() {
 			LabelsIncludeAny: []string{l1.Name},
 			LabelsExcludeAny: []string{l2.Name},
 		}
-		res := s.Do("POST", "/api/latest/fleet/software/app_store_apps", addAppReq, http.StatusBadRequest)
+		res := s.Do("POST", "/api/latest/automdm/software/app_store_apps", addAppReq, http.StatusBadRequest)
 		require.Contains(t, extractServerErrorText(res.Body), `Only one of "labels_include_all", "labels_include_any" or "labels_exclude_any" can be included`)
 
 		// Now add it for real
 		addAppReq.LabelsExcludeAny = []string{}
-		s.DoJSON("POST", "/api/latest/fleet/software/app_store_apps", addAppReq, http.StatusOK, &addAppResp)
+		s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps", addAppReq, http.StatusOK, &addAppResp)
 		titleID := getSoftwareTitleIDFromApp(&includeAnyApp)
 		require.Equal(t, titleID, addAppResp.TitleID, "addAppResp should contain the correct software title ID")
-		activityData := `{"version_name": "Default version", "fleet_name": "%s", "software_title": "%s", "software_title_id": %d, "app_store_id": "%s", "fleet_id": %d, "platform": "%s", "self_service": true, "labels_include_any": [{"id": %d, "name": %q}]}`
-		s.lastActivityMatches(fleet.ActivityAddedAppStoreApp{}.ActivityName(),
+		activityData := `{"version_name": "Default version", "team_name": "%s", "software_title": "%s", "software_title_id": %d, "app_store_id": "%s", "team_id": %d, "platform": "%s", "self_service": true, "labels_include_any": [{"id": %d, "name": %q}]}`
+		s.lastActivityMatches(automdm.ActivityAddedAppStoreApp{}.ActivityName(),
 			withVPPToken(t, fmt.Sprintf(activityData, team.Name,
 				includeAnyApp.Name, titleID, includeAnyApp.AdamID, team.ID, includeAnyApp.Platform, l1.ID, l1.Name), validToken.Token), 0)
 
 		var getSWTitle getSoftwareTitleResponse
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/software/titles/%d", titleID), nil, http.StatusOK, &getSWTitle, "fleet_id", fmt.Sprint(team.ID))
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/software/titles/%d", titleID), nil, http.StatusOK, &getSWTitle, "team_id", fmt.Sprint(team.ID))
 		require.Len(t, getSWTitle.SoftwareTitle.AppStoreApps, 1)
 		require.Equal(t, getSWTitle.SoftwareTitle.AppStoreApps[0].AdamID, includeAnyApp.AdamID)
 		require.Empty(t, getSWTitle.SoftwareTitle.AppStoreApps[0].LabelsExcludeAny)
 		require.Empty(t, getSWTitle.SoftwareTitle.AppStoreApps[0].LabelsIncludeAll)
-		require.Equal(t, []fleet.SoftwareScopeLabel{{LabelName: l1.Name, LabelID: l1.ID}}, getSWTitle.SoftwareTitle.AppStoreApps[0].LabelsIncludeAny)
+		require.Equal(t, []automdm.SoftwareScopeLabel{{LabelName: l1.Name, LabelID: l1.ID}}, getSWTitle.SoftwareTitle.AppStoreApps[0].LabelsIncludeAny)
 
 		// Add an app with exclude_any labels
-		excludeAnyApp := fleet.VPPApp{
+		excludeAnyApp := automdm.VPPApp{
 			AdamID:           "2",
-			Platform:         fleet.MacOSPlatform,
+			Platform:         automdm.MacOSPlatform,
 			Name:             "App 2",
 			BundleIdentifier: "b-2",
 			IconURL:          "https://example.com/images/1/512x512.png",
@@ -786,23 +786,23 @@ func (s *integrationMDMTestSuite) TestVPPApps() {
 			SelfService:      true,
 			LabelsExcludeAny: []string{l2.Name},
 		}
-		s.DoJSON("POST", "/api/latest/fleet/software/app_store_apps", addAppReq, http.StatusOK, &addAppResp)
+		s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps", addAppReq, http.StatusOK, &addAppResp)
 		titleID = getSoftwareTitleIDFromApp(&excludeAnyApp)
-		activityData = `{"version_name": "Default version", "fleet_name": "%s", "software_title": "%s", "software_title_id": %d, "app_store_id": "%s", "fleet_id": %d, "platform": "%s", "self_service": true, "labels_exclude_any": [{"id": %d, "name": %q}]}`
-		s.lastActivityMatches(fleet.ActivityAddedAppStoreApp{}.ActivityName(),
+		activityData = `{"version_name": "Default version", "team_name": "%s", "software_title": "%s", "software_title_id": %d, "app_store_id": "%s", "team_id": %d, "platform": "%s", "self_service": true, "labels_exclude_any": [{"id": %d, "name": %q}]}`
+		s.lastActivityMatches(automdm.ActivityAddedAppStoreApp{}.ActivityName(),
 			withVPPToken(t, fmt.Sprintf(activityData, team.Name,
 				excludeAnyApp.Name, titleID, excludeAnyApp.AdamID, team.ID, excludeAnyApp.Platform, l2.ID, l2.Name), validToken.Token), 0)
 
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/software/titles/%d", titleID), nil, http.StatusOK, &getSWTitle, "fleet_id", fmt.Sprint(team.ID))
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/software/titles/%d", titleID), nil, http.StatusOK, &getSWTitle, "team_id", fmt.Sprint(team.ID))
 		require.Len(t, getSWTitle.SoftwareTitle.AppStoreApps, 1)
 		require.Equal(t, getSWTitle.SoftwareTitle.AppStoreApps[0].AdamID, excludeAnyApp.AdamID)
 		require.Empty(t, getSWTitle.SoftwareTitle.AppStoreApps[0].LabelsIncludeAny)
 		require.Empty(t, getSWTitle.SoftwareTitle.AppStoreApps[0].LabelsIncludeAll)
-		require.Equal(t, []fleet.SoftwareScopeLabel{{LabelName: l2.Name, LabelID: l2.ID}}, getSWTitle.SoftwareTitle.AppStoreApps[0].LabelsExcludeAny)
+		require.Equal(t, []automdm.SoftwareScopeLabel{{LabelName: l2.Name, LabelID: l2.ID}}, getSWTitle.SoftwareTitle.AppStoreApps[0].LabelsExcludeAny)
 		require.True(t, getSWTitle.SoftwareTitle.AppStoreApps[0].SelfService)
 
 		// Add a non-VPP software
-		payloadRubyTm1 := &fleet.UploadSoftwareInstallerPayload{
+		payloadRubyTm1 := &automdm.UploadSoftwareInstallerPayload{
 			InstallScript: "install",
 			Filename:      "ruby.deb",
 			SelfService:   false,
@@ -812,11 +812,11 @@ func (s *integrationMDMTestSuite) TestVPPApps() {
 
 		resp := listSoftwareTitlesResponse{}
 		s.DoJSON(
-			"GET", "/api/latest/fleet/software/titles",
+			"GET", "/api/latest/automdm/software/titles",
 			listSoftwareTitlesRequest{},
 			http.StatusOK, &resp,
 			"query", "ruby",
-			"fleet_id", fmt.Sprintf("%d", team.ID),
+			"team_id", fmt.Sprintf("%d", team.ID),
 		)
 
 		require.Len(t, resp.SoftwareTitles, 1)
@@ -825,87 +825,87 @@ func (s *integrationMDMTestSuite) TestVPPApps() {
 		updateAppReq := &updateAppStoreAppRequest{TeamID: &team.ID, SelfService: new(false)}
 
 		// Attempt to update the non-VPP software using the VPP path. Should fail.
-		s.Do("PATCH", fmt.Sprintf("/api/latest/fleet/software/titles/%d/app_store_app", nonVPPTitleID), updateAppReq, http.StatusNotFound)
+		s.Do("PATCH", fmt.Sprintf("/api/latest/automdm/software/titles/%d/app_store_app", nonVPPTitleID), updateAppReq, http.StatusNotFound)
 
 		// Attempt to update a non-existent app. Should fail.
-		s.Do("PATCH", "/api/latest/fleet/software/titles/9999/app_store_app", updateAppReq, http.StatusNotFound)
+		s.Do("PATCH", "/api/latest/automdm/software/titles/9999/app_store_app", updateAppReq, http.StatusNotFound)
 
 		// Attempt to update with both types of labels. Should fail.
 		updateAppReq.LabelsIncludeAny = []string{l1.Name}
 		updateAppReq.LabelsExcludeAny = []string{l1.Name}
-		res = s.Do("PATCH", fmt.Sprintf("/api/latest/fleet/software/titles/%d/app_store_app", titleID), updateAppReq, http.StatusBadRequest)
+		res = s.Do("PATCH", fmt.Sprintf("/api/latest/automdm/software/titles/%d/app_store_app", titleID), updateAppReq, http.StatusBadRequest)
 		require.Contains(t, extractServerErrorText(res.Body), `Only one of "labels_include_all", "labels_include_any" or "labels_exclude_any" can be included.`)
 
 		// Attempt to update with a non-existent label. Should fail.
 		updateAppReq.LabelsExcludeAny = []string{}
 		updateAppReq.LabelsIncludeAny = []string{"404_notfound"}
-		res = s.Do("PATCH", fmt.Sprintf("/api/latest/fleet/software/titles/%d/app_store_app", titleID), updateAppReq, http.StatusBadRequest)
+		res = s.Do("PATCH", fmt.Sprintf("/api/latest/automdm/software/titles/%d/app_store_app", titleID), updateAppReq, http.StatusBadRequest)
 		require.Contains(t, extractServerErrorText(res.Body), `Couldn't update. Label "404_notfound" doesn't exist. Please remove the label from the software.`)
 
 		// Update App2. Unset self service and update the labels
 		updateAppReq.LabelsIncludeAny = []string{l2.Name}
 		var updateAppResp updateAppStoreAppResponse
-		s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/software/titles/%d/app_store_app", titleID), updateAppReq, http.StatusOK, &updateAppResp)
+		s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/software/titles/%d/app_store_app", titleID), updateAppReq, http.StatusOK, &updateAppResp)
 
 		require.NotNil(t, updateAppResp.AppStoreApp)
 		require.Equal(t, updateAppResp.AppStoreApp.AdamID, excludeAnyApp.AdamID)
-		require.Equal(t, []fleet.SoftwareScopeLabel{{LabelName: l2.Name, LabelID: l2.ID}}, updateAppResp.AppStoreApp.LabelsIncludeAny)
+		require.Equal(t, []automdm.SoftwareScopeLabel{{LabelName: l2.Name, LabelID: l2.ID}}, updateAppResp.AppStoreApp.LabelsIncludeAny)
 		require.Empty(t, updateAppResp.AppStoreApp.LabelsExcludeAny)
 		require.Empty(t, updateAppResp.AppStoreApp.LabelsIncludeAll)
 		require.False(t, updateAppResp.AppStoreApp.SelfService)
-		require.Equal(t, fleet.MacOSPlatform, updateAppResp.AppStoreApp.Platform)
+		require.Equal(t, automdm.MacOSPlatform, updateAppResp.AppStoreApp.Platform)
 
-		activityData = `{"version_name": "Default version", "fleet_name": "%s", "software_title": "%s", "app_store_id": "%s", "software_icon_url": "https://example.com/images/2/512x512.png", "fleet_id": %d, "software_title_id": %d, "platform": "%s", "self_service": false, "labels_include_any": [{"id": %d, "name": %q}], "software_display_name": ""}`
-		s.lastActivityMatches(fleet.ActivityEditedAppStoreApp{}.ActivityName(),
+		activityData = `{"version_name": "Default version", "team_name": "%s", "software_title": "%s", "app_store_id": "%s", "software_icon_url": "https://example.com/images/2/512x512.png", "team_id": %d, "software_title_id": %d, "platform": "%s", "self_service": false, "labels_include_any": [{"id": %d, "name": %q}], "software_display_name": ""}`
+		s.lastActivityMatches(automdm.ActivityEditedAppStoreApp{}.ActivityName(),
 			withVPPToken(t, fmt.Sprintf(activityData, team.Name,
 				excludeAnyApp.Name, excludeAnyApp.AdamID, team.ID, titleID, excludeAnyApp.Platform, l2.ID, l2.Name), validToken.Token), 0)
 
 		// double check that our updates worked
 		getSWTitle = getSoftwareTitleResponse{}
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/software/titles/%d", titleID), nil, http.StatusOK, &getSWTitle, "fleet_id", fmt.Sprint(team.ID))
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/software/titles/%d", titleID), nil, http.StatusOK, &getSWTitle, "team_id", fmt.Sprint(team.ID))
 		require.Len(t, getSWTitle.SoftwareTitle.AppStoreApps, 1)
 		require.Equal(t, getSWTitle.SoftwareTitle.AppStoreApps[0].AdamID, excludeAnyApp.AdamID)
-		require.Equal(t, []fleet.SoftwareScopeLabel{{LabelName: l2.Name, LabelID: l2.ID}}, getSWTitle.SoftwareTitle.AppStoreApps[0].LabelsIncludeAny)
+		require.Equal(t, []automdm.SoftwareScopeLabel{{LabelName: l2.Name, LabelID: l2.ID}}, getSWTitle.SoftwareTitle.AppStoreApps[0].LabelsIncludeAny)
 		require.Empty(t, getSWTitle.SoftwareTitle.AppStoreApps[0].LabelsExcludeAny)
 		require.Empty(t, getSWTitle.SoftwareTitle.AppStoreApps[0].LabelsIncludeAll)
 		require.False(t, getSWTitle.SoftwareTitle.AppStoreApps[0].SelfService)
 
 		// Attempt an install on the host. This should fail because the host doesn't have the label
 		// l2.
-		res = s.Do("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/software/%d/install", host.ID, titleID), &installSoftwareRequest{}, http.StatusBadRequest)
+		res = s.Do("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/software/%d/install", host.ID, titleID), &installSoftwareRequest{}, http.StatusBadRequest)
 		require.Contains(t, extractServerErrorText(res.Body), "Couldn't install. This host isn't a member of the labels defined for this software title.")
 
 		// Add l2 to the host. Attempt install again, should succeed
-		s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/labels/%d", l2.ID), &fleet.ModifyLabelPayload{Hosts: []string{host.HardwareSerial}}, http.StatusOK, &createLabelResp)
+		s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/labels/%d", l2.ID), &automdm.ModifyLabelPayload{Hosts: []string{host.HardwareSerial}}, http.StatusOK, &createLabelResp)
 
 		s.appleVPPConfigSrvConfig.SerialNumbers = append(s.appleVPPConfigSrvConfig.SerialNumbers, mdmDevice.SerialNumber)
 
-		s.Do("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/software/%d/install", host.ID, titleID), &installSoftwareRequest{}, http.StatusAccepted)
+		s.Do("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/software/%d/install", host.ID, titleID), &installSoftwareRequest{}, http.StatusAccepted)
 
 		// Attempt to delete a non-existent app. Should fail.
-		s.Do("DELETE", "/api/latest/fleet/software/titles/9999/available_for_install", nil, http.StatusNotFound, "fleet_id", fmt.Sprintf("%d", team.ID))
+		s.Do("DELETE", "/api/latest/automdm/software/titles/9999/available_for_install", nil, http.StatusNotFound, "team_id", fmt.Sprintf("%d", team.ID))
 
 		// delete the VPP app
-		s.Do("DELETE", fmt.Sprintf("/api/latest/fleet/software/titles/%d/available_for_install", titleID), nil, http.StatusNoContent, "fleet_id", fmt.Sprintf("%d", team.ID))
-		activityData = `{"version_name": "Default version", "fleet_name": "%s", "software_title": "%s", "software_display_name": "", "app_store_id": "%s", "software_icon_url": "https://example.com/images/2/512x512.png", "fleet_id": %d, "platform": "%s", "labels_include_any": [{"id": %d, "name": %q}]}`
-		s.lastActivityMatches(fleet.ActivityDeletedAppStoreApp{}.ActivityName(),
+		s.Do("DELETE", fmt.Sprintf("/api/latest/automdm/software/titles/%d/available_for_install", titleID), nil, http.StatusNoContent, "team_id", fmt.Sprintf("%d", team.ID))
+		activityData = `{"version_name": "Default version", "team_name": "%s", "software_title": "%s", "software_display_name": "", "app_store_id": "%s", "software_icon_url": "https://example.com/images/2/512x512.png", "team_id": %d, "platform": "%s", "labels_include_any": [{"id": %d, "name": %q}]}`
+		s.lastActivityMatches(automdm.ActivityDeletedAppStoreApp{}.ActivityName(),
 			fmt.Sprintf(activityData, team.Name,
 				excludeAnyApp.Name, excludeAnyApp.AdamID, team.ID, excludeAnyApp.Platform, l2.ID, l2.Name), 0)
 
 		// iOS and iPadOS
 
-		iOSApp := fleet.VPPApp{
+		iOSApp := automdm.VPPApp{
 			AdamID:           "2",
-			Platform:         fleet.IOSPlatform,
+			Platform:         automdm.IOSPlatform,
 			Name:             "App 2",
 			BundleIdentifier: "b-2",
 			IconURL:          "https://example.com/images/2/512x512.png",
 			LatestVersion:    "2.0.0",
 		}
 
-		iPadOSApp := fleet.VPPApp{
+		iPadOSApp := automdm.VPPApp{
 			AdamID:           "2",
-			Platform:         fleet.IPadOSPlatform,
+			Platform:         automdm.IPadOSPlatform,
 			Name:             "App 2",
 			BundleIdentifier: "b-2",
 			IconURL:          "https://example.com/images/2/512x512.png",
@@ -914,7 +914,7 @@ func (s *integrationMDMTestSuite) TestVPPApps() {
 
 		testCases := []struct {
 			desc      string
-			app       fleet.VPPApp
+			app       automdm.VPPApp
 			addAppReq *addAppStoreAppRequest
 		}{
 			{
@@ -942,57 +942,57 @@ func (s *integrationMDMTestSuite) TestVPPApps() {
 		for _, tc := range testCases {
 			t.Run(tc.desc, func(t *testing.T) {
 				mobileHost, mobileMDMDevice := s.createAppleMobileHostThenEnrollMDM(string(tc.app.Platform))
-				s.Do("POST", "/api/latest/fleet/hosts/transfer", &addHostsToTeamRequest{HostIDs: []uint{mobileHost.ID}, TeamID: &team.ID}, http.StatusOK)
+				s.Do("POST", "/api/latest/automdm/hosts/transfer", &addHostsToTeamRequest{HostIDs: []uint{mobileHost.ID}, TeamID: &team.ID}, http.StatusOK)
 
-				s.Do("POST", "/api/latest/fleet/software/app_store_apps", tc.addAppReq, http.StatusOK)
+				s.Do("POST", "/api/latest/automdm/software/app_store_apps", tc.addAppReq, http.StatusOK)
 				titleID = getSoftwareTitleIDFromApp(&tc.app)
 				s.appleVPPConfigSrvConfig.SerialNumbers = append(s.appleVPPConfigSrvConfig.SerialNumbers, mobileMDMDevice.SerialNumber)
 
 				// Should fail because label is include_any and the host doesn't have it
-				res = s.Do("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/software/%d/install", mobileHost.ID, titleID), &installSoftwareRequest{}, http.StatusBadRequest)
+				res = s.Do("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/software/%d/install", mobileHost.ID, titleID), &installSoftwareRequest{}, http.StatusBadRequest)
 				require.Contains(t, extractServerErrorText(res.Body), "Couldn't install. This host isn't a member of the labels defined for this software title.")
 
 				// Create a new label
-				s.DoJSON("POST", "/api/latest/fleet/labels", &fleet.LabelPayload{Name: "label3" + t.Name(), Hosts: []string{mobileMDMDevice.SerialNumber}}, http.StatusOK, &createLabelResp)
+				s.DoJSON("POST", "/api/latest/automdm/labels", &automdm.LabelPayload{Name: "label3" + t.Name(), Hosts: []string{mobileMDMDevice.SerialNumber}}, http.StatusOK, &createLabelResp)
 				l3 := createLabelResp.Label
 				require.NotNil(t, l3)
 
 				// Should fail because label is exclude_any and the host does have it
 				updateAppReq = &updateAppStoreAppRequest{TeamID: &team.ID, LabelsExcludeAny: []string{l3.Name}}
-				s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/software/titles/%d/app_store_app", titleID), updateAppReq, http.StatusOK, &updateAppResp)
-				res = s.Do("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/software/%d/install", mobileHost.ID, titleID), &installSoftwareRequest{}, http.StatusBadRequest)
+				s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/software/titles/%d/app_store_app", titleID), updateAppReq, http.StatusOK, &updateAppResp)
+				res = s.Do("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/software/%d/install", mobileHost.ID, titleID), &installSoftwareRequest{}, http.StatusBadRequest)
 				require.Contains(t, extractServerErrorText(res.Body), "Couldn't install. This host isn't a member of the labels defined for this software title.")
 
 				// Should succeed because the label is include_any and the host does have it
 				updateAppReq = &updateAppStoreAppRequest{TeamID: &team.ID, LabelsIncludeAny: []string{l3.Name}}
-				s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/software/titles/%d/app_store_app", titleID), updateAppReq, http.StatusOK, &updateAppResp)
-				s.Do("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/software/%d/install", mobileHost.ID, titleID), &installSoftwareRequest{}, http.StatusAccepted)
+				s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/software/titles/%d/app_store_app", titleID), updateAppReq, http.StatusOK, &updateAppResp)
+				s.Do("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/software/%d/install", mobileHost.ID, titleID), &installSoftwareRequest{}, http.StatusAccepted)
 
 				// Create a new host
 				mobileHost, mobileMDMDevice = s.createAppleMobileHostThenEnrollMDM(string(tc.app.Platform))
-				s.Do("POST", "/api/latest/fleet/hosts/transfer", &addHostsToTeamRequest{HostIDs: []uint{mobileHost.ID}, TeamID: &team.ID}, http.StatusOK)
+				s.Do("POST", "/api/latest/automdm/hosts/transfer", &addHostsToTeamRequest{HostIDs: []uint{mobileHost.ID}, TeamID: &team.ID}, http.StatusOK)
 				s.appleVPPConfigSrvConfig.SerialNumbers = append(s.appleVPPConfigSrvConfig.SerialNumbers, mobileMDMDevice.SerialNumber)
 
 				// Should succeed because the label is exclude_any and the iOS host doesn't have it
 				updateAppReq = &updateAppStoreAppRequest{TeamID: &team.ID, LabelsExcludeAny: []string{l3.Name}}
-				s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/software/titles/%d/app_store_app", titleID), updateAppReq, http.StatusOK, &updateAppResp)
-				s.Do("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/software/%d/install", mobileHost.ID, titleID), &installSoftwareRequest{}, http.StatusAccepted)
+				s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/software/titles/%d/app_store_app", titleID), updateAppReq, http.StatusOK, &updateAppResp)
+				s.Do("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/software/%d/install", mobileHost.ID, titleID), &installSoftwareRequest{}, http.StatusAccepted)
 			})
 		}
 	})
 
 	// Create a team with unique name to avoid conflicts with other tests
 	var newTeamResp teamResponse
-	s.DoJSON("POST", "/api/latest/fleet/fleets", &createTeamRequest{Name: new("VPPApps Test Team " + t.Name())}, http.StatusOK, &newTeamResp)
+	s.DoJSON("POST", "/api/latest/automdm/teams", &createTeamRequest{Name: new("VPPApps Test Team " + t.Name())}, http.StatusOK, &newTeamResp)
 	team := newTeamResp.Team
 
 	// Associate team to the VPP token.
 	var resPatchVPP patchVPPTokensTeamsResponse
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/vpp_tokens/%d/fleets", resp.Tokens[0].ID), patchVPPTokensTeamsRequest{TeamIDs: []uint{team.ID}}, http.StatusOK, &resPatchVPP)
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/vpp_tokens/%d/teams", resp.Tokens[0].ID), patchVPPTokensTeamsRequest{TeamIDs: []uint{team.ID}}, http.StatusOK, &resPatchVPP)
 
 	// A PATCH endpoint omitting mdm.volume_purchasing_program should not remove the VPP token association.
 	acResp := appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 		"agent_options": {
 			"config": {
 				"options": {
@@ -1010,7 +1010,7 @@ func (s *integrationMDMTestSuite) TestVPPApps() {
 
 	// Check that the VPP token is still associated to the team.
 	resp = getVPPTokensResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/vpp_tokens", &getVPPTokensRequest{}, http.StatusOK, &resp)
+	s.DoJSON("GET", "/api/latest/automdm/vpp_tokens", &getVPPTokensRequest{}, http.StatusOK, &resp)
 	require.NoError(t, resp.Err)
 	require.Len(t, resp.Tokens, 1)
 	require.Equal(t, orgName, resp.Tokens[0].OrgName)
@@ -1022,12 +1022,12 @@ func (s *integrationMDMTestSuite) TestVPPApps() {
 
 	// Reset the token's teams by omitting the token from app config
 	acResp = appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 		"mdm": { "volume_purchasing_program": [] }
   }`), http.StatusOK, &acResp)
 
 	resp = getVPPTokensResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/vpp_tokens", &getVPPTokensRequest{}, http.StatusOK, &resp)
+	s.DoJSON("GET", "/api/latest/automdm/vpp_tokens", &getVPPTokensRequest{}, http.StatusOK, &resp)
 	require.NoError(t, resp.Err)
 	require.Len(t, resp.Tokens, 1)
 	require.Equal(t, orgName, resp.Tokens[0].OrgName)
@@ -1035,15 +1035,15 @@ func (s *integrationMDMTestSuite) TestVPPApps() {
 	require.Equal(t, expTime, resp.Tokens[0].RenewDate)
 	require.Empty(t, resp.Tokens[0].Teams)
 
-	// Add the team back using the PATCH /api/latest/fleet/config endpoint now (what GitOps uses).
+	// Add the team back using the PATCH /api/latest/automdm/config endpoint now (what GitOps uses).
 	acResp = appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(fmt.Sprintf(`{
-		"mdm": { "volume_purchasing_program": [ {"location": "%s", "fleets": [ "%s" ]} ] }
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(fmt.Sprintf(`{
+		"mdm": { "volume_purchasing_program": [ {"location": "%s", "teams": [ "%s" ]} ] }
   }`, location, team.Name)), http.StatusOK, &acResp)
 
 	// Check again that the VPP token is associated to the team.
 	resp = getVPPTokensResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/vpp_tokens", &getVPPTokensRequest{}, http.StatusOK, &resp)
+	s.DoJSON("GET", "/api/latest/automdm/vpp_tokens", &getVPPTokensRequest{}, http.StatusOK, &resp)
 	require.NoError(t, resp.Err)
 	require.Len(t, resp.Tokens, 1)
 	require.Equal(t, orgName, resp.Tokens[0].OrgName)
@@ -1057,41 +1057,41 @@ func (s *integrationMDMTestSuite) TestVPPApps() {
 	// We're passing team 1 here, but we haven't added any app store apps to that team, so we get
 	// back all available apps in our VPP location.
 	var appResp getAppStoreAppsResponse
-	s.DoJSON("GET", "/api/latest/fleet/software/app_store_apps", &getAppStoreAppsRequest{}, http.StatusOK, &appResp, "fleet_id",
+	s.DoJSON("GET", "/api/latest/automdm/software/app_store_apps", &getAppStoreAppsRequest{}, http.StatusOK, &appResp, "team_id",
 		fmt.Sprint(team.ID))
 	require.NoError(t, appResp.Err)
 
-	macOSApp := fleet.VPPApp{
+	macOSApp := automdm.VPPApp{
 		AdamID:           "1",
-		Platform:         fleet.MacOSPlatform,
+		Platform:         automdm.MacOSPlatform,
 		Name:             "App 1",
 		BundleIdentifier: "a-1",
 		IconURL:          "https://example.com/images/1/512x512.png",
 		LatestVersion:    "1.0.0",
 	}
-	iPadOSApp := fleet.VPPApp{
+	iPadOSApp := automdm.VPPApp{
 		AdamID:           "2",
-		Platform:         fleet.IPadOSPlatform,
+		Platform:         automdm.IPadOSPlatform,
 		Name:             "App 2",
 		BundleIdentifier: "b-2",
 		IconURL:          "https://example.com/images/2/512x512.png",
 		LatestVersion:    "2.0.0",
 	}
-	iOSApp := fleet.VPPApp{
+	iOSApp := automdm.VPPApp{
 		AdamID:           "2",
-		Platform:         fleet.IOSPlatform,
+		Platform:         automdm.IOSPlatform,
 		Name:             "App 2",
 		BundleIdentifier: "b-2",
 		IconURL:          "https://example.com/images/2/512x512.png",
 		LatestVersion:    "2.0.0",
 	}
-	expectedApps := []*fleet.VPPApp{
+	expectedApps := []*automdm.VPPApp{
 		&macOSApp,
 		&iPadOSApp,
 		&iOSApp,
 		{
 			AdamID:           "2",
-			Platform:         fleet.MacOSPlatform,
+			Platform:         automdm.MacOSPlatform,
 			Name:             "App 2",
 			BundleIdentifier: "b-2",
 			IconURL:          "https://example.com/images/2/512x512.png",
@@ -1099,7 +1099,7 @@ func (s *integrationMDMTestSuite) TestVPPApps() {
 		},
 		{
 			AdamID:           "3",
-			Platform:         fleet.IPadOSPlatform,
+			Platform:         automdm.IPadOSPlatform,
 			Name:             "App 3",
 			BundleIdentifier: "c-3",
 			IconURL:          "https://example.com/images/3/512x512.png",
@@ -1113,31 +1113,31 @@ func (s *integrationMDMTestSuite) TestVPPApps() {
 	addedApp := expectedApps[0]
 	var addAppResp addAppStoreAppResponse
 	// Add an app store app to non-existent team
-	s.DoJSON("POST", "/api/latest/fleet/software/app_store_apps", &addAppStoreAppRequest{TeamID: new(uint(9999)), AppStoreID: addedApp.AdamID}, http.StatusNotFound, &addAppResp)
+	s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps", &addAppStoreAppRequest{TeamID: new(uint(9999)), AppStoreID: addedApp.AdamID}, http.StatusNotFound, &addAppResp)
 
-	s.DoJSON("POST", "/api/latest/fleet/software/app_store_apps", &addAppStoreAppRequest{TeamID: &team.ID, AppStoreID: addedApp.AdamID, SelfService: true, AutomaticInstall: true}, http.StatusOK, &addAppResp)
+	s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps", &addAppStoreAppRequest{TeamID: &team.ID, AppStoreID: addedApp.AdamID, SelfService: true, AutomaticInstall: true}, http.StatusOK, &addAppResp)
 
-	s.lastActivityOfTypeMatches(fleet.ActivityAddedAppStoreApp{}.ActivityName(),
-		withVPPToken(t, fmt.Sprintf(`{"version_name": "Default version", "fleet_name": "%s", "software_title": "%s", "software_title_id": %d, "app_store_id": "%s", "fleet_id": %d, "platform": "%s", "self_service": true}`, team.Name,
+	s.lastActivityOfTypeMatches(automdm.ActivityAddedAppStoreApp{}.ActivityName(),
+		withVPPToken(t, fmt.Sprintf(`{"version_name": "Default version", "team_name": "%s", "software_title": "%s", "software_title_id": %d, "app_store_id": "%s", "team_id": %d, "platform": "%s", "self_service": true}`, team.Name,
 			addedApp.Name, getSoftwareTitleIDFromApp(addedApp), addedApp.AdamID, team.ID, addedApp.Platform), validToken.Token), 0)
 
 	// Now we should be filtering out the app we added to team 1
 	appResp = getAppStoreAppsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/software/app_store_apps", &getAppStoreAppsRequest{}, http.StatusOK, &appResp, "fleet_id",
+	s.DoJSON("GET", "/api/latest/automdm/software/app_store_apps", &getAppStoreAppsRequest{}, http.StatusOK, &appResp, "team_id",
 		fmt.Sprint(team.ID))
 	require.NoError(t, appResp.Err)
 	assert.ElementsMatch(t, expectedApps[1:], appResp.AppStoreApps)
 
 	// list the software titles for that team, to get the title id of the VPP app
 	var listSw listSoftwareTitlesResponse
-	s.DoJSON("GET", "/api/latest/fleet/software/titles", nil, http.StatusOK, &listSw, "fleet_id", fmt.Sprint(team.ID), "available_for_install", "true")
+	s.DoJSON("GET", "/api/latest/automdm/software/titles", nil, http.StatusOK, &listSw, "team_id", fmt.Sprint(team.ID), "available_for_install", "true")
 	require.Len(t, listSw.SoftwareTitles, 1)
 	require.True(t, listSw.SoftwareTitles[0].AppStoreApps[0].SelfService)
 	macOSTitleID := listSw.SoftwareTitles[0].ID
 	require.Len(t, listSw.SoftwareTitles[0].AppStoreApps[0].AutomaticInstallPolicies, 1)
 
 	// check that we created an activity for the policy creation
-	wantAct := fleet.ActivityTypeCreatedPolicy{
+	wantAct := automdm.ActivityTypeCreatedPolicy{
 		ID:       listSw.SoftwareTitles[0].AppStoreApps[0].AutomaticInstallPolicies[0].ID,
 		Name:     listSw.SoftwareTitles[0].AppStoreApps[0].AutomaticInstallPolicies[0].Name,
 		TeamID:   new(int64(team.ID)), //nolint:gosec // dismiss G115
@@ -1147,28 +1147,28 @@ func (s *integrationMDMTestSuite) TestVPPApps() {
 
 	// listing with the self-service filter also returns it
 	listSw = listSoftwareTitlesResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/software/titles", nil, http.StatusOK, &listSw, "fleet_id", fmt.Sprint(team.ID), "self_service", "true")
+	s.DoJSON("GET", "/api/latest/automdm/software/titles", nil, http.StatusOK, &listSw, "team_id", fmt.Sprint(team.ID), "self_service", "true")
 	require.Len(t, listSw.SoftwareTitles, 1)
 	require.Equal(t, macOSTitleID, listSw.SoftwareTitles[0].ID)
 
 	// delete the automatic install policy (so we can delete the app next)
-	var deletePolicyResp fleet.DeletePoliciesResponse
-	s.DoJSON("POST", "/api/latest/fleet/policies/delete", &fleet.DeletePoliciesRequest{IDs: []uint{listSw.SoftwareTitles[0].AppStoreApps[0].AutomaticInstallPolicies[0].ID}}, http.StatusOK, &deletePolicyResp)
+	var deletePolicyResp automdm.DeletePoliciesResponse
+	s.DoJSON("POST", "/api/latest/automdm/policies/delete", &automdm.DeletePoliciesRequest{IDs: []uint{listSw.SoftwareTitles[0].AppStoreApps[0].AutomaticInstallPolicies[0].ID}}, http.StatusOK, &deletePolicyResp)
 
 	// delete the app store app for team 1
-	s.Do("DELETE", fmt.Sprintf("/api/latest/fleet/software/titles/%d/available_for_install", macOSTitleID), nil, http.StatusNoContent,
-		"fleet_id", fmt.Sprint(team.ID))
-	s.lastActivityMatches(fleet.ActivityDeletedAppStoreApp{}.ActivityName(),
-		fmt.Sprintf(`{"version_name": "Default version", "fleet_name": "%s", "software_title": "%s", "software_display_name": "", "app_store_id": "%s", "software_icon_url": "https://example.com/images/1/512x512.png", "fleet_id": %d, "platform": "%s"}`, team.Name,
+	s.Do("DELETE", fmt.Sprintf("/api/latest/automdm/software/titles/%d/available_for_install", macOSTitleID), nil, http.StatusNoContent,
+		"team_id", fmt.Sprint(team.ID))
+	s.lastActivityMatches(automdm.ActivityDeletedAppStoreApp{}.ActivityName(),
+		fmt.Sprintf(`{"version_name": "Default version", "team_name": "%s", "software_title": "%s", "software_display_name": "", "app_store_id": "%s", "software_icon_url": "https://example.com/images/1/512x512.png", "team_id": %d, "platform": "%s"}`, team.Name,
 			addedApp.Name, addedApp.AdamID, team.ID, addedApp.Platform), 0)
 
 	// deleting it again fails, not found
-	s.Do("DELETE", fmt.Sprintf("/api/latest/fleet/software/titles/%d/available_for_install", macOSTitleID), nil, http.StatusNotFound,
-		"fleet_id", fmt.Sprint(team.ID))
+	s.Do("DELETE", fmt.Sprintf("/api/latest/automdm/software/titles/%d/available_for_install", macOSTitleID), nil, http.StatusNotFound,
+		"team_id", fmt.Sprint(team.ID))
 
 	// get the list of available apps, returns all apps now
 	appResp = getAppStoreAppsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/software/app_store_apps", nil, http.StatusOK, &appResp, "fleet_id", fmt.Sprint(team.ID))
+	s.DoJSON("GET", "/api/latest/automdm/software/app_store_apps", nil, http.StatusOK, &appResp, "team_id", fmt.Sprint(team.ID))
 	require.NoError(t, appResp.Err)
 	assert.ElementsMatch(t, expectedApps, appResp.AppStoreApps)
 
@@ -1176,33 +1176,33 @@ func (s *integrationMDMTestSuite) TestVPPApps() {
 	addedApp = expectedApps[1]
 	addAppResp = addAppStoreAppResponse{}
 	// Accepts self-service for iPadOS
-	s.DoJSON("POST", "/api/latest/fleet/software/app_store_apps",
+	s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps",
 		&addAppStoreAppRequest{TeamID: &team.ID, AppStoreID: addedApp.AdamID, Platform: addedApp.Platform, SelfService: true},
 		http.StatusOK, &addAppResp)
 	// No auto-install for iPadOS
-	s.DoJSON("POST", "/api/latest/fleet/software/app_store_apps",
+	s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps",
 		&addAppStoreAppRequest{TeamID: &team.ID, AppStoreID: addedApp.AdamID, Platform: addedApp.Platform, AutomaticInstall: true},
 		http.StatusBadRequest, &addAppResp)
 	// Delete the self-service app so it can be added again as non-self-service
-	s.Do("DELETE", fmt.Sprintf("/api/latest/fleet/software/titles/%d/available_for_install", getSoftwareTitleIDFromApp(addedApp)), nil, http.StatusNoContent,
-		"fleet_id", fmt.Sprint(team.ID))
-	s.DoJSON("POST", "/api/latest/fleet/software/app_store_apps",
+	s.Do("DELETE", fmt.Sprintf("/api/latest/automdm/software/titles/%d/available_for_install", getSoftwareTitleIDFromApp(addedApp)), nil, http.StatusNoContent,
+		"team_id", fmt.Sprint(team.ID))
+	s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps",
 		&addAppStoreAppRequest{TeamID: &team.ID, AppStoreID: addedApp.AdamID, Platform: addedApp.Platform},
 		http.StatusOK, &addAppResp)
-	s.lastActivityMatches(fleet.ActivityAddedAppStoreApp{}.ActivityName(),
-		withVPPToken(t, fmt.Sprintf(`{"version_name": "Default version", "fleet_name": "%s", "software_title": "%s", "software_title_id": %d, "app_store_id": "%s", "fleet_id": %d, "platform": "%s", "self_service": false}`, team.Name,
+	s.lastActivityMatches(automdm.ActivityAddedAppStoreApp{}.ActivityName(),
+		withVPPToken(t, fmt.Sprintf(`{"version_name": "Default version", "team_name": "%s", "software_title": "%s", "software_title_id": %d, "app_store_id": "%s", "team_id": %d, "platform": "%s", "self_service": false}`, team.Name,
 			addedApp.Name, getSoftwareTitleIDFromApp(addedApp), addedApp.AdamID, team.ID, addedApp.Platform), validToken.Token), 0)
 
 	// Now we should be filtering out the app we added to team 1
 	appResp = getAppStoreAppsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/software/app_store_apps", &getAppStoreAppsRequest{}, http.StatusOK, &appResp, "fleet_id",
+	s.DoJSON("GET", "/api/latest/automdm/software/app_store_apps", &getAppStoreAppsRequest{}, http.StatusOK, &appResp, "team_id",
 		fmt.Sprint(team.ID))
 	require.NoError(t, appResp.Err)
 	assert.ElementsMatch(t, append(expectedApps[2:], expectedApps[0]), appResp.AppStoreApps)
 
 	// list the software titles for that team, to get the title id of the VPP app
 	listSw = listSoftwareTitlesResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/software/titles", nil, http.StatusOK, &listSw, "fleet_id", fmt.Sprint(team.ID),
+	s.DoJSON("GET", "/api/latest/automdm/software/titles", nil, http.StatusOK, &listSw, "team_id", fmt.Sprint(team.ID),
 		"available_for_install", "true")
 	require.Len(t, listSw.SoftwareTitles, 1)
 	macOSTitleID = listSw.SoftwareTitles[0].ID
@@ -1210,11 +1210,11 @@ func (s *integrationMDMTestSuite) TestVPPApps() {
 
 	// filtering by self-service returns nothing
 	listSw = listSoftwareTitlesResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/software/titles", nil, http.StatusOK, &listSw, "fleet_id", fmt.Sprint(team.ID),
+	s.DoJSON("GET", "/api/latest/automdm/software/titles", nil, http.StatusOK, &listSw, "team_id", fmt.Sprint(team.ID),
 		"self_service", "true")
 	require.Empty(t, listSw.SoftwareTitles)
 
-	_, err := s.ds.CreateOrUpdateSoftwareTitleIcon(context.Background(), &fleet.UploadSoftwareTitleIconPayload{
+	_, err := s.ds.CreateOrUpdateSoftwareTitleIcon(context.Background(), &automdm.UploadSoftwareTitleIconPayload{
 		TitleID:   macOSTitleID,
 		Filename:  "icon.png",
 		TeamID:    team.ID,
@@ -1223,11 +1223,11 @@ func (s *integrationMDMTestSuite) TestVPPApps() {
 	require.NoError(t, err)
 
 	// delete the app store app for team 1
-	s.Do("DELETE", fmt.Sprintf("/api/latest/fleet/software/titles/%d/available_for_install", macOSTitleID), nil, http.StatusNoContent,
-		"fleet_id",
+	s.Do("DELETE", fmt.Sprintf("/api/latest/automdm/software/titles/%d/available_for_install", macOSTitleID), nil, http.StatusNoContent,
+		"team_id",
 		fmt.Sprint(team.ID))
-	s.lastActivityMatches(fleet.ActivityDeletedAppStoreApp{}.ActivityName(),
-		fmt.Sprintf(`{"version_name": "Default version", "fleet_name": "%s", "software_title": "%s", "software_display_name": "", "app_store_id": "%s", "software_icon_url": "/api/latest/fleet/software/titles/%d/icon?fleet_id=%d", "fleet_id": %d, "platform": "%s"}`, team.Name,
+	s.lastActivityMatches(automdm.ActivityDeletedAppStoreApp{}.ActivityName(),
+		fmt.Sprintf(`{"version_name": "Default version", "team_name": "%s", "software_title": "%s", "software_display_name": "", "app_store_id": "%s", "software_icon_url": "/api/latest/automdm/software/titles/%d/icon?team_id=%d", "team_id": %d, "platform": "%s"}`, team.Name,
 			addedApp.Name, addedApp.AdamID, macOSTitleID, team.ID, team.ID, addedApp.Platform), 0)
 
 	var count int
@@ -1237,13 +1237,13 @@ func (s *integrationMDMTestSuite) TestVPPApps() {
 	require.Equal(t, 0, count)
 
 	// deleting it again fails, not found
-	s.Do("DELETE", fmt.Sprintf("/api/latest/fleet/software/titles/%d/available_for_install", macOSTitleID), nil, http.StatusNotFound,
-		"fleet_id",
+	s.Do("DELETE", fmt.Sprintf("/api/latest/automdm/software/titles/%d/available_for_install", macOSTitleID), nil, http.StatusNotFound,
+		"team_id",
 		fmt.Sprint(team.ID))
 
 	// get the list of available apps, returns all apps now
 	appResp = getAppStoreAppsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/software/app_store_apps", nil, http.StatusOK, &appResp, "fleet_id", fmt.Sprint(team.ID))
+	s.DoJSON("GET", "/api/latest/automdm/software/app_store_apps", nil, http.StatusOK, &appResp, "team_id", fmt.Sprint(team.ID))
 	require.NoError(t, appResp.Err)
 	assert.ElementsMatch(t, expectedApps, appResp.AppStoreApps)
 
@@ -1255,12 +1255,12 @@ func (s *integrationMDMTestSuite) TestVPPApps() {
 	setOrbitEnrollment(t, mdmHost, s.ds)
 	s.awaitRunAppleMDMWorkerSchedule()
 	s.runWorker()
-	checkInstallFleetdCommandSent(t, mdmDevice, true)
+	checkInstallAutoMDMdCommandSent(t, mdmDevice, true)
 	selfServiceHost, selfServiceDevice := createHostThenEnrollMDM(s.ds, s.server.URL, t)
 	setOrbitEnrollment(t, selfServiceHost, s.ds)
 	s.awaitRunAppleMDMWorkerSchedule()
 	s.runWorker()
-	checkInstallFleetdCommandSent(t, selfServiceDevice, true)
+	checkInstallAutoMDMdCommandSent(t, selfServiceDevice, true)
 	selfServiceToken := "selfservicetoken"
 	updateDeviceTokenForHost(t, s.ds, selfServiceHost.ID, selfServiceToken)
 	s.appleVPPConfigSrvConfig.SerialNumbers = append(s.appleVPPConfigSrvConfig.SerialNumbers, selfServiceDevice.SerialNumber)
@@ -1273,7 +1273,7 @@ func (s *integrationMDMTestSuite) TestVPPApps() {
 	// Add serial number to our fake Apple server
 	s.appleVPPConfigSrvConfig.SerialNumbers = append(s.appleVPPConfigSrvConfig.SerialNumbers, mdmHost.HardwareSerial,
 		iOSHost.HardwareSerial, iPadOSHost.HardwareSerial)
-	s.Do("POST", "/api/latest/fleet/hosts/transfer",
+	s.Do("POST", "/api/latest/automdm/hosts/transfer",
 		&addHostsToTeamRequest{HostIDs: []uint{mdmHost.ID, orbitHost.ID, iOSHost.ID, iPadOSHost.ID, selfServiceHost.ID}, TeamID: &team.ID}, http.StatusOK)
 
 	// Add all apps to the team
@@ -1282,37 +1282,37 @@ func (s *integrationMDMTestSuite) TestVPPApps() {
 	appSelfService := expectedApps[0]
 	// Add app 1 as self-service
 	addAppResp = addAppStoreAppResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/software/app_store_apps",
+	s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps",
 		&addAppStoreAppRequest{TeamID: &team.ID, AppStoreID: appSelfService.AdamID, Platform: appSelfService.Platform, SelfService: true},
 		http.StatusOK, &addAppResp)
 	s.lastActivityMatches(
-		fleet.ActivityAddedAppStoreApp{}.ActivityName(),
-		withVPPToken(t, fmt.Sprintf(`{"version_name": "Default version", "fleet_name": "%s", "software_title": "%s", "software_title_id": %d, "app_store_id": "%s", "fleet_id": %d, "platform": "%s", "self_service": true}`, team.Name,
+		automdm.ActivityAddedAppStoreApp{}.ActivityName(),
+		withVPPToken(t, fmt.Sprintf(`{"version_name": "Default version", "team_name": "%s", "software_title": "%s", "software_title_id": %d, "app_store_id": "%s", "team_id": %d, "platform": "%s", "self_service": true}`, team.Name,
 			appSelfService.Name, getSoftwareTitleIDFromApp(appSelfService), appSelfService.AdamID, team.ID, appSelfService.Platform), validToken.Token),
 		0,
 	)
 	listSw = listSoftwareTitlesResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/software/titles", nil, http.StatusOK, &listSw, "fleet_id", fmt.Sprint(team.ID),
+	s.DoJSON("GET", "/api/latest/automdm/software/titles", nil, http.StatusOK, &listSw, "team_id", fmt.Sprint(team.ID),
 		"available_for_install", "true")
 	// Add remaining as non-self-service
 	for _, app := range expectedApps[1:] {
 		addAppResp = addAppStoreAppResponse{}
-		s.DoJSON("POST", "/api/latest/fleet/software/app_store_apps",
+		s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps",
 			&addAppStoreAppRequest{TeamID: &team.ID, AppStoreID: app.AdamID, Platform: app.Platform},
 			http.StatusOK, &addAppResp)
 		s.lastActivityMatches(
-			fleet.ActivityAddedAppStoreApp{}.ActivityName(),
-			withVPPToken(t, fmt.Sprintf(`{"version_name": "Default version", "fleet_name": "%s", "software_title": "%s", "software_title_id": %d, "app_store_id": "%s", "fleet_id": %d, "platform": "%s", "self_service": false}`, team.Name,
+			automdm.ActivityAddedAppStoreApp{}.ActivityName(),
+			withVPPToken(t, fmt.Sprintf(`{"version_name": "Default version", "team_name": "%s", "software_title": "%s", "software_title_id": %d, "app_store_id": "%s", "team_id": %d, "platform": "%s", "self_service": false}`, team.Name,
 				app.Name, getSoftwareTitleIDFromApp(app), app.AdamID, team.ID, app.Platform), validToken.Token),
 			0,
 		)
 		listSw = listSoftwareTitlesResponse{}
-		s.DoJSON("GET", "/api/latest/fleet/software/titles", nil, http.StatusOK, &listSw, "fleet_id", fmt.Sprint(team.ID),
+		s.DoJSON("GET", "/api/latest/automdm/software/titles", nil, http.StatusOK, &listSw, "team_id", fmt.Sprint(team.ID),
 			"available_for_install", "true")
 	}
 
 	listSw = listSoftwareTitlesResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/software/titles", nil, http.StatusOK, &listSw, "fleet_id", fmt.Sprint(team.ID), "available_for_install", "true")
+	s.DoJSON("GET", "/api/latest/automdm/software/titles", nil, http.StatusOK, &listSw, "team_id", fmt.Sprint(team.ID), "available_for_install", "true")
 	require.Len(t, listSw.SoftwareTitles, len(expectedApps))
 	macOSTitleID = 99999
 	errTitleID := uint(99999)
@@ -1333,37 +1333,37 @@ func (s *integrationMDMTestSuite) TestVPPApps() {
 	}
 
 	// attempt to install a VPP app on the non-MDM enrolled host
-	r := s.Do("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/software/%d/install", orbitHost.ID, macOSTitleID), &installSoftwareRequest{}, http.StatusBadRequest)
+	r := s.Do("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/software/%d/install", orbitHost.ID, macOSTitleID), &installSoftwareRequest{}, http.StatusBadRequest)
 	require.Contains(t, extractServerErrorText(r.Body), "Error: Couldn't install. To install App Store app, turn on MDM for this host.")
 
 	// Disable all teams token
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/vpp_tokens/%d/fleets", validToken.Token.ID), patchVPPTokensTeamsRequest{}, http.StatusOK, &resPatchVPP)
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/vpp_tokens/%d/teams", validToken.Token.ID), patchVPPTokensTeamsRequest{}, http.StatusOK, &resPatchVPP)
 
 	// Spoof an expired VPP token and attempt to install VPP app
-	tokenJSONBad := fmt.Sprintf(`{"expDate":"%s","token":"%s","orgName":"%s"}`, "2030-06-24T15:50:50+0000", "badtoken", "Evil Fleet")
+	tokenJSONBad := fmt.Sprintf(`{"expDate":"%s","token":"%s","orgName":"%s"}`, "2030-06-24T15:50:50+0000", "badtoken", "Evil AutoMDM")
 	s.appleVPPConfigSrvConfig.Location = "Spooky Haunted House"
 	var vppRes uploadVPPTokenResponse
-	s.uploadDataViaForm("/api/latest/fleet/vpp_tokens", "token", "token.vpptoken", []byte(base64.StdEncoding.EncodeToString([]byte(tokenJSONBad))), http.StatusAccepted, "", &vppRes)
+	s.uploadDataViaForm("/api/latest/automdm/vpp_tokens", "token", "token.vpptoken", []byte(base64.StdEncoding.EncodeToString([]byte(tokenJSONBad))), http.StatusAccepted, "", &vppRes)
 
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/vpp_tokens/%d/fleets", vppRes.Token.ID), patchVPPTokensTeamsRequest{TeamIDs: []uint{team.ID, 99999}}, http.StatusNotFound, &resPatchVPP)
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/vpp_tokens/%d/teams", vppRes.Token.ID), patchVPPTokensTeamsRequest{TeamIDs: []uint{team.ID, 99999}}, http.StatusNotFound, &resPatchVPP)
 
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/vpp_tokens/%d/fleets", vppRes.Token.ID), patchVPPTokensTeamsRequest{TeamIDs: []uint{team.ID}}, http.StatusOK, &resPatchVPP)
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/vpp_tokens/%d/teams", vppRes.Token.ID), patchVPPTokensTeamsRequest{TeamIDs: []uint{team.ID}}, http.StatusOK, &resPatchVPP)
 
 	// Disable the token
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/vpp_tokens/%d/fleets", vppRes.Token.ID), patchVPPTokensTeamsRequest{}, http.StatusOK, &resPatchVPP)
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/vpp_tokens/%d/teams", vppRes.Token.ID), patchVPPTokensTeamsRequest{}, http.StatusOK, &resPatchVPP)
 
 	// Enable all teams token
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/vpp_tokens/%d/fleets", validToken.Token.ID), patchVPPTokensTeamsRequest{TeamIDs: []uint{}}, http.StatusOK, &resPatchVPP)
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/vpp_tokens/%d/teams", validToken.Token.ID), patchVPPTokensTeamsRequest{TeamIDs: []uint{}}, http.StatusOK, &resPatchVPP)
 
 	// Attempt to install non-existent app
-	r = s.Do("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/software/%d/install", mdmHost.ID, 99999), &installSoftwareRequest{},
+	r = s.Do("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/software/%d/install", mdmHost.ID, 99999), &installSoftwareRequest{},
 		http.StatusBadRequest)
 	require.Contains(t, extractServerErrorText(r.Body), "Couldn't install software. Software title is not available for install. Please add software package or App Store app to install.")
 
 	// Add the apps again, self-service only for the apps with the macOS app's ID
 	for _, app := range expectedApps {
 		addAppResp = addAppStoreAppResponse{}
-		s.DoJSON("POST", "/api/latest/fleet/software/app_store_apps",
+		s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps",
 			&addAppStoreAppRequest{TeamID: &team.ID, AppStoreID: app.AdamID, Platform: app.Platform, SelfService: app.AdamID == macOSApp.AdamID},
 			http.StatusOK, &addAppResp)
 	}
@@ -1388,41 +1388,41 @@ func (s *integrationMDMTestSuite) TestVPPApps() {
 
 	// Trigger install to the host
 	installResp := installSoftwareResponse{}
-	s.DoJSON("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/software/%d/install", mdmHost.ID, errTitleID), &installSoftwareRequest{},
+	s.DoJSON("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/software/%d/install", mdmHost.ID, errTitleID), &installSoftwareRequest{},
 		http.StatusAccepted, &installResp)
 
-	s.Do("DELETE", fmt.Sprintf("/api/latest/fleet/vpp_tokens/%d", vppRes.Token.ID), &deleteVPPTokenRequest{}, http.StatusNoContent)
+	s.Do("DELETE", fmt.Sprintf("/api/latest/automdm/vpp_tokens/%d", vppRes.Token.ID), &deleteVPPTokenRequest{}, http.StatusNoContent)
 
 	// Check if the host is listed as pending
 	var listResp listHostsResponse
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &listResp, "software_status", "pending", "fleet_id", fmt.Sprint(team.ID),
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &listResp, "software_status", "pending", "team_id", fmt.Sprint(team.ID),
 		"software_title_id", fmt.Sprint(errTitleID))
 	require.Len(t, listResp.Hosts, 1)
 	require.Equal(t, listResp.Hosts[0].ID, mdmHost.ID)
 	var countResp countHostsResponse
-	s.DoJSON("GET", "/api/latest/fleet/hosts/count", nil, http.StatusOK, &countResp, "software_status", "pending", "fleet_id",
+	s.DoJSON("GET", "/api/latest/automdm/hosts/count", nil, http.StatusOK, &countResp, "software_status", "pending", "team_id",
 		fmt.Sprint(team.ID), "software_title_id", fmt.Sprint(errTitleID))
 	require.Equal(t, 1, countResp.Count)
 
 	// Simulate failed installation on the host, exhaust retries (MaxSoftwareInstallAttempts = 3)
 	// First error triggers retry 1, second triggers retry 2, third triggers retry 3,
 	// fourth exhausts retries and marks as failed.
-	for range fleet.MaxSoftwareInstallAttempts + 1 {
+	for range automdm.MaxSoftwareInstallAttempts + 1 {
 		errorOnInstallApplicationCommand(1234)
 	}
 
 	listResp = listHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &listResp, "software_status", "failed", "fleet_id", fmt.Sprint(team.ID),
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &listResp, "software_status", "failed", "team_id", fmt.Sprint(team.ID),
 		"software_title_id", fmt.Sprint(errTitleID))
 	require.Len(t, listResp.Hosts, 1)
 	require.Equal(t, listResp.Hosts[0].ID, mdmHost.ID)
 	countResp = countHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts/count", nil, http.StatusOK, &countResp, "software_status", "failed", "fleet_id",
+	s.DoJSON("GET", "/api/latest/automdm/hosts/count", nil, http.StatusOK, &countResp, "software_status", "failed", "team_id",
 		fmt.Sprint(team.ID), "software_title_id", fmt.Sprint(errTitleID))
 	require.Equal(t, 1, countResp.Count)
 
 	s.lastActivityMatches(
-		fleet.ActivityInstalledAppStoreApp{}.ActivityName(),
+		automdm.ActivityInstalledAppStoreApp{}.ActivityName(),
 		withVPPToken(t, fmt.Sprintf(
 			`{"version_name": "Default version", "host_id": %d, "host_display_name": "%s", "software_title": "%s", "software_display_name": "", "app_store_id": "%s", "command_uuid": "%s", "status": "%s", "self_service": false, "policy_id": null, "policy_name": null, "host_platform": "%s", "from_setup_experience": false, "from_auto_update": false, "from_configuration_resend": false}`,
 			mdmHost.ID,
@@ -1430,7 +1430,7 @@ func (s *integrationMDMTestSuite) TestVPPApps() {
 			errApp.Name,
 			errApp.AdamID,
 			failedCmdUUID,
-			fleet.SoftwareInstallFailed,
+			automdm.SoftwareInstallFailed,
 			mdmHost.Platform,
 		), validToken.Token),
 		0,
@@ -1441,10 +1441,10 @@ func (s *integrationMDMTestSuite) TestVPPApps() {
 
 	// Trigger a 9610 failure to see retry happening
 	installResp = installSoftwareResponse{}
-	s.DoJSON("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/software/%d/install", mdmHost.ID, macOSTitleID), &installSoftwareRequest{},
+	s.DoJSON("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/software/%d/install", mdmHost.ID, macOSTitleID), &installSoftwareRequest{},
 		http.StatusAccepted, &installResp)
 	countResp = countHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts/count", nil, http.StatusOK, &countResp, "software_status", "pending", "fleet_id",
+	s.DoJSON("GET", "/api/latest/automdm/hosts/count", nil, http.StatusOK, &countResp, "software_status", "pending", "team_id",
 		fmt.Sprint(team.ID), "software_title_id", fmt.Sprint(macOSTitleID))
 	require.Equal(t, 1, countResp.Count)
 
@@ -1461,11 +1461,11 @@ func (s *integrationMDMTestSuite) TestVPPApps() {
 	require.Equal(t, 1, retryCount)
 
 	listResp = listHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &listResp, "software_status", "failed", "fleet_id", fmt.Sprint(team.ID),
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &listResp, "software_status", "failed", "team_id", fmt.Sprint(team.ID),
 		"software_title_id", fmt.Sprint(macOSTitleID))
 	require.Empty(t, listResp.Hosts)
 	countResp = countHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts/count", nil, http.StatusOK, &countResp, "software_status", "failed", "fleet_id",
+	s.DoJSON("GET", "/api/latest/automdm/hosts/count", nil, http.StatusOK, &countResp, "software_status", "failed", "team_id",
 		fmt.Sprint(team.ID), "software_title_id", fmt.Sprint(macOSTitleID))
 	require.Equal(t, 0, countResp.Count)
 
@@ -1498,17 +1498,17 @@ func (s *integrationMDMTestSuite) TestVPPApps() {
 	require.Equal(t, 3, retryCount)
 
 	listResp = listHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &listResp, "software_status", "failed", "fleet_id", fmt.Sprint(team.ID),
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &listResp, "software_status", "failed", "team_id", fmt.Sprint(team.ID),
 		"software_title_id", fmt.Sprint(macOSTitleID))
 	require.Len(t, listResp.Hosts, 1)
 	require.Equal(t, listResp.Hosts[0].ID, mdmHost.ID)
 	countResp = countHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts/count", nil, http.StatusOK, &countResp, "software_status", "failed", "fleet_id",
+	s.DoJSON("GET", "/api/latest/automdm/hosts/count", nil, http.StatusOK, &countResp, "software_status", "failed", "team_id",
 		fmt.Sprint(team.ID), "software_title_id", fmt.Sprint(macOSTitleID))
 	require.Equal(t, 1, countResp.Count)
 
 	s.lastActivityMatches(
-		fleet.ActivityInstalledAppStoreApp{}.ActivityName(),
+		automdm.ActivityInstalledAppStoreApp{}.ActivityName(),
 		withVPPToken(t, fmt.Sprintf(
 			`{"version_name": "Default version", "host_id": %d, "host_display_name": "%s", "software_title": "%s", "software_display_name": "", "app_store_id": "%s", "command_uuid": "%s", "status": "%s", "self_service": false, "policy_id": null, "policy_name": null, "host_platform": "%s", "from_setup_experience": false, "from_auto_update": false, "from_configuration_resend": false}`,
 			mdmHost.ID,
@@ -1516,7 +1516,7 @@ func (s *integrationMDMTestSuite) TestVPPApps() {
 			macOSApp.Name,
 			macOSApp.AdamID,
 			failedCmdUUID,
-			fleet.SoftwareInstallFailed,
+			automdm.SoftwareInstallFailed,
 			mdmHost.Platform,
 		), validToken.Token),
 		0,
@@ -1527,10 +1527,10 @@ func (s *integrationMDMTestSuite) TestVPPApps() {
 
 	// Trigger install to the host
 	installResp = installSoftwareResponse{}
-	s.DoJSON("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/software/%d/install", mdmHost.ID, macOSTitleID), &installSoftwareRequest{},
+	s.DoJSON("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/software/%d/install", mdmHost.ID, macOSTitleID), &installSoftwareRequest{},
 		http.StatusAccepted, &installResp)
 	countResp = countHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts/count", nil, http.StatusOK, &countResp, "software_status", "pending", "fleet_id",
+	s.DoJSON("GET", "/api/latest/automdm/hosts/count", nil, http.StatusOK, &countResp, "software_status", "pending", "team_id",
 		fmt.Sprint(team.ID), "software_title_id", fmt.Sprint(macOSTitleID))
 	require.Equal(t, 1, countResp.Count)
 
@@ -1560,7 +1560,7 @@ func (s *integrationMDMTestSuite) TestVPPApps() {
 		switch cmd.Command.RequestType { //nolint:gocritic // ignore singleCaseSwitch
 		case "InstalledApplicationList":
 			require.NoError(t, plist.Unmarshal(cmd.Raw, &fullCmd))
-			cmd, err = mdmDevice.AcknowledgeInstalledApplicationList(mdmDevice.UUID, cmd.CommandUUID, []fleet.Software{{Name: addedApp.Name, BundleIdentifier: addedApp.BundleIdentifier, Version: addedApp.LatestVersion, Installed: true}})
+			cmd, err = mdmDevice.AcknowledgeInstalledApplicationList(mdmDevice.UUID, cmd.CommandUUID, []automdm.Software{{Name: addedApp.Name, BundleIdentifier: addedApp.BundleIdentifier, Version: addedApp.LatestVersion, Installed: true}})
 			require.NoError(t, err)
 		default:
 			require.Fail(t, "unexpected command type", cmd.Command.RequestType)
@@ -1568,7 +1568,7 @@ func (s *integrationMDMTestSuite) TestVPPApps() {
 	}
 
 	listResp = listHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &listResp, "software_status", "installed", "fleet_id",
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &listResp, "software_status", "installed", "team_id",
 		fmt.Sprint(team.ID), "software_title_id", fmt.Sprint(macOSTitleID))
 	mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
 		var types []string
@@ -1579,12 +1579,12 @@ func (s *integrationMDMTestSuite) TestVPPApps() {
 	})
 	require.Len(t, listResp.Hosts, 1)
 	countResp = countHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts/count", nil, http.StatusOK, &countResp, "software_status", "installed", "fleet_id",
+	s.DoJSON("GET", "/api/latest/automdm/hosts/count", nil, http.StatusOK, &countResp, "software_status", "installed", "team_id",
 		fmt.Sprint(team.ID), "software_title_id", fmt.Sprint(macOSTitleID))
 	require.Equal(t, 1, countResp.Count)
 
 	s.lastActivityMatches(
-		fleet.ActivityInstalledAppStoreApp{}.ActivityName(),
+		automdm.ActivityInstalledAppStoreApp{}.ActivityName(),
 		withVPPToken(t, fmt.Sprintf(
 			`{"version_name": "Default version", "host_id": %d, "host_display_name": "%s", "software_title": "%s", "software_display_name": "", "app_store_id": "%s", "command_uuid": "%s", "status": "%s", "self_service": false, "policy_id": null, "policy_name": null, "host_platform": "%s", "from_setup_experience": false, "from_auto_update": false, "from_configuration_resend": false}`,
 			mdmHost.ID,
@@ -1592,7 +1592,7 @@ func (s *integrationMDMTestSuite) TestVPPApps() {
 			addedApp.Name,
 			addedApp.AdamID,
 			installCmdUUID,
-			fleet.SoftwareInstalled,
+			automdm.SoftwareInstalled,
 			mdmHost.Platform,
 		), validToken.Token),
 		0,
@@ -1601,7 +1601,7 @@ func (s *integrationMDMTestSuite) TestVPPApps() {
 	// Check list host software
 
 	getHostSw := getHostSoftwareResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/software", mdmHost.ID), nil, http.StatusOK, &getHostSw, "include_available_for_install", "true")
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/software", mdmHost.ID), nil, http.StatusOK, &getHostSw, "include_available_for_install", "true")
 	gotSW := getHostSw.Software
 	require.Len(t, gotSW, 2) // App 1 and App 2
 	got1, got2 := gotSW[0], gotSW[1]
@@ -1612,12 +1612,12 @@ func (s *integrationMDMTestSuite) TestVPPApps() {
 	require.Empty(t, got1.AppStoreApp.Name) // Name is only present for installer packages
 	require.Equal(t, got1.AppStoreApp.Version, addedApp.LatestVersion)
 	require.NotNil(t, got1.Status)
-	require.Equal(t, fleet.SoftwareInstalled, *got1.Status)
+	require.Equal(t, automdm.SoftwareInstalled, *got1.Status)
 	require.Equal(t, got1.AppStoreApp.LastInstall.CommandUUID, installCmdUUID)
 	require.NotNil(t, got1.AppStoreApp.LastInstall.InstalledAt)
 	require.Equal(t, "App 2", got2.Name)
 	require.NotNil(t, got2.Status)
-	require.Equal(t, fleet.SoftwareInstallFailed, *got2.Status)
+	require.Equal(t, automdm.SoftwareInstallFailed, *got2.Status)
 	require.NotNil(t, got2.AppStoreApp)
 	require.Equal(t, got2.AppStoreApp.AppStoreID, errApp.AdamID)
 	require.Equal(t, got2.IconUrl, new(errApp.IconURL))
@@ -1628,7 +1628,7 @@ func (s *integrationMDMTestSuite) TestVPPApps() {
 
 	// Check with a query
 	getHostSw = getHostSoftwareResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/software", mdmHost.ID), nil, http.StatusOK, &getHostSw, "query", "App 1", "include_available_for_install", "true")
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/software", mdmHost.ID), nil, http.StatusOK, &getHostSw, "query", "App 1", "include_available_for_install", "true")
 	require.Len(t, getHostSw.Software, 1) // App 1 only
 	got1 = getHostSw.Software[0]
 	require.Equal(t, "App 1", got1.Name)
@@ -1639,13 +1639,13 @@ func (s *integrationMDMTestSuite) TestVPPApps() {
 	require.Empty(t, got1.AppStoreApp.Name)
 	require.Equal(t, got1.AppStoreApp.Version, addedApp.LatestVersion)
 	require.NotNil(t, got1.Status)
-	require.Equal(t, fleet.SoftwareInstalled, *got1.Status)
+	require.Equal(t, automdm.SoftwareInstalled, *got1.Status)
 	require.Equal(t, got1.AppStoreApp.LastInstall.CommandUUID, installCmdUUID)
 	require.NotNil(t, got1.AppStoreApp.LastInstall.InstalledAt)
 
 	// Filter the self-service apps for that host
 	getHostSw = getHostSoftwareResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/software", mdmHost.ID), nil, http.StatusOK, &getHostSw, "self_service", "true")
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/software", mdmHost.ID), nil, http.StatusOK, &getHostSw, "self_service", "true")
 	require.Len(t, getHostSw.Software, 1)
 	require.Equal(t, appSelfService.Name, got1.Name)
 
@@ -1663,7 +1663,7 @@ func (s *integrationMDMTestSuite) TestVPPApps() {
 			hostDistributedQueryPrefix + "software_macos": 0,
 		},
 		Messages: map[string]string{},
-		Stats:    map[string]*fleet.Stats{},
+		Stats:    map[string]*automdm.Stats{},
 	}
 	distributedResp := submitDistributedQueryResultsResponse{}
 	s.DoJSON("POST", "/api/osquery/distributed/write", distributedReq, http.StatusOK, &distributedResp)
@@ -1678,14 +1678,14 @@ func (s *integrationMDMTestSuite) TestVPPApps() {
 			hostDistributedQueryPrefix + "software_macos": 0,
 		},
 		Messages: map[string]string{},
-		Stats:    map[string]*fleet.Stats{},
+		Stats:    map[string]*automdm.Stats{},
 	}
 	distributedResp = submitDistributedQueryResultsResponse{}
 	s.DoJSON("POST", "/api/osquery/distributed/write", distributedReq, http.StatusOK, &distributedResp)
 
 	// Check list host software
 	getHostSw = getHostSoftwareResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/software", mdmHost.ID), nil, http.StatusOK, &getHostSw, "include_available_for_install", "true")
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/software", mdmHost.ID), nil, http.StatusOK, &getHostSw, "include_available_for_install", "true")
 	gotSW = getHostSw.Software
 	require.Len(t, gotSW, 2) // App 1 and App 2
 	got1 = gotSW[0]
@@ -1700,10 +1700,10 @@ func (s *integrationMDMTestSuite) TestVPPApps() {
 
 	// Install on iOS and iPadOS devices
 	installs := map[string]struct {
-		installHost    *fleet.Host
+		installHost    *automdm.Host
 		titleID        uint
 		mdmClient      *mdmtest.TestAppleMDMClient
-		app            fleet.VPPApp
+		app            automdm.VPPApp
 		extraAvailable int
 		hostCount      int
 		deviceToken    string
@@ -1743,15 +1743,15 @@ func (s *integrationMDMTestSuite) TestVPPApps() {
 			// Self-service install
 			if install.deviceToken != "" {
 				var ssInstallResp submitSelfServiceSoftwareInstallResponse
-				s.DoJSON("POST", fmt.Sprintf("/api/latest/fleet/device/%s/software/install/%d", install.deviceToken, install.titleID),
-					&fleetSelfServiceSoftwareInstallRequest{}, http.StatusAccepted, &ssInstallResp)
+				s.DoJSON("POST", fmt.Sprintf("/api/latest/automdm/device/%s/software/install/%d", install.deviceToken, install.titleID),
+					&automdmSelfServiceSoftwareInstallRequest{}, http.StatusAccepted, &ssInstallResp)
 			} else {
 				installResp = installSoftwareResponse{}
-				s.DoJSON("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/software/%d/install", installHost.ID, titleID),
+				s.DoJSON("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/software/%d/install", installHost.ID, titleID),
 					&installSoftwareRequest{}, http.StatusAccepted, &installResp)
 			}
 			countResp = countHostsResponse{}
-			s.DoJSON("GET", "/api/latest/fleet/hosts/count", nil, http.StatusOK, &countResp, "software_status", "pending", "fleet_id",
+			s.DoJSON("GET", "/api/latest/automdm/hosts/count", nil, http.StatusOK, &countResp, "software_status", "pending", "team_id",
 				fmt.Sprint(team.ID), "software_title_id", fmt.Sprint(titleID))
 			require.Equal(t, 1, countResp.Count)
 
@@ -1764,7 +1764,7 @@ func (s *integrationMDMTestSuite) TestVPPApps() {
 
 			if install.deviceToken != "" {
 				var cmdResResp getMDMCommandResultsResponse
-				res := s.DoRawNoAuth("GET", fmt.Sprintf("/api/latest/fleet/device/%s/software/commands/%s/results", install.deviceToken, installCmdUUID), nil, http.StatusOK)
+				res := s.DoRawNoAuth("GET", fmt.Sprintf("/api/latest/automdm/device/%s/software/commands/%s/results", install.deviceToken, installCmdUUID), nil, http.StatusOK)
 				err = json.NewDecoder(res.Body).Decode(&cmdResResp)
 				require.NoError(t, err)
 				require.Empty(t, cmdResResp.Results)
@@ -1772,9 +1772,9 @@ func (s *integrationMDMTestSuite) TestVPPApps() {
 
 			// Get pending activity
 			var hostActivitiesResp listHostUpcomingActivitiesResponse
-			s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/activities/upcoming", installHost.ID),
+			s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/activities/upcoming", installHost.ID),
 				nil, http.StatusOK, &hostActivitiesResp)
-			activitiesToString := func(activities []*fleet.UpcomingActivity) []string {
+			activitiesToString := func(activities []*automdm.UpcomingActivity) []string {
 				var res []string
 				for _, activity := range activities {
 					res = append(res, fmt.Sprintf("%+v", activity))
@@ -1782,7 +1782,7 @@ func (s *integrationMDMTestSuite) TestVPPApps() {
 				return res
 			}
 			require.Len(t, hostActivitiesResp.Activities, 1, "got activities: %v", activitiesToString(hostActivitiesResp.Activities))
-			require.Equal(t, hostActivitiesResp.Activities[0].Type, fleet.ActivityInstalledAppStoreApp{}.ActivityName())
+			require.Equal(t, hostActivitiesResp.Activities[0].Type, automdm.ActivityInstalledAppStoreApp{}.ActivityName())
 			require.EqualValues(t, 1, hostActivitiesResp.Count)
 			require.JSONEq(
 				t,
@@ -1793,7 +1793,7 @@ func (s *integrationMDMTestSuite) TestVPPApps() {
 					app.Name,
 					app.AdamID,
 					installCmdUUID,
-					fleet.SoftwareInstallPending,
+					automdm.SoftwareInstallPending,
 					install.deviceToken != "",
 					installHost.Platform,
 				), validToken.Token),
@@ -1814,7 +1814,7 @@ func (s *integrationMDMTestSuite) TestVPPApps() {
 				switch cmd.Command.RequestType {
 				case "InstalledApplicationList":
 					require.NoError(t, plist.Unmarshal(cmd.Raw, &fullCmd))
-					cmd, err = mdmClient.AcknowledgeInstalledApplicationList(mdmClient.UUID, cmd.CommandUUID, []fleet.Software{{Name: app.Name, BundleIdentifier: app.BundleIdentifier, Version: app.LatestVersion, Installed: true}})
+					cmd, err = mdmClient.AcknowledgeInstalledApplicationList(mdmClient.UUID, cmd.CommandUUID, []automdm.Software{{Name: app.Name, BundleIdentifier: app.BundleIdentifier, Version: app.LatestVersion, Installed: true}})
 					require.NoError(t, err)
 				default:
 					require.Fail(t, "unexpected command type", cmd.Command.RequestType)
@@ -1823,27 +1823,27 @@ func (s *integrationMDMTestSuite) TestVPPApps() {
 
 			if install.deviceToken != "" {
 				var cmdResResp getMDMCommandResultsResponse
-				res := s.DoRawNoAuth("GET", fmt.Sprintf("/api/latest/fleet/device/%s/software/commands/%s/results", install.deviceToken, installCmdUUID), nil, http.StatusOK)
+				res := s.DoRawNoAuth("GET", fmt.Sprintf("/api/latest/automdm/device/%s/software/commands/%s/results", install.deviceToken, installCmdUUID), nil, http.StatusOK)
 				err = json.NewDecoder(res.Body).Decode(&cmdResResp)
 				require.NoError(t, err)
 				require.Len(t, cmdResResp.Results, 1)
 				require.Equal(t, "Acknowledged", cmdResResp.Results[0].Status)
 
-				s.DoRawNoAuth("GET", fmt.Sprintf("/api/latest/fleet/device/%s/software/commands/foobar/results", install.deviceToken), nil, http.StatusNotFound)
-				s.DoRawNoAuth("GET", fmt.Sprintf("/api/latest/fleet/device/foobar/software/commands/%s/results", installCmdUUID), nil, http.StatusNotFound)
+				s.DoRawNoAuth("GET", fmt.Sprintf("/api/latest/automdm/device/%s/software/commands/foobar/results", install.deviceToken), nil, http.StatusNotFound)
+				s.DoRawNoAuth("GET", fmt.Sprintf("/api/latest/automdm/device/foobar/software/commands/%s/results", installCmdUUID), nil, http.StatusNotFound)
 			}
 
 			listResp = listHostsResponse{}
-			s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &listResp, "software_status", "installed", "fleet_id",
+			s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &listResp, "software_status", "installed", "team_id",
 				fmt.Sprint(team.ID), "software_title_id", fmt.Sprint(titleID))
 			require.Len(t, listResp.Hosts, install.hostCount)
 			countResp = countHostsResponse{}
-			s.DoJSON("GET", "/api/latest/fleet/hosts/count", nil, http.StatusOK, &countResp, "software_status", "installed", "fleet_id",
+			s.DoJSON("GET", "/api/latest/automdm/hosts/count", nil, http.StatusOK, &countResp, "software_status", "installed", "team_id",
 				fmt.Sprint(team.ID), "software_title_id", fmt.Sprint(titleID))
 			require.Equal(t, install.hostCount, countResp.Count)
 
 			s.lastActivityMatches(
-				fleet.ActivityInstalledAppStoreApp{}.ActivityName(),
+				automdm.ActivityInstalledAppStoreApp{}.ActivityName(),
 				withVPPToken(t, fmt.Sprintf(
 					`{"version_name": "Default version", "host_id": %d, "host_display_name": "%s", "software_title": "%s", "software_display_name": "", "app_store_id": "%s", "command_uuid": "%s", "status": "%s", "self_service": %v, "policy_id": null, "policy_name": null, "host_platform": "%s", "from_setup_experience": false, "from_auto_update": false, "from_configuration_resend": false}`,
 					installHost.ID,
@@ -1851,7 +1851,7 @@ func (s *integrationMDMTestSuite) TestVPPApps() {
 					app.Name,
 					app.AdamID,
 					installCmdUUID,
-					fleet.SoftwareInstalled,
+					automdm.SoftwareInstalled,
 					install.deviceToken != "",
 					installHost.Platform,
 				), validToken.Token),
@@ -1860,7 +1860,7 @@ func (s *integrationMDMTestSuite) TestVPPApps() {
 
 			// Check list host software
 			getHostSw = getHostSoftwareResponse{}
-			s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/software", installHost.ID), nil, http.StatusOK, &getHostSw, "include_available_for_install", "true")
+			s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/software", installHost.ID), nil, http.StatusOK, &getHostSw, "include_available_for_install", "true")
 			require.Len(t, getHostSw.Software, install.hostCount+install.extraAvailable)
 			var foundInstalledApp bool
 			for index := range getHostSw.Software {
@@ -1872,7 +1872,7 @@ func (s *integrationMDMTestSuite) TestVPPApps() {
 					require.Equal(t, got1.IconUrl, new(app.IconURL))
 					require.Empty(t, got1.AppStoreApp.Name) // Name is only present for installer packages
 					require.Equal(t, got1.AppStoreApp.Version, app.LatestVersion)
-					require.Equal(t, fleet.SoftwareInstalled, *got1.Status)
+					require.Equal(t, automdm.SoftwareInstalled, *got1.Status)
 					require.Equal(t, got1.AppStoreApp.LastInstall.CommandUUID, installCmdUUID)
 					require.NotNil(t, got1.AppStoreApp.LastInstall.InstalledAt)
 					foundInstalledApp = true
@@ -1884,15 +1884,15 @@ func (s *integrationMDMTestSuite) TestVPPApps() {
 
 	// Attempt (and fail) to self-service install iPad and iOS titles
 	var ssInstallResp submitSelfServiceSoftwareInstallResponse
-	s.DoJSON("POST", fmt.Sprintf("/api/latest/fleet/device/%s/software/install/%d", selfServiceToken, iPadOSTitleID), &fleetSelfServiceSoftwareInstallRequest{},
+	s.DoJSON("POST", fmt.Sprintf("/api/latest/automdm/device/%s/software/install/%d", selfServiceToken, iPadOSTitleID), &automdmSelfServiceSoftwareInstallRequest{},
 		http.StatusBadRequest, &ssInstallResp)
-	s.DoJSON("POST", fmt.Sprintf("/api/latest/fleet/device/%s/software/install/%d", selfServiceToken, iOSTitleID), &fleetSelfServiceSoftwareInstallRequest{},
+	s.DoJSON("POST", fmt.Sprintf("/api/latest/automdm/device/%s/software/install/%d", selfServiceToken, iOSTitleID), &automdmSelfServiceSoftwareInstallRequest{},
 		http.StatusBadRequest, &ssInstallResp)
 
 	// Delete VPP token and check that it's not appearing anymore
 
-	s.Do("DELETE", fmt.Sprintf("/api/latest/fleet/vpp_tokens/%d", validToken.Token.ID), &deleteVPPTokenResponse{}, http.StatusNoContent)
-	s.DoJSON("GET", "/api/latest/fleet/vpp_tokens", &getVPPTokensRequest{}, http.StatusOK, &resp)
+	s.Do("DELETE", fmt.Sprintf("/api/latest/automdm/vpp_tokens/%d", validToken.Token.ID), &deleteVPPTokenResponse{}, http.StatusNoContent)
+	s.DoJSON("GET", "/api/latest/automdm/vpp_tokens", &getVPPTokensRequest{}, http.StatusOK, &resp)
 }
 
 func (s *integrationMDMTestSuite) TestNoTeamVPPAppIcons() {
@@ -1901,18 +1901,18 @@ func (s *integrationMDMTestSuite) TestNoTeamVPPAppIcons() {
 
 	// Valid token
 	orgName := "Fleet Device Management Inc."
-	location := "Fleet Location One"
+	location := "AutoMDM Location One"
 	token := "mycooltoken"
 	expTime := time.Now().Add(200 * time.Hour).UTC().Round(time.Second)
-	expDate := expTime.Format(fleet.VPPTimeFormat)
+	expDate := expTime.Format(automdm.VPPTimeFormat)
 	tokenJSON := fmt.Sprintf(`{"expDate":"%s","token":"%s","orgName":"%s"}`, expDate, token, orgName)
-	dev_mode.SetOverride("FLEET_DEV_VPP_URL", s.appleVPPConfigSrv.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_VPP_URL", s.appleVPPConfigSrv.URL, t)
 	var validToken uploadVPPTokenResponse
-	s.uploadDataViaForm("/api/latest/fleet/vpp_tokens", "token", "token.vpptoken", []byte(base64.StdEncoding.EncodeToString([]byte(tokenJSON))), http.StatusAccepted, "", &validToken)
+	s.uploadDataViaForm("/api/latest/automdm/vpp_tokens", "token", "token.vpptoken", []byte(base64.StdEncoding.EncodeToString([]byte(tokenJSON))), http.StatusAccepted, "", &validToken)
 
 	// Get the token
 	var resp getVPPTokensResponse
-	s.DoJSON("GET", "/api/latest/fleet/vpp_tokens", &getVPPTokensRequest{}, http.StatusOK, &resp)
+	s.DoJSON("GET", "/api/latest/automdm/vpp_tokens", &getVPPTokensRequest{}, http.StatusOK, &resp)
 	require.NoError(t, resp.Err)
 	require.Len(t, resp.Tokens, 1)
 	require.Equal(t, orgName, resp.Tokens[0].OrgName)
@@ -1920,11 +1920,11 @@ func (s *integrationMDMTestSuite) TestNoTeamVPPAppIcons() {
 	require.Equal(t, expTime, resp.Tokens[0].RenewDate)
 
 	var resPatchVPP patchVPPTokensTeamsResponse
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/vpp_tokens/%d/fleets", resp.Tokens[0].ID), patchVPPTokensTeamsRequest{TeamIDs: []uint{fleet.PolicyNoTeamID}}, http.StatusOK, &resPatchVPP)
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/vpp_tokens/%d/teams", resp.Tokens[0].ID), patchVPPTokensTeamsRequest{TeamIDs: []uint{automdm.PolicyNoTeamID}}, http.StatusOK, &resPatchVPP)
 
-	macOSApp := fleet.VPPApp{
+	macOSApp := automdm.VPPApp{
 		AdamID:           "1",
-		Platform:         fleet.MacOSPlatform,
+		Platform:         automdm.MacOSPlatform,
 		Name:             "App 1",
 		BundleIdentifier: "a-1",
 		IconURL:          "https://example.com/images/1/512x512.png",
@@ -1935,62 +1935,62 @@ func (s *integrationMDMTestSuite) TestNoTeamVPPAppIcons() {
 	// Add an app store app to team no team
 	addedApp := macOSApp
 	var addAppResp addAppStoreAppResponse
-	s.DoJSON("POST", "/api/latest/fleet/software/app_store_apps", &addAppStoreAppRequest{TeamID: new(fleet.PolicyNoTeamID), AppStoreID: addedApp.AdamID, SelfService: true}, http.StatusOK, &addAppResp)
+	s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps", &addAppStoreAppRequest{TeamID: new(automdm.PolicyNoTeamID), AppStoreID: addedApp.AdamID, SelfService: true}, http.StatusOK, &addAppResp)
 
 	// list the software titles, to get the title id of the VPP app
 	var listSw listSoftwareTitlesResponse
-	s.DoJSON("GET", "/api/latest/fleet/software/titles", nil, http.StatusOK, &listSw, "fleet_id", fmt.Sprint(fleet.PolicyNoTeamID), "available_for_install", "true")
+	s.DoJSON("GET", "/api/latest/automdm/software/titles", nil, http.StatusOK, &listSw, "team_id", fmt.Sprint(automdm.PolicyNoTeamID), "available_for_install", "true")
 	require.Len(t, listSw.SoftwareTitles, 1)
 	require.True(t, listSw.SoftwareTitles[0].AppStoreApps[0].SelfService)
 	macOSTitleID := listSw.SoftwareTitles[0].ID
 
-	_, err := s.ds.CreateOrUpdateSoftwareTitleIcon(context.Background(), &fleet.UploadSoftwareTitleIconPayload{
+	_, err := s.ds.CreateOrUpdateSoftwareTitleIcon(context.Background(), &automdm.UploadSoftwareTitleIconPayload{
 		TitleID:   macOSTitleID,
 		Filename:  "icon.png",
-		TeamID:    fleet.PolicyNoTeamID,
+		TeamID:    automdm.PolicyNoTeamID,
 		StorageID: "icon_storage_id",
 	})
 	require.NoError(t, err)
 
 	var count int
 	mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
-		return sqlx.GetContext(context.Background(), q, &count, `SELECT COUNT(1) FROM software_title_icons WHERE team_id = ? and software_title_id = ?`, fleet.PolicyNoTeamID, macOSTitleID)
+		return sqlx.GetContext(context.Background(), q, &count, `SELECT COUNT(1) FROM software_title_icons WHERE team_id = ? and software_title_id = ?`, automdm.PolicyNoTeamID, macOSTitleID)
 	})
 	require.Equal(t, 1, count)
 
 	// delete the app store app for team no team
-	s.Do("DELETE", fmt.Sprintf("/api/latest/fleet/software/titles/%d/available_for_install", macOSTitleID), nil, http.StatusNoContent,
-		"fleet_id",
-		fmt.Sprint(fleet.PolicyNoTeamID))
-	s.lastActivityMatches(fleet.ActivityDeletedAppStoreApp{}.ActivityName(),
-		fmt.Sprintf(`{"version_name": "Default version", "fleet_name": null, "software_title": "%s", "software_display_name": "", "app_store_id": "%s", "software_icon_url": "/api/latest/fleet/software/titles/%d/icon?fleet_id=%d", "fleet_id": %d, "platform": "%s"}`,
-			addedApp.Name, addedApp.AdamID, macOSTitleID, fleet.PolicyNoTeamID, fleet.PolicyNoTeamID, addedApp.Platform), 0)
+	s.Do("DELETE", fmt.Sprintf("/api/latest/automdm/software/titles/%d/available_for_install", macOSTitleID), nil, http.StatusNoContent,
+		"team_id",
+		fmt.Sprint(automdm.PolicyNoTeamID))
+	s.lastActivityMatches(automdm.ActivityDeletedAppStoreApp{}.ActivityName(),
+		fmt.Sprintf(`{"version_name": "Default version", "team_name": null, "software_title": "%s", "software_display_name": "", "app_store_id": "%s", "software_icon_url": "/api/latest/automdm/software/titles/%d/icon?team_id=%d", "team_id": %d, "platform": "%s"}`,
+			addedApp.Name, addedApp.AdamID, macOSTitleID, automdm.PolicyNoTeamID, automdm.PolicyNoTeamID, addedApp.Platform), 0)
 
 	mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
-		return sqlx.GetContext(context.Background(), q, &count, `SELECT COUNT(1) FROM software_title_icons WHERE team_id = ? and software_title_id = ?`, fleet.PolicyNoTeamID, macOSTitleID)
+		return sqlx.GetContext(context.Background(), q, &count, `SELECT COUNT(1) FROM software_title_icons WHERE team_id = ? and software_title_id = ?`, automdm.PolicyNoTeamID, macOSTitleID)
 	})
 	require.Equal(t, 0, count)
 
 	// Delete VPP token and check that it's not appearing anymore
 
-	s.Do("DELETE", fmt.Sprintf("/api/latest/fleet/vpp_tokens/%d", validToken.Token.ID), &deleteVPPTokenResponse{}, http.StatusNoContent)
-	s.DoJSON("GET", "/api/latest/fleet/vpp_tokens", &getVPPTokensRequest{}, http.StatusOK, &resp)
+	s.Do("DELETE", fmt.Sprintf("/api/latest/automdm/vpp_tokens/%d", validToken.Token.ID), &deleteVPPTokenResponse{}, http.StatusNoContent)
+	s.DoJSON("GET", "/api/latest/automdm/vpp_tokens", &getVPPTokensRequest{}, http.StatusOK, &resp)
 }
 
-func (s *integrationMDMTestSuite) TestVPPAutomaticInstallPolicyActivityNoFleet() {
+func (s *integrationMDMTestSuite) TestVPPAutomaticInstallPolicyActivityNoTeam() {
 	t := s.T()
 	s.setSkipWorkerJobs(t)
-	s.setVPPTokenForTeam(fleet.PolicyNoTeamID)
+	s.setVPPTokenForTeam(automdm.PolicyNoTeamID)
 
 	var addAppResp addAppStoreAppResponse
-	s.DoJSON("POST", "/api/latest/fleet/software/app_store_apps",
-		&addAppStoreAppRequest{TeamID: new(fleet.PolicyNoTeamID), AppStoreID: "1", AutomaticInstall: true}, http.StatusOK, &addAppResp)
+	s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps",
+		&addAppStoreAppRequest{TeamID: new(automdm.PolicyNoTeamID), AppStoreID: "1", AutomaticInstall: true}, http.StatusOK, &addAppResp)
 
-	var policies fleet.ListPoliciesResponse
-	s.DoJSON("GET", "/api/latest/fleet/policies", nil, http.StatusOK, &policies, "fleet_id", fmt.Sprint(fleet.PolicyNoTeamID))
+	var policies automdm.ListPoliciesResponse
+	s.DoJSON("GET", "/api/latest/automdm/policies", nil, http.StatusOK, &policies, "team_id", fmt.Sprint(automdm.PolicyNoTeamID))
 	require.Len(t, policies.Policies, 1)
-	s.lastActivityMatches(fleet.ActivityTypeCreatedPolicy{}.ActivityName(),
-		fmt.Sprintf(`{"fleet_id":0, "policy_id":%d, "policy_name":%q}`, policies.Policies[0].ID, policies.Policies[0].Name), 0)
+	s.lastActivityMatches(automdm.ActivityTypeCreatedPolicy{}.ActivityName(),
+		fmt.Sprintf(`{"team_id":0, "policy_id":%d, "policy_name":%q}`, policies.Policies[0].ID, policies.Policies[0].Name), 0)
 }
 
 func (s *integrationMDMTestSuite) TestVPPAppsMDMFiltering() {
@@ -2007,25 +2007,25 @@ func (s *integrationMDMTestSuite) TestVPPAppsMDMFiltering() {
 
 	// Create team and add hosts to team
 	var newTeamResp teamResponse
-	s.DoJSON("POST", "/api/latest/fleet/fleets", &createTeamRequest{Name: new("Team 1")}, http.StatusOK, &newTeamResp)
+	s.DoJSON("POST", "/api/latest/automdm/teams", &createTeamRequest{Name: new("Team 1")}, http.StatusOK, &newTeamResp)
 	team := newTeamResp.Team
 
-	s.Do("POST", "/api/latest/fleet/hosts/transfer", &addHostsToTeamRequest{HostIDs: []uint{orbitHost.ID, mdmHost.ID}, TeamID: &team.ID}, http.StatusOK)
+	s.Do("POST", "/api/latest/automdm/hosts/transfer", &addHostsToTeamRequest{HostIDs: []uint{orbitHost.ID, mdmHost.ID}, TeamID: &team.ID}, http.StatusOK)
 
 	// Add an app so that we don't get a not found error
-	_, err := s.ds.InsertVPPAppWithTeam(ctx, &fleet.VPPApp{
+	_, err := s.ds.InsertVPPAppWithTeam(ctx, &automdm.VPPApp{
 		Name:             "App " + t.Name(),
 		BundleIdentifier: "bid_" + t.Name(),
 		AdamID:           "adam_test_01",
-		Platform:         fleet.MacOSPlatform,
+		Platform:         automdm.MacOSPlatform,
 	}, &team.ID, nil)
 	require.NoError(t, err)
 
 	resp := getHostSoftwareResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/software", orbitHost.ID), getHostSoftwareRequest{}, http.StatusOK, &resp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/software", orbitHost.ID), getHostSoftwareRequest{}, http.StatusOK, &resp)
 	assert.Empty(t, resp.Software)
 
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/software", mdmHost.ID), getHostSoftwareRequest{}, http.StatusOK, &resp, "include_available_for_install", "true")
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/software", mdmHost.ID), getHostSoftwareRequest{}, http.StatusOK, &resp, "include_available_for_install", "true")
 	assert.Len(t, resp.Software, 1)
 }
 
@@ -2045,7 +2045,7 @@ func (s *integrationMDMTestSuite) TestRefreshVPPAppVersions() {
 	}
 
 	var newTeamResp teamResponse
-	s.DoJSON("POST", "/api/latest/fleet/fleets", &createTeamRequest{Name: new("Team 1" + t.Name())}, http.StatusOK, &newTeamResp)
+	s.DoJSON("POST", "/api/latest/automdm/teams", &createTeamRequest{Name: new("Team 1" + t.Name())}, http.StatusOK, &newTeamResp)
 	team := newTeamResp.Team
 
 	stubbedConfig := apple_apps.StubbedConfig() // authentication is tested elsewhere
@@ -2054,27 +2054,27 @@ func (s *integrationMDMTestSuite) TestRefreshVPPAppVersions() {
 	orgName := "Fleet Device Management Inc."
 	token := "mycooltoken"
 	expTime := time.Now().Add(200 * time.Hour).UTC().Round(time.Second)
-	expDate := expTime.Format(fleet.VPPTimeFormat)
+	expDate := expTime.Format(automdm.VPPTimeFormat)
 	tokenJSON := fmt.Sprintf(`{"expDate":"%s","token":"%s","orgName":"%s"}`, expDate, token, orgName)
-	dev_mode.SetOverride("FLEET_DEV_VPP_URL", s.appleVPPConfigSrv.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_VPP_URL", s.appleVPPConfigSrv.URL, t)
 	var validToken uploadVPPTokenResponse
-	s.uploadDataViaForm("/api/latest/fleet/vpp_tokens", "token", "token.vpptoken", []byte(base64.StdEncoding.EncodeToString([]byte(tokenJSON))), http.StatusAccepted, "", &validToken)
+	s.uploadDataViaForm("/api/latest/automdm/vpp_tokens", "token", "token.vpptoken", []byte(base64.StdEncoding.EncodeToString([]byte(tokenJSON))), http.StatusAccepted, "", &validToken)
 
 	// Get the token
 	var resp getVPPTokensResponse
-	s.DoJSON("GET", "/api/latest/fleet/vpp_tokens", &getVPPTokensRequest{}, http.StatusOK, &resp)
+	s.DoJSON("GET", "/api/latest/automdm/vpp_tokens", &getVPPTokensRequest{}, http.StatusOK, &resp)
 	require.NoError(t, resp.Err)
 
 	// Associate team to the VPP token.
 	var resPatchVPP patchVPPTokensTeamsResponse
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/vpp_tokens/%d/fleets", resp.Tokens[0].ID), patchVPPTokensTeamsRequest{TeamIDs: []uint{team.ID}}, http.StatusOK, &resPatchVPP)
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/vpp_tokens/%d/teams", resp.Tokens[0].ID), patchVPPTokensTeamsRequest{TeamIDs: []uint{team.ID}}, http.StatusOK, &resPatchVPP)
 
 	// No VPP apps added yet, so this is a no-op
 	err := vpp.RefreshVersions(ctx, s.ds, stubbedConfig)
 	require.NoError(t, err)
 
 	var appResp getAppStoreAppsResponse
-	s.DoJSON("GET", "/api/latest/fleet/software/app_store_apps", &getAppStoreAppsRequest{}, http.StatusOK, &appResp, "fleet_id",
+	s.DoJSON("GET", "/api/latest/automdm/software/app_store_apps", &getAppStoreAppsRequest{}, http.StatusOK, &appResp, "team_id",
 		fmt.Sprint(team.ID))
 	require.NoError(t, appResp.Err)
 	app1 := appResp.AppStoreApps[0]
@@ -2083,19 +2083,19 @@ func (s *integrationMDMTestSuite) TestRefreshVPPAppVersions() {
 
 	// Add 3 apps: 2 will have version changes, the 3rd will not
 	var addAppResp addAppStoreAppResponse
-	s.DoJSON("POST", "/api/latest/fleet/software/app_store_apps", &addAppStoreAppRequest{
+	s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps", &addAppStoreAppRequest{
 		TeamID:     &team.ID,
 		Platform:   app1.Platform,
 		AppStoreID: app1.AdamID,
 	}, http.StatusOK, &addAppResp)
 
-	s.DoJSON("POST", "/api/latest/fleet/software/app_store_apps", &addAppStoreAppRequest{
+	s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps", &addAppStoreAppRequest{
 		TeamID:     &team.ID,
 		Platform:   app2.Platform,
 		AppStoreID: app2.AdamID,
 	}, http.StatusOK, &addAppResp)
 
-	s.DoJSON("POST", "/api/latest/fleet/software/app_store_apps", &addAppStoreAppRequest{
+	s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps", &addAppStoreAppRequest{
 		TeamID:     &team.ID,
 		Platform:   app3.Platform,
 		AppStoreID: app3.AdamID,
@@ -2103,17 +2103,17 @@ func (s *integrationMDMTestSuite) TestRefreshVPPAppVersions() {
 
 	// Check versions before refresh
 	var listSWTitlesResp listSoftwareTitlesResponse
-	s.DoJSON("GET", "/api/latest/fleet/software/titles", nil, http.StatusOK, &listSWTitlesResp, "fleet_id", fmt.Sprintf("%d", team.ID), "query", app1.Name)
+	s.DoJSON("GET", "/api/latest/automdm/software/titles", nil, http.StatusOK, &listSWTitlesResp, "team_id", fmt.Sprintf("%d", team.ID), "query", app1.Name)
 	require.Len(t, listSWTitlesResp.SoftwareTitles, 1)
 	require.Len(t, listSWTitlesResp.SoftwareTitles[0].AppStoreApps, 1)
 	require.Equal(t, "1.0.0", listSWTitlesResp.SoftwareTitles[0].AppStoreApps[0].Version)
 
-	s.DoJSON("GET", "/api/latest/fleet/software/titles", nil, http.StatusOK, &listSWTitlesResp, "fleet_id", fmt.Sprintf("%d", team.ID), "query", app2.Name)
+	s.DoJSON("GET", "/api/latest/automdm/software/titles", nil, http.StatusOK, &listSWTitlesResp, "team_id", fmt.Sprintf("%d", team.ID), "query", app2.Name)
 	require.Len(t, listSWTitlesResp.SoftwareTitles, 1)
 	require.Len(t, listSWTitlesResp.SoftwareTitles[0].AppStoreApps, 1)
 	require.Equal(t, "2.0.0", listSWTitlesResp.SoftwareTitles[0].AppStoreApps[0].Version)
 
-	s.DoJSON("GET", "/api/latest/fleet/software/titles", nil, http.StatusOK, &listSWTitlesResp, "fleet_id", fmt.Sprintf("%d", team.ID), "query", app3.Name)
+	s.DoJSON("GET", "/api/latest/automdm/software/titles", nil, http.StatusOK, &listSWTitlesResp, "team_id", fmt.Sprintf("%d", team.ID), "query", app3.Name)
 	require.Len(t, listSWTitlesResp.SoftwareTitles, 1)
 	require.Len(t, listSWTitlesResp.SoftwareTitles[0].AppStoreApps, 1)
 	require.Equal(t, "3.0.0", listSWTitlesResp.SoftwareTitles[0].AppStoreApps[0].Version)
@@ -2126,18 +2126,18 @@ func (s *integrationMDMTestSuite) TestRefreshVPPAppVersions() {
 	require.NoError(t, err)
 
 	// 1 and 2 should be updated
-	s.DoJSON("GET", "/api/latest/fleet/software/titles", nil, http.StatusOK, &listSWTitlesResp, "fleet_id", fmt.Sprintf("%d", team.ID), "query", app1.Name)
+	s.DoJSON("GET", "/api/latest/automdm/software/titles", nil, http.StatusOK, &listSWTitlesResp, "team_id", fmt.Sprintf("%d", team.ID), "query", app1.Name)
 	require.Len(t, listSWTitlesResp.SoftwareTitles, 1)
 	require.Len(t, listSWTitlesResp.SoftwareTitles[0].AppStoreApps, 1)
 	require.Equal(t, "9.9.9", listSWTitlesResp.SoftwareTitles[0].AppStoreApps[0].Version)
 
-	s.DoJSON("GET", "/api/latest/fleet/software/titles", nil, http.StatusOK, &listSWTitlesResp, "fleet_id", fmt.Sprintf("%d", team.ID), "query", app2.Name)
+	s.DoJSON("GET", "/api/latest/automdm/software/titles", nil, http.StatusOK, &listSWTitlesResp, "team_id", fmt.Sprintf("%d", team.ID), "query", app2.Name)
 	require.Len(t, listSWTitlesResp.SoftwareTitles, 1)
 	require.Len(t, listSWTitlesResp.SoftwareTitles[0].AppStoreApps, 1)
 	require.Equal(t, "10.10.10", listSWTitlesResp.SoftwareTitles[0].AppStoreApps[0].Version)
 
 	// No change
-	s.DoJSON("GET", "/api/latest/fleet/software/titles", nil, http.StatusOK, &listSWTitlesResp, "fleet_id", fmt.Sprintf("%d", team.ID), "query", app3.Name)
+	s.DoJSON("GET", "/api/latest/automdm/software/titles", nil, http.StatusOK, &listSWTitlesResp, "team_id", fmt.Sprintf("%d", team.ID), "query", app3.Name)
 	require.Len(t, listSWTitlesResp.SoftwareTitles, 1)
 	require.Len(t, listSWTitlesResp.SoftwareTitles[0].AppStoreApps, 1)
 	require.Equal(t, "3.0.0", listSWTitlesResp.SoftwareTitles[0].AppStoreApps[0].Version)
@@ -2165,42 +2165,42 @@ func (s *integrationMDMTestSuite) TestRefreshVPPAppVersionsForAllPlatforms() {
 	stubbedConfig := apple_apps.StubbedConfig() // authentication is tested elsewhere
 
 	var newTeamResp teamResponse
-	s.DoJSON("POST", "/api/latest/fleet/fleets", &createTeamRequest{Name: new("Team 1" + t.Name())}, http.StatusOK, &newTeamResp)
+	s.DoJSON("POST", "/api/latest/automdm/teams", &createTeamRequest{Name: new("Team 1" + t.Name())}, http.StatusOK, &newTeamResp)
 	team := newTeamResp.Team
 
 	// Set up VPP token
 	orgName := "Fleet Device Management Inc."
 	token := "mycooltoken"
 	expTime := time.Now().Add(200 * time.Hour).UTC().Round(time.Second)
-	expDate := expTime.Format(fleet.VPPTimeFormat)
+	expDate := expTime.Format(automdm.VPPTimeFormat)
 	tokenJSON := fmt.Sprintf(`{"expDate":"%s","token":"%s","orgName":"%s"}`, expDate, token, orgName)
-	dev_mode.SetOverride("FLEET_DEV_VPP_URL", s.appleVPPConfigSrv.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_VPP_URL", s.appleVPPConfigSrv.URL, t)
 	var validToken uploadVPPTokenResponse
-	s.uploadDataViaForm("/api/latest/fleet/vpp_tokens", "token", "token.vpptoken", []byte(base64.StdEncoding.EncodeToString([]byte(tokenJSON))), http.StatusAccepted, "", &validToken)
+	s.uploadDataViaForm("/api/latest/automdm/vpp_tokens", "token", "token.vpptoken", []byte(base64.StdEncoding.EncodeToString([]byte(tokenJSON))), http.StatusAccepted, "", &validToken)
 
 	// Get the token
 	var resp getVPPTokensResponse
-	s.DoJSON("GET", "/api/latest/fleet/vpp_tokens", &getVPPTokensRequest{}, http.StatusOK, &resp)
+	s.DoJSON("GET", "/api/latest/automdm/vpp_tokens", &getVPPTokensRequest{}, http.StatusOK, &resp)
 	require.NoError(t, resp.Err)
 
 	// Associate team to the VPP token.
 	var resPatchVPP patchVPPTokensTeamsResponse
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/vpp_tokens/%d/fleets", resp.Tokens[0].ID), patchVPPTokensTeamsRequest{TeamIDs: []uint{team.ID}}, http.StatusOK, &resPatchVPP)
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/vpp_tokens/%d/teams", resp.Tokens[0].ID), patchVPPTokensTeamsRequest{TeamIDs: []uint{team.ID}}, http.StatusOK, &resPatchVPP)
 
 	var appResp getAppStoreAppsResponse
-	s.DoJSON("GET", "/api/latest/fleet/software/app_store_apps", &getAppStoreAppsRequest{}, http.StatusOK, &appResp, "fleet_id",
+	s.DoJSON("GET", "/api/latest/automdm/software/app_store_apps", &getAppStoreAppsRequest{}, http.StatusOK, &appResp, "team_id",
 		fmt.Sprint(team.ID))
 	require.NoError(t, appResp.Err)
 	require.Len(t, appResp.AppStoreApps, 6)
 
 	var (
 		allApps    = appResp.AppStoreApps
-		app1MacOS  *fleet.VPPApp
-		app1IOS    *fleet.VPPApp
-		app1IPadOS *fleet.VPPApp
-		app2IOS    *fleet.VPPApp
-		app2IPadOS *fleet.VPPApp
-		app3IOS    *fleet.VPPApp
+		app1MacOS  *automdm.VPPApp
+		app1IOS    *automdm.VPPApp
+		app1IPadOS *automdm.VPPApp
+		app2IOS    *automdm.VPPApp
+		app2IPadOS *automdm.VPPApp
+		app3IOS    *automdm.VPPApp
 	)
 	for _, app := range appResp.AppStoreApps {
 		switch {
@@ -2228,7 +2228,7 @@ func (s *integrationMDMTestSuite) TestRefreshVPPAppVersionsForAllPlatforms() {
 	// Add all apps (three adam IDs with different platforms) to the team.
 	for _, app := range allApps {
 		var addAppResp addAppStoreAppResponse
-		s.DoJSON("POST", "/api/latest/fleet/software/app_store_apps", &addAppStoreAppRequest{
+		s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps", &addAppStoreAppRequest{
 			TeamID:     &team.ID,
 			Platform:   app.Platform,
 			AppStoreID: app.AdamID,
@@ -2259,7 +2259,7 @@ func (s *integrationMDMTestSuite) TestRefreshVPPAppVersionsForAllPlatforms() {
 		app3IOS.TitleID:    "3.0.0",
 	} {
 		titleResponse := getSoftwareTitleResponse{}
-		s.DoJSON("GET", fmt.Sprintf("/api/v1/fleet/software/titles/%d", titleID), nil, http.StatusOK, &titleResponse, "fleet_id", fmt.Sprint(team.ID))
+		s.DoJSON("GET", fmt.Sprintf("/api/v1/automdm/software/titles/%d", titleID), nil, http.StatusOK, &titleResponse, "team_id", fmt.Sprint(team.ID))
 		require.NotNil(t, titleResponse.SoftwareTitle)
 		require.Equal(t, expectedVersion, titleResponse.SoftwareTitle.AppStoreApps[0].LatestVersion)
 	}
@@ -2281,7 +2281,7 @@ func (s *integrationMDMTestSuite) TestRefreshVPPAppVersionsForAllPlatforms() {
 		app3IOS.TitleID:    "3.0.0",
 	} {
 		titleResponse := getSoftwareTitleResponse{}
-		s.DoJSON("GET", fmt.Sprintf("/api/v1/fleet/software/titles/%d", titleID), nil, http.StatusOK, &titleResponse, "fleet_id", fmt.Sprint(team.ID))
+		s.DoJSON("GET", fmt.Sprintf("/api/v1/automdm/software/titles/%d", titleID), nil, http.StatusOK, &titleResponse, "team_id", fmt.Sprint(team.ID))
 		require.NotNil(t, titleResponse.SoftwareTitle)
 		require.Equal(t, expectedVersion, titleResponse.SoftwareTitle.AppStoreApps[0].LatestVersion)
 	}
@@ -2302,7 +2302,7 @@ func (s *integrationMDMTestSuite) TestRefreshVPPAppVersionsForAllPlatforms() {
 		app3IOS.TitleID:    "11.11.11",
 	} {
 		titleResponse := getSoftwareTitleResponse{}
-		s.DoJSON("GET", fmt.Sprintf("/api/v1/fleet/software/titles/%d", titleID), nil, http.StatusOK, &titleResponse, "fleet_id", fmt.Sprint(team.ID))
+		s.DoJSON("GET", fmt.Sprintf("/api/v1/automdm/software/titles/%d", titleID), nil, http.StatusOK, &titleResponse, "team_id", fmt.Sprint(team.ID))
 		require.NotNil(t, titleResponse.SoftwareTitle)
 		require.Equal(t, expectedVersion, titleResponse.SoftwareTitle.AppStoreApps[0].LatestVersion)
 	}

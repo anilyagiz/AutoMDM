@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/host"
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/host"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
 	pkgerrors "github.com/pkg/errors" //nolint:depguard
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -72,7 +72,7 @@ func TestCause(t *testing.T) {
 func TestNew(t *testing.T) {
 	ctx, cleanup := setup()
 	defer cleanup()
-	err := New(ctx, "new").(*FleetError)
+	err := New(ctx, "new").(*AutoMDMError)
 
 	require.Equal(t, err.msg, "new")
 	require.NotEmpty(t, err.stack.List())
@@ -84,7 +84,7 @@ func TestNewWithData(t *testing.T) {
 		ctx, cleanup := setup()
 		defer cleanup()
 		data := map[string]interface{}{"foo": "bar"}
-		err := NewWithData(ctx, "new", data).(*FleetError)
+		err := NewWithData(ctx, "new", data).(*AutoMDMError)
 
 		require.Equal(t, err.msg, "new")
 		require.NotEmpty(t, err.stack.List())
@@ -96,7 +96,7 @@ func TestNewWithData(t *testing.T) {
 		ctx, cleanup := setup()
 		defer cleanup()
 		data := map[string]interface{}{"foo": make(chan int)}
-		err := NewWithData(ctx, "new", data).(*FleetError)
+		err := NewWithData(ctx, "new", data).(*AutoMDMError)
 		require.Equal(t, err.msg, "new")
 		require.NotEmpty(t, err.stack.List())
 		require.Nil(t, err.cause)
@@ -107,7 +107,7 @@ func TestNewWithData(t *testing.T) {
 func TestErrorf(t *testing.T) {
 	ctx, cleanup := setup()
 	defer cleanup()
-	err := Errorf(ctx, "%s %d", "new", 1).(*FleetError)
+	err := Errorf(ctx, "%s %d", "new", 1).(*AutoMDMError)
 
 	require.Equal(t, err.msg, "new 1")
 	require.NotEmpty(t, err.stack.List())
@@ -119,7 +119,7 @@ func TestWrap(t *testing.T) {
 		ctx, cleanup := setup()
 		defer cleanup()
 		cause := errors.New("cause")
-		err := Wrap(ctx, cause, "new").(*FleetError)
+		err := Wrap(ctx, cause, "new").(*AutoMDMError)
 
 		require.Equal(t, err.msg, "new")
 		require.NotEmpty(t, err.stack.List())
@@ -130,7 +130,7 @@ func TestWrap(t *testing.T) {
 		ctx, cleanup := setup()
 		defer cleanup()
 		cause := errors.New("cause")
-		err := Wrap(ctx, cause).(*FleetError)
+		err := Wrap(ctx, cause).(*AutoMDMError)
 		require.Equal(t, err.msg, "")
 		require.NotEmpty(t, err.stack.List())
 		require.NotNil(t, err.cause)
@@ -150,7 +150,7 @@ func TestWrapNewWithData(t *testing.T) {
 		defer cleanup()
 		cause := errors.New("cause")
 		data := map[string]interface{}{"foo": "bar"}
-		err := WrapWithData(ctx, cause, "new", data).(*FleetError)
+		err := WrapWithData(ctx, cause, "new", data).(*AutoMDMError)
 
 		require.Equal(t, err.msg, "new")
 		require.NotEmpty(t, err.stack.List())
@@ -163,7 +163,7 @@ func TestWrapNewWithData(t *testing.T) {
 		defer cleanup()
 		cause := errors.New("cause")
 		data := map[string]interface{}{"foo": make(chan int)}
-		err := WrapWithData(ctx, cause, "new", data).(*FleetError)
+		err := WrapWithData(ctx, cause, "new", data).(*AutoMDMError)
 		require.Equal(t, err.msg, "new")
 		require.NotEmpty(t, err.stack.List())
 		require.NotNil(t, err.cause)
@@ -175,7 +175,7 @@ func TestWrapNewWithData(t *testing.T) {
 		defer cleanup()
 		data := map[string]interface{}{"foo": make(chan int)}
 		cause := errors.New("cause")
-		err := WrapWithData(ctx, cause, "", data).(*FleetError)
+		err := WrapWithData(ctx, cause, "", data).(*AutoMDMError)
 		require.Equal(t, err.msg, "")
 		require.NotEmpty(t, err.stack.List())
 		require.NotNil(t, err.cause)
@@ -194,7 +194,7 @@ func TestWrapf(t *testing.T) {
 	ctx, cleanup := setup()
 	defer cleanup()
 	cause := errors.New("cause")
-	err := Wrapf(ctx, cause, "%s %d", "new", 1).(*FleetError)
+	err := Wrapf(ctx, cause, "%s %d", "new", 1).(*AutoMDMError)
 
 	require.Equal(t, err.msg, "new 1")
 	require.NotEmpty(t, err.stack.List())
@@ -216,10 +216,10 @@ func TestMarshalJSON(t *testing.T) {
 
 	errNew := errors.New("a")
 
-	errWrap := Wrap(ctx, errNew, "b").(*FleetError)
+	errWrap := Wrap(ctx, errNew, "b").(*AutoMDMError)
 	errWrap.stack = mockStack{[]string{"sb"}}
 
-	errNewWithData := NewWithData(ctx, "c", map[string]interface{}{"f": "c"}).(*FleetError)
+	errNewWithData := NewWithData(ctx, "c", map[string]interface{}{"f": "c"}).(*AutoMDMError)
 	errNewWithData.stack = mockStack{[]string{"sc"}}
 
 	cases := []struct {
@@ -258,17 +258,17 @@ func TestStackMethod(t *testing.T) {
 	defer cleanup()
 
 	errNew := errors.New("a")
-	errWrap := Wrap(ctx, errNew, "b").(*FleetError)
+	errWrap := Wrap(ctx, errNew, "b").(*AutoMDMError)
 	errWrap.stack = mockStack{[]string{"sb"}}
 
 	require.Equal(t, []string{"sb"}, errWrap.Stack())
 }
 
-func TestFleetCause(t *testing.T) {
+func TestAutoMDMCause(t *testing.T) {
 	ctx, cleanup := setup()
 	defer cleanup()
 
-	var nilErr *FleetError
+	var nilErr *AutoMDMError
 	errNew := errors.New("a")
 	errWrapRoot := Wrap(ctx, errNew, "wrapRoot")
 	errWrap1 := Wrap(ctx, errWrapRoot, "wrap1")
@@ -279,15 +279,15 @@ func TestFleetCause(t *testing.T) {
 		in  error
 		out error
 	}{
-		{"non-fleet, unwrapped errors returns nil", errNew, nilErr},
-		{"fleet unwrapped errors returns the error itself", errWrapRoot, errWrapRoot},
-		{"deeply nested errors return the root fleet error", errWrap1, errWrapRoot},
-		{"deeply nested errors return the root fleet error", errWrap2, errWrapRoot},
+		{"non-automdm, unwrapped errors returns nil", errNew, nilErr},
+		{"team unwrapped errors returns the error itself", errWrapRoot, errWrapRoot},
+		{"deeply nested errors return the root automdm error", errWrap1, errWrapRoot},
+		{"deeply nested errors return the root automdm error", errWrap2, errWrapRoot},
 	}
 
 	for _, c := range cases {
 		t.Run(c.msg, func(t *testing.T) {
-			actual := FleetCause(c.in)
+			actual := AutoMDMCause(c.in)
 			require.Equal(t, c.out, actual)
 		})
 	}
@@ -305,12 +305,12 @@ func TestHandle(t *testing.T) {
 		Handle(ctx, err)
 	})
 
-	t.Run("wraps when there's no FleetError in the chain", func(t *testing.T) {
+	t.Run("wraps when there's no AutoMDMError in the chain", func(t *testing.T) {
 		ctx := context.Background()
 		eh := MockHandler{}
 		err := errors.New("new")
 		eh.StoreImpl = func(serr error) {
-			var ferr *FleetError
+			var ferr *AutoMDMError
 			require.ErrorAs(t, serr, &ferr)
 		}
 		ctx = NewContext(ctx, eh)
@@ -347,7 +347,7 @@ func TestHandle(t *testing.T) {
 		called := false
 		eh.StoreImpl = func(serr error) {
 			called = true
-			var ferr *FleetError
+			var ferr *AutoMDMError
 			require.ErrorAs(t, serr, &ferr)
 		}
 		ctx = NewContext(ctx, eh)
@@ -360,11 +360,11 @@ func TestAdditionalMetadata(t *testing.T) {
 	t.Run("saves additional data about the host if present", func(t *testing.T) {
 		ctx, cleanup := setup()
 		defer cleanup()
-		h := &fleet.Host{Platform: "test_platform", OsqueryVersion: "5.0"}
+		h := &automdm.Host{Platform: "test_platform", OsqueryVersion: "5.0"}
 		hctx := host.NewContext(ctx, h)
 		// Register the host as an error context provider
 		hctx = AddErrorContextProvider(hctx, &host.HostAttributeProvider{Host: h})
-		err := New(hctx, "with host context").(*FleetError)
+		err := New(hctx, "with host context").(*AutoMDMError)
 
 		require.JSONEq(t, string(err.data), `{"host":{"osquery_version":"5.0","platform":"test_platform"},"timestamp":"1969-06-19T21:44:05Z"}`)
 	})
@@ -372,11 +372,11 @@ func TestAdditionalMetadata(t *testing.T) {
 	t.Run("saves additional data about the viewer if present", func(t *testing.T) {
 		ctx, cleanup := setup()
 		defer cleanup()
-		v := viewer.Viewer{Session: &fleet.Session{ID: 1}, User: &fleet.User{SSOEnabled: true}}
+		v := viewer.Viewer{Session: &automdm.Session{ID: 1}, User: &automdm.User{SSOEnabled: true}}
 		vctx := viewer.NewContext(ctx, v)
 		// Register the viewer as an error context provider
 		vctx = AddErrorContextProvider(vctx, &v)
-		err := New(vctx, "with host context").(*FleetError)
+		err := New(vctx, "with host context").(*AutoMDMError)
 
 		require.JSONEq(t, string(err.data), `{"viewer":{"is_logged_in":true,"sso_enabled":true},"timestamp":"1969-06-19T21:44:05Z"}`)
 	})
@@ -410,16 +410,16 @@ func TestLogFields(t *testing.T) {
 		err  error
 		want []any
 	}{
-		{&FleetError{}, []any{}},
+		{&AutoMDMError{}, []any{}},
 		{New(ctx, "test"), []any{"timestamp", "1969-06-19T21:44:05Z"}},
 		{NewWithData(ctx, "test", map[string]any{}), []any{"timestamp", "1969-06-19T21:44:05Z"}},
 		{NewWithData(ctx, "test", map[string]any{"test": 1}), []any{"test", float64(1), "timestamp", "1969-06-19T21:44:05Z"}},
 		{WrapWithData(ctx, testErr, "test", map[string]any{"test": "one"}), []any{"test", "one", "timestamp", "1969-06-19T21:44:05Z"}},
-		{&FleetError{data: json.RawMessage("{malformed: 1, }}")}, []any{"data", "{malformed: 1, }}"}},
+		{&AutoMDMError{data: json.RawMessage("{malformed: 1, }}")}, []any{"data", "{malformed: 1, }}"}},
 	}
 
 	for _, c := range cases {
-		ferr, ok := c.err.(*FleetError)
+		ferr, ok := c.err.(*AutoMDMError)
 		require.True(t, ok)
 		got := ferr.LogFields()
 		require.ElementsMatch(t, c.want, got)
@@ -489,7 +489,7 @@ func TestIsClientError(t *testing.T) {
 		},
 		{
 			name:     "InvalidArgumentError (implements IsClientError)",
-			err:      &fleet.InvalidArgumentError{},
+			err:      &automdm.InvalidArgumentError{},
 			expected: true,
 		},
 		{

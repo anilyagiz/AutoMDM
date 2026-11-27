@@ -8,14 +8,14 @@ import FailedToRotateDiskEncryptionKeyActivityItem from "./FailedToRotateDiskEnc
 
 const failedActivity = (detail?: string) =>
   createMockHostPastActivity({
-    actor_full_name: "Fleet",
-    fleet_initiated: true,
+    actor_full_name: "AutoMDM",
+    automdm_initiated: true,
     type: ActivityType.FailedToRotateDiskEncryptionKey,
     ...(detail === undefined ? {} : { details: { detail } }),
   });
 
 describe("FailedToRotateDiskEncryptionKeyActivityItem", () => {
-  it("renders the failure attributed to Fleet", () => {
+  it("renders the failure attributed to AutoMDM", () => {
     render(
       <FailedToRotateDiskEncryptionKeyActivityItem
         activity={failedActivity(
@@ -26,7 +26,7 @@ describe("FailedToRotateDiskEncryptionKeyActivityItem", () => {
       />
     );
 
-    expect(screen.getByText("Fleet")).toBeVisible();
+    expect(screen.getByText("AutoMDM")).toBeVisible();
     expect(
       screen.getByText(
         /failed to rotate the disk encryption key for this host/i

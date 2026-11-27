@@ -3,16 +3,16 @@ package mysql
 import (
 	"context"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
 	"github.com/jmoiron/sqlx"
 )
 
 // WithOrbitConfigNotifier sets the notifier that tells connected agents to
 // fetch their orbit config after a write changing it commits. Unset, no
 // notifications are sent (agents rely on polling).
-func (ds *Datastore) WithOrbitConfigNotifier(n fleet.AgentCheckInNotifier) {
+func (ds *Datastore) WithOrbitConfigNotifier(n automdm.AgentCheckInNotifier) {
 	ds.orbitConfigNotifier = n
 }
 
@@ -56,8 +56,8 @@ func (ds *Datastore) notifyOrbitConfigByHostUUIDs(ctx context.Context, tx sqlx.E
 
 // notifyOrbitConfigWindowsMDMSync tells the hosts of the given
 // mdm_windows_enrollments, now with pending commands, to fetch their orbit
-// config: it asks fleetd to start an MDM session (WindowsMDMSyncRequest).
-// Hosts whose fleetd can't are skipped.
+// config: it asks automdmd to start an MDM session (WindowsMDMSyncRequest).
+// Hosts whose automdmd can't are skipped.
 func (ds *Datastore) notifyOrbitConfigWindowsMDMSync(ctx context.Context, tx sqlx.ExtContext, enrollmentIDs []uint) error {
 	if ds.orbitConfigNotifier == nil || len(enrollmentIDs) == 0 {
 		return nil
@@ -66,11 +66,11 @@ func (ds *Datastore) notifyOrbitConfigWindowsMDMSync(ctx context.Context, tx sql
 SELECT h.id
 FROM mdm_windows_enrollments mwe
 JOIN hosts h ON h.uuid = mwe.host_uuid
-WHERE mwe.id IN (?) AND mwe.fleetd_sync_capable = 1`, enrollmentIDs)
+WHERE mwe.id IN (?) AND mwe.automdmd_sync_capable = 1`, enrollmentIDs)
 	if err != nil {
 		return ctxerr.Wrap(ctx, err, "build orbit config notification enrollment IDs query")
 	}
-	return ds.notifyOrbitConfigByQuery(ctx, tx, fleet.AgentWSReasonMDM, stmt, args...)
+	return ds.notifyOrbitConfigByQuery(ctx, tx, automdm.AgentWSReasonMDM, stmt, args...)
 }
 
 func (ds *Datastore) notifyOrbitConfigByQuery(ctx context.Context, tx sqlx.ExtContext, reason, stmt string, args ...any) error {

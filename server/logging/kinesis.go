@@ -10,14 +10,14 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/anilyagiz/automdm/v4/server/aws_common"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	aws_config "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
 	smithy "github.com/aws/smithy-go"
-	"github.com/fleetdm/fleet/v4/server/aws_common"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
 )
 
 const (
@@ -127,7 +127,7 @@ func (k *kinesisLogWriter) Write(ctx context.Context, logs []json.RawMessage) er
 		// We don't really have a good option for what to do with logs
 		// that are too big for Kinesis. This behavior is consistent
 		// with osquery's behavior in the Kinesis logger plugin, and
-		// the beginning bytes of the log should help the Fleet admin
+		// the beginning bytes of the log should help the AutoMDM admin
 		// diagnose the query generating huge results.
 		if len(log)+len(partitionKey) > kinesisMaxSizeOfRecord {
 			k.logger.InfoContext(ctx, "dropping log over 1MB Kinesis limit",

@@ -10,15 +10,15 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm"
 )
 
-func (c *Client) ListConfigurationProfiles(teamID *uint) ([]*fleet.MDMConfigProfilePayload, error) {
-	verb, path := "GET", "/api/latest/fleet/configuration_profiles"
+func (c *Client) ListConfigurationProfiles(teamID *uint) ([]*automdm.MDMConfigProfilePayload, error) {
+	verb, path := "GET", "/api/latest/automdm/configuration_profiles"
 	query := make(url.Values)
 	if teamID != nil {
-		query.Add("fleet_id", strconv.FormatUint(uint64(*teamID), 10))
+		query.Add("team_id", strconv.FormatUint(uint64(*teamID), 10))
 	}
 	var responseBody listMDMConfigProfilesResponse
 	if err := c.authenticatedRequestWithQuery(nil, verb, path, &responseBody, query.Encode()); err != nil {
@@ -28,7 +28,7 @@ func (c *Client) ListConfigurationProfiles(teamID *uint) ([]*fleet.MDMConfigProf
 }
 
 // windowsProfileDeletionWarning checks, before a profile batch runs, whether
-// the batch deletes any of the fleet's Windows profiles. It returns a function
+// the batch deletes any of the team's Windows profiles. It returns a function
 // that prints the warning, to call once the batch has succeeded.
 //
 // It only checks when Windows MDM is on before and after the run, the only
@@ -36,11 +36,11 @@ func (c *Client) ListConfigurationProfiles(teamID *uint) ([]*fleet.MDMConfigProf
 // endpoint, the list endpoint requires MDM, and the warning is only
 // informational, so a failed lookup is reported rather than failing the run.
 func (c *Client) windowsProfileDeletionWarning(
-	appConfig *fleet.EnrichedAppConfig,
-	assumptions *fleet.TeamSpecsDryRunAssumptions,
+	appConfig *automdm.EnrichedAppConfig,
+	assumptions *automdm.TeamSpecsDryRunAssumptions,
 	teamID *uint,
-	fleetName string,
-	incoming []fleet.MDMProfileBatchPayload,
+	automdmName string,
+	incoming []automdm.MDMProfileBatchPayload,
 	logFn func(format string, args ...any),
 ) func() {
 	noWarning := func() {}
@@ -57,14 +57,14 @@ func (c *Client) windowsProfileDeletionWarning(
 		return noWarning
 	}
 	// The server keeps a Windows profile only if an incoming Windows profile
-	// has the same trimmed name. Fleet-reserved profiles aren't listed.
+	// has the same trimmed name. AutoMDM-reserved profiles aren't listed.
 	keep := make(map[string]struct{}, len(incoming))
 	for _, p := range incoming {
 		if mdm.GetRawProfilePlatform(p.Contents) == "windows" {
 			keep[strings.TrimSpace(p.Name)] = struct{}{}
 		}
 	}
-	deletes := slices.ContainsFunc(current, func(p *fleet.MDMConfigProfilePayload) bool {
+	deletes := slices.ContainsFunc(current, func(p *automdm.MDMConfigProfilePayload) bool {
 		_, kept := keep[strings.TrimSpace(p.Name)]
 		return p.Platform == "windows" && !kept
 	})
@@ -73,22 +73,22 @@ func (c *Client) windowsProfileDeletionWarning(
 	case !deletes:
 		return noWarning
 	case appConfig.License == nil || !appConfig.License.IsPremium():
-		// Fleet Free has no fleets to name.
+		// AutoMDM Free has no teams to name.
 		return func() {
 			logFn("[!] Some Windows settings from deleted profiles may not be cleanly removed from hosts. Learn more: %s\n",
-				fleet.WindowsProfileRemovalBehaviorURL)
+				automdm.WindowsProfileRemovalBehaviorURL)
 		}
 	default:
 		return func() {
-			logFn("[!] Fleet %q: some Windows settings from deleted profiles may not be cleanly removed from hosts. Learn more: %s\n",
-				fleetName, fleet.WindowsProfileRemovalBehaviorURL)
+			logFn("[!] AutoMDM %q: some Windows settings from deleted profiles may not be cleanly removed from hosts. Learn more: %s\n",
+				automdmName, automdm.WindowsProfileRemovalBehaviorURL)
 		}
 	}
 }
 
 // Get the contents of a saved profile.
 func (c *Client) GetProfileContents(profileID string) ([]byte, error) {
-	verb, path := "GET", "/api/latest/fleet/configuration_profiles/"+url.PathEscape(profileID)
+	verb, path := "GET", "/api/latest/automdm/configuration_profiles/"+url.PathEscape(profileID)
 	response, err := c.AuthenticatedDo(verb, path, "alt=media", nil)
 	if err != nil {
 		return nil, fmt.Errorf("%s %s: %w", verb, path, err)
@@ -112,7 +112,7 @@ func (c *Client) GetProfileContents(profileID string) ([]byte, error) {
 // or nil if it has none. GetProfileContents can't serve this because alt=media
 // returns the declaration file itself, not the payload the activation rides on.
 func (c *Client) GetProfileActivation(profileID string) ([]byte, error) {
-	verb, path := "GET", "/api/latest/fleet/configuration_profiles/"+url.PathEscape(profileID)
+	verb, path := "GET", "/api/latest/automdm/configuration_profiles/"+url.PathEscape(profileID)
 	var responseBody getMDMConfigProfileResponse
 	if err := c.authenticatedRequest(nil, verb, path, &responseBody); err != nil {
 		return nil, err
@@ -124,11 +124,11 @@ func (c *Client) GetProfileActivation(profileID string) ([]byte, error) {
 }
 
 // ListDDMAssets returns the Apple DDM assets for the given team.
-func (c *Client) ListDDMAssets(teamID *uint) ([]*fleet.DDMAsset, error) {
-	verb, path := "GET", "/api/latest/fleet/assets"
+func (c *Client) ListDDMAssets(teamID *uint) ([]*automdm.DDMAsset, error) {
+	verb, path := "GET", "/api/latest/automdm/assets"
 	query := make(url.Values)
 	if teamID != nil {
-		query.Add("fleet_id", strconv.FormatUint(uint64(*teamID), 10))
+		query.Add("team_id", strconv.FormatUint(uint64(*teamID), 10))
 	}
 	var responseBody listAppleDDMAssetsResponse
 	if err := c.authenticatedRequestWithQuery(nil, verb, path, &responseBody, query.Encode()); err != nil {
@@ -139,7 +139,7 @@ func (c *Client) ListDDMAssets(teamID *uint) ([]*fleet.DDMAsset, error) {
 
 // DownloadDDMAsset returns the raw JSON contents of the DDM asset with the given UUID.
 func (c *Client) DownloadDDMAsset(assetUUID string) ([]byte, error) {
-	verb, path := "GET", "/api/latest/fleet/assets/"+url.PathEscape(assetUUID)
+	verb, path := "GET", "/api/latest/automdm/assets/"+url.PathEscape(assetUUID)
 	response, err := c.AuthenticatedDo(verb, path, "alt=media", nil)
 	if err != nil {
 		return nil, fmt.Errorf("%s %s: %w", verb, path, err)
@@ -152,11 +152,11 @@ func (c *Client) DownloadDDMAsset(assetUUID string) ([]byte, error) {
 }
 
 // Get the Apple setup assistant profile for the given team, if any.
-func (c *Client) GetAppleMDMEnrollmentProfile(teamID uint) (*fleet.MDMAppleSetupAssistant, error) {
-	verb, path := "GET", "/api/latest/fleet/enrollment_profiles/automatic"
+func (c *Client) GetAppleMDMEnrollmentProfile(teamID uint) (*automdm.MDMAppleSetupAssistant, error) {
+	verb, path := "GET", "/api/latest/automdm/enrollment_profiles/automatic"
 	var query string
 	if teamID != 0 {
-		query = fmt.Sprintf("fleet_id=%d", teamID)
+		query = fmt.Sprintf("team_id=%d", teamID)
 	}
 	var responseBody createMDMAppleSetupAssistantResponse
 	if err := c.authenticatedRequestWithQuery(nil, verb, path, &responseBody, query); err != nil {
@@ -172,9 +172,9 @@ func (c *Client) GetAppleMDMEnrollmentProfile(teamID uint) (*fleet.MDMAppleSetup
 // rewrapProfileBatchNameErr surfaces the offending profile's name when the
 // batch-set profiles endpoint rejects one of them. The server puts the name in
 // the error's name field, bare or as "profiles[<name>]", but not in the reason,
-// so fleetctl output could not say which profile failed. Names that don't match
+// so automdmctl output could not say which profile failed. Names that don't match
 // a profile in the batch (e.g. "mdm", "labels") are left alone.
-func rewrapProfileBatchNameErr(err error, profiles []fleet.MDMProfileBatchPayload) error {
+func rewrapProfileBatchNameErr(err error, profiles []automdm.MDMProfileBatchPayload) error {
 	var scErr *StatusCodeErr
 	if !errors.As(err, &scErr) || scErr.Name == "" {
 		return err

@@ -663,7 +663,7 @@ const EditQueryForm = ({
                   getPathWithQueryParams(PATHS.LIVE_REPORT(queryIdForEdit), {
                     from: "edit",
                     host_id: hostId,
-                    fleet_id: apiTeamIdForQuery,
+                    team_id: apiTeamIdForQuery,
                   })
                 );
               }}
@@ -725,7 +725,7 @@ const EditQueryForm = ({
   const renderEditableQueryForm = () => {
     // Save stays enabled for any client-side validation error (name, platforms,
     // labels, empty or invalid query) — click reveals the inline errors via
-    // handleSaveQuery, matching Fleet's form validation pattern.
+    // handleSaveQuery, matching AutoMDM's form validation pattern.
     return (
       <>
         {/* No submit button, so Enter in the name field would navigate. */}
@@ -740,7 +740,7 @@ const EditQueryForm = ({
               {renderQueryTeam()}
             </div>
           ) : (
-            <div className={`${baseClass}__query-name-fleet-name`}>
+            <div className={`${baseClass}__query-name-team-name`}>
               {renderName()}
               {renderQueryTeam()}
             </div>
@@ -769,7 +769,7 @@ const EditQueryForm = ({
                     Counts time the host is awake. Hosts that sleep will report
                     after longer intervals of calendar time.{" "}
                     <CustomLink
-                      url="https://fleetdm.com/guides/reports#schedule-a-report"
+                      url="https://automdm.com/guides/reports#schedule-a-report"
                       text="Learn more"
                       newTab
                     />
@@ -982,7 +982,7 @@ const EditQueryForm = ({
                     getPathWithQueryParams(PATHS.LIVE_REPORT(queryIdForEdit), {
                       from: "edit",
                       host_id: hostId,
-                      fleet_id: currentTeamId,
+                      team_id: currentTeamId,
                     })
                   );
                 }}
@@ -1013,7 +1013,7 @@ const EditQueryForm = ({
             location={location}
             initialQueryData={{
               ...updateQueryData,
-              fleet_id: apiTeamIdForQuery,
+              team_id: apiTeamIdForQuery,
             }}
             hostId={hostId}
             onExit={toggleSaveAsNewQueryModal}

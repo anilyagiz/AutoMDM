@@ -9,7 +9,7 @@
       "end": "2026-06-17T18:11:04Z"
     }
   },
-  "fleet_server": {
+  "automdm_server": {
     "cpu_utilization": {
       "Average": 57.6,
       "Minimum": 55.23,
@@ -383,7 +383,7 @@
       "data_coverage": 1
     }
   },
-  "fleet_server_errors": {
+  "automdm_server_errors": {
     "error_count": 2128.0,
     "sample_messages": [
       "{\"ts\":\"2026-06-17T03:10:30Z\",\"level\":\"error\",\"component\":\"http\",\"method\":\"POST\",\"uri\":\"/api/osquery/config\",\"took\":10290920198,\"host_id\":27291,\"ip_addr\":\"10.12.2.101\",\"x_for_ip_addr\":\"10.12.2.101\",\"err\":\"TLS handshake timeout\"}",

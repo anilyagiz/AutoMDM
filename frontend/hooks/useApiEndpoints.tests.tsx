@@ -11,7 +11,7 @@ jest.mock("services/entities/api_endpoints");
 
 const LIST_HOSTS: IApiEndpoint = {
   method: "GET",
-  path: "/api/v1/fleet/hosts",
+  path: "/api/v1/automdm/hosts",
   display_name: "List hosts",
   deprecated: false,
 };

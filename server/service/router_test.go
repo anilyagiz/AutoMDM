@@ -9,22 +9,22 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/acl/chartacl"
-	activity_bootstrap "github.com/fleetdm/fleet/v4/server/activity/bootstrap"
-	apiendpoints "github.com/fleetdm/fleet/v4/server/api_endpoints"
-	chart_bootstrap "github.com/fleetdm/fleet/v4/server/chart/bootstrap"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	acme_bootstrap "github.com/fleetdm/fleet/v4/server/mdm/acme/bootstrap"
-	android_service "github.com/fleetdm/fleet/v4/server/mdm/android/service"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	notifications_bootstrap "github.com/fleetdm/fleet/v4/server/notifications/bootstrap"
-	"github.com/fleetdm/fleet/v4/server/platform/endpointer"
-	platform_http "github.com/fleetdm/fleet/v4/server/platform/http"
-	platform_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
-	"github.com/fleetdm/fleet/v4/server/platform/tracing"
-	"github.com/fleetdm/fleet/v4/server/service/middleware/auth"
+	"github.com/anilyagiz/automdm/v4/server/acl/chartacl"
+	activity_bootstrap "github.com/anilyagiz/automdm/v4/server/activity/bootstrap"
+	apiendpoints "github.com/anilyagiz/automdm/v4/server/api_endpoints"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	chart_bootstrap "github.com/anilyagiz/automdm/v4/server/chart/bootstrap"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	acme_bootstrap "github.com/anilyagiz/automdm/v4/server/mdm/acme/bootstrap"
+	android_service "github.com/anilyagiz/automdm/v4/server/mdm/android/service"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	notifications_bootstrap "github.com/anilyagiz/automdm/v4/server/notifications/bootstrap"
+	"github.com/anilyagiz/automdm/v4/server/platform/endpointer"
+	platform_http "github.com/anilyagiz/automdm/v4/server/platform/http"
+	platform_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/platform/tracing"
+	"github.com/anilyagiz/automdm/v4/server/service/middleware/auth"
 	"github.com/go-kit/kit/endpoint"
 	kithttp "github.com/go-kit/kit/transport/http"
 	"github.com/stretchr/testify/assert"
@@ -36,8 +36,8 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// newAPIHandler builds the real API router the way cmd/fleet does.
-func newAPIHandler(t *testing.T, cfg config.FleetConfig, featureRoutes []endpointer.HandlerRoutesFunc) *endpointer.Router {
+// newAPIHandler builds the real API router the way cmd/automdm does.
+func newAPIHandler(t *testing.T, cfg config.AutoMDMConfig, featureRoutes []endpointer.HandlerRoutesFunc) *endpointer.Router {
 	t.Helper()
 	ds := new(mock.Store)
 	svc, _ := newTestService(t, ds, nil, nil)
@@ -50,8 +50,8 @@ func newAPIHandler(t *testing.T, cfg config.FleetConfig, featureRoutes []endpoin
 	return router
 }
 
-// productionFeatureRoutes returns the same feature-route set cmd/fleet/serve.go passes to MakeHandler.
-func productionFeatureRoutes(t *testing.T, fleetSvc fleet.Service) []endpointer.HandlerRoutesFunc {
+// productionFeatureRoutes returns the same feature-route set cmd/automdm/serve.go passes to MakeHandler.
+func productionFeatureRoutes(t *testing.T, automdmSvc automdm.Service) []endpointer.HandlerRoutesFunc {
 	t.Helper()
 	logger := slog.New(slog.DiscardHandler)
 	conns := &platform_mysql.DBConnections{}
@@ -64,7 +64,7 @@ func productionFeatureRoutes(t *testing.T, fleetSvc fleet.Service) []endpointer.
 	_, notificationsRoutes := notifications_bootstrap.New(conns, nil, logger)
 
 	return FeatureRoutes(
-		android_service.GetRoutes(fleetSvc, nil),
+		android_service.GetRoutes(automdmSvc, nil),
 		activityRoutes(passthrough),
 		notificationsRoutes(passthrough),
 		acmeRoutes(passthrough),
@@ -75,7 +75,7 @@ func productionFeatureRoutes(t *testing.T, fleetSvc fleet.Service) []endpointer.
 // newRouterForTest builds the production router and replaces every handler with one that writes the route it belongs to and
 // the path variables it resolved. It fails the test when the route template in context is not the route's own, which is what
 // API-only authorization matches on.
-func newRouterForTest(t *testing.T, cfg config.FleetConfig) *endpointer.Router {
+func newRouterForTest(t *testing.T, cfg config.AutoMDMConfig) *endpointer.Router {
 	t.Helper()
 	ds := new(mock.Store)
 	svc, _ := newTestService(t, ds, nil, nil)
@@ -152,22 +152,22 @@ func TestRouterEdgeCases(t *testing.T) {
 	}{
 		{
 			name: "live resend wins over the removed spelling", method: "POST",
-			path:       "/api/latest/fleet/hosts/1/configuration_profiles/resend/resend",
+			path:       "/api/latest/automdm/hosts/1/configuration_profiles/resend/resend",
 			wantStatus: 200, wantBody: "post_hosts__host_id:[0-9]+__configuration_profiles__profile_uuid__resend host_id=1,profile_uuid=resend",
 		},
 		{
 			name: "removed route behind a live route whose constraint fails", method: "GET",
-			path:       "/api/latest/fleet/hosts/identifier/device_mapping",
+			path:       "/api/latest/automdm/hosts/identifier/device_mapping",
 			wantStatus: 200, wantBody: "get_hosts_identifier__identifier_ identifier_segment=identifier,identifier=device_mapping",
 		},
 		{
 			name: "removed resend spelling behind a live resend whose constraint fails", method: "POST",
-			path:       "/api/latest/fleet/hosts/abc/configuration_profiles/foo/resend",
+			path:       "/api/latest/automdm/hosts/abc/configuration_profiles/foo/resend",
 			wantStatus: 200, wantBody: "post_hosts__host_id__configuration_profiles_resend__profile_uuid_ host_id=abc,resend_segment=foo,profile_uuid=resend",
 		},
 		{
 			// Deliberate: the ServeMux answers a wrong method before any route constraint runs, so the invalid id stays a 405.
-			name: "invalid id on a path only other methods serve", method: "POST", path: "/api/latest/fleet/certificates/abc",
+			name: "invalid id on a path only other methods serve", method: "POST", path: "/api/latest/automdm/certificates/abc",
 			wantStatus: 405, wantAllow: "DELETE, GET, HEAD",
 		},
 	}
@@ -213,16 +213,16 @@ func TestRouterSpanNamesFeedTheTracingTierRegistry(t *testing.T) {
 			wantSpan: "POST /api/osquery/distributed/write", wantTier: tracing.TierHighVolume,
 		},
 		{
-			name: "version and path variable are named by their placeholders", method: "GET", path: "/api/latest/fleet/hosts/1",
-			wantSpan: "GET /api/_version_/fleet/hosts/{id}", wantTier: tracing.TierStandard,
+			name: "version and path variable are named by their placeholders", method: "GET", path: "/api/latest/automdm/hosts/1",
+			wantSpan: "GET /api/_version_/automdm/hosts/{id}", wantTier: tracing.TierStandard,
 		},
 		{
-			name: "HEAD on a GET route takes the GET tier", method: "HEAD", path: "/api/latest/fleet/config",
-			wantSpan: "HEAD /api/_version_/fleet/config", wantTier: tracing.TierStandard,
+			name: "HEAD on a GET route takes the GET tier", method: "HEAD", path: "/api/latest/automdm/config",
+			wantSpan: "HEAD /api/_version_/automdm/config", wantTier: tracing.TierStandard,
 		},
 		{
-			name: "constrained variable drops its regex", method: "PATCH", path: "/api/latest/fleet/fleets/1/secrets",
-			wantSpan: "PATCH /api/_version_/fleet/fleets/{fleet_id}/secrets", wantTier: tracing.TierAlways,
+			name: "constrained variable drops its regex", method: "PATCH", path: "/api/latest/automdm/teams/1/secrets",
+			wantSpan: "PATCH /api/_version_/automdm/teams/{team_id}/secrets", wantTier: tracing.TierAlways,
 		},
 	}
 
@@ -248,8 +248,8 @@ func TestRouterSpanNamesFeedTheTracingTierRegistry(t *testing.T) {
 
 	t.Run("a request no route matches has no span", func(t *testing.T) {
 		recorder.Reset()
-		require.Equal(t, http.StatusNotFound, serve(router, "GET", "/api/latest/fleet/nope").Code)
-		require.Equal(t, http.StatusNotFound, serve(router, "GET", "/api/latest/fleet/certificates/abc").Code)
+		require.Equal(t, http.StatusNotFound, serve(router, "GET", "/api/latest/automdm/nope").Code)
+		require.Equal(t, http.StatusNotFound, serve(router, "GET", "/api/latest/automdm/certificates/abc").Code)
 		require.Empty(t, serverSpans(recorder))
 	})
 }
@@ -285,11 +285,11 @@ func TestAPIOnlyCatalogThroughRouter(t *testing.T) {
 	svc, _ := newTestService(t, ds, nil, nil)
 	router := newAPIHandler(t, config.TestConfig(), productionFeatureRoutes(t, svc))
 
-	var grant fleet.APIEndpointRef
+	var grant automdm.APIEndpointRef
 	allowed := func(context.Context, any) (any, error) { return nil, nil }
 	router.WrapHandlers(func(_ endpointer.Route, _ http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			user := &fleet.User{APIOnly: true, APIEndpoints: []fleet.APIEndpointRef{grant}}
+			user := &automdm.User{APIOnly: true, APIEndpoints: []automdm.APIEndpointRef{grant}}
 			ctx := viewer.NewContext(kithttp.PopulateRequestContext(r.Context(), r), viewer.Viewer{User: user})
 			if _, err := auth.APIOnlyEndpointCheck(allowed)(ctx, nil); err != nil {
 				w.WriteHeader(http.StatusForbidden)
@@ -299,7 +299,7 @@ func TestAPIOnlyCatalogThroughRouter(t *testing.T) {
 		})
 	})
 
-	unrelated := fleet.APIEndpointRef{Method: http.MethodGet, Path: "/api/v1/fleet/version"}
+	unrelated := automdm.APIEndpointRef{Method: http.MethodGet, Path: "/api/v1/automdm/version"}
 	placeholder := regexp.MustCompile(`:[a-zA-Z_]+`)
 	var checked int
 	for _, entry := range apiendpoints.GetAPIEndpoints() {
@@ -310,7 +310,7 @@ func TestAPIOnlyCatalogThroughRouter(t *testing.T) {
 		if serve(router, entry.Method, path).Code == http.StatusNotFound {
 			path = strings.Replace(path, "/api/v1/", "/api/latest/", 1) // a route that starts after v1
 		}
-		grant = fleet.APIEndpointRef{Method: entry.Method, Path: entry.Path}
+		grant = automdm.APIEndpointRef{Method: entry.Method, Path: entry.Path}
 		assert.Equalf(t, http.StatusOK, serve(router, entry.Method, path).Code, "%s %s granted itself", entry.Method, path)
 		if grant != unrelated {
 			grant = unrelated

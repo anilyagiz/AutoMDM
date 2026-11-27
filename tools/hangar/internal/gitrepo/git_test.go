@@ -79,12 +79,12 @@ func TestParseRCMinorKey(t *testing.T) {
 		key  string
 		ok   bool
 	}{
-		{"rc-minor-fleet-v4.86.0", "4.86", true},
-		{"rc-patch-fleet-v4.86.3", "4.86", true},
-		{"rc-major-fleet-v5.0.0", "5.0", true},
+		{"rc-minor-automdm-v4.86.0", "4.86", true},
+		{"rc-patch-automdm-v4.86.3", "4.86", true},
+		{"rc-major-automdm-v5.0.0", "5.0", true},
 		{"main", "", false},
-		{"rc-minor-fleet-vX.Y.Z", "", false},
-		{"rc-minor-fleet-v4", "", false},
+		{"rc-minor-automdm-vX.Y.Z", "", false},
+		{"rc-minor-automdm-v4", "", false},
 	}
 	for _, c := range cases {
 		key, ok := parseRCMinorKey(c.name)
@@ -127,14 +127,14 @@ func TestParseBranchesNonRCLimit(t *testing.T) {
 
 func TestParseBranchesRCGrouping(t *testing.T) {
 	raw := strings.Join([]string{
-		ref("rc-minor-fleet-v4.88.0", "a", "s", "me", "1d", "refs/heads/rc-minor-fleet-v4.88.0"),
-		ref("rc-patch-fleet-v4.88.1", "a", "s", "me", "2d", "refs/heads/rc-patch-fleet-v4.88.1"),
-		ref("rc-minor-fleet-v4.87.0", "a", "s", "me", "3d", "refs/heads/rc-minor-fleet-v4.87.0"),
-		ref("rc-minor-fleet-v4.86.0", "a", "s", "me", "4d", "refs/heads/rc-minor-fleet-v4.86.0"), // current
-		ref("rc-minor-fleet-v4.85.0", "a", "s", "me", "5d", "refs/heads/rc-minor-fleet-v4.85.0"),
+		ref("rc-minor-automdm-v4.88.0", "a", "s", "me", "1d", "refs/heads/rc-minor-automdm-v4.88.0"),
+		ref("rc-patch-automdm-v4.88.1", "a", "s", "me", "2d", "refs/heads/rc-patch-automdm-v4.88.1"),
+		ref("rc-minor-automdm-v4.87.0", "a", "s", "me", "3d", "refs/heads/rc-minor-automdm-v4.87.0"),
+		ref("rc-minor-automdm-v4.86.0", "a", "s", "me", "4d", "refs/heads/rc-minor-automdm-v4.86.0"), // current
+		ref("rc-minor-automdm-v4.85.0", "a", "s", "me", "5d", "refs/heads/rc-minor-automdm-v4.85.0"),
 	}, "\n")
 
-	got := parseBranches(raw, "rc-minor-fleet-v4.86.0", "", true, u32p(2))
+	got := parseBranches(raw, "rc-minor-automdm-v4.86.0", "", true, u32p(2))
 
 	names := map[string]bool{}
 	for _, b := range got {
@@ -142,12 +142,12 @@ func TestParseBranchesRCGrouping(t *testing.T) {
 	}
 	// Keep 2 most-recent minor lines (4.88, 4.87) incl. the patch on 4.88,
 	// plus the current branch (4.86). Drop 4.85.
-	for _, want := range []string{"rc-minor-fleet-v4.88.0", "rc-patch-fleet-v4.88.1", "rc-minor-fleet-v4.87.0", "rc-minor-fleet-v4.86.0"} {
+	for _, want := range []string{"rc-minor-automdm-v4.88.0", "rc-patch-automdm-v4.88.1", "rc-minor-automdm-v4.87.0", "rc-minor-automdm-v4.86.0"} {
 		if !names[want] {
 			t.Errorf("expected %q in RC result, got %v", want, names)
 		}
 	}
-	if names["rc-minor-fleet-v4.85.0"] {
+	if names["rc-minor-automdm-v4.85.0"] {
 		t.Error("4.85 should have been dropped (beyond N=2 minor lines, not current)")
 	}
 }
@@ -177,24 +177,24 @@ func TestParseBranchesQuery(t *testing.T) {
 	// RC grouping is bypassed under a query: an old minor line beyond the
 	// N-most-recent window still matches.
 	rcRaw := strings.Join([]string{
-		ref("rc-minor-fleet-v4.88.0", "a", "s", "me", "1d", "refs/heads/rc-minor-fleet-v4.88.0"),
-		ref("rc-minor-fleet-v4.50.0", "a", "s", "me", "400d", "refs/heads/rc-minor-fleet-v4.50.0"),
+		ref("rc-minor-automdm-v4.88.0", "a", "s", "me", "1d", "refs/heads/rc-minor-automdm-v4.88.0"),
+		ref("rc-minor-automdm-v4.50.0", "a", "s", "me", "400d", "refs/heads/rc-minor-automdm-v4.50.0"),
 	}, "\n")
 	got = parseBranches(rcRaw, "", "4.50", true, u32p(1))
-	if len(got) != 1 || got[0].Name != "rc-minor-fleet-v4.50.0" {
+	if len(got) != 1 || got[0].Name != "rc-minor-automdm-v4.50.0" {
 		t.Fatalf("RC query should bypass grouping: %+v", got)
 	}
 }
 
 func TestParseWorktrees(t *testing.T) {
 	raw := strings.Join([]string{
-		"worktree /Users/me/fleet",
+		"worktree /Users/me/automdm",
 		"HEAD aaaa1111",
 		"branch refs/heads/main",
 		"",
-		"worktree /Users/me/fleet-n1",
+		"worktree /Users/me/automdm-n1",
 		"HEAD bbbb2222",
-		"branch refs/heads/rc-minor-fleet-v4.86.0",
+		"branch refs/heads/rc-minor-automdm-v4.86.0",
 		"",
 		"worktree /Users/me/detached",
 		"HEAD cccc3333",
@@ -208,7 +208,7 @@ func TestParseWorktrees(t *testing.T) {
 	if !wts[0].IsMain || wts[0].Branch == nil || *wts[0].Branch != "main" {
 		t.Errorf("main worktree wrong: %+v", wts[0])
 	}
-	if wts[1].IsMain || wts[1].Branch == nil || *wts[1].Branch != "rc-minor-fleet-v4.86.0" {
+	if wts[1].IsMain || wts[1].Branch == nil || *wts[1].Branch != "rc-minor-automdm-v4.86.0" {
 		t.Errorf("linked worktree wrong: %+v", wts[1])
 	}
 	if !wts[2].Detached || wts[2].Branch != nil {

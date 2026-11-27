@@ -2,11 +2,11 @@ package mail
 
 import (
 	"bytes"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"html/template"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server"
+	"github.com/anilyagiz/automdm/v4/server"
 )
 
 // MFAMailer is used to build an email template for the MFA email.
@@ -21,7 +21,7 @@ type MFAMailer struct {
 
 func (i *MFAMailer) Message() ([]byte, error) {
 	i.CurrentYear = time.Now().Year()
-	i.TTLInMinutes = fleet.MFALinkTTL.Truncate(time.Minute).Minutes() // better to show a whole, rounded-down number
+	i.TTLInMinutes = automdm.MFALinkTTL.Truncate(time.Minute).Minutes() // better to show a whole, rounded-down number
 	t, err := server.GetTemplate("server/mail/templates/mfa.html", "email_template")
 	if err != nil {
 		return nil, err

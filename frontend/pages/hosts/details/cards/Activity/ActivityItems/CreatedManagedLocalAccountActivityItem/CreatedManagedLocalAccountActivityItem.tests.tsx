@@ -11,14 +11,14 @@ describe("CreatedManagedLocalAccountActivityItem", () => {
     render(
       <CreatedManagedLocalAccountActivityItem
         activity={createMockHostPastActivity({
-          actor_full_name: "Fleet",
+          actor_full_name: "AutoMDM",
           type: ActivityType.CreatedManagedLocalAccount,
         })}
         tab="past"
       />
     );
 
-    expect(screen.getByText("Fleet")).toBeVisible();
+    expect(screen.getByText("AutoMDM")).toBeVisible();
     expect(
       screen.getByText(/created a managed local account for this host/i)
     ).toBeVisible();
@@ -28,7 +28,7 @@ describe("CreatedManagedLocalAccountActivityItem", () => {
     render(
       <CreatedManagedLocalAccountActivityItem
         activity={createMockHostPastActivity({
-          actor_full_name: "Fleet",
+          actor_full_name: "AutoMDM",
           type: ActivityType.CreatedManagedLocalAccount,
         })}
         tab="past"
@@ -42,7 +42,7 @@ describe("CreatedManagedLocalAccountActivityItem", () => {
     render(
       <CreatedManagedLocalAccountActivityItem
         activity={createMockHostPastActivity({
-          actor_full_name: "Fleet",
+          actor_full_name: "AutoMDM",
           type: ActivityType.CreatedManagedLocalAccount,
         })}
         tab="past"

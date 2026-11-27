@@ -1,159 +1,159 @@
 package test
 
 import (
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 )
 
 var (
 	GoodPassword  = "password123#"
 	GoodPassword2 = "password123!"
-	UserNoRoles   = &fleet.User{
+	UserNoRoles   = &automdm.User{
 		ID: 1,
 	}
-	UserAdmin = &fleet.User{
+	UserAdmin = &automdm.User{
 		ID:         2,
-		GlobalRole: ptr.String(fleet.RoleAdmin),
+		GlobalRole: ptr.String(automdm.RoleAdmin),
 		Email:      "useradmin@example.com",
 	}
-	UserMaintainer = &fleet.User{
+	UserMaintainer = &automdm.User{
 		ID:         3,
-		GlobalRole: ptr.String(fleet.RoleMaintainer),
+		GlobalRole: ptr.String(automdm.RoleMaintainer),
 	}
-	UserObserver = &fleet.User{
+	UserObserver = &automdm.User{
 		ID:         4,
-		GlobalRole: ptr.String(fleet.RoleObserver),
+		GlobalRole: ptr.String(automdm.RoleObserver),
 	}
-	UserTeamAdminTeam1 = &fleet.User{
+	UserTeamAdminTeam1 = &automdm.User{
 		ID: 5,
-		Teams: []fleet.UserTeam{
+		Teams: []automdm.UserTeam{
 			{
-				Team: fleet.Team{ID: 1},
-				Role: fleet.RoleAdmin,
+				Team: automdm.Team{ID: 1},
+				Role: automdm.RoleAdmin,
 			},
 		},
 	}
-	UserTeamAdminTeam2 = &fleet.User{
+	UserTeamAdminTeam2 = &automdm.User{
 		ID: 6,
-		Teams: []fleet.UserTeam{
+		Teams: []automdm.UserTeam{
 			{
-				Team: fleet.Team{ID: 2},
-				Role: fleet.RoleAdmin,
+				Team: automdm.Team{ID: 2},
+				Role: automdm.RoleAdmin,
 			},
 		},
 	}
-	UserTeamMaintainerTeam1 = &fleet.User{
+	UserTeamMaintainerTeam1 = &automdm.User{
 		ID: 7,
-		Teams: []fleet.UserTeam{
+		Teams: []automdm.UserTeam{
 			{
-				Team: fleet.Team{ID: 1},
-				Role: fleet.RoleMaintainer,
+				Team: automdm.Team{ID: 1},
+				Role: automdm.RoleMaintainer,
 			},
 		},
 	}
-	UserTeamMaintainerTeam2 = &fleet.User{
+	UserTeamMaintainerTeam2 = &automdm.User{
 		ID: 8,
-		Teams: []fleet.UserTeam{
+		Teams: []automdm.UserTeam{
 			{
-				Team: fleet.Team{ID: 2},
-				Role: fleet.RoleMaintainer,
+				Team: automdm.Team{ID: 2},
+				Role: automdm.RoleMaintainer,
 			},
 		},
 	}
-	UserTeamObserverTeam1 = &fleet.User{
+	UserTeamObserverTeam1 = &automdm.User{
 		ID: 9,
-		Teams: []fleet.UserTeam{
+		Teams: []automdm.UserTeam{
 			{
-				Team: fleet.Team{ID: 1},
-				Role: fleet.RoleObserver,
+				Team: automdm.Team{ID: 1},
+				Role: automdm.RoleObserver,
 			},
 		},
 	}
-	UserTeamObserverTeam2 = &fleet.User{
+	UserTeamObserverTeam2 = &automdm.User{
 		ID: 10,
-		Teams: []fleet.UserTeam{
+		Teams: []automdm.UserTeam{
 			{
-				Team: fleet.Team{ID: 2},
-				Role: fleet.RoleObserver,
+				Team: automdm.Team{ID: 2},
+				Role: automdm.RoleObserver,
 			},
 		},
 	}
-	UserTeamObserverTeam1TeamAdminTeam2 = &fleet.User{
+	UserTeamObserverTeam1TeamAdminTeam2 = &automdm.User{
 		ID: 11,
-		Teams: []fleet.UserTeam{
+		Teams: []automdm.UserTeam{
 			{
-				Team: fleet.Team{ID: 1},
-				Role: fleet.RoleObserver,
+				Team: automdm.Team{ID: 1},
+				Role: automdm.RoleObserver,
 			},
 			{
-				Team: fleet.Team{ID: 2},
-				Role: fleet.RoleAdmin,
+				Team: automdm.Team{ID: 2},
+				Role: automdm.RoleAdmin,
 			},
 		},
 	}
-	UserObserverPlus = &fleet.User{
+	UserObserverPlus = &automdm.User{
 		ID:         12,
-		GlobalRole: ptr.String(fleet.RoleObserverPlus),
+		GlobalRole: ptr.String(automdm.RoleObserverPlus),
 	}
-	UserTeamObserverPlusTeam1 = &fleet.User{
+	UserTeamObserverPlusTeam1 = &automdm.User{
 		ID: 13,
-		Teams: []fleet.UserTeam{
+		Teams: []automdm.UserTeam{
 			{
-				Team: fleet.Team{ID: 1},
-				Role: fleet.RoleObserverPlus,
+				Team: automdm.Team{ID: 1},
+				Role: automdm.RoleObserverPlus,
 			},
 		},
 	}
-	UserTeamObserverPlusTeam2 = &fleet.User{
+	UserTeamObserverPlusTeam2 = &automdm.User{
 		ID: 14,
-		Teams: []fleet.UserTeam{
+		Teams: []automdm.UserTeam{
 			{
-				Team: fleet.Team{ID: 2},
-				Role: fleet.RoleObserverPlus,
+				Team: automdm.Team{ID: 2},
+				Role: automdm.RoleObserverPlus,
 			},
 		},
 	}
-	UserGitOps = &fleet.User{
+	UserGitOps = &automdm.User{
 		ID:         15,
-		GlobalRole: ptr.String(fleet.RoleGitOps),
+		GlobalRole: ptr.String(automdm.RoleGitOps),
 	}
-	UserTeamGitOpsTeam1 = &fleet.User{
+	UserTeamGitOpsTeam1 = &automdm.User{
 		ID: 16,
-		Teams: []fleet.UserTeam{
+		Teams: []automdm.UserTeam{
 			{
-				Team: fleet.Team{ID: 1},
-				Role: fleet.RoleGitOps,
+				Team: automdm.Team{ID: 1},
+				Role: automdm.RoleGitOps,
 			},
 		},
 	}
-	UserTeamGitOpsTeam2 = &fleet.User{
+	UserTeamGitOpsTeam2 = &automdm.User{
 		ID: 17,
-		Teams: []fleet.UserTeam{
+		Teams: []automdm.UserTeam{
 			{
-				Team: fleet.Team{ID: 2},
-				Role: fleet.RoleGitOps,
+				Team: automdm.Team{ID: 2},
+				Role: automdm.RoleGitOps,
 			},
 		},
 	}
-	UserTechnician = &fleet.User{
+	UserTechnician = &automdm.User{
 		ID:         18,
-		GlobalRole: ptr.String(fleet.RoleTechnician),
+		GlobalRole: ptr.String(automdm.RoleTechnician),
 	}
-	UserTeamTechnicianTeam1 = &fleet.User{
+	UserTeamTechnicianTeam1 = &automdm.User{
 		ID: 19,
-		Teams: []fleet.UserTeam{
+		Teams: []automdm.UserTeam{
 			{
-				Team: fleet.Team{ID: 1},
-				Role: fleet.RoleTechnician,
+				Team: automdm.Team{ID: 1},
+				Role: automdm.RoleTechnician,
 			},
 		},
 	}
-	UserTeamTechnicianTeam2 = &fleet.User{
+	UserTeamTechnicianTeam2 = &automdm.User{
 		ID: 20,
-		Teams: []fleet.UserTeam{
+		Teams: []automdm.UserTeam{
 			{
-				Team: fleet.Team{ID: 2},
-				Role: fleet.RoleTechnician,
+				Team: automdm.Team{ID: 2},
+				Role: automdm.RoleTechnician,
 			},
 		},
 	}

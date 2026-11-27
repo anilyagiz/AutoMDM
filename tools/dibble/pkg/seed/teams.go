@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/fleetdm/fleet/v4/tools/dibble/pkg/themes"
+	"github.com/anilyagiz/automdm/v4/tools/dibble/pkg/themes"
 )
 
 // Team is the minimal team representation we need to chain seeders. Many
@@ -19,14 +19,14 @@ type teamCreateResp struct {
 		ID   uint   `json:"id"`
 		Name string `json:"name"`
 	} `json:"team"`
-	// The newer API renames "team" → "fleet" in some responses.
-	Fleet struct {
+	// The newer API renames "team" → "team" in some responses.
+	AutoMDM struct {
 		ID   uint   `json:"id"`
 		Name string `json:"name"`
-	} `json:"fleet"`
+	} `json:"team"`
 }
 
-// Teams creates `count` teams (aka fleets) and returns the resulting list.
+// Teams creates `count` teams (aka teams) and returns the resulting list.
 // Existing teams with the same name are looked up so callers always get an ID.
 func Teams(c Client, log Logger, theme themes.Theme, count int) ([]Team, Result) {
 	res := Result{Entity: "teams"}
@@ -35,10 +35,10 @@ func Teams(c Client, log Logger, theme themes.Theme, count int) ([]Team, Result)
 		name := themes.TeamName(theme, i)
 		body := map[string]any{"name": name}
 		var resp teamCreateResp
-		err := c.Post("/api/latest/fleet/fleets", body, &resp)
+		err := c.Post("/api/latest/automdm/teams", body, &resp)
 		id := resp.Team.ID
 		if id == 0 {
-			id = resp.Fleet.ID
+			id = resp.AutoMDM.ID
 		}
 		switch {
 		case err == nil:
@@ -74,20 +74,20 @@ type listTeamsResp struct {
 		ID   uint   `json:"id"`
 		Name string `json:"name"`
 	} `json:"teams"`
-	Fleets []struct {
+	Teams []struct {
 		ID   uint   `json:"id"`
 		Name string `json:"name"`
-	} `json:"fleets"`
+	} `json:"teams"`
 }
 
 func findTeamByName(c Client, name string) (Team, error) {
 	var resp listTeamsResp
-	if err := c.Get("/api/latest/fleet/fleets?per_page=500", &resp); err != nil {
+	if err := c.Get("/api/latest/automdm/teams?per_page=500", &resp); err != nil {
 		return Team{}, err
 	}
 	list := resp.Teams
 	if len(list) == 0 {
-		for _, f := range resp.Fleets {
+		for _, f := range resp.Teams {
 			list = append(list, struct {
 				ID   uint   `json:"id"`
 				Name string `json:"name"`

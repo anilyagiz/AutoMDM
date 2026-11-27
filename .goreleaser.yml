@@ -1,9 +1,9 @@
 version: 2
 
-project_name: fleet
+project_name: automdm
 
 monorepo:
-  tag_prefix: fleet-
+  tag_prefix: automdm-
   dir: .
 
 before:
@@ -15,9 +15,9 @@ before:
 #   proxy: true
 
 builds:
-  - id: fleet
-    dir: ./cmd/fleet/
-    binary: fleet
+  - id: automdm
+    dir: ./cmd/automdm/
+    binary: automdm
     env:
       - CGO_ENABLED=1
     goos:
@@ -32,16 +32,16 @@ builds:
       - -s
       - -w
       - -extldflags "-static"
-      - -X github.com/fleetdm/fleet/v4/server/version.appName={{ .ArtifactName }}
-      - -X github.com/fleetdm/fleet/v4/server/version.version={{ .Version }}
-      - -X github.com/fleetdm/fleet/v4/server/version.branch={{ .Branch }}
-      - -X github.com/fleetdm/fleet/v4/server/version.revision={{ .FullCommit }}
-      - -X github.com/fleetdm/fleet/v4/server/version.buildDate={{ time "2006-01-02" }}
-      - -X github.com/fleetdm/fleet/v4/server/version.buildUser={{ .Env.USER }}
+      - -X github.com/anilyagiz/automdm/v4/server/version.appName={{ .ArtifactName }}
+      - -X github.com/anilyagiz/automdm/v4/server/version.version={{ .Version }}
+      - -X github.com/anilyagiz/automdm/v4/server/version.branch={{ .Branch }}
+      - -X github.com/anilyagiz/automdm/v4/server/version.revision={{ .FullCommit }}
+      - -X github.com/anilyagiz/automdm/v4/server/version.buildDate={{ time "2006-01-02" }}
+      - -X github.com/anilyagiz/automdm/v4/server/version.buildUser={{ .Env.USER }}
 
-  - id: fleetctl
-    dir: ./cmd/fleetctl/
-    binary: fleetctl
+  - id: automdmctl
+    dir: ./cmd/automdmctl/
+    binary: automdmctl
     env:
       - CGO_ENABLED=0
     goos:
@@ -56,16 +56,16 @@ builds:
       # Reduce binary size by stripping debug symbols.
       - -s
       - -w
-      - -X github.com/fleetdm/fleet/v4/server/version.appName={{ .ArtifactName }}
-      - -X github.com/fleetdm/fleet/v4/server/version.version={{ .Version }}
-      - -X github.com/fleetdm/fleet/v4/server/version.branch={{ .Branch }}
-      - -X github.com/fleetdm/fleet/v4/server/version.revision={{ .FullCommit }}
-      - -X github.com/fleetdm/fleet/v4/server/version.buildDate={{ time "2006-01-02" }}
-      - -X github.com/fleetdm/fleet/v4/server/version.buildUser={{ .Env.USER }}
+      - -X github.com/anilyagiz/automdm/v4/server/version.appName={{ .ArtifactName }}
+      - -X github.com/anilyagiz/automdm/v4/server/version.version={{ .Version }}
+      - -X github.com/anilyagiz/automdm/v4/server/version.branch={{ .Branch }}
+      - -X github.com/anilyagiz/automdm/v4/server/version.revision={{ .FullCommit }}
+      - -X github.com/anilyagiz/automdm/v4/server/version.buildDate={{ time "2006-01-02" }}
+      - -X github.com/anilyagiz/automdm/v4/server/version.buildUser={{ .Env.USER }}
 
-  - id: fleetctl-macos
-    dir: ./cmd/fleetctl/
-    binary: fleetctl
+  - id: automdmctl-macos
+    dir: ./cmd/automdmctl/
+    binary: automdmctl
     env:
       - CGO_ENABLED=0
     goos:
@@ -79,44 +79,44 @@ builds:
       # Reduce binary size by stripping debug symbols.
       - -s
       - -w
-      - -X github.com/fleetdm/fleet/v4/server/version.appName={{ .ArtifactName }}
-      - -X github.com/fleetdm/fleet/v4/server/version.version={{ .Version }}
-      - -X github.com/fleetdm/fleet/v4/server/version.branch={{ .Branch }}
-      - -X github.com/fleetdm/fleet/v4/server/version.revision={{ .FullCommit }}
-      - -X github.com/fleetdm/fleet/v4/server/version.buildDate={{ time "2006-01-02" }}
-      - -X github.com/fleetdm/fleet/v4/server/version.buildUser={{ .Env.USER }}
+      - -X github.com/anilyagiz/automdm/v4/server/version.appName={{ .ArtifactName }}
+      - -X github.com/anilyagiz/automdm/v4/server/version.version={{ .Version }}
+      - -X github.com/anilyagiz/automdm/v4/server/version.branch={{ .Branch }}
+      - -X github.com/anilyagiz/automdm/v4/server/version.revision={{ .FullCommit }}
+      - -X github.com/anilyagiz/automdm/v4/server/version.buildDate={{ time "2006-01-02" }}
+      - -X github.com/anilyagiz/automdm/v4/server/version.buildUser={{ .Env.USER }}
 
 universal_binaries:
-  - id: fleetctl # resulting binary id
-    ids: [fleetctl-macos] # source binaries
+  - id: automdmctl # resulting binary id
+    ids: [automdmctl-macos] # source binaries
     replace: true
-    name_template: fleetctl # resulting binary name
+    name_template: automdmctl # resulting binary name
     hooks:
       post:
-        - sh -c "FLEETCTL_BINARY_PATH={{ .Path }} ./tools/sign-fleetctl/main.sh"
+        - sh -c "AUTOMDMCTL_BINARY_PATH={{ .Path }} ./tools/sign-automdmctl/main.sh"
 
 archives:
-  - id: fleet
+  - id: automdm
     builds:
-      - fleet
-    name_template: fleet_v{{.Version}}_{{- if eq .Os "darwin" }}macos{{- else }}{{ .Os }}{{ end }}
+      - automdm
+    name_template: automdm_v{{.Version}}_{{- if eq .Os "darwin" }}macos{{- else }}{{ .Os }}{{ end }}
     format_overrides:
       - goos: windows
         format: zip
     wrap_in_directory: true
 
-  - id: fleetctl
+  - id: automdmctl
     builds:
-      - fleetctl
+      - automdmctl
     # Note -- changing this can break GitOps and other workflows that expect these filenames to be deterministic!
-    name_template: fleetctl_v{{.Version}}_{{- if eq .Os "darwin" }}macos{{- else }}{{ .Os }}_{{.Arch}}{{ end }}
+    name_template: automdmctl_v{{.Version}}_{{- if eq .Os "darwin" }}macos{{- else }}{{ .Os }}_{{.Arch}}{{ end }}
     wrap_in_directory: true
 
-  - id: fleetctl-zip
+  - id: automdmctl-zip
     builds:
-      - fleetctl
+      - automdmctl
     # Note -- changing this can break GitOps and other workflows that expect these filenames to be deterministic!
-    name_template: fleetctl_v{{.Version}}_{{- if eq .Os "darwin" }}macos{{- else }}{{ .Os }}_{{.Arch}}{{ end }}
+    name_template: automdmctl_v{{.Version}}_{{- if eq .Os "darwin" }}macos{{- else }}{{ .Os }}_{{.Arch}}{{ end }}
     format: zip
     wrap_in_directory: true
 
@@ -124,25 +124,25 @@ dockers:
   - goos: linux
     goarch: amd64
     ids:
-      - fleet
-      - fleetctl
-    dockerfile: tools/fleet-docker/Dockerfile
+      - automdm
+      - automdmctl
+    dockerfile: tools/automdm-docker/Dockerfile
     build_flag_templates:
-      - "--build-arg=FLEET_VERSION={{.Version}}"
+      - "--build-arg=AUTOMDM_VERSION={{.Version}}"
     image_templates:
-      - "fleetdm/fleet:{{ .Tag }}"
-      - "fleetdm/fleet:v{{ .Major }}"
+      - "automdm/automdm:{{ .Tag }}"
+      - "automdm/automdm:v{{ .Major }}"
 
   - goos: linux
     goarch: amd64
     ids:
-      - fleetctl
-    dockerfile: tools/fleetctl-docker/Dockerfile
+      - automdmctl
+    dockerfile: tools/automdmctl-docker/Dockerfile
     build_flag_templates:
-      - "--build-arg=binpath=fleetctl"
+      - "--build-arg=binpath=automdmctl"
     image_templates:
-      - "fleetdm/fleetctl:{{ .Tag }}"
-      - "fleetdm/fleetctl:v{{ .Major }}"
+      - "automdm/automdmctl:{{ .Tag }}"
+      - "automdm/automdmctl:v{{ .Major }}"
 
 checksum:
   name_template: "checksums.txt"
@@ -155,7 +155,7 @@ changelog:
 
 release:
   github:
-    owner: fleetdm
-    name: fleet
+    owner: automdm
+    name: automdm
   draft: true
   prerelease: auto

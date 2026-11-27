@@ -6,7 +6,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
 // IsTransientStatus reports whether an HTTP status means that the CA can't serve the request now, but is expected to later.
@@ -21,7 +21,7 @@ func Transient(ctx context.Context, err error) error {
 	if ctx.Err() != nil || errors.As(err, &verifyErr) {
 		return err
 	}
-	return fleet.CertificateAuthorityTransientError{Message: err.Error()}
+	return automdm.CertificateAuthorityTransientError{Message: err.Error()}
 }
 
 // TransientStatus is Transient for an unsuccessful HTTP response: it marks err only when the status is one that IsTransientStatus accepts.
@@ -29,5 +29,5 @@ func TransientStatus(err error, status int) error {
 	if !IsTransientStatus(status) {
 		return err
 	}
-	return fleet.CertificateAuthorityTransientError{Message: err.Error()}
+	return automdm.CertificateAuthorityTransientError{Message: err.Error()}
 }

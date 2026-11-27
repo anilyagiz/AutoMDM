@@ -11,4 +11,4 @@ examples: |-
   ```
 columns:
   - name: uid
-notes: Querying this table requires joining against the `users` table. [Learn more](https://fleetdm.com/guides/osquery-consider-joining-against-the-users-table)
+notes: Querying this table requires joining against the `users` table. [Learn more](https://automdm.com/guides/osquery-consider-joining-against-the-users-table)

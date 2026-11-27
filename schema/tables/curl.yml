@@ -4,5 +4,5 @@ examples: |-
   detect machines on slow networks, or that have no Internet access.
 
   ```
-  SELECT round_trip_time FROM curl WHERE URL='https://fleetdm.com';
+  SELECT round_trip_time FROM curl WHERE URL='https://automdm.com';
   ```

@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # cleanup-dockerhub-sha-tags.sh — One-time script to remove commit-SHA-tagged
-# Docker images from Docker Hub for the fleetdm/fleet repository.
+# Docker images from Docker Hub for the automdm/automdm repository.
 #
 # Usage:
 #   ./cleanup-dockerhub-sha-tags.sh [--dry-run] [--delay SECONDS]
@@ -17,7 +17,7 @@ set -euo pipefail
 
 DRY_RUN=false
 DELAY=1
-REPO="fleetdm/fleet"
+REPO="automdm/automdm"
 SHA_PATTERN="^[0-9a-f]{7,12}$"
 PAGE_SIZE=100
 

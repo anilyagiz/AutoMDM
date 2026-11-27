@@ -27,8 +27,8 @@ import (
 	"io"
 	"io/ioutil"
 
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/nvd/tools/cvefeed/nvd"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/nvd/tools/cvefeed/nvd/schema"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/nvd/tools/cvefeed/nvd"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/nvd/tools/cvefeed/nvd/schema"
 )
 
 // ParseJSON parses JSON dictionary from NVD vulnerability feed

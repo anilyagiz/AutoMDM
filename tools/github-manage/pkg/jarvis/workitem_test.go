@@ -51,14 +51,14 @@ func TestBuildWorkItemsAttachesMergedPR(t *testing.T) {
 		BucketPrimary: {{Kind: KindIssue, Number: 49329, Title: "windows mdm"}},
 	}}
 	links, _ := LoadLinkStore("")
-	links.Set(49329, Link{Branch: "georgekarrv-49329-windows-mdm", ClonePath: "/tmp/fleet"})
+	links.Set(49329, Link{Branch: "georgekarrv-49329-windows-mdm", ClonePath: "/tmp/automdm"})
 	focus, _ := LoadFocusStore("")
 	merged := map[int]*ghapi.PullRequest{
 		49329: {Number: 49380, State: "MERGED", HeadRefName: "georgekarrv-49329-windows-mdm"},
 	}
 
-	key := ghapi.IssueRefKey("fleetdm/fleet", 49329)
-	work := BuildWorkItems(b, "fleetdm/fleet", links, focus, map[string]string{key: "In review"}, map[string]int{key: 108}, merged, RoleDeveloper)
+	key := ghapi.IssueRefKey("automdm/automdm", 49329)
+	work := BuildWorkItems(b, "automdm/automdm", links, focus, map[string]string{key: "In review"}, map[string]int{key: 108}, merged, RoleDeveloper)
 	if len(work) != 1 {
 		t.Fatalf("expected 1 work item, got %d", len(work))
 	}
@@ -99,8 +99,8 @@ func TestBuildWorkItemsLinksPRByClosingKeyword(t *testing.T) {
 	}}
 	links, _ := LoadLinkStore("")
 	focus, _ := LoadFocusStore("")
-	key := ghapi.IssueRefKey("fleetdm/fleet", 38348)
-	work := BuildWorkItems(b, "fleetdm/fleet", links, focus, map[string]string{key: "In progress"}, map[string]int{key: 58}, nil, RoleDeveloper)
+	key := ghapi.IssueRefKey("automdm/automdm", 38348)
+	work := BuildWorkItems(b, "automdm/automdm", links, focus, map[string]string{key: "In progress"}, map[string]int{key: 58}, nil, RoleDeveloper)
 
 	if len(work) != 1 {
 		t.Fatalf("expected 1 work item, got %d", len(work))

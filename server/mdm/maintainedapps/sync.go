@@ -10,11 +10,11 @@ import (
 	"net/http"
 	"time"
 
-	ma "github.com/fleetdm/fleet/v4/ee/maintained-apps"
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/dev_mode"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	ma "github.com/anilyagiz/automdm/v4/ee/maintained-apps"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/dev_mode"
 )
 
 type appListing struct {
@@ -30,18 +30,18 @@ type AppsList struct {
 }
 
 const fmaOutputsBase = "https://maintained-apps.fleetdm.com/manifests"
-const fmaOutputsFallbackBase = "https://raw.githubusercontent.com/fleetdm/fleet/refs/heads/main/ee/maintained-apps/outputs"
+const fmaOutputsFallbackBase = "https://raw.githubusercontent.com/automdm/automdm/refs/heads/main/ee/maintained-apps/outputs"
 
 // resolveBaseURLs returns the primary and fallback base URLs for FMA manifests,
 // taking into account any dev-mode env var overrides.
 func resolveBaseURLs() (primary, fallback string) {
 	primary = fmaOutputsBase
-	if baseFromEnvVar := dev_mode.Env("FLEET_DEV_MAINTAINED_APPS_BASE_URL"); baseFromEnvVar != "" {
+	if baseFromEnvVar := dev_mode.Env("AUTOMDM_DEV_MAINTAINED_APPS_BASE_URL"); baseFromEnvVar != "" {
 		primary = baseFromEnvVar
 	}
 
 	fallback = fmaOutputsFallbackBase
-	if fallbackFromEnvVar := dev_mode.Env("FLEET_DEV_MAINTAINED_APPS_FALLBACK_BASE_URL"); fallbackFromEnvVar != "" {
+	if fallbackFromEnvVar := dev_mode.Env("AUTOMDM_DEV_MAINTAINED_APPS_FALLBACK_BASE_URL"); fallbackFromEnvVar != "" {
 		fallback = fallbackFromEnvVar
 	}
 
@@ -71,7 +71,7 @@ func fetchManifestFile(ctx context.Context, path string) ([]byte, error) {
 // doFetch performs a single HTTP GET for baseURL+path and returns the response
 // body on success (HTTP 200). Any other outcome is returned as an error.
 func doFetch(ctx context.Context, baseURL, path string) ([]byte, error) {
-	httpClient := fleethttp.NewClient(fleethttp.WithTimeout(10 * time.Second))
+	httpClient := automdmhttp.NewClient(automdmhttp.WithTimeout(10 * time.Second))
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s%s", baseURL, path), nil)
 	if err != nil {
@@ -103,7 +103,7 @@ func doFetch(ctx context.Context, baseURL, path string) ([]byte, error) {
 }
 
 // SyncAppsList fetches the latest FMA apps list and updates the apps list copy cached in the DB
-func SyncAppsList(ctx context.Context, ds fleet.Datastore) error {
+func SyncAppsList(ctx context.Context, ds automdm.Datastore) error {
 	appsList, err := FetchAppsList(ctx)
 	if err != nil {
 		return err
@@ -128,7 +128,7 @@ func FetchAppsList(ctx context.Context) (*AppsList, error) {
 	return &appsList, nil
 }
 
-func upsertMaintainedApps(ctx context.Context, appsList *AppsList, ds fleet.Datastore) error {
+func upsertMaintainedApps(ctx context.Context, appsList *AppsList, ds automdm.Datastore) error {
 	var gotApps []string
 
 	for _, app := range appsList.Apps {
@@ -138,7 +138,7 @@ func upsertMaintainedApps(ctx context.Context, appsList *AppsList, ds fleet.Data
 			app.UniqueIdentifier = app.Name
 		}
 
-		if _, err := ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{
+		if _, err := ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{
 			Name:             app.Name,
 			Slug:             app.Slug,
 			Platform:         app.Platform,
@@ -149,7 +149,7 @@ func upsertMaintainedApps(ctx context.Context, appsList *AppsList, ds fleet.Data
 	}
 
 	// remove apps that were removed upstream
-	if err := ds.ClearRemovedFleetMaintainedApps(ctx, gotApps); err != nil {
+	if err := ds.ClearRemovedAutoMDMMaintainedApps(ctx, gotApps); err != nil {
 		return ctxerr.Wrap(ctx, err, "clear removed maintained apps during refresh")
 	}
 
@@ -160,7 +160,7 @@ func upsertMaintainedApps(ctx context.Context, appsList *AppsList, ds fleet.Data
 // metadata from the database. When provided to Hydrate with a target version,
 // it allows skipping the remote manifest fetch if the version is already cached.
 type FMAInstallerCache interface {
-	GetCachedFMAInstallerMetadata(ctx context.Context, teamID *uint, fmaID uint, version string) (*fleet.MaintainedApp, error)
+	GetCachedFMAInstallerMetadata(ctx context.Context, teamID *uint, fmaID uint, version string) (*automdm.MaintainedApp, error)
 }
 
 // Hydrate pulls information from app-level FMA manifests into an FMA skeleton
@@ -171,7 +171,7 @@ type FMAInstallerCache interface {
 // hydrated and downloaded; if the requested version isn't currently published
 // either, it returns a "version not available" error. If no version is specified,
 // it fetches the latest from the remote manifest.
-func Hydrate(ctx context.Context, app *fleet.MaintainedApp, version string, teamID *uint, cache FMAInstallerCache) (*fleet.MaintainedApp, error) {
+func Hydrate(ctx context.Context, app *automdm.MaintainedApp, version string, teamID *uint, cache FMAInstallerCache) (*automdm.MaintainedApp, error) {
 	if version != "" && cache == nil {
 		return nil, ctxerr.New(ctx, "no fma version cache provided")
 	}
@@ -179,7 +179,7 @@ func Hydrate(ctx context.Context, app *fleet.MaintainedApp, version string, team
 	// If a specific version is requested and we have a cache, try the cache first.
 	if version != "" && cache != nil {
 		cached, err := cache.GetCachedFMAInstallerMetadata(ctx, teamID, app.ID, version)
-		if err != nil && !fleet.IsNotFound(err) {
+		if err != nil && !automdm.IsNotFound(err) {
 			return nil, ctxerr.Wrap(ctx, err, "get cached FMA installer metadata")
 		}
 		if err == nil {
@@ -207,7 +207,7 @@ func Hydrate(ctx context.Context, app *fleet.MaintainedApp, version string, team
 
 	body, err := fetchManifestFile(ctx, fmt.Sprintf("/%s.json", app.Slug))
 	if err != nil {
-		unreachableErr := fleet.NewBadGatewayError(fmt.Sprintf(fleet.FleetMaintainedAppManifestUnreachableMessage, app.Name), nil)
+		unreachableErr := automdm.NewBadGatewayError(fmt.Sprintf(automdm.AutoMDMMaintainedAppManifestUnreachableMessage, app.Name), nil)
 		return nil, ctxerr.Wrapf(ctx, unreachableErr, "fetch app manifest: %v", err)
 	}
 
@@ -235,9 +235,9 @@ func Hydrate(ctx context.Context, app *fleet.MaintainedApp, version string, team
 	if selected == nil {
 		// Manifests expose only currently-published versions, so a version that's
 		// neither cached nor published (e.g. evicted or older) can't be fetched.
-		return nil, &fleet.BadRequestError{
+		return nil, &automdm.BadRequestError{
 			Message: fmt.Sprintf(
-				"Couldn't edit %q: specified version is not available. Available versions are listed in the Fleet UI under Actions > Edit software.",
+				"Couldn't edit %q: specified version is not available. Available versions are listed in the AutoMDM UI under Actions > Edit software.",
 				app.Name,
 			),
 		}

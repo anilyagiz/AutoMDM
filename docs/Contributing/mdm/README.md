@@ -25,7 +25,7 @@ Cross-platform MDM contributor docs live in this directory. Platform-specific do
     - YAML version: https://github.com/apple/device-management
         - NOTE: documentation for upcoming/beta features is available in the YAML version first, look for branches.
 
-- Fleet's MDM glossary: https://github.com/fleetdm/fleet/blob/main/tools/mdm/apple/glossary-and-protocols.md
+- AutoMDM's MDM glossary: https://github.com/anilyagiz/automdm/blob/main/tools/mdm/apple/glossary-and-protocols.md
 
 - MicroMDM and NanoMDM wikis.
 
@@ -54,19 +54,19 @@ See the [Android MDM documentation](android/android-mdm.md)
     - Tools to debug the ABM APIs
     - Tools to import/export certificates and keys from the DB
 
-## Fleet specific features
+## AutoMDM specific features
 
 ### Profiles and Declarations
 
-For Windows, Apple and Android MDM, Fleet defines "profiles" as groups of settings that can be SyncML (Windows), XML (Apple), or JSON (Apple/Android).
+For Windows, Apple and Android MDM, AutoMDM defines "profiles" as groups of settings that can be SyncML (Windows), XML (Apple), or JSON (Apple/Android).
 
-Settings are defined per fleet and can be further targeted to hosts using labels.
+Settings are defined per team and can be further targeted to hosts using labels.
 
-Profiles and declarations can be uploaded via the UI/CLI by the IT admin. Additionally, Fleet automatically sends profiles to hosts as part of high-level UI actions. For instance, enabling disk encryption in macOS sends the relevant configuration to the host.
+Profiles and declarations can be uploaded via the UI/CLI by the IT admin. Additionally, AutoMDM automatically sends profiles to hosts as part of high-level UI actions. For instance, enabling disk encryption in macOS sends the relevant configuration to the host.
 
 To determine the subset of profiles/declarations that should be applied to a specific host, we use the following approach:
 
-1. **Ideal State:** The "ideal state" of a host is calculated by combining fleet profiles with any label-based inclusions/exclusions using the `mdm_*_configuration_profiles` and `mdm_apple_declarations` tables.
+1. **Ideal State:** The "ideal state" of a host is calculated by combining automdm profiles with any label-based inclusions/exclusions using the `mdm_*_configuration_profiles` and `mdm_apple_declarations` tables.
 2. **Current State:** The "current state" of a host is tracked using the `host_mdm_*_configuration_profiles` and `host_mdm_apple_declarations` tables, which are updated based on MDM protocol responses and kept in sync via osquery (commonly referred to as "profile verification" or "double-check").
 3. **Diff Calculation:** We use set algebra to compute the difference between the ideal and current states—determining the profiles that need to be installed ("to install") and those that should be removed ("to remove").
 
@@ -89,13 +89,13 @@ Osquery double checks are explained in good detail as part of their initial spec
 
 ### NanoMDM Integration for Apple MDM
 
-[NanoMDM](https://github.com/micromdm/nanomdm) handles the core protocol operations for Apple MDM. Fleet extends the protocol and adds custom handling to align with our desired workflows.
+[NanoMDM](https://github.com/micromdm/nanomdm) handles the core protocol operations for Apple MDM. AutoMDM extends the protocol and adds custom handling to align with our desired workflows.
 
 After NanoMDM processes a protocol operation, it allows for custom logic by implementing the `CheckinAndCommandService` interface. Our implementation can be found in the service layer.
 
-https://github.com/fleetdm/fleet/blob/4ff5f7a18abcaa9003fe250fb50d7a246d2af795/server/service/apple_mdm.go#L2595-L2600
+https://github.com/anilyagiz/automdm/blob/4ff5f7a18abcaa9003fe250fb50d7a246d2af795/server/service/apple_mdm.go#L2595-L2600
 
-Additionally, per request from management, we maintain a modified version of the NanoMDM repository under `server/mdm/nanomdm/` to support Fleet-specific requirements.
+Additionally, per request from management, we maintain a modified version of the NanoMDM repository under `server/mdm/nanomdm/` to support AutoMDM-specific requirements.
 
 ### MDM Lifecycle
 
@@ -114,7 +114,7 @@ We use the terminology "turn on" and "turn off" to align with the language used 
 
 MicroMDM has documented the intricacies of SCEP certificate renewals in detail: [MicroMDM SCEP Documentation](https://github.com/micromdm/micromdm/wiki/Device-Identity-Certificate-Expiration).
 
-In Fleet, we issue certificates with a 1-year validity period. To renew certificates, we send a new enrollment profile via the `InstallProfile` command.
+In AutoMDM, we issue certificates with a 1-year validity period. To renew certificates, we send a new enrollment profile via the `InstallProfile` command.
 
 The command to install the profile is queued in the `renew_scep_certificates` job, which is part of the `cleanups_then_aggregation` cron schedule.
 
@@ -122,7 +122,7 @@ It's important to note that when sending a new enrollment profile, certain field
 
 ### Puppet module
 
-> The Puppet module is deprecated as of Fleet 4.66. It's maintained for backwards compatibility.
+> The Puppet module is deprecated as of AutoMDM 4.66. It's maintained for backwards compatibility.
 
 The implementation of the Puppet module is described in detail at: `ee/tools/puppet/fleetdm/CONTRIBUTING.md`
 
@@ -131,10 +131,10 @@ The implementation of the Puppet module is described in detail at: `ee/tools/pup
 Windows MDM is more flexible when it comes to switching MDM servers, so MDM migrations are generally not a big deal.
 
 Apple MDM is more strict, and we have built two different flows:
-> As of MacOS 26, iOS 26, and iPadOS 26, Apple has introduced a [native MDM migration flow](https://fleetdm.com/announcements/fleet-supports-macos-26-tahoe-ios-26-and-ipados-26#mdm-migration-with-apple-business-manager-abm).
+> As of MacOS 26, iOS 26, and iPadOS 26, Apple has introduced a [native MDM migration flow](https://automdm.com/announcements/automdm-supports-macos-26-tahoe-ios-26-and-ipados-26#mdm-migration-with-apple-business-manager-abm).
 
-1. The "regular" flow is what most customers will use, involve `fleetd` guiding the user through the migration to perform manual steps. The user documentation for this flow is https://fleetdm.com/guides/mdm-migration
-2. The "seamless" flow allows customers with access to their MDM database and ownership of the domain used as the `ServerURL` in the enrollment profile to migrate the devices without user action. The user documentation for this flow is https://fleetdm.com/guides/seamless-mdm-migration
+1. The "regular" flow is what most customers will use, involve `automdmd` guiding the user through the migration to perform manual steps. The user documentation for this flow is https://automdm.com/guides/mdm-migration
+2. The "seamless" flow allows customers with access to their MDM database and ownership of the domain used as the `ServerURL` in the enrollment profile to migrate the devices without user action. The user documentation for this flow is https://automdm.com/guides/seamless-mdm-migration
     1. The proxy for the seamless flow lives in `./tools/mdm/migration/mdmproxy/`
     2. The tool to extract data from MicroMDM lives in `./tools/mdm/migration/micromdm/touchless/`
 
@@ -142,7 +142,7 @@ Apple MDM is more strict, and we have built two different flows:
 
 Enabling and retrieving the disk encryption keys for a host behaves differently depending on the OS.
 
-After the key is retrieved, it's stored in the `host_disk_encryption_keys` table. The value for the key is encrypted using Fleet's CA certificate, and thus can only be decrypted if you have the CA private key.
+After the key is retrieved, it's stored in the `host_disk_encryption_keys` table. The value for the key is encrypted using AutoMDM's CA certificate, and thus can only be decrypted if you have the CA private key.
 
 **FileVault (macOS)**
 
@@ -160,15 +160,15 @@ If we're not able to decrypt the key for a host, the key needs to be rotated. Ro
 
 1. The server sends a notification to orbit, notifying that the key couldn't be decrypted.
 2. orbit installs an authorization plugin named [Escrow Buddy](https://github.com/macadmins/escrow-buddy) that performs the key rotation the next time the user logs in.
-3. Fleet retrieves and tries to validate the key again.
+3. AutoMDM retrieves and tries to validate the key again.
 
 **BitLocker (Windows)**
 
 Disk encryption in Windows is performed entirely by orbit.
 
-When disk encryption is enabled, the server sends a notification to orbit, which calls the [Win32_EncryptableVolume class](https://learn.microsoft.com/en-us/windows/win32/secprov/getencryptionmethod-win32-encryptablevolume) to encrypt the disk and generate an encryption key. If the disk is already encrypted, orbit rotates the recovery key (adds a new Fleet-managed protector, removes old ones) without decrypting.
+When disk encryption is enabled, the server sends a notification to orbit, which calls the [Win32_EncryptableVolume class](https://learn.microsoft.com/en-us/windows/win32/secprov/getencryptionmethod-win32-encryptablevolume) to encrypt the disk and generate an encryption key. If the disk is already encrypted, orbit rotates the recovery key (adds a new AutoMDM-managed protector, removes old ones) without decrypting.
 
-After the disk is encrypted (or the key is rotated), orbit sends the key back to the server using an orbit-authenticated endpoint (`POST /api/fleet/orbit/disk_encryption_key`)
+After the disk is encrypted (or the key is rotated), orbit sends the key back to the server using an orbit-authenticated endpoint (`POST /api/automdm/orbit/disk_encryption_key`)
 
 ### Load testing
 
@@ -178,27 +178,27 @@ Documentation about setting up load testing for MDM can be found in the [infrast
 
 ### ADE
 
-For a high-level overview of how ADE works please check the [glossary](https://github.com/fleetdm/fleet/blob/main/tools/mdm/apple/glossary-and-protocols.md
+For a high-level overview of how ADE works please check the [glossary](https://github.com/anilyagiz/automdm/blob/main/tools/mdm/apple/glossary-and-protocols.md
 )
 
-Below is a summary of Fleet-specific behaviors for ADE.
+Below is a summary of AutoMDM-specific behaviors for ADE.
 
 ### Sync
 
-Sincronization of devices from all ABM tokens uploaded to Fleet happen in the `dep_syncer` cron job, which runs every minute, but can be configured by setting `mdm.apple_dep_sync_periodicity` to a duration string (e.g. "30s", "5m", "1h") in the config.
+Sincronization of devices from all ABM tokens uploaded to AutoMDM happen in the `dep_syncer` cron job, which runs every minute, but can be configured by setting `mdm.apple_dep_sync_periodicity` to a duration string (e.g. "30s", "5m", "1h") in the config.
 
 We keep a record of all devices ingested via the ADE sync in the `host_dep_assignments` table. Entries in this table are soft-deleted.
 
 On every run, we pull the list of added/modified/deleted devices and:
 
 1. If the host was added/modified, we:
-    1. Create/match a row in the `hosts` table for the new host. This allows IT admin to move the host between fleets before it turns on MDM or has `fleetd` installed.
+    1. Create/match a row in the `hosts` table for the new host. This allows IT admin to move the host between teams before it turns on MDM or has `automdmd` installed.
     1. Assign the corresponding JSON profile to each host using ABM's APIs.
 2. If the host was deleted, we soft delete the `host_dep_assignments` entry 
 
 Read [resetting Apple DEP sync cursor](apple/resetting-apple-dep-sync-cursor.md) for how to reset the sync cursor.
 
-#### Special case: host in ABM is deleted in Fleet
+#### Special case: host in ABM is deleted in AutoMDM
 
 If an IT admin deletes a host in the UI/API, and we have a non-deleted entry in `host_dep_assignments` for the host, we immediately create a new host entry as if the device was just ingested from the ABM sync.
 
@@ -209,6 +209,6 @@ If an IT admin deletes a host in the UI/API, and we have a non-deleted entry in 
 
 ### macOS setup experience: bootstrap package
 
-Before downloading the bootstrap package using `GET /api/latest/fleet/mdm/bootstrap`, the Apple device will make one or more `HEAD` requests to that URL. Fleet server does not support the `HEAD` request and will return `405 Method Not Allowed`.
+Before downloading the bootstrap package using `GET /api/latest/automdm/mdm/bootstrap`, the Apple device will make one or more `HEAD` requests to that URL. AutoMDM server does not support the `HEAD` request and will return `405 Method Not Allowed`.
 
-- [Example script to wrap fleetd with a bootstrap package](https://gist.github.com/getvictor/b23150b4bc269c499068d00b436d4d2b). This wrapper is useful for `manual_agent_install` macOS setup experience.
+- [Example script to wrap automdmd with a bootstrap package](https://gist.github.com/getvictor/b23150b4bc269c499068d00b436d4d2b). This wrapper is useful for `manual_agent_install` macOS setup experience.

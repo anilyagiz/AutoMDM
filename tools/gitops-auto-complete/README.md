@@ -1,6 +1,6 @@
 # gitops-auto-complete
 
-Generates a JSON schema from Fleet's GitOps Go structs so
+Generates a JSON schema from AutoMDM's GitOps Go structs so
 [yaml-language-server](https://github.com/redhat-developer/yaml-language-server) can
 offer completion, hover docs, and validation while you write GitOps YAML.
 
@@ -17,10 +17,10 @@ go run . generated-schema.json
 ```
 
 The argument is the output file, or omit it to print to stdout. Re-run it whenever
-the relevant Fleet structs change. The schema file is not committed.
+the relevant AutoMDM structs change. The schema file is not committed.
 
 The tool is not built or tested in CI, so `go mod tidy` may be needed first, and
-`types.go` may need fixes if Fleet's GitOps types have changed.
+`types.go` may need fixes if AutoMDM's GitOps types have changed.
 
 ### Run the tests
 
@@ -62,7 +62,7 @@ YAML extension, and others. There are two ways to do this:
             ["/absolute/path/to/generated-schema.json"] = {
               "**/default.yml",
               "**/teams/*.yml",
-              "**/fleets/*.yml",
+              "**/teams/*.yml",
             },
           },
         },
@@ -79,7 +79,7 @@ GitOps file. Hover a key with `K` to see its type and docs.
 ## How it works
 
 Reflects a `GitOpsSpec` struct that mirrors the real top-level GitOps keys, such as
-`org_settings`, `controls`, `software`, and `policies`, reusing Fleet's own types for
+`org_settings`, `controls`, `software`, and `policies`, reusing AutoMDM's own types for
 each section, via [`invopop/jsonschema`](https://github.com/invopop/jsonschema). It
 then post-processes the result so the schema matches how GitOps files are written:
 file-path references, legacy key aliases, required fields for an item, and field docs
@@ -90,10 +90,10 @@ the repo without adding dependencies to the root `go.mod`.
 
 ## Known limitations
 
-- The schema is filename-agnostic, but Fleet applies some keys differently by file.
+- The schema is filename-agnostic, but AutoMDM applies some keys differently by file.
   For example, `agent_options` and `reports` are rejected in the
   unassigned file. The schema still accepts them there, so that mistake shows up at
-  `fleetctl` apply time, not in the editor.
+  `automdmctl` apply time, not in the editor.
 - `GitOpsSpec` and `ControlsWithTypes` are hand-written mirrors of `spec.GitOps` and
   `spec.GitOpsControls`, because those spec structs are untyped or untagged and reflect
   poorly. `TestControlsKeysCoverSpec` catches a controls-key drift, but a new top-level

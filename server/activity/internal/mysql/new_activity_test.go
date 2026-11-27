@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/activity/api"
-	"github.com/fleetdm/fleet/v4/server/activity/internal/testutils"
-	"github.com/fleetdm/fleet/v4/server/activity/internal/types"
+	"github.com/anilyagiz/automdm/v4/server/activity/api"
+	"github.com/anilyagiz/automdm/v4/server/activity/internal/testutils"
+	"github.com/anilyagiz/automdm/v4/server/activity/internal/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -171,7 +171,7 @@ func testNewActivityAutomation(t *testing.T, env *testEnv) {
 	assert.Nil(t, activities[0].ActorID)
 	require.NotNil(t, activities[0].ActorFullName)
 	assert.Equal(t, types.ActivityAutomationAuthor, *activities[0].ActorFullName)
-	assert.True(t, activities[0].FleetInitiated)
+	assert.True(t, activities[0].AutoMDMInitiated)
 }
 
 func testNewActivityHostAssociation(t *testing.T, env *testEnv) {

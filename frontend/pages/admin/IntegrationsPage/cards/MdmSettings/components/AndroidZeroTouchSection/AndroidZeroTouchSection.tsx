@@ -34,7 +34,7 @@ const AndroidZeroTouchSection = ({
     if (!isAndroidMdmEnabledAndConfigured) {
       return (
         <SectionCard header="Android enrollment">
-          To enable end users to enroll to Fleet via Android zero-touch, first
+          To enable end users to enroll to AutoMDM via Android zero-touch, first
           turn on Android MDM.
         </SectionCard>
       );
@@ -54,7 +54,7 @@ const AndroidZeroTouchSection = ({
         }
       >
         To automatically enroll company-owned Android hosts when they&apos;re
-        first unboxed, connect Fleet to Android zero-touch.
+        first unboxed, connect AutoMDM to Android zero-touch.
       </SectionCard>
     );
   };

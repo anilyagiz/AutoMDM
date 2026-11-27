@@ -1,5 +1,5 @@
 /**
- * A Microsoft Entra app registration Fleet uses to read a tenant's Windows Autopilot registry over Microsoft Graph.
+ * A Microsoft Entra app registration AutoMDM uses to read a tenant's Windows Autopilot registry over Microsoft Graph.
  */
 export interface IMicrosoftGraphCredential {
   tenant_id: string;

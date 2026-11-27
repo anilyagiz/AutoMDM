@@ -33,7 +33,7 @@ describe("softwareAPI.addAppStoreApp for Android", () => {
     const [, , body] = mockSendRequest.mock.calls[0];
     expect(body).toMatchObject({
       app_store_id: "com.google.android.gm",
-      fleet_id: 3,
+      team_id: 3,
       platform: "android",
     });
     expect(body).not.toHaveProperty("labels_include_any");
@@ -70,7 +70,7 @@ describe("softwareAPI.getSoftwarePackageToken", () => {
     expect(method).toBe("POST");
     expect(path).toContain("/software/titles/42/package/token");
     expect(path).toContain("alt=media");
-    expect(path).toContain("fleet_id=7");
+    expect(path).toContain("team_id=7");
     expect(path).not.toContain("installer_id");
   });
 
@@ -79,7 +79,7 @@ describe("softwareAPI.getSoftwarePackageToken", () => {
 
     const [, path] = mockSendRequest.mock.calls[0];
     expect(path).toContain("installer_id=99");
-    expect(path).toContain("fleet_id=7");
+    expect(path).toContain("team_id=7");
   });
 });
 
@@ -106,7 +106,7 @@ describe("softwareAPI.addAppStoreApp", () => {
     expect(method).toBe("POST");
     expect(body).toMatchObject({
       app_store_id: "123",
-      fleet_id: 7,
+      team_id: 7,
       vpp_token_id: 2,
     });
   });

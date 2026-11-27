@@ -84,7 +84,7 @@ const AddCustomVariableModal = ({
             <>
               Couldn&apos;t save. Please configure a private key.{" "}
               <CustomLink
-                url={`${LEARN_MORE_ABOUT_BASE_LINK}/fleet-server-private-key`}
+                url={`${LEARN_MORE_ABOUT_BASE_LINK}/automdm-server-private-key`}
                 text="Learn how"
                 newTab
                 variant="flash-message-link"
@@ -118,7 +118,7 @@ const AddCustomVariableModal = ({
           helpText={
             <span>
               You can use this in your script or configuration profile as
-              &ldquo;$FLEET_SECRET_{variableName}&rdquo;.
+              &ldquo;$AUTOMDM_SECRET_{variableName}&rdquo;.
             </span>
           }
           error={formValidation.name?.message}

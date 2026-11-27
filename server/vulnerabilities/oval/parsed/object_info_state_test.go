@@ -3,7 +3,7 @@ package oval_parsed
 import (
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/require"
 )
 
@@ -13,15 +13,15 @@ func TestObjectInfoState(t *testing.T) {
 			name := NewObjectStateString(Equals.String(), "bbq chicken")
 			sut := ObjectInfoState{Operator: And, Name: &name}
 			testCases := []struct {
-				software fleet.Software
+				software automdm.Software
 				expected bool
 			}{
 				{
-					software: fleet.Software{Name: "pulled pork"},
+					software: automdm.Software{Name: "pulled pork"},
 					expected: false,
 				},
 				{
-					software: fleet.Software{Name: "bbq chicken"},
+					software: automdm.Software{Name: "bbq chicken"},
 					expected: true,
 				},
 			}
@@ -37,15 +37,15 @@ func TestObjectInfoState(t *testing.T) {
 			arch := NewObjectStateString(Equals.String(), "x86_64")
 			sut := ObjectInfoState{Operator: And, Name: &arch}
 			testCases := []struct {
-				software fleet.Software
+				software automdm.Software
 				expected bool
 			}{
 				{
-					software: fleet.Software{Arch: "i386"},
+					software: automdm.Software{Arch: "i386"},
 					expected: false,
 				},
 				{
-					software: fleet.Software{Name: "x86_64"},
+					software: automdm.Software{Name: "x86_64"},
 					expected: true,
 				},
 			}
@@ -64,23 +64,23 @@ func TestObjectInfoState(t *testing.T) {
 		// 	epoch := NewObjectStateSimpleValue(Int.String(), Equals.String(), "0")
 		// 	sut := ObjectInfoState{Operator: And, Epoch: &epoch}
 		// 	testCases := []struct {
-		// 		software fleet.Software
+		// 		software automdm.Software
 		// 		expected bool
 		// 	}{
 		// 		{
-		// 			software: fleet.Software{Version: "0:123-3"},
+		// 			software: automdm.Software{Version: "0:123-3"},
 		// 			expected: true,
 		// 		},
 		// 		{
-		// 			software: fleet.Software{Version: "123"},
+		// 			software: automdm.Software{Version: "123"},
 		// 			expected: true,
 		// 		},
 		// 		{
-		// 			software: fleet.Software{Version: ""},
+		// 			software: automdm.Software{Version: ""},
 		// 			expected: true,
 		// 		},
 		// 		{
-		// 			software: fleet.Software{Version: "1:123"},
+		// 			software: automdm.Software{Version: "1:123"},
 		// 			expected: false,
 		// 		},
 		// 	}
@@ -96,19 +96,19 @@ func TestObjectInfoState(t *testing.T) {
 			release := NewObjectStateSimpleValue(String.String(), Equals.String(), "0")
 			sut := ObjectInfoState{Operator: And, Release: &release}
 			testCases := []struct {
-				software fleet.Software
+				software automdm.Software
 				expected bool
 			}{
 				{
-					software: fleet.Software{Version: "0:123-3"},
+					software: automdm.Software{Version: "0:123-3"},
 					expected: false,
 				},
 				{
-					software: fleet.Software{Version: "123"},
+					software: automdm.Software{Version: "123"},
 					expected: false,
 				},
 				{
-					software: fleet.Software{Version: "123-0"},
+					software: automdm.Software{Version: "123-0"},
 					expected: true,
 				},
 			}
@@ -124,15 +124,15 @@ func TestObjectInfoState(t *testing.T) {
 			version := NewObjectStateSimpleValue(String.String(), Equals.String(), "1.2")
 			sut := ObjectInfoState{Operator: And, Version: &version}
 			testCases := []struct {
-				software fleet.Software
+				software automdm.Software
 				expected bool
 			}{
 				{
-					software: fleet.Software{Version: "0:123-3"},
+					software: automdm.Software{Version: "0:123-3"},
 					expected: false,
 				},
 				{
-					software: fleet.Software{Version: "1.2"},
+					software: automdm.Software{Version: "1.2"},
 					expected: true,
 				},
 			}
@@ -148,15 +148,15 @@ func TestObjectInfoState(t *testing.T) {
 			evr := NewObjectStateEvrString(Equals.String(), "1.2")
 			sut := ObjectInfoState{Operator: And, Evr: &evr}
 			testCases := []struct {
-				software fleet.Software
+				software automdm.Software
 				expected bool
 			}{
 				{
-					software: fleet.Software{Version: "0:123-3"},
+					software: automdm.Software{Version: "0:123-3"},
 					expected: false,
 				},
 				{
-					software: fleet.Software{Version: "1.2"},
+					software: automdm.Software{Version: "1.2"},
 					expected: true,
 				},
 			}
@@ -170,7 +170,7 @@ func TestObjectInfoState(t *testing.T) {
 
 		t.Run("signature key id", func(t *testing.T) {
 			sKey := NewObjectStateString(Equals.String(), "1.2")
-			software := fleet.Software{Version: "0:123-3"}
+			software := automdm.Software{Version: "0:123-3"}
 
 			sut := ObjectInfoState{Operator: And, SignatureKeyId: &sKey}
 			r, err := sut.EvalSoftware(software)
@@ -184,27 +184,27 @@ func TestObjectInfoState(t *testing.T) {
 			name := NewObjectStateString(PatternMatch.String(), "^redhat-release")
 			sut := ObjectInfoState{Operator: And, Name: &name}
 			testCases := []struct {
-				version  fleet.OSVersion
+				version  automdm.OSVersion
 				expected bool
 			}{
 				{
-					version:  fleet.OSVersion{Platform: "rhel", Name: "CentOS Linux 7.9.2009"},
+					version:  automdm.OSVersion{Platform: "rhel", Name: "CentOS Linux 7.9.2009"},
 					expected: true,
 				},
 				{
-					version:  fleet.OSVersion{Platform: "amzn", Name: "Amazon Linux 2.0.0"},
+					version:  automdm.OSVersion{Platform: "amzn", Name: "Amazon Linux 2.0.0"},
 					expected: true,
 				},
 				{
-					version:  fleet.OSVersion{Platform: "rhel", Name: "Red Hat Enterprise Linux 9.0.0"},
+					version:  automdm.OSVersion{Platform: "rhel", Name: "Red Hat Enterprise Linux 9.0.0"},
 					expected: true,
 				},
 				{
-					version:  fleet.OSVersion{Platform: "ubuntu", Name: "Ubuntu 22.4.0"},
+					version:  automdm.OSVersion{Platform: "ubuntu", Name: "Ubuntu 22.4.0"},
 					expected: false,
 				},
 				{
-					version:  fleet.OSVersion{Platform: "ubuntu", Name: "Ubuntu 21.10.0"},
+					version:  automdm.OSVersion{Platform: "ubuntu", Name: "Ubuntu 21.10.0"},
 					expected: false,
 				},
 			}
@@ -220,27 +220,27 @@ func TestObjectInfoState(t *testing.T) {
 			version := NewObjectStateSimpleValue(String.String(), PatternMatch.String(), `^9[^\d]`)
 			sut := ObjectInfoState{Operator: And, Version: &version}
 			testCases := []struct {
-				version  fleet.OSVersion
+				version  automdm.OSVersion
 				expected bool
 			}{
 				{
-					version:  fleet.OSVersion{Platform: "rhel", Name: "CentOS Linux 7.9.2009"},
+					version:  automdm.OSVersion{Platform: "rhel", Name: "CentOS Linux 7.9.2009"},
 					expected: false,
 				},
 				{
-					version:  fleet.OSVersion{Platform: "rhel", Name: "CentOS Linux 9.0.2020"},
+					version:  automdm.OSVersion{Platform: "rhel", Name: "CentOS Linux 9.0.2020"},
 					expected: true,
 				},
 				{
-					version:  fleet.OSVersion{Platform: "rhel", Name: "Red Hat Enterprise Linux 9.0.0"},
+					version:  automdm.OSVersion{Platform: "rhel", Name: "Red Hat Enterprise Linux 9.0.0"},
 					expected: true,
 				},
 				{
-					version:  fleet.OSVersion{Platform: "ubuntu", Name: "Ubuntu 22.4.0"},
+					version:  automdm.OSVersion{Platform: "ubuntu", Name: "Ubuntu 22.4.0"},
 					expected: false,
 				},
 				{
-					version:  fleet.OSVersion{Platform: "ubuntu", Name: "Ubuntu 21.10.0"},
+					version:  automdm.OSVersion{Platform: "ubuntu", Name: "Ubuntu 21.10.0"},
 					expected: false,
 				},
 			}

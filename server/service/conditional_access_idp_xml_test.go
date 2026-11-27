@@ -42,8 +42,8 @@ func conditionalAccessPayload(t *testing.T, profile, payloadType string) map[str
 func conditionalAccessProfileFixture() appleProfileTemplateData {
 	return appleProfileTemplateData{
 		CACertBase64:     "dGVzdC1jZXJ0aWZpY2F0ZQ==",
-		CertificateCN:    "fleet-conditional-access",
-		MTLSURL:          "https://fleet.example.com/mtls",
+		CertificateCN:    "automdm-conditional-access",
+		MTLSURL:          "https://automdm.example.com/mtls",
 		CACertUUID:       "00000000-0000-0000-0000-000000000001",
 		SCEPPayloadUUID:  "00000000-0000-0000-0000-000000000002",
 		IdentityPrefUUID: "00000000-0000-0000-0000-000000000003",
@@ -77,7 +77,7 @@ func TestConditionalAccessProfileChromePolicyIsValidJSON(t *testing.T) {
 	t.Parallel()
 
 	d := conditionalAccessProfileFixture()
-	d.MTLSURL = `https://fleet.example.com/mtls?x=","filter":{"SUBJECT":{"CN":"HIJACKED`
+	d.MTLSURL = `https://automdm.example.com/mtls?x=","filter":{"SUBJECT":{"CN":"HIJACKED`
 
 	var root struct {
 		PayloadContent []map[string]any `plist:"PayloadContent"`

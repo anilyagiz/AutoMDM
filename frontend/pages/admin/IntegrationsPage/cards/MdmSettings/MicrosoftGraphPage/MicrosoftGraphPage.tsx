@@ -120,7 +120,7 @@ const MicrosoftGraphPage = () => {
     }
   );
 
-  // Fleet stores at most one credential.
+  // AutoMDM stores at most one credential.
   const storedCredential = credentialsResponse?.microsoft_graph_credentials[0];
 
   // Seed the form from the stored credential. Leaving the secret field untouched keeps the stored secret.
@@ -226,7 +226,7 @@ const MicrosoftGraphPage = () => {
   const onFocusField = (field: ICredentialField) => () =>
     setFormErrors((prev) => ({ ...prev, [field]: undefined }));
 
-  // Saving or deleting always leaves the tenant healthy: a save only succeeds once Fleet has verified the credential
+  // Saving or deleting always leaves the tenant healthy: a save only succeeds once AutoMDM has verified the credential
   // against Microsoft Graph, and a delete leaves none that could be invalid.
   const clearInvalidCredentialBanner = () => {
     if (!config?.mdm.microsoft_graph_credential_invalid) {
@@ -440,13 +440,13 @@ const MicrosoftGraphPage = () => {
           <PageDescription
             content={
               <>
-                Fleet uses a Microsoft Entra app registration to read your
+                AutoMDM uses a Microsoft Entra app registration to read your
                 tenant&apos;s Windows Autopilot devices and show them as pending
                 hosts. To create it, follow the instructions in the{" "}
                 <CustomLink
                   newTab
                   text="guide"
-                  url="https://fleetdm.com/learn-more-about/connect-microsoft-graph"
+                  url="https://automdm.com/learn-more-about/connect-microsoft-graph"
                 />
               </>
             }

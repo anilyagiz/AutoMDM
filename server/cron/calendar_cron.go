@@ -12,12 +12,12 @@ import (
 	"sync"
 	"time"
 
-	activity_api "github.com/fleetdm/fleet/v4/server/activity/api"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/service/calendar"
-	"github.com/fleetdm/fleet/v4/server/service/schedule"
+	activity_api "github.com/anilyagiz/automdm/v4/server/activity/api"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/service/calendar"
+	"github.com/anilyagiz/automdm/v4/server/service/schedule"
 	"github.com/google/uuid"
 )
 
@@ -32,7 +32,7 @@ const (
 func recordCalendarFailureActivity(
 	ctx context.Context,
 	newActivitySvc activity_api.NewActivityService,
-	host fleet.HostPolicyMembershipData,
+	host automdm.HostPolicyMembershipData,
 	err error,
 	logger *slog.Logger,
 ) {
@@ -52,7 +52,7 @@ func recordCalendarFailureActivity(
 			continue
 		}
 		policyID := uint(id)
-		if actErr := newActivitySvc.NewActivity(ctx, nil, fleet.ActivityTypeFailedAutomationCalendarEvent{
+		if actErr := newActivitySvc.NewActivity(ctx, nil, automdm.ActivityTypeFailedAutomationCalendarEvent{
 			PolicyID:      policyID,
 			HostIDList:    []uint{host.HostID},
 			StatusCode:    statusCode,
@@ -70,7 +70,7 @@ func recordCalendarFailureActivity(
 func recordCalendarCreatedActivity(
 	ctx context.Context,
 	newActivitySvc activity_api.NewActivityService,
-	host fleet.HostPolicyMembershipData,
+	host automdm.HostPolicyMembershipData,
 	logger *slog.Logger,
 ) {
 	for policyIDStr := range strings.SplitSeq(host.FailingPolicyIDs, ",") {
@@ -85,7 +85,7 @@ func recordCalendarCreatedActivity(
 			continue
 		}
 		policyID := uint(id)
-		if actErr := newActivitySvc.NewActivity(ctx, nil, fleet.ActivityTypeRanAutomationCalendarEvent{
+		if actErr := newActivitySvc.NewActivity(ctx, nil, automdm.ActivityTypeRanAutomationCalendarEvent{
 			PolicyID:   policyID,
 			HostIDList: []uint{host.HostID},
 		}); actErr != nil {
@@ -98,14 +98,14 @@ func recordCalendarCreatedActivity(
 func NewCalendarSchedule(
 	ctx context.Context,
 	instanceID string,
-	ds fleet.Datastore,
-	distributedLock fleet.Lock,
+	ds automdm.Datastore,
+	distributedLock automdm.Lock,
 	serverConfig config.CalendarConfig,
 	logger *slog.Logger,
 	newActivitySvc activity_api.NewActivityService,
 ) (*schedule.Schedule, error) {
 	const (
-		name = string(fleet.CronCalendar)
+		name = string(automdm.CronCalendar)
 	)
 	logger = logger.With("cron", name)
 	s := schedule.New(
@@ -129,7 +129,7 @@ func NewCalendarSchedule(
 	return s, nil
 }
 
-func cronCalendarEvents(ctx context.Context, ds fleet.Datastore, distributedLock fleet.Lock, serverConfig config.CalendarConfig,
+func cronCalendarEvents(ctx context.Context, ds automdm.Datastore, distributedLock automdm.Lock, serverConfig config.CalendarConfig,
 	logger *slog.Logger, newActivitySvc activity_api.NewActivityService) error {
 	appConfig, err := ds.AppConfig(ctx)
 	if err != nil {
@@ -143,11 +143,11 @@ func cronCalendarEvents(ctx context.Context, ds fleet.Datastore, distributedLock
 	domain := googleCalendarIntegrationConfig.Domain
 
 	teams, err := ds.ListTeams(
-		ctx, fleet.TeamFilter{
-			User: &fleet.User{
-				GlobalRole: ptr.String(fleet.RoleAdmin),
+		ctx, automdm.TeamFilter{
+			User: &automdm.User{
+				GlobalRole: ptr.String(automdm.RoleAdmin),
 			},
-		}, fleet.ListOptions{},
+		}, automdm.ListOptions{},
 	)
 	if err != nil {
 		return fmt.Errorf("list teams: %w", err)
@@ -162,7 +162,7 @@ func cronCalendarEvents(ctx context.Context, ds fleet.Datastore, distributedLock
 		if err := cronCalendarEventsForTeam(
 			ctx, ds, distributedLock, localConfig, *team, appConfig.OrgInfo.OrgName, domain, logger, newActivitySvc,
 		); err != nil {
-			logger.InfoContext(ctx, "events calendar cron", "fleet_id", team.ID, "err", err)
+			logger.InfoContext(ctx, "events calendar cron", "team_id", team.ID, "err", err)
 		}
 	}
 
@@ -171,10 +171,10 @@ func cronCalendarEvents(ctx context.Context, ds fleet.Datastore, distributedLock
 
 func cronCalendarEventsForTeam(
 	ctx context.Context,
-	ds fleet.Datastore,
-	distributedLock fleet.Lock,
+	ds automdm.Datastore,
+	distributedLock automdm.Lock,
 	calendarConfig *calendar.Config,
-	team fleet.Team,
+	team automdm.Team,
 	orgName string,
 	domain string,
 	logger *slog.Logger,
@@ -192,12 +192,12 @@ func cronCalendarEventsForTeam(
 
 	if len(policies) == 0 {
 		logger.DebugContext(ctx, "skipping, no calendar policies",
-			"fleet_id", team.ID,
+			"team_id", team.ID,
 		)
 		return nil
 	}
 
-	logger = logger.With("fleet_id", team.ID)
+	logger = logger.With("team_id", team.ID)
 
 	//
 	// NOTEs:
@@ -219,9 +219,9 @@ func cronCalendarEventsForTeam(
 	}
 
 	var (
-		passingHosts                       []fleet.HostPolicyMembershipData
-		failingHosts                       []fleet.HostPolicyMembershipData
-		failingHostsWithoutAssociatedEmail []fleet.HostPolicyMembershipData
+		passingHosts                       []automdm.HostPolicyMembershipData
+		failingHosts                       []automdm.HostPolicyMembershipData
+		failingHostsWithoutAssociatedEmail []automdm.HostPolicyMembershipData
 	)
 	for _, host := range hosts {
 		if host.Passing { // host is passing all configured policies
@@ -237,7 +237,7 @@ func cronCalendarEventsForTeam(
 		}
 	}
 	logger.DebugContext(ctx, "summary",
-		"fleet_id", team.ID,
+		"team_id", team.ID,
 		"passing_hosts", len(passingHosts),
 		"failing_hosts", len(failingHosts),
 		"failing_hosts_without_associated_email", len(failingHostsWithoutAssociatedEmail),
@@ -270,17 +270,17 @@ func cronCalendarEventsForTeam(
 
 func processCalendarFailingHosts(
 	ctx context.Context,
-	ds fleet.Datastore,
-	distributedLock fleet.Lock,
+	ds automdm.Datastore,
+	distributedLock automdm.Lock,
 	calendarConfig *calendar.Config,
 	orgName string,
-	hosts []fleet.HostPolicyMembershipData,
+	hosts []automdm.HostPolicyMembershipData,
 	logger *slog.Logger,
 	newActivitySvc activity_api.NewActivityService,
 ) {
 	hosts = filterHostsWithSameEmail(hosts)
 
-	hostsCh := make(chan fleet.HostPolicyMembershipData)
+	hostsCh := make(chan automdm.HostPolicyMembershipData)
 	var wg sync.WaitGroup
 	// policyIDtoPolicy maps policy IDs to policies.
 	// It is a cache to avoid querying the database for each host.
@@ -303,13 +303,13 @@ func processCalendarFailingHosts(
 						// thus we skip this entry.
 						continue // continue with next host
 					}
-					if hostCalendarEvent.WebhookStatus == fleet.CalendarWebhookStatusPending || hostCalendarEvent.WebhookStatus == fleet.CalendarWebhookStatusRetry {
+					if hostCalendarEvent.WebhookStatus == automdm.CalendarWebhookStatusPending || hostCalendarEvent.WebhookStatus == automdm.CalendarWebhookStatusRetry {
 						// This can happen if the host went offline (and never returned results)
 						// after setting the webhook as pending.
 						continue // continue with next host
 					}
 					now := time.Now()
-					webhookAlreadyFired := hostCalendarEvent.WebhookStatus == fleet.CalendarWebhookStatusSent
+					webhookAlreadyFired := hostCalendarEvent.WebhookStatus == automdm.CalendarWebhookStatusSent
 					if webhookAlreadyFired && sameDate(now, calendarEvent.StartTime) {
 						// If the webhook already fired today and the policies are still failing
 						// we give a grace period of one day for the host before we schedule a new event.
@@ -337,7 +337,7 @@ func processCalendarFailingHosts(
 						recordCalendarFailureActivity(ctx, newActivitySvc, host, err, logger)
 						continue // continue with next host
 					}
-				case fleet.IsNotFound(err) || expiredEvent:
+				case automdm.IsNotFound(err) || expiredEvent:
 					if err := processFailingHostCreateCalendarEvent(
 						ctx, ds, userCalendar, orgName, host, &policyIDtoPolicy, logger,
 					); err != nil {
@@ -362,8 +362,8 @@ func processCalendarFailingHosts(
 	wg.Wait()
 }
 
-func filterHostsWithSameEmail(hosts []fleet.HostPolicyMembershipData) []fleet.HostPolicyMembershipData {
-	minHostPerEmail := make(map[string]fleet.HostPolicyMembershipData)
+func filterHostsWithSameEmail(hosts []automdm.HostPolicyMembershipData) []automdm.HostPolicyMembershipData {
+	minHostPerEmail := make(map[string]automdm.HostPolicyMembershipData)
 	for _, host := range hosts {
 		minHost, ok := minHostPerEmail[host.Email]
 		if !ok {
@@ -374,7 +374,7 @@ func filterHostsWithSameEmail(hosts []fleet.HostPolicyMembershipData) []fleet.Ho
 			minHostPerEmail[host.Email] = host
 		}
 	}
-	filtered := make([]fleet.HostPolicyMembershipData, 0, len(minHostPerEmail))
+	filtered := make([]automdm.HostPolicyMembershipData, 0, len(minHostPerEmail))
 	for _, host := range minHostPerEmail {
 		filtered = append(filtered, host)
 	}
@@ -383,13 +383,13 @@ func filterHostsWithSameEmail(hosts []fleet.HostPolicyMembershipData) []fleet.Ho
 
 func processFailingHostExistingCalendarEvent(
 	ctx context.Context,
-	ds fleet.Datastore,
-	distributedLock fleet.Lock,
-	userCalendar fleet.UserCalendar,
+	ds automdm.Datastore,
+	distributedLock automdm.Lock,
+	userCalendar automdm.UserCalendar,
 	orgName string,
-	hostCalendarEvent *fleet.HostCalendarEvent,
-	calendarEvent *fleet.CalendarEvent,
-	host fleet.HostPolicyMembershipData,
+	hostCalendarEvent *automdm.HostCalendarEvent,
+	calendarEvent *automdm.CalendarEvent,
+	host automdm.HostPolicyMembershipData,
 	policyIDtoPolicy *sync.Map,
 	calendarConfig *calendar.Config,
 	logger *slog.Logger,
@@ -469,7 +469,7 @@ func processFailingHostExistingCalendarEvent(
 	// Function to generate calendar event body.
 	var generatedTag string
 	var newETag string
-	var genBodyFn fleet.CalendarGenBodyFn = func(conflict bool) (string, bool, error) {
+	var genBodyFn automdm.CalendarGenBodyFn = func(conflict bool) (string, bool, error) {
 		var body string
 		body, generatedTag = calendar.GenerateCalendarEventBody(ctx, ds, orgName, host, policyIDtoPolicy, conflict, logger)
 		return body, true, nil
@@ -495,7 +495,7 @@ func processFailingHostExistingCalendarEvent(
 		// We need the latest event data (ETag) to make sure that we get correct data from the calendar service.
 		calendarEvent, err = ds.GetCalendarEvent(ctx, calendarEvent.Email)
 		if err != nil {
-			if fleet.IsNotFound(err) {
+			if automdm.IsNotFound(err) {
 				// Event was deleted while we were processing it. It will be recreated if needed on the next cron run
 				return nil
 			}
@@ -504,7 +504,7 @@ func processFailingHostExistingCalendarEvent(
 		// We could check the updated_at timestamp and avoid updating the event if it was updated recently.
 
 		updatedEvent, _, err = userCalendar.GetAndUpdateEvent(calendarEvent, genBodyFn,
-			fleet.CalendarGetAndUpdateEventOpts{UpdateTimezone: true})
+			automdm.CalendarGetAndUpdateEventOpts{UpdateTimezone: true})
 		if err != nil {
 			return fmt.Errorf("get event calendar on db: %w", err)
 		}
@@ -555,7 +555,7 @@ func processFailingHostExistingCalendarEvent(
 	// Event happening now.
 	//
 
-	if hostCalendarEvent.WebhookStatus == fleet.CalendarWebhookStatusSent {
+	if hostCalendarEvent.WebhookStatus == automdm.CalendarWebhookStatusSent {
 		return nil
 	}
 
@@ -568,7 +568,7 @@ func processFailingHostExistingCalendarEvent(
 		return nil
 	}
 
-	if err := ds.UpdateHostCalendarWebhookStatus(ctx, host.HostID, fleet.CalendarWebhookStatusPending); err != nil {
+	if err := ds.UpdateHostCalendarWebhookStatus(ctx, host.HostID, automdm.CalendarWebhookStatusPending); err != nil {
 		return fmt.Errorf("update host calendar webhook status: %w", err)
 	}
 
@@ -583,7 +583,7 @@ func processFailingHostExistingCalendarEvent(
 	return nil
 }
 
-func getBodyTag(ctx context.Context, ds fleet.Datastore, host fleet.HostPolicyMembershipData, policyIDtoPolicy *sync.Map,
+func getBodyTag(ctx context.Context, ds automdm.Datastore, host automdm.HostPolicyMembershipData, policyIDtoPolicy *sync.Map,
 	logger *slog.Logger) string {
 	var updatedBodyTag string
 	policyIDs := strings.Split(host.FailingPolicyIDs, ",")
@@ -627,21 +627,21 @@ func getBodyTag(ctx context.Context, ds fleet.Datastore, host fleet.HostPolicyMe
 	return updatedBodyTag
 }
 
-func shouldReloadCalendarEvent(now time.Time, calendarEvent *fleet.CalendarEvent, hostCalendarEvent *fleet.HostCalendarEvent) bool {
+func shouldReloadCalendarEvent(now time.Time, calendarEvent *automdm.CalendarEvent, hostCalendarEvent *automdm.HostCalendarEvent) bool {
 	// Check the user calendar regularly (but not every cron run)
-	// to reduce load on both Fleet and the calendar service.
+	// to reduce load on both AutoMDM and the calendar service.
 	if time.Since(calendarEvent.UpdatedAt) > reloadFrequency {
 		return true
 	}
 	// If the event is supposed to be happening now, we want to check if the user moved/deleted the
 	// event on the last minute.
-	if eventHappeningNow(now, calendarEvent) && hostCalendarEvent.WebhookStatus == fleet.CalendarWebhookStatusNone {
+	if eventHappeningNow(now, calendarEvent) && hostCalendarEvent.WebhookStatus == automdm.CalendarWebhookStatusNone {
 		return true
 	}
 	return false
 }
 
-func eventHappeningNow(now time.Time, calendarEvent *fleet.CalendarEvent) bool {
+func eventHappeningNow(now time.Time, calendarEvent *automdm.CalendarEvent) bool {
 	return !now.Before(calendarEvent.StartTime) && now.Before(calendarEvent.EndTime)
 }
 
@@ -653,10 +653,10 @@ func sameDate(t1 time.Time, t2 time.Time) bool {
 
 func processFailingHostCreateCalendarEvent(
 	ctx context.Context,
-	ds fleet.Datastore,
-	userCalendar fleet.UserCalendar,
+	ds automdm.Datastore,
+	userCalendar automdm.UserCalendar,
 	orgName string,
-	host fleet.HostPolicyMembershipData,
+	host automdm.HostPolicyMembershipData,
 	policyIDtoPolicy *sync.Map,
 	logger *slog.Logger,
 ) error {
@@ -666,7 +666,7 @@ func processFailingHostCreateCalendarEvent(
 	}
 	if _, err := ds.CreateOrUpdateCalendarEvent(
 		ctx, calendarEvent.UUID, host.Email, calendarEvent.StartTime, calendarEvent.EndTime, calendarEvent.Data, calendarEvent.TimeZone,
-		host.HostID, fleet.CalendarWebhookStatusNone,
+		host.HostID, automdm.CalendarWebhookStatusNone,
 	); err != nil {
 		return fmt.Errorf("create calendar event on db: %w", err)
 	}
@@ -675,13 +675,13 @@ func processFailingHostCreateCalendarEvent(
 
 func attemptCreatingEventOnUserCalendar(
 	ctx context.Context,
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	orgName string,
-	host fleet.HostPolicyMembershipData,
-	userCalendar fleet.UserCalendar,
+	host automdm.HostPolicyMembershipData,
+	userCalendar automdm.UserCalendar,
 	policyIDtoPolicy *sync.Map,
 	logger *slog.Logger,
-) (*fleet.CalendarEvent, error) {
+) (*automdm.CalendarEvent, error) {
 	year, month, today := time.Now().Date()
 	preferredDate := getPreferredCalendarEventDate(year, month, today)
 	for {
@@ -691,9 +691,9 @@ func attemptCreatingEventOnUserCalendar(
 				var body string
 				body, generatedTag = calendar.GenerateCalendarEventBody(ctx, ds, orgName, host, policyIDtoPolicy, conflict, logger)
 				return body, true, nil
-			}, fleet.CalendarCreateEventOpts{},
+			}, automdm.CalendarCreateEventOpts{},
 		)
-		var dee fleet.DayEndedError
+		var dee automdm.DayEndedError
 		switch {
 		case err == nil:
 			err = calendarEvent.SaveDataItems("body_tag", generatedTag)
@@ -732,9 +732,9 @@ func addBusinessDay(date time.Time) time.Time {
 
 func removeCalendarEventsFromPassingHosts(
 	ctx context.Context,
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	calendarConfig *calendar.Config,
-	hosts []fleet.HostPolicyMembershipData,
+	hosts []automdm.HostPolicyMembershipData,
 	logger *slog.Logger,
 ) {
 	hostIDsByEmail := make(map[string][]uint)
@@ -772,7 +772,7 @@ func removeCalendarEventsFromPassingHosts(
 						// None of the hosts belong to this calendar event.
 						continue
 					}
-				case fleet.IsNotFound(err):
+				case automdm.IsNotFound(err):
 					continue
 				default:
 					logger.ErrorContext(ctx, "get calendar event from DB", "err", err)
@@ -798,7 +798,7 @@ func removeCalendarEventsFromPassingHosts(
 func logHostsWithoutAssociatedEmail(
 	ctx context.Context,
 	domain string,
-	hosts []fleet.HostPolicyMembershipData,
+	hosts []automdm.HostPolicyMembershipData,
 	logger *slog.Logger,
 ) {
 	if len(hosts) == 0 {
@@ -814,34 +814,34 @@ func logHostsWithoutAssociatedEmail(
 	)
 }
 
-func isHostOnline(ctx context.Context, ds fleet.Datastore, hostID uint) (bool, error) {
+func isHostOnline(ctx context.Context, ds automdm.Datastore, hostID uint) (bool, error) {
 	hostLite, err := ds.HostLiteByID(ctx, hostID)
 	if err != nil {
 		return false, fmt.Errorf("get host lite: %w", err)
 	}
-	status := (&fleet.Host{
+	status := (&automdm.Host{
 		DistributedInterval: hostLite.DistributedInterval,
 		ConfigTLSRefresh:    hostLite.ConfigTLSRefresh,
 		SeenTime:            hostLite.SeenTime,
 	}).Status(time.Now())
 
 	switch status {
-	case fleet.StatusOnline, fleet.StatusNew:
+	case automdm.StatusOnline, automdm.StatusNew:
 		return true, nil
-	case fleet.StatusOffline, fleet.StatusMIA, fleet.StatusMissing:
+	case automdm.StatusOffline, automdm.StatusMIA, automdm.StatusMissing:
 		return false, nil
 	default:
 		return false, fmt.Errorf("unknown host status: %s", status)
 	}
 }
 
-func cronCalendarEventsCleanup(ctx context.Context, ds fleet.Datastore, logger *slog.Logger) error {
+func cronCalendarEventsCleanup(ctx context.Context, ds automdm.Datastore, logger *slog.Logger) error {
 	appConfig, err := ds.AppConfig(ctx)
 	if err != nil {
 		return fmt.Errorf("load app config: %w", err)
 	}
 
-	var userCalendar fleet.UserCalendar
+	var userCalendar automdm.UserCalendar
 	var calConfig *calendar.Config
 	if len(appConfig.Integrations.GoogleCalendar) > 0 {
 		calConfig = &calendar.Config{
@@ -866,11 +866,11 @@ func cronCalendarEventsCleanup(ctx context.Context, ds fleet.Datastore, logger *
 	//
 
 	teams, err := ds.ListTeams(
-		ctx, fleet.TeamFilter{
-			User: &fleet.User{
-				GlobalRole: ptr.String(fleet.RoleAdmin),
+		ctx, automdm.TeamFilter{
+			User: &automdm.User{
+				GlobalRole: ptr.String(automdm.RoleAdmin),
 			},
-		}, fleet.ListOptions{},
+		}, automdm.ListOptions{},
 	)
 	if err != nil {
 		return fmt.Errorf("list teams: %w", err)
@@ -878,7 +878,7 @@ func cronCalendarEventsCleanup(ctx context.Context, ds fleet.Datastore, logger *
 
 	for _, team := range teams {
 		if err := cleanupTeamCalendarEvents(ctx, ds, calConfig, *team, logger); err != nil {
-			logger.InfoContext(ctx, "delete fleet calendar events", "fleet_id", team.ID, "err", err)
+			logger.InfoContext(ctx, "delete team calendar events", "team_id", team.ID, "err", err)
 		}
 	}
 
@@ -897,7 +897,7 @@ func cronCalendarEventsCleanup(ctx context.Context, ds fleet.Datastore, logger *
 
 func deleteAllCalendarEvents(
 	ctx context.Context,
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	calendarConfig *calendar.Config,
 	teamID *uint,
 	logger *slog.Logger,
@@ -911,18 +911,18 @@ func deleteAllCalendarEvents(
 }
 
 func deleteCalendarEventsInParallel(
-	ctx context.Context, ds fleet.Datastore, calendarConfig *calendar.Config, calendarEvents []*fleet.CalendarEvent,
+	ctx context.Context, ds automdm.Datastore, calendarConfig *calendar.Config, calendarEvents []*automdm.CalendarEvent,
 	logger *slog.Logger,
 ) {
 	if len(calendarEvents) > 0 {
-		calendarEventCh := make(chan *fleet.CalendarEvent)
+		calendarEventCh := make(chan *automdm.CalendarEvent)
 		var wg sync.WaitGroup
 		for i := 0; i < calendarConsumers; i++ {
 			wg.Add(+1)
 			go func() {
 				defer wg.Done()
 				for calEvent := range calendarEventCh {
-					var userCalendar fleet.UserCalendar
+					var userCalendar automdm.UserCalendar
 					if calendarConfig != nil {
 						userCalendar = calendar.CreateUserCalendarFromConfig(ctx, calendarConfig, logger)
 					}
@@ -943,9 +943,9 @@ func deleteCalendarEventsInParallel(
 
 func cleanupTeamCalendarEvents(
 	ctx context.Context,
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	calendarConfig *calendar.Config,
-	team fleet.Team,
+	team automdm.Team,
 	logger *slog.Logger,
 ) error {
 	teamFeatureEnabled := team.Config.Integrations.GoogleCalendar != nil && team.Config.Integrations.GoogleCalendar.Enable
@@ -967,7 +967,7 @@ func cleanupTeamCalendarEvents(
 }
 
 func deleteCalendarEvent(
-	ctx context.Context, ds fleet.Datastore, userCalendar fleet.UserCalendar, calendarEvent *fleet.CalendarEvent,
+	ctx context.Context, ds automdm.Datastore, userCalendar automdm.UserCalendar, calendarEvent *automdm.CalendarEvent,
 ) error {
 	if userCalendar != nil {
 		// Only delete events from the user's calendar if the event is in the future.

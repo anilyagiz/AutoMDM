@@ -10,12 +10,12 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/pkg/optjson"
-	"github.com/fleetdm/fleet/v4/pkg/removednames"
+	"github.com/anilyagiz/automdm/v4/pkg/optjson"
+	"github.com/anilyagiz/automdm/v4/pkg/removednames"
 	"golang.org/x/text/unicode/norm"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -23,36 +23,36 @@ import (
 ////////////////////////////////////////////////////////////////////////////////
 
 type listTeamsRequest struct {
-	ListOptions fleet.ListOptions `url:"list_options"`
+	ListOptions automdm.ListOptions `url:"list_options"`
 }
 
 type listTeamsResponse struct {
-	Teams []fleet.Team `json:"fleets"`
-	Err   error        `json:"error,omitempty"`
+	Teams []automdm.Team `json:"teams"`
+	Err   error          `json:"error,omitempty"`
 }
 
 func (r listTeamsResponse) Error() error { return r.Err }
 
-func listTeamsEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func listTeamsEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*listTeamsRequest)
 	teams, err := svc.ListTeams(ctx, req.ListOptions)
 	if err != nil {
 		return listTeamsResponse{Err: err}, nil
 	}
 
-	resp := listTeamsResponse{Teams: []fleet.Team{}}
+	resp := listTeamsResponse{Teams: []automdm.Team{}}
 	for _, team := range teams {
 		resp.Teams = append(resp.Teams, *team)
 	}
 	return resp, nil
 }
 
-func (svc *Service) ListTeams(ctx context.Context, opt fleet.ListOptions) ([]*fleet.Team, error) {
+func (svc *Service) ListTeams(ctx context.Context, opt automdm.ListOptions) ([]*automdm.Team, error) {
 	// skipauth: No authorization check needed due to implementation returning
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return nil, fleet.ErrMissingLicense
+	return nil, automdm.ErrMissingLicense
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -64,20 +64,20 @@ type getTeamRequest struct {
 }
 
 type getTeamResponse struct {
-	Team *fleet.Team `json:"fleet"`
-	Err  error       `json:"error,omitempty"`
+	Team *automdm.Team `json:"team"`
+	Err  error         `json:"error,omitempty"`
 }
 
 func (r getTeamResponse) Error() error { return r.Err }
 
 type defaultTeamResponse struct {
-	Team *fleet.DefaultTeam `json:"fleet"`
-	Err  error              `json:"error,omitempty"`
+	Team *automdm.DefaultTeam `json:"team"`
+	Err  error                `json:"error,omitempty"`
 }
 
 func (r defaultTeamResponse) Error() error { return r.Err }
 
-func getTeamEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func getTeamEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*getTeamRequest)
 
 	team, err := svc.GetTeam(ctx, req.ID)
@@ -87,15 +87,15 @@ func getTeamEndpoint(ctx context.Context, request interface{}, svc fleet.Service
 
 	// Special handling for team ID 0 - return DefaultTeam structure
 	if team.ID == 0 {
-		defaultTeam := &fleet.DefaultTeam{
+		defaultTeam := &automdm.DefaultTeam{
 			ID:   team.ID,
 			Name: team.Name,
-			DefaultTeamConfig: fleet.DefaultTeamConfig{
-				WebhookSettings: fleet.DefaultTeamWebhookSettings{
+			DefaultTeamConfig: automdm.DefaultTeamConfig{
+				WebhookSettings: automdm.DefaultTeamWebhookSettings{
 					FailingPoliciesWebhook: team.Config.WebhookSettings.FailingPoliciesWebhook,
 					HostActivitiesWebhook:  team.Config.WebhookSettings.HostActivitiesWebhook,
 				},
-				Integrations: fleet.DefaultTeamIntegrations{
+				Integrations: automdm.DefaultTeamIntegrations{
 					Jira:    team.Config.Integrations.Jira,
 					Zendesk: team.Config.Integrations.Zendesk,
 				},
@@ -107,12 +107,12 @@ func getTeamEndpoint(ctx context.Context, request interface{}, svc fleet.Service
 	return getTeamResponse{Team: team}, nil
 }
 
-func (svc *Service) GetTeam(ctx context.Context, tid uint) (*fleet.Team, error) {
+func (svc *Service) GetTeam(ctx context.Context, tid uint) (*automdm.Team, error) {
 	// skipauth: No authorization check needed due to implementation returning
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return nil, fleet.ErrMissingLicense
+	return nil, automdm.ErrMissingLicense
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -120,17 +120,17 @@ func (svc *Service) GetTeam(ctx context.Context, tid uint) (*fleet.Team, error) 
 ////////////////////////////////////////////////////////////////////////////////
 
 type createTeamRequest struct {
-	fleet.TeamPayload
+	automdm.TeamPayload
 }
 
 type teamResponse struct {
-	Team *fleet.Team `json:"fleet,omitempty"`
-	Err  error       `json:"error,omitempty"`
+	Team *automdm.Team `json:"team,omitempty"`
+	Err  error         `json:"error,omitempty"`
 }
 
 func (r teamResponse) Error() error { return r.Err }
 
-func createTeamEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func createTeamEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*createTeamRequest)
 
 	team, err := svc.NewTeam(ctx, req.TeamPayload)
@@ -140,12 +140,12 @@ func createTeamEndpoint(ctx context.Context, request interface{}, svc fleet.Serv
 	return teamResponse{Team: team}, nil
 }
 
-func (svc *Service) NewTeam(ctx context.Context, p fleet.TeamPayload) (*fleet.Team, error) {
+func (svc *Service) NewTeam(ctx context.Context, p automdm.TeamPayload) (*automdm.Team, error) {
 	// skipauth: No authorization check needed due to implementation returning
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return nil, fleet.ErrMissingLicense
+	return nil, automdm.ErrMissingLicense
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -154,10 +154,10 @@ func (svc *Service) NewTeam(ctx context.Context, p fleet.TeamPayload) (*fleet.Te
 
 type modifyTeamRequest struct {
 	ID uint `json:"-" url:"id"`
-	fleet.TeamPayload
+	automdm.TeamPayload
 }
 
-func modifyTeamEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func modifyTeamEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*modifyTeamRequest)
 
 	// AppleOSUpdateSettings.UpdateNewHosts is only used in macOS ... so ignore any values sent for iOS/iPadOS
@@ -178,15 +178,15 @@ func modifyTeamEndpoint(ctx context.Context, request interface{}, svc fleet.Serv
 	// Special handling for team ID 0 - return limited fields
 	if req.ID == 0 {
 		// Convert to DefaultTeam with limited fields
-		defaultTeam := &fleet.DefaultTeam{
+		defaultTeam := &automdm.DefaultTeam{
 			ID:   team.ID,
 			Name: team.Name,
-			DefaultTeamConfig: fleet.DefaultTeamConfig{
-				WebhookSettings: fleet.DefaultTeamWebhookSettings{
+			DefaultTeamConfig: automdm.DefaultTeamConfig{
+				WebhookSettings: automdm.DefaultTeamWebhookSettings{
 					FailingPoliciesWebhook: team.Config.WebhookSettings.FailingPoliciesWebhook,
 					HostActivitiesWebhook:  team.Config.WebhookSettings.HostActivitiesWebhook,
 				},
-				Integrations: fleet.DefaultTeamIntegrations{
+				Integrations: automdm.DefaultTeamIntegrations{
 					Jira:    team.Config.Integrations.Jira,
 					Zendesk: team.Config.Integrations.Zendesk,
 				},
@@ -198,12 +198,12 @@ func modifyTeamEndpoint(ctx context.Context, request interface{}, svc fleet.Serv
 	return teamResponse{Team: team}, err
 }
 
-func (svc *Service) ModifyTeam(ctx context.Context, id uint, payload fleet.TeamPayload) (*fleet.Team, error) {
+func (svc *Service) ModifyTeam(ctx context.Context, id uint, payload automdm.TeamPayload) (*automdm.Team, error) {
 	// skipauth: No authorization check needed due to implementation returning
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return nil, fleet.ErrMissingLicense
+	return nil, automdm.ErrMissingLicense
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -220,7 +220,7 @@ type deleteTeamResponse struct {
 
 func (r deleteTeamResponse) Error() error { return r.Err }
 
-func deleteTeamEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func deleteTeamEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*deleteTeamRequest)
 	err := svc.DeleteTeam(ctx, req.ID)
 	if err != nil {
@@ -234,7 +234,7 @@ func (svc *Service) DeleteTeam(ctx context.Context, tid uint) error {
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return fleet.ErrMissingLicense
+	return automdm.ErrMissingLicense
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -242,22 +242,22 @@ func (svc *Service) DeleteTeam(ctx context.Context, tid uint) error {
 ////////////////////////////////////////////////////////////////////////////////
 
 type applyTeamSpecsRequest struct {
-	Force             bool                              `json:"-" query:"force,optional"`   // if true, bypass strict incoming json validation
-	DryRun            bool                              `json:"-" query:"dry_run,optional"` // if true, apply validation but do not save changes
-	DryRunAssumptions *fleet.TeamSpecsDryRunAssumptions `json:"dry_run_assumptions,omitempty"`
-	Specs             []*fleet.TeamSpec                 `json:"specs"`
+	Force             bool                                `json:"-" query:"force,optional"`   // if true, bypass strict incoming json validation
+	DryRun            bool                                `json:"-" query:"dry_run,optional"` // if true, apply validation but do not save changes
+	DryRunAssumptions *automdm.TeamSpecsDryRunAssumptions `json:"dry_run_assumptions,omitempty"`
+	Specs             []*automdm.TeamSpec                 `json:"specs"`
 }
 
 func (req *applyTeamSpecsRequest) DecodeBody(ctx context.Context, r io.Reader, u url.Values, c []*x509.Certificate) error {
 	// force accepts specs containing unknown fields, so decode without rejecting them rather than
 	// decoding strictly and ignoring the resulting error. Every other error still has to surface, and
 	// other kinds of error can be forced later, after agent options' validations.
-	decode := fleet.JSONStrictDecode
+	decode := automdm.JSONStrictDecode
 	if req.Force {
-		decode = fleet.JSONDecode
+		decode = automdm.JSONDecode
 	}
 	if err := decode(r, req); err != nil {
-		return ctxerr.Wrap(ctx, fleet.NewUserMessageError(err, http.StatusBadRequest), "strict decode team specs")
+		return ctxerr.Wrap(ctx, automdm.NewUserMessageError(err, http.StatusBadRequest), "strict decode team specs")
 	}
 
 	// the MacOSSettings field must be validated separately, since it
@@ -267,13 +267,13 @@ func (req *applyTeamSpecsRequest) DecodeBody(ctx context.Context, r io.Reader, u
 			continue
 		}
 
-		var macOSSettings fleet.MacOSSettings
+		var macOSSettings automdm.MacOSSettings
 		validMap := macOSSettings.ToMap()
 
 		// the keys provided must be valid
 		for k := range spec.MDM.MacOSSettings {
 			if _, ok := validMap[k]; !ok {
-				return ctxerr.Wrap(ctx, fleet.NewUserMessageError(
+				return ctxerr.Wrap(ctx, automdm.NewUserMessageError(
 					fmt.Errorf("json: unknown field %q", k),
 					http.StatusBadRequest), "strict decode team specs")
 			}
@@ -284,20 +284,20 @@ func (req *applyTeamSpecsRequest) DecodeBody(ctx context.Context, r io.Reader, u
 
 type applyTeamSpecsResponse struct {
 	Err           error           `json:"error,omitempty"`
-	TeamIDsByName map[string]uint `json:"fleet_ids_by_name,omitempty"`
+	TeamIDsByName map[string]uint `json:"team_ids_by_name,omitempty"`
 }
 
 func (r applyTeamSpecsResponse) Error() error { return r.Err }
 
-func applyTeamSpecsEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func applyTeamSpecsEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*applyTeamSpecsRequest)
 	if !req.DryRun {
 		req.DryRunAssumptions = nil
 	}
 
-	// remove any nil spec (may happen in conversion from YAML to JSON with fleetctl, but also
+	// remove any nil spec (may happen in conversion from YAML to JSON with automdmctl, but also
 	// with the API should someone send such JSON)
-	actualSpecs := make([]*fleet.TeamSpec, 0, len(req.Specs))
+	actualSpecs := make([]*automdm.TeamSpec, 0, len(req.Specs))
 	for _, spec := range req.Specs {
 		if spec != nil {
 			// Normalize the team name for full Unicode support to prevent potential issue further in the spec flow
@@ -307,8 +307,8 @@ func applyTeamSpecsEndpoint(ctx context.Context, request interface{}, svc fleet.
 	}
 
 	idsByName, err := svc.ApplyTeamSpecs(
-		ctx, actualSpecs, fleet.ApplyTeamSpecOptions{
-			ApplySpecOptions: fleet.ApplySpecOptions{
+		ctx, actualSpecs, automdm.ApplyTeamSpecOptions{
+			ApplySpecOptions: automdm.ApplySpecOptions{
 				Force:  req.Force,
 				DryRun: req.DryRun,
 			},
@@ -320,12 +320,12 @@ func applyTeamSpecsEndpoint(ctx context.Context, request interface{}, svc fleet.
 	return applyTeamSpecsResponse{TeamIDsByName: idsByName}, nil
 }
 
-func (svc Service) ApplyTeamSpecs(ctx context.Context, _ []*fleet.TeamSpec, _ fleet.ApplyTeamSpecOptions) (map[string]uint, error) {
+func (svc Service) ApplyTeamSpecs(ctx context.Context, _ []*automdm.TeamSpec, _ automdm.ApplyTeamSpecOptions) (map[string]uint, error) {
 	// skipauth: No authorization check needed due to implementation returning
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return nil, fleet.ErrMissingLicense
+	return nil, automdm.ErrMissingLicense
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -339,9 +339,9 @@ type modifyTeamAgentOptionsRequest struct {
 	json.RawMessage
 }
 
-func modifyTeamAgentOptionsEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func modifyTeamAgentOptionsEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*modifyTeamAgentOptionsRequest)
-	team, err := svc.ModifyTeamAgentOptions(ctx, req.ID, req.RawMessage, fleet.ApplySpecOptions{
+	team, err := svc.ModifyTeamAgentOptions(ctx, req.ID, req.RawMessage, automdm.ApplySpecOptions{
 		Force:  req.Force,
 		DryRun: req.DryRun,
 	})
@@ -351,12 +351,12 @@ func modifyTeamAgentOptionsEndpoint(ctx context.Context, request interface{}, sv
 	return teamResponse{Team: team}, err
 }
 
-func (svc *Service) ModifyTeamAgentOptions(ctx context.Context, id uint, teamOptions json.RawMessage, applyOptions fleet.ApplySpecOptions) (*fleet.Team, error) {
+func (svc *Service) ModifyTeamAgentOptions(ctx context.Context, id uint, teamOptions json.RawMessage, applyOptions automdm.ApplySpecOptions) (*automdm.Team, error) {
 	// skipauth: No authorization check needed due to implementation returning
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return nil, fleet.ErrMissingLicense
+	return nil, automdm.ErrMissingLicense
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -364,30 +364,30 @@ func (svc *Service) ModifyTeamAgentOptions(ctx context.Context, id uint, teamOpt
 ////////////////////////////////////////////////////////////////////////////////
 
 type listTeamUsersRequest struct {
-	TeamID      uint              `url:"id"`
-	ListOptions fleet.ListOptions `url:"list_options"`
+	TeamID      uint                `url:"id"`
+	ListOptions automdm.ListOptions `url:"list_options"`
 }
 
-func listTeamUsersEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func listTeamUsersEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*listTeamUsersRequest)
 	users, err := svc.ListTeamUsers(ctx, req.TeamID, req.ListOptions)
 	if err != nil {
 		return listUsersResponse{Err: err}, nil
 	}
 
-	resp := listUsersResponse{Users: []fleet.User{}}
+	resp := listUsersResponse{Users: []automdm.User{}}
 	for _, user := range users {
 		resp.Users = append(resp.Users, *user)
 	}
 	return resp, nil
 }
 
-func (svc *Service) ListTeamUsers(ctx context.Context, teamID uint, opt fleet.ListOptions) ([]*fleet.User, error) {
+func (svc *Service) ListTeamUsers(ctx context.Context, teamID uint, opt automdm.ListOptions) ([]*automdm.User, error) {
 	// skipauth: No authorization check needed due to implementation returning
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return nil, fleet.ErrMissingLicense
+	return nil, automdm.ErrMissingLicense
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -399,10 +399,10 @@ type modifyTeamUsersRequest struct {
 	TeamID uint `json:"-" url:"id"`
 	// User ID and role must be specified for add users, user ID must be
 	// specified for delete users.
-	Users []fleet.TeamUser `json:"users"`
+	Users []automdm.TeamUser `json:"users"`
 }
 
-func addTeamUsersEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func addTeamUsersEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*modifyTeamUsersRequest)
 	team, err := svc.AddTeamUsers(ctx, req.TeamID, req.Users)
 	if err != nil {
@@ -411,15 +411,15 @@ func addTeamUsersEndpoint(ctx context.Context, request interface{}, svc fleet.Se
 	return teamResponse{Team: team}, err
 }
 
-func (svc *Service) AddTeamUsers(ctx context.Context, teamID uint, users []fleet.TeamUser) (*fleet.Team, error) {
+func (svc *Service) AddTeamUsers(ctx context.Context, teamID uint, users []automdm.TeamUser) (*automdm.Team, error) {
 	// skipauth: No authorization check needed due to implementation returning
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return nil, fleet.ErrMissingLicense
+	return nil, automdm.ErrMissingLicense
 }
 
-func deleteTeamUsersEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func deleteTeamUsersEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*modifyTeamUsersRequest)
 	team, err := svc.DeleteTeamUsers(ctx, req.TeamID, req.Users)
 	if err != nil {
@@ -428,12 +428,12 @@ func deleteTeamUsersEndpoint(ctx context.Context, request interface{}, svc fleet
 	return teamResponse{Team: team}, err
 }
 
-func (svc *Service) DeleteTeamUsers(ctx context.Context, teamID uint, users []fleet.TeamUser) (*fleet.Team, error) {
+func (svc *Service) DeleteTeamUsers(ctx context.Context, teamID uint, users []automdm.TeamUser) (*automdm.Team, error) {
 	// skipauth: No authorization check needed due to implementation returning
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return nil, fleet.ErrMissingLicense
+	return nil, automdm.ErrMissingLicense
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -445,13 +445,13 @@ type teamEnrollSecretsRequest struct {
 }
 
 type teamEnrollSecretsResponse struct {
-	Secrets []*fleet.EnrollSecret `json:"secrets"`
-	Err     error                 `json:"error,omitempty"`
+	Secrets []*automdm.EnrollSecret `json:"secrets"`
+	Err     error                   `json:"error,omitempty"`
 }
 
 func (r teamEnrollSecretsResponse) Error() error { return r.Err }
 
-func teamEnrollSecretsEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func teamEnrollSecretsEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*teamEnrollSecretsRequest)
 	secrets, err := svc.TeamEnrollSecrets(ctx, req.TeamID)
 	if err != nil {
@@ -461,12 +461,12 @@ func teamEnrollSecretsEndpoint(ctx context.Context, request interface{}, svc fle
 	return teamEnrollSecretsResponse{Secrets: secrets}, err
 }
 
-func (svc *Service) TeamEnrollSecrets(ctx context.Context, teamID uint) ([]*fleet.EnrollSecret, error) {
+func (svc *Service) TeamEnrollSecrets(ctx context.Context, teamID uint) ([]*automdm.EnrollSecret, error) {
 	// skipauth: No authorization check needed due to implementation returning
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return nil, fleet.ErrMissingLicense
+	return nil, automdm.ErrMissingLicense
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -474,11 +474,11 @@ func (svc *Service) TeamEnrollSecrets(ctx context.Context, teamID uint) ([]*flee
 ////////////////////////////////////////////////////////////////////////////////
 
 type modifyTeamEnrollSecretsRequest struct {
-	TeamID  uint                 `url:"fleet_id"`
-	Secrets []fleet.EnrollSecret `json:"secrets"`
+	TeamID  uint                   `url:"team_id"`
+	Secrets []automdm.EnrollSecret `json:"secrets"`
 }
 
-func modifyTeamEnrollSecretsEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func modifyTeamEnrollSecretsEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*modifyTeamEnrollSecretsRequest)
 	secrets, err := svc.ModifyTeamEnrollSecrets(ctx, req.TeamID, req.Secrets)
 	if err != nil {
@@ -488,21 +488,21 @@ func modifyTeamEnrollSecretsEndpoint(ctx context.Context, request interface{}, s
 	return teamEnrollSecretsResponse{Secrets: secrets}, err
 }
 
-func (svc *Service) ModifyTeamEnrollSecrets(ctx context.Context, teamID uint, secrets []fleet.EnrollSecret) ([]*fleet.EnrollSecret, error) {
+func (svc *Service) ModifyTeamEnrollSecrets(ctx context.Context, teamID uint, secrets []automdm.EnrollSecret) ([]*automdm.EnrollSecret, error) {
 	// skipauth: No authorization check needed due to implementation returning
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return nil, fleet.ErrMissingLicense
+	return nil, automdm.ErrMissingLicense
 }
 
-// removedFleetName returns the error reason when name is "No team", or "All teams" for a caller that accepts "All fleets".
-func removedFleetName(name string, acceptsAllFleets bool) (string, bool) {
+// removedAutoMDMName returns the error reason when name is "No team", or "All teams" for a caller that accepts "All teams".
+func removedAutoMDMName(name string, acceptsAllTeams bool) (string, bool) {
 	switch {
-	case strings.EqualFold(name, fleet.ReservedNameNoTeam):
-		return removednames.Message(fmt.Sprintf("%q", fleet.ReservedNameNoTeam), fmt.Sprintf("%q", fleet.DisplayNameNoTeam)), true
-	case acceptsAllFleets && strings.EqualFold(name, fleet.ReservedNameAllTeams):
-		return removednames.Message(fmt.Sprintf("%q", fleet.ReservedNameAllTeams), fmt.Sprintf("%q", fleet.DisplayNameAllTeams)), true
+	case strings.EqualFold(name, automdm.ReservedNameNoTeam):
+		return removednames.Message(fmt.Sprintf("%q", automdm.ReservedNameNoTeam), fmt.Sprintf("%q", automdm.DisplayNameNoTeam)), true
+	case acceptsAllTeams && strings.EqualFold(name, automdm.ReservedNameAllTeams):
+		return removednames.Message(fmt.Sprintf("%q", automdm.ReservedNameAllTeams), fmt.Sprintf("%q", automdm.DisplayNameAllTeams)), true
 	}
 	return "", false
 }

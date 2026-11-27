@@ -1,6 +1,6 @@
 # Engineering Spec Review Checklist
 
-This document is a checklist for **reviewing design docs and translating them into well-specified engineering subtasks** in the Fleet repository.
+This document is a checklist for **reviewing design docs and translating them into well-specified engineering subtasks** in the AutoMDM repository.
 
 The goal is to ensure issues are actionable, testable, and complete before implementation begins, reducing ambiguity and rework.
 
@@ -19,7 +19,7 @@ Before reviewing individual areas, confirm:
 - [ ] **Failure modes & edge cases are acknowledged**
 - [ ] **Rollout and migration plan exists** (if applicable)
 - [ ] **Acceptance criteria are concrete and testable**
-- [ ] **Documentation impact is noted** (Fleet docs, API docs, changelog)
+- [ ] **Documentation impact is noted** (AutoMDM docs, API docs, changelog)
 - [ ] **Security & permissions implications are reviewed**
 - [ ] **Observability impact is noted** (logs, metrics, errors)
 
@@ -47,7 +47,7 @@ Before reviewing individual areas, confirm:
 ### Design System & Consistency
 
 - [ ] Existing components are identified or new ones are justified
-- [ ] Consistency with Fleet UI patterns is verified
+- [ ] Consistency with AutoMDM UI patterns is verified
 - [ ] Accessibility considerations are noted (ARIA, keyboard, contrast)
 
 ### Testing
@@ -107,7 +107,7 @@ Before reviewing individual areas, confirm:
 - [ ] Agent behavior changes are clearly described
 - [ ] OS/platform scope is specified (macOS, Windows, Linux, etc.)
 - [ ] Minimum supported versions are noted
-- [ ] Compatibility with older Fleet servers is considered
+- [ ] Compatibility with older AutoMDM servers is considered
 
 ### Config & Communication
 
@@ -161,7 +161,7 @@ Before reviewing individual areas, confirm:
 
 - [ ] Backward compatibility is addressed
 - [ ] Migration path is documented
-- [ ] Interaction with existing Fleet GitOps flows is reviewed
+- [ ] Interaction with existing AutoMDM GitOps flows is reviewed
 
 ### Testing & Docs
 

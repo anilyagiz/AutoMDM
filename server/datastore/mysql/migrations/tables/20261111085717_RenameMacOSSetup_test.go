@@ -42,7 +42,7 @@ func TestUp_20261111085717(t *testing.T) {
 
 	want := map[string]string{
 		"all": `{"mdm": {"setup_experience": ` + newSetup + `}, "scripts": ["a.sh"]}`,
-		// The old key wins, the same as the other Fleet 5 renames.
+		// The old key wins, the same as the other AutoMDM 5 renames.
 		"bothnames": `{"mdm": {"setup_experience": {"macos_bootstrap_package": "old.pkg"}}}`,
 		"migrated":  `{"mdm": {"setup_experience": {"macos_bootstrap_package": "new.pkg"}}}`,
 		"empty":     `{}`,

@@ -18,7 +18,7 @@ import ActionsDropdown from "components/ActionsDropdown";
 import Button from "components/buttons/Button";
 import DataError from "components/DataError";
 import EmptyState from "components/EmptyState";
-import FleetsDropdown from "components/FleetsDropdown";
+import AutoMDMsDropdown from "components/AutoMDMsDropdown";
 import DropdownWrapper from "components/forms/fields/DropdownWrapper";
 import { CustomOptionType } from "components/forms/fields/DropdownWrapper/DropdownWrapper";
 import InfoBanner from "components/InfoBanner/InfoBanner";
@@ -118,7 +118,7 @@ import RunScriptBatchModal from "./components/RunScriptBatchModal";
 import {
   getHostsReportColumns,
   isAcceptableStatus,
-  STRIP_FLEET_SCOPED_FILTERS_ON_ALL_FLEETS,
+  STRIP_TEAM_SCOPED_FILTERS_ON_ALL_TEAMS,
 } from "./helpers";
 import {
   LABEL_SLUG_PREFIX,
@@ -133,7 +133,7 @@ import {
 } from "./HostsPageConfig";
 import {
   defaultHiddenColumns,
-  toFleetColumnId,
+  toTeamColumnId,
   generateVisibleTableColumns,
   generateAvailableTableHeaders,
 } from "./HostTableConfig";
@@ -208,11 +208,11 @@ const ManageHostsPage = ({
     includeAllTeams: true,
     includeNoTeam: true,
     overrideParamsOnTeamChange: {
-      ...STRIP_FLEET_SCOPED_FILTERS_ON_ALL_FLEETS,
+      ...STRIP_TEAM_SCOPED_FILTERS_ON_ALL_TEAMS,
       // remove batch script summary results filters on team change
       [HOSTS_QUERY_PARAMS.SCRIPT_BATCH_EXECUTION_ID]: shouldStripParamOnTeamChange,
       [HOSTS_QUERY_PARAMS.SCRIPT_BATCH_EXECUTION_STATUS]: shouldStripParamOnTeamChange,
-      // remove the App Store app version filter on team change, versions belong to one fleet
+      // remove the App Store app version filter on team change, versions belong to one team
       [HOSTS_QUERY_PARAMS.APP_STORE_APP_VERSION_ID]: shouldStripParamOnTeamChange,
     },
   });
@@ -224,7 +224,7 @@ const ManageHostsPage = ({
 
     if (queryParams) {
       const { order_key, order_direction } = queryParams;
-      key = toFleetColumnId(order_key || key);
+      key = toTeamColumnId(order_key || key);
       direction = order_direction || direction;
     }
 
@@ -253,9 +253,9 @@ const ManageHostsPage = ({
   // as the in-page Add hosts / Manage enroll secrets affordances.
   const canEnrollHosts =
     isGlobalAdmin || isGlobalMaintainer || isTeamAdmin || isTeamMaintainer;
-  // Activity automations are configured per fleet, admins only. The menu item
-  // stays visible but disabled on "All fleets" (the setting belongs to one
-  // fleet) and on Fleet Free (Premium feature, shown so it can be discovered).
+  // Activity automations are configured per team, admins only. The menu item
+  // stays visible but disabled on "All teams" (the setting belongs to one
+  // team) and on AutoMDM Free (Premium feature, shown so it can be discovered).
   const canManageHostActivityAutomations = isGlobalAdmin || isTeamAdmin;
 
   // Open add hosts modal via query param (e.g. from command palette).
@@ -339,7 +339,7 @@ const ManageHostsPage = ({
 
   const [hiddenColumns, setHiddenColumns] = useState<string[]>(
     (userSettings?.hidden_host_columns || defaultHiddenColumns).map(
-      toFleetColumnId
+      toTeamColumnId
     )
   );
 
@@ -575,7 +575,7 @@ const ManageHostsPage = ({
     {
       enabled: isRouteOk && !!isPremiumTier,
       select: (data: ILoadTeamsResponse) =>
-        data.fleets.sort((a, b) =>
+        data.teams.sort((a, b) =>
           sortUtils.caseInsensitiveAsc(a.name, b.name)
         ),
     }
@@ -591,7 +591,7 @@ const ManageHostsPage = ({
     () => teamsAPI.load(teamIdForApi),
     {
       // Fetched only when the modal opens so the modal mounts with the stored
-      // settings; works for "No fleet" (team 0) too.
+      // settings; works for "No team" (team 0) too.
       enabled:
         isRouteOk &&
         showHostActivityAutomationsModal &&
@@ -607,7 +607,7 @@ const ManageHostsPage = ({
     }
   );
   const hostActivityAutomations =
-    teamResponse?.fleet?.webhook_settings?.host_activities_webhook;
+    teamResponse?.team?.webhook_settings?.host_activities_webhook;
 
   const {
     data: policy,
@@ -787,7 +787,7 @@ const ManageHostsPage = ({
         return;
       }
       const parsed = (JSON.parse(locallyHiddenCols) as string[]).map(
-        toFleetColumnId
+        toTeamColumnId
       );
       try {
         await usersAPI.update(currentUser.id, {
@@ -889,7 +889,7 @@ const ManageHostsPage = ({
       case "customHostVitals":
         router.push(
           getPathWithQueryParams(PATHS.CONTROLS_VARIABLES_CUSTOM_HOST_VITALS, {
-            fleet_id: teamIdForApi,
+            team_id: teamIdForApi,
           })
         );
         break;
@@ -1246,7 +1246,7 @@ const ManageHostsPage = ({
       newQueryParams.order_direction =
         sort[0].direction || DEFAULT_SORT_DIRECTION;
 
-      newQueryParams.fleet_id = teamIdForApi;
+      newQueryParams.team_id = teamIdForApi;
 
       if (status) {
         newQueryParams.status = status;
@@ -1562,7 +1562,7 @@ const ManageHostsPage = ({
 
       const successMessage =
         teamId === null
-          ? `Hosts successfully removed from fleets.`
+          ? `Hosts successfully removed from teams.`
           : `Hosts successfully transferred to  ${transferTeam.name}.`;
 
       notify.success(successMessage);
@@ -1692,7 +1692,7 @@ const ManageHostsPage = ({
       : globalSecrets?.[0]?.secret;
     return (
       <AddHostsModal
-        currentTeamName={currentTeamName || "Fleet"}
+        currentTeamName={currentTeamName || "AutoMDM"}
         enrollSecret={enrollSecret}
         isAnyTeamSelected={isAnyTeamSelected}
         isLoading={isLoadingTeams || isGlobalSecretsLoading}
@@ -1739,7 +1739,7 @@ const ManageHostsPage = ({
           selectedHosts.length === 1 ? selectedHosts[0].display_name : undefined
         }
         platform={sharedTarget?.platform}
-        isMdmEnrolledInFleet={sharedTarget?.isMdmEnrolledInFleet}
+        isMdmEnrolledInTeam={sharedTarget?.isMdmEnrolledInTeam}
         mdmEnrollmentStatus={sharedTarget?.mdmEnrollmentStatus}
         onSubmit={onDeleteHostSubmit}
         onCancel={toggleDeleteHostModal}
@@ -1754,9 +1754,9 @@ const ManageHostsPage = ({
     if (isPremiumTier && !isPrimoMode && userTeams) {
       if (userTeams.length > 1 || isOnGlobalTeam) {
         return (
-          <FleetsDropdown
-            currentUserFleets={userTeams}
-            selectedFleetId={currentTeamId}
+          <AutoMDMsDropdown
+            currentUserTeams={userTeams}
+            selectedAutoMDMId={currentTeamId}
             onChange={onTeamChange}
             includeUnassigned
           />
@@ -1835,10 +1835,10 @@ const ManageHostsPage = ({
       };
 
       if (
-        queryParams.fleet_id !== API_ALL_TEAMS_ID &&
-        queryParams.fleet_id !== ""
+        queryParams.team_id !== API_ALL_TEAMS_ID &&
+        queryParams.team_id !== ""
       ) {
-        options.teamId = queryParams.fleet_id;
+        options.teamId = queryParams.team_id;
       }
 
       try {
@@ -1893,7 +1893,7 @@ const ManageHostsPage = ({
       depProfileError,
       depAssignProfileResponse,
       hiddenColumns,
-      queryParams.fleet_id,
+      queryParams.team_id,
     ]
   );
 
@@ -1903,7 +1903,7 @@ const ManageHostsPage = ({
 
   const includesFilterQueryParam = MANAGE_HOSTS_PAGE_FILTER_KEYS.some(
     (filter) =>
-      filter !== "fleet_id" &&
+      filter !== "team_id" &&
       typeof queryParams === "object" &&
       filter in queryParams // TODO: replace this with `Object.hasOwn(queryParams, filter)` when we upgrade to es2022
   );
@@ -1994,7 +1994,7 @@ const ManageHostsPage = ({
 
     let disableRunScriptBatchTooltipContent: React.ReactNode;
     if (isAllTeamsSelected && isPremiumTier) {
-      disableRunScriptBatchTooltipContent = "Select a fleet to run a script.";
+      disableRunScriptBatchTooltipContent = "Select a team to run a script.";
     } else if (isAllMatchingHostsSelected) {
       if (runScriptBatchFilterNotSupported) {
         disableRunScriptBatchTooltipContent =
@@ -2062,7 +2062,7 @@ const ManageHostsPage = ({
         if (canEnrollHosts) {
           emptyHosts.info = (
             <>
-              Fleet refers to computers, servers, and mobile devices as hosts.
+              AutoMDM refers to computers, servers, and mobile devices as hosts.
               <br />
               Add a host to start seeing data.
             </>
@@ -2074,7 +2074,7 @@ const ManageHostsPage = ({
           );
         } else {
           emptyHosts.info =
-            "Fleet refers to computers, servers, and mobile devices as hosts.";
+            "AutoMDM refers to computers, servers, and mobile devices as hosts.";
           emptyHosts.primaryButton = undefined;
         }
       } else if (isLastPage) {
@@ -2187,7 +2187,7 @@ const ManageHostsPage = ({
             <span>
               You have no enroll secrets. New hosts will not enroll until an
               enroll secret is added to{" "}
-              <b>{isAnyTeamSelected ? currentTeamName : "Fleet"}</b>.
+              <b>{isAnyTeamSelected ? currentTeamName : "AutoMDM"}</b>.
             </span>
           </div>
         </InfoBanner>
@@ -2219,9 +2219,9 @@ const ManageHostsPage = ({
     let automationsTooltip: React.ReactNode;
     if (!isPremiumTier) {
       automationsTooltip =
-        "Activity automations are available in Fleet Premium.";
+        "Activity automations are available in AutoMDM Premium.";
     } else if (isAllTeamsSelected) {
-      automationsTooltip = "Select a fleet to manage activity automations.";
+      automationsTooltip = "Select a team to manage activity automations.";
     }
     hostsPageSettingsOptions.push({
       label: "Activity automations",
@@ -2335,7 +2335,7 @@ const ManageHostsPage = ({
         !isErrorHostActivityAutomations && (
           <HostActivityAutomationsModal
             automationSettings={hostActivityAutomations}
-            fleetName={currentTeamName || "Fleet"}
+            automdmName={currentTeamName || "AutoMDM"}
             onSubmit={updateHostActivityAutomations}
             onExit={toggleHostActivityAutomationsModal}
             isUpdating={isUpdatingHostActivityAutomations}

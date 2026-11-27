@@ -1,8 +1,8 @@
 ### Echo Webhook
 
-A tiny web server you can use as a webhook callback for the MDM migration [end user workflow](https://fleetdm.com/docs/using-fleet/mdm-migration-guide#end-user-workflow)
+A tiny web server you can use as a webhook callback for the MDM migration [end user workflow](https://automdm.com/docs/using-automdm/mdm-migration-guide#end-user-workflow)
 
-This server won't do an actual unenrollment, but instead will print to stdout whatever information it gets from the Fleet server.
+This server won't do an actual unenrollment, but instead will print to stdout whatever information it gets from the AutoMDM server.
 
 This is useful for testing and local development.
 
@@ -14,4 +14,4 @@ This is useful for testing and local development.
 go run tools/mdm/migration/echo/main.go
 ```
 
-4. Configure Fleet to send a webhook to your web server.
+4. Configure AutoMDM to send a webhook to your web server.

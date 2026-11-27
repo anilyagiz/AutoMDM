@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/pkg/nettest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/winoffice"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/pkg/nettest"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/winoffice"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -18,7 +18,7 @@ import (
 func TestIntegrationCheckVersion(t *testing.T) {
 	nettest.Run(t)
 
-	client := fleethttp.NewClient(fleethttp.WithTimeout(60 * time.Second))
+	client := automdmhttp.NewClient(automdmhttp.WithTimeout(60 * time.Second))
 
 	bulletin, err := winoffice.FetchBulletin(context.Background(), client)
 	require.NoError(t, err)
@@ -134,9 +134,9 @@ func TestIntegrationCheckVersion(t *testing.T) {
 	})
 }
 
-func assertCVEWithResolution(t *testing.T, vulns []fleet.SoftwareVulnerability, cve, resolvedIn string) {
+func assertCVEWithResolution(t *testing.T, vulns []automdm.SoftwareVulnerability, cve, resolvedIn string) {
 	t.Helper()
-	idx := slices.IndexFunc(vulns, func(v fleet.SoftwareVulnerability) bool {
+	idx := slices.IndexFunc(vulns, func(v automdm.SoftwareVulnerability) bool {
 		return v.CVE == cve
 	})
 	require.NotEqual(t, -1, idx, "CVE %s should be in the list", cve)
@@ -144,9 +144,9 @@ func assertCVEWithResolution(t *testing.T, vulns []fleet.SoftwareVulnerability, 
 	assert.Equal(t, resolvedIn, *vulns[idx].ResolvedInVersion, "CVE %s resolved version mismatch", cve)
 }
 
-func assertCVENotPresent(t *testing.T, vulns []fleet.SoftwareVulnerability, cve string) {
+func assertCVENotPresent(t *testing.T, vulns []automdm.SoftwareVulnerability, cve string) {
 	t.Helper()
-	idx := slices.IndexFunc(vulns, func(v fleet.SoftwareVulnerability) bool {
+	idx := slices.IndexFunc(vulns, func(v automdm.SoftwareVulnerability) bool {
 		return v.CVE == cve
 	})
 	assert.Equal(t, -1, idx, "CVE %s should NOT be in the list (false positive)", cve)

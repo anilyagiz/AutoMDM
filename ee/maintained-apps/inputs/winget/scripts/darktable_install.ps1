@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # darktable ships as an Inno Setup installer (NOT NSIS, despite winget's
 # metadata reporting "nullsoft"). Inno ignores the NSIS "/S" switch and launches

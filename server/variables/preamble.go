@@ -53,7 +53,7 @@ func PowerShellCharArray(value string) string {
 }
 
 // Preamble builds the assignments defining vars, keyed by name without the
-// FLEET_VAR_ prefix. Output is ordered by name.
+// AUTOMDM_VAR_ prefix. Output is ordered by name.
 func Preamble(vars map[string]string, dialect Dialect) string {
 	if len(vars) == 0 || dialect == DialectPython {
 		return ""
@@ -67,7 +67,7 @@ func Preamble(vars map[string]string, dialect Dialect) string {
 	var b strings.Builder
 	if dialect == DialectPowerShell {
 		for _, name := range names {
-			b.WriteString("$FLEET_VAR_")
+			b.WriteString("$AUTOMDM_VAR_")
 			b.WriteString(name)
 			b.WriteString(" = ")
 			b.WriteString(PowerShellCharArray(vars[name]))
@@ -77,15 +77,15 @@ func Preamble(vars map[string]string, dialect Dialect) string {
 	}
 
 	// see PosixQuote: the assignments must parse in a single-byte locale
-	b.WriteString("__fleet_lc=${LC_ALL-}; __fleet_lg=${LANG-}; LC_ALL=C; LANG=C\n")
+	b.WriteString("__automdm_lc=${LC_ALL-}; __automdm_lg=${LANG-}; LC_ALL=C; LANG=C\n")
 	b.WriteString("export")
 	for _, name := range names {
-		b.WriteString(" FLEET_VAR_")
+		b.WriteString(" AUTOMDM_VAR_")
 		b.WriteString(name)
 		b.WriteByte('=')
 		b.WriteString(PosixQuote(vars[name]))
 	}
-	b.WriteString("\nLC_ALL=${__fleet_lc}; LANG=${__fleet_lg}; unset __fleet_lc __fleet_lg\n")
+	b.WriteString("\nLC_ALL=${__automdm_lc}; LANG=${__automdm_lg}; unset __automdm_lc __automdm_lg\n")
 	return b.String()
 }
 
@@ -176,7 +176,7 @@ func powerShellPreamblePos(contents string) (int, error) {
 			if hasKeyword(trimmed, "param") {
 				n, ok := skipParamBlock(trimmed)
 				// a default can't use a variable the preamble defines below it
-				if !ok || strings.Contains(trimmed[:n], "$FLEET_VAR_") {
+				if !ok || strings.Contains(trimmed[:n], "$AUTOMDM_VAR_") {
 					return 0, ErrPowerShellLeadingParamBlock
 				}
 				return startOfNextLine(contents, pos+n), nil

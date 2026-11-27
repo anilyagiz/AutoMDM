@@ -6,70 +6,70 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/installersize"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/installersize"
 	"github.com/google/uuid"
 )
 
 const stagedUploadUnavailableMsg = "Direct upload isn't available on this server."
 
-func (svc *Service) CreateStagedUpload(ctx context.Context, target fleet.StagedUploadTarget, teamID uint, size int64) (*fleet.StagedUpload, error) {
+func (svc *Service) CreateStagedUpload(ctx context.Context, target automdm.StagedUploadTarget, teamID uint, size int64) (*automdm.StagedUpload, error) {
 	var err error
 	switch target {
-	case fleet.StagedUploadTargetBootstrapPackage:
-		err = svc.authz.Authorize(ctx, &fleet.MDMAppleBootstrapPackage{TeamID: teamID}, fleet.ActionWrite)
-	case fleet.StagedUploadTargetSoftwarePackage:
-		err = svc.authz.Authorize(ctx, &fleet.SoftwareInstaller{TeamID: &teamID}, fleet.ActionWrite)
+	case automdm.StagedUploadTargetBootstrapPackage:
+		err = svc.authz.Authorize(ctx, &automdm.MDMAppleBootstrapPackage{TeamID: teamID}, automdm.ActionWrite)
+	case automdm.StagedUploadTargetSoftwarePackage:
+		err = svc.authz.Authorize(ctx, &automdm.SoftwareInstaller{TeamID: &teamID}, automdm.ActionWrite)
 	default:
 		svc.authz.SkipAuthorization(ctx)
-		return nil, &fleet.BadRequestError{Message: fmt.Sprintf("Unsupported upload target %q.", target)}
+		return nil, &automdm.BadRequestError{Message: fmt.Sprintf("Unsupported upload target %q.", target)}
 	}
 	if err != nil {
 		return nil, err
 	}
 
 	if svc.stagedUploadStore == nil {
-		return nil, &fleet.BadRequestError{Message: stagedUploadUnavailableMsg}
+		return nil, &automdm.BadRequestError{Message: stagedUploadUnavailableMsg}
 	}
 	// The installer size middleware only runs on upload routes, so read the config.
 	if size <= 0 {
-		return nil, &fleet.BadRequestError{Message: "size is required and must be greater than 0."}
+		return nil, &automdm.BadRequestError{Message: "size is required and must be greater than 0."}
 	}
 	if maxSize := svc.config.Server.MaxInstallerSizeBytes; size > maxSize {
-		return nil, &fleet.BadRequestError{Message: fmt.Sprintf("The maximum file size is %s.", installersize.Human(maxSize))}
+		return nil, &automdm.BadRequestError{Message: fmt.Sprintf("The maximum file size is %s.", installersize.Human(maxSize))}
 	}
 
 	uploadID := uuid.NewString()
-	url, err := svc.stagedUploadStore.PresignPut(ctx, uploadID, size, fleet.StagedUploadURLExpiry)
+	url, err := svc.stagedUploadStore.PresignPut(ctx, uploadID, size, automdm.StagedUploadURLExpiry)
 	if err != nil {
-		if errors.Is(err, fleet.ErrNotConfigured) {
-			return nil, &fleet.BadRequestError{Message: stagedUploadUnavailableMsg}
+		if errors.Is(err, automdm.ErrNotConfigured) {
+			return nil, &automdm.BadRequestError{Message: stagedUploadUnavailableMsg}
 		}
 		return nil, ctxerr.Wrap(ctx, err, "presign staged upload")
 	}
-	return &fleet.StagedUpload{UploadID: uploadID, URL: url, ExpiresAt: time.Now().Add(fleet.StagedUploadURLExpiry)}, nil
+	return &automdm.StagedUpload{UploadID: uploadID, URL: url, ExpiresAt: time.Now().Add(automdm.StagedUploadURLExpiry)}, nil
 }
 
 // openStagedUpload copies a staged upload into a temp file the caller must close.
-func (svc *Service) openStagedUpload(ctx context.Context, uploadID string) (*fleet.TempFileReader, error) {
+func (svc *Service) openStagedUpload(ctx context.Context, uploadID string) (*automdm.TempFileReader, error) {
 	if svc.stagedUploadStore == nil || !svc.config.StagedUploadAvailable() {
-		return nil, &fleet.BadRequestError{Message: stagedUploadUnavailableMsg}
+		return nil, &automdm.BadRequestError{Message: stagedUploadUnavailableMsg}
 	}
-	// The id becomes part of the object key, so only accept the ids Fleet hands out.
+	// The id becomes part of the object key, so only accept the ids AutoMDM hands out.
 	parsed, err := uuid.Parse(uploadID)
 	if err != nil {
-		return nil, &fleet.BadRequestError{Message: "Invalid upload_id."}
+		return nil, &automdm.BadRequestError{Message: "Invalid upload_id."}
 	}
 	rc, _, err := svc.stagedUploadStore.Get(ctx, parsed.String())
 	if err != nil {
-		if fleet.IsNotFound(err) {
-			return nil, &fleet.BadRequestError{Message: "Upload not found or expired. Please upload the file again."}
+		if automdm.IsNotFound(err) {
+			return nil, &automdm.BadRequestError{Message: "Upload not found or expired. Please upload the file again."}
 		}
 		return nil, ctxerr.Wrap(ctx, err, "get staged upload")
 	}
 	defer rc.Close()
-	tfr, err := fleet.NewTempFileReader(rc, nil)
+	tfr, err := automdm.NewTempFileReader(rc, nil)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "copy staged upload to temp file")
 	}
@@ -78,7 +78,7 @@ func (svc *Service) openStagedUpload(ctx context.Context, uploadID string) (*fle
 
 // finishStagedUpload closes the temp file and, if *err is nil, deletes the
 // staged upload.
-func (svc *Service) finishStagedUpload(ctx context.Context, uploadID string, tfr *fleet.TempFileReader, err *error) {
+func (svc *Service) finishStagedUpload(ctx context.Context, uploadID string, tfr *automdm.TempFileReader, err *error) {
 	tfr.Close()
 	if *err == nil {
 		svc.deleteStagedUpload(ctx, uploadID)

@@ -16,12 +16,12 @@ const baseProps = {
   router: createMockRouter(),
   currentPage: 0,
   params: { section: "disk-encryption" },
-  location: { search: "?fleet_id=5" },
+  location: { search: "?team_id=5" },
 };
 
 // Verifies the gate that keeps OSSettings from firing team-scoped queries
-// against the wrong fleet on refresh, before useTeamIdParam in the parent
-// has resolved the URL to an available fleet.
+// against the wrong team on refresh, before useTeamIdParam in the parent
+// has resolved the URL to an available team.
 describe("OSSettings", () => {
   const render = createCustomRenderer({
     withBackendMock: true,
@@ -34,11 +34,11 @@ describe("OSSettings", () => {
     },
   });
 
-  // The DiskEncryption card (default section) hits /fleets/:id — return an
+  // The DiskEncryption card (default section) hits /teams/:id — return an
   // empty team config so MSW doesn't log unhandled-request warnings.
   beforeEach(() => {
     mockServer.use(
-      http.get(baseUrl("/fleets/:id"), () =>
+      http.get(baseUrl("/teams/:id"), () =>
         HttpResponse.json({ team: { mdm: {} } })
       )
     );

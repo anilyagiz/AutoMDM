@@ -30,7 +30,7 @@ describe("getErrorMessage", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Learn how/ })).toHaveAttribute(
       "href",
-      "https://fleetdm.com/learn-more-about/fleet-server-private-key"
+      "https://automdm.com/learn-more-about/automdm-server-private-key"
     );
   });
 
@@ -58,7 +58,7 @@ describe("getDiskEncryptionSettings", () => {
     linux_settings: { enable_escrow_disk_encryption_key: true },
   };
 
-  it("reads the Apple settings from a single-fleet or config response", () => {
+  it("reads the Apple settings from a single-team or config response", () => {
     expect(
       getDiskEncryptionSettings({
         ...perPlatform,

@@ -11,7 +11,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/dev_mode"
+	"github.com/anilyagiz/automdm/v4/server/dev_mode"
 	"google.golang.org/api/androidmanagement/v1"
 	"google.golang.org/api/option"
 )
@@ -48,9 +48,9 @@ var commands = []string{
 
 func main() {
 	dev_mode.IsEnabled = true
-	androidServiceCredentials = dev_mode.Env("FLEET_DEV_ANDROID_GOOGLE_SERVICE_CREDENTIALS")
+	androidServiceCredentials = dev_mode.Env("AUTOMDM_DEV_ANDROID_GOOGLE_SERVICE_CREDENTIALS")
 	if androidServiceCredentials == "" {
-		log.Fatal("FLEET_DEV_ANDROID_GOOGLE_SERVICE_CREDENTIALS must be set")
+		log.Fatal("AUTOMDM_DEV_ANDROID_GOOGLE_SERVICE_CREDENTIALS must be set")
 	}
 
 	type credentials struct {

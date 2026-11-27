@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mock"
 	"github.com/stretchr/testify/require"
 	"pgregory.net/rapid"
 )
@@ -52,9 +52,9 @@ func newCursorFakeDS(initialHosts []string) (*mock.Store, *cursorFakeState) {
 	state := &cursorFakeState{pending: sorted, visited: map[string]int{}}
 
 	ds := new(mock.Store)
-	stubFleetWindowsProfileEnsure(ds)
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		cfg := &fleet.AppConfig{}
+	stubAutoMDMWindowsProfileEnsure(ds)
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		cfg := &automdm.AppConfig{}
 		cfg.MDM.WindowsEnabledAndConfigured = true
 		return cfg, nil
 	}
@@ -67,16 +67,16 @@ func newCursorFakeDS(initialHosts []string) (*mock.Store, *cursorFakeState) {
 		return nil
 	}
 	ds.GetWindowsProfileReconcileSnapshotFunc = func(ctx context.Context, after string, batch int) (
-		[]*fleet.WindowsHostReconcileInfo,
-		[]*fleet.WindowsProfileForReconcile,
+		[]*automdm.WindowsHostReconcileInfo,
+		[]*automdm.WindowsProfileForReconcile,
 		map[uint]map[uint]struct{},
-		map[string][]*fleet.MDMWindowsProfilePayload,
+		map[string][]*automdm.MDMWindowsProfilePayload,
 		error,
 	) {
-		var window []*fleet.WindowsHostReconcileInfo
+		var window []*automdm.WindowsHostReconcileInfo
 		for i, h := range state.pending {
 			if h > after {
-				window = append(window, &fleet.WindowsHostReconcileInfo{HostID: uint(i + 1), UUID: h}) //nolint:gosec
+				window = append(window, &automdm.WindowsHostReconcileInfo{HostID: uint(i + 1), UUID: h}) //nolint:gosec
 				if len(window) == batch {
 					break
 				}
@@ -90,13 +90,13 @@ func newCursorFakeDS(initialHosts []string) (*mock.Store, *cursorFakeState) {
 		}
 		// One global, label-less profile so every host in the window computes as exactly one install (current state is empty), so
 		// each host counts once against the per-tick delivery cap.
-		profiles := []*fleet.WindowsProfileForReconcile{
+		profiles := []*automdm.WindowsProfileForReconcile{
 			{ProfileUUID: "p-global", ProfileName: "Global", TeamID: 0, Checksum: []byte("c")},
 		}
-		return window, profiles, nil, map[string][]*fleet.MDMWindowsProfilePayload{}, nil
+		return window, profiles, nil, map[string][]*automdm.MDMWindowsProfilePayload{}, nil
 	}
-	ds.GetMDMWindowsProfilesContentsFunc = func(ctx context.Context, uuids []string) (map[string]fleet.MDMWindowsProfileContents, error) {
-		return map[string]fleet.MDMWindowsProfileContents{}, nil
+	ds.GetMDMWindowsProfilesContentsFunc = func(ctx context.Context, uuids []string) (map[string]automdm.MDMWindowsProfileContents, error) {
+		return map[string]automdm.MDMWindowsProfileContents{}, nil
 	}
 	// Report the profile as gone so the install loop short-circuits without enqueueing commands; the cursor protocol is unaffected.
 	ds.GetExistingMDMWindowsProfileUUIDsFunc = func(ctx context.Context, uuids []string) (map[string]struct{}, error) {
@@ -104,16 +104,16 @@ func newCursorFakeDS(initialHosts []string) (*mock.Store, *cursorFakeState) {
 	}
 	// The body unconditionally calls these two upserts at the end of every window it executes (even with an empty payload). Stub them
 	// as no-ops.
-	ds.BulkUpsertMDMWindowsHostProfilesFunc = func(ctx context.Context, payload []*fleet.MDMWindowsBulkUpsertHostProfilePayload) error {
+	ds.BulkUpsertMDMWindowsHostProfilesFunc = func(ctx context.Context, payload []*automdm.MDMWindowsBulkUpsertHostProfilePayload) error {
 		return nil
 	}
-	ds.BulkUpsertMDMManagedCertificatesFunc = func(ctx context.Context, payload []*fleet.MDMManagedCertificate) error {
+	ds.BulkUpsertMDMManagedCertificatesFunc = func(ctx context.Context, payload []*automdm.MDMManagedCertificate) error {
 		return nil
 	}
 	// GetGroupedCertificateAuthorities is called whenever a window has work. Return a zero-value struct so the dependent maps are
 	// empty and the rest of the body short-circuits.
-	ds.GetGroupedCertificateAuthoritiesFunc = func(ctx context.Context, includeSecrets bool) (*fleet.GroupedCertificateAuthorities, error) {
-		return &fleet.GroupedCertificateAuthorities{}, nil
+	ds.GetGroupedCertificateAuthoritiesFunc = func(ctx context.Context, includeSecrets bool) (*automdm.GroupedCertificateAuthorities, error) {
+		return &automdm.GroupedCertificateAuthorities{}, nil
 	}
 	return ds, state
 }
@@ -249,24 +249,24 @@ func TestPBT_ReconcileWindowsProfilesFailureNoAdvance(t *testing.T) {
 		switch failurePoint {
 		case "GetWindowsProfileReconcileSnapshot":
 			ds.GetWindowsProfileReconcileSnapshotFunc = func(ctx context.Context, after string, batch int) (
-				[]*fleet.WindowsHostReconcileInfo,
-				[]*fleet.WindowsProfileForReconcile,
+				[]*automdm.WindowsHostReconcileInfo,
+				[]*automdm.WindowsProfileForReconcile,
 				map[uint]map[uint]struct{},
-				map[string][]*fleet.MDMWindowsProfilePayload,
+				map[string][]*automdm.MDMWindowsProfilePayload,
 				error,
 			) {
 				return nil, nil, nil, nil, simErr
 			}
 		case "GetMDMWindowsProfilesContents":
-			ds.GetMDMWindowsProfilesContentsFunc = func(ctx context.Context, uuids []string) (map[string]fleet.MDMWindowsProfileContents, error) {
+			ds.GetMDMWindowsProfilesContentsFunc = func(ctx context.Context, uuids []string) (map[string]automdm.MDMWindowsProfileContents, error) {
 				return nil, simErr
 			}
 		case "GetGroupedCertificateAuthorities":
-			ds.GetGroupedCertificateAuthoritiesFunc = func(ctx context.Context, includeSecrets bool) (*fleet.GroupedCertificateAuthorities, error) {
+			ds.GetGroupedCertificateAuthoritiesFunc = func(ctx context.Context, includeSecrets bool) (*automdm.GroupedCertificateAuthorities, error) {
 				return nil, simErr
 			}
 		case "BulkUpsertMDMWindowsHostProfiles":
-			ds.BulkUpsertMDMWindowsHostProfilesFunc = func(ctx context.Context, payload []*fleet.MDMWindowsBulkUpsertHostProfilePayload) error {
+			ds.BulkUpsertMDMWindowsHostProfilesFunc = func(ctx context.Context, payload []*automdm.MDMWindowsBulkUpsertHostProfilePayload) error {
 				return simErr
 			}
 		}
@@ -309,12 +309,12 @@ func TestPBT_ReconcileWindowsProfilesFailureNoAdvanceMultiWindow(t *testing.T) {
 		// succeed.
 		simErr := errors.New("simulated failure")
 		contentsCalls := 0
-		ds.GetMDMWindowsProfilesContentsFunc = func(ctx context.Context, uuids []string) (map[string]fleet.MDMWindowsProfileContents, error) {
+		ds.GetMDMWindowsProfilesContentsFunc = func(ctx context.Context, uuids []string) (map[string]automdm.MDMWindowsProfileContents, error) {
 			contentsCalls++
 			if contentsCalls == failWindow {
 				return nil, simErr
 			}
-			return map[string]fleet.MDMWindowsProfileContents{}, nil
+			return map[string]automdm.MDMWindowsProfileContents{}, nil
 		}
 
 		err := ReconcileWindowsProfiles(t.Context(), ds, pbtLogger, false)

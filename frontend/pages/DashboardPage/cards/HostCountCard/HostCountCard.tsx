@@ -42,7 +42,7 @@ const HostCountCard = ({
     <Icon
       name={iconName}
       size="large-card"
-      color="ui-fleet-black-75"
+      color="ui-automdm-black-75"
       className={`${baseClass}__card-icon`}
     />
   );

@@ -9,55 +9,55 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/optjson"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/pkg/optjson"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestGetFleetDesktopSummary(t *testing.T) {
+func TestGetAutoMDMDesktopSummary(t *testing.T) {
 	t.Run("free implementation", func(t *testing.T) {
 		ds := new(mock.Store)
 		svc, ctx := newTestService(t, ds, nil, nil)
-		sum, err := svc.GetFleetDesktopSummary(ctx)
-		require.ErrorIs(t, err, fleet.ErrMissingLicense)
+		sum, err := svc.GetAutoMDMDesktopSummary(ctx)
+		require.ErrorIs(t, err, automdm.ErrMissingLicense)
 		require.Empty(t, sum)
 	})
 
 	t.Run("alternative browser host URL gets mapped from app config", func(t *testing.T) {
 		ds := new(mock.Store)
-		license := &fleet.LicenseInfo{Tier: fleet.TierPremium, Expiration: time.Now().Add(24 * time.Hour)}
+		license := &automdm.LicenseInfo{Tier: automdm.TierPremium, Expiration: time.Now().Add(24 * time.Hour)}
 		svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: license, SkipCreateTestUsers: true})
 
-		ds.IsHostConnectedToFleetMDMFunc = func(ctx context.Context, host *fleet.Host) (bool, error) {
+		ds.IsHostConnectedToAutoMDMMDMFunc = func(ctx context.Context, host *automdm.Host) (bool, error) {
 			return false, nil
 		}
-		ds.GetHostMDMFunc = func(ctx context.Context, hostID uint) (*fleet.HostMDM, error) {
+		ds.GetHostMDMFunc = func(ctx context.Context, hostID uint) (*automdm.HostMDM, error) {
 			return nil, nil
 		}
 		ds.HasSelfServiceSoftwareInstallersFunc = func(ctx context.Context, platform string, teamID *uint) (bool, error) {
 			return false, nil
 		}
-		ds.FailingPoliciesCountFunc = func(ctx context.Context, host *fleet.Host) (uint, uint, error) {
+		ds.FailingPoliciesCountFunc = func(ctx context.Context, host *automdm.Host) (uint, uint, error) {
 			return uint(0), uint(0), nil
 		}
 
 		testCases := []struct {
 			name                   string
-			appCfg                 fleet.AppConfig
+			appCfg                 automdm.AppConfig
 			expectedBrowserHostURL string
 		}{
 			{
 				name:                   "empty app config",
-				appCfg:                 fleet.AppConfig{},
+				appCfg:                 automdm.AppConfig{},
 				expectedBrowserHostURL: "",
 			},
 			{
 				name: "with some value stored",
-				appCfg: fleet.AppConfig{FleetDesktop: fleet.FleetDesktopSettings{
+				appCfg: automdm.AppConfig{AutoMDMDesktop: automdm.AutoMDMDesktopSettings{
 					AlternativeBrowserHost: "https://example.com",
 				}},
 				expectedBrowserHostURL: "https://example.com",
@@ -65,14 +65,14 @@ func TestGetFleetDesktopSummary(t *testing.T) {
 		}
 		for _, tc := range testCases {
 			c := tc
-			ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
+			ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
 				return &c.appCfg, nil
 			}
 
-			ctx := test.HostContext(ctx, &fleet.Host{
+			ctx := test.HostContext(ctx, &automdm.Host{
 				OsqueryHostID: ptr.String("test"),
 			})
-			sum, err := svc.GetFleetDesktopSummary(ctx)
+			sum, err := svc.GetAutoMDMDesktopSummary(ctx)
 			require.NoError(t, err)
 			require.Equal(t, tc.expectedBrowserHostURL, sum.AlternativeBrowserHost)
 		}
@@ -80,9 +80,9 @@ func TestGetFleetDesktopSummary(t *testing.T) {
 
 	t.Run("different app config values for managed host", func(t *testing.T) {
 		ds := new(mock.Store)
-		license := &fleet.LicenseInfo{Tier: fleet.TierPremium, Expiration: time.Now().Add(24 * time.Hour)}
+		license := &automdm.LicenseInfo{Tier: automdm.TierPremium, Expiration: time.Now().Add(24 * time.Hour)}
 		svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: license, SkipCreateTestUsers: true})
-		ds.FailingPoliciesCountFunc = func(ctx context.Context, host *fleet.Host) (uint, uint, error) {
+		ds.FailingPoliciesCountFunc = func(ctx context.Context, host *automdm.Host) (uint, uint, error) {
 			return uint(1), uint(1), nil
 		}
 		const expectedPlatform = "darwin"
@@ -92,71 +92,71 @@ func TestGetFleetDesktopSummary(t *testing.T) {
 		}
 
 		cases := []struct {
-			mdm         fleet.MDM
+			mdm         automdm.MDM
 			depAssigned bool
-			out         fleet.DesktopNotifications
+			out         automdm.DesktopNotifications
 		}{
 			{
-				mdm: fleet.MDM{
+				mdm: automdm.MDM{
 					EnabledAndConfigured: true,
-					MacOSMigration: fleet.MacOSMigration{
+					MacOSMigration: automdm.MacOSMigration{
 						Enable: true,
 					},
 				},
 				depAssigned: true,
-				out: fleet.DesktopNotifications{
+				out: automdm.DesktopNotifications{
 					NeedsMDMMigration:      true,
 					RenewEnrollmentProfile: false,
 				},
 			},
 			{
-				mdm: fleet.MDM{
+				mdm: automdm.MDM{
 					EnabledAndConfigured: true,
-					MacOSMigration: fleet.MacOSMigration{
+					MacOSMigration: automdm.MacOSMigration{
 						Enable: true,
 					},
 				},
 				depAssigned: false,
-				out: fleet.DesktopNotifications{
+				out: automdm.DesktopNotifications{
 					NeedsMDMMigration:      false,
 					RenewEnrollmentProfile: false,
 				},
 			},
 			{
-				mdm: fleet.MDM{
+				mdm: automdm.MDM{
 					EnabledAndConfigured: false,
-					MacOSMigration: fleet.MacOSMigration{
+					MacOSMigration: automdm.MacOSMigration{
 						Enable: true,
 					},
 				},
 				depAssigned: true,
-				out: fleet.DesktopNotifications{
+				out: automdm.DesktopNotifications{
 					NeedsMDMMigration:      false,
 					RenewEnrollmentProfile: false,
 				},
 			},
 			{
-				mdm: fleet.MDM{
+				mdm: automdm.MDM{
 					EnabledAndConfigured: true,
-					MacOSMigration: fleet.MacOSMigration{
+					MacOSMigration: automdm.MacOSMigration{
 						Enable: false,
 					},
 				},
 				depAssigned: true,
-				out: fleet.DesktopNotifications{
+				out: automdm.DesktopNotifications{
 					NeedsMDMMigration:      false,
 					RenewEnrollmentProfile: false,
 				},
 			},
 			{
-				mdm: fleet.MDM{
+				mdm: automdm.MDM{
 					EnabledAndConfigured: false,
-					MacOSMigration: fleet.MacOSMigration{
+					MacOSMigration: automdm.MacOSMigration{
 						Enable: false,
 					},
 				},
 				depAssigned: true,
-				out: fleet.DesktopNotifications{
+				out: automdm.DesktopNotifications{
 					NeedsMDMMigration:      false,
 					RenewEnrollmentProfile: false,
 				},
@@ -165,31 +165,31 @@ func TestGetFleetDesktopSummary(t *testing.T) {
 
 		for _, c := range cases {
 			c := c
-			ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-				appCfg := fleet.AppConfig{}
+			ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+				appCfg := automdm.AppConfig{}
 				appCfg.MDM = c.mdm
 				return &appCfg, nil
 			}
 
-			ds.IsHostConnectedToFleetMDMFunc = func(ctx context.Context, host *fleet.Host) (bool, error) {
+			ds.IsHostConnectedToAutoMDMMDMFunc = func(ctx context.Context, host *automdm.Host) (bool, error) {
 				return false, nil
 			}
-			ds.GetHostMDMFunc = func(ctx context.Context, hostID uint) (*fleet.HostMDM, error) {
-				return &fleet.HostMDM{
+			ds.GetHostMDMFunc = func(ctx context.Context, hostID uint) (*automdm.HostMDM, error) {
+				return &automdm.HostMDM{
 					IsServer:               false,
 					InstalledFromDep:       true,
 					Enrolled:               true,
-					Name:                   fleet.WellKnownMDMIntune,
-					DEPProfileAssignStatus: ptr.String(string(fleet.DEPAssignProfileResponseSuccess)),
+					Name:                   automdm.WellKnownMDMIntune,
+					DEPProfileAssignStatus: ptr.String(string(automdm.DEPAssignProfileResponseSuccess)),
 				}, nil
 			}
 
-			ctx := test.HostContext(ctx, &fleet.Host{
-				OsqueryHostID:      ptr.String("test"),
-				DEPAssignedToFleet: &c.depAssigned,
-				Platform:           expectedPlatform,
+			ctx := test.HostContext(ctx, &automdm.Host{
+				OsqueryHostID:        ptr.String("test"),
+				DEPAssignedToAutoMDM: &c.depAssigned,
+				Platform:             expectedPlatform,
 			})
-			sum, err := svc.GetFleetDesktopSummary(ctx)
+			sum, err := svc.GetAutoMDMDesktopSummary(ctx)
 			require.NoError(t, err)
 			require.Equal(t, c.out, sum.Notifications, fmt.Sprintf("enabled_and_configured: %t | macos_migration.enable: %t", c.mdm.EnabledAndConfigured, c.mdm.MacOSMigration.Enable))
 			require.EqualValues(t, 1, *sum.FailingPolicies)
@@ -199,101 +199,101 @@ func TestGetFleetDesktopSummary(t *testing.T) {
 
 	t.Run("different app config values for unmanaged host", func(t *testing.T) {
 		ds := new(mock.Store)
-		license := &fleet.LicenseInfo{Tier: fleet.TierPremium, Expiration: time.Now().Add(24 * time.Hour)}
+		license := &automdm.LicenseInfo{Tier: automdm.TierPremium, Expiration: time.Now().Add(24 * time.Hour)}
 		svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: license, SkipCreateTestUsers: true})
-		ds.FailingPoliciesCountFunc = func(ctx context.Context, host *fleet.Host) (uint, uint, error) {
+		ds.FailingPoliciesCountFunc = func(ctx context.Context, host *automdm.Host) (uint, uint, error) {
 			return uint(1), uint(1), nil
 		}
 		ds.HasSelfServiceSoftwareInstallersFunc = func(ctx context.Context, platform string, teamID *uint) (bool, error) {
 			return true, nil
 		}
 		cases := []struct {
-			mdm         fleet.MDM
+			mdm         automdm.MDM
 			depAssigned bool
-			out         fleet.DesktopNotifications
+			out         automdm.DesktopNotifications
 		}{
 			{
-				mdm: fleet.MDM{
+				mdm: automdm.MDM{
 					EnabledAndConfigured: true,
-					MacOSMigration: fleet.MacOSMigration{
+					MacOSMigration: automdm.MacOSMigration{
 						Enable: true,
 					},
 				},
 				depAssigned: true,
-				out: fleet.DesktopNotifications{
+				out: automdm.DesktopNotifications{
 					NeedsMDMMigration:      false,
 					RenewEnrollmentProfile: true,
 				},
 			},
 			{
-				mdm: fleet.MDM{
+				mdm: automdm.MDM{
 					EnabledAndConfigured: false,
-					MacOSMigration: fleet.MacOSMigration{
+					MacOSMigration: automdm.MacOSMigration{
 						Enable: true,
 					},
 				},
 				depAssigned: true,
-				out: fleet.DesktopNotifications{
+				out: automdm.DesktopNotifications{
 					NeedsMDMMigration:      false,
 					RenewEnrollmentProfile: false,
 				},
 			},
 			{
-				mdm: fleet.MDM{
+				mdm: automdm.MDM{
 					EnabledAndConfigured: true,
-					MacOSMigration: fleet.MacOSMigration{
+					MacOSMigration: automdm.MacOSMigration{
 						Enable: false,
 					},
 				},
 				depAssigned: true,
-				out: fleet.DesktopNotifications{
+				out: automdm.DesktopNotifications{
 					NeedsMDMMigration:      false,
 					RenewEnrollmentProfile: false,
 				},
 			},
 			{
-				mdm: fleet.MDM{
+				mdm: automdm.MDM{
 					EnabledAndConfigured: false,
-					MacOSMigration: fleet.MacOSMigration{
+					MacOSMigration: automdm.MacOSMigration{
 						Enable: false,
 					},
 				},
 				depAssigned: true,
-				out: fleet.DesktopNotifications{
+				out: automdm.DesktopNotifications{
 					NeedsMDMMigration:      false,
 					RenewEnrollmentProfile: false,
 				},
 			},
 		}
 
-		mdmInfo := &fleet.HostMDM{
+		mdmInfo := &automdm.HostMDM{
 			IsServer:               false,
 			InstalledFromDep:       true,
 			Enrolled:               false,
-			Name:                   fleet.WellKnownMDMFleet,
-			DEPProfileAssignStatus: ptr.String(string(fleet.DEPAssignProfileResponseSuccess)),
+			Name:                   automdm.WellKnownMDMAutoMDM,
+			DEPProfileAssignStatus: ptr.String(string(automdm.DEPAssignProfileResponseSuccess)),
 		}
 
 		for _, c := range cases {
 			c := c
-			ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-				appCfg := fleet.AppConfig{}
+			ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+				appCfg := automdm.AppConfig{}
 				appCfg.MDM = c.mdm
 				return &appCfg, nil
 			}
-			ds.IsHostConnectedToFleetMDMFunc = func(ctx context.Context, host *fleet.Host) (bool, error) {
+			ds.IsHostConnectedToAutoMDMMDMFunc = func(ctx context.Context, host *automdm.Host) (bool, error) {
 				return false, nil
 			}
 
-			ds.GetHostMDMFunc = func(ctx context.Context, hostID uint) (*fleet.HostMDM, error) {
+			ds.GetHostMDMFunc = func(ctx context.Context, hostID uint) (*automdm.HostMDM, error) {
 				return mdmInfo, nil
 			}
 
-			ctx = test.HostContext(ctx, &fleet.Host{
-				OsqueryHostID:      ptr.String("test"),
-				DEPAssignedToFleet: &c.depAssigned,
+			ctx = test.HostContext(ctx, &automdm.Host{
+				OsqueryHostID:        ptr.String("test"),
+				DEPAssignedToAutoMDM: &c.depAssigned,
 			})
-			sum, err := svc.GetFleetDesktopSummary(ctx)
+			sum, err := svc.GetAutoMDMDesktopSummary(ctx)
 			require.NoError(t, err)
 			require.Equal(t, c.out, sum.Notifications, fmt.Sprintf("enabled_and_configured: %t | macos_migration.enable: %t", c.mdm.EnabledAndConfigured, c.mdm.MacOSMigration.Enable))
 			require.EqualValues(t, 1, *sum.FailingPolicies)
@@ -302,21 +302,21 @@ func TestGetFleetDesktopSummary(t *testing.T) {
 
 	t.Run("different host attributes", func(t *testing.T) {
 		ds := new(mock.Store)
-		license := &fleet.LicenseInfo{Tier: fleet.TierPremium, Expiration: time.Now().Add(24 * time.Hour)}
+		license := &automdm.LicenseInfo{Tier: automdm.TierPremium, Expiration: time.Now().Add(24 * time.Hour)}
 		svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: license, SkipCreateTestUsers: true})
 
 		// context without a host
-		sum, err := svc.GetFleetDesktopSummary(ctx)
+		sum, err := svc.GetAutoMDMDesktopSummary(ctx)
 		require.Empty(t, sum)
-		var authErr *fleet.AuthRequiredError
+		var authErr *automdm.AuthRequiredError
 		require.ErrorAs(t, err, &authErr)
 
-		ds.FailingPoliciesCountFunc = func(ctx context.Context, host *fleet.Host) (uint, uint, error) {
+		ds.FailingPoliciesCountFunc = func(ctx context.Context, host *automdm.Host) (uint, uint, error) {
 			return uint(1), uint(1), nil
 		}
 
-		ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-			appCfg := fleet.AppConfig{}
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			appCfg := automdm.AppConfig{}
 			appCfg.MDM.EnabledAndConfigured = true
 			appCfg.MDM.MacOSMigration.Enable = true
 			return &appCfg, nil
@@ -328,187 +328,187 @@ func TestGetFleetDesktopSummary(t *testing.T) {
 
 		cases := []struct {
 			name    string
-			host    *fleet.Host
-			hostMDM *fleet.HostMDM
+			host    *automdm.Host
+			hostMDM *automdm.HostMDM
 			err     error
-			out     fleet.DesktopNotifications
+			out     automdm.DesktopNotifications
 		}{
 			{
 				name: "not enrolled into osquery",
-				host: &fleet.Host{OsqueryHostID: nil},
+				host: &automdm.Host{OsqueryHostID: nil},
 				err:  nil,
-				out: fleet.DesktopNotifications{
+				out: automdm.DesktopNotifications{
 					NeedsMDMMigration:      false,
 					RenewEnrollmentProfile: false,
 				},
 			},
 			{
 				name: "manually enrolled into another MDM",
-				host: &fleet.Host{
-					OsqueryHostID:      ptr.String("test"),
-					DEPAssignedToFleet: ptr.Bool(false),
+				host: &automdm.Host{
+					OsqueryHostID:        ptr.String("test"),
+					DEPAssignedToAutoMDM: ptr.Bool(false),
 				},
-				hostMDM: &fleet.HostMDM{
+				hostMDM: &automdm.HostMDM{
 					IsServer:               false,
 					InstalledFromDep:       false,
 					Enrolled:               true,
-					Name:                   fleet.WellKnownMDMIntune,
-					DEPProfileAssignStatus: ptr.String(string(fleet.DEPAssignProfileResponseSuccess)),
+					Name:                   automdm.WellKnownMDMIntune,
+					DEPProfileAssignStatus: ptr.String(string(automdm.DEPAssignProfileResponseSuccess)),
 				},
 				err: nil,
-				out: fleet.DesktopNotifications{
+				out: automdm.DesktopNotifications{
 					NeedsMDMMigration:      false,
 					RenewEnrollmentProfile: false,
 				},
 			},
 			{
 				name: "DEP capable, but already unenrolled",
-				host: &fleet.Host{
-					DEPAssignedToFleet: ptr.Bool(true),
-					OsqueryHostID:      ptr.String("test"),
+				host: &automdm.Host{
+					DEPAssignedToAutoMDM: ptr.Bool(true),
+					OsqueryHostID:        ptr.String("test"),
 				},
-				hostMDM: &fleet.HostMDM{
+				hostMDM: &automdm.HostMDM{
 					IsServer:               false,
 					InstalledFromDep:       true,
 					Enrolled:               false,
-					Name:                   fleet.WellKnownMDMFleet,
-					DEPProfileAssignStatus: ptr.String(string(fleet.DEPAssignProfileResponseSuccess)),
+					Name:                   automdm.WellKnownMDMAutoMDM,
+					DEPProfileAssignStatus: ptr.String(string(automdm.DEPAssignProfileResponseSuccess)),
 				},
 				err: nil,
-				out: fleet.DesktopNotifications{
+				out: automdm.DesktopNotifications{
 					NeedsMDMMigration:      false,
 					RenewEnrollmentProfile: true,
 				},
 			},
 			{
-				name: "DEP capable, but enrolled into Fleet",
-				host: &fleet.Host{
-					DEPAssignedToFleet: ptr.Bool(true),
-					OsqueryHostID:      ptr.String("test"),
+				name: "DEP capable, but enrolled into AutoMDM",
+				host: &automdm.Host{
+					DEPAssignedToAutoMDM: ptr.Bool(true),
+					OsqueryHostID:        ptr.String("test"),
 				},
-				hostMDM: &fleet.HostMDM{
+				hostMDM: &automdm.HostMDM{
 					IsServer:               false,
 					InstalledFromDep:       true,
 					Enrolled:               true,
-					Name:                   fleet.WellKnownMDMFleet,
-					DEPProfileAssignStatus: ptr.String(string(fleet.DEPAssignProfileResponseSuccess)),
+					Name:                   automdm.WellKnownMDMAutoMDM,
+					DEPProfileAssignStatus: ptr.String(string(automdm.DEPAssignProfileResponseSuccess)),
 				},
 				err: nil,
-				out: fleet.DesktopNotifications{
+				out: automdm.DesktopNotifications{
 					NeedsMDMMigration:      false,
 					RenewEnrollmentProfile: false,
 				},
 			},
 			{
 				name: "failed ADE assignment status",
-				host: &fleet.Host{
-					DEPAssignedToFleet: ptr.Bool(true),
-					OsqueryHostID:      ptr.String("test"),
+				host: &automdm.Host{
+					DEPAssignedToAutoMDM: ptr.Bool(true),
+					OsqueryHostID:        ptr.String("test"),
 				},
-				hostMDM: &fleet.HostMDM{
+				hostMDM: &automdm.HostMDM{
 					IsServer:               false,
 					InstalledFromDep:       true,
 					Enrolled:               true,
-					Name:                   fleet.WellKnownMDMIntune,
-					DEPProfileAssignStatus: ptr.String(string(fleet.DEPAssignProfileResponseFailed)),
+					Name:                   automdm.WellKnownMDMIntune,
+					DEPProfileAssignStatus: ptr.String(string(automdm.DEPAssignProfileResponseFailed)),
 				},
 				err: nil,
-				out: fleet.DesktopNotifications{
+				out: automdm.DesktopNotifications{
 					NeedsMDMMigration:      false,
 					RenewEnrollmentProfile: false,
 				},
 			},
 			{
 				name: "throttled ADE assignment status",
-				host: &fleet.Host{
-					DEPAssignedToFleet: ptr.Bool(true),
-					OsqueryHostID:      ptr.String("test"),
+				host: &automdm.Host{
+					DEPAssignedToAutoMDM: ptr.Bool(true),
+					OsqueryHostID:        ptr.String("test"),
 				},
-				hostMDM: &fleet.HostMDM{
+				hostMDM: &automdm.HostMDM{
 					IsServer:               false,
 					InstalledFromDep:       true,
 					Enrolled:               true,
-					Name:                   fleet.WellKnownMDMIntune,
-					DEPProfileAssignStatus: ptr.String(string(fleet.DEPAssignProfileResponseThrottled)),
+					Name:                   automdm.WellKnownMDMIntune,
+					DEPProfileAssignStatus: ptr.String(string(automdm.DEPAssignProfileResponseThrottled)),
 				},
 				err: nil,
-				out: fleet.DesktopNotifications{
+				out: automdm.DesktopNotifications{
 					NeedsMDMMigration:      false,
 					RenewEnrollmentProfile: false,
 				},
 			},
 			{
 				name: "not accessible ADE assignment status",
-				host: &fleet.Host{
-					DEPAssignedToFleet: ptr.Bool(true),
-					OsqueryHostID:      ptr.String("test"),
+				host: &automdm.Host{
+					DEPAssignedToAutoMDM: ptr.Bool(true),
+					OsqueryHostID:        ptr.String("test"),
 				},
-				hostMDM: &fleet.HostMDM{
+				hostMDM: &automdm.HostMDM{
 					IsServer:               false,
 					InstalledFromDep:       true,
 					Enrolled:               true,
-					Name:                   fleet.WellKnownMDMIntune,
-					DEPProfileAssignStatus: ptr.String(string(fleet.DEPAssignProfileResponseNotAccessible)),
+					Name:                   automdm.WellKnownMDMIntune,
+					DEPProfileAssignStatus: ptr.String(string(automdm.DEPAssignProfileResponseNotAccessible)),
 				},
 				err: nil,
-				out: fleet.DesktopNotifications{
+				out: automdm.DesktopNotifications{
 					NeedsMDMMigration:      false,
 					RenewEnrollmentProfile: false,
 				},
 			},
 			{
 				name: "empty ADE assignment status",
-				host: &fleet.Host{
-					DEPAssignedToFleet: ptr.Bool(true),
-					OsqueryHostID:      ptr.String("test"),
+				host: &automdm.Host{
+					DEPAssignedToAutoMDM: ptr.Bool(true),
+					OsqueryHostID:        ptr.String("test"),
 				},
-				hostMDM: &fleet.HostMDM{
+				hostMDM: &automdm.HostMDM{
 					IsServer:               false,
 					InstalledFromDep:       true,
 					Enrolled:               true,
-					Name:                   fleet.WellKnownMDMIntune,
+					Name:                   automdm.WellKnownMDMIntune,
 					DEPProfileAssignStatus: ptr.String(""),
 				},
 				err: nil,
-				out: fleet.DesktopNotifications{
+				out: automdm.DesktopNotifications{
 					NeedsMDMMigration:      false,
 					RenewEnrollmentProfile: false,
 				},
 			},
 			{
 				name: "nil ADE assignment status",
-				host: &fleet.Host{
-					DEPAssignedToFleet: ptr.Bool(true),
-					OsqueryHostID:      ptr.String("test"),
+				host: &automdm.Host{
+					DEPAssignedToAutoMDM: ptr.Bool(true),
+					OsqueryHostID:        ptr.String("test"),
 				},
-				hostMDM: &fleet.HostMDM{
+				hostMDM: &automdm.HostMDM{
 					IsServer:               false,
 					InstalledFromDep:       true,
 					Enrolled:               true,
-					Name:                   fleet.WellKnownMDMIntune,
+					Name:                   automdm.WellKnownMDMIntune,
 					DEPProfileAssignStatus: nil,
 				},
 				err: nil,
-				out: fleet.DesktopNotifications{
+				out: automdm.DesktopNotifications{
 					NeedsMDMMigration:      false,
 					RenewEnrollmentProfile: false,
 				},
 			},
 			{
 				name: "all conditions met",
-				host: &fleet.Host{
-					DEPAssignedToFleet: ptr.Bool(true),
-					OsqueryHostID:      ptr.String("test"),
+				host: &automdm.Host{
+					DEPAssignedToAutoMDM: ptr.Bool(true),
+					OsqueryHostID:        ptr.String("test"),
 				},
-				hostMDM: &fleet.HostMDM{
+				hostMDM: &automdm.HostMDM{
 					IsServer:               false,
 					InstalledFromDep:       true,
 					Enrolled:               true,
-					Name:                   fleet.WellKnownMDMIntune,
-					DEPProfileAssignStatus: ptr.String(string(fleet.DEPAssignProfileResponseSuccess)),
+					Name:                   automdm.WellKnownMDMIntune,
+					DEPProfileAssignStatus: ptr.String(string(automdm.DEPAssignProfileResponseSuccess)),
 				},
 				err: nil,
-				out: fleet.DesktopNotifications{
+				out: automdm.DesktopNotifications{
 					NeedsMDMMigration:      true,
 					RenewEnrollmentProfile: false,
 				},
@@ -519,18 +519,18 @@ func TestGetFleetDesktopSummary(t *testing.T) {
 			t.Run(c.name, func(t *testing.T) {
 				ctx = test.HostContext(ctx, c.host)
 
-				ds.GetHostMDMFunc = func(ctx context.Context, hostID uint) (*fleet.HostMDM, error) {
+				ds.GetHostMDMFunc = func(ctx context.Context, hostID uint) (*automdm.HostMDM, error) {
 					if c.hostMDM == nil {
 						return nil, sql.ErrNoRows
 					}
 					return c.hostMDM, nil
 				}
 
-				ds.IsHostConnectedToFleetMDMFunc = func(ctx context.Context, host *fleet.Host) (bool, error) {
-					return c.hostMDM != nil && c.hostMDM.Enrolled == true && c.hostMDM.Name == fleet.WellKnownMDMFleet, nil
+				ds.IsHostConnectedToAutoMDMMDMFunc = func(ctx context.Context, host *automdm.Host) (bool, error) {
+					return c.hostMDM != nil && c.hostMDM.Enrolled == true && c.hostMDM.Name == automdm.WellKnownMDMAutoMDM, nil
 				}
 
-				sum, err := svc.GetFleetDesktopSummary(ctx)
+				sum, err := svc.GetAutoMDMDesktopSummary(ctx)
 
 				if c.err != nil {
 					require.ErrorIs(t, err, c.err)
@@ -557,27 +557,27 @@ func TestGetFleetDesktopSummary(t *testing.T) {
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				ds := new(mock.Store)
-				license := &fleet.LicenseInfo{Tier: fleet.TierPremium, Expiration: time.Now().Add(24 * time.Hour)}
+				license := &automdm.LicenseInfo{Tier: automdm.TierPremium, Expiration: time.Now().Add(24 * time.Hour)}
 				svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: license, SkipCreateTestUsers: true})
 				ds.HasSelfServiceSoftwareInstallersFunc = func(ctx context.Context, platform string, teamID *uint) (bool, error) {
 					return false, nil
 				}
-				ds.FailingPoliciesCountFunc = func(ctx context.Context, host *fleet.Host) (uint, uint, error) { return 0, 0, nil }
-				ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-					ac := &fleet.AppConfig{}
+				ds.FailingPoliciesCountFunc = func(ctx context.Context, host *automdm.Host) (uint, uint, error) { return 0, 0, nil }
+				ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+					ac := &automdm.AppConfig{}
 					ac.MDM.WindowsSettings.EnableDiskEncryption = optjson.SetBool(true)
 					ac.MDM.RequireBitLockerPIN = optjson.SetBool(true)
 					return ac, nil
 				}
-				ds.GetMDMWindowsHostConfigStateFunc = func(ctx context.Context, hostUUID string) (*fleet.MDMWindowsHostConfigState, error) {
-					return &fleet.MDMWindowsHostConfigState{FleetdBitLockerPINCapable: true}, nil
+				ds.GetMDMWindowsHostConfigStateFunc = func(ctx context.Context, hostUUID string) (*automdm.MDMWindowsHostConfigState, error) {
+					return &automdm.MDMWindowsHostConfigState{AutoMDMdBitLockerPINCapable: true}, nil
 				}
-				ds.GetMDMWindowsBitLockerStatusFunc = func(ctx context.Context, host *fleet.Host) (*fleet.HostMDMDiskEncryption, error) {
-					return &fleet.HostMDMDiskEncryption{ActionRequired: new(fleet.ActionRequiredCreatePIN)}, tc.statusErr
+				ds.GetMDMWindowsBitLockerStatusFunc = func(ctx context.Context, host *automdm.Host) (*automdm.HostMDMDiskEncryption, error) {
+					return &automdm.HostMDMDiskEncryption{ActionRequired: new(automdm.ActionRequiredCreatePIN)}, tc.statusErr
 				}
 
-				ctx = test.HostContext(ctx, &fleet.Host{ID: 1, UUID: "win-uuid", Platform: "windows", OsqueryHostID: new("win")})
-				sum, err := svc.GetFleetDesktopSummary(ctx)
+				ctx = test.HostContext(ctx, &automdm.Host{ID: 1, UUID: "win-uuid", Platform: "windows", OsqueryHostID: new("win")})
+				sum, err := svc.GetAutoMDMDesktopSummary(ctx)
 				if tc.statusErr != nil {
 					require.ErrorIs(t, err, tc.statusErr)
 					return
@@ -590,39 +590,39 @@ func TestGetFleetDesktopSummary(t *testing.T) {
 }
 
 func TestTriggerLinuxDiskEncryptionEscrow(t *testing.T) {
-	t.Run("unavailable in Fleet Free", func(t *testing.T) {
+	t.Run("unavailable in AutoMDM Free", func(t *testing.T) {
 		ds := new(mock.Store)
 		svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{SkipCreateTestUsers: true})
-		err := svc.TriggerLinuxDiskEncryptionEscrow(ctx, &fleet.Host{ID: 1})
-		require.ErrorIs(t, err, fleet.ErrMissingLicense)
+		err := svc.TriggerLinuxDiskEncryptionEscrow(ctx, &automdm.Host{ID: 1})
+		require.ErrorIs(t, err, automdm.ErrMissingLicense)
 	})
 
 	t.Run("no-op on already pending", func(t *testing.T) {
 		ds := new(mock.Store)
-		svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: &fleet.LicenseInfo{Tier: fleet.TierPremium}, SkipCreateTestUsers: true})
-		ds.GetHostEscrowStateFunc = func(ctx context.Context, hostID uint) (*fleet.HostEscrowState, error) {
-			return &fleet.HostEscrowState{Pending: true}, nil
+		svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: &automdm.LicenseInfo{Tier: automdm.TierPremium}, SkipCreateTestUsers: true})
+		ds.GetHostEscrowStateFunc = func(ctx context.Context, hostID uint) (*automdm.HostEscrowState, error) {
+			return &automdm.HostEscrowState{Pending: true}, nil
 		}
 
-		err := svc.TriggerLinuxDiskEncryptionEscrow(ctx, &fleet.Host{ID: 1})
+		err := svc.TriggerLinuxDiskEncryptionEscrow(ctx, &automdm.Host{ID: 1})
 		require.NoError(t, err)
 		require.True(t, ds.GetHostEscrowStateFuncInvoked)
 	})
 
 	t.Run("conflict while the agent is still prompting for the previous request", func(t *testing.T) {
 		ds := new(mock.Store)
-		svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: &fleet.LicenseInfo{Tier: fleet.TierPremium}, SkipCreateTestUsers: true})
-		ds.GetHostEscrowStateFunc = func(ctx context.Context, hostID uint) (*fleet.HostEscrowState, error) {
+		svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: &automdm.LicenseInfo{Tier: automdm.TierPremium}, SkipCreateTestUsers: true})
+		ds.GetHostEscrowStateFunc = func(ctx context.Context, hostID uint) (*automdm.HostEscrowState, error) {
 			require.Equal(t, uint(1), hostID)
-			since := fleet.LinuxEscrowInFlightWindow - (90*time.Second + 300*time.Millisecond)
-			return &fleet.HostEscrowState{SinceLastActivity: &since}, nil
+			since := automdm.LinuxEscrowInFlightWindow - (90*time.Second + 300*time.Millisecond)
+			return &automdm.HostEscrowState{SinceLastActivity: &since}, nil
 		}
 
-		err := svc.TriggerLinuxDiskEncryptionEscrow(ctx, &fleet.Host{ID: 1})
-		var inFlightErr *fleet.LinuxEscrowInFlightError
+		err := svc.TriggerLinuxDiskEncryptionEscrow(ctx, &automdm.Host{ID: 1})
+		var inFlightErr *automdm.LinuxEscrowInFlightError
 		require.ErrorAs(t, err, &inFlightErr)
 		require.Equal(t, http.StatusConflict, inFlightErr.StatusCode())
-		require.Equal(t, fleet.LinuxEscrowInFlightMessage, inFlightErr.Error())
+		require.Equal(t, automdm.LinuxEscrowInFlightMessage, inFlightErr.Error())
 		// rounded up so the caller never retries a moment too early
 		require.Equal(t, 91, inFlightErr.RetryAfter())
 		require.True(t, ds.GetHostEscrowStateFuncInvoked)
@@ -632,9 +632,9 @@ func TestTriggerLinuxDiskEncryptionEscrow(t *testing.T) {
 
 	t.Run("encryption key is already escrowed", func(t *testing.T) {
 		ds := new(mock.Store)
-		svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: &fleet.LicenseInfo{Tier: fleet.TierPremium}, SkipCreateTestUsers: true})
+		svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: &automdm.LicenseInfo{Tier: automdm.TierPremium}, SkipCreateTestUsers: true})
 		var reportedErrors []string
-		host := &fleet.Host{ID: 1, Platform: "rhel", OSVersion: "Red Hat Enterprise Linux 9.0.0"}
+		host := &automdm.Host{ID: 1, Platform: "rhel", OSVersion: "Red Hat Enterprise Linux 9.0.0"}
 
 		ds.ReportEscrowErrorFunc = func(ctx context.Context, hostID uint, err string) error {
 			require.Equal(t, hostID, host.ID)
@@ -642,11 +642,11 @@ func TestTriggerLinuxDiskEncryptionEscrow(t *testing.T) {
 			return nil
 		}
 
-		orbitInfo := &fleet.HostOrbitInfo{Version: fleet.MinOrbitLUKSVersion}
-		ds.GetHostEscrowStateFunc = func(ctx context.Context, hostID uint) (*fleet.HostEscrowState, error) {
-			return &fleet.HostEscrowState{}, nil
+		orbitInfo := &automdm.HostOrbitInfo{Version: automdm.MinOrbitLUKSVersion}
+		ds.GetHostEscrowStateFunc = func(ctx context.Context, hostID uint) (*automdm.HostEscrowState, error) {
+			return &automdm.HostEscrowState{}, nil
 		}
-		ds.GetHostOrbitInfoFunc = func(ctx context.Context, id uint) (*fleet.HostOrbitInfo, error) {
+		ds.GetHostOrbitInfoFunc = func(ctx context.Context, id uint) (*automdm.HostOrbitInfo, error) {
 			return orbitInfo, nil
 		}
 		ds.AssertHasNoEncryptionKeyStoredFunc = func(ctx context.Context, hostID uint) error {
@@ -660,12 +660,12 @@ func TestTriggerLinuxDiskEncryptionEscrow(t *testing.T) {
 
 	t.Run("validation failures", func(t *testing.T) {
 		ds := new(mock.Store)
-		svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: &fleet.LicenseInfo{Tier: fleet.TierPremium}, SkipCreateTestUsers: true})
-		ds.GetHostEscrowStateFunc = func(ctx context.Context, hostID uint) (*fleet.HostEscrowState, error) {
-			return &fleet.HostEscrowState{}, nil
+		svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: &automdm.LicenseInfo{Tier: automdm.TierPremium}, SkipCreateTestUsers: true})
+		ds.GetHostEscrowStateFunc = func(ctx context.Context, hostID uint) (*automdm.HostEscrowState, error) {
+			return &automdm.HostEscrowState{}, nil
 		}
 		var reportedErrors []string
-		host := &fleet.Host{ID: 1, Platform: "rhel", OSVersion: "Red Hat Enterprise Linux 9.0.0"}
+		host := &automdm.Host{ID: 1, Platform: "rhel", OSVersion: "Red Hat Enterprise Linux 9.0.0"}
 		ds.AssertHasNoEncryptionKeyStoredFunc = func(ctx context.Context, hostID uint) error { return nil }
 		ds.ReportEscrowErrorFunc = func(ctx context.Context, hostID uint, err string) error {
 			require.Equal(t, hostID, host.ID)
@@ -675,42 +675,42 @@ func TestTriggerLinuxDiskEncryptionEscrow(t *testing.T) {
 
 		// invalid platform
 		err := svc.TriggerLinuxDiskEncryptionEscrow(ctx, host)
-		require.ErrorContains(t, err, "Fleet does not yet support creating LUKS disk encryption keys on this platform.")
+		require.ErrorContains(t, err, "AutoMDM does not yet support creating LUKS disk encryption keys on this platform.")
 		require.True(t, ds.GetHostEscrowStateFuncInvoked)
 
-		// Linux distributions Fleet does not escrow for, even though they are recognized platforms
+		// Linux distributions AutoMDM does not escrow for, even though they are recognized platforms
 		unsupportedLinux := []string{"arch", "cachyos", "debian", "pop"}
 		for _, platform := range unsupportedLinux {
 			host.Platform = platform
 			host.OSVersion = platform
 			err = svc.TriggerLinuxDiskEncryptionEscrow(ctx, host)
-			require.ErrorContains(t, err, "Fleet does not yet support creating LUKS disk encryption keys on this platform.", platform)
+			require.ErrorContains(t, err, "AutoMDM does not yet support creating LUKS disk encryption keys on this platform.", platform)
 		}
 
 		// valid platform, no-team, encryption not enabled
 		host.Platform = "rhel"
 		host.OSVersion = "Fedora 32.0.0"
-		appConfig := &fleet.AppConfig{MDM: fleet.MDM{EnableDiskEncryption: optjson.SetBool(false)}}
-		ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
+		appConfig := &automdm.AppConfig{MDM: automdm.MDM{EnableDiskEncryption: optjson.SetBool(false)}}
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
 			return appConfig, nil
 		}
 		err = svc.TriggerLinuxDiskEncryptionEscrow(ctx, host)
-		require.ErrorContains(t, err, "Disk encryption is not enabled for hosts not assigned to a fleet.")
+		require.ErrorContains(t, err, "Disk encryption is not enabled for hosts not assigned to a team.")
 
 		// valid platform, team, encryption not enabled
 		host.TeamID = ptr.Uint(1)
-		teamConfig := &fleet.TeamMDM{}
-		ds.TeamMDMConfigFunc = func(ctx context.Context, teamID uint) (*fleet.TeamMDM, error) {
+		teamConfig := &automdm.TeamMDM{}
+		ds.TeamMDMConfigFunc = func(ctx context.Context, teamID uint) (*automdm.TeamMDM, error) {
 			require.Equal(t, uint(1), teamID)
 			return teamConfig, nil
 		}
 		err = svc.TriggerLinuxDiskEncryptionEscrow(ctx, host)
-		require.ErrorContains(t, err, "Disk encryption is not enabled for this host's fleet.")
+		require.ErrorContains(t, err, "Disk encryption is not enabled for this host's team.")
 
 		// valid platform, team, host disk is not encrypted or unknown encryption state
-		teamConfig = &fleet.TeamMDM{
+		teamConfig = &automdm.TeamMDM{
 			EnableDiskEncryption: true,
-			LinuxSettings:        fleet.LinuxSettings{EnableEscrowDiskEncryptionKey: optjson.SetBool(true)},
+			LinuxSettings:        automdm.LinuxSettings{EnableEscrowDiskEncryptionKey: optjson.SetBool(true)},
 		}
 		err = svc.TriggerLinuxDiskEncryptionEscrow(ctx, host)
 		require.ErrorContains(t, err, "Host's disk is not encrypted. Please encrypt your disk first.")
@@ -718,69 +718,69 @@ func TestTriggerLinuxDiskEncryptionEscrow(t *testing.T) {
 		err = svc.TriggerLinuxDiskEncryptionEscrow(ctx, host)
 		require.ErrorContains(t, err, "Host's disk is not encrypted. Please encrypt your disk first.")
 
-		// No Fleet Desktop
+		// No AutoMDM Desktop
 		host.DiskEncryptionEnabled = ptr.Bool(true)
-		orbitInfo := &fleet.HostOrbitInfo{Version: "1.35.1"}
-		ds.GetHostOrbitInfoFunc = func(ctx context.Context, id uint) (*fleet.HostOrbitInfo, error) {
+		orbitInfo := &automdm.HostOrbitInfo{Version: "1.35.1"}
+		ds.GetHostOrbitInfoFunc = func(ctx context.Context, id uint) (*automdm.HostOrbitInfo, error) {
 			return orbitInfo, nil
 		}
 		err = svc.TriggerLinuxDiskEncryptionEscrow(ctx, host)
-		require.ErrorContains(t, err, "Your version of fleetd does not support creating disk encryption keys on Linux. Please upgrade fleetd, then click Refetch, then try again.")
+		require.ErrorContains(t, err, "Your version of automdmd does not support creating disk encryption keys on Linux. Please upgrade automdmd, then click Refetch, then try again.")
 
 		require.Len(t, reportedErrors, 6+len(unsupportedLinux))
 	})
 
-	t.Run("omarchy requires the fleetd that fixed the Hyprland prompt", func(t *testing.T) {
+	t.Run("omarchy requires the automdmd that fixed the Hyprland prompt", func(t *testing.T) {
 		ds := new(mock.Store)
-		svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: &fleet.LicenseInfo{Tier: fleet.TierPremium}, SkipCreateTestUsers: true})
-		ds.GetHostEscrowStateFunc = func(ctx context.Context, hostID uint) (*fleet.HostEscrowState, error) {
-			return &fleet.HostEscrowState{}, nil
+		svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: &automdm.LicenseInfo{Tier: automdm.TierPremium}, SkipCreateTestUsers: true})
+		ds.GetHostEscrowStateFunc = func(ctx context.Context, hostID uint) (*automdm.HostEscrowState, error) {
+			return &automdm.HostEscrowState{}, nil
 		}
-		ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-			return &fleet.AppConfig{MDM: fleet.MDM{
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{MDM: automdm.MDM{
 				EnableDiskEncryption: optjson.SetBool(true),
-				LinuxSettings:        fleet.LinuxSettings{EnableEscrowDiskEncryptionKey: optjson.SetBool(true)},
+				LinuxSettings:        automdm.LinuxSettings{EnableEscrowDiskEncryptionKey: optjson.SetBool(true)},
 			}}, nil
 		}
 		ds.AssertHasNoEncryptionKeyStoredFunc = func(ctx context.Context, hostID uint) error { return nil }
 		ds.ReportEscrowErrorFunc = func(ctx context.Context, hostID uint, err string) error { return nil }
 		ds.QueueEscrowFunc = func(ctx context.Context, hostID uint) error { return nil }
 		orbitVersion := "1.63.0"
-		ds.GetHostOrbitInfoFunc = func(ctx context.Context, id uint) (*fleet.HostOrbitInfo, error) {
-			return &fleet.HostOrbitInfo{Version: orbitVersion}, nil
+		ds.GetHostOrbitInfoFunc = func(ctx context.Context, id uint) (*automdm.HostOrbitInfo, error) {
+			return &automdm.HostOrbitInfo{Version: orbitVersion}, nil
 		}
-		host := &fleet.Host{ID: 1, Platform: "omarchy", DiskEncryptionEnabled: new(true)}
+		host := &automdm.Host{ID: 1, Platform: "omarchy", DiskEncryptionEnabled: new(true)}
 
 		// new enough for every other distribution, but not for Omarchy
 		err := svc.TriggerLinuxDiskEncryptionEscrow(ctx, host)
-		require.ErrorContains(t, err, "Your version of fleetd does not support creating disk encryption keys on Linux.")
+		require.ErrorContains(t, err, "Your version of automdmd does not support creating disk encryption keys on Linux.")
 		require.True(t, ds.ReportEscrowErrorFuncInvoked)
 		require.False(t, ds.QueueEscrowFuncInvoked)
 
-		orbitVersion = fleet.MinOrbitOmarchyLUKSVersion
+		orbitVersion = automdm.MinOrbitOmarchyLUKSVersion
 		require.NoError(t, svc.TriggerLinuxDiskEncryptionEscrow(ctx, host))
 		require.True(t, ds.QueueEscrowFuncInvoked)
 	})
 
 	t.Run("validation success", func(t *testing.T) {
 		ds := new(mock.Store)
-		svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: &fleet.LicenseInfo{Tier: fleet.TierPremium}, SkipCreateTestUsers: true})
-		ds.GetHostEscrowStateFunc = func(ctx context.Context, hostID uint) (*fleet.HostEscrowState, error) {
-			return &fleet.HostEscrowState{}, nil
+		svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: &automdm.LicenseInfo{Tier: automdm.TierPremium}, SkipCreateTestUsers: true})
+		ds.GetHostEscrowStateFunc = func(ctx context.Context, hostID uint) (*automdm.HostEscrowState, error) {
+			return &automdm.HostEscrowState{}, nil
 		}
-		ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-			return &fleet.AppConfig{MDM: fleet.MDM{
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{MDM: automdm.MDM{
 				EnableDiskEncryption: optjson.SetBool(true),
-				LinuxSettings:        fleet.LinuxSettings{EnableEscrowDiskEncryptionKey: optjson.SetBool(true)},
+				LinuxSettings:        automdm.LinuxSettings{EnableEscrowDiskEncryptionKey: optjson.SetBool(true)},
 			}}, nil
 		}
-		ds.GetHostOrbitInfoFunc = func(ctx context.Context, id uint) (*fleet.HostOrbitInfo, error) {
-			return &fleet.HostOrbitInfo{Version: "1.36.0", DesktopVersion: ptr.String("42")}, nil
+		ds.GetHostOrbitInfoFunc = func(ctx context.Context, id uint) (*automdm.HostOrbitInfo, error) {
+			return &automdm.HostOrbitInfo{Version: "1.36.0", DesktopVersion: ptr.String("42")}, nil
 		}
 		ds.AssertHasNoEncryptionKeyStoredFunc = func(ctx context.Context, hostID uint) error {
 			return nil
 		}
-		host := &fleet.Host{ID: 1, Platform: "ubuntu", DiskEncryptionEnabled: ptr.Bool(true), OrbitVersion: ptr.String(fleet.MinOrbitLUKSVersion)}
+		host := &automdm.Host{ID: 1, Platform: "ubuntu", DiskEncryptionEnabled: ptr.Bool(true), OrbitVersion: ptr.String(automdm.MinOrbitLUKSVersion)}
 		ds.QueueEscrowFunc = func(ctx context.Context, hostID uint) error {
 			require.Equal(t, uint(1), hostID)
 			return nil
@@ -797,12 +797,12 @@ func TestAuthenticateDeviceRejectsIOSIPadOS(t *testing.T) {
 		ds := new(mock.Store)
 		svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{SkipCreateTestUsers: true})
 
-		ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-			return &fleet.AppConfig{}, nil
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{}, nil
 		}
 
-		ds.LoadHostByDeviceAuthTokenFunc = func(ctx context.Context, authToken string, tokenTTL time.Duration) (*fleet.Host, error) {
-			return &fleet.Host{
+		ds.LoadHostByDeviceAuthTokenFunc = func(ctx context.Context, authToken string, tokenTTL time.Duration) (*automdm.Host, error) {
+			return &automdm.Host{
 				ID:       1,
 				UUID:     "ios-device-uuid",
 				Platform: "ios",
@@ -813,7 +813,7 @@ func TestAuthenticateDeviceRejectsIOSIPadOS(t *testing.T) {
 		require.Error(t, err)
 		require.Nil(t, host)
 		require.False(t, debug)
-		var authErr *fleet.AuthRequiredError
+		var authErr *automdm.AuthRequiredError
 		require.ErrorAs(t, err, &authErr)
 		require.Contains(t, authErr.Internal(), "iOS and iPadOS devices must use URL authentication")
 	})
@@ -822,12 +822,12 @@ func TestAuthenticateDeviceRejectsIOSIPadOS(t *testing.T) {
 		ds := new(mock.Store)
 		svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{SkipCreateTestUsers: true})
 
-		ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-			return &fleet.AppConfig{}, nil
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{}, nil
 		}
 
-		ds.LoadHostByDeviceAuthTokenFunc = func(ctx context.Context, authToken string, tokenTTL time.Duration) (*fleet.Host, error) {
-			return &fleet.Host{
+		ds.LoadHostByDeviceAuthTokenFunc = func(ctx context.Context, authToken string, tokenTTL time.Duration) (*automdm.Host, error) {
+			return &automdm.Host{
 				ID:       2,
 				UUID:     "ipados-device-uuid",
 				Platform: "ipados",
@@ -838,7 +838,7 @@ func TestAuthenticateDeviceRejectsIOSIPadOS(t *testing.T) {
 		require.Error(t, err)
 		require.Nil(t, host)
 		require.False(t, debug)
-		var authErr *fleet.AuthRequiredError
+		var authErr *automdm.AuthRequiredError
 		require.ErrorAs(t, err, &authErr)
 		require.Contains(t, authErr.Internal(), "iOS and iPadOS devices must use URL authentication")
 	})
@@ -847,12 +847,12 @@ func TestAuthenticateDeviceRejectsIOSIPadOS(t *testing.T) {
 		ds := new(mock.Store)
 		svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{SkipCreateTestUsers: true})
 
-		ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-			return &fleet.AppConfig{}, nil
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{}, nil
 		}
 
-		ds.LoadHostByDeviceAuthTokenFunc = func(ctx context.Context, authToken string, tokenTTL time.Duration) (*fleet.Host, error) {
-			return &fleet.Host{
+		ds.LoadHostByDeviceAuthTokenFunc = func(ctx context.Context, authToken string, tokenTTL time.Duration) (*automdm.Host, error) {
+			return &automdm.Host{
 				ID:       3,
 				UUID:     "macos-device-uuid",
 				Platform: "darwin",
@@ -871,12 +871,12 @@ func TestAuthenticateDeviceRejectsIOSIPadOS(t *testing.T) {
 		ds := new(mock.Store)
 		svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{SkipCreateTestUsers: true})
 
-		ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-			return &fleet.AppConfig{}, nil
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{}, nil
 		}
 
-		ds.LoadHostByDeviceAuthTokenFunc = func(ctx context.Context, authToken string, tokenTTL time.Duration) (*fleet.Host, error) {
-			return &fleet.Host{
+		ds.LoadHostByDeviceAuthTokenFunc = func(ctx context.Context, authToken string, tokenTTL time.Duration) (*automdm.Host, error) {
+			return &automdm.Host{
 				ID:       4,
 				UUID:     "windows-device-uuid",
 				Platform: "windows",
@@ -895,12 +895,12 @@ func TestAuthenticateDeviceRejectsIOSIPadOS(t *testing.T) {
 		ds := new(mock.Store)
 		svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{SkipCreateTestUsers: true})
 
-		ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-			return &fleet.AppConfig{}, nil
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{}, nil
 		}
 
-		ds.LoadHostByDeviceAuthTokenFunc = func(ctx context.Context, authToken string, tokenTTL time.Duration) (*fleet.Host, error) {
-			return &fleet.Host{
+		ds.LoadHostByDeviceAuthTokenFunc = func(ctx context.Context, authToken string, tokenTTL time.Duration) (*automdm.Host, error) {
+			return &automdm.Host{
 				ID:       5,
 				UUID:     "linux-device-uuid",
 				Platform: "ubuntu",

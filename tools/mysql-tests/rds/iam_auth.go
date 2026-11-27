@@ -8,18 +8,18 @@ import (
 	"log"
 	"os"
 
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql"
-	"github.com/fleetdm/fleet/v4/server/platform/logging"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql"
+	"github.com/anilyagiz/automdm/v4/server/platform/logging"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
 	"github.com/jmoiron/sqlx"
 )
 
 var (
 	endpointFlag   = flag.String("endpoint", "", "RDS endpoint address (without port)")
 	portFlag       = flag.String("port", "3306", "Database port")
-	userFlag       = flag.String("user", "fleet_iam_user", "Username for IAM authentication")
-	dbNameFlag     = flag.String("db", "fleet", "Database name")
+	userFlag       = flag.String("user", "automdm_iam_user", "Username for IAM authentication")
+	dbNameFlag     = flag.String("db", "automdm", "Database name")
 	regionFlag     = flag.String("region", "", "AWS region")
 	assumeRoleFlag = flag.String("assume-role", "", "STS assume role ARN (optional)")
 	externalIDFlag = flag.String("external-id", "", "STS external ID (optional)")

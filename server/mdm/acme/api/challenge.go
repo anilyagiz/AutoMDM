@@ -3,7 +3,7 @@ package api
 import (
 	"context"
 
-	"github.com/fleetdm/fleet/v4/server/mdm/acme/internal/types"
+	"github.com/anilyagiz/automdm/v4/server/mdm/acme/internal/types"
 )
 
 type ChallengeService interface {

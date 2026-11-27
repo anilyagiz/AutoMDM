@@ -22,19 +22,19 @@
     font-size: 76px;
     font-weight: $bold;
     line-height: 1.5;
-    color: $core-fleet-black;
+    color: $core-automdm-black;
   }
 
   &__subtitle {
     margin: 0;
     font-size: $large;
     font-weight: $bold;
-    color: $core-fleet-black;
+    color: $core-automdm-black;
   }
 
   &__message {
     margin: 0;
     font-size: $x-small;
-    color: $ui-fleet-black-75;
+    color: $ui-automdm-black-75;
   }
 }

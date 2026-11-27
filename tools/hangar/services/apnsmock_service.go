@@ -1,6 +1,6 @@
 package services
 
-import "github.com/fleetdm/fleet/tools/hangar/internal/apnsmock"
+import "github.com/anilyagiz/automdm/tools/hangar/internal/apnsmock"
 
 // ApnsMockService reports on the per-server mock APNs servers and checks what
 // one needs before it starts. Starting and stopping them goes through the

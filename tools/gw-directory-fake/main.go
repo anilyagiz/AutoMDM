@@ -1,9 +1,9 @@
 // Command gw-directory-fake is a standalone fake of the Google Admin SDK
-// Directory API, for load/QA testing Fleet's Google Workspace IdP integration
+// Directory API, for load/QA testing AutoMDM's Google Workspace IdP integration
 // without a real Google Workspace tenant.
 //
-// It is NOT production code. Point a Fleet server at it for testing by setting
-// FLEET_TEST_GOOGLE_WORKSPACE_ENDPOINT to this server's base URL and giving the
+// It is NOT production code. Point an AutoMDM server at it for testing by setting
+// AUTOMDM_TEST_GOOGLE_WORKSPACE_ENDPOINT to this server's base URL and giving the
 // integration a service-account JSON whose "token_uri" points at this server's
 // /token endpoint.
 //

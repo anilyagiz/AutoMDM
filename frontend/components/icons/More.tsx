@@ -8,7 +8,7 @@ interface IMoreProps {
   size?: IconSizes;
 }
 
-const More = ({ color = "ui-fleet-black-75", size = "medium" }: IMoreProps) => {
+const More = ({ color = "ui-automdm-black-75", size = "medium" }: IMoreProps) => {
   return (
     <svg
       width={ICON_SIZES[size]}

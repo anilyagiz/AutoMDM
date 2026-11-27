@@ -1,5 +1,5 @@
 # Please don't delete. This script is referenced in the guide here:
-#   https://fleetdm.com/guides/windows-mdm-setup#force-a-standard-user-account
+#   https://automdm.com/guides/windows-mdm-setup#force-a-standard-user-account
 #
 # Removes the currently signed-in user from the local Administrators group, so an
 # already-enrolled host ends up in the same state as a device that originally enrolled

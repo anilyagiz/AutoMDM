@@ -1,6 +1,6 @@
 # Attribute naming conventions
 
-Per [ADR-0009](../../docs/Contributing/adr/0009-attribute-naming-conventions.md), Fleet uses consistent
+Per [ADR-0009](../../docs/Contributing/adr/0009-attribute-naming-conventions.md), AutoMDM uses consistent
 attribute names across logs, traces, and metrics. This document covers the practical rules and the
 most common attributes.
 
@@ -43,7 +43,7 @@ When an [OTEL semantic convention](https://opentelemetry.io/docs/specs/semconv/g
 | `host.platform` | string | OS platform (darwin, windows, ubuntu, etc.) |
 | `user.id` | uint | User database primary key |
 | `user.email` | string | User email address |
-| `fleet.id` | uint | Fleet (team) database primary key |
+| `automdm.id` | uint | AutoMDM (team) database primary key |
 | `report.id` | uint | Report (query) database primary key |
 | `report.name` | string | Report (query) name |
 | `policy.id` | uint | Policy database primary key |
@@ -88,8 +88,8 @@ Use `response.bytes_written` instead of `bytes_copied`, `bytes_written`, or `wri
 
 ## Metric names
 
-Metric instrument names (not attributes) use the `fleet.` prefix: `fleet.http.client_errors`,
-`fleet.http.server_errors`. Attributes on those metrics are unprefixed.
+Metric instrument names (not attributes) use the `automdm.` prefix: `automdm.http.client_errors`,
+`automdm.http.server_errors`. Attributes on those metrics are unprefixed.
 
 ## Cardinality
 

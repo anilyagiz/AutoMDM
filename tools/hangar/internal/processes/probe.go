@@ -9,9 +9,9 @@ import (
 )
 
 // ServeTCPCheck reports whether something is listening and able to complete a
-// TLS handshake on host:port. Fleet's dev server speaks TLS on 8080 with a
+// TLS handshake on host:port. AutoMDM's dev server speaks TLS on 8080 with a
 // self-signed cert, so a raw TCP connect would leave a "TLS handshake error:
-// EOF" in fleet's log every probe — we do a real handshake (accepting any
+// EOF" in team's log every probe — we do a real handshake (accepting any
 // cert) so the probe is silent. 1.5s budget for connect + handshake.
 func ServeTCPCheck(host string, port uint16) bool {
 	if host == "" {

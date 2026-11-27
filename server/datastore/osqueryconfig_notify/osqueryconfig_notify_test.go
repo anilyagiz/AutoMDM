@@ -13,8 +13,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -30,7 +30,7 @@ func (c *captureNotifier) NotifyOrbitConfigHosts(ctx context.Context, hostIDs []
 	return errors.New("unexpected")
 }
 
-func (c *captureNotifier) NotifyOrbitConfigScope(ctx context.Context, scope fleet.AgentNotificationScope, reason string) error {
+func (c *captureNotifier) NotifyOrbitConfigScope(ctx context.Context, scope automdm.AgentNotificationScope, reason string) error {
 	return errors.New("unexpected")
 }
 
@@ -39,7 +39,7 @@ func (c *captureNotifier) NotifyOsqueryConfigHosts(ctx context.Context, hostIDs 
 	return nil
 }
 
-func (c *captureNotifier) NotifyOsqueryConfigScope(ctx context.Context, scope fleet.AgentNotificationScope, reason string) error {
+func (c *captureNotifier) NotifyOsqueryConfigScope(ctx context.Context, scope automdm.AgentNotificationScope, reason string) error {
 	c.calls = append(c.calls, fmt.Sprintf("scope %s %s", scope, reason))
 	return nil
 }
@@ -82,11 +82,11 @@ var hookCases = []hookCase{
 		name: "SaveAppConfig",
 		want: "scope global settings",
 		run: func(ctx context.Context, ds *mock.Store, d *Datastore, unchanged bool, writeErr error) error {
-			before := &fleet.AppConfig{AgentOptions: new(json.RawMessage(`{"config":{"options":{"pack_delimiter":"/"}}}`))}
-			ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) { return before, nil }
-			ds.SaveAppConfigFunc = func(ctx context.Context, info *fleet.AppConfig) error { return writeErr }
+			before := &automdm.AppConfig{AgentOptions: new(json.RawMessage(`{"config":{"options":{"pack_delimiter":"/"}}}`))}
+			ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) { return before, nil }
+			ds.SaveAppConfigFunc = func(ctx context.Context, info *automdm.AppConfig) error { return writeErr }
 			// Formatting differences don't count as a change.
-			after := &fleet.AppConfig{AgentOptions: new(json.RawMessage(`{ "config": {"options": {"pack_delimiter": "/"}} }`))}
+			after := &automdm.AppConfig{AgentOptions: new(json.RawMessage(`{ "config": {"options": {"pack_delimiter": "/"}} }`))}
 			// Settings the osquery config doesn't read don't count either.
 			after.MDM.WindowsEnabledAndConfigured = true
 			if !unchanged {
@@ -99,11 +99,11 @@ var hookCases = []hookCase{
 		name: "SaveTeam",
 		want: "scope team:3 settings",
 		run: func(ctx context.Context, ds *mock.Store, d *Datastore, unchanged bool, writeErr error) error {
-			ds.TeamLiteFunc = func(ctx context.Context, tid uint) (*fleet.TeamLite, error) {
-				return &fleet.TeamLite{ID: tid, Config: fleet.TeamConfigLite{AgentOptions: new(json.RawMessage(`{}`))}}, nil
+			ds.TeamLiteFunc = func(ctx context.Context, tid uint) (*automdm.TeamLite, error) {
+				return &automdm.TeamLite{ID: tid, Config: automdm.TeamConfigLite{AgentOptions: new(json.RawMessage(`{}`))}}, nil
 			}
-			ds.SaveTeamFunc = func(ctx context.Context, team *fleet.Team) (*fleet.Team, error) { return team, writeErr }
-			team := &fleet.Team{ID: 3, Config: fleet.TeamConfig{AgentOptions: new(json.RawMessage(`{}`))}}
+			ds.SaveTeamFunc = func(ctx context.Context, team *automdm.Team) (*automdm.Team, error) { return team, writeErr }
+			team := &automdm.Team{ID: 3, Config: automdm.TeamConfig{AgentOptions: new(json.RawMessage(`{}`))}}
 			if !unchanged {
 				team.Config.AgentOptions = new(json.RawMessage(`{"config":{"options":{"distributed_interval":30}}}`))
 			}
@@ -126,8 +126,8 @@ var hookCases = []hookCase{
 		alwaysNotifies:  true,
 		notifiesOnError: true,
 		run: func(ctx context.Context, ds *mock.Store, d *Datastore, unchanged bool, writeErr error) error {
-			ds.AddHostsToTeamFunc = func(ctx context.Context, params *fleet.AddHostsToTeamParams) error { return writeErr }
-			return d.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(new(uint(3)), []uint{1, 2}))
+			ds.AddHostsToTeamFunc = func(ctx context.Context, params *automdm.AddHostsToTeamParams) error { return writeErr }
+			return d.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(new(uint(3)), []uint{1, 2}))
 		},
 	},
 	{
@@ -136,11 +136,11 @@ var hookCases = []hookCase{
 		notifiesOnError: true,
 		run: func(ctx context.Context, ds *mock.Store, d *Datastore, unchanged bool, writeErr error) error {
 			write := mockReportsDigest(ds, unchanged)
-			ds.ApplyQueriesFunc = func(ctx context.Context, authorID uint, queries []*fleet.Query, queriesToDiscardResults map[uint]struct{}) error {
+			ds.ApplyQueriesFunc = func(ctx context.Context, authorID uint, queries []*automdm.Query, queriesToDiscardResults map[uint]struct{}) error {
 				write()
 				return writeErr
 			}
-			return d.ApplyQueries(ctx, 1, []*fleet.Query{{Name: "a", TeamID: new(uint(3))}, {Name: "b", TeamID: new(uint(3))}}, nil)
+			return d.ApplyQueries(ctx, 1, []*automdm.Query{{Name: "a", TeamID: new(uint(3))}, {Name: "b", TeamID: new(uint(3))}}, nil)
 		},
 	},
 	{
@@ -148,13 +148,13 @@ var hookCases = []hookCase{
 		want: "scope global reports",
 		run: func(ctx context.Context, ds *mock.Store, d *Datastore, unchanged bool, writeErr error) error {
 			write := mockReportsDigest(ds, unchanged)
-			ds.NewQueryFunc = func(ctx context.Context, query *fleet.Query, opts ...fleet.OptionalArg) (*fleet.Query, error) {
+			ds.NewQueryFunc = func(ctx context.Context, query *automdm.Query, opts ...automdm.OptionalArg) (*automdm.Query, error) {
 				if writeErr == nil {
 					write()
 				}
 				return query, writeErr
 			}
-			_, err := d.NewQuery(ctx, &fleet.Query{Name: "a", Saved: true, Interval: 60})
+			_, err := d.NewQuery(ctx, &automdm.Query{Name: "a", Saved: true, Interval: 60})
 			return err
 		},
 	},
@@ -163,13 +163,13 @@ var hookCases = []hookCase{
 		want: "scope team:3 reports",
 		run: func(ctx context.Context, ds *mock.Store, d *Datastore, unchanged bool, writeErr error) error {
 			write := mockReportsDigest(ds, unchanged)
-			ds.SaveQueryFunc = func(ctx context.Context, query *fleet.Query, shouldDiscardResults bool, shouldDeleteStats bool) error {
+			ds.SaveQueryFunc = func(ctx context.Context, query *automdm.Query, shouldDiscardResults bool, shouldDeleteStats bool) error {
 				if writeErr == nil {
 					write()
 				}
 				return writeErr
 			}
-			return d.SaveQuery(ctx, &fleet.Query{Name: "a", TeamID: new(uint(3)), Saved: true, Interval: 60}, false, false)
+			return d.SaveQuery(ctx, &automdm.Query{Name: "a", TeamID: new(uint(3)), Saved: true, Interval: 60}, false, false)
 		},
 	},
 	{
@@ -245,9 +245,9 @@ func TestHooks(t *testing.T) {
 
 func TestSaveAppConfigQueryReportsDisabled(t *testing.T) {
 	ds, notifier, d := newTestDatastore()
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) { return &fleet.AppConfig{}, nil }
-	ds.SaveAppConfigFunc = func(ctx context.Context, info *fleet.AppConfig) error { return nil }
-	after := &fleet.AppConfig{}
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) { return &automdm.AppConfig{}, nil }
+	ds.SaveAppConfigFunc = func(ctx context.Context, info *automdm.AppConfig) error { return nil }
+	after := &automdm.AppConfig{}
 	after.ServerSettings.QueryReportsDisabled = true
 	require.NoError(t, d.SaveAppConfig(t.Context(), after))
 	require.Equal(t, []string{"scope global settings"}, notifier.calls)
@@ -256,9 +256,9 @@ func TestSaveAppConfigQueryReportsDisabled(t *testing.T) {
 func TestUnreadableBeforeNotifies(t *testing.T) {
 	t.Run("SaveAppConfig", func(t *testing.T) {
 		ds, notifier, d := newTestDatastore()
-		ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) { return nil, errors.New("boom") }
-		ds.SaveAppConfigFunc = func(ctx context.Context, info *fleet.AppConfig) error { return nil }
-		require.NoError(t, d.SaveAppConfig(t.Context(), &fleet.AppConfig{}))
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) { return nil, errors.New("boom") }
+		ds.SaveAppConfigFunc = func(ctx context.Context, info *automdm.AppConfig) error { return nil }
+		require.NoError(t, d.SaveAppConfig(t.Context(), &automdm.AppConfig{}))
 		require.Equal(t, []string{"scope global settings"}, notifier.calls)
 	})
 
@@ -267,39 +267,39 @@ func TestUnreadableBeforeNotifies(t *testing.T) {
 		ds.ScheduledQueriesDigestFunc = func(ctx context.Context, teamID *uint) (string, error) {
 			return "", errors.New("boom")
 		}
-		ds.SaveQueryFunc = func(ctx context.Context, query *fleet.Query, shouldDiscardResults bool, shouldDeleteStats bool) error {
+		ds.SaveQueryFunc = func(ctx context.Context, query *automdm.Query, shouldDiscardResults bool, shouldDeleteStats bool) error {
 			return nil
 		}
-		require.NoError(t, d.SaveQuery(t.Context(), &fleet.Query{Saved: true, Interval: 60}, false, false))
+		require.NoError(t, d.SaveQuery(t.Context(), &automdm.Query{Saved: true, Interval: 60}, false, false))
 		require.Equal(t, []string{"scope global reports"}, notifier.calls)
 	})
 }
 
 func TestUnscheduledReportsSkipDigest(t *testing.T) {
 	ds, notifier, d := newTestDatastore()
-	ds.NewQueryFunc = func(ctx context.Context, query *fleet.Query, opts ...fleet.OptionalArg) (*fleet.Query, error) {
+	ds.NewQueryFunc = func(ctx context.Context, query *automdm.Query, opts ...automdm.OptionalArg) (*automdm.Query, error) {
 		return query, nil
 	}
-	ds.SaveQueryFunc = func(ctx context.Context, query *fleet.Query, shouldDiscardResults bool, shouldDeleteStats bool) error {
+	ds.SaveQueryFunc = func(ctx context.Context, query *automdm.Query, shouldDiscardResults bool, shouldDeleteStats bool) error {
 		return nil
 	}
-	var stored fleet.Query
-	ds.QueryFunc = func(ctx context.Context, id uint) (*fleet.Query, error) { return &stored, nil }
+	var stored automdm.Query
+	ds.QueryFunc = func(ctx context.Context, id uint) (*automdm.Query, error) { return &stored, nil }
 	write := mockReportsDigest(ds, false)
 
-	_, err := d.NewQuery(t.Context(), &fleet.Query{Saved: true})
+	_, err := d.NewQuery(t.Context(), &automdm.Query{Saved: true})
 	require.NoError(t, err)
-	require.NoError(t, d.SaveQuery(t.Context(), &fleet.Query{Saved: true}, false, false))
+	require.NoError(t, d.SaveQuery(t.Context(), &automdm.Query{Saved: true}, false, false))
 	require.False(t, ds.ScheduledQueriesDigestFuncInvoked)
 	require.Empty(t, notifier.calls)
 
 	// Unscheduling a scheduled report changes the schedule.
-	stored = fleet.Query{Saved: true, Interval: 60}
-	ds.SaveQueryFunc = func(ctx context.Context, query *fleet.Query, shouldDiscardResults bool, shouldDeleteStats bool) error {
+	stored = automdm.Query{Saved: true, Interval: 60}
+	ds.SaveQueryFunc = func(ctx context.Context, query *automdm.Query, shouldDiscardResults bool, shouldDeleteStats bool) error {
 		write()
 		return nil
 	}
-	require.NoError(t, d.SaveQuery(t.Context(), &fleet.Query{Saved: true}, false, false))
+	require.NoError(t, d.SaveQuery(t.Context(), &automdm.Query{Saved: true}, false, false))
 	require.Equal(t, []string{"scope global reports"}, notifier.calls)
 }
 
@@ -317,17 +317,17 @@ func TestApplyQueriesNotifiesChangedScopes(t *testing.T) {
 	ds, notifier, d := newTestDatastore()
 	written := false
 	ds.ScheduledQueriesDigestFunc = func(ctx context.Context, teamID *uint) (string, error) {
-		// Only fleet 3's reports change.
+		// Only team 3's reports change.
 		if written && teamID != nil && *teamID == 3 {
 			return "after", nil
 		}
 		return "before", nil
 	}
-	ds.ApplyQueriesFunc = func(ctx context.Context, authorID uint, queries []*fleet.Query, queriesToDiscardResults map[uint]struct{}) error {
+	ds.ApplyQueriesFunc = func(ctx context.Context, authorID uint, queries []*automdm.Query, queriesToDiscardResults map[uint]struct{}) error {
 		written = true
 		return nil
 	}
-	require.NoError(t, d.ApplyQueries(t.Context(), 1, []*fleet.Query{
+	require.NoError(t, d.ApplyQueries(t.Context(), 1, []*automdm.Query{
 		{Name: "a"},
 		{Name: "b", TeamID: new(uint(3))},
 		{Name: "c", TeamID: new(uint(4))},
@@ -362,7 +362,7 @@ func TestEveryWrappedMethodHasAHookCase(t *testing.T) {
 // too, or to be explicitly skipped.
 func TestCoversETagInvalidation(t *testing.T) {
 	skipped := map[string]string{
-		"NewTeam": "a new fleet has no hosts",
+		"NewTeam": "a new team has no hosts",
 		// Label membership changes: fallback poll only.
 		"ApplyLabelSpecs":                     "label membership",
 		"ApplyLabelSpecsWithAuthor":           "label membership",

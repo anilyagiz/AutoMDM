@@ -21,7 +21,7 @@ const mockedUseCheckTruncatedElement = jest.mocked(useCheckTruncatedElement);
 
 const MAC_SCRIPT: IScript = {
   id: 1,
-  fleet_id: 1,
+  team_id: 1,
   name: "test_mac_script.sh",
   created_at: "2021-01-01",
   updated_at: "2021-01-01",
@@ -29,7 +29,7 @@ const MAC_SCRIPT: IScript = {
 
 const WINDOWS_SCRIPT: IScript = {
   id: 1,
-  fleet_id: 1,
+  team_id: 1,
   name: "test_win_script.ps1",
   created_at: "2021-01-01",
   updated_at: "2021-01-01",
@@ -180,7 +180,7 @@ describe("ScriptListItem", () => {
             config: {
               gitops: {
                 gitops_mode_enabled: true,
-                repository_url: "https://github.com/fleetdm/fleet",
+                repository_url: "https://github.com/anilyagiz/automdm",
               },
             },
           },

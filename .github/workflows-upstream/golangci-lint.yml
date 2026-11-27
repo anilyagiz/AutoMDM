@@ -78,22 +78,22 @@ jobs:
         run: |
           go run ./tools/cloner-check/main.go -check
 
-      - name: Ensure all FLEET_DEV_* env var accesses are proxied
+      - name: Ensure all AUTOMDM_DEV_* env var accesses are proxied
         run: |
-          if grep -R 'os.Getenv("FLEET_DEV' --include="*.go" .; then
-            echo "Error: Found unproxied FLEET_DEV_* env var access. Please proxy via dev_mode.Env()." >&2
+          if grep -R 'os.Getenv("AUTOMDM_DEV' --include="*.go" .; then
+            echo "Error: Found unproxied AUTOMDM_DEV_* env var access. Please proxy via dev_mode.Env()." >&2
             exit 1
           else
-            echo "OK: No unproxied FLEET_DEV_* env var accesses found."
+            echo "OK: No unproxied AUTOMDM_DEV_* env var accesses found."
           fi
 
-      - name: Restrict FLEET_DEV_* env var overrides to test code only
+      - name: Restrict AUTOMDM_DEV_* env var overrides to test code only
         run: |
-          if grep -R 'SetOverride("FLEET_DEV' --include="*.go" --exclude="*_test.go" --exclude="testing_utils.go" --exclude-dir="mdmtest" --exclude-dir="maintainedappstest" .; then
-            echo "Error: Found FLEET_DEV_* overrides in non-test code." >&2
+          if grep -R 'SetOverride("AUTOMDM_DEV' --include="*.go" --exclude="*_test.go" --exclude="testing_utils.go" --exclude-dir="mdmtest" --exclude-dir="maintainedappstest" .; then
+            echo "Error: Found AUTOMDM_DEV_* overrides in non-test code." >&2
             exit 1
           else
-            echo "OK: No FLEET_DEV_* overrides in non-test code."
+            echo "OK: No AUTOMDM_DEV_* overrides in non-test code."
           fi
 
   golangci-incremental:

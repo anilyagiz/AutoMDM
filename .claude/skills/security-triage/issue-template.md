@@ -19,7 +19,7 @@ Title: `Report [Critical|High|Medium|Low]: <what the attacker gets, via what>`. 
 
 ### Reported severity
 
-<Critical | High | Medium | Low | Unknown, as the reporter rated it. Fleet's rating is in the title; if they differ, say why in one line.>
+<Critical | High | Medium | Low | Unknown, as the reporter rated it. AutoMDM's rating is in the title; if they differ, say why in one line.>
 
 ### Summary
 
@@ -32,7 +32,7 @@ Title: `Report [Critical|High|Medium|Low]: <what the attacker gets, via what>`. 
 ### Affected components
 
 - `<repo-relative file:line>` on `main` @ `<short sha>`: <what it does wrong>
-- Affects Fleet <first affected version or "all versions"> through <current release>.
+- Affects AutoMDM <first affected version or "all versions"> through <current release>.
 
 ### Verification and duplicate check
 

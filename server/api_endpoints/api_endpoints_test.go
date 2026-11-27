@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/pkg/removednames"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/platform/endpointer"
+	"github.com/anilyagiz/automdm/v4/pkg/removednames"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/platform/endpointer"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -19,13 +19,13 @@ func TestValidateAPIEndpoints(t *testing.T) {
 		apiEndpoints = originalEndpoints
 	})
 
-	endpoints := []fleet.APIEndpoint{
-		fleet.NewAPIEndpointFromTpl("GET", "/api/v1/fleet/hosts"),
-		fleet.NewAPIEndpointFromTpl("POST", "/api/v1/fleet/hosts/:id/refetch"),
+	endpoints := []automdm.APIEndpoint{
+		automdm.NewAPIEndpointFromTpl("GET", "/api/v1/automdm/hosts"),
+		automdm.NewAPIEndpointFromTpl("POST", "/api/v1/automdm/hosts/:id/refetch"),
 	}
 	apiEndpoints = endpoints
 
-	routerWithEndpoints := func(endpoints []fleet.APIEndpoint) *endpointer.Router {
+	routerWithEndpoints := func(endpoints []automdm.APIEndpoint) *endpointer.Router {
 		r := endpointer.NewRouter()
 		ep := &endpointer.CommonEndpointer[any]{Router: r, Versions: []string{"v1"}}
 		for _, e := range endpoints {
@@ -91,13 +91,13 @@ type catalogBlocklistRule struct {
 // If you are intentionally exposing a new endpoint that matches one of these
 // patterns, justify the change in a security review and update the rules.
 var catalogBlocklistRules = []catalogBlocklistRule{
-	{"POST", regexp.MustCompile(`^/api/v1/fleet/users(?:/.*)?$`), "user creation can return a session token (allowlist bypass via clone)"},
-	{"PATCH", regexp.MustCompile(`^/api/v1/fleet/users(?:/.*)?$`), "user modification can change the api_endpoints allowlist"},
-	{"POST", regexp.MustCompile(`^/api/v1/fleet/invites(?:/.*)?$`), "invite creation = mint user with chosen role"},
-	{"PATCH", regexp.MustCompile(`^/api/v1/fleet/invites(?:/.*)?$`), "invite modification = change role on a pending user"},
+	{"POST", regexp.MustCompile(`^/api/v1/automdm/users(?:/.*)?$`), "user creation can return a session token (allowlist bypass via clone)"},
+	{"PATCH", regexp.MustCompile(`^/api/v1/automdm/users(?:/.*)?$`), "user modification can change the api_endpoints allowlist"},
+	{"POST", regexp.MustCompile(`^/api/v1/automdm/invites(?:/.*)?$`), "invite creation = mint user with chosen role"},
+	{"PATCH", regexp.MustCompile(`^/api/v1/automdm/invites(?:/.*)?$`), "invite modification = change role on a pending user"},
 }
 
-func findBlocklistViolations(endpoints []fleet.APIEndpoint) []string {
+func findBlocklistViolations(endpoints []automdm.APIEndpoint) []string {
 	var msgs []string
 	for _, ep := range endpoints {
 		for _, r := range catalogBlocklistRules {
@@ -126,18 +126,18 @@ func TestCatalogBlocklist(t *testing.T) {
 		// Fault-injection: every forbidden pattern must produce a violation.
 		// Failure here means a rule was deleted or its regex no longer matches
 		// the example path it was meant to cover.
-		examples := []fleet.APIEndpoint{
-			{Method: "POST", Path: "/api/v1/fleet/users"},
-			{Method: "POST", Path: "/api/v1/fleet/users/admin"},
-			{Method: "POST", Path: "/api/v1/fleet/users/api_only"},
-			{Method: "PATCH", Path: "/api/v1/fleet/users/:id"},
-			{Method: "PATCH", Path: "/api/v1/fleet/users/api_only/:id"},
-			{Method: "POST", Path: "/api/v1/fleet/invites"},
-			{Method: "PATCH", Path: "/api/v1/fleet/invites/:id"},
+		examples := []automdm.APIEndpoint{
+			{Method: "POST", Path: "/api/v1/automdm/users"},
+			{Method: "POST", Path: "/api/v1/automdm/users/admin"},
+			{Method: "POST", Path: "/api/v1/automdm/users/api_only"},
+			{Method: "PATCH", Path: "/api/v1/automdm/users/:id"},
+			{Method: "PATCH", Path: "/api/v1/automdm/users/api_only/:id"},
+			{Method: "POST", Path: "/api/v1/automdm/invites"},
+			{Method: "PATCH", Path: "/api/v1/automdm/invites/:id"},
 		}
 		for _, ex := range examples {
 			t.Run(ex.Method+" "+ex.Path, func(t *testing.T) {
-				violations := findBlocklistViolations([]fleet.APIEndpoint{ex})
+				violations := findBlocklistViolations([]automdm.APIEndpoint{ex})
 				require.Len(t, violations, 1, "expected this endpoint to be blocked but the rules let it through")
 			})
 		}
@@ -145,18 +145,18 @@ func TestCatalogBlocklist(t *testing.T) {
 
 	t.Run("rules do not flag legitimate catalog entries", func(t *testing.T) {
 		// Sanity check: read-only entries on the same resources stay allowed.
-		ok := []fleet.APIEndpoint{
-			{Method: "GET", Path: "/api/v1/fleet/users"},
-			{Method: "GET", Path: "/api/v1/fleet/users/:id"},
-			{Method: "GET", Path: "/api/v1/fleet/sessions/:id"},
-			{Method: "DELETE", Path: "/api/v1/fleet/sessions/:id"},
+		ok := []automdm.APIEndpoint{
+			{Method: "GET", Path: "/api/v1/automdm/users"},
+			{Method: "GET", Path: "/api/v1/automdm/users/:id"},
+			{Method: "GET", Path: "/api/v1/automdm/sessions/:id"},
+			{Method: "DELETE", Path: "/api/v1/automdm/sessions/:id"},
 		}
 		violations := findBlocklistViolations(ok)
 		require.Empty(t, violations, "expected these entries to pass: %v", violations)
 	})
 }
 
-// TestCatalogHasNoRemovedPaths fails when api_endpoints.yml offers a path that Fleet removed. Validate doesn't catch it, because a
+// TestCatalogHasNoRemovedPaths fails when api_endpoints.yml offers a path that AutoMDM removed. Validate doesn't catch it, because a
 // removed path still has a route: the one that answers 410.
 func TestCatalogHasNoRemovedPaths(t *testing.T) {
 	loaded, err := loadAPIEndpoints()
@@ -168,7 +168,7 @@ func TestCatalogHasNoRemovedPaths(t *testing.T) {
 
 	// A fingerprint ignores variable names, so it can't tell these removed paths from the live route with the same shape.
 	sameShapeAsLiveRoute := map[string]struct{}{
-		"DELETE /api/_version_/fleet/reports/{name}": {}, // DELETE /reports/{id}
+		"DELETE /api/_version_/automdm/reports/{name}": {}, // DELETE /reports/{id}
 	}
 
 	allMethods := []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete}
@@ -183,7 +183,7 @@ func TestCatalogHasNoRemovedPaths(t *testing.T) {
 			if _, ok := sameShapeAsLiveRoute[method+" "+entry.Old]; ok {
 				continue
 			}
-			_, listed := catalog[fleet.NewAPIEndpointFromTpl(method, entry.Old).Fingerprint()]
+			_, listed := catalog[automdm.NewAPIEndpointFromTpl(method, entry.Old).Fingerprint()]
 			assert.False(t, listed, "api_endpoints.yml lists %s %s, which was removed", method, entry.Old)
 		}
 	}

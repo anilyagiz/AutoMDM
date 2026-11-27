@@ -31,43 +31,43 @@ import (
 	"sync"
 	"time"
 
-	fleetclient "github.com/fleetdm/fleet/v4/client"
-	"github.com/fleetdm/fleet/v4/ee/orbit/pkg/hostidentity"
-	httpsigproxy "github.com/fleetdm/fleet/v4/ee/orbit/pkg/httpsigproxy"
-	"github.com/fleetdm/fleet/v4/ee/orbit/pkg/securehw"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/augeas"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/autopilot"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/bitlocker"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/build"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/cabundle"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/constant"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/entratoken"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/execuser"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/insecure"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/installer"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/keystore"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/logging"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/luks"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/managedaccount"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/osquery"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/osservice"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/platform"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/profiles"
-	setupexperience "github.com/fleetdm/fleet/v4/orbit/pkg/setup_experience"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/fleetd_logs"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/orbit_info"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/token"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/update"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/update/filestore"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/user"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/wstransport"
-	"github.com/fleetdm/fleet/v4/pkg/certificate"
-	"github.com/fleetdm/fleet/v4/pkg/file"
-	"github.com/fleetdm/fleet/v4/pkg/fleethttpsig"
-	retrypkg "github.com/fleetdm/fleet/v4/pkg/retry"
-	"github.com/fleetdm/fleet/v4/pkg/secure"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	automdmclient "github.com/anilyagiz/automdm/v4/client"
+	"github.com/anilyagiz/automdm/v4/ee/orbit/pkg/hostidentity"
+	httpsigproxy "github.com/anilyagiz/automdm/v4/ee/orbit/pkg/httpsigproxy"
+	"github.com/anilyagiz/automdm/v4/ee/orbit/pkg/securehw"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/augeas"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/autopilot"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/bitlocker"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/build"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/cabundle"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/constant"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/entratoken"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/execuser"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/insecure"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/installer"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/keystore"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/logging"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/luks"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/managedaccount"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/osquery"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/osservice"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/platform"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/profiles"
+	setupexperience "github.com/anilyagiz/automdm/v4/orbit/pkg/setup_experience"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/automdmd_logs"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/orbit_info"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/token"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/update"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/update/filestore"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/user"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/wstransport"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttpsig"
+	"github.com/anilyagiz/automdm/v4/pkg/certificate"
+	"github.com/anilyagiz/automdm/v4/pkg/file"
+	retrypkg "github.com/anilyagiz/automdm/v4/pkg/retry"
+	"github.com/anilyagiz/automdm/v4/pkg/secure"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/google/uuid"
 	"github.com/oklog/run"
 	httpsig "github.com/remitly-oss/httpsig-go"
@@ -110,19 +110,19 @@ func main() {
 			EnvVars: []string{"ORBIT_INSECURE"},
 		},
 		&cli.StringFlag{
-			Name:    "fleet-url",
-			Usage:   "URL (host:port) of Fleet server",
-			EnvVars: []string{"ORBIT_FLEET_URL"},
+			Name:    "automdm-url",
+			Usage:   "URL (host:port) of AutoMDM server",
+			EnvVars: []string{"ORBIT_AUTOMDM_URL"},
 		},
 		&cli.StringFlag{
-			Name:    "fleet-certificate",
-			Usage:   "Path to the Fleet server certificate chain",
-			EnvVars: []string{"ORBIT_FLEET_CERTIFICATE"},
+			Name:    "automdm-certificate",
+			Usage:   "Path to the AutoMDM server certificate chain",
+			EnvVars: []string{"ORBIT_AUTOMDM_CERTIFICATE"},
 		},
 		&cli.StringFlag{
-			Name:    "fleet-desktop-alternative-browser-host",
-			Usage:   "Alternative host:port to use for Fleet Desktop in the browser (this may be required when using TLS client authentication in the Fleet server)",
-			EnvVars: []string{"ORBIT_FLEET_DESKTOP_ALTERNATIVE_BROWSER_HOST"},
+			Name:    "automdm-desktop-alternative-browser-host",
+			Usage:   "Alternative host:port to use for AutoMDM Desktop in the browser (this may be required when using TLS client authentication in the AutoMDM server)",
+			EnvVars: []string{"ORBIT_AUTOMDM_DESKTOP_ALTERNATIVE_BROWSER_HOST"},
 		},
 		&cli.StringFlag{
 			Name:    "update-url",
@@ -137,7 +137,7 @@ func main() {
 		},
 		&cli.StringFlag{
 			Name:    "enroll-secret",
-			Usage:   "Enroll secret for authenticating to Fleet server",
+			Usage:   "Enroll secret for authenticating to AutoMDM server",
 			EnvVars: []string{"ORBIT_ENROLL_SECRET"},
 		},
 		&cli.StringFlag{
@@ -159,13 +159,13 @@ func main() {
 		},
 		&cli.StringFlag{
 			Name:    "desktop-channel",
-			Usage:   "Update channel of Fleet Desktop to use",
+			Usage:   "Update channel of AutoMDM Desktop to use",
 			Value:   "stable",
 			EnvVars: []string{"ORBIT_DESKTOP_CHANNEL"},
 		},
 		&cli.DurationFlag{
 			Name:    "update-interval",
-			Usage:   "How often to check for updates. Note: fleetd checks for updates at startup. The next update check adds some randomization and may take up to 10 minutes longer",
+			Usage:   "How often to check for updates. Note: automdmd checks for updates at startup. The next update check adds some randomization and may take up to 10 minutes longer",
 			Value:   15 * time.Minute,
 			EnvVars: []string{"ORBIT_UPDATE_INTERVAL"},
 		},
@@ -194,9 +194,9 @@ func main() {
 			EnvVars: []string{"ORBIT_LOG_FILE"},
 		},
 		&cli.BoolFlag{
-			Name:    "fleet-desktop",
-			Usage:   "Launch Fleet Desktop application (flag currently only used on darwin)",
-			EnvVars: []string{"ORBIT_FLEET_DESKTOP"},
+			Name:    "automdm-desktop",
+			Usage:   "Launch AutoMDM Desktop application (flag currently only used on darwin)",
+			EnvVars: []string{"ORBIT_AUTOMDM_DESKTOP"},
 		},
 		// Note: this flag doesn't have any effect anymore. I'm keeping
 		// it just for backwards compatibility since some users were
@@ -207,12 +207,12 @@ func main() {
 		&cli.BoolFlag{
 			Name:    "disable-kickstart-softwareupdated",
 			Usage:   "(Deprecated) Disable periodic execution of 'launchctl kickstart -k softwareupdated' on macOS",
-			EnvVars: []string{"ORBIT_FLEET_DISABLE_KICKSTART_SOFTWAREUPDATED"},
+			EnvVars: []string{"ORBIT_AUTOMDM_DISABLE_KICKSTART_SOFTWAREUPDATED"},
 			Hidden:  true,
 		},
 		&cli.BoolFlag{
 			Name:    "use-system-configuration",
-			Usage:   "Try to read --fleet-url and --enroll-secret using configuration in the host (currently only macOS profiles are supported)",
+			Usage:   "Try to read --automdm-url and --enroll-secret using configuration in the host (currently only macOS profiles are supported)",
 			EnvVars: []string{"ORBIT_USE_SYSTEM_CONFIGURATION"},
 			Hidden:  true,
 		},
@@ -223,14 +223,14 @@ func main() {
 		},
 		&cli.StringFlag{
 			Name:    "host-identifier",
-			Usage:   "Sets the host identifier that orbit and osquery will use when enrolling to Fleet. Options: 'uuid' and 'instance' (requires Fleet >= v4.42.0)",
+			Usage:   "Sets the host identifier that orbit and osquery will use when enrolling to AutoMDM. Options: 'uuid' and 'instance' (requires AutoMDM >= v4.42.0)",
 			EnvVars: []string{"ORBIT_HOST_IDENTIFIER"},
 			Value:   "uuid",
 		},
 		&cli.StringFlag{
 			Name:    "end-user-email",
 			Hidden:  true, // experimental feature, we don't want to show it for now
-			Usage:   "Sets the email address of the user associated with the host when enrolling to Fleet. (requires Fleet >= v4.43.0)",
+			Usage:   "Sets the email address of the user associated with the host when enrolling to AutoMDM. (requires AutoMDM >= v4.43.0)",
 			EnvVars: []string{"ORBIT_END_USER_EMAIL"},
 		},
 		&cli.StringFlag{
@@ -253,12 +253,12 @@ func main() {
 		// keeps working once it drops its downstream patches.
 		&cli.StringFlag{
 			Name:    "osqueryd-path",
-			Usage:   "Path to an externally managed osqueryd binary. Requires --disable-updates, osqueryd is not downloaded or updated by fleetd",
+			Usage:   "Path to an externally managed osqueryd binary. Requires --disable-updates, osqueryd is not downloaded or updated by automdmd",
 			EnvVars: []string{"ORBIT_OSQUERYD_PATH", "NIX_ORBIT_OSQUERYD_PATH"},
 		},
 		&cli.StringFlag{
 			Name:    "desktop-path",
-			Usage:   "Path to an externally managed Fleet Desktop executable (the .app bundle on macOS). Requires --osqueryd-path, used when --fleet-desktop is set",
+			Usage:   "Path to an externally managed AutoMDM Desktop executable (the .app bundle on macOS). Requires --osqueryd-path, used when --automdm-desktop is set",
 			EnvVars: []string{"ORBIT_DESKTOP_PATH", "NIX_ORBIT_DESKTOP_PATH"},
 		},
 		&cli.StringFlag{
@@ -267,9 +267,9 @@ func main() {
 			EnvVars: []string{"ORBIT_OSQUERY_LOG_PATH", "NIX_ORBIT_OSQUERY_LOG_PATH"},
 		},
 		&cli.BoolFlag{
-			Name:    "fleet-managed-host-identity-certificate",
-			Usage:   "Configures fleetd to use TPM-backed key to sign HTTP requests. This functionality is licensed under the Fleet EE License. Usage requires a current Fleet EE subscription.",
-			EnvVars: []string{"ORBIT_FLEET_MANAGED_HOST_IDENTITY_CERTIFICATE"},
+			Name:    "automdm-managed-host-identity-certificate",
+			Usage:   "Configures automdmd to use TPM-backed key to sign HTTP requests. This functionality is licensed under the AutoMDM EE License. Usage requires a current AutoMDM EE subscription.",
+			EnvVars: []string{"ORBIT_AUTOMDM_MANAGED_HOST_IDENTITY_CERTIFICATE"},
 		},
 		&cli.BoolFlag{
 			Name:    "disable-setup-experience",
@@ -278,7 +278,7 @@ func main() {
 		},
 		&cli.BoolFlag{
 			Name:    "bypass-end-user-auth",
-			Usage:   "Bypasses end-user authentication during fleetd enrollment on Linux and Windows",
+			Usage:   "Bypasses end-user authentication during automdmd enrollment on Linux and Windows",
 			EnvVars: []string{"ORBIT_BYPASS_END_USER_AUTH"},
 		},
 	}
@@ -437,7 +437,7 @@ func loadDeliveredEnrollSecret(
 		return false, fmt.Errorf("read MDM-delivered enroll secret: %w", err)
 	}
 
-	log.Info().Msg("found an enroll secret delivered by Fleet MDM")
+	log.Info().Msg("found an enroll secret delivered by AutoMDM")
 	if !ks.Supported() || disableKeystore {
 		return true, moveDeliveredEnrollSecretToFile(secret, clearDelivered, enrollSecretPath, setSecret)
 	}
@@ -456,7 +456,7 @@ func loadDeliveredEnrollSecret(
 }
 
 // throttledMDMSync returns a function that asks the device to check in with its MDM server, at most once per interval and in the
-// background. orbit calls it when the server rejects the enroll secret it has, so only a secret Fleet MDM delivers can help. With
+// background. orbit calls it when the server rejects the enroll secret it has, so only a secret AutoMDM delivers can help. With
 // orbit's node key rejected the server cannot ask the device to check in, so without this a resent profile waits for the device's
 // own MDM poll, which can be hours away.
 func throttledMDMSync(interval time.Duration, enrolledInMDM func() bool, triggerSync func() error) func() {
@@ -567,19 +567,19 @@ func orbitAction(c *cli.Context) error {
 			// #3100). Thus, we log to the logFile only.
 			log.Logger = log.Output(zerolog.MultiLevelWriter(
 				zerolog.ConsoleWriter{Out: logFile, TimeFormat: time.RFC3339Nano, NoColor: true},
-				&fleetd_logs.Logger,
+				&automdmd_logs.Logger,
 			))
 		} else {
 			log.Logger = log.Output(zerolog.MultiLevelWriter(
 				zerolog.ConsoleWriter{Out: logFile, TimeFormat: time.RFC3339Nano, NoColor: true},
 				zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339Nano, NoColor: true},
-				&fleetd_logs.Logger,
+				&automdmd_logs.Logger,
 			))
 		}
 	} else {
 		log.Logger = log.Output(zerolog.MultiLevelWriter(
 			zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339Nano, NoColor: true},
-			&fleetd_logs.Logger,
+			&automdmd_logs.Logger,
 		))
 	}
 
@@ -589,14 +589,14 @@ func orbitAction(c *cli.Context) error {
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
 	}
 
-	// Override flags with values retrieved from Fleet.
+	// Override flags with values retrieved from AutoMDM.
 	fallbackServerOverridesCfg := setServerOverrides(c)
 	if !fallbackServerOverridesCfg.empty() {
 		log.Debug().Msgf("fallback settings: %+v", fallbackServerOverridesCfg)
 	}
 
-	if c.Bool("insecure") && c.String("fleet-certificate") != "" {
-		return errors.New("insecure and fleet-certificate may not be specified together")
+	if c.Bool("insecure") && c.String("automdm-certificate") != "" {
+		return errors.New("insecure and automdm-certificate may not be specified together")
 	}
 
 	if c.Bool("insecure") && c.String("update-tls-certificate") != "" {
@@ -620,8 +620,8 @@ func orbitAction(c *cli.Context) error {
 		if !filepath.IsAbs(externalOsquerydPath) {
 			return fmt.Errorf("osqueryd-path must be an absolute path: %q", externalOsquerydPath)
 		}
-		if c.Bool("fleet-desktop") && externalDesktopPath == "" {
-			return errors.New("desktop-path is required when fleet-desktop and osqueryd-path are set")
+		if c.Bool("automdm-desktop") && externalDesktopPath == "" {
+			return errors.New("desktop-path is required when automdm-desktop and osqueryd-path are set")
 		}
 	}
 	if externalDesktopPath != "" {
@@ -660,7 +660,7 @@ func orbitAction(c *cli.Context) error {
 		return fmt.Errorf("--host-identifier=%s is not supported, currently supported values are 'uuid' and 'instance'", hostIdentifier)
 	}
 
-	if email := c.String("end-user-email"); email != "" && email != constant.UnusedFlagKeyword && !fleet.IsLooseEmail(email) {
+	if email := c.String("end-user-email"); email != "" && email != constant.UnusedFlagKeyword && !automdm.IsLooseEmail(email) {
 		return fmt.Errorf("the provided end-user email address %q is not a valid email address", email)
 	}
 
@@ -671,9 +671,9 @@ func orbitAction(c *cli.Context) error {
 	// if neither are set, this might be an agent deployed via MDM, try to read
 	// both configs from a configuration profile
 	if runtime.GOOS == "darwin" && c.Bool("use-system-configuration") {
-		log.Info().Msg("trying to read fleet-url and enroll-secret from a configuration profile")
+		log.Info().Msg("trying to read automdm-url and enroll-secret from a configuration profile")
 		for {
-			config, err := profiles.GetFleetdConfig()
+			config, err := profiles.GetAutoMDMdConfig()
 			switch {
 			// handle these errors separately as debug messages to not raise false
 			// alarms when users look into the orbit logs, it's perfectly normal to
@@ -681,40 +681,40 @@ func orbitAction(c *cli.Context) error {
 			// operating systems that don't have profile support.
 			case err != nil:
 				log.Error().Err(err).Msg("reading configuration profile")
-			case config.EnrollSecret == "" || config.FleetURL == "":
-				log.Debug().Msg("enroll secret or fleet url are empty in configuration profile, not setting either")
+			case config.EnrollSecret == "" || config.AutoMDMURL == "":
+				log.Debug().Msg("enroll secret or automdm url are empty in configuration profile, not setting either")
 			default:
-				log.Info().Msg("setting enroll-secret and fleet-url configs from configuration profile")
+				log.Info().Msg("setting enroll-secret and automdm-url configs from configuration profile")
 				if err := c.Set("enroll-secret", config.EnrollSecret); err != nil {
 					return fmt.Errorf("set enroll secret from configuration profile: %w", err)
 				}
-				if err := c.Set("fleet-url", config.FleetURL); err != nil {
-					return fmt.Errorf("set fleet URL from configuration profile: %w", err)
+				if err := c.Set("automdm-url", config.AutoMDMURL); err != nil {
+					return fmt.Errorf("set automdm URL from configuration profile: %w", err)
 				}
 				if err := writeSecret(config.EnrollSecret, c.String("root-dir")); err != nil {
 					return fmt.Errorf("write enroll secret: %w", err)
 				}
-				if err := writeFleetURL(config.FleetURL, c.String("root-dir")); err != nil {
-					return fmt.Errorf("write fleet URL: %w", err)
+				if err := writeAutoMDMURL(config.AutoMDMURL, c.String("root-dir")); err != nil {
+					return fmt.Errorf("write automdm URL: %w", err)
 				}
 			}
 
-			if c.String("fleet-url") != "" && c.String("enroll-secret") != "" {
+			if c.String("automdm-url") != "" && c.String("enroll-secret") != "" {
 				log.Info().Msg("found configuration values in system profile")
 				break
 			}
 
 			// If we didn't find the configuration values, try to read them from the stored files.
-			// First, get Fleet URL
-			b, err := os.ReadFile(path.Join(c.String("root-dir"), constant.FleetURLFileName))
+			// First, get AutoMDM URL
+			b, err := os.ReadFile(path.Join(c.String("root-dir"), constant.AutoMDMURLFileName))
 			if err != nil {
 				if !errors.Is(err, os.ErrNotExist) {
-					return fmt.Errorf("read fleet URL file: %w", err)
+					return fmt.Errorf("read automdm URL file: %w", err)
 				}
 			} else {
-				fleetURL := strings.TrimSpace(string(b))
-				if err = c.Set("fleet-url", fleetURL); err != nil {
-					return fmt.Errorf("set fleet URL from file: %w", err)
+				automdmURL := strings.TrimSpace(string(b))
+				if err = c.Set("automdm-url", automdmURL); err != nil {
+					return fmt.Errorf("set automdm URL from file: %w", err)
 				}
 			}
 			// Now, get enroll secret. During initial ABM/profile bootstrap the local
@@ -734,7 +734,7 @@ func orbitAction(c *cli.Context) error {
 				// from the system profile.
 				log.Error().Err(err).Msg("failed to read enroll secret from keystore")
 			}
-			if c.String("fleet-url") != "" && c.String("enroll-secret") != "" {
+			if c.String("automdm-url") != "" && c.String("enroll-secret") != "" {
 				log.Info().Msg("found configuration values in local files")
 				break
 			}
@@ -744,7 +744,7 @@ func orbitAction(c *cli.Context) error {
 		}
 	}
 
-	if updateURL := c.String("update-url"); updateURL != update.OldFleetTUFURL && updateURL != update.DefaultURL {
+	if updateURL := c.String("update-url"); updateURL != update.OldAutoMDMTUFURL && updateURL != update.DefaultURL {
 		// Migrate agents running with a custom TUF to use the new metadata file.
 		// We'll keep the old metadata file to support downgrades.
 		newMetadataFilePath := filepath.Join(c.String("root-dir"), update.MetadataFileName)
@@ -770,7 +770,7 @@ func orbitAction(c *cli.Context) error {
 
 	opt := update.DefaultOptions
 
-	if c.Bool("fleet-desktop") {
+	if c.Bool("automdm-desktop") {
 		switch runtime.GOOS {
 		case "darwin":
 			opt.Targets[constant.DesktopTUFTargetName] = update.DesktopMacOSTarget
@@ -799,12 +799,12 @@ func orbitAction(c *cli.Context) error {
 
 	opt.RootDirectory = c.String("root-dir")
 	opt.ServerURL = c.String("update-url")
-	if opt.ServerURL == update.OldFleetTUFURL {
+	if opt.ServerURL == update.OldAutoMDMTUFURL {
 		//
 		// This only gets executed on orbit 1.38.0+
 		// when it is configured to connect to the old TUF server
-		// (fleetd instances packaged before the migration,
-		// built by fleetctl previous to v4.63.0).
+		// (automdmd instances packaged before the migration,
+		// built by automdmctl previous to v4.63.0).
 		//
 		opt.ServerURL = update.DefaultURL
 	}
@@ -831,7 +831,7 @@ func orbitAction(c *cli.Context) error {
 
 	// sofwareupdated is a macOS daemon that automatically updates Apple software.
 	if c.Bool("disable-kickstart-softwareupdated") && runtime.GOOS == "darwin" {
-		log.Warn().Msg("fleetd no longer automatically kickstarts softwareupdated. The --disable-kickstart-softwareupdated flag, which was previously used to disable this behavior, has been deprecated and will be removed in a future version")
+		log.Warn().Msg("automdmd no longer automatically kickstarts softwareupdated. The --disable-kickstart-softwareupdated flag, which was previously used to disable this behavior, has been deprecated and will be removed in a future version")
 	}
 
 	updateClientCrtPath := filepath.Join(c.String("root-dir"), constant.UpdateTLSClientCertificateFileName)
@@ -862,7 +862,7 @@ func orbitAction(c *cli.Context) error {
 			log.Info().Msgf("Found osquery version: %s", v)
 			osqueryVersion = v
 		}
-		if c.Bool("fleet-desktop") {
+		if c.Bool("automdm-desktop") {
 			if _, err := os.Stat(externalDesktopPath); err != nil {
 				return fmt.Errorf("desktop-path: %w", err)
 			}
@@ -884,7 +884,7 @@ func orbitAction(c *cli.Context) error {
 
 		targets := []string{constant.OrbitTUFTargetName, constant.OsqueryTUFTargetName}
 
-		if c.Bool("fleet-desktop") {
+		if c.Bool("automdm-desktop") {
 			targets = append(targets, constant.DesktopTUFTargetName)
 		}
 		if c.Bool("dev-mode") {
@@ -939,7 +939,7 @@ func orbitAction(c *cli.Context) error {
 		// how/when we want to retry to download the packages.
 		err = retrypkg.Do(func() error {
 			var err error
-			osquerydPath, desktopPath, err = getFleetdComponentPaths(c, updater, fallbackServerOverridesCfg)
+			osquerydPath, desktopPath, err = getAutoMDMdComponentPaths(c, updater, fallbackServerOverridesCfg)
 			if err != nil {
 				return err
 			}
@@ -966,7 +966,7 @@ func orbitAction(c *cli.Context) error {
 			log.Info().Msgf("Found osquery version: %s", v)
 			osqueryVersion = v
 		}
-		if c.Bool("fleet-desktop") {
+		if c.Bool("automdm-desktop") {
 			if runtime.GOOS == "darwin" {
 				desktopPath, err = updater.DirLocalPath(constant.DesktopTUFTargetName)
 				if err != nil {
@@ -981,7 +981,7 @@ func orbitAction(c *cli.Context) error {
 		}
 	}
 
-	// After the early update check, so an update can fix a problem here, and before orbit waits for the Fleet server, so
+	// After the early update check, so an update can fix a problem here, and before orbit waits for the AutoMDM server, so
 	// the Linux process shows its name while the server is unreachable.
 	if runtime.GOOS == "linux" {
 		update.ApplyRememberedAgentNames(c.String("root-dir"))
@@ -1027,7 +1027,7 @@ func orbitAction(c *cli.Context) error {
 		return fmt.Errorf("get UUID: %w", err)
 	}
 	log.Debug().Str("info", fmt.Sprint(osqueryHostInfo)).Msg("retrieved host info from osquery")
-	orbitHostInfo := fleet.OrbitHostInfo{
+	orbitHostInfo := automdm.OrbitHostInfo{
 		HardwareSerial: osqueryHostInfo.HardwareSerial,
 		HardwareUUID:   osqueryHostInfo.HardwareUUID,
 		Hostname:       osqueryHostInfo.Hostname,
@@ -1036,7 +1036,7 @@ func orbitAction(c *cli.Context) error {
 		ComputerName:   osqueryHostInfo.ComputerName,
 		HardwareModel:  osqueryHostInfo.HardwareModel,
 	}
-	// Lets Fleet match the device to its pending Autopilot host exactly, which the serial cannot do reliably.
+	// Lets AutoMDM match the device to its pending Autopilot host exactly, which the serial cannot do reliably.
 	if autopilotDeviceID, err := autopilot.RegistrationID(); err != nil {
 		log.Debug().Err(err).Msg("read autopilot device id")
 	} else {
@@ -1090,7 +1090,7 @@ func orbitAction(c *cli.Context) error {
 				return fmt.Errorf("removing old hardware UUID file: %w", err)
 			}
 
-			// Removing the osquery DB should trigger a re-enrollment when fleetd is restarted.
+			// Removing the osquery DB should trigger a re-enrollment when automdmd is restarted.
 			if err := os.RemoveAll(osqueryDB); err != nil {
 				return fmt.Errorf("removing old osquery.db: %w", err)
 			}
@@ -1100,7 +1100,7 @@ func orbitAction(c *cli.Context) error {
 				return fmt.Errorf("removing old orbit node key file: %w", err)
 			}
 			if err := os.RemoveAll(filepath.Join(c.String("root-dir"), constant.DesktopTokenFileName)); err != nil {
-				return fmt.Errorf("removing old Fleet Desktop identifier file: %w", err)
+				return fmt.Errorf("removing old AutoMDM Desktop identifier file: %w", err)
 			}
 
 			return errors.New("found a new hardware uuid, restarting")
@@ -1134,9 +1134,9 @@ func orbitAction(c *cli.Context) error {
 		options = append(options, osquery.WithStderr(logFile))
 	}
 
-	fleetURL := c.String("fleet-url")
-	if !strings.HasPrefix(fleetURL, "http") {
-		fleetURL = "https://" + fleetURL
+	automdmURL := c.String("automdm-url")
+	if !strings.HasPrefix(automdmURL, "http") {
+		automdmURL = "https://" + automdmURL
 	}
 
 	enrollSecret := c.String("enroll-secret")
@@ -1156,11 +1156,11 @@ func orbitAction(c *cli.Context) error {
 
 	var certPath string
 
-	// Both options --fleet-managed-host-identity-certificate and --insecure make use of a local HTTPS proxy.
-	// If the user sets both --fleet-managed-host-identity-certificate and --insecure then only the proxy
-	// for the fleet managed client certificate will be executed.
-	if fleetURL != "https://" && c.Bool("insecure") && !c.Bool("fleet-managed-host-identity-certificate") {
-		proxy, err := insecure.NewTLSProxy(fleetURL)
+	// Both options --automdm-managed-host-identity-certificate and --insecure make use of a local HTTPS proxy.
+	// If the user sets both --automdm-managed-host-identity-certificate and --insecure then only the proxy
+	// for the automdm managed client certificate will be executed.
+	if automdmURL != "https://" && c.Bool("insecure") && !c.Bool("automdm-managed-host-identity-certificate") {
+		proxy, err := insecure.NewTLSProxy(automdmURL)
 		if err != nil {
 			return fmt.Errorf("create TLS proxy: %w", err)
 		}
@@ -1169,7 +1169,7 @@ func orbitAction(c *cli.Context) error {
 			execute: func() error {
 				log.Info().
 					Str("addr", fmt.Sprintf("localhost:%d", proxy.Port)).
-					Str("target", c.String("fleet-url")).
+					Str("target", c.String("automdm-url")).
 					Msg("using insecure TLS proxy")
 				err := proxy.InsecureServeTLS()
 				return err
@@ -1187,7 +1187,7 @@ func orbitAction(c *cli.Context) error {
 			return fmt.Errorf("there was a problem creating the proxy directory: %w", err)
 		}
 
-		certPath = filepath.Join(proxyDirectory, "fleet.crt")
+		certPath = filepath.Join(proxyDirectory, "automdm.crt")
 
 		// Write cert that proxy uses
 		err = os.WriteFile(certPath, []byte(insecure.ServerCert), os.FileMode(0o644))
@@ -1207,43 +1207,43 @@ func orbitAction(c *cli.Context) error {
 		if err != nil {
 			return fmt.Errorf("load certificate: %w", err)
 		}
-		if err := certificate.ValidateConnection(pool, fleetURL); err != nil {
-			log.Info().Err(err).Msg("Failed to connect to Fleet server. Osquery connection may fail.")
+		if err := certificate.ValidateConnection(pool, automdmURL); err != nil {
+			log.Info().Err(err).Msg("Failed to connect to AutoMDM server. Osquery connection may fail.")
 		}
 
 		options = append(options,
-			osquery.WithFlags(osquery.FleetFlags(osqueryVersion, parsedURL)),
+			osquery.WithFlags(osquery.AutoMDMFlags(osqueryVersion, parsedURL)),
 			osquery.WithFlags([]string{"--tls_server_certs", certPath}),
 		)
-	} else if fleetURL != "https://" {
+	} else if automdmURL != "https://" {
 		if enrollSecret == "" {
-			return errors.New("enroll secret must be specified to connect to Fleet server")
+			return errors.New("enroll secret must be specified to connect to AutoMDM server")
 		}
 
-		parsedURL, err := url.Parse(fleetURL)
+		parsedURL, err := url.Parse(automdmURL)
 		if err != nil {
 			return fmt.Errorf("parse URL: %w", err)
 		}
 
 		options = append(options,
-			osquery.WithFlags(osquery.FleetFlags(osqueryVersion, parsedURL)),
+			osquery.WithFlags(osquery.AutoMDMFlags(osqueryVersion, parsedURL)),
 		)
 
-		if certPath = c.String("fleet-certificate"); certPath != "" {
+		if certPath = c.String("automdm-certificate"); certPath != "" {
 			// Check and log if there are any errors with TLS connection.
 			pool, err := certificate.LoadPEM(certPath)
 			if err != nil {
 				return fmt.Errorf("load certificate: %w", err)
 			}
-			if err := certificate.ValidateConnection(pool, fleetURL); err != nil {
-				log.Info().Err(err).Msg("Failed to connect to Fleet server. Osquery connection may fail.")
+			if err := certificate.ValidateConnection(pool, automdmURL); err != nil {
+				log.Info().Err(err).Msg("Failed to connect to AutoMDM server. Osquery connection may fail.")
 			}
 
 			options = append(options,
 				osquery.WithFlags([]string{"--tls_server_certs", certPath}),
 			)
 		} else {
-			// Only the Fleet-shipped bundle is refreshed; a --fleet-certificate (fleet.pem) is never touched.
+			// Only the AutoMDM-shipped bundle is refreshed; a --automdm-certificate (automdm.pem) is never touched.
 			if updated, err := cabundle.Refresh(c.String("root-dir")); err != nil {
 				log.Error().Err(err).Msg("refresh CA bundle, keeping the installed one")
 			} else if updated {
@@ -1262,38 +1262,38 @@ func orbitAction(c *cli.Context) error {
 		}
 	}
 
-	fleetClientCertPath := filepath.Join(c.String("root-dir"), constant.FleetTLSClientCertificateFileName)
-	fleetClientKeyPath := filepath.Join(c.String("root-dir"), constant.FleetTLSClientKeyFileName)
-	fleetClientCrt, err := certificate.LoadClientCertificateFromFiles(fleetClientCertPath, fleetClientKeyPath)
+	automdmClientCertPath := filepath.Join(c.String("root-dir"), constant.AutoMDMTLSClientCertificateFileName)
+	automdmClientKeyPath := filepath.Join(c.String("root-dir"), constant.AutoMDMTLSClientKeyFileName)
+	automdmClientCrt, err := certificate.LoadClientCertificateFromFiles(automdmClientCertPath, automdmClientKeyPath)
 	if err != nil {
-		return fmt.Errorf("error loading fleet client certificate: %w", err)
+		return fmt.Errorf("error loading automdm client certificate: %w", err)
 	}
 
-	if c.Bool("fleet-managed-host-identity-certificate") {
+	if c.Bool("automdm-managed-host-identity-certificate") {
 		if runtime.GOOS != "linux" {
-			return errors.New("fleet-managed-host-identity-certificate is only supported on Linux")
+			return errors.New("automdm-managed-host-identity-certificate is only supported on Linux")
 		}
-		if fleetClientCrt != nil {
-			return errors.New("fleet-managed-host-identity-certificate for HTTP signing, and TLS client certificates may not be specified together")
+		if automdmClientCrt != nil {
+			return errors.New("automdm-managed-host-identity-certificate for HTTP signing, and TLS client certificates may not be specified together")
 		}
 	}
 
-	var fleetClientCertificate *tls.Certificate
-	if fleetClientCrt != nil {
-		log.Info().Msg("Found TLS client certificate and key. Using them to authenticate to Fleet.")
-		fleetClientCertificate = &fleetClientCrt.Crt
+	var automdmClientCertificate *tls.Certificate
+	if automdmClientCrt != nil {
+		log.Info().Msg("Found TLS client certificate and key. Using them to authenticate to AutoMDM.")
+		automdmClientCertificate = &automdmClientCrt.Crt
 		options = append(options, osquery.WithFlags([]string{
-			"--tls_client_cert", fleetClientCertPath,
-			"--tls_client_key", fleetClientKeyPath,
+			"--tls_client_cert", automdmClientCertPath,
+			"--tls_client_key", automdmClientKeyPath,
 		}))
 	}
 
 	var (
 		signerWrapper               func(*http.Client) *http.Client
 		hostIdentityCertificatePath string
-		orbitClient                 *fleetclient.OrbitClient
+		orbitClient                 *automdmclient.OrbitClient
 	)
-	if c.Bool("fleet-managed-host-identity-certificate") {
+	if c.Bool("automdm-managed-host-identity-certificate") {
 		commonName := osqueryHostInfo.HardwareUUID
 		if c.String("host-identifier") == "instance" {
 			commonName = osqueryHostInfo.InstanceID
@@ -1301,10 +1301,10 @@ func orbitAction(c *cli.Context) error {
 		hostIdentityCredentials, err := hostidentity.Setup(
 			c.Context,
 			c.String("root-dir"),
-			fleetURL+"/api/fleet/orbit/host_identity/scep",
+			automdmURL+"/api/automdm/orbit/host_identity/scep",
 			c.String("enroll-secret"),
 			commonName,
-			c.String("fleet-certificate"),
+			c.String("automdm-certificate"),
 			c.Bool("insecure"),
 			log.Logger,
 			func(reason string) {
@@ -1314,15 +1314,15 @@ func orbitAction(c *cli.Context) error {
 			},
 		)
 		if err != nil {
-			if c.Bool("fleet-desktop") {
+			if c.Bool("automdm-desktop") {
 				// Generic error for when the TPM-backed certificate could not be generated.
 				// (e.g. invalid enroll secret, server down).
-				errorMessage := "🔒🚫 Missing Fleet certificate.\nPlease contact your IT admin."
+				errorMessage := "🔒🚫 Missing AutoMDM certificate.\nPlease contact your IT admin."
 				if errors.As(err, &securehw.ErrSecureHWUnavailable{}) {
 					errorMessage = "🔒🚫 TPM 2.0 device unavailable.\nPlease contact your IT admin."
 				}
-				if err := executeFleetDesktopWithPermanentError(desktopPath, errorMessage); err != nil {
-					log.Error().Err(err).Msg("failed to launch Fleet Desktop with permanent error")
+				if err := executeAutoMDMDesktopWithPermanentError(desktopPath, errorMessage); err != nil {
+					log.Error().Err(err).Msg("failed to launch AutoMDM Desktop with permanent error")
 				}
 			}
 			return fmt.Errorf("failed to create or load client certificate: %w", err)
@@ -1352,13 +1352,13 @@ func orbitAction(c *cli.Context) error {
 			return fmt.Errorf("invalid ECC algorithm: %v", v)
 		}
 
-		httpSigner, err := fleethttpsig.Signer(certSN, cryptoSigner, signingAlgorithm)
+		httpSigner, err := automdmhttpsig.Signer(certSN, cryptoSigner, signingAlgorithm)
 		if err != nil {
 			return fmt.Errorf("failed to create HTTP signer: %w", err)
 		}
 
 		proxyDirectory := filepath.Join(c.String("root-dir"), "proxy")
-		proxy, err := httpsigproxy.NewProxy(proxyDirectory, fleetURL, c.String("fleet-certificate"), c.Bool("insecure"), httpSigner)
+		proxy, err := httpsigproxy.NewProxy(proxyDirectory, automdmURL, c.String("automdm-certificate"), c.Bool("insecure"), httpSigner)
 		if err != nil {
 			return fmt.Errorf("create TLS proxy: %w", err)
 		}
@@ -1367,7 +1367,7 @@ func orbitAction(c *cli.Context) error {
 			execute: func() error {
 				log.Info().
 					Str("addr", proxy.ParsedURL.String()).
-					Str("target", fleetURL).
+					Str("target", automdmURL).
 					Msg("httpsig localhost proxy")
 				return proxy.Serve()
 			},
@@ -1384,9 +1384,9 @@ func orbitAction(c *cli.Context) error {
 		hostIdentityCertificatePath = hostIdentityCredentials.CertificatePath
 
 		options = append(options,
-			osquery.WithFlags(osquery.FleetFlags(osqueryVersion, proxy.ParsedURL)),
+			osquery.WithFlags(osquery.AutoMDMFlags(osqueryVersion, proxy.ParsedURL)),
 
-			// This is overriding the previous set of --tls_server_certs in osquery.FleetFlags above.
+			// This is overriding the previous set of --tls_server_certs in osquery.AutoMDMFlags above.
 			osquery.WithFlags([]string{"--tls_server_certs", proxy.CertificatePath}),
 		)
 	}
@@ -1399,15 +1399,15 @@ func orbitAction(c *cli.Context) error {
 	hasEUAToken := euaToken != "" && euaToken != constant.UnusedFlagKeyword
 	bypassEndUserAuth := c.Bool("bypass-end-user-auth") && !hasEUAToken
 
-	orbitClient, err = fleetclient.NewOrbitClient(
+	orbitClient, err = automdmclient.NewOrbitClient(
 		c.String("root-dir"),
-		fleetURL,
-		c.String("fleet-certificate"),
+		automdmURL,
+		c.String("automdm-certificate"),
 		c.Bool("insecure"),
 		enrollSecret,
-		fleetClientCertificate,
+		automdmClientCertificate,
 		orbitHostInfo,
-		&fleetclient.OnGetConfigErrFuncs{
+		&automdmclient.OnGetConfigErrFuncs{
 			DebugErrFunc: func(err error) {
 				log.Debug().Err(err).Msg("get config")
 			},
@@ -1426,7 +1426,7 @@ func orbitAction(c *cli.Context) error {
 	// Set the function that will be called to open the SSO window if an enroll
 	// request returns an "end user authentication required" error.
 	orbitClient.SetOpenSSOWindowFunc(func() error {
-		err = openBrowserWindow(fleetURL + "/mdm/sso?initiator=" + fleet.SSOInitiatorOrbitSetupExperience + "&host_uuid=" + orbitHostInfo.HardwareUUID)
+		err = openBrowserWindow(automdmURL + "/mdm/sso?initiator=" + automdm.SSOInitiatorOrbitSetupExperience + "&host_uuid=" + orbitHostInfo.HardwareUUID)
 		if err != nil {
 			return fmt.Errorf("opening browser: %w", err)
 		}
@@ -1439,7 +1439,7 @@ func orbitAction(c *cli.Context) error {
 		orbitClient.SetEUAToken(euaToken)
 	}
 
-	// Both run only on enroll attempts. They are how a running orbit that has to re-enroll picks up a secret Fleet MDM delivered
+	// Both run only on enroll attempts. They are how a running orbit that has to re-enroll picks up a secret AutoMDM delivered
 	// after startup.
 	orbitClient.SetEnrollSecretRefresher(mdmEnrollSecretRefresher(enrollSecretPath, disableKeystore))
 	orbitClient.SetOnEnrollRejected(newMDMSync())
@@ -1468,23 +1468,23 @@ func orbitAction(c *cli.Context) error {
 	orbitClient.RegisterConfigReceiver(scriptConfigReceiver)
 
 	var trw *token.ReadWriter
-	var deviceClient *fleetclient.DeviceClient
+	var deviceClient *automdmclient.DeviceClient
 	// Note that the deviceClient used by orbit must not define a retry on
 	// invalid token, because its goal is to detect invalid tokens when
 	// making requests with this client.
-	deviceClient, err = fleetclient.NewDeviceClient(
-		fleetURL,
+	deviceClient, err = automdmclient.NewDeviceClient(
+		automdmURL,
 		c.Bool("insecure"),
-		c.String("fleet-certificate"),
-		fleetClientCertificate,
-		c.String("fleet-desktop-alternative-browser-host"),
+		c.String("automdm-certificate"),
+		automdmClientCertificate,
+		c.String("automdm-desktop-alternative-browser-host"),
 	)
 	if err != nil {
 		return fmt.Errorf("initializing client: %w", err)
 	}
 
 	// Create a new token read/writer that will store the token on disk.
-	// This token will be used to identify this desktop to the Fleet server.
+	// This token will be used to identify this desktop to the AutoMDM server.
 	trw = token.NewReadWriter(filepath.Join(c.String("root-dir"), constant.DesktopTokenFileName), deviceClient.CheckToken)
 	if err := trw.LoadOrGenerate(); err != nil {
 		return fmt.Errorf("initializing token read writer: %w", err)
@@ -1514,17 +1514,17 @@ func orbitAction(c *cli.Context) error {
 
 	// Always keep the device identifier (e.g. /opt/orbit/identifier) up to date
 	// with periodic rotation, so it's valid for refetch-host, device auth, and
-	// Fleet Desktop when enabled.
+	// AutoMDM Desktop when enabled.
 	stopRotation := trw.StartRotation()
 	defer stopRotation()
 
 	switch runtime.GOOS {
 	case "darwin":
 		orbitClient.RegisterConfigReceiver(update.ApplyRenewEnrollmentProfileConfigFetcherMiddleware(
-			orbitClient, renewEnrollmentProfileCommandFrequency, fleetURL))
+			orbitClient, renewEnrollmentProfileCommandFrequency, automdmURL))
 		setupExperiencer := setupexperience.NewSetupExperiencer(orbitClient, deviceClient, c.String("root-dir"), trw)
 		// Use the legacy UI if the server indicates so via capabilities.
-		setupExperiencer.UseLegacyUI = !orbitClient.GetServerCapabilities().Has(fleet.CapabilityMacOSWebSetupExperience)
+		setupExperiencer.UseLegacyUI = !orbitClient.GetServerCapabilities().Has(automdm.CapabilityMacOSWebSetupExperience)
 		orbitClient.RegisterConfigReceiver(setupExperiencer)
 		orbitClient.RegisterConfigReceiver(update.ApplySwiftDialogDownloaderMiddleware(updateRunner))
 		orbitClient.RegisterConfigReceiver(entratoken.NewRunner(orbitClient, orbitHostInfo.HardwareUUID))
@@ -1539,8 +1539,8 @@ func orbitAction(c *cli.Context) error {
 		defer comWorker.Close()
 		orbitClient.RegisterConfigReceiver(update.ApplyWindowsMDMBitlockerFetcherMiddleware(
 			windowsMDMBitlockerCommandFrequency, orbitClient, comWorker))
-		if c.Bool("fleet-desktop") {
-			registerFleetDesktopAppID(c.String("root-dir"))
+		if c.Bool("automdm-desktop") {
+			registerAutoMDMDesktopAppID(c.String("root-dir"))
 		}
 		orbitClient.RegisterConfigReceiver(managedaccount.New(orbitClient, windowsManagedAccountRetryFrequency))
 	case "linux":
@@ -1572,7 +1572,7 @@ func orbitAction(c *cli.Context) error {
 				OsquerydPath: osquerydPath,
 				DesktopPath:  desktopPath,
 			},
-			c.Bool("fleet-desktop"),
+			c.Bool("automdm-desktop"),
 			orbitClient.TriggerOrbitRestart,
 		)
 
@@ -1580,7 +1580,7 @@ func orbitAction(c *cli.Context) error {
 	}
 
 	// only setup extensions autoupdate if we have enabled updates
-	// for extensions autoupdate, we can only proceed after orbit is enrolled in fleet
+	// for extensions autoupdate, we can only proceed after orbit is enrolled in team
 	// and all relevant things for it (like certs, enroll secrets, tls proxy, etc) is configured
 	// (extensions come from the update server, so never with externally managed components)
 	if externalOsquerydPath == "" && (!c.Bool("disable-updates") || c.Bool("dev-mode")) {
@@ -1588,7 +1588,7 @@ func orbitAction(c *cli.Context) error {
 			RootDir: c.String("root-dir"),
 		}, updateRunner, orbitClient.TriggerOrbitRestart)
 
-		// call UpdateAction on the updateRunner after we have fetched extensions from Fleet
+		// call UpdateAction on the updateRunner after we have fetched extensions from AutoMDM
 		if updateRunner != nil {
 			_, err := updateRunner.UpdateAction()
 			if err != nil {
@@ -1619,7 +1619,7 @@ func orbitAction(c *cli.Context) error {
 		orbitClient.RegisterConfigReceiver(extRunner)
 	}
 
-	// Run an early check of fleetd configuration (iff server can be reached)
+	// Run an early check of automdmd configuration (iff server can be reached)
 	// to check if orbit needs to restart before proceeding to start the sub-systems.
 	//
 	// E.g. the administrator has updated the following agent options for this device:
@@ -1689,7 +1689,7 @@ func orbitAction(c *cli.Context) error {
 	// Route osquery's distributed queries through orbit's extension plugin.
 	// Set after --flagfile so user flagfiles can't override it (repeated
 	// gflags: last one wins, overriding --distributed_plugin=tls from
-	// FleetFlags).
+	// AutoMDMFlags).
 	//
 	// --extensions_require makes osqueryd wait for orbit's extension before
 	// activating plugins; without it activation races extension registration
@@ -1729,15 +1729,15 @@ func orbitAction(c *cli.Context) error {
 	}
 	addSubsystem(&g, "osqueryd runner", r)
 
-	checkerClient, err := fleetclient.NewOrbitClient(
+	checkerClient, err := automdmclient.NewOrbitClient(
 		c.String("root-dir"),
-		fleetURL,
-		c.String("fleet-certificate"),
+		automdmURL,
+		c.String("automdm-certificate"),
 		c.Bool("insecure"),
 		enrollSecret,
-		fleetClientCertificate,
+		automdmClientCertificate,
 		orbitHostInfo,
-		&fleetclient.OnGetConfigErrFuncs{
+		&automdmclient.OnGetConfigErrFuncs{
 			DebugErrFunc: func(err error) {
 				log.Debug().Err(err).Msg("get config")
 			},
@@ -1758,14 +1758,14 @@ func orbitAction(c *cli.Context) error {
 	addSubsystem(&g, "capabilities checker", capabilitiesChecker)
 
 	var desktopVersion string
-	if c.Bool("fleet-desktop") {
+	if c.Bool("automdm-desktop") {
 		runPath := desktopPath
 		if runtime.GOOS == "darwin" {
 			runPath = filepath.Join(desktopPath, "Contents", "MacOS", constant.DesktopAppExecName)
 		}
 		desktopVersion, err = update.GetVersion(runPath)
 		if err == nil && desktopVersion != "" {
-			log.Info().Msgf("Found fleet-desktop version: %s", desktopVersion)
+			log.Info().Msgf("Found automdm-desktop version: %s", desktopVersion)
 		} else {
 			desktopVersion = "unknown"
 		}
@@ -1786,17 +1786,17 @@ func orbitAction(c *cli.Context) error {
 	}
 
 	if wsTransportEnabled {
-		parsedFleetURL, err := url.Parse(fleetURL)
+		parsedAutoMDMURL, err := url.Parse(automdmURL)
 		if err != nil {
-			return fmt.Errorf("parse Fleet URL for websocket transport: %w", err)
+			return fmt.Errorf("parse AutoMDM URL for websocket transport: %w", err)
 		}
 		var wsManager *wstransport.Manager
 		connected := func() bool { return wsManager.Connected() }
 		managerOpts := wstransport.Options{
-			ServerURL:          parsedFleetURL,
-			RootCA:             c.String("fleet-certificate"),
+			ServerURL:          parsedAutoMDMURL,
+			RootCA:             c.String("automdm-certificate"),
 			InsecureSkipVerify: c.Bool("insecure"),
-			ClientCertificate:  fleetClientCertificate,
+			ClientCertificate:  automdmClientCertificate,
 			NodeKeyFunc:        orbitClient.GetNodeKey,
 			Client:             orbitClient,
 			Cache:              wstransport.NewQueryCache(),
@@ -1811,7 +1811,7 @@ func orbitAction(c *cli.Context) error {
 				orbitClient.TransportDisconnected()
 				configFetcher.Disconnected()
 			}
-			orbitClient.RegisterConfigReceiver(fleet.OrbitConfigReceiverFunc(func(cfg *fleet.OrbitConfig) error {
+			orbitClient.RegisterConfigReceiver(automdm.OrbitConfigReceiverFunc(func(cfg *automdm.OrbitConfig) error {
 				if ws := cfg.WebSocketTransport; ws != nil && ws.OsqueryConfigPollInterval != nil {
 					configFetcher.SetPollInterval(time.Duration(*ws.OsqueryConfigPollInterval) * time.Second)
 				}
@@ -1831,27 +1831,27 @@ func orbitAction(c *cli.Context) error {
 		extensionOpts...,
 	)
 
-	if c.Bool("fleet-desktop") {
+	if c.Bool("automdm-desktop") {
 		desktopRunner := newDesktopRunner(
 			desktopPath,
-			fleetURL,
-			c.String("fleet-certificate"),
+			automdmURL,
+			c.String("automdm-certificate"),
 			c.Bool("insecure"),
 			trw,
-			fleetClientCertPath,
-			fleetClientKeyPath,
-			c.String("fleet-desktop-alternative-browser-host"),
+			automdmClientCertPath,
+			automdmClientKeyPath,
+			c.String("automdm-desktop-alternative-browser-host"),
 			opt.RootDirectory,
 			c.String("root-dir"),
 		)
 		go func() {
 			for {
 				msg := <-desktopRunner.errorNotifyCh
-				log.Error().Err(errors.New(msg)).Msg("fleet-desktop runner error")
-				// Vital errors are always sent to Fleet, regardless of the error reporting setting FLEET_ENABLE_POST_CLIENT_DEBUG_ERRORS.
-				fleetdErr := fleet.FleetdError{
+				log.Error().Err(errors.New(msg)).Msg("automdm-desktop runner error")
+				// Vital errors are always sent to AutoMDM, regardless of the error reporting setting AUTOMDM_ENABLE_POST_CLIENT_DEBUG_ERRORS.
+				automdmdErr := automdm.AutoMDMdError{
 					Vital:              true,
-					ErrorSource:        "fleet-desktop",
+					ErrorSource:        "automdm-desktop",
 					ErrorSourceVersion: desktopVersion,
 					ErrorTimestamp:     time.Now(),
 					ErrorMessage:       msg,
@@ -1863,8 +1863,8 @@ func orbitAction(c *cli.Context) error {
 						"os_version":       osqueryHostInfo.OSVersion,
 					},
 				}
-				if err = deviceClient.ReportError(trw.GetCached(), fleetdErr); err != nil {
-					log.Error().Err(err).Msg(fmt.Sprintf("failed to send error report to Fleet: %s", msg))
+				if err = deviceClient.ReportError(trw.GetCached(), automdmdErr); err != nil {
+					log.Error().Err(err).Msg(fmt.Sprintf("failed to send error report to AutoMDM: %s", msg))
 				}
 			}
 		}()
@@ -1875,13 +1875,13 @@ func orbitAction(c *cli.Context) error {
 	// email from the enrollment profile)
 	endUserEmail := c.String("end-user-email")
 	if (runtime.GOOS == "windows" || runtime.GOOS == "linux") && endUserEmail != "" && endUserEmail != constant.UnusedFlagKeyword {
-		if orbitClient.GetServerCapabilities().Has(fleet.CapabilityEndUserEmail) {
-			log.Debug().Msg("sending end-user email to Fleet")
+		if orbitClient.GetServerCapabilities().Has(automdm.CapabilityEndUserEmail) {
+			log.Debug().Msg("sending end-user email to AutoMDM")
 			if err := orbitClient.SetOrUpdateDeviceMappingEmail(endUserEmail); err != nil {
-				log.Error().Err(err).Msg("error sending end-user email to Fleet")
+				log.Error().Err(err).Msg("error sending end-user email to AutoMDM")
 			}
 		} else {
-			log.Info().Msg("an end-user email is provided, but the Fleet server doesn't have the capability to set it.")
+			log.Info().Msg("an end-user email is provided, but the AutoMDM server doesn't have the capability to set it.")
 		}
 	}
 
@@ -1912,7 +1912,7 @@ func orbitAction(c *cli.Context) error {
 
 	if runtime.GOOS == "darwin" {
 		log.Info().Msgf("orbitClient.GetServerCapabilities() %+v", orbitClient.GetServerCapabilities())
-		if orbitClient.GetServerCapabilities().Has(fleet.CapabilityEscrowBuddy) {
+		if orbitClient.GetServerCapabilities().Has(automdm.CapabilityEscrowBuddy) {
 			orbitClient.RegisterConfigReceiver(update.NewEscrowBuddyRunner(updateRunner, 5*time.Minute))
 		} else {
 			orbitClient.RegisterConfigReceiver(
@@ -1944,8 +1944,8 @@ func orbitAction(c *cli.Context) error {
 		Msg("checking setup experience preflight values")
 
 	openMyDevicePage := func() error {
-		if !c.Bool("fleet-desktop") {
-			log.Debug().Msg("fleet desktop disabled, not launching my device page")
+		if !c.Bool("automdm-desktop") {
+			log.Debug().Msg("automdm desktop disabled, not launching my device page")
 			return nil
 		}
 
@@ -1978,9 +1978,9 @@ func orbitAction(c *cli.Context) error {
 
 type setupExperienceClient interface {
 	setupexperience.OrbitClient
-	GetServerCapabilities() fleet.CapabilityMap
-	InitiateSetupExperience() (fleet.SetupExperienceInitResult, error)
-	RegisterConfigReceiver(cr fleet.OrbitConfigReceiver)
+	GetServerCapabilities() automdm.CapabilityMap
+	InitiateSetupExperience() (automdm.SetupExperienceInitResult, error)
+	RegisterConfigReceiver(cr automdm.OrbitConfigReceiver)
 }
 
 func processSetupExperience(orbitClient setupExperienceClient, rootDir string, openMyDevicePage func() error) error {
@@ -1992,8 +1992,8 @@ func processSetupExperience(orbitClient setupExperienceClient, rootDir string, o
 
 	switch {
 	case exp == nil:
-		// If communicating with an old Fleet server, write setup experience file and not run setup experience.
-		if !orbitClient.GetServerCapabilities().Has(fleet.CapabilityWebSetupExperience) {
+		// If communicating with an old AutoMDM server, write setup experience file and not run setup experience.
+		if !orbitClient.GetServerCapabilities().Has(automdm.CapabilityWebSetupExperience) {
 			log.Debug().Msg("server does not support setup experience, writing setup experience file, and continuing")
 			initTime := time.Now()
 			if err := setupexperience.WriteSetupExperienceStatusFile(rootDir, &setupexperience.SetupExperienceInfo{
@@ -2011,10 +2011,10 @@ func processSetupExperience(orbitClient setupExperienceClient, rootDir string, o
 		switch {
 		case err == nil:
 			// OK, continue
-		case errors.Is(err, fleetclient.ErrMissingLicense):
+		case errors.Is(err, automdmclient.ErrMissingLicense):
 			// Setup experience is a premium feature.
 			log.Debug().Msg("setup experience is a premium feature, writing setup experience file, and continuing")
-			initSetupExperienceResponse = fleet.SetupExperienceInitResult{
+			initSetupExperienceResponse = automdm.SetupExperienceInitResult{
 				Enabled: false,
 			}
 		default:
@@ -2071,7 +2071,7 @@ func deleteSecretPathIfExists(enrollSecretPath string) {
 }
 
 // prepareDesktopTLSFiles creates copies of the TLS client cert/key owned by
-// the target user so Fleet Desktop (unprivileged) can read them. This is
+// the target user so AutoMDM Desktop (unprivileged) can read them. This is
 // called before execuser.Run, so the files are fully ready before the desktop
 // process starts.
 func (d *desktopRunner) prepareDesktopTLSFiles(username string) (certPath, keyPath string, err error) {
@@ -2090,14 +2090,14 @@ func (d *desktopRunner) prepareDesktopTLSFiles(username string) (certPath, keyPa
 		return "", "", err
 	}
 
-	certDst := filepath.Join(d.rootDir, ".desktop_fleet_client.crt")
-	keyDst := filepath.Join(d.rootDir, ".desktop_fleet_client.key")
+	certDst := filepath.Join(d.rootDir, ".desktop_automdm_client.crt")
+	keyDst := filepath.Join(d.rootDir, ".desktop_automdm_client.key")
 
-	crt, err := os.ReadFile(d.fleetClientCertPath)
+	crt, err := os.ReadFile(d.automdmClientCertPath)
 	if err != nil {
 		return "", "", fmt.Errorf("read cert: %w", err)
 	}
-	key, err := os.ReadFile(d.fleetClientKeyPath)
+	key, err := os.ReadFile(d.automdmClientKeyPath)
 	if err != nil {
 		return "", "", fmt.Errorf("read key: %w", err)
 	}
@@ -2111,7 +2111,7 @@ func (d *desktopRunner) prepareDesktopTLSFiles(username string) (certPath, keyPa
 
 	// Write key to a temp file and rename to avoid a previous user retaining
 	// a read descriptor on the destination inode.
-	tmpKey, err := os.CreateTemp(d.rootDir, ".desktop_fleet_client_key_*")
+	tmpKey, err := os.CreateTemp(d.rootDir, ".desktop_automdm_client_key_*")
 	if err != nil {
 		return "", "", fmt.Errorf("create temp key file: %w", err)
 	}
@@ -2165,7 +2165,7 @@ func lookupGID(username string) (int, error) {
 	return gid, nil
 }
 
-// setServerOverrides overrides specific variables in c with values fetched from Fleet.
+// setServerOverrides overrides specific variables in c with values fetched from AutoMDM.
 func setServerOverrides(c *cli.Context) fallbackServerOverridesConfig {
 	overrideCfg, err := loadServerOverrides(c.String("root-dir"))
 	if err != nil {
@@ -2234,10 +2234,10 @@ func getComponentWithSelfHeal(updater *update.Updater, target string) (*update.L
 	return localTarget, nil
 }
 
-// getFleetdComponentPaths returns the paths of the fleetd components.
+// getAutoMDMdComponentPaths returns the paths of the automdmd components.
 // If the path to the component cannot be fetched using the updater (e.g. channel doesn't exist yet)
 // then it will use the fallbackCfg's paths (if set).
-func getFleetdComponentPaths(
+func getAutoMDMdComponentPaths(
 	c *cli.Context,
 	updater *update.Updater,
 	fallbackCfg fallbackServerOverridesConfig,
@@ -2271,8 +2271,8 @@ func getFleetdComponentPaths(
 			log.Info().Err(err).Msgf("get local %s target failed, fallback to using %s", constant.OsqueryTUFTargetName, fallbackCfg.OsquerydPath)
 			osquerydPath = fallbackCfg.OsquerydPath
 		}
-		// Attempt to get local path of Fleet Desktop.
-		if c.Bool("fleet-desktop") {
+		// Attempt to get local path of AutoMDM Desktop.
+		if c.Bool("automdm-desktop") {
 			if runtime.GOOS == "darwin" {
 				desktopPath, err = updater.DirLocalPath(constant.DesktopTUFTargetName)
 			} else {
@@ -2306,9 +2306,9 @@ func getFleetdComponentPaths(
 		osquerydPath = osquerydLocalTarget.ExecPath
 	}
 
-	// Fleet Desktop
-	if c.Bool("fleet-desktop") {
-		fleetDesktopLocalTarget, err := getComponentWithSelfHeal(updater, constant.DesktopTUFTargetName)
+	// AutoMDM Desktop
+	if c.Bool("automdm-desktop") {
+		automdmDesktopLocalTarget, err := getComponentWithSelfHeal(updater, constant.DesktopTUFTargetName)
 		if err != nil {
 			if fallbackCfg.DesktopPath == "" {
 				log.Info().Err(err).Msgf("get %s target failed", constant.DesktopTUFTargetName)
@@ -2318,9 +2318,9 @@ func getFleetdComponentPaths(
 			desktopPath = fallbackCfg.DesktopPath
 		} else {
 			if runtime.GOOS == "darwin" {
-				desktopPath = fleetDesktopLocalTarget.DirPath
+				desktopPath = automdmDesktopLocalTarget.DirPath
 			} else {
-				desktopPath = fleetDesktopLocalTarget.ExecPath
+				desktopPath = automdmDesktopLocalTarget.ExecPath
 			}
 		}
 	}
@@ -2333,28 +2333,28 @@ func registerExtensionRunner(g *run.Group, extSockPath string, opts ...table.Opt
 	addSubsystem(g, "osqueryd extension runner", ext)
 }
 
-// desktopRunner runs the Fleet Desktop application.
+// desktopRunner runs the AutoMDM Desktop application.
 type desktopRunner struct {
 	// desktopPath is the path to the desktop executable.
 	desktopPath string
 	updateRoot  string
-	// fleetURL is the URL of the Fleet server.
-	fleetURL string
-	// trw is the Fleet Desktop token reader and writer (implements token rotation).
+	// automdmURL is the URL of the AutoMDM server.
+	automdmURL string
+	// trw is the AutoMDM Desktop token reader and writer (implements token rotation).
 	trw *token.ReadWriter
-	// fleetRootCA is the path to a certificate to use for server TLS verification.
-	fleetRootCA string
+	// automdmRootCA is the path to a certificate to use for server TLS verification.
+	automdmRootCA string
 	// insecure disables all TLS verification.
 	insecure bool
-	// fleetClientCertPath is the path to the TLS client certificate file.
-	fleetClientCertPath string
-	// fleetClientKeyPath is the path to the TLS client key file.
-	fleetClientKeyPath string
+	// automdmClientCertPath is the path to the TLS client certificate file.
+	automdmClientCertPath string
+	// automdmClientKeyPath is the path to the TLS client key file.
+	automdmClientKeyPath string
 	// rootDir is the orbit root directory.
 	rootDir string
-	// fleetAlternativeBrowserHost is an alternative host:port to use for
-	// the browser URLs in Fleet Desktop.
-	fleetAlternativeBrowserHost string
+	// automdmAlternativeBrowserHost is an alternative host:port to use for
+	// the browser URLs in AutoMDM Desktop.
+	automdmAlternativeBrowserHost string
 	// interruptCh is closed when interrupt is triggered.
 	interruptCh chan struct{} //
 	// executeDoneCh is closed when execute returns.
@@ -2366,37 +2366,37 @@ type desktopRunner struct {
 }
 
 func newDesktopRunner(
-	desktopPath, fleetURL, fleetRootCA string,
+	desktopPath, automdmURL, automdmRootCA string,
 	insecure bool,
 	trw *token.ReadWriter,
-	fleetClientCertPath, fleetClientKeyPath string,
-	fleetAlternativeBrowserHost string,
+	automdmClientCertPath, automdmClientKeyPath string,
+	automdmAlternativeBrowserHost string,
 	updateRoot string,
 	rootDir string,
 ) *desktopRunner {
 	return &desktopRunner{
-		desktopPath:                 desktopPath,
-		updateRoot:                  updateRoot,
-		fleetURL:                    fleetURL,
-		trw:                         trw,
-		fleetRootCA:                 fleetRootCA,
-		insecure:                    insecure,
-		fleetClientCertPath:         fleetClientCertPath,
-		fleetClientKeyPath:          fleetClientKeyPath,
-		rootDir:                     rootDir,
-		fleetAlternativeBrowserHost: fleetAlternativeBrowserHost,
-		interruptCh:                 make(chan struct{}),
-		executeDoneCh:               make(chan struct{}),
-		errorNotifyCh:               make(chan string),
+		desktopPath:                   desktopPath,
+		updateRoot:                    updateRoot,
+		automdmURL:                    automdmURL,
+		trw:                           trw,
+		automdmRootCA:                 automdmRootCA,
+		insecure:                      insecure,
+		automdmClientCertPath:         automdmClientCertPath,
+		automdmClientKeyPath:          automdmClientKeyPath,
+		rootDir:                       rootDir,
+		automdmAlternativeBrowserHost: automdmAlternativeBrowserHost,
+		interruptCh:                   make(chan struct{}),
+		executeDoneCh:                 make(chan struct{}),
+		errorNotifyCh:                 make(chan string),
 	}
 }
 
-// execute makes sure the fleet-desktop application is running.
+// execute makes sure the automdm-desktop application is running.
 //
 // We have to support the scenario where the user closes its sessions (log out).
 // To support this, we add retries to execuser.Run. Basically retry execuser.Run until it succeeds,
 // which will happen when the user logs in.
-// Once fleet-desktop is started, the process is monitored (user processes get killed when the user
+// Once automdm-desktop is started, the process is monitored (user processes get killed when the user
 // closes all its sessions).
 //
 // NOTE(lucas): This logic could be improved to detect if there's a valid session or not first.
@@ -2404,44 +2404,44 @@ func (d *desktopRunner) Execute() error {
 	defer close(d.executeDoneCh)
 
 	log.Info().Str("path", d.desktopPath).Msg("opening")
-	url, err := url.Parse(d.fleetURL)
+	url, err := url.Parse(d.automdmURL)
 	if err != nil {
-		return fmt.Errorf("invalid fleet-url: %w", err)
+		return fmt.Errorf("invalid automdm-url: %w", err)
 	}
-	deviceURL, err := url.Parse(d.fleetURL)
+	deviceURL, err := url.Parse(d.automdmURL)
 	if err != nil {
-		return fmt.Errorf("invalid fleet-url: %w", err)
+		return fmt.Errorf("invalid automdm-url: %w", err)
 	}
 	deviceURL.Path = path.Join(url.Path, "device", d.trw.GetCached())
 	baseOpts := []execuser.Option{
-		execuser.WithEnv("FLEET_DESKTOP_FLEET_URL", url.String()),
-		execuser.WithEnv("FLEET_DESKTOP_DEVICE_IDENTIFIER_PATH", d.trw.Path),
+		execuser.WithEnv("AUTOMDM_DESKTOP_AUTOMDM_URL", url.String()),
+		execuser.WithEnv("AUTOMDM_DESKTOP_DEVICE_IDENTIFIER_PATH", d.trw.Path),
 
 		// TODO(roperzh): this env var is keept only for backwards compatibility,
 		// we should remove it once we think is safe
-		execuser.WithEnv("FLEET_DESKTOP_DEVICE_URL", deviceURL.String()),
+		execuser.WithEnv("AUTOMDM_DESKTOP_DEVICE_URL", deviceURL.String()),
 
-		execuser.WithEnv("FLEET_DESKTOP_ALTERNATIVE_BROWSER_HOST", d.fleetAlternativeBrowserHost),
-		execuser.WithEnv("FLEET_DESKTOP_TUF_UPDATE_ROOT", d.updateRoot),
+		execuser.WithEnv("AUTOMDM_DESKTOP_ALTERNATIVE_BROWSER_HOST", d.automdmAlternativeBrowserHost),
+		execuser.WithEnv("AUTOMDM_DESKTOP_TUF_UPDATE_ROOT", d.updateRoot),
 	}
 
-	if d.fleetRootCA != "" {
-		baseOpts = append(baseOpts, execuser.WithEnv("FLEET_DESKTOP_FLEET_ROOT_CA", d.fleetRootCA))
+	if d.automdmRootCA != "" {
+		baseOpts = append(baseOpts, execuser.WithEnv("AUTOMDM_DESKTOP_AUTOMDM_ROOT_CA", d.automdmRootCA))
 	}
 	if d.insecure {
-		baseOpts = append(baseOpts, execuser.WithEnv("FLEET_DESKTOP_INSECURE", "1"))
+		baseOpts = append(baseOpts, execuser.WithEnv("AUTOMDM_DESKTOP_INSECURE", "1"))
 	}
 
 	for {
-		// First retry logic to start fleet-desktop.
+		// First retry logic to start automdm-desktop.
 		if done := retry(30*time.Second, false, d.interruptCh, func() bool {
 			//
-			// - On MacOS, if we attempt to run Fleet Desktop while the user is not logged in through
+			// - On MacOS, if we attempt to run AutoMDM Desktop while the user is not logged in through
 			//   the GUI, MacOS returns an error. See https://github.com/fleetdm/fleet/issues/14698
 			//   for more details.
-			// - On Linux, we also don't want to start the Fleet Desktop unless there's an active GUI session.
+			// - On Linux, we also don't want to start the AutoMDM Desktop unless there's an active GUI session.
 			// - On Windows, user.UserLoggedInViaGui is a no-op, and execuser.Run will take care of
-			//   starting Fleet Desktop with the correct GUI user.
+			//   starting AutoMDM Desktop with the correct GUI user.
 			//
 
 			loggedInUser, err := user.UserLoggedInViaGui()
@@ -2450,10 +2450,10 @@ func (d *desktopRunner) Execute() error {
 				return true
 			}
 			if loggedInUser == nil {
-				log.Debug().Msg("No GUI user found, skipping fleet-desktop start")
+				log.Debug().Msg("No GUI user found, skipping automdm-desktop start")
 				return true
 			}
-			log.Debug().Msgf("found GUI user: %q, attempting fleet-desktop start", *loggedInUser)
+			log.Debug().Msgf("found GUI user: %q, attempting automdm-desktop start", *loggedInUser)
 
 			// Build a fresh opts slice for each attempt to avoid accumulating
 			// stale WithUser/cert path entries from prior retries.
@@ -2464,23 +2464,23 @@ func (d *desktopRunner) Execute() error {
 				opts = append(opts, execuser.WithUser(*loggedInUser))
 			}
 
-			if d.fleetClientCertPath != "" && d.fleetClientKeyPath != "" {
+			if d.automdmClientCertPath != "" && d.automdmClientKeyPath != "" {
 				if runtime.GOOS == "windows" {
 					// On Windows, env vars are passed securely via os.Setenv
 					// (not in process cmdline). Read on each attempt to pick
 					// up rotated credentials.
-					crtData, err := os.ReadFile(d.fleetClientCertPath)
+					crtData, err := os.ReadFile(d.automdmClientCertPath)
 					if err != nil {
 						log.Warn().Err(err).Msg("reading TLS client certificate for desktop")
 					}
-					keyData, err := os.ReadFile(d.fleetClientKeyPath)
+					keyData, err := os.ReadFile(d.automdmClientKeyPath)
 					if err != nil {
 						log.Warn().Err(err).Msg("reading TLS client key for desktop")
 					}
 					if len(crtData) > 0 && len(keyData) > 0 {
 						opts = append(opts,
-							execuser.WithEnv("FLEET_DESKTOP_FLEET_TLS_CLIENT_CERTIFICATE", string(crtData)),
-							execuser.WithEnv("FLEET_DESKTOP_FLEET_TLS_CLIENT_KEY", string(keyData)),
+							execuser.WithEnv("AUTOMDM_DESKTOP_AUTOMDM_TLS_CLIENT_CERTIFICATE", string(crtData)),
+							execuser.WithEnv("AUTOMDM_DESKTOP_AUTOMDM_TLS_CLIENT_KEY", string(keyData)),
 						)
 					}
 				} else {
@@ -2491,14 +2491,14 @@ func (d *desktopRunner) Execute() error {
 						log.Warn().Err(err).Msg("preparing TLS files for desktop, launching without TLS client cert")
 					} else {
 						opts = append(opts,
-							execuser.WithEnv("FLEET_DESKTOP_FLEET_TLS_CLIENT_CERTIFICATE_PATH", certCopy),
-							execuser.WithEnv("FLEET_DESKTOP_FLEET_TLS_CLIENT_KEY_PATH", keyCopy),
+							execuser.WithEnv("AUTOMDM_DESKTOP_AUTOMDM_TLS_CLIENT_CERTIFICATE_PATH", certCopy),
+							execuser.WithEnv("AUTOMDM_DESKTOP_AUTOMDM_TLS_CLIENT_KEY_PATH", keyCopy),
 						)
 					}
 				}
 			}
 
-			log.Info().Msg("killing any pre-existing fleet-desktop instances")
+			log.Info().Msg("killing any pre-existing automdm-desktop instances")
 			if err := platform.SignalProcessBeforeTerminate(constant.DesktopAppExecName); err != nil &&
 				!errors.Is(err, platform.ErrProcessNotFound) &&
 				!errors.Is(err, platform.ErrComChannelNotFound) {
@@ -2510,7 +2510,7 @@ func (d *desktopRunner) Execute() error {
 			// we need to run the application as the login user.
 			// Package execuser provides multi-platform support for this.
 			if lastLogs, err := execuser.Run(d.desktopPath, opts...); err != nil {
-				log.Warn().Err(err).Msg("failed to start fleet-desktop, will retry")
+				log.Warn().Err(err).Msg("failed to start automdm-desktop, will retry")
 				d.processLog(lastLogs)
 				return true
 			}
@@ -2519,7 +2519,7 @@ func (d *desktopRunner) Execute() error {
 			return nil
 		}
 
-		// Second retry logic to monitor fleet-desktop.
+		// Second retry logic to monitor automdm-desktop.
 		// Call with waitFirst=true to give some time for the process to start.
 		if done := retry(15*time.Second, true, d.interruptCh, func() bool {
 			switch _, err := platform.GetProcessesByName(constant.DesktopAppExecName); {
@@ -2579,8 +2579,8 @@ func (d *desktopRunner) processLog(log string) {
 		msg = string(logErrorLaunchServicesMsg)
 	case strings.Contains(log, string(logErrorMissingExecSubstr)):
 		// For manual testing.
-		// To get this message, delete Fleet Desktop.app directory, make an empty Fleet Desktop.app directory,
-		// and kill the fleet-desktop process. Orbit will try to re-start Fleet Desktop and log this message.
+		// To get this message, delete AutoMDM Desktop.app directory, make an empty AutoMDM Desktop.app directory,
+		// and kill the automdm-desktop process. Orbit will try to re-start AutoMDM Desktop and log this message.
 		msg = string(logErrorMissingExecMsg)
 	case strings.Contains(log, string(logErrorMissingDomainSubstr)):
 		msg = string(logErrorMissingDomainMsg)
@@ -2732,12 +2732,12 @@ func (s *serviceChecker) Interrupt(err error) {
 //
 // This struct and its methods are designed to play nicely with `oklog.Group`.
 type capabilitiesChecker struct {
-	client        *fleetclient.OrbitClient
+	client        *automdmclient.OrbitClient
 	interruptCh   chan struct{} // closed when interrupt is triggered
 	executeDoneCh chan struct{} // closed when execute returns
 }
 
-func newCapabilitiesChecker(client *fleetclient.OrbitClient) *capabilitiesChecker {
+func newCapabilitiesChecker(client *automdmclient.OrbitClient) *capabilitiesChecker {
 	return &capabilitiesChecker{
 		client:        client,
 		interruptCh:   make(chan struct{}),
@@ -2771,19 +2771,19 @@ func (f *capabilitiesChecker) Execute() error {
 			}
 			newCapabilities := f.client.GetServerCapabilities()
 
-			if oldCapabilities.Has(fleet.CapabilityOrbitEndpoints) !=
-				newCapabilities.Has(fleet.CapabilityOrbitEndpoints) {
-				log.Info().Msgf("%s capability changed, restarting", fleet.CapabilityOrbitEndpoints)
+			if oldCapabilities.Has(automdm.CapabilityOrbitEndpoints) !=
+				newCapabilities.Has(automdm.CapabilityOrbitEndpoints) {
+				log.Info().Msgf("%s capability changed, restarting", automdm.CapabilityOrbitEndpoints)
 				return nil
 			}
-			if oldCapabilities.Has(fleet.CapabilityTokenRotation) !=
-				newCapabilities.Has(fleet.CapabilityTokenRotation) {
-				log.Info().Msgf("%s capability changed, restarting", fleet.CapabilityTokenRotation)
+			if oldCapabilities.Has(automdm.CapabilityTokenRotation) !=
+				newCapabilities.Has(automdm.CapabilityTokenRotation) {
+				log.Info().Msgf("%s capability changed, restarting", automdm.CapabilityTokenRotation)
 				return nil
 			}
-			if oldCapabilities.Has(fleet.CapabilityEndUserEmail) !=
-				newCapabilities.Has(fleet.CapabilityEndUserEmail) {
-				log.Info().Msgf("%s capability changed, restarting", fleet.CapabilityEndUserEmail)
+			if oldCapabilities.Has(automdm.CapabilityEndUserEmail) !=
+				newCapabilities.Has(automdm.CapabilityEndUserEmail) {
+				log.Info().Msgf("%s capability changed, restarting", automdm.CapabilityEndUserEmail)
 				return nil
 			}
 		case <-f.interruptCh:
@@ -2821,13 +2821,13 @@ func writeOrbitFile(contents string, orbitRoot string, fileName string) error {
 	return nil
 }
 
-// writeFleetURL writes the Fleet URL to the designated file. This is needed in case the
-// Fleet URL originally came from a config profile, which was subsequently removed.
-func writeFleetURL(contents string, orbitRoot string) error {
-	return writeOrbitFile(contents, orbitRoot, constant.FleetURLFileName)
+// writeAutoMDMURL writes the AutoMDM URL to the designated file. This is needed in case the
+// AutoMDM URL originally came from a config profile, which was subsequently removed.
+func writeAutoMDMURL(contents string, orbitRoot string) error {
+	return writeOrbitFile(contents, orbitRoot, constant.AutoMDMURLFileName)
 }
 
-// serverOverridesRunner is a oklog.Group runner that polls for configuration overrides from Fleet.
+// serverOverridesRunner is a oklog.Group runner that polls for configuration overrides from AutoMDM.
 type serverOverridesRunner struct {
 	rootDir             string
 	fallbackCfg         fallbackServerOverridesConfig
@@ -2836,7 +2836,7 @@ type serverOverridesRunner struct {
 	triggerOrbitRestart func(reason string)
 }
 
-// newServerOverridesReveiver creates a runner for updating server overrides configuration with values fetched from Fleet.
+// newServerOverridesReveiver creates a runner for updating server overrides configuration with values fetched from AutoMDM.
 func newServerOverridesReceiver(
 	rootDir string,
 	fallbackCfg fallbackServerOverridesConfig,
@@ -2852,7 +2852,7 @@ func newServerOverridesReceiver(
 	}
 }
 
-func (r *serverOverridesRunner) Run(orbitCfg *fleet.OrbitConfig) error {
+func (r *serverOverridesRunner) Run(orbitCfg *automdm.OrbitConfig) error {
 	overrideCfg, err := loadServerOverrides(r.rootDir)
 	if err != nil {
 		return err
@@ -2876,15 +2876,15 @@ func (r *serverOverridesRunner) Run(orbitCfg *fleet.OrbitConfig) error {
 }
 
 // cfgsDiffer returns whether the local server overrides differ from the fetched remotely.
-func cfgsDiffer(overrideCfg *serverOverridesConfig, orbitCfg *fleet.OrbitConfig, desktopEnabled bool) bool {
-	localUpdateChannelsCfg := &fleet.OrbitUpdateChannels{
+func cfgsDiffer(overrideCfg *serverOverridesConfig, orbitCfg *automdm.OrbitConfig, desktopEnabled bool) bool {
+	localUpdateChannelsCfg := &automdm.OrbitUpdateChannels{
 		Orbit:    overrideCfg.OrbitChannel,
 		Osqueryd: overrideCfg.OsquerydChannel,
 		Desktop:  overrideCfg.DesktopChannel,
 	}
 	remoteUpdateChannelsCfg := orbitCfg.UpdateChannels
 
-	setStableAsDefault := func(cfg *fleet.OrbitUpdateChannels) {
+	setStableAsDefault := func(cfg *automdm.OrbitUpdateChannels) {
 		if cfg.Orbit == "" {
 			cfg.Orbit = "stable"
 		}
@@ -2916,7 +2916,7 @@ type serverOverridesConfig struct {
 	OrbitChannel string `json:"orbit-channel"`
 	// OsquerydChannel defines the override for the osqueryd's channel.
 	OsquerydChannel string `json:"osqueryd-channel"`
-	// DesktopChannel defines the override for the Fleet Desktop's channel.
+	// DesktopChannel defines the override for the AutoMDM Desktop's channel.
 	DesktopChannel string `json:"desktop-channel"`
 
 	fallbackServerOverridesConfig
@@ -2925,14 +2925,14 @@ type serverOverridesConfig struct {
 // fallbackServerOverridesConfig contains fallback configuration in case the server
 // settings are invalid (e.g. invalid update channels that don't exist).
 // Whenever the user sets an invalid channel, then the fallback paths are used to get
-// fleetd up and running with the last known good configuration.
+// automdmd up and running with the last known good configuration.
 //
 // NOTE: We don't need orbit's path because the `orbit` component is a special case that uses
 // a symlink to define the last known valid version.
 type fallbackServerOverridesConfig struct {
 	// OsquerydPath contains the path of the osqueryd executable last known to be valid.
 	OsquerydPath string `json:"fallback-osqueryd-path"`
-	// DesktopPath contains the path of the Fleet Desktop executable last known to be valid.
+	// DesktopPath contains the path of the AutoMDM Desktop executable last known to be valid.
 	DesktopPath string `json:"fallback-desktop-path"`
 }
 
@@ -2940,8 +2940,8 @@ func (f fallbackServerOverridesConfig) empty() bool {
 	return f.OsquerydPath == "" && f.DesktopPath == ""
 }
 
-// updateServerOverrides updates the server override local file with the configuration fetched from Fleet.
-func (r *serverOverridesRunner) updateServerOverrides(remoteCfg *fleet.OrbitConfig) error {
+// updateServerOverrides updates the server override local file with the configuration fetched from AutoMDM.
+func (r *serverOverridesRunner) updateServerOverrides(remoteCfg *automdm.OrbitConfig) error {
 	overrideCfg := serverOverridesConfig{
 		OrbitChannel:                  remoteCfg.UpdateChannels.Orbit,
 		OsquerydChannel:               remoteCfg.UpdateChannels.Osqueryd,
@@ -3016,31 +3016,31 @@ func (w *wrapSubsystem) Interrupt(err error) {
 	w.interrupt(err)
 }
 
-// executeFleetDesktopWithPermanentError attempts to execute a Fleet Desktop instance
+// executeAutoMDMDesktopWithPermanentError attempts to execute an AutoMDM Desktop instance
 // with a permanent error. The routine sleeps for 5 minutes to give some time for the message
 // to be seen by the end-user.
-func executeFleetDesktopWithPermanentError(desktopPath string, errorMessage string) error {
+func executeAutoMDMDesktopWithPermanentError(desktopPath string, errorMessage string) error {
 	loggedInUser, err := user.UserLoggedInViaGui()
 	if err != nil {
 		return fmt.Errorf("failed to get logged in GUI user: %w", err)
 	}
 	if loggedInUser == nil {
-		log.Debug().Msg("No GUI user found, skipping fleet-desktop start")
+		log.Debug().Msg("No GUI user found, skipping automdm-desktop start")
 		return nil
 	}
-	log.Debug().Msgf("found GUI user: %q, attempting fleet-desktop start", *loggedInUser)
+	log.Debug().Msgf("found GUI user: %q, attempting automdm-desktop start", *loggedInUser)
 
-	log.Info().Msg("killing any pre-existing fleet-desktop instances")
+	log.Info().Msg("killing any pre-existing automdm-desktop instances")
 	if err := platform.SignalProcessBeforeTerminate(constant.DesktopAppExecName); err != nil &&
 		!errors.Is(err, platform.ErrProcessNotFound) &&
 		!errors.Is(err, platform.ErrComChannelNotFound) {
 		return fmt.Errorf("pre-existing desktop terminate: %w", err)
 	}
 
-	log.Debug().Msg("opening Fleet Desktop with permantent error")
+	log.Debug().Msg("opening AutoMDM Desktop with permantent error")
 
 	opts := []execuser.Option{
-		execuser.WithEnv("FLEET_DESKTOP_PERMANENT_ERROR", errorMessage),
+		execuser.WithEnv("AUTOMDM_DESKTOP_PERMANENT_ERROR", errorMessage),
 	}
 
 	if *loggedInUser != "" {
@@ -3052,7 +3052,7 @@ func executeFleetDesktopWithPermanentError(desktopPath string, errorMessage stri
 	// we need to run the application as the login user.
 	// Package execuser provides multi-platform support for this.
 	if lastLogs, err := execuser.Run(desktopPath, opts...); err != nil {
-		return fmt.Errorf("failed to run Fleet Desktop: %w, logs: %q", err, lastLogs)
+		return fmt.Errorf("failed to run AutoMDM Desktop: %w, logs: %q", err, lastLogs)
 	}
 
 	// We give enough time to display the permanent error.

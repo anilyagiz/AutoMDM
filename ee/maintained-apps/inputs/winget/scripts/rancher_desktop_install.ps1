@@ -1,5 +1,5 @@
 # Learn more about .msi install scripts:
-# http://fleetdm.com/learn-more-about/msi-install-scripts
+# http://automdm.com/learn-more-about/msi-install-scripts
 #
 # Rancher Desktop's winget manifest documents a Custom switch of
 # WSLINSTALLED=1 — this property tells the installer to skip the

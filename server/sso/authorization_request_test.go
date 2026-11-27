@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/crewjam/saml"
-	"github.com/fleetdm/fleet/v4/server/fleet"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -34,9 +34,9 @@ func TestCreateAuthorizationRequest(t *testing.T) {
 
 	samlProvider, err := SAMLProviderFromConfiguredMetadata(context.Background(),
 		"issuer",
-		"http://localhost:8001/api/v1/fleet/sso/callback",
-		&fleet.SSOProviderSettings{
-			IDPName:  "Fleet",
+		"http://localhost:8001/api/v1/automdm/sso/callback",
+		&automdm.SSOProviderSettings{
+			IDPName:  "AutoMDM",
 			Metadata: string(metadata),
 		},
 	)
@@ -47,7 +47,7 @@ func TestCreateAuthorizationRequest(t *testing.T) {
 		store,
 		"/redir",
 		0,
-		fleet.SSORelayStateNone,
+		automdm.SSORelayStateNone,
 		SSORequestData{
 			HostUUID:  "host-uuid-123",
 			Initiator: "test_initiator",
@@ -65,7 +65,7 @@ func TestCreateAuthorizationRequest(t *testing.T) {
 	assert.NotEmpty(t, encoded)
 	authReq := inflate(t, encoded)
 	assert.Equal(t, "issuer", authReq.Issuer.Value)
-	assert.Equal(t, "Fleet", authReq.ProviderName)
+	assert.Equal(t, "AutoMDM", authReq.ProviderName)
 	assert.Equal(t, string(saml.EmailAddressNameIDFormat), authReq.NameIDPolicy.Element().Attr[0].Value)
 	assert.True(t, strings.HasPrefix(authReq.ID, "id"), authReq.ID)
 
@@ -86,7 +86,7 @@ func TestCreateAuthorizationRequest(t *testing.T) {
 		store,
 		"/redir",
 		sessionTTL,
-		fleet.SSORelayStateNone,
+		automdm.SSORelayStateNone,
 		SSORequestData{},
 	)
 	require.NoError(t, err)
@@ -127,7 +127,7 @@ func (s *mockStore) create(sessionID, requestID, originalURL, metadata string, l
 
 func (s *mockStore) get(sessionID string) (*Session, error) {
 	if s.session == nil {
-		return nil, fleet.NewAuthRequiredError("session not found")
+		return nil, automdm.NewAuthRequiredError("session not found")
 	}
 	return s.session, nil
 }
@@ -158,15 +158,15 @@ func TestCreateAuthorizationRequestRelayState(t *testing.T) {
 
 	samlProvider, err := SAMLProviderFromConfiguredMetadata(context.Background(),
 		"issuer",
-		"http://localhost:8001/api/v1/fleet/sso/callback",
-		&fleet.SSOProviderSettings{
-			IDPName:  "Fleet",
+		"http://localhost:8001/api/v1/automdm/sso/callback",
+		&automdm.SSOProviderSettings{
+			IDPName:  "AutoMDM",
 			Metadata: string(metadata),
 		},
 	)
 	require.NoError(t, err)
 
-	relayStateFor := func(t *testing.T, relayState fleet.SSORelayState) string {
+	relayStateFor := func(t *testing.T, relayState automdm.SSORelayState) string {
 		t.Helper()
 		_, idpURL, err := CreateAuthorizationRequest(context.Background(),
 			samlProvider,
@@ -182,6 +182,6 @@ func TestCreateAuthorizationRequestRelayState(t *testing.T) {
 		return parsed.Query().Get("RelayState")
 	}
 
-	require.Empty(t, relayStateFor(t, fleet.SSORelayStateNone))
-	require.Equal(t, fleet.SSOInitiatorFleetDesktop, relayStateFor(t, fleet.SSOInitiatorFleetDesktop))
+	require.Empty(t, relayStateFor(t, automdm.SSORelayStateNone))
+	require.Equal(t, automdm.SSOInitiatorAutoMDMDesktop, relayStateFor(t, automdm.SSOInitiatorAutoMDMDesktop))
 }

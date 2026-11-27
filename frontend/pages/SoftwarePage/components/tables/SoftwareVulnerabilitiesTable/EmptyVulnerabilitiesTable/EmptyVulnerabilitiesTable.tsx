@@ -15,7 +15,7 @@ export interface IEmptyVulnerabilitiesTableProps {
 
 const LearnMoreLink = () => (
   <CustomLink
-    url="https://fleetdm.com/learn-more-about/vulnerability-processing"
+    url="https://automdm.com/learn-more-about/vulnerability-processing"
     text="Learn more"
     newTab
   />
@@ -40,7 +40,7 @@ const emptyStateDetails: Record<
   },
   "unknown-cve": {
     header: "This is not a known CVE",
-    info: "None of Fleet's vulnerability sources are aware of this CVE.",
+    info: "None of AutoMDM's vulnerability sources are aware of this CVE.",
     additionalInfo: <LearnMoreLink />,
   },
   "known-vuln": {
@@ -65,7 +65,7 @@ const EmptyVulnerabilitiesTable: React.FC<IEmptyVulnerabilitiesTableProps> = ({
           <>
             Users with the admin role can{" "}
             <CustomLink
-              url="https://fleetdm.com/docs/using-fleet/vulnerability-processing#configuration"
+              url="https://automdm.com/docs/using-automdm/vulnerability-processing#configuration"
               text="turn on software inventory"
               newTab
             />
@@ -86,7 +86,7 @@ const EmptyVulnerabilitiesTable: React.FC<IEmptyVulnerabilitiesTableProps> = ({
     : defaultEmptyState;
 
   if (emptyStateReason === "known-vuln" && teamId !== undefined) {
-    emptyState.header += " in this fleet";
+    emptyState.header += " in this team";
   }
 
   if (

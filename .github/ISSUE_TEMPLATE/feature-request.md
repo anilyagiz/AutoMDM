@@ -1,6 +1,6 @@
 ---
 name: 💡  Feature request
-about: Propose a new feature or Fleet-maintained app.
+about: Propose a new feature or AutoMDM-maintained app.
 title: ''
 labels: ':product'
 assignees: ''
@@ -9,7 +9,7 @@ assignees: ''
 
 ## Screenshots and/or screen recording
 
-Paste screenshots or record a video (best) that captures what Fleet is missing.
+Paste screenshots or record a video (best) that captures what AutoMDM is missing.
 
 In words or verbally in the video (best), describe what your ideal workflow would look like.
  
@@ -17,9 +17,9 @@ In words or verbally in the video (best), describe what your ideal workflow woul
 
 Community members can ignore this section. 
 
-If you're a Fleetie and filling out this request on behalf of a Fleet customer, please uncomment this section, add the Gong snippet, and remove the above "Screenshots..." section.
+If you're a Fleetie and filling out this request on behalf of an AutoMDM customer, please uncomment this section, add the Gong snippet, and remove the above "Screenshots..." section.
 
-Leave the TODOs below the Gong snippet for Product Designers to fill out during unpacking: https://fleetdm.com/handbook/product-design#unpacking-the-why
+Leave the TODOs below the Gong snippet for Product Designers to fill out during unpacking: https://automdm.com/handbook/product-design#unpacking-the-why
 
 - [ ] Gong snippet: TODO
 

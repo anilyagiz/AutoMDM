@@ -12,8 +12,8 @@ func notif(reason, typ, url, title string) ghapi.Notification {
 	n.Subject.Type = typ
 	n.Subject.URL = url
 	n.Subject.Title = title
-	n.Repository.FullName = "fleetdm/fleet"
-	n.Repository.HTMLURL = "https://github.com/fleetdm/fleet"
+	n.Repository.FullName = "automdm/automdm"
+	n.Repository.HTMLURL = "https://github.com/anilyagiz/automdm"
 	return n
 }
 
@@ -26,12 +26,12 @@ func TestNotificationDedupAndClassify(t *testing.T) {
 	}
 	notifications := []ghapi.Notification{
 		// Duplicate of PR #10 — should be skipped, not double-counted.
-		notif("review_requested", "PullRequest", "https://api.github.com/repos/fleetdm/fleet/pulls/10", "dup"),
+		notif("review_requested", "PullRequest", "https://api.github.com/repos/automdm/automdm/pulls/10", "dup"),
 		// A mention on an issue not otherwise on the board — should surface.
-		notif("mention", "Issue", "https://api.github.com/repos/fleetdm/fleet/issues/42", "mention me"),
+		notif("mention", "Issue", "https://api.github.com/repos/automdm/automdm/issues/42", "mention me"),
 	}
 
-	board := BuildBoard("fleetdm/fleet", "george", myPRs, nil, nil, nil, notifications, nil, now)
+	board := BuildBoard("automdm/automdm", "george", myPRs, nil, nil, nil, notifications, nil, now)
 
 	// PR #10 appears once (in quick wins), not duplicated.
 	if got := len(board.Buckets[BucketQuickWins]); got != 1 {
@@ -55,7 +55,7 @@ func TestNotificationDedupAndClassify(t *testing.T) {
 func TestNotificationDedupIsRepoScoped(t *testing.T) {
 	now := time.Date(2026, 6, 30, 12, 0, 0, 0, time.UTC)
 
-	// PR #10 on the board belongs to fleetdm/fleet; the notification's PR #10
+	// PR #10 on the board belongs to automdm/automdm; the notification's PR #10
 	// belongs to a different repo, so it must NOT be deduped away.
 	myPRs := []ghapi.PullRequest{
 		{Number: 10, ReviewDecision: "APPROVED", Mergeable: "MERGEABLE", StatusCheckRollup: passingChecks(), UpdatedAt: now.Format(time.RFC3339)},
@@ -67,7 +67,7 @@ func TestNotificationDedupIsRepoScoped(t *testing.T) {
 	other.Repository.FullName = "fleetdm/confidential"
 	other.Repository.HTMLURL = "https://github.com/fleetdm/confidential"
 
-	board := BuildBoard("fleetdm/fleet", "george", myPRs, nil, nil, nil, []ghapi.Notification{other}, nil, now)
+	board := BuildBoard("automdm/automdm", "george", myPRs, nil, nil, nil, []ghapi.Notification{other}, nil, now)
 
 	found := false
 	for _, it := range board.Buckets[BucketWaitingOnYou] {

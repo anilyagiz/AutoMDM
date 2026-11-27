@@ -13,11 +13,11 @@ import (
 	"time"
 
 	jira "github.com/andygrunwald/go-jira"
-	activity_api "github.com/fleetdm/fleet/v4/server/activity/api"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/service/externalsvc"
+	activity_api "github.com/anilyagiz/automdm/v4/server/activity/api"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
+	"github.com/anilyagiz/automdm/v4/server/service/externalsvc"
 )
 
 // jiraName is the name of the job as registered in the worker.
@@ -58,7 +58,7 @@ Affected hosts:
 
 {{ $end := len .Hosts }}{{ if gt $end 50 }}{{ $end = 50 }}{{ end }}
 {{ range slice .Hosts 0 $end }}
-* [{{ .DisplayName }}|{{ $.FleetURL }}/hosts/{{ .ID }}]
+* [{{ .DisplayName }}|{{ $.AutoMDMURL }}/hosts/{{ .ID }}]
 {{ range $path := .SoftwareInstalledPaths }}
 ** {{ $path }}
 {{ end }}
@@ -66,13 +66,13 @@ Affected hosts:
 
 View the affected software and more affected hosts:
 
-# Go to the [Software|{{ .FleetURL }}/software/manage] page in Fleet.
+# Go to the [Software|{{ .AutoMDMURL }}/software/manage] page in AutoMDM.
 # Above the list of software, in the *Search software* box, enter "{{ .CVE }}".
 # Hover over the affected software and select *View all hosts*.
 
 ----
 
-This issue was created automatically by your Fleet Jira integration.
+This issue was created automatically by your AutoMDM Jira integration.
 `)),
 
 	FailingPolicySummary: template.Must(template.New("").Parse(
@@ -80,27 +80,27 @@ This issue was created automatically by your Fleet Jira integration.
 	)),
 
 	FailingPolicyDescription: template.Must(template.New("").Parse(
-		`{{ if .PolicyCritical }}This policy is marked as *Critical* in Fleet.
+		`{{ if .PolicyCritical }}This policy is marked as *Critical* in AutoMDM.
 
 {{ end }}Hosts:
 {{ $end := len .Hosts }}{{ if gt $end 50 }}{{ $end = 50 }}{{ end }}
 {{ range slice .Hosts 0 $end }}
-* [{{ .DisplayName }}|{{ $.FleetURL }}/hosts/{{ .ID }}]
+* [{{ .DisplayName }}|{{ $.AutoMDMURL }}/hosts/{{ .ID }}]
 {{ end }}
 
-View hosts that failed {{ .PolicyName }} on the [*Hosts*|{{ .FleetURL }}/hosts/manage/?order_key=hostname&order_direction=asc&{{ if .TeamID }}fleet_id={{ .TeamID }}&{{ end }}policy_id={{ .PolicyID }}&policy_response=failing] page in Fleet.
+View hosts that failed {{ .PolicyName }} on the [*Hosts*|{{ .AutoMDMURL }}/hosts/manage/?order_key=hostname&order_direction=asc&{{ if .TeamID }}team_id={{ .TeamID }}&{{ end }}policy_id={{ .PolicyID }}&policy_response=failing] page in AutoMDM.
 
 ----
 
-This issue was created automatically by your Fleet Jira integration.
+This issue was created automatically by your AutoMDM Jira integration.
 `)),
 }
 
 type jiraVulnTplArgs struct {
-	NVDURL   string
-	FleetURL string
-	CVE      string
-	Hosts    []fleet.HostVulnerabilitySummary
+	NVDURL     string
+	AutoMDMURL string
+	CVE        string
+	Hosts      []automdm.HostVulnerabilitySummary
 
 	IsPremium bool
 
@@ -120,8 +120,8 @@ type JiraClient interface {
 
 // Jira is the job processor for jira integrations.
 type Jira struct {
-	FleetURL       string
-	Datastore      fleet.Datastore
+	AutoMDMURL     string
+	Datastore      automdm.Datastore
 	Log            *slog.Logger
 	NewClientFunc  func(*externalsvc.JiraOptions) (JiraClient, error)
 	NewActivitySvc activity_api.NewActivityService
@@ -276,7 +276,7 @@ func (j *Jira) OnFinalFailure(ctx context.Context, argsJSON json.RawMessage, job
 		return nil
 	}
 
-	return j.NewActivitySvc.NewActivity(ctx, nil, fleet.ActivityTypeFailedAutomationTicket{
+	return j.NewActivitySvc.NewActivity(ctx, nil, automdm.ActivityTypeFailedAutomationTicket{
 		PolicyID:      args.FailingPolicy.PolicyID,
 		HostIDList:    args.FailingPolicy.hostIDs(),
 		Type:          "jira",
@@ -290,7 +290,7 @@ func (j *Jira) runVuln(ctx context.Context, cli JiraClient, args jiraArgs) error
 		return errors.New("invalid job args")
 	}
 
-	var hosts []fleet.HostVulnerabilitySummary
+	var hosts []automdm.HostVulnerabilitySummary
 	var err error
 
 	// Default to deprecated method in case we are processing an 'old' job payload
@@ -307,7 +307,7 @@ func (j *Jira) runVuln(ctx context.Context, cli JiraClient, args jiraArgs) error
 
 	tplArgs := &jiraVulnTplArgs{
 		NVDURL:           nvdCVEURL,
-		FleetURL:         j.FleetURL,
+		AutoMDMURL:       j.AutoMDMURL,
 		CVE:              vargs.CVE,
 		Hosts:            hosts,
 		IsPremium:        license.IsPremium(ctx),
@@ -330,7 +330,7 @@ func (j *Jira) runVuln(ctx context.Context, cli JiraClient, args jiraArgs) error
 }
 
 func (j *Jira) runFailingPolicy(ctx context.Context, cli JiraClient, args jiraArgs) error {
-	tplArgs := newFailingPoliciesTplArgs(j.FleetURL, args.FailingPolicy)
+	tplArgs := newFailingPoliciesTplArgs(j.AutoMDMURL, args.FailingPolicy)
 
 	createdIssue, err := j.createTemplatedIssue(ctx, cli, jiraTemplates.FailingPolicySummary, jiraTemplates.FailingPolicyDescription, tplArgs)
 	if err != nil {
@@ -344,11 +344,11 @@ func (j *Jira) runFailingPolicy(ctx context.Context, cli JiraClient, args jiraAr
 		"issue_key", createdIssue.Key,
 	}
 	if args.FailingPolicy.TeamID != nil {
-		attrs = append(attrs, "fleet_id", *args.FailingPolicy.TeamID)
+		attrs = append(attrs, "team_id", *args.FailingPolicy.TeamID)
 	}
 	j.Log.DebugContext(ctx, "created jira issue for failing policy", attrs...)
 
-	if err := j.NewActivitySvc.NewActivity(ctx, nil, fleet.ActivityTypeRanAutomationTicket{
+	if err := j.NewActivitySvc.NewActivity(ctx, nil, automdm.ActivityTypeRanAutomationTicket{
 		PolicyID:   args.FailingPolicy.PolicyID,
 		HostIDList: args.FailingPolicy.hostIDs(),
 		Type:       "jira",
@@ -394,10 +394,10 @@ func (j *Jira) createTemplatedIssue(ctx context.Context, cli JiraClient, summary
 // via the worker.
 func QueueJiraVulnJobs(
 	ctx context.Context,
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	logger *slog.Logger,
-	recentVulns []fleet.SoftwareVulnerability,
-	cveMeta map[string]fleet.CVEMeta,
+	recentVulns []automdm.SoftwareVulnerability,
+	cveMeta map[string]automdm.CVEMeta,
 ) error {
 	logger.InfoContext(ctx, "jira integration enabled", "recent_vulns", len(recentVulns))
 
@@ -435,15 +435,15 @@ func QueueJiraVulnJobs(
 
 // QueueJiraFailingPolicyJob queues a Jira job for a failing policy to process
 // asynchronously via the worker.
-func QueueJiraFailingPolicyJob(ctx context.Context, ds fleet.Datastore, logger *slog.Logger,
-	policy *fleet.Policy, hosts []fleet.PolicySetHost,
+func QueueJiraFailingPolicyJob(ctx context.Context, ds automdm.Datastore, logger *slog.Logger,
+	policy *automdm.Policy, hosts []automdm.PolicySetHost,
 ) error {
 	attrs := []any{
 		"failing_policy", policy.ID,
 		"hosts_count", len(hosts),
 	}
 	if policy.TeamID != nil {
-		attrs = append(attrs, "fleet_id", *policy.TeamID)
+		attrs = append(attrs, "team_id", *policy.TeamID)
 	}
 	if len(hosts) == 0 {
 		logger.DebugContext(ctx, "skipping, no host", attrs...)

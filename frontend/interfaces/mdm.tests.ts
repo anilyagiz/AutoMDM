@@ -50,7 +50,7 @@ describe("personal enrollment predicates", () => {
   it("allows an APNs ping for both personal statuses", () => {
     const host = (enrollment_status: MdmEnrollmentStatus) => ({
       platform: "ios" as const,
-      mdm: { connected_to_fleet: true, enrollment_status },
+      mdm: { connected_to_automdm: true, enrollment_status },
     });
     expect(canTriggerAPNSPing(host("On (personal)"))).toBe(true);
     expect(canTriggerAPNSPing(host("On (manual - personal)"))).toBe(true);

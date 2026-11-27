@@ -1,10 +1,10 @@
 package service
 
-import "github.com/fleetdm/fleet/v4/server/fleet"
+import "github.com/anilyagiz/automdm/v4/server/automdm"
 
 // GetCertificateAuthoritiesSpec fetches the certificate authorities stored on the server
-func (c *Client) GetCertificateAuthoritiesSpec(includeSecrets bool) (*fleet.GroupedCertificateAuthorities, error) {
-	verb, path := "GET", "/api/latest/fleet/spec/certificate_authorities"
+func (c *Client) GetCertificateAuthoritiesSpec(includeSecrets bool) (*automdm.GroupedCertificateAuthorities, error) {
+	verb, path := "GET", "/api/latest/automdm/spec/certificate_authorities"
 	var responseBody getCertificateAuthoritiesSpecResponse
 	query := ""
 	if includeSecrets {
@@ -15,20 +15,20 @@ func (c *Client) GetCertificateAuthoritiesSpec(includeSecrets bool) (*fleet.Grou
 }
 
 // ApplyCertificateAuthoritiesSpec applies the certificate authorities.
-func (c *Client) ApplyCertificateAuthoritiesSpec(groupedCAs fleet.GroupedCertificateAuthorities, specOpts fleet.ApplySpecOptions, opts fleet.BatchApplyCertificateAuthoritiesOpts) error {
+func (c *Client) ApplyCertificateAuthoritiesSpec(groupedCAs automdm.GroupedCertificateAuthorities, specOpts automdm.ApplySpecOptions, opts automdm.BatchApplyCertificateAuthoritiesOpts) error {
 	req := batchApplyCertificateAuthoritiesRequest{
 		CertificateAuthorities: groupedCAs,
 		DryRun:                 specOpts.DryRun,
 		SkipDeletes:            opts.SkipDeletes,
 	}
-	verb, path := "POST", "/api/latest/fleet/spec/certificate_authorities"
+	verb, path := "POST", "/api/latest/automdm/spec/certificate_authorities"
 	var responseBody batchApplyCertificateAuthoritiesResponse
 	return c.authenticatedRequestWithQuery(req, verb, path, &responseBody, specOpts.RawQuery())
 }
 
 // GetCertificateAuthorities fetches the list of certificate authorities
-func (c *Client) GetCertificateAuthorities() ([]*fleet.CertificateAuthoritySummary, error) {
-	verb, path := "GET", "/api/latest/fleet/certificate_authorities"
+func (c *Client) GetCertificateAuthorities() ([]*automdm.CertificateAuthoritySummary, error) {
+	verb, path := "GET", "/api/latest/automdm/certificate_authorities"
 	var responseBody listCertificateAuthoritiesResponse
 	err := c.authenticatedRequest(nil, verb, path, &responseBody)
 	return responseBody.CertificateAuthorities, err

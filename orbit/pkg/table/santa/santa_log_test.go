@@ -494,7 +494,7 @@ func TestGenerateAllowed_ReturnsRows(t *testing.T) {
 }
 
 // TestGenerateAllowed_LogsFailureWithoutFailingTheQuery verifies that an
-// unreadable log is reported in fleetd's log rather than silently returning zero
+// unreadable log is reported in automdmd's log rather than silently returning zero
 // rows, and that the table itself does not fail: an error here would break the
 // query on every host running Santa, and a synthetic error row would look like a
 // real Santa event.

@@ -4,13 +4,13 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
 // CreateAPIOnlyUser creates a new API-only user, returning the API token for the new user.
-func (c *Client) CreateAPIOnlyUser(name string, globalRole *string, teams []fleet.UserTeam) (*string, error) {
-	verb, path := "POST", "/api/latest/fleet/users/api_only"
-	payload := fleet.UserPayload{
+func (c *Client) CreateAPIOnlyUser(name string, globalRole *string, teams []automdm.UserTeam) (*string, error) {
+	verb, path := "POST", "/api/latest/automdm/users/api_only"
+	payload := automdm.UserPayload{
 		Name:       &name,
 		GlobalRole: globalRole,
 		Teams:      &teams,
@@ -26,8 +26,8 @@ func (c *Client) CreateAPIOnlyUser(name string, globalRole *string, teams []flee
 //
 // The session key (aka API token) is returned only when creating
 // API only users.
-func (c *Client) CreateUser(p fleet.UserPayload) (*string, error) {
-	verb, path := "POST", "/api/latest/fleet/users/admin"
+func (c *Client) CreateUser(p automdm.UserPayload) (*string, error) {
+	verb, path := "POST", "/api/latest/automdm/users/admin"
 	var responseBody createUserResponse
 	if err := c.authenticatedRequest(p, verb, path, &responseBody); err != nil {
 		return nil, err
@@ -36,8 +36,8 @@ func (c *Client) CreateUser(p fleet.UserPayload) (*string, error) {
 }
 
 // ListUsers retrieves the list of users.
-func (c *Client) ListUsers() ([]fleet.User, error) {
-	verb, path := "GET", "/api/latest/fleet/users"
+func (c *Client) ListUsers() ([]automdm.User, error) {
+	verb, path := "GET", "/api/latest/automdm/users"
 	var responseBody listUsersResponse
 
 	err := c.authenticatedRequest(nil, verb, path, &responseBody)
@@ -48,13 +48,13 @@ func (c *Client) ListUsers() ([]fleet.User, error) {
 }
 
 func (c *Client) userIdFromEmail(email string) (uint, error) {
-	verb, path := "POST", "/api/latest/fleet/translate"
+	verb, path := "POST", "/api/latest/automdm/translate"
 	var responseBody translatorResponse
 
-	params := translatorRequest{List: []fleet.TranslatePayload{
+	params := translatorRequest{List: []automdm.TranslatePayload{
 		{
-			Type:    fleet.TranslatorTypeUserEmail,
-			Payload: fleet.StringIdentifierToIDPayload{Identifier: email},
+			Type:    automdm.TranslatorTypeUserEmail,
+			Payload: automdm.StringIdentifierToIDPayload{Identifier: email},
 		},
 	}}
 
@@ -75,14 +75,14 @@ func (c *Client) DeleteUser(email string) error {
 		return err
 	}
 
-	verb, path := "DELETE", fmt.Sprintf("/api/latest/fleet/users/%d", userID)
+	verb, path := "DELETE", fmt.Sprintf("/api/latest/automdm/users/%d", userID)
 	var responseBody deleteUserResponse
 	return c.authenticatedRequest(nil, verb, path, &responseBody)
 }
 
 // Me returns the user associated with the current session.
-func (c *Client) Me() (*fleet.User, error) {
-	verb, path := "GET", "/api/latest/fleet/me"
+func (c *Client) Me() (*automdm.User, error) {
+	verb, path := "GET", "/api/latest/automdm/me"
 	var responseBody getUserResponse
 	err := c.authenticatedRequest(nil, verb, path, &responseBody)
 	return responseBody.User, err

@@ -100,7 +100,7 @@ const HostQueryReport = ({
 
   // Updates title that shows up on browser tabs
   if (queryName && hostName) {
-    // e.g., Discover TLS certificates (Rachel's MacBook Pro) | Hosts | Fleet
+    // e.g., Discover TLS certificates (Rachel's MacBook Pro) | Hosts | AutoMDM
     document.title = `${queryName} (${hostName}) |
    Hosts | ${DOCUMENT_TITLE_SUFFIX}`;
   } else {
@@ -110,7 +110,7 @@ const HostQueryReport = ({
   const HQRHeader = useCallback(() => {
     const fullReportPath = getPathWithQueryParams(
       PATHS.REPORT_DETAILS(queryId),
-      { fleet_id: currentTeam?.id }
+      { team_id: currentTeam?.id }
     );
     return (
       <div className={`${baseClass}__header`}>

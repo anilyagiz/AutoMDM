@@ -7,9 +7,9 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/authz"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 )
 
 var freeValidVulnSortColumns = []string{
@@ -21,10 +21,10 @@ var freeValidVulnSortColumns = []string{
 
 type cveNotFoundError struct{}
 
-var _ fleet.NotFoundError = (*cveNotFoundError)(nil)
+var _ automdm.NotFoundError = (*cveNotFoundError)(nil)
 
 func (p cveNotFoundError) Error() string {
-	return "This is not a known CVE. None of Fleet’s vulnerability sources are aware of this CVE."
+	return "This is not a known CVE. None of AutoMDM’s vulnerability sources are aware of this CVE."
 }
 
 func (p cveNotFoundError) IsNotFound() bool {
@@ -36,15 +36,15 @@ func (p cveNotFoundError) IsClientError() bool {
 }
 
 type listVulnerabilitiesRequest struct {
-	fleet.VulnListOptions
+	automdm.VulnListOptions
 }
 
 type listVulnerabilitiesResponse struct {
-	Vulnerabilities []fleet.VulnerabilityWithMetadata `json:"vulnerabilities"`
-	Count           uint                              `json:"count"`
-	CountsUpdatedAt time.Time                         `json:"counts_updated_at"`
-	Meta            *fleet.PaginationMetadata         `json:"meta,omitempty"`
-	Err             error                             `json:"error,omitempty"`
+	Vulnerabilities []automdm.VulnerabilityWithMetadata `json:"vulnerabilities"`
+	Count           uint                                `json:"count"`
+	CountsUpdatedAt time.Time                           `json:"counts_updated_at"`
+	Meta            *automdm.PaginationMetadata         `json:"meta,omitempty"`
+	Err             error                               `json:"error,omitempty"`
 }
 
 // Allow formats like: CVE-2017-12345, cve-2017-12345
@@ -52,7 +52,7 @@ var cveRegex = regexp.MustCompile(`(?i)^CVE-\d{4}-\d{4}\d*$`)
 
 func (r listVulnerabilitiesResponse) Error() error { return r.Err }
 
-func listVulnerabilitiesEndpoint(ctx context.Context, req interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func listVulnerabilitiesEndpoint(ctx context.Context, req interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	request := req.(*listVulnerabilitiesRequest)
 	vulns, meta, err := svc.ListVulnerabilities(ctx, request.VulnListOptions)
 	if err != nil {
@@ -79,10 +79,10 @@ func listVulnerabilitiesEndpoint(ctx context.Context, req interface{}, svc fleet
 	}, nil
 }
 
-func (svc *Service) ListVulnerabilities(ctx context.Context, opt fleet.VulnListOptions) ([]fleet.VulnerabilityWithMetadata, *fleet.PaginationMetadata, error) {
-	if err := svc.authz.Authorize(ctx, &fleet.AuthzSoftwareInventory{
+func (svc *Service) ListVulnerabilities(ctx context.Context, opt automdm.VulnListOptions) ([]automdm.VulnerabilityWithMetadata, *automdm.PaginationMetadata, error) {
+	if err := svc.authz.Authorize(ctx, &automdm.AuthzSoftwareInventory{
 		TeamID: opt.TeamID,
-	}, fleet.ActionRead); err != nil {
+	}, automdm.ActionRead); err != nil {
 		return nil, nil, err
 	}
 
@@ -95,7 +95,7 @@ func (svc *Service) ListVulnerabilities(ctx context.Context, opt fleet.VulnListO
 	}
 
 	if opt.KnownExploit && !opt.IsEE {
-		return nil, nil, fleet.ErrMissingLicense
+		return nil, nil, automdm.ErrMissingLicense
 	}
 
 	vulns, meta, err := svc.ds.ListVulnerabilities(ctx, opt)
@@ -110,30 +110,30 @@ func (svc *Service) ListVulnerabilities(ctx context.Context, opt fleet.VulnListO
 	return vulns, meta, nil
 }
 
-func (svc *Service) CountVulnerabilities(ctx context.Context, opts fleet.VulnListOptions) (uint, error) {
-	if err := svc.authz.Authorize(ctx, &fleet.AuthzSoftwareInventory{
+func (svc *Service) CountVulnerabilities(ctx context.Context, opts automdm.VulnListOptions) (uint, error) {
+	if err := svc.authz.Authorize(ctx, &automdm.AuthzSoftwareInventory{
 		TeamID: opts.TeamID,
-	}, fleet.ActionRead); err != nil {
+	}, automdm.ActionRead); err != nil {
 		return 0, err
 	}
 
 	return svc.ds.CountVulnerabilities(ctx, opts)
 }
 
-func (svc *Service) IsCVEKnownToFleet(ctx context.Context, cve string) (bool, error) {
-	return svc.ds.IsCVEKnownToFleet(ctx, cve)
+func (svc *Service) IsCVEKnownToAutoMDM(ctx context.Context, cve string) (bool, error) {
+	return svc.ds.IsCVEKnownToAutoMDM(ctx, cve)
 }
 
 type getVulnerabilityRequest struct {
 	CVE    string `url:"cve"`
-	TeamID *uint  `query:"fleet_id,optional"`
+	TeamID *uint  `query:"team_id,optional"`
 }
 
 type getVulnerabilityResponse struct {
-	Vulnerability *fleet.VulnerabilityWithMetadata `json:"vulnerability"`
-	OSVersions    []*fleet.VulnerableOS            `json:"os_versions"`
-	Software      []*fleet.VulnerableSoftware      `json:"software"`
-	Err           error                            `json:"error,omitempty"`
+	Vulnerability *automdm.VulnerabilityWithMetadata `json:"vulnerability"`
+	OSVersions    []*automdm.VulnerableOS            `json:"os_versions"`
+	Software      []*automdm.VulnerableSoftware      `json:"software"`
+	Err           error                              `json:"error,omitempty"`
 	statusCode    int
 }
 
@@ -146,7 +146,7 @@ func (r getVulnerabilityResponse) Status() int {
 	return r.statusCode
 }
 
-func getVulnerabilityEndpoint(ctx context.Context, req interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func getVulnerabilityEndpoint(ctx context.Context, req interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	request := req.(*getVulnerabilityRequest)
 
 	vuln, known, err := svc.Vulnerability(ctx, request.CVE, request.TeamID, false)
@@ -154,7 +154,7 @@ func getVulnerabilityEndpoint(ctx context.Context, req interface{}, svc fleet.Se
 		return getVulnerabilityResponse{Err: err}, nil
 	}
 	if vuln == nil && known {
-		// Return 204 status code if the vulnerability is known to Fleet but does not match any host software/OS
+		// Return 204 status code if the vulnerability is known to AutoMDM but does not match any host software/OS
 		return getVulnerabilityResponse{statusCode: http.StatusNoContent}, nil
 	}
 
@@ -180,14 +180,14 @@ func getVulnerabilityEndpoint(ctx context.Context, req interface{}, svc fleet.Se
 	}, nil
 }
 
-func (svc *Service) Vulnerability(ctx context.Context, cve string, teamID *uint, useCVSScores bool) (vuln *fleet.VulnerabilityWithMetadata,
+func (svc *Service) Vulnerability(ctx context.Context, cve string, teamID *uint, useCVSScores bool) (vuln *automdm.VulnerabilityWithMetadata,
 	known bool, err error,
 ) {
-	if err := svc.authz.Authorize(ctx, &fleet.AuthzSoftwareInventory{TeamID: teamID}, fleet.ActionRead); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.AuthzSoftwareInventory{TeamID: teamID}, automdm.ActionRead); err != nil {
 		return nil, false, err
 	}
 
-	if err := svc.authz.Authorize(ctx, &fleet.Host{TeamID: teamID}, fleet.ActionRead); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.Host{TeamID: teamID}, automdm.ActionRead); err != nil {
 		return nil, false, err
 	}
 
@@ -200,15 +200,15 @@ func (svc *Service) Vulnerability(ctx context.Context, cve string, teamID *uint,
 		if err != nil {
 			return nil, false, ctxerr.Wrap(ctx, err, "checking if team exists")
 		} else if !exists {
-			return nil, false, authz.ForbiddenWithInternal("fleet does not exist", nil, nil, nil)
+			return nil, false, authz.ForbiddenWithInternal("team does not exist", nil, nil, nil)
 		}
 	}
 
 	vuln, err = svc.ds.Vulnerability(ctx, cve, teamID, useCVSScores)
 	switch {
-	case fleet.IsNotFound(err):
+	case automdm.IsNotFound(err):
 		var errKnown error
-		known, errKnown = svc.ds.IsCVEKnownToFleet(ctx, cve)
+		known, errKnown = svc.ds.IsCVEKnownToAutoMDM(ctx, cve)
 		if errKnown != nil {
 			return nil, false, errKnown
 		}
@@ -224,15 +224,15 @@ func (svc *Service) Vulnerability(ctx context.Context, cve string, teamID *uint,
 	return vuln, known, nil
 }
 
-func (svc *Service) ListOSVersionsByCVE(ctx context.Context, cve string, teamID *uint) (result []*fleet.VulnerableOS, updatedAt time.Time, err error) {
-	if err := svc.authz.Authorize(ctx, &fleet.Host{TeamID: teamID}, fleet.ActionRead); err != nil {
+func (svc *Service) ListOSVersionsByCVE(ctx context.Context, cve string, teamID *uint) (result []*automdm.VulnerableOS, updatedAt time.Time, err error) {
+	if err := svc.authz.Authorize(ctx, &automdm.Host{TeamID: teamID}, automdm.ActionRead); err != nil {
 		return nil, updatedAt, err
 	}
 	return svc.ds.OSVersionsByCVE(ctx, cve, teamID)
 }
 
-func (svc *Service) ListSoftwareByCVE(ctx context.Context, cve string, teamID *uint) (result []*fleet.VulnerableSoftware, updatedAt time.Time, err error) {
-	if err := svc.authz.Authorize(ctx, &fleet.AuthzSoftwareInventory{TeamID: teamID}, fleet.ActionRead); err != nil {
+func (svc *Service) ListSoftwareByCVE(ctx context.Context, cve string, teamID *uint) (result []*automdm.VulnerableSoftware, updatedAt time.Time, err error) {
+	if err := svc.authz.Authorize(ctx, &automdm.AuthzSoftwareInventory{TeamID: teamID}, automdm.ActionRead); err != nil {
 		return nil, updatedAt, err
 	}
 	return svc.ds.SoftwareByCVE(ctx, cve, teamID)

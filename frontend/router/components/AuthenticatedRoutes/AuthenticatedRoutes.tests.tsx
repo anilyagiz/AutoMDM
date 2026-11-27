@@ -55,7 +55,7 @@ describe("AuthenticatedRoutes", () => {
     mockServer.use(expiredSessionHandler);
     const { router, setRedirectLocation } = renderRoutes(
       "/hosts/manage",
-      "?fleet_id=3"
+      "?team_id=3"
     );
 
     await expect(usersAPI.me()).rejects.toBeDefined();
@@ -64,7 +64,7 @@ describe("AuthenticatedRoutes", () => {
       `${paths.LOGIN}?session_expired=true`
     );
     expect(setRedirectLocation).toHaveBeenCalledWith(
-      "/hosts/manage?fleet_id=3"
+      "/hosts/manage?team_id=3"
     );
     expect(authToken.get()).toBeNull();
   });

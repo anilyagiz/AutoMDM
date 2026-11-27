@@ -7,7 +7,7 @@ import Cookie from "js-cookie";
 const DEFAULT_EXPIRATION_DAYS = 5;
 
 // The `__Host-` cookie name prefix and the `Secure` attribute both require the
-// cookie to be set from a secure (HTTPS) context. When Fleet is served over
+// cookie to be set from a secure (HTTPS) context. When AutoMDM is served over
 // plain HTTP (e.g. a Docker deployment without TLS), the browser silently
 // refuses to store such a cookie, leaving the user unable to authenticate
 // because the token is never persisted and therefore never attached to

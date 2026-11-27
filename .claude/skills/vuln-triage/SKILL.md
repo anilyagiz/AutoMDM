@@ -1,15 +1,15 @@
 ---
 name: vuln-triage
-description: Triage Fleet vulnerability false positives and false negatives across NVD, OSV, OVAL, MSRC, and Office data sources. Use when asked to "triage vuln", "investigate CVE", "fix false positive", "fix false negative", "vulnerability bug", invoked as `/vuln-triage`, or working on a vulnerability detection issue.
+description: Triage AutoMDM vulnerability false positives and false negatives across NVD, OSV, OVAL, MSRC, and Office data sources. Use when asked to "triage vuln", "investigate CVE", "fix false positive", "fix false negative", "vulnerability bug", invoked as `/vuln-triage`, or working on a vulnerability detection issue.
 allowed-tools: Bash(go run -tags fts5 ./tools/nvd/nvdvuln*), Bash(ls /tmp/vulndbs*), Bash(ls -la /tmp/vulndbs*), Bash(file /tmp/vulndbs/*), Bash(zcat /tmp/vulndbs/*), Bash(sqlite3 /tmp/vulndbs/*), Bash(curl -s https://api.osv.dev/v1/vulns/*), Bash(git log*), Bash(git show*), Bash(gh issue list*), Bash(gh pr list*), Read, Grep, Glob, Edit, WebFetch
 model: opus
 effort: high
 ---
 
-Triage a Fleet vulnerability detection bug (false positive or false negative): $ARGUMENTS
+Triage an AutoMDM vulnerability detection bug (false positive or false negative): $ARGUMENTS
 
 Two non-negotiable guardrails for this skill:
-1. **Cross-source verification.** Always reconcile the CVE against multiple upstream sources before assuming a Fleet bug.
+1. **Cross-source verification.** Always reconcile the CVE against multiple upstream sources before assuming an AutoMDM bug.
 2. **Systemic-vs-one-off.** Always consider whether the bug points at a category problem (wrong data source for a whole ecosystem) before adding a one-off override.
 
 If the systemic answer changes which scanner handles a `software.source`, propose an edit to the routing table in this skill alongside the code change.
@@ -32,7 +32,7 @@ If direction is **false positive**, ask one disambiguating question before conti
 
 The answer steers steps 5–6: (a) → CPE generation / translations; (b) → upstream-data reconciliation / feed override; (c) → version comparator. A best-guess answer is fine — it's a hypothesis, not a contract.
 
-Optional: a live Fleet URL + API token to drive nvdvuln Mode 2.
+Optional: a live AutoMDM URL + API token to drive nvdvuln Mode 2.
 
 ## Step 2: Identify the data source
 
@@ -67,7 +67,7 @@ Use the routing table below. If the table looks stale (line numbers shifted, a c
 
 ### Dispatch entry points (read on each invocation)
 
-`cmd/fleet/cron.go` — `checkNVDVulnerabilities`, `checkOvalVulnerabilities`, `checkOSVVulnerabilities`, `checkRHELOSVVulnerabilities`, `checkMacOfficeVulnerabilities`, `checkWinOfficeVulnerabilities`, `checkGoVulnDBVulnerabilities`, `checkCustomVulnerabilities`. vulncheck supplements NVD: `server/vulnerabilities/nvd/sync/cve_syncer.go`.
+`cmd/automdm/cron.go` — `checkNVDVulnerabilities`, `checkOvalVulnerabilities`, `checkOSVVulnerabilities`, `checkRHELOSVVulnerabilities`, `checkMacOfficeVulnerabilities`, `checkWinOfficeVulnerabilities`, `checkGoVulnDBVulnerabilities`, `checkCustomVulnerabilities`. vulncheck supplements NVD: `server/vulnerabilities/nvd/sync/cve_syncer.go`.
 
 Pick the scanner from the table. If the bug is on `apps`/`programs` and the software is Microsoft Office, the scanner is macoffice/winoffice — not NVD. Confirm before continuing.
 
@@ -82,11 +82,11 @@ Expected files:
 - `nvdcve-*.json.gz` (multiple year ranges)
 - `epss_scores-current.csv`, `known_exploited_vulnerabilities.json`
 - `osv-ubuntu-*.json.gz`, `osv-rhel-*.json.gz` (if doing an OSV bug)
-- `fleet_oval_*.json` (OVAL bugs)
-- `fleet_goval_dictionary_*.sqlite3` (Amazon Linux / RHEL kernel)
+- `automdm_oval_*.json` (OVAL bugs)
+- `automdm_goval_dictionary_*.sqlite3` (Amazon Linux / RHEL kernel)
 - `macoffice/`, `winoffice/` directories
 
-If files are missing, advise the engineer to run `fleetctl vulnerability-data-stream --dir /tmp/vulndbs`. It syncs everything listed above — NVD, OVAL, MSRC, OSV (via `osv.RefreshAll` at `cmd/fleetctl/fleetctl/vulnerability_data_stream.go:106`), macoffice, and goval-dictionary. `nvdvuln -sync` uses the same `osv.RefreshAll`, so either entry point lands the same files.
+If files are missing, advise the engineer to run `automdmctl vulnerability-data-stream --dir /tmp/vulndbs`. It syncs everything listed above — NVD, OVAL, MSRC, OSV (via `osv.RefreshAll` at `cmd/automdmctl/automdmctl/vulnerability_data_stream.go:106`), macoffice, and goval-dictionary. `nvdvuln -sync` uses the same `osv.RefreshAll`, so either entry point lands the same files.
 
 Do not run sync automatically — the download is large. Tell the engineer and wait.
 
@@ -107,11 +107,11 @@ go run -tags fts5 ./tools/nvd/nvdvuln \
 
 Add `-sync` only if step 3 found data missing — and only with user approval.
 
-Mode 2 (compare against live Fleet):
+Mode 2 (compare against live AutoMDM):
 
 ```sh
 go run -tags fts5 ./tools/nvd/nvdvuln \
-    -software_from_url "<https://fleet.example.com>" \
+    -software_from_url "<https://automdm.example.com>" \
     -software_from_api_token "<token>" \
     -db_dir /tmp/vulndbs
 ```
@@ -135,8 +135,8 @@ Always run the baseline. Add the conditional fetches that apply to this routing:
 - First-party vendor PSIRT — only when vendor matches a first-party publisher (Apple, Mozilla, Adobe, Google for Chrome, etc.). WebFetch the relevant security advisory page.
 
 Reconcile:
-- **NVD agrees with other sources** → if Fleet still misdetects, the bug is in Fleet logic (steps 6–8).
-- **NVD disagrees with the others** (wrong vendor, missing product, version range too broad) → upstream NVD data is wrong. Fix layer is `cpe_matching_rules.go` or the dictionary `Override()` pattern, **not** Fleet logic.
+- **NVD agrees with other sources** → if AutoMDM still misdetects, the bug is in AutoMDM logic (steps 6–8).
+- **NVD disagrees with the others** (wrong vendor, missing product, version range too broad) → upstream NVD data is wrong. Fix layer is `cpe_matching_rules.go` or the dictionary `Override()` pattern, **not** AutoMDM logic.
 - **CVE not in NVD but present in GHSA/OSV** → NVD coverage gap for this ecosystem; this is a systemic concern (step 9), not a CustomCVE candidate by default.
 
 Capture the disagreement in the final report.
@@ -146,7 +146,7 @@ Capture the disagreement in the final report.
 If nvdvuln reproduces the bad CVE, narrow the cause:
 
 - **Wrong CPE generated** (e.g. `vendor=apple, product=icloud` matched against a Windows host) — open `server/vulnerabilities/nvd/cpe_matching_rules.go` and propose a rule in `GetKnownNVDBugRules`.
-- **Wrong vendor/product mapping** — edit [`server/vulnerabilities/nvd/cpe_translations.json`](server/vulnerabilities/nvd/cpe_translations.json) in this repo. The matching logic lives in `cpe_translations.go`. Note: running Fleet servers pull this file from `github.com/fleetdm/nvd` releases, which is republished from the in-repo source daily — the edit lands here, not in `fleetdm/nvd`.
+- **Wrong vendor/product mapping** — edit [`server/vulnerabilities/nvd/cpe_translations.json`](server/vulnerabilities/nvd/cpe_translations.json) in this repo. The matching logic lives in `cpe_translations.go`. Note: running AutoMDM servers pull this file from `github.com/fleetdm/nvd` releases, which is republished from the in-repo source daily — the edit lands here, not in `fleetdm/nvd`.
 - **sanitize stripping the wrong substring** — open `server/vulnerabilities/nvd/sanitize.go`, look at `sanitizeSoftwareName` and `productVariations`. Reason about why the variation set landed on the wrong product.
 - **Detail query producing the wrong row** — open `server/service/osquery_utils/queries.go` and check `SoftwareOverrideMatch` for the platform. macOS Firefox is the canonical example.
 - **NVD upstream data is wrong** (confirmed in step 5) — feed override at `server/vulnerabilities/nvd/tools/cvefeed/dictionary.go` (`Override()`) and `OverrideVuln` in `vuln.go`.
@@ -156,14 +156,14 @@ If nvdvuln reproduces the bad CVE, narrow the cause:
 No nvdvuln. Read the analyzer and the local feed for the relevant source:
 
 - **OSV** — `server/vulnerabilities/osv/analyzer.go`. Local feed: `/tmp/vulndbs/osv-{ubuntu,rhel}-*.json.gz` (`zcat` to inspect). Cross-check against `https://api.osv.dev/v1/vulns/<CVE-ID>`.
-- **OVAL** — `server/vulnerabilities/oval/`. Local feed: `/tmp/vulndbs/fleet_oval_*.json`. Cross-check the upstream OVAL definition for the distro version.
-- **goval-dictionary** — `server/vulnerabilities/goval_dictionary/analyzer.go`. Local DB: `/tmp/vulndbs/fleet_goval_dictionary_*.sqlite3` (`sqlite3` CLI).
-- **MSRC** — `server/vulnerabilities/msrc/analyzer.go`. Local artifacts: `/tmp/vulndbs/fleet_msrc_*.json`. Cross-check `https://msrc.microsoft.com/update-guide/vulnerability/<CVE-ID>`.
+- **OVAL** — `server/vulnerabilities/oval/`. Local feed: `/tmp/vulndbs/automdm_oval_*.json`. Cross-check the upstream OVAL definition for the distro version.
+- **goval-dictionary** — `server/vulnerabilities/goval_dictionary/analyzer.go`. Local DB: `/tmp/vulndbs/automdm_goval_dictionary_*.sqlite3` (`sqlite3` CLI).
+- **MSRC** — `server/vulnerabilities/msrc/analyzer.go`. Local artifacts: `/tmp/vulndbs/automdm_msrc_*.json`. Cross-check `https://msrc.microsoft.com/update-guide/vulnerability/<CVE-ID>`.
 - **macoffice / winoffice** — release-notes JSON in `/tmp/vulndbs/macoffice/` or `winoffice/`. Cross-check Microsoft's Office release notes pages.
 
 ## Step 8: FN triage
 
-"Fleet missed CVE-X on software Y." Walk the funnel in order:
+"AutoMDM missed CVE-X on software Y." Walk the funnel in order:
 
 1. **Is the software being collected?** Inspect the relevant detail query in `server/service/osquery_utils/queries.go`. Confirm rows reach `host_software_installed_paths`.
 2. **Is a CPE generated?** Run nvdvuln Mode 1 — does it report `Matched CPE`? If not, the gap is upstream of CVE matching.

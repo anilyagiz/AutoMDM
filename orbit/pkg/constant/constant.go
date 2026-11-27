@@ -12,12 +12,12 @@ const (
 	DefaultWorldReadableFileMode = 0o644
 	// DefaultSystemdUnitMode is the required file mode to systemd unit files.
 	DefaultSystemdUnitMode = DefaultWorldReadableFileMode
-	// DesktopAppExecName is the name of Fleet's Desktop executable.
+	// DesktopAppExecName is the name of AutoMDM's Desktop executable.
 	//
-	// We use fleet-desktop as name to properly identify the process when listing
+	// We use automdm-desktop as name to properly identify the process when listing
 	// running processes/tasks.
-	DesktopAppExecName = "fleet-desktop"
-	// DesktopTokenFileName is the filename on disk (in the orbit base dir) where we store the Fleet Desktop auth token
+	DesktopAppExecName = "automdm-desktop"
+	// DesktopTokenFileName is the filename on disk (in the orbit base dir) where we store the AutoMDM Desktop auth token
 	DesktopTokenFileName = "identifier"
 	// OrbitNodeKeyFileName is the filename on disk where we write the orbit node key to
 	OrbitNodeKeyFileName = "secret-orbit-node-key.txt"
@@ -37,20 +37,20 @@ const (
 	OsqueryEnrollSecretFileName = "secret.txt"
 	// SystemServiceName is the name of Orbit system service
 	// The service name is used by the OS service management framework
-	SystemServiceName = "Fleet osquery"
+	SystemServiceName = "AutoMDM osquery"
 	// AgentDisplayName is the name end users see for the agent: the Windows Task Manager and Installed apps names.
-	AgentDisplayName = "Fleet"
+	AgentDisplayName = "AutoMDM"
 	// AgentLinuxProcessName is the agent's process name on Linux, lowercase like other Linux process names.
-	AgentLinuxProcessName = "fleet"
-	// AgentPublisher is the Manufacturer of fleetd's MSI and the company name of its Windows executables. Installed apps
-	// shows it as the publisher, which tells fleetd's "Fleet" entry apart from other apps with that name.
-	AgentPublisher = "Fleet Device Management (fleetdm.com)"
-	// FleetTLSClientCertificateFileName is the name of the TLS client certificate file
-	// used when connecting to the Fleet server.
-	FleetTLSClientCertificateFileName = "fleet_client.crt"
-	// FleetTLSClientKeyFileName is the name of the TLS client private key file
-	// used when connecting to the Fleet server.
-	FleetTLSClientKeyFileName = "fleet_client.key"
+	AgentLinuxProcessName = "automdm"
+	// AgentPublisher is the Manufacturer of automdmd's MSI and the company name of its Windows executables. Installed apps
+	// shows it as the publisher, which tells automdmd's "AutoMDM" entry apart from other apps with that name.
+	AgentPublisher = "Fleet Device Management (automdm.com)"
+	// AutoMDMTLSClientCertificateFileName is the name of the TLS client certificate file
+	// used when connecting to the AutoMDM server.
+	AutoMDMTLSClientCertificateFileName = "automdm_client.crt"
+	// AutoMDMTLSClientKeyFileName is the name of the TLS client private key file
+	// used when connecting to the AutoMDM server.
+	AutoMDMTLSClientKeyFileName = "automdm_client.key"
 	// UpdateTLSClientCertificateFileName is the name of the TLS client certificate file
 	// used when connecting to the update server.
 	UpdateTLSClientCertificateFileName = "update_client.crt"
@@ -58,11 +58,11 @@ const (
 	// used when connecting to the update server.
 	UpdateTLSClientKeyFileName = "update_client.key"
 	// SilenceEnrollLogErrorEnvVer is an environment variable name for disabling enroll log errors
-	SilenceEnrollLogErrorEnvVar = "FLEETD_SILENCE_ENROLL_ERROR"
+	SilenceEnrollLogErrorEnvVar = "AUTOMDMD_SILENCE_ENROLL_ERROR"
 	// ServerOverridesFileName is the name of the file in the root directory
 	// that specifies the override configuration fetched from the server.
 	ServerOverridesFileName = "server-overrides.json"
-	// MigrationFileName is the name of the file used by fleetd to determine if the host is
+	// MigrationFileName is the name of the file used by automdmd to determine if the host is
 	// partially through an MDM migration.
 	MigrationFileName = "mdm_migration.txt"
 	// MDMMigrationTypeManual indicates that the MDM migration is for a manually enrolled host.
@@ -76,23 +76,23 @@ const (
 	MDMMigrationOfflineWatcherInterval = 3 * time.Minute
 	SonomaMajorVersion                 = 14
 
-	// OrbitTUFTargetName is the target name of the orbit component of fleetd in TUF.
+	// OrbitTUFTargetName is the target name of the orbit component of automdmd in TUF.
 	OrbitTUFTargetName = "orbit"
-	// OsqueryTUFTargetName is the target name of the osquery component of fleetd in TUF.
+	// OsqueryTUFTargetName is the target name of the osquery component of automdmd in TUF.
 	OsqueryTUFTargetName = "osqueryd"
-	// DesktopTUFTargetName is the target name of the Fleet Desktop component of fleetd in TUF.
+	// DesktopTUFTargetName is the target name of the AutoMDM Desktop component of automdmd in TUF.
 	DesktopTUFTargetName = "desktop"
-	// FleetURLFileName is the file where Fleet URL is stored after being read from Apple config profile.
-	FleetURLFileName = "fleet_url.txt"
+	// AutoMDMURLFileName is the file where AutoMDM URL is stored after being read from Apple config profile.
+	AutoMDMURLFileName = "automdm_url.txt"
 
 	// SetupExperienceComplete is a file created when Linux (and soon Windows) completes setup experience
 	SetupExperienceFilename = "setup_experience.json"
 
-	FleetHTTPSignatureCertificateFileName = "host_identity.crt"
-	// FleetHTTPSignatureTPMKeyFileName is the filename for the TPM key used for HTTP signature authentication
-	FleetHTTPSignatureTPMKeyFileName = "host_identity_tpm.pem"
-	// FleetHTTPSignatureTPMKeyBackupFileName is the filename for the backup of the TPM key during renewal
-	FleetHTTPSignatureTPMKeyBackupFileName = "host_identity_tpm.old.pem"
+	AutoMDMHTTPSignatureCertificateFileName = "host_identity.crt"
+	// AutoMDMHTTPSignatureTPMKeyFileName is the filename for the TPM key used for HTTP signature authentication
+	AutoMDMHTTPSignatureTPMKeyFileName = "host_identity_tpm.pem"
+	// AutoMDMHTTPSignatureTPMKeyBackupFileName is the filename for the backup of the TPM key during renewal
+	AutoMDMHTTPSignatureTPMKeyBackupFileName = "host_identity_tpm.old.pem"
 
 	// UnusedFlagKeyword is used by the MSI builder and installer to populate parameters, which cannot be empty.
 	UnusedFlagKeyword = "dummy"

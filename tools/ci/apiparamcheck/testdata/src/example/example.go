@@ -26,9 +26,9 @@ type queriesBad struct {
 
 type renameToEscape struct {
 	// Non-empty renameto suppresses the check.
-	AA string `json:"team_id" renameto:"fleet_id"`
+	AA string `json:"team_id"`
 	BB string `json:"query_id" renameto:"report_id"`
-	CC string `url:"teams" renameto:"fleets"`
+	CC string `url:"teams" renameto:"teams"`
 	// Empty renameto does NOT suppress.
 	DD string `json:"team_id" renameto:""` // want `json tag "team_id": uses deprecated "team"/"teams"`
 }
@@ -36,7 +36,7 @@ type renameToEscape struct {
 // --- allowed ---
 
 type okStruct struct {
-	M string `json:"fleet_id"`
+	M string `json:"team_id"`
 	N string `json:"report_id"`
 	O string `json:"query"`
 	P string `json:"queries"`

@@ -5,21 +5,21 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/authz"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxdb"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/microsoft/msgraph"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxdb"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/microsoft/msgraph"
 )
 
-// maxMicrosoftGraphCredentials caps how many Graph credentials may be configured. Fleet's data model, sync loop, and
+// maxMicrosoftGraphCredentials caps how many Graph credentials may be configured. AutoMDM's data model, sync loop, and
 // storage are all built for the multi-tenant case. We limit it now for initial rollout.
 const maxMicrosoftGraphCredentials = 1
 
 // ListMicrosoftGraphCredentials returns the stored credentials with their per-tenant sync status. Client secrets are
 // never decrypted on this path.
-func (svc *Service) ListMicrosoftGraphCredentials(ctx context.Context) ([]*fleet.MicrosoftGraphCredentialMetadata, error) {
-	if err := svc.authz.Authorize(ctx, &fleet.MicrosoftGraphCredential{}, fleet.ActionRead); err != nil {
+func (svc *Service) ListMicrosoftGraphCredentials(ctx context.Context) ([]*automdm.MicrosoftGraphCredentialMetadata, error) {
+	if err := svc.authz.Authorize(ctx, &automdm.MicrosoftGraphCredential{}, automdm.ActionRead); err != nil {
 		return nil, err
 	}
 
@@ -35,15 +35,15 @@ func (svc *Service) ListMicrosoftGraphCredentials(ctx context.Context) ([]*fleet
 // before anything is written, so a bad credential is rejected at write time instead of failing silently on the next
 // sync. Unchanged credentials are skipped entirely: re-applying an identical GitOps config makes no network call,
 // performs no write, and emits no activity.
-func (svc *Service) ApplyMicrosoftGraphCredentials(ctx context.Context, incoming []fleet.MicrosoftGraphCredential, dryRun bool) error {
-	if err := svc.authz.Authorize(ctx, &fleet.MicrosoftGraphCredential{}, fleet.ActionWrite); err != nil {
+func (svc *Service) ApplyMicrosoftGraphCredentials(ctx context.Context, incoming []automdm.MicrosoftGraphCredential, dryRun bool) error {
+	if err := svc.authz.Authorize(ctx, &automdm.MicrosoftGraphCredential{}, automdm.ActionWrite); err != nil {
 		return err
 	}
 
-	invalid := &fleet.InvalidArgumentError{}
+	invalid := &automdm.InvalidArgumentError{}
 
 	var err error
-	var stored map[string]*fleet.MicrosoftGraphCredential
+	var stored map[string]*automdm.MicrosoftGraphCredential
 	if len(incoming) > 0 {
 		// Read the stored credentials once.
 		if stored, err = svc.storedMicrosoftGraphCredentialsByTenant(ctx); err != nil {
@@ -100,10 +100,10 @@ func (svc *Service) ApplyMicrosoftGraphCredentials(ctx context.Context, incoming
 // Validation failures are accumulated on invalid rather than returned, so one bad entry does not mask another. The
 // returned slice only contains entries that validated.
 func (svc *Service) resolveMicrosoftGraphCredentials(
-	incoming []fleet.MicrosoftGraphCredential,
-	invalid *fleet.InvalidArgumentError,
-	storedByTenant map[string]*fleet.MicrosoftGraphCredential,
-) ([]fleet.MicrosoftGraphCredential, error) {
+	incoming []automdm.MicrosoftGraphCredential,
+	invalid *automdm.InvalidArgumentError,
+	storedByTenant map[string]*automdm.MicrosoftGraphCredential,
+) ([]automdm.MicrosoftGraphCredential, error) {
 	if len(incoming) == 0 {
 		return nil, nil
 	}
@@ -115,7 +115,7 @@ func (svc *Service) resolveMicrosoftGraphCredentials(
 	}
 
 	seen := make(map[string]struct{}, len(incoming))
-	resolved := make([]fleet.MicrosoftGraphCredential, 0, len(incoming))
+	resolved := make([]automdm.MicrosoftGraphCredential, 0, len(incoming))
 
 	for _, cred := range incoming {
 		// Entra emits these lower-cased but admins paste them either way. Normalizing keeps the unique key on
@@ -124,11 +124,11 @@ func (svc *Service) resolveMicrosoftGraphCredentials(
 		cred.ClientID = strings.ToLower(strings.TrimSpace(cred.ClientID))
 		cred.ClientSecret = strings.TrimSpace(cred.ClientSecret)
 
-		if !fleet.IsValidEntraGUID(cred.TenantID) {
+		if !automdm.IsValidEntraGUID(cred.TenantID) {
 			invalid.Append("microsoft_graph_credentials.tenant_id", fmt.Sprintf("Invalid Entra tenant ID: %s", cred.TenantID))
 			continue
 		}
-		if !fleet.IsValidEntraGUID(cred.ClientID) {
+		if !automdm.IsValidEntraGUID(cred.ClientID) {
 			invalid.Append("microsoft_graph_credentials.client_id", fmt.Sprintf("Invalid Entra client ID: %s", cred.ClientID))
 			continue
 		}
@@ -141,7 +141,7 @@ func (svc *Service) resolveMicrosoftGraphCredentials(
 		}
 		seen[cred.TenantID] = struct{}{}
 
-		if cred.ClientSecret == "" || cred.ClientSecret == fleet.MaskedPassword {
+		if cred.ClientSecret == "" || cred.ClientSecret == automdm.MaskedPassword {
 			// The mask means "keep the secret for this credential", and a credential's identity is the app registration:
 			// tenant plus client.
 			existing, ok := storedByTenant[cred.TenantID]
@@ -153,7 +153,7 @@ func (svc *Service) resolveMicrosoftGraphCredentials(
 			cred.ClientSecret = existing.ClientSecret
 		} else if svc.config.Server.PrivateKey == "" {
 			invalid.Append("microsoft_graph_credentials",
-				"Missing required private key. Learn how to configure the private key here: https://fleetdm.com/learn-more-about/fleet-server-private-key")
+				"Missing required private key. Learn how to configure the private key here: https://automdm.com/learn-more-about/automdm-server-private-key")
 			continue
 		}
 
@@ -168,9 +168,9 @@ func (svc *Service) resolveMicrosoftGraphCredentials(
 // credentials are skipped: re-applying an identical GitOps config should not make a network call.
 func (svc *Service) verifyMicrosoftGraphCredentials(
 	ctx context.Context,
-	creds []fleet.MicrosoftGraphCredential,
-	invalid *fleet.InvalidArgumentError,
-	storedByTenant map[string]*fleet.MicrosoftGraphCredential,
+	creds []automdm.MicrosoftGraphCredential,
+	invalid *automdm.InvalidArgumentError,
+	storedByTenant map[string]*automdm.MicrosoftGraphCredential,
 ) error {
 	for _, cred := range creds {
 		if existing, ok := storedByTenant[cred.TenantID]; ok && existing.Equal(cred) {
@@ -215,8 +215,8 @@ func microsoftGraphVerifyMessage(err error) string {
 // skip every delete, so callers must pass nil rather than an empty map when they skipped the read.
 func (svc *Service) persistMicrosoftGraphCredentials(
 	ctx context.Context,
-	creds []fleet.MicrosoftGraphCredential,
-	storedByTenant map[string]*fleet.MicrosoftGraphCredential,
+	creds []automdm.MicrosoftGraphCredential,
+	storedByTenant map[string]*automdm.MicrosoftGraphCredential,
 ) (added, edited, deleted []string, err error) {
 	storedTenants := make(map[string]struct{}, len(storedByTenant))
 	if storedByTenant != nil {
@@ -235,7 +235,7 @@ func (svc *Service) persistMicrosoftGraphCredentials(
 	}
 
 	incomingByTenant := make(map[string]struct{}, len(creds))
-	var toUpsert []*fleet.MicrosoftGraphCredential
+	var toUpsert []*automdm.MicrosoftGraphCredential
 	for _, cred := range creds {
 		incomingByTenant[cred.TenantID] = struct{}{}
 
@@ -267,12 +267,12 @@ func (svc *Service) persistMicrosoftGraphCredentials(
 	return added, edited, deleted, nil
 }
 
-func (svc *Service) storedMicrosoftGraphCredentialsByTenant(ctx context.Context) (map[string]*fleet.MicrosoftGraphCredential, error) {
+func (svc *Service) storedMicrosoftGraphCredentialsByTenant(ctx context.Context) (map[string]*automdm.MicrosoftGraphCredential, error) {
 	stored, err := svc.ds.ListMicrosoftGraphCredentials(ctx)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "list microsoft graph credentials")
 	}
-	byTenant := make(map[string]*fleet.MicrosoftGraphCredential, len(stored))
+	byTenant := make(map[string]*automdm.MicrosoftGraphCredential, len(stored))
 	for _, cred := range stored {
 		byTenant[strings.ToLower(cred.TenantID)] = cred
 	}
@@ -280,16 +280,16 @@ func (svc *Service) storedMicrosoftGraphCredentialsByTenant(ctx context.Context)
 }
 
 // newMicrosoftGraphCredentialActivities builds the activities for one reconciliation pass.
-func newMicrosoftGraphCredentialActivities(added, edited, deleted []string) []fleet.ActivityDetails {
-	acts := make([]fleet.ActivityDetails, 0, len(added)+len(edited)+len(deleted))
+func newMicrosoftGraphCredentialActivities(added, edited, deleted []string) []automdm.ActivityDetails {
+	acts := make([]automdm.ActivityDetails, 0, len(added)+len(edited)+len(deleted))
 	for _, tenantID := range added {
-		acts = append(acts, fleet.ActivityTypeAddedMicrosoftGraphCredential{TenantID: tenantID})
+		acts = append(acts, automdm.ActivityTypeAddedMicrosoftGraphCredential{TenantID: tenantID})
 	}
 	for _, tenantID := range edited {
-		acts = append(acts, fleet.ActivityTypeEditedMicrosoftGraphCredential{TenantID: tenantID})
+		acts = append(acts, automdm.ActivityTypeEditedMicrosoftGraphCredential{TenantID: tenantID})
 	}
 	for _, tenantID := range deleted {
-		acts = append(acts, fleet.ActivityTypeDeletedMicrosoftGraphCredential{TenantID: tenantID})
+		acts = append(acts, automdm.ActivityTypeDeletedMicrosoftGraphCredential{TenantID: tenantID})
 	}
 	return acts
 }

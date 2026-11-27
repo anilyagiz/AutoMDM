@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -17,36 +17,36 @@ func (s *integrationEnterpriseTestSuite) TestHostAISessions() {
 	t := s.T()
 	ctx := t.Context()
 
-	team1, err := s.ds.NewTeam(ctx, &fleet.Team{Name: t.Name() + "team1"})
+	team1, err := s.ds.NewTeam(ctx, &automdm.Team{Name: t.Name() + "team1"})
 	require.NoError(t, err)
-	team2, err := s.ds.NewTeam(ctx, &fleet.Team{Name: t.Name() + "team2"})
+	team2, err := s.ds.NewTeam(ctx, &automdm.Team{Name: t.Name() + "team2"})
 	require.NoError(t, err)
 	hosts := s.createHosts(t, "darwin", "windows", "ubuntu")
 	require.Len(t, hosts, 3)
 	teamHost, noTeamHost, busyHost := hosts[0], hosts[1], hosts[2]
-	require.NoError(t, s.ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team1.ID, []uint{teamHost.ID})))
+	require.NoError(t, s.ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team1.ID, []uint{teamHost.ID})))
 	// createHosts sets no serial and a hostname with a slash in it, which can't go in a path.
 	teamHost.HardwareSerial, teamHost.Hostname = "ai-sessions-serial", "ai-sessions-host.local"
 	require.NoError(t, s.ds.UpdateHost(ctx, teamHost))
 
 	now := time.Now().UTC().Truncate(time.Second)
-	newSession := func(agent, id string, endedAt time.Time, toolCalls uint, outputTokens uint64) *fleet.HostAISession {
+	newSession := func(agent, id string, endedAt time.Time, toolCalls uint, outputTokens uint64) *automdm.HostAISession {
 		startedAt := endedAt.Add(-time.Hour)
-		return &fleet.HostAISession{
+		return &automdm.HostAISession{
 			Agent:             agent,
 			AgentSessionID:    id,
 			AgentVersion:      "2.1.4",
 			Username:          "anna",
 			AccountIdentifier: "anna@example.com",
 			Model:             "claude-opus-5-5",
-			ProjectPath:       "/Users/anna/code/fleet",
+			ProjectPath:       "/Users/anna/code/automdm",
 			GitBranch:         "main",
 			StartedAt:         &startedAt,
 			EndedAt:           &endedAt,
 			UserMessageCount:  2,
 			ToolCallCount:     toolCalls,
 			OutputTokenCount:  outputTokens,
-			TranscriptPath:    "/Users/anna/.claude/projects/fleet/" + id + ".jsonl",
+			TranscriptPath:    "/Users/anna/.claude/projects/automdm/" + id + ".jsonl",
 			TranscriptSize:    1024,
 		}
 	}
@@ -55,12 +55,12 @@ func (s *integrationEnterpriseTestSuite) TestHostAISessions() {
 	cursor.AgentVersion, cursor.Model, cursor.AccountIdentifier, cursor.StartedAt = "", "", "", nil
 	codex := newSession("codex_cli", "codex-1", now.Add(-3*time.Hour), 0, 100)
 	codex.Username, codex.Model, codex.GitRepository = "bob", "gpt-5", "fleetdm/website"
-	require.NoError(t, s.ds.UpsertHostAISessions(ctx, teamHost.ID, []*fleet.HostAISession{claude, cursor, codex}))
-	require.NoError(t, s.ds.UpsertHostAISessions(ctx, noTeamHost.ID, []*fleet.HostAISession{newSession("gemini_cli", "gemini-1", now, 0, 0)}))
+	require.NoError(t, s.ds.UpsertHostAISessions(ctx, teamHost.ID, []*automdm.HostAISession{claude, cursor, codex}))
+	require.NoError(t, s.ds.UpsertHostAISessions(ctx, noTeamHost.ID, []*automdm.HostAISession{newSession("gemini_cli", "gemini-1", now, 0, 0)}))
 
-	// Events carry fleetd's action, which the API maps to categories, and whether their arguments were cut.
-	newEvent := func(s *fleet.HostAISession, toolCallIndex uint, decision string, target string, action fleet.AISessionAction) *fleet.HostAISessionEvent {
-		return &fleet.HostAISessionEvent{
+	// Events carry automdmd's action, which the API maps to categories, and whether their arguments were cut.
+	newEvent := func(s *automdm.HostAISession, toolCallIndex uint, decision string, target string, action automdm.AISessionAction) *automdm.HostAISessionEvent {
+		return &automdm.HostAISessionEvent{
 			Agent:          s.Agent,
 			AgentSessionID: s.AgentSessionID,
 			SessionEndedAt: s.EndedAt,
@@ -74,15 +74,15 @@ func (s *integrationEnterpriseTestSuite) TestHostAISessions() {
 			Truncated:      true,
 		}
 	}
-	require.NoError(t, s.ds.UpsertHostAISessionEvents(ctx, teamHost.ID, nil, []*fleet.HostAISessionEvent{
-		newEvent(claude, 3, "", "WebFetch", fleet.AISessionActionNetwork),
-		newEvent(claude, 2, "allowed", "README.md", fleet.AISessionActionRead),
-		newEvent(claude, 1, "denied", "rm -rf /", fleet.AISessionActionExecute),
-		newEvent(cursor, 1, "", "main.go", fleet.AISessionActionWrite),
+	require.NoError(t, s.ds.UpsertHostAISessionEvents(ctx, teamHost.ID, nil, []*automdm.HostAISessionEvent{
+		newEvent(claude, 3, "", "WebFetch", automdm.AISessionActionNetwork),
+		newEvent(claude, 2, "allowed", "README.md", automdm.AISessionActionRead),
+		newEvent(claude, 1, "denied", "rm -rf /", automdm.AISessionActionExecute),
+		newEvent(cursor, 1, "", "main.go", automdm.AISessionActionWrite),
 	}))
 
-	sessionsURL := func(host *fleet.Host) string {
-		return fmt.Sprintf("/api/latest/fleet/hosts/%d/ai_sessions", host.ID)
+	sessionsURL := func(host *automdm.Host) string {
+		return fmt.Sprintf("/api/latest/automdm/hosts/%d/ai_sessions", host.ID)
 	}
 	listSessions := func(wantStatus int, queryParams ...string) listHostAISessionsResponse {
 		var resp listHostAISessionsResponse
@@ -101,12 +101,12 @@ func (s *integrationEnterpriseTestSuite) TestHostAISessions() {
 	resp := listSessions(http.StatusOK)
 	require.Equal(t, []string{"cursor-1", "claude-1", "codex-1"}, sessionIDs(resp))
 	require.Equal(t, uint(3), resp.Count)
-	require.Equal(t, &fleet.PaginationMetadata{}, resp.Meta)
+	require.Equal(t, &automdm.PaginationMetadata{}, resp.Meta)
 	got := resp.AISessions[1]
 	require.Equal(t, teamHost.ID, got.HostID)
 	require.Equal(t, "anna@example.com", got.AccountIdentifier)
 	require.Equal(t, uint(3), got.ToolCallCount)
-	require.Equal(t, []fleet.AISessionCategory{fleet.AISessionCategoryCommand, fleet.AISessionCategoryFileAccess}, got.Categories)
+	require.Equal(t, []automdm.AISessionCategory{automdm.AISessionCategoryCommand, automdm.AISessionCategoryFileAccess}, got.Categories)
 	claudeID := got.ID
 
 	// Unknown values are empty strings, zeros, nulls, and empty arrays.
@@ -140,7 +140,7 @@ func (s *integrationEnterpriseTestSuite) TestHostAISessions() {
 		sessionIDs(listSessions(http.StatusOK, "order_key", "output_token_count", "order_direction", "asc")))
 
 	// Pages default to 50 results, so a busy host or session doesn't come back whole.
-	manySessions := make([]*fleet.HostAISession, 0, 51)
+	manySessions := make([]*automdm.HostAISession, 0, 51)
 	for i := range 51 {
 		manySessions = append(manySessions, newSession("claude_code", fmt.Sprintf("many-%d", i), now.Add(-time.Duration(i)*time.Minute), 0, 0))
 	}
@@ -149,20 +149,20 @@ func (s *integrationEnterpriseTestSuite) TestHostAISessions() {
 	s.DoJSON("GET", sessionsURL(busyHost), nil, http.StatusOK, &busyResp)
 	require.Len(t, busyResp.AISessions, 50)
 	require.Equal(t, uint(51), busyResp.Count)
-	require.Equal(t, &fleet.PaginationMetadata{HasNextResults: true}, busyResp.Meta)
+	require.Equal(t, &automdm.PaginationMetadata{HasNextResults: true}, busyResp.Meta)
 	s.DoJSON("GET", sessionsURL(busyHost), nil, http.StatusOK, &busyResp, "per_page", "51")
 	require.Len(t, busyResp.AISessions, 51)
 	busySession := busyResp.AISessions[0]
-	manyEvents := make([]*fleet.HostAISessionEvent, 0, 51)
+	manyEvents := make([]*automdm.HostAISessionEvent, 0, 51)
 	for i := range uint(51) {
-		manyEvents = append(manyEvents, newEvent(busySession, i, "", "ls", fleet.AISessionActionExecute))
+		manyEvents = append(manyEvents, newEvent(busySession, i, "", "ls", automdm.AISessionActionExecute))
 	}
 	require.NoError(t, s.ds.UpsertHostAISessionEvents(ctx, busyHost.ID, nil, manyEvents))
 	var busyEventsResp listHostAISessionEventsResponse
 	s.DoJSON("GET", fmt.Sprintf("%s/%d/events", sessionsURL(busyHost), busySession.ID), nil, http.StatusOK, &busyEventsResp)
 	require.Len(t, busyEventsResp.Events, 50)
 	require.Equal(t, uint(51), busyEventsResp.Count)
-	require.Equal(t, &fleet.PaginationMetadata{HasNextResults: true}, busyEventsResp.Meta)
+	require.Equal(t, &automdm.PaginationMetadata{HasNextResults: true}, busyEventsResp.Meta)
 
 	// Invalid values.
 	for _, c := range []struct {
@@ -185,7 +185,7 @@ func (s *integrationEnterpriseTestSuite) TestHostAISessions() {
 		res := s.Do("GET", sessionsURL(teamHost), nil, c.wantStatus, c.params...)
 		require.Contains(t, extractServerErrorText(res.Body), c.wantErr, c.params)
 	}
-	s.Do("GET", "/api/latest/fleet/hosts/999999/ai_sessions", nil, http.StatusNotFound)
+	s.Do("GET", "/api/latest/automdm/hosts/999999/ai_sessions", nil, http.StatusNotFound)
 
 	// Get a session.
 	var getResp getHostAISessionResponse
@@ -219,13 +219,13 @@ func (s *integrationEnterpriseTestSuite) TestHostAISessions() {
 	first := eventsResp.Events[0]
 	require.NotZero(t, first.ID)
 	require.Equal(t, "denied", first.Decision)
-	require.Equal(t, []fleet.AISessionCategory{fleet.AISessionCategoryCommand}, first.Categories)
+	require.Equal(t, []automdm.AISessionCategory{automdm.AISessionCategoryCommand}, first.Categories)
 	require.Equal(t, now.Unix(), first.ExecutedAt.Unix())
 	require.JSONEq(t, `{"name":"Bash","id":"toolu_1","input":{"command":"rm -rf /"}}`, string(first.Payload))
-	require.Equal(t, []fleet.AISessionCategory{}, eventsResp.Events[2].Categories)
+	require.Equal(t, []automdm.AISessionCategory{}, eventsResp.Events[2].Categories)
 
 	for _, identifier := range []string{teamHost.HardwareSerial, teamHost.UUID, teamHost.Hostname} {
-		byIdentifier := "/api/latest/fleet/hosts/" + identifier + "/ai_sessions"
+		byIdentifier := "/api/latest/automdm/hosts/" + identifier + "/ai_sessions"
 		var listResp listHostAISessionsResponse
 		s.DoJSON("GET", byIdentifier, nil, http.StatusOK, &listResp)
 		require.Equal(t, []string{"cursor-1", "claude-1", "codex-1"}, sessionIDs(listResp), identifier)
@@ -236,10 +236,10 @@ func (s *integrationEnterpriseTestSuite) TestHostAISessions() {
 		s.DoJSON("GET", fmt.Sprintf("%s/%d/events", byIdentifier, claudeID), nil, http.StatusOK, &eventsResp)
 		require.Equal(t, []string{"rm -rf /", "README.md", "WebFetch"}, targets(eventsResp), identifier)
 	}
-	s.Do("GET", "/api/latest/fleet/hosts/no-such-host/ai_sessions", nil, http.StatusNotFound)
-	s.Do("GET", fmt.Sprintf("/api/latest/fleet/hosts/no-such-host/ai_sessions/%d", claudeID), nil, http.StatusNotFound)
-	s.Do("GET", fmt.Sprintf("/api/latest/fleet/hosts/no-such-host/ai_sessions/%d/events", claudeID), nil, http.StatusNotFound)
-	s.Do("GET", fmt.Sprintf("/api/latest/fleet/hosts/%s/ai_sessions/%d", noTeamHost.UUID, claudeID), nil, http.StatusNotFound)
+	s.Do("GET", "/api/latest/automdm/hosts/no-such-host/ai_sessions", nil, http.StatusNotFound)
+	s.Do("GET", fmt.Sprintf("/api/latest/automdm/hosts/no-such-host/ai_sessions/%d", claudeID), nil, http.StatusNotFound)
+	s.Do("GET", fmt.Sprintf("/api/latest/automdm/hosts/no-such-host/ai_sessions/%d/events", claudeID), nil, http.StatusNotFound)
+	s.Do("GET", fmt.Sprintf("/api/latest/automdm/hosts/%s/ai_sessions/%d", noTeamHost.UUID, claudeID), nil, http.StatusNotFound)
 
 	raw = s.Do("GET", eventsURL, nil, http.StatusOK, "per_page", "1")
 	body, err = io.ReadAll(raw.Body)
@@ -261,7 +261,7 @@ func (s *integrationEnterpriseTestSuite) TestHostAISessions() {
 	require.Equal(t, []string{"README.md"}, targets(listEvents(http.StatusOK, "category", "file_access")))
 	eventsResp = listEvents(http.StatusOK, "per_page", "2", "page", "1")
 	require.Equal(t, []string{"WebFetch"}, targets(eventsResp))
-	require.Equal(t, &fleet.PaginationMetadata{HasPreviousResults: true}, eventsResp.Meta)
+	require.Equal(t, &automdm.PaginationMetadata{HasPreviousResults: true}, eventsResp.Meta)
 	for _, c := range []struct {
 		params     []string
 		wantStatus int
@@ -279,10 +279,10 @@ func (s *integrationEnterpriseTestSuite) TestHostAISessions() {
 	s.Do("GET", fmt.Sprintf("%s/%d/events", sessionsURL(noTeamHost), claudeID), nil, http.StatusNotFound)
 	s.Do("GET", fmt.Sprintf("%s/%d/events", sessionsURL(teamHost), claudeID+1000), nil, http.StatusNotFound)
 
-	// Only admins and maintainers, globally or of the host's fleet, can read sessions. The policy test has every role;
-	// this checks the service authorizes on the host's fleet, and that gitops is stopped before it, at listing hosts.
+	// Only admins and maintainers, globally or of the host's team, can read sessions. The policy test has every role;
+	// this checks the service authorizes on the host's team, and that gitops is stopped before it, at listing hosts.
 	defer func() { s.token = s.getTestAdminToken() }()
-	urls := func(host *fleet.Host, sessionID uint) []string {
+	urls := func(host *automdm.Host, sessionID uint) []string {
 		return []string{
 			sessionsURL(host),
 			fmt.Sprintf("%s/%d", sessionsURL(host), sessionID),
@@ -294,8 +294,8 @@ func (s *integrationEnterpriseTestSuite) TestHostAISessions() {
 	require.Len(t, noTeamResp.AISessions, 1)
 	noTeamSessionID := noTeamResp.AISessions[0].ID
 
-	newUser := func(name string, globalRole *string, teams ...fleet.UserTeam) {
-		u := &fleet.User{
+	newUser := func(name string, globalRole *string, teams ...automdm.UserTeam) {
+		u := &automdm.User{
 			Name:       name,
 			Email:      name + "-ai-sessions@example.com",
 			GlobalRole: globalRole,
@@ -309,20 +309,20 @@ func (s *integrationEnterpriseTestSuite) TestHostAISessions() {
 	for _, c := range []struct {
 		name       string
 		globalRole string
-		team       *fleet.Team
+		team       *automdm.Team
 		teamRole   string
 		teamHost   int
 		noTeamHost int
 	}{
-		{name: "global-maintainer", globalRole: fleet.RoleMaintainer, teamHost: http.StatusOK, noTeamHost: http.StatusOK},
-		{name: "global-observer", globalRole: fleet.RoleObserver, teamHost: http.StatusForbidden, noTeamHost: http.StatusForbidden},
-		{name: "global-gitops", globalRole: fleet.RoleGitOps, teamHost: http.StatusForbidden, noTeamHost: http.StatusForbidden},
-		{name: "team-admin", team: team1, teamRole: fleet.RoleAdmin, teamHost: http.StatusOK, noTeamHost: http.StatusForbidden},
-		{name: "other-team-admin", team: team2, teamRole: fleet.RoleAdmin, teamHost: http.StatusForbidden, noTeamHost: http.StatusForbidden},
+		{name: "global-maintainer", globalRole: automdm.RoleMaintainer, teamHost: http.StatusOK, noTeamHost: http.StatusOK},
+		{name: "global-observer", globalRole: automdm.RoleObserver, teamHost: http.StatusForbidden, noTeamHost: http.StatusForbidden},
+		{name: "global-gitops", globalRole: automdm.RoleGitOps, teamHost: http.StatusForbidden, noTeamHost: http.StatusForbidden},
+		{name: "team-admin", team: team1, teamRole: automdm.RoleAdmin, teamHost: http.StatusOK, noTeamHost: http.StatusForbidden},
+		{name: "other-team-admin", team: team2, teamRole: automdm.RoleAdmin, teamHost: http.StatusForbidden, noTeamHost: http.StatusForbidden},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			if c.team != nil {
-				newUser(c.name, nil, fleet.UserTeam{Team: *c.team, Role: c.teamRole})
+				newUser(c.name, nil, automdm.UserTeam{Team: *c.team, Role: c.teamRole})
 			} else {
 				newUser(c.name, new(c.globalRole))
 			}

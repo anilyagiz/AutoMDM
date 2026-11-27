@@ -8,7 +8,7 @@
     "source": "spreadsheet-backfill",
     "sheet_row": 7
   },
-  "fleet_server": {
+  "automdm_server": {
     "cpu_utilization": {
       "Average": 60.0
     },
@@ -77,17 +77,17 @@
       }
     }
   ],
-  "fleet_server_errors": {
+  "automdm_server_errors": {
     "error_count": null
   },
   "backfill": {
-    "source": "Fleet release load testing results (Google Sheet), manual-logging era",
+    "source": "AutoMDM release load testing results (Google Sheet), manual-logging era",
     "purpose": "Ticket #25875",
     "one_click": null,
     "notes": "20K hosts w/ mdm enabled",
     "raw": {
-      "fleet_cpu": "~60%",
-      "fleet_mem": "~30%",
+      "automdm_cpu": "~60%",
+      "automdm_mem": "~30%",
       "api_latency": "<url>",
       "writer_cpu": "~10%",
       "writer_sessions": "avg ~4",

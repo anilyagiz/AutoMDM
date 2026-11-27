@@ -3,7 +3,7 @@
 --verbose=true
 --debug
 
---tls_server_certs=/etc/osquery/fleet.crt
+--tls_server_certs=/etc/osquery/automdm.crt
 
 --enroll_secret_env=ENROLL_SECRET
 --enroll_tls_endpoint=/api/v1/osquery/enroll

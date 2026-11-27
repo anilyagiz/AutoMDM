@@ -22,7 +22,7 @@ import (
 var Analyzer = &analysis.Analyzer{
 	Name:     "setboolcheck",
 	Doc:      "checks for map[T]bool that should be map[T]struct{} (set pattern)",
-	URL:      "https://github.com/fleetdm/fleet",
+	URL:      "https://github.com/anilyagiz/automdm",
 	Requires: []*analysis.Analyzer{inspect.Analyzer},
 	Run:      run,
 }

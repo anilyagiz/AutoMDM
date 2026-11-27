@@ -12,7 +12,7 @@ import helpers, {
   humanHostMemory,
   internationalTimeOnlyFormat,
   formatSelectedTargetsForApi,
-  formatFleet5RemovalMessage,
+  formatAutoMDM5RemovalMessage,
 } from "./helpers";
 
 describe("helpers utilities", () => {
@@ -139,21 +139,21 @@ describe("helpers utilities", () => {
         name: "Admin",
         password: "password123",
         password_confirmation: "password123",
-        org_name: "Fleet",
+        org_name: "AutoMDM",
         org_web_url: "",
         org_logo_file: new File(["x"], "logo.png", { type: "image/png" }),
-        fleet_web_address: "",
-        server_url: "https://fleet.example.com",
+        automdm_web_address: "",
+        server_url: "https://automdm.example.com",
       };
 
       const result = helpers.setupData(formData);
 
-      expect(result.org_info).toEqual({ org_name: "Fleet" });
+      expect(result.org_info).toEqual({ org_name: "AutoMDM" });
     });
   });
 
   describe("formatSelectedTargetsForApi function", () => {
-    it("sends fleet targets under `fleets`", () => {
+    it("sends team targets under `teams`", () => {
       const targets = [
         { id: 2, target_type: "hosts" },
         { id: 3, target_type: "labels" },
@@ -164,7 +164,7 @@ describe("helpers utilities", () => {
       expect(formatSelectedTargetsForApi(targets)).toEqual({
         hosts: [2],
         labels: [3],
-        fleets: [4, 9],
+        teams: [4, 9],
       });
     });
   });
@@ -227,18 +227,18 @@ describe("helpers utilities", () => {
     });
   });
 
-  describe("formatFleet5RemovalMessage function", () => {
-    const guideURL = "https://fleetdm.com/learn-more-about/fleet-5-upgrade";
+  describe("formatAutoMDM5RemovalMessage function", () => {
+    const guideURL = "https://automdm.com/learn-more-about/automdm-5-upgrade";
 
     it("returns null for any other message", () => {
-      expect(formatFleet5RemovalMessage("Couldn't add. Learn more")).toBeNull();
+      expect(formatAutoMDM5RemovalMessage("Couldn't add. Learn more")).toBeNull();
     });
 
     it("links the guide and keeps the text around it", () => {
       render(
         <div>
-          {formatFleet5RemovalMessage(
-            `The "$FLEET_VAR_HOST_END_USER_EMAIL_IDP" variable is not available anymore. What to use instead: ${guideURL} Trailing note.`
+          {formatAutoMDM5RemovalMessage(
+            `The "$AUTOMDM_VAR_HOST_END_USER_EMAIL_IDP" variable is not available anymore. What to use instead: ${guideURL} Trailing note.`
           )}
         </div>
       );

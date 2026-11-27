@@ -1,9 +1,9 @@
 ---
 services:
-  # MySQL runs on the host's native architecture; set FLEET_MYSQL_PLATFORM (e.g. linux/amd64) to override.
+  # MySQL runs on the host's native architecture; set AUTOMDM_MYSQL_PLATFORM (e.g. linux/amd64) to override.
   mysql_nanomdm_test:
-    image: ${FLEET_MYSQL_IMAGE:-mysql:8.0.44}
-    platform: ${FLEET_MYSQL_PLATFORM:-}
+    image: ${AUTOMDM_MYSQL_IMAGE:-mysql:8.0.44}
+    platform: ${AUTOMDM_MYSQL_PLATFORM:-}
     # innodb-file-per-table=OFF gives ~20% speedup for test runs.
     command: [
       "mysqld",
@@ -22,11 +22,11 @@ services:
     ]
     environment: &mysql-default-environment
       MYSQL_ROOT_PASSWORD: toor
-      MYSQL_DATABASE: fleet
-      MYSQL_USER: fleet
+      MYSQL_DATABASE: automdm
+      MYSQL_USER: automdm
       MYSQL_PASSWORD: insecure
       # This is required by Percona XtraDB server.
-      CLUSTER_NAME: fleet
+      CLUSTER_NAME: automdm
     ports:
       - "3800:3306"
     tmpfs:

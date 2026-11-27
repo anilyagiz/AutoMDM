@@ -10,7 +10,7 @@ Accepted
 
 ## Context 🔍
 
-Over time, our Fleet service layer has become larger and more complex, leading to several pain points:
+Over time, our AutoMDM service layer has become larger and more complex, leading to several pain points:
 
 * 🐌 Slower feature development and longer bug resolution cycles.
 * 🤯 Difficulties in onboarding new engineers due to tightly coupled components within the service layer.
@@ -18,11 +18,11 @@ Over time, our Fleet service layer has become larger and more complex, leading t
 * 🧪 Challenges in testing and maintaining a growing service package.
   * i.e., test run times, IDEs having difficulty indexing large Go packages.
 
-The need for improved maintainability and organizational scalability is driving us to consider splitting the service layer into separate Go packages. However, concerns about risk and uncertainty have delayed broader adoption. To address these concerns, a pilot was completed for a contained portion of the Fleet service layer, allowing us to evaluate the benefits and drawbacks in a lower-risk context.
+The need for improved maintainability and organizational scalability is driving us to consider splitting the service layer into separate Go packages. However, concerns about risk and uncertainty have delayed broader adoption. To address these concerns, a pilot was completed for a contained portion of the AutoMDM service layer, allowing us to evaluate the benefits and drawbacks in a lower-risk context.
 
 ## Decision ✅
 
-We have decided to **pilot splitting the Fleet service layer into separate Go packages**, focusing on a representative, self-contained feature area (Android). This is a move toward a **service-oriented architecture**, where the major services of Fleet are decoupled from each other as much as possible. The pilot work is in progress and will ready for review and evaluation after Android support is added for configuration profiles and software.
+We have decided to **pilot splitting the AutoMDM service layer into separate Go packages**, focusing on a representative, self-contained feature area (Android). This is a move toward a **service-oriented architecture**, where the major services of AutoMDM are decoupled from each other as much as possible. The pilot work is in progress and will ready for review and evaluation after Android support is added for configuration profiles and software.
 
 This approach was selected because it allows us to:
 
@@ -34,7 +34,7 @@ Feedback and lessons learned will inform a potential rollout to split additional
 
 ### Additional Details
 
-The current Fleet server is structured using a **layered architecture** with clearly defined frontend, service, and datastore layers. While this architecture is a common and pragmatic starting point for modern software projects, over time, it has led to several challenges:
+The current AutoMDM server is structured using a **layered architecture** with clearly defined frontend, service, and datastore layers. While this architecture is a common and pragmatic starting point for modern software projects, over time, it has led to several challenges:
 
 * **Feature intermingling:** Features across the application are tightly coupled and intermingled within the service and datastore layers. There is little separation by domain or feature, making the codebase harder to reason about.
 * **Growing package size:** The service and datastore packages have grown significantly, becoming large monoliths in themselves. This increase in size has introduced practical bottlenecks for engineers:

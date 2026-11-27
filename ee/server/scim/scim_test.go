@@ -3,11 +3,11 @@ package scim
 import (
 	"bytes"
 	"context"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/logging"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	platform_http "github.com/anilyagiz/automdm/v4/server/platform/http"
 	scimerrors "github.com/elimity-com/scim/errors"
-	"github.com/fleetdm/fleet/v4/server/contexts/logging"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	platform_http "github.com/fleetdm/fleet/v4/server/platform/http"
 	"io"
 	"log/slog"
 	"net/http"
@@ -55,7 +55,7 @@ func TestDebugPayloadDumpMiddleware(t *testing.T) {
 			reflect.ValueOf(handler).Pointer(),
 			"disabled middleware must return next handler unchanged")
 
-		req := httptest.NewRequest(http.MethodPatch, "/api/v1/fleet/scim/Users/1", strings.NewReader(samplePayload))
+		req := httptest.NewRequest(http.MethodPatch, "/api/v1/automdm/scim/Users/1", strings.NewReader(samplePayload))
 		rec := httptest.NewRecorder()
 		handler.ServeHTTP(rec, req)
 
@@ -78,7 +78,7 @@ func TestDebugPayloadDumpMiddleware(t *testing.T) {
 		logger := slog.New(slog.NewTextHandler(&buf, nil))
 		handler := debugPayloadDumpMiddleware(logger, true, next)
 
-		req := httptest.NewRequest(http.MethodPatch, "/api/v1/fleet/scim/Users/1", strings.NewReader(samplePayload))
+		req := httptest.NewRequest(http.MethodPatch, "/api/v1/automdm/scim/Users/1", strings.NewReader(samplePayload))
 		rec := httptest.NewRecorder()
 		handler.ServeHTTP(rec, req)
 
@@ -90,7 +90,7 @@ func TestDebugPayloadDumpMiddleware(t *testing.T) {
 		out := buf.String()
 		assert.Contains(t, out, `msg="scim payload dump"`)
 		assert.Contains(t, out, "method=PATCH")
-		assert.Contains(t, out, "/api/v1/fleet/scim/Users/1")
+		assert.Contains(t, out, "/api/v1/automdm/scim/Users/1")
 		// slog's text handler wraps the body in quotes and backslash-escapes inner quotes,
 		// so look for distinctive unquoted tokens instead of the raw payload string.
 		assert.Contains(t, out, "PatchOp")
@@ -108,7 +108,7 @@ func TestDebugPayloadDumpMiddleware(t *testing.T) {
 		logger := slog.New(slog.NewTextHandler(&buf, nil))
 		handler := debugPayloadDumpMiddleware(logger, true, next)
 
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/fleet/scim/Users", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/automdm/scim/Users", nil)
 		rec := httptest.NewRecorder()
 		handler.ServeHTTP(rec, req)
 
@@ -133,7 +133,7 @@ func TestDebugPayloadDumpMiddleware(t *testing.T) {
 		logger := slog.New(slog.NewTextHandler(&buf, nil))
 		handler := debugPayloadDumpMiddleware(logger, true, next)
 
-		req := httptest.NewRequest(http.MethodPost, "/api/v1/fleet/scim/Users", nil)
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/automdm/scim/Users", nil)
 		req.Body = tracker
 		rec := httptest.NewRecorder()
 		handler.ServeHTTP(rec, req)
@@ -158,7 +158,7 @@ func TestDebugPayloadDumpMiddleware(t *testing.T) {
 		logger := slog.New(slog.NewTextHandler(&buf, nil))
 		handler := debugPayloadDumpMiddleware(logger, true, next)
 
-		req := httptest.NewRequest(http.MethodPost, "/api/v1/fleet/scim/Users", strings.NewReader(large))
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/automdm/scim/Users", strings.NewReader(large))
 		rec := httptest.NewRecorder()
 		handler.ServeHTTP(rec, req)
 
@@ -175,7 +175,7 @@ func TestLastRequestMiddlewareKeepsRealDetail(t *testing.T) {
 
 	ds := new(mock.Store)
 	var recorded string
-	ds.UpdateScimLastRequestFunc = func(ctx context.Context, lr *fleet.ScimLastRequest) error {
+	ds.UpdateScimLastRequestFunc = func(ctx context.Context, lr *automdm.ScimLastRequest) error {
 		recorded = lr.Details
 		return nil
 	}
@@ -193,7 +193,7 @@ func TestLastRequestMiddlewareKeepsRealDetail(t *testing.T) {
 
 	h := LastRequestMiddleware(ds, slog.New(slog.DiscardHandler), inner)
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/api/latest/fleet/scim/Users", nil).
+	req := httptest.NewRequest(http.MethodPost, "/api/latest/automdm/scim/Users", nil).
 		WithContext(logging.NewContext(context.Background(), &logging.LoggingContext{}))
 	h.ServeHTTP(rec, req)
 

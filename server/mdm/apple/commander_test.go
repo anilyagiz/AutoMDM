@@ -11,12 +11,12 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/push"
-	nanomdm_pushsvc "github.com/fleetdm/fleet/v4/server/mdm/nanomdm/push/service"
-	mdmmock "github.com/fleetdm/fleet/v4/server/mock/mdm"
-	svcmock "github.com/fleetdm/fleet/v4/server/service/mock"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/push"
+	nanomdm_pushsvc "github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/push/service"
+	mdmmock "github.com/anilyagiz/automdm/v4/server/mock/mdm"
+	svcmock "github.com/anilyagiz/automdm/v4/server/service/mock"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	micromdm "github.com/micromdm/micromdm/mdm/mdm"
@@ -91,16 +91,16 @@ func TestMDMAppleCommander(t *testing.T) {
 	mdmStorage.IsPushCertStaleFunc = func(ctx context.Context, topic string, staleToken string) (bool, error) {
 		return false, nil
 	}
-	mdmStorage.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []fleet.MDMAssetName,
+	mdmStorage.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []automdm.MDMAssetName,
 		_ sqlx.QueryerContext,
-	) (map[fleet.MDMAssetName]fleet.MDMConfigAsset, error) {
+	) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
 		certPEM, err := os.ReadFile("../../service/testdata/server.pem")
 		require.NoError(t, err)
 		keyPEM, err := os.ReadFile("../../service/testdata/server.key")
 		require.NoError(t, err)
-		return map[fleet.MDMAssetName]fleet.MDMConfigAsset{
-			fleet.MDMAssetCACert: {Value: certPEM},
-			fleet.MDMAssetCAKey:  {Value: keyPEM},
+		return map[automdm.MDMAssetName]automdm.MDMConfigAsset{
+			automdm.MDMAssetCACert: {Value: certPEM},
+			automdm.MDMAssetCAKey:  {Value: keyPEM},
 		}, nil
 	}
 
@@ -141,7 +141,7 @@ func TestMDMAppleCommander(t *testing.T) {
 	require.True(t, mdmStorage.RetrievePushInfoFuncInvoked)
 	mdmStorage.RetrievePushInfoFuncInvoked = false
 
-	host := &fleet.Host{ID: 1, UUID: "A", Platform: "darwin"}
+	host := &automdm.Host{ID: 1, UUID: "A", Platform: "darwin"}
 	cmdUUID = uuid.New().String()
 
 	// Mock GetPendingLockCommand to return nil (no pending command)
@@ -149,7 +149,7 @@ func TestMDMAppleCommander(t *testing.T) {
 		return nil, "", nil
 	}
 
-	mdmStorage.EnqueueDeviceLockCommandFunc = func(ctx context.Context, gotHost *fleet.Host, cmd *mdm.Command, pin string) error {
+	mdmStorage.EnqueueDeviceLockCommandFunc = func(ctx context.Context, gotHost *automdm.Host, cmd *mdm.Command, pin string) error {
 		require.NotNil(t, gotHost)
 		require.Equal(t, host.ID, gotHost.ID)
 		require.Equal(t, host.UUID, gotHost.UUID)
@@ -168,7 +168,7 @@ func TestMDMAppleCommander(t *testing.T) {
 
 	cmdUUID = uuid.New().String()
 	orgName := "My Org Name"
-	mdmStorage.EnqueueDeviceLockCommandFunc = func(ctx context.Context, gotHost *fleet.Host, cmd *mdm.Command, pin string) error {
+	mdmStorage.EnqueueDeviceLockCommandFunc = func(ctx context.Context, gotHost *automdm.Host, cmd *mdm.Command, pin string) error {
 		require.NotNil(t, gotHost)
 		require.Equal(t, host.ID, gotHost.ID)
 		require.Equal(t, host.UUID, gotHost.UUID)
@@ -185,7 +185,7 @@ func TestMDMAppleCommander(t *testing.T) {
 	require.True(t, mdmStorage.RetrievePushInfoFuncInvoked)
 	mdmStorage.RetrievePushInfoFuncInvoked = false
 
-	mdmStorage.EnqueueDeviceUnlockCommandFunc = func(ctx context.Context, gotHost *fleet.Host, cmd *mdm.Command) error {
+	mdmStorage.EnqueueDeviceUnlockCommandFunc = func(ctx context.Context, gotHost *automdm.Host, cmd *mdm.Command) error {
 		require.NotNil(t, gotHost)
 		require.Equal(t, host.ID, gotHost.ID)
 		require.Equal(t, host.UUID, gotHost.UUID)
@@ -201,7 +201,7 @@ func TestMDMAppleCommander(t *testing.T) {
 	mdmStorage.RetrievePushInfoFuncInvoked = false
 
 	cmdUUID = uuid.New().String()
-	mdmStorage.EnqueueDeviceWipeCommandFunc = func(ctx context.Context, gotHost *fleet.Host, cmd *mdm.Command) error {
+	mdmStorage.EnqueueDeviceWipeCommandFunc = func(ctx context.Context, gotHost *automdm.Host, cmd *mdm.Command) error {
 		require.NotNil(t, gotHost)
 		require.Equal(t, host.ID, gotHost.ID)
 		require.Equal(t, host.UUID, gotHost.UUID)
@@ -229,7 +229,7 @@ func TestMDMAppleCommanderConcurrentDeviceLock(t *testing.T) {
 	)
 	cmdr := NewMDMAppleCommander(mdmStorage, pusher)
 
-	host := &fleet.Host{ID: 1, UUID: "TEST-HOST", Platform: "darwin"}
+	host := &automdm.Host{ID: 1, UUID: "TEST-HOST", Platform: "darwin"}
 
 	// Variables to track calls (with mutex for thread safety)
 	var mu sync.Mutex
@@ -254,7 +254,7 @@ func TestMDMAppleCommanderConcurrentDeviceLock(t *testing.T) {
 	}
 
 	// Mock EnqueueDeviceLockCommand
-	mdmStorage.EnqueueDeviceLockCommandFunc = func(ctx context.Context, gotHost *fleet.Host, cmd *mdm.Command, pin string) error {
+	mdmStorage.EnqueueDeviceLockCommandFunc = func(ctx context.Context, gotHost *automdm.Host, cmd *mdm.Command, pin string) error {
 		mu.Lock()
 		defer mu.Unlock()
 		enqueueCalls++
@@ -365,7 +365,7 @@ func TestMDMAppleCommanderDeviceLockPushNotificationFailure(t *testing.T) {
 	)
 	cmdr := NewMDMAppleCommander(mdmStorage, pusher)
 
-	host := &fleet.Host{ID: 1, UUID: "TEST-HOST-PUSH-FAIL", Platform: "darwin"}
+	host := &automdm.Host{ID: 1, UUID: "TEST-HOST-PUSH-FAIL", Platform: "darwin"}
 
 	// Track whether we're on the first or second request
 	var requestCount int
@@ -396,7 +396,7 @@ func TestMDMAppleCommanderDeviceLockPushNotificationFailure(t *testing.T) {
 
 	// Mock EnqueueDeviceLockCommand
 	var enqueueCalls int
-	mdmStorage.EnqueueDeviceLockCommandFunc = func(ctx context.Context, gotHost *fleet.Host, cmd *mdm.Command, pin string) error {
+	mdmStorage.EnqueueDeviceLockCommandFunc = func(ctx context.Context, gotHost *automdm.Host, cmd *mdm.Command, pin string) error {
 		enqueueCalls++
 		require.NotNil(t, gotHost)
 		require.Equal(t, host.ID, gotHost.ID)
@@ -593,7 +593,7 @@ func TestMDMAppleCommanderSetRecoveryLock(t *testing.T) {
 		require.Contains(t, string(cmd.Raw), "SetRecoveryLock")
 		// Should contain the placeholder, not the actual password. The new password is
 		// staged in the pending column until the device verifies it.
-		require.Contains(t, string(cmd.Raw), "$"+fleet.HostSecretPrefix+fleet.HostSecretRecoveryLockPendingPassword)
+		require.Contains(t, string(cmd.Raw), "$"+automdm.HostSecretPrefix+automdm.HostSecretRecoveryLockPendingPassword)
 		require.Contains(t, string(cmd.Raw), "<key>NewPassword</key>")
 		return nil, nil
 	}
@@ -639,7 +639,7 @@ func TestMDMAppleCommanderRotateFileVaultKey(t *testing.T) {
 
 	mdmStorage.EnqueueCommandFunc = func(ctx context.Context, id []string, cmd *mdm.CommandWithSubtype) (map[string]error, error) {
 		require.Equal(t, []string{hostUUID}, id)
-		require.Equal(t, fleet.RotateFileVaultKeyCmdName, cmd.Command.Command.RequestType)
+		require.Equal(t, automdm.RotateFileVaultKeyCmdName, cmd.Command.Command.RequestType)
 		require.Equal(t, cmdUUID, cmd.CommandUUID)
 
 		var payload struct {
@@ -654,7 +654,7 @@ func TestMDMAppleCommanderRotateFileVaultKey(t *testing.T) {
 		err := plist.Unmarshal(cmd.Raw, &payload)
 		require.NoError(t, err)
 		require.Equal(t, "personal", payload.Command.KeyType)
-		require.Equal(t, "$FLEET_HOST_SECRET_FILEVAULT_KEY", payload.Command.FileVaultUnlock.Password)
+		require.Equal(t, "$AUTOMDM_HOST_SECRET_FILEVAULT_KEY", payload.Command.FileVaultUnlock.Password)
 		require.Equal(t, replyCert, payload.Command.ReplyEncryptionCertificate)
 		require.Contains(t, string(cmd.Raw), "<data>")
 		return nil, nil
@@ -780,7 +780,7 @@ func TestMDMAppleCommanderClearPasscode(t *testing.T) {
 	mdmStorage.EnqueueCommandFunc = func(ctx context.Context, id []string, cmd *mdm.CommandWithSubtype) (map[string]error, error) {
 		require.NotNil(t, cmd)
 		require.Equal(t, "ClearPasscode", cmd.Command.Command.RequestType)
-		require.Contains(t, string(cmd.Raw), "$"+fleet.HostSecretPrefix+fleet.HostSecretMDMUnlockToken, "Clear passcode should not use direct unlock token but rather Host secret")
+		require.Contains(t, string(cmd.Raw), "$"+automdm.HostSecretPrefix+automdm.HostSecretMDMUnlockToken, "Clear passcode should not use direct unlock token but rather Host secret")
 		require.Contains(t, string(cmd.Raw), cmdUUID)
 		return nil, nil
 	}
@@ -1000,8 +1000,8 @@ func TestAccountConfigurationWithAdminAccount(t *testing.T) {
 			raw := string(cmd.Raw)
 			require.Contains(t, raw, "AccountConfiguration")
 			require.Contains(t, raw, "<key>AutoSetupAdminAccounts</key>")
-			require.Contains(t, raw, "<string>_fleetadmin</string>")
-			require.Contains(t, raw, "<string>Fleet Admin</string>")
+			require.Contains(t, raw, "<string>_automdmadmin</string>")
+			require.Contains(t, raw, "<string>AutoMDM Admin</string>")
 			require.Contains(t, raw, "<key>hidden</key>")
 			require.Contains(t, raw, "<true />")
 			require.Contains(t, raw, "<key>passwordHash</key>")
@@ -1012,7 +1012,7 @@ func TestAccountConfigurationWithAdminAccount(t *testing.T) {
 
 		err := cmdr.AccountConfiguration(ctx, hostUUIDs, cmdUUID,
 			nil,
-			&AdminAccountConfig{ShortName: "_fleetadmin", FullName: "Fleet Admin", PasswordHash: []byte("fake-hash"), Hidden: true},
+			&AdminAccountConfig{ShortName: "_automdmadmin", FullName: "AutoMDM Admin", PasswordHash: []byte("fake-hash"), Hidden: true},
 		)
 		require.NoError(t, err)
 		require.True(t, mdmStorage.EnqueueCommandFuncInvoked)
@@ -1029,7 +1029,7 @@ func TestAccountConfigurationWithAdminAccount(t *testing.T) {
 
 		err := cmdr.AccountConfiguration(ctx, hostUUIDs, cmdUUID,
 			&SSOAccountConfig{FullName: "SSO User", UserName: "ssouser", LockPrimaryAccountInfo: false},
-			&AdminAccountConfig{ShortName: "_fleetadmin", FullName: "Fleet Admin", PasswordHash: []byte("fake-hash"), Hidden: true},
+			&AdminAccountConfig{ShortName: "_automdmadmin", FullName: "AutoMDM Admin", PasswordHash: []byte("fake-hash"), Hidden: true},
 		)
 		require.NoError(t, err)
 		require.True(t, mdmStorage.EnqueueCommandFuncInvoked)
@@ -1047,7 +1047,7 @@ func TestAccountConfigurationWithAdminAccount(t *testing.T) {
 
 		err := cmdr.AccountConfiguration(ctx, hostUUIDs, cmdUUID,
 			&SSOAccountConfig{FullName: "SSO User", UserName: "ssouser", LockPrimaryAccountInfo: false},
-			&AdminAccountConfig{ShortName: "_fleetadmin", FullName: "Fleet Admin", PasswordHash: []byte("fake-hash"), Hidden: true, PrimaryAccountType: fleet.PrimaryAccountTypeNone},
+			&AdminAccountConfig{ShortName: "_automdmadmin", FullName: "AutoMDM Admin", PasswordHash: []byte("fake-hash"), Hidden: true, PrimaryAccountType: automdm.PrimaryAccountTypeNone},
 		)
 		require.NoError(t, err)
 		require.True(t, mdmStorage.EnqueueCommandFuncInvoked)
@@ -1065,7 +1065,7 @@ func TestAccountConfigurationWithAdminAccount(t *testing.T) {
 
 		err := cmdr.AccountConfiguration(ctx, hostUUIDs, cmdUUID,
 			&SSOAccountConfig{FullName: "SSO User", UserName: "ssouser", LockPrimaryAccountInfo: false},
-			&AdminAccountConfig{ShortName: "_fleetadmin", FullName: "Fleet Admin", PasswordHash: []byte("fake-hash"), Hidden: true, PrimaryAccountType: fleet.PrimaryAccountTypeStandard},
+			&AdminAccountConfig{ShortName: "_automdmadmin", FullName: "AutoMDM Admin", PasswordHash: []byte("fake-hash"), Hidden: true, PrimaryAccountType: automdm.PrimaryAccountTypeStandard},
 		)
 		require.NoError(t, err)
 		require.True(t, mdmStorage.EnqueueCommandFuncInvoked)
@@ -1073,14 +1073,14 @@ func TestAccountConfigurationWithAdminAccount(t *testing.T) {
 
 	t.Run("account names with XML special characters round-trip", func(t *testing.T) {
 		sso := &SSOAccountConfig{FullName: `Ann O'Brien & Co <QA>`, UserName: `ann"obrien`}
-		admin := &AdminAccountConfig{ShortName: "_fleet<admin>", FullName: "Fleet & Co Admin", PasswordHash: []byte("fake-hash"), Hidden: true}
+		admin := &AdminAccountConfig{ShortName: "_team<admin>", FullName: "AutoMDM & Co Admin", PasswordHash: []byte("fake-hash"), Hidden: true}
 
 		mdmStorage.EnqueueCommandFunc = func(ctx context.Context, id []string, cmd *mdm.CommandWithSubtype) (map[string]error, error) {
 			raw := string(cmd.Raw)
 			require.Contains(t, raw, "<string>Ann O&#39;Brien &amp; Co &lt;QA&gt;</string>")
 			require.Contains(t, raw, "<string>ann&#34;obrien</string>")
-			require.Contains(t, raw, "<string>_fleet&lt;admin&gt;</string>")
-			require.Contains(t, raw, "<string>Fleet &amp; Co Admin</string>")
+			require.Contains(t, raw, "<string>_team&lt;admin&gt;</string>")
+			require.Contains(t, raw, "<string>AutoMDM &amp; Co Admin</string>")
 
 			var decoded struct {
 				Command struct {
@@ -1143,16 +1143,16 @@ func TestMDMAppleCommanderPassesCommandName(t *testing.T) {
 	mdmStorage.IsPushCertStaleFunc = func(ctx context.Context, topic string, staleToken string) (bool, error) {
 		return false, nil
 	}
-	mdmStorage.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []fleet.MDMAssetName,
+	mdmStorage.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []automdm.MDMAssetName,
 		_ sqlx.QueryerContext,
-	) (map[fleet.MDMAssetName]fleet.MDMConfigAsset, error) {
+	) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
 		certPEM, err := os.ReadFile("../../service/testdata/server.pem")
 		require.NoError(t, err)
 		keyPEM, err := os.ReadFile("../../service/testdata/server.key")
 		require.NoError(t, err)
-		return map[fleet.MDMAssetName]fleet.MDMConfigAsset{
-			fleet.MDMAssetCACert: {Value: certPEM},
-			fleet.MDMAssetCAKey:  {Value: keyPEM},
+		return map[automdm.MDMAssetName]automdm.MDMConfigAsset{
+			automdm.MDMAssetCACert: {Value: certPEM},
+			automdm.MDMAssetCAKey:  {Value: keyPEM},
 		}, nil
 	}
 

@@ -44,7 +44,7 @@
 
   &__header {
     display: flex;
-    color: $core-fleet-black;
+    color: $core-automdm-black;
     font-weight: $bold;
     font-size: $x-small;
     text-align: left;
@@ -61,7 +61,7 @@
   &__description,
   &__file-issue {
     display: block;
-    color: $core-fleet-black;
+    color: $core-automdm-black;
     font-weight: normal;
     font-size: $x-small;
     text-align: left;
@@ -77,7 +77,7 @@
     .graphic {
       margin-bottom: 8px;
     }
-    color: $core-fleet-black;
+    color: $core-automdm-black;
     font-size: $x-small;
   }
 }

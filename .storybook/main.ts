@@ -37,8 +37,8 @@ const config: StorybookConfig = {
     // Mirror webpack.config.js: extract .css alongside .scss so cascade
     // order matches import order. Without this, Storybook's default
     // style-loader injects .css (e.g. react-select/dist/react-select.css)
-    // at runtime AFTER the extracted Fleet bundle, and any equal-specificity
-    // rule from a vendor .css beats Fleet's override (e.g. dark-mode Dropdown
+    // at runtime AFTER the extracted AutoMDM bundle, and any equal-specificity
+    // rule from a vendor .css beats AutoMDM's override (e.g. dark-mode Dropdown
     // label color). Replace Storybook's default .css rule (rather than
     // pushing) so CSS isn't processed by both style-loader AND MiniCss.
     if (config.module?.rules) {

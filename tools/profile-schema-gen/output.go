@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/mdm/profilevalidation"
+	"github.com/anilyagiz/automdm/v4/pkg/mdm/profilevalidation"
 )
 
 // existingOutput is a previously generated output file. Its version block is the pin for runs

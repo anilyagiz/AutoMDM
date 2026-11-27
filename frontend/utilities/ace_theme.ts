@@ -1,11 +1,11 @@
 /* eslint-disable */
 // @ts-nocheck
 ace.define(
-  "ace/theme/fleet",
+  "ace/theme/automdm",
   ["require", "exports", "module", "ace/lib/dom"],
   function (acequire, exports, module) {
     exports.isDark = false;
-    exports.cssClass = "ace-fleet";
+    exports.cssClass = "ace-automdm";
     exports.cssText = require("./ace_theme.css");
 
     var dom = acequire("../lib/dom");

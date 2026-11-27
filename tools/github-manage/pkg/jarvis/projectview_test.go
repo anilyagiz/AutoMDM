@@ -22,7 +22,7 @@ func TestReplaceProjectView(t *testing.T) {
 		statuses: map[string]string{},
 		projects: map[string]int{},
 	}
-	key200 := ghapi.IssueRefKey("fleetdm/fleet", 200)
+	key200 := ghapi.IssueRefKey("automdm/automdm", 200)
 
 	// Refresh project 108: issue #100 stays and newly-assigned #200 appears.
 	m.replaceProjectView(projectRefreshedMsg{
@@ -102,15 +102,15 @@ func TestResolveProject(t *testing.T) {
 		{Number: 109, Title: "❤️‍🩹 #g-auto-patching", URL: "https://github.com/orgs/fleetdm/projects/109"},
 	}
 	// by name (config uses the bare slug; title carries emoji + #)
-	if n, _, url := resolveProject("g-apple-at-work", "fleetdm", org); n != 108 || url == "" {
+	if n, _, url := resolveProject("g-apple-at-work", "automdm", org); n != 108 || url == "" {
 		t.Errorf("name resolve got %d %q, want 108", n, url)
 	}
 	// by number
-	if n, _, _ := resolveProject("109", "fleetdm", org); n != 109 {
+	if n, _, _ := resolveProject("109", "automdm", org); n != 109 {
 		t.Errorf("numeric resolve got %d, want 109", n)
 	}
 	// unknown
-	if n, _, _ := resolveProject("does-not-exist", "fleetdm", org); n != 0 {
+	if n, _, _ := resolveProject("does-not-exist", "automdm", org); n != 0 {
 		t.Errorf("unknown should resolve to 0, got %d", n)
 	}
 }

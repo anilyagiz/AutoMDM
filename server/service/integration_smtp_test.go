@@ -22,7 +22,7 @@ func (s *integrationSMTPTestSuite) SetupSuite() {
 	opts := &TestServerOpts{
 		UseMailService: true,
 	}
-	if os.Getenv("FLEET_INTEGRATION_TESTS_DISABLE_LOG") != "" {
+	if os.Getenv("AUTOMDM_INTEGRATION_TESTS_DISABLE_LOG") != "" {
 		opts.Logger = slog.New(slog.DiscardHandler)
 	}
 	users, server := RunServerForTestsWithDS(
@@ -44,7 +44,7 @@ func (s *integrationSMTPTestSuite) TestSMTPValidation() {
 	t := s.T()
 
 	acResp := appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 		"smtp_settings": {
 			"enable_smtp": true,
 			"sender_address": "sender@email.com",

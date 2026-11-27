@@ -1,4 +1,4 @@
-module github.com/fleetdm/fleet/v4
+module github.com/anilyagiz/automdm/v4
 
 go 1.27.4
 
@@ -396,7 +396,7 @@ require (
 )
 
 tool (
-	github.com/fleetdm/fleet/v4/server/goose
+	github.com/anilyagiz/automdm/v4/server/goose
 	github.com/kevinburke/go-bindata
 	github.com/quasilyte/go-ruleguard/dsl
 )

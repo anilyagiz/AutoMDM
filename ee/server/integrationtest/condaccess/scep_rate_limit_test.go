@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	scepserver "github.com/fleetdm/fleet/v4/server/mdm/scep/server"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	scepserver "github.com/anilyagiz/automdm/v4/server/mdm/scep/server"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -18,7 +18,7 @@ import (
 func TestSCEPRateLimit(t *testing.T) {
 	// Set up suite with rate limiting configuration
 	cooldown := 5 * time.Minute
-	s := SetUpSuiteWithConfig(t, "integrationtest.ConditionalAccessSCEPRateLimit", func(cfg *config.FleetConfig) {
+	s := SetUpSuiteWithConfig(t, "integrationtest.ConditionalAccessSCEPRateLimit", func(cfg *config.AutoMDMConfig) {
 		cfg.Osquery.EnrollCooldown = cooldown
 	})
 
@@ -30,11 +30,11 @@ func TestSCEPRateLimit(t *testing.T) {
 		ctx := t.Context()
 
 		// Create enrollment secret
-		err := s.DS.ApplyEnrollSecrets(ctx, nil, []*fleet.EnrollSecret{{Secret: testEnrollmentSecret}})
+		err := s.DS.ApplyEnrollSecrets(ctx, nil, []*automdm.EnrollSecret{{Secret: testEnrollmentSecret}})
 		require.NoError(t, err)
 
 		// Create a test host
-		host, err := s.DS.NewHost(ctx, &fleet.Host{
+		host, err := s.DS.NewHost(ctx, &automdm.Host{
 			OsqueryHostID:   ptr.String("test-host-rate-limit"),
 			NodeKey:         ptr.String("test-node-key-rate-limit"),
 			UUID:            "test-uuid-rate-limit",
@@ -58,7 +58,7 @@ func TestSCEPRateLimit(t *testing.T) {
 		require.Nil(t, cert2, "Second certificate request should fail due to rate limit")
 
 		// Different host should be able to get certificate
-		differentHost, err := s.DS.NewHost(ctx, &fleet.Host{
+		differentHost, err := s.DS.NewHost(ctx, &automdm.Host{
 			OsqueryHostID:   ptr.String("test-host-different"),
 			NodeKey:         ptr.String("test-node-key-different"),
 			UUID:            "test-uuid-different",

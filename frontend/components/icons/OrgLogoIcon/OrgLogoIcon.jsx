@@ -2,7 +2,7 @@ import classnames from "classnames";
 import PropTypes from "prop-types";
 import React, { Component } from "react";
 
-import fleetAvatar from "../../../assets/images/fleet-avatar-24x24@2x.png";
+import automdmAvatar from "../../../assets/images/automdm-avatar-24x24@2x.png";
 
 const baseClass = "org-logo-icon";
 
@@ -13,19 +13,19 @@ class OrgLogoIcon extends Component {
   };
 
   static defaultProps = {
-    src: fleetAvatar,
+    src: automdmAvatar,
   };
 
   constructor(props) {
     super(props);
 
-    this.state = { imageSrc: props.src || fleetAvatar, prevSrc: props.src };
+    this.state = { imageSrc: props.src || automdmAvatar, prevSrc: props.src };
   }
 
   static getDerivedStateFromProps(nextProps, prevState) {
     if (nextProps.src !== prevState.prevSrc) {
       return {
-        imageSrc: nextProps.src || fleetAvatar,
+        imageSrc: nextProps.src || automdmAvatar,
         prevSrc: nextProps.src,
       };
     }
@@ -33,7 +33,7 @@ class OrgLogoIcon extends Component {
   }
 
   onError = () => {
-    this.setState({ imageSrc: fleetAvatar });
+    this.setState({ imageSrc: automdmAvatar });
   };
 
   render() {
@@ -42,8 +42,8 @@ class OrgLogoIcon extends Component {
     const { onError } = this;
 
     const classNames =
-      imageSrc === fleetAvatar
-        ? classnames(baseClass, className, "default-fleet-logo")
+      imageSrc === automdmAvatar
+        ? classnames(baseClass, className, "default-automdm-logo")
         : classnames(baseClass, className);
 
     return (

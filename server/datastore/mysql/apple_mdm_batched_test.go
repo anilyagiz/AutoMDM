@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/require"
 )
 
@@ -16,8 +16,8 @@ func TestGetAppleProfileReconcileSnapshotChecksMDMStatus(t *testing.T) {
 	// nano_devices row), so the only thing that differs between them is their
 	// host_mdm.enrolled flag. This isolates the EXISTS(host_mdm ... enrolled = 1)
 	// filter in the reconcile query.
-	newEnrolledHost := func(suffix string, enrolled bool) *fleet.Host {
-		h, err := ds.NewHost(ctx, &fleet.Host{
+	newEnrolledHost := func(suffix string, enrolled bool) *automdm.Host {
+		h, err := ds.NewHost(ctx, &automdm.Host{
 			DetailUpdatedAt: time.Now(),
 			LabelUpdatedAt:  time.Now(),
 			PolicyUpdatedAt: time.Now(),
@@ -32,7 +32,7 @@ func TestGetAppleProfileReconcileSnapshotChecksMDMStatus(t *testing.T) {
 		require.NoError(t, err)
 
 		nanoEnroll(t, ds, h, false)
-		err = ds.SetOrUpdateMDMData(ctx, h.ID, false, enrolled, "https://example.com", true, fleet.WellKnownMDMFleet, "", fleet.PersonalEnrollmentTypeNone)
+		err = ds.SetOrUpdateMDMData(ctx, h.ID, false, enrolled, "https://example.com", true, automdm.WellKnownMDMAutoMDM, "", automdm.PersonalEnrollmentTypeNone)
 		require.NoError(t, err)
 
 		return h
@@ -59,15 +59,15 @@ func TestGetAppleProfileReconcileSnapshotIncludesOptIns(t *testing.T) {
 	ds := CreateMySQLDS(t)
 	ctx := t.Context()
 
-	h, err := ds.NewHost(ctx, &fleet.Host{
+	h, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID: new("osquery-optin"), NodeKey: new("nodekey-optin"), UUID: "uuid-optin",
 		Hostname: "hostname-optin", Platform: "darwin",
 	})
 	require.NoError(t, err)
 	nanoEnroll(t, ds, h, false)
-	require.NoError(t, ds.SetOrUpdateMDMData(ctx, h.ID, false, true, "https://example.com", true, fleet.WellKnownMDMFleet, "", fleet.PersonalEnrollmentTypeNone))
-	require.NoError(t, ds.ApplyHostMDMProfileOptInChanges(ctx, &fleet.MDMProfileOptInChanges{
-		Add: []fleet.HostProfileUUID{{HostUUID: h.UUID, ProfileUUID: "a1"}, {HostUUID: "uuid-not-in-window", ProfileUUID: "a2"}},
+	require.NoError(t, ds.SetOrUpdateMDMData(ctx, h.ID, false, true, "https://example.com", true, automdm.WellKnownMDMAutoMDM, "", automdm.PersonalEnrollmentTypeNone))
+	require.NoError(t, ds.ApplyHostMDMProfileOptInChanges(ctx, &automdm.MDMProfileOptInChanges{
+		Add: []automdm.HostProfileUUID{{HostUUID: h.UUID, ProfileUUID: "a1"}, {HostUUID: "uuid-not-in-window", ProfileUUID: "a2"}},
 	}))
 
 	hosts, _, _, _, optIns, _, err := ds.GetAppleProfileReconcileSnapshot(ctx, "", 100)
@@ -80,8 +80,8 @@ func TestGetAppleProfileReconcileSnapshotPageFullWithDuplicateUUIDs(t *testing.T
 	ds := CreateMySQLDS(t)
 	ctx := t.Context()
 
-	newHost := func(suffix, uuid string) *fleet.Host {
-		h, err := ds.NewHost(ctx, &fleet.Host{
+	newHost := func(suffix, uuid string) *automdm.Host {
+		h, err := ds.NewHost(ctx, &automdm.Host{
 			DetailUpdatedAt: time.Now(),
 			LabelUpdatedAt:  time.Now(),
 			PolicyUpdatedAt: time.Now(),
@@ -94,7 +94,7 @@ func TestGetAppleProfileReconcileSnapshotPageFullWithDuplicateUUIDs(t *testing.T
 			Platform:        "darwin",
 		})
 		require.NoError(t, err)
-		err = ds.SetOrUpdateMDMData(ctx, h.ID, false, true, "https://example.com", true, fleet.WellKnownMDMFleet, "", fleet.PersonalEnrollmentTypeNone)
+		err = ds.SetOrUpdateMDMData(ctx, h.ID, false, true, "https://example.com", true, automdm.WellKnownMDMAutoMDM, "", automdm.PersonalEnrollmentTypeNone)
 		require.NoError(t, err)
 		return h
 	}
@@ -157,8 +157,8 @@ func TestGetAppleMDMHostForReconcileIgnoresHostMDMStatus(t *testing.T) {
 	// Both hosts are darwin and fully nano-enrolled (Device enrollment +
 	// nano_devices row), so the only thing that differs between them is their
 	// host_mdm.enrolled flag.
-	newEnrolledHost := func(suffix string, enrolled bool) *fleet.Host {
-		h, err := ds.NewHost(ctx, &fleet.Host{
+	newEnrolledHost := func(suffix string, enrolled bool) *automdm.Host {
+		h, err := ds.NewHost(ctx, &automdm.Host{
 			DetailUpdatedAt: time.Now(),
 			LabelUpdatedAt:  time.Now(),
 			PolicyUpdatedAt: time.Now(),
@@ -173,7 +173,7 @@ func TestGetAppleMDMHostForReconcileIgnoresHostMDMStatus(t *testing.T) {
 		require.NoError(t, err)
 
 		nanoEnroll(t, ds, h, false)
-		err = ds.SetOrUpdateMDMData(ctx, h.ID, false, enrolled, "https://example.com", true, fleet.WellKnownMDMFleet, "", fleet.PersonalEnrollmentTypeNone)
+		err = ds.SetOrUpdateMDMData(ctx, h.ID, false, enrolled, "https://example.com", true, automdm.WellKnownMDMAutoMDM, "", automdm.PersonalEnrollmentTypeNone)
 		require.NoError(t, err)
 
 		return h

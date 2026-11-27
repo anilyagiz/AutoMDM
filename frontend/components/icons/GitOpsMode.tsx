@@ -9,7 +9,7 @@ interface IGitOpsModeIconProps {
 }
 
 const GitOpsMode = ({
-  color = "ui-fleet-black-75",
+  color = "ui-automdm-black-75",
   size = "medium",
 }: IGitOpsModeIconProps) => {
   return (

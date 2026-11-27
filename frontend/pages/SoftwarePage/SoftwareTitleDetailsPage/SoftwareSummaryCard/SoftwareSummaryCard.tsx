@@ -103,13 +103,13 @@ const SoftwareSummaryCard = ({
 
   // Team-scoped fields on the response (chips, dropdown, installer modals)
   // come from whichever team the backend picks on nil teamID — hide them
-  // under "All fleets" rather than mislabel one team's state as an aggregate.
+  // under "All teams" rather than mislabel one team's state as an aggregate.
   const hasValidTeamId = typeof teamId === "number" && teamId >= 0;
 
-  // Command palette lets the user switch fleets while a modal is open. The
+  // Command palette lets the user switch teams while a modal is open. The
   // modal unmounts because `softwareInstallerOnTeam` flips false on scope
   // change, but its `show*Modal` state persists and would remount the modal
-  // on the next specific-fleet scope. Reset on team change so it can't.
+  // on the next specific-team scope. Reset on team change so it can't.
   useEffect(() => {
     setShowEditIconModal(false);
     setShowEditSoftwareModal(false);
@@ -128,7 +128,7 @@ const SoftwareSummaryCard = ({
   // Pre-compute meta-derived values via optional chaining so the hooks below
   // can run unconditionally (React requires stable hook order across renders).
   const installerType = installerResult?.meta.installerType;
-  const isFleetMaintainedApp = !!installerResult?.meta.isFleetMaintainedApp;
+  const isAutoMDMMaintainedApp = !!installerResult?.meta.isAutoMDMMaintainedApp;
   const isAndroidPlayStoreApp = !!installerResult?.meta.isAndroidPlayStoreApp;
   const isCustomPackage = !!installerResult?.meta.isCustomPackage;
   const isIosOrIpadosApp = !!installerResult?.meta.isIosOrIpadosApp;
@@ -180,14 +180,14 @@ const SoftwareSummaryCard = ({
     "Custom package"
   );
   // Order matters: `.find` returns the first truthy row. FMA is checked first
-  // because a Fleet-maintained app uploaded as a custom package still counts
+  // because an AutoMDM-maintained app uploaded as a custom package still counts
   // as FMA; Apple VPP precedes Play Store so cross-platform store titles label
   // by their dominant source; Custom package is the catch-all fallback.
-  // Hidden on "All fleets": the kind derives from the backend's arbitrary-team
+  // Hidden on "All teams": the kind derives from the backend's arbitrary-team
   // installer pick, so it's not a reliable aggregate fact either.
   const installerKindLabel = hasValidTeamId
     ? ([
-        [isFleetMaintainedApp, "Fleet-maintained"],
+        [isAutoMDMMaintainedApp, "AutoMDM-maintained"],
         [isAppleVpp, "App Store (VPP)"],
         [isCustomPackage, customPackageChipLabel],
       ] as const).find(([flag]) => flag)?.[1]
@@ -199,8 +199,8 @@ const SoftwareSummaryCard = ({
   // is self-service and another isn't. FMA and iOS in-house .ipa keep the
   // chips since they're single-package — the flag is owned by the page.
   // Self-service / Auto install / Patch / Auto updates are per-team config.
-  // On "All fleets" the backend returns state from an arbitrary team, so hide
-  // the chips rather than mislabel it as an all-fleets fact.
+  // On "All teams" the backend returns state from an arbitrary team, so hide
+  // the chips rather than mislabel it as an all-teams fact.
   const showSelfServiceChip =
     hasValidTeamId &&
     isSelfService &&
@@ -258,7 +258,7 @@ const SoftwareSummaryCard = ({
                 router.push(
                   getPathWithQueryParams(
                     PATHS.POLICY_DETAILS(mergedPolicies[0].id),
-                    { fleet_id: teamId }
+                    { team_id: teamId }
                   )
                 );
                 return;
@@ -341,7 +341,7 @@ const SoftwareSummaryCard = ({
             versions={versionsCount}
             hostCount={softwareTitle.hosts_count}
             countsUpdatedAt={softwareTitle.counts_updated_at}
-            queryParams={{ software_title_id: softwareId, fleet_id: teamId }}
+            queryParams={{ software_title_id: softwareId, team_id: teamId }}
             name={softwareTitle.name}
             source={softwareTitle.source}
             iconUrl={softwareTitle.icon_url}
@@ -360,11 +360,11 @@ const SoftwareSummaryCard = ({
     androidPlayStoreId,
   } = installerResult.meta;
 
-  const fleetMaintainedAppSlug =
+  const automdmMaintainedAppSlug =
     isPremiumTier &&
-    isFleetMaintainedApp &&
-    "fleet_maintained_app_slug" in softwareInstaller
-      ? softwareInstaller.fleet_maintained_app_slug
+    isAutoMDMMaintainedApp &&
+    "automdm_maintained_app_slug" in softwareInstaller
+      ? softwareInstaller.automdm_maintained_app_slug
       : undefined;
   const appStoreId =
     isPremiumTier && isAppleVpp && "app_store_id" in softwareInstaller
@@ -380,10 +380,10 @@ const SoftwareSummaryCard = ({
     canManageSoftware &&
     ((isAndroidPlayStoreApp && !isAndroidPlayStoreWebApp) || isIosOrIpadosApp);
   const canDeploySoftware =
-    canManageSoftware && isFleetMaintainedApp && !!isPremiumTier;
-  /** Versions / pin is a Premium-only Fleet-maintained app feature */
+    canManageSoftware && isAutoMDMMaintainedApp && !!isPremiumTier;
+  /** Versions / pin is a Premium-only AutoMDM-maintained app feature */
   const canManageVersions =
-    canManageSoftware && isFleetMaintainedApp && !!isPremiumTier;
+    canManageSoftware && isAutoMDMMaintainedApp && !!isPremiumTier;
   const softwareInstallerOnTeam = hasValidTeamId && softwareInstaller;
 
   const onClickEditAppearance = () => setShowEditIconModal(true);
@@ -411,7 +411,7 @@ const SoftwareSummaryCard = ({
           countsUpdatedAt={softwareTitle.counts_updated_at}
           queryParams={{
             software_title_id: softwareId,
-            fleet_id: teamId,
+            team_id: teamId,
           }}
           name={softwareTitle.name}
           source={softwareTitle.source}
@@ -441,7 +441,7 @@ const SoftwareSummaryCard = ({
             canEditAutoUpdateConfig ? onClickEditAutoUpdateConfig : undefined
           }
           headerPills={headerPills}
-          fleetMaintainedAppSlug={fleetMaintainedAppSlug}
+          automdmMaintainedAppSlug={automdmMaintainedAppSlug}
           appStoreId={appStoreId}
           vppToken={
             isPremiumTier && isAppleVpp
@@ -481,7 +481,7 @@ const SoftwareSummaryCard = ({
           onExit={() => setShowEditSoftwareModal(false)}
           refetchSoftwareTitle={refetchSoftwareTitle}
           installerType={installerResult.meta.installerType}
-          isFleetMaintainedApp={isFleetMaintainedApp}
+          isAutoMDMMaintainedApp={isAutoMDMMaintainedApp}
           isIosOrIpadosApp={isIosOrIpadosApp}
           name={softwareTitle.name}
           displayName={softwareDisplayName}

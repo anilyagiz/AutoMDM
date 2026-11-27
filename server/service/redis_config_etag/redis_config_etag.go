@@ -10,10 +10,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/datastore/redis"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/version"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis"
+	"github.com/anilyagiz/automdm/v4/server/version"
 	redigo "github.com/gomodule/redigo/redis"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -42,7 +42,7 @@ const (
 	// Shared ETag record TTLs are JITTERED between these bounds (~50-70m,
 	// centered on one hour) so the backstop never expires all (scope, platform)
 	// records at once when they were created around the same time (e.g., during
-	// initial fleet check-in). The generation/fence mechanism is the correctness
+	// initial team check-in). The generation/fence mechanism is the correctness
 	// mechanism; the TTL converts any MISSED invalidation hook — or an
 	// out-of-band DB edit, a restore from backup, a future mutation added
 	// without a hook — from a permanently poisoned ETag into a bounded delay,
@@ -80,10 +80,10 @@ const (
 	genKeyBase        = "{cfgetag}:gen"
 	fenceKeyBase      = "{cfgetag}:fence"
 	scopeModesKeyBase = "{cfgetag}:scope-modes"
-	// shared etag record keys append ":v<fleet version>:<scope>:<platform>",
+	// shared etag record keys append ":v<automdm version>:<scope>:<platform>",
 	// see (*Store).etagKey.
 	etagKeyPrefix = "{cfgetag}:etag"
-	// per-host etag record keys append ":v<fleet version>:<hostID>", see
+	// per-host etag record keys append ":v<automdm version>:<hostID>", see
 	// (*Store).hostETagKey.
 	hostETagKeyPrefix = "{cfgetag}:host-etag"
 	// per-host publish quarantine keys append ":<hostID>" (NOT
@@ -93,39 +93,39 @@ const (
 
 // Prometheus counters — secondary, dependency-free observability (see the
 // package docs). Registered once at package load on the default registry and
-// exposed via Fleet's existing /metrics endpoint.
+// exposed via AutoMDM's existing /metrics endpoint.
 var (
 	metricRequests = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "fleet",
+		Namespace: "automdm",
 		Subsystem: "config_etag",
 		Name:      "requests_total",
 		Help:      "Config ETag store read attempts by cache mode and result.",
 	}, []string{"mode", "result"})
 	metricPublish = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "fleet",
+		Namespace: "automdm",
 		Subsystem: "config_etag",
 		Name:      "publish_total",
 		Help:      "Config ETag publication attempts by result.",
 	}, []string{"result"})
 	metricInvalidations = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "fleet",
+		Namespace: "automdm",
 		Subsystem: "config_etag",
 		Name:      "invalidations_total",
 		Help:      "Config ETag invalidations by kind and result.",
 	}, []string{"kind", "result"})
 	metricGateLoads = promauto.NewCounter(prometheus.CounterOpts{
-		Namespace: "fleet",
+		Namespace: "automdm",
 		Subsystem: "config_etag",
 		Name:      "gate_loads_total",
 		Help:      "Executions of the label-scope gate-state loader.",
 	})
 )
 
-// Store implements fleet.ConfigETagStore on Redis. See the package docs for
-// the correctness model; see fleet.ConfigETagStore for the method contracts.
+// Store implements automdm.ConfigETagStore on Redis. See the package docs for
+// the correctness model; see automdm.ConfigETagStore for the method contracts.
 // Must be used by pointer (it carries atomic leader-election flags).
 type Store struct {
-	pool           fleet.RedisPool
+	pool           automdm.RedisPool
 	logger         *slog.Logger
 	fenceTTL       time.Duration
 	etagMinTTL     time.Duration
@@ -133,21 +133,21 @@ type Store struct {
 	hostETagMinTTL time.Duration
 	hostETagMaxTTL time.Duration
 	quarantineTTL  time.Duration
-	version        string // Fleet server version baked into ETag record keys
+	version        string // AutoMDM server version baked into ETag record keys
 	testPrefix     string // for tests, the key prefix to use to avoid conflicts
 
 	// Leader-election flag: true while a label-scope database load is in
-	// flight on this Fleet instance. See the non-blocking leader election
+	// flight on this AutoMDM instance. See the non-blocking leader election
 	// note on LabelScopes.
 	scopesLoadInFlight atomic.Bool
 }
 
-var _ fleet.ConfigETagStore = (*Store)(nil)
+var _ automdm.ConfigETagStore = (*Store)(nil)
 
 // New returns a Store using the default TTLs and the running server's
 // version for key namespacing. The logger is used only for bounded
 // state-write logs and must not be nil.
-func New(pool fleet.RedisPool, logger *slog.Logger) *Store {
+func New(pool automdm.RedisPool, logger *slog.Logger) *Store {
 	return &Store{
 		pool:           pool,
 		logger:         logger,
@@ -509,10 +509,10 @@ func (s *Store) gateSet(ctx context.Context, key, val string) error {
 // config-request latency to a possibly-hung database query, violating the
 // fail-open guarantee.
 //
-// Instead: one CAS flag per Fleet instance. The winner re-checks
+// Instead: one CAS flag per AutoMDM instance. The winner re-checks
 // Redis (another container may have just loaded), runs the loader, SETs the
 // state. Losers do NOT wait and do NOT query — they return
-// fleet.ErrConfigETagGateLoading, which callers treat as "unknown → bypass
+// automdm.ErrConfigETagGateLoading, which callers treat as "unknown → bypass
 // for this request" (one ordinary full build, the baseline cost). Bound: at
 // most one loader query per container per miss window, zero added latency,
 // no new stall modes. Redis connections are scoped per operation and never
@@ -522,23 +522,23 @@ func (s *Store) gateSet(ctx context.Context, key, val string) error {
 // scheduled reports, loading and caching it (gateStateTTL) on a miss. On any
 // error the caller must treat the answer as UNKNOWN and bypass the short
 // circuit — never guess that a host is eligible for the shared key. Returns
-// fleet.ErrConfigETagGateLoading when another request on this instance is
+// automdm.ErrConfigETagGateLoading when another request on this instance is
 // already loading — normal contention, not a fault (see the leader-election
 // note above).
-func (s *Store) LabelScopes(ctx context.Context, load func(ctx context.Context) (fleet.ConfigETagLabelScopes, error)) (fleet.ConfigETagLabelScopes, error) {
-	parse := func(val string) (fleet.ConfigETagLabelScopes, error) {
-		var scopes fleet.ConfigETagLabelScopes
+func (s *Store) LabelScopes(ctx context.Context, load func(ctx context.Context) (automdm.ConfigETagLabelScopes, error)) (automdm.ConfigETagLabelScopes, error) {
+	parse := func(val string) (automdm.ConfigETagLabelScopes, error) {
+		var scopes automdm.ConfigETagLabelScopes
 		if err := json.Unmarshal([]byte(val), &scopes); err != nil {
 			// malformed cached state: treat as unknown (bypass), it will be
 			// rewritten on the next successful load after reset/expiry
-			return fleet.ConfigETagLabelScopes{}, ctxerr.Wrap(ctx, err, "parse cached label scopes")
+			return automdm.ConfigETagLabelScopes{}, ctxerr.Wrap(ctx, err, "parse cached label scopes")
 		}
 		return scopes, nil
 	}
 
 	val, found, err := s.gateGet(ctx, s.scopeModesKey())
 	if err != nil {
-		return fleet.ConfigETagLabelScopes{}, err
+		return automdm.ConfigETagLabelScopes{}, err
 	}
 	if found {
 		return parse(val)
@@ -546,14 +546,14 @@ func (s *Store) LabelScopes(ctx context.Context, load func(ctx context.Context) 
 
 	// Cache miss: elect a loader (see the leader-election note above).
 	if !s.scopesLoadInFlight.CompareAndSwap(false, true) {
-		return fleet.ConfigETagLabelScopes{}, fleet.ErrConfigETagGateLoading
+		return automdm.ConfigETagLabelScopes{}, automdm.ErrConfigETagGateLoading
 	}
 	defer s.scopesLoadInFlight.Store(false)
 
-	// Re-check under leadership: another Fleet instance may have loaded and
+	// Re-check under leadership: another AutoMDM instance may have loaded and
 	// SET while we were losing the race locally.
 	if val, found, err := s.gateGet(ctx, s.scopeModesKey()); err != nil {
-		return fleet.ConfigETagLabelScopes{}, err
+		return automdm.ConfigETagLabelScopes{}, err
 	} else if found {
 		return parse(val)
 	}
@@ -561,11 +561,11 @@ func (s *Store) LabelScopes(ctx context.Context, load func(ctx context.Context) 
 	metricGateLoads.Inc()
 	scopes, err := load(ctx)
 	if err != nil {
-		return fleet.ConfigETagLabelScopes{}, ctxerr.Wrap(ctx, err, "load label scoped report scopes")
+		return automdm.ConfigETagLabelScopes{}, ctxerr.Wrap(ctx, err, "load label scoped report scopes")
 	}
 	raw, err := json.Marshal(scopes)
 	if err != nil {
-		return fleet.ConfigETagLabelScopes{}, ctxerr.Wrap(ctx, err, "marshal label scopes")
+		return automdm.ConfigETagLabelScopes{}, ctxerr.Wrap(ctx, err, "marshal label scopes")
 	}
 	if err := s.gateSet(ctx, s.scopeModesKey(), string(raw)); err != nil {
 		// the loaded answer is still valid for this request
@@ -574,7 +574,7 @@ func (s *Store) LabelScopes(ctx context.Context, load func(ctx context.Context) 
 	// Bounded state-write log: at most once per gateStateTTL/reset per
 	// container (only the elected loader reaches this line).
 	s.logger.InfoContext(ctx, "config etag gate state written",
-		"kind", "label_scopes", "global", scopes.Global, "fleet_count", len(scopes.TeamIDs))
+		"kind", "label_scopes", "global", scopes.Global, "team_count", len(scopes.TeamIDs))
 	return scopes, nil
 }
 

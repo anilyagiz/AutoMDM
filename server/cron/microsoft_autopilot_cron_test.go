@@ -8,9 +8,9 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/microsoft/msgraph"
-	"github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/microsoft/msgraph"
+	"github.com/anilyagiz/automdm/v4/server/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -35,7 +35,7 @@ func (f *fakeGraphClient) ListWindowsAutopilotDevices(context.Context) ([]msgrap
 // wrote rather than how it phrased the SQL.
 type autopilotSyncEnv struct {
 	ds      *mock.Store
-	stored  map[string]*fleet.HostAutopilotDevice // keyed by Autopilot device ID, like the real table
+	stored  map[string]*automdm.HostAutopilotDevice // keyed by Autopilot device ID, like the real table
 	nextID  uint
 	removed []uint
 	invalid map[string]bool
@@ -45,11 +45,11 @@ type autopilotSyncEnv struct {
 	clients            map[string]*fakeGraphClient
 }
 
-func newAutopilotSyncEnv(t *testing.T, creds ...*fleet.MicrosoftGraphCredential) *autopilotSyncEnv {
+func newAutopilotSyncEnv(t *testing.T, creds ...*automdm.MicrosoftGraphCredential) *autopilotSyncEnv {
 	t.Helper()
 	env := &autopilotSyncEnv{
 		ds:          new(mock.Store),
-		stored:      map[string]*fleet.HostAutopilotDevice{},
+		stored:      map[string]*automdm.HostAutopilotDevice{},
 		nextID:      100,
 		invalid:     map[string]bool{},
 		syncResults: map[string]*string{},
@@ -58,8 +58,8 @@ func newAutopilotSyncEnv(t *testing.T, creds ...*fleet.MicrosoftGraphCredential)
 
 	// Reflect the stored flag back onto the credential the way the real datastore does. Returning a fixed fixture
 	// would let a sync that never clears credential_invalid pass this suite.
-	env.ds.ListMicrosoftGraphCredentialsFunc = func(ctx context.Context) ([]*fleet.MicrosoftGraphCredential, error) {
-		out := make([]*fleet.MicrosoftGraphCredential, 0, len(creds))
+	env.ds.ListMicrosoftGraphCredentialsFunc = func(ctx context.Context) ([]*automdm.MicrosoftGraphCredential, error) {
+		out := make([]*automdm.MicrosoftGraphCredential, 0, len(creds))
 		for _, c := range creds {
 			copied := *c
 			copied.CredentialInvalid = env.invalid[c.TenantID]
@@ -67,8 +67,8 @@ func newAutopilotSyncEnv(t *testing.T, creds ...*fleet.MicrosoftGraphCredential)
 		}
 		return out, nil
 	}
-	env.ds.ListHostAutopilotDevicesFunc = func(ctx context.Context, tenantID string) ([]*fleet.HostAutopilotDevice, error) {
-		out := []*fleet.HostAutopilotDevice{}
+	env.ds.ListHostAutopilotDevicesFunc = func(ctx context.Context, tenantID string) ([]*automdm.HostAutopilotDevice, error) {
+		out := []*automdm.HostAutopilotDevice{}
 		for _, d := range env.stored {
 			if d.TenantID == tenantID {
 				copied := *d
@@ -77,7 +77,7 @@ func newAutopilotSyncEnv(t *testing.T, creds ...*fleet.MicrosoftGraphCredential)
 		}
 		return out, nil
 	}
-	env.ds.IngestWindowsAutopilotDevicesFunc = func(ctx context.Context, devices []*fleet.HostAutopilotDevice) error {
+	env.ds.IngestWindowsAutopilotDevicesFunc = func(ctx context.Context, devices []*automdm.HostAutopilotDevice) error {
 		for _, d := range devices {
 			copied := *d
 			if existing, ok := env.stored[d.AutopilotDeviceID]; ok {
@@ -141,7 +141,7 @@ func (e *autopilotSyncEnv) serials() []string {
 }
 
 // device returns the stored record for an Autopilot device ID, failing the test if the sync never wrote it.
-func (e *autopilotSyncEnv) device(t *testing.T, autopilotDeviceID string) *fleet.HostAutopilotDevice {
+func (e *autopilotSyncEnv) device(t *testing.T, autopilotDeviceID string) *automdm.HostAutopilotDevice {
 	t.Helper()
 	d, ok := e.stored[autopilotDeviceID]
 	require.True(t, ok, "no stored record for autopilot device %s", autopilotDeviceID)
@@ -158,14 +158,14 @@ func device(id, serial, tag string) msgraph.WindowsAutopilotDevice {
 	return msgraph.WindowsAutopilotDevice{ID: id, SerialNumber: serial, GroupTag: tag, EntraDeviceID: "aad-" + id}
 }
 
-func testCred(tenant string) *fleet.MicrosoftGraphCredential {
-	return &fleet.MicrosoftGraphCredential{TenantID: tenant, ClientID: "client-" + tenant, ClientSecret: "secret"}
+func testCred(tenant string) *automdm.MicrosoftGraphCredential {
+	return &automdm.MicrosoftGraphCredential{TenantID: tenant, ClientID: "client-" + tenant, ClientSecret: "secret"}
 }
 
 func discardLogger() *slog.Logger { return slog.New(slog.DiscardHandler) }
 
 func factoryFor(clients map[string]*fakeGraphClient) msgraph.ClientFactory {
-	return func(cred *fleet.MicrosoftGraphCredential) (msgraph.Client, error) {
+	return func(cred *automdm.MicrosoftGraphCredential) (msgraph.Client, error) {
 		if c, ok := clients[cred.TenantID]; ok {
 			return c, nil
 		}
@@ -326,7 +326,7 @@ func TestMicrosoftAutopilotSyncCredentialFlag(t *testing.T) {
 	t.Parallel()
 
 	// Only an explicit credential rejection may raise the alarm. A Microsoft outage must never flag a credential, or
-	// one bad hour at Microsoft would tell every Fleet admin to go re-enter their client secret.
+	// one bad hour at Microsoft would tell every AutoMDM admin to go re-enter their client secret.
 	for _, tc := range []struct {
 		name        string
 		err         error

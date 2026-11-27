@@ -10,11 +10,11 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/variables"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/variables"
 	"github.com/google/go-cmp/cmp"
 	"github.com/jmoiron/sqlx"
 )
@@ -25,7 +25,7 @@ const (
 )
 
 // CreateScimUser creates a new SCIM user in the database
-func (ds *Datastore) CreateScimUser(ctx context.Context, user *fleet.ScimUser) (uint, error) {
+func (ds *Datastore) CreateScimUser(ctx context.Context, user *automdm.ScimUser) (uint, error) {
 	if err := validateScimUserFields(user); err != nil {
 		return 0, err
 	}
@@ -74,26 +74,26 @@ func (ds *Datastore) CreateScimUser(ctx context.Context, user *fleet.ScimUser) (
 	return userID, err
 }
 
-// SetScimUserFleetUserID sets the durable link from a SCIM user to its
-// matching Fleet user. Set-once at the DB level so a concurrent or future
+// SetScimUserTeamUserID sets the durable link from a SCIM user to its
+// matching AutoMDM user. Set-once at the DB level so a concurrent or future
 // caller can never re-point an established link.
-func (ds *Datastore) SetScimUserFleetUserID(ctx context.Context, scimUserID uint, fleetUserID uint) error {
+func (ds *Datastore) SetScimUserTeamUserID(ctx context.Context, scimUserID uint, teamUserID uint) error {
 	const query = `UPDATE scim_users SET user_id = ? WHERE id = ? AND user_id IS NULL`
-	if _, err := ds.writer(ctx).ExecContext(ctx, query, fleetUserID, scimUserID); err != nil {
+	if _, err := ds.writer(ctx).ExecContext(ctx, query, teamUserID, scimUserID); err != nil {
 		return ctxerr.Wrap(ctx, err, "set scim user user_id")
 	}
 	return nil
 }
 
 // ScimUserByID retrieves a SCIM user by ID
-func (ds *Datastore) ScimUserByID(ctx context.Context, id uint) (*fleet.ScimUser, error) {
+func (ds *Datastore) ScimUserByID(ctx context.Context, id uint) (*automdm.ScimUser, error) {
 	const query = `
 		SELECT
 			id, external_id, user_name, given_name, family_name, department, active, updated_at, user_id
 		FROM scim_users
 		WHERE id = ?
 	`
-	user := &fleet.ScimUser{}
+	user := &automdm.ScimUser{}
 	err := sqlx.GetContext(ctx, ds.reader(ctx), user, query, id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -120,18 +120,18 @@ func (ds *Datastore) ScimUserByID(ctx context.Context, id uint) (*fleet.ScimUser
 }
 
 // ScimUserByUserName retrieves a SCIM user by username
-func (ds *Datastore) ScimUserByUserName(ctx context.Context, userName string) (*fleet.ScimUser, error) {
+func (ds *Datastore) ScimUserByUserName(ctx context.Context, userName string) (*automdm.ScimUser, error) {
 	return scimUserByUserName(ctx, ds.reader(ctx), userName)
 }
 
-func scimUserByUserName(ctx context.Context, q sqlx.QueryerContext, userName string) (*fleet.ScimUser, error) {
+func scimUserByUserName(ctx context.Context, q sqlx.QueryerContext, userName string) (*automdm.ScimUser, error) {
 	const query = `
 		SELECT
 			id, external_id, user_name, given_name, family_name, department, active, updated_at, user_id
 		FROM scim_users
 		WHERE user_name = ?
 	`
-	user := &fleet.ScimUser{}
+	user := &automdm.ScimUser{}
 	err := sqlx.GetContext(ctx, q, user, query, userName)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -160,18 +160,18 @@ func scimUserByUserName(ctx context.Context, q sqlx.QueryerContext, userName str
 // ScimUserByUserNameOrEmail finds a SCIM user by username. If it cannot find one, then it tries email, if set.
 // If multiple users are found with the same email, we log an error and return nil.
 // Emails and groups are NOT populated in this method.
-func (ds *Datastore) ScimUserByUserNameOrEmail(ctx context.Context, userName string, email string) (*fleet.ScimUser, error) {
+func (ds *Datastore) ScimUserByUserNameOrEmail(ctx context.Context, userName string, email string) (*automdm.ScimUser, error) {
 	return scimUserByUserNameOrEmail(ctx, ds.reader(ctx), ds.logger, userName, email)
 }
 
-func scimUserByUserNameOrEmail(ctx context.Context, q sqlx.QueryerContext, logger *slog.Logger, userName string, email string) (*fleet.ScimUser, error) {
+func scimUserByUserNameOrEmail(ctx context.Context, q sqlx.QueryerContext, logger *slog.Logger, userName string, email string) (*automdm.ScimUser, error) {
 	// First, try to find the user by userName
 	if userName != "" {
 		user, err := scimUserByUserName(ctx, q, userName)
 		switch {
 		case err == nil:
 			return user, nil
-		case !fleet.IsNotFound(err):
+		case !automdm.IsNotFound(err):
 			return nil, ctxerr.Wrap(ctx, err, "select scim user by userName")
 		}
 	}
@@ -184,7 +184,7 @@ func scimUserByUserNameOrEmail(ctx context.Context, q sqlx.QueryerContext, logge
 	switch {
 	case err == nil:
 		return user, nil
-	case !fleet.IsNotFound(err):
+	case !automdm.IsNotFound(err):
 		return nil, ctxerr.Wrap(ctx, err, "select scim user by userName")
 	}
 
@@ -197,7 +197,7 @@ func scimUserByUserNameOrEmail(ctx context.Context, q sqlx.QueryerContext, logge
 		WHERE scim_user_emails.email = ?
 	`
 
-	var users []fleet.ScimUser
+	var users []automdm.ScimUser
 	err = sqlx.SelectContext(ctx, q, &users, query, email)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "select scim user by email")
@@ -217,7 +217,7 @@ func scimUserByUserNameOrEmail(ctx context.Context, q sqlx.QueryerContext, logge
 }
 
 // ScimUserByHostID retrieves a SCIM user associated with a host ID
-func (ds *Datastore) ScimUserByHostID(ctx context.Context, hostID uint) (*fleet.ScimUser, error) {
+func (ds *Datastore) ScimUserByHostID(ctx context.Context, hostID uint) (*automdm.ScimUser, error) {
 	user, err := getScimUserLiteByHostID(ctx, ds.reader(ctx), hostID)
 	if err != nil {
 		return nil, err
@@ -242,7 +242,7 @@ func (ds *Datastore) ScimUserByHostID(ctx context.Context, hostID uint) (*fleet.
 
 // returns the ScimUser for the host, without emails and groups filled (only
 // the scim_users table attributes).
-func getScimUserLiteByHostID(ctx context.Context, q sqlx.QueryerContext, hostID uint) (*fleet.ScimUser, error) {
+func getScimUserLiteByHostID(ctx context.Context, q sqlx.QueryerContext, hostID uint) (*automdm.ScimUser, error) {
 	const query = `
 		SELECT
 			su.id, su.external_id, su.user_name, su.given_name, su.family_name, su.department, su.active, su.updated_at
@@ -251,7 +251,7 @@ func getScimUserLiteByHostID(ctx context.Context, q sqlx.QueryerContext, hostID 
 		WHERE host_scim_user.host_id = ?
 		ORDER BY su.id LIMIT 1
 	`
-	var user fleet.ScimUser
+	var user automdm.ScimUser
 	err := sqlx.GetContext(ctx, q, &user, query, hostID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -263,7 +263,7 @@ func getScimUserLiteByHostID(ctx context.Context, q sqlx.QueryerContext, hostID 
 }
 
 // ReplaceScimUser replaces an existing SCIM user in the database
-func (ds *Datastore) ReplaceScimUser(ctx context.Context, user *fleet.ScimUser) ([]fleet.ActivityTypeResentCertificate, error) {
+func (ds *Datastore) ReplaceScimUser(ctx context.Context, user *automdm.ScimUser) ([]automdm.ActivityTypeResentCertificate, error) {
 	if err := validateScimUserFields(user); err != nil {
 		return nil, err
 	}
@@ -286,7 +286,7 @@ func (ds *Datastore) ReplaceScimUser(ctx context.Context, user *fleet.ScimUser) 
 	}
 	emailsNeedUpdate := emailsRequireUpdate(currentEmails, user.Emails)
 
-	var resentCerts []fleet.ActivityTypeResentCertificate
+	var resentCerts []automdm.ActivityTypeResentCertificate
 	err = ds.withRetryTxx(ctx, func(tx sqlx.ExtContext) error {
 		resentCerts = nil
 		// load the username and department before updating the user, to check if it changed
@@ -342,23 +342,23 @@ func (ds *Datastore) ReplaceScimUser(ctx context.Context, user *fleet.ScimUser) 
 		}
 
 		usernameChanged := old.UserName != user.UserName
-		var changedVars []fleet.FleetVarName
+		var changedVars []automdm.AutoMDMVarName
 		if usernameChanged {
-			changedVars = append(changedVars, fleet.FleetVarHostEndUserIDPUsername, fleet.FleetVarHostEndUserIDPUsernameLocalPart)
+			changedVars = append(changedVars, automdm.AutoMDMVarHostEndUserIDPUsername, automdm.AutoMDMVarHostEndUserIDPUsernameLocalPart)
 		}
 		if !cmp.Equal(old.Department, user.Department) {
-			changedVars = append(changedVars, fleet.FleetVarHostEndUserIDPDepartment)
+			changedVars = append(changedVars, automdm.AutoMDMVarHostEndUserIDPDepartment)
 		}
 		if !cmp.Equal(old.GivenName, user.GivenName) || !cmp.Equal(old.FamilyName, user.FamilyName) {
-			changedVars = append(changedVars, fleet.FleetVarHostEndUserIDPFullname)
+			changedVars = append(changedVars, automdm.AutoMDMVarHostEndUserIDPFullname)
 		}
 		if !cmp.Equal(old.ExternalID, user.ExternalID) {
-			changedVars = append(changedVars, fleet.FleetVarHostEndUserIDPExternalID)
+			changedVars = append(changedVars, automdm.AutoMDMVarHostEndUserIDPExternalID)
 		}
 		// every store the rename flows into holds an email address
 		renamedBetweenEmails := usernameChanged &&
-			fleet.ValidateEmail(old.UserName) == nil &&
-			fleet.ValidateEmail(user.UserName) == nil
+			automdm.ValidateEmail(old.UserName) == nil &&
+			automdm.ValidateEmail(user.UserName) == nil
 
 		// Only update emails if they've changed
 		if emailsNeedUpdate {
@@ -430,10 +430,10 @@ func reconcileHostIdPMappingsForIdPEmailChange(
 	hostIDs []uint,
 	oldEmail, newEmail string,
 ) ([]uint, error) {
-	if err := fleet.ValidateEmail(oldEmail); err != nil {
+	if err := automdm.ValidateEmail(oldEmail); err != nil {
 		return nil, ctxerr.Wrapf(ctx, err, "old IdP email %q is not an email address", oldEmail)
 	}
-	if err := fleet.ValidateEmail(newEmail); err != nil {
+	if err := automdm.ValidateEmail(newEmail); err != nil {
 		return nil, ctxerr.Wrapf(ctx, err, "new IdP email %q is not an email address", newEmail)
 	}
 	if len(hostIDs) == 0 {
@@ -445,7 +445,7 @@ func reconcileHostIdPMappingsForIdPEmailChange(
 		return nil, ctxerr.Wrap(ctx, err, "get host mdm idp accounts")
 	}
 
-	acctsByUUID := make(map[string]*fleet.MDMIdPAccount, len(acctsByHost))
+	acctsByUUID := make(map[string]*automdm.MDMIdPAccount, len(acctsByHost))
 	oldIdentities := map[string]struct{}{oldEmail: {}}
 
 	for _, hostID := range hostIDs {
@@ -487,7 +487,7 @@ func reconcileHostIdPMappingsForIdPEmailChange(
 // mdmIdPAccountBelongsToScimUser is true when the account holds the identity
 // being renamed away from, or resolves to that SCIM user or to none: the user's
 // own row is already renamed in this transaction, so it resolves to nobody.
-func mdmIdPAccountBelongsToScimUser(ctx context.Context, tx sqlx.ExtContext, logger *slog.Logger, acct *fleet.MDMIdPAccount, scimUserID uint, oldEmail string) (bool, error) {
+func mdmIdPAccountBelongsToScimUser(ctx context.Context, tx sqlx.ExtContext, logger *slog.Logger, acct *automdm.MDMIdPAccount, scimUserID uint, oldEmail string) (bool, error) {
 	if acct.Email == oldEmail {
 		return true, nil
 	}
@@ -495,11 +495,11 @@ func mdmIdPAccountBelongsToScimUser(ctx context.Context, tx sqlx.ExtContext, log
 	// the account username is the email local part, which an unrelated bare-login
 	// user can hold, so the email identifies the owner first
 	owner, err := scimUserByUserNameOrEmail(ctx, tx, logger, "", acct.Email)
-	if fleet.IsNotFound(err) && acct.Username != "" {
+	if automdm.IsNotFound(err) && acct.Username != "" {
 		owner, err = scimUserByUserNameOrEmail(ctx, tx, logger, acct.Username, "")
 	}
 	switch {
-	case fleet.IsNotFound(err):
+	case automdm.IsNotFound(err):
 		return true, nil
 	case err != nil:
 		return false, ctxerr.Wrap(ctx, err, "resolve mdm idp account scim user")
@@ -516,7 +516,7 @@ func renameMDMIdPAccount(
 	ctx context.Context,
 	tx sqlx.ExtContext,
 	logger *slog.Logger,
-	idpAcct *fleet.MDMIdPAccount,
+	idpAcct *automdm.MDMIdPAccount,
 	newEmail string,
 ) error {
 	if idpAcct == nil || idpAcct.Email == newEmail {
@@ -524,7 +524,7 @@ func renameMDMIdPAccount(
 	}
 
 	const updateStmt = `UPDATE mdm_idp_accounts SET email = ?, username = ? WHERE uuid = ?`
-	_, err := tx.ExecContext(ctx, updateStmt, newEmail, fleet.EmailLocalPart(newEmail), idpAcct.UUID)
+	_, err := tx.ExecContext(ctx, updateStmt, newEmail, automdm.EmailLocalPart(newEmail), idpAcct.UUID)
 	switch {
 	case err == nil:
 		logger.InfoContext(ctx, "scim user rename: update mdm idp account email",
@@ -575,7 +575,7 @@ func renameHostIdPEmails(
 ) ([]uint, error) {
 	selStmt, selArgs, err := sqlx.In(
 		`SELECT DISTINCT host_id FROM host_emails WHERE source = ? AND email IN (?) AND email <> ? ORDER BY host_id`,
-		fleet.DeviceMappingMDMIdpAccounts, oldIdentities, newEmail)
+		automdm.DeviceMappingMDMIdpAccounts, oldIdentities, newEmail)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "prepare select host idp device mappings arguments")
 	}
@@ -587,7 +587,7 @@ func renameHostIdPEmails(
 	// rewritten in place so the rows keep their source
 	authStmt, authArgs, err := sqlx.In(
 		`UPDATE host_emails SET email = ? WHERE source = ? AND email IN (?)`,
-		newEmail, fleet.DeviceMappingMDMIdpAccounts, oldIdentities)
+		newEmail, automdm.DeviceMappingMDMIdpAccounts, oldIdentities)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "prepare update authenticated host_emails arguments")
 	}
@@ -602,7 +602,7 @@ func renameHostIdPEmails(
 
 	manualStmt, manualArgs, err := sqlx.In(
 		`UPDATE host_emails SET email = ? WHERE host_id IN (?) AND source = ? AND email IN (?)`,
-		newEmail, scimHostIDs, fleet.DeviceMappingIDP, oldIdentities)
+		newEmail, scimHostIDs, automdm.DeviceMappingIDP, oldIdentities)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "prepare update manual host_emails arguments")
 	}
@@ -631,7 +631,7 @@ func renameHostIdPEmails(
 		 JOIN host_emails authenticated
 		   ON authenticated.host_id = he.host_id AND authenticated.source = ? AND authenticated.email = ?
 		 WHERE he.host_id IN (?) AND he.source = ? AND he.email = ?`,
-		fleet.DeviceMappingMDMIdpAccounts, newEmail, slices.Sorted(maps.Keys(dedupe)), fleet.DeviceMappingIDP, newEmail)
+		automdm.DeviceMappingMDMIdpAccounts, newEmail, slices.Sorted(maps.Keys(dedupe)), automdm.DeviceMappingIDP, newEmail)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "prepare delete duplicate host idp device mappings arguments")
 	}
@@ -641,7 +641,7 @@ func renameHostIdPEmails(
 	return changedHostIDs, nil
 }
 
-func insertEmails(ctx context.Context, tx sqlx.ExtContext, user *fleet.ScimUser) error {
+func insertEmails(ctx context.Context, tx sqlx.ExtContext, user *automdm.ScimUser) error {
 	// Insert the user's emails in a single batch if any
 	if len(user.Emails) > 0 {
 		// Build the batch insert query
@@ -675,8 +675,8 @@ func insertEmails(ctx context.Context, tx sqlx.ExtContext, user *fleet.ScimUser)
 }
 
 // DeleteScimUser deletes a SCIM user from the database
-func (ds *Datastore) DeleteScimUser(ctx context.Context, id uint) ([]fleet.ActivityTypeResentCertificate, error) {
-	var resentCerts []fleet.ActivityTypeResentCertificate
+func (ds *Datastore) DeleteScimUser(ctx context.Context, id uint) ([]automdm.ActivityTypeResentCertificate, error) {
+	var resentCerts []automdm.ActivityTypeResentCertificate
 	err := ds.withRetryTxx(ctx, func(tx sqlx.ExtContext) error {
 		resentCerts = nil
 
@@ -713,7 +713,7 @@ func (ds *Datastore) DeleteScimUser(ctx context.Context, id uint) ([]fleet.Activ
 }
 
 // ListScimUsers retrieves a list of SCIM users with optional filtering
-func (ds *Datastore) ListScimUsers(ctx context.Context, opts fleet.ScimUsersListOptions) (users []fleet.ScimUser, totalResults uint, err error) {
+func (ds *Datastore) ListScimUsers(ctx context.Context, opts automdm.ScimUsersListOptions) (users []automdm.ScimUser, totalResults uint, err error) {
 	// Default pagination values if not provided
 	if opts.StartIndex == 0 {
 		opts.StartIndex = 1
@@ -763,7 +763,7 @@ func (ds *Datastore) ListScimUsers(ctx context.Context, opts fleet.ScimUsersList
 
 	// Process the results
 	userIDs := make([]uint, 0, len(users))
-	userMap := make(map[uint]*fleet.ScimUser, len(users))
+	userMap := make(map[uint]*automdm.ScimUser, len(users))
 
 	for i, user := range users {
 		userIDs = append(userIDs, user.ID)
@@ -791,7 +791,7 @@ func (ds *Datastore) ListScimUsers(ctx context.Context, opts fleet.ScimUsersList
 	emailQuery = ds.reader(ctx).Rebind(emailQuery)
 
 	// Execute the email query
-	var allEmails []fleet.ScimUserEmail
+	var allEmails []automdm.ScimUserEmail
 	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &allEmails, emailQuery, args...); err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
 			return nil, 0, ctxerr.Wrap(ctx, err, "select scim user emails")
@@ -835,7 +835,7 @@ func (ds *Datastore) ListScimUsers(ctx context.Context, opts fleet.ScimUsersList
 	// Associate groups with their users
 	for _, ug := range allUserGroups {
 		if user, ok := userMap[ug.UserID]; ok {
-			user.Groups = append(user.Groups, fleet.ScimUserGroup{
+			user.Groups = append(user.Groups, automdm.ScimUserGroup{
 				ID:          ug.ID,
 				DisplayName: ug.DisplayName,
 			})
@@ -846,18 +846,18 @@ func (ds *Datastore) ListScimUsers(ctx context.Context, opts fleet.ScimUsersList
 }
 
 // getScimUserEmails retrieves all emails for a SCIM user
-func (ds *Datastore) getScimUserEmails(ctx context.Context, userID uint) ([]fleet.ScimUserEmail, error) {
+func (ds *Datastore) getScimUserEmails(ctx context.Context, userID uint) ([]automdm.ScimUserEmail, error) {
 	return getScimUserEmails(ctx, ds.reader(ctx), userID)
 }
 
-func getScimUserEmails(ctx context.Context, q sqlx.QueryerContext, userID uint) ([]fleet.ScimUserEmail, error) {
+func getScimUserEmails(ctx context.Context, q sqlx.QueryerContext, userID uint) ([]automdm.ScimUserEmail, error) {
 	const query = `
 		SELECT
 			scim_user_id, email, ` + "`primary`" + `, type
 		FROM scim_user_emails
 		WHERE scim_user_id = ? ORDER BY email ASC
 	`
-	var emails []fleet.ScimUserEmail
+	var emails []automdm.ScimUserEmail
 	err := sqlx.SelectContext(ctx, q, &emails, query, userID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -869,11 +869,11 @@ func getScimUserEmails(ctx context.Context, q sqlx.QueryerContext, userID uint) 
 }
 
 // getScimUserGroups retrieves all groups for a SCIM user
-func (ds *Datastore) getScimUserGroups(ctx context.Context, userID uint) ([]fleet.ScimUserGroup, error) {
+func (ds *Datastore) getScimUserGroups(ctx context.Context, userID uint) ([]automdm.ScimUserGroup, error) {
 	return getScimUserGroups(ctx, ds.reader(ctx), userID)
 }
 
-func getScimUserGroups(ctx context.Context, q sqlx.QueryerContext, userID uint) ([]fleet.ScimUserGroup, error) {
+func getScimUserGroups(ctx context.Context, q sqlx.QueryerContext, userID uint) ([]automdm.ScimUserGroup, error) {
 	// A user's effective group membership is the set of groups they are a direct
 	// member of, plus every ancestor group reachable by walking parent -> child
 	// edges upward (nested groups, as provisioned by Entra ID). The recursive CTE
@@ -892,7 +892,7 @@ func getScimUserGroups(ctx context.Context, q sqlx.QueryerContext, userID uint) 
 		JOIN user_groups ug ON sg.id = ug.group_id
 		ORDER BY sg.id ASC
 	`
-	var groups []fleet.ScimUserGroup
+	var groups []automdm.ScimUserGroup
 	err := sqlx.SelectContext(ctx, q, &groups, query, userID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -904,38 +904,38 @@ func getScimUserGroups(ctx context.Context, q sqlx.QueryerContext, userID uint) 
 }
 
 // validateScimUserFields checks if the user fields exceed the maximum allowed length
-func validateScimUserFields(user *fleet.ScimUser) error {
-	if user.ExternalID != nil && len(*user.ExternalID) > fleet.SCIMMaxFieldLength {
-		return &fleet.SCIMValidationError{Field: "external_id", Message: fmt.Sprintf("exceeds maximum length of %d characters", fleet.SCIMMaxFieldLength)}
+func validateScimUserFields(user *automdm.ScimUser) error {
+	if user.ExternalID != nil && len(*user.ExternalID) > automdm.SCIMMaxFieldLength {
+		return &automdm.SCIMValidationError{Field: "external_id", Message: fmt.Sprintf("exceeds maximum length of %d characters", automdm.SCIMMaxFieldLength)}
 	}
-	if len(user.UserName) > fleet.SCIMMaxFieldLength {
-		return &fleet.SCIMValidationError{Field: "user_name", Message: fmt.Sprintf("exceeds maximum length of %d characters", fleet.SCIMMaxFieldLength)}
+	if len(user.UserName) > automdm.SCIMMaxFieldLength {
+		return &automdm.SCIMValidationError{Field: "user_name", Message: fmt.Sprintf("exceeds maximum length of %d characters", automdm.SCIMMaxFieldLength)}
 	}
-	if user.GivenName != nil && len(*user.GivenName) > fleet.SCIMMaxFieldLength {
-		return &fleet.SCIMValidationError{Field: "given_name", Message: fmt.Sprintf("exceeds maximum length of %d characters", fleet.SCIMMaxFieldLength)}
+	if user.GivenName != nil && len(*user.GivenName) > automdm.SCIMMaxFieldLength {
+		return &automdm.SCIMValidationError{Field: "given_name", Message: fmt.Sprintf("exceeds maximum length of %d characters", automdm.SCIMMaxFieldLength)}
 	}
-	if user.FamilyName != nil && len(*user.FamilyName) > fleet.SCIMMaxFieldLength {
-		return &fleet.SCIMValidationError{Field: "family_name", Message: fmt.Sprintf("exceeds maximum length of %d characters", fleet.SCIMMaxFieldLength)}
+	if user.FamilyName != nil && len(*user.FamilyName) > automdm.SCIMMaxFieldLength {
+		return &automdm.SCIMValidationError{Field: "family_name", Message: fmt.Sprintf("exceeds maximum length of %d characters", automdm.SCIMMaxFieldLength)}
 	}
-	if user.Department != nil && len(*user.Department) > fleet.SCIMMaxFieldLength {
-		return &fleet.SCIMValidationError{Field: "department", Message: fmt.Sprintf("exceeds maximum length of %d characters", fleet.SCIMMaxFieldLength)}
+	if user.Department != nil && len(*user.Department) > automdm.SCIMMaxFieldLength {
+		return &automdm.SCIMValidationError{Field: "department", Message: fmt.Sprintf("exceeds maximum length of %d characters", automdm.SCIMMaxFieldLength)}
 	}
 	return nil
 }
 
 // validateScimGroupFields checks if the group fields exceed the maximum allowed length
-func validateScimGroupFields(group *fleet.ScimGroup) error {
-	if group.ExternalID != nil && len(*group.ExternalID) > fleet.SCIMMaxFieldLength {
-		return &fleet.SCIMValidationError{Field: "external_id", Message: fmt.Sprintf("exceeds maximum length of %d characters", fleet.SCIMMaxFieldLength)}
+func validateScimGroupFields(group *automdm.ScimGroup) error {
+	if group.ExternalID != nil && len(*group.ExternalID) > automdm.SCIMMaxFieldLength {
+		return &automdm.SCIMValidationError{Field: "external_id", Message: fmt.Sprintf("exceeds maximum length of %d characters", automdm.SCIMMaxFieldLength)}
 	}
-	if len(group.DisplayName) > fleet.SCIMMaxFieldLength {
-		return &fleet.SCIMValidationError{Field: "display_name", Message: fmt.Sprintf("exceeds maximum length of %d characters", fleet.SCIMMaxFieldLength)}
+	if len(group.DisplayName) > automdm.SCIMMaxFieldLength {
+		return &automdm.SCIMValidationError{Field: "display_name", Message: fmt.Sprintf("exceeds maximum length of %d characters", automdm.SCIMMaxFieldLength)}
 	}
 	return nil
 }
 
 // CreateScimGroup creates a new SCIM group in the database
-func (ds *Datastore) CreateScimGroup(ctx context.Context, group *fleet.ScimGroup) (uint, error) {
+func (ds *Datastore) CreateScimGroup(ctx context.Context, group *automdm.ScimGroup) (uint, error) {
 	if err := validateScimGroupFields(group); err != nil {
 		return 0, err
 	}
@@ -1032,14 +1032,14 @@ func insertScimGroupUsers(ctx context.Context, tx sqlx.ExtContext, groupID uint,
 
 // ScimGroupByID retrieves a SCIM group by ID
 // If excludeUsers is true, the group's users (and nested child groups) will not be fetched
-func (ds *Datastore) ScimGroupByID(ctx context.Context, id uint, excludeUsers bool) (*fleet.ScimGroup, error) {
+func (ds *Datastore) ScimGroupByID(ctx context.Context, id uint, excludeUsers bool) (*automdm.ScimGroup, error) {
 	const query = `
 		SELECT
 			id, external_id, display_name
 		FROM scim_groups
 		WHERE id = ?
 	`
-	group := &fleet.ScimGroup{}
+	group := &automdm.ScimGroup{}
 	err := sqlx.GetContext(ctx, ds.reader(ctx), group, query, id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -1141,14 +1141,14 @@ func getTransitiveScimGroupUserIDs(ctx context.Context, q sqlx.QueryerContext, g
 
 // ScimGroupByDisplayName retrieves a SCIM group by display name
 // This method always fetches the group's users
-func (ds *Datastore) ScimGroupByDisplayName(ctx context.Context, displayName string) (*fleet.ScimGroup, error) {
+func (ds *Datastore) ScimGroupByDisplayName(ctx context.Context, displayName string) (*automdm.ScimGroup, error) {
 	const query = `
 		SELECT
 			id, external_id, display_name
 		FROM scim_groups
 		WHERE display_name = ?
 	`
-	group := &fleet.ScimGroup{}
+	group := &automdm.ScimGroup{}
 	err := sqlx.GetContext(ctx, ds.reader(ctx), group, query, displayName)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -1211,7 +1211,7 @@ func loadScimGroupAttributes(ctx context.Context, tx sqlx.ExtContext, groupID ui
 }
 
 // updateScimGroupAttributes writes a SCIM group's scalar attributes.
-func updateScimGroupAttributes(ctx context.Context, tx sqlx.ExtContext, group *fleet.ScimGroup) error {
+func updateScimGroupAttributes(ctx context.Context, tx sqlx.ExtContext, group *automdm.ScimGroup) error {
 	const updateGroupQuery = `
 		UPDATE scim_groups SET
 			external_id = ?,
@@ -1243,7 +1243,7 @@ func updateScimGroupAttributes(ctx context.Context, tx sqlx.ExtContext, group *f
 // ApplyScimGroupPatch updates an existing SCIM group's attributes and applies
 // only the membership changes described by deltas, leaving every other member of
 // the group untouched.
-func (ds *Datastore) ApplyScimGroupPatch(ctx context.Context, group *fleet.ScimGroup, deltas fleet.ScimGroupMemberDeltas) error {
+func (ds *Datastore) ApplyScimGroupPatch(ctx context.Context, group *automdm.ScimGroup, deltas automdm.ScimGroupMemberDeltas) error {
 	if err := validateScimGroupFields(group); err != nil {
 		return err
 	}
@@ -1272,7 +1272,7 @@ func (ds *Datastore) ApplyScimGroupPatch(ctx context.Context, group *fleet.ScimG
 // applyScimGroupMemberDeltas writes the membership changes described by deltas
 // and triggers the profile resends they require.
 func applyScimGroupMemberDeltas(
-	ctx context.Context, tx sqlx.ExtContext, groupID uint, deltas fleet.ScimGroupMemberDeltas, groupNameChanged bool,
+	ctx context.Context, tx sqlx.ExtContext, groupID uint, deltas automdm.ScimGroupMemberDeltas, groupNameChanged bool,
 ) error {
 	// Read which named members and child edges exist before the writes: the resend
 	// below then covers only members whose membership actually changes, so a no-op
@@ -1326,7 +1326,7 @@ func applyScimGroupMemberDeltas(
 }
 
 // ReplaceScimGroup replaces an existing SCIM group in the database
-func (ds *Datastore) ReplaceScimGroup(ctx context.Context, group *fleet.ScimGroup) error {
+func (ds *Datastore) ReplaceScimGroup(ctx context.Context, group *automdm.ScimGroup) error {
 	if err := validateScimGroupFields(group); err != nil {
 		return err
 	}
@@ -1352,7 +1352,7 @@ func (ds *Datastore) ReplaceScimGroup(ctx context.Context, group *fleet.ScimGrou
 			return ctxerr.Wrap(ctx, err, "get existing scim group children")
 		}
 
-		var deltas fleet.ScimGroupMemberDeltas
+		var deltas automdm.ScimGroupMemberDeltas
 		deltas.AddUsers, deltas.RemoveUsers = diffUintSlices(existingUsers, group.ScimUsers)
 		deltas.AddChildGroups, deltas.RemoveChildGroups = diffUintSlices(existingChildren, group.ChildGroups)
 		return applyScimGroupMemberDeltas(ctx, tx, group.ID, deltas, groupNameChanged)
@@ -1495,7 +1495,7 @@ func (ds *Datastore) DeleteScimGroup(ctx context.Context, id uint) error {
 
 // ListScimGroups retrieves a list of SCIM groups with pagination
 // If opts.ExcludeUsers is true, the groups' users will not be fetched
-func (ds *Datastore) ListScimGroups(ctx context.Context, opts fleet.ScimGroupsListOptions) (groups []fleet.ScimGroup, totalResults uint, err error) {
+func (ds *Datastore) ListScimGroups(ctx context.Context, opts automdm.ScimGroupsListOptions) (groups []automdm.ScimGroup, totalResults uint, err error) {
 	// Default pagination values if not provided
 	if opts.StartIndex == 0 {
 		opts.StartIndex = 1
@@ -1539,7 +1539,7 @@ func (ds *Datastore) ListScimGroups(ctx context.Context, opts fleet.ScimGroupsLi
 
 	// Process the results
 	groupIDs := make([]uint, 0, len(groups))
-	groupMap := make(map[uint]*fleet.ScimGroup, len(groups))
+	groupMap := make(map[uint]*automdm.ScimGroup, len(groups))
 
 	for i, group := range groups {
 		groupIDs = append(groupIDs, group.ID)
@@ -1590,14 +1590,14 @@ func (ds *Datastore) ListScimGroups(ctx context.Context, opts fleet.ScimGroupsLi
 }
 
 // ScimLastRequest retrieves the last SCIM request info
-func (ds *Datastore) ScimLastRequest(ctx context.Context) (*fleet.ScimLastRequest, error) {
+func (ds *Datastore) ScimLastRequest(ctx context.Context) (*automdm.ScimLastRequest, error) {
 	const query = `
 				SELECT
 					status, details, updated_at
 				FROM scim_last_request
 				ORDER BY id LIMIT 1
 			`
-	var lastRequest fleet.ScimLastRequest
+	var lastRequest automdm.ScimLastRequest
 	err := sqlx.GetContext(ctx, ds.reader(ctx), &lastRequest, query)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -1610,15 +1610,15 @@ func (ds *Datastore) ScimLastRequest(ctx context.Context) (*fleet.ScimLastReques
 
 // UpdateScimLastRequest updates the last SCIM request information
 // If no row exists, it creates a new one
-func (ds *Datastore) UpdateScimLastRequest(ctx context.Context, lastRequest *fleet.ScimLastRequest) error {
+func (ds *Datastore) UpdateScimLastRequest(ctx context.Context, lastRequest *automdm.ScimLastRequest) error {
 	if lastRequest == nil {
 		return nil
 	}
 	if len(lastRequest.Status) > SCIMMaxStatusLength {
 		return fmt.Errorf("status exceeds maximum length of %d characters", SCIMMaxStatusLength)
 	}
-	if len(lastRequest.Details) > fleet.SCIMMaxFieldLength {
-		return fmt.Errorf("details exceeds maximum length of %d characters", fleet.SCIMMaxFieldLength)
+	if len(lastRequest.Details) > automdm.SCIMMaxFieldLength {
+		return fmt.Errorf("details exceeds maximum length of %d characters", automdm.SCIMMaxFieldLength)
 	}
 
 	return ds.withRetryTxx(ctx, func(tx sqlx.ExtContext) error {
@@ -1726,8 +1726,8 @@ func getHostIDsHavingScimIDPUsers(ctx context.Context, tx sqlx.ExtContext, scimU
 // scimHostIDs, and IdP username profiles on the hosts of idpEmailChangedHostIDs
 // that no SCIM user is linked to, since those take their IdP username from the
 // IdP email that moved; a host can be in either set without being in the other.
-func triggerResendProfilesForIDPUserChange(ctx context.Context, tx sqlx.ExtContext, scimHostIDs []uint, changedVars []fleet.FleetVarName, idpEmailChangedHostIDs []uint) ([]fleet.ActivityTypeResentCertificate, error) {
-	resentCerts, err := selectCertTemplatesToResend(ctx, tx, scimHostIDs, fleetVarNamesToDBVars(changedVars))
+func triggerResendProfilesForIDPUserChange(ctx context.Context, tx sqlx.ExtContext, scimHostIDs []uint, changedVars []automdm.AutoMDMVarName, idpEmailChangedHostIDs []uint) ([]automdm.ActivityTypeResentCertificate, error) {
+	resentCerts, err := selectCertTemplatesToResend(ctx, tx, scimHostIDs, automdmVarNamesToDBVars(changedVars))
 	if err != nil {
 		return nil, err
 	}
@@ -1742,8 +1742,8 @@ func triggerResendProfilesForIDPUserChange(ctx context.Context, tx sqlx.ExtConte
 	if len(unlinkedHostIDs) == 0 {
 		return resentCerts, nil
 	}
-	usernameVars := []fleet.FleetVarName{fleet.FleetVarHostEndUserIDPUsername, fleet.FleetVarHostEndUserIDPUsernameLocalPart}
-	usernameCerts, err := selectCertTemplatesToResend(ctx, tx, unlinkedHostIDs, fleetVarNamesToDBVars(usernameVars))
+	usernameVars := []automdm.AutoMDMVarName{automdm.AutoMDMVarHostEndUserIDPUsername, automdm.AutoMDMVarHostEndUserIDPUsernameLocalPart}
+	usernameCerts, err := selectCertTemplatesToResend(ctx, tx, unlinkedHostIDs, automdmVarNamesToDBVars(usernameVars))
 	if err != nil {
 		return nil, err
 	}
@@ -1786,20 +1786,20 @@ func hostIDsWithoutScimUser(ctx context.Context, tx sqlx.ExtContext, hostIDs []u
 	}), nil
 }
 
-func triggerResendProfilesForIDPUserDeleted(ctx context.Context, tx sqlx.ExtContext, deletedScimUserID uint) ([]fleet.ActivityTypeResentCertificate, error) {
+func triggerResendProfilesForIDPUserDeleted(ctx context.Context, tx sqlx.ExtContext, deletedScimUserID uint) ([]automdm.ActivityTypeResentCertificate, error) {
 	hostIDs, err := getHostIDsHavingScimIDPUser(ctx, tx, deletedScimUserID)
 	if err != nil {
 		return nil, err
 	}
-	vars := []fleet.FleetVarName{
-		fleet.FleetVarHostEndUserIDPUsername,
-		fleet.FleetVarHostEndUserIDPUsernameLocalPart,
-		fleet.FleetVarHostEndUserIDPGroups,
-		fleet.FleetVarHostEndUserIDPDepartment,
-		fleet.FleetVarHostEndUserIDPFullname,
-		fleet.FleetVarHostEndUserIDPExternalID,
+	vars := []automdm.AutoMDMVarName{
+		automdm.AutoMDMVarHostEndUserIDPUsername,
+		automdm.AutoMDMVarHostEndUserIDPUsernameLocalPart,
+		automdm.AutoMDMVarHostEndUserIDPGroups,
+		automdm.AutoMDMVarHostEndUserIDPDepartment,
+		automdm.AutoMDMVarHostEndUserIDPFullname,
+		automdm.AutoMDMVarHostEndUserIDPExternalID,
 	}
-	resentCerts, err := selectCertTemplatesToResend(ctx, tx, hostIDs, fleetVarNamesToDBVars(vars))
+	resentCerts, err := selectCertTemplatesToResend(ctx, tx, hostIDs, automdmVarNamesToDBVars(vars))
 	if err != nil {
 		return nil, err
 	}
@@ -1826,7 +1826,7 @@ func triggerResendProfilesForIDPGroupChange(ctx context.Context, tx sqlx.ExtCont
 		return err
 	}
 	return triggerResendProfilesUsingVariables(ctx, tx, hostIDs,
-		[]fleet.FleetVarName{fleet.FleetVarHostEndUserIDPGroups})
+		[]automdm.AutoMDMVarName{automdm.AutoMDMVarHostEndUserIDPGroups})
 }
 
 func triggerResendProfilesForIDPGroupChangeByUsers(ctx context.Context, tx sqlx.ExtContext, scimUserIDs []uint) error {
@@ -1839,10 +1839,10 @@ func triggerResendProfilesForIDPGroupChangeByUsers(ctx context.Context, tx sqlx.
 		return err
 	}
 	return triggerResendProfilesUsingVariables(ctx, tx, hostIDs,
-		[]fleet.FleetVarName{fleet.FleetVarHostEndUserIDPGroups})
+		[]automdm.AutoMDMVarName{automdm.AutoMDMVarHostEndUserIDPGroups})
 }
 
-func triggerResendProfilesForIDPUserAddedToHost(ctx context.Context, tx sqlx.ExtContext, hostID, updatedScimUserID uint) ([]fleet.ActivityTypeResentCertificate, error) {
+func triggerResendProfilesForIDPUserAddedToHost(ctx context.Context, tx sqlx.ExtContext, hostID, updatedScimUserID uint) ([]automdm.ActivityTypeResentCertificate, error) {
 	// check that this user is indeed the scim IdP user for this host (and not an
 	// extra, unused one)
 	user, err := getScimUserLiteByHostID(ctx, tx, hostID)
@@ -1853,15 +1853,15 @@ func triggerResendProfilesForIDPUserAddedToHost(ctx context.Context, tx sqlx.Ext
 		// host is not impacted, updated user is not its IdP user
 		return nil, nil
 	}
-	vars := []fleet.FleetVarName{
-		fleet.FleetVarHostEndUserIDPUsername,
-		fleet.FleetVarHostEndUserIDPUsernameLocalPart,
-		fleet.FleetVarHostEndUserIDPDepartment,
-		fleet.FleetVarHostEndUserIDPGroups,
-		fleet.FleetVarHostEndUserIDPFullname,
-		fleet.FleetVarHostEndUserIDPExternalID,
+	vars := []automdm.AutoMDMVarName{
+		automdm.AutoMDMVarHostEndUserIDPUsername,
+		automdm.AutoMDMVarHostEndUserIDPUsernameLocalPart,
+		automdm.AutoMDMVarHostEndUserIDPDepartment,
+		automdm.AutoMDMVarHostEndUserIDPGroups,
+		automdm.AutoMDMVarHostEndUserIDPFullname,
+		automdm.AutoMDMVarHostEndUserIDPExternalID,
 	}
-	resentCerts, err := selectCertTemplatesToResend(ctx, tx, []uint{hostID}, fleetVarNamesToDBVars(vars))
+	resentCerts, err := selectCertTemplatesToResend(ctx, tx, []uint{hostID}, automdmVarNamesToDBVars(vars))
 	if err != nil {
 		return nil, err
 	}
@@ -1871,7 +1871,7 @@ func triggerResendProfilesForIDPUserAddedToHost(ctx context.Context, tx sqlx.Ext
 	return resentCerts, nil
 }
 
-func selectCertTemplatesToResend(ctx context.Context, tx sqlx.ExtContext, hostIDs []uint, vars []any) ([]fleet.ActivityTypeResentCertificate, error) {
+func selectCertTemplatesToResend(ctx context.Context, tx sqlx.ExtContext, hostIDs []uint, vars []any) ([]automdm.ActivityTypeResentCertificate, error) {
 	if len(hostIDs) == 0 || len(vars) == 0 {
 		return nil, nil
 	}
@@ -1894,8 +1894,8 @@ func selectCertTemplatesToResend(ctx context.Context, tx sqlx.ExtContext, hostID
 			   ct.team_id = COALESCE(h.team_id, 0)
 		JOIN mdm_configuration_profile_variables mcpv
 			ON mcpv.certificate_template_id = ct.id
-		JOIN fleet_variables fv
-			ON mcpv.fleet_variable_id = fv.id
+		JOIN automdm_variables fv
+			ON mcpv.automdm_variable_id = fv.id
 	WHERE
 		h.id IN (:host_ids) AND
 		hct.operation_type = :operation_type_install AND
@@ -1905,7 +1905,7 @@ func selectCertTemplatesToResend(ctx context.Context, tx sqlx.ExtContext, hostID
 
 	namedParams := map[string]any{
 		"host_ids":               hostIDs,
-		"operation_type_install": fleet.MDMOperationTypeInstall,
+		"operation_type_install": automdm.MDMOperationTypeInstall,
 		"affected_vars":          vars,
 	}
 
@@ -1932,11 +1932,11 @@ func selectCertTemplatesToResend(ctx context.Context, tx sqlx.ExtContext, hostID
 		return nil, ctxerr.Wrap(ctx, err, "select cert templates to resend")
 	}
 
-	activities := make([]fleet.ActivityTypeResentCertificate, 0, len(rows))
+	activities := make([]automdm.ActivityTypeResentCertificate, 0, len(rows))
 	for _, r := range rows {
-		activities = append(activities, fleet.ActivityTypeResentCertificate{
+		activities = append(activities, automdm.ActivityTypeResentCertificate{
 			HostID:                r.HostID,
-			HostDisplayName:       fleet.HostDisplayName(r.ComputerName, r.Hostname, r.HardwareModel, r.HardwareSerial),
+			HostDisplayName:       automdm.HostDisplayName(r.ComputerName, r.Hostname, r.HardwareModel, r.HardwareSerial),
 			CertificateTemplateID: r.CertificateTemplateID,
 			CertificateName:       r.CertificateName,
 			Automated:             true,
@@ -1945,15 +1945,15 @@ func selectCertTemplatesToResend(ctx context.Context, tx sqlx.ExtContext, hostID
 	return activities, nil
 }
 
-func fleetVarNamesToDBVars(vars []fleet.FleetVarName) []any {
+func automdmVarNamesToDBVars(vars []automdm.AutoMDMVarName) []any {
 	result := make([]any, len(vars))
 	for i, v := range vars {
-		result[i] = "FLEET_VAR_" + string(v)
+		result[i] = "AUTOMDM_VAR_" + string(v)
 	}
 	return result
 }
 
-func triggerResendProfilesUsingVariables(ctx context.Context, tx sqlx.ExtContext, hostIDs []uint, affectedVars []fleet.FleetVarName) error {
+func triggerResendProfilesUsingVariables(ctx context.Context, tx sqlx.ExtContext, hostIDs []uint, affectedVars []automdm.AutoMDMVarName) error {
 	if len(hostIDs) == 0 || len(affectedVars) == 0 {
 		return nil
 	}
@@ -1979,8 +1979,8 @@ func triggerResendProfilesUsingVariables(ctx context.Context, tx sqlx.ExtContext
 				 macp.profile_uuid = hmap.profile_uuid
 		JOIN mdm_configuration_profile_variables mcpv
 			ON mcpv.apple_profile_uuid = macp.profile_uuid
-		JOIN fleet_variables fv
-			ON mcpv.fleet_variable_id = fv.id
+		JOIN automdm_variables fv
+			ON mcpv.automdm_variable_id = fv.id
 	SET
 		hmap.status = NULL,
 		hmap.detail = NULL,
@@ -2003,8 +2003,8 @@ func triggerResendProfilesUsingVariables(ctx context.Context, tx sqlx.ExtContext
 				 mwcp.profile_uuid = hmwp.profile_uuid
 		JOIN mdm_configuration_profile_variables mcpv
 			ON mcpv.windows_profile_uuid = mwcp.profile_uuid
-		JOIN fleet_variables fv
-			ON mcpv.fleet_variable_id = fv.id
+		JOIN automdm_variables fv
+			ON mcpv.automdm_variable_id = fv.id
 	SET
 		hmwp.status = NULL,
 		hmwp.command_uuid = '',
@@ -2030,8 +2030,8 @@ func triggerResendProfilesUsingVariables(ctx context.Context, tx sqlx.ExtContext
 		JOIN mdm_configuration_profile_variables mcpv
 			ON mcpv.apple_declaration_uuid = mad.declaration_uuid
 				OR mcpv.apple_ddm_activation_uuid = act.activation_uuid
-		JOIN fleet_variables fv
-			ON mcpv.fleet_variable_id = fv.id
+		JOIN automdm_variables fv
+			ON mcpv.automdm_variable_id = fv.id
 	SET
 		hmad.status = NULL,
 		hmad.detail = NULL
@@ -2052,12 +2052,12 @@ func triggerResendProfilesUsingVariables(ctx context.Context, tx sqlx.ExtContext
 			   ct.team_id = COALESCE(h.team_id, 0)
 		JOIN mdm_configuration_profile_variables mcpv
 			ON mcpv.certificate_template_id = ct.id
-		JOIN fleet_variables fv
-			ON mcpv.fleet_variable_id = fv.id
+		JOIN automdm_variables fv
+			ON mcpv.automdm_variable_id = fv.id
 	SET
 		hct.status = :cert_pending_status,
 		hct.uuid = UUID_TO_BIN(UUID(), true),
-		hct.fleet_challenge = NULL,
+		hct.automdm_challenge = NULL,
 		hct.not_valid_before = NULL,
 		hct.not_valid_after = NULL,
 		hct.serial = NULL,
@@ -2072,12 +2072,12 @@ func triggerResendProfilesUsingVariables(ctx context.Context, tx sqlx.ExtContext
 
 	vars := make([]any, len(affectedVars))
 	for i, v := range affectedVars {
-		vars[i] = "FLEET_VAR_" + string(v)
+		vars[i] = "AUTOMDM_VAR_" + string(v)
 	}
 
 	namedParams := map[string]any{
 		"host_ids":               hostIDs,
-		"operation_type_install": fleet.MDMOperationTypeInstall,
+		"operation_type_install": automdm.MDMOperationTypeInstall,
 		"affected_vars":          vars,
 	}
 
@@ -2091,8 +2091,8 @@ func triggerResendProfilesUsingVariables(ctx context.Context, tx sqlx.ExtContext
 				 macp.profile_uuid = hmap.profile_uuid
 		JOIN mdm_configuration_profile_variables mcpv
 			ON mcpv.android_profile_uuid = macp.profile_uuid
-		JOIN fleet_variables fv
-			ON mcpv.fleet_variable_id = fv.id
+		JOIN automdm_variables fv
+			ON mcpv.automdm_variable_id = fv.id
 	SET
 		hmap.status = NULL,
 		hmap.detail = NULL
@@ -2157,9 +2157,9 @@ func triggerResendProfilesUsingVariables(ctx context.Context, tx sqlx.ExtContext
 	// Resend certificate templates that use affected variables.
 	certParams := map[string]any{
 		"host_ids":               hostIDs,
-		"operation_type_install": fleet.MDMOperationTypeInstall,
+		"operation_type_install": automdm.MDMOperationTypeInstall,
 		"affected_vars":          vars,
-		"cert_pending_status":    fleet.CertificateTemplatePending,
+		"cert_pending_status":    automdm.CertificateTemplatePending,
 	}
 	certStmt, certArgs, err := sqlx.Named(certTemplateUpdateStatusQuery, certParams)
 	if err != nil {
@@ -2189,14 +2189,14 @@ func triggerResendProfilesUsingVariables(ctx context.Context, tx sqlx.ExtContext
 
 // triggerResendCAProfilesUsingVariables resends Apple profiles that get a certificate from a DigiCert or EJBCA CA whose certificate fields
 // use an affected variable. The variable is in the CA, not the profile, so the profile has no association with it.
-func triggerResendCAProfilesUsingVariables(ctx context.Context, tx sqlx.ExtContext, hostIDs []uint, affectedVars []fleet.FleetVarName) error {
+func triggerResendCAProfilesUsingVariables(ctx context.Context, tx sqlx.ExtContext, hostIDs []uint, affectedVars []automdm.AutoMDMVarName) error {
 	var cas []struct {
-		Type   fleet.CAType `db:"type"`
-		Name   string       `db:"name"`
-		Fields string       `db:"fields"`
+		Type   automdm.CAType `db:"type"`
+		Name   string         `db:"name"`
+		Fields string         `db:"fields"`
 	}
 	// The UPNs column is a JSON array of strings, and variables.Find works on its raw text. CONCAT_WS skips the columns a type doesn't use.
-	caTypes := make([]fleet.CAType, 0, len(profileCATypes))
+	caTypes := make([]automdm.CAType, 0, len(profileCATypes))
 	for _, t := range profileCATypes {
 		caTypes = append(caTypes, t.caType)
 	}
@@ -2211,10 +2211,10 @@ func triggerResendCAProfilesUsingVariables(ctx context.Context, tx sqlx.ExtConte
 	if err := sqlx.SelectContext(ctx, tx, &cas, stmt, args...); err != nil {
 		return ctxerr.Wrap(ctx, err, "select CAs for resend")
 	}
-	caNames := make(map[fleet.CAType][]string, len(profileCATypes))
+	caNames := make(map[automdm.CAType][]string, len(profileCATypes))
 	for _, ca := range cas {
 		if slices.ContainsFunc(variables.Find(ca.Fields), func(v string) bool {
-			return slices.Contains(affectedVars, fleet.FleetVarName(v))
+			return slices.Contains(affectedVars, automdm.AutoMDMVarName(v))
 		}) {
 			caNames[ca.Type] = append(caNames[ca.Type], ca.Name)
 		}
@@ -2232,7 +2232,7 @@ func triggerResendCAProfilesUsingVariables(ctx context.Context, tx sqlx.ExtConte
 
 // resendCAProfilesDB resends the Apple profiles that get a certificate from one of the named CAs, through the profile variable with the
 // dataVar prefix, to hostIDs, or to every host that has them when hostIDs is empty.
-func resendCAProfilesDB(ctx context.Context, tx sqlx.ExtContext, dataVar fleet.FleetVarName, caNames []string, hostIDs []uint) error {
+func resendCAProfilesDB(ctx context.Context, tx sqlx.ExtContext, dataVar automdm.AutoMDMVarName, caNames []string, hostIDs []uint) error {
 	dataVars := make(map[string]struct{}, len(caNames))
 	for _, name := range caNames {
 		dataVars[string(dataVar)+name] = struct{}{}
@@ -2244,10 +2244,10 @@ func resendCAProfilesDB(ctx context.Context, tx sqlx.ExtContext, dataVar fleet.F
 		WHERE EXISTS (
 			SELECT 1
 			FROM mdm_configuration_profile_variables mcpv
-				JOIN fleet_variables fv ON fv.id = mcpv.fleet_variable_id
+				JOIN automdm_variables fv ON fv.id = mcpv.automdm_variable_id
 			WHERE mcpv.apple_profile_uuid = macp.profile_uuid AND fv.name = ?
 		)`
-	selectArgs := []any{"FLEET_VAR_" + string(dataVar)}
+	selectArgs := []any{"AUTOMDM_VAR_" + string(dataVar)}
 	if len(hostIDs) > 0 {
 		// Scoped to the hosts' teams rather than their host_mdm_apple_profiles rows, which have no index by profile alone.
 		selectStmt += ` AND EXISTS (
@@ -2303,7 +2303,7 @@ func resendCAProfilesDB(ctx context.Context, tx sqlx.ExtContext, dataVar fleet.F
 				h.id IN (?) AND
 				hmap.profile_uuid IN (?) AND
 				hmap.operation_type = ? AND
-				hmap.status IS NOT NULL`, hostIDs, profileUUIDs, fleet.MDMOperationTypeInstall)
+				hmap.status IS NOT NULL`, hostIDs, profileUUIDs, automdm.MDMOperationTypeInstall)
 		if err != nil {
 			return ctxerr.Wrap(ctx, err, "prepare resend CA profiles")
 		}
@@ -2329,7 +2329,7 @@ func resendCAProfilesDB(ctx context.Context, tx sqlx.ExtContext, dataVar fleet.F
 				h.team_id <=> ? AND
 				hmap.profile_uuid = ? AND
 				hmap.operation_type = ? AND
-				hmap.status IS NOT NULL`, ptr.UintOrNilIfZero(p.TeamID), p.ProfileUUID, fleet.MDMOperationTypeInstall); err != nil {
+				hmap.status IS NOT NULL`, ptr.UintOrNilIfZero(p.TeamID), p.ProfileUUID, automdm.MDMOperationTypeInstall); err != nil {
 			return ctxerr.Wrap(ctx, err, "resend CA profile to all hosts")
 		}
 	}
@@ -2339,7 +2339,7 @@ func resendCAProfilesDB(ctx context.Context, tx sqlx.ExtContext, dataVar fleet.F
 // triggerResendDeviceNamesForIDPChange re-queues host-name enforcement rows so the
 // device-name cron re-resolves with the updated IdP value and enqueues a fresh
 // DeviceName command.
-func triggerResendDeviceNamesForIDPChange(ctx context.Context, tx sqlx.ExtContext, hostIDs []uint, affectedVars []fleet.FleetVarName) error {
+func triggerResendDeviceNamesForIDPChange(ctx context.Context, tx sqlx.ExtContext, hostIDs []uint, affectedVars []automdm.AutoMDMVarName) error {
 	if len(hostIDs) == 0 {
 		return nil
 	}
@@ -2348,7 +2348,7 @@ func triggerResendDeviceNamesForIDPChange(ctx context.Context, tx sqlx.ExtContex
 	// templates.
 	varNames := make([]string, 0, len(affectedVars))
 	for _, v := range affectedVars {
-		if fleet.IsHostNameTemplateIDPVar(string(v)) {
+		if automdm.IsHostNameTemplateIDPVar(string(v)) {
 			varNames = append(varNames, string(v))
 		}
 	}
@@ -2372,7 +2372,7 @@ func triggerResendDeviceNamesForIDPChange(ctx context.Context, tx sqlx.ExtContex
 	// The trailing word boundary keeps a changed HOST_END_USER_IDP_USERNAME from
 	// matching a template that only uses HOST_END_USER_IDP_USERNAME_LOCAL_PART, the
 	// same guard the secret-change path uses.
-	stmt, args, err := sqlx.In(selectStmt, hostIDs, "FLEET_VAR_("+strings.Join(varNames, "|")+`)\b`)
+	stmt, args, err := sqlx.In(selectStmt, hostIDs, "AUTOMDM_VAR_("+strings.Join(varNames, "|")+`)\b`)
 	if err != nil {
 		return ctxerr.Wrap(ctx, err, "build select device name hosts for idp change")
 	}
@@ -2386,7 +2386,7 @@ func triggerResendDeviceNamesForIDPChange(ctx context.Context, tx sqlx.ExtContex
 	return reconcileHostDeviceNamesForHostsDB(ctx, tx, affectedHostIDs)
 }
 
-// queueManagedConfigResendJobs finds App Store app configurations that reference any of the affected Fleet
+// queueManagedConfigResendJobs finds App Store app configurations that reference any of the affected AutoMDM
 // variables and flags the affected hosts' installs, so the App Store app configuration cron and the Android app
 // reconciler will send them with the updated values.
 func queueManagedConfigResendJobs(ctx context.Context, tx sqlx.ExtContext, hostIDs []uint, affectedVars []any) error {
@@ -2404,8 +2404,8 @@ func queueManagedConfigResendJobs(ctx context.Context, tx sqlx.ExtContext, hostI
 		vat.id AS app_team_id
 	FROM
 		mdm_configuration_profile_variables mcpv
-		JOIN fleet_variables fv
-			ON mcpv.fleet_variable_id = fv.id
+		JOIN automdm_variables fv
+			ON mcpv.automdm_variable_id = fv.id
 		JOIN vpp_apps_teams vat
 			ON mcpv.vpp_app_team_id = vat.id
 		JOIN hosts h
@@ -2427,10 +2427,10 @@ func queueManagedConfigResendJobs(ctx context.Context, tx sqlx.ExtContext, hostI
 	}
 
 	type affectedApp struct {
-		ApplicationID  string                          `db:"application_id"`
-		Platform       fleet.InstallableDevicePlatform `db:"platform"`
-		GlobalOrTeamID uint                            `db:"global_or_team_id"`
-		AppTeamID      uint                            `db:"app_team_id"`
+		ApplicationID  string                            `db:"application_id"`
+		Platform       automdm.InstallableDevicePlatform `db:"platform"`
+		GlobalOrTeamID uint                              `db:"global_or_team_id"`
+		AppTeamID      uint                              `db:"app_team_id"`
 	}
 	var affectedApps []affectedApp
 	if err := sqlx.SelectContext(ctx, tx, &affectedApps, findStmt, findArgs...); err != nil {
@@ -2440,7 +2440,7 @@ func queueManagedConfigResendJobs(ctx context.Context, tx sqlx.ExtContext, hostI
 	var androidAppTeamIDs []uint
 	var appleAppTeamIDs []uint
 	for _, app := range affectedApps {
-		if app.Platform == fleet.IOSPlatform || app.Platform == fleet.IPadOSPlatform {
+		if app.Platform == automdm.IOSPlatform || app.Platform == automdm.IPadOSPlatform {
 			appleAppTeamIDs = append(appleAppTeamIDs, app.AppTeamID)
 			continue
 		}
@@ -2478,13 +2478,13 @@ func queueManagedConfigResendJobs(ctx context.Context, tx sqlx.ExtContext, hostI
 
 // emailsRequireUpdate compares two slices of emails and returns true if they are different
 // and require an update in the database.
-func emailsRequireUpdate(currentEmails, newEmails []fleet.ScimUserEmail) bool {
+func emailsRequireUpdate(currentEmails, newEmails []automdm.ScimUserEmail) bool {
 	if len(currentEmails) != len(newEmails) {
 		return true
 	}
 
 	// Create maps for efficient comparison
-	currentEmailMap := make(map[string]fleet.ScimUserEmail)
+	currentEmailMap := make(map[string]automdm.ScimUserEmail)
 	for i := range currentEmails {
 		key := currentEmails[i].GenerateComparisonKey()
 		currentEmailMap[key] = currentEmails[i]

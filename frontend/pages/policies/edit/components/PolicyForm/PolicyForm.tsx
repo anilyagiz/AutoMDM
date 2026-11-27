@@ -286,7 +286,7 @@ const PolicyForm = ({
     !policyIdForEdit &&
     DEFAULT_POLICIES.find((p) => p.name === lastEditedQueryName);
 
-  // For an existing policy, ownership comes from the policy's stored fleet_id.
+  // For an existing policy, ownership comes from the policy's stored team_id.
   // For a new policy, it comes from the team the user is currently viewing,
   // since that's where the policy will be created.
   const newPolicyTeamId =
@@ -294,10 +294,10 @@ const PolicyForm = ({
       ? currentTeam.id
       : undefined;
   const isGlobalPolicy = isEditMode
-    ? storedPolicy?.fleet_id == null
+    ? storedPolicy?.team_id == null
     : newPolicyTeamId === undefined;
   const automationsTeamId = isEditMode
-    ? storedPolicy?.fleet_id ?? undefined
+    ? storedPolicy?.team_id ?? undefined
     : newPolicyTeamId;
 
   const { data: automationsTeamData } = useQuery<ILoadTeamResponse, Error>(
@@ -310,16 +310,16 @@ const PolicyForm = ({
   );
 
   const automationsConfig =
-    (isGlobalPolicy ? config : automationsTeamData?.fleet) ?? undefined;
+    (isGlobalPolicy ? config : automationsTeamData?.team) ?? undefined;
 
-  let automationsFleetName = "";
+  let automationsTeamName = "";
   if (isGlobalPolicy) {
-    automationsFleetName = APP_CONTEXT_ALL_TEAMS_SUMMARY.name;
+    automationsTeamName = APP_CONTEXT_ALL_TEAMS_SUMMARY.name;
   } else if (automationsTeamId === APP_CONTEXT_NO_TEAM_ID) {
-    automationsFleetName = APP_CONTEXT_NO_TEAM_SUMMARY.name;
+    automationsTeamName = APP_CONTEXT_NO_TEAM_SUMMARY.name;
   } else {
-    automationsFleetName =
-      automationsTeamData?.fleet?.name ?? currentTeam?.name ?? "";
+    automationsTeamName =
+      automationsTeamData?.team?.name ?? currentTeam?.name ?? "";
   }
 
   const automationsRef = useRef<IPolicyAutomationsFieldsHandle>(null);
@@ -354,7 +354,7 @@ const PolicyForm = ({
      - Team users cannot edit inherited policies
     Reroute edit existing policy page (/:policyId/edit) to policy details page (/:policyId) */
   useEffect(() => {
-    const isInheritedPolicy = isEditMode && storedPolicy?.fleet_id === null;
+    const isInheritedPolicy = isEditMode && storedPolicy?.team_id === null;
 
     const noEditPermissions =
       isTeamObserver ||
@@ -371,7 +371,7 @@ const PolicyForm = ({
     ) {
       router.push(
         getPathWithQueryParams(PATHS.POLICY_DETAILS(policyIdForEdit), {
-          fleet_id: teamIdForApi,
+          team_id: teamIdForApi,
         })
       );
     }
@@ -384,7 +384,7 @@ const PolicyForm = ({
     isTeamTechnician,
     isGlobalTechnician,
     isOnGlobalTeam,
-    storedPolicy?.fleet_id,
+    storedPolicy?.team_id,
     router,
     teamIdForApi,
   ]);
@@ -448,7 +448,7 @@ const PolicyForm = ({
   const onAddPatchAutomation = async () => {
     if (
       !storedPolicy?.patch_software?.software_title_id ||
-      storedPolicy?.fleet_id == null
+      storedPolicy?.team_id == null
     ) {
       return;
     }
@@ -562,7 +562,7 @@ const PolicyForm = ({
     }
 
     // Empty-query check: surface the inline error and return. Save stays
-    // enabled per Fleet's form validation pattern; only this guard prevents
+    // enabled per AutoMDM's form validation pattern; only this guard prevents
     // the submit.
     if (!lastEditedQueryBody?.trim()) {
       setErrors({ ...errors, query: EMPTY_QUERY_ERR });
@@ -763,7 +763,7 @@ const PolicyForm = ({
             tipContent={
               conditionalAccessOn
                 ? "This setting is not compatible with the conditional access automation."
-                : "Does not require action from the end user and is hidden in Fleet Desktop."
+                : "Does not require action from the end user and is hidden in AutoMDM Desktop."
             }
           >
             Hide from end user
@@ -773,35 +773,35 @@ const PolicyForm = ({
     );
   };
 
-  const renderPolicyFleetName = () => {
+  const renderPolicyTeamName = () => {
     if (isFreeTier) return null;
 
-    // In edit mode, the displayed Fleet must reflect the policy's actual
+    // In edit mode, the displayed AutoMDM must reflect the policy's actual
     // owner, not the URL/navigation context: a user can land here by clicking
     // an inherited (global) policy from a team's policy list, in which case
-    // currentTeam reflects the team URL, not the policy's true Fleet.
-    let fleetName: string | undefined;
+    // currentTeam reflects the team URL, not the policy's true AutoMDM.
+    let automdmName: string | undefined;
     if (isEditMode) {
-      if (storedPolicy?.fleet_id === null) {
-        fleetName = APP_CONTEXT_ALL_TEAMS_SUMMARY.name;
-      } else if (storedPolicy?.fleet_id === 0) {
-        fleetName = APP_CONTEXT_NO_TEAM_SUMMARY.name;
+      if (storedPolicy?.team_id === null) {
+        automdmName = APP_CONTEXT_ALL_TEAMS_SUMMARY.name;
+      } else if (storedPolicy?.team_id === 0) {
+        automdmName = APP_CONTEXT_NO_TEAM_SUMMARY.name;
       } else {
-        fleetName = currentTeam?.name;
+        automdmName = currentTeam?.name;
       }
     } else {
-      fleetName = currentTeam?.name;
+      automdmName = currentTeam?.name;
     }
 
-    if (!fleetName) return null;
+    if (!automdmName) return null;
 
     return isEditMode ? (
-      <p className={`${baseClass}__fleet-name`}>
-        Editing policy for <strong>{fleetName}</strong>.
+      <p className={`${baseClass}__team-name`}>
+        Editing policy for <strong>{automdmName}</strong>.
       </p>
     ) : (
-      <p className={`${baseClass}__fleet-name`}>
-        Creating a new policy for <strong>{fleetName}</strong>.
+      <p className={`${baseClass}__team-name`}>
+        Creating a new policy for <strong>{automdmName}</strong>.
       </p>
     );
   };
@@ -809,7 +809,7 @@ const PolicyForm = ({
   const renderPolicyForm = () => {
     // Save stays enabled for any client-side validation error (name, platforms,
     // labels, empty or invalid query) — click reveals the inline errors via
-    // promptSavePolicy, matching Fleet's form validation pattern.
+    // promptSavePolicy, matching AutoMDM's form validation pattern.
     const disableSaveFormErrors = isAddingAutomation;
 
     // Single source of truth: patchOptions renders inside this block (patchSlot)
@@ -840,7 +840,7 @@ const PolicyForm = ({
               platform={storedPolicy?.platform}
               endUserExperience={endUserExperience}
               onSelectEndUserExperience={setEndUserExperience}
-              fleetId={automationsTeamId}
+              automdmId={automationsTeamId}
               disabled={disableChildren}
             />
           )}
@@ -854,13 +854,13 @@ const PolicyForm = ({
           {isEditMode ? (
             <div className={`${baseClass}__page-header`}>
               <h1 className={`${baseClass}__page-title`}>Edit policy</h1>
-              {renderPolicyFleetName()}
+              {renderPolicyTeamName()}
             </div>
           ) : (
             <div className={`${baseClass}__title-bar`}>
-              <div className={`${baseClass}__policy-name-fleet-name`}>
+              <div className={`${baseClass}__policy-name-team-name`}>
                 {renderName()}
-                {renderPolicyFleetName()}
+                {renderPolicyTeamName()}
               </div>
             </div>
           )}
@@ -898,7 +898,7 @@ const PolicyForm = ({
                 teamIdForApi={automationsTeamId}
                 automationsConfig={automationsConfig}
                 globalConfig={config ?? undefined}
-                fleetName={automationsFleetName}
+                automdmName={automationsTeamName}
                 patchOption={
                   isPremiumTier && isPatchPolicy ? patchOption : undefined
                 }
@@ -1015,7 +1015,7 @@ const PolicyForm = ({
             policyTeamId={automationsTeamId}
             automationsConfig={automationsConfig}
             globalConfig={config ?? undefined}
-            fleetName={automationsFleetName}
+            automdmName={automationsTeamName}
             router={router}
           />
         )}

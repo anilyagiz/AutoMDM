@@ -15,8 +15,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/constant"
-	"github.com/fleetdm/fleet/v4/pkg/secure"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/constant"
+	"github.com/anilyagiz/automdm/v4/pkg/secure"
 	"github.com/oklog/run"
 	"github.com/rs/zerolog/log"
 )

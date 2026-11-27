@@ -20,10 +20,10 @@ import (
 	"strings"
 	"time"
 
-	maintained_apps "github.com/fleetdm/fleet/v4/ee/maintained-apps"
-	"github.com/fleetdm/fleet/v4/pkg/file"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	mdm_maintained_apps "github.com/fleetdm/fleet/v4/server/mdm/maintainedapps"
+	maintained_apps "github.com/anilyagiz/automdm/v4/ee/maintained-apps"
+	"github.com/anilyagiz/automdm/v4/pkg/file"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	mdm_maintained_apps "github.com/anilyagiz/automdm/v4/server/mdm/maintainedapps"
 )
 
 type Config struct {
@@ -417,13 +417,13 @@ func getAppJson(outputPath string, slug string) (*maintained_apps.FMAManifestFil
 	return &manifest, nil
 }
 
-func appFromJson(manifest *maintained_apps.FMAManifestFile) (fleet.MaintainedApp, error) {
+func appFromJson(manifest *maintained_apps.FMAManifestFile) (automdm.MaintainedApp, error) {
 	if len(manifest.Versions) == 0 {
-		return fleet.MaintainedApp{}, errors.New("manifest has no versions")
+		return automdm.MaintainedApp{}, errors.New("manifest has no versions")
 	}
 
 	v := manifest.Versions[0]
-	app := fleet.MaintainedApp{
+	app := automdm.MaintainedApp{
 		Version:               v.Version,
 		Platform:              v.Platform(),
 		InstallerURL:          v.InstallerURL,
@@ -437,8 +437,8 @@ func appFromJson(manifest *maintained_apps.FMAManifestFile) (fleet.MaintainedApp
 	return app, nil
 }
 
-func DownloadMaintainedApp(cfg *Config, app fleet.MaintainedApp) (*fleet.TempFileReader, string, error) {
-	// Match Fleet's own limit: large installers from slow CDNs (WeChat's ~550 MB
+func DownloadMaintainedApp(cfg *Config, app automdm.MaintainedApp) (*automdm.TempFileReader, string, error) {
+	// Match AutoMDM's own limit: large installers from slow CDNs (WeChat's ~550 MB
 	// DMG) can take longer than a few minutes on a runner.
 	ctx, cancel := context.WithTimeout(context.Background(), mdm_maintained_apps.InstallerTimeout)
 	defer cancel()
@@ -546,7 +546,7 @@ var (
 	errPatchedQueryNoRows = errors.New("patched query returned no rows with the app installed, so the patch policy would fail on every host that installs this version")
 )
 
-// checkExistsQuery runs the manifest's exists query, which is how Fleet
+// checkExistsQuery runs the manifest's exists query, which is how AutoMDM
 // detects the app on hosts, and fails if it returns no rows. appExists finds
 // the app with a looser search, so it passes manifests whose exists query
 // never matches the installed app, which leaves the app undetected and its
@@ -555,7 +555,7 @@ func checkExistsQuery(ctx context.Context, existsQuery string) error {
 	return checkManifestQuery(ctx, "exists", existsQuery, errExistsQueryNoRows)
 }
 
-// checkPatchedQuery runs the manifest's patched query, which Fleet runs on
+// checkPatchedQuery runs the manifest's patched query, which AutoMDM runs on
 // hosts as the patch policy, and fails if it returns no rows. appExists accepts
 // versions the patched query can sort lower (a shorter form, or one only in
 // another column), and doesn't see older copies that the query also counts.

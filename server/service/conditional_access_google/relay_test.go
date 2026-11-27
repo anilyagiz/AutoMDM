@@ -10,11 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/require"
 )
 
-const origin = "https://fleet.example.com"
+const origin = "https://automdm.example.com"
 
 type recordedRequest struct {
 	method, path, origin string
@@ -43,11 +43,11 @@ func newRecordingServer(t *testing.T, status int, response string) (string, *[]r
 }
 
 func TestRegister(t *testing.T) {
-	p, requests := newTestRelay(t, http.StatusOK, `{"fleetServerSecret":"s3cret"}`)
+	p, requests := newTestRelay(t, http.StatusOK, `{"automdmServerSecret":"s3cret"}`)
 
 	resp, err := p.Register(t.Context(), origin, "C02cajzvg")
 	require.NoError(t, err)
-	require.Equal(t, &Registration{FleetServerSecret: "s3cret"}, resp)
+	require.Equal(t, &Registration{AutoMDMServerSecret: "s3cret"}, resp)
 	require.Equal(t, []recordedRequest{{
 		method: http.MethodPost,
 		path:   "/api/v1/google-conditional-access",
@@ -59,7 +59,7 @@ func TestRegister(t *testing.T) {
 func TestRegisterWithoutSecretFails(t *testing.T) {
 	p, _ := newTestRelay(t, http.StatusOK, `{}`)
 	_, err := p.Register(t.Context(), origin, "C02cajzvg")
-	require.ErrorContains(t, err, "fleetServerSecret")
+	require.ErrorContains(t, err, "automdmServerSecret")
 }
 
 func TestDeregister(t *testing.T) {
@@ -70,14 +70,14 @@ func TestDeregister(t *testing.T) {
 		method: http.MethodDelete,
 		path:   "/api/v1/google-conditional-access",
 		origin: origin,
-		body:   map[string]string{"googleCustomerId": "C02cajzvg", "fleetServerSecret": "s3cret"},
+		body:   map[string]string{"googleCustomerId": "C02cajzvg", "automdmServerSecret": "s3cret"},
 	}}, *requests)
 }
 
 func TestDeregisterNotFound(t *testing.T) {
 	p, _ := newTestRelay(t, http.StatusNotFound, `{"error":"not found"}`)
 	err := p.Deregister(t.Context(), origin, "C02cajzvg", "wrong")
-	require.True(t, fleet.IsNotFound(err))
+	require.True(t, automdm.IsNotFound(err))
 }
 
 func TestRelayStatusError(t *testing.T) {
@@ -87,15 +87,15 @@ func TestRelayStatusError(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, http.StatusConflict, se.StatusCode())
 	require.Equal(t, "registered from another origin", se.Body())
-	require.False(t, fleet.IsNotFound(err))
-	// The caller names the operation, so the error carries only fleetdm.com's answer.
+	require.False(t, automdm.IsNotFound(err))
+	// The caller names the operation, so the error carries only automdm.com's answer.
 	require.EqualError(t, err, "409: registered from another origin")
 	require.EqualError(t, p.Deregister(t.Context(), origin, "C02cajzvg", "s3cret"), "409: registered from another origin")
 
 	// Only Deregister treats a 404 as "no such registration".
 	p, _ = newTestRelay(t, http.StatusNotFound, `{"error":"not found"}`)
 	_, err = p.Register(t.Context(), origin, "C02cajzvg")
-	require.False(t, fleet.IsNotFound(err))
+	require.False(t, automdm.IsNotFound(err))
 }
 
 func TestRelayResponseBodies(t *testing.T) {
@@ -107,7 +107,7 @@ func TestRelayResponseBodies(t *testing.T) {
 	_, err := p.Register(t.Context(), origin, "C02cajzvg")
 	require.ErrorContains(t, err, "empty response body")
 
-	p, _ = newTestRelay(t, http.StatusOK, `{"fleetServerSecret":"`+strings.Repeat("x", maxRelayResponseBytes)+`"}`)
+	p, _ = newTestRelay(t, http.StatusOK, `{"automdmServerSecret":"`+strings.Repeat("x", maxRelayResponseBytes)+`"}`)
 	_, err = p.Register(t.Context(), origin, "C02cajzvg")
 	require.ErrorContains(t, err, "exceeds")
 }
@@ -122,7 +122,7 @@ func TestRelayRequiresOriginAndValidURI(t *testing.T) {
 	require.ErrorContains(t, err, "missing origin")
 
 	// An unusable or unparsable URI fails the request, not NewRelay.
-	for _, uri := range []string{"fleetdm.com", srv.URL + "?x=1", srv.URL + "#frag", srv.URL + "/%zz"} {
+	for _, uri := range []string{"automdm.com", srv.URL + "?x=1", srv.URL + "#frag", srv.URL + "/%zz"} {
 		p := NewRelay(uri, AllowHTTP())
 		require.ErrorContains(t, p.Deregister(t.Context(), origin, "C02cajzvg", "s3cret"), "invalid relay uri", uri)
 	}
@@ -182,14 +182,14 @@ func TestRelayRequiresHTTPS(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	// Plain HTTP needs AllowHTTP.
-	for _, uri := range []string{srv.URL, "ftp://fleetdm.example.com"} {
+	for _, uri := range []string{srv.URL, "ftp://automdm.example.com"} {
 		p := NewRelay(uri)
 		require.ErrorContains(t, p.Deregister(t.Context(), origin, "C02cajzvg", "s3cret"), "must use https", uri)
 	}
 	require.False(t, called)
 
 	// The allowance is for HTTP only.
-	p := NewRelay("ftp://fleetdm.example.com", AllowHTTP())
+	p := NewRelay("ftp://automdm.example.com", AllowHTTP())
 	require.ErrorContains(t, p.Deregister(t.Context(), origin, "C02cajzvg", "s3cret"), "must use https")
 
 	// HTTPS needs no allowance.
@@ -199,10 +199,10 @@ func TestRelayRequiresHTTPS(t *testing.T) {
 }
 
 func TestSignInURL(t *testing.T) {
-	r := NewRelay("https://fleetdm.example.com/")
+	r := NewRelay("https://automdm.example.com/")
 	u, err := r.SignInURL("C02cajzvg", "host uuid/1", "tok+en")
 	require.NoError(t, err)
-	require.Equal(t, "https://fleetdm.example.com/api/v1/google-conditional-access/sign-in?googleCustomerId=C02cajzvg&hostUuid=host+uuid%2F1&token=tok%2Ben", u)
+	require.Equal(t, "https://automdm.example.com/api/v1/google-conditional-access/sign-in?googleCustomerId=C02cajzvg&hostUuid=host+uuid%2F1&token=tok%2Ben", u)
 
 	_, err = NewRelay("http://insecure.example.com").SignInURL("C02cajzvg", "h", "t")
 	require.Error(t, err)

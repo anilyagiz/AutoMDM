@@ -44,7 +44,7 @@ const CertificateInstallDetailsModal = ({
           iconName="error"
           message={
             <span>
-              Fleet failed to install certificate <b>{certificateName}</b> on{" "}
+              AutoMDM failed to install certificate <b>{certificateName}</b> on{" "}
               {formattedHost}.
             </span>
           }

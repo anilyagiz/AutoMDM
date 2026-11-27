@@ -13,10 +13,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/ee/server/service/certissue"
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/ee/server/service/certissue"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 )
 
 // REST client for https://one.digicert.com/mpki/docs/swagger-ui/index.html
@@ -36,9 +36,9 @@ type Service struct {
 }
 
 // Compile-time check for DigiCertService interface
-var _ fleet.DigiCertService = (*Service)(nil)
+var _ automdm.DigiCertService = (*Service)(nil)
 
-func NewService(opts ...Opt) fleet.DigiCertService {
+func NewService(opts ...Opt) automdm.DigiCertService {
 	s := &Service{}
 	s.populateOpts(opts)
 	return s
@@ -61,8 +61,8 @@ func WithLogger(logger *slog.Logger) Opt {
 	}
 }
 
-func (s *Service) VerifyProfileID(ctx context.Context, config fleet.DigiCertCA) error {
-	client := fleethttp.NewClient(fleethttp.WithTimeout(s.timeout))
+func (s *Service) VerifyProfileID(ctx context.Context, config automdm.DigiCertCA) error {
+	client := automdmhttp.NewClient(automdmhttp.WithTimeout(s.timeout))
 
 	config.URL = strings.TrimRight(config.URL, "/")
 	req, err := http.NewRequest("GET", config.URL+"/mpki/api/v2/profile/"+url.PathEscape(config.ProfileID), nil)
@@ -118,8 +118,8 @@ func (s *Service) populateOpts(opts []Opt) {
 	}
 }
 
-func (s *Service) GetCertificate(ctx context.Context, config fleet.DigiCertCA) (*fleet.DigiCertCertificate, error) {
-	client := fleethttp.NewClient(fleethttp.WithTimeout(s.timeout))
+func (s *Service) GetCertificate(ctx context.Context, config automdm.DigiCertCA) (*automdm.DigiCertCertificate, error) {
+	client := automdmhttp.NewClient(automdmhttp.WithTimeout(s.timeout))
 
 	// Generate a CSR (Certificate Signing Request). DigiCert takes the UPNs in the request body, not in the CSR.
 	privateKey, csr, err := certissue.NewCSR(ctx, config.CertificateCommonName, nil)
@@ -261,7 +261,7 @@ func (s *Service) GetCertificate(ctx context.Context, config fleet.DigiCertCA) (
 		return nil, err
 	}
 
-	return &fleet.DigiCertCertificate{
+	return &automdm.DigiCertCertificate{
 		PfxData:        pkcs12Data,
 		Password:       password,
 		NotValidBefore: cert.NotBefore,

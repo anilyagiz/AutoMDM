@@ -11,10 +11,10 @@ import (
 	"runtime"
 
 	"github.com/Masterminds/semver"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/constant"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/update"
-	"github.com/fleetdm/fleet/v4/pkg/file"
-	"github.com/fleetdm/fleet/v4/pkg/secure"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/constant"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/update"
+	"github.com/anilyagiz/automdm/v4/pkg/file"
+	"github.com/anilyagiz/automdm/v4/pkg/secure"
 	"github.com/rs/zerolog/log"
 )
 
@@ -117,15 +117,15 @@ func BuildPkg(opt Options) (string, error) {
 		}
 	}
 
-	if opt.FleetCertificate != "" {
-		if err := writeFleetServerCertificate(opt, orbitRoot); err != nil {
-			return "", fmt.Errorf("write fleet server certificate: %w", err)
+	if opt.AutoMDMCertificate != "" {
+		if err := writeAutoMDMServerCertificate(opt, orbitRoot); err != nil {
+			return "", fmt.Errorf("write automdm server certificate: %w", err)
 		}
 	}
 
-	if opt.FleetTLSClientCertificate != "" {
-		if err := writeFleetClientCertificate(opt, orbitRoot); err != nil {
-			return "", fmt.Errorf("write fleet client certificate: %w", err)
+	if opt.AutoMDMTLSClientCertificate != "" {
+		if err := writeAutoMDMClientCertificate(opt, orbitRoot); err != nil {
+			return "", fmt.Errorf("write automdm client certificate: %w", err)
 		}
 	}
 
@@ -282,11 +282,11 @@ func writeDistribution(opt Options, rootPath string) error {
 	return nil
 }
 
-func writeFleetServerCertificate(opt Options, orbitRoot string) error {
-	dstPath := filepath.Join(orbitRoot, "fleet.pem")
+func writeAutoMDMServerCertificate(opt Options, orbitRoot string) error {
+	dstPath := filepath.Join(orbitRoot, "automdm.pem")
 
-	if err := file.Copy(opt.FleetCertificate, dstPath, 0o644); err != nil {
-		return fmt.Errorf("write fleet server certificate: %w", err)
+	if err := file.Copy(opt.AutoMDMCertificate, dstPath, 0o644); err != nil {
+		return fmt.Errorf("write automdm server certificate: %w", err)
 	}
 
 	return nil
@@ -302,14 +302,14 @@ func writeUpdateServerCertificate(opt Options, orbitRoot string) error {
 	return nil
 }
 
-func writeFleetClientCertificate(opt Options, orbitRoot string) error {
-	dstPath := filepath.Join(orbitRoot, constant.FleetTLSClientCertificateFileName)
-	if err := file.Copy(opt.FleetTLSClientCertificate, dstPath, constant.DefaultFileMode); err != nil {
-		return fmt.Errorf("write fleet certificate file: %w", err)
+func writeAutoMDMClientCertificate(opt Options, orbitRoot string) error {
+	dstPath := filepath.Join(orbitRoot, constant.AutoMDMTLSClientCertificateFileName)
+	if err := file.Copy(opt.AutoMDMTLSClientCertificate, dstPath, constant.DefaultFileMode); err != nil {
+		return fmt.Errorf("write automdm certificate file: %w", err)
 	}
-	dstPath = filepath.Join(orbitRoot, constant.FleetTLSClientKeyFileName)
-	if err := file.Copy(opt.FleetTLSClientKey, dstPath, constant.DefaultFileMode); err != nil {
-		return fmt.Errorf("write fleet key file: %w", err)
+	dstPath = filepath.Join(orbitRoot, constant.AutoMDMTLSClientKeyFileName)
+	if err := file.Copy(opt.AutoMDMTLSClientKey, dstPath, constant.DefaultFileMode); err != nil {
+		return fmt.Errorf("write automdm key file: %w", err)
 	}
 	return nil
 }

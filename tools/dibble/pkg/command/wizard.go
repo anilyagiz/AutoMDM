@@ -13,7 +13,7 @@ import (
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
 
-	"github.com/fleetdm/fleet/v4/tools/dibble/pkg/themes"
+	"github.com/anilyagiz/automdm/v4/tools/dibble/pkg/themes"
 )
 
 // runWizard drives the interactive no-arg flow. The cobra root command is
@@ -46,7 +46,7 @@ func runWizard(root *cobra.Command) error {
 	var ver struct {
 		Version string `json:"version"`
 	}
-	pingErr := client.Get("/api/latest/fleet/version", &ver)
+	pingErr := client.Get("/api/latest/automdm/version", &ver)
 	if pingErr != nil && isTLSVerificationError(pingErr) && !viper.GetBool(keyInsecure) {
 		retry := true
 		if err := survey.AskOne(
@@ -61,13 +61,13 @@ func runWizard(root *cobra.Command) error {
 			if err != nil {
 				return err
 			}
-			pingErr = client.Get("/api/latest/fleet/version", &ver)
+			pingErr = client.Get("/api/latest/automdm/version", &ver)
 		}
 	}
 	if pingErr != nil {
-		return fmt.Errorf("could not reach Fleet at %s: %w", viper.GetString(keyFleetURL), pingErr)
+		return fmt.Errorf("could not reach AutoMDM at %s: %w", viper.GetString(keyAutoMDMURL), pingErr)
 	}
-	printf("connected to Fleet %s ✓", ver.Version)
+	printf("connected to AutoMDM %s ✓", ver.Version)
 
 	// Step 3: theme picker.
 	chosenTheme := viper.GetString(keyTheme)
@@ -192,10 +192,10 @@ func runWizard(root *cobra.Command) error {
 func promptConfig() (bool, bool, error) {
 	urlAsked, tokenAsked := false, false
 
-	if viper.GetString(keyFleetURL) == "" {
+	if viper.GetString(keyAutoMDMURL) == "" {
 		var u string
 		err := survey.AskOne(
-			&survey.Input{Message: "Fleet URL?", Default: "http://localhost:8080"},
+			&survey.Input{Message: "AutoMDM URL?", Default: "http://localhost:8080"},
 			&u,
 			survey.WithValidator(func(in any) error {
 				s, _ := in.(string)
@@ -211,14 +211,14 @@ func promptConfig() (bool, bool, error) {
 		if err != nil {
 			return false, false, err
 		}
-		viper.Set(keyFleetURL, u)
+		viper.Set(keyAutoMDMURL, u)
 		urlAsked = true
 	}
 
 	if viper.GetString(keyAPIToken) == "" {
 		var t string
 		err := survey.AskOne(
-			&survey.Password{Message: "Fleet API token?"},
+			&survey.Password{Message: "AutoMDM API token?"},
 			&t,
 			survey.WithValidator(func(in any) error {
 				s, _ := in.(string)
@@ -245,7 +245,7 @@ func writeConfigFile() error {
 	if data, err := os.ReadFile(path); err == nil {
 		_ = yaml.Unmarshal(data, &existing)
 	}
-	existing[keyFleetURL] = viper.GetString(keyFleetURL)
+	existing[keyAutoMDMURL] = viper.GetString(keyAutoMDMURL)
 	existing[keyAPIToken] = viper.GetString(keyAPIToken)
 	existing[keyTheme] = viper.GetString(keyTheme)
 	// Always write the current insecure value (not just when true) so that
@@ -307,7 +307,7 @@ func promptCounts(wanted map[string]bool, defaults allCounts) allCounts {
 }
 
 // isTLSVerificationError reports whether the error came from an untrusted
-// TLS certificate — the common pain point with self-signed dev Fleets.
+// TLS certificate — the common pain point with self-signed dev Teams.
 func isTLSVerificationError(err error) bool {
 	if err == nil {
 		return false

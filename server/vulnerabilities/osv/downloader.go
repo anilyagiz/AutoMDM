@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/vulnrepo"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/vulnrepo"
 )
 
-// isOSVReleaseAsset reports whether a release asset name is a non-delta OSV artifact Fleet
+// isOSVReleaseAsset reports whether a release asset name is a non-delta OSV artifact AutoMDM
 // consumes. New OSV ecosystems must be added to osvFilePrefixes or their assets are silently
 // dropped from the release listing.
 func isOSVReleaseAsset(name string) bool {

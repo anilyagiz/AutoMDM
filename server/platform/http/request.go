@@ -5,7 +5,7 @@ import "github.com/docker/go-units"
 // WE need the default to be a var, since we want it configurable, and to avoid misses in the future we set it to the config value on startup/serve.
 var MaxRequestBodySize int64 = units.MiB // Default which is 1 MiB
 
-// EndpointRequestSizeOverrides maps a literal registered endpoint path (e.g. "/api/_version_/fleet/...")
+// EndpointRequestSizeOverrides maps a literal registered endpoint path (e.g. "/api/_version_/automdm/...")
 // to a max request body size that should take predence over any limit the route would otherwise resolve to, if larger.
 var EndpointRequestSizeOverrides map[string]int64
 

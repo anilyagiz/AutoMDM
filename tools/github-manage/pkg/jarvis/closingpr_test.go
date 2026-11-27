@@ -13,8 +13,8 @@ func TestPickClosingPR(t *testing.T) {
 
 	// Open beats merged, regardless of order.
 	got := pickClosingPR([]ghapi.ClosingPRRef{
-		ref("fleetdm/fleet", 1, "MERGED"),
-		ref("fleetdm/fleet", 2, "OPEN"),
+		ref("automdm/automdm", 1, "MERGED"),
+		ref("automdm/automdm", 2, "OPEN"),
 	})
 	if got == nil || got.Number != 2 {
 		t.Fatalf("expected open PR #2, got %+v", got)
@@ -22,7 +22,7 @@ func TestPickClosingPR(t *testing.T) {
 
 	// Merged is the fallback when nothing is open.
 	got = pickClosingPR([]ghapi.ClosingPRRef{
-		ref("fleetdm/fleet", 1, "CLOSED"),
+		ref("automdm/automdm", 1, "CLOSED"),
 		ref("fleetdm/confidential", 3, "MERGED"),
 	})
 	if got == nil || got.Number != 3 || got.Repo != "fleetdm/confidential" {
@@ -30,7 +30,7 @@ func TestPickClosingPR(t *testing.T) {
 	}
 
 	// Closed-unmerged only: nothing shipped, nothing to surface.
-	if got = pickClosingPR([]ghapi.ClosingPRRef{ref("fleetdm/fleet", 1, "CLOSED")}); got != nil {
+	if got = pickClosingPR([]ghapi.ClosingPRRef{ref("automdm/automdm", 1, "CLOSED")}); got != nil {
 		t.Fatalf("expected nil for closed-only refs, got %+v", got)
 	}
 	if got = pickClosingPR(nil); got != nil {

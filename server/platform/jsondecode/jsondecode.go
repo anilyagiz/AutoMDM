@@ -1,4 +1,4 @@
-// Package jsondecode decodes the JSON that Fleet validates strictly.
+// Package jsondecode decodes the JSON that AutoMDM validates strictly.
 //
 // It decodes exactly like encoding/json but reports errors through encoding/json/v2, because as of Go
 // 1.27 that is the only way to learn *where* a decode failed. Under v1 error semantics an error returned
@@ -72,7 +72,7 @@ func translate(err error, root any) error {
 	}
 
 	// encoding/json reports an unrecognized member as `json: unknown field "x"`, and server/service,
-	// server/fleet and pkg/spec all detect that case by matching the wording, so keep producing it.
+	// server/automdm and pkg/spec all detect that case by matching the wording, so keep producing it.
 	if errors.Is(serr.Err, jsonv2.ErrUnknownName) {
 		return fmt.Errorf("json: unknown field %q", serr.JSONPointer.LastToken())
 	}

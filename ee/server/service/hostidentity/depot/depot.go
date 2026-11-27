@@ -11,15 +11,15 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/anilyagiz/automdm/v4/ee/pkg/hostidentity/types"
+	"github.com/anilyagiz/automdm/v4/pkg/certificate"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/mdm/assets"
+	"github.com/anilyagiz/automdm/v4/server/mdm/scep/depot"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
 	"github.com/cenkalti/backoff/v4"
-	"github.com/fleetdm/fleet/v4/ee/pkg/hostidentity/types"
-	"github.com/fleetdm/fleet/v4/pkg/certificate"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/assets"
-	"github.com/fleetdm/fleet/v4/server/mdm/scep/depot"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -28,15 +28,15 @@ const maxCommonNameLength = 255
 // HostIdentitySCEPDepot is a MySQL-backed SCEP certificate depot.
 type HostIdentitySCEPDepot struct {
 	db     *sqlx.DB
-	ds     fleet.Datastore
+	ds     automdm.Datastore
 	logger *slog.Logger
-	config *config.FleetConfig
+	config *config.AutoMDMConfig
 }
 
 var _ depot.Depot = (*HostIdentitySCEPDepot)(nil)
 
 // NewHostIdentitySCEPDepot creates and returns a *HostIdentitySCEPDepot.
-func NewHostIdentitySCEPDepot(db *sqlx.DB, ds fleet.Datastore, logger *slog.Logger, cfg *config.FleetConfig) (*HostIdentitySCEPDepot, error) {
+func NewHostIdentitySCEPDepot(db *sqlx.DB, ds automdm.Datastore, logger *slog.Logger, cfg *config.AutoMDMConfig) (*HostIdentitySCEPDepot, error) {
 	if err := db.Ping(); err != nil {
 		return nil, err
 	}
@@ -50,7 +50,7 @@ func NewHostIdentitySCEPDepot(db *sqlx.DB, ds fleet.Datastore, logger *slog.Logg
 
 // CA returns the CA's certificate and private key.
 func (d *HostIdentitySCEPDepot) CA(_ []byte) ([]*x509.Certificate, *rsa.PrivateKey, error) {
-	cert, err := assets.KeyPair(context.Background(), d.ds, fleet.MDMAssetHostIdentityCACert, fleet.MDMAssetHostIdentityCAKey)
+	cert, err := assets.KeyPair(context.Background(), d.ds, automdm.MDMAssetHostIdentityCACert, automdm.MDMAssetHostIdentityCAKey)
 	if err != nil {
 		return nil, nil, fmt.Errorf("getting assets: %w", err)
 	}
@@ -111,7 +111,7 @@ func (d *HostIdentitySCEPDepot) Put(name string, crt *x509.Certificate) error {
 	if cooldown > 0 {
 		existingCert, err := d.ds.GetHostIdentityCertByName(context.Background(), name)
 		switch {
-		case err != nil && !fleet.IsNotFound(err):
+		case err != nil && !automdm.IsNotFound(err):
 			return fmt.Errorf("checking existing certificate: %w", err)
 		case err == nil:
 			// Certificate exists, check if rate limit applies

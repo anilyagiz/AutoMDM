@@ -10,7 +10,7 @@
     },
     "note": "76k enrolled adding 5 profiles to all hosts (total 10 profiles)"
   },
-  "fleet_server": {
+  "automdm_server": {
     "cpu_utilization": {
       "Average": 83.14,
       "Minimum": 79.78,
@@ -59,7 +59,7 @@
     }
   },
   "apns_mock": {
-    "service": "fleet-mock-apns-apple-apns-mock",
+    "service": "automdm-mock-apns-apple-apns-mock",
     "cpu_utilization": {
       "Average": 5.69,
       "Minimum": 3.3,
@@ -538,7 +538,7 @@
       "data_coverage": 1
     }
   },
-  "fleet_server_errors": {
+  "automdm_server_errors": {
     "error_count": 56506.0,
     "sample_messages": [
       "{\"ts\":\"2026-08-21T16:43:17Z\",\"level\":\"error\",\"component\":\"http\",\"method\":\"POST\",\"uri\":\"/api/osquery/distributed/write\",\"took\":\"184.811348ms\",\"host_id\":66341,\"ip_addr\":\"10.12.3.239\",\"x_for_ip_addr\":\"10.12.3.239\",\"ingestion-err\":\"ingesting query mdm_macos_software_update_id: directIngestMDMMacOSSoftwareUpdateID empty software update device ID\",\"err\":\"error in query ingestion\"}",

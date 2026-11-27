@@ -30,9 +30,9 @@ func Up_20261111205516(tx *sql.Tx) error {
 		}
 	}
 
-	// We are not renaming *_team to *_fleet inside the appconfig, as that would break until the equivalent team->fleet renaming has happened in code.
+	// We are not renaming *_team to *_team inside the appconfig, as that would break until the equivalent team->team renaming has happened in code.
 
-	// Already copied into each token's default fleets by 20240829165448_SupportMultipleABMTokens.
+	// Already copied into each token's default teams by 20240829165448_SupportMultipleABMTokens.
 	if _, err := tx.Exec(`
 		UPDATE app_config_json
 		SET json_value = JSON_REMOVE(json_value, '$.mdm.apple_bm_default_team')

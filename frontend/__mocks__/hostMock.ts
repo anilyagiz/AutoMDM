@@ -53,7 +53,7 @@ const DEFAULT_HOST_MOCK: IHost = {
   platform: "ubuntu",
   osquery_version: "4.9.0",
   orbit_version: "1.22.0",
-  fleet_desktop_version: "1.22.1",
+  automdm_desktop_version: "1.22.1",
   os_name: "Ubuntu",
   os_version: "18.4.0",
   build: "",
@@ -102,9 +102,9 @@ const DEFAULT_HOST_MOCK: IHost = {
   distributed_interval: 10,
   config_tls_refresh: 10,
   logger_tls_period: 10,
-  fleet_id: null,
+  team_id: null,
   pack_stats: null,
-  fleet_name: null,
+  team_name: null,
   gigs_disk_space_available: 100.0,
   percent_disk_space_available: 50,
   issues: {
@@ -121,7 +121,7 @@ const DEFAULT_HOST_MOCK: IHost = {
   device_mapping: [],
   end_users: [],
   conditional_access_bypassed: false,
-  dep_assigned_to_fleet: false,
+  dep_assigned_to_automdm: false,
   timezone: null,
 };
 
@@ -159,8 +159,8 @@ export const createMockIosHostResponse = {
   host: createMockHost({
     hostname: "Test device (iPhone)",
     display_name: "Test device (iPhone)",
-    fleet_id: 2,
-    fleet_name: "Mobile",
+    team_id: 2,
+    team_name: "Mobile",
     platform: "ios",
     os_name: "iOS",
     os_version: "14.7.1",

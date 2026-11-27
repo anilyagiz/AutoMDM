@@ -12,7 +12,7 @@ export interface INotificationItem {
   install_status?: SoftwareInstallStatus;
 }
 
-/** An item Fleet is still waiting on, and so a reason to keep polling. */
+/** An item AutoMDM is still waiting on, and so a reason to keep polling. */
 export const isNotificationItemInstalling = (item: INotificationItem) =>
   item.install_status === "pending_install";
 

@@ -4,13 +4,13 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/archtest"
+	"github.com/anilyagiz/automdm/v4/server/archtest"
 )
 
 const m = archtest.ModuleName
 
 var (
-	fleetDeps = regexp.MustCompile(`^github\.com/fleetdm/`)
+	automdmDeps = regexp.MustCompile(`^github\.com/automdm/`)
 
 	// Common allowed dependencies across acme packages
 	acmePkgs = []string{
@@ -29,7 +29,7 @@ var (
 		m + "/server/platform/...",
 		m + "/server/contexts/...",
 		m + "/server/mdm/internal/commonmdm",
-		m + "/pkg/fleethttp",
+		m + "/pkg/automdmhttp",
 	}
 )
 
@@ -44,10 +44,10 @@ func TestACMEPackageDependencies(t *testing.T) {
 		shouldNotDepend   []string // defaults to m + "/..." if empty
 		ignoreDeps        []string
 		ignoreRecursively []string // for test infra packages whose transitive deps we don't control
-		skip              bool     // Temp flag to skip tests that will end up using the redis package, and therefore pull in all of server/fleet, we need to move the datastore redis package out, to enable these.
+		skip              bool     // Temp flag to skip tests that will end up using the redis package, and therefore pull in all of server/automdm, we need to move the datastore redis package out, to enable these.
 	}{
 		{
-			name: "root package has no Fleet dependencies",
+			name: "root package has no AutoMDM dependencies",
 			pkg:  m + "/server/mdm/acme",
 		},
 		{
@@ -107,7 +107,7 @@ func TestACMEPackageDependencies(t *testing.T) {
 				m + "/server/mdm/acme/internal/testutils",
 				m + "/server/mdm/acme/testhelpers",
 			}, acmePkgs...), platformPkgs...),
-			// Test infrastructure packages whose transitive deps (fleet, etc.) we don't control.
+			// Test infrastructure packages whose transitive deps (team, etc.) we don't control.
 			ignoreRecursively: []string{
 				m + "/server/datastore/redis/redistest",
 				m + "/server/test",
@@ -119,7 +119,7 @@ func TestACMEPackageDependencies(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			if tc.skip {
-				t.Skip("Skipping test, due to pulling in server/datastore/redis, which pulls in server/fleet.")
+				t.Skip("Skipping test, due to pulling in server/datastore/redis, which pulls in server/automdm.")
 			}
 			t.Parallel()
 
@@ -129,7 +129,7 @@ func TestACMEPackageDependencies(t *testing.T) {
 			}
 
 			test := archtest.NewPackageTest(t, tc.pkg).
-				OnlyInclude(fleetDeps).
+				OnlyInclude(automdmDeps).
 				ShouldNotDependOn(shouldNotDepend...).
 				WithTests()
 

@@ -564,7 +564,7 @@ func (m Model) renderBranches() string {
 		return b.String()
 	}
 	if len(m.branchRows) == 0 {
-		b.WriteString(reasonStyle.Render("  No branches found under the configured fleet folders. 🎉"))
+		b.WriteString(reasonStyle.Render("  No branches found under the configured team folders. 🎉"))
 		b.WriteString("\n\n")
 		b.WriteString(m.branchFooter())
 		return b.String()
@@ -744,9 +744,9 @@ func (m Model) startWorkFooter() string {
 		}
 		b.WriteString(line + "\n")
 	}
-	// Non-QA: a virtual row to clone a fresh fleet-* working dir.
+	// Non-QA: a virtual row to clone a fresh automdm-* working dir.
 	if !m.startQA {
-		newRow := "＋ create new fleet-… working dir"
+		newRow := "＋ create new automdm-… working dir"
 		if m.startCloneCursor == len(m.startClones) {
 			b.WriteString(selectedStyle.Render("▸ "+newRow) + "\n")
 		} else {
@@ -769,7 +769,7 @@ func (m Model) newCloneFooter() string {
 	if len(m.config.CloneBaseDirs) > 0 {
 		base = m.config.CloneBaseDirs[0]
 	}
-	b.WriteString(dimStyle.Render("clones "+m.repo+" into "+base+"/") + "fleet-" + m.newCloneInput.View() + "\n")
+	b.WriteString(dimStyle.Render("clones "+m.repo+" into "+base+"/") + "automdm-" + m.newCloneInput.View() + "\n")
 	b.WriteString(dimStyle.Render("enter clone & start · esc back to clone list"))
 	return b.String()
 }

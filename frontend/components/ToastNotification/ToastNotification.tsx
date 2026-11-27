@@ -65,7 +65,7 @@ const ToastNotification = ({
 };
 
 /**
- * Minimal shape of an HTTP response as surfaced by Fleet's API wrapper
+ * Minimal shape of an HTTP response as surfaced by AutoMDM's API wrapper
  * (`frontend/services/index.ts`). Used by `notify.error(..., { response })`
  * to auto-derive the expandable panel's label and body.
  */
@@ -76,7 +76,7 @@ export interface INotifyResponse {
 }
 
 /**
- * Options accepted by `notify.*`. This is Fleet's own curated surface — NOT
+ * Options accepted by `notify.*`. This is AutoMDM's own curated surface — NOT
  * Sonner's. We expose only the keys we explicitly support and forward; callers
  * should program against this interface rather than reaching for Sonner
  * options. To allow a new Sonner passthrough, add the field here AND copy it
@@ -96,7 +96,7 @@ export interface INotifyOptions {
   id?: ToastId;
   /**
    * Pass the API response object (or the value a rejected promise
-   * yielded from Fleet's `sendRequest` — typically the axios response,
+   * yielded from AutoMDM's `sendRequest` — typically the axios response,
    * which already has the `INotifyResponse` shape). The toast
    * auto-populates the expandable panel with `response.data` as the body
    * and `"Status: {status} {statusText}"` as the label above it.
@@ -150,7 +150,7 @@ export interface INotify {
 }
 
 /**
- * Build the Sonner options object from Fleet's curated `INotifyOptions`,
+ * Build the Sonner options object from AutoMDM's curated `INotifyOptions`,
  * copying through ONLY the keys we choose to forward (the rest of
  * `INotifyOptions` — `response`, `detailLabel` — is consumed by us and never
  * reaches Sonner). The caller's `duration` wins over the per-variant default.
@@ -165,7 +165,7 @@ const toSonnerOptions = (
 });
 
 /**
- * Friendly names for HTTP status codes most commonly returned by Fleet's
+ * Friendly names for HTTP status codes most commonly returned by AutoMDM's
  * API, used as a fallback when axios doesn't provide `statusText` (e.g.
  * under HTTP/2 where browsers leave it empty).
  */
@@ -203,7 +203,7 @@ const resolveDetailProps = (
     return { detail: undefined, detailLabel: options?.detailLabel };
   }
 
-  // Caught errors are passed as `unknown`. Fleet's `sendRequest` rejects with
+  // Caught errors are passed as `unknown`. AutoMDM's `sendRequest` rejects with
   // two shapes: usually the axios *response* (`{ status, data }` at the top
   // level), but for `skipParseError` endpoints (e.g. MDM config) it rejects
   // with the bare AxiosError, whose body lives one level down at
@@ -247,7 +247,7 @@ const resolveDetailProps = (
 let toastSeq = 0;
 const nextToastId = (): ToastId => {
   toastSeq += 1;
-  return `fleet-toast-${toastSeq}`;
+  return `automdm-toast-${toastSeq}`;
 };
 
 export const notify: INotify = {

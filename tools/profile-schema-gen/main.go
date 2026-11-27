@@ -20,8 +20,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/pkg/mdm/profilevalidation"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/pkg/mdm/profilevalidation"
 )
 
 // workDir holds downloaded upstream sources, ignored by git. Runs without -update read only from
@@ -85,7 +85,7 @@ func run(ctx context.Context, logger *slog.Logger, out, overrides string, update
 		}
 	}
 
-	client := fleethttp.NewClient(fleethttp.WithTimeout(2 * time.Minute))
+	client := automdmhttp.NewClient(automdmhttp.WithTimeout(2 * time.Minute))
 	appleLogger := logger.With("platform", "apple")
 	appleDir := filepath.Join(workDir, "apple")
 	var schema profilevalidation.ProfileValidationSchema

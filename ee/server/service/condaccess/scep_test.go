@@ -15,15 +15,15 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/pkg/mdm/mdmtest"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/cryptoutil"
-	scepdepot "github.com/fleetdm/fleet/v4/server/mdm/scep/depot"
-	scepserver "github.com/fleetdm/fleet/v4/server/mdm/scep/server"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	mockscep "github.com/fleetdm/fleet/v4/server/mock/scep"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/pkg/mdm/mdmtest"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/cryptoutil"
+	scepdepot "github.com/anilyagiz/automdm/v4/server/mdm/scep/depot"
+	scepserver "github.com/anilyagiz/automdm/v4/server/mdm/scep/server"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	mockscep "github.com/anilyagiz/automdm/v4/server/mock/scep"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
 	"github.com/jmoiron/sqlx"
 	"github.com/smallstep/scep"
 	"github.com/stretchr/testify/assert"
@@ -55,19 +55,19 @@ func TestChallengeMiddleware(t *testing.T) {
 		{
 			name:      "request for an unknown host is rejected",
 			challenge: "one-time",
-			csrURIs:   []string{"urn:device:fleet:uuid:unknown"},
+			csrURIs:   []string{"urn:device:automdm:uuid:unknown"},
 			wantErr:   "unknown host",
 		},
 		{
 			name:      "host lookup failure is an error",
 			challenge: "one-time",
-			csrURIs:   []string{"urn:device:fleet:uuid:db-down"},
+			csrURIs:   []string{"urn:device:automdm:uuid:db-down"},
 			wantErr:   "looking up host",
 		},
 		{
 			name:      "unknown secret is rejected",
 			challenge: "unknown-secret",
-			csrURIs:   []string{"urn:device:fleet:uuid:host-1"},
+			csrURIs:   []string{"urn:device:automdm:uuid:host-1"},
 			wantErr:   "invalid challenge",
 		},
 		{
@@ -103,18 +103,18 @@ func TestChallengeMiddleware(t *testing.T) {
 		{
 			name:      "global secret is refused for a Windows host when Windows hosts get one-time enroll secrets",
 			challenge: "global-secret",
-			csrURIs:   []string{"urn:device:fleet:uuid:win-1"},
+			csrURIs:   []string{"urn:device:automdm:uuid:win-1"},
 			mdm:       config.MDMConfig{WindowsOneTimeEnrollSecrets: true},
 			wantErr:   "invalid challenge",
 		},
 		{
 			name:      "global secret still works for a Windows host when only Apple hosts get one-time enroll secrets",
 			challenge: "global-secret",
-			csrURIs:   []string{"urn:device:fleet:uuid:win-1"},
+			csrURIs:   []string{"urn:device:automdm:uuid:win-1"},
 			mdm:       config.MDMConfig{AppleOneTimeEnrollSecrets: true},
 		},
 		{
-			name:      "global secret is refused for a host not enrolled in Fleet MDM",
+			name:      "global secret is refused for a host not enrolled in AutoMDM",
 			challenge: "global-secret",
 			csrURIs:   []string{"urn:device:apple:uuid:unenrolled-1"},
 			wantErr:   "invalid challenge",
@@ -128,7 +128,7 @@ func TestChallengeMiddleware(t *testing.T) {
 		{
 			name:      "global secret is refused for a host enrolled in both MDMs when Apple hosts get one-time enroll secrets",
 			challenge: "global-secret",
-			csrURIs:   []string{"urn:device:fleet:uuid:dual-1"},
+			csrURIs:   []string{"urn:device:automdm:uuid:dual-1"},
 			mdm:       config.MDMConfig{AppleOneTimeEnrollSecrets: true},
 			wantErr:   "invalid challenge",
 		},
@@ -141,24 +141,24 @@ func TestChallengeMiddleware(t *testing.T) {
 		{
 			name:      "Windows MDM enrollment lookup failure is an error",
 			challenge: "global-secret",
-			csrURIs:   []string{"urn:device:fleet:uuid:windows-db-down"},
+			csrURIs:   []string{"urn:device:automdm:uuid:windows-db-down"},
 			wantErr:   "looking up Windows MDM enrollment",
 		},
 		{
 			name:      "one-time challenge for the requesting host is accepted",
 			challenge: "one-time",
-			csrURIs:   []string{"urn:device:fleet:uuid:host-1"},
+			csrURIs:   []string{"urn:device:automdm:uuid:host-1"},
 		},
 		{
 			name:      "one-time challenge is accepted when one-time enroll secrets are on",
 			challenge: "one-time",
-			csrURIs:   []string{"urn:device:fleet:uuid:host-1"},
+			csrURIs:   []string{"urn:device:automdm:uuid:host-1"},
 			mdm:       config.MDMConfig{AppleOneTimeEnrollSecrets: true, WindowsOneTimeEnrollSecrets: true},
 		},
 		{
 			name:      "one-time challenge for another host is rejected",
 			challenge: "one-time",
-			csrURIs:   []string{"urn:device:fleet:uuid:host-2"},
+			csrURIs:   []string{"urn:device:automdm:uuid:host-2"},
 			wantErr:   "invalid challenge",
 		},
 		{
@@ -170,7 +170,7 @@ func TestChallengeMiddleware(t *testing.T) {
 		{
 			name:      "one-time challenge lookup failure is an error",
 			challenge: "db-down",
-			csrURIs:   []string{"urn:device:fleet:uuid:host-1"},
+			csrURIs:   []string{"urn:device:automdm:uuid:host-1"},
 			wantErr:   "consuming conditional access SCEP challenge",
 		},
 	}
@@ -178,44 +178,44 @@ func TestChallengeMiddleware(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			ds := new(mock.DataStore)
-			ds.VerifyEnrollSecretFunc = func(_ context.Context, secret string) (*fleet.EnrollSecret, error) {
+			ds.VerifyEnrollSecretFunc = func(_ context.Context, secret string) (*automdm.EnrollSecret, error) {
 				switch secret {
 				case "secret-team-a":
-					return &fleet.EnrollSecret{Secret: secret, TeamID: &teamAID}, nil
+					return &automdm.EnrollSecret{Secret: secret, TeamID: &teamAID}, nil
 				case "secret-team-b":
-					return &fleet.EnrollSecret{Secret: secret, TeamID: &teamBID}, nil
+					return &automdm.EnrollSecret{Secret: secret, TeamID: &teamBID}, nil
 				case "global-secret":
-					return &fleet.EnrollSecret{Secret: secret, TeamID: nil}, nil
+					return &automdm.EnrollSecret{Secret: secret, TeamID: nil}, nil
 				default:
 					return nil, common_mysql.NotFound("enroll_secret")
 				}
 			}
-			ds.HostByUUIDFunc = func(_ context.Context, hostUUID string) (*fleet.Host, error) {
+			ds.HostByUUIDFunc = func(_ context.Context, hostUUID string) (*automdm.Host, error) {
 				switch hostUUID {
 				case "mac-1", "host-1", "host-2", "win-1", "unenrolled-1", "disabled-mac", "dual-1", "apple-db-down", "windows-db-down":
-					return &fleet.Host{UUID: hostUUID}, nil
+					return &automdm.Host{UUID: hostUUID}, nil
 				case "db-down":
 					return nil, errors.New("db down")
 				default:
 					return nil, common_mysql.NotFound("Host")
 				}
 			}
-			ds.GetNanoMDMEnrollmentFunc = func(_ context.Context, id string) (*fleet.NanoEnrollment, error) {
+			ds.GetNanoMDMEnrollmentFunc = func(_ context.Context, id string) (*automdm.NanoEnrollment, error) {
 				switch id {
 				case "mac-1", "host-1", "host-2", "dual-1":
-					return &fleet.NanoEnrollment{ID: id, Enabled: true}, nil
+					return &automdm.NanoEnrollment{ID: id, Enabled: true}, nil
 				case "disabled-mac":
-					return &fleet.NanoEnrollment{ID: id, Enabled: false}, nil
+					return &automdm.NanoEnrollment{ID: id, Enabled: false}, nil
 				case "apple-db-down":
 					return nil, errors.New("db down")
 				default:
 					return nil, nil
 				}
 			}
-			ds.MDMWindowsGetEnrolledDeviceWithHostUUIDFunc = func(_ context.Context, hostUUID string) (*fleet.MDMWindowsEnrolledDevice, error) {
+			ds.MDMWindowsGetEnrolledDeviceWithHostUUIDFunc = func(_ context.Context, hostUUID string) (*automdm.MDMWindowsEnrolledDevice, error) {
 				switch hostUUID {
 				case "win-1", "dual-1":
-					return &fleet.MDMWindowsEnrolledDevice{HostUUID: hostUUID}, nil
+					return &automdm.MDMWindowsEnrolledDevice{HostUUID: hostUUID}, nil
 				case "windows-db-down":
 					return nil, errors.New("db down")
 				default:
@@ -274,10 +274,10 @@ func TestChallengeMiddlewareSignsOnlyTheDeviceURI(t *testing.T) {
 	depot.SerialFunc = func() (*big.Int, error) { return big.NewInt(1), nil }
 	depot.PutFunc = func(string, *x509.Certificate) error { return nil }
 	ds := new(mock.DataStore)
-	ds.HostByUUIDFunc = func(_ context.Context, hostUUID string) (*fleet.Host, error) {
-		return &fleet.Host{UUID: hostUUID}, nil
+	ds.HostByUUIDFunc = func(_ context.Context, hostUUID string) (*automdm.Host, error) {
+		return &automdm.Host{UUID: hostUUID}, nil
 	}
-	ds.VerifyEnrollSecretFunc = func(context.Context, string) (*fleet.EnrollSecret, error) {
+	ds.VerifyEnrollSecretFunc = func(context.Context, string) (*automdm.EnrollSecret, error) {
 		return nil, common_mysql.NotFound("enroll_secret")
 	}
 	ds.ConsumeConditionalAccessSCEPChallengeFunc = func(_ context.Context, _, hostUUID string) error {
@@ -291,12 +291,12 @@ func TestChallengeMiddlewareSignsOnlyTheDeviceURI(t *testing.T) {
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
 	tmpl := &x509.CertificateRequest{
-		Subject:        pkix.Name{CommonName: fleet.ConditionalAccessOktaCertificateCN, OrganizationalUnit: []string{"fleet-renewal"}},
+		Subject:        pkix.Name{CommonName: automdm.ConditionalAccessOktaCertificateCN, OrganizationalUnit: []string{"automdm-renewal"}},
 		DNSNames:       []string{"evil.example.com"},
 		EmailAddresses: []string{"attacker@example.com"},
 		IPAddresses:    []net.IP{net.ParseIP("10.0.0.1")},
 	}
-	for _, s := range []string{"https://evil.example.com", "urn:device:apple:uuid:host-1", "urn:device:fleet:uuid:host-2"} {
+	for _, s := range []string{"https://evil.example.com", "urn:device:apple:uuid:host-1", "urn:device:automdm:uuid:host-2"} {
 		u, err := url.Parse(s)
 		require.NoError(t, err)
 		tmpl.URIs = append(tmpl.URIs, u)
@@ -314,8 +314,8 @@ func TestChallengeMiddlewareSignsOnlyTheDeviceURI(t *testing.T) {
 	require.Empty(t, cert.EmailAddresses)
 	require.Empty(t, cert.IPAddresses)
 	// The renewal ID rides in the OU, so the subject is kept.
-	require.Equal(t, []string{"fleet-renewal"}, cert.Subject.OrganizationalUnit)
-	require.Equal(t, fleet.ConditionalAccessOktaCertificateCN, cert.Subject.CommonName)
+	require.Equal(t, []string{"automdm-renewal"}, cert.Subject.OrganizationalUnit)
+	require.Equal(t, automdm.ConditionalAccessOktaCertificateCN, cert.Subject.CommonName)
 }
 
 func TestPKIOperationUndecryptableEnvelope(t *testing.T) {
@@ -325,10 +325,10 @@ func TestPKIOperationUndecryptableEnvelope(t *testing.T) {
 	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(caKey)})
 
 	ds := new(mock.DataStore)
-	ds.GetAllMDMConfigAssetsByNameFunc = func(_ context.Context, _ []fleet.MDMAssetName, _ sqlx.QueryerContext) (map[fleet.MDMAssetName]fleet.MDMConfigAsset, error) {
-		return map[fleet.MDMAssetName]fleet.MDMConfigAsset{
-			fleet.MDMAssetConditionalAccessCACert: {Name: fleet.MDMAssetConditionalAccessCACert, Value: certPEM},
-			fleet.MDMAssetConditionalAccessCAKey:  {Name: fleet.MDMAssetConditionalAccessCAKey, Value: keyPEM},
+	ds.GetAllMDMConfigAssetsByNameFunc = func(_ context.Context, _ []automdm.MDMAssetName, _ sqlx.QueryerContext) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
+		return map[automdm.MDMAssetName]automdm.MDMConfigAsset{
+			automdm.MDMAssetConditionalAccessCACert: {Name: automdm.MDMAssetConditionalAccessCACert, Value: certPEM},
+			automdm.MDMAssetConditionalAccessCAKey:  {Name: automdm.MDMAssetConditionalAccessCAKey, Value: keyPEM},
 		}, nil
 	}
 
@@ -359,7 +359,7 @@ func TestPKIOperationRejectsDeeplyNestedBER(t *testing.T) {
 	deep := bytes.Repeat([]byte{0x30, 0x80}, cryptoutil.MaxBERDepth+1)
 	_, err := svc.PKIOperation(t.Context(), deep)
 
-	var badReq *fleet.BadRequestError
+	var badReq *automdm.BadRequestError
 	require.ErrorAs(t, err, &badReq)
 	require.ErrorIs(t, err, cryptoutil.ErrBERTooDeep)
 }
@@ -369,7 +369,7 @@ func TestPKIOperationRejectsMalformedBody(t *testing.T) {
 
 	_, err := svc.PKIOperation(t.Context(), []byte("hello"))
 
-	var badReq *fleet.BadRequestError
+	var badReq *automdm.BadRequestError
 	require.ErrorAs(t, err, &badReq)
 	require.NotErrorIs(t, err, cryptoutil.ErrBERTooDeep)
 }

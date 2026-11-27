@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -76,13 +76,13 @@ func (ds *Datastore) CountEnabledNanoEnrollments(ctx context.Context) (int, erro
 // state. The bare mysql.Datastore has no place to persist it, so this returns
 // nil (fresh pass every tick). The mysqlredis wrapper overrides this to back
 // it with Redis.
-func (ds *Datastore) GetMDMAppleAPNsSweepState(_ context.Context) (*fleet.MDMAppleAPNsSweepState, error) {
+func (ds *Datastore) GetMDMAppleAPNsSweepState(_ context.Context) (*automdm.MDMAppleAPNsSweepState, error) {
 	return nil, nil
 }
 
 // SetMDMAppleAPNsSweepState persists the APNs sweep cron's pass state. The
 // bare mysql.Datastore is a no-op; the mysqlredis wrapper backs it with
 // Redis.
-func (ds *Datastore) SetMDMAppleAPNsSweepState(_ context.Context, _ *fleet.MDMAppleAPNsSweepState) error {
+func (ds *Datastore) SetMDMAppleAPNsSweepState(_ context.Context, _ *automdm.MDMAppleAPNsSweepState) error {
 	return nil
 }

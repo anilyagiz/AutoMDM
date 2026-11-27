@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # The downloaded file is a bootstrapper that pulls the multi-GB payload during
 # this step. --wait is required: without it the bootstrapper forks the real

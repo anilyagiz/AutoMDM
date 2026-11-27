@@ -5,8 +5,8 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 	"github.com/hashicorp/go-multierror"
 )
 
@@ -16,9 +16,9 @@ import (
 // are debug-logged and skipped.
 func SendManagedLocalAccountRotationRequests(
 	ctx context.Context,
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	logger *slog.Logger,
-	newActivityFn fleet.NewActivityFunc,
+	newActivityFn automdm.NewActivityFunc,
 ) error {
 	hosts, err := ds.GetWindowsManagedLocalAccountsForAutoRotation(ctx)
 	if err != nil {
@@ -33,9 +33,9 @@ func SendManagedLocalAccountRotationRequests(
 	var result *multierror.Error
 	for _, host := range hosts {
 		if err := ds.InitiateWindowsManagedLocalAccountAutoRotation(ctx, host.HostUUID); err != nil {
-			if fleet.IsNotFound(err) ||
-				errors.Is(err, fleet.ErrManagedLocalAccountRotationPending) ||
-				errors.Is(err, fleet.ErrManagedLocalAccountNotEligible) {
+			if automdm.IsNotFound(err) ||
+				errors.Is(err, automdm.ErrManagedLocalAccountRotationPending) ||
+				errors.Is(err, automdm.ErrManagedLocalAccountNotEligible) {
 				logger.DebugContext(ctx, "windows managed local account no longer eligible for rotation",
 					"host_uuid", host.HostUUID, "err", err)
 				continue
@@ -53,21 +53,21 @@ func SendManagedLocalAccountRotationRequests(
 	return result.ErrorOrNil()
 }
 
-// logManagedLocalAccountRotationActivity logs only view-driven rows (initiated_by_fleet=1); a manual request was
+// logManagedLocalAccountRotationActivity logs only view-driven rows (initiated_by_team=1); a manual request was
 // already logged with the user as actor.
 func logManagedLocalAccountRotationActivity(
 	ctx context.Context,
 	logger *slog.Logger,
-	newActivityFn fleet.NewActivityFunc,
-	host fleet.HostManagedLocalAccountWindowsRotationInfo,
+	newActivityFn automdm.NewActivityFunc,
+	host automdm.HostManagedLocalAccountWindowsRotationInfo,
 ) {
-	if !host.InitiatedByFleet || newActivityFn == nil {
+	if !host.InitiatedByTeam || newActivityFn == nil {
 		return
 	}
-	if err := newActivityFn(ctx, nil, fleet.ActivityTypeRotatedManagedLocalAccountPassword{
-		HostID:          host.HostID,
-		HostDisplayName: host.DisplayName,
-		FleetInitiated:  true,
+	if err := newActivityFn(ctx, nil, automdm.ActivityTypeRotatedManagedLocalAccountPassword{
+		HostID:           host.HostID,
+		HostDisplayName:  host.DisplayName,
+		AutoMDMInitiated: true,
 	}); err != nil {
 		logger.WarnContext(ctx, "windows managed local account rotation: failed to create activity",
 			"host_uuid", host.HostUUID, "err", err)

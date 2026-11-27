@@ -10,7 +10,7 @@ Whenever there's a new version of osquery, just update the variable `osqueryVers
 
 ## OS-specific flags
 
-Some osquery flags are OS-specific and will not show up either with `osqueryd --help` or with the `osqueryi` query, depending on the OS you're running those on. In the code (in `server/fleet/agent_options.go`), those OS-specific flags are defined in the `OsqueryCommandLineFlags{Linux,MacOS,Windows}` structs, and the `osquery-agent-options` tool will automatically ignore from its generated struct any flag already defined as part of one of the OS-specific structs.
+Some osquery flags are OS-specific and will not show up either with `osqueryd --help` or with the `osqueryi` query, depending on the OS you're running those on. In the code (in `server/automdm/agent_options.go`), those OS-specific flags are defined in the `OsqueryCommandLineFlags{Linux,MacOS,Windows}` structs, and the `osquery-agent-options` tool will automatically ignore from its generated struct any flag already defined as part of one of the OS-specific structs.
 
 It can be hard to even know what OS-specific flags exist, because of the fact they don't show up in `osqueryd --help` or the `osqueryi` query when not running that specific OS, and the fact that not all flags are documented in [the osquery docs](https://osquery.readthedocs.io/en/stable/). To help with this, the following bash command can be executed assuming you have the osquery repository cloned locally and checked out to the latest release version:
 

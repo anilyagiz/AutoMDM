@@ -9,8 +9,8 @@ import SoftwareNameCell from "./SoftwareNameCell";
 
 const mockRouter = createMockRouter();
 const defaultProps = {
-  name: "Fleet Desktop",
-  source: "fleet",
+  name: "AutoMDM Desktop",
+  source: "team",
   router: mockRouter,
   path: "/software/1",
 };

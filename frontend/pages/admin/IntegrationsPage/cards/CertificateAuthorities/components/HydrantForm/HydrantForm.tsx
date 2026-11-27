@@ -79,7 +79,7 @@ const HydrantForm = ({
         value={name}
         onChange={onInputChange}
         error={formValidation.name?.message}
-        helpText="Letters, numbers, and underscores only. Fleet will create configuration profile variables with the name as suffix (e.g. $FLEET_VAR_HYDRANT_DATA_WIFI_CERTIFICATE)."
+        helpText="Letters, numbers, and underscores only. AutoMDM will create configuration profile variables with the name as suffix (e.g. $AUTOMDM_VAR_HYDRANT_DATA_WIFI_CERTIFICATE)."
         parseTarget
         placeholder="WIFI_CERTIFICATE"
         inputOptions={{ maxLength: MAX_ENTITY_CHAR_LENGTH }}

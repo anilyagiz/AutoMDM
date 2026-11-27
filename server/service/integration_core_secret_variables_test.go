@@ -12,8 +12,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -22,11 +22,11 @@ func (s *integrationTestSuite) TestSecretVariablesGitOps() {
 	t := s.T()
 	ctx := context.Background()
 
-	u := &fleet.User{
+	u := &automdm.User{
 		Name:  "GitOps",
 		Email: "gitops1@example.com",
 		// The test asserts on activities, which the GitOps role can't read.
-		GlobalRole: new(fleet.RoleAdmin),
+		GlobalRole: new(automdm.RoleAdmin),
 	}
 	require.NoError(t, u.SetPassword(test.GoodPassword, 10, 10))
 	_, err := s.ds.NewUser(ctx, u)
@@ -34,39 +34,39 @@ func (s *integrationTestSuite) TestSecretVariablesGitOps() {
 	s.setTokenForTest(t, "gitops1@example.com", test.GoodPassword)
 
 	// Empty request
-	req := fleet.CreateSecretVariablesRequest{}
-	var resp fleet.CreateSecretVariablesResponse
-	s.DoJSON("PUT", "/api/latest/fleet/spec/secret_variables", req, http.StatusOK, &resp)
+	req := automdm.CreateSecretVariablesRequest{}
+	var resp automdm.CreateSecretVariablesResponse
+	s.DoJSON("PUT", "/api/latest/automdm/spec/secret_variables", req, http.StatusOK, &resp)
 
 	// Secret variable name too long
-	req = fleet.CreateSecretVariablesRequest{
-		SecretVariables: []fleet.SecretVariable{
+	req = automdm.CreateSecretVariablesRequest{
+		SecretVariables: []automdm.SecretVariable{
 			{
 				Name:  strings.Repeat("a", 256),
 				Value: "value",
 			},
 		},
 	}
-	httpResp := s.Do("PUT", "/api/latest/fleet/spec/secret_variables", req, http.StatusUnprocessableEntity)
+	httpResp := s.Do("PUT", "/api/latest/automdm/spec/secret_variables", req, http.StatusUnprocessableEntity)
 	assertBodyContains(t, httpResp, "secret variable name is too long")
 
 	// Secret variable name empty
-	req = fleet.CreateSecretVariablesRequest{
-		SecretVariables: []fleet.SecretVariable{
+	req = automdm.CreateSecretVariablesRequest{
+		SecretVariables: []automdm.SecretVariable{
 			{
 				Name:  "  ",
 				Value: "value",
 			},
 		},
 	}
-	httpResp = s.Do("PUT", "/api/latest/fleet/spec/secret_variables", req, http.StatusUnprocessableEntity)
+	httpResp = s.Do("PUT", "/api/latest/automdm/spec/secret_variables", req, http.StatusUnprocessableEntity)
 	assertBodyContains(t, httpResp, "secret variable name cannot be empty")
 
 	validName := strings.Repeat("G", 255)
-	req = fleet.CreateSecretVariablesRequest{
-		SecretVariables: []fleet.SecretVariable{
+	req = automdm.CreateSecretVariablesRequest{
+		SecretVariables: []automdm.SecretVariable{
 			{
-				Name:  "FLEET_SECRET_" + validName,
+				Name:  "AUTOMDM_SECRET_" + validName,
 				Value: "value",
 			},
 		},
@@ -74,7 +74,7 @@ func (s *integrationTestSuite) TestSecretVariablesGitOps() {
 	// Do dry run
 	req.DryRun = true
 	idBeforeDryRun := s.lastActivityMatches("", "", 0)
-	s.DoJSON("PUT", "/api/latest/fleet/spec/secret_variables", req, http.StatusOK, &resp)
+	s.DoJSON("PUT", "/api/latest/automdm/spec/secret_variables", req, http.StatusOK, &resp)
 
 	secrets, err := s.ds.GetSecretVariables(ctx, []string{validName})
 	require.NoError(t, err)
@@ -84,32 +84,32 @@ func (s *integrationTestSuite) TestSecretVariablesGitOps() {
 
 	// Do real run: creating the variable emits a created_custom_variable activity.
 	req.DryRun = false
-	s.DoJSON("PUT", "/api/latest/fleet/spec/secret_variables", req, http.StatusOK, &resp)
+	s.DoJSON("PUT", "/api/latest/automdm/spec/secret_variables", req, http.StatusOK, &resp)
 	secrets, err = s.ds.GetSecretVariables(ctx, []string{validName})
 	require.NoError(t, err)
 	require.Len(t, secrets, 1)
 	assert.Equal(t, "value", secrets[0].Value)
 	require.NotZero(t, secrets[0].ID)
 	s.lastActivityMatches(
-		fleet.ActivityCreatedCustomVariable{}.ActivityName(),
+		automdm.ActivityCreatedCustomVariable{}.ActivityName(),
 		fmt.Sprintf(`{"custom_variable_id":%d,"custom_variable_name":%q}`, secrets[0].ID, validName),
 		0,
 	)
 
 	// Re-applying the same spec is a no-op and must not emit any activity.
 	idAfterCreate := s.lastActivityMatches("", "", 0)
-	s.DoJSON("PUT", "/api/latest/fleet/spec/secret_variables", req, http.StatusOK, &resp)
+	s.DoJSON("PUT", "/api/latest/automdm/spec/secret_variables", req, http.StatusOK, &resp)
 	require.Equal(t, idAfterCreate, s.lastActivityMatches("", "", 0))
 
 	// Changing the value via the spec endpoint emits an updated_custom_variable activity.
 	req.SecretVariables[0].Value = "new-value"
-	s.DoJSON("PUT", "/api/latest/fleet/spec/secret_variables", req, http.StatusOK, &resp)
+	s.DoJSON("PUT", "/api/latest/automdm/spec/secret_variables", req, http.StatusOK, &resp)
 	secrets, err = s.ds.GetSecretVariables(ctx, []string{validName})
 	require.NoError(t, err)
 	require.Len(t, secrets, 1)
 	assert.Equal(t, "new-value", secrets[0].Value)
 	s.lastActivityMatches(
-		fleet.ActivityUpdatedCustomVariable{}.ActivityName(),
+		automdm.ActivityUpdatedCustomVariable{}.ActivityName(),
 		fmt.Sprintf(`{"custom_variable_name":%q}`, validName),
 		0,
 	)
@@ -120,8 +120,8 @@ func (s *integrationTestSuite) TestSecretVariables() {
 	ctx := context.Background()
 
 	// Create a single secret variable.
-	var csvr fleet.CreateSecretVariableResponse
-	s.DoJSON("POST", "/api/latest/fleet/custom_variables", fleet.CreateSecretVariableRequest{
+	var csvr automdm.CreateSecretVariableResponse
+	s.DoJSON("POST", "/api/latest/automdm/custom_variables", automdm.CreateSecretVariableRequest{
 		Name:  "NAME1",
 		Value: "value1",
 	}, http.StatusOK, &csvr)
@@ -129,8 +129,8 @@ func (s *integrationTestSuite) TestSecretVariables() {
 	require.NotZero(t, firstVariableID)
 
 	// List (no-filtering).
-	var lsvr fleet.ListSecretVariablesResponse
-	s.DoJSON("GET", "/api/latest/fleet/custom_variables", fleet.ListSecretVariablesRequest{}, http.StatusOK, &lsvr)
+	var lsvr automdm.ListSecretVariablesResponse
+	s.DoJSON("GET", "/api/latest/automdm/custom_variables", automdm.ListSecretVariablesRequest{}, http.StatusOK, &lsvr)
 	require.Equal(t, 1, lsvr.Count)
 	require.Len(t, lsvr.CustomVariables, 1)
 	require.NotZero(t, lsvr.CustomVariables[0].ID)
@@ -146,21 +146,21 @@ func (s *integrationTestSuite) TestSecretVariables() {
 	require.NotZero(t, secretVariables[0].UpdatedAt)
 
 	// Creating the same variable should fail with conflict.
-	s.DoJSON("POST", "/api/latest/fleet/custom_variables", fleet.CreateSecretVariableRequest{
+	s.DoJSON("POST", "/api/latest/automdm/custom_variables", automdm.CreateSecretVariableRequest{
 		Name:  "NAME1",
 		Value: "value1",
 	}, http.StatusConflict, &csvr)
 
 	// Creating a variable with invalid name should fail with 422.
-	s.DoJSON("POST", "/api/latest/fleet/custom_variables", fleet.CreateSecretVariableRequest{
+	s.DoJSON("POST", "/api/latest/automdm/custom_variables", automdm.CreateSecretVariableRequest{
 		Name:  "lowercase",
 		Value: "foobar",
 	}, http.StatusUnprocessableEntity, &csvr)
-	s.DoJSON("POST", "/api/latest/fleet/custom_variables", fleet.CreateSecretVariableRequest{
+	s.DoJSON("POST", "/api/latest/automdm/custom_variables", automdm.CreateSecretVariableRequest{
 		Name:  "",
 		Value: "foobar",
 	}, http.StatusUnprocessableEntity, &csvr)
-	s.DoJSON("POST", "/api/latest/fleet/custom_variables", fleet.CreateSecretVariableRequest{
+	s.DoJSON("POST", "/api/latest/automdm/custom_variables", automdm.CreateSecretVariableRequest{
 		Name:  strings.Repeat("HA ", 255/3+1),
 		Value: "foobar",
 	}, http.StatusUnprocessableEntity, &csvr)
@@ -169,7 +169,7 @@ func (s *integrationTestSuite) TestSecretVariables() {
 	defer func() {
 		testSetEmptyPrivateKey = false
 	}()
-	s.DoJSON("POST", "/api/latest/fleet/custom_variables", fleet.CreateSecretVariableRequest{
+	s.DoJSON("POST", "/api/latest/automdm/custom_variables", automdm.CreateSecretVariableRequest{
 		Name:  "NAME2",
 		Value: "foobar",
 	}, http.StatusBadRequest, &csvr)
@@ -177,13 +177,13 @@ func (s *integrationTestSuite) TestSecretVariables() {
 	testSetEmptyPrivateKey = false
 
 	// Creating a variable with empty value should fail with 422.
-	s.DoJSON("POST", "/api/latest/fleet/custom_variables", fleet.CreateSecretVariableRequest{
+	s.DoJSON("POST", "/api/latest/automdm/custom_variables", automdm.CreateSecretVariableRequest{
 		Name:  "ANOTHER_NAME",
 		Value: "",
 	}, http.StatusUnprocessableEntity, &csvr)
 
 	// Creating a second variable.
-	s.DoJSON("POST", "/api/latest/fleet/custom_variables", fleet.CreateSecretVariableRequest{
+	s.DoJSON("POST", "/api/latest/automdm/custom_variables", automdm.CreateSecretVariableRequest{
 		Name:  "ANOTHER_NAME",
 		Value: "value2",
 	}, http.StatusOK, &csvr)
@@ -191,8 +191,8 @@ func (s *integrationTestSuite) TestSecretVariables() {
 	require.NotZero(t, secondVariableID)
 
 	// List (no-filtering) with pagination (first page).
-	lsvr = fleet.ListSecretVariablesResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/custom_variables", nil, http.StatusOK, &lsvr, "per_page", "1", "page", "0")
+	lsvr = automdm.ListSecretVariablesResponse{}
+	s.DoJSON("GET", "/api/latest/automdm/custom_variables", nil, http.StatusOK, &lsvr, "per_page", "1", "page", "0")
 	require.Equal(t, 2, lsvr.Count)
 	require.NotNil(t, lsvr.Meta)
 	require.False(t, lsvr.Meta.HasPreviousResults)
@@ -202,8 +202,8 @@ func (s *integrationTestSuite) TestSecretVariables() {
 	require.Equal(t, "ANOTHER_NAME", lsvr.CustomVariables[0].Name)
 	require.NotEmpty(t, lsvr.CustomVariables[0].UpdatedAt)
 	// List (no-filtering) with pagination (second page).
-	lsvr = fleet.ListSecretVariablesResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/custom_variables", nil, http.StatusOK, &lsvr, "per_page", "1", "page", "1")
+	lsvr = automdm.ListSecretVariablesResponse{}
+	s.DoJSON("GET", "/api/latest/automdm/custom_variables", nil, http.StatusOK, &lsvr, "per_page", "1", "page", "1")
 	require.Equal(t, 2, lsvr.Count)
 	require.NotNil(t, lsvr.Meta)
 	require.True(t, lsvr.Meta.HasPreviousResults)
@@ -214,8 +214,8 @@ func (s *integrationTestSuite) TestSecretVariables() {
 	require.NotEmpty(t, lsvr.CustomVariables[0].UpdatedAt)
 	// List (no-filtering) with pagination (one page, two secrets).
 	// Must be ordered alphabetically.
-	lsvr = fleet.ListSecretVariablesResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/custom_variables", nil, http.StatusOK, &lsvr, "per_page", "20", "page", "0")
+	lsvr = automdm.ListSecretVariablesResponse{}
+	s.DoJSON("GET", "/api/latest/automdm/custom_variables", nil, http.StatusOK, &lsvr, "per_page", "20", "page", "0")
 	require.Equal(t, 2, lsvr.Count)
 	require.NotNil(t, lsvr.Meta)
 	require.False(t, lsvr.Meta.HasPreviousResults)
@@ -229,15 +229,15 @@ func (s *integrationTestSuite) TestSecretVariables() {
 	require.NotEmpty(t, lsvr.CustomVariables[1].UpdatedAt)
 
 	// Test deletion of non-existent ID
-	var dsvr fleet.DeleteSecretVariableResponse
-	s.DoJSON("DELETE", "/api/latest/fleet/custom_variables/999", nil, http.StatusNotFound, &dsvr)
+	var dsvr automdm.DeleteSecretVariableResponse
+	s.DoJSON("DELETE", "/api/latest/automdm/custom_variables/999", nil, http.StatusNotFound, &dsvr)
 
-	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/fleet/custom_variables/%d", firstVariableID), nil, http.StatusOK, &dsvr)
-	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/fleet/custom_variables/%d", secondVariableID), nil, http.StatusOK, &dsvr)
+	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/automdm/custom_variables/%d", firstVariableID), nil, http.StatusOK, &dsvr)
+	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/automdm/custom_variables/%d", secondVariableID), nil, http.StatusOK, &dsvr)
 
 	// List after deletions should be empty.
-	lsvr = fleet.ListSecretVariablesResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/custom_variables", nil, http.StatusOK, &lsvr)
+	lsvr = automdm.ListSecretVariablesResponse{}
+	s.DoJSON("GET", "/api/latest/automdm/custom_variables", nil, http.StatusOK, &lsvr)
 	require.Equal(t, 0, lsvr.Count)
 	require.Empty(t, lsvr.CustomVariables)
 }
@@ -246,14 +246,14 @@ func (s *integrationTestSuite) TestSecretVariablesInUse() {
 	t := s.T()
 	ctx := context.Background()
 
-	foobarTeam, err := s.ds.NewTeam(ctx, &fleet.Team{
+	foobarTeam, err := s.ds.NewTeam(ctx, &automdm.Team{
 		Name: "Foobar",
 	})
 	require.NoError(t, err)
 
 	// Create a single secret variable.
-	var csvr fleet.CreateSecretVariableResponse
-	s.DoJSON("POST", "/api/latest/fleet/custom_variables", fleet.CreateSecretVariableRequest{
+	var csvr automdm.CreateSecretVariableResponse
+	s.DoJSON("POST", "/api/latest/automdm/custom_variables", automdm.CreateSecretVariableRequest{
 		Name:  "NAME1",
 		Value: "value1",
 	}, http.StatusOK, &csvr)
@@ -263,86 +263,86 @@ func (s *integrationTestSuite) TestSecretVariablesInUse() {
 	// Create Apple configuration profile in "No team" that uses the variable.
 	appleProfile, err := s.ds.NewMDMAppleConfigProfile(
 		ctx,
-		fleet.MDMAppleConfigProfile{
+		automdm.MDMAppleConfigProfile{
 			Name:         "Name0",
 			Identifier:   "Identifier0",
-			Mobileconfig: []byte("$FLEET_SECRET_NAME1"),
+			Mobileconfig: []byte("$AUTOMDM_SECRET_NAME1"),
 		},
 		nil,
 	)
 	require.NoError(t, err)
 
-	res := s.DoRaw("DELETE", fmt.Sprintf("/api/latest/fleet/custom_variables/%d", firstVariableID), nil, http.StatusConflict)
+	res := s.DoRaw("DELETE", fmt.Sprintf("/api/latest/automdm/custom_variables/%d", firstVariableID), nil, http.StatusConflict)
 	errorMsg := extractServerErrorText(res.Body)
 	require.Contains(
 		t,
 		errorMsg,
-		"Couldn't delete. NAME1 is used by the \"Name0\" configuration profile in the \"Unassigned\" fleet. Please delete the configuration profile and try again.",
+		"Couldn't delete. NAME1 is used by the \"Name0\" configuration profile in the \"Unassigned\" team. Please delete the configuration profile and try again.",
 	)
 
 	err = s.ds.DeleteMDMAppleConfigProfile(ctx, appleProfile.ProfileUUID)
 	require.NoError(t, err)
 
 	// Create Apple declaration in "Foobar" team that uses the variable.
-	appleDeclaration, err := s.ds.NewMDMAppleDeclaration(ctx, &fleet.MDMAppleDeclaration{
+	appleDeclaration, err := s.ds.NewMDMAppleDeclaration(ctx, &automdm.MDMAppleDeclaration{
 		Identifier: "decl-1",
 		Name:       "decl-1",
-		RawJSON:    json.RawMessage(`{"Identifier": "${FLEET_SECRET_NAME1}"}`),
+		RawJSON:    json.RawMessage(`{"Identifier": "${AUTOMDM_SECRET_NAME1}"}`),
 		TeamID:     &foobarTeam.ID,
 	}, nil)
 	require.NoError(t, err)
 
-	res = s.DoRaw("DELETE", fmt.Sprintf("/api/latest/fleet/custom_variables/%d", firstVariableID), nil, http.StatusConflict)
+	res = s.DoRaw("DELETE", fmt.Sprintf("/api/latest/automdm/custom_variables/%d", firstVariableID), nil, http.StatusConflict)
 	errorMsg = extractServerErrorText(res.Body)
 	require.Contains(
 		t,
 		errorMsg,
-		"Couldn't delete. NAME1 is used by the \"decl-1\" configuration profile in the \"Foobar\" fleet. Please delete the configuration profile and try again.",
+		"Couldn't delete. NAME1 is used by the \"decl-1\" configuration profile in the \"Foobar\" team. Please delete the configuration profile and try again.",
 	)
 
 	err = s.ds.DeleteMDMAppleDeclaration(ctx, appleDeclaration.DeclarationUUID)
 	require.NoError(t, err)
 
 	// Create Windows profile in "Foobar" team that uses the variable.
-	windowsProfile, err := s.ds.NewMDMWindowsConfigProfile(ctx, fleet.MDMWindowsConfigProfile{
+	windowsProfile, err := s.ds.NewMDMWindowsConfigProfile(ctx, automdm.MDMWindowsConfigProfile{
 		Name:   "zoo",
 		TeamID: &foobarTeam.ID,
-		SyncML: []byte("<Replace>$FLEET_SECRET_NAME1</Replace>"),
+		SyncML: []byte("<Replace>$AUTOMDM_SECRET_NAME1</Replace>"),
 	}, nil)
 	require.NoError(t, err)
 
-	res = s.DoRaw("DELETE", fmt.Sprintf("/api/latest/fleet/custom_variables/%d", firstVariableID), nil, http.StatusConflict)
+	res = s.DoRaw("DELETE", fmt.Sprintf("/api/latest/automdm/custom_variables/%d", firstVariableID), nil, http.StatusConflict)
 	errorMsg = extractServerErrorText(res.Body)
 	require.Contains(
 		t,
 		errorMsg,
-		"Couldn't delete. NAME1 is used by the \"zoo\" configuration profile in the \"Foobar\" fleet. Please delete the configuration profile and try again.",
+		"Couldn't delete. NAME1 is used by the \"zoo\" configuration profile in the \"Foobar\" team. Please delete the configuration profile and try again.",
 	)
 
 	err = s.ds.DeleteMDMWindowsConfigProfile(ctx, windowsProfile.ProfileUUID)
 	require.NoError(t, err)
 
 	// Create a script in "No team" that uses a variable
-	script, err := s.ds.NewScript(ctx, &fleet.Script{
+	script, err := s.ds.NewScript(ctx, &automdm.Script{
 		Name:           "foobar.sh",
-		ScriptContents: "echo $FLEET_SECRET_NAME1",
+		ScriptContents: "echo $AUTOMDM_SECRET_NAME1",
 	})
 	require.NoError(t, err)
 
-	res = s.DoRaw("DELETE", fmt.Sprintf("/api/latest/fleet/custom_variables/%d", firstVariableID), nil, http.StatusConflict)
+	res = s.DoRaw("DELETE", fmt.Sprintf("/api/latest/automdm/custom_variables/%d", firstVariableID), nil, http.StatusConflict)
 	errorMsg = extractServerErrorText(res.Body)
 	require.Contains(
 		t,
 		errorMsg,
-		"Couldn't delete. NAME1 is used by the \"foobar.sh\" script in the \"Unassigned\" fleet. Please edit or delete the script and try again.",
+		"Couldn't delete. NAME1 is used by the \"foobar.sh\" script in the \"Unassigned\" team. Please edit or delete the script and try again.",
 	)
 
 	err = s.ds.DeleteScript(ctx, script.ID)
 	require.NoError(t, err)
 
 	// Finally, delete now should work.
-	var dsvr fleet.DeleteSecretVariableResponse
-	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/fleet/custom_variables/%d", firstVariableID), nil, http.StatusOK, &dsvr)
+	var dsvr automdm.DeleteSecretVariableResponse
+	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/automdm/custom_variables/%d", firstVariableID), nil, http.StatusOK, &dsvr)
 }
 
 func (s *integrationTestSuite) TestSecretVariablesPermissions() {
@@ -350,31 +350,31 @@ func (s *integrationTestSuite) TestSecretVariablesPermissions() {
 	ctx := context.Background()
 
 	// Create a single secret variable.
-	var csvr fleet.CreateSecretVariableResponse
-	s.DoJSON("POST", "/api/latest/fleet/custom_variables", fleet.CreateSecretVariableRequest{
+	var csvr automdm.CreateSecretVariableResponse
+	s.DoJSON("POST", "/api/latest/automdm/custom_variables", automdm.CreateSecretVariableRequest{
 		Name:  "NAME1",
 		Value: "foobar",
 	}, http.StatusOK, &csvr)
 
 	// Create a global observer user which should be allowed to read but not create secret variables.
-	u := &fleet.User{
+	u := &automdm.User{
 		Name:       "Observer",
 		Email:      "observer@example.com",
-		GlobalRole: new(fleet.RoleObserver),
+		GlobalRole: new(automdm.RoleObserver),
 	}
 	require.NoError(t, u.SetPassword(test.GoodPassword, 10, 10))
 	_, err := s.ds.NewUser(ctx, u)
 	require.NoError(t, err)
 	s.setTokenForTest(t, "observer@example.com", test.GoodPassword)
 
-	s.DoJSON("POST", "/api/latest/fleet/custom_variables", fleet.CreateSecretVariableRequest{
+	s.DoJSON("POST", "/api/latest/automdm/custom_variables", automdm.CreateSecretVariableRequest{
 		Name:  "NAME1",
 		Value: "foobar",
 	}, http.StatusForbidden, &csvr)
 
 	// List (no-filtering) should work for non-admins.
-	var lsvr fleet.ListSecretVariablesResponse
-	s.DoJSON("GET", "/api/latest/fleet/custom_variables", fleet.ListSecretVariablesRequest{}, http.StatusOK, &lsvr)
+	var lsvr automdm.ListSecretVariablesResponse
+	s.DoJSON("GET", "/api/latest/automdm/custom_variables", automdm.ListSecretVariablesRequest{}, http.StatusOK, &lsvr)
 	require.Equal(t, 1, lsvr.Count)
 	require.Len(t, lsvr.CustomVariables, 1)
 	require.NotZero(t, lsvr.CustomVariables[0].ID)

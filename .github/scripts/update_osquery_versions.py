@@ -10,7 +10,7 @@ FILE_PATH = os.path.join(repo_root, 'frontend', 'utilities', 'constants.tsx')
 
 def fetch_osquery_versions():
     conn = http.client.HTTPSConnection('api.github.com')
-    conn.request('GET', '/repos/osquery/osquery/releases', headers={"User-Agent": "Fleet/osquery-checker"})
+    conn.request('GET', '/repos/osquery/osquery/releases', headers={"User-Agent": "AutoMDM/osquery-checker"})
     resp = conn.getresponse()
     content = resp.read()
     conn.close()

@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # Vernier Spectral Analysis ships as a Nullsoft (NSIS) installer; /S runs silent.
 

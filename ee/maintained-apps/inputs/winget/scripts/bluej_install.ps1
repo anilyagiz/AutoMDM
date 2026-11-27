@@ -1,8 +1,8 @@
-# BlueJ ships a per-user WiX MSI. Fleet runs installs elevated (SYSTEM), so we
+# BlueJ ships a per-user WiX MSI. AutoMDM runs installs elevated (SYSTEM), so we
 # pass ALLUSERS=2 — the same switch winget uses — which resolves to a per-machine
 # install (into %ProgramFiles%\BlueJ) when run elevated.
 
-$logFile = "${env:TEMP}/fleet-install-software.log"
+$logFile = "${env:TEMP}/automdm-install-software.log"
 
 try {
 

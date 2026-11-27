@@ -15,7 +15,7 @@ import (
 
 // ConfigPluginName is the plugin name osquery must be pointed at via
 // --config_plugin to get its config from orbit.
-const ConfigPluginName = "fleet_orbit_config"
+const ConfigPluginName = "automdm_orbit_config"
 
 // LocalConfigRefresh is the interval, in seconds, at which osquery asks orbit
 // for its config (osquery's --config_refresh, a command-line-only flag). The
@@ -30,7 +30,7 @@ const LocalConfigRefresh = 10
 const configSourceName = "tls_plugin"
 
 // DefaultServerConfigRefresh is the server poll interval while disconnected
-// when the osquery flagfile doesn't set --config_refresh: fleetd's default.
+// when the osquery flagfile doesn't set --config_refresh: automdmd's default.
 const DefaultServerConfigRefresh = 60 * time.Second
 
 // DefaultOsqueryConfigPollInterval is the fallback poll interval of connected

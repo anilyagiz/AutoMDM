@@ -42,7 +42,7 @@ const getIntegrationSettingsNavItems = (): ISideNavItem<any>[] => {
     {
       title: "Authentication (SSO)",
       urlSection: "sso",
-      path: PATHS.ADMIN_INTEGRATIONS_SSO_FLEET_USERS,
+      path: PATHS.ADMIN_INTEGRATIONS_SSO_TEAM_USERS,
       Card: Sso,
     },
     {

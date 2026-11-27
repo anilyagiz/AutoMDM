@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	jwt "github.com/golang-jwt/jwt/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,7 +29,7 @@ func TestParseOIDCIDTokenClaims(t *testing.T) {
 			"accountUsername":    "fleetie",
 			"AccountFullName":    "Fleetie E.",
 			"department":         "engineering",
-			// Registered claims Fleet overwrites when re-signing; must not leak into Extra.
+			// Registered claims AutoMDM overwrites when re-signing; must not leak into Extra.
 			"iss":   "https://idp.example.com",
 			"aud":   "okta-client",
 			"exp":   time.Now().Add(time.Hour).Unix(),
@@ -68,7 +68,7 @@ func TestBuildPSSOIDTokenClaims(t *testing.T) {
 	now := time.Unix(1_700_000_000, 0)
 	expiresIn := 3600
 
-	idpClaims := &fleet.PSSOClaims{
+	idpClaims := &automdm.PSSOClaims{
 		Subject:           "00u123",
 		Email:             "fleetie@example.com",
 		Name:              "Fleetie Example",
@@ -83,7 +83,7 @@ func TestBuildPSSOIDTokenClaims(t *testing.T) {
 		},
 	}
 
-	got := buildPSSOIDTokenClaims(idpClaims, "fleet.example.com", "okta-client", "device-nonce", now, expiresIn)
+	got := buildPSSOIDTokenClaims(idpClaims, "automdm.example.com", "okta-client", "device-nonce", now, expiresIn)
 
 	// Standard identity claims always present.
 	assert.Equal(t, "fleetie@example.com", got["email"])
@@ -96,8 +96,8 @@ func TestBuildPSSOIDTokenClaims(t *testing.T) {
 	_, hasDepartment := got["department"]
 	assert.False(t, hasDepartment, "non-account-prefixed claim should not be forwarded")
 
-	// Fleet-controlled claims are authoritative; the IdP's attempts are overridden.
-	assert.Equal(t, "fleet.example.com", got["iss"])
+	// AutoMDM-controlled claims are authoritative; the IdP's attempts are overridden.
+	assert.Equal(t, "automdm.example.com", got["iss"])
 	assert.Equal(t, "00u123", got["sub"])
 	assert.Equal(t, "okta-client", got["aud"])
 	assert.Equal(t, "device-nonce", got["nonce"])

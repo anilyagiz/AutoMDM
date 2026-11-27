@@ -6,7 +6,7 @@
 
 $displayNamePattern = '^Read AI$'
 $publisher = "readai"
-$taskName = "fleet-uninstall-read-ai"
+$taskName = "automdm-uninstall-read-ai"
 $appDir = "AppData\Local\Read AI"  # in each user's profile
 $taskRunning = 267009  # SCHED_S_TASK_RUNNING
 $timeoutSeconds = 300

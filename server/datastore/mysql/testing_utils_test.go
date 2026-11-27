@@ -25,17 +25,17 @@ import (
 	"time"
 
 	"github.com/WatchBeam/clock"
-	"github.com/fleetdm/fleet/v4/server/acl/activityacl"
-	activity_api "github.com/fleetdm/fleet/v4/server/activity/api"
-	activity_bootstrap "github.com/fleetdm/fleet/v4/server/activity/bootstrap"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	nanodep_client "github.com/fleetdm/fleet/v4/server/mdm/nanodep/client"
-	mdmtesting "github.com/fleetdm/fleet/v4/server/mdm/testing_utils"
-	platform_authz "github.com/fleetdm/fleet/v4/server/platform/authz"
-	"github.com/fleetdm/fleet/v4/server/platform/logging"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
-	"github.com/fleetdm/fleet/v4/server/platform/mysql/testing_utils"
+	"github.com/anilyagiz/automdm/v4/server/acl/activityacl"
+	activity_api "github.com/anilyagiz/automdm/v4/server/activity/api"
+	activity_bootstrap "github.com/anilyagiz/automdm/v4/server/activity/bootstrap"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	nanodep_client "github.com/anilyagiz/automdm/v4/server/mdm/nanodep/client"
+	mdmtesting "github.com/anilyagiz/automdm/v4/server/mdm/testing_utils"
+	platform_authz "github.com/anilyagiz/automdm/v4/server/platform/authz"
+	"github.com/anilyagiz/automdm/v4/server/platform/logging"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/platform/mysql/testing_utils"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/olekukonko/tablewriter"
@@ -61,7 +61,7 @@ func connectMySQL(t testing.TB, testName string, opts *testing_utils.DatastoreTe
 	//
 	// Changes below assume that we want to follows the same pattern as the rest of the codebase.
 	var dslogger *slog.Logger
-	if os.Getenv("FLEET_INTEGRATION_TESTS_DISABLE_LOG") != "" {
+	if os.Getenv("AUTOMDM_INTEGRATION_TESTS_DISABLE_LOG") != "" {
 		dslogger = slog.New(slog.DiscardHandler)
 	} else {
 		dslogger = logging.NewSlogLogger(logging.Options{Output: os.Stdout, Debug: true})
@@ -70,7 +70,7 @@ func connectMySQL(t testing.TB, testName string, opts *testing_utils.DatastoreTe
 	// Use TestSQLMode which combines ANSI mode components with MySQL 8 strict modes
 	// This ensures we catch data truncation errors and other strict behaviors during testing
 	// Reference: https://dev.mysql.com/doc/refman/8.0/en/sql-mode.html
-	ds, err := New(*cfg, clock.NewMockClock(), Logger(dslogger), LimitAttempts(1), replicaOpt, SQLMode(common_mysql.TestSQLMode), WithFleetConfig(&tc))
+	ds, err := New(*cfg, clock.NewMockClock(), Logger(dslogger), LimitAttempts(1), replicaOpt, SQLMode(common_mysql.TestSQLMode), WithAutoMDMConfig(&tc))
 	require.Nil(t, err)
 
 	if opts.DummyReplica {
@@ -447,7 +447,7 @@ func TruncateTables(t testing.TB, ds *Datastore, tables ...string) {
 	// delete where id > max before test, or something like that.
 	nonEmptyTables := map[string]bool{
 		"app_config_json":                  true,
-		"fleet_variables":                  true,
+		"automdm_variables":                true,
 		"mdm_apple_declaration_categories": true,
 		"mdm_delivery_status":              true,
 		"mdm_operation_types":              true,
@@ -459,7 +459,7 @@ func TruncateTables(t testing.TB, ds *Datastore, tables ...string) {
 		"DELETE FROM software_categories WHERE team_id != 0")
 	require.NoError(t, err)
 	testing_utils.TruncateTables(t, ds.writer(context.Background()), ds.logger, nonEmptyTables, tables...)
-	// Clear the in-process Windows Fleet-maintained app cache, which would
+	// Clear the in-process Windows AutoMDM-maintained app cache, which would
 	// otherwise leak across test cases that share a Datastore.
 	ds.clearWindowsFMAMatchesCache()
 }
@@ -560,10 +560,10 @@ func printDumpTable(t *testing.T, cols []string, rows [][]string) {
 	t.Logf("\n%s", writer.String())
 }
 
-func generateDummyWindowsProfileContents(uuid string) fleet.MDMWindowsProfileContents {
+func generateDummyWindowsProfileContents(uuid string) automdm.MDMWindowsProfileContents {
 	syncML := generateDummyWindowsProfile(uuid)
 	checksum := md5.Sum(syncML) // nolint:gosec // this is a test package
-	return fleet.MDMWindowsProfileContents{
+	return automdm.MDMWindowsProfileContents{
 		SyncML:   syncML,
 		Checksum: checksum[:],
 	}
@@ -586,8 +586,8 @@ func InsertWindowsProfileForTest(t *testing.T, ds *Datastore, teamID uint) strin
 }
 
 // GetAggregatedStats retrieves aggregated stats for the given query
-func GetAggregatedStats(ctx context.Context, ds *Datastore, aggregate fleet.AggregatedStatsType, id uint) (fleet.AggregatedStats, error) {
-	result := fleet.AggregatedStats{}
+func GetAggregatedStats(ctx context.Context, ds *Datastore, aggregate automdm.AggregatedStatsType, id uint) (automdm.AggregatedStats, error) {
+	result := automdm.AggregatedStats{}
 	stmt := `
 	SELECT
 		   JSON_EXTRACT(json_value, '$.user_time_p50') as user_time_p50,
@@ -624,23 +624,23 @@ func SetOrderedCreatedAtTimestamps(t testing.TB, ds *Datastore, afterTime time.T
 func CreateABMKeyCertIfNotExists(t testing.TB, ds *Datastore) {
 	certPEM, keyPEM, _, err := GenerateTestABMAssets(t)
 	require.NoError(t, err)
-	var assets []fleet.MDMConfigAsset
-	_, err = ds.GetAllMDMConfigAssetsByName(context.Background(), []fleet.MDMAssetName{
-		fleet.MDMAssetABMKey,
+	var assets []automdm.MDMConfigAsset
+	_, err = ds.GetAllMDMConfigAssetsByName(context.Background(), []automdm.MDMAssetName{
+		automdm.MDMAssetABMKey,
 	}, nil)
 	if err != nil {
-		var nfe fleet.NotFoundError
+		var nfe automdm.NotFoundError
 		require.ErrorAs(t, err, &nfe)
-		assets = append(assets, fleet.MDMConfigAsset{Name: fleet.MDMAssetABMKey, Value: keyPEM})
+		assets = append(assets, automdm.MDMConfigAsset{Name: automdm.MDMAssetABMKey, Value: keyPEM})
 	}
 
-	_, err = ds.GetAllMDMConfigAssetsByName(context.Background(), []fleet.MDMAssetName{
-		fleet.MDMAssetABMCert,
+	_, err = ds.GetAllMDMConfigAssetsByName(context.Background(), []automdm.MDMAssetName{
+		automdm.MDMAssetABMCert,
 	}, nil)
 	if err != nil {
-		var nfe fleet.NotFoundError
+		var nfe automdm.NotFoundError
 		require.ErrorAs(t, err, &nfe)
-		assets = append(assets, fleet.MDMConfigAsset{Name: fleet.MDMAssetABMCert, Value: certPEM})
+		assets = append(assets, automdm.MDMConfigAsset{Name: automdm.MDMAssetABMCert, Value: certPEM})
 	}
 
 	if len(assets) != 0 {
@@ -650,14 +650,14 @@ func CreateABMKeyCertIfNotExists(t testing.TB, ds *Datastore) {
 }
 
 // CreateAndSetABMToken creates a new ABM token (using an existing ABM key/cert) and stores it in the DB.
-func CreateAndSetABMToken(t testing.TB, ds *Datastore, orgName string) *fleet.ABMToken {
-	assets, err := ds.GetAllMDMConfigAssetsByName(context.Background(), []fleet.MDMAssetName{
-		fleet.MDMAssetABMKey,
-		fleet.MDMAssetABMCert,
+func CreateAndSetABMToken(t testing.TB, ds *Datastore, orgName string) *automdm.ABMToken {
+	assets, err := ds.GetAllMDMConfigAssetsByName(context.Background(), []automdm.MDMAssetName{
+		automdm.MDMAssetABMKey,
+		automdm.MDMAssetABMCert,
 	}, nil)
 	require.NoError(t, err)
 
-	certPEM := assets[fleet.MDMAssetABMCert].Value
+	certPEM := assets[automdm.MDMAssetABMCert].Value
 
 	testBMToken := &nanodep_client.OAuth1Tokens{
 		ConsumerKey:    "test_consumer",
@@ -693,7 +693,7 @@ func CreateAndSetABMToken(t testing.TB, ds *Datastore, orgName string) *fleet.AB
 			"Content-Description: S/MIME Encrypted Message\r\n"+
 			"\r\n%s", base64.StdEncoding.EncodeToString(encryptedToken))
 
-	tok, err := ds.InsertABMToken(context.Background(), &fleet.ABMToken{
+	tok, err := ds.InsertABMToken(context.Background(), &automdm.ABMToken{
 		EncryptedToken:   []byte(tokenBytes),
 		OrganizationName: orgName,
 		RenewAt:          time.Now().Add(30 * 24 * time.Hour), // 30 days from now
@@ -702,25 +702,25 @@ func CreateAndSetABMToken(t testing.TB, ds *Datastore, orgName string) *fleet.AB
 	return tok
 }
 
-func SetTestABMAssets(t testing.TB, ds *Datastore, orgName string) *fleet.ABMToken {
+func SetTestABMAssets(t testing.TB, ds *Datastore, orgName string) *automdm.ABMToken {
 	apnsCert, apnsKey, err := GenerateTestCertBytes(mdmtesting.NewTestMDMAppleCertTemplate())
 	require.NoError(t, err)
 
 	certPEM, keyPEM, tokenBytes, err := GenerateTestABMAssets(t)
 	require.NoError(t, err)
-	assets := []fleet.MDMConfigAsset{
-		{Name: fleet.MDMAssetABMCert, Value: certPEM},
-		{Name: fleet.MDMAssetABMKey, Value: keyPEM},
-		{Name: fleet.MDMAssetAPNSCert, Value: apnsCert},
-		{Name: fleet.MDMAssetAPNSKey, Value: apnsKey},
-		{Name: fleet.MDMAssetCACert, Value: certPEM},
-		{Name: fleet.MDMAssetCAKey, Value: keyPEM},
+	assets := []automdm.MDMConfigAsset{
+		{Name: automdm.MDMAssetABMCert, Value: certPEM},
+		{Name: automdm.MDMAssetABMKey, Value: keyPEM},
+		{Name: automdm.MDMAssetAPNSCert, Value: apnsCert},
+		{Name: automdm.MDMAssetAPNSKey, Value: apnsKey},
+		{Name: automdm.MDMAssetCACert, Value: certPEM},
+		{Name: automdm.MDMAssetCAKey, Value: keyPEM},
 	}
 
 	err = ds.InsertMDMConfigAssets(context.Background(), assets, nil)
 	require.NoError(t, err)
 
-	tok, err := ds.InsertABMToken(context.Background(), &fleet.ABMToken{
+	tok, err := ds.InsertABMToken(context.Background(), &automdm.ABMToken{
 		EncryptedToken:   tokenBytes,
 		OrganizationName: orgName,
 		RenewAt:          time.Now().Add(30 * 24 * time.Hour), // 30 days from now
@@ -840,7 +840,7 @@ func NormalizeSQL(query string) string {
 	return query
 }
 
-func checkUpcomingActivities(t *testing.T, ds *Datastore, host *fleet.Host, execIDs ...string) {
+func checkUpcomingActivities(t *testing.T, ds *Datastore, host *automdm.Host, execIDs ...string) {
 	ctx := t.Context()
 
 	type upcoming struct {
@@ -882,39 +882,39 @@ func (t *testingAuthorizer) Authorize(_ context.Context, _ platform_authz.AuthzT
 	return nil
 }
 
-// testingLookupService adapts mysql.Datastore to fleet.ActivityLookupService interface.
-// This allows tests to use the real activityacl.FleetServiceAdapter instead of
+// testingLookupService adapts mysql.Datastore to automdm.ActivityLookupService interface.
+// This allows tests to use the real activityacl.AutoMDMServiceAdapter instead of
 // duplicating the conversion logic.
 type testingLookupService struct {
 	ds *Datastore
 }
 
-func (t *testingLookupService) ListUsers(ctx context.Context, opt fleet.UserListOptions) ([]*fleet.User, error) {
+func (t *testingLookupService) ListUsers(ctx context.Context, opt automdm.UserListOptions) ([]*automdm.User, error) {
 	return t.ds.ListUsers(ctx, opt)
 }
 
-func (t *testingLookupService) UsersByIDs(ctx context.Context, ids []uint) ([]*fleet.UserSummary, error) {
+func (t *testingLookupService) UsersByIDs(ctx context.Context, ids []uint) ([]*automdm.UserSummary, error) {
 	return t.ds.UsersByIDs(ctx, ids)
 }
 
 // GetHostLite adapts Datastore.HostLite to the LookupService interface.
-func (t *testingLookupService) GetHostLite(ctx context.Context, id uint) (*fleet.Host, error) {
+func (t *testingLookupService) GetHostLite(ctx context.Context, id uint) (*automdm.Host, error) {
 	return t.ds.HostLite(ctx, id)
 }
 
 func (t *testingLookupService) HostIDByIDOrIdentifier(ctx context.Context, identifier string) (uint, error) {
-	return t.ds.HostIDByIdentifier(ctx, identifier, fleet.HostIDByIdentifierOptions{MatchID: true})
+	return t.ds.HostIDByIdentifier(ctx, identifier, automdm.HostIDByIdentifierOptions{MatchID: true})
 }
 
-func (t *testingLookupService) GetActivitiesWebhookSettings(ctx context.Context) (fleet.ActivitiesWebhookSettings, error) {
+func (t *testingLookupService) GetActivitiesWebhookSettings(ctx context.Context) (automdm.ActivitiesWebhookSettings, error) {
 	appConfig, err := t.ds.AppConfig(ctx)
 	if err != nil {
-		return fleet.ActivitiesWebhookSettings{}, err
+		return automdm.ActivitiesWebhookSettings{}, err
 	}
 	return appConfig.WebhookSettings.ActivitiesWebhook, nil
 }
 
-func (t *testingLookupService) GetHostActivitiesWebhookSettings(ctx context.Context, hostIDs []uint) ([]fleet.HostActivitiesWebhookDelivery, error) {
+func (t *testingLookupService) GetHostActivitiesWebhookSettings(ctx context.Context, hostIDs []uint) ([]automdm.HostActivitiesWebhookDelivery, error) {
 	// Host activities webhooks are not exercised through this test adapter.
 	return nil, nil
 }
@@ -940,7 +940,7 @@ func NewTestActivityService(t testing.TB, ds *Datastore) activity_api.Service {
 
 	// Use the real ACL adapter with a testing lookup service
 	lookupSvc := &testingLookupService{ds: ds}
-	aclAdapter := activityacl.NewFleetServiceAdapter(lookupSvc, ds)
+	aclAdapter := activityacl.NewAutoMDMServiceAdapter(lookupSvc, ds)
 
 	// Create service via bootstrap (the public API for creating the bounded context)
 	discardLogger := slog.New(slog.DiscardHandler)
@@ -958,7 +958,7 @@ func ListActivitiesAPI(t testing.TB, ctx context.Context, svc activity_api.Servi
 		opts.OrderDirection = activity_api.OrderAscending
 	}
 	if opts.PerPage == 0 {
-		opts.PerPage = fleet.DefaultPerPage
+		opts.PerPage = automdm.DefaultPerPage
 	}
 
 	activities, _, err := svc.ListActivities(ctx, opts)
@@ -970,10 +970,10 @@ func ListActivitiesAPI(t testing.TB, ctx context.Context, svc activity_api.Servi
 // for assertions that only care about the error.
 func errOnly(_ []uint, err error) error { return err }
 
-func excludeAnyLabelScope(label *fleet.Label) fleet.LabelIdentsWithScope {
-	return fleet.LabelIdentsWithScope{
-		LabelScope: fleet.LabelScopeExcludeAny,
-		ByName:     map[string]fleet.LabelIdent{label.Name: {LabelName: label.Name, LabelID: label.ID}},
+func excludeAnyLabelScope(label *automdm.Label) automdm.LabelIdentsWithScope {
+	return automdm.LabelIdentsWithScope{
+		LabelScope: automdm.LabelScopeExcludeAny,
+		ByName:     map[string]automdm.LabelIdent{label.Name: {LabelName: label.Name, LabelID: label.ID}},
 	}
 }
 

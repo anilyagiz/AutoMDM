@@ -95,7 +95,7 @@ const RunQuery = ({
 
   const connectAndRunLiveQuery = (returnedCampaign: ICampaign) => {
     let { current: websocket }: { current: WebSocket | null } = ws;
-    websocket = new SockJS(`${BASE_URL}/v1/fleet/results`, undefined, {});
+    websocket = new SockJS(`${BASE_URL}/v1/automdm/results`, undefined, {});
     websocket.onopen = () => {
       setupDistributedQuery(websocket);
       // `prevCampaignState` at this point is the default state. Update that with what we get from

@@ -9,8 +9,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/fleetdm/fleet/v4/ee/server/service/ejbca"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/ee/server/service/ejbca"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
 const (
@@ -23,7 +23,7 @@ const (
 )
 
 // validateEJBCA checks a new EJBCA CA, reads the client certificate and key out of its PKCS#12, and verifies the connection to EJBCA.
-func (svc *Service) validateEJBCA(ctx context.Context, ca *fleet.EJBCA, errPrefix string) error {
+func (svc *Service) validateEJBCA(ctx context.Context, ca *automdm.EJBCA, errPrefix string) error {
 	if err := validateCAName(ca.Name, errPrefix); err != nil {
 		return err
 	}
@@ -34,7 +34,7 @@ func (svc *Service) validateEJBCA(ctx context.Context, ca *fleet.EJBCA, errPrefi
 		return err
 	}
 	if len(ca.TrustCABundlePEM) > ejbcaMaxPEMLength {
-		return fleet.NewInvalidArgumentError("trust_ca_bundle", fmt.Sprintf("%sThe trust CA bundle is too large.", errPrefix))
+		return automdm.NewInvalidArgumentError("trust_ca_bundle", fmt.Sprintf("%sThe trust CA bundle is too large.", errPrefix))
 	}
 
 	creds, err := readEJBCAClientP12(ctx, ca.ClientP12, ca.Password, errPrefix)
@@ -47,7 +47,7 @@ func (svc *Service) validateEJBCA(ctx context.Context, ca *fleet.EJBCA, errPrefi
 }
 
 // validateEJBCAFields checks the fields that make up an EJBCA CA's enrollment settings, whether it is new or the result of an update.
-func validateEJBCAFields(ca *fleet.EJBCA, errPrefix string) error {
+func validateEJBCAFields(ca *automdm.EJBCA, errPrefix string) error {
 	for _, field := range []struct{ name, label, value string }{
 		{"certificate_authority_name", "EJBCA CA name", ca.CertificateAuthorityName},
 		{"certificate_profile_name", "certificate profile name", ca.CertificateProfileName},
@@ -55,11 +55,11 @@ func validateEJBCAFields(ca *fleet.EJBCA, errPrefix string) error {
 		{"certificate_common_name", "common name", ca.CertificateCommonName},
 	} {
 		if strings.TrimSpace(field.value) == "" {
-			return fleet.NewInvalidArgumentError(field.name, fmt.Sprintf("%sThe %s cannot be empty.", errPrefix, field.label))
+			return automdm.NewInvalidArgumentError(field.name, fmt.Sprintf("%sThe %s cannot be empty.", errPrefix, field.label))
 		}
 	}
 	if ca.UsernameTemplate != "" && strings.TrimSpace(ca.UsernameTemplate) == "" {
-		return fleet.NewInvalidArgumentError("username_template", errPrefix+"The username template cannot be only spaces.")
+		return automdm.NewInvalidArgumentError("username_template", errPrefix+"The username template cannot be only spaces.")
 	}
 	for _, field := range []struct{ name, label, value string }{
 		{"certificate_authority_name", "EJBCA CA name", ca.CertificateAuthorityName},
@@ -69,20 +69,20 @@ func validateEJBCAFields(ca *fleet.EJBCA, errPrefix string) error {
 		{"username_template", "username template", ca.UsernameTemplate},
 	} {
 		if utf8.RuneCountInString(field.value) > ejbcaMaxFieldLength {
-			return fleet.NewInvalidArgumentError(field.name,
+			return automdm.NewInvalidArgumentError(field.name,
 				fmt.Sprintf("%sThe %s cannot be longer than %d characters.", errPrefix, field.label, ejbcaMaxFieldLength))
 		}
 	}
 
-	if err := validateCAFleetVariables("certificate_common_name", "CA Common Name (CN)", ca.CertificateCommonName,
-		fleet.FleetVarsSupportedInEJBCA, errPrefix); err != nil {
+	if err := validateCAAutoMDMVariables("certificate_common_name", "CA Common Name (CN)", ca.CertificateCommonName,
+		automdm.AutoMDMVarsSupportedInEJBCA, errPrefix); err != nil {
 		return err
 	}
-	if err := validateCAFleetVariables("username_template", "EJBCA Username Template", ca.UsernameTemplate, fleet.FleetVarsSupportedInEJBCA,
+	if err := validateCAAutoMDMVariables("username_template", "EJBCA Username Template", ca.UsernameTemplate, automdm.AutoMDMVarsSupportedInEJBCA,
 		errPrefix); err != nil {
 		return err
 	}
-	return validateCAUserPrincipalNames(ca.CertificateUserPrincipalNames, "EJBCA", fleet.FleetVarsSupportedInEJBCA, ejbcaMaxFieldLength, errPrefix)
+	return validateCAUserPrincipalNames(ca.CertificateUserPrincipalNames, "EJBCA", automdm.AutoMDMVarsSupportedInEJBCA, ejbcaMaxFieldLength, errPrefix)
 }
 
 // readEJBCAClientP12 reads the client certificate chain and key out of a base64 PKCS#12 and rejects a certificate that isn't valid now.
@@ -93,12 +93,12 @@ func readEJBCAClientP12(ctx context.Context, p12Base64, password, errPrefix stri
 	}
 	now := time.Now()
 	if now.After(creds.Leaf.NotAfter) {
-		return nil, fleet.NewInvalidArgumentError("client_p12", fmt.Sprintf(
+		return nil, automdm.NewInvalidArgumentError("client_p12", fmt.Sprintf(
 			"%sThe client certificate expired on %s. Upload a client certificate that hasn't expired.",
 			errPrefix, creds.Leaf.NotAfter.UTC().Format(time.DateOnly)))
 	}
 	if now.Before(creds.Leaf.NotBefore) {
-		return nil, fleet.NewInvalidArgumentError("client_p12", fmt.Sprintf(
+		return nil, automdm.NewInvalidArgumentError("client_p12", fmt.Sprintf(
 			"%sThe client certificate isn't valid until %s. Upload a client certificate that is valid now.",
 			errPrefix, creds.Leaf.NotBefore.UTC().Format(time.DateOnly)))
 	}
@@ -108,17 +108,17 @@ func readEJBCAClientP12(ctx context.Context, p12Base64, password, errPrefix stri
 // parseEJBCAClientP12 reads the client certificate chain and key out of a base64 PKCS#12, whether or not the certificate is valid now.
 func parseEJBCAClientP12(ctx context.Context, p12Base64, password, errPrefix string) (*ejbca.ClientCredentials, error) {
 	if strings.TrimSpace(p12Base64) == "" {
-		return nil, fleet.NewInvalidArgumentError("client_p12", fmt.Sprintf("%sThe client certificate PKCS#12 cannot be empty.", errPrefix))
+		return nil, automdm.NewInvalidArgumentError("client_p12", fmt.Sprintf("%sThe client certificate PKCS#12 cannot be empty.", errPrefix))
 	}
 	if password == "" {
-		return nil, fleet.NewInvalidArgumentError("password", fmt.Sprintf("%sThe PKCS#12 password cannot be empty.", errPrefix))
+		return nil, automdm.NewInvalidArgumentError("password", fmt.Sprintf("%sThe PKCS#12 password cannot be empty.", errPrefix))
 	}
 	p12, err := base64.StdEncoding.DecodeString(strings.TrimSpace(p12Base64))
 	if err != nil {
-		return nil, fleet.NewInvalidArgumentError("client_p12", fmt.Sprintf("%sThe client certificate PKCS#12 must be base64 encoded.", errPrefix))
+		return nil, automdm.NewInvalidArgumentError("client_p12", fmt.Sprintf("%sThe client certificate PKCS#12 must be base64 encoded.", errPrefix))
 	}
 	if len(p12) > ejbcaMaxP12Size {
-		return nil, fleet.NewInvalidArgumentError("client_p12", fmt.Sprintf("%sThe client certificate PKCS#12 is too large.", errPrefix))
+		return nil, automdm.NewInvalidArgumentError("client_p12", fmt.Sprintf("%sThe client certificate PKCS#12 is too large.", errPrefix))
 	}
 
 	creds, err := ejbca.ParseClientP12(ctx, p12, password)
@@ -127,19 +127,19 @@ func parseEJBCAClientP12(ctx context.Context, p12Base64, password, errPrefix str
 		if errors.Is(err, ejbca.ErrP12Password) {
 			field = "password"
 		}
-		return nil, fleet.NewInvalidArgumentError(field, errPrefix+err.Error())
+		return nil, automdm.NewInvalidArgumentError(field, errPrefix+err.Error())
 	}
 	if len(creds.CertPEM) > ejbcaMaxPEMLength {
-		return nil, fleet.NewInvalidArgumentError("client_p12", fmt.Sprintf("%sThe client certificate chain is too large.", errPrefix))
+		return nil, automdm.NewInvalidArgumentError("client_p12", fmt.Sprintf("%sThe client certificate chain is too large.", errPrefix))
 	}
 	return creds, nil
 }
 
 // verifyEJBCA checks that EJBCA accepts the client certificate and knows the CA and certificate profile.
-func (svc *Service) verifyEJBCA(ctx context.Context, ca fleet.EJBCA, errPrefix string) error {
+func (svc *Service) verifyEJBCA(ctx context.Context, ca automdm.EJBCA, errPrefix string) error {
 	if err := svc.ejbcaService.VerifyConnection(ctx, ca); err != nil {
 		svc.logger.InfoContext(ctx, "Failed to verify the EJBCA connection", "err", err)
-		return &fleet.BadRequestError{Message: errPrefix + err.Error()}
+		return &automdm.BadRequestError{Message: errPrefix + err.Error()}
 	}
 	return nil
 }
@@ -147,24 +147,24 @@ func (svc *Service) verifyEJBCA(ctx context.Context, ca fleet.EJBCA, errPrefix s
 // updateEJBCA validates an update against the stored CA and returns the changes to store. Fields the update doesn't set keep their stored
 // values, and the result is validated as a whole. A new client certificate only replaces the stored one after EJBCA accepts it.
 func (svc *Service) updateEJBCA(
-	ctx context.Context, u *fleet.EJBCAUpdatePayload, oldCA *fleet.CertificateAuthority, errPrefix string,
-) (*fleet.CertificateAuthority, error) {
+	ctx context.Context, u *automdm.EJBCAUpdatePayload, oldCA *automdm.CertificateAuthority, errPrefix string,
+) (*automdm.CertificateAuthority, error) {
 	u.Preprocess()
 	// A masked value is what a read returns for a secret, so it means "keep the stored one".
-	if u.ClientP12 != nil && *u.ClientP12 == fleet.MaskedPassword {
+	if u.ClientP12 != nil && *u.ClientP12 == automdm.MaskedPassword {
 		u.ClientP12 = nil
 	}
-	if u.Password != nil && *u.Password == fleet.MaskedPassword {
+	if u.Password != nil && *u.Password == automdm.MaskedPassword {
 		u.Password = nil
 	}
 	if u.IsEmpty() {
-		return nil, &fleet.BadRequestError{Message: fmt.Sprintf("%sEJBCA CA update payload is empty", errPrefix)}
+		return nil, &automdm.BadRequestError{Message: fmt.Sprintf("%sEJBCA CA update payload is empty", errPrefix)}
 	}
 	if u.ClientP12 != nil && u.Password == nil {
-		return nil, fleet.NewInvalidArgumentError("password", fmt.Sprintf("%sThe PKCS#12 password must be set with client_p12.", errPrefix))
+		return nil, automdm.NewInvalidArgumentError("password", fmt.Sprintf("%sThe PKCS#12 password must be set with client_p12.", errPrefix))
 	}
 	if u.ClientP12 == nil && u.Password != nil {
-		return nil, fleet.NewInvalidArgumentError("client_p12", fmt.Sprintf("%sThe password can only be set with client_p12.", errPrefix))
+		return nil, automdm.NewInvalidArgumentError("client_p12", fmt.Sprintf("%sThe password can only be set with client_p12.", errPrefix))
 	}
 
 	merged := oldCA.EJBCA()
@@ -204,11 +204,11 @@ func (svc *Service) updateEJBCA(
 		return nil, err
 	}
 	if len(merged.TrustCABundlePEM) > ejbcaMaxPEMLength {
-		return nil, fleet.NewInvalidArgumentError("trust_ca_bundle", fmt.Sprintf("%sThe trust CA bundle is too large.", errPrefix))
+		return nil, automdm.NewInvalidArgumentError("trust_ca_bundle", fmt.Sprintf("%sThe trust CA bundle is too large.", errPrefix))
 	}
 
-	caToUpdate := &fleet.CertificateAuthority{
-		Type:                          string(fleet.CATypeEJBCA),
+	caToUpdate := &automdm.CertificateAuthority{
+		Type:                          string(automdm.CATypeEJBCA),
 		Name:                          u.Name,
 		URL:                           u.URL,
 		TrustCABundlePEM:              u.TrustCABundle,

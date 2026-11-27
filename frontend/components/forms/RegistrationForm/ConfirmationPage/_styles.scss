@@ -5,7 +5,7 @@
 
   &__help-text {
     @include help-text;
-    color: $ui-fleet-black-75; // Undo grey in help text
+    color: $ui-automdm-black-75; // Undo grey in help text
   }
 
   &__icon {
@@ -77,10 +77,10 @@
     font-weight: $regular;
     line-height: 1.71;
     letter-spacing: 0.5px;
-    color: $core-fleet-black;
+    color: $core-automdm-black;
     margin: 30px 0 0;
 
-    .fleet-checkbox {
+    .automdm-checkbox {
       display: block;
 
       &__label {
@@ -93,7 +93,7 @@
       padding-left: $pad-xxlarge;
     }
 
-    .fleet-checkbox__input {
+    .automdm-checkbox__input {
       position: absolute;
       left: 0;
       top: 0;

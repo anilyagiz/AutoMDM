@@ -21,7 +21,7 @@ import { getPathWithQueryParams } from "utilities/url";
 import {
   FmaPlatformValue,
   FmaStatusValue,
-} from "./SoftwareFleetMaintained/FleetMaintainedAppsTable/FmaFilters/FmaFilters";
+} from "./SoftwareAutoMDMMaintained/AutoMDMMaintainedAppsTable/FmaFilters/FmaFilters";
 
 const baseClass = "software-add-page";
 
@@ -32,8 +32,8 @@ interface IAddSoftwareSubNavItem {
 
 const addSoftwareSubNav: IAddSoftwareSubNavItem[] = [
   {
-    name: "Fleet-maintained",
-    pathname: PATHS.SOFTWARE_ADD_FLEET_MAINTAINED,
+    name: "AutoMDM-maintained",
+    pathname: PATHS.SOFTWARE_ADD_AUTOMDM_MAINTAINED,
   },
   {
     name: "App store",
@@ -53,7 +53,7 @@ const getTabIndex = (path: string): number => {
 };
 
 export interface ISoftwareAddPageQueryParams {
-  fleet_id?: string;
+  team_id?: string;
   query?: string;
   page?: string;
   order_key?: string;
@@ -78,11 +78,11 @@ const SoftwareAddPage = ({
   );
   const { availableTeams } = useContext(AppContext);
   const { isSidePanelOpen, setSidePanelOpen } = useToggleSidePanel(false);
-  // Resolve the fleet name directly from availableTeams instead of via
-  // useTeamIdParam. On Fleet Free, that hook strips any fleet_id from the URL,
-  // but the page guard below immediately re-adds fleet_id=0, which loops.
+  // Resolve the team name directly from availableTeams instead of via
+  // useTeamIdParam. On AutoMDM Free, that hook strips any team_id from the URL,
+  // but the page guard below immediately re-adds team_id=0, which loops.
   const currentTeamName = availableTeams?.find(
-    (t) => t.id === parseInt(location.query.fleet_id ?? "", 10)
+    (t) => t.id === parseInt(location.query.team_id ?? "", 10)
   )?.name;
 
   const navigateToNav = useCallback(
@@ -90,20 +90,20 @@ const SoftwareAddPage = ({
       setSidePanelOpen(false);
       // Only query param to persist between tabs is team id
       const navPath = getPathWithQueryParams(addSoftwareSubNav[i].pathname, {
-        fleet_id: location.query.fleet_id,
+        team_id: location.query.team_id,
       });
       router.replace(navPath);
     },
-    [location.query.fleet_id, router, setSidePanelOpen]
+    [location.query.team_id, router, setSidePanelOpen]
   );
 
-  // Quick exit if no fleet_id param. This page must have a team id to function
+  // Quick exit if no team_id param. This page must have a team id to function
   // correctly. We redirect to the same page with the "No team" context if it
   // is not provieded.
-  if (!location.query.fleet_id) {
+  if (!location.query.team_id) {
     router.replace(
       getPathWithQueryParams(location.pathname, {
-        fleet_id: APP_CONTEXT_NO_TEAM_ID,
+        team_id: APP_CONTEXT_NO_TEAM_ID,
       })
     );
     return null;
@@ -114,7 +114,7 @@ const SoftwareAddPage = ({
   };
 
   const backUrl = getPathWithQueryParams(PATHS.SOFTWARE_LIBRARY, {
-    fleet_id: location.query.fleet_id,
+    team_id: location.query.team_id,
   });
 
   return (
@@ -149,7 +149,7 @@ const SoftwareAddPage = ({
           <div key={location?.pathname} className="tab-nav-routed-content">
             {React.cloneElement(children, {
               router,
-              currentTeamId: parseInt(location.query.fleet_id, 10),
+              currentTeamId: parseInt(location.query.team_id, 10),
               currentTeamName,
               isSidePanelOpen,
               setSidePanelOpen,

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/io"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/io"
 	"github.com/stretchr/testify/require"
 )
 
@@ -73,7 +73,7 @@ func (fs fsMock) Delete(d io.MetadataFileName) error {
 func TestSyncBulletin(t *testing.T) {
 	ctx := t.Context()
 
-	remote := newMetadataFile(t, "fleet_winoffice_bulletin-2023_10_10.json")
+	remote := newMetadataFile(t, "automdm_winoffice_bulletin-2023_10_10.json")
 
 	t.Run("on GH error", func(t *testing.T) {
 		td := testData{
@@ -102,7 +102,7 @@ func TestSyncBulletin(t *testing.T) {
 		td := testData{
 			RemoteList: map[io.MetadataFileName]string{remote: "http://someurl.com"},
 			LocalList: []io.MetadataFileName{
-				newMetadataFile(t, "fleet_winoffice_bulletin-2020_10_10.json"),
+				newMetadataFile(t, "automdm_winoffice_bulletin-2020_10_10.json"),
 			},
 			RemoteDownloadError: errors.New("some error"),
 		}
@@ -125,7 +125,7 @@ func TestSyncBulletin(t *testing.T) {
 		td := testData{
 			RemoteList: map[io.MetadataFileName]string{{}: "http://someurl.com"},
 			LocalList: []io.MetadataFileName{
-				newMetadataFile(t, "fleet_winoffice_bulletin-2024_09_10.json"),
+				newMetadataFile(t, "automdm_winoffice_bulletin-2024_09_10.json"),
 			},
 		}
 
@@ -138,8 +138,8 @@ func TestSyncBulletin(t *testing.T) {
 
 	t.Run("removes multiple out of date copies", func(t *testing.T) {
 		local := []io.MetadataFileName{
-			newMetadataFile(t, "fleet_winoffice_bulletin-2022_09_10.json"),
-			newMetadataFile(t, "fleet_winoffice_bulletin-2022_08_10.json"),
+			newMetadataFile(t, "automdm_winoffice_bulletin-2022_09_10.json"),
+			newMetadataFile(t, "automdm_winoffice_bulletin-2022_08_10.json"),
 		}
 
 		td := testData{
@@ -156,8 +156,8 @@ func TestSyncBulletin(t *testing.T) {
 
 	t.Run("on error when deleting", func(t *testing.T) {
 		local := []io.MetadataFileName{
-			newMetadataFile(t, "fleet_winoffice_bulletin-2022_09_10.json"),
-			newMetadataFile(t, "fleet_winoffice_bulletin-2022_08_10.json"),
+			newMetadataFile(t, "automdm_winoffice_bulletin-2022_09_10.json"),
+			newMetadataFile(t, "automdm_winoffice_bulletin-2022_08_10.json"),
 		}
 
 		td := testData{
@@ -171,7 +171,7 @@ func TestSyncBulletin(t *testing.T) {
 	})
 
 	t.Run("when local copy is out of date", func(t *testing.T) {
-		local := newMetadataFile(t, "fleet_winoffice_bulletin-2022_09_10.json")
+		local := newMetadataFile(t, "automdm_winoffice_bulletin-2022_09_10.json")
 
 		td := testData{
 			RemoteList: map[io.MetadataFileName]string{remote: "http://someurl.com"},
@@ -187,8 +187,8 @@ func TestSyncBulletin(t *testing.T) {
 
 	t.Run("when local copy is not out of date", func(t *testing.T) {
 		local := []io.MetadataFileName{
-			newMetadataFile(t, "fleet_winoffice_bulletin-2023_11_10.json"),
-			newMetadataFile(t, "fleet_winoffice_bulletin-2023_01_10.json"),
+			newMetadataFile(t, "automdm_winoffice_bulletin-2023_11_10.json"),
+			newMetadataFile(t, "automdm_winoffice_bulletin-2023_01_10.json"),
 		}
 
 		td := testData{

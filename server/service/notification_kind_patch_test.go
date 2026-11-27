@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
-	activity_api "github.com/fleetdm/fleet/v4/server/activity/api"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	notifications_api "github.com/fleetdm/fleet/v4/server/notifications/api"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	activity_api "github.com/anilyagiz/automdm/v4/server/activity/api"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	notifications_api "github.com/anilyagiz/automdm/v4/server/notifications/api"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/stretchr/testify/require"
 )
 
@@ -24,7 +24,7 @@ type capturingActivityWriter struct {
 	activity activity_api.ActivityDetails
 }
 
-func (w *capturingActivityWriter) NewActivity(_ context.Context, _ *fleet.User, activity activity_api.ActivityDetails) error {
+func (w *capturingActivityWriter) NewActivity(_ context.Context, _ *automdm.User, activity activity_api.ActivityDetails) error {
 	w.invoked = true
 	w.activity = activity
 	return nil
@@ -79,7 +79,7 @@ func TestCreatePatchNotificationForEndUser(t *testing.T) {
 		// already lists this app and has not queued its installs
 		exists bool
 		// ListLastTitleInstallDataForHosts: another install for this app's title, which is what a stale skip from a policy re-fire finds
-		otherInstall *fleet.HostLastInstallData
+		otherInstall *automdm.HostLastInstallData
 		// NotificationAwaitingDisplay: this host has a notification the end user
 		// has not seen yet
 		awaiting            bool
@@ -118,20 +118,20 @@ func TestCreatePatchNotificationForEndUser(t *testing.T) {
 		},
 		{
 			name:         "an app that already has an install queued is not notified about again",
-			otherInstall: &fleet.HostLastInstallData{Status: new(fleet.SoftwareInstallPending)},
+			otherInstall: &automdm.HostLastInstallData{Status: new(automdm.SoftwareInstallPending)},
 			wantAppOn:    "",
 		},
 		{
 			// the queued install runs the app open query, so it skips too and patches nothing
 			name:         "an app whose queued install would skip while it is open is still notified about",
-			otherInstall: &fleet.HostLastInstallData{Status: new(fleet.SoftwareInstallPending), OverridePreInstallQuery: true},
+			otherInstall: &automdm.HostLastInstallData{Status: new(automdm.SoftwareInstallPending), OverridePreInstallQuery: true},
 			wantCreated:  true,
 			wantAppOn:    createdUUID,
 		},
 		{
 			// the notification that queued that install is acted, so it no longer lists the app
 			name:         "an app whose last install failed gets a new notification",
-			otherInstall: &fleet.HostLastInstallData{Status: new(fleet.SoftwareInstallFailed)},
+			otherInstall: &automdm.HostLastInstallData{Status: new(automdm.SoftwareInstallFailed)},
 			wantCreated:  true,
 			wantAppOn:    createdUUID,
 		},
@@ -160,11 +160,11 @@ func TestCreatePatchNotificationForEndUser(t *testing.T) {
 			ds.PatchNotificationExistsForAppFunc = func(_ context.Context, _ uint, _ uint) (bool, error) {
 				return c.exists, nil
 			}
-			ds.ListLastTitleInstallDataForHostsFunc = func(_ context.Context, _ []uint, _ []uint) (map[fleet.HostSoftwareTitleKey][]*fleet.HostLastInstallData, error) {
+			ds.ListLastTitleInstallDataForHostsFunc = func(_ context.Context, _ []uint, _ []uint) (map[automdm.HostSoftwareTitleKey][]*automdm.HostLastInstallData, error) {
 				if c.otherInstall == nil {
 					return nil, nil
 				}
-				return map[fleet.HostSoftwareTitleKey][]*fleet.HostLastInstallData{
+				return map[automdm.HostSoftwareTitleKey][]*automdm.HostLastInstallData{
 					{HostID: hostID, SoftwareTitleID: titleID}: {c.otherInstall},
 				}, nil
 			}
@@ -174,15 +174,15 @@ func TestCreatePatchNotificationForEndUser(t *testing.T) {
 				}
 				return &notifications_api.EndUserNotification{UUID: awaitingUUID, Payload: patchNotificationFirstNoticePayload}, nil
 			}
-			ds.GetPatchNotificationFunc = func(_ context.Context, _ string) (*fleet.PatchNotification, error) {
+			ds.GetPatchNotificationFunc = func(_ context.Context, _ string) (*automdm.PatchNotification, error) {
 				if !c.awaitingRemindsNext {
 					return nil, nil
 				}
-				return &fleet.PatchNotification{InstallAt: new(time.Now().UTC().Add(2 * time.Minute))}, nil
+				return &automdm.PatchNotification{InstallAt: new(time.Now().UTC().Add(2 * time.Minute))}, nil
 			}
 			notificationsSvc.CreateNotificationFunc = func(_ context.Context, notification *notifications_api.EndUserNotification) (*notifications_api.EndUserNotification, error) {
 				require.Equal(t, hostID, notification.HostID)
-				require.Equal(t, fleet.PatchNotificationKind, notification.Kind)
+				require.Equal(t, automdm.PatchNotificationKind, notification.Kind)
 				require.JSONEq(t, `{"reminder":false}`, string(notification.Payload))
 				require.NotNil(t, notification.ExpiresAt, "a notification with no expiry never gives up")
 				return &notifications_api.EndUserNotification{UUID: createdUUID}, nil
@@ -195,15 +195,15 @@ func TestCreatePatchNotificationForEndUser(t *testing.T) {
 			}
 
 			var addedTo string
-			var addedApp fleet.PatchNotificationApp
-			ds.AddPatchNotificationAppFunc = func(_ context.Context, notificationUUID string, app fleet.PatchNotificationApp) error {
+			var addedApp automdm.PatchNotificationApp
+			ds.AddPatchNotificationAppFunc = func(_ context.Context, notificationUUID string, app automdm.PatchNotificationApp) error {
 				addedTo = notificationUUID
 				addedApp = app
 				return nil
 			}
 
 			// the install orbit skipped because the app was open
-			install := &fleet.HostSoftwareInstallerResult{
+			install := &automdm.HostSoftwareInstallerResult{
 				InstallUUID:         "install-uuid",
 				SoftwareTitleID:     new(titleID),
 				SoftwareInstallerID: new(installerID),
@@ -213,7 +213,7 @@ func TestCreatePatchNotificationForEndUser(t *testing.T) {
 				install.SoftwareTitleID = nil
 			}
 
-			err := svc.createPatchNotificationForEndUser(context.Background(), &fleet.Host{ID: hostID}, install)
+			err := svc.createPatchNotificationForEndUser(context.Background(), &automdm.Host{ID: hostID}, install)
 			if c.wantErr {
 				require.Error(t, err)
 			} else {
@@ -235,44 +235,44 @@ func TestCreatePatchNotificationForEndUser(t *testing.T) {
 	}
 }
 
-func TestCreatePatchNotificationForSkipFromAnotherFleet(t *testing.T) {
+func TestCreatePatchNotificationForSkipFromAnotherTeam(t *testing.T) {
 	const (
-		hostID       = uint(1)
-		titleID      = uint(10)
-		hostFleetID  = uint(5)
-		otherFleetID = uint(6)
+		hostID         = uint(1)
+		titleID        = uint(10)
+		hostAutoMDMID  = uint(5)
+		otherAutoMDMID = uint(6)
 	)
-	newSkip := func(readFleetID, installerFleetID *uint, deadline bool) *fleet.HostSoftwareInstallerResult {
-		skip := &fleet.HostSoftwareInstallerResult{
+	newSkip := func(readTeamID, installerTeamID *uint, deadline bool) *automdm.HostSoftwareInstallerResult {
+		skip := &automdm.HostSoftwareInstallerResult{
 			InstallUUID:             "install-uuid",
 			SoftwareTitleID:         new(titleID),
-			HostTeamID:              readFleetID,
-			InstallerGlobalOrTeamID: installerFleetID,
+			HostTeamID:              readTeamID,
+			InstallerGlobalOrTeamID: installerTeamID,
 			PolicyID:                new(uint(30)),
 			PatchDeadline:           deadline,
 		}
-		if installerFleetID != nil {
+		if installerTeamID != nil {
 			skip.SoftwareInstallerID = new(uint(20))
 		}
 		return skip
 	}
 
 	cases := []struct {
-		name               string
-		hostFleetID        *uint
-		installerTeam      *uint
-		authedHostFleetID  *uint
-		wantPastFleetGuard bool
+		name                 string
+		hostAutoMDMID        *uint
+		installerTeam        *uint
+		authedHostTeamID     *uint
+		wantPastAutoMDMGuard bool
 	}{
-		{"an installer of the fleet the host left", new(hostFleetID), new(otherFleetID), new(hostFleetID), false},
-		{"an installer of a fleet, the host moved to no fleet", nil, new(otherFleetID), nil, false},
-		{"an installer of no fleet, the host moved to a fleet", new(hostFleetID), new(uint(0)), new(hostFleetID), false},
-		{"an installer of the host's fleet", new(hostFleetID), new(hostFleetID), new(hostFleetID), true},
-		{"an installer of no fleet on a host in no fleet", nil, new(uint(0)), nil, true},
-		{"a deleted installer has no fleet to compare", new(hostFleetID), nil, new(hostFleetID), true},
+		{"an installer of the team the host left", new(hostAutoMDMID), new(otherAutoMDMID), new(hostAutoMDMID), false},
+		{"an installer of a team, the host moved to no team", nil, new(otherAutoMDMID), nil, false},
+		{"an installer of no team, the host moved to a team", new(hostAutoMDMID), new(uint(0)), new(hostAutoMDMID), false},
+		{"an installer of the host's team", new(hostAutoMDMID), new(hostAutoMDMID), new(hostAutoMDMID), true},
+		{"an installer of no team on a host in no team", nil, new(uint(0)), nil, true},
+		{"a deleted installer has no team to compare", new(hostAutoMDMID), nil, new(hostAutoMDMID), true},
 		// orbit authenticates from a replica or the host cache, which can lag the transfer
-		{"an installer of the fleet the host left, authenticated as still in it", new(hostFleetID), new(otherFleetID), new(otherFleetID), false},
-		{"an installer of the host's new fleet, authenticated as still in the old one", new(hostFleetID), new(hostFleetID), new(otherFleetID), true},
+		{"an installer of the team the host left, authenticated as still in it", new(hostAutoMDMID), new(otherAutoMDMID), new(otherAutoMDMID), false},
+		{"an installer of the host's new team, authenticated as still in the old one", new(hostAutoMDMID), new(hostAutoMDMID), new(otherAutoMDMID), true},
 	}
 	for _, c := range cases {
 		for _, deadline := range []bool{false, true} {
@@ -281,20 +281,20 @@ func TestCreatePatchNotificationForSkipFromAnotherFleet(t *testing.T) {
 				notificationsSvc := &mock.MockNotificationsService{}
 				svc := &Service{ds: ds, notificationsSvc: notificationsSvc, logger: slog.New(slog.DiscardHandler)}
 
-				ds.GetPatchDeadlineSettingsFunc = func(_ context.Context, teamID uint) (*fleet.PatchDeadlineSettings, error) {
-					require.Equal(t, ptr.ValOrZero(c.hostFleetID), teamID)
-					return &fleet.PatchDeadlineSettings{Days: []string{"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"}, Time: "17:00"}, nil
+				ds.GetPatchDeadlineSettingsFunc = func(_ context.Context, teamID uint) (*automdm.PatchDeadlineSettings, error) {
+					require.Equal(t, ptr.ValOrZero(c.hostAutoMDMID), teamID)
+					return &automdm.PatchDeadlineSettings{Days: []string{"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"}, Time: "17:00"}, nil
 				}
 				notificationsSvc.RescheduleNotificationsAwaitingDispatchFunc = func(context.Context, uint, string, time.Time, time.Time) error {
 					return nil
 				}
 				ds.PatchNotificationExistsForAppFunc = func(context.Context, uint, uint) (bool, error) { return true, nil }
 
-				host := &fleet.Host{ID: hostID, TeamID: c.authedHostFleetID, TimeZone: new("UTC")}
-				require.NoError(t, svc.createPatchNotificationForEndUser(t.Context(), host, newSkip(c.hostFleetID, c.installerTeam, deadline)))
+				host := &automdm.Host{ID: hostID, TeamID: c.authedHostTeamID, TimeZone: new("UTC")}
+				require.NoError(t, svc.createPatchNotificationForEndUser(t.Context(), host, newSkip(c.hostAutoMDMID, c.installerTeam, deadline)))
 
-				require.Equal(t, c.wantPastFleetGuard, ds.PatchNotificationExistsForAppFuncInvoked)
-				require.Equal(t, c.wantPastFleetGuard && deadline, notificationsSvc.RescheduleNotificationsAwaitingDispatchFuncInvoked)
+				require.Equal(t, c.wantPastAutoMDMGuard, ds.PatchNotificationExistsForAppFuncInvoked)
+				require.Equal(t, c.wantPastAutoMDMGuard && deadline, notificationsSvc.RescheduleNotificationsAwaitingDispatchFuncInvoked)
 				require.False(t, notificationsSvc.CreateNotificationFuncInvoked)
 				require.False(t, ds.AddPatchNotificationAppFuncInvoked)
 			})
@@ -320,7 +320,7 @@ func TestPatchNotificationUpdateNow(t *testing.T) {
 		// GetHostLastInstallData: the app is already on the host's queue, which is
 		// what a second press of Update now finds
 		alreadyPending bool
-		// ListLastTitleInstallDataForHosts: when Fleet last installed this app, nil when it never did
+		// ListLastTitleInstallDataForHosts: when AutoMDM last installed this app, nil when it never did
 		lastInstalledAt *time.Time
 		noInstaller     bool
 		installFails    bool
@@ -404,34 +404,34 @@ func TestPatchNotificationUpdateNow(t *testing.T) {
 			kind := &patchNotificationKind{
 				ds: ds, notificationSvc: notificationSvc, logger: slog.New(slog.DiscardHandler),
 			}
-			ds.ListLastTitleInstallDataForHostsFunc = func(_ context.Context, _ []uint, titleIDs []uint) (map[fleet.HostSoftwareTitleKey][]*fleet.HostLastInstallData, error) {
-				var lastInstall *fleet.HostLastInstallData
+			ds.ListLastTitleInstallDataForHostsFunc = func(_ context.Context, _ []uint, titleIDs []uint) (map[automdm.HostSoftwareTitleKey][]*automdm.HostLastInstallData, error) {
+				var lastInstall *automdm.HostLastInstallData
 				switch {
 				case c.alreadyPending:
-					lastInstall = &fleet.HostLastInstallData{Status: new(fleet.SoftwareInstallPending)}
+					lastInstall = &automdm.HostLastInstallData{Status: new(automdm.SoftwareInstallPending)}
 				case c.lastInstalledAt != nil:
-					lastInstall = &fleet.HostLastInstallData{Status: new(fleet.SoftwareInstalled), UpdatedAt: *c.lastInstalledAt}
+					lastInstall = &automdm.HostLastInstallData{Status: new(automdm.SoftwareInstalled), UpdatedAt: *c.lastInstalledAt}
 				default:
 					return nil, nil
 				}
-				byTitle := make(map[fleet.HostSoftwareTitleKey][]*fleet.HostLastInstallData, len(titleIDs))
+				byTitle := make(map[automdm.HostSoftwareTitleKey][]*automdm.HostLastInstallData, len(titleIDs))
 				for _, id := range titleIDs {
-					byTitle[fleet.HostSoftwareTitleKey{HostID: hostID, SoftwareTitleID: id}] =
-						[]*fleet.HostLastInstallData{lastInstall}
+					byTitle[automdm.HostSoftwareTitleKey{HostID: hostID, SoftwareTitleID: id}] =
+						[]*automdm.HostLastInstallData{lastInstall}
 				}
 				return byTitle, nil
 			}
 			// the view update now returns reports the app's own install, which is already
-			// installed when Fleet found a newer install than the app's row
-			ds.ListPatchNotificationAppInstallStatusesFunc = func(_ context.Context, _ string) (map[uint]fleet.SoftwareInstallerStatus, error) {
+			// installed when AutoMDM found a newer install than the app's row
+			ds.ListPatchNotificationAppInstallStatusesFunc = func(_ context.Context, _ string) (map[uint]automdm.SoftwareInstallerStatus, error) {
 				if c.lastInstalledAt == nil || !c.lastInstalledAt.After(appJoinedAt) {
 					return nil, nil
 				}
-				return map[uint]fleet.SoftwareInstallerStatus{titleID: fleet.SoftwareInstalled}, nil
+				return map[uint]automdm.SoftwareInstallerStatus{titleID: automdm.SoftwareInstalled}, nil
 			}
 			ds.SetPatchNotificationAppsQueuedFunc = func(_ context.Context, _ string, _ []uint) error { return nil }
-			ds.ListPatchNotificationAppsFunc = func(_ context.Context, _ string) ([]fleet.PatchNotificationAppDetail, error) {
-				app := fleet.PatchNotificationAppDetail{
+			ds.ListPatchNotificationAppsFunc = func(_ context.Context, _ string) ([]automdm.PatchNotificationAppDetail, error) {
+				app := automdm.PatchNotificationAppDetail{
 					SoftwareTitleID:     titleID,
 					SoftwareInstallerID: new(installerID),
 					PolicyID:            new(policyID),
@@ -440,11 +440,11 @@ func TestPatchNotificationUpdateNow(t *testing.T) {
 				if c.noInstaller {
 					app.SoftwareInstallerID = nil
 				}
-				return []fleet.PatchNotificationAppDetail{app}, nil
+				return []automdm.PatchNotificationAppDetail{app}, nil
 			}
 
-			var installs []fleet.HostSoftwareInstallOptions
-			ds.InsertSoftwareInstallRequestFunc = func(_ context.Context, gotHostID uint, gotInstallerID uint, opts fleet.HostSoftwareInstallOptions) (string, error) {
+			var installs []automdm.HostSoftwareInstallOptions
+			ds.InsertSoftwareInstallRequestFunc = func(_ context.Context, gotHostID uint, gotInstallerID uint, opts automdm.HostSoftwareInstallOptions) (string, error) {
 				require.Equal(t, hostID, gotHostID)
 				require.Equal(t, installerID, gotInstallerID)
 				if c.installFails {
@@ -455,11 +455,11 @@ func TestPatchNotificationUpdateNow(t *testing.T) {
 			}
 
 			// the view update now returns is built without reading anything back
-			ds.AppConfigFunc = func(_ context.Context) (*fleet.AppConfig, error) { return &fleet.AppConfig{}, nil }
+			ds.AppConfigFunc = func(_ context.Context) (*automdm.AppConfig, error) { return &automdm.AppConfig{}, nil }
 			ds.GetDeviceAuthTokenIfFreshFunc = func(_ context.Context, _ uint, _ time.Duration) (string, error) {
 				return "device-token", nil
 			}
-			ds.GetPatchNotificationFunc = func(_ context.Context, _ string) (*fleet.PatchNotification, error) {
+			ds.GetPatchNotificationFunc = func(_ context.Context, _ string) (*automdm.PatchNotification, error) {
 				return nil, nil
 			}
 			// the end user pressed Update now on this notification
@@ -519,12 +519,12 @@ func TestPatchNotificationUpdateNowResumesAfterFailure(t *testing.T) {
 		ds: ds, notificationSvc: notificationSvc, logger: slog.New(slog.DiscardHandler),
 	}
 
-	ds.ListPatchNotificationAppInstallStatusesFunc = func(_ context.Context, _ string) (map[uint]fleet.SoftwareInstallerStatus, error) {
+	ds.ListPatchNotificationAppInstallStatusesFunc = func(_ context.Context, _ string) (map[uint]automdm.SoftwareInstallerStatus, error) {
 		return nil, nil
 	}
 	queued := map[uint]struct{}{}
-	ds.ListPatchNotificationAppsFunc = func(_ context.Context, _ string) ([]fleet.PatchNotificationAppDetail, error) {
-		apps := []fleet.PatchNotificationAppDetail{
+	ds.ListPatchNotificationAppsFunc = func(_ context.Context, _ string) ([]automdm.PatchNotificationAppDetail, error) {
+		apps := []automdm.PatchNotificationAppDetail{
 			{SoftwareTitleID: firstTitleID, SoftwareInstallerID: new(firstInstaller)},
 			{SoftwareTitleID: secondTitleID, SoftwareInstallerID: new(secondInstaller)},
 		}
@@ -544,18 +544,18 @@ func TestPatchNotificationUpdateNowResumesAfterFailure(t *testing.T) {
 
 	// the first app's install finishes between the two presses, so it is no
 	// longer pending by the time the second press runs
-	ds.ListLastTitleInstallDataForHostsFunc = func(_ context.Context, hostIDs []uint, _ []uint) (map[fleet.HostSoftwareTitleKey][]*fleet.HostLastInstallData, error) {
+	ds.ListLastTitleInstallDataForHostsFunc = func(_ context.Context, hostIDs []uint, _ []uint) (map[automdm.HostSoftwareTitleKey][]*automdm.HostLastInstallData, error) {
 		if _, firstAppQueued := queued[firstTitleID]; !firstAppQueued {
 			return nil, nil
 		}
-		return map[fleet.HostSoftwareTitleKey][]*fleet.HostLastInstallData{
-			{HostID: hostIDs[0], SoftwareTitleID: firstTitleID}: {{Status: new(fleet.SoftwareInstalled)}},
+		return map[automdm.HostSoftwareTitleKey][]*automdm.HostLastInstallData{
+			{HostID: hostIDs[0], SoftwareTitleID: firstTitleID}: {{Status: new(automdm.SoftwareInstalled)}},
 		}, nil
 	}
 
 	var installed []uint
 	secondInstallerFails := true
-	ds.InsertSoftwareInstallRequestFunc = func(_ context.Context, _ uint, installerID uint, _ fleet.HostSoftwareInstallOptions) (string, error) {
+	ds.InsertSoftwareInstallRequestFunc = func(_ context.Context, _ uint, installerID uint, _ automdm.HostSoftwareInstallOptions) (string, error) {
 		if installerID == secondInstaller && secondInstallerFails {
 			return "", errors.New("insert failed")
 		}
@@ -563,11 +563,11 @@ func TestPatchNotificationUpdateNowResumesAfterFailure(t *testing.T) {
 		return "", nil
 	}
 
-	ds.AppConfigFunc = func(_ context.Context) (*fleet.AppConfig, error) { return &fleet.AppConfig{}, nil }
+	ds.AppConfigFunc = func(_ context.Context) (*automdm.AppConfig, error) { return &automdm.AppConfig{}, nil }
 	ds.GetDeviceAuthTokenIfFreshFunc = func(_ context.Context, _ uint, _ time.Duration) (string, error) {
 		return "device-token", nil
 	}
-	ds.GetPatchNotificationFunc = func(_ context.Context, _ string) (*fleet.PatchNotification, error) {
+	ds.GetPatchNotificationFunc = func(_ context.Context, _ string) (*automdm.PatchNotification, error) {
 		return nil, nil
 	}
 	notification := &notifications_api.EndUserNotification{
@@ -606,7 +606,7 @@ func TestPatchNotificationRenderInstallStatuses(t *testing.T) {
 		// the notification's status, which is what says the end user pressed Update now
 		notificationStatus string
 		// the status the datastore reports for the app's install, nil when it has none to report
-		installStatus *fleet.SoftwareInstallerStatus
+		installStatus *automdm.SoftwareInstallerStatus
 		// software_installers row is gone, so the app can never be queued
 		noInstaller bool
 		// the app's policy changed patch option, so Update now skipped it
@@ -624,12 +624,12 @@ func TestPatchNotificationRenderInstallStatuses(t *testing.T) {
 		{
 			name:               "an app whose install is still queued shows updating",
 			notificationStatus: notifications_api.EndUserNotificationActed,
-			installStatus:      new(fleet.SoftwareInstallPending),
+			installStatus:      new(automdm.SoftwareInstallPending),
 			wantStatus:         "Updating...",
 			wantInstallStatus:  "pending_install",
 		},
 		{
-			name:               "an app Fleet has no install record for yet shows updating",
+			name:               "an app AutoMDM has no install record for yet shows updating",
 			notificationStatus: notifications_api.EndUserNotificationActed,
 			wantStatus:         "Updating...",
 			wantInstallStatus:  "pending_install",
@@ -637,28 +637,28 @@ func TestPatchNotificationRenderInstallStatuses(t *testing.T) {
 		{
 			name:               "an app whose install finished shows updated",
 			notificationStatus: notifications_api.EndUserNotificationActed,
-			installStatus:      new(fleet.SoftwareInstalled),
+			installStatus:      new(automdm.SoftwareInstalled),
 			wantStatus:         "Updated",
 			wantInstallStatus:  "installed",
 		},
 		{
 			name:               "an app whose install failed shows failed",
 			notificationStatus: notifications_api.EndUserNotificationActed,
-			installStatus:      new(fleet.SoftwareInstallFailed),
+			installStatus:      new(automdm.SoftwareInstallFailed),
 			wantStatus:         "Failed",
 			wantInstallStatus:  "failed_install",
 		},
 		{
 			name:               "an app whose install was cancelled shows no status",
 			notificationStatus: notifications_api.EndUserNotificationActed,
-			installStatus:      new(fleet.SoftwareInstallerStatus("canceled_install")),
+			installStatus:      new(automdm.SoftwareInstallerStatus("canceled_install")),
 			wantStatus:         "",
 			wantInstallStatus:  "",
 		},
 		{
 			name:               "an app whose install reports a status other than installed or failed shows updating",
 			notificationStatus: notifications_api.EndUserNotificationActed,
-			installStatus:      new(fleet.SoftwareInstallerStatus("pending_uninstall")),
+			installStatus:      new(automdm.SoftwareInstallerStatus("pending_uninstall")),
 			wantStatus:         "Updating...",
 			wantInstallStatus:  "pending_install",
 		},
@@ -684,8 +684,8 @@ func TestPatchNotificationRenderInstallStatuses(t *testing.T) {
 			kind := &patchNotificationKind{
 				ds: ds, notificationSvc: &stubNotificationService{acts: true}, logger: slog.New(slog.DiscardHandler),
 			}
-			ds.ListPatchNotificationAppsFunc = func(_ context.Context, _ string) ([]fleet.PatchNotificationAppDetail, error) {
-				app := fleet.PatchNotificationAppDetail{
+			ds.ListPatchNotificationAppsFunc = func(_ context.Context, _ string) ([]automdm.PatchNotificationAppDetail, error) {
+				app := automdm.PatchNotificationAppDetail{
 					SoftwareTitleID:     titleID,
 					SoftwareInstallerID: new(uint(20)),
 					Name:                "1Password",
@@ -695,19 +695,19 @@ func TestPatchNotificationRenderInstallStatuses(t *testing.T) {
 				if c.noInstaller {
 					app.SoftwareInstallerID = nil
 				}
-				return []fleet.PatchNotificationAppDetail{app}, nil
+				return []automdm.PatchNotificationAppDetail{app}, nil
 			}
-			ds.ListPatchNotificationAppInstallStatusesFunc = func(_ context.Context, _ string) (map[uint]fleet.SoftwareInstallerStatus, error) {
+			ds.ListPatchNotificationAppInstallStatusesFunc = func(_ context.Context, _ string) (map[uint]automdm.SoftwareInstallerStatus, error) {
 				if c.installStatus == nil {
 					return nil, nil
 				}
-				return map[uint]fleet.SoftwareInstallerStatus{titleID: *c.installStatus}, nil
+				return map[uint]automdm.SoftwareInstallerStatus{titleID: *c.installStatus}, nil
 			}
-			ds.AppConfigFunc = func(_ context.Context) (*fleet.AppConfig, error) { return &fleet.AppConfig{}, nil }
+			ds.AppConfigFunc = func(_ context.Context) (*automdm.AppConfig, error) { return &automdm.AppConfig{}, nil }
 			ds.GetDeviceAuthTokenIfFreshFunc = func(_ context.Context, _ uint, _ time.Duration) (string, error) {
 				return "device-token", nil
 			}
-			ds.GetPatchNotificationFunc = func(_ context.Context, _ string) (*fleet.PatchNotification, error) {
+			ds.GetPatchNotificationFunc = func(_ context.Context, _ string) (*automdm.PatchNotification, error) {
 				return nil, nil
 			}
 			view, err := kind.Render(context.Background(), &notifications_api.EndUserNotification{
@@ -728,23 +728,23 @@ func TestPatchNotificationRenderUpdatedInInventory(t *testing.T) {
 	kind := &patchNotificationKind{
 		ds: ds, notificationSvc: &stubNotificationService{acts: true}, logger: slog.New(slog.DiscardHandler),
 	}
-	ds.ListPatchNotificationAppsFunc = func(_ context.Context, _ string) ([]fleet.PatchNotificationAppDetail, error) {
-		return []fleet.PatchNotificationAppDetail{{
+	ds.ListPatchNotificationAppsFunc = func(_ context.Context, _ string) ([]automdm.PatchNotificationAppDetail, error) {
+		return []automdm.PatchNotificationAppDetail{{
 			SoftwareTitleID: 10, SoftwareInstallerID: new(uint(20)), Name: "1Password", UpdatedInInventory: true,
 		}}, nil
 	}
-	ds.ListPatchNotificationAppInstallStatusesFunc = func(_ context.Context, _ string) (map[uint]fleet.SoftwareInstallerStatus, error) {
+	ds.ListPatchNotificationAppInstallStatusesFunc = func(_ context.Context, _ string) (map[uint]automdm.SoftwareInstallerStatus, error) {
 		return nil, nil
 	}
-	ds.AppConfigFunc = func(_ context.Context) (*fleet.AppConfig, error) { return &fleet.AppConfig{}, nil }
+	ds.AppConfigFunc = func(_ context.Context) (*automdm.AppConfig, error) { return &automdm.AppConfig{}, nil }
 	ds.GetDeviceAuthTokenIfFreshFunc = func(_ context.Context, _ uint, _ time.Duration) (string, error) {
 		return "device-token", nil
 	}
-	ds.GetPatchNotificationFunc = func(_ context.Context, _ string) (*fleet.PatchNotification, error) {
+	ds.GetPatchNotificationFunc = func(_ context.Context, _ string) (*automdm.PatchNotification, error) {
 		return nil, nil
 	}
 
-	// render an acted notification whose app the deadline found updated in inventory with no Fleet install, the app should show updated
+	// render an acted notification whose app the deadline found updated in inventory with no AutoMDM install, the app should show updated
 	view, err := kind.Render(t.Context(), &notifications_api.EndUserNotification{
 		UUID: "notification-uuid", HostID: 1,
 		Status:  notifications_api.EndUserNotificationActed,
@@ -763,7 +763,7 @@ func TestPatchNotificationRenderWithNoApps(t *testing.T) {
 	kind := &patchNotificationKind{
 		ds: ds, notificationSvc: notificationSvc, logger: slog.New(slog.DiscardHandler),
 	}
-	ds.ListPatchNotificationAppsFunc = func(_ context.Context, _ string) ([]fleet.PatchNotificationAppDetail, error) {
+	ds.ListPatchNotificationAppsFunc = func(_ context.Context, _ string) ([]automdm.PatchNotificationAppDetail, error) {
 		return nil, nil
 	}
 
@@ -793,7 +793,7 @@ func TestShouldNotificationBeReminder(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got := shouldNotificationBeReminder(&fleet.PatchNotification{InstallAt: c.installAt}, now)
+			got := shouldNotificationBeReminder(&automdm.PatchNotification{InstallAt: c.installAt}, now)
 			require.Equal(t, c.want, got)
 		})
 	}
@@ -806,7 +806,7 @@ func TestShouldNotificationBeReminder(t *testing.T) {
 func TestPatchNotificationOnOutcome(t *testing.T) {
 	const hostID = uint(1)
 
-	twoAppsTwoPolicies := []fleet.PatchNotificationAppDetail{
+	twoAppsTwoPolicies := []automdm.PatchNotificationAppDetail{
 		{SoftwareTitleID: 10, Name: "AppOne", PolicyID: new(uint(30))},
 		{SoftwareTitleID: 11, Name: "AppTwo", PolicyID: new(uint(31))},
 	}
@@ -819,13 +819,13 @@ func TestPatchNotificationOnOutcome(t *testing.T) {
 		lastExitCode *int64
 
 		outcome notifications_api.NotificationOutcome
-		apps    []fleet.PatchNotificationAppDetail
+		apps    []automdm.PatchNotificationAppDetail
 
 		wantNoActivity bool
 		wantStatus     string
 		wantTimeBefore int
 		wantTitles     []string
-		wantSoftware   []fleet.NotifySoftwareTitle
+		wantSoftware   []automdm.NotifySoftwareTitle
 		wantPolicyIDs  []uint
 	}{
 		{
@@ -835,7 +835,7 @@ func TestPatchNotificationOnOutcome(t *testing.T) {
 			wantStatus:     "success",
 			wantTimeBefore: 3600,
 			wantTitles:     []string{"AppOne", "AppTwo"},
-			wantSoftware: []fleet.NotifySoftwareTitle{
+			wantSoftware: []automdm.NotifySoftwareTitle{
 				{Title: "AppOne", TitleID: 10},
 				{Title: "AppTwo", TitleID: 11},
 			},
@@ -849,7 +849,7 @@ func TestPatchNotificationOnOutcome(t *testing.T) {
 			wantStatus:     "success",
 			wantTimeBefore: 300,
 			wantTitles:     []string{"AppOne", "AppTwo"},
-			wantSoftware: []fleet.NotifySoftwareTitle{
+			wantSoftware: []automdm.NotifySoftwareTitle{
 				{Title: "AppOne", TitleID: 10},
 				{Title: "AppTwo", TitleID: 11},
 			},
@@ -862,7 +862,7 @@ func TestPatchNotificationOnOutcome(t *testing.T) {
 			wantStatus:     "failed",
 			wantTimeBefore: 3600,
 			wantTitles:     []string{"AppOne", "AppTwo"},
-			wantSoftware: []fleet.NotifySoftwareTitle{
+			wantSoftware: []automdm.NotifySoftwareTitle{
 				{Title: "AppOne", TitleID: 10},
 				{Title: "AppTwo", TitleID: 11},
 			},
@@ -883,7 +883,7 @@ func TestPatchNotificationOnOutcome(t *testing.T) {
 			wantStatus:     "failed",
 			wantTimeBefore: 3600,
 			wantTitles:     []string{"AppOne", "AppTwo"},
-			wantSoftware: []fleet.NotifySoftwareTitle{
+			wantSoftware: []automdm.NotifySoftwareTitle{
 				{Title: "AppOne", TitleID: 10},
 				{Title: "AppTwo", TitleID: 11},
 			},
@@ -894,14 +894,14 @@ func TestPatchNotificationOnOutcome(t *testing.T) {
 			// patch_notification_apps.policy_id null, but its app is still named
 			name:    "an app whose policy was deleted is still listed, without a policy id",
 			outcome: notifications_api.NotificationOutcome{Displayed: true, ExitCode: 0, ExecutionID: "exec-6"},
-			apps: []fleet.PatchNotificationAppDetail{
+			apps: []automdm.PatchNotificationAppDetail{
 				{SoftwareTitleID: 10, Name: "AppOne", PolicyID: new(uint(30))},
 				{SoftwareTitleID: 12, Name: "AppThree", PolicyID: nil},
 			},
 			wantStatus:     "success",
 			wantTimeBefore: 3600,
 			wantTitles:     []string{"AppOne", "AppThree"},
-			wantSoftware: []fleet.NotifySoftwareTitle{
+			wantSoftware: []automdm.NotifySoftwareTitle{
 				{Title: "AppOne", TitleID: 10},
 				{Title: "AppThree", TitleID: 12},
 			},
@@ -917,7 +917,7 @@ func TestPatchNotificationOnOutcome(t *testing.T) {
 			// Only the no-override case must leave DisplayName nil on the activity.
 			name:    "an admin display name override is snapshotted into software",
 			outcome: notifications_api.NotificationOutcome{Displayed: true, ExitCode: 0, ExecutionID: "exec-7"},
-			apps: []fleet.PatchNotificationAppDetail{
+			apps: []automdm.PatchNotificationAppDetail{
 				{SoftwareTitleID: 10, Name: "AppOne", DisplayName: "Custom AppOne", DisplayNameOverride: new("Custom AppOne"), PolicyID: new(uint(30))},
 				{SoftwareTitleID: 11, Name: "AppTwo", DisplayName: "AppTwo", DisplayNameOverride: nil, PolicyID: new(uint(31))},
 				{SoftwareTitleID: 12, Name: "Microsoft.CompanyPortal", DisplayName: "Microsoft.CompanyPortal", DisplayNameOverride: new("Microsoft.CompanyPortal"), PolicyID: new(uint(32))},
@@ -925,7 +925,7 @@ func TestPatchNotificationOnOutcome(t *testing.T) {
 			wantStatus:     "success",
 			wantTimeBefore: 3600,
 			wantTitles:     []string{"AppOne", "AppTwo", "Microsoft.CompanyPortal"},
-			wantSoftware: []fleet.NotifySoftwareTitle{
+			wantSoftware: []automdm.NotifySoftwareTitle{
 				{Title: "AppOne", TitleID: 10, DisplayName: new("Custom AppOne")},
 				{Title: "AppTwo", TitleID: 11},
 				{Title: "Microsoft.CompanyPortal", TitleID: 12, DisplayName: new("Microsoft.CompanyPortal")},
@@ -937,11 +937,11 @@ func TestPatchNotificationOnOutcome(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			ds := new(mock.Store)
-			ds.ListPatchNotificationAppsFunc = func(_ context.Context, _ string) ([]fleet.PatchNotificationAppDetail, error) {
+			ds.ListPatchNotificationAppsFunc = func(_ context.Context, _ string) ([]automdm.PatchNotificationAppDetail, error) {
 				return c.apps, nil
 			}
-			ds.HostLiteByIDFunc = func(_ context.Context, _ uint) (*fleet.HostLite, error) {
-				return &fleet.HostLite{ID: hostID, ComputerName: "Test Host"}, nil
+			ds.HostLiteByIDFunc = func(_ context.Context, _ uint) (*automdm.HostLite, error) {
+				return &automdm.HostLite{ID: hostID, ComputerName: "Test Host"}, nil
 			}
 			// the deadline the display lands on, which the activity reports back
 			var gotLeadTime time.Duration
@@ -972,7 +972,7 @@ func TestPatchNotificationOnOutcome(t *testing.T) {
 			}
 
 			require.True(t, writer.invoked)
-			activity, ok := writer.activity.(fleet.ActivityTypeNotifiedEndUserBeforePatching)
+			activity, ok := writer.activity.(automdm.ActivityTypeNotifiedEndUserBeforePatching)
 			require.True(t, ok)
 
 			require.Equal(t, hostID, activity.HostID)
@@ -1028,7 +1028,7 @@ func TestRemindAndInstallDuePatches(t *testing.T) {
 		reminder      bool
 		// software inventory by software title id
 		installedVersions map[uint]string
-		// when Fleet last finished installing the first app, if it did
+		// when AutoMDM last finished installing the first app, if it did
 		lastInstalled *time.Time
 		// the first app's install request fails, which must not stop the second being queued
 		firstInstallFails bool
@@ -1094,9 +1094,9 @@ func TestRemindAndInstallDuePatches(t *testing.T) {
 			wantUpdatedInInventory: []uint{oneTitleID},
 		},
 		{
-			// Fleet's own install record catches a My device self-service update before the host's
+			// AutoMDM's own install record catches a My device self-service update before the host's
 			// software inventory has refreshed to show it
-			name:              "an app Fleet installed since it was added to the notification is not installed again",
+			name:              "an app AutoMDM installed since it was added to the notification is not installed again",
 			untilDeadline:     -time.Minute,
 			displayed:         true,
 			reminder:          true,
@@ -1107,9 +1107,9 @@ func TestRemindAndInstallDuePatches(t *testing.T) {
 			wantMarkedQueued:  []uint{oneTitleID},
 		},
 		{
-			// the app was added after Fleet's install finished, because its policy failed anyway, so
+			// the app was added after AutoMDM's install finished, because its policy failed anyway, so
 			// that install is no evidence the app is up to date
-			name:              "an app Fleet installed before it was added to the notification is still installed",
+			name:              "an app AutoMDM installed before it was added to the notification is still installed",
 			untilDeadline:     -time.Minute,
 			displayed:         true,
 			reminder:          true,
@@ -1280,10 +1280,10 @@ func TestRemindAndInstallDuePatches(t *testing.T) {
 				status = notifications_api.EndUserNotificationActed
 			}
 			var gotCutoff time.Time
-			ds.ListPatchNotificationsDueFunc = func(_ context.Context, cutoff time.Time, limit int) ([]fleet.PatchNotificationDue, error) {
+			ds.ListPatchNotificationsDueFunc = func(_ context.Context, cutoff time.Time, limit int) ([]automdm.PatchNotificationDue, error) {
 				gotCutoff = cutoff
 				require.Equal(t, duePatchNotificationBatchSize, limit)
-				return []fleet.PatchNotificationDue{{
+				return []automdm.PatchNotificationDue{{
 					NotificationUUID: "notification-uuid",
 					HostID:           hostID,
 					Status:           status,
@@ -1297,19 +1297,19 @@ func TestRemindAndInstallDuePatches(t *testing.T) {
 			// dropped software titles stop being returned, as deleting their rows would do
 			dropped := make(map[uint]struct{})
 			var appReads int
-			ds.ListPatchNotificationAppsForNotificationsFunc = func(_ context.Context, uuids []string) (map[string][]fleet.PatchNotificationAppDetail, error) {
+			ds.ListPatchNotificationAppsForNotificationsFunc = func(_ context.Context, uuids []string) (map[string][]automdm.PatchNotificationAppDetail, error) {
 				appReads++
-				all := []fleet.PatchNotificationAppDetail{
+				all := []automdm.PatchNotificationAppDetail{
 					{SoftwareTitleID: oneTitleID, SoftwareInstallerID: new(oneInstallerID), PolicyID: new(policyID), InstallerVersion: installerVersion, CreatedAt: appAddedAt, UpdatedInInventory: c.firstAppUpdatedInInventory, PolicyOptionChanged: c.firstAppPolicyOptionChanged},
 					{SoftwareTitleID: twoTitleID, SoftwareInstallerID: new(twoInstallerID), PolicyID: new(policyID), InstallerVersion: installerVersion, CreatedAt: appAddedAt},
 				}
-				listed := make([]fleet.PatchNotificationAppDetail, 0, len(all))
+				listed := make([]automdm.PatchNotificationAppDetail, 0, len(all))
 				for _, app := range all {
 					if _, gone := dropped[app.SoftwareTitleID]; !gone {
 						listed = append(listed, app)
 					}
 				}
-				return map[string][]fleet.PatchNotificationAppDetail{uuids[0]: listed}, nil
+				return map[string][]automdm.PatchNotificationAppDetail{uuids[0]: listed}, nil
 			}
 			var gotDropped []uint
 			ds.DeletePatchNotificationAppsFunc = func(_ context.Context, _ string, softwareTitleIDs []uint) error {
@@ -1321,12 +1321,12 @@ func TestRemindAndInstallDuePatches(t *testing.T) {
 			}
 
 			var versionReads int
-			ds.ListSoftwareTitleVersionsForHostsFunc = func(_ context.Context, hostIDs []uint, titleIDs []uint) ([]fleet.HostSoftwareTitleVersion, error) {
+			ds.ListSoftwareTitleVersionsForHostsFunc = func(_ context.Context, hostIDs []uint, titleIDs []uint) ([]automdm.HostSoftwareTitleVersion, error) {
 				versionReads++
-				versions := make([]fleet.HostSoftwareTitleVersion, 0, len(titleIDs))
+				versions := make([]automdm.HostSoftwareTitleVersion, 0, len(titleIDs))
 				for _, titleID := range titleIDs {
 					if installed, ok := c.installedVersions[titleID]; ok {
-						versions = append(versions, fleet.HostSoftwareTitleVersion{
+						versions = append(versions, automdm.HostSoftwareTitleVersion{
 							HostID: hostID, SoftwareTitleID: titleID, Version: installed,
 						})
 					}
@@ -1334,30 +1334,30 @@ func TestRemindAndInstallDuePatches(t *testing.T) {
 				return versions, nil
 			}
 			var installDataReads int
-			ds.ListLastTitleInstallDataForHostsFunc = func(_ context.Context, hostIDs []uint, _ []uint) (map[fleet.HostSoftwareTitleKey][]*fleet.HostLastInstallData, error) {
+			ds.ListLastTitleInstallDataForHostsFunc = func(_ context.Context, hostIDs []uint, _ []uint) (map[automdm.HostSoftwareTitleKey][]*automdm.HostLastInstallData, error) {
 				installDataReads++
-				firstAppInstalls := make([]*fleet.HostLastInstallData, 0, 2)
+				firstAppInstalls := make([]*automdm.HostLastInstallData, 0, 2)
 				if c.lastInstalled != nil {
-					firstAppInstalls = append(firstAppInstalls, &fleet.HostLastInstallData{
-						Status: new(fleet.SoftwareInstalled), UpdatedAt: *c.lastInstalled,
+					firstAppInstalls = append(firstAppInstalls, &automdm.HostLastInstallData{
+						Status: new(automdm.SoftwareInstalled), UpdatedAt: *c.lastInstalled,
 					})
 				}
 				if c.pendingInstall {
-					firstAppInstalls = append(firstAppInstalls, &fleet.HostLastInstallData{
-						Status:                  new(fleet.SoftwareInstallPending),
+					firstAppInstalls = append(firstAppInstalls, &automdm.HostLastInstallData{
+						Status:                  new(automdm.SoftwareInstallPending),
 						OverridePreInstallQuery: c.pendingInstallSkipsWhenOpen,
 					})
 				}
 				if len(firstAppInstalls) == 0 {
 					return nil, nil
 				}
-				return map[fleet.HostSoftwareTitleKey][]*fleet.HostLastInstallData{
+				return map[automdm.HostSoftwareTitleKey][]*automdm.HostLastInstallData{
 					{HostID: hostID, SoftwareTitleID: oneTitleID}: firstAppInstalls,
 				}, nil
 			}
 
 			var installs []uint
-			ds.InsertSoftwareInstallRequestFunc = func(_ context.Context, gotHostID uint, installerID uint, opts fleet.HostSoftwareInstallOptions) (string, error) {
+			ds.InsertSoftwareInstallRequestFunc = func(_ context.Context, gotHostID uint, installerID uint, opts automdm.HostSoftwareInstallOptions) (string, error) {
 				require.Equal(t, hostID, gotHostID)
 				require.False(t, opts.OverridePreInstallQuery, "the deadline forces the install, so the app being open must not stop it")
 				require.NotNil(t, opts.PolicyID)
@@ -1548,11 +1548,11 @@ func TestCreatePatchDeadlineNotificationForEndUser(t *testing.T) {
 		}
 	}
 
-	newFixture := func(t *testing.T, settings *fleet.PatchDeadlineSettings) *fixture {
+	newFixture := func(t *testing.T, settings *automdm.PatchDeadlineSettings) *fixture {
 		f := &fixture{ds: new(mock.Store), notificationsSvc: &mock.MockNotificationsService{}}
 		f.svc = &Service{ds: f.ds, logger: slog.New(slog.DiscardHandler), notificationsSvc: f.notificationsSvc}
 
-		f.ds.GetPatchDeadlineSettingsFunc = func(_ context.Context, teamID uint) (*fleet.PatchDeadlineSettings, error) {
+		f.ds.GetPatchDeadlineSettingsFunc = func(_ context.Context, teamID uint) (*automdm.PatchDeadlineSettings, error) {
 			f.settingsTeamID = &teamID
 			return settings, nil
 		}
@@ -1570,10 +1570,10 @@ func TestCreatePatchDeadlineNotificationForEndUser(t *testing.T) {
 			f.calls = append(f.calls, "exists")
 			return false, nil
 		}
-		f.ds.ListLastTitleInstallDataForHostsFunc = func(context.Context, []uint, []uint) (map[fleet.HostSoftwareTitleKey][]*fleet.HostLastInstallData, error) {
+		f.ds.ListLastTitleInstallDataForHostsFunc = func(context.Context, []uint, []uint) (map[automdm.HostSoftwareTitleKey][]*automdm.HostLastInstallData, error) {
 			return nil, nil
 		}
-		f.ds.GetPatchNotificationFunc = func(context.Context, string) (*fleet.PatchNotification, error) {
+		f.ds.GetPatchNotificationFunc = func(context.Context, string) (*automdm.PatchNotification, error) {
 			return nil, nil
 		}
 		f.notificationsSvc.CreateNotificationFunc = func(_ context.Context, n *notifications_api.EndUserNotification) (*notifications_api.EndUserNotification, error) {
@@ -1581,15 +1581,15 @@ func TestCreatePatchDeadlineNotificationForEndUser(t *testing.T) {
 			return &notifications_api.EndUserNotification{UUID: createdUUID}, nil
 		}
 		f.ds.NewPatchNotificationFunc = func(context.Context, string) error { return nil }
-		f.ds.AddPatchNotificationAppFunc = func(_ context.Context, notificationUUID string, _ fleet.PatchNotificationApp) error {
+		f.ds.AddPatchNotificationAppFunc = func(_ context.Context, notificationUUID string, _ automdm.PatchNotificationApp) error {
 			f.addedTo = notificationUUID
 			return nil
 		}
 		return f
 	}
 
-	skip := func(f *fixture, host *fleet.Host, deadline bool) error {
-		return f.svc.createPatchNotificationForEndUser(t.Context(), host, &fleet.HostSoftwareInstallerResult{
+	skip := func(f *fixture, host *automdm.Host, deadline bool) error {
+		return f.svc.createPatchNotificationForEndUser(t.Context(), host, &automdm.HostSoftwareInstallerResult{
 			InstallUUID:         "install-uuid",
 			SoftwareTitleID:     new(titleID),
 			SoftwareInstallerID: new(uint(20)),
@@ -1607,18 +1607,18 @@ func TestCreatePatchDeadlineNotificationForEndUser(t *testing.T) {
 		}
 		return notice
 	}
-	dailyAt17 := &fleet.PatchDeadlineSettings{Days: allWeekdays, Time: "17:00"}
+	dailyAt17 := &automdm.PatchDeadlineSettings{Days: allWeekdays, Time: "17:00"}
 
 	t.Run("a skip creates a deadline notification an hour before the next deadline", func(t *testing.T) {
 		f := newFixture(t, dailyAt17)
 		notice := nextNotice()
-		require.NoError(t, skip(f, &fleet.Host{ID: hostID, TimeZone: new("UTC")}, true))
+		require.NoError(t, skip(f, &automdm.Host{ID: hostID, TimeZone: new("UTC")}, true))
 		if !notice.Equal(nextNotice()) {
 			t.Skip("the run crossed the notice time")
 		}
 
 		require.NotNil(t, f.created)
-		require.Equal(t, fleet.PatchDeadlineNotificationKind, f.created.Kind)
+		require.Equal(t, automdm.PatchDeadlineNotificationKind, f.created.Kind)
 		require.NotNil(t, f.created.NextAttemptAt)
 		require.True(t, notice.Equal(*f.created.NextAttemptAt), "want %s, got %s", notice, *f.created.NextAttemptAt)
 		require.NotNil(t, f.created.ExpiresAt)
@@ -1628,10 +1628,10 @@ func TestCreatePatchDeadlineNotificationForEndUser(t *testing.T) {
 
 	t.Run("a notify skip is unchanged", func(t *testing.T) {
 		f := newFixture(t, dailyAt17)
-		require.NoError(t, skip(f, &fleet.Host{ID: hostID, TimeZone: new("UTC")}, false))
+		require.NoError(t, skip(f, &automdm.Host{ID: hostID, TimeZone: new("UTC")}, false))
 
 		require.NotNil(t, f.created)
-		require.Equal(t, fleet.PatchNotificationKind, f.created.Kind)
+		require.Equal(t, automdm.PatchNotificationKind, f.created.Kind)
 		require.Nil(t, f.created.NextAttemptAt)
 		require.WithinDuration(t, time.Now().UTC().Add(24*time.Hour), *f.created.ExpiresAt, time.Minute)
 		require.False(t, f.ds.GetPatchDeadlineSettingsFuncInvoked)
@@ -1641,7 +1641,7 @@ func TestCreatePatchDeadlineNotificationForEndUser(t *testing.T) {
 	for _, tz := range []*string{nil, new("")} {
 		t.Run("an unknown host timezone schedules nothing: "+ptrString(tz), func(t *testing.T) {
 			f := newFixture(t, dailyAt17)
-			require.NoError(t, skip(f, &fleet.Host{ID: hostID, TimeZone: tz}, true))
+			require.NoError(t, skip(f, &automdm.Host{ID: hostID, TimeZone: tz}, true))
 
 			require.False(t, f.notificationsSvc.CreateNotificationFuncInvoked)
 			require.False(t, f.notificationsSvc.RescheduleNotificationsAwaitingDispatchFuncInvoked)
@@ -1652,25 +1652,25 @@ func TestCreatePatchDeadlineNotificationForEndUser(t *testing.T) {
 
 	t.Run("a timezone Go can't load is an error", func(t *testing.T) {
 		f := newFixture(t, dailyAt17)
-		require.Error(t, skip(f, &fleet.Host{ID: hostID, TimeZone: new("Not/AZone")}, true))
+		require.Error(t, skip(f, &automdm.Host{ID: hostID, TimeZone: new("Not/AZone")}, true))
 		require.False(t, f.notificationsSvc.CreateNotificationFuncInvoked)
 	})
 
-	t.Run("a fleet with no deadline days schedules nothing", func(t *testing.T) {
-		f := newFixture(t, &fleet.PatchDeadlineSettings{Time: "17:00"})
-		require.NoError(t, skip(f, &fleet.Host{ID: hostID, TimeZone: new("UTC")}, true))
+	t.Run("a team with no deadline days schedules nothing", func(t *testing.T) {
+		f := newFixture(t, &automdm.PatchDeadlineSettings{Time: "17:00"})
+		require.NoError(t, skip(f, &automdm.Host{ID: hostID, TimeZone: new("UTC")}, true))
 		require.False(t, f.notificationsSvc.CreateNotificationFuncInvoked)
 		require.False(t, f.notificationsSvc.RescheduleNotificationsAwaitingDispatchFuncInvoked)
 	})
 
-	t.Run("a host in a fleet uses that fleet's settings and an unassigned host uses fleet 0's", func(t *testing.T) {
+	t.Run("a host in a team uses that team's settings and an unassigned host uses team 0's", func(t *testing.T) {
 		f := newFixture(t, dailyAt17)
-		require.NoError(t, skip(f, &fleet.Host{ID: hostID, TeamID: new(uint(5)), TimeZone: new("UTC")}, true))
+		require.NoError(t, skip(f, &automdm.Host{ID: hostID, TeamID: new(uint(5)), TimeZone: new("UTC")}, true))
 		require.NotNil(t, f.settingsTeamID)
 		require.Equal(t, uint(5), *f.settingsTeamID)
 
 		f = newFixture(t, dailyAt17)
-		require.NoError(t, skip(f, &fleet.Host{ID: hostID, TimeZone: new("UTC")}, true))
+		require.NoError(t, skip(f, &automdm.Host{ID: hostID, TimeZone: new("UTC")}, true))
 		require.NotNil(t, f.settingsTeamID)
 		require.Equal(t, uint(0), *f.settingsTeamID)
 	})
@@ -1678,8 +1678,8 @@ func TestCreatePatchDeadlineNotificationForEndUser(t *testing.T) {
 	t.Run("a skip inside the final hour schedules the following deadline", func(t *testing.T) {
 		// the deadline is 30 minutes away every day, so today's notice has passed
 		deadline := time.Now().UTC().Add(30 * time.Minute).Truncate(time.Minute)
-		f := newFixture(t, &fleet.PatchDeadlineSettings{Days: allWeekdays, Time: deadline.Format("15:04")})
-		require.NoError(t, skip(f, &fleet.Host{ID: hostID, TimeZone: new("UTC")}, true))
+		f := newFixture(t, &automdm.PatchDeadlineSettings{Days: allWeekdays, Time: deadline.Format("15:04")})
+		require.NoError(t, skip(f, &automdm.Host{ID: hostID, TimeZone: new("UTC")}, true))
 
 		want := deadline.Add(24*time.Hour - time.Hour)
 		require.NotNil(t, f.created)
@@ -1693,7 +1693,7 @@ func TestCreatePatchDeadlineNotificationForEndUser(t *testing.T) {
 			return true, nil
 		}
 		notice := nextNotice()
-		require.NoError(t, skip(f, &fleet.Host{ID: hostID, TimeZone: new("UTC")}, true))
+		require.NoError(t, skip(f, &automdm.Host{ID: hostID, TimeZone: new("UTC")}, true))
 		if !notice.Equal(nextNotice()) {
 			t.Skip("the run crossed the notice time")
 		}
@@ -1701,7 +1701,7 @@ func TestCreatePatchDeadlineNotificationForEndUser(t *testing.T) {
 		require.Equal(t, []string{"reschedule", "exists"}, f.calls)
 		require.NotNil(t, f.rescheduled)
 		require.Equal(t, hostID, f.rescheduled.hostID)
-		require.Equal(t, fleet.PatchDeadlineNotificationKind, f.rescheduled.kind)
+		require.Equal(t, automdm.PatchDeadlineNotificationKind, f.rescheduled.kind)
 		require.True(t, notice.Equal(f.rescheduled.nextAttemptAt))
 		require.True(t, notice.Add(24*time.Hour).Equal(f.rescheduled.expiresAt))
 		require.False(t, f.notificationsSvc.CreateNotificationFuncInvoked)
@@ -1726,12 +1726,12 @@ func TestCreatePatchDeadlineNotificationForEndUser(t *testing.T) {
 					askedKinds = append(askedKinds, kind)
 					return c.awaiting, nil
 				}
-				require.NoError(t, skip(f, &fleet.Host{ID: hostID, TimeZone: new("UTC")}, true))
+				require.NoError(t, skip(f, &automdm.Host{ID: hostID, TimeZone: new("UTC")}, true))
 				if !notice.Equal(nextNotice()) {
 					t.Skip("the run crossed the notice time")
 				}
 
-				require.Equal(t, []string{fleet.PatchDeadlineNotificationKind}, askedKinds)
+				require.Equal(t, []string{automdm.PatchDeadlineNotificationKind}, askedKinds)
 				require.Equal(t, !c.wantJoin, f.notificationsSvc.CreateNotificationFuncInvoked)
 				if c.wantJoin {
 					require.Equal(t, awaitingID, f.addedTo)
@@ -1745,9 +1745,9 @@ func TestCreatePatchDeadlineNotificationForEndUser(t *testing.T) {
 	t.Run("a notify skip looks only at notify notifications and a deadline skip only at deadline ones", func(t *testing.T) {
 		for _, deadline := range []bool{false, true} {
 			f := newFixture(t, dailyAt17)
-			wantKind := fleet.PatchNotificationKind
+			wantKind := automdm.PatchNotificationKind
 			if deadline {
-				wantKind = fleet.PatchDeadlineNotificationKind
+				wantKind = automdm.PatchDeadlineNotificationKind
 			}
 			// only a row of the other kind is awaiting display
 			f.notificationsSvc.NotificationAwaitingDisplayFunc = func(_ context.Context, _ uint, kind string) (*notifications_api.EndUserNotification, error) {
@@ -1756,7 +1756,7 @@ func TestCreatePatchDeadlineNotificationForEndUser(t *testing.T) {
 				}
 				return &notifications_api.EndUserNotification{UUID: awaitingID}, nil
 			}
-			require.NoError(t, skip(f, &fleet.Host{ID: hostID, TimeZone: new("UTC")}, deadline))
+			require.NoError(t, skip(f, &automdm.Host{ID: hostID, TimeZone: new("UTC")}, deadline))
 
 			require.True(t, f.notificationsSvc.CreateNotificationFuncInvoked)
 			require.Equal(t, wantKind, f.created.Kind)
@@ -1782,31 +1782,31 @@ func TestSetPatchNotificationPayloadForDisplayPrunesUpdatedApps(t *testing.T) {
 		staleTitleID     = uint(11)
 	)
 
-	apps := []fleet.PatchNotificationAppDetail{
+	apps := []automdm.PatchNotificationAppDetail{
 		{SoftwareTitleID: updatedTitleID, SoftwareInstallerID: new(uint(20)), InstallerVersion: "2.0"},
 		{SoftwareTitleID: staleTitleID, SoftwareInstallerID: new(uint(21)), InstallerVersion: "2.0"},
 	}
 
-	newService := func(patchNotification *fleet.PatchNotification) (*Service, *mock.Store, *mock.MockNotificationsService, *[]uint, *json.RawMessage) {
+	newService := func(patchNotification *automdm.PatchNotification) (*Service, *mock.Store, *mock.MockNotificationsService, *[]uint, *json.RawMessage) {
 		ds := new(mock.Store)
 		notificationsSvc := &mock.MockNotificationsService{}
 		svc := &Service{ds: ds, logger: slog.New(slog.DiscardHandler), notificationsSvc: notificationsSvc}
 
 		var deleted []uint
 		var payload json.RawMessage
-		ds.GetPatchNotificationFunc = func(context.Context, string) (*fleet.PatchNotification, error) {
+		ds.GetPatchNotificationFunc = func(context.Context, string) (*automdm.PatchNotification, error) {
 			return patchNotification, nil
 		}
-		ds.ListPatchNotificationAppsForNotificationsFunc = func(context.Context, []string) (map[string][]fleet.PatchNotificationAppDetail, error) {
-			return map[string][]fleet.PatchNotificationAppDetail{notificationUUID: apps}, nil
+		ds.ListPatchNotificationAppsForNotificationsFunc = func(context.Context, []string) (map[string][]automdm.PatchNotificationAppDetail, error) {
+			return map[string][]automdm.PatchNotificationAppDetail{notificationUUID: apps}, nil
 		}
-		ds.ListSoftwareTitleVersionsForHostsFunc = func(context.Context, []uint, []uint) ([]fleet.HostSoftwareTitleVersion, error) {
-			return []fleet.HostSoftwareTitleVersion{
+		ds.ListSoftwareTitleVersionsForHostsFunc = func(context.Context, []uint, []uint) ([]automdm.HostSoftwareTitleVersion, error) {
+			return []automdm.HostSoftwareTitleVersion{
 				{HostID: hostID, SoftwareTitleID: updatedTitleID, Version: "2.0"},
 				{HostID: hostID, SoftwareTitleID: staleTitleID, Version: "1.0"},
 			}, nil
 		}
-		ds.ListLastTitleInstallDataForHostsFunc = func(context.Context, []uint, []uint) (map[fleet.HostSoftwareTitleKey][]*fleet.HostLastInstallData, error) {
+		ds.ListLastTitleInstallDataForHostsFunc = func(context.Context, []uint, []uint) (map[automdm.HostSoftwareTitleKey][]*automdm.HostLastInstallData, error) {
 			return nil, nil
 		}
 		ds.DeletePatchNotificationAppsFunc = func(_ context.Context, uuid string, titleIDs []uint) error {
@@ -1822,7 +1822,7 @@ func TestSetPatchNotificationPayloadForDisplayPrunesUpdatedApps(t *testing.T) {
 	}
 
 	t.Run("the 1 hour notice drops the apps updated since the skip", func(t *testing.T) {
-		svc, _, _, deleted, payload := newService(&fleet.PatchNotification{})
+		svc, _, _, deleted, payload := newService(&automdm.PatchNotification{})
 		require.Empty(t, svc.setPatchNotificationPayloadForDisplay(t.Context(), hostID, notificationUUID))
 
 		require.Equal(t, []uint{updatedTitleID}, *deleted)
@@ -1830,13 +1830,13 @@ func TestSetPatchNotificationPayloadForDisplayPrunesUpdatedApps(t *testing.T) {
 	})
 
 	t.Run("the 1 hour notice drops an app whose policy changed patch option", func(t *testing.T) {
-		svc, ds, _, deleted, _ := newService(&fleet.PatchNotification{})
-		ds.ListPatchNotificationAppsForNotificationsFunc = func(context.Context, []string) (map[string][]fleet.PatchNotificationAppDetail, error) {
+		svc, ds, _, deleted, _ := newService(&automdm.PatchNotification{})
+		ds.ListPatchNotificationAppsForNotificationsFunc = func(context.Context, []string) (map[string][]automdm.PatchNotificationAppDetail, error) {
 			changed := apps[1]
 			changed.PolicyOptionChanged = true
-			return map[string][]fleet.PatchNotificationAppDetail{notificationUUID: {apps[0], changed}}, nil
+			return map[string][]automdm.PatchNotificationAppDetail{notificationUUID: {apps[0], changed}}, nil
 		}
-		ds.ListSoftwareTitleVersionsForHostsFunc = func(context.Context, []uint, []uint) ([]fleet.HostSoftwareTitleVersion, error) {
+		ds.ListSoftwareTitleVersionsForHostsFunc = func(context.Context, []uint, []uint) ([]automdm.HostSoftwareTitleVersion, error) {
 			return nil, nil
 		}
 		require.Empty(t, svc.setPatchNotificationPayloadForDisplay(t.Context(), hostID, notificationUUID))
@@ -1845,8 +1845,8 @@ func TestSetPatchNotificationPayloadForDisplayPrunesUpdatedApps(t *testing.T) {
 	})
 
 	t.Run("the 1 hour notice leaves the notification alone when nothing was updated", func(t *testing.T) {
-		svc, ds, _, deleted, _ := newService(&fleet.PatchNotification{})
-		ds.ListSoftwareTitleVersionsForHostsFunc = func(context.Context, []uint, []uint) ([]fleet.HostSoftwareTitleVersion, error) {
+		svc, ds, _, deleted, _ := newService(&automdm.PatchNotification{})
+		ds.ListSoftwareTitleVersionsForHostsFunc = func(context.Context, []uint, []uint) ([]automdm.HostSoftwareTitleVersion, error) {
 			return nil, nil
 		}
 		require.Empty(t, svc.setPatchNotificationPayloadForDisplay(t.Context(), hostID, notificationUUID))
@@ -1856,7 +1856,7 @@ func TestSetPatchNotificationPayloadForDisplayPrunesUpdatedApps(t *testing.T) {
 	})
 
 	t.Run("the reminder doesn't prune", func(t *testing.T) {
-		svc, ds, _, deleted, payload := newService(&fleet.PatchNotification{InstallAt: new(time.Now().UTC().Add(2 * time.Minute))})
+		svc, ds, _, deleted, payload := newService(&automdm.PatchNotification{InstallAt: new(time.Now().UTC().Add(2 * time.Minute))})
 		require.Empty(t, svc.setPatchNotificationPayloadForDisplay(t.Context(), hostID, notificationUUID))
 
 		require.False(t, ds.ListPatchNotificationAppsForNotificationsFuncInvoked)
@@ -1865,7 +1865,7 @@ func TestSetPatchNotificationPayloadForDisplayPrunesUpdatedApps(t *testing.T) {
 	})
 
 	t.Run("a failed prune fails the script instead of showing a stale notice", func(t *testing.T) {
-		svc, ds, notificationsSvc, _, _ := newService(&fleet.PatchNotification{})
+		svc, ds, notificationsSvc, _, _ := newService(&automdm.PatchNotification{})
 		ds.DeletePatchNotificationAppsFunc = func(context.Context, string, []uint) error {
 			return errors.New("delete failed")
 		}

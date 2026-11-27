@@ -1,7 +1,7 @@
 $product_code = $PACKAGE_ID
 $timeoutSeconds = 300  # 5 minute timeout
 
-# Fleet uninstalls app using product code that's extracted on upload
+# AutoMDM uninstalls app using product code that's extracted on upload
 $process = Start-Process msiexec -ArgumentList @("/quiet", "/x", $product_code, "/norestart") -PassThru
 
 # Wait for process with timeout

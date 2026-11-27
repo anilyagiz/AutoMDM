@@ -6,8 +6,8 @@ import (
 	"context"
 	"sync"
 
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/push"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/push"
 )
 
 var _ push.PushProvider = (*APNSPushProvider)(nil)

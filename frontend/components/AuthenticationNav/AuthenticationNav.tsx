@@ -43,7 +43,7 @@ const AuthenticationNav = ({
         className={`${baseClass}__back-link`}
         variant="subdued"
       >
-        <Icon name="close" color="core-fleet-black" />
+        <Icon name="close" color="core-automdm-black" />
       </Button>
     </div>
   );

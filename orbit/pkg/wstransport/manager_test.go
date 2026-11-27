@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/client"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/client"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -163,7 +163,7 @@ func (ws *wsTestServer) connCount() int {
 	return len(ws.conns)
 }
 
-func (ws *wsTestServer) notify(t *testing.T, msg fleet.AgentWSMessage) {
+func (ws *wsTestServer) notify(t *testing.T, msg automdm.AgentWSMessage) {
 	t.Helper()
 	ws.mu.Lock()
 	defer ws.mu.Unlock()
@@ -325,7 +325,7 @@ func TestManagerConnectsAndReadsOnNotification(t *testing.T) {
 
 	// A notification triggers a read and the queries land in the cache.
 	before := fc.readCount()
-	ws.notify(t, fleet.AgentWSMessage{Type: fleet.AgentWSMessageTypeDistributedRead})
+	ws.notify(t, automdm.AgentWSMessage{Type: automdm.AgentWSMessageTypeDistributedRead})
 	require.Eventually(t, func() bool { return fc.readCount() > before }, 5*time.Second, 5*time.Millisecond)
 	require.Eventually(t, func() bool {
 		queries, _, _ := cache.Take()
@@ -339,10 +339,10 @@ func TestManagerIgnoresUnknownNotificationTypes(t *testing.T) {
 	newTestManager(t, ws.srv.URL, fc, NewQueryCache())
 
 	require.Eventually(t, func() bool { return ws.connCount() == 1 }, 5*time.Second, 5*time.Millisecond)
-	ws.notify(t, fleet.AgentWSMessage{Type: "future/channel"})
+	ws.notify(t, automdm.AgentWSMessage{Type: "future/channel"})
 
 	// The connection survives unknown types: a known one still works after.
-	ws.notify(t, fleet.AgentWSMessage{Type: fleet.AgentWSMessageTypeDistributedRead})
+	ws.notify(t, automdm.AgentWSMessage{Type: automdm.AgentWSMessageTypeDistributedRead})
 	require.Eventually(t, func() bool { return fc.readCount() >= 1 }, 5*time.Second, 5*time.Millisecond)
 	assert.Equal(t, 1, ws.connCount())
 }
@@ -432,12 +432,12 @@ func TestManagerOrbitConfigNotifications(t *testing.T) {
 
 	// An orbit/config notification fetches it, without a distributed read.
 	reads := fc.readCount()
-	ws.notify(t, fleet.AgentWSMessage{Type: fleet.AgentWSMessageTypeOrbitConfig, Reason: fleet.AgentWSReasonActivity})
+	ws.notify(t, automdm.AgentWSMessage{Type: automdm.AgentWSMessageTypeOrbitConfig, Reason: automdm.AgentWSReasonActivity})
 	require.Eventually(t, func() bool { return orbitConfigs.Load() == 1 }, 5*time.Second, 5*time.Millisecond)
 	assert.Equal(t, reads, fc.readCount())
 
 	// Same for an osquery/config notification.
-	ws.notify(t, fleet.AgentWSMessage{Type: fleet.AgentWSMessageTypeOsqueryConfig, Reason: fleet.AgentWSReasonReports})
+	ws.notify(t, automdm.AgentWSMessage{Type: automdm.AgentWSMessageTypeOsqueryConfig, Reason: automdm.AgentWSReasonReports})
 	require.Eventually(t, func() bool { return osqueryConfigs.Load() == 1 }, 5*time.Second, 5*time.Millisecond)
 	assert.Equal(t, reads, fc.readCount())
 	assert.EqualValues(t, 1, orbitConfigs.Load())

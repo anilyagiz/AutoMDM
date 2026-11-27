@@ -8,7 +8,7 @@
     "source": "spreadsheet-backfill",
     "sheet_row": 33
   },
-  "fleet_server": {
+  "automdm_server": {
     "cpu_utilization": {
       "Average": 76.2,
       "Maximum": 79.0
@@ -81,20 +81,20 @@
       }
     }
   ],
-  "fleet_server_errors": {
+  "automdm_server_errors": {
     "error_count": null
   },
   "backfill": {
-    "source": "Fleet release load testing results (Google Sheet), manual-logging era",
+    "source": "AutoMDM release load testing results (Google Sheet), manual-logging era",
     "purpose": "Release/baseline",
     "one_click": null,
     "notes": "Higher CPU usage on the server during the first 6 hours afte\u2026",
     "raw": {
       "full_day": "yes",
-      "fleet_containers": "30",
+      "automdm_containers": "30",
       "loadtest_containers": "200",
-      "fleet_cpu": "~76.2% with a 78-79% first 6 hours",
-      "fleet_mem": "~7.8%",
+      "automdm_cpu": "~76.2% with a 78-79% first 6 hours",
+      "automdm_mem": "~7.8%",
       "errors": "{\"component\":\"service\",\"err\":\"invalid source \",\"level\":\"erro\u2026",
       "writer_top_sql": "SELECT `h` . `id` , `h` .\u2026",
       "writer_cpu": "~30%",

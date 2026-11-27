@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # JetBrains Toolbox ships only as a per-user installer (winget manifest has
 # Scope: user). Per the winget InstallerSwitches, /headless runs it fully silent.

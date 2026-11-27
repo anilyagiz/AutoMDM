@@ -16,12 +16,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/authz"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/live_query/live_query_mock"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/pubsub"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	"github.com/anilyagiz/automdm/v4/server/live_query/live_query_mock"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/pubsub"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
@@ -41,7 +41,7 @@ type liveQueriesTestSuite struct {
 	suite.Suite
 
 	lq    *live_query_mock.MockLiveQuery
-	hosts []*fleet.Host
+	hosts []*automdm.Host
 }
 
 // SetupTest partially implements suite.SetupTestSuite.
@@ -51,7 +51,7 @@ func (s *liveQueriesTestSuite) SetupTest() {
 
 // SetupSuite partially implements suite.SetupAllSuite.
 func (s *liveQueriesTestSuite) SetupSuite() {
-	s.T().Setenv("FLEET_LIVE_QUERY_REST_PERIOD", "5s")
+	s.T().Setenv("AUTOMDM_LIVE_QUERY_REST_PERIOD", "5s")
 
 	s.withDS.SetupSuite("liveQueriesTestSuite")
 
@@ -60,7 +60,7 @@ func (s *liveQueriesTestSuite) SetupSuite() {
 	s.lq = lq
 
 	opts := &TestServerOpts{Lq: lq, Rs: rs, DBConns: s.dbConns}
-	if os.Getenv("FLEET_INTEGRATION_TESTS_DISABLE_LOG") != "" {
+	if os.Getenv("AUTOMDM_INTEGRATION_TESTS_DISABLE_LOG") != "" {
 		opts.Logger = slog.New(slog.DiscardHandler)
 	}
 	users, server := RunServerForTestsWithDS(s.T(), s.ds, opts)
@@ -70,7 +70,7 @@ func (s *liveQueriesTestSuite) SetupSuite() {
 
 	t := s.T()
 	for i := 0; i < 3; i++ {
-		host, err := s.ds.NewHost(context.Background(), &fleet.Host{
+		host, err := s.ds.NewHost(context.Background(), &automdm.Host{
 			DetailUpdatedAt: time.Now(),
 			LabelUpdatedAt:  time.Now(),
 			PolicyUpdatedAt: time.Now(),
@@ -108,11 +108,11 @@ func (s *liveQueriesTestSuite) TestLiveQueriesRestOneHostOneQuery() {
 
 		query := t.Name() + " select 1 from osquery;"
 		q1, err := s.ds.NewQuery(
-			context.Background(), &fleet.Query{
+			context.Background(), &automdm.Query{
 				Query:       query,
 				Description: "desc1",
 				Name:        t.Name() + "query1",
-				Logging:     fleet.LoggingSnapshot,
+				Logging:     automdm.LoggingSnapshot,
 				Saved:       savedQuery,
 			},
 		)
@@ -135,7 +135,7 @@ func (s *liveQueriesTestSuite) TestLiveQueriesRestOneHostOneQuery() {
 			}
 			go func() {
 				defer wg.Done()
-				s.DoJSON("POST", fmt.Sprintf("/api/latest/fleet/reports/%d/run", q1.ID), liveQueryRequest, http.StatusOK, &oneLiveQueryResp)
+				s.DoJSON("POST", fmt.Sprintf("/api/latest/automdm/reports/%d/run", q1.ID), liveQueryRequest, http.StatusOK, &oneLiveQueryResp)
 			}()
 		} else if endpoint == oldEndpoint {
 			liveQueryRequest := runLiveQueryRequest{
@@ -144,15 +144,15 @@ func (s *liveQueriesTestSuite) TestLiveQueriesRestOneHostOneQuery() {
 			}
 			go func() {
 				defer wg.Done()
-				s.DoJSON("GET", "/api/latest/fleet/reports/run", liveQueryRequest, http.StatusOK, &liveQueryResp)
+				s.DoJSON("GET", "/api/latest/automdm/reports/run", liveQueryRequest, http.StatusOK, &liveQueryResp)
 			}()
 		} else { // customQueryOneHostId(.*)Endpoint
 			liveQueryRequest := runLiveQueryOnHostRequest{
 				Query: query,
 			}
-			url := fmt.Sprintf("/api/latest/fleet/hosts/%d/query", host.ID)
+			url := fmt.Sprintf("/api/latest/automdm/hosts/%d/query", host.ID)
 			if endpoint == customQueryOneHostIdentifierEndpoint {
-				url = fmt.Sprintf("/api/latest/fleet/hosts/%s/query", host.UUID)
+				url = fmt.Sprintf("/api/latest/automdm/hosts/%s/query", host.UUID)
 			}
 			go func() {
 				defer wg.Done()
@@ -171,13 +171,13 @@ func (s *liveQueriesTestSuite) TestLiveQueriesRestOneHostOneQuery() {
 			defer ticker.Stop()
 			for range ticker.C {
 				if endpoint == customQueryOneHostIdentifierEndpoint || endpoint == customQueryOneHostIdEndpoint {
-					campaign := fleet.DistributedQueryCampaign{}
+					campaign := automdm.DistributedQueryCampaign{}
 					err := mysqltest.ExecAdhocSQLWithError(
 						s.ds, func(q sqlx.ExtContext) error {
 							return sqlx.GetContext(
 								context.Background(), q, &campaign,
 								`SELECT * FROM distributed_query_campaigns WHERE status = ? ORDER BY id DESC LIMIT 1`,
-								fleet.QueryRunning,
+								automdm.QueryRunning,
 							)
 						},
 					)
@@ -195,7 +195,7 @@ func (s *liveQueriesTestSuite) TestLiveQueriesRestOneHostOneQuery() {
 				campaigns, err := s.ds.DistributedQueryCampaignsForQuery(context.Background(), q1.ID)
 				require.NoError(t, err)
 
-				if len(campaigns) == 1 && campaigns[0].Status == fleet.QueryRunning {
+				if len(campaigns) == 1 && campaigns[0].Status == automdm.QueryRunning {
 					cidChannel <- fmt.Sprint(campaigns[0].ID)
 					return
 				}
@@ -207,9 +207,9 @@ func (s *liveQueriesTestSuite) TestLiveQueriesRestOneHostOneQuery() {
 			t.Error("Timeout: campaign not created/running for TestLiveQueriesRestOneHostOneQuery")
 		}
 
-		var stats *fleet.Stats
+		var stats *automdm.Stats
 		if hasStats {
-			stats = &fleet.Stats{
+			stats = &automdm.Stats{
 				UserTime:   uint64(1),
 				SystemTime: uint64(2),
 			}
@@ -226,7 +226,7 @@ func (s *liveQueriesTestSuite) TestLiveQueriesRestOneHostOneQuery() {
 				hostDistributedQueryPrefix + "9999": "0",
 			},
 			Messages: map[string]string{},
-			Stats: map[string]*fleet.Stats{
+			Stats: map[string]*automdm.Stats{
 				hostDistributedQueryPrefix + cid: stats,
 			},
 		}
@@ -235,7 +235,7 @@ func (s *liveQueriesTestSuite) TestLiveQueriesRestOneHostOneQuery() {
 
 		wg.Wait()
 
-		var result fleet.QueryResult
+		var result automdm.QueryResult
 		if endpoint == oneQueryEndpoint { //nolint:gocritic // ignore ifElseChain
 			assert.Equal(t, q1.ID, oneLiveQueryResp.QueryID)
 			assert.Equal(t, 1, oneLiveQueryResp.TargetedHostCount)
@@ -252,9 +252,9 @@ func (s *liveQueriesTestSuite) TestLiveQueriesRestOneHostOneQuery() {
 		} else { // customQueryOneHostId(.*)Endpoint
 			assert.Empty(t, liveQueryOnHostResp.Err)
 			assert.Equal(t, host.ID, liveQueryOnHostResp.HostID)
-			assert.Equal(t, fleet.StatusOnline, liveQueryOnHostResp.Status)
+			assert.Equal(t, automdm.StatusOnline, liveQueryOnHostResp.Status)
 			assert.Equal(t, query, liveQueryOnHostResp.Query)
-			result = fleet.QueryResult{
+			result = automdm.QueryResult{
 				HostID: liveQueryOnHostResp.HostID,
 				Rows:   liveQueryOnHostResp.Rows,
 			}
@@ -265,8 +265,8 @@ func (s *liveQueriesTestSuite) TestLiveQueriesRestOneHostOneQuery() {
 		assert.Equal(t, "b", result.Rows[0]["col2"])
 
 		// For loop, waiting for activity feed to update, which happens after aggregated stats update.
-		var activity *fleet.ActivityTypeLiveQuery
-		activityUpdated := make(chan *fleet.ActivityTypeLiveQuery)
+		var activity *automdm.ActivityTypeLiveQuery
+		activityUpdated := make(chan *automdm.ActivityTypeLiveQuery)
 		go func() {
 			ticker := time.NewTicker(100 * time.Millisecond)
 			defer ticker.Stop()
@@ -285,7 +285,7 @@ func (s *liveQueriesTestSuite) TestLiveQueriesRestOneHostOneQuery() {
 					return
 				}
 				if err == nil {
-					act := fleet.ActivityTypeLiveQuery{}
+					act := automdm.ActivityTypeLiveQuery{}
 					err = json.Unmarshal(details, &act)
 					require.NoError(t, err)
 					if act.QuerySQL == q1.Query {
@@ -302,7 +302,7 @@ func (s *liveQueriesTestSuite) TestLiveQueriesRestOneHostOneQuery() {
 			t.Error("Timeout: activity not created for TestLiveQueriesRestOneHostOneQuery")
 		}
 
-		aggStats, err := mysqltest.GetAggregatedStats(context.Background(), s.ds, fleet.AggregatedStatsTypeScheduledQuery, q1.ID)
+		aggStats, err := mysqltest.GetAggregatedStats(context.Background(), s.ds, automdm.AggregatedStatsTypeScheduledQuery, q1.ID)
 		if savedQuery && hasStats {
 			require.NoError(t, err)
 			assert.Equal(t, 1, int(*aggStats.TotalExecutions))
@@ -340,20 +340,20 @@ func (s *liveQueriesTestSuite) TestLiveQueriesRestOneHostMultipleQuery() {
 
 	host := s.hosts[0]
 
-	q1, err := s.ds.NewQuery(context.Background(), &fleet.Query{
+	q1, err := s.ds.NewQuery(context.Background(), &automdm.Query{
 		Query:       "select 1 from osquery;",
 		Description: "desc1",
 		Name:        t.Name() + "query1",
-		Logging:     fleet.LoggingSnapshot,
+		Logging:     automdm.LoggingSnapshot,
 		Saved:       rand.Intn(2) == 1, //nolint:gosec
 	})
 	require.NoError(t, err)
 
-	q2, err := s.ds.NewQuery(context.Background(), &fleet.Query{
+	q2, err := s.ds.NewQuery(context.Background(), &automdm.Query{
 		Query:       "select 2 from osquery;",
 		Description: "desc2",
 		Name:        t.Name() + "query2",
-		Logging:     fleet.LoggingSnapshot,
+		Logging:     automdm.LoggingSnapshot,
 		Saved:       rand.Intn(2) == 1, //nolint:gosec
 	})
 	require.NoError(t, err)
@@ -377,7 +377,7 @@ func (s *liveQueriesTestSuite) TestLiveQueriesRestOneHostMultipleQuery() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		s.DoJSON("GET", "/api/latest/fleet/reports/run", liveQueryRequest, http.StatusOK, &liveQueryResp)
+		s.DoJSON("GET", "/api/latest/automdm/reports/run", liveQueryRequest, http.StatusOK, &liveQueryResp)
 	}()
 
 	// Give the above call a couple of seconds to create the campaign
@@ -392,7 +392,7 @@ func (s *liveQueriesTestSuite) TestLiveQueriesRestOneHostMultipleQuery() {
 			hostDistributedQueryPrefix + cid1: {{"col1": "a", "col2": "b"}},
 			hostDistributedQueryPrefix + cid2: {{"col3": "c", "col4": "d"}, {"col3": "e", "col4": "f"}},
 		},
-		Statuses: map[string]fleet.OsqueryStatus{
+		Statuses: map[string]automdm.OsqueryStatus{
 			hostDistributedQueryPrefix + cid1: 0,
 			hostDistributedQueryPrefix + cid2: 0,
 		},
@@ -400,7 +400,7 @@ func (s *liveQueriesTestSuite) TestLiveQueriesRestOneHostMultipleQuery() {
 			hostDistributedQueryPrefix + cid1: "some msg",
 			hostDistributedQueryPrefix + cid2: "some other msg",
 		},
-		Stats: map[string]*fleet.Stats{
+		Stats: map[string]*automdm.Stats{
 			hostDistributedQueryPrefix + cid1: {
 				UserTime:   uint64(1),
 				SystemTime: uint64(2),
@@ -438,7 +438,7 @@ func (s *liveQueriesTestSuite) TestLiveQueriesRestOneHostMultipleQuery() {
 	assert.Equal(t, "f", q2Results.Rows[1]["col4"])
 }
 
-func getCIDForQ(s *liveQueriesTestSuite, q1 *fleet.Query) string {
+func getCIDForQ(s *liveQueriesTestSuite, q1 *automdm.Query) string {
 	t := s.T()
 	campaigns, err := s.ds.DistributedQueryCampaignsForQuery(context.Background(), q1.ID)
 	require.NoError(t, err)
@@ -453,20 +453,20 @@ func (s *liveQueriesTestSuite) TestLiveQueriesRestMultipleHostMultipleQuery() {
 	h1 := s.hosts[0]
 	h2 := s.hosts[1]
 
-	q1, err := s.ds.NewQuery(context.Background(), &fleet.Query{
+	q1, err := s.ds.NewQuery(context.Background(), &automdm.Query{
 		Query:       "select 1 from osquery;",
 		Description: "desc1",
 		Name:        t.Name() + "query1",
-		Logging:     fleet.LoggingSnapshot,
+		Logging:     automdm.LoggingSnapshot,
 		Saved:       rand.Intn(2) == 1, //nolint:gosec
 	})
 	require.NoError(t, err)
 
-	q2, err := s.ds.NewQuery(context.Background(), &fleet.Query{
+	q2, err := s.ds.NewQuery(context.Background(), &automdm.Query{
 		Query:       "select 2 from osquery;",
 		Description: "desc2",
 		Name:        t.Name() + "query2",
-		Logging:     fleet.LoggingSnapshot,
+		Logging:     automdm.LoggingSnapshot,
 		Saved:       rand.Intn(2) == 1, //nolint:gosec
 	})
 	require.NoError(t, err)
@@ -494,21 +494,21 @@ func (s *liveQueriesTestSuite) TestLiveQueriesRestMultipleHostMultipleQuery() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		s.DoJSON("GET", "/api/latest/fleet/reports/run", liveQueryRequest, http.StatusOK, &liveQueryResp)
+		s.DoJSON("GET", "/api/latest/automdm/reports/run", liveQueryRequest, http.StatusOK, &liveQueryResp)
 	}()
 
 	// Give the above call a couple of seconds to create the campaign
 	time.Sleep(2 * time.Second)
 	cid1 := getCIDForQ(s, q1)
 	cid2 := getCIDForQ(s, q2)
-	for i, h := range []*fleet.Host{h1, h2} {
+	for i, h := range []*automdm.Host{h1, h2} {
 		distributedReq := SubmitDistributedQueryResultsRequest{
 			NodeKey: *h.NodeKey,
 			Results: map[string][]map[string]string{
 				hostDistributedQueryPrefix + cid1: {{"col1": fmt.Sprintf("a%d", i), "col2": fmt.Sprintf("b%d", i)}},
 				hostDistributedQueryPrefix + cid2: {{"col3": fmt.Sprintf("c%d", i), "col4": fmt.Sprintf("d%d", i)}, {"col3": fmt.Sprintf("e%d", i), "col4": fmt.Sprintf("f%d", i)}},
 			},
-			Statuses: map[string]fleet.OsqueryStatus{
+			Statuses: map[string]automdm.OsqueryStatus{
 				hostDistributedQueryPrefix + cid1: 0,
 				hostDistributedQueryPrefix + cid2: 0,
 			},
@@ -516,7 +516,7 @@ func (s *liveQueriesTestSuite) TestLiveQueriesRestMultipleHostMultipleQuery() {
 				hostDistributedQueryPrefix + cid1: "some msg",
 				hostDistributedQueryPrefix + cid2: "some other msg",
 			},
-			Stats: map[string]*fleet.Stats{
+			Stats: map[string]*automdm.Stats{
 				hostDistributedQueryPrefix + cid1: {
 					UserTime:   uint64(1),
 					SystemTime: uint64(2),
@@ -563,22 +563,22 @@ func (s *liveQueriesTestSuite) TestLiveQueriesSomeFailToAuthorize() {
 
 	// Unauthorized query
 	q1, err := s.ds.NewQuery(
-		context.Background(), &fleet.Query{
+		context.Background(), &automdm.Query{
 			Query:       "select 1 from osquery;",
 			Description: "desc1",
 			Name:        t.Name() + "query1",
-			Logging:     fleet.LoggingSnapshot,
+			Logging:     automdm.LoggingSnapshot,
 		},
 	)
 	require.NoError(t, err)
 
 	// Authorized query
 	q2, err := s.ds.NewQuery(
-		context.Background(), &fleet.Query{
+		context.Background(), &automdm.Query{
 			Query:          "select 2 from osquery;",
 			Description:    "desc2",
 			Name:           t.Name() + "query2",
-			Logging:        fleet.LoggingSnapshot,
+			Logging:        automdm.LoggingSnapshot,
 			ObserverCanRun: true,
 		},
 	)
@@ -606,7 +606,7 @@ func (s *liveQueriesTestSuite) TestLiveQueriesSomeFailToAuthorize() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		s.DoJSON("GET", "/api/latest/fleet/reports/run", liveQueryRequest, http.StatusOK, &liveQueryResp)
+		s.DoJSON("GET", "/api/latest/automdm/reports/run", liveQueryRequest, http.StatusOK, &liveQueryResp)
 	}()
 
 	// Give the above call a couple of seconds to create the campaign
@@ -619,7 +619,7 @@ func (s *liveQueriesTestSuite) TestLiveQueriesSomeFailToAuthorize() {
 		Results: map[string][]map[string]string{
 			hostDistributedQueryPrefix + cid2: {{"col3": "c", "col4": "d"}, {"col3": "e", "col4": "f"}},
 		},
-		Statuses: map[string]fleet.OsqueryStatus{
+		Statuses: map[string]automdm.OsqueryStatus{
 			hostDistributedQueryPrefix + cid2: 0,
 		},
 		Messages: map[string]string{
@@ -663,11 +663,11 @@ func (s *liveQueriesTestSuite) TestLiveQueriesInvalidInputs() {
 	host := s.hosts[0]
 
 	q1, err := s.ds.NewQuery(
-		context.Background(), &fleet.Query{
+		context.Background(), &automdm.Query{
 			Query:       "select 1 from osquery;",
 			Description: "desc1",
 			Name:        t.Name() + "query1",
-			Logging:     fleet.LoggingSnapshot,
+			Logging:     automdm.LoggingSnapshot,
 		},
 	)
 	require.NoError(t, err)
@@ -677,35 +677,35 @@ func (s *liveQueriesTestSuite) TestLiveQueriesInvalidInputs() {
 		HostIDs:  []uint{host.ID},
 	}
 	liveQueryResp := runLiveQueryResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/reports/run", liveQueryRequest, http.StatusBadRequest, &liveQueryResp)
+	s.DoJSON("GET", "/api/latest/automdm/reports/run", liveQueryRequest, http.StatusBadRequest, &liveQueryResp)
 
 	liveQueryRequest = runLiveQueryRequest{
 		QueryIDs: nil,
 		HostIDs:  []uint{host.ID},
 	}
-	s.DoJSON("GET", "/api/latest/fleet/reports/run", liveQueryRequest, http.StatusBadRequest, &liveQueryResp)
+	s.DoJSON("GET", "/api/latest/automdm/reports/run", liveQueryRequest, http.StatusBadRequest, &liveQueryResp)
 
 	// No hosts
 	liveQueryRequest = runLiveQueryRequest{
 		QueryIDs: []uint{q1.ID},
 		HostIDs:  []uint{},
 	}
-	s.DoJSON("GET", "/api/latest/fleet/reports/run", liveQueryRequest, http.StatusBadRequest, &liveQueryResp)
+	s.DoJSON("GET", "/api/latest/automdm/reports/run", liveQueryRequest, http.StatusBadRequest, &liveQueryResp)
 	oneLiveQueryRequest := runOneLiveQueryRequest{
 		HostIDs: []uint{},
 	}
 	oneLiveQueryResp := runOneLiveQueryResponse{}
-	s.DoJSON("POST", fmt.Sprintf("/api/latest/fleet/reports/%d/run", q1.ID), oneLiveQueryRequest, http.StatusBadRequest, &oneLiveQueryResp)
+	s.DoJSON("POST", fmt.Sprintf("/api/latest/automdm/reports/%d/run", q1.ID), oneLiveQueryRequest, http.StatusBadRequest, &oneLiveQueryResp)
 
 	liveQueryRequest = runLiveQueryRequest{
 		QueryIDs: []uint{q1.ID},
 		HostIDs:  nil,
 	}
-	s.DoJSON("GET", "/api/latest/fleet/reports/run", liveQueryRequest, http.StatusBadRequest, &liveQueryResp)
+	s.DoJSON("GET", "/api/latest/automdm/reports/run", liveQueryRequest, http.StatusBadRequest, &liveQueryResp)
 	oneLiveQueryRequest = runOneLiveQueryRequest{
 		HostIDs: nil,
 	}
-	s.DoJSON("POST", fmt.Sprintf("/api/latest/fleet/reports/%d/run", q1.ID), oneLiveQueryRequest, http.StatusBadRequest, &oneLiveQueryResp)
+	s.DoJSON("POST", fmt.Sprintf("/api/latest/automdm/reports/%d/run", q1.ID), oneLiveQueryRequest, http.StatusBadRequest, &oneLiveQueryResp)
 
 	// Invalid raw query
 	liveQueryOnHostRequest := runLiveQueryOnHostRequest{
@@ -713,11 +713,11 @@ func (s *liveQueriesTestSuite) TestLiveQueriesInvalidInputs() {
 	}
 	liveQueryOnHostResp := runLiveQueryOnHostResponse{}
 	s.DoJSON(
-		"POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/query", host.ID), liveQueryOnHostRequest, http.StatusBadRequest,
+		"POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/query", host.ID), liveQueryOnHostRequest, http.StatusBadRequest,
 		&liveQueryOnHostResp,
 	)
 	s.DoJSON(
-		"POST", fmt.Sprintf("/api/latest/fleet/hosts/%s/query", host.UUID), liveQueryOnHostRequest, http.StatusBadRequest,
+		"POST", fmt.Sprintf("/api/latest/automdm/hosts/%s/query", host.UUID), liveQueryOnHostRequest, http.StatusBadRequest,
 		&liveQueryOnHostResp,
 	)
 }
@@ -729,11 +729,11 @@ func (s *liveQueriesTestSuite) TestLiveQueriesFailsToAuthorize() {
 	host := s.hosts[0]
 
 	q1, err := s.ds.NewQuery(
-		context.Background(), &fleet.Query{
+		context.Background(), &automdm.Query{
 			Query:       "select 1 from osquery;",
 			Description: "desc1",
 			Name:        t.Name() + "query1",
-			Logging:     fleet.LoggingSnapshot,
+			Logging:     automdm.LoggingSnapshot,
 		},
 	)
 	require.NoError(t, err)
@@ -750,12 +750,12 @@ func (s *liveQueriesTestSuite) TestLiveQueriesFailsToAuthorize() {
 	defer func() {
 		s.token = originalToken
 	}()
-	s.DoJSON("GET", "/api/latest/fleet/reports/run", liveQueryRequest, http.StatusForbidden, &liveQueryResp)
+	s.DoJSON("GET", "/api/latest/automdm/reports/run", liveQueryRequest, http.StatusForbidden, &liveQueryResp)
 	oneLiveQueryRequest := runOneLiveQueryRequest{
 		HostIDs: []uint{host.ID},
 	}
 	oneLiveQueryResp := runOneLiveQueryResponse{}
-	s.DoJSON("POST", fmt.Sprintf("/api/latest/fleet/reports/%d/run", q1.ID), oneLiveQueryRequest, http.StatusForbidden, &oneLiveQueryResp)
+	s.DoJSON("POST", fmt.Sprintf("/api/latest/automdm/reports/%d/run", q1.ID), oneLiveQueryRequest, http.StatusForbidden, &oneLiveQueryResp)
 }
 
 func (s *liveQueriesTestSuite) TestLiveQueriesRestFailsToCreateCampaign() {
@@ -767,7 +767,7 @@ func (s *liveQueriesTestSuite) TestLiveQueriesRestFailsToCreateCampaign() {
 	}
 	liveQueryResp := runLiveQueryResponse{}
 
-	s.DoJSON("GET", "/api/latest/fleet/reports/run", liveQueryRequest, http.StatusOK, &liveQueryResp)
+	s.DoJSON("GET", "/api/latest/automdm/reports/run", liveQueryRequest, http.StatusOK, &liveQueryResp)
 
 	require.Len(t, liveQueryResp.Results, 1)
 	assert.Equal(t, 0, liveQueryResp.Summary.RespondedHostCount)
@@ -778,7 +778,7 @@ func (s *liveQueriesTestSuite) TestLiveQueriesRestFailsToCreateCampaign() {
 		HostIDs: []uint{888},
 	}
 	oneLiveQueryResp := runOneLiveQueryResponse{}
-	s.DoJSON("POST", fmt.Sprintf("/api/latest/fleet/reports/%d/run", 999), oneLiveQueryRequest, http.StatusNotFound, &oneLiveQueryResp)
+	s.DoJSON("POST", fmt.Sprintf("/api/latest/automdm/reports/%d/run", 999), oneLiveQueryRequest, http.StatusNotFound, &oneLiveQueryResp)
 	assert.Equal(t, 0, oneLiveQueryResp.RespondedHostCount)
 }
 
@@ -786,11 +786,11 @@ func (s *liveQueriesTestSuite) TestLiveQueriesRestInvalidHost() {
 	t := s.T()
 
 	q1, err := s.ds.NewQuery(
-		context.Background(), &fleet.Query{
+		context.Background(), &automdm.Query{
 			Query:       "select 1 from osquery;",
 			Description: "desc1",
 			Name:        t.Name() + "query1",
-			Logging:     fleet.LoggingSnapshot,
+			Logging:     automdm.LoggingSnapshot,
 		},
 	)
 	require.NoError(t, err)
@@ -801,7 +801,7 @@ func (s *liveQueriesTestSuite) TestLiveQueriesRestInvalidHost() {
 	}
 	liveQueryResp := runLiveQueryResponse{}
 
-	s.DoJSON("GET", "/api/latest/fleet/reports/run", liveQueryRequest, http.StatusOK, &liveQueryResp)
+	s.DoJSON("GET", "/api/latest/automdm/reports/run", liveQueryRequest, http.StatusOK, &liveQueryResp)
 
 	require.Len(t, liveQueryResp.Results, 1)
 	assert.Equal(t, 0, liveQueryResp.Summary.RespondedHostCount)
@@ -812,7 +812,7 @@ func (s *liveQueriesTestSuite) TestLiveQueriesRestInvalidHost() {
 		HostIDs: []uint{999999999}, // Use large but valid integer instead of MaxUint
 	}
 	oneLiveQueryResp := runOneLiveQueryResponse{}
-	s.DoJSON("POST", fmt.Sprintf("/api/latest/fleet/reports/%d/run", q1.ID), oneLiveQueryRequest, http.StatusBadRequest, &oneLiveQueryResp)
+	s.DoJSON("POST", fmt.Sprintf("/api/latest/automdm/reports/%d/run", q1.ID), oneLiveQueryRequest, http.StatusBadRequest, &oneLiveQueryResp)
 }
 
 func (s *liveQueriesTestSuite) TestLiveQueriesRestFailsOnSomeHost() {
@@ -823,11 +823,11 @@ func (s *liveQueriesTestSuite) TestLiveQueriesRestFailsOnSomeHost() {
 		h2 := s.hosts[1]
 
 		q1, err := s.ds.NewQuery(
-			context.Background(), &fleet.Query{
+			context.Background(), &automdm.Query{
 				Query:       "select 1 from osquery;",
 				Description: "desc1",
 				Name:        t.Name() + "query1",
-				Logging:     fleet.LoggingSnapshot,
+				Logging:     automdm.LoggingSnapshot,
 			},
 		)
 		require.NoError(t, err)
@@ -848,7 +848,7 @@ func (s *liveQueriesTestSuite) TestLiveQueriesRestFailsOnSomeHost() {
 			}
 			go func() {
 				defer wg.Done()
-				s.DoJSON("POST", fmt.Sprintf("/api/latest/fleet/reports/%d/run", q1.ID), liveQueryRequest, http.StatusOK, &oneLiveQueryResp)
+				s.DoJSON("POST", fmt.Sprintf("/api/latest/automdm/reports/%d/run", q1.ID), liveQueryRequest, http.StatusOK, &oneLiveQueryResp)
 			}()
 		} else {
 			liveQueryRequest := runLiveQueryRequest{
@@ -857,7 +857,7 @@ func (s *liveQueriesTestSuite) TestLiveQueriesRestFailsOnSomeHost() {
 			}
 			go func() {
 				defer wg.Done()
-				s.DoJSON("GET", "/api/latest/fleet/reports/run", liveQueryRequest, http.StatusOK, &liveQueryResp)
+				s.DoJSON("GET", "/api/latest/automdm/reports/run", liveQueryRequest, http.StatusOK, &liveQueryResp)
 			}()
 		}
 
@@ -869,7 +869,7 @@ func (s *liveQueriesTestSuite) TestLiveQueriesRestFailsOnSomeHost() {
 				campaigns, err := s.ds.DistributedQueryCampaignsForQuery(context.Background(), q1.ID)
 				require.NoError(t, err)
 
-				if len(campaigns) == 1 && campaigns[0].Status == fleet.QueryRunning {
+				if len(campaigns) == 1 && campaigns[0].Status == automdm.QueryRunning {
 					cidChannel <- fmt.Sprint(campaigns[0].ID)
 					return
 				}
@@ -913,7 +913,7 @@ func (s *liveQueriesTestSuite) TestLiveQueriesRestFailsOnSomeHost() {
 
 		wg.Wait()
 
-		var qResults []fleet.QueryResult
+		var qResults []automdm.QueryResult
 		if newEndpoint {
 			assert.Equal(t, q1.ID, oneLiveQueryResp.QueryID)
 			assert.Equal(t, 2, oneLiveQueryResp.TargetedHostCount)
@@ -949,22 +949,22 @@ func (s *liveQueriesTestSuite) TestCreateDistributedQueryCampaign() {
 
 	// create with no payload
 	var createResp createDistributedQueryCampaignResponse
-	s.DoJSON("POST", "/api/latest/fleet/reports/run", nil, http.StatusUnprocessableEntity, &createResp)
+	s.DoJSON("POST", "/api/latest/automdm/reports/run", nil, http.StatusUnprocessableEntity, &createResp)
 
 	// create with unknown query
 	req := createDistributedQueryCampaignRequest{
 		QueryID: ptr.Uint(9999),
-		Selected: fleet.HostTargets{
+		Selected: automdm.HostTargets{
 			HostIDs: []uint{1},
 		},
 	}
-	s.DoJSON("POST", "/api/latest/fleet/reports/run", req, http.StatusNotFound, &createResp)
+	s.DoJSON("POST", "/api/latest/automdm/reports/run", req, http.StatusNotFound, &createResp)
 
 	// create with no hosts
 	req = createDistributedQueryCampaignRequest{
 		QuerySQL: "SELECT 1",
 	}
-	s.DoJSON("POST", "/api/latest/fleet/reports/run", req, http.StatusBadRequest, &createResp)
+	s.DoJSON("POST", "/api/latest/automdm/reports/run", req, http.StatusBadRequest, &createResp)
 
 	// wait to prevent duplicate name for new query
 	time.Sleep(200 * time.Millisecond)
@@ -972,11 +972,11 @@ func (s *liveQueriesTestSuite) TestCreateDistributedQueryCampaign() {
 	// create with new query for specific hosts
 	req = createDistributedQueryCampaignRequest{
 		QuerySQL: "SELECT 2",
-		Selected: fleet.HostTargets{
+		Selected: automdm.HostTargets{
 			HostIDs: []uint{h1.ID, h2.ID},
 		},
 	}
-	s.DoJSON("POST", "/api/latest/fleet/reports/run", req, http.StatusOK, &createResp)
+	s.DoJSON("POST", "/api/latest/automdm/reports/run", req, http.StatusOK, &createResp)
 	camp1 := *createResp.Campaign
 	assert.Equal(t, uint(2), createResp.Campaign.Metrics.TotalHosts)
 
@@ -986,11 +986,11 @@ func (s *liveQueriesTestSuite) TestCreateDistributedQueryCampaign() {
 	// create with new query for 'No team'
 	req = createDistributedQueryCampaignRequest{
 		QuerySQL: "SELECT 2.5",
-		Selected: fleet.HostTargets{
+		Selected: automdm.HostTargets{
 			TeamIDs: []uint{0},
 		},
 	}
-	s.DoJSON("POST", "/api/latest/fleet/reports/run", req, http.StatusOK, &createResp)
+	s.DoJSON("POST", "/api/latest/automdm/reports/run", req, http.StatusOK, &createResp)
 	assert.NotEqual(t, camp1.ID, createResp.Campaign.ID)
 	camp1 = *createResp.Campaign
 	assert.Equal(t, uint(len(s.hosts)), createResp.Campaign.Metrics.TotalHosts)
@@ -1005,7 +1005,7 @@ func (s *liveQueriesTestSuite) TestCreateDistributedQueryCampaign() {
 		},
 	}
 
-	s.DoJSON("POST", "/api/latest/fleet/reports/run_by_identifiers", req2, http.StatusOK, &createResp)
+	s.DoJSON("POST", "/api/latest/automdm/reports/run_by_identifiers", req2, http.StatusOK, &createResp)
 	assert.NotEqual(t, camp1.ID, createResp.Campaign.ID)
 	assert.Equal(t, uint(1), createResp.Campaign.Metrics.TotalHosts)
 
@@ -1019,7 +1019,7 @@ func (s *liveQueriesTestSuite) TestCreateDistributedQueryCampaign() {
 			Hosts: []string{h1.Hostname, h2.Hostname + "ZZZZZ"},
 		},
 	}
-	s.DoJSON("POST", "/api/latest/fleet/reports/run_by_identifiers", req2, http.StatusOK, &createResp)
+	s.DoJSON("POST", "/api/latest/automdm/reports/run_by_identifiers", req2, http.StatusOK, &createResp)
 
 	// create with invalid label
 	req3 := createDistributedQueryCampaignByIdentifierRequest{
@@ -1030,7 +1030,7 @@ func (s *liveQueriesTestSuite) TestCreateDistributedQueryCampaign() {
 		},
 	}
 
-	s.DoJSON("POST", "/api/latest/fleet/reports/run_by_identifiers", req3, http.StatusBadRequest, &createResp)
+	s.DoJSON("POST", "/api/latest/automdm/reports/run_by_identifiers", req3, http.StatusBadRequest, &createResp)
 }
 
 func (s *liveQueriesTestSuite) TestCreateDistributedQueryCampaignIgnoresBlankHostIdentifiers() {
@@ -1041,11 +1041,11 @@ func (s *liveQueriesTestSuite) TestCreateDistributedQueryCampaignIgnoresBlankHos
 
 	// The suite's hosts all have an empty hardware serial, so a blank identifier would match every one of them.
 	labeledHost := s.hosts[0]
-	var labelResp fleet.CreateLabelResponse
-	s.DoJSON("POST", "/api/latest/fleet/labels", &fleet.LabelPayload{Name: t.Name(), Hosts: []string{labeledHost.UUID}}, http.StatusOK, &labelResp)
+	var labelResp automdm.CreateLabelResponse
+	s.DoJSON("POST", "/api/latest/automdm/labels", &automdm.LabelPayload{Name: t.Name(), Hosts: []string{labeledHost.UUID}}, http.StatusOK, &labelResp)
 	labelID := labelResp.Label.ID
 	t.Cleanup(func() {
-		s.Do("DELETE", fmt.Sprintf("/api/latest/fleet/labels/id/%d", labelID), nil, http.StatusOK)
+		s.Do("DELETE", fmt.Sprintf("/api/latest/automdm/labels/id/%d", labelID), nil, http.StatusOK)
 	})
 
 	blankHostsWithLabel := createDistributedQueryCampaignByIdentifierRequest{
@@ -1056,7 +1056,7 @@ func (s *liveQueriesTestSuite) TestCreateDistributedQueryCampaignIgnoresBlankHos
 		},
 	}
 	var createResp createDistributedQueryCampaignResponse
-	s.DoJSON("POST", "/api/latest/fleet/reports/run_by_identifiers", blankHostsWithLabel, http.StatusOK, &createResp)
+	s.DoJSON("POST", "/api/latest/automdm/reports/run_by_identifiers", blankHostsWithLabel, http.StatusOK, &createResp)
 	assert.Equal(t, uint(1), createResp.Campaign.Metrics.TotalHosts, "only the label's host is targeted")
 	targets, err := s.ds.DistributedQueryCampaignTargetIDs(t.Context(), createResp.Campaign.ID)
 	require.NoError(t, err)
@@ -1065,7 +1065,7 @@ func (s *liveQueriesTestSuite) TestCreateDistributedQueryCampaignIgnoresBlankHos
 
 	blankHostsOnly := blankHostsWithLabel
 	blankHostsOnly.Selected.Labels = nil
-	s.DoJSON("POST", "/api/latest/fleet/reports/run_by_identifiers", blankHostsOnly, http.StatusBadRequest, &createResp)
+	s.DoJSON("POST", "/api/latest/automdm/reports/run_by_identifiers", blankHostsOnly, http.StatusBadRequest, &createResp)
 }
 
 func (s *liveQueriesTestSuite) TestOsqueryDistributedRead() {
@@ -1099,12 +1099,12 @@ func (s *liveQueriesTestSuite) TestOsqueryDistributedReadWithFeatures() {
 	s.applyConfig(spec)
 
 	a := json.RawMessage(`{"time": "SELECT * FROM time"}`)
-	team, err := s.ds.NewTeam(context.Background(), &fleet.Team{
+	team, err := s.ds.NewTeam(context.Background(), &automdm.Team{
 		ID:          42,
 		Name:        "team1",
 		Description: "desc team1",
-		Config: fleet.TeamConfig{
-			Features: fleet.Features{
+		Config: automdm.TeamConfig{
+			Features: automdm.Features{
 				EnableHostUsers:         false,
 				EnableSoftwareInventory: false,
 				AdditionalQueries:       &a,
@@ -1113,7 +1113,7 @@ func (s *liveQueriesTestSuite) TestOsqueryDistributedReadWithFeatures() {
 	})
 	require.NoError(t, err)
 
-	host, err := s.ds.NewHost(context.Background(), &fleet.Host{
+	host, err := s.ds.NewHost(context.Background(), &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -1133,24 +1133,24 @@ func (s *liveQueriesTestSuite) TestOsqueryDistributedReadWithFeatures() {
 	req := getDistributedQueriesRequest{NodeKey: *host.NodeKey}
 	var dqResp getDistributedQueriesResponse
 	s.DoJSON("POST", "/api/osquery/distributed/read", req, http.StatusOK, &dqResp)
-	require.Contains(t, dqResp.Queries, "fleet_detail_query_users")
-	require.Contains(t, dqResp.Queries, "fleet_detail_query_software_macos")
+	require.Contains(t, dqResp.Queries, "team_detail_query_users")
+	require.Contains(t, dqResp.Queries, "team_detail_query_software_macos")
 
-	err = s.ds.AddHostsToTeam(context.Background(), fleet.NewAddHostsToTeamParams(&team.ID, []uint{host.ID}))
+	err = s.ds.AddHostsToTeam(context.Background(), automdm.NewAddHostsToTeamParams(&team.ID, []uint{host.ID}))
 	require.NoError(t, err)
 	err = s.ds.UpdateHostRefetchRequested(context.Background(), host.ID, true)
 	require.NoError(t, err)
 	req = getDistributedQueriesRequest{NodeKey: *host.NodeKey}
 	dqResp = getDistributedQueriesResponse{}
 	s.DoJSON("POST", "/api/osquery/distributed/read", req, http.StatusOK, &dqResp)
-	require.Contains(t, dqResp.Queries, "fleet_detail_query_users")
-	require.Contains(t, dqResp.Queries, "fleet_detail_query_software_macos")
+	require.Contains(t, dqResp.Queries, "team_detail_query_users")
+	require.Contains(t, dqResp.Queries, "team_detail_query_software_macos")
 }
 
 func (s *liveQueriesTestSuite) TestCreateDistributedQueryCampaignBadRequest() {
 	t := s.T()
 
-	host, err := s.ds.NewHost(context.Background(), &fleet.Host{
+	host, err := s.ds.NewHost(context.Background(), &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -1168,43 +1168,43 @@ func (s *liveQueriesTestSuite) TestCreateDistributedQueryCampaignBadRequest() {
 		QuerySQL: "SELECT * FROM osquery_info;",
 	}
 	var createResp createDistributedQueryCampaignResponse
-	s.DoJSON("POST", "/api/latest/fleet/reports/run", req, http.StatusBadRequest, &createResp)
+	s.DoJSON("POST", "/api/latest/automdm/reports/run", req, http.StatusBadRequest, &createResp)
 
 	// Target provided but no query provided.
 	req = createDistributedQueryCampaignRequest{
-		Selected: fleet.HostTargets{HostIDs: []uint{host.ID}},
+		Selected: automdm.HostTargets{HostIDs: []uint{host.ID}},
 	}
-	s.DoJSON("POST", "/api/latest/fleet/reports/run", req, http.StatusUnprocessableEntity, &createResp)
+	s.DoJSON("POST", "/api/latest/automdm/reports/run", req, http.StatusUnprocessableEntity, &createResp)
 
 	// Query "provided" but empty.
 	req = createDistributedQueryCampaignRequest{
 		QuerySQL: " ",
-		Selected: fleet.HostTargets{HostIDs: []uint{host.ID}},
+		Selected: automdm.HostTargets{HostIDs: []uint{host.ID}},
 	}
-	s.DoJSON("POST", "/api/latest/fleet/reports/run", req, http.StatusUnprocessableEntity, &createResp)
+	s.DoJSON("POST", "/api/latest/automdm/reports/run", req, http.StatusUnprocessableEntity, &createResp)
 
 	s.lq.On("RunQuery", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	// Query and targets provided.
 	req = createDistributedQueryCampaignRequest{
 		QuerySQL: "select \"With automounting enabled anyone with physical access could attach a USB drive or disc and have its contents available in system even if they lacked permissions to mount it themselves.\" as Rationale;",
-		Selected: fleet.HostTargets{HostIDs: []uint{host.ID}},
+		Selected: automdm.HostTargets{HostIDs: []uint{host.ID}},
 	}
-	s.DoJSON("POST", "/api/latest/fleet/reports/run", req, http.StatusOK, &createResp)
+	s.DoJSON("POST", "/api/latest/automdm/reports/run", req, http.StatusOK, &createResp)
 
 	// Disable live queries; should get 403, not 500.
 	var acResp appConfigResponse
-	s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
-	appCfg := fleet.AppConfig{ServerSettings: fleet.ServerSettings{LiveQueryDisabled: true, ServerURL: acResp.ServerSettings.ServerURL}, OrgInfo: fleet.OrgInfo{OrgName: acResp.OrgInfo.OrgName}}
-	s.DoRaw("PATCH", "/api/latest/fleet/config", jsonMustMarshal(t, appCfg), http.StatusOK)
+	s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
+	appCfg := automdm.AppConfig{ServerSettings: automdm.ServerSettings{LiveQueryDisabled: true, ServerURL: acResp.ServerSettings.ServerURL}, OrgInfo: automdm.OrgInfo{OrgName: acResp.OrgInfo.OrgName}}
+	s.DoRaw("PATCH", "/api/latest/automdm/config", jsonMustMarshal(t, appCfg), http.StatusOK)
 
 	req = createDistributedQueryCampaignRequest{
 		QuerySQL: "select \"With automounting enabled anyone with physical access could attach a USB drive or disc and have its contents available in system even if they lacked permissions to mount it themselves.\" as Rationale;",
-		Selected: fleet.HostTargets{HostIDs: []uint{host.ID}},
+		Selected: automdm.HostTargets{HostIDs: []uint{host.ID}},
 	}
-	s.DoJSON("POST", "/api/latest/fleet/reports/run", req, http.StatusForbidden, &createResp)
+	s.DoJSON("POST", "/api/latest/automdm/reports/run", req, http.StatusForbidden, &createResp)
 
-	s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
-	appCfg = fleet.AppConfig{ServerSettings: fleet.ServerSettings{LiveQueryDisabled: false, ServerURL: acResp.ServerSettings.ServerURL}, OrgInfo: fleet.OrgInfo{OrgName: acResp.OrgInfo.OrgName}}
-	s.DoRaw("PATCH", "/api/latest/fleet/config", jsonMustMarshal(t, appCfg), http.StatusOK)
+	s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
+	appCfg = automdm.AppConfig{ServerSettings: automdm.ServerSettings{LiveQueryDisabled: false, ServerURL: acResp.ServerSettings.ServerURL}, OrgInfo: automdm.OrgInfo{OrgName: acResp.OrgInfo.OrgName}}
+	s.DoRaw("PATCH", "/api/latest/automdm/config", jsonMustMarshal(t, appCfg), http.StatusOK)
 }

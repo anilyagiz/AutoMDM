@@ -33,7 +33,7 @@ const IosOrIpadLockPreview = ({ platform }: { platform: string }) => {
     >
       <h3>End user experience</h3>
       <p>
-        Instead of &quot;Fleet&quot;, the message will show the{" "}
+        Instead of &quot;AutoMDM&quot;, the message will show the{" "}
         <b>Organization name</b> that you configured in{" "}
         <CustomLink
           url={PATHS.ADMIN_ORGANIZATION_INFO}
@@ -102,7 +102,7 @@ const LockModal = ({
     if (isAndroidHost) {
       const pinText = (
         <p>
-          Fleet will generate an unlock PIN. To view it, select{" "}
+          AutoMDM will generate an unlock PIN. To view it, select{" "}
           <b>Actions &gt; View unlock PIN</b>.
         </p>
       );
@@ -140,7 +140,7 @@ const LockModal = ({
       <>
         {offboardingText}
         {platform === "darwin" && (
-          <p>Fleet will generate a six-digit unlock PIN.</p>
+          <p>AutoMDM will generate a six-digit unlock PIN.</p>
         )}
       </>
     );

@@ -7,9 +7,9 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	apple_mdm "github.com/fleetdm/fleet/v4/server/mdm/apple"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	apple_mdm "github.com/anilyagiz/automdm/v4/server/mdm/apple"
 )
 
 const AppleSoftwareJobName = "apple_software"
@@ -19,7 +19,7 @@ type AppleSoftwareTask string
 const verifyVPPTask AppleSoftwareTask = "verify_vpp_installs"
 
 type AppleSoftware struct {
-	Datastore fleet.Datastore
+	Datastore automdm.Datastore
 	Commander *apple_mdm.MDMAppleCommander
 	Log       *slog.Logger
 }
@@ -53,7 +53,7 @@ func (v *AppleSoftware) Run(ctx context.Context, argsJSON json.RawMessage) error
 
 func (v *AppleSoftware) verifyVPPInstalls(ctx context.Context, hostUUID, verificationCommandUUID string, disableManagedOnlyApps bool) error {
 	v.Log.DebugContext(ctx, "verifying VPP installs", "host_uuid", hostUUID, "verification_command_uuid", verificationCommandUUID)
-	newListCmdUUID := fleet.VerifySoftwareInstallCommandUUID()
+	newListCmdUUID := automdm.VerifySoftwareInstallCommandUUID()
 	// for app verification, we always request only managed apps except
 	// if disableManagedOnlyApps is true
 	err := v.Commander.InstalledApplicationList(ctx, []string{hostUUID}, newListCmdUUID, !disableManagedOnlyApps)
@@ -78,7 +78,7 @@ func (v *AppleSoftware) verifyVPPInstalls(ctx context.Context, hostUUID, verific
 	return nil
 }
 
-func QueueVPPInstallVerificationJob(ctx context.Context, ds fleet.Datastore, logger *slog.Logger, requestDelay time.Duration, hostUUID, verificationCommandUUID string, disableManagedOnly bool) error {
+func QueueVPPInstallVerificationJob(ctx context.Context, ds automdm.Datastore, logger *slog.Logger, requestDelay time.Duration, hostUUID, verificationCommandUUID string, disableManagedOnly bool) error {
 	args := &appleSoftwareArgs{
 		Task:                    verifyVPPTask,
 		HostUUID:                hostUUID,

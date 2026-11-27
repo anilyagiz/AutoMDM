@@ -9,15 +9,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mock"
 	"github.com/stretchr/testify/require"
 )
 
-func TestAutoUpdateFleetMaintainedApps(t *testing.T) {
+func TestAutoUpdateAutoMDMMaintainedApps(t *testing.T) {
 	// Cached versions for the title, most recently downloaded first (as the real
 	// datastore returns them).
-	versions := []fleet.FleetMaintainedVersion{
+	versions := []automdm.AutoMDMMaintainedVersion{
 		{ID: 12, Version: "149.0.2"},
 		{ID: 11, Version: "147.0.9"},
 		{ID: 9, Version: "148.0.1"},
@@ -25,8 +25,8 @@ func TestAutoUpdateFleetMaintainedApps(t *testing.T) {
 	}
 
 	teamID := uint(1)
-	candidate := func(activeID uint, activeVer string) fleet.FMAAutoUpdateCandidate {
-		return fleet.FMAAutoUpdateCandidate{
+	candidate := func(activeID uint, activeVer string) automdm.FMAAutoUpdateCandidate {
+		return automdm.FMAAutoUpdateCandidate{
 			TeamID:      &teamID,
 			TitleID:     1,
 			InstallerID: activeID,
@@ -39,8 +39,8 @@ func TestAutoUpdateFleetMaintainedApps(t *testing.T) {
 		name string
 		// pin: nil => no pin row (Latest); otherwise the stored expression.
 		pin          *string
-		active       fleet.FMAAutoUpdateCandidate
-		cached       []fleet.FleetMaintainedVersion
+		active       automdm.FMAAutoUpdateCandidate
+		cached       []automdm.AutoMDMMaintainedVersion
 		wantFlip     bool
 		wantActiveID uint // installer ID bound active (when wantFlip)
 	}{
@@ -71,7 +71,7 @@ func TestAutoUpdateFleetMaintainedApps(t *testing.T) {
 			name:     "caret never crosses major when no in-major version is cached",
 			pin:      new("^147"),
 			active:   candidate(12, "149.0.2"),
-			cached:   []fleet.FleetMaintainedVersion{{ID: 12, Version: "149.0.2"}},
+			cached:   []automdm.AutoMDMMaintainedVersion{{ID: 12, Version: "149.0.2"}},
 			wantFlip: false,
 		},
 		{
@@ -88,8 +88,8 @@ func TestAutoUpdateFleetMaintainedApps(t *testing.T) {
 			ds := new(mock.Store)
 			ds.SyncPatchPolicyQueriesFunc = func(ctx context.Context) error { return nil }
 
-			ds.ListFleetMaintainedAppActiveInstallersFunc = func(ctx context.Context) ([]fleet.FMAAutoUpdateCandidate, error) {
-				return []fleet.FMAAutoUpdateCandidate{tc.active}, nil
+			ds.ListAutoMDMMaintainedAppActiveInstallersFunc = func(ctx context.Context) ([]automdm.FMAAutoUpdateCandidate, error) {
+				return []automdm.FMAAutoUpdateCandidate{tc.active}, nil
 			}
 			ds.GetPinnedVersionFunc = func(ctx context.Context, tmID *uint, titleID uint) (*string, error) {
 				if tc.pin == nil {
@@ -97,12 +97,12 @@ func TestAutoUpdateFleetMaintainedApps(t *testing.T) {
 				}
 				return tc.pin, nil
 			}
-			ds.GetFleetMaintainedVersionsByTitleIDFunc = func(ctx context.Context, tmID *uint, titleID uint) ([]fleet.FleetMaintainedVersion, error) {
+			ds.GetAutoMDMMaintainedVersionsByTitleIDFunc = func(ctx context.Context, tmID *uint, titleID uint) ([]automdm.AutoMDMMaintainedVersion, error) {
 				return tc.cached, nil
 			}
 
 			var gotActiveID uint
-			ds.SetFleetMaintainedAppActiveInstallerFunc = func(ctx context.Context, payload *fleet.UpdateSoftwareInstallerPayload, activeInstallerID uint) error {
+			ds.SetAutoMDMMaintainedAppActiveInstallerFunc = func(ctx context.Context, payload *automdm.UpdateSoftwareInstallerPayload, activeInstallerID uint) error {
 				gotActiveID = activeInstallerID
 				// The cron must never write pin state, or it could clobber a
 				// concurrent admin pin change.
@@ -112,10 +112,10 @@ func TestAutoUpdateFleetMaintainedApps(t *testing.T) {
 
 			// nil store: promote-only mode (no upstream download), exercising
 			// advancement among already-cached versions.
-			err := AutoUpdateFleetMaintainedApps(context.Background(), ds, nil, slog.New(slog.NewTextHandler(io.Discard, nil)))
+			err := AutoUpdateAutoMDMMaintainedApps(context.Background(), ds, nil, slog.New(slog.NewTextHandler(io.Discard, nil)))
 			require.NoError(t, err)
 
-			require.Equal(t, tc.wantFlip, ds.SetFleetMaintainedAppActiveInstallerFuncInvoked)
+			require.Equal(t, tc.wantFlip, ds.SetAutoMDMMaintainedAppActiveInstallerFuncInvoked)
 			if tc.wantFlip {
 				require.Equal(t, tc.wantActiveID, gotActiveID)
 			}
@@ -123,12 +123,12 @@ func TestAutoUpdateFleetMaintainedApps(t *testing.T) {
 	}
 }
 
-func TestAutoUpdateFleetMaintainedAppsContinuesPastError(t *testing.T) {
+func TestAutoUpdateAutoMDMMaintainedAppsContinuesPastError(t *testing.T) {
 	ds := new(mock.Store)
 	ds.SyncPatchPolicyQueriesFunc = func(ctx context.Context) error { return errors.New("sync boom") }
 	teamID := uint(1)
-	ds.ListFleetMaintainedAppActiveInstallersFunc = func(ctx context.Context) ([]fleet.FMAAutoUpdateCandidate, error) {
-		return []fleet.FMAAutoUpdateCandidate{
+	ds.ListAutoMDMMaintainedAppActiveInstallersFunc = func(ctx context.Context) ([]automdm.FMAAutoUpdateCandidate, error) {
+		return []automdm.FMAAutoUpdateCandidate{
 			{TeamID: &teamID, TitleID: 1, InstallerID: 9, Slug: "bad/darwin"},
 			{TeamID: &teamID, TitleID: 2, InstallerID: 20, Slug: "good/darwin"},
 		}, nil
@@ -139,11 +139,11 @@ func TestAutoUpdateFleetMaintainedAppsContinuesPastError(t *testing.T) {
 		}
 		return nil, sql.ErrNoRows
 	}
-	ds.GetFleetMaintainedVersionsByTitleIDFunc = func(ctx context.Context, tmID *uint, titleID uint) ([]fleet.FleetMaintainedVersion, error) {
-		return []fleet.FleetMaintainedVersion{{ID: 21, Version: "2.0.0"}}, nil
+	ds.GetAutoMDMMaintainedVersionsByTitleIDFunc = func(ctx context.Context, tmID *uint, titleID uint) ([]automdm.AutoMDMMaintainedVersion, error) {
+		return []automdm.AutoMDMMaintainedVersion{{ID: 21, Version: "2.0.0"}}, nil
 	}
 	var flippedTitle uint
-	ds.SetFleetMaintainedAppActiveInstallerFunc = func(ctx context.Context, payload *fleet.UpdateSoftwareInstallerPayload, activeInstallerID uint) error {
+	ds.SetAutoMDMMaintainedAppActiveInstallerFunc = func(ctx context.Context, payload *automdm.UpdateSoftwareInstallerPayload, activeInstallerID uint) error {
 		flippedTitle = payload.TitleID
 		return nil
 	}
@@ -152,14 +152,14 @@ func TestAutoUpdateFleetMaintainedAppsContinuesPastError(t *testing.T) {
 	}
 
 	// The patch policy sync and the first candidate error; the run must still process the second.
-	err := AutoUpdateFleetMaintainedApps(context.Background(), ds, nil, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	err := AutoUpdateAutoMDMMaintainedApps(context.Background(), ds, nil, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	require.NoError(t, err)
 	require.True(t, ds.SyncPatchPolicyQueriesFuncInvoked)
-	require.True(t, ds.SetFleetMaintainedAppActiveInstallerFuncInvoked)
+	require.True(t, ds.SetAutoMDMMaintainedAppActiveInstallerFuncInvoked)
 	require.Equal(t, uint(2), flippedTitle)
 }
 
-func TestAutoUpdateFleetMaintainedAppsBoundsPatchPolicySync(t *testing.T) {
+func TestAutoUpdateAutoMDMMaintainedAppsBoundsPatchPolicySync(t *testing.T) {
 	ds := new(mock.Store)
 	ds.SyncPatchPolicyQueriesFunc = func(ctx context.Context) error {
 		deadline, ok := ctx.Deadline()
@@ -168,31 +168,31 @@ func TestAutoUpdateFleetMaintainedAppsBoundsPatchPolicySync(t *testing.T) {
 		return context.DeadlineExceeded
 	}
 	teamID := uint(1)
-	ds.ListFleetMaintainedAppActiveInstallersFunc = func(ctx context.Context) ([]fleet.FMAAutoUpdateCandidate, error) {
+	ds.ListAutoMDMMaintainedAppActiveInstallersFunc = func(ctx context.Context) ([]automdm.FMAAutoUpdateCandidate, error) {
 		require.NoError(t, ctx.Err(), "the sync's budget running out must not cancel installer updates")
-		return []fleet.FMAAutoUpdateCandidate{{TeamID: &teamID, TitleID: 1, InstallerID: 9, Slug: "only/darwin"}}, nil
+		return []automdm.FMAAutoUpdateCandidate{{TeamID: &teamID, TitleID: 1, InstallerID: 9, Slug: "only/darwin"}}, nil
 	}
 	ds.GetPinnedVersionFunc = func(ctx context.Context, tmID *uint, titleID uint) (*string, error) {
 		return nil, sql.ErrNoRows
 	}
-	ds.GetFleetMaintainedVersionsByTitleIDFunc = func(ctx context.Context, tmID *uint, titleID uint) ([]fleet.FleetMaintainedVersion, error) {
-		return []fleet.FleetMaintainedVersion{{ID: 9, Version: "1.0"}}, nil
+	ds.GetAutoMDMMaintainedVersionsByTitleIDFunc = func(ctx context.Context, tmID *uint, titleID uint) ([]automdm.AutoMDMMaintainedVersion, error) {
+		return []automdm.AutoMDMMaintainedVersion{{ID: 9, Version: "1.0"}}, nil
 	}
 
-	err := AutoUpdateFleetMaintainedApps(t.Context(), ds, nil, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	err := AutoUpdateAutoMDMMaintainedApps(t.Context(), ds, nil, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	require.NoError(t, err)
-	require.True(t, ds.GetFleetMaintainedVersionsByTitleIDFuncInvoked)
+	require.True(t, ds.GetAutoMDMMaintainedVersionsByTitleIDFuncInvoked)
 }
 
-func TestAutoUpdateFleetMaintainedAppsReportsCancelDuringLastApp(t *testing.T) {
+func TestAutoUpdateAutoMDMMaintainedAppsReportsCancelDuringLastApp(t *testing.T) {
 	ds := new(mock.Store)
 	ds.SyncPatchPolicyQueriesFunc = func(ctx context.Context) error { return nil }
 	teamID := uint(1)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	ds.ListFleetMaintainedAppActiveInstallersFunc = func(ctx context.Context) ([]fleet.FMAAutoUpdateCandidate, error) {
-		return []fleet.FMAAutoUpdateCandidate{
+	ds.ListAutoMDMMaintainedAppActiveInstallersFunc = func(ctx context.Context) ([]automdm.FMAAutoUpdateCandidate, error) {
+		return []automdm.FMAAutoUpdateCandidate{
 			{TeamID: &teamID, TitleID: 1, InstallerID: 9, Slug: "only/darwin"},
 		}, nil
 	}
@@ -202,11 +202,11 @@ func TestAutoUpdateFleetMaintainedAppsReportsCancelDuringLastApp(t *testing.T) {
 		return nil, sql.ErrNoRows
 	}
 	// Already on the newest cached version, so the app itself is a no-op and only the budget is left to report.
-	ds.GetFleetMaintainedVersionsByTitleIDFunc = func(ctx context.Context, tmID *uint, titleID uint) ([]fleet.FleetMaintainedVersion, error) {
-		return []fleet.FleetMaintainedVersion{{ID: 9, Version: "1.0"}}, nil
+	ds.GetAutoMDMMaintainedVersionsByTitleIDFunc = func(ctx context.Context, tmID *uint, titleID uint) ([]automdm.AutoMDMMaintainedVersion, error) {
+		return []automdm.AutoMDMMaintainedVersion{{ID: 9, Version: "1.0"}}, nil
 	}
 
-	err := AutoUpdateFleetMaintainedApps(ctx, ds, nil, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	err := AutoUpdateAutoMDMMaintainedApps(ctx, ds, nil, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	require.ErrorIs(t, err, context.Canceled)
-	require.False(t, ds.SetFleetMaintainedAppActiveInstallerFuncInvoked)
+	require.False(t, ds.SetAutoMDMMaintainedAppActiveInstallerFuncInvoked)
 }

@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/WatchBeam/clock"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -39,10 +39,10 @@ func TestCampaigns(t *testing.T) {
 }
 
 func testCampaignsDistributedQuery(t *testing.T, ds *Datastore) {
-	user := test.NewUser(t, ds, "Zach", "zwass@fleet.co", true)
+	user := test.NewUser(t, ds, "Zach", "zwass@automdm.co", true)
 	mockClock := clock.NewMockClock()
 	query := test.NewQuery(t, ds, nil, "test", "select * from time", user.ID, false)
-	campaign := test.NewCampaign(t, ds, query.ID, fleet.QueryRunning, mockClock.Now())
+	campaign := test.NewCampaign(t, ds, query.ID, automdm.QueryRunning, mockClock.Now())
 
 	{
 		retrieved, err := ds.DistributedQueryCampaign(context.Background(), campaign.ID)
@@ -55,44 +55,44 @@ func testCampaignsDistributedQuery(t *testing.T, ds *Datastore) {
 	h2 := test.NewHost(t, ds, "bar.local", "192.168.1.11", "2", "2", mockClock.Now().Add(-1*time.Hour))
 	h3 := test.NewHost(t, ds, "baz.local", "192.168.1.12", "3", "3", mockClock.Now().Add(-13*time.Minute))
 
-	l1 := fleet.LabelSpec{
+	l1 := automdm.LabelSpec{
 		ID:    1,
 		Name:  "label foo",
 		Query: "query foo",
 	}
-	l2 := fleet.LabelSpec{
+	l2 := automdm.LabelSpec{
 		ID:    2,
 		Name:  "label bar",
 		Query: "query bar",
 	}
-	err := ds.ApplyLabelSpecs(context.Background(), []*fleet.LabelSpec{&l1, &l2})
+	err := ds.ApplyLabelSpecs(context.Background(), []*automdm.LabelSpec{&l1, &l2})
 	require.Nil(t, err)
 
-	checkTargets(t, ds, campaign.ID, fleet.HostTargets{})
+	checkTargets(t, ds, campaign.ID, automdm.HostTargets{})
 
 	test.AddHostToCampaign(t, ds, campaign.ID, h1.ID)
-	checkTargets(t, ds, campaign.ID, fleet.HostTargets{HostIDs: []uint{h1.ID}})
+	checkTargets(t, ds, campaign.ID, automdm.HostTargets{HostIDs: []uint{h1.ID}})
 
 	test.AddLabelToCampaign(t, ds, campaign.ID, l1.ID)
-	checkTargets(t, ds, campaign.ID, fleet.HostTargets{HostIDs: []uint{h1.ID}, LabelIDs: []uint{l1.ID}})
+	checkTargets(t, ds, campaign.ID, automdm.HostTargets{HostIDs: []uint{h1.ID}, LabelIDs: []uint{l1.ID}})
 
 	test.AddLabelToCampaign(t, ds, campaign.ID, l2.ID)
-	checkTargets(t, ds, campaign.ID, fleet.HostTargets{HostIDs: []uint{h1.ID}, LabelIDs: []uint{l1.ID, l2.ID}})
+	checkTargets(t, ds, campaign.ID, automdm.HostTargets{HostIDs: []uint{h1.ID}, LabelIDs: []uint{l1.ID, l2.ID}})
 
 	test.AddHostToCampaign(t, ds, campaign.ID, h2.ID)
 	test.AddHostToCampaign(t, ds, campaign.ID, h3.ID)
 
-	checkTargets(t, ds, campaign.ID, fleet.HostTargets{HostIDs: []uint{h1.ID, h2.ID, h3.ID}, LabelIDs: []uint{l1.ID, l2.ID}})
+	checkTargets(t, ds, campaign.ID, automdm.HostTargets{HostIDs: []uint{h1.ID, h2.ID, h3.ID}, LabelIDs: []uint{l1.ID, l2.ID}})
 }
 
 func testCampaignsCleanupDistributedQuery(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
-	user := test.NewUser(t, ds, "Zach", "zwass@fleet.co", true)
+	user := test.NewUser(t, ds, "Zach", "zwass@automdm.co", true)
 	mockClock := clock.NewMockClock()
 	query := test.NewQuery(t, ds, nil, "test", "select * from time", user.ID, false)
 
-	c1 := test.NewCampaign(t, ds, query.ID, fleet.QueryWaiting, mockClock.Now())
-	c2 := test.NewCampaign(t, ds, query.ID, fleet.QueryRunning, mockClock.Now())
+	c1 := test.NewCampaign(t, ds, query.ID, automdm.QueryWaiting, mockClock.Now())
+	c2 := test.NewCampaign(t, ds, query.ID, automdm.QueryRunning, mockClock.Now())
 
 	// Cleanup and verify that nothing changed (because time has not
 	// advanced)
@@ -127,7 +127,7 @@ func testCampaignsCleanupDistributedQuery(t *testing.T, ds *Datastore) {
 		retrieved, err := ds.DistributedQueryCampaign(ctx, c1.ID)
 		require.Nil(t, err)
 		assert.Equal(t, c1.QueryID, retrieved.QueryID)
-		assert.Equal(t, fleet.QueryComplete, retrieved.Status)
+		assert.Equal(t, automdm.QueryComplete, retrieved.Status)
 	}
 	{
 		retrieved, err := ds.DistributedQueryCampaign(ctx, c2.ID)
@@ -147,23 +147,23 @@ func testCampaignsCleanupDistributedQuery(t *testing.T, ds *Datastore) {
 		retrieved, err := ds.DistributedQueryCampaign(ctx, c1.ID)
 		require.Nil(t, err)
 		assert.Equal(t, c1.QueryID, retrieved.QueryID)
-		assert.Equal(t, fleet.QueryComplete, retrieved.Status)
+		assert.Equal(t, automdm.QueryComplete, retrieved.Status)
 	}
 	{
 		// c2 should now be complete
 		retrieved, err := ds.DistributedQueryCampaign(ctx, c2.ID)
 		require.Nil(t, err)
 		assert.Equal(t, c2.QueryID, retrieved.QueryID)
-		assert.Equal(t, fleet.QueryComplete, retrieved.Status)
+		assert.Equal(t, automdm.QueryComplete, retrieved.Status)
 	}
 
 	// simulate another old campaign created > 7 days ago
-	c3 := test.NewCampaign(t, ds, query.ID, fleet.QueryWaiting, mockClock.Now().AddDate(0, 0, -8))
+	c3 := test.NewCampaign(t, ds, query.ID, automdm.QueryWaiting, mockClock.Now().AddDate(0, 0, -8))
 	{
 		retrieved, err := ds.DistributedQueryCampaign(ctx, c3.ID)
 		require.Nil(t, err)
 		assert.Equal(t, c3.QueryID, retrieved.QueryID)
-		assert.Equal(t, fleet.QueryWaiting, retrieved.Status)
+		assert.Equal(t, automdm.QueryWaiting, retrieved.Status)
 	}
 
 	// cleanup will mark c3 as completed because it was waiting for > 1 minute,
@@ -188,23 +188,23 @@ func testCampaignsCleanupDistributedQuery(t *testing.T, ds *Datastore) {
 }
 
 func testCampaignsSaveDistributedQuery(t *testing.T, ds *Datastore) {
-	user := test.NewUser(t, ds, t.Name(), t.Name()+"zwass@fleet.co", true)
+	user := test.NewUser(t, ds, t.Name(), t.Name()+"zwass@automdm.co", true)
 
 	mockClock := clock.NewMockClock()
 
 	query := test.NewQuery(t, ds, nil, t.Name()+"test", "select * from time", user.ID, false)
 
-	c1 := test.NewCampaign(t, ds, query.ID, fleet.QueryWaiting, mockClock.Now())
+	c1 := test.NewCampaign(t, ds, query.ID, automdm.QueryWaiting, mockClock.Now())
 	gotC, err := ds.DistributedQueryCampaign(context.Background(), c1.ID)
 	require.NoError(t, err)
-	require.Equal(t, fleet.QueryWaiting, gotC.Status)
+	require.Equal(t, automdm.QueryWaiting, gotC.Status)
 
-	c1.Status = fleet.QueryComplete
+	c1.Status = automdm.QueryComplete
 	require.NoError(t, ds.SaveDistributedQueryCampaign(context.Background(), c1))
 
 	gotC, err = ds.DistributedQueryCampaign(context.Background(), c1.ID)
 	require.NoError(t, err)
-	require.Equal(t, fleet.QueryComplete, gotC.Status)
+	require.Equal(t, automdm.QueryComplete, gotC.Status)
 }
 
 func testCleanupCompletedCampaignTargets(t *testing.T, ds *Datastore) {
@@ -218,7 +218,7 @@ func testCleanupCompletedCampaignTargets(t *testing.T, ds *Datastore) {
 	host2 := test.NewHost(t, ds, "host2", "192.168.1.2", "host2_key", "host2_uuid", mockClock.Now())
 
 	// Create an old completed campaign (should be cleaned up)
-	oldCampaign := test.NewCampaign(t, ds, query.ID, fleet.QueryComplete, mockClock.Now().Add(-48*time.Hour))
+	oldCampaign := test.NewCampaign(t, ds, query.ID, automdm.QueryComplete, mockClock.Now().Add(-48*time.Hour))
 
 	// Manually update the updated_at timestamp for testing
 	_, err := ds.writer(ctx).ExecContext(ctx,
@@ -231,13 +231,13 @@ func testCleanupCompletedCampaignTargets(t *testing.T, ds *Datastore) {
 	test.AddHostToCampaign(t, ds, oldCampaign.ID, host2.ID)
 
 	// Create a recent completed campaign (should NOT be cleaned up)
-	recentCampaign := test.NewCampaign(t, ds, query.ID, fleet.QueryComplete, mockClock.Now().Add(-1*time.Hour))
+	recentCampaign := test.NewCampaign(t, ds, query.ID, automdm.QueryComplete, mockClock.Now().Add(-1*time.Hour))
 
 	// Add targets to the recent campaign
 	test.AddHostToCampaign(t, ds, recentCampaign.ID, host1.ID)
 
 	// Create a running campaign (should NOT be cleaned up regardless of age)
-	runningCampaign := test.NewCampaign(t, ds, query.ID, fleet.QueryRunning, mockClock.Now().Add(-48*time.Hour))
+	runningCampaign := test.NewCampaign(t, ds, query.ID, automdm.QueryRunning, mockClock.Now().Add(-48*time.Hour))
 
 	// Add targets to the running campaign
 	test.AddHostToCampaign(t, ds, runningCampaign.ID, host1.ID)
@@ -290,7 +290,7 @@ func testCleanupCompletedCampaignTargetsLargeBatch(t *testing.T, ds *Datastore) 
 	query := test.NewQuery(t, ds, nil, "Test Query", "SELECT 1", user.ID, false)
 
 	// Create an old completed campaign
-	oldCampaign := test.NewCampaign(t, ds, query.ID, fleet.QueryComplete, mockClock.Now().Add(-48*time.Hour))
+	oldCampaign := test.NewCampaign(t, ds, query.ID, automdm.QueryComplete, mockClock.Now().Add(-48*time.Hour))
 
 	// Manually update the updated_at timestamp for testing
 	_, err := ds.writer(ctx).ExecContext(ctx,
@@ -327,7 +327,7 @@ func testCleanupCompletedCampaignTargetsLargeBatch(t *testing.T, ds *Datastore) 
 	assert.Len(t, targets.HostIDs, 0)
 }
 
-func checkTargets(t *testing.T, ds fleet.Datastore, campaignID uint, expectedTargets fleet.HostTargets) {
+func checkTargets(t *testing.T, ds automdm.Datastore, campaignID uint, expectedTargets automdm.HostTargets) {
 	targets, err := ds.DistributedQueryCampaignTargetIDs(context.Background(), campaignID)
 	require.Nil(t, err)
 	assert.ElementsMatch(t, expectedTargets.HostIDs, targets.HostIDs)
@@ -346,7 +346,7 @@ func testCompletedCampaigns(t *testing.T, ds *Datastore) {
 	assert.Len(t, result, 0)
 
 	// Now test reasonable results
-	user := test.NewUser(t, ds, t.Name(), t.Name()+"zwass@fleet.co", true)
+	user := test.NewUser(t, ds, t.Name(), t.Name()+"zwass@automdm.co", true)
 	mockClock := clock.NewMockClock()
 	query := test.NewQuery(t, ds, nil, t.Name()+"test", "select * from time", user.ID, false)
 
@@ -355,12 +355,12 @@ func testCompletedCampaigns(t *testing.T, ds *Datastore) {
 	filter := make([]uint, 0, totalFilterSize)
 	complete := make([]uint, 0, numCampaigns)
 	for i := 0; i < numCampaigns; i++ {
-		c1 := test.NewCampaign(t, ds, query.ID, fleet.QueryWaiting, mockClock.Now())
+		c1 := test.NewCampaign(t, ds, query.ID, automdm.QueryWaiting, mockClock.Now())
 		gotC, err := ds.DistributedQueryCampaign(context.Background(), c1.ID)
 		require.NoError(t, err)
-		require.Equal(t, fleet.QueryWaiting, gotC.Status)
+		require.Equal(t, automdm.QueryWaiting, gotC.Status)
 		if rand.Intn(10) < 7 { //nolint:gosec
-			c1.Status = fleet.QueryComplete
+			c1.Status = automdm.QueryComplete
 			require.NoError(t, ds.SaveDistributedQueryCampaign(context.Background(), c1))
 			complete = append(complete, c1.ID)
 		}

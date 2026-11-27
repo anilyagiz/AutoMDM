@@ -1,8 +1,8 @@
 # API for contributors
 
-🚧 **Don't use these API endpoints.** Please use the [public Fleet REST API documentation](https://fleetdm.com/docs/using-fleet/rest-api) instead.
+🚧 **Don't use these API endpoints.** Please use the [public AutoMDM REST API documentation](https://automdm.com/docs/using-automdm/rest-api) instead.
 
-The API endpoints in this document are only used when contributing to Fleet. They're for the Fleet UI, Fleet Desktop, and `fleetctl` clients and frequently change to reflect current functionality. Other usage of these endpoints will have unintended consequences.
+The API endpoints in this document are only used when contributing to AutoMDM. They're for the AutoMDM UI, AutoMDM Desktop, and `automdmctl` clients and frequently change to reflect current functionality. Other usage of these endpoints will have unintended consequences.
 
 If you see an endpoint documented here that you'd like to use, please [file a feature request](https://github.com/fleetdm/fleet/issues/new/choose) to bring it into the stable API.
 
@@ -12,7 +12,7 @@ If you see an endpoint documented here that you'd like to use, please [file a fe
 - [Get or apply configuration files](#get-or-apply-configuration-files)
 - [Live report](#live-report)
 - [Trigger cron schedule](#trigger-cron-schedule)
-- [Fleet-desktop-token-authenticated routes](#Fleet-desktop-token-authenticated-routes)
+- [AutoMDM-desktop-token-authenticated routes](#AutoMDM-desktop-token-authenticated-routes)
 - [Orbit-authenticated routes](#orbit-authenticated-routes)
 - [Setup](#setup)
 - [Scripts](#scripts)
@@ -26,7 +26,7 @@ If you see an endpoint documented here that you'd like to use, please [file a fe
 
 ### Create session
 
-`POST /api/v1/fleet/sessions`
+`POST /api/v1/automdm/sessions`
 
 #### Parameters
 
@@ -35,12 +35,12 @@ If you see an endpoint documented here that you'd like to use, please [file a fe
 
 #### Response
 
-See [the Log in endpoint](https://fleetdm.com/docs/rest-api/rest-api#log-in) for the current
+See [the Log in endpoint](https://automdm.com/docs/rest-api/rest-api#log-in) for the current
 successful response format.
 
 ## Packs
 
-Reports in Fleet is the best practice for collecting data from hosts. To learn how to add reports, [check out the docs here](https://fleetdm.com/docs/using-fleet/fleet-ui#schedule-a-query).
+Reports in AutoMDM is the best practice for collecting data from hosts. To learn how to add reports, [check out the docs here](https://automdm.com/docs/using-automdm/automdm-ui#schedule-a-query).
 
 The API routes to control packs are supported for backwards compatibility.
 
@@ -58,7 +58,7 @@ The API routes to control packs are supported for backwards compatibility.
 
 ### Create pack
 
-`POST /api/v1/fleet/packs`
+`POST /api/v1/automdm/packs`
 
 #### Parameters
 
@@ -68,11 +68,11 @@ The API routes to control packs are supported for backwards compatibility.
 | description | string | body | The pack's description.                                                 |
 | host_ids    | list   | body | A list containing the targeted host IDs.                                |
 | label_ids   | list   | body | A list containing the targeted label's IDs.                             |
-| fleet_ids    | list   | body | _Available in Fleet Premium_ A list containing the targeted fleets' IDs. |
+| team_ids    | list   | body | _Available in AutoMDM Premium_ A list containing the targeted teams' IDs. |
 
 #### Example
 
-`POST /api/v1/fleet/packs`
+`POST /api/v1/automdm/packs`
 
 ##### Request query parameters
 
@@ -104,14 +104,14 @@ The API routes to control packs are supported for backwards compatibility.
       6
     ],
     "team_ids": [],
-    "fleet_ids": []
+    "team_ids": []
   }
 }
 ```
 
 ### Modify pack
 
-`PATCH /api/v1/fleet/packs/{id}`
+`PATCH /api/v1/automdm/packs/{id}`
 
 #### Parameters
 
@@ -122,11 +122,11 @@ The API routes to control packs are supported for backwards compatibility.
 | description | string  | body | The pack's description.                                                 |
 | host_ids    | list    | body | A list containing the targeted host IDs.                                |
 | label_ids   | list    | body | A list containing the targeted label's IDs.                             |
-| fleet_ids    | list    | body | _Available in Fleet Premium_ A list containing the targeted fleets' IDs. |
+| team_ids    | list    | body | _Available in AutoMDM Premium_ A list containing the targeted teams' IDs. |
 
 #### Example
 
-`PATCH /api/v1/fleet/packs/{id}`
+`PATCH /api/v1/automdm/packs/{id}`
 
 ##### Request query parameters
 
@@ -157,14 +157,14 @@ The API routes to control packs are supported for backwards compatibility.
       7
     ],
     "team_ids": [],
-    "fleet_ids": []
+    "team_ids": []
   }
 }
 ```
 
 ### Get pack
 
-`GET /api/v1/fleet/packs/{id}`
+`GET /api/v1/automdm/packs/{id}`
 
 #### Parameters
 
@@ -174,7 +174,7 @@ The API routes to control packs are supported for backwards compatibility.
 
 #### Example
 
-`GET /api/v1/fleet/packs/17`
+`GET /api/v1/automdm/packs/17`
 
 ##### Default response
 
@@ -197,14 +197,14 @@ The API routes to control packs are supported for backwards compatibility.
       7
     ],
     "team_ids": [],
-    "fleet_ids": []
+    "team_ids": []
   }
 }
 ```
 
 ### List packs
 
-`GET /api/v1/fleet/packs`
+`GET /api/v1/automdm/packs`
 
 #### Parameters
 
@@ -215,7 +215,7 @@ The API routes to control packs are supported for backwards compatibility.
 
 #### Example
 
-`GET /api/v1/fleet/packs`
+`GET /api/v1/automdm/packs`
 
 ##### Default response
 
@@ -238,7 +238,7 @@ The API routes to control packs are supported for backwards compatibility.
         8
       ],
       "team_ids": [],
-      "fleet_ids": []
+      "team_ids": []
     },
     {
       "created_at": "2021-01-19T17:08:31Z",
@@ -252,7 +252,7 @@ The API routes to control packs are supported for backwards compatibility.
         6
       ],
       "team_ids": [],
-      "fleet_ids": []
+      "team_ids": []
     }
   ]
 }
@@ -262,7 +262,7 @@ The API routes to control packs are supported for backwards compatibility.
 
 Delete pack by name.
 
-`DELETE /api/v1/fleet/packs/{name}`
+`DELETE /api/v1/automdm/packs/{name}`
 
 #### Parameters
 
@@ -272,7 +272,7 @@ Delete pack by name.
 
 #### Example
 
-`DELETE /api/v1/fleet/packs/pack_number_one`
+`DELETE /api/v1/automdm/packs/pack_number_one`
 
 ##### Default response
 
@@ -281,7 +281,7 @@ Delete pack by name.
 
 ### Delete pack by ID
 
-`DELETE /api/v1/fleet/packs/id/{id}`
+`DELETE /api/v1/automdm/packs/id/{id}`
 
 #### Parameters
 
@@ -291,7 +291,7 @@ Delete pack by name.
 
 #### Example
 
-`DELETE /api/v1/fleet/packs/id/1`
+`DELETE /api/v1/automdm/packs/id/1`
 
 ##### Default response
 
@@ -300,7 +300,7 @@ Delete pack by name.
 
 ### Get scheduled queries in a pack
 
-`GET /api/v1/fleet/packs/{id}/scheduled`
+`GET /api/v1/automdm/packs/{id}/scheduled`
 
 #### Parameters
 
@@ -310,7 +310,7 @@ Delete pack by name.
 
 #### Example
 
-`GET /api/v1/fleet/packs/1/scheduled`
+`GET /api/v1/automdm/packs/1/scheduled`
 
 ##### Default response
 
@@ -376,7 +376,7 @@ Delete pack by name.
 
 ### Add scheduled query to a pack
 
-`POST /api/v1/fleet/schedule`
+`POST /api/v1/automdm/schedule`
 
 #### Parameters
 
@@ -393,7 +393,7 @@ Delete pack by name.
 
 #### Example
 
-`POST /api/v1/fleet/schedule`
+`POST /api/v1/automdm/schedule`
 
 #### Request body
 
@@ -437,7 +437,7 @@ Delete pack by name.
 
 ### Get scheduled query
 
-`GET /api/v1/fleet/schedule/{id}`
+`GET /api/v1/automdm/schedule/{id}`
 
 #### Parameters
 
@@ -447,7 +447,7 @@ Delete pack by name.
 
 #### Example
 
-`GET /api/v1/fleet/schedule/56`
+`GET /api/v1/automdm/schedule/56`
 
 ##### Default response
 
@@ -477,7 +477,7 @@ Delete pack by name.
 
 ### Modify scheduled query
 
-`PATCH /api/v1/fleet/schedule/{id}`
+`PATCH /api/v1/automdm/schedule/{id}`
 
 #### Parameters
 
@@ -493,7 +493,7 @@ Delete pack by name.
 
 #### Example
 
-`PATCH /api/v1/fleet/schedule/56`
+`PATCH /api/v1/automdm/schedule/56`
 
 #### Request body
 
@@ -530,7 +530,7 @@ Delete pack by name.
 
 ### Delete scheduled query
 
-`DELETE /api/v1/fleet/schedule/{id}`
+`DELETE /api/v1/automdm/schedule/{id}`
 
 #### Parameters
 
@@ -540,7 +540,7 @@ Delete pack by name.
 
 #### Example
 
-`DELETE /api/v1/fleet/schedule/56`
+`DELETE /api/v1/automdm/schedule/56`
 
 ##### Default response
 
@@ -550,9 +550,9 @@ Delete pack by name.
 
 ## Mobile device management (MDM)
 
-> Only Fleet MDM specific endpoints are located within the root /mdm/ path.
+> Only AutoMDM specific endpoints are located within the root /mdm/ path.
 
-The MDM endpoints exist to support the related command-line interface sub-commands of `fleetctl`, such as `fleetctl generate mdm-apple` and `fleetctl get mdm-apple`, as well as the Fleet UI.
+The MDM endpoints exist to support the related command-line interface sub-commands of `automdmctl`, such as `automdmctl generate mdm-apple` and `automdmctl get mdm-apple`, as well as the AutoMDM UI.
 
 - [Generate Apple Business public key (ADE)](#generate-apple-business-public-key-ade)
 - [Request Certificate Signing Request (CSR)](#request-certificate-signing-request-csr)
@@ -560,7 +560,7 @@ The MDM endpoints exist to support the related command-line interface sub-comman
 - [Add AB token](#add-ab-token)
 - [Count AB tokens](#count-ab-tokens)
 - [Turn off Apple MDM](#turn-off-apple-mdm)
-- [Update AB token's fleets](#update-ab-tokens-fleets)
+- [Update AB token's teams](#update-ab-tokens-teams)
 - [Renew AB token](#renew-ab-token)
 - [Delete AB token](#delete-ab-token)
 - [Renew VPP token](#renew-vpp-token)
@@ -589,11 +589,11 @@ The MDM endpoints exist to support the related command-line interface sub-comman
 
 ### Generate Apple Business public key (ADE)
 
-`GET /api/v1/fleet/mdm/apple/ab_public_key`
+`GET /api/v1/automdm/mdm/apple/ab_public_key`
 
 #### Example
 
-`GET /api/v1/fleet/mdm/apple/ab_public_key`
+`GET /api/v1/automdm/mdm/apple/ab_public_key`
 
 ##### Default response
 
@@ -607,11 +607,11 @@ The MDM endpoints exist to support the related command-line interface sub-comman
 
 ### Request Certificate Signing Request (CSR)
 
-`GET /api/v1/fleet/mdm/apple/request_csr`
+`GET /api/v1/automdm/mdm/apple/request_csr`
 
 #### Example
 
-`GET /api/v1/fleet/mdm/apple/request_csr`
+`GET /api/v1/automdm/mdm/apple/request_csr`
 
 ##### Default response
 
@@ -628,7 +628,7 @@ Status: 200
 
 ### Upload APNS certificate
 
-`POST /api/v1/fleet/mdm/apple/apns_certificate`
+`POST /api/v1/automdm/mdm/apple/apns_certificate`
 
 #### Parameters
 
@@ -638,7 +638,7 @@ Status: 200
 
 #### Example
 
-`POST /api/v1/fleet/mdm/apple/apns_certificate`
+`POST /api/v1/automdm/mdm/apple/apns_certificate`
 
 ##### Request header
 
@@ -665,7 +665,7 @@ Content-Type: application/octet-stream
 
 ### Add AB token
 
-`POST /api/v1/fleet/ab_tokens`
+`POST /api/v1/automdm/ab_tokens`
 
 #### Parameters
 
@@ -675,7 +675,7 @@ Content-Type: application/octet-stream
 
 #### Example
 
-`POST /api/v1/fleet/ab_tokens`
+`POST /api/v1/automdm/ab_tokens`
 
 ##### Request header
 
@@ -712,10 +712,10 @@ Content-Type: application/octet-stream
     "default": true,
     "terms_expired": false,
     "token_invalid": false,
-    "macos_fleet": null,
-    "ios_fleet": null,
-    "ipados_fleet": null,
-    "byod_fleet": null
+    "macos_team": null,
+    "ios_team": null,
+    "ipados_team": null,
+    "byod_team": null
   },
   "abm_token": {
     "id": 1,
@@ -727,10 +727,10 @@ Content-Type: application/octet-stream
     "default": true,
     "terms_expired": false,
     "token_invalid": false,
-    "macos_fleet": null,
-    "ios_fleet": null,
-    "ipados_fleet": null,
-    "byod_fleet": null,
+    "macos_team": null,
+    "ios_team": null,
+    "ipados_team": null,
+    "byod_team": null,
     "macos_team": null,
     "ios_team": null,
     "ipados_team": null,
@@ -741,9 +741,9 @@ Content-Type: application/octet-stream
 
 ### Count AB tokens
 
-`GET /api/v1/fleet/ab_tokens/count`
+`GET /api/v1/automdm/ab_tokens/count`
 
-Get the number of AB tokens on the Fleet server.
+Get the number of AB tokens on the AutoMDM server.
 
 #### Parameters
 
@@ -751,7 +751,7 @@ None.
 
 #### Example
 
-`GET /api/v1/fleet/ab_tokens/count`
+`GET /api/v1/automdm/ab_tokens/count`
 
 ##### Default response
 
@@ -765,42 +765,42 @@ None.
 
 ### Turn off Apple MDM
 
-`DELETE /api/v1/fleet/mdm/apple/apns_certificate`
+`DELETE /api/v1/automdm/mdm/apple/apns_certificate`
 
 #### Example
 
-`DELETE /api/v1/fleet/mdm/apple/apns_certificate`
+`DELETE /api/v1/automdm/mdm/apple/apns_certificate`
 
 ##### Default response
 
 `Status: 204`
 
-### Update AB token's fleets
+### Update AB token's teams
 
-`PATCH /api/v1/fleet/ab_tokens/:id/fleets`
+`PATCH /api/v1/automdm/ab_tokens/:id/teams`
 
 #### Parameters
 
 | Name | Type | In | Description |
 | ---- | ---- | -- | ----------- |
 | id | integer | path | *Required* The Apple Business (AB) token's ID |
-| macos_fleet_id | integer | body | macOS hosts are automatically added to this fleet when they appear in Apple Business. If not specified, defaults to "Unassigned". |
-| ios_fleet_id | integer | body | iOS hosts are automatically added to this fleet when they appear in Apple Business. If not specified, defaults to "Unassigned". |
-| ipados_fleet_id | integer | body | iPadOS hosts are automatically added to this fleet when they appear in Apple Business. If not specified, defaults to "Unassigned". |
-| byod_fleet_id | integer | body | iOS/iPadOS BYOD hosts enrolling via Account-driven User Enrollment are automatically added to this fleet. If not specified, defaults to "Unassigned". |
+| macos_team_id | integer | body | macOS hosts are automatically added to this team when they appear in Apple Business. If not specified, defaults to "Unassigned". |
+| ios_team_id | integer | body | iOS hosts are automatically added to this team when they appear in Apple Business. If not specified, defaults to "Unassigned". |
+| ipados_team_id | integer | body | iPadOS hosts are automatically added to this team when they appear in Apple Business. If not specified, defaults to "Unassigned". |
+| byod_team_id | integer | body | iOS/iPadOS BYOD hosts enrolling via Account-driven User Enrollment are automatically added to this team. If not specified, defaults to "Unassigned". |
 
 #### Example
 
-`PATCH /api/v1/fleet/ab_tokens/1/fleets`
+`PATCH /api/v1/automdm/ab_tokens/1/teams`
 
 ##### Request body
 
 ```json
 {
-  "macos_fleet_id": 1,
-  "ios_fleet_id": 2,
-  "ipados_fleet_id": 3,
-  "byod_fleet_id": 4
+  "macos_team_id": 1,
+  "ios_team_id": 2,
+  "ipados_team_id": 3,
+  "byod_team_id": 4
 }
 ```
 
@@ -820,10 +820,10 @@ None.
     "default": true,
     "terms_expired": false,
     "token_invalid": false,
-    "macos_fleet": 1,
-    "ios_fleet": 2,
-    "ipados_fleet": 3,
-    "byod_fleet": 3
+    "macos_team": 1,
+    "ios_team": 2,
+    "ipados_team": 3,
+    "byod_team": 3
   },
   "abm_token": {
     "id": 1,
@@ -835,9 +835,9 @@ None.
     "default": true,
     "terms_expired": false,
     "token_invalid": false,
-    "macos_fleet": 1,
-    "ios_fleet": 2,
-    "ipados_fleet": 3,
+    "macos_team": 1,
+    "ios_team": 2,
+    "ipados_team": 3,
     "macos_team": 1,
     "ios_team": 2,
     "ipados_team": 3,
@@ -848,9 +848,9 @@ None.
 
 ### Set AB token as default
 
-`PATCH /api/v1/fleet/ab_tokens/:id/default`
+`PATCH /api/v1/automdm/ab_tokens/:id/default`
 
-Fleet uses the default AB token to verify Managed Apple Account sign-in on hosts that aren't in Apple Business. Hosts that are in Apple Business use their own AB token. If you have one AB token, it's always the default. Setting a new default clears the previous one.
+AutoMDM uses the default AB token to verify Managed Apple Account sign-in on hosts that aren't in Apple Business. Hosts that are in Apple Business use their own AB token. If you have one AB token, it's always the default. Setting a new default clears the previous one.
 
 #### Parameters
 
@@ -861,7 +861,7 @@ Fleet uses the default AB token to verify Managed Apple Account sign-in on hosts
 
 #### Example
 
-`PATCH /api/v1/fleet/ab_tokens/2/default`
+`PATCH /api/v1/automdm/ab_tokens/2/default`
 
 ##### Request body
 
@@ -887,10 +887,10 @@ Fleet uses the default AB token to verify Managed Apple Account sign-in on hosts
     "default": true,
     "terms_expired": false,
     "token_invalid": false,
-    "macos_fleet": null,
-    "ios_fleet": null,
-    "ipados_fleet": null,
-    "byod_fleet": null
+    "macos_team": null,
+    "ios_team": null,
+    "ipados_team": null,
+    "byod_team": null
   },
   "abm_token": {
     "id": 2,
@@ -902,9 +902,9 @@ Fleet uses the default AB token to verify Managed Apple Account sign-in on hosts
     "default": true,
     "terms_expired": false,
     "token_invalid": false,
-    "macos_fleet": null,
-    "ios_fleet": null,
-    "ipados_fleet": null,
+    "macos_team": null,
+    "ios_team": null,
+    "ipados_team": null,
     "macos_team": null,
     "ios_team": null,
     "ipados_team": null,
@@ -915,7 +915,7 @@ Fleet uses the default AB token to verify Managed Apple Account sign-in on hosts
 
 ### Renew AB token
 
-`PATCH /api/v1/fleet/ab_tokens/:id/renew`
+`PATCH /api/v1/automdm/ab_tokens/:id/renew`
 
 #### Parameters
 
@@ -926,7 +926,7 @@ Fleet uses the default AB token to verify Managed Apple Account sign-in on hosts
 
 #### Example
 
-`PATCH /api/v1/fleet/ab_tokens/1/renew`
+`PATCH /api/v1/automdm/ab_tokens/1/renew`
 
 ##### Request header
 
@@ -963,10 +963,10 @@ Content-Type: application/octet-stream
     "default": true,
     "terms_expired": false,
     "token_invalid": false,
-    "macos_fleet": null,
-    "ios_fleet": null,
-    "ipados_fleet": null,
-    "byod_fleet": null
+    "macos_team": null,
+    "ios_team": null,
+    "ipados_team": null,
+    "byod_team": null
   },
   "abm_token": {
     "id": 1,
@@ -978,9 +978,9 @@ Content-Type: application/octet-stream
     "default": true,
     "terms_expired": false,
     "token_invalid": false,
-    "macos_fleet": null,
-    "ios_fleet": null,
-    "ipados_fleet": null,
+    "macos_team": null,
+    "ios_team": null,
+    "ipados_team": null,
     "macos_team": null,
     "ios_team": null,
     "ipados_team": null,
@@ -991,7 +991,7 @@ Content-Type: application/octet-stream
 
 ### Delete AB token
 
-`DELETE /api/v1/fleet/ab_tokens/:id`
+`DELETE /api/v1/automdm/ab_tokens/:id`
 
 #### Parameters
 
@@ -1001,7 +1001,7 @@ Content-Type: application/octet-stream
 
 #### Example
 
-`DELETE /api/v1/fleet/ab_tokens/1`
+`DELETE /api/v1/automdm/ab_tokens/1`
 
 ##### Default response
 
@@ -1009,7 +1009,7 @@ Content-Type: application/octet-stream
 
 ### Renew VPP token
 
-`PATCH /api/v1/fleet/vpp_tokens/:id/renew`
+`PATCH /api/v1/automdm/vpp_tokens/:id/renew`
 
 #### Parameters
 
@@ -1050,13 +1050,13 @@ Content-Type: application/octet-stream
   "created_at": "2023-10-20T14:02:11Z",
   "terms_expired": false,
   "teams": [1, 2, 3],
-  "fleets": [1, 2, 3]
+  "teams": [1, 2, 3]
 }
 ```
 
 ### Delete VPP token
 
-`DELETE /api/v1/fleet/vpp_tokens/:id`
+`DELETE /api/v1/automdm/vpp_tokens/:id`
 
 #### Parameters
 
@@ -1066,7 +1066,7 @@ Content-Type: application/octet-stream
 
 #### Example
 
-`DELETE /api/v1/fleet/vpp_tokens/1`
+`DELETE /api/v1/automdm/vpp_tokens/1`
 
 ##### Default response
 
@@ -1074,26 +1074,26 @@ Content-Type: application/octet-stream
 
 ### Batch-apply MDM custom settings
 
-`POST /api/v1/fleet/mdm/profiles/batch`
+`POST /api/v1/automdm/mdm/profiles/batch`
 
 #### Parameters
 
 | Name      | Type   | In    | Description                                                                                                                       |
 | --------- | ------ | ----- | --------------------------------------------------------------------------------------------------------------------------------- |
-| team_id   | number | query | _Available in Fleet Premium_ The fleet ID to apply the custom settings to. Only one of `team_name`/`team_id` can be provided.          |
-| team_name | string | query | _Available in Fleet Premium_ The name of the fleet to apply the custom settings to. Only one of `team_name`/`team_id` can be provided. |
+| team_id   | number | query | _Available in AutoMDM Premium_ The team ID to apply the custom settings to. Only one of `team_name`/`team_id` can be provided.          |
+| team_name | string | query | _Available in AutoMDM Premium_ The name of the team to apply the custom settings to. Only one of `team_name`/`team_id` can be provided. |
 | dry_run   | bool   | query | Validate the provided profiles and return any validation errors, but do not apply the changes.                                    |
-| no_cache  | bool   | query | Do not use the cached version of Fleet's configuration. This parameter should only be used when the configuration was updated less than 1 second ago. |
-| assume_enabled | bool | query | Only applies when `dry_run` is `true`. Validate the profiles as if Windows MDM is turned on (`true`) or off (`false`), instead of using the current setting. `fleetctl gitops --dry-run` sends this so profiles are validated against the Windows MDM setting in the YAML files. |
-| assume_profile_validation | bool | query | Only applies when `dry_run` is `true`. Validate the profiles as if `mdm.enable_profile_validation` is `true` or `false`, instead of using the current setting. `fleetctl gitops --dry-run` sends the incoming value from the YAML file. |
+| no_cache  | bool   | query | Do not use the cached version of AutoMDM's configuration. This parameter should only be used when the configuration was updated less than 1 second ago. |
+| assume_enabled | bool | query | Only applies when `dry_run` is `true`. Validate the profiles as if Windows MDM is turned on (`true`) or off (`false`), instead of using the current setting. `automdmctl gitops --dry-run` sends this so profiles are validated against the Windows MDM setting in the YAML files. |
+| assume_profile_validation | bool | query | Only applies when `dry_run` is `true`. Validate the profiles as if `mdm.enable_profile_validation` is `true` or `false`, instead of using the current setting. `automdmctl gitops --dry-run` sends the incoming value from the YAML file. |
 | profiles  | json   | body  | An array of objects, consisting of a `profile` base64-encoded .mobileconfig or JSON for macOS and XML (Windows) file, `labels_include_all`, `labels_include_any`, or `labels_exclude_any` array of strings (label names), and `name` display name (for Windows configuration profiles and macOS declaration profiles). |
 
 
-If no fleet (id or name) is provided, the profiles are applied for all hosts (for _Fleet Free_) or for hosts that are not assigned to any fleet (for _Fleet Premium_). After the call, the provided list of `profiles` will be the active profiles for that fleet (or no fleet) - that is, any existing profile that is not part of that list will be removed, and an existing profile with the same payload identifier (macOS) as a new profile will be edited. If the list of provided `profiles` is empty, all profiles are removed for that fleet (or no fleet).
+If no team (id or name) is provided, the profiles are applied for all hosts (for _AutoMDM Free_) or for hosts that are not assigned to any team (for _AutoMDM Premium_). After the call, the provided list of `profiles` will be the active profiles for that team (or no team) - that is, any existing profile that is not part of that list will be removed, and an existing profile with the same payload identifier (macOS) as a new profile will be edited. If the list of provided `profiles` is empty, all profiles are removed for that team (or no team).
 
 #### Example
 
-`POST /api/v1/fleet/mdm/profiles/batch`
+`POST /api/v1/automdm/mdm/profiles/batch`
 
 ##### Default response
 
@@ -1103,9 +1103,9 @@ If no fleet (id or name) is provided, the profiles are applied for all hosts (fo
 
 This endpoint initiates the SSO flow, the response contains an URL that the client can use to redirect the user to initiate the SSO flow in the configured IdP.
 
-`POST /api/v1/fleet/mdm/sso`
+`POST /api/v1/automdm/mdm/sso`
 
-A successful response contains an HTTP cookie `__Host-FLEETSSOSESSIONID` that needs to be sent on the `POST /api/v1/fleet/mdm/sso/callback` request (this HTTP cookie is used to identify the SSO login session).
+A successful response contains an HTTP cookie `__Host-AUTOMDMSSOSESSIONID` that needs to be sent on the `POST /api/v1/automdm/mdm/sso/callback` request (this HTTP cookie is used to identify the SSO login session).
 
 #### Parameters
 
@@ -1114,11 +1114,11 @@ A successful response contains an HTTP cookie `__Host-FLEETSSOSESSIONID` that ne
 | initiator | string | body | Used to differentiate between account driven enrollment and DEP or other flows for SSO callback purposes. The callback will use the Account Driven Enrollment behavior if `account_driven_enroll` is passed as the value of this parameter. Use `setup_experience` to initiate a web-based SSO login outside of the DEP flow. |
 | user_identifier | string | body | Passed by Apple for account-driven enrollment.
 | host_uuid | string | body | The hardware UUID of the device to enroll when using the `setup_experience` value for `initiator`.
-| deviceinfo | string | body | **Required** when `initiator` is `mdm_sso`, which the Fleet UI sends for automatic enrollment (ADE) end user authentication. The base64-encoded `x-apple-aspen-deviceinfo` value that Setup Assistant sent with the enrollment web view request. Fleet verifies Apple's signature on it and binds the enrollment to that device. |
+| deviceinfo | string | body | **Required** when `initiator` is `mdm_sso`, which the AutoMDM UI sends for automatic enrollment (ADE) end user authentication. The base64-encoded `x-apple-aspen-deviceinfo` value that Setup Assistant sent with the enrollment web view request. AutoMDM verifies Apple's signature on it and binds the enrollment to that device. |
 
 #### Example
 
-`POST /api/v1/fleet/mdm/sso`
+`POST /api/v1/automdm/mdm/sso`
 
 ##### Default response
 
@@ -1130,29 +1130,29 @@ A successful response contains an HTTP cookie `__Host-FLEETSSOSESSIONID` that ne
 
 Example response cookie in the HTTP `Set-Cookie` header:
 ```
-Set-Cookie: __Host-FLEETSSOSESSIONID=slI727JZ+j0FvyBRLyD/gri1rxtwpaZT; Path=/; Max-Age=900; HttpOnly; Secure; SameSite=None
+Set-Cookie: __Host-AUTOMDMSSOSESSIONID=slI727JZ+j0FvyBRLyD/gri1rxtwpaZT; Path=/; Max-Age=900; HttpOnly; Secure; SameSite=None
 ```
 
 `Max-Age` matches `auth.sso_session_validity_period`, which defaults to 15 minutes.
 
 ### Complete SSO during DEP or Account Driven enrollment
 
-This is the callback endpoint that the identity provider will use to send security assertions to Fleet. This is where Fleet receives and processes the response from the identify provider.
+This is the callback endpoint that the identity provider will use to send security assertions to AutoMDM. This is where AutoMDM receives and processes the response from the identify provider.
 
-`POST /api/v1/fleet/mdm/sso/callback`
+`POST /api/v1/automdm/mdm/sso/callback`
 
-The `__Host-FLEETSSOSESSIONID` HTTP cookie must be set for MDM SSO login requests. The value for this cookie is returned in the `POST /api/v1/fleet/mdm/sso` request.
+The `__Host-AUTOMDMSSOSESSIONID` HTTP cookie must be set for MDM SSO login requests. The value for this cookie is returned in the `POST /api/v1/automdm/mdm/sso` request.
 
 #### Parameters
 
 | Name                     | Type   | In     | Description                                                                                                         |
 | ------------------------ | ------ | ------ | ------------------------------------------------------------------------------------------------------------------- |
 | SAMLResponse             | string | body   | **Required**. The SAML response from the identity provider.                                                         |
-| __Host-FLEETSSOSESSIONID | string | cookie | **Required**. HTTP Cookie returned in the `POST /api/v1/fleet/mdm/sso` request.                                     |
+| __Host-AUTOMDMSSOSESSIONID | string | cookie | **Required**. HTTP Cookie returned in the `POST /api/v1/automdm/mdm/sso` request.                                     |
 
 #### Example
 
-`POST /api/v1/fleet/mdm/sso/callback`
+`POST /api/v1/automdm/mdm/sso/callback`
 
 ##### Request body
 
@@ -1164,7 +1164,7 @@ The `__Host-FLEETSSOSESSIONID` HTTP cookie must be set for MDM SSO login request
 
 Example session cookie set in the `Cookie` request header:
 ```
-Cookie: __Host-FLEETSSOSESSIONID=slI727JZ+j0FvyBRLyD/gri1rxtwpaZT
+Cookie: __Host-AUTOMDMSSOSESSIONID=slI727JZ+j0FvyBRLyD/gri1rxtwpaZT
 ```
 
 ##### Default response
@@ -1172,7 +1172,7 @@ Cookie: __Host-FLEETSSOSESSIONID=slI727JZ+j0FvyBRLyD/gri1rxtwpaZT
 `Status: 302`
 
 If the credentials are valid and no value was passed for the `initiator` parameter during initiation
-of SSO, the server redirects the client to the Fleet UI. The URL contains the
+of SSO, the server redirects the client to the AutoMDM UI. The URL contains the
 following query parameters that can be used to complete the DEP enrollment flow:
 
 - `enrollment_reference` a reference that must be passed along with `profile_token` to the endpoint to download an enrollment profile.
@@ -1188,23 +1188,23 @@ enrollment flow:
  - `access-token` a token that is passed by the device in the Authorization header on the second call to the Account Driven
    Enrollment endpoint to download an enrollment profile.
 
-If the credentials can't be validated, the server redirects the client to the Fleet UI with the
+If the credentials can't be validated, the server redirects the client to the AutoMDM UI with the
 following query parameters:
 
 - `error=true` is set for any failure.
-- `reason=session_expired` is added when the SSO session created by `POST /api/v1/fleet/mdm/sso` is
-  no longer available, so the Fleet UI can tell the end user their sign-in timed out rather than
+- `reason=session_expired` is added when the SSO session created by `POST /api/v1/automdm/mdm/sso` is
+  no longer available, so the AutoMDM UI can tell the end user their sign-in timed out rather than
   showing a generic error. This happens when the user takes longer than
   `auth.sso_session_validity_period` to authenticate with the IdP, when the session cookie expires,
   or when the callback is replayed (the session is single use).
 
 ### Rotate automatic enrollment token
 
-_Available in Fleet Premium_
+_Available in AutoMDM Premium_
 
-Replaces the automatic enrollment token. Fleet puts this token in the `url` of the automatic enrollment profile for fleets without end user authentication. The previous token keeps working for a grace period. Only global admins can rotate the token.
+Replaces the automatic enrollment token. AutoMDM puts this token in the `url` of the automatic enrollment profile for teams without end user authentication. The previous token keeps working for a grace period. Only global admins can rotate the token.
 
-`POST /api/v1/fleet/enrollment_profiles/automatic/rotate_token`
+`POST /api/v1/automdm/enrollment_profiles/automatic/rotate_token`
 
 #### Parameters
 
@@ -1214,7 +1214,7 @@ Replaces the automatic enrollment token. Fleet puts this token in the `url` of t
 
 #### Example
 
-`POST /api/v1/fleet/enrollment_profiles/automatic/rotate_token`
+`POST /api/v1/automdm/enrollment_profiles/automatic/rotate_token`
 
 ##### Request body
 
@@ -1236,14 +1236,14 @@ Replaces the automatic enrollment token. Fleet puts this token in the `url` of t
 
 `previous_token_expires_at` is `null` when `grace_period_hours` is `0`. Token values are never returned.
 
-After rotating, Fleet updates every fleet's automatic enrollment profile in Apple Business (AB) with the new `url`, and reassigns the fleet's devices to it. Rotating again during a grace period ends the earlier grace period.
+After rotating, AutoMDM updates every team's automatic enrollment profile in Apple Business (AB) with the new `url`, and reassigns the team's devices to it. Rotating again during a grace period ends the earlier grace period.
 
 Devices keep the automatic enrollment configuration they got when they were activated. A device that was activated before the rotation, but hasn't enrolled yet, can't enroll with the old token once the grace period ends. To fix it, erase and reactivate it.
 
 ##### Error responses
 
 - `400` when Apple MDM isn't turned on.
-- `402` on Fleet Free.
+- `402` on AutoMDM Free.
 - `403` for any role other than global admin.
 - `404` when there's no automatic enrollment profile yet (no AB token has synced).
 - `422` when `grace_period_hours` is out of range.
@@ -1252,22 +1252,22 @@ Devices keep the automatic enrollment configuration they got when they were acti
 
 This endpoint handles over the air (OTA) MDM enrollments
 
-`POST /api/v1/fleet/ota_enrollment`
+`POST /api/v1/automdm/ota_enrollment`
 
 #### Parameters
 
 | Name                | Type   | In   | Description                                                                                                                                                                                                                                                                                        |
 | ------------------- | ------ | ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| enroll_secret       | string | url  | **Required** Assigns the host to a fleet with a matching enroll secret                                                                                                                                                                                                                |
-| idp_session         | string | url  | The identity provider (IdP) session ID from end user authentication on the `/enroll` page. **Required** when end user authentication is turned on for the fleet that matches `enroll_secret`. Fleet links the host to the end user's IdP account. Only used when the device response is signed by Fleet's SCEP certificate (second phase). |
-| byod                | string | url  | Set to `true` or `1` when the end user chose a personal (BYOD) device on the `/enroll` page. Fleet records the host as a personal enrollment and leaves out the device lock and erase access rights from the enrollment profile. Only used when the device response is signed by Fleet's SCEP certificate (second phase). |
+| enroll_secret       | string | url  | **Required** Assigns the host to a team with a matching enroll secret                                                                                                                                                                                                                |
+| idp_session         | string | url  | The identity provider (IdP) session ID from end user authentication on the `/enroll` page. **Required** when end user authentication is turned on for the team that matches `enroll_secret`. AutoMDM links the host to the end user's IdP account. Only used when the device response is signed by AutoMDM's SCEP certificate (second phase). |
+| byod                | string | url  | Set to `true` or `1` when the end user chose a personal (BYOD) device on the `/enroll` page. AutoMDM records the host as a personal enrollment and leaves out the device lock and erase access rights from the enrollment profile. Only used when the device response is signed by AutoMDM's SCEP certificate (second phase). |
 | XML device response | XML    | body | **Required**. The XML response from the device. See [Apple configuration profile documentation](https://developer.apple.com/library/archive/documentation/NetworkingInternet/Conceptual/iPhoneOTAConfiguration/ConfigurationProfileExamples/ConfigurationProfileExamples.html#//apple_ref/doc/uid/TP40009505-CH4-SW7) for examples. |
 
 > Note: enroll secrets can contain special characters. Ensure any special characters are [properly escaped](https://developer.mozilla.org/en-US/docs/Glossary/Percent-encoding).
 
 #### Example
 
-`POST /api/v1/fleet/ota_enrollment?enroll_secret=0Z6IuKpKU4y7xl%2BZcrp2gPcMi1kKNs3p`
+`POST /api/v1/automdm/ota_enrollment?enroll_secret=0Z6IuKpKU4y7xl%2BZcrp2gPcMi1kKNs3p`
 
 ##### Default response
 
@@ -1280,13 +1280,13 @@ Per [the spec](https://developer.apple.com/library/archive/documentation/Network
 
 ### Preassign profiles to devices
 
-> The Puppet module API endpoints are deprecated as of Fleet 4.66. They are maintained for backwards compatibility.
+> The Puppet module API endpoints are deprecated as of AutoMDM 4.66. They are maintained for backwards compatibility.
 
-_Available in Fleet Premium_
+_Available in AutoMDM Premium_
 
-This endpoint stores a profile to be assigned to a host at some point in the future. The actual assignment happens when the [Match preassigned profiles](#match-preassigned-profiles) endpoint is called. The reason for this "pre-assign" step is to collect all profiles that are meant to be assigned to a host, and match the list of profiles to an existing fleet (or create one with that set of profiles if none exist) so that the host can be assigned to that fleet and inherit its list of profiles.
+This endpoint stores a profile to be assigned to a host at some point in the future. The actual assignment happens when the [Match preassigned profiles](#match-preassigned-profiles) endpoint is called. The reason for this "pre-assign" step is to collect all profiles that are meant to be assigned to a host, and match the list of profiles to an existing team (or create one with that set of profiles if none exist) so that the host can be assigned to that team and inherit its list of profiles.
 
-`POST /api/v1/fleet/mdm/apple/profiles/preassign`
+`POST /api/v1/automdm/mdm/apple/profiles/preassign`
 
 #### Parameters
 
@@ -1295,12 +1295,12 @@ This endpoint stores a profile to be assigned to a host at some point in the fut
 | external_host_identifier | string  | body | **Required**. The identifier of the host as generated by the external service (e.g. Puppet). |
 | host_uuid                | string  | body | **Required**. The UUID of the host.                                                          |
 | profile                  | string  | body | **Required**. The base64-encoded .mobileconfig content of the MDM profile.                   |
-| group                    | string  | body | The group label associated with that profile. This information is used to generate fleet names if they need to be created. |
+| group                    | string  | body | The group label associated with that profile. This information is used to generate team names if they need to be created. |
 | exclude                  | boolean | body | Whether to skip delivering the profile to this host. |
 
 #### Example
 
-`POST /api/v1/fleet/mdm/apple/profiles/preassign`
+`POST /api/v1/automdm/mdm/apple/profiles/preassign`
 
 ##### Request body
 
@@ -1320,25 +1320,25 @@ This endpoint stores a profile to be assigned to a host at some point in the fut
 
 ### Get FileVault statistics
 
-_Available in Fleet Premium_
+_Available in AutoMDM Premium_
 
 Get aggregate status counts of disk encryption enforced on macOS hosts.
 
-The summary can optionally be filtered by fleet id.
+The summary can optionally be filtered by team id.
 
-`GET /api/v1/fleet/mdm/apple/filevault/summary`
+`GET /api/v1/automdm/mdm/apple/filevault/summary`
 
 #### Parameters
 
 | Name                      | Type   | In    | Description                                                               |
 | ------------------------- | ------ | ----- | ------------------------------------------------------------------------- |
-| team_id                   | string | query | _Available in Fleet Premium_ The fleet id to filter the summary.           |
+| team_id                   | string | query | _Available in AutoMDM Premium_ The team id to filter the summary.           |
 
 #### Example
 
-Get aggregate status counts of Apple disk encryption profiles applying to macOS hosts enrolled to Fleet's MDM that are not assigned to any fleet.
+Get aggregate status counts of Apple disk encryption profiles applying to macOS hosts enrolled to AutoMDM's MDM that are not assigned to any team.
 
-`GET /api/v1/fleet/mdm/apple/filevault/summary`
+`GET /api/v1/automdm/mdm/apple/filevault/summary`
 
 ##### Default response
 
@@ -1358,13 +1358,13 @@ Get aggregate status counts of Apple disk encryption profiles applying to macOS 
 
 ### Match preassigned profiles
 
-> The Puppet module API endpoints are deprecated as of Fleet 4.66. They are maintained for backwards compatibility.
+> The Puppet module API endpoints are deprecated as of AutoMDM 4.66. They are maintained for backwards compatibility.
 
-_Available in Fleet Premium_
+_Available in AutoMDM Premium_
 
-This endpoint uses the profiles stored by the [Preassign profiles to devices](#preassign-profiles-to-devices) endpoint to match the set of profiles to an existing fleet if possible, creating one if none exists. It then assigns the host to that fleet so that it receives the associated profiles. It is meant to be called only once all desired profiles have been pre-assigned to the host.
+This endpoint uses the profiles stored by the [Preassign profiles to devices](#preassign-profiles-to-devices) endpoint to match the set of profiles to an existing team if possible, creating one if none exists. It then assigns the host to that team so that it receives the associated profiles. It is meant to be called only once all desired profiles have been pre-assigned to the host.
 
-`POST /api/v1/fleet/mdm/apple/profiles/match`
+`POST /api/v1/automdm/mdm/apple/profiles/match`
 
 #### Parameters
 
@@ -1374,7 +1374,7 @@ This endpoint uses the profiles stored by the [Preassign profiles to devices](#p
 
 #### Example
 
-`POST /api/v1/fleet/mdm/apple/profiles/match`
+`POST /api/v1/automdm/mdm/apple/profiles/match`
 
 ##### Request body
 
@@ -1390,11 +1390,11 @@ This endpoint uses the profiles stored by the [Preassign profiles to devices](#p
 
 ### Get host's DEP assignment
 
-_Available in Fleet Premium_
+_Available in AutoMDM Premium_
 
-Returns the raw data about a DEP device's current state from the [Get Device Details](https://developer.apple.com/documentation/devicemanagement/device-details) API. Supports only Apple hosts which are, or were, assigned to Fleet in Apple Business. If there is an error communicating with the DEP APIs, `dep_device` will be null and `dep_device_error` will contain human-readable error details.
+Returns the raw data about a DEP device's current state from the [Get Device Details](https://developer.apple.com/documentation/devicemanagement/device-details) API. Supports only Apple hosts which are, or were, assigned to AutoMDM in Apple Business. If there is an error communicating with the DEP APIs, `dep_device` will be null and `dep_device_error` will contain human-readable error details.
 
-`GET /api/v1/fleet/hosts/:id/dep_assignment`
+`GET /api/v1/automdm/hosts/:id/dep_assignment`
 
 #### Parameters
 
@@ -1404,7 +1404,7 @@ Returns the raw data about a DEP device's current state from the [Get Device Det
 
 #### Example
 
-`GET /api/v1/fleet/hosts/32/dep_assignment`
+`GET /api/v1/automdm/hosts/32/dep_assignment`
 
 ##### Default response
 
@@ -1455,11 +1455,11 @@ This endpoint is used to proxy SCEP requests to the configured SCEP server. It u
 
 This endpoint is used to generate a URL, which opens Google's wizard to create Android Enterprise.
 
-`GET /api/v1/fleet/android_enterprise/signup_url`
+`GET /api/v1/automdm/android_enterprise/signup_url`
 
 #### Example
 
-`GET /api/v1/fleet/android_enterprise/signup_url`
+`GET /api/v1/automdm/android_enterprise/signup_url`
 
 ##### Default response
 
@@ -1474,9 +1474,9 @@ This endpoint is used to generate a URL, which opens Google's wizard to create A
 ### Connect Android Enterprise
 
 > **Experimental feature.** This feature is undergoing rapid improvement, which may result in breaking changes to the API or configuration surface. It is not recommended for use in automated workflows.
-This endpoint is used to connect (bind) Android Enterprise to Fleet and to turn on Android MDM features.
+This endpoint is used to connect (bind) Android Enterprise to AutoMDM and to turn on Android MDM features.
 
-`GET /api/v1/fleet/android_enterprise/connect/:token`
+`GET /api/v1/automdm/android_enterprise/connect/:token`
 
 This is callback URL that will be open after user completes Google's signup flow. It will self-close and return user to settings page.
 
@@ -1484,13 +1484,13 @@ This is callback URL that will be open after user completes Google's signup flow
 
 | Name | Type   | In   | Description                          |
 | ---- | ------ | ---- | ------------------------------------ |
-| token | string | path | **Required.** The signup token associated with Android Enterprise in Fleet. |
+| token | string | path | **Required.** The signup token associated with Android Enterprise in AutoMDM. |
 | enterpriseToken | string | query | **Required.** The enterprise token that's returned from Google API. |
 
 
 #### Example
 
-`GET /api/v1/fleet/android_enterprise/connect/6177a9cb410ff61f20015ad?enterpriseToken=FEKXFy427_jz9Nfhq19SGDOKR2nZ4ZqhSAuYqOQw1B1G2OdBkQ5IDfSkLiO0rUqL8ptAXoa5_cZdh5GBRdyLj29m5A8DcZ1dptSp6YMNY6MQv0UiqcQqRC8D`
+`GET /api/v1/automdm/android_enterprise/connect/6177a9cb410ff61f20015ad?enterpriseToken=FEKXFy427_jz9Nfhq19SGDOKR2nZ4ZqhSAuYqOQw1B1G2OdBkQ5IDfSkLiO0rUqL8ptAXoa5_cZdh5GBRdyLj29m5A8DcZ1dptSp6YMNY6MQv0UiqcQqRC8D`
 
 ##### Default response
 
@@ -1503,20 +1503,20 @@ This is callback URL that will be open after user completes Google's signup flow
 ### Get Android enrollment token
 
 > **Experimental feature.** This feature is undergoing rapid improvement, which may result in breaking changes to the API or configuration surface. It is not recommended for use in automated workflows.
-This endpoint is used to retrieve an Android enrollment token and enrollment URL or QR Code contents using a Fleet enroll secret which opens the Android enrollment wizard (settings app) to enroll the Android host. The QR Code contents can only be used to trigger enrollment of an Android host that has been factory reset and is at the initial setup screen, and likewise if fully_managed is true, the host can only be enrolled at this initial setup screen.
+This endpoint is used to retrieve an Android enrollment token and enrollment URL or QR Code contents using an AutoMDM enroll secret which opens the Android enrollment wizard (settings app) to enroll the Android host. The QR Code contents can only be used to trigger enrollment of an Android host that has been factory reset and is at the initial setup screen, and likewise if fully_managed is true, the host can only be enrolled at this initial setup screen.
 
-`GET /api/v1/fleet/android_enterprise/enrollment_token`
+`GET /api/v1/automdm/android_enterprise/enrollment_token`
 
 #### Parameters
 
 | Name          | Type   | In    | Description                                         |
 |---------------|--------|-------|-----------------------------------------------------|
-| enroll_secret | string | query | **Required.** The enroll secret of a fleet in Fleet. |
+| enroll_secret | string | query | **Required.** The enroll secret of a team in AutoMDM. |
 | fully_managed | bool   | query | **Optional.** If set to true, creates the enrollment token with AllowPersonalUsage set to PERSONAL_USAGE_DISALLOWED |
 
 #### Example
 
-`GET /api/v1/fleet/android/enterprise/enrollment_token?enroll_secret=0Z6IuKpKU4y7xl%2BZcrp2gPcMi1kKNs3p`
+`GET /api/v1/automdm/android/enterprise/enrollment_token?enroll_secret=0Z6IuKpKU4y7xl%2BZcrp2gPcMi1kKNs3p`
 
 ##### Default response
 
@@ -1534,13 +1534,13 @@ This endpoint is used to retrieve an Android enrollment token and enrollment URL
 
 > **Experimental feature.** This feature is undergoing rapid improvement, which may result in breaking changes to the API or configuration surface. It is not recommended for use in automated workflows.
 
-This endpoint is used to get server-sent events (SSE) messages, so that UI know if Android Enterprise is created and bound to Fleet.
+This endpoint is used to get server-sent events (SSE) messages, so that UI know if Android Enterprise is created and bound to AutoMDM.
 
-`GET /api/v1/fleet/android_enterprise/signup_sse`
+`GET /api/v1/automdm/android_enterprise/signup_sse`
 
 #### Example
 
-`GET /api/v1/fleet/android_enterprise/signup_sse`
+`GET /api/v1/automdm/android_enterprise/signup_sse`
 
 ##### Default response
 
@@ -1567,41 +1567,41 @@ data: Error getting app config: <message>
 
 > **Experimental feature.** This feature is undergoing rapid improvement, which may result in breaking changes to the API or configuration surface. It is not recommended for use in automated workflows.
 
-This endpoint is used by Google Pub/Sub subscription to push messages to Fleet.
+This endpoint is used by Google Pub/Sub subscription to push messages to AutoMDM.
 
-`POST /api/v1/fleet/android_enterprise/pubsub`
+`POST /api/v1/automdm/android_enterprise/pubsub`
 
 ### Get Apple Account Driven User Enrollment Profile
 
-This endpoint initiates Account-driven User Enrollment on iOS and iPadOS devices. Devices are directed here via service discovery. The URL is scoped to one of Fleet's Apple Business organizations via a randomly generated token within the path. Hosts enrolling here are placed in that organization's `byod_fleet`. Fleet registers this URL with Apple automatically; admins don't need to handle it. The first request is unauthenticated and returns 401 with a
+This endpoint initiates Account-driven User Enrollment on iOS and iPadOS devices. Devices are directed here via service discovery. The URL is scoped to one of AutoMDM's Apple Business organizations via a randomly generated token within the path. Hosts enrolling here are placed in that organization's `byod_team`. AutoMDM registers this URL with Apple automatically; admins don't need to handle it. The first request is unauthenticated and returns 401 with a
 `Www-Authenticate` header pointing at SSO. After authenticating, the device retries with
 `Authorization: Bearer <access-token>`; Access token returned after SSO authentication.
 
 
 `POST /api/mdm/apple/account_driven_enroll/:token`
 
-Requires Fleet Premium. Returns 400 if the device is not an iPhone/iPad, 401 if the access token is invalid or reused.
+Requires AutoMDM Premium. Returns 400 if the device is not an iPhone/iPad, 401 if the access token is invalid or reused.
 
 #### Parameters
 
 | Name          | Type   | In    | Description                                         |
 |---------------|--------|-------|-----------------------------------------------------|
-| token | string | path | **Required.** A randomly-generated token corresponding to an AB organization in Fleet |
+| token | string | path | **Required.** A randomly-generated token corresponding to an AB organization in AutoMDM |
 | body | blob   | body | **Required.** A PKCS#7-signed DeviceInfo plist with LANGUAGE, VERSION, PRODUCT, OS_VERSION, SOFTWARE_UPDATE_DEVICE_ID, and SUPPLEMENTAL_BUILD_VERSION.|
 
 ### Get Apple Account Driven User Enrollment service discovery payload
 
-Used by devices to discover the enrollment endpoint for an AB organization in Fleet.
+Used by devices to discover the enrollment endpoint for an AB organization in AutoMDM.
 
 `GET /mdm/apple/service_discovery/:token`
 
-Requires Fleet Premium.
+Requires AutoMDM Premium.
 
 #### Parameters
 
 | Name          | Type   | In    | Description                                         |
 |---------------|--------|-------|-----------------------------------------------------|
-| token | string | path | **Required.** A randomly-generated token corresponding to an AB organization in Fleet |
+| token | string | path | **Required.** A randomly-generated token corresponding to an AB organization in AutoMDM |
 
 #### Example
 
@@ -1616,7 +1616,7 @@ Requires Fleet Premium.
   "Servers": [
     {
       "Version": "mdm-byod",
-      "BaseURL": "<fleet_server_url>/api/mdm/apple/account_driven_enroll/a671c2216bdd765f992aa0557d33766c"
+      "BaseURL": "<automdm_server_url>/api/mdm/apple/account_driven_enroll/a671c2216bdd765f992aa0557d33766c"
     }
   ]
 }
@@ -1628,11 +1628,11 @@ This endpoint initiates Account-driven User Enrollment on iOS and iPadOS devices
 `Www-Authenticate` header pointing at SSO. After authenticating, the device retries with
 `Authorization: Bearer <access-token>`; Access token returned after SSO authentication.
 
-> Deprecated as of v4.88. Hosts enrolling through this endpoint will not be assigned to a fleet. Fleet now registers the AB-organization-specific enrollment endpoint with Apple
+> Deprecated as of v4.88. Hosts enrolling through this endpoint will not be assigned to a team. AutoMDM now registers the AB-organization-specific enrollment endpoint with Apple
 
 `POST /api/mdm/apple/account_driven_enroll`
 
-Requires Fleet Premium. Returns 400 if the device is not an iPhone/iPad, 401 if the access token is invalid or reused.
+Requires AutoMDM Premium. Returns 400 if the device is not an iPhone/iPad, 401 if the access token is invalid or reused.
 
 #### Parameters
 
@@ -1644,7 +1644,7 @@ Requires Fleet Premium. Returns 400 if the device is not an iPhone/iPad, 401 if 
 
 Used by devices to discover the enrollment endpoint.
 
-> Deprecated as of v4.88. Hosts enrolling through the returned endpoint will not be assigned to a fleet. Fleet now registers the AB-organization-specific endpoint with Apple
+> Deprecated as of v4.88. Hosts enrolling through the returned endpoint will not be assigned to a team. AutoMDM now registers the AB-organization-specific endpoint with Apple
 
 `GET /mdm/apple/service_discovery`
 
@@ -1661,7 +1661,7 @@ Used by devices to discover the enrollment endpoint.
   "Servers": [
     {
       "Version": "mdm-byod",
-      "BaseURL": "<fleet_server_url>/api/mdm/apple/account_driven_enroll"
+      "BaseURL": "<automdm_server_url>/api/mdm/apple/account_driven_enroll"
     }
   ]
 }
@@ -1669,7 +1669,7 @@ Used by devices to discover the enrollment endpoint.
 
 ## Get or apply configuration files
 
-These API routes are used by the `fleetctl` CLI tool. Users can manage Fleet with `fleetctl` and [configuration files in YAML syntax](https://fleetdm.com/docs/using-fleet/configuration-files/).
+These API routes are used by the `automdmctl` CLI tool. Users can manage AutoMDM with `automdmctl` and [configuration files in YAML syntax](https://automdm.com/docs/using-automdm/configuration-files/).
 
 - [Get reports](#get-reports)
 - [Get report](#get-report)
@@ -1678,7 +1678,7 @@ These API routes are used by the `fleetctl` CLI tool. Users can manage Fleet wit
 - [Get packs](#get-packs)
 - [Apply packs](#apply-packs)
 - [Get pack by name](#get-pack-by-name)
-- [Apply fleet](#apply-fleet)
+- [Apply team](#apply-team)
 - [Apply labels](#apply-labels)
 - [Get labels](#get-labels)
 - [Get label](#get-label)
@@ -1688,9 +1688,9 @@ These API routes are used by the `fleetctl` CLI tool. Users can manage Fleet wit
 
 ### Get reports
 
-Returns a list of all reports in the Fleet instance. Each item returned includes the name, description, and SQL of the report.
+Returns a list of all reports in the AutoMDM instance. Each item returned includes the name, description, and SQL of the report.
 
-`GET /api/v1/fleet/spec/reports`
+`GET /api/v1/automdm/spec/reports`
 
 #### Parameters
 
@@ -1698,7 +1698,7 @@ None.
 
 #### Example
 
-`GET /api/v1/fleet/spec/reports`
+`GET /api/v1/automdm/spec/reports`
 
 ##### Default response
 
@@ -1725,7 +1725,7 @@ None.
 
 Returns the name, description, and SQL of the report specified by name.
 
-`GET /api/v1/fleet/spec/reports/{name}`
+`GET /api/v1/automdm/spec/reports/{name}`
 
 #### Parameters
 
@@ -1735,7 +1735,7 @@ Returns the name, description, and SQL of the report specified by name.
 
 #### Example
 
-`GET /api/v1/fleet/spec/reports/query1`
+`GET /api/v1/automdm/spec/reports/query1`
 
 ##### Default response
 
@@ -1753,11 +1753,11 @@ Returns the name, description, and SQL of the report specified by name.
 
 ### Apply reports
 
-Creates and/or modifies the reports included in the list. To modify an existing report, the name of the report must already be used by an existing report. If a report with the specified name doesn't exist in Fleet, a new report will be created.
+Creates and/or modifies the reports included in the list. To modify an existing report, the name of the report must already be used by an existing report. If a report with the specified name doesn't exist in AutoMDM, a new report will be created.
 
 If a query field is not specified in the "spec" then its default value depending on its type will be assumed, e.g. if `interval` is not set then `0` will be assumed, if `discard_data` is omitted then `false` will be assumed, etc.
 
-`POST /api/v1/fleet/spec/queries`
+`POST /api/v1/automdm/spec/queries`
 
 #### Parameters
 
@@ -1765,11 +1765,11 @@ If a query field is not specified in the "spec" then its default value depending
 | ----- | ---- | ---- | ---------------------------------------------------------------- |
 | specs | list | body | **Required.** The list of the reports to be created or modified. |
 
-For more information about the query fields, please refer to the [Create report endpoint](https://fleetdm.com/docs/using-fleet/rest-api#create-report).
+For more information about the query fields, please refer to the [Create report endpoint](https://automdm.com/docs/using-automdm/rest-api#create-report).
 
 #### Example
 
-`POST /api/v1/fleet/spec/reports`
+`POST /api/v1/automdm/spec/reports`
 
 ##### Request body
 
@@ -1778,12 +1778,12 @@ For more information about the query fields, please refer to the [Create report 
   "specs": [
     {
       "name": "new_query",
-      "description": "This will be a new report because a report with the name 'new_report' doesn't exist in Fleet.",
+      "description": "This will be a new report because a report with the name 'new_report' doesn't exist in AutoMDM.",
       "query": "SELECT * FROM osquery_info"
     },
     {
       "name": "osquery_schedule",
-      "description": "This report's description and SQL will be modified because a report with the name 'osquery_schedule' exists in Fleet.",
+      "description": "This report's description and SQL will be modified because a report with the name 'osquery_schedule' exists in AutoMDM.",
       "query": "SELECT * FROM osquery_info"
     }
   ]
@@ -1796,13 +1796,13 @@ For more information about the query fields, please refer to the [Create report 
 
 ### Get packs
 
-Returns all packs in the Fleet instance.
+Returns all packs in the AutoMDM instance.
 
-`GET /api/v1/fleet/spec/packs`
+`GET /api/v1/automdm/spec/packs`
 
 #### Example
 
-`GET /api/v1/fleet/spec/packs`
+`GET /api/v1/automdm/spec/packs`
 
 ##### Default response
 
@@ -1819,7 +1819,7 @@ Returns all packs in the Fleet instance.
       "targets": {
         "labels": ["All Hosts"],
         "teams": null,
-        "fleets": null
+        "teams": null
       },
       "queries": [
         {
@@ -1891,7 +1891,7 @@ Returns all packs in the Fleet instance.
       "targets": {
         "labels": null,
         "teams": null,
-        "fleets": null
+        "teams": null
       },
       "queries": [
         {
@@ -1914,11 +1914,11 @@ Returns all packs in the Fleet instance.
 
 ### Apply policies
 
-Creates and/or modifies the policies included in the list. To modify an existing policy, the name of the policy included in the list must already be used by an existing policy. If a policy with the specified name doesn't exist in Fleet, a new policy will be created.
+Creates and/or modifies the policies included in the list. To modify an existing policy, the name of the policy included in the list must already be used by an existing policy. If a policy with the specified name doesn't exist in AutoMDM, a new policy will be created.
 
-NOTE: when updating a policy, fleet and platform will be ignored.
+NOTE: when updating a policy, team and platform will be ignored.
 
-`POST /api/v1/fleet/spec/policies`
+`POST /api/v1/automdm/spec/policies`
 
 #### Parameters
 
@@ -1928,7 +1928,7 @@ NOTE: when updating a policy, fleet and platform will be ignored.
 
 #### Example
 
-`POST /api/v1/fleet/spec/policies`
+`POST /api/v1/automdm/spec/policies`
 
 ##### Request body
 
@@ -1937,10 +1937,10 @@ NOTE: when updating a policy, fleet and platform will be ignored.
   "specs": [
     {
       "name": "new policy",
-      "description": "This will be a new policy because a policy with the name 'new policy' doesn't exist in Fleet.",
+      "description": "This will be a new policy because a policy with the name 'new policy' doesn't exist in AutoMDM.",
       "query": "SELECT * FROM osquery_info",
       "team": "No team",
-      "fleet": "Unassigned",
+      "team": "Unassigned",
       "resolution": "some resolution steps here",
       "critical": false
     },
@@ -1948,7 +1948,7 @@ NOTE: when updating a policy, fleet and platform will be ignored.
       “name”: “Is FileVault enabled on macOS devices?”,
       “query”: “SELECT 1 FROM disk_encryption WHERE user_uuid IS NOT “” AND filevault_status = ‘on’ LIMIT 1;”,
       “team”: “Workstations”,
-      “fleet”: “Workstations”,
+      “automdm”: “Workstations”,
       “description”: “Checks to make sure that the FileVault feature is enabled on macOS devices.”,
       "resolution": "Choose Apple menu > System Preferences, then click Security & Privacy. Click the FileVault tab. Click the Lock icon, then enter an administrator name and password. Click Turn On FileVault.",
       "platform": "darwin",
@@ -1959,7 +1959,7 @@ NOTE: when updating a policy, fleet and platform will be ignored.
       "name": "Is Adobe Acrobat installed and up to date?",
       "query": "SELECT 1 FROM apps WHERE name = 'Adobe Acrobat Reader.app' AND version_compare(bundle_short_version, '23.001.20687') >= 0;",
       "team": "Workstations",
-      "fleet": "Workstations",
+      "team": "Workstations",
       "description": "Checks to make sure that Adobe Acrobat is installed and up to date.",
       "platform": "darwin",
       "critical": false,
@@ -1969,7 +1969,7 @@ NOTE: when updating a policy, fleet and platform will be ignored.
 }
 ```
 
-The fields `critical`, `script_id`, and `software_title_id` are available in Fleet Premium.
+The fields `critical`, `script_id`, and `software_title_id` are available in AutoMDM Premium.
 
 ##### Default response
 
@@ -1979,17 +1979,17 @@ The fields `critical`, `script_id`, and `software_title_id` are available in Fle
 
 Creates and/or modifies the packs included in the list.
 
-`POST /api/v1/fleet/spec/packs`
+`POST /api/v1/automdm/spec/packs`
 
 #### Parameters
 
 | Name  | Type | In   | Description                                                                                   |
 | ----- | ---- | ---- | --------------------------------------------------------------------------------------------- |
-| specs | list | body | **Required.** A list that includes the specs for each pack to be added to the Fleet instance. |
+| specs | list | body | **Required.** A list that includes the specs for each pack to be added to the AutoMDM instance. |
 
 #### Example
 
-`POST /api/v1/fleet/spec/packs`
+`POST /api/v1/automdm/spec/packs`
 
 ##### Request body
 
@@ -2004,7 +2004,7 @@ Creates and/or modifies the packs included in the list.
       "targets": {
         "labels": ["All Hosts"],
         "teams": null,
-        "fleets": null
+        "teams": null
       },
       "queries": [
         {
@@ -2064,7 +2064,7 @@ Creates and/or modifies the packs included in the list.
       "targets": {
         "labels": null,
         "teams": null,
-        "fleets": null
+        "teams": null
       },
       "queries": [
         {
@@ -2090,7 +2090,7 @@ Creates and/or modifies the packs included in the list.
 
 Returns a pack.
 
-`GET /api/v1/fleet/spec/packs/{name}`
+`GET /api/v1/automdm/spec/packs/{name}`
 
 #### Parameters
 
@@ -2100,7 +2100,7 @@ Returns a pack.
 
 #### Example
 
-`GET /api/v1/fleet/spec/packs/pack_1`
+`GET /api/v1/automdm/spec/packs/pack_1`
 
 ##### Default response
 
@@ -2116,7 +2116,7 @@ Returns a pack.
     "targets": {
       "labels": ["All Hosts"],
       "teams": null,
-      "fleets": null
+      "teams": null
     },
     "queries": [
       {
@@ -2174,25 +2174,25 @@ Returns a pack.
 }
 ```
 
-### Apply fleet
+### Apply team
 
-_Available in Fleet Premium_
+_Available in AutoMDM Premium_
 
-If the `name` specified is associated with an existing fleet, this API route, completely replaces this fleet's existing `agent_options` and `secrets` with those that are specified.
+If the `name` specified is associated with an existing team, this API route, completely replaces this team's existing `agent_options` and `secrets` with those that are specified.
 
-If the `name` is not already associated with an existing fleet, this API route creates a new fleet with the specified `name`, `agent_options`, and `secrets`.
+If the `name` is not already associated with an existing team, this API route creates a new team with the specified `name`, `agent_options`, and `secrets`.
 
-`POST /api/v1/fleet/spec/teams`
+`POST /api/v1/automdm/spec/teams`
 
 #### Parameters
 
 | Name                                      | Type   | In    | Description                                                                                                                                                                                                                         |
 | ----------------------------------------- | ------ | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| name                                      | string | body  | **Required.** The fleet's name.                                                                                                                                                                                                     |
-| agent_options                             | object | body  | The agent options spec that is applied to the hosts assigned to the specified fleet. These agent options completely override the global agent options specified in the [`GET /api/v1/fleet/config API route`](#get-configuration)    |
-| features                                  | object | body  | The features that are applied to the hosts assigned to the specified fleet. These features completely override the global features specified in the [`GET /api/v1/fleet/config API route`](#get-configuration)                       |
+| name                                      | string | body  | **Required.** The team's name.                                                                                                                                                                                                     |
+| agent_options                             | object | body  | The agent options spec that is applied to the hosts assigned to the specified team. These agent options completely override the global agent options specified in the [`GET /api/v1/automdm/config API route`](#get-configuration)    |
+| features                                  | object | body  | The features that are applied to the hosts assigned to the specified team. These features completely override the global features specified in the [`GET /api/v1/automdm/config API route`](#get-configuration)                       |
 | secrets                                   | array   | body  | A list of plain text strings is used as the enroll secrets. Existing secrets are replaced with this list, or left unmodified if this list is empty. Note that there is a limit of 50 secrets allowed.                               |
-| mdm                                       | object | body  | The fleet's MDM configuration options.                                                                                                                                                                                              |
+| mdm                                       | object | body  | The team's MDM configuration options.                                                                                                                                                                                              |
 | mdm.macos_updates                         | object | body  | The OS updates macOS configuration options.                                                                                                                                                                               |
 | mdm.macos_updates.minimum_version         | string | body  | The required minimum operating system version.                                                                                                                                                                                      |
 | mdm.macos_updates.deadline                | string | body  | The required installation date to enforce the operating system version.                                                                                                                                                   |
@@ -2201,34 +2201,34 @@ If the `name` is not already associated with an existing fleet, this API route c
 | mdm.apple_settings.assets                 | array   | body  | The list of objects consists of a `path` to a JSON asset declaration (`com.apple.asset`) file.   |
 | mdm.windows_settings                        | object | body  | The Windows-specific MDM settings.                                                                                                                                                                                                    |
 | mdm.windows_settings.configuration_profiles        | array   | body  | The list of objects consists of a `path` to XML files and `labels_include_all`, `labels_include_any`, or `labels_exclude_any` list of label names.                                                                                                                                                         |
-| scripts                                   | array   | body  | A list of script files to add to this fleet so they can be executed at a later time.                                                                                                                                                 |
-| webhook_settings                          | object | body  | The fleet's webhook settings. Only the keys provided are applied; omitted webhooks are left unchanged.                                                                                                                               |
-| webhook_settings.host_status_webhook      | object | body  | See [`webhook_settings.host_status_webhook`](https://fleetdm.com/docs/rest-api/rest-api#webhook-settings-host-status-webhook2).                                                                                                       |
-| webhook_settings.failing_policies_webhook | object | body  | See [`webhook_settings.failing_policies_webhook`](https://fleetdm.com/docs/rest-api/rest-api#webhook-settings-failing-policies-webhook2).                                                                                             |
-| webhook_settings.host_activities_webhook  | object | body  | See [`webhook_settings.host_activities_webhook`](https://fleetdm.com/docs/rest-api/rest-api#webhook-settings-host-activities-webhook).                                                                                               |
-| software                                   | object   | body  | The fleet's software that will be available for install.  |
+| scripts                                   | array   | body  | A list of script files to add to this team so they can be executed at a later time.                                                                                                                                                 |
+| webhook_settings                          | object | body  | The team's webhook settings. Only the keys provided are applied; omitted webhooks are left unchanged.                                                                                                                               |
+| webhook_settings.host_status_webhook      | object | body  | See [`webhook_settings.host_status_webhook`](https://automdm.com/docs/rest-api/rest-api#webhook-settings-host-status-webhook2).                                                                                                       |
+| webhook_settings.failing_policies_webhook | object | body  | See [`webhook_settings.failing_policies_webhook`](https://automdm.com/docs/rest-api/rest-api#webhook-settings-failing-policies-webhook2).                                                                                             |
+| webhook_settings.host_activities_webhook  | object | body  | See [`webhook_settings.host_activities_webhook`](https://automdm.com/docs/rest-api/rest-api#webhook-settings-host-activities-webhook).                                                                                               |
+| software                                   | object   | body  | The team's software that will be available for install.  |
 | software.app_store_apps                   | array   | body  | An array of objects with values below. |
 | software.app_store_apps.app_store_id      | string   | body  | ID of the App Store app. |
 | software.app_store_apps.self_service      | boolean   | body  | Specifies whether or not end users can install self-service. |
-| software.app_store_apps.location      | string   | body  | The name of the organization unit in Apple Business for the VPP token that the Apple App Store app is added from. If not specified, apps that are already added to the fleet keep their current VPP token, and new apps are added from the fleet's first-added VPP token. |
+| software.app_store_apps.location      | string   | body  | The name of the organization unit in Apple Business for the VPP token that the Apple App Store app is added from. If not specified, apps that are already added to the team keep their current VPP token, and new apps are added from the team's first-added VPP token. |
 | software.app_store_apps.labels_include_any     | array   | body  | Specifies whether the app will only be available for install on hosts that **have any** of these labels. Only one of either `labels_include_any` or `labels_exclude_any` can be specified. |
 | software.app_store_apps.labels_exclude_any     | array   | body  | Specifies whether the app will only be available for install on hosts that **don't have any** of these labels. Only one of either `labels_include_any` or `labels_exclude_any` can be specified. |
 | software.packages                          | array   | body  | An array of objects with values below. |
 | software.packages.url                      | string   | body  | URL to the software package (PKG, MSI, EXE or DEB). |
-| software.packages.install_script           | string   | body  | Command that Fleet runs to install software. |
+| software.packages.install_script           | string   | body  | Command that AutoMDM runs to install software. |
 | software.packages.pre_install_query        | string   | body  | Condition query that determines if the install will proceed. |
 | software.packages.post_install_script      | string   | body  | Script that runs after software install. |
-| software.packages.uninstall_script       | string   | body  | Command that Fleet runs to uninstall software. |
+| software.packages.uninstall_script       | string   | body  | Command that AutoMDM runs to uninstall software. |
 | software.packages.self_service           | boolean   | body  | If `true` lists software in the self-service. |
 | software.packages.labels_include_any     | array   | body  | Target hosts that have any label in the array. Only one of `labels_include_any` or `labels_exclude_any` can be included. If neither are included, all hosts are targeted. |
 | software.packages.labels_exclude_any     | array   | body  | Target hosts that don't have any label in the array. Only one of `labels_include_any` or `labels_exclude_any` can be included. If neither are included, all hosts are targeted. |
-| mdm.apple_settings.enable_disk_encryption | bool   | body  | Whether disk encryption should be enabled for hosts that belong to this fleet.                                                                                                                                                       |
+| mdm.apple_settings.enable_disk_encryption | bool   | body  | Whether disk encryption should be enabled for hosts that belong to this team.                                                                                                                                                       |
 | force                                     | bool   | query | Force apply the spec even if there are (ignorable) validation errors. Those are unknown keys and agent options-related validations.                                                                                                 |
 | dry_run                                   | bool   | query | Validate the provided JSON for unknown keys and invalid value types and return any validation errors, but do not apply the changes.                                                                                                 |
 
 #### Example
 
-`POST /api/v1/fleet/spec/teams`
+`POST /api/v1/automdm/spec/teams`
 
 ##### Request body
 
@@ -2337,7 +2337,7 @@ If the `name` is not already associated with an existing fleet, this API route c
   "team_ids_by_name": {
     "Client Platform Engineering": 123
   },
-  "fleet_ids_by_name": {
+  "team_ids_by_name": {
     "Client Platform Engineering": 123
   }
 }
@@ -2345,27 +2345,27 @@ If the `name` is not already associated with an existing fleet, this API route c
 
 ### Apply labels
 
-Adds the supplied labels to Fleet. Each label requires the `name`, and `label_membership_type` properties.
+Adds the supplied labels to AutoMDM. Each label requires the `name`, and `label_membership_type` properties.
 
 If the `label_membership_type` is set to `dynamic`, the `query` property must also be specified with the value set to a query in SQL syntax.
 
 If the `label_membership_type` is set to `manual`, the `hosts` property must also be specified with the value set to a list of hostnames.
 
-`POST /api/v1/fleet/spec/labels`
+`POST /api/v1/automdm/spec/labels`
 
 #### Parameters
 
 | Name  | Type | In   | Description                                                                                                   |
 | ----- | ---- | ---- | ------------------------------------------------------------------------------------------------------------- |
-| team_id | int | query | The ID of the fleet to set labels to; omit to set global labels |
+| team_id | int | query | The ID of the team to set labels to; omit to set global labels |
 | specs | object[] | body | A list of the label to apply. Each label requires the `name`, `query`, and `label_membership_type` properties. Each label's `name` and `description` must be 255 characters or fewer. |
-| names_to_move | string[] | body | A list of names of labels that are both in `specs` in the current request and already exist on other fleets. If the requesting user has permission to modify those labels, this endpoint will rename the specified labels so new labels on the correct fleet can be created. The request will fail with no changes if one or more of the specified labels cannot be moved. |
+| names_to_move | string[] | body | A list of names of labels that are both in `specs` in the current request and already exist on other teams. If the requesting user has permission to modify those labels, this endpoint will rename the specified labels so new labels on the correct team can be created. The request will fail with no changes if one or more of the specified labels cannot be moved. |
 
-The purpose of `names_to_move` is to allow a GitOps run to move a Fleet instance from having a label on one fleet (or global) to using that same label name on another fleet (or switching a fleet label to a global label). Once labels are created on the correct fleets, the old labels are cleaned up when GitOps is run on the old fleet via explicit `DELETE` calls.
+The purpose of `names_to_move` is to allow a GitOps run to move an AutoMDM instance from having a label on one team (or global) to using that same label name on another team (or switching a team label to a global label). Once labels are created on the correct teams, the old labels are cleaned up when GitOps is run on the old team via explicit `DELETE` calls.
 
 #### Example
 
-`POST /api/v1/fleet/spec/labels`
+`POST /api/v1/automdm/spec/labels`
 
 ##### Request body
 
@@ -2397,17 +2397,17 @@ The purpose of `names_to_move` is to allow a GitOps run to move a Fleet instance
 
 Gets all labels visible to the currently logged-in user.
 
-`GET /api/v1/fleet/spec/labels`
+`GET /api/v1/automdm/spec/labels`
 
 #### Parameters
 
 | Name  | Type | In   | Description                                                                                                   |
 | ----- | ---- | ---- | ------------------------------------------------------------------------------------------------------------- |
-| team_id | int | query | The ID of the fleet to view all labels from; omit to see all labels, supply 0 to see only global labels |
+| team_id | int | query | The ID of the team to view all labels from; omit to see all labels, supply 0 to see only global labels |
 
 #### Example
 
-`GET /api/v1/fleet/spec/labels`
+`GET /api/v1/automdm/spec/labels`
 
 ##### Default response
 
@@ -2419,14 +2419,14 @@ Gets all labels visible to the currently logged-in user.
     {
       "id": 6,
       "name": "All Hosts",
-      "description": "All hosts which have enrolled in Fleet",
+      "description": "All hosts which have enrolled in AutoMDM",
       "query": "SELECT 1;",
       "label_type": "builtin",
       "label_membership_type": "dynamic",
       "team_id": null,
       "team_name": null,
-      "fleet_id": null,
-      "fleet_name": null
+      "team_id": null,
+      "team_name": null
     },
     {
       "id": 7,
@@ -2438,8 +2438,8 @@ Gets all labels visible to the currently logged-in user.
       "label_membership_type": "dynamic",
       "team_id": null,
       "team_name": null,
-      "fleet_id": null,
-      "fleet_name": null
+      "team_id": null,
+      "team_name": null
     },
     {
       "id": 8,
@@ -2451,8 +2451,8 @@ Gets all labels visible to the currently logged-in user.
       "label_membership_type": "dynamic",
       "team_id": null,
       "team_name": null,
-      "fleet_id": null,
-      "fleet_name": null
+      "team_id": null,
+      "team_name": null
     },
     {
       "id": 9,
@@ -2463,8 +2463,8 @@ Gets all labels visible to the currently logged-in user.
       "label_membership_type": "dynamic",
       "team_id": null,
       "team_name": null,
-      "fleet_id": null,
-      "fleet_name": null
+      "team_id": null,
+      "team_name": null
     },
     {
       "id": 10,
@@ -2476,8 +2476,8 @@ Gets all labels visible to the currently logged-in user.
       "label_membership_type": "dynamic",
       "team_id": null,
       "team_name": null,
-      "fleet_id": null,
-      "fleet_name": null
+      "team_id": null,
+      "team_name": null
     },
     {
       "id": 11,
@@ -2488,8 +2488,8 @@ Gets all labels visible to the currently logged-in user.
       "label_membership_type": "dynamic",
       "team_id": null,
       "team_name": null,
-      "fleet_id": null,
-      "fleet_name": null
+      "team_id": null,
+      "team_name": null
     },
     {
       "id": 4663,
@@ -2502,8 +2502,8 @@ Gets all labels visible to the currently logged-in user.
       "display_text": "Team: g-software",
       "team_id": 1,
       "team_name": "Workstations",
-      "fleet_id": 1,
-      "fleet_name": "Workstations"
+      "team_id": 1,
+      "team_name": "Workstations"
     }
   ]
 }
@@ -2511,20 +2511,20 @@ Gets all labels visible to the currently logged-in user.
 
 ### Get label
 
-Returns the label specified by name if it exists and its fleet (if any) is accessible by the current user. If more than one of those fleets has a label with that name, returns `409` unless `fleet_id` is set.
+Returns the label specified by name if it exists and its team (if any) is accessible by the current user. If more than one of those teams has a label with that name, returns `409` unless `team_id` is set.
 
-`GET /api/v1/fleet/spec/labels/{name}`
+`GET /api/v1/automdm/spec/labels/{name}`
 
 #### Parameters
 
 | Name     | Type   | In    | Description                                                                                                                                     |
 | -------- | ------ | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
 | name     | string | path  | **Required.** The label's name.                                                                                                                 |
-| fleet_id | integer    | query | _Available in Fleet Premium._ Looks the name up among the global labels and this fleet's labels. Supply 0 to look it up among the global labels only. |
+| team_id | integer    | query | _Available in AutoMDM Premium._ Looks the name up among the global labels and this team's labels. Supply 0 to look it up among the global labels only. |
 
 #### Example
 
-`GET /api/v1/fleet/spec/labels/local_machine`
+`GET /api/v1/automdm/spec/labels/local_machine`
 
 ##### Default response
 
@@ -2539,7 +2539,7 @@ Returns the label specified by name if it exists and its fleet (if any) is acces
     "query": "",
     "label_membership_type": "manual",
     "team_id": null,
-    "fleet_id": null
+    "team_id": null
   }
 }
 ```
@@ -2548,7 +2548,7 @@ Returns the label specified by name if it exists and its fleet (if any) is acces
 
 Returns the valid global enroll secrets.
 
-`GET /api/v1/fleet/spec/enroll_secret`
+`GET /api/v1/automdm/spec/enroll_secret`
 
 #### Parameters
 
@@ -2556,7 +2556,7 @@ None.
 
 #### Example
 
-`GET /api/v1/fleet/spec/enroll_secret`
+`GET /api/v1/automdm/spec/enroll_secret`
 
 ##### Default response
 
@@ -2583,7 +2583,7 @@ None.
 
 This replaces the active global enroll secrets with the secrets specified.
 
-`POST /api/v1/fleet/spec/enroll_secret`
+`POST /api/v1/automdm/spec/enroll_secret`
 
 #### Parameters
 
@@ -2607,7 +2607,7 @@ This replaces the active global enroll secrets with the secrets specified.
 }
 ```
 
-`POST /api/v1/fleet/spec/enroll_secret`
+`POST /api/v1/automdm/spec/enroll_secret`
 
 ##### Default response
 
@@ -2615,9 +2615,9 @@ This replaces the active global enroll secrets with the secrets specified.
 
 ### Store secret variables
 
-Stores secret variables prefixed with `$FLEET_SECRET_` to Fleet.
+Stores secret variables prefixed with `$AUTOMDM_SECRET_` to AutoMDM.
 
-`PUT /api/v1/fleet/spec/secret_variables`
+`PUT /api/v1/automdm/spec/secret_variables`
 
 #### Parameters
 
@@ -2628,7 +2628,7 @@ Stores secret variables prefixed with `$FLEET_SECRET_` to Fleet.
 
 #### Example
 
-`PUT /api/v1/fleet/spec/secret_variables`
+`PUT /api/v1/automdm/spec/secret_variables`
 
 ##### Request body
 
@@ -2636,7 +2636,7 @@ Stores secret variables prefixed with `$FLEET_SECRET_` to Fleet.
 {
   "secrets": [
     {
-      "name": "FLEET_SECRET_SOME_API_TOKEN",
+      "name": "AUTOMDM_SECRET_SOME_API_TOKEN",
       "value": "971ef02b93c74ca9b22b694a9251f1d6"
     }
   ]
@@ -2652,7 +2652,7 @@ Stores secret variables prefixed with `$FLEET_SECRET_` to Fleet.
 
 ## Live report
 
-These API routes are used by the Fleet UI.
+These API routes are used by the AutoMDM UI.
 
 - [Check live report status](#check-live-report-status)
 - [Check result store status](#check-result-store-status)
@@ -2661,9 +2661,9 @@ These API routes are used by the Fleet UI.
 
 ### Check live report status
 
-This checks the status of Fleet's ability to run a live report. If an error is present in the response, Fleet won't be able to run a live report successfully. The Fleet UI uses this endpoint to make sure that the Fleet instance is correctly configured to run live reports.
+This checks the status of AutoMDM's ability to run a live report. If an error is present in the response, AutoMDM won't be able to run a live report successfully. The AutoMDM UI uses this endpoint to make sure that the AutoMDM instance is correctly configured to run live reports.
 
-`GET /api/v1/fleet/status/live_query`
+`GET /api/v1/automdm/status/live_query`
 
 #### Parameters
 
@@ -2671,7 +2671,7 @@ None.
 
 #### Example
 
-`GET /api/v1/fleet/status/live_query`
+`GET /api/v1/automdm/status/live_query`
 
 ##### Default response
 
@@ -2679,9 +2679,9 @@ None.
 
 ### Check result store status
 
-This checks Fleet's result store status. If an error is present in the response, Fleet won't be able to run a live report successfully. The Fleet UI uses this endpoint to make sure that the Fleet instance is correctly configured to run live reports.
+This checks AutoMDM's result store status. If an error is present in the response, AutoMDM won't be able to run a live report successfully. The AutoMDM UI uses this endpoint to make sure that the AutoMDM instance is correctly configured to run live reports.
 
-`GET /api/v1/fleet/status/result_store`
+`GET /api/v1/automdm/status/result_store`
 
 #### Parameters
 
@@ -2689,7 +2689,7 @@ None.
 
 #### Example
 
-`GET /api/v1/fleet/status/result_store`
+`GET /api/v1/automdm/status/result_store`
 
 ##### Default response
 
@@ -2701,7 +2701,7 @@ Accepts a search query and a list of host IDs to omit and returns a set of up to
 a query ID is provided and the referenced query allows observers to run, targets will include hosts
 for which the user has an observer role.
 
-`POST /api/latest/fleet/hosts/search`
+`POST /api/latest/automdm/hosts/search`
 
 #### Parameters
 
@@ -2714,7 +2714,7 @@ for which the user has an observer role.
 
 #### Example
 
-`POST /api/v1/fleet/hosts/search`
+`POST /api/v1/automdm/hosts/search`
 
 ##### Request body
 
@@ -2726,7 +2726,7 @@ for which the user has an observer role.
     "hosts": [],
     "labels": [],
     "teams": [1],
-    "fleets": [1]
+    "teams": [1]
   }
 }
 ```
@@ -2784,18 +2784,18 @@ for which the user has an observer role.
 
 Counts the number of online and offline hosts included in a given set of selected targets.
 
-`POST /api/latest/fleet/targets/count`
+`POST /api/latest/automdm/targets/count`
 
 #### Parameters
 
 | Name     | Type    | In   | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | -------- | ------- | ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | query_id | integer | body | The saved query (if any) that will be run. The `observer_can_run` property on the query and the user's roles determine which targets are included.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| selected | object  | body | The object includes lists of selected host IDs (`selected.hosts`), label IDs (`selected.labels`), and fleet IDs (`selected.fleets`). When provided, builtin label IDs, custom label IDs and fleet IDs become `AND` filters. Within each selector, selecting two or more fleets, two or more builtin labels, or two or more custom labels, behave as `OR` filters. There's one special case for the builtin label "All hosts", if such label is selected, then all other label and fleet selectors are ignored (and all hosts will be selected). If a host ID is explicitly included in `selected.hosts`, then it is assured that the query will be selected to run on it (no matter the contents of `selected.labels` and `selected.fleets`). Use `0` fleet ID to filter by hosts assigned to "Unassigned". See examples below. |
+| selected | object  | body | The object includes lists of selected host IDs (`selected.hosts`), label IDs (`selected.labels`), and team IDs (`selected.teams`). When provided, builtin label IDs, custom label IDs and team IDs become `AND` filters. Within each selector, selecting two or more teams, two or more builtin labels, or two or more custom labels, behave as `OR` filters. There's one special case for the builtin label "All hosts", if such label is selected, then all other label and team selectors are ignored (and all hosts will be selected). If a host ID is explicitly included in `selected.hosts`, then it is assured that the query will be selected to run on it (no matter the contents of `selected.labels` and `selected.teams`). Use `0` team ID to filter by hosts assigned to "Unassigned". See examples below. |
 
 #### Example
 
-`POST /api/latest/fleet/targets/count`
+`POST /api/latest/automdm/targets/count`
 
 ##### Request body
 
@@ -2806,7 +2806,7 @@ Counts the number of online and offline hosts included in a given set of selecte
     "hosts": [],
     "labels": [42],
     "teams": [],
-    "fleets": []
+    "teams": []
   }
 }
 ```
@@ -2825,16 +2825,16 @@ Counts the number of online and offline hosts included in a given set of selecte
 
 ## Trigger cron schedule
 
-This API is used by the `fleetctl` CLI tool to make requests to trigger an ad hoc run of all jobs in
+This API is used by the `automdmctl` CLI tool to make requests to trigger an ad hoc run of all jobs in
 a specified cron schedule.
 
 ### Trigger
 
-This makes a request to trigger the specified cron schedule. Upon receiving the request, the Fleet
+This makes a request to trigger the specified cron schedule. Upon receiving the request, the AutoMDM
 server first checks the current status of the schedule, and it returns an error if a run is
 currently pending.
 
-`POST /api/latest/fleet/trigger`
+`POST /api/latest/automdm/trigger`
 
 #### Parameters
 
@@ -2845,7 +2845,7 @@ currently pending.
 
 #### Example
 
-`POST /api/latest/fleet/trigger?name=automations`
+`POST /api/latest/automdm/trigger?name=automations`
 
 ##### Default response
 
@@ -2853,47 +2853,47 @@ currently pending.
 
 ---
 
-## Fleet-desktop-token-authenticated routes
+## AutoMDM-desktop-token-authenticated routes
 
-Fleet-desktop-token-authenticated routes are routes used by the [Fleet Desktop](https://fleetdm.com/guides/fleet-desktop). application, and on iOS and iPadOS by the self-service Web Clip. Unlike most other routes, an API token does not authenticate them. They use a Fleet Desktop token.
+AutoMDM-desktop-token-authenticated routes are routes used by the [AutoMDM Desktop](https://automdm.com/guides/automdm-desktop). application, and on iOS and iPadOS by the self-service Web Clip. Unlike most other routes, an API token does not authenticate them. They use an AutoMDM Desktop token.
 
-If you're using Fleet Premium, you can require single sign-on (SSO) in front of these routes.
+If you're using AutoMDM Premium, you can require single sign-on (SSO) in front of these routes.
 
-Some routes are always exempt from SSO and others are exempt while a host is still going through [setup experience](https://fleetdm.com/guides/setup-experience):
+Some routes are always exempt from SSO and others are exempt while a host is still going through [setup experience](https://automdm.com/guides/setup-experience):
 
-- [Get Fleet Desktop information](#get-fleet-desktop-information) (`GET /api/v1/fleet/device/{token}/desktop`) — *always exempt; polled by the Fleet Desktop tray app*
-- [Ping Server with Device Token](#ping-server-with-device-token) (`HEAD /api/v1/fleet/device/{token}/ping`) — *always exempt; polled by the Fleet Desktop tray app*
-- `POST /api/v1/fleet/device/{token}/debug/errors` — *always exempt; agent error reporting*
-- [Migrate device to Fleet from another MDM solution](#migrate-device-to-fleet-from-another-mdm-solution) (`POST /api/v1/fleet/device/{token}/migrate_mdm`) — *always exempt*
-- [Get device's transparency URL](#get-devices-transparency-url) (`GET /api/v1/fleet/device/{token}/transparency`) — *always exempt*
-- [Initiate Fleet Desktop single sign-on](#initiate-fleet-desktop-single-sign-on) (`POST /api/v1/fleet/device/{token}/sso`) — *always exempt; starts the sign-in flow*
-- `GET /api/v1/fleet/device/{token}` — *exempt during [setup experience](https://fleetdm.com/guides/setup-experience)*
-- `POST /api/v1/fleet/device/{token}/refetch` — *exempt during setup experience*
-- [Get device's Google Chrome profiles](#get-devices-google-chrome-profiles) (`GET /api/v1/fleet/device/{token}/device_mapping`, deprecated) — *exempt during setup experience*
-- [Get device's mobile device management (MDM) and Munki information](#get-devices-mobile-device-management-mdm-and-munki-information) (`GET /api/v1/fleet/device/{token}/macadmins`) — *exempt during setup experience*
-- [Get device's policies](#get-devices-policies) (`GET /api/v1/fleet/device/{token}/policies`) — *exempt during setup experience*
-- [Get device's software](#get-devices-software) (`GET /api/v1/fleet/device/{token}/software`) — *exempt during setup experience*
-- `POST /api/v1/fleet/device/{token}/software/install/{software_title_id}` — *exempt during setup experience*
-- [Install all self-service software](#install-all-self-service-software) (`POST /api/v1/fleet/device/{token}/software/install_all`) — *exempt during setup experience*
-- [Uninstall software via self-service](#uninstall-software-via-self-service) (`POST /api/v1/fleet/device/{token}/software/uninstall/{software_title_id}`) — *exempt during setup experience*
-- [Get device's software install results](#get-devices-software-install-results) (`GET /api/v1/fleet/device/{token}/software/install/{install_uuid}/results`) — *exempt during setup experience*
-- [Get uninstall results via self-service](#get-uninstall-results-via-self-service) (`GET /api/v1/fleet/device/{token}/software/uninstall/{execution_id}/results`) — *exempt during setup experience*
-- [Get device's self-service categories](#get-devices-self-service-categories) (`GET /api/v1/fleet/device/{token}/software/self_service_categories`) — *exempt during setup experience*
-- [Download device software icon](#download-device-software-icon) (`GET /api/v1/fleet/device/{token}/software/titles/{software_title_id}/icon`) — *exempt during setup experience*
-- [Get device's certificates](#get-devices-certificates) (`GET /api/v1/fleet/device/{token}/certificates`) — *exempt during setup experience*
-- `POST /api/v1/fleet/device/{token}/setup_experience/status` — *exempt during setup experience*
-- `POST /api/v1/fleet/device/{token}/mdm/linux/trigger_escrow` — *exempt during setup experience*
-- `POST /api/v1/fleet/device/{token}/bypass_conditional_access` — *exempt during setup experience*
-- [Get device's Google conditional access status](#get-devices-google-conditional-access-status) (`POST /api/v1/fleet/device/{token}/conditional_access/google`) — *exempt during setup experience*
-- [Download device's MDM manual enrollment profile](#download-devices-mdm-manual-enrollment-profile) (`GET /api/v1/fleet/device/{token}/mdm/apple/manual_enrollment_profile`) — *exempt during setup experience*
-- [Get device's software MDM command results](#get-devices-software-mdm-command-results) (`GET /api/v1/fleet/device/{token}/software/commands/{command_uuid}/results`) — *exempt during setup experience*
-- `POST /api/v1/fleet/device/{token}/configuration_profiles/{profile_uuid}/resend` — *exempt during setup experience*
+- [Get AutoMDM Desktop information](#get-automdm-desktop-information) (`GET /api/v1/automdm/device/{token}/desktop`) — *always exempt; polled by the AutoMDM Desktop tray app*
+- [Ping Server with Device Token](#ping-server-with-device-token) (`HEAD /api/v1/automdm/device/{token}/ping`) — *always exempt; polled by the AutoMDM Desktop tray app*
+- `POST /api/v1/automdm/device/{token}/debug/errors` — *always exempt; agent error reporting*
+- [Migrate device to AutoMDM from another MDM solution](#migrate-device-to-automdm-from-another-mdm-solution) (`POST /api/v1/automdm/device/{token}/migrate_mdm`) — *always exempt*
+- [Get device's transparency URL](#get-devices-transparency-url) (`GET /api/v1/automdm/device/{token}/transparency`) — *always exempt*
+- [Initiate AutoMDM Desktop single sign-on](#initiate-automdm-desktop-single-sign-on) (`POST /api/v1/automdm/device/{token}/sso`) — *always exempt; starts the sign-in flow*
+- `GET /api/v1/automdm/device/{token}` — *exempt during [setup experience](https://automdm.com/guides/setup-experience)*
+- `POST /api/v1/automdm/device/{token}/refetch` — *exempt during setup experience*
+- [Get device's Google Chrome profiles](#get-devices-google-chrome-profiles) (`GET /api/v1/automdm/device/{token}/device_mapping`, deprecated) — *exempt during setup experience*
+- [Get device's mobile device management (MDM) and Munki information](#get-devices-mobile-device-management-mdm-and-munki-information) (`GET /api/v1/automdm/device/{token}/macadmins`) — *exempt during setup experience*
+- [Get device's policies](#get-devices-policies) (`GET /api/v1/automdm/device/{token}/policies`) — *exempt during setup experience*
+- [Get device's software](#get-devices-software) (`GET /api/v1/automdm/device/{token}/software`) — *exempt during setup experience*
+- `POST /api/v1/automdm/device/{token}/software/install/{software_title_id}` — *exempt during setup experience*
+- [Install all self-service software](#install-all-self-service-software) (`POST /api/v1/automdm/device/{token}/software/install_all`) — *exempt during setup experience*
+- [Uninstall software via self-service](#uninstall-software-via-self-service) (`POST /api/v1/automdm/device/{token}/software/uninstall/{software_title_id}`) — *exempt during setup experience*
+- [Get device's software install results](#get-devices-software-install-results) (`GET /api/v1/automdm/device/{token}/software/install/{install_uuid}/results`) — *exempt during setup experience*
+- [Get uninstall results via self-service](#get-uninstall-results-via-self-service) (`GET /api/v1/automdm/device/{token}/software/uninstall/{execution_id}/results`) — *exempt during setup experience*
+- [Get device's self-service categories](#get-devices-self-service-categories) (`GET /api/v1/automdm/device/{token}/software/self_service_categories`) — *exempt during setup experience*
+- [Download device software icon](#download-device-software-icon) (`GET /api/v1/automdm/device/{token}/software/titles/{software_title_id}/icon`) — *exempt during setup experience*
+- [Get device's certificates](#get-devices-certificates) (`GET /api/v1/automdm/device/{token}/certificates`) — *exempt during setup experience*
+- `POST /api/v1/automdm/device/{token}/setup_experience/status` — *exempt during setup experience*
+- `POST /api/v1/automdm/device/{token}/mdm/linux/trigger_escrow` — *exempt during setup experience*
+- `POST /api/v1/automdm/device/{token}/bypass_conditional_access` — *exempt during setup experience*
+- [Get device's Google conditional access status](#get-devices-google-conditional-access-status) (`POST /api/v1/automdm/device/{token}/conditional_access/google`) — *exempt during setup experience*
+- [Download device's MDM manual enrollment profile](#download-devices-mdm-manual-enrollment-profile) (`GET /api/v1/automdm/device/{token}/mdm/apple/manual_enrollment_profile`) — *exempt during setup experience*
+- [Get device's software MDM command results](#get-devices-software-mdm-command-results) (`GET /api/v1/automdm/device/{token}/software/commands/{command_uuid}/results`) — *exempt during setup experience*
+- `POST /api/v1/automdm/device/{token}/configuration_profiles/{profile_uuid}/resend` — *exempt during setup experience*
 
 #### Get device's Google Chrome profiles
 
-Same as [Get host's Google Chrome profiles](https://fleetdm.com/docs/using-fleet/rest-api#get-hosts-google-chrome-profiles) for the current device.
+Same as [Get host's Google Chrome profiles](https://automdm.com/docs/using-automdm/rest-api#get-hosts-google-chrome-profiles) for the current device.
 
-`GET /api/v1/fleet/device/{token}/device_mapping`
+`GET /api/v1/automdm/device/{token}/device_mapping`
 
 ##### Parameters
 
@@ -2903,9 +2903,9 @@ Same as [Get host's Google Chrome profiles](https://fleetdm.com/docs/using-fleet
 
 #### Get device's mobile device management (MDM) and Munki information
 
-Same as [Get host's mobile device management and Munki information](https://fleetdm.com/docs/using-fleet/rest-api#get-hosts-mobile-device-management-mdm-and-munki-information) for the current device.
+Same as [Get host's mobile device management and Munki information](https://automdm.com/docs/using-automdm/rest-api#get-hosts-mobile-device-management-mdm-and-munki-information) for the current device.
 
-`GET /api/v1/fleet/device/{token}/macadmins`
+`GET /api/v1/automdm/device/{token}/macadmins`
 
 ##### Parameters
 
@@ -2916,7 +2916,7 @@ Same as [Get host's mobile device management and Munki information](https://flee
 #### Ping Server with Device Token
 Ping the server. OK response expected if the device token is still valid.
 
-`HEAD /api/v1/fleet/device/{token}/ping`
+`HEAD /api/v1/automdm/device/{token}/ping`
 
 ##### Parameters
 
@@ -2926,18 +2926,18 @@ Ping the server. OK response expected if the device token is still valid.
 
 ##### Example
 
-`HEAD /api/v1/fleet/device/abcdef012456789/ping`
+`HEAD /api/v1/automdm/device/abcdef012456789/ping`
 
 ##### Default response
 
 `Status: 200`
 
-#### Get Fleet Desktop information
-_Available in Fleet Premium_
+#### Get AutoMDM Desktop information
+_Available in AutoMDM Premium_
 
-Gets all information required by Fleet Desktop, this includes things like the number of failed policies or notifications to show/hide menu items.
+Gets all information required by AutoMDM Desktop, this includes things like the number of failed policies or notifications to show/hide menu items.
 
-`GET /api/v1/fleet/device/{token}/desktop`
+`GET /api/v1/automdm/device/{token}/desktop`
 
 ##### Parameters
 
@@ -2947,7 +2947,7 @@ Gets all information required by Fleet Desktop, this includes things like the nu
 
 ##### Example
 
-`GET /api/v1/fleet/device/abcdef012456789/desktop`
+`GET /api/v1/automdm/device/abcdef012456789/desktop`
 
 ##### Default response
 
@@ -2956,7 +2956,7 @@ Gets all information required by Fleet Desktop, this includes things like the nu
 ```json
 {
   "failing_policies_count": 3,
-  "failing_unhidden_policies_count": 1, // Available in Fleet Premium
+  "failing_unhidden_policies_count": 1, // Available in AutoMDM Premium
   "self_service": true,
   "notifications": {
     "needs_mdm_migration": true,
@@ -2964,10 +2964,10 @@ Gets all information required by Fleet Desktop, this includes things like the nu
   },
   "config": {
     "org_info": {
-      "org_name": "Fleet",
+      "org_name": "AutoMDM",
       "org_logo_url": "https://example.com/logo.jpg",
       "org_logo_url_light_background": "https://example.com/logo-light.jpg",
-      "contact_url": "https://fleetdm.com/company/contact"
+      "contact_url": "https://automdm.com/company/contact"
     },
     "mdm": {
       "macos_migration": {
@@ -2978,19 +2978,19 @@ Gets all information required by Fleet Desktop, this includes things like the nu
 }
 ```
 
-`failing_policies_count` counts all failing policies, including those marked `hidden`. `failing_unhidden_policies_count` (_Available in Fleet Premium_) counts only failing policies that aren't hidden, i.e. the failing policies that will actually be shown to the end user on the **Policies** page in Fleet Desktop.
+`failing_policies_count` counts all failing policies, including those marked `hidden`. `failing_unhidden_policies_count` (_Available in AutoMDM Premium_) counts only failing policies that aren't hidden, i.e. the failing policies that will actually be shown to the end user on the **Policies** page in AutoMDM Desktop.
 
 In regards to the `notifications` key:
 
-- `needs_mdm_migration` means that the device fits all the requirements to allow the user to initiate an MDM migration to Fleet.
-- `renew_enrollment_profile` means that the device is currently unmanaged from MDM but should be DEP enrolled into Fleet.
+- `needs_mdm_migration` means that the device fits all the requirements to allow the user to initiate an MDM migration to AutoMDM.
+- `renew_enrollment_profile` means that the device is currently unmanaged from MDM but should be DEP enrolled into AutoMDM.
 
-#### Initiate Fleet Desktop single sign-on
-_Available in Fleet Premium_
+#### Initiate AutoMDM Desktop single sign-on
+_Available in AutoMDM Premium_
 
-Starts the SAML authentication flow for the Fleet Desktop "My device" page. Returns the IdP URL to send the browser to. Fleet also sets a handshake cookie, which it reads back when the IdP redirects to the callback.
+Starts the SAML authentication flow for the AutoMDM Desktop "My device" page. Returns the IdP URL to send the browser to. AutoMDM also sets a handshake cookie, which it reads back when the IdP redirects to the callback.
 
-`POST /api/v1/fleet/device/{token}/sso`
+`POST /api/v1/automdm/device/{token}/sso`
 
 ##### Parameters
 
@@ -3000,7 +3000,7 @@ Starts the SAML authentication flow for the Fleet Desktop "My device" page. Retu
 
 ##### Example
 
-`POST /api/v1/fleet/device/abcdef012456789/sso`
+`POST /api/v1/automdm/device/abcdef012456789/sso`
 
 ##### Default response
 
@@ -3012,47 +3012,47 @@ Starts the SAML authentication flow for the Fleet Desktop "My device" page. Retu
 }
 ```
 
-This endpoint sets the `__Host-FLEETSSOSESSIONID` handshake cookie. Fleet uses it to validate the SAML response when the IdP redirects back to the existing MDM SSO callback, `POST /api/v1/fleet/mdm/sso/callback`. There's no new callback route, so IdP apps that already point at that URL keep working. On success, the callback replies `303` to the device page and sets the `__Host-FLEET_DESKTOP_SESSION` cookie that carries the device SSO session.
+This endpoint sets the `__Host-AUTOMDMSSOSESSIONID` handshake cookie. AutoMDM uses it to validate the SAML response when the IdP redirects back to the existing MDM SSO callback, `POST /api/v1/automdm/mdm/sso/callback`. There's no new callback route, so IdP apps that already point at that URL keep working. On success, the callback replies `303` to the device page and sets the `__Host-AUTOMDM_DESKTOP_SESSION` cookie that carries the device SSO session.
 
 ##### Error responses
 
 | Status | When |
 | ------ | ---- |
-| `400`  | `fleet_desktop.sso_enabled` is `false`, no IdP is configured under `mdm.end_user_authentication`, the device page and the IdP callback aren't served from the same host, or Fleet couldn't fetch and parse the IdP metadata. |
+| `400`  | `automdm_desktop.sso_enabled` is `false`, no IdP is configured under `mdm.end_user_authentication`, the device page and the IdP callback aren't served from the same host, or AutoMDM couldn't fetch and parse the IdP metadata. |
 | `401`  | The device token is invalid or expired. |
-| `402`  | Fleet Premium is required. |
+| `402`  | AutoMDM Premium is required. |
 | `429`  | The rate limit was exceeded. This endpoint uses its own bucket, set by `auth.sso_rate_limit_per_minute`. The default is the login rate of 10 requests per minute. |
 
 ##### Which IdP identity is accepted
 
-Fleet accepts any identity the configured IdP authenticates. Completing the flow proves that a person signed in at the IdP. Fleet doesn't compare that identity against the host's enrollment-time IdP account, so the device token stays the only host-specific secret.
+AutoMDM accepts any identity the configured IdP authenticates. Completing the flow proves that a person signed in at the IdP. AutoMDM doesn't compare that identity against the host's enrollment-time IdP account, so the device token stays the only host-specific secret.
 
-Fleet records the authenticated identity in `mdm_idp_accounts`, which it shares with the MDM SSO flows, and the device SSO session references it. This flow never writes a host-to-IdP-account association in `host_mdm_idp_accounts`. That link belongs to enrollment.
+AutoMDM records the authenticated identity in `mdm_idp_accounts`, which it shares with the MDM SSO flows, and the device SSO session references it. This flow never writes a host-to-IdP-account association in `host_mdm_idp_accounts`. That link belongs to enrollment.
 
 ##### Callback failures
 
-Once the callback has verified the assertion and identified the flow as Fleet Desktop, failures redirect to `/device/{token}?sso_error=<reason>` and set no session cookie. Reasons are `sso_disabled` (the setting was turned off between initiation and the callback) and `server_error`.
+Once the callback has verified the assertion and identified the flow as AutoMDM Desktop, failures redirect to `/device/{token}?sso_error=<reason>` and set no session cookie. Reasons are `sso_disabled` (the setting was turned off between initiation and the callback) and `server_error`.
 
-Failures before that point have no SSO session to read the device page URL from. To handle them, Fleet sets `RelayState` to `fleet_desktop` on the SAML `AuthnRequest`, and the IdP echoes it back with the assertion. The callback uses that value to tell a Fleet Desktop flow apart from the MDM flows. It then redirects to a device error page instead of the shared MDM one:
+Failures before that point have no SSO session to read the device page URL from. To handle them, AutoMDM sets `RelayState` to `automdm_desktop` on the SAML `AuthnRequest`, and the IdP echoes it back with the assertion. The callback uses that value to tell an AutoMDM Desktop flow apart from the MDM flows. It then redirects to a device error page instead of the shared MDM one:
 
 - An assertion that doesn't verify redirects to `/device/sso-error?reason=error`.
 - A missing or expired handshake cookie redirects to `/device/sso-error?reason=session_expired`.
 
-Without a `RelayState` that Fleet recognizes, these fall back to `/mdm/sso/callback?error=true` and `/mdm/sso/callback?error=true&reason=session_expired`.
+Without a `RelayState` that AutoMDM recognizes, these fall back to `/mdm/sso/callback?error=true` and `/mdm/sso/callback?error=true&reason=session_expired`.
 
 ##### Hosts and cookies
 
 Both cookies use the `__Host-` prefix, which scopes them to a single host name. The device page and the SAML callback must therefore be reached on the same host name. The port can differ, because cookies aren't port-scoped.
 
-Pointing `fleet_desktop.alternative_browser_host` or `mdm.apple_server_url` at a different host than `server_settings.server_url` makes single sign-on for Fleet Desktop unusable. Neither cookie reaches the leg that needs to read it. Rather than send the end user into a redirect loop, this endpoint fails with `400`.
+Pointing `automdm_desktop.alternative_browser_host` or `mdm.apple_server_url` at a different host than `server_settings.server_url` makes single sign-on for AutoMDM Desktop unusable. Neither cookie reaches the leg that needs to read it. Rather than send the end user into a redirect loop, this endpoint fails with `400`.
 
-Only this endpoint sets the `fleet_desktop` SSO initiator, and it sets it server-side. `POST /api/v1/fleet/mdm/sso` is unauthenticated and reads its initiator and host UUID from the request body, so it rejects this initiator with `400`. Accepting it there would create a device SSO session for any host UUID, without the caller ever holding that host's device token.
+Only this endpoint sets the `automdm_desktop` SSO initiator, and it sets it server-side. `POST /api/v1/automdm/mdm/sso` is unauthenticated and reads its initiator and host UUID from the request body, so it rejects this initiator with `400`. Accepting it there would create a device SSO session for any host UUID, without the caller ever holding that host's device token.
 
 #### Get device's software
 
 Lists the software installed on the current device.
 
-`GET /api/v1/fleet/device/{token}/software`
+`GET /api/v1/automdm/device/{token}/software`
 
 ##### Parameters
 
@@ -3062,15 +3062,15 @@ Lists the software installed on the current device.
 | self_service | bool | query | Filter `self_service` software. |
 | query   | string | query | Search query keywords. Searchable fields include `name`. |
 | vulnerable | boolean | query | If `true` or `1`, only list software that have vulnerabilities. Default is `false`. |
-| min_cvss_score | integer | query | _Available in Fleet Premium_. Filters to include only software with vulnerabilities that have a CVSS version 3.x base score higher than the specified value. Must be provided with `vulnerable=true`. |
-| max_cvss_score | integer | query | _Available in Fleet Premium_. Filters to only include software with vulnerabilities that have a CVSS version 3.x base score lower than what's specified. Must be provided with `vulnerable=true`. |
-| exploit | boolean | query | _Available in Fleet Premium_. If `true`, filters to only include software with vulnerabilities that have been actively exploited in the wild (`cisa_known_exploit: true`). Default is `false`. Must be provided with `vulnerable=true`. |
+| min_cvss_score | integer | query | _Available in AutoMDM Premium_. Filters to include only software with vulnerabilities that have a CVSS version 3.x base score higher than the specified value. Must be provided with `vulnerable=true`. |
+| max_cvss_score | integer | query | _Available in AutoMDM Premium_. Filters to only include software with vulnerabilities that have a CVSS version 3.x base score lower than what's specified. Must be provided with `vulnerable=true`. |
+| exploit | boolean | query | _Available in AutoMDM Premium_. If `true`, filters to only include software with vulnerabilities that have been actively exploited in the wild (`cisa_known_exploit: true`). Default is `false`. Must be provided with `vulnerable=true`. |
 | page | integer | query | Page number of the results to fetch.|
 | per_page | integer | query | Results per page.|
 
 ##### Example
 
-`GET /api/v1/fleet/device/bbb7cdcc-f1d9-4b39-af9e-daa0f35728e8/software`
+`GET /api/v1/automdm/device/bbb7cdcc-f1d9-4b39-af9e-daa0f35728e8/software`
 
 ##### Default response
 
@@ -3084,7 +3084,7 @@ Lists the software installed on the current device.
       "id": 121,
       "name": "Google Chrome.app",
       "display_name": "Chrome",
-      "icon_url": "/api/v1/fleet/device/bbb7cdcc-f1d9-4b39-af9e-daa0f35728e8/software/titles/121/icon",
+      "icon_url": "/api/v1/automdm/device/bbb7cdcc-f1d9-4b39-af9e-daa0f35728e8/software/titles/121/icon",
       "software_package": {
         "name": "GoogleChrome.pkg",
         "version": "125.12.2",
@@ -3169,11 +3169,11 @@ Lists the software installed on the current device.
 
 #### Get device's self-service categories
 
-_Available in Fleet Premium_
+_Available in AutoMDM Premium_
 
-Lists the self-service categories for the device's fleet. Fleet Desktop uses them to group software on the **Self-service** page.
+Lists the self-service categories for the device's team. AutoMDM Desktop uses them to group software on the **Self-service** page.
 
-`GET /api/v1/fleet/device/{token}/software/self_service_categories`
+`GET /api/v1/automdm/device/{token}/software/self_service_categories`
 
 ##### Parameters
 
@@ -3183,7 +3183,7 @@ Lists the self-service categories for the device's fleet. Fleet Desktop uses the
 
 ##### Example
 
-`GET /api/v1/fleet/device/bbb7cdcc-f1d9-4b39-af9e-daa0f35728e8/software/self_service_categories`
+`GET /api/v1/automdm/device/bbb7cdcc-f1d9-4b39-af9e-daa0f35728e8/software/self_service_categories`
 
 ##### Default response
 
@@ -3195,14 +3195,14 @@ Lists the self-service categories for the device's fleet. Fleet Desktop uses the
     {
       "id": 12,
       "name": "🌎 Browsers",
-      "fleet_id": 3,
+      "team_id": 3,
       "created_at": "2026-05-01T14:22:58Z",
       "updated_at": "2026-05-01T14:22:58Z"
     },
     {
       "id": 13,
       "name": "🧰 Developer tools",
-      "fleet_id": 3,
+      "team_id": 3,
       "created_at": "2026-05-01T14:22:58Z",
       "updated_at": "2026-05-01T14:22:58Z"
     }
@@ -3212,11 +3212,11 @@ Lists the self-service categories for the device's fleet. Fleet Desktop uses the
 
 ### Download device software icon
 
-_Available in Fleet Premium._
+_Available in AutoMDM Premium._
 
-Retrieve the icon added via Fleet or icon from App Store (VPP).
+Retrieve the icon added via AutoMDM or icon from App Store (VPP).
 
-`GET /api/v1/fleet/device/:token/software/titles/121/icon`
+`GET /api/v1/automdm/device/:token/software/titles/121/icon`
 
 #### Parameters
 
@@ -3224,11 +3224,11 @@ Retrieve the icon added via Fleet or icon from App Store (VPP).
 | ----            | ------- | ---- | ----------------------------------------- |
 | id              | integer | path | ID of the software title to get icon for. |
 
-This endpoint will redirect (302) to the Apple-hosted URL of an icon if an icon override isn't set and a VPP app is added for the title on the host's fleet.
+This endpoint will redirect (302) to the Apple-hosted URL of an icon if an icon override isn't set and a VPP app is added for the title on the host's team.
 
 #### Example
 
-`GET /api/v1/fleet/device/22aada07-dc73-41f2-8452-c0987543fd29/software/titles/121/icon`
+`GET /api/v1/automdm/device/22aada07-dc73-41f2-8452-c0987543fd29/software/titles/121/icon`
 
 ##### Default response
 
@@ -3245,11 +3245,11 @@ Content-Length: 124567
 
 ### Get device's software install results
 
-_Available in Fleet Premium._
+_Available in AutoMDM Premium._
 
-`GET /api/v1/fleet/device/{token}/software/install/{install_uuid}/results`
+`GET /api/v1/automdm/device/{token}/software/install/{install_uuid}/results`
 
-Get the results of a Fleet-maintained app or custom package install if it was performed on the authenticated host.
+Get the results of an AutoMDM-maintained app or custom package install if it was performed on the authenticated host.
 
 | Name            | Type    | In   | Description                                      |
 | ----            | ------- | ---- | --------------------------------------------     |
@@ -3258,7 +3258,7 @@ Get the results of a Fleet-maintained app or custom package install if it was pe
 
 #### Example
 
-`GET /api/v1/fleet/device/22aada07-dc73-41f2-8452-c0987543fd29/software/install/b15ce221-e22e-4c6a-afe7-5b3400a017da/results`
+`GET /api/v1/automdm/device/22aada07-dc73-41f2-8452-c0987543fd29/software/install/b15ce221-e22e-4c6a-afe7-5b3400a017da/results`
 
 ##### Default response
 
@@ -3284,7 +3284,7 @@ Get the results of a Fleet-maintained app or custom package install if it was pe
 
 This endpoint returns the results for a specific MDM command associated with a software (un)install.
 
-`GET /api/v1/fleet/device/{token}/software/commands/{command_uuid}/results`
+`GET /api/v1/automdm/device/{token}/software/commands/{command_uuid}/results`
 
 #### Parameters
 
@@ -3295,7 +3295,7 @@ This endpoint returns the results for a specific MDM command associated with a s
 
 #### Example
 
-`GET /api/v1/fleet/device/22aada07-dc73-41f2-8452-c0987543fd29/software/commands/a2064cef-0000-1234-afb9-283e3c1d487e/results`
+`GET /api/v1/automdm/device/22aada07-dc73-41f2-8452-c0987543fd29/software/commands/a2064cef-0000-1234-afb9-283e3c1d487e/results`
 
 ##### Default response
 
@@ -3328,8 +3328,8 @@ For VPP `InstallApplication` command results, `results_metadata` may include:
 
 | Name                      | Type    | Description |
 | ------------------------- | ------- | ----------- |
-| software_installed        | boolean | Whether Fleet has reconciled the app as installed on the host. |
-| vpp_verify_timeout_seconds | integer | The VPP install verification timeout, in seconds, used by Fleet when determining whether an acknowledged install should be marked failed. |
+| software_installed        | boolean | Whether AutoMDM has reconciled the app as installed on the host. |
+| vpp_verify_timeout_seconds | integer | The VPP install verification timeout, in seconds, used by AutoMDM when determining whether an acknowledged install should be marked failed. |
 
 > Note: If the server has not yet received a result for a command, it will return an empty object (`{}`).
 
@@ -3337,19 +3337,19 @@ For VPP `InstallApplication` command results, `results_metadata` may include:
 
 Queues an install for every self-service software title available to the device that isn't already installed.
 
-`POST /api/v1/fleet/device/{token}/software/install_all`
+`POST /api/v1/automdm/device/{token}/software/install_all`
 
 ##### Parameters
 
 | Name        | Type    | In    | Description                                                                                                                                          |
 | ----------- | ------- | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | token       | string  | path  | **Required**. The device's authentication token.                                                                                                     |
-| category_id | integer | query | Restrict to a single [self-service category](https://fleetdm.com/docs/rest-api/rest-api#self-service-categories). Must exist on the device's fleet. If omitted, all categories are included. |
+| category_id | integer | query | Restrict to a single [self-service category](https://automdm.com/docs/rest-api/rest-api#self-service-categories). Must exist on the device's team. If omitted, all categories are included. |
 | query       | string  | query | Restrict to titles whose name matches (same semantics as the self-service list endpoint). If omitted, no name filter is applied. |
 
 ##### Example
 
-`POST /api/v1/fleet/device/22aada07-dc73-41f2-8452-c0987543fd29/software/install_all?category_id=12&query=zoom`
+`POST /api/v1/automdm/device/22aada07-dc73-41f2-8452-c0987543fd29/software/install_all?category_id=12&query=zoom`
 
 ##### Default response
 
@@ -3359,7 +3359,7 @@ Queues an install for every self-service software title available to the device 
 
 Uninstalls software from a host via the My device page.
 
-`POST /api/v1/fleet/device/{token}/software/uninstall/:software_title_id`
+`POST /api/v1/automdm/device/{token}/software/uninstall/:software_title_id`
 
 #### Parameters
 
@@ -3370,7 +3370,7 @@ Uninstalls software from a host via the My device page.
 
 #### Example
 
-`POST /api/v1/fleet/device/22aada07-dc73-41f2-8452-c0987543fd29/software/uninstall/123`
+`POST /api/v1/automdm/device/22aada07-dc73-41f2-8452-c0987543fd29/software/uninstall/123`
 
 ##### Default response
 
@@ -3380,7 +3380,7 @@ Uninstalls software from a host via the My device page.
 
 Gets the result of a uninstall performed on a host, viewed from the My device page.
 
-`GET /api/v1/fleet/device/{token}/software/uninstall/{execution_id}/results`
+`GET /api/v1/automdm/device/{token}/software/uninstall/{execution_id}/results`
 
 #### Parameters
 
@@ -3390,7 +3390,7 @@ Gets the result of a uninstall performed on a host, viewed from the My device pa
 
 #### Example
 
-`GET /api/v1/fleet/device/22aada07-dc73-41f2-8452-c0987543fd29/software/uninstall/22aada07-dc73-41f2-8452-c0987543fd29/results`
+`GET /api/v1/automdm/device/22aada07-dc73-41f2-8452-c0987543fd29/software/uninstall/22aada07-dc73-41f2-8452-c0987543fd29/results`
 
 ##### Default response
 
@@ -3413,11 +3413,11 @@ Gets the result of a uninstall performed on a host, viewed from the My device pa
 
 #### Get device's policies
 
-_Available in Fleet Premium_
+_Available in AutoMDM Premium_
 
 Lists the policies applied to the current device. Policies are returned in a device-safe representation that excludes the policy author's identity and the raw SQL query.
 
-`GET /api/v1/fleet/device/{token}/policies`
+`GET /api/v1/automdm/device/{token}/policies`
 
 ##### Parameters
 
@@ -3428,7 +3428,7 @@ Lists the policies applied to the current device. Policies are returned in a dev
 
 ##### Example
 
-`GET /api/v1/fleet/device/abcdef012456789/policies`
+`GET /api/v1/automdm/device/abcdef012456789/policies`
 
 ##### Default response
 
@@ -3472,12 +3472,12 @@ Lists the policies applied to the current device. Policies are returned in a dev
 
 #### Get device's certificates
 
-Available for macOS, iOS, and iPadOS hosts only. Requires Fleet's MDM properly [enabled and configured](https://fleetdm.com/docs/using-fleet/mdm-setup).
+Available for macOS, iOS, and iPadOS hosts only. Requires AutoMDM's MDM properly [enabled and configured](https://automdm.com/docs/using-automdm/mdm-setup).
 
 
 Lists the certificates installed on the current device.
 
-`GET /api/v1/fleet/device/{token}/certificates`
+`GET /api/v1/automdm/device/{token}/certificates`
 
 ##### Parameters
 
@@ -3491,7 +3491,7 @@ Lists the certificates installed on the current device.
 
 ##### Example
 
-`GET /api/v1/fleet/device/bbb7cdcc-f1d9-4b39-af9e-daa0f35728e8/certificates`
+`GET /api/v1/automdm/device/bbb7cdcc-f1d9-4b39-af9e-daa0f35728e8/certificates`
 
 #### Default response
 
@@ -3505,7 +3505,7 @@ Lists the certificates installed on the current device.
       "not_valid_after": "2021-08-19T02:02:17Z",
       "not_valid_before": "2021-08-19T02:02:17Z",
       "certificate_authority": true,
-      "common_name": "FleetDM",
+      "common_name": "AutoMDM",
       "key_algorithm": "rsaEncryption",
       "key_strength": 2048,
       "key_usage": "CRL Sign, Key Cert Sign",
@@ -3515,13 +3515,13 @@ Lists the certificates installed on the current device.
         "country": "US",
         "organization": "Fleet Device Management Inc.",
         "organizational_unit": "Fleet Device Management Inc.",
-        "common_name": "FleetDM"
+        "common_name": "AutoMDM"
       },
       "issuer": {
         "country": "US",
         "organization": "Fleet Device Management Inc.",
         "organizational_unit": "Fleet Device Management Inc.",
-        "common_name": "FleetDM"
+        "common_name": "AutoMDM"
       },
       "source": "user",
       "username": "alice"
@@ -3536,9 +3536,9 @@ Lists the certificates installed on the current device.
 
 #### Get device's notification
 
-Gets an end user notification for the current device, as Fleet Desktop shows it. Today, Fleet uses these notifications to warn end users before it closes and updates apps.
+Gets an end user notification for the current device, as AutoMDM Desktop shows it. Today, AutoMDM uses these notifications to warn end users before it closes and updates apps.
 
-`GET /api/v1/fleet/device/{token}/notifications/{uuid}`
+`GET /api/v1/automdm/device/{token}/notifications/{uuid}`
 
 ##### Parameters
 
@@ -3547,11 +3547,11 @@ Gets an end user notification for the current device, as Fleet Desktop shows it.
 | token | string | path | The device's authentication token. |
 | uuid  | string | path | **Required**. The notification's UUID. |
 
-If the notification belongs to another host, Fleet returns `404`.
+If the notification belongs to another host, AutoMDM returns `404`.
 
 ##### Example
 
-`GET /api/v1/fleet/device/bbb7cdcc-f1d9-4b39-af9e-daa0f35728e8/notifications/5f3e2a9c-8d41-4b7e-9c0a-1e6f2d3b4a5c`
+`GET /api/v1/automdm/device/bbb7cdcc-f1d9-4b39-af9e-daa0f35728e8/notifications/5f3e2a9c-8d41-4b7e-9c0a-1e6f2d3b4a5c`
 
 ##### Default response
 
@@ -3567,7 +3567,7 @@ If the notification belongs to another host, Fleet returns `404`.
   "items": [
     {
       "software_title_id": 121,
-      "icon_url": "/api/latest/fleet/device/bbb7cdcc-f1d9-4b39-af9e-daa0f35728e8/software/titles/121/icon",
+      "icon_url": "/api/latest/automdm/device/bbb7cdcc-f1d9-4b39-af9e-daa0f35728e8/software/titles/121/icon",
       "name": "Google Chrome.app",
       "display_name": "Chrome"
     },
@@ -3591,13 +3591,13 @@ If the notification belongs to another host, Fleet returns `404`.
 }
 ```
 
-`description` is Markdown. `items` lists the apps the notification is about. After the end user chooses **Update now**, each item also includes `install_status` (`pending_install`, `installed`, or `failed_install`) and `status`, the label Fleet Desktop shows for it. `install_at` is when Fleet closes and updates the apps.
+`description` is Markdown. `items` lists the apps the notification is about. After the end user chooses **Update now**, each item also includes `install_status` (`pending_install`, `installed`, or `failed_install`) and `status`, the label AutoMDM Desktop shows for it. `install_at` is when AutoMDM closes and updates the apps.
 
 #### Act on device's notification
 
 Records the end user's choice on a notification for the current device and returns the updated notification.
 
-`POST /api/v1/fleet/device/{token}/notifications/{uuid}/actions`
+`POST /api/v1/automdm/device/{token}/notifications/{uuid}/actions`
 
 ##### Parameters
 
@@ -3605,11 +3605,11 @@ Records the end user's choice on a notification for the current device and retur
 | ------ | ------ | ---- | ---------------------------------- |
 | token  | string | path | The device's authentication token. |
 | uuid   | string | path | **Required**. The notification's UUID. |
-| action | string | body | **Required**. The `id` of one of the notification's `actions`. For app update notifications, options include `update_now`, `remind`, and `dismiss`. `update_now` closes and updates the apps now. `remind` and `dismiss` close the notification without changing it, and Fleet still shows a reminder 5 minutes before `install_at`. |
+| action | string | body | **Required**. The `id` of one of the notification's `actions`. For app update notifications, options include `update_now`, `remind`, and `dismiss`. `update_now` closes and updates the apps now. `remind` and `dismiss` close the notification without changing it, and AutoMDM still shows a reminder 5 minutes before `install_at`. |
 
 ##### Example
 
-`POST /api/v1/fleet/device/bbb7cdcc-f1d9-4b39-af9e-daa0f35728e8/notifications/5f3e2a9c-8d41-4b7e-9c0a-1e6f2d3b4a5c/actions`
+`POST /api/v1/automdm/device/bbb7cdcc-f1d9-4b39-af9e-daa0f35728e8/notifications/5f3e2a9c-8d41-4b7e-9c0a-1e6f2d3b4a5c/actions`
 
 ##### Request body
 
@@ -3633,7 +3633,7 @@ Records the end user's choice on a notification for the current device and retur
   "items": [
     {
       "software_title_id": 121,
-      "icon_url": "/api/latest/fleet/device/bbb7cdcc-f1d9-4b39-af9e-daa0f35728e8/software/titles/121/icon",
+      "icon_url": "/api/latest/automdm/device/bbb7cdcc-f1d9-4b39-af9e-daa0f35728e8/software/titles/121/icon",
       "name": "Google Chrome.app",
       "display_name": "Chrome",
       "status": "Updating...",
@@ -3659,9 +3659,9 @@ Records the end user's choice on a notification for the current device and retur
 
 #### Get device's transparency URL
 
-Returns the URL to open when clicking the "About Fleet" menu item in Fleet Desktop. Note that _Fleet Premium_ is required to configure a custom transparency URL.
+Returns the URL to open when clicking the "About AutoMDM" menu item in AutoMDM Desktop. Note that _AutoMDM Premium_ is required to configure a custom transparency URL.
 
-`GET /api/v1/fleet/device/{token}/transparency`
+`GET /api/v1/automdm/device/{token}/transparency`
 
 ##### Parameters
 
@@ -3671,7 +3671,7 @@ Returns the URL to open when clicking the "About Fleet" menu item in Fleet Deskt
 
 ##### Example
 
-`GET /api/v1/fleet/device/abcdef012456789/transparency`
+`GET /api/v1/automdm/device/abcdef012456789/transparency`
 
 ##### Default response
 
@@ -3682,10 +3682,10 @@ Redirects to the transparency URL.
 #### Download device's MDM manual enrollment profile
 
 Returns the URL to open to provide installation instructions and allow a user to download a manual enrollment profile
-for a device. A user may be required to complete SSO authenticaton if configured on the fleet before being presented
+for a device. A user may be required to complete SSO authenticaton if configured on the team before being presented
 with the download option.
 
-`GET /api/v1/fleet/device/{token}/mdm/apple/manual_enrollment_profile`
+`GET /api/v1/automdm/device/{token}/mdm/apple/manual_enrollment_profile`
 
 ##### Parameters
 
@@ -3695,7 +3695,7 @@ with the download option.
 
 ##### Example
 
-`GET /api/v1/fleet/device/abcdef012456789/mdm/apple/manual_enrollment_profile`
+`GET /api/v1/automdm/device/abcdef012456789/mdm/apple/manual_enrollment_profile`
 
 ##### Default response
 
@@ -3703,7 +3703,7 @@ with the download option.
 
 ```json
 {
-  "enroll_url": "https://your-fleet-server-url.com/enroll?enroll_secret=ABCzmPbtEECxZhHlFlz9uTWApZmXsCND"
+  "enroll_url": "https://your-automdm-server-url.com/enroll?enroll_secret=ABCzmPbtEECxZhHlFlz9uTWApZmXsCND"
 }
 ```
 
@@ -3711,13 +3711,13 @@ with the download option.
 
 #### Send APNs ping to device
 
-Sends an APNs push notification to the current device, prompting it to check in with the Fleet server and pick up any pending MDM commands or configuration profiles. Used by the **My device** page when the user refetches.
+Sends an APNs push notification to the current device, prompting it to check in with the AutoMDM server and pick up any pending MDM commands or configuration profiles. Used by the **My device** page when the user refetches.
 
 This is intentionally separate from the refetch endpoint so that programmatic refetches don't each trigger an APNs push.
 
 The device must be an Apple host with MDM turned on. The request has no body. If the device is offline, the push notification will be delivered when the device comes back online.
 
-`POST /api/v1/fleet/device/{token}/apns_ping`
+`POST /api/v1/automdm/device/{token}/apns_ping`
 
 ##### Parameters
 
@@ -3727,7 +3727,7 @@ The device must be an Apple host with MDM turned on. The request has no body. If
 
 ##### Example
 
-`POST /api/v1/fleet/device/abcdef012456789/apns_ping`
+`POST /api/v1/automdm/device/abcdef012456789/apns_ping`
 
 ##### Default response
 
@@ -3735,11 +3735,11 @@ The device must be an Apple host with MDM turned on. The request has no body. If
 
 ---
 
-#### Migrate device to Fleet from another MDM solution
+#### Migrate device to AutoMDM from another MDM solution
 
-Signals the Fleet server to send a webbook request with the device UUID and serial number to the webhook URL configured for MDM migration. **Requires Fleet Premium license**
+Signals the AutoMDM server to send a webbook request with the device UUID and serial number to the webhook URL configured for MDM migration. **Requires AutoMDM Premium license**
 
-`POST /api/v1/fleet/device/{token}/migrate_mdm`
+`POST /api/v1/automdm/device/{token}/migrate_mdm`
 
 ##### Parameters
 
@@ -3749,7 +3749,7 @@ Signals the Fleet server to send a webbook request with the device UUID and seri
 
 ##### Example
 
-`POST /api/v1/fleet/device/abcdef012456789/migrate_mdm`
+`POST /api/v1/automdm/device/abcdef012456789/migrate_mdm`
 
 ##### Default response
 
@@ -3759,11 +3759,11 @@ Signals the Fleet server to send a webbook request with the device UUID and seri
 
 ### Trigger Linux disk encryption escrow
 
-_Available in Fleet Premium_
+_Available in AutoMDM Premium_
 
-Signals the Fleet server to queue up the LUKS disk encryption escrow process (LUKS passphrase and slot key). If validation succeeds (disk encryption must be enforced for the fleet, the host's platform must be supported, the host's disk must already be encrypted, and the host's Orbit version must be new enough), this adds a notification flag for Orbit that, triggers escrow from the Orbit side.
+Signals the AutoMDM server to queue up the LUKS disk encryption escrow process (LUKS passphrase and slot key). If validation succeeds (disk encryption must be enforced for the team, the host's platform must be supported, the host's disk must already be encrypted, and the host's Orbit version must be new enough), this adds a notification flag for Orbit that, triggers escrow from the Orbit side.
 
-`POST /api/v1/fleet/device/{token}/mdm/linux/trigger_escrow`
+`POST /api/v1/automdm/device/{token}/mdm/linux/trigger_escrow`
 
 ##### Parameters
 
@@ -3773,7 +3773,7 @@ Signals the Fleet server to queue up the LUKS disk encryption escrow process (LU
 
 ##### Example
 
-`POST /api/v1/fleet/device/abcdef012456789/mdm/linux/trigger_escrow`
+`POST /api/v1/automdm/device/abcdef012456789/mdm/linux/trigger_escrow`
 
 ##### Default response
 
@@ -3803,16 +3803,16 @@ Orbit is already handling an earlier request for this host, so nothing was queue
 
 ### Submit a BitLocker PIN
 
-_Available in Fleet Premium_
+_Available in AutoMDM Premium_
 
-Submits the end user's BitLocker startup PIN for a Windows host whose fleet requires one. Fleet stores the PIN
-encrypted, hands it to the host's fleetd on its next config poll, and deletes its copy at that point.
+Submits the end user's BitLocker startup PIN for a Windows host whose team requires one. AutoMDM stores the PIN
+encrypted, hands it to the host's automdmd on its next config poll, and deletes its copy at that point.
 
-Poll `GET /api/v1/fleet/device/{token}` for the outcome, reading
+Poll `GET /api/v1/automdm/device/{token}` for the outcome, reading
 `host.mdm.os_settings.disk_encryption.pin_request.status`: `pending`, `delivered`, `set`, or `failed`. When it is
 `failed`, `pin_request.error` carries the agent's reason.
 
-`POST /api/v1/fleet/device/{token}/disk_encryption_pin`
+`POST /api/v1/automdm/device/{token}/disk_encryption_pin`
 
 ##### Parameters
 
@@ -3823,7 +3823,7 @@ Poll `GET /api/v1/fleet/device/{token}` for the outcome, reading
 
 ##### Example
 
-`POST /api/v1/fleet/device/abcdef012456789/disk_encryption_pin`
+`POST /api/v1/automdm/device/abcdef012456789/disk_encryption_pin`
 
 ##### Request body
 
@@ -3841,11 +3841,11 @@ Poll `GET /api/v1/fleet/device/{token}` for the outcome, reading
 
 ### Get the setup experience status for the device
 
-_Available in Fleet Premium_
+_Available in AutoMDM Premium_
 
-`POST /api/v1/fleet/device/{token}/setup_experience/status`
+`POST /api/v1/automdm/device/{token}/setup_experience/status`
 
-> Polling this endpoint advances the setup experience: each poll dispatches the next queued item. On Windows and Linux hosts, this includes deciding whether to skip or install software with associated policies. Such an item stays `pending` or `running` while Fleet waits for the host's policy results. If the host passes all of the software's in-scope policies, the item is skipped: it reports `success` without an install.
+> Polling this endpoint advances the setup experience: each poll dispatches the next queued item. On Windows and Linux hosts, this includes deciding whether to skip or install software with associated policies. Such an item stays `pending` or `running` while AutoMDM waits for the host's policy results. If the host passes all of the software's in-scope policies, the item is skipped: it reports `success` without an install.
 
 ##### Parameters
 
@@ -3855,7 +3855,7 @@ _Available in Fleet Premium_
 
 ##### Example
 
-`POST /api/v1/fleet/device/7d940b6e-130a-493b-b58a-2b6e9f9f8bfc/setup_experience/status`
+`POST /api/v1/automdm/device/7d940b6e-130a-493b-b58a-2b6e9f9f8bfc/setup_experience/status`
 
 ##### Default response
 
@@ -3875,7 +3875,7 @@ _Available in Fleet Premium_
         "status": "pending",
         "software_title_id": 3008,
         "display_name": "My Slack",
-        "icon_url": "/api/latest/fleet/device/7d940b6e-130a-493b-b58a-2b6e9f9f8bfc/software/titles/3008/icon"
+        "icon_url": "/api/latest/automdm/device/7d940b6e-130a-493b-b58a-2b6e9f9f8bfc/software/titles/3008/icon"
       }
     ]
   }
@@ -3888,22 +3888,22 @@ _Available in Fleet Premium_
 
 Notifies the server about an agent error, resulting in two outcomes:
 
-- The error gets saved in Redis and can later be accessed using `fleetctl debug archive`.
+- The error gets saved in Redis and can later be accessed using `automdmctl debug archive`.
 
-> Note: to allow `fleetd` agents to use this endpoint, you need to set a [custom environment variable](./Configuration-for-contributors.md#fleet_enable_post_client_debug_errors). `fleetd` agents will always report vital errors to Fleet.
+> Note: to allow `automdmd` agents to use this endpoint, you need to set a [custom environment variable](./Configuration-for-contributors.md#automdm_enable_post_client_debug_errors). `automdmd` agents will always report vital errors to AutoMDM.
 
-`POST /api/v1/fleet/device/{token}/debug/errors`
+`POST /api/v1/automdm/device/{token}/debug/errors`
 
 #### Parameters
 
 | Name                  | Type     | Description                                                                                                                               |
 |-----------------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------|
-| error_source          | string   | Process name that error originated from ex. orbit, fleet-desktop                                                                          |
+| error_source          | string   | Process name that error originated from ex. orbit, automdm-desktop                                                                          |
 | error_source_version  | string   | version of error_source                                                                                                                   |
 | error_timestamp       | datetime | Time in UTC that error occurred                                                                                                            |
 | error_message         | string   | error message                                                                                                                             |
 | error_additional_info | obj      | Any additional identifiers to assist debugging                                                                                            |
-| vital                 | boolean  | Whether the error is vital and should also be reported to Fleet via usage statistics. Do not put sensitive information into vital errors. |
+| vital                 | boolean  | Whether the error is vital and should also be reported to AutoMDM via usage statistics. Do not put sensitive information into vital errors. |
 
 ##### Default response
 
@@ -3929,7 +3929,7 @@ Notifies the server about an agent error, resulting in two outcomes:
 
 ### Escrow LUKS data
 
-`POST /api/fleet/orbit/luks_data`
+`POST /api/automdm/orbit/luks_data`
 
 ##### Parameters
 
@@ -3937,7 +3937,7 @@ Notifies the server about an agent error, resulting in two outcomes:
 | ----- | ------ | ---- | ---------------------------------- |
 | orbit_node_key | string | body | The Orbit node key for authentication. |
 | client_error | string | body | An error description if the LUKS key escrow process fails client-side. If provided, passphrase/salt/key slot request parameters are ignored and may be omitted. |
-| passphrase | string | body | The LUKS passphrase generated for Fleet (the end user's existing passphrase is not transmitted) |
+| passphrase | string | body | The LUKS passphrase generated for AutoMDM (the end user's existing passphrase is not transmitted) |
 | key_slot | int | body | The LUKS key slot ID corresponding to the provided passphrase |
 | salt | string | body | The salt corresponding to the specified LUKS key slot. Provided to track cases where an end user rotates LUKS credentials (at which point we'll no longer be able to decrypt data with the escrowed passphrase). |
 | key_type | string | body | How the escrowed secret unlocks the volume. Options include `passphrase` and `recovery_key`. Default is `passphrase`. Use `recovery_key` to escrow the recovery key from a host with TPM-backed full disk encryption (for example, Ubuntu 26). In that case, send the recovery key in `passphrase` and leave out `salt` and `key_slot`. Only sent to servers advertising the `luks_recovery_key_escrow` capability. |
@@ -3945,7 +3945,7 @@ Notifies the server about an agent error, resulting in two outcomes:
 
 ##### Example
 
-`POST /api/v1/fleet/orbit/luks_data`
+`POST /api/v1/automdm/orbit/luks_data`
 
 ##### Request body
 
@@ -3976,9 +3976,9 @@ Notifies the server about an agent error, resulting in two outcomes:
 
 ### Get the status of a device in the setup experience
 
-`POST /api/fleet/orbit/setup_experience/status`
+`POST /api/automdm/orbit/setup_experience/status`
 
-> Polling this endpoint advances the setup experience: each poll dispatches the next queued item. On Windows and Linux hosts, this includes deciding whether to skip or install software with associated policies. Such an item stays `pending` or `running` while Fleet waits for the host's policy results. If the host passes all of the software's in-scope policies, the item is skipped: it reports `success` without an install.
+> Polling this endpoint advances the setup experience: each poll dispatches the next queued item. On Windows and Linux hosts, this includes deciding whether to skip or install software with associated policies. Such an item stays `pending` or `running` while AutoMDM waits for the host's policy results. If the host passes all of the software's in-scope policies, the item is skipped: it reports `success` without an install.
 
 ##### Parameters
 
@@ -3986,12 +3986,12 @@ Notifies the server about an agent error, resulting in two outcomes:
 | ----- | ------ | ---- | ---------------------------------- |
 | orbit_node_key | string | body | The Orbit node key for authentication. |
 | force_release | boolean | body | Force a host release from ADE flow, in case the setup is taking too long. |
-| reset_failed_setup_steps | boolean | body | If `true`, a software install failed, and the host's fleet requires all setup experience software, Fleet queues again the setup experience steps that didn't succeed. Steps that succeeded aren't repeated. On macOS, fleetd sends `true` on its first request after it starts. Default is `false`. |
+| reset_failed_setup_steps | boolean | body | If `true`, a software install failed, and the host's team requires all setup experience software, AutoMDM queues again the setup experience steps that didn't succeed. Steps that succeeded aren't repeated. On macOS, automdmd sends `true` on its first request after it starts. Default is `false`. |
 
 
 ##### Example
 
-`POST /api/v1/fleet/orbit/setup_experience/status`
+`POST /api/v1/automdm/orbit/setup_experience/status`
 
 ##### Request body
 
@@ -4030,18 +4030,18 @@ Notifies the server about an agent error, resulting in two outcomes:
                 "status": "success",
                 "software_title_id": 1313,
                 "display_name": "My Evernote",
-                "icon_url": "/api/latest/fleet/software/titles/1313/icon?team_id=0"
+                "icon_url": "/api/latest/automdm/software/titles/1313/icon?team_id=0"
             }
         ],
         "configuration_profiles": [
             {
                 "profile_uuid": "ae6a9efd5-9166-11ef-83af-0242ac12000b",
-                "name": "Fleetd configuration",
+                "name": "AutoMDMd configuration",
                 "status": "verified"
             },
             {
                 "profile_uuid": "ae6aa8108-9166-11ef-83af-0242ac12000b",
-                "name": "Fleet root certificate authority (CA)",
+                "name": "AutoMDM root certificate authority (CA)",
                 "status": "verified"
             }
         ],
@@ -4052,7 +4052,7 @@ Notifies the server about an agent error, resulting in two outcomes:
 
 ### Start the setup experience
 
-`POST /api/fleet/orbit/setup_experience/init`
+`POST /api/automdm/orbit/setup_experience/init`
 
 ##### Parameters
 
@@ -4062,7 +4062,7 @@ Notifies the server about an agent error, resulting in two outcomes:
 
 ##### Example
 
-`POST /api/fleet/orbit/setup_experience/init`
+`POST /api/automdm/orbit/setup_experience/init`
 
 ##### Request body
 
@@ -4090,7 +4090,7 @@ On Windows and Linux hosts, if any queued software has associated policies (poli
 
 ### Set or update device token
 
-`POST /api/fleet/orbit/device_token`
+`POST /api/automdm/orbit/device_token`
 
 ##### Parameters
 
@@ -4101,7 +4101,7 @@ On Windows and Linux hosts, if any queued software has associated policies (poli
 
 ##### Example
 
-`POST /api/v1/fleet/orbit/device_token`
+`POST /api/v1/automdm/orbit/device_token`
 
 ##### Request body
 
@@ -4118,11 +4118,11 @@ On Windows and Linux hosts, if any queued software has associated policies (poli
 
 ### Report Entra device token
 
-Used by fleetd on macOS hosts for [Microsoft Entra conditional access](https://fleetdm.com/guides/entra-conditional-access-integration). When conditional access is on for the host, [Get Orbit config](#get-orbit-config) returns `entra_device_token_request` with a `tenant_id`, `client_id`, and `nonce`. fleetd uses them to get an Entra ID token through the Company Portal single sign-on extension, then sends the token to this endpoint. Fleet verifies the token before it saves the host's Entra device ID.
+Used by automdmd on macOS hosts for [Microsoft Entra conditional access](https://automdm.com/guides/entra-conditional-access-integration). When conditional access is on for the host, [Get Orbit config](#get-orbit-config) returns `entra_device_token_request` with a `tenant_id`, `client_id`, and `nonce`. automdmd uses them to get an Entra ID token through the Company Portal single sign-on extension, then sends the token to this endpoint. AutoMDM verifies the token before it saves the host's Entra device ID.
 
-An Entra device ID can belong to only one host. If another host already has it, Fleet returns `Status: 409`. To move it, delete the other host in Fleet.
+An Entra device ID can belong to only one host. If another host already has it, AutoMDM returns `Status: 409`. To move it, delete the other host in AutoMDM.
 
-`POST /api/fleet/orbit/entra_device_token`
+`POST /api/automdm/orbit/entra_device_token`
 
 ##### Parameters
 
@@ -4133,7 +4133,7 @@ An Entra device ID can belong to only one host. If another host already has it, 
 
 ##### Example
 
-`POST /api/fleet/orbit/entra_device_token`
+`POST /api/automdm/orbit/entra_device_token`
 
 ##### Request body
 
@@ -4150,7 +4150,7 @@ An Entra device ID can belong to only one host. If another host already has it, 
 
 ### Get Orbit config
 
-`POST /api/fleet/orbit/config`
+`POST /api/automdm/orbit/config`
 
 ##### Parameters
 
@@ -4160,7 +4160,7 @@ An Entra device ID can belong to only one host. If another host already has it, 
 
 ##### Example
 
-`POST /api/fleet/orbit/config`
+`POST /api/automdm/orbit/config`
 
 ##### Request body
 
@@ -4213,7 +4213,7 @@ An Entra device ID can belong to only one host. If another host already has it, 
 
 ### Get script execution result by execution ID
 
-`POST /api/fleet/orbit/scripts/request`
+`POST /api/automdm/orbit/scripts/request`
 
 ##### Parameters
 
@@ -4224,7 +4224,7 @@ An Entra device ID can belong to only one host. If another host already has it, 
 
 ##### Example
 
-`POST /api/fleet/orbit/scripts/request`
+`POST /api/automdm/orbit/scripts/request`
 
 ##### Request body
 
@@ -4260,13 +4260,13 @@ An Entra device ID can belong to only one host. If another host already has it, 
 Collects the BitLocker startup PIN an end user submitted from the **My device** page, so the agent can apply it to the
 volume.
 
-The response is the only place Fleet ever hands the PIN back out, and it can only be read once: the server deletes its
+The response is the only place AutoMDM ever hands the PIN back out, and it can only be read once: the server deletes its
 encrypted copy as it responds and marks the submission `delivered`. A host with no pending submission gets an empty
 response.
 
 An uncollected submission expires after 15 minutes, and a collected one the agent never reports on expires after an hour.
 
-`POST /api/fleet/orbit/disk_encryption_pin/details`
+`POST /api/automdm/orbit/disk_encryption_pin/details`
 
 ##### Parameters
 
@@ -4276,7 +4276,7 @@ An uncollected submission expires after 15 minutes, and a collected one the agen
 
 ##### Example
 
-`POST /api/fleet/orbit/disk_encryption_pin/details`
+`POST /api/automdm/orbit/disk_encryption_pin/details`
 
 ##### Request body
 
@@ -4301,7 +4301,7 @@ An uncollected submission expires after 15 minutes, and a collected one the agen
 
 Reports whether the agent applied the PIN it collected.
 
-`POST /api/fleet/orbit/disk_encryption_pin/result`
+`POST /api/automdm/orbit/disk_encryption_pin/result`
 
 ##### Parameters
 
@@ -4314,7 +4314,7 @@ Reports whether the agent applied the PIN it collected.
 
 ##### Example
 
-`POST /api/fleet/orbit/disk_encryption_pin/result`
+`POST /api/automdm/orbit/disk_encryption_pin/result`
 
 ##### Request body
 
@@ -4333,7 +4333,7 @@ Reports whether the agent applied the PIN it collected.
 
 ### Upload Orbit script result
 
-`POST /api/fleet/orbit/scripts/result`
+`POST /api/automdm/orbit/scripts/result`
 
 ##### Parameters
 
@@ -4349,7 +4349,7 @@ Reports whether the agent applied the PIN it collected.
 
 ##### Example
 
-`POST /api/fleet/orbit/scripts/result`
+`POST /api/automdm/orbit/scripts/result`
 
 ##### Request body
 
@@ -4371,7 +4371,7 @@ Reports whether the agent applied the PIN it collected.
 
 ### Set Orbit device mapping
 
-`PUT /api/fleet/orbit/device_mapping`
+`PUT /api/automdm/orbit/device_mapping`
 
 ##### Parameters
 
@@ -4382,7 +4382,7 @@ Reports whether the agent applied the PIN it collected.
 
 ##### Example
 
-`PUT /api/fleet/orbit/device_mapping`
+`PUT /api/automdm/orbit/device_mapping`
 
 ##### Request body
 
@@ -4399,7 +4399,7 @@ Reports whether the agent applied the PIN it collected.
 
 ### Upload Orbit software install result
 
-`POST /api/fleet/orbit/software_install/result`
+`POST /api/automdm/orbit/software_install/result`
 
 ##### Parameters
 
@@ -4417,7 +4417,7 @@ Reports whether the agent applied the PIN it collected.
 
 ##### Example
 
-`POST /api/fleet/orbit/software_install/result`
+`POST /api/automdm/orbit/software_install/result`
 
 ##### Request body
 
@@ -4441,7 +4441,7 @@ Reports whether the agent applied the PIN it collected.
 
 ### Download software installer
 
-`POST /api/fleet/orbit/software_install/package`
+`POST /api/automdm/orbit/software_install/package`
 
 ##### Parameters
 
@@ -4453,7 +4453,7 @@ Reports whether the agent applied the PIN it collected.
 
 ##### Example
 
-`POST /api/fleet/orbit/software_install/package`
+`POST /api/automdm/orbit/software_install/package`
 
 ##### Request body
 
@@ -4478,7 +4478,7 @@ Body: <blob>
 
 ### Get orbit software install details
 
-`POST /api/fleet/orbit/software_install/details`
+`POST /api/automdm/orbit/software_install/details`
 
 > Note: The `installer_url` in the response will only be populated if AWS S3 and CloudFront URL signing are configured.
 
@@ -4487,12 +4487,12 @@ Body: <blob>
 | Name           | Type   | In   | Description                                    |
 | -------------- | ------ | ---- | ---------------------------------------------- |
 | orbit_node_key | string | body | The Orbit node key for authentication.         |
-| orbot_node_key | string | body | Deprecated. Misspelled alias of `orbit_node_key`, kept for fleetd 1.38.0 and older. Fleet uses it only when `orbit_node_key` is empty. |
+| orbot_node_key | string | body | Deprecated. Misspelled alias of `orbit_node_key`, kept for automdmd 1.38.0 and older. AutoMDM uses it only when `orbit_node_key` is empty. |
 | install_uuid   | string | body | The UUID of the software installation attempt. |
 
 ##### Example
 
-`POST /api/fleet/orbit/software_install/details`
+`POST /api/automdm/orbit/software_install/details`
 
 ##### Request body
 
@@ -4526,7 +4526,7 @@ Body: <blob>
 
 ### Upload disk encryption key
 
-`POST /api/fleet/orbit/disk_encryption_key`
+`POST /api/automdm/orbit/disk_encryption_key`
 
 ##### Parameters
 
@@ -4538,7 +4538,7 @@ Body: <blob>
 
 ##### Example
 
-`POST /api/fleet/orbit/disk_encryption_key`
+`POST /api/automdm/orbit/disk_encryption_key`
 
 ##### Request body
 
@@ -4560,9 +4560,9 @@ Body: <blob>
 
 Reports what the agent did about a Windows volume that is encrypted but whose BitLocker protection is off. The agent only calls this endpoint when the server asked it to act, via the `enable_bitlocker_protection` notification in the orbit config.
 
-This endpoint never touches the escrowed recovery key. It records what happened so the host's disk encryption details can tell an admin whether Fleet is still working on the host, what is blocking it, or that a restart is needed.
+This endpoint never touches the escrowed recovery key. It records what happened so the host's disk encryption details can tell an admin whether AutoMDM is still working on the host, what is blocking it, or that a restart is needed.
 
-`POST /api/fleet/orbit/disk_encryption_protection`
+`POST /api/automdm/orbit/disk_encryption_protection`
 
 ##### Parameters
 
@@ -4574,7 +4574,7 @@ This endpoint never touches the escrowed recovery key. It records what happened 
 
 ##### Example
 
-`POST /api/fleet/orbit/disk_encryption_protection`
+`POST /api/automdm/orbit/disk_encryption_protection`
 
 ##### Request body
 
@@ -4594,7 +4594,7 @@ This endpoint never touches the escrowed recovery key. It records what happened 
 
 ## Setup
 
-Sets up a new Fleet instance with the given parameters.
+Sets up a new AutoMDM instance with the given parameters.
 
 `POST /api/v1/setup`
 
@@ -4604,7 +4604,7 @@ Sets up a new Fleet instance with the given parameters.
 | ---------- | ------ | ---- | --------------------------------------------------------------------------------------------------------------------------- |
 | admin      | object | body | **Required.** Contains the following admin user details: `admin`, `email`, `name`, `password`, and `password_confirmation`. |
 | org_info   | object | body | **Required.** Contains the following organizational details: `org_name`.                                                    |
-| server_url | string | body | **Required.** The URL of the Fleet instance.                                                                                |
+| server_url | string | body | **Required.** The URL of the AutoMDM instance.                                                                                |
 
 
 ##### Request body
@@ -4629,7 +4629,7 @@ Sets up a new Fleet instance with the given parameters.
 
 `Status: 200`
 
-If the Fleet instance is provided required parameters to complete setup.
+If the AutoMDM instance is provided required parameters to complete setup.
 
 ```json
 {
@@ -4648,7 +4648,7 @@ If the Fleet instance is provided required parameters to complete setup.
   },
   "org_info": {
     "org_name": "Fleet Device Management",
-    "org_logo_url": "https://fleetdm.com/logo.png"
+    "org_logo_url": "https://automdm.com/logo.png"
   },
   "server_url": "https://localhost:8080",
   "osquery_enroll_secret": null,
@@ -4666,16 +4666,16 @@ Supported script file types:
 
 ### Batch-apply scripts
 
-_Available in Fleet Premium_
+_Available in AutoMDM Premium_
 
-`POST /api/v1/fleet/scripts/batch`
+`POST /api/v1/automdm/scripts/batch`
 
 #### Parameters
 
 | Name      | Type   | In    | Description                                                                                                                                                           |
 | --------- | ------ | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| team_id | number | query | The ID of the fleet to add the scripts to. Only one fleet identifier (`team_id` or `team_name`) can be included in the request, omit this parameter if using `team_name`.
-| team_name | string | query | The name of the fleet to add the scripts to. Only one fleet identifier (`team_id` or `team_name`) can be included in the request, omit this parameter if using `team_id`.
+| team_id | number | query | The ID of the team to add the scripts to. Only one automdm identifier (`team_id` or `team_name`) can be included in the request, omit this parameter if using `team_name`.
+| team_name | string | query | The name of the team to add the scripts to. Only one automdm identifier (`team_id` or `team_name`) can be included in the request, omit this parameter if using `team_id`.
 | dry_run   | bool   | query | Validate the provided scripts and return any validation errors, but do not apply the changes.                                                                         |
 | scripts   | array  | body  | An array of objects with the scripts payloads. Each item must contain `name` with the script name and `script_contents` with the script contents encoded in base64    |
 
@@ -4684,11 +4684,11 @@ If no `team_name` or `team_id` is provided, the scripts will be applied for **al
 
 Script contents are uploaded verbatim, without CRLF -> LF conversion.
 
-> Note that this endpoint replaces all the active scripts for the specified fleet (or no fleet). Any existing script that is not included in the list will be removed, and existing scripts with the same name as a new script will be edited. Providing an empty list of scripts will remove existing scripts.
+> Note that this endpoint replaces all the active scripts for the specified team (or no team). Any existing script that is not included in the list will be removed, and existing scripts with the same name as a new script will be edited. Providing an empty list of scripts will remove existing scripts.
 
 #### Example
 
-`POST /api/v1/fleet/scripts/batch`
+`POST /api/v1/automdm/scripts/batch`
 
 ##### Default response
 
@@ -4699,13 +4699,13 @@ Script contents are uploaded verbatim, without CRLF -> LF conversion.
   "scripts": [
     {
       "team_id": 3,
-      "fleet_id": 3,
+      "team_id": 3,
       "id": 6690,
       "name": "Ensure shields are up"
     },
     {
       "team_id": 3,
-      "fleet_id": 3,
+      "team_id": 3,
       "id": 10412,
       "name": "Ensure flux capacitor is charged"
     }
@@ -4717,7 +4717,7 @@ Script contents are uploaded verbatim, without CRLF -> LF conversion.
 
 Run a live script and get results back (5 minute timeout). Live scripts only runs on the host if it has no other scripts running.
 
-`POST /api/v1/fleet/scripts/run/sync`
+`POST /api/v1/automdm/scripts/run/sync`
 
 #### Parameters
 
@@ -4727,13 +4727,13 @@ Run a live script and get results back (5 minute timeout). Live scripts only run
 | script_id       | integer | body | The ID of the existing saved script to run. Only one of either `script_id`, `script_contents`, or `script_name` can be included. |
 | script_contents | string  | body | The contents of the script to run. Only one of either `script_id`, `script_contents`, or `script_name` can be included. |
 | script_name       | integer | body | The name of the existing saved script to run. If specified, requires `team_id`. Only one of either `script_id`, `script_contents`, or `script_name` can be included.   |
-| team_id       | integer | body | The ID of the fleet of the saved script to run. If specified, requires `script_name`. Only one of either `script_id`, `script_contents`, or `script_name` can be included in the request.  |
+| team_id       | integer | body | The ID of the team of the saved script to run. If specified, requires `script_name`. Only one of either `script_id`, `script_contents`, or `script_name` can be included in the request.  |
 
 > Note that if any combination of `script_id`, `script_contents`, and `script_name` are included in the request, this endpoint will respond with an error.
 
 #### Example
 
-`POST /api/v1/fleet/scripts/run/sync`
+`POST /api/v1/automdm/scripts/run/sync`
 
 ##### Default response
 
@@ -4755,13 +4755,13 @@ Run a live script and get results back (5 minute timeout). Live scripts only run
 
 ### Update software title name
 
-`PATCH /api/v1/fleet/software/titles/:software_title_id/name`
+`PATCH /api/v1/automdm/software/titles/:software_title_id/name`
 
 Only available for software titles that have a non-empty bundle ID, as titles without a bundle
 ID will be added back as new rows on the next software ingest with the same name. Endpoint authorization limited
-to global admins as this changes the software title's name across all fleets.
+to global admins as this changes the software title's name across all teams.
 
-> **Experimental endpoint**. This endpoint is not guaranteed to continue to exist on future minor releases of Fleet.
+> **Experimental endpoint**. This endpoint is not guaranteed to continue to exist on future minor releases of AutoMDM.
 
 #### Parameters
 
@@ -4772,7 +4772,7 @@ to global admins as this changes the software title's name across all fleets.
 
 #### Example
 
-`PATCH /api/v1/fleet/software/titles/1/name`
+`PATCH /api/v1/automdm/software/titles/1/name`
 
 ```json
 {
@@ -4786,38 +4786,38 @@ to global admins as this changes the software title's name across all fleets.
 
 ### Batch-apply software
 
-_Available in Fleet Premium._
+_Available in AutoMDM Premium._
 
-`POST /api/v1/fleet/software/batch`
+`POST /api/v1/automdm/software/batch`
 
-This endpoint is asynchronous, meaning it will start a background process to download and apply the software and return a `request_uuid` in the JSON response that can be used to query the status of the batch-apply (using the `GET /api/v1/fleet/software/batch/:request_uuid` endpoint defined below).
+This endpoint is asynchronous, meaning it will start a background process to download and apply the software and return a `request_uuid` in the JSON response that can be used to query the status of the batch-apply (using the `GET /api/v1/automdm/software/batch/:request_uuid` endpoint defined below).
 
 #### Parameters
 
 | Name                                  | Type     | In    | Description                                                                                                                                                                                                                 |
 |---------------------------------------|----------|-------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| team_name                             | string   | query | The name of the fleet to add the software package to. Omitting these parameters will add software to 'Unassigned'.                                                                                                         |
+| team_name                             | string   | query | The name of the team to add the software package to. Omitting these parameters will add software to 'Unassigned'.                                                                                                         |
 | dry_run                               | bool     | query | If `true`, will validate the provided software packages and return any validation errors, but will not apply the changes.                                                                                                   |
-| software                              | object   | body  | The fleet's software that will be available for install.                                                                                                                                                                    |
+| software                              | object   | body  | The team's software that will be available for install.                                                                                                                                                                    |
 | software.packages                     | array    | body  | An array of objects with values below.                                                                                                                                                                                      |
-| software.packages.slug                | string   | body  | The slug for a Fleet-maintained app                                                                                                                                                                                         |
+| software.packages.slug                | string   | body  | The slug for an AutoMDM-maintained app                                                                                                                                                                                         |
 | software.packages.hash_sha256         | string   | body  | SHA256 hash of the package. If provided, must be 64 lower-case hex characters. One or both of sha256 or url must be provided.                                                                                               |
 | software.packages.url                 | string   | body  | URL to the software package (PKG, MSI, EXE or DEB). If sha256 is also provided and the installer isn't already uploaded with the same hash for that URL, call will fail if the downloaded installer doesn't match the hash. |
 | software.packages.categories          | string[] | body  | An array of categories, as they are displayed in the UI, to assign to the package.                                                                                                                                          |
-| software.packages.install_script      | string   | body  | Command that Fleet runs to install software.                                                                                                                                                                                |
+| software.packages.install_script      | string   | body  | Command that AutoMDM runs to install software.                                                                                                                                                                                |
 | software.packages.pre_install_query   | string   | body  | Condition query that determines if the install will proceed.                                                                                                                                                                |
 | software.packages.post_install_script | string   | body  | Script that runs after software install.                                                                                                                                                                                    |
-| software.packages.uninstall_script    | string   | body  | Command that Fleet runs to uninstall software.                                                                                                                                                                              |
+| software.packages.uninstall_script    | string   | body  | Command that AutoMDM runs to uninstall software.                                                                                                                                                                              |
 | software.packages.self_service        | boolean  | body  | Specifies whether end users can install self-service.                                                                                                                                                                |
 | software.packages.install_during_setup | boolean  | body  | Specifies whether the package is included in Setup experience.                                                                                                                                                                |
 | software.packages.labels_include_any  | array    | body  | Target hosts that have any label in the array. Only one of `labels_include_any` or `labels_exclude_any` can be included. If neither are included, all hosts are targeted.                                                   |
 | software.packages.labels_exclude_any  | array    | body  | Target hosts that don't have any labels in the array. Only one of `labels_include_any` or `labels_exclude_any` can be included. If neither are included, all hosts are targeted.                                            |
 
-`hash_sha256` can be provided alongside or as a replacement for `url`. If provided alongside `url`, adding software only succeeds if the software downloaded matches the specified hash. If provided without a URL, software with that hash must exist (either on that fleet or globally, depending on what level of access the API client is authorized at) prior to the GitOps run, whether from a previous GitOps run or an upload at the [Add package](https://fleetdm.com/docs/rest-api/rest-api#add-package) endpoint, at which point Fleet will ensure the software package exists on the selected fleet with the specified configuration without needing to retrieve it again.
+`hash_sha256` can be provided alongside or as a replacement for `url`. If provided alongside `url`, adding software only succeeds if the software downloaded matches the specified hash. If provided without a URL, software with that hash must exist (either on that team or globally, depending on what level of access the API client is authorized at) prior to the GitOps run, whether from a previous GitOps run or an upload at the [Add package](https://automdm.com/docs/rest-api/rest-api#add-package) endpoint, at which point AutoMDM will ensure the software package exists on the selected team with the specified configuration without needing to retrieve it again.
 
 #### Example
 
-`POST /api/v1/fleet/software/batch`
+`POST /api/v1/automdm/software/batch`
 
 ##### Default response
 
@@ -4830,11 +4830,11 @@ This endpoint is asynchronous, meaning it will start a background process to dow
 
 ### Get status of software batch-apply request
 
-_Available in Fleet Premium._
+_Available in AutoMDM Premium._
 
-`GET /api/v1/fleet/software/batch/:request_uuid`
+`GET /api/v1/automdm/software/batch/:request_uuid`
 
-This endpoint allows querying the status of a batch-apply software request (`POST /api/v1/fleet/software/batch`).
+This endpoint allows querying the status of a batch-apply software request (`POST /api/v1/automdm/software/batch`).
 Returns `"status"` field that can be one of `"processing"`, `"completed"` or `"failed"`.
 If `"status"` is `"completed"` then the `"packages"` field contains the applied packages.
 If `"status"` is `"processing"` then the operation is ongoing and the request should be retried.
@@ -4844,8 +4844,8 @@ If `"status"` is `"failed"` then the `"message"` field contains the error messag
 
 | Name         | Type   | In    | Description                                                                                                                                                           |
 | ------------ | ------ | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| request_uuid | string | query | The request_uuid returned by the `POST /api/v1/fleet/software/batch` endpoint. |
-| team_name    | string | query | The name of the fleet to add the software package to. Omitting these parameters will add software to 'Unassigned'. |
+| request_uuid | string | query | The request_uuid returned by the `POST /api/v1/automdm/software/batch` endpoint. |
+| team_name    | string | query | The name of the team to add the software package to. Omitting these parameters will add software to 'Unassigned'. |
 | dry_run      | bool   | query | If `true`, will validate the provided software packages and return any validation errors, but will not apply the changes.                                                                         |
 
 ##### Default responses
@@ -4867,7 +4867,7 @@ If `"status"` is `"failed"` then the `"message"` field contains the error messag
   "packages": [
     {
       "team_id": 1,
-      "fleet_id": 1,
+      "team_id": 1,
       "title_id": 2751,
       "url": "https://ftp.mozilla.org/pub/firefox/releases/129.0.2/win64/en-US/Firefox%20Setup%20129.0.2.msi",
       "hash_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
@@ -4876,12 +4876,12 @@ If `"status"` is `"failed"` then the `"message"` field contains the error messag
     },
     {
       "team_id": 1,
-      "fleet_id": 1,
+      "team_id": 1,
       "title_id": 3496,
       "url": "https://work-desktop-assets.8x8.com/prod-publish/ga/work-arm64-dmg-v8.29.1-3.dmg",
       "hash_sha256": "c6aa78d0911a0cb504a21bcf8421de703cc7dd07b7388903cf29227ca5955737",
-      "fleet_maintained_app_id": 150,
-      "fleet_maintained_app_slug": "8x8-work/darwin",
+      "automdm_maintained_app_id": 150,
+      "automdm_maintained_app_slug": "8x8-work/darwin",
       "icon_hash_sha256": "dad98c7c1b9a5654a45972f2cd7e5c3e536fe5312b0e615291ceb35234eaaa7f",
       "icon_filename": "custom-icon.png"
     }
@@ -4893,29 +4893,29 @@ If `"status"` is `"failed"` then the `"message"` field contains the error messag
 ```json
 {
   "status": "failed",
-  "message": "validation failed: software.url Couldn't edit software. URL (\"https://foobar.does.not.exist.com\") returned \"Not Found\". Please make sure that URLs are reachable from your Fleet server.",
+  "message": "validation failed: software.url Couldn't edit software. URL (\"https://foobar.does.not.exist.com\") returned \"Not Found\". Please make sure that URLs are reachable from your AutoMDM server.",
   "packages": null
 }
 ```
 
 ### Batch-apply App Store apps
 
-_Available in Fleet Premium._
+_Available in AutoMDM Premium._
 
-`POST /api/latest/fleet/software/app_store_apps/batch`
+`POST /api/latest/automdm/software/app_store_apps/batch`
 
 #### Parameters
 
 | Name      | Type   | In    | Description                                                                                                                                                           |
 | --------- | ------ | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| team_name | string | query | The name of the fleet to add the software package to. Omitting this parameter will add software to "Unassigned". |
+| team_name | string | query | The name of the team to add the software package to. Omitting this parameter will add software to "Unassigned". |
 | dry_run   | bool   | query | If `true`, will validate the provided VPP apps and return any validation errors, but will not apply the changes.                                                                         |
 | app_store_apps | list   | body  | An array of objects. Each object contains `app_store_id` and `self_service`. |
 | app_store_apps | list   | body  | An array of objects with . Each object contains `app_store_id` and `self_service`. |
 | app_store_apps.categories | string[] | body | An array of categories, as they are displayed in the UI, to assign to the app. |
 | app_store_apps.app_store_id | string   | body  | ID of the App Store app. |
 | app_store_apps.self_service | boolean   | body  | Whether the VPP app is available for install via the My device UI on macOS hosts. |
-| app_store_apps.location | string   | body  | The name of the organization unit in Apple Business for the VPP token that the Apple App Store app is added from. The VPP token must be assigned to the fleet. If not specified, apps that are already added to the fleet keep their current VPP token, and new apps are added from the fleet's first-added VPP token. If specified and different from the current VPP token of an app that's already added, the request fails. |
+| app_store_apps.location | string   | body  | The name of the organization unit in Apple Business for the VPP token that the Apple App Store app is added from. The VPP token must be assigned to the team. If not specified, apps that are already added to the team keep their current VPP token, and new apps are added from the team's first-added VPP token. If specified and different from the current VPP token of an app that's already added, the request fails. |
 | app_store_apps.install_during_setup | boolean  | body  | Specifies whether the VPP app is included in Setup experience.                                                                                                                                                                |
 | app_store_apps.labels_include_any | array   | body  | App will only be available for install on hosts that **have any** of these labels. Only one of either `labels_include_any` or `labels_exclude_any` can be included in the request. |
 | app_store_apps.labels_exclude_any | array   | body  | App will only be available for install on hosts that **don't have any** of these labels. Only one of either `labels_include_any` or `labels_exclude_any` can be included in the request. |
@@ -4925,7 +4925,7 @@ _Available in Fleet Premium._
 
 #### Example
 
-`POST /api/latest/fleet/software/app_store_apps/batch`
+`POST /api/latest/automdm/software/app_store_apps/batch`
 
 ```json
 {
@@ -4989,9 +4989,9 @@ _Available in Fleet Premium._
 
 ### Get token to download package
 
-_Available in Fleet Premium._
+_Available in AutoMDM Premium._
 
-`POST /api/v1/fleet/software/titles/:software_title_id/package/token?alt=media`
+`POST /api/v1/automdm/software/titles/:software_title_id/package/token?alt=media`
 
 The returned token is a one-time use token that expires after 10 minutes.
 
@@ -5000,12 +5000,12 @@ The returned token is a one-time use token that expires after 10 minutes.
 | Name              | Type    | In    | Description                                                      |
 |-------------------|---------|-------|------------------------------------------------------------------|
 | software_title_id | integer | path  | **Required**. The ID of the software title for software package. |
-| fleet_id           | integer | query | **Required**. The fleet ID containing the software package.      |
+| team_id           | integer | query | **Required**. The team ID containing the software package.      |
 | alt               | integer | query | **Required**. Must be specified and set to "media".              |
 
 #### Example
 
-`POST /api/v1/fleet/software/titles/123/package/token?alt=media&fleet_id=2`
+`POST /api/v1/automdm/software/titles/123/package/token?alt=media&team_id=2`
 
 ##### Default response
 
@@ -5019,9 +5019,9 @@ The returned token is a one-time use token that expires after 10 minutes.
 
 ### Download package using a token
 
-_Available in Fleet Premium._
+_Available in AutoMDM Premium._
 
-`GET /api/v1/fleet/software/titles/:software_title_id/package/token/:token?alt=media`
+`GET /api/v1/automdm/software/titles/:software_title_id/package/token/:token?alt=media`
 
 #### Parameters
 
@@ -5032,7 +5032,7 @@ _Available in Fleet Premium._
 
 #### Example
 
-`GET /api/v1/fleet/software/titles/123/package/token/e905e33e-07fe-4f82-889c-4848ed7eecb7`
+`GET /api/v1/automdm/software/titles/123/package/token/e905e33e-07fe-4f82-889c-4848ed7eecb7`
 
 ##### Default response
 
@@ -5052,21 +5052,21 @@ Body: <blob>
 
 ### Apply certificate templates
 
-_Available in Fleet Premium_
+_Available in AutoMDM Premium_
 
-`POST /api/latest/fleet/spec/certificates`
+`POST /api/latest/automdm/spec/certificates`
 
 #### Parameters
 
 | Name      | Type   | In    | Description                                                                                                                                                           |
 | --------- | ------ | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| specs     | array  | body  | **Required**. An array of objects with the certificate templates. Each item must contain `name` with the certificate template name, a `team` with a fleet name,  `certificate_authority_id` with the certificate authority id, and `subject_name` with the certificate's subject name.   |
+| specs     | array  | body  | **Required**. An array of objects with the certificate templates. Each item must contain `name` with the certificate template name, a `team` with a team name,  `certificate_authority_id` with the certificate authority id, and `subject_name` with the certificate's subject name.   |
 
 > Any existing certificate template that is not included in the list will be removed, and existing templates with the same name as the new template will be edited. Providing an empty list of certificate templates will remove existing scripts.
 
 #### Example
 
-`POST /api/latest/fleet/spec/certificates`
+`POST /api/latest/automdm/spec/certificates`
 
 ##### Request body
 
@@ -5076,16 +5076,16 @@ _Available in Fleet Premium_
     {
       "name": "WIFI_CERTIFICATE",
       "team": "workstations",
-      "fleet": "workstations",
+      "team": "workstations",
       "certificate_authority_id": 1,
-      "subject_name": "/CN=$FLEET_VAR_HOST_END_USER_IDP_USERNAME/OU=$FLEET_VAR_HOST_UUID/ST=$FLEET_VAR_HOST_HARDWARE_SERIAL"
+      "subject_name": "/CN=$AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME/OU=$AUTOMDM_VAR_HOST_UUID/ST=$AUTOMDM_VAR_HOST_HARDWARE_SERIAL"
     },
     {
       "name": "WIFI_CERTIFICATE_TEST",
       "team": "workstations-canary",
-      "fleet": "workstations-canary",
+      "team": "workstations-canary",
       "certificate_authority_id": 1,
-      "subject_name": "/CN=$FLEET_VAR_HOST_END_USER_IDP_USERNAME/OU=$FLEET_VAR_HOST_UUID/ST=$FLEET_VAR_HOST_HARDWARE_SERIAL"
+      "subject_name": "/CN=$AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME/OU=$AUTOMDM_VAR_HOST_UUID/ST=$AUTOMDM_VAR_HOST_HARDWARE_SERIAL"
     }
   ]
 }
@@ -5097,18 +5097,18 @@ _Available in Fleet Premium_
 
 ### Delete certificate templates
 
-`DELETE /api/latest/fleet/spec/certificates`
+`DELETE /api/latest/automdm/spec/certificates`
 
 #### Parameters
 
 | Name      | Type    | In    | Description                                                                            |
 |-----------|---------|-------|----------------------------------------------------------------------------------------|
 | ids       | array   | body  | **Required**. An array of certificate template ids to be deleted                       |
-| team_id   | integer | body  | **Required**. The fleet_id (team_id) which the certificate templates you want to delete belong to |
+| team_id   | integer | body  | **Required**. The team_id (team_id) which the certificate templates you want to delete belong to |
 
 #### Example
 
-`DELETE /api/latest/fleet/spec/certificates`
+`DELETE /api/latest/automdm/spec/certificates`
 ```json
 {
   "ids": [1, 2, 3, 4],
@@ -5124,7 +5124,7 @@ _Available in Fleet Premium_
 
 ### Update user-specific UI settings
 
-`PATCH /api/v1/fleet/users/:id`
+`PATCH /api/v1/automdm/users/:id`
 
 #### Parameters
 
@@ -5134,7 +5134,7 @@ _Available in Fleet Premium_
 
 #### Example
 
-`PATCH /api/v1/fleet/users/1`
+`PATCH /api/v1/automdm/users/1`
 ```json
 {
   "hidden_host_columns": ["hostname"]
@@ -5165,7 +5165,7 @@ _Available in Fleet Premium_
 
 ### Include settings when getting a user
 
-`GET /api/v1/fleet/users/:id?include_ui_settings=true`
+`GET /api/v1/automdm/users/:id?include_ui_settings=true`
 
 Use of `include_ui_settings=true` is considered the contributor API functionality – without that
 param, this endpoint is considered a documented REST API endpoint
@@ -5178,7 +5178,7 @@ param, this endpoint is considered a documented REST API endpoint
 
 #### Example
 
-`GET /api/v1/fleet/users/2/?include_ui_settings=true`
+`GET /api/v1/automdm/users/2/?include_ui_settings=true`
 
 ##### Default response
 
@@ -5187,14 +5187,14 @@ param, this endpoint is considered a documented REST API endpoint
 {
   "user": {...},
   "available_teams": {...},
-  "available_fleets": {...}
+  "available_teams": {...}
   "settings": {"hidden_host_columns": ["hostname"]},
 }
 ```
 
 ### Include settings when getting current user
 
-`GET /api/v1/fleet/me/?include_ui_settings=true`
+`GET /api/v1/automdm/me/?include_ui_settings=true`
 
 Use of `include_ui_settings=true` is considered the contributor API functionality – without that
 param, this endpoint is considered a documented REST API endpoint
@@ -5207,7 +5207,7 @@ param, this endpoint is considered a documented REST API endpoint
 
 #### Example
 
-`GET /api/v1/fleet/me?include_ui_settings=true`
+`GET /api/v1/automdm/me?include_ui_settings=true`
 
 ##### Default response
 
@@ -5216,7 +5216,7 @@ param, this endpoint is considered a documented REST API endpoint
 {
   "user": {...},
   "available_teams": {...},
-  "available_fleets": {...}
+  "available_teams": {...}
   "settings": {"hidden_host_columns": ["hostname"]},
 }
 ```
@@ -5243,7 +5243,7 @@ Kick off authentication with Microsoft Entra to configure conditional access.
 
 ```json
 {
-  "fleet_license_key": "<LICENSE KEY>",
+  "automdm_license_key": "<LICENSE KEY>",
   "microsoft_tenant_id": "<TENANT ID>"
 }
 ```
@@ -5283,11 +5283,11 @@ None.
 
 ### Get device's Google conditional access status
 
-Used by the **Self-service** web clip on iOS and iPadOS hosts. The web clip calls it only when [Get host by Fleet Desktop token](https://fleetdm.com/docs/rest-api/rest-api#get-host-by-fleet-desktop-token) returns `google_conditional_access_sign_in_required: true`, and then sends the end user to `sign_in_url`.
+Used by the **Self-service** web clip on iOS and iPadOS hosts. The web clip calls it only when [Get host by AutoMDM Desktop token](https://automdm.com/docs/rest-api/rest-api#get-host-by-automdm-desktop-token) returns `google_conditional_access_sign_in_required: true`, and then sends the end user to `sign_in_url`.
 
 Each call that returns a `sign_in_url` creates a new single-use token, valid for 15 minutes, and counts as a sign-in attempt. After 3 attempts in 24 hours with no completed sign-in, the response has no `sign_in_url`.
 
-`POST /api/v1/fleet/device/{token}/conditional_access/google`
+`POST /api/v1/automdm/device/{token}/conditional_access/google`
 
 #### Parameters
 
@@ -5309,11 +5309,11 @@ Each call that returns a `sign_in_url` creates a new single-use token, valid for
 
 ### Register device with Google conditional access
 
-**Note:** This endpoint is called by fleetdm.com after an end user signs in to Google on an iOS or iPadOS host. It's authenticated with the per-server secret that fleetdm.com returned when Google was connected, sent as a bearer token.
+**Note:** This endpoint is called by automdm.com after an end user signs in to Google on an iOS or iPadOS host. It's authenticated with the per-server secret that automdm.com returned when Google was connected, sent as a bearer token.
 
 Stores the host's Google device users and marks them as managed in Google.
 
-`POST /api/v1/fleet/google_conditional_access/register`
+`POST /api/v1/automdm/google_conditional_access/register`
 
 #### Parameters
 
@@ -5345,24 +5345,24 @@ Stores the host's Google device users and marks them as managed in Google.
 }
 ```
 
-`result` tells fleetdm.com which page to show the end user:
+`result` tells automdm.com which page to show the end user:
 
 - `done`: the host is registered.
 - `not_found`: `names` is empty. The end user hasn't signed in to Gmail on the device, or Gmail doesn't have the managed configuration.
 - `not_allowed`: the token is unknown, used, or expired, the host isn't company-owned, the account is from another Google Workspace, or a device user is registered to another host.
-- `error`: Fleet couldn't register the host. The reason is in the server logs.
+- `error`: AutoMDM couldn't register the host. The reason is in the server logs.
 
 A wrong or missing secret returns `Status: 401`.
 
-To develop against these endpoints without fleetdm.com or a Google Workspace, use the [mock server](https://github.com/fleetdm/fleet/tree/main/cmd/google-conditional-access-mock).
+To develop against these endpoints without automdm.com or a Google Workspace, use the [mock server](https://github.com/anilyagiz/automdm/tree/main/cmd/google-conditional-access-mock).
 
 ### Get Okta conditional access SAML IdP metadata
 
-**Note:** This endpoint is unauthenticated and used by Okta to discover Fleet's SAML IdP configuration.
+**Note:** This endpoint is unauthenticated and used by Okta to discover AutoMDM's SAML IdP configuration.
 
-Returns SAML IdP metadata XML for Okta conditional access. This metadata is consumed by Okta to configure Fleet as a SAML identity provider.
+Returns SAML IdP metadata XML for Okta conditional access. This metadata is consumed by Okta to configure AutoMDM as a SAML identity provider.
 
-`GET /api/fleet/conditional_access/idp/metadata`
+`GET /api/automdm/conditional_access/idp/metadata`
 
 #### Parameters
 
@@ -5370,7 +5370,7 @@ None.
 
 #### Example
 
-`GET /api/fleet/conditional_access/idp/metadata`
+`GET /api/automdm/conditional_access/idp/metadata`
 
 ##### Default response
 
@@ -5380,11 +5380,11 @@ Returns SAML IdP metadata XML with `Content-Type: application/xml`.
 
 ### Okta conditional access SAML SSO
 
-**Note:** This endpoint requires mTLS authentication at the load balancer level. The regular Fleet load balancer should redirect requests to this endpoint to an mTLS-enabled load balancer that validates client certificates.
+**Note:** This endpoint requires mTLS authentication at the load balancer level. The regular AutoMDM load balancer should redirect requests to this endpoint to an mTLS-enabled load balancer that validates client certificates.
 
 Handles SAML authentication requests from Okta for conditional access. This endpoint validates the device's client certificate (via the `X-Client-Cert-Serial` header set by the mTLS load balancer), checks device health policies, and returns a SAML response.
 
-`POST /api/fleet/conditional_access/idp/sso`
+`POST /api/automdm/conditional_access/idp/sso`
 
 #### Parameters
 
@@ -5395,7 +5395,7 @@ Handles SAML authentication requests from Okta for conditional access. This endp
 
 #### Example
 
-`POST /api/fleet/conditional_access/idp/sso`
+`POST /api/automdm/conditional_access/idp/sso`
 
 ##### Request header
 
@@ -5415,8 +5415,8 @@ Returns a SAML response (HTML form auto-submit) or redirects to an error page if
 
 Handles Simple Certificate Enrollment Protocol (SCEP) requests for Okta conditional access. Devices use this endpoint to automatically enroll and obtain client certificates.
 
-`GET /api/fleet/conditional_access/scep?operation={operation}`
-`POST /api/fleet/conditional_access/scep?operation={operation}`
+`GET /api/automdm/conditional_access/scep?operation={operation}`
+`POST /api/automdm/conditional_access/scep?operation={operation}`
 
 #### Parameters
 
@@ -5428,15 +5428,15 @@ Handles Simple Certificate Enrollment Protocol (SCEP) requests for Okta conditio
 
 Get CA capabilities:
 
-`GET /api/fleet/conditional_access/scep?operation=GetCACaps`
+`GET /api/automdm/conditional_access/scep?operation=GetCACaps`
 
 Get CA certificate:
 
-`GET /api/fleet/conditional_access/scep?operation=GetCACert`
+`GET /api/automdm/conditional_access/scep?operation=GetCACert`
 
 Submit certificate signing request:
 
-`POST /api/fleet/conditional_access/scep?operation=PKIOperation`
+`POST /api/automdm/conditional_access/scep?operation=PKIOperation`
 
 ##### Default response
 
@@ -5444,15 +5444,15 @@ Submit certificate signing request:
 
 Response format varies by operation according to the SCEP protocol specification.
 
-## Android fleetdm.com proxy
+## Android automdm.com proxy
 
-The following endpoints are exposed on fleetdm.com to proxy Google Android Management API. For what customers need to allowlist, see [Android MDM](https://fleetdm.com/docs/deploy/reference-architectures#android-mdm).
+The following endpoints are exposed on automdm.com to proxy Google Android Management API. For what customers need to allowlist, see [Android MDM](https://automdm.com/docs/deploy/reference-architectures#android-mdm).
 
 ### Create Android signup URL
 
 `POST https://fleetdm.com/api/android/v1/signupUrls`
 
-This endpoint is a proxy for the Google Android Management API to create a signup URL for Android Enterprise. The `Origin` header with the Fleet server URL is required.
+This endpoint is a proxy for the Google Android Management API to create a signup URL for Android Enterprise. The `Origin` header with the AutoMDM server URL is required.
 
 See the [Google documentation for signupUrls.create](https://developers.google.com/android/management/reference/rest/v1/signupUrls/create) for more details.
 
@@ -5479,7 +5479,7 @@ Refer to the Google Android Management API documentation for the request paramet
 `POST https://fleetdm.com/api/android/v1/enterprises`
 
 This endpoint is a proxy for the Google Android Management API to create an Android enterprise. In addition, it creates the PubSub topic and subscription for the enterprise.
-The `Origin` header with the Fleet server URL is required.
+The `Origin` header with the AutoMDM server URL is required.
 
 See the [Google documentation for enterprises.create](https://developers.google.com/android/management/reference/rest/v1/enterprises/create) for more details.
 
@@ -5490,7 +5490,7 @@ See the [Google documentation for enterprises.create](https://developers.google.
 | enterpriseToken | string | body | **Required.** The enterprise token from signup.                                |
 | signupUrlName   | string | body | **Required.** The signup URL.                                                  |
 | pubsubPushUrl   | string | body | **Required.** The URL that will receive pubsub push notifications from Google. |
-| fleetLicenseKey | string | body | The Fleet license key.                                                         |
+| automdmLicenseKey | string | body | The AutoMDM license key.                                                         |
 | enterprise      | json   | body | **Required.** The enterprise to create.                                        |
 
 Unlike other proxy endpoints, this endpoint requires additional parameters in the body. Refer to the Google Android Management API documentation for the enterprise-specific parameters.
@@ -5501,8 +5501,8 @@ Unlike other proxy endpoints, this endpoint requires additional parameters in th
 
 ```json
 {
-  "fleetLicenseKey": "",
-  "pubsubPushUrl": "https://example.com/api/v1/fleet/android_enterprise/pubsub?token=NjoLUtP7WWP6-UUr-7wlO1AaHbOpvPlodyaItT5SdDVy9vwF2DvwgOao8UcqHAlpefYeZ7MutERDAuBN0Hpr1w==",
+  "automdmLicenseKey": "",
+  "pubsubPushUrl": "https://example.com/api/v1/automdm/android_enterprise/pubsub?token=NjoLUtP7WWP6-UUr-7wlO1AaHbOpvPlodyaItT5SdDVy9vwF2DvwgOao8UcqHAlpefYeZ7MutERDAuBN0Hpr1w==",
   "enterpriseToken": "EAEFb-jU8o9IssnEGGaXb1krM_qjWdYI1rieiWreqNd7nxaSM0R-YimMOriTFI5yJm2qk2sixijmdkCyDz6A6XdQxNHLdYraNk5dvzPb9H4o3bQEtRontGeI",
   "signupUrlName": "signupUrls/Cd777504276d345a8",
   "Enterprise": {
@@ -5522,7 +5522,7 @@ Unlike other proxy endpoints, this endpoint requires additional parameters in th
 ```json
 {
   "name": "enterprises/LC0487pz4e",
-  "fleetServerSecret": "9b37a4e5efa314b76199987994ba02"
+  "automdmServerSecret": "9b37a4e5efa314b76199987994ba02"
 }
 ```
 
@@ -5640,7 +5640,7 @@ See the [Google documentation for enterprises.delete](https://developers.google.
 
 ### SCEP
 
-`/api/fleet/orbit/host_identity/scep`
+`/api/automdm/orbit/host_identity/scep`
 
 This endpoint is used to retrieve a host identity certificate. It uses the [SCEP protocol](https://datatracker.ietf.org/doc/html/rfc8894).
 
@@ -5653,7 +5653,7 @@ The common name (CN) of the certificate must be either the hardware UUID or osqu
 The SCEP challenge password must be the enrollment secret.
 
 ## ACME
-The following endpoints describe Fleet's ACME implementation used for Apple MDM communications. Every request includes an identifier. The identifier in the path is a random, time limited, string of alphanumeric characters and is generated on enrollment profile creation. The same identifier will be used for all ACME requests for a given client and certificate request. Future enrollments will use a different identifier. The identifier is used to obfuscate the ACME API endpoints since they allow otherwise-unauthenticated requests however it is not used in any way to validate the identity of devices requesting certificates in any way. Instead hardware attestations are used to actually authenticate devices before certificate issuance. See [RFC 8555](https://datatracker.ietf.org/doc/html/rfc8555/) for more information about ACME concepts and protocol.
+The following endpoints describe AutoMDM's ACME implementation used for Apple MDM communications. Every request includes an identifier. The identifier in the path is a random, time limited, string of alphanumeric characters and is generated on enrollment profile creation. The same identifier will be used for all ACME requests for a given client and certificate request. Future enrollments will use a different identifier. The identifier is used to obfuscate the ACME API endpoints since they allow otherwise-unauthenticated requests however it is not used in any way to validate the identity of devices requesting certificates in any way. Instead hardware attestations are used to actually authenticate devices before certificate issuance. See [RFC 8555](https://datatracker.ietf.org/doc/html/rfc8555/) for more information about ACME concepts and protocol.
 
 ### ACME Directory
 
@@ -5671,16 +5671,16 @@ The identifier in the path is a random, time limited, string of alphanumeric cha
 
 #### Example
 
-`GET https://fleet.example.com/api/mdm/acme/z7ab3dkajesjcnzx6734mdjsyu/directory`
+`GET https://automdm.example.com/api/mdm/acme/z7ab3dkajesjcnzx6734mdjsyu/directory`
 
 ##### Default response
 
 `Status: 200`
 ```json
 {
-    "newNonce": "https://fleet.example.com/api/mdm/acme/z7ab3dkajesjcnzx6734mdjsyu/new_nonce",
-    "newAccount": "https://fleet.example.com/api/mdm/acme/z7ab3dkajesjcnzx6734mdjsyu/new_account",
-    "newOrder": "https://fleet.example.com/api/mdm/acme/z7ab3dkajesjcnzx6734mdjsyu/new_order",
+    "newNonce": "https://automdm.example.com/api/mdm/acme/z7ab3dkajesjcnzx6734mdjsyu/new_nonce",
+    "newAccount": "https://automdm.example.com/api/mdm/acme/z7ab3dkajesjcnzx6734mdjsyu/new_account",
+    "newOrder": "https://automdm.example.com/api/mdm/acme/z7ab3dkajesjcnzx6734mdjsyu/new_order",
 }
 ```
 
@@ -5702,7 +5702,7 @@ As described in RFC8555 this endpoint will respond to a GET request, with a Repl
 
 #### Example
 
-`HEAD https://fleet.example.com/api/mdm/acme/z7ab3dkajesjcnzx6734mdjsyu/new_nonce`
+`HEAD https://automdm.example.com/api/mdm/acme/z7ab3dkajesjcnzx6734mdjsyu/new_nonce`
 
 ##### Default response
 
@@ -5736,7 +5736,7 @@ The identifier in the path is a random, time limited, string of alphanumeric cha
 
 #### Example
 
-`POST https://fleet.example.com/api/mdm/acme/z7ab3dkajesjcnzx6734mdjsyu/new_account`
+`POST https://automdm.example.com/api/mdm/acme/z7ab3dkajesjcnzx6734mdjsyu/new_account`
 
 ```json
 {
@@ -5753,7 +5753,7 @@ The identifier in the path is a random, time limited, string of alphanumeric cha
 ```json
 {
     "status": "valid",
-    "orders": "https://fleet.example.com/api/mdm/acme/z7ab3dkajesjcnzx6734mdjsyu/accounts/17/orders"
+    "orders": "https://automdm.example.com/api/mdm/acme/z7ab3dkajesjcnzx6734mdjsyu/accounts/17/orders"
 }
 ```
 
@@ -5779,7 +5779,7 @@ The identifier in the path is a random, time limited, string of alphanumeric cha
 
 #### Example
 
-`POST https://fleet.example.com/api/mdm/acme/z7ab3dkajesjcnzx6734mdjsyu/new_order`
+`POST https://automdm.example.com/api/mdm/acme/z7ab3dkajesjcnzx6734mdjsyu/new_order`
 
 ```json
 {
@@ -5807,9 +5807,9 @@ The identifier in the path is a random, time limited, string of alphanumeric cha
     "notBefore": "2026-03-09T17:02:00Z",
     "notAfter": "2027-03-09T17:03:00Z",
     "authorizations": [
-        "https://fleet.example.com/api/mdm/acme/z7ab3dkajesjcnzx6734mdjsyu/authorizations/89"
+        "https://automdm.example.com/api/mdm/acme/z7ab3dkajesjcnzx6734mdjsyu/authorizations/89"
     ],
-    "finalize": "https://fleet.example.com/api/mdm/acme/z7ab3dkajesjcnzx6734mdjsyu/orders/73/finalize"
+    "finalize": "https://automdm.example.com/api/mdm/acme/z7ab3dkajesjcnzx6734mdjsyu/orders/73/finalize"
 }
 ```
 
@@ -5835,7 +5835,7 @@ The identifier in the path is a random, time limited, string of alphanumeric cha
 
 #### Example
 
-`POST https://fleet.example.com/api/mdm/acme/z7ab3dkajesjcnzx6734mdjsyu/accounts/17/orders`
+`POST https://automdm.example.com/api/mdm/acme/z7ab3dkajesjcnzx6734mdjsyu/accounts/17/orders`
 
 ```json
 {
@@ -5852,7 +5852,7 @@ The identifier in the path is a random, time limited, string of alphanumeric cha
 ```json
 {
   "orders": [
-    "https://fleet.example.com/api/mdm/acme/z7ab3dkajesjcnzx6734mdjsyu/orders/73"
+    "https://automdm.example.com/api/mdm/acme/z7ab3dkajesjcnzx6734mdjsyu/orders/73"
   ]
 }
 ```
@@ -5879,7 +5879,7 @@ The identifier in the path is a random, time limited, string of alphanumeric cha
 
 #### Example
 
-`POST https://fleet.example.com/api/mdm/acme/z7ab3dkajesjcnzx6734mdjsyu/orders/73`
+`POST https://automdm.example.com/api/mdm/acme/z7ab3dkajesjcnzx6734mdjsyu/orders/73`
 
 ```json
 {
@@ -5908,9 +5908,9 @@ The identifier in the path is a random, time limited, string of alphanumeric cha
     "notBefore": "2026-03-09T17:02:00Z",
     "notAfter": "2027-03-09T17:03:00Z",
     "authorizations": [
-        "https://fleet.example.com/api/mdm/acme/z7ab3dkajesjcnzx6734mdjsyu/authorizations/89"
+        "https://automdm.example.com/api/mdm/acme/z7ab3dkajesjcnzx6734mdjsyu/authorizations/89"
     ],
-    "finalize": "https://fleet.example.com/api/mdm/acme/z7ab3dkajesjcnzx6734mdjsyu/orders/73/finalize"
+    "finalize": "https://automdm.example.com/api/mdm/acme/z7ab3dkajesjcnzx6734mdjsyu/orders/73/finalize"
 }
 ```
 
@@ -5936,7 +5936,7 @@ The identifier in the path is a random, time limited, string of alphanumeric cha
 
 #### Example
 
-`POST https://fleet.example.com/api/mdm/acme/z7ab3dkajesjcnzx6734mdjsyu/authorizations/89`
+`POST https://automdm.example.com/api/mdm/acme/z7ab3dkajesjcnzx6734mdjsyu/authorizations/89`
 
 ```json
 {
@@ -5962,7 +5962,7 @@ The identifier in the path is a random, time limited, string of alphanumeric cha
             "type": "device-attest-01",
             "status": "pending",
             "token": "hznD3A5cvBXRqQ81r0jxUnquXPqu6W8m",
-            "url": "https://fleet.example.com/api/mdm/acme/z7ab3dkajesjcnzx6734mdjsyu/challenges/103"
+            "url": "https://automdm.example.com/api/mdm/acme/z7ab3dkajesjcnzx6734mdjsyu/challenges/103"
         }
     ],
     "expires": "2026-03-10T17:03:00Z"
@@ -5994,7 +5994,7 @@ The identifier in the path is a random, time limited, string of alphanumeric cha
 
 #### Example
 
-`POST https://fleet.example.com/api/mdm/acme/z7ab3dkajesjcnzx6734mdjsyu/challenges/103`
+`POST https://automdm.example.com/api/mdm/acme/z7ab3dkajesjcnzx6734mdjsyu/challenges/103`
 
 ```json
 {
@@ -6014,7 +6014,7 @@ The identifier in the path is a random, time limited, string of alphanumeric cha
     "status": "valid",
     "token": "hznD3A5cvBXRqQ81r0jxUnquXPqu6W8m",
     "validated": "2026-03-09T17:03:03Z",
-    "url": "https://fleet.example.com/api/mdm/acme/z7ab3dkajesjcnzx6734mdjsyu/challenges/103"
+    "url": "https://automdm.example.com/api/mdm/acme/z7ab3dkajesjcnzx6734mdjsyu/challenges/103"
 }
 ```
 
@@ -6041,7 +6041,7 @@ The identifier in the path is a random, time limited, string of alphanumeric cha
 
 #### Example
 
-`POST https://fleet.example.com/api/mdm/acme/z7ab3dkajesjcnzx6734mdjsyu/orders/73/finalize`
+`POST https://automdm.example.com/api/mdm/acme/z7ab3dkajesjcnzx6734mdjsyu/orders/73/finalize`
 
 ```json
 {
@@ -6069,10 +6069,10 @@ The identifier in the path is a random, time limited, string of alphanumeric cha
     "notBefore": "2026-03-09T17:02:00Z",
     "notAfter": "2027-03-09T17:03:00Z",
     "authorizations": [
-        "https://fleet.example.com/api/mdm/acme/z7ab3dkajesjcnzx6734mdjsyu/authorizations/89"
+        "https://automdm.example.com/api/mdm/acme/z7ab3dkajesjcnzx6734mdjsyu/authorizations/89"
     ],
-    "finalize": "https://fleet.example.com/api/mdm/acme/z7ab3dkajesjcnzx6734mdjsyu/orders/73/finalize",
-    "certificate": "https://fleet.example.com/api/mdm/acme/z7ab3dkajesjcnzx6734mdjsyu/orders/73/certificate"
+    "finalize": "https://automdm.example.com/api/mdm/acme/z7ab3dkajesjcnzx6734mdjsyu/orders/73/finalize",
+    "certificate": "https://automdm.example.com/api/mdm/acme/z7ab3dkajesjcnzx6734mdjsyu/orders/73/certificate"
 }
 ```
 
@@ -6096,7 +6096,7 @@ This endpoint is used by hosts to retrieve a signed certificate from a valid, fi
 
 #### Example
 
-`POST https://fleet.example.com/api/mdm/acme/z7ab3dkajesjcnzx6734mdjsyu/orders/73/certificate`
+`POST https://automdm.example.com/api/mdm/acme/z7ab3dkajesjcnzx6734mdjsyu/orders/73/certificate`
 
 ```json
 {
@@ -6124,7 +6124,7 @@ LhF5zOH2B/pJftzHZRIUPTg5doECxNFV6WB+4jr2
 ```
 
 ## Apple Platform SSO
-The following endpoints describe Fleet's Platform SSO implementation used for initial user provisioning and password sync. These endpoints are used only by Fleet's Platform SSO extension, included in the Fleet Desktop app, not by third-party Platform SSO extensions such as Company Portal or Okta Verify.
+The following endpoints describe AutoMDM's Platform SSO implementation used for initial user provisioning and password sync. These endpoints are used only by AutoMDM's Platform SSO extension, included in the AutoMDM Desktop app, not by third-party Platform SSO extensions such as Company Portal or Okta Verify.
 
 ### Platform SSO Device Registration
 
@@ -6132,13 +6132,13 @@ The following endpoints describe Fleet's Platform SSO implementation used for in
 
 This endpoint is used by the Device Registration phase of Platform SSO to establish per-device communication keys and authenticate the device based on the Registration Token in the Platform SSO payload. Only registration using a Registration Token is supported.
 
-The registration token is a per-host secret Fleet substitutes into the `RegistrationToken` key of the `com.apple.extensiblesso` profile (via the `$FLEET_VAR_PSSO_DEVICE_REGISTRATION_TOKEN` profile variable) at profile-send time. Fleet validates the presented token, derives the owning `host_id` from it, and persists the device's public keys against that host. The request is sent directly by the extension (`URLSession`, no web view) as a urlencoded form.
+The registration token is a per-host secret AutoMDM substitutes into the `RegistrationToken` key of the `com.apple.extensiblesso` profile (via the `$AUTOMDM_VAR_PSSO_DEVICE_REGISTRATION_TOKEN` profile variable) at profile-send time. AutoMDM validates the presented token, derives the owning `host_id` from it, and persists the device's public keys against that host. The request is sent directly by the extension (`URLSession`, no web view) as a urlencoded form.
 
 #### Parameters
 
 | Name                  | Type   | In   | Description                                                                                       |
 | --------------------- | ------ | ---- | ------------------------------------------------------------------------------------------------- |
-| registration_token    | string | body | **Required.** The per-host token Fleet placed in the profile's `RegistrationToken` key. Validated and used to identify the host. |
+| registration_token    | string | body | **Required.** The per-host token AutoMDM placed in the profile's `RegistrationToken` key. Validated and used to identify the host. |
 | device_signing_key     | string | body | **Required.** PEM-encoded public half of the device's Secure Enclave signing keypair.            |
 | device_encryption_key  | string | body | **Required.** PEM-encoded public half of the device's Secure Enclave encryption keypair.         |
 | signing_key_id          | string | body | **Required.** The `kid` (base64 SHA-256) of the signing key, used to resolve the device on later token requests. |
@@ -6192,7 +6192,7 @@ None.
 
 This endpoint is used for User Registration, Key Request, and Key Exchange requests of Platform SSO to authenticate users of previously-registered devices and support operations such as Key Exchange, which allows a user who has changed their IDP password and logged in with it to unlock their keychain without the prior password.
 
-The request body is an OAuth `jwt-bearer`-style urlencoded form whose `assertion` field carries a compact JWS signed by the device's registered signing key. Fleet resolves the device from the JWS header's `kid`, verifies the signature against the registered signing key, then dispatches on a claim in the JWS payload. The signed payload must always include a valid, unexpired `request_nonce` from the nonce endpoint and a `jwe_crypto` recipe (`ECDH-ES` / `A256GCM` against the device encryption key) describing how Fleet must encrypt the response.
+The request body is an OAuth `jwt-bearer`-style urlencoded form whose `assertion` field carries a compact JWS signed by the device's registered signing key. AutoMDM resolves the device from the JWS header's `kid`, verifies the signature against the registered signing key, then dispatches on a claim in the JWS payload. The signed payload must always include a valid, unexpired `request_nonce` from the nonce endpoint and a `jwe_crypto` recipe (`ECDH-ES` / `A256GCM` against the device encryption key) describing how AutoMDM must encrypt the response.
 
 The response is a compact JWE encrypted to the device's registered encryption key; the JWE's protected-header `typ` distinguishes the operation (`platformsso-login-response+jwt` for password login, `platformsso-key-response+jwt` for key request/exchange). 
 
@@ -6200,9 +6200,9 @@ The dispatched operation is selected by the JWS payload:
 
 | Operation     | Selecting claim         | Purpose                                                                                          |
 | ------------- | ----------------------- | ------------------------------------------------------------------------------------------------ |
-| Password login | `grant_type: password` | Carries the user's plaintext password. Fleet validates it against the upstream IdP and returns a login response JWE containing a Fleet-signed `id_token`, `refresh_token`, and token lifetimes. |
-| Key request   | `request_type: key_request`  | Fleet provisions an EC key pair, certifies its public half, and returns a key response JWE containing the certificate and an opaque, server-sealed `key_context`. |
-| Key exchange  | `request_type: key_exchange` | The device presents its DH public key and the `key_context` from the key request. Fleet recovers the provisioned key, computes the ECDH unlock key, and returns it in a key response JWE. |
+| Password login | `grant_type: password` | Carries the user's plaintext password. AutoMDM validates it against the upstream IdP and returns a login response JWE containing an AutoMDM-signed `id_token`, `refresh_token`, and token lifetimes. |
+| Key request   | `request_type: key_request`  | AutoMDM provisions an EC key pair, certifies its public half, and returns a key response JWE containing the certificate and an opaque, server-sealed `key_context`. |
+| Key exchange  | `request_type: key_exchange` | The device presents its DH public key and the `key_context` from the key request. AutoMDM recovers the provisioned key, computes the ECDH unlock key, and returns it in a key response JWE. |
 
 #### Parameters
 
@@ -6237,7 +6237,7 @@ X-Content-Type-Options: nosniff
 
 `GET /api/mdm/apple/psso/jwks`
 
-This endpoint is used by the Platform SSO extension to fetch the server's JSON Web Key Set. The device uses it to verify the `id_token` Fleet signs in the login response. Fleet's PSSO signing key is a P-256 / ES256 key; it is minted and persisted on first use.
+This endpoint is used by the Platform SSO extension to fetch the server's JSON Web Key Set. The device uses it to verify the `id_token` AutoMDM signs in the login response. AutoMDM's PSSO signing key is a P-256 / ES256 key; it is minted and persisted on first use.
 
 #### Parameters
 
@@ -6273,7 +6273,7 @@ The response is served with `Content-Type: application/jwk-set+json`.
 
 `GET /.well-known/apple-app-site-association`
 
-This endpoint is used by Apple's Associated Domains functionality to ensure that a given Platform SSO (or other security-related extension) and a given hostname both agree that they can communicate with each other. This server URL lists which applications may communicate with this server and for which purposes, and the app must contain, or be deployed alongside, an MDM profile with an Associated Domains payload listing the server URL. See https://developer.apple.com/documentation/xcode/supporting-associated-domains. If Fleet's Platform SSO-enabled Password Sync feature has not been configured, this will return a 404 error.
+This endpoint is used by Apple's Associated Domains functionality to ensure that a given Platform SSO (or other security-related extension) and a given hostname both agree that they can communicate with each other. This server URL lists which applications may communicate with this server and for which purposes, and the app must contain, or be deployed alongside, an MDM profile with an Associated Domains payload listing the server URL. See https://developer.apple.com/documentation/xcode/supporting-associated-domains. If AutoMDM's Platform SSO-enabled Password Sync feature has not been configured, this will return a 404 error.
 
 > **Note:** Hosts do not communicate with this endpoint directly; instead, they communicate with an Apple CDN, which only occasionally requests data from this endpoint. Hosts cache this information locally for several hours between CDN requests. As such, it may take 6-24 hours for changes to be reflected on a host if this endpoint ever returns different data, and this should be accounted for in future modifications to this endpoint. Finally, Apple's framework requires this endpoint to be served over a publicly-trusted TLS certificate; self-signed certificates are silently rejected.
 

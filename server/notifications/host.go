@@ -3,7 +3,7 @@ package notifications
 import "context"
 
 // This context carries a host ID rather than a host: server/service owns
-// device authentication and resolves the *fleet.Host, a type this context
+// device authentication and resolves the *automdm.Host, a type this context
 // can't depend on, so its middleware hands over just the ID.
 type hostIDKey int
 

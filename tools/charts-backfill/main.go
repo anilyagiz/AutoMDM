@@ -18,7 +18,7 @@
 //	go run ./tools/charts-backfill --dataset uptime --days 30
 //	go run ./tools/charts-backfill --dataset uptime --days 7 --host-ids 1,2,3
 //	go run ./tools/charts-backfill --dataset cve --days 30 --use-tracked-cves
-//	go run ./tools/charts-backfill --mysql-dsn "fleet:fleet@tcp(localhost:3306)/fleet"
+//	go run ./tools/charts-backfill --mysql-dsn "automdm:team@tcp(localhost:3306)/automdm"
 package main
 
 import (
@@ -30,9 +30,9 @@ import (
 	"math/rand/v2"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/str"
-	"github.com/fleetdm/fleet/v4/server/chart"
-	"github.com/fleetdm/fleet/v4/server/chart/bootstrap"
+	"github.com/anilyagiz/automdm/v4/pkg/str"
+	"github.com/anilyagiz/automdm/v4/server/chart"
+	"github.com/anilyagiz/automdm/v4/server/chart/bootstrap"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
 )
@@ -65,10 +65,10 @@ const snapshotChurnFraction = 0.10
 // snapshotCardinality picks a per-entity affected-host count from a long-tail
 // distribution shaped like real-world CVE data: most CVEs touch a handful of
 // hosts (specific software/version), with an occasional wide one (browser or
-// kernel). A naive uniform-density model saturates at fleet size when many
+// kernel). A naive uniform-density model saturates at team size when many
 // CVEs are unioned together — this distribution keeps the union meaningful
-// even with hundreds of tracked entities. Return value is capped at fleetSize.
-func snapshotCardinality(fleetSize int) int {
+// even with hundreds of tracked entities. Return value is capped at automdmSize.
+func snapshotCardinality(automdmSize int) int {
 	r := rand.Float64() //nolint:gosec // dev data generator, not crypto
 	var count int
 	switch {
@@ -78,12 +78,12 @@ func snapshotCardinality(fleetSize int) int {
 		count = 5 + rand.IntN(20) //nolint:gosec
 	case r < 0.99: // moderate: popular software
 		count = 25 + rand.IntN(100) //nolint:gosec
-	default: // wide: browser/kernel-tier, up to ~10% of fleet
-		wideMax := max(fleetSize/10, 200)
+	default: // wide: browser/kernel-tier, up to ~10% of team
+		wideMax := max(automdmSize/10, 200)
 		count = 125 + rand.IntN(wideMax) //nolint:gosec
 	}
-	if count > fleetSize {
-		count = fleetSize
+	if count > automdmSize {
+		count = automdmSize
 	}
 	return count
 }
@@ -95,7 +95,7 @@ func main() {
 	entityIDsStr := flag.String("entity-ids", "", "comma-separated entity IDs (default: '' for non-entity datasets)")
 	useTrackedCVEs := flag.Bool("use-tracked-cves", false, "for --dataset cve, auto-discover entity IDs from the production tracked-CVE query (overrides --entity-ids)")
 	hostIDsStr := flag.String("host-ids", "", "comma-separated host IDs (default: all from hosts table)")
-	dsn := flag.String("mysql-dsn", "fleet:fleet@tcp(localhost:3306)/fleet?parseTime=true", "MySQL connection string")
+	dsn := flag.String("mysql-dsn", "automdm:team@tcp(localhost:3306)/automdm?parseTime=true", "MySQL connection string")
 	flag.Parse()
 
 	var start time.Time

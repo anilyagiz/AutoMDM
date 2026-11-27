@@ -5,14 +5,14 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	platform_errors "github.com/fleetdm/fleet/v4/server/platform/errors"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	platform_errors "github.com/anilyagiz/automdm/v4/server/platform/errors"
 	"github.com/go-sql-driver/mysql"
 )
 
 type NotFoundError struct {
 	ID           uint
-	FleetID      uint
+	AutoMDMID    uint
 	Name         string
 	Message      string
 	ResourceType string
@@ -28,14 +28,14 @@ func NotFound(kind string) *NotFoundError {
 }
 
 func (e *NotFoundError) Error() string {
-	if e.ID != 0 && e.FleetID != 0 {
-		return fmt.Sprintf("%s %d for fleet %d was not found in the datastore", e.ResourceType, e.ID, e.FleetID)
+	if e.ID != 0 && e.AutoMDMID != 0 {
+		return fmt.Sprintf("%s %d for team %d was not found in the datastore", e.ResourceType, e.ID, e.AutoMDMID)
 	}
 	if e.ID != 0 {
 		return fmt.Sprintf("%s %d was not found in the datastore", e.ResourceType, e.ID)
 	}
-	if e.FleetID != 0 {
-		return fmt.Sprintf("%s for fleet %d was not found in the datastore", e.ResourceType, e.FleetID)
+	if e.AutoMDMID != 0 {
+		return fmt.Sprintf("%s for team %d was not found in the datastore", e.ResourceType, e.AutoMDMID)
 	}
 	if e.Name != "" {
 		return fmt.Sprintf("%s %s was not found in the datastore", e.ResourceType, e.Name)
@@ -51,8 +51,8 @@ func (e *NotFoundError) WithID(id uint) *NotFoundError {
 	return e
 }
 
-func (e *NotFoundError) WithFleetID(fleetID uint) *NotFoundError {
-	e.FleetID = fleetID
+func (e *NotFoundError) WithAutoMDMID(automdmID uint) *NotFoundError {
+	e.AutoMDMID = automdmID
 	return e
 }
 

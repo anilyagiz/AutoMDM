@@ -18,9 +18,9 @@ import {
   SoftwareDeploySelector,
 } from "pages/SoftwarePage/components/forms/SoftwareDeploySelector";
 import {
-  getFleetAppPolicyDescription,
-  getFleetAppPolicyName,
-} from "pages/SoftwarePage/SoftwareAddPage/SoftwareFleetMaintained/FleetMaintainedAppDetailsPage/helpers";
+  getAutoMDMAppPolicyDescription,
+  getAutoMDMAppPolicyName,
+} from "pages/SoftwarePage/SoftwareAddPage/SoftwareAutoMDMMaintained/AutoMDMMaintainedAppDetailsPage/helpers";
 import policiesAPI from "services/entities/policies";
 import softwareAPI from "services/entities/software";
 
@@ -46,7 +46,7 @@ const DeployModal = ({
   const forceInstallPolicy = automaticInstallPolicies.find(
     (policy) =>
       policy.type === "dynamic" &&
-      policy.name === getFleetAppPolicyName(softwareTitle.name)
+      policy.name === getAutoMDMAppPolicyName(softwareTitle.name)
   );
   const patchHasAutomation =
     !!patchPolicy &&
@@ -90,7 +90,7 @@ const DeployModal = ({
   );
   const [isSaving, setIsSaving] = useState(false);
 
-  const fleetMaintainedAppId = softwarePackage?.fleet_maintained_app_id;
+  const automdmMaintainedAppId = softwarePackage?.automdm_maintained_app_id;
 
   const onSave = async () => {
     setIsSaving(true);
@@ -100,12 +100,12 @@ const DeployModal = ({
       if (forceInstall !== !!forceInstallPolicy) {
         if (forceInstall) {
           const {
-            fleet_maintained_app: fleetMaintainedApp,
-          } = await softwareAPI.getFleetMaintainedApp(
-            fleetMaintainedAppId as number,
+            automdm_maintained_app: automdmMaintainedApp,
+          } = await softwareAPI.getAutoMDMMaintainedApp(
+            automdmMaintainedAppId as number,
             String(teamId)
           );
-          if (!fleetMaintainedApp?.automatic_install_query) {
+          if (!automdmMaintainedApp?.automatic_install_query) {
             // A plain Error wouldn't survive getErrorReason in the catch below
             // (it only unwraps API responses), so surface the toast directly
             // and bail — the finally resets isSaving.
@@ -115,11 +115,11 @@ const DeployModal = ({
             return;
           }
           await policiesAPI.create({
-            fleet_id: teamId,
-            name: getFleetAppPolicyName(softwareTitle.name),
-            description: getFleetAppPolicyDescription(softwareTitle.name),
-            query: fleetMaintainedApp.automatic_install_query,
-            platform: fleetMaintainedApp.platform,
+            team_id: teamId,
+            name: getAutoMDMAppPolicyName(softwareTitle.name),
+            description: getAutoMDMAppPolicyDescription(softwareTitle.name),
+            query: automdmMaintainedApp.automatic_install_query,
+            platform: automdmMaintainedApp.platform,
             software_title_id: softwareTitle.id,
           });
         } else if (forceInstallPolicy) {
@@ -131,7 +131,7 @@ const DeployModal = ({
       if (patch !== !!patchPolicy) {
         if (patch) {
           await policiesAPI.create({
-            fleet_id: teamId,
+            team_id: teamId,
             type: "patch",
             software_title_id: softwareTitle.id,
             ...(patchOption !== "manual" && {
@@ -225,7 +225,7 @@ const DeployModal = ({
               patchOption={patchOption}
               platform={platform}
               endUserExperience={endUserExperience}
-              fleetId={teamId}
+              automdmId={teamId}
               onToggleForceInstall={setForceInstall}
               onTogglePatch={setPatch}
               onSelectPatchOption={(next) => {

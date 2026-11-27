@@ -9,7 +9,7 @@ terraform {
   }
 
   backend "s3" {
-    bucket               = "fleet-terraform-state20220408141538466600000002"
+    bucket               = "automdm-terraform-state20220408141538466600000002"
     key                  = "loadtesting/loadtesting/pmm/terraform.tfstate"
     workspace_key_prefix = "loadtesting"
     region               = "us-east-2"
@@ -27,7 +27,7 @@ provider "aws" {
   default_tags {
     tags = {
       environment = "loadtest-pmm"
-      terraform   = "https://github.com/fleetdm/fleet/tree/main/infrastructure/loadtesting/terraform/pmm"
+      terraform   = "https://github.com/anilyagiz/automdm/tree/main/infrastructure/loadtesting/terraform/pmm"
       workspace   = terraform.workspace
     }
   }
@@ -37,7 +37,7 @@ provider "aws" {
 data "terraform_remote_state" "shared" {
   backend = "s3"
   config = {
-    bucket               = "fleet-terraform-state20220408141538466600000002"
+    bucket               = "automdm-terraform-state20220408141538466600000002"
     key                  = "loadtesting/loadtesting/shared/terraform.tfstate"
     workspace_key_prefix = "loadtesting"
     region               = "us-east-2"
@@ -55,7 +55,7 @@ data "terraform_remote_state" "infra" {
   backend   = "s3"
   workspace = terraform.workspace
   config = {
-    bucket               = "fleet-terraform-state20220408141538466600000002"
+    bucket               = "automdm-terraform-state20220408141538466600000002"
     key                  = "loadtesting/loadtesting/terraform.tfstate"
     workspace_key_prefix = "loadtesting"
     region               = "us-east-2"
@@ -69,7 +69,7 @@ data "terraform_remote_state" "infra" {
 }
 
 locals {
-  customer = "fleet-${terraform.workspace}"
+  customer = "automdm-${terraform.workspace}"
 }
 
 # --- PMM Admin Password ---
@@ -203,7 +203,7 @@ resource "aws_ecs_task_definition" "pmm" {
         "    --port=3306 \\",
         "    --tls --tls-skip-verify \\",
         "    --query-source=perfschema \\",
-        "    fleet-mysql",
+        "    automdm-mysql",
         "  echo 'MySQL monitoring configured'",
         ") &",
         "",

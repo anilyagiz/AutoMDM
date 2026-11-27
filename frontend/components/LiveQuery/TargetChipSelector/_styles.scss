@@ -1,9 +1,9 @@
 .target-chip-selector {
   padding: $pad-small;
-  background-color: $core-fleet-white;
-  color: $ui-fleet-black-75;
+  background-color: $core-automdm-white;
+  color: $ui-automdm-black-75;
   border: none;
-  box-shadow: inset 0 0 0 1px $ui-fleet-black-25;
+  box-shadow: inset 0 0 0 1px $ui-automdm-black-25;
   border-radius: $border-radius-medium;
   cursor: pointer;
   display: flex;
@@ -31,27 +31,27 @@
   }
   &[data-selected="true"] {
     background-color: $ui-off-white;
-    box-shadow: inset 0 0 0 1px $ui-fleet-black-75;
+    box-shadow: inset 0 0 0 1px $ui-automdm-black-75;
   }
 
   &:hover {
     background-color: $ui-off-white;
-    box-shadow: inset 0 0 0 1px $core-fleet-black;
-    color: $core-fleet-black;
+    box-shadow: inset 0 0 0 1px $core-automdm-black;
+    color: $core-automdm-black;
   }
 
   &:active {
     background-color: $ui-off-white;
-    box-shadow: inset 0 0 0 1px $core-fleet-black;
-    color: $core-fleet-black;
+    box-shadow: inset 0 0 0 1px $core-automdm-black;
+    color: $core-automdm-black;
   }
 
   &:disabled {
     opacity: 0.5;
     cursor: not-allowed;
     &:hover {
-      background-color: $core-fleet-white;
-      box-shadow: inset 0 0 0 1px $ui-fleet-black-25;
+      background-color: $core-automdm-white;
+      box-shadow: inset 0 0 0 1px $ui-automdm-black-25;
       color: inherit;
     }
   }

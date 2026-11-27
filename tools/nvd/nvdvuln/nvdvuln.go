@@ -11,11 +11,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/service"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/govulndb"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/nvd"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/service"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/govulndb"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/nvd"
 	"github.com/google/go-cmp/cmp"
 	"github.com/shirou/gopsutil/v4/process"
 )
@@ -26,13 +26,13 @@ func main() {
 	debug := flag.Bool("debug", false, "Sets debug mode")
 
 	// Fields that allow setting a specific software.
-	softwareName := flag.String("software_name", "", "Name of the software as ingested by Fleet")
-	softwareVersion := flag.String("software_version", "", "Version of the software as ingested by Fleet")
+	softwareName := flag.String("software_name", "", "Name of the software as ingested by AutoMDM")
+	softwareVersion := flag.String("software_version", "", "Version of the software as ingested by AutoMDM")
 	softwareSource := flag.String("software_source", "", "Source for this software (e.g. 'apps' for macOS applications)")
-	softwareBundleIdentifier := flag.String("software_bundle_identifier", "", "Bundle identifier of the software as ingested by Fleet (for macOS apps only)")
+	softwareBundleIdentifier := flag.String("software_bundle_identifier", "", "Bundle identifier of the software as ingested by AutoMDM (for macOS apps only)")
 
-	// Fields to fetch software (and the found vulnerabilities) from a Fleet instance.
-	// This mode of operation then compares the CVEs found by the Fleet instance with the CVEs found by this new run of vulnerability processing.
+	// Fields to fetch software (and the found vulnerabilities) from an AutoMDM instance.
+	// This mode of operation then compares the CVEs found by the AutoMDM instance with the CVEs found by this new run of vulnerability processing.
 	softwareFromURL := flag.String("software_from_url", "", "URL to get software from")
 	softwareFromAPIToken := flag.String("software_from_api_token", "", "API token to authenticate to get the software")
 
@@ -126,9 +126,9 @@ func main() {
 		}
 	}
 
-	var software []fleet.Software
+	var software []automdm.Software
 	if singleSoftwareSet {
-		software = []fleet.Software{
+		software = []automdm.Software{
 			{
 				Name:             *softwareName,
 				Version:          *softwareVersion,
@@ -152,11 +152,11 @@ func main() {
 
 	ds := new(mock.Store)
 
-	ds.AllSoftwareIteratorFunc = func(ctx context.Context, query fleet.SoftwareIterQueryOptions) (fleet.SoftwareIterator, error) {
+	ds.AllSoftwareIteratorFunc = func(ctx context.Context, query automdm.SoftwareIterQueryOptions) (automdm.SoftwareIterator, error) {
 		return &softwareIterator{software: software}, nil
 	}
-	var softwareCPEs []fleet.SoftwareCPE
-	ds.UpsertSoftwareCPEsFunc = func(ctx context.Context, cpes []fleet.SoftwareCPE) (int64, error) {
+	var softwareCPEs []automdm.SoftwareCPE
+	ds.UpsertSoftwareCPEsFunc = func(ctx context.Context, cpes []automdm.SoftwareCPE) (int64, error) {
 		for _, cpe := range cpes {
 			var found bool
 			for _, storedCPEs := range softwareCPEs {
@@ -176,27 +176,27 @@ func main() {
 		}
 		return int64(len(cpes)), nil
 	}
-	ds.ListSoftwareCPEsFunc = func(ctx context.Context) ([]fleet.SoftwareCPE, error) {
+	ds.ListSoftwareCPEsFunc = func(ctx context.Context) ([]automdm.SoftwareCPE, error) {
 		return softwareCPEs, nil
 	}
-	ds.InsertSoftwareVulnerabilityFunc = func(ctx context.Context, vuln fleet.SoftwareVulnerability, source fleet.VulnerabilitySource) (bool, error) {
+	ds.InsertSoftwareVulnerabilityFunc = func(ctx context.Context, vuln automdm.SoftwareVulnerability, source automdm.VulnerabilitySource) (bool, error) {
 		return true, nil
 	}
-	ds.InsertSoftwareVulnerabilitiesFunc = func(ctx context.Context, vulns []fleet.SoftwareVulnerability, source fleet.VulnerabilitySource) ([]fleet.SoftwareVulnerability, error) {
+	ds.InsertSoftwareVulnerabilitiesFunc = func(ctx context.Context, vulns []automdm.SoftwareVulnerability, source automdm.VulnerabilitySource) ([]automdm.SoftwareVulnerability, error) {
 		return vulns, nil
 	}
-	ds.DeleteOutOfDateVulnerabilitiesFunc = func(ctx context.Context, source fleet.VulnerabilitySource, olderThan time.Time) error {
+	ds.DeleteOutOfDateVulnerabilitiesFunc = func(ctx context.Context, source automdm.VulnerabilitySource, olderThan time.Time) error {
 		return nil
 	}
 
-	ds.ListOperatingSystemsForPlatformFunc = func(ctx context.Context, platform string) ([]fleet.OperatingSystem, error) {
+	ds.ListOperatingSystemsForPlatformFunc = func(ctx context.Context, platform string) ([]automdm.OperatingSystem, error) {
 		return nil, nil
 	}
 
-	ds.DeleteOutOfDateOSVulnerabilitiesFunc = func(ctx context.Context, source fleet.VulnerabilitySource, olderThan time.Time) error {
+	ds.DeleteOutOfDateOSVulnerabilitiesFunc = func(ctx context.Context, source automdm.VulnerabilitySource, olderThan time.Time) error {
 		return nil
 	}
-	ds.InsertOSVulnerabilitiesFunc = func(ctx context.Context, vulnerabilities []fleet.OSVulnerability, source fleet.VulnerabilitySource) (int64, error) {
+	ds.InsertOSVulnerabilitiesFunc = func(ctx context.Context, vulnerabilities []automdm.OSVulnerability, source automdm.VulnerabilitySource) (int64, error) {
 		return 0, nil
 	}
 
@@ -206,7 +206,7 @@ func main() {
 		panic(err)
 	}
 	toolchains := govulndb.ToolchainRulesFrom(ctx, goVulnDB, logger)
-	err = nvd.TranslateSoftwareToCPE(ctx, ds, *dbDir, logger, []func(*fleet.Software) bool{toolchains.IsToolchainInstall})
+	err = nvd.TranslateSoftwareToCPE(ctx, ds, *dbDir, logger, []func(*automdm.Software) bool{toolchains.IsToolchainInstall})
 	if err != nil {
 		panic(err)
 	}
@@ -273,7 +273,7 @@ func main() {
 	}
 }
 
-func getSoftwareName(software []fleet.Software, softwareID uint) string {
+func getSoftwareName(software []automdm.Software, softwareID uint) string {
 	for _, s := range software {
 		if s.ID == softwareID {
 			return s.Name + ":" + s.Version
@@ -283,7 +283,7 @@ func getSoftwareName(software []fleet.Software, softwareID uint) string {
 }
 
 type softwareIterator struct {
-	software []fleet.Software
+	software []automdm.Software
 	i        int
 }
 
@@ -291,7 +291,7 @@ func (s *softwareIterator) Next() bool {
 	return s.i < len(s.software)
 }
 
-func (s *softwareIterator) Value() (*fleet.Software, error) {
+func (s *softwareIterator) Value() (*automdm.Software, error) {
 	ss := &s.software[s.i]
 	s.i += 1
 	return ss, nil
@@ -321,7 +321,7 @@ func vulnDBSync(ctx context.Context, vulnDBDir string, debug bool, logger *slog.
 	return nil
 }
 
-func getSoftwareFromURL(url, apiToken string, debug bool) []fleet.Software {
+func getSoftwareFromURL(url, apiToken string, debug bool) []automdm.Software {
 	var clientOpts []service.ClientOption
 	if debug {
 		clientOpts = append(clientOpts, service.EnableClientDebug())
@@ -336,7 +336,7 @@ func getSoftwareFromURL(url, apiToken string, debug bool) []fleet.Software {
 	if err != nil {
 		panic(err)
 	}
-	var filteredSoftware []fleet.Software
+	var filteredSoftware []automdm.Software
 	for _, s := range software {
 		if s.Source == "deb_packages" || s.Source == "rpm_packages" {
 			continue

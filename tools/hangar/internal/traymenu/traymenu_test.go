@@ -33,7 +33,7 @@ func TestBuildItemsNoRepoIdle(t *testing.T) {
 	if serve.Enabled {
 		t.Error("service rows should be disabled")
 	}
-	if serve.Label != "⚪  fleet serve" {
+	if serve.Label != "⚪  automdm serve" {
 		t.Errorf("idle serve label = %q", serve.Label)
 	}
 }
@@ -64,7 +64,7 @@ func TestBuildItemsRunning(t *testing.T) {
 	}
 	// serve up → green dot + port.
 	serve, _ := find(items, "tray:svc-serve")
-	if serve.Label != "🟢  fleet serve  ·  :8080" {
+	if serve.Label != "🟢  automdm serve  ·  :8080" {
 		t.Errorf("running serve label = %q", serve.Label)
 	}
 	// docker up → green dot, no extra.

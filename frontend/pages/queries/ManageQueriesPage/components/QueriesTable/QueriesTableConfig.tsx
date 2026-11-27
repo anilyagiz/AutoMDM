@@ -144,7 +144,7 @@ const generateColumnConfigs = ({
       Cell: (cellProps: ICellProps): JSX.Element => {
         const {
           id,
-          fleet_id: queryFleetId,
+          team_id: queryAutoMDMId,
           observer_can_run,
         } = cellProps.row.original;
         return (
@@ -165,13 +165,13 @@ const generateColumnConfigs = ({
                     <Icon
                       className="observer-can-run-query-icon"
                       name="query"
-                      color="ui-fleet-black-50"
+                      color="ui-automdm-black-50"
                     />
                   </TooltipWrapper>
                 )}
                 {viewingTeamScope &&
                   // inherited
-                  queryFleetId !== currentTeamId && (
+                  queryAutoMDMId !== currentTeamId && (
                     <Tag tooltip="This report runs on all hosts." size="small">
                       Inherited
                     </Tag>
@@ -179,7 +179,7 @@ const generateColumnConfigs = ({
               </>
             }
             path={getPathWithQueryParams(PATHS.REPORT_DETAILS(id), {
-              fleet_id: queryFleetId ?? currentTeamId,
+              team_id: queryAutoMDMId ?? currentTeamId,
             })}
           />
         );
@@ -297,7 +297,7 @@ const generateColumnConfigs = ({
         const checkboxProps = getConditionalSelectHeaderCheckboxProps({
           headerProps,
           checkIfRowIsSelectable: (row) =>
-            (row.original.fleet_id ?? undefined) === currentTeamId,
+            (row.original.team_id ?? undefined) === currentTeamId,
         });
 
         return (
@@ -317,7 +317,7 @@ const generateColumnConfigs = ({
       },
       Cell: (cellProps: ICellProps): JSX.Element => {
         const isInheritedQuery =
-          (cellProps.row.original.fleet_id ?? undefined) !== currentTeamId;
+          (cellProps.row.original.team_id ?? undefined) !== currentTeamId;
         if (viewingTeamScope && isInheritedQuery) {
           // disallow selecting inherited queries
           return <></>;

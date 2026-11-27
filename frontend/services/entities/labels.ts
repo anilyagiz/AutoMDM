@@ -40,7 +40,7 @@ const isManualLabelFormData = (
 
 export interface IUpdateLabelOptions {
   /** Send only the label's host membership, leaving its definition untouched. Used for a manual
-   * label whose definition is managed in git while its membership is managed in Fleet. */
+   * label whose definition is managed in git while its membership is managed in AutoMDM. */
   membershipOnly?: boolean;
 }
 
@@ -146,13 +146,13 @@ export default {
 
     const queryStringParams = {
       include_host_counts: false,
-      fleet_id: null as null | number | string,
+      team_id: null as null | number | string,
     };
     if (teamID === 0) {
-      queryStringParams.fleet_id = "global";
+      queryStringParams.team_id = "global";
     } else if (teamID !== null && teamID > 0) {
       // filter out "all teams" -1
-      queryStringParams.fleet_id = teamID;
+      queryStringParams.team_id = teamID;
     }
 
     const queryString = buildQueryStringFromParams(queryStringParams);
@@ -173,12 +173,12 @@ export default {
     const { LABELS_SUMMARY } = endpoints;
 
     const queryStringParams = {
-      fleet_id: null as null | number | string,
+      team_id: null as null | number | string,
     };
     if (teamID === 0 || (teamID === -1 && treatAllTeamsAsGlobalOnly)) {
-      queryStringParams.fleet_id = "global";
+      queryStringParams.team_id = "global";
     } else if (teamID !== null && teamID > 0) {
-      queryStringParams.fleet_id = teamID;
+      queryStringParams.team_id = teamID;
     }
 
     const queryString = buildQueryStringFromParams(queryStringParams);

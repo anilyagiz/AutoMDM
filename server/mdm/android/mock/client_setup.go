@@ -3,8 +3,8 @@ package mock
 import (
 	"context"
 
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
-	"github.com/fleetdm/fleet/v4/server/mdm/android/service/androidmgmt"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android/service/androidmgmt"
 	"google.golang.org/api/androidmanagement/v1"
 )
 
@@ -17,9 +17,9 @@ func (p *Client) InitCommonMocks() {
 	}
 	p.EnterprisesCreateFunc = func(ctx context.Context, req androidmgmt.EnterprisesCreateRequest) (androidmgmt.EnterprisesCreateResponse, error) {
 		return androidmgmt.EnterprisesCreateResponse{
-			EnterpriseName:    "enterprises/name",
-			TopicName:         "",
-			FleetServerSecret: "fleetServerSecret",
+			EnterpriseName:      "enterprises/name",
+			TopicName:           "",
+			AutoMDMServerSecret: "automdmServerSecret",
 		}, nil
 	}
 	p.EnterprisesPoliciesPatchFunc = func(_ context.Context, policyName string, policy *androidmanagement.Policy, opts androidmgmt.PoliciesPatchOpts) (*androidmanagement.Policy, error) {

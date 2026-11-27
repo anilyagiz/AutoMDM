@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	mdmmock "github.com/fleetdm/fleet/v4/server/mock/mdm"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	mdmmock "github.com/anilyagiz/automdm/v4/server/mock/mdm"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
 )
@@ -44,12 +44,12 @@ func TestSign(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			ds.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []fleet.MDMAssetName,
-				_ sqlx.QueryerContext) (map[fleet.MDMAssetName]fleet.MDMConfigAsset, error) {
-				require.ElementsMatch(t, []fleet.MDMAssetName{fleet.MDMAssetCACert, fleet.MDMAssetCAKey}, assetNames)
-				return map[fleet.MDMAssetName]fleet.MDMConfigAsset{
-					fleet.MDMAssetCACert: {Value: tc.cert},
-					fleet.MDMAssetCAKey:  {Value: tc.key},
+			ds.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []automdm.MDMAssetName,
+				_ sqlx.QueryerContext) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
+				require.ElementsMatch(t, []automdm.MDMAssetName{automdm.MDMAssetCACert, automdm.MDMAssetCAKey}, assetNames)
+				return map[automdm.MDMAssetName]automdm.MDMConfigAsset{
+					automdm.MDMAssetCACert: {Value: tc.cert},
+					automdm.MDMAssetCAKey:  {Value: tc.key},
 				}, nil
 			}
 			result, err := Sign(context.Background(), tc.profile, ds)

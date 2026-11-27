@@ -25,7 +25,7 @@ const (
 // Why the last delivery attempt ended the way it did. Internal only; the UI
 // reads the script's exit code instead.
 const (
-	// recorded by Fleet, not mapped from a Fleet Desktop exit code
+	// recorded by AutoMDM, not mapped from an AutoMDM Desktop exit code
 	EndUserNotificationReasonDelayed       = "delayed"
 	EndUserNotificationReasonDeferred      = "deferred"
 	EndUserNotificationReasonNothingToShow = "nothing_to_show"
@@ -40,18 +40,18 @@ const (
 	EndUserNotificationReasonNoDisplay         = "no_display"
 	EndUserNotificationReasonAnotherDisplayed  = "another_displayed"
 	EndUserNotificationReasonInternalError     = "internal_error"
-	EndUserNotificationReasonDesktopMissing    = "fleet_desktop_missing"
-	EndUserNotificationReasonDesktopTooOld     = "fleet_desktop_too_old"
+	EndUserNotificationReasonDesktopMissing    = "automdm_desktop_missing"
+	EndUserNotificationReasonDesktopTooOld     = "automdm_desktop_too_old"
 	EndUserNotificationReasonScriptsDisabled   = "scripts_disabled"
 	EndUserNotificationReasonURLUnresolved     = "url_unresolved"
 	EndUserNotificationReasonUnexpectedFailure = "unexpected_failure"
 )
 
-// How long a delayed notification waits. Fleet decides this, not the device.
+// How long a delayed notification waits. AutoMDM decides this, not the device.
 const EndUserNotificationDelayInterval = time.Hour
 
-// How long Fleet waits before retrying. Needing an admin to install or upgrade
-// Fleet Desktop gets the longer one.
+// How long AutoMDM waits before retrying. Needing an admin to install or upgrade
+// AutoMDM Desktop gets the longer one.
 const (
 	EndUserNotificationShortRetryInterval = time.Minute
 	EndUserNotificationLongRetryInterval  = time.Hour
@@ -59,8 +59,8 @@ const (
 
 const EndUserNotificationMaxLifetime = 24 * time.Hour
 
-// How long a dispatched notification waits for a result before Fleet gives up
-// on it. A host that never answers (wiped, fleetd removed) holds up every
+// How long a dispatched notification waits for a result before AutoMDM gives up
+// on it. A host that never answers (wiped, automdmd removed) holds up every
 // notification behind it.
 const EndUserNotificationStuckDispatchTimeout = 24 * time.Hour
 
@@ -130,7 +130,7 @@ type NotificationKind interface {
 	Name() string
 	Render(ctx context.Context, notification *EndUserNotification) (*NotificationView, error)
 	// OnVerify sets when the notification was displayed on the host. Currently
-	// unused because Fleet uses the script endpoint to report when the
+	// unused because AutoMDM uses the script endpoint to report when the
 	// notification was displayed.
 	OnVerify(ctx context.Context, notification *EndUserNotification, displayedAt time.Time) error
 	// OnDelay sets the notification to attempt later at a time the kind chooses,
@@ -140,6 +140,6 @@ type NotificationKind interface {
 	// OnAction carries out what the end user chose, and returns the view to send
 	// back, or nil to render the notification unchanged.
 	OnAction(ctx context.Context, notification *EndUserNotification, actionID string) (*NotificationView, error)
-	// OnOutcome runs after Fleet records how an attempt ended.
+	// OnOutcome runs after AutoMDM records how an attempt ended.
 	OnOutcome(ctx context.Context, notification *EndUserNotification, outcome NotificationOutcome) error
 }

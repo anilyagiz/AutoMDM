@@ -2,12 +2,12 @@
 # If the app is already installed, the Microsoft Store installs the latest version.
 
 # Change these two lines for each app. The Store ID is the last part of the app's
-# Microsoft Store URL. Fleet's guide shows how to find the package family name:
-# https://fleetdm.com/guides/build-your-own-windows-self-service-with-winget-and-script-only-packages-guide
+# Microsoft Store URL. AutoMDM's guide shows how to find the package family name:
+# https://automdm.com/guides/build-your-own-windows-self-service-with-winget-and-script-only-packages-guide
 $storeId           = '9WZDNCRFJ3PZ'
 $packageFamilyName = 'Microsoft.CompanyPortal_8wekyb3d8bbwe'
 $packageName       = $packageFamilyName.Split('_')[0]
-$timeoutMinutes    = 30  # Fleet lets software installs run for up to 1 hour
+$timeoutMinutes    = 30  # AutoMDM lets software installs run for up to 1 hour
 
 # Store errors this script explains:
 $STORE_LICENSE_FAILED = -2143322111   # The Microsoft Store couldn't license the app (0x803F8001)
@@ -81,7 +81,7 @@ $options.CompletedInstallToastNotificationMode = 'NoToast'
 
 $itemListType = [System.Collections.Generic.IReadOnlyList[Windows.ApplicationModel.Store.Preview.InstallControl.AppInstallItem]]
 try {
-    $items = @(Await ($manager.StartProductInstallAsync($storeId, '', 'Fleet', '', $options)) $itemListType)
+    $items = @(Await ($manager.StartProductInstallAsync($storeId, '', 'AutoMDM', '', $options)) $itemListType)
 } catch {
     Write-Output ("The Microsoft Store couldn't start the install: {0} (0x{1:X8})" -f $_.Exception.Message, $_.Exception.HResult)
     Write-ErrorMessage $_.Exception.HResult

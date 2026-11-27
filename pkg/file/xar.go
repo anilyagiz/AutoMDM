@@ -34,7 +34,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"golang.org/x/net/html/charset"
 )
 
@@ -196,7 +196,7 @@ func XARHasDistribution(r io.Reader) (bool, error) {
 
 // ExtractXARMetadata extracts the name and version metadata from a .pkg file
 // in the XAR format.
-func ExtractXARMetadata(tfr *fleet.TempFileReader) (*InstallerMetadata, error) {
+func ExtractXARMetadata(tfr *automdm.TempFileReader) (*InstallerMetadata, error) {
 	h := sha256.New()
 	size, _ := io.Copy(h, tfr) // writes to a hash cannot fail
 	if err := tfr.Rewind(); err != nil {
@@ -567,7 +567,7 @@ func getPackageInfo(p *packageInfoXML) (name string, identifier string, version 
 
 	for _, bundle := range p.Bundles {
 		// Keep track of all bundle identifiers
-		bundleID := fleet.Preprocess(bundle.ID)
+		bundleID := automdm.Preprocess(bundle.ID)
 		if bundleID != "" {
 			packageIDSet[bundleID] = struct{}{}
 		}
@@ -580,9 +580,9 @@ func getPackageInfo(p *packageInfoXML) (name string, identifier string, version 
 		installPath = strings.TrimPrefix(installPath, "./")
 		base, isValid := isValidAppFilePath(installPath)
 		if isValid && !foundMetadata {
-			identifier = fleet.Preprocess(bundle.ID)
+			identifier = automdm.Preprocess(bundle.ID)
 			name = base
-			version = fleet.Preprocess(bundle.CFBundleShortVersionString)
+			version = automdm.Preprocess(bundle.CFBundleShortVersionString)
 		}
 
 		// Stop updating metadata if we found a bundle that
@@ -599,12 +599,12 @@ func getPackageInfo(p *packageInfoXML) (name string, identifier string, version 
 	// if we didn't find a version, grab the version from pkg-info element
 	// Note: this version may be wrong since it is the version of the package and not the app
 	if version == "" {
-		version = fleet.Preprocess(p.Version)
+		version = automdm.Preprocess(p.Version)
 	}
 
 	// if we didn't find a bundle identifier, grab the identifier from pkg-info element
 	if identifier == "" {
-		identifier = fleet.Preprocess(p.Identifier)
+		identifier = automdm.Preprocess(p.Identifier)
 	}
 
 	// if we didn't find a name and the install path looks like a .app, try using that

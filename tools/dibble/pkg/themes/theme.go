@@ -1,5 +1,5 @@
 // Package themes contains the curated character-name datasets that dibble
-// uses to make seeded data fun to look at in the Fleet UI.
+// uses to make seeded data fun to look at in the AutoMDM UI.
 //
 // Each theme is a Theme literal. New themes go in their own file alongside
 // the existing ones and register themselves with init() calling Register.
@@ -37,7 +37,7 @@ type Theme struct {
 	Scripts  []Named
 
 	// Suffix, when non-empty, is appended to every generated name so that
-	// re-running dibble against an already-seeded Fleet produces fresh
+	// re-running dibble against an already-seeded AutoMDM produces fresh
 	// entries instead of "already exists" skips.
 	Suffix string
 }
@@ -134,7 +134,7 @@ func FullName(t Theme, i int) string {
 }
 
 // TeamName returns the i-th team name, wrapping with a numeric suffix to
-// avoid duplicate-name conflicts on the Fleet side.
+// avoid duplicate-name conflicts on the AutoMDM side.
 func TeamName(t Theme, i int) string {
 	if len(t.Teams) == 0 {
 		return fmt.Sprintf("Team %d", i+1)
@@ -178,7 +178,7 @@ func Pick(t Theme, kind string, i int) Named {
 }
 
 // appendSuffix tacks " (suffix)" onto a name when a suffix is set. The
-// parens-and-space form reads well in the Fleet UI: "Heart of Gold (b3f1)".
+// parens-and-space form reads well in the AutoMDM UI: "Heart of Gold (b3f1)".
 func appendSuffix(name, suffix string) string {
 	if suffix == "" {
 		return name

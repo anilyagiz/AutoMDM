@@ -10,7 +10,7 @@ Approved
 
 ## Context
 
-Fleet currently uses [go-kit/log](https://github.com/go-kit/log) for structured logging throughout the codebase. While go-kit/log has served us well, it has a fundamental limitation: **it lacks native context support.** The `Logger.Log(keyvals...)` interface doesn't accept a `context.Context` parameter.
+AutoMDM currently uses [go-kit/log](https://github.com/go-kit/log) for structured logging throughout the codebase. While go-kit/log has served us well, it has a fundamental limitation: **it lacks native context support.** The `Logger.Log(keyvals...)` interface doesn't accept a `context.Context` parameter.
 
 This limitation became apparent when implementing [ADR-0005: Standardize on OpenTelemetry for observability](0005-opentelemetry-standardization.md). To correlate logs with distributed traces, we need to inject `trace_id` and `span_id` from the OpenTelemetry span context into log entries. With go-kit/log, this requires fragile workarounds like pointer-based context tracking or manually recreating loggers when spans change.
 
@@ -37,7 +37,7 @@ The Go team noted that "structured logging has consistently ranked high in Go's 
 
 ## Decision
 
-Fleet will migrate from go-kit/log to Go's standard library `log/slog` package. This aligns with Fleet's [🟢 Results](https://fleetdm.com/handbook/company#results) value: "Keep it simple. Choose boring solutions. Reuse systems."
+AutoMDM will migrate from go-kit/log to Go's standard library `log/slog` package. This aligns with AutoMDM's [🟢 Results](https://automdm.com/handbook/company#results) value: "Keep it simple. Choose boring solutions. Reuse systems."
 
 We will:
 
@@ -60,7 +60,7 @@ We will:
    - OpenTelemetry handler wrapper for automatic trace_id/span_id injection
    - Adapter that implements `kitlog.Logger` interface using slog (for gradual migration)
 
-3. Update application initialization in `cmd/fleet/serve.go` to configure slog as default logger
+3. Update application initialization in `cmd/automdm/serve.go` to configure slog as default logger
 
 4. Add linting rule to enforce context-aware logging methods (`slog.InfoContext`, etc.) and flag non-context methods (`slog.Info`, etc.) to ensure trace correlation is not bypassed. One option is [forbidigo](https://golangci-lint.run/docs/linters/configuration/#forbidigo)
 
@@ -73,7 +73,7 @@ Migrate packages:
 3. **server/worker** - Background job processing
 4. **server/service** - Core service layer (largest effort)
 5. **server/datastore** - Database layer
-6. **cmd/fleet** - Application entry points and cron job definitions
+6. **cmd/automdm** - Application entry points and cron job definitions
 
 For each package:
 - Replace `kitlog.Logger` with `*slog.Logger`
@@ -165,7 +165,7 @@ This ensures traces accurately reflect failures without requiring separate `span
 
 ### Log output format changes
 
-slog's JSONHandler defaults differ from Fleet's current log format. To minimize disruption for customers parsing Fleet logs, we will configure slog via [`ReplaceAttr`](https://pkg.go.dev/log/slog#HandlerOptions) to maintain the current format:
+slog's JSONHandler defaults differ from AutoMDM's current log format. To minimize disruption for customers parsing AutoMDM logs, we will configure slog via [`ReplaceAttr`](https://pkg.go.dev/log/slog#HandlerOptions) to maintain the current format:
 
 | Field            | Current format  | slog default    | Our configuration           |
 |------------------|-----------------|-----------------|-----------------------------|
@@ -193,7 +193,7 @@ This ensures backward compatibility; any existing log parsing tools will continu
 
 - **Pros**: Mature libraries with proven performance, context support available via wrappers
 - **Cons**: External dependency, different API to learn, less ecosystem momentum than slog
-- **Rejected because**: slog is now standard library with official OpenTelemetry support; adding another third-party logging dependency goes against Fleet's simplification goals
+- **Rejected because**: slog is now standard library with official OpenTelemetry support; adding another third-party logging dependency goes against AutoMDM's simplification goals
 
 ### Use slog with go-kit adapter permanently
 
@@ -217,6 +217,6 @@ This ensures backward compatibility; any existing log parsing tools will continu
 - [Contextual Logging in Go with Slog - Better Stack](https://betterstack.com/community/guides/logging/golang-contextual-logging/)
 - [Deep Dive and Migration Guide to Go 1.21+'s slog - Leapcell](https://leapcell.io/blog/deep-dive-and-migration-guide-to-go-1-21-s-structured-logging-with-slog)
 
-### Fleet-specific
+### AutoMDM-specific
 - [ADR-0005: Standardize on OpenTelemetry for observability](0005-opentelemetry-standardization.md)
 - [GitHub Issue #38607: Link OTEL traces with logs](https://github.com/fleetdm/fleet/issues/38607)

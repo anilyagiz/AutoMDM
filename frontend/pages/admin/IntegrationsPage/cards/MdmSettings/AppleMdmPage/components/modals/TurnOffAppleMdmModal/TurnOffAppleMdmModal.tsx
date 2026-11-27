@@ -35,12 +35,12 @@ const TurnOffAppleMdmModal = ({
           back on.
         </p>
         <p>
-          To confirm, enter your Fleet URL: <b>{serverUrl}</b>
+          To confirm, enter your AutoMDM URL: <b>{serverUrl}</b>
         </p>
         <InputField
           autofocus
           inputWrapperClass={`${bemClass}__url-input`}
-          placeholder="https://fleet.example.com"
+          placeholder="https://automdm.example.com"
           value={enteredUrl}
           onChange={(val: string) => setEnteredUrl(val)}
         />

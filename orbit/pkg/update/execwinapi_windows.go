@@ -16,7 +16,7 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/rs/zerolog/log"
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
@@ -175,8 +175,8 @@ func improveWindowsAPIError(apiFunc, discoURL string, code uintptr, err error) e
 }
 
 func generateWindowsMDMAccessTokenPayload(args WindowsMDMEnrollmentArgs) ([]byte, error) {
-	var pld fleet.WindowsMDMAccessTokenPayload
-	pld.Type = fleet.WindowsMDMProgrammaticEnrollmentType // always programmatic for now
+	var pld automdm.WindowsMDMAccessTokenPayload
+	pld.Type = automdm.WindowsMDMProgrammaticEnrollmentType // always programmatic for now
 	pld.Payload.OrbitNodeKey = args.OrbitNodeKey
 	return json.Marshal(pld)
 }
@@ -201,8 +201,8 @@ func IsRunningOnWindowsServer() (bool, error) {
 // returns within seconds in practice; the timeout is a generous backstop, not the expected duration.
 const windowsMDMSyncTriggerTimeout = 2 * time.Minute
 
-// TriggerWindowsMDMSync starts an on-demand, client-initiated OMA-DM session with the Fleet MDM server so that queued Windows MDM commands
-// are delivered without waiting for the device's next scheduled poll. It runs the OS deviceenroller for Fleet's enrollment in
+// TriggerWindowsMDMSync starts an on-demand, client-initiated OMA-DM session with the AutoMDM server so that queued Windows MDM commands
+// are delivered without waiting for the device's next scheduled poll. It runs the OS deviceenroller for AutoMDM's enrollment in
 // client-initiated mode: `deviceenroller.exe /o <EnrollmentGUID> /c`.
 //
 // Microsoft does not publicly document the deviceenroller flags; `/o <GUID> /c` was established empirically and validated end-to-end on
@@ -213,9 +213,9 @@ const windowsMDMSyncTriggerTimeout = 2 * time.Minute
 //
 // Exported so it can be built/tested for Windows from tools/. Not meant to be called from outside this package.
 func TriggerWindowsMDMSync() error {
-	guid, err := fleetMDMEnrollmentGUID()
+	guid, err := automdmMDMEnrollmentGUID()
 	if err != nil {
-		return fmt.Errorf("find Fleet MDM enrollment: %w", err)
+		return fmt.Errorf("find AutoMDM enrollment: %w", err)
 	}
 
 	// Resolve System32 via the Windows API rather than the process environment, so the path we execute as SYSTEM can't be redirected by a
@@ -242,18 +242,18 @@ func TriggerWindowsMDMSync() error {
 	return nil
 }
 
-// HasActiveFleetMDMEnrollment reports whether this host currently has an active Fleet Windows MDM enrollment. It answers "could
-// Fleet deliver configuration to me?", which is what callers need before asking for something Fleet can only send over the MDM
+// HasActiveAutoMDMMDMEnrollment reports whether this host currently has an active AutoMDM Windows MDM enrollment. It answers "could
+// AutoMDM deliver configuration to me?", which is what callers need before asking for something AutoMDM can only send over the MDM
 // channel.
-func HasActiveFleetMDMEnrollment() bool {
-	_, err := fleetMDMEnrollmentGUID()
+func HasActiveAutoMDMMDMEnrollment() bool {
+	_, err := automdmMDMEnrollmentGUID()
 	return err == nil
 }
 
-// fleetMDMEnrollmentGUID returns the enrollment GUID of the active Fleet Windows MDM enrollment by scanning
-// HKLM\SOFTWARE\Microsoft\Enrollments for the subkey whose ProviderID is Fleet's and whose EnrollmentState is active (see
-// isActiveFleetEnrollment). The subkey name is the enrollment GUID that deviceenroller's /o argument expects.
-func fleetMDMEnrollmentGUID() (string, error) {
+// automdmMDMEnrollmentGUID returns the enrollment GUID of the active AutoMDM Windows MDM enrollment by scanning
+// HKLM\SOFTWARE\Microsoft\Enrollments for the subkey whose ProviderID is AutoMDM's and whose EnrollmentState is active (see
+// isActiveAutoMDMEnrollment). The subkey name is the enrollment GUID that deviceenroller's /o argument expects.
+func automdmMDMEnrollmentGUID() (string, error) {
 	const enrollmentsPath = `SOFTWARE\Microsoft\Enrollments`
 	root, err := registry.OpenKey(registry.LOCAL_MACHINE, enrollmentsPath, registry.READ)
 	if err != nil {
@@ -274,10 +274,10 @@ func fleetMDMEnrollmentGUID() (string, error) {
 		providerID, _, providerErr := k.GetStringValue("ProviderID")
 		state, _, stateErr := k.GetIntegerValue("EnrollmentState")
 		k.Close()
-		// A malformed subkey name (not a valid GUID) makes isActiveFleetEnrollment return false, so we keep scanning for a well-formed one.
-		if providerErr == nil && stateErr == nil && isActiveFleetEnrollment(providerID, state, name) {
+		// A malformed subkey name (not a valid GUID) makes isActiveAutoMDMEnrollment return false, so we keep scanning for a well-formed one.
+		if providerErr == nil && stateErr == nil && isActiveAutoMDMEnrollment(providerID, state, name) {
 			return name, nil
 		}
 	}
-	return "", errors.New("no active Fleet MDM enrollment found in registry")
+	return "", errors.New("no active AutoMDM enrollment found in registry")
 }

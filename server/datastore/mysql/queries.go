@@ -13,10 +13,10 @@ import (
 
 	"golang.org/x/text/unicode/norm"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -25,7 +25,7 @@ import (
 var queryAllowedOrderKeys = common_mysql.OrderKeyAllowlist{
 	"id":         "q.id",
 	"name":       "q.name",
-	"fleet_id":   "q.team_id",
+	"team_id":    "q.team_id",
 	"created_at": "q.created_at",
 	"updated_at": "q.updated_at",
 }
@@ -37,7 +37,7 @@ const (
 
 var querySearchColumns = []string{"q.name"}
 
-func (ds *Datastore) ApplyQueries(ctx context.Context, authorID uint, queries []*fleet.Query, queriesToDiscardResults map[uint]struct{}) error {
+func (ds *Datastore) ApplyQueries(ctx context.Context, authorID uint, queries []*automdm.Query, queriesToDiscardResults map[uint]struct{}) error {
 	if err := ds.applyQueriesInTx(ctx, authorID, queries, queriesToDiscardResults); err != nil {
 		return ctxerr.Wrap(ctx, err, "apply queries in tx")
 	}
@@ -47,7 +47,7 @@ func (ds *Datastore) ApplyQueries(ctx context.Context, authorID uint, queries []
 func (ds *Datastore) applyQueriesInTx(
 	ctx context.Context,
 	authorID uint,
-	queries []*fleet.Query,
+	queries []*automdm.Query,
 	queriesToDiscardResults map[uint]struct{},
 ) (err error) {
 	// First, verify all 'queries' are valid.
@@ -107,7 +107,7 @@ func (ds *Datastore) applyQueriesInTx(
 		batch := queries[i:end]
 
 		// Group queries by their 'key' to make lookups more efficient.
-		batchGrp := make(map[string]*fleet.Query, len(batch))
+		batchGrp := make(map[string]*automdm.Query, len(batch))
 		for _, q := range batch {
 			batchGrp[unqKeyGen(q.Name, q.TeamID)] = q
 		}
@@ -214,7 +214,7 @@ func (ds *Datastore) QueryByName(
 	ctx context.Context,
 	teamID *uint,
 	name string,
-) (*fleet.Query, error) {
+) (*automdm.Query, error) {
 	stmt := `SELECT` + queryColumns + `FROM queries WHERE name = ?`
 	args := []interface{}{name}
 	whereClause := " AND team_id_char = ''"
@@ -224,7 +224,7 @@ func (ds *Datastore) QueryByName(
 	}
 
 	stmt += whereClause
-	var query fleet.Query
+	var query automdm.Query
 	err := sqlx.GetContext(ctx, ds.reader(ctx), &query, stmt, args...)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -267,9 +267,9 @@ var queriesByNameBatchSize = 1000
 // only the pairs that exist.
 func (ds *Datastore) QueriesByName(
 	ctx context.Context,
-	names []fleet.TeamScopedQueryName,
-) (map[string]*fleet.Query, error) {
-	result := make(map[string]*fleet.Query, len(names))
+	names []automdm.TeamScopedQueryName,
+) (map[string]*automdm.Query, error) {
+	result := make(map[string]*automdm.Query, len(names))
 	if len(names) == 0 {
 		return result, nil
 	}
@@ -277,7 +277,7 @@ func (ds *Datastore) QueriesByName(
 	// Dedupe on (team_id_char, name) up front so a submission repeating a name
 	// costs nothing extra, then resolve in bounded batches.
 	seen := make(map[string]struct{}, len(names))
-	deduped := make([]fleet.TeamScopedQueryName, 0, len(names))
+	deduped := make([]automdm.TeamScopedQueryName, 0, len(names))
 	for _, n := range names {
 		key := n.Key()
 		if _, dup := seen[key]; dup {
@@ -305,7 +305,7 @@ func (ds *Datastore) QueriesByName(
 		}
 
 		stmt := `SELECT` + queryColumns + `FROM queries WHERE (name, team_id_char) IN (` + placeholders.String() + `)`
-		var queries []*fleet.Query
+		var queries []*automdm.Query
 		if err := sqlx.SelectContext(ctx, ds.reader(ctx), &queries, stmt, args...); err != nil {
 			// Return what earlier chunks resolved alongside the error. Callers that
 			// treat a failure as "nothing resolved" would otherwise turn one failing
@@ -313,7 +313,7 @@ func (ds *Datastore) QueriesByName(
 			return result, ctxerr.Wrap(ctx, err, "selecting queries by name")
 		}
 		for _, q := range queries {
-			result[fleet.TeamScopedQueryName{TeamID: q.TeamID, Name: q.Name}.Key()] = q
+			result[automdm.TeamScopedQueryName{TeamID: q.TeamID, Name: q.Name}.Key()] = q
 		}
 	}
 	return result, nil
@@ -362,7 +362,7 @@ func (ds *Datastore) QueriesPerHost(ctx context.Context, hostID uint, teamID *ui
 		teamSQL = " OR q.team_id = ?"
 		args = append(args, *teamID)
 	}
-	args = append(args, fleet.LoggingSnapshot)
+	args = append(args, automdm.LoggingSnapshot)
 
 	labelSQL, labelArgs := queryLabelScope(hostID)
 	args = append(args, labelArgs...)
@@ -387,9 +387,9 @@ func (ds *Datastore) QueriesPerHost(ctx context.Context, hostID uint, teamID *ui
 
 func (ds *Datastore) NewQuery(
 	ctx context.Context,
-	query *fleet.Query,
-	opts ...fleet.OptionalArg,
-) (*fleet.Query, error) {
+	query *automdm.Query,
+	opts ...automdm.OptionalArg,
+) (*automdm.Query, error) {
 	if err := query.Verify(); err != nil {
 		return nil, ctxerr.Wrap(ctx, err)
 	}
@@ -452,7 +452,7 @@ func (ds *Datastore) NewQuery(
 		id, _ := result.LastInsertId()
 		query.ID = uint(id) //nolint:gosec // dismiss G115
 
-		if err := ds.updateQueryLabelsInTx(ctx, []*fleet.Query{query}, tx); err != nil {
+		if err := ds.updateQueryLabelsInTx(ctx, []*automdm.Query{query}, tx); err != nil {
 			return ctxerr.Wrap(ctx, err, "saving labels for query")
 		}
 		return nil
@@ -467,7 +467,7 @@ func (ds *Datastore) NewQuery(
 // associations for a set of queries, using label names from each query's slices
 // to look up the corresponding label IDs. Resolved IDs are populated back onto
 // the query structs.
-func (ds *Datastore) updateQueryLabelsInTx(ctx context.Context, queries []*fleet.Query, tx sqlx.ExtContext) error {
+func (ds *Datastore) updateQueryLabelsInTx(ctx context.Context, queries []*automdm.Query, tx sqlx.ExtContext) error {
 	if tx == nil {
 		return ctxerr.New(ctx, "updateQueryLabelsInTx called with nil tx")
 	}
@@ -480,7 +480,7 @@ func (ds *Datastore) updateQueryLabelsInTx(ctx context.Context, queries []*fleet
 		queriesIDs = append(queriesIDs, q.ID)
 		// Scopes are mutually exclusive
 		if len(q.LabelsIncludeAny) > 0 && len(q.LabelsIncludeAll) > 0 {
-			return ctxerr.Wrap(ctx, fleet.ErrQueryConflictingLabels)
+			return ctxerr.Wrap(ctx, automdm.ErrQueryConflictingLabels)
 		}
 	}
 
@@ -492,14 +492,14 @@ func (ds *Datastore) updateQueryLabelsInTx(ctx context.Context, queries []*fleet
 		return ctxerr.Wrap(ctx, err, "deleting old query labels")
 	}
 
-	// Names are resolved once per fleet, since a fleet's report sees global labels plus its own fleet's, and a global
+	// Names are resolved once per team, since a team's report sees global labels plus its own team's, and a global
 	// report sees all labels.
 	type labelScope struct {
-		fleetID uint
-		global  bool
+		automdmID uint
+		global    bool
 	}
-	scopeOf := func(q *fleet.Query) labelScope {
-		return labelScope{fleetID: ptr.ValOrZero(q.TeamID), global: q.TeamID == nil}
+	scopeOf := func(q *automdm.Query) labelScope {
+		return labelScope{automdmID: ptr.ValOrZero(q.TeamID), global: q.TeamID == nil}
 	}
 	namesByScope := make(map[labelScope][]string)
 	numLabels := 0
@@ -514,11 +514,11 @@ func (ds *Datastore) updateQueryLabelsInTx(ctx context.Context, queries []*fleet
 	}
 	idsByScope := make(map[labelScope]map[string]uint, len(namesByScope))
 	for scope, names := range namesByScope {
-		var fleetID *uint
+		var automdmID *uint
 		if !scope.global {
-			fleetID = &scope.fleetID
+			automdmID = &scope.automdmID
 		}
-		ids, err := resolveLabelNamesTx(ctx, tx, names, fleetID)
+		ids, err := resolveLabelNamesTx(ctx, tx, names, automdmID)
 		if err != nil {
 			return ctxerr.Wrap(ctx, err, "resolving report labels")
 		}
@@ -530,13 +530,13 @@ func (ds *Datastore) updateQueryLabelsInTx(ctx context.Context, queries []*fleet
 	params := make([]string, 0, numLabels)
 	insertArgs := make([]any, 0, numLabels*3)
 
-	resolve := func(q *fleet.Query, src []fleet.LabelIdent, requireAll bool) []fleet.LabelIdent {
+	resolve := func(q *automdm.Query, src []automdm.LabelIdent, requireAll bool) []automdm.LabelIdent {
 		if len(src) == 0 {
 			return src
 		}
 		ids := idsByScope[scopeOf(q)]
 		inserted := make(map[uint]struct{}, len(src))
-		out := make([]fleet.LabelIdent, 0, len(src))
+		out := make([]automdm.LabelIdent, 0, len(src))
 		for _, lbl := range src {
 			lblID := ids[lbl.LabelName]
 			if _, ok := inserted[lblID]; ok {
@@ -545,7 +545,7 @@ func (ds *Datastore) updateQueryLabelsInTx(ctx context.Context, queries []*fleet
 			inserted[lblID] = struct{}{}
 			params = append(params, "(?, ?, ?)")
 			insertArgs = append(insertArgs, q.ID, lblID, requireAll)
-			out = append(out, fleet.LabelIdent{LabelID: lblID, LabelName: lbl.LabelName})
+			out = append(out, automdm.LabelIdent{LabelID: lblID, LabelName: lbl.LabelName})
 		}
 		return out
 	}
@@ -567,7 +567,7 @@ func (ds *Datastore) updateQueryLabelsInTx(ctx context.Context, queries []*fleet
 	return nil
 }
 
-func (ds *Datastore) SaveQuery(ctx context.Context, q *fleet.Query, shouldDiscardResults bool, shouldDeleteStats bool) (err error) {
+func (ds *Datastore) SaveQuery(ctx context.Context, q *automdm.Query, shouldDiscardResults bool, shouldDeleteStats bool) (err error) {
 	if err := q.Verify(); err != nil {
 		return ctxerr.Wrap(ctx, err)
 	}
@@ -622,7 +622,7 @@ func (ds *Datastore) SaveQuery(ctx context.Context, q *fleet.Query, shouldDiscar
 			return ctxerr.Wrap(ctx, notFound("Report").WithID(q.ID))
 		}
 
-		if err := ds.updateQueryLabelsInTx(ctx, []*fleet.Query{q}, tx); err != nil {
+		if err := ds.updateQueryLabelsInTx(ctx, []*automdm.Query{q}, tx); err != nil {
 			return ctxerr.Wrap(ctx, err, "updating query labels")
 		}
 		if shouldDiscardResults {
@@ -705,7 +705,7 @@ func (ds *Datastore) deleteQueryStats(ctx context.Context, queryIDs []uint) {
 	}
 
 	// Delete aggregated stats
-	stmt := fmt.Sprintf("DELETE FROM aggregated_stats WHERE type = '%s' AND id IN (?)", fleet.AggregatedStatsTypeScheduledQuery)
+	stmt := fmt.Sprintf("DELETE FROM aggregated_stats WHERE type = '%s' AND id IN (?)", automdm.AggregatedStatsTypeScheduledQuery)
 	stmt, args, err := sqlx.In(stmt, queryIDs)
 	if err != nil {
 		ds.logger.ErrorContext(ctx, "error creating delete aggregated stats statement", "err", err)
@@ -718,11 +718,11 @@ func (ds *Datastore) deleteQueryStats(ctx context.Context, queryIDs []uint) {
 }
 
 // Query returns a single Query identified by id, if such exists.
-func (ds *Datastore) Query(ctx context.Context, id uint) (*fleet.Query, error) {
+func (ds *Datastore) Query(ctx context.Context, id uint) (*automdm.Query, error) {
 	return query(ctx, ds.reader(ctx), id)
 }
 
-func query(ctx context.Context, db sqlx.QueryerContext, id uint) (*fleet.Query, error) {
+func query(ctx context.Context, db sqlx.QueryerContext, id uint) (*automdm.Query, error) {
 	sqlQuery := `
 		SELECT
 			q.id,
@@ -756,15 +756,15 @@ func query(ctx context.Context, db sqlx.QueryerContext, id uint) (*fleet.Query, 
 			ON (ag.id = q.id AND ag.global_stats = ? AND ag.type = ?)
 		WHERE q.id = ?
 	`
-	query := &fleet.Query{}
-	if err := sqlx.GetContext(ctx, db, query, sqlQuery, false, fleet.AggregatedStatsTypeScheduledQuery, id); err != nil {
+	query := &automdm.Query{}
+	if err := sqlx.GetContext(ctx, db, query, sqlQuery, false, automdm.AggregatedStatsTypeScheduledQuery, id); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, ctxerr.Wrap(ctx, notFound("Report").WithID(id))
 		}
 		return nil, ctxerr.Wrap(ctx, err, "selecting query")
 	}
 
-	if err := loadLabelsForQueries(ctx, db, []*fleet.Query{query}); err != nil {
+	if err := loadLabelsForQueries(ctx, db, []*automdm.Query{query}); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "loading labels for query")
 	}
 
@@ -772,9 +772,9 @@ func query(ctx context.Context, db sqlx.QueryerContext, id uint) (*fleet.Query, 
 }
 
 // ListQueries returns a list of queries with sort order and results limit
-// determined by passed in fleet.ListOptions, count of total queries returned without limits, and
+// determined by passed in automdm.ListOptions, count of total queries returned without limits, and
 // pagination metadata
-func (ds *Datastore) ListQueries(ctx context.Context, opt fleet.ListQueryOptions) (queries []*fleet.Query, total int, inherited int, metadata *fleet.PaginationMetadata, err error) {
+func (ds *Datastore) ListQueries(ctx context.Context, opt automdm.ListQueryOptions) (queries []*automdm.Query, total int, inherited int, metadata *automdm.PaginationMetadata, err error) {
 	getQueriesStmt := `
 		SELECT
 			q.id,
@@ -805,7 +805,7 @@ func (ds *Datastore) ListQueries(ctx context.Context, opt fleet.ListQueryOptions
 		LEFT JOIN aggregated_stats ag ON (ag.id = q.id AND ag.global_stats = ? AND ag.type = ?)
 	`
 
-	args := []interface{}{false, fleet.AggregatedStatsTypeScheduledQuery}
+	args := []interface{}{false, automdm.AggregatedStatsTypeScheduledQuery}
 	whereClauses := "WHERE saved = true"
 
 	switch {
@@ -856,7 +856,7 @@ func (ds *Datastore) ListQueries(ctx context.Context, opt fleet.ListQueryOptions
 	}
 
 	dbReader := ds.reader(ctx)
-	queries = []*fleet.Query{}
+	queries = []*automdm.Query{}
 	if err = sqlx.SelectContext(ctx, dbReader, &queries, getQueriesStmt, args...); err != nil {
 		return nil, 0, 0, nil, ctxerr.Wrap(ctx, err, "listing queries")
 	}
@@ -875,7 +875,7 @@ func (ds *Datastore) ListQueries(ctx context.Context, opt fleet.ListQueryOptions
 	}
 
 	if opt.ListOptions.IncludeMetadata {
-		metadata = &fleet.PaginationMetadata{HasPreviousResults: opt.ListOptions.Page > 0}
+		metadata = &automdm.PaginationMetadata{HasPreviousResults: opt.ListOptions.Page > 0}
 		// `appendListOptionsWithCursorToSQL` used above to build the query statement will cause this
 		// discrepancy
 		if len(queries) > int(opt.ListOptions.PerPage) { //nolint:gosec // dismiss G115
@@ -887,11 +887,11 @@ func (ds *Datastore) ListQueries(ctx context.Context, opt fleet.ListQueryOptions
 	return queries, counts.Total, counts.Inherited, metadata, nil
 }
 
-func (ds *Datastore) loadLabelsForQueries(ctx context.Context, queries []*fleet.Query) error {
+func (ds *Datastore) loadLabelsForQueries(ctx context.Context, queries []*automdm.Query) error {
 	return loadLabelsForQueries(ctx, ds.reader(ctx), queries)
 }
 
-func loadLabelsForQueries(ctx context.Context, db sqlx.QueryerContext, queries []*fleet.Query) error {
+func loadLabelsForQueries(ctx context.Context, db sqlx.QueryerContext, queries []*automdm.Query) error {
 	if len(queries) == 0 {
 		return nil
 	}
@@ -919,7 +919,7 @@ func loadLabelsForQueries(ctx context.Context, db sqlx.QueryerContext, queries [
 		return ctxerr.Wrap(ctx, err, "building query to load labels for queries")
 	}
 
-	queryMap := make(map[uint]*fleet.Query, len(queries))
+	queryMap := make(map[uint]*automdm.Query, len(queries))
 	for _, query := range queries {
 		queryMap[query.ID] = query
 	}
@@ -937,7 +937,7 @@ func loadLabelsForQueries(ctx context.Context, db sqlx.QueryerContext, queries [
 	}
 
 	for _, row := range rows {
-		ident := fleet.LabelIdent{LabelID: row.LabelID, LabelName: row.LabelName}
+		ident := automdm.LabelIdent{LabelID: row.LabelID, LabelName: row.LabelName}
 		query := queryMap[row.QueryID]
 		if row.RequireAll {
 			query.LabelsIncludeAll = append(query.LabelsIncludeAll, ident)
@@ -956,7 +956,7 @@ func loadLabelsForQueries(ctx context.Context, db sqlx.QueryerContext, queries [
 // this, over-matching is the safe direction (a scope needlessly in per-host
 // mode only costs optimization), so the narrower automations/logging filters
 // are intentionally omitted.
-func (ds *Datastore) LabelScopedScheduledQueryScopes(ctx context.Context) (fleet.ConfigETagLabelScopes, error) {
+func (ds *Datastore) LabelScopedScheduledQueryScopes(ctx context.Context) (automdm.ConfigETagLabelScopes, error) {
 	stmt := `
 		SELECT DISTINCT q.team_id
 		FROM query_labels ql
@@ -965,10 +965,10 @@ func (ds *Datastore) LabelScopedScheduledQueryScopes(ctx context.Context) (fleet
 	`
 	var teamIDs []sql.NullInt64
 	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &teamIDs, stmt); err != nil {
-		return fleet.ConfigETagLabelScopes{}, ctxerr.Wrap(ctx, err, "listing label scoped scheduled query scopes")
+		return automdm.ConfigETagLabelScopes{}, ctxerr.Wrap(ctx, err, "listing label scoped scheduled query scopes")
 	}
 
-	var scopes fleet.ConfigETagLabelScopes
+	var scopes automdm.ConfigETagLabelScopes
 	for _, teamID := range teamIDs {
 		if !teamID.Valid {
 			scopes.Global = true
@@ -994,7 +994,7 @@ func (ds *Datastore) ObserverCanRunQuery(ctx context.Context, queryID uint) (boo
 	return observerCanRun, nil
 }
 
-func (ds *Datastore) ListScheduledQueriesForAgents(ctx context.Context, teamID *uint, hostID *uint, queryReportsDisabled bool) ([]*fleet.Query, error) {
+func (ds *Datastore) ListScheduledQueriesForAgents(ctx context.Context, teamID *uint, hostID *uint, queryReportsDisabled bool) ([]*automdm.Query, error) {
 	sqlStmt := `
 		SELECT
 			q.name,
@@ -1024,7 +1024,7 @@ func (ds *Datastore) ListScheduledQueriesForAgents(ctx context.Context, teamID *
 		args = append(args, *teamID)
 		teamSQL = " team_id = ?"
 	}
-	args = append(args, queryReportsDisabled, fleet.LoggingSnapshot)
+	args = append(args, queryReportsDisabled, automdm.LoggingSnapshot)
 	labelSQL := ""
 	if hostID != nil {
 		var labelArgs []any
@@ -1033,7 +1033,7 @@ func (ds *Datastore) ListScheduledQueriesForAgents(ctx context.Context, teamID *
 	}
 	sqlStmt = fmt.Sprintf(sqlStmt, teamSQL, labelSQL)
 
-	results := []*fleet.Query{}
+	results := []*automdm.Query{}
 	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &results, sqlStmt, args...); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "list scheduled queries for agents")
 	}
@@ -1117,7 +1117,7 @@ func (ds *Datastore) HasLabelScopedScheduledQueries(ctx context.Context, teamID 
 			AND %s
 		)`
 
-	args := []any{queryReportsDisabled, fleet.LoggingSnapshot}
+	args := []any{queryReportsDisabled, automdm.LoggingSnapshot}
 	teamSQL := "q.team_id IS NULL"
 	if teamID != nil {
 		teamSQL = "(q.team_id IS NULL OR q.team_id = ?)"
@@ -1155,7 +1155,7 @@ func (ds *Datastore) IsSavedQuery(ctx context.Context, queryID uint) (bool, erro
 }
 
 // GetLiveQueryStats returns the live query stats for the given query and hosts.
-func (ds *Datastore) GetLiveQueryStats(ctx context.Context, queryID uint, hostIDs []uint) ([]*fleet.LiveQueryStats, error) {
+func (ds *Datastore) GetLiveQueryStats(ctx context.Context, queryID uint, hostIDs []uint) ([]*automdm.LiveQueryStats, error) {
 	stmt, args, err := sqlx.In(
 		`SELECT host_id, average_memory, executions, system_time, user_time, wall_time, output_size, last_executed
 		FROM scheduled_query_stats
@@ -1166,7 +1166,7 @@ func (ds *Datastore) GetLiveQueryStats(ctx context.Context, queryID uint, hostID
 		return nil, ctxerr.Wrap(ctx, err, "building get live query stats stmt")
 	}
 
-	results := []*fleet.LiveQueryStats{}
+	results := []*automdm.LiveQueryStats{}
 	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &results, stmt, args...); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "get live query stats")
 	}
@@ -1174,7 +1174,7 @@ func (ds *Datastore) GetLiveQueryStats(ctx context.Context, queryID uint, hostID
 }
 
 // UpdateLiveQueryStats writes new stats as a batch
-func (ds *Datastore) UpdateLiveQueryStats(ctx context.Context, queryID uint, stats []*fleet.LiveQueryStats) error {
+func (ds *Datastore) UpdateLiveQueryStats(ctx context.Context, queryID uint, stats []*automdm.LiveQueryStats) error {
 	if len(stats) == 0 {
 		return nil
 	}

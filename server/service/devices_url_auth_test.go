@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -16,8 +16,8 @@ func TestAuthenticatedDeviceFallbackAuth(t *testing.T) {
 	svc, _ := newTestService(t, ds, nil, nil)
 
 	// Mock AppConfig to avoid panic in debugEnabledForHost
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
 	}
 
 	middleware := authenticatedDevice(svc, slog.New(slog.DiscardHandler), func(ctx context.Context, request any) (any, error) {
@@ -26,9 +26,9 @@ func TestAuthenticatedDeviceFallbackAuth(t *testing.T) {
 
 	t.Run("success_token_auth_for_macos", func(t *testing.T) {
 		// macOS device with valid token - token auth succeeds first (hot path)
-		ds.LoadHostByDeviceAuthTokenFunc = func(ctx context.Context, authToken string, ttl time.Duration) (*fleet.Host, error) {
+		ds.LoadHostByDeviceAuthTokenFunc = func(ctx context.Context, authToken string, ttl time.Duration) (*automdm.Host, error) {
 			if authToken == "valid-device-token" {
-				return &fleet.Host{
+				return &automdm.Host{
 					ID:       1,
 					UUID:     "macos-device-uuid",
 					Platform: "darwin",
@@ -44,13 +44,13 @@ func TestAuthenticatedDeviceFallbackAuth(t *testing.T) {
 
 	t.Run("fallback_to_uuid_auth_for_ios", func(t *testing.T) {
 		// iOS device with UUID in URL - token auth fails, falls back to UUID auth
-		ds.LoadHostByDeviceAuthTokenFunc = func(ctx context.Context, authToken string, ttl time.Duration) (*fleet.Host, error) {
+		ds.LoadHostByDeviceAuthTokenFunc = func(ctx context.Context, authToken string, ttl time.Duration) (*automdm.Host, error) {
 			return nil, newNotFoundError()
 		}
 
-		ds.HostByUUIDFunc = func(ctx context.Context, uuid string) (*fleet.Host, error) {
+		ds.HostByUUIDFunc = func(ctx context.Context, uuid string) (*automdm.Host, error) {
 			if uuid == "ios-device-uuid" {
-				return &fleet.Host{
+				return &automdm.Host{
 					ID:       1,
 					UUID:     "ios-device-uuid",
 					Platform: "ios",
@@ -66,13 +66,13 @@ func TestAuthenticatedDeviceFallbackAuth(t *testing.T) {
 
 	t.Run("fallback_to_uuid_auth_for_ipados", func(t *testing.T) {
 		// iPadOS device with UUID in URL - token auth fails, falls back to UUID auth
-		ds.LoadHostByDeviceAuthTokenFunc = func(ctx context.Context, authToken string, ttl time.Duration) (*fleet.Host, error) {
+		ds.LoadHostByDeviceAuthTokenFunc = func(ctx context.Context, authToken string, ttl time.Duration) (*automdm.Host, error) {
 			return nil, newNotFoundError()
 		}
 
-		ds.HostByUUIDFunc = func(ctx context.Context, uuid string) (*fleet.Host, error) {
+		ds.HostByUUIDFunc = func(ctx context.Context, uuid string) (*automdm.Host, error) {
 			if uuid == "ipados-device-uuid" {
-				return &fleet.Host{
+				return &automdm.Host{
 					ID:       2,
 					UUID:     "ipados-device-uuid",
 					Platform: "ipados",
@@ -88,11 +88,11 @@ func TestAuthenticatedDeviceFallbackAuth(t *testing.T) {
 
 	t.Run("failure_when_both_auth_methods_fail", func(t *testing.T) {
 		// Neither token nor UUID auth succeeds
-		ds.LoadHostByDeviceAuthTokenFunc = func(ctx context.Context, authToken string, ttl time.Duration) (*fleet.Host, error) {
+		ds.LoadHostByDeviceAuthTokenFunc = func(ctx context.Context, authToken string, ttl time.Duration) (*automdm.Host, error) {
 			return nil, newNotFoundError()
 		}
 
-		ds.HostByUUIDFunc = func(ctx context.Context, uuid string) (*fleet.Host, error) {
+		ds.HostByUUIDFunc = func(ctx context.Context, uuid string) (*automdm.Host, error) {
 			return nil, newNotFoundError()
 		}
 
@@ -115,13 +115,13 @@ func TestAuthenticateIDeviceByURL(t *testing.T) {
 	svc, _ := newTestService(t, ds, nil, nil)
 
 	// Mock AppConfig to avoid panic in debugEnabledForHost
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
 	}
 
 	t.Run("success - valid UUID for iOS device", func(t *testing.T) {
-		ds.HostByUUIDFunc = func(ctx context.Context, uuid string) (*fleet.Host, error) {
-			return &fleet.Host{
+		ds.HostByUUIDFunc = func(ctx context.Context, uuid string) (*automdm.Host, error) {
+			return &automdm.Host{
 				ID:       1,
 				UUID:     "valid-uuid",
 				Platform: "ios",
@@ -136,8 +136,8 @@ func TestAuthenticateIDeviceByURL(t *testing.T) {
 	})
 
 	t.Run("success - valid UUID for iPadOS device", func(t *testing.T) {
-		ds.HostByUUIDFunc = func(ctx context.Context, uuid string) (*fleet.Host, error) {
-			return &fleet.Host{
+		ds.HostByUUIDFunc = func(ctx context.Context, uuid string) (*automdm.Host, error) {
+			return &automdm.Host{
 				ID:       1,
 				UUID:     "valid-uuid",
 				Platform: "ipados",
@@ -154,7 +154,7 @@ func TestAuthenticateIDeviceByURL(t *testing.T) {
 	t.Run("error - missing host UUID", func(t *testing.T) {
 		host, debug, err := svc.AuthenticateIDeviceByURL(context.Background(), "")
 		require.Error(t, err)
-		var authReqErr *fleet.AuthRequiredError
+		var authReqErr *automdm.AuthRequiredError
 		require.ErrorAs(t, err, &authReqErr)
 		require.Equal(t, "authentication error: missing host UUID", authReqErr.Internal())
 		require.Nil(t, host)
@@ -162,13 +162,13 @@ func TestAuthenticateIDeviceByURL(t *testing.T) {
 	})
 
 	t.Run("error - host not found", func(t *testing.T) {
-		ds.HostByUUIDFunc = func(ctx context.Context, uuid string) (*fleet.Host, error) {
+		ds.HostByUUIDFunc = func(ctx context.Context, uuid string) (*automdm.Host, error) {
 			return nil, newNotFoundError()
 		}
 
 		host, debug, err := svc.AuthenticateIDeviceByURL(context.Background(), "invalid-uuid")
 		require.Error(t, err)
-		var authReqErr *fleet.AuthRequiredError
+		var authReqErr *automdm.AuthRequiredError
 		require.ErrorAs(t, err, &authReqErr)
 		require.Contains(t, authReqErr.Internal(), "host not found")
 		require.Nil(t, host)
@@ -176,8 +176,8 @@ func TestAuthenticateIDeviceByURL(t *testing.T) {
 	})
 
 	t.Run("error - host platform is not iOS or iPadOS (macOS)", func(t *testing.T) {
-		ds.HostByUUIDFunc = func(ctx context.Context, uuid string) (*fleet.Host, error) {
-			return &fleet.Host{
+		ds.HostByUUIDFunc = func(ctx context.Context, uuid string) (*automdm.Host, error) {
+			return &automdm.Host{
 				ID:       1,
 				UUID:     "valid-uuid",
 				Platform: "darwin",
@@ -186,7 +186,7 @@ func TestAuthenticateIDeviceByURL(t *testing.T) {
 
 		host, debug, err := svc.AuthenticateIDeviceByURL(context.Background(), "valid-uuid")
 		require.Error(t, err)
-		var authReqErr *fleet.AuthRequiredError
+		var authReqErr *automdm.AuthRequiredError
 		require.ErrorAs(t, err, &authReqErr)
 		require.Equal(t, "authentication error: URL authentication only supported for iOS and iPadOS devices", authReqErr.Internal())
 		require.Nil(t, host)

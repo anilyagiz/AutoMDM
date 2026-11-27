@@ -3,8 +3,8 @@ package service
 import (
 	"context"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -17,7 +17,7 @@ type statusResponse struct {
 
 func (m statusResponse) Error() error { return m.Err }
 
-func statusResultStoreEndpoint(ctx context.Context, req interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func statusResultStoreEndpoint(ctx context.Context, req interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	var resp statusResponse
 	if err := svc.StatusResultStore(ctx); err != nil {
 		resp.Err = err
@@ -26,7 +26,7 @@ func statusResultStoreEndpoint(ctx context.Context, req interface{}, svc fleet.S
 }
 
 func (svc *Service) StatusResultStore(ctx context.Context) error {
-	if err := svc.authz.Authorize(ctx, &fleet.AppConfig{}, fleet.ActionRead); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.AppConfig{}, automdm.ActionRead); err != nil {
 		return err
 	}
 
@@ -37,7 +37,7 @@ func (svc *Service) StatusResultStore(ctx context.Context) error {
 // Status Live Query
 ////////////////////////////////////////////////////////////////////////////////
 
-func statusLiveQueryEndpoint(ctx context.Context, req interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func statusLiveQueryEndpoint(ctx context.Context, req interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	var resp statusResponse
 	if err := svc.StatusLiveQuery(ctx); err != nil {
 		resp.Err = err
@@ -46,7 +46,7 @@ func statusLiveQueryEndpoint(ctx context.Context, req interface{}, svc fleet.Ser
 }
 
 func (svc *Service) StatusLiveQuery(ctx context.Context) error {
-	if err := svc.authz.Authorize(ctx, &fleet.AppConfig{}, fleet.ActionRead); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.AppConfig{}, automdm.ActionRead); err != nil {
 		return err
 	}
 
@@ -56,7 +56,7 @@ func (svc *Service) StatusLiveQuery(ctx context.Context) error {
 	}
 
 	if cfg.ServerSettings.LiveQueryDisabled {
-		return ctxerr.Wrap(ctx, fleet.NewPermissionError("disabled by administrator"))
+		return ctxerr.Wrap(ctx, automdm.NewPermissionError("disabled by administrator"))
 	}
 
 	return svc.StatusResultStore(ctx)

@@ -27,7 +27,7 @@ const (
 	ThemeDark   ThemePreference = "dark"
 )
 
-// EnvVar is one row of the fleet serve environment editor.
+// EnvVar is one row of the automdm serve environment editor.
 type EnvVar struct {
 	Key   string `json:"key"`
 	Value string `json:"value"`
@@ -50,8 +50,8 @@ func (e *EnvVar) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-// FleetServeConfig holds the user-tunable bits of `fleet serve --dev`.
-type FleetServeConfig struct {
+// AutoMDMServeConfig holds the user-tunable bits of `automdm serve --dev`.
+type AutoMDMServeConfig struct {
 	// ConfigPath is passed to --config; nil/empty omits the flag so serve
 	// falls back to env vars / built-in defaults.
 	ConfigPath *string `json:"config_path"`
@@ -62,7 +62,7 @@ type FleetServeConfig struct {
 	Env []EnvVar `json:"env"`
 }
 
-// MaxServers caps how many independent local Fleet servers can be configured.
+// MaxServers caps how many independent local AutoMDM servers can be configured.
 // Each server is its own worktree + ports + compose project + DB, so this is
 // a deliberate ceiling on machine load (matches the product decision).
 const MaxServers = 3
@@ -72,7 +72,7 @@ const MaxServers = 3
 // muscle memory keep working; additional servers use offset blocks so two
 // stacks never collide.
 type ServerPorts struct {
-	Server    uint16 `json:"server"`     // fleet serve --server_address host port
+	Server    uint16 `json:"server"`     // automdm serve --server_address host port
 	MySQL     uint16 `json:"mysql"`      // docker mysql host port
 	Redis     uint16 `json:"redis"`      // docker redis host port
 	S3        uint16 `json:"s3"`         // docker s3 (object store) host port
@@ -80,7 +80,7 @@ type ServerPorts struct {
 	APNsMock  uint16 `json:"apns_mock"`  // mock APNs server (cmd/apple-apns-mock) listen port
 }
 
-// ServerProfile is one independent local Fleet server instance: its own git
+// ServerProfile is one independent local AutoMDM server instance: its own git
 // worktree (so it can build/run a different branch), host ports, docker compose
 // project, and serve config. Multiple profiles can run in parallel.
 type ServerProfile struct {
@@ -93,11 +93,11 @@ type ServerProfile struct {
 	WorktreePath *string `json:"worktree_path"`
 	// Branch is informational (the branch the worktree was created on). The
 	// live branch is read from git; checkout happens in the Git tab.
-	Branch         *string          `json:"branch"`
-	Ports          ServerPorts      `json:"ports"`
-	ComposeProject string           `json:"compose_project"` // docker compose -p value
-	FleetServe     FleetServeConfig `json:"fleet_serve"`
-	Enabled        bool             `json:"enabled"`
+	Branch         *string            `json:"branch"`
+	Ports          ServerPorts        `json:"ports"`
+	ComposeProject string             `json:"compose_project"` // docker compose -p value
+	AutoMDMServe   AutoMDMServeConfig `json:"automdm_serve"`
+	Enabled        bool               `json:"enabled"`
 }
 
 // DefaultPortsForIndex returns the canonical port block for the i-th server
@@ -115,13 +115,13 @@ func DefaultPortsForIndex(i int) ServerPorts {
 }
 
 // DefaultComposeProject returns the docker compose project name for the i-th
-// server. Server 0 keeps the bare "fleet" project so its existing containers
+// server. Server 0 keeps the bare "team" project so its existing containers
 // and data carry over from the single-server era; later servers are suffixed.
 func DefaultComposeProject(i int) string {
 	if i == 0 {
-		return "fleet"
+		return "automdm"
 	}
-	return fmt.Sprintf("fleet-s%d", i+1)
+	return fmt.Sprintf("automdm-s%d", i+1)
 }
 
 // serverColors is the accent palette assigned to servers by slot.
@@ -144,7 +144,7 @@ func defaultServer(i int) ServerProfile {
 		Color:          defaultColor(i),
 		Ports:          DefaultPortsForIndex(i),
 		ComposeProject: DefaultComposeProject(i),
-		FleetServe:     FleetServeConfig{Premium: true, Debug: true, Logging: true, Env: []EnvVar{}},
+		AutoMDMServe:   AutoMDMServeConfig{Premium: true, Debug: true, Logging: true, Env: []EnvVar{}},
 		Enabled:        true,
 	}
 }
@@ -194,26 +194,26 @@ type PythonConfig struct {
 // TufConfig is the saved inputs for a local TUF build (drives
 // tools/tuf/test/main.sh). Platforms are UI keys (macos|windows|windows-arm64|
 // linux|linux-arm64) that expand to SYSTEMS + GENERATE_* env; the URLs are the
-// public (ngrok) Fleet/TUF endpoints baked into the generated installers.
+// public (ngrok) AutoMDM/TUF endpoints baked into the generated installers.
 type TufConfig struct {
-	Platforms    []string `json:"platforms"`
-	FleetURL     string   `json:"fleet_url"`
-	TufURL       string   `json:"tuf_url"`
-	EnrollSecret string   `json:"enroll_secret"`
-	FleetDesktop bool     `json:"fleet_desktop"`
-	Debug        bool     `json:"debug"`
+	Platforms      []string `json:"platforms"`
+	AutoMDMURL     string   `json:"automdm_url"`
+	TufURL         string   `json:"tuf_url"`
+	EnrollSecret   string   `json:"enroll_secret"`
+	AutoMDMDesktop bool     `json:"automdm_desktop"`
+	Debug          bool     `json:"debug"`
 }
 
-// InstallersConfig is the saved state of the Installers tab: which fleetctl
+// InstallersConfig is the saved state of the Installers tab: which automdmctl
 // context the packages are built for, what each context enrolls into, and the
 // build options shared by all of them. Packages land in
 // <file-server dir or primary repo>/packages/<context>/ (see
 // internal/installers.OutputDir).
 type InstallersConfig struct {
-	// Context is the fleetctl context to build for; "" means not picked yet
+	// Context is the automdmctl context to build for; "" means not picked yet
 	// (the "default" context when there is one).
 	Context string `json:"context"`
-	// Manual builds without a context, from a typed-in Fleet URL and secret.
+	// Manual builds without a context, from a typed-in AutoMDM URL and secret.
 	Manual bool `json:"manual"`
 	// Targets is what each context enrolls into, keyed by context name;
 	// ManualTarget is the same for manual builds.
@@ -222,26 +222,26 @@ type InstallersConfig struct {
 	Options      InstallerOptions           `json:"options"`
 }
 
-// InstallerTarget is where one context's packages enroll. The Fleet URL and
+// InstallerTarget is where one context's packages enroll. The AutoMDM URL and
 // enroll secret are baked into the packages; scanning the context's server
 // fills them in, or they're typed by hand.
 type InstallerTarget struct {
-	// TeamID is the fleet whose enroll secret is used; nil = Unassigned (the
+	// TeamID is the team whose enroll secret is used; nil = Unassigned (the
 	// global enroll secret). TeamName is "" when the secret was typed in.
 	TeamID       *uint  `json:"team_id"`
 	TeamName     string `json:"team_name"`
-	FleetURL     string `json:"fleet_url"`
+	AutoMDMURL   string `json:"automdm_url"`
 	EnrollSecret string `json:"enroll_secret"`
 }
 
 // InstallerOptions is what gets built, whatever the context.
 type InstallerOptions struct {
 	// Platforms are installer keys (see internal/installers.Platforms).
-	Platforms     []string `json:"platforms"`
-	FleetDesktop  bool     `json:"fleet_desktop"`
-	EnableScripts bool     `json:"enable_scripts"`
-	Debug         bool     `json:"debug"`
-	// ExtraFlags are additional `fleetctl package` flags, shell-quoted.
+	Platforms      []string `json:"platforms"`
+	AutoMDMDesktop bool     `json:"automdm_desktop"`
+	EnableScripts  bool     `json:"enable_scripts"`
+	Debug          bool     `json:"debug"`
+	// ExtraFlags are additional `automdmctl package` flags, shell-quoted.
 	ExtraFlags string `json:"extra_flags"`
 	// UpdateSource is "official" (updates.fleetdm.com) or "local-tuf"
 	// (Hangar's test_tuf repo, served at Tuf.TufURL).
@@ -257,7 +257,7 @@ const (
 	UpdateSourceLocalTUF = "local-tuf"
 )
 
-// DefaultInstallerOptions builds every platform with Fleet Desktop and
+// DefaultInstallerOptions builds every platform with AutoMDM Desktop and
 // scripts on, updating from the official stable channels.
 func DefaultInstallerOptions() InstallerOptions {
 	return InstallerOptions{
@@ -265,7 +265,7 @@ func DefaultInstallerOptions() InstallerOptions {
 			"macos", "windows-amd64", "windows-arm64", "deb-amd64", "deb-arm64",
 			"rpm-amd64", "rpm-arm64", "arch-amd64", "arch-arm64",
 		},
-		FleetDesktop:    true,
+		AutoMDMDesktop:  true,
 		EnableScripts:   true,
 		UpdateSource:    UpdateSourceOfficial,
 		OrbitChannel:    "stable",
@@ -277,21 +277,21 @@ func DefaultInstallerOptions() InstallerOptions {
 // Settings is the full persisted configuration.
 //
 // Servers is the multi-server source of truth. The legacy single-server fields
-// (RepoPath, FleetServe) are retained so settings written before multi-server
+// (RepoPath, AutoMDMServe) are retained so settings written before multi-server
 // support still parse; Load() migrates them into Servers[0]. New code reads
 // from Servers / ActiveServerID, not the legacy fields.
 type Settings struct {
-	RepoPath         *string          `json:"repo_path"`
-	FleetctlPath     *string          `json:"fleetctl_path"`
-	GitopsDir        *string          `json:"gitops_dir"`
-	FirstRunComplete bool             `json:"first_run_complete"`
-	Ngrok            NgrokConfig      `json:"ngrok"`
-	PythonServer     PythonConfig     `json:"python_server"`
-	FleetServe       FleetServeConfig `json:"fleet_serve"`
-	Theme            ThemePreference  `json:"theme"`
-	FavoriteCrons    []string         `json:"favorite_crons"`
-	Tuf              TufConfig        `json:"tuf"`
-	Installers       InstallersConfig `json:"installers"`
+	RepoPath         *string            `json:"repo_path"`
+	AutoMDMctlPath   *string            `json:"automdmctl_path"`
+	GitopsDir        *string            `json:"gitops_dir"`
+	FirstRunComplete bool               `json:"first_run_complete"`
+	Ngrok            NgrokConfig        `json:"ngrok"`
+	PythonServer     PythonConfig       `json:"python_server"`
+	AutoMDMServe     AutoMDMServeConfig `json:"automdm_serve"`
+	Theme            ThemePreference    `json:"theme"`
+	FavoriteCrons    []string           `json:"favorite_crons"`
+	Tuf              TufConfig          `json:"tuf"`
+	Installers       InstallersConfig   `json:"installers"`
 
 	// Servers is nil in a pre-multi-server file; migrate() backfills it from
 	// the legacy fields on Load so callers always see at least one server.
@@ -322,7 +322,7 @@ func Default() Settings {
 			Enabled: false,
 			Port:    8000,
 		},
-		FleetServe: FleetServeConfig{
+		AutoMDMServe: AutoMDMServeConfig{
 			Premium: true,
 			Debug:   true,
 			Logging: true,
@@ -337,9 +337,9 @@ func Default() Settings {
 		},
 		Tuf: TufConfig{
 			// Mirror the common my_tuf.sh run: all platforms, desktop + debug on.
-			Platforms:    []string{"macos", "windows", "windows-arm64", "linux", "linux-arm64"},
-			FleetDesktop: true,
-			Debug:        true,
+			Platforms:      []string{"macos", "windows", "windows-arm64", "linux", "linux-arm64"},
+			AutoMDMDesktop: true,
+			Debug:          true,
 		},
 	}
 }
@@ -370,7 +370,7 @@ func Load(dir string) (Settings, error) {
 //
 //   - If Servers is nil (a pre-multi-server file, or a fresh Default()), it
 //     synthesizes server 1 from the legacy single-server fields — the user's
-//     repo_path becomes server 1's worktree and their fleet_serve config is
+//     repo_path becomes server 1's worktree and their automdm_serve config is
 //     adopted, so an upgrade is seamless.
 //   - It backfills any per-server fields a hand-edited or partial file left
 //     blank (ID, ports, compose project, color).
@@ -385,8 +385,8 @@ func migrate(s *Settings) {
 	if len(s.Servers) == 0 {
 		srv := defaultServer(0)
 		srv.Name = "main"
-		srv.WorktreePath = s.RepoPath // nil for a fresh install, set on upgrade
-		srv.FleetServe = s.FleetServe // adopt the user's existing serve config
+		srv.WorktreePath = s.RepoPath     // nil for a fresh install, set on upgrade
+		srv.AutoMDMServe = s.AutoMDMServe // adopt the user's existing serve config
 		s.Servers = []ServerProfile{srv}
 	}
 	for i := range s.Servers {
@@ -407,8 +407,8 @@ func migrate(s *Settings) {
 		if s.Servers[i].Color == "" {
 			s.Servers[i].Color = defaultColor(i)
 		}
-		if s.Servers[i].FleetServe.Env == nil {
-			s.Servers[i].FleetServe.Env = []EnvVar{}
+		if s.Servers[i].AutoMDMServe.Env == nil {
+			s.Servers[i].AutoMDMServe.Env = []EnvVar{}
 		}
 	}
 	if s.ActiveServerID == "" || !hasServerID(s.Servers, s.ActiveServerID) {

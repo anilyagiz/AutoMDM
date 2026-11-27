@@ -13,8 +13,8 @@ func init() {
 // the same identifiers. INSERT IGNORE skips a user who already has both grants.
 func Up_20261109221745(tx *sql.Tx) error {
 	const (
-		oldPath = "/api/v1/fleet/hosts/identifier/:identifier"
-		newPath = "/api/v1/fleet/hosts/:id"
+		oldPath = "/api/v1/automdm/hosts/identifier/:identifier"
+		newPath = "/api/v1/automdm/hosts/:id"
 	)
 	if _, err := tx.Exec(`
 		INSERT IGNORE INTO user_api_endpoints (user_id, path, method, created_at)

@@ -24,22 +24,22 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/constant"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/logging"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/luks"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/platform"
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/pkg/retry"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/constant"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/logging"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/luks"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/platform"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/pkg/retry"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/rs/zerolog/log"
 )
 
-// OrbitClient exposes the Orbit API to communicate with the Fleet server.
+// OrbitClient exposes the Orbit API to communicate with the AutoMDM server.
 type OrbitClient struct {
 	*BaseClient
 	nodeKeyFilePath string
 	enrollSecret    string
-	hostInfo        fleet.OrbitHostInfo
+	hostInfo        automdm.OrbitHostInfo
 
 	enrolledMu sync.Mutex
 	enrolled   bool
@@ -67,7 +67,7 @@ type OrbitClient struct {
 	TestNodeKey string
 
 	// Interfaces that will receive updated configs
-	ConfigReceivers []fleet.OrbitConfigReceiver
+	ConfigReceivers []automdm.OrbitConfigReceiver
 	// DefaultConfigPollInterval is how often the config is fetched unless the server nudges this agent on changes,
 	// which allows slower fallback polling (see nextConfigInterval). It is also the minimum poll interval and the
 	// retry interval after errors.
@@ -77,13 +77,13 @@ type OrbitClient struct {
 	// receiverUpdateCancelFunc is used to cancel receiverUpdateContext.
 	receiverUpdateCancelFunc context.CancelFunc
 
-	// euaToken is a one-time Fleet-signed JWT from Windows MDM enrollment,
+	// euaToken is a one-time AutoMDM-signed JWT from Windows MDM enrollment,
 	// sent during orbit enrollment to link the IdP account without prompting.
 	euaToken string
 
 	// hostIdentityCertPath is the file path to the host identity certificate issued using SCEP.
 	//
-	// If set, it is deleted once HTTP 401 errors from Fleet have persisted past unauthenticatedReenrollGracePeriod (see
+	// If set, it is deleted once HTTP 401 errors from AutoMDM have persisted past unauthenticatedReenrollGracePeriod (see
 	// authenticatedRequest), which also causes ExecuteConfigReceivers to terminate and trigger a restart.
 	hostIdentityCertPath string
 
@@ -116,23 +116,23 @@ type OrbitClient struct {
 	// fallbackChangesMu protects fallbackChanges.
 	fallbackChangesMu sync.Mutex
 	// fallbackChanges lists the config fields that a fallback poll found changed, to report to the server on the next
-	// config request (fleet.OrbitConfigFallbackChangesHeader).
+	// config request (automdm.OrbitConfigFallbackChangesHeader).
 	fallbackChanges string
 }
 
-// FrequentPoller is implemented by config receivers that hold local work retried on config runs (e.g. a result Fleet
+// FrequentPoller is implemented by config receivers that hold local work retried on config runs (e.g. a result AutoMDM
 // has not accepted yet): while NeedsFrequentPolling returns true, the config keeps being fetched at the default
-// interval even when Fleet nudges this agent on changes.
+// interval even when AutoMDM nudges this agent on changes.
 type FrequentPoller interface {
 	NeedsFrequentPolling() bool
 }
 
 // NotificationQuieter is implemented by config receivers that can tell a notification flag they handle no longer needs the config poll
-// as its retry clock (e.g. retrying at that pace has stopped helping), so the flag doesn't keep the config from being fetched at Fleet's
+// as its retry clock (e.g. retrying at that pace has stopped helping), so the flag doesn't keep the config from being fetched at AutoMDM's
 // slower fallback interval.
 type NotificationQuieter interface {
 	// QuietNotifications clears from n the flags that don't need frequent polling. n is a copy of the fetched notifications.
-	QuietNotifications(n *fleet.OrbitConfigNotifications)
+	QuietNotifications(n *automdm.OrbitConfigNotifications)
 }
 
 // ssoWindowReopenInterval is the minimum time between SSO window open attempts.
@@ -168,7 +168,7 @@ func (oc *OrbitClient) request(verb string, path string, params any, resp any) e
 	return oc.requestWithExternal(ctx, verb, path, params, resp, false)
 }
 
-// requestWithExternal is used to make requests to Fleet or external URLs. If external is true, the pathOrURL
+// requestWithExternal is used to make requests to AutoMDM or external URLs. If external is true, the pathOrURL
 // is used as the full URL to make the request to.
 func (oc *OrbitClient) requestWithExternal(ctx context.Context, verb string, pathOrURL string, params any, resp any, external bool) error {
 	var bodyBytes []byte
@@ -182,7 +182,7 @@ func (oc *OrbitClient) requestWithExternal(ctx context.Context, verb string, pat
 
 	oc.closeIdleConnections()
 
-	if os.Getenv("FLEETD_TEST_HTTPTRACE") == "1" {
+	if os.Getenv("AUTOMDMD_TEST_HTTPTRACE") == "1" {
 		ctx = httptrace.WithClientTrace(ctx, testStdoutHTTPTracer)
 	}
 
@@ -262,8 +262,8 @@ var (
 // NewOrbitClient creates a new OrbitClient.
 //
 //   - rootDir is the Orbit's root directory, where the Orbit node key is loaded-from/stored.
-//   - addr is the address of the Fleet server.
-//   - orbitHostInfo is the host system information used for enrolling to Fleet.
+//   - addr is the address of the AutoMDM server.
+//   - orbitHostInfo is the host system information used for enrolling to AutoMDM.
 //   - onGetConfigErrFns can be used to handle errors in the GetConfig request.
 //   - bypassEndUserAuth, when true, omits the end-user auth capability so the server enrolls the
 //     host without prompting for end-user authentication (only meaningful on Linux and Windows).
@@ -273,20 +273,20 @@ func NewOrbitClient(
 	rootCA string,
 	insecureSkipVerify bool,
 	enrollSecret string,
-	fleetClientCert *tls.Certificate,
-	orbitHostInfo fleet.OrbitHostInfo,
+	automdmClientCert *tls.Certificate,
+	orbitHostInfo automdm.OrbitHostInfo,
 	onGetConfigErrFns *OnGetConfigErrFuncs,
 	httpSignerWrapper func(*http.Client) *http.Client,
 	hostIdentityCertPath string,
 	bypassEndUserAuth bool,
 ) (*OrbitClient, error) {
-	orbitCapabilities := fleet.GetOrbitClientCapabilities()
+	orbitCapabilities := automdm.GetOrbitClientCapabilities()
 	if bypassEndUserAuth {
-		// Don't advertise the end-user auth capability so the Fleet server enrolls this host without prompting for EUA.
-		delete(orbitCapabilities, fleet.CapabilityEndUserAuth)
+		// Don't advertise the end-user auth capability so the AutoMDM server enrolls this host without prompting for EUA.
+		delete(orbitCapabilities, automdm.CapabilityEndUserAuth)
 	}
-	bc, err := NewBaseClient(addr, insecureSkipVerify, rootCA, "", fleetClientCert, orbitCapabilities, httpSignerWrapper,
-		fleethttp.WithResponseHeaderTimeout(responseHeaderTimeout))
+	bc, err := NewBaseClient(addr, insecureSkipVerify, rootCA, "", automdmClientCert, orbitCapabilities, httpSignerWrapper,
+		automdmhttp.WithResponseHeaderTimeout(responseHeaderTimeout))
 	if err != nil {
 		return nil, err
 	}
@@ -399,7 +399,7 @@ func (oc *OrbitClient) RunConfigReceivers() error {
 }
 
 // runConfigReceivers fetches the config, runs the receivers with it and returns it.
-func (oc *OrbitClient) runConfigReceivers() (*fleet.OrbitConfig, error) {
+func (oc *OrbitClient) runConfigReceivers() (*automdm.OrbitConfig, error) {
 	config, err := oc.GetConfig()
 	if err != nil {
 		return nil, fmt.Errorf("RunConfigReceivers get config: %w", err)
@@ -439,7 +439,7 @@ func (oc *OrbitClient) runConfigReceivers() (*fleet.OrbitConfig, error) {
 	return config, nil
 }
 
-func (oc *OrbitClient) RegisterConfigReceiver(cr fleet.OrbitConfigReceiver) {
+func (oc *OrbitClient) RegisterConfigReceiver(cr automdm.OrbitConfigReceiver) {
 	oc.ConfigReceivers = append(oc.ConfigReceivers, cr)
 }
 
@@ -448,7 +448,7 @@ func (oc *OrbitClient) ExecuteConfigReceivers() error {
 	timer := time.NewTimer(interval)
 	defer timer.Stop()
 
-	var lastConfig *fleet.OrbitConfig
+	var lastConfig *automdm.OrbitConfig
 	var lastRun time.Time
 	// lastFetchFailed reports whether the last run failed to fetch the config.
 	lastFetchFailed := false
@@ -507,7 +507,7 @@ func (oc *OrbitClient) ExecuteConfigReceivers() error {
 // nextConfigInterval returns how long to wait before polling the config again after a run that fetched cfg: the
 // server's fallback interval when the WebSocket transport is connected (so changes are nudged) and nothing is
 // pending, otherwise DefaultConfigPollInterval, as many receivers use the poll as their clock while they have work.
-func (oc *OrbitClient) nextConfigInterval(cfg *fleet.OrbitConfig) time.Duration {
+func (oc *OrbitClient) nextConfigInterval(cfg *automdm.OrbitConfig) time.Duration {
 	if cfg == nil || cfg.WebSocketTransport == nil || cfg.WebSocketTransport.OrbitConfigPollInterval == nil ||
 		oc.transportConnected == nil || !oc.transportConnected() {
 		return oc.DefaultConfigPollInterval
@@ -530,7 +530,7 @@ func (oc *OrbitClient) nextConfigInterval(cfg *fleet.OrbitConfig) time.Duration 
 }
 
 // recordFallbackChanges records the fields that differ between prev and cur, to report on the next config request.
-func (oc *OrbitClient) recordFallbackChanges(prev, cur *fleet.OrbitConfig) {
+func (oc *OrbitClient) recordFallbackChanges(prev, cur *automdm.OrbitConfig) {
 	changed := diffJSONFields(prev, cur, "")
 	if prevNotifs, curNotifs := prev.Notifications, cur.Notifications; !reflect.DeepEqual(prevNotifs, curNotifs) {
 		changed = slices.DeleteFunc(changed, func(f string) bool { return f == "notifications" })
@@ -577,13 +577,13 @@ func diffJSONFields(a, b any, prefix string) []string {
 
 // orbitGetConfigRequest adds the fallback changes header to the config request.
 type orbitGetConfigRequest struct {
-	fleet.OrbitGetConfigRequest
+	automdm.OrbitGetConfigRequest
 	fallbackChanges string
 }
 
 func (r *orbitGetConfigRequest) setRequestHeaders(req *http.Request) {
 	if r.fallbackChanges != "" {
-		req.Header.Set(fleet.OrbitConfigFallbackChangesHeader, r.fallbackChanges)
+		req.Header.Set(automdm.OrbitConfigFallbackChangesHeader, r.fallbackChanges)
 	}
 }
 
@@ -591,13 +591,13 @@ func (oc *OrbitClient) InterruptConfigReceivers(err error) {
 	oc.receiverUpdateCancelFunc()
 }
 
-// GetConfig returns the Orbit config fetched from Fleet server for this instance of OrbitClient.
+// GetConfig returns the Orbit config fetched from AutoMDM server for this instance of OrbitClient.
 // On network or 5XX errors the request is retried once before returning the error
 // to the caller.
-func (oc *OrbitClient) GetConfig() (*fleet.OrbitConfig, error) {
-	verb, path := "POST", "/api/fleet/orbit/config"
+func (oc *OrbitClient) GetConfig() (*automdm.OrbitConfig, error) {
+	verb, path := "POST", "/api/automdm/orbit/config"
 	var (
-		resp fleet.OrbitConfig
+		resp automdm.OrbitConfig
 		err  error
 	)
 	oc.fallbackChangesMu.Lock()
@@ -635,11 +635,11 @@ func (oc *OrbitClient) GetConfig() (*fleet.OrbitConfig, error) {
 
 // SetOrUpdateDeviceToken sends a request to the server to set or update the device token.
 func (oc *OrbitClient) SetOrUpdateDeviceToken(deviceAuthToken string) error {
-	verb, path := "POST", "/api/fleet/orbit/device_token"
-	params := fleet.SetOrUpdateDeviceTokenRequest{
+	verb, path := "POST", "/api/automdm/orbit/device_token"
+	params := automdm.SetOrUpdateDeviceTokenRequest{
 		DeviceAuthToken: deviceAuthToken,
 	}
-	var resp fleet.SetOrUpdateDeviceTokenResponse
+	var resp automdm.SetOrUpdateDeviceTokenResponse
 	if err := oc.authenticatedRequest(verb, path, &params, &resp); err != nil {
 		return err
 	}
@@ -648,22 +648,22 @@ func (oc *OrbitClient) SetOrUpdateDeviceToken(deviceAuthToken string) error {
 
 // SetOrUpdateDeviceMappingEmail sends a request to the server to set or update the device mapping email.
 func (oc *OrbitClient) SetOrUpdateDeviceMappingEmail(email string) error {
-	verb, path := "PUT", "/api/fleet/orbit/device_mapping"
-	params := fleet.OrbitPutDeviceMappingRequest{
+	verb, path := "PUT", "/api/automdm/orbit/device_mapping"
+	params := automdm.OrbitPutDeviceMappingRequest{
 		Email: email,
 	}
-	var resp fleet.OrbitPutDeviceMappingResponse
+	var resp automdm.OrbitPutDeviceMappingResponse
 	if err := oc.authenticatedRequest(verb, path, &params, &resp); err != nil {
 		return err
 	}
 	return nil
 }
 
-// GetHostScript returns the script fetched from Fleet server to run on this host.
-func (oc *OrbitClient) GetHostScript(execID string) (*fleet.HostScriptResult, error) {
-	verb, path := "POST", "/api/fleet/orbit/scripts/request"
-	var resp fleet.OrbitGetScriptResponse
-	if err := oc.authenticatedRequest(verb, path, &fleet.OrbitGetScriptRequest{
+// GetHostScript returns the script fetched from AutoMDM server to run on this host.
+func (oc *OrbitClient) GetHostScript(execID string) (*automdm.HostScriptResult, error) {
+	verb, path := "POST", "/api/automdm/orbit/scripts/request"
+	var resp automdm.OrbitGetScriptResponse
+	if err := oc.authenticatedRequest(verb, path, &automdm.OrbitGetScriptRequest{
 		ExecutionID: execID,
 	}, &resp); err != nil {
 		return nil, err
@@ -672,10 +672,10 @@ func (oc *OrbitClient) GetHostScript(execID string) (*fleet.HostScriptResult, er
 }
 
 // SaveHostScriptResult saves the result of running the script on this host.
-func (oc *OrbitClient) SaveHostScriptResult(result *fleet.HostScriptResultPayload) error {
-	verb, path := "POST", "/api/fleet/orbit/scripts/result"
-	var resp fleet.OrbitPostScriptResultResponse
-	if err := oc.authenticatedRequest(verb, path, &fleet.OrbitPostScriptResultRequest{
+func (oc *OrbitClient) SaveHostScriptResult(result *automdm.HostScriptResultPayload) error {
+	verb, path := "POST", "/api/automdm/orbit/scripts/result"
+	var resp automdm.OrbitPostScriptResultResponse
+	if err := oc.authenticatedRequest(verb, path, &automdm.OrbitPostScriptResultRequest{
 		HostScriptResultPayload: result,
 	}, &resp); err != nil {
 		return err
@@ -683,10 +683,10 @@ func (oc *OrbitClient) SaveHostScriptResult(result *fleet.HostScriptResultPayloa
 	return nil
 }
 
-func (oc *OrbitClient) GetInstallerDetails(installId string) (*fleet.SoftwareInstallDetails, error) {
-	verb, path := "POST", "/api/fleet/orbit/software_install/details"
-	var resp fleet.OrbitGetSoftwareInstallResponse
-	if err := oc.authenticatedRequest(verb, path, &fleet.OrbitGetSoftwareInstallRequest{
+func (oc *OrbitClient) GetInstallerDetails(installId string) (*automdm.SoftwareInstallDetails, error) {
+	verb, path := "POST", "/api/automdm/orbit/software_install/details"
+	var resp automdm.OrbitGetSoftwareInstallResponse
+	if err := oc.authenticatedRequest(verb, path, &automdm.OrbitGetSoftwareInstallRequest{
 		InstallUUID: installId,
 	}, &resp); err != nil {
 		return nil, err
@@ -694,10 +694,10 @@ func (oc *OrbitClient) GetInstallerDetails(installId string) (*fleet.SoftwareIns
 	return resp.SoftwareInstallDetails, nil
 }
 
-func (oc *OrbitClient) SaveInstallerResult(payload *fleet.HostSoftwareInstallResultPayload) error {
-	verb, path := "POST", "/api/fleet/orbit/software_install/result"
-	var resp fleet.OrbitPostSoftwareInstallResultResponse
-	if err := oc.authenticatedRequest(verb, path, &fleet.OrbitPostSoftwareInstallResultRequest{
+func (oc *OrbitClient) SaveInstallerResult(payload *automdm.HostSoftwareInstallResultPayload) error {
+	verb, path := "POST", "/api/automdm/orbit/software_install/result"
+	var resp automdm.OrbitPostSoftwareInstallResultResponse
+	if err := oc.authenticatedRequest(verb, path, &automdm.OrbitPostSoftwareInstallResultRequest{
 		HostSoftwareInstallResultPayload: payload,
 	}, &resp); err != nil {
 		return err
@@ -706,13 +706,13 @@ func (oc *OrbitClient) SaveInstallerResult(payload *fleet.HostSoftwareInstallRes
 }
 
 func (oc *OrbitClient) DownloadSoftwareInstaller(installerID uint, downloadDirectory string, progressFunc func(n int)) (string, error) {
-	verb, path := "POST", "/api/fleet/orbit/software_install/package?alt=media"
+	verb, path := "POST", "/api/automdm/orbit/software_install/package?alt=media"
 	resp := FileResponse{
 		DestPath:     downloadDirectory,
 		ProgressFunc: progressFunc,
 		StallTimeout: downloadStallTimeout,
 	}
-	if err := oc.authenticatedRequest(verb, path, &fleet.OrbitDownloadSoftwareInstallerRequest{
+	if err := oc.authenticatedRequest(verb, path, &automdm.OrbitDownloadSoftwareInstallerRequest{
 		InstallerID: installerID,
 	}, &resp); err != nil {
 		return "", err
@@ -752,16 +752,16 @@ func (f *NullFileResponse) Handle(resp *http.Response) error {
 // DownloadAndDiscardSoftwareInstaller downloads the software installer and discards it.
 // This method is used during load testing by osquery-perf.
 func (oc *OrbitClient) DownloadAndDiscardSoftwareInstaller(installerID uint) error {
-	verb, path := "POST", "/api/fleet/orbit/software_install/package?alt=media"
+	verb, path := "POST", "/api/automdm/orbit/software_install/package?alt=media"
 	resp := NullFileResponse{}
-	return oc.authenticatedRequest(verb, path, &fleet.OrbitDownloadSoftwareInstallerRequest{
+	return oc.authenticatedRequest(verb, path, &automdm.OrbitDownloadSoftwareInstallerRequest{
 		InstallerID: installerID,
 	}, &resp)
 }
 
 // Ping sends a ping request to the orbit/ping endpoint.
 func (oc *OrbitClient) Ping() error {
-	verb, path := "HEAD", "/api/fleet/orbit/ping"
+	verb, path := "HEAD", "/api/automdm/orbit/ping"
 	err := oc.request(verb, path, nil, nil)
 	if err == nil || IsNotFoundErr(err) {
 		// notFound is ok, it means an old server without the capabilities header
@@ -779,8 +779,8 @@ func (oc *OrbitClient) enroll() (string, error) {
 		}
 	}
 
-	verb, path := "POST", "/api/fleet/orbit/enroll"
-	params := fleet.EnrollOrbitRequest{
+	verb, path := "POST", "/api/automdm/orbit/enroll"
+	params := automdm.EnrollOrbitRequest{
 		EnrollSecret:      oc.enrollSecret,
 		HardwareUUID:      oc.hostInfo.HardwareUUID,
 		HardwareSerial:    oc.hostInfo.HardwareSerial,
@@ -793,7 +793,7 @@ func (oc *OrbitClient) enroll() (string, error) {
 		EUAToken:          oc.euaToken,
 		AutopilotDeviceID: oc.hostInfo.AutopilotDeviceID,
 	}
-	var resp fleet.EnrollOrbitResponse
+	var resp automdm.EnrollOrbitResponse
 	err := oc.request(verb, path, params, &resp)
 	if err != nil {
 		return "", err
@@ -806,7 +806,7 @@ func (oc *OrbitClient) enroll() (string, error) {
 var enrollLock sync.Mutex
 
 // getNodeKeyOrEnroll attempts to read the orbit node key if the file exists on disk
-// otherwise it enrolls the host with Fleet and saves the node key to disk
+// otherwise it enrolls the host with AutoMDM and saves the node key to disk
 func (oc *OrbitClient) getNodeKeyOrEnroll() (string, error) {
 	if oc.TestNodeKey != "" {
 		return oc.TestNodeKey, nil
@@ -981,7 +981,7 @@ func (oc *OrbitClient) authenticatedRequest(verb string, path string, params any
 		return err
 	}
 
-	s := params.(fleet.SetOrbitNodeKeyer)
+	s := params.(automdm.SetOrbitNodeKeyer)
 	s.SetOrbitNodeKey(nodeKey)
 
 	err = oc.request(verb, path, params, resp)
@@ -1076,7 +1076,7 @@ func (oc *OrbitClient) setLastRecordedError(err error) {
 }
 
 func orbitEnrollRetryInterval() time.Duration {
-	interval := os.Getenv("FLEETD_ENROLL_RETRY_INTERVAL")
+	interval := os.Getenv("AUTOMDMD_ENROLL_RETRY_INTERVAL")
 	if interval != "" {
 		d, err := time.ParseDuration(interval)
 		if err == nil {
@@ -1087,10 +1087,10 @@ func orbitEnrollRetryInterval() time.Duration {
 }
 
 // SetOrUpdateDiskEncryptionKey sends a request to the server to set or update the disk encryption keys.
-func (oc *OrbitClient) SetOrUpdateDiskEncryptionKey(diskEncryptionStatus fleet.OrbitHostDiskEncryptionKeyPayload) error {
-	verb, path := "POST", "/api/fleet/orbit/disk_encryption_key"
-	var resp fleet.OrbitPostDiskEncryptionKeyResponse
-	if err := oc.authenticatedRequest(verb, path, &fleet.OrbitPostDiskEncryptionKeyRequest{
+func (oc *OrbitClient) SetOrUpdateDiskEncryptionKey(diskEncryptionStatus automdm.OrbitHostDiskEncryptionKeyPayload) error {
+	verb, path := "POST", "/api/automdm/orbit/disk_encryption_key"
+	var resp automdm.OrbitPostDiskEncryptionKeyResponse
+	if err := oc.authenticatedRequest(verb, path, &automdm.OrbitPostDiskEncryptionKeyRequest{
 		EncryptionKey: diskEncryptionStatus.EncryptionKey,
 		ClientError:   diskEncryptionStatus.ClientError,
 	}, &resp); err != nil {
@@ -1100,10 +1100,10 @@ func (oc *OrbitClient) SetOrUpdateDiskEncryptionKey(diskEncryptionStatus fleet.O
 }
 
 // SetOrUpdateDiskEncryptionProtection reports what the agent did about a volume that was encrypted but unprotected.
-func (oc *OrbitClient) SetOrUpdateDiskEncryptionProtection(outcome fleet.DiskEncryptionProtectionOutcome, clientError string) error {
-	verb, path := "POST", "/api/fleet/orbit/disk_encryption_protection"
-	var resp fleet.OrbitPostDiskEncryptionProtectionResponse
-	return oc.authenticatedRequest(verb, path, &fleet.OrbitPostDiskEncryptionProtectionRequest{
+func (oc *OrbitClient) SetOrUpdateDiskEncryptionProtection(outcome automdm.DiskEncryptionProtectionOutcome, clientError string) error {
+	verb, path := "POST", "/api/automdm/orbit/disk_encryption_protection"
+	var resp automdm.OrbitPostDiskEncryptionProtectionResponse
+	return oc.authenticatedRequest(verb, path, &automdm.OrbitPostDiskEncryptionProtectionRequest{
 		Outcome:     outcome,
 		ClientError: clientError,
 	}, &resp)
@@ -1112,19 +1112,19 @@ func (oc *OrbitClient) SetOrUpdateDiskEncryptionProtection(outcome fleet.DiskEnc
 // GetDiskEncryptionPINDetails collects the BitLocker startup PIN the end user submitted. The server hands it out only
 // once, so the caller must be ready to apply it. A 404 means there is nothing to apply.
 func (oc *OrbitClient) GetDiskEncryptionPINDetails() (pin, requestUUID string, err error) {
-	verb, path := "POST", "/api/fleet/orbit/disk_encryption_pin/details"
-	var resp fleet.OrbitGetDiskEncryptionPINDetailsResponse
-	if err := oc.authenticatedRequest(verb, path, &fleet.OrbitGetDiskEncryptionPINDetailsRequest{}, &resp); err != nil {
+	verb, path := "POST", "/api/automdm/orbit/disk_encryption_pin/details"
+	var resp automdm.OrbitGetDiskEncryptionPINDetailsResponse
+	if err := oc.authenticatedRequest(verb, path, &automdm.OrbitGetDiskEncryptionPINDetailsRequest{}, &resp); err != nil {
 		return "", "", err
 	}
 	return resp.PIN, resp.RequestUUID, nil
 }
 
 // SetDiskEncryptionPINResult reports whether the PIN collected with requestUUID was applied. A 404 means the server no longer wants this outcome.
-func (oc *OrbitClient) SetDiskEncryptionPINResult(requestUUID string, outcome fleet.BitLockerPINRequestStatus, clientError string) error {
-	verb, path := "POST", "/api/fleet/orbit/disk_encryption_pin/result"
-	var resp fleet.OrbitPostDiskEncryptionPINResultResponse
-	return oc.authenticatedRequest(verb, path, &fleet.OrbitPostDiskEncryptionPINResultRequest{
+func (oc *OrbitClient) SetDiskEncryptionPINResult(requestUUID string, outcome automdm.BitLockerPINRequestStatus, clientError string) error {
+	verb, path := "POST", "/api/automdm/orbit/disk_encryption_pin/result"
+	var resp automdm.OrbitPostDiskEncryptionPINResultResponse
+	return oc.authenticatedRequest(verb, path, &automdm.OrbitPostDiskEncryptionPINResultRequest{
 		RequestUUID: requestUUID,
 		Outcome:     outcome,
 		ClientError: clientError,
@@ -1149,10 +1149,10 @@ var testStdoutHTTPTracer = &httptrace.ClientTrace{
 }
 
 // GetSetupExperienceStatus checks the status of the setup experience for this host.
-func (oc *OrbitClient) GetSetupExperienceStatus(resetFailedSetupSteps bool) (*fleet.SetupExperienceStatusPayload, error) {
-	verb, path := "POST", "/api/fleet/orbit/setup_experience/status"
-	var resp fleet.GetOrbitSetupExperienceStatusResponse
-	err := oc.authenticatedRequest(verb, path, &fleet.GetOrbitSetupExperienceStatusRequest{
+func (oc *OrbitClient) GetSetupExperienceStatus(resetFailedSetupSteps bool) (*automdm.SetupExperienceStatusPayload, error) {
+	verb, path := "POST", "/api/automdm/orbit/setup_experience/status"
+	var resp automdm.GetOrbitSetupExperienceStatusResponse
+	err := oc.authenticatedRequest(verb, path, &automdm.GetOrbitSetupExperienceStatusRequest{
 		ResetFailedSetupSteps: resetFailedSetupSteps,
 	}, &resp)
 	if err != nil {
@@ -1162,9 +1162,9 @@ func (oc *OrbitClient) GetSetupExperienceStatus(resetFailedSetupSteps bool) (*fl
 }
 
 func (oc *OrbitClient) SendLinuxKeyEscrowResponse(lr luks.LuksResponse) error {
-	verb, path := "POST", "/api/fleet/orbit/luks_data"
-	var resp fleet.OrbitPostLUKSResponse
-	if err := oc.authenticatedRequest(verb, path, &fleet.OrbitPostLUKSRequest{
+	verb, path := "POST", "/api/automdm/orbit/luks_data"
+	var resp automdm.OrbitPostLUKSResponse
+	if err := oc.authenticatedRequest(verb, path, &automdm.OrbitPostLUKSRequest{
 		Passphrase:  lr.Passphrase,
 		KeySlot:     lr.KeySlot,
 		Salt:        lr.Salt,
@@ -1178,25 +1178,25 @@ func (oc *OrbitClient) SendLinuxKeyEscrowResponse(lr luks.LuksResponse) error {
 
 // SendEntraDeviceToken reports the Entra ID token that proves the host's Entra device ID.
 func (oc *OrbitClient) SendEntraDeviceToken(idToken string) error {
-	verb, path := "POST", "/api/fleet/orbit/entra_device_token"
-	var resp fleet.OrbitPostEntraDeviceTokenResponse
-	return oc.authenticatedRequest(verb, path, &fleet.OrbitPostEntraDeviceTokenRequest{IDToken: idToken}, &resp)
+	verb, path := "POST", "/api/automdm/orbit/entra_device_token"
+	var resp automdm.OrbitPostEntraDeviceTokenResponse
+	return oc.authenticatedRequest(verb, path, &automdm.OrbitPostEntraDeviceTokenRequest{IDToken: idToken}, &resp)
 }
 
 // SendLinuxKeyEscrowStatus reports progress on a LUKS escrow request.
 func (oc *OrbitClient) SendLinuxKeyEscrowStatus(status string) error {
-	verb, path := "POST", "/api/fleet/orbit/luks_data"
-	var resp fleet.OrbitPostLUKSResponse
-	return oc.authenticatedRequest(verb, path, &fleet.OrbitPostLUKSRequest{Status: status}, &resp)
+	verb, path := "POST", "/api/automdm/orbit/luks_data"
+	var resp automdm.OrbitPostLUKSResponse
+	return oc.authenticatedRequest(verb, path, &automdm.OrbitPostLUKSRequest{Status: status}, &resp)
 }
 
-// SendManagedLocalAccountPassword escrows the password of the managed local admin account that fleetd created on this
+// SendManagedLocalAccountPassword escrows the password of the managed local admin account that automdmd created on this
 // Windows host. A non-empty clientError reports that creating the account failed, which the server records against the
 // host and which makes it ask this host to try again.
 func (oc *OrbitClient) SendManagedLocalAccountPassword(password, clientError string) error {
-	verb, path := "POST", "/api/fleet/orbit/managed_local_account"
-	var resp fleet.OrbitPostManagedLocalAccountResponse
-	if err := oc.authenticatedRequest(verb, path, &fleet.OrbitPostManagedLocalAccountRequest{
+	verb, path := "POST", "/api/automdm/orbit/managed_local_account"
+	var resp automdm.OrbitPostManagedLocalAccountResponse
+	if err := oc.authenticatedRequest(verb, path, &automdm.OrbitPostManagedLocalAccountRequest{
 		Password:    password,
 		ClientError: clientError,
 	}, &resp); err != nil {
@@ -1205,11 +1205,11 @@ func (oc *OrbitClient) SendManagedLocalAccountPassword(password, clientError str
 	return nil
 }
 
-func (oc *OrbitClient) InitiateSetupExperience() (fleet.SetupExperienceInitResult, error) {
-	verb, path := "POST", "/api/fleet/orbit/setup_experience/init"
-	var resp fleet.OrbitSetupExperienceInitResponse
-	if err := oc.authenticatedRequest(verb, path, &fleet.OrbitSetupExperienceInitRequest{}, &resp); err != nil {
-		return fleet.SetupExperienceInitResult{}, err
+func (oc *OrbitClient) InitiateSetupExperience() (automdm.SetupExperienceInitResult, error) {
+	verb, path := "POST", "/api/automdm/orbit/setup_experience/init"
+	var resp automdm.OrbitSetupExperienceInitResponse
+	if err := oc.authenticatedRequest(verb, path, &automdm.OrbitSetupExperienceInitRequest{}, &resp); err != nil {
+		return automdm.SetupExperienceInitResult{}, err
 	}
 	return resp.Result, nil
 }

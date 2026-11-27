@@ -6,36 +6,36 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/stretchr/testify/require"
 )
 
 func TestSetupExperienceAuth(t *testing.T) {
 	ds := new(mock.Store)
-	license := &fleet.LicenseInfo{Tier: fleet.TierPremium, Expiration: time.Now().Add(24 * time.Hour)}
+	license := &automdm.LicenseInfo{Tier: automdm.TierPremium, Expiration: time.Now().Add(24 * time.Hour)}
 	svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: license, SkipCreateTestUsers: true})
 
 	teamID := uint(1)
 	teamScriptID := uint(1)
 	noTeamScriptID := uint(2)
 
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
 	}
-	ds.SetSetupExperienceScriptFunc = func(ctx context.Context, script *fleet.Script) (bool, error) {
+	ds.SetSetupExperienceScriptFunc = func(ctx context.Context, script *automdm.Script) (bool, error) {
 		return true, nil
 	}
 
-	ds.GetSetupExperienceScriptFunc = func(ctx context.Context, teamID *uint) (*fleet.Script, error) {
+	ds.GetSetupExperienceScriptFunc = func(ctx context.Context, teamID *uint) (*automdm.Script, error) {
 		if teamID == nil {
-			return &fleet.Script{ID: noTeamScriptID}, nil
+			return &automdm.Script{ID: noTeamScriptID}, nil
 		}
 		switch *teamID {
 		case uint(1):
-			return &fleet.Script{ID: teamScriptID, TeamID: teamID}, nil
+			return &automdm.Script{ID: teamScriptID, TeamID: teamID}, nil
 		default:
 			return nil, newNotFoundError()
 		}
@@ -54,8 +54,8 @@ func TestSetupExperienceAuth(t *testing.T) {
 			return newNotFoundError() // TODO: confirm if we want to return not found on deletes
 		}
 	}
-	ds.TeamLiteFunc = func(ctx context.Context, id uint) (*fleet.TeamLite, error) {
-		return &fleet.TeamLite{ID: id}, nil
+	ds.TeamLiteFunc = func(ctx context.Context, id uint) (*automdm.TeamLite, error) {
+		return &automdm.TeamLite{ID: id}, nil
 	}
 	ds.ValidateEmbeddedSecretsFunc = func(ctx context.Context, documents []string) error {
 		return nil
@@ -66,7 +66,7 @@ func TestSetupExperienceAuth(t *testing.T) {
 
 	testCases := []struct {
 		name                  string
-		user                  *fleet.User
+		user                  *automdm.User
 		shouldFailTeamWrite   bool
 		shouldFailGlobalWrite bool
 		shouldFailTeamRead    bool
@@ -74,7 +74,7 @@ func TestSetupExperienceAuth(t *testing.T) {
 	}{
 		{
 			name:                  "global admin",
-			user:                  &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)},
+			user:                  &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)},
 			shouldFailTeamWrite:   false,
 			shouldFailGlobalWrite: false,
 			shouldFailTeamRead:    false,
@@ -82,7 +82,7 @@ func TestSetupExperienceAuth(t *testing.T) {
 		},
 		{
 			name:                  "global maintainer",
-			user:                  &fleet.User{GlobalRole: ptr.String(fleet.RoleMaintainer)},
+			user:                  &automdm.User{GlobalRole: ptr.String(automdm.RoleMaintainer)},
 			shouldFailTeamWrite:   false,
 			shouldFailGlobalWrite: false,
 			shouldFailTeamRead:    false,
@@ -90,7 +90,7 @@ func TestSetupExperienceAuth(t *testing.T) {
 		},
 		{
 			name:                  "global observer",
-			user:                  &fleet.User{GlobalRole: ptr.String(fleet.RoleObserver)},
+			user:                  &automdm.User{GlobalRole: ptr.String(automdm.RoleObserver)},
 			shouldFailTeamWrite:   true,
 			shouldFailGlobalWrite: true,
 			shouldFailTeamRead:    false,
@@ -98,7 +98,7 @@ func TestSetupExperienceAuth(t *testing.T) {
 		},
 		{
 			name:                  "global observer+",
-			user:                  &fleet.User{GlobalRole: ptr.String(fleet.RoleObserverPlus)},
+			user:                  &automdm.User{GlobalRole: ptr.String(automdm.RoleObserverPlus)},
 			shouldFailTeamWrite:   true,
 			shouldFailGlobalWrite: true,
 			shouldFailTeamRead:    false,
@@ -106,7 +106,7 @@ func TestSetupExperienceAuth(t *testing.T) {
 		},
 		{
 			name:                  "global gitops",
-			user:                  &fleet.User{GlobalRole: ptr.String(fleet.RoleGitOps)},
+			user:                  &automdm.User{GlobalRole: ptr.String(automdm.RoleGitOps)},
 			shouldFailTeamWrite:   false,
 			shouldFailGlobalWrite: false,
 			shouldFailTeamRead:    true,
@@ -114,7 +114,7 @@ func TestSetupExperienceAuth(t *testing.T) {
 		},
 		{
 			name:                  "team admin, belongs to team",
-			user:                  &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleAdmin}}},
+			user:                  &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleAdmin}}},
 			shouldFailTeamWrite:   false,
 			shouldFailGlobalWrite: true,
 			shouldFailTeamRead:    false,
@@ -122,7 +122,7 @@ func TestSetupExperienceAuth(t *testing.T) {
 		},
 		{
 			name:                  "team maintainer, belongs to team",
-			user:                  &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleMaintainer}}},
+			user:                  &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleMaintainer}}},
 			shouldFailTeamWrite:   false,
 			shouldFailGlobalWrite: true,
 			shouldFailTeamRead:    false,
@@ -130,7 +130,7 @@ func TestSetupExperienceAuth(t *testing.T) {
 		},
 		{
 			name:                  "team observer, belongs to team",
-			user:                  &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleObserver}}},
+			user:                  &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserver}}},
 			shouldFailTeamWrite:   true,
 			shouldFailGlobalWrite: true,
 			shouldFailTeamRead:    false,
@@ -138,7 +138,7 @@ func TestSetupExperienceAuth(t *testing.T) {
 		},
 		{
 			name:                  "team observer+, belongs to team",
-			user:                  &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleObserverPlus}}},
+			user:                  &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserverPlus}}},
 			shouldFailTeamWrite:   true,
 			shouldFailGlobalWrite: true,
 			shouldFailTeamRead:    false,
@@ -146,7 +146,7 @@ func TestSetupExperienceAuth(t *testing.T) {
 		},
 		{
 			name:                  "team gitops, belongs to team",
-			user:                  &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleGitOps}}},
+			user:                  &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleGitOps}}},
 			shouldFailTeamWrite:   false,
 			shouldFailGlobalWrite: true,
 			shouldFailTeamRead:    true,
@@ -154,7 +154,7 @@ func TestSetupExperienceAuth(t *testing.T) {
 		},
 		{
 			name:                  "team admin, DOES NOT belong to team",
-			user:                  &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 2}, Role: fleet.RoleAdmin}}},
+			user:                  &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleAdmin}}},
 			shouldFailTeamWrite:   true,
 			shouldFailGlobalWrite: true,
 			shouldFailTeamRead:    true,
@@ -162,7 +162,7 @@ func TestSetupExperienceAuth(t *testing.T) {
 		},
 		{
 			name:                  "team maintainer, DOES NOT belong to team",
-			user:                  &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 2}, Role: fleet.RoleMaintainer}}},
+			user:                  &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleMaintainer}}},
 			shouldFailTeamWrite:   true,
 			shouldFailGlobalWrite: true,
 			shouldFailTeamRead:    true,
@@ -170,7 +170,7 @@ func TestSetupExperienceAuth(t *testing.T) {
 		},
 		{
 			name:                  "team observer, DOES NOT belong to team",
-			user:                  &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 2}, Role: fleet.RoleObserver}}},
+			user:                  &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleObserver}}},
 			shouldFailTeamWrite:   true,
 			shouldFailGlobalWrite: true,
 			shouldFailTeamRead:    true,
@@ -178,7 +178,7 @@ func TestSetupExperienceAuth(t *testing.T) {
 		},
 		{
 			name:                  "team observer+, DOES NOT belong to team",
-			user:                  &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 2}, Role: fleet.RoleObserverPlus}}},
+			user:                  &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleObserverPlus}}},
 			shouldFailTeamWrite:   true,
 			shouldFailGlobalWrite: true,
 			shouldFailTeamRead:    true,
@@ -186,7 +186,7 @@ func TestSetupExperienceAuth(t *testing.T) {
 		},
 		{
 			name:                  "team gitops, DOES NOT belong to team",
-			user:                  &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 2}, Role: fleet.RoleGitOps}}},
+			user:                  &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleGitOps}}},
 			shouldFailTeamWrite:   true,
 			shouldFailGlobalWrite: true,
 			shouldFailTeamRead:    true,
@@ -226,20 +226,20 @@ func TestIsAllSetupExperienceSoftwareRequired(t *testing.T) {
 
 	teamID := uint(1)
 	// Use different values for macOS vs Windows to ensure the correct field is read for each platform.
-	appCfg := &fleet.AppConfig{}
+	appCfg := &automdm.AppConfig{}
 	appCfg.MDM.MacOSSetup.RequireAllSoftware = true
 	appCfg.MDM.MacOSSetup.RequireAllSoftwareWindows = false
 
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
 		return appCfg, nil
 	}
-	ds.TeamLiteFunc = func(ctx context.Context, tid uint) (*fleet.TeamLite, error) {
-		return &fleet.TeamLite{
+	ds.TeamLiteFunc = func(ctx context.Context, tid uint) (*automdm.TeamLite, error) {
+		return &automdm.TeamLite{
 			ID:   tid,
 			Name: "team",
-			Config: fleet.TeamConfigLite{
-				MDM: fleet.TeamMDM{
-					MacOSSetup: fleet.MacOSSetup{
+			Config: automdm.TeamConfigLite{
+				MDM: automdm.TeamMDM{
+					MacOSSetup: automdm.MacOSSetup{
 						RequireAllSoftware:        false,
 						RequireAllSoftwareWindows: true,
 					},
@@ -250,37 +250,37 @@ func TestIsAllSetupExperienceSoftwareRequired(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		host     *fleet.Host
+		host     *automdm.Host
 		expected bool
 	}{
 		{
 			name:     "macOS host, no team, reads macOS global config (true)",
-			host:     &fleet.Host{Platform: "darwin"},
+			host:     &automdm.Host{Platform: "darwin"},
 			expected: true,
 		},
 		{
 			name:     "macOS host, with team, reads macOS team config (false)",
-			host:     &fleet.Host{Platform: "darwin", TeamID: &teamID},
+			host:     &automdm.Host{Platform: "darwin", TeamID: &teamID},
 			expected: false,
 		},
 		{
 			name:     "windows host, no team, reads Windows global config (false)",
-			host:     &fleet.Host{Platform: "windows"},
+			host:     &automdm.Host{Platform: "windows"},
 			expected: false,
 		},
 		{
 			name:     "windows host, with team, reads Windows team config (true)",
-			host:     &fleet.Host{Platform: "windows", TeamID: &teamID},
+			host:     &automdm.Host{Platform: "windows", TeamID: &teamID},
 			expected: true,
 		},
 		{
 			name:     "linux host returns false",
-			host:     &fleet.Host{Platform: "ubuntu"},
+			host:     &automdm.Host{Platform: "ubuntu"},
 			expected: false,
 		},
 		{
 			name:     "ios host returns false",
-			host:     &fleet.Host{Platform: "ios"},
+			host:     &automdm.Host{Platform: "ios"},
 			expected: false,
 		},
 	}
@@ -320,26 +320,26 @@ func TestMaybeUpdateSetupExperience(t *testing.T) {
 		testCases := []struct {
 			name          string
 			exitCode      int
-			expected      fleet.SetupExperienceStatusResultStatus
+			expected      automdm.SetupExperienceStatusResultStatus
 			alwaysUpdated bool
 		}{
 			{
 				name:          "success",
 				exitCode:      0,
-				expected:      fleet.SetupExperienceStatusSuccess,
+				expected:      automdm.SetupExperienceStatusSuccess,
 				alwaysUpdated: true,
 			},
 			{
 				name:          "failure",
 				exitCode:      1,
-				expected:      fleet.SetupExperienceStatusFailure,
+				expected:      automdm.SetupExperienceStatusFailure,
 				alwaysUpdated: true,
 			},
 		}
 
 		for _, tt := range testCases {
 			t.Run(tt.name, func(t *testing.T) {
-				ds.MaybeUpdateSetupExperienceScriptStatusFunc = func(ctx context.Context, hostUUID string, executionID string, status fleet.SetupExperienceStatusResultStatus) (bool, error) {
+				ds.MaybeUpdateSetupExperienceScriptStatusFunc = func(ctx context.Context, hostUUID string, executionID string, status automdm.SetupExperienceStatusResultStatus) (bool, error) {
 					require.Equal(t, hostUUID, hostUUID)
 					require.Equal(t, executionID, scriptUUID)
 					require.Equal(t, tt.expected, status)
@@ -347,12 +347,12 @@ func TestMaybeUpdateSetupExperience(t *testing.T) {
 					return true, nil
 				}
 				ds.MaybeUpdateSetupExperienceScriptStatusFuncInvoked = false
-				mockHostBySetupExperienceUUID(&ds.DataStore, func(ctx context.Context, uuid string) (*fleet.Host, error) {
+				mockHostBySetupExperienceUUID(&ds.DataStore, func(ctx context.Context, uuid string) (*automdm.Host, error) {
 					require.Equal(t, hostUUID, uuid)
-					return &fleet.Host{ID: 1, UUID: uuid, Platform: "linux"}, nil
+					return &automdm.Host{ID: 1, UUID: uuid, Platform: "linux"}, nil
 				})
 
-				result := fleet.SetupExperienceScriptResult{
+				result := automdm.SetupExperienceScriptResult{
 					HostUUID:    hostUUID,
 					ExecutionID: scriptUUID,
 					ExitCode:    tt.exitCode,
@@ -368,33 +368,33 @@ func TestMaybeUpdateSetupExperience(t *testing.T) {
 	t.Run("software install results", func(t *testing.T) {
 		testCases := []struct {
 			name          string
-			status        fleet.SoftwareInstallerStatus
-			expectStatus  fleet.SetupExperienceStatusResultStatus
+			status        automdm.SoftwareInstallerStatus
+			expectStatus  automdm.SetupExperienceStatusResultStatus
 			alwaysUpdated bool
 		}{
 			{
 				name:          "success",
-				status:        fleet.SoftwareInstalled,
-				expectStatus:  fleet.SetupExperienceStatusSuccess,
+				status:        automdm.SoftwareInstalled,
+				expectStatus:  automdm.SetupExperienceStatusSuccess,
 				alwaysUpdated: true,
 			},
 			{
 				name:          "failure",
-				status:        fleet.SoftwareInstallFailed,
-				expectStatus:  fleet.SetupExperienceStatusFailure,
+				status:        automdm.SoftwareInstallFailed,
+				expectStatus:  automdm.SetupExperienceStatusFailure,
 				alwaysUpdated: true,
 			},
 			{
 				name:          "pending",
-				status:        fleet.SoftwareInstallPending,
-				expectStatus:  fleet.SetupExperienceStatusPending,
+				status:        automdm.SoftwareInstallPending,
+				expectStatus:  automdm.SetupExperienceStatusPending,
 				alwaysUpdated: false,
 			},
 		}
 
 		for _, tt := range testCases {
 			t.Run(tt.name, func(t *testing.T) {
-				ds.MaybeUpdateSetupExperienceSoftwareInstallStatusFunc = func(ctx context.Context, hostUUID string, executionID string, status fleet.SetupExperienceStatusResultStatus) (bool, error) {
+				ds.MaybeUpdateSetupExperienceSoftwareInstallStatusFunc = func(ctx context.Context, hostUUID string, executionID string, status automdm.SetupExperienceStatusResultStatus) (bool, error) {
 					require.Equal(t, hostUUID, hostUUID)
 					require.Equal(t, executionID, softwareUUID)
 					require.Equal(t, tt.expectStatus, status)
@@ -403,18 +403,18 @@ func TestMaybeUpdateSetupExperience(t *testing.T) {
 					return true, nil
 				}
 				ds.MaybeUpdateSetupExperienceSoftwareInstallStatusFuncInvoked = false
-				mockHostBySetupExperienceUUID(&ds.DataStore, func(ctx context.Context, uuid string) (*fleet.Host, error) {
+				mockHostBySetupExperienceUUID(&ds.DataStore, func(ctx context.Context, uuid string) (*automdm.Host, error) {
 					require.Equal(t, hostUUID, uuid)
-					return &fleet.Host{ID: 1, UUID: uuid, Platform: "linux"}, nil
+					return &automdm.Host{ID: 1, UUID: uuid, Platform: "linux"}, nil
 				})
 
-				result := fleet.SetupExperienceSoftwareInstallResult{
+				result := automdm.SetupExperienceSoftwareInstallResult{
 					HostUUID:        hostUUID,
 					ExecutionID:     softwareUUID,
 					InstallerStatus: tt.status,
 				}
 				activityFnCalled := false
-				activityFn := func(ctx context.Context, user *fleet.User, activity fleet.ActivityDetails) error {
+				activityFn := func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error {
 					activityFnCalled = true
 					return nil
 				}
@@ -431,38 +431,38 @@ func TestMaybeUpdateSetupExperience(t *testing.T) {
 		testCases := []struct {
 			name          string
 			status        string
-			expected      fleet.SetupExperienceStatusResultStatus
+			expected      automdm.SetupExperienceStatusResultStatus
 			alwaysUpdated bool
 		}{
 			{
 				name:          "success",
-				status:        fleet.MDMAppleStatusAcknowledged,
-				expected:      fleet.SetupExperienceStatusSuccess,
+				status:        automdm.MDMAppleStatusAcknowledged,
+				expected:      automdm.SetupExperienceStatusSuccess,
 				alwaysUpdated: true,
 			},
 			{
 				name:          "failure",
-				status:        fleet.MDMAppleStatusError,
-				expected:      fleet.SetupExperienceStatusFailure,
+				status:        automdm.MDMAppleStatusError,
+				expected:      automdm.SetupExperienceStatusFailure,
 				alwaysUpdated: true,
 			},
 			{
 				name:          "format error",
-				status:        fleet.MDMAppleStatusCommandFormatError,
-				expected:      fleet.SetupExperienceStatusFailure,
+				status:        automdm.MDMAppleStatusCommandFormatError,
+				expected:      automdm.SetupExperienceStatusFailure,
 				alwaysUpdated: true,
 			},
 			{
 				name:          "pending",
-				status:        fleet.MDMAppleStatusNotNow,
-				expected:      fleet.SetupExperienceStatusPending,
+				status:        automdm.MDMAppleStatusNotNow,
+				expected:      automdm.SetupExperienceStatusPending,
 				alwaysUpdated: false,
 			},
 		}
 
 		for _, tt := range testCases {
 			t.Run(tt.name, func(t *testing.T) {
-				ds.MaybeUpdateSetupExperienceVPPStatusFunc = func(ctx context.Context, hostUUID string, cmdUUID string, status fleet.SetupExperienceStatusResultStatus) (bool, error) {
+				ds.MaybeUpdateSetupExperienceVPPStatusFunc = func(ctx context.Context, hostUUID string, cmdUUID string, status automdm.SetupExperienceStatusResultStatus) (bool, error) {
 					require.Equal(t, hostUUID, hostUUID)
 					require.Equal(t, cmdUUID, vppUUID)
 					require.Equal(t, tt.expected, status)
@@ -470,18 +470,18 @@ func TestMaybeUpdateSetupExperience(t *testing.T) {
 					return true, nil
 				}
 				ds.MaybeUpdateSetupExperienceVPPStatusFuncInvoked = false
-				mockHostBySetupExperienceUUID(&ds.DataStore, func(ctx context.Context, uuid string) (*fleet.Host, error) {
+				mockHostBySetupExperienceUUID(&ds.DataStore, func(ctx context.Context, uuid string) (*automdm.Host, error) {
 					require.Equal(t, hostUUID, uuid)
-					return &fleet.Host{ID: 1, UUID: uuid, Platform: "linux"}, nil
+					return &automdm.Host{ID: 1, UUID: uuid, Platform: "linux"}, nil
 				})
 
-				result := fleet.SetupExperienceVPPInstallResult{
+				result := automdm.SetupExperienceVPPInstallResult{
 					HostUUID:      hostUUID,
 					CommandUUID:   vppUUID,
 					CommandStatus: tt.status,
 				}
 				activityFnCalled := false
-				activityFn := func(ctx context.Context, user *fleet.User, activity fleet.ActivityDetails) error {
+				activityFn := func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error {
 					activityFnCalled = true
 					return nil
 				}
@@ -500,27 +500,27 @@ func TestMaybeUpdateSetupExperience(t *testing.T) {
 		failedSoftwareName := "FailedApp"
 		pendingExecID := "pending-exec-id"
 
-		ds.MaybeUpdateSetupExperienceSoftwareInstallStatusFunc = func(ctx context.Context, hUUID string, executionID string, status fleet.SetupExperienceStatusResultStatus) (bool, error) {
+		ds.MaybeUpdateSetupExperienceSoftwareInstallStatusFunc = func(ctx context.Context, hUUID string, executionID string, status automdm.SetupExperienceStatusResultStatus) (bool, error) {
 			require.Equal(t, hostUUID, hUUID)
 			require.Equal(t, softwareUUID, executionID)
-			require.Equal(t, fleet.SetupExperienceStatusFailure, status)
+			require.Equal(t, automdm.SetupExperienceStatusFailure, status)
 			return true, nil
 		}
-		mockHostBySetupExperienceUUID(&ds.DataStore, func(ctx context.Context, identifier string) (*fleet.Host, error) {
-			return &fleet.Host{
+		mockHostBySetupExperienceUUID(&ds.DataStore, func(ctx context.Context, identifier string) (*automdm.Host, error) {
+			return &automdm.Host{
 				ID:       1,
 				UUID:     hostUUID,
 				Platform: "darwin",
 				TeamID:   &teamID,
 			}, nil
 		})
-		ds.TeamLiteFunc = func(ctx context.Context, tid uint) (*fleet.TeamLite, error) {
+		ds.TeamLiteFunc = func(ctx context.Context, tid uint) (*automdm.TeamLite, error) {
 			require.Equal(t, teamID, tid)
-			return &fleet.TeamLite{
+			return &automdm.TeamLite{
 				ID: teamID,
-				Config: fleet.TeamConfigLite{
-					MDM: fleet.TeamMDM{
-						MacOSSetup: fleet.MacOSSetup{
+				Config: automdm.TeamConfigLite{
+					MDM: automdm.TeamMDM{
+						MacOSSetup: automdm.MacOSSetup{
 							RequireAllSoftware: true,
 						},
 					},
@@ -529,13 +529,13 @@ func TestMaybeUpdateSetupExperience(t *testing.T) {
 		}
 
 		installerID := uint(10)
-		ds.ListSetupExperienceResultsByHostUUIDFunc = func(ctx context.Context, hUUID string, tID uint) ([]*fleet.SetupExperienceStatusResult, error) {
-			return []*fleet.SetupExperienceStatusResult{
+		ds.ListSetupExperienceResultsByHostUUIDFunc = func(ctx context.Context, hUUID string, tID uint) ([]*automdm.SetupExperienceStatusResult, error) {
+			return []*automdm.SetupExperienceStatusResult{
 				{
 					ID:                              1,
 					HostUUID:                        hostUUID,
 					Name:                            failedSoftwareName,
-					Status:                          fleet.SetupExperienceStatusFailure,
+					Status:                          automdm.SetupExperienceStatusFailure,
 					SoftwareInstallerID:             &installerID,
 					HostSoftwareInstallsExecutionID: &softwareUUID,
 					SoftwareTitleID:                 &failedSoftwareTitleID,
@@ -544,13 +544,13 @@ func TestMaybeUpdateSetupExperience(t *testing.T) {
 					ID:                              2,
 					HostUUID:                        hostUUID,
 					Name:                            "PendingApp",
-					Status:                          fleet.SetupExperienceStatusPending,
+					Status:                          automdm.SetupExperienceStatusPending,
 					SoftwareInstallerID:             &installerID,
 					HostSoftwareInstallsExecutionID: &pendingExecID,
 				},
 			}, nil
 		}
-		ds.CancelHostUpcomingActivityFunc = func(ctx context.Context, hID uint, executionID string) (fleet.ActivityDetails, error) {
+		ds.CancelHostUpcomingActivityFunc = func(ctx context.Context, hID uint, executionID string) (automdm.ActivityDetails, error) {
 			require.Equal(t, uint(1), hID)
 			require.Equal(t, pendingExecID, executionID)
 			return nil, nil
@@ -561,17 +561,17 @@ func TestMaybeUpdateSetupExperience(t *testing.T) {
 		}
 
 		var activityFnCalled bool
-		var recordedActivity fleet.ActivityDetails
-		activityFn := func(ctx context.Context, user *fleet.User, activity fleet.ActivityDetails) error {
+		var recordedActivity automdm.ActivityDetails
+		activityFn := func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error {
 			activityFnCalled = true
 			recordedActivity = activity
 			return nil
 		}
 
-		result := fleet.SetupExperienceSoftwareInstallResult{
+		result := automdm.SetupExperienceSoftwareInstallResult{
 			HostUUID:        hostUUID,
 			ExecutionID:     softwareUUID,
-			InstallerStatus: fleet.SoftwareInstallFailed,
+			InstallerStatus: automdm.SoftwareInstallFailed,
 		}
 		updated, err := maybeUpdateSetupExperienceStatus(ctx, ds, result, activityFn)
 		require.NoError(t, err)
@@ -580,7 +580,7 @@ func TestMaybeUpdateSetupExperience(t *testing.T) {
 		require.True(t, ds.CancelPendingSetupExperienceStepsFuncInvoked)
 		require.True(t, ds.CancelHostUpcomingActivityFuncInvoked)
 
-		canceledActivity, ok := recordedActivity.(fleet.ActivityTypeCanceledSetupExperience)
+		canceledActivity, ok := recordedActivity.(automdm.ActivityTypeCanceledSetupExperience)
 		require.True(t, ok)
 		require.Equal(t, uint(1), canceledActivity.HostID)
 		require.Equal(t, failedSoftwareName, canceledActivity.SoftwareTitle)
@@ -603,41 +603,41 @@ func TestMaybeUpdateSetupExperience(t *testing.T) {
 
 		// ---- Step 1: Software install A fails ----
 
-		ds.MaybeUpdateSetupExperienceSoftwareInstallStatusFunc = func(ctx context.Context, hUUID string, executionID string, status fleet.SetupExperienceStatusResultStatus) (bool, error) {
+		ds.MaybeUpdateSetupExperienceSoftwareInstallStatusFunc = func(ctx context.Context, hUUID string, executionID string, status automdm.SetupExperienceStatusResultStatus) (bool, error) {
 			require.Equal(t, hostUUID, hUUID)
 			require.Equal(t, softwareUUID, executionID)
-			require.Equal(t, fleet.SetupExperienceStatusFailure, status)
+			require.Equal(t, automdm.SetupExperienceStatusFailure, status)
 			return true, nil // updated
 		}
 		ds.MaybeUpdateSetupExperienceSoftwareInstallStatusFuncInvoked = false
 
-		mockHostBySetupExperienceUUID(&ds.DataStore, func(ctx context.Context, identifier string) (*fleet.Host, error) {
-			return &fleet.Host{
+		mockHostBySetupExperienceUUID(&ds.DataStore, func(ctx context.Context, identifier string) (*automdm.Host, error) {
+			return &automdm.Host{
 				ID:       1,
 				UUID:     hostUUID,
 				Platform: "darwin",
 				TeamID:   &teamID,
 			}, nil
 		})
-		ds.TeamLiteFunc = func(ctx context.Context, tid uint) (*fleet.TeamLite, error) {
-			return &fleet.TeamLite{
+		ds.TeamLiteFunc = func(ctx context.Context, tid uint) (*automdm.TeamLite, error) {
+			return &automdm.TeamLite{
 				ID: teamID,
-				Config: fleet.TeamConfigLite{
-					MDM: fleet.TeamMDM{
-						MacOSSetup: fleet.MacOSSetup{
+				Config: automdm.TeamConfigLite{
+					MDM: automdm.TeamMDM{
+						MacOSSetup: automdm.MacOSSetup{
 							RequireAllSoftware: true,
 						},
 					},
 				},
 			}, nil
 		}
-		ds.ListSetupExperienceResultsByHostUUIDFunc = func(ctx context.Context, hUUID string, tID uint) ([]*fleet.SetupExperienceStatusResult, error) {
-			return []*fleet.SetupExperienceStatusResult{
+		ds.ListSetupExperienceResultsByHostUUIDFunc = func(ctx context.Context, hUUID string, tID uint) ([]*automdm.SetupExperienceStatusResult, error) {
+			return []*automdm.SetupExperienceStatusResult{
 				{
 					ID:                              1,
 					HostUUID:                        hostUUID,
 					Name:                            failedSoftwareName,
-					Status:                          fleet.SetupExperienceStatusFailure,
+					Status:                          automdm.SetupExperienceStatusFailure,
 					SoftwareInstallerID:             &installerID,
 					HostSoftwareInstallsExecutionID: &softwareUUID,
 					SoftwareTitleID:                 &failedSoftwareTitleID,
@@ -646,13 +646,13 @@ func TestMaybeUpdateSetupExperience(t *testing.T) {
 					ID:              2,
 					HostUUID:        hostUUID,
 					Name:            "PendingVPPApp",
-					Status:          fleet.SetupExperienceStatusPending,
+					Status:          automdm.SetupExperienceStatusPending,
 					VPPAppTeamID:    &vppTeamID,
 					NanoCommandUUID: &pendingVPPCommandUUID,
 				},
 			}, nil
 		}
-		ds.CancelHostUpcomingActivityFunc = func(ctx context.Context, hID uint, executionID string) (fleet.ActivityDetails, error) {
+		ds.CancelHostUpcomingActivityFunc = func(ctx context.Context, hID uint, executionID string) (automdm.ActivityDetails, error) {
 			return nil, nil
 		}
 		ds.CancelPendingSetupExperienceStepsFunc = func(ctx context.Context, hUUID string) error {
@@ -663,15 +663,15 @@ func TestMaybeUpdateSetupExperience(t *testing.T) {
 		ds.CancelHostUpcomingActivityFuncInvoked = false
 
 		activityCallCount := 0
-		activityFn := func(ctx context.Context, user *fleet.User, activity fleet.ActivityDetails) error {
+		activityFn := func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error {
 			activityCallCount++
 			return nil
 		}
 
-		result := fleet.SetupExperienceSoftwareInstallResult{
+		result := automdm.SetupExperienceSoftwareInstallResult{
 			HostUUID:        hostUUID,
 			ExecutionID:     softwareUUID,
-			InstallerStatus: fleet.SoftwareInstallFailed,
+			InstallerStatus: automdm.SoftwareInstallFailed,
 		}
 		updated, err := maybeUpdateSetupExperienceStatus(ctx, ds, result, activityFn)
 		require.NoError(t, err)
@@ -682,10 +682,10 @@ func TestMaybeUpdateSetupExperience(t *testing.T) {
 		// ---- Step 2: Late-arriving VPP result for B (already canceled) ----
 		// The datastore guard returns (false, nil) because B's row is already "canceled".
 
-		ds.MaybeUpdateSetupExperienceVPPStatusFunc = func(ctx context.Context, hUUID string, cmdUUID string, status fleet.SetupExperienceStatusResultStatus) (bool, error) {
+		ds.MaybeUpdateSetupExperienceVPPStatusFunc = func(ctx context.Context, hUUID string, cmdUUID string, status automdm.SetupExperienceStatusResultStatus) (bool, error) {
 			require.Equal(t, hostUUID, hUUID)
 			require.Equal(t, vppUUID, cmdUUID)
-			require.Equal(t, fleet.SetupExperienceStatusFailure, status)
+			require.Equal(t, automdm.SetupExperienceStatusFailure, status)
 			return false, nil // guard blocked: row already canceled
 		}
 		ds.MaybeUpdateSetupExperienceVPPStatusFuncInvoked = false
@@ -694,10 +694,10 @@ func TestMaybeUpdateSetupExperience(t *testing.T) {
 		ds.CancelPendingSetupExperienceStepsFuncInvoked = false
 		ds.CancelHostUpcomingActivityFuncInvoked = false
 
-		vppResult := fleet.SetupExperienceVPPInstallResult{
+		vppResult := automdm.SetupExperienceVPPInstallResult{
 			HostUUID:      hostUUID,
 			CommandUUID:   vppUUID,
-			CommandStatus: fleet.MDMAppleStatusError,
+			CommandStatus: automdm.MDMAppleStatusError,
 		}
 		updated, err = maybeUpdateSetupExperienceStatus(ctx, ds, vppResult, activityFn)
 		require.NoError(t, err)
@@ -717,30 +717,30 @@ func TestMaybeUpdateSetupExperience(t *testing.T) {
 		failedSoftwareName := "WindowsApp"
 		pendingExecID := "pending-win-exec"
 
-		ds.MaybeUpdateSetupExperienceSoftwareInstallStatusFunc = func(ctx context.Context, hUUID string, executionID string, status fleet.SetupExperienceStatusResultStatus) (bool, error) {
+		ds.MaybeUpdateSetupExperienceSoftwareInstallStatusFunc = func(ctx context.Context, hUUID string, executionID string, status automdm.SetupExperienceStatusResultStatus) (bool, error) {
 			require.Equal(t, hostUUID, hUUID)
 			require.Equal(t, softwareUUID, executionID)
-			require.Equal(t, fleet.SetupExperienceStatusFailure, status)
+			require.Equal(t, automdm.SetupExperienceStatusFailure, status)
 			return true, nil
 		}
 		ds.MaybeUpdateSetupExperienceSoftwareInstallStatusFuncInvoked = false
 		// Windows uses OsqueryHostID as the setup-experience host identifier
-		// (see fleet.HostUUIDForSetupExperience). Set it so the cancel
+		// (see automdm.HostUUIDForSetupExperience). Set it so the cancel
 		// helper can locate setup-experience rows.
 		osqueryHostID := "windows-osquery-id"
-		mockHostBySetupExperienceUUID(&ds.DataStore, func(ctx context.Context, identifier string) (*fleet.Host, error) {
-			return &fleet.Host{
+		mockHostBySetupExperienceUUID(&ds.DataStore, func(ctx context.Context, identifier string) (*automdm.Host, error) {
+			return &automdm.Host{
 				ID: 2, UUID: hostUUID, Platform: "windows",
 				TeamID: &teamID, OsqueryHostID: &osqueryHostID,
 			}, nil
 		})
-		ds.TeamLiteFunc = func(ctx context.Context, tid uint) (*fleet.TeamLite, error) {
+		ds.TeamLiteFunc = func(ctx context.Context, tid uint) (*automdm.TeamLite, error) {
 			require.Equal(t, teamID, tid)
-			return &fleet.TeamLite{
+			return &automdm.TeamLite{
 				ID: teamID,
-				Config: fleet.TeamConfigLite{
-					MDM: fleet.TeamMDM{
-						MacOSSetup: fleet.MacOSSetup{
+				Config: automdm.TeamConfigLite{
+					MDM: automdm.TeamMDM{
+						MacOSSetup: automdm.MacOSSetup{
 							RequireAllSoftwareWindows: true,
 						},
 					},
@@ -750,19 +750,19 @@ func TestMaybeUpdateSetupExperience(t *testing.T) {
 		// Windows cancel-gate: this test exercises the OOBE/Autopilot path,
 		// so awaiting_configuration is Active. The non-ESP cases (None -> no cancel,
 		// no activity) are covered in the matrix subtest below.
-		ds.GetMDMWindowsHostConfigStateFunc = func(ctx context.Context, hUUID string) (*fleet.MDMWindowsHostConfigState, error) {
-			return &fleet.MDMWindowsHostConfigState{AwaitingConfiguration: fleet.WindowsMDMAwaitingConfigurationActive}, nil
+		ds.GetMDMWindowsHostConfigStateFunc = func(ctx context.Context, hUUID string) (*automdm.MDMWindowsHostConfigState, error) {
+			return &automdm.MDMWindowsHostConfigState{AwaitingConfiguration: automdm.WindowsMDMAwaitingConfigurationActive}, nil
 		}
 
 		installerID := uint(20)
-		ds.ListSetupExperienceResultsByHostUUIDFunc = func(ctx context.Context, hUUID string, tID uint) ([]*fleet.SetupExperienceStatusResult, error) {
+		ds.ListSetupExperienceResultsByHostUUIDFunc = func(ctx context.Context, hUUID string, tID uint) ([]*automdm.SetupExperienceStatusResult, error) {
 			require.Equal(t, osqueryHostID, hUUID, "Windows looks up by OsqueryHostID, not UUID")
-			return []*fleet.SetupExperienceStatusResult{
+			return []*automdm.SetupExperienceStatusResult{
 				{
 					ID:                              5,
 					HostUUID:                        osqueryHostID,
 					Name:                            failedSoftwareName,
-					Status:                          fleet.SetupExperienceStatusFailure,
+					Status:                          automdm.SetupExperienceStatusFailure,
 					SoftwareInstallerID:             &installerID,
 					HostSoftwareInstallsExecutionID: &softwareUUID,
 					SoftwareTitleID:                 &failedSoftwareTitleID,
@@ -771,14 +771,14 @@ func TestMaybeUpdateSetupExperience(t *testing.T) {
 					ID:                              6,
 					HostUUID:                        osqueryHostID,
 					Name:                            "PendingWinApp",
-					Status:                          fleet.SetupExperienceStatusPending,
+					Status:                          automdm.SetupExperienceStatusPending,
 					SoftwareInstallerID:             &installerID,
 					HostSoftwareInstallsExecutionID: &pendingExecID,
 				},
 			}, nil
 		}
 		ds.CancelHostUpcomingActivityFuncInvoked = false
-		ds.CancelHostUpcomingActivityFunc = func(ctx context.Context, hID uint, executionID string) (fleet.ActivityDetails, error) {
+		ds.CancelHostUpcomingActivityFunc = func(ctx context.Context, hID uint, executionID string) (automdm.ActivityDetails, error) {
 			require.Equal(t, uint(2), hID)
 			require.Equal(t, pendingExecID, executionID)
 			return nil, nil
@@ -790,17 +790,17 @@ func TestMaybeUpdateSetupExperience(t *testing.T) {
 		}
 
 		var activityFnCalled bool
-		var recordedActivity fleet.ActivityDetails
-		activityFn := func(ctx context.Context, user *fleet.User, activity fleet.ActivityDetails) error {
+		var recordedActivity automdm.ActivityDetails
+		activityFn := func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error {
 			activityFnCalled = true
 			recordedActivity = activity
 			return nil
 		}
 
-		result := fleet.SetupExperienceSoftwareInstallResult{
+		result := automdm.SetupExperienceSoftwareInstallResult{
 			HostUUID:        hostUUID,
 			ExecutionID:     softwareUUID,
-			InstallerStatus: fleet.SoftwareInstallFailed,
+			InstallerStatus: automdm.SoftwareInstallFailed,
 		}
 		updated, err := maybeUpdateSetupExperienceStatus(ctx, ds, result, activityFn)
 		require.NoError(t, err)
@@ -809,7 +809,7 @@ func TestMaybeUpdateSetupExperience(t *testing.T) {
 		require.True(t, ds.CancelPendingSetupExperienceStepsFuncInvoked, "Windows host must cancel pending setup-experience steps")
 		require.True(t, ds.CancelHostUpcomingActivityFuncInvoked)
 
-		canceledActivity, ok := recordedActivity.(fleet.ActivityTypeCanceledSetupExperience)
+		canceledActivity, ok := recordedActivity.(automdm.ActivityTypeCanceledSetupExperience)
 		require.True(t, ok)
 		require.Equal(t, uint(2), canceledActivity.HostID)
 		require.Equal(t, failedSoftwareName, canceledActivity.SoftwareTitle)
@@ -820,7 +820,7 @@ func TestMaybeUpdateSetupExperience(t *testing.T) {
 		// Exhaustive matrix for the gate at maybeCancelPendingSetupExperienceSteps that decides
 		// whether a failed setup-experience software install triggers the cancellation cascade +
 		// canceled_setup_experience activity. The gate keys off mdm_windows_enrollments.awaiting_configuration
-		// (Pending|Active = device is in Fleet-tracked ESP -> cancel; anything else -> skip).
+		// (Pending|Active = device is in AutoMDM-tracked ESP -> cancel; anything else -> skip).
 		//
 		// Cases mirror the five install paths:
 		//   1. OOBE Autopilot                            (Automatic + OOBE -> Active)   -> cancel
@@ -837,40 +837,40 @@ func TestMaybeUpdateSetupExperience(t *testing.T) {
 		computerName := "DESKTOP-NOAUTOPILOT"
 		osqueryHostID := "windows-osquery-id-matrix"
 
-		notFound := func(context.Context, string) (*fleet.MDMWindowsHostConfigState, error) {
+		notFound := func(context.Context, string) (*automdm.MDMWindowsHostConfigState, error) {
 			return nil, &notFoundError{}
 		}
-		returns := func(v fleet.WindowsMDMAwaitingConfiguration) func(context.Context, string) (*fleet.MDMWindowsHostConfigState, error) {
-			return func(context.Context, string) (*fleet.MDMWindowsHostConfigState, error) {
-				return &fleet.MDMWindowsHostConfigState{AwaitingConfiguration: v}, nil
+		returns := func(v automdm.WindowsMDMAwaitingConfiguration) func(context.Context, string) (*automdm.MDMWindowsHostConfigState, error) {
+			return func(context.Context, string) (*automdm.MDMWindowsHostConfigState, error) {
+				return &automdm.MDMWindowsHostConfigState{AwaitingConfiguration: v}, nil
 			}
 		}
 
 		cases := []struct {
 			name                 string
-			primary              func(context.Context, string) (*fleet.MDMWindowsHostConfigState, error)
-			fallbackDevice       *fleet.MDMWindowsEnrolledDevice // nil = fallback also returns notFound
+			primary              func(context.Context, string) (*automdm.MDMWindowsHostConfigState, error)
+			fallbackDevice       *automdm.MDMWindowsEnrolledDevice // nil = fallback also returns notFound
 			expectCancel         bool
 			expectFallbackLookup bool
 		}{
 			{
 				name:         "case 1: OOBE Autopilot (Automatic + OOBE -> Active)",
-				primary:      returns(fleet.WindowsMDMAwaitingConfigurationActive),
+				primary:      returns(automdm.WindowsMDMAwaitingConfigurationActive),
 				expectCancel: true,
 			},
 			{
 				name:         "case 2: OOBE Entra-join / Settings (Automatic + OOBE -> Pending)",
-				primary:      returns(fleet.WindowsMDMAwaitingConfigurationPending),
+				primary:      returns(automdm.WindowsMDMAwaitingConfigurationPending),
 				expectCancel: true,
 			},
 			{
 				name:         "case 3: post-OOBE BYOD work/school (Automatic + !OOBE -> None)",
-				primary:      returns(fleet.WindowsMDMAwaitingConfigurationNone),
+				primary:      returns(automdm.WindowsMDMAwaitingConfigurationNone),
 				expectCancel: false,
 			},
 			{
 				name:         "case 4: post-OOBE manual orbit + auto-Windows-MDM (Programmatic -> None)",
-				primary:      returns(fleet.WindowsMDMAwaitingConfigurationNone),
+				primary:      returns(automdm.WindowsMDMAwaitingConfigurationNone),
 				expectCancel: false,
 			},
 			{
@@ -883,21 +883,21 @@ func TestMaybeUpdateSetupExperience(t *testing.T) {
 			{
 				name:                 "race window: primary misses, fallback finds Pending -> cancel",
 				primary:              notFound,
-				fallbackDevice:       &fleet.MDMWindowsEnrolledDevice{AwaitingConfiguration: fleet.WindowsMDMAwaitingConfigurationPending},
+				fallbackDevice:       &automdm.MDMWindowsEnrolledDevice{AwaitingConfiguration: automdm.WindowsMDMAwaitingConfigurationPending},
 				expectCancel:         true,
 				expectFallbackLookup: true,
 			},
 			{
 				name:                 "race window: primary misses, fallback finds Active -> cancel",
 				primary:              notFound,
-				fallbackDevice:       &fleet.MDMWindowsEnrolledDevice{AwaitingConfiguration: fleet.WindowsMDMAwaitingConfigurationActive},
+				fallbackDevice:       &automdm.MDMWindowsEnrolledDevice{AwaitingConfiguration: automdm.WindowsMDMAwaitingConfigurationActive},
 				expectCancel:         true,
 				expectFallbackLookup: true,
 			},
 			{
 				name:                 "race window: primary misses, fallback finds None -> skip",
 				primary:              notFound,
-				fallbackDevice:       &fleet.MDMWindowsEnrolledDevice{AwaitingConfiguration: fleet.WindowsMDMAwaitingConfigurationNone},
+				fallbackDevice:       &automdm.MDMWindowsEnrolledDevice{AwaitingConfiguration: automdm.WindowsMDMAwaitingConfigurationNone},
 				expectCancel:         false,
 				expectFallbackLookup: true,
 			},
@@ -910,40 +910,40 @@ func TestMaybeUpdateSetupExperience(t *testing.T) {
 
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
-				ds.MaybeUpdateSetupExperienceSoftwareInstallStatusFunc = func(ctx context.Context, hUUID string, executionID string, status fleet.SetupExperienceStatusResultStatus) (bool, error) {
+				ds.MaybeUpdateSetupExperienceSoftwareInstallStatusFunc = func(ctx context.Context, hUUID string, executionID string, status automdm.SetupExperienceStatusResultStatus) (bool, error) {
 					return true, nil
 				}
-				mockHostBySetupExperienceUUID(&ds.DataStore, func(ctx context.Context, identifier string) (*fleet.Host, error) {
-					return &fleet.Host{
+				mockHostBySetupExperienceUUID(&ds.DataStore, func(ctx context.Context, identifier string) (*automdm.Host, error) {
+					return &automdm.Host{
 						ID: 7, UUID: hostUUID, Platform: "windows", ComputerName: computerName,
 						TeamID: &teamID, OsqueryHostID: &osqueryHostID,
 					}, nil
 				})
-				ds.TeamLiteFunc = func(ctx context.Context, tid uint) (*fleet.TeamLite, error) {
-					return &fleet.TeamLite{
+				ds.TeamLiteFunc = func(ctx context.Context, tid uint) (*automdm.TeamLite, error) {
+					return &automdm.TeamLite{
 						ID: teamID,
-						Config: fleet.TeamConfigLite{
-							MDM: fleet.TeamMDM{
-								MacOSSetup: fleet.MacOSSetup{RequireAllSoftwareWindows: true},
+						Config: automdm.TeamConfigLite{
+							MDM: automdm.TeamMDM{
+								MacOSSetup: automdm.MacOSSetup{RequireAllSoftwareWindows: true},
 							},
 						},
 					}, nil
 				}
 				ds.GetMDMWindowsHostConfigStateFunc = tc.primary
-				ds.MDMWindowsGetUnlinkedEnrolledDeviceWithDeviceNameFunc = func(ctx context.Context, deviceName string) (*fleet.MDMWindowsEnrolledDevice, error) {
+				ds.MDMWindowsGetUnlinkedEnrolledDeviceWithDeviceNameFunc = func(ctx context.Context, deviceName string) (*automdm.MDMWindowsEnrolledDevice, error) {
 					require.Equal(t, computerName, deviceName)
 					if tc.fallbackDevice == nil {
 						return nil, &notFoundError{}
 					}
 					return tc.fallbackDevice, nil
 				}
-				ds.ListSetupExperienceResultsByHostUUIDFunc = func(ctx context.Context, hUUID string, tID uint) ([]*fleet.SetupExperienceStatusResult, error) {
-					return []*fleet.SetupExperienceStatusResult{
+				ds.ListSetupExperienceResultsByHostUUIDFunc = func(ctx context.Context, hUUID string, tID uint) ([]*automdm.SetupExperienceStatusResult, error) {
+					return []*automdm.SetupExperienceStatusResult{
 						{
 							ID:                              5,
 							HostUUID:                        osqueryHostID,
 							Name:                            failedSoftwareName,
-							Status:                          fleet.SetupExperienceStatusFailure,
+							Status:                          automdm.SetupExperienceStatusFailure,
 							SoftwareInstallerID:             &installerID,
 							HostSoftwareInstallsExecutionID: &softwareUUID,
 							SoftwareTitleID:                 &failedSoftwareTitleID,
@@ -952,13 +952,13 @@ func TestMaybeUpdateSetupExperience(t *testing.T) {
 							ID:                              6,
 							HostUUID:                        osqueryHostID,
 							Name:                            "PendingApp",
-							Status:                          fleet.SetupExperienceStatusPending,
+							Status:                          automdm.SetupExperienceStatusPending,
 							SoftwareInstallerID:             &installerID,
 							HostSoftwareInstallsExecutionID: &pendingExecID,
 						},
 					}, nil
 				}
-				ds.CancelHostUpcomingActivityFunc = func(ctx context.Context, hID uint, executionID string) (fleet.ActivityDetails, error) {
+				ds.CancelHostUpcomingActivityFunc = func(ctx context.Context, hID uint, executionID string) (automdm.ActivityDetails, error) {
 					return nil, nil
 				}
 				ds.CancelPendingSetupExperienceStepsFunc = func(ctx context.Context, hUUID string) error { return nil }
@@ -970,15 +970,15 @@ func TestMaybeUpdateSetupExperience(t *testing.T) {
 				ds.ListSetupExperienceResultsByHostUUIDFuncInvoked = false
 
 				var activityFnCalled bool
-				activityFn := func(ctx context.Context, user *fleet.User, activity fleet.ActivityDetails) error {
+				activityFn := func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error {
 					activityFnCalled = true
 					return nil
 				}
 
-				result := fleet.SetupExperienceSoftwareInstallResult{
+				result := automdm.SetupExperienceSoftwareInstallResult{
 					HostUUID:        hostUUID,
 					ExecutionID:     softwareUUID,
-					InstallerStatus: fleet.SoftwareInstallFailed,
+					InstallerStatus: automdm.SoftwareInstallFailed,
 				}
 				updated, err := maybeUpdateSetupExperienceStatus(ctx, ds, result, activityFn)
 				require.NoError(t, err)
@@ -1005,11 +1005,11 @@ func TestMaybeUpdateSetupExperience(t *testing.T) {
 		// install failure during ESP MUST NOT cancel pending steps and MUST
 		// NOT emit a canceled_setup_experience activity. The device just
 		// proceeds to the desktop and the failure is visible only in
-		// Fleet's host activity feed (via the install-status path, not
+		// AutoMDM's host activity feed (via the install-status path, not
 		// canceled_setup_experience).
 		teamID := uint(1)
 
-		ds.MaybeUpdateSetupExperienceSoftwareInstallStatusFunc = func(ctx context.Context, hUUID string, executionID string, status fleet.SetupExperienceStatusResultStatus) (bool, error) {
+		ds.MaybeUpdateSetupExperienceSoftwareInstallStatusFunc = func(ctx context.Context, hUUID string, executionID string, status automdm.SetupExperienceStatusResultStatus) (bool, error) {
 			return true, nil
 		}
 		ds.MaybeUpdateSetupExperienceSoftwareInstallStatusFuncInvoked = false
@@ -1018,18 +1018,18 @@ func TestMaybeUpdateSetupExperience(t *testing.T) {
 		// it does NOT reach that path because of the require_all=false
 		// early-return.
 		osqueryHostID := "windows-osquery-id-noreq"
-		mockHostBySetupExperienceUUID(&ds.DataStore, func(ctx context.Context, identifier string) (*fleet.Host, error) {
-			return &fleet.Host{
+		mockHostBySetupExperienceUUID(&ds.DataStore, func(ctx context.Context, identifier string) (*automdm.Host, error) {
+			return &automdm.Host{
 				ID: 3, UUID: hostUUID, Platform: "windows",
 				TeamID: &teamID, OsqueryHostID: &osqueryHostID,
 			}, nil
 		})
-		ds.TeamLiteFunc = func(ctx context.Context, tid uint) (*fleet.TeamLite, error) {
-			return &fleet.TeamLite{
+		ds.TeamLiteFunc = func(ctx context.Context, tid uint) (*automdm.TeamLite, error) {
+			return &automdm.TeamLite{
 				ID: teamID,
-				Config: fleet.TeamConfigLite{
-					MDM: fleet.TeamMDM{
-						MacOSSetup: fleet.MacOSSetup{
+				Config: automdm.TeamConfigLite{
+					MDM: automdm.TeamMDM{
+						MacOSSetup: automdm.MacOSSetup{
 							RequireAllSoftwareWindows: false,
 						},
 					},
@@ -1041,15 +1041,15 @@ func TestMaybeUpdateSetupExperience(t *testing.T) {
 		ds.ListSetupExperienceResultsByHostUUIDFuncInvoked = false
 
 		var activityFnCalled bool
-		activityFn := func(ctx context.Context, user *fleet.User, activity fleet.ActivityDetails) error {
+		activityFn := func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error {
 			activityFnCalled = true
 			return nil
 		}
 
-		result := fleet.SetupExperienceSoftwareInstallResult{
+		result := automdm.SetupExperienceSoftwareInstallResult{
 			HostUUID:        hostUUID,
 			ExecutionID:     softwareUUID,
-			InstallerStatus: fleet.SoftwareInstallFailed,
+			InstallerStatus: automdm.SoftwareInstallFailed,
 		}
 		updated, err := maybeUpdateSetupExperienceStatus(ctx, ds, result, activityFn)
 		require.NoError(t, err)
@@ -1067,8 +1067,8 @@ func TestMaybeUpdateSetupExperience(t *testing.T) {
 }
 
 // mockHostBySetupExperienceUUID has HostIDBySetupExperienceUUID and Host return the host that get gives for a setup experience UUID.
-func mockHostBySetupExperienceUUID(ds *mock.DataStore, get func(ctx context.Context, uuid string) (*fleet.Host, error)) {
-	hosts := make(map[uint]*fleet.Host)
+func mockHostBySetupExperienceUUID(ds *mock.DataStore, get func(ctx context.Context, uuid string) (*automdm.Host, error)) {
+	hosts := make(map[uint]*automdm.Host)
 	ds.HostIDBySetupExperienceUUIDFunc = func(ctx context.Context, uuid string) (uint, error) {
 		host, err := get(ctx, uuid)
 		if err != nil {
@@ -1077,7 +1077,7 @@ func mockHostBySetupExperienceUUID(ds *mock.DataStore, get func(ctx context.Cont
 		hosts[host.ID] = host
 		return host.ID, nil
 	}
-	ds.HostFunc = func(ctx context.Context, id uint) (*fleet.Host, error) {
+	ds.HostFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
 		return hosts[id], nil
 	}
 }

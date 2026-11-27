@@ -26,8 +26,8 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           # Exempt the automated release author
-          if [ "$AUTHOR" = "fleet-release" ]; then
-            echo "Author is fleet-release; skipping PR template check."
+          if [ "$AUTHOR" = "automdm-release" ]; then
+            echo "Author is automdm-release; skipping PR template check."
             exit 0
           fi
 

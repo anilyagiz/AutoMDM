@@ -16,7 +16,7 @@ import {
   isDiskEncryptionSupportedLinuxPlatform,
 } from "interfaces/platform";
 import {
-  INITIAL_FLEET_DATE,
+  INITIAL_AUTOMDM_DATE,
   LEARN_MORE_ABOUT_BASE_LINK,
 } from "utilities/constants";
 
@@ -27,7 +27,7 @@ export interface IHostBannersBaseProps {
   /** Why the macOS disk encryption status is action_required, if it is */
   diskEncryptionActionRequired?: MacDiskEncryptionActionRequired | null;
   mdmEnrollmentStatus: MdmEnrollmentStatus | null;
-  connectedToFleetMdm?: boolean;
+  connectedToAutoMDMMdm?: boolean;
   hostPlatform?: HostPlatform;
   // used to identify Fedora hosts, whose platform is "rhel"
   hostOsVersion?: string;
@@ -35,14 +35,14 @@ export interface IHostBannersBaseProps {
   diskEncryptionOSSetting?: IOSSettings["disk_encryption"];
   /** Whether or not this host's disk is encrypted */
   diskIsEncrypted?: boolean;
-  /** Whether or not Fleet has escrowed the host's disk encryption key */
+  /** Whether or not AutoMDM has escrowed the host's disk encryption key */
   diskEncryptionKeyAvailable?: boolean;
   /** The timestamp of the last MDM enrollment */
   lastMdmEnrolledAt?: string;
   /** The timestamp of the last detail update */
   detailUpdatedAt?: string;
-  /** Whether or not this host is assigned to Fleet via DEP */
-  depAssignedToFleet: boolean;
+  /** Whether or not this host is assigned to AutoMDM via DEP */
+  depAssignedToAutoMDM: boolean;
   onlyAllowAppleBusinessEnrollment: boolean;
 }
 /**
@@ -53,7 +53,7 @@ export const useHostDetailsBanner = ({
   mdmEnrollmentStatus,
   hostPlatform,
   hostOsVersion,
-  connectedToFleetMdm,
+  connectedToAutoMDMMdm,
   macDiskEncryptionStatus,
   diskEncryptionActionRequired,
   diskEncryptionOSSetting,
@@ -61,7 +61,7 @@ export const useHostDetailsBanner = ({
   diskEncryptionKeyAvailable,
   lastMdmEnrolledAt,
   detailUpdatedAt,
-  depAssignedToFleet,
+  depAssignedToAutoMDM,
   onlyAllowAppleBusinessEnrollment,
 }: IHostBannersBaseProps): JSX.Element | null => {
   const { config } = useContext(AppContext);
@@ -72,7 +72,7 @@ export const useHostDetailsBanner = ({
     !!lastMdmEnrolledAt &&
     // if less than an hour has passed since the last MDM enrollment, we consider it a new
     // enrollment and won't show the disk encryption action required banner, as it's possible the
-    // host just hasn't sent its disk encryption status to Fleet yet
+    // host just hasn't sent its disk encryption status to AutoMDM yet
     !isPast(addHours(lastMdmEnrolledAt, 1));
 
   const showTurnOnMdmInfoBanner =
@@ -80,11 +80,11 @@ export const useHostDetailsBanner = ({
     isMdmUnenrolled &&
     config?.mdm.enabled_and_configured &&
     detailUpdatedAt &&
-    detailUpdatedAt > INITIAL_FLEET_DATE;
+    detailUpdatedAt > INITIAL_AUTOMDM_DATE;
 
   const showMacDiskEncryptionUserActionRequired =
     config?.mdm.enabled_and_configured &&
-    connectedToFleetMdm &&
+    connectedToAutoMDMMdm &&
     macDiskEncryptionStatus === "action_required" &&
     !isNewMdmEnrollment;
 
@@ -100,7 +100,7 @@ export const useHostDetailsBanner = ({
 
   if (
     onlyAllowAppleBusinessEnrollment &&
-    !depAssignedToFleet &&
+    !depAssignedToAutoMDM &&
     isMdmUnenrolled &&
     isAppleDevice(hostPlatform)
   ) {
@@ -119,7 +119,7 @@ export const useHostDetailsBanner = ({
   if (
     onlyAllowAppleBusinessEnrollment &&
     isAppleDevice(hostPlatform) &&
-    !depAssignedToFleet &&
+    !depAssignedToAutoMDM &&
     !isAutomaticDeviceEnrollment(mdmEnrollmentStatus)
   ) {
     return (
@@ -155,7 +155,7 @@ export const useHostDetailsBanner = ({
           {diskEncryptionActionRequired === "turn_on_encryption" ? (
             <>
               Disk encryption: Disk encryption is off, and this host&apos;s
-              fleet doesn&apos;t enforce it. Fleet will store the recovery key
+              team doesn&apos;t enforce it. AutoMDM will store the recovery key
               when the end user turns on FileVault.
             </>
           ) : (
@@ -197,7 +197,7 @@ export const useHostDetailsBanner = ({
       );
     }
     if (!diskEncryptionKeyAvailable) {
-      // linux host's disk is encrypted, but Fleet doesn't yet have a disk
+      // linux host's disk is encrypted, but AutoMDM doesn't yet have a disk
       // encryption key escrowed (note that this state is also possible for Windows hosts, which we
       // don't show this banner for currently)
       return actionRequiredBanner;
@@ -207,7 +207,7 @@ export const useHostDetailsBanner = ({
     hostPlatform === "windows" &&
     diskEncryptionOSSetting?.status === "action_required"
   ) {
-    // Fleet is holding the repair until the host restarts, so point the admin at the restart rather than at My device.
+    // AutoMDM is holding the repair until the host restarts, so point the admin at the restart rather than at My device.
     if (diskEncryptionOSSetting?.action_required === "restart") {
       return (
         <div className={baseClass}>

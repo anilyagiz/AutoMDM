@@ -34,7 +34,7 @@ type Story = StoryObj<typeof InfoBanner>;
 
 const defaultChildren = (
   <>
-    <b>Fleet</b> is unable to run a live query. Refresh the page or log in
+    <b>AutoMDM</b> is unable to run a live query. Refresh the page or log in
     again. If this keeps happening please{" "}
     <CustomLink
       url="https://github.com/fleetdm/fleet/issues/new/choose"

@@ -32,7 +32,7 @@ describe("MfaPage", () => {
         }
         return HttpResponse.json({
           user: createMockUser(),
-          available_fleets: [],
+          available_teams: [],
           token: "new-session-token",
         });
       }),

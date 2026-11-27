@@ -15,9 +15,9 @@ type DuplicateJSONKeysOpts struct {
 
 // DuplicateJSONKeys takes marshaled JSON and, for each AliasRule, duplicates
 // keys so that both the old (native) and new names appear in the output.
-// For example, if a rule maps OldKey:"team_id" → NewKey:"fleet_id", and the
+// For example, if a rule maps OldKey:"team_id" → NewKey:"team_id", and the
 // JSON contains "team_id": 42, the output will contain both "team_id": 42
-// and "fleet_id": 42.
+// and "team_id": 42.
 //
 // By default a renamed key produces a clean split: the old-named key keeps an
 // all-old subtree and the new-named key gets an all-new subtree (via
@@ -28,10 +28,10 @@ type DuplicateJSONKeysOpts struct {
 // A rule with Inline set opts into "merged" duplication for that container: its
 // old-named subtree additionally carries the new-named copies of any nested
 // renamed containers, so both names appear together on the same object (e.g.
-// "abm_tokens" holding both "macos_team" and "macos_fleet"). Leaf renames
+// "abm_tokens" holding both "macos_team" and "macos_team"). Leaf renames
 // inside an inlined subtree are still kept single-named per container (so
-// "macos_team" holds "team_id" while its sibling "macos_fleet" holds
-// "fleet_id") rather than cross-contaminating both id names into one object.
+// "macos_team" holds "team_id" while its sibling "macos_team" holds
+// "team_id") rather than cross-contaminating both id names into one object.
 //
 // If the new key already exists in the same object scope, the duplication is
 // skipped for that key (to avoid producing duplicate keys when the source

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"google.golang.org/api/androidmanagement/v1"
 )
 
@@ -72,7 +72,7 @@ func generateUnlockPassword(policies []*androidmanagement.PasswordRequirements) 
 	}
 	length := max(spec.length, required)
 	if length > unlockPasswordMaxLength {
-		return "", &fleet.BadRequestError{Message: fmt.Sprintf(
+		return "", &automdm.BadRequestError{Message: fmt.Sprintf(
 			"Couldn't lock host. The host's password policy requires a password longer than %d characters.", unlockPasswordMaxLength)}
 	}
 

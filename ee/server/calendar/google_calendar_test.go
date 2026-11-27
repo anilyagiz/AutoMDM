@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/calendar/v3"
@@ -92,7 +92,7 @@ func TestGoogleCalendar_Configure(t *testing.T) {
 	}
 
 	// Happy path test
-	var cal fleet.UserCalendar = NewGoogleCalendar(makeConfig(mockAPI))
+	var cal automdm.UserCalendar = NewGoogleCalendar(makeConfig(mockAPI))
 	err := cal.Configure(baseUserEmail)
 	assert.NoError(t, err)
 
@@ -123,7 +123,7 @@ func TestGoogleCalendar_ConfigurePlusAddressing(t *testing.T) {
 		return nil
 	}
 
-	var cal fleet.UserCalendar = NewGoogleCalendar(makeConfig(mockAPI))
+	var cal automdm.UserCalendar = NewGoogleCalendar(makeConfig(mockAPI))
 	err := cal.Configure(email)
 	assert.NoError(t, err)
 }
@@ -136,10 +136,10 @@ func makeConfig(mockAPI *MockGoogleCalendarLowLevelAPI) *GoogleCalendarConfig {
 	}
 	config := &GoogleCalendarConfig{
 		Context: context.Background(),
-		IntegrationConfig: &fleet.GoogleCalendarIntegration{
-			ApiKey: fleet.GoogleCalendarApiKey{Values: map[string]string{
-				fleet.GoogleCalendarEmail:      baseServiceEmail,
-				fleet.GoogleCalendarPrivateKey: basePrivateKey,
+		IntegrationConfig: &automdm.GoogleCalendarIntegration{
+			ApiKey: automdm.GoogleCalendarApiKey{Values: map[string]string{
+				automdm.GoogleCalendarEmail:      baseServiceEmail,
+				automdm.GoogleCalendarPrivateKey: basePrivateKey,
 			}},
 		},
 		Logger:    logger,
@@ -158,24 +158,24 @@ func TestGoogleCalendar_DeleteEvent(t *testing.T) {
 	}
 
 	// Happy path test
-	var cal fleet.UserCalendar = NewGoogleCalendar(makeConfig(mockAPI))
+	var cal automdm.UserCalendar = NewGoogleCalendar(makeConfig(mockAPI))
 	err := cal.Configure(baseUserEmail)
 	assert.NoError(t, err)
-	err = cal.DeleteEvent(&fleet.CalendarEvent{Data: []byte(`{"ID":"event-id"}`)})
+	err = cal.DeleteEvent(&automdm.CalendarEvent{Data: []byte(`{"ID":"event-id"}`)})
 	assert.NoError(t, err)
 
 	// API error test
 	mockAPI.DeleteEventFunc = func(_ string) error {
 		return assert.AnError
 	}
-	err = cal.DeleteEvent(&fleet.CalendarEvent{Data: []byte(`{"ID":"event-id"}`)})
+	err = cal.DeleteEvent(&automdm.CalendarEvent{Data: []byte(`{"ID":"event-id"}`)})
 	assert.ErrorIs(t, err, assert.AnError)
 
 	// Event already deleted
 	mockAPI.DeleteEventFunc = func(_ string) error {
 		return &googleapi.Error{Code: http.StatusGone}
 	}
-	err = cal.DeleteEvent(&fleet.CalendarEvent{Data: []byte(`{"ID":"event-id"}`)})
+	err = cal.DeleteEvent(&automdm.CalendarEvent{Data: []byte(`{"ID":"event-id"}`)})
 	assert.NoError(t, err)
 
 	// Invalid grant (i.e., user was deleted). We ignore this error.
@@ -186,7 +186,7 @@ func TestGoogleCalendar_DeleteEvent(t *testing.T) {
 			Err: errors.New("oauth2: cannot fetch token: 400 Bad Request\nResponse: {\n  \"error\": \"invalid_grant\",\n  \"error_description\": \"Invalid email or User ID\"\n}"),
 		}
 	}
-	err = cal.DeleteEvent(&fleet.CalendarEvent{Data: []byte(`{"ID":"event-id"}`)})
+	err = cal.DeleteEvent(&automdm.CalendarEvent{Data: []byte(`{"ID":"event-id"}`)})
 	assert.NoError(t, err)
 }
 
@@ -195,23 +195,23 @@ func TestGoogleCalendar_unmarshalDetails(t *testing.T) {
 	var gCal = NewGoogleCalendar(makeConfig(&MockGoogleCalendarLowLevelAPI{}))
 	err := gCal.Configure(baseUserEmail)
 	assert.NoError(t, err)
-	details, err := gCal.unmarshalDetails(&fleet.CalendarEvent{Data: []byte(`{"id":"event-id","etag":"event-eTag"}`)})
+	details, err := gCal.unmarshalDetails(&automdm.CalendarEvent{Data: []byte(`{"id":"event-id","etag":"event-eTag"}`)})
 	assert.NoError(t, err)
 	assert.Equal(t, "event-id", details.ID)
 	assert.Equal(t, "event-eTag", details.ETag)
 
 	// Missing ETag is OK
-	details, err = gCal.unmarshalDetails(&fleet.CalendarEvent{Data: []byte(`{"id":"event-id"}`)})
+	details, err = gCal.unmarshalDetails(&automdm.CalendarEvent{Data: []byte(`{"id":"event-id"}`)})
 	assert.NoError(t, err)
 	assert.Equal(t, "event-id", details.ID)
 	assert.Equal(t, "", details.ETag)
 
 	// Bad JSON
-	_, err = gCal.unmarshalDetails(&fleet.CalendarEvent{Data: []byte(`{"bozo`)})
+	_, err = gCal.unmarshalDetails(&automdm.CalendarEvent{Data: []byte(`{"bozo`)})
 	assert.Error(t, err)
 
 	// Missing id
-	_, err = gCal.unmarshalDetails(&fleet.CalendarEvent{Data: []byte(`{"myId":"event-id","etag":"event-eTag"}`)})
+	_, err = gCal.unmarshalDetails(&automdm.CalendarEvent{Data: []byte(`{"myId":"event-id","etag":"event-eTag"}`)})
 	assert.Error(t, err)
 }
 
@@ -233,16 +233,16 @@ func TestGoogleCalendar_GetAndUpdateEvent(t *testing.T) {
 	mockAPI.GetSettingFunc = func(name string) (*calendar.Setting, error) {
 		return &calendar.Setting{Value: baseTzName}, nil
 	}
-	var genBodyFn fleet.CalendarGenBodyFn = func(bool) (string, bool, error) {
+	var genBodyFn automdm.CalendarGenBodyFn = func(bool) (string, bool, error) {
 		t.Error("genBodyFn should not be called")
 		return "event-body", false, nil
 	}
-	var cal fleet.UserCalendar = NewGoogleCalendar(makeConfig(mockAPI))
+	var cal automdm.UserCalendar = NewGoogleCalendar(makeConfig(mockAPI))
 	err := cal.Configure(baseUserEmail)
 	assert.NoError(t, err)
 
 	eventStartTime := time.Now().In(baseTzLocation)
-	event := &fleet.CalendarEvent{
+	event := &automdm.CalendarEvent{
 		StartTime: eventStartTime,
 		EndTime:   time.Now().Add(time.Hour).In(baseTzLocation),
 		Data:      []byte(`{"ID":"` + baseEventID + `","ETag":"` + baseETag + `"}`),
@@ -250,7 +250,7 @@ func TestGoogleCalendar_GetAndUpdateEvent(t *testing.T) {
 	}
 
 	// ETag matches
-	retrievedEvent, updated, err := cal.GetAndUpdateEvent(event, genBodyFn, fleet.CalendarGetAndUpdateEventOpts{})
+	retrievedEvent, updated, err := cal.GetAndUpdateEvent(event, genBodyFn, automdm.CalendarGetAndUpdateEventOpts{})
 	assert.NoError(t, err)
 	assert.False(t, updated)
 	assert.Equal(t, event, retrievedEvent)
@@ -259,25 +259,25 @@ func TestGoogleCalendar_GetAndUpdateEvent(t *testing.T) {
 	mockAPI.GetEventFunc = func(id, eTag string) (*calendar.Event, error) {
 		return nil, &googleapi.Error{Code: http.StatusNotModified}
 	}
-	retrievedEvent, updated, err = cal.GetAndUpdateEvent(event, genBodyFn, fleet.CalendarGetAndUpdateEventOpts{})
+	retrievedEvent, updated, err = cal.GetAndUpdateEvent(event, genBodyFn, automdm.CalendarGetAndUpdateEventOpts{})
 	assert.NoError(t, err)
 	assert.False(t, updated)
 	assert.Equal(t, event, retrievedEvent)
 
 	// Cannot unmarshal details
-	eventBadDetails := &fleet.CalendarEvent{
+	eventBadDetails := &automdm.CalendarEvent{
 		StartTime: time.Now(),
 		EndTime:   time.Now().Add(time.Hour),
 		Data:      []byte(`{"bozo`),
 	}
-	_, _, err = cal.GetAndUpdateEvent(eventBadDetails, genBodyFn, fleet.CalendarGetAndUpdateEventOpts{})
+	_, _, err = cal.GetAndUpdateEvent(eventBadDetails, genBodyFn, automdm.CalendarGetAndUpdateEventOpts{})
 	assert.Error(t, err)
 
 	// API error test
 	mockAPI.GetEventFunc = func(id, eTag string) (*calendar.Event, error) {
 		return nil, assert.AnError
 	}
-	_, _, err = cal.GetAndUpdateEvent(event, genBodyFn, fleet.CalendarGetAndUpdateEventOpts{})
+	_, _, err = cal.GetAndUpdateEvent(event, genBodyFn, automdm.CalendarGetAndUpdateEventOpts{})
 	assert.ErrorIs(t, err, assert.AnError)
 
 	// Event has been modified
@@ -291,7 +291,7 @@ func TestGoogleCalendar_GetAndUpdateEvent(t *testing.T) {
 			End:   &calendar.EventDateTime{DateTime: endTime.Format(time.RFC3339)},
 		}, nil
 	}
-	retrievedEvent, updated, err = cal.GetAndUpdateEvent(event, genBodyFn, fleet.CalendarGetAndUpdateEventOpts{})
+	retrievedEvent, updated, err = cal.GetAndUpdateEvent(event, genBodyFn, automdm.CalendarGetAndUpdateEventOpts{})
 	assert.NoError(t, err)
 	assert.True(t, updated)
 	assert.NotEqual(t, event, retrievedEvent)
@@ -314,7 +314,7 @@ func TestGoogleCalendar_GetAndUpdateEvent(t *testing.T) {
 			End:   &calendar.EventDateTime{DateTime: ""},
 		}, nil
 	}
-	_, _, err = cal.GetAndUpdateEvent(event, genBodyFn, fleet.CalendarGetAndUpdateEventOpts{})
+	_, _, err = cal.GetAndUpdateEvent(event, genBodyFn, automdm.CalendarGetAndUpdateEventOpts{})
 	assert.Error(t, err)
 
 	// missing start time
@@ -325,7 +325,7 @@ func TestGoogleCalendar_GetAndUpdateEvent(t *testing.T) {
 			End:  &calendar.EventDateTime{DateTime: endTime.Format(time.RFC3339)},
 		}, nil
 	}
-	_, _, err = cal.GetAndUpdateEvent(event, genBodyFn, fleet.CalendarGetAndUpdateEventOpts{})
+	_, _, err = cal.GetAndUpdateEvent(event, genBodyFn, automdm.CalendarGetAndUpdateEventOpts{})
 	assert.Error(t, err)
 
 	// Bad time format
@@ -337,7 +337,7 @@ func TestGoogleCalendar_GetAndUpdateEvent(t *testing.T) {
 			End:   &calendar.EventDateTime{DateTime: "bozo"},
 		}, nil
 	}
-	_, _, err = cal.GetAndUpdateEvent(event, genBodyFn, fleet.CalendarGetAndUpdateEventOpts{})
+	_, _, err = cal.GetAndUpdateEvent(event, genBodyFn, automdm.CalendarGetAndUpdateEventOpts{})
 	assert.Error(t, err)
 
 	// Event has been modified, with custom timezone.
@@ -356,7 +356,7 @@ func TestGoogleCalendar_GetAndUpdateEvent(t *testing.T) {
 			End:   &calendar.EventDateTime{DateTime: endTime.Format(time.RFC3339), TimeZone: newTzName},
 		}, nil
 	}
-	retrievedEvent, updated, err = cal.GetAndUpdateEvent(event, genBodyFn, fleet.CalendarGetAndUpdateEventOpts{UpdateTimezone: true})
+	retrievedEvent, updated, err = cal.GetAndUpdateEvent(event, genBodyFn, automdm.CalendarGetAndUpdateEventOpts{UpdateTimezone: true})
 	assert.NoError(t, err)
 	assert.True(t, updated)
 	assert.NotEqual(t, event, retrievedEvent)
@@ -400,7 +400,7 @@ func TestGoogleCalendar_GetAndUpdateEvent(t *testing.T) {
 		eventCreated = true
 		return event, nil
 	}
-	retrievedEvent, updated, err = cal.GetAndUpdateEvent(event, genBodyFn, fleet.CalendarGetAndUpdateEventOpts{})
+	retrievedEvent, updated, err = cal.GetAndUpdateEvent(event, genBodyFn, automdm.CalendarGetAndUpdateEventOpts{})
 	require.NoError(t, err)
 	assert.True(t, updated)
 	assert.NotEqual(t, event, retrievedEvent)
@@ -428,7 +428,7 @@ func TestGoogleCalendar_GetAndUpdateEvent(t *testing.T) {
 		}, nil
 	}
 	eventCreated = false
-	retrievedEvent, updated, err = cal.GetAndUpdateEvent(event, genBodyFn, fleet.CalendarGetAndUpdateEventOpts{})
+	retrievedEvent, updated, err = cal.GetAndUpdateEvent(event, genBodyFn, automdm.CalendarGetAndUpdateEventOpts{})
 	require.NoError(t, err)
 	assert.True(t, updated)
 	require.NotNil(t, retrievedEvent)
@@ -451,7 +451,7 @@ func TestGoogleCalendar_GetAndUpdateEvent(t *testing.T) {
 		}, nil
 	}
 	eventCreated = false
-	retrievedEvent, updated, err = cal.GetAndUpdateEvent(event, genBodyFn, fleet.CalendarGetAndUpdateEventOpts{})
+	retrievedEvent, updated, err = cal.GetAndUpdateEvent(event, genBodyFn, automdm.CalendarGetAndUpdateEventOpts{})
 	require.NoError(t, err)
 	assert.True(t, updated)
 	require.NotNil(t, retrievedEvent)
@@ -470,7 +470,7 @@ func TestGoogleCalendar_GetAndUpdateEvent(t *testing.T) {
 		}, nil
 	}
 	eventCreated = false
-	retrievedEvent, updated, err = cal.GetAndUpdateEvent(event, genBodyFn, fleet.CalendarGetAndUpdateEventOpts{})
+	retrievedEvent, updated, err = cal.GetAndUpdateEvent(event, genBodyFn, automdm.CalendarGetAndUpdateEventOpts{})
 	require.NoError(t, err)
 	assert.True(t, updated)
 	require.NotNil(t, retrievedEvent)
@@ -487,7 +487,7 @@ func TestGoogleCalendar_CreateEvent(t *testing.T) {
 	const baseETag = "event-eTag"
 	const eventBody = "event-body"
 	const baseResourceID = "resource-id"
-	var cal fleet.UserCalendar = NewGoogleCalendar(makeConfig(mockAPI))
+	var cal automdm.UserCalendar = NewGoogleCalendar(makeConfig(mockAPI))
 	err := cal.Configure(baseUserEmail)
 	assert.NoError(t, err)
 
@@ -526,7 +526,7 @@ func TestGoogleCalendar_CreateEvent(t *testing.T) {
 		assert.Greater(t, ttl, uint64(60*30-1))
 		return baseResourceID, nil
 	}
-	event, err := cal.CreateEvent(date, genBodyFn, fleet.CalendarCreateEventOpts{})
+	event, err := cal.CreateEvent(date, genBodyFn, automdm.CalendarCreateEventOpts{})
 	require.NoError(t, err)
 	assert.Equal(t, uuid, event.UUID)
 	assert.Equal(t, baseUserEmail, event.Email)
@@ -547,8 +547,8 @@ func TestGoogleCalendar_CreateEvent(t *testing.T) {
 
 	// Workday already ended
 	date = time.Now().Add(-48 * time.Hour)
-	_, err = cal.CreateEvent(date, genBodyFn, fleet.CalendarCreateEventOpts{})
-	assert.ErrorAs(t, err, &fleet.DayEndedError{})
+	_, err = cal.CreateEvent(date, genBodyFn, automdm.CalendarCreateEventOpts{})
+	assert.ErrorAs(t, err, &automdm.DayEndedError{})
 
 	// There is no time left in the day to schedule an event
 	date = time.Now().Add(48 * time.Hour)
@@ -556,8 +556,8 @@ func TestGoogleCalendar_CreateEvent(t *testing.T) {
 		now := time.Date(date.Year(), date.Month(), date.Day(), endHour-1, 45, 0, 0, location)
 		return now
 	}
-	_, err = gCal.createEvent(date, genBodyFn, timeNow, fleet.CalendarCreateEventOpts{})
-	assert.ErrorAs(t, err, &fleet.DayEndedError{})
+	_, err = gCal.createEvent(date, genBodyFn, timeNow, automdm.CalendarCreateEventOpts{})
+	assert.ErrorAs(t, err, &automdm.DayEndedError{})
 
 	// Workday already started
 	date = time.Now().Add(48 * time.Hour)
@@ -565,7 +565,7 @@ func TestGoogleCalendar_CreateEvent(t *testing.T) {
 	timeNow = func() time.Time {
 		return expectedStartTime
 	}
-	event, err = gCal.createEvent(date, genBodyFn, timeNow, fleet.CalendarCreateEventOpts{})
+	event, err = gCal.createEvent(date, genBodyFn, timeNow, automdm.CalendarCreateEventOpts{})
 	require.NoError(t, err)
 	assert.Equal(t, expectedStartTime.UTC(), event.StartTime.UTC())
 	assert.Equal(t, expectedStartTime.Add(eventLength).UTC(), event.EndTime.UTC())
@@ -658,7 +658,7 @@ func TestGoogleCalendar_CreateEvent(t *testing.T) {
 		return gEvents, nil
 	}
 	expectedStartTime = time.Date(date.Year(), date.Month(), date.Day(), 12, 0, 0, 0, location)
-	event, err = gCal.CreateEvent(date, genBodyFn, fleet.CalendarCreateEventOpts{})
+	event, err = gCal.CreateEvent(date, genBodyFn, automdm.CalendarCreateEventOpts{})
 	require.NoError(t, err)
 	assert.Equal(t, expectedStartTime.UTC(), event.StartTime.UTC())
 	assert.Equal(t, expectedStartTime.Add(eventLength).UTC(), event.EndTime.UTC())
@@ -678,7 +678,7 @@ func TestGoogleCalendar_CreateEvent(t *testing.T) {
 		return gEvents, nil
 	}
 	expectedStartTime = time.Date(date.Year(), date.Month(), date.Day(), endHour-1, 30, 0, 0, location)
-	event, err = gCal.CreateEvent(date, genBodyConflictFn, fleet.CalendarCreateEventOpts{})
+	event, err = gCal.CreateEvent(date, genBodyConflictFn, automdm.CalendarCreateEventOpts{})
 	require.NoError(t, err)
 	assert.Equal(t, expectedStartTime.UTC(), event.StartTime.UTC())
 	assert.Equal(t, expectedStartTime.Add(eventLength).UTC(), event.EndTime.UTC())
@@ -698,7 +698,7 @@ func TestGoogleCalendar_CreateEvent(t *testing.T) {
 		return gEvents, nil
 	}
 	expectedStartTime = dayEnd
-	event, err = gCal.CreateEvent(date, genBodyFn, fleet.CalendarCreateEventOpts{})
+	event, err = gCal.CreateEvent(date, genBodyFn, automdm.CalendarCreateEventOpts{})
 	require.NoError(t, err)
 	assert.Equal(t, expectedStartTime.UTC(), event.StartTime.UTC())
 	assert.Equal(t, expectedStartTime.Add(eventLength).UTC(), event.EndTime.UTC())
@@ -707,7 +707,7 @@ func TestGoogleCalendar_CreateEvent(t *testing.T) {
 	mockAPI.ListEventsFunc = func(timeMin, timeMax string) (*calendar.Events, error) {
 		return nil, assert.AnError
 	}
-	_, err = gCal.CreateEvent(date, genBodyFn, fleet.CalendarCreateEventOpts{})
+	_, err = gCal.CreateEvent(date, genBodyFn, automdm.CalendarCreateEventOpts{})
 	assert.ErrorIs(t, err, assert.AnError)
 
 	// API error in CreateEvent
@@ -717,6 +717,6 @@ func TestGoogleCalendar_CreateEvent(t *testing.T) {
 	mockAPI.CreateEventFunc = func(event *calendar.Event) (*calendar.Event, error) {
 		return nil, assert.AnError
 	}
-	_, err = gCal.CreateEvent(date, genBodyFn, fleet.CalendarCreateEventOpts{})
+	_, err = gCal.CreateEvent(date, genBodyFn, automdm.CalendarCreateEventOpts{})
 	assert.ErrorIs(t, err, assert.AnError)
 }

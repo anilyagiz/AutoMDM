@@ -15,10 +15,10 @@ import HostNameTemplate from "./HostNameTemplate";
 const mockRouter = createMockRouter();
 
 const teamHandler = (nameTemplate = "") =>
-  http.get(baseUrl("/fleets/1"), () =>
+  http.get(baseUrl("/teams/1"), () =>
     HttpResponse.json({
       team: { id: 1, name: "Team 1", mdm: { name_template: nameTemplate } },
-      fleet: { id: 1, name: "Team 1", mdm: { name_template: nameTemplate } },
+      team: { id: 1, name: "Team 1", mdm: { name_template: nameTemplate } },
     })
   );
 
@@ -48,7 +48,7 @@ describe("HostNameTemplate card", () => {
     render(<HostNameTemplate {...baseProps} />);
 
     expect(
-      screen.getByText("This feature is included in Fleet Premium.")
+      screen.getByText("This feature is included in AutoMDM Premium.")
     ).toBeInTheDocument();
     expect(screen.queryByDisplayValue(/./)).not.toBeInTheDocument();
   });
@@ -73,7 +73,7 @@ describe("HostNameTemplate card", () => {
   });
 
   it("loads and displays the current name template", async () => {
-    mockServer.use(teamHandler("iPad $FLEET_VAR_HOST_HARDWARE_SERIAL"));
+    mockServer.use(teamHandler("iPad $AUTOMDM_VAR_HOST_HARDWARE_SERIAL"));
 
     const render = createCustomRenderer({
       withBackendMock: true,
@@ -92,7 +92,7 @@ describe("HostNameTemplate card", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByDisplayValue("iPad $FLEET_VAR_HOST_HARDWARE_SERIAL")
+        screen.getByDisplayValue("iPad $AUTOMDM_VAR_HOST_HARDWARE_SERIAL")
       ).toBeInTheDocument();
     });
   });
@@ -107,7 +107,7 @@ describe("HostNameTemplate card", () => {
           config: {
             mdm: {
               enabled_and_configured: true,
-              name_template: "No team iPad $FLEET_VAR_HOST_HARDWARE_SERIAL",
+              name_template: "No team iPad $AUTOMDM_VAR_HOST_HARDWARE_SERIAL",
             },
             gitops: { gitops_mode_enabled: false },
           },
@@ -119,12 +119,12 @@ describe("HostNameTemplate card", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByDisplayValue("No team iPad $FLEET_VAR_HOST_HARDWARE_SERIAL")
+        screen.getByDisplayValue("No team iPad $AUTOMDM_VAR_HOST_HARDWARE_SERIAL")
       ).toBeInTheDocument();
     });
   });
 
-  it("saves the No-team template with fleet_id 0 and refreshes app config", async () => {
+  it("saves the No-team template with team_id 0 and refreshes app config", async () => {
     let savedBody: unknown;
     let configRefetched = false;
     mockServer.use(
@@ -138,7 +138,7 @@ describe("HostNameTemplate card", () => {
         return HttpResponse.json({
           mdm: {
             enabled_and_configured: true,
-            name_template: "No team $FLEET_VAR_HOST_HARDWARE_SERIAL",
+            name_template: "No team $AUTOMDM_VAR_HOST_HARDWARE_SERIAL",
           },
         });
       })
@@ -176,7 +176,7 @@ describe("HostNameTemplate card", () => {
 
     await user.type(
       screen.getByRole("textbox"),
-      "No team $FLEET_VAR_HOST_HARDWARE_SERIAL"
+      "No team $AUTOMDM_VAR_HOST_HARDWARE_SERIAL"
     );
     await user.click(screen.getByRole("button", { name: "Save" }));
 
@@ -184,8 +184,8 @@ describe("HostNameTemplate card", () => {
       expect(onMutation).toHaveBeenCalled();
     });
     expect(savedBody).toEqual({
-      fleet_id: 0,
-      name_template: "No team $FLEET_VAR_HOST_HARDWARE_SERIAL",
+      team_id: 0,
+      name_template: "No team $AUTOMDM_VAR_HOST_HARDWARE_SERIAL",
     });
     expect(successSpy).toHaveBeenCalledWith(
       "Successfully updated host name template."
@@ -205,7 +205,7 @@ describe("HostNameTemplate card", () => {
           config: {
             mdm: {
               enabled_and_configured: true,
-              name_template: "No team iPad $FLEET_VAR_HOST_HARDWARE_SERIAL",
+              name_template: "No team iPad $AUTOMDM_VAR_HOST_HARDWARE_SERIAL",
             },
             gitops: {
               gitops_mode_enabled: true,
@@ -220,7 +220,7 @@ describe("HostNameTemplate card", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByDisplayValue("No team iPad $FLEET_VAR_HOST_HARDWARE_SERIAL")
+        screen.getByDisplayValue("No team iPad $AUTOMDM_VAR_HOST_HARDWARE_SERIAL")
       ).toBeDisabled();
     });
   });
@@ -264,7 +264,7 @@ describe("HostNameTemplate card", () => {
 
     await user.type(
       screen.getByRole("textbox"),
-      "iPad $FLEET_VAR_HOST_HARDWARE_SERIAL"
+      "iPad $AUTOMDM_VAR_HOST_HARDWARE_SERIAL"
     );
     await user.click(screen.getByRole("button", { name: "Save" }));
 
@@ -272,8 +272,8 @@ describe("HostNameTemplate card", () => {
       expect(onMutation).toHaveBeenCalled();
     });
     expect(savedBody).toEqual({
-      fleet_id: 1,
-      name_template: "iPad $FLEET_VAR_HOST_HARDWARE_SERIAL",
+      team_id: 1,
+      name_template: "iPad $AUTOMDM_VAR_HOST_HARDWARE_SERIAL",
     });
     expect(successSpy).toHaveBeenCalledWith(
       "Successfully updated host name template."
@@ -283,7 +283,7 @@ describe("HostNameTemplate card", () => {
   it("surfaces the server's 422 message verbatim on save error", async () => {
     mockServer.use(teamHandler(""));
     const serverMessage =
-      "Fleet variable $FLEET_VAR_HOST_END_USER_IDP_GROUPS is not supported in host name templates.";
+      "AutoMDM variable $AUTOMDM_VAR_HOST_END_USER_IDP_GROUPS is not supported in host name templates.";
     mockServer.use(
       http.post(baseUrl("/host_name_template"), () =>
         HttpResponse.json(
@@ -319,7 +319,7 @@ describe("HostNameTemplate card", () => {
 
     await user.type(
       screen.getByRole("textbox"),
-      "$FLEET_VAR_HOST_END_USER_IDP_GROUPS"
+      "$AUTOMDM_VAR_HOST_END_USER_IDP_GROUPS"
     );
     await user.click(screen.getByRole("button", { name: "Save" }));
 
@@ -329,7 +329,7 @@ describe("HostNameTemplate card", () => {
   });
 
   it("keeps Save disabled while the form is pristine", async () => {
-    mockServer.use(teamHandler("iPad $FLEET_VAR_HOST_HARDWARE_SERIAL"));
+    mockServer.use(teamHandler("iPad $AUTOMDM_VAR_HOST_HARDWARE_SERIAL"));
 
     const render = createCustomRenderer({
       withBackendMock: true,
@@ -348,7 +348,7 @@ describe("HostNameTemplate card", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByDisplayValue("iPad $FLEET_VAR_HOST_HARDWARE_SERIAL")
+        screen.getByDisplayValue("iPad $AUTOMDM_VAR_HOST_HARDWARE_SERIAL")
       ).toBeInTheDocument();
     });
 
@@ -361,7 +361,7 @@ describe("HostNameTemplate card", () => {
   });
 
   it("enables Save when a previously-set template is cleared", async () => {
-    mockServer.use(teamHandler("iPad $FLEET_VAR_HOST_HARDWARE_SERIAL"));
+    mockServer.use(teamHandler("iPad $AUTOMDM_VAR_HOST_HARDWARE_SERIAL"));
 
     const render = createCustomRenderer({
       withBackendMock: true,
@@ -380,7 +380,7 @@ describe("HostNameTemplate card", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByDisplayValue("iPad $FLEET_VAR_HOST_HARDWARE_SERIAL")
+        screen.getByDisplayValue("iPad $AUTOMDM_VAR_HOST_HARDWARE_SERIAL")
       ).toBeInTheDocument();
     });
 
@@ -390,7 +390,7 @@ describe("HostNameTemplate card", () => {
   });
 
   it("disables the input in GitOps mode", async () => {
-    mockServer.use(teamHandler("iPad $FLEET_VAR_HOST_HARDWARE_SERIAL"));
+    mockServer.use(teamHandler("iPad $AUTOMDM_VAR_HOST_HARDWARE_SERIAL"));
 
     const render = createCustomRenderer({
       withBackendMock: true,
@@ -412,7 +412,7 @@ describe("HostNameTemplate card", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByDisplayValue("iPad $FLEET_VAR_HOST_HARDWARE_SERIAL")
+        screen.getByDisplayValue("iPad $AUTOMDM_VAR_HOST_HARDWARE_SERIAL")
       ).toBeDisabled();
     });
   });

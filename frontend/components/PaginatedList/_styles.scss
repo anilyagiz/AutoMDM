@@ -4,7 +4,7 @@
   &__header {
     padding: $pad-medium $pad-large;
     font-size: $x-small;
-    border-bottom: 1px solid $ui-fleet-black-10;
+    border-bottom: 1px solid $ui-automdm-black-10;
     background-color: $ui-off-white;
     min-height: 24px; // Include padding: 40px;
   }
@@ -33,7 +33,7 @@
     align-items: flex-start;
     align-self: stretch;
     border-radius: $border-radius-large;
-    border: 1px solid $ui-fleet-black-10;
+    border: 1px solid $ui-automdm-black-10;
     // negate ul padding
     padding-left: 0;
     margin: 0;
@@ -46,7 +46,7 @@
     justify-content: space-between;
     align-items: center;
     align-self: stretch;
-    border-bottom: 1px solid $ui-fleet-black-10;
+    border-bottom: 1px solid $ui-automdm-black-10;
     gap: 20px;
 
     .form-field--checkbox {
@@ -56,14 +56,14 @@
       /* This is crucial for proper shrinking */
     }
 
-    .fleet-checkbox__tick {
+    .automdm-checkbox__tick {
       flex: 0 0 auto;
       /* This prevents growing and shrinking */
       width: fit-content;
       /* This ensures button isn't cut off */
     }
 
-    .fleet-checkbox__label {
+    .automdm-checkbox__label {
       display: flex;
       white-space: nowrap;
       flex: 1 1 0%;
@@ -119,7 +119,7 @@
   }
 
   // For TooltipTruncatedText
-  .fleet-checkbox__label {
+  .automdm-checkbox__label {
     display: flex;
   }
 

@@ -3,34 +3,34 @@ package apple_mdm
 import (
 	"context"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/mdm"
 )
 
-// Profile verification is a set of related processes that run on the Fleet server to ensure that
-// the MDM profiles installed on a host are the ones expected by the Fleet server. Expected profiles
+// Profile verification is a set of related processes that run on the AutoMDM server to ensure that
+// the MDM profiles installed on a host are the ones expected by the AutoMDM server. Expected profiles
 // comprise the profiles that belong to the host's assigned team (or no
 // team, as applicable).
 //
-// The Fleet server enqueues commands to install profiles on hosts via the MDM
-// protocol. The Fleet server periodically runs a cron that enqueues install profile
+// The AutoMDM server enqueues commands to install profiles on hosts via the MDM
+// protocol. The AutoMDM server periodically runs a cron that enqueues install profile
 // commands for host profiles that do not have a verification status (i.e. status is null).
 // Install profile commands may be enqueued as a result of a variety of events, such as when a host
-// enrolls in Fleet, when a host's team membership changes, when a new profile is uploaded, when an
+// enrolls in AutoMDM, when a host's team membership changes, when a new profile is uploaded, when an
 // existing profile is modified, or when a failed profile is retried.
 //
 // Verification status of a host profile can change in the following ways:
 //
 // - When an install profile command is enqueued by the server, the verification status is set to "pending".
 //
-// - When the results of an install profile command are reported via the MDM protocol, the Fleet server
+// - When the results of an install profile command are reported via the MDM protocol, the AutoMDM server
 //   parses the results and updates the host's verification status for the applicable profile. If the
 //   command was acknowledged, the verification status is set to "verifying". If the command resulted
 //   in an error, the server determines if the profile should be retried (in which case, a new install profile
 //   command will be enqueued by the server) or marked as "failed" and updates the datastore accordingly.
 //
-// - When host details are reported via osquery, the Fleet server ingests a list of installed
+// - When host details are reported via osquery, the AutoMDM server ingests a list of installed
 //   profiles and compares the reported profiles with the list of profiles expected to be
 //   installed on the host. Expected profiles comprise the profiles that belong to the host's assigned
 //   team (or no team, as applicable). If an expected profile is found, the verification status is
@@ -39,14 +39,14 @@ import (
 //   or marked as "failed" and updates the datastore accordingly.
 
 // VerifyHostMDMProfiles performs the verification of the MDM profiles installed on a host and
-// updates the verification status in the datastore. It is intended to be called by Fleet osquery
-// service when the Fleet server ingests host details.
-func VerifyHostMDMProfiles(ctx context.Context, ds fleet.ProfileVerificationStore, host *fleet.Host, installedByProfIdentifier map[string]*fleet.HostMacOSProfile) error {
+// updates the verification status in the datastore. It is intended to be called by AutoMDM osquery
+// service when the AutoMDM server ingests host details.
+func VerifyHostMDMProfiles(ctx context.Context, ds automdm.ProfileVerificationStore, host *automdm.Host, installedByProfIdentifier map[string]*automdm.HostMacOSProfile) error {
 	// NOTE: for user-scoped profiles, we allow up to a few hours (see
 	// service.hoursToWaitForUserEnrollmentAfterDeviceEnrollment for actual value)
 	// before sending the profile to the host, but the grace period for
 	// verification can be lower (see
-	// fleet.ExpectedMDMProfile.IsWithinGracePeriod for actual value), so it will
+	// automdm.ExpectedMDMProfile.IsWithinGracePeriod for actual value), so it will
 	// be identified as missing if the host doesn't report it within that delay.
 	// However, this is fine because it will result as a no-op in
 	// UpdateHostMDMProfilesVerification since the status of a profile in that
@@ -109,15 +109,15 @@ func VerifyHostMDMProfiles(ctx context.Context, ds fleet.ProfileVerificationStor
 
 // HandleHostMDMProfileInstallResult ingests the result of an install profile command reported via
 // the MDM protocol and updates the verification status in the datastore. It is intended to be
-// called by the Fleet MDM checkin and command service install profile request handler.
-func HandleHostMDMProfileInstallResult(ctx context.Context, ds fleet.ProfileVerificationStore, hostUUID string, cmdUUID string, status *fleet.MDMDeliveryStatus, detail string, newActivityFn fleet.NewActivityFunc) error {
-	if status != nil && *status == fleet.MDMDeliveryFailed {
+// called by the AutoMDM checkin and command service install profile request handler.
+func HandleHostMDMProfileInstallResult(ctx context.Context, ds automdm.ProfileVerificationStore, hostUUID string, cmdUUID string, status *automdm.MDMDeliveryStatus, detail string, newActivityFn automdm.NewActivityFunc) error {
+	if status != nil && *status == automdm.MDMDeliveryFailed {
 		// Here we set the host.Platform to "darwin" but it applies to iOS/iPadOS too.
 		// The logic in GetHostMDMProfileRetryCountByCommandUUID and UpdateHostMDMProfilesVerification
 		// is the exact same when platform is "darwin", "ios" or "ipados".
-		host := &fleet.Host{UUID: hostUUID, Platform: "darwin"}
+		host := &automdm.Host{UUID: hostUUID, Platform: "darwin"}
 		m, err := ds.GetHostMDMProfileRetryCountByCommandUUID(ctx, host, cmdUUID)
-		if fleet.IsNotFound(err) {
+		if automdm.IsNotFound(err) {
 			// Check if the cmdUUID is an enrollment renewal
 			isEnrollmentRenewalCmd, enrollmentRenewalError := ds.IsAppleEnrollmentRenewalCommand(ctx, cmdUUID, hostUUID)
 			if enrollmentRenewalError != nil {
@@ -132,7 +132,7 @@ func HandleHostMDMProfileInstallResult(ctx context.Context, ds fleet.ProfileVeri
 				// Generate a new activity, to mark that we failed to install the profile for the enrollment renewal.
 				// This won't trigger on manually enrolled devices, since they will break the connection and send a CheckOut,
 				// without responding to the command with an error.
-				activityErr := newActivityFn(ctx, nil, &fleet.ActivityTypeFailedEnrollmentProfileRenewal{
+				activityErr := newActivityFn(ctx, nil, &automdm.ActivityTypeFailedEnrollmentProfileRenewal{
 					CommandUUID:     cmdUUID,
 					HostID:          hostLite.ID,
 					HostDisplayName: hostLite.DisplayName(),
@@ -162,12 +162,12 @@ func HandleHostMDMProfileInstallResult(ctx context.Context, ds fleet.ProfileVeri
 	}
 
 	// otherwise update status and detail as usual
-	err := ds.UpdateOrDeleteHostMDMAppleProfile(ctx, &fleet.HostMDMAppleProfile{
+	err := ds.UpdateOrDeleteHostMDMAppleProfile(ctx, &automdm.HostMDMAppleProfile{
 		CommandUUID:   cmdUUID,
 		HostUUID:      hostUUID,
 		Status:        status,
 		Detail:        detail,
-		OperationType: fleet.MDMOperationTypeInstall,
+		OperationType: automdm.MDMOperationTypeInstall,
 	})
 	if err != nil {
 		return ctxerr.Wrap(ctx, err, "updating host MDM Apple profile install result")

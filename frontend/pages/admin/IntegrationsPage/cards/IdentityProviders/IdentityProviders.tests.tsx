@@ -20,7 +20,7 @@ describe("IdentityProviders", () => {
     );
 
     expect(
-      screen.getByText("This feature is included in Fleet Premium.")
+      screen.getByText("This feature is included in AutoMDM Premium.")
     ).toBeInTheDocument();
     // The section title stays above the premium message (matching other sections).
     expect(screen.getByText("Identity provider (IdP)")).toBeInTheDocument();

@@ -9,12 +9,12 @@ import (
 	"io"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/sassoftware/relic/v8/lib/comdoc"
 	"golang.org/x/text/encoding/charmap"
 )
 
-func ExtractMSIMetadata(tfr *fleet.TempFileReader) (_ *InstallerMetadata, err error) {
+func ExtractMSIMetadata(tfr *automdm.TempFileReader) (_ *InstallerMetadata, err error) {
 	// compute its hash
 	h := sha256.New()
 	_, _ = io.Copy(h, tfr) // writes to a hash cannot fail

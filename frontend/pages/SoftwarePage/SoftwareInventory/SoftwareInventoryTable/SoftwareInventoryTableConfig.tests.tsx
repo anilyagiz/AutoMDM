@@ -86,7 +86,7 @@ describe("SoftwareInventoryTableConfig", () => {
     it.each([
       {
         source: "mcp_servers",
-        tip: "Currently, Fleet doesn't detect vulnerabilities for MCP servers.",
+        tip: "Currently, AutoMDM doesn't detect vulnerabilities for MCP servers.",
       },
       {
         source: "ai_skills",

@@ -143,7 +143,7 @@ const recorderJS = `(() => {
 	window.__screencapActions = [];
 
 	function getSelector(el) {
-		// Try data-text attribute (used by Fleet tabs).
+		// Try data-text attribute (used by AutoMDM tabs).
 		if (el.dataset && el.dataset.text) {
 			return '[data-text="' + el.dataset.text + '"]';
 		}

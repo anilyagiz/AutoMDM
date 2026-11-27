@@ -14,7 +14,7 @@ import { createCustomRenderer } from "test/test-utils";
 import SaveNewQueryModal from "./SaveNewQueryModal";
 
 const baseUrl = (path: string) => {
-  return `/api/latest/fleet${path}`;
+  return `/api/latest/automdm${path}`;
 };
 
 const mockLabels = [

@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/WatchBeam/clock"
-	mockredis "github.com/fleetdm/fleet/v4/server/mock/redis"
+	mockredis "github.com/anilyagiz/automdm/v4/server/mock/redis"
 	"github.com/stretchr/testify/require"
 )
 
@@ -39,7 +39,7 @@ func TestEndUserAuthPrompt(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, pending)
 
-	// fleetd backing off well past the prompt does not drop the record: the
+	// automdmd backing off well past the prompt does not drop the record: the
 	// lifetime is event-based, not a short clock.
 	clk.AddTime(2 * time.Hour)
 	pending, err = HasEndUserAuthPrompt(ctx, kv, "host-uuid-1", clk.Now())

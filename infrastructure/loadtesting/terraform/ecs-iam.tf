@@ -1,4 +1,4 @@
-data "aws_iam_policy_document" "fleet" {
+data "aws_iam_policy_document" "automdm" {
   statement {
     effect    = "Allow"
     actions   = ["cloudwatch:PutMetricData"]
@@ -8,7 +8,7 @@ data "aws_iam_policy_document" "fleet" {
   statement {
     effect    = "Allow"
     actions   = ["secretsmanager:GetSecretValue"]
-    resources = [aws_secretsmanager_secret.database_password_secret.arn, data.aws_secretsmanager_secret.license.arn, aws_secretsmanager_secret.fleet_server_private_key.arn]
+    resources = [aws_secretsmanager_secret.database_password_secret.arn, data.aws_secretsmanager_secret.license.arn, aws_secretsmanager_secret.automdm_server_private_key.arn]
   }
 
   // useful when there is a static number of mysql cluster members
@@ -74,7 +74,7 @@ resource "aws_iam_role_policy_attachment" "role_attachment" {
 
 resource "aws_iam_policy" "main" {
   name   = "${local.prefix}-iam-policy"
-  policy = data.aws_iam_policy_document.fleet.json
+  policy = data.aws_iam_policy_document.automdm.json
 }
 
 resource "aws_iam_role_policy_attachment" "attachment" {
@@ -84,14 +84,14 @@ resource "aws_iam_role_policy_attachment" "attachment" {
 
 
 
-data "aws_iam_policy_document" "fleet-execution" {
-  // allow fleet application to obtain the database password from secrets manager
+data "aws_iam_policy_document" "automdm-execution" {
+  // allow automdm application to obtain the database password from secrets manager
   statement {
     effect  = "Allow"
     actions = ["secretsmanager:GetSecretValue"]
     resources = [
       aws_secretsmanager_secret.database_password_secret.arn,
-      aws_secretsmanager_secret.fleet_server_private_key.arn
+      aws_secretsmanager_secret.automdm_server_private_key.arn
     ]
   }
 }
@@ -110,8 +110,8 @@ resource "aws_iam_role_policy_attachment" "task_extras" {
 
 resource "aws_iam_policy" "execution" {
   name        = local.iam.execution.policy_name
-  description = "IAM policy that Fleet application uses to define access to AWS resources"
-  policy      = data.aws_iam_policy_document.fleet-execution.json
+  description = "IAM policy that AutoMDM application uses to define access to AWS resources"
+  policy      = data.aws_iam_policy_document.automdm-execution.json
 }
 
 resource "aws_iam_role_policy_attachment" "execution" {
@@ -121,6 +121,6 @@ resource "aws_iam_role_policy_attachment" "execution" {
 
 resource "aws_iam_role" "execution" {
   name               = local.iam.execution.name
-  description        = "The execution role for Fleet in ECS"
+  description        = "The execution role for AutoMDM in ECS"
   assume_role_policy = data.aws_iam_policy_document.assume_role.json
 }

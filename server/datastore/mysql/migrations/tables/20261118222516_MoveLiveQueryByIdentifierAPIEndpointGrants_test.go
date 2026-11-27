@@ -12,9 +12,9 @@ func TestUp_20261118222516(t *testing.T) {
 	db := applyUpToPrev(t)
 
 	const (
-		oldPath   = "/api/v1/fleet/hosts/identifier/:identifier/query"
-		newPath   = "/api/v1/fleet/hosts/:id/query"
-		otherPath = "/api/v1/fleet/hosts/:id/refetch"
+		oldPath   = "/api/v1/automdm/hosts/identifier/:identifier/query"
+		newPath   = "/api/v1/automdm/hosts/:id/query"
+		otherPath = "/api/v1/automdm/hosts/:id/refetch"
 	)
 	newUser := func(name string) int64 {
 		return execNoErrLastID(t, db, `INSERT INTO users (password, salt, name, email, api_only) VALUES ('p', 's', ?, ?, 1)`,
@@ -36,9 +36,9 @@ func TestUp_20261118222516(t *testing.T) {
 	// placeholder spelling and the version placeholder, so the stored path can differ from the catalog's.
 	alternateSpellings := []string{
 		oldPath,
-		"/api/v1/fleet/hosts/identifier/{identifier}/query",
-		"/api/v1/fleet/hosts/identifier/:serial/query",
-		"/api/_version_/fleet/hosts/identifier/:identifier/query",
+		"/api/v1/automdm/hosts/identifier/{identifier}/query",
+		"/api/v1/automdm/hosts/identifier/:serial/query",
+		"/api/_version_/automdm/hosts/identifier/:identifier/query",
 	}
 	alternateUsers := make([]int64, len(alternateSpellings))
 	for i, path := range alternateSpellings {

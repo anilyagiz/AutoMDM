@@ -277,7 +277,7 @@ func repoOwner(repo string) string {
 	if i := strings.IndexByte(repo, '/'); i > 0 {
 		return repo[:i]
 	}
-	return "fleetdm"
+	return "automdm"
 }
 
 // repoFromURL extracts "owner/name" from a github.com URL, or "" when it

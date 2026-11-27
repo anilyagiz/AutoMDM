@@ -8,19 +8,19 @@ Running the services specified in the `docker-compose.yml` file will give you ac
 To get started:
 
 1. Start the necessary services by running `docker compose up` in this directory.
-2. Start the Fleet server with telemetry enabled and configured with this:
+2. Start the AutoMDM server with telemetry enabled and configured with this:
 
 ```
-OTEL_SERVICE_NAME="fleet" \
+OTEL_SERVICE_NAME="automdm" \
 OTEL_EXPORTER_OTLP_ENDPOINT="http://localhost:4317" \
-./build/fleet serve \
+./build/automdm serve \
   --logging_tracing_enabled=true \
   --logging_tracing_type=opentelemetry \
   --logging_otel_logs_enabled=true \
   --dev --logging_debug
 ```
 
-Afterwards, you can navigate to http://localhost:16686/ to access the Jaeger UI. Logs exported by Fleet are printed by the collector (`docker compose logs -f otel-collector`).
+Afterwards, you can navigate to http://localhost:16686/ to access the Jaeger UI. Logs exported by AutoMDM are printed by the collector (`docker compose logs -f otel-collector`).
 
 ## Alternatives
 

@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	platform_http "github.com/fleetdm/fleet/v4/server/platform/http"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	platform_http "github.com/anilyagiz/automdm/v4/server/platform/http"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -40,7 +40,7 @@ func (s *integrationTestSuite) TestIntegrationsOsqueryHeaderAuth() {
 
 	// Create a host with a known node_key.
 	nodeKey := t.Name() + "-nodekey"
-	host, err := s.ds.NewHost(ctx, &fleet.Host{
+	host, err := s.ds.NewHost(ctx, &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -137,7 +137,7 @@ func (s *integrationTestSuite) TestIntegrationsOsqueryHeaderAuth() {
 		cfg.Osquery.AllowBodyAuthFallback = false
 
 		_, customServer := RunServerForTestsWithDS(t, s.ds, &TestServerOpts{
-			FleetConfig:         &cfg,
+			AutoMDMConfig:       &cfg,
 			SkipCreateTestUsers: true,
 		})
 		t.Cleanup(customServer.Close)

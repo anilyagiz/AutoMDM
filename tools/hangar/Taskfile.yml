@@ -3,9 +3,9 @@ version: '3'
 vars:
   # APP_NAME is the executable / binary name (hyphenated: reused for the
   # `-server` binary and Docker image tags, where spaces would break things).
-  APP_NAME: "fleet-hangar"
+  APP_NAME: "automdm-hangar"
   # PRODUCT_NAME is the user-facing `.app` bundle name shown in Finder/Launchpad.
-  PRODUCT_NAME: "Fleet Hangar"
+  PRODUCT_NAME: "AutoMDM Hangar"
   BIN_DIR: "bin"
   PACKAGE_MANAGER: '{{.PACKAGE_MANAGER | default "npm"}}'
   VITE_PORT: '{{.WAILS_VITE_PORT | default 9245}}'
@@ -42,12 +42,12 @@ tasks:
       - task: "{{OS}}:package"
 
   dist:
-    summary: Zips the already-built .app into a single shareable archive (bin/Fleet Hangar.zip)
+    summary: Zips the already-built .app into a single shareable archive (bin/AutoMDM Hangar.zip)
     cmds:
       - task: "{{OS}}:dist"
 
   pkg:
-    summary: Wraps the already-built .app into a Fleet-installable .pkg (bin/Fleet Hangar.pkg)
+    summary: Wraps the already-built .app into an AutoMDM-installable .pkg (bin/AutoMDM Hangar.pkg)
     cmds:
       - task: "{{OS}}:pkg"
 

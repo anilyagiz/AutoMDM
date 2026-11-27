@@ -7,21 +7,21 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/ee/server/service/scep"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/profiles"
-	"github.com/fleetdm/fleet/v4/server/variables"
+	"github.com/anilyagiz/automdm/v4/ee/server/service/scep"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
+	"github.com/anilyagiz/automdm/v4/server/mdm/profiles"
+	"github.com/anilyagiz/automdm/v4/server/variables"
 )
 
 const (
-	powerShellParamBlockMsg = "Fleet couldn't run this script because Fleet variables aren't supported inside a PowerShell param() block. Use the variable in the script body instead."
-	unsupportedInterpMsg    = "Fleet couldn't run this script because its interpreter isn't supported."
-	noPlatformMsg           = "There is no platform for this host. Fleet couldn't populate Fleet variables."
+	powerShellParamBlockMsg = "AutoMDM couldn't run this script because AutoMDM variables aren't supported inside a PowerShell param() block. Use the variable in the script body instead."
+	unsupportedInterpMsg    = "AutoMDM couldn't run this script because its interpreter isn't supported."
+	noPlatformMsg           = "There is no platform for this host. AutoMDM couldn't populate AutoMDM variables."
 )
 
-// maybeExpandScriptFleetVariables resolves supported $FLEET_VAR_* references in
+// maybeExpandScriptAutoMDMVariables resolves supported $AUTOMDM_VAR_* references in
 // contents for the given host. Values are defined in a preamble, or escaped and
 // substituted for Python, so a value is never parsed as script source. It
 // returns the expanded contents, or a non-empty failureMessage when a variable
@@ -30,23 +30,23 @@ const (
 // Unsupported variable names are left untouched, since validation rejects them
 // in new content and content saved before validation shipped must keep working.
 // On the Python path that holds except for an unsupported name that extends a
-// supported one (e.g. $FLEET_VAR_HOST_UUID_LEGACY), whose prefix
+// supported one (e.g. $AUTOMDM_VAR_HOST_UUID_LEGACY), whose prefix
 // variables.Replace rewrites along with the supported variable.
-func (svc *Service) maybeExpandScriptFleetVariables(ctx context.Context, host *fleet.Host, contents string) (expanded string, failureMessage string, err error) {
-	fleetVars := variables.Find(contents)
-	if len(fleetVars) == 0 {
+func (svc *Service) maybeExpandScriptAutoMDMVariables(ctx context.Context, host *automdm.Host, contents string) (expanded string, failureMessage string, err error) {
+	automdmVars := variables.Find(contents)
+	if len(automdmVars) == 0 {
 		return contents, "", nil
 	}
 
 	// defensive re-check in case variable-bearing content slipped past upload
 	// validation (e.g. saved before validation shipped, or the license expired)
 	if !license.IsPremium(ctx) {
-		return "", "Fleet couldn't run this script because it uses variables, which require a Fleet Premium license.", nil
+		return "", "AutoMDM couldn't run this script because it uses variables, which require an AutoMDM Premium license.", nil
 	}
 
-	supported := make([]string, 0, len(fleetVars))
-	for _, v := range fleetVars {
-		if slices.Contains(fleet.FleetVarsSupportedInScripts, fleet.FleetVarName(v)) {
+	supported := make([]string, 0, len(automdmVars))
+	for _, v := range automdmVars {
+		if slices.Contains(automdm.AutoMDMVarsSupportedInScripts, automdm.AutoMDMVarName(v)) {
 			supported = append(supported, v)
 		}
 	}
@@ -54,7 +54,7 @@ func (svc *Service) maybeExpandScriptFleetVariables(ctx context.Context, host *f
 		return contents, "", nil
 	}
 
-	dialect, dialectFailure := scriptFleetVarDialect(host, contents)
+	dialect, dialectFailure := scriptAutoMDMVarDialect(host, contents)
 	if dialectFailure != "" {
 		return "", dialectFailure, nil
 	}
@@ -69,11 +69,11 @@ func (svc *Service) maybeExpandScriptFleetVariables(ctx context.Context, host *f
 
 	resolved := make(map[string]string, len(supported))
 	hostIDForUUIDCache := map[string]uint{host.UUID: host.ID}
-	var ndesCA *fleet.NDESSCEPProxyCA
+	var ndesCA *automdm.NDESSCEPProxyCA
 	for _, v := range supported {
 		var value string
-		switch fleet.FleetVarName(v) {
-		case fleet.FleetVarNDESSCEPChallenge:
+		switch automdm.AutoMDMVarName(v) {
+		case automdm.AutoMDMVarNDESSCEPChallenge:
 			// fetched after the loop, once nothing else can stop the script
 			// from running
 			groupedCAs, err := svc.ds.GetGroupedCertificateAuthorities(ctx, true)
@@ -81,24 +81,24 @@ func (svc *Service) maybeExpandScriptFleetVariables(ctx context.Context, host *f
 				return "", "", ctxerr.Wrap(ctx, err, "get certificate authorities for script")
 			}
 			if groupedCAs.NDESSCEP == nil {
-				_ = fail(fleet.NDESNotConfiguredMsg)
+				_ = fail(automdm.NDESNotConfiguredMsg)
 				continue
 			}
 			ndesCA = groupedCAs.NDESSCEP
 			continue
-		case fleet.FleetVarHostUUID:
+		case automdm.AutoMDMVarHostUUID:
 			value = host.UUID
 			if value == "" {
-				_ = fail(fmt.Sprintf("There is no UUID for this host. Fleet couldn't populate $FLEET_VAR_%s.", v))
+				_ = fail(fmt.Sprintf("There is no UUID for this host. AutoMDM couldn't populate $AUTOMDM_VAR_%s.", v))
 				continue
 			}
-		case fleet.FleetVarHostHardwareSerial:
+		case automdm.AutoMDMVarHostHardwareSerial:
 			value = host.HardwareSerial
 			if value == "" {
-				_ = fail(fmt.Sprintf("There is no hardware serial for this host. Fleet couldn't populate $FLEET_VAR_%s.", v))
+				_ = fail(fmt.Sprintf("There is no hardware serial for this host. AutoMDM couldn't populate $AUTOMDM_VAR_%s.", v))
 				continue
 			}
-		case fleet.FleetVarHostPlatform:
+		case automdm.AutoMDMVarHostPlatform:
 			value = host.Platform
 			if value == "darwin" {
 				value = "macos"
@@ -130,7 +130,7 @@ func (svc *Service) maybeExpandScriptFleetVariables(ctx context.Context, host *f
 			if errors.Is(err, variables.ErrPowerShellLeadingParamBlock) {
 				return "", powerShellParamBlockMsg, nil
 			}
-			return "", "", ctxerr.Wrap(ctx, err, "check fleet variable preamble")
+			return "", "", ctxerr.Wrap(ctx, err, "check automdm variable preamble")
 		}
 		challenge, failure, err := svc.scriptNDESChallenge(ctx, *ndesCA)
 		if err != nil {
@@ -139,7 +139,7 @@ func (svc *Service) maybeExpandScriptFleetVariables(ctx context.Context, host *f
 		if failure != "" {
 			return "", failure, nil
 		}
-		resolved[string(fleet.FleetVarNDESSCEPChallenge)] = challenge
+		resolved[string(automdm.AutoMDMVarNDESSCEPChallenge)] = challenge
 	}
 
 	if len(failures) > 0 {
@@ -167,14 +167,14 @@ func (svc *Service) maybeExpandScriptFleetVariables(ctx context.Context, host *f
 	case errors.Is(err, variables.ErrPowerShellLeadingParamBlock):
 		return "", powerShellParamBlockMsg, nil
 	case err != nil:
-		return "", "", ctxerr.Wrap(ctx, err, "insert fleet variable preamble")
+		return "", "", ctxerr.Wrap(ctx, err, "insert automdm variable preamble")
 	}
 	return expanded, "", nil
 }
 
 // scriptNDESChallenge fetches a challenge from the NDES admin URL. The
 // challenge must never be logged.
-func (svc *Service) scriptNDESChallenge(ctx context.Context, ca fleet.NDESSCEPProxyCA) (challenge string, failureMessage string, err error) {
+func (svc *Service) scriptNDESChallenge(ctx context.Context, ca automdm.NDESSCEPProxyCA) (challenge string, failureMessage string, err error) {
 	challenge, err = svc.scepConfigService.GetNDESSCEPChallenge(ctx, ca)
 	// a dropped request is not the CA's failure and must not fail the run
 	if ctxErr := ctx.Err(); ctxErr != nil {
@@ -184,76 +184,76 @@ func (svc *Service) scriptNDESChallenge(ctx context.Context, ca fleet.NDESSCEPPr
 	case err != nil:
 		return "", scep.NDESChallengeErrorToScriptDetail(err), nil
 	case strings.ContainsRune(challenge, 0):
-		return "", nulValueMsg(string(fleet.FleetVarNDESSCEPChallenge)), nil
+		return "", nulValueMsg(string(automdm.AutoMDMVarNDESSCEPChallenge)), nil
 	}
 	return challenge, "", nil
 }
 
 func nulValueMsg(name string) string {
-	return fmt.Sprintf("The value for $FLEET_VAR_%s contains an invalid character. Fleet couldn't populate it.", name)
+	return fmt.Sprintf("The value for $AUTOMDM_VAR_%s contains an invalid character. AutoMDM couldn't populate it.", name)
 }
 
-// scriptFleetVarDialect returns the interpreter to write the preamble for, or a
+// scriptAutoMDMVarDialect returns the interpreter to write the preamble for, or a
 // message explaining why variables can't be delivered to it. Platform decides
-// first: on Windows fleetd runs the script through PowerShell whatever shebang
+// first: on Windows automdmd runs the script through PowerShell whatever shebang
 // it carries.
-func scriptFleetVarDialect(host *fleet.Host, contents string) (variables.Dialect, string) {
+func scriptAutoMDMVarDialect(host *automdm.Host, contents string) (variables.Dialect, string) {
 	if host.Platform == "" {
 		return 0, noPlatformMsg
 	}
-	if fleet.IsWindowsPlatform(host.Platform) {
+	if automdm.IsWindowsPlatform(host.Platform) {
 		return variables.DialectPowerShell, ""
 	}
-	kind, _, err := fleet.ShebangInfo(contents)
+	kind, _, err := automdm.ShebangInfo(contents)
 	switch {
 	case err != nil:
 		return 0, unsupportedInterpMsg
-	case kind == fleet.ShebangPython:
+	case kind == automdm.ShebangPython:
 		return variables.DialectPython, ""
 	}
 	return variables.DialectPOSIX, ""
 }
 
-// isNotificationScript identifies an end user notification by the script Fleet
+// isNotificationScript identifies an end user notification by the script AutoMDM
 // queued for it. Its stored contents always hold the notification URL variable,
-// since Fleet only ever expands that into the copy fleetd fetches, so this holds
+// since AutoMDM only ever expands that into the copy automdmd fetches, so this holds
 // whatever the notification's execution_id points at by now. Both the fetch and
 // the result path ask this, and they have to agree.
-func isNotificationScript(script *fleet.HostScriptResult) bool {
+func isNotificationScript(script *automdm.HostScriptResult) bool {
 	// admin-written scripts are never internal, so this skips them without a scan
 	if !script.IsInternal {
 		return false
 	}
-	return slices.Contains(variables.Find(script.ScriptContents), string(fleet.FleetVarPatchNotificationURL))
+	return slices.Contains(variables.Find(script.ScriptContents), string(automdm.AutoMDMVarPatchNotificationURL))
 }
 
-// expandNotificationURL resolves $FLEET_VAR_PATCH_NOTIFICATION_URL to the
+// expandNotificationURL resolves $AUTOMDM_VAR_PATCH_NOTIFICATION_URL to the
 // notification's device page URL. It resolves here rather than when the script
 // is queued so script_contents never holds a live credential.
-func (svc *Service) expandNotificationURL(ctx context.Context, host *fleet.Host, script *fleet.HostScriptResult, notificationUUID string) (expanded string, failureMessage string) {
-	// orbit generates this token and sends it on check-in, so Fleet waits for one
+func (svc *Service) expandNotificationURL(ctx context.Context, host *automdm.Host, script *automdm.HostScriptResult, notificationUUID string) (expanded string, failureMessage string) {
+	// orbit generates this token and sends it on check-in, so AutoMDM waits for one
 	// rather than minting it here
 	token, err := svc.ds.GetDeviceAuthTokenIfFresh(ctx, host.ID, hostDeviceAuthTokenTTL)
 	switch {
 	case err == nil:
 		// OK
-	case fleet.IsNotFound(err):
+	case automdm.IsNotFound(err):
 		svc.logger.InfoContext(ctx, "host has no fresh device auth token to notify against, waiting for it to send one",
 			"host_id", host.ID)
-		return "", "Fleet is waiting for this host to send a current authentication token."
+		return "", "AutoMDM is waiting for this host to send a current authentication token."
 	default:
 		svc.logger.ErrorContext(ctx, "failed to check a host's device auth token", "host_id", host.ID, "err", err)
-		return "", "Fleet couldn't check this host's authentication token."
+		return "", "AutoMDM couldn't check this host's authentication token."
 	}
 
 	appConfig, err := svc.ds.AppConfig(ctx)
 	if err != nil {
 		svc.logger.ErrorContext(ctx, "failed to load app config to build a notification url", "err", err)
-		return "", "Fleet couldn't load its configuration to build the notification URL."
+		return "", "AutoMDM couldn't load its configuration to build the notification URL."
 	}
 
 	notificationURL := fmt.Sprintf("%s/device/%s/notifications/%s",
 		strings.TrimRight(appConfig.ServerSettings.ServerURL, "/"), token, notificationUUID)
 
-	return variables.Replace(script.ScriptContents, string(fleet.FleetVarPatchNotificationURL), notificationURL), ""
+	return variables.Replace(script.ScriptContents, string(automdm.AutoMDMVarPatchNotificationURL), notificationURL), ""
 }

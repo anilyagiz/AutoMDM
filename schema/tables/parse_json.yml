@@ -1,5 +1,5 @@
 name: parse_json
-notes: This table is not a core osquery table. It is included as part of Fleet's agent ([fleetd](https://fleetdm.com/docs/get-started/anatomy#fleetd)).
+notes: This table is not a core osquery table. It is included as part of AutoMDM's agent ([automdmd](https://automdm.com/docs/get-started/anatomy#automdmd)).
 description: Parses an entire file as JSON. See `parse_jsonl` where multiple JSON documents are supported.
 platforms: 
   - darwin

@@ -10,7 +10,7 @@ import (
 )
 
 // testPolicyCacheKeyPath mirrors the production key under HKCU so creating it needs no elevation.
-const testPolicyCacheKeyPath = `SOFTWARE\FleetDM\AutopilotPolicyCacheTest`
+const testPolicyCacheKeyPath = `SOFTWARE\AutoMDM\AutopilotPolicyCacheTest`
 
 func createTestKey(t *testing.T) registry.Key {
 	t.Helper()

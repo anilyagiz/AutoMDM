@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -25,7 +25,7 @@ const windowsFreshEnrollmentWindow = 5 * time.Minute
 // gate it: everything except patch policies. A patch policy's query passes when the app is absent (nothing outdated to find),
 // so a pass can't be read as "installed and up to date" and would skip the install on a fresh host. Requires the policies
 // table to be aliased as `p`.
-const setupExperienceGatingPolicyClause = `p.type != '` + fleet.PolicyTypePatch + `'`
+const setupExperienceGatingPolicyClause = `p.type != '` + automdm.PolicyTypePatch + `'`
 
 func (ds *Datastore) EnqueueSetupExperienceItems(ctx context.Context, hostPlatform, hostPlatformLike, hostUUID string, teamID uint) (bool, error) {
 	return ds.enqueueSetupExperienceItems(ctx, hostPlatform, hostPlatformLike, hostUUID, teamID, false)
@@ -37,7 +37,7 @@ func (ds *Datastore) ResetSetupExperienceItemsAfterFailure(ctx context.Context, 
 
 func (ds *Datastore) enqueueSetupExperienceItems(ctx context.Context, hostPlatform, hostPlatformLike, hostUUID string, teamID uint, resetFailedSetupSteps bool) (bool, error) {
 	// NOTE: there are 3 different "platform" values in play here: host platform,
-	// host platform-like and fleet-platform-like.
+	// host platform-like and automdm-platform-like.
 	//
 	// The host platform is the most specific, e.g. "darwin", "windows", "ios",
 	// "ubuntu", "arch", "fedora", etc.
@@ -47,15 +47,15 @@ func (ds *Datastore) enqueueSetupExperienceItems(ctx context.Context, hostPlatfo
 	// is typically the same as platform. It may be empty in some cases (e.g. for "arch"
 	// as it doesn't have a "ID_LIKE" set in /etc/os-release by default, but also "ios").
 	//
-	// Fleet-platform-like is the even-more-generic platform, and is implemented in
-	// fleet.PlatformFromHost: "windows", "darwin", "linux", "ios", etc.
+	// AutoMDM-platform-like is the even-more-generic platform, and is implemented in
+	// automdm.PlatformFromHost: "windows", "darwin", "linux", "ios", etc.
 	//
 	// So for many platforms, all three are the same, but for linux distros, those can be
 	// 3 different values. There is no harm - at least in this function - in filling
 	// hostPlatformLike to hostPlatform if it is empty (e.g. for "ios" or "arch").
 	//
 	// From my tests enrolling such hosts, results are:
-	// - host platform - host platform like - fleet platform like -
+	// - host platform - host platform like - automdm platform like -
 	//   ios             <empty>              ios
 	//   darwin          darwin               darwin
 	//   arch            <empty>              linux
@@ -71,9 +71,9 @@ func (ds *Datastore) enqueueSetupExperienceItems(ctx context.Context, hostPlatfo
 		// Orbit version that didn't support setup experience to one that does.
 		// See https://github.com/fleetdm/fleet/issues/35717
 		// Match either osquery_host_id or uuid because the hostUUID parameter comes from
-		// fleet.HostUUIDForSetupExperience, which on Windows/Linux resolves to OsqueryHostID and on
+		// automdm.HostUUIDForSetupExperience, which on Windows/Linux resolves to OsqueryHostID and on
 		// Apple platforms to host.UUID. Without the OR, the lookup misses Windows/Linux hosts when
-		// OsqueryHostID and the Fleet host UUID differ (default osquery host_identifier modes).
+		// OsqueryHostID and the AutoMDM host UUID differ (default osquery host_identifier modes).
 		stmtHost := `
 		SELECT
 			last_enrolled_at
@@ -107,17 +107,17 @@ func (ds *Datastore) enqueueSetupExperienceItems(ctx context.Context, hostPlatfo
 			//      row was just inserted. Covers BYOD (which never enters awaiting_configuration) plus the
 			//      OOBE cases above as a belt-and-suspenders fallback.
 			//
-			// The original #35717 protection (skip setup-experience for a fleetd upgrade on a long-running
-			// host) is preserved: a fleetd MSI upgrade doesn't create a new mdm_windows_enrollments row, so
+			// The original #35717 protection (skip setup-experience for an automdmd upgrade on a long-running
+			// host) is preserved: an automdmd MSI upgrade doesn't create a new mdm_windows_enrollments row, so
 			// neither lookup finds a fresh row.
 			//
-			// hostUUID here comes from fleet.HostUUIDForSetupExperience, which on Windows resolves to
+			// hostUUID here comes from automdm.HostUUIDForSetupExperience, which on Windows resolves to
 			// OsqueryHostID. Match either identifier on the hosts side so the lookup works regardless of
 			// the osquery host_identifier mode.
 			if hostPlatform == "windows" {
 				var mdmState struct {
-					AwaitingConfiguration fleet.WindowsMDMAwaitingConfiguration `db:"awaiting_configuration"`
-					CreatedAt             time.Time                             `db:"created_at"`
+					AwaitingConfiguration automdm.WindowsMDMAwaitingConfiguration `db:"awaiting_configuration"`
+					CreatedAt             time.Time                               `db:"created_at"`
 				}
 				// Primary lookup: JOIN by mwe.host_uuid (the populated link).
 				stmtByHostUUID := `
@@ -160,7 +160,7 @@ func (ds *Datastore) enqueueSetupExperienceItems(ctx context.Context, hostPlatfo
 						found = true
 					}
 				}
-				if found && (mdmState.AwaitingConfiguration != fleet.WindowsMDMAwaitingConfigurationNone || time.Since(mdmState.CreatedAt) < windowsFreshEnrollmentWindow) {
+				if found && (mdmState.AwaitingConfiguration != automdm.WindowsMDMAwaitingConfigurationNone || time.Since(mdmState.CreatedAt) < windowsFreshEnrollmentWindow) {
 					ds.logger.DebugContext(ctx, "Windows host enrolled >24h ago but has fresh MDM enrollment state; running setup experience for re-enrollment",
 						"host_uuid", hostUUID,
 						"awaiting_configuration", mdmState.AwaitingConfiguration,
@@ -180,7 +180,7 @@ func (ds *Datastore) enqueueSetupExperienceItems(ctx context.Context, hostPlatfo
 	// NOTE: currently, the Android platform does not use the "enqueue setup experience items" flow as it
 	// doesn't support any on-device UI (such as the screen showing setup progress) nor any
 	// ordering of installs - all software to install is provided as part of the Android policy
-	// when the host enrolls in Fleet.
+	// when the host enrolls in AutoMDM.
 	// See https://github.com/fleetdm/fleet/issues/33761#issuecomment-3548996114
 
 	stmtClearSetupStatus := `
@@ -193,13 +193,13 @@ WHERE host_uuid = ? AND %s`
 	}
 
 	// Build combined software query (installers + VPP apps) before the transaction.
-	fleetPlatform := fleet.PlatformFromHost(hostPlatformLike)
+	automdmPlatform := automdm.PlatformFromHost(hostPlatformLike)
 
 	var softwareUnionParts []string
 	var softwareArgs []any
 
-	includeSoftwareInstallers := fleetPlatform != "ios" && fleetPlatform != "ipados"
-	includeVPPApps := fleetPlatform == "darwin" || fleetPlatform == "ios" || fleetPlatform == "ipados"
+	includeSoftwareInstallers := automdmPlatform != "ios" && automdmPlatform != "ipados"
+	includeVPPApps := automdmPlatform == "darwin" || automdmPlatform == "ios" || automdmPlatform == "ipados"
 
 	if includeSoftwareInstallers {
 		installerSelect := `
@@ -229,7 +229,7 @@ WHERE install_during_setup = true
 AND global_or_team_id = ?
 AND si.is_active = TRUE
 AND (
-	-- installer platform matches the host's fleet platform (darwin, linux or windows)
+	-- installer platform matches the host's automdm platform (darwin, linux or windows)
 	si.platform = ?
 	AND
 	(
@@ -258,16 +258,16 @@ AND %s`
 			installerSelect = fmt.Sprintf(installerSelect, "TRUE")
 		}
 		softwareUnionParts = append(softwareUnionParts, installerSelect)
-		// Placeholder order: host_uuid, policy_gated subquery (fleetPlatform), stdn.team_id, global_or_team_id, si.platform,
+		// Placeholder order: host_uuid, policy_gated subquery (automdmPlatform), stdn.team_id, global_or_team_id, si.platform,
 		// deb-distro check, rpm-distro check.
-		softwareArgs = append(softwareArgs, hostUUID, fleetPlatform, teamID, teamID, fleetPlatform, hostPlatformLike, hostPlatformLike)
+		softwareArgs = append(softwareArgs, hostUUID, automdmPlatform, teamID, teamID, automdmPlatform, hostPlatformLike, hostPlatformLike)
 		if resetFailedSetupSteps {
 			softwareArgs = append(softwareArgs, hostUUID)
 		}
 
 		// .sh and .py installers are stored with platform='linux' but can run on darwin
 		// too, so include any cross-selected for macOS setup experience.
-		if fleetPlatform == "darwin" {
+		if automdmPlatform == "darwin" {
 			crossInstallerSelect := `
 SELECT
 	? AS host_uuid,
@@ -334,7 +334,7 @@ AND %s`
 			vppSelect = fmt.Sprintf(vppSelect, "TRUE")
 		}
 		softwareUnionParts = append(softwareUnionParts, vppSelect)
-		softwareArgs = append(softwareArgs, hostUUID, teamID, teamID, fleetPlatform)
+		softwareArgs = append(softwareArgs, hostUUID, teamID, teamID, automdmPlatform)
 		if resetFailedSetupSteps {
 			softwareArgs = append(softwareArgs, hostUUID)
 		}
@@ -344,7 +344,7 @@ AND %s`
 	// no in_house_app_labels join: labels don't apply during setup (see the
 	// comment on the INSERT below), and a freshly-enrolled host has no computed
 	// label membership yet anyway.
-	if fleetPlatform == "ios" || fleetPlatform == "ipados" {
+	if automdmPlatform == "ios" || automdmPlatform == "ipados" {
 		inHouseSelect := `
 SELECT
 	? AS host_uuid,
@@ -371,7 +371,7 @@ AND %s`
 			inHouseSelect = fmt.Sprintf(inHouseSelect, "TRUE")
 		}
 		softwareUnionParts = append(softwareUnionParts, inHouseSelect)
-		softwareArgs = append(softwareArgs, hostUUID, teamID, teamID, fleetPlatform)
+		softwareArgs = append(softwareArgs, hostUUID, teamID, teamID, automdmPlatform)
 		if resetFailedSetupSteps {
 			softwareArgs = append(softwareArgs, hostUUID)
 		}
@@ -441,7 +441,7 @@ WHERE global_or_team_id = ?`
 		}
 
 		// Scripts
-		if fleetPlatform == "darwin" {
+		if automdmPlatform == "darwin" {
 			res, err := tx.ExecContext(ctx, stmtSetupScripts, hostUUID, teamID)
 			if err != nil {
 				return ctxerr.Wrap(ctx, err, "inserting setup experience scripts")
@@ -454,7 +454,7 @@ WHERE global_or_team_id = ?`
 		}
 
 		// Set setup experience on Apple hosts only if they have something configured.
-		if fleetPlatform == "darwin" || fleetPlatform == "ios" || fleetPlatform == "ipados" {
+		if automdmPlatform == "darwin" || automdmPlatform == "ios" || automdmPlatform == "ipados" {
 			if totalInsertions > 0 {
 				if err := setHostAwaitingConfiguration(ctx, tx, hostUUID, true); err != nil {
 					return ctxerr.Wrap(ctx, err, "setting host awaiting configuration to true")
@@ -472,16 +472,16 @@ WHERE global_or_team_id = ?`
 
 func (ds *Datastore) SetSetupExperienceSoftwareTitles(ctx context.Context, platform string, teamID uint, titleIDs []uint) error {
 	switch platform {
-	case string(fleet.MacOSPlatform),
-		string(fleet.IOSPlatform),
-		string(fleet.IPadOSPlatform),
-		string(fleet.AndroidPlatform),
+	case string(automdm.MacOSPlatform),
+		string(automdm.IOSPlatform),
+		string(automdm.IPadOSPlatform),
+		string(automdm.AndroidPlatform),
 		"windows",
 		"linux":
 		// ok, valid platform
 	default:
 		return ctxerr.Errorf(ctx, "platform %q is not supported, only %q, %q, %q, %q, \"windows\", or \"linux\" platforms are supported",
-			platform, fleet.MacOSPlatform, fleet.IOSPlatform, fleet.IPadOSPlatform, fleet.AndroidPlatform)
+			platform, automdm.MacOSPlatform, automdm.IOSPlatform, automdm.IPadOSPlatform, automdm.AndroidPlatform)
 	}
 
 	titleIDQuestionMarks := strings.Join(slices.Repeat([]string{"?"}, len(titleIDs)), ",")
@@ -605,7 +605,7 @@ VALUES %s`
 		}
 
 		// Select requested software installers
-		if platform != string(fleet.IOSPlatform) && platform != string(fleet.IPadOSPlatform) && platform != string(fleet.AndroidPlatform) {
+		if platform != string(automdm.IOSPlatform) && platform != string(automdm.IPadOSPlatform) && platform != string(automdm.AndroidPlatform) {
 			if len(titleIDs) > 0 {
 				if err := sqlx.SelectContext(ctx, tx, &softwareIDPlatforms, stmtSelectInstallersIDs, titleIDAndTeam...); err != nil {
 					return ctxerr.Wrap(ctx, err, "selecting software IDs using title IDs")
@@ -618,11 +618,11 @@ VALUES %s`
 				switch {
 				case tuple.Platform == platform:
 					nativeSoftwareIDs = append(nativeSoftwareIDs, tuple.ID)
-				case platform == string(fleet.MacOSPlatform) && tuple.Platform == "linux" && (tuple.Extension == "sh" || tuple.Extension == "py"):
+				case platform == string(automdm.MacOSPlatform) && tuple.Platform == "linux" && (tuple.Extension == "sh" || tuple.Extension == "py"):
 					// .sh and .py scripts can run on macOS; track the selection in the cross-platform table.
 					crossSoftwareIDs = append(crossSoftwareIDs, tuple.ID)
 				default:
-					return ctxerr.Wrap(ctx, &fleet.BadRequestError{
+					return ctxerr.Wrap(ctx, &automdm.BadRequestError{
 						Message: fmt.Sprintf("invalid platform for requested software installer: %d (%s, %s), vs. expected %s", tuple.ID, tuple.Name, tuple.Platform, platform),
 					})
 				}
@@ -630,8 +630,8 @@ VALUES %s`
 		}
 
 		// Select requested VPP apps
-		if platform == string(fleet.MacOSPlatform) || platform == string(fleet.IOSPlatform) || platform == string(fleet.IPadOSPlatform) ||
-			platform == string(fleet.AndroidPlatform) {
+		if platform == string(automdm.MacOSPlatform) || platform == string(automdm.IOSPlatform) || platform == string(automdm.IPadOSPlatform) ||
+			platform == string(automdm.AndroidPlatform) {
 			if len(titleIDs) > 0 {
 				if err := sqlx.SelectContext(ctx, tx, &vppIDPlatforms, stmtSelectVPPAppsTeamsID, titleIDAndTeam...); err != nil {
 					return ctxerr.Wrap(ctx, err, "selecting vpp app team IDs using title IDs")
@@ -642,7 +642,7 @@ VALUES %s`
 			for _, tuple := range vppIDPlatforms {
 				delete(missingTitleIDs, tuple.TitleID)
 				if tuple.Platform != platform {
-					return ctxerr.Wrap(ctx, &fleet.BadRequestError{
+					return ctxerr.Wrap(ctx, &automdm.BadRequestError{
 						Message: fmt.Sprintf("invalid platform for requested AppStoreApp title: %d (%s, %s), vs. expected %s", tuple.ID, tuple.Name, tuple.Platform, platform),
 					})
 				}
@@ -651,7 +651,7 @@ VALUES %s`
 		}
 
 		// Select requested in-house apps; setup experience only supports them on iOS/iPadOS.
-		if platform == string(fleet.IOSPlatform) || platform == string(fleet.IPadOSPlatform) {
+		if platform == string(automdm.IOSPlatform) || platform == string(automdm.IPadOSPlatform) {
 			if len(titleIDs) > 0 {
 				if err := sqlx.SelectContext(ctx, tx, &inHouseIDPlatforms, stmtSelectInHouseAppIDs, titleIDAndTeam...); err != nil {
 					return ctxerr.Wrap(ctx, err, "selecting in-house app IDs using title IDs")
@@ -662,7 +662,7 @@ VALUES %s`
 			for _, tuple := range inHouseIDPlatforms {
 				delete(missingTitleIDs, tuple.TitleID)
 				if tuple.Platform != platform {
-					return ctxerr.Wrap(ctx, &fleet.BadRequestError{
+					return ctxerr.Wrap(ctx, &automdm.BadRequestError{
 						Message: fmt.Sprintf("invalid platform for requested in-house app title: %d (%s, %s), vs. expected %s", tuple.ID, tuple.Name, tuple.Platform, platform),
 					})
 				}
@@ -676,7 +676,7 @@ VALUES %s`
 			for k := range missingTitleIDs {
 				keys = append(keys, fmt.Sprintf("%d", k))
 			}
-			err := &fleet.BadRequestError{
+			err := &automdm.BadRequestError{
 				Message: "at least one selected software title does not exist or is not available for setup experience",
 			}
 			return ctxerr.Wrapf(ctx, err, "title IDs not available: %s", strings.Join(keys, ","))
@@ -687,15 +687,15 @@ VALUES %s`
 			return ctxerr.Wrap(ctx, err, "unsetting software installers")
 		}
 
-		if platform == string(fleet.MacOSPlatform) {
+		if platform == string(automdm.MacOSPlatform) {
 			if _, err := tx.ExecContext(ctx, stmtUnsetCrossInstallers, platform, teamID); err != nil {
 				return ctxerr.Wrap(ctx, err, "unsetting cross-platform software installers")
 			}
 		}
 
 		// Unset all vpp apps
-		if platform == string(fleet.MacOSPlatform) || platform == string(fleet.IOSPlatform) ||
-			platform == string(fleet.IPadOSPlatform) || platform == string(fleet.AndroidPlatform) {
+		if platform == string(automdm.MacOSPlatform) || platform == string(automdm.IOSPlatform) ||
+			platform == string(automdm.IPadOSPlatform) || platform == string(automdm.AndroidPlatform) {
 			if _, err := tx.ExecContext(ctx, stmtUnsetVPPAppsTeams, platform, teamID); err != nil {
 				return ctxerr.Wrap(ctx, err, "unsetting vpp app teams")
 			}
@@ -719,15 +719,15 @@ VALUES %s`
 			}
 		}
 
-		if (platform == string(fleet.MacOSPlatform) || platform == string(fleet.IOSPlatform) ||
-			platform == string(fleet.IPadOSPlatform) || platform == string(fleet.AndroidPlatform)) && len(vppAppTeamIDs) > 0 {
+		if (platform == string(automdm.MacOSPlatform) || platform == string(automdm.IOSPlatform) ||
+			platform == string(automdm.IPadOSPlatform) || platform == string(automdm.AndroidPlatform)) && len(vppAppTeamIDs) > 0 {
 			stmtSetVPPAppsTeamsLoop := fmt.Sprintf(stmtSetVPPAppsTeams, questionMarks(len(vppAppTeamIDs)))
 			if _, err := tx.ExecContext(ctx, stmtSetVPPAppsTeamsLoop, vppAppTeamIDs...); err != nil {
 				return ctxerr.Wrap(ctx, err, "setting vpp app teams")
 			}
 		}
 
-		if platform == string(fleet.IOSPlatform) || platform == string(fleet.IPadOSPlatform) {
+		if platform == string(automdm.IOSPlatform) || platform == string(automdm.IPadOSPlatform) {
 			if _, err := tx.ExecContext(ctx, stmtUnsetInHouseApps, platform, teamID); err != nil {
 				return ctxerr.Wrap(ctx, err, "unsetting in-house apps")
 			}
@@ -748,7 +748,7 @@ VALUES %s`
 	return nil
 }
 
-func (ds *Datastore) GetSetupExperienceCount(ctx context.Context, platform string, teamID *uint) (*fleet.SetupExperienceCount, error) {
+func (ds *Datastore) GetSetupExperienceCount(ctx context.Context, platform string, teamID *uint) (*automdm.SetupExperienceCount, error) {
 	stmt := `
 		SELECT
 		(
@@ -788,7 +788,7 @@ func (ds *Datastore) GetSetupExperienceCount(ctx context.Context, platform strin
 		globalOrTeamID = *teamID
 	}
 
-	sec := &fleet.SetupExperienceCount{}
+	sec := &automdm.SetupExperienceCount{}
 	if err := sqlx.GetContext(
 		ctx, ds.reader(ctx), sec, stmt,
 		globalOrTeamID, platform,
@@ -801,40 +801,40 @@ func (ds *Datastore) GetSetupExperienceCount(ctx context.Context, platform strin
 	}
 
 	// Only macOS supports scripts during setup experience currently
-	if platform != string(fleet.MacOSPlatform) {
+	if platform != string(automdm.MacOSPlatform) {
 		sec.Scripts = 0
 	}
 
 	return sec, nil
 }
 
-func (ds *Datastore) ListSetupExperienceSoftwareTitles(ctx context.Context, platform string, teamID uint, opts fleet.ListOptions) ([]fleet.SoftwareTitleListResult, int, *fleet.PaginationMetadata, error) {
+func (ds *Datastore) ListSetupExperienceSoftwareTitles(ctx context.Context, platform string, teamID uint, opts automdm.ListOptions) ([]automdm.SoftwareTitleListResult, int, *automdm.PaginationMetadata, error) {
 	// I believe this can be removed, as the platforms are validated before this function
 	for p := range strings.SplitSeq(strings.ReplaceAll(platform, "macos", "darwin"), ",") {
 		switch p {
-		case string(fleet.MacOSPlatform),
-			string(fleet.IOSPlatform),
-			string(fleet.IPadOSPlatform),
-			string(fleet.AndroidPlatform),
+		case string(automdm.MacOSPlatform),
+			string(automdm.IOSPlatform),
+			string(automdm.IPadOSPlatform),
+			string(automdm.AndroidPlatform),
 			"windows",
 			"linux":
 			// ok, valid platform
 		default:
 			return nil, 0, nil, ctxerr.Errorf(ctx, "platform %q is not supported, only %q, %q, %q, %q, \"windows\", or \"linux\" platforms are supported",
-				p, fleet.MacOSPlatform, fleet.IOSPlatform, fleet.AndroidPlatform, fleet.IPadOSPlatform)
+				p, automdm.MacOSPlatform, automdm.IOSPlatform, automdm.AndroidPlatform, automdm.IPadOSPlatform)
 		}
 	}
 
 	opts.IncludeMetadata = true
 	opts.After = ""
 
-	titles, count, meta, err := ds.ListSoftwareTitles(ctx, fleet.SoftwareTitleListOptions{
+	titles, count, meta, err := ds.ListSoftwareTitles(ctx, automdm.SoftwareTitleListOptions{
 		TeamID:              &teamID,
 		ListOptions:         opts,
 		Platform:            platform,
 		AvailableForInstall: true,
 		ForSetupExperience:  true,
-	}, fleet.TeamFilter{
+	}, automdm.TeamFilter{
 		IncludeObserver: true,
 		TeamID:          &teamID,
 	})
@@ -857,7 +857,7 @@ func questionMarks(number int) string {
 	return strings.Join(slices.Repeat([]string{"?"}, number), ",")
 }
 
-func (ds *Datastore) ListSetupExperienceResultsByHostUUID(ctx context.Context, hostUUID string, teamID uint) ([]*fleet.SetupExperienceStatusResult, error) {
+func (ds *Datastore) ListSetupExperienceResultsByHostUUID(ctx context.Context, hostUUID string, teamID uint) ([]*automdm.SetupExperienceStatusResult, error) {
 	const stmt = `
 SELECT
 	sesr.id,
@@ -905,13 +905,13 @@ LEFT JOIN in_house_apps iha ON iha.id = sesr.in_house_app_id
 WHERE host_uuid = ?
 ORDER BY sesr.id
 	`
-	var results []*fleet.SetupExperienceStatusResult
+	var results []*automdm.SetupExperienceStatusResult
 	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &results, stmt, hostUUID); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "select setup experience status results by host uuid")
 	}
 
 	titleIDs := make([]uint, 0, len(results))
-	byTitleID := make(map[uint]*fleet.SetupExperienceStatusResult, len(results))
+	byTitleID := make(map[uint]*automdm.SetupExperienceStatusResult, len(results))
 	for _, res := range results {
 		if res.SoftwareTitleID != nil {
 			titleIDs = append(titleIDs, *res.SoftwareTitleID)
@@ -982,7 +982,7 @@ WHERE p.software_installer_id = ?
 	return ids, nil
 }
 
-func (ds *Datastore) UpdateSetupExperienceStatusResult(ctx context.Context, status *fleet.SetupExperienceStatusResult) error {
+func (ds *Datastore) UpdateSetupExperienceStatusResult(ctx context.Context, status *automdm.SetupExperienceStatusResult) error {
 	const stmt = `
 UPDATE setup_experience_status_results
 SET
@@ -1023,11 +1023,11 @@ WHERE id = ?
 	return nil
 }
 
-func (ds *Datastore) GetSetupExperienceScript(ctx context.Context, teamID *uint) (*fleet.Script, error) {
+func (ds *Datastore) GetSetupExperienceScript(ctx context.Context, teamID *uint) (*automdm.Script, error) {
 	return ds.getSetupExperienceScript(ctx, ds.reader(ctx), teamID)
 }
 
-func (ds *Datastore) getSetupExperienceScript(ctx context.Context, q sqlx.QueryerContext, teamID *uint) (*fleet.Script, error) {
+func (ds *Datastore) getSetupExperienceScript(ctx context.Context, q sqlx.QueryerContext, teamID *uint) (*automdm.Script, error) {
 	query := `
 SELECT
   id,
@@ -1046,7 +1046,7 @@ WHERE
 		globalOrTeamID = *teamID
 	}
 
-	var script fleet.Script
+	var script automdm.Script
 	if err := sqlx.GetContext(ctx, q, &script, query, globalOrTeamID); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, ctxerr.Wrap(ctx, notFound("SetupExperienceScript"), "get setup experience script")
@@ -1057,7 +1057,7 @@ WHERE
 	return &script, nil
 }
 
-func (ds *Datastore) GetSetupExperienceScriptByID(ctx context.Context, scriptID uint) (*fleet.Script, error) {
+func (ds *Datastore) GetSetupExperienceScriptByID(ctx context.Context, scriptID uint) (*automdm.Script, error) {
 	query := `
 SELECT
   id,
@@ -1072,7 +1072,7 @@ WHERE
   id = ?
 `
 
-	var script fleet.Script
+	var script automdm.Script
 	if err := sqlx.GetContext(ctx, ds.reader(ctx), &script, query, scriptID); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, ctxerr.Wrap(ctx, notFound("SetupExperienceScript"), "get setup experience script by id")
@@ -1083,7 +1083,7 @@ WHERE
 	return &script, nil
 }
 
-func (ds *Datastore) SetSetupExperienceScript(ctx context.Context, script *fleet.Script) (bool, error) {
+func (ds *Datastore) SetSetupExperienceScript(ctx context.Context, script *automdm.Script) (bool, error) {
 	var changed bool
 	err := ds.withRetryTxx(ctx, func(tx sqlx.ExtContext) error {
 		var err error
@@ -1100,7 +1100,7 @@ func (ds *Datastore) SetSetupExperienceScript(ctx context.Context, script *fleet
 		// - existing setup script with different content -> delete(with all side effects) and re-insert
 		// - existing setup script with same content -> no-op
 		gotSetupExperienceScript, err := ds.getSetupExperienceScript(ctx, tx, script.TeamID)
-		if err != nil && !fleet.IsNotFound(err) {
+		if err != nil && !automdm.IsNotFound(err) {
 			return err
 		}
 		// We will fall through on a notFound err - nothing to do here
@@ -1127,7 +1127,7 @@ func (ds *Datastore) SetSetupExperienceScript(ctx context.Context, script *fleet
 	return changed, err
 }
 
-func insertSetupExperienceScript(ctx context.Context, tx sqlx.ExtContext, script *fleet.Script, scriptContentsID uint) (sql.Result, error) {
+func insertSetupExperienceScript(ctx context.Context, tx sqlx.ExtContext, script *automdm.Script, scriptContentsID uint) (sql.Result, error) {
 	const insertStmt = `
 INSERT INTO
   setup_experience_scripts (
@@ -1220,9 +1220,9 @@ WHERE host_uuid = ?
 	return awaitingConfiguration, nil
 }
 
-func (ds *Datastore) MaybeUpdateSetupExperienceVPPStatus(ctx context.Context, hostUUID string, nanoCommandUUID string, status fleet.SetupExperienceStatusResultStatus) (bool, error) {
+func (ds *Datastore) MaybeUpdateSetupExperienceVPPStatus(ctx context.Context, hostUUID string, nanoCommandUUID string, status automdm.SetupExperienceStatusResultStatus) (bool, error) {
 	stmt := `UPDATE setup_experience_status_results SET status = ? WHERE host_uuid = ? AND nano_command_uuid = ? AND status NOT IN (?, ?, ?)`
-	res, err := ds.writer(ctx).ExecContext(ctx, stmt, status, hostUUID, nanoCommandUUID, fleet.SetupExperienceStatusSuccess, fleet.SetupExperienceStatusFailure, fleet.SetupExperienceStatusCancelled)
+	res, err := ds.writer(ctx).ExecContext(ctx, stmt, status, hostUUID, nanoCommandUUID, automdm.SetupExperienceStatusSuccess, automdm.SetupExperienceStatusFailure, automdm.SetupExperienceStatusCancelled)
 	if err != nil {
 		return false, err
 	}
@@ -1230,9 +1230,9 @@ func (ds *Datastore) MaybeUpdateSetupExperienceVPPStatus(ctx context.Context, ho
 	return n > 0, nil
 }
 
-func (ds *Datastore) MaybeUpdateSetupExperienceSoftwareInstallStatus(ctx context.Context, hostUUID string, executionID string, status fleet.SetupExperienceStatusResultStatus) (bool, error) {
+func (ds *Datastore) MaybeUpdateSetupExperienceSoftwareInstallStatus(ctx context.Context, hostUUID string, executionID string, status automdm.SetupExperienceStatusResultStatus) (bool, error) {
 	stmt := `UPDATE setup_experience_status_results SET status = ? WHERE host_uuid = ? AND host_software_installs_execution_id = ? AND status NOT IN (?, ?, ?)`
-	res, err := ds.writer(ctx).ExecContext(ctx, stmt, status, hostUUID, executionID, fleet.SetupExperienceStatusSuccess, fleet.SetupExperienceStatusFailure, fleet.SetupExperienceStatusCancelled)
+	res, err := ds.writer(ctx).ExecContext(ctx, stmt, status, hostUUID, executionID, automdm.SetupExperienceStatusSuccess, automdm.SetupExperienceStatusFailure, automdm.SetupExperienceStatusCancelled)
 	if err != nil {
 		return false, err
 	}
@@ -1240,9 +1240,9 @@ func (ds *Datastore) MaybeUpdateSetupExperienceSoftwareInstallStatus(ctx context
 	return n > 0, nil
 }
 
-func (ds *Datastore) MaybeUpdateSetupExperienceScriptStatus(ctx context.Context, hostUUID string, executionID string, status fleet.SetupExperienceStatusResultStatus) (bool, error) {
+func (ds *Datastore) MaybeUpdateSetupExperienceScriptStatus(ctx context.Context, hostUUID string, executionID string, status automdm.SetupExperienceStatusResultStatus) (bool, error) {
 	stmt := `UPDATE setup_experience_status_results SET status = ? WHERE host_uuid = ? AND script_execution_id = ? AND status NOT IN (?, ?, ?)`
-	res, err := ds.writer(ctx).ExecContext(ctx, stmt, status, hostUUID, executionID, fleet.SetupExperienceStatusSuccess, fleet.SetupExperienceStatusFailure, fleet.SetupExperienceStatusCancelled)
+	res, err := ds.writer(ctx).ExecContext(ctx, stmt, status, hostUUID, executionID, automdm.SetupExperienceStatusSuccess, automdm.SetupExperienceStatusFailure, automdm.SetupExperienceStatusCancelled)
 	if err != nil {
 		return false, err
 	}
@@ -1250,7 +1250,7 @@ func (ds *Datastore) MaybeUpdateSetupExperienceScriptStatus(ctx context.Context,
 	return n > 0, nil
 }
 
-// HostIDBySetupExperienceUUID returns the ID of the host that fleet.HostUUIDForSetupExperience gives hostUUID for. That is the osquery host
+// HostIDBySetupExperienceUUID returns the ID of the host that automdm.HostUUIDForSetupExperience gives hostUUID for. That is the osquery host
 // ID on Windows and Linux, so both columns are matched, like the other setup experience queries do. A UUID match comes first, so another
 // host's osquery host ID can't take an Apple host's UUID, as when this lookup matched any host identifier.
 func (ds *Datastore) HostIDBySetupExperienceUUID(ctx context.Context, hostUUID string) (uint, error) {
@@ -1278,7 +1278,7 @@ func (ds *Datastore) HostIDBySetupExperienceUUID(ctx context.Context, hostUUID s
 func (ds *Datastore) CancelPendingSetupExperienceSteps(ctx context.Context, hostUUID string) error {
 	cancelStmt := "UPDATE setup_experience_status_results SET status = ? WHERE host_uuid = ? AND status NOT IN (?, ?)"
 	err := ds.withRetryTxx(ctx, func(tx sqlx.ExtContext) error {
-		_, err := tx.ExecContext(ctx, cancelStmt, fleet.SetupExperienceStatusCancelled, hostUUID, fleet.SetupExperienceStatusSuccess, fleet.SetupExperienceStatusFailure)
+		_, err := tx.ExecContext(ctx, cancelStmt, automdm.SetupExperienceStatusCancelled, hostUUID, automdm.SetupExperienceStatusSuccess, automdm.SetupExperienceStatusFailure)
 		return err
 	})
 	if err != nil {

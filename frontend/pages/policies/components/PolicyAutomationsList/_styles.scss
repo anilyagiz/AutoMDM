@@ -1,6 +1,6 @@
 .policy-automations-list {
   max-width: 600px;
-  border: 1px solid $ui-fleet-black-10;
+  border: 1px solid $ui-automdm-black-10;
   border-radius: $border-radius-large;
   font-size: $x-small;
 
@@ -9,7 +9,7 @@
     align-items: center;
     padding: 0 $pad-large;
     height: 40px;
-    border-top: 1px solid $ui-fleet-black-10;
+    border-top: 1px solid $ui-automdm-black-10;
 
     &:first-child {
       border-top: none;
@@ -18,20 +18,20 @@
 
   &__row-graphic {
     vertical-align: middle;
-    color: $ui-fleet-black-50;
+    color: $ui-automdm-black-50;
   }
 
   &__row-name {
     display: flex;
     align-items: center;
     gap: $pad-small;
-    color: $ui-fleet-black-75;
+    color: $ui-automdm-black-75;
 
     a {
       @include link;
 
       &:hover {
-        color: $core-fleet-black;
+        color: $core-automdm-black;
       }
     }
   }
@@ -42,9 +42,9 @@
     max-width: 600px;
     height: 40px;
     padding: 0 $pad-large;
-    border: 1px solid $ui-fleet-black-10;
+    border: 1px solid $ui-automdm-black-10;
     border-radius: $border-radius-large;
     font-size: $x-small;
-    color: $ui-fleet-black-50;
+    color: $ui-automdm-black-50;
   }
 }

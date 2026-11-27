@@ -8,7 +8,7 @@ interface IQuery {
   size?: IconSizes;
 }
 
-const Query = ({ color = "ui-fleet-black-75", size = "medium" }: IQuery) => {
+const Query = ({ color = "ui-automdm-black-75", size = "medium" }: IQuery) => {
   return (
     <svg
       width={ICON_SIZES[size]}

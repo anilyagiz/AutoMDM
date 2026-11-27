@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/androidmanagement/v1"
@@ -123,8 +123,8 @@ func testState() proxyDeviceState {
 // once the proxy reports one, like the real agent, and with the shared secret before that.
 func TestOrbitEnrollUsesAgentEnrollSecret(t *testing.T) {
 	var presented []string
-	fleetMux := http.NewServeMux()
-	fleetMux.HandleFunc("POST /api/fleet/orbit/enroll", func(w http.ResponseWriter, r *http.Request) {
+	automdmMux := http.NewServeMux()
+	automdmMux.HandleFunc("POST /api/automdm/orbit/enroll", func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			EnrollSecret string `json:"enroll_secret"`
 			Platform     string `json:"platform"`
@@ -134,12 +134,12 @@ func TestOrbitEnrollUsesAgentEnrollSecret(t *testing.T) {
 		presented = append(presented, body.EnrollSecret)
 		_ = json.NewEncoder(w).Encode(map[string]string{"orbit_node_key": "node-key"})
 	})
-	fleetSrv := httptest.NewServer(fleetMux)
-	t.Cleanup(fleetSrv.Close)
+	automdmSrv := httptest.NewServer(automdmMux)
+	t.Cleanup(automdmSrv.Close)
 
 	proxy := &fakeProxy{registered: true, state: testState()}
 	agent := newTestAndroidAgent(proxy.server(t).URL)
-	agent.serverAddress = fleetSrv.URL
+	agent.serverAddress = automdmSrv.URL
 	agent.enrollSecret = "shared-secret"
 
 	agent.refreshAgentEnrollSecret()
@@ -180,7 +180,7 @@ func TestShouldOrbitEnroll(t *testing.T) {
 
 // TestCurrentStateRecoversLostRegistration covers the load-testing bug where a proxy that
 // lost its in-memory device state left the agent polling a 404 forever. The agent stopped
-// sending status reports, so Fleet's hourly reconciler marked the host unenrolled and MDM
+// sending status reports, so AutoMDM's hourly reconciler marked the host unenrolled and MDM
 // status went to Off.
 func TestCurrentStateRecoversLostRegistration(t *testing.T) {
 	proxy := &fakeProxy{state: testState()}
@@ -210,7 +210,7 @@ func TestCurrentStateRecoversLostRegistration(t *testing.T) {
 }
 
 // TestCurrentStateReRegistersWithLastKnownPolicy checks that recovery reports the policy the
-// agent last observed, so the proxy doesn't tell Fleet the applied policy regressed.
+// agent last observed, so the proxy doesn't tell AutoMDM the applied policy regressed.
 func TestCurrentStateReRegistersWithLastKnownPolicy(t *testing.T) {
 	proxy := &fakeProxy{
 		registered: true,
@@ -237,7 +237,7 @@ func TestCurrentStateReRegistersWithLastKnownPolicy(t *testing.T) {
 }
 
 // TestCurrentStateStopsWhenDeviceDeleted covers the other half of the recovery: a device
-// Fleet deleted through AMAPI (a real unenrollment) must NOT be registered again, or it would
+// AutoMDM deleted through AMAPI (a real unenrollment) must NOT be registered again, or it would
 // resurrect itself and re-enroll the host.
 func TestCurrentStateStopsWhenDeviceDeleted(t *testing.T) {
 	t.Run("a deleted device is terminal on poll", func(t *testing.T) {
@@ -428,9 +428,9 @@ func TestPollProxyStateClassifiesFailures(t *testing.T) {
 	assert.Contains(t, err.Error(), "429", "error should carry the status code")
 }
 
-// fakeFleet stands in for Fleet's PubSub push endpoint, capturing and decoding the
+// fakeAutoMDM stands in for AutoMDM's PubSub push endpoint, capturing and decoding the
 // AMAPI device payloads the agent sends.
-type fakeFleet struct {
+type fakeAutoMDM struct {
 	mu       sync.Mutex
 	messages []capturedMessage
 }
@@ -443,10 +443,10 @@ type capturedMessage struct {
 	device androidmanagement.Device
 }
 
-func (f *fakeFleet) server(t *testing.T) *httptest.Server {
+func (f *fakeAutoMDM) server(t *testing.T) *httptest.Server {
 	t.Helper()
 	mux := http.NewServeMux()
-	mux.HandleFunc("POST /api/v1/fleet/android_enterprise/pubsub", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /api/v1/automdm/android_enterprise/pubsub", func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			Message android.PubSubMessage `json:"message"`
 		}
@@ -478,23 +478,23 @@ func (f *fakeFleet) server(t *testing.T) *httptest.Server {
 	return srv
 }
 
-func (f *fakeFleet) captured() []capturedMessage {
+func (f *fakeAutoMDM) captured() []capturedMessage {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return append([]capturedMessage(nil), f.messages...)
 }
 
-// newVitalsTestAgent builds a fully generated agent pointed at fleetAddress, using
+// newVitalsTestAgent builds a fully generated agent pointed at automdmAddress, using
 // the real constructor so the generated vitals are the ones a load test would send.
-func newVitalsTestAgent(fleetAddress string) *androidAgent {
-	return newAndroidAgent(1, fleetAddress, "secret", "token", "http://proxy.invalid", "LC01", time.Minute, 5, 0, defaultVitalsChurnProb, nil)
+func newVitalsTestAgent(automdmAddress string) *androidAgent {
+	return newAndroidAgent(1, automdmAddress, "secret", "token", "http://proxy.invalid", "LC01", time.Minute, 5, 0, defaultVitalsChurnProb, nil)
 }
 
 // newFullVitalsTestAgent is newVitalsTestAgent pinned to the case where every
 // section is collected and nothing is re-rolled, so a test can assert on an exact
 // payload instead of on whichever sections this device happened to draw.
-func newFullVitalsTestAgent(fleetAddress string) *androidAgent {
-	agent := newVitalsTestAgent(fleetAddress)
+func newFullVitalsTestAgent(automdmAddress string) *androidAgent {
+	agent := newVitalsTestAgent(automdmAddress)
 	agent.reportsDeviceSettings = true
 	agent.reportsSecurityPosture = true
 	agent.vitalsChurnProb = 0
@@ -504,13 +504,13 @@ func newFullVitalsTestAgent(fleetAddress string) *androidAgent {
 
 // The AMAPI enum members a simulated device is allowed to report. These are
 // deliberately not the full documented sets: the *_UNSPECIFIED sentinels (and
-// UPDATE_STATUS_UNKNOWN) are omitted because Fleet's reportedEnum blanks them
+// UPDATE_STATUS_UNKNOWN) are omitted because AutoMDM's reportedEnum blanks them
 // out, so a device reporting one would be reporting nothing. Do not add them
-// back — the point is that a value outside these sets is either garbage Fleet
+// back — the point is that a value outside these sets is either garbage AutoMDM
 // would store verbatim or a value it would silently drop.
 //
 // The two SIM sets keep their *_UNSPECIFIED members: a physical SIM really does
-// report them, and Fleet dropping them is the behavior being exercised.
+// report them, and AutoMDM dropping them is the behavior being exercised.
 var (
 	validEncryptionStatuses = []string{"UNSUPPORTED", "INACTIVE", "ACTIVATING", "ACTIVE", "ACTIVE_DEFAULT_KEY", "ACTIVE_PER_USER"}
 	validUpdateStatuses     = []string{"UP_TO_DATE", "UNKNOWN_UPDATE_AVAILABLE", "SECURITY_UPDATE_AVAILABLE", "OS_UPDATE_AVAILABLE"}
@@ -520,8 +520,8 @@ var (
 	validConfigModes        = []string{"CONFIG_MODE_UNSPECIFIED", "ADMIN_CONFIGURED", "USER_CONFIGURED"}
 )
 
-// assertVitalsReported checks that a device payload carries every section Fleet
-// reads host vitals from. A missing section is not an error Fleet can report — it
+// assertVitalsReported checks that a device payload carries every section AutoMDM
+// reads host vitals from. A missing section is not an error AutoMDM can report — it
 // silently stores NULL — so the load test has to assert it here.
 func assertVitalsReported(t *testing.T, agent *androidAgent, device androidmanagement.Device) {
 	t.Helper()
@@ -558,12 +558,12 @@ func assertVitalsReported(t *testing.T, agent *androidAgent, device androidmanag
 	assert.Equal(t, agent.meid, device.NetworkInfo.Meid)
 	assertRadioIdentifier(t, device.NetworkInfo.Imei, device.NetworkInfo.Meid)
 	assert.Equal(t, "COMPANY_OWNED", device.Ownership,
-		"Fleet drops telephony info, imei and meid for a personally owned device")
+		"AutoMDM drops telephony info, imei and meid for a personally owned device")
 }
 
 // assertRadioIdentifier checks that a device reports exactly one radio
 // identifier, in the right format. A device has one radio: reporting both would
-// be a device Fleet stores an imei and a meid for, which cannot exist, and
+// be a device AutoMDM stores an imei and a meid for, which cannot exist, and
 // reporting neither leaves both columns NULL.
 func assertRadioIdentifier(t *testing.T, imei, meid string) {
 	t.Helper()
@@ -575,24 +575,24 @@ func assertRadioIdentifier(t *testing.T, imei, meid string) {
 	case meid != "":
 		assert.Regexp(t, `^[0-9A-F]{14}$`, meid, "an MEID is 14 upper-case hex digits")
 	default:
-		t.Error("the device reported neither an imei nor a meid, so Fleet stores neither")
+		t.Error("the device reported neither an imei nor a meid, so AutoMDM stores neither")
 	}
-	assert.LessOrEqual(t, len(imei), fleet.MDMAndroidDeviceVitalMaxLength)
-	assert.LessOrEqual(t, len(meid), fleet.MDMAndroidDeviceVitalMaxLength)
+	assert.LessOrEqual(t, len(imei), automdm.MDMAndroidDeviceVitalMaxLength)
+	assert.LessOrEqual(t, len(meid), automdm.MDMAndroidDeviceVitalMaxLength)
 }
 
-// TestStatusReportIncludesHostVitals is the load-test counterpart of Fleet's
+// TestStatusReportIncludesHostVitals is the load-test counterpart of AutoMDM's
 // androidDeviceVitals extraction: a status report that omits any of these sections
 // leaves the host vitals columns NULL, so a load test would never exercise them.
 func TestStatusReportIncludesHostVitals(t *testing.T) {
-	fleetPubSub := &fakeFleet{}
-	srv := fleetPubSub.server(t)
+	automdmPubSub := &fakeAutoMDM{}
+	srv := automdmPubSub.server(t)
 	agent := newFullVitalsTestAgent(srv.URL)
 
 	state := testState()
 	require.NoError(t, agent.sendStatusReport(&state))
 
-	messages := fleetPubSub.captured()
+	messages := automdmPubSub.captured()
 	require.Len(t, messages, 1)
 	assert.Equal(t, string(android.PubSubStatusReport), messages[0].notificationType)
 
@@ -609,25 +609,25 @@ func TestStatusReportIncludesHostVitals(t *testing.T) {
 	assert.Contains(t, device.EnrollmentTokenData, "secret")
 }
 
-// TestEnrollmentIncludesHostVitals covers the other write path: Fleet also stores
+// TestEnrollmentIncludesHostVitals covers the other write path: AutoMDM also stores
 // vitals when it first creates the host from an ENROLLMENT message, and the two
 // payloads must agree or a host's vitals would change on its first status report.
 func TestEnrollmentIncludesHostVitals(t *testing.T) {
-	fleetPubSub := &fakeFleet{}
-	srv := fleetPubSub.server(t)
+	automdmPubSub := &fakeAutoMDM{}
+	srv := automdmPubSub.server(t)
 	agent := newFullVitalsTestAgent(srv.URL)
 
 	require.NoError(t, agent.sendEnrollment())
 	state := testState()
 	require.NoError(t, agent.sendStatusReport(&state))
 
-	messages := fleetPubSub.captured()
+	messages := automdmPubSub.captured()
 	require.Len(t, messages, 2)
 	assert.Equal(t, string(android.PubSubEnrollment), messages[0].notificationType)
 
 	enrolled, reported := messages[0].device, messages[1].device
 	assertVitalsReported(t, agent, enrolled)
-	assert.Contains(t, enrolled.EnrollmentTokenData, "secret", "the enroll secret is how Fleet finds the team")
+	assert.Contains(t, enrolled.EnrollmentTokenData, "secret", "the enroll secret is how AutoMDM finds the team")
 
 	// The agent is pinned to no churn, so even the volatile vitals must match
 	// here: what a message reports is the device's state at that moment, and
@@ -641,13 +641,13 @@ func TestEnrollmentIncludesHostVitals(t *testing.T) {
 }
 
 // TestStatusReportsChurnVolatileVitals is the point of splitting the vitals in
-// two. Fleet overwrites every vitals column on every status report, but MySQL
+// two. AutoMDM overwrites every vitals column on every status report, but MySQL
 // changes no row and advances no updated_at when the values are identical, so a
 // device whose vitals never move makes the load test measure none of the write
 // cost of this table. The device's identity must still hold still.
 func TestStatusReportsChurnVolatileVitals(t *testing.T) {
-	fleetPubSub := &fakeFleet{}
-	srv := fleetPubSub.server(t)
+	automdmPubSub := &fakeAutoMDM{}
+	srv := automdmPubSub.server(t)
 	agent := newVitalsTestAgent(srv.URL)
 	agent.vitalsChurnProb = 1 // re-roll on every report
 	// Sections are pinned on: this test is about the values moving, and a device
@@ -670,7 +670,7 @@ func TestStatusReportsChurnVolatileVitals(t *testing.T) {
 		require.NoError(t, agent.sendStatusReport(&state))
 	}
 
-	messages := fleetPubSub.captured()
+	messages := automdmPubSub.captured()
 	require.Len(t, messages, reports)
 
 	var (
@@ -729,7 +729,7 @@ func TestStatusReportsChurnVolatileVitals(t *testing.T) {
 		if sp := device.SecurityPosture; sp != nil {
 			assert.Contains(t, validPostures, sp.DevicePosture)
 			// A device that became secure again must drop the details it used to
-			// report, or Fleet would keep a stale risk on a secure host.
+			// report, or AutoMDM would keep a stale risk on a secure host.
 			if sp.DevicePosture == "SECURE" {
 				assert.Empty(t, sp.PostureDetails)
 			} else {
@@ -764,12 +764,12 @@ func countValues(counts map[string]int) int {
 }
 
 // TestUncollectedSectionsAreOmitted covers the other side of the vitals write: a
-// policy that does not collect a section makes AMAPI omit it, and Fleet nulls the
+// policy that does not collect a section makes AMAPI omit it, and AutoMDM nulls the
 // matching columns. A payload that always carries every section would never
 // exercise that.
 func TestUncollectedSectionsAreOmitted(t *testing.T) {
-	fleetPubSub := &fakeFleet{}
-	srv := fleetPubSub.server(t)
+	automdmPubSub := &fakeAutoMDM{}
+	srv := automdmPubSub.server(t)
 	agent := newFullVitalsTestAgent(srv.URL)
 	agent.reportsDeviceSettings = false
 	agent.reportsSecurityPosture = false
@@ -778,7 +778,7 @@ func TestUncollectedSectionsAreOmitted(t *testing.T) {
 	state := testState()
 	require.NoError(t, agent.sendStatusReport(&state))
 
-	messages := fleetPubSub.captured()
+	messages := automdmPubSub.captured()
 	require.Len(t, messages, 2)
 	for _, msg := range messages {
 		assert.Nil(t, msg.device.DeviceSettings, "an uncollected section must be absent, not empty")
@@ -796,11 +796,11 @@ func TestUncollectedSectionsAreOmitted(t *testing.T) {
 
 // TestSectionGoingAwayNullsItsColumns covers the transition rather than the
 // steady state: a device that reported a section and then stops is what makes
-// Fleet overwrite those columns with NULL, and it only happens if a payload can
+// AutoMDM overwrite those columns with NULL, and it only happens if a payload can
 // go from carrying the section to not carrying it.
 func TestSectionGoingAwayNullsItsColumns(t *testing.T) {
-	fleetPubSub := &fakeFleet{}
-	srv := fleetPubSub.server(t)
+	automdmPubSub := &fakeAutoMDM{}
+	srv := automdmPubSub.server(t)
 	agent := newFullVitalsTestAgent(srv.URL)
 	state := testState()
 
@@ -816,7 +816,7 @@ func TestSectionGoingAwayNullsItsColumns(t *testing.T) {
 	agent.reportsSecurityPosture = true
 	require.NoError(t, agent.sendStatusReport(&state))
 
-	messages := fleetPubSub.captured()
+	messages := automdmPubSub.captured()
 	require.Len(t, messages, 3)
 	assert.NotNil(t, messages[0].device.DeviceSettings)
 	assert.NotNil(t, messages[0].device.SecurityPosture)
@@ -831,7 +831,7 @@ func TestSectionGoingAwayNullsItsColumns(t *testing.T) {
 // place, so a payload sharing those pointers could carry an activation state
 // from after a re-roll beside a config mode from before it.
 func TestSIMSnapshotIsIndependentOfTheAgent(t *testing.T) {
-	agent := newFullVitalsTestAgent("http://fleet.invalid")
+	agent := newFullVitalsTestAgent("http://automdm.invalid")
 	require.NotEmpty(t, agent.telephonyInfos)
 
 	snapshot := agent.simSnapshot()
@@ -855,11 +855,11 @@ func TestSIMSnapshotIsIndependentOfTheAgent(t *testing.T) {
 // TestDeviceSettingsBooleansAlwaysOnTheWire guards the ForceSendFields on
 // DeviceSettings. Without them Go's omitempty drops every false boolean, so a
 // device with ADB off, no passcode and Play Protect off would send
-// "deviceSettings":{} — which unmarshals the same way for Fleet, but no longer
+// "deviceSettings":{} — which unmarshals the same way for AutoMDM, but no longer
 // resembles what AMAPI actually pushes.
 func TestDeviceSettingsBooleansAlwaysOnTheWire(t *testing.T) {
-	fleetPubSub := &fakeFleet{}
-	srv := fleetPubSub.server(t)
+	automdmPubSub := &fakeAutoMDM{}
+	srv := automdmPubSub.server(t)
 	agent := newFullVitalsTestAgent(srv.URL)
 	agent.adbEnabled = false
 	agent.deviceSecure = false
@@ -867,26 +867,26 @@ func TestDeviceSettingsBooleansAlwaysOnTheWire(t *testing.T) {
 
 	require.NoError(t, agent.sendEnrollment())
 
-	messages := fleetPubSub.captured()
+	messages := automdmPubSub.captured()
 	require.Len(t, messages, 1)
 	payload := string(messages[0].raw)
 	assert.Contains(t, payload, `"adbEnabled":false`)
 	assert.Contains(t, payload, `"isDeviceSecure":false`)
 	assert.Contains(t, payload, `"verifyAppsEnabled":false`)
 
-	// And Fleet still reads them back as the false values they are.
+	// And AutoMDM still reads them back as the false values they are.
 	require.NotNil(t, messages[0].device.DeviceSettings)
 	assert.False(t, messages[0].device.DeviceSettings.AdbEnabled)
 	assert.False(t, messages[0].device.DeviceSettings.IsDeviceSecure)
 	assert.False(t, messages[0].device.DeviceSettings.VerifyAppsEnabled)
 }
 
-// TestGeneratedVitalsAcrossFleet checks the generated values across many
-// devices: each one has to be internally consistent, and the fleet as a whole has
-// to cover the branches Fleet's extraction treats differently — a secure device
+// TestGeneratedVitalsAcrossAutoMDM checks the generated values across many
+// devices: each one has to be internally consistent, and the team as a whole has
+// to cover the branches AutoMDM's extraction treats differently — a secure device
 // vs. one with posture details, and an eSIM vs. a physical SIM whose
-// *_UNSPECIFIED enums Fleet blanks out.
-func TestGeneratedVitalsAcrossFleet(t *testing.T) {
+// *_UNSPECIFIED enums AutoMDM blanks out.
+func TestGeneratedVitalsAcrossAutoMDM(t *testing.T) {
 	const deviceCount = 400
 
 	var (
@@ -904,7 +904,7 @@ func TestGeneratedVitalsAcrossFleet(t *testing.T) {
 	)
 
 	for range deviceCount {
-		agent := newVitalsTestAgent("http://fleet.invalid")
+		agent := newVitalsTestAgent("http://automdm.invalid")
 
 		assert.Equal(t, androidManufacturers[agent.brand], agent.manufacturer)
 		assert.NotEmpty(t, agent.manufacturer, "brand %q has no manufacturer mapping", agent.brand)
@@ -935,7 +935,7 @@ func TestGeneratedVitalsAcrossFleet(t *testing.T) {
 				require.NotEmpty(t, detail.Advice)
 				for _, advice := range detail.Advice {
 					require.NotNil(t, advice)
-					assert.NotEmpty(t, advice.DefaultMessage, "Fleet only keeps the default message")
+					assert.NotEmpty(t, advice.DefaultMessage, "AutoMDM only keeps the default message")
 				}
 			}
 		}
@@ -966,9 +966,9 @@ func TestGeneratedVitalsAcrossFleet(t *testing.T) {
 				assert.NotEqual(t, "CONFIG_MODE_UNSPECIFIED", sim.ConfigMode, "an eSIM reports a config mode")
 			}
 			// Every value is stored in a varchar(255) column.
-			assert.LessOrEqual(t, len(sim.PhoneNumber), fleet.MDMAndroidDeviceVitalMaxLength)
-			assert.LessOrEqual(t, len(sim.CarrierName), fleet.MDMAndroidDeviceVitalMaxLength)
-			assert.LessOrEqual(t, len(sim.IccId), fleet.MDMAndroidDeviceVitalMaxLength)
+			assert.LessOrEqual(t, len(sim.PhoneNumber), automdm.MDMAndroidDeviceVitalMaxLength)
+			assert.LessOrEqual(t, len(sim.CarrierName), automdm.MDMAndroidDeviceVitalMaxLength)
+			assert.LessOrEqual(t, len(sim.IccId), automdm.MDMAndroidDeviceVitalMaxLength)
 
 			activations[sim.ActivationState]++
 			configModes[sim.ConfigMode]++
@@ -984,7 +984,7 @@ func TestGeneratedVitalsAcrossFleet(t *testing.T) {
 			"update status":    agent.systemUpdateStatus,
 			"security posture": agent.securityPosture,
 		} {
-			assert.LessOrEqual(t, len(value), fleet.MDMAndroidDeviceVitalMaxLength, "%s is too long for its column", name)
+			assert.LessOrEqual(t, len(value), automdm.MDMAndroidDeviceVitalMaxLength, "%s is too long for its column", name)
 		}
 
 		postures[agent.securityPosture]++
@@ -998,7 +998,7 @@ func TestGeneratedVitalsAcrossFleet(t *testing.T) {
 		if !agent.deviceSecure {
 			insecure++
 		}
-		// The states that make Fleet store an encryption_type meaning "off".
+		// The states that make AutoMDM store an encryption_type meaning "off".
 		if agent.encryptionStatus == "INACTIVE" || agent.encryptionStatus == "UNSUPPORTED" {
 			unencrypted++
 		}
@@ -1010,8 +1010,8 @@ func TestGeneratedVitalsAcrossFleet(t *testing.T) {
 		}
 	}
 
-	// The point of the weighting is a fleet that is mostly healthy but not
-	// uniformly so; a fleet with only one value in any of these gives the vitals
+	// The point of the weighting is a team that is mostly healthy but not
+	// uniformly so; a team with only one value in any of these gives the vitals
 	// UI and API nothing to distinguish.
 	//
 	// Each band is the weight's implied binomial mean over deviceCount devices
@@ -1044,7 +1044,7 @@ func TestGeneratedVitalsAcrossFleet(t *testing.T) {
 		assert.LessOrEqual(t, band.got, band.high, "%s: %d is above the expected band", band.name, band.got)
 	}
 
-	// Both SIM kinds must appear, since Fleet stores their enums differently.
+	// Both SIM kinds must appear, since AutoMDM stores their enums differently.
 	assert.Positive(t, activations["ACTIVATION_STATE_UNSPECIFIED"], "physical SIMs")
 	assert.Positive(t, activations["ACTIVATED"], "activated eSIMs")
 	assert.Positive(t, configModes["ADMIN_CONFIGURED"])
@@ -1052,7 +1052,7 @@ func TestGeneratedVitalsAcrossFleet(t *testing.T) {
 }
 
 // TestGenerateRadioIdentifier covers the radio identifier directly: a device has
-// one radio, so Fleet must never receive an imei and a meid for the same device.
+// one radio, so AutoMDM must never receive an imei and a meid for the same device.
 func TestGenerateRadioIdentifier(t *testing.T) {
 	t.Run("a non-North-American device is always GSM", func(t *testing.T) {
 		sims := []*androidmanagement.TelephonyInfo{{PhoneNumber: "+447700900000"}}

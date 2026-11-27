@@ -10,9 +10,9 @@ func init() {
 }
 
 // Up_20261104211402 prepares the Entra device IDs for one owner per device ID:
-//   - It deletes the device IDs macOS hosts reported before Fleet required an Entra-signed token to
+//   - It deletes the device IDs macOS hosts reported before AutoMDM required an Entra-signed token to
 //     prove them. Hosts report a verified one on their next orbit config fetch.
-//   - It deletes device IDs that more than one host reported, since Fleet can't tell which one owns
+//   - It deletes device IDs that more than one host reported, since AutoMDM can't tell which one owns
 //     it. The owner reports it again on its next check-in.
 //   - It adds a verified column, set when the device ID comes from an Entra-signed token, and a
 //     non-unique index on the device ID to look up the hosts that have one. The one-host rule itself

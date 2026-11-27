@@ -17,7 +17,7 @@ interface IWebAddressFormData {
 export const validate = ({ serverURL }: IWebAddressFormData): IFormErrors => {
   const errors: IFormErrors = {};
   if (!serverURL) {
-    errors.serverURL = "Enter your Fleet web address";
+    errors.serverURL = "Enter your AutoMDM web address";
   } else if (
     !isValidURL({
       url: serverURL.trim(),
@@ -59,7 +59,7 @@ const WebAddress = ({
     });
 
   return (
-    <SettingsSection className={baseClass} title="Fleet web address">
+    <SettingsSection className={baseClass} title="AutoMDM web address">
       <form onSubmit={onSubmit(onValidSubmit)} autoComplete="off">
         <InputField
           label="URL"
@@ -69,7 +69,7 @@ const WebAddress = ({
             </>
           }
           {...getTextFieldProps("serverURL")}
-          tooltip="The base URL of this instance for use in Fleet links."
+          tooltip="The base URL of this instance for use in AutoMDM links."
           disabled={gitOpsModeEnabled || isSubmitting}
         />
         <GitOpsModeTooltipWrapper

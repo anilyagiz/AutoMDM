@@ -27,10 +27,10 @@ interface IControlDetailsModalProps {
   hostDisplayName: string;
   /** True on the My device page, which addresses the end user directly. */
   isDeviceUser?: boolean;
-  /** Fleet setting for macOS: disk encryption enforced without key escrow. */
+  /** AutoMDM setting for macOS: disk encryption enforced without key escrow. */
   isMacOSDiskEncryptionEnforceOnly?: boolean;
   canResendProfiles: boolean;
-  canResendFleetdWhileVerifying?: boolean;
+  canResendAutoMDMdWhileVerifying?: boolean;
   canRotateRecoveryLockPassword?: boolean;
   canResendHostNameTemplate?: boolean;
   resendRequest: (profileUUID: string) => Promise<void>;
@@ -48,7 +48,7 @@ const ControlDetailsModal = ({
   isDeviceUser = false,
   isMacOSDiskEncryptionEnforceOnly = false,
   canResendProfiles,
-  canResendFleetdWhileVerifying = false,
+  canResendAutoMDMdWhileVerifying = false,
   canRotateRecoveryLockPassword,
   canResendHostNameTemplate,
   resendRequest,
@@ -117,7 +117,7 @@ const ControlDetailsModal = ({
     canResendProfiles,
     canRotateRecoveryLockPassword,
     canResendHostNameTemplate,
-    canResendFleetdWhileVerifying
+    canResendAutoMDMdWhileVerifying
   );
 
   // Guidance that quotes the detail makes the block below it redundant.

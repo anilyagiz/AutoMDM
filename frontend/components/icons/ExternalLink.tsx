@@ -11,7 +11,7 @@ interface IExternalLinkProps {
 }
 
 const ExternalLink = ({
-  color = "ui-fleet-black-75",
+  color = "ui-automdm-black-75",
   size = "medium",
 }: IExternalLinkProps) => {
   // Small is separately drawn at 12px with a 1px stroke to match 12px text;

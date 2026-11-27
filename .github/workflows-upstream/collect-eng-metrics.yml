@@ -73,7 +73,7 @@ jobs:
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "Collect engineering metrics result: ${{ job.status }}\nhttps://github.com/fleetdm/fleet/actions/runs/${{  github.run_id }}"
+                    "text": "Collect engineering metrics result: ${{ job.status }}\nhttps://github.com/anilyagiz/automdm/actions/runs/${{  github.run_id }}"
                   }
                 }
               ]

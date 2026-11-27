@@ -20,7 +20,7 @@ interface IShowControlsTabArgs {
 }
 
 /**
- * Whether to render the Controls tab for a host: whenever Fleet derived any
+ * Whether to render the Controls tab for a host: whenever AutoMDM derived any
  * rows, plus wherever the platform can receive controls at all, where the tab
  * earns its empty state.
  */
@@ -58,8 +58,8 @@ export const shouldShowControlsTab = ({
 
 export default shouldShowControlsTab;
 
-/** Fleet's 4xx reasons for a profile resend are written for the requester (for
- * example, only an admin can resend the Fleetd configuration profile), so they
+/** AutoMDM's 4xx reasons for a profile resend are written for the requester (for
+ * example, only an admin can resend the AutoMDMd configuration profile), so they
  * are shown as-is. Anything else gets the generic copy. sendRequest rejects
  * with the response itself. */
 export const getResendProfileErrorMessage = (e: unknown) => {

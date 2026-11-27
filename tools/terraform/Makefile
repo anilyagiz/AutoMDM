@@ -1,7 +1,7 @@
 #! /usr/bin/env make
 #
 # While not very elegant as far as Makefiles go, this Makefile does
-# contain the basic commands to get you terraforming your fleets (formerly "teams"). See the README for details.
+# contain the basic commands to get you terraforming your teams (formerly "teams"). See the README for details.
 
 provider_code_spec.json: openapi.json
 	tfplugingen-openapi generate --config generator.yaml --output ./provider_code_spec.json ./openapi.json
@@ -20,8 +20,8 @@ build: gen
 	go build ./...
 
 test: gen
-	@test -n "$(FLEETDM_APIKEY)" || (echo "FLEETDM_APIKEY is not set" && exit 1)
-	FLEETDM_URL='https://rbx.cloud.fleetdm.com' TF_ACC=1 go test ./...
+	@test -n "$(AUTOMDM_APIKEY)" || (echo "AUTOMDM_APIKEY is not set" && exit 1)
+	AUTOMDM_URL='https://rbx.cloud.fleetdm.com' TF_ACC=1 go test ./...
 
 tidy:
 	go mod tidy
@@ -35,7 +35,7 @@ apply: tf/terraformrc-dev-override
 tf/terraformrc-dev-override:
 	@echo "provider_installation { \\n\
   dev_overrides { \\n\
-    \"fleetdm.com/tf/fleetdm\" = \"$$HOME/go/bin\" \\n\
+    \"automdm.com/tf/automdm\" = \"$$HOME/go/bin\" \\n\
   } \\n\
   direct {} \\n\
 }" > $@

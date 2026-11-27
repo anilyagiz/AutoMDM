@@ -33,8 +33,8 @@ const baseClass = "software-custom-package";
 /** Shared GitOps-mode banner for the custom-package flows. Rendered by this
  * page (single-package add) and by `PackageForm`'s multi-package Add modal. */
 export const GitOpsCustomPackageBanner = () => (
-  <InfoBanner icon="info" iconColor="ui-fleet-black-50">
-    Add custom packages in GitOps mode so Fleet can host your software. After
+  <InfoBanner icon="info" iconColor="ui-automdm-black-50">
+    Add custom packages in GitOps mode so AutoMDM can host your software. After
     adding, copy its SHA-256 hash into your YAML so the next GitOps workflow
     doesn&apos;t delete it.{" "}
     <CustomLink
@@ -100,7 +100,7 @@ const SoftwareCustomPackage = ({
   const onCancel = () => {
     router.push(
       getPathWithQueryParams(PATHS.SOFTWARE_LIBRARY, {
-        fleet_id: currentTeamId,
+        team_id: currentTeamId,
       })
     );
   };
@@ -135,7 +135,7 @@ const SoftwareCustomPackage = ({
           <>
             <b>{formData.software?.name}</b> successfully added.
             {formData.selfService
-              ? " The end user can install from Fleet Desktop."
+              ? " The end user can install from AutoMDM Desktop."
               : ""}
           </>
         );
@@ -149,7 +149,7 @@ const SoftwareCustomPackage = ({
       });
 
       const newQueryParams: QueryParams = {
-        fleet_id: currentTeamId,
+        team_id: currentTeamId,
       };
       router.push(
         getPathWithQueryParams(

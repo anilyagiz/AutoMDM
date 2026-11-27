@@ -27,5 +27,5 @@ columns:
     type: integer
     required: false
     description: Value is 1 if a usable fingerprint sensor is present, either built-in or an attached Touch ID accessory (e.g. a Magic Keyboard with Touch ID).
-notes: This table is not a core osquery table. It is included as part of Fleet's agent ([fleetd](https://fleetdm.com/docs/get-started/anatomy#fleetd)). This table is from the [Mac Admins osquery extension](https://github.com/macadmins/osquery-extension).
+notes: This table is not a core osquery table. It is included as part of AutoMDM's agent ([automdmd](https://automdm.com/docs/get-started/anatomy#automdmd)). This table is from the [Mac Admins osquery extension](https://github.com/macadmins/osquery-extension).
 evented: false

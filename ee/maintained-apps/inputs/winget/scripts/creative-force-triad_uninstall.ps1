@@ -1,4 +1,4 @@
-# Fleet extracts name from installer (EXE) and saves it to PACKAGE_ID
+# AutoMDM extracts name from installer (EXE) and saves it to PACKAGE_ID
 # variable
 # Creative Force Triad registers a versioned DisplayName
 # (e.g. "Creative Force Triad 4.4.0"), so we match on the stable prefix.

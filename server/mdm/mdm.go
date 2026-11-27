@@ -23,7 +23,7 @@ import (
 // initial attempt, after which it is marked as failed and no further attempts will be made to install the profile.
 const MaxAppleProfileRetries = 3
 
-// MaxAppleDeviceNameRetries is the maximum number of times Fleet automatically re-sends the host name template
+// MaxAppleDeviceNameRetries is the maximum number of times AutoMDM automatically re-sends the host name template
 // to a host (after drift or a failed command) before marking it as failed until a manual resend.
 const MaxAppleDeviceNameRetries = 3
 
@@ -108,7 +108,7 @@ type cmsIssuerAndSerial struct {
 // only that recipient's private key.
 //
 // CMS matches the recipient by issuer and serial number, so a renewed certificate with the same key and a new serial
-// no longer matches what the message names. Fleet encrypts to exactly one certificate, so the recipient named in the
+// no longer matches what the message names. AutoMDM encrypts to exactly one certificate, so the recipient named in the
 // message is used as the match and the private key does the rest.
 func DecryptBase64CMSWithKey(p7Base64 string, key crypto.PrivateKey) (plain []byte, err error) {
 	// The pkcs7 package panics on some malformed inputs instead of returning an error, and a stored blob is data a host
@@ -347,72 +347,72 @@ func DecodeAndDecrypt(base64CipherText string, symmetricKey string) (string, err
 }
 
 const (
-	// FleetdConfigProfileName is the value for the PayloadDisplayName used by
-	// fleetd to read configuration values from the system.
-	FleetdConfigProfileName = "Fleetd configuration"
+	// AutoMDMdConfigProfileName is the value for the PayloadDisplayName used by
+	// automdmd to read configuration values from the system.
+	AutoMDMdConfigProfileName = "AutoMDMd configuration"
 
-	// FleetCAConfigProfileName is the value for the PayloadDisplayName used by
-	// fleetd to read configuration values from the system.
-	FleetCAConfigProfileName = "Fleet root certificate authority (CA)"
+	// AutoMDMCAConfigProfileName is the value for the PayloadDisplayName used by
+	// automdmd to read configuration values from the system.
+	AutoMDMCAConfigProfileName = "AutoMDM root certificate authority (CA)"
 
-	// FleetdFileVaultProfileName is the value for the PayloadDisplayName used
-	// by Fleet to configure FileVault and FileVault Escrow.
-	FleetFileVaultProfileName = "Disk encryption"
+	// AutoMDMdFileVaultProfileName is the value for the PayloadDisplayName used
+	// by AutoMDM to configure FileVault and FileVault Escrow.
+	AutoMDMFileVaultProfileName = "Disk encryption"
 
-	// FleetWindowsOSUpdatesProfileName is the name of the profile used by Fleet
+	// AutoMDMWindowsOSUpdatesProfileName is the name of the profile used by AutoMDM
 	// to configure Windows OS updates.
-	FleetWindowsOSUpdatesProfileName = "Windows OS Updates"
+	AutoMDMWindowsOSUpdatesProfileName = "Windows OS Updates"
 
-	// FleetMacOSUpdatesProfileName is the name of the DDM profile used by Fleet
+	// AutoMDMMacOSUpdatesProfileName is the name of the DDM profile used by AutoMDM
 	// to configure macOS OS updates.
-	FleetMacOSUpdatesProfileName = "Fleet macOS OS Updates"
+	AutoMDMMacOSUpdatesProfileName = "AutoMDM macOS OS Updates"
 
-	// FleetIOSUpdatesProfileName is the name of the DDM profile used by Fleet
+	// AutoMDMIOSUpdatesProfileName is the name of the DDM profile used by AutoMDM
 	// to configure iOS OS updates.
-	FleetIOSUpdatesProfileName = "Fleet iOS OS Updates"
+	AutoMDMIOSUpdatesProfileName = "AutoMDM iOS OS Updates"
 
-	// FleetIPadOSUpdatesProfileName is the name of the DDM profile used by Fleet
+	// AutoMDMIPadOSUpdatesProfileName is the name of the DDM profile used by AutoMDM
 	// to configure iPadOS OS updates.
-	FleetIPadOSUpdatesProfileName = "Fleet iPadOS OS Updates"
+	AutoMDMIPadOSUpdatesProfileName = "AutoMDM iPadOS OS Updates"
 
-	// FleetWindowsEnrollSecretProfileName is the name of the profile used by Fleet to deliver a one-time enroll secret to a
+	// AutoMDMWindowsEnrollSecretProfileName is the name of the profile used by AutoMDM to deliver a one-time enroll secret to a
 	// Windows host's registry.
-	FleetWindowsEnrollSecretProfileName = "Fleetd enroll secret" //nolint:gosec // G101 false positive, a profile name
+	AutoMDMWindowsEnrollSecretProfileName = "AutoMDMd enroll secret" //nolint:gosec // G101 false positive, a profile name
 )
 
-// FleetReservedProfileNames returns a map of PayloadDisplayName or profile
-// name strings that are reserved by Fleet.
-func FleetReservedProfileNames() map[string]struct{} {
+// AutoMDMReservedProfileNames returns a map of PayloadDisplayName or profile
+// name strings that are reserved by AutoMDM.
+func AutoMDMReservedProfileNames() map[string]struct{} {
 	return map[string]struct{}{
-		FleetdConfigProfileName:             {},
-		FleetFileVaultProfileName:           {},
-		FleetWindowsOSUpdatesProfileName:    {},
-		FleetMacOSUpdatesProfileName:        {},
-		FleetIOSUpdatesProfileName:          {},
-		FleetIPadOSUpdatesProfileName:       {},
-		FleetCAConfigProfileName:            {},
-		FleetWindowsEnrollSecretProfileName: {},
+		AutoMDMdConfigProfileName:             {},
+		AutoMDMFileVaultProfileName:           {},
+		AutoMDMWindowsOSUpdatesProfileName:    {},
+		AutoMDMMacOSUpdatesProfileName:        {},
+		AutoMDMIOSUpdatesProfileName:          {},
+		AutoMDMIPadOSUpdatesProfileName:       {},
+		AutoMDMCAConfigProfileName:            {},
+		AutoMDMWindowsEnrollSecretProfileName: {},
 	}
 }
 
-// ListFleetReservedWindowsProfileNames returns a list of PayloadDisplayName strings
-// that are reserved by Fleet for Windows.
-func ListFleetReservedWindowsProfileNames() []string {
-	return []string{FleetWindowsOSUpdatesProfileName, FleetWindowsEnrollSecretProfileName}
+// ListTeamReservedWindowsProfileNames returns a list of PayloadDisplayName strings
+// that are reserved by AutoMDM for Windows.
+func ListTeamReservedWindowsProfileNames() []string {
+	return []string{AutoMDMWindowsOSUpdatesProfileName, AutoMDMWindowsEnrollSecretProfileName}
 }
 
-// ListFleetReservedMacOSProfileNames returns a list of PayloadDisplayName strings
-// that are reserved by Fleet for macOS.
-func ListFleetReservedMacOSProfileNames() []string {
-	return []string{FleetFileVaultProfileName, FleetdConfigProfileName, FleetCAConfigProfileName}
+// ListTeamReservedMacOSProfileNames returns a list of PayloadDisplayName strings
+// that are reserved by AutoMDM for macOS.
+func ListTeamReservedMacOSProfileNames() []string {
+	return []string{AutoMDMFileVaultProfileName, AutoMDMdConfigProfileName, AutoMDMCAConfigProfileName}
 }
 
-// ListFleetReservedMacOSDeclarationNames returns a list of declaration names
-// that are reserved by Fleet for Apple DDM declarations.
-func ListFleetReservedMacOSDeclarationNames() []string {
+// ListTeamReservedMacOSDeclarationNames returns a list of declaration names
+// that are reserved by AutoMDM for Apple DDM declarations.
+func ListTeamReservedMacOSDeclarationNames() []string {
 	return []string{
-		FleetMacOSUpdatesProfileName,
-		FleetIOSUpdatesProfileName,
-		FleetIPadOSUpdatesProfileName,
+		AutoMDMMacOSUpdatesProfileName,
+		AutoMDMIOSUpdatesProfileName,
+		AutoMDMIPadOSUpdatesProfileName,
 	}
 }

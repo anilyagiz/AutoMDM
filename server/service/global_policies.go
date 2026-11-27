@@ -12,39 +12,39 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/authz"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 )
 
 /////////////////////////////////////////////////////////////////////////////////
 // Add
 /////////////////////////////////////////////////////////////////////////////////
 
-func (svc Service) NewGlobalPolicy(ctx context.Context, p fleet.PolicyPayload) (*fleet.Policy, error) {
-	if err := svc.authz.Authorize(ctx, &fleet.Policy{}, fleet.ActionWrite); err != nil {
+func (svc Service) NewGlobalPolicy(ctx context.Context, p automdm.PolicyPayload) (*automdm.Policy, error) {
+	if err := svc.authz.Authorize(ctx, &automdm.Policy{}, automdm.ActionWrite); err != nil {
 		return nil, err
 	}
 	vc, ok := viewer.FromContext(ctx)
 	if !ok {
-		return nil, errors.New("user must be authenticated to create fleet policies")
+		return nil, errors.New("user must be authenticated to create team policies")
 	}
 
 	if err := p.Verify(); err != nil {
-		return nil, ctxerr.Wrap(ctx, &fleet.BadRequestError{
+		return nil, ctxerr.Wrap(ctx, &automdm.BadRequestError{
 			Message: fmt.Sprintf("policy payload verification: %s", err),
 		})
 	}
 
 	if p.AutomationType != nil {
 		if !p.AutomationType.IsValid() {
-			return nil, ctxerr.Wrap(ctx, &fleet.BadRequestError{Message: fmt.Sprintf("invalid automation_type %q", *p.AutomationType)})
+			return nil, ctxerr.Wrap(ctx, &automdm.BadRequestError{Message: fmt.Sprintf("invalid automation_type %q", *p.AutomationType)})
 		}
-		if err := checkPolicyAutomations(nil, nil, []fleet.PolicyAutomation{*p.AutomationType}); err != nil {
+		if err := checkPolicyAutomations(nil, nil, []automdm.PolicyAutomation{*p.AutomationType}); err != nil {
 			return nil, ctxerr.Wrap(ctx, err, "check policy automations")
 		}
 		p.WebhooksAndTicketsEnabled = true
@@ -54,7 +54,7 @@ func (svc Service) NewGlobalPolicy(ctx context.Context, p fleet.PolicyPayload) (
 	}
 
 	if (len(p.LabelsIncludeAll) > 0 || len(p.LabelsExcludeAll) > 0 || len(p.LabelsIncludeAny) > 0 || len(p.LabelsExcludeAny) > 0) && !license.IsPremium(ctx) {
-		return nil, fleet.ErrMissingLicense
+		return nil, automdm.ErrMissingLicense
 	}
 
 	if err := verifyLabelsToAssociate(ctx, svc.ds, nil, slices.Concat(p.LabelsIncludeAny, p.LabelsIncludeAll, p.LabelsExcludeAny, p.LabelsExcludeAll), vc.User); err != nil {
@@ -71,7 +71,7 @@ func (svc Service) NewGlobalPolicy(ctx context.Context, p fleet.PolicyPayload) (
 	if err := svc.NewActivity(
 		ctx,
 		authz.UserFromContext(ctx),
-		fleet.ActivityTypeCreatedPolicy{
+		automdm.ActivityTypeCreatedPolicy{
 			ID:       policy.ID,
 			Name:     policy.Name,
 			TeamID:   &globalTeamID,
@@ -87,12 +87,12 @@ func (svc Service) NewGlobalPolicy(ctx context.Context, p fleet.PolicyPayload) (
 // List
 /////////////////////////////////////////////////////////////////////////////////
 
-func (svc Service) ListGlobalPolicies(ctx context.Context, opts fleet.ListOptions, platform string) ([]*fleet.Policy, error) {
-	if err := svc.authz.Authorize(ctx, &fleet.Policy{}, fleet.ActionRead); err != nil {
+func (svc Service) ListGlobalPolicies(ctx context.Context, opts automdm.ListOptions, platform string) ([]*automdm.Policy, error) {
+	if err := svc.authz.Authorize(ctx, &automdm.Policy{}, automdm.ActionRead); err != nil {
 		return nil, err
 	}
 
-	if err := fleet.ValidatePolicyPlatformFilter(platform); err != nil {
+	if err := automdm.ValidatePolicyPlatformFilter(platform); err != nil {
 		return nil, ctxerr.Wrap(ctx, err)
 	}
 
@@ -104,15 +104,15 @@ func (svc Service) ListGlobalPolicies(ctx context.Context, opts fleet.ListOption
 // ///////////////////////////////////////////////////////////////////////////////
 
 func (svc Service) CountGlobalPolicies(ctx context.Context, matchQuery string, platform string) (int, error) {
-	if err := svc.authz.Authorize(ctx, &fleet.Policy{}, fleet.ActionRead); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.Policy{}, automdm.ActionRead); err != nil {
 		return 0, err
 	}
 
-	if err := fleet.ValidatePolicyPlatformFilter(platform); err != nil {
+	if err := automdm.ValidatePolicyPlatformFilter(platform); err != nil {
 		return 0, ctxerr.Wrap(ctx, err)
 	}
 
-	count, err := svc.ds.CountPolicies(ctx, nil, matchQuery, fleet.PolicyAutomationTypeNone, platform)
+	count, err := svc.ds.CountPolicies(ctx, nil, matchQuery, automdm.PolicyAutomationTypeNone, platform)
 	if err != nil {
 		return 0, err
 	}
@@ -126,7 +126,7 @@ func (svc Service) CountGlobalPolicies(ctx context.Context, matchQuery string, p
 
 // DeleteGlobalPolicies deletes the given policies from the database.
 func (svc Service) DeleteGlobalPolicies(ctx context.Context, ids []uint) ([]uint, error) {
-	if err := svc.authz.Authorize(ctx, &fleet.Policy{}, fleet.ActionWrite); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.Policy{}, automdm.ActionWrite); err != nil {
 		return nil, err
 	}
 	if len(ids) == 0 {
@@ -139,10 +139,10 @@ func (svc Service) DeleteGlobalPolicies(ctx context.Context, ids []uint) ([]uint
 	for _, policy := range policiesByID {
 		if policy.PolicyData.TeamID != nil {
 			return nil, authz.ForbiddenWithInternal(
-				"attempting to delete policy that belongs to fleet",
+				"attempting to delete policy that belongs to team",
 				authz.UserFromContext(ctx),
 				policy,
-				fleet.ActionWrite,
+				automdm.ActionWrite,
 			)
 		}
 	}
@@ -158,7 +158,7 @@ func (svc Service) DeleteGlobalPolicies(ctx context.Context, ids []uint) ([]uint
 		if err := svc.NewActivity(
 			ctx,
 			authz.UserFromContext(ctx),
-			fleet.ActivityTypeDeletedPolicy{
+			automdm.ActivityTypeDeletedPolicy{
 				ID:       id,
 				Name:     policiesByID[id].Name,
 				TeamID:   &globalTeamID,
@@ -176,19 +176,19 @@ func (svc Service) DeleteGlobalPolicies(ctx context.Context, ids []uint) ([]uint
 /////////////////////////////////////////////////////////////////////////////////
 
 const (
-	errPolicyAllFleetsForConditionalAccess               = "\"All fleets\" policy cannot have conditional_access_enabled set"
-	errPolicyAllFleetsForContinuousAutomations           = "\"All fleets\" policy cannot have continuous_automations_enabled set"
-	errPolicyAllFleetsForProfiles                        = "\"All fleets\" policy cannot have profile_uuid set"
-	errPolicyAllFleetsForScripts                         = "\"All fleets\" policy cannot have script_id set"
-	errPolicyAllFleetsForSoftware                        = "\"All fleets\" policy cannot have software_title_id set"
-	errPolicyAllFleetsForSoftwarePackage                 = "\"All fleets\" policy cannot have software_package_id set"
-	errPolicyAllFleetsForPatchOptions                    = "\"All fleets\" policy cannot have patch_when_closed, notify_before_patching, or patch_deadline set"
+	errPolicyAllTeamsForConditionalAccess                = "\"All teams\" policy cannot have conditional_access_enabled set"
+	errPolicyAllTeamsForContinuousAutomations            = "\"All teams\" policy cannot have continuous_automations_enabled set"
+	errPolicyAllTeamsForProfiles                         = "\"All teams\" policy cannot have profile_uuid set"
+	errPolicyAllTeamsForScripts                          = "\"All teams\" policy cannot have script_id set"
+	errPolicyAllTeamsForSoftware                         = "\"All teams\" policy cannot have software_title_id set"
+	errPolicyAllTeamsForSoftwarePackage                  = "\"All teams\" policy cannot have software_package_id set"
+	errPolicyAllTeamsForPatchOptions                     = "\"All teams\" policy cannot have patch_when_closed, notify_before_patching, or patch_deadline set"
 	errPatchWhenClosedRequiresContinuousAutomations      = "If \"patch_when_closed\" is true, \"continuous_automations_enabled\" can't be set to false."
 	errNotifyBeforePatchingRequiresContinuousAutomations = "If \"notify_before_patching\" is true, \"continuous_automations_enabled\" can't be set to false."
 	errPatchDeadlineRequiresContinuousAutomations        = "If \"patch_deadline\" is true, \"continuous_automations_enabled\" can't be set to false."
 )
 
-func (svc *Service) ModifyGlobalPolicy(ctx context.Context, id uint, p fleet.ModifyPolicyPayload) (*fleet.Policy, error) {
+func (svc *Service) ModifyGlobalPolicy(ctx context.Context, id uint, p automdm.ModifyPolicyPayload) (*automdm.Policy, error) {
 	return svc.modifyPolicy(ctx, nil, id, p)
 }
 
@@ -196,10 +196,10 @@ func (svc *Service) ModifyGlobalPolicy(ctx context.Context, id uint, p fleet.Mod
 // Reset automation
 /////////////////////////////////////////////////////////////////////////////////
 
-func resetAutomationEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.ResetAutomationRequest)
+func resetAutomationEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.ResetAutomationRequest)
 	err := svc.ResetAutomation(ctx, req.TeamIDs, req.PolicyIDs)
-	return fleet.ResetAutomationResponse{Err: err}, nil
+	return automdm.ResetAutomationResponse{Err: err}, nil
 }
 
 func (svc *Service) ResetAutomation(ctx context.Context, teamIDs, policyIDs []uint) error {
@@ -212,7 +212,7 @@ func (svc *Service) ResetAutomation(ctx context.Context, teamIDs, policyIDs []ui
 		pIDs[id] = struct{}{}
 	}
 	for _, teamID := range teamIDs {
-		p1, p2, err := svc.ds.ListTeamPolicies(ctx, teamID, fleet.ListOptions{}, fleet.ListOptions{}, fleet.PolicyAutomationTypeNone, "")
+		p1, p2, err := svc.ds.ListTeamPolicies(ctx, teamID, automdm.ListOptions{}, automdm.ListOptions{}, automdm.PolicyAutomationTypeNone, "")
 		if err != nil {
 			return err
 		}
@@ -242,10 +242,10 @@ func (svc *Service) ResetAutomation(ctx context.Context, teamIDs, policyIDs []ui
 	}
 	enabledTeams := make(map[uint]bool, len(tIDs))
 	for id := range tIDs {
-		var teamConfig fleet.TeamConfigLite
+		var teamConfig automdm.TeamConfigLite
 		if id == 0 {
 			// Handle "No Team" (team ID 0) - use AppConfig authorization
-			if err := svc.authz.Authorize(ctx, &fleet.AppConfig{}, fleet.ActionWrite); err != nil {
+			if err := svc.authz.Authorize(ctx, &automdm.AppConfig{}, automdm.ActionWrite); err != nil {
 				return err
 			}
 			defaultConfig, err := svc.ds.DefaultTeamConfig(ctx)
@@ -255,7 +255,7 @@ func (svc *Service) ResetAutomation(ctx context.Context, teamIDs, policyIDs []ui
 			teamConfig = defaultConfig.ToLite()
 		} else {
 			// Handle regular teams
-			if err := svc.authz.Authorize(ctx, &fleet.Team{ID: id}, fleet.ActionWrite); err != nil {
+			if err := svc.authz.Authorize(ctx, &automdm.Team{ID: id}, automdm.ActionWrite); err != nil {
 				return err
 			}
 			t, err := svc.ds.TeamLite(ctx, id)
@@ -267,7 +267,7 @@ func (svc *Service) ResetAutomation(ctx context.Context, teamIDs, policyIDs []ui
 		enabledTeams[id] = teamPolicyAutomationsEnabled(teamConfig.WebhookSettings, teamConfig.Integrations)
 	}
 	if hasGlobal {
-		if err := svc.authz.Authorize(ctx, &fleet.AppConfig{}, fleet.ActionWrite); err != nil {
+		if err := svc.authz.Authorize(ctx, &automdm.AppConfig{}, automdm.ActionWrite); err != nil {
 			return err
 		}
 	}
@@ -291,41 +291,41 @@ func (svc *Service) ResetAutomation(ctx context.Context, teamIDs, policyIDs []ui
 // Apply Spec
 /////////////////////////////////////////////////////////////////////////////////
 
-func applyPolicySpecsEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.ApplyPolicySpecsRequest)
+func applyPolicySpecsEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.ApplyPolicySpecsRequest)
 	err := svc.ApplyPolicySpecs(ctx, req.Specs)
 	if err != nil {
-		return fleet.ApplyPolicySpecsResponse{Err: err}, nil
+		return automdm.ApplyPolicySpecsResponse{Err: err}, nil
 	}
-	return fleet.ApplyPolicySpecsResponse{}, nil
+	return automdm.ApplyPolicySpecsResponse{}, nil
 }
 
 // checkPolicySpecAuthorization verifies that the user is authorized to modify the
 // policies defined in the spec, and returns a map from team names to team IDs if successful
-func (svc *Service) checkPolicySpecAuthorization(ctx context.Context, policies []*fleet.PolicySpec) (map[string]uint, error) {
+func (svc *Service) checkPolicySpecAuthorization(ctx context.Context, policies []*automdm.PolicySpec) (map[string]uint, error) {
 	checkGlobalPolicyAuth := false
 	teamIDsByName := make(map[string]uint)
 	for _, policy := range policies {
-		if reason, removed := removedFleetName(policy.Team, false); removed {
+		if reason, removed := removedAutoMDMName(policy.Team, false); removed {
 			svc.authz.SkipAuthorization(ctx)
-			return nil, fleet.NewInvalidArgumentError("specs.fleet", reason)
+			return nil, automdm.NewInvalidArgumentError("specs.team", reason)
 		}
-		// One spelling, so that the duplicate check and the datastore's grouping by fleet name treat any letter case as one fleet.
-		if fleet.IsUnassignedFleetName(policy.Team) {
-			policy.Team = fleet.DisplayNameNoTeam
+		// One spelling, so that the duplicate check and the datastore's grouping by team name treat any letter case as one team.
+		if automdm.IsUnassignedTeamName(policy.Team) {
+			policy.Team = automdm.DisplayNameNoTeam
 		}
-		if policy.Team != "" && policy.Team != fleet.DisplayNameNoTeam {
+		if policy.Team != "" && policy.Team != automdm.DisplayNameNoTeam {
 			team, err := svc.ds.TeamByName(ctx, policy.Team)
 			if err != nil {
 				// This is so that the proper HTTP status code is returned
 				svc.authz.SkipAuthorization(ctx)
 				return nil, ctxerr.Wrap(ctx, err, "getting team by name")
 			}
-			if err := svc.authz.Authorize(ctx, &fleet.Policy{
-				PolicyData: fleet.PolicyData{
+			if err := svc.authz.Authorize(ctx, &automdm.Policy{
+				PolicyData: automdm.PolicyData{
 					TeamID: &team.ID,
 				},
-			}, fleet.ActionWrite); err != nil {
+			}, automdm.ActionWrite); err != nil {
 				return nil, err
 			}
 
@@ -335,14 +335,14 @@ func (svc *Service) checkPolicySpecAuthorization(ctx context.Context, policies [
 		}
 	}
 	if checkGlobalPolicyAuth {
-		if err := svc.authz.Authorize(ctx, &fleet.Policy{}, fleet.ActionWrite); err != nil {
+		if err := svc.authz.Authorize(ctx, &automdm.Policy{}, automdm.ActionWrite); err != nil {
 			return nil, err
 		}
 	}
 	return teamIDsByName, nil
 }
 
-func (svc *Service) ApplyPolicySpecs(ctx context.Context, policies []*fleet.PolicySpec) error {
+func (svc *Service) ApplyPolicySpecs(ctx context.Context, policies []*automdm.PolicySpec) error {
 	// Check authorization first.
 	teamIDsByName, err := svc.checkPolicySpecAuthorization(ctx, policies)
 	if err != nil {
@@ -357,72 +357,72 @@ func (svc *Service) ApplyPolicySpecs(ctx context.Context, policies []*fleet.Poli
 	// After the authorization check, check the policy fields.
 	for _, policy := range policies {
 		if policy.Type == "" {
-			policy.Type = fleet.PolicyTypeDynamic
+			policy.Type = automdm.PolicyTypeDynamic
 		}
 
 		if policy.Team == "" && policy.ConditionalAccessEnabled {
-			return ctxerr.Wrap(ctx, &fleet.BadRequestError{
-				Message: fmt.Sprintf("policy spec payload verification: %s", errPolicyAllFleetsForConditionalAccess),
+			return ctxerr.Wrap(ctx, &automdm.BadRequestError{
+				Message: fmt.Sprintf("policy spec payload verification: %s", errPolicyAllTeamsForConditionalAccess),
 			})
 		}
 
 		if policy.Team == "" && policy.ContinuousAutomationsEnabled {
-			return ctxerr.Wrap(ctx, &fleet.BadRequestError{
-				Message: fmt.Sprintf("policy spec payload verification: %s", errPolicyAllFleetsForContinuousAutomations),
+			return ctxerr.Wrap(ctx, &automdm.BadRequestError{
+				Message: fmt.Sprintf("policy spec payload verification: %s", errPolicyAllTeamsForContinuousAutomations),
 			})
 		}
 
 		if policy.Team == "" && policy.ProfileUUID != nil && *policy.ProfileUUID != "" {
-			return ctxerr.Wrap(ctx, &fleet.BadRequestError{
-				Message: fmt.Sprintf("policy spec payload verification: %s", errPolicyAllFleetsForProfiles),
+			return ctxerr.Wrap(ctx, &automdm.BadRequestError{
+				Message: fmt.Sprintf("policy spec payload verification: %s", errPolicyAllTeamsForProfiles),
 			})
 		}
 
 		if policy.Team == "" && policy.ScriptID != nil && *policy.ScriptID != 0 {
-			return ctxerr.Wrap(ctx, &fleet.BadRequestError{
-				Message: fmt.Sprintf("policy spec payload verification: %s", errPolicyAllFleetsForScripts),
+			return ctxerr.Wrap(ctx, &automdm.BadRequestError{
+				Message: fmt.Sprintf("policy spec payload verification: %s", errPolicyAllTeamsForScripts),
 			})
 		}
 
 		if policy.Team == "" && policy.SoftwareTitleID != nil && *policy.SoftwareTitleID != 0 {
-			return ctxerr.Wrap(ctx, &fleet.BadRequestError{
-				Message: fmt.Sprintf("policy spec payload verification: %s", errPolicyAllFleetsForSoftware),
+			return ctxerr.Wrap(ctx, &automdm.BadRequestError{
+				Message: fmt.Sprintf("policy spec payload verification: %s", errPolicyAllTeamsForSoftware),
 			})
 		}
 
 		if err := policy.Verify(); err != nil {
-			return ctxerr.Wrap(ctx, &fleet.BadRequestError{
+			return ctxerr.Wrap(ctx, &automdm.BadRequestError{
 				Message: fmt.Sprintf("policy spec payload verification: %s", err),
 			})
 		}
 
 		if err := checkPolicyAutomations(policySpecTeamID(policy, teamIDsByName), nil, policy.Automations()); err != nil {
-			return ctxerr.Wrap(ctx, &fleet.BadRequestError{
+			return ctxerr.Wrap(ctx, &automdm.BadRequestError{
 				Message: fmt.Sprintf("policy spec payload verification: policy %q: %s", policy.Name, err),
 			})
 		}
 
 		if (len(policy.LabelsIncludeAll) > 0 || len(policy.LabelsExcludeAll) > 0 || len(policy.LabelsIncludeAny) > 0 || len(policy.LabelsExcludeAny) > 0) && !license.IsPremium(ctx) {
-			return fleet.ErrMissingLicense
+			return automdm.ErrMissingLicense
 		}
 
 		// ContinuousAutomationsEnabled is premium-only.
 		if policy.ContinuousAutomationsEnabled && !license.IsPremium(ctx) {
-			return fleet.ErrMissingLicense
+			return automdm.ErrMissingLicense
 		}
 
 		// PatchWhenClosed is premium-only.
 		if policy.PatchWhenClosed && !license.IsPremium(ctx) {
-			return fleet.ErrMissingLicense
+			return automdm.ErrMissingLicense
 		}
 
 		// NotifyBeforePatching and PatchDeadline are premium-only.
 		if (policy.NotifyBeforePatching || policy.PatchDeadline) && !license.IsPremium(ctx) {
-			return fleet.ErrMissingLicense
+			return automdm.ErrMissingLicense
 		}
 
 		if policy.ProfileUUID != nil && !license.IsPremium(ctx) {
-			return fleet.ErrMissingLicense
+			return automdm.ErrMissingLicense
 		}
 
 		// Make sure any applied labels exist.
@@ -433,13 +433,13 @@ func (svc *Service) ApplyPolicySpecs(ctx context.Context, policies []*fleet.Poli
 				teamID = ptr.Uint(teamIDsByName[policy.Team])
 			}
 
-			labelsMap, err := svc.ds.LabelsByName(ctx, labels, fleet.TeamFilter{User: vc.User, TeamID: teamID})
+			labelsMap, err := svc.ds.LabelsByName(ctx, labels, automdm.TeamFilter{User: vc.User, TeamID: teamID})
 			if err != nil {
 				return ctxerr.Wrap(ctx, err, "getting labels by name")
 			}
 			for _, label := range labels {
 				if _, ok := labelsMap[label]; !ok {
-					return ctxerr.Wrap(ctx, &fleet.BadRequestError{
+					return ctxerr.Wrap(ctx, &automdm.BadRequestError{
 						Message: fmt.Sprintf("label %q does not exist, or cannot be applied to this policy", label),
 					})
 				}
@@ -449,8 +449,8 @@ func (svc *Service) ApplyPolicySpecs(ctx context.Context, policies []*fleet.Poli
 	}
 
 	// An empty string indicates there are no duplicate names.
-	if name := fleet.FirstDuplicatePolicySpecName(policies); name != "" {
-		return ctxerr.Wrap(ctx, &fleet.BadRequestError{
+	if name := automdm.FirstDuplicatePolicySpecName(policies); name != "" {
+		return ctxerr.Wrap(ctx, &automdm.BadRequestError{
 			Message: "duplicate policy names not allowed",
 		})
 	}
@@ -475,7 +475,7 @@ func (svc *Service) ApplyPolicySpecs(ctx context.Context, policies []*fleet.Poli
 	if err := svc.NewActivity(
 		ctx,
 		authz.UserFromContext(ctx),
-		fleet.ActivityTypeAppliedSpecPolicy{
+		automdm.ActivityTypeAppliedSpecPolicy{
 			Policies: policies,
 		},
 	); err != nil {
@@ -488,10 +488,10 @@ func (svc *Service) ApplyPolicySpecs(ctx context.Context, policies []*fleet.Poli
 // Autofill
 /////////////////////////////////////////////////////////////////////////////////
 
-func autofillPoliciesEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.AutofillPoliciesRequest)
+func autofillPoliciesEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.AutofillPoliciesRequest)
 	description, resolution, err := svc.AutofillPolicySql(ctx, req.SQL)
-	return fleet.AutofillPoliciesResponse{Description: description, Resolution: resolution, Err: err}, nil
+	return automdm.AutofillPoliciesResponse{Description: description, Resolution: resolution, Err: err}, nil
 }
 
 // Exposing external URL and timeout for testing purposes
@@ -526,25 +526,25 @@ func (svc *Service) AutofillPolicySql(ctx context.Context, sql string) (descript
 	vc, ok := viewer.FromContext(ctx)
 	if !ok {
 		svc.authz.SkipAuthorization(ctx)
-		return "", "", fleet.ErrNoContext
+		return "", "", automdm.ErrNoContext
 	}
 
 	// We expect that only users with policy write permissions will autofill policies.
 	if vc.User.GlobalRole != nil || len(vc.User.Teams) == 0 {
-		if err = svc.authz.Authorize(ctx, &fleet.Policy{}, fleet.ActionWrite); err != nil {
+		if err = svc.authz.Authorize(ctx, &automdm.Policy{}, automdm.ActionWrite); err != nil {
 			return "", "", err
 		}
 	} else {
 		// Check if this user has team policy write permissions.
 		teamID := vc.User.Teams[0].Team.ID
 		for _, teamUser := range vc.User.Teams {
-			if teamUser.Role == fleet.RoleAdmin || teamUser.Role == fleet.RoleMaintainer || teamUser.Role == fleet.RoleGitOps {
+			if teamUser.Role == automdm.RoleAdmin || teamUser.Role == automdm.RoleMaintainer || teamUser.Role == automdm.RoleGitOps {
 				teamID = teamUser.Team.ID
 				break
 			}
 		}
 		err = svc.authz.Authorize(
-			ctx, &fleet.Policy{PolicyData: fleet.PolicyData{TeamID: &teamID}}, fleet.ActionWrite,
+			ctx, &automdm.Policy{PolicyData: automdm.PolicyData{TeamID: &teamID}}, automdm.ActionWrite,
 		)
 		if err != nil {
 			return "", "", err
@@ -557,7 +557,7 @@ func (svc *Service) AutofillPolicySql(ctx context.Context, sql string) (descript
 	}
 	if appConfig.ServerSettings.AIFeaturesDisabled {
 		return "", "", ctxerr.Wrap(
-			ctx, &fleet.BadRequestError{
+			ctx, &automdm.BadRequestError{
 				Message: "AI features are disabled (server_settings.ai_features_disabled)",
 			},
 		)
@@ -565,16 +565,16 @@ func (svc *Service) AutofillPolicySql(ctx context.Context, sql string) (descript
 
 	sql = strings.TrimSpace(sql)
 	if sql == "" {
-		return "", "", ctxerr.Wrap(ctx, &fleet.BadRequestError{Message: "'sql' cannot be empty"})
+		return "", "", ctxerr.Wrap(ctx, &automdm.BadRequestError{Message: "'sql' cannot be empty"})
 	}
 
-	// Using a timeout smaller than the Fleet server's WriteTimeout
-	client := fleethttp.NewClient(fleethttp.WithTimeout(getHumanInterpretationFromOsquerySqlTimeout))
+	// Using a timeout smaller than the AutoMDM server's WriteTimeout
+	client := automdmhttp.NewClient(automdmhttp.WithTimeout(getHumanInterpretationFromOsquerySqlTimeout))
 	reqBodyValues := map[string]string{"sql": sql}
 	reqBody, err := json.Marshal(reqBodyValues)
 	if err != nil {
 		return "", "", ctxerr.Wrap(
-			ctx, &fleet.BadRequestError{
+			ctx, &automdm.BadRequestError{
 				Message: fmt.Sprintf("Could not process sql: %s", sql),
 			},
 		)

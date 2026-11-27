@@ -1,6 +1,6 @@
-# Builds the DEX dashboards from the Fleet API and publishes them to GitHub Pages.
+# Builds the DEX dashboards from the AutoMDM API and publishes them to GitHub Pages.
 # Copy to .github/workflows/dex-dashboards.yml in your own repository, with this folder at
-# dex-dashboards/. Setup: https://fleetdm.com/guides/build-dex-dashboards-with-github-actions
+# dex-dashboards/. Setup: https://automdm.com/guides/build-dex-dashboards-with-github-actions
 name: DEX dashboards
 
 on:
@@ -23,7 +23,7 @@ env:
   DATA_BRANCH: dex-data
 
 jobs:
-  # Holds the Fleet token, and can only read the repository.
+  # Holds the AutoMDM token, and can only read the repository.
   build:
     name: Build
     runs-on: ubuntu-latest
@@ -51,8 +51,8 @@ jobs:
 
       - name: Build the dashboards
         env:
-          FLEET_URL: ${{ vars.FLEET_URL }}
-          FLEET_API_TOKEN: ${{ secrets.FLEET_API_TOKEN }}
+          AUTOMDM_URL: ${{ vars.AUTOMDM_URL }}
+          AUTOMDM_API_TOKEN: ${{ secrets.AUTOMDM_API_TOKEN }}
           DEX_WARRANTY_VITAL: ${{ vars.DEX_WARRANTY_VITAL }}
           DEX_GRID_INTENSITY: ${{ vars.DEX_GRID_INTENSITY }}
           DEX_COMPANY_DOMAINS: ${{ vars.DEX_COMPANY_DOMAINS }}
@@ -114,7 +114,7 @@ jobs:
         with:
           path: ${{ runner.temp }}/site
 
-  # Can push to the data branch, and never sees the Fleet token.
+  # Can push to the data branch, and never sees the AutoMDM token.
   save:
     name: Save histories
     needs: build

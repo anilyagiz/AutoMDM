@@ -20,20 +20,20 @@ import (
 	strconv "strconv"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/pkg/optjson"
-	"github.com/fleetdm/fleet/v4/pkg/rawjson"
-	"github.com/fleetdm/fleet/v4/server/authz"
-	authz_ctx "github.com/fleetdm/fleet/v4/server/contexts/authz"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxdb"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	apple_mdm "github.com/fleetdm/fleet/v4/server/mdm/apple"
-	"github.com/fleetdm/fleet/v4/server/platform/endpointer"
-	"github.com/fleetdm/fleet/v4/server/platform/logging"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/version"
+	"github.com/anilyagiz/automdm/v4/pkg/optjson"
+	"github.com/anilyagiz/automdm/v4/pkg/rawjson"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	authz_ctx "github.com/anilyagiz/automdm/v4/server/contexts/authz"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxdb"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	apple_mdm "github.com/anilyagiz/automdm/v4/server/mdm/apple"
+	"github.com/anilyagiz/automdm/v4/server/platform/endpointer"
+	"github.com/anilyagiz/automdm/v4/server/platform/logging"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/version"
 	"golang.org/x/text/unicode/norm"
 )
 
@@ -42,31 +42,31 @@ import (
 ////////////////////////////////////////////////////////////////////////////////
 
 type appConfigResponse struct {
-	fleet.AppConfig
+	automdm.AppConfig
 	appConfigResponseFields
 }
 
 // appConfigResponseFields are grouped separately to aid with JSON unmarshaling
 type appConfigResponseFields struct {
-	UpdateInterval  *fleet.UpdateIntervalConfig  `json:"update_interval"`
-	Vulnerabilities *fleet.VulnerabilitiesConfig `json:"vulnerabilities"`
+	UpdateInterval  *automdm.UpdateIntervalConfig  `json:"update_interval"`
+	Vulnerabilities *automdm.VulnerabilitiesConfig `json:"vulnerabilities"`
 
 	// License is loaded from the service
-	License *fleet.LicenseInfo `json:"license,omitempty"`
+	License *automdm.LicenseInfo `json:"license,omitempty"`
 	// Logging is loaded on the fly rather than from the database.
-	Logging *fleet.Logging `json:"logging,omitempty"`
+	Logging *automdm.Logging `json:"logging,omitempty"`
 	// Email is returned when the email backend is something other than SMTP, for example SES
-	Email *fleet.EmailConfig `json:"email,omitempty"`
-	// SandboxEnabled is true if fleet serve was ran with server.sandbox_enabled=true
-	SandboxEnabled bool                `json:"sandbox_enabled,omitempty"`
-	Err            error               `json:"error,omitempty"`
-	Partnerships   *fleet.Partnerships `json:"partnerships,omitempty"`
+	Email *automdm.EmailConfig `json:"email,omitempty"`
+	// SandboxEnabled is true if automdm serve was ran with server.sandbox_enabled=true
+	SandboxEnabled bool                  `json:"sandbox_enabled,omitempty"`
+	Err            error                 `json:"error,omitempty"`
+	Partnerships   *automdm.Partnerships `json:"partnerships,omitempty"`
 	// Auth is loaded from the server configuration and is read-only.
-	Auth *fleet.AuthSettings `json:"auth,omitempty"`
+	Auth *automdm.AuthSettings `json:"auth,omitempty"`
 	// Maximum software package size is loaded from the service.
 	MaxSoftwarePackageSize int64 `json:"max_software_package_size"`
 	// StagedUploadAvailable reports whether clients can upload package bytes
-	// straight to object storage instead of through Fleet.
+	// straight to object storage instead of through AutoMDM.
 	StagedUploadAvailable bool `json:"staged_upload_available"`
 }
 
@@ -114,7 +114,7 @@ func (r appConfigResponse) MarshalJSON() ([]byte, error) {
 
 func (r appConfigResponse) Error() error { return r.Err }
 
-func getAppConfigEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func getAppConfigEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	vc, ok := viewer.FromContext(ctx)
 	if !ok {
 		return nil, errors.New("could not fetch user")
@@ -161,7 +161,7 @@ func getAppConfigEndpoint(ctx context.Context, request interface{}, svc fleet.Se
 
 	// Always initialize ConditionalAccess so it's never nil (even when empty)
 	if appConfig.ConditionalAccess == nil {
-		appConfig.ConditionalAccess = &fleet.ConditionalAccessSettings{}
+		appConfig.ConditionalAccess = &automdm.ConditionalAccessSettings{}
 	}
 
 	// Set or clear Microsoft Entra fields based on integration status
@@ -181,15 +181,15 @@ func getAppConfigEndpoint(ctx context.Context, request interface{}, svc fleet.Se
 	appConfig.ConditionalAccess.Google = googleStatus
 	// The key lives in mdm_config_assets, so show it masked whenever one is stored.
 	if gca := appConfig.Integrations.GoogleConditionalAccess; gca != nil && googleStatus != nil && googleStatus.ServiceAccountKeyConfigured {
-		gca.APIKeyJSON = fleet.MaskedPassword
+		gca.APIKeyJSON = automdm.MaskedPassword
 	}
 
-	isGlobalAdmin := vc.User.GlobalRole != nil && *vc.User.GlobalRole == fleet.RoleAdmin
+	isGlobalAdmin := vc.User.GlobalRole != nil && *vc.User.GlobalRole == automdm.RoleAdmin
 	isAnyTeamAdmin := false
 	if vc.User.Teams != nil {
 		// check if the user is an admin for any team
 		for _, team := range vc.User.Teams {
-			if team.Role == fleet.RoleAdmin {
+			if team.Role == automdm.RoleAdmin {
 				isAnyTeamAdmin = true
 				break
 			}
@@ -197,15 +197,15 @@ func getAppConfigEndpoint(ctx context.Context, request interface{}, svc fleet.Se
 	}
 
 	// Only admins should see SMTP and SSO settings
-	isGlobalGitOps := vc.User.GlobalRole != nil && *vc.User.GlobalRole == fleet.RoleGitOps
-	var smtpSettings *fleet.SMTPSettings
-	var ssoSettings *fleet.SSOSettings
+	isGlobalGitOps := vc.User.GlobalRole != nil && *vc.User.GlobalRole == automdm.RoleGitOps
+	var smtpSettings *automdm.SMTPSettings
+	var ssoSettings *automdm.SSOSettings
 	if isGlobalAdmin || isAnyTeamAdmin {
 		smtpSettings = appConfig.SMTPSettings
 		ssoSettings = appConfig.SSOSettings
 	}
 	// Global GitOps users can already write the SMTP settings. They get to
-	// read them too so that fleetctl can warn when a run is about to clear
+	// read them too so that automdmctl can warn when a run is about to clear
 	// them, including the password.
 	if isGlobalGitOps {
 		smtpSettings = appConfig.SMTPSettings
@@ -217,32 +217,32 @@ func getAppConfigEndpoint(ctx context.Context, request interface{}, svc fleet.Se
 		agentOptions = appConfig.AgentOptions
 	}
 
-	// Fleet Premium license is required for custom transparency url
-	transparencyURL := fleet.DefaultTransparencyURL
-	if lic.IsPremium() && appConfig.FleetDesktop.TransparencyURL != "" {
-		transparencyURL = appConfig.FleetDesktop.TransparencyURL
+	// AutoMDM Premium license is required for custom transparency url
+	transparencyURL := automdm.DefaultTransparencyURL
+	if lic.IsPremium() && appConfig.AutoMDMDesktop.TransparencyURL != "" {
+		transparencyURL = appConfig.AutoMDMDesktop.TransparencyURL
 	}
-	// Fleet Premium license is required for server side alternative browser host URL
+	// AutoMDM Premium license is required for server side alternative browser host URL
 	var alternativeBrowserHost string
 	if lic.IsPremium() {
-		alternativeBrowserHost = appConfig.FleetDesktop.AlternativeBrowserHost
+		alternativeBrowserHost = appConfig.AutoMDMDesktop.AlternativeBrowserHost
 	}
-	// Fleet Premium license is required for Fleet Desktop SSO
-	ssoEnabled := lic.IsPremium() && appConfig.FleetDesktop.SSOEnabled
+	// AutoMDM Premium license is required for AutoMDM Desktop SSO
+	ssoEnabled := lic.IsPremium() && appConfig.AutoMDMDesktop.SSOEnabled
 
-	fleetDesktop := fleet.FleetDesktopSettings{
+	automdmDesktop := automdm.AutoMDMDesktopSettings{
 		TransparencyURL:        transparencyURL,
 		AlternativeBrowserHost: alternativeBrowserHost,
 		SSOEnabled:             ssoEnabled,
 	}
 
 	if appConfig.OrgInfo.ContactURL == "" {
-		appConfig.OrgInfo.ContactURL = fleet.DefaultOrgInfoContactURL
+		appConfig.OrgInfo.ContactURL = automdm.DefaultOrgInfoContactURL
 	}
 
 	features := appConfig.Features
 	response := appConfigResponse{
-		AppConfig: fleet.AppConfig{
+		AppConfig: automdm.AppConfig{
 			OrgInfo:                appConfig.OrgInfo,
 			ServerSettings:         appConfig.ServerSettings,
 			Features:               features,
@@ -254,7 +254,7 @@ func getAppConfigEndpoint(ctx context.Context, request interface{}, svc fleet.Se
 			SSOSettings:  ssoSettings,
 			AgentOptions: agentOptions,
 
-			FleetDesktop: fleetDesktop,
+			AutoMDMDesktop: automdmDesktop,
 
 			WebhookSettings:   appConfig.WebhookSettings,
 			Integrations:      appConfig.Integrations,
@@ -282,11 +282,11 @@ func (svc *Service) SandboxEnabled() bool {
 	return svc.config.Server.SandboxEnabled
 }
 
-func (svc *Service) AppConfigObfuscated(ctx context.Context) (*fleet.AppConfig, error) {
+func (svc *Service) AppConfigObfuscated(ctx context.Context) (*automdm.AppConfig, error) {
 	deviceAuthenticated := svc.authz.IsAuthenticatedWith(ctx, authz_ctx.AuthnDeviceToken) ||
 		svc.authz.IsAuthenticatedWith(ctx, authz_ctx.AuthnDeviceURL)
 	if !deviceAuthenticated {
-		if err := svc.authz.Authorize(ctx, &fleet.AppConfig{}, fleet.ActionRead); err != nil {
+		if err := svc.authz.Authorize(ctx, &automdm.AppConfig{}, automdm.ActionRead); err != nil {
 			return nil, err
 		}
 	}
@@ -295,27 +295,27 @@ func (svc *Service) AppConfigObfuscated(ctx context.Context) (*fleet.AppConfig, 
 	if err != nil {
 		return nil, err
 	}
-	// Rewrite Fleet-hosted relative logo URLs to absolute ones using the
+	// Rewrite AutoMDM-hosted relative logo URLs to absolute ones using the
 	// current ServerURL. Persisted form stays relative; this is purely a
 	// read-time view. Safe to do here because no SaveAppConfig caller
 	// consumes the result of AppConfigObfuscated — they all re-fetch via
 	// svc.ds.AppConfig directly.
 	ac.OrgInfo.AbsolutizeLogoURLs(ac.ServerSettings.ServerURL)
 
-	// The Windows enrollment default fleet's source of truth is GetWindowsEnrollmentDefaultFleet (also cached), so hydrate the
+	// The Windows enrollment default team's source of truth is GetWindowsEnrollmentDefaultTeam (also cached), so hydrate the
 	// response from it when it disagrees with the name stored in the app config JSON.
-	winDefaultTeamID, winDefaultFleetName, err := svc.ds.GetWindowsEnrollmentDefaultFleet(ctx)
+	winDefaultTeamID, winDefaultTeamName, err := svc.ds.GetWindowsEnrollmentDefaultTeam(ctx)
 	if err != nil {
-		return nil, ctxerr.Wrap(ctx, err, "get windows enrollment default fleet")
+		return nil, ctxerr.Wrap(ctx, err, "get windows enrollment default team")
 	}
 	winStoredName := ""
 	if ac.MDM.WindowsAutomaticEnrollment.Set && ac.MDM.WindowsAutomaticEnrollment.Valid {
-		winStoredName = ac.MDM.WindowsAutomaticEnrollment.Value.DefaultFleet
+		winStoredName = ac.MDM.WindowsAutomaticEnrollment.Value.DefaultAutoMDM
 	}
-	if winDefaultTeamID != nil || winStoredName != winDefaultFleetName {
-		ac.MDM.WindowsAutomaticEnrollment = optjson.Any[fleet.WindowsAutomaticEnrollment]{
+	if winDefaultTeamID != nil || winStoredName != winDefaultTeamName {
+		ac.MDM.WindowsAutomaticEnrollment = optjson.Any[automdm.WindowsAutomaticEnrollment]{
 			Set: true, Valid: true,
-			Value: fleet.WindowsAutomaticEnrollment{DefaultFleet: winDefaultFleetName},
+			Value: automdm.WindowsAutomaticEnrollment{DefaultAutoMDM: winDefaultTeamName},
 		}
 	}
 
@@ -324,7 +324,7 @@ func (svc *Service) AppConfigObfuscated(ctx context.Context) (*fleet.AppConfig, 
 	return ac, nil
 }
 
-func (svc *Service) AppConfigUrls(ctx context.Context) (*fleet.AppConfigUrls, error) {
+func (svc *Service) AppConfigUrls(ctx context.Context) (*automdm.AppConfigUrls, error) {
 	// We skip auhtorization, as this is used where we don't have access to it, but that is why we return a subset of AppConfig fields.
 	svc.authz.SkipAuthorization(ctx)
 
@@ -346,9 +346,9 @@ type modifyAppConfigRequest struct {
 	json.RawMessage
 }
 
-func modifyAppConfigEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func modifyAppConfigEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*modifyAppConfigRequest)
-	appConfig, err := svc.ModifyAppConfig(ctx, req.RawMessage, fleet.ApplySpecOptions{
+	appConfig, err := svc.ModifyAppConfig(ctx, req.RawMessage, automdm.ApplySpecOptions{
 		Force:     req.Force,
 		DryRun:    req.DryRun,
 		Overwrite: req.Overwrite,
@@ -359,7 +359,7 @@ func modifyAppConfigEndpoint(ctx context.Context, request interface{}, svc fleet
 
 	// We do not use svc.License(ctx) to allow roles (like GitOps) write but not read access to AppConfig.
 	licChecker, _ := license.FromContext(ctx)
-	lic, _ := licChecker.(*fleet.LicenseInfo)
+	lic, _ := licChecker.(*automdm.LicenseInfo)
 
 	loggingConfig, err := svc.LoggingConfig(ctx)
 	if err != nil {
@@ -377,8 +377,8 @@ func modifyAppConfigEndpoint(ctx context.Context, request interface{}, svc fleet
 
 	response.Obfuscate()
 
-	if lic == nil || (!lic.IsPremium()) || response.FleetDesktop.TransparencyURL == "" {
-		response.FleetDesktop.TransparencyURL = fleet.DefaultTransparencyURL
+	if lic == nil || (!lic.IsPremium()) || response.AutoMDMDesktop.TransparencyURL == "" {
+		response.AutoMDMDesktop.TransparencyURL = automdm.DefaultTransparencyURL
 	}
 
 	return response, nil
@@ -389,16 +389,16 @@ func modifyAppConfigEndpoint(ctx context.Context, request interface{}, svc fleet
 // function's CFG block count stays under nilaway's limit.
 func applyAndValidateConditionalAccessOktaFields(
 	ctx context.Context,
-	appConfig *fleet.AppConfig,
-	newAppConfig *fleet.AppConfig,
-	invalid *fleet.InvalidArgumentError,
-	lic *fleet.LicenseInfo,
+	appConfig *automdm.AppConfig,
+	newAppConfig *automdm.AppConfig,
+	invalid *automdm.InvalidArgumentError,
+	lic *automdm.LicenseInfo,
 ) error {
 	if appConfig.ConditionalAccess == nil {
-		appConfig.ConditionalAccess = &fleet.ConditionalAccessSettings{}
+		appConfig.ConditionalAccess = &automdm.ConditionalAccessSettings{}
 	}
 	if newAppConfig.ConditionalAccess == nil {
-		newAppConfig.ConditionalAccess = &fleet.ConditionalAccessSettings{}
+		newAppConfig.ConditionalAccess = &automdm.ConditionalAccessSettings{}
 	}
 
 	// Normalize incoming Okta fields (trim whitespace) BEFORE the premium-license gate so a
@@ -532,16 +532,16 @@ func (svc *Service) persistAppleAccountProvisioningSecret(ctx context.Context, c
 		if current == secret {
 			return false, nil
 		}
-		if err := svc.ds.InsertOrReplaceMDMConfigAsset(ctx, fleet.MDMConfigAsset{
-			Name:  fleet.MDMAssetAppleAccountProvisioningIdPClientSecret,
+		if err := svc.ds.InsertOrReplaceMDMConfigAsset(ctx, automdm.MDMConfigAsset{
+			Name:  automdm.MDMAssetAppleAccountProvisioningIdPClientSecret,
 			Value: []byte(secret),
 		}); err != nil {
 			return false, ctxerr.Wrap(ctx, err, "store apple account provisioning idp client secret")
 		}
 		return true, nil
 	case !configured && wasConfigured:
-		if err := svc.ds.DeleteMDMConfigAssetsByName(ctx, []fleet.MDMAssetName{
-			fleet.MDMAssetAppleAccountProvisioningIdPClientSecret,
+		if err := svc.ds.DeleteMDMConfigAssetsByName(ctx, []automdm.MDMAssetName{
+			automdm.MDMAssetAppleAccountProvisioningIdPClientSecret,
 		}); err != nil {
 			return false, ctxerr.Wrap(ctx, err, "delete apple account provisioning idp client secret")
 		}
@@ -554,14 +554,14 @@ func (svc *Service) persistAppleAccountProvisioningSecret(ctx context.Context, c
 // IdP client secret, or "" if none is stored.
 func (svc *Service) appleAccountProvisioningSecret(ctx context.Context) (string, error) {
 	assets, err := svc.ds.GetAllMDMConfigAssetsByName(ctx,
-		[]fleet.MDMAssetName{fleet.MDMAssetAppleAccountProvisioningIdPClientSecret}, nil)
+		[]automdm.MDMAssetName{automdm.MDMAssetAppleAccountProvisioningIdPClientSecret}, nil)
 	if err != nil {
-		if fleet.IsNotFound(err) {
+		if automdm.IsNotFound(err) {
 			return "", nil
 		}
 		return "", ctxerr.Wrap(ctx, err, "get apple account provisioning idp client secret")
 	}
-	return string(assets[fleet.MDMAssetAppleAccountProvisioningIdPClientSecret].Value), nil
+	return string(assets[automdm.MDMAssetAppleAccountProvisioningIdPClientSecret].Value), nil
 }
 
 // verifyChangedAppleAccountProvisioning checks Apple account provisioning
@@ -569,7 +569,7 @@ func (svc *Service) appleAccountProvisioningSecret(ctx context.Context) (string,
 // changed: GitOps resends the same secret on every run and must not contact
 // the IdP each time. A stored secret is never sent to a new token URL because
 // ModifyAppConfig already requires a new secret when the URL changes.
-func (svc *Service) verifyChangedAppleAccountProvisioning(ctx context.Context, old, merged fleet.AppleAccountProvisioning, newSecretProvided bool, newSecret string) error {
+func (svc *Service) verifyChangedAppleAccountProvisioning(ctx context.Context, old, merged automdm.AppleAccountProvisioning, newSecretProvided bool, newSecret string) error {
 	if !merged.Configured() || svc.EnterpriseOverrides == nil || svc.EnterpriseOverrides.VerifyAppleAccountProvisioning == nil {
 		return nil
 	}
@@ -593,7 +593,7 @@ func (svc *Service) verifyChangedAppleAccountProvisioning(ctx context.Context, o
 	}
 
 	if err := svc.EnterpriseOverrides.VerifyAppleAccountProvisioning(ctx, merged, secret); err != nil {
-		if invalid, ok := errors.AsType[*fleet.InvalidArgumentError](err); ok {
+		if invalid, ok := errors.AsType[*automdm.InvalidArgumentError](err); ok {
 			return ctxerr.Wrap(ctx, invalid)
 		}
 		return ctxerr.Wrap(ctx, err, "verify apple account provisioning settings")
@@ -601,11 +601,11 @@ func (svc *Service) verifyChangedAppleAccountProvisioning(ctx context.Context, o
 	return nil
 }
 
-// appConfigFields has the fields of fleet.AppConfig without its UnmarshalJSON, so the removed-names scan looks inside it.
-type appConfigFields fleet.AppConfig
+// appConfigFields has the fields of automdm.AppConfig without its UnmarshalJSON, so the removed-names scan looks inside it.
+type appConfigFields automdm.AppConfig
 
-func (svc *Service) ModifyAppConfig(ctx context.Context, p []byte, applyOpts fleet.ApplySpecOptions) (*fleet.AppConfig, error) {
-	if err := svc.authz.Authorize(ctx, &fleet.AppConfig{}, fleet.ActionWrite); err != nil {
+func (svc *Service) ModifyAppConfig(ctx context.Context, p []byte, applyOpts automdm.ApplySpecOptions) (*automdm.AppConfig, error) {
+	if err := svc.authz.Authorize(ctx, &automdm.AppConfig{}, automdm.ActionWrite); err != nil {
 		return nil, err
 	}
 
@@ -627,9 +627,9 @@ func (svc *Service) ModifyAppConfig(ctx context.Context, p []byte, applyOpts fle
 
 	// We do not use svc.License(ctx) to allow roles (like GitOps) write but not read access to AppConfig.
 	licChecker, _ := license.FromContext(ctx)
-	lic, _ := licChecker.(*fleet.LicenseInfo)
+	lic, _ := licChecker.(*automdm.LicenseInfo)
 
-	var oldSMTPSettings fleet.SMTPSettings
+	var oldSMTPSettings automdm.SMTPSettings
 	if appConfig.SMTPSettings != nil {
 		oldSMTPSettings = *appConfig.SMTPSettings
 	} else {
@@ -646,36 +646,36 @@ func (svc *Service) ModifyAppConfig(ctx context.Context, p []byte, applyOpts fle
 
 	oldConditionalAccessEnabled := appConfig.Integrations.ConditionalAccessEnabled
 
-	storedJiraByProjectKey, err := fleet.IndexJiraIntegrations(appConfig.Integrations.Jira)
+	storedJiraByProjectKey, err := automdm.IndexJiraIntegrations(appConfig.Integrations.Jira)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "modify AppConfig")
 	}
 
-	storedZendeskByGroupID, err := fleet.IndexZendeskIntegrations(appConfig.Integrations.Zendesk)
+	storedZendeskByGroupID, err := automdm.IndexZendeskIntegrations(appConfig.Integrations.Zendesk)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "modify AppConfig")
 	}
 
 	// The request decoder's rewriter didn't see the raw body, so removed keys are rejected here, before strict decoding
 	// would report them as unknown fields.
-	if err := endpointer.CheckRemovedKeys(p, endpointer.ExtractRemovedKeyRules(fleet.AppConfig{})); err != nil {
+	if err := endpointer.CheckRemovedKeys(p, endpointer.ExtractRemovedKeyRules(automdm.AppConfig{})); err != nil {
 		if _, ok := errors.AsType[*endpointer.RemovedKeyError](err); !ok {
-			err = &fleet.BadRequestError{Message: "failed to decode app config", InternalErr: err}
+			err = &automdm.BadRequestError{Message: "failed to decode app config", InternalErr: err}
 		}
 		return nil, ctxerr.Wrap(ctx, err, "modify AppConfig")
 	}
-	// Strict decoding misses the AB and VPP token entries, which optjson.Slice decodes without DisallowUnknownFields, so an old fleet
+	// Strict decoding misses the AB and VPP token entries, which optjson.Slice decodes without DisallowUnknownFields, so an old team
 	// key there would be dropped and unassign the token.
-	for _, t := range []reflect.Type{reflect.TypeFor[appConfigFields](), reflect.TypeFor[fleet.AppConfigRequestOnly]()} {
+	for _, t := range []reflect.Type{reflect.TypeFor[appConfigFields](), reflect.TypeFor[automdm.AppConfigRequestOnly]()} {
 		if err := endpointer.RejectRemovedJSONKeys(p, t); err != nil {
 			return nil, ctxerr.Wrap(ctx, err, "modify AppConfig")
 		}
 	}
 
-	// Rewrite deprecated JSON field names (e.g. team_id → fleet_id) before
+	// Rewrite deprecated JSON field names (e.g. team_id → team_id) before
 	// unmarshaling into AppConfig, since the request body was captured as
 	// json.RawMessage and wasn't processed by the request decoder's rewriter.
-	if rules := endpointer.ExtractAliasRules(fleet.AppConfig{}); len(rules) > 0 {
+	if rules := endpointer.ExtractAliasRules(automdm.AppConfig{}); len(rules) > 0 {
 		var err error
 		var deprecatedKeysMap map[string]string
 		if p, deprecatedKeysMap, err = endpointer.RewriteDeprecatedKeys(p, rules); err != nil {
@@ -685,7 +685,7 @@ func (svc *Service) ModifyAppConfig(ctx context.Context, p []byte, applyOpts fle
 			if errors.As(err, &aliasConflictErr) {
 				msg = err.Error()
 			}
-			return nil, ctxerr.Wrap(ctx, &fleet.BadRequestError{
+			return nil, ctxerr.Wrap(ctx, &automdm.BadRequestError{
 				Message:     msg,
 				InternalErr: err,
 			})
@@ -699,19 +699,19 @@ func (svc *Service) ModifyAppConfig(ctx context.Context, p []byte, applyOpts fle
 
 	requestOnly, p, err := splitRequestOnlyConfigKeys(p)
 	if err != nil {
-		return nil, ctxerr.Wrap(ctx, fleet.NewUserMessageError(err, http.StatusBadRequest))
+		return nil, ctxerr.Wrap(ctx, automdm.NewUserMessageError(err, http.StatusBadRequest))
 	}
 
-	invalid := &fleet.InvalidArgumentError{}
-	var newAppConfig fleet.AppConfig
+	invalid := &automdm.InvalidArgumentError{}
+	var newAppConfig automdm.AppConfig
 	if err := json.Unmarshal(p, &newAppConfig); err != nil {
-		return nil, ctxerr.Wrap(ctx, &fleet.BadRequestError{
+		return nil, ctxerr.Wrap(ctx, &automdm.BadRequestError{
 			Message:     "failed to decode app config",
 			InternalErr: err,
 		})
 	}
 
-	// In Overwrite mode (gitops), older clients (e.g. fleetctl <=4.84
+	// In Overwrite mode (gitops), older clients (e.g. automdmctl <=4.84
 	// predating the field) omit features.historical_data entirely.
 	// Without defaulting here, the Overwrite branch below would persist
 	// those sub-keys as false because Go's bool zero value is
@@ -720,9 +720,9 @@ func (svc *Service) ModifyAppConfig(ctx context.Context, p []byte, applyOpts fle
 		applyHistoricalDataOverwriteDefaults(p, &newAppConfig)
 	}
 
-	fleetDesktopSettingsInvalidErr := validateFleetDesktopSettings(newAppConfig, lic)
-	if fleetDesktopSettingsInvalidErr.HasErrors() {
-		return nil, ctxerr.Wrap(ctx, fleetDesktopSettingsInvalidErr)
+	automdmDesktopSettingsInvalidErr := validateAutoMDMDesktopSettings(newAppConfig, lic)
+	if automdmDesktopSettingsInvalidErr.HasErrors() {
+		return nil, ctxerr.Wrap(ctx, automdmDesktopSettingsInvalidErr)
 	}
 
 	// Validate and premium-gate the vulnerability-exposure chart filter
@@ -753,10 +753,10 @@ func (svc *Service) ModifyAppConfig(ctx context.Context, p []byte, applyOpts fle
 		appConfig.Features = newAppConfig.Features
 		appConfig.SSOSettings = newAppConfig.SSOSettings
 		appConfig.MDM.EndUserAuthentication = newAppConfig.MDM.EndUserAuthentication
-		appConfig.FleetDesktop.SSOEnabled = newAppConfig.FleetDesktop.SSOEnabled
+		appConfig.AutoMDMDesktop.SSOEnabled = newAppConfig.AutoMDMDesktop.SSOEnabled
 		// the rest of server_settings is kept when omitted
 		appConfig.ServerSettings.AISessionsDisabled = newAppConfig.ServerSettings.AISessionsDisabled
-		// absent means true, so an older fleetctl that doesn't send the key
+		// absent means true, so an older automdmctl that doesn't send the key
 		// can't turn validation off; the unmarshal below applies it if present
 		appConfig.MDM.EnableProfileValidation = true
 	}
@@ -769,7 +769,7 @@ func (svc *Service) ModifyAppConfig(ctx context.Context, p []byte, applyOpts fle
 	// We apply the config that is incoming to the old one
 	appConfig.EnableStrictDecoding()
 	if err := json.Unmarshal(p, &appConfig); err != nil {
-		err = fleet.NewUserMessageError(err, http.StatusBadRequest)
+		err = automdm.NewUserMessageError(err, http.StatusBadRequest)
 		return nil, ctxerr.Wrap(ctx, err)
 	}
 
@@ -906,7 +906,7 @@ func (svc *Service) ModifyAppConfig(ctx context.Context, p []byte, applyOpts fle
 		case incomingChanged && legacyDiskEncryptionChanged && f.incoming.Value != legacyDiskEncryption.Value:
 			// both the deprecated toggle and this per-platform setting are
 			// being changed, to disagreeing values
-			return nil, ctxerr.Wrap(ctx, fleet.NewInvalidArgumentError(
+			return nil, ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError(
 				"mdm.enable_disk_encryption", "conflicts with per-platform disk encryption settings",
 			))
 		case incomingChanged:
@@ -926,7 +926,7 @@ func (svc *Service) ModifyAppConfig(ctx context.Context, p []byte, applyOpts fle
 	}
 	if enablingDiskEncryption && svc.config.Server.PrivateKey == "" {
 		return nil, ctxerr.New(ctx,
-			"Missing required private key. Learn how to configure the private key here: https://fleetdm.com/learn-more-about/fleet-server-private-key")
+			"Missing required private key. Learn how to configure the private key here: https://automdm.com/learn-more-about/automdm-server-private-key")
 	}
 	// the flat toggle is virtual (the AND of the four); recompute it so
 	// validation, activities, and the saved JSON see the effective value.
@@ -944,7 +944,7 @@ func (svc *Service) ModifyAppConfig(ctx context.Context, p []byte, applyOpts fle
 	// the deprecated windows_require_bitlocker_pin key mirrors its canonical
 	// windows_settings.require_bitlocker_pin home. Absent or explicit-null
 	// keys pass through: the stored values were the base of the merge.
-	if pin, err := fleet.ResolveBitLockerPINAlias(
+	if pin, err := automdm.ResolveBitLockerPINAlias(
 		newAppConfig.MDM.RequireBitLockerPIN, newAppConfig.MDM.WindowsSettings.RequireBitLockerPIN,
 	); err != nil {
 		return nil, ctxerr.Wrap(ctx, err)
@@ -965,7 +965,7 @@ func (svc *Service) ModifyAppConfig(ctx context.Context, p []byte, applyOpts fle
 	}
 
 	incomingSecret := incomingAAP.OAuthIdPClientSecret
-	newAAPSecretProvided := incomingSecret.Valid && incomingSecret.Value != "" && incomingSecret.Value != fleet.MaskedPassword
+	newAAPSecretProvided := incomingSecret.Valid && incomingSecret.Value != "" && incomingSecret.Value != automdm.MaskedPassword
 	newAAPSecret := incomingSecret.Value
 
 	mergedAAP := appConfig.MDM.AppleAccountProvisioning
@@ -985,7 +985,7 @@ func (svc *Service) ModifyAppConfig(ctx context.Context, p []byte, applyOpts fle
 		}
 		if newAAPSecretProvided && svc.config.Server.PrivateKey == "" {
 			invalid.Append("mdm.apple_account_provisioning",
-				"Missing required private key. Learn how to configure the private key here: https://fleetdm.com/learn-more-about/fleet-server-private-key")
+				"Missing required private key. Learn how to configure the private key here: https://automdm.com/learn-more-about/automdm-server-private-key")
 		}
 		if u, err := url.Parse(mergedAAP.OAuthIdPTokenURL.Value); err != nil || u.Host == "" || u.Scheme != "https" {
 			invalid.Append("mdm.apple_account_provisioning.oauth_idp_token_url", "must be a valid https URL")
@@ -1083,8 +1083,8 @@ func (svc *Service) ModifyAppConfig(ctx context.Context, p []byte, applyOpts fle
 			return nil, ctxerr.Wrap(ctx, err, "check for existing custom OS updates declaration profile")
 		}
 		if hasProfile {
-			return nil, &fleet.BadRequestError{
-				Message: fleet.OSUpdatesAlreadyConfiguredErrorMessage,
+			return nil, &automdm.BadRequestError{
+				Message: automdm.OSUpdatesAlreadyConfiguredErrorMessage,
 			}
 		}
 	}
@@ -1096,8 +1096,8 @@ func (svc *Service) ModifyAppConfig(ctx context.Context, p []byte, applyOpts fle
 			return nil, ctxerr.Wrap(ctx, err, "check for existing custom Windows updates profile")
 		}
 		if hasProfile {
-			return nil, &fleet.BadRequestError{
-				Message: fleet.OSUpdatesAlreadyConfiguredErrorMessage,
+			return nil, &automdm.BadRequestError{
+				Message: automdm.OSUpdatesAlreadyConfiguredErrorMessage,
 			}
 		}
 	}
@@ -1106,8 +1106,8 @@ func (svc *Service) ModifyAppConfig(ctx context.Context, p []byte, applyOpts fle
 	if legacyKeys := appConfig.DidUnmarshalLegacySettings(); len(legacyKeys) > 0 {
 		// this "warning" is returned only in dry-run mode, and if no other errors
 		// were encountered.
-		legacyUsedWarning = &fleet.BadRequestError{
-			Message: fmt.Sprintf("warning: deprecated settings were used in the configuration: %v; consider updating to the new settings: https://fleetdm.com/docs/using-fleet/configuration-files#settings",
+		legacyUsedWarning = &automdm.BadRequestError{
+			Message: fmt.Sprintf("warning: deprecated settings were used in the configuration: %v; consider updating to the new settings: https://automdm.com/docs/using-automdm/configuration-files#settings",
 				legacyKeys),
 		}
 	}
@@ -1118,7 +1118,7 @@ func (svc *Service) ModifyAppConfig(ctx context.Context, p []byte, applyOpts fle
 		invalid.Append("org_name", "organization name must be present")
 	}
 	if appConfig.ServerSettings.ServerURL == "" {
-		invalid.Append("server_url", "Fleet server URL must be present")
+		invalid.Append("server_url", "AutoMDM server URL must be present")
 	} else {
 		if err := ValidateServerURL(appConfig.ServerSettings.ServerURL); err != nil {
 			invalid.Append("server_url", "Couldn't update settings: "+err.Error())
@@ -1134,15 +1134,15 @@ func (svc *Service) ModifyAppConfig(ctx context.Context, p []byte, applyOpts fle
 	}
 
 	if appConfig.OrgInfo.ContactURL == "" {
-		appConfig.OrgInfo.ContactURL = fleet.DefaultOrgInfoContactURL
+		appConfig.OrgInfo.ContactURL = automdm.DefaultOrgInfoContactURL
 	}
 
 	if newAppConfig.AgentOptions != nil {
 		// if there were Agent Options in the new app config, then it replaced the
 		// agent options in the resulting app config, so validate those.
-		if err := fleet.ValidateJSONAgentOptions(ctx, svc.ds, *appConfig.AgentOptions, lic.IsPremium(), 0); err != nil {
-			err = fleet.SuggestAgentOptionsCorrection(err)
-			err = fleet.NewUserMessageError(err, http.StatusBadRequest)
+		if err := automdm.ValidateJSONAgentOptions(ctx, svc.ds, *appConfig.AgentOptions, lic.IsPremium(), 0); err != nil {
+			err = automdm.SuggestAgentOptionsCorrection(err)
+			err = automdm.NewUserMessageError(err, http.StatusBadRequest)
 			if applyOpts.Force && !applyOpts.DryRun {
 				svc.logger.InfoContext(ctx, "force-apply appConfig agent options with validation errors", "err", err)
 			}
@@ -1157,15 +1157,15 @@ func (svc *Service) ModifyAppConfig(ctx context.Context, p []byte, applyOpts fle
 		appConfig.ServerSettings.EnableAnalytics = true
 	}
 
-	fleet.ValidateGoogleCalendarIntegrations(appConfig.Integrations.GoogleCalendar, invalid)
-	fleet.ValidateGoogleWorkspaceIntegrations(appConfig.Integrations.GoogleWorkspace, invalid)
-	fleet.ValidateGoogleConditionalAccessIntegration(appConfig.Integrations.GoogleConditionalAccess, invalid)
+	automdm.ValidateGoogleCalendarIntegrations(appConfig.Integrations.GoogleCalendar, invalid)
+	automdm.ValidateGoogleWorkspaceIntegrations(appConfig.Integrations.GoogleWorkspace, invalid)
+	automdm.ValidateGoogleConditionalAccessIntegration(appConfig.Integrations.GoogleConditionalAccess, invalid)
 	gcaKey := svc.takeGoogleConditionalAccessKey(appConfig.Integrations.GoogleConditionalAccess, invalid)
-	fleet.ValidateCertIdPIntrospectionAllowlists(&appConfig.Integrations, invalid)
-	fleet.ValidateEnabledVulnerabilitiesIntegrations(appConfig.WebhookSettings.VulnerabilitiesWebhook, appConfig.Integrations, invalid)
-	fleet.ValidateEnabledFailingPoliciesIntegrations(appConfig.WebhookSettings.FailingPoliciesWebhook, appConfig.Integrations, invalid)
-	fleet.ValidateEnabledHostStatusIntegrations(appConfig.WebhookSettings.HostStatusWebhook, invalid)
-	fleet.ValidateEnabledActivitiesWebhook(appConfig.WebhookSettings.ActivitiesWebhook, invalid)
+	automdm.ValidateCertIdPIntrospectionAllowlists(&appConfig.Integrations, invalid)
+	automdm.ValidateEnabledVulnerabilitiesIntegrations(appConfig.WebhookSettings.VulnerabilitiesWebhook, appConfig.Integrations, invalid)
+	automdm.ValidateEnabledFailingPoliciesIntegrations(appConfig.WebhookSettings.FailingPoliciesWebhook, appConfig.Integrations, invalid)
+	automdm.ValidateEnabledHostStatusIntegrations(appConfig.WebhookSettings.HostStatusWebhook, invalid)
+	automdm.ValidateEnabledActivitiesWebhook(appConfig.WebhookSettings.ActivitiesWebhook, invalid)
 
 	if err := applyAndValidateConditionalAccessOktaFields(ctx, appConfig, &newAppConfig, invalid, lic); err != nil {
 		return nil, err
@@ -1173,7 +1173,7 @@ func (svc *Service) ModifyAppConfig(ctx context.Context, p []byte, applyOpts fle
 
 	var conditionalAccessNoTeamUpdated bool
 	if newAppConfig.Integrations.ConditionalAccessEnabled.Set {
-		if err := fleet.ValidateConditionalAccessIntegration(ctx, svc, appConfig.ConditionalAccess, oldConditionalAccessEnabled.Value, newAppConfig.Integrations.ConditionalAccessEnabled.Value); err != nil {
+		if err := automdm.ValidateConditionalAccessIntegration(ctx, svc, appConfig.ConditionalAccess, oldConditionalAccessEnabled.Value, newAppConfig.Integrations.ConditionalAccessEnabled.Value); err != nil {
 			return nil, err
 		}
 		conditionalAccessNoTeamUpdated = oldConditionalAccessEnabled.Value != newAppConfig.Integrations.ConditionalAccessEnabled.Value
@@ -1214,9 +1214,9 @@ func (svc *Service) ModifyAppConfig(ctx context.Context, p []byte, applyOpts fle
 		}
 	}
 
-	windowsEnrollmentDefined, windowsEnrollmentTeamID, windowsEnrollmentFleetName, err := svc.validateWindowsEnrollment(ctx, &newAppConfig.MDM, invalid, lic)
+	windowsEnrollmentDefined, windowsEnrollmentTeamID, windowsEnrollmentTeamName, err := svc.validateWindowsEnrollment(ctx, &newAppConfig.MDM, invalid, lic)
 	if err != nil {
-		return nil, ctxerr.Wrap(ctx, err, "validating windows enrollment default fleet")
+		return nil, ctxerr.Wrap(ctx, err, "validating windows enrollment default team")
 	}
 
 	if invalid.HasErrors() {
@@ -1233,11 +1233,11 @@ func (svc *Service) ModifyAppConfig(ctx context.Context, p []byte, applyOpts fle
 		return nil, err
 	}
 
-	// Normalize the stored JSON to the canonical fleet name, or to "" when the default was cleared.
+	// Normalize the stored JSON to the canonical team name, or to "" when the default was cleared.
 	if windowsEnrollmentDefined {
-		appConfig.MDM.WindowsAutomaticEnrollment = optjson.Any[fleet.WindowsAutomaticEnrollment]{
+		appConfig.MDM.WindowsAutomaticEnrollment = optjson.Any[automdm.WindowsAutomaticEnrollment]{
 			Set: true, Valid: true,
-			Value: fleet.WindowsAutomaticEnrollment{DefaultFleet: windowsEnrollmentFleetName},
+			Value: automdm.WindowsAutomaticEnrollment{DefaultAutoMDM: windowsEnrollmentTeamName},
 		}
 	} else if appConfig.MDM.WindowsAutomaticEnrollment.Set && !appConfig.MDM.WindowsAutomaticEnrollment.Valid {
 		// A null windows_automatic_enrollment keeps the persisted setting (validateWindowsEnrollment treated it as omitted), so restore
@@ -1247,7 +1247,7 @@ func (svc *Service) ModifyAppConfig(ctx context.Context, p []byte, applyOpts fle
 
 	// ignore MDM.EnabledAndConfigured MDM.AppleBMTermsExpired, and MDM.AppleBMEnabledAndConfigured
 	// if provided in the modify payload we don't return an error in this case because it would
-	// prevent using the output of fleetctl get config as input to fleetctl apply or this endpoint.
+	// prevent using the output of automdmctl get config as input to automdmctl apply or this endpoint.
 	appConfig.MDM.AppleBMTermsExpired = oldAppConfig.MDM.AppleBMTermsExpired
 	appConfig.MDM.AppleBMEnabledAndConfigured = oldAppConfig.MDM.AppleBMEnabledAndConfigured
 	appConfig.MDM.EnabledAndConfigured = oldAppConfig.MDM.EnabledAndConfigured
@@ -1256,8 +1256,8 @@ func (svc *Service) ModifyAppConfig(ctx context.Context, p []byte, applyOpts fle
 	// ignore MDM.MicrosoftGraphCredentialInvalid because the server recomputes it from the credentials table
 	appConfig.MDM.MicrosoftGraphCredentialInvalid = oldAppConfig.MDM.MicrosoftGraphCredentialInvalid
 
-	if invalid := validateFleetDesktopSSOIdP(
-		oldAppConfig.FleetDesktop, appConfig.FleetDesktop, appConfig.MDM.EndUserAuthentication, lic,
+	if invalid := validateAutoMDMDesktopSSOIdP(
+		oldAppConfig.AutoMDMDesktop, appConfig.AutoMDMDesktop, appConfig.MDM.EndUserAuthentication, lic,
 	); invalid != nil {
 		return nil, invalid
 	}
@@ -1289,7 +1289,7 @@ func (svc *Service) ModifyAppConfig(ctx context.Context, p []byte, applyOpts fle
 		if appConfig.SMTPSettings.SMTPEnabled {
 			if oldSMTPSettings != *appConfig.SMTPSettings || !appConfig.SMTPSettings.SMTPConfigured {
 				if err = svc.sendTestEmail(ctx, appConfig); err != nil {
-					return nil, fleet.NewInvalidArgumentError("SMTP Options", err.Error())
+					return nil, automdm.NewInvalidArgumentError("SMTP Options", err.Error())
 				}
 			}
 			appConfig.SMTPSettings.SMTPConfigured = true
@@ -1307,31 +1307,31 @@ func (svc *Service) ModifyAppConfig(ctx context.Context, p []byte, applyOpts fle
 	//   {"integrations":{"zendesk":[],"jira":[]}}
 	//
 	if newAppConfig.Integrations.Jira != nil || newAppConfig.Integrations.Zendesk != nil {
-		delJira, err := fleet.ValidateJiraIntegrations(ctx, storedJiraByProjectKey, newAppConfig.Integrations.Jira)
+		delJira, err := automdm.ValidateJiraIntegrations(ctx, storedJiraByProjectKey, newAppConfig.Integrations.Jira)
 		if err != nil {
-			if errors.As(err, &fleet.IntegrationTestError{}) {
-				return nil, ctxerr.Wrap(ctx, &fleet.BadRequestError{
+			if errors.As(err, &automdm.IntegrationTestError{}) {
+				return nil, ctxerr.Wrap(ctx, &automdm.BadRequestError{
 					Message: err.Error(),
 				})
 			}
-			return nil, ctxerr.Wrap(ctx, fleet.NewInvalidArgumentError("Jira integration", err.Error()))
+			return nil, ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("Jira integration", err.Error()))
 		}
 		appConfig.Integrations.Jira = newAppConfig.Integrations.Jira
 
-		delZendesk, err := fleet.ValidateZendeskIntegrations(ctx, storedZendeskByGroupID, newAppConfig.Integrations.Zendesk)
+		delZendesk, err := automdm.ValidateZendeskIntegrations(ctx, storedZendeskByGroupID, newAppConfig.Integrations.Zendesk)
 		if err != nil {
-			if errors.As(err, &fleet.IntegrationTestError{}) {
-				return nil, ctxerr.Wrap(ctx, &fleet.BadRequestError{
+			if errors.As(err, &automdm.IntegrationTestError{}) {
+				return nil, ctxerr.Wrap(ctx, &automdm.BadRequestError{
 					Message: err.Error(),
 				})
 			}
-			return nil, ctxerr.Wrap(ctx, fleet.NewInvalidArgumentError("Zendesk integration", err.Error()))
+			return nil, ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("Zendesk integration", err.Error()))
 		}
 		appConfig.Integrations.Zendesk = newAppConfig.Integrations.Zendesk
 
 		// if any integration was deleted, remove it from any team that uses it
 		if len(delJira)+len(delZendesk) > 0 {
-			if err := svc.ds.DeleteIntegrationsFromTeams(ctx, fleet.Integrations{Jira: delJira, Zendesk: delZendesk}); err != nil {
+			if err := svc.ds.DeleteIntegrationsFromTeams(ctx, automdm.Integrations{Jira: delJira, Zendesk: delZendesk}); err != nil {
 				return nil, ctxerr.Wrap(ctx, err, "delete integrations from teams")
 			}
 		}
@@ -1348,27 +1348,27 @@ func (svc *Service) ModifyAppConfig(ctx context.Context, p []byte, applyOpts fle
 	gitopsModeEnabled, gitopsRepoURL := appConfig.GitOpsConfig.GitopsModeEnabled, appConfig.GitOpsConfig.RepositoryURL
 	if gitopsModeEnabled {
 		if !lic.IsPremium() {
-			return nil, fleet.NewInvalidArgumentError("UI GitOpsMode: ", ErrMissingLicense.Error())
+			return nil, automdm.NewInvalidArgumentError("UI GitOpsMode: ", ErrMissingLicense.Error())
 		}
 		if gitopsRepoURL == "" {
-			return nil, fleet.NewInvalidArgumentError("UI GitOps Mode: ", "Repository URL is required when GitOps mode is enabled")
+			return nil, automdm.NewInvalidArgumentError("UI GitOps Mode: ", "Repository URL is required when GitOps mode is enabled")
 		}
 		parsedURL, err := url.Parse(gitopsRepoURL)
 		if err != nil {
-			return nil, fleet.NewInvalidArgumentError("UI Gitops Mode: ", "Repository URL is invalid")
+			return nil, automdm.NewInvalidArgumentError("UI Gitops Mode: ", "Repository URL is invalid")
 		}
 		if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
-			return nil, fleet.NewInvalidArgumentError("UI Gitops Mode: ", "Git repository URL must include protocol (e.g. https://)")
+			return nil, automdm.NewInvalidArgumentError("UI Gitops Mode: ", "Git repository URL must include protocol (e.g. https://)")
 		}
 	}
 
 	if oldAppConfig.GitOpsConfig.GitopsModeEnabled != appConfig.GitOpsConfig.GitopsModeEnabled {
 		// generate the activity
-		var act fleet.ActivityDetails
+		var act automdm.ActivityDetails
 		if gitopsModeEnabled {
-			act = fleet.ActivityTypeEnabledGitOpsMode{}
+			act = automdm.ActivityTypeEnabledGitOpsMode{}
 		} else {
-			act = fleet.ActivityTypeDisabledGitOpsMode{}
+			act = automdm.ActivityTypeDisabledGitOpsMode{}
 		}
 		if err := svc.NewActivity(ctx, authz.UserFromContext(ctx), act); err != nil {
 			return nil, ctxerr.Wrapf(ctx, err, "create activity %s", act.ActivityName())
@@ -1377,10 +1377,10 @@ func (svc *Service) ModifyAppConfig(ctx context.Context, p []byte, applyOpts fle
 	}
 
 	if !lic.IsPremium() {
-		// reset fleet desktop settings to empty values for downgraded licenses
-		appConfig.FleetDesktop.TransparencyURL = ""
-		appConfig.FleetDesktop.AlternativeBrowserHost = ""
-		appConfig.FleetDesktop.SSOEnabled = false
+		// reset automdm desktop settings to empty values for downgraded licenses
+		appConfig.AutoMDMDesktop.TransparencyURL = ""
+		appConfig.AutoMDMDesktop.AlternativeBrowserHost = ""
+		appConfig.AutoMDMDesktop.SSOEnabled = false
 		// Clear a premium-only host name template so a value set while premium isn't
 		// retained (and enforced by the cron, which gates on MDM.EnabledAndConfigured
 		// rather than the license) on Free. Only touch it when non-empty so a no-op
@@ -1429,12 +1429,12 @@ func (svc *Service) ModifyAppConfig(ctx context.Context, p []byte, applyOpts fle
 	gcaErr := svc.finishGoogleConditionalAccessPlan(ctx, gcaPlan)
 
 	if aapChanged {
-		if err := svc.NewActivity(ctx, authz.UserFromContext(ctx), fleet.ActivityTypeEditedAccountProvisioning{}); err != nil {
-			return nil, ctxerr.Wrapf(ctx, err, "create activity %s", fleet.ActivityTypeEditedAccountProvisioning{}.ActivityName())
+		if err := svc.NewActivity(ctx, authz.UserFromContext(ctx), automdm.ActivityTypeEditedAccountProvisioning{}); err != nil {
+			return nil, ctxerr.Wrapf(ctx, err, "create activity %s", automdm.ActivityTypeEditedAccountProvisioning{}.ActivityName())
 		}
 	}
 
-	if err := svc.newFleetDesktopSSOActivity(ctx, oldAppConfig.FleetDesktop, appConfig.FleetDesktop); err != nil {
+	if err := svc.newAutoMDMDesktopSSOActivity(ctx, oldAppConfig.AutoMDMDesktop, appConfig.AutoMDMDesktop); err != nil {
 		return nil, err
 	}
 
@@ -1443,10 +1443,10 @@ func (svc *Service) ModifyAppConfig(ctx context.Context, p []byte, applyOpts fle
 	// audit signal by emitting a deleted_org_logo activity per mode that
 	// actually had a blob removed.
 	if svc.orgLogoStore != nil {
-		for _, m := range []fleet.OrgLogoMode{fleet.OrgLogoModeLight, fleet.OrgLogoModeDark} {
+		for _, m := range []automdm.OrgLogoMode{automdm.OrgLogoModeLight, automdm.OrgLogoModeDark} {
 			oldURL := getOrgLogoURL(&oldAppConfig.OrgInfo, m)
 			newURL := getOrgLogoURL(&appConfig.OrgInfo, m)
-			if !fleet.IsFleetHostedLogoURL(oldURL) || fleet.IsFleetHostedLogoURL(newURL) {
+			if !automdm.IsAutoMDMHostedLogoURL(oldURL) || automdm.IsAutoMDMHostedLogoURL(newURL) {
 				continue
 			}
 			if err := svc.orgLogoStore.Delete(ctx, m); err != nil {
@@ -1454,7 +1454,7 @@ func (svc *Service) ModifyAppConfig(ctx context.Context, p []byte, applyOpts fle
 					"mode", string(m), "err", err.Error())
 				continue
 			}
-			if err := svc.NewActivity(ctx, authz.UserFromContext(ctx), fleet.ActivityTypeDeletedOrgLogo{
+			if err := svc.NewActivity(ctx, authz.UserFromContext(ctx), automdm.ActivityTypeDeletedOrgLogo{
 				Mode: string(m),
 			}); err != nil {
 				svc.logger.WarnContext(ctx, "failed to create deleted_org_logo activity for auto-cleanup",
@@ -1478,11 +1478,11 @@ func (svc *Service) ModifyAppConfig(ctx context.Context, p []byte, applyOpts fle
 		if c.oldEnabled == c.newEnabled {
 			continue
 		}
-		var act fleet.ActivityDetails
+		var act automdm.ActivityDetails
 		if c.newEnabled {
-			act = fleet.ActivityTypeEnabledGitOpsException{Exception: c.name}
+			act = automdm.ActivityTypeEnabledGitOpsException{Exception: c.name}
 		} else {
-			act = fleet.ActivityTypeDisabledGitOpsException{Exception: c.name}
+			act = automdm.ActivityTypeDisabledGitOpsException{Exception: c.name}
 		}
 		if err := svc.NewActivity(ctx, authz.UserFromContext(ctx), act); err != nil {
 			return nil, ctxerr.Wrapf(ctx, err, "create activity %s", act.ActivityName())
@@ -1493,7 +1493,7 @@ func (svc *Service) ModifyAppConfig(ctx context.Context, p []byte, applyOpts fle
 	// whose value flipped. SaveAppConfig (above) commits first; the worker
 	// that picks up scrub jobs will see the new config and the collection
 	// cron will already have stopped writing the disabled scope.
-	if err := fleet.OnHistoricalDataChanged(
+	if err := automdm.OnHistoricalDataChanged(
 		ctx,
 		svc,
 		svc.ds,
@@ -1511,13 +1511,13 @@ func (svc *Service) ModifyAppConfig(ctx context.Context, p []byte, applyOpts fle
 	// that repeats an ID does not produce duplicate activities.
 	addedEntraTenantIDs, removedEntraTenantIDs := diffStringSlices(oldAppConfig.MDM.WindowsEntraTenantIDs.Value, appConfig.MDM.WindowsEntraTenantIDs.Value)
 	for _, tenantID := range addedEntraTenantIDs {
-		act := fleet.ActivityTypeAddedMicrosoftEntraTenant{TenantID: tenantID}
+		act := automdm.ActivityTypeAddedMicrosoftEntraTenant{TenantID: tenantID}
 		if err := svc.NewActivity(ctx, authz.UserFromContext(ctx), act); err != nil {
 			return nil, ctxerr.Wrap(ctx, err, "create activity for added Microsoft Entra tenant")
 		}
 	}
 	for _, tenantID := range removedEntraTenantIDs {
-		act := fleet.ActivityTypeDeletedMicrosoftEntraTenant{TenantID: tenantID}
+		act := automdm.ActivityTypeDeletedMicrosoftEntraTenant{TenantID: tenantID}
 		if err := svc.NewActivity(ctx, authz.UserFromContext(ctx), act); err != nil {
 			return nil, ctxerr.Wrap(ctx, err, "create activity for deleted Microsoft Entra tenant")
 		}
@@ -1533,38 +1533,38 @@ func (svc *Service) ModifyAppConfig(ctx context.Context, p []byte, applyOpts fle
 
 	addedEntraClientIDs, removedEntraClientIDs := diffStringSlices(oldAppConfig.MDM.WindowsEntraClientIDs.Value, appConfig.MDM.WindowsEntraClientIDs.Value)
 	for _, clientID := range addedEntraClientIDs {
-		act := fleet.ActivityTypeAddedMicrosoftEntraClientID{ClientID: clientID}
+		act := automdm.ActivityTypeAddedMicrosoftEntraClientID{ClientID: clientID}
 		if err := svc.NewActivity(ctx, authz.UserFromContext(ctx), act); err != nil {
 			return nil, ctxerr.Wrap(ctx, err, "create activity for added Microsoft Entra client ID")
 		}
 	}
 	for _, clientID := range removedEntraClientIDs {
-		act := fleet.ActivityTypeDeletedMicrosoftEntraClientID{ClientID: clientID}
+		act := automdm.ActivityTypeDeletedMicrosoftEntraClientID{ClientID: clientID}
 		if err := svc.NewActivity(ctx, authz.UserFromContext(ctx), act); err != nil {
 			return nil, ctxerr.Wrap(ctx, err, "create activity for deleted Microsoft Entra client ID")
 		}
 	}
 
-	// Persist the Windows enrollment default fleet to its config row and log the change.
+	// Persist the Windows enrollment default team to its config row and log the change.
 	if windowsEnrollmentDefined {
-		oldWindowsEnrollmentTeamID, _, err := svc.ds.GetWindowsEnrollmentDefaultFleet(ctx)
+		oldWindowsEnrollmentTeamID, _, err := svc.ds.GetWindowsEnrollmentDefaultTeam(ctx)
 		if err != nil {
-			return nil, ctxerr.Wrap(ctx, err, "get current windows enrollment default fleet")
+			return nil, ctxerr.Wrap(ctx, err, "get current windows enrollment default team")
 		}
 		if !ptr.Equal(oldWindowsEnrollmentTeamID, windowsEnrollmentTeamID) {
-			if err := svc.ds.SetWindowsEnrollmentDefaultFleet(ctx, windowsEnrollmentTeamID); err != nil {
-				return nil, ctxerr.Wrap(ctx, err, "saving windows enrollment default fleet")
+			if err := svc.ds.SetWindowsEnrollmentDefaultTeam(ctx, windowsEnrollmentTeamID); err != nil {
+				return nil, ctxerr.Wrap(ctx, err, "saving windows enrollment default team")
 			}
-			var fleetName *string
+			var automdmName *string
 			if windowsEnrollmentTeamID != nil {
-				fleetName = &windowsEnrollmentFleetName
+				automdmName = &windowsEnrollmentTeamName
 			}
-			act := fleet.ActivityTypeEditedWindowsEnrollmentDefaultFleet{
-				FleetID:   windowsEnrollmentTeamID,
-				FleetName: fleetName,
+			act := automdm.ActivityTypeEditedWindowsEnrollmentDefaultTeam{
+				AutoMDMID:   windowsEnrollmentTeamID,
+				AutoMDMName: automdmName,
 			}
 			if err := svc.NewActivity(ctx, authz.UserFromContext(ctx), act); err != nil {
-				return nil, ctxerr.Wrap(ctx, err, "create activity for edited windows enrollment default fleet")
+				return nil, ctxerr.Wrap(ctx, err, "create activity for edited windows enrollment default team")
 			}
 		}
 	}
@@ -1573,18 +1573,18 @@ func (svc *Service) ModifyAppConfig(ctx context.Context, p []byte, applyOpts fle
 
 	switch {
 	case appConfig.WebhookSettings.ActivitiesWebhook.Enable && !oldAppConfig.WebhookSettings.ActivitiesWebhook.Enable:
-		act := fleet.ActivityTypeEnabledActivityAutomations{WebhookUrl: appConfig.WebhookSettings.ActivitiesWebhook.DestinationURL}
+		act := automdm.ActivityTypeEnabledActivityAutomations{WebhookUrl: appConfig.WebhookSettings.ActivitiesWebhook.DestinationURL}
 		if err := svc.NewActivity(ctx, authz.UserFromContext(ctx), act); err != nil {
 			return nil, ctxerr.Wrap(ctx, err, "create activity for enabled activity automations")
 		}
 	case !appConfig.WebhookSettings.ActivitiesWebhook.Enable && oldAppConfig.WebhookSettings.ActivitiesWebhook.Enable:
-		act := fleet.ActivityTypeDisabledActivityAutomations{}
+		act := automdm.ActivityTypeDisabledActivityAutomations{}
 		if err := svc.NewActivity(ctx, authz.UserFromContext(ctx), act); err != nil {
 			return nil, ctxerr.Wrap(ctx, err, "create activity for disabled activity automations")
 		}
 	case appConfig.WebhookSettings.ActivitiesWebhook.Enable &&
 		appConfig.WebhookSettings.ActivitiesWebhook.DestinationURL != oldAppConfig.WebhookSettings.ActivitiesWebhook.DestinationURL:
-		act := fleet.ActivityTypeEditedActivityAutomations{
+		act := automdm.ActivityTypeEditedActivityAutomations{
 			WebhookUrl: appConfig.WebhookSettings.ActivitiesWebhook.DestinationURL,
 		}
 		if err := svc.NewActivity(ctx, authz.UserFromContext(ctx), act); err != nil {
@@ -1627,13 +1627,13 @@ func (svc *Service) ModifyAppConfig(ctx context.Context, p []byte, applyOpts fle
 }
 
 // applyABMTokenAssignments persists the ABM token changes computed while validating an app config
-// change: default fleet assignments and the default token. It runs after SaveAppConfig has
+// change: default team assignments and the default token. It runs after SaveAppConfig has
 // committed, so returning an error here leaves the new configuration persisted.
 func (svc *Service) applyABMTokenAssignments(
 	ctx context.Context,
-	newAppConfig fleet.AppConfig,
-	appConfig *fleet.AppConfig,
-	abmAssignments []*fleet.ABMToken,
+	newAppConfig automdm.AppConfig,
+	appConfig *automdm.AppConfig,
+	abmAssignments []*automdm.ABMToken,
 	defaultABMTokenID *uint,
 ) error {
 	tokensInCfg := make(map[string]struct{})
@@ -1659,7 +1659,7 @@ func (svc *Service) applyABMTokenAssignments(
 			}
 		}
 		// An explicitly empty apple_business also clears the default, like it
-		// clears the default fleets above. A lone token is always the default,
+		// clears the default teams above. A lone token is always the default,
 		// so leave it alone then.
 		if len(toks) > 1 {
 			if err := svc.ds.ClearABMTokenDefault(ctx); err != nil {
@@ -1694,12 +1694,12 @@ func (svc *Service) applyABMTokenAssignments(
 	return nil
 }
 
-// Since Fleet 5 the config doesn't save the bootstrap package URL or the VPP token assignments, but
+// Since AutoMDM 5 the config doesn't save the bootstrap package URL or the VPP token assignments, but
 // requests still send them: GitOps sends the URL so settings that need a package are validated before
 // it uploads the package, and the VPP assignments are applied to the tokens. They're split out of p
-// because the strict decode into fleet.AppConfig rejects keys it doesn't have.
-func splitRequestOnlyConfigKeys(p []byte) (fleet.AppConfigRequestOnly, []byte, error) {
-	var requestOnly fleet.AppConfigRequestOnly
+// because the strict decode into automdm.AppConfig rejects keys it doesn't have.
+func splitRequestOnlyConfigKeys(p []byte) (automdm.AppConfigRequestOnly, []byte, error) {
+	var requestOnly automdm.AppConfigRequestOnly
 	if err := json.Unmarshal(p, &requestOnly); err != nil {
 		return requestOnly, nil, err
 	}
@@ -1710,14 +1710,14 @@ func splitRequestOnlyConfigKeys(p []byte) (fleet.AppConfigRequestOnly, []byte, e
 	return requestOnly, p, err
 }
 
-// applyVPPTokenAssignments persists the VPP token fleet assignments computed while validating an
+// applyVPPTokenAssignments persists the VPP token team assignments computed while validating an
 // app config change. Like applyABMTokenAssignments, it runs after SaveAppConfig has committed.
 func (svc *Service) applyVPPTokenAssignments(
 	ctx context.Context,
-	vpp []fleet.MDMAppleVolumePurchasingProgramInfo,
+	vpp []automdm.MDMAppleVolumePurchasingProgramInfo,
 	vppAssignments map[uint][]uint,
 ) error {
-	// 1. Reset teams for VPP tokens that exist in Fleet but aren't present in the config being passed
+	// 1. Reset teams for VPP tokens that exist in AutoMDM but aren't present in the config being passed
 	tokensInCfg := make(map[string]struct{})
 	for _, t := range vpp {
 		tokensInCfg[t.Location] = struct{}{}
@@ -1743,7 +1743,7 @@ func (svc *Service) applyVPPTokenAssignments(
 	return nil
 }
 
-func clearCertRenewals(ctx context.Context, svc *Service, oldAppConfig, appConfig *fleet.AppConfig) error {
+func clearCertRenewals(ctx context.Context, svc *Service, oldAppConfig, appConfig *automdm.AppConfig) error {
 	if oldAppConfig == nil || appConfig == nil {
 		return nil
 	}
@@ -1766,8 +1766,8 @@ func clearCertRenewals(ctx context.Context, svc *Service, oldAppConfig, appConfi
 // new configuration persisted.
 func (svc *Service) processSavedAppConfigChanges(
 	ctx context.Context,
-	oldAppConfig, appConfig *fleet.AppConfig,
-	lic *fleet.LicenseInfo,
+	oldAppConfig, appConfig *automdm.AppConfig,
+	lic *automdm.LicenseInfo,
 	oldAgentOptions, newAgentOptions string,
 	conditionalAccessNoTeamUpdated bool,
 ) error {
@@ -1776,7 +1776,7 @@ func (svc *Service) processSavedAppConfigChanges(
 		if err := svc.NewActivity(
 			ctx,
 			authz.UserFromContext(ctx),
-			fleet.ActivityTypeEditedAgentOptions{
+			automdm.ActivityTypeEditedAgentOptions{
 				Global: true,
 			},
 		); err != nil {
@@ -1788,21 +1788,21 @@ func (svc *Service) processSavedAppConfigChanges(
 	// Process OS updates config changes for Apple devices.
 	//
 	if err := svc.processAppleOSUpdateSettings(
-		ctx, lic, fleet.MacOS,
+		ctx, lic, automdm.MacOS,
 		oldAppConfig.MDM.MacOSUpdates,
 		appConfig.MDM.MacOSUpdates,
 	); err != nil {
 		return ctxerr.Wrap(ctx, err, "process macOS OS updates config change")
 	}
 	if err := svc.processAppleOSUpdateSettings(
-		ctx, lic, fleet.IOS,
+		ctx, lic, automdm.IOS,
 		oldAppConfig.MDM.IOSUpdates,
 		appConfig.MDM.IOSUpdates,
 	); err != nil {
 		return ctxerr.Wrap(ctx, err, "process iOS OS updates config change")
 	}
 	if err := svc.processAppleOSUpdateSettings(
-		ctx, lic, fleet.IPadOS,
+		ctx, lic, automdm.IPadOS,
 		oldAppConfig.MDM.IPadOSUpdates,
 		appConfig.MDM.IPadOSUpdates,
 	); err != nil {
@@ -1837,7 +1837,7 @@ func (svc *Service) processSavedAppConfigChanges(
 		if err := svc.NewActivity(
 			ctx,
 			authz.UserFromContext(ctx),
-			fleet.ActivityTypeEditedWindowsUpdates{
+			automdm.ActivityTypeEditedWindowsUpdates{
 				DeadlineDays:    deadline,
 				GracePeriodDays: grace,
 			},
@@ -1871,7 +1871,7 @@ func (svc *Service) processSavedAppConfigChanges(
 		if !pc.changed {
 			continue
 		}
-		if err := svc.NewActivity(ctx, authz.UserFromContext(ctx), fleet.ActivityTypeEditedDiskEncryptionSettings{
+		if err := svc.NewActivity(ctx, authz.UserFromContext(ctx), automdm.ActivityTypeEditedDiskEncryptionSettings{
 			Platform: pc.platform,
 		}); err != nil {
 			return ctxerr.Wrap(ctx, err, "create activity for app config disk encryption settings")
@@ -1893,11 +1893,11 @@ func (svc *Service) processSavedAppConfigChanges(
 	if appConfig.MDM.EnableRecoveryLockPassword.Valid &&
 		oldAppConfig.MDM.EnableRecoveryLockPassword.Value != appConfig.MDM.EnableRecoveryLockPassword.Value {
 		if oldAppConfig.MDM.EnabledAndConfigured {
-			var act fleet.ActivityDetails
+			var act automdm.ActivityDetails
 			if appConfig.MDM.EnableRecoveryLockPassword.Value {
-				act = fleet.ActivityTypeEnabledRecoveryLockPasswords{}
+				act = automdm.ActivityTypeEnabledRecoveryLockPasswords{}
 			} else {
-				act = fleet.ActivityTypeDisabledRecoveryLockPasswords{}
+				act = automdm.ActivityTypeDisabledRecoveryLockPasswords{}
 			}
 			if err := svc.NewActivity(ctx, authz.UserFromContext(ctx), act); err != nil {
 				return ctxerr.Wrap(ctx, err, "create activity for app config recovery lock password")
@@ -1907,11 +1907,11 @@ func (svc *Service) processSavedAppConfigChanges(
 
 	mdmEnableEndUserAuthChanged := oldAppConfig.MDM.MacOSSetup.EnableEndUserAuthentication != appConfig.MDM.MacOSSetup.EnableEndUserAuthentication
 	if mdmEnableEndUserAuthChanged {
-		var act fleet.ActivityDetails
+		var act automdm.ActivityDetails
 		if appConfig.MDM.MacOSSetup.EnableEndUserAuthentication {
-			act = fleet.ActivityTypeEnabledMacosSetupEndUserAuth{}
+			act = automdm.ActivityTypeEnabledMacosSetupEndUserAuth{}
 		} else {
-			act = fleet.ActivityTypeDisabledMacosSetupEndUserAuth{}
+			act = automdm.ActivityTypeDisabledMacosSetupEndUserAuth{}
 		}
 		if err := svc.NewActivity(ctx, authz.UserFromContext(ctx), act); err != nil {
 			return ctxerr.Wrap(ctx, err, "create activity for macos enable end user auth change")
@@ -1919,11 +1919,11 @@ func (svc *Service) processSavedAppConfigChanges(
 	}
 
 	if oldAppConfig.MDM.MacOSSetup.EnableManagedLocalAccount.Value != appConfig.MDM.MacOSSetup.EnableManagedLocalAccount.Value {
-		var act fleet.ActivityDetails
+		var act automdm.ActivityDetails
 		if appConfig.MDM.MacOSSetup.EnableManagedLocalAccount.Value {
-			act = fleet.ActivityTypeEnabledManagedLocalAccount{Platform: "darwin"}
+			act = automdm.ActivityTypeEnabledManagedLocalAccount{Platform: "darwin"}
 		} else {
-			act = fleet.ActivityTypeDisabledManagedLocalAccount{Platform: "darwin"}
+			act = automdm.ActivityTypeDisabledManagedLocalAccount{Platform: "darwin"}
 		}
 		if err := svc.NewActivity(ctx, authz.UserFromContext(ctx), act); err != nil {
 			return ctxerr.Wrap(ctx, err, "create activity for macos enable managed local account change")
@@ -1931,11 +1931,11 @@ func (svc *Service) processSavedAppConfigChanges(
 	}
 
 	if oldAppConfig.MDM.MacOSSetup.EnableManagedLocalAccountWindows.Value != appConfig.MDM.MacOSSetup.EnableManagedLocalAccountWindows.Value {
-		var act fleet.ActivityDetails
+		var act automdm.ActivityDetails
 		if appConfig.MDM.MacOSSetup.EnableManagedLocalAccountWindows.Value {
-			act = fleet.ActivityTypeEnabledManagedLocalAccount{Platform: "windows"}
+			act = automdm.ActivityTypeEnabledManagedLocalAccount{Platform: "windows"}
 		} else {
-			act = fleet.ActivityTypeDisabledManagedLocalAccount{Platform: "windows"}
+			act = automdm.ActivityTypeDisabledManagedLocalAccount{Platform: "windows"}
 		}
 		if err := svc.NewActivity(ctx, authz.UserFromContext(ctx), act); err != nil {
 			return ctxerr.Wrap(ctx, err, "create activity for windows enable managed local account change")
@@ -1950,19 +1950,19 @@ func (svc *Service) processSavedAppConfigChanges(
 	if appleMDMUrlChanged && appConfig.MDM.AppleServerURL != "" {
 		parsedURL, err := url.Parse(appConfig.MDM.AppleServerURL)
 		if err != nil {
-			return fleet.NewInvalidArgumentError("mdmAppleServerURL", "must be a valid URL")
+			return automdm.NewInvalidArgumentError("mdmAppleServerURL", "must be a valid URL")
 		}
 		scheme := strings.ToLower(parsedURL.Scheme)
 		if scheme == "" {
-			return fleet.NewInvalidArgumentError("mdmAppleServerURL", "must include a URL scheme (e.g. https://)")
+			return automdm.NewInvalidArgumentError("mdmAppleServerURL", "must include a URL scheme (e.g. https://)")
 		}
 
 		if scheme != "http" && scheme != "https" {
-			return fleet.NewInvalidArgumentError("mdmAppleServerURL", "URL scheme must be http or https")
+			return automdm.NewInvalidArgumentError("mdmAppleServerURL", "URL scheme must be http or https")
 		}
 
 		if parsedURL.Hostname() == "" {
-			return fleet.NewInvalidArgumentError("mdmAppleServerURL", "must include a host")
+			return automdm.NewInvalidArgumentError("mdmAppleServerURL", "must include a host")
 		}
 	}
 
@@ -1974,11 +1974,11 @@ func (svc *Service) processSavedAppConfigChanges(
 
 	// if Windows MDM was enabled or disabled, create the corresponding activity
 	if oldAppConfig.MDM.WindowsEnabledAndConfigured != appConfig.MDM.WindowsEnabledAndConfigured {
-		var act fleet.ActivityDetails
+		var act automdm.ActivityDetails
 		if appConfig.MDM.WindowsEnabledAndConfigured {
-			act = fleet.ActivityTypeEnabledWindowsMDM{}
+			act = automdm.ActivityTypeEnabledWindowsMDM{}
 		} else {
-			act = fleet.ActivityTypeDisabledWindowsMDM{}
+			act = automdm.ActivityTypeDisabledWindowsMDM{}
 
 			// Clean up all pending Windows MDM profile rows since hosts can no longer receive MDM commands.
 			if err := svc.ds.CleanupAllHostMDMProfilesForPlatform(ctx, "windows"); err != nil {
@@ -1991,11 +1991,11 @@ func (svc *Service) processSavedAppConfigChanges(
 	}
 
 	if appConfig.MDM.WindowsEnabledAndConfigured && oldAppConfig.MDM.WindowsMigrationEnabled != appConfig.MDM.WindowsMigrationEnabled {
-		var act fleet.ActivityDetails
+		var act automdm.ActivityDetails
 		if appConfig.MDM.WindowsMigrationEnabled {
-			act = fleet.ActivityTypeEnabledWindowsMDMMigration{}
+			act = automdm.ActivityTypeEnabledWindowsMDMMigration{}
 		} else {
-			act = fleet.ActivityTypeDisabledWindowsMDMMigration{}
+			act = automdm.ActivityTypeDisabledWindowsMDMMigration{}
 		}
 		if err := svc.NewActivity(ctx, authz.UserFromContext(ctx), act); err != nil {
 			return ctxerr.Wrapf(ctx, err, "create activity %s", act.ActivityName())
@@ -2008,7 +2008,7 @@ func (svc *Service) processSavedAppConfigChanges(
 			if err := svc.NewActivity(
 				ctx,
 				authz.UserFromContext(ctx),
-				fleet.ActivityTypeEnabledConditionalAccessAutomations{
+				automdm.ActivityTypeEnabledConditionalAccessAutomations{
 					TeamID:   nil,
 					TeamName: "",
 				},
@@ -2019,7 +2019,7 @@ func (svc *Service) processSavedAppConfigChanges(
 			if err := svc.NewActivity(
 				ctx,
 				authz.UserFromContext(ctx),
-				fleet.ActivityTypeDisabledConditionalAccessAutomations{
+				automdm.ActivityTypeDisabledConditionalAccessAutomations{
 					TeamID:   nil,
 					TeamName: "",
 				},
@@ -2052,7 +2052,7 @@ func (svc *Service) processSavedAppConfigChanges(
 		if err := svc.NewActivity(
 			ctx,
 			authz.UserFromContext(ctx),
-			fleet.ActivityTypeAddedConditionalAccessOkta{},
+			automdm.ActivityTypeAddedConditionalAccessOkta{},
 		); err != nil {
 			return ctxerr.Wrap(ctx, err, "create activity for adding/editing Okta conditional access")
 		}
@@ -2061,7 +2061,7 @@ func (svc *Service) processSavedAppConfigChanges(
 		if err := svc.NewActivity(
 			ctx,
 			authz.UserFromContext(ctx),
-			fleet.ActivityTypeDeletedConditionalAccessOkta{},
+			automdm.ActivityTypeDeletedConditionalAccessOkta{},
 		); err != nil {
 			return ctxerr.Wrap(ctx, err, "create activity for deleting Okta conditional access")
 		}
@@ -2075,7 +2075,7 @@ func (svc *Service) processSavedAppConfigChanges(
 		if err := svc.NewActivity(
 			ctx,
 			authz.UserFromContext(ctx),
-			fleet.ActivityTypeUpdateConditionalAccessBypass{
+			automdm.ActivityTypeUpdateConditionalAccessBypass{
 				BypassDisabled: appConfig.ConditionalAccess.BypassDisabled.Value,
 			},
 		); err != nil {
@@ -2084,11 +2084,11 @@ func (svc *Service) processSavedAppConfigChanges(
 	}
 
 	if oldAppConfig.MDM.OnlyAllowAppleBusinessEnrollment != appConfig.MDM.OnlyAllowAppleBusinessEnrollment {
-		var act fleet.ActivityDetails
+		var act automdm.ActivityDetails
 		if appConfig.MDM.OnlyAllowAppleBusinessEnrollment {
-			act = fleet.ActivityTypeEnabledAppleBusinessOnlyEnrollment{}
+			act = automdm.ActivityTypeEnabledAppleBusinessOnlyEnrollment{}
 		} else {
-			act = fleet.ActivityTypeDisabledAppleBusinessOnlyEnrollment{}
+			act = automdm.ActivityTypeDisabledAppleBusinessOnlyEnrollment{}
 		}
 		if err := svc.NewActivity(ctx, authz.UserFromContext(ctx), act); err != nil {
 			return ctxerr.Wrap(ctx, err, fmt.Sprintf("create activity %s", act.ActivityName()))
@@ -2098,37 +2098,37 @@ func (svc *Service) processSavedAppConfigChanges(
 	return nil
 }
 
-// validateFleetDesktopSSOIdP enforces that fleet_desktop.sso_enabled has an IdP
+// validateAutoMDMDesktopSSOIdP enforces that automdm_desktop.sso_enabled has an IdP
 // to authenticate against, in both directions: enabling it without one, and
 // clearing one while it is on. Without the second direction the gate would
 // demand SSO against a nonexistent IdP, locking end users out of the device
 // page. Only enforced on premium, where the setting has any effect.
-func validateFleetDesktopSSOIdP(
-	oldFleetDesktop, fleetDesktop fleet.FleetDesktopSettings,
-	endUserAuth fleet.MDMEndUserAuthentication,
-	lic *fleet.LicenseInfo,
-) *fleet.InvalidArgumentError {
-	if !lic.IsPremium() || !fleetDesktop.SSOEnabled || !endUserAuth.IsEmpty() {
+func validateAutoMDMDesktopSSOIdP(
+	oldAutoMDMDesktop, automdmDesktop automdm.AutoMDMDesktopSettings,
+	endUserAuth automdm.MDMEndUserAuthentication,
+	lic *automdm.LicenseInfo,
+) *automdm.InvalidArgumentError {
+	if !lic.IsPremium() || !automdmDesktop.SSOEnabled || !endUserAuth.IsEmpty() {
 		return nil
 	}
-	if oldFleetDesktop.SSOEnabled {
-		return fleet.NewInvalidArgumentError("mdm.end_user_authentication",
-			"Single sign-on for Fleet Desktop is enabled. Please disable it and try again.")
+	if oldAutoMDMDesktop.SSOEnabled {
+		return automdm.NewInvalidArgumentError("mdm.end_user_authentication",
+			"Single sign-on for AutoMDM Desktop is enabled. Please disable it and try again.")
 	}
-	return fleet.NewInvalidArgumentError("fleet_desktop.sso_enabled",
-		"Couldn't enable single sign-on for Fleet Desktop because no IdP is configured. Please configure it and try again.")
+	return automdm.NewInvalidArgumentError("automdm_desktop.sso_enabled",
+		"Couldn't enable single sign-on for AutoMDM Desktop because no IdP is configured. Please configure it and try again.")
 }
 
-// newFleetDesktopSSOActivity records a fleet_desktop.sso_enabled toggle, and
+// newAutoMDMDesktopSSOActivity records an automdm_desktop.sso_enabled toggle, and
 // nothing when the value is re-asserted unchanged.
-func (svc *Service) newFleetDesktopSSOActivity(ctx context.Context, oldFleetDesktop, fleetDesktop fleet.FleetDesktopSettings) error {
-	if oldFleetDesktop.SSOEnabled == fleetDesktop.SSOEnabled {
+func (svc *Service) newAutoMDMDesktopSSOActivity(ctx context.Context, oldAutoMDMDesktop, automdmDesktop automdm.AutoMDMDesktopSettings) error {
+	if oldAutoMDMDesktop.SSOEnabled == automdmDesktop.SSOEnabled {
 		return nil
 	}
 
-	var act fleet.ActivityDetails = fleet.ActivityTypeDisabledSSOFleetDesktop{}
-	if fleetDesktop.SSOEnabled {
-		act = fleet.ActivityTypeEnabledSSOFleetDesktop{}
+	var act automdm.ActivityDetails = automdm.ActivityTypeDisabledSSOAutoMDMDesktop{}
+	if automdmDesktop.SSOEnabled {
+		act = automdm.ActivityTypeEnabledSSOAutoMDMDesktop{}
 	}
 	if err := svc.NewActivity(ctx, authz.UserFromContext(ctx), act); err != nil {
 		return ctxerr.Wrapf(ctx, err, "create activity %s", act.ActivityName())
@@ -2137,14 +2137,14 @@ func (svc *Service) newFleetDesktopSSOActivity(ctx context.Context, oldFleetDesk
 }
 
 // A request that leaves out the SMTP password keeps the stored one. If the same
-// request also changes where Fleet authenticates, the stored password would be
+// request also changes where AutoMDM authenticates, the stored password would be
 // sent to a destination picked by someone who doesn't know it.
-func validateSMTPPasswordForNewDestination(incoming *fleet.SMTPSettings, old fleet.SMTPSettings, merged *fleet.SMTPSettings, invalid *fleet.InvalidArgumentError) {
+func validateSMTPPasswordForNewDestination(incoming *automdm.SMTPSettings, old automdm.SMTPSettings, merged *automdm.SMTPSettings, invalid *automdm.InvalidArgumentError) {
 	if incoming == nil || merged == nil || incoming.SMTPPassword != "" {
 		return
 	}
 	passwordKept := old.SMTPPassword != "" && merged.SMTPPassword == old.SMTPPassword
-	if !passwordKept || merged.SMTPAuthenticationType != fleet.AuthTypeNameUserNamePassword {
+	if !passwordKept || merged.SMTPAuthenticationType != automdm.AuthTypeNameUserNamePassword {
 		return
 	}
 	if merged.SMTPServer != old.SMTPServer || merged.SMTPPort != old.SMTPPort ||
@@ -2156,7 +2156,7 @@ func validateSMTPPasswordForNewDestination(incoming *fleet.SMTPSettings, old fle
 // validateCertificateRequestIdentityControlsLicense premium-gates the request_certificate IdP
 // allowlists, consistently with the endpoint itself. Disabling the host binding is a relaxation,
 // not a licensed feature, so it is not gated.
-func validateCertificateRequestIdentityControlsLicense(intgs fleet.Integrations, lic *fleet.LicenseInfo, invalid *fleet.InvalidArgumentError) {
+func validateCertificateRequestIdentityControlsLicense(intgs automdm.Integrations, lic *automdm.LicenseInfo, invalid *automdm.InvalidArgumentError) {
 	if lic.IsPremium() {
 		return
 	}
@@ -2168,47 +2168,47 @@ func validateCertificateRequestIdentityControlsLicense(intgs fleet.Integrations,
 	}
 }
 
-func validateFleetDesktopSettings(newAppConfig fleet.AppConfig, lic *fleet.LicenseInfo) *fleet.InvalidArgumentError {
-	// default transparency URL is https://fleetdm.com/transparency so you are allowed to apply as long as it's not changing
-	transparencyURLModified := newAppConfig.FleetDesktop.TransparencyURL != "" && newAppConfig.FleetDesktop.TransparencyURL != fleet.DefaultTransparencyURL
-	alternativeBrowserHostModified := newAppConfig.FleetDesktop.AlternativeBrowserHost != ""
-	ssoEnabledModified := newAppConfig.FleetDesktop.SSOEnabled
+func validateAutoMDMDesktopSettings(newAppConfig automdm.AppConfig, lic *automdm.LicenseInfo) *automdm.InvalidArgumentError {
+	// default transparency URL is https://automdm.com/transparency so you are allowed to apply as long as it's not changing
+	transparencyURLModified := newAppConfig.AutoMDMDesktop.TransparencyURL != "" && newAppConfig.AutoMDMDesktop.TransparencyURL != automdm.DefaultTransparencyURL
+	alternativeBrowserHostModified := newAppConfig.AutoMDMDesktop.AlternativeBrowserHost != ""
+	ssoEnabledModified := newAppConfig.AutoMDMDesktop.SSOEnabled
 
-	fleetDesktopSettingsInvalidErr := &fleet.InvalidArgumentError{}
+	automdmDesktopSettingsInvalidErr := &automdm.InvalidArgumentError{}
 	if !lic.IsPremium() {
 		if transparencyURLModified {
-			fleetDesktopSettingsInvalidErr.Append("transparency_url", ErrMissingLicense.Error())
+			automdmDesktopSettingsInvalidErr.Append("transparency_url", ErrMissingLicense.Error())
 		}
 		if alternativeBrowserHostModified {
-			fleetDesktopSettingsInvalidErr.Append("alternative_browser_host", ErrMissingLicense.Error())
+			automdmDesktopSettingsInvalidErr.Append("alternative_browser_host", ErrMissingLicense.Error())
 		}
 		if ssoEnabledModified {
-			fleetDesktopSettingsInvalidErr.Append("sso_enabled", ErrMissingLicense.Error())
+			automdmDesktopSettingsInvalidErr.Append("sso_enabled", ErrMissingLicense.Error())
 		}
 		// No point in performing further validations if the license is not premium
-		return fleetDesktopSettingsInvalidErr
+		return automdmDesktopSettingsInvalidErr
 	}
 
 	if transparencyURLModified {
-		if _, err := url.Parse(newAppConfig.FleetDesktop.TransparencyURL); err != nil {
-			fleetDesktopSettingsInvalidErr.Append("transparency_url", err.Error())
+		if _, err := url.Parse(newAppConfig.AutoMDMDesktop.TransparencyURL); err != nil {
+			automdmDesktopSettingsInvalidErr.Append("transparency_url", err.Error())
 		}
 	}
 	if alternativeBrowserHostModified {
-		if !validateAddress(newAppConfig.FleetDesktop.AlternativeBrowserHost) {
-			fleetDesktopSettingsInvalidErr.Append("alternative_browser_host", "must be a valid hostname or IP address")
+		if !validateAddress(newAppConfig.AutoMDMDesktop.AlternativeBrowserHost) {
+			automdmDesktopSettingsInvalidErr.Append("alternative_browser_host", "must be a valid hostname or IP address")
 		}
 	}
-	return fleetDesktopSettingsInvalidErr
+	return automdmDesktopSettingsInvalidErr
 }
 
 // processAppleOSUpdateSettings updates the OS updates configuration if the minimum version+deadline are updated.
 func (svc *Service) processAppleOSUpdateSettings(
 	ctx context.Context,
-	lic *fleet.LicenseInfo,
-	appleDevice fleet.AppleDevice,
-	oldOSUpdateSettings fleet.AppleOSUpdateSettings,
-	newOSUpdateSettings fleet.AppleOSUpdateSettings,
+	lic *automdm.LicenseInfo,
+	appleDevice automdm.AppleDevice,
+	oldOSUpdateSettings automdm.AppleOSUpdateSettings,
+	newOSUpdateSettings automdm.AppleOSUpdateSettings,
 ) error {
 	if oldOSUpdateSettings.MinimumVersion.Value != newOSUpdateSettings.MinimumVersion.Value ||
 		oldOSUpdateSettings.Deadline.Value != newOSUpdateSettings.Deadline.Value ||
@@ -2221,20 +2221,20 @@ func (svc *Service) processAppleOSUpdateSettings(
 			}
 		}
 
-		var activity fleet.ActivityDetails
+		var activity automdm.ActivityDetails
 		switch appleDevice {
-		case fleet.MacOS:
-			activity = fleet.ActivityTypeEditedMacOSMinVersion{
+		case automdm.MacOS:
+			activity = automdm.ActivityTypeEditedMacOSMinVersion{
 				MinimumVersion: newOSUpdateSettings.MinimumVersion.Value,
 				Deadline:       newOSUpdateSettings.Deadline.Value,
 			}
-		case fleet.IOS:
-			activity = fleet.ActivityTypeEditedIOSMinVersion{
+		case automdm.IOS:
+			activity = automdm.ActivityTypeEditedIOSMinVersion{
 				MinimumVersion: newOSUpdateSettings.MinimumVersion.Value,
 				Deadline:       newOSUpdateSettings.Deadline.Value,
 			}
-		case fleet.IPadOS:
-			activity = fleet.ActivityTypeEditedIPadOSMinVersion{
+		case automdm.IPadOS:
+			activity = automdm.ActivityTypeEditedIPadOSMinVersion{
 				MinimumVersion: newOSUpdateSettings.MinimumVersion.Value,
 				Deadline:       newOSUpdateSettings.Deadline.Value,
 			}
@@ -2244,11 +2244,11 @@ func (svc *Service) processAppleOSUpdateSettings(
 		}
 	}
 
-	if oldOSUpdateSettings.UpdateNewHosts.Value != newOSUpdateSettings.UpdateNewHosts.Value && appleDevice == fleet.MacOS {
-		var activity fleet.ActivityDetails
-		activity = fleet.ActivityTypeEnabledMacosUpdateNewHosts{}
+	if oldOSUpdateSettings.UpdateNewHosts.Value != newOSUpdateSettings.UpdateNewHosts.Value && appleDevice == automdm.MacOS {
+		var activity automdm.ActivityDetails
+		activity = automdm.ActivityTypeEnabledMacosUpdateNewHosts{}
 		if !newOSUpdateSettings.UpdateNewHosts.Value {
-			activity = fleet.ActivityTypeDisabledMacosUpdateNewHosts{}
+			activity = automdm.ActivityTypeDisabledMacosUpdateNewHosts{}
 		}
 		if err := svc.NewActivity(ctx, authz.UserFromContext(ctx), activity); err != nil {
 			return ctxerr.Wrap(ctx, err, "create activity for app config apple min version modification")
@@ -2260,12 +2260,12 @@ func (svc *Service) processAppleOSUpdateSettings(
 func (svc *Service) HasCustomSetupAssistantConfigurationWebURL(ctx context.Context, teamID *uint) (bool, error) {
 	az, ok := authz_ctx.FromContext(ctx)
 	if !ok || !az.Checked() {
-		return false, fleet.NewAuthRequiredError("method requires previous authorization")
+		return false, automdm.NewAuthRequiredError("method requires previous authorization")
 	}
 
 	asst, err := svc.ds.GetMDMAppleSetupAssistant(ctx, teamID)
 	if err != nil {
-		if fleet.IsNotFound(err) {
+		if automdm.IsNotFound(err) {
 			return false, nil
 		}
 		return false, err
@@ -2283,17 +2283,17 @@ func (svc *Service) HasCustomSetupAssistantConfigurationWebURL(ctx context.Conte
 // googleWorkspaceActivity returns the activity to record when the Google
 // Workspace IdP integration is added, edited, or removed, or nil when it is
 // unchanged. Only the (non-secret) domain is compared/recorded.
-func googleWorkspaceActivity(old, current []*fleet.GoogleWorkspaceIntegration) fleet.ActivityDetails {
+func googleWorkspaceActivity(old, current []*automdm.GoogleWorkspaceIntegration) automdm.ActivityDetails {
 	oldConfigured := len(old) > 0
 	newConfigured := len(current) > 0
 	switch {
 	case !oldConfigured && newConfigured:
-		return fleet.ActivityTypeAddedGoogleWorkspaceIntegration{Domain: current[0].Domain}
+		return automdm.ActivityTypeAddedGoogleWorkspaceIntegration{Domain: current[0].Domain}
 	case oldConfigured && !newConfigured:
-		return fleet.ActivityTypeDeletedGoogleWorkspaceIntegration{Domain: old[0].Domain}
+		return automdm.ActivityTypeDeletedGoogleWorkspaceIntegration{Domain: old[0].Domain}
 	case oldConfigured && newConfigured:
 		if old[0].Domain != current[0].Domain || old[0].ImpersonatedUserEmail != current[0].ImpersonatedUserEmail {
-			return fleet.ActivityTypeEditedGoogleWorkspaceIntegration{Domain: current[0].Domain}
+			return automdm.ActivityTypeEditedGoogleWorkspaceIntegration{Domain: current[0].Domain}
 		}
 	}
 	return nil
@@ -2343,7 +2343,7 @@ func diffStringSlices(old, current []string) (added, removed []string) {
 // payload on its own, so its Set flags say what the caller actually sent. A
 // value the caller supplied is left alone, so a genuine mismatch still fails
 // validation with the error that explains it.
-func clearStaleAppleOSUpdateDeadline(merged *fleet.AppleOSUpdateSettings, incoming fleet.AppleOSUpdateSettings) {
+func clearStaleAppleOSUpdateDeadline(merged *automdm.AppleOSUpdateSettings, incoming automdm.AppleOSUpdateSettings) {
 	if merged.EnforcesLatestVersion() {
 		if !incoming.Deadline.Set {
 			// SetString("") rather than the zero value so this still marshals as
@@ -2360,11 +2360,11 @@ func clearStaleAppleOSUpdateDeadline(merged *fleet.AppleOSUpdateSettings, incomi
 
 func (svc *Service) validateMDM(
 	ctx context.Context,
-	lic *fleet.LicenseInfo,
-	oldMdm *fleet.MDM,
-	mdm *fleet.MDM,
+	lic *automdm.LicenseInfo,
+	oldMdm *automdm.MDM,
+	mdm *automdm.MDM,
 	bootstrapPackage optjson.String,
-	invalid *fleet.InvalidArgumentError,
+	invalid *automdm.InvalidArgumentError,
 	overwrite bool,
 ) error {
 	if !lic.IsPremium() {
@@ -2429,12 +2429,12 @@ func (svc *Service) validateMDM(
 	if mdm.HostNameTemplate.Value != "" && oldMdm.HostNameTemplate.Value != mdm.HostNameTemplate.Value {
 		if !lic.IsPremium() {
 			invalid.Append("mdm.name_template", ErrMissingLicense.Error())
-		} else if validated, err := fleet.ValidateHostNameTemplateWithSecrets(ctx, svc.ds, mdm.HostNameTemplate.Value,
+		} else if validated, err := automdm.ValidateHostNameTemplateWithSecrets(ctx, svc.ds, mdm.HostNameTemplate.Value,
 			svc.authz.CanWriteSecretVariables(ctx)); err != nil {
 			// A validation or missing-secret error is invalid user input (422); any
 			// other error (e.g. a datastore failure while checking secrets) must
 			// propagate as a server error rather than be misreported as invalid input.
-			var argErr *fleet.InvalidArgumentError
+			var argErr *automdm.InvalidArgumentError
 			if !errors.As(err, &argErr) {
 				return ctxerr.Wrap(ctx, err, "validating host name template")
 			}
@@ -2444,39 +2444,39 @@ func (svc *Service) validateMDM(
 		}
 	}
 
-	// we want to use `oldMdm` here as this boolean is set by the fleet
+	// we want to use `oldMdm` here as this boolean is set by the team
 	// server at startup and can't be modified by the user
 	if !oldMdm.EnabledAndConfigured {
 		if mdm.MacOSSetup.EnableReleaseDeviceManually.Value && oldMdm.MacOSSetup.EnableReleaseDeviceManually.Value != mdm.MacOSSetup.EnableReleaseDeviceManually.Value {
 			invalid.Append("setup_experience.apple_enable_release_device_manually",
-				`Couldn't update setup_experience because MDM features aren't turned on in Fleet. Use fleetctl generate mdm-apple and then fleet serve with mdm configuration to turn on MDM features.`)
+				`Couldn't update setup_experience because MDM features aren't turned on in AutoMDM. Use automdmctl generate mdm-apple and then automdm serve with mdm configuration to turn on MDM features.`)
 		}
 
 		if bootstrapPackage.Value != "" {
 			invalid.Append("setup_experience.macos_bootstrap_package",
-				`Couldn't update setup_experience because MDM features aren't turned on in Fleet. Use fleetctl generate mdm-apple and then fleet serve with mdm configuration to turn on MDM features.`)
+				`Couldn't update setup_experience because MDM features aren't turned on in AutoMDM. Use automdmctl generate mdm-apple and then automdm serve with mdm configuration to turn on MDM features.`)
 		}
 
 		if mdm.MacOSSetup.MacOSEnableBootstrapPackageDuringManualEnrollment && oldMdm.MacOSSetup.MacOSEnableBootstrapPackageDuringManualEnrollment != mdm.MacOSSetup.MacOSEnableBootstrapPackageDuringManualEnrollment {
 			invalid.Append("setup_experience.macos_enable_bootstrap_package_during_manual_enrollment",
-				`Couldn't update setup_experience because MDM features aren't turned on in Fleet. Use fleetctl generate mdm-apple and then fleet serve with mdm configuration to turn on MDM features.`)
+				`Couldn't update setup_experience because MDM features aren't turned on in AutoMDM. Use automdmctl generate mdm-apple and then automdm serve with mdm configuration to turn on MDM features.`)
 		}
 
 		if mdm.MacOSSetup.MacOSEnableBootstrapPackageDuringMigration && oldMdm.MacOSSetup.MacOSEnableBootstrapPackageDuringMigration != mdm.MacOSSetup.MacOSEnableBootstrapPackageDuringMigration {
 			invalid.Append("setup_experience.macos_enable_bootstrap_package_during_migration",
-				`Couldn't update setup_experience because MDM features aren't turned on in Fleet. Use fleetctl generate mdm-apple and then fleet serve with mdm configuration to turn on MDM features.`)
+				`Couldn't update setup_experience because MDM features aren't turned on in AutoMDM. Use automdmctl generate mdm-apple and then automdm serve with mdm configuration to turn on MDM features.`)
 		}
 
 		if mdm.MacOSSetup.EnableManagedLocalAccount.Value && oldMdm.MacOSSetup.EnableManagedLocalAccount.Value != mdm.MacOSSetup.EnableManagedLocalAccount.Value {
 			invalid.Append("setup_experience.macos_managed_local_account_enabled",
-				`Couldn't update setup_experience because MDM features aren't turned on in Fleet. Use fleetctl generate mdm-apple and then fleet serve with mdm configuration to turn on MDM features.`)
+				`Couldn't update setup_experience because MDM features aren't turned on in AutoMDM. Use automdmctl generate mdm-apple and then automdm serve with mdm configuration to turn on MDM features.`)
 		}
 	}
 	if !mdm.WindowsEnabledAndConfigured &&
 		mdm.MacOSSetup.EnableManagedLocalAccountWindows.Value &&
 		!oldMdm.MacOSSetup.EnableManagedLocalAccountWindows.Value {
 		invalid.Append("setup_experience.windows_managed_local_account_enabled",
-			"Couldn’t enable setup_experience.windows_managed_local_account_enabled. "+fleet.WindowsMDMNotTurnedOnMessage)
+			"Couldn’t enable setup_experience.windows_managed_local_account_enabled. "+automdm.WindowsMDMNotTurnedOnMessage)
 	}
 
 	// MacOSUpdates
@@ -2563,19 +2563,19 @@ func (svc *Service) validateMDM(
 	hasBootstrapPackage := bootstrapPackage.Value != ""
 	if !bootstrapPackage.Set && (len(newlyEnabledKeys) > 0 || mdm.MacOSSetup.ManualAgentInstall.Value) {
 		_, err := svc.ds.GetMDMAppleBootstrapPackageMeta(ctx, 0)
-		if err != nil && !fleet.IsNotFound(err) {
+		if err != nil && !automdm.IsNotFound(err) {
 			return ctxerr.Wrap(ctx, err, "checking bootstrap package")
 		}
 		hasBootstrapPackage = err == nil
 	}
 	if len(newlyEnabledKeys) > 0 && !hasBootstrapPackage {
-		for _, arg := range fleet.BootstrapPackageRequiredError(newlyEnabledKeys).Errors {
+		for _, arg := range automdm.BootstrapPackageRequiredError(newlyEnabledKeys).Errors {
 			invalid.AppendInvalidArgument(arg)
 		}
 	}
 
 	if err := mdm.MacOSSetup.ValidateAgainst(oldMdm.MacOSSetup, hasBootstrapPackage); err != nil {
-		var invalidArgErr *fleet.InvalidArgumentError
+		var invalidArgErr *automdm.InvalidArgumentError
 		if errors.As(err, &invalidArgErr) {
 			firstInvalidErr := invalidArgErr.Errors[0] // We only expect one invalid argument error entry from the validate
 			invalid.AppendInvalidArgument(firstInvalidErr)
@@ -2656,7 +2656,7 @@ func (svc *Service) validateMDM(
 			return ctxerr.Wrap(ctx, err, "checking setup assistant configuration web url")
 		}
 		if hasCustomConfigurationWebURL {
-			invalid.Append("end_user_authentication", fleet.EndUserAuthDEPWebURLConfiguredErrMsg)
+			invalid.Append("end_user_authentication", automdm.EndUserAuthDEPWebURLConfiguredErrMsg)
 		}
 	}
 
@@ -2688,7 +2688,7 @@ func (svc *Service) validateMDM(
 	// Windows validation
 	if !svc.config.MDM.IsMicrosoftWSTEPSet() {
 		if mdm.WindowsEnabledAndConfigured {
-			invalid.Append("mdm.windows_mdm_enabled", "Couldn't turn on Windows MDM. Please configure Fleet with a certificate and key pair first.")
+			invalid.Append("mdm.windows_mdm_enabled", "Couldn't turn on Windows MDM. Please configure AutoMDM with a certificate and key pair first.")
 			return nil
 		}
 	}
@@ -2702,12 +2702,12 @@ func (svc *Service) validateMDM(
 
 	// Validate Windows Entra tenant IDs and application client IDs are in the correct GUID format.
 	for _, tenantID := range mdm.WindowsEntraTenantIDs.Value {
-		if !fleet.IsValidEntraGUID(tenantID) {
+		if !automdm.IsValidEntraGUID(tenantID) {
 			invalid.Append("mdm.windows_entra_tenant_ids", fmt.Sprintf("Invalid Entra tenant ID: %s", tenantID))
 		}
 	}
 	for _, clientID := range mdm.WindowsEntraClientIDs.Value {
-		if !fleet.IsValidEntraGUID(clientID) {
+		if !automdm.IsValidEntraGUID(clientID) {
 			invalid.Append("mdm.windows_entra_client_ids", fmt.Sprintf("Invalid Entra client ID: %s", clientID))
 		}
 	}
@@ -2726,7 +2726,7 @@ func (svc *Service) validateMDM(
 
 	// the PIN requirement is a BitLocker feature, so it's judged against the
 	// Windows setting, not the all-platforms aggregate
-	if field, msg := fleet.BitLockerPINRequirementError(
+	if field, msg := automdm.BitLockerPINRequirementError(
 		oldMdm.WindowsSettings.EnableDiskEncryption.Value, mdm.DiskEncryptionConfig(),
 	); msg != "" {
 		invalid.Append(field, msg)
@@ -2740,22 +2740,22 @@ func (svc *Service) validateMDM(
 }
 
 // validateWindowsEnrollment validates the mdm.windows_automatic_enrollment section of a config modify payload and resolves its default
-// fleet name to a team id. Returns defined=false when the section was omitted (no-op). When defined, teamID is the resolved team
-// id (nil to clear) and fleetName is the canonical team name (empty when clearing).
+// team name to a team id. Returns defined=false when the section was omitted (no-op). When defined, teamID is the resolved team
+// id (nil to clear) and automdmName is the canonical team name (empty when clearing).
 func (svc *Service) validateWindowsEnrollment(
 	ctx context.Context,
-	newMDM *fleet.MDM,
-	invalid *fleet.InvalidArgumentError,
-	lic *fleet.LicenseInfo,
-) (defined bool, teamID *uint, fleetName string, err error) {
+	newMDM *automdm.MDM,
+	invalid *automdm.InvalidArgumentError,
+	lic *automdm.LicenseInfo,
+) (defined bool, teamID *uint, automdmName string, err error) {
 	if !newMDM.WindowsAutomaticEnrollment.Set || !newMDM.WindowsAutomaticEnrollment.Valid {
 		// Omitted key or explicit null: keep the persisted setting (same convention as
 		// enable_disk_encryption). Only an object clears or changes it.
 		return false, nil, "", nil
 	}
 
-	name := newMDM.WindowsAutomaticEnrollment.Value.DefaultFleet
-	if name == "" || fleet.IsUnassignedFleetName(name) {
+	name := newMDM.WindowsAutomaticEnrollment.Value.DefaultAutoMDM
+	if name == "" || automdm.IsUnassignedTeamName(name) {
 		// Explicitly clearing the default; allowed on any tier.
 		return true, nil, "", nil
 	}
@@ -2763,34 +2763,34 @@ func (svc *Service) validateWindowsEnrollment(
 	if lic == nil || !lic.IsPremium() {
 		// Tolerate an unchanged value re-sent without Premium (e.g. gitops re-applying exported config after a license downgrade); only
 		// reject attempts to change it.
-		curTeamID, curName, dsErr := svc.ds.GetWindowsEnrollmentDefaultFleet(ctx)
+		curTeamID, curName, dsErr := svc.ds.GetWindowsEnrollmentDefaultTeam(ctx)
 		if dsErr != nil {
-			return true, nil, "", ctxerr.Wrap(ctx, dsErr, "get current windows enrollment default fleet")
+			return true, nil, "", ctxerr.Wrap(ctx, dsErr, "get current windows enrollment default team")
 		}
 		if name == curName {
 			return true, curTeamID, curName, nil
 		}
-		invalid.Append("mdm.windows_automatic_enrollment.default_fleet", ErrMissingLicense.Error())
+		invalid.Append("mdm.windows_automatic_enrollment.default_team", ErrMissingLicense.Error())
 		return true, nil, "", nil
 	}
 
 	tm, err := svc.ds.TeamByName(ctx, name)
 	if err != nil {
-		if fleet.IsNotFound(err) {
-			invalid.Append("mdm.windows_automatic_enrollment.default_fleet", fmt.Sprintf("fleet %q doesn't exist", name))
+		if automdm.IsNotFound(err) {
+			invalid.Append("mdm.windows_automatic_enrollment.default_team", fmt.Sprintf("team %q doesn't exist", name))
 			return true, nil, "", nil
 		}
-		return true, nil, "", ctxerr.Wrap(ctx, err, "get team by name for windows enrollment default fleet")
+		return true, nil, "", ctxerr.Wrap(ctx, err, "get team by name for windows enrollment default team")
 	}
 	return true, &tm.ID, tm.Name, nil
 }
 
 func (svc *Service) validateABMAssignments(
 	ctx context.Context,
-	mdm, oldMdm *fleet.MDM,
-	invalid *fleet.InvalidArgumentError,
-	lic *fleet.LicenseInfo,
-) (tokensToSave []*fleet.ABMToken, defaultTokenID *uint, err error) {
+	mdm, oldMdm *automdm.MDM,
+	invalid *automdm.InvalidArgumentError,
+	lic *automdm.LicenseInfo,
+) (tokensToSave []*automdm.ABMToken, defaultTokenID *uint, err error) {
 	if mdm.AppleBusinessManager.Set && len(mdm.AppleBusinessManager.Value) > 0 {
 		if !lic.IsPremium() {
 			invalid.Append("mdm.apple_business", ErrMissingLicense.Error())
@@ -2802,17 +2802,17 @@ func (svc *Service) validateABMAssignments(
 			return nil, nil, err
 		}
 		teamsByName := map[string]*uint{"": nil}
-		// Fleets created before "Unassigned" was reserved can still have that name.
-		var fleetsNamedUnassigned []string
+		// Teams created before "Unassigned" was reserved can still have that name.
+		var teamsNamedUnassigned []string
 		for _, tm := range teams {
 			teamsByName[tm.Name] = &tm.ID
-			if fleet.IsUnassignedFleetName(tm.Name) {
-				fleetsNamedUnassigned = append(fleetsNamedUnassigned, fmt.Sprintf("%q", tm.Name))
+			if automdm.IsUnassignedTeamName(tm.Name) {
+				teamsNamedUnassigned = append(teamsNamedUnassigned, fmt.Sprintf("%q", tm.Name))
 			}
 		}
-		slices.Sort(fleetsNamedUnassigned)
-		fleetID := func(name string) *uint {
-			if fleet.IsUnassignedFleetName(name) {
+		slices.Sort(teamsNamedUnassigned)
+		automdmID := func(name string) *uint {
+			if automdm.IsUnassignedTeamName(name) {
 				return nil
 			}
 			return teamsByName[norm.NFC.String(name)]
@@ -2821,7 +2821,7 @@ func (svc *Service) validateABMAssignments(
 		if err != nil {
 			return nil, nil, err
 		}
-		tokensByName := map[string]*fleet.ABMToken{}
+		tokensByName := map[string]*automdm.ABMToken{}
 		for _, token := range tokens {
 			// The default assignments for all tokens is "no team"
 			// (ie: team_id IS NULL), here we reset the assignments
@@ -2852,19 +2852,19 @@ func (svc *Service) validateABMAssignments(
 			}
 
 			for _, tmName := range []string{bm.MacOSTeam, bm.IOSTeam, bm.IpadOSTeam, bm.BYODTeam} {
-				if reason, removed := removedFleetName(tmName, false); removed {
+				if reason, removed := removedAutoMDMName(tmName, false); removed {
 					invalid.Append("mdm.apple_business", reason)
 					return nil, nil, nil
 				}
-				if fleet.IsUnassignedFleetName(tmName) {
-					if len(fleetsNamedUnassigned) > 0 {
-						invalid.Appendf("mdm.apple_business", "fleets with the reserved name Unassigned must be renamed before you assign an Apple Business token to Unassigned: %s", strings.Join(fleetsNamedUnassigned, ", "))
+				if automdm.IsUnassignedTeamName(tmName) {
+					if len(teamsNamedUnassigned) > 0 {
+						invalid.Appendf("mdm.apple_business", "teams with the reserved name Unassigned must be renamed before you assign an Apple Business token to Unassigned: %s", strings.Join(teamsNamedUnassigned, ", "))
 						return nil, nil, nil
 					}
 					continue
 				}
 				if _, ok := teamsByName[norm.NFC.String(tmName)]; !ok {
-					invalid.Appendf("mdm.apple_business", "fleet %s doesn't exist", tmName)
+					invalid.Appendf("mdm.apple_business", "team %s doesn't exist", tmName)
 					return nil, nil, nil
 				}
 			}
@@ -2875,10 +2875,10 @@ func (svc *Service) validateABMAssignments(
 			}
 
 			tok := tokensByName[orgName]
-			tok.MacOSDefaultTeamID = fleetID(bm.MacOSTeam)
-			tok.IOSDefaultTeamID = fleetID(bm.IOSTeam)
-			tok.IPadOSDefaultTeamID = fleetID(bm.IpadOSTeam)
-			tok.BYODDefaultTeamID = fleetID(bm.BYODTeam)
+			tok.MacOSDefaultTeamID = automdmID(bm.MacOSTeam)
+			tok.IOSDefaultTeamID = automdmID(bm.IOSTeam)
+			tok.IPadOSDefaultTeamID = automdmID(bm.IpadOSTeam)
+			tok.BYODDefaultTeamID = automdmID(bm.BYODTeam)
 		}
 
 		return tokens, defaultTokenID, nil
@@ -2889,9 +2889,9 @@ func (svc *Service) validateABMAssignments(
 
 func (svc *Service) validateVPPAssignments(
 	ctx context.Context,
-	volumePurchasingProgramInfo []fleet.MDMAppleVolumePurchasingProgramInfo,
-	invalid *fleet.InvalidArgumentError,
-	lic *fleet.LicenseInfo,
+	volumePurchasingProgramInfo []automdm.MDMAppleVolumePurchasingProgramInfo,
+	invalid *automdm.InvalidArgumentError,
+	lic *automdm.LicenseInfo,
 ) (map[uint][]uint, error) {
 	// Allow clearing VPP assignments in free and premium.
 	if len(volumePurchasingProgramInfo) == 0 {
@@ -2907,21 +2907,21 @@ func (svc *Service) validateVPPAssignments(
 	if err != nil {
 		return nil, err
 	}
-	teamsByName := map[string]uint{fleet.DisplayNameNoTeam: 0}
-	// Fleets created before "Unassigned" was reserved can still have that name.
-	var fleetsNamedUnassigned []string
+	teamsByName := map[string]uint{automdm.DisplayNameNoTeam: 0}
+	// Teams created before "Unassigned" was reserved can still have that name.
+	var teamsNamedUnassigned []string
 	for _, tm := range teams {
 		teamsByName[tm.Name] = tm.ID
-		if fleet.IsUnassignedFleetName(tm.Name) {
-			fleetsNamedUnassigned = append(fleetsNamedUnassigned, fmt.Sprintf("%q", tm.Name))
+		if automdm.IsUnassignedTeamName(tm.Name) {
+			teamsNamedUnassigned = append(teamsNamedUnassigned, fmt.Sprintf("%q", tm.Name))
 		}
 	}
-	slices.Sort(fleetsNamedUnassigned)
+	slices.Sort(teamsNamedUnassigned)
 	tokens, err := svc.ds.ListVPPTokens(ctx)
 	if err != nil {
 		return nil, err
 	}
-	tokensByLocation := map[string]*fleet.VPPTokenDB{}
+	tokensByLocation := map[string]*automdm.VPPTokenDB{}
 	for _, token := range tokens {
 		// The default assignments for all tokens is "no team"
 		// (ie: team_id IS NULL), here we reset the assignments
@@ -2936,19 +2936,19 @@ func (svc *Service) validateVPPAssignments(
 	repeated := make(map[uint]struct{})
 	for _, vpp := range volumePurchasingProgramInfo {
 		for _, tmName := range vpp.Teams {
-			if reason, removed := removedFleetName(tmName, true); removed {
+			if reason, removed := removedAutoMDMName(tmName, true); removed {
 				invalid.Append("mdm.volume_purchasing_program", reason)
 				return nil, nil
 			}
-			if fleet.IsUnassignedFleetName(tmName) {
-				if len(fleetsNamedUnassigned) > 0 {
-					invalid.Appendf("mdm.volume_purchasing_program", "fleets with the reserved name Unassigned must be renamed before you assign a VPP token to Unassigned: %s", strings.Join(fleetsNamedUnassigned, ", "))
+			if automdm.IsUnassignedTeamName(tmName) {
+				if len(teamsNamedUnassigned) > 0 {
+					invalid.Appendf("mdm.volume_purchasing_program", "teams with the reserved name Unassigned must be renamed before you assign a VPP token to Unassigned: %s", strings.Join(teamsNamedUnassigned, ", "))
 					return nil, nil
 				}
-				tmName = fleet.DisplayNameNoTeam
+				tmName = automdm.DisplayNameNoTeam
 			}
-			if _, ok := teamsByName[norm.NFC.String(tmName)]; !ok && tmName != fleet.DisplayNameAllTeams {
-				invalid.Appendf("mdm.volume_purchasing_program", "fleet %s doesn't exist", tmName)
+			if _, ok := teamsByName[norm.NFC.String(tmName)]; !ok && tmName != automdm.DisplayNameAllTeams {
+				invalid.Appendf("mdm.volume_purchasing_program", "team %s doesn't exist", tmName)
 				return nil, nil
 			}
 		}
@@ -2961,12 +2961,12 @@ func (svc *Service) validateVPPAssignments(
 
 		var tokenTeams []uint
 		for _, teamName := range vpp.Teams {
-			if fleet.IsUnassignedFleetName(teamName) {
-				teamName = fleet.DisplayNameNoTeam
+			if automdm.IsUnassignedTeamName(teamName) {
+				teamName = automdm.DisplayNameNoTeam
 			}
-			if teamName == fleet.DisplayNameAllTeams {
+			if teamName == automdm.DisplayNameAllTeams {
 				if len(vpp.Teams) > 1 {
-					invalid.Appendf("mdm.volume_purchasing_program", "Couldn't apply. VPP token %q can't be assigned to All fleets and specific fleets at the same time.", vpp.Location)
+					invalid.Appendf("mdm.volume_purchasing_program", "Couldn't apply. VPP token %q can't be assigned to All teams and specific teams at the same time.", vpp.Location)
 					return nil, nil
 				}
 				tokenTeams = []uint{}
@@ -2979,7 +2979,7 @@ func (svc *Service) validateVPPAssignments(
 		tok := tokensByLocation[loc]
 		if _, ok := tokensToSave[tok.ID]; ok {
 			if _, ok := repeated[tok.ID]; !ok {
-				invalid.Appendf("mdm.volume_purchasing_program", "Couldn't apply. VPP token %q is listed more than once. List each token once, with all of its fleets.", vpp.Location)
+				invalid.Appendf("mdm.volume_purchasing_program", "Couldn't apply. VPP token %q is listed more than once. List each token once, with all of its teams.", vpp.Location)
 				repeated[tok.ID] = struct{}{}
 			}
 			continue
@@ -2997,7 +2997,7 @@ func (svc *Service) validateVPPAssignments(
 // If this is a GitOps run (overwrite=true), all required fields must be present.
 // Otherwise we're doing a patch, so it's ok for fields to be missing as long
 // as we have persisted values for them.
-func validateSSOProviderSettings(incoming *fleet.SSOProviderSettings, existing fleet.SSOProviderSettings, invalid *fleet.InvalidArgumentError, overwrite bool) {
+func validateSSOProviderSettings(incoming *automdm.SSOProviderSettings, existing automdm.SSOProviderSettings, invalid *automdm.InvalidArgumentError, overwrite bool) {
 	// trim whitespace from the incoming values so that we don't persist them with leading/trailing whitespace
 	incoming.Metadata = strings.TrimSpace(incoming.Metadata)
 	incoming.MetadataURL = strings.TrimSpace(incoming.MetadataURL)
@@ -3029,10 +3029,10 @@ func validateSSOProviderSettings(incoming *fleet.SSOProviderSettings, existing f
 	}
 }
 
-func validateSSOSettings(p fleet.AppConfig, existing *fleet.AppConfig, invalid *fleet.InvalidArgumentError, lic *fleet.LicenseInfo, overwrite bool) {
+func validateSSOSettings(p automdm.AppConfig, existing *automdm.AppConfig, invalid *automdm.InvalidArgumentError, lic *automdm.LicenseInfo, overwrite bool) {
 	if p.SSOSettings != nil && p.SSOSettings.EnableSSO {
 
-		var existingSSOProviderSettings fleet.SSOProviderSettings
+		var existingSSOProviderSettings automdm.SSOProviderSettings
 		if existing.SSOSettings != nil {
 			existingSSOProviderSettings = existing.SSOSettings.SSOProviderSettings
 		}
@@ -3049,7 +3049,7 @@ func validateSSOSettings(p fleet.AppConfig, existing *fleet.AppConfig, invalid *
 // gitopsHistoricalDataView is the narrow tri-state view of
 // features.historical_data used to detect which sub-keys were absent
 // from a gitops payload. Pointer fields distinguish "absent" from
-// "false" — something the fleet.HistoricalDataSettings plain bools
+// "false" — something the automdm.HistoricalDataSettings plain bools
 // cannot do once unmarshaled.
 //
 // Only used by applyHistoricalDataOverwriteDefaults below.
@@ -3082,12 +3082,12 @@ func googleConditionalAccessInPayload(p []byte) bool {
 // and in Overwrite mode we want to preserve the default
 // "enabled" state so that we don't disable data collection
 // and wipe data incorrectly.
-func applyHistoricalDataOverwriteDefaults(p []byte, cfg *fleet.AppConfig) {
+func applyHistoricalDataOverwriteDefaults(p []byte, cfg *automdm.AppConfig) {
 	var view gitopsHistoricalDataView
 	if err := json.Unmarshal(p, &view); err != nil {
 		return // main decode path will surface the typed error
 	}
-	var defaults fleet.Features
+	var defaults automdm.Features
 	defaults.ApplyDefaults()
 	// For each sub-key, check if the incoming data provided a value (true or false).
 	// If not, then set the config to the default value we want rather than
@@ -3107,8 +3107,8 @@ func applyHistoricalDataOverwriteDefaults(p []byte, cfg *fleet.AppConfig) {
 // //////////////////////////////////////////////////////////////////////////////
 
 type applyEnrollSecretSpecRequest struct {
-	Spec   *fleet.EnrollSecretSpec `json:"spec"`
-	DryRun bool                    `json:"-" query:"dry_run,optional"` // if true, apply validation but do not save changes
+	Spec   *automdm.EnrollSecretSpec `json:"spec"`
+	DryRun bool                      `json:"-" query:"dry_run,optional"` // if true, apply validation but do not save changes
 }
 
 type applyEnrollSecretSpecResponse struct {
@@ -3117,10 +3117,10 @@ type applyEnrollSecretSpecResponse struct {
 
 func (r applyEnrollSecretSpecResponse) Error() error { return r.Err }
 
-func applyEnrollSecretSpecEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func applyEnrollSecretSpecEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*applyEnrollSecretSpecRequest)
 	err := svc.ApplyEnrollSecretSpec(
-		ctx, req.Spec, fleet.ApplySpecOptions{
+		ctx, req.Spec, automdm.ApplySpecOptions{
 			DryRun: req.DryRun,
 		},
 	)
@@ -3130,17 +3130,17 @@ func applyEnrollSecretSpecEndpoint(ctx context.Context, request interface{}, svc
 	return applyEnrollSecretSpecResponse{}, nil
 }
 
-func (svc *Service) ApplyEnrollSecretSpec(ctx context.Context, spec *fleet.EnrollSecretSpec, applyOpts fleet.ApplySpecOptions) error {
-	if err := svc.authz.Authorize(ctx, &fleet.EnrollSecret{}, fleet.ActionWrite); err != nil {
+func (svc *Service) ApplyEnrollSecretSpec(ctx context.Context, spec *automdm.EnrollSecretSpec, applyOpts automdm.ApplySpecOptions) error {
+	if err := svc.authz.Authorize(ctx, &automdm.EnrollSecret{}, automdm.ActionWrite); err != nil {
 		return err
 	}
-	if len(spec.Secrets) > fleet.MaxEnrollSecretsCount {
-		return ctxerr.Wrap(ctx, fleet.NewInvalidArgumentError("secrets", "too many secrets"))
+	if len(spec.Secrets) > automdm.MaxEnrollSecretsCount {
+		return ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("secrets", "too many secrets"))
 	}
 
 	for _, s := range spec.Secrets {
 		if s == nil || strings.TrimSpace(s.Secret) == "" {
-			return ctxerr.Wrap(ctx, fleet.NewInvalidArgumentError("secrets", "enroll secret must not be empty"))
+			return ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("secrets", "enroll secret must not be empty"))
 		}
 	}
 
@@ -3151,7 +3151,7 @@ func (svc *Service) ApplyEnrollSecretSpec(ctx context.Context, spec *fleet.Enrol
 				return err
 			}
 			if !available {
-				return ctxerr.Wrap(ctx, fleet.NewInvalidArgumentError("secrets", "a provided global enroll secret is already being used"))
+				return ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("secrets", "a provided global enroll secret is already being used"))
 			}
 		}
 		return nil
@@ -3177,7 +3177,7 @@ func (svc *Service) ApplyEnrollSecretSpec(ctx context.Context, spec *fleet.Enrol
 		newSecretsValues[s.Secret] = struct{}{}
 	}
 	if !maps.Equal(oldSecretValues, newSecretsValues) {
-		activity := fleet.ActivityTypeEditedEnrollSecrets{}
+		activity := automdm.ActivityTypeEditedEnrollSecrets{}
 		if err := svc.NewActivity(ctx, authz.UserFromContext(ctx), activity); err != nil {
 			return ctxerr.Wrap(ctx, err, "creating activity for edited enroll secret")
 		}
@@ -3191,13 +3191,13 @@ func (svc *Service) ApplyEnrollSecretSpec(ctx context.Context, spec *fleet.Enrol
 // //////////////////////////////////////////////////////////////////////////////
 
 type getEnrollSecretSpecResponse struct {
-	Spec *fleet.EnrollSecretSpec `json:"spec"`
-	Err  error                   `json:"error,omitempty"`
+	Spec *automdm.EnrollSecretSpec `json:"spec"`
+	Err  error                     `json:"error,omitempty"`
 }
 
 func (r getEnrollSecretSpecResponse) Error() error { return r.Err }
 
-func getEnrollSecretSpecEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func getEnrollSecretSpecEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	specs, err := svc.GetEnrollSecretSpec(ctx)
 	if err != nil {
 		return getEnrollSecretSpecResponse{Err: err}, nil
@@ -3205,8 +3205,8 @@ func getEnrollSecretSpecEndpoint(ctx context.Context, request interface{}, svc f
 	return getEnrollSecretSpecResponse{Spec: specs}, nil
 }
 
-func (svc *Service) GetEnrollSecretSpec(ctx context.Context) (*fleet.EnrollSecretSpec, error) {
-	if err := svc.authz.Authorize(ctx, &fleet.EnrollSecret{}, fleet.ActionRead); err != nil {
+func (svc *Service) GetEnrollSecretSpec(ctx context.Context) (*automdm.EnrollSecretSpec, error) {
+	if err := svc.authz.Authorize(ctx, &automdm.EnrollSecret{}, automdm.ActionRead); err != nil {
 		return nil, err
 	}
 
@@ -3214,7 +3214,7 @@ func (svc *Service) GetEnrollSecretSpec(ctx context.Context) (*fleet.EnrollSecre
 	if err != nil {
 		return nil, err
 	}
-	return &fleet.EnrollSecretSpec{Secrets: secrets}, nil
+	return &automdm.EnrollSecretSpec{Secrets: secrets}, nil
 }
 
 // //////////////////////////////////////////////////////////////////////////////
@@ -3228,7 +3228,7 @@ type versionResponse struct {
 
 func (r versionResponse) Error() error { return r.Err }
 
-func versionEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func versionEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	info, err := svc.Version(ctx)
 	if err != nil {
 		return versionResponse{Err: err}, nil
@@ -3237,7 +3237,7 @@ func versionEndpoint(ctx context.Context, request interface{}, svc fleet.Service
 }
 
 func (svc *Service) Version(ctx context.Context) (*version.Info, error) {
-	if err := svc.authz.Authorize(ctx, &fleet.Version{}, fleet.ActionRead); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.Version{}, automdm.ActionRead); err != nil {
 		return nil, err
 	}
 
@@ -3256,7 +3256,7 @@ type getCertificateResponse struct {
 
 func (r getCertificateResponse) Error() error { return r.Err }
 
-func getCertificateEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func getCertificateEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	chain, err := svc.CertificateChain(ctx)
 	if err != nil {
 		return getCertificateResponse{Err: err}, nil
@@ -3365,7 +3365,7 @@ func encodePEMCertificate(buf io.Writer, cert *x509.Certificate) error {
 	return pem.Encode(buf, block)
 }
 
-func (svc *Service) HostFeatures(ctx context.Context, host *fleet.Host) (*fleet.Features, error) {
+func (svc *Service) HostFeatures(ctx context.Context, host *automdm.Host) (*automdm.Features, error) {
 	if svc.EnterpriseOverrides != nil {
 		return svc.EnterpriseOverrides.HostFeatures(ctx, host)
 	}
@@ -3377,7 +3377,7 @@ func (svc *Service) HostFeatures(ctx context.Context, host *fleet.Host) (*fleet.
 	return &appConfig.Features, nil
 }
 
-// validateAddress validates that the provided address is usable for Fleet operations.
+// validateAddress validates that the provided address is usable for AutoMDM operations.
 func validateAddress(addr string) bool {
 	host, portStr, err := net.SplitHostPort(addr)
 
@@ -3401,7 +3401,7 @@ func validateAddress(addr string) bool {
 	return isValidHostname(host)
 }
 
-// isUsableIPAddr validates that the provided IP address is usable for Fleet operations.
+// isUsableIPAddr validates that the provided IP address is usable for AutoMDM operations.
 func isUsableIPAddr(addr net.IP) bool {
 	if addr == nil {
 		return false

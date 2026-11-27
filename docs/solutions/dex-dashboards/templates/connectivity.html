@@ -15,7 +15,7 @@
   <div class="title-row">
     <div>
       <h1>Connectivity</h1>
-      <p class="subtitle">Is every computer reporting to Fleet, and how good is the network under it? Check-ins cover macOS, Windows, and Linux. Wi-Fi and network path come from DEX reports on macOS.</p>
+      <p class="subtitle">Is every computer reporting to AutoMDM, and how good is the network under it? Check-ins cover macOS, Windows, and Linux. Wi-Fi and network path come from DEX reports on macOS.</p>
     </div>
   </div>
   <div id="notice"></div>
@@ -55,7 +55,7 @@
     <summary>How this is measured</summary>
     <div class="cols">
       <div>
-        <p><span class="term">Check-in:</span> the last time each computer's agent talked to Fleet. This covers every computer, including ones that stopped checking in long ago, so you can find and retire them. Macs and other devices assigned to Fleet in Apple Business that haven't enrolled yet aren't listed, since they've never checked in.</p>
+        <p><span class="term">Check-in:</span> the last time each computer's agent talked to AutoMDM. This covers every computer, including ones that stopped checking in long ago, so you can find and retire them. Macs and other devices assigned to AutoMDM in Apple Business that haven't enrolled yet aren't listed, since they've never checked in.</p>
         <p><span class="term">Network path (macOS):</span> from the <code>DEX - Network experience - VPN gate</code> report. "VPN tunnel" means the default route goes through a tunnel interface. "Direct" means the primary interface is up and carrying traffic. "Disconnected" means neither.</p>
       </div>
       <div>
@@ -82,7 +82,7 @@ const PATHS = [["tunnel_active", "VPN tunnel", "info"], ["direct_connected", "Di
 const BUCKETS = [["Within an hour", (a) => a != null && a <= 1 / 24, "good"], ["Within 24 hours", (a) => a != null && a > 1 / 24 && a <= 1, "info"],
   ["1 to 7 days", (a) => a != null && a > 1 && a <= 7, "warn"], ["7 to 30 days", (a) => a != null && a > 7 && a <= 30, "bad"], ["Over 30 days", (a) => a == null || a > 30, "bad"]];
 const G = [
-  { key: "silent", label: "Not checking in", tone: "bad", hint: "No check-in for 7+ days. Find it, or remove it from Fleet.", test: (r) => r.age == null || r.age > 7 },
+  { key: "silent", label: "Not checking in", tone: "bad", hint: "No check-in for 7+ days. Find it, or remove it from AutoMDM.", test: (r) => r.age == null || r.age > 7 },
   { key: "persistent", label: "Weak Wi-Fi most days", tone: "bad", hint: "Weak signal on most days this week. Worth a visit or a better access point.", test: (r) => r.weak_days >= DATA.weak_days },
   { key: "weak", label: "Weak Wi-Fi now", tone: "warn", hint: "Fair or worse right now. Check again tomorrow before acting.", test: (r) => WEAK.has(r.quality) },
   { key: "offline", label: "No network path", tone: "warn", hint: "Checking in, but the primary interface wasn't carrying traffic at the last reading.", test: (r) => r.path === "disconnected" },
@@ -90,7 +90,7 @@ const G = [
 let shown = new Set(G.map((g) => g.key));
 
 DATA.rows.forEach((r) => (r._id = r.id));
-const fleets = [...new Set(DATA.rows.map((r) => r.f))].sort();
+const teams = [...new Set(DATA.rows.map((r) => r.f))].sort();
 const platformCounts = {};
 for (const r of DATA.rows) platformCounts[r.p] = (platformCounts[r.p] || 0) + 1;
 const noun = (n) => (PLATFORM === "macos" ? fmt.plural(n, "Mac") : fmt.plural(n, "computer"));
@@ -101,7 +101,7 @@ const qualityLabel = (q) => (QUALITY.find(([k]) => k === q) || [, q])[1];
 const pathLabel = (p) => (PATHS.find(([k]) => k === p) || [, "---"])[1];
 
 function render() {
-  const rows = DATA.rows.filter((r) => inFleet(r.f) && inPlatform(r.p));
+  const rows = DATA.rows.filter((r) => inTeam(r.f) && inPlatform(r.p));
   const macs = rows.filter((r) => r.p === "macos");
   const onWifi = macs.filter((r) => r.rssi != null);
   const weak = onWifi.filter((r) => WEAK.has(r.quality));
@@ -154,7 +154,7 @@ function render() {
   mount("checkin", rows.length ? [barRows(BUCKETS.map(([label, test, tone]) => {
     const n = rows.filter((r) => test(r.age)).length;
     return { label, segs: [{ value: n, color: `var(--${tone})`, tip: `${label}: ${noun(n)}` }] };
-  })), h("p", { class: "panel-note" }, "Computers that stopped checking in long ago still count here, until you remove them from Fleet.")] : empty("No computers", ""));
+  })), h("p", { class: "panel-note" }, "Computers that stopped checking in long ago still count here, until you remove them from AutoMDM.")] : empty("No computers", ""));
 
   const bands = {};
   for (const r of onWifi) bands[r.band || "unknown"] = (bands[r.band || "unknown"] || 0) + 1;
@@ -176,11 +176,11 @@ function render() {
     onclick: () => { shown.has(g.key) ? shown.delete(g.key) : shown.add(g.key); render(); } }, h("i"), g.label, h("b", {}, fmt.n(g.rows.length)))));
   const groups = grouped.filter((g) => shown.has(g.key) && g.rows.length).map((g) => ({ label: g.label, hint: g.hint, pill: pill(fmt.n(g.rows.length), g.tone), rows: g.rows }));
   const visible = groups.flatMap((g) => g.rows);
-  mount("act-tools", visible.length ? copyButton("Copy as CSV", () => csv([["host", "fleet", "platform", "group", "last_seen_days", "rssi_dbm", "snr_db", "link_mbps", "band", "network_path", "weak_days", "fleet_url"],
+  mount("act-tools", visible.length ? copyButton("Copy as CSV", () => csv([["host", "team", "platform", "group", "last_seen_days", "rssi_dbm", "snr_db", "link_mbps", "band", "network_path", "weak_days", "automdm_url"],
     ...visible.map((r) => [r.n, r.f, platformLabel(r.p), groupOf(r).label, r.age == null ? "" : Math.round(r.age * 10) / 10, r.rssi ?? "", r.snr ?? "", r.rate ?? "", r.band || "", pathLabel(r.path), r.weak_days, hostUrl(r.id)])])) : null);
   const columns = [
     { key: "name", label: nounWord(false)[0].toUpperCase() + nounWord(false).slice(1), value: (r) => r.n.toLowerCase(), cell: (r) => [hostLink(r.id, r.n), PLATFORM ? null : h("span", { class: "plat" }, platformLabel(r.p))] },
-    { key: "fleet", label: "Fleet", value: (r) => r.f.toLowerCase(), cell: (r) => h("span", { class: "cell-sub" }, r.f) },
+    { key: "team", label: "AutoMDM", value: (r) => r.f.toLowerCase(), cell: (r) => h("span", { class: "cell-sub" }, r.f) },
     { key: "seen", label: "Last check-in", value: (r) => r.age ?? 1e9, cell: (r) => (r.age == null ? "never" : fmt.ago(r.age)) },
     { key: "signal", label: "Wi-Fi signal", num: true, value: (r) => r.rssi ?? -999, cell: (r) => (r.rssi == null ? "---" : [`${Math.round(r.rssi)} dBm `, pill(qualityLabel(r.quality), qualityTone(r.quality))]) },
     { key: "snr", label: "Signal-to-noise", num: true, value: (r) => r.snr ?? -999, cell: (r) => (r.snr == null ? "---" : `${Math.round(r.snr)} dB`) },
@@ -192,9 +192,9 @@ function render() {
     : empty("Nothing to look at", `Every ${nounWord(false)} here is checking in and has a usable network.`));
 
   document.getElementById("weak-days").textContent = DATA.weak_days;
-  document.getElementById("foot").textContent = `Data from ${DATA.fleet_url.replace(/^https?:\/\//, "")} via the Fleet API (List hosts, Get report data). Rebuilt daily.`;
+  document.getElementById("foot").textContent = `Data from ${DATA.automdm_url.replace(/^https?:\/\//, "")} via the AutoMDM API (List hosts, Get report data). Rebuilt daily.`;
 }
 
-renderTop(fleets, render, platformCounts);
+renderTop(teams, render, platformCounts);
 render();
 </script>

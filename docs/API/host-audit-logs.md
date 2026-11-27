@@ -1,10 +1,10 @@
 # Host audit logs
 
-_Available in Fleet Premium._
+_Available in AutoMDM Premium._
 
 Use host audit logs to automate based on what happens on hosts.
 
-This page includes a list of activity types and their fields. To learn how to see a host's activities and send them to a webhook, see the [Automations guide](https://fleetdm.com/guides/automations#activity-automations). For the webhook request format, see [Global audit logs](https://fleetdm.com/docs/api/global-audit-logs).
+This page includes a list of activity types and their fields. To learn how to see a host's activities and send them to a webhook, see the [Automations guide](https://automdm.com/guides/automations#activity-automations). For the webhook request format, see [Global audit logs](https://automdm.com/docs/api/global-audit-logs).
 
 ## Certificates
 
@@ -96,7 +96,7 @@ This activity contains the following fields:
 
 ### host_enrollment_rejected
 
-Generated when Fleet refuses an orbit or osquery enrollment because of the one-time enroll secret rules. Recorded by Fleet, rate-limited per host and reason.
+Generated when AutoMDM refuses an orbit or osquery enrollment because of the one-time enroll secret rules. Recorded by AutoMDM, rate-limited per host and reason.
 
 This activity contains the following fields:
 - "host_id": ID of the host.
@@ -123,10 +123,10 @@ This activity contains the following fields:
 
 ### mdm_enrolled
 
-Generated when a host is enrolled in Fleet's MDM.
+Generated when a host is enrolled in AutoMDM's MDM.
 
 This activity contains the following fields:
-- "host_id": ID of the host. Omitted from activities generated before Fleet added this field.
+- "host_id": ID of the host. Omitted from activities generated before AutoMDM added this field.
 - "host_serial": Serial number of the host. For Apple BYOD (account-driven user) enrollments, which have no serial number, this is the enrollment ID instead. `null` if the serial number is unknown.
 - "host_display_name": Display name of the host.
 - "installed_from_dep": Whether the host was enrolled automatically. `true` for Apple hosts enrolled via DEP, and for Windows hosts enrolled through Microsoft Entra ID during the out-of-box experience (OOBE), such as Windows Autopilot.
@@ -150,7 +150,7 @@ This activity contains the following fields:
 
 ### mdm_unenrolled
 
-Generated when a host is unenrolled from Fleet's MDM.
+Generated when a host is unenrolled from AutoMDM's MDM.
 
 This activity contains the following fields:
 - "host_id": ID of the host.
@@ -209,7 +209,7 @@ This activity contains the following fields:
 
 ### retrieved_host_my_device_url
 
-Generated when a global admin retrieves a host's "My device" page URL (a credential-bearing link that opens the end user's device page). Fleet logs this for every retrieval, including reuse of an existing token.
+Generated when a global admin retrieves a host's "My device" page URL (a credential-bearing link that opens the end user's device page). AutoMDM logs this for every retrieval, including reuse of an existing token.
 
 This activity contains the following fields:
 - "host_id": ID of the host.
@@ -226,7 +226,7 @@ This activity contains the following fields:
 
 ### set_host_recovery_lock_password
 
-Generated when Fleet sets the Recovery Lock password on a host.
+Generated when AutoMDM sets the Recovery Lock password on a host.
 
 This activity contains the following fields:
 - "host_id": ID of the host.
@@ -370,7 +370,7 @@ This activity contains the following fields:
 
 ### rotated_host_recovery_lock_password
 
-Generated when the Recovery Lock password for a host is rotated, either by a user or automatically by Fleet after the password is viewed.
+Generated when the Recovery Lock password for a host is rotated, either by a user or automatically by AutoMDM after the password is viewed.
 
 This activity contains the following fields:
 - "host_id": ID of the host.
@@ -618,7 +618,7 @@ This activity contains the following fields:
 
 ### ran_custom_mdm_command
 
-Generated when a user runs a custom MDM command via API or the fleetctl CLI.
+Generated when a user runs a custom MDM command via API or the automdmctl CLI.
 
 This activity contains the following fields:
 - "host_id": ID of the host.
@@ -692,8 +692,8 @@ Generated when a user resets a policy's results for a single host. Resets for ev
 This activity contains the following fields:
 - "policy_id": ID of the policy.
 - "policy_name": Name of the policy.
-- "fleet_id": ID of the fleet the policy belongs to. `-1` for global policies and `0` for Unassigned.
-- "fleet_name": Name of the fleet the policy belongs to. Omitted for global policies and Unassigned.
+- "team_id": ID of the team the policy belongs to. `-1` for global policies and `0` for Unassigned.
+- "team_name": Name of the team the policy belongs to. Omitted for global policies and Unassigned.
 - "host_id": ID of the host.
 - "host_display_name": Display name of the host.
 
@@ -703,8 +703,8 @@ This activity contains the following fields:
 {
   "policy_id": 123,
   "policy_name": "Disk encryption enabled",
-  "fleet_id": 1,
-  "fleet_name": "Workstations",
+  "team_id": 1,
+  "team_name": "Workstations",
   "host_id": 1,
   "host_display_name": "Anna's MacBook Pro"
 }
@@ -716,7 +716,7 @@ Generated when a failing-policy ticket automation (Jira or Zendesk) creates a ti
 
 This activity contains the following fields:
 - "policy_id": ID of the failing policy.
-- "host_ids": IDs of the hosts in the batch. Included in [host activities webhook](https://fleetdm.com/docs/rest-api/rest-api#webhook-settings-host-activities-webhook) payloads only; not stored in the activity, so it's not returned by the activities API.
+- "host_ids": IDs of the hosts in the batch. Included in [host activities webhook](https://automdm.com/docs/rest-api/rest-api#webhook-settings-host-activities-webhook) payloads only; not stored in the activity, so it's not returned by the activities API.
 - "type": Ticket destination ("jira" or "zendesk").
 - "ticket_key": (Optional) Key of the created ticket.
 - "ticket_id": (Optional) ID of the created ticket.
@@ -738,7 +738,7 @@ Generated when a failing-policy ticket automation (Jira or Zendesk) fails to cre
 
 This activity contains the following fields:
 - "policy_id": ID of the failing policy.
-- "host_ids": IDs of the hosts in the batch. Included in [host activities webhook](https://fleetdm.com/docs/rest-api/rest-api#webhook-settings-host-activities-webhook) payloads only; not stored in the activity, so it's not returned by the activities API.
+- "host_ids": IDs of the hosts in the batch. Included in [host activities webhook](https://automdm.com/docs/rest-api/rest-api#webhook-settings-host-activities-webhook) payloads only; not stored in the activity, so it's not returned by the activities API.
 - "type": Ticket destination ("jira" or "zendesk").
 - "error_response": Error returned by the destination.
 
@@ -759,7 +759,7 @@ Generated when a failing-calendar-policy automation fails. The activity is assoc
 
 This activity contains the following fields:
 - "policy_id": ID of the failing policy.
-- "host_ids": IDs of the affected hosts. Included in [host activities webhook](https://fleetdm.com/docs/rest-api/rest-api#webhook-settings-host-activities-webhook) payloads only; not stored in the activity, so it's not returned by the activities API.
+- "host_ids": IDs of the affected hosts. Included in [host activities webhook](https://automdm.com/docs/rest-api/rest-api#webhook-settings-host-activities-webhook) payloads only; not stored in the activity, so it's not returned by the activities API.
 - "status_code": (Optional) HTTP status code returned by the calendar provider.
 - "error_response": Error details.
 
@@ -779,7 +779,7 @@ Generated when a failing calendar policy results in a calendar event. The activi
 
 This activity contains the following fields:
 - "policy_id": ID of the failing policy.
-- "host_ids": IDs of the affected hosts. Included in [host activities webhook](https://fleetdm.com/docs/rest-api/rest-api#webhook-settings-host-activities-webhook) payloads only; not stored in the activity, so it's not returned by the activities API.
+- "host_ids": IDs of the affected hosts. Included in [host activities webhook](https://automdm.com/docs/rest-api/rest-api#webhook-settings-host-activities-webhook) payloads only; not stored in the activity, so it's not returned by the activities API.
 
 #### Example
 
@@ -796,7 +796,7 @@ Generated when a failing-policy webhook automation batch is rejected by the dest
 
 This activity contains the following fields:
 - "policy_id": ID of the failing policy.
-- "host_ids": IDs of the hosts in the batch. Included in [host activities webhook](https://fleetdm.com/docs/rest-api/rest-api#webhook-settings-host-activities-webhook) payloads only; not stored in the activity, so it's not returned by the activities API.
+- "host_ids": IDs of the hosts in the batch. Included in [host activities webhook](https://automdm.com/docs/rest-api/rest-api#webhook-settings-host-activities-webhook) payloads only; not stored in the activity, so it's not returned by the activities API.
 - "status_code": (Optional) HTTP status code returned by the destination.
 - "error_response": Error returned by the destination.
 
@@ -817,7 +817,7 @@ Generated when a failing-policy webhook automation batch is accepted by the dest
 
 This activity contains the following fields:
 - "policy_id": ID of the failing policy.
-- "host_ids": IDs of the hosts in the batch. Included in [host activities webhook](https://fleetdm.com/docs/rest-api/rest-api#webhook-settings-host-activities-webhook) payloads only; not stored in the activity, so it's not returned by the activities API.
+- "host_ids": IDs of the hosts in the batch. Included in [host activities webhook](https://automdm.com/docs/rest-api/rest-api#webhook-settings-host-activities-webhook) payloads only; not stored in the activity, so it's not returned by the activities API.
 - "status_code": (Optional) HTTP status code returned by the destination.
 
 #### Example
@@ -836,7 +836,7 @@ Generated when a failing-policy conditional access automation fails to push a ho
 
 This activity contains the following fields:
 - "policy_id": ID of the failing policy.
-- "host_ids": IDs of the affected hosts. Included in [host activities webhook](https://fleetdm.com/docs/rest-api/rest-api#webhook-settings-host-activities-webhook) payloads only; not stored in the activity, so it's not returned by the activities API.
+- "host_ids": IDs of the affected hosts. Included in [host activities webhook](https://automdm.com/docs/rest-api/rest-api#webhook-settings-host-activities-webhook) payloads only; not stored in the activity, so it's not returned by the activities API.
 - "status_code": (Optional) HTTP status code returned by the provider.
 - "error_response": Error returned by the provider.
 
@@ -857,7 +857,7 @@ Generated when a failing-policy conditional access automation pushes a host's co
 
 This activity contains the following fields:
 - "policy_id": ID of the failing policy.
-- "host_ids": IDs of the affected hosts. Included in [host activities webhook](https://fleetdm.com/docs/rest-api/rest-api#webhook-settings-host-activities-webhook) payloads only; not stored in the activity, so it's not returned by the activities API.
+- "host_ids": IDs of the affected hosts. Included in [host activities webhook](https://automdm.com/docs/rest-api/rest-api#webhook-settings-host-activities-webhook) payloads only; not stored in the activity, so it's not returned by the activities API.
 
 #### Example
 
@@ -936,7 +936,7 @@ This activity contains the following fields:
 
 ### installed_software
 
-Generated when a Fleet-maintained app or custom package is installed on a host.
+Generated when an AutoMDM-maintained app or custom package is installed on a host.
 
 This activity contains the following fields:
 - "host_id": ID of the host.
@@ -953,8 +953,8 @@ This activity contains the following fields:
 - "policy_name": Name of the policy whose failure triggered installation. Null if no associated policy.
 - "command_uuid": ID of the in-house app installation.
 - "from_setup_experience": Whether the installation was triggered as part of the setup experience.
-- "failure_reason": Reason the installation failed before reaching the device (e.g. an unresolvable Fleet variable in the managed app configuration). Only present when "status" is "failed_install" and Fleet failed the install pre-flight; omitted otherwise.
-- "skipped_install": Whether the install was skipped because the app was open. This is `true` when the Fleet-maintained app is installed by the patch policy's automation, when `patch_when_closed` is set. Only present when "status" is "failed_install" and the install was skipped for this reason, omitted otherwise.
+- "failure_reason": Reason the installation failed before reaching the device (e.g. an unresolvable AutoMDM variable in the managed app configuration). Only present when "status" is "failed_install" and AutoMDM failed the install pre-flight; omitted otherwise.
+- "skipped_install": Whether the install was skipped because the app was open. This is `true` when the AutoMDM-maintained app is installed by the patch policy's automation, when `patch_when_closed` is set. Only present when "status" is "failed_install" and the install was skipped for this reason, omitted otherwise.
 - "patch_when_closed": Whether the installation was triggered by a patch policy configured to patch only when the app is closed.
 
 #### Example
@@ -977,7 +977,7 @@ This activity contains the following fields:
 
 ### notified_end_user_before_patching
 
-Generated when Fleet notifies the end user that software will be patched on their host.
+Generated when AutoMDM notifies the end user that software will be patched on their host.
 
 This activity contains the following fields:
 - "host_id": ID of the host.
@@ -1013,7 +1013,7 @@ This activity contains the following fields:
 
 ### uninstalled_software
 
-Generated when a Fleet-maintained app or custom package is uninstalled on a host.
+Generated when an AutoMDM-maintained app or custom package is uninstalled on a host.
 
 This activity contains the following fields:
 - "host_id": ID of the host.
@@ -1080,7 +1080,7 @@ This activity contains the following fields:
 - "host_platform": Platform of the host (e.g., "darwin", "ios", "ipados", "android").
 - "from_setup_experience": Whether the app was installed as part of the setup experience.
 - "from_auto_update": Whether the app was installed by an automatic update.
-- "failure_reason": Reason the installation failed before reaching the device (e.g. an unresolvable Fleet variable in the managed app configuration). Only present when "status" is "failed_install" and Fleet failed the install pre-flight; omitted otherwise.
+- "failure_reason": Reason the installation failed before reaching the device (e.g. an unresolvable AutoMDM variable in the managed app configuration). Only present when "status" is "failed_install" and AutoMDM failed the install pre-flight; omitted otherwise.
 
 #### Example
 
@@ -1200,4 +1200,4 @@ MDM command results, shown via **Show MDM commands** on the host details page, a
 
 <meta name="title" value="Host audit logs">
 <meta name="pageOrderInSection" value="90">
-<meta name="description" value="Learn how to receive a webhook for activities linked to a fleet's hosts.">
+<meta name="description" value="Learn how to receive a webhook for activities linked to a team's hosts.">

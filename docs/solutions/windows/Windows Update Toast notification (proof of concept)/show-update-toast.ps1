@@ -27,7 +27,7 @@ $DismissButtonText = "Remind Me Later"
 
 # Path to a company logo (32x32 or 48x48 PNG). Optional.
 # If the file doesn't exist, the notification uses the default app icon.
-$LogoPath          = "$env:ProgramData\Fleet\company-logo.png"
+$LogoPath          = "$env:ProgramData\AutoMDM\company-logo.png"
 
 # Set to $false to always show the notification (useful for testing)
 $CheckForUpdates   = $true

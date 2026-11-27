@@ -10,14 +10,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	apple_mdm "github.com/fleetdm/fleet/v4/server/mdm/apple"
-	nanodep_client "github.com/fleetdm/fleet/v4/server/mdm/nanodep/client"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanodep/godep"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	nanodep_mock "github.com/fleetdm/fleet/v4/server/mock/nanodep"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
+	apple_mdm "github.com/anilyagiz/automdm/v4/server/mdm/apple"
+	nanodep_client "github.com/anilyagiz/automdm/v4/server/mdm/nanodep/client"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanodep/godep"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	nanodep_mock "github.com/anilyagiz/automdm/v4/server/mock/nanodep"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -99,15 +99,15 @@ func newDEPVerifyEnv(t *testing.T, statusFor func(serial string) string, failDev
 	ds := new(mock.Store)
 	svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{DEPStorage: depStorage})
 	ctx = test.UserContext(ctx, test.UserAdmin)
-	ctx = license.NewContext(ctx, &fleet.LicenseInfo{Tier: fleet.TierPremium})
+	ctx = license.NewContext(ctx, &automdm.LicenseInfo{Tier: automdm.TierPremium})
 
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		ac := &fleet.AppConfig{}
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		ac := &automdm.AppConfig{}
 		ac.MDM.AppleBMEnabledAndConfigured = true
 		return ac, nil
 	}
-	ds.GetABMTokenByIDFunc = func(ctx context.Context, tokenID uint) (*fleet.ABMToken, error) {
-		return &fleet.ABMToken{ID: tokenID, OrganizationName: "org"}, nil
+	ds.GetABMTokenByIDFunc = func(ctx context.Context, tokenID uint) (*automdm.ABMToken, error) {
+		return &automdm.ABMToken{ID: tokenID, OrganizationName: "org"}, nil
 	}
 	// The DEP client's after-hook runs on every request to keep the token's
 	// validity flags in sync.
@@ -143,9 +143,9 @@ func newDEPVerifyEnv(t *testing.T, statusFor func(serial string) string, failDev
 	}
 }
 
-func liveAssignment(hostID uint, serial string) *fleet.HostDEPAssignment {
+func liveAssignment(hostID uint, serial string) *automdm.HostDEPAssignment {
 	tok := testABMTokenID
-	return &fleet.HostDEPAssignment{HostID: hostID, ABMTokenID: &tok, HardwareSerial: serial}
+	return &automdm.HostDEPAssignment{HostID: hostID, ABMTokenID: &tok, HardwareSerial: serial}
 }
 
 func TestCheckDEPAssignmentsForDelete(t *testing.T) {
@@ -165,11 +165,11 @@ func TestCheckDEPAssignmentsForDelete(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			env := newDEPVerifyEnv(t, func(string) string { return tc.status }, false)
-			env.ds.GetHostDEPAssignmentsByHostIDsFunc = func(ctx context.Context, ids []uint) ([]*fleet.HostDEPAssignment, error) {
-				return []*fleet.HostDEPAssignment{liveAssignment(1, "SERIAL1")}, nil
+			env.ds.GetHostDEPAssignmentsByHostIDsFunc = func(ctx context.Context, ids []uint) ([]*automdm.HostDEPAssignment, error) {
+				return []*automdm.HostDEPAssignment{liveAssignment(1, "SERIAL1")}, nil
 			}
 
-			checks, err := env.svc.checkDEPAssignmentsForDelete(env.ctx, []*fleet.Host{{ID: 1, HardwareSerial: "SERIAL1"}})
+			checks, err := env.svc.checkDEPAssignmentsForDelete(env.ctx, []*automdm.Host{{ID: 1, HardwareSerial: "SERIAL1"}})
 			require.NoError(t, err)
 			require.Equal(t, tc.want, checks[1].check)
 		})
@@ -177,38 +177,38 @@ func TestCheckDEPAssignmentsForDelete(t *testing.T) {
 
 	t.Run("apple unreachable blocks the delete", func(t *testing.T) {
 		env := newDEPVerifyEnv(t, func(string) string { return "SUCCESS" }, true)
-		env.ds.GetHostDEPAssignmentsByHostIDsFunc = func(ctx context.Context, ids []uint) ([]*fleet.HostDEPAssignment, error) {
-			return []*fleet.HostDEPAssignment{liveAssignment(1, "SERIAL1")}, nil
+		env.ds.GetHostDEPAssignmentsByHostIDsFunc = func(ctx context.Context, ids []uint) ([]*automdm.HostDEPAssignment, error) {
+			return []*automdm.HostDEPAssignment{liveAssignment(1, "SERIAL1")}, nil
 		}
 
-		checks, err := env.svc.checkDEPAssignmentsForDelete(env.ctx, []*fleet.Host{{ID: 1, HardwareSerial: "SERIAL1"}})
+		checks, err := env.svc.checkDEPAssignmentsForDelete(env.ctx, []*automdm.Host{{ID: 1, HardwareSerial: "SERIAL1"}})
 		require.NoError(t, err, "an Apple failure is a verdict, not an error")
 		require.Equal(t, depDeleteUnverified, checks[1].check)
 	})
 
 	t.Run("no live assignment means nothing to verify", func(t *testing.T) {
 		env := newDEPVerifyEnv(t, func(string) string { return "SUCCESS" }, false)
-		env.ds.GetHostDEPAssignmentsByHostIDsFunc = func(ctx context.Context, ids []uint) ([]*fleet.HostDEPAssignment, error) {
+		env.ds.GetHostDEPAssignmentsByHostIDsFunc = func(ctx context.Context, ids []uint) ([]*automdm.HostDEPAssignment, error) {
 			return nil, nil
 		}
 
-		checks, err := env.svc.checkDEPAssignmentsForDelete(env.ctx, []*fleet.Host{{ID: 1, HardwareSerial: "SERIAL1"}})
+		checks, err := env.svc.checkDEPAssignmentsForDelete(env.ctx, []*automdm.Host{{ID: 1, HardwareSerial: "SERIAL1"}})
 		require.NoError(t, err)
 		require.Equal(t, depDeleteNoAssignment, checks[1].check)
 		require.Zero(t, env.requests(), "Apple must not be called for a host that cannot be restored")
 	})
 
-	// Removing an Apple Business token from Fleet nulls out abm_token_id on every
+	// Removing an Apple Business token from AutoMDM nulls out abm_token_id on every
 	// assignment it owned (ON DELETE SET NULL). There is no organization left to
 	// ask, and nothing can restore the host through a token that is gone, so the
 	// record is cleared rather than the delete being blocked forever.
 	t.Run("assignment whose Apple Business token was removed", func(t *testing.T) {
 		env := newDEPVerifyEnv(t, func(string) string { return "SUCCESS" }, false)
-		env.ds.GetHostDEPAssignmentsByHostIDsFunc = func(ctx context.Context, ids []uint) ([]*fleet.HostDEPAssignment, error) {
-			return []*fleet.HostDEPAssignment{{HostID: 1, ABMTokenID: nil, HardwareSerial: "SERIAL1"}}, nil
+		env.ds.GetHostDEPAssignmentsByHostIDsFunc = func(ctx context.Context, ids []uint) ([]*automdm.HostDEPAssignment, error) {
+			return []*automdm.HostDEPAssignment{{HostID: 1, ABMTokenID: nil, HardwareSerial: "SERIAL1"}}, nil
 		}
 
-		checks, err := env.svc.checkDEPAssignmentsForDelete(env.ctx, []*fleet.Host{{ID: 1, HardwareSerial: "SERIAL1"}})
+		checks, err := env.svc.checkDEPAssignmentsForDelete(env.ctx, []*automdm.Host{{ID: 1, HardwareSerial: "SERIAL1"}})
 		require.NoError(t, err)
 		require.Equal(t, depDeleteDisowned, checks[1].check)
 		require.Zero(t, env.requests(), "there is no organization to ask")
@@ -216,9 +216,9 @@ func TestCheckDEPAssignmentsForDelete(t *testing.T) {
 
 	t.Run("free tier never calls apple", func(t *testing.T) {
 		env := newDEPVerifyEnv(t, func(string) string { return "SUCCESS" }, false)
-		env.ctx = license.NewContext(env.ctx, &fleet.LicenseInfo{Tier: fleet.TierFree})
+		env.ctx = license.NewContext(env.ctx, &automdm.LicenseInfo{Tier: automdm.TierFree})
 
-		checks, err := env.svc.checkDEPAssignmentsForDelete(env.ctx, []*fleet.Host{{ID: 1, HardwareSerial: "SERIAL1"}})
+		checks, err := env.svc.checkDEPAssignmentsForDelete(env.ctx, []*automdm.Host{{ID: 1, HardwareSerial: "SERIAL1"}})
 		require.NoError(t, err)
 		require.Equal(t, depDeleteNoAssignment, checks[1].check)
 		require.Zero(t, env.requests())
@@ -229,14 +229,14 @@ func TestCheckDEPAssignmentsForDelete(t *testing.T) {
 		total := apple_mdm.DEPSyncLimit + 50
 
 		env := newDEPVerifyEnv(t, func(string) string { return "NOT_ACCESSIBLE" }, false)
-		hosts := make([]*fleet.Host, 0, total)
-		assignments := make([]*fleet.HostDEPAssignment, 0, total)
+		hosts := make([]*automdm.Host, 0, total)
+		assignments := make([]*automdm.HostDEPAssignment, 0, total)
 		for i := 1; i <= total; i++ {
 			serial := fmt.Sprintf("SERIAL%d", i)
-			hosts = append(hosts, &fleet.Host{ID: uint(i), HardwareSerial: serial}) //nolint:gosec // test data
-			assignments = append(assignments, liveAssignment(uint(i), serial))      //nolint:gosec // test data
+			hosts = append(hosts, &automdm.Host{ID: uint(i), HardwareSerial: serial}) //nolint:gosec // test data
+			assignments = append(assignments, liveAssignment(uint(i), serial))        //nolint:gosec // test data
 		}
-		env.ds.GetHostDEPAssignmentsByHostIDsFunc = func(ctx context.Context, ids []uint) ([]*fleet.HostDEPAssignment, error) {
+		env.ds.GetHostDEPAssignmentsByHostIDsFunc = func(ctx context.Context, ids []uint) ([]*automdm.HostDEPAssignment, error) {
 			return assignments, nil
 		}
 
@@ -252,11 +252,11 @@ func TestCheckDEPAssignmentsForDelete(t *testing.T) {
 
 	t.Run("Apple Business not configured skips the check", func(t *testing.T) {
 		env := newDEPVerifyEnv(t, func(string) string { return "SUCCESS" }, false)
-		env.ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-			return &fleet.AppConfig{}, nil // AppleBMEnabledAndConfigured false
+		env.ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{}, nil // AppleBMEnabledAndConfigured false
 		}
 
-		checks, err := env.svc.checkDEPAssignmentsForDelete(env.ctx, []*fleet.Host{{ID: 1, HardwareSerial: "SERIAL1"}})
+		checks, err := env.svc.checkDEPAssignmentsForDelete(env.ctx, []*automdm.Host{{ID: 1, HardwareSerial: "SERIAL1"}})
 		require.NoError(t, err)
 		require.Equal(t, depDeleteNoAssignment, checks[1].check)
 		require.Zero(t, env.requests())
@@ -275,17 +275,17 @@ func TestCheckDEPAssignmentsForDelete(t *testing.T) {
 		}, false)
 
 		tokenA, tokenB := uint(1), uint(2)
-		env.ds.GetHostDEPAssignmentsByHostIDsFunc = func(ctx context.Context, ids []uint) ([]*fleet.HostDEPAssignment, error) {
-			return []*fleet.HostDEPAssignment{
+		env.ds.GetHostDEPAssignmentsByHostIDsFunc = func(ctx context.Context, ids []uint) ([]*automdm.HostDEPAssignment, error) {
+			return []*automdm.HostDEPAssignment{
 				{HostID: 1, ABMTokenID: &tokenA, HardwareSerial: "SERIAL-A"},
 				{HostID: 2, ABMTokenID: &tokenB, HardwareSerial: "SERIAL-B"},
 			}, nil
 		}
-		env.ds.GetABMTokenByIDFunc = func(ctx context.Context, tokenID uint) (*fleet.ABMToken, error) {
-			return &fleet.ABMToken{ID: tokenID, OrganizationName: fmt.Sprintf("org-%d", tokenID)}, nil
+		env.ds.GetABMTokenByIDFunc = func(ctx context.Context, tokenID uint) (*automdm.ABMToken, error) {
+			return &automdm.ABMToken{ID: tokenID, OrganizationName: fmt.Sprintf("org-%d", tokenID)}, nil
 		}
 
-		checks, err := env.svc.checkDEPAssignmentsForDelete(env.ctx, []*fleet.Host{
+		checks, err := env.svc.checkDEPAssignmentsForDelete(env.ctx, []*automdm.Host{
 			{ID: 1, HardwareSerial: "SERIAL-A"},
 			{ID: 2, HardwareSerial: "SERIAL-B"},
 		})
@@ -305,11 +305,11 @@ func TestDeleteHostVerifiesAppleBusinessAssignment(t *testing.T) {
 	setupHost := func(env *depVerifyEnv) *bool { //nolint:revive // pointer lets subtests read the flag
 		var cleared bool
 
-		env.ds.HostLiteFunc = func(ctx context.Context, id uint) (*fleet.Host, error) {
-			return &fleet.Host{ID: id, HardwareSerial: "SERIAL1", Platform: "darwin"}, nil
+		env.ds.HostLiteFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
+			return &automdm.Host{ID: id, HardwareSerial: "SERIAL1", Platform: "darwin"}, nil
 		}
-		env.ds.GetHostDEPAssignmentsByHostIDsFunc = func(ctx context.Context, ids []uint) ([]*fleet.HostDEPAssignment, error) {
-			return []*fleet.HostDEPAssignment{liveAssignment(1, "SERIAL1")}, nil
+		env.ds.GetHostDEPAssignmentsByHostIDsFunc = func(ctx context.Context, ids []uint) ([]*automdm.HostDEPAssignment, error) {
+			return []*automdm.HostDEPAssignment{liveAssignment(1, "SERIAL1")}, nil
 		}
 		env.ds.DeleteHostFunc = func(ctx context.Context, hid uint) error { return nil }
 		env.ds.MarkHostDEPAssignmentsDeletedFunc = func(ctx context.Context, hostIDs []uint) error {
@@ -317,7 +317,7 @@ func TestDeleteHostVerifiesAppleBusinessAssignment(t *testing.T) {
 			return nil
 		}
 		// What the lifecycle reads to decide whether to restore the host.
-		env.ds.GetHostDEPAssignmentFunc = func(ctx context.Context, hostID uint) (*fleet.HostDEPAssignment, error) {
+		env.ds.GetHostDEPAssignmentFunc = func(ctx context.Context, hostID uint) (*automdm.HostDEPAssignment, error) {
 			a := liveAssignment(hostID, "SERIAL1")
 			if cleared {
 				a.DeletedAt = new(time.Now())
@@ -327,8 +327,8 @@ func TestDeleteHostVerifiesAppleBusinessAssignment(t *testing.T) {
 		env.ds.ReconcileDuplicateDEPHostOnDeleteFunc = func(ctx context.Context, serial, platform string, deletedHostID uint) (bool, error) {
 			return false, nil
 		}
-		env.ds.RestoreMDMApplePendingDEPHostFunc = func(ctx context.Context, h *fleet.Host) error { return nil }
-		env.ds.NewJobFunc = func(ctx context.Context, job *fleet.Job) (*fleet.Job, error) { return job, nil }
+		env.ds.RestoreMDMApplePendingDEPHostFunc = func(ctx context.Context, h *automdm.Host) error { return nil }
+		env.ds.NewJobFunc = func(ctx context.Context, job *automdm.Job) (*automdm.Job, error) { return job, nil }
 
 		return &cleared
 	}
@@ -339,7 +339,7 @@ func TestDeleteHostVerifiesAppleBusinessAssignment(t *testing.T) {
 
 		err := env.svc.DeleteHost(env.ctx, 1)
 		require.Error(t, err)
-		require.Contains(t, err.Error(), fleet.CantDeleteHostUnverifiedABMMessage)
+		require.Contains(t, err.Error(), automdm.CantDeleteHostUnverifiedABMMessage)
 		// the internal Apple failure stays in the logs; gluing it onto the
 		// admin-facing refusal produced "Please try again.: <internals>"
 		require.NotContains(t, err.Error(), ".: ")
@@ -347,7 +347,7 @@ func TestDeleteHostVerifiesAppleBusinessAssignment(t *testing.T) {
 
 		// An upstream Apple failure is not the caller's fault, so it must not come
 		// back as a 4xx telling them to fix their request.
-		var gwErr *fleet.GatewayError
+		var gwErr *automdm.GatewayError
 		require.ErrorAs(t, err, &gwErr)
 		require.Equal(t, http.StatusBadGateway, gwErr.StatusCode())
 	})
@@ -397,18 +397,18 @@ func TestDeleteHostsSkipsHostsAppleCouldNotVerify(t *testing.T) {
 	}, false)
 
 	var cleared []string
-	env.ds.HostLiteFunc = func(ctx context.Context, id uint) (*fleet.Host, error) {
-		return &fleet.Host{ID: id, HardwareSerial: serials[id], Platform: "darwin"}, nil
+	env.ds.HostLiteFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
+		return &automdm.Host{ID: id, HardwareSerial: serials[id], Platform: "darwin"}, nil
 	}
-	env.ds.ListHostsLiteByIDsFunc = func(ctx context.Context, ids []uint) ([]*fleet.Host, error) {
-		hosts := make([]*fleet.Host, 0, len(ids))
+	env.ds.ListHostsLiteByIDsFunc = func(ctx context.Context, ids []uint) ([]*automdm.Host, error) {
+		hosts := make([]*automdm.Host, 0, len(ids))
 		for _, id := range ids {
-			hosts = append(hosts, &fleet.Host{ID: id, HardwareSerial: serials[id], Platform: "darwin"})
+			hosts = append(hosts, &automdm.Host{ID: id, HardwareSerial: serials[id], Platform: "darwin"})
 		}
 		return hosts, nil
 	}
-	env.ds.GetHostDEPAssignmentsByHostIDsFunc = func(ctx context.Context, ids []uint) ([]*fleet.HostDEPAssignment, error) {
-		out := make([]*fleet.HostDEPAssignment, 0, len(ids))
+	env.ds.GetHostDEPAssignmentsByHostIDsFunc = func(ctx context.Context, ids []uint) ([]*automdm.HostDEPAssignment, error) {
+		out := make([]*automdm.HostDEPAssignment, 0, len(ids))
 		for _, id := range ids {
 			out = append(out, liveAssignment(id, serials[id]))
 		}
@@ -420,7 +420,7 @@ func TestDeleteHostsSkipsHostsAppleCouldNotVerify(t *testing.T) {
 		}
 		return nil
 	}
-	env.ds.GetHostDEPAssignmentFunc = func(ctx context.Context, hostID uint) (*fleet.HostDEPAssignment, error) {
+	env.ds.GetHostDEPAssignmentFunc = func(ctx context.Context, hostID uint) (*automdm.HostDEPAssignment, error) {
 		a := liveAssignment(hostID, serials[hostID])
 		for _, s := range cleared {
 			if s == serials[hostID] {
@@ -432,8 +432,8 @@ func TestDeleteHostsSkipsHostsAppleCouldNotVerify(t *testing.T) {
 	env.ds.ReconcileDuplicateDEPHostOnDeleteFunc = func(ctx context.Context, serial, platform string, deletedHostID uint) (bool, error) {
 		return false, nil
 	}
-	env.ds.RestoreMDMApplePendingDEPHostFunc = func(ctx context.Context, h *fleet.Host) error { return nil }
-	env.ds.NewJobFunc = func(ctx context.Context, job *fleet.Job) (*fleet.Job, error) { return job, nil }
+	env.ds.RestoreMDMApplePendingDEPHostFunc = func(ctx context.Context, h *automdm.Host) error { return nil }
+	env.ds.NewJobFunc = func(ctx context.Context, job *automdm.Job) (*automdm.Job, error) { return job, nil }
 
 	var deleted []uint
 	env.ds.DeleteHostsFunc = func(ctx context.Context, ids []uint) error {
@@ -445,7 +445,7 @@ func TestDeleteHostsSkipsHostsAppleCouldNotVerify(t *testing.T) {
 
 	// The caller is told which hosts were left behind, by name.
 	require.Error(t, err)
-	require.Contains(t, err.Error(), fleet.CantDeleteHostUnverifiedABMMessage)
+	require.Contains(t, err.Error(), automdm.CantDeleteHostUnverifiedABMMessage)
 	require.Contains(t, err.Error(), serials[unverifiedHost])
 	// the internal Apple failure stays in the logs, not the admin-facing message
 	require.NotContains(t, err.Error(), "apple reported a failed device lookup")
@@ -463,7 +463,7 @@ func TestDeleteHostsSkipsHostsAppleCouldNotVerify(t *testing.T) {
 func TestClassifyDEPDeviceDetails(t *testing.T) {
 	// Only Apple failing to answer blocks a delete. Silence about a serial is
 	// unexpected but is read as "still ours", so one Apple quirk can't stop
-	// deletions across a fleet.
+	// deletions across a team.
 	cases := []struct {
 		name    string
 		details *godep.DeviceDetails
@@ -489,17 +489,17 @@ func TestDeleteHostsWhenNoHostCanBeVerified(t *testing.T) {
 	env := newDEPVerifyEnv(t, func(string) string { return "SUCCESS" }, true)
 
 	serials := map[uint]string{1: "SERIAL-A", 2: "SERIAL-B"}
-	env.ds.HostLiteFunc = func(ctx context.Context, id uint) (*fleet.Host, error) {
-		return &fleet.Host{ID: id, HardwareSerial: serials[id], Platform: "darwin"}, nil
+	env.ds.HostLiteFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
+		return &automdm.Host{ID: id, HardwareSerial: serials[id], Platform: "darwin"}, nil
 	}
-	env.ds.ListHostsLiteByIDsFunc = func(ctx context.Context, ids []uint) ([]*fleet.Host, error) {
-		return []*fleet.Host{
+	env.ds.ListHostsLiteByIDsFunc = func(ctx context.Context, ids []uint) ([]*automdm.Host, error) {
+		return []*automdm.Host{
 			{ID: 1, HardwareSerial: serials[1], Platform: "darwin"},
 			{ID: 2, HardwareSerial: serials[2], Platform: "darwin"},
 		}, nil
 	}
-	env.ds.GetHostDEPAssignmentsByHostIDsFunc = func(ctx context.Context, ids []uint) ([]*fleet.HostDEPAssignment, error) {
-		return []*fleet.HostDEPAssignment{liveAssignment(1, serials[1]), liveAssignment(2, serials[2])}, nil
+	env.ds.GetHostDEPAssignmentsByHostIDsFunc = func(ctx context.Context, ids []uint) ([]*automdm.HostDEPAssignment, error) {
+		return []*automdm.HostDEPAssignment{liveAssignment(1, serials[1]), liveAssignment(2, serials[2])}, nil
 	}
 	env.ds.MarkHostDEPAssignmentsDeletedFunc = func(ctx context.Context, hostIDs []uint) error { return nil }
 	env.ds.DeleteHostsFunc = func(ctx context.Context, ids []uint) error { return nil }
@@ -511,7 +511,7 @@ func TestDeleteHostsWhenNoHostCanBeVerified(t *testing.T) {
 	require.NotContains(t, err.Error(), "were deleted", "nothing was deleted, so the message must not imply otherwise")
 	require.False(t, env.ds.DeleteHostsFuncInvoked, "nothing may be deleted when no host could be verified")
 
-	var gwErr *fleet.GatewayError
+	var gwErr *automdm.GatewayError
 	require.ErrorAs(t, err, &gwErr)
 	require.Equal(t, http.StatusBadGateway, gwErr.StatusCode())
 }

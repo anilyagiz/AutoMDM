@@ -6,7 +6,7 @@ import CustomLink from "components/CustomLink";
 import {
   isPackageType,
   isWindowsPackageType,
-  isFleetMaintainedPackageType,
+  isAutoMDMMaintainedPackageType,
   isScriptOnlyPackageType,
   PackageType,
 } from "interfaces/package_type";
@@ -59,7 +59,7 @@ const getInstallHelpText = (pkgType: PackageType) => {
   if (pkgType === "exe") {
     return (
       <>
-        For Windows, Fleet only creates install scripts for .msi packages. Use
+        For Windows, AutoMDM only creates install scripts for .msi packages. Use
         the $INSTALLER_PATH variable to point to the installer.{" "}
         {getSupportedScriptTypeText(pkgType)}{" "}
         <CustomLink
@@ -74,7 +74,7 @@ const getInstallHelpText = (pkgType: PackageType) => {
   if (pkgType === "zip") {
     return (
       <>
-        For Windows, Fleet only creates install scripts for .msi packages. Use
+        For Windows, AutoMDM only creates install scripts for .msi packages. Use
         the $INSTALLER_PATH variable to point to the installer.{" "}
         {getSupportedScriptTypeText(pkgType)}{" "}
         <CustomLink
@@ -123,11 +123,11 @@ const getUninstallHelpText = (pkgType: PackageType) => {
     return getSupportedScriptTypeText(pkgType);
   }
 
-  // Check for Windows zip files first (before isFleetMaintainedPackageType check)
+  // Check for Windows zip files first (before isAutoMDMMaintainedPackageType check)
   if (pkgType === "zip" && isWindowsPackageType(pkgType)) {
     return (
       <>
-        For Windows, Fleet only creates uninstall scripts for .msi packages.
+        For Windows, AutoMDM only creates uninstall scripts for .msi packages.
         $PACKAGE_ID will be populated with the software name from the .zip file
         after it&apos;s added. {getSupportedScriptTypeText(pkgType)}{" "}
         <CustomLink
@@ -139,14 +139,14 @@ const getUninstallHelpText = (pkgType: PackageType) => {
     );
   }
 
-  if (isFleetMaintainedPackageType(pkgType)) {
+  if (isAutoMDMMaintainedPackageType(pkgType)) {
     return "Currently, only shell scripts are supported.";
   }
 
   if (pkgType === "exe") {
     return (
       <>
-        For Windows, Fleet only creates uninstall scripts for .msi packages.
+        For Windows, AutoMDM only creates uninstall scripts for .msi packages.
         $PACKAGE_ID will be populated with the software name from the .exe file
         after it&apos;s added. {getSupportedScriptTypeText(pkgType)}{" "}
         <CustomLink

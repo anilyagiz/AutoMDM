@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
@@ -32,10 +32,10 @@ func (s *integrationDSTestSuite) TestLicenseExpiration() {
 		expiration       time.Time
 		shouldHaveHeader bool
 	}{
-		{"basic expired", fleet.TierPremium, time.Now().Add(-24 * time.Hour), true},
-		{"basic not expired", fleet.TierPremium, time.Now().Add(24 * time.Hour), false},
-		{"core expired", fleet.TierFree, time.Now().Add(-24 * time.Hour), false},
-		{"core not expired", fleet.TierFree, time.Now().Add(24 * time.Hour), false},
+		{"basic expired", automdm.TierPremium, time.Now().Add(-24 * time.Hour), true},
+		{"basic not expired", automdm.TierPremium, time.Now().Add(24 * time.Hour), false},
+		{"core expired", automdm.TierFree, time.Now().Add(-24 * time.Hour), false},
+		{"core not expired", automdm.TierFree, time.Now().Add(24 * time.Hour), false},
 	}
 
 	createTestUsers(s.T(), s.ds)
@@ -43,18 +43,18 @@ func (s *integrationDSTestSuite) TestLicenseExpiration() {
 		s.Run(tt.name, func() {
 			t := s.T()
 
-			license := &fleet.LicenseInfo{Tier: tt.tier, Expiration: tt.expiration}
+			license := &automdm.LicenseInfo{Tier: tt.tier, Expiration: tt.expiration}
 			_, server := RunServerForTestsWithDS(t, s.ds, &TestServerOpts{License: license, SkipCreateTestUsers: true})
 
 			ts := withServer{server: server}
 			ts.s = &s.Suite
 			ts.token = ts.getTestAdminToken()
 
-			resp := ts.Do("GET", "/api/latest/fleet/config", nil, http.StatusOK)
+			resp := ts.Do("GET", "/api/latest/automdm/config", nil, http.StatusOK)
 			if tt.shouldHaveHeader {
-				require.Equal(t, fleet.HeaderLicenseValueExpired, resp.Header.Get(fleet.HeaderLicenseKey))
+				require.Equal(t, automdm.HeaderLicenseValueExpired, resp.Header.Get(automdm.HeaderLicenseKey))
 			} else {
-				require.Equal(t, "", resp.Header.Get(fleet.HeaderLicenseKey))
+				require.Equal(t, "", resp.Header.Get(automdm.HeaderLicenseKey))
 			}
 		})
 	}

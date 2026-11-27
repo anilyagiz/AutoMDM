@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/io"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/io"
 	"github.com/stretchr/testify/require"
 )
 

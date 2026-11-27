@@ -8,7 +8,7 @@ source ./tools/tuf/test/load_orbit_version_vars.sh
 build_windows_orbit() {
     local arch=$1 output=$2
     go run ./orbit/tools/build/build-windows.go -version "$ORBIT_VERSION" -input ./orbit/cmd/orbit -resource=true -arch "$arch"
-    CGO_ENABLED=0 GOOS=windows GOARCH=$arch go build -trimpath -o "$output" -ldflags="-s -w -X github.com/fleetdm/fleet/v4/orbit/pkg/build.Version=$ORBIT_VERSION -X github.com/fleetdm/fleet/v4/orbit/pkg/build.Commit=$ORBIT_COMMIT -X github.com/fleetdm/fleet/v4/orbit/pkg/build.Date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" ./orbit/cmd/orbit
+    CGO_ENABLED=0 GOOS=windows GOARCH=$arch go build -trimpath -o "$output" -ldflags="-s -w -X github.com/anilyagiz/automdm/v4/orbit/pkg/build.Version=$ORBIT_VERSION -X github.com/anilyagiz/automdm/v4/orbit/pkg/build.Commit=$ORBIT_COMMIT -X github.com/anilyagiz/automdm/v4/orbit/pkg/build.Date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" ./orbit/cmd/orbit
     rm -f ./orbit/cmd/orbit/resource_windows.syso ./orbit/cmd/orbit/manifest.xml
 }
 
@@ -20,11 +20,11 @@ build_windows_orbit arm64 orbit-arm64.exe
 ./tools/tuf/test/push_target.sh windows-arm64 orbit orbit-arm64.exe $ORBIT_VERSION
 rm orbit-arm64.exe
 
-GOOS=linux GOARCH=arm64 go build -o orbit-linux-arm64 -ldflags="-s -w -X github.com/fleetdm/fleet/v4/orbit/pkg/build.Version=$ORBIT_VERSION -X github.com/fleetdm/fleet/v4/orbit/pkg/build.Commit=$ORBIT_COMMIT" ./orbit/cmd/orbit
+GOOS=linux GOARCH=arm64 go build -o orbit-linux-arm64 -ldflags="-s -w -X github.com/anilyagiz/automdm/v4/orbit/pkg/build.Version=$ORBIT_VERSION -X github.com/anilyagiz/automdm/v4/orbit/pkg/build.Commit=$ORBIT_COMMIT" ./orbit/cmd/orbit
 ./tools/tuf/test/push_target.sh linux-arm64 orbit orbit-linux-arm64 $ORBIT_VERSION
 rm orbit-linux-arm64
 
-GOOS=linux GOARCH=amd64 go build -o orbit-linux -ldflags="-s -w -X github.com/fleetdm/fleet/v4/orbit/pkg/build.Version=$ORBIT_VERSION -X github.com/fleetdm/fleet/v4/orbit/pkg/build.Commit=$ORBIT_COMMIT" ./orbit/cmd/orbit
+GOOS=linux GOARCH=amd64 go build -o orbit-linux -ldflags="-s -w -X github.com/anilyagiz/automdm/v4/orbit/pkg/build.Version=$ORBIT_VERSION -X github.com/anilyagiz/automdm/v4/orbit/pkg/build.Commit=$ORBIT_COMMIT" ./orbit/cmd/orbit
 ./tools/tuf/test/push_target.sh linux orbit orbit-linux $ORBIT_VERSION
 rm orbit-linux
 

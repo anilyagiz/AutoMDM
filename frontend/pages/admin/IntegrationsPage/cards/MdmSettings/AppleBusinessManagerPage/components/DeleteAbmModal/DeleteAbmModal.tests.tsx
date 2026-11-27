@@ -20,7 +20,7 @@ describe("DeleteAbmModal", () => {
     renderModal({ tokenIsDefault: true, tokensCount: 1 });
 
     expect(
-      screen.getByText(/won't automatically enroll to Fleet/)
+      screen.getByText(/won't automatically enroll to AutoMDM/)
     ).toBeInTheDocument();
     expect(
       screen.queryByText(/will become the default|set a new default/)
@@ -31,7 +31,7 @@ describe("DeleteAbmModal", () => {
     renderModal({ tokenIsDefault: false, tokensCount: 3 });
 
     expect(
-      screen.getByText(/won't automatically enroll to Fleet/)
+      screen.getByText(/won't automatically enroll to AutoMDM/)
     ).toBeInTheDocument();
     expect(
       screen.queryByText(/will become the default|set a new default/)

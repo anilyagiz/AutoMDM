@@ -6,8 +6,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 )
 
 var innodbLockWaitsTableExists atomic.Int64 // Initializes to 0. 0 means we haven't checked yet.
@@ -62,7 +62,7 @@ func (ds *Datastore) Unlock(ctx context.Context, name string, owner string) erro
 	return err
 }
 
-func (ds *Datastore) DBLocks(ctx context.Context) ([]*fleet.DBLock, error) {
+func (ds *Datastore) DBLocks(ctx context.Context) ([]*automdm.DBLock, error) {
 	// information_schema.innodb_lock_waits has been deprecated in MySQL 8, so we need to check if it exists.
 	// We only need to check once.
 	localInnodbLockWaitsTableExists := innodbLockWaitsTableExists.Load()
@@ -122,16 +122,16 @@ func (ds *Datastore) DBLocks(ctx context.Context) ([]*fleet.DBLock, error) {
 		  ON r.trx_id = w.requesting_engine_transaction_id`
 	}
 
-	var locks []*fleet.DBLock
+	var locks []*automdm.DBLock
 	// Even though this is a Read, use the writer as we want the db locks from
 	// the primary database (the read replica should have little to no trx locks).
 	if err := ds.writer(ctx).SelectContext(ctx, &locks, stmt); err != nil {
 		// To read innodb tables, the DB user must have PROCESS and SELECT privileges.
 		//
 		// This can be set by a DB admin by running:
-		//	GRANT PROCESS,SELECT ON *.* TO 'fleet'@'%';
+		//	GRANT PROCESS,SELECT ON *.* TO 'team'@'%';
 		//	FLUSH PRIVILEGES;
-		// Make sure to restart fleet after running the commands above.
+		// Make sure to restart team after running the commands above.
 		if isMySQLAccessDenied(err) {
 			return nil, &accessDeniedError{
 				Message:     "select locking information: DB user must have global PROCESS and SELECT privilege",

@@ -1,6 +1,6 @@
 package services
 
-import "github.com/fleetdm/fleet/tools/hangar/internal/traymenu"
+import "github.com/anilyagiz/automdm/tools/hangar/internal/traymenu"
 
 // TrayService lets the frontend push tray state (branch + service health),
 // which rebuilds the native tray menu. Mirrors update_tray from tray.rs.

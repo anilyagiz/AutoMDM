@@ -5,13 +5,13 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/fleetdm/fleet/v4/tools/dibble/pkg/seed"
+	"github.com/anilyagiz/automdm/v4/tools/dibble/pkg/seed"
 )
 
 func newUsersCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "users",
-		Short: "Seed Fleet users with themed names and rotating roles",
+		Short: "Seed AutoMDM users with themed names and rotating roles",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := requireConfig(); err != nil {
 				return err

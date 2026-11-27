@@ -123,7 +123,7 @@ func CleanOrphansFromPriorRun(dataDir string) {
 		}
 		slog.Info("reaping orphan from prior run", "id", r.ID, "pid", r.PID, "program", r.Program)
 		signalGroup(r.PID, syscall.SIGTERM)
-		// Brief grace before escalating (plenty for python/ngrok; fleet
+		// Brief grace before escalating (plenty for python/ngrok; team
 		// serve usually dies cleanly on SIGTERM too).
 		time.Sleep(500 * time.Millisecond)
 		if pidIsAlive(r.PID) {

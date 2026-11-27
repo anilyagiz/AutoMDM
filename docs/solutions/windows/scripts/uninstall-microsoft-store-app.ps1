@@ -1,7 +1,7 @@
 # Uninstalls a Microsoft Store app for all users on the host.
 
-# Change this line for each app. Fleet's guide shows how to find the package family name:
-# https://fleetdm.com/guides/build-your-own-windows-self-service-with-winget-and-script-only-packages-guide
+# Change this line for each app. AutoMDM's guide shows how to find the package family name:
+# https://automdm.com/guides/build-your-own-windows-self-service-with-winget-and-script-only-packages-guide
 $packageFamilyName = 'Microsoft.CompanyPortal_8wekyb3d8bbwe'
 $packageName = $packageFamilyName.Split('_')[0]
 

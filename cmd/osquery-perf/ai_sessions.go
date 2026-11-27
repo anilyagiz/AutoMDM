@@ -13,28 +13,28 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
-// fleetd's limits on ai_agent_session_messages, which decide how many refreshes a session's tool calls take.
+// automdmd's limits on ai_agent_session_messages, which decide how many refreshes a session's tool calls take.
 const (
-	// aiSessionMaxContent is the cut fleetd applies to each content value when sessions are named by transcript_path.
+	// aiSessionMaxContent is the cut automdmd applies to each content value when sessions are named by transcript_path.
 	aiSessionMaxContent = 8 << 10
-	// aiSessionMaxResultBytes is fleetd's budget for one query's result, shared by all its table calls.
+	// aiSessionMaxResultBytes is automdmd's budget for one query's result, shared by all its table calls.
 	aiSessionMaxResultBytes = 1 << 20
-	// aiSessionMaxPerAgent is how many sessions per agent fleetd reads; it skips the rest.
+	// aiSessionMaxPerAgent is how many sessions per agent automdmd reads; it skips the rest.
 	aiSessionMaxPerAgent = 5000
-	// aiSessionWindow is how far back Fleet asks for sessions: those active since then.
+	// aiSessionWindow is how far back AutoMDM asks for sessions: those active since then.
 	aiSessionWindow = 7 * 24 * time.Hour
 	// aiSessionTranscriptAge is how long a transcript stays on the host after its session ended (Claude Code's default
-	// cleanup). Fleet can still read the tool calls of a session it no longer lists until then.
+	// cleanup). AutoMDM can still read the tool calls of a session it no longer lists until then.
 	aiSessionTranscriptAge = 30 * 24 * time.Hour
 )
 
-// aiSessionsConfig sets how many AI agent sessions the simulated fleetd hosts report, and how many of them can't be
+// aiSessionsConfig sets how many AI agent sessions the simulated automdmd hosts report, and how many of them can't be
 // collected in full.
 type aiSessionsConfig struct {
-	// prob is the share of fleetd hosts that report sessions.
+	// prob is the share of automdmd hosts that report sessions.
 	prob float64
 	// initialCount is how many sessions, from the last 7 days, a host has when it starts.
 	initialCount int
@@ -42,9 +42,9 @@ type aiSessionsConfig struct {
 	perDay float64
 	// longProb is the share of sessions with thousands of tool calls, which take several refreshes to collect.
 	longProb float64
-	// deletedProb is the share of sessions whose transcript is deleted from the host after Fleet collected the session.
+	// deletedProb is the share of sessions whose transcript is deleted from the host after AutoMDM collected the session.
 	deletedProb float64
-	// uncountedProb is the share of sessions whose tool call count includes calls fleetd doesn't return.
+	// uncountedProb is the share of sessions whose tool call count includes calls automdmd doesn't return.
 	uncountedProb float64
 }
 
@@ -58,7 +58,7 @@ func (c aiSessionsConfig) validate() error {
 		return errors.New("ai_sessions_initial_count and ai_sessions_per_day cannot be negative")
 	}
 	if float64(c.initialCount)+c.perDay*aiSessionWindow.Hours()/24 > aiSessionMaxPerAgent {
-		return fmt.Errorf("ai_sessions_initial_count plus 7 days of ai_sessions_per_day must stay under fleetd's %d sessions per agent", aiSessionMaxPerAgent)
+		return fmt.Errorf("ai_sessions_initial_count plus 7 days of ai_sessions_per_day must stay under automdmd's %d sessions per agent", aiSessionMaxPerAgent)
 	}
 	return nil
 }
@@ -93,13 +93,13 @@ var aiSessionRepos = []string{"api", "web", "infra", "docs", "o'brien-tools"}
 // still running grows and its ended_at moves at each refresh.
 type aiSession struct {
 	seed    uint64
-	agent   int // index into fleet.AISessionAgents
+	agent   int // index into automdm.AISessionAgents
 	repo    int // index into aiSessionRepos
 	started time.Time
 	gap     time.Duration
 	target  int // tool calls once the session is over
 	long    bool
-	// uncounted is how many tool calls fleetd counts but doesn't return.
+	// uncounted is how many tool calls automdmd counts but doesn't return.
 	uncounted int
 	// deleteAfter is how many times the session is reported before its transcript is deleted, 0 for never.
 	deleteAfter int
@@ -108,9 +108,9 @@ type aiSession struct {
 	home, sep string
 }
 
-func (s *aiSession) agentName() string { return fleet.AISessionAgents[s.agent] }
+func (s *aiSession) agentName() string { return automdm.AISessionAgents[s.agent] }
 
-func (s *aiSession) cursor() bool { return s.agentName() == fleet.AISessionAgentCursor }
+func (s *aiSession) cursor() bool { return s.agentName() == automdm.AISessionAgentCursor }
 
 func (s *aiSession) id() string {
 	a, b := s.mix(aiMixID, 0), s.mix(aiMixID, 1)
@@ -197,9 +197,9 @@ func (s *aiSession) toolCall(i int) aiToolCall {
 	case 16, 17:
 		return aiToolCall{"Grep", "search", "func handle", `{"pattern":"func handle","path":"."}`}
 	case 18:
-		return aiToolCall{"WebFetch", "network", "https://fleetdm.com/docs", `{"url":"https://fleetdm.com/docs","prompt":"Summarize"}`}
+		return aiToolCall{"WebFetch", "network", "https://automdm.com/docs", `{"url":"https://automdm.com/docs","prompt":"Summarize"}`}
 	default:
-		return aiToolCall{"mcp__github__create_issue", "mcp", "github: create_issue", `{"owner":"fleetdm","repo":"fleet","title":"Load test"}`}
+		return aiToolCall{"mcp__github__create_issue", "mcp", "github: create_issue", `{"owner":"automdm","repo":"automdm","title":"Load test"}`}
 	}
 }
 
@@ -243,9 +243,9 @@ func (s *aiSession) accountIdentifier() string {
 		if s.mix(aiMixDetail, 1)%10 == 0 {
 			return "API KEY"
 		}
-		return "fleet@example.com"
+		return "team@example.com"
 	case "codex_cli", "cursor":
-		return "fleet@example.com"
+		return "team@example.com"
 	default:
 		return ""
 	}
@@ -276,7 +276,7 @@ func (s *aiSession) row(now time.Time) map[string]string {
 		"agent":                 s.agentName(),
 		"session_id":            s.id(),
 		"agent_version":         aiSessionVersions[s.agentName()],
-		"username":              "fleet",
+		"username":              "automdm",
 		"account_identifier":    s.accountIdentifier(),
 		"model":                 aiSessionModels[s.agentName()],
 		"project_path":          s.projectPath(),
@@ -297,7 +297,7 @@ func (s *aiSession) row(now time.Time) map[string]string {
 }
 
 // aiSessionsSim is a host's AI agent sessions, answering the ai_agent_sessions and ai_agent_session_events detail
-// queries as fleetd would.
+// queries as automdmd would.
 type aiSessionsSim struct {
 	mu       sync.Mutex
 	cfg      aiSessionsConfig
@@ -308,7 +308,7 @@ type aiSessionsSim struct {
 	// last and pending track arrivals of new sessions between refreshes.
 	last    time.Time
 	pending float64
-	// lastEventsBytes is the size fleetd counted for the last events result.
+	// lastEventsBytes is the size automdmd counted for the last events result.
 	lastEventsBytes int
 }
 
@@ -316,11 +316,11 @@ func newAISessionsSim(cfg aiSessionsConfig, agentOS string, seed int64, now time
 	s := &aiSessionsSim{cfg: cfg, rng: rand.New(rand.NewSource(seed)), last: now, sep: "/"} //nolint:gosec // ignore weak randomizer
 	switch agentOS {
 	case "windows":
-		s.home, s.sep = `C:\Users\fleet\`, `\`
+		s.home, s.sep = `C:\Users\team\`, `\`
 	case "macos":
-		s.home = "/Users/fleet/"
+		s.home = "/Users/automdm/"
 	default:
-		s.home = "/home/fleet/"
+		s.home = "/home/automdm/"
 	}
 	// Spread over a bit less than the window, so a starting host doesn't lose sessions to it right away.
 	for range cfg.initialCount {
@@ -329,7 +329,7 @@ func newAISessionsSim(cfg aiSessionsConfig, agentOS string, seed int64, now time
 	return s
 }
 
-// aiSessionAgentWeights is how often each agent of fleet.AISessionAgents starts a session.
+// aiSessionAgentWeights is how often each agent of automdm.AISessionAgents starts a session.
 var aiSessionAgentWeights = []int{50, 5, 20, 20, 5}
 
 func (s *aiSessionsSim) newSession(started time.Time) *aiSession {
@@ -406,7 +406,7 @@ func (s *aiSessionsSim) sessionsRows(now time.Time) []map[string]string {
 	return rows
 }
 
-// The parts of Fleet's events query (see buildAIAgentSessionEventsQuery): per session, a constant row naming it as
+// The parts of AutoMDM's events query (see buildAIAgentSessionEventsQuery): per session, a constant row naming it as
 // requested, then its tool calls from a resume point up to a limit.
 var (
 	aiRequestedArmRe = regexp.MustCompile(`(?s)^SELECT '((?:[^']|'')*)' AS agent, '((?:[^']|'')*)' AS session_id, .*?(-?\d+) AS session_ended_at, 1 AS requested$`)
@@ -416,7 +416,7 @@ var (
 
 func unquoteSQLite(s string) string { return strings.ReplaceAll(s, "''", "'") }
 
-// aiSessionBudget is fleetd's shared result budget: a table call's rows stop once it's spent, but each call still
+// aiSessionBudget is automdmd's shared result budget: a table call's rows stop once it's spent, but each call still
 // returns its first row until twice the budget is used.
 type aiSessionBudget struct{ used int }
 
@@ -429,7 +429,7 @@ func (b *aiSessionBudget) take(n int, first bool) bool {
 	return true
 }
 
-// aiSessionWireSize is the size fleetd counts for a row: every column of its messages table, JSON encoded.
+// aiSessionWireSize is the size automdmd counts for a row: every column of its messages table, JSON encoded.
 func aiSessionWireSize(cols ...string) int {
 	n := 2
 	for _, c := range cols {
@@ -440,7 +440,7 @@ func aiSessionWireSize(cols ...string) int {
 }
 
 // eventsRows answers the ai_agent_session_events detail query. Each UNION ALL arm is one table call, and all calls share
-// fleetd's result budget. fleetd applies the tool_call_index bound itself, so calls before it cost nothing.
+// automdmd's result budget. automdmd applies the tool_call_index bound itself, so calls before it cost nothing.
 func (s *aiSessionsSim) eventsRows(query string, now time.Time) []map[string]string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -511,7 +511,7 @@ func (s *aiSessionsSim) eventsRows(query string, now time.Time) []map[string]str
 					"decision": sess.decision(i, msg, lastMsg, active), "timestamp": strconv.FormatInt(sess.timestamp(i), 10),
 					"content": call.content, "session_ended_at": m[1], "requested": "0",
 				}
-				size := aiSessionWireSize(row["agent"], row["session_id"], "fleet", strconv.FormatUint(uint64(msg), 10),
+				size := aiSessionWireSize(row["agent"], row["session_id"], "automdm", strconv.FormatUint(uint64(msg), 10),
 					strconv.FormatUint(uint64(block), 10), row["tool_call_index"],
 					"assistant", "tool_use", row["tool_name"], row["tool_use_id"], row["action"], row["target"], row["decision"],
 					sess.projectPath(), row["timestamp"], aiSessionModels[sess.agentName()], row["content"],

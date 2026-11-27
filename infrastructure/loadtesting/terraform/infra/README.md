@@ -8,13 +8,13 @@ Although deployments through the github action should be prioritized, for manual
 - Docker
 - Go
 
-Additionally, refer to the [Reference Architecture sizing recommendations](https://fleetdm.com/docs/deploy/reference-architectures#aws) for loadtest infrastructure sizing.
+Additionally, refer to the [Reference Architecture sizing recommendations](https://automdm.com/docs/deploy/reference-architectures#aws) for loadtest infrastructure sizing.
 
 # Deploy with Github Actions
 
 ## Deploy/Destroy environment with Github Action
 
-1. [Navigate to the github action](https://github.com/fleetdm/fleet/actions/workflows/loadtest-infra.yml)
+1. [Navigate to the github action](https://github.com/anilyagiz/automdm/actions/workflows/loadtest-infra.yml)
 
 2. On the top right corner, select the `Run Workflow` dropdown.
 
@@ -67,7 +67,7 @@ Additionally, refer to the [Reference Architecture sizing recommendations](https
     Below is an example with all available variables.
 
     ```sh
-    terraform apply -var=tag=v4.72.0 -var=fleet_task_count=20 -var=fleet_task_memory=4096 -var=fleet_task_cpu=512 -var=database_instance_size=db.t4g.large -var=database_instance_count=3 -var=redis_instance_size=cache.t4g.small -var=redis_instance_count=3 -var=enable_otel=true
+    terraform apply -var=tag=v4.72.0 -var=automdm_task_count=20 -var=automdm_task_memory=4096 -var=automdm_task_cpu=512 -var=database_instance_size=db.t4g.large -var=database_instance_count=3 -var=redis_instance_size=cache.t4g.small -var=redis_instance_count=3 -var=enable_otel=true
     ```
 
 ## OpenTelemetry tracing with SigNoz
@@ -78,7 +78,7 @@ By default, the loadtest environment runs without tracing. To trace a load test,
 terraform apply -var=tag=v4.72.0 -var=enable_otel=true
 ```
 
-This deploys both Fleet and SigNoz in a single command. See [../signoz/README.md](../signoz/README.md) for architecture details.
+This deploys both AutoMDM and SigNoz in a single command. See [../signoz/README.md](../signoz/README.md) for architecture details.
 
 ## Running against Valkey instead of Redis
 
@@ -94,7 +94,7 @@ terraform apply -var=tag=v4.72.0 -var=redis_engine=valkey -var=redis_engine_vers
 terraform apply -var=tag=v4.72.0 -var=redis_engine=valkey -var=redis_engine_version=7.2 -var=redis_parameter_group_family=valkey7
 ```
 
-Fleet connects to ElastiCache the same way regardless of engine (Valkey is wire-compatible with
+AutoMDM connects to ElastiCache the same way regardless of engine (Valkey is wire-compatible with
 Redis), so no other variables need to change.
 
 ### Accessing the SigNoz UI
@@ -172,7 +172,7 @@ terraform workspace delete <workspace_name>
 
 | Name | Type |
 |------|------|
-| [aws_ecr_repository.fleet](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/ecr_repository) | resource |
+| [aws_ecr_repository.team](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/ecr_repository) | resource |
 | [aws_iam_policy.enroll](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_policy) | resource |
 | [aws_iam_policy.license](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_policy) | resource |
 | [aws_iam_role_policy_attachment.enroll](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy_attachment) | resource |
@@ -185,7 +185,7 @@ terraform workspace delete <workspace_name>
 | [aws_route53_record.main](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route53_record) | resource |
 | [aws_secretsmanager_secret_version.scep](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret_version) | resource |
 | [aws_security_group.internal](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/security_group) | resource |
-| [docker_registry_image.fleet](https://registry.terraform.io/providers/kreuzwerker/docker/latest/docs/resources/registry_image) | resource |
+| [docker_registry_image.team](https://registry.terraform.io/providers/kreuzwerker/docker/latest/docs/resources/registry_image) | resource |
 | [random_password.challenge](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) | resource |
 | [random_pet.db_secret_postfix](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/pet) | resource |
 | [tls_private_key.cloudfront_key](https://registry.terraform.io/providers/hashicorp/tls/latest/docs/resources/private_key) | resource |
@@ -212,9 +212,9 @@ terraform workspace delete <workspace_name>
 | <a name="input_database_instance_count"></a> [database\_instance\_count](#input\_database\_instance\_count) | The number of Aurora database instances | `number` | `2` | no |
 | <a name="input_database_instance_size"></a> [database\_instance\_size](#input\_database\_instance\_size) | The instance size for Aurora database instances | `string` | `"db.t4g.medium"` | no |
 | <a name="input_enable_otel"></a> [enable\_otel](#input\_enable\_otel) | Enable OpenTelemetry tracing with SigNoz. Tracing is disabled when false | `bool` | `false` | no |
-| <a name="input_fleet_task_count"></a> [fleet\_task\_count](#input\_fleet\_task\_count) | The total number (max) that ECS can scale Fleet containers up to | `number` | `5` | no |
-| <a name="input_fleet_task_cpu"></a> [fleet\_task\_cpu](#input\_fleet\_task\_cpu) | The CPU configuration for Fleet containers | `number` | `512` | no |
-| <a name="input_fleet_task_memory"></a> [fleet\_task\_memory](#input\_fleet\_task\_memory) | The memory configuration for Fleet containers | `number` | `4096` | no |
+| <a name="input_automdm_task_count"></a> [team\_task\_count](#input\_team\_task\_count) | The total number (max) that ECS can scale AutoMDM containers up to | `number` | `5` | no |
+| <a name="input_automdm_task_cpu"></a> [team\_task\_cpu](#input\_team\_task\_cpu) | The CPU configuration for AutoMDM containers | `number` | `512` | no |
+| <a name="input_automdm_task_memory"></a> [team\_task\_memory](#input\_team\_task\_memory) | The memory configuration for AutoMDM containers | `number` | `4096` | no |
 | <a name="input_redis_engine"></a> [redis\_engine](#input\_redis\_engine) | The Elasticache engine to use: "redis" or "valkey". | `string` | `"redis"` | no |
 | <a name="input_redis_engine_version"></a> [redis\_engine\_version](#input\_redis\_engine\_version) | The Elasticache engine version (e.g. "7.1" for Redis, "8.0" for Valkey). | `string` | `"7.1"` | no |
 | <a name="input_redis_instance_count"></a> [redis\_instance\_count](#input\_redis\_instance\_count) | The number of Elasticache nodes | `number` | `3` | no |
@@ -237,5 +237,5 @@ terraform workspace delete <workspace_name>
 | <a name="output_server_url"></a> [server\_url](#output\_server\_url) | n/a |
 | <a name="output_signoz_cluster_name"></a> [signoz\_cluster\_name](#output\_signoz\_cluster\_name) | SigNoz EKS cluster name |
 | <a name="output_signoz_configure_kubectl"></a> [signoz\_configure\_kubectl](#output\_signoz\_configure\_kubectl) | Command to configure kubectl for SigNoz |
-| <a name="output_signoz_otel_collector_endpoint"></a> [signoz\_otel\_collector\_endpoint](#output\_signoz\_otel\_collector\_endpoint) | Internal OTLP collector endpoint for Fleet |
-| <a name="output_vpc_subnets"></a> [vpc\_subnets](#output\_vpc\_subnets) | VPC private subnets from shared fleet-vpc |
+| <a name="output_signoz_otel_collector_endpoint"></a> [signoz\_otel\_collector\_endpoint](#output\_signoz\_otel\_collector\_endpoint) | Internal OTLP collector endpoint for AutoMDM |
+| <a name="output_vpc_subnets"></a> [vpc\_subnets](#output\_vpc\_subnets) | VPC private subnets from shared automdm-vpc |

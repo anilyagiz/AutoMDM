@@ -9,12 +9,12 @@ import (
 	"path"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"howett.net/plist"
 )
 
 // ExtractZIPMetadata extracts the metadata from a zip file for an Apple app
-func ExtractZIPMetadata(tfr *fleet.TempFileReader) (*InstallerMetadata, error) {
+func ExtractZIPMetadata(tfr *automdm.TempFileReader) (*InstallerMetadata, error) {
 	h := sha256.New()
 	_, _ = io.Copy(h, tfr) // writes to a hash cannot fail
 	if err := tfr.Rewind(); err != nil {

@@ -2,7 +2,7 @@ package service
 
 // Self-service software tests for the MDM suite.
 //
-// Belongs here: software categories and installing all self-service software from Fleet Desktop.
+// Belongs here: software categories and installing all self-service software from AutoMDM Desktop.
 //
 // Does not belong here: VPP app management (integration_mdm_vpp_test.go) and self-service
 // configuration profiles (integration_mdm_profiles_crud_test.go).
@@ -20,12 +20,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/dev_mode"
+	"github.com/anilyagiz/automdm/v4/server/dev_mode"
 
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/apple/vpp"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	"github.com/anilyagiz/automdm/v4/server/mdm/apple/vpp"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
 )
@@ -39,7 +39,7 @@ func (s *integrationMDMTestSuite) TestSoftwareCategories() {
 	host := createOrbitEnrolledHost(t, "ubuntu", "host1", s.ds)
 	createDeviceTokenForHost(t, s.ds, host.ID, token)
 
-	payload := &fleet.UploadSoftwareInstallerPayload{
+	payload := &automdm.UploadSoftwareInstallerPayload{
 		InstallScript: "install",
 		Filename:      "ruby.deb",
 		Version:       "1:2.5.1",
@@ -60,7 +60,7 @@ func (s *integrationMDMTestSuite) TestSoftwareCategories() {
 	titleID := getSoftwareTitleID(t, s.ds, "ruby", "deb_packages")
 	require.NotEmpty(t, titleID)
 
-	res := s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token+"/software?self_service=1", nil, http.StatusOK)
+	res := s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token+"/software?self_service=1", nil, http.StatusOK)
 	getDeviceSw := getDeviceSoftwareResponse{}
 	err = json.NewDecoder(res.Body).Decode(&getDeviceSw)
 	require.NoError(t, err)
@@ -74,7 +74,7 @@ func (s *integrationMDMTestSuite) TestSoftwareCategories() {
 	require.Equal(t, payload.Version, getDeviceSw.Software[0].SoftwarePackage.Version)
 	require.Empty(t, getDeviceSw.Software[0].SoftwarePackage.Categories)
 
-	updatePayload := &fleet.UpdateSoftwareInstallerPayload{
+	updatePayload := &automdm.UpdateSoftwareInstallerPayload{
 		TitleID:       titleID,
 		Filename:      "ruby.deb",
 		InstallScript: new("install"),
@@ -85,7 +85,7 @@ func (s *integrationMDMTestSuite) TestSoftwareCategories() {
 	// Non-existent category is silently dropped
 	updatePayload.Categories = []string{"not_found"}
 	s.updateSoftwareInstaller(t, updatePayload, http.StatusOK, "")
-	res = s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token+"/software?self_service=1", nil, http.StatusOK)
+	res = s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token+"/software?self_service=1", nil, http.StatusOK)
 	getDeviceSw = getDeviceSoftwareResponse{}
 	err = json.NewDecoder(res.Body).Decode(&getDeviceSw)
 	require.NoError(t, err)
@@ -95,7 +95,7 @@ func (s *integrationMDMTestSuite) TestSoftwareCategories() {
 	// Set some real categories
 	updatePayload.Categories = []string{cat1.Name, cat2.Name, cat2.Name} // duplicate category shouldn't fail
 	s.updateSoftwareInstaller(t, updatePayload, http.StatusOK, "")
-	res = s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token+"/software?self_service=1", nil, http.StatusOK)
+	res = s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token+"/software?self_service=1", nil, http.StatusOK)
 	getDeviceSw = getDeviceSoftwareResponse{}
 	err = json.NewDecoder(res.Body).Decode(&getDeviceSw)
 	require.NoError(t, err)
@@ -113,17 +113,17 @@ func (s *integrationMDMTestSuite) TestSoftwareCategories() {
 
 	// Enqueue an install. Changing categories should not affect the status of this install
 	var installResp installSoftwareResponse
-	s.DoJSON("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/software/%d/install",
+	s.DoJSON("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/software/%d/install",
 		host.ID, titleID), nil, http.StatusAccepted, &installResp)
 
 	getHostSw := getHostSoftwareResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/software", host.ID), nil, http.StatusOK, &getHostSw, "include_available_for_install", "true")
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/software", host.ID), nil, http.StatusOK, &getHostSw, "include_available_for_install", "true")
 	require.Len(t, getHostSw.Software, 1)
 	require.Equal(t, "ruby", getHostSw.Software[0].Name)
 	require.NotNil(t, getHostSw.Software[0].SoftwarePackage)
 	require.Equal(t, "ruby.deb", getHostSw.Software[0].SoftwarePackage.Name)
 	require.NotNil(t, getHostSw.Software[0].Status)
-	require.Equal(t, fleet.SoftwareInstallPending, *getHostSw.Software[0].Status)
+	require.Equal(t, automdm.SoftwareInstallPending, *getHostSw.Software[0].Status)
 	require.NotNil(t, getHostSw.Software[0].SoftwarePackage.SelfService)
 	require.True(t, *getHostSw.Software[0].SoftwarePackage.SelfService)
 
@@ -131,7 +131,7 @@ func (s *integrationMDMTestSuite) TestSoftwareCategories() {
 	updatePayload.Categories = []string{cat3.Name}
 	s.updateSoftwareInstaller(t, updatePayload, http.StatusOK, "")
 
-	res = s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token+"/software?self_service=1", nil, http.StatusOK)
+	res = s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token+"/software?self_service=1", nil, http.StatusOK)
 	getDeviceSw = getDeviceSoftwareResponse{}
 	err = json.NewDecoder(res.Body).Decode(&getDeviceSw)
 	require.NoError(t, err)
@@ -147,13 +147,13 @@ func (s *integrationMDMTestSuite) TestSoftwareCategories() {
 	require.Equal(t, cat3.Name, getDeviceSw.Software[0].SoftwarePackage.Categories[0])
 
 	getHostSw = getHostSoftwareResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/software", host.ID), nil, http.StatusOK, &getHostSw, "include_available_for_install", "true")
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/software", host.ID), nil, http.StatusOK, &getHostSw, "include_available_for_install", "true")
 	require.Len(t, getHostSw.Software, 1)
 	require.Equal(t, "ruby", getHostSw.Software[0].Name)
 	require.NotNil(t, getHostSw.Software[0].SoftwarePackage)
 	require.Equal(t, "ruby.deb", getHostSw.Software[0].SoftwarePackage.Name)
 	require.NotNil(t, getHostSw.Software[0].Status)
-	require.Equal(t, fleet.SoftwareInstallPending, *getHostSw.Software[0].Status) // status is the same as above
+	require.Equal(t, automdm.SoftwareInstallPending, *getHostSw.Software[0].Status) // status is the same as above
 	require.NotNil(t, getHostSw.Software[0].SoftwarePackage.SelfService)
 	require.True(t, *getHostSw.Software[0].SoftwarePackage.SelfService)
 
@@ -161,30 +161,30 @@ func (s *integrationMDMTestSuite) TestSoftwareCategories() {
 
 	orgName := "Fleet Device Management Inc."
 	expTime := time.Now().Add(200 * time.Hour).UTC().Round(time.Second)
-	expDate := expTime.Format(fleet.VPPTimeFormat)
+	expDate := expTime.Format(automdm.VPPTimeFormat)
 	tokenJSON := fmt.Sprintf(`{"expDate":"%s","token":"%s","orgName":"%s"}`, expDate, token, orgName)
-	dev_mode.SetOverride("FLEET_DEV_VPP_URL", s.appleVPPConfigSrv.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_VPP_URL", s.appleVPPConfigSrv.URL, t)
 	var validToken uploadVPPTokenResponse
-	s.uploadDataViaForm("/api/latest/fleet/vpp_tokens", "token", "token.vpptoken", []byte(base64.StdEncoding.EncodeToString([]byte(tokenJSON))), http.StatusAccepted, "", &validToken)
+	s.uploadDataViaForm("/api/latest/automdm/vpp_tokens", "token", "token.vpptoken", []byte(base64.StdEncoding.EncodeToString([]byte(tokenJSON))), http.StatusAccepted, "", &validToken)
 
 	// Get the token
 	var tokenResp getVPPTokensResponse
-	s.DoJSON("GET", "/api/latest/fleet/vpp_tokens", &getVPPTokensRequest{}, http.StatusOK, &tokenResp)
+	s.DoJSON("GET", "/api/latest/automdm/vpp_tokens", &getVPPTokensRequest{}, http.StatusOK, &tokenResp)
 	require.NoError(t, tokenResp.Err)
 
 	// Associate team to the VPP token.
 	var resPatchVPP patchVPPTokensTeamsResponse
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/vpp_tokens/%d/fleets", tokenResp.Tokens[0].ID), patchVPPTokensTeamsRequest{TeamIDs: []uint{}}, http.StatusOK, &resPatchVPP)
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/vpp_tokens/%d/teams", tokenResp.Tokens[0].ID), patchVPPTokensTeamsRequest{TeamIDs: []uint{}}, http.StatusOK, &resPatchVPP)
 
 	var appResp getAppStoreAppsResponse
-	s.DoJSON("GET", "/api/latest/fleet/software/app_store_apps", nil, http.StatusOK, &appResp, "fleet_id", "0")
+	s.DoJSON("GET", "/api/latest/automdm/software/app_store_apps", nil, http.StatusOK, &appResp, "team_id", "0")
 	require.NoError(t, appResp.Err)
 	require.NotEmpty(t, appResp.AppStoreApps)
 	addedApp := appResp.AppStoreApps[0]
 
 	// Add the app with cat2 and cat3
 	var addedMacOSApp addAppStoreAppResponse
-	s.DoJSON("POST", "/api/latest/fleet/software/app_store_apps", &addAppStoreAppRequest{
+	s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps", &addAppStoreAppRequest{
 		TeamID:     nil,
 		Platform:   addedApp.Platform,
 		AppStoreID: addedApp.AdamID,
@@ -193,15 +193,15 @@ func (s *integrationMDMTestSuite) TestSoftwareCategories() {
 
 	// get the title ID
 	listSWTitlesResp := listSoftwareTitlesResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/software/titles", listSoftwareTitlesRequest{},
-		http.StatusOK, &listSWTitlesResp, "query", addedApp.Name, "fleet_id", "0")
+	s.DoJSON("GET", "/api/latest/automdm/software/titles", listSoftwareTitlesRequest{},
+		http.StatusOK, &listSWTitlesResp, "query", addedApp.Name, "team_id", "0")
 	require.Len(t, listSWTitlesResp.SoftwareTitles, 1)
 	require.Len(t, listSWTitlesResp.SoftwareTitles[0].AppStoreApps, 1)
 	vppAppTitleID := listSWTitlesResp.SoftwareTitles[0].ID
 
 	// get the app
 	titleResponse := getSoftwareTitleResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/v1/fleet/software/titles/%d", vppAppTitleID), nil, http.StatusOK, &titleResponse, "fleet_id", "0")
+	s.DoJSON("GET", fmt.Sprintf("/api/v1/automdm/software/titles/%d", vppAppTitleID), nil, http.StatusOK, &titleResponse, "team_id", "0")
 	require.Len(t, titleResponse.SoftwareTitle.AppStoreApps, 1)
 	require.Len(t, titleResponse.SoftwareTitle.AppStoreApps[0].Categories, 2)
 	require.Contains(t, titleResponse.SoftwareTitle.AppStoreApps[0].Categories, cat2.Name)
@@ -211,21 +211,21 @@ func (s *integrationMDMTestSuite) TestSoftwareCategories() {
 	updateAppReq := &updateAppStoreAppRequest{TeamID: nil, SelfService: new(true)}
 	updateAppReq.Categories = []string{cat1.Name, cat3.Name}
 	var updateAppResp updateAppStoreAppResponse
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/software/titles/%d/app_store_app", vppAppTitleID), updateAppReq, http.StatusOK, &updateAppResp)
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/software/titles/%d/app_store_app", vppAppTitleID), updateAppReq, http.StatusOK, &updateAppResp)
 	require.Equal(t, updateAppResp.AppStoreApp.AdamID, addedApp.AdamID)
 	require.True(t, updateAppResp.AppStoreApp.SelfService)
-	require.Equal(t, fleet.MacOSPlatform, updateAppResp.AppStoreApp.Platform)
+	require.Equal(t, automdm.MacOSPlatform, updateAppResp.AppStoreApp.Platform)
 	require.Contains(t, updateAppResp.AppStoreApp.Categories, cat1.Name)
 	require.Contains(t, updateAppResp.AppStoreApp.Categories, cat3.Name)
 
 	// do some gitops checks
-	batchURL := "/api/latest/fleet/software/app_store_apps/batch"
+	batchURL := "/api/latest/automdm/software/app_store_apps/batch"
 	var batchAssociateResponse batchAssociateAppStoreAppsResponse
 	s.DoJSON(
 		"POST",
 		batchURL,
 		batchAssociateAppStoreAppsRequest{
-			Apps: []fleet.VPPBatchPayload{
+			Apps: []automdm.VPPBatchPayload{
 				{AppStoreID: addedApp.AdamID, SelfService: true, Categories: []string{"Developer tools", "Communication", "Communication"}}, // duplicate category shouldn't fail
 			},
 		}, http.StatusOK, &batchAssociateResponse,
@@ -233,7 +233,7 @@ func (s *integrationMDMTestSuite) TestSoftwareCategories() {
 	// the batch response returns the categories it uses and added
 	require.ElementsMatch(t, []string{"🧰 Developer tools", "👬 Communication"}, batchAssociateResponse.Categories)
 
-	s.DoJSON("GET", fmt.Sprintf("/api/v1/fleet/software/titles/%d", vppAppTitleID), nil, http.StatusOK, &titleResponse, "fleet_id", "0")
+	s.DoJSON("GET", fmt.Sprintf("/api/v1/automdm/software/titles/%d", vppAppTitleID), nil, http.StatusOK, &titleResponse, "team_id", "0")
 	require.Len(t, titleResponse.SoftwareTitle.AppStoreApps, 1)
 	require.ElementsMatch(t, []string{"🧰 Developer tools", "👬 Communication"}, titleResponse.SoftwareTitle.AppStoreApps[0].Categories)
 
@@ -242,13 +242,13 @@ func (s *integrationMDMTestSuite) TestSoftwareCategories() {
 		"POST",
 		batchURL,
 		batchAssociateAppStoreAppsRequest{
-			Apps: []fleet.VPPBatchPayload{
+			Apps: []automdm.VPPBatchPayload{
 				{AppStoreID: addedApp.AdamID, SelfService: true, Categories: []string{"Security", "Utilities"}},
 			},
 		}, http.StatusOK, &batchAssociateResponse,
 	)
 
-	s.DoJSON("GET", fmt.Sprintf("/api/v1/fleet/software/titles/%d", vppAppTitleID), nil, http.StatusOK, &titleResponse, "fleet_id", "0")
+	s.DoJSON("GET", fmt.Sprintf("/api/v1/automdm/software/titles/%d", vppAppTitleID), nil, http.StatusOK, &titleResponse, "team_id", "0")
 	require.Len(t, titleResponse.SoftwareTitle.AppStoreApps, 1)
 	require.ElementsMatch(t, []string{"🔐 Security", "🛠️ Utilities"}, titleResponse.SoftwareTitle.AppStoreApps[0].Categories)
 
@@ -257,13 +257,13 @@ func (s *integrationMDMTestSuite) TestSoftwareCategories() {
 		"POST",
 		batchURL,
 		batchAssociateAppStoreAppsRequest{
-			Apps: []fleet.VPPBatchPayload{
+			Apps: []automdm.VPPBatchPayload{
 				{AppStoreID: addedApp.AdamID, SelfService: true},
 			},
 		}, http.StatusOK, &batchAssociateResponse,
 	)
 
-	s.DoJSON("GET", fmt.Sprintf("/api/v1/fleet/software/titles/%d", vppAppTitleID), nil, http.StatusOK, &titleResponse, "fleet_id", "0")
+	s.DoJSON("GET", fmt.Sprintf("/api/v1/automdm/software/titles/%d", vppAppTitleID), nil, http.StatusOK, &titleResponse, "team_id", "0")
 	require.Len(t, titleResponse.SoftwareTitle.AppStoreApps, 1)
 	require.Empty(t, titleResponse.SoftwareTitle.AppStoreApps[0].Categories)
 }
@@ -271,13 +271,13 @@ func (s *integrationMDMTestSuite) TestSoftwareCategories() {
 func (s *integrationMDMTestSuite) TestInstallAllSelfServiceSoftware() {
 	t := s.T()
 	ctx := context.Background()
-	installAllActivityName := fleet.ActivityTypeInstalledAllSelfServiceSoftware{}.ActivityName()
+	installAllActivityName := automdm.ActivityTypeInstalledAllSelfServiceSoftware{}.ActivityName()
 
 	installAll := func(token string, expectedStatus int, qp ...string) {
-		s.DoRawNoAuth("POST", fmt.Sprintf("/api/latest/fleet/device/%s/software/install_all", token), nil, expectedStatus, qp...)
+		s.DoRawNoAuth("POST", fmt.Sprintf("/api/latest/automdm/device/%s/software/install_all", token), nil, expectedStatus, qp...)
 	}
 	deviceInstall := func(token string, titleID uint) {
-		s.DoRawNoAuth("POST", fmt.Sprintf("/api/v1/fleet/device/%s/software/install/%d", token, titleID), nil, http.StatusAccepted)
+		s.DoRawNoAuth("POST", fmt.Sprintf("/api/v1/automdm/device/%s/software/install/%d", token, titleID), nil, http.StatusAccepted)
 	}
 	countRows := func(query string, args ...any) int {
 		var n int
@@ -301,10 +301,10 @@ func (s *integrationMDMTestSuite) TestInstallAllSelfServiceSoftware() {
 		return titles
 	}
 	// create a no-team or team self-service deb installer, returning its title id
-	newInstaller := func(name string, teamID *uint, selfService bool, labels fleet.LabelIdentsWithScope, categoryIDs ...uint) uint {
-		tfr, err := fleet.NewTempFileReader(strings.NewReader("install-"+name), t.TempDir)
+	newInstaller := func(name string, teamID *uint, selfService bool, labels automdm.LabelIdentsWithScope, categoryIDs ...uint) uint {
+		tfr, err := automdm.NewTempFileReader(strings.NewReader("install-"+name), t.TempDir)
 		require.NoError(t, err)
-		_, titleID, err := s.ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
+		_, titleID, err := s.ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
 			StorageID:       name + "-storage",
 			Filename:        name + ".deb",
 			Title:           name,
@@ -325,13 +325,13 @@ func (s *integrationMDMTestSuite) TestInstallAllSelfServiceSoftware() {
 		return titleID
 	}
 	// complete the host's currently-activated (head) install with the given exit code
-	completeActivatedInstall := func(host *fleet.Host, exitCode int) {
+	completeActivatedInstall := func(host *automdm.Host, exitCode int) {
 		var uid string
 		mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
 			return sqlx.GetContext(ctx, q, &uid, `SELECT execution_id FROM host_software_installs WHERE host_id = ? AND status = 'pending_install' LIMIT 1`, host.ID)
 		})
 		require.NotEmpty(t, uid, "expected an activated install to complete")
-		s.Do("POST", "/api/fleet/orbit/software_install/result",
+		s.Do("POST", "/api/automdm/orbit/software_install/result",
 			json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q, "install_uuid": %q, "install_script_exit_code": %d, "install_script_output": "done"}`, *host.OrbitNodeKey, uid, exitCode)),
 			http.StatusNoContent)
 	}
@@ -352,19 +352,19 @@ func (s *integrationMDMTestSuite) TestInstallAllSelfServiceSoftware() {
 			}
 			_ = json.NewEncoder(w).Encode(map[string][]vpp.Asset{"assets": assets})
 		default:
-			_, _ = w.Write([]byte(`{"locationName":"Fleet","countryISO2ACode":"US"}`))
+			_, _ = w.Write([]byte(`{"locationName":"AutoMDM","countryISO2ACode":"US"}`))
 		}
 	}))
 	t.Cleanup(vppSrv.Close)
-	dev_mode.SetOverride("FLEET_DEV_VPP_URL", vppSrv.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_VPP_URL", vppSrv.URL, t)
 
 	test.CreateInsertGlobalVPPToken(t, s.ds)
 
 	// MDM-connect an Apple host (required for VPP candidacy and because activation
 	// of either Apple type enqueues an MDM command).
-	newMDMHost := func(platform, suffix string, teamID *uint) (*fleet.Host, string) {
+	newMDMHost := func(platform, suffix string, teamID *uint) (*automdm.Host, string) {
 		host := createOrbitEnrolledHost(t, platform, suffix, s.ds)
-		require.NoError(t, s.ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(teamID, []uint{host.ID})))
+		require.NoError(t, s.ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(teamID, []uint{host.ID})))
 		host.TeamID = teamID
 		mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
 			_, err := q.ExecContext(ctx, `INSERT INTO nano_devices (id, serial_number, authenticate, platform, enroll_team_id) VALUES (?, NULLIF(?, ''), 'test', ?, ?)`, host.UUID, host.HardwareSerial, host.Platform, host.TeamID)
@@ -379,18 +379,18 @@ func (s *integrationMDMTestSuite) TestInstallAllSelfServiceSoftware() {
 			_, err = q.ExecContext(ctx, `INSERT INTO nano_seen_times (id, seen_time) VALUES (?, ?)`, host.UUID, time.Now())
 			return err
 		})
-		require.NoError(t, s.ds.SetOrUpdateMDMData(ctx, host.ID, false, true, "https://example.com", false, "Fleet", "", fleet.PersonalEnrollmentTypeNone))
+		require.NoError(t, s.ds.SetOrUpdateMDMData(ctx, host.ID, false, true, "https://example.com", false, "AutoMDM", "", automdm.PersonalEnrollmentTypeNone))
 		token := suffix + "-tok"
 		createDeviceTokenForHost(t, s.ds, host.ID, token)
 		return host, token
 	}
 	adamSeq := 0
-	newVPPApp := func(name string, teamID *uint, labels *fleet.LabelIdentsWithScope) uint {
+	newVPPApp := func(name string, teamID *uint, labels *automdm.LabelIdentsWithScope) uint {
 		adamSeq++
-		app, err := s.ds.InsertVPPAppWithTeam(ctx, &fleet.VPPApp{
+		app, err := s.ds.InsertVPPAppWithTeam(ctx, &automdm.VPPApp{
 			Name:             name,
 			BundleIdentifier: "com.example." + name,
-			AdamID:           fmt.Sprint(adamSeq), Platform: fleet.MacOSPlatform,
+			AdamID:           fmt.Sprint(adamSeq), Platform: automdm.MacOSPlatform,
 			SelfService:     true,
 			ValidatedLabels: labels,
 		}, teamID, nil)
@@ -411,7 +411,7 @@ func (s *integrationMDMTestSuite) TestInstallAllSelfServiceSoftware() {
 		})
 
 		// bad device token -> 401; nothing available to install -> 202 with no rows or roll-up
-		s.DoRawNoAuth("POST", "/api/latest/fleet/device/not-a-token/software/install_all", nil, http.StatusUnauthorized)
+		s.DoRawNoAuth("POST", "/api/latest/automdm/device/not-a-token/software/install_all", nil, http.StatusUnauthorized)
 		installAll(token, http.StatusAccepted)
 		require.Zero(t, countRows(`SELECT COUNT(*) FROM upcoming_activities WHERE host_id = ?`, host.ID))
 		s.lastActivityOfTypeDoesNotMatch(installAllActivityName, "", 0)
@@ -420,10 +420,10 @@ func (s *integrationMDMTestSuite) TestInstallAllSelfServiceSoftware() {
 		// scoping, alphabetical order) is covered in testGetSoftwareTitlesForInstallAll;
 		// here we verify the endpoint queues those installs, records the activities, and
 		// is idempotent. "installed" is a smoke check that an installed title stays out.
-		newInstaller("available", nil, true, fleet.LabelIdentsWithScope{})
-		newInstaller("also-available", nil, true, fleet.LabelIdentsWithScope{})
-		installedID := newInstaller("installed", nil, true, fleet.LabelIdentsWithScope{})
-		pendingID := newInstaller("pending", nil, true, fleet.LabelIdentsWithScope{})
+		newInstaller("available", nil, true, automdm.LabelIdentsWithScope{})
+		newInstaller("also-available", nil, true, automdm.LabelIdentsWithScope{})
+		installedID := newInstaller("installed", nil, true, automdm.LabelIdentsWithScope{})
+		pendingID := newInstaller("pending", nil, true, automdm.LabelIdentsWithScope{})
 
 		// the host's queue runs one install at a time, so finish each before the next
 		deviceInstall(token, installedID)
@@ -441,15 +441,15 @@ func (s *integrationMDMTestSuite) TestInstallAllSelfServiceSoftware() {
 
 		// every queued install surfaces as a pending, self-service installed_software activity
 		var upcoming listHostUpcomingActivitiesResponse
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/activities/upcoming", host.ID), nil, http.StatusOK, &upcoming)
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/activities/upcoming", host.ID), nil, http.StatusOK, &upcoming)
 		require.Len(t, upcoming.Activities, 3)
 		var actTitles []string
 		for _, act := range upcoming.Activities {
-			require.Equal(t, fleet.ActivityTypeInstalledSoftware{}.ActivityName(), act.Type)
-			var d fleet.ActivityTypeInstalledSoftware
+			require.Equal(t, automdm.ActivityTypeInstalledSoftware{}.ActivityName(), act.Type)
+			var d automdm.ActivityTypeInstalledSoftware
 			require.NoError(t, json.Unmarshal(*act.Details, &d))
 			require.True(t, d.SelfService)
-			require.Equal(t, string(fleet.SoftwareInstallPending), d.Status)
+			require.Equal(t, string(automdm.SoftwareInstallPending), d.Status)
 			actTitles = append(actTitles, d.SoftwareTitle)
 		}
 		require.ElementsMatch(t, []string{"pending", "also-available", "available"}, actTitles)
@@ -462,13 +462,13 @@ func (s *integrationMDMTestSuite) TestInstallAllSelfServiceSoftware() {
 		// VPP app (slack); install_all queues them intermixed, sorted by name (not grouped
 		// by type). (In-house apps are iOS/iPadOS-only and the device endpoint is desktop-
 		// only, so those installs are covered in the MDM suite, not here.)
-		macTeam, err := s.ds.NewTeam(ctx, &fleet.Team{Name: "apple-statuses"})
+		macTeam, err := s.ds.NewTeam(ctx, &automdm.Team{Name: "apple-statuses"})
 		require.NoError(t, err)
 		macHost, macTok := newMDMHost("darwin", "av-statuses", &macTeam.ID)
 		newMacOSInstaller := func(name string) {
-			tfr, err := fleet.NewTempFileReader(strings.NewReader("install-"+name), t.TempDir)
+			tfr, err := automdm.NewTempFileReader(strings.NewReader("install-"+name), t.TempDir)
 			require.NoError(t, err)
-			_, _, err = s.ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
+			_, _, err = s.ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
 				StorageID:       name + "-storage",
 				Filename:        name + ".pkg",
 				Title:           name,
@@ -482,7 +482,7 @@ func (s *integrationMDMTestSuite) TestInstallAllSelfServiceSoftware() {
 				SelfService:     true,
 				UserID:          s.users["admin1@example.com"].ID,
 				TeamID:          &macTeam.ID,
-				ValidatedLabels: &fleet.LabelIdentsWithScope{},
+				ValidatedLabels: &automdm.LabelIdentsWithScope{},
 			})
 			require.NoError(t, err)
 		}
@@ -493,7 +493,7 @@ func (s *integrationMDMTestSuite) TestInstallAllSelfServiceSoftware() {
 
 		// the package and VPP installs queue intermixed, in name order
 		var macHostUpcoming listHostUpcomingActivitiesResponse
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/activities/upcoming", macHost.ID), nil, http.StatusOK, &macHostUpcoming)
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/activities/upcoming", macHost.ID), nil, http.StatusOK, &macHostUpcoming)
 		var macQueued []string
 		for _, act := range macHostUpcoming.Activities {
 			var d struct {
@@ -509,16 +509,16 @@ func (s *integrationMDMTestSuite) TestInstallAllSelfServiceSoftware() {
 	// only the titles whose name matches — matching what the user sees on
 	// screen.
 	t.Run("scopes to the query parameter when provided", func(t *testing.T) {
-		team, err := s.ds.NewTeam(ctx, &fleet.Team{Name: t.Name()})
+		team, err := s.ds.NewTeam(ctx, &automdm.Team{Name: t.Name()})
 		require.NoError(t, err)
 		host := createOrbitEnrolledHost(t, "ubuntu", "ia-q", s.ds)
 		token := "ia-q-token" //nolint:gosec // G101: test value only
 		createDeviceTokenForHost(t, s.ds, host.ID, token)
-		require.NoError(t, s.ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team.ID, []uint{host.ID})))
+		require.NoError(t, s.ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team.ID, []uint{host.ID})))
 
-		newInstaller("q-apple", &team.ID, true, fleet.LabelIdentsWithScope{})
-		newInstaller("q-banana", &team.ID, true, fleet.LabelIdentsWithScope{})
-		newInstaller("q-cherry", &team.ID, true, fleet.LabelIdentsWithScope{})
+		newInstaller("q-apple", &team.ID, true, automdm.LabelIdentsWithScope{})
+		newInstaller("q-banana", &team.ID, true, automdm.LabelIdentsWithScope{})
+		newInstaller("q-cherry", &team.ID, true, automdm.LabelIdentsWithScope{})
 
 		installAll(token, http.StatusAccepted, "query", "ban")
 		require.Equal(t, []string{"q-banana"}, queuedTitles(host.ID))
@@ -529,16 +529,16 @@ func (s *integrationMDMTestSuite) TestInstallAllSelfServiceSoftware() {
 	})
 
 	t.Run("coexists with existing and incoming activities", func(t *testing.T) {
-		team, err := s.ds.NewTeam(ctx, &fleet.Team{Name: t.Name()})
+		team, err := s.ds.NewTeam(ctx, &automdm.Team{Name: t.Name()})
 		require.NoError(t, err)
 		host := createOrbitEnrolledHost(t, "ubuntu", "ia-act", s.ds)
 		token := "ia-act-token" //nolint:gosec // G101: test value only
 		createDeviceTokenForHost(t, s.ds, host.ID, token)
-		require.NoError(t, s.ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team.ID, []uint{host.ID})))
+		require.NoError(t, s.ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team.ID, []uint{host.ID})))
 
-		aID := newInstaller("act-a", &team.ID, true, fleet.LabelIdentsWithScope{})
-		newInstaller("act-b", &team.ID, true, fleet.LabelIdentsWithScope{})
-		newInstaller("act-c", &team.ID, true, fleet.LabelIdentsWithScope{})
+		aID := newInstaller("act-a", &team.ID, true, automdm.LabelIdentsWithScope{})
+		newInstaller("act-b", &team.ID, true, automdm.LabelIdentsWithScope{})
+		newInstaller("act-c", &team.ID, true, automdm.LabelIdentsWithScope{})
 
 		// a manual install of A is already pending before install_all runs
 		deviceInstall(token, aID)
@@ -560,7 +560,7 @@ func (s *integrationMDMTestSuite) TestInstallAllSelfServiceSoftware() {
 		require.Equal(t, 3, countRows(`SELECT COUNT(*) FROM host_software_installs WHERE host_id = ? AND status = 'installed'`, host.ID))
 
 		// an install request arriving after install_all coexists and drains too
-		dID := newInstaller("act-d", &team.ID, true, fleet.LabelIdentsWithScope{})
+		dID := newInstaller("act-d", &team.ID, true, automdm.LabelIdentsWithScope{})
 		deviceInstall(token, dID)
 		completeActivatedInstall(host, 0)
 		require.Equal(t, 4, countRows(`SELECT COUNT(*) FROM host_software_installs WHERE host_id = ? AND status = 'installed'`, host.ID))
@@ -570,7 +570,7 @@ func (s *integrationMDMTestSuite) TestInstallAllSelfServiceSoftware() {
 		host2 := createOrbitEnrolledHost(t, "ubuntu", "ia-act2", s.ds)
 		token2 := "ia-act2-token" //nolint:gosec // G101: test value only
 		createDeviceTokenForHost(t, s.ds, host2.ID, token2)
-		require.NoError(t, s.ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team.ID, []uint{host2.ID})))
+		require.NoError(t, s.ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team.ID, []uint{host2.ID})))
 
 		client := s.server.Client()
 		var wg sync.WaitGroup
@@ -579,7 +579,7 @@ func (s *integrationMDMTestSuite) TestInstallAllSelfServiceSoftware() {
 		wg.Add(2)
 		go func() {
 			defer wg.Done()
-			req, err := http.NewRequest("POST", s.server.URL+fmt.Sprintf("/api/v1/fleet/device/%s/software/install/%d", token2, aID), nil)
+			req, err := http.NewRequest("POST", s.server.URL+fmt.Sprintf("/api/v1/automdm/device/%s/software/install/%d", token2, aID), nil)
 			if err != nil {
 				instErr = err
 				return
@@ -594,7 +594,7 @@ func (s *integrationMDMTestSuite) TestInstallAllSelfServiceSoftware() {
 		}()
 		go func() {
 			defer wg.Done()
-			req, err := http.NewRequest("POST", s.server.URL+fmt.Sprintf("/api/latest/fleet/device/%s/software/install_all", token2), nil)
+			req, err := http.NewRequest("POST", s.server.URL+fmt.Sprintf("/api/latest/automdm/device/%s/software/install_all", token2), nil)
 			if err != nil {
 				allErr = err
 				return
@@ -626,10 +626,10 @@ func (s *integrationMDMTestSuite) TestInstallAllSelfServiceSoftware() {
 		host3 := createOrbitEnrolledHost(t, "ubuntu", "ia-dq", s.ds)
 		token3 := "ia-dq-token" //nolint:gosec // G101: test value only
 		createDeviceTokenForHost(t, s.ds, host3.ID, token3)
-		require.NoError(t, s.ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team.ID, []uint{host3.ID})))
+		require.NoError(t, s.ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team.ID, []uint{host3.ID})))
 
-		headID := newInstaller("dq-head", &team.ID, true, fleet.LabelIdentsWithScope{})
-		fooID := newInstaller("dq-foo", &team.ID, true, fleet.LabelIdentsWithScope{})
+		headID := newInstaller("dq-head", &team.ID, true, automdm.LabelIdentsWithScope{})
+		fooID := newInstaller("dq-foo", &team.ID, true, automdm.LabelIdentsWithScope{})
 		deviceInstall(token3, headID) // activated head
 		deviceInstall(token3, fooID)  // queued behind the head, not yet activated
 
@@ -638,7 +638,7 @@ func (s *integrationMDMTestSuite) TestInstallAllSelfServiceSoftware() {
 			return sqlx.GetContext(ctx, q, &fooInstallerID, `SELECT id FROM software_installers WHERE title_id = ? AND global_or_team_id = ?`, fooID, team.ID)
 		})
 		require.NoError(t, s.ds.ResetNonPolicyInstallAttempts(ctx, host3.ID, fooInstallerID))
-		_, err = s.ds.InsertSoftwareInstallRequest(ctx, host3.ID, fooInstallerID, fleet.HostSoftwareInstallOptions{SelfService: true, WithRetries: true})
+		_, err = s.ds.InsertSoftwareInstallRequest(ctx, host3.ID, fooInstallerID, automdm.HostSoftwareInstallOptions{SelfService: true, WithRetries: true})
 		require.NoError(t, err)
 
 		require.Equal(t, 2, countRows(`
@@ -648,7 +648,7 @@ func (s *integrationMDMTestSuite) TestInstallAllSelfServiceSoftware() {
 			WHERE ua.host_id = ? AND st.name = 'dq-foo'`, host3.ID))
 
 		// install_all also queues VPP self-service app installs (MDM-enrolled darwin host)
-		vppTeam, err := s.ds.NewTeam(ctx, &fleet.Team{Name: "apple-activities"})
+		vppTeam, err := s.ds.NewTeam(ctx, &automdm.Team{Name: "apple-activities"})
 		require.NoError(t, err)
 		vppHost, vppTok := newMDMHost("darwin", "av-activities", &vppTeam.ID)
 		newVPPApp("vpp-activities", &vppTeam.ID, nil)
@@ -659,11 +659,11 @@ func (s *integrationMDMTestSuite) TestInstallAllSelfServiceSoftware() {
 	})
 
 	t.Run("category label and team scoping", func(t *testing.T) {
-		team, err := s.ds.NewTeam(ctx, &fleet.Team{Name: t.Name()})
+		team, err := s.ds.NewTeam(ctx, &automdm.Team{Name: t.Name()})
 		require.NoError(t, err)
 
 		// a no-team installer must never be queued for a team host
-		newInstaller("global-app", nil, true, fleet.LabelIdentsWithScope{})
+		newInstaller("global-app", nil, true, automdm.LabelIdentsWithScope{})
 		t.Cleanup(func() {
 			mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
 				_, err := q.ExecContext(ctx, `DELETE FROM software_installers WHERE global_or_team_id = 0`)
@@ -675,15 +675,15 @@ func (s *integrationMDMTestSuite) TestInstallAllSelfServiceSoftware() {
 		hostA := createOrbitEnrolledHost(t, "ubuntu", "ia-sc-a", s.ds)
 		tokenA := "ia-sc-a-token" //nolint:gosec // G101: test value only
 		createDeviceTokenForHost(t, s.ds, hostA.ID, tokenA)
-		require.NoError(t, s.ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team.ID, []uint{hostA.ID})))
+		require.NoError(t, s.ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team.ID, []uint{hostA.ID})))
 
-		lbl, err := s.ds.NewLabel(ctx, &fleet.Label{Name: t.Name() + "-lbl", Query: "select 1"})
+		lbl, err := s.ds.NewLabel(ctx, &automdm.Label{Name: t.Name() + "-lbl", Query: "select 1"})
 		require.NoError(t, err)
 		require.NoError(t, s.ds.RecordLabelQueryExecutions(ctx, hostA, map[uint]*bool{lbl.ID: new(true)}, time.Now(), false))
-		includeLbl := fleet.LabelIdentsWithScope{LabelScope: fleet.LabelScopeIncludeAny, ByName: map[string]fleet.LabelIdent{lbl.Name: {LabelID: lbl.ID, LabelName: lbl.Name}}}
-		excludeLbl := fleet.LabelIdentsWithScope{LabelScope: fleet.LabelScopeExcludeAny, ByName: map[string]fleet.LabelIdent{lbl.Name: {LabelID: lbl.ID, LabelName: lbl.Name}}}
+		includeLbl := automdm.LabelIdentsWithScope{LabelScope: automdm.LabelScopeIncludeAny, ByName: map[string]automdm.LabelIdent{lbl.Name: {LabelID: lbl.ID, LabelName: lbl.Name}}}
+		excludeLbl := automdm.LabelIdentsWithScope{LabelScope: automdm.LabelScopeExcludeAny, ByName: map[string]automdm.LabelIdent{lbl.Name: {LabelID: lbl.ID, LabelName: lbl.Name}}}
 
-		newInstaller("team-app", &team.ID, true, fleet.LabelIdentsWithScope{})
+		newInstaller("team-app", &team.ID, true, automdm.LabelIdentsWithScope{})
 		newInstaller("lbl-in", &team.ID, true, includeLbl)
 		newInstaller("lbl-out", &team.ID, true, excludeLbl)
 
@@ -696,11 +696,11 @@ func (s *integrationMDMTestSuite) TestInstallAllSelfServiceSoftware() {
 		hostB := createOrbitEnrolledHost(t, "ubuntu", "ia-sc-b", s.ds)
 		tokenB := "ia-sc-b-token" //nolint:gosec // G101: test value only
 		createDeviceTokenForHost(t, s.ds, hostB.ID, tokenB)
-		require.NoError(t, s.ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team.ID, []uint{hostB.ID})))
+		require.NoError(t, s.ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team.ID, []uint{hostB.ID})))
 
 		cat, err := s.ds.NewSoftwareCategory(ctx, team.ID, t.Name()+"-cat")
 		require.NoError(t, err)
-		newInstaller("cat-app", &team.ID, true, fleet.LabelIdentsWithScope{}, cat.ID)
+		newInstaller("cat-app", &team.ID, true, automdm.LabelIdentsWithScope{}, cat.ID)
 
 		// scoped to the category -> only its title, and the roll-up carries the category
 		installAll(tokenB, http.StatusAccepted, "category_id", fmt.Sprint(cat.ID))
@@ -710,9 +710,9 @@ func (s *integrationMDMTestSuite) TestInstallAllSelfServiceSoftware() {
 			hostB.ID, hostB.DisplayName(), cat.ID, cat.Name,
 		), 0)
 
-		// nonexistent category, or a category on another fleet -> 400
+		// nonexistent category, or a category on another team -> 400
 		installAll(tokenB, http.StatusBadRequest, "category_id", "9999999")
-		otherTeam, err := s.ds.NewTeam(ctx, &fleet.Team{Name: t.Name() + "-other"})
+		otherTeam, err := s.ds.NewTeam(ctx, &automdm.Team{Name: t.Name() + "-other"})
 		require.NoError(t, err)
 		otherCat, err := s.ds.NewSoftwareCategory(ctx, otherTeam.ID, t.Name()+"-othercat")
 		require.NoError(t, err)
@@ -721,8 +721,8 @@ func (s *integrationMDMTestSuite) TestInstallAllSelfServiceSoftware() {
 		// VPP label scoping: include-any (host is a member) is queued, exclude-any is skipped
 		vppHost, vppToken := newMDMHost("darwin", "sc-vpp", &team.ID)
 		require.NoError(t, s.ds.RecordLabelQueryExecutions(ctx, vppHost, map[uint]*bool{lbl.ID: new(true)}, time.Now(), false))
-		newVPPApp("vpp-in", &team.ID, &fleet.LabelIdentsWithScope{LabelScope: fleet.LabelScopeIncludeAny, ByName: map[string]fleet.LabelIdent{lbl.Name: {LabelID: lbl.ID, LabelName: lbl.Name}}})
-		newVPPApp("vpp-out", &team.ID, &fleet.LabelIdentsWithScope{LabelScope: fleet.LabelScopeExcludeAny, ByName: map[string]fleet.LabelIdent{lbl.Name: {LabelID: lbl.ID, LabelName: lbl.Name}}})
+		newVPPApp("vpp-in", &team.ID, &automdm.LabelIdentsWithScope{LabelScope: automdm.LabelScopeIncludeAny, ByName: map[string]automdm.LabelIdent{lbl.Name: {LabelID: lbl.ID, LabelName: lbl.Name}}})
+		newVPPApp("vpp-out", &team.ID, &automdm.LabelIdentsWithScope{LabelScope: automdm.LabelScopeExcludeAny, ByName: map[string]automdm.LabelIdent{lbl.Name: {LabelID: lbl.ID, LabelName: lbl.Name}}})
 		installAll(vppToken, http.StatusAccepted)
 		require.Equal(t, 1, countRows(`SELECT COUNT(*) FROM upcoming_activities WHERE host_id = ? AND activity_type = 'vpp_app_install'`, vppHost.ID))
 
@@ -735,19 +735,19 @@ func (s *integrationMDMTestSuite) TestInstallAllSelfServiceSoftware() {
 			numHosts      = 5
 			numInstallers = 5
 		)
-		team, err := s.ds.NewTeam(ctx, &fleet.Team{Name: t.Name()})
+		team, err := s.ds.NewTeam(ctx, &automdm.Team{Name: t.Name()})
 		require.NoError(t, err)
 		for i := range numInstallers {
-			newInstaller(fmt.Sprintf("mh-%d", i), &team.ID, true, fleet.LabelIdentsWithScope{})
+			newInstaller(fmt.Sprintf("mh-%d", i), &team.ID, true, automdm.LabelIdentsWithScope{})
 		}
 		type hostToken struct {
-			host  *fleet.Host
+			host  *automdm.Host
 			token string
 		}
 		hosts := make([]hostToken, numHosts)
 		for i := range numHosts {
 			h := createOrbitEnrolledHost(t, "ubuntu", fmt.Sprintf("mh-%d", i), s.ds)
-			require.NoError(t, s.ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team.ID, []uint{h.ID})))
+			require.NoError(t, s.ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team.ID, []uint{h.ID})))
 			tok := fmt.Sprintf("mh-tok-%d", i)
 			createDeviceTokenForHost(t, s.ds, h.ID, tok)
 			hosts[i] = hostToken{h, tok}
@@ -762,7 +762,7 @@ func (s *integrationMDMTestSuite) TestInstallAllSelfServiceSoftware() {
 			wg.Add(1)
 			go func(i int) {
 				defer wg.Done()
-				req, err := http.NewRequest("POST", s.server.URL+fmt.Sprintf("/api/latest/fleet/device/%s/software/install_all", hosts[i].token), nil)
+				req, err := http.NewRequest("POST", s.server.URL+fmt.Sprintf("/api/latest/automdm/device/%s/software/install_all", hosts[i].token), nil)
 				if err != nil {
 					errs[i] = err
 					return
@@ -804,7 +804,7 @@ func (s *integrationMDMTestSuite) TestInstallAllSelfServiceSoftware() {
 		require.NoError(t, s.ds.DeleteTeam(ctx, team.ID))
 
 		// install_all also queues VPP self-service app installs (MDM-enrolled darwin host)
-		vppTeam, err := s.ds.NewTeam(ctx, &fleet.Team{Name: "apple-multihost"})
+		vppTeam, err := s.ds.NewTeam(ctx, &automdm.Team{Name: "apple-multihost"})
 		require.NoError(t, err)
 		vppHost, vppTok := newMDMHost("darwin", "av-multihost", &vppTeam.ID)
 		newVPPApp("vpp-multihost", &vppTeam.ID, nil)

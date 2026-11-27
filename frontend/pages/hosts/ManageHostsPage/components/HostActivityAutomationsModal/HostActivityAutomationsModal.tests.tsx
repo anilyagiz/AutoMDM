@@ -7,7 +7,7 @@ import { createCustomRenderer } from "test/test-utils";
 import HostActivityAutomationsModal from "./HostActivityAutomationsModal";
 
 const defaultProps = {
-  fleetName: "Workstations",
+  automdmName: "Workstations",
   onSubmit: jest.fn(),
   onExit: jest.fn(),
   isUpdating: false,
@@ -33,7 +33,7 @@ describe("HostActivityAutomationsModal", () => {
     expect(
       screen.getByDisplayValue("https://example.com/hook")
     ).toBeInTheDocument();
-    // Description names the selected fleet.
+    // Description names the selected team.
     expect(screen.getByText("Workstations")).toBeInTheDocument();
   });
 

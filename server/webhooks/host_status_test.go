@@ -8,8 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -28,9 +28,9 @@ func TestTriggerHostStatusWebhook(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	ac := &fleet.AppConfig{
-		WebhookSettings: fleet.WebhookSettings{
-			HostStatusWebhook: fleet.HostStatusWebhookSettings{
+	ac := &automdm.AppConfig{
+		WebhookSettings: automdm.WebhookSettings{
+			HostStatusWebhook: automdm.HostStatusWebhookSettings{
 				Enable:         true,
 				DestinationURL: ts.URL,
 				HostPercentage: 43,
@@ -39,7 +39,7 @@ func TestTriggerHostStatusWebhook(t *testing.T) {
 		},
 	}
 
-	ds.AppConfigFunc = func(context.Context) (*fleet.AppConfig, error) {
+	ds.AppConfigFunc = func(context.Context) (*automdm.AppConfig, error) {
 		return ac, nil
 	}
 
@@ -48,14 +48,14 @@ func TestTriggerHostStatusWebhook(t *testing.T) {
 		return 10, []uint{1, 2, 3, 4, 5, 6}, nil
 	}
 
-	ds.TeamsSummaryFunc = func(ctx context.Context) ([]*fleet.TeamSummary, error) {
+	ds.TeamsSummaryFunc = func(ctx context.Context) ([]*automdm.TeamSummary, error) {
 		return nil, nil
 	}
 
 	require.NoError(t, TriggerHostStatusWebhook(context.Background(), ds, slog.New(slog.DiscardHandler)))
 	assert.Equal(
 		t,
-		`{"data":{"days_unseen":2,"host_ids":[1,2,3,4,5,6],"total_hosts":10,"unseen_hosts":6},"text":"More than 60.00% of your hosts have not checked into Fleet for more than 2 days. You've been sent this message because the Host status webhook is enabled in your Fleet instance."}`,
+		`{"data":{"days_unseen":2,"host_ids":[1,2,3,4,5,6],"total_hosts":10,"unseen_hosts":6},"text":"More than 60.00% of your hosts have not checked into AutoMDM for more than 2 days. You've been sent this message because the Host status webhook is enabled in your AutoMDM instance."}`,
 		requestBody,
 	)
 	assert.Equal(t, 1, count)
@@ -89,9 +89,9 @@ func TestTriggerHostStatusWebhookTeam(t *testing.T) {
 	)
 	defer ts.Close()
 
-	ac := &fleet.AppConfig{
-		WebhookSettings: fleet.WebhookSettings{
-			HostStatusWebhook: fleet.HostStatusWebhookSettings{
+	ac := &automdm.AppConfig{
+		WebhookSettings: automdm.WebhookSettings{
+			HostStatusWebhook: automdm.HostStatusWebhookSettings{
 				Enable:         false,
 				DestinationURL: ts.URL,
 				HostPercentage: 43,
@@ -99,14 +99,14 @@ func TestTriggerHostStatusWebhookTeam(t *testing.T) {
 			},
 		},
 	}
-	teamSettings := fleet.HostStatusWebhookSettings{
+	teamSettings := automdm.HostStatusWebhookSettings{
 		Enable:         true,
 		DestinationURL: ts.URL,
 		HostPercentage: 43,
 		DaysCount:      2,
 	}
 
-	ds.AppConfigFunc = func(context.Context) (*fleet.AppConfig, error) {
+	ds.AppConfigFunc = func(context.Context) (*automdm.AppConfig, error) {
 		return ac, nil
 	}
 
@@ -116,15 +116,15 @@ func TestTriggerHostStatusWebhookTeam(t *testing.T) {
 		return 10, []uint{1, 2, 3, 4, 5, 6}, nil
 	}
 
-	ds.TeamsSummaryFunc = func(ctx context.Context) ([]*fleet.TeamSummary, error) {
-		return []*fleet.TeamSummary{{ID: 1}}, nil
+	ds.TeamsSummaryFunc = func(ctx context.Context) ([]*automdm.TeamSummary, error) {
+		return []*automdm.TeamSummary{{ID: 1}}, nil
 	}
-	ds.TeamLiteFunc = func(ctx context.Context, id uint) (*fleet.TeamLite, error) {
+	ds.TeamLiteFunc = func(ctx context.Context, id uint) (*automdm.TeamLite, error) {
 		assert.Equal(t, uint(1), id)
-		return &fleet.TeamLite{
+		return &automdm.TeamLite{
 			ID: 1,
-			Config: fleet.TeamConfigLite{
-				WebhookSettings: fleet.TeamWebhookSettings{
+			Config: automdm.TeamConfigLite{
+				WebhookSettings: automdm.TeamWebhookSettings{
 					HostStatusWebhook: &teamSettings,
 				},
 			},
@@ -134,7 +134,7 @@ func TestTriggerHostStatusWebhookTeam(t *testing.T) {
 	require.NoError(t, TriggerHostStatusWebhook(context.Background(), ds, slog.New(slog.DiscardHandler)))
 	assert.Equal(
 		t,
-		`{"data":{"days_unseen":2,"fleet_id":1,"host_ids":[1,2,3,4,5,6],"total_hosts":10,"unseen_hosts":6},"text":"More than 60.00% of your hosts have not checked into Fleet for more than 2 days. You've been sent this message because the Host status webhook is enabled in your Fleet instance."}`,
+		`{"data":{"days_unseen":2,"team_id":1,"host_ids":[1,2,3,4,5,6],"total_hosts":10,"unseen_hosts":6},"text":"More than 60.00% of your hosts have not checked into AutoMDM for more than 2 days. You've been sent this message because the Host status webhook is enabled in your AutoMDM instance."}`,
 		requestBody,
 	)
 	assert.Equal(t, 1, count)

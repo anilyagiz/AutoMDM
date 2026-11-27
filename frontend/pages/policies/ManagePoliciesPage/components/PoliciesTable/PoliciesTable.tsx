@@ -80,7 +80,7 @@ interface IPoliciesTableProps {
   isFiltered?: boolean;
   router: InjectedRouter;
   queryParams?: {
-    fleet_id?: string;
+    team_id?: string;
     query?: string;
     order_key?: string;
     order_direction?: "asc" | "desc";
@@ -90,7 +90,7 @@ interface IPoliciesTableProps {
   };
   platform?: SelectedPlatform;
   otherAutomationType?: OtherAutomationType;
-  /** For "All fleets" policies listed in a fleet. */
+  /** For "All teams" policies listed in a team. */
   inheritedOtherAutomationType?: OtherAutomationType;
   onOpenManageAutomationsModal?: (policy: IPolicyStats) => void;
 }
@@ -156,16 +156,16 @@ const PoliciesTable = ({
     );
   }, [platform, handlePlatformFilterDropdownChange]);
 
-  const isAllFleets =
+  const isAllAutoMDMs =
     isPremiumTier &&
     (currentTeam?.id === null || currentTeam?.id === APP_CONTEXT_ALL_TEAMS_ID);
 
   let emptyHeader = "No policies yet";
   // Primo mode uses a generic empty state header
   if (isPremiumTier && !config?.partnerships?.enable_primo) {
-    emptyHeader = isAllFleets
-      ? "No policies apply to all fleets"
-      : "No policies for this fleet";
+    emptyHeader = isAllAutoMDMs
+      ? "No policies apply to all teams"
+      : "No policies for this team";
   }
 
   const emptyState: IEmptyStateProps = {
@@ -208,7 +208,7 @@ const PoliciesTable = ({
   const pageHasSelectableRows =
     !viewingTeamPolicies ||
     isPrimoMode ||
-    policiesList.some((p) => p.fleet_id !== null);
+    policiesList.some((p) => p.team_id !== null);
 
   const hasPermissionAndPoliciesToDelete =
     canAddOrDeletePolicies && hasPoliciesToDelete && pageHasSelectableRows;

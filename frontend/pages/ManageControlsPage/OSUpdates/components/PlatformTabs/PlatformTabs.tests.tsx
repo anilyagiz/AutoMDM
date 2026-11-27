@@ -71,7 +71,7 @@ describe("PlatformTabs", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Learn how/i })).toHaveAttribute(
       "href",
-      "https://fleetdm.com/learn-more-about/android-os-updates"
+      "https://automdm.com/learn-more-about/android-os-updates"
     );
   });
 
@@ -85,7 +85,7 @@ describe("PlatformTabs", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Learn how/i })).toHaveAttribute(
       "href",
-      "https://fleetdm.com/learn-more-about/linux-os-updates"
+      "https://automdm.com/learn-more-about/linux-os-updates"
     );
   });
 

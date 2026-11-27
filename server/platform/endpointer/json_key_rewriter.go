@@ -12,7 +12,7 @@ import (
 
 // AliasConflictError is returned when both the deprecated and new field names
 // are specified in the same JSON object scope. For example, if "team_id" is
-// renamed to "fleet_id", and a request contains both, this error is returned.
+// renamed to "team_id", and a request contains both, this error is returned.
 type AliasConflictError struct {
 	Old string
 	New string

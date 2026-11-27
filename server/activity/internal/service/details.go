@@ -6,11 +6,11 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/fleetdm/fleet/v4/pkg/removednames"
-	"github.com/fleetdm/fleet/v4/server/activity/api"
+	"github.com/anilyagiz/automdm/v4/pkg/removednames"
+	"github.com/anilyagiz/automdm/v4/server/activity/api"
 )
 
-// Note: Drop this translation in Fleet 6.
+// Note: Drop this translation in AutoMDM 6.
 
 // removedDetailsKeys maps the removed keys of stored activity details to their replacements.
 var removedDetailsKeys = sync.OnceValue(func() map[string]string {
@@ -44,7 +44,7 @@ func mayHaveRemovedKeys(details []byte) bool {
 	return bytes.Contains(details, prefix) && slices.ContainsFunc(exact, func(needle []byte) bool { return bytes.Contains(details, needle) })
 }
 
-// translateStoredDetails renames the removed top-level keys in the details of activities stored before Fleet 5. Only the top level holds
+// translateStoredDetails renames the removed top-level keys in the details of activities stored before AutoMDM 5. Only the top level holds
 // them: nested values, such as the app-owned configuration, are left as stored. A row written while both names were stored keeps the new
 // key's value. Details that cannot be decoded are returned unchanged.
 func translateStoredDetails(activities []*api.Activity) {

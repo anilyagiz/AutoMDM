@@ -1,83 +1,83 @@
 import createMockUser from "__mocks__/userMock";
 
-import { getDefaultTeam, preferredOrLowestIdFleet } from "./useTeamIdParam";
+import { getDefaultTeam, preferredOrLowestIdAutoMDM } from "./useTeamIdParam";
 
-describe("preferredOrLowestIdFleet", () => {
+describe("preferredOrLowestIdAutoMDM", () => {
   it('returns "Workstations" when present', () => {
-    const fleets = [
+    const teams = [
       { id: 1, name: "Alpha" },
       { id: 2, name: "Workstations" },
       { id: 3, name: "Zebra" },
     ];
-    expect(preferredOrLowestIdFleet(fleets)).toEqual({
+    expect(preferredOrLowestIdAutoMDM(teams)).toEqual({
       id: 2,
       name: "Workstations",
     });
   });
 
   it('returns "💻 Workstations" (emoji variant) when present', () => {
-    const fleets = [
+    const teams = [
       { id: 1, name: "Alpha" },
       { id: 3, name: "💻 Workstations" },
     ];
-    expect(preferredOrLowestIdFleet(fleets)).toEqual({
+    expect(preferredOrLowestIdAutoMDM(teams)).toEqual({
       id: 3,
       name: "💻 Workstations",
     });
   });
 
   it("prefers plain over emoji when both exist (first match wins)", () => {
-    const fleets = [
+    const teams = [
       { id: 5, name: "Workstations" },
       { id: 2, name: "💻 Workstations" },
     ];
-    expect(preferredOrLowestIdFleet(fleets)).toEqual({
+    expect(preferredOrLowestIdAutoMDM(teams)).toEqual({
       id: 5,
       name: "Workstations",
     });
   });
 
   it("matches case-insensitively", () => {
-    const fleets = [
+    const teams = [
       { id: 1, name: "Alpha" },
       { id: 4, name: "WORKSTATIONS" },
     ];
-    expect(preferredOrLowestIdFleet(fleets)).toEqual({
+    expect(preferredOrLowestIdAutoMDM(teams)).toEqual({
       id: 4,
       name: "WORKSTATIONS",
     });
   });
 
-  it("falls back to lowest ID when no Workstations fleet exists", () => {
-    const fleets = [
+  it("falls back to lowest ID when no Workstations team exists", () => {
+    const teams = [
       { id: 10, name: "Zebra" },
       { id: 3, name: "Charlie" },
       { id: 7, name: "Mike" },
     ];
-    expect(preferredOrLowestIdFleet(fleets)).toEqual({
+    expect(preferredOrLowestIdAutoMDM(teams)).toEqual({
       id: 3,
       name: "Charlie",
     });
   });
 
   it("returns undefined for an empty array", () => {
-    expect(preferredOrLowestIdFleet([])).toBeUndefined();
+    expect(preferredOrLowestIdAutoMDM([])).toBeUndefined();
   });
 });
 
 describe("getDefaultTeam", () => {
-  it("picks the lowest-ID admin fleet, not the alphabetically first one", () => {
+  it("picks the lowest-ID admin team, not the alphabetically first one", () => {
     // Sorted by name, as getUserTeams returns them.
-    const fleets = [
+    const teams = [
       { id: 310, name: "Alpha", role: "admin" as const },
       { id: 5, name: "Beta", role: "maintainer" as const },
       { id: 12, name: "Zeta", role: "admin" as const },
     ];
-    const currentUser = createMockUser({ global_role: null, fleets });
+    const currentUser = createMockUser({ global_role: null, teams });
     expect(
       getDefaultTeam({
         currentUser,
-        userTeams: fleets,
+        userTeams: teams,
         includeAllTeams: false,
         includeNoTeam: false,
         isPrimoMode: false,

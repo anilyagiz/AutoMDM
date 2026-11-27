@@ -9,10 +9,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 
-	ws "github.com/fleetdm/fleet/v4/server/websocket"
+	ws "github.com/anilyagiz/automdm/v4/server/websocket"
 	"github.com/gorilla/websocket"
 )
 
@@ -20,7 +20,7 @@ import (
 // incoming stream of live query results.
 type LiveQueryResultsHandler struct {
 	errors  chan error
-	results chan fleet.DistributedQueryResult
+	results chan automdm.DistributedQueryResult
 	done    chan struct{}
 	totals  atomic.Value // real type: targetTotals
 	status  atomic.Value // real type: campaignStatus
@@ -29,7 +29,7 @@ type LiveQueryResultsHandler struct {
 func NewLiveQueryResultsHandler() *LiveQueryResultsHandler {
 	return &LiveQueryResultsHandler{
 		errors:  make(chan error, 1),
-		results: make(chan fleet.DistributedQueryResult),
+		results: make(chan automdm.DistributedQueryResult),
 		done:    make(chan struct{}),
 	}
 }
@@ -46,7 +46,7 @@ func (h *LiveQueryResultsHandler) Errors() <-chan error {
 }
 
 // Results returns a read channel including any received results
-func (h *LiveQueryResultsHandler) Results() <-chan fleet.DistributedQueryResult {
+func (h *LiveQueryResultsHandler) Results() <-chan automdm.DistributedQueryResult {
 	return h.results
 }
 
@@ -80,7 +80,7 @@ func (c *Client) LiveQueryWithContext(
 		QuerySQL: query,
 		Selected: distributedQueryCampaignTargetsByIdentifiers{Labels: labels, Hosts: hostIdentifiers},
 	}
-	verb, path := "POST", "/api/latest/fleet/reports/run_by_identifiers"
+	verb, path := "POST", "/api/latest/automdm/reports/run_by_identifiers"
 	var responseBody createDistributedQueryCampaignResponse
 	err := c.authenticatedRequest(req, verb, path, &responseBody)
 	if err != nil {
@@ -99,7 +99,7 @@ func (c *Client) LiveQueryWithContext(
 	if flag.Lookup("test.v") != nil {
 		wssURL.Scheme = "ws"
 	}
-	wssURL.Path = c.URLPrefix + "/api/latest/fleet/results/websocket"
+	wssURL.Path = c.URLPrefix + "/api/latest/automdm/results/websocket"
 	// Ensure custom headers (set by config) are added to websocket request
 	headers := make(http.Header)
 	for k, v := range c.customHeaders {
@@ -164,7 +164,7 @@ func (c *Client) LiveQueryWithContext(
 
 			switch msg.Type {
 			case "result":
-				var res fleet.DistributedQueryResult
+				var res automdm.DistributedQueryResult
 				if err := json.Unmarshal(msg.Data, &res); err != nil {
 					resHandler.errors <- ctxerr.Wrap(ctx, err, "unmarshal results")
 				}

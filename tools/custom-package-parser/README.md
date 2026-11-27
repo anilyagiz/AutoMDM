@@ -1,7 +1,7 @@
 # custom-package-parser
 
-Tool to extract the metadata of software packages (same way Fleet would extract metadata on uploads).
-This tool was used to determine accuracy of Fleet's processing of software packages (with the most used/popular apps) (see [tests.md](./tests.md)).
+Tool to extract the metadata of software packages (same way AutoMDM would extract metadata on uploads).
+This tool was used to determine accuracy of AutoMDM's processing of software packages (with the most used/popular apps) (see [tests.md](./tests.md)).
 
 Using a local file:
 ```sh

@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
 )
 
 var (
@@ -102,7 +102,7 @@ func newJamfClient(username, password, url string) (*jamfClient, error) {
 }
 
 func (j *jamfClient) doWithRequest(req *http.Request) ([]byte, error) {
-	client := fleethttp.NewClient()
+	client := automdmhttp.NewClient()
 
 	resp, err := client.Do(req)
 	if err != nil {

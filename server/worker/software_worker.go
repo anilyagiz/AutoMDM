@@ -8,12 +8,12 @@ import (
 	"slices"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
-	"github.com/fleetdm/fleet/v4/server/mdm/android/service/androidmgmt"
-	"github.com/fleetdm/fleet/v4/server/mdm/profiles"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android/service/androidmgmt"
+	"github.com/anilyagiz/automdm/v4/server/mdm/profiles"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/google/uuid"
 	"google.golang.org/api/androidmanagement/v1"
 )
@@ -23,7 +23,7 @@ const softwareWorkerJobName = "software_worker"
 type SoftwareWorkerTask string
 
 type SoftwareWorker struct {
-	Datastore        fleet.Datastore
+	Datastore        automdm.Datastore
 	AndroidModule    android.Service
 	Log              *slog.Logger
 	AndroidBatchSize int
@@ -43,7 +43,7 @@ const (
 	bulkSetAndroidAppsAvailableForHostsTask SoftwareWorkerTask = "bulk_set_android_apps_available_for_hosts"
 	resendVPPAppConfigurationTask           SoftwareWorkerTask = "resend_vpp_app_configuration"       // deprecated
 	resendVPPAppConfigurationBatchTask      SoftwareWorkerTask = "resend_vpp_app_configuration_batch" // deprecated
-	sendAndroidFleetAgentConfigTask         SoftwareWorkerTask = "send_android_fleet_agent_config"
+	sendAndroidAutoMDMAgentConfigTask       SoftwareWorkerTask = "send_android_automdm_agent_config"
 )
 
 type softwareWorkerArgs struct {
@@ -63,7 +63,7 @@ type softwareWorkerArgs struct {
 	HostEnrollTeamID uint `json:"host_enroll_team_id,omitempty"` //nolint:apiparamcheck // not user-facing
 
 	// PolicyID is the Android Management API Policy ID associated with the host, *not*
-	// a Fleet policy ID.
+	// an AutoMDM policy ID.
 	PolicyID string `json:"policy_id,omitempty"`
 
 	// AppConfigChanged indicates if the android app configuration changed as part
@@ -113,12 +113,12 @@ func (v *SoftwareWorker) Run(ctx context.Context, argsJSON json.RawMessage) erro
 		)
 
 	case bulkSetAndroidAppsAvailableForHostsTask:
-		return ctxerr.Wrapf(ctx, v.updateAndroidHostsAfterFleetTransfer(ctx, args.UUIDsToIDs), "running %s task", bulkSetAndroidAppsAvailableForHostsTask)
+		return ctxerr.Wrapf(ctx, v.updateAndroidHostsAfterTeamTransfer(ctx, args.UUIDsToIDs), "running %s task", bulkSetAndroidAppsAvailableForHostsTask)
 
-	case sendAndroidFleetAgentConfigTask:
+	case sendAndroidAutoMDMAgentConfigTask:
 		// A failed send is returned so the job is retried: the configuration carries the enroll secret the host is waiting for.
-		return ctxerr.Wrapf(ctx, v.AndroidModule.SendFleetAgentConfig(ctx, args.EnterpriseName, args.HostUUID),
-			"running %s task", sendAndroidFleetAgentConfigTask)
+		return ctxerr.Wrapf(ctx, v.AndroidModule.SendAutoMDMAgentConfig(ctx, args.EnterpriseName, args.HostUUID),
+			"running %s task", sendAndroidAutoMDMAgentConfigTask)
 
 	case resendVPPAppConfigurationTask, resendVPPAppConfigurationBatchTask:
 		// these tasks are deprecated, the App Store app configurations cron sends configurations, but they must be
@@ -131,12 +131,12 @@ func (v *SoftwareWorker) Run(ctx context.Context, argsJSON json.RawMessage) erro
 	}
 }
 
-// this is called when a new app is added to Fleet and when an existing app is updated
+// this is called when a new app is added to AutoMDM and when an existing app is updated
 // (either its scope of affected hosts changed due to labels conditions, or its
 // configuration changed).
-// this is called when an app is removed from Fleet.
+// this is called when an app is removed from AutoMDM.
 // prepareHostSpecificPolicy sets the settings of the host-specific policy before the device is moved to it.
-func (v *SoftwareWorker) prepareHostSpecificPolicy(ctx context.Context, androidHost *fleet.AndroidHost, enterpriseName string) error {
+func (v *SoftwareWorker) prepareHostSpecificPolicy(ctx context.Context, androidHost *automdm.AndroidHost, enterpriseName string) error {
 	hostUUID := androidHost.Host.UUID
 	if err := v.AndroidModule.PrepareHostPolicy(ctx, enterpriseName, hostUUID, ptr.ValOrZero(androidHost.Host.TeamID)); err != nil {
 		return err
@@ -149,13 +149,13 @@ func (v *SoftwareWorker) prepareHostSpecificPolicy(ctx context.Context, androidH
 		return ctxerr.Wrapf(ctx, err, "reset android profiles for redelivery for host %s", hostUUID)
 	}
 
-	if err := v.AndroidModule.BuildAndSendFleetAgentConfig(ctx, enterpriseName, []string{hostUUID}, false); err != nil {
-		return ctxerr.Wrapf(ctx, err, "build and send fleet agent config for host %s", hostUUID)
+	if err := v.AndroidModule.BuildAndSendAutoMDMAgentConfig(ctx, enterpriseName, []string{hostUUID}, false); err != nil {
+		return ctxerr.Wrapf(ctx, err, "build and send automdm agent config for host %s", hostUUID)
 	}
 	return nil
 }
 
-func (v *SoftwareWorker) moveDeviceToHostSpecificPolicy(ctx context.Context, androidHost *fleet.AndroidHost, enterpriseName string) error {
+func (v *SoftwareWorker) moveDeviceToHostSpecificPolicy(ctx context.Context, androidHost *automdm.AndroidHost, enterpriseName string) error {
 	device := &androidmanagement.Device{
 		PolicyName: fmt.Sprintf("%s/policies/%s", enterpriseName, androidHost.Host.UUID),
 		// State must be specified when updating a device, otherwise it fails with
@@ -208,29 +208,29 @@ func (v *SoftwareWorker) makeAndroidAppsAvailableForHost(ctx context.Context, ho
 	// from moving to its host policy. Whichever value is missing has its own resend trigger.
 	substitutionHost := androidHostToSubstitutionHost(androidHost)
 	availableAppIDs := make([]string, 0, len(appsInScope))
-	installs := make([]fleet.HostAndroidSoftwareInstall, 0, len(appsInScope)+1)
-	var failedInstalls []fleet.HostAndroidSoftwareInstall
+	installs := make([]automdm.HostAndroidSoftwareInstall, 0, len(appsInScope)+1)
+	var failedInstalls []automdm.HostAndroidSoftwareInstall
 	var substituted []byte
 	for _, app := range appsInScope {
 		appID := app.AdamID
-		install := fleet.HostAndroidSoftwareInstall{HostID: hostID, AdamID: appID, VPPAppTeamID: new(app.AppTeamID), InstallType: android.AppStatusAvailable,
-			Status: fleet.AndroidSoftwareInstallStatusPending, PolicyBuiltAt: policyBuiltAt}
+		install := automdm.HostAndroidSoftwareInstall{HostID: hostID, AdamID: appID, VPPAppTeamID: new(app.AppTeamID), InstallType: android.AppStatusAvailable,
+			Status: automdm.AndroidSoftwareInstallStatusPending, PolicyBuiltAt: policyBuiltAt}
 		config, ok := configsByAppID[appID]
 		if !ok {
 			availableAppIDs = append(availableAppIDs, appID)
 			installs = append(installs, install)
 			continue
 		}
-		substituted, err = profiles.SubstituteFleetVarsAndVitalsInAndroidAppConfig(ctx, v.Datastore, config, substitutionHost)
+		substituted, err = profiles.SubstituteAutoMDMVarsAndVitalsInAndroidAppConfig(ctx, v.Datastore, config, substitutionHost)
 		if err != nil {
 			if profiles.IsUnresolvableAndroidAppConfigForHost(err) {
 				v.Log.WarnContext(ctx, "skipping android app for host that can't supply a value referenced by its config",
 					"host_uuid", hostUUID, "application_id", appID, "err", err)
-				install.Status = fleet.AndroidSoftwareInstallStatusFailed
+				install.Status = automdm.AndroidSoftwareInstallStatusFailed
 				failedInstalls = append(failedInstalls, install)
 				continue
 			}
-			return ctxerr.Wrapf(ctx, err, "substitute fleet vars in android app config for app %s", appID)
+			return ctxerr.Wrapf(ctx, err, "substitute automdm vars in android app config for app %s", appID)
 		}
 		configsByAppID[appID] = substituted
 		availableAppIDs = append(availableAppIDs, appID)
@@ -244,14 +244,14 @@ func (v *SoftwareWorker) makeAndroidAppsAvailableForHost(ctx context.Context, ho
 
 	// A re-enrolled host reuses its host policy, which still lists the apps of its
 	// previous enrollment, so replace the list instead of adding to it, before the
-	// device is moved to that policy. Fail rather than continue without the Fleet
+	// device is moved to that policy. Fail rather than continue without the AutoMDM
 	// Agent, as replacing would remove it.
-	fleetAgentPolicy, err := v.AndroidModule.BuildFleetAgentApplicationPolicy(ctx, hostUUID)
+	automdmAgentPolicy, err := v.AndroidModule.BuildAutoMDMAgentApplicationPolicy(ctx, hostUUID)
 	if err != nil {
-		return ctxerr.Wrapf(ctx, err, "build fleet agent application policy for host %s", hostUUID)
+		return ctxerr.Wrapf(ctx, err, "build automdm agent application policy for host %s", hostUUID)
 	}
-	if fleetAgentPolicy != nil {
-		appPolicies = append(appPolicies, fleetAgentPolicy)
+	if automdmAgentPolicy != nil {
+		appPolicies = append(appPolicies, automdmAgentPolicy)
 	}
 
 	policyRequests, err := v.AndroidModule.SetAppsForAndroidPolicy(ctx, enterpriseName, appPolicies, map[string]string{hostUUID: hostUUID})
@@ -268,9 +268,9 @@ func (v *SoftwareWorker) makeAndroidAppsAvailableForHost(ctx context.Context, ho
 		installs[i].InPolicyVersion = inPolicyVersion
 	}
 	installs = append(installs, failedInstalls...)
-	if fleetAgentPolicy != nil {
-		installs = append(installs, fleet.HostAndroidSoftwareInstall{HostID: hostID, AdamID: fleetAgentPolicy.PackageName, InstallType: android.AppStatusForceInstalled,
-			Status: fleet.AndroidSoftwareInstallStatusPending, InPolicyVersion: inPolicyVersion, PolicyBuiltAt: policyBuiltAt})
+	if automdmAgentPolicy != nil {
+		installs = append(installs, automdm.HostAndroidSoftwareInstall{HostID: hostID, AdamID: automdmAgentPolicy.PackageName, InstallType: android.AppStatusForceInstalled,
+			Status: automdm.AndroidSoftwareInstallStatusPending, InPolicyVersion: inPolicyVersion, PolicyBuiltAt: policyBuiltAt})
 	}
 	err = v.Datastore.ReplaceHostAndroidSoftwareInstalls(ctx, hostID, installs)
 	if err != nil {
@@ -317,12 +317,12 @@ func (v *SoftwareWorker) runAndroidSetupExperience(ctx context.Context,
 	// the enrollment team's setup experience software, do we still run those installs?
 	// my guess is yes (because we don't _uninstall_ on team transfers, so it should be
 	// expected that the original team's software gets installed despite being transferred).
-	flaggedVersions, err := v.Datastore.GetVPPAppsToInstallDuringSetupExperience(ctx, &hostEnrollTeamID, string(fleet.AndroidPlatform))
+	flaggedVersions, err := v.Datastore.GetVPPAppsToInstallDuringSetupExperience(ctx, &hostEnrollTeamID, string(automdm.AndroidPlatform))
 	if err != nil {
 		return ctxerr.Wrapf(ctx, err, "getting vpp apps to install during setup experience for team %d", hostEnrollTeamID)
 	}
 	// Install the first-added flagged version of each app, versions are ordered by id
-	var setupApps []fleet.VPPAppTeam
+	var setupApps []automdm.VPPAppTeam
 	appIDs := make([]string, 0, len(flaggedVersions))
 	vppAppTeamIDs := make([]uint, 0, len(flaggedVersions))
 	for _, app := range flaggedVersions {
@@ -345,9 +345,9 @@ func (v *SoftwareWorker) runAndroidSetupExperience(ctx context.Context,
 			return ctxerr.Wrap(ctx, err, "bulk get android app configurations")
 		}
 
-		configsByAppID, err = profiles.SubstituteFleetVarsInAndroidAppConfigs(ctx, v.Datastore, configsByAppID, androidHostToSubstitutionHost(host))
+		configsByAppID, err = profiles.SubstituteAutoMDMVarsInAndroidAppConfigs(ctx, v.Datastore, configsByAppID, androidHostToSubstitutionHost(host))
 		if err != nil {
-			return ctxerr.Wrap(ctx, err, "substitute fleet vars in app configs")
+			return ctxerr.Wrap(ctx, err, "substitute automdm vars in app configs")
 		}
 
 		appPolicies, err := profiles.BuildApplicationPoliciesWithConfig(ctx, appIDs, configsByAppID, android.AppStatusPreinstalled)
@@ -371,14 +371,14 @@ func (v *SoftwareWorker) runAndroidSetupExperience(ctx context.Context,
 		if policyRequest != nil && policyRequest.PolicyVersion.Valid {
 			inPolicyVersion = &policyRequest.PolicyVersion.V
 		}
-		installs := make([]fleet.HostAndroidSoftwareInstall, 0, len(setupApps))
+		installs := make([]automdm.HostAndroidSoftwareInstall, 0, len(setupApps))
 		for _, app := range setupApps {
-			installs = append(installs, fleet.HostAndroidSoftwareInstall{
+			installs = append(installs, automdm.HostAndroidSoftwareInstall{
 				HostID:          host.Host.ID,
 				AdamID:          app.AdamID,
 				VPPAppTeamID:    &app.AppTeamID,
 				InstallType:     android.AppStatusPreinstalled,
-				Status:          fleet.AndroidSoftwareInstallStatusPending,
+				Status:          automdm.AndroidSoftwareInstallStatusPending,
 				InPolicyVersion: inPolicyVersion,
 				PolicyBuiltAt:   policyBuiltAt,
 			})
@@ -400,7 +400,7 @@ func (v *SoftwareWorker) runAndroidSetupExperience(ctx context.Context,
 			// unified queue), or make some DB changes.
 			//
 			// So in the meantime we use a random uuid in this place.
-			err := v.Datastore.InsertAndroidSetupExperienceSoftwareInstall(ctx, &fleet.HostAndroidVPPSoftwareInstall{
+			err := v.Datastore.InsertAndroidSetupExperienceSoftwareInstall(ctx, &automdm.HostAndroidVPPSoftwareInstall{
 				HostID:            host.Host.ID,
 				AdamID:            app.AdamID,
 				CommandUUID:       uuid.NewString(),
@@ -416,7 +416,7 @@ func (v *SoftwareWorker) runAndroidSetupExperience(ctx context.Context,
 	return nil
 }
 
-func androidHostToSubstitutionHost(h *fleet.AndroidHost) profiles.AndroidAppConfigSubstitutionHost {
+func androidHostToSubstitutionHost(h *automdm.AndroidHost) profiles.AndroidAppConfigSubstitutionHost {
 	return profiles.AndroidAppConfigSubstitutionHost{
 		HostID:         h.Host.ID,
 		UUID:           h.Host.UUID,
@@ -425,7 +425,7 @@ func androidHostToSubstitutionHost(h *fleet.AndroidHost) profiles.AndroidAppConf
 	}
 }
 
-func QueueRunAndroidSetupExperience(ctx context.Context, ds fleet.Datastore, logger *slog.Logger,
+func QueueRunAndroidSetupExperience(ctx context.Context, ds automdm.Datastore, logger *slog.Logger,
 	hostUUID string, hostEnrollTeamID *uint, enterpriseName string,
 ) error {
 	var enrollTeamID uint
@@ -448,11 +448,11 @@ func QueueRunAndroidSetupExperience(ctx context.Context, ds fleet.Datastore, log
 	return nil
 }
 
-// QueueSendAndroidFleetAgentConfig queues a rebuild and resend of the Fleet agent's managed configuration for the host, which
+// QueueSendAndroidAutoMDMAgentConfig queues a rebuild and resend of the AutoMDM agent's managed configuration for the host, which
 // carries a fresh enroll secret.
-func QueueSendAndroidFleetAgentConfig(ctx context.Context, ds fleet.Datastore, logger *slog.Logger, hostUUID, enterpriseName string) error {
+func QueueSendAndroidAutoMDMAgentConfig(ctx context.Context, ds automdm.Datastore, logger *slog.Logger, hostUUID, enterpriseName string) error {
 	args := &softwareWorkerArgs{
-		Task:           sendAndroidFleetAgentConfigTask,
+		Task:           sendAndroidAutoMDMAgentConfigTask,
 		HostUUID:       hostUUID,
 		EnterpriseName: enterpriseName,
 	}
@@ -460,11 +460,11 @@ func QueueSendAndroidFleetAgentConfig(ctx context.Context, ds fleet.Datastore, l
 	if err != nil {
 		return ctxerr.Wrap(ctx, err, "queueing job")
 	}
-	logger.DebugContext(ctx, "queued android fleet agent config job", "job_id", job.ID, "job_name", softwareWorkerJobName, "task", args.Task)
+	logger.DebugContext(ctx, "queued android automdm agent config job", "job_id", job.ID, "job_name", softwareWorkerJobName, "task", args.Task)
 	return nil
 }
 
-func (v *SoftwareWorker) updateAndroidHostsAfterFleetTransfer(ctx context.Context, uuidsToIDs map[string]uint) error {
+func (v *SoftwareWorker) updateAndroidHostsAfterTeamTransfer(ctx context.Context, uuidsToIDs map[string]uint) error {
 	for uuid := range uuidsToIDs {
 		androidHost, err := v.Datastore.AndroidHostLiteByHostUUID(ctx, uuid)
 		if err != nil {
@@ -493,7 +493,7 @@ const (
 
 func QueueBulkSetAndroidAppsAvailableForHosts(
 	ctx context.Context,
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	logger *slog.Logger,
 	uuidsToIDs map[string]uint,
 	enterpriseName string,
@@ -530,7 +530,7 @@ func QueueBulkSetAndroidAppsAvailableForHosts(
 
 func queueBulkSetAndroidAppsAvailableForHostsJob(
 	ctx context.Context,
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	logger *slog.Logger,
 	uuidsToIDs map[string]uint,
 	enterpriseName string,

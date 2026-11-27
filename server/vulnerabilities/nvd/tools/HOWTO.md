@@ -68,7 +68,7 @@ Collectors are all about retrieving asset information and providing enough data 
 
 ### Hosted software collectors
 
-These are domain-specific programs that scrape software repositories (or logs) and report packages available to the fleet.
+These are domain-specific programs that scrape software repositories (or logs) and report packages available to the team.
 
 Examples of hosted software collectors are programs to report packages hosted in yum, maven, munki, chocolatey, docker registry.
 

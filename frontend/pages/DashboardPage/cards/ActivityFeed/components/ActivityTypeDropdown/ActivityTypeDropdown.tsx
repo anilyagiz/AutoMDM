@@ -201,8 +201,8 @@ const ActivityTypeDropdown = ({
     ...generateCustomDropdownStyles(),
     menu: (provided) => ({
       ...provided,
-      backgroundColor: COLORS["core-fleet-white"],
-      boxShadow: `0 0 0 1px ${COLORS["ui-fleet-black-10"]}`,
+      backgroundColor: COLORS["core-automdm-white"],
+      boxShadow: `0 0 0 1px ${COLORS["ui-automdm-black-10"]}`,
       borderRadius: "4px",
       zIndex: 6,
       overflow: "hidden",
@@ -233,7 +233,7 @@ const ActivityTypeDropdown = ({
       justifyContent: "center",
       width: "100%",
       height: 276,
-      color: COLORS["ui-fleet-black-75"],
+      color: COLORS["ui-automdm-black-75"],
     }),
     valueContainer: (provided) => ({
       ...provided,

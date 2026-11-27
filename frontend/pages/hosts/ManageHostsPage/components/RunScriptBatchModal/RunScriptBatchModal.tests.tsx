@@ -11,12 +11,12 @@ import { createCustomRenderer } from "test/test-utils";
 import RunScriptBatchModal from "./RunScriptBatchModal";
 
 const baseUrl = (path: string) => {
-  return `/api/latest/fleet${path}`;
+  return `/api/latest/automdm${path}`;
 };
 
 const windowsScript: IScript = {
   id: 123,
-  fleet_id: 1,
+  team_id: 1,
   name: "winscript.ps1",
   created_at: "2023-01-01T00:00:00Z",
   updated_at: "2023-01-01T00:00:00Z",
@@ -24,7 +24,7 @@ const windowsScript: IScript = {
 
 const linuxScript: IScript = {
   id: 456,
-  fleet_id: 1,
+  team_id: 1,
   name: "linuxscript.sh",
   created_at: "2023-01-01T00:00:00Z",
   updated_at: "2023-01-01T00:00:00Z",
@@ -159,7 +159,7 @@ describe("RunScriptBatchModal", () => {
 
     expect(await screen.findByText("No scripts available")).toBeInTheDocument();
     expect(screen.getByText("Add a script")).toBeInTheDocument();
-    expect(screen.getByText(/to this fleet/)).toBeInTheDocument();
+    expect(screen.getByText(/to this automdm/)).toBeInTheDocument();
   });
 
   describe("after clicking run script", () => {
@@ -233,7 +233,7 @@ describe("RunScriptBatchModal", () => {
           filters: {
             query: "hi",
             label_id: 16,
-            fleet_id: 1,
+            team_id: 1,
             status: "",
           },
         });
@@ -377,7 +377,7 @@ describe("RunScriptBatchModal", () => {
         expect(body).toEqual({
           script_id: windowsScript.id,
           not_before: "2099-12-31T23:59:00.000Z",
-          filters: { query: "hi", label_id: 16, status: "", fleet_id: 1 },
+          filters: { query: "hi", label_id: 16, status: "", team_id: 1 },
         });
       });
     });

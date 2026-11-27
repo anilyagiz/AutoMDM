@@ -35,7 +35,7 @@ describe("notify - sonner toast API", () => {
   it("notify.success returns a toast id and calls toast.custom with correct options", () => {
     const id = notify.success("Saved!");
     expect(typeof id).toBe("string");
-    expect(id).toMatch(/^fleet-toast-/);
+    expect(id).toMatch(/^automdm-toast-/);
 
     jest.runAllTimers();
     expect(mockedToast.custom).toHaveBeenCalledTimes(1);

@@ -80,7 +80,7 @@ export const getOSVersions = ({
 
   const params: IGetOSVersionsRequestQueryParams = {
     platform,
-    fleet_id: teamId,
+    team_id: teamId,
     os_name,
     os_version,
     order_key,
@@ -105,7 +105,7 @@ const getOSVersion = ({
 }: IGetOsVersionOptions): Promise<IOSVersionResponse> => {
   const endpoint = endpoints.OS_VERSION(os_version_id);
   const queryString = buildQueryStringFromParams({
-    fleet_id: teamId,
+    team_id: teamId,
     max_vulnerabilities,
   });
   const path = queryString ? `${endpoint}?${queryString}` : endpoint;

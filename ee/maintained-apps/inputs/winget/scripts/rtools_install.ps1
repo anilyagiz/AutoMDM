@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # Rtools won't install into an existing folder (run silently, it waits on a
 # hidden error dialog), so an earlier install of the same release in
@@ -9,7 +9,7 @@
 $exeFilePath = "${env:INSTALLER_PATH}"
 
 # Extracting ~52,000 files can take well over 10 minutes with antivirus
-# scanning. This stays under Fleet's 1-hour script limit.
+# scanning. This stays under AutoMDM's 1-hour script limit.
 $timeoutSeconds = 3300
 $pollSeconds = 15
 $installArgs = "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART"

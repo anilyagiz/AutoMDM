@@ -6,10 +6,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/markdown"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/pkg/markdown"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
 	"golang.org/x/sync/singleflight"
 )
 
@@ -22,7 +22,7 @@ type windowsTOSTemplateData struct {
 	RedirectURL template.URL
 	ClientData  string
 	CSPNonce    string
-	// Content is the admin's rendered agreement. Empty means the template shows Fleet's default terms.
+	// Content is the admin's rendered agreement. Empty means the template shows AutoMDM's default terms.
 	Content template.HTML
 }
 
@@ -40,9 +40,9 @@ func (svc *Service) customWindowsTOSContent(ctx context.Context) template.HTML {
 
 	// The page is unauthenticated, so only the small metadata row is read per request; the document is loaded and
 	// rendered once per upload.
-	meta, err := svc.ds.MDMGetEULAMetadata(ctx, fleet.MDMEULAPlatformWindows)
+	meta, err := svc.ds.MDMGetEULAMetadata(ctx, automdm.MDMEULAPlatformWindows)
 	switch {
-	case fleet.IsNotFound(err):
+	case automdm.IsNotFound(err):
 		windowsTOSCache.clear()
 		return ""
 	case err != nil:
@@ -82,9 +82,9 @@ func (svc *Service) renderWindowsTOS(ctx context.Context, token string) template
 		return cached
 	}
 
-	eula, err := svc.ds.MDMGetEULABytes(ctx, fleet.MDMEULAPlatformWindows, token)
+	eula, err := svc.ds.MDMGetEULABytes(ctx, automdm.MDMEULAPlatformWindows, token)
 	switch {
-	case fleet.IsNotFound(err):
+	case automdm.IsNotFound(err):
 		// Deleted or replaced since the metadata was read; the next request reads the new state.
 		return ""
 	case err != nil:

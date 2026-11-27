@@ -5,7 +5,7 @@ import { ISsoFormData, newSsoFormData, validateSsoForm } from "./helpers";
 const VALID_FORM_DATA: ISsoFormData = {
   enableSso: true,
   idpName: "Okta",
-  entityId: "https://fleet.example.com",
+  entityId: "https://automdm.example.com",
   idpImageUrl: "",
   metadata: "",
   metadataUrl: "https://idp.example.com/metadata",
@@ -109,7 +109,7 @@ describe("Sso helpers", () => {
         sso_settings: {
           enable_sso: true,
           idp_name: "  Okta  ",
-          entity_id: "  https://fleet.example.com  ",
+          entity_id: "  https://automdm.example.com  ",
           idp_image_url: "",
           metadata: "",
           metadata_url: "  https://idp.example.com/metadata  ",
@@ -123,7 +123,7 @@ describe("Sso helpers", () => {
       expect(formData).toMatchObject({
         enableSso: true,
         idpName: "Okta",
-        entityId: "https://fleet.example.com",
+        entityId: "https://automdm.example.com",
         metadataUrl: "https://idp.example.com/metadata",
       });
     });

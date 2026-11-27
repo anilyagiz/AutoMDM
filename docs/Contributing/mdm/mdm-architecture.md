@@ -1,10 +1,10 @@
 # MDM architecture overview
 
-This document provides an overview of Fleet's Mobile Device Management (MDM) architecture.
+This document provides an overview of AutoMDM's Mobile Device Management (MDM) architecture.
 
 ## Introduction
 
-Fleet's MDM architecture is designed to manage devices across different platforms, including Apple (macOS, iOS) and Windows. This document provides insights into the design decisions, system components, and interactions specific to the MDM functionality.
+AutoMDM's MDM architecture is designed to manage devices across different platforms, including Apple (macOS, iOS) and Windows. This document provides insights into the design decisions, system components, and interactions specific to the MDM functionality.
 
 ## System components
 
@@ -26,7 +26,7 @@ The MDM architecture consists of the following main components:
 
 The MDM architecture integrates with the following components:
 
-- **Fleet Server**: For device management and policy enforcement.
+- **AutoMDM Server**: For device management and policy enforcement.
 - **Database**: For storing device information, configurations, and policies.
 - **Authentication Systems**: For user and device authentication.
 - **Certificate Authorities**: For issuing and managing device certificates.

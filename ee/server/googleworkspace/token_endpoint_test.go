@@ -11,29 +11,29 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2/google"
 )
 
-func testIntegration(t *testing.T, tokenURI string) *fleet.GoogleWorkspaceIntegration {
+func testIntegration(t *testing.T, tokenURI string) *automdm.GoogleWorkspaceIntegration {
 	t.Helper()
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
 	der, err := x509.MarshalPKCS8PrivateKey(key)
 	require.NoError(t, err)
 	values := map[string]string{
-		fleet.GoogleCalendarEmail:      "sa@b.com",
-		fleet.GoogleCalendarPrivateKey: string(pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der})),
+		automdm.GoogleCalendarEmail:      "sa@b.com",
+		automdm.GoogleCalendarPrivateKey: string(pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der})),
 	}
 	if tokenURI != "" {
 		values[tokenURIKey] = tokenURI
 	}
-	return &fleet.GoogleWorkspaceIntegration{
+	return &automdm.GoogleWorkspaceIntegration{
 		Domain:                "b.com",
 		ImpersonatedUserEmail: "admin@b.com",
-		ApiKey:                fleet.GoogleCalendarApiKey{Values: values},
+		ApiKey:                automdm.GoogleCalendarApiKey{Values: values},
 	}
 }
 
@@ -81,7 +81,7 @@ func TestTokenURIIgnoredWithoutEndpointOverride(t *testing.T) {
 	require.Zero(t, hits.Load(), "a non-Google token_uri must never be contacted")
 }
 
-// The token exchange must go through Fleet's outbound client so the private
+// The token exchange must go through AutoMDM's outbound client so the private
 // network guard applies to it like every other integration request.
 func TestTokenExchangeUsesOutboundNetworkGuard(t *testing.T) {
 	var hits atomic.Int32
@@ -94,14 +94,14 @@ func TestTokenExchangeUsesOutboundNetworkGuard(t *testing.T) {
 	// The override seam is the only way token_uri is honored, which is also the
 	// path an operator would need for this to matter.
 	t.Setenv(endpointOverrideEnv, srv.URL)
-	fleethttp.SetNetworkBlockingMode(fleethttp.BlockingFull)
-	t.Cleanup(func() { fleethttp.SetNetworkBlockingMode(fleethttp.BlockingDisabled) })
+	automdmhttp.SetNetworkBlockingMode(automdmhttp.BlockingFull)
+	t.Cleanup(func() { automdmhttp.SetNetworkBlockingMode(automdmhttp.BlockingDisabled) })
 
 	dir, err := NewDirectory(t.Context(), testIntegration(t, srv.URL+"/token"), slog.New(slog.DiscardHandler), Limits{})
 	require.NoError(t, err)
 
 	_, err = dir.ListUsers(t.Context())
 	// oauth2 flattens the transport error into its own message, so match on text.
-	require.ErrorContains(t, err, fleethttp.ErrPrivateNetworkBlocked.Error())
+	require.ErrorContains(t, err, automdmhttp.ErrPrivateNetworkBlocked.Error())
 	require.Zero(t, hits.Load(), "loopback token endpoint must be blocked before any request is sent")
 }

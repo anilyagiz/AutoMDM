@@ -14,7 +14,7 @@ terraform {
     }
   }
   backend "s3" {
-    bucket               = "fleet-terraform-state20220408141538466600000002"
+    bucket               = "automdm-terraform-state20220408141538466600000002"
     key                  = "loadtesting/loadtesting/terraform.tfstate" # This should be set to account_alias/unique_key/terraform.tfstate
     workspace_key_prefix = "loadtesting"                               # This should be set to the account alias
     region               = "us-east-2"
@@ -32,8 +32,8 @@ provider "aws" {
   default_tags {
     tags = {
       environment = "loadtest"
-      terraform   = "https://github.com/fleetdm/fleet/tree/main/infrastructure/loadtesting"
-      state       = "s3://fleet-terraform-state20220408141538466600000002/loadtesting/${terraform.workspace}/loadtesting/loadtesting/terraform.tfstate"
+      terraform   = "https://github.com/anilyagiz/automdm/tree/main/infrastructure/loadtesting"
+      state       = "s3://automdm-terraform-state20220408141538466600000002/loadtesting/${terraform.workspace}/loadtesting/loadtesting/terraform.tfstate"
       workspace   = "${terraform.workspace}"
     }
   }
@@ -42,7 +42,7 @@ provider "aws" {
 data "terraform_remote_state" "shared" {
   backend = "s3"
   config = {
-    bucket               = "fleet-terraform-state20220408141538466600000002"
+    bucket               = "automdm-terraform-state20220408141538466600000002"
     key                  = "loadtesting/loadtesting/shared/terraform.tfstate" # This should be set to account_alias/unique_key/terraform.tfstate
     workspace_key_prefix = "loadtesting"                                      # This should be set to the account alias
     region               = "us-east-2"

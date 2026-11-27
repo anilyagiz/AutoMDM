@@ -12,7 +12,7 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/dev_mode"
+	"github.com/anilyagiz/automdm/v4/server/dev_mode"
 	"github.com/stretchr/testify/require"
 )
 
@@ -66,5 +66,5 @@ func StartNewAppleGDMFTestServer(t TestingT) {
 	}))
 	t.Cleanup(appleGDMFSrv.Close)
 
-	dev_mode.SetOverride("FLEET_DEV_GDMF_URL", appleGDMFSrv.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_GDMF_URL", appleGDMFSrv.URL, t)
 }

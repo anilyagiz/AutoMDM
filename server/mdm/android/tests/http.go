@@ -6,9 +6,9 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/test/httptest"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/test/httptest"
 	"github.com/stretchr/testify/require"
 )
 
@@ -16,7 +16,7 @@ func (ts *WithServer) DoJSON(verb, path string, params interface{}, expectedStat
 	resp := ts.Do(verb, path, params, expectedStatusCode, queryParams...)
 	err := json.UnmarshalRead(resp.Body, v)
 	require.NoError(ts.T(), err)
-	if e, ok := v.(fleet.Errorer); ok {
+	if e, ok := v.(automdm.Errorer); ok {
 		require.NoError(ts.T(), e.Error())
 	}
 }
@@ -42,11 +42,11 @@ func (ts *WithServer) DoRaw(verb string, path string, rawBytes []byte, expectedS
 func (ts *WithServer) DoRawWithHeaders(
 	verb string, path string, rawBytes []byte, expectedStatusCode int, headers map[string]string, queryParams ...string,
 ) *http.Response {
-	opts := []fleethttp.ClientOpt{fleethttp.WithNoTimeout()}
+	opts := []automdmhttp.ClientOpt{automdmhttp.WithNoTimeout()}
 	if expectedStatusCode >= 300 && expectedStatusCode <= 399 {
-		opts = append(opts, fleethttp.WithFollowRedir(false))
+		opts = append(opts, automdmhttp.WithFollowRedir(false))
 	}
-	client := fleethttp.NewClient(opts...)
+	client := automdmhttp.NewClient(opts...)
 	return httptest.DoHTTPReq(ts.T(), client, decodeJSON, verb, rawBytes, ts.Server.URL+path, headers, expectedStatusCode, queryParams...)
 }
 

@@ -17,9 +17,9 @@ const PremiumFeatureMessage = ({ className }: IPremiumFeatureMessage) => {
     <div className={classes}>
       <div className="premium-feature-message">
         <Icon name="premium-feature" />
-        <p>This feature is included in Fleet Premium.</p>
+        <p>This feature is included in AutoMDM Premium.</p>
         <CustomLink
-          url="https://fleetdm.com/upgrade"
+          url="https://automdm.com/upgrade"
           text="Learn more"
           newTab
         />

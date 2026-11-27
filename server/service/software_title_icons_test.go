@@ -8,27 +8,27 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/file"
-	activity_api "github.com/fleetdm/fleet/v4/server/activity/api"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/datastore/s3/s3test"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/pkg/file"
+	activity_api "github.com/anilyagiz/automdm/v4/server/activity/api"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	"github.com/anilyagiz/automdm/v4/server/datastore/s3/s3test"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestGetSoftwareTitleIcon(t *testing.T) {
-	user := &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}
+	user := &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}
 	ctx := viewer.NewContext(context.Background(), viewer.Viewer{User: user})
 	ds := new(mock.Store)
 
 	mockIconStore := s3test.SetupSoftwareTitleIconStore(t, "software-title-icons-unit-test", "icon-store-prefix")
 	svc, _ := newTestService(t, ds, nil, nil, &TestServerOpts{
-		License:                &fleet.LicenseInfo{Tier: fleet.TierPremium},
+		License:                &automdm.LicenseInfo{Tier: automdm.TierPremium},
 		SoftwareTitleIconStore: mockIconStore,
 	})
 	defer func() {
@@ -36,12 +36,12 @@ func TestGetSoftwareTitleIcon(t *testing.T) {
 		require.NoError(t, err)
 	}()
 
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
 	}
-	ds.GetSoftwareTitleIconFunc = func(ctx context.Context, teamID, titleID uint) (*fleet.SoftwareTitleIcon, error) {
+	ds.GetSoftwareTitleIconFunc = func(ctx context.Context, teamID, titleID uint) (*automdm.SoftwareTitleIcon, error) {
 		if titleID == 1 {
-			return &fleet.SoftwareTitleIcon{
+			return &automdm.SoftwareTitleIcon{
 				TeamID:          teamID,
 				SoftwareTitleID: titleID,
 				StorageID:       "mock-storage-id",
@@ -50,9 +50,9 @@ func TestGetSoftwareTitleIcon(t *testing.T) {
 		}
 		return nil, ctxerr.Wrap(ctx, &common_mysql.NotFoundError{ResourceType: "SoftwareTitleIcon"}, "get software title icon")
 	}
-	ds.GetVPPAppMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint) (*fleet.VPPAppStoreApp, error) {
+	ds.GetVPPAppMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint) (*automdm.VPPAppStoreApp, error) {
 		if titleID == 3 {
-			return &fleet.VPPAppStoreApp{
+			return &automdm.VPPAppStoreApp{
 				IconURL: ptr.String("mock-vpp-icon-url"),
 			}, nil
 		}
@@ -96,7 +96,7 @@ func TestGetSoftwareTitleIcon(t *testing.T) {
 			testFunc: func(t *testing.T) {
 				_, _, _, err := svc.GetSoftwareTitleIcon(ctx, 1, 3)
 				require.Error(t, err)
-				var vppIconErr *fleet.VPPIconAvailable
+				var vppIconErr *automdm.VPPIconAvailable
 				require.True(t, errors.As(err, &vppIconErr), "error should be VPPIconAvailable")
 				require.Equal(t, "mock-vpp-icon-url", vppIconErr.IconURL)
 			},
@@ -112,13 +112,13 @@ func TestGetSoftwareTitleIcon(t *testing.T) {
 }
 
 func TestUploadSoftwareTitleIcon(t *testing.T) {
-	user := &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}
+	user := &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}
 	ctx := viewer.NewContext(context.Background(), viewer.Viewer{User: user})
 	ds := new(mock.Store)
 
 	mockIconStore := s3test.SetupSoftwareTitleIconStore(t, "software-title-icons-unit-test", "icon-store-prefix")
 	opts := &TestServerOpts{
-		License:                &fleet.LicenseInfo{Tier: fleet.TierPremium},
+		License:                &automdm.LicenseInfo{Tier: automdm.TierPremium},
 		SoftwareTitleIconStore: mockIconStore,
 	}
 	svc, _ := newTestService(t, ds, nil, nil, opts)
@@ -127,8 +127,8 @@ func TestUploadSoftwareTitleIcon(t *testing.T) {
 		require.NoError(t, err)
 	}()
 
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
 	}
 	var capturedActivities []activity_api.ActivityDetails
 	opts.ActivityMock.NewActivityFunc = func(_ context.Context, _ *activity_api.User, activity activity_api.ActivityDetails) error {
@@ -136,7 +136,7 @@ func TestUploadSoftwareTitleIcon(t *testing.T) {
 		return nil
 	}
 
-	var iconFile *fleet.TempFileReader
+	var iconFile *automdm.TempFileReader
 	testCases := []struct {
 		name     string
 		before   func()
@@ -146,24 +146,24 @@ func TestUploadSoftwareTitleIcon(t *testing.T) {
 			name: "upload icon title with no software installer, vpp app, or in-house app",
 			before: func() {
 				capturedActivities = make([]activity_api.ActivityDetails, 0)
-				ds.GetSoftwareInstallerMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint, includeUnpublished bool) (*fleet.SoftwareInstaller, error) {
+				ds.GetSoftwareInstallerMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint, includeUnpublished bool) (*automdm.SoftwareInstaller, error) {
 					return nil, ctxerr.Wrap(ctx, &common_mysql.NotFoundError{ResourceType: "SoftwareInstaller"}, "get software installer")
 				}
-				ds.GetVPPAppMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint) (*fleet.VPPAppStoreApp, error) {
+				ds.GetVPPAppMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint) (*automdm.VPPAppStoreApp, error) {
 					return nil, ctxerr.Wrap(ctx, &common_mysql.NotFoundError{ResourceType: "VPPAppMetadata"}, "get VPP app metadata")
 				}
-				ds.GetInHouseAppMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint) (*fleet.SoftwareInstaller, error) {
+				ds.GetInHouseAppMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint) (*automdm.SoftwareInstaller, error) {
 					return nil, ctxerr.Wrap(ctx, &common_mysql.NotFoundError{ResourceType: "InHouseAppMetadata"}, "get in-house app metadata")
 				}
 
 				file, err := os.Open("testdata/icons/valid-icon.png")
 				require.NoError(t, err)
 				defer file.Close()
-				iconFile, err = fleet.NewTempFileReader(file, func() string { return t.TempDir() })
+				iconFile, err = automdm.NewTempFileReader(file, func() string { return t.TempDir() })
 				require.NoError(t, err)
 			},
 			testFunc: func(t *testing.T) {
-				payload := &fleet.UploadSoftwareTitleIconPayload{
+				payload := &automdm.UploadSoftwareTitleIconPayload{
 					TitleID:  1,
 					TeamID:   1,
 					IconFile: iconFile,
@@ -178,31 +178,31 @@ func TestUploadSoftwareTitleIcon(t *testing.T) {
 			name: "upload icon for software installer",
 			before: func() {
 				capturedActivities = make([]activity_api.ActivityDetails, 0)
-				ds.GetSoftwareInstallerMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint, includeUnpublished bool) (*fleet.SoftwareInstaller, error) {
-					return &fleet.SoftwareInstaller{
+				ds.GetSoftwareInstallerMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint, includeUnpublished bool) (*automdm.SoftwareInstaller, error) {
+					return &automdm.SoftwareInstaller{
 						TitleID: ptr.Uint(1),
 						TeamID:  ptr.Uint(1),
 					}, nil
 				}
-				ds.GetSoftwareTitleIconFunc = func(ctx context.Context, teamID, titleID uint) (*fleet.SoftwareTitleIcon, error) {
+				ds.GetSoftwareTitleIconFunc = func(ctx context.Context, teamID, titleID uint) (*automdm.SoftwareTitleIcon, error) {
 					return nil, ctxerr.Wrap(ctx, &common_mysql.NotFoundError{ResourceType: "SoftwareTitleIcon"}, "get software title icon")
 				}
 				ds.GetTeamIdsForIconStorageIdFunc = func(ctx context.Context, storageID string) ([]uint, error) {
 					return []uint{1}, nil
 				}
-				ds.CreateOrUpdateSoftwareTitleIconFunc = func(ctx context.Context, payload *fleet.UploadSoftwareTitleIconPayload) (*fleet.SoftwareTitleIcon, error) {
+				ds.CreateOrUpdateSoftwareTitleIconFunc = func(ctx context.Context, payload *automdm.UploadSoftwareTitleIconPayload) (*automdm.SoftwareTitleIcon, error) {
 					sha, err := file.SHA256FromTempFileReader(iconFile)
 					require.NoError(t, err)
 
-					return &fleet.SoftwareTitleIcon{
+					return &automdm.SoftwareTitleIcon{
 						TeamID:          1,
 						SoftwareTitleID: 1,
 						StorageID:       sha,
 						Filename:        "icon.png",
 					}, nil
 				}
-				ds.ActivityDetailsForSoftwareTitleIconFunc = func(ctx context.Context, teamID uint, titleID uint) (fleet.DetailsForSoftwareIconActivity, error) {
-					return fleet.DetailsForSoftwareIconActivity{
+				ds.ActivityDetailsForSoftwareTitleIconFunc = func(ctx context.Context, teamID uint, titleID uint) (automdm.DetailsForSoftwareIconActivity, error) {
+					return automdm.DetailsForSoftwareIconActivity{
 						SoftwareInstallerID: ptr.Uint(1),
 						SoftwareTitle:       "foo",
 						Filename:            ptr.String("icon.png"),
@@ -213,7 +213,7 @@ func TestUploadSoftwareTitleIcon(t *testing.T) {
 				}
 			},
 			testFunc: func(t *testing.T) {
-				payload := &fleet.UploadSoftwareTitleIconPayload{
+				payload := &automdm.UploadSoftwareTitleIconPayload{
 					TitleID:  1,
 					TeamID:   1,
 					IconFile: iconFile,
@@ -228,34 +228,34 @@ func TestUploadSoftwareTitleIcon(t *testing.T) {
 			name: "upload icon for vpp app",
 			before: func() {
 				capturedActivities = make([]activity_api.ActivityDetails, 0)
-				ds.GetSoftwareInstallerMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint, includeUnpublished bool) (*fleet.SoftwareInstaller, error) {
+				ds.GetSoftwareInstallerMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint, includeUnpublished bool) (*automdm.SoftwareInstaller, error) {
 					return nil, ctxerr.Wrap(ctx, &common_mysql.NotFoundError{ResourceType: "SoftwareInstaller"}, "get software installer")
 				}
-				ds.GetVPPAppMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint) (*fleet.VPPAppStoreApp, error) {
-					return &fleet.VPPAppStoreApp{
-						VPPAppID:       fleet.VPPAppID{AdamID: "1"},
+				ds.GetVPPAppMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint) (*automdm.VPPAppStoreApp, error) {
+					return &automdm.VPPAppStoreApp{
+						VPPAppID:       automdm.VPPAppID{AdamID: "1"},
 						VPPAppsTeamsID: 1,
 					}, nil
 				}
-				ds.GetSoftwareTitleIconFunc = func(ctx context.Context, teamID, titleID uint) (*fleet.SoftwareTitleIcon, error) {
+				ds.GetSoftwareTitleIconFunc = func(ctx context.Context, teamID, titleID uint) (*automdm.SoftwareTitleIcon, error) {
 					return nil, ctxerr.Wrap(ctx, &common_mysql.NotFoundError{ResourceType: "SoftwareTitleIcon"}, "get software title icon")
 				}
 				ds.GetTeamIdsForIconStorageIdFunc = func(ctx context.Context, storageID string) ([]uint, error) {
 					return []uint{1}, nil
 				}
-				ds.CreateOrUpdateSoftwareTitleIconFunc = func(ctx context.Context, payload *fleet.UploadSoftwareTitleIconPayload) (*fleet.SoftwareTitleIcon, error) {
+				ds.CreateOrUpdateSoftwareTitleIconFunc = func(ctx context.Context, payload *automdm.UploadSoftwareTitleIconPayload) (*automdm.SoftwareTitleIcon, error) {
 					sha, err := file.SHA256FromTempFileReader(iconFile)
 					require.NoError(t, err)
 
-					return &fleet.SoftwareTitleIcon{
+					return &automdm.SoftwareTitleIcon{
 						TeamID:          1,
 						SoftwareTitleID: 1,
 						StorageID:       sha,
 						Filename:        "icon.png",
 					}, nil
 				}
-				ds.ActivityDetailsForSoftwareTitleIconFunc = func(ctx context.Context, teamID uint, titleID uint) (fleet.DetailsForSoftwareIconActivity, error) {
-					return fleet.DetailsForSoftwareIconActivity{
+				ds.ActivityDetailsForSoftwareTitleIconFunc = func(ctx context.Context, teamID uint, titleID uint) (automdm.DetailsForSoftwareIconActivity, error) {
+					return automdm.DetailsForSoftwareIconActivity{
 						SoftwareInstallerID: ptr.Uint(1),
 						SoftwareTitle:       "foo",
 						Filename:            ptr.String("icon.png"),
@@ -266,7 +266,7 @@ func TestUploadSoftwareTitleIcon(t *testing.T) {
 				}
 			},
 			testFunc: func(t *testing.T) {
-				payload := &fleet.UploadSoftwareTitleIconPayload{
+				payload := &automdm.UploadSoftwareTitleIconPayload{
 					TitleID:  1,
 					TeamID:   1,
 					IconFile: iconFile,
@@ -282,31 +282,31 @@ func TestUploadSoftwareTitleIcon(t *testing.T) {
 			name: "upload icon for in-house app",
 			before: func() {
 				capturedActivities = make([]activity_api.ActivityDetails, 0)
-				ds.GetInHouseAppMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint) (*fleet.SoftwareInstaller, error) {
-					return &fleet.SoftwareInstaller{
+				ds.GetInHouseAppMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint) (*automdm.SoftwareInstaller, error) {
+					return &automdm.SoftwareInstaller{
 						TitleID: ptr.Uint(1),
 						TeamID:  ptr.Uint(1),
 					}, nil
 				}
-				ds.GetSoftwareTitleIconFunc = func(ctx context.Context, teamID, titleID uint) (*fleet.SoftwareTitleIcon, error) {
+				ds.GetSoftwareTitleIconFunc = func(ctx context.Context, teamID, titleID uint) (*automdm.SoftwareTitleIcon, error) {
 					return nil, ctxerr.Wrap(ctx, &common_mysql.NotFoundError{ResourceType: "SoftwareTitleIcon"}, "get software title icon")
 				}
 				ds.GetTeamIdsForIconStorageIdFunc = func(ctx context.Context, storageID string) ([]uint, error) {
 					return []uint{1}, nil
 				}
-				ds.CreateOrUpdateSoftwareTitleIconFunc = func(ctx context.Context, payload *fleet.UploadSoftwareTitleIconPayload) (*fleet.SoftwareTitleIcon, error) {
+				ds.CreateOrUpdateSoftwareTitleIconFunc = func(ctx context.Context, payload *automdm.UploadSoftwareTitleIconPayload) (*automdm.SoftwareTitleIcon, error) {
 					sha, err := file.SHA256FromTempFileReader(iconFile)
 					require.NoError(t, err)
 
-					return &fleet.SoftwareTitleIcon{
+					return &automdm.SoftwareTitleIcon{
 						TeamID:          1,
 						SoftwareTitleID: 1,
 						StorageID:       sha,
 						Filename:        "icon.png",
 					}, nil
 				}
-				ds.ActivityDetailsForSoftwareTitleIconFunc = func(ctx context.Context, teamID uint, titleID uint) (fleet.DetailsForSoftwareIconActivity, error) {
-					return fleet.DetailsForSoftwareIconActivity{
+				ds.ActivityDetailsForSoftwareTitleIconFunc = func(ctx context.Context, teamID uint, titleID uint) (automdm.DetailsForSoftwareIconActivity, error) {
+					return automdm.DetailsForSoftwareIconActivity{
 						InHouseAppID:    ptr.Uint(1),
 						SoftwareTitle:   "foo",
 						Filename:        ptr.String("icon.png"),
@@ -317,7 +317,7 @@ func TestUploadSoftwareTitleIcon(t *testing.T) {
 				}
 			},
 			testFunc: func(t *testing.T) {
-				payload := &fleet.UploadSoftwareTitleIconPayload{
+				payload := &automdm.UploadSoftwareTitleIconPayload{
 					TitleID:  1,
 					TeamID:   1,
 					IconFile: iconFile,
@@ -339,14 +339,14 @@ func TestUploadSoftwareTitleIcon(t *testing.T) {
 }
 
 func TestDeleteSoftwareTitleIcon(t *testing.T) {
-	user := &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}
+	user := &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}
 	ctx := viewer.NewContext(context.Background(), viewer.Viewer{User: user})
 	ds := new(mock.Store)
-	deleteOpts := &TestServerOpts{License: &fleet.LicenseInfo{Tier: fleet.TierPremium}}
+	deleteOpts := &TestServerOpts{License: &automdm.LicenseInfo{Tier: automdm.TierPremium}}
 	svc, _ := newTestService(t, ds, nil, nil, deleteOpts)
 
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
 	}
 
 	var capturedActivities []activity_api.ActivityDetails
@@ -364,8 +364,8 @@ func TestDeleteSoftwareTitleIcon(t *testing.T) {
 			"Delete existing icon for software installer",
 			func() {
 				capturedActivities = make([]activity_api.ActivityDetails, 0)
-				ds.ActivityDetailsForSoftwareTitleIconFunc = func(ctx context.Context, teamID uint, titleID uint) (fleet.DetailsForSoftwareIconActivity, error) {
-					return fleet.DetailsForSoftwareIconActivity{
+				ds.ActivityDetailsForSoftwareTitleIconFunc = func(ctx context.Context, teamID uint, titleID uint) (automdm.DetailsForSoftwareIconActivity, error) {
+					return automdm.DetailsForSoftwareIconActivity{
 						SoftwareInstallerID: ptr.Uint(1),
 						AdamID:              nil,
 						VPPAppTeamID:        nil,
@@ -393,7 +393,7 @@ func TestDeleteSoftwareTitleIcon(t *testing.T) {
 				require.Len(t, capturedActivities, 1)
 				capturedActivity := capturedActivities[0]
 
-				expectedActivity := fleet.ActivityTypeEditedSoftware{
+				expectedActivity := automdm.ActivityTypeEditedSoftware{
 					SoftwareTitle:    "foo",
 					SoftwarePackage:  ptr.String("foo.pkg"),
 					TeamName:         ptr.String("team1"),
@@ -412,14 +412,14 @@ func TestDeleteSoftwareTitleIcon(t *testing.T) {
 			"Delete existing icon for vpp app",
 			func() {
 				capturedActivities = make([]activity_api.ActivityDetails, 0)
-				ds.ActivityDetailsForSoftwareTitleIconFunc = func(ctx context.Context, teamID uint, titleID uint) (fleet.DetailsForSoftwareIconActivity, error) {
-					platform := fleet.MacOSPlatform
-					return fleet.DetailsForSoftwareIconActivity{
+				ds.ActivityDetailsForSoftwareTitleIconFunc = func(ctx context.Context, teamID uint, titleID uint) (automdm.DetailsForSoftwareIconActivity, error) {
+					platform := automdm.MacOSPlatform
+					return automdm.DetailsForSoftwareIconActivity{
 						SoftwareInstallerID: nil,
 						AdamID:              ptr.String("1"),
 						VPPAppTeamID:        ptr.Uint(1),
 						VPPTokenID:          new(uint(7)),
-						VPPIconUrl:          ptr.String("fleetdm.com/icon.png"),
+						VPPIconUrl:          ptr.String("automdm.com/icon.png"),
 						SoftwareTitle:       "foo",
 						Filename:            nil,
 						TeamName:            ptr.String("team1"),
@@ -432,8 +432,8 @@ func TestDeleteSoftwareTitleIcon(t *testing.T) {
 						LabelsIncludeAll:    nil,
 					}, nil
 				}
-				ds.GetVPPTokenFunc = func(ctx context.Context, tokenID uint) (*fleet.VPPTokenDB, error) {
-					return &fleet.VPPTokenDB{ID: tokenID, Location: "Acme Japan", CountryCode: "jp"}, nil
+				ds.GetVPPTokenFunc = func(ctx context.Context, tokenID uint) (*automdm.VPPTokenDB, error) {
+					return &automdm.VPPTokenDB{ID: tokenID, Location: "Acme Japan", CountryCode: "jp"}, nil
 				}
 				ds.DeleteSoftwareTitleIconFunc = func(ctx context.Context, teamID uint, titleID uint) error {
 					return nil
@@ -446,23 +446,23 @@ func TestDeleteSoftwareTitleIcon(t *testing.T) {
 				require.Len(t, capturedActivities, 1)
 				capturedActivity := capturedActivities[0]
 
-				expectedActivity := fleet.ActivityEditedAppStoreApp{
-					VPPToken:         &fleet.ActivityVPPToken{ID: 7, Location: "Acme Japan", CountryCode: "jp"},
+				expectedActivity := automdm.ActivityEditedAppStoreApp{
+					VPPToken:         &automdm.ActivityVPPToken{ID: 7, Location: "Acme Japan", CountryCode: "jp"},
 					SoftwareTitle:    "foo",
 					SoftwareTitleID:  1,
 					AppStoreID:       "1",
 					TeamName:         ptr.String("team1"),
 					TeamID:           ptr.Uint(1),
-					Platform:         fleet.MacOSPlatform,
+					Platform:         automdm.MacOSPlatform,
 					SelfService:      false,
-					SoftwareIconURL:  ptr.String("fleetdm.com/icon.png"), // note this is supposed to be the vpp_apps.icon_url
+					SoftwareIconURL:  ptr.String("automdm.com/icon.png"), // note this is supposed to be the vpp_apps.icon_url
 					LabelsIncludeAny: nil,
 					LabelsExcludeAny: nil,
 					LabelsIncludeAll: nil,
 					// generateEditActivityForSoftwareTitleIcon applies the
 					// DefaultAppStoreAppVersionName fallback when the mock
 					// returns an empty VersionName.
-					VersionName: fleet.DefaultAppStoreAppVersionName,
+					VersionName: automdm.DefaultAppStoreAppVersionName,
 				}
 				require.Equal(t, expectedActivity, capturedActivity)
 			},
@@ -471,8 +471,8 @@ func TestDeleteSoftwareTitleIcon(t *testing.T) {
 			"Delete an already deleted icon",
 			func() {
 				capturedActivities = make([]activity_api.ActivityDetails, 0)
-				ds.ActivityDetailsForSoftwareTitleIconFunc = func(ctx context.Context, teamID uint, titleID uint) (fleet.DetailsForSoftwareIconActivity, error) {
-					return fleet.DetailsForSoftwareIconActivity{}, nil
+				ds.ActivityDetailsForSoftwareTitleIconFunc = func(ctx context.Context, teamID uint, titleID uint) (automdm.DetailsForSoftwareIconActivity, error) {
+					return automdm.DetailsForSoftwareIconActivity{}, nil
 				}
 				ds.DeleteSoftwareTitleIconFunc = func(ctx context.Context, teamID uint, titleID uint) error {
 					return ctxerr.Wrap(ctx, &common_mysql.NotFoundError{ResourceType: "SoftwareTitleIcon"}, "software title icon not found")
@@ -498,13 +498,13 @@ func TestIconChanges(t *testing.T) {
 	// Test adding new icon for software.
 	t.Run("Add new icon for software", func(t *testing.T) {
 		// Create a new empty IconChanges struct.
-		c := &fleet.IconChanges{
+		c := &automdm.IconChanges{
 			TeamID:         1,
 			UploadedHashes: []string{"local-new-to-me-sw-icon-hash", "sw-noop-icon-hash"},
 		}
 
 		// Create SoftwarePackageResponse and VPPAppResponse with local icon data only.
-		sp := []fleet.SoftwarePackageResponse{
+		sp := []automdm.SoftwarePackageResponse{
 			{
 				TitleID:       ptr.Uint(1),
 				TeamID:        ptr.Uint(1),
@@ -549,7 +549,7 @@ func TestIconChanges(t *testing.T) {
 			},
 		}
 
-		vpp := []fleet.VPPAppResponse{
+		vpp := []automdm.VPPAppResponse{
 			{
 				TitleID:       ptr.Uint(7),
 				TeamID:        ptr.Uint(1),
@@ -611,20 +611,20 @@ func TestIconChanges(t *testing.T) {
 		// Note that the icon for title #2 (local-new-to-me-sw-icon-hash) is new to the title,
 		// but is already present in our list of uploaded hashes, so it should not be included here.
 		require.Equal(t, 2, len(updatedC.IconsToUpload))
-		require.Contains(t, updatedC.IconsToUpload, fleet.IconFileUpdate{TitleID: 1, Path: "new-sw-icon.png"})
-		require.Contains(t, updatedC.IconsToUpload, fleet.IconFileUpdate{TitleID: 4, Path: "updated-hash-sw-icon.png"})
+		require.Contains(t, updatedC.IconsToUpload, automdm.IconFileUpdate{TitleID: 1, Path: "new-sw-icon.png"})
+		require.Contains(t, updatedC.IconsToUpload, automdm.IconFileUpdate{TitleID: 4, Path: "updated-hash-sw-icon.png"})
 
 		// IconsToUpdate should contain info about any software title icons that need updates to their filename,
 		// or titles where we're adding an icon for them, but the icon already exists in our uploaded hashes.
 		// Note that for the VPP apps, we will already have marked "new-sw-icon" and "updated-hash-sw-icon" for upload,
 		// so they will show up in IconsToUpdate rather than IconsToUpload.
 		require.Equal(t, 6, len(updatedC.IconsToUpdate))
-		require.Contains(t, updatedC.IconsToUpdate, fleet.IconMetaUpdate{TitleID: 2, Path: "new-to-me-sw-icon.png", Hash: "local-new-to-me-sw-icon-hash"})
-		require.Contains(t, updatedC.IconsToUpdate, fleet.IconMetaUpdate{TitleID: 3, Path: "updated-filename-sw-icon.png", Hash: "local-updated-filename-sw-icon-hash"})
-		require.Contains(t, updatedC.IconsToUpdate, fleet.IconMetaUpdate{TitleID: 7, Path: "new-sw-icon.png", Hash: "local-new-sw-icon-hash"})
-		require.Contains(t, updatedC.IconsToUpdate, fleet.IconMetaUpdate{TitleID: 8, Path: "new-to-me-sw-icon.png", Hash: "local-new-to-me-sw-icon-hash"})
-		require.Contains(t, updatedC.IconsToUpdate, fleet.IconMetaUpdate{TitleID: 9, Path: "updated-filename-sw-icon.png", Hash: "local-updated-filename-sw-icon-hash"})
-		require.Contains(t, updatedC.IconsToUpdate, fleet.IconMetaUpdate{TitleID: 10, Path: "updated-hash-sw-icon.png", Hash: "local-updated-hash-sw-icon-hash"})
+		require.Contains(t, updatedC.IconsToUpdate, automdm.IconMetaUpdate{TitleID: 2, Path: "new-to-me-sw-icon.png", Hash: "local-new-to-me-sw-icon-hash"})
+		require.Contains(t, updatedC.IconsToUpdate, automdm.IconMetaUpdate{TitleID: 3, Path: "updated-filename-sw-icon.png", Hash: "local-updated-filename-sw-icon-hash"})
+		require.Contains(t, updatedC.IconsToUpdate, automdm.IconMetaUpdate{TitleID: 7, Path: "new-sw-icon.png", Hash: "local-new-sw-icon-hash"})
+		require.Contains(t, updatedC.IconsToUpdate, automdm.IconMetaUpdate{TitleID: 8, Path: "new-to-me-sw-icon.png", Hash: "local-new-to-me-sw-icon-hash"})
+		require.Contains(t, updatedC.IconsToUpdate, automdm.IconMetaUpdate{TitleID: 9, Path: "updated-filename-sw-icon.png", Hash: "local-updated-filename-sw-icon-hash"})
+		require.Contains(t, updatedC.IconsToUpdate, automdm.IconMetaUpdate{TitleID: 10, Path: "updated-hash-sw-icon.png", Hash: "local-updated-hash-sw-icon-hash"})
 
 		// IconsToDelete should contain info about any software title icons that exist on the server,
 		// but were not included in the uploaded hashes, meaning they should be deleted.

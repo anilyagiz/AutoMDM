@@ -1,7 +1,7 @@
 @import "./tokens.css";
 
 /* Inter (sans) + SourceCodePro (mono) — bundled locally so the app
- * renders Fleet's typography without depending on system fallbacks.
+ * renders AutoMDM's typography without depending on system fallbacks.
  * Mirror of frontend/styles/global/_fonts.scss. */
 @font-face {
   font-family: "Inter";
@@ -93,24 +93,24 @@ button:disabled {
 }
 
 button.primary {
-  background: var(--core-fleet-green);
-  border-color: var(--core-fleet-green);
-  color: var(--core-fleet-white);
+  background: var(--core-automdm-green);
+  border-color: var(--core-automdm-green);
+  color: var(--core-automdm-white);
   font-weight: 600;
 }
 button.primary:hover:not(:disabled) {
-  background: var(--core-fleet-green-over);
-  border-color: var(--core-fleet-green-over);
+  background: var(--core-automdm-green-over);
+  border-color: var(--core-automdm-green-over);
 }
 button.primary:active:not(:disabled) {
-  background: var(--core-fleet-green-down);
-  border-color: var(--core-fleet-green-down);
+  background: var(--core-automdm-green-down);
+  border-color: var(--core-automdm-green-down);
 }
 
 button.danger {
   background: var(--core-vibrant-red);
   border-color: var(--core-vibrant-red);
-  color: var(--core-fleet-white);
+  color: var(--core-automdm-white);
   font-weight: 600;
 }
 button.danger:hover:not(:disabled) {
@@ -127,7 +127,7 @@ select,
 textarea {
   font-family: inherit;
   font-size: inherit;
-  /* Mirrors Fleet's InputField (.input-field) in
+  /* Mirrors AutoMDM's InputField (.input-field) in
    * frontend/components/forms/fields/InputField/_styles.scss: white-on-
    * border, 8/16 padding, 1.5 line-height. Background uses --app-surface
    * so light mode inputs are white (gray reads as disabled); in dark
@@ -143,7 +143,7 @@ textarea {
 }
 input::placeholder,
 textarea::placeholder {
-  /* Fleet sets opacity:1 + an explicit color so the placeholder reads
+  /* AutoMDM sets opacity:1 + an explicit color so the placeholder reads
    * the same across browsers (Firefox dims placeholders by default). */
   color: var(--app-text-dim);
   opacity: 1;
@@ -188,8 +188,8 @@ input[type="number"] {
 }
 .dot.run,
 .dot.running {
-  background: var(--core-fleet-green);
-  box-shadow: 0 0 0 0 color-mix(in srgb, var(--core-fleet-green) 60%, transparent);
+  background: var(--core-automdm-green);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--core-automdm-green) 60%, transparent);
   animation: pulse 1.6s ease-in-out infinite;
 }
 .dot.ok,
@@ -210,7 +210,7 @@ input[type="number"] {
 
 @keyframes pulse {
   0% {
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--core-fleet-green) 50%, transparent);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--core-automdm-green) 50%, transparent);
   }
   70% {
     box-shadow: 0 0 0 5px transparent;
@@ -294,10 +294,10 @@ input[type="number"] {
 .tab-btn.is-active {
   color: var(--app-text);
   font-weight: 600;
-  border-bottom-color: var(--core-fleet-green);
+  border-bottom-color: var(--core-automdm-green);
 }
 .tab-btn.is-active:hover:not(:disabled) {
-  border-bottom-color: var(--core-fleet-green);
+  border-bottom-color: var(--core-automdm-green);
 }
 .tab-gear {
   border: none;
@@ -316,11 +316,11 @@ input[type="number"] {
   border-bottom-color: var(--app-text-dim);
 }
 .tab-gear.is-active {
-  color: var(--core-fleet-green);
-  border-bottom-color: var(--core-fleet-green);
+  color: var(--core-automdm-green);
+  border-bottom-color: var(--core-automdm-green);
 }
 .tab-gear.is-active:hover:not(:disabled) {
-  border-bottom-color: var(--core-fleet-green);
+  border-bottom-color: var(--core-automdm-green);
 }
 
 /* Text-only link button. Underline on hover; no background slab. */
@@ -328,13 +328,13 @@ input[type="number"] {
   padding: 0;
   border: none;
   background: transparent;
-  color: var(--core-fleet-green);
+  color: var(--core-automdm-green);
   cursor: pointer;
 }
 .link-btn:hover:not(:disabled) {
   background: transparent;
   text-decoration: underline;
-  color: var(--core-fleet-green-over);
+  color: var(--core-automdm-green-over);
 }
 
 /* Tunnel chip — hover intensifies border. Class is applied via JS based
@@ -359,13 +359,13 @@ input[type="number"] {
   background: var(--app-surface-3);
 }
 .tunnel-chip.is-selected {
-  border-color: var(--core-fleet-green);
+  border-color: var(--core-automdm-green);
   background: var(--tint-success-soft);
-  color: var(--core-fleet-green);
+  color: var(--core-automdm-green);
 }
 .tunnel-chip.is-selected:hover {
   /* Matches primary button hover: deepen the green like green-over. */
-  border-color: var(--core-fleet-green-over);
+  border-color: var(--core-automdm-green-over);
   background: var(--tint-success-strong);
 }
 .tunnel-chip.is-locked {
@@ -373,7 +373,7 @@ input[type="number"] {
 }
 .tunnel-chip.is-locked:hover {
   /* locked = controlled by "start all" — don't react to hover */
-  border-color: var(--core-fleet-green);
+  border-color: var(--core-automdm-green);
 }
 
 /* Chain step glyphs — distinct vocabulary from the live-status dots used
@@ -394,11 +394,11 @@ input[type="number"] {
   color: var(--app-text-dim);
 }
 .step-glyph.running {
-  color: var(--core-fleet-green);
+  color: var(--core-automdm-green);
   animation: glyph-pulse 1.6s ease-in-out infinite;
 }
 .step-glyph.done {
-  color: var(--core-fleet-green);
+  color: var(--core-automdm-green);
   font-weight: 600;
 }
 .step-glyph.failed {

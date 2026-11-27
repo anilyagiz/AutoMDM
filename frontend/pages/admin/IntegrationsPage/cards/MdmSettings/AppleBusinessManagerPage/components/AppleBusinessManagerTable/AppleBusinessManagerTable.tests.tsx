@@ -14,10 +14,10 @@ const createToken = (overrides: Partial<IMdmAbToken> = {}): IMdmAbToken => ({
   terms_expired: false,
   token_invalid: false,
   default: false,
-  macos_fleet: { name: "No team", fleet_id: 0 },
-  ios_fleet: { name: "No team", fleet_id: 0 },
-  ipados_fleet: { name: "No team", fleet_id: 0 },
-  byod_fleet: { name: "No team", fleet_id: 0 },
+  macos_team: { name: "No team", team_id: 0 },
+  ios_team: { name: "No team", team_id: 0 },
+  ipados_team: { name: "No team", team_id: 0 },
+  byod_team: { name: "No team", team_id: 0 },
   ...overrides,
 });
 
@@ -57,7 +57,7 @@ describe("AppleBusinessManagerTable generateActions", () => {
     expect(container).toHaveTextContent("The only AB token is always");
   });
 
-  it("disables set as default and edit fleets in GitOps mode", () => {
+  it("disables set as default and edit teams in GitOps mode", () => {
     const actions = generateActions(
       createToken(),
       2,

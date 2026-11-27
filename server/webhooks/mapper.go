@@ -6,13 +6,13 @@ import (
 	"path"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
 // VulnMapper used for mapping vulnerabilities and their associated data into the payload that
 // will be sent via thrid party webhooks.
 type VulnMapper interface {
-	GetPayload(*url.URL, []fleet.HostVulnerabilitySummary, string, fleet.CVEMeta) WebhookPayload
+	GetPayload(*url.URL, []automdm.HostVulnerabilitySummary, string, automdm.CVEMeta) WebhookPayload
 }
 
 type hostPayloadPart struct {
@@ -42,7 +42,7 @@ func NewMapper() VulnMapper {
 
 func (m *Mapper) getHostPayloadPart(
 	hostBaseURL *url.URL,
-	hosts []fleet.HostVulnerabilitySummary,
+	hosts []automdm.HostVulnerabilitySummary,
 ) []*hostPayloadPart {
 	shortHosts := make([]*hostPayloadPart, len(hosts))
 	for i, h := range hosts {
@@ -70,9 +70,9 @@ func (m *Mapper) getHostPayloadPart(
 
 func (m *Mapper) GetPayload(
 	hostBaseURL *url.URL,
-	hosts []fleet.HostVulnerabilitySummary,
+	hosts []automdm.HostVulnerabilitySummary,
 	cve string,
-	meta fleet.CVEMeta,
+	meta automdm.CVEMeta,
 ) WebhookPayload {
 	return WebhookPayload{
 		CVE:   cve,

@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/dev_mode"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/dev_mode"
+	"github.com/anilyagiz/automdm/v4/server/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -87,30 +87,30 @@ func TestInstallVPPAppPostValidation_AssociateAssetsRouting(t *testing.T) {
 	setupDS := func(t *testing.T, isUserEnrollment bool) *mock.Store {
 		t.Helper()
 		ds := new(mock.Store)
-		ds.GetNanoMDMEnrollmentFunc = func(_ context.Context, id string) (*fleet.NanoEnrollment, error) {
+		ds.GetNanoMDMEnrollmentFunc = func(_ context.Context, id string) (*automdm.NanoEnrollment, error) {
 			require.Equal(t, hostUUID, id)
 			if isUserEnrollment {
-				return &fleet.NanoEnrollment{ID: hostUUID, DeviceID: hostUUID, Type: "User Enrollment (Device)", Enabled: true}, nil
+				return &automdm.NanoEnrollment{ID: hostUUID, DeviceID: hostUUID, Type: "User Enrollment (Device)", Enabled: true}, nil
 			}
 			// Device-channel enrollment (company-owned manual OR manual-profile
 			// BYOD): the primary row is type "Device".
-			return &fleet.NanoEnrollment{ID: hostUUID, DeviceID: hostUUID, Type: "Device", Enabled: true}, nil
+			return &automdm.NanoEnrollment{ID: hostUUID, DeviceID: hostUUID, Type: "Device", Enabled: true}, nil
 		}
-		ds.GetVPPTokenFunc = func(_ context.Context, id uint) (*fleet.VPPTokenDB, error) {
+		ds.GetVPPTokenFunc = func(_ context.Context, id uint) (*automdm.VPPTokenDB, error) {
 			require.Equal(t, uint(99), id)
-			return &fleet.VPPTokenDB{ID: 99, Token: bearerToken, RenewDate: time.Now().Add(24 * time.Hour)}, nil
+			return &automdm.VPPTokenDB{ID: 99, Token: bearerToken, RenewDate: time.Now().Add(24 * time.Hour)}, nil
 		}
 		ds.GetHostManagedAppleIDFunc = func(_ context.Context, id uint) (string, error) {
 			require.Equal(t, hostID, id)
 			return managedAppleID, nil
 		}
-		ds.GetVPPClientUserFunc = func(_ context.Context, _ uint, _ string) (*fleet.VPPClientUser, error) {
+		ds.GetVPPClientUserFunc = func(_ context.Context, _ uint, _ string) (*automdm.VPPClientUser, error) {
 			return nil, &notFoundError{}
 		}
-		ds.InsertVPPClientUserFunc = func(_ context.Context, _ *fleet.VPPClientUser) error {
+		ds.InsertVPPClientUserFunc = func(_ context.Context, _ *automdm.VPPClientUser) error {
 			return nil
 		}
-		ds.InsertHostVPPSoftwareInstallFunc = func(_ context.Context, _ uint, _ fleet.VPPAppID, _ string, _ string, _ fleet.HostSoftwareInstallOptions) error {
+		ds.InsertHostVPPSoftwareInstallFunc = func(_ context.Context, _ uint, _ automdm.VPPAppID, _ string, _ string, _ automdm.HostSoftwareInstallOptions) error {
 			return nil
 		}
 		// No managed app configuration → the pre-flight substitution check is a
@@ -121,10 +121,10 @@ func TestInstallVPPAppPostValidation_AssociateAssetsRouting(t *testing.T) {
 		return ds
 	}
 
-	host := &fleet.Host{ID: hostID, UUID: hostUUID, HardwareSerial: hostSerial, Platform: "ios"}
-	vppApp := &fleet.VPPApp{
+	host := &automdm.Host{ID: hostID, UUID: hostUUID, HardwareSerial: hostSerial, Platform: "ios"}
+	vppApp := &automdm.VPPApp{
 		AdamID:     adamID,
-		Platform:   fleet.IOSPlatform,
+		Platform:   automdm.IOSPlatform,
 		AppTeamID:  5,
 		VPPTokenID: new(uint(99)),
 	}
@@ -136,7 +136,7 @@ func TestInstallVPPAppPostValidation_AssociateAssetsRouting(t *testing.T) {
 		ds := setupDS(t, true)
 		svc := &Service{ds: ds, logger: slog.New(slog.DiscardHandler)}
 
-		_, err := svc.InstallVPPAppPostValidation(context.Background(), host, vppApp, fleet.HostSoftwareInstallOptions{})
+		_, err := svc.InstallVPPAppPostValidation(context.Background(), host, vppApp, automdm.HostSoftwareInstallOptions{})
 		require.NoError(t, err)
 
 		require.NotEmpty(t, capt.body, "AssociateAssets request must have been sent")
@@ -160,7 +160,7 @@ func TestInstallVPPAppPostValidation_AssociateAssetsRouting(t *testing.T) {
 		ds := setupDS(t, false)
 		svc := &Service{ds: ds, logger: slog.New(slog.DiscardHandler)}
 
-		_, err := svc.InstallVPPAppPostValidation(context.Background(), host, vppApp, fleet.HostSoftwareInstallOptions{})
+		_, err := svc.InstallVPPAppPostValidation(context.Background(), host, vppApp, automdm.HostSoftwareInstallOptions{})
 		require.NoError(t, err)
 
 		require.NotEmpty(t, capt.body)
@@ -198,7 +198,7 @@ func TestInstallVPPAppPostValidation_AssociateAssetsRouting(t *testing.T) {
 		}
 		svc := &Service{ds: ds, logger: slog.New(slog.DiscardHandler)}
 
-		_, err := svc.InstallVPPAppPostValidation(context.Background(), host, vppApp, fleet.HostSoftwareInstallOptions{})
+		_, err := svc.InstallVPPAppPostValidation(context.Background(), host, vppApp, automdm.HostSoftwareInstallOptions{})
 		require.NoError(t, err)
 
 		require.NotEmpty(t, capt.body)
@@ -237,7 +237,7 @@ func TestInstallVPPAppPostValidation_AssociateAssetsRouting(t *testing.T) {
 		ds := setupDS(t, true)
 		svc := &Service{ds: ds, logger: slog.New(slog.DiscardHandler)}
 
-		_, err := svc.InstallVPPAppPostValidation(context.Background(), host, vppApp, fleet.HostSoftwareInstallOptions{})
+		_, err := svc.InstallVPPAppPostValidation(context.Background(), host, vppApp, automdm.HostSoftwareInstallOptions{})
 		require.NoError(t, err)
 
 		require.Contains(t, assignmentsQuery, "clientUserId=")
@@ -266,7 +266,7 @@ func TestInstallVPPAppPostValidation_AssociateAssetsRouting(t *testing.T) {
 		ds := setupDS(t, true)
 		svc := &Service{ds: ds, logger: slog.New(slog.DiscardHandler)}
 
-		cmdUUID, err := svc.InstallVPPAppPostValidation(context.Background(), host, vppApp, fleet.HostSoftwareInstallOptions{})
+		cmdUUID, err := svc.InstallVPPAppPostValidation(context.Background(), host, vppApp, automdm.HostSoftwareInstallOptions{})
 		require.NoError(t, err)
 		require.NotEmpty(t, cmdUUID, "the command must still be enqueued for the install row")
 		require.Equal(t, 0, associateCalls, "AssociateAssets must not run when the user already has the asset")
@@ -293,10 +293,10 @@ func TestInstallVPPAppPostValidation_AssociateAssetsRouting(t *testing.T) {
 		ds := setupDS(t, true)
 		svc := &Service{ds: ds, logger: slog.New(slog.DiscardHandler)}
 
-		_, err := svc.InstallVPPAppPostValidation(context.Background(), host, vppApp, fleet.HostSoftwareInstallOptions{})
+		_, err := svc.InstallVPPAppPostValidation(context.Background(), host, vppApp, automdm.HostSoftwareInstallOptions{})
 		require.Error(t, err)
 
-		var bre *fleet.BadRequestError
+		var bre *automdm.BadRequestError
 		require.ErrorAs(t, err, &bre)
 		require.Contains(t, bre.Message, "maximum number of devices")
 		// Internal error preserves Apple's raw response for debugging.
@@ -305,7 +305,7 @@ func TestInstallVPPAppPostValidation_AssociateAssetsRouting(t *testing.T) {
 	})
 
 	t.Run("personal enrollment surfaces associate error without retry", func(t *testing.T) {
-		// An associate error bubbles up directly — Fleet registers the user
+		// An associate error bubbles up directly — AutoMDM registers the user
 		// once up front and does not retry or re-register on failure.
 		var (
 			registerCalls  int
@@ -332,14 +332,14 @@ func TestInstallVPPAppPostValidation_AssociateAssetsRouting(t *testing.T) {
 		ds := setupDS(t, true)
 		svc := &Service{ds: ds, logger: slog.New(slog.DiscardHandler)}
 
-		_, err := svc.InstallVPPAppPostValidation(context.Background(), host, vppApp, fleet.HostSoftwareInstallOptions{})
+		_, err := svc.InstallVPPAppPostValidation(context.Background(), host, vppApp, automdm.HostSoftwareInstallOptions{})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "9609")
 		require.Equal(t, 1, registerCalls, "only the initial ensureVPPClientUser register; no retry")
 		require.Equal(t, 1, associateCalls, "associate is attempted exactly once")
 	})
 
-	// The app is bound to token B while the fleet's first-added token is A. Every
+	// The app is bound to token B while the team's first-added token is A. Every
 	// Apple call and the BYOD client user must use B, and the install row must
 	// record it.
 	t.Run("app bound to a non-first token uses that token end to end", func(t *testing.T) {
@@ -378,21 +378,21 @@ func TestInstallVPPAppPostValidation_AssociateAssetsRouting(t *testing.T) {
 		})
 
 		ds := setupDS(t, true)
-		// The fleet's first token (A) must not be consulted.
-		ds.GetVPPTokenByTeamIDFunc = func(_ context.Context, _ *uint) (*fleet.VPPTokenDB, error) {
-			return &fleet.VPPTokenDB{ID: 99, Token: bearerToken, RenewDate: time.Now().Add(24 * time.Hour)}, nil
+		// The team's first token (A) must not be consulted.
+		ds.GetVPPTokenByTeamIDFunc = func(_ context.Context, _ *uint) (*automdm.VPPTokenDB, error) {
+			return &automdm.VPPTokenDB{ID: 99, Token: bearerToken, RenewDate: time.Now().Add(24 * time.Hour)}, nil
 		}
-		ds.GetVPPTokenFunc = func(_ context.Context, id uint) (*fleet.VPPTokenDB, error) {
+		ds.GetVPPTokenFunc = func(_ context.Context, id uint) (*automdm.VPPTokenDB, error) {
 			require.Equal(t, tokenBID, id)
-			return &fleet.VPPTokenDB{ID: tokenBID, Token: tokenBSecret, RenewDate: time.Now().Add(24 * time.Hour)}, nil
+			return &automdm.VPPTokenDB{ID: tokenBID, Token: tokenBSecret, RenewDate: time.Now().Add(24 * time.Hour)}, nil
 		}
 		var clientUserTokenID uint
-		ds.GetVPPClientUserFunc = func(_ context.Context, tokenID uint, _ string) (*fleet.VPPClientUser, error) {
+		ds.GetVPPClientUserFunc = func(_ context.Context, tokenID uint, _ string) (*automdm.VPPClientUser, error) {
 			clientUserTokenID = tokenID
 			return nil, &notFoundError{}
 		}
-		var gotOpts fleet.HostSoftwareInstallOptions
-		ds.InsertHostVPPSoftwareInstallFunc = func(_ context.Context, _ uint, _ fleet.VPPAppID, _ string, _ string, opts fleet.HostSoftwareInstallOptions) error {
+		var gotOpts automdm.HostSoftwareInstallOptions
+		ds.InsertHostVPPSoftwareInstallFunc = func(_ context.Context, _ uint, _ automdm.VPPAppID, _ string, _ string, opts automdm.HostSoftwareInstallOptions) error {
 			gotOpts = opts
 			return nil
 		}
@@ -400,10 +400,10 @@ func TestInstallVPPAppPostValidation_AssociateAssetsRouting(t *testing.T) {
 
 		appB := *vppApp
 		appB.VPPTokenID = new(tokenBID)
-		_, err := svc.InstallVPPAppPostValidation(context.Background(), host, &appB, fleet.HostSoftwareInstallOptions{})
+		_, err := svc.InstallVPPAppPostValidation(context.Background(), host, &appB, automdm.HostSoftwareInstallOptions{})
 		require.NoError(t, err)
 
-		require.False(t, ds.GetVPPTokenByTeamIDFuncInvoked, "the fleet's first token must not be consulted")
+		require.False(t, ds.GetVPPTokenByTeamIDFuncInvoked, "the team's first token must not be consulted")
 		require.Equal(t, tokenBID, clientUserTokenID)
 		require.Equal(t, tokenBSecret, registerSToken)
 		require.Len(t, bearers, 3, "assignments, assets, associate")
@@ -420,18 +420,18 @@ func TestInstallVPPAppPostValidation_AssociateAssetsRouting(t *testing.T) {
 		})
 
 		ds := setupDS(t, false)
-		ds.GetVPPTokenFunc = func(_ context.Context, _ uint) (*fleet.VPPTokenDB, error) {
-			return &fleet.VPPTokenDB{ID: 99, Token: bearerToken, Location: "Acme US", RenewDate: time.Now().Add(-time.Hour)}, nil
+		ds.GetVPPTokenFunc = func(_ context.Context, _ uint) (*automdm.VPPTokenDB, error) {
+			return &automdm.VPPTokenDB{ID: 99, Token: bearerToken, Location: "Acme US", RenewDate: time.Now().Add(-time.Hour)}, nil
 		}
 		svc := &Service{ds: ds, logger: slog.New(slog.DiscardHandler)}
 
-		_, err := svc.InstallVPPAppPostValidation(context.Background(), host, vppApp, fleet.HostSoftwareInstallOptions{})
+		_, err := svc.InstallVPPAppPostValidation(context.Background(), host, vppApp, automdm.HostSoftwareInstallOptions{})
 		require.ErrorContains(t, err, `Couldn't install. VPP token "Acme US" is expired. Please renew it and try again.`)
 		require.False(t, ds.InsertHostVPPSoftwareInstallFuncInvoked)
 
 		noToken := *vppApp
 		noToken.VPPTokenID = nil
-		_, err = svc.InstallVPPAppPostValidation(context.Background(), host, &noToken, fleet.HostSoftwareInstallOptions{})
+		_, err = svc.InstallVPPAppPostValidation(context.Background(), host, &noToken, automdm.HostSoftwareInstallOptions{})
 		require.ErrorContains(t, err, "No available VPP Token")
 	})
 

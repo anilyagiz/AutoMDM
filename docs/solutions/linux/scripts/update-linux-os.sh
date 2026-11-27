@@ -6,10 +6,10 @@
 set -euo pipefail
 
 TAG="[update-linux-os]"
-UNIT="fleet-os-update"
-STATE_DIR="/var/lib/fleet"
+UNIT="automdm-os-update"
+STATE_DIR="/var/lib/automdm"
 STATUS_FILE="$STATE_DIR/os-update.status"
-WAIT_SECONDS=240          # keep under Fleet's script timeout (default 300s)
+WAIT_SECONDS=240          # keep under AutoMDM's script timeout (default 300s)
 MIN_BATTERY_PERCENT=30
 
 log() { echo "$TAG $*"; }
@@ -19,7 +19,7 @@ if [ "$(id -u)" -ne 0 ]; then
   exit 1
 fi
 if ! command -v systemd-run >/dev/null 2>&1; then
-  log "systemd-run not found; refusing to run a package upgrade that Fleet's timeout could interrupt." >&2
+  log "systemd-run not found; refusing to run a package upgrade that AutoMDM's timeout could interrupt." >&2
   exit 1
 fi
 
@@ -28,7 +28,7 @@ before="${PRETTY_NAME:-$NAME ${VERSION:-}}"
 
 if systemctl is-active --quiet "$UNIT.service" 2>/dev/null; then
   started_at="$(systemctl show -p ActiveEnterTimestamp --value "$UNIT.service" 2>/dev/null)"
-  log "An OS update started at $started_at is still running in the background (see: journalctl -u $UNIT). Exiting before Fleet's script timeout; the policy re-checks on its next run."
+  log "An OS update started at $started_at is still running in the background (see: journalctl -u $UNIT). Exiting before AutoMDM's script timeout; the policy re-checks on its next run."
   exit 0
 fi
 
@@ -74,7 +74,7 @@ systemctl reset-failed "$UNIT.service" 2>/dev/null || true
 started="$(date '+%Y-%m-%d %H:%M:%S')"
 log "Before: $before"
 log "Starting package upgrade in transient unit $UNIT..."
-systemd-run --unit="$UNIT" --collect --quiet --description="Fleet OS update" \
+systemd-run --unit="$UNIT" --collect --quiet --description="AutoMDM OS update" \
   /bin/bash -c "$UPGRADE_CMD; echo \$? > $STATUS_FILE"
 
 waited=0
@@ -84,7 +84,7 @@ while systemctl is-active --quiet "$UNIT.service" && [ "$waited" -lt "$WAIT_SECO
 done
 
 if systemctl is-active --quiet "$UNIT.service"; then
-  log "OS update started by this run is still running after ${WAIT_SECONDS}s and continues in the background (see: journalctl -u $UNIT). Exiting before Fleet's script timeout; the policy re-checks on its next run."
+  log "OS update started by this run is still running after ${WAIT_SECONDS}s and continues in the background (see: journalctl -u $UNIT). Exiting before AutoMDM's script timeout; the policy re-checks on its next run."
   exit 0
 fi
 
@@ -114,11 +114,11 @@ if command -v dnf >/dev/null 2>&1; then
 fi
 if [ -n "$reboot_needed" ]; then
   log "Updates installed; a restart is required to finish (kernel or core libraries)."
-  uid="$(ps -o uid= -C fleet-desktop 2>/dev/null | head -n 1 | tr -d ' ' || true)"
+  uid="$(ps -o uid= -C automdm-desktop 2>/dev/null | head -n 1 | tr -d ' ' || true)"
   if [ -n "$uid" ] && command -v notify-send >/dev/null 2>&1; then
     sudo -u "#$uid" -H env DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus" \
-      notify-send --app-name=Fleet "Operating system updated" \
-      "Fleet installed OS updates. Restart when convenient to finish applying them." 2>/dev/null || true
+      notify-send --app-name=AutoMDM "Operating system updated" \
+      "AutoMDM installed OS updates. Restart when convenient to finish applying them." 2>/dev/null || true
   fi
 fi
 

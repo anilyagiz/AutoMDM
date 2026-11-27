@@ -1,6 +1,6 @@
-.fleet-slider {
+.automdm-slider {
   transition: background-color 150ms ease-in-out;
-  background-color: $ui-fleet-black-50;
+  background-color: $ui-automdm-black-50;
   border-radius: 12px;
   cursor: pointer;
   display: inline-block;
@@ -10,14 +10,14 @@
   width: 35px;
 
   &:hover {
-    background-color: $ui-fleet-black-50;
+    background-color: $ui-automdm-black-50;
   }
 
   &--active {
-    background-color: $core-fleet-green;
+    background-color: $core-automdm-green;
 
     &:hover {
-      background-color: $core-fleet-green;
+      background-color: $core-automdm-green;
     }
   }
 
@@ -29,18 +29,18 @@
 
     &--disabled {
       // Mirror Checkbox's filled-indicator pattern: pill reads as
-      // $ui-fleet-black-25 so ON vs OFF is still legible via dot position
+      // $ui-automdm-black-25 so ON vs OFF is still legible via dot position
       // without the compounding opacity/grayscale filter.
-      .fleet-slider,
-      .fleet-slider:hover,
-      .fleet-slider--active,
-      .fleet-slider--active:hover {
-        background-color: $ui-fleet-black-25;
+      .automdm-slider,
+      .automdm-slider:hover,
+      .automdm-slider--active,
+      .automdm-slider--active:hover {
+        background-color: $ui-automdm-black-25;
         cursor: default;
       }
 
-      .fleet-slider__label {
-        color: $ui-fleet-black-50;
+      .automdm-slider__label {
+        color: $ui-automdm-black-50;
       }
     }
   }
@@ -50,7 +50,7 @@
     @include position(absolute, 2px null null 2px);
     transition: left 150ms ease-in-out;
     border-radius: 50%;
-    background-color: $core-fleet-white;
+    background-color: $core-automdm-white;
 
     &--active {
       left: 17px;

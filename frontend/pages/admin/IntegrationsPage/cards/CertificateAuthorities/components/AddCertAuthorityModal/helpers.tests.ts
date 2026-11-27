@@ -45,14 +45,14 @@ describe("AddCertAuthorityModal helpers", () => {
   });
 
   describe("getDisplayErrMessage", () => {
-    it("links the guide in a Fleet 5 removed variable error instead of the generic error", () => {
+    it("links the guide in an AutoMDM 5 removed variable error instead of the generic error", () => {
       render(
         React.createElement(
           "div",
           null,
           getDisplayErrMessage(
             apiError(
-              'Couldn\'t add certificate authority. The "$FLEET_VAR_HOST_END_USER_EMAIL_IDP" variable is not available anymore. What to use instead: https://fleetdm.com/learn-more-about/fleet-5-upgrade'
+              'Couldn\'t add certificate authority. The "$AUTOMDM_VAR_HOST_END_USER_EMAIL_IDP" variable is not available anymore. What to use instead: https://automdm.com/learn-more-about/automdm-5-upgrade'
             )
           )
         )
@@ -62,7 +62,7 @@ describe("AddCertAuthorityModal helpers", () => {
         screen.getByText(/variable is not available anymore/)
       ).toBeInTheDocument();
       expect(
-        screen.getByRole("link", { name: /fleet-5-upgrade/ })
+        screen.getByRole("link", { name: /automdm-5-upgrade/ })
       ).toBeInTheDocument();
     });
 
@@ -283,7 +283,7 @@ describe("EJBCA server errors", () => {
           },
           {
             name: "base",
-            reason: `${prefix}Private key must be configured. Learn more: https://fleetdm.com/learn-more-about/fleet-server-private-key`,
+            reason: `${prefix}Private key must be configured. Learn more: https://automdm.com/learn-more-about/automdm-server-private-key`,
           },
         ],
       },
@@ -304,11 +304,11 @@ describe("EJBCA server errors", () => {
     expect(screen.getByRole("link", { name: /Learn more/ })).toBeVisible();
   });
 
-  it("shows a Fleet 5 removed variable error next to the field that uses it", () => {
+  it("shows an AutoMDM 5 removed variable error next to the field that uses it", () => {
     const setFieldErrors = jest.fn();
     const notifyError = jest.spyOn(notify, "error").mockImplementation();
     const removed =
-      'The "$FLEET_VAR_HOST_END_USER_EMAIL_IDP" variable is not available anymore. What to use instead: https://fleetdm.com/learn-more-about/fleet-5-upgrade';
+      'The "$AUTOMDM_VAR_HOST_END_USER_EMAIL_IDP" variable is not available anymore. What to use instead: https://automdm.com/learn-more-about/automdm-5-upgrade';
 
     handleEJBCAServerError(
       {

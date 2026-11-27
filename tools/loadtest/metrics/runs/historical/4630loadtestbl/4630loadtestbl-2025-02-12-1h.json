@@ -8,7 +8,7 @@
     "source": "spreadsheet-backfill",
     "sheet_row": 6
   },
-  "fleet_server": {
+  "automdm_server": {
     "cpu_utilization": {
       "Average": 75.0
     },
@@ -84,20 +84,20 @@
       }
     }
   ],
-  "fleet_server_errors": {
+  "automdm_server_errors": {
     "error_count": null
   },
   "backfill": {
-    "source": "Fleet release load testing results (Google Sheet), manual-logging era",
+    "source": "AutoMDM release load testing results (Google Sheet), manual-logging era",
     "purpose": "Release/baseline",
     "one_click": null,
     "notes": "100K hosts, no mdm",
     "raw": {
       "full_day": "yes",
-      "fleet_containers": "30",
+      "automdm_containers": "30",
       "loadtest_containers": "200",
-      "fleet_cpu": "~75%",
-      "fleet_mem": "~5%",
+      "automdm_cpu": "~75%",
+      "automdm_mem": "~5%",
       "errors": "host reported software with empty name, <tok>, ingesting que\u2026",
       "writer_top_sql": "INSERT INTO `host_seen_ti\u2026",
       "writer_cpu": "19-27%",

@@ -602,7 +602,7 @@ func enableCmdExecution() error {
 
 	// Registering is gated by Flags too, so it must follow the write above. ApplyLocalManagementSyncML fails with
 	// ERROR_INVALID_STATE until a registration succeeds, which Windows persists.
-	// Retried on every command until it succeeds, so a transient failure doesn't break mdm_bridge until fleetd restarts.
+	// Retried on every command until it succeeds, so a transient failure doesn't break mdm_bridge until automdmd restarts.
 	if !localMgmtRegistered {
 		if returnCode, _, _ := procRegisterDeviceWithLocalManagement.Call(uintptr(unsafe.Pointer(nil))); returnCode != uintptr(windows.ERROR_SUCCESS) {
 			log.Error().Msgf("there was an error calling RegisterDeviceWithLocalManagement(): (0x%X)", returnCode)

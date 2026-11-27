@@ -11,12 +11,12 @@ Although deployments through the github action should be prioritized, for manual
 
 # Deploy with Github Actions
 
-1. [Navigate to the github action](https://github.com/fleetdm/fleet/actions/workflows/loadtest-osquery-perf.yml)
+1. [Navigate to the github action](https://github.com/anilyagiz/automdm/actions/workflows/loadtest-osquery-perf.yml)
 
 2. On the top right corner, select the `Run Workflow` dropdown.
 
 3. Fill out the details for the deployment.
-    > Note: For mdm testing, where a SCEP CHALLENGE secret is required, you will need to fetch the details from the database [using this script](https://github.com/fleetdm/fleet/blob/main/tools/mdm/assets/main.go) and passing it in as an `extra_flag` when triggering an osquery\_perf deployment.
+    > Note: For mdm testing, where a SCEP CHALLENGE secret is required, you will need to fetch the details from the database [using this script](https://github.com/anilyagiz/automdm/blob/main/tools/mdm/assets/main.go) and passing it in as an `extra_flag` when triggering an osquery\_perf deployment.
     >
     > Requires:
     > - VPN connection
@@ -78,12 +78,12 @@ Although deployments through the github action should be prioritized, for manual
     > Note: Terraform will prompt you for confirmation to trigger the deployment. If everything looks ok, submitting `yes` will trigger the deployment.
 
     ```sh
-    terraform apply -var=git_tag_branch=fleet-v4.76.0
+    terraform apply -var=git_tag_branch=automdm-v4.76.0
     ```
 
     or, you can add the additional supported terraform variables, to overwrite the default values. You can choose which ones are included/overwritten. If a variable is not defined, the default value configured in [./variables.tf](variables.tf) is used.
 
-    > Note: For mdm testing, where a SCEP CHALLENGE secret is required, you will need to fetch the details from the database [using this script](https://github.com/fleetdm/fleet/blob/main/tools/mdm/assets/main.go) and passing it in as an `extra_flag` when triggering an osquery\_perf deployment.
+    > Note: For mdm testing, where a SCEP CHALLENGE secret is required, you will need to fetch the details from the database [using this script](https://github.com/anilyagiz/automdm/blob/main/tools/mdm/assets/main.go) and passing it in as an `extra_flag` when triggering an osquery\_perf deployment.
     >
     > Requires:
     > - VPN connection
@@ -92,13 +92,13 @@ Although deployments through the github action should be prioritized, for manual
     Example with the SCEP CHALLENGE secret as an extra\_flag:
     
     ```sh
-    terraform apply -var=git_tag_branch=fleet-v4.76.0 -var=extra_flags=["--mdm_scep_challenge", "<value>"]
+    terraform apply -var=git_tag_branch=automdm-v4.76.0 -var=extra_flags=["--mdm_scep_challenge", "<value>"]
     ```
 
     Example with all available variables.
 
     ```sh
-    terraform apply -var=git_tag_branch=fleet-v4.76.0 -var=loadtest_containers=20 -var=extra_flags=["--orbit_prob", "0.0"]
+    terraform apply -var=git_tag_branch=automdm-v4.76.0 -var=loadtest_containers=20 -var=extra_flags=["--orbit_prob", "0.0"]
     ```
 
 6. If you'd like to deploy osquery\_perf tasks in batches, you can now run the original `enroll.sh` script, from the osquery\_perf directory. The script will deploy in batches of 8, every 60 seconds, so it's recommended to set your starting index and max number of osquery perf containers as a multiple of 8.
@@ -175,7 +175,7 @@ terraform workspace delete <workspace_name>
 | [random_pet.rand_image_key](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/pet) | resource |
 | [aws_caller_identity.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/caller_identity) | data source |
 | [aws_ecr_authorization_token.token](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/ecr_authorization_token) | data source |
-| [aws_ecr_repository.fleet](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/ecr_repository) | data source |
+| [aws_ecr_repository.team](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/ecr_repository) | data source |
 | [aws_region.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/region) | data source |
 | [git_repository.tf](https://registry.terraform.io/providers/metio/git/2025.10.10/docs/data-sources/repository) | data source |
 | [terraform_remote_state.infra](https://registry.terraform.io/providers/hashicorp/terraform/latest/docs/data-sources/remote_state) | data source |

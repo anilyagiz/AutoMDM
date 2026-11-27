@@ -8,8 +8,8 @@ import {
   ISoftwareTitleDetails,
   IAppStoreApp,
   IAppStoreAppVersion,
-  IFleetMaintainedApp,
-  IFleetMaintainedAppDetails,
+  IAutoMDMMaintainedApp,
+  IAutoMDMMaintainedAppDetails,
   ISoftwareInstallResult,
 } from "interfaces/software";
 import {
@@ -431,7 +431,7 @@ export const createMockSoftwareTitlesResponse = (
   return { ...DEFAULT_SOFTWARE_TITLES_RESPONSE_MOCK, ...overrides };
 };
 
-const DEFAULT_FLEET_MAINTAINED_APPS_MOCK: IFleetMaintainedApp = {
+const DEFAULT_AUTOMDM_MAINTAINED_APPS_MOCK: IAutoMDMMaintainedApp = {
   id: 1,
   name: "test app",
   version: "1.2.3",
@@ -439,16 +439,16 @@ const DEFAULT_FLEET_MAINTAINED_APPS_MOCK: IFleetMaintainedApp = {
   slug: "test-app/darwin",
 };
 
-export const createMockFleetMaintainedApp = (
-  overrides?: Partial<IFleetMaintainedApp>
-): IFleetMaintainedApp => {
+export const createMockAutoMDMMaintainedApp = (
+  overrides?: Partial<IAutoMDMMaintainedApp>
+): IAutoMDMMaintainedApp => {
   return {
-    ...DEFAULT_FLEET_MAINTAINED_APPS_MOCK,
+    ...DEFAULT_AUTOMDM_MAINTAINED_APPS_MOCK,
     ...overrides,
   };
 };
 
-const DEFAULT_FLEET_MAINTAINED_APP_DETAILS_MOCK: IFleetMaintainedAppDetails = {
+const DEFAULT_AUTOMDM_MAINTAINED_APP_DETAILS_MOCK: IAutoMDMMaintainedAppDetails = {
   id: 1,
   name: "Test app",
   version: "1.2.3",
@@ -457,7 +457,7 @@ const DEFAULT_FLEET_MAINTAINED_APP_DETAILS_MOCK: IFleetMaintainedAppDetails = {
   install_script: '#!/bin/sh\n\ninstaller -pkg "$INSTALLER" -target /',
   post_install_script: 'echo "Installed"',
   uninstall_script:
-    "#!/bin/sh\n\n# Fleet extracts and saves package IDs\npkg_ids=$PACKAGE_ID",
+    "#!/bin/sh\n\n# AutoMDM extracts and saves package IDs\npkg_ids=$PACKAGE_ID",
   automatic_install_query:
     "SELECT 1 FROM apps WHERE bundle_identifier = 'com.example.test-app';",
   slug: "applications/test-app",
@@ -465,10 +465,10 @@ const DEFAULT_FLEET_MAINTAINED_APP_DETAILS_MOCK: IFleetMaintainedAppDetails = {
   categories: ["Browsers"],
 };
 
-export const createMockFleetMaintainedAppDetails = (
-  overrides?: Partial<IFleetMaintainedAppDetails>
+export const createMockAutoMDMMaintainedAppDetails = (
+  overrides?: Partial<IAutoMDMMaintainedAppDetails>
 ) => {
-  return { ...DEFAULT_FLEET_MAINTAINED_APP_DETAILS_MOCK, ...overrides };
+  return { ...DEFAULT_AUTOMDM_MAINTAINED_APP_DETAILS_MOCK, ...overrides };
 };
 
 const DEFAULT_SOFTWARE_INSTALL_RESULT: ISoftwareInstallResult = {

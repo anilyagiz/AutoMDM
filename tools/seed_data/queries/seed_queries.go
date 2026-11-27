@@ -16,11 +16,11 @@ const (
 
 func main() {
 	// MySQL connection details from your Docker Compose file
-	user := "fleet"
+	user := "automdm"
 	password := "insecure"
 	host := "localhost" // Assuming you are running this script on the same host as Docker
 	port := "3306"
-	database := "fleet"
+	database := "automdm"
 
 	// Construct the MySQL DSN (Data Source Name)
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local", user, password, host, port, database)

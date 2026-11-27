@@ -18,5 +18,5 @@
 ## [Require separate work profile lock](require-separate-work-profile-lock.json)
 
 - This stops the end user from using one lock for both the work profile and the host.
-- Until the end user sets a work profile lock, Android reports `passwordPolicies` with a reason of `USER_ACTION`, and Fleet shows the profile as "Failed" on **Host > OS settings**. The profile moves to "Verified" after the end user sets the lock.
+- Until the end user sets a work profile lock, Android reports `passwordPolicies` with a reason of `USER_ACTION`, and AutoMDM shows the profile as "Failed" on **Host > OS settings**. The profile moves to "Verified" after the end user sets the lock.
 - `unifiedLockSettings` requires Android 9 or later, and Android rejects the policy unless `passwordScope` is `SCOPE_PROFILE`.

@@ -11,10 +11,10 @@ import (
 	"sync/atomic"
 	"testing"
 
-	hostctx "github.com/fleetdm/fleet/v4/server/contexts/host"
-	"github.com/fleetdm/fleet/v4/server/contexts/osqueryauth"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	hostctx "github.com/anilyagiz/automdm/v4/server/contexts/host"
+	"github.com/anilyagiz/automdm/v4/server/contexts/osqueryauth"
+	"github.com/anilyagiz/automdm/v4/server/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -73,15 +73,15 @@ func TestExtractNodeKeyFromHeader(t *testing.T) {
 
 func TestOsqueryHeaderPreAuth(t *testing.T) {
 	const goodNodeKey = "valid-node-key"
-	host := &fleet.Host{ID: 42, Hostname: "test-host", HasHostIdentityCert: new(false)}
+	host := &automdm.Host{ID: 42, Hostname: "test-host", HasHostIdentityCert: new(false)}
 
-	newSvc := func(t *testing.T) (fleet.Service, *mock.Store) {
+	newSvc := func(t *testing.T) (automdm.Service, *mock.Store) {
 		ds := new(mock.Store)
 		svc, _ := newTestService(t, ds, nil, nil)
-		ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-			return &fleet.AppConfig{}, nil
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{}, nil
 		}
-		ds.LoadHostByNodeKeyFunc = func(ctx context.Context, nodeKey string) (*fleet.Host, error) {
+		ds.LoadHostByNodeKeyFunc = func(ctx context.Context, nodeKey string) (*automdm.Host, error) {
 			if nodeKey == goodNodeKey {
 				return host, nil
 			}
@@ -181,7 +181,7 @@ func TestOsqueryHeaderPreAuthHostIdentityCert(t *testing.T) {
 	const goodNodeKey = "valid-node-key"
 	// Host has an identity cert, so AuthenticateHost MUST verify the
 	// httpsig — and without a cert in ctx that verification fails.
-	host := &fleet.Host{
+	host := &automdm.Host{
 		ID:                  42,
 		Hostname:            "tpm-host",
 		HasHostIdentityCert: new(true),
@@ -190,8 +190,8 @@ func TestOsqueryHeaderPreAuthHostIdentityCert(t *testing.T) {
 
 	ds := new(mock.Store)
 	svc, _ := newTestService(t, ds, nil, nil)
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) { return &fleet.AppConfig{}, nil }
-	ds.LoadHostByNodeKeyFunc = func(ctx context.Context, nodeKey string) (*fleet.Host, error) {
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) { return &automdm.AppConfig{}, nil }
+	ds.LoadHostByNodeKeyFunc = func(ctx context.Context, nodeKey string) (*automdm.Host, error) {
 		if nodeKey == goodNodeKey {
 			return host, nil
 		}
@@ -229,15 +229,15 @@ func TestOsqueryHeaderPreAuthHostIdentityCert(t *testing.T) {
 // ownership check.
 func TestOsqueryCarveBlockHeaderPreAuth(t *testing.T) {
 	const goodNodeKey = "valid-node-key"
-	host := &fleet.Host{ID: 42, Hostname: "test-host", HasHostIdentityCert: new(false)}
+	host := &automdm.Host{ID: 42, Hostname: "test-host", HasHostIdentityCert: new(false)}
 
-	newSvc := func(t *testing.T) fleet.Service {
+	newSvc := func(t *testing.T) automdm.Service {
 		ds := new(mock.Store)
 		svc, _ := newTestService(t, ds, nil, nil)
-		ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-			return &fleet.AppConfig{}, nil
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{}, nil
 		}
-		ds.LoadHostByNodeKeyFunc = func(ctx context.Context, nodeKey string) (*fleet.Host, error) {
+		ds.LoadHostByNodeKeyFunc = func(ctx context.Context, nodeKey string) (*automdm.Host, error) {
 			if nodeKey == goodNodeKey {
 				return host, nil
 			}
@@ -315,11 +315,11 @@ func TestAuthenticatedHostPreAuthedPassthrough(t *testing.T) {
 	ds := new(mock.Store)
 	svc, ctx := newTestService(t, ds, nil, nil)
 
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
 	}
 	var loadCalled int32
-	ds.LoadHostByNodeKeyFunc = func(ctx context.Context, nodeKey string) (*fleet.Host, error) {
+	ds.LoadHostByNodeKeyFunc = func(ctx context.Context, nodeKey string) (*automdm.Host, error) {
 		atomic.AddInt32(&loadCalled, 1)
 		return nil, errors.New("should not be called on pre-authed path")
 	}
@@ -334,7 +334,7 @@ func TestAuthenticatedHostPreAuthedPassthrough(t *testing.T) {
 		},
 	)
 
-	preCtx := hostctx.NewContext(ctx, &fleet.Host{ID: 7})
+	preCtx := hostctx.NewContext(ctx, &automdm.Host{ID: 7})
 	preCtx = osqueryauth.NewPreAuthedContext(preCtx)
 	_, err := endpoint(preCtx, &testNodeKeyRequest{NodeKey: ""}) // empty body key is fine
 	require.NoError(t, err)
@@ -349,7 +349,7 @@ func TestAuthenticatedHostPreAuthedPassthrough(t *testing.T) {
 func TestAuthenticatedHostPreAuthedWithoutHostFails(t *testing.T) {
 	ds := new(mock.Store)
 	svc, ctx := newTestService(t, ds, nil, nil)
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) { return &fleet.AppConfig{}, nil }
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) { return &automdm.AppConfig{}, nil }
 
 	var nextCalled bool
 	endpoint := authenticatedHost(

@@ -6,17 +6,17 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/authz"
-	authz_ctx "github.com/fleetdm/fleet/v4/server/contexts/authz"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/service/calendar"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	authz_ctx "github.com/anilyagiz/automdm/v4/server/contexts/authz"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/service/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// Implement fleet.Lock interface
+// Implement automdm.Lock interface
 type mockLock struct {
 	AcquireLockFn func(ctx context.Context, key string, value string, expireMs uint64) (ok bool, err error)
 	GetFn         func(ctx context.Context, key string) (*string, error)
@@ -149,7 +149,7 @@ func TestCalendarWebhookErrorCases(t *testing.T) {
 			channelID:     "channel-1",
 			resourceState: "exists",
 			setupMocks: func(ds *mock.Store, _ *mockLock) {
-				ds.AppConfigFunc = func(_ context.Context) (*fleet.AppConfig, error) {
+				ds.AppConfigFunc = func(_ context.Context) (*automdm.AppConfig, error) {
 					return nil, errors.New("database error")
 				}
 			},
@@ -161,10 +161,10 @@ func TestCalendarWebhookErrorCases(t *testing.T) {
 			channelID:     "channel-2",
 			resourceState: "exists",
 			setupMocks: func(ds *mock.Store, _ *mockLock) {
-				ds.AppConfigFunc = func(_ context.Context) (*fleet.AppConfig, error) {
-					return &fleet.AppConfig{
-						Integrations: fleet.Integrations{
-							GoogleCalendar: []*fleet.GoogleCalendarIntegration{},
+				ds.AppConfigFunc = func(_ context.Context) (*automdm.AppConfig, error) {
+					return &automdm.AppConfig{
+						Integrations: automdm.Integrations{
+							GoogleCalendar: []*automdm.GoogleCalendarIntegration{},
 						},
 					}, nil
 				}
@@ -177,10 +177,10 @@ func TestCalendarWebhookErrorCases(t *testing.T) {
 			channelID:     "channel-3",
 			resourceState: "sync",
 			setupMocks: func(ds *mock.Store, _ *mockLock) {
-				ds.AppConfigFunc = func(_ context.Context) (*fleet.AppConfig, error) {
-					return &fleet.AppConfig{
-						Integrations: fleet.Integrations{
-							GoogleCalendar: []*fleet.GoogleCalendarIntegration{
+				ds.AppConfigFunc = func(_ context.Context) (*automdm.AppConfig, error) {
+					return &automdm.AppConfig{
+						Integrations: automdm.Integrations{
+							GoogleCalendar: []*automdm.GoogleCalendarIntegration{
 								{Domain: "example.com"},
 							},
 						},
@@ -195,10 +195,10 @@ func TestCalendarWebhookErrorCases(t *testing.T) {
 			channelID:     "channel-4",
 			resourceState: "exists",
 			setupMocks: func(ds *mock.Store, lock *mockLock) {
-				ds.AppConfigFunc = func(_ context.Context) (*fleet.AppConfig, error) {
-					return &fleet.AppConfig{
-						Integrations: fleet.Integrations{
-							GoogleCalendar: []*fleet.GoogleCalendarIntegration{
+				ds.AppConfigFunc = func(_ context.Context) (*automdm.AppConfig, error) {
+					return &automdm.AppConfig{
+						Integrations: automdm.Integrations{
+							GoogleCalendar: []*automdm.GoogleCalendarIntegration{
 								{Domain: "example.com"},
 							},
 						},
@@ -219,10 +219,10 @@ func TestCalendarWebhookErrorCases(t *testing.T) {
 			channelID:     "channel-5",
 			resourceState: "exists",
 			setupMocks: func(ds *mock.Store, lock *mockLock) {
-				ds.AppConfigFunc = func(_ context.Context) (*fleet.AppConfig, error) {
-					return &fleet.AppConfig{
-						Integrations: fleet.Integrations{
-							GoogleCalendar: []*fleet.GoogleCalendarIntegration{
+				ds.AppConfigFunc = func(_ context.Context) (*automdm.AppConfig, error) {
+					return &automdm.AppConfig{
+						Integrations: automdm.Integrations{
+							GoogleCalendar: []*automdm.GoogleCalendarIntegration{
 								{Domain: "example.com"},
 							},
 						},
@@ -244,10 +244,10 @@ func TestCalendarWebhookErrorCases(t *testing.T) {
 			channelID:     "channel-6",
 			resourceState: "exists",
 			setupMocks: func(ds *mock.Store, lock *mockLock) {
-				ds.AppConfigFunc = func(_ context.Context) (*fleet.AppConfig, error) {
-					return &fleet.AppConfig{
-						Integrations: fleet.Integrations{
-							GoogleCalendar: []*fleet.GoogleCalendarIntegration{
+				ds.AppConfigFunc = func(_ context.Context) (*automdm.AppConfig, error) {
+					return &automdm.AppConfig{
+						Integrations: automdm.Integrations{
+							GoogleCalendar: []*automdm.GoogleCalendarIntegration{
 								{Domain: "example.com"},
 							},
 						},
@@ -268,16 +268,16 @@ func TestCalendarWebhookErrorCases(t *testing.T) {
 			channelID:     "channel-7",
 			resourceState: "exists",
 			setupMocks: func(ds *mock.Store, lock *mockLock) {
-				ds.AppConfigFunc = func(_ context.Context) (*fleet.AppConfig, error) {
-					return &fleet.AppConfig{
-						Integrations: fleet.Integrations{
-							GoogleCalendar: []*fleet.GoogleCalendarIntegration{
+				ds.AppConfigFunc = func(_ context.Context) (*automdm.AppConfig, error) {
+					return &automdm.AppConfig{
+						Integrations: automdm.Integrations{
+							GoogleCalendar: []*automdm.GoogleCalendarIntegration{
 								{Domain: "example.com"},
 							},
 						},
 					}, nil
 				}
-				ds.GetCalendarEventDetailsByUUIDFunc = func(_ context.Context, _ string) (*fleet.CalendarEventDetails, error) {
+				ds.GetCalendarEventDetailsByUUIDFunc = func(_ context.Context, _ string) (*automdm.CalendarEventDetails, error) {
 					return nil, &testNotFoundError{}
 				}
 			},
@@ -289,18 +289,18 @@ func TestCalendarWebhookErrorCases(t *testing.T) {
 			channelID:     "channel-8",
 			resourceState: "exists",
 			setupMocks: func(ds *mock.Store, lock *mockLock) {
-				ds.AppConfigFunc = func(_ context.Context) (*fleet.AppConfig, error) {
-					return &fleet.AppConfig{
-						Integrations: fleet.Integrations{
-							GoogleCalendar: []*fleet.GoogleCalendarIntegration{
+				ds.AppConfigFunc = func(_ context.Context) (*automdm.AppConfig, error) {
+					return &automdm.AppConfig{
+						Integrations: automdm.Integrations{
+							GoogleCalendar: []*automdm.GoogleCalendarIntegration{
 								{Domain: "example.com"},
 							},
 						},
 					}, nil
 				}
-				ds.GetCalendarEventDetailsByUUIDFunc = func(_ context.Context, _ string) (*fleet.CalendarEventDetails, error) {
-					return &fleet.CalendarEventDetails{
-						CalendarEvent: fleet.CalendarEvent{},
+				ds.GetCalendarEventDetailsByUUIDFunc = func(_ context.Context, _ string) (*automdm.CalendarEventDetails, error) {
+					return &automdm.CalendarEventDetails{
+						CalendarEvent: automdm.CalendarEvent{},
 						HostID:        nil, // No host ID
 						TeamID:        ptr.Uint(1),
 					}, nil
@@ -314,24 +314,24 @@ func TestCalendarWebhookErrorCases(t *testing.T) {
 			channelID:     "channel-9",
 			resourceState: "exists",
 			setupMocks: func(ds *mock.Store, lock *mockLock) {
-				ds.AppConfigFunc = func(_ context.Context) (*fleet.AppConfig, error) {
-					return &fleet.AppConfig{
-						Integrations: fleet.Integrations{
-							GoogleCalendar: []*fleet.GoogleCalendarIntegration{
+				ds.AppConfigFunc = func(_ context.Context) (*automdm.AppConfig, error) {
+					return &automdm.AppConfig{
+						Integrations: automdm.Integrations{
+							GoogleCalendar: []*automdm.GoogleCalendarIntegration{
 								{Domain: "example.com"},
 							},
 						},
 					}, nil
 				}
-				ds.GetCalendarEventDetailsByUUIDFunc = func(_ context.Context, _ string) (*fleet.CalendarEventDetails, error) {
-					return &fleet.CalendarEventDetails{
-						CalendarEvent: fleet.CalendarEvent{},
+				ds.GetCalendarEventDetailsByUUIDFunc = func(_ context.Context, _ string) (*automdm.CalendarEventDetails, error) {
+					return &automdm.CalendarEventDetails{
+						CalendarEvent: automdm.CalendarEvent{},
 						HostID:        ptr.Uint(1),
 						TeamID:        nil, // No team ID
 					}, nil
 				}
 			},
-			expectedError: "calendar event test-uuid-9 has no fleet ID",
+			expectedError: "calendar event test-uuid-9 has no team ID",
 		},
 		{
 			name:          "database error when getting event details",
@@ -339,16 +339,16 @@ func TestCalendarWebhookErrorCases(t *testing.T) {
 			channelID:     "channel-10",
 			resourceState: "exists",
 			setupMocks: func(ds *mock.Store, lock *mockLock) {
-				ds.AppConfigFunc = func(_ context.Context) (*fleet.AppConfig, error) {
-					return &fleet.AppConfig{
-						Integrations: fleet.Integrations{
-							GoogleCalendar: []*fleet.GoogleCalendarIntegration{
+				ds.AppConfigFunc = func(_ context.Context) (*automdm.AppConfig, error) {
+					return &automdm.AppConfig{
+						Integrations: automdm.Integrations{
+							GoogleCalendar: []*automdm.GoogleCalendarIntegration{
 								{Domain: "example.com"},
 							},
 						},
 					}, nil
 				}
-				ds.GetCalendarEventDetailsByUUIDFunc = func(ctx context.Context, uuid string) (*fleet.CalendarEventDetails, error) {
+				ds.GetCalendarEventDetailsByUUIDFunc = func(ctx context.Context, uuid string) (*automdm.CalendarEventDetails, error) {
 					return nil, errors.New("database connection error")
 				}
 			},
@@ -409,7 +409,7 @@ func TestCalendarWebhookErrorCases(t *testing.T) {
 	}
 }
 
-// testNotFoundError is a simple implementation of fleet.NotFoundError for testing
+// testNotFoundError is a simple implementation of automdm.NotFoundError for testing
 type testNotFoundError struct{}
 
 func (e *testNotFoundError) Error() string {

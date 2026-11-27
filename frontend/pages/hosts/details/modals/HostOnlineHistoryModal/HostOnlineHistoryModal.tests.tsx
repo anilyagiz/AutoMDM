@@ -117,7 +117,7 @@ describe("HostOnlineHistoryModal", () => {
     const { container } = render(
       <HostOnlineHistoryModal
         hostId={42}
-        fleetId={1}
+        automdmId={1}
         uptimeCollectionEnabled
         uptimeGloballyEnabled
         onExit={jest.fn()}
@@ -139,7 +139,7 @@ describe("HostOnlineHistoryModal", () => {
     render(
       <HostOnlineHistoryModal
         hostId={42}
-        fleetId={1}
+        automdmId={1}
         uptimeCollectionEnabled={false}
         uptimeGloballyEnabled
         onExit={jest.fn()}
@@ -196,7 +196,7 @@ describe("HostOnlineHistoryModal", () => {
     render(
       <HostOnlineHistoryModal
         hostId={42}
-        fleetId={1}
+        automdmId={1}
         uptimeCollectionEnabled={undefined}
         uptimeGloballyEnabled
         onExit={jest.fn()}

@@ -121,7 +121,7 @@ export class DropdownButton extends Component {
           variant={variant}
         >
           {children}{" "}
-          {showCaret && <Icon name="chevron-down" color="core-fleet-white" />}
+          {showCaret && <Icon name="chevron-down" color="core-automdm-white" />}
         </Button>
 
         <ul className={optionsClass}>

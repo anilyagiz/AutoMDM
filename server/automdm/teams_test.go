@@ -1,0 +1,529 @@
+package automdm
+
+import (
+	"encoding/json"
+	"testing"
+
+	"github.com/anilyagiz/automdm/v4/pkg/optjson"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestValidateUserRoles(t *testing.T) {
+	checkErrCode := func(code int) func(error) bool {
+		return func(err error) bool {
+			errError, ok := err.(*Error)
+			if !ok {
+				return false
+			}
+			return errError.Code == code
+		}
+	}
+
+	for _, tc := range []struct {
+		name     string
+		create   bool
+		payload  UserPayload
+		license  LicenseInfo
+		checkErr func(err error) bool
+	}{
+		{
+			name:   "global-gitops-create-not-premium",
+			create: true,
+			payload: UserPayload{
+				GlobalRole: ptr.String(RoleGitOps),
+				APIOnly:    ptr.Bool(true),
+			},
+			license: LicenseInfo{
+				Tier: TierFree,
+			},
+			checkErr: nil,
+		},
+		{
+			name:   "global-gitops-create-not-premium-not-api-only",
+			create: true,
+			payload: UserPayload{
+				GlobalRole: new(RoleGitOps),
+				APIOnly:    new(false),
+			},
+			license: LicenseInfo{
+				Tier: TierFree,
+			},
+			checkErr: checkErrCode(ErrAPIOnlyRole),
+		},
+		{
+			name:   "team-gitops-create-not-premium",
+			create: true,
+			payload: UserPayload{
+				Teams:   &[]UserTeam{{Role: RoleGitOps}},
+				APIOnly: new(true),
+			},
+			license: LicenseInfo{
+				Tier: TierFree,
+			},
+			checkErr: func(err error) bool {
+				return err == ErrMissingLicense
+			},
+		},
+		{
+			name:   "global-gitops-create-api-only",
+			create: true,
+			payload: UserPayload{
+				GlobalRole: ptr.String(RoleGitOps),
+				APIOnly:    ptr.Bool(true),
+			},
+			license: LicenseInfo{
+				Tier: TierPremium,
+			},
+			checkErr: nil,
+		},
+		{
+			name:   "global-gitops-create-not-api-only",
+			create: true,
+			payload: UserPayload{
+				GlobalRole: ptr.String(RoleGitOps),
+				APIOnly:    ptr.Bool(false),
+			},
+			license: LicenseInfo{
+				Tier: TierPremium,
+			},
+			checkErr: checkErrCode(ErrAPIOnlyRole),
+		},
+		{
+			name:   "global-gitops-create-api-only-not-set",
+			create: true,
+			payload: UserPayload{
+				GlobalRole: ptr.String(RoleGitOps),
+				APIOnly:    nil,
+			},
+			license: LicenseInfo{
+				Tier: TierPremium,
+			},
+			checkErr: checkErrCode(ErrAPIOnlyRole),
+		},
+		{
+			name:   "global-gitops-create-api-only-not-set",
+			create: true,
+			payload: UserPayload{
+				GlobalRole: ptr.String(RoleGitOps),
+				APIOnly:    nil,
+			},
+			license: LicenseInfo{
+				Tier: TierPremium,
+			},
+			checkErr: checkErrCode(ErrAPIOnlyRole),
+		},
+		{
+			name:   "global-gitops-modify-not-api-only",
+			create: false,
+			payload: UserPayload{
+				GlobalRole: ptr.String(RoleGitOps),
+				APIOnly:    ptr.Bool(false),
+			},
+			license: LicenseInfo{
+				Tier: TierPremium,
+			},
+			checkErr: checkErrCode(ErrAPIOnlyRole),
+		},
+		{
+			name:   "global-gitops-modify-api-only-not-set",
+			create: false,
+			payload: UserPayload{
+				GlobalRole: ptr.String(RoleGitOps),
+				APIOnly:    nil,
+			},
+			license: LicenseInfo{
+				Tier: TierPremium,
+			},
+			checkErr: nil,
+		},
+		{
+			name:   "team-gitops-create-mixed-with-other-roles",
+			create: true,
+			payload: UserPayload{
+				Teams:   &[]UserTeam{{Role: RoleGitOps}, {Role: RoleMaintainer}},
+				APIOnly: ptr.Bool(true),
+			},
+			license: LicenseInfo{
+				Tier: TierPremium,
+			},
+			checkErr: nil,
+		},
+		{
+			name:   "team-gitops-modify-mixed-with-other-roles",
+			create: false,
+			payload: UserPayload{
+				Teams:   &[]UserTeam{{Role: RoleGitOps}, {Role: RoleMaintainer}},
+				APIOnly: ptr.Bool(true),
+			},
+			license: LicenseInfo{
+				Tier: TierPremium,
+			},
+			checkErr: nil,
+		},
+		{
+			name:   "team-gitops-create-api-only-false",
+			create: true,
+			payload: UserPayload{
+				Teams:   &[]UserTeam{{Role: RoleGitOps}},
+				APIOnly: ptr.Bool(false),
+			},
+			license: LicenseInfo{
+				Tier: TierPremium,
+			},
+			checkErr: checkErrCode(ErrAPIOnlyRole),
+		},
+		{
+			name:   "team-gitops-create-api-only-not-set",
+			create: true,
+			payload: UserPayload{
+				Teams:   &[]UserTeam{{Role: RoleGitOps}},
+				APIOnly: nil,
+			},
+			license: LicenseInfo{
+				Tier: TierPremium,
+			},
+			checkErr: checkErrCode(ErrAPIOnlyRole),
+		},
+		{
+			name:   "team-gitops-modify-to-not-api-only",
+			create: false,
+			payload: UserPayload{
+				Teams:   &[]UserTeam{{Role: RoleGitOps}},
+				APIOnly: ptr.Bool(false),
+			},
+			license: LicenseInfo{
+				Tier: TierPremium,
+			},
+			checkErr: checkErrCode(ErrAPIOnlyRole),
+		},
+		{
+			name:   "team-gitops-modify-api-only-not-set-should-succeed",
+			create: false,
+			payload: UserPayload{
+				Teams:   &[]UserTeam{{Role: RoleGitOps}},
+				APIOnly: nil, // not updating the APIOnly status.
+			},
+			license: LicenseInfo{
+				Tier: TierPremium,
+			},
+			checkErr: nil,
+		},
+		{
+			name:   "global-observer-modify-to-not-api-only",
+			create: false,
+			payload: UserPayload{
+				GlobalRole: ptr.String(RoleObserver),
+				APIOnly:    ptr.Bool(false),
+			},
+			license: LicenseInfo{
+				Tier: TierFree,
+			},
+			checkErr: nil,
+		},
+		{
+			name:   "global-invalid-role",
+			create: true,
+			payload: UserPayload{
+				GlobalRole: ptr.String("foobar"),
+			},
+			license: LicenseInfo{
+				Tier: TierFree,
+			},
+			checkErr: checkErrCode(ErrNoRoleNeeded),
+		},
+		{
+			name:   "team-invalid-role",
+			create: true,
+			payload: UserPayload{
+				Teams: &[]UserTeam{{Role: "foobar"}},
+			},
+			license: LicenseInfo{
+				Tier: TierFree,
+			},
+			checkErr: checkErrCode(ErrNoRoleNeeded),
+		},
+		{
+			name:   "global-and-team-role-set",
+			create: true,
+			payload: UserPayload{
+				GlobalRole: ptr.String(RoleObserver),
+				Teams:      &[]UserTeam{{Role: RoleObserver}},
+			},
+			license: LicenseInfo{
+				Tier: TierFree,
+			},
+			checkErr: checkErrCode(ErrNoRoleNeeded),
+		},
+		{
+			name:   "empty-global-role-with-team-role",
+			create: true,
+			payload: UserPayload{
+				GlobalRole: new(""),
+				Teams:      &[]UserTeam{{Role: RoleAdmin}},
+			},
+			license: LicenseInfo{
+				Tier: TierPremium,
+			},
+			checkErr: checkErrCode(ErrNoRoleNeeded),
+		},
+		{
+			name:   "no-roles-set",
+			create: true,
+			payload: UserPayload{
+				GlobalRole: nil,
+				Teams:      &[]UserTeam{},
+			},
+			license: LicenseInfo{
+				Tier: TierFree,
+			},
+			checkErr: checkErrCode(ErrNoRoleNeeded),
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := ValidateUserRoles(tc.create, tc.payload, tc.license)
+			if err == nil {
+				if tc.checkErr != nil {
+					t.Errorf("expected an error: %+v", tc)
+				}
+			} else { // err != nil
+				if tc.checkErr == nil {
+					t.Errorf("unexpected error: %s %+v", err, tc)
+				} else {
+					require.True(t, tc.checkErr(err), "err_type=%T, err=%s", err, err)
+				}
+			}
+		})
+	}
+}
+
+func TestTeamMDMCopy(t *testing.T) {
+	t.Run("nil receiver", func(t *testing.T) {
+		var tm *TeamMDM
+		require.Nil(t, tm.Copy())
+	})
+
+	t.Run("copy value fields", func(t *testing.T) {
+		tm := &TeamMDM{
+			EnableDiskEncryption: true,
+			MacOSUpdates: AppleOSUpdateSettings{
+				MinimumVersion: optjson.SetString("10.15.4"),
+				Deadline:       optjson.SetString("2020-01-01"),
+			},
+			MacOSSetup: MacOSSetup{
+				EnableEndUserAuthentication: true,
+				ManualAgentInstall:          optjson.SetBool(true),
+			},
+		}
+		clone := tm.Copy()
+		require.NotNil(t, clone)
+		require.NotSame(t, tm, clone)
+		require.Equal(t, tm, clone)
+	})
+
+	t.Run("copy MacOSSettings", func(t *testing.T) {
+		tm := &TeamMDM{
+			MacOSSettings: MacOSSettings{
+				EnableDiskEncryption:          optjson.SetBool(false),
+				EnableEscrowDiskEncryptionKey: optjson.SetBool(true),
+			},
+		}
+		clone := tm.Copy()
+		require.NotSame(t, tm, clone)
+		require.Equal(t, tm, clone)
+	})
+
+	t.Run("copy HostNameTemplate", func(t *testing.T) {
+		tm := &TeamMDM{HostNameTemplate: "$AUTOMDM_VAR_HOST_HARDWARE_SERIAL"}
+		clone := tm.Copy()
+		require.Equal(t, tm.HostNameTemplate, clone.HostNameTemplate)
+
+		// mutating the copy must not affect the original (plain-string value copy)
+		clone.HostNameTemplate = "changed"
+		require.Equal(t, "$AUTOMDM_VAR_HOST_HARDWARE_SERIAL", tm.HostNameTemplate)
+	})
+}
+
+func TestTeamConfigCopy(t *testing.T) {
+	t.Run("nil receiver", func(t *testing.T) {
+		var tc *TeamConfig
+		require.Nil(t, tc.Copy())
+	})
+
+	t.Run("deep copy webhook settings", func(t *testing.T) {
+		tc := &TeamConfig{
+			WebhookSettings: TeamWebhookSettings{
+				HostStatusWebhook: &HostStatusWebhookSettings{
+					Enable:         true,
+					DestinationURL: "https://example.com",
+					HostPercentage: 0.5,
+					DaysCount:      7,
+				},
+				FailingPoliciesWebhook: FailingPoliciesWebhookSettings{
+					Enable:         true,
+					DestinationURL: "https://policies.example.com",
+					HostBatchSize:  100,
+				},
+			},
+		}
+
+		clone := tc.Copy()
+		require.NotNil(t, clone)
+		require.NotSame(t, tc, clone)
+
+		// Verify deep copy of HostStatusWebhook pointer
+		require.NotSame(t, tc.WebhookSettings.HostStatusWebhook, clone.WebhookSettings.HostStatusWebhook)
+		require.Equal(t, tc.WebhookSettings.HostStatusWebhook, clone.WebhookSettings.HostStatusWebhook)
+
+		require.Equal(t, tc.WebhookSettings.FailingPoliciesWebhook, clone.WebhookSettings.FailingPoliciesWebhook)
+
+		// Modify original and verify clone is unaffected
+		tc.WebhookSettings.HostStatusWebhook.Enable = false
+		tc.WebhookSettings.FailingPoliciesWebhook.DestinationURL = "https://changed.example.com"
+		require.True(t, clone.WebhookSettings.HostStatusWebhook.Enable)
+		require.Equal(t, "https://policies.example.com", clone.WebhookSettings.FailingPoliciesWebhook.DestinationURL)
+	})
+
+	t.Run("deep copy features", func(t *testing.T) {
+		tc := &TeamConfig{
+			Features: Features{
+				EnableHostUsers:         true,
+				EnableSoftwareInventory: true,
+				AdditionalQueries:       ptr.RawMessage([]byte(`{"query": "test"}`)),
+			},
+		}
+
+		clone := tc.Copy()
+		require.NotNil(t, clone)
+		require.NotSame(t, tc, clone)
+
+		// Verify deep copy of AdditionalQueries
+		require.NotSame(t, tc.Features.AdditionalQueries, clone.Features.AdditionalQueries)
+		require.Equal(t, tc.Features.AdditionalQueries, clone.Features.AdditionalQueries)
+
+		// Modify original and verify clone is unaffected
+		tc.Features.EnableHostUsers = false
+		(*tc.Features.AdditionalQueries)[0] = 'X'
+		require.True(t, clone.Features.EnableHostUsers)
+		require.JSONEq(t, `{"query": "test"}`, string(*clone.Features.AdditionalQueries))
+	})
+}
+
+// TestTeamMarshalJSONMacOSSetupDefaults verifies that a team whose stored
+// config predates the managed local account keys (e.g. created in 4.84.0)
+// serializes with the "admin" default rather than null, matching what
+// AppConfig.MarshalJSON serves for the global config (#49346).
+func TestTeamMarshalJSONMacOSSetupDefaults(t *testing.T) {
+	t.Run("missing keys fall back to admin default", func(t *testing.T) {
+		var team Team // MacOSSetup keys unset (Valid == false)
+
+		b, err := json.Marshal(team)
+		require.NoError(t, err)
+
+		var got Team
+		require.NoError(t, json.Unmarshal(b, &got))
+		require.True(t, got.Config.MDM.MacOSSetup.EndUserLocalAccountType.Valid)
+		require.Equal(t, "admin", got.Config.MDM.MacOSSetup.EndUserLocalAccountType.Value)
+		require.True(t, got.Config.MDM.MacOSSetup.EnableManagedLocalAccount.Valid)
+		require.False(t, got.Config.MDM.MacOSSetup.EnableManagedLocalAccount.Value)
+	})
+
+	t.Run("explicit values are preserved", func(t *testing.T) {
+		var team Team
+		team.Config.MDM.MacOSSetup.EndUserLocalAccountType = optjson.SetString("standard")
+		team.Config.MDM.MacOSSetup.EnableManagedLocalAccount = optjson.SetBool(true)
+
+		b, err := json.Marshal(team)
+		require.NoError(t, err)
+
+		var got Team
+		require.NoError(t, json.Unmarshal(b, &got))
+		require.Equal(t, "standard", got.Config.MDM.MacOSSetup.EndUserLocalAccountType.Value)
+		require.True(t, got.Config.MDM.MacOSSetup.EnableManagedLocalAccount.Value)
+	})
+}
+
+func TestTeamNameKey(t *testing.T) {
+	sameKey := [][]string{
+		{"Workstations", "workstations", "WORKSTATIONS", "Work-stations", "Work stations", "workstations!", "WORK_STATIONS", "Workstations 💻", " Workstations\t"},
+		{"Laptops 💻", "Laptops", "Laptops 🚀", "💻 Laptops"},
+		{"ABC", "abc", "ＡＢＣ", "a.b.c", "Ⓐⓑⓒ"},
+		{"Renee", "Reneé", "Rene\u0065\u0301", "RENÉE"},
+		{"straße", "strasse", "STRASSE", "Straẞe"},
+		{"開発チーム", "開発・チーム", "開発チーム。", "「開発チーム」"},
+		{"ﬁre", "FIRE", "f-i-r-e"},
+		{"Ångström", "angstrom", "A\u030angstro\u0308m"},
+		{"ǅ", "DŽ", "dž", "dz"},
+		{"Workstations 2", "workstations2", "Workstations (2)", "Workstations ②"},
+		{"राम", "राम!", "रा-म", "राम 🚀", "「राम」"},
+		{"กิน", "กิน.", " กิน "},
+		{"Мой", "мой", "МОЙ!", "мо\u0438\u0306"},
+		{"Việt Nam", "Viet Nam", "VIETNAM", "viê\u0323t-nam"},
+	}
+	keys := make(map[string]string)
+	for _, names := range sameKey {
+		want := TeamNameKey(names[0])
+		require.NotEmpty(t, want, names[0])
+		require.NotContains(t, keys, want, "%q has the same key as %q", names[0], keys[want])
+		keys[want] = names[0]
+		for _, name := range names[1:] {
+			assert.Equal(t, want, TeamNameKey(name), "%q and %q", names[0], name)
+		}
+	}
+
+	// Names the teams.name collation also tells apart. Outside Latin script a combining mark can make a different
+	// letter or word, so it is part of the key.
+	distinct := []string{
+		"Workstations", "Workstation", "Workstations 2", "Servers", "開発", "開発チーム", "2026", "2027", "Ingeniería 1", "Ingeniería 2",
+		"राम", "रम", "काम", "कम", "กิน", "กัน", "мой", "мои", "їжак", "іжак", "آب", "اب",
+	}
+	keys = make(map[string]string)
+	for _, name := range distinct {
+		key := TeamNameKey(name)
+		require.NotEmpty(t, key, name)
+		require.NotContains(t, keys, key, "%q has the same key as %q", name, keys[key])
+		keys[key] = name
+	}
+
+	for _, name := range []string{"", " ", "\t\n", "🚀", "🚀🚀🚀", "🚀 🚀", "!!!", "---", "___", "「」", "・・・", "。", "👩‍💻", "\u0301", "$€£", "+-=", "🏳️‍🌈", "\u093e", "\u0e34\u0e34", "🚀\u093e", "- \u0306"} {
+		assert.Empty(t, TeamNameKey(name), "%q", name)
+	}
+	for _, name := range []string{"開発", "Ingeniería", "2026", "AutoMDM 🚀", "a", "1", "١", "½", "Ⅻ", "é", "ß", "ー", "🚀1"} {
+		assert.NotEmpty(t, TeamNameKey(name), "%q", name)
+	}
+
+	assert.Equal(t, "workstations", TeamNameKey("Work-Stations"))
+	assert.Equal(t, "strasse", TeamNameKey("Straße"))
+	assert.Equal(t, "開発チーム2", TeamNameKey("開発・チーム 2"))
+	// A mark only counts right after its letter: here the breve follows a space and the digit.
+	assert.Equal(t, "и1", TeamNameKey("и \u0306 1\u0306"))
+}
+
+func TestReservedTeamNameReason(t *testing.T) {
+	for name, want := range map[string]string{
+		"Unassigned":      `"Unassigned" is a reserved team name`,
+		"unassigned":      `"unassigned" is a reserved team name`,
+		"ALL AUTOMDMS":    `"ALL AUTOMDMS" is a reserved team name`,
+		"No team":         `"No team" is a reserved team name`,
+		"all teams":       `"all teams" is a reserved team name`,
+		"Un-assigned":     `"Un-assigned" is too similar to the reserved name "Unassigned"`,
+		"Ünassigned":      `"Ünassigned" is too similar to the reserved name "Unassigned"`,
+		"Unassigned 🚀":    `"Unassigned 🚀" is too similar to the reserved name "Unassigned"`,
+		"Ｕｎａｓｓｉｇｎｅｄ":      `"Ｕｎａｓｓｉｇｎｅｄ" is too similar to the reserved name "Unassigned"`,
+		"All_teams":       `"All_teams" is too similar to the reserved name "All teams"`,
+		"allfleets":       `"allfleets" is too similar to the reserved name "All teams"`,
+		"No-team":         `"No-team" is too similar to the reserved name "No team"`,
+		"all-teams":       `"all-teams" is too similar to the reserved name "All teams"`,
+		"All teams!":      `"All teams!" is too similar to the reserved name "All teams"`,
+		"Unassigned 2":    "",
+		"Unassigned Macs": "",
+		"Not assigned":    "",
+		"All team":        "",
+		"Teams":           "",
+		"Workstations":    "",
+		"🚀":               "",
+	} {
+		assert.Equal(t, want, ReservedTeamNameReason(name), name)
+	}
+}

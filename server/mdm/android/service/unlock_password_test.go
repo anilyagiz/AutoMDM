@@ -5,7 +5,7 @@ import (
 	"testing"
 	"unicode"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/androidmanagement/v1"
@@ -277,7 +277,7 @@ func TestGenerateUnlockPasswordTooLong(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := generateUnlockPassword(tc.policies)
-			var badRequest *fleet.BadRequestError
+			var badRequest *automdm.BadRequestError
 			require.ErrorAs(t, err, &badRequest)
 		})
 	}

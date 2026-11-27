@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # iMazing HEIC Converter ships an Inno Setup 6.1 installer. Its [Run] section
 # has a postinstall entry that launches "{app}\iMazing HEIC Converter.exe" and

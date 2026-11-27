@@ -5,11 +5,11 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxdb"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/service"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/storage"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxdb"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/service"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/storage"
 
 	"github.com/micromdm/nanolib/log"
 	"github.com/micromdm/nanolib/log/ctxlog"
@@ -286,7 +286,7 @@ func (s *Service) CommandAndReportResults(r *mdm.Request, results *mdm.CommandRe
 			Status:      "Error",
 			ErrorChain: []mdm.ErrorChain{{
 				ErrorCode:            -1,
-				ErrorDomain:          "Fleet",
+				ErrorDomain:          "AutoMDM",
 				LocalizedDescription: errorMsg,
 			}},
 		}
@@ -311,7 +311,7 @@ func (s *Service) CommandAndReportResults(r *mdm.Request, results *mdm.CommandRe
 	} else {
 		cmd.Raw = []byte(expanded)
 	}
-	if err := fleet.ValidateNoHostSecretVariablesAdded(written, string(cmd.Raw)); err != nil {
+	if err := automdm.ValidateNoHostSecretVariablesAdded(written, string(cmd.Raw)); err != nil {
 		logger.Info("level", "error", "msg", "refusing command", "command_uuid", cmd.CommandUUID, "err", err)
 		storeFailedResult(err.Error())
 		return nil, nil
@@ -339,7 +339,7 @@ func (s *Service) CommandAndReportResults(r *mdm.Request, results *mdm.CommandRe
 
 	// Expand host-scoped secrets for SetRecoveryLock and VerifyRecoveryLock commands.
 	// SetRecoveryLock is device-only, so UDID is always present and matches host UUID.
-	if cmd.Command.Command.RequestType == fleet.SetRecoveryLockCmdName || cmd.Command.Command.RequestType == fleet.VerifyRecoveryLockCmdName {
+	if cmd.Command.Command.RequestType == automdm.SetRecoveryLockCmdName || cmd.Command.Command.RequestType == automdm.VerifyRecoveryLockCmdName {
 		hostExpanded, didError := expandHostSecrets(string(cmd.Raw), func(hostUUID string, errorMsg string) {
 			// Mark the host's recovery lock status as failed so it's not stuck in pending.
 			if storeErr := s.store.SetRecoveryLockFailed(r.Context, hostUUID, cmd.CommandUUID, errorMsg); storeErr != nil {
@@ -354,7 +354,7 @@ func (s *Service) CommandAndReportResults(r *mdm.Request, results *mdm.CommandRe
 	}
 
 	// RotateFileVaultKey is device-only, so UDID is the host UUID.
-	if cmd.Command.Command.RequestType == fleet.RotateFileVaultKeyCmdName {
+	if cmd.Command.Command.RequestType == automdm.RotateFileVaultKeyCmdName {
 		hostExpanded, didError := expandHostSecrets(string(cmd.Raw), func(hostUUID string, errorMsg string) {
 			if storeErr := s.store.SetDiskEncryptionKeyRotationFailed(r.Context, hostUUID, cmd.CommandUUID, errorMsg); storeErr != nil {
 				logger.Info("level", "error", "msg", "setting disk encryption key rotation failed", "err", storeErr)
@@ -368,7 +368,7 @@ func (s *Service) CommandAndReportResults(r *mdm.Request, results *mdm.CommandRe
 	}
 
 	// Expand host-scoped secrets for ClearPasscode commands.
-	if cmd.Command.Command.RequestType == fleet.AppleMDMCommandTypeClearPasscode {
+	if cmd.Command.Command.RequestType == automdm.AppleMDMCommandTypeClearPasscode {
 		hostExpanded, didError := expandHostSecrets(string(cmd.Raw), func(hostUUID string, errorMsg string) {
 			// For ClearPasscode command, if we fail to expand host secrets, it likely means the unlock token is missing or invalid.
 			logger.Info("level", "error", "msg", "failed to expand host secrets for ClearPasscode command", "host_uuid", hostUUID, "err", errorMsg)
@@ -382,8 +382,8 @@ func (s *Service) CommandAndReportResults(r *mdm.Request, results *mdm.CommandRe
 
 	switch cmd.Subtype {
 	case mdm.CommandSubtypeProfileWithSecrets:
-		// Embedded ($FLEET_SECRET_*) secrets were expanded above. Host-scoped
-		// ($FLEET_HOST_SECRET_*) secrets are per-host, so expand them here so the
+		// Embedded ($AUTOMDM_SECRET_*) secrets were expanded above. Host-scoped
+		// ($AUTOMDM_HOST_SECRET_*) secrets are per-host, so expand them here so the
 		// host-specific value (e.g. the Platform SSO device registration token)
 		// is injected only at delivery time and never stored in the command nor
 		// shown on the /commands endpoint. This is a no-op when the profile

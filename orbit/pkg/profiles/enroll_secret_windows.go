@@ -7,23 +7,23 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/constant"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/constant"
 	"golang.org/x/sys/windows/registry"
 )
 
-// On Windows MDM the enroll secret is delivered by a Fleet-managed configuration profile that writes it to the registry. orbit
+// On Windows MDM the enroll secret is delivered by an AutoMDM-managed configuration profile that writes it to the registry. orbit
 // loads the value and then clears it, so the presence of the value means "a secret is waiting" and its absence means orbit
 // already took it. That makes one channel serve both first enrollment and recovery: an administrator resends the profile (with a
 // new secret) and the value reappears.
 //
-// Fleet already owns SOFTWARE\FleetDM\Orbit (the installer records the install path there), so the delivered secret lives
+// AutoMDM already owns SOFTWARE\AutoMDM\Orbit (the installer records the install path there), so the delivered secret lives
 // alongside it rather than in a new hive.
 const (
-	enrollSecretKeyPath   = `SOFTWARE\FleetDM\Orbit`
+	enrollSecretKeyPath   = `SOFTWARE\AutoMDM\Orbit`
 	enrollSecretValueName = "EnrollSecret"
 )
 
-// GetEnrollSecret returns the enroll secret Fleet MDM delivered to this device, or ErrEnrollSecretNotFound when none is waiting.
+// GetEnrollSecret returns the enroll secret AutoMDM delivered to this device, or ErrEnrollSecretNotFound when none is waiting.
 func GetEnrollSecret() (string, error) {
 	return getEnrollSecret(registry.LOCAL_MACHINE, enrollSecretKeyPath)
 }

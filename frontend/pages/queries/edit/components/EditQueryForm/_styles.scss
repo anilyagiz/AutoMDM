@@ -20,7 +20,7 @@
 
   &__page-subtitle {
     font-size: $x-small;
-    color: $ui-fleet-black-75;
+    color: $ui-automdm-black-75;
     margin: 0;
   }
 
@@ -30,7 +30,7 @@
     }
   }
 
-  &__query-name-fleet-name {
+  &__query-name-team-name {
     display: flex;
     flex-direction: column;
     gap: $pad-small;
@@ -76,7 +76,7 @@
   }
 
   &__title {
-    color: $core-fleet-black;
+    color: $core-automdm-black;
     display: inline-block;
     font-size: $large;
   }

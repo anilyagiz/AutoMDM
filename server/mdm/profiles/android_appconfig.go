@@ -8,31 +8,31 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
-	"github.com/fleetdm/fleet/v4/server/variables"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
+	"github.com/anilyagiz/automdm/v4/server/variables"
 	"google.golang.org/api/androidmanagement/v1"
 	"google.golang.org/api/googleapi"
 )
 
-// ErrUnresolvableAndroidAppConfigVar signals that one of the $FLEET_VAR_*
+// ErrUnresolvableAndroidAppConfigVar signals that one of the $AUTOMDM_VAR_*
 // tokens referenced in an Android managed app configuration could not be
 // resolved for the target host.
-var ErrUnresolvableAndroidAppConfigVar = errors.New("android: unresolvable Fleet variable in managed app configuration")
+var ErrUnresolvableAndroidAppConfigVar = errors.New("android: unresolvable AutoMDM variable in managed app configuration")
 
 // UnresolvableAndroidAppConfigVarError carries the unresolved variable name
 // and a user-facing detail message.
 type UnresolvableAndroidAppConfigVarError struct {
-	FleetVar string
-	Detail   string
+	AutoMDMVar string
+	Detail     string
 }
 
 func (e *UnresolvableAndroidAppConfigVarError) Error() string {
 	if e.Detail != "" {
 		return e.Detail
 	}
-	return fmt.Sprintf("android: unresolvable Fleet variable $FLEET_VAR_%s", e.FleetVar)
+	return fmt.Sprintf("android: unresolvable AutoMDM variable $AUTOMDM_VAR_%s", e.AutoMDMVar)
 }
 
 func (e *UnresolvableAndroidAppConfigVarError) Is(target error) bool {
@@ -40,7 +40,7 @@ func (e *UnresolvableAndroidAppConfigVarError) Is(target error) bool {
 }
 
 // AndroidAppConfigSubstitutionHost carries the host context needed to
-// substitute host-scoped $FLEET_VAR_* tokens and $FLEET_HOST_VITAL_<id>
+// substitute host-scoped $AUTOMDM_VAR_* tokens and $AUTOMDM_HOST_VITAL_<id>
 // custom host vitals in Android managed app configuration.
 type AndroidAppConfigSubstitutionHost struct {
 	HostID         uint
@@ -49,16 +49,16 @@ type AndroidAppConfigSubstitutionHost struct {
 	Platform       string
 }
 
-// SubstituteFleetVarsAndVitalsInAndroidAppConfig replaces every supported
-// $FLEET_VAR_* token and $FLEET_HOST_VITAL_<id> custom host vital reference in
+// SubstituteAutoMDMVarsAndVitalsInAndroidAppConfig replaces every supported
+// $AUTOMDM_VAR_* token and $AUTOMDM_HOST_VITAL_<id> custom host vital reference in
 // config with the resolved value for the given host, returning the substituted
 // bytes. End-user IDP fields are looked up via ds.
 // Returns ErrUnresolvableAndroidAppConfigVar (wrapped) if the host can't supply
-// a referenced variable, or a *fleet.MissingCustomHostVitalValueError if a
+// a referenced variable, or an *automdm.MissingCustomHostVitalValueError if a
 // referenced vital has no value set for this host.
-func SubstituteFleetVarsAndVitalsInAndroidAppConfig(
+func SubstituteAutoMDMVarsAndVitalsInAndroidAppConfig(
 	ctx context.Context,
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	config []byte,
 	host AndroidAppConfigSubstitutionHost,
 ) ([]byte, error) {
@@ -67,7 +67,7 @@ func SubstituteFleetVarsAndVitalsInAndroidAppConfig(
 	}
 	contents := string(config)
 	used := variables.Find(contents)
-	hasHostVitals := len(fleet.FindCustomHostVitalIDs(contents)) > 0
+	hasHostVitals := len(automdm.FindCustomHostVitalIDs(contents)) > 0
 	if len(used) == 0 && !hasHostVitals {
 		return config, nil
 	}
@@ -75,28 +75,28 @@ func SubstituteFleetVarsAndVitalsInAndroidAppConfig(
 	idpUUIDCache := map[string]uint{}
 
 	for _, name := range used {
-		switch fleet.FleetVarName(name) {
-		case fleet.FleetVarHostUUID:
+		switch automdm.AutoMDMVarName(name) {
+		case automdm.AutoMDMVarHostUUID:
 			contents = replaceJSONSafe(contents, name, host.UUID)
 
-		case fleet.FleetVarHostHardwareSerial:
+		case automdm.AutoMDMVarHostHardwareSerial:
 			if host.HardwareSerial == "" {
 				return nil, &UnresolvableAndroidAppConfigVarError{
-					FleetVar: name,
-					Detail:   fmt.Sprintf("There is no serial number for this host. Fleet couldn't populate $FLEET_VAR_%s.", name),
+					AutoMDMVar: name,
+					Detail:     fmt.Sprintf("There is no serial number for this host. AutoMDM couldn't populate $AUTOMDM_VAR_%s.", name),
 				}
 			}
 			contents = replaceJSONSafe(contents, name, host.HardwareSerial)
 
-		case fleet.FleetVarHostPlatform:
+		case automdm.AutoMDMVarHostPlatform:
 			contents = replaceJSONSafe(contents, name, host.Platform)
 
-		case fleet.FleetVarHostEndUserIDPUsername,
-			fleet.FleetVarHostEndUserIDPUsernameLocalPart,
-			fleet.FleetVarHostEndUserIDPGroups,
-			fleet.FleetVarHostEndUserIDPDepartment,
-			fleet.FleetVarHostEndUserIDPFullname,
-			fleet.FleetVarHostEndUserIDPExternalID:
+		case automdm.AutoMDMVarHostEndUserIDPUsername,
+			automdm.AutoMDMVarHostEndUserIDPUsernameLocalPart,
+			automdm.AutoMDMVarHostEndUserIDPGroups,
+			automdm.AutoMDMVarHostEndUserIDPDepartment,
+			automdm.AutoMDMVarHostEndUserIDPFullname,
+			automdm.AutoMDMVarHostEndUserIDPExternalID:
 			var detail string
 			value, _, ok, err := ResolveHostEndUserIDPValue(
 				ctx, ds, name, host.UUID, idpUUIDCache,
@@ -106,17 +106,17 @@ func SubstituteFleetVarsAndVitalsInAndroidAppConfig(
 				return nil, ctxerr.Wrap(ctx, err, "resolve host idp variable for android app config")
 			}
 			if !ok {
-				return nil, &UnresolvableAndroidAppConfigVarError{FleetVar: name, Detail: detail}
+				return nil, &UnresolvableAndroidAppConfigVarError{AutoMDMVar: name, Detail: detail}
 			}
 			contents = replaceJSONSafe(contents, name, value)
 
 		default:
-			// A profile or configuration saved before the upgrade can still use a variable Fleet 5 removed.
+			// A profile or configuration saved before the upgrade can still use a variable AutoMDM 5 removed.
 			var detail string
-			if err := fleet.FindRemovedFleetVariable(name); err != nil {
+			if err := automdm.FindRemovedAutoMDMVariable(name); err != nil {
 				detail = err.Error()
 			}
-			return nil, &UnresolvableAndroidAppConfigVarError{FleetVar: name, Detail: detail}
+			return nil, &UnresolvableAndroidAppConfigVarError{AutoMDMVar: name, Detail: detail}
 		}
 	}
 
@@ -131,21 +131,21 @@ func SubstituteFleetVarsAndVitalsInAndroidAppConfig(
 	return []byte(contents), nil
 }
 
-// ContainsFleetVarOrCustomHostVital reports whether content has a $FLEET_VAR_*
-// token or a $FLEET_HOST_VITAL_<id> token. Checks bytes for the vital prefix
-// before falling back to fleet.FindCustomHostVitalIDs, which needs a string, to
+// ContainsAutoMDMVarOrCustomHostVital reports whether content has a $AUTOMDM_VAR_*
+// token or a $AUTOMDM_HOST_VITAL_<id> token. Checks bytes for the vital prefix
+// before falling back to automdm.FindCustomHostVitalIDs, which needs a string, to
 // avoid that conversion's allocation in the common case where content has neither.
-func ContainsFleetVarOrCustomHostVital(content []byte) bool {
+func ContainsAutoMDMVarOrCustomHostVital(content []byte) bool {
 	if variables.ContainsBytes(content) {
 		return true
 	}
-	if !bytes.Contains(content, []byte(fleet.CustomHostVitalPrefix)) {
+	if !bytes.Contains(content, []byte(automdm.CustomHostVitalPrefix)) {
 		return false
 	}
-	return len(fleet.FindCustomHostVitalIDs(string(content))) > 0
+	return len(automdm.FindCustomHostVitalIDs(string(content))) > 0
 }
 
-// replaceJSONSafe replaces a Fleet variable in contents with a JSON-safe value.
+// replaceJSONSafe replaces an AutoMDM variable in contents with a JSON-safe value.
 func replaceJSONSafe(contents, variableName, value string) string {
 	return variables.Replace(contents, variableName, jsonEscapeString(value))
 }
@@ -188,9 +188,9 @@ func BuildApplicationPoliciesWithConfig(ctx context.Context, appIDs []string,
 	return appPolicies, nil
 }
 
-func SubstituteFleetVarsInAndroidAppConfigs(
+func SubstituteAutoMDMVarsInAndroidAppConfigs(
 	ctx context.Context,
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	configsByAppID map[string][]byte,
 	host AndroidAppConfigSubstitutionHost,
 ) (map[string][]byte, error) {
@@ -200,7 +200,7 @@ func SubstituteFleetVarsInAndroidAppConfigs(
 
 	hasVars := false
 	for _, cfg := range configsByAppID {
-		if ContainsFleetVarOrCustomHostVital(cfg) {
+		if ContainsAutoMDMVarOrCustomHostVital(cfg) {
 			hasVars = true
 			break
 		}
@@ -211,9 +211,9 @@ func SubstituteFleetVarsInAndroidAppConfigs(
 
 	result := make(map[string][]byte, len(configsByAppID))
 	for appID, cfg := range configsByAppID {
-		substituted, err := SubstituteFleetVarsAndVitalsInAndroidAppConfig(ctx, ds, cfg, host)
+		substituted, err := SubstituteAutoMDMVarsAndVitalsInAndroidAppConfig(ctx, ds, cfg, host)
 		if err != nil {
-			return nil, ctxerr.Wrapf(ctx, err, "substitute fleet vars in android app config for app %s", appID)
+			return nil, ctxerr.Wrapf(ctx, err, "substitute automdm vars in android app config for app %s", appID)
 		}
 		result[appID] = substituted
 	}
@@ -222,13 +222,13 @@ func SubstituteFleetVarsInAndroidAppConfigs(
 
 // IsUnresolvableAndroidAppConfigForHost separates "this host can't supply a
 // referenced value" — a custom host vital with no value set for this host, or
-// an unresolvable $FLEET_VAR_* — from a real failure. The former is host state
+// an unresolvable $AUTOMDM_VAR_* — from a real failure. The former is host state
 // no retry can fix, so it's a per-host skip rather than a batch failure.
 func IsUnresolvableAndroidAppConfigForHost(err error) bool {
 	if err == nil {
 		return false
 	}
-	if _, ok := errors.AsType[*fleet.MissingCustomHostVitalValueError](err); ok {
+	if _, ok := errors.AsType[*automdm.MissingCustomHostVitalValueError](err); ok {
 		return true
 	}
 	return errors.Is(err, ErrUnresolvableAndroidAppConfigVar)

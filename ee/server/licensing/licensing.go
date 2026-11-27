@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/golang-jwt/jwt/v4"
 )
 
@@ -40,10 +40,10 @@ func loadPublicKey() (*ecdsa.PublicKey, error) {
 }
 
 // LoadLicense loads and validates the license key.
-func LoadLicense(licenseKey string) (*fleet.LicenseInfo, error) {
+func LoadLicense(licenseKey string) (*automdm.LicenseInfo, error) {
 	// No license key
 	if licenseKey == "" {
-		return &fleet.LicenseInfo{Tier: fleet.TierFree}, nil
+		return &automdm.LicenseInfo{Tier: automdm.TierFree}, nil
 	}
 
 	parsedToken, err := jwt.ParseWithClaims(
@@ -84,7 +84,7 @@ type licenseClaims struct {
 	AllowDisableTelemetry bool   `json:"notel"`
 }
 
-func validate(token *jwt.Token) (*fleet.LicenseInfo, error) {
+func validate(token *jwt.Token) (*automdm.LicenseInfo, error) {
 	// token.IssuedAt, token.ExpiresAt, token.NotBefore already validated by JWT
 	// library.
 	if !token.Valid {
@@ -118,7 +118,7 @@ func validate(token *jwt.Token) (*fleet.LicenseInfo, error) {
 		return nil, fmt.Errorf("unexpected issuer %s", claims.Issuer)
 	}
 
-	return &fleet.LicenseInfo{
+	return &automdm.LicenseInfo{
 		Tier:                  claims.Tier,
 		Organization:          claims.Subject,
 		DeviceCount:           claims.Devices,

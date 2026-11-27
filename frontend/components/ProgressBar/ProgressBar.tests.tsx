@@ -17,7 +17,7 @@ describe("ProgressBar component", () => {
     const progressBar = screen.getByRole("progressbar");
     expect(progressBar).toBeInTheDocument();
     expect(progressBar).toHaveStyle({
-      backgroundColor: COLORS["ui-fleet-black-10"],
+      backgroundColor: COLORS["ui-automdm-black-10"],
     });
 
     const sectionElements = screen.getAllByTestId(/section-/);

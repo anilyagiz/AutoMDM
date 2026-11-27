@@ -65,7 +65,7 @@ const OSVersionTable = ({
   const generateNewQueryParams = useCallback(
     (newTableQuery: ITableQueryData, changedParam: string) => {
       const newQueryParam: Record<string, string | number | undefined> = {
-        fleet_id: currentTeamId,
+        team_id: currentTeamId,
         order_direction: newTableQuery.sortDirection,
         order_key: newTableQuery.sortHeader,
         page: changedParam === "pageIndex" ? newTableQuery.pageIndex : 0,
@@ -106,7 +106,7 @@ const OSVersionTable = ({
       const hostsQueryParams = {
         os_name,
         os_version,
-        fleet_id: currentTeamId,
+        team_id: currentTeamId,
       };
       const path = getPathWithQueryParams(PATHS.MANAGE_HOSTS, hostsQueryParams);
 

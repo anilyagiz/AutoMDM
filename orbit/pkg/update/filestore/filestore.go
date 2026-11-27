@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/constant"
-	"github.com/fleetdm/fleet/v4/pkg/secure"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/constant"
+	"github.com/anilyagiz/automdm/v4/pkg/secure"
 	"github.com/theupdateframework/go-tuf/client"
 )
 

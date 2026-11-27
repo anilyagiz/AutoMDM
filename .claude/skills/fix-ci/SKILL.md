@@ -1,7 +1,7 @@
 ---
 name: fix-ci
 description: Diagnose and fix failing CI tests from a GitHub Actions run. Use when asked to "fix CI", "CI failure", or "failing tests in CI".
-allowed-tools: Bash(gh *), Bash(go test *), Bash(go build *), Bash(MYSQL_TEST*), Bash(MYSQL_TEST=1 REDIS_TEST=1 *), Bash(FLEET_INTEGRATION_TESTS_DISABLE_LOG=1 *), Read, Grep, Glob, Edit
+allowed-tools: Bash(gh *), Bash(go test *), Bash(go build *), Bash(MYSQL_TEST*), Bash(MYSQL_TEST=1 REDIS_TEST=1 *), Bash(AUTOMDM_INTEGRATION_TESTS_DISABLE_LOG=1 *), Read, Grep, Glob, Edit
 model: opus
 effort: high
 ---
@@ -23,7 +23,7 @@ Group the failing jobs by **test suite** (the first parenthesized token in the j
 For each unique suite, fetch the job log and find the `FAIL: ` lines. IMPORTANT: use `gh api` (not `gh run view --log`, which may return empty):
 
 ```
-gh api repos/fleetdm/fleet/actions/jobs/<job_id>/logs 2>&1 | grep -e 'FAIL: ' | head -30
+gh api repos/automdm/automdm/actions/jobs/<job_id>/logs 2>&1 | grep -e 'FAIL: ' | head -30
 ```
 
 This gives you the failing test function names and subtests. Ignore the parent test if subtests are listed (e.g. if `TestFoo` and `TestFoo/Bar` both appear, focus on `TestFoo/Bar`).
@@ -33,7 +33,7 @@ This gives you the failing test function names and subtests. Ignore the parent t
 For each suite, fetch the error traces:
 
 ```
-gh api repos/fleetdm/fleet/actions/jobs/<job_id>/logs 2>&1 | grep -e 'FAIL: \|Error Trace\|Error:\|expected:\|actual:' | head -60
+gh api repos/automdm/automdm/actions/jobs/<job_id>/logs 2>&1 | grep -e 'FAIL: \|Error Trace\|Error:\|expected:\|actual:' | head -60
 ```
 
 This tells you the exact file/line and what the assertion expected vs. what it got.
@@ -74,7 +74,7 @@ Do NOT fix production code bugs without user approval — only report them.
 
 After fixing stale assertions, run the affected tests locally to verify they pass:
 
-- `pkg/spec/...` and `server/fleet/...`: `go test -run 'TestName' ./pkg/spec/...`
+- `pkg/spec/...` and `server/automdm/...`: `go test -run 'TestName' ./pkg/spec/...`
 - `server/service/...` (unit tests like devices_test.go, scripts_test.go): `go test -run 'TestName' ./server/service/`
 - `ee/server/service/...`: `go test -run 'TestName' ./ee/server/service/`
 - `server/datastore/mysql/...`: `MYSQL_TEST=1 go test -run 'TestName' ./server/datastore/mysql/`

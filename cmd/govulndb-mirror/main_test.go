@@ -17,7 +17,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/govulndb"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/govulndb"
 	"github.com/stretchr/testify/require"
 )
 
@@ -297,7 +297,7 @@ func TestExecutePublishesAHealthyDatabase(t *testing.T) {
 	got := mirror(t, serveDatabase(t, archive(t, db)))
 	file := assertPublished(t, got)
 
-	// Fleet takes the lexically last matching asset on the latest release, so the name carries
+	// AutoMDM takes the lexically last matching asset on the latest release, so the name carries
 	// the snapshot date and nothing else.
 	require.Equal(t, "govulndb-2026-09-09.json.gz", filepath.Base(file))
 	require.Equal(t, file, got.outputs["artifact"])

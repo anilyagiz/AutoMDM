@@ -6,14 +6,14 @@ import (
 	"context"
 	"sync"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
-var _ fleet.EJBCAService = (*Service)(nil)
+var _ automdm.EJBCAService = (*Service)(nil)
 
-type VerifyConnectionFunc func(ctx context.Context, config fleet.EJBCA) error
+type VerifyConnectionFunc func(ctx context.Context, config automdm.EJBCA) error
 
-type GetCertificateFunc func(ctx context.Context, config fleet.EJBCA) (*fleet.EJBCACertificate, error)
+type GetCertificateFunc func(ctx context.Context, config automdm.EJBCA) (*automdm.EJBCACertificate, error)
 
 type Service struct {
 	VerifyConnectionFunc        VerifyConnectionFunc
@@ -25,14 +25,14 @@ type Service struct {
 	mu sync.Mutex
 }
 
-func (s *Service) VerifyConnection(ctx context.Context, config fleet.EJBCA) error {
+func (s *Service) VerifyConnection(ctx context.Context, config automdm.EJBCA) error {
 	s.mu.Lock()
 	s.VerifyConnectionFuncInvoked = true
 	s.mu.Unlock()
 	return s.VerifyConnectionFunc(ctx, config)
 }
 
-func (s *Service) GetCertificate(ctx context.Context, config fleet.EJBCA) (*fleet.EJBCACertificate, error) {
+func (s *Service) GetCertificate(ctx context.Context, config automdm.EJBCA) (*automdm.EJBCACertificate, error) {
 	s.mu.Lock()
 	s.GetCertificateFuncInvoked = true
 	s.mu.Unlock()

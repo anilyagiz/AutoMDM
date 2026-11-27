@@ -37,7 +37,7 @@ const val MAX_STATUS_REPORT_RETRIES = 10
  * multiple contexts (Service, Worker, direct calls) while maintaining separation
  * of concerns between Android framework code and business logic.
  *
- * @param apiClient Client for Fleet server API calls
+ * @param apiClient Client for AutoMDM server API calls
  * @param scepClient Client for SCEP enrollment operations
  */
 class CertificateOrchestrator(
@@ -46,7 +46,7 @@ class CertificateOrchestrator(
     private val deviceKeystoreManager: DeviceKeystoreManager? = null,
 ) {
     companion object {
-        private const val TAG = "fleet-CertificateOrchestrator"
+        private const val TAG = "automdm-CertificateOrchestrator"
     }
 
     // DataStore key for storing installed certificates map as JSON
@@ -130,7 +130,7 @@ class CertificateOrchestrator(
 
                 json.decodeFromString<CertificateStateMap>(jsonString)
             } catch (e: Exception) {
-                FleetLog.e(TAG, "Failed to read installed certificates from DataStore: ${e.message}", e)
+                AutoMDMLog.e(TAG, "Failed to read installed certificates from DataStore: ${e.message}", e)
                 emptyMap()
             }
         }
@@ -219,7 +219,7 @@ class CertificateOrchestrator(
                     Log.d(TAG, "Stored certificate mapping: $certificateId → ${certInstallInfo.alias} (total: ${updatedMap.size})")
                 }
             } catch (e: Exception) {
-                FleetLog.e(TAG, "Failed to store certificate installation: ${e.message}", e)
+                AutoMDMLog.e(TAG, "Failed to store certificate installation: ${e.message}", e)
                 // Non-fatal error - enrollment was successful, just tracking failed
             }
         }
@@ -259,7 +259,7 @@ class CertificateOrchestrator(
                     Log.d(TAG, "Removed certificate mapping for ID $certificateId (remaining: ${updatedMap.size})")
                 }
             } catch (e: Exception) {
-                FleetLog.e(TAG, "Failed to remove certificate installation info: ${e.message}", e)
+                AutoMDMLog.e(TAG, "Failed to remove certificate installation info: ${e.message}", e)
                 // Non-fatal error - cleanup was attempted
             }
         }
@@ -388,7 +388,7 @@ class CertificateOrchestrator(
                         if (reportResult.isSuccess) {
                             markCertificateRemoved(context, certId, certState.alias, hostCert.uuid)
                         } else {
-                            FleetLog.e(TAG, "Failed to report removal status for ID $certId: ${reportResult.exceptionOrNull()?.message}")
+                            AutoMDMLog.e(TAG, "Failed to report removal status for ID $certId: ${reportResult.exceptionOrNull()?.message}")
                             // Mark as unreported so retry logic will handle it
                             markCertificateUnreported(context, certId, certState.alias, hostCert.uuid, isInstall = false)
                         }
@@ -414,7 +414,7 @@ class CertificateOrchestrator(
                         if (reportResult.isSuccess) {
                             markCertificateRemoved(context, certId, certState.alias, hostCert.uuid)
                         } else {
-                            FleetLog.e(TAG, "Failed to report removal status for ID $certId: ${reportResult.exceptionOrNull()?.message}")
+                            AutoMDMLog.e(TAG, "Failed to report removal status for ID $certId: ${reportResult.exceptionOrNull()?.message}")
                             // Keep as unreported with new uuid so retry logic will handle it
                             markCertificateUnreported(context, certId, certState.alias, hostCert.uuid, isInstall = false)
                         }
@@ -436,7 +436,7 @@ class CertificateOrchestrator(
                         status = UpdateCertificateStatusStatus.VERIFIED,
                         operationType = UpdateCertificateStatusOperation.REMOVE,
                     ).onFailure { error ->
-                        FleetLog.e(TAG, "Failed to report removal status for ID $certId: ${error.message}", error)
+                        AutoMDMLog.e(TAG, "Failed to report removal status for ID $certId: ${error.message}", error)
                     }
                     markCertificateRemoved(context, certId, alias, hostCert.uuid)
                     results[certId] = CleanupResult.Success(alias)
@@ -506,10 +506,10 @@ class CertificateOrchestrator(
                 operationType = UpdateCertificateStatusOperation.REMOVE,
                 detail = errorDetail,
             ).onFailure { error ->
-                FleetLog.e(TAG, "Failed to report removal failure for ID $certificateId: ${error.message}", error)
+                AutoMDMLog.e(TAG, "Failed to report removal failure for ID $certificateId: ${error.message}", error)
             }
 
-            FleetLog.e(TAG, "Failed to remove certificate ID $certificateId (alias: '$alias')")
+            AutoMDMLog.e(TAG, "Failed to remove certificate ID $certificateId (alias: '$alias')")
             CleanupResult.Failure(
                 reason = errorDetail,
                 exception = null,
@@ -703,7 +703,7 @@ class CertificateOrchestrator(
         // Fetch certificate template from API (only if not already installed)
         val templateResult = apiClient.getCertificateTemplate(certificateId)
         val (template, scepUrl) = templateResult.getOrElse { error ->
-            FleetLog.e(TAG, "Failed to fetch certificate template for ID $certificateId: ${error.message}", error)
+            AutoMDMLog.e(TAG, "Failed to fetch certificate template for ID $certificateId: ${error.message}", error)
             return CertificateEnrollmentHandler.EnrollmentResult.Failure(
                 reason = "Failed to fetch certificate template: ${error.message}",
                 exception = error as? Exception,
@@ -801,14 +801,14 @@ class CertificateOrchestrator(
                 }
 
                 if (shouldReportFailure) {
-                    FleetLog.e(TAG, "Certificate enrollment failed for ID $certificateId: ${result.reason}", result.exception)
+                    AutoMDMLog.e(TAG, "Certificate enrollment failed for ID $certificateId: ${result.reason}", result.exception)
                     apiClient.updateCertificateStatus(
                         certificateId = certificateId,
                         status = UpdateCertificateStatusStatus.FAILED,
                         operationType = UpdateCertificateStatusOperation.INSTALL,
                         detail = result.reason,
                     ).onFailure { error ->
-                        FleetLog.e(TAG, "Failed to update certificate status to failed for ID $certificateId: ${error.message}", error)
+                        AutoMDMLog.e(TAG, "Failed to update certificate status to failed for ID $certificateId: ${error.message}", error)
                     }
                 }
             }
@@ -871,7 +871,7 @@ class CertificateOrchestrator(
      */
     class AndroidCertificateInstaller(private val context: Context) : CertificateEnrollmentHandler.CertificateInstaller {
         companion object {
-            private const val TAG = "fleet-AndroidCertInstaller"
+            private const val TAG = "automdm-AndroidCertInstaller"
         }
 
         override fun installCertificate(alias: String, privateKey: PrivateKey, certificateChain: Array<Certificate>): Boolean {
@@ -899,7 +899,7 @@ class CertificateOrchestrator(
             if (success) {
                 Log.i(TAG, "Certificate successfully installed with alias: $alias")
             } else {
-                FleetLog.e(TAG, "Certificate installation failed for alias '$alias': installKeyPair returned false")
+                AutoMDMLog.e(TAG, "Certificate installation failed for alias '$alias': installKeyPair returned false")
             }
 
             return success

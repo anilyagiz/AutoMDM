@@ -5,9 +5,9 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/mdm/acme/internal/types"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
-	mysql_testing_utils "github.com/fleetdm/fleet/v4/server/platform/mysql/testing_utils"
+	"github.com/anilyagiz/automdm/v4/server/mdm/acme/internal/types"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
+	mysql_testing_utils "github.com/anilyagiz/automdm/v4/server/platform/mysql/testing_utils"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
@@ -19,7 +19,7 @@ type TestDB struct {
 	Logger *slog.Logger
 }
 
-// SetupTestDB creates a test database with the Fleet schema loaded.
+// SetupTestDB creates a test database with the AutoMDM schema loaded.
 func SetupTestDB(t *testing.T, testNamePrefix string) *TestDB {
 	t.Helper()
 

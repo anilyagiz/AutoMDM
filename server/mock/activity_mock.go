@@ -4,8 +4,8 @@ import (
 	"context"
 	"sync"
 
-	activity_api "github.com/fleetdm/fleet/v4/server/activity/api"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	activity_api "github.com/anilyagiz/automdm/v4/server/activity/api"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
 // NewActivityFunc is the callback function type for MockActivityService.
@@ -17,7 +17,7 @@ var NoopNewActivityFunc NewActivityFunc = func(_ context.Context, _ *activity_ap
 	return nil
 }
 
-// MockActivityService is a mock implementation of fleet.ActivityWriteService
+// MockActivityService is a mock implementation of automdm.ActivityWriteService
 // for unit tests that use mock.Store instead of real MySQL connections.
 // When Delegate is set, it is called before the mock's NewActivityFunc,
 // allowing real behavior (e.g. webhooks) while still capturing calls.
@@ -34,8 +34,8 @@ type MockActivityService struct {
 	mu sync.Mutex
 }
 
-// Ensure MockActivityService implements fleet.ActivityWriteService.
-var _ fleet.ActivityWriteService = (*MockActivityService)(nil)
+// Ensure MockActivityService implements automdm.ActivityWriteService.
+var _ automdm.ActivityWriteService = (*MockActivityService)(nil)
 
 func (m *MockActivityService) NewActivity(ctx context.Context, user *activity_api.User, activity activity_api.ActivityDetails) error {
 	m.mu.Lock()

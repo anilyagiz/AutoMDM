@@ -1,15 +1,15 @@
-module github.com/fleetdm/fleet/v4/tools/dibble
+module github.com/anilyagiz/automdm/v4/tools/dibble
 
 go 1.27.4
 
-// The parent fleet module is included so we can enumerate every activity
+// The parent automdm module is included so we can enumerate every activity
 // type for the `dibble activities` seeder. Pinned to the local checkout via
 // the replace below — dibble is only ever built from inside this repo.
-replace github.com/fleetdm/fleet/v4 => ../..
+replace github.com/anilyagiz/automdm/v4 => ../..
 
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
-	github.com/fleetdm/fleet/v4 v4.0.0-00010101000000-000000000000
+	github.com/anilyagiz/automdm/v4 v4.0.0-00010101000000-000000000000
 	github.com/go-sql-driver/mysql v1.10.0
 	github.com/google/uuid v1.6.0
 	github.com/spf13/cobra v1.10.2

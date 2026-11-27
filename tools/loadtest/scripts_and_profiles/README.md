@@ -19,8 +19,8 @@ pipeline at scale.
 
 ```bash
 go run ./tools/loadtest/scripts_and_profiles \
-  -fleet_url https://localhost:8080 \
-  -api_token "$FLEET_API_TOKEN" \
+  -automdm_url https://localhost:8080 \
+  -api_token "$AUTOMDM_API_TOKEN" \
   -team_count 20
 ```
 

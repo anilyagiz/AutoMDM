@@ -13,7 +13,7 @@ const decodeBase64Bytes = (b64: string): Uint8Array | null => {
 };
 
 /** Returns the readable text in a plist `<data>` value, or null if it's
- * binary. Fleet signs profiles before sending them, so an InstallProfile
+ * binary. AutoMDM signs profiles before sending them, so an InstallProfile
  * payload is a PKCS #7 envelope with the profile XML stored verbatim inside. */
 const decodeDataValue = (b64: string): string | null => {
   const bytes = decodeBase64Bytes(b64);

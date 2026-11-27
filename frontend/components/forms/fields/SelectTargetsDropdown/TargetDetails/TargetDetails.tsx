@@ -3,7 +3,7 @@ import { noop } from "lodash";
 import React from "react";
 
 import DataSet from "components/DataSet";
-import FleetIcon from "components/icons/FleetIcon";
+import AutoMDMIcon from "components/icons/AutoMDMIcon";
 import SQLEditor from "components/SQLEditor";
 import StatusIndicator from "components/StatusIndicator";
 import TableCount from "components/TableContainer/TableCount";
@@ -53,13 +53,13 @@ const TargetDetails = ({
           className={`button button--unstyled ${hostBaseClass}__back`}
           onClick={handleBackToResults}
         >
-          <FleetIcon name="chevronleft" />
+          <AutoMDMIcon name="chevronleft" />
           Back
         </button>
 
         <div className={`${hostBaseClass}__host-info`}>
           <div className={`${hostBaseClass}__display-text`}>
-            <FleetIcon
+            <AutoMDMIcon
               name="single-host"
               className={`${hostBaseClass}__icon`}
             />
@@ -131,11 +131,11 @@ const TargetDetails = ({
           className={`button button--unstyled ${labelBaseClass}__back`}
           onClick={handleBackToResults}
         >
-          <FleetIcon name="chevronleft" /> Back
+          <AutoMDMIcon name="chevronleft" /> Back
         </button>
 
         <p className={`${labelBaseClass}__display-text`}>
-          <FleetIcon name="label" fw className={`${labelBaseClass}__icon`} />
+          <AutoMDMIcon name="label" fw className={`${labelBaseClass}__icon`} />
           <span>{displayText}</span>
         </p>
 
@@ -172,7 +172,7 @@ const TargetDetails = ({
     return (
       <div className={`${labelBaseClass} ${className}`}>
         <p className={`${labelBaseClass}__display-text`}>
-          <FleetIcon
+          <AutoMDMIcon
             name="all-hosts"
             fw
             className={`${labelBaseClass}__icon`}

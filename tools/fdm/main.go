@@ -40,7 +40,7 @@ func main() {
 			options["REFORMAT_OPTIONS"] = "true"
 		} else {
 			fmt.Println("\033[1mNAME\033[0m")
-			fmt.Println("  fdm - developer tools for fleet device management")
+			fmt.Println("  fdm - developer tools for team device management")
 			fmt.Println()
 			fmt.Println("\033[1mUSAGE:\033[0m")
 			fmt.Println("  fdm <command> [--option=value ...] -- [make-options]")

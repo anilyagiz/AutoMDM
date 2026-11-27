@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
@@ -44,14 +44,14 @@ func TestNextWindowsSCEPStatusProbeCommand(t *testing.T) {
 }
 
 type windowsSCEPInstall struct {
-	device         *fleet.MDMWindowsEnrolledDevice
+	device         *automdm.MDMWindowsEnrolledDevice
 	profileUUID    string
 	installCmdUUID string
 }
 
 // setUpWindowsSCEPInstall queues a SCEP profile install for a new enrolled host. An install proxied through a CA
-// (caType set) has the managed certificate row Fleet's SCEP proxy creates.
-func setUpWindowsSCEPInstall(t *testing.T, ds *Datastore, userScoped bool, caType fleet.CAConfigAssetType) windowsSCEPInstall {
+// (caType set) has the managed certificate row AutoMDM's SCEP proxy creates.
+func setUpWindowsSCEPInstall(t *testing.T, ds *Datastore, userScoped bool, caType automdm.CAConfigAssetType) windowsSCEPInstall {
 	t.Helper()
 	ctx := t.Context()
 	in := windowsSCEPInstall{
@@ -64,15 +64,15 @@ func setUpWindowsSCEPInstall(t *testing.T, ds *Datastore, userScoped bool, caTyp
 	if userScoped {
 		scope = "./User"
 	}
-	require.NoError(t, ds.MDMWindowsInsertCommandForHosts(ctx, []string{in.device.HostUUID}, &fleet.MDMWindowsCommand{
+	require.NoError(t, ds.MDMWindowsInsertCommandForHosts(ctx, []string{in.device.HostUUID}, &automdm.MDMWindowsCommand{
 		CommandUUID: in.installCmdUUID,
 		RawCommand: fmt.Appendf(nil, `<Atomic><CmdID>%s</CmdID><Exec><CmdID>%s</CmdID><Item><Target>`+
 			`<LocURI>%s/Vendor/MSFT/ClientCertificateInstall/SCEP/%s/Install/Enroll</LocURI></Target></Item></Exec></Atomic>`,
 			in.installCmdUUID, uuid.NewString(), scope, in.profileUUID),
 	}))
-	setWindowsSCEPInstallRow(t, ds, in, in.installCmdUUID, fleet.MDMDeliveryPending, 0)
+	setWindowsSCEPInstallRow(t, ds, in, in.installCmdUUID, automdm.MDMDeliveryPending, 0)
 	if caType != "" {
-		require.NoError(t, ds.BulkUpsertMDMManagedCertificates(ctx, []*fleet.MDMManagedCertificate{{
+		require.NoError(t, ds.BulkUpsertMDMManagedCertificates(ctx, []*automdm.MDMManagedCertificate{{
 			HostUUID: in.device.HostUUID, ProfileUUID: in.profileUUID, Type: caType, CAName: "CA-" + string(caType),
 		}}))
 	}
@@ -80,17 +80,17 @@ func setUpWindowsSCEPInstall(t *testing.T, ds *Datastore, userScoped bool, caTyp
 }
 
 // setWindowsSCEPInstallRow sets the host profile row for the install's profile.
-func setWindowsSCEPInstallRow(t *testing.T, ds *Datastore, in windowsSCEPInstall, cmdUUID string, status fleet.MDMDeliveryStatus,
+func setWindowsSCEPInstallRow(t *testing.T, ds *Datastore, in windowsSCEPInstall, cmdUUID string, status automdm.MDMDeliveryStatus,
 	retries int,
 ) {
 	t.Helper()
 	ctx := t.Context()
-	require.NoError(t, ds.BulkUpsertMDMWindowsHostProfiles(ctx, []*fleet.MDMWindowsBulkUpsertHostProfilePayload{{
+	require.NoError(t, ds.BulkUpsertMDMWindowsHostProfiles(ctx, []*automdm.MDMWindowsBulkUpsertHostProfilePayload{{
 		ProfileUUID:   in.profileUUID,
 		ProfileName:   "scep-" + in.profileUUID,
 		HostUUID:      in.device.HostUUID,
 		CommandUUID:   cmdUUID,
-		OperationType: fleet.MDMOperationTypeInstall,
+		OperationType: automdm.MDMOperationTypeInstall,
 		Status:        &status,
 		Checksum:      []byte{1},
 	}}))
@@ -106,13 +106,13 @@ func setWindowsSCEPInstallRow(t *testing.T, ds *Datastore, in windowsSCEPInstall
 }
 
 // pendingSCEPStatusProbes returns the probes queued for the enrollment that the device hasn't answered yet.
-func pendingSCEPStatusProbes(t *testing.T, ds *Datastore, enrollmentID uint) []*fleet.MDMWindowsCommand {
+func pendingSCEPStatusProbes(t *testing.T, ds *Datastore, enrollmentID uint) []*automdm.MDMWindowsCommand {
 	t.Helper()
 	cmds, err := ds.MDMWindowsGetPendingCommands(t.Context(), enrollmentID)
 	require.NoError(t, err)
-	var probes []*fleet.MDMWindowsCommand
+	var probes []*automdm.MDMWindowsCommand
 	for _, cmd := range cmds {
-		if fleet.IsWindowsSCEPStatusProbeCmdUUID(cmd.CommandUUID) {
+		if automdm.IsWindowsSCEPStatusProbeCmdUUID(cmd.CommandUUID) {
 			probes = append(probes, cmd)
 		}
 	}
@@ -120,7 +120,7 @@ func pendingSCEPStatusProbes(t *testing.T, ds *Datastore, enrollmentID uint) []*
 }
 
 // probeResults is the <Results> a Windows 11 host sends for a probe.
-func probeResults(probe *fleet.MDMWindowsCommand, status, errorCode string) string {
+func probeResults(probe *automdm.MDMWindowsCommand, status, errorCode string) string {
 	node := strings.TrimSuffix(probe.TargetLocURI, "/Status")
 	return fmt.Sprintf(`<Results><CmdID>%s</CmdID><MsgRef>1</MsgRef><CmdRef>%s</CmdRef>`+
 		`<Item><Source><LocURI>%s/Status</LocURI></Source><Meta><Format xmlns="syncml:metinf">int</Format></Meta><Data>%s</Data></Item>`+
@@ -136,7 +136,7 @@ func ackInstall(t *testing.T, ds *Datastore, in windowsSCEPInstall) {
 	require.NoError(t, err)
 }
 
-func answerProbe(t *testing.T, ds *Datastore, in windowsSCEPInstall, probe *fleet.MDMWindowsCommand, status, errorCode string) {
+func answerProbe(t *testing.T, ds *Datastore, in windowsSCEPInstall, probe *automdm.MDMWindowsCommand, status, errorCode string) {
 	t.Helper()
 	entries := []enrichResponseEntry{{Type: "Get", StatusCode: 404, UUID: probe.CommandUUID}}
 	var results []string
@@ -154,16 +154,16 @@ func testWindowsSCEPStatusProbeQueuedOnAck(t *testing.T, ds *Datastore) {
 	cases := []struct {
 		name       string
 		userScoped bool
-		caType     fleet.CAConfigAssetType
-		wantStatus fleet.MDMDeliveryStatus
+		caType     automdm.CAConfigAssetType
+		wantStatus automdm.MDMDeliveryStatus
 		wantScope  string // empty when no probe should be queued
 	}{
-		{name: "device-scoped custom SCEP", caType: fleet.CAConfigCustomSCEPProxy, wantStatus: fleet.MDMDeliveryVerifying, wantScope: "./Device"},
-		{name: "user-scoped custom SCEP", userScoped: true, caType: fleet.CAConfigCustomSCEPProxy, wantStatus: fleet.MDMDeliveryVerifying, wantScope: "./User"},
-		{name: "device-scoped NDES", caType: fleet.CAConfigNDES, wantStatus: fleet.MDMDeliveryVerifying, wantScope: "./Device"},
-		{name: "user-scoped NDES", userScoped: true, caType: fleet.CAConfigNDES, wantStatus: fleet.MDMDeliveryVerifying, wantScope: "./User"},
-		{name: "user-scoped conditional access", userScoped: true, caType: fleet.CAConfigConditionalAccess, wantStatus: fleet.MDMDeliveryVerifying, wantScope: "./User"},
-		{name: "not proxied by Fleet", wantStatus: fleet.MDMDeliveryVerified},
+		{name: "device-scoped custom SCEP", caType: automdm.CAConfigCustomSCEPProxy, wantStatus: automdm.MDMDeliveryVerifying, wantScope: "./Device"},
+		{name: "user-scoped custom SCEP", userScoped: true, caType: automdm.CAConfigCustomSCEPProxy, wantStatus: automdm.MDMDeliveryVerifying, wantScope: "./User"},
+		{name: "device-scoped NDES", caType: automdm.CAConfigNDES, wantStatus: automdm.MDMDeliveryVerifying, wantScope: "./Device"},
+		{name: "user-scoped NDES", userScoped: true, caType: automdm.CAConfigNDES, wantStatus: automdm.MDMDeliveryVerifying, wantScope: "./User"},
+		{name: "user-scoped conditional access", userScoped: true, caType: automdm.CAConfigConditionalAccess, wantStatus: automdm.MDMDeliveryVerifying, wantScope: "./User"},
+		{name: "not proxied by AutoMDM", wantStatus: automdm.MDMDeliveryVerified},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -176,7 +176,7 @@ func testWindowsSCEPStatusProbeQueuedOnAck(t *testing.T, ds *Datastore) {
 			assert.Equal(t, c.wantStatus, status)
 
 			// The session refreshes has_pending_commands once nothing deliverable is left; a queued probe keeps it set, which
-			// is what has fleetd wake the device for the probe.
+			// is what has automdmd wake the device for the probe.
 			require.NoError(t, ds.MDMWindowsRefreshHasPendingCommands(ctx, in.device.ID))
 			device, err := ds.MDMWindowsGetEnrolledDeviceWithDeviceID(ctx, in.device.MDMDeviceID)
 			require.NoError(t, err)
@@ -196,7 +196,7 @@ func testWindowsSCEPStatusProbeQueuedOnAck(t *testing.T, ds *Datastore) {
 }
 
 func testWindowsSCEPStatusProbeRepeatedAck(t *testing.T, ds *Datastore) {
-	in := setUpWindowsSCEPInstall(t, ds, false, fleet.CAConfigNDES)
+	in := setUpWindowsSCEPInstall(t, ds, false, automdm.CAConfigNDES)
 
 	ackInstall(t, ds, in)
 	ackInstall(t, ds, in)
@@ -205,12 +205,12 @@ func testWindowsSCEPStatusProbeRepeatedAck(t *testing.T, ds *Datastore) {
 
 	answerProbe(t, ds, in, probes[0], "1", "0")
 	status, _, _ := readWindowsHostProfile(t, ds, in.device.HostUUID, in.profileUUID)
-	require.Equal(t, fleet.MDMDeliveryVerified, status)
+	require.Equal(t, automdm.MDMDeliveryVerified, status)
 
 	// A late repeat of the ACK must not send the delivery back to verifying.
 	ackInstall(t, ds, in)
 	status, _, _ = readWindowsHostProfile(t, ds, in.device.HostUUID, in.profileUUID)
-	assert.Equal(t, fleet.MDMDeliveryVerified, status)
+	assert.Equal(t, automdm.MDMDeliveryVerified, status)
 }
 
 func testApplyWindowsSCEPStatusProbeResults(t *testing.T, ds *Datastore) {
@@ -224,57 +224,57 @@ func testApplyWindowsSCEPStatusProbeResults(t *testing.T, ds *Datastore) {
 		attempt           int
 		retries           int
 		// installStatus and newerDelivery describe the profile row when the answer arrives.
-		installStatus fleet.MDMDeliveryStatus
+		installStatus automdm.MDMDeliveryStatus
 		newerDelivery bool
-		wantStatus    fleet.MDMDeliveryStatus
+		wantStatus    automdm.MDMDeliveryStatus
 		wantRetries   int
 		wantDetail    string
 		wantNextProbe bool
 	}{
 		{
 			name: "installed", status: "1", errorCode: "0", attempt: 1,
-			installStatus: fleet.MDMDeliveryVerifying, wantStatus: fleet.MDMDeliveryVerified,
+			installStatus: automdm.MDMDeliveryVerifying, wantStatus: automdm.MDMDeliveryVerified,
 		},
 		{
 			name: "still enrolling", status: "32", errorCode: "0", attempt: 1,
-			installStatus: fleet.MDMDeliveryVerifying, wantStatus: fleet.MDMDeliveryVerifying, wantNextProbe: true,
+			installStatus: automdm.MDMDeliveryVerifying, wantStatus: automdm.MDMDeliveryVerifying, wantNextProbe: true,
 		},
 		{
 			name: "still enrolling on the last attempt", status: "32", errorCode: "0", attempt: windowsSCEPStatusProbeMaxAttempts,
-			installStatus: fleet.MDMDeliveryVerifying, wantStatus: fleet.MDMDeliveryVerifying,
+			installStatus: automdm.MDMDeliveryVerifying, wantStatus: automdm.MDMDeliveryVerifying,
 		},
 		{
 			name: "node not found", attempt: 2,
-			installStatus: fleet.MDMDeliveryVerifying, wantStatus: fleet.MDMDeliveryVerifying, wantNextProbe: true,
+			installStatus: automdm.MDMDeliveryVerifying, wantStatus: automdm.MDMDeliveryVerifying, wantNextProbe: true,
 		},
 		{
 			name: "failed with retries left", status: "16", errorCode: "-2145844748", attempt: 1,
 			// Back to NULL (pending) so the profile manager redelivers it.
-			installStatus: fleet.MDMDeliveryVerifying, wantStatus: "", wantRetries: 1,
+			installStatus: automdm.MDMDeliveryVerifying, wantStatus: "", wantRetries: 1,
 		},
 		{
 			name: "failed with no retries left", status: "16", errorCode: "-2145844748", attempt: 1, retries: mdm.MaxWindowsProfileRetries,
-			installStatus: fleet.MDMDeliveryVerifying, wantStatus: fleet.MDMDeliveryFailed, wantRetries: mdm.MaxWindowsProfileRetries,
+			installStatus: automdm.MDMDeliveryVerifying, wantStatus: automdm.MDMDeliveryFailed, wantRetries: mdm.MaxWindowsProfileRetries,
 			wantDetail: "The host reported that the SCEP certificate isn't installed (error code 0x801901F4).",
 		},
 		{
 			name: "certificate removed after install", status: "16", errorCode: "-2146885628", attempt: 1, retries: mdm.MaxWindowsProfileRetries,
-			installStatus: fleet.MDMDeliveryVerifying, wantStatus: fleet.MDMDeliveryFailed, wantRetries: mdm.MaxWindowsProfileRetries,
+			installStatus: automdm.MDMDeliveryVerifying, wantStatus: automdm.MDMDeliveryFailed, wantRetries: mdm.MaxWindowsProfileRetries,
 			wantDetail: "The host reported that the SCEP certificate isn't installed (error code 0x80092004).",
 		},
 		{
 			name: "answer for an earlier delivery", status: "32", errorCode: "0", attempt: 1,
-			installStatus: fleet.MDMDeliveryVerifying, newerDelivery: true, wantStatus: fleet.MDMDeliveryVerifying,
+			installStatus: automdm.MDMDeliveryVerifying, newerDelivery: true, wantStatus: automdm.MDMDeliveryVerifying,
 		},
 		{
 			name: "proxy already failed the delivery", status: "1", errorCode: "0", attempt: 1, retries: mdm.MaxWindowsProfileRetries,
-			installStatus: fleet.MDMDeliveryFailed, wantStatus: fleet.MDMDeliveryFailed, wantRetries: mdm.MaxWindowsProfileRetries,
+			installStatus: automdm.MDMDeliveryFailed, wantStatus: automdm.MDMDeliveryFailed, wantRetries: mdm.MaxWindowsProfileRetries,
 		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			defer TruncateTables(t, ds)
-			in := setUpWindowsSCEPInstall(t, ds, false, fleet.CAConfigNDES)
+			in := setUpWindowsSCEPInstall(t, ds, false, automdm.CAConfigNDES)
 			cmdUUID := in.installCmdUUID
 			if c.newerDelivery {
 				cmdUUID = uuid.NewString()

@@ -13,23 +13,23 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fleetdm/fleet/tools/hangar/internal/fleetctl"
-	"github.com/fleetdm/fleet/tools/hangar/internal/installers"
-	"github.com/fleetdm/fleet/tools/hangar/internal/netinfo"
-	"github.com/fleetdm/fleet/tools/hangar/internal/paths"
-	"github.com/fleetdm/fleet/tools/hangar/internal/processes"
-	"github.com/fleetdm/fleet/tools/hangar/internal/settings"
-	"github.com/fleetdm/fleet/tools/hangar/internal/tuf"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/automdmctl"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/installers"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/netinfo"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/paths"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/processes"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/settings"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/tuf"
 )
 
-// InstallersService builds fleetd installers for a fleetctl context's Fleet
-// server (or a typed-in URL and secret), enrolling into a fleet picked from a
+// InstallersService builds automdmd installers for an automdmctl context's AutoMDM
+// server (or a typed-in URL and secret), enrolling into a team picked from a
 // scan of that server. One build runs at a time, as a tracked process.
 type InstallersService struct {
 	pm *processes.Manager
 
 	// starting is set while StartBuild is between its checks and pm.Start (a
-	// fleetctl --version can take a moment), so a double-click can't run two.
+	// automdmctl --version can take a moment), so a double-click can't run two.
 	startingMu sync.Mutex
 	starting   bool
 	// manifests tracks the previous build's manifest update, which runs just
@@ -44,16 +44,16 @@ func NewInstallersService(pm *processes.Manager) *InstallersService {
 }
 
 // InstallersContextInfo is what the tab needs for a context (or a manual
-// build) before any scan: where its packages go and which fleetctl builds them.
+// build) before any scan: where its packages go and which automdmctl builds them.
 type InstallersContextInfo struct {
-	Address        string `json:"address"`
-	OutputDir      string `json:"output_dir"`
-	OutputErr      string `json:"output_err"`
-	Fleetctl       string `json:"fleetctl"`
-	FleetctlExists bool   `json:"fleetctl_exists"`
-	// FleetctlServer names the Hangar server whose fleetctl builds this
-	// context's packages; "" means Hangar's default fleetctl.
-	FleetctlServer string `json:"fleetctl_server"`
+	Address          string `json:"address"`
+	OutputDir        string `json:"output_dir"`
+	OutputErr        string `json:"output_err"`
+	AutoMDMctl       string `json:"automdmctl"`
+	AutoMDMctlExists bool   `json:"automdmctl_exists"`
+	// AutoMDMctlServer names the Hangar server whose automdmctl builds this
+	// context's packages; "" means Hangar's default automdmctl.
+	AutoMDMctlServer string `json:"automdmctl_server"`
 }
 
 // InstallersLocalTUF says whether a local TUF build can be targeted, and the
@@ -70,9 +70,9 @@ func (s *InstallersService) InstallersOfficialChannels() installers.Channels {
 	return installers.OfficialChannels()
 }
 
-// InstallersContextInfo resolves a context's output folder and fleetctl. A
+// InstallersContextInfo resolves a context's output folder and automdmctl. A
 // context pointing at one of Hangar's servers builds with that server's
-// fleetctl; anything else (a remote server, a manual build) uses the fleetctl
+// automdmctl; anything else (a remote server, a manual build) uses the automdmctl
 // the rest of Hangar uses.
 func (s *InstallersService) InstallersContextInfo(contextName string, manual bool) (InstallersContextInfo, error) {
 	cur, err := loadSettings()
@@ -84,7 +84,7 @@ func (s *InstallersService) InstallersContextInfo(contextName string, manual boo
 	}
 	var info InstallersContextInfo
 	if contextName != "" {
-		if ctxInfo, err := fleetctl.ReadContext(fleetctl.DefaultConfigPath()); err == nil {
+		if ctxInfo, err := automdmctl.ReadContext(automdmctl.DefaultConfigPath()); err == nil {
 			for _, c := range ctxInfo.Contexts {
 				if c.Name == contextName && c.Address != nil {
 					info.Address = *c.Address
@@ -98,18 +98,18 @@ func (s *InstallersService) InstallersContextInfo(contextName string, manual boo
 		info.OutputDir = dir
 	}
 	if srv := installers.ServerForAddress(cur.Servers, info.Address); srv != nil && srv.WorktreePath != nil && *srv.WorktreePath != "" {
-		info.Fleetctl = filepath.Join(*srv.WorktreePath, "build", "fleetctl")
-		info.FleetctlServer = srv.Name
+		info.AutoMDMctl = filepath.Join(*srv.WorktreePath, "build", "automdmctl")
+		info.AutoMDMctlServer = srv.Name
 	} else {
 		settingsPath := ""
-		if cur.FleetctlPath != nil {
-			settingsPath = *cur.FleetctlPath
+		if cur.AutoMDMctlPath != nil {
+			settingsPath = *cur.AutoMDMctlPath
 		}
-		info.Fleetctl = fleetctl.ResolveBinary(primaryRepo(cur), settingsPath).Path
+		info.AutoMDMctl = automdmctl.ResolveBinary(primaryRepo(cur), settingsPath).Path
 	}
-	if info.Fleetctl != "" {
-		_, statErr := os.Stat(info.Fleetctl)
-		info.FleetctlExists = statErr == nil
+	if info.AutoMDMctl != "" {
+		_, statErr := os.Stat(info.AutoMDMctl)
+		info.AutoMDMctlExists = statErr == nil
 	}
 	return info, nil
 }
@@ -172,8 +172,8 @@ func (s *InstallersService) InstallersLocalTUF() InstallersLocalTUF {
 	return out
 }
 
-// InstallersScan reads a server's public URL, license and fleets (with which
-// ones have an enroll secret) through the named fleetctl context.
+// InstallersScan reads a server's public URL, license and teams (with which
+// ones have an enroll secret) through the named automdmctl context.
 func (s *InstallersService) InstallersScan(contextName string) (installers.ScanResult, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -186,9 +186,9 @@ func (s *InstallersService) InstallersScan(contextName string) (installers.ScanR
 
 func scanContext(ctx context.Context, contextName string) (installers.ScanResult, error) {
 	if strings.TrimSpace(contextName) == "" {
-		return installers.ScanResult{}, errors.New("pick a fleetctl context")
+		return installers.ScanResult{}, errors.New("pick an automdmctl context")
 	}
-	creds, err := fleetctl.ReadCredentials(fleetctl.DefaultConfigPath(), contextName)
+	creds, err := automdmctl.ReadCredentials(automdmctl.DefaultConfigPath(), contextName)
 	if err != nil {
 		return installers.ScanResult{}, err
 	}
@@ -204,9 +204,9 @@ func scanContext(ctx context.Context, contextName string) (installers.ScanResult
 	return res, nil
 }
 
-// InstallersFleetSecret returns the enroll secret of fleet teamID (nil =
-// Unassigned) through a fleetctl context, to fill the card's secret field.
-func (s *InstallersService) InstallersFleetSecret(contextName string, teamID *uint) (string, error) {
+// InstallersAutoMDMSecret returns the enroll secret of team teamID (nil =
+// Unassigned) through an automdmctl context, to fill the card's secret field.
+func (s *InstallersService) InstallersAutoMDMSecret(contextName string, teamID *uint) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	scan, err := scanContext(ctx, contextName)
@@ -217,7 +217,7 @@ func (s *InstallersService) InstallersFleetSecret(contextName string, teamID *ui
 	return secret, err
 }
 
-// InstallersCheckExtraFlags validates extra fleetctl flags as typed: "" when
+// InstallersCheckExtraFlags validates extra automdmctl flags as typed: "" when
 // they're usable, otherwise why not.
 func (s *InstallersService) InstallersCheckExtraFlags(flags string) string {
 	if _, err := installers.ParseExtraFlags(flags); err != nil {
@@ -227,8 +227,8 @@ func (s *InstallersService) InstallersCheckExtraFlags(flags string) string {
 }
 
 // InstallersStartBuild builds opts' platforms into the context's packages
-// folder, with exactly the Fleet URL and enroll secret in target. Files are
-// written by fleetctl and recorded in that folder's manifest.json once the
+// folder, with exactly the AutoMDM URL and enroll secret in target. Files are
+// written by automdmctl and recorded in that folder's manifest.json once the
 // build ends.
 func (s *InstallersService) InstallersStartBuild(contextName string, manual bool, target settings.InstallerTarget, opts settings.InstallerOptions) error {
 	if len(opts.Platforms) == 0 {
@@ -260,15 +260,15 @@ func (s *InstallersService) InstallersStartBuild(contextName string, manual bool
 	if info.OutputErr != "" {
 		return errors.New(info.OutputErr)
 	}
-	if !info.FleetctlExists {
-		return fmt.Errorf("fleetctl not built (%s) — build it from the Server tab", info.Fleetctl)
+	if !info.AutoMDMctlExists {
+		return fmt.Errorf("automdmctl not built (%s) — build it from the Server tab", info.AutoMDMctl)
 	}
-	in := installers.BuildInputs{FleetURL: strings.TrimSpace(target.FleetURL), EnrollSecret: strings.TrimSpace(target.EnrollSecret)}
-	if in.FleetURL == "" {
-		return errors.New("enter a Fleet URL")
+	in := installers.BuildInputs{AutoMDMURL: strings.TrimSpace(target.AutoMDMURL), EnrollSecret: strings.TrimSpace(target.EnrollSecret)}
+	if in.AutoMDMURL == "" {
+		return errors.New("enter an AutoMDM URL")
 	}
 	if in.EnrollSecret == "" {
-		return errors.New("enter an enroll secret (or pick a fleet to fill it in)")
+		return errors.New("enter an enroll secret (or pick a team to fill it in)")
 	}
 	if in.ExtraFlags, err = installers.ParseExtraFlags(opts.ExtraFlags); err != nil {
 		return err
@@ -286,14 +286,14 @@ func (s *InstallersService) InstallersStartBuild(contextName string, manual bool
 		if err != nil {
 			return err
 		}
-		roots, err := fleetctl.RunCapture(info.Fleetctl, "", []string{"updates", "roots", "--path", filepath.Join(repo, tuf.AssetsDir)}, nil, "", 30_000)
+		roots, err := automdmctl.RunCapture(info.AutoMDMctl, "", []string{"updates", "roots", "--path", filepath.Join(repo, tuf.AssetsDir)}, nil, "", 30_000)
 		if err != nil {
 			return fmt.Errorf("read local TUF root keys: %w", err)
 		}
 		if roots.ExitCode == nil || *roots.ExitCode != 0 {
 			return fmt.Errorf("read local TUF root keys: %s", strings.TrimSpace(roots.Stderr))
 		}
-		// Compact in case fleetctl ever pretty-prints: args must be single-line.
+		// Compact in case automdmctl ever pretty-prints: args must be single-line.
 		var compact bytes.Buffer
 		if err := json.Compact(&compact, []byte(strings.TrimSpace(roots.Stdout))); err != nil {
 			return fmt.Errorf("read local TUF root keys: %w", err)
@@ -320,30 +320,30 @@ func (s *InstallersService) InstallersStartBuild(contextName string, manual bool
 		return fmt.Errorf("write build script: %w", err)
 	}
 
-	jobs := installers.Jobs(installers.FleetSlug(target), info.OutputDir, opts)
+	jobs := installers.Jobs(installers.TeamSlug(target), info.OutputDir, opts)
 	entry := installers.ManifestEntry{
-		BuiltAt:         time.Now().UTC().Format(time.RFC3339),
-		Context:         contextName,
-		FleetURL:        in.FleetURL,
-		Team:            teamName,
-		FleetDesktop:    opts.FleetDesktop,
-		EnableScripts:   opts.EnableScripts,
-		Debug:           opts.Debug,
-		UpdateURL:       in.UpdateURL,
-		OrbitChannel:    channelOrStable(opts.OrbitChannel),
-		DesktopChannel:  channelOrStable(opts.DesktopChannel),
-		OsquerydChannel: channelOrStable(opts.OsquerydChannel),
-		FleetctlVersion: fleetctlVersion(info.Fleetctl),
-		ExtraFlags:      strings.Join(in.ExtraFlags, " "),
+		BuiltAt:           time.Now().UTC().Format(time.RFC3339),
+		Context:           contextName,
+		AutoMDMURL:        in.AutoMDMURL,
+		Team:              teamName,
+		AutoMDMDesktop:    opts.AutoMDMDesktop,
+		EnableScripts:     opts.EnableScripts,
+		Debug:             opts.Debug,
+		UpdateURL:         in.UpdateURL,
+		OrbitChannel:      channelOrStable(opts.OrbitChannel),
+		DesktopChannel:    channelOrStable(opts.DesktopChannel),
+		OsquerydChannel:   channelOrStable(opts.OsquerydChannel),
+		AutoMDMctlVersion: automdmctlVersion(info.AutoMDMctl),
+		ExtraFlags:        strings.Join(in.ExtraFlags, " "),
 	}
 	if entry.UpdateURL == "" {
 		entry.UpdateURL = "https://updates.fleetdm.com"
 	}
 
 	// The tab tells which context a build is for by this label.
-	label := "fleetd packages (manual)"
+	label := "automdmd packages (manual)"
 	if contextName != "" {
-		label = "fleetd packages (" + contextName + ")"
+		label = "automdmd packages (" + contextName + ")"
 	}
 	s.manifests.Wait()
 	_ = s.pm.ClearLogChannel(installers.LogChannel)
@@ -355,7 +355,7 @@ func (s *InstallersService) InstallersStartBuild(contextName string, manual bool
 		Program: "bash",
 		Args:    []string{script},
 		Env: []processes.EnvPair{
-			{Key: "HANGAR_FLEETCTL", Value: info.Fleetctl},
+			{Key: "HANGAR_AUTOMDMCTL", Value: info.AutoMDMctl},
 			{Key: "HANGAR_JOBS", Value: installers.EncodeJobs(jobs)},
 			{Key: "HANGAR_COMMON_ARGS", Value: strings.Join(args, "\n")},
 		},
@@ -380,9 +380,9 @@ func (s *InstallersService) InstallersStartBuild(contextName string, manual bool
 // re-implementing them.
 func (s *InstallersService) InstallersPlannedFiles(target settings.InstallerTarget, opts settings.InstallerOptions) map[string]string {
 	out := make(map[string]string, len(installers.Platforms))
-	fleet := installers.FleetSlug(target)
+	automdm := installers.TeamSlug(target)
 	for _, p := range installers.Platforms {
-		out[p.Key] = installers.FileName(fleet, p, opts)
+		out[p.Key] = installers.FileName(automdm, p, opts)
 	}
 	return out
 }
@@ -420,10 +420,10 @@ func channelOrStable(ch string) string {
 	return ch
 }
 
-// fleetctlVersion is the first line of `fleetctl --version`, or "" if it
+// automdmctlVersion is the first line of `automdmctl --version`, or "" if it
 // can't be read.
-func fleetctlVersion(bin string) string {
-	run, err := fleetctl.RunCapture(bin, "", []string{"--version"}, nil, "", 10_000)
+func automdmctlVersion(bin string) string {
+	run, err := automdmctl.RunCapture(bin, "", []string{"--version"}, nil, "", 10_000)
 	if err != nil {
 		return ""
 	}

@@ -1,11 +1,11 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 
 $exeFilePath = "${env:INSTALLER_PATH}"
 
 try {
 
-# Setup can't replace Typora's files while they're in use. Fleet runs as SYSTEM,
+# Setup can't replace Typora's files while they're in use. AutoMDM runs as SYSTEM,
 # outside the user's session, so it can't ask the app to close: stop it first.
 # Unsaved changes are lost.
 $running = Get-Process -ErrorAction SilentlyContinue |

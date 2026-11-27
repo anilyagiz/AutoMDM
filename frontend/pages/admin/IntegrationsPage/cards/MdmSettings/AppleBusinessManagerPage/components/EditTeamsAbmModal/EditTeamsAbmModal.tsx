@@ -26,7 +26,7 @@ interface IEditTeamsAbmModalProps {
  */
 export const getOptions = (availableTeams: ITeamSummary[] = []) => {
   return availableTeams
-    ?.filter((t) => t.name !== "All fleets")
+    ?.filter((t) => t.name !== "All teams")
     .map((t) => ({
       value: t.name,
       label: t.name,
@@ -38,10 +38,10 @@ export const getOptions = (availableTeams: ITeamSummary[] = []) => {
  * returned by the get token API.
  */
 interface SelectedTeamNames {
-  ios_team: IMdmAbToken["ios_fleet"]["name"];
-  ipados_team: IMdmAbToken["ipados_fleet"]["name"];
-  macos_team: IMdmAbToken["macos_fleet"]["name"];
-  byod_team: IMdmAbToken["byod_fleet"]["name"];
+  ios_team: IMdmAbToken["ios_team"]["name"];
+  ipados_team: IMdmAbToken["ipados_team"]["name"];
+  macos_team: IMdmAbToken["macos_team"]["name"];
+  byod_team: IMdmAbToken["byod_team"]["name"];
 }
 
 /**
@@ -65,10 +65,10 @@ export const getSelectedTeamIds = (
     return acc;
   }, {} as Record<string, number>);
   return {
-    ios_fleet_id: byName[ios_team],
-    ipados_fleet_id: byName[ipados_team],
-    macos_fleet_id: byName[macos_team],
-    byod_fleet_id: byName[byod_team],
+    ios_team_id: byName[ios_team],
+    ipados_team_id: byName[ipados_team],
+    macos_team_id: byName[macos_team],
+    byod_team_id: byName[byod_team],
   };
 };
 
@@ -83,16 +83,16 @@ const EditTeamsAbmModal = ({
 
   const [selectedTeamNames, setSelectedTeamNames] = useState<SelectedTeamNames>(
     {
-      ios_team: token.ios_fleet.name,
-      ipados_team: token.ipados_fleet.name,
-      macos_team: token.macos_fleet.name,
-      byod_team: token.byod_fleet.name,
+      ios_team: token.ios_team.name,
+      ipados_team: token.ipados_team.name,
+      macos_team: token.macos_team.name,
+      byod_team: token.byod_team.name,
     }
   );
 
   const options = useMemo(() => {
     return availableTeams
-      ?.filter((t) => t.name !== "All fleets")
+      ?.filter((t) => t.name !== "All teams")
       .map((t) => ({
         value: t.name,
         label: t.name,
@@ -109,7 +109,7 @@ const EditTeamsAbmModal = ({
           tokenId: token.id,
           teams: getSelectedTeamIds(selectedTeamNames, availableTeams),
         });
-        notify.success(`Successfully updated fleets for ${token.org_name}`);
+        notify.success(`Successfully updated teams for ${token.org_name}`);
         onSuccess();
       } catch (e) {
         notify.error("Couldn’t edit. Please try again.", { response: e });
@@ -151,7 +151,7 @@ const EditTeamsAbmModal = ({
             setSelectedTeamNames((prev) => ({ ...prev, macos_team: value }));
           }}
           value={selectedTeamNames.macos_team}
-          label="macOS fleet"
+          label="macOS team"
           wrapperClassName={`${baseClass}__form-field form-field--macos`}
         />
         <Dropdown
@@ -161,7 +161,7 @@ const EditTeamsAbmModal = ({
             setSelectedTeamNames((prev) => ({ ...prev, ios_team: value }));
           }}
           value={selectedTeamNames.ios_team}
-          label="iOS fleet"
+          label="iOS team"
           wrapperClassName={`${baseClass}__form-field form-field--ios`}
         />
         <Dropdown
@@ -171,7 +171,7 @@ const EditTeamsAbmModal = ({
             setSelectedTeamNames((prev) => ({ ...prev, ipados_team: value }))
           }
           value={selectedTeamNames.ipados_team}
-          label="iPadOS fleet"
+          label="iPadOS team"
           wrapperClassName={`${baseClass}__form-field form-field--ipados`}
         />
         <Dropdown
@@ -181,7 +181,7 @@ const EditTeamsAbmModal = ({
             setSelectedTeamNames((prev) => ({ ...prev, byod_team: value }))
           }
           value={selectedTeamNames.byod_team}
-          label="BYOD fleet"
+          label="BYOD team"
           wrapperClassName={`${baseClass}__form-field form-field--byod`}
         />
         <div className="modal-cta-wrap">

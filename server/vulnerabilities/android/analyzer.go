@@ -11,9 +11,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/utils"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/utils"
 )
 
 const vulnBatchSize = 500
@@ -22,11 +22,11 @@ const vulnBatchSize = 500
 // requested major version.
 var errArtifactNotFound = errors.New("no Android OSV artifact found")
 
-// OSVulnStore is the subset of fleet.Datastore needed by the Android analyzer.
+// OSVulnStore is the subset of automdm.Datastore needed by the Android analyzer.
 type OSVulnStore interface {
-	ListOSVulnerabilitiesByOS(ctx context.Context, osID uint) ([]fleet.OSVulnerability, error)
-	InsertOSVulnerabilities(ctx context.Context, vulns []fleet.OSVulnerability, source fleet.VulnerabilitySource) (int64, error)
-	DeleteOSVulnerabilities(ctx context.Context, vulns []fleet.OSVulnerability) error
+	ListOSVulnerabilitiesByOS(ctx context.Context, osID uint) ([]automdm.OSVulnerability, error)
+	InsertOSVulnerabilities(ctx context.Context, vulns []automdm.OSVulnerability, source automdm.VulnerabilitySource) (int64, error)
+	DeleteOSVulnerabilities(ctx context.Context, vulns []automdm.OSVulnerability) error
 }
 
 type ArtifactCache struct {
@@ -78,12 +78,12 @@ type AndroidArtifact struct {
 func Analyze(
 	ctx context.Context,
 	ds OSVulnStore,
-	os fleet.OperatingSystem,
+	os automdm.OperatingSystem,
 	vulnPath string,
 	collectVulns bool,
 	logger *slog.Logger,
 	cache *ArtifactCache,
-) ([]fleet.OSVulnerability, error) {
+) ([]automdm.OSVulnerability, error) {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -116,16 +116,16 @@ func Analyze(
 	}
 
 	// Match: host is vulnerable if its SPL is before the fix's SPL.
-	var found []fleet.OSVulnerability
+	var found []automdm.OSVulnerability
 	for _, vuln := range artifact.Vulnerabilities {
 		if vuln.FixedSPL == "" {
 			continue
 		}
 		if hostSPL < vuln.FixedSPL {
-			found = append(found, fleet.OSVulnerability{
+			found = append(found, automdm.OSVulnerability{
 				OSID:              os.ID,
 				CVE:               vuln.CVE,
-				Source:            fleet.AndroidOSVSource,
+				Source:            automdm.AndroidOSVSource,
 				ResolvedInVersion: resolvedVersion(majorVersion, vuln.FixedSPL),
 			})
 		}
@@ -138,37 +138,37 @@ func Analyze(
 	}
 
 	// Filter existing to only our source so we don't interfere with other analyzers.
-	var existingAndroid []fleet.OSVulnerability
+	var existingAndroid []automdm.OSVulnerability
 	for _, v := range existing {
-		if v.Source == fleet.AndroidOSVSource {
+		if v.Source == automdm.AndroidOSVSource {
 			existingAndroid = append(existingAndroid, v)
 		}
 	}
 
 	toInsert, toDelete := utils.VulnsDelta(found, existingAndroid)
 
-	toInsertMap := make(map[string]fleet.OSVulnerability, len(toInsert))
+	toInsertMap := make(map[string]automdm.OSVulnerability, len(toInsert))
 	for _, v := range toInsert {
 		toInsertMap[v.Key()] = v
 	}
-	toDeleteMap := make(map[string]fleet.OSVulnerability, len(toDelete))
+	toDeleteMap := make(map[string]automdm.OSVulnerability, len(toDelete))
 	for _, v := range toDelete {
 		toDeleteMap[v.Key()] = v
 	}
 
-	if err := utils.BatchProcess(toDeleteMap, func(v []fleet.OSVulnerability) error {
+	if err := utils.BatchProcess(toDeleteMap, func(v []automdm.OSVulnerability) error {
 		return ds.DeleteOSVulnerabilities(ctx, v)
 	}, vulnBatchSize); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "deleting stale Android OS vulnerabilities")
 	}
 
-	var inserted []fleet.OSVulnerability
+	var inserted []automdm.OSVulnerability
 	if collectVulns {
-		inserted = make([]fleet.OSVulnerability, 0, len(toInsertMap))
+		inserted = make([]automdm.OSVulnerability, 0, len(toInsertMap))
 	}
 
-	if err := utils.BatchProcess(toInsertMap, func(v []fleet.OSVulnerability) error {
-		n, err := ds.InsertOSVulnerabilities(ctx, v, fleet.AndroidOSVSource)
+	if err := utils.BatchProcess(toInsertMap, func(v []automdm.OSVulnerability) error {
+		n, err := ds.InsertOSVulnerabilities(ctx, v, automdm.AndroidOSVSource)
 		if err != nil {
 			return err
 		}

@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
 type alreadyExistsError struct {
-	fleet.ErrorWithUUID
+	automdm.ErrorWithUUID
 }
 
 func (a *alreadyExistsError) Error() string {
@@ -28,7 +28,7 @@ func newAlreadyExistsError() *alreadyExistsError {
 }
 
 type notFoundError struct {
-	fleet.ErrorWithUUID
+	automdm.ErrorWithUUID
 }
 
 func (e *notFoundError) Error() string {
@@ -67,7 +67,7 @@ type ssoError struct {
 	err  error
 	code ssoErrCode
 
-	fleet.ErrorWithUUID
+	automdm.ErrorWithUUID
 }
 
 func newSSOError(err error, code ssoErrCode) *ssoError {

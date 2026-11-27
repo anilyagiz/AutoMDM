@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/anilyagiz/automdm/v4/server/logging/mock"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
-	"github.com/fleetdm/fleet/v4/server/logging/mock"
 	"github.com/stretchr/testify/assert"
 )
 

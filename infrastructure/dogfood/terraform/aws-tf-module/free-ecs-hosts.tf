@@ -20,7 +20,7 @@ locals {
 
 # ECR to store the images
 resource "aws_iam_role" "osquery" {
-  name               = "fleet-free-osquery-execution"
+  name               = "automdm-free-osquery-execution"
   description        = "IAM Execution role for osquery containers"
   assume_role_policy = data.aws_iam_policy_document.osquery_assume_role.json
 }

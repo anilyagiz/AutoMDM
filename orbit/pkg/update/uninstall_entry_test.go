@@ -3,25 +3,25 @@ package update
 import (
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/constant"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/constant"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestIsFleetdUninstallEntry(t *testing.T) {
+func TestIsAutoMDMdUninstallEntry(t *testing.T) {
 	for _, tc := range []struct {
 		displayName, publisher string
 		want                   bool
 	}{
-		{"Fleet", constant.AgentPublisher, true},
-		{"Fleet osquery", constant.AgentPublisher, true},
-		{"Fleet osquery", "", true},
-		{"Fleet", "JetBrains s.r.o.", false},
-		{"Fleet", "", false},
-		{"fleet", constant.AgentPublisher, false},
-		{"Fleet Desktop", constant.AgentPublisher, false},
+		{"AutoMDM", constant.AgentPublisher, true},
+		{"AutoMDM osquery", constant.AgentPublisher, true},
+		{"AutoMDM osquery", "", true},
+		{"AutoMDM", "JetBrains s.r.o.", false},
+		{"AutoMDM", "", false},
+		{"automdm", constant.AgentPublisher, false},
+		{"AutoMDM Desktop", constant.AgentPublisher, false},
 		{"osquery", "osquery", false},
 	} {
-		assert.Equal(t, tc.want, isFleetdUninstallEntry(tc.displayName, tc.publisher), "%q by %q", tc.displayName, tc.publisher)
+		assert.Equal(t, tc.want, isAutoMDMdUninstallEntry(tc.displayName, tc.publisher), "%q by %q", tc.displayName, tc.publisher)
 	}
 }
 

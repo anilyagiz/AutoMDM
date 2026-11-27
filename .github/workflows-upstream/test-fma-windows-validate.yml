@@ -1,9 +1,9 @@
-# Reusable workflow that installs and validates a set of Windows Fleet-maintained
+# Reusable workflow that installs and validates a set of Windows AutoMDM-maintained
 # apps on a runner whose native architecture matches the apps' installer
 # architecture (arm64 apps on windows-11-arm, x64/x86/neutral apps on the x64
 # runner). Called by test-fma-windows-pr-only.yml and test-fma-windows.yml with
 # a matrix produced by .github/scripts/partition-fma-apps.sh.
-name: Validate Fleet Maintained Apps - Windows
+name: Validate AutoMDM Maintained Apps - Windows
 
 on:
   workflow_call:
@@ -42,17 +42,17 @@ jobs:
 
       # Changed-app detection and architecture partitioning happen in the
       # calling workflow on a Linux runner, so no git history is needed here.
-      - name: Checkout Fleet
+      - name: Checkout AutoMDM
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 1
-          path: fleet
+          path: automdm
           persist-credentials: false
 
       - name: Setup Go
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
-          go-version-file: "fleet/go.mod"
+          go-version-file: "automdm/go.mod"
 
       - name: Determine pre-installed apps to remove
         id: check-windows-apps
@@ -538,7 +538,7 @@ jobs:
         env:
           SLUGS_JSON: ${{ inputs.slugs }}
         run: |
-          cd fleet
+          cd automdm
           # Set GITHUB_WORKSPACE to current directory so scripts can find files
           $env:GITHUB_WORKSPACE = (Get-Location).Path
 
@@ -675,7 +675,7 @@ jobs:
           # python.org installer fails over the same or a newer patch release (1603 /
           # 1638), so remove both architectures with the FMA's own uninstall scripts.
           foreach ($script in "python_3_13_uninstall.ps1", "python_3_13_arm64_uninstall.ps1") {
-            $path = "fleet\ee\maintained-apps\inputs\winget\scripts\$script"
+            $path = "automdm\ee\maintained-apps\inputs\winget\scripts\$script"
             if (-not (Test-Path $path)) { continue }
             & $path
             Write-Host "$script exited $LASTEXITCODE"
@@ -687,7 +687,7 @@ jobs:
         # -buildvcs=false so 'go run' does not invoke git for VCS stamping: the
         # "Remove pre-installed Git" step above may have removed git from the runner.
         run: |
-          cd fleet
+          cd automdm
           $env:GITHUB_WORKSPACE = (Get-Location).Path
 
           # Run validation

@@ -9,13 +9,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/optjson"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/pkg/optjson"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,10 +30,10 @@ func TestStatistics(t *testing.T) {
 	}{
 		{"ShouldSend", testStatisticsShouldSend},
 		{"ConditionalAccessStatistics", testConditionalAccessStatistics},
-		{"FleetMaintainedAppsInUse", testFleetMaintainedAppsInUse},
+		{"AutoMDMMaintainedAppsInUse", testAutoMDMMaintainedAppsInUse},
 		{"PoliciesAutomationEnabledSoftware", testPoliciesAutomationEnabledSoftware},
 		{"GitOpsModeStatistics", testGitOpsModeStatistics},
-		{"FleetMDMEnrolled", testStatisticsFleetMDMEnrolled},
+		{"AutoMDMMDMEnrolled", testStatisticsAutoMDMMDMEnrolled},
 		{"MDMProfileCounts", testStatisticsMDMProfileCounts},
 		{"ThirdPartyIntegrations", testStatisticsThirdPartyIntegrations},
 		{"AIGeneratedProfileCounts", testStatisticsAIGeneratedProfileCounts},
@@ -58,10 +58,10 @@ func testStatisticsShouldSend(t *testing.T, ds *Datastore) {
 	ctxb := context.Background()
 	ctx := ctxerr.NewContext(ctxb, eh)
 
-	fleetConfig := config.FleetConfig{Osquery: config.OsqueryConfig{DetailUpdateInterval: 1 * time.Hour}}
+	automdmConfig := config.AutoMDMConfig{Osquery: config.OsqueryConfig{DetailUpdateInterval: 1 * time.Hour}}
 
-	premiumLicense := &fleet.LicenseInfo{Tier: fleet.TierPremium, Organization: "Fleet"}
-	freeLicense := &fleet.LicenseInfo{Tier: fleet.TierFree}
+	premiumLicense := &automdm.LicenseInfo{Tier: automdm.TierPremium, Organization: "AutoMDM"}
+	freeLicense := &automdm.LicenseInfo{Tier: automdm.TierFree}
 
 	var builtinLabels int
 	ExecAdhocSQL(t, ds, func(q sqlx.ExtContext) error {
@@ -69,11 +69,11 @@ func testStatisticsShouldSend(t *testing.T, ds *Datastore) {
 	})
 
 	// First time running with no hosts
-	stats, shouldSend, err := ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), time.Millisecond, fleetConfig)
+	stats, shouldSend, err := ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), time.Millisecond, automdmConfig)
 	require.NoError(t, err)
 	assert.True(t, shouldSend)
 	assert.Equal(t, "premium", stats.LicenseTier)
-	assert.Equal(t, "Fleet", stats.Organization)
+	assert.Equal(t, "AutoMDM", stats.Organization)
 	assert.Equal(t, 0, stats.NumHostsEnrolled)
 	assert.Equal(t, 0, stats.NumHostsABMPending)
 	assert.Equal(t, 0, stats.NumUsers)
@@ -95,8 +95,8 @@ func testStatisticsShouldSend(t *testing.T, ds *Datastore) {
 	assert.Equal(t, 0, stats.NumWeeklyPolicyViolationDaysActual)
 	assert.Equal(t, 0, stats.NumWeeklyPolicyViolationDaysPossible)
 	assert.Equal(t, `[{"count":10,"loc":["a","b","c"]}]`, string(stats.StoredErrors))
-	assert.Equal(t, []fleet.HostsCountByOsqueryVersion{}, stats.HostsEnrolledByOsqueryVersion) // should be empty slice instead of nil
-	assert.Equal(t, []fleet.HostsCountByOrbitVersion{}, stats.HostsEnrolledByOrbitVersion)     // should be empty slice instead of nil
+	assert.Equal(t, []automdm.HostsCountByOsqueryVersion{}, stats.HostsEnrolledByOsqueryVersion) // should be empty slice instead of nil
+	assert.Equal(t, []automdm.HostsCountByOrbitVersion{}, stats.HostsEnrolledByOrbitVersion)     // should be empty slice instead of nil
 	assert.Equal(t, false, stats.MDMMacOsEnabled)
 	assert.Equal(t, false, stats.HostExpiryEnabled)
 	assert.Equal(t, false, stats.MDMWindowsEnabled)
@@ -105,13 +105,13 @@ func testStatisticsShouldSend(t *testing.T, ds *Datastore) {
 	assert.Equal(t, false, stats.AIFeaturesDisabled)
 	assert.Equal(t, false, stats.MaintenanceWindowsEnabled)
 	assert.Equal(t, false, stats.MaintenanceWindowsConfigured)
-	assert.Equal(t, 0, stats.NumHostsFleetDesktopEnabled)
+	assert.Equal(t, 0, stats.NumHostsAutoMDMDesktopEnabled)
 	assert.False(t, stats.OktaConditionalAccessConfigured)
 	assert.False(t, stats.ConditionalAccessBypassDisabled)
 	assert.False(t, stats.ConditionalAccessEnabled)
 	assert.False(t, stats.EntraConditionalAccessConfigured)
 	assert.False(t, stats.GitOpsModeEnabled)
-	assert.False(t, stats.FleetDesktopSSOEnabled)
+	assert.False(t, stats.AutoMDMDesktopSSOEnabled)
 	// Existing-install defaults applied by migration 20260323144117_AddGitOpsExceptionsToAppConfig
 	// (labels + secrets on, software off) and baked into the dumped test schema.
 	assert.Equal(t, []string{"labels", "secrets"}, stats.GitOpsModeExceptions)
@@ -130,7 +130,7 @@ func testStatisticsShouldSend(t *testing.T, ds *Datastore) {
 	assert.False(t, stats.AnyHostActivitiesWebhookEnabled)
 	assert.False(t, stats.GlobalActivityWebhookEnabled)
 	assert.False(t, stats.TicketDestinationConfigured)
-	assert.False(t, stats.SSOConfiguredFleetUsers)
+	assert.False(t, stats.SSOConfiguredTeamUsers)
 	assert.False(t, stats.SSOConfiguredEndUsers)
 	assert.False(t, stats.AccountProvisioningConfigured)
 	assert.False(t, stats.IDPSCIMConfigured)
@@ -143,7 +143,7 @@ func testStatisticsShouldSend(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// Create new host for test
-	h1, err := ds.NewHost(ctx, &fleet.Host{
+	h1, err := ds.NewHost(ctx, &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -166,20 +166,20 @@ func testStatisticsShouldSend(t *testing.T, ds *Datastore) {
 	)
 
 	// Create two new users for test
-	u1, err := ds.NewUser(ctx, &fleet.User{
+	u1, err := ds.NewUser(ctx, &automdm.User{
 		Password:                 []byte("foobar"),
 		AdminForcedPasswordReset: false,
 		Email:                    "baz@example.com",
 		SSOEnabled:               false,
-		GlobalRole:               ptr.String(fleet.RoleObserver),
+		GlobalRole:               ptr.String(automdm.RoleObserver),
 	})
 	require.NoError(t, err)
-	_, err = ds.NewUser(ctx, &fleet.User{
+	_, err = ds.NewUser(ctx, &automdm.User{
 		Password:                 []byte("foobar"),
 		AdminForcedPasswordReset: false,
 		Email:                    "qux@example.com",
 		SSOEnabled:               false,
-		GlobalRole:               ptr.String(fleet.RoleObserver),
+		GlobalRole:               ptr.String(automdm.RoleObserver),
 	})
 	require.NoError(t, err)
 	// Create a session for user baz, but not qux (so only 1 is active)
@@ -187,14 +187,14 @@ func testStatisticsShouldSend(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// Create new team for test
-	_, err = ds.NewTeam(ctx, &fleet.Team{
+	_, err = ds.NewTeam(ctx, &automdm.Team{
 		Name:        "footeam",
 		Description: "team of foo",
 	})
 	require.NoError(t, err)
 
 	// Create new global policy for test
-	_, err = ds.NewGlobalPolicy(ctx, ptr.Uint(1), fleet.PolicyPayload{
+	_, err = ds.NewGlobalPolicy(ctx, ptr.Uint(1), automdm.PolicyPayload{
 		Name:        "testpolicy",
 		Query:       "select 1;",
 		Description: "test policy desc",
@@ -203,7 +203,7 @@ func testStatisticsShouldSend(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// Create new label for test
-	_, err = ds.NewLabel(ctx, &fleet.Label{
+	_, err = ds.NewLabel(ctx, &automdm.Label{
 		Name:        "testlabel",
 		Query:       "select 1;",
 		Platform:    "darwin",
@@ -212,8 +212,8 @@ func testStatisticsShouldSend(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// Create new app cfg for test
-	cfg, err := ds.NewAppConfig(ctx, &fleet.AppConfig{
-		OrgInfo: fleet.OrgInfo{
+	cfg, err := ds.NewAppConfig(ctx, &automdm.AppConfig{
+		OrgInfo: automdm.OrgInfo{
 			OrgName:            "Test",
 			OrgLogoURLDarkMode: "localhost:8080/logo.png",
 		},
@@ -248,13 +248,13 @@ func testStatisticsShouldSend(t *testing.T, ds *Datastore) {
 	time.Sleep(1100 * time.Millisecond) // ensure the DB timestamp is not in the same second
 
 	// Running with 1 host
-	stats, shouldSend, err = ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), time.Millisecond, fleetConfig)
+	stats, shouldSend, err = ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), time.Millisecond, automdmConfig)
 	require.NoError(t, err)
 	assert.True(t, shouldSend)
 	assert.NotEmpty(t, stats.AnonymousIdentifier)
-	assert.NotEmpty(t, stats.FleetVersion)
+	assert.NotEmpty(t, stats.AutoMDMVersion)
 	assert.Equal(t, "premium", stats.LicenseTier)
-	assert.Equal(t, "Fleet", stats.Organization)
+	assert.Equal(t, "AutoMDM", stats.Organization)
 	assert.Equal(t, 1, stats.NumHostsEnrolled)
 	assert.Equal(t, 0, stats.NumHostsABMPending)
 	assert.Equal(t, 2, stats.NumUsers)
@@ -276,12 +276,12 @@ func testStatisticsShouldSend(t *testing.T, ds *Datastore) {
 	assert.Equal(t, 5, stats.NumWeeklyPolicyViolationDaysActual)
 	assert.Equal(t, 10, stats.NumWeeklyPolicyViolationDaysPossible)
 	assert.Equal(t, `[{"count":10,"loc":["a","b","c"]}]`, string(stats.StoredErrors))
-	assert.Equal(t, []fleet.HostsCountByOsqueryVersion{{OsqueryVersion: "4.9.0", NumHosts: 1}}, stats.HostsEnrolledByOsqueryVersion)
-	assert.Equal(t, []fleet.HostsCountByOrbitVersion{{OrbitVersion: "1.1.0", NumHosts: 1}}, stats.HostsEnrolledByOrbitVersion)
+	assert.Equal(t, []automdm.HostsCountByOsqueryVersion{{OsqueryVersion: "4.9.0", NumHosts: 1}}, stats.HostsEnrolledByOsqueryVersion)
+	assert.Equal(t, []automdm.HostsCountByOrbitVersion{{OrbitVersion: "1.1.0", NumHosts: 1}}, stats.HostsEnrolledByOrbitVersion)
 	assert.Equal(t, false, stats.AIFeaturesDisabled)
 	assert.Equal(t, false, stats.MaintenanceWindowsEnabled)
 	assert.Equal(t, false, stats.MaintenanceWindowsConfigured)
-	assert.Equal(t, 1, stats.NumHostsFleetDesktopEnabled)
+	assert.Equal(t, 1, stats.NumHostsAutoMDMDesktopEnabled)
 	assert.False(t, stats.OktaConditionalAccessConfigured)
 	assert.False(t, stats.ConditionalAccessBypassDisabled)
 	assert.False(t, stats.ConditionalAccessEnabled)
@@ -291,14 +291,14 @@ func testStatisticsShouldSend(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// If we try right away, it shouldn't ask to send
-	stats, shouldSend, err = ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), fleet.StatisticsFrequency, fleetConfig)
+	stats, shouldSend, err = ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), automdm.StatisticsFrequency, automdmConfig)
 	require.NoError(t, err)
 	assert.False(t, shouldSend)
 
 	time.Sleep(1100 * time.Millisecond) // ensure the DB timestamp is not in the same second
 
 	// create a few more hosts, with platforms and os versions
-	_, err = ds.NewHost(ctx, &fleet.Host{
+	_, err = ds.NewHost(ctx, &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -314,7 +314,7 @@ func testStatisticsShouldSend(t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 
-	_, err = ds.NewHost(ctx, &fleet.Host{
+	_, err = ds.NewHost(ctx, &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -330,7 +330,7 @@ func testStatisticsShouldSend(t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 
-	_, err = ds.NewHost(ctx, &fleet.Host{
+	_, err = ds.NewHost(ctx, &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -346,7 +346,7 @@ func testStatisticsShouldSend(t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 
-	_, err = ds.NewHost(ctx, &fleet.Host{
+	_, err = ds.NewHost(ctx, &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -363,12 +363,12 @@ func testStatisticsShouldSend(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// Lower the frequency to trigger an "outdated" sent
-	stats, shouldSend, err = ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), time.Millisecond, fleetConfig)
+	stats, shouldSend, err = ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), time.Millisecond, automdmConfig)
 	require.NoError(t, err)
 	assert.True(t, shouldSend)
 	assert.Equal(t, firstIdentifier, stats.AnonymousIdentifier)
 	assert.Equal(t, "premium", stats.LicenseTier)
-	assert.Equal(t, "Fleet", stats.Organization)
+	assert.Equal(t, "AutoMDM", stats.Organization)
 	assert.Equal(t, 5, stats.NumHostsEnrolled)
 	assert.Equal(t, 0, stats.NumHostsABMPending)
 	assert.Equal(t, 2, stats.NumUsers)
@@ -382,21 +382,21 @@ func testStatisticsShouldSend(t *testing.T, ds *Datastore) {
 	assert.Equal(t, 0, stats.NumWeeklyActiveUsers)          // no active user since last stats were sent
 	require.Len(t, stats.HostsEnrolledByOperatingSystem, 3) // empty platform, rhel and macos
 	assert.Equal(t, 5, stats.NumWeeklyPolicyViolationDaysActual)
-	require.ElementsMatch(t, []fleet.HostsCountByOSVersion{
+	require.ElementsMatch(t, []automdm.HostsCountByOSVersion{
 		{Version: "Fedora 35", NumEnrolled: 2},
 		{Version: "Fedora 36", NumEnrolled: 1},
 	}, stats.HostsEnrolledByOperatingSystem["rhel"])
-	require.ElementsMatch(t, []fleet.HostsCountByOSVersion{
+	require.ElementsMatch(t, []automdm.HostsCountByOSVersion{
 		{Version: "10.11.12", NumEnrolled: 1},
 	}, stats.HostsEnrolledByOperatingSystem["macos"])
-	require.ElementsMatch(t, []fleet.HostsCountByOSVersion{
+	require.ElementsMatch(t, []automdm.HostsCountByOSVersion{
 		{Version: "", NumEnrolled: 1},
 	}, stats.HostsEnrolledByOperatingSystem[""])
 	assert.Equal(t, `[{"count":10,"loc":["a","b","c"]}]`, string(stats.StoredErrors))
 	assert.Equal(t, false, stats.AIFeaturesDisabled)
 	assert.Equal(t, false, stats.MaintenanceWindowsEnabled)
 	assert.Equal(t, false, stats.MaintenanceWindowsConfigured)
-	assert.Equal(t, 1, stats.NumHostsFleetDesktopEnabled)
+	assert.Equal(t, 1, stats.NumHostsAutoMDMDesktopEnabled)
 	assert.False(t, stats.OktaConditionalAccessConfigured)
 	assert.False(t, stats.ConditionalAccessBypassDisabled)
 	assert.False(t, stats.ConditionalAccessEnabled)
@@ -417,12 +417,12 @@ func testStatisticsShouldSend(t *testing.T, ds *Datastore) {
 	// wait a bit and resend statistics
 	time.Sleep(1100 * time.Millisecond) // ensure the DB timestamp is not in the same second
 
-	stats, shouldSend, err = ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), time.Millisecond, fleetConfig)
+	stats, shouldSend, err = ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), time.Millisecond, automdmConfig)
 	require.NoError(t, err)
 	assert.True(t, shouldSend)
 	assert.Equal(t, stats.AnonymousIdentifier, firstIdentifier)
 	assert.Equal(t, "premium", stats.LicenseTier)
-	assert.Equal(t, "Fleet", stats.Organization)
+	assert.Equal(t, "AutoMDM", stats.Organization)
 	assert.Equal(t, 5, stats.NumHostsEnrolled)
 	assert.Equal(t, 0, stats.NumHostsABMPending)
 	assert.Equal(t, 2, stats.NumUsers)
@@ -440,14 +440,14 @@ func testStatisticsShouldSend(t *testing.T, ds *Datastore) {
 	assert.Equal(t, false, stats.AIFeaturesDisabled)
 	assert.Equal(t, false, stats.MaintenanceWindowsEnabled)
 	assert.Equal(t, false, stats.MaintenanceWindowsConfigured)
-	assert.Equal(t, 1, stats.NumHostsFleetDesktopEnabled)
+	assert.Equal(t, 1, stats.NumHostsAutoMDMDesktopEnabled)
 	assert.False(t, stats.OktaConditionalAccessConfigured)
 	assert.False(t, stats.ConditionalAccessBypassDisabled)
 	assert.False(t, stats.ConditionalAccessEnabled)
 	assert.False(t, stats.EntraConditionalAccessConfigured)
 
 	// Add host to test hosts not responding stats
-	_, err = ds.NewHost(ctx, &fleet.Host{
+	_, err = ds.NewHost(ctx, &automdm.Host{
 		DetailUpdatedAt: time.Now().Add(-3 * time.Hour),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -461,32 +461,32 @@ func testStatisticsShouldSend(t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 
-	stats, shouldSend, err = ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), time.Millisecond, fleetConfig)
+	stats, shouldSend, err = ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), time.Millisecond, automdmConfig)
 	require.NoError(t, err)
 	assert.True(t, shouldSend)
 	assert.Equal(t, firstIdentifier, stats.AnonymousIdentifier)
 	assert.Equal(t, "premium", stats.LicenseTier)
-	assert.Equal(t, "Fleet", stats.Organization)
+	assert.Equal(t, "AutoMDM", stats.Organization)
 	assert.Equal(t, 6, stats.NumHostsEnrolled)
 	assert.Equal(t, 1, stats.NumHostsNotResponding)
 
 	// trigger again with a free license, organization should be "unknown"
 	time.Sleep(1100 * time.Millisecond) // ensure the DB timestamp is not in the same second
-	stats, shouldSend, err = ds.ShouldSendStatistics(license.NewContext(ctx, freeLicense), time.Millisecond, fleetConfig)
+	stats, shouldSend, err = ds.ShouldSendStatistics(license.NewContext(ctx, freeLicense), time.Millisecond, automdmConfig)
 	require.NoError(t, err)
 	assert.True(t, shouldSend)
 	assert.Equal(t, firstIdentifier, stats.AnonymousIdentifier)
 	assert.Equal(t, "free", stats.LicenseTier)
 	assert.Equal(t, "unknown", stats.Organization)
 
-	fleetConfig.Vulnerabilities = config.VulnerabilitiesConfig{DatabasesPath: "some/path/vulns"}
-	stats, shouldSend, err = ds.ShouldSendStatistics(license.NewContext(ctx, freeLicense), time.Millisecond, fleetConfig)
+	automdmConfig.Vulnerabilities = config.VulnerabilitiesConfig{DatabasesPath: "some/path/vulns"}
+	stats, shouldSend, err = ds.ShouldSendStatistics(license.NewContext(ctx, freeLicense), time.Millisecond, automdmConfig)
 	require.NoError(t, err)
 	assert.True(t, shouldSend)
 	assert.True(t, stats.VulnDetectionEnabled)
 
 	// Test conditional access statistics
-	cfg.ConditionalAccess = &fleet.ConditionalAccessSettings{
+	cfg.ConditionalAccess = &automdm.ConditionalAccessSettings{
 		OktaIDPID:                       optjson.SetString("test-idp-id"),
 		OktaAssertionConsumerServiceURL: optjson.SetString("https://example.okta.com/sso/saml"),
 		OktaAudienceURI:                 optjson.SetString("https://example.okta.com"),
@@ -498,7 +498,7 @@ func testStatisticsShouldSend(t *testing.T, ds *Datastore) {
 
 	time.Sleep(1100 * time.Millisecond)
 
-	stats, shouldSend, err = ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), time.Millisecond, fleetConfig)
+	stats, shouldSend, err = ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), time.Millisecond, automdmConfig)
 	require.NoError(t, err)
 	assert.True(t, shouldSend)
 	assert.True(t, stats.OktaConditionalAccessConfigured)
@@ -511,7 +511,7 @@ func testStatisticsShouldSend(t *testing.T, ds *Datastore) {
 
 	time.Sleep(1100 * time.Millisecond)
 
-	stats, shouldSend, err = ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), time.Millisecond, fleetConfig)
+	stats, shouldSend, err = ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), time.Millisecond, automdmConfig)
 	require.NoError(t, err)
 	assert.True(t, shouldSend)
 	assert.True(t, stats.OktaConditionalAccessConfigured)
@@ -532,11 +532,11 @@ func testConditionalAccessStatistics(t *testing.T, ds *Datastore) {
 	ctxb := context.Background()
 	ctx := ctxerr.NewContext(ctxb, eh)
 
-	premiumLicense := &fleet.LicenseInfo{Tier: fleet.TierPremium, Organization: "Fleet"}
-	fleetConfig := config.FleetConfig{Osquery: config.OsqueryConfig{DetailUpdateInterval: 1 * time.Hour}}
+	premiumLicense := &automdm.LicenseInfo{Tier: automdm.TierPremium, Organization: "AutoMDM"}
+	automdmConfig := config.AutoMDMConfig{Osquery: config.OsqueryConfig{DetailUpdateInterval: 1 * time.Hour}}
 
 	// Initial state: nothing configured
-	stats, shouldSend, err := ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), time.Millisecond, fleetConfig)
+	stats, shouldSend, err := ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), time.Millisecond, automdmConfig)
 	require.NoError(t, err)
 	assert.True(t, shouldSend)
 	assert.False(t, stats.ConditionalAccessEnabled)
@@ -551,7 +551,7 @@ func testConditionalAccessStatistics(t *testing.T, ds *Datastore) {
 	err = ds.SaveAppConfig(ctx, cfg)
 	require.NoError(t, err)
 
-	stats, shouldSend, err = ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), time.Millisecond, fleetConfig)
+	stats, shouldSend, err = ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), time.Millisecond, automdmConfig)
 	require.NoError(t, err)
 	assert.True(t, shouldSend)
 	assert.True(t, stats.ConditionalAccessEnabled)
@@ -564,7 +564,7 @@ func testConditionalAccessStatistics(t *testing.T, ds *Datastore) {
 	err = ds.SaveAppConfig(ctx, cfg)
 	require.NoError(t, err)
 
-	stats, shouldSend, err = ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), time.Millisecond, fleetConfig)
+	stats, shouldSend, err = ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), time.Millisecond, automdmConfig)
 	require.NoError(t, err)
 	assert.True(t, shouldSend)
 	assert.False(t, stats.ConditionalAccessEnabled)
@@ -572,7 +572,7 @@ func testConditionalAccessStatistics(t *testing.T, ds *Datastore) {
 	markStatisticsStale(t, ctx, ds)
 
 	// Enable conditional access on a team
-	team, err := ds.NewTeam(ctx, &fleet.Team{
+	team, err := ds.NewTeam(ctx, &automdm.Team{
 		Name:        "ca-team",
 		Description: "team with conditional access",
 	})
@@ -581,7 +581,7 @@ func testConditionalAccessStatistics(t *testing.T, ds *Datastore) {
 	_, err = ds.SaveTeam(ctx, team)
 	require.NoError(t, err)
 
-	stats, shouldSend, err = ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), time.Millisecond, fleetConfig)
+	stats, shouldSend, err = ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), time.Millisecond, automdmConfig)
 	require.NoError(t, err)
 	assert.True(t, shouldSend)
 	assert.True(t, stats.ConditionalAccessEnabled)
@@ -593,7 +593,7 @@ func testConditionalAccessStatistics(t *testing.T, ds *Datastore) {
 	_, err = ds.SaveTeam(ctx, team)
 	require.NoError(t, err)
 
-	stats, shouldSend, err = ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), time.Millisecond, fleetConfig)
+	stats, shouldSend, err = ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), time.Millisecond, automdmConfig)
 	require.NoError(t, err)
 	assert.True(t, shouldSend)
 	assert.False(t, stats.ConditionalAccessEnabled)
@@ -604,7 +604,7 @@ func testConditionalAccessStatistics(t *testing.T, ds *Datastore) {
 	err = ds.ConditionalAccessMicrosoftCreateIntegration(ctx, "test-tenant", "test-secret")
 	require.NoError(t, err)
 
-	stats, shouldSend, err = ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), time.Millisecond, fleetConfig)
+	stats, shouldSend, err = ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), time.Millisecond, automdmConfig)
 	require.NoError(t, err)
 	assert.True(t, shouldSend)
 	assert.False(t, stats.EntraConditionalAccessConfigured) // setup not done yet
@@ -615,17 +615,17 @@ func testConditionalAccessStatistics(t *testing.T, ds *Datastore) {
 	err = ds.ConditionalAccessMicrosoftMarkSetupDone(ctx)
 	require.NoError(t, err)
 
-	stats, shouldSend, err = ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), time.Millisecond, fleetConfig)
+	stats, shouldSend, err = ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), time.Millisecond, automdmConfig)
 	require.NoError(t, err)
 	assert.True(t, shouldSend)
 	assert.True(t, stats.EntraConditionalAccessConfigured)
 
 	markStatisticsStale(t, ctx, ds)
 
-	// On Fleet Free (e.g. after a license downgrade/expiry) the leftover
+	// On AutoMDM Free (e.g. after a license downgrade/expiry) the leftover
 	// integration row must not be reported as configured.
-	freeLicense := &fleet.LicenseInfo{Tier: fleet.TierFree}
-	stats, shouldSend, err = ds.ShouldSendStatistics(license.NewContext(ctx, freeLicense), time.Millisecond, fleetConfig)
+	freeLicense := &automdm.LicenseInfo{Tier: automdm.TierFree}
+	stats, shouldSend, err = ds.ShouldSendStatistics(license.NewContext(ctx, freeLicense), time.Millisecond, automdmConfig)
 	require.NoError(t, err)
 	assert.True(t, shouldSend)
 	assert.False(t, stats.EntraConditionalAccessConfigured)
@@ -633,81 +633,81 @@ func testConditionalAccessStatistics(t *testing.T, ds *Datastore) {
 	markStatisticsStale(t, ctx, ds)
 
 	// Google conditional access is configured only with a connected row on Premium.
-	stats, _, err = ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), time.Millisecond, fleetConfig)
+	stats, _, err = ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), time.Millisecond, automdmConfig)
 	require.NoError(t, err)
 	assert.False(t, stats.GoogleConditionalAccessConfigured)
 	markStatisticsStale(t, ctx, ds)
 
-	require.NoError(t, ds.SaveGoogleConditionalAccessIntegration(ctx, &fleet.ConditionalAccessGoogleIntegration{
-		ProxyServerSecret: "secret", State: fleet.ConditionalAccessGoogleStateConnected,
+	require.NoError(t, ds.SaveGoogleConditionalAccessIntegration(ctx, &automdm.ConditionalAccessGoogleIntegration{
+		ProxyServerSecret: "secret", State: automdm.ConditionalAccessGoogleStateConnected,
 	}))
-	stats, _, err = ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), time.Millisecond, fleetConfig)
+	stats, _, err = ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), time.Millisecond, automdmConfig)
 	require.NoError(t, err)
 	assert.True(t, stats.GoogleConditionalAccessConfigured)
 	markStatisticsStale(t, ctx, ds)
 
-	stats, _, err = ds.ShouldSendStatistics(license.NewContext(ctx, freeLicense), time.Millisecond, fleetConfig)
+	stats, _, err = ds.ShouldSendStatistics(license.NewContext(ctx, freeLicense), time.Millisecond, automdmConfig)
 	require.NoError(t, err)
 	assert.False(t, stats.GoogleConditionalAccessConfigured)
 }
 
-func testFleetMaintainedAppsInUse(t *testing.T, ds *Datastore) {
+func testAutoMDMMaintainedAppsInUse(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
-	fmaUsage := func(name string, patchPolicy, softwareAutomation bool) fleet.FleetMaintainedAppUsage {
-		return fleet.FleetMaintainedAppUsage{Name: name, PatchPolicy: patchPolicy, SoftwareAutomation: softwareAutomation}
+	fmaUsage := func(name string, patchPolicy, softwareAutomation bool) automdm.AutoMDMMaintainedAppUsage {
+		return automdm.AutoMDMMaintainedAppUsage{Name: name, PatchPolicy: patchPolicy, SoftwareAutomation: softwareAutomation}
 	}
 
-	expectMaintainedApps := func(mac, win []fleet.FleetMaintainedAppUsage) {
+	expectMaintainedApps := func(mac, win []automdm.AutoMDMMaintainedAppUsage) {
 		t.Helper()
-		gotMac, gotWin, err := fleetMaintainedAppsInUseDB(ctx, ds.reader(ctx))
+		gotMac, gotWin, err := automdmMaintainedAppsInUseDB(ctx, ds.reader(ctx))
 		require.NoError(t, err)
 		require.Equal(t, mac, gotMac)
 		require.Equal(t, win, gotWin)
 	}
 
-	noApps := []fleet.FleetMaintainedAppUsage{}
-	macNoPolicies := []fleet.FleetMaintainedAppUsage{fmaUsage("slack/darwin", false, false), fmaUsage("zoom/darwin", false, false)}
-	macWithPatchPolicies := []fleet.FleetMaintainedAppUsage{fmaUsage("slack/darwin", true, true), fmaUsage("zoom/darwin", true, false)}
-	winNoPolicies := []fleet.FleetMaintainedAppUsage{fmaUsage("microsoft-teams/windows", false, false), fmaUsage("zoom/windows", false, false)}
+	noApps := []automdm.AutoMDMMaintainedAppUsage{}
+	macNoPolicies := []automdm.AutoMDMMaintainedAppUsage{fmaUsage("slack/darwin", false, false), fmaUsage("zoom/darwin", false, false)}
+	macWithPatchPolicies := []automdm.AutoMDMMaintainedAppUsage{fmaUsage("slack/darwin", true, true), fmaUsage("zoom/darwin", true, false)}
+	winNoPolicies := []automdm.AutoMDMMaintainedAppUsage{fmaUsage("microsoft-teams/windows", false, false), fmaUsage("zoom/windows", false, false)}
 
-	// No fleet-maintained apps - should return empty slices (not nil)
-	macOSApps, windowsApps, err := fleetMaintainedAppsInUseDB(ctx, ds.reader(ctx))
+	// No automdm-maintained apps - should return empty slices (not nil)
+	macOSApps, windowsApps, err := automdmMaintainedAppsInUseDB(ctx, ds.reader(ctx))
 	require.NoError(t, err)
 	assert.NotNil(t, macOSApps)
 	assert.NotNil(t, windowsApps)
 	assert.Empty(t, macOSApps)
 	assert.Empty(t, windowsApps)
 
-	appDarwin1, err := ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{
+	appDarwin1, err := ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{
 		Name:             "Zoom",
 		Slug:             "zoom/darwin",
 		Platform:         "darwin",
 		UniqueIdentifier: "us.zoom.xos",
 	})
 	require.NoError(t, err)
-	appDarwin2, err := ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{
+	appDarwin2, err := ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{
 		Name:             "Slack",
 		Slug:             "slack/darwin",
 		Platform:         "darwin",
 		UniqueIdentifier: "com.tinyspeck.slackmacgap",
 	})
 	require.NoError(t, err)
-	appWindows1, err := ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{
+	appWindows1, err := ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{
 		Name:             "Microsoft Teams",
 		Slug:             "microsoft-teams/windows",
 		Platform:         "windows",
 		UniqueIdentifier: "msteams",
 	})
 	require.NoError(t, err)
-	appWindows2, err := ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{
+	appWindows2, err := ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{
 		Name:             "Zoom",
 		Slug:             "zoom/windows",
 		Platform:         "windows",
 		UniqueIdentifier: "zoom-windows",
 	})
 	require.NoError(t, err)
-	appLinux, err := ds.UpsertMaintainedApp(ctx, &fleet.MaintainedApp{
+	appLinux, err := ds.UpsertMaintainedApp(ctx, &automdm.MaintainedApp{
 		Name:             "Linux App",
 		Slug:             "linux-app/linux",
 		Platform:         "linux",
@@ -739,13 +739,13 @@ func testFleetMaintainedAppsInUse(t *testing.T, ds *Datastore) {
 		return nil
 	})
 
-	// Create software installers that reference fleet-maintained apps
+	// Create software installers that reference automdm-maintained apps
 	ExecAdhocSQL(t, ds, func(q sqlx.ExtContext) error {
 		_, err := q.ExecContext(ctx, `
 			INSERT INTO software_installers (
 				team_id, global_or_team_id, filename, version, platform,
 				install_script_content_id, uninstall_script_content_id,
-				storage_id, package_ids, fleet_maintained_app_id, patch_query
+				storage_id, package_ids, automdm_maintained_app_id, patch_query
 			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`, nil, 0, "zoom.pkg", "1.0", "darwin", installScriptID, uninstallScriptID, "storage1", "[]", appDarwin1.ID, "")
 		return err
@@ -755,7 +755,7 @@ func testFleetMaintainedAppsInUse(t *testing.T, ds *Datastore) {
 			INSERT INTO software_installers (
 				team_id, global_or_team_id, filename, version, platform,
 				install_script_content_id, uninstall_script_content_id,
-				storage_id, package_ids, fleet_maintained_app_id, patch_query
+				storage_id, package_ids, automdm_maintained_app_id, patch_query
 			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`, nil, 0, "slack.pkg", "1.0", "darwin", installScriptID, uninstallScriptID, "storage2", "[]", appDarwin2.ID, "")
 		return err
@@ -765,7 +765,7 @@ func testFleetMaintainedAppsInUse(t *testing.T, ds *Datastore) {
 			INSERT INTO software_installers (
 				team_id, global_or_team_id, filename, version, platform,
 				install_script_content_id, uninstall_script_content_id,
-				storage_id, package_ids, fleet_maintained_app_id, patch_query
+				storage_id, package_ids, automdm_maintained_app_id, patch_query
 			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`, nil, 0, "teams.exe", "1.0", "windows", installScriptID, uninstallScriptID, "storage3", "[]", appWindows1.ID, "")
 		return err
@@ -775,7 +775,7 @@ func testFleetMaintainedAppsInUse(t *testing.T, ds *Datastore) {
 			INSERT INTO software_installers (
 				team_id, global_or_team_id, filename, version, platform,
 				install_script_content_id, uninstall_script_content_id,
-				storage_id, package_ids, fleet_maintained_app_id, patch_query
+				storage_id, package_ids, automdm_maintained_app_id, patch_query
 			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`, nil, 0, "zoom.exe", "1.0", "windows", installScriptID, uninstallScriptID, "storage4", "[]", appWindows2.ID, "")
 		return err
@@ -785,7 +785,7 @@ func testFleetMaintainedAppsInUse(t *testing.T, ds *Datastore) {
 			INSERT INTO software_installers (
 				team_id, global_or_team_id, filename, version, platform,
 				install_script_content_id, uninstall_script_content_id,
-				storage_id, package_ids, fleet_maintained_app_id, patch_query
+				storage_id, package_ids, automdm_maintained_app_id, patch_query
 			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`, nil, 0, "linux.deb", "1.0", "linux", installScriptID, uninstallScriptID, "storage5", "[]", appLinux.ID, "")
 		return err
@@ -800,26 +800,26 @@ func testFleetMaintainedAppsInUse(t *testing.T, ds *Datastore) {
 			INSERT INTO software_installers (
 				team_id, global_or_team_id, filename, version, platform,
 				install_script_content_id, uninstall_script_content_id,
-				storage_id, package_ids, fleet_maintained_app_id, patch_query
+				storage_id, package_ids, automdm_maintained_app_id, patch_query
 			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`, nil, 0, "zoom-v2.pkg", "2.0", "darwin", installScriptID, uninstallScriptID, "storage6", "[]", appDarwin1.ID, "")
 		return err
 	})
 	expectMaintainedApps(macNoPolicies, winNoPolicies)
 
-	// Create an installer with NULL fleet_maintained_app_id (should be ignored)
+	// Create an installer with NULL automdm_maintained_app_id (should be ignored)
 	ExecAdhocSQL(t, ds, func(q sqlx.ExtContext) error {
 		_, err := q.ExecContext(ctx, `
 			INSERT INTO software_installers (
 				team_id, global_or_team_id, filename, version, platform,
 				install_script_content_id, uninstall_script_content_id,
-				storage_id, package_ids, fleet_maintained_app_id, patch_query
+				storage_id, package_ids, automdm_maintained_app_id, patch_query
 			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`, nil, 0, "custom.pkg", "1.0", "darwin", installScriptID, uninstallScriptID, "storage7", "[]", nil, "")
 		return err
 	})
 
-	// Should return the same results (NULL fleet_maintained_app_id is filtered out)
+	// Should return the same results (NULL automdm_maintained_app_id is filtered out)
 	expectMaintainedApps(macNoPolicies, winNoPolicies)
 
 	// Give the darwin apps software titles so patch policies can point at them. Both zoom
@@ -840,13 +840,13 @@ func testFleetMaintainedAppsInUse(t *testing.T, ds *Datastore) {
 		id, _ = res.LastInsertId()
 		slackTitleID = uint(id) //nolint:gosec // test fixture
 
-		if _, err := q.ExecContext(ctx, `UPDATE software_installers SET title_id = ? WHERE fleet_maintained_app_id = ?`, zoomTitleID, appDarwin1.ID); err != nil {
+		if _, err := q.ExecContext(ctx, `UPDATE software_installers SET title_id = ? WHERE automdm_maintained_app_id = ?`, zoomTitleID, appDarwin1.ID); err != nil {
 			return err
 		}
-		if _, err := q.ExecContext(ctx, `UPDATE software_installers SET title_id = ? WHERE fleet_maintained_app_id = ?`, slackTitleID, appDarwin2.ID); err != nil {
+		if _, err := q.ExecContext(ctx, `UPDATE software_installers SET title_id = ? WHERE automdm_maintained_app_id = ?`, slackTitleID, appDarwin2.ID); err != nil {
 			return err
 		}
-		return sqlx.GetContext(ctx, q, &slackInstallerID, `SELECT id FROM software_installers WHERE fleet_maintained_app_id = ?`, appDarwin2.ID)
+		return sqlx.GetContext(ctx, q, &slackInstallerID, `SELECT id FROM software_installers WHERE automdm_maintained_app_id = ?`, appDarwin2.ID)
 	})
 
 	// A dynamic policy that installs the app is not a patch policy, and must leave both
@@ -854,7 +854,7 @@ func testFleetMaintainedAppsInUse(t *testing.T, ds *Datastore) {
 	ExecAdhocSQL(t, ds, func(q sqlx.ExtContext) error {
 		_, err := q.ExecContext(ctx, `
 			INSERT INTO policies (name, query, description, checksum, team_id, software_installer_id)
-			VALUES ('install slack', 'SELECT 1', '', UNHEX(MD5('install slack')), ?, ?)`, fleet.PolicyNoTeamID, slackInstallerID)
+			VALUES ('install slack', 'SELECT 1', '', UNHEX(MD5('install slack')), ?, ?)`, automdm.PolicyNoTeamID, slackInstallerID)
 		return err
 	})
 
@@ -864,13 +864,13 @@ func testFleetMaintainedAppsInUse(t *testing.T, ds *Datastore) {
 	ExecAdhocSQL(t, ds, func(q sqlx.ExtContext) error {
 		_, err := q.ExecContext(ctx, `
 			INSERT INTO policies (name, query, description, checksum, type, team_id, patch_software_title_id)
-			VALUES ('patch zoom', 'SELECT 1', '', UNHEX(MD5('patch zoom')), 'patch', ?, ?)`, fleet.PolicyNoTeamID, zoomTitleID)
+			VALUES ('patch zoom', 'SELECT 1', '', UNHEX(MD5('patch zoom')), 'patch', ?, ?)`, automdm.PolicyNoTeamID, zoomTitleID)
 		return err
 	})
 	ExecAdhocSQL(t, ds, func(q sqlx.ExtContext) error {
 		_, err := q.ExecContext(ctx, `
 			INSERT INTO policies (name, query, description, checksum, type, team_id, patch_software_title_id, software_installer_id)
-			VALUES ('patch slack', 'SELECT 1', '', UNHEX(MD5('patch slack')), 'patch', ?, ?, ?)`, fleet.PolicyNoTeamID, slackTitleID, slackInstallerID)
+			VALUES ('patch slack', 'SELECT 1', '', UNHEX(MD5('patch slack')), 'patch', ?, ?, ?)`, automdm.PolicyNoTeamID, slackTitleID, slackInstallerID)
 		return err
 	})
 
@@ -879,14 +879,14 @@ func testFleetMaintainedAppsInUse(t *testing.T, ds *Datastore) {
 	// The same app installed on another team, with no patch policy of its own. The slug must
 	// still appear exactly once, with the booleans OR'd across teams -- this is what the
 	// GROUP BY buys us, and what plain DISTINCT would get wrong.
-	tm, err := ds.NewTeam(ctx, &fleet.Team{Name: "fma stats team"})
+	tm, err := ds.NewTeam(ctx, &automdm.Team{Name: "fma stats team"})
 	require.NoError(t, err)
 	ExecAdhocSQL(t, ds, func(q sqlx.ExtContext) error {
 		_, err := q.ExecContext(ctx, `
 			INSERT INTO software_installers (
 				team_id, global_or_team_id, title_id, filename, version, platform,
 				install_script_content_id, uninstall_script_content_id,
-				storage_id, package_ids, fleet_maintained_app_id, patch_query
+				storage_id, package_ids, automdm_maintained_app_id, patch_query
 			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`, tm.ID, tm.ID, zoomTitleID, "zoom.pkg", "1.0", "darwin", installScriptID, uninstallScriptID, "storage8", "[]", appDarwin1.ID, "")
 		return err
@@ -905,7 +905,7 @@ func testFleetMaintainedAppsInUse(t *testing.T, ds *Datastore) {
 		}
 		id, _ := res.LastInsertId()
 		teamsTitleID = uint(id) //nolint:gosec // test fixture
-		_, err = q.ExecContext(ctx, `UPDATE software_installers SET title_id = ? WHERE fleet_maintained_app_id = ?`, teamsTitleID, appWindows1.ID)
+		_, err = q.ExecContext(ctx, `UPDATE software_installers SET title_id = ? WHERE automdm_maintained_app_id = ?`, teamsTitleID, appWindows1.ID)
 		return err
 	})
 	// microsoft-teams is installed on "no team" only; scope the patch policy to the team.
@@ -1058,17 +1058,17 @@ func testGitOpsModeStatistics(t *testing.T, ds *Datastore) {
 	}
 	ctx := ctxerr.NewContext(context.Background(), eh)
 
-	premiumLicense := &fleet.LicenseInfo{Tier: fleet.TierPremium, Organization: "Fleet"}
-	fleetConfig := config.FleetConfig{Osquery: config.OsqueryConfig{DetailUpdateInterval: 1 * time.Hour}}
+	premiumLicense := &automdm.LicenseInfo{Tier: automdm.TierPremium, Organization: "AutoMDM"}
+	automdmConfig := config.AutoMDMConfig{Osquery: config.OsqueryConfig{DetailUpdateInterval: 1 * time.Hour}}
 
 	// Create a new app config so ApplyDefaults runs (new-install defaults: only "secrets" exception).
-	_, err := ds.NewAppConfig(ctx, &fleet.AppConfig{
-		OrgInfo: fleet.OrgInfo{OrgName: "Test", OrgLogoURLDarkMode: "localhost:8080/logo.png"},
+	_, err := ds.NewAppConfig(ctx, &automdm.AppConfig{
+		OrgInfo: automdm.OrgInfo{OrgName: "Test", OrgLogoURLDarkMode: "localhost:8080/logo.png"},
 	})
 	require.NoError(t, err)
 
 	// Default state (new install): GitOps mode disabled, only "secrets" is a default exception.
-	stats, shouldSend, err := ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), time.Millisecond, fleetConfig)
+	stats, shouldSend, err := ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), time.Millisecond, automdmConfig)
 	require.NoError(t, err)
 	assert.True(t, shouldSend)
 	assert.False(t, stats.GitOpsModeEnabled)
@@ -1080,13 +1080,13 @@ func testGitOpsModeStatistics(t *testing.T, ds *Datastore) {
 	cfg, err := ds.AppConfig(ctx)
 	require.NoError(t, err)
 	cfg.GitOpsConfig.GitopsModeEnabled = true
-	cfg.GitOpsConfig.RepositoryURL = "https://github.com/example/fleet-config"
+	cfg.GitOpsConfig.RepositoryURL = "https://github.com/example/automdm-config"
 	cfg.GitOpsConfig.Exceptions.Labels = true
 	cfg.GitOpsConfig.Exceptions.Software = true
 	cfg.GitOpsConfig.Exceptions.Secrets = true
 	require.NoError(t, ds.SaveAppConfig(ctx, cfg))
 
-	stats, shouldSend, err = ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), time.Millisecond, fleetConfig)
+	stats, shouldSend, err = ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), time.Millisecond, automdmConfig)
 	require.NoError(t, err)
 	assert.True(t, shouldSend)
 	assert.True(t, stats.GitOpsModeEnabled)
@@ -1100,7 +1100,7 @@ func testGitOpsModeStatistics(t *testing.T, ds *Datastore) {
 	cfg.GitOpsConfig.GitopsModeEnabled = false
 	require.NoError(t, ds.SaveAppConfig(ctx, cfg))
 
-	stats, shouldSend, err = ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), time.Millisecond, fleetConfig)
+	stats, shouldSend, err = ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), time.Millisecond, automdmConfig)
 	require.NoError(t, err)
 	assert.True(t, shouldSend)
 	assert.False(t, stats.GitOpsModeEnabled)
@@ -1114,29 +1114,29 @@ func testGitOpsModeStatistics(t *testing.T, ds *Datastore) {
 	cfg.GitOpsConfig.Exceptions.Labels = false
 	cfg.GitOpsConfig.Exceptions.Software = false
 	cfg.GitOpsConfig.Exceptions.Secrets = false
-	cfg.FleetDesktop.SSOEnabled = true
+	cfg.AutoMDMDesktop.SSOEnabled = true
 	require.NoError(t, ds.SaveAppConfig(ctx, cfg))
 
-	stats, shouldSend, err = ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), time.Millisecond, fleetConfig)
+	stats, shouldSend, err = ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), time.Millisecond, automdmConfig)
 	require.NoError(t, err)
 	assert.True(t, shouldSend)
 	assert.False(t, stats.GitOpsModeEnabled)
 	assert.Equal(t, []string{}, stats.GitOpsModeExceptions)
-	assert.True(t, stats.FleetDesktopSSOEnabled)
+	assert.True(t, stats.AutoMDMDesktopSSOEnabled)
 }
 
-func testStatisticsFleetMDMEnrolled(t *testing.T, ds *Datastore) {
+func testStatisticsAutoMDMMDMEnrolled(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
 	// With no hosts, both counts are zero (not null/missing).
-	macOS, windows, ios, ipados, err := numHostsFleetMDMEnrolledDB(ctx, ds.reader(ctx))
+	macOS, windows, ios, ipados, err := numHostsAutoMDMMDMEnrolledDB(ctx, ds.reader(ctx))
 	require.NoError(t, err)
 	assert.Zero(t, macOS)
 	assert.Zero(t, windows)
 	assert.Zero(t, ios)
 	assert.Zero(t, ipados)
 
-	// Each host exercises one branch of the query; only enrolled, non-server, Fleet-MDM darwin, windows, ios, and ipados hosts are counted.
+	// Each host exercises one branch of the query; only enrolled, non-server, AutoMDM-MDM darwin, windows, ios, and ipados hosts are counted.
 	cases := []struct {
 		name             string
 		platform         string
@@ -1145,37 +1145,37 @@ func testStatisticsFleetMDMEnrolled(t *testing.T, ds *Datastore) {
 		installedFromDep bool
 		mdmName          string // "" means no MDM data at all
 	}{
-		{"macOS Fleet MDM", "darwin", false, true, false, fleet.WellKnownMDMFleet},        // counted (macOS)
-		{"windows Fleet MDM", "windows", false, true, false, fleet.WellKnownMDMFleet},     // counted (Windows)
-		{"iOS Fleet MDM", "ios", false, true, false, fleet.WellKnownMDMFleet},             // counted (iOS)
-		{"iPadOS Fleet MDM", "ipados", false, true, false, fleet.WellKnownMDMFleet},       // counted (iPadOS)
-		{"macOS third-party MDM", "darwin", false, true, false, fleet.WellKnownMDMIntune}, // excluded: not Fleet
+		{"macOS AutoMDM", "darwin", false, true, false, automdm.WellKnownMDMAutoMDM},        // counted (macOS)
+		{"windows AutoMDM", "windows", false, true, false, automdm.WellKnownMDMAutoMDM},     // counted (Windows)
+		{"iOS AutoMDM", "ios", false, true, false, automdm.WellKnownMDMAutoMDM},             // counted (iOS)
+		{"iPadOS AutoMDM", "ipados", false, true, false, automdm.WellKnownMDMAutoMDM},       // counted (iPadOS)
+		{"macOS third-party MDM", "darwin", false, true, false, automdm.WellKnownMDMIntune}, // excluded: not AutoMDM
 		// ABM pending: DEP-assigned (installed_from_dep=1) but not yet enrolled (enrolled=0).
-		{"macOS ABM pending", "darwin", false, false, true, fleet.WellKnownMDMFleet},   // excluded: not enrolled
-		{"windows server host", "windows", true, true, false, fleet.WellKnownMDMFleet}, // excluded: is_server
-		{"macOS no MDM", "darwin", false, false, false, ""},                            // excluded: no MDM data
+		{"macOS ABM pending", "darwin", false, false, true, automdm.WellKnownMDMAutoMDM},   // excluded: not enrolled
+		{"windows server host", "windows", true, true, false, automdm.WellKnownMDMAutoMDM}, // excluded: is_server
+		{"macOS no MDM", "darwin", false, false, false, ""},                                // excluded: no MDM data
 	}
 	for i, c := range cases {
 		key := fmt.Sprintf("mdm-stats-%d", i)
 		h := test.NewHost(t, ds, key, "", key, key, time.Now(), test.WithPlatform(c.platform))
 		if c.mdmName != "" {
-			require.NoError(t, ds.SetOrUpdateMDMData(ctx, h.ID, c.isServer, c.enrolled, "https://fleet.example.com", c.installedFromDep, c.mdmName, "", fleet.PersonalEnrollmentTypeNone), c.name)
+			require.NoError(t, ds.SetOrUpdateMDMData(ctx, h.ID, c.isServer, c.enrolled, "https://automdm.example.com", c.installedFromDep, c.mdmName, "", automdm.PersonalEnrollmentTypeNone), c.name)
 		}
 	}
 
-	// The counts flow through the full ShouldSendStatistics payload: 1 macOS and 1 Windows Fleet-MDM host.
+	// The counts flow through the full ShouldSendStatistics payload: 1 macOS and 1 Windows AutoMDM-MDM host.
 	eh := ctxerr.MockHandler{}
 	eh.RetrieveImpl = func(flush bool) ([]*ctxerr.StoredError, error) { return nil, nil }
 	statsCtx := ctxerr.NewContext(ctx, eh)
-	premiumLicense := &fleet.LicenseInfo{Tier: fleet.TierPremium, Organization: "Fleet"}
-	fleetConfig := config.FleetConfig{Osquery: config.OsqueryConfig{DetailUpdateInterval: 1 * time.Hour}}
-	stats, shouldSend, err := ds.ShouldSendStatistics(license.NewContext(statsCtx, premiumLicense), time.Millisecond, fleetConfig)
+	premiumLicense := &automdm.LicenseInfo{Tier: automdm.TierPremium, Organization: "AutoMDM"}
+	automdmConfig := config.AutoMDMConfig{Osquery: config.OsqueryConfig{DetailUpdateInterval: 1 * time.Hour}}
+	stats, shouldSend, err := ds.ShouldSendStatistics(license.NewContext(statsCtx, premiumLicense), time.Millisecond, automdmConfig)
 	require.NoError(t, err)
 	assert.True(t, shouldSend)
-	assert.Equal(t, 1, stats.NumHostsFleetMDMEnrolledMacOS)
-	assert.Equal(t, 1, stats.NumHostsFleetMDMEnrolledWindows)
-	assert.Equal(t, 1, stats.NumHostsFleetMDMEnrolledIOS)
-	assert.Equal(t, 1, stats.NumHostsFleetMDMEnrolledIpadOS)
+	assert.Equal(t, 1, stats.NumHostsAutoMDMMDMEnrolledMacOS)
+	assert.Equal(t, 1, stats.NumHostsAutoMDMMDMEnrolledWindows)
+	assert.Equal(t, 1, stats.NumHostsAutoMDMMDMEnrolledIOS)
+	assert.Equal(t, 1, stats.NumHostsAutoMDMMDMEnrolledIpadOS)
 }
 
 func testStatisticsMDMProfileCounts(t *testing.T, ds *Datastore) {
@@ -1185,11 +1185,11 @@ func testStatisticsMDMProfileCounts(t *testing.T, ds *Datastore) {
 	}
 	ctx := ctxerr.NewContext(context.Background(), eh)
 
-	premiumLicense := &fleet.LicenseInfo{Tier: fleet.TierPremium, Organization: "Fleet"}
-	fleetConfig := config.FleetConfig{Osquery: config.OsqueryConfig{DetailUpdateInterval: 1 * time.Hour}}
+	premiumLicense := &automdm.LicenseInfo{Tier: automdm.TierPremium, Organization: "AutoMDM"}
+	automdmConfig := config.AutoMDMConfig{Osquery: config.OsqueryConfig{DetailUpdateInterval: 1 * time.Hour}}
 
 	// Initial state: all profile counts should be zero.
-	stats, shouldSend, err := ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), time.Millisecond, fleetConfig)
+	stats, shouldSend, err := ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), time.Millisecond, automdmConfig)
 	require.NoError(t, err)
 	assert.True(t, shouldSend)
 	assert.Equal(t, 0, stats.NumMDMAppleProfiles)
@@ -1204,7 +1204,7 @@ func testStatisticsMDMProfileCounts(t *testing.T, ds *Datastore) {
 	assert.False(t, stats.AnyHostActivitiesWebhookEnabled)
 	assert.False(t, stats.GlobalActivityWebhookEnabled)
 	assert.False(t, stats.TicketDestinationConfigured)
-	assert.False(t, stats.SSOConfiguredFleetUsers)
+	assert.False(t, stats.SSOConfiguredTeamUsers)
 	assert.False(t, stats.SSOConfiguredEndUsers)
 	assert.False(t, stats.AccountProvisioningConfigured)
 	assert.False(t, stats.IDPSCIMConfigured)
@@ -1273,7 +1273,7 @@ func testStatisticsMDMProfileCounts(t *testing.T, ds *Datastore) {
 	})
 
 	// Verify the counts match what was inserted.
-	stats, shouldSend, err = ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), time.Millisecond, fleetConfig)
+	stats, shouldSend, err = ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), time.Millisecond, automdmConfig)
 	require.NoError(t, err)
 	assert.True(t, shouldSend)
 	assert.Equal(t, 3, stats.NumMDMAppleProfiles)
@@ -1289,15 +1289,15 @@ func testStatisticsThirdPartyIntegrations(t *testing.T, ds *Datastore) {
 	}
 	ctx := ctxerr.NewContext(t.Context(), eh)
 
-	premiumLicense := &fleet.LicenseInfo{Tier: fleet.TierPremium, Organization: "Fleet"}
-	fleetConfig := config.FleetConfig{Osquery: config.OsqueryConfig{DetailUpdateInterval: 1 * time.Hour}}
+	premiumLicense := &automdm.LicenseInfo{Tier: automdm.TierPremium, Organization: "AutoMDM"}
+	automdmConfig := config.AutoMDMConfig{Osquery: config.OsqueryConfig{DetailUpdateInterval: 1 * time.Hour}}
 
-	_, err := ds.NewAppConfig(ctx, &fleet.AppConfig{
-		OrgInfo: fleet.OrgInfo{OrgName: "Test", OrgLogoURLDarkMode: "localhost:8080/logo.png"},
+	_, err := ds.NewAppConfig(ctx, &automdm.AppConfig{
+		OrgInfo: automdm.OrgInfo{OrgName: "Test", OrgLogoURLDarkMode: "localhost:8080/logo.png"},
 	})
 	require.NoError(t, err)
 
-	stats, shouldSend, err := ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), time.Millisecond, fleetConfig)
+	stats, shouldSend, err := ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), time.Millisecond, automdmConfig)
 	require.NoError(t, err)
 	assert.True(t, shouldSend)
 	assert.Empty(t, stats.ResultLogDestination)
@@ -1308,7 +1308,7 @@ func testStatisticsThirdPartyIntegrations(t *testing.T, ds *Datastore) {
 	assert.False(t, stats.AnyHostActivitiesWebhookEnabled)
 	assert.False(t, stats.GlobalActivityWebhookEnabled)
 	assert.False(t, stats.TicketDestinationConfigured)
-	assert.False(t, stats.SSOConfiguredFleetUsers)
+	assert.False(t, stats.SSOConfiguredTeamUsers)
 	assert.False(t, stats.SSOConfiguredEndUsers)
 	assert.False(t, stats.AccountProvisioningConfigured)
 	assert.False(t, stats.IDPSCIMConfigured)
@@ -1318,38 +1318,38 @@ func testStatisticsThirdPartyIntegrations(t *testing.T, ds *Datastore) {
 	markStatisticsStale(t, ctx, ds)
 
 	// Log destinations come from the server config, not the app config.
-	fleetConfig.Osquery.ResultLogPlugin = "firehose"
-	fleetConfig.Osquery.StatusLogPlugin = "kinesis"
-	fleetConfig.Activity.AuditLogPlugin = "pubsub"
+	automdmConfig.Osquery.ResultLogPlugin = "firehose"
+	automdmConfig.Osquery.StatusLogPlugin = "kinesis"
+	automdmConfig.Activity.AuditLogPlugin = "pubsub"
 
 	cfg, err := ds.AppConfig(ctx)
 	require.NoError(t, err)
 	cfg.WebhookSettings.VulnerabilitiesWebhook.Enable = true
 	cfg.WebhookSettings.ActivitiesWebhook.Enable = true
-	cfg.Integrations.Jira = []*fleet.JiraIntegration{{URL: "https://jira.example.com", Username: "user", ProjectKey: "PROJ"}}
-	cfg.Integrations.GoogleWorkspace = []*fleet.GoogleWorkspaceIntegration{{
+	cfg.Integrations.Jira = []*automdm.JiraIntegration{{URL: "https://jira.example.com", Username: "user", ProjectKey: "PROJ"}}
+	cfg.Integrations.GoogleWorkspace = []*automdm.GoogleWorkspaceIntegration{{
 		Domain: "example.com",
-		ApiKey: fleet.GoogleCalendarApiKey{Values: map[string]string{"client_email": "svc@example.com"}},
+		ApiKey: automdm.GoogleCalendarApiKey{Values: map[string]string{"client_email": "svc@example.com"}},
 	}}
-	cfg.SSOSettings = &fleet.SSOSettings{EnableSSO: true}
-	cfg.MDM.EndUserAuthentication.SSOProviderSettings = fleet.SSOProviderSettings{
-		EntityID:    "fleet",
+	cfg.SSOSettings = &automdm.SSOSettings{EnableSSO: true}
+	cfg.MDM.EndUserAuthentication.SSOProviderSettings = automdm.SSOProviderSettings{
+		EntityID:    "automdm",
 		MetadataURL: "https://idp.example.com/metadata",
 	}
 	cfg.MDM.AppleAccountProvisioning.OAuthIdPTokenURL = optjson.SetString("https://idp.example.com/oauth2/v1/token")
 	cfg.MDM.AppleAccountProvisioning.OAuthIdPClientID = optjson.SetString("client-id")
 	require.NoError(t, ds.SaveAppConfig(ctx, cfg))
 
-	require.NoError(t, ds.UpdateScimLastRequest(ctx, &fleet.ScimLastRequest{Status: "success"}))
+	require.NoError(t, ds.UpdateScimLastRequest(ctx, &automdm.ScimLastRequest{Status: "success"}))
 
-	_, err = ds.NewCertificateAuthority(ctx, &fleet.CertificateAuthority{
-		Type: string(fleet.CATypeHydrant),
+	_, err = ds.NewCertificateAuthority(ctx, &automdm.CertificateAuthority{
+		Type: string(automdm.CATypeHydrant),
 		Name: new("Hydrant CA"),
 		URL:  new("https://hydrant.example.com"),
 	})
 	require.NoError(t, err)
 
-	stats, shouldSend, err = ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), time.Millisecond, fleetConfig)
+	stats, shouldSend, err = ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), time.Millisecond, automdmConfig)
 	require.NoError(t, err)
 	assert.True(t, shouldSend)
 	assert.Equal(t, "firehose", stats.ResultLogDestination)
@@ -1358,31 +1358,31 @@ func testStatisticsThirdPartyIntegrations(t *testing.T, ds *Datastore) {
 	assert.True(t, stats.AnyVulnerabilitiesWebhookEnabled)
 	assert.True(t, stats.GlobalActivityWebhookEnabled)
 	assert.True(t, stats.TicketDestinationConfigured)
-	assert.True(t, stats.SSOConfiguredFleetUsers)
+	assert.True(t, stats.SSOConfiguredTeamUsers)
 	assert.True(t, stats.SSOConfiguredEndUsers)
 	assert.True(t, stats.AccountProvisioningConfigured)
 	assert.True(t, stats.IDPSCIMConfigured)
 	assert.True(t, stats.CertificateAuthorityConfigured)
 	assert.True(t, stats.IDPGoogleWorkspaceConfigured)
-	// Neither the global config nor any fleet enables these yet.
+	// Neither the global config nor any team enables these yet.
 	assert.False(t, stats.AnyFailingPoliciesWebhookEnabled)
 	assert.False(t, stats.AnyHostActivitiesWebhookEnabled)
 
 	markStatisticsStale(t, ctx, ds)
 
-	// A fleet-level webhook is enough to flip the "any" flags.
-	team, err := ds.NewTeam(ctx, &fleet.Team{
+	// A team-level webhook is enough to flip the "any" flags.
+	team, err := ds.NewTeam(ctx, &automdm.Team{
 		Name: "webhooks",
-		Config: fleet.TeamConfig{
-			WebhookSettings: fleet.TeamWebhookSettings{
-				FailingPoliciesWebhook: fleet.FailingPoliciesWebhookSettings{Enable: true, DestinationURL: "https://example.com/fp"},
-				HostActivitiesWebhook:  &fleet.HostActivitiesWebhookSettings{Enable: true, DestinationURL: "https://example.com/ha"},
+		Config: automdm.TeamConfig{
+			WebhookSettings: automdm.TeamWebhookSettings{
+				FailingPoliciesWebhook: automdm.FailingPoliciesWebhookSettings{Enable: true, DestinationURL: "https://example.com/fp"},
+				HostActivitiesWebhook:  &automdm.HostActivitiesWebhookSettings{Enable: true, DestinationURL: "https://example.com/ha"},
 			},
 		},
 	})
 	require.NoError(t, err)
 
-	stats, shouldSend, err = ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), time.Millisecond, fleetConfig)
+	stats, shouldSend, err = ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), time.Millisecond, automdmConfig)
 	require.NoError(t, err)
 	assert.True(t, shouldSend)
 	assert.True(t, stats.AnyFailingPoliciesWebhookEnabled)
@@ -1393,7 +1393,7 @@ func testStatisticsThirdPartyIntegrations(t *testing.T, ds *Datastore) {
 	// "No team" webhooks are stored separately from the teams table, so they get their own check.
 	require.NoError(t, ds.DeleteTeam(ctx, team.ID))
 
-	stats, shouldSend, err = ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), time.Millisecond, fleetConfig)
+	stats, shouldSend, err = ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), time.Millisecond, automdmConfig)
 	require.NoError(t, err)
 	assert.True(t, shouldSend)
 	require.False(t, stats.AnyFailingPoliciesWebhookEnabled)
@@ -1401,14 +1401,14 @@ func testStatisticsThirdPartyIntegrations(t *testing.T, ds *Datastore) {
 
 	markStatisticsStale(t, ctx, ds)
 
-	require.NoError(t, ds.SaveDefaultTeamConfig(ctx, &fleet.TeamConfig{
-		WebhookSettings: fleet.TeamWebhookSettings{
-			FailingPoliciesWebhook: fleet.FailingPoliciesWebhookSettings{Enable: true, DestinationURL: "https://example.com/fp"},
-			HostActivitiesWebhook:  &fleet.HostActivitiesWebhookSettings{Enable: true, DestinationURL: "https://example.com/ha"},
+	require.NoError(t, ds.SaveDefaultTeamConfig(ctx, &automdm.TeamConfig{
+		WebhookSettings: automdm.TeamWebhookSettings{
+			FailingPoliciesWebhook: automdm.FailingPoliciesWebhookSettings{Enable: true, DestinationURL: "https://example.com/fp"},
+			HostActivitiesWebhook:  &automdm.HostActivitiesWebhookSettings{Enable: true, DestinationURL: "https://example.com/ha"},
 		},
 	}))
 
-	stats, shouldSend, err = ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), time.Millisecond, fleetConfig)
+	stats, shouldSend, err = ds.ShouldSendStatistics(license.NewContext(ctx, premiumLicense), time.Millisecond, automdmConfig)
 	require.NoError(t, err)
 	assert.True(t, shouldSend)
 	assert.True(t, stats.AnyFailingPoliciesWebhookEnabled)
@@ -1425,7 +1425,7 @@ func testStatisticsAIGeneratedProfileCounts(t *testing.T, ds *Datastore) {
 	var wg sync.WaitGroup
 	errs := make(chan error, 2*perPlatform)
 	for range perPlatform {
-		for _, platform := range []string{fleet.AutofillConfigProfilePlatformApple, fleet.AutofillConfigProfilePlatformWindows} {
+		for _, platform := range []string{automdm.AutofillConfigProfilePlatformApple, automdm.AutofillConfigProfilePlatformWindows} {
 			wg.Go(func() {
 				errs <- ds.IncrementAIGeneratedProfileCount(ctx, platform)
 			})
@@ -1436,7 +1436,7 @@ func testStatisticsAIGeneratedProfileCounts(t *testing.T, ds *Datastore) {
 	for err := range errs {
 		require.NoError(t, err)
 	}
-	require.NoError(t, ds.IncrementAIGeneratedProfileCount(ctx, fleet.AutofillConfigProfilePlatformApple))
+	require.NoError(t, ds.IncrementAIGeneratedProfileCount(ctx, automdm.AutofillConfigProfilePlatformApple))
 
 	require.Error(t, ds.IncrementAIGeneratedProfileCount(ctx, "android"))
 

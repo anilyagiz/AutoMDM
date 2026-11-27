@@ -4,7 +4,7 @@
 # Sets TS_SSH_DISABLE_FORWARDING=1 for tailscaled with a systemd drop-in and restarts it.
 # Tailscale SSH sessions keep working; local, remote, Unix socket, and agent forwarding
 # are refused. The restart drops Tailscale connections on this host for a few seconds.
-# Idempotent. Built for Fleet "Run script" (runs as root).
+# Idempotent. Built for AutoMDM "Run script" (runs as root).
 # Rollback: delete the drop-in, then systemctl daemon-reload && systemctl restart tailscaled.
 # Exit: 0 = applied or nothing to do, 2 = needs a look (read output), 1 = error.
 

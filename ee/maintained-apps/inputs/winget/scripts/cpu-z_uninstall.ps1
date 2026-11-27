@@ -1,4 +1,4 @@
-# Fleet extracts name from installer (EXE) and saves it to PACKAGE_ID
+# AutoMDM extracts name from installer (EXE) and saves it to PACKAGE_ID
 # variable
 # CPU-Z registers a versioned DisplayName in the registry
 # (e.g. "CPUID CPU-Z 2.20"), so we match on the stable prefix.

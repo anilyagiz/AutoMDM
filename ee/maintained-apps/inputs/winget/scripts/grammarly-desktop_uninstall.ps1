@@ -6,7 +6,7 @@
 
 $displayName = "Grammarly for Windows"
 $publisher = "Grammarly Inc."
-$taskName = "fleet-uninstall-grammarly"
+$taskName = "automdm-uninstall-grammarly"
 $taskRunning = 267009  # SCHED_S_TASK_RUNNING
 $timeoutSeconds = 600
 $exitCode = 0
@@ -104,8 +104,8 @@ function Invoke-UninstallerAsUser {
 
 try {
     # Left behind only if an install was interrupted.
-    if (Get-ScheduledTask -TaskName "fleet-install-grammarly" -ErrorAction SilentlyContinue) {
-        Unregister-ScheduledTask -TaskName "fleet-install-grammarly" -Confirm:$false -ErrorAction SilentlyContinue
+    if (Get-ScheduledTask -TaskName "automdm-install-grammarly" -ErrorAction SilentlyContinue) {
+        Unregister-ScheduledTask -TaskName "automdm-install-grammarly" -Confirm:$false -ErrorAction SilentlyContinue
     }
 
     foreach ($entry in @(Get-GrammarlyEntries)) {

@@ -1,12 +1,12 @@
-// Package osqueryconfig_notify provides a fleet.Datastore decorator that tells
+// Package osqueryconfig_notify provides an automdm.Datastore decorator that tells
 // connected agents to fetch their osquery config after a successful write that
 // changes it.
 //
 // The writes that can change the osquery config are the ones hooked by
-// server/datastore/etag_invalidate, plus hosts changing fleet (the ETag scope
+// server/datastore/etag_invalidate, plus hosts changing team (the ETag scope
 // is resolved per request, so it needs no invalidation, but the host's config
 // changes). Label membership changes are left out: they only change the
-// config of hosts with label-scoped reports, and run continuously at fleet
+// config of hosts with label-scoped reports, and run continuously at team
 // scale; those changes reach agents on their fallback poll.
 //
 // Notifications are scoped (each instance resolves the hosts it holds) and
@@ -24,11 +24,11 @@ import (
 	"log/slog"
 	"reflect"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxdb"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxdb"
 )
 
-// Datastore decorates a fleet.Datastore so that every successful write
+// Datastore decorates an automdm.Datastore so that every successful write
 // changing an osquery config input notifies the hosts whose config changed.
 //
 // ADDING A DATASTORE METHOD: declare it here if it can change what
@@ -37,12 +37,12 @@ import (
 // requires one). TestCoversETagInvalidation requires every method hooked by
 // etag_invalidate to be declared here too, or explicitly skipped.
 type Datastore struct {
-	fleet.Datastore
-	notifier fleet.AgentCheckInNotifier
+	automdm.Datastore
+	notifier automdm.AgentCheckInNotifier
 	logger   *slog.Logger
 }
 
-func New(ds fleet.Datastore, notifier fleet.AgentCheckInNotifier, logger *slog.Logger) *Datastore {
+func New(ds automdm.Datastore, notifier automdm.AgentCheckInNotifier, logger *slog.Logger) *Datastore {
 	return &Datastore{
 		Datastore: ds,
 		notifier:  notifier,
@@ -50,7 +50,7 @@ func New(ds fleet.Datastore, notifier fleet.AgentCheckInNotifier, logger *slog.L
 	}
 }
 
-func (d *Datastore) publishScope(ctx context.Context, scope fleet.AgentNotificationScope, reason, source string) {
+func (d *Datastore) publishScope(ctx context.Context, scope automdm.AgentNotificationScope, reason, source string) {
 	if err := d.notifier.NotifyOsqueryConfigScope(ctx, scope, reason); err != nil {
 		d.logger.ErrorContext(ctx, "notify osquery config change", "scope", scope, "source", source, "err", err)
 	}
@@ -92,24 +92,24 @@ func decodeRaw(raw *json.RawMessage) (any, error) {
 }
 
 // reportsScope returns the scope of the hosts running the reports of the
-// given fleet, or of every host for global reports.
-func reportsScope(teamID *uint) fleet.AgentNotificationScope {
+// given team, or of every host for global reports.
+func reportsScope(teamID *uint) automdm.AgentNotificationScope {
 	if teamID == nil {
-		return fleet.AgentNotificationScopeGlobal
+		return automdm.AgentNotificationScopeGlobal
 	}
-	return fleet.AgentNotificationScopeTeam(*teamID)
+	return automdm.AgentNotificationScopeTeam(*teamID)
 }
 
 func teamKey(teamID *uint) uint {
 	if teamID == nil {
-		// Fleet IDs start at 1.
+		// Team IDs start at 1.
 		return 0
 	}
 	return *teamID
 }
 
-// reportsDigests returns the scheduled reports digest of each given fleet
-// (nil for global reports). A fleet whose digest can't be read is left out,
+// reportsDigests returns the scheduled reports digest of each given team
+// (nil for global reports). A team whose digest can't be read is left out,
 // which reportsChanged treats as changed.
 func (d *Datastore) reportsDigests(ctx context.Context, teamIDs []*uint) map[uint]string {
 	digests := make(map[uint]string, len(teamIDs))
@@ -124,7 +124,7 @@ func (d *Datastore) reportsDigests(ctx context.Context, teamIDs []*uint) map[uin
 	return digests
 }
 
-// withReportsDiff runs write and notifies the hosts of each given fleet whose
+// withReportsDiff runs write and notifies the hosts of each given team whose
 // scheduled reports it changed. GitOps applies every report on every run,
 // mostly unchanged: comparing avoids notifying every host on every run.
 //
@@ -138,18 +138,18 @@ func (d *Datastore) withReportsDiff(ctx context.Context, teamIDs []*uint, source
 		b, okB := before[teamKey(teamID)]
 		a, okA := after[teamKey(teamID)]
 		if !okB || !okA || a != b {
-			d.publishScope(ctx, reportsScope(teamID), fleet.AgentWSReasonReports, source)
+			d.publishScope(ctx, reportsScope(teamID), automdm.AgentWSReasonReports, source)
 		}
 	}
 	return err
 }
 
 // ///////////////////////////////////////////////////////////////////////////
-// Agent options. Hosts in a fleet with empty agent options get the global
+// Agent options. Hosts in a team with empty agent options get the global
 // ones, so a global change notifies every host.
 // ///////////////////////////////////////////////////////////////////////////
 
-func (d *Datastore) SaveAppConfig(ctx context.Context, info *fleet.AppConfig) error {
+func (d *Datastore) SaveAppConfig(ctx context.Context, info *automdm.AppConfig) error {
 	before, beforeErr := d.Datastore.AppConfig(freshCtx(ctx))
 	if err := d.Datastore.SaveAppConfig(ctx, info); err != nil {
 		return err
@@ -158,41 +158,41 @@ func (d *Datastore) SaveAppConfig(ctx context.Context, info *fleet.AppConfig) er
 		rawChanged(before.AgentOptions, info.AgentOptions) ||
 		// Changes which reports are sent to agents.
 		before.ServerSettings.QueryReportsDisabled != info.ServerSettings.QueryReportsDisabled {
-		d.publishScope(ctx, fleet.AgentNotificationScopeGlobal, fleet.AgentWSReasonSettings, "SaveAppConfig")
+		d.publishScope(ctx, automdm.AgentNotificationScopeGlobal, automdm.AgentWSReasonSettings, "SaveAppConfig")
 	}
 	return nil
 }
 
-func (d *Datastore) SaveTeam(ctx context.Context, team *fleet.Team) (*fleet.Team, error) {
+func (d *Datastore) SaveTeam(ctx context.Context, team *automdm.Team) (*automdm.Team, error) {
 	before, beforeErr := d.Datastore.TeamLite(freshCtx(ctx), team.ID)
 	saved, err := d.Datastore.SaveTeam(ctx, team)
 	if err != nil {
 		return nil, err
 	}
 	if beforeErr != nil || before == nil || rawChanged(before.Config.AgentOptions, team.Config.AgentOptions) {
-		d.publishScope(ctx, fleet.AgentNotificationScopeTeam(team.ID), fleet.AgentWSReasonSettings, "SaveTeam")
+		d.publishScope(ctx, automdm.AgentNotificationScopeTeam(team.ID), automdm.AgentWSReasonSettings, "SaveTeam")
 	}
 	return saved, nil
 }
 
 // ///////////////////////////////////////////////////////////////////////////
-// Hosts changing fleet get the new fleet's agent options and reports.
+// Hosts changing team get the new team's agent options and reports.
 // ///////////////////////////////////////////////////////////////////////////
 
 func (d *Datastore) DeleteTeam(ctx context.Context, tid uint) error {
 	if err := d.Datastore.DeleteTeam(ctx, tid); err != nil {
 		return err
 	}
-	// The fleet's hosts moved to "No fleet"; they are no longer in its scope.
-	d.publishScope(ctx, fleet.AgentNotificationScopeTeam(0), fleet.AgentWSReasonSettings, "DeleteTeam")
+	// The team's hosts moved to "No team"; they are no longer in its scope.
+	d.publishScope(ctx, automdm.AgentNotificationScopeTeam(0), automdm.AgentWSReasonSettings, "DeleteTeam")
 	return nil
 }
 
-func (d *Datastore) AddHostsToTeam(ctx context.Context, params *fleet.AddHostsToTeamParams) error {
+func (d *Datastore) AddHostsToTeam(ctx context.Context, params *automdm.AddHostsToTeamParams) error {
 	err := d.Datastore.AddHostsToTeam(ctx, params)
 	// Notify even on error: batches commit independently, so earlier ones may
 	// have moved hosts. Hosts that didn't move just fetch an unchanged config.
-	d.publishHosts(ctx, params.HostIDs, fleet.AgentWSReasonSettings, "AddHostsToTeam")
+	d.publishHosts(ctx, params.HostIDs, automdm.AgentWSReasonSettings, "AddHostsToTeam")
 	return err
 }
 
@@ -200,7 +200,7 @@ func (d *Datastore) AddHostsToTeam(ctx context.Context, params *fleet.AddHostsTo
 // Reports.
 // ///////////////////////////////////////////////////////////////////////////
 
-func (d *Datastore) ApplyQueries(ctx context.Context, authorID uint, queries []*fleet.Query, queriesToDiscardResults map[uint]struct{}) error {
+func (d *Datastore) ApplyQueries(ctx context.Context, authorID uint, queries []*automdm.Query, queriesToDiscardResults map[uint]struct{}) error {
 	seen := make(map[uint]struct{})
 	var teamIDs []*uint
 	for _, q := range queries {
@@ -215,17 +215,17 @@ func (d *Datastore) ApplyQueries(ctx context.Context, authorID uint, queries []*
 	})
 }
 
-// scheduled reports whether q is in its fleet's scheduled reports digest; a
+// scheduled reports whether q is in its team's scheduled reports digest; a
 // write leaving a report unscheduled skips the digests.
-func scheduled(q *fleet.Query) bool {
+func scheduled(q *automdm.Query) bool {
 	return q.Saved && q.Interval > 0
 }
 
-func (d *Datastore) NewQuery(ctx context.Context, query *fleet.Query, opts ...fleet.OptionalArg) (*fleet.Query, error) {
+func (d *Datastore) NewQuery(ctx context.Context, query *automdm.Query, opts ...automdm.OptionalArg) (*automdm.Query, error) {
 	if !scheduled(query) {
 		return d.Datastore.NewQuery(ctx, query, opts...)
 	}
-	var created *fleet.Query
+	var created *automdm.Query
 	err := d.withReportsDiff(ctx, []*uint{query.TeamID}, "NewQuery", func() error {
 		var err error
 		created, err = d.Datastore.NewQuery(ctx, query, opts...)
@@ -237,7 +237,7 @@ func (d *Datastore) NewQuery(ctx context.Context, query *fleet.Query, opts ...fl
 	return created, nil
 }
 
-func (d *Datastore) SaveQuery(ctx context.Context, query *fleet.Query, shouldDiscardResults bool, shouldDeleteStats bool) error {
+func (d *Datastore) SaveQuery(ctx context.Context, query *automdm.Query, shouldDiscardResults bool, shouldDeleteStats bool) error {
 	if !scheduled(query) {
 		if stored, err := d.Datastore.Query(freshCtx(ctx), query.ID); err == nil && !scheduled(stored) {
 			return d.Datastore.SaveQuery(ctx, query, shouldDiscardResults, shouldDeleteStats)
@@ -254,7 +254,7 @@ func (d *Datastore) DeleteQuery(ctx context.Context, teamID *uint, name string) 
 	})
 }
 
-// DeleteQueries notifies every host: the reports' fleets are unknown, and bulk
+// DeleteQueries notifies every host: the reports' teams are unknown, and bulk
 // deletes are infrequent.
 func (d *Datastore) DeleteQueries(ctx context.Context, ids []uint) (uint, error) {
 	n, err := d.Datastore.DeleteQueries(ctx, ids)
@@ -262,7 +262,7 @@ func (d *Datastore) DeleteQueries(ctx context.Context, ids []uint) (uint, error)
 		return n, err
 	}
 	if n > 0 {
-		d.publishScope(ctx, fleet.AgentNotificationScopeGlobal, fleet.AgentWSReasonReports, "DeleteQueries")
+		d.publishScope(ctx, automdm.AgentNotificationScopeGlobal, automdm.AgentWSReasonReports, "DeleteQueries")
 	}
 	return n, nil
 }
@@ -272,12 +272,12 @@ func (d *Datastore) DeleteQueries(ctx context.Context, ids []uint) (uint, error)
 // ///////////////////////////////////////////////////////////////////////////
 
 // DeleteLabel cascades away the label's query_labels rows, which can unscope
-// a report (it then applies to every host of its fleet). Label deletion is
+// a report (it then applies to every host of its team). Label deletion is
 // infrequent, so it notifies every host.
 func (d *Datastore) DeleteLabel(ctx context.Context, id uint) error {
 	if err := d.Datastore.DeleteLabel(ctx, id); err != nil {
 		return err
 	}
-	d.publishScope(ctx, fleet.AgentNotificationScopeGlobal, fleet.AgentWSReasonLabels, "DeleteLabel")
+	d.publishScope(ctx, automdm.AgentNotificationScopeGlobal, automdm.AgentWSReasonLabels, "DeleteLabel")
 	return nil
 }

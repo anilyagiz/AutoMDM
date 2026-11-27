@@ -1,4 +1,4 @@
-// Package devicesso provides a context key for the Fleet Desktop device SSO
+// Package devicesso provides a context key for the AutoMDM Desktop device SSO
 // session ID.
 package devicesso
 

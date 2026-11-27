@@ -4,12 +4,12 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/worker"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/worker"
 )
 
 // HostAction is a supported MDM lifecycle action that can be performed on a
@@ -26,7 +26,7 @@ const (
 	// HostActionReset performs tasks to reset mdm-related information.
 	HostActionReset HostAction = "reset"
 	// HostActionDelete performs tasks to cleanup MDM information when a
-	// host is deleted from fleet.
+	// host is deleted from team.
 	HostActionDelete HostAction = "delete"
 )
 
@@ -42,24 +42,24 @@ type HostOptions struct {
 	HardwareSerial          string
 	HardwareModel           string
 	EnrollReference         string
-	Host                    *fleet.Host
+	Host                    *automdm.Host
 	HasSetupExperienceItems bool
 	SCEPRenewalInProgress   bool
 	FromMDMMigration        bool
 	// EnrolledFromADE is whether an Apple device enrolled with the automatic (ADE) enrollment profile, or nil when that isn't
-	// known. Being assigned to Fleet in Apple Business doesn't mean the device used it: it can also enroll manually.
+	// known. Being assigned to AutoMDM in Apple Business doesn't mean the device used it: it can also enroll manually.
 	EnrolledFromADE *bool
 	// TeamID is currently only used for resetApple to assign the host to the correct team for account driven enrollments.
 	TeamID *uint
 	// PersonalEnrollmentType is manual_profile for a manual (profile-driven) BYOD
 	// enrollment where the end user chose "Personal" on the /enroll page. For
 	// Account-Driven User Enrollments (UserEnrollmentID != "") it is set automatically.
-	PersonalEnrollmentType fleet.PersonalEnrollmentType
+	PersonalEnrollmentType automdm.PersonalEnrollmentType
 }
 
 // HostLifecycle manages MDM host lifecycle actions
 type HostLifecycle struct {
-	ds              fleet.Datastore
+	ds              automdm.Datastore
 	logger          *slog.Logger
 	newActivityFunc NewActivityFunc
 }
@@ -67,10 +67,10 @@ type HostLifecycle struct {
 // NewActivityFunc is the signature type of the service-layer function that can
 // create activities and handle the webhook notification and all other
 // mechanisms required when creating an activity.
-type NewActivityFunc = fleet.NewActivityFunc
+type NewActivityFunc = automdm.NewActivityFunc
 
 // New creates a new HostLifecycle struct
-func New(ds fleet.Datastore, logger *slog.Logger, newActivityFn NewActivityFunc) *HostLifecycle {
+func New(ds automdm.Datastore, logger *slog.Logger, newActivityFn NewActivityFunc) *HostLifecycle {
 	return &HostLifecycle{
 		ds:              ds,
 		logger:          logger,
@@ -128,7 +128,7 @@ func (t *HostLifecycle) doWindows(ctx context.Context, opts HostOptions) error {
 	}
 }
 
-type uuidFn func(ctx context.Context, uuid string) ([]*fleet.User, []fleet.ActivityDetails, error)
+type uuidFn func(ctx context.Context, uuid string) ([]*automdm.User, []automdm.ActivityDetails, error)
 
 func (t *HostLifecycle) doWithUUIDValidation(ctx context.Context, action uuidFn, opts HostOptions) error {
 	if opts.UUID == "" {
@@ -157,13 +157,13 @@ func (t *HostLifecycle) resetApple(ctx context.Context, opts HostOptions) error 
 	if opts.UUID == "" && opts.HardwareSerial == "" && opts.UserEnrollmentID != "" {
 		opts.UUID = opts.UserEnrollmentID
 		opts.HardwareSerial = opts.UserEnrollmentID
-		personalType = fleet.PersonalEnrollmentTypeAccountDriven
+		personalType = automdm.PersonalEnrollmentTypeAccountDriven
 	}
 	if opts.UUID == "" || opts.HardwareSerial == "" || opts.HardwareModel == "" {
 		return ctxerr.New(ctx, "UUID, HardwareSerial and HardwareModel options are required for this action")
 	}
 
-	host := &fleet.Host{
+	host := &automdm.Host{
 		UUID:           opts.UUID,
 		HardwareSerial: opts.HardwareSerial,
 		HardwareModel:  opts.HardwareModel,
@@ -249,18 +249,18 @@ func (t *HostLifecycle) turnOnApple(ctx context.Context, opts HostOptions) error
 		return ctxerr.Wrap(ctx, err, "getting checkin info")
 	}
 
-	installedFromDEP, queueDEPTask := info.DEPAssignedToFleet, info.DEPAssignedToFleet || info.InstalledFromDEP
+	installedFromDEP, queueDEPTask := info.DEPAssignedToAutoMDM, info.DEPAssignedToAutoMDM || info.InstalledFromDEP
 	if opts.EnrolledFromADE != nil {
 		installedFromDEP, queueDEPTask = *opts.EnrolledFromADE, *opts.EnrolledFromADE
 	}
 
 	// create MDM enrolled activity if not in the middle of a SCEP renewal
 	if !info.SCEPRenewalInProgress {
-		mdmEnrolledActivity := &fleet.ActivityTypeMDMEnrolled{
+		mdmEnrolledActivity := &automdm.ActivityTypeMDMEnrolled{
 			HostID:           info.HostID,
 			HostDisplayName:  info.DisplayName,
 			InstalledFromDEP: installedFromDEP,
-			MDMPlatform:      fleet.MDMPlatformApple,
+			MDMPlatform:      automdm.MDMPlatformApple,
 			Platform:         info.Platform,
 		}
 		if nanoEnroll.Type == userEnrollmentDeviceType {
@@ -351,12 +351,12 @@ func (t *HostLifecycle) deleteApple(ctx context.Context, opts HostOptions) error
 	}
 
 	dep, err := t.ds.GetHostDEPAssignment(ctx, opts.Host.ID)
-	if err != nil && !fleet.IsNotFound(err) {
+	if err != nil && !automdm.IsNotFound(err) {
 		return ctxerr.Wrap(ctx, err, "get host dep assignment")
 	}
 
 	if !ac.MDM.AppleBMEnabledAndConfigured {
-		if fleet.IsNotFound(err) || dep == nil || dep.DeletedAt != nil {
+		if automdm.IsNotFound(err) || dep == nil || dep.DeletedAt != nil {
 			// Nothing to delete
 			return nil
 		}
@@ -393,7 +393,7 @@ func (t *HostLifecycle) deleteApple(ctx context.Context, opts HostOptions) error
 	return nil
 }
 
-func (t *HostLifecycle) restorePendingDEPHost(ctx context.Context, host *fleet.Host, abmTokenID *uint) error {
+func (t *HostLifecycle) restorePendingDEPHost(ctx context.Context, host *automdm.Host, abmTokenID *uint) error {
 	if abmTokenID == nil {
 		return ctxerr.New(ctx, "cannot restore pending dep host without valid ABM token id")
 	}
@@ -416,14 +416,14 @@ func (t *HostLifecycle) restorePendingDEPHost(ctx context.Context, host *fleet.H
 	return nil
 }
 
-func (t *HostLifecycle) getDefaultTeamForABMToken(ctx context.Context, host *fleet.Host, abmTokenID uint) (*uint, error) {
+func (t *HostLifecycle) getDefaultTeamForABMToken(ctx context.Context, host *automdm.Host, abmTokenID uint) (*uint, error) {
 	var abmDefaultTeamID *uint
 	tok, err := t.ds.GetABMTokenByID(ctx, abmTokenID)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "getting ABM token by id")
 	}
 
-	switch host.FleetPlatform() {
+	switch host.AutoMDMPlatform() {
 	case "darwin":
 		abmDefaultTeamID = tok.MacOSDefaultTeamID
 	case "ios":
@@ -431,7 +431,7 @@ func (t *HostLifecycle) getDefaultTeamForABMToken(ctx context.Context, host *fle
 	case "ipados":
 		abmDefaultTeamID = tok.IPadOSDefaultTeamID
 	default:
-		return nil, ctxerr.NewWithData(ctx, "attempting to get default ABM fleet for host with invalid platform", map[string]any{"host_platform": host.FleetPlatform(), "host_id": host.ID})
+		return nil, ctxerr.NewWithData(ctx, "attempting to get default ABM team for host with invalid platform", map[string]any{"host_platform": host.AutoMDMPlatform(), "host_id": host.ID})
 	}
 
 	if abmDefaultTeamID == nil {
@@ -445,8 +445,8 @@ func (t *HostLifecycle) getDefaultTeamForABMToken(ctx context.Context, host *fle
 	}
 
 	if !exists {
-		t.logger.InfoContext(ctx, "unable to find default fleet assigned to abm token, mdm devices won't be assigned to a fleet",
-			"fleet_id", abmDefaultTeamID,
+		t.logger.InfoContext(ctx, "unable to find default team assigned to abm token, mdm devices won't be assigned to a team",
+			"team_id", abmDefaultTeamID,
 		)
 		return nil, nil
 	}
@@ -454,9 +454,9 @@ func (t *HostLifecycle) getDefaultTeamForABMToken(ctx context.Context, host *fle
 	return abmDefaultTeamID, nil
 }
 
-func (t *HostLifecycle) createActivities(ctx context.Context, users []*fleet.User, acts []fleet.ActivityDetails) error {
+func (t *HostLifecycle) createActivities(ctx context.Context, users []*automdm.User, acts []automdm.ActivityDetails) error {
 	if len(users) != len(acts) {
-		return ctxerr.New(ctx, "number of users and activities must match, this is a Fleet development bug")
+		return ctxerr.New(ctx, "number of users and activities must match, this is an AutoMDM development bug")
 	}
 
 	for i, act := range acts {

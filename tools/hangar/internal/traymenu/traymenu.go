@@ -63,7 +63,7 @@ func BuildItems(s State) []Item {
 	items := []Item{
 		{ID: "tray:branch", Label: BranchLabel(s)},
 		{Separator: true},
-		{ID: "tray:svc-serve", Label: svcLabel(s.ServeUp, "fleet serve", serveExtra)},
+		{ID: "tray:svc-serve", Label: svcLabel(s.ServeUp, "automdm serve", serveExtra)},
 		{ID: "tray:svc-docker", Label: svcLabel(s.DockerUp, "docker", "")},
 		{ID: "tray:svc-ngrok", Label: svcLabel(s.NgrokRunning, "ngrok", "")},
 		{ID: "tray:svc-python", Label: svcLabel(s.PythonRunning, "python", "")},
@@ -77,7 +77,7 @@ func BuildItems(s State) []Item {
 		items = append(items, Item{ID: "tray:start-all", Label: "▶ Start all", Enabled: s.Branch != nil})
 	}
 	items = append(items,
-		Item{ID: "tray:show", Label: "Open Fleet Dev", Enabled: true},
+		Item{ID: "tray:show", Label: "Open AutoMDM Dev", Enabled: true},
 		Item{ID: "tray:quit", Label: "Quit", Enabled: true},
 	)
 	return items

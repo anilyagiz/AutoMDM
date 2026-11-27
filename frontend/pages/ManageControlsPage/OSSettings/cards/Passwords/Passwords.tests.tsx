@@ -61,19 +61,19 @@ describe("Passwords card", () => {
     });
   });
 
-  it("reads and saves Recovery Lock for a fleet in the fleet's config", async () => {
+  it("reads and saves Recovery Lock for a team in the team's config", async () => {
     let savedBody: unknown;
     mockServer.use(
-      http.get(baseUrl("/fleets/1"), () =>
+      http.get(baseUrl("/teams/1"), () =>
         HttpResponse.json({
-          fleet: {
+          team: {
             id: 1,
             name: "Workstations",
             mdm: { macos_recovery_lock_password_enabled: true },
           },
         })
       ),
-      http.patch(baseUrl("/fleets/1"), async ({ request }) => {
+      http.patch(baseUrl("/teams/1"), async ({ request }) => {
         savedBody = await request.json();
         return HttpResponse.json({});
       })

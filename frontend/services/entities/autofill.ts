@@ -35,8 +35,8 @@ export interface IAutofillConfigProfileParams {
 
 export interface IAutofillConfigProfileContentParams
   extends IAutofillConfigProfileParams {
-  /** Left out for Unassigned and on Fleet Free. */
-  fleetId?: number;
+  /** Left out for Unassigned and on AutoMDM Free. */
+  automdmId?: number;
 }
 
 export default {
@@ -61,7 +61,7 @@ export default {
   getConfigProfileContent: ({
     instructions,
     platform,
-    fleetId,
+    automdmId,
     signal,
   }: IAutofillConfigProfileContentParams): Promise<IAutofillConfigProfileContentResponse> =>
     sendRequestWithProgress({
@@ -70,7 +70,7 @@ export default {
       data: {
         natural_language_instructions: instructions,
         platform,
-        fleet_id: fleetId,
+        team_id: automdmId,
       },
       signal,
     }),

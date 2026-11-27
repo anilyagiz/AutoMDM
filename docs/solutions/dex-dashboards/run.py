@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""One run: collect a Fleet snapshot and the vendors' latest releases, then rebuild every page.
+"""One run: collect an AutoMDM snapshot and the vendors' latest releases, then rebuild every page.
 
   run.py --work DIR --in DIR [--first-run] [--link lifecycle=URL ... --link overview=URL] [--site DIR]
          [--scoring FILE]
@@ -19,7 +19,7 @@ relative path and open in the same tab.
 
 The experience score uses scoring settings from --scoring, else IN/experience/scoring.json
 (the settings saved on the Experience page, which the routine reads first), else
-DEX_SCORING_FILE, else Fleet's defaults. The page itself always uses the settings saved on
+DEX_SCORING_FILE, else AutoMDM's defaults. The page itself always uses the settings saved on
 it; these only set the overview's card and the page's starting point.
 
 A large fleet can take longer than one 10-minute command. When the time budget
@@ -130,7 +130,7 @@ def main():
 
     computers = sum(1 for h in snap["hosts"] if h["platform"] and h["platform"] not in collect.NOT_COMPUTERS)
     if computers == 0:
-        sys.exit("FATAL: Fleet returned no macOS, Windows, or Linux hosts. Not rebuilding.")
+        sys.exit("FATAL: AutoMDM returned no macOS, Windows, or Linux hosts. Not rebuilding.")
 
     templates = os.path.join(HERE, "templates")
     out = os.path.join(args.work, "out")

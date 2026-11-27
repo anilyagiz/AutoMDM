@@ -56,11 +56,11 @@ jobs:
     with:
       suite: activity
       mysql: ${{ matrix.mysql }}
-      cover_pkg: 'github.com/fleetdm/fleet/v4/server/activity/...'
+      cover_pkg: 'github.com/anilyagiz/automdm/v4/server/activity/...'
       generate_go: false
       is_cron: ${{ github.event_name == 'schedule' }}
     secrets:
-      FLEET_RELEASE_GITHUB_PAT: ${{ secrets.FLEET_RELEASE_GITHUB_PAT }}
+      AUTOMDM_RELEASE_GITHUB_PAT: ${{ secrets.AUTOMDM_RELEASE_GITHUB_PAT }}
       SLACK_G_HELP_ENGINEERING_WEBHOOK_URL: ${{ github.event_name == 'schedule' && secrets.SLACK_G_HELP_ENGINEERING_WEBHOOK_URL || '' }}
 
   # ──────────────────────────────────────────────────────────────────────────
@@ -78,11 +78,11 @@ jobs:
     with:
       suite: activity
       mysql: ${{ matrix.mysql }}
-      cover_pkg: 'github.com/fleetdm/fleet/v4/server/activity/...'
+      cover_pkg: 'github.com/anilyagiz/automdm/v4/server/activity/...'
       generate_go: false
       is_cron: true
     secrets:
-      FLEET_RELEASE_GITHUB_PAT: ${{ secrets.FLEET_RELEASE_GITHUB_PAT }}
+      AUTOMDM_RELEASE_GITHUB_PAT: ${{ secrets.AUTOMDM_RELEASE_GITHUB_PAT }}
       SLACK_G_HELP_ENGINEERING_WEBHOOK_URL: ${{ secrets.SLACK_G_HELP_ENGINEERING_WEBHOOK_URL }}
 
   # We upload all backend coverage in one step so that we're less likely to end up with a partial coverage report.

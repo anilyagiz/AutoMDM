@@ -33,7 +33,7 @@ import { ISoftwareVppFormData } from "../../../components/forms/SoftwareVppForm/
 
 import {
   getErrorMessage,
-  getFleetVppTokens,
+  getTeamVppTokens,
   isVppTokenExpired,
 } from "./helpers";
 
@@ -86,11 +86,11 @@ const AddTeamToVppMessage = ({
     header = "Unassigned hosts aren't in Volume Purchasing Program (VPP)";
     subject = "unassigned hosts";
   } else if (currentTeamName) {
-    header = `${currentTeamName} fleet isn't added to Volume Purchasing Program (VPP)`;
-    subject = `${currentTeamName} fleet`;
+    header = `${currentTeamName} team isn't added to Volume Purchasing Program (VPP)`;
+    subject = `${currentTeamName} team`;
   } else {
-    header = "This fleet isn't added to Volume Purchasing Program (VPP)";
-    subject = "this fleet";
+    header = "This team isn't added to Volume Purchasing Program (VPP)";
+    subject = "this team";
   }
 
   return (
@@ -146,7 +146,7 @@ const NoVppAppsMessage = () => (
           newTab
         />
         <br />
-        App Store apps that are already added to this fleet are not listed.
+        App Store apps that are already added to this team are not listed.
       </>
     }
   />
@@ -212,10 +212,10 @@ const SoftwareAppStoreVpp = ({
   );
 
   const noVppTokenUploaded = !vppInfo || !vppInfo.vpp_tokens.length;
-  const fleetTokens = getFleetVppTokens(currentTeamId, vppInfo?.vpp_tokens);
+  const automdmTokens = getTeamVppTokens(currentTeamId, vppInfo?.vpp_tokens);
   const [selectedTokenId, setSelectedTokenId] = useState<number>();
   const selectedToken =
-    fleetTokens.find((t) => t.id === selectedTokenId) ?? fleetTokens[0];
+    automdmTokens.find((t) => t.id === selectedTokenId) ?? automdmTokens[0];
   const vppTokenId = selectedToken?.id;
   const isSelectedTokenExpired = isVppTokenExpired(selectedToken);
 
@@ -240,7 +240,7 @@ const SoftwareAppStoreVpp = ({
   const goBackToSoftwareLibrary = () => {
     router.push(
       getPathWithQueryParams(PATHS.SOFTWARE_LIBRARY, {
-        fleet_id: currentTeamId,
+        team_id: currentTeamId,
       })
     );
   };
@@ -284,7 +284,7 @@ const SoftwareAppStoreVpp = ({
       router.push(
         getPathWithQueryParams(
           PATHS.SOFTWARE_TITLE_DETAILS(softwareVppTitleId.toString()),
-          { fleet_id: currentTeamId }
+          { team_id: currentTeamId }
         )
       );
     } catch (e) {
@@ -319,8 +319,8 @@ const SoftwareAppStoreVpp = ({
       return <DataError verticalPaddingSize="pad-xxxlarge" />;
     }
 
-    // GET /vpp_tokens filters to tokens whose fleets a team-scoped user can
-    // read, so their empty list can also mean "VPP is enabled but my fleet
+    // GET /vpp_tokens filters to tokens whose teams a team-scoped user can
+    // read, so their empty list can also mean "VPP is enabled but my team
     // isn't on any token." Only treat empty as "not enabled" for users who
     // can see every token.
     if (noVppTokenUploaded && isOnGlobalTeam) {
@@ -332,7 +332,7 @@ const SoftwareAppStoreVpp = ({
       );
     }
 
-    if (!fleetTokens.length) {
+    if (!automdmTokens.length) {
       return (
         <AddTeamToVppMessage
           onEditVpp={() => router.push(PATHS.ADMIN_INTEGRATIONS_VPP)}
@@ -386,7 +386,7 @@ const SoftwareAppStoreVpp = ({
 
     return (
       <div className={`${baseClass}__content`}>
-        {fleetTokens.length > 1 && (
+        {automdmTokens.length > 1 && (
           <DropdownWrapper
             ariaLabel="Select VPP token"
             name="vpp-token"
@@ -395,7 +395,7 @@ const SoftwareAppStoreVpp = ({
               token && setSelectedTokenId(Number(token.value))
             }
             value={vppTokenId?.toString()}
-            options={fleetTokens.map((t) => ({
+            options={automdmTokens.map((t) => ({
               label: formatVppTokenLabel(t),
               value: t.id.toString(),
               helpText: t.org_name,

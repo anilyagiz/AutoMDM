@@ -26,18 +26,18 @@ describe("RotatedManagedLocalAccountPasswordActivityItem", () => {
     ).toBeVisible();
   });
 
-  it("renders Fleet-initiated (auto) rotation activity content", () => {
+  it("renders AutoMDM-initiated (auto) rotation activity content", () => {
     render(
       <RotatedManagedLocalAccountPasswordActivityItem
         activity={createMockHostPastActivity({
-          actor_full_name: "Fleet",
+          actor_full_name: "AutoMDM",
           type: ActivityType.RotatedManagedLocalAccountPassword,
         })}
         tab="past"
       />
     );
 
-    expect(screen.getByText("Fleet")).toBeVisible();
+    expect(screen.getByText("AutoMDM")).toBeVisible();
     expect(
       screen.getByText(
         /triggered rotation of the managed local account password/i

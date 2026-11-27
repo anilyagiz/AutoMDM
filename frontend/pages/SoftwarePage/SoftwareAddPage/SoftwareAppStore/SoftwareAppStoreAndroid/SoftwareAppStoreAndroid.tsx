@@ -82,7 +82,7 @@ const SoftwareAppStoreAndroid = ({
   const goBackToSoftwareLibrary = () => {
     router.push(
       getPathWithQueryParams(PATHS.SOFTWARE_LIBRARY, {
-        fleet_id: currentTeamId,
+        team_id: currentTeamId,
       })
     );
   };
@@ -114,7 +114,7 @@ const SoftwareAppStoreAndroid = ({
       router.push(
         getPathWithQueryParams(
           PATHS.SOFTWARE_TITLE_DETAILS(softwareAppStoreTitleId.toString()),
-          { fleet_id: currentTeamId }
+          { team_id: currentTeamId }
         )
       );
     } catch (e) {

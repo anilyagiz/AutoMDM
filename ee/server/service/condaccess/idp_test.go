@@ -9,14 +9,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/anilyagiz/automdm/v4/pkg/optjson"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/platform/middleware/ratelimit"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
 	"github.com/aws/smithy-go/ptr"
 	"github.com/crewjam/saml"
-	"github.com/fleetdm/fleet/v4/pkg/optjson"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/platform/middleware/ratelimit"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
 	"github.com/throttled/throttled/v2/store/memstore"
@@ -94,29 +94,29 @@ func newTestServiceWithCertFormat(certFormat string) (*idpService, *mock.Store) 
 	return &idpService{ds: ds, logger: logger, certSerialFormat: certFormat, mdCache: &metadataCache{}}, ds
 }
 
-func mockAppConfigFunc(serverURL string) func(context.Context) (*fleet.AppConfig, error) {
-	return func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{
-			ServerSettings: fleet.ServerSettings{
+func mockAppConfigFunc(serverURL string) func(context.Context) (*automdm.AppConfig, error) {
+	return func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{
+			ServerSettings: automdm.ServerSettings{
 				ServerURL: serverURL,
 			},
-			ConditionalAccess: &fleet.ConditionalAccessSettings{},
+			ConditionalAccess: &automdm.ConditionalAccessSettings{},
 		}, nil
 	}
 }
 
-func mockCertAssetsFunc(includeCerts bool) func(context.Context, []fleet.MDMAssetName, sqlx.QueryerContext) (map[fleet.MDMAssetName]fleet.MDMConfigAsset, error) {
-	return func(ctx context.Context, assetNames []fleet.MDMAssetName, queryerContext sqlx.QueryerContext) (map[fleet.MDMAssetName]fleet.MDMConfigAsset, error) {
+func mockCertAssetsFunc(includeCerts bool) func(context.Context, []automdm.MDMAssetName, sqlx.QueryerContext) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
+	return func(ctx context.Context, assetNames []automdm.MDMAssetName, queryerContext sqlx.QueryerContext) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
 		if !includeCerts {
-			return map[fleet.MDMAssetName]fleet.MDMConfigAsset{}, nil
+			return map[automdm.MDMAssetName]automdm.MDMConfigAsset{}, nil
 		}
-		return map[fleet.MDMAssetName]fleet.MDMConfigAsset{
-			fleet.MDMAssetConditionalAccessIDPCert: {
-				Name:  fleet.MDMAssetConditionalAccessIDPCert,
+		return map[automdm.MDMAssetName]automdm.MDMConfigAsset{
+			automdm.MDMAssetConditionalAccessIDPCert: {
+				Name:  automdm.MDMAssetConditionalAccessIDPCert,
 				Value: testCertPEM,
 			},
-			fleet.MDMAssetConditionalAccessIDPKey: {
-				Name:  fleet.MDMAssetConditionalAccessIDPKey,
+			automdm.MDMAssetConditionalAccessIDPKey: {
+				Name:  automdm.MDMAssetConditionalAccessIDPKey,
 				Value: testKeyPEM,
 			},
 		}, nil
@@ -126,17 +126,17 @@ func mockCertAssetsFunc(includeCerts bool) func(context.Context, []fleet.MDMAsse
 func TestRegisterIdP(t *testing.T) {
 	ds := new(mock.Store)
 	logger := slog.New(slog.DiscardHandler)
-	cfg := &config.FleetConfig{}
+	cfg := &config.AutoMDMConfig{}
 	store := newTestLimitStore(t)
 
-	ds.AppConfigFunc = mockAppConfigFunc("https://fleet.example.com")
+	ds.AppConfigFunc = mockAppConfigFunc("https://automdm.example.com")
 	ds.GetAllMDMConfigAssetsByNameFunc = mockCertAssetsFunc(false)
 
 	mux := http.NewServeMux()
 	// Try with nil config
 	err := RegisterIdP(mux, ds, logger, nil, store)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "fleet config is nil")
+	require.Contains(t, err.Error(), "automdm config is nil")
 
 	err = RegisterIdP(mux, ds, logger, cfg, store)
 	require.NoError(t, err)
@@ -161,7 +161,7 @@ func TestRegisterIdP(t *testing.T) {
 func TestServeMetadata(t *testing.T) {
 	t.Run("returns SAML metadata when configured", func(t *testing.T) {
 		svc, ds := newTestService()
-		ds.AppConfigFunc = mockAppConfigFunc("https://fleet.example.com")
+		ds.AppConfigFunc = mockAppConfigFunc("https://automdm.example.com")
 		ds.GetAllMDMConfigAssetsByNameFunc = mockCertAssetsFunc(true)
 
 		req := httptest.NewRequest("GET", idpMetadataPath, nil)
@@ -176,12 +176,12 @@ func TestServeMetadata(t *testing.T) {
 		require.Contains(t, body, "EntityDescriptor")
 		require.Contains(t, body, idpSSOPath)
 		require.Contains(t, body, "IDPSSODescriptor")
-		require.Contains(t, body, "okta.fleet.example.com")
+		require.Contains(t, body, "okta.automdm.example.com")
 	})
 
 	t.Run("properly appends paths to server URL with existing path", func(t *testing.T) {
 		svc, ds := newTestService()
-		ds.AppConfigFunc = mockAppConfigFunc("https://fleet.example.com/go/here/for/fleet")
+		ds.AppConfigFunc = mockAppConfigFunc("https://automdm.example.com/go/here/for/automdm")
 		ds.GetAllMDMConfigAssetsByNameFunc = mockCertAssetsFunc(true)
 
 		req := httptest.NewRequest("GET", idpMetadataPath, nil)
@@ -191,13 +191,13 @@ func TestServeMetadata(t *testing.T) {
 
 		require.Equal(t, http.StatusOK, w.Code)
 		body := w.Body.String()
-		require.Contains(t, body, "https://fleet.example.com/go/here/for/fleet"+idpMetadataPath)
-		require.Contains(t, body, "https://okta.fleet.example.com/go/here/for/fleet"+idpSSOPath)
+		require.Contains(t, body, "https://automdm.example.com/go/here/for/automdm"+idpMetadataPath)
+		require.Contains(t, body, "https://okta.automdm.example.com/go/here/for/automdm"+idpSSOPath)
 	})
 
 	t.Run("returns 404 when certificate assets not found", func(t *testing.T) {
 		svc, ds := newTestService()
-		ds.AppConfigFunc = mockAppConfigFunc("https://fleet.example.com")
+		ds.AppConfigFunc = mockAppConfigFunc("https://automdm.example.com")
 		ds.GetAllMDMConfigAssetsByNameFunc = mockCertAssetsFunc(false)
 
 		req := httptest.NewRequest("GET", idpMetadataPath, nil)
@@ -228,7 +228,7 @@ func TestServeMetadata(t *testing.T) {
 
 	t.Run("caches metadata response", func(t *testing.T) {
 		svc, ds := newTestService()
-		ds.AppConfigFunc = mockAppConfigFunc("https://fleet.example.com")
+		ds.AppConfigFunc = mockAppConfigFunc("https://automdm.example.com")
 		ds.GetAllMDMConfigAssetsByNameFunc = mockCertAssetsFunc(true)
 
 		// First request should hit the datastore
@@ -258,7 +258,7 @@ func TestServeMetadata(t *testing.T) {
 
 	t.Run("does not cache error responses", func(t *testing.T) {
 		svc, ds := newTestService()
-		ds.AppConfigFunc = mockAppConfigFunc("https://fleet.example.com")
+		ds.AppConfigFunc = mockAppConfigFunc("https://automdm.example.com")
 		ds.GetAllMDMConfigAssetsByNameFunc = mockCertAssetsFunc(false) // Will return 404
 
 		// First request returns 404
@@ -285,9 +285,9 @@ func TestIDPRateLimiting(t *testing.T) {
 	t.Run("rate limits by remote addr", func(t *testing.T) {
 		ds := new(mock.Store)
 		logger := slog.New(slog.DiscardHandler)
-		cfg := &config.FleetConfig{}
+		cfg := &config.AutoMDMConfig{}
 
-		ds.AppConfigFunc = mockAppConfigFunc("https://fleet.example.com")
+		ds.AppConfigFunc = mockAppConfigFunc("https://automdm.example.com")
 		ds.GetAllMDMConfigAssetsByNameFunc = mockCertAssetsFunc(true)
 
 		mux := http.NewServeMux()
@@ -321,10 +321,10 @@ func TestIDPRateLimiting(t *testing.T) {
 	t.Run("rate limits by X-Forwarded-For when trusted proxies configured", func(t *testing.T) {
 		ds := new(mock.Store)
 		logger := slog.New(slog.DiscardHandler)
-		cfg := &config.FleetConfig{}
+		cfg := &config.AutoMDMConfig{}
 		cfg.Server.TrustedProxies = "10.0.0.0/8"
 
-		ds.AppConfigFunc = mockAppConfigFunc("https://fleet.example.com")
+		ds.AppConfigFunc = mockAppConfigFunc("https://automdm.example.com")
 		ds.GetAllMDMConfigAssetsByNameFunc = mockCertAssetsFunc(true)
 
 		mux := http.NewServeMux()
@@ -563,7 +563,7 @@ func TestServeSSO(t *testing.T) {
 					require.Equal(t, tt.expectedSerial, serial)
 					return 123, nil
 				}
-				ds.AppConfigFunc = mockAppConfigFunc("https://fleet.example.com")
+				ds.AppConfigFunc = mockAppConfigFunc("https://automdm.example.com")
 				ds.GetAllMDMConfigAssetsByNameFunc = mockCertAssetsFunc(false)
 
 				req := httptest.NewRequest("POST", idpSSOPath, nil)
@@ -598,7 +598,7 @@ func TestServeSSO(t *testing.T) {
 					ds.GetConditionalAccessCertHostIDBySerialNumberFunc = func(ctx context.Context, serial uint64) (uint, error) {
 						return 123, nil
 					}
-					ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
+					ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
 						return nil, errors.New("database connection failed")
 					}
 				},
@@ -618,8 +618,8 @@ func TestServeSSO(t *testing.T) {
 					ds.GetConditionalAccessCertHostIDBySerialNumberFunc = func(ctx context.Context, serial uint64) (uint, error) {
 						return 123, nil
 					}
-					ds.AppConfigFunc = mockAppConfigFunc("https://fleet.example.com")
-					ds.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []fleet.MDMAssetName, queryerContext sqlx.QueryerContext) (map[fleet.MDMAssetName]fleet.MDMConfigAsset, error) {
+					ds.AppConfigFunc = mockAppConfigFunc("https://automdm.example.com")
+					ds.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []automdm.MDMAssetName, queryerContext sqlx.QueryerContext) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
 						return nil, errors.New("database connection failed")
 					}
 				},
@@ -649,7 +649,7 @@ func TestParseCertAndKeyBytes(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, cert)
 		require.NotNil(t, key)
-		require.Equal(t, "test-idp.fleet.example.com", cert.Subject.CommonName)
+		require.Equal(t, "test-idp.automdm.example.com", cert.Subject.CommonName)
 	})
 
 	t.Run("returns error when certificate is invalid", func(t *testing.T) {
@@ -676,11 +676,11 @@ func TestDeviceHealthSessionProvider(t *testing.T) {
 		hostID uint
 
 		// Mock return values
-		host    *fleet.Host
+		host    *automdm.Host
 		hostErr error
 
 		caPolicyIDs  []uint
-		hostPolicies []*fleet.HostPolicy
+		hostPolicies []*automdm.HostPolicy
 
 		deviceToken        string
 		deviceTokenErr     error
@@ -688,7 +688,7 @@ func TestDeviceHealthSessionProvider(t *testing.T) {
 		loadDeviceTokenErr error // if set, LoadHostByDeviceAuthToken returns this error
 		setDeviceTokenErr  error
 
-		appConfig *fleet.AppConfig // nil = use default with ServerURL
+		appConfig *automdm.AppConfig // nil = use default with ServerURL
 
 		bypassTime            *time.Time
 		bypassErr             error
@@ -706,12 +706,12 @@ func TestDeviceHealthSessionProvider(t *testing.T) {
 		{
 			name:        "returns session for compliant device",
 			hostID:      123,
-			host:        &fleet.Host{ID: 123, TeamID: ptr.Uint(1)},
+			host:        &automdm.Host{ID: 123, TeamID: ptr.Uint(1)},
 			caPolicyIDs: []uint{10, 20},
-			hostPolicies: []*fleet.HostPolicy{
-				{PolicyData: fleet.PolicyData{ID: 10}, Response: "pass"},
-				{PolicyData: fleet.PolicyData{ID: 20}, Response: "pass"},
-				{PolicyData: fleet.PolicyData{ID: 30}, Response: "fail"}, // Not conditional access
+			hostPolicies: []*automdm.HostPolicy{
+				{PolicyData: automdm.PolicyData{ID: 10}, Response: "pass"},
+				{PolicyData: automdm.PolicyData{ID: 20}, Response: "pass"},
+				{PolicyData: automdm.PolicyData{ID: 30}, Response: "fail"}, // Not conditional access
 			},
 			wantSession:    true,
 			wantNameID:     "host-123",
@@ -720,9 +720,9 @@ func TestDeviceHealthSessionProvider(t *testing.T) {
 		{
 			name:        "returns session for compliant Windows device",
 			hostID:      123,
-			host:        &fleet.Host{ID: 123, TeamID: ptr.Uint(1), Platform: "windows"},
+			host:        &automdm.Host{ID: 123, TeamID: ptr.Uint(1), Platform: "windows"},
 			caPolicyIDs: []uint{10},
-			hostPolicies: []*fleet.HostPolicy{
+			hostPolicies: []*automdm.HostPolicy{
 				{ID: 10, Response: "pass"},
 				{ID: 30, Response: "fail"}, // Not conditional access
 			},
@@ -734,11 +734,11 @@ func TestDeviceHealthSessionProvider(t *testing.T) {
 		{
 			name:        "uses NameID from SAML request when provided",
 			hostID:      123,
-			host:        &fleet.Host{ID: 123, TeamID: ptr.Uint(1), Platform: "darwin"},
+			host:        &automdm.Host{ID: 123, TeamID: ptr.Uint(1), Platform: "darwin"},
 			caPolicyIDs: []uint{10, 20},
-			hostPolicies: []*fleet.HostPolicy{
-				{PolicyData: fleet.PolicyData{ID: 10}, Response: "pass"},
-				{PolicyData: fleet.PolicyData{ID: 20}, Response: "pass"},
+			hostPolicies: []*automdm.HostPolicy{
+				{PolicyData: automdm.PolicyData{ID: 10}, Response: "pass"},
+				{PolicyData: automdm.PolicyData{ID: 20}, Response: "pass"},
 			},
 			samlReq: &saml.IdpAuthnRequest{
 				Request: saml.AuthnRequest{
@@ -756,12 +756,12 @@ func TestDeviceHealthSessionProvider(t *testing.T) {
 		{
 			name:        "redirects to device policy page for failing CA policies",
 			hostID:      456,
-			host:        &fleet.Host{ID: 456, TeamID: ptr.Uint(1)},
+			host:        &automdm.Host{ID: 456, TeamID: ptr.Uint(1)},
 			caPolicyIDs: []uint{10, 20},
-			hostPolicies: []*fleet.HostPolicy{
-				{PolicyData: fleet.PolicyData{ID: 10}, Response: "fail"},
-				{PolicyData: fleet.PolicyData{ID: 20}, Response: "pass"},
-				{PolicyData: fleet.PolicyData{ID: 30}, Response: "fail"}, // Not conditional access
+			hostPolicies: []*automdm.HostPolicy{
+				{PolicyData: automdm.PolicyData{ID: 10}, Response: "fail"},
+				{PolicyData: automdm.PolicyData{ID: 20}, Response: "pass"},
+				{PolicyData: automdm.PolicyData{ID: 30}, Response: "fail"}, // Not conditional access
 			},
 			deviceToken:    "abc123",
 			wantStatusCode: http.StatusSeeOther,
@@ -770,12 +770,12 @@ func TestDeviceHealthSessionProvider(t *testing.T) {
 		{
 			name:        "creates token and redirects to device policy page when no auth token",
 			hostID:      456,
-			host:        &fleet.Host{ID: 456, TeamID: ptr.Uint(1)},
+			host:        &automdm.Host{ID: 456, TeamID: ptr.Uint(1)},
 			caPolicyIDs: []uint{10, 20},
-			hostPolicies: []*fleet.HostPolicy{
-				{PolicyData: fleet.PolicyData{ID: 10}, Response: "fail"},
-				{PolicyData: fleet.PolicyData{ID: 20}, Response: "pass"},
-				{PolicyData: fleet.PolicyData{ID: 30}, Response: "fail"}, // Not conditional access
+			hostPolicies: []*automdm.HostPolicy{
+				{PolicyData: automdm.PolicyData{ID: 10}, Response: "fail"},
+				{PolicyData: automdm.PolicyData{ID: 20}, Response: "pass"},
+				{PolicyData: automdm.PolicyData{ID: 30}, Response: "fail"}, // Not conditional access
 			},
 			deviceTokenErr: &notFoundError{msg: "HostDeviceAuth not found"},
 			wantStatusCode: http.StatusSeeOther,
@@ -784,12 +784,12 @@ func TestDeviceHealthSessionProvider(t *testing.T) {
 		{
 			name:        "redirects to remediate when no auth token and create fails",
 			hostID:      456,
-			host:        &fleet.Host{ID: 456, TeamID: ptr.Uint(1)},
+			host:        &automdm.Host{ID: 456, TeamID: ptr.Uint(1)},
 			caPolicyIDs: []uint{10, 20},
-			hostPolicies: []*fleet.HostPolicy{
-				{PolicyData: fleet.PolicyData{ID: 10}, Response: "fail"},
-				{PolicyData: fleet.PolicyData{ID: 20}, Response: "pass"},
-				{PolicyData: fleet.PolicyData{ID: 30}, Response: "fail"}, // Not conditional access
+			hostPolicies: []*automdm.HostPolicy{
+				{PolicyData: automdm.PolicyData{ID: 10}, Response: "fail"},
+				{PolicyData: automdm.PolicyData{ID: 20}, Response: "pass"},
+				{PolicyData: automdm.PolicyData{ID: 30}, Response: "fail"}, // Not conditional access
 			},
 			deviceTokenErr:    &notFoundError{msg: "HostDeviceAuth not found"},
 			setDeviceTokenErr: errors.New("database error"),
@@ -799,11 +799,11 @@ func TestDeviceHealthSessionProvider(t *testing.T) {
 		{
 			name:        "creates token and redirects when existing token is expired",
 			hostID:      456,
-			host:        &fleet.Host{ID: 456, TeamID: ptr.Uint(1)},
+			host:        &automdm.Host{ID: 456, TeamID: ptr.Uint(1)},
 			caPolicyIDs: []uint{10, 20},
-			hostPolicies: []*fleet.HostPolicy{
-				{PolicyData: fleet.PolicyData{ID: 10}, Response: "fail"},
-				{PolicyData: fleet.PolicyData{ID: 20}, Response: "pass"},
+			hostPolicies: []*automdm.HostPolicy{
+				{PolicyData: automdm.PolicyData{ID: 10}, Response: "fail"},
+				{PolicyData: automdm.PolicyData{ID: 20}, Response: "pass"},
 			},
 			deviceToken:        "expired-token",
 			deviceTokenExpired: true,
@@ -813,10 +813,10 @@ func TestDeviceHealthSessionProvider(t *testing.T) {
 		{
 			name:        "redirects to remediate when token validation fails with DB error",
 			hostID:      456,
-			host:        &fleet.Host{ID: 456, TeamID: ptr.Uint(1)},
+			host:        &automdm.Host{ID: 456, TeamID: ptr.Uint(1)},
 			caPolicyIDs: []uint{10},
-			hostPolicies: []*fleet.HostPolicy{
-				{PolicyData: fleet.PolicyData{ID: 10}, Response: "fail"},
+			hostPolicies: []*automdm.HostPolicy{
+				{PolicyData: automdm.PolicyData{ID: 10}, Response: "fail"},
 			},
 			deviceToken:        "some-token",
 			loadDeviceTokenErr: errors.New("database connection error"),
@@ -832,11 +832,11 @@ func TestDeviceHealthSessionProvider(t *testing.T) {
 		{
 			name:        "allows device with bypass when no failing policies are critical",
 			hostID:      456,
-			host:        &fleet.Host{ID: 456, TeamID: ptr.Uint(1)},
+			host:        &automdm.Host{ID: 456, TeamID: ptr.Uint(1)},
 			caPolicyIDs: []uint{10, 20},
-			hostPolicies: []*fleet.HostPolicy{
-				{PolicyData: fleet.PolicyData{ID: 10}, Response: "fail"},
-				{PolicyData: fleet.PolicyData{ID: 20}, Response: "pass"},
+			hostPolicies: []*automdm.HostPolicy{
+				{PolicyData: automdm.PolicyData{ID: 10}, Response: "fail"},
+				{PolicyData: automdm.PolicyData{ID: 20}, Response: "pass"},
 			},
 			deviceToken:    "abc123",
 			bypassTime:     &now,
@@ -847,11 +847,11 @@ func TestDeviceHealthSessionProvider(t *testing.T) {
 		{
 			name:        "redirects device without bypass when no failing policies are critical but no bypass available",
 			hostID:      456,
-			host:        &fleet.Host{ID: 456, TeamID: ptr.Uint(1)},
+			host:        &automdm.Host{ID: 456, TeamID: ptr.Uint(1)},
 			caPolicyIDs: []uint{10, 20},
-			hostPolicies: []*fleet.HostPolicy{
-				{PolicyData: fleet.PolicyData{ID: 10}, Response: "fail"},
-				{PolicyData: fleet.PolicyData{ID: 20}, Response: "pass"},
+			hostPolicies: []*automdm.HostPolicy{
+				{PolicyData: automdm.PolicyData{ID: 10}, Response: "fail"},
+				{PolicyData: automdm.PolicyData{ID: 20}, Response: "pass"},
 			},
 			deviceToken:    "abc123",
 			wantStatusCode: http.StatusSeeOther,
@@ -860,11 +860,11 @@ func TestDeviceHealthSessionProvider(t *testing.T) {
 		{
 			name:        "redirects when bypass check fails and no failing policies are critical",
 			hostID:      456,
-			host:        &fleet.Host{ID: 456, TeamID: ptr.Uint(1)},
+			host:        &automdm.Host{ID: 456, TeamID: ptr.Uint(1)},
 			caPolicyIDs: []uint{10, 20},
-			hostPolicies: []*fleet.HostPolicy{
-				{PolicyData: fleet.PolicyData{ID: 10}, Response: "fail"},
-				{PolicyData: fleet.PolicyData{ID: 20}, Response: "pass"},
+			hostPolicies: []*automdm.HostPolicy{
+				{PolicyData: automdm.PolicyData{ID: 10}, Response: "fail"},
+				{PolicyData: automdm.PolicyData{ID: 20}, Response: "pass"},
 			},
 			deviceToken:    "abc123",
 			bypassErr:      errors.New("database error"),
@@ -874,11 +874,11 @@ func TestDeviceHealthSessionProvider(t *testing.T) {
 		{
 			name:        "skips bypass check when any failing policy is critical",
 			hostID:      456,
-			host:        &fleet.Host{ID: 456, TeamID: ptr.Uint(1)},
+			host:        &automdm.Host{ID: 456, TeamID: ptr.Uint(1)},
 			caPolicyIDs: []uint{10, 20},
-			hostPolicies: []*fleet.HostPolicy{
-				{PolicyData: fleet.PolicyData{ID: 10}, Response: "fail"},
-				{PolicyData: fleet.PolicyData{ID: 20, Critical: true}, Response: "fail"},
+			hostPolicies: []*automdm.HostPolicy{
+				{PolicyData: automdm.PolicyData{ID: 10}, Response: "fail"},
+				{PolicyData: automdm.PolicyData{ID: 20, Critical: true}, Response: "fail"},
 			},
 			deviceToken:           "abc123",
 			bypassTime:            &now,
@@ -889,10 +889,10 @@ func TestDeviceHealthSessionProvider(t *testing.T) {
 		{
 			name:        "skips bypass check when failing policy is critical",
 			hostID:      456,
-			host:        &fleet.Host{ID: 456, TeamID: ptr.Uint(1)},
+			host:        &automdm.Host{ID: 456, TeamID: ptr.Uint(1)},
 			caPolicyIDs: []uint{10},
-			hostPolicies: []*fleet.HostPolicy{
-				{PolicyData: fleet.PolicyData{ID: 10, Critical: true}, Response: "fail"},
+			hostPolicies: []*automdm.HostPolicy{
+				{PolicyData: automdm.PolicyData{ID: 10, Critical: true}, Response: "fail"},
 			},
 			deviceToken:           "abc123",
 			bypassTime:            &now,
@@ -903,12 +903,12 @@ func TestDeviceHealthSessionProvider(t *testing.T) {
 		{
 			name:        "allows bypass when multiple failing policies are not critical",
 			hostID:      456,
-			host:        &fleet.Host{ID: 456, TeamID: ptr.Uint(1)},
+			host:        &automdm.Host{ID: 456, TeamID: ptr.Uint(1)},
 			caPolicyIDs: []uint{10, 20, 30},
-			hostPolicies: []*fleet.HostPolicy{
-				{PolicyData: fleet.PolicyData{ID: 10}, Response: "fail"},
-				{PolicyData: fleet.PolicyData{ID: 20}, Response: "fail"},
-				{PolicyData: fleet.PolicyData{ID: 30}, Response: "pass"},
+			hostPolicies: []*automdm.HostPolicy{
+				{PolicyData: automdm.PolicyData{ID: 10}, Response: "fail"},
+				{PolicyData: automdm.PolicyData{ID: 20}, Response: "fail"},
+				{PolicyData: automdm.PolicyData{ID: 30}, Response: "pass"},
 			},
 			deviceToken:    "abc123",
 			bypassTime:     &now,
@@ -919,12 +919,12 @@ func TestDeviceHealthSessionProvider(t *testing.T) {
 		{
 			name:        "skips bypass when one of multiple failing policies is critical",
 			hostID:      456,
-			host:        &fleet.Host{ID: 456, TeamID: ptr.Uint(1)},
+			host:        &automdm.Host{ID: 456, TeamID: ptr.Uint(1)},
 			caPolicyIDs: []uint{10, 20, 30},
-			hostPolicies: []*fleet.HostPolicy{
-				{PolicyData: fleet.PolicyData{ID: 10}, Response: "fail"},
-				{PolicyData: fleet.PolicyData{ID: 20, Critical: true}, Response: "fail"},
-				{PolicyData: fleet.PolicyData{ID: 30}, Response: "pass"},
+			hostPolicies: []*automdm.HostPolicy{
+				{PolicyData: automdm.PolicyData{ID: 10}, Response: "fail"},
+				{PolicyData: automdm.PolicyData{ID: 20, Critical: true}, Response: "fail"},
+				{PolicyData: automdm.PolicyData{ID: 30}, Response: "pass"},
 			},
 			deviceToken:           "abc123",
 			bypassTime:            &now,
@@ -935,17 +935,17 @@ func TestDeviceHealthSessionProvider(t *testing.T) {
 		{
 			name:        "bypass_disabled redirects without checking bypass",
 			hostID:      456,
-			host:        &fleet.Host{ID: 456, TeamID: ptr.Uint(1)},
+			host:        &automdm.Host{ID: 456, TeamID: ptr.Uint(1)},
 			caPolicyIDs: []uint{10},
-			hostPolicies: []*fleet.HostPolicy{
-				{PolicyData: fleet.PolicyData{ID: 10}, Response: "fail"},
+			hostPolicies: []*automdm.HostPolicy{
+				{PolicyData: automdm.PolicyData{ID: 10}, Response: "fail"},
 			},
 			deviceToken: "abc123",
-			appConfig: &fleet.AppConfig{
-				ServerSettings: fleet.ServerSettings{
+			appConfig: &automdm.AppConfig{
+				ServerSettings: automdm.ServerSettings{
 					ServerURL: "https://example.com",
 				},
-				ConditionalAccess: &fleet.ConditionalAccessSettings{
+				ConditionalAccess: &automdm.ConditionalAccessSettings{
 					BypassDisabled: optjson.SetBool(true),
 				},
 			},
@@ -959,7 +959,7 @@ func TestDeviceHealthSessionProvider(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ds := new(mock.Store)
 
-			ds.HostLiteFunc = func(ctx context.Context, hostID uint) (*fleet.Host, error) {
+			ds.HostLiteFunc = func(ctx context.Context, hostID uint) (*automdm.Host, error) {
 				return tt.host, tt.hostErr
 			}
 
@@ -970,7 +970,7 @@ func TestDeviceHealthSessionProvider(t *testing.T) {
 				return tt.caPolicyIDs, nil
 			}
 
-			ds.ListPoliciesForHostFunc = func(ctx context.Context, host *fleet.Host) ([]*fleet.HostPolicy, error) {
+			ds.ListPoliciesForHostFunc = func(ctx context.Context, host *automdm.Host) ([]*automdm.HostPolicy, error) {
 				return tt.hostPolicies, nil
 			}
 
@@ -982,7 +982,7 @@ func TestDeviceHealthSessionProvider(t *testing.T) {
 				return tt.setDeviceTokenErr
 			}
 
-			ds.LoadHostByDeviceAuthTokenFunc = func(ctx context.Context, authToken string, ttl time.Duration) (*fleet.Host, error) {
+			ds.LoadHostByDeviceAuthTokenFunc = func(ctx context.Context, authToken string, ttl time.Duration) (*automdm.Host, error) {
 				if tt.loadDeviceTokenErr != nil {
 					return nil, tt.loadDeviceTokenErr
 				}
@@ -993,13 +993,13 @@ func TestDeviceHealthSessionProvider(t *testing.T) {
 			}
 
 			if tt.appConfig != nil {
-				ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
+				ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
 					return tt.appConfig, nil
 				}
 			} else {
-				ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-					return &fleet.AppConfig{
-						ServerSettings: fleet.ServerSettings{
+				ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+					return &automdm.AppConfig{
+						ServerSettings: automdm.ServerSettings{
 							ServerURL: "https://example.com",
 						},
 					}, nil

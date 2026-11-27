@@ -1,7 +1,7 @@
 import { LibraryItemBadgeState } from "./LibraryItemAccordion";
 
 export interface IDeriveAccordionRowStateInput {
-  /** Version string of this row (one entry from `fleet_maintained_versions[]`,
+  /** Version string of this row (one entry from `automdm_maintained_versions[]`,
    * or a cached `software_installers.version` row). */
   rowVersion: string;
   /** Version string of the currently active installer on the title. Rows that

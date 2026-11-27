@@ -139,7 +139,7 @@ func TestCauseAndLeafStack(t *testing.T) {
 			},
 			leafStackContains: []string{
 				// only a single stack trace is collected when wrapping another
-				// FleetError.
+				// AutoMDMError.
 				"\\.TestCauseAndLeafStack\\.func6\\.\\d",
 			},
 		},
@@ -155,7 +155,7 @@ func TestCauseAndLeafStack(t *testing.T) {
 				})
 			},
 			causeStackContains: []string{
-				// since it wraps a non-FleetError, the full stack is collected
+				// since it wraps a non-AutoMDMError, the full stack is collected
 				"\\.TestCauseAndLeafStack\\.func7\\.\\d",
 				"\\.TestCauseAndLeafStack\\.func1", // errFn
 			},
@@ -165,14 +165,14 @@ func TestCauseAndLeafStack(t *testing.T) {
 		t.Run(c.desc, func(t *testing.T) {
 			err := c.chain()
 			require.Error(t, err)
-			var ferr *FleetError
+			var ferr *AutoMDMError
 			require.ErrorAs(t, err, &ferr)
 
 			leafStack := ferr.Stack()
-			cause := FleetCause(err)
+			cause := AutoMDMCause(err)
 			causeStack := cause.Stack()
 
-			// if the fleet root error != fleet leaf error, then separate leaf +
+			// if the automdm root error != team leaf error, then separate leaf +
 			// cause stacks must be provided.
 			if cause != ferr {
 				require.True(t, len(c.causeStackContains) > 0)
@@ -289,7 +289,7 @@ func TestSentryStack(t *testing.T) {
 			},
 			leafStackContains: []string{
 				// only a single stack trace is collected when wrapping another
-				// FleetError.
+				// AutoMDMError.
 				"\\.TestSentryStack\\.func6.1",
 			},
 		},
@@ -305,7 +305,7 @@ func TestSentryStack(t *testing.T) {
 				})
 			},
 			causeStackContains: []string{
-				// since it wraps a non-FleetError, the full stack is collected
+				// since it wraps a non-AutoMDMError, the full stack is collected
 				"\\.TestSentryStack\\.func7.1",
 				"\\.TestSentryStack\\.func1", // errFn
 			},
@@ -315,14 +315,14 @@ func TestSentryStack(t *testing.T) {
 		t.Run(c.desc, func(t *testing.T) {
 			err := c.chain()
 			require.Error(t, err)
-			var ferr *FleetError
+			var ferr *AutoMDMError
 			require.ErrorAs(t, err, &ferr)
 
 			leafStack := ferr.Stack()
-			cause := FleetCause(err)
+			cause := AutoMDMCause(err)
 			causeStack := cause.Stack()
 
-			// if the fleet root error != fleet leaf error, then separate leaf +
+			// if the automdm root error != team leaf error, then separate leaf +
 			// cause stacks must be provided.
 			if cause != ferr {
 				require.True(t, len(c.causeStackContains) > 0)
@@ -368,10 +368,10 @@ func TestSentryStack(t *testing.T) {
 			require.True(t, sentry.Flush(2*time.Second), "failed to flush Sentry events in time")
 			require.True(t, len(payload.Exceptions) >= 1) // the wrapped errors are exploded into separate exceptions in the slice
 
-			// since we capture the FleetCause error, the last entry in the exceptions
-			// must be a FleetError and contain the stacktrace we're looking for.
+			// since we capture the AutoMDMCause error, the last entry in the exceptions
+			// must be an AutoMDMError and contain the stacktrace we're looking for.
 			rootCapturedErr := payload.Exceptions[len(payload.Exceptions)-1]
-			require.Equal(t, "*ctxerr.FleetError", rootCapturedErr.Type)
+			require.Equal(t, "*ctxerr.AutoMDMError", rootCapturedErr.Type)
 
 			// format the stack trace the same way we do in ctxerr
 			var stack []string

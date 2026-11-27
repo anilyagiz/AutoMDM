@@ -25,7 +25,7 @@ const LabelCount = ({
   count: number;
 }) => (
   <div className={`${className}__labels--count`}>
-    <Icon name="tag" color="ui-fleet-black-75" />
+    <Icon name="tag" color="ui-automdm-black-75" />
     {`${count} ${strUtils.pluralize(count, "label")}`}
   </div>
 );
@@ -256,7 +256,7 @@ const ProfileListItem = ({
               underline={false}
               showArrow
             >
-              <Icon name="eye-slash" color="ui-fleet-black-33" />
+              <Icon name="eye-slash" color="ui-automdm-black-33" />
             </TooltipWrapper>
           )}
         </div>

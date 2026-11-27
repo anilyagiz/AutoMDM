@@ -4,7 +4,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex" />
     <link rel="shortcut icon" href="{{.URLPrefix}}/assets/favicon.ico" />
-    <title>Fleet</title>
+    <title>AutoMDM</title>
     <style nonce="{{.CSPNonce}}">
       @font-face {
         font-family: "Inter";
@@ -295,7 +295,7 @@
     <template id="unsupported-template">
       <div class="content-with-sidebar">
         <section class="device-instructions-content">
-          <h1>How to enroll your device to Fleet</h1>
+          <h1>How to enroll your device to AutoMDM</h1>
           <p class="page-description">
             To enroll your Mac, please open this page on your device.
           </p>
@@ -315,7 +315,7 @@
          device instead of the Android device it was meant for -->
     <template id="android-redirect-template">
       <section class="device-instructions-content">
-        <h1>How to enroll your Android device to Fleet</h1>
+        <h1>How to enroll your Android device to AutoMDM</h1>
         <p>Scan this QR code and follow the instructions on your device.</p>
         <div class="qr-container qr-container--standalone">
           <canvas class="qr-code"></canvas>
@@ -330,7 +330,7 @@
     <!-- android content when not fully managed-->
     <template id="android-template">
       <section class="device-instructions-content">
-        <h1>How to enroll your Android device to Fleet</h1>
+        <h1>How to enroll your Android device to AutoMDM</h1>
         <div class="android-content">
           <p>Select <b>Enroll</b> and follow the steps.</p>
           <a class="enroll-link" href="" target="_blank">Enroll</a>
@@ -355,7 +355,7 @@
     <!-- content when full managed is enabled. This will show for any platform, despite the copy referencing Android -->
     <template id="fully-managed-template">
       <section class="device-instructions-content">
-        <h1>How to enroll your Android device to Fleet</h1>
+        <h1>How to enroll your Android device to AutoMDM</h1>
         <ol class="fully-managed-instructions">
           <li>
             <p>
@@ -431,7 +431,7 @@
         <h1>
           How to enroll your
           <span data-attribute="dynamic-device-type">iPhone or iPad</span> to
-          Fleet
+          AutoMDM
         </h1>
         <div>
           <div class="byod-tabs" role="tablist">
@@ -445,7 +445,7 @@
               </svg>
             </span>
             <span class="byod-info-banner-text">
-              <span data-byod-content="personal" hidden>Your organization can only remotely remove work data and settings. They cannot wipe your device or lock you out. <a class="byod-learn-more" href="https://fleetdm.com/learn-more-about/byod-transparency" target="_blank" rel="noopener noreferrer">Learn more<svg class="byod-learn-more-icon" width="9" height="9" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect width="8" height="8" x="1" y="1" fill="none" stroke="currentColor" rx="2"/><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" d="M4 3.333h2.667m0 0V6m0-2.667L3.333 6.668"/></svg></a></span>
+              <span data-byod-content="personal" hidden>Your organization can only remotely remove work data and settings. They cannot wipe your device or lock you out. <a class="byod-learn-more" href="https://automdm.com/learn-more-about/byod-transparency" target="_blank" rel="noopener noreferrer">Learn more<svg class="byod-learn-more-icon" width="9" height="9" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect width="8" height="8" x="1" y="1" fill="none" stroke="currentColor" rx="2"/><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" d="M4 3.333h2.667m0 0V6m0-2.667L3.333 6.668"/></svg></a></span>
               <span data-byod-content="company">Your organization can see and delete all device information.</span>
             </span>
           </div>
@@ -455,7 +455,7 @@
             <p>
               <span>1.</span>
               <span>
-                Tap the button below to download the Fleet profile. When
+                Tap the button below to download the AutoMDM profile. When
                 prompted, tap <b>Allow</b>.
               </span>
             </p>
@@ -517,7 +517,7 @@
                 </svg>
               </span>
               <span class="byod-info-banner-text">
-                <span data-byod-content="personal" hidden>Your organization can only remotely remove work data and settings. They cannot wipe your device or lock you out. <a class="byod-learn-more" href="https://fleetdm.com/learn-more-about/byod-transparency" target="_blank" rel="noopener noreferrer">Learn more<svg class="byod-learn-more-icon" width="9" height="9" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect width="8" height="8" x="1" y="1" fill="none" stroke="currentColor" rx="2"/><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" d="M4 3.333h2.667m0 0V6m0-2.667L3.333 6.668"/></svg></a></span>
+                <span data-byod-content="personal" hidden>Your organization can only remotely remove work data and settings. They cannot wipe your device or lock you out. <a class="byod-learn-more" href="https://automdm.com/learn-more-about/byod-transparency" target="_blank" rel="noopener noreferrer">Learn more<svg class="byod-learn-more-icon" width="9" height="9" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect width="8" height="8" x="1" y="1" fill="none" stroke="currentColor" rx="2"/><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" d="M4 3.333h2.667m0 0V6m0-2.667L3.333 6.668"/></svg></a></span>
                 <span data-byod-content="company">Your organization can see and delete all device information.</span>
               </span>
             </div>
@@ -527,7 +527,7 @@
               <p>
                 <span>1.</span>
                 <span>
-                  Tap the button below to download the Fleet profile. Open it.
+                  Tap the button below to download the AutoMDM profile. Open it.
                   You'll see a warning, which is expected.
                 </span>
               </p>
@@ -612,7 +612,7 @@
     </template>
 
     <header>
-      <img src="{{.URLPrefix}}/assets/images/fleet-logo.svg" />
+      <img src="{{.URLPrefix}}/assets/images/automdm-logo.svg" />
     </header>
 
     <!-- container for the dynamic content -->
@@ -630,7 +630,7 @@
 
     <script nonce="{{.CSPNonce}}">
       const ANDROID_GET_TOKEN_URL =
-        "{{.URLPrefix}}/api/v1/fleet/android_enterprise/enrollment_token";
+        "{{.URLPrefix}}/api/v1/automdm/android_enterprise/enrollment_token";
       // using string comparison to satisfy the linter.
       const ANDROID_MDM_ENABLED = "{{.AndroidMDMEnabled}}" === "true";
       const MAC_MDM_ENABLED = "{{.MacMDMEnabled}}" == "true";
@@ -1098,7 +1098,7 @@
           if (IS_APPLE_MANUAL_ENROLLMENT_BLOCKED) {
             renderError(
               "Apple devices can only enroll via Apple Business.",
-              "To enroll your device to Fleet, reach out to your IT admin."
+              "To enroll your device to AutoMDM, reach out to your IT admin."
             );
             return;
           }
@@ -1126,7 +1126,7 @@
           if (IS_APPLE_MANUAL_ENROLLMENT_BLOCKED) {
             renderError(
               "Apple devices can only enroll via Apple Business.",
-              "To enroll your device to Fleet, reach out to your IT admin."
+              "To enroll your device to AutoMDM, reach out to your IT admin."
             );
             return;
           }

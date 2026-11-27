@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
@@ -110,8 +110,8 @@ func TestLabels(t *testing.T) {
 		{"UpdateLabelMembershipForTransferredHost", testUpdateLabelMembershipForTransferredHost},
 		{"SetAsideLabels", testSetAsideLabels},
 		{"ApplyLabelSpecsWithManualTeamLabels", testApplyLabelSpecsWithManualTeamLabels},
-		{"ApplyLabelSpecsNamesAcrossFleets", testApplyLabelSpecsNamesAcrossFleets},
-		{"LabelNamesSharedAcrossFleets", testLabelNamesSharedAcrossFleets},
+		{"ApplyLabelSpecsNamesAcrossTeams", testApplyLabelSpecsNamesAcrossTeams},
+		{"LabelNamesSharedAcrossTeams", testLabelNamesSharedAcrossTeams},
 		{"ApplyLabelSpecsCannotModifyBuiltInLabel", testApplyLabelSpecsCannotModifyBuiltInLabel},
 		{"ApplyLabelSpecsManualNilHosts", testApplyLabelSpecsManualNilHosts},
 		{"ListLabelsOrderKeys", testListLabelsOrderKeys},
@@ -130,13 +130,13 @@ func TestLabels(t *testing.T) {
 
 func testLabelsAddAllHosts(deferred bool, t *testing.T, db *Datastore) {
 	test.AddAllHostsLabel(t, db)
-	hosts := []fleet.Host{}
-	var host *fleet.Host
+	hosts := []automdm.Host{}
+	var host *automdm.Host
 	var err error
 	for i := 0; i < 10; i++ {
 		host, err = db.EnrollOsquery(context.Background(),
-			fleet.WithEnrollOsqueryHostID(fmt.Sprint(i)),
-			fleet.WithEnrollOsqueryNodeKey(fmt.Sprint(i)),
+			automdm.WithEnrollOsqueryHostID(fmt.Sprint(i)),
+			automdm.WithEnrollOsqueryNodeKey(fmt.Sprint(i)),
 		)
 		require.Nil(t, err, "enrollment should succeed")
 		hosts = append(hosts, *host)
@@ -155,7 +155,7 @@ func testLabelsAddAllHosts(deferred bool, t *testing.T, db *Datastore) {
 	assert.Nil(t, err)
 	assert.Len(t, labels, 1) // all hosts only
 
-	newLabels := []*fleet.LabelSpec{
+	newLabels := []*automdm.LabelSpec{
 		// Note these are intentionally out of order
 		{
 			Name:     "label3",
@@ -213,7 +213,7 @@ func testLabelsAddAllHosts(deferred bool, t *testing.T, db *Datastore) {
 
 	// A new label targeting another platform should not affect the labels for
 	// this host
-	err = db.ApplyLabelSpecs(context.Background(), []*fleet.LabelSpec{
+	err = db.ApplyLabelSpecs(context.Background(), []*automdm.LabelSpec{
 		{
 			Name:     "label5",
 			Platform: "not-matching",
@@ -226,7 +226,7 @@ func testLabelsAddAllHosts(deferred bool, t *testing.T, db *Datastore) {
 	assert.Len(t, queries, 4)
 
 	// If a new label is added, all labels should be returned
-	err = db.ApplyLabelSpecs(context.Background(), []*fleet.LabelSpec{
+	err = db.ApplyLabelSpecs(context.Background(), []*automdm.LabelSpec{
 		{
 			Name:     "label6",
 			Platform: "",
@@ -247,7 +247,7 @@ func testLabelsAddAllHosts(deferred bool, t *testing.T, db *Datastore) {
 }
 
 func testLabelsSearch(t *testing.T, db *Datastore) {
-	specs := []*fleet.LabelSpec{
+	specs := []*automdm.LabelSpec{
 		{ID: 1, Name: "foo"},
 		{ID: 2, Name: "bar"},
 		{ID: 3, Name: "foo-bar"},
@@ -264,14 +264,14 @@ func testLabelsSearch(t *testing.T, db *Datastore) {
 	require.Nil(t, err)
 
 	// built-in labels are created by migrations; ApplyLabelSpecs refuses them, so create it here.
-	allHosts, err := db.NewLabel(context.Background(), &fleet.Label{
+	allHosts, err := db.NewLabel(context.Background(), &automdm.Label{
 		Name:      "All Hosts",
-		LabelType: fleet.LabelTypeBuiltIn,
+		LabelType: automdm.LabelTypeBuiltIn,
 	})
 	require.NoError(t, err)
 
-	user := &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}
-	filter := fleet.TeamFilter{User: user}
+	user := &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}
+	filter := automdm.TeamFilter{User: user}
 
 	all, _, err := db.Label(context.Background(), allHosts.ID, filter)
 	require.Nil(t, err)
@@ -301,25 +301,25 @@ func testLabelsSearch(t *testing.T, db *Datastore) {
 	assert.Contains(t, labels, &all.Label)
 
 	// Test team filtering
-	team1, err := db.NewTeam(context.Background(), &fleet.Team{Name: "team1"})
+	team1, err := db.NewTeam(context.Background(), &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
-	team2, err := db.NewTeam(context.Background(), &fleet.Team{Name: "team2"})
+	team2, err := db.NewTeam(context.Background(), &automdm.Team{Name: "team2"})
 	require.NoError(t, err)
 
 	// Create team labels
-	team1Label, err := db.NewLabel(context.Background(), &fleet.Label{
+	team1Label, err := db.NewLabel(context.Background(), &automdm.Label{
 		Name:                "team1-foo",
 		Query:               "SELECT 1",
 		TeamID:              &team1.ID,
-		LabelMembershipType: fleet.LabelMembershipTypeDynamic,
+		LabelMembershipType: automdm.LabelMembershipTypeDynamic,
 	})
 	require.NoError(t, err)
 
-	team2Label, err := db.NewLabel(context.Background(), &fleet.Label{
+	team2Label, err := db.NewLabel(context.Background(), &automdm.Label{
 		Name:                "team2-foo",
 		Query:               "SELECT 2",
 		TeamID:              &team2.ID,
-		LabelMembershipType: fleet.LabelMembershipTypeDynamic,
+		LabelMembershipType: automdm.LabelMembershipTypeDynamic,
 	})
 	require.NoError(t, err)
 
@@ -329,7 +329,7 @@ func testLabelsSearch(t *testing.T, db *Datastore) {
 	assert.Len(t, labels, 5) // foo, foo-bar, All Hosts, team1-foo, team2-foo
 
 	// Filter to team1 only - should see global labels + team1 labels
-	team1Filter := fleet.TeamFilter{User: user, TeamID: &team1.ID}
+	team1Filter := automdm.TeamFilter{User: user, TeamID: &team1.ID}
 	labels, err = db.SearchLabels(context.Background(), team1Filter, "foo")
 	require.NoError(t, err)
 	assert.Len(t, labels, 4) // foo, foo-bar, All Hosts, team1-foo
@@ -347,7 +347,7 @@ func testLabelsSearch(t *testing.T, db *Datastore) {
 	assert.False(t, foundTeam2Label, "team2 label should not be found")
 
 	// Filter to global only (team_id = 0)
-	globalOnlyFilter := fleet.TeamFilter{User: user, TeamID: ptr.Uint(0)}
+	globalOnlyFilter := automdm.TeamFilter{User: user, TeamID: ptr.Uint(0)}
 	labels, err = db.SearchLabels(context.Background(), globalOnlyFilter, "foo")
 	require.NoError(t, err)
 	assert.Len(t, labels, 3) // foo, foo-bar, All Hosts
@@ -356,8 +356,8 @@ func testLabelsSearch(t *testing.T, db *Datastore) {
 	}
 
 	// Team user can only see their team's labels + global labels
-	team1User := &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: team1.ID}, Role: fleet.RoleObserver}}}
-	team1UserFilter := fleet.TeamFilter{User: team1User}
+	team1User := &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: team1.ID}, Role: automdm.RoleObserver}}}
+	team1UserFilter := automdm.TeamFilter{User: team1User}
 	labels, err = db.SearchLabels(context.Background(), team1UserFilter, "foo")
 	require.NoError(t, err)
 	assert.Len(t, labels, 4) // foo, foo-bar, All Hosts, team1-foo
@@ -368,13 +368,13 @@ func testLabelsSearch(t *testing.T, db *Datastore) {
 	}
 
 	// Team user trying to access another team's labels should fail
-	team1UserTeam2Filter := fleet.TeamFilter{User: team1User, TeamID: &team2.ID}
+	team1UserTeam2Filter := automdm.TeamFilter{User: team1User, TeamID: &team2.ID}
 	_, err = db.SearchLabels(context.Background(), team1UserTeam2Filter, "foo")
 	require.ErrorContains(t, err, errInaccessibleTeam.Error()) // not ErrorIs due to UserError wrapping
 }
 
 func testLabelsListHostsInLabel(t *testing.T, db *Datastore) {
-	h1, err := db.NewHost(context.Background(), &fleet.Host{
+	h1, err := db.NewHost(context.Background(), &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -387,7 +387,7 @@ func testLabelsListHostsInLabel(t *testing.T, db *Datastore) {
 	})
 	require.Nil(t, err)
 
-	h2, err := db.NewHost(context.Background(), &fleet.Host{
+	h2, err := db.NewHost(context.Background(), &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -400,7 +400,7 @@ func testLabelsListHostsInLabel(t *testing.T, db *Datastore) {
 	})
 	require.Nil(t, err)
 
-	h3, err := db.NewHost(context.Background(), &fleet.Host{
+	h3, err := db.NewHost(context.Background(), &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -418,55 +418,55 @@ func testLabelsListHostsInLabel(t *testing.T, db *Datastore) {
 
 	ctx := context.Background()
 	const simpleMDM, kandji = "https://simplemdm.com", "https://kandji.io"
-	err = db.SetOrUpdateMDMData(ctx, h1.ID, false, true, simpleMDM, true, fleet.WellKnownMDMSimpleMDM, "", fleet.PersonalEnrollmentTypeNone) // enrollment: automatic
+	err = db.SetOrUpdateMDMData(ctx, h1.ID, false, true, simpleMDM, true, automdm.WellKnownMDMSimpleMDM, "", automdm.PersonalEnrollmentTypeNone) // enrollment: automatic
 	require.NoError(t, err)
-	err = db.SetOrUpdateMDMData(ctx, h2.ID, false, true, kandji, true, fleet.WellKnownMDMIru, "", fleet.PersonalEnrollmentTypeNone) // enrollment: automatic
+	err = db.SetOrUpdateMDMData(ctx, h2.ID, false, true, kandji, true, automdm.WellKnownMDMIru, "", automdm.PersonalEnrollmentTypeNone) // enrollment: automatic
 	require.NoError(t, err)
-	err = db.SetOrUpdateMDMData(ctx, h3.ID, false, false, simpleMDM, false, fleet.WellKnownMDMSimpleMDM, "", fleet.PersonalEnrollmentTypeNone) // enrollment: unenrolled
+	err = db.SetOrUpdateMDMData(ctx, h3.ID, false, false, simpleMDM, false, automdm.WellKnownMDMSimpleMDM, "", automdm.PersonalEnrollmentTypeNone) // enrollment: unenrolled
 	require.NoError(t, err)
 
 	var simpleMDMID uint
 	ExecAdhocSQL(t, db, func(q sqlx.ExtContext) error {
-		return sqlx.GetContext(ctx, q, &simpleMDMID, `SELECT id FROM mobile_device_management_solutions WHERE name = ? AND server_url = ?`, fleet.WellKnownMDMSimpleMDM, simpleMDM)
+		return sqlx.GetContext(ctx, q, &simpleMDMID, `SELECT id FROM mobile_device_management_solutions WHERE name = ? AND server_url = ?`, automdm.WellKnownMDMSimpleMDM, simpleMDM)
 	})
 	var kandjiID uint
 	ExecAdhocSQL(t, db, func(q sqlx.ExtContext) error {
-		return sqlx.GetContext(ctx, q, &kandjiID, `SELECT id FROM mobile_device_management_solutions WHERE name = ? AND server_url = ?`, fleet.WellKnownMDMIru, kandji)
+		return sqlx.GetContext(ctx, q, &kandjiID, `SELECT id FROM mobile_device_management_solutions WHERE name = ? AND server_url = ?`, automdm.WellKnownMDMIru, kandji)
 	})
 
-	l1 := &fleet.LabelSpec{
+	l1 := &automdm.LabelSpec{
 		ID:    1,
 		Name:  "label foo",
 		Query: "query1",
 	}
-	err = db.ApplyLabelSpecs(context.Background(), []*fleet.LabelSpec{l1})
+	err = db.ApplyLabelSpecs(context.Background(), []*automdm.LabelSpec{l1})
 	require.Nil(t, err)
 
-	filter := fleet.TeamFilter{User: test.UserAdmin}
+	filter := automdm.TeamFilter{User: test.UserAdmin}
 
-	listHostsInLabelCheckCount(t, db, filter, l1.ID, fleet.HostListOptions{}, 0)
+	listHostsInLabelCheckCount(t, db, filter, l1.ID, automdm.HostListOptions{}, 0)
 
-	for _, h := range []*fleet.Host{h1, h2, h3} {
+	for _, h := range []*automdm.Host{h1, h2, h3} {
 		err = db.RecordLabelQueryExecutions(context.Background(), h, map[uint]*bool{l1.ID: ptr.Bool(true)}, time.Now(), false)
 		require.NoError(t, err)
 	}
 
-	listHostsInLabelCheckCount(t, db, filter, l1.ID, fleet.HostListOptions{}, 3)
+	listHostsInLabelCheckCount(t, db, filter, l1.ID, automdm.HostListOptions{}, 3)
 
-	hosts := listHostsInLabelCheckCount(t, db, filter, l1.ID, fleet.HostListOptions{LowDiskSpaceFilter: ptr.Int(35), ListOptions: fleet.ListOptions{OrderKey: "id", After: "1"}}, 2)
+	hosts := listHostsInLabelCheckCount(t, db, filter, l1.ID, automdm.HostListOptions{LowDiskSpaceFilter: ptr.Int(35), ListOptions: automdm.ListOptions{OrderKey: "id", After: "1"}}, 2)
 	require.Equal(t, h2.ID, hosts[0].ID)
 	require.Equal(t, h3.ID, hosts[1].ID)
 
-	listHostsInLabelCheckCount(t, db, filter, l1.ID, fleet.HostListOptions{LowDiskSpaceFilter: ptr.Int(35)}, 3)
-	listHostsInLabelCheckCount(t, db, filter, l1.ID, fleet.HostListOptions{LowDiskSpaceFilter: ptr.Int(25)}, 2)
-	listHostsInLabelCheckCount(t, db, filter, l1.ID, fleet.HostListOptions{LowDiskSpaceFilter: ptr.Int(15)}, 1)
-	listHostsInLabelCheckCount(t, db, filter, l1.ID, fleet.HostListOptions{LowDiskSpaceFilter: ptr.Int(5)}, 0)
+	listHostsInLabelCheckCount(t, db, filter, l1.ID, automdm.HostListOptions{LowDiskSpaceFilter: ptr.Int(35)}, 3)
+	listHostsInLabelCheckCount(t, db, filter, l1.ID, automdm.HostListOptions{LowDiskSpaceFilter: ptr.Int(25)}, 2)
+	listHostsInLabelCheckCount(t, db, filter, l1.ID, automdm.HostListOptions{LowDiskSpaceFilter: ptr.Int(15)}, 1)
+	listHostsInLabelCheckCount(t, db, filter, l1.ID, automdm.HostListOptions{LowDiskSpaceFilter: ptr.Int(5)}, 0)
 
-	listHostsInLabelCheckCount(t, db, filter, l1.ID, fleet.HostListOptions{MDMIDFilter: ptr.Uint(99)}, 0)
-	listHostsInLabelCheckCount(t, db, filter, l1.ID, fleet.HostListOptions{MDMIDFilter: ptr.Uint(simpleMDMID)}, 2)
-	listHostsInLabelCheckCount(t, db, filter, l1.ID, fleet.HostListOptions{MDMIDFilter: ptr.Uint(kandjiID)}, 1)
-	listHostsInLabelCheckCount(t, db, filter, l1.ID, fleet.HostListOptions{MDMNameFilter: ptr.String(fleet.WellKnownMDMSimpleMDM)}, 2)
-	listHostsInLabelCheckCount(t, db, filter, l1.ID, fleet.HostListOptions{MDMNameFilter: ptr.String(fleet.WellKnownMDMSimpleMDM), MDMEnrollmentStatusFilter: fleet.MDMEnrollStatusEnrolled}, 1)
+	listHostsInLabelCheckCount(t, db, filter, l1.ID, automdm.HostListOptions{MDMIDFilter: ptr.Uint(99)}, 0)
+	listHostsInLabelCheckCount(t, db, filter, l1.ID, automdm.HostListOptions{MDMIDFilter: ptr.Uint(simpleMDMID)}, 2)
+	listHostsInLabelCheckCount(t, db, filter, l1.ID, automdm.HostListOptions{MDMIDFilter: ptr.Uint(kandjiID)}, 1)
+	listHostsInLabelCheckCount(t, db, filter, l1.ID, automdm.HostListOptions{MDMNameFilter: ptr.String(automdm.WellKnownMDMSimpleMDM)}, 2)
+	listHostsInLabelCheckCount(t, db, filter, l1.ID, automdm.HostListOptions{MDMNameFilter: ptr.String(automdm.WellKnownMDMSimpleMDM), MDMEnrollmentStatusFilter: automdm.MDMEnrollStatusEnrolled}, 1)
 
 	// check that searching hosts in a label matches both the private and public IP address
 	h2.PrimaryIP = "99.100.101.102"
@@ -474,15 +474,15 @@ func testLabelsListHostsInLabel(t *testing.T, db *Datastore) {
 	err = db.UpdateHost(ctx, h2)
 	require.NoError(t, err)
 
-	hosts = listHostsInLabelCheckCount(t, db, filter, l1.ID, fleet.HostListOptions{ListOptions: fleet.ListOptions{MatchQuery: "99.100.101.102"}}, 1)
+	hosts = listHostsInLabelCheckCount(t, db, filter, l1.ID, automdm.HostListOptions{ListOptions: automdm.ListOptions{MatchQuery: "99.100.101.102"}}, 1)
 	require.Len(t, hosts, 1)
 	require.Equal(t, h2.ID, hosts[0].ID)
 
-	hosts = listHostsInLabelCheckCount(t, db, filter, l1.ID, fleet.HostListOptions{ListOptions: fleet.ListOptions{MatchQuery: "203.0.113.42"}}, 1)
+	hosts = listHostsInLabelCheckCount(t, db, filter, l1.ID, automdm.HostListOptions{ListOptions: automdm.ListOptions{MatchQuery: "203.0.113.42"}}, 1)
 	require.Len(t, hosts, 1)
 	require.Equal(t, h2.ID, hosts[0].ID)
 
-	listHostsInLabelCheckCount(t, db, filter, l1.ID, fleet.HostListOptions{ListOptions: fleet.ListOptions{MatchQuery: "203.0.113.99"}}, 0)
+	listHostsInLabelCheckCount(t, db, filter, l1.ID, automdm.HostListOptions{ListOptions: automdm.ListOptions{MatchQuery: "203.0.113.99"}}, 0)
 
 	// agent sorts by orbit version, falling back to osquery version (same as ListHosts):
 	// h1 9.0.0 (no orbit row), h2 1.0.0 (orbit), h3 5.0.0 (empty orbit version)
@@ -493,7 +493,7 @@ func testLabelsListHostsInLabel(t *testing.T, db *Datastore) {
 	_, err = db.writer(ctx).Exec(`INSERT INTO host_orbit_info (host_id, version, desktop_version) VALUES (?, '1.0.0', '1.0.1'), (?, '', NULL)`, h2.ID, h3.ID)
 	require.NoError(t, err)
 
-	hosts = listHostsInLabelCheckCount(t, db, filter, l1.ID, fleet.HostListOptions{}, 3)
+	hosts = listHostsInLabelCheckCount(t, db, filter, l1.ID, automdm.HostListOptions{}, 3)
 	versions := make(map[uint][2]*string, len(hosts))
 	for _, h := range hosts {
 		versions[h.ID] = [2]*string{h.OrbitVersion, h.DesktopVersion}
@@ -504,26 +504,26 @@ func testLabelsListHostsInLabel(t *testing.T, db *Datastore) {
 		h3.ID: {new(""), nil},
 	}, versions)
 
-	hosts = listHostsInLabelCheckCount(t, db, filter, l1.ID, fleet.HostListOptions{OrderKey: "agent"}, 3)
+	hosts = listHostsInLabelCheckCount(t, db, filter, l1.ID, automdm.HostListOptions{OrderKey: "agent"}, 3)
 	require.Equal(t, []uint{h2.ID, h3.ID, h1.ID}, hostIDs(hosts))
-	hosts = listHostsInLabelCheckCount(t, db, filter, l1.ID, fleet.HostListOptions{OrderKey: "agent", OrderDirection: fleet.OrderDescending}, 3)
+	hosts = listHostsInLabelCheckCount(t, db, filter, l1.ID, automdm.HostListOptions{OrderKey: "agent", OrderDirection: automdm.OrderDescending}, 3)
 	require.Equal(t, []uint{h1.ID, h3.ID, h2.ID}, hostIDs(hosts))
 
 	// Test team label filtering
-	team1, err := db.NewTeam(context.Background(), &fleet.Team{Name: "team1_listhosts"})
+	team1, err := db.NewTeam(context.Background(), &automdm.Team{Name: "team1_listhosts"})
 	require.NoError(t, err)
 
 	// Create a team label
-	teamLabel, err := db.NewLabel(context.Background(), &fleet.Label{
+	teamLabel, err := db.NewLabel(context.Background(), &automdm.Label{
 		Name:                "team1-label",
 		Query:               "SELECT 1",
 		TeamID:              &team1.ID,
-		LabelMembershipType: fleet.LabelMembershipTypeDynamic,
+		LabelMembershipType: automdm.LabelMembershipTypeDynamic,
 	})
 	require.NoError(t, err)
 
 	// Create a host on team1
-	h4, err := db.NewHost(context.Background(), &fleet.Host{
+	h4, err := db.NewHost(context.Background(), &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -542,27 +542,27 @@ func testLabelsListHostsInLabel(t *testing.T, db *Datastore) {
 	require.NoError(t, err)
 
 	// Global admin can list hosts in team label
-	listHostsInLabelCheckCount(t, db, filter, teamLabel.ID, fleet.HostListOptions{}, 1)
+	listHostsInLabelCheckCount(t, db, filter, teamLabel.ID, automdm.HostListOptions{}, 1)
 
 	// Team user can list hosts in their team's label
-	team1User := &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: team1.ID}, Role: fleet.RoleObserver}}}
-	team1Filter := fleet.TeamFilter{User: team1User, IncludeObserver: true}
-	listHostsInLabelCheckCount(t, db, team1Filter, teamLabel.ID, fleet.HostListOptions{}, 1)
+	team1User := &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: team1.ID}, Role: automdm.RoleObserver}}}
+	team1Filter := automdm.TeamFilter{User: team1User, IncludeObserver: true}
+	listHostsInLabelCheckCount(t, db, team1Filter, teamLabel.ID, automdm.HostListOptions{}, 1)
 
 	// Trying to list a team label that the user doesn't have access to returns empty
-	team2, err := db.NewTeam(context.Background(), &fleet.Team{Name: "team2_listhosts"})
+	team2, err := db.NewTeam(context.Background(), &automdm.Team{Name: "team2_listhosts"})
 	require.NoError(t, err)
-	team2User := &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: team2.ID}, Role: fleet.RoleObserver}}}
-	team2Filter := fleet.TeamFilter{User: team2User, IncludeObserver: true}
+	team2User := &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: team2.ID}, Role: automdm.RoleObserver}}}
+	team2Filter := automdm.TeamFilter{User: team2User, IncludeObserver: true}
 	// Team2 user cannot see team1's label, so they get no results
-	team2Hosts, err := db.ListHostsInLabel(context.Background(), team2Filter, teamLabel.ID, fleet.HostListOptions{})
+	team2Hosts, err := db.ListHostsInLabel(context.Background(), team2Filter, teamLabel.ID, automdm.HostListOptions{})
 	require.NoError(t, err)
 	require.Nil(t, team2Hosts) // Returns nil when label is not accessible
 }
 
 func listHostsInLabelCheckCount(
-	t *testing.T, db *Datastore, filter fleet.TeamFilter, labelID uint, opt fleet.HostListOptions, expectedCount int,
-) []*fleet.Host {
+	t *testing.T, db *Datastore, filter automdm.TeamFilter, labelID uint, opt automdm.HostListOptions, expectedCount int,
+) []*automdm.Host {
 	hosts, err := db.ListHostsInLabel(context.Background(), filter, labelID, opt)
 	require.NoError(t, err)
 	count, err := db.CountHostsInLabel(context.Background(), filter, labelID, opt)
@@ -573,7 +573,7 @@ func listHostsInLabelCheckCount(
 }
 
 func testLabelsListHostsInLabelAndStatus(t *testing.T, db *Datastore) {
-	h1, err := db.NewHost(context.Background(), &fleet.Host{
+	h1, err := db.NewHost(context.Background(), &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -587,7 +587,7 @@ func testLabelsListHostsInLabelAndStatus(t *testing.T, db *Datastore) {
 	require.NoError(t, err)
 
 	lastSeenTime := time.Now().Add(-1000 * time.Hour)
-	h2, err := db.NewHost(context.Background(), &fleet.Host{
+	h2, err := db.NewHost(context.Background(), &automdm.Host{
 		DetailUpdatedAt: lastSeenTime,
 		LabelUpdatedAt:  lastSeenTime,
 		PolicyUpdatedAt: lastSeenTime,
@@ -599,7 +599,7 @@ func testLabelsListHostsInLabelAndStatus(t *testing.T, db *Datastore) {
 		Platform:        "darwin",
 	})
 	require.NoError(t, err)
-	h3, err := db.NewHost(context.Background(), &fleet.Host{
+	h3, err := db.NewHost(context.Background(), &automdm.Host{
 		DetailUpdatedAt: lastSeenTime,
 		LabelUpdatedAt:  lastSeenTime,
 		PolicyUpdatedAt: lastSeenTime,
@@ -612,34 +612,34 @@ func testLabelsListHostsInLabelAndStatus(t *testing.T, db *Datastore) {
 	})
 	require.NoError(t, err)
 
-	l1 := &fleet.LabelSpec{
+	l1 := &automdm.LabelSpec{
 		ID:    1,
 		Name:  "label foo",
 		Query: "query1",
 	}
-	err = db.ApplyLabelSpecs(context.Background(), []*fleet.LabelSpec{l1})
+	err = db.ApplyLabelSpecs(context.Background(), []*automdm.LabelSpec{l1})
 	require.Nil(t, err)
 
-	filter := fleet.TeamFilter{User: test.UserAdmin}
-	for _, h := range []*fleet.Host{h1, h2, h3} {
+	filter := automdm.TeamFilter{User: test.UserAdmin}
+	for _, h := range []*automdm.Host{h1, h2, h3} {
 		err = db.RecordLabelQueryExecutions(context.Background(), h, map[uint]*bool{l1.ID: ptr.Bool(true)}, time.Now(), false)
 		assert.Nil(t, err)
 	}
 
 	{
-		hosts := listHostsInLabelCheckCount(t, db, filter, l1.ID, fleet.HostListOptions{StatusFilter: fleet.StatusOnline}, 1)
+		hosts := listHostsInLabelCheckCount(t, db, filter, l1.ID, automdm.HostListOptions{StatusFilter: automdm.StatusOnline}, 1)
 		assert.Equal(t, "foo.local", hosts[0].Hostname)
 	}
 
 	{
-		hosts := listHostsInLabelCheckCount(t, db, filter, l1.ID, fleet.HostListOptions{StatusFilter: fleet.StatusMIA}, 2)
+		hosts := listHostsInLabelCheckCount(t, db, filter, l1.ID, automdm.HostListOptions{StatusFilter: automdm.StatusMIA}, 2)
 		assert.Equal(t, "bar.local", hosts[0].Hostname)
 		assert.Equal(t, "baz.local", hosts[1].Hostname)
 	}
 }
 
 func testLabelsListHostsInLabelAndTeamFilter(deferred bool, t *testing.T, db *Datastore) {
-	h1, err := db.NewHost(context.Background(), &fleet.Host{
+	h1, err := db.NewHost(context.Background(), &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -653,7 +653,7 @@ func testLabelsListHostsInLabelAndTeamFilter(deferred bool, t *testing.T, db *Da
 	require.Nil(t, err)
 
 	lastSeenTime := time.Now().Add(-1000 * time.Hour)
-	h2, err := db.NewHost(context.Background(), &fleet.Host{
+	h2, err := db.NewHost(context.Background(), &automdm.Host{
 		DetailUpdatedAt: lastSeenTime,
 		LabelUpdatedAt:  lastSeenTime,
 		PolicyUpdatedAt: lastSeenTime,
@@ -666,124 +666,124 @@ func testLabelsListHostsInLabelAndTeamFilter(deferred bool, t *testing.T, db *Da
 	})
 	require.Nil(t, err)
 
-	l1 := &fleet.LabelSpec{
+	l1 := &automdm.LabelSpec{
 		ID:    1,
 		Name:  "label foo",
 		Query: "query1",
 	}
-	err = db.ApplyLabelSpecs(context.Background(), []*fleet.LabelSpec{l1})
+	err = db.ApplyLabelSpecs(context.Background(), []*automdm.LabelSpec{l1})
 	require.Nil(t, err)
 
-	team1, err := db.NewTeam(context.Background(), &fleet.Team{Name: "team1"})
+	team1, err := db.NewTeam(context.Background(), &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
 
-	team2, err := db.NewTeam(context.Background(), &fleet.Team{Name: "team2"})
+	team2, err := db.NewTeam(context.Background(), &automdm.Team{Name: "team2"})
 	require.NoError(t, err)
 
-	require.NoError(t, db.AddHostsToTeam(context.Background(), fleet.NewAddHostsToTeamParams(&team1.ID, []uint{h1.ID})))
+	require.NoError(t, db.AddHostsToTeam(context.Background(), automdm.NewAddHostsToTeamParams(&team1.ID, []uint{h1.ID})))
 
-	userFilter := fleet.TeamFilter{User: test.UserAdmin}
+	userFilter := automdm.TeamFilter{User: test.UserAdmin}
 	var teamIDFilterNil *uint                // "All teams" option should include all hosts regardless of team assignment
 	var teamIDFilterZero *uint = ptr.Uint(0) // "No team" option should include only hosts that are not assigned to any team
 
-	for _, h := range []*fleet.Host{h1, h2} {
+	for _, h := range []*automdm.Host{h1, h2} {
 		err = db.RecordLabelQueryExecutions(context.Background(), h, map[uint]*bool{l1.ID: ptr.Bool(true)}, time.Now(), deferred)
 		assert.Nil(t, err)
 	}
 
 	{
-		hosts := listHostsInLabelCheckCount(t, db, userFilter, l1.ID, fleet.HostListOptions{StatusFilter: fleet.StatusOnline}, 1)
+		hosts := listHostsInLabelCheckCount(t, db, userFilter, l1.ID, automdm.HostListOptions{StatusFilter: automdm.StatusOnline}, 1)
 		assert.Equal(t, "foo.local", hosts[0].Hostname)
 	}
 
 	{
-		hosts := listHostsInLabelCheckCount(t, db, userFilter, l1.ID, fleet.HostListOptions{StatusFilter: fleet.StatusMIA}, 1)
+		hosts := listHostsInLabelCheckCount(t, db, userFilter, l1.ID, automdm.HostListOptions{StatusFilter: automdm.StatusMIA}, 1)
 		assert.Equal(t, "bar.local", hosts[0].Hostname)
 	}
 
 	{
-		hosts := listHostsInLabelCheckCount(t, db, userFilter, l1.ID, fleet.HostListOptions{TeamFilter: &team1.ID}, 1)
+		hosts := listHostsInLabelCheckCount(t, db, userFilter, l1.ID, automdm.HostListOptions{TeamFilter: &team1.ID}, 1)
 		assert.Equal(t, "foo.local", hosts[0].Hostname)
 	}
 
-	listHostsInLabelCheckCount(t, db, userFilter, l1.ID, fleet.HostListOptions{TeamFilter: &team2.ID}, 0)        // no hosts assigned to team 2
-	listHostsInLabelCheckCount(t, db, userFilter, l1.ID, fleet.HostListOptions{TeamFilter: teamIDFilterZero}, 1) // h2 not assigned to any team
-	listHostsInLabelCheckCount(t, db, userFilter, l1.ID, fleet.HostListOptions{TeamFilter: teamIDFilterNil}, 2)  // h1 and h2
+	listHostsInLabelCheckCount(t, db, userFilter, l1.ID, automdm.HostListOptions{TeamFilter: &team2.ID}, 0)        // no hosts assigned to team 2
+	listHostsInLabelCheckCount(t, db, userFilter, l1.ID, automdm.HostListOptions{TeamFilter: teamIDFilterZero}, 1) // h2 not assigned to any team
+	listHostsInLabelCheckCount(t, db, userFilter, l1.ID, automdm.HostListOptions{TeamFilter: teamIDFilterNil}, 2)  // h1 and h2
 
 	// test team filter in combination with macos settings filter
 	nanoEnrollAndSetHostMDMData(t, db, h1, false)
 	require.NoError(t, err)
-	require.NoError(t, db.BulkUpsertMDMAppleHostProfiles(context.Background(), []*fleet.MDMAppleBulkUpsertHostProfilePayload{
+	require.NoError(t, db.BulkUpsertMDMAppleHostProfiles(context.Background(), []*automdm.MDMAppleBulkUpsertHostProfilePayload{
 		{
 			ProfileUUID:       "a" + uuid.NewString(),
 			ProfileIdentifier: "identifier",
 			HostUUID:          h1.UUID, // hosts[0] is assgined to team 1
 			CommandUUID:       "command-uuid-1",
-			OperationType:     fleet.MDMOperationTypeInstall,
-			Status:            &fleet.MDMDeliveryVerifying,
+			OperationType:     automdm.MDMOperationTypeInstall,
+			Status:            &automdm.MDMDeliveryVerifying,
 			Checksum:          []byte("csum"),
-			Scope:             fleet.PayloadScopeSystem,
+			Scope:             automdm.PayloadScopeSystem,
 		},
 	}))
-	listHostsInLabelCheckCount(t, db, userFilter, l1.ID, fleet.HostListOptions{TeamFilter: &team1.ID, MacOSSettingsFilter: fleet.OSSettingsVerifying}, 1) // h1
-	listHostsInLabelCheckCount(t, db, userFilter, l1.ID, fleet.HostListOptions{TeamFilter: &team2.ID, MacOSSettingsFilter: fleet.OSSettingsVerifying}, 0) // wrong team
+	listHostsInLabelCheckCount(t, db, userFilter, l1.ID, automdm.HostListOptions{TeamFilter: &team1.ID, MacOSSettingsFilter: automdm.OSSettingsVerifying}, 1) // h1
+	listHostsInLabelCheckCount(t, db, userFilter, l1.ID, automdm.HostListOptions{TeamFilter: &team2.ID, MacOSSettingsFilter: automdm.OSSettingsVerifying}, 0) // wrong team
 	// macos settings filter does not support "all teams" so teamIDFilterNil acts the same as teamIDFilterZero
-	listHostsInLabelCheckCount(t, db, userFilter, l1.ID, fleet.HostListOptions{TeamFilter: teamIDFilterZero, MacOSSettingsFilter: fleet.OSSettingsVerifying}, 0) // no team
-	listHostsInLabelCheckCount(t, db, userFilter, l1.ID, fleet.HostListOptions{TeamFilter: teamIDFilterNil, MacOSSettingsFilter: fleet.OSSettingsVerifying}, 0)  // no team
-	listHostsInLabelCheckCount(t, db, userFilter, l1.ID, fleet.HostListOptions{MacOSSettingsFilter: fleet.OSSettingsVerifying}, 0)                               // no team
+	listHostsInLabelCheckCount(t, db, userFilter, l1.ID, automdm.HostListOptions{TeamFilter: teamIDFilterZero, MacOSSettingsFilter: automdm.OSSettingsVerifying}, 0) // no team
+	listHostsInLabelCheckCount(t, db, userFilter, l1.ID, automdm.HostListOptions{TeamFilter: teamIDFilterNil, MacOSSettingsFilter: automdm.OSSettingsVerifying}, 0)  // no team
+	listHostsInLabelCheckCount(t, db, userFilter, l1.ID, automdm.HostListOptions{MacOSSettingsFilter: automdm.OSSettingsVerifying}, 0)                               // no team
 
 	nanoEnrollAndSetHostMDMData(t, db, h2, false)
-	require.NoError(t, db.BulkUpsertMDMAppleHostProfiles(context.Background(), []*fleet.MDMAppleBulkUpsertHostProfilePayload{
+	require.NoError(t, db.BulkUpsertMDMAppleHostProfiles(context.Background(), []*automdm.MDMAppleBulkUpsertHostProfilePayload{
 		{
 			ProfileUUID:       "a" + uuid.NewString(),
 			ProfileIdentifier: "identifier",
 			HostUUID:          h2.UUID, // hosts[9] is assgined to no team
 			CommandUUID:       "command-uuid-2",
-			OperationType:     fleet.MDMOperationTypeInstall,
-			Status:            &fleet.MDMDeliveryVerifying,
+			OperationType:     automdm.MDMOperationTypeInstall,
+			Status:            &automdm.MDMDeliveryVerifying,
 			Checksum:          []byte("csum"),
-			Scope:             fleet.PayloadScopeSystem,
+			Scope:             automdm.PayloadScopeSystem,
 		},
 	}))
-	listHostsInLabelCheckCount(t, db, userFilter, l1.ID, fleet.HostListOptions{TeamFilter: &team1.ID, MacOSSettingsFilter: fleet.OSSettingsVerifying}, 1) // h1
-	listHostsInLabelCheckCount(t, db, userFilter, l1.ID, fleet.HostListOptions{TeamFilter: &team2.ID, MacOSSettingsFilter: fleet.OSSettingsVerifying}, 0) // wrong team
+	listHostsInLabelCheckCount(t, db, userFilter, l1.ID, automdm.HostListOptions{TeamFilter: &team1.ID, MacOSSettingsFilter: automdm.OSSettingsVerifying}, 1) // h1
+	listHostsInLabelCheckCount(t, db, userFilter, l1.ID, automdm.HostListOptions{TeamFilter: &team2.ID, MacOSSettingsFilter: automdm.OSSettingsVerifying}, 0) // wrong team
 	// macos settings filter does not support "all teams" so both teamIDFilterNil acts the same as teamIDFilterZero
-	listHostsInLabelCheckCount(t, db, userFilter, l1.ID, fleet.HostListOptions{TeamFilter: teamIDFilterZero, MacOSSettingsFilter: fleet.OSSettingsVerifying}, 1) // h2
-	listHostsInLabelCheckCount(t, db, userFilter, l1.ID, fleet.HostListOptions{TeamFilter: teamIDFilterNil, MacOSSettingsFilter: fleet.OSSettingsVerifying}, 1)  // h2
-	listHostsInLabelCheckCount(t, db, userFilter, l1.ID, fleet.HostListOptions{MacOSSettingsFilter: fleet.OSSettingsVerifying}, 1)                               // h2
+	listHostsInLabelCheckCount(t, db, userFilter, l1.ID, automdm.HostListOptions{TeamFilter: teamIDFilterZero, MacOSSettingsFilter: automdm.OSSettingsVerifying}, 1) // h2
+	listHostsInLabelCheckCount(t, db, userFilter, l1.ID, automdm.HostListOptions{TeamFilter: teamIDFilterNil, MacOSSettingsFilter: automdm.OSSettingsVerifying}, 1)  // h2
+	listHostsInLabelCheckCount(t, db, userFilter, l1.ID, automdm.HostListOptions{MacOSSettingsFilter: automdm.OSSettingsVerifying}, 1)                               // h2
 }
 
 func testLabelsBuiltIn(t *testing.T, db *Datastore) {
 	test.AddBuiltinLabels(t, db)
 
-	user := &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}
-	filter := fleet.TeamFilter{User: user}
+	user := &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}
+	filter := automdm.TeamFilter{User: user}
 
 	hits, err := db.SearchLabels(context.Background(), filter, "macOS")
 	require.Nil(t, err)
 	// Should get macOS, macOS 14+ (Sonoma+) and All Hosts
 	assert.Len(t, hits, 3)
 	for _, hit := range hits {
-		assert.Equal(t, fleet.LabelTypeBuiltIn, hit.LabelType)
+		assert.Equal(t, automdm.LabelTypeBuiltIn, hit.LabelType)
 	}
 }
 
 func testLabelsChangeDetails(t *testing.T, db *Datastore) {
-	label := fleet.LabelSpec{
+	label := automdm.LabelSpec{
 		ID:          1,
 		Name:        "my label",
 		Description: "a label",
 		Query:       "select 1 from processes",
 		Platform:    "darwin",
 	}
-	err := db.ApplyLabelSpecs(context.Background(), []*fleet.LabelSpec{&label})
+	err := db.ApplyLabelSpecs(context.Background(), []*automdm.LabelSpec{&label})
 	require.Nil(t, err)
 
 	label.Description = "changed description"
-	err = db.ApplyLabelSpecs(context.Background(), []*fleet.LabelSpec{&label})
+	err = db.ApplyLabelSpecs(context.Background(), []*automdm.LabelSpec{&label})
 	require.Nil(t, err)
 
-	filter := fleet.TeamFilter{User: &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}}
+	filter := automdm.TeamFilter{User: &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}}
 	saved, _, err := db.Label(context.Background(), label.ID, filter)
 	require.Nil(t, err)
 	assert.Equal(t, label.Name, saved.Name)
@@ -814,9 +814,9 @@ func testLabelsChangeDetails(t *testing.T, db *Datastore) {
 	assert.Equal(t, label.Name, configProfileLabelName)
 }
 
-func setupLabelSpecsTest(t *testing.T, ds fleet.Datastore) []*fleet.LabelSpec {
+func setupLabelSpecsTest(t *testing.T, ds automdm.Datastore) []*automdm.LabelSpec {
 	for i := 0; i < 10; i++ {
-		_, err := ds.NewHost(context.Background(), &fleet.Host{
+		_, err := ds.NewHost(context.Background(), &automdm.Host{
 			DetailUpdatedAt: time.Now(),
 			LabelUpdatedAt:  time.Now(),
 			PolicyUpdatedAt: time.Now(),
@@ -829,7 +829,7 @@ func setupLabelSpecsTest(t *testing.T, ds fleet.Datastore) []*fleet.LabelSpec {
 		require.Nil(t, err)
 	}
 
-	expectedSpecs := []*fleet.LabelSpec{
+	expectedSpecs := []*automdm.LabelSpec{
 		{
 			Name:        "foo",
 			Query:       "select * from foo",
@@ -847,12 +847,12 @@ func setupLabelSpecsTest(t *testing.T, ds fleet.Datastore) []*fleet.LabelSpec {
 		{
 			Name:                "All Hosts",
 			Query:               "SELECT 1",
-			LabelType:           fleet.LabelTypeBuiltIn,
-			LabelMembershipType: fleet.LabelMembershipTypeManual,
+			LabelType:           automdm.LabelTypeBuiltIn,
+			LabelMembershipType: automdm.LabelMembershipTypeManual,
 		},
 		{
 			Name:                "Manual Label",
-			LabelMembershipType: fleet.LabelMembershipTypeManual,
+			LabelMembershipType: automdm.LabelMembershipTypeManual,
 			Hosts: []string{
 				"1", "2", "3", "4",
 			},
@@ -862,10 +862,10 @@ func setupLabelSpecsTest(t *testing.T, ds fleet.Datastore) []*fleet.LabelSpec {
 	err := ds.ApplyLabelSpecs(context.Background(), regularLabelSpecs(expectedSpecs))
 	require.Nil(t, err)
 	for _, s := range expectedSpecs {
-		if s.LabelType != fleet.LabelTypeBuiltIn {
+		if s.LabelType != automdm.LabelTypeBuiltIn {
 			continue
 		}
-		_, err := ds.NewLabel(context.Background(), &fleet.Label{
+		_, err := ds.NewLabel(context.Background(), &automdm.Label{
 			Name:                s.Name,
 			Description:         s.Description,
 			Query:               s.Query,
@@ -880,10 +880,10 @@ func setupLabelSpecsTest(t *testing.T, ds fleet.Datastore) []*fleet.LabelSpec {
 	return expectedSpecs
 }
 
-func regularLabelSpecs(specs []*fleet.LabelSpec) []*fleet.LabelSpec {
-	regular := make([]*fleet.LabelSpec, 0, len(specs))
+func regularLabelSpecs(specs []*automdm.LabelSpec) []*automdm.LabelSpec {
+	regular := make([]*automdm.LabelSpec, 0, len(specs))
 	for _, s := range specs {
-		if s.LabelType != fleet.LabelTypeBuiltIn {
+		if s.LabelType != automdm.LabelTypeBuiltIn {
 			regular = append(regular, s)
 		}
 	}
@@ -893,7 +893,7 @@ func regularLabelSpecs(specs []*fleet.LabelSpec) []*fleet.LabelSpec {
 func testLabelsGetSpec(t *testing.T, ds *Datastore) {
 	expectedSpecs := setupLabelSpecsTest(t, ds)
 
-	adminFilter := fleet.TeamFilter{User: &fleet.User{GlobalRole: new(fleet.RoleAdmin)}}
+	adminFilter := automdm.TeamFilter{User: &automdm.User{GlobalRole: new(automdm.RoleAdmin)}}
 	for _, s := range expectedSpecs {
 		spec, err := ds.GetLabelSpec(context.Background(), adminFilter, s.Name)
 		require.Nil(t, err)
@@ -907,13 +907,13 @@ func testLabelsGetSpec(t *testing.T, ds *Datastore) {
 func testLabelsGetSpecHostsTeamFiltered(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "spec-hosts-team1"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "spec-hosts-team1"})
 	require.NoError(t, err)
-	team2, err := ds.NewTeam(ctx, &fleet.Team{Name: "spec-hosts-team2"})
+	team2, err := ds.NewTeam(ctx, &automdm.Team{Name: "spec-hosts-team2"})
 	require.NoError(t, err)
 
-	newHost := func(i int, teamID *uint) *fleet.Host {
-		h, err := ds.NewHost(ctx, &fleet.Host{
+	newHost := func(i int, teamID *uint) *automdm.Host {
+		h, err := ds.NewHost(ctx, &automdm.Host{
 			DetailUpdatedAt: time.Now(),
 			LabelUpdatedAt:  time.Now(),
 			PolicyUpdatedAt: time.Now(),
@@ -932,48 +932,48 @@ func testLabelsGetSpecHostsTeamFiltered(t *testing.T, ds *Datastore) {
 	team2Host := newHost(2, &team2.ID)
 	noTeamHost := newHost(3, nil)
 
-	globalLabel := &fleet.LabelSpec{
+	globalLabel := &automdm.LabelSpec{
 		Name:                "spec-hosts-global-manual",
-		LabelMembershipType: fleet.LabelMembershipTypeManual,
+		LabelMembershipType: automdm.LabelMembershipTypeManual,
 		Hosts: []string{
 			fmt.Sprint(team1Host.ID), fmt.Sprint(team2Host.ID), fmt.Sprint(noTeamHost.ID),
 		},
 	}
-	require.NoError(t, ds.ApplyLabelSpecs(ctx, []*fleet.LabelSpec{globalLabel}))
+	require.NoError(t, ds.ApplyLabelSpecs(ctx, []*automdm.LabelSpec{globalLabel}))
 
-	globalAdmin := &fleet.User{GlobalRole: new(fleet.RoleAdmin)}
-	globalGitOps := &fleet.User{GlobalRole: new(fleet.RoleGitOps)}
-	team1Observer := &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: team1.ID}, Role: fleet.RoleObserver}}}
-	team2Maintainer := &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: team2.ID}, Role: fleet.RoleMaintainer}}}
+	globalAdmin := &automdm.User{GlobalRole: new(automdm.RoleAdmin)}
+	globalGitOps := &automdm.User{GlobalRole: new(automdm.RoleGitOps)}
+	team1Observer := &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: team1.ID}, Role: automdm.RoleObserver}}}
+	team2Maintainer := &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: team2.ID}, Role: automdm.RoleMaintainer}}}
 
 	testCases := []struct {
 		name          string
-		filter        fleet.TeamFilter
+		filter        automdm.TeamFilter
 		expectedHosts []string
 	}{
 		{
 			name:          "global admin sees every member",
-			filter:        fleet.TeamFilter{User: globalAdmin, IncludeObserver: true},
+			filter:        automdm.TeamFilter{User: globalAdmin, IncludeObserver: true},
 			expectedHosts: []string{fmt.Sprint(team1Host.ID), fmt.Sprint(team2Host.ID), fmt.Sprint(noTeamHost.ID)},
 		},
 		{
 			name:          "global gitops sees every member",
-			filter:        fleet.TeamFilter{User: globalGitOps, IncludeObserver: true},
+			filter:        automdm.TeamFilter{User: globalGitOps, IncludeObserver: true},
 			expectedHosts: []string{fmt.Sprint(team1Host.ID), fmt.Sprint(team2Host.ID), fmt.Sprint(noTeamHost.ID)},
 		},
 		{
 			name:          "team observer only sees their team's members",
-			filter:        fleet.TeamFilter{User: team1Observer, IncludeObserver: true},
+			filter:        automdm.TeamFilter{User: team1Observer, IncludeObserver: true},
 			expectedHosts: []string{fmt.Sprint(team1Host.ID)},
 		},
 		{
 			name:          "team maintainer only sees their team's members",
-			filter:        fleet.TeamFilter{User: team2Maintainer, IncludeObserver: true},
+			filter:        automdm.TeamFilter{User: team2Maintainer, IncludeObserver: true},
 			expectedHosts: []string{fmt.Sprint(team2Host.ID)},
 		},
 		{
 			name:          "team observer sees no members when observers are excluded",
-			filter:        fleet.TeamFilter{User: team1Observer},
+			filter:        automdm.TeamFilter{User: team1Observer},
 			expectedHosts: []string{},
 		},
 	}
@@ -1000,8 +1000,8 @@ func testLabelsGetSpecHostsTeamFiltered(t *testing.T, ds *Datastore) {
 
 func testLabelsApplySpecsRoundtrip(t *testing.T, ds *Datastore) {
 	globalSpecs := setupLabelSpecsTest(t, ds)
-	user := &fleet.User{GlobalRole: new(fleet.RoleAdmin)}
-	globalOnlyFilter := fleet.TeamFilter{User: user, TeamID: new(uint(0))}
+	user := &automdm.User{GlobalRole: new(automdm.RoleAdmin)}
+	globalOnlyFilter := automdm.TeamFilter{User: user, TeamID: new(uint(0))}
 
 	specs, err := ds.GetLabelSpecs(context.Background(), globalOnlyFilter)
 	require.Nil(t, err)
@@ -1015,15 +1015,15 @@ func testLabelsApplySpecsRoundtrip(t *testing.T, ds *Datastore) {
 	test.ElementsMatchSkipTimestampsID(t, globalSpecs, specs)
 
 	// Test team labels
-	team1, err := ds.NewTeam(context.Background(), &fleet.Team{Name: "team1_roundtrip"})
+	team1, err := ds.NewTeam(context.Background(), &automdm.Team{Name: "team1_roundtrip"})
 	require.NoError(t, err)
-	team2, err := ds.NewTeam(context.Background(), &fleet.Team{Name: "team2_roundtrip"})
+	team2, err := ds.NewTeam(context.Background(), &automdm.Team{Name: "team2_roundtrip"})
 	require.NoError(t, err)
 
 	// Create team label specs; these wouldn't normally coexist in the same call but that gets handled upstream;
 	// it doesn't hurt anything to set labels cross-team at the data store level (which assumes auth has already
 	// happened).
-	teamSpecs := []*fleet.LabelSpec{
+	teamSpecs := []*automdm.LabelSpec{
 		{Name: "team1-label", Query: "SELECT 1", TeamID: &team1.ID},
 		{Name: "team2-label", Query: "SELECT 2", TeamID: &team2.ID},
 	}
@@ -1036,13 +1036,13 @@ func testLabelsApplySpecsRoundtrip(t *testing.T, ds *Datastore) {
 	test.ElementsMatchSkipTimestampsID(t, globalSpecs, specs)
 
 	// Admin user filter should return all labels (global + team)
-	adminFilter := fleet.TeamFilter{User: user}
+	adminFilter := automdm.TeamFilter{User: user}
 	specs, err = ds.GetLabelSpecs(context.Background(), adminFilter)
 	require.NoError(t, err)
 	require.Len(t, specs, len(globalSpecs)+2)
 
 	// Team1 filter should return only the team1 label
-	team1Filter := fleet.TeamFilter{User: user, TeamID: &team1.ID}
+	team1Filter := automdm.TeamFilter{User: user, TeamID: &team1.ID}
 	specs, err = ds.GetLabelSpecs(context.Background(), team1Filter)
 	require.NoError(t, err)
 	require.Len(t, specs, 1)
@@ -1050,8 +1050,8 @@ func testLabelsApplySpecsRoundtrip(t *testing.T, ds *Datastore) {
 	require.Equal(t, team1.ID, *specs[0].TeamID)
 
 	// Team user can only see their team's labels + global labels with no filter applied
-	team1User := &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: team1.ID}, Role: fleet.RoleMaintainer}}}
-	team1UserFilter := fleet.TeamFilter{User: team1User}
+	team1User := &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: team1.ID}, Role: automdm.RoleMaintainer}}}
+	team1UserFilter := automdm.TeamFilter{User: team1User}
 	specs, err = ds.GetLabelSpecs(context.Background(), team1UserFilter)
 	require.NoError(t, err)
 	require.Len(t, specs, len(globalSpecs)+1)
@@ -1071,35 +1071,35 @@ func testLabelsApplySpecsRoundtrip(t *testing.T, ds *Datastore) {
 func testLabelsIDsByName(t *testing.T, ds *Datastore) {
 	setupLabelSpecsTest(t, ds)
 
-	labels, err := ds.LabelIDsByName(context.Background(), []string{"foo", "bar", "bing"}, fleet.TeamFilter{})
+	labels, err := ds.LabelIDsByName(context.Background(), []string{"foo", "bar", "bing"}, automdm.TeamFilter{})
 	require.Nil(t, err)
 	assert.Equal(t, map[string]uint{"foo": 1, "bar": 2, "bing": 3}, labels)
 
 	// Test team labels
-	team1, err := ds.NewTeam(context.Background(), &fleet.Team{Name: "team1_idsbyname"})
+	team1, err := ds.NewTeam(context.Background(), &automdm.Team{Name: "team1_idsbyname"})
 	require.NoError(t, err)
-	team2, err := ds.NewTeam(context.Background(), &fleet.Team{Name: "team2_idsbyname"})
+	team2, err := ds.NewTeam(context.Background(), &automdm.Team{Name: "team2_idsbyname"})
 	require.NoError(t, err)
 
 	// Create team labels
-	team1Label, err := ds.NewLabel(context.Background(), &fleet.Label{
+	team1Label, err := ds.NewLabel(context.Background(), &automdm.Label{
 		Name:                "team1-idsbyname",
 		Query:               "SELECT 1",
 		TeamID:              &team1.ID,
-		LabelMembershipType: fleet.LabelMembershipTypeDynamic,
+		LabelMembershipType: automdm.LabelMembershipTypeDynamic,
 	})
 	require.NoError(t, err)
-	team2Label, err := ds.NewLabel(context.Background(), &fleet.Label{
+	team2Label, err := ds.NewLabel(context.Background(), &automdm.Label{
 		Name:                "team2-idsbyname",
 		Query:               "SELECT 2",
 		TeamID:              &team2.ID,
-		LabelMembershipType: fleet.LabelMembershipTypeDynamic,
+		LabelMembershipType: automdm.LabelMembershipTypeDynamic,
 	})
 	require.NoError(t, err)
 
 	// Global admin can see all labels
-	adminUser := &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}
-	adminFilter := fleet.TeamFilter{User: adminUser}
+	adminUser := &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}
+	adminFilter := automdm.TeamFilter{User: adminUser}
 	labels, err = ds.LabelIDsByName(context.Background(), []string{"foo", "team1-idsbyname", "team2-idsbyname"}, adminFilter)
 	require.NoError(t, err)
 	require.Len(t, labels, 3)
@@ -1107,7 +1107,7 @@ func testLabelsIDsByName(t *testing.T, ds *Datastore) {
 	assert.Equal(t, team2Label.ID, labels["team2-idsbyname"])
 
 	// Team1 filter should only return global + team1 labels
-	team1Filter := fleet.TeamFilter{User: adminUser, TeamID: &team1.ID}
+	team1Filter := automdm.TeamFilter{User: adminUser, TeamID: &team1.ID}
 	labels, err = ds.LabelIDsByName(context.Background(), []string{"foo", "team1-idsbyname", "team2-idsbyname"}, team1Filter)
 	require.NoError(t, err)
 	require.Len(t, labels, 2) // foo and team1-idsbyname
@@ -1116,8 +1116,8 @@ func testLabelsIDsByName(t *testing.T, ds *Datastore) {
 	assert.False(t, hasTeam2, "team2 label should not be visible with team1 filter")
 
 	// Team user can only see their team's labels + global labels
-	team1User := &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: team1.ID}, Role: fleet.RoleMaintainer}}}
-	team1UserFilter := fleet.TeamFilter{User: team1User}
+	team1User := &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: team1.ID}, Role: automdm.RoleMaintainer}}}
+	team1UserFilter := automdm.TeamFilter{User: team1User}
 	labels, err = ds.LabelIDsByName(context.Background(), []string{"foo", "team1-idsbyname", "team2-idsbyname"}, team1UserFilter)
 	require.NoError(t, err)
 	require.Len(t, labels, 2) // foo and team1-idsbyname
@@ -1128,7 +1128,7 @@ func testLabelsByName(t *testing.T, ds *Datastore) {
 	setupLabelSpecsTest(t, ds)
 
 	names := []string{"foo", "bar", "bing"}
-	labels, err := ds.LabelsByName(context.Background(), names, fleet.TeamFilter{})
+	labels, err := ds.LabelsByName(context.Background(), names, automdm.TeamFilter{})
 	require.NoError(t, err)
 	require.Len(t, labels, 3)
 	for _, name := range names {
@@ -1148,30 +1148,30 @@ func testLabelsByName(t *testing.T, ds *Datastore) {
 	}
 
 	// Test team labels
-	team1, err := ds.NewTeam(context.Background(), &fleet.Team{Name: "team1_byname"})
+	team1, err := ds.NewTeam(context.Background(), &automdm.Team{Name: "team1_byname"})
 	require.NoError(t, err)
-	team2, err := ds.NewTeam(context.Background(), &fleet.Team{Name: "team2_byname"})
+	team2, err := ds.NewTeam(context.Background(), &automdm.Team{Name: "team2_byname"})
 	require.NoError(t, err)
 
 	// Create team labels
-	team1Label, err := ds.NewLabel(context.Background(), &fleet.Label{
+	team1Label, err := ds.NewLabel(context.Background(), &automdm.Label{
 		Name:                "team1-byname",
 		Query:               "SELECT 1",
 		TeamID:              &team1.ID,
-		LabelMembershipType: fleet.LabelMembershipTypeDynamic,
+		LabelMembershipType: automdm.LabelMembershipTypeDynamic,
 	})
 	require.NoError(t, err)
-	team2Label, err := ds.NewLabel(context.Background(), &fleet.Label{
+	team2Label, err := ds.NewLabel(context.Background(), &automdm.Label{
 		Name:                "team2-byname",
 		Query:               "SELECT 2",
 		TeamID:              &team2.ID,
-		LabelMembershipType: fleet.LabelMembershipTypeDynamic,
+		LabelMembershipType: automdm.LabelMembershipTypeDynamic,
 	})
 	require.NoError(t, err)
 
 	// Global admin can see all labels
-	adminUser := &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}
-	adminFilter := fleet.TeamFilter{User: adminUser}
+	adminUser := &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}
+	adminFilter := automdm.TeamFilter{User: adminUser}
 	labelNames := []string{"foo", "team1-byname", "team2-byname"}
 	labels, err = ds.LabelsByName(context.Background(), labelNames, adminFilter)
 	require.NoError(t, err)
@@ -1180,7 +1180,7 @@ func testLabelsByName(t *testing.T, ds *Datastore) {
 	assert.Equal(t, team2Label.ID, labels["team2-byname"].ID)
 
 	// Team1 filter should only return global + team1 labels
-	team1Filter := fleet.TeamFilter{User: adminUser, TeamID: &team1.ID}
+	team1Filter := automdm.TeamFilter{User: adminUser, TeamID: &team1.ID}
 	labels, err = ds.LabelsByName(context.Background(), labelNames, team1Filter)
 	require.NoError(t, err)
 	require.Len(t, labels, 2) // foo and team1-byname
@@ -1189,8 +1189,8 @@ func testLabelsByName(t *testing.T, ds *Datastore) {
 	assert.False(t, hasTeam2, "team2 label should not be visible with team1 filter")
 
 	// Team user can only see their team's labels + global labels
-	team1User := &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: team1.ID}, Role: fleet.RoleMaintainer}}}
-	team1UserFilter := fleet.TeamFilter{User: team1User}
+	team1User := &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: team1.ID}, Role: automdm.RoleMaintainer}}}
+	team1UserFilter := automdm.TeamFilter{User: team1User}
 	labels, err = ds.LabelsByName(context.Background(), labelNames, team1UserFilter)
 	require.NoError(t, err)
 	require.Len(t, labels, 2) // foo and team1-byname
@@ -1199,7 +1199,7 @@ func testLabelsByName(t *testing.T, ds *Datastore) {
 	assert.False(t, hasTeam2, "team2 label should not be visible to team1 user")
 }
 
-func labelByName(t *testing.T, ds *Datastore, name string, filter fleet.TeamFilter) *fleet.Label {
+func labelByName(t *testing.T, ds *Datastore, name string, filter automdm.TeamFilter) *automdm.Label {
 	t.Helper()
 	labels, err := ds.LabelsByName(t.Context(), []string{name}, filter)
 	require.NoError(t, err)
@@ -1212,7 +1212,7 @@ func labelByName(t *testing.T, ds *Datastore, name string, filter fleet.TeamFilt
 }
 
 func testLabelsSave(t *testing.T, db *Datastore) {
-	h1, err := db.NewHost(context.Background(), &fleet.Host{
+	h1, err := db.NewHost(context.Background(), &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -1224,15 +1224,15 @@ func testLabelsSave(t *testing.T, db *Datastore) {
 	})
 	require.NoError(t, err)
 
-	user, err := db.NewUser(context.Background(), &fleet.User{
+	user, err := db.NewUser(context.Background(), &automdm.User{
 		Name:       "Adminboi",
 		Password:   []byte("p4ssw0rd.123"),
 		Email:      "admin@example.com",
-		GlobalRole: ptr.String(fleet.RoleAdmin),
+		GlobalRole: ptr.String(automdm.RoleAdmin),
 	})
 	require.NoError(t, err)
 
-	label := &fleet.Label{
+	label := &automdm.Label{
 		Name:        "my label",
 		Description: "a label",
 		Query:       "select 1 from processes;",
@@ -1242,7 +1242,7 @@ func testLabelsSave(t *testing.T, db *Datastore) {
 	require.NoError(t, err)
 	require.Nil(t, label.AuthorID)
 
-	label2 := &fleet.Label{
+	label2 := &automdm.Label{
 		Name:        "another label",
 		Description: "a label",
 		Query:       "select 1 from processes;",
@@ -1268,7 +1268,7 @@ func testLabelsSave(t *testing.T, db *Datastore) {
 
 	require.NoError(t, db.RecordLabelQueryExecutions(context.Background(), h1, map[uint]*bool{label.ID: ptr.Bool(true)}, time.Now(), false))
 
-	filter := fleet.TeamFilter{User: &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}}
+	filter := automdm.TeamFilter{User: &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}}
 	_, _, err = db.SaveLabel(context.Background(), label, nil, filter)
 	require.NoError(t, err)
 	saved, _, err := db.Label(context.Background(), label.ID, filter)
@@ -1288,13 +1288,13 @@ func testLabelsSave(t *testing.T, db *Datastore) {
 func testLabelsQueriesForLinuxPlatformLabel(t *testing.T, db *Datastore) {
 	ctx := t.Context()
 
-	newDynamicLabel := func(name, platform string) *fleet.Label {
-		label, err := db.NewLabel(ctx, &fleet.Label{
+	newDynamicLabel := func(name, platform string) *automdm.Label {
+		label, err := db.NewLabel(ctx, &automdm.Label{
 			Name:                name,
 			Query:               "select 1;",
 			Platform:            platform,
-			LabelType:           fleet.LabelTypeRegular,
-			LabelMembershipType: fleet.LabelMembershipTypeDynamic,
+			LabelType:           automdm.LabelTypeRegular,
+			LabelMembershipType: automdm.LabelMembershipTypeDynamic,
 		})
 		require.NoError(t, err)
 		return label
@@ -1308,7 +1308,7 @@ func testLabelsQueriesForLinuxPlatformLabel(t *testing.T, db *Datastore) {
 		name      string
 		platform  string
 		osVersion string
-		want      *fleet.Label
+		want      *automdm.Label
 	}{
 		{"ubuntu host", "ubuntu", "Ubuntu 22.04", linuxLabel},
 		{"debian host", "debian", "Debian GNU/Linux 12", linuxLabel},
@@ -1322,8 +1322,8 @@ func testLabelsQueriesForLinuxPlatformLabel(t *testing.T, db *Datastore) {
 	for i, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			host, err := db.EnrollOsquery(ctx,
-				fleet.WithEnrollOsqueryHostID(fmt.Sprint(i)),
-				fleet.WithEnrollOsqueryNodeKey(fmt.Sprint(i)),
+				automdm.WithEnrollOsqueryHostID(fmt.Sprint(i)),
+				automdm.WithEnrollOsqueryNodeKey(fmt.Sprint(i)),
 			)
 			require.NoError(t, err, "enrollment should succeed")
 
@@ -1359,7 +1359,7 @@ func TestBuiltinLinuxLabelQueries(t *testing.T) {
 	var stored []storedLabel
 	ExecAdhocSQL(t, db, func(q sqlx.ExtContext) error {
 		return sqlx.SelectContext(ctx, q, &stored,
-			"SELECT name, platform, query FROM labels WHERE label_type = ?", fleet.LabelTypeBuiltIn)
+			"SELECT name, platform, query FROM labels WHERE label_type = ?", automdm.LabelTypeBuiltIn)
 	})
 	require.NotEmpty(t, stored)
 
@@ -1369,18 +1369,18 @@ func TestBuiltinLinuxLabelQueries(t *testing.T) {
 		assert.Empty(t, l.Platform, "built-in label %q must not be scoped to a platform", l.Name)
 	}
 
-	sources := map[string]string{"database": byName[fleet.BuiltinLabelNameUbuntuLinux].Query}
+	sources := map[string]string{"database": byName[automdm.BuiltinLabelNameUbuntuLinux].Query}
 	for _, l := range test.BuiltinLabels() {
-		if l.Name == fleet.BuiltinLabelNameUbuntuLinux {
+		if l.Name == automdm.BuiltinLabelNameUbuntuLinux {
 			sources["test.BuiltinLabels"] = l.Query
 		}
 	}
 	require.Len(t, sources, 2)
 	for name, query := range sources {
-		require.NotEmpty(t, query, "%s has no %s query", name, fleet.BuiltinLabelNameUbuntuLinux)
+		require.NotEmpty(t, query, "%s has no %s query", name, automdm.BuiltinLabelNameUbuntuLinux)
 		assert.Equal(t, sources["database"], query,
 			"the %s query in %q disagrees with the migrated database; every copy of it must be updated together",
-			fleet.BuiltinLabelNameUbuntuLinux, name)
+			automdm.BuiltinLabelNameUbuntuLinux, name)
 	}
 
 	for i, platform := range []string{
@@ -1389,8 +1389,8 @@ func TestBuiltinLinuxLabelQueries(t *testing.T) {
 	} {
 		t.Run(platform, func(t *testing.T) {
 			host, err := db.EnrollOsquery(ctx,
-				fleet.WithEnrollOsqueryHostID(fmt.Sprint(i)),
-				fleet.WithEnrollOsqueryNodeKey(fmt.Sprint(i)),
+				automdm.WithEnrollOsqueryHostID(fmt.Sprint(i)),
+				automdm.WithEnrollOsqueryNodeKey(fmt.Sprint(i)),
 			)
 			require.NoError(t, err)
 
@@ -1405,11 +1405,11 @@ func TestBuiltinLinuxLabelQueries(t *testing.T) {
 				gotQueries[q] = struct{}{}
 			}
 			for _, name := range []string{
-				fleet.BuiltinLabelNameUbuntuLinux,
-				fleet.BuiltinLabelNameCentOSLinux,
-				fleet.BuiltinLabelNameRedHatLinux,
-				fleet.BuiltinLabelFedoraLinux,
-				fleet.BuiltinLabelNameAllLinux,
+				automdm.BuiltinLabelNameUbuntuLinux,
+				automdm.BuiltinLabelNameCentOSLinux,
+				automdm.BuiltinLabelNameRedHatLinux,
+				automdm.BuiltinLabelFedoraLinux,
+				automdm.BuiltinLabelNameAllLinux,
 			} {
 				require.Contains(t, byName, name)
 				assert.Contains(t, gotQueries, byName[name].Query,
@@ -1420,7 +1420,7 @@ func TestBuiltinLinuxLabelQueries(t *testing.T) {
 }
 
 func testLabelsRecordNonexistentQueryLabelExecution(t *testing.T, db *Datastore) {
-	h1, err := db.NewHost(context.Background(), &fleet.Host{
+	h1, err := db.NewHost(context.Background(), &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -1432,12 +1432,12 @@ func testLabelsRecordNonexistentQueryLabelExecution(t *testing.T, db *Datastore)
 	})
 	require.Nil(t, err)
 
-	l1 := &fleet.LabelSpec{
+	l1 := &automdm.LabelSpec{
 		ID:    1,
 		Name:  "label foo",
 		Query: "query1",
 	}
-	err = db.ApplyLabelSpecs(context.Background(), []*fleet.LabelSpec{l1})
+	err = db.ApplyLabelSpecs(context.Background(), []*automdm.LabelSpec{l1})
 	require.Nil(t, err)
 
 	require.NoError(t, db.RecordLabelQueryExecutions(context.Background(), h1, map[uint]*bool{99999: ptr.Bool(true)}, time.Now(), false))
@@ -1445,7 +1445,7 @@ func testLabelsRecordNonexistentQueryLabelExecution(t *testing.T, db *Datastore)
 
 func testRecordLabelQueryExecutionsQueryErrorKeepsMembership(t *testing.T, db *Datastore) {
 	ctx := t.Context()
-	h1, err := db.NewHost(ctx, &fleet.Host{
+	h1, err := db.NewHost(ctx, &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -1457,12 +1457,12 @@ func testRecordLabelQueryExecutionsQueryErrorKeepsMembership(t *testing.T, db *D
 	})
 	require.NoError(t, err)
 
-	l1 := &fleet.LabelSpec{
+	l1 := &automdm.LabelSpec{
 		ID:    1,
 		Name:  "label foo",
 		Query: "query1",
 	}
-	require.NoError(t, db.ApplyLabelSpecs(ctx, []*fleet.LabelSpec{l1}))
+	require.NoError(t, db.ApplyLabelSpecs(ctx, []*automdm.LabelSpec{l1}))
 
 	// Host matches the label.
 	require.NoError(t, db.RecordLabelQueryExecutions(ctx, h1, map[uint]*bool{l1.ID: new(true)}, time.Now(), false))
@@ -1483,7 +1483,7 @@ func testRecordLabelQueryExecutionsQueryErrorKeepsMembership(t *testing.T, db *D
 
 func testDeleteLabel(t *testing.T, db *Datastore) {
 	ctx := context.Background()
-	l, err := db.NewLabel(ctx, &fleet.Label{
+	l, err := db.NewLabel(ctx, &automdm.Label{
 		Name:  t.Name(),
 		Query: "query1",
 	})
@@ -1494,14 +1494,14 @@ func testDeleteLabel(t *testing.T, db *Datastore) {
 	// delete a label that no longer exists
 	err = db.DeleteLabel(ctx, l.ID)
 	require.Error(t, err)
-	var nfe fleet.NotFoundError
+	var nfe automdm.NotFoundError
 	require.ErrorAs(t, err, &nfe)
 
 	// create a software installer and scope it via a label
 	u := test.NewUser(t, db, "user1", "user1@example.com", false)
-	installer, err := fleet.NewTempFileReader(strings.NewReader("echo"), t.TempDir)
+	installer, err := automdm.NewTempFileReader(strings.NewReader("echo"), t.TempDir)
 	require.NoError(t, err)
-	installerID, _, err := db.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
+	installerID, _, err := db.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
 		InstallScript:   "install foo",
 		InstallerFile:   installer,
 		StorageID:       uuid.NewString(),
@@ -1510,11 +1510,11 @@ func testDeleteLabel(t *testing.T, db *Datastore) {
 		Source:          "apps",
 		Version:         "0.0.1",
 		UserID:          u.ID,
-		ValidatedLabels: &fleet.LabelIdentsWithScope{},
+		ValidatedLabels: &automdm.LabelIdentsWithScope{},
 	})
 	require.NoError(t, err)
 
-	l2, err := db.NewLabel(ctx, &fleet.Label{
+	l2, err := db.NewLabel(ctx, &automdm.Label{
 		Name:  t.Name() + "2",
 		Query: "query2",
 	})
@@ -1528,29 +1528,29 @@ func testDeleteLabel(t *testing.T, db *Datastore) {
 	// try to delete that label referenced by software installer
 	err = db.DeleteLabel(ctx, l2.ID)
 	require.Error(t, err)
-	require.True(t, fleet.IsForeignKey(err))
+	require.True(t, automdm.IsForeignKey(err))
 
-	// A label is deleted by its ID, so another label with the same name is left alone, whether it's on another fleet or
-	// was created in the same fleet after the label was renamed.
-	team1, err := db.NewTeam(ctx, &fleet.Team{Name: "team1_delete"})
+	// A label is deleted by its ID, so another label with the same name is left alone, whether it's on another team or
+	// was created in the same team after the label was renamed.
+	team1, err := db.NewTeam(ctx, &automdm.Team{Name: "team1_delete"})
 	require.NoError(t, err)
-	team2, err := db.NewTeam(ctx, &fleet.Team{Name: "team2_delete"})
+	team2, err := db.NewTeam(ctx, &automdm.Team{Name: "team2_delete"})
 	require.NoError(t, err)
-	newTeamLabel := func(name string, teamID uint) *fleet.Label {
-		lbl, err := db.NewLabel(ctx, &fleet.Label{
-			Name: name, Query: "SELECT 1", TeamID: &teamID, LabelMembershipType: fleet.LabelMembershipTypeDynamic,
+	newTeamLabel := func(name string, teamID uint) *automdm.Label {
+		lbl, err := db.NewLabel(ctx, &automdm.Label{
+			Name: name, Query: "SELECT 1", TeamID: &teamID, LabelMembershipType: automdm.LabelMembershipTypeDynamic,
 		})
 		require.NoError(t, err)
 		return lbl
 	}
-	adminFilter := fleet.TeamFilter{User: &fleet.User{GlobalRole: new(fleet.RoleAdmin)}}
+	adminFilter := automdm.TeamFilter{User: &automdm.User{GlobalRole: new(automdm.RoleAdmin)}}
 	requireLabel := func(id uint, exists bool) {
 		t.Helper()
 		_, _, err := db.Label(ctx, id, adminFilter)
 		if exists {
 			require.NoError(t, err)
 		} else {
-			require.True(t, fleet.IsNotFound(err), err)
+			require.True(t, automdm.IsNotFound(err), err)
 		}
 	}
 
@@ -1570,7 +1570,7 @@ func testDeleteLabel(t *testing.T, db *Datastore) {
 	requireLabel(replacement.ID, true)
 
 	// create a label referenced by a configuration profile — deletion must be blocked
-	l3, err := db.NewLabel(ctx, &fleet.Label{
+	l3, err := db.NewLabel(ctx, &automdm.Label{
 		Name:  t.Name() + "3",
 		Query: "query3",
 	})
@@ -1589,16 +1589,16 @@ func testDeleteLabel(t *testing.T, db *Datastore) {
 
 	err = db.DeleteLabel(ctx, l3.ID)
 	require.Error(t, err)
-	require.True(t, fleet.IsForeignKey(err))
+	require.True(t, automdm.IsForeignKey(err))
 
 	// create a label referenced only by a declaration — deletion must also be blocked
-	l4, err := db.NewLabel(ctx, &fleet.Label{
+	l4, err := db.NewLabel(ctx, &automdm.Label{
 		Name:  t.Name() + "4",
 		Query: "query4",
 	})
 	require.NoError(t, err)
 
-	decl, err := db.NewMDMAppleDeclaration(ctx, &fleet.MDMAppleDeclaration{
+	decl, err := db.NewMDMAppleDeclaration(ctx, &automdm.MDMAppleDeclaration{
 		Identifier: "com.example.decl-test",
 		Name:       "test-decl",
 		RawJSON:    json.RawMessage(`{"Identifier": "com.example.decl-test"}`),
@@ -1615,25 +1615,25 @@ func testDeleteLabel(t *testing.T, db *Datastore) {
 
 	err = db.DeleteLabel(ctx, l4.ID)
 	require.Error(t, err)
-	require.True(t, fleet.IsForeignKey(err))
+	require.True(t, automdm.IsForeignKey(err))
 }
 
 func testDeleteLabelMembership(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
-	adminFilter := fleet.TeamFilter{User: test.UserAdmin}
+	adminFilter := automdm.TeamFilter{User: test.UserAdmin}
 
 	prevBatchSize := labelMembershipDeleteBatchSize
 	labelMembershipDeleteBatchSize = 2
 	t.Cleanup(func() { labelMembershipDeleteBatchSize = prevBatchSize })
 
-	var hosts []*fleet.Host
+	var hosts []*automdm.Host
 	for i := range 5 {
 		name := fmt.Sprintf("delete-membership-%d", i)
 		hosts = append(hosts, test.NewHost(t, ds, name, "", name, name, time.Now()))
 	}
 
-	newLabelWithAllHosts := func(name string) *fleet.Label {
-		label, err := ds.NewLabel(ctx, &fleet.Label{Name: name, Query: "SELECT 1", LabelMembershipType: fleet.LabelMembershipTypeDynamic})
+	newLabelWithAllHosts := func(name string) *automdm.Label {
+		label, err := ds.NewLabel(ctx, &automdm.Label{Name: name, Query: "SELECT 1", LabelMembershipType: automdm.LabelMembershipTypeDynamic})
 		require.NoError(t, err)
 		for _, h := range hosts {
 			require.NoError(t, ds.RecordLabelQueryExecutions(ctx, h, map[uint]*bool{label.ID: new(true)}, time.Now(), false))
@@ -1658,8 +1658,8 @@ func testDeleteLabelMembership(t *testing.T, ds *Datastore) {
 	assert.Equal(t, len(hosts), membershipCount(kept.ID))
 
 	_, _, err := ds.Label(ctx, deleted.ID, adminFilter)
-	require.True(t, fleet.IsNotFound(err))
-	labels, err := ds.ListLabels(ctx, adminFilter, fleet.ListOptions{}, true)
+	require.True(t, automdm.IsNotFound(err))
+	labels, err := ds.ListLabels(ctx, adminFilter, automdm.ListOptions{}, true)
 	require.NoError(t, err)
 	require.Len(t, labels, 1)
 	assert.Equal(t, kept.ID, labels[0].ID)
@@ -1673,9 +1673,9 @@ func testDeleteLabelMembership(t *testing.T, ds *Datastore) {
 
 	// A delete that fails, here on the software installer's foreign key, keeps the label's membership.
 	user := test.NewUser(t, ds, "delete-membership-user", "delete-membership@example.com", false)
-	installerFile, err := fleet.NewTempFileReader(strings.NewReader("echo"), t.TempDir)
+	installerFile, err := automdm.NewTempFileReader(strings.NewReader("echo"), t.TempDir)
 	require.NoError(t, err)
-	installerID, _, err := ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
+	installerID, _, err := ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
 		InstallScript:   "install foo",
 		InstallerFile:   installerFile,
 		StorageID:       uuid.NewString(),
@@ -1684,7 +1684,7 @@ func testDeleteLabelMembership(t *testing.T, ds *Datastore) {
 		Source:          "apps",
 		Version:         "0.0.1",
 		UserID:          user.ID,
-		ValidatedLabels: &fleet.LabelIdentsWithScope{},
+		ValidatedLabels: &automdm.LabelIdentsWithScope{},
 	})
 	require.NoError(t, err)
 	ExecAdhocSQL(t, ds, func(q sqlx.ExtContext) error {
@@ -1692,7 +1692,7 @@ func testDeleteLabelMembership(t *testing.T, ds *Datastore) {
 		return err
 	})
 	err = ds.DeleteLabel(ctx, kept.ID)
-	require.True(t, fleet.IsForeignKey(err))
+	require.True(t, automdm.IsForeignKey(err))
 	assert.Equal(t, len(hosts), membershipCount(kept.ID))
 }
 
@@ -1703,13 +1703,13 @@ func testCleanupOrphanedLabelMembership(t *testing.T, ds *Datastore) {
 	labelMembershipDeleteBatchSize = 2
 	t.Cleanup(func() { labelMembershipDeleteBatchSize = prevBatchSize })
 
-	var hosts []*fleet.Host
+	var hosts []*automdm.Host
 	for i := range 5 {
 		name := fmt.Sprintf("orphaned-membership-%d", i)
 		hosts = append(hosts, test.NewHost(t, ds, name, "", name, name, time.Now()))
 	}
-	newLabelWithAllHosts := func(name string) *fleet.Label {
-		label, err := ds.NewLabel(ctx, &fleet.Label{Name: name, Query: "SELECT 1", LabelMembershipType: fleet.LabelMembershipTypeDynamic})
+	newLabelWithAllHosts := func(name string) *automdm.Label {
+		label, err := ds.NewLabel(ctx, &automdm.Label{Name: name, Query: "SELECT 1", LabelMembershipType: automdm.LabelMembershipTypeDynamic})
 		require.NoError(t, err)
 		for _, h := range hosts {
 			require.NoError(t, ds.RecordLabelQueryExecutions(ctx, h, map[uint]*bool{label.ID: new(true)}, time.Now(), false))
@@ -1772,11 +1772,11 @@ func testLabelsSummaryAndListTeamFiltering(t *testing.T, db *Datastore) {
 	test.AddAllHostsLabel(t, db)
 
 	// Only 'All Hosts' label should be returned
-	labels, err := db.ListLabels(context.Background(), fleet.TeamFilter{}, fleet.ListOptions{}, false)
+	labels, err := db.ListLabels(context.Background(), automdm.TeamFilter{}, automdm.ListOptions{}, false)
 	require.NoError(t, err)
 	require.Len(t, labels, 1)
 
-	newLabels := []*fleet.LabelSpec{
+	newLabels := []*automdm.LabelSpec{
 		{
 			Name:     "foo",
 			Query:    "query foo",
@@ -1797,37 +1797,37 @@ func testLabelsSummaryAndListTeamFiltering(t *testing.T, db *Datastore) {
 	err = db.ApplyLabelSpecs(context.Background(), newLabels)
 	require.Nil(t, err)
 
-	team1, err := db.NewTeam(context.Background(), &fleet.Team{Name: "team1"})
+	team1, err := db.NewTeam(context.Background(), &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
-	team2, err := db.NewTeam(context.Background(), &fleet.Team{Name: "team2"})
+	team2, err := db.NewTeam(context.Background(), &automdm.Team{Name: "team2"})
 	require.NoError(t, err)
-	team3, err := db.NewTeam(context.Background(), &fleet.Team{Name: "team3"})
+	team3, err := db.NewTeam(context.Background(), &automdm.Team{Name: "team3"})
 	require.NoError(t, err)
 
-	team1Label, err := db.NewLabel(context.Background(), &fleet.Label{
+	team1Label, err := db.NewLabel(context.Background(), &automdm.Label{
 		Name:                "t1 label",
-		LabelMembershipType: fleet.LabelMembershipTypeManual,
+		LabelMembershipType: automdm.LabelMembershipTypeManual,
 		TeamID:              &team1.ID,
 	})
 	require.NoError(t, err)
-	team2Label, err := db.NewLabel(context.Background(), &fleet.Label{
+	team2Label, err := db.NewLabel(context.Background(), &automdm.Label{
 		Name:                "t2 label",
-		LabelMembershipType: fleet.LabelMembershipTypeManual,
+		LabelMembershipType: automdm.LabelMembershipTypeManual,
 		TeamID:              &team2.ID,
 	})
 	require.NoError(t, err)
 
 	// should only show global labels
-	labels, err = db.ListLabels(context.Background(), fleet.TeamFilter{}, fleet.ListOptions{}, false)
+	labels, err = db.ListLabels(context.Background(), automdm.TeamFilter{}, automdm.ListOptions{}, false)
 	require.NoError(t, err)
 	require.Len(t, labels, 4)
-	labelsByID := make(map[uint]*fleet.Label)
+	labelsByID := make(map[uint]*automdm.Label)
 	for _, l := range labels {
 		labelsByID[l.ID] = l
 	}
 
 	// should show only global labels
-	ls, err := db.LabelsSummary(context.Background(), fleet.TeamFilter{})
+	ls, err := db.LabelsSummary(context.Background(), automdm.TeamFilter{})
 	require.NoError(t, err)
 	require.Len(t, ls, 4)
 	for _, l := range ls {
@@ -1837,86 +1837,86 @@ func testLabelsSummaryAndListTeamFiltering(t *testing.T, db *Datastore) {
 		assert.Equal(t, labelsByID[l.ID].LabelType, l.LabelType)
 	}
 
-	_, err = db.NewLabel(context.Background(), &fleet.Label{
+	_, err = db.NewLabel(context.Background(), &automdm.Label{
 		Name:  "bing",
 		Query: "query bing",
 	})
 	require.NoError(t, err)
 
-	ls, err = db.LabelsSummary(context.Background(), fleet.TeamFilter{})
+	ls, err = db.LabelsSummary(context.Background(), automdm.TeamFilter{})
 	require.NoError(t, err)
 	require.Len(t, ls, 5)
 
 	for _, tc := range []struct {
 		name               string
-		filter             fleet.TeamFilter
+		filter             automdm.TeamFilter
 		expectedErr        error
-		expectedTeamLabels map[*fleet.Team]*fleet.Label
+		expectedTeamLabels map[*automdm.Team]*automdm.Label
 	}{
 		{
 			name: "explicit global filter",
-			filter: fleet.TeamFilter{
-				User:   &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: team1.ID}, Role: fleet.RoleObserver}}},
+			filter: automdm.TeamFilter{
+				User:   &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: team1.ID}, Role: automdm.RoleObserver}}},
 				TeamID: ptr.Uint(0),
 			},
 		},
 		{
 			name: "global role filtered to team",
-			filter: fleet.TeamFilter{
-				User:   &fleet.User{GlobalRole: ptr.String(fleet.RoleObserver)},
+			filter: automdm.TeamFilter{
+				User:   &automdm.User{GlobalRole: ptr.String(automdm.RoleObserver)},
 				TeamID: &team1.ID,
 			},
-			expectedTeamLabels: map[*fleet.Team]*fleet.Label{team1: team1Label},
+			expectedTeamLabels: map[*automdm.Team]*automdm.Label{team1: team1Label},
 		},
 		{
 			name: "team role filtered to user-accessible team",
-			filter: fleet.TeamFilter{
-				User:   &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: team1.ID}, Role: fleet.RoleObserverPlus}}},
+			filter: automdm.TeamFilter{
+				User:   &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: team1.ID}, Role: automdm.RoleObserverPlus}}},
 				TeamID: &team1.ID,
 			},
-			expectedTeamLabels: map[*fleet.Team]*fleet.Label{team1: team1Label},
+			expectedTeamLabels: map[*automdm.Team]*automdm.Label{team1: team1Label},
 		},
 		{
 			name: "team role filtered to inaccessible team",
-			filter: fleet.TeamFilter{
-				User:   &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: team1.ID}, Role: fleet.RoleObserverPlus}}},
+			filter: automdm.TeamFilter{
+				User:   &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: team1.ID}, Role: automdm.RoleObserverPlus}}},
 				TeamID: &team2.ID,
 			},
 			expectedErr: errInaccessibleTeam,
 		},
 		{
 			name: "global role with no team filter",
-			filter: fleet.TeamFilter{
-				User: &fleet.User{GlobalRole: ptr.String(fleet.RoleMaintainer)},
+			filter: automdm.TeamFilter{
+				User: &automdm.User{GlobalRole: ptr.String(automdm.RoleMaintainer)},
 			},
-			expectedTeamLabels: map[*fleet.Team]*fleet.Label{team1: team1Label, team2: team2Label},
+			expectedTeamLabels: map[*automdm.Team]*automdm.Label{team1: team1Label, team2: team2Label},
 		},
 		{
 			name: "single-team user with no team filter",
-			filter: fleet.TeamFilter{
-				User: &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: team1.ID}, Role: fleet.RoleObserverPlus}}},
+			filter: automdm.TeamFilter{
+				User: &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: team1.ID}, Role: automdm.RoleObserverPlus}}},
 			},
-			expectedTeamLabels: map[*fleet.Team]*fleet.Label{team1: team1Label},
+			expectedTeamLabels: map[*automdm.Team]*automdm.Label{team1: team1Label},
 		},
 		{
 			name: "multi-team user with no team filter, partial overlap with labels",
-			filter: fleet.TeamFilter{
-				User: &fleet.User{Teams: []fleet.UserTeam{
-					{Team: fleet.Team{ID: team1.ID}, Role: fleet.RoleObserverPlus},
-					{Team: fleet.Team{ID: team3.ID}, Role: fleet.RoleMaintainer},
+			filter: automdm.TeamFilter{
+				User: &automdm.User{Teams: []automdm.UserTeam{
+					{Team: automdm.Team{ID: team1.ID}, Role: automdm.RoleObserverPlus},
+					{Team: automdm.Team{ID: team3.ID}, Role: automdm.RoleMaintainer},
 				}},
 			},
-			expectedTeamLabels: map[*fleet.Team]*fleet.Label{team1: team1Label},
+			expectedTeamLabels: map[*automdm.Team]*automdm.Label{team1: team1Label},
 		},
 		{
 			name: "multi-team user with no team filter, full overlap with labels",
-			filter: fleet.TeamFilter{
-				User: &fleet.User{Teams: []fleet.UserTeam{
-					{Team: fleet.Team{ID: team1.ID}, Role: fleet.RoleObserverPlus},
-					{Team: fleet.Team{ID: team2.ID}, Role: fleet.RoleMaintainer},
+			filter: automdm.TeamFilter{
+				User: &automdm.User{Teams: []automdm.UserTeam{
+					{Team: automdm.Team{ID: team1.ID}, Role: automdm.RoleObserverPlus},
+					{Team: automdm.Team{ID: team2.ID}, Role: automdm.RoleMaintainer},
 				}},
 			},
-			expectedTeamLabels: map[*fleet.Team]*fleet.Label{team1: team1Label, team2: team2Label},
+			expectedTeamLabels: map[*automdm.Team]*automdm.Label{team1: team1Label, team2: team2Label},
 		},
 	} {
 		t.Run(tc.name+" summary", func(t *testing.T) {
@@ -1928,7 +1928,7 @@ func testLabelsSummaryAndListTeamFiltering(t *testing.T, db *Datastore) {
 			require.NoError(t, err)
 			require.Len(t, ls, 5+len(tc.expectedTeamLabels))
 
-			foundTeamLabels := make(map[uint]fleet.LabelSummary)
+			foundTeamLabels := make(map[uint]automdm.LabelSummary)
 			for _, l := range ls {
 				if l.TeamID != nil {
 					foundTeamLabels[*l.TeamID] = *l
@@ -1941,7 +1941,7 @@ func testLabelsSummaryAndListTeamFiltering(t *testing.T, db *Datastore) {
 			}
 		})
 		t.Run(tc.name+" list", func(t *testing.T) {
-			ls, err := db.ListLabels(context.Background(), tc.filter, fleet.ListOptions{}, false)
+			ls, err := db.ListLabels(context.Background(), tc.filter, automdm.ListOptions{}, false)
 			if tc.expectedErr != nil {
 				require.ErrorContains(t, err, tc.expectedErr.Error())
 				return
@@ -1949,7 +1949,7 @@ func testLabelsSummaryAndListTeamFiltering(t *testing.T, db *Datastore) {
 			require.NoError(t, err)
 			require.Len(t, ls, 5+len(tc.expectedTeamLabels))
 
-			foundTeamLabels := make(map[uint]fleet.Label)
+			foundTeamLabels := make(map[uint]automdm.Label)
 			for _, l := range ls {
 				if l.TeamID != nil {
 					foundTeamLabels[*l.TeamID] = *l
@@ -1967,7 +1967,7 @@ func testLabelsSummaryAndListTeamFiltering(t *testing.T, db *Datastore) {
 func testListHostsInLabelIssues(t *testing.T, ds *Datastore) {
 	user1 := test.NewUser(t, ds, "Alice", "alice@example.com", true)
 	for i := 0; i < 10; i++ {
-		_, err := ds.NewHost(context.Background(), &fleet.Host{
+		_, err := ds.NewHost(context.Background(), &automdm.Host{
 			DetailUpdatedAt: time.Now(),
 			LabelUpdatedAt:  time.Now(),
 			PolicyUpdatedAt: time.Now(),
@@ -1980,32 +1980,32 @@ func testListHostsInLabelIssues(t *testing.T, ds *Datastore) {
 		require.NoError(t, err)
 	}
 
-	filter := fleet.TeamFilter{User: test.UserAdmin}
+	filter := automdm.TeamFilter{User: test.UserAdmin}
 
 	q := test.NewQuery(t, ds, nil, "query1", "select 1", 0, true)
 	q2 := test.NewQuery(t, ds, nil, "query2", "select 1", 0, true)
-	p, err := ds.NewGlobalPolicy(context.Background(), &user1.ID, fleet.PolicyPayload{
+	p, err := ds.NewGlobalPolicy(context.Background(), &user1.ID, automdm.PolicyPayload{
 		Name:        q.Name,
 		Query:       q.Query,
 		Description: q.Description,
 	})
 	require.NoError(t, err)
-	p2, err := ds.NewGlobalPolicy(context.Background(), &user1.ID, fleet.PolicyPayload{
+	p2, err := ds.NewGlobalPolicy(context.Background(), &user1.ID, automdm.PolicyPayload{
 		Name:        q2.Name,
 		Query:       q2.Query,
 		Description: q2.Description,
 	})
 	require.NoError(t, err)
 
-	hosts := listHostsCheckCount(t, ds, filter, fleet.HostListOptions{}, 10)
+	hosts := listHostsCheckCount(t, ds, filter, automdm.HostListOptions{}, 10)
 	require.Len(t, hosts, 10)
 
-	l1 := &fleet.LabelSpec{
+	l1 := &automdm.LabelSpec{
 		ID:    1,
 		Name:  "label foo",
 		Query: "query1",
 	}
-	err = ds.ApplyLabelSpecs(context.Background(), []*fleet.LabelSpec{l1})
+	err = ds.ApplyLabelSpecs(context.Background(), []*automdm.LabelSpec{l1})
 	require.Nil(t, err)
 
 	for _, h := range hosts {
@@ -2013,7 +2013,7 @@ func testListHostsInLabelIssues(t *testing.T, ds *Datastore) {
 		require.NoError(t, err)
 	}
 
-	hosts = listHostsInLabelCheckCount(t, ds, filter, l1.ID, fleet.HostListOptions{}, 10)
+	hosts = listHostsInLabelCheckCount(t, ds, filter, l1.ID, automdm.HostListOptions{}, 10)
 
 	h1 := hosts[0]
 	h2 := hosts[1]
@@ -2028,11 +2028,11 @@ func testListHostsInLabelIssues(t *testing.T, ds *Datastore) {
 	require.NoError(t, errOnly(ds.RecordPolicyQueryExecutions(context.Background(), h1, map[uint]*bool{p.ID: new(true)}, time.Now(), false, nil)))
 
 	require.NoError(t, errOnly(ds.RecordPolicyQueryExecutions(context.Background(), h2, map[uint]*bool{p.ID: new(false), p2.ID: new(false)}, time.Now(), false, nil)))
-	checkLabelHostIssues(t, ds, l1.ID, filter, h2.ID, fleet.HostListOptions{}, 2, 0)
+	checkLabelHostIssues(t, ds, l1.ID, filter, h2.ID, automdm.HostListOptions{}, 2, 0)
 
 	// Add a critical vulnerability
 	// seed software
-	software := []fleet.Software{
+	software := []automdm.Software{
 		{Name: "foo0", Version: "0", Source: "chrome_extensions"}, // vulnerable
 		{Name: "foo1", Version: "1", Source: "chrome_extensions"},
 		{Name: "foo2", Version: "2", Source: "chrome_extensions"},
@@ -2048,23 +2048,23 @@ func testListHostsInLabelIssues(t *testing.T, ds *Datastore) {
 		require.NoError(t, err)
 	}
 
-	softwareItems := make([]fleet.Software, 0, len(software))
+	softwareItems := make([]automdm.Software, 0, len(software))
 	ctx := context.Background()
 	require.NoError(t, sqlx.SelectContext(ctx, ds.reader(ctx), &softwareItems, "SELECT id, version FROM software"))
 	require.Len(t, softwareItems, len(software))
 
 	for _, sw := range softwareItems {
 		_, err := ds.InsertSoftwareVulnerability(
-			context.Background(), fleet.SoftwareVulnerability{
+			context.Background(), automdm.SoftwareVulnerability{
 				CVE:        fmt.Sprintf("CVE-%s", sw.Version),
 				SoftwareID: sw.ID,
-			}, fleet.NVDSource,
+			}, automdm.NVDSource,
 		)
 		require.NoError(t, err)
 	}
 	require.NoError(
 		t, ds.InsertCVEMeta(
-			ctx, []fleet.CVEMeta{
+			ctx, []automdm.CVEMeta{
 				{
 					CVE:       "CVE-0",
 					CVSSScore: ptr.Float64(2 * criticalCVSSScoreCutoff),
@@ -2093,30 +2093,30 @@ func testListHostsInLabelIssues(t *testing.T, ds *Datastore) {
 		),
 	)
 	// Populate critical vulnerabilities, which can be done with premium license.
-	ctx = license.NewContext(ctx, &fleet.LicenseInfo{Tier: fleet.TierPremium})
+	ctx = license.NewContext(ctx, &automdm.LicenseInfo{Tier: automdm.TierPremium})
 	assert.NoError(t, ds.UpdateHostIssuesVulnerabilities(ctx))
-	checkLabelHostIssues(t, ds, l1.ID, filter, hosts[6].ID, fleet.HostListOptions{}, 0, 4)
+	checkLabelHostIssues(t, ds, l1.ID, filter, hosts[6].ID, automdm.HostListOptions{}, 0, 4)
 
 	require.NoError(t, errOnly(ds.RecordPolicyQueryExecutions(context.Background(), h2, map[uint]*bool{p.ID: new(true), p2.ID: new(false)}, time.Now(), false, nil)))
-	checkLabelHostIssues(t, ds, l1.ID, filter, h2.ID, fleet.HostListOptions{}, 1, 1)
+	checkLabelHostIssues(t, ds, l1.ID, filter, h2.ID, automdm.HostListOptions{}, 1, 1)
 
 	require.NoError(t, errOnly(ds.RecordPolicyQueryExecutions(context.Background(), h2, map[uint]*bool{p.ID: new(true), p2.ID: new(true)}, time.Now(), false, nil)))
-	checkLabelHostIssues(t, ds, l1.ID, filter, h2.ID, fleet.HostListOptions{}, 0, 1)
+	checkLabelHostIssues(t, ds, l1.ID, filter, h2.ID, automdm.HostListOptions{}, 0, 1)
 
 	require.NoError(t, errOnly(ds.RecordPolicyQueryExecutions(context.Background(), h1, map[uint]*bool{p.ID: new(false)}, time.Now(), false, nil)))
-	checkLabelHostIssues(t, ds, l1.ID, filter, h1.ID, fleet.HostListOptions{}, 1, 1)
+	checkLabelHostIssues(t, ds, l1.ID, filter, h1.ID, automdm.HostListOptions{}, 1, 1)
 
-	checkLabelHostIssues(t, ds, l1.ID, filter, h1.ID, fleet.HostListOptions{DisableIssues: true}, 0, 0)
-	checkLabelHostIssues(t, ds, l1.ID, filter, hosts[6].ID, fleet.HostListOptions{DisableIssues: true}, 0, 0)
+	checkLabelHostIssues(t, ds, l1.ID, filter, h1.ID, automdm.HostListOptions{DisableIssues: true}, 0, 0)
+	checkLabelHostIssues(t, ds, l1.ID, filter, hosts[6].ID, automdm.HostListOptions{DisableIssues: true}, 0, 0)
 }
 
 func checkLabelHostIssues(
-	t *testing.T, ds *Datastore, lid uint, filter fleet.TeamFilter, hid uint, opts fleet.HostListOptions,
+	t *testing.T, ds *Datastore, lid uint, filter automdm.TeamFilter, hid uint, opts automdm.HostListOptions,
 	failingPoliciesExpected uint64, criticalVulnerabilitiesExpected uint64,
 ) {
 	hosts := listHostsInLabelCheckCount(t, ds, filter, lid, opts, 10)
 	foundH2 := false
-	var foundHost *fleet.Host
+	var foundHost *automdm.Host
 	for _, host := range hosts {
 		if host.ID == hid {
 			foundH2 = true
@@ -2147,9 +2147,9 @@ func testListHostsInLabelDiskEncryptionStatus(t *testing.T, ds *Datastore) {
 	enableMacOSDiskEncryptionForTest(t, ds, nil)
 
 	// seed hosts
-	var hosts []*fleet.Host
+	var hosts []*automdm.Host
 	for i := 0; i < 10; i++ {
-		h, err := ds.NewHost(context.Background(), &fleet.Host{
+		h, err := ds.NewHost(context.Background(), &automdm.Host{
 			DetailUpdatedAt: time.Now(),
 			LabelUpdatedAt:  time.Now(),
 			PolicyUpdatedAt: time.Now(),
@@ -2169,114 +2169,114 @@ func testListHostsInLabelDiskEncryptionStatus(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// verifying status
-	upsertHostCPs([]*fleet.Host{hosts[0], hosts[1]}, []*fleet.MDMAppleConfigProfile{noTeamFVProfile}, fleet.MDMOperationTypeInstall, &fleet.MDMDeliveryVerifying, ctx, ds, t)
+	upsertHostCPs([]*automdm.Host{hosts[0], hosts[1]}, []*automdm.MDMAppleConfigProfile{noTeamFVProfile}, automdm.MDMOperationTypeInstall, &automdm.MDMDeliveryVerifying, ctx, ds, t)
 	oneMinuteAfterThreshold := time.Now().Add(+1 * time.Minute)
 	createDiskEncryptionRecord(ctx, ds, t, hosts[0], "key-1", true, oneMinuteAfterThreshold)
 	createDiskEncryptionRecord(ctx, ds, t, hosts[1], "key-1", true, oneMinuteAfterThreshold)
 
-	listHostsCheckCount(t, ds, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{MacOSSettingsDiskEncryptionFilter: fleet.DiskEncryptionVerifying}, 2)
-	listHostsCheckCount(t, ds, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{MacOSSettingsDiskEncryptionFilter: fleet.DiskEncryptionVerified}, 0)
-	listHostsCheckCount(t, ds, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{MacOSSettingsDiskEncryptionFilter: fleet.DiskEncryptionActionRequired}, 0)
-	listHostsCheckCount(t, ds, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{MacOSSettingsDiskEncryptionFilter: fleet.DiskEncryptionEnforcing}, 0)
-	listHostsCheckCount(t, ds, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{MacOSSettingsDiskEncryptionFilter: fleet.DiskEncryptionFailed}, 0)
-	listHostsCheckCount(t, ds, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{MacOSSettingsDiskEncryptionFilter: fleet.DiskEncryptionRemovingEnforcement}, 0)
+	listHostsCheckCount(t, ds, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{MacOSSettingsDiskEncryptionFilter: automdm.DiskEncryptionVerifying}, 2)
+	listHostsCheckCount(t, ds, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{MacOSSettingsDiskEncryptionFilter: automdm.DiskEncryptionVerified}, 0)
+	listHostsCheckCount(t, ds, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{MacOSSettingsDiskEncryptionFilter: automdm.DiskEncryptionActionRequired}, 0)
+	listHostsCheckCount(t, ds, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{MacOSSettingsDiskEncryptionFilter: automdm.DiskEncryptionEnforcing}, 0)
+	listHostsCheckCount(t, ds, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{MacOSSettingsDiskEncryptionFilter: automdm.DiskEncryptionFailed}, 0)
+	listHostsCheckCount(t, ds, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{MacOSSettingsDiskEncryptionFilter: automdm.DiskEncryptionRemovingEnforcement}, 0)
 
 	// action required status
 	upsertHostCPs(
-		[]*fleet.Host{hosts[2], hosts[3]},
-		[]*fleet.MDMAppleConfigProfile{noTeamFVProfile},
-		fleet.MDMOperationTypeInstall,
-		&fleet.MDMDeliveryVerifying, ctx, ds, t,
+		[]*automdm.Host{hosts[2], hosts[3]},
+		[]*automdm.MDMAppleConfigProfile{noTeamFVProfile},
+		automdm.MDMOperationTypeInstall,
+		&automdm.MDMDeliveryVerifying, ctx, ds, t,
 	)
 	err = ds.SetHostsDiskEncryptionKeyStatus(ctx, []uint{hosts[2].ID}, false, oneMinuteAfterThreshold)
 	require.NoError(t, err)
 	err = ds.SetHostsDiskEncryptionKeyStatus(ctx, []uint{hosts[3].ID}, false, oneMinuteAfterThreshold)
 	require.NoError(t, err)
 
-	listHostsCheckCount(t, ds, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{MacOSSettingsDiskEncryptionFilter: fleet.DiskEncryptionVerifying}, 2)
-	listHostsCheckCount(t, ds, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{MacOSSettingsDiskEncryptionFilter: fleet.DiskEncryptionVerified}, 0)
-	listHostsCheckCount(t, ds, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{MacOSSettingsDiskEncryptionFilter: fleet.DiskEncryptionActionRequired}, 2)
-	listHostsCheckCount(t, ds, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{MacOSSettingsDiskEncryptionFilter: fleet.DiskEncryptionEnforcing}, 0)
-	listHostsCheckCount(t, ds, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{MacOSSettingsDiskEncryptionFilter: fleet.DiskEncryptionFailed}, 0)
-	listHostsCheckCount(t, ds, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{MacOSSettingsDiskEncryptionFilter: fleet.DiskEncryptionRemovingEnforcement}, 0)
+	listHostsCheckCount(t, ds, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{MacOSSettingsDiskEncryptionFilter: automdm.DiskEncryptionVerifying}, 2)
+	listHostsCheckCount(t, ds, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{MacOSSettingsDiskEncryptionFilter: automdm.DiskEncryptionVerified}, 0)
+	listHostsCheckCount(t, ds, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{MacOSSettingsDiskEncryptionFilter: automdm.DiskEncryptionActionRequired}, 2)
+	listHostsCheckCount(t, ds, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{MacOSSettingsDiskEncryptionFilter: automdm.DiskEncryptionEnforcing}, 0)
+	listHostsCheckCount(t, ds, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{MacOSSettingsDiskEncryptionFilter: automdm.DiskEncryptionFailed}, 0)
+	listHostsCheckCount(t, ds, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{MacOSSettingsDiskEncryptionFilter: automdm.DiskEncryptionRemovingEnforcement}, 0)
 
 	// enforcing status
 
 	// host profile status is `pending`
 	upsertHostCPs(
-		[]*fleet.Host{hosts[4]},
-		[]*fleet.MDMAppleConfigProfile{noTeamFVProfile},
-		fleet.MDMOperationTypeInstall,
-		&fleet.MDMDeliveryPending, ctx, ds, t,
+		[]*automdm.Host{hosts[4]},
+		[]*automdm.MDMAppleConfigProfile{noTeamFVProfile},
+		automdm.MDMOperationTypeInstall,
+		&automdm.MDMDeliveryPending, ctx, ds, t,
 	)
 
-	listHostsCheckCount(t, ds, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{MacOSSettingsDiskEncryptionFilter: fleet.DiskEncryptionVerifying}, 2)
-	listHostsCheckCount(t, ds, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{MacOSSettingsDiskEncryptionFilter: fleet.DiskEncryptionVerified}, 0)
-	listHostsCheckCount(t, ds, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{MacOSSettingsDiskEncryptionFilter: fleet.DiskEncryptionActionRequired}, 2)
-	listHostsCheckCount(t, ds, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{MacOSSettingsDiskEncryptionFilter: fleet.DiskEncryptionEnforcing}, 1)
-	listHostsCheckCount(t, ds, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{MacOSSettingsDiskEncryptionFilter: fleet.DiskEncryptionFailed}, 0)
-	listHostsCheckCount(t, ds, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{MacOSSettingsDiskEncryptionFilter: fleet.DiskEncryptionRemovingEnforcement}, 0)
+	listHostsCheckCount(t, ds, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{MacOSSettingsDiskEncryptionFilter: automdm.DiskEncryptionVerifying}, 2)
+	listHostsCheckCount(t, ds, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{MacOSSettingsDiskEncryptionFilter: automdm.DiskEncryptionVerified}, 0)
+	listHostsCheckCount(t, ds, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{MacOSSettingsDiskEncryptionFilter: automdm.DiskEncryptionActionRequired}, 2)
+	listHostsCheckCount(t, ds, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{MacOSSettingsDiskEncryptionFilter: automdm.DiskEncryptionEnforcing}, 1)
+	listHostsCheckCount(t, ds, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{MacOSSettingsDiskEncryptionFilter: automdm.DiskEncryptionFailed}, 0)
+	listHostsCheckCount(t, ds, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{MacOSSettingsDiskEncryptionFilter: automdm.DiskEncryptionRemovingEnforcement}, 0)
 
 	// host profile status does not exist
 	upsertHostCPs(
-		[]*fleet.Host{hosts[5]},
-		[]*fleet.MDMAppleConfigProfile{noTeamFVProfile},
-		fleet.MDMOperationTypeInstall,
+		[]*automdm.Host{hosts[5]},
+		[]*automdm.MDMAppleConfigProfile{noTeamFVProfile},
+		automdm.MDMOperationTypeInstall,
 		nil, ctx, ds, t,
 	)
 
-	listHostsCheckCount(t, ds, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{MacOSSettingsDiskEncryptionFilter: fleet.DiskEncryptionVerifying}, 2)
-	listHostsCheckCount(t, ds, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{MacOSSettingsDiskEncryptionFilter: fleet.DiskEncryptionVerified}, 0)
-	listHostsCheckCount(t, ds, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{MacOSSettingsDiskEncryptionFilter: fleet.DiskEncryptionActionRequired}, 2)
-	listHostsCheckCount(t, ds, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{MacOSSettingsDiskEncryptionFilter: fleet.DiskEncryptionEnforcing}, 2)
-	listHostsCheckCount(t, ds, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{MacOSSettingsDiskEncryptionFilter: fleet.DiskEncryptionFailed}, 0)
-	listHostsCheckCount(t, ds, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{MacOSSettingsDiskEncryptionFilter: fleet.DiskEncryptionRemovingEnforcement}, 0)
+	listHostsCheckCount(t, ds, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{MacOSSettingsDiskEncryptionFilter: automdm.DiskEncryptionVerifying}, 2)
+	listHostsCheckCount(t, ds, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{MacOSSettingsDiskEncryptionFilter: automdm.DiskEncryptionVerified}, 0)
+	listHostsCheckCount(t, ds, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{MacOSSettingsDiskEncryptionFilter: automdm.DiskEncryptionActionRequired}, 2)
+	listHostsCheckCount(t, ds, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{MacOSSettingsDiskEncryptionFilter: automdm.DiskEncryptionEnforcing}, 2)
+	listHostsCheckCount(t, ds, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{MacOSSettingsDiskEncryptionFilter: automdm.DiskEncryptionFailed}, 0)
+	listHostsCheckCount(t, ds, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{MacOSSettingsDiskEncryptionFilter: automdm.DiskEncryptionRemovingEnforcement}, 0)
 
 	// host profile status is verifying but decryptable key field does not exist
 	upsertHostCPs(
-		[]*fleet.Host{hosts[6]},
-		[]*fleet.MDMAppleConfigProfile{noTeamFVProfile},
-		fleet.MDMOperationTypeInstall,
-		&fleet.MDMDeliveryPending, ctx, ds, t,
+		[]*automdm.Host{hosts[6]},
+		[]*automdm.MDMAppleConfigProfile{noTeamFVProfile},
+		automdm.MDMOperationTypeInstall,
+		&automdm.MDMDeliveryPending, ctx, ds, t,
 	)
 	err = ds.SetHostsDiskEncryptionKeyStatus(ctx, []uint{hosts[6].ID}, false, oneMinuteAfterThreshold)
 	require.NoError(t, err)
 
-	listHostsCheckCount(t, ds, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{MacOSSettingsDiskEncryptionFilter: fleet.DiskEncryptionVerifying}, 2)
-	listHostsCheckCount(t, ds, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{MacOSSettingsDiskEncryptionFilter: fleet.DiskEncryptionVerified}, 0)
-	listHostsCheckCount(t, ds, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{MacOSSettingsDiskEncryptionFilter: fleet.DiskEncryptionActionRequired}, 2)
-	listHostsCheckCount(t, ds, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{MacOSSettingsDiskEncryptionFilter: fleet.DiskEncryptionEnforcing}, 3)
-	listHostsCheckCount(t, ds, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{MacOSSettingsDiskEncryptionFilter: fleet.DiskEncryptionFailed}, 0)
-	listHostsCheckCount(t, ds, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{MacOSSettingsDiskEncryptionFilter: fleet.DiskEncryptionRemovingEnforcement}, 0)
+	listHostsCheckCount(t, ds, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{MacOSSettingsDiskEncryptionFilter: automdm.DiskEncryptionVerifying}, 2)
+	listHostsCheckCount(t, ds, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{MacOSSettingsDiskEncryptionFilter: automdm.DiskEncryptionVerified}, 0)
+	listHostsCheckCount(t, ds, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{MacOSSettingsDiskEncryptionFilter: automdm.DiskEncryptionActionRequired}, 2)
+	listHostsCheckCount(t, ds, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{MacOSSettingsDiskEncryptionFilter: automdm.DiskEncryptionEnforcing}, 3)
+	listHostsCheckCount(t, ds, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{MacOSSettingsDiskEncryptionFilter: automdm.DiskEncryptionFailed}, 0)
+	listHostsCheckCount(t, ds, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{MacOSSettingsDiskEncryptionFilter: automdm.DiskEncryptionRemovingEnforcement}, 0)
 
 	// failed status
-	upsertHostCPs([]*fleet.Host{hosts[7], hosts[8]}, []*fleet.MDMAppleConfigProfile{noTeamFVProfile}, fleet.MDMOperationTypeInstall, &fleet.MDMDeliveryFailed, ctx, ds, t)
+	upsertHostCPs([]*automdm.Host{hosts[7], hosts[8]}, []*automdm.MDMAppleConfigProfile{noTeamFVProfile}, automdm.MDMOperationTypeInstall, &automdm.MDMDeliveryFailed, ctx, ds, t)
 
-	listHostsCheckCount(t, ds, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{MacOSSettingsDiskEncryptionFilter: fleet.DiskEncryptionVerifying}, 2)
-	listHostsCheckCount(t, ds, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{MacOSSettingsDiskEncryptionFilter: fleet.DiskEncryptionVerified}, 0)
-	listHostsCheckCount(t, ds, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{MacOSSettingsDiskEncryptionFilter: fleet.DiskEncryptionActionRequired}, 2)
-	listHostsCheckCount(t, ds, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{MacOSSettingsDiskEncryptionFilter: fleet.DiskEncryptionEnforcing}, 3)
-	listHostsCheckCount(t, ds, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{MacOSSettingsDiskEncryptionFilter: fleet.DiskEncryptionFailed}, 2)
-	listHostsCheckCount(t, ds, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{MacOSSettingsDiskEncryptionFilter: fleet.DiskEncryptionRemovingEnforcement}, 0)
+	listHostsCheckCount(t, ds, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{MacOSSettingsDiskEncryptionFilter: automdm.DiskEncryptionVerifying}, 2)
+	listHostsCheckCount(t, ds, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{MacOSSettingsDiskEncryptionFilter: automdm.DiskEncryptionVerified}, 0)
+	listHostsCheckCount(t, ds, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{MacOSSettingsDiskEncryptionFilter: automdm.DiskEncryptionActionRequired}, 2)
+	listHostsCheckCount(t, ds, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{MacOSSettingsDiskEncryptionFilter: automdm.DiskEncryptionEnforcing}, 3)
+	listHostsCheckCount(t, ds, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{MacOSSettingsDiskEncryptionFilter: automdm.DiskEncryptionFailed}, 2)
+	listHostsCheckCount(t, ds, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{MacOSSettingsDiskEncryptionFilter: automdm.DiskEncryptionRemovingEnforcement}, 0)
 
 	// removing enforcement status
-	upsertHostCPs([]*fleet.Host{hosts[9]}, []*fleet.MDMAppleConfigProfile{noTeamFVProfile}, fleet.MDMOperationTypeRemove, &fleet.MDMDeliveryPending, ctx, ds, t)
+	upsertHostCPs([]*automdm.Host{hosts[9]}, []*automdm.MDMAppleConfigProfile{noTeamFVProfile}, automdm.MDMOperationTypeRemove, &automdm.MDMDeliveryPending, ctx, ds, t)
 
-	listHostsCheckCount(t, ds, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{MacOSSettingsDiskEncryptionFilter: fleet.DiskEncryptionVerifying}, 2)
-	listHostsCheckCount(t, ds, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{MacOSSettingsDiskEncryptionFilter: fleet.DiskEncryptionVerified}, 0)
-	listHostsCheckCount(t, ds, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{MacOSSettingsDiskEncryptionFilter: fleet.DiskEncryptionActionRequired}, 2)
-	listHostsCheckCount(t, ds, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{MacOSSettingsDiskEncryptionFilter: fleet.DiskEncryptionEnforcing}, 3)
-	listHostsCheckCount(t, ds, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{MacOSSettingsDiskEncryptionFilter: fleet.DiskEncryptionFailed}, 2)
-	listHostsCheckCount(t, ds, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{MacOSSettingsDiskEncryptionFilter: fleet.DiskEncryptionRemovingEnforcement}, 1)
+	listHostsCheckCount(t, ds, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{MacOSSettingsDiskEncryptionFilter: automdm.DiskEncryptionVerifying}, 2)
+	listHostsCheckCount(t, ds, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{MacOSSettingsDiskEncryptionFilter: automdm.DiskEncryptionVerified}, 0)
+	listHostsCheckCount(t, ds, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{MacOSSettingsDiskEncryptionFilter: automdm.DiskEncryptionActionRequired}, 2)
+	listHostsCheckCount(t, ds, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{MacOSSettingsDiskEncryptionFilter: automdm.DiskEncryptionEnforcing}, 3)
+	listHostsCheckCount(t, ds, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{MacOSSettingsDiskEncryptionFilter: automdm.DiskEncryptionFailed}, 2)
+	listHostsCheckCount(t, ds, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{MacOSSettingsDiskEncryptionFilter: automdm.DiskEncryptionRemovingEnforcement}, 1)
 
 	// verified status
-	upsertHostCPs([]*fleet.Host{hosts[0]}, []*fleet.MDMAppleConfigProfile{noTeamFVProfile}, fleet.MDMOperationTypeInstall, &fleet.MDMDeliveryVerified, ctx, ds, t)
-	listHostsCheckCount(t, ds, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{MacOSSettingsDiskEncryptionFilter: fleet.DiskEncryptionVerifying}, 1)
-	listHostsCheckCount(t, ds, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{MacOSSettingsDiskEncryptionFilter: fleet.DiskEncryptionVerified}, 1)
-	listHostsCheckCount(t, ds, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{MacOSSettingsDiskEncryptionFilter: fleet.DiskEncryptionActionRequired}, 2)
-	listHostsCheckCount(t, ds, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{MacOSSettingsDiskEncryptionFilter: fleet.DiskEncryptionEnforcing}, 3)
-	listHostsCheckCount(t, ds, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{MacOSSettingsDiskEncryptionFilter: fleet.DiskEncryptionFailed}, 2)
-	listHostsCheckCount(t, ds, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{MacOSSettingsDiskEncryptionFilter: fleet.DiskEncryptionRemovingEnforcement}, 1)
+	upsertHostCPs([]*automdm.Host{hosts[0]}, []*automdm.MDMAppleConfigProfile{noTeamFVProfile}, automdm.MDMOperationTypeInstall, &automdm.MDMDeliveryVerified, ctx, ds, t)
+	listHostsCheckCount(t, ds, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{MacOSSettingsDiskEncryptionFilter: automdm.DiskEncryptionVerifying}, 1)
+	listHostsCheckCount(t, ds, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{MacOSSettingsDiskEncryptionFilter: automdm.DiskEncryptionVerified}, 1)
+	listHostsCheckCount(t, ds, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{MacOSSettingsDiskEncryptionFilter: automdm.DiskEncryptionActionRequired}, 2)
+	listHostsCheckCount(t, ds, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{MacOSSettingsDiskEncryptionFilter: automdm.DiskEncryptionEnforcing}, 3)
+	listHostsCheckCount(t, ds, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{MacOSSettingsDiskEncryptionFilter: automdm.DiskEncryptionFailed}, 2)
+	listHostsCheckCount(t, ds, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{MacOSSettingsDiskEncryptionFilter: automdm.DiskEncryptionRemovingEnforcement}, 1)
 }
 
 func testHostMembershipForLabels(t *testing.T, ds *Datastore) {
@@ -2290,31 +2290,31 @@ func testHostMembershipForLabels(t *testing.T, ds *Datastore) {
 	//
 
 	allHostsLabel, err := ds.NewLabel(ctx,
-		&fleet.Label{
+		&automdm.Label{
 			Name:                "All hosts",
 			Query:               "SELECT 1",
-			LabelType:           fleet.LabelTypeBuiltIn,
-			LabelMembershipType: fleet.LabelMembershipTypeDynamic,
+			LabelType:           automdm.LabelTypeBuiltIn,
+			LabelMembershipType: automdm.LabelMembershipTypeDynamic,
 		},
 	)
 	require.NoError(t, err)
-	foobarLabel, err := ds.NewLabel(ctx, &fleet.Label{
+	foobarLabel, err := ds.NewLabel(ctx, &automdm.Label{
 		Name:                "Foobar",
 		Query:               "SELECT 1;",
-		LabelType:           fleet.LabelTypeRegular,
-		LabelMembershipType: fleet.LabelMembershipTypeDynamic,
+		LabelType:           automdm.LabelTypeRegular,
+		LabelMembershipType: automdm.LabelMembershipTypeDynamic,
 	})
 	require.NoError(t, err)
-	zoobarLabel, err := ds.NewLabel(ctx, &fleet.Label{
+	zoobarLabel, err := ds.NewLabel(ctx, &automdm.Label{
 		Name:                "Zoobar",
 		Query:               "SELECT 2;",
-		LabelType:           fleet.LabelTypeRegular,
-		LabelMembershipType: fleet.LabelMembershipTypeDynamic,
+		LabelType:           automdm.LabelTypeRegular,
+		LabelMembershipType: automdm.LabelMembershipTypeDynamic,
 	})
 	require.NoError(t, err)
 
-	newHostFunc := func(name string) *fleet.Host {
-		h, err := ds.NewHost(ctx, &fleet.Host{
+	newHostFunc := func(name string) *automdm.Host {
+		h, err := ds.NewHost(ctx, &automdm.Host{
 			DetailUpdatedAt: time.Now(),
 			LabelUpdatedAt:  time.Now(),
 			PolicyUpdatedAt: time.Now(),
@@ -2406,7 +2406,7 @@ func testHostMembershipForLabels(t *testing.T, ds *Datastore) {
 }
 
 func testLabelsListHostsInLabelOSSettings(t *testing.T, db *Datastore) {
-	h1, err := db.NewHost(context.Background(), &fleet.Host{
+	h1, err := db.NewHost(context.Background(), &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -2419,7 +2419,7 @@ func testLabelsListHostsInLabelOSSettings(t *testing.T, db *Datastore) {
 	})
 	require.NoError(t, err)
 
-	h2, err := db.NewHost(context.Background(), &fleet.Host{
+	h2, err := db.NewHost(context.Background(), &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -2431,7 +2431,7 @@ func testLabelsListHostsInLabelOSSettings(t *testing.T, db *Datastore) {
 		Platform:        "windows",
 	})
 	require.NoError(t, err)
-	h3, err := db.NewHost(context.Background(), &fleet.Host{
+	h3, err := db.NewHost(context.Background(), &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -2444,17 +2444,17 @@ func testLabelsListHostsInLabelOSSettings(t *testing.T, db *Datastore) {
 	})
 	require.NoError(t, err)
 
-	l1 := &fleet.LabelSpec{
+	l1 := &automdm.LabelSpec{
 		ID:    1,
 		Name:  "label foo",
 		Query: "query1",
 	}
-	err = db.ApplyLabelSpecs(context.Background(), []*fleet.LabelSpec{l1})
+	err = db.ApplyLabelSpecs(context.Background(), []*automdm.LabelSpec{l1})
 	require.Nil(t, err)
 
-	filter := fleet.TeamFilter{User: test.UserAdmin}
+	filter := automdm.TeamFilter{User: test.UserAdmin}
 	// add all hosts to label
-	for _, h := range []*fleet.Host{h1, h2, h3} {
+	for _, h := range []*automdm.Host{h1, h2, h3} {
 		require.NoError(t, db.RecordLabelQueryExecutions(context.Background(), h, map[uint]*bool{l1.ID: ptr.Bool(true)}, time.Now(), false))
 	}
 
@@ -2464,10 +2464,10 @@ func testLabelsListHostsInLabelOSSettings(t *testing.T, db *Datastore) {
 	setAppConfigDiskEncryptionForTest(ac, true)
 	require.NoError(t, db.SaveAppConfig(context.Background(), ac))
 
-	// add two hosts to MDM to enforce disk encryption, fleet doesn't enforce settings on centos so h3 is not included
-	for _, h := range []*fleet.Host{h1, h2} {
+	// add two hosts to MDM to enforce disk encryption, team doesn't enforce settings on centos so h3 is not included
+	for _, h := range []*automdm.Host{h1, h2} {
 		windowsEnroll(t, db, h)
-		require.NoError(t, db.SetOrUpdateMDMData(context.Background(), h.ID, false, true, "https://example.com", false, fleet.WellKnownMDMFleet, "", fleet.PersonalEnrollmentTypeNone))
+		require.NoError(t, db.SetOrUpdateMDMData(context.Background(), h.ID, false, true, "https://example.com", false, automdm.WellKnownMDMAutoMDM, "", automdm.PersonalEnrollmentTypeNone))
 	}
 	// add disk encryption key for h1
 	_, err = db.SetOrUpdateHostDiskEncryptionKey(context.Background(), h1, "test-key", "", ptr.Bool(true))
@@ -2475,7 +2475,7 @@ func testLabelsListHostsInLabelOSSettings(t *testing.T, db *Datastore) {
 	// add disk encryption for h1
 	require.NoError(t, db.SetOrUpdateHostDisksEncryption(context.Background(), h1.ID, true, nil))
 
-	checkHosts := func(t *testing.T, gotHosts []*fleet.Host, expectedIDs []uint) {
+	checkHosts := func(t *testing.T, gotHosts []*automdm.Host, expectedIDs []uint) {
 		require.Len(t, gotHosts, len(expectedIDs))
 		for _, h := range gotHosts {
 			require.Contains(t, expectedIDs, h.ID)
@@ -2483,27 +2483,27 @@ func testLabelsListHostsInLabelOSSettings(t *testing.T, db *Datastore) {
 	}
 
 	// baseline no filter
-	hosts := listHostsInLabelCheckCount(t, db, filter, l1.ID, fleet.HostListOptions{}, 3)
+	hosts := listHostsInLabelCheckCount(t, db, filter, l1.ID, automdm.HostListOptions{}, 3)
 	checkHosts(t, hosts, []uint{h1.ID, h2.ID, h3.ID})
 
 	t.Run("os_settings_disk_encryption", func(t *testing.T) {
-		hosts = listHostsInLabelCheckCount(t, db, filter, l1.ID, fleet.HostListOptions{OSSettingsDiskEncryptionFilter: fleet.DiskEncryptionVerified}, 1)
+		hosts = listHostsInLabelCheckCount(t, db, filter, l1.ID, automdm.HostListOptions{OSSettingsDiskEncryptionFilter: automdm.DiskEncryptionVerified}, 1)
 		checkHosts(t, hosts, []uint{h1.ID})
-		hosts = listHostsInLabelCheckCount(t, db, filter, l1.ID, fleet.HostListOptions{OSSettingsDiskEncryptionFilter: fleet.DiskEncryptionEnforcing}, 1)
+		hosts = listHostsInLabelCheckCount(t, db, filter, l1.ID, automdm.HostListOptions{OSSettingsDiskEncryptionFilter: automdm.DiskEncryptionEnforcing}, 1)
 		checkHosts(t, hosts, []uint{h2.ID})
 	})
 
 	t.Run("os_settings", func(t *testing.T) {
-		hosts = listHostsInLabelCheckCount(t, db, filter, l1.ID, fleet.HostListOptions{OSSettingsFilter: fleet.OSSettingsVerified}, 1)
+		hosts = listHostsInLabelCheckCount(t, db, filter, l1.ID, automdm.HostListOptions{OSSettingsFilter: automdm.OSSettingsVerified}, 1)
 		checkHosts(t, hosts, []uint{h1.ID})
-		hosts = listHostsInLabelCheckCount(t, db, filter, l1.ID, fleet.HostListOptions{OSSettingsFilter: fleet.OSSettingsPending}, 1)
+		hosts = listHostsInLabelCheckCount(t, db, filter, l1.ID, automdm.HostListOptions{OSSettingsFilter: automdm.OSSettingsPending}, 1)
 		checkHosts(t, hosts, []uint{h2.ID})
 	})
 }
 
 func testAddDeleteLabelsToFromHost(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
-	host1, err := ds.NewHost(ctx, &fleet.Host{
+	host1, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID: ptr.String("1"),
 		NodeKey:       ptr.String("1"),
 		UUID:          "1",
@@ -2511,7 +2511,7 @@ func testAddDeleteLabelsToFromHost(t *testing.T, ds *Datastore) {
 		Platform:      "darwin",
 	})
 	require.NoError(t, err)
-	host2, err := ds.NewHost(ctx, &fleet.Host{
+	host2, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID: ptr.String("2"),
 		NodeKey:       ptr.String("2"),
 		UUID:          "2",
@@ -2525,18 +2525,18 @@ func testAddDeleteLabelsToFromHost(t *testing.T, ds *Datastore) {
 	err = ds.RemoveLabelsFromHost(ctx, host1.ID, nil)
 	require.NoError(t, err)
 
-	label1, err := ds.NewLabel(ctx, &fleet.Label{
+	label1, err := ds.NewLabel(ctx, &automdm.Label{
 		Name:                "label1",
 		Query:               "SELECT 1;",
-		LabelType:           fleet.LabelTypeRegular,
-		LabelMembershipType: fleet.LabelMembershipTypeManual,
+		LabelType:           automdm.LabelTypeRegular,
+		LabelMembershipType: automdm.LabelMembershipTypeManual,
 	})
 	require.NoError(t, err)
-	label2, err := ds.NewLabel(ctx, &fleet.Label{
+	label2, err := ds.NewLabel(ctx, &automdm.Label{
 		Name:                "label2",
 		Query:               "SELECT 2;",
-		LabelType:           fleet.LabelTypeRegular,
-		LabelMembershipType: fleet.LabelMembershipTypeManual,
+		LabelType:           automdm.LabelTypeRegular,
+		LabelMembershipType: automdm.LabelMembershipTypeManual,
 	})
 	require.NoError(t, err)
 
@@ -2546,7 +2546,7 @@ func testAddDeleteLabelsToFromHost(t *testing.T, ds *Datastore) {
 	err = ds.RemoveLabelsFromHost(ctx, host1.ID, []uint{label1.ID, label2.ID})
 	require.NoError(t, err)
 
-	filter := fleet.TeamFilter{User: &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}}
+	filter := automdm.TeamFilter{User: &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}}
 
 	// Adding and removing labels.
 	err = ds.AddLabelsToHost(ctx, host1.ID, []uint{label1.ID})
@@ -2610,8 +2610,8 @@ func testAddDeleteLabelsToFromHost(t *testing.T, ds *Datastore) {
 	require.Empty(t, labels)
 }
 
-func labelIDFromName(t *testing.T, ds fleet.Datastore, name string) uint {
-	allLbls, err := ds.ListLabels(context.Background(), fleet.TeamFilter{User: test.UserAdmin}, fleet.ListOptions{}, false)
+func labelIDFromName(t *testing.T, ds automdm.Datastore, name string) uint {
+	allLbls, err := ds.ListLabels(context.Background(), automdm.TeamFilter{User: test.UserAdmin}, automdm.ListOptions{}, false)
 	require.Nil(t, err)
 	for _, lbl := range allLbls {
 		if lbl.Name == name {
@@ -2623,9 +2623,9 @@ func labelIDFromName(t *testing.T, ds fleet.Datastore, name string) uint {
 
 func testUpdateLabelMembershipByHostIDs(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
-	filter := fleet.TeamFilter{User: test.UserAdmin}
+	filter := automdm.TeamFilter{User: test.UserAdmin}
 
-	host1, err := ds.NewHost(ctx, &fleet.Host{
+	host1, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID: ptr.String("1"),
 		NodeKey:       ptr.String("1"),
 		UUID:          "1",
@@ -2633,7 +2633,7 @@ func testUpdateLabelMembershipByHostIDs(t *testing.T, ds *Datastore) {
 		Platform:      "darwin",
 	})
 	require.NoError(t, err)
-	host2, err := ds.NewHost(ctx, &fleet.Host{
+	host2, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID: ptr.String("2"),
 		NodeKey:       ptr.String("2"),
 		UUID:          "2",
@@ -2642,7 +2642,7 @@ func testUpdateLabelMembershipByHostIDs(t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 	// hosts 2 and 3 have the same hostname
-	host3, err := ds.NewHost(ctx, &fleet.Host{
+	host3, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID: ptr.String("3"),
 		NodeKey:       ptr.String("3"),
 		UUID:          "3",
@@ -2651,11 +2651,11 @@ func testUpdateLabelMembershipByHostIDs(t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 
-	label1, err := ds.NewLabel(ctx, &fleet.Label{
+	label1, err := ds.NewLabel(ctx, &automdm.Label{
 		Name:                "label1",
 		Query:               "",
-		LabelType:           fleet.LabelTypeRegular,
-		LabelMembershipType: fleet.LabelMembershipTypeManual,
+		LabelType:           automdm.LabelTypeRegular,
+		LabelMembershipType: automdm.LabelMembershipTypeManual,
 	})
 	require.NoError(t, err)
 
@@ -2672,7 +2672,7 @@ func testUpdateLabelMembershipByHostIDs(t *testing.T, ds *Datastore) {
 	require.Equal(t, host1.ID, hostIDs[0])
 	require.Equal(t, host2.ID, hostIDs[1])
 
-	labelSpec, err := ds.GetLabelSpec(ctx, fleet.TeamFilter{User: &fleet.User{GlobalRole: new(fleet.RoleAdmin)}}, label1.Name)
+	labelSpec, err := ds.GetLabelSpec(ctx, automdm.TeamFilter{User: &automdm.User{GlobalRole: new(automdm.RoleAdmin)}}, label1.Name)
 	require.NoError(t, err)
 	// label.Hosts contains hostnames
 	require.Len(t, labelSpec.Hosts, 2)
@@ -2778,7 +2778,7 @@ func testUpdateLabelMembershipByHostIDs(t *testing.T, ds *Datastore) {
 	require.Equal(t, host2.ID, hostIDs[1])
 	require.Equal(t, host3.ID, hostIDs[2])
 
-	labelSpec, err = ds.GetLabelSpec(ctx, fleet.TeamFilter{User: &fleet.User{GlobalRole: new(fleet.RoleAdmin)}}, label1.Name)
+	labelSpec, err = ds.GetLabelSpec(ctx, automdm.TeamFilter{User: &automdm.User{GlobalRole: new(automdm.RoleAdmin)}}, label1.Name)
 	require.NoError(t, err)
 
 	// label.Hosts contains hostnames
@@ -2788,13 +2788,13 @@ func testUpdateLabelMembershipByHostIDs(t *testing.T, ds *Datastore) {
 	require.Equal(t, strconv.Itoa(int(host3.ID)), labelSpec.Hosts[2]) //nolint:gosec // dismiss G115
 
 	// Test team label host validation behavior
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "team1_membership"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "team1_membership"})
 	require.NoError(t, err)
-	team2, err := ds.NewTeam(ctx, &fleet.Team{Name: "team2_membership"})
+	team2, err := ds.NewTeam(ctx, &automdm.Team{Name: "team2_membership"})
 	require.NoError(t, err)
 
 	// Create hosts on different teams
-	hostTeam1, err := ds.NewHost(ctx, &fleet.Host{
+	hostTeam1, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID: ptr.String("team1host"),
 		NodeKey:       ptr.String("team1host"),
 		UUID:          "team1host",
@@ -2803,7 +2803,7 @@ func testUpdateLabelMembershipByHostIDs(t *testing.T, ds *Datastore) {
 		TeamID:        &team1.ID,
 	})
 	require.NoError(t, err)
-	hostTeam2, err := ds.NewHost(ctx, &fleet.Host{
+	hostTeam2, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID: ptr.String("team2host"),
 		NodeKey:       ptr.String("team2host"),
 		UUID:          "team2host",
@@ -2812,7 +2812,7 @@ func testUpdateLabelMembershipByHostIDs(t *testing.T, ds *Datastore) {
 		TeamID:        &team2.ID,
 	})
 	require.NoError(t, err)
-	hostNoTeam, err := ds.NewHost(ctx, &fleet.Host{
+	hostNoTeam, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID: ptr.String("noteamhost"),
 		NodeKey:       ptr.String("noteamhost"),
 		UUID:          "noteamhost",
@@ -2823,10 +2823,10 @@ func testUpdateLabelMembershipByHostIDs(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// Create a team label
-	teamLabel, err := ds.NewLabel(ctx, &fleet.Label{
+	teamLabel, err := ds.NewLabel(ctx, &automdm.Label{
 		Name:                "team1-membership-label",
-		LabelType:           fleet.LabelTypeRegular,
-		LabelMembershipType: fleet.LabelMembershipTypeManual,
+		LabelType:           automdm.LabelTypeRegular,
+		LabelMembershipType: automdm.LabelMembershipTypeManual,
 		TeamID:              &team1.ID,
 	})
 	require.NoError(t, err)
@@ -2854,10 +2854,10 @@ func testUpdateLabelMembershipByHostIDs(t *testing.T, ds *Datastore) {
 	require.ErrorIs(t, err, errLabelMismatchHostTeam)
 
 	// Global label can have hosts from any team
-	globalMembershipLabel, err := ds.NewLabel(ctx, &fleet.Label{
+	globalMembershipLabel, err := ds.NewLabel(ctx, &automdm.Label{
 		Name:                "global-membership-label",
-		LabelType:           fleet.LabelTypeRegular,
-		LabelMembershipType: fleet.LabelMembershipTypeManual,
+		LabelType:           automdm.LabelTypeRegular,
+		LabelMembershipType: automdm.LabelMembershipTypeManual,
 		TeamID:              nil,
 	})
 	require.NoError(t, err)
@@ -2871,7 +2871,7 @@ func testUpdateLabelMembershipByHostIDs(t *testing.T, ds *Datastore) {
 func testApplyLabelSpecsForSerialUUID(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
-	host1, err := ds.NewHost(ctx, &fleet.Host{
+	host1, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID:  ptr.String("1"),
 		NodeKey:        ptr.String("1"),
 		UUID:           "1",
@@ -2880,7 +2880,7 @@ func testApplyLabelSpecsForSerialUUID(t *testing.T, ds *Datastore) {
 		Platform:       "darwin",
 	})
 	require.NoError(t, err)
-	host2, err := ds.NewHost(ctx, &fleet.Host{
+	host2, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID:  ptr.String("2"),
 		NodeKey:        ptr.String("2"),
 		UUID:           "2",
@@ -2889,7 +2889,7 @@ func testApplyLabelSpecsForSerialUUID(t *testing.T, ds *Datastore) {
 		Platform:       "windows",
 	})
 	require.NoError(t, err)
-	host3, err := ds.NewHost(ctx, &fleet.Host{
+	host3, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID:  ptr.String("3"),
 		NodeKey:        ptr.String("3"),
 		UUID:           "uuid3",
@@ -2898,7 +2898,7 @@ func testApplyLabelSpecsForSerialUUID(t *testing.T, ds *Datastore) {
 		Platform:       "windows",
 	})
 	require.NoError(t, err)
-	host4, err := ds.NewHost(ctx, &fleet.Host{
+	host4, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID:  ptr.String("4"),
 		NodeKey:        ptr.String("4"),
 		UUID:           "uuid4",
@@ -2908,10 +2908,10 @@ func testApplyLabelSpecsForSerialUUID(t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 
-	err = ds.ApplyLabelSpecs(ctx, []*fleet.LabelSpec{
+	err = ds.ApplyLabelSpecs(ctx, []*automdm.LabelSpec{
 		{
 			Name:                "label1",
-			LabelMembershipType: fleet.LabelMembershipTypeManual,
+			LabelMembershipType: automdm.LabelMembershipTypeManual,
 			Hosts: []string{
 				"foo.local", // host1's hostname, which isn't a label host identifier
 				"hwd2",
@@ -2922,22 +2922,22 @@ func testApplyLabelSpecsForSerialUUID(t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 
-	hosts, err := ds.ListHostsInLabel(ctx, fleet.TeamFilter{User: test.UserAdmin}, 1, fleet.HostListOptions{})
+	hosts, err := ds.ListHostsInLabel(ctx, automdm.TeamFilter{User: test.UserAdmin}, 1, automdm.HostListOptions{})
 	require.NoError(t, err)
 	require.Len(t, hosts, 3)
 	require.Equal(t, host2.ID, hosts[0].ID)
 	require.Equal(t, host3.ID, hosts[1].ID)
 	require.Equal(t, host4.ID, hosts[2].ID)
 
-	err = ds.ApplyLabelSpecs(ctx, []*fleet.LabelSpec{
+	err = ds.ApplyLabelSpecs(ctx, []*automdm.LabelSpec{
 		{
 			Name:                "label1",
-			LabelMembershipType: fleet.LabelMembershipTypeManual,
+			LabelMembershipType: automdm.LabelMembershipTypeManual,
 			Hosts:               []string{"hwd1"},
 		},
 	})
 	require.NoError(t, err)
-	hosts, err = ds.ListHostsInLabel(ctx, fleet.TeamFilter{User: test.UserAdmin}, 1, fleet.HostListOptions{})
+	hosts, err = ds.ListHostsInLabel(ctx, automdm.TeamFilter{User: test.UserAdmin}, 1, automdm.HostListOptions{})
 	require.NoError(t, err)
 	require.Len(t, hosts, 1)
 	require.Equal(t, host1.ID, hosts[0].ID)
@@ -2947,7 +2947,7 @@ func testApplyLabelSpecsWithPlatformChange(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
 	// Create hosts with different platforms
-	hostDarwin1, err := ds.NewHost(ctx, &fleet.Host{
+	hostDarwin1, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID:  ptr.String("darwin1"),
 		NodeKey:        ptr.String("darwin1"),
 		UUID:           "darwin-uuid-1",
@@ -2957,7 +2957,7 @@ func testApplyLabelSpecsWithPlatformChange(t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 
-	hostDarwin2, err := ds.NewHost(ctx, &fleet.Host{
+	hostDarwin2, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID:  ptr.String("darwin2"),
 		NodeKey:        ptr.String("darwin2"),
 		UUID:           "darwin-uuid-2",
@@ -2967,7 +2967,7 @@ func testApplyLabelSpecsWithPlatformChange(t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 
-	hostWindows1, err := ds.NewHost(ctx, &fleet.Host{
+	hostWindows1, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID:  ptr.String("windows1"),
 		NodeKey:        ptr.String("windows1"),
 		UUID:           "windows-uuid-1",
@@ -2977,7 +2977,7 @@ func testApplyLabelSpecsWithPlatformChange(t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 
-	hostLinux1, err := ds.NewHost(ctx, &fleet.Host{
+	hostLinux1, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID:  ptr.String("linux1"),
 		NodeKey:        ptr.String("linux1"),
 		UUID:           "linux-uuid-1",
@@ -2988,19 +2988,19 @@ func testApplyLabelSpecsWithPlatformChange(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// Test 1: Create a dynamic label for darwin platform
-	err = ds.ApplyLabelSpecs(ctx, []*fleet.LabelSpec{
+	err = ds.ApplyLabelSpecs(ctx, []*automdm.LabelSpec{
 		{
 			Name:                "platform_test_label",
 			Description:         "Test label for platform changes",
 			Query:               "select 1",
 			Platform:            "darwin",
-			LabelMembershipType: fleet.LabelMembershipTypeDynamic,
+			LabelMembershipType: automdm.LabelMembershipTypeDynamic,
 		},
 	})
 	require.NoError(t, err)
 
 	// Get the label ID
-	labels, err := ds.LabelsByName(ctx, []string{"platform_test_label"}, fleet.TeamFilter{})
+	labels, err := ds.LabelsByName(ctx, []string{"platform_test_label"}, automdm.TeamFilter{})
 	require.NoError(t, err)
 	label := labels["platform_test_label"]
 	require.NotNil(t, label)
@@ -3013,90 +3013,90 @@ func testApplyLabelSpecsWithPlatformChange(t *testing.T, ds *Datastore) {
 	require.NoError(t, ds.RecordLabelQueryExecutions(ctx, hostLinux1, map[uint]*bool{label.ID: ptr.Bool(true)}, time.Now(), false))
 
 	// Verify all hosts are in the label
-	hosts, err := ds.ListHostsInLabel(ctx, fleet.TeamFilter{User: test.UserAdmin}, label.ID, fleet.HostListOptions{})
+	hosts, err := ds.ListHostsInLabel(ctx, automdm.TeamFilter{User: test.UserAdmin}, label.ID, automdm.HostListOptions{})
 	require.NoError(t, err)
 	require.Len(t, hosts, 4)
 
 	// Test 2: Change platform to windows - all memberships are cleared
-	err = ds.ApplyLabelSpecs(ctx, []*fleet.LabelSpec{
+	err = ds.ApplyLabelSpecs(ctx, []*automdm.LabelSpec{
 		{
 			Name:                "platform_test_label",
 			Description:         "Test label for platform changes",
 			Query:               "select 1",
 			Platform:            "windows",
-			LabelMembershipType: fleet.LabelMembershipTypeDynamic,
+			LabelMembershipType: automdm.LabelMembershipTypeDynamic,
 		},
 	})
 	require.NoError(t, err)
 
 	// All memberships should be cleared (label query will repopulate with windows hosts on next execution)
-	hosts, err = ds.ListHostsInLabel(ctx, fleet.TeamFilter{User: test.UserAdmin}, label.ID, fleet.HostListOptions{})
+	hosts, err = ds.ListHostsInLabel(ctx, automdm.TeamFilter{User: test.UserAdmin}, label.ID, automdm.HostListOptions{})
 	require.NoError(t, err)
 	require.Len(t, hosts, 0)
 	// Re-seed membership to ensure this step exercises clearing again
 	require.NoError(t, ds.RecordLabelQueryExecutions(ctx, hostWindows1, map[uint]*bool{label.ID: ptr.Bool(true)}, time.Now(), false))
 
 	// Test 3: Change platform to empty (all platforms) - all memberships are cleared
-	err = ds.ApplyLabelSpecs(ctx, []*fleet.LabelSpec{
+	err = ds.ApplyLabelSpecs(ctx, []*automdm.LabelSpec{
 		{
 			Name:                "platform_test_label",
 			Description:         "Test label for platform changes",
 			Query:               "select 1",
 			Platform:            "",
-			LabelMembershipType: fleet.LabelMembershipTypeDynamic,
+			LabelMembershipType: automdm.LabelMembershipTypeDynamic,
 		},
 	})
 	require.NoError(t, err)
 
 	// All memberships should be cleared (label query will repopulate on next execution)
-	hosts, err = ds.ListHostsInLabel(ctx, fleet.TeamFilter{User: test.UserAdmin}, label.ID, fleet.HostListOptions{})
+	hosts, err = ds.ListHostsInLabel(ctx, automdm.TeamFilter{User: test.UserAdmin}, label.ID, automdm.HostListOptions{})
 	require.NoError(t, err)
 	require.Len(t, hosts, 0)
 
 	// Add all hosts back
-	for _, h := range []*fleet.Host{hostDarwin1, hostDarwin2, hostLinux1} {
+	for _, h := range []*automdm.Host{hostDarwin1, hostDarwin2, hostLinux1} {
 		require.NoError(t, ds.RecordLabelQueryExecutions(ctx, h, map[uint]*bool{label.ID: ptr.Bool(true)}, time.Now(), false))
 	}
 
 	// Test 4: Change from empty to specific platform (linux) - all memberships are cleared
-	err = ds.ApplyLabelSpecs(ctx, []*fleet.LabelSpec{
+	err = ds.ApplyLabelSpecs(ctx, []*automdm.LabelSpec{
 		{
 			Name:                "platform_test_label",
 			Description:         "Test label for platform changes",
 			Query:               "select 1",
 			Platform:            "linux",
-			LabelMembershipType: fleet.LabelMembershipTypeDynamic,
+			LabelMembershipType: automdm.LabelMembershipTypeDynamic,
 		},
 	})
 	require.NoError(t, err)
 
 	// All memberships should be cleared (label query will repopulate with linux hosts on next execution)
-	hosts, err = ds.ListHostsInLabel(ctx, fleet.TeamFilter{User: test.UserAdmin}, label.ID, fleet.HostListOptions{})
+	hosts, err = ds.ListHostsInLabel(ctx, automdm.TeamFilter{User: test.UserAdmin}, label.ID, automdm.HostListOptions{})
 	require.NoError(t, err)
 	require.Len(t, hosts, 0)
 }
 
 type TestHostVitalsLabel struct {
-	fleet.Label
+	automdm.Label
 }
 
 func (t *TestHostVitalsLabel) CalculateHostVitalsQuery() (string, []interface{}, error) {
 	return "SELECT %s FROM %s JOIN host_users ON (host_users.host_id = hosts.id) WHERE host_users.username = ?", []interface{}{"user1"}, nil
 }
 
-func (t *TestHostVitalsLabel) GetLabel() *fleet.Label {
+func (t *TestHostVitalsLabel) GetLabel() *automdm.Label {
 	return &t.Label
 }
 
 func testUpdateLabelMembershipByHostCriteria(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "team1"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
-	team2, err := ds.NewTeam(ctx, &fleet.Team{Name: "team2"})
+	team2, err := ds.NewTeam(ctx, &automdm.Team{Name: "team2"})
 	require.NoError(t, err)
 
-	hosts := make([]*fleet.Host, 4)
+	hosts := make([]*automdm.Host, 4)
 	for i := 1; i <= 4; i++ {
 		var teamID *uint
 		if i == 1 || i == 2 {
@@ -3105,7 +3105,7 @@ func testUpdateLabelMembershipByHostCriteria(t *testing.T, ds *Datastore) {
 			teamID = &team2.ID
 		}
 
-		host, err := ds.NewHost(ctx, &fleet.Host{
+		host, err := ds.NewHost(ctx, &automdm.Host{
 			OsqueryHostID:  ptr.String(fmt.Sprintf("%d", i)),
 			NodeKey:        ptr.String(fmt.Sprintf("%d", i)),
 			UUID:           fmt.Sprintf("uuid%d", i),
@@ -3134,7 +3134,7 @@ func testUpdateLabelMembershipByHostCriteria(t *testing.T, ds *Datastore) {
 		return err
 	})
 
-	criteria, err := json.Marshal(&fleet.HostVitalCriteria{
+	criteria, err := json.Marshal(&automdm.HostVitalCriteria{
 		Vital: ptr.String("username"),
 		Value: ptr.String("user1"),
 	})
@@ -3145,7 +3145,7 @@ func testUpdateLabelMembershipByHostCriteria(t *testing.T, ds *Datastore) {
 		for _, teamID := range []*uint{nil, &team1.ID, &team2.ID} {
 			result, err := q.ExecContext(context.Background(),
 				"INSERT INTO labels (name, description, platform, label_type, label_membership_type, query, team_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
-				fmt.Sprintf("test host vitals label %d", ptr.ValOrZero(teamID)), "test", "", fleet.LabelTypeRegular, fleet.LabelMembershipTypeHostVitals, "", teamID)
+				fmt.Sprintf("test host vitals label %d", ptr.ValOrZero(teamID)), "test", "", automdm.LabelTypeRegular, automdm.LabelMembershipTypeHostVitals, "", teamID)
 			if err != nil {
 				return err
 			}
@@ -3180,18 +3180,18 @@ func testUpdateLabelMembershipByHostCriteria(t *testing.T, ds *Datastore) {
 
 	makeLabel := func(id uint, teamID *uint) *TestHostVitalsLabel {
 		return &TestHostVitalsLabel{
-			Label: fleet.Label{
+			Label: automdm.Label{
 				ID:                  id,
 				TeamID:              teamID,
 				Name:                fmt.Sprintf("Test Host Vitals Label %d", ptr.ValOrZero(teamID)),
-				LabelType:           fleet.LabelTypeRegular,
-				LabelMembershipType: fleet.LabelMembershipTypeHostVitals,
+				LabelType:           automdm.LabelTypeRegular,
+				LabelMembershipType: automdm.LabelMembershipTypeHostVitals,
 				HostVitalsCriteria:  ptr.RawMessage(criteria),
 			},
 		}
 	}
 
-	filter := fleet.TeamFilter{User: test.UserAdmin}
+	filter := automdm.TeamFilter{User: test.UserAdmin}
 
 	for _, tt := range testCases {
 		updatedLabel, changedHostIDs, err := ds.UpdateLabelMembershipByHostCriteria(ctx, makeLabel(tt.LabelID, tt.TeamID))
@@ -3201,7 +3201,7 @@ func testUpdateLabelMembershipByHostCriteria(t *testing.T, ds *Datastore) {
 		require.ElementsMatch(t, tt.BeforeHostIDs, changedHostIDs)
 
 		// Check that the label has the correct hosts
-		hostsInLabel, err := ds.ListHostsInLabel(ctx, filter, tt.LabelID, fleet.HostListOptions{})
+		hostsInLabel, err := ds.ListHostsInLabel(ctx, filter, tt.LabelID, automdm.HostListOptions{})
 		require.NoError(t, err)
 		require.Len(t, hostsInLabel, len(tt.BeforeHostIDs))
 		labelHostIDs := make([]uint, 0, len(hostsInLabel))
@@ -3239,7 +3239,7 @@ func testUpdateLabelMembershipByHostCriteria(t *testing.T, ds *Datastore) {
 			"changed host IDs must be exactly the added and removed hosts")
 
 		// Check that the label has the correct hosts
-		hostsInLabel, err := ds.ListHostsInLabel(ctx, filter, tt.LabelID, fleet.HostListOptions{})
+		hostsInLabel, err := ds.ListHostsInLabel(ctx, filter, tt.LabelID, automdm.HostListOptions{})
 		require.NoError(t, err)
 		require.Len(t, hostsInLabel, len(tt.AfterHostIDs))
 		labelHostIDs := make([]uint, 0, len(hostsInLabel))
@@ -3251,22 +3251,22 @@ func testUpdateLabelMembershipByHostCriteria(t *testing.T, ds *Datastore) {
 }
 
 // testUpdateLabelMembershipByHostCriteriaIDP exercises the real IdP foreign
-// vital query (end_user_idp_group) for both global and fleet/team-scoped host
-// vitals labels. This is the path that broke in #46869: fleet-scoped IdP labels
+// vital query (end_user_idp_group) for both global and automdm/team-scoped host
+// vitals labels. This is the path that broke in #46869: team-scoped IdP labels
 // never got any hosts.
 func testUpdateLabelMembershipByHostCriteriaIDP(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "idp-team1"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "idp-team1"})
 	require.NoError(t, err)
-	team2, err := ds.NewTeam(ctx, &fleet.Team{Name: "idp-team2"})
+	team2, err := ds.NewTeam(ctx, &automdm.Team{Name: "idp-team2"})
 	require.NoError(t, err)
 
 	// host1 -> team1, host2 -> team2, host3 -> no team (global).
-	hosts := make([]*fleet.Host, 3)
+	hosts := make([]*automdm.Host, 3)
 	teamIDs := []*uint{&team1.ID, &team2.ID, nil}
 	for i := range 3 {
-		host, err := ds.NewHost(ctx, &fleet.Host{
+		host, err := ds.NewHost(ctx, &automdm.Host{
 			OsqueryHostID:  new(fmt.Sprintf("idp-%d", i)),
 			NodeKey:        new(fmt.Sprintf("idp-%d", i)),
 			UUID:           fmt.Sprintf("idp-uuid%d", i),
@@ -3282,7 +3282,7 @@ func testUpdateLabelMembershipByHostCriteriaIDP(t *testing.T, ds *Datastore) {
 	// Create a SCIM user per host, all in the "Engineering" IdP group.
 	scimUserIDs := make([]uint, 3)
 	for i := range 3 {
-		id, err := ds.CreateScimUser(ctx, &fleet.ScimUser{
+		id, err := ds.CreateScimUser(ctx, &automdm.ScimUser{
 			UserName: fmt.Sprintf("idp-user%d", i),
 			Active:   new(true),
 		})
@@ -3295,25 +3295,25 @@ func testUpdateLabelMembershipByHostCriteriaIDP(t *testing.T, ds *Datastore) {
 			return err
 		})
 	}
-	_, err = ds.CreateScimGroup(ctx, &fleet.ScimGroup{
+	_, err = ds.CreateScimGroup(ctx, &automdm.ScimGroup{
 		DisplayName: "Engineering",
 		ScimUsers:   scimUserIDs,
 	})
 	require.NoError(t, err)
 
-	criteria, err := json.Marshal(&fleet.HostVitalCriteria{
+	criteria, err := json.Marshal(&automdm.HostVitalCriteria{
 		Vital: new("end_user_idp_group"),
 		Value: new("Engineering"),
 	})
 	require.NoError(t, err)
 	raw := json.RawMessage(criteria)
 
-	newIDPLabel := func(name string, teamID *uint) *fleet.Label {
-		lbl, err := ds.NewLabel(ctx, &fleet.Label{
+	newIDPLabel := func(name string, teamID *uint) *automdm.Label {
+		lbl, err := ds.NewLabel(ctx, &automdm.Label{
 			Name:                name,
 			TeamID:              teamID,
-			LabelType:           fleet.LabelTypeRegular,
-			LabelMembershipType: fleet.LabelMembershipTypeHostVitals,
+			LabelType:           automdm.LabelTypeRegular,
+			LabelMembershipType: automdm.LabelMembershipTypeHostVitals,
 			HostVitalsCriteria:  &raw,
 		})
 		require.NoError(t, err)
@@ -3323,13 +3323,13 @@ func testUpdateLabelMembershipByHostCriteriaIDP(t *testing.T, ds *Datastore) {
 	globalLabel := newIDPLabel("idp-global", nil)
 	team1Label := newIDPLabel("idp-team1-label", &team1.ID)
 
-	filter := fleet.TeamFilter{User: test.UserAdmin}
+	filter := automdm.TeamFilter{User: test.UserAdmin}
 
 	// Global label: all three hosts (all SCIM users are in "Engineering").
 	updated, _, err := ds.UpdateLabelMembershipByHostCriteria(ctx, globalLabel)
 	require.NoError(t, err)
 	require.Equal(t, 3, updated.HostCount)
-	globalHosts, err := ds.ListHostsInLabel(ctx, filter, globalLabel.ID, fleet.HostListOptions{})
+	globalHosts, err := ds.ListHostsInLabel(ctx, filter, globalLabel.ID, automdm.HostListOptions{})
 	require.NoError(t, err)
 	require.ElementsMatch(t, []uint{hosts[0].ID, hosts[1].ID, hosts[2].ID}, hostIDs(globalHosts))
 
@@ -3338,7 +3338,7 @@ func testUpdateLabelMembershipByHostCriteriaIDP(t *testing.T, ds *Datastore) {
 	updated, _, err = ds.UpdateLabelMembershipByHostCriteria(ctx, team1Label)
 	require.NoError(t, err)
 	require.Equal(t, 1, updated.HostCount)
-	team1Hosts, err := ds.ListHostsInLabel(ctx, filter, team1Label.ID, fleet.HostListOptions{})
+	team1Hosts, err := ds.ListHostsInLabel(ctx, filter, team1Label.ID, automdm.HostListOptions{})
 	require.NoError(t, err)
 	require.ElementsMatch(t, []uint{hosts[0].ID}, hostIDs(team1Hosts))
 
@@ -3354,16 +3354,16 @@ func testUpdateLabelMembershipByHostCriteriaIDP(t *testing.T, ds *Datastore) {
 func testUpdateLabelMembershipByHostCriteriaCustomHostVital(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "chv-team1"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "chv-team1"})
 	require.NoError(t, err)
-	team2, err := ds.NewTeam(ctx, &fleet.Team{Name: "chv-team2"})
+	team2, err := ds.NewTeam(ctx, &automdm.Team{Name: "chv-team2"})
 	require.NoError(t, err)
 
 	// host1 -> team1, host2 -> team2, host3 -> global, host4 -> global.
-	hosts := make([]*fleet.Host, 4)
+	hosts := make([]*automdm.Host, 4)
 	teamIDs := []*uint{&team1.ID, &team2.ID, nil, nil}
 	for i := range 4 {
-		host, err := ds.NewHost(ctx, &fleet.Host{
+		host, err := ds.NewHost(ctx, &automdm.Host{
 			OsqueryHostID:  new(fmt.Sprintf("chv-%d", i)),
 			NodeKey:        new(fmt.Sprintf("chv-%d", i)),
 			UUID:           fmt.Sprintf("chv-uuid%d", i),
@@ -3391,7 +3391,7 @@ func testUpdateLabelMembershipByHostCriteriaCustomHostVital(t *testing.T, ds *Da
 	require.NoError(t, ds.SetHostCustomHostVitalValue(ctx, hosts[2].ID, vitalA.ID, "Sales"))
 	require.NoError(t, ds.SetHostCustomHostVitalValue(ctx, hosts[2].ID, vitalB.ID, "Engineering"))
 
-	criteria, err := json.Marshal(&fleet.HostVitalCriteria{
+	criteria, err := json.Marshal(&automdm.HostVitalCriteria{
 		Vital:             new("custom_host_vital"),
 		Value:             new("Engineering"),
 		CustomHostVitalID: &vitalA.ID,
@@ -3399,19 +3399,19 @@ func testUpdateLabelMembershipByHostCriteriaCustomHostVital(t *testing.T, ds *Da
 	require.NoError(t, err)
 	raw := json.RawMessage(criteria)
 
-	newCHVLabel := func(name string, teamID *uint) *fleet.Label {
-		lbl, err := ds.NewLabel(ctx, &fleet.Label{
+	newCHVLabel := func(name string, teamID *uint) *automdm.Label {
+		lbl, err := ds.NewLabel(ctx, &automdm.Label{
 			Name:                name,
 			TeamID:              teamID,
-			LabelType:           fleet.LabelTypeRegular,
-			LabelMembershipType: fleet.LabelMembershipTypeHostVitals,
+			LabelType:           automdm.LabelTypeRegular,
+			LabelMembershipType: automdm.LabelMembershipTypeHostVitals,
 			HostVitalsCriteria:  &raw,
 		})
 		require.NoError(t, err)
 		return lbl
 	}
 
-	filter := fleet.TeamFilter{User: test.UserAdmin}
+	filter := automdm.TeamFilter{User: test.UserAdmin}
 
 	// Global label: host1 and host4 (vitalA = "Engineering"). host2 has the
 	// wrong value, host3 matches the value only on vitalB.
@@ -3419,7 +3419,7 @@ func testUpdateLabelMembershipByHostCriteriaCustomHostVital(t *testing.T, ds *Da
 	updated, _, err := ds.UpdateLabelMembershipByHostCriteria(ctx, globalLabel)
 	require.NoError(t, err)
 	require.Equal(t, 2, updated.HostCount)
-	globalHosts, err := ds.ListHostsInLabel(ctx, filter, globalLabel.ID, fleet.HostListOptions{})
+	globalHosts, err := ds.ListHostsInLabel(ctx, filter, globalLabel.ID, automdm.HostListOptions{})
 	require.NoError(t, err)
 	require.ElementsMatch(t, []uint{hosts[0].ID, hosts[3].ID}, hostIDs(globalHosts))
 
@@ -3428,7 +3428,7 @@ func testUpdateLabelMembershipByHostCriteriaCustomHostVital(t *testing.T, ds *Da
 	updated, _, err = ds.UpdateLabelMembershipByHostCriteria(ctx, team1Label)
 	require.NoError(t, err)
 	require.Equal(t, 1, updated.HostCount)
-	team1Hosts, err := ds.ListHostsInLabel(ctx, filter, team1Label.ID, fleet.HostListOptions{})
+	team1Hosts, err := ds.ListHostsInLabel(ctx, filter, team1Label.ID, automdm.HostListOptions{})
 	require.NoError(t, err)
 	require.ElementsMatch(t, []uint{hosts[0].ID}, hostIDs(team1Hosts))
 
@@ -3438,14 +3438,14 @@ func testUpdateLabelMembershipByHostCriteriaCustomHostVital(t *testing.T, ds *Da
 	updated, _, err = ds.UpdateLabelMembershipByHostCriteria(ctx, globalLabel)
 	require.NoError(t, err)
 	require.Equal(t, 2, updated.HostCount)
-	globalHosts, err = ds.ListHostsInLabel(ctx, filter, globalLabel.ID, fleet.HostListOptions{})
+	globalHosts, err = ds.ListHostsInLabel(ctx, filter, globalLabel.ID, automdm.HostListOptions{})
 	require.NoError(t, err)
 	require.ElementsMatch(t, []uint{hosts[0].ID, hosts[1].ID}, hostIDs(globalHosts))
 
 	_ = team2 // team2 only gives host2 an out-of-team membership.
 }
 
-func hostIDs(hosts []*fleet.Host) []uint {
+func hostIDs(hosts []*automdm.Host) []uint {
 	ids := make([]uint, 0, len(hosts))
 	for _, h := range hosts {
 		ids = append(ids, h.ID)
@@ -3456,46 +3456,46 @@ func hostIDs(hosts []*fleet.Host) []uint {
 func testTeamLabels(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
-	t1, err := ds.NewTeam(ctx, &fleet.Team{
+	t1, err := ds.NewTeam(ctx, &automdm.Team{
 		Name: "t1",
 	})
 	require.NoError(t, err)
-	t2, err := ds.NewTeam(ctx, &fleet.Team{
+	t2, err := ds.NewTeam(ctx, &automdm.Team{
 		Name: "t2",
 	})
 	require.NoError(t, err)
 
-	gl, err := ds.NewLabel(ctx, &fleet.Label{
+	gl, err := ds.NewLabel(ctx, &automdm.Label{
 		Name:                "g1",
 		Query:               "SELECT 1;",
 		TeamID:              nil,
-		LabelType:           fleet.LabelTypeRegular,
-		LabelMembershipType: fleet.LabelMembershipTypeDynamic,
+		LabelType:           automdm.LabelTypeRegular,
+		LabelMembershipType: automdm.LabelMembershipTypeDynamic,
 		Platform:            "", // all platforms
 	})
 	require.NoError(t, err)
 
-	l1t1, err := ds.NewLabel(ctx, &fleet.Label{
+	l1t1, err := ds.NewLabel(ctx, &automdm.Label{
 		Name:                "l1t1",
 		Query:               "SELECT 2;",
 		TeamID:              &t1.ID,
 		Platform:            "darwin",
-		LabelType:           fleet.LabelTypeRegular,
-		LabelMembershipType: fleet.LabelMembershipTypeDynamic,
+		LabelType:           automdm.LabelTypeRegular,
+		LabelMembershipType: automdm.LabelMembershipTypeDynamic,
 	})
 	require.NoError(t, err)
 
 	// Manual label.
-	l2t2, err := ds.NewLabel(ctx, &fleet.Label{
+	l2t2, err := ds.NewLabel(ctx, &automdm.Label{
 		Name:                "l2t2",
 		TeamID:              &t2.ID,
 		Platform:            "", // all platforms
-		LabelType:           fleet.LabelTypeRegular,
-		LabelMembershipType: fleet.LabelMembershipTypeManual,
+		LabelType:           automdm.LabelTypeRegular,
+		LabelMembershipType: automdm.LabelMembershipTypeManual,
 	})
 	require.NoError(t, err)
 
-	windowsHostT1, err := ds.NewHost(ctx, &fleet.Host{
+	windowsHostT1, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID: ptr.String("1"),
 		NodeKey:       ptr.String("1"),
 		UUID:          "1",
@@ -3504,7 +3504,7 @@ func testTeamLabels(t *testing.T, ds *Datastore) {
 		TeamID:        &t1.ID,
 	})
 	require.NoError(t, err)
-	macOSHostT1, err := ds.NewHost(ctx, &fleet.Host{
+	macOSHostT1, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID: ptr.String("2"),
 		NodeKey:       ptr.String("2"),
 		UUID:          "2",
@@ -3513,7 +3513,7 @@ func testTeamLabels(t *testing.T, ds *Datastore) {
 		TeamID:        &t1.ID,
 	})
 	require.NoError(t, err)
-	linuxHostT2, err := ds.NewHost(ctx, &fleet.Host{
+	linuxHostT2, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID: ptr.String("3"),
 		NodeKey:       ptr.String("3"),
 		UUID:          "3",
@@ -3522,7 +3522,7 @@ func testTeamLabels(t *testing.T, ds *Datastore) {
 		TeamID:        &t2.ID,
 	})
 	require.NoError(t, err)
-	macOSHostGlobal, err := ds.NewHost(ctx, &fleet.Host{
+	macOSHostGlobal, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID: ptr.String("4"),
 		NodeKey:       ptr.String("4"),
 		UUID:          "4",
@@ -3552,7 +3552,7 @@ func testTeamLabels(t *testing.T, ds *Datastore) {
 	// Add team (manual) label to host.
 	err = ds.AddLabelsToHost(t.Context(), linuxHostT2.ID, []uint{l2t2.ID})
 	require.NoError(t, err)
-	hosts, err := ds.ListHostsInLabel(t.Context(), fleet.TeamFilter{User: test.UserAdmin}, l2t2.ID, fleet.HostListOptions{})
+	hosts, err := ds.ListHostsInLabel(t.Context(), automdm.TeamFilter{User: test.UserAdmin}, l2t2.ID, automdm.HostListOptions{})
 	require.NoError(t, err)
 	require.Len(t, hosts, 1)
 	require.Equal(t, hosts[0].ID, linuxHostT2.ID)
@@ -3566,16 +3566,16 @@ func testTeamLabels(t *testing.T, ds *Datastore) {
 func testUpdateLabelMembershipForTransferredHost(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
-	t1, err := ds.NewTeam(ctx, &fleet.Team{
+	t1, err := ds.NewTeam(ctx, &automdm.Team{
 		Name: "t1",
 	})
 	require.NoError(t, err)
-	t2, err := ds.NewTeam(ctx, &fleet.Team{
+	t2, err := ds.NewTeam(ctx, &automdm.Team{
 		Name: "t2",
 	})
 	require.NoError(t, err)
 
-	macOSHostT1, err := ds.NewHost(ctx, &fleet.Host{
+	macOSHostT1, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID: ptr.String("1"),
 		NodeKey:       ptr.String("1"),
 		UUID:          "1",
@@ -3584,7 +3584,7 @@ func testUpdateLabelMembershipForTransferredHost(t *testing.T, ds *Datastore) {
 		TeamID:        &t1.ID,
 	})
 	require.NoError(t, err)
-	windowsHostT2, err := ds.NewHost(ctx, &fleet.Host{
+	windowsHostT2, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID: ptr.String("2"),
 		NodeKey:       ptr.String("2"),
 		UUID:          "2",
@@ -3594,22 +3594,22 @@ func testUpdateLabelMembershipForTransferredHost(t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 
-	globalLabel, err := ds.NewLabel(ctx, &fleet.Label{
+	globalLabel, err := ds.NewLabel(ctx, &automdm.Label{
 		Name:                "global",
 		Query:               "SELECT 1;",
-		LabelType:           fleet.LabelTypeRegular,
-		LabelMembershipType: fleet.LabelMembershipTypeManual,
+		LabelType:           automdm.LabelTypeRegular,
+		LabelMembershipType: automdm.LabelMembershipTypeManual,
 		TeamID:              nil,
 	})
 	require.NoError(t, err)
-	l1t1, err := ds.NewLabel(ctx, &fleet.Label{
+	l1t1, err := ds.NewLabel(ctx, &automdm.Label{
 		Name:     "l1t1",
 		Query:    "SELECT 2;",
 		TeamID:   &t1.ID,
 		Platform: "", // all platforms
 	})
 	require.NoError(t, err)
-	l2t2, err := ds.NewLabel(ctx, &fleet.Label{
+	l2t2, err := ds.NewLabel(ctx, &automdm.Label{
 		Name:     "l2t2",
 		Query:    "SELECT 3;",
 		TeamID:   &t2.ID,
@@ -3629,7 +3629,7 @@ func testUpdateLabelMembershipForTransferredHost(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// Move hosts to "No team".
-	err = ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(nil, []uint{macOSHostT1.ID, windowsHostT2.ID}))
+	err = ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(nil, []uint{macOSHostT1.ID, windowsHostT2.ID}))
 	require.NoError(t, err)
 
 	// Both hosts have their team label memberships erased, but the global label membership stays.
@@ -3646,13 +3646,13 @@ func testUpdateLabelMembershipForTransferredHost(t *testing.T, ds *Datastore) {
 func testSetAsideLabels(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "team1_setaside"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "team1_setaside"})
 	require.NoError(t, err)
-	team2, err := ds.NewTeam(ctx, &fleet.Team{Name: "team2_setaside"})
+	team2, err := ds.NewTeam(ctx, &automdm.Team{Name: "team2_setaside"})
 	require.NoError(t, err)
 
 	i := 0
-	newUser := func(u fleet.User) *fleet.User {
+	newUser := func(u automdm.User) *automdm.User {
 		i++
 		u.Name = fmt.Sprintf("SetAsideUser%d", i)
 		u.Email = fmt.Sprintf("%s@example.com", u.Name)
@@ -3663,21 +3663,21 @@ func testSetAsideLabels(t *testing.T, ds *Datastore) {
 	}
 
 	// Create users that are reused across tests
-	globalAdmin := newUser(fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)})
-	team1Admin := newUser(fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: team1.ID}, Role: fleet.RoleAdmin}}})
-	team1Maintainer := newUser(fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: team1.ID}, Role: fleet.RoleMaintainer}}})
-	team1Technician := newUser(fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: team1.ID}, Role: fleet.RoleTechnician}}})
-	multiTeamAdmin := newUser(fleet.User{Teams: []fleet.UserTeam{
-		{Team: fleet.Team{ID: team1.ID}, Role: fleet.RoleAdmin},
-		{Team: fleet.Team{ID: team2.ID}, Role: fleet.RoleAdmin},
+	globalAdmin := newUser(automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)})
+	team1Admin := newUser(automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: team1.ID}, Role: automdm.RoleAdmin}}})
+	team1Maintainer := newUser(automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: team1.ID}, Role: automdm.RoleMaintainer}}})
+	team1Technician := newUser(automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: team1.ID}, Role: automdm.RoleTechnician}}})
+	multiTeamAdmin := newUser(automdm.User{Teams: []automdm.UserTeam{
+		{Team: automdm.Team{ID: team1.ID}, Role: automdm.RoleAdmin},
+		{Team: automdm.Team{ID: team2.ID}, Role: automdm.RoleAdmin},
 	}})
-	multiTeamMaintainer := newUser(fleet.User{Teams: []fleet.UserTeam{
-		{Team: fleet.Team{ID: team1.ID}, Role: fleet.RoleMaintainer},
-		{Team: fleet.Team{ID: team2.ID}, Role: fleet.RoleMaintainer},
+	multiTeamMaintainer := newUser(automdm.User{Teams: []automdm.UserTeam{
+		{Team: automdm.Team{ID: team1.ID}, Role: automdm.RoleMaintainer},
+		{Team: automdm.Team{ID: team2.ID}, Role: automdm.RoleMaintainer},
 	}})
-	multiTeamTechnician := newUser(fleet.User{Teams: []fleet.UserTeam{
-		{Team: fleet.Team{ID: team1.ID}, Role: fleet.RoleTechnician},
-		{Team: fleet.Team{ID: team2.ID}, Role: fleet.RoleTechnician},
+	multiTeamTechnician := newUser(automdm.User{Teams: []automdm.UserTeam{
+		{Team: automdm.Team{ID: team1.ID}, Role: automdm.RoleTechnician},
+		{Team: automdm.Team{ID: team2.ID}, Role: automdm.RoleTechnician},
 	}})
 
 	type labelSpec struct {
@@ -3691,10 +3691,10 @@ func testSetAsideLabels(t *testing.T, ds *Datastore) {
 		labels      []labelSpec // labels to create for this test
 		notOnTeamID *uint       // team ID being applied to
 		labelNames  []string    // names to pass to SetAsideLabels (if nil, uses labels[*].name)
-		user        *fleet.User
-		fromFleets  map[string][]uint // fleets a global apply moves each name from
+		user        *automdm.User
+		fromTeams   map[string][]uint // teams a global apply moves each name from
 		expectError bool
-		keep        []string // names expected to stay as they are, since only the other side of the global/fleet boundary is set aside
+		keep        []string // names expected to stay as they are, since only the other side of the global/automdm boundary is set aside
 	}
 
 	cases := []testCase{
@@ -3717,28 +3717,28 @@ func testSetAsideLabels(t *testing.T, ds *Datastore) {
 			name:        "global maintainer can set aside global labels",
 			labels:      []labelSpec{{name: "global-setaside-2", teamID: nil, authorID: nil}},
 			notOnTeamID: &team1.ID,
-			user:        newUser(fleet.User{GlobalRole: ptr.String(fleet.RoleMaintainer)}),
+			user:        newUser(automdm.User{GlobalRole: ptr.String(automdm.RoleMaintainer)}),
 			expectError: false,
 		},
 		{
 			name:        "global gitops can set aside global labels",
 			labels:      []labelSpec{{name: "global-setaside-3", teamID: nil, authorID: nil}},
 			notOnTeamID: &team1.ID,
-			user:        newUser(fleet.User{GlobalRole: ptr.String(fleet.RoleGitOps)}),
+			user:        newUser(automdm.User{GlobalRole: ptr.String(automdm.RoleGitOps)}),
 			expectError: false,
 		},
 		{
 			name:        "global observer cannot set aside global labels",
 			labels:      []labelSpec{{name: "global-setaside-4", teamID: nil, authorID: nil}},
 			notOnTeamID: &team1.ID,
-			user:        newUser(fleet.User{GlobalRole: ptr.String(fleet.RoleObserver)}),
+			user:        newUser(automdm.User{GlobalRole: ptr.String(automdm.RoleObserver)}),
 			expectError: true,
 		},
 		{
 			name:        "global technician can set aside global labels",
 			labels:      []labelSpec{{name: "global-setaside-5", teamID: nil, authorID: nil}},
 			notOnTeamID: &team1.ID,
-			user:        newUser(fleet.User{GlobalRole: ptr.String(fleet.RoleTechnician)}),
+			user:        newUser(automdm.User{GlobalRole: ptr.String(automdm.RoleTechnician)}),
 			expectError: false,
 		},
 		{
@@ -3776,9 +3776,9 @@ func testSetAsideLabels(t *testing.T, ds *Datastore) {
 			name:        "team gitops can set aside their own team's labels if they can also edit the not-on team",
 			labels:      []labelSpec{{name: "team1-setaside-gitops", teamID: &team1.ID, authorID: nil}},
 			notOnTeamID: &team2.ID,
-			user: newUser(fleet.User{Teams: []fleet.UserTeam{
-				{Team: fleet.Team{ID: team1.ID}, Role: fleet.RoleGitOps},
-				{Team: fleet.Team{ID: team2.ID}, Role: fleet.RoleGitOps},
+			user: newUser(automdm.User{Teams: []automdm.UserTeam{
+				{Team: automdm.Team{ID: team1.ID}, Role: automdm.RoleGitOps},
+				{Team: automdm.Team{ID: team2.ID}, Role: automdm.RoleGitOps},
 			}}),
 			expectError: false,
 			keep:        []string{"team1-setaside-gitops"},
@@ -3787,7 +3787,7 @@ func testSetAsideLabels(t *testing.T, ds *Datastore) {
 			name:        "team observer cannot set aside team labels",
 			labels:      []labelSpec{{name: "team1-setaside-4", teamID: &team1.ID, authorID: nil}},
 			notOnTeamID: &team2.ID,
-			user:        newUser(fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: team1.ID}, Role: fleet.RoleObserver}}}),
+			user:        newUser(automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: team1.ID}, Role: automdm.RoleObserver}}}),
 			expectError: true,
 		},
 		{
@@ -3839,9 +3839,9 @@ func testSetAsideLabels(t *testing.T, ds *Datastore) {
 			name:        "multi-team user can set aside labels from teams they have write access to",
 			labels:      []labelSpec{{name: "team2-setaside-1", teamID: &team2.ID, authorID: nil}},
 			notOnTeamID: &team1.ID,
-			user: newUser(fleet.User{Teams: []fleet.UserTeam{
-				{Team: fleet.Team{ID: team1.ID}, Role: fleet.RoleMaintainer},
-				{Team: fleet.Team{ID: team2.ID}, Role: fleet.RoleAdmin},
+			user: newUser(automdm.User{Teams: []automdm.UserTeam{
+				{Team: automdm.Team{ID: team1.ID}, Role: automdm.RoleMaintainer},
+				{Team: automdm.Team{ID: team2.ID}, Role: automdm.RoleAdmin},
 			}}),
 			expectError: false,
 			keep:        []string{"team2-setaside-1"},
@@ -3850,15 +3850,15 @@ func testSetAsideLabels(t *testing.T, ds *Datastore) {
 			name:        "multi-team user cannot set aside labels from teams they don't have write access to",
 			labels:      []labelSpec{{name: "team2-setaside-2", teamID: &team2.ID, authorID: nil}},
 			notOnTeamID: &team1.ID,
-			user: newUser(fleet.User{Teams: []fleet.UserTeam{
-				{Team: fleet.Team{ID: team1.ID}, Role: fleet.RoleMaintainer},
-				{Team: fleet.Team{ID: team2.ID}, Role: fleet.RoleObserver},
+			user: newUser(automdm.User{Teams: []automdm.UserTeam{
+				{Team: automdm.Team{ID: team1.ID}, Role: automdm.RoleMaintainer},
+				{Team: automdm.Team{ID: team2.ID}, Role: automdm.RoleObserver},
 			}}),
 			expectError: false,
 			keep:        []string{"team2-setaside-2"},
 		},
 		{
-			// e.g. another fleet in the same GitOps run already set aside the global label
+			// e.g. another team in the same GitOps run already set aside the global label
 			name:        "non-existent label is a no-op",
 			labels:      nil,
 			notOnTeamID: &team1.ID,
@@ -3879,7 +3879,7 @@ func testSetAsideLabels(t *testing.T, ds *Datastore) {
 			keep:        []string{"multi-setaside-2"},
 		},
 		{
-			name: "applying to global sets aside the name on every fleet it moves from",
+			name: "applying to global sets aside the name on every team it moves from",
 			labels: []labelSpec{
 				{name: "shared-setaside", teamID: &team1.ID, authorID: nil},
 				{name: "shared-setaside", teamID: &team2.ID, authorID: nil},
@@ -3887,11 +3887,11 @@ func testSetAsideLabels(t *testing.T, ds *Datastore) {
 			notOnTeamID: nil,
 			labelNames:  []string{"shared-setaside"},
 			user:        globalAdmin,
-			fromFleets:  map[string][]uint{"shared-setaside": {team1.ID, team2.ID}},
+			fromTeams:   map[string][]uint{"shared-setaside": {team1.ID, team2.ID}},
 			expectError: false,
 		},
 		{
-			name: "applying to global fails if a fleet that keeps the name has it",
+			name: "applying to global fails if a team that keeps the name has it",
 			labels: []labelSpec{
 				{name: "partial-setaside", teamID: &team1.ID, authorID: nil},
 				{name: "partial-setaside", teamID: &team2.ID, authorID: nil},
@@ -3899,11 +3899,11 @@ func testSetAsideLabels(t *testing.T, ds *Datastore) {
 			notOnTeamID: nil,
 			labelNames:  []string{"partial-setaside"},
 			user:        globalAdmin,
-			fromFleets:  map[string][]uint{"partial-setaside": {team1.ID}},
+			fromTeams:   map[string][]uint{"partial-setaside": {team1.ID}},
 			expectError: true,
 		},
 		{
-			name: "applying to global sets aside names moving from different fleets",
+			name: "applying to global sets aside names moving from different teams",
 			labels: []labelSpec{
 				{name: "pair-setaside-a", teamID: &team1.ID, authorID: nil},
 				{name: "pair-setaside-b", teamID: &team2.ID, authorID: nil},
@@ -3911,10 +3911,10 @@ func testSetAsideLabels(t *testing.T, ds *Datastore) {
 			notOnTeamID: nil,
 			labelNames:  []string{"pair-setaside-a", "pair-setaside-b"},
 			user:        globalAdmin,
-			fromFleets:  map[string][]uint{"pair-setaside-a": {team1.ID}, "pair-setaside-b": {team2.ID}},
+			fromTeams:   map[string][]uint{"pair-setaside-a": {team1.ID}, "pair-setaside-b": {team2.ID}},
 		},
 		{
-			name: "applying to global fails if a moving fleet keeps another moving name",
+			name: "applying to global fails if a moving team keeps another moving name",
 			labels: []labelSpec{
 				{name: "keep-setaside-a", teamID: &team1.ID, authorID: nil},
 				{name: "keep-setaside-a", teamID: &team2.ID, authorID: nil},
@@ -3923,7 +3923,7 @@ func testSetAsideLabels(t *testing.T, ds *Datastore) {
 			notOnTeamID: nil,
 			labelNames:  []string{"keep-setaside-a", "keep-setaside-b"},
 			user:        globalAdmin,
-			fromFleets:  map[string][]uint{"keep-setaside-a": {team1.ID}, "keep-setaside-b": {team2.ID}},
+			fromTeams:   map[string][]uint{"keep-setaside-a": {team1.ID}, "keep-setaside-b": {team2.ID}},
 			expectError: true,
 		},
 	}
@@ -3944,12 +3944,12 @@ func testSetAsideLabels(t *testing.T, ds *Datastore) {
 					expectedLabelNames = append(expectedLabelNames, spec.name+expectedSuffix)
 				}
 
-				_, err := ds.NewLabel(ctx, &fleet.Label{
+				_, err := ds.NewLabel(ctx, &automdm.Label{
 					Name:                spec.name,
 					Query:               "SELECT 1",
 					TeamID:              spec.teamID,
 					AuthorID:            spec.authorID,
-					LabelMembershipType: fleet.LabelMembershipTypeDynamic,
+					LabelMembershipType: automdm.LabelMembershipTypeDynamic,
 				})
 				require.NoError(t, err)
 			}
@@ -3962,20 +3962,20 @@ func testSetAsideLabels(t *testing.T, ds *Datastore) {
 				}
 			}
 
-			var labelsToMove []fleet.LabelToMove
+			var labelsToMove []automdm.LabelToMove
 			for _, name := range labelNames {
-				if len(tc.fromFleets[name]) == 0 {
-					labelsToMove = append(labelsToMove, fleet.LabelToMove{Name: name})
+				if len(tc.fromTeams[name]) == 0 {
+					labelsToMove = append(labelsToMove, automdm.LabelToMove{Name: name})
 				}
-				for _, fleetID := range tc.fromFleets[name] {
-					labelsToMove = append(labelsToMove, fleet.LabelToMove{Name: name, FromFleetID: &fleetID})
+				for _, automdmID := range tc.fromTeams[name] {
+					labelsToMove = append(labelsToMove, automdm.LabelToMove{Name: name, FromAutoMDMID: &automdmID})
 				}
 			}
 			err := ds.SetAsideLabels(ctx, tc.notOnTeamID, labelsToMove, *tc.user)
 
 			if tc.expectError {
 				require.Error(t, err)
-				renamed, err := ds.LabelsByName(ctx, expectedLabelNames, fleet.TeamFilter{User: globalAdmin})
+				renamed, err := ds.LabelsByName(ctx, expectedLabelNames, automdm.TeamFilter{User: globalAdmin})
 				require.NoError(t, err)
 				require.Empty(t, renamed)
 				return
@@ -3983,7 +3983,7 @@ func testSetAsideLabels(t *testing.T, ds *Datastore) {
 			require.NoError(t, err)
 
 			// Only the kept labels should still have their original name
-			oldLabels, err := ds.LabelsByName(ctx, labelNames, fleet.TeamFilter{User: globalAdmin})
+			oldLabels, err := ds.LabelsByName(ctx, labelNames, automdm.TeamFilter{User: globalAdmin})
 			require.NoError(t, err)
 			for _, name := range labelNames {
 				_, ok := oldLabels[name]
@@ -3991,7 +3991,7 @@ func testSetAsideLabels(t *testing.T, ds *Datastore) {
 			}
 
 			// All renamed labels should exist
-			renamedLabels, _ := ds.LabelsByName(ctx, expectedLabelNames, fleet.TeamFilter{User: globalAdmin})
+			renamedLabels, _ := ds.LabelsByName(ctx, expectedLabelNames, automdm.TeamFilter{User: globalAdmin})
 			require.Len(t, renamedLabels, len(expectedLabelNames))
 			for _, expected := range expectedLabelNames {
 				_, ok := renamedLabels[expected]
@@ -4000,91 +4000,91 @@ func testSetAsideLabels(t *testing.T, ds *Datastore) {
 		})
 	}
 
-	t.Run("set-aside name taken on the other side of the global/fleet boundary", func(t *testing.T) {
-		fleetLabel, err := ds.NewLabel(ctx, &fleet.Label{
-			Name: "collide-setaside", Query: "SELECT 1", TeamID: &team1.ID, LabelMembershipType: fleet.LabelMembershipTypeDynamic,
+	t.Run("set-aside name taken on the other side of the global/automdm boundary", func(t *testing.T) {
+		automdmLabel, err := ds.NewLabel(ctx, &automdm.Label{
+			Name: "collide-setaside", Query: "SELECT 1", TeamID: &team1.ID, LabelMembershipType: automdm.LabelMembershipTypeDynamic,
 		})
 		require.NoError(t, err)
-		_, err = ds.NewLabel(ctx, &fleet.Label{
-			Name: fleet.SetAsideLabelName("collide-setaside", &team1.ID), Query: "SELECT 1", LabelMembershipType: fleet.LabelMembershipTypeDynamic,
+		_, err = ds.NewLabel(ctx, &automdm.Label{
+			Name: automdm.SetAsideLabelName("collide-setaside", &team1.ID), Query: "SELECT 1", LabelMembershipType: automdm.LabelMembershipTypeDynamic,
 		})
 		require.NoError(t, err)
 
-		err = ds.SetAsideLabels(ctx, nil, []fleet.LabelToMove{{Name: "collide-setaside", FromFleetID: &team1.ID}}, *globalAdmin)
-		var conflictErr *fleet.ConflictError
+		err = ds.SetAsideLabels(ctx, nil, []automdm.LabelToMove{{Name: "collide-setaside", FromAutoMDMID: &team1.ID}}, *globalAdmin)
+		var conflictErr *automdm.ConflictError
 		require.ErrorAs(t, err, &conflictErr)
-		lbl, _, err := ds.Label(ctx, fleetLabel.ID, fleet.TeamFilter{User: globalAdmin})
+		lbl, _, err := ds.Label(ctx, automdmLabel.ID, automdm.TeamFilter{User: globalAdmin})
 		require.NoError(t, err)
 		require.Equal(t, "collide-setaside", lbl.Name)
 	})
 }
 
-func testApplyLabelSpecsNamesAcrossFleets(t *testing.T, ds *Datastore) {
+func testApplyLabelSpecsNamesAcrossTeams(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "team1_label_conflict"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "team1_label_conflict"})
 	require.NoError(t, err)
-	team2, err := ds.NewTeam(ctx, &fleet.Team{Name: "team2_label_conflict"})
+	team2, err := ds.NewTeam(ctx, &automdm.Team{Name: "team2_label_conflict"})
 	require.NoError(t, err)
-	adminFilter := fleet.TeamFilter{User: test.UserAdmin}
+	adminFilter := automdm.TeamFilter{User: test.UserAdmin}
 
-	err = ds.ApplyLabelSpecs(ctx, []*fleet.LabelSpec{
+	err = ds.ApplyLabelSpecs(ctx, []*automdm.LabelSpec{
 		{Name: "shared-label", Query: "SELECT 1", TeamID: &team1.ID},
 	})
 	require.NoError(t, err)
 
-	// Another fleet can use the same name, case variants included.
-	err = ds.ApplyLabelSpecs(ctx, []*fleet.LabelSpec{
+	// Another team can use the same name, case variants included.
+	err = ds.ApplyLabelSpecs(ctx, []*automdm.LabelSpec{
 		{Name: "SHARED-label", Query: "SELECT 2", TeamID: &team2.ID},
 	})
 	require.NoError(t, err)
 
-	// A global label can't, since every fleet sees global labels.
-	err = ds.ApplyLabelSpecs(ctx, []*fleet.LabelSpec{
+	// A global label can't, since every team sees global labels.
+	err = ds.ApplyLabelSpecs(ctx, []*automdm.LabelSpec{
 		{Name: "shared-label", Query: "SELECT 3"},
 	})
-	var conflictErr *fleet.ConflictError
+	var conflictErr *automdm.ConflictError
 	require.ErrorAs(t, err, &conflictErr)
-	require.ErrorContains(t, err, fleet.LabelNameInUseByFleetsErrMsg)
+	require.ErrorContains(t, err, automdm.LabelNameInUseByTeamsErrMsg)
 
-	err = ds.ApplyLabelSpecs(ctx, []*fleet.LabelSpec{
+	err = ds.ApplyLabelSpecs(ctx, []*automdm.LabelSpec{
 		{Name: "global-label", Query: "SELECT 4"},
 	})
 	require.NoError(t, err)
 
-	err = ds.ApplyLabelSpecs(ctx, []*fleet.LabelSpec{
+	err = ds.ApplyLabelSpecs(ctx, []*automdm.LabelSpec{
 		{Name: "Global-Label", Query: "SELECT 5", TeamID: &team2.ID},
 	})
 	require.ErrorAs(t, err, &conflictErr)
-	require.ErrorContains(t, err, fleet.LabelNameInUseGloballyErrMsg)
+	require.ErrorContains(t, err, automdm.LabelNameInUseGloballyErrMsg)
 
 	// Names compare with the column's collation, which also ignores trailing spaces and accents.
-	err = ds.ApplyLabelSpecs(ctx, []*fleet.LabelSpec{
+	err = ds.ApplyLabelSpecs(ctx, []*automdm.LabelSpec{
 		{Name: "global-label ", Query: "SELECT 5", TeamID: &team2.ID},
 	})
 	require.ErrorAs(t, err, &conflictErr)
-	require.ErrorContains(t, err, fleet.LabelNameInUseGloballyErrMsg)
-	err = ds.ApplyLabelSpecs(ctx, []*fleet.LabelSpec{
+	require.ErrorContains(t, err, automdm.LabelNameInUseGloballyErrMsg)
+	err = ds.ApplyLabelSpecs(ctx, []*automdm.LabelSpec{
 		{Name: "ingeniería", Query: "SELECT 6", TeamID: &team2.ID},
 	})
 	require.NoError(t, err)
-	err = ds.ApplyLabelSpecs(ctx, []*fleet.LabelSpec{
+	err = ds.ApplyLabelSpecs(ctx, []*automdm.LabelSpec{
 		{Name: "Ingenieria", Query: "SELECT 7"},
 	})
 	require.ErrorAs(t, err, &conflictErr)
-	require.ErrorContains(t, err, fleet.LabelNameInUseByFleetsErrMsg)
+	require.ErrorContains(t, err, automdm.LabelNameInUseByTeamsErrMsg)
 
-	// Updating a fleet's label only touches that fleet's label.
-	err = ds.ApplyLabelSpecs(ctx, []*fleet.LabelSpec{
+	// Updating a team's label only touches that team's label.
+	err = ds.ApplyLabelSpecs(ctx, []*automdm.LabelSpec{
 		{Name: "shared-label", Query: "SELECT 1 updated", Platform: "darwin", TeamID: &team1.ID},
 	})
 	require.NoError(t, err)
 
-	team1Label := labelByName(t, ds, "shared-label", fleet.TeamFilter{User: test.UserAdmin, TeamID: &team1.ID})
+	team1Label := labelByName(t, ds, "shared-label", automdm.TeamFilter{User: test.UserAdmin, TeamID: &team1.ID})
 	require.NotNil(t, team1Label)
 	require.Equal(t, "SELECT 1 updated", team1Label.Query)
 	require.Equal(t, "darwin", team1Label.Platform)
-	team2Label := labelByName(t, ds, "shared-label", fleet.TeamFilter{User: test.UserAdmin, TeamID: &team2.ID})
+	team2Label := labelByName(t, ds, "shared-label", automdm.TeamFilter{User: test.UserAdmin, TeamID: &team2.ID})
 	require.NotNil(t, team2Label)
 	require.Equal(t, "SELECT 2", team2Label.Query)
 	require.Empty(t, team2Label.Platform)
@@ -4095,23 +4095,23 @@ func testApplyLabelSpecsNamesAcrossFleets(t *testing.T, ds *Datastore) {
 	require.ElementsMatch(t, []uint{team1Label.ID, team2Label.ID}, slices.Concat(slices.Collect(maps.Values(ids))...))
 }
 
-func testLabelNamesSharedAcrossFleets(t *testing.T, ds *Datastore) {
+func testLabelNamesSharedAcrossTeams(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "team1_shared_names"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "team1_shared_names"})
 	require.NoError(t, err)
-	team2, err := ds.NewTeam(ctx, &fleet.Team{Name: "team2_shared_names"})
+	team2, err := ds.NewTeam(ctx, &automdm.Team{Name: "team2_shared_names"})
 	require.NoError(t, err)
-	adminFilter := fleet.TeamFilter{User: test.UserAdmin}
-	scoped := func(teamID uint) fleet.TeamFilter {
-		return fleet.TeamFilter{User: test.UserAdmin, TeamID: &teamID}
+	adminFilter := automdm.TeamFilter{User: test.UserAdmin}
+	scoped := func(teamID uint) automdm.TeamFilter {
+		return automdm.TeamFilter{User: test.UserAdmin, TeamID: &teamID}
 	}
-	newLabel := func(name string, teamID *uint) (*fleet.Label, error) {
-		return ds.NewLabel(ctx, &fleet.Label{Name: name, Query: "SELECT 1", TeamID: teamID, LabelMembershipType: fleet.LabelMembershipTypeDynamic})
+	newLabel := func(name string, teamID *uint) (*automdm.Label, error) {
+		return ds.NewLabel(ctx, &automdm.Label{Name: name, Query: "SELECT 1", TeamID: teamID, LabelMembershipType: automdm.LabelMembershipTypeDynamic})
 	}
 	requireConflict := func(t *testing.T, err error, msg string) {
 		t.Helper()
-		var conflictErr *fleet.ConflictError
+		var conflictErr *automdm.ConflictError
 		require.ErrorAs(t, err, &conflictErr)
 		require.ErrorContains(t, err, msg)
 	}
@@ -4127,9 +4127,9 @@ func testLabelNamesSharedAcrossFleets(t *testing.T, ds *Datastore) {
 
 	t.Run("create", func(t *testing.T) {
 		_, err := newLabel("engineering", nil)
-		requireConflict(t, err, fleet.LabelNameInUseByFleetsErrMsg)
+		requireConflict(t, err, automdm.LabelNameInUseByTeamsErrMsg)
 		_, err = newLabel("OPS", &team1.ID)
-		requireConflict(t, err, fleet.LabelNameInUseGloballyErrMsg)
+		requireConflict(t, err, automdm.LabelNameInUseGloballyErrMsg)
 		_, err = newLabel("ENGINEERING", &team1.ID)
 		require.True(t, IsDuplicate(err), err)
 		_, err = newLabel("ops", nil)
@@ -4137,17 +4137,17 @@ func testLabelNamesSharedAcrossFleets(t *testing.T, ds *Datastore) {
 	})
 
 	t.Run("rename", func(t *testing.T) {
-		_, _, err := ds.SaveLabel(ctx, &fleet.Label{ID: other1.ID, Name: "Ops"}, nil, adminFilter)
-		requireConflict(t, err, fleet.LabelNameInUseGloballyErrMsg)
-		_, _, err = ds.SaveLabel(ctx, &fleet.Label{ID: ops.ID, Name: "Engineering"}, nil, adminFilter)
-		requireConflict(t, err, fleet.LabelNameInUseByFleetsErrMsg)
-		_, _, err = ds.SaveLabel(ctx, &fleet.Label{ID: other1.ID, Name: "Engineering"}, nil, adminFilter)
+		_, _, err := ds.SaveLabel(ctx, &automdm.Label{ID: other1.ID, Name: "Ops"}, nil, adminFilter)
+		requireConflict(t, err, automdm.LabelNameInUseGloballyErrMsg)
+		_, _, err = ds.SaveLabel(ctx, &automdm.Label{ID: ops.ID, Name: "Engineering"}, nil, adminFilter)
+		requireConflict(t, err, automdm.LabelNameInUseByTeamsErrMsg)
+		_, _, err = ds.SaveLabel(ctx, &automdm.Label{ID: other1.ID, Name: "Engineering"}, nil, adminFilter)
 		require.True(t, IsDuplicate(err), err)
 
-		// Unchanged names and renames within the rules still work, including a fleet label passed without its fleet.
-		_, _, err = ds.SaveLabel(ctx, &fleet.Label{ID: eng1.ID, Name: "Engineering", Description: "team1"}, nil, adminFilter)
+		// Unchanged names and renames within the rules still work, including a team label passed without its team.
+		_, _, err = ds.SaveLabel(ctx, &automdm.Label{ID: eng1.ID, Name: "Engineering", Description: "team1"}, nil, adminFilter)
 		require.NoError(t, err)
-		_, _, err = ds.SaveLabel(ctx, &fleet.Label{ID: ops.ID, Name: "Ops", Description: "global"}, nil, adminFilter)
+		_, _, err = ds.SaveLabel(ctx, &automdm.Label{ID: ops.ID, Name: "Ops", Description: "global"}, nil, adminFilter)
 		require.NoError(t, err)
 	})
 
@@ -4160,21 +4160,21 @@ func testLabelNamesSharedAcrossFleets(t *testing.T, ds *Datastore) {
 		require.Equal(t, map[string]uint{"Engineering": eng2.ID, "Ops": ops.ID}, ids)
 
 		_, err = ds.LabelIDsByName(ctx, []string{"Engineering", "Ops"}, adminFilter)
-		requireConflict(t, err, `More than one fleet has a label named "Engineering".`)
+		requireConflict(t, err, `More than one team has a label named "Engineering".`)
 		all, err := ds.AllLabelIDsByName(ctx, []string{"Engineering", "Ops"}, adminFilter)
 		require.NoError(t, err)
 		require.ElementsMatch(t, []uint{eng1.ID, eng2.ID}, all["Engineering"])
 		require.Equal(t, []uint{ops.ID}, all["Ops"])
 
 		_, err = ds.GetLabelSpec(ctx, adminFilter, "Engineering")
-		requireConflict(t, err, `More than one fleet has a label named "Engineering".`)
+		requireConflict(t, err, `More than one team has a label named "Engineering".`)
 		spec, err := ds.GetLabelSpec(ctx, scoped(team2.ID), "Engineering")
 		require.NoError(t, err)
 		require.Equal(t, eng2.ID, spec.ID)
 	})
 
-	t.Run("policies and reports resolve names in their fleet", func(t *testing.T) {
-		policy, err := ds.NewTeamPolicy(ctx, team2.ID, nil, fleet.PolicyPayload{
+	t.Run("policies and reports resolve names in their team", func(t *testing.T) {
+		policy, err := ds.NewTeamPolicy(ctx, team2.ID, nil, automdm.PolicyPayload{
 			Name: "shared-names-policy", Query: "SELECT 1", LabelsIncludeAny: []string{"Engineering", "Ops"},
 		})
 		require.NoError(t, err)
@@ -4183,7 +4183,7 @@ func testLabelNamesSharedAcrossFleets(t *testing.T, ds *Datastore) {
 		require.ElementsMatch(t, []uint{eng2.ID, ops.ID}, []uint{policy.LabelsIncludeAny[0].LabelID, policy.LabelsIncludeAny[1].LabelID})
 
 		// A name repeated in the request is stored once.
-		policy, err = ds.NewTeamPolicy(ctx, team2.ID, nil, fleet.PolicyPayload{
+		policy, err = ds.NewTeamPolicy(ctx, team2.ID, nil, automdm.PolicyPayload{
 			Name: "shared-names-repeated-policy", Query: "SELECT 1", LabelsIncludeAny: []string{"Engineering", "Engineering"},
 		})
 		require.NoError(t, err)
@@ -4192,15 +4192,15 @@ func testLabelNamesSharedAcrossFleets(t *testing.T, ds *Datastore) {
 		require.Len(t, policy.LabelsIncludeAny, 1)
 		require.Equal(t, eng2.ID, policy.LabelsIncludeAny[0].LabelID)
 
-		// A global policy still resolves among all labels, so a shared name is rejected rather than matching every fleet.
-		_, err = ds.NewGlobalPolicy(ctx, nil, fleet.PolicyPayload{
+		// A global policy still resolves among all labels, so a shared name is rejected rather than matching every team.
+		_, err = ds.NewGlobalPolicy(ctx, nil, automdm.PolicyPayload{
 			Name: "shared-names-global-policy", Query: "SELECT 1", LabelsIncludeAny: []string{"Engineering"},
 		})
-		requireConflict(t, err, `More than one fleet has a label named "Engineering".`)
+		requireConflict(t, err, `More than one team has a label named "Engineering".`)
 
-		query, err := ds.NewQuery(ctx, &fleet.Query{
-			Name: "shared-names-report", Query: "SELECT 1", TeamID: &team1.ID, Logging: fleet.LoggingSnapshot,
-			LabelsIncludeAny: []fleet.LabelIdent{{LabelName: "Engineering"}},
+		query, err := ds.NewQuery(ctx, &automdm.Query{
+			Name: "shared-names-report", Query: "SELECT 1", TeamID: &team1.ID, Logging: automdm.LoggingSnapshot,
+			LabelsIncludeAny: []automdm.LabelIdent{{LabelName: "Engineering"}},
 		})
 		require.NoError(t, err)
 		query, err = ds.Query(ctx, query.ID)
@@ -4208,18 +4208,18 @@ func testLabelNamesSharedAcrossFleets(t *testing.T, ds *Datastore) {
 		require.Len(t, query.LabelsIncludeAny, 1)
 		require.Equal(t, eng1.ID, query.LabelsIncludeAny[0].LabelID)
 
-		_, err = ds.NewQuery(ctx, &fleet.Query{
-			Name: "shared-names-global-report", Query: "SELECT 1", Logging: fleet.LoggingSnapshot,
-			LabelsIncludeAny: []fleet.LabelIdent{{LabelName: "Engineering"}},
+		_, err = ds.NewQuery(ctx, &automdm.Query{
+			Name: "shared-names-global-report", Query: "SELECT 1", Logging: automdm.LoggingSnapshot,
+			LabelsIncludeAny: []automdm.LabelIdent{{LabelName: "Engineering"}},
 		})
-		requireConflict(t, err, `More than one fleet has a label named "Engineering".`)
+		requireConflict(t, err, `More than one team has a label named "Engineering".`)
 
-		// Repeated or case-variant names in a global policy are still one name that several fleets use.
+		// Repeated or case-variant names in a global policy are still one name that several teams use.
 		for _, names := range [][]string{{"Engineering", "Engineering"}, {"Engineering", "engineering"}} {
-			_, err = ds.NewGlobalPolicy(ctx, nil, fleet.PolicyPayload{
+			_, err = ds.NewGlobalPolicy(ctx, nil, automdm.PolicyPayload{
 				Name: "shared-names-global-policy-" + strings.Join(names, "-"), Query: "SELECT 1", LabelsIncludeAny: names,
 			})
-			requireConflict(t, err, "More than one fleet has a label named")
+			requireConflict(t, err, "More than one team has a label named")
 		}
 	})
 
@@ -4229,15 +4229,15 @@ func testLabelNamesSharedAcrossFleets(t *testing.T, ds *Datastore) {
 		caseShared2, err := newLabel("caseshared", &team2.ID)
 		require.NoError(t, err)
 
-		_, err = ds.NewQuery(ctx, &fleet.Query{
-			Name: "case-shared-global-report", Query: "SELECT 1", Logging: fleet.LoggingSnapshot,
-			LabelsIncludeAny: []fleet.LabelIdent{{LabelName: "CaseShared"}},
+		_, err = ds.NewQuery(ctx, &automdm.Query{
+			Name: "case-shared-global-report", Query: "SELECT 1", Logging: automdm.LoggingSnapshot,
+			LabelsIncludeAny: []automdm.LabelIdent{{LabelName: "CaseShared"}},
 		})
-		requireConflict(t, err, "More than one fleet has a label named")
+		requireConflict(t, err, "More than one team has a label named")
 
-		query, err := ds.NewQuery(ctx, &fleet.Query{
-			Name: "case-shared-team2-report", Query: "SELECT 1", TeamID: &team2.ID, Logging: fleet.LoggingSnapshot,
-			LabelsIncludeAny: []fleet.LabelIdent{{LabelName: "CaseShared"}},
+		query, err := ds.NewQuery(ctx, &automdm.Query{
+			Name: "case-shared-team2-report", Query: "SELECT 1", TeamID: &team2.ID, Logging: automdm.LoggingSnapshot,
+			LabelsIncludeAny: []automdm.LabelIdent{{LabelName: "CaseShared"}},
 		})
 		require.NoError(t, err)
 		query, err = ds.Query(ctx, query.ID)
@@ -4245,13 +4245,13 @@ func testLabelNamesSharedAcrossFleets(t *testing.T, ds *Datastore) {
 		require.Len(t, query.LabelsIncludeAny, 1)
 		require.Equal(t, caseShared2.ID, query.LabelsIncludeAny[0].LabelID)
 
-		// A name that only another fleet has fails rather than leaving the report without its label scope.
+		// A name that only another team has fails rather than leaving the report without its label scope.
 		err = ds.withTx(ctx, func(tx sqlx.ExtContext) error {
-			return ds.updateQueryLabelsInTx(ctx, []*fleet.Query{{
-				ID: query.ID, TeamID: &team2.ID, LabelsIncludeAny: []fleet.LabelIdent{{LabelName: "Other"}},
+			return ds.updateQueryLabelsInTx(ctx, []*automdm.Query{{
+				ID: query.ID, TeamID: &team2.ID, LabelsIncludeAny: []automdm.LabelIdent{{LabelName: "Other"}},
 			}}, tx)
 		})
-		require.True(t, fleet.IsNotFound(err), err)
+		require.True(t, automdm.IsNotFound(err), err)
 	})
 
 	t.Run("delete", func(t *testing.T) {
@@ -4266,26 +4266,26 @@ func testLabelNamesSharedAcrossFleets(t *testing.T, ds *Datastore) {
 func testApplyLabelSpecsCannotModifyBuiltInLabel(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
-	builtIn, err := ds.NewLabel(ctx, &fleet.Label{
+	builtIn, err := ds.NewLabel(ctx, &automdm.Label{
 		Name:                "All Hosts",
-		Description:         "All hosts enrolled in Fleet",
+		Description:         "All hosts enrolled in AutoMDM",
 		Query:               "select 1;",
-		LabelType:           fleet.LabelTypeBuiltIn,
-		LabelMembershipType: fleet.LabelMembershipTypeDynamic,
+		LabelType:           automdm.LabelTypeBuiltIn,
+		LabelMembershipType: automdm.LabelMembershipTypeDynamic,
 	})
 	require.NoError(t, err)
 
-	exact := fleet.LabelSpec{
+	exact := automdm.LabelSpec{
 		Name:                "All Hosts",
-		Description:         "All hosts enrolled in Fleet",
+		Description:         "All hosts enrolled in AutoMDM",
 		Query:               "select 1;",
-		LabelType:           fleet.LabelTypeBuiltIn,
-		LabelMembershipType: fleet.LabelMembershipTypeDynamic,
+		LabelType:           automdm.LabelTypeBuiltIn,
+		LabelMembershipType: automdm.LabelMembershipTypeDynamic,
 	}
 
 	for _, tc := range []struct {
 		name    string
-		spec    fleet.LabelSpec
+		spec    automdm.LabelSpec
 		wantErr string
 	}{
 		// a built-in spec is refused outright, so not even an unchanged one can reach
@@ -4297,62 +4297,62 @@ func testApplyLabelSpecsCannotModifyBuiltInLabel(t *testing.T, ds *Datastore) {
 		},
 		{
 			name:    "changed query",
-			spec:    func() fleet.LabelSpec { s := exact; s.Query = "select 'BYPASSED';"; return s }(),
+			spec:    func() automdm.LabelSpec { s := exact; s.Query = "select 'BYPASSED';"; return s }(),
 			wantErr: "cannot modify or add built-in label 'All Hosts'",
 		},
 		{
 			name:    "built-in label that does not exist yet",
-			spec:    fleet.LabelSpec{Name: "Brand New Built In", Query: "select 1;", LabelType: fleet.LabelTypeBuiltIn},
+			spec:    automdm.LabelSpec{Name: "Brand New Built In", Query: "select 1;", LabelType: automdm.LabelTypeBuiltIn},
 			wantErr: "cannot modify or add built-in label 'Brand New Built In'",
 		},
 		// a regular spec still resolves to the built-in row, by exact name or by a
 		// case variant the collation treats as equal
 		{
 			name:    "regular label with a built-in name",
-			spec:    fleet.LabelSpec{Name: "All Hosts", Query: "select 'BYPASSED';", LabelType: fleet.LabelTypeRegular},
+			spec:    automdm.LabelSpec{Name: "All Hosts", Query: "select 'BYPASSED';", LabelType: automdm.LabelTypeRegular},
 			wantErr: "cannot modify built-in label 'All Hosts'",
 		},
 		{
 			name:    "regular label with a case variant of a built-in name",
-			spec:    fleet.LabelSpec{Name: "all hosts", Query: "select 'BYPASSED';", LabelType: fleet.LabelTypeRegular},
+			spec:    automdm.LabelSpec{Name: "all hosts", Query: "select 'BYPASSED';", LabelType: automdm.LabelTypeRegular},
 			wantErr: "cannot modify built-in label 'All Hosts'",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			err := ds.ApplyLabelSpecs(ctx, []*fleet.LabelSpec{&tc.spec})
+			err := ds.ApplyLabelSpecs(ctx, []*automdm.LabelSpec{&tc.spec})
 			require.ErrorContains(t, err, tc.wantErr)
 
-			stored, _, err := ds.Label(ctx, builtIn.ID, fleet.TeamFilter{User: test.UserAdmin})
+			stored, _, err := ds.Label(ctx, builtIn.ID, automdm.TeamFilter{User: test.UserAdmin})
 			require.NoError(t, err)
 			require.Equal(t, "All Hosts", stored.Name)
-			require.Equal(t, "All hosts enrolled in Fleet", stored.Description)
+			require.Equal(t, "All hosts enrolled in AutoMDM", stored.Description)
 			require.Equal(t, "select 1;", stored.Query)
 			require.Empty(t, stored.Platform)
-			require.Equal(t, fleet.LabelTypeBuiltIn, stored.LabelType)
-			require.Equal(t, fleet.LabelMembershipTypeDynamic, stored.LabelMembershipType)
+			require.Equal(t, automdm.LabelTypeBuiltIn, stored.LabelType)
+			require.Equal(t, automdm.LabelMembershipTypeDynamic, stored.LabelMembershipType)
 		})
 	}
 
-	require.Nil(t, labelByName(t, ds, "Brand New Built In", fleet.TeamFilter{User: test.UserAdmin}),
+	require.Nil(t, labelByName(t, ds, "Brand New Built In", automdm.TeamFilter{User: test.UserAdmin}),
 		"rejected built-in spec must not create a label")
 }
 
 func testApplyLabelSpecsWithManualTeamLabels(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
-	teamFilter := fleet.TeamFilter{User: test.UserAdmin}
+	teamFilter := automdm.TeamFilter{User: test.UserAdmin}
 
 	// Create teams.
-	t1, err := ds.NewTeam(context.Background(), &fleet.Team{Name: "team1"})
+	t1, err := ds.NewTeam(context.Background(), &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
-	t2, err := ds.NewTeam(context.Background(), &fleet.Team{Name: "team2"})
+	t2, err := ds.NewTeam(context.Background(), &automdm.Team{Name: "team2"})
 	require.NoError(t, err)
-	t3, err := ds.NewTeam(context.Background(), &fleet.Team{Name: "team3"})
+	t3, err := ds.NewTeam(context.Background(), &automdm.Team{Name: "team3"})
 	require.NoError(t, err)
-	t4, err := ds.NewTeam(context.Background(), &fleet.Team{Name: "team4"})
+	t4, err := ds.NewTeam(context.Background(), &automdm.Team{Name: "team4"})
 	require.NoError(t, err)
 
 	// Create hosts on the teams.
-	h1t1, err := ds.NewHost(ctx, &fleet.Host{
+	h1t1, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID:  ptr.String("h1t1"),
 		NodeKey:        ptr.String("h1t1"),
 		Hostname:       "hostname-h1t1",
@@ -4362,7 +4362,7 @@ func testApplyLabelSpecsWithManualTeamLabels(t *testing.T, ds *Datastore) {
 		TeamID:         &t1.ID,
 	})
 	require.NoError(t, err)
-	h2t2, err := ds.NewHost(ctx, &fleet.Host{
+	h2t2, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID:  ptr.String("h2t2"),
 		NodeKey:        ptr.String("h2t2"),
 		Hostname:       "hostname-h2t2",
@@ -4372,7 +4372,7 @@ func testApplyLabelSpecsWithManualTeamLabels(t *testing.T, ds *Datastore) {
 		TeamID:         &t2.ID,
 	})
 	require.NoError(t, err)
-	h3t3, err := ds.NewHost(ctx, &fleet.Host{
+	h3t3, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID:  ptr.String("h3t3"),
 		NodeKey:        ptr.String("h3t3"),
 		Hostname:       "hostname-h3t3",
@@ -4382,7 +4382,7 @@ func testApplyLabelSpecsWithManualTeamLabels(t *testing.T, ds *Datastore) {
 		TeamID:         &t3.ID,
 	})
 	require.NoError(t, err)
-	h4t4, err := ds.NewHost(ctx, &fleet.Host{
+	h4t4, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID:  ptr.String("h4t4"),
 		NodeKey:        ptr.String("h4t4"),
 		Hostname:       "hostname-h4t4",
@@ -4392,7 +4392,7 @@ func testApplyLabelSpecsWithManualTeamLabels(t *testing.T, ds *Datastore) {
 		TeamID:         &t4.ID,
 	})
 	require.NoError(t, err)
-	h5Global, err := ds.NewHost(ctx, &fleet.Host{
+	h5Global, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID:  ptr.String("h5Global"),
 		NodeKey:        ptr.String("h5Global"),
 		Hostname:       "hostname-h5Global",
@@ -4404,11 +4404,11 @@ func testApplyLabelSpecsWithManualTeamLabels(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// Create a global manual label, make sure you can add all.
-	err = ds.ApplyLabelSpecs(ctx, []*fleet.LabelSpec{
+	err = ds.ApplyLabelSpecs(ctx, []*automdm.LabelSpec{
 		{
 			Name:                "global1",
-			LabelMembershipType: fleet.LabelMembershipTypeManual,
-			Hosts: fleet.HostsSlice{
+			LabelMembershipType: automdm.LabelMembershipTypeManual,
+			Hosts: automdm.HostsSlice{
 				h1t1.UUID,
 				h2t2.HardwareSerial,
 				h3t3.UUID,
@@ -4421,7 +4421,7 @@ func testApplyLabelSpecsWithManualTeamLabels(t *testing.T, ds *Datastore) {
 
 	global1 := labelByName(t, ds, "global1", teamFilter)
 	require.NotNil(t, global1)
-	hosts, err := ds.ListHostsInLabel(ctx, teamFilter, global1.ID, fleet.HostListOptions{})
+	hosts, err := ds.ListHostsInLabel(ctx, teamFilter, global1.ID, automdm.HostListOptions{})
 	require.NoError(t, err)
 	require.Len(t, hosts, 5)
 
@@ -4432,11 +4432,11 @@ func testApplyLabelSpecsWithManualTeamLabels(t *testing.T, ds *Datastore) {
 		h4t4.HardwareSerial,
 		fmt.Sprint(h5Global.ID),
 	} {
-		err := ds.ApplyLabelSpecs(ctx, []*fleet.LabelSpec{
+		err := ds.ApplyLabelSpecs(ctx, []*automdm.LabelSpec{
 			{
 				Name:                "l1t1",
-				LabelMembershipType: fleet.LabelMembershipTypeManual,
-				Hosts: fleet.HostsSlice{
+				LabelMembershipType: automdm.LabelMembershipTypeManual,
+				Hosts: automdm.HostsSlice{
 					h1t1.UUID,
 					hostIdentifier, // conflicting host identifier.
 				},
@@ -4452,11 +4452,11 @@ func testApplyLabelSpecsWithManualTeamLabels(t *testing.T, ds *Datastore) {
 		h1t1.HardwareSerial,
 		fmt.Sprint(h1t1.ID),
 	} {
-		err = ds.ApplyLabelSpecs(ctx, []*fleet.LabelSpec{
+		err = ds.ApplyLabelSpecs(ctx, []*automdm.LabelSpec{
 			{
 				Name:                "l1t1",
-				LabelMembershipType: fleet.LabelMembershipTypeManual,
-				Hosts: fleet.HostsSlice{
+				LabelMembershipType: automdm.LabelMembershipTypeManual,
+				Hosts: automdm.HostsSlice{
 					hostIdentifier,
 				},
 				TeamID: &t1.ID,
@@ -4465,7 +4465,7 @@ func testApplyLabelSpecsWithManualTeamLabels(t *testing.T, ds *Datastore) {
 		require.NoError(t, err)
 		l1t1 := labelByName(t, ds, "l1t1", teamFilter)
 		require.NotNil(t, l1t1)
-		hosts, err := ds.ListHostsInLabel(ctx, teamFilter, l1t1.ID, fleet.HostListOptions{})
+		hosts, err := ds.ListHostsInLabel(ctx, teamFilter, l1t1.ID, automdm.HostListOptions{})
 		require.NoError(t, err)
 		require.Len(t, hosts, 1)
 		require.Equal(t, h1t1.ID, hosts[0].ID)
@@ -4474,10 +4474,10 @@ func testApplyLabelSpecsWithManualTeamLabels(t *testing.T, ds *Datastore) {
 
 func testApplyLabelSpecsManualNilHosts(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
-	teamFilter := fleet.TeamFilter{User: test.UserAdmin}
+	teamFilter := automdm.TeamFilter{User: test.UserAdmin}
 
 	// Create hosts.
-	h1, err := ds.NewHost(ctx, &fleet.Host{
+	h1, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID:  ptr.String("nilhosts-1"), //nolint:modernize
 		NodeKey:        ptr.String("nilhosts-1"), //nolint:modernize
 		UUID:           "nilhosts-1",
@@ -4486,7 +4486,7 @@ func testApplyLabelSpecsManualNilHosts(t *testing.T, ds *Datastore) {
 		Platform:       "darwin",
 	})
 	require.NoError(t, err)
-	h2, err := ds.NewHost(ctx, &fleet.Host{
+	h2, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID:  ptr.String("nilhosts-2"), //nolint:modernize
 		NodeKey:        ptr.String("nilhosts-2"), //nolint:modernize
 		UUID:           "nilhosts-2",
@@ -4497,10 +4497,10 @@ func testApplyLabelSpecsManualNilHosts(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// Apply a manual label with hosts.
-	err = ds.ApplyLabelSpecs(ctx, []*fleet.LabelSpec{
+	err = ds.ApplyLabelSpecs(ctx, []*automdm.LabelSpec{
 		{
 			Name:                "nilhosts-label",
-			LabelMembershipType: fleet.LabelMembershipTypeManual,
+			LabelMembershipType: automdm.LabelMembershipTypeManual,
 			Hosts:               []string{"nilhosts-serial-1", "nilhosts-serial-2"},
 		},
 	})
@@ -4508,21 +4508,21 @@ func testApplyLabelSpecsManualNilHosts(t *testing.T, ds *Datastore) {
 
 	lbl := labelByName(t, ds, "nilhosts-label", teamFilter)
 	require.NotNil(t, lbl)
-	hosts, err := ds.ListHostsInLabel(ctx, teamFilter, lbl.ID, fleet.HostListOptions{})
+	hosts, err := ds.ListHostsInLabel(ctx, teamFilter, lbl.ID, automdm.HostListOptions{})
 	require.NoError(t, err)
 	require.Len(t, hosts, 2)
 
 	// Re-apply the same label with nil hosts — membership should be preserved.
-	err = ds.ApplyLabelSpecs(ctx, []*fleet.LabelSpec{
+	err = ds.ApplyLabelSpecs(ctx, []*automdm.LabelSpec{
 		{
 			Name:                "nilhosts-label",
-			LabelMembershipType: fleet.LabelMembershipTypeManual,
+			LabelMembershipType: automdm.LabelMembershipTypeManual,
 			Hosts:               nil,
 		},
 	})
 	require.NoError(t, err)
 
-	hosts, err = ds.ListHostsInLabel(ctx, teamFilter, lbl.ID, fleet.HostListOptions{})
+	hosts, err = ds.ListHostsInLabel(ctx, teamFilter, lbl.ID, automdm.HostListOptions{})
 	require.NoError(t, err)
 	require.Len(t, hosts, 2)
 	hostIDs := []uint{hosts[0].ID, hosts[1].ID}
@@ -4530,30 +4530,30 @@ func testApplyLabelSpecsManualNilHosts(t *testing.T, ds *Datastore) {
 	assert.Contains(t, hostIDs, h2.ID)
 
 	// Re-apply with empty hosts — membership should be cleared.
-	err = ds.ApplyLabelSpecs(ctx, []*fleet.LabelSpec{
+	err = ds.ApplyLabelSpecs(ctx, []*automdm.LabelSpec{
 		{
 			Name:                "nilhosts-label",
-			LabelMembershipType: fleet.LabelMembershipTypeManual,
+			LabelMembershipType: automdm.LabelMembershipTypeManual,
 			Hosts:               []string{},
 		},
 	})
 	require.NoError(t, err)
 
-	hosts, err = ds.ListHostsInLabel(ctx, teamFilter, lbl.ID, fleet.HostListOptions{})
+	hosts, err = ds.ListHostsInLabel(ctx, teamFilter, lbl.ID, automdm.HostListOptions{})
 	require.NoError(t, err)
 	require.Len(t, hosts, 0)
 
 	// Re-apply with specific hosts — membership should be set.
-	err = ds.ApplyLabelSpecs(ctx, []*fleet.LabelSpec{
+	err = ds.ApplyLabelSpecs(ctx, []*automdm.LabelSpec{
 		{
 			Name:                "nilhosts-label",
-			LabelMembershipType: fleet.LabelMembershipTypeManual,
+			LabelMembershipType: automdm.LabelMembershipTypeManual,
 			Hosts:               []string{"nilhosts-serial-1"},
 		},
 	})
 	require.NoError(t, err)
 
-	hosts, err = ds.ListHostsInLabel(ctx, teamFilter, lbl.ID, fleet.HostListOptions{})
+	hosts, err = ds.ListHostsInLabel(ctx, teamFilter, lbl.ID, automdm.HostListOptions{})
 	require.NoError(t, err)
 	require.Len(t, hosts, 1)
 	require.Equal(t, h1.ID, hosts[0].ID)
@@ -4563,11 +4563,11 @@ func testListLabelsOrderKeys(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
 	for _, name := range []string{"alpha", "beta", "gamma"} {
-		err := ds.ApplyLabelSpecs(ctx, []*fleet.LabelSpec{{Name: name, Query: "select 1"}})
+		err := ds.ApplyLabelSpecs(ctx, []*automdm.LabelSpec{{Name: name, Query: "select 1"}})
 		require.NoError(t, err)
 	}
 
-	filter := fleet.TeamFilter{User: test.UserAdmin}
+	filter := automdm.TeamFilter{User: test.UserAdmin}
 	for _, key := range []string{
 		"id",
 		"created_at",
@@ -4580,11 +4580,11 @@ func testListLabelsOrderKeys(t *testing.T, ds *Datastore) {
 		"label_membership_type",
 		"author_id",
 		"criteria",
-		"fleet_id",
+		"team_id",
 		"host_count",
 	} {
 		t.Run("order_"+key, func(t *testing.T) {
-			labels, err := ds.ListLabels(ctx, filter, fleet.ListOptions{OrderKey: key, PerPage: 100}, true)
+			labels, err := ds.ListLabels(ctx, filter, automdm.ListOptions{OrderKey: key, PerPage: 100}, true)
 			require.NoError(t, err)
 			require.GreaterOrEqual(t, len(labels), 3)
 		})
@@ -4592,16 +4592,16 @@ func testListLabelsOrderKeys(t *testing.T, ds *Datastore) {
 
 	t.Run("rejects_unknown_key", func(t *testing.T) {
 		for _, key := range []string{"l.id; SELECT 1", "team_id"} {
-			_, err := ds.ListLabels(ctx, filter, fleet.ListOptions{OrderKey: key}, false)
+			_, err := ds.ListLabels(ctx, filter, automdm.ListOptions{OrderKey: key}, false)
 			require.Error(t, err)
 		}
 	})
 
 	t.Run("page_pagination_with_allowed_key", func(t *testing.T) {
-		page0, err := ds.ListLabels(ctx, filter, fleet.ListOptions{OrderKey: "name", PerPage: 2, Page: 0}, false)
+		page0, err := ds.ListLabels(ctx, filter, automdm.ListOptions{OrderKey: "name", PerPage: 2, Page: 0}, false)
 		require.NoError(t, err)
 		require.NotEmpty(t, page0)
-		page1, err := ds.ListLabels(ctx, filter, fleet.ListOptions{OrderKey: "name", PerPage: 2, Page: 1}, false)
+		page1, err := ds.ListLabels(ctx, filter, automdm.ListOptions{OrderKey: "name", PerPage: 2, Page: 1}, false)
 		require.NoError(t, err)
 		require.NotEmpty(t, page1)
 		require.NotEqual(t, page0[0].Name, page1[0].Name)
@@ -4615,9 +4615,9 @@ func testLabelMembershipHostIDs(t *testing.T, ds *Datastore) {
 	// global label's membership. A team-scoped reader of the label may not
 	// "see" the host via team-filtered counts, but LabelMembershipHostIDs must
 	// always return the unfiltered membership for activity tracking.
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "membership-team"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "membership-team"})
 	require.NoError(t, err)
-	teamHost, err := ds.NewHost(ctx, &fleet.Host{
+	teamHost, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID:  ptr.String("memb-team-host"), //nolint:modernize
 		NodeKey:        ptr.String("memb-team-host"), //nolint:modernize
 		UUID:           "memb-team-host",
@@ -4627,7 +4627,7 @@ func testLabelMembershipHostIDs(t *testing.T, ds *Datastore) {
 		TeamID:         &team.ID,
 	})
 	require.NoError(t, err)
-	globalHost, err := ds.NewHost(ctx, &fleet.Host{
+	globalHost, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID:  ptr.String("memb-global-host"), //nolint:modernize
 		NodeKey:        ptr.String("memb-global-host"), //nolint:modernize
 		UUID:           "memb-global-host",
@@ -4637,15 +4637,15 @@ func testLabelMembershipHostIDs(t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 
-	require.NoError(t, ds.ApplyLabelSpecs(ctx, []*fleet.LabelSpec{
+	require.NoError(t, ds.ApplyLabelSpecs(ctx, []*automdm.LabelSpec{
 		{
 			Name:                "memb-label",
-			LabelMembershipType: fleet.LabelMembershipTypeManual,
+			LabelMembershipType: automdm.LabelMembershipTypeManual,
 			Hosts:               []string{"memb-serial-team", "memb-serial-global"},
 		},
 	}))
 
-	lbl := labelByName(t, ds, "memb-label", fleet.TeamFilter{User: test.UserAdmin})
+	lbl := labelByName(t, ds, "memb-label", automdm.TeamFilter{User: test.UserAdmin})
 	require.NotNil(t, lbl)
 
 	// LabelMembershipHostIDs must return both hosts, regardless of team.
@@ -4654,9 +4654,9 @@ func testLabelMembershipHostIDs(t *testing.T, ds *Datastore) {
 	require.ElementsMatch(t, []uint{teamHost.ID, globalHost.ID}, gotIDs)
 
 	// Empty membership returns no IDs and no error.
-	emptyLbl, err := ds.NewLabel(ctx, &fleet.Label{
+	emptyLbl, err := ds.NewLabel(ctx, &automdm.Label{
 		Name:                "memb-label-empty",
-		LabelMembershipType: fleet.LabelMembershipTypeManual,
+		LabelMembershipType: automdm.LabelMembershipTypeManual,
 	})
 	require.NoError(t, err)
 	gotIDs, err = ds.LabelMembershipHostIDs(ctx, emptyLbl.ID)

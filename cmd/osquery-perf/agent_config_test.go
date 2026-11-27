@@ -10,9 +10,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/cmd/osquery-perf/hostidentity"
-	"github.com/fleetdm/fleet/v4/cmd/osquery-perf/osquery_perf"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/cmd/osquery-perf/hostidentity"
+	"github.com/anilyagiz/automdm/v4/cmd/osquery-perf/osquery_perf"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/require"
 )
 
@@ -631,7 +631,7 @@ func TestConfigOrbitFallbackChangeReported(t *testing.T) {
 	etags := []string{"v1", "v2", "v2"}
 	var headers []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		headers = append(headers, r.Header.Get(fleet.OsqueryConfigFallbackChangeHeader))
+		headers = append(headers, r.Header.Get(automdm.OsqueryConfigFallbackChangeHeader))
 		etag := etags[min(len(headers), len(etags))-1]
 		if got := requestETag(r); got != nil && *got == etag {
 			_, _ = w.Write([]byte(unchangedBody))

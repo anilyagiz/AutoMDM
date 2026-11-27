@@ -8,14 +8,14 @@ import (
 
 func TestExportArgs(t *testing.T) {
 	cfg := Config{
-		Key: "k", DBUser: "fleet", DBPassword: "insecure",
-		DBAddress: "localhost:3306", DBName: "fleet",
+		Key: "k", DBUser: "automdm", DBPassword: "insecure",
+		DBAddress: "localhost:3306", DBName: "automdm",
 	}
 	got := ExportArgs(cfg, "/out")
 	want := []string{
 		"export", "-key", "k", "-dir", "/out",
-		"-db-user", "fleet", "-db-password", "insecure",
-		"-db-address", "localhost:3306", "-db-name", "fleet",
+		"-db-user", "automdm", "-db-password", "insecure",
+		"-db-address", "localhost:3306", "-db-name", "automdm",
 	}
 	if !equal(got, want) {
 		t.Errorf("ExportArgs = %v, want %v", got, want)
@@ -36,15 +36,15 @@ func TestExportArgs(t *testing.T) {
 }
 
 func TestParseWrittenPaths(t *testing.T) {
-	out := `2026/07/17 00:43:46 wrote ca_cert in /Users/a/fleet/ca_cert.crt
-2026/07/17 00:43:46 wrote scep_challenge in /Users/a/fleet/scep_challenge
+	out := `2026/07/17 00:43:46 wrote ca_cert in /Users/a/automdm/ca_cert.crt
+2026/07/17 00:43:46 wrote scep_challenge in /Users/a/automdm/scep_challenge
 some other line
-2026/07/17 00:43:46 wrote apns_key in /Users/a/my fleet/apns_key.key`
+2026/07/17 00:43:46 wrote apns_key in /Users/a/my automdm/apns_key.key`
 	got := ParseWrittenPaths(out)
 	want := []string{
-		"/Users/a/fleet/ca_cert.crt",
-		"/Users/a/fleet/scep_challenge",
-		"/Users/a/my fleet/apns_key.key", // path with a space captured whole
+		"/Users/a/automdm/ca_cert.crt",
+		"/Users/a/automdm/scep_challenge",
+		"/Users/a/my automdm/apns_key.key", // path with a space captured whole
 	}
 	if !equal(got, want) {
 		t.Errorf("ParseWrittenPaths = %v, want %v", got, want)
@@ -61,7 +61,7 @@ func TestSaveListDeleteRoundTrip(t *testing.T) {
 		t.Errorf("empty dir should list 0 configs, got %d", len(got))
 	}
 
-	saved, err := Save(dir, Config{ID: "a", Name: "local", DBName: "fleet"}, 1000)
+	saved, err := Save(dir, Config{ID: "a", Name: "local", DBName: "automdm"}, 1000)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +70,7 @@ func TestSaveListDeleteRoundTrip(t *testing.T) {
 	}
 
 	// Update preserves CreatedAtMS, bumps UpdatedAtMS.
-	saved2, err := Save(dir, Config{ID: "a", Name: "local2", DBName: "fleet"}, 2000)
+	saved2, err := Save(dir, Config{ID: "a", Name: "local2", DBName: "automdm"}, 2000)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -3,7 +3,7 @@ import React, { useCallback, useContext, useState } from "react";
 import { InjectedRouter } from "react-router";
 
 import Button from "components/buttons/Button";
-import FleetsDropdown from "components/FleetsDropdown";
+import AutoMDMsDropdown from "components/AutoMDMsDropdown";
 import InputField from "components/forms/fields/InputField";
 import Modal from "components/Modal";
 import { notify } from "components/ToastNotification";
@@ -66,7 +66,7 @@ const SaveAsNewQueryModal = ({
   const [formData, setFormData] = useState<ISANQFormData>({
     queryName: `Copy of ${initialQueryData.name}`,
     team: {
-      id: initialQueryData.fleet_id,
+      id: initialQueryData.team_id,
       name: undefined,
     },
   });
@@ -149,7 +149,7 @@ const SaveAsNewQueryModal = ({
     const createBody = {
       ...initialQueryData,
       name: queryName,
-      fleet_id: teamId === APP_CONTEXT_ALL_TEAMS_ID ? API_ALL_TEAMS_ID : teamId,
+      team_id: teamId === APP_CONTEXT_ALL_TEAMS_ID ? API_ALL_TEAMS_ID : teamId,
     };
     try {
       const { report: newReport } = await queryAPI.create(createBody);
@@ -157,7 +157,7 @@ const SaveAsNewQueryModal = ({
       notify.success(`Successfully added report ${newReport.name}.`);
       router.push(
         getPathWithQueryParams(PATHS.REPORT_DETAILS(newReport.id), {
-          fleet_id: newReport.fleet_id,
+          team_id: newReport.team_id,
           host_id: hostId,
         })
       );
@@ -167,9 +167,9 @@ const SaveAsNewQueryModal = ({
       if (reason.includes("already exists")) {
         let teamText;
         if (teamId !== APP_CONTEXT_ALL_TEAMS_ID) {
-          teamText = teamName ? `the ${teamName} fleet` : "this fleet";
+          teamText = teamName ? `the ${teamName} team` : "this team";
         } else {
-          teamText = "all fleets";
+          teamText = "all teams";
         }
         errFlash = `A report called "${queryName}" already exists for ${teamText}.`;
       } else if (reason.includes(INVALID_PLATFORMS_REASON)) {
@@ -196,11 +196,11 @@ const SaveAsNewQueryModal = ({
         />
         {isPremiumTier && (userTeams?.length || 0) > 1 && (
           <div className="form-field">
-            <div className="form-field__label">Fleet</div>
-            <FleetsDropdown
+            <div className="form-field__label">AutoMDM</div>
+            <AutoMDMsDropdown
               asFormField
-              currentUserFleets={userTeams || []}
-              selectedFleetId={formData.team.id}
+              currentUserTeams={userTeams || []}
+              selectedAutoMDMId={formData.team.id}
               onChange={onTeamChange}
             />
           </div>

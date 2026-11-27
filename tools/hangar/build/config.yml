@@ -6,11 +6,11 @@ version: '3'
 # This information is used to generate the build assets.
 info:
   companyName: "Fleet Device Management" # The name of the company
-  productName: "Fleet Hangar" # The name of the application
+  productName: "AutoMDM Hangar" # The name of the application
   productIdentifier: "com.fleetdm.fleet-hangar" # The unique product identifier
-  description: "Desktop control panel for the Fleet dev environment" # The application description
+  description: "Desktop control panel for the AutoMDM dev environment" # The application description
   copyright: "(c) 2026, Fleet Device Management" # Copyright text
-  comments: "https://github.com/fleetdm/fleet/tree/main/tools/hangar" # Comments
+  comments: "https://github.com/anilyagiz/automdm/tree/main/tools/hangar" # Comments
   version: "1.2.1" # The application version — bump this when sharing a build; it is the single source (see README "Versioning")
   # cfBundleIconName: "appicon" # The macOS icon name in Assets.car icon bundles (optional)
   #                               # Should match the name of your .icon file without the extension

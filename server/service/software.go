@@ -8,13 +8,13 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	platform_http "github.com/fleetdm/fleet/v4/server/platform/http"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	platform_http "github.com/anilyagiz/automdm/v4/server/platform/http"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 )
 
 /////////////////////////////////////////////////////////////////////////////////
@@ -22,15 +22,15 @@ import (
 /////////////////////////////////////////////////////////////////////////////////
 
 type listSoftwareRequest struct {
-	fleet.SoftwareListOptions
+	automdm.SoftwareListOptions
 }
 
 type listSoftwareVersionsResponse struct {
-	Count           int                       `json:"count"`
-	CountsUpdatedAt *time.Time                `json:"counts_updated_at"`
-	Software        []fleet.Software          `json:"software,omitempty"`
-	Meta            *fleet.PaginationMetadata `json:"meta"`
-	Err             error                     `json:"error,omitempty"`
+	Count           int                         `json:"count"`
+	CountsUpdatedAt *time.Time                  `json:"counts_updated_at"`
+	Software        []automdm.Software          `json:"software,omitempty"`
+	Meta            *automdm.PaginationMetadata `json:"meta"`
+	Err             error                       `json:"error,omitempty"`
 }
 
 func (r listSoftwareVersionsResponse) Error() error { return r.Err }
@@ -88,7 +88,7 @@ func (r streamSoftwareVersionsResponse) HijackRender(_ context.Context, w http.R
 		if writeErr != nil {
 			return
 		}
-		// By pointer, so that fleet.Software's MarshalJSON is used.
+		// By pointer, so that automdm.Software's MarshalJSON is used.
 		sw, err := json.Marshal(&r.Software[i])
 		if err != nil {
 			write([]byte(`],`))
@@ -103,13 +103,13 @@ func (r streamSoftwareVersionsResponse) HijackRender(_ context.Context, w http.R
 	write([]byte(`]}`))
 }
 
-func listSoftwareVersionsEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func listSoftwareVersionsEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*listSoftwareRequest)
 
 	// always include pagination for the software versions endpoint
 	req.SoftwareListOptions.ListOptions.IncludeMetadata = true
 
-	// fleet.DefaultPerPage is effectively unbounded, and returning a whole large
+	// automdm.DefaultPerPage is effectively unbounded, and returning a whole large
 	// inventory in one response takes long enough to trip a load balancer's idle
 	// timeout, so fall back to the bounded page size instead.
 	if req.SoftwareListOptions.ListOptions.PerPage == 0 {
@@ -142,10 +142,10 @@ func listSoftwareVersionsEndpoint(ctx context.Context, request interface{}, svc 
 	return streamSoftwareVersionsResponse{listSoftwareVersionsResponse: listResp}, nil
 }
 
-func (svc *Service) ListSoftware(ctx context.Context, opt fleet.SoftwareListOptions) ([]fleet.Software, *fleet.PaginationMetadata, error) {
-	if err := svc.authz.Authorize(ctx, &fleet.AuthzSoftwareInventory{
+func (svc *Service) ListSoftware(ctx context.Context, opt automdm.SoftwareListOptions) ([]automdm.Software, *automdm.PaginationMetadata, error) {
+	if err := svc.authz.Authorize(ctx, &automdm.AuthzSoftwareInventory{
 		TeamID: opt.TeamID,
-	}, fleet.ActionRead); err != nil {
+	}, automdm.ActionRead); err != nil {
 		return nil, nil, err
 	}
 
@@ -155,10 +155,10 @@ func (svc *Service) ListSoftware(ctx context.Context, opt fleet.SoftwareListOpti
 		return nil, nil, err
 	}
 	if !lic.IsPremium() && (opt.MaximumCVSS > 0 || opt.MinimumCVSS > 0 || opt.KnownExploit || opt.AITool) {
-		return nil, nil, fleet.ErrMissingLicense
+		return nil, nil, automdm.ErrMissingLicense
 	}
 
-	opt.TypeFilter, err = fleet.ParseSoftwareTypeFilter(opt.Source, opt.ExtensionFor)
+	opt.TypeFilter, err = automdm.ParseSoftwareTypeFilter(opt.Source, opt.ExtensionFor)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -166,7 +166,7 @@ func (svc *Service) ListSoftware(ctx context.Context, opt fleet.SoftwareListOpti
 	// default sort order to hosts_count descending
 	if opt.ListOptions.OrderKey == "" {
 		opt.ListOptions.OrderKey = "hosts_count"
-		opt.ListOptions.OrderDirection = fleet.OrderDescending
+		opt.ListOptions.OrderDirection = automdm.OrderDescending
 	}
 	opt.WithHostCounts = true
 
@@ -174,7 +174,7 @@ func (svc *Service) ListSoftware(ctx context.Context, opt fleet.SoftwareListOpti
 	if err != nil {
 		return nil, nil, err
 	}
-	// ai_tool is Fleet Premium, so it's omitted on Free. That also hides software flagged before a
+	// ai_tool is AutoMDM Premium, so it's omitted on Free. That also hides software flagged before a
 	// downgrade, since the flag is never reset in the database.
 	if !lic.IsPremium() {
 		for i := range softwares {
@@ -191,17 +191,17 @@ func (svc *Service) ListSoftware(ctx context.Context, opt fleet.SoftwareListOpti
 
 type getSoftwareRequest struct {
 	ID     uint  `url:"id"`
-	TeamID *uint `query:"fleet_id,optional"`
+	TeamID *uint `query:"team_id,optional"`
 }
 
 type getSoftwareResponse struct {
-	Software *fleet.Software `json:"software,omitempty"`
-	Err      error           `json:"error,omitempty"`
+	Software *automdm.Software `json:"software,omitempty"`
+	Err      error             `json:"error,omitempty"`
 }
 
 func (r getSoftwareResponse) Error() error { return r.Err }
 
-func getSoftwareEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func getSoftwareEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*getSoftwareRequest)
 
 	software, err := svc.SoftwareByID(ctx, req.ID, req.TeamID, false)
@@ -212,27 +212,27 @@ func getSoftwareEndpoint(ctx context.Context, request interface{}, svc fleet.Ser
 	return getSoftwareResponse{Software: software}, nil
 }
 
-func (svc *Service) SoftwareByID(ctx context.Context, id uint, teamID *uint, includeCVEScores bool) (*fleet.Software, error) {
-	if err := svc.authz.Authorize(ctx, &fleet.Host{TeamID: teamID}, fleet.ActionList); err != nil {
+func (svc *Service) SoftwareByID(ctx context.Context, id uint, teamID *uint, includeCVEScores bool) (*automdm.Software, error) {
+	if err := svc.authz.Authorize(ctx, &automdm.Host{TeamID: teamID}, automdm.ActionList); err != nil {
 		return nil, err
 	}
 
 	if teamID != nil && *teamID > 0 {
 		// This auth check ensures we return 403 if the user doesn't have access to the team
-		if err := svc.authz.Authorize(ctx, &fleet.AuthzSoftwareInventory{TeamID: teamID}, fleet.ActionRead); err != nil {
+		if err := svc.authz.Authorize(ctx, &automdm.AuthzSoftwareInventory{TeamID: teamID}, automdm.ActionRead); err != nil {
 			return nil, err
 		}
 		exists, err := svc.ds.TeamExists(ctx, *teamID)
 		if err != nil {
 			return nil, ctxerr.Wrap(ctx, err, "checking if team exists")
 		} else if !exists {
-			return nil, fleet.NewInvalidArgumentError("fleet_id", fmt.Sprintf("fleet %d does not exist", *teamID)).
+			return nil, automdm.NewInvalidArgumentError("team_id", fmt.Sprintf("team %d does not exist", *teamID)).
 				WithStatus(http.StatusNotFound)
 		}
 	}
 	vc, ok := viewer.FromContext(ctx)
 	if !ok {
-		return nil, fleet.ErrNoContext
+		return nil, automdm.ErrNoContext
 	}
 
 	// NOTE: The following logic relaxes the restriction so that software metadata (e.g. id, name)
@@ -240,15 +240,15 @@ func (svc *Service) SoftwareByID(ctx context.Context, id uint, teamID *uint, inc
 	// is installed. However, host-specific information remains protected and is only available if the
 	// user is authorized for the relevant teams. This ensures basic metadata visibility across all users
 	// while preserving team-based access control for sensitive, host-linked data.
-	software, err := svc.ds.SoftwareByID(ctx, id, teamID, includeCVEScores, &fleet.TeamFilter{
+	software, err := svc.ds.SoftwareByID(ctx, id, teamID, includeCVEScores, &automdm.TeamFilter{
 		User:            vc.User,
 		IncludeObserver: true,
 	})
 	if err != nil {
-		if fleet.IsNotFound(err) && teamID == nil {
+		if automdm.IsNotFound(err) && teamID == nil {
 			// here we use a global admin as filter because we want
 			// to check if the software version exists
-			filter := fleet.TeamFilter{User: &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}}
+			filter := automdm.TeamFilter{User: &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}}
 			sw, err := svc.ds.SoftwareByID(ctx, id, teamID, includeCVEScores, &filter)
 			if err != nil {
 				// Not found anywhere
@@ -256,7 +256,7 @@ func (svc *Service) SoftwareByID(ctx context.Context, id uint, teamID *uint, inc
 			}
 			// Found, but user has no permission to hosts it's installed on.
 			// Instead of PermissionError, return a stub with the name.
-			stub := &fleet.Software{
+			stub := &automdm.Software{
 				ID:   id,
 				Name: sw.Name,
 			}
@@ -274,13 +274,13 @@ func (svc *Service) SoftwareByID(ctx context.Context, id uint, teamID *uint, inc
 func (svc *Service) SoftwareLiteByID(
 	ctx context.Context,
 	id uint,
-) (fleet.SoftwareLite, error) {
-	if err := svc.authz.Authorize(ctx, &fleet.AuthzSoftwareInventory{}, fleet.ActionRead); err != nil {
-		return fleet.SoftwareLite{}, err
+) (automdm.SoftwareLite, error) {
+	if err := svc.authz.Authorize(ctx, &automdm.AuthzSoftwareInventory{}, automdm.ActionRead); err != nil {
+		return automdm.SoftwareLite{}, err
 	}
 	swLite, err := svc.ds.SoftwareLiteByID(ctx, id)
 	if err != nil {
-		return fleet.SoftwareLite{}, err
+		return automdm.SoftwareLite{}, err
 	}
 
 	return swLite, nil
@@ -290,10 +290,10 @@ func (svc *Service) SoftwareLiteByID(
 // Count
 /////////////////////////////////////////////////////////////////////////////////
 
-func (svc Service) CountSoftware(ctx context.Context, opt fleet.SoftwareListOptions) (int, error) {
-	if err := svc.authz.Authorize(ctx, &fleet.AuthzSoftwareInventory{
+func (svc Service) CountSoftware(ctx context.Context, opt automdm.SoftwareListOptions) (int, error) {
+	if err := svc.authz.Authorize(ctx, &automdm.AuthzSoftwareInventory{
 		TeamID: opt.TeamID,
-	}, fleet.ActionRead); err != nil {
+	}, automdm.ActionRead); err != nil {
 		return 0, err
 	}
 
@@ -304,10 +304,10 @@ func (svc Service) CountSoftware(ctx context.Context, opt fleet.SoftwareListOpti
 
 	// Vulnerability filters are only available in premium
 	if !lic.IsPremium() && (opt.MaximumCVSS > 0 || opt.MinimumCVSS > 0 || opt.KnownExploit || opt.AITool) {
-		return 0, fleet.ErrMissingLicense
+		return 0, automdm.ErrMissingLicense
 	}
 
-	opt.TypeFilter, err = fleet.ParseSoftwareTypeFilter(opt.Source, opt.ExtensionFor)
+	opt.TypeFilter, err = automdm.ParseSoftwareTypeFilter(opt.Source, opt.ExtensionFor)
 	if err != nil {
 		return 0, err
 	}

@@ -3,16 +3,16 @@
 package async
 
 import (
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
 type Task struct {
-	datastore   fleet.Datastore
+	datastore   automdm.Datastore
 	seenHostSet seenHostSet
 	otelEnabled bool
 }
 
-func NewTask(ds fleet.Datastore, otelEnabled bool) *Task {
+func NewTask(ds automdm.Datastore, otelEnabled bool) *Task {
 	return &Task{
 		datastore:   ds,
 		otelEnabled: otelEnabled,

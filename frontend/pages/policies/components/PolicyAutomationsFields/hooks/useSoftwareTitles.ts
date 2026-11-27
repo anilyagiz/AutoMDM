@@ -10,11 +10,11 @@ import softwareAPI, {
 const SOFTWARE_PAGE_SIZE = 1000;
 
 interface IUseSoftwareTitlesArgs {
-  fleetId: number;
+  automdmId: number;
   enabled: boolean;
 }
 
-const useSoftwareTitles = ({ fleetId, enabled }: IUseSoftwareTitlesArgs) =>
+const useSoftwareTitles = ({ automdmId, enabled }: IUseSoftwareTitlesArgs) =>
   useQuery<
     ISoftwareTitlesResponse,
     Error,
@@ -29,7 +29,7 @@ const useSoftwareTitles = ({ fleetId, enabled }: IUseSoftwareTitlesArgs) =>
         query: "",
         orderDirection: "desc",
         orderKey: "hosts_count",
-        teamId: fleetId,
+        teamId: automdmId,
         availableForInstall: true,
         platform: "darwin,windows,linux" as CommaSeparatedPlatformString,
       },

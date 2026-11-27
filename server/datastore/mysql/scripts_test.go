@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/test"
-	"github.com/fleetdm/fleet/v4/server/worker"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/worker"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
@@ -91,7 +91,7 @@ func testHostScriptResult(t *testing.T, ds *Datastore) {
 
 	// create a createdScript execution request (with a user)
 	u := test.NewUser(t, ds, "Bob", "bob@example.com", true)
-	createdScript1, err := ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+	createdScript1, err := ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 		HostID:         1,
 		ScriptContents: "echo",
 		UserID:         &u.ID,
@@ -117,7 +117,7 @@ func testHostScriptResult(t *testing.T, ds *Datastore) {
 	require.Equal(t, createdScript1.ID, pending[0].ID)
 
 	// record a result for this execution
-	hsr, action, err := ds.SetHostScriptExecutionResult(ctx, &fleet.HostScriptResultPayload{
+	hsr, action, err := ds.SetHostScriptExecutionResult(ctx, &automdm.HostScriptResultPayload{
 		HostID:      1,
 		ExecutionID: createdScript1.ExecutionID,
 		Output:      "foo",
@@ -130,7 +130,7 @@ func testHostScriptResult(t *testing.T, ds *Datastore) {
 	assert.NotNil(t, hsr)
 
 	// record a duplicate result for this execution, will be ignored
-	hsr, _, err = ds.SetHostScriptExecutionResult(ctx, &fleet.HostScriptResultPayload{
+	hsr, _, err = ds.SetHostScriptExecutionResult(ctx, &automdm.HostScriptResultPayload{
 		HostID:      1,
 		ExecutionID: createdScript1.ExecutionID,
 		Output:      "foobarbaz",
@@ -163,7 +163,7 @@ func testHostScriptResult(t *testing.T, ds *Datastore) {
 
 	// create another script execution request (null user id this time)
 	time.Sleep(time.Millisecond) // ensure a different timestamp
-	createdScript2, err := ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+	createdScript2, err := ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 		HostID:         1,
 		ScriptContents: "echo2",
 	})
@@ -181,7 +181,7 @@ func testHostScriptResult(t *testing.T, ds *Datastore) {
 	require.Equal(t, createdScript2.ID, pending[0].ID)
 
 	// Keep this request queued to exercise upcoming result retrieval.
-	queuedScript, err := ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+	queuedScript, err := ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 		HostID:         1,
 		ScriptContents: "echo3",
 	})
@@ -225,7 +225,7 @@ func testHostScriptResult(t *testing.T, ds *Datastore) {
 		strings.Repeat("j", 1000) +
 		strings.Repeat("k", 1000)
 
-	_, _, err = ds.SetHostScriptExecutionResult(ctx, &fleet.HostScriptResultPayload{
+	_, _, err = ds.SetHostScriptExecutionResult(ctx, &automdm.HostScriptResultPayload{
 		HostID:      1,
 		ExecutionID: createdScript2.ExecutionID,
 		Output:      largeOutput,
@@ -239,12 +239,12 @@ func testHostScriptResult(t *testing.T, ds *Datastore) {
 	script, err = ds.GetHostScriptExecutionResult(ctx, createdScript2.ExecutionID)
 	require.NoError(t, err)
 	require.Equal(t, expectedOutput, script.Output)
-	_, _, err = ds.SetHostScriptExecutionResult(ctx, &fleet.HostScriptResultPayload{HostID: 1, ExecutionID: queuedScript.ExecutionID}, nil)
+	_, _, err = ds.SetHostScriptExecutionResult(ctx, &automdm.HostScriptResultPayload{HostID: 1, ExecutionID: queuedScript.ExecutionID}, nil)
 	require.NoError(t, err)
 
 	// create an async execution request
 	time.Sleep(time.Millisecond) // ensure a different timestamp
-	createdScript3, err := ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+	createdScript3, err := ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 		HostID:         1,
 		ScriptContents: "echo 3",
 		UserID:         &u.ID,
@@ -286,7 +286,7 @@ func testHostScriptResult(t *testing.T, ds *Datastore) {
 
 	// check that scripts with large unsigned error codes get
 	// converted to signed error codes
-	createdUnsignedScript, err := ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+	createdUnsignedScript, err := ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 		HostID:         1,
 		ScriptContents: "echo",
 		UserID:         &u.ID,
@@ -295,7 +295,7 @@ func testHostScriptResult(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// record a result for createdScript3 so that the unsigned script gets activated
-	_, _, err = ds.SetHostScriptExecutionResult(ctx, &fleet.HostScriptResultPayload{
+	_, _, err = ds.SetHostScriptExecutionResult(ctx, &automdm.HostScriptResultPayload{
 		HostID:      1,
 		ExecutionID: createdScript3.ExecutionID,
 		Output:      "foo",
@@ -306,7 +306,7 @@ func testHostScriptResult(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 	// createdUnsignedScript is now activated, record its result
 
-	unsignedScriptResult, _, err := ds.SetHostScriptExecutionResult(ctx, &fleet.HostScriptResultPayload{
+	unsignedScriptResult, _, err := ds.SetHostScriptExecutionResult(ctx, &automdm.HostScriptResultPayload{
 		HostID:      1,
 		ExecutionID: createdUnsignedScript.ExecutionID,
 		Output:      "foo",
@@ -330,7 +330,7 @@ func testListPendingScriptDEPRestoration(t *testing.T, ds *Datastore) {
 
 	// create a createdScript execution request (with a user)
 	u := test.NewUser(t, ds, "Bob", "bob@example.com", true)
-	createdScript, err := ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+	createdScript, err := ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 		HostID:         host.ID,
 		ScriptContents: "echo",
 		UserID:         &u.ID,
@@ -374,7 +374,7 @@ func testScripts(t *testing.T, ds *Datastore) {
 
 	// get unknown script
 	_, err := ds.Script(ctx, 123)
-	var nfe fleet.NotFoundError
+	var nfe automdm.NotFoundError
 	require.ErrorAs(t, err, &nfe)
 
 	// get unknown script contents
@@ -384,7 +384,7 @@ func testScripts(t *testing.T, ds *Datastore) {
 	require.ErrorAs(t, err, &nfe)
 
 	// create global scriptGlobal
-	scriptGlobal, err := ds.NewScript(ctx, &fleet.Script{
+	scriptGlobal, err := ds.NewScript(ctx, &automdm.Script{
 		Name:           "a",
 		ScriptContents: "echo",
 	})
@@ -408,19 +408,19 @@ func testScripts(t *testing.T, ds *Datastore) {
 	require.Equal(t, "echo", string(contents))
 
 	// create team script but team does not exist
-	_, err = ds.NewScript(ctx, &fleet.Script{
+	_, err = ds.NewScript(ctx, &automdm.Script{
 		Name:           "a",
 		TeamID:         ptr.Uint(123),
 		ScriptContents: "echo",
 	})
 	require.Error(t, err)
-	var fkErr fleet.ForeignKeyError
+	var fkErr automdm.ForeignKeyError
 	require.ErrorAs(t, err, &fkErr)
 
 	// create a team and a script for that team with the same name as global
-	tm, err := ds.NewTeam(ctx, &fleet.Team{Name: t.Name()})
+	tm, err := ds.NewTeam(ctx, &automdm.Team{Name: t.Name()})
 	require.NoError(t, err)
-	scriptTeam, err := ds.NewScript(ctx, &fleet.Script{
+	scriptTeam, err := ds.NewScript(ctx, &automdm.Script{
 		Name:           "a",
 		TeamID:         &tm.ID,
 		ScriptContents: "echo 'team'",
@@ -444,17 +444,17 @@ func testScripts(t *testing.T, ds *Datastore) {
 	require.Equal(t, "echo 'team'", string(contents))
 
 	// try to create another team script with the same name
-	_, err = ds.NewScript(ctx, &fleet.Script{
+	_, err = ds.NewScript(ctx, &automdm.Script{
 		Name:           "a",
 		TeamID:         &tm.ID,
 		ScriptContents: "echo",
 	})
 	require.Error(t, err)
-	var existsErr fleet.AlreadyExistsError
+	var existsErr automdm.AlreadyExistsError
 	require.ErrorAs(t, err, &existsErr)
 
 	// same for a global script
-	_, err = ds.NewScript(ctx, &fleet.Script{
+	_, err = ds.NewScript(ctx, &automdm.Script{
 		Name:           "a",
 		ScriptContents: "echo",
 	})
@@ -462,7 +462,7 @@ func testScripts(t *testing.T, ds *Datastore) {
 	require.ErrorAs(t, err, &existsErr)
 
 	// create a script with a different name for the team works
-	_, err = ds.NewScript(ctx, &fleet.Script{
+	_, err = ds.NewScript(ctx, &automdm.Script{
 		Name:           "b",
 		TeamID:         &tm.ID,
 		ScriptContents: "echo",
@@ -472,7 +472,7 @@ func testScripts(t *testing.T, ds *Datastore) {
 	// deleting script "a for the team, then we can re-create it
 	err = ds.DeleteScript(ctx, scriptTeam.ID)
 	require.NoError(t, err)
-	scriptTeam2, err := ds.NewScript(ctx, &fleet.Script{
+	scriptTeam2, err := ds.NewScript(ctx, &automdm.Script{
 		Name:           "a",
 		TeamID:         &tm.ID,
 		ScriptContents: "echo",
@@ -485,83 +485,83 @@ func testListScripts(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
 	// create three teams
-	tm1, err := ds.NewTeam(ctx, &fleet.Team{Name: "team1"})
+	tm1, err := ds.NewTeam(ctx, &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
-	tm2, err := ds.NewTeam(ctx, &fleet.Team{Name: "team2"})
+	tm2, err := ds.NewTeam(ctx, &automdm.Team{Name: "team2"})
 	require.NoError(t, err)
-	tm3, err := ds.NewTeam(ctx, &fleet.Team{Name: "team3"})
+	tm3, err := ds.NewTeam(ctx, &automdm.Team{Name: "team3"})
 	require.NoError(t, err)
 
 	// create 5 scripts for no team and team 1
 	for i := 0; i < 5; i++ {
-		_, err = ds.NewScript(ctx, &fleet.Script{
+		_, err = ds.NewScript(ctx, &automdm.Script{
 			Name:           string('a' + byte(i)), // i.e. "a", "b", "c", ...
 			ScriptContents: "echo",
 		})
 		require.NoError(t, err)
-		_, err = ds.NewScript(ctx, &fleet.Script{Name: string('a' + byte(i)), TeamID: &tm1.ID, ScriptContents: "echo"})
+		_, err = ds.NewScript(ctx, &automdm.Script{Name: string('a' + byte(i)), TeamID: &tm1.ID, ScriptContents: "echo"})
 		require.NoError(t, err)
 	}
 
 	// create a single script for team 2
-	_, err = ds.NewScript(ctx, &fleet.Script{Name: "a", TeamID: &tm2.ID, ScriptContents: "echo"})
+	_, err = ds.NewScript(ctx, &automdm.Script{Name: "a", TeamID: &tm2.ID, ScriptContents: "echo"})
 	require.NoError(t, err)
 
 	cases := []struct {
-		opts      fleet.ListOptions
+		opts      automdm.ListOptions
 		teamID    *uint
 		wantNames []string
-		wantMeta  *fleet.PaginationMetadata
+		wantMeta  *automdm.PaginationMetadata
 	}{
 		{
-			opts:      fleet.ListOptions{},
+			opts:      automdm.ListOptions{},
 			wantNames: []string{"a", "b", "c", "d", "e"},
-			wantMeta:  &fleet.PaginationMetadata{HasNextResults: false, HasPreviousResults: false},
+			wantMeta:  &automdm.PaginationMetadata{HasNextResults: false, HasPreviousResults: false},
 		},
 		{
-			opts:      fleet.ListOptions{PerPage: 2},
+			opts:      automdm.ListOptions{PerPage: 2},
 			wantNames: []string{"a", "b"},
-			wantMeta:  &fleet.PaginationMetadata{HasNextResults: true, HasPreviousResults: false},
+			wantMeta:  &automdm.PaginationMetadata{HasNextResults: true, HasPreviousResults: false},
 		},
 		{
-			opts:      fleet.ListOptions{Page: 1, PerPage: 2},
+			opts:      automdm.ListOptions{Page: 1, PerPage: 2},
 			wantNames: []string{"c", "d"},
-			wantMeta:  &fleet.PaginationMetadata{HasNextResults: true, HasPreviousResults: true},
+			wantMeta:  &automdm.PaginationMetadata{HasNextResults: true, HasPreviousResults: true},
 		},
 		{
-			opts:      fleet.ListOptions{Page: 2, PerPage: 2},
+			opts:      automdm.ListOptions{Page: 2, PerPage: 2},
 			wantNames: []string{"e"},
-			wantMeta:  &fleet.PaginationMetadata{HasNextResults: false, HasPreviousResults: true},
+			wantMeta:  &automdm.PaginationMetadata{HasNextResults: false, HasPreviousResults: true},
 		},
 		{
-			opts:      fleet.ListOptions{PerPage: 3},
+			opts:      automdm.ListOptions{PerPage: 3},
 			teamID:    &tm1.ID,
 			wantNames: []string{"a", "b", "c"},
-			wantMeta:  &fleet.PaginationMetadata{HasNextResults: true, HasPreviousResults: false},
+			wantMeta:  &automdm.PaginationMetadata{HasNextResults: true, HasPreviousResults: false},
 		},
 		{
-			opts:      fleet.ListOptions{Page: 1, PerPage: 3},
+			opts:      automdm.ListOptions{Page: 1, PerPage: 3},
 			teamID:    &tm1.ID,
 			wantNames: []string{"d", "e"},
-			wantMeta:  &fleet.PaginationMetadata{HasNextResults: false, HasPreviousResults: true},
+			wantMeta:  &automdm.PaginationMetadata{HasNextResults: false, HasPreviousResults: true},
 		},
 		{
-			opts:      fleet.ListOptions{Page: 2, PerPage: 3},
+			opts:      automdm.ListOptions{Page: 2, PerPage: 3},
 			teamID:    &tm1.ID,
 			wantNames: nil,
-			wantMeta:  &fleet.PaginationMetadata{HasNextResults: false, HasPreviousResults: true},
+			wantMeta:  &automdm.PaginationMetadata{HasNextResults: false, HasPreviousResults: true},
 		},
 		{
-			opts:      fleet.ListOptions{PerPage: 3},
+			opts:      automdm.ListOptions{PerPage: 3},
 			teamID:    &tm2.ID,
 			wantNames: []string{"a"},
-			wantMeta:  &fleet.PaginationMetadata{HasNextResults: false, HasPreviousResults: false},
+			wantMeta:  &automdm.PaginationMetadata{HasNextResults: false, HasPreviousResults: false},
 		},
 		{
-			opts:      fleet.ListOptions{Page: 0, PerPage: 2},
+			opts:      automdm.ListOptions{Page: 0, PerPage: 2},
 			teamID:    &tm3.ID,
 			wantNames: nil,
-			wantMeta:  &fleet.PaginationMetadata{HasNextResults: false, HasPreviousResults: false},
+			wantMeta:  &automdm.PaginationMetadata{HasNextResults: false, HasPreviousResults: false},
 		},
 	}
 	for _, c := range cases {
@@ -588,14 +588,14 @@ func testListScripts(t *testing.T, ds *Datastore) {
 
 	for _, key := range []string{"id", "name", "created_at", "updated_at"} {
 		t.Run("order_"+key, func(t *testing.T) {
-			result, _, err := ds.ListScripts(ctx, nil, fleet.ListOptions{OrderKey: key, PerPage: 10})
+			result, _, err := ds.ListScripts(ctx, nil, automdm.ListOptions{OrderKey: key, PerPage: 10})
 			require.NoError(t, err)
 			require.NotEmpty(t, result)
 		})
 	}
 
 	t.Run("rejects_unknown_key", func(t *testing.T) {
-		_, _, err := ds.ListScripts(ctx, nil, fleet.ListOptions{OrderKey: "h.node_key"})
+		_, _, err := ds.ListScripts(ctx, nil, automdm.ListOptions{OrderKey: "h.node_key"})
 		require.Error(t, err)
 	})
 }
@@ -606,7 +606,7 @@ func testGetHostScriptDetails(t *testing.T, ds *Datastore) {
 
 	names := []string{"script-1.sh", "script-2.sh", "script-3.sh", "script-4.sh", "script-5.sh"}
 	for _, r := range append(names[1:], names[0]) {
-		_, err := ds.NewScript(ctx, &fleet.Script{
+		_, err := ds.NewScript(ctx, &automdm.Script{
 			Name:           r,
 			ScriptContents: "echo " + r,
 		})
@@ -614,22 +614,22 @@ func testGetHostScriptDetails(t *testing.T, ds *Datastore) {
 	}
 
 	// create a windows script as well
-	_, err := ds.NewScript(ctx, &fleet.Script{
+	_, err := ds.NewScript(ctx, &automdm.Script{
 		Name:           "script-6.ps1",
 		ScriptContents: `Write-Host "Hello, World!"`,
 	})
 	require.NoError(t, err)
 
-	scripts, _, err := ds.ListScripts(ctx, nil, fleet.ListOptions{})
+	scripts, _, err := ds.ListScripts(ctx, nil, automdm.ListOptions{})
 	require.NoError(t, err)
 	require.Len(t, scripts, 6)
 
-	insertResults := func(t *testing.T, hostID uint, script *fleet.Script, createdAt time.Time, execID string, exitCode *int64) {
+	insertResults := func(t *testing.T, hostID uint, script *automdm.Script, createdAt time.Time, execID string, exitCode *int64) {
 		var scriptID *uint
 		if script.ID != 0 {
 			scriptID = &script.ID
 		}
-		hsr, err := ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+		hsr, err := ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 			HostID:   hostID,
 			ScriptID: scriptID,
 		})
@@ -646,7 +646,7 @@ func testGetHostScriptDetails(t *testing.T, ds *Datastore) {
 			require.ElementsMatch(t, act, ds.testActivateSpecificNextActivities)
 			ds.testActivateSpecificNextActivities = nil
 
-			_, _, err = ds.SetHostScriptExecutionResult(ctx, &fleet.HostScriptResultPayload{
+			_, _, err = ds.SetHostScriptExecutionResult(ctx, &automdm.HostScriptResultPayload{
 				HostID:      hostID,
 				ExecutionID: execID,
 				ExitCode:    int(*exitCode),
@@ -667,7 +667,7 @@ func testGetHostScriptDetails(t *testing.T, ds *Datastore) {
 	// add some results for an ad-hoc, non-saved script, should not be included in results
 	// create it first so that this one gets activated, and the other ones are never
 	// activated automatically.
-	_, err = ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+	_, err = ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 		HostID:         42,
 		ScriptContents: "echo script-6",
 	})
@@ -695,7 +695,7 @@ func testGetHostScriptDetails(t *testing.T, ds *Datastore) {
 	insertResults(t, 42, scripts[4], now.Add(-3*time.Minute), "execution-5-2", nil) // upcoming is always latest, regardless of timestamp
 
 	t.Run("results match expected formatting and filtering", func(t *testing.T) {
-		res, _, err := ds.GetHostScriptDetails(ctx, 42, nil, fleet.ListOptions{}, "")
+		res, _, err := ds.GetHostScriptDetails(ctx, 42, nil, automdm.ListOptions{}, "")
 		require.NoError(t, err)
 		require.Len(t, res, 6)
 		for _, r := range res {
@@ -740,7 +740,7 @@ func testGetHostScriptDetails(t *testing.T, ds *Datastore) {
 	})
 
 	t.Run("empty slice returned if no scripts", func(t *testing.T) {
-		res, _, err := ds.GetHostScriptDetails(ctx, 42, ptr.Uint(1), fleet.ListOptions{}, "") // team 1 has no scripts
+		res, _, err := ds.GetHostScriptDetails(ctx, 42, ptr.Uint(1), automdm.ListOptions{}, "") // team 1 has no scripts
 		require.NoError(t, err)
 		require.NotNil(t, res)
 		require.Len(t, res, 0)
@@ -748,30 +748,30 @@ func testGetHostScriptDetails(t *testing.T, ds *Datastore) {
 
 	t.Run("list options are supported", func(t *testing.T) {
 		cases := []struct {
-			opts      fleet.ListOptions
+			opts      automdm.ListOptions
 			teamID    *uint
 			wantNames []string
-			wantMeta  *fleet.PaginationMetadata
+			wantMeta  *automdm.PaginationMetadata
 		}{
 			{
-				opts:      fleet.ListOptions{},
+				opts:      automdm.ListOptions{},
 				wantNames: names,
-				wantMeta:  &fleet.PaginationMetadata{HasNextResults: false, HasPreviousResults: false},
+				wantMeta:  &automdm.PaginationMetadata{HasNextResults: false, HasPreviousResults: false},
 			},
 			{
-				opts:      fleet.ListOptions{PerPage: 2},
+				opts:      automdm.ListOptions{PerPage: 2},
 				wantNames: names[:2],
-				wantMeta:  &fleet.PaginationMetadata{HasNextResults: true, HasPreviousResults: false},
+				wantMeta:  &automdm.PaginationMetadata{HasNextResults: true, HasPreviousResults: false},
 			},
 			{
-				opts:      fleet.ListOptions{Page: 1, PerPage: 2},
+				opts:      automdm.ListOptions{Page: 1, PerPage: 2},
 				wantNames: names[2:4],
-				wantMeta:  &fleet.PaginationMetadata{HasNextResults: true, HasPreviousResults: true},
+				wantMeta:  &automdm.PaginationMetadata{HasNextResults: true, HasPreviousResults: true},
 			},
 			{
-				opts:      fleet.ListOptions{Page: 2, PerPage: 2},
+				opts:      automdm.ListOptions{Page: 2, PerPage: 2},
 				wantNames: names[4:],
-				wantMeta:  &fleet.PaginationMetadata{HasNextResults: false, HasPreviousResults: true},
+				wantMeta:  &automdm.PaginationMetadata{HasNextResults: false, HasPreviousResults: true},
 			},
 		}
 		for _, c := range cases {
@@ -799,7 +799,7 @@ func testGetHostScriptDetails(t *testing.T, ds *Datastore) {
 	})
 
 	t.Run("windows ps1 scripts are supported", func(t *testing.T) {
-		res, _, err := ds.GetHostScriptDetails(ctx, 42, nil, fleet.ListOptions{}, "windows")
+		res, _, err := ds.GetHostScriptDetails(ctx, 42, nil, automdm.ListOptions{}, "windows")
 		require.NoError(t, err)
 		require.NotNil(t, res)
 		require.Len(t, res, 1)
@@ -807,11 +807,11 @@ func testGetHostScriptDetails(t *testing.T, ds *Datastore) {
 	})
 
 	t.Run("linux distributions are filtered to shell scripts", func(t *testing.T) {
-		// A platform Fleet does not recognize as Unix-like falls through to the
+		// A platform AutoMDM does not recognize as Unix-like falls through to the
 		// unfiltered branch and leaks Windows scripts into the host's script list.
 		for _, platform := range []string{"ubuntu", "arch", "omarchy", "amd-ryzen-ai-developer-platform"} {
 			t.Run(platform, func(t *testing.T) {
-				res, _, err := ds.GetHostScriptDetails(ctx, 42, nil, fleet.ListOptions{}, platform)
+				res, _, err := ds.GetHostScriptDetails(ctx, 42, nil, automdm.ListOptions{}, platform)
 				require.NoError(t, err)
 				gotNames := make([]string, 0, len(res))
 				for _, r := range res {
@@ -845,7 +845,7 @@ func testGetHostScriptDetails(t *testing.T, ds *Datastore) {
 	})
 
 	t.Run("rejects_unknown_order_key", func(t *testing.T) {
-		_, _, err := ds.GetHostScriptDetails(ctx, 42, nil, fleet.ListOptions{OrderKey: "h.node_key"}, "darwin")
+		_, _, err := ds.GetHostScriptDetails(ctx, 42, nil, automdm.ListOptions{OrderKey: "h.node_key"}, "darwin")
 		require.Error(t, err)
 	})
 }
@@ -853,11 +853,11 @@ func testGetHostScriptDetails(t *testing.T, ds *Datastore) {
 func testBatchSetScriptsDoesNotLockOtherPolicies(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
-	tm, err := ds.NewTeam(ctx, &fleet.Team{Name: t.Name()})
+	tm, err := ds.NewTeam(ctx, &automdm.Team{Name: t.Name()})
 	require.NoError(t, err)
-	scripts := make([]*fleet.Script, 0, 12)
+	scripts := make([]*automdm.Script, 0, 12)
 	for i := range 12 {
-		scripts = append(scripts, &fleet.Script{Name: fmt.Sprintf("s%d.sh", i), ScriptContents: fmt.Sprintf("echo %d", i)})
+		scripts = append(scripts, &automdm.Script{Name: fmt.Sprintf("s%d.sh", i), ScriptContents: fmt.Sprintf("echo %d", i)})
 	}
 	set, err := ds.BatchSetScripts(ctx, &tm.ID, scripts)
 	require.NoError(t, err)
@@ -866,13 +866,13 @@ func testBatchSetScriptsDoesNotLockOtherPolicies(t *testing.T, ds *Datastore) {
 		scriptIDs[s.Name] = s.ID
 	}
 
-	kept, err := ds.NewTeamPolicy(ctx, tm.ID, nil, fleet.PolicyPayload{Name: t.Name() + " kept", Query: "SELECT 1", ScriptID: new(scriptIDs["s0.sh"])})
+	kept, err := ds.NewTeamPolicy(ctx, tm.ID, nil, automdm.PolicyPayload{Name: t.Name() + " kept", Query: "SELECT 1", ScriptID: new(scriptIDs["s0.sh"])})
 	require.NoError(t, err)
-	removed, err := ds.NewTeamPolicy(ctx, tm.ID, nil, fleet.PolicyPayload{Name: t.Name() + " removed", Query: "SELECT 1", ScriptID: new(scriptIDs["s11.sh"])})
+	removed, err := ds.NewTeamPolicy(ctx, tm.ID, nil, automdm.PolicyPayload{Name: t.Name() + " removed", Query: "SELECT 1", ScriptID: new(scriptIDs["s11.sh"])})
 	require.NoError(t, err)
-	global, err := ds.NewGlobalPolicy(ctx, nil, fleet.PolicyPayload{Name: t.Name() + " global", Query: "SELECT 1"})
+	global, err := ds.NewGlobalPolicy(ctx, nil, automdm.PolicyPayload{Name: t.Name() + " global", Query: "SELECT 1"})
 	require.NoError(t, err)
-	noScript, err := ds.NewTeamPolicy(ctx, tm.ID, nil, fleet.PolicyPayload{Name: t.Name() + " no script", Query: "SELECT 1"})
+	noScript, err := ds.NewTeamPolicy(ctx, tm.ID, nil, automdm.PolicyPayload{Name: t.Name() + " no script", Query: "SELECT 1"})
 	require.NoError(t, err)
 
 	// Hold the lock a host's policy_membership write takes on its policy.
@@ -884,7 +884,7 @@ func testBatchSetScriptsDoesNotLockOtherPolicies(t *testing.T, ds *Datastore) {
 		require.NoError(t, err)
 	}
 
-	apply := func(batch []*fleet.Script) {
+	apply := func(batch []*automdm.Script) {
 		applyCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 		defer cancel()
 		_, err := ds.BatchSetScripts(applyCtx, &tm.ID, batch)
@@ -900,7 +900,7 @@ func testBatchSetScriptsDoesNotLockOtherPolicies(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 	require.Nil(t, removed.ScriptID)
 
-	// GitOps sends an empty list on every run for a fleet with no scripts.
+	// GitOps sends an empty list on every run for a team with no scripts.
 	apply(nil)
 	apply(nil)
 	apply(scripts)
@@ -910,10 +910,10 @@ func testBatchSetScriptsDoesNotLockOtherPolicies(t *testing.T, ds *Datastore) {
 func testBatchSetScriptsLocksUnsetPolicyAtEnd(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
-	tm, err := ds.NewTeam(ctx, &fleet.Team{Name: t.Name()})
+	tm, err := ds.NewTeam(ctx, &automdm.Team{Name: t.Name()})
 	require.NoError(t, err)
-	kept := []*fleet.Script{{Name: "a.sh", ScriptContents: "echo a"}, {Name: "b.sh", ScriptContents: "echo b"}}
-	set, err := ds.BatchSetScripts(ctx, &tm.ID, append(kept, &fleet.Script{Name: "gone.sh", ScriptContents: "echo gone"}))
+	kept := []*automdm.Script{{Name: "a.sh", ScriptContents: "echo a"}, {Name: "b.sh", ScriptContents: "echo b"}}
+	set, err := ds.BatchSetScripts(ctx, &tm.ID, append(kept, &automdm.Script{Name: "gone.sh", ScriptContents: "echo gone"}))
 	require.NoError(t, err)
 	var goneID uint
 	for _, s := range set {
@@ -921,7 +921,7 @@ func testBatchSetScriptsLocksUnsetPolicyAtEnd(t *testing.T, ds *Datastore) {
 			goneID = s.ID
 		}
 	}
-	policy, err := ds.NewTeamPolicy(ctx, tm.ID, nil, fleet.PolicyPayload{Name: t.Name(), Query: "SELECT 1", ScriptID: &goneID})
+	policy, err := ds.NewTeamPolicy(ctx, tm.ID, nil, automdm.PolicyPayload{Name: t.Name(), Query: "SELECT 1", ScriptID: &goneID})
 	require.NoError(t, err)
 
 	// Park the apply inside its per-script loop by holding the script contents row an edited script
@@ -934,7 +934,7 @@ func testBatchSetScriptsLocksUnsetPolicyAtEnd(t *testing.T, ds *Datastore) {
 
 	applyErr := make(chan error, 1)
 	go func() {
-		_, err := ds.BatchSetScripts(ctx, &tm.ID, []*fleet.Script{{Name: "a.sh", ScriptContents: "echo a2"}, kept[1]})
+		_, err := ds.BatchSetScripts(ctx, &tm.ID, []*automdm.Script{{Name: "a.sh", ScriptContents: "echo a2"}, kept[1]})
 		applyErr <- err
 	}()
 	// innodb_trx only refreshes when it hasn't been read for 100ms, so poll slower than that.
@@ -963,21 +963,21 @@ func testBatchSetScriptsLocksUnsetPolicyAtEnd(t *testing.T, ds *Datastore) {
 func testBatchSetScriptsUnchangedDoesNotBlockScriptRuns(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
-	tmA, err := ds.NewTeam(ctx, &fleet.Team{Name: t.Name() + " A"})
+	tmA, err := ds.NewTeam(ctx, &automdm.Team{Name: t.Name() + " A"})
 	require.NoError(t, err)
-	tmB, err := ds.NewTeam(ctx, &fleet.Team{Name: t.Name() + " B"})
+	tmB, err := ds.NewTeam(ctx, &automdm.Team{Name: t.Name() + " B"})
 	require.NoError(t, err)
-	scriptsA := make([]*fleet.Script, 0, 12)
+	scriptsA := make([]*automdm.Script, 0, 12)
 	for i := range 12 {
-		scriptsA = append(scriptsA, &fleet.Script{Name: fmt.Sprintf("a%d.sh", i), ScriptContents: fmt.Sprintf("echo a%d", i)})
+		scriptsA = append(scriptsA, &automdm.Script{Name: fmt.Sprintf("a%d.sh", i), ScriptContents: fmt.Sprintf("echo a%d", i)})
 	}
 	setA, err := ds.BatchSetScripts(ctx, &tmA.ID, scriptsA)
 	require.NoError(t, err)
-	setB, err := ds.BatchSetScripts(ctx, &tmB.ID, []*fleet.Script{{Name: "b.sh", ScriptContents: "echo b"}})
+	setB, err := ds.BatchSetScripts(ctx, &tmB.ID, []*automdm.Script{{Name: "b.sh", ScriptContents: "echo b"}})
 	require.NoError(t, err)
 	require.Len(t, setA, 12)
 	require.Len(t, setB, 1)
-	var scriptA fleet.ScriptResponse
+	var scriptA automdm.ScriptResponse
 	for _, s := range setA {
 		if s.Name == "a0.sh" {
 			scriptA = s
@@ -988,8 +988,8 @@ func testBatchSetScriptsUnchangedDoesNotBlockScriptRuns(t *testing.T, ds *Datast
 
 	h1 := test.NewHost(t, ds, "h1", "10.0.0.1", "1", "uuid1", time.Now())
 	h2 := test.NewHost(t, ds, "h2", "10.0.0.2", "2", "uuid2", time.Now())
-	enqueue := func(ctx context.Context, tx sqlx.ExtContext, hostID uint, s fleet.ScriptResponse, contents string) error {
-		req := &fleet.HostScriptRequestPayload{HostID: hostID, ScriptID: &s.ID, ScriptContents: contents}
+	enqueue := func(ctx context.Context, tx sqlx.ExtContext, hostID uint, s automdm.ScriptResponse, contents string) error {
+		req := &automdm.HostScriptRequestPayload{HostID: hostID, ScriptID: &s.ID, ScriptContents: contents}
 		if tx == nil {
 			_, err := ds.NewHostScriptExecutionRequest(ctx, req)
 			return err
@@ -1005,7 +1005,7 @@ func testBatchSetScriptsUnchangedDoesNotBlockScriptRuns(t *testing.T, ds *Datast
 	}
 	require.NoError(t, enqueue(ctx, nil, h1.ID, scriptA, contentsA))
 
-	// Script runs being queued, not yet committed, in this fleet and another one.
+	// Script runs being queued, not yet committed, in this team and another one.
 	enqTx, err := ds.writer(ctx).BeginTxx(ctx, nil)
 	require.NoError(t, err)
 	defer func() { _ = enqTx.Rollback() }()
@@ -1019,11 +1019,11 @@ func testBatchSetScriptsUnchangedDoesNotBlockScriptRuns(t *testing.T, ds *Datast
 	require.NoError(t, enqTx.Rollback())
 
 	// Park an apply that edits one script, then queue runs of an unchanged script and of another
-	// fleet's script. Neither waits on the apply.
+	// team's script. Neither waits on the apply.
 	blockTx, err := ds.writer(ctx).BeginTxx(ctx, nil)
 	require.NoError(t, err)
 	defer func() { _ = blockTx.Rollback() }()
-	edited := append([]*fleet.Script{{Name: scriptsA[11].Name, ScriptContents: "echo edited"}}, scriptsA[:11]...)
+	edited := append([]*automdm.Script{{Name: scriptsA[11].Name, ScriptContents: "echo edited"}}, scriptsA[:11]...)
 	_, err = blockTx.ExecContext(ctx, `SELECT id FROM script_contents WHERE md5_checksum = UNHEX(?) FOR UPDATE`, md5ChecksumScriptContent("echo edited"))
 	require.NoError(t, err)
 	applyErr := make(chan error, 1)
@@ -1038,7 +1038,7 @@ func testBatchSetScriptsUnchangedDoesNotBlockScriptRuns(t *testing.T, ds *Datast
 		return err == nil && waiting > 0
 	}, 5*time.Second, 250*time.Millisecond)
 	for _, s := range []struct {
-		script   fleet.ScriptResponse
+		script   automdm.ScriptResponse
 		contents string
 	}{{scriptA, contentsA}, {scriptB, contentsB}} {
 		enqCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
@@ -1056,11 +1056,11 @@ func testBatchSetScriptsUnchangedDoesNotBlockScriptRuns(t *testing.T, ds *Datast
 func testBatchSetScriptsCancelsRunQueuedMidApply(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
-	tm, err := ds.NewTeam(ctx, &fleet.Team{Name: t.Name()})
+	tm, err := ds.NewTeam(ctx, &automdm.Team{Name: t.Name()})
 	require.NoError(t, err)
-	set, err := ds.BatchSetScripts(ctx, &tm.ID, []*fleet.Script{{Name: "kept.sh", ScriptContents: "echo kept"}, {Name: "gone.sh", ScriptContents: "echo gone"}})
+	set, err := ds.BatchSetScripts(ctx, &tm.ID, []*automdm.Script{{Name: "kept.sh", ScriptContents: "echo kept"}, {Name: "gone.sh", ScriptContents: "echo gone"}})
 	require.NoError(t, err)
-	var gone fleet.ScriptResponse
+	var gone automdm.ScriptResponse
 	for _, s := range set {
 		if s.Name == "gone.sh" {
 			gone = s
@@ -1076,7 +1076,7 @@ func testBatchSetScriptsCancelsRunQueuedMidApply(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 	applyErr := make(chan error, 1)
 	go func() {
-		_, err := ds.BatchSetScripts(ctx, &tm.ID, []*fleet.Script{{Name: "kept.sh", ScriptContents: "echo kept2"}})
+		_, err := ds.BatchSetScripts(ctx, &tm.ID, []*automdm.Script{{Name: "kept.sh", ScriptContents: "echo kept2"}})
 		applyErr <- err
 	}()
 	// innodb_trx only refreshes when it hasn't been read for 100ms, so poll slower than that.
@@ -1088,7 +1088,7 @@ func testBatchSetScriptsCancelsRunQueuedMidApply(t *testing.T, ds *Datastore) {
 
 	enqCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
-	_, err = ds.NewHostScriptExecutionRequest(enqCtx, &fleet.HostScriptRequestPayload{HostID: host.ID, ScriptID: &gone.ID, ScriptContents: "echo gone"})
+	_, err = ds.NewHostScriptExecutionRequest(enqCtx, &automdm.HostScriptRequestPayload{HostID: host.ID, ScriptID: &gone.ID, ScriptContents: "echo gone"})
 	require.NoError(t, err)
 
 	require.NoError(t, blockTx.Rollback())
@@ -1102,15 +1102,15 @@ func testBatchSetScriptsCancelsRunQueuedMidApply(t *testing.T, ds *Datastore) {
 func testBatchSetScriptsUnsetsScriptAddedMidApply(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
-	tm, err := ds.NewTeam(ctx, &fleet.Team{Name: t.Name()})
+	tm, err := ds.NewTeam(ctx, &automdm.Team{Name: t.Name()})
 	require.NoError(t, err)
-	kept := []*fleet.Script{{Name: "kept.sh", ScriptContents: "echo kept"}}
+	kept := []*automdm.Script{{Name: "kept.sh", ScriptContents: "echo kept"}}
 	_, err = ds.BatchSetScripts(ctx, &tm.ID, kept)
 	require.NoError(t, err)
-	policy, err := ds.NewTeamPolicy(ctx, tm.ID, nil, fleet.PolicyPayload{Name: t.Name(), Query: "SELECT 1"})
+	policy, err := ds.NewTeamPolicy(ctx, tm.ID, nil, automdm.PolicyPayload{Name: t.Name(), Query: "SELECT 1"})
 	require.NoError(t, err)
 
-	// Another request adds a script to the fleet and assigns it to the policy, committing after the
+	// Another request adds a script to the team and assigns it to the policy, committing after the
 	// apply has started.
 	otherTx, err := ds.writer(ctx).BeginTxx(ctx, nil)
 	require.NoError(t, err)
@@ -1146,14 +1146,14 @@ func testBatchSetScriptsUnsetsScriptAddedMidApply(t *testing.T, ds *Datastore) {
 func testBatchSetScripts(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
-	applyAndExpect := func(newSet []*fleet.Script, tmID *uint, want []*fleet.Script) map[string]uint {
+	applyAndExpect := func(newSet []*automdm.Script, tmID *uint, want []*automdm.Script) map[string]uint {
 		responseFromSet, err := ds.BatchSetScripts(ctx, tmID, newSet)
 		require.NoError(t, err)
 
 		if tmID == nil {
 			tmID = ptr.Uint(0)
 		}
-		got, _, err := ds.ListScripts(ctx, tmID, fleet.ListOptions{})
+		got, _, err := ds.ListScripts(ctx, tmID, automdm.ListOptions{})
 		require.NoError(t, err)
 
 		// compare only the fields we care about
@@ -1183,18 +1183,18 @@ func testBatchSetScripts(t *testing.T, ds *Datastore) {
 	applyAndExpect(nil, nil, nil)
 
 	// create a team
-	tm1, err := ds.NewTeam(ctx, &fleet.Team{Name: t.Name() + "_tm1"})
+	tm1, err := ds.NewTeam(ctx, &automdm.Team{Name: t.Name() + "_tm1"})
 	require.NoError(t, err)
 
 	// apply single script set for tm1
-	sTm1 := applyAndExpect([]*fleet.Script{
+	sTm1 := applyAndExpect([]*automdm.Script{
 		{Name: "N1", ScriptContents: "C1"},
-	}, ptr.Uint(tm1.ID), []*fleet.Script{
+	}, ptr.Uint(tm1.ID), []*automdm.Script{
 		{Name: "N1", TeamID: ptr.Uint(tm1.ID)},
 	})
 	n1WithTeamID := sTm1["N1"]
 
-	teamPolicy, err := ds.NewTeamPolicy(ctx, tm1.ID, nil, fleet.PolicyPayload{
+	teamPolicy, err := ds.NewTeamPolicy(ctx, tm1.ID, nil, automdm.PolicyPayload{
 		Name:     "Team One Policy",
 		Query:    "SELECT 1",
 		Platform: "darwin",
@@ -1203,14 +1203,14 @@ func testBatchSetScripts(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// apply single script set for no-team
-	sNoTm := applyAndExpect([]*fleet.Script{
+	sNoTm := applyAndExpect([]*automdm.Script{
 		{Name: "N1", ScriptContents: "C1"},
-	}, nil, []*fleet.Script{
+	}, nil, []*automdm.Script{
 		{Name: "N1", TeamID: nil},
 	})
 	n1WithNoTeamId := sNoTm["N1"]
 
-	noTeamPolicy, err := ds.NewTeamPolicy(ctx, fleet.PolicyNoTeamID, nil, fleet.PolicyPayload{
+	noTeamPolicy, err := ds.NewTeamPolicy(ctx, automdm.PolicyNoTeamID, nil, automdm.PolicyPayload{
 		Name:     "No Team Policy",
 		Query:    "SELECT 1",
 		Platform: "darwin",
@@ -1219,10 +1219,10 @@ func testBatchSetScripts(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// apply new script set for tm1
-	sTm1b := applyAndExpect([]*fleet.Script{
+	sTm1b := applyAndExpect([]*automdm.Script{
 		{Name: "N1", ScriptContents: "C1"},
 		{Name: "N2", ScriptContents: "C2"},
-	}, ptr.Uint(tm1.ID), []*fleet.Script{
+	}, ptr.Uint(tm1.ID), []*automdm.Script{
 		{Name: "N1", TeamID: ptr.Uint(tm1.ID)},
 		{Name: "N2", TeamID: ptr.Uint(tm1.ID)},
 	})
@@ -1235,9 +1235,9 @@ func testBatchSetScripts(t *testing.T, ds *Datastore) {
 	require.Equal(t, n1WithTeamID, *teamPolicy.ScriptID)
 
 	// apply edited (by contents only) script set for no-team
-	sNoTmb := applyAndExpect([]*fleet.Script{
+	sNoTmb := applyAndExpect([]*automdm.Script{
 		{Name: "N1", ScriptContents: "C1-changed"},
-	}, nil, []*fleet.Script{
+	}, nil, []*automdm.Script{
 		{Name: "N1", TeamID: nil},
 	})
 	require.Equal(t, sNoTm["I1"], sNoTmb["I1"])
@@ -1249,11 +1249,11 @@ func testBatchSetScripts(t *testing.T, ds *Datastore) {
 
 	// apply edited script (by content only), unchanged script and new
 	// script for tm1
-	sTm1c := applyAndExpect([]*fleet.Script{
+	sTm1c := applyAndExpect([]*automdm.Script{
 		{Name: "N1", ScriptContents: "C1-updated"}, // content updated
 		{Name: "N2", ScriptContents: "C2"},         // unchanged
 		{Name: "N3", ScriptContents: "C3"},         // new
-	}, ptr.Uint(tm1.ID), []*fleet.Script{
+	}, ptr.Uint(tm1.ID), []*automdm.Script{
 		{Name: "N1", TeamID: ptr.Uint(tm1.ID)}, // content updated
 		{Name: "N2", TeamID: ptr.Uint(tm1.ID)}, // unchanged
 		{Name: "N3", TeamID: ptr.Uint(tm1.ID)}, // new
@@ -1269,12 +1269,12 @@ func testBatchSetScripts(t *testing.T, ds *Datastore) {
 	require.Equal(t, n1WithTeamID, *teamPolicy.ScriptID)
 
 	// add pending scripts on team and no-team and confirm they're shown as pending
-	_, err = ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+	_, err = ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 		HostID:   44,
 		ScriptID: &n1WithTeamID,
 	})
 	require.NoError(t, err)
-	_, err = ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+	_, err = ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 		HostID:   45,
 		ScriptID: &n1WithNoTeamId,
 	})
@@ -1309,10 +1309,10 @@ func testBatchSetScripts(t *testing.T, ds *Datastore) {
 	require.Len(t, pending, 1)
 
 	// apply only new scripts to no-team
-	applyAndExpect([]*fleet.Script{
+	applyAndExpect([]*automdm.Script{
 		{Name: "N4", ScriptContents: "C4"},
 		{Name: "N5", ScriptContents: "C5"},
-	}, nil, []*fleet.Script{
+	}, nil, []*automdm.Script{
 		{Name: "N4", TeamID: nil},
 		{Name: "N5", TeamID: nil},
 	})
@@ -1346,7 +1346,7 @@ func testLockHostViaScript(t *testing.T, ds *Datastore) {
 
 	script := "lock"
 
-	err = ds.LockHostViaScript(ctx, &fleet.HostScriptRequestPayload{
+	err = ds.LockHostViaScript(ctx, &automdm.HostScriptRequestPayload{
 		HostID:         windowsHostID,
 		ScriptContents: script,
 		UserID:         &user.ID,
@@ -1356,9 +1356,9 @@ func testLockHostViaScript(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// verify that we have created entries in host_mdm_actions and host_script_results
-	status, err := ds.GetHostLockWipeStatus(ctx, &fleet.Host{ID: windowsHostID, Platform: "windows", UUID: "uuid"})
+	status, err := ds.GetHostLockWipeStatus(ctx, &automdm.Host{ID: windowsHostID, Platform: "windows", UUID: "uuid"})
 	require.NoError(t, err)
-	require.Equal(t, "windows", status.HostFleetPlatform)
+	require.Equal(t, "windows", status.HostAutoMDMPlatform)
 	require.NotNil(t, status.LockScript)
 	assert.Nil(t, status.UnlockScript)
 
@@ -1371,7 +1371,7 @@ func testLockHostViaScript(t *testing.T, ds *Datastore) {
 	require.True(t, status.IsPendingLock())
 
 	// simulate a successful result for the lock script execution
-	_, action, err := ds.SetHostScriptExecutionResult(ctx, &fleet.HostScriptResultPayload{
+	_, action, err := ds.SetHostScriptExecutionResult(ctx, &automdm.HostScriptResultPayload{
 		HostID:      s.HostID,
 		ExecutionID: s.ExecutionID,
 		ExitCode:    0,
@@ -1379,7 +1379,7 @@ func testLockHostViaScript(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 	assert.Equal(t, "lock_ref", action)
 
-	status, err = ds.GetHostLockWipeStatus(ctx, &fleet.Host{ID: windowsHostID, Platform: "windows", UUID: "uuid"})
+	status, err = ds.GetHostLockWipeStatus(ctx, &automdm.Host{ID: windowsHostID, Platform: "windows", UUID: "uuid"})
 	require.NoError(t, err)
 	require.True(t, status.IsLocked())
 	require.False(t, status.IsPendingLock())
@@ -1398,7 +1398,7 @@ func testUnlockHostViaScript(t *testing.T, ds *Datastore) {
 	hostID := uint(1)
 	hostUUID := "uuid"
 	hostPlatform := "windows"
-	host, err := ds.NewHost(ctx, &fleet.Host{
+	host, err := ds.NewHost(ctx, &automdm.Host{
 		ID:            hostID,
 		UUID:          hostUUID,
 		Platform:      hostPlatform,
@@ -1408,7 +1408,7 @@ func testUnlockHostViaScript(t *testing.T, ds *Datastore) {
 
 	script := "unlock"
 
-	err = ds.UnlockHostViaScript(ctx, &fleet.HostScriptRequestPayload{
+	err = ds.UnlockHostViaScript(ctx, &automdm.HostScriptRequestPayload{
 		HostID:         hostID,
 		ScriptContents: script,
 		UserID:         &user.ID,
@@ -1420,7 +1420,7 @@ func testUnlockHostViaScript(t *testing.T, ds *Datastore) {
 	// verify that we have created entries in host_mdm_actions and host_script_results
 	status, err := ds.GetHostLockWipeStatus(ctx, host)
 	require.NoError(t, err)
-	require.Equal(t, hostPlatform, status.HostFleetPlatform)
+	require.Equal(t, hostPlatform, status.HostAutoMDMPlatform)
 	require.NotNil(t, status.UnlockScript)
 
 	s := status.UnlockScript
@@ -1440,7 +1440,7 @@ func testUnlockHostViaScript(t *testing.T, ds *Datastore) {
 	require.False(t, status.IsPendingUnlock())
 
 	// add a new unlock script execution
-	err = ds.UnlockHostViaScript(ctx, &fleet.HostScriptRequestPayload{
+	err = ds.UnlockHostViaScript(ctx, &automdm.HostScriptRequestPayload{
 		HostID:         hostID,
 		ScriptContents: script,
 		UserID:         &user.ID,
@@ -1449,12 +1449,12 @@ func testUnlockHostViaScript(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 	status, err = ds.GetHostLockWipeStatus(ctx, host)
 	require.NoError(t, err)
-	require.Equal(t, hostPlatform, status.HostFleetPlatform)
+	require.Equal(t, hostPlatform, status.HostAutoMDMPlatform)
 	require.NotNil(t, status.UnlockScript)
 	s = status.UnlockScript
 
 	// simulate a successful result for the unlock script execution
-	_, action, err := ds.SetHostScriptExecutionResult(ctx, &fleet.HostScriptResultPayload{
+	_, action, err := ds.SetHostScriptExecutionResult(ctx, &automdm.HostScriptResultPayload{
 		HostID:      s.HostID,
 		ExecutionID: s.ExecutionID,
 		ExitCode:    0,
@@ -1477,14 +1477,14 @@ func testLockUnlockWipeViaScripts(t *testing.T, ds *Datastore) {
 		hostID := uint(i + 1) //nolint:gosec // dismiss G115
 
 		t.Run(platform, func(t *testing.T) {
-			status, err := ds.GetHostLockWipeStatus(ctx, &fleet.Host{ID: hostID, Platform: platform, UUID: "uuid"})
+			status, err := ds.GetHostLockWipeStatus(ctx, &automdm.Host{ID: hostID, Platform: platform, UUID: "uuid"})
 			require.NoError(t, err)
 
 			// default state
 			checkLockWipeState(t, status, true, false, false, false, false, false)
 
 			// record a request to lock the host
-			err = ds.LockHostViaScript(ctx, &fleet.HostScriptRequestPayload{
+			err = ds.LockHostViaScript(ctx, &automdm.HostScriptRequestPayload{
 				HostID:         hostID,
 				ScriptContents: "lock",
 				UserID:         &user.ID,
@@ -1492,12 +1492,12 @@ func testLockUnlockWipeViaScripts(t *testing.T, ds *Datastore) {
 			}, platform)
 			require.NoError(t, err)
 
-			status, err = ds.GetHostLockWipeStatus(ctx, &fleet.Host{ID: hostID, Platform: platform, UUID: "uuid"})
+			status, err = ds.GetHostLockWipeStatus(ctx, &automdm.Host{ID: hostID, Platform: platform, UUID: "uuid"})
 			require.NoError(t, err)
 			checkLockWipeState(t, status, true, false, false, false, true, false)
 
 			// simulate a successful result for the lock script execution
-			_, action, err := ds.SetHostScriptExecutionResult(ctx, &fleet.HostScriptResultPayload{
+			_, action, err := ds.SetHostScriptExecutionResult(ctx, &automdm.HostScriptResultPayload{
 				HostID:      hostID,
 				ExecutionID: status.LockScript.ExecutionID,
 				ExitCode:    0,
@@ -1505,12 +1505,12 @@ func testLockUnlockWipeViaScripts(t *testing.T, ds *Datastore) {
 			require.NoError(t, err)
 			assert.Equal(t, "lock_ref", action)
 
-			status, err = ds.GetHostLockWipeStatus(ctx, &fleet.Host{ID: hostID, Platform: platform, UUID: "uuid"})
+			status, err = ds.GetHostLockWipeStatus(ctx, &automdm.Host{ID: hostID, Platform: platform, UUID: "uuid"})
 			require.NoError(t, err)
 			checkLockWipeState(t, status, false, true, false, false, false, false)
 
 			// record a request to unlock the host
-			err = ds.UnlockHostViaScript(ctx, &fleet.HostScriptRequestPayload{
+			err = ds.UnlockHostViaScript(ctx, &automdm.HostScriptRequestPayload{
 				HostID:         hostID,
 				ScriptContents: "unlock",
 				UserID:         &user.ID,
@@ -1518,12 +1518,12 @@ func testLockUnlockWipeViaScripts(t *testing.T, ds *Datastore) {
 			}, platform)
 			require.NoError(t, err)
 
-			status, err = ds.GetHostLockWipeStatus(ctx, &fleet.Host{ID: hostID, Platform: platform, UUID: "uuid"})
+			status, err = ds.GetHostLockWipeStatus(ctx, &automdm.Host{ID: hostID, Platform: platform, UUID: "uuid"})
 			require.NoError(t, err)
 			checkLockWipeState(t, status, false, true, false, true, false, false)
 
 			// simulate a failed result for the unlock script execution
-			_, action, err = ds.SetHostScriptExecutionResult(ctx, &fleet.HostScriptResultPayload{
+			_, action, err = ds.SetHostScriptExecutionResult(ctx, &automdm.HostScriptResultPayload{
 				HostID:      hostID,
 				ExecutionID: status.UnlockScript.ExecutionID,
 				ExitCode:    -1,
@@ -1532,12 +1532,12 @@ func testLockUnlockWipeViaScripts(t *testing.T, ds *Datastore) {
 			assert.Equal(t, "unlock_ref", action)
 
 			// still locked
-			status, err = ds.GetHostLockWipeStatus(ctx, &fleet.Host{ID: hostID, Platform: platform, UUID: "uuid"})
+			status, err = ds.GetHostLockWipeStatus(ctx, &automdm.Host{ID: hostID, Platform: platform, UUID: "uuid"})
 			require.NoError(t, err)
 			checkLockWipeState(t, status, false, true, false, false, false, false)
 
 			// record another request to unlock the host
-			err = ds.UnlockHostViaScript(ctx, &fleet.HostScriptRequestPayload{
+			err = ds.UnlockHostViaScript(ctx, &automdm.HostScriptRequestPayload{
 				HostID:         hostID,
 				ScriptContents: "unlock",
 				UserID:         &user.ID,
@@ -1545,12 +1545,12 @@ func testLockUnlockWipeViaScripts(t *testing.T, ds *Datastore) {
 			}, platform)
 			require.NoError(t, err)
 
-			status, err = ds.GetHostLockWipeStatus(ctx, &fleet.Host{ID: hostID, Platform: platform, UUID: "uuid"})
+			status, err = ds.GetHostLockWipeStatus(ctx, &automdm.Host{ID: hostID, Platform: platform, UUID: "uuid"})
 			require.NoError(t, err)
 			checkLockWipeState(t, status, false, true, false, true, false, false)
 
 			// this time simulate a successful result for the unlock script execution
-			_, action, err = ds.SetHostScriptExecutionResult(ctx, &fleet.HostScriptResultPayload{
+			_, action, err = ds.SetHostScriptExecutionResult(ctx, &automdm.HostScriptResultPayload{
 				HostID:      hostID,
 				ExecutionID: status.UnlockScript.ExecutionID,
 				ExitCode:    0,
@@ -1559,12 +1559,12 @@ func testLockUnlockWipeViaScripts(t *testing.T, ds *Datastore) {
 			assert.Equal(t, "unlock_ref", action)
 
 			// host is now unlocked
-			status, err = ds.GetHostLockWipeStatus(ctx, &fleet.Host{ID: hostID, Platform: platform, UUID: "uuid"})
+			status, err = ds.GetHostLockWipeStatus(ctx, &automdm.Host{ID: hostID, Platform: platform, UUID: "uuid"})
 			require.NoError(t, err)
 			checkLockWipeState(t, status, true, false, false, false, false, false)
 
 			// record another request to lock the host
-			err = ds.LockHostViaScript(ctx, &fleet.HostScriptRequestPayload{
+			err = ds.LockHostViaScript(ctx, &automdm.HostScriptRequestPayload{
 				HostID:         hostID,
 				ScriptContents: "lock",
 				UserID:         &user.ID,
@@ -1572,12 +1572,12 @@ func testLockUnlockWipeViaScripts(t *testing.T, ds *Datastore) {
 			}, platform)
 			require.NoError(t, err)
 
-			status, err = ds.GetHostLockWipeStatus(ctx, &fleet.Host{ID: hostID, Platform: platform, UUID: "uuid"})
+			status, err = ds.GetHostLockWipeStatus(ctx, &automdm.Host{ID: hostID, Platform: platform, UUID: "uuid"})
 			require.NoError(t, err)
 			checkLockWipeState(t, status, true, false, false, false, true, false)
 
 			// simulate a failed result for the lock script execution
-			_, action, err = ds.SetHostScriptExecutionResult(ctx, &fleet.HostScriptResultPayload{
+			_, action, err = ds.SetHostScriptExecutionResult(ctx, &automdm.HostScriptResultPayload{
 				HostID:      hostID,
 				ExecutionID: status.LockScript.ExecutionID,
 				ExitCode:    2,
@@ -1585,14 +1585,14 @@ func testLockUnlockWipeViaScripts(t *testing.T, ds *Datastore) {
 			require.NoError(t, err)
 			assert.Equal(t, "lock_ref", action)
 
-			status, err = ds.GetHostLockWipeStatus(ctx, &fleet.Host{ID: hostID, Platform: platform, UUID: "uuid"})
+			status, err = ds.GetHostLockWipeStatus(ctx, &automdm.Host{ID: hostID, Platform: platform, UUID: "uuid"})
 			require.NoError(t, err)
 			checkLockWipeState(t, status, true, false, false, false, false, false)
 
 			switch platform {
 			case "windows":
 				// need a real MDM-enrolled host for MDM commands
-				h, err := ds.NewHost(ctx, &fleet.Host{
+				h, err := ds.NewHost(ctx, &automdm.Host{
 					Hostname:      "test-host-windows",
 					OsqueryHostID: ptr.String("osquery-windows"),
 					NodeKey:       ptr.String("nodekey-windows"),
@@ -1604,7 +1604,7 @@ func testLockUnlockWipeViaScripts(t *testing.T, ds *Datastore) {
 
 				// record a request to wipe the host
 				wipeCmdUUID := uuid.NewString()
-				wipeCmd := &fleet.MDMWindowsCommand{
+				wipeCmd := &automdm.MDMWindowsCommand{
 					CommandUUID:  wipeCmdUUID,
 					RawCommand:   []byte(`<Exec></Exec>`),
 					TargetLocURI: "./Device/Vendor/MSFT/RemoteWipe/doWipeProtected",
@@ -1623,7 +1623,7 @@ func testLockUnlockWipeViaScripts(t *testing.T, ds *Datastore) {
 
 			case "linux":
 				// record a request to wipe the host
-				err = ds.WipeHostViaScript(ctx, &fleet.HostScriptRequestPayload{
+				err = ds.WipeHostViaScript(ctx, &automdm.HostScriptRequestPayload{
 					HostID:         hostID,
 					ScriptContents: "wipe",
 					UserID:         &user.ID,
@@ -1631,12 +1631,12 @@ func testLockUnlockWipeViaScripts(t *testing.T, ds *Datastore) {
 				}, platform)
 				require.NoError(t, err)
 
-				status, err = ds.GetHostLockWipeStatus(ctx, &fleet.Host{ID: hostID, Platform: platform, UUID: "uuid"})
+				status, err = ds.GetHostLockWipeStatus(ctx, &automdm.Host{ID: hostID, Platform: platform, UUID: "uuid"})
 				require.NoError(t, err)
 				checkLockWipeState(t, status, true, false, false, false, false, true)
 
 				// simulate a failed result for the wipe script execution
-				_, action, err = ds.SetHostScriptExecutionResult(ctx, &fleet.HostScriptResultPayload{
+				_, action, err = ds.SetHostScriptExecutionResult(ctx, &automdm.HostScriptResultPayload{
 					HostID:      hostID,
 					ExecutionID: status.WipeScript.ExecutionID,
 					ExitCode:    1,
@@ -1644,12 +1644,12 @@ func testLockUnlockWipeViaScripts(t *testing.T, ds *Datastore) {
 				require.NoError(t, err)
 				assert.Equal(t, "wipe_ref", action)
 
-				status, err = ds.GetHostLockWipeStatus(ctx, &fleet.Host{ID: hostID, Platform: platform, UUID: "uuid"})
+				status, err = ds.GetHostLockWipeStatus(ctx, &automdm.Host{ID: hostID, Platform: platform, UUID: "uuid"})
 				require.NoError(t, err)
 				checkLockWipeState(t, status, true, false, false, false, false, false)
 
 				// record another request to wipe the host
-				err = ds.WipeHostViaScript(ctx, &fleet.HostScriptRequestPayload{
+				err = ds.WipeHostViaScript(ctx, &automdm.HostScriptRequestPayload{
 					HostID:         hostID,
 					ScriptContents: "wipe2",
 					UserID:         &user.ID,
@@ -1657,12 +1657,12 @@ func testLockUnlockWipeViaScripts(t *testing.T, ds *Datastore) {
 				}, platform)
 				require.NoError(t, err)
 
-				status, err = ds.GetHostLockWipeStatus(ctx, &fleet.Host{ID: hostID, Platform: platform, UUID: "uuid"})
+				status, err = ds.GetHostLockWipeStatus(ctx, &automdm.Host{ID: hostID, Platform: platform, UUID: "uuid"})
 				require.NoError(t, err)
 				checkLockWipeState(t, status, true, false, false, false, false, true)
 
 				// simulate a successful result for the wipe script execution
-				_, action, err = ds.SetHostScriptExecutionResult(ctx, &fleet.HostScriptResultPayload{
+				_, action, err = ds.SetHostScriptExecutionResult(ctx, &automdm.HostScriptResultPayload{
 					HostID:      hostID,
 					ExecutionID: status.WipeScript.ExecutionID,
 					ExitCode:    0,
@@ -1670,7 +1670,7 @@ func testLockUnlockWipeViaScripts(t *testing.T, ds *Datastore) {
 				require.NoError(t, err)
 				assert.Equal(t, "wipe_ref", action)
 
-				status, err = ds.GetHostLockWipeStatus(ctx, &fleet.Host{ID: hostID, Platform: platform, UUID: "uuid"})
+				status, err = ds.GetHostLockWipeStatus(ctx, &automdm.Host{ID: hostID, Platform: platform, UUID: "uuid"})
 				require.NoError(t, err)
 				checkLockWipeState(t, status, false, false, true, false, false, false)
 			}
@@ -1686,7 +1686,7 @@ func testLockUnlockManually(t *testing.T, ds *Datastore) {
 	err := ds.UnlockHostManually(ctx, 1, "darwin", twoDaysAgo)
 	require.NoError(t, err)
 
-	status, err := ds.GetHostLockWipeStatus(ctx, &fleet.Host{ID: 1, Platform: "darwin", UUID: "uuid"})
+	status, err := ds.GetHostLockWipeStatus(ctx, &automdm.Host{ID: 1, Platform: "darwin", UUID: "uuid"})
 	require.NoError(t, err)
 	require.False(t, status.UnlockRequestedAt.IsZero())
 	require.WithinDuration(t, twoDaysAgo, status.UnlockRequestedAt, 1*time.Second)
@@ -1695,7 +1695,7 @@ func testLockUnlockManually(t *testing.T, ds *Datastore) {
 	// requests
 	err = ds.UnlockHostManually(ctx, 1, "darwin", today)
 	require.NoError(t, err)
-	status, err = ds.GetHostLockWipeStatus(ctx, &fleet.Host{ID: 1, Platform: "darwin", UUID: "uuid"})
+	status, err = ds.GetHostLockWipeStatus(ctx, &automdm.Host{ID: 1, Platform: "darwin", UUID: "uuid"})
 	require.NoError(t, err)
 	require.False(t, status.UnlockRequestedAt.IsZero())
 	require.WithinDuration(t, twoDaysAgo, status.UnlockRequestedAt, 1*time.Second)
@@ -1708,13 +1708,13 @@ func testLockUnlockManually(t *testing.T, ds *Datastore) {
 	})
 	err = ds.UnlockHostManually(ctx, 2, "darwin", today)
 	require.NoError(t, err)
-	status, err = ds.GetHostLockWipeStatus(ctx, &fleet.Host{ID: 2, Platform: "darwin", UUID: "uuid"})
+	status, err = ds.GetHostLockWipeStatus(ctx, &automdm.Host{ID: 2, Platform: "darwin", UUID: "uuid"})
 	require.NoError(t, err)
 	require.False(t, status.UnlockRequestedAt.IsZero())
 	require.WithinDuration(t, today, status.UnlockRequestedAt, 1*time.Second)
 }
 
-func checkLockWipeState(t *testing.T, status *fleet.HostLockWipeStatus, unlocked, locked, wiped, pendingUnlock, pendingLock, pendingWipe bool) {
+func checkLockWipeState(t *testing.T, status *automdm.HostLockWipeStatus, unlocked, locked, wiped, pendingUnlock, pendingLock, pendingWipe bool) {
 	require.Equal(t, unlocked, status.IsUnlocked(), "unlocked")
 	require.Equal(t, locked, status.IsLocked(), "locked")
 	require.Equal(t, wiped, status.IsWiped(), "wiped")
@@ -1761,7 +1761,7 @@ func testCleanupUnusedScriptContents(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
 	// create a saved script
-	s := &fleet.Script{
+	s := &automdm.Script{
 		ScriptContents: "echo foobar",
 	}
 	s, err := ds.NewScript(ctx, s)
@@ -1770,13 +1770,13 @@ func testCleanupUnusedScriptContents(t *testing.T, ds *Datastore) {
 	user1 := test.NewUser(t, ds, "Bob", "bob@example.com", true)
 
 	// create a sync script execution
-	res, err := ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{ScriptContents: "echo something_else", SyncRequest: true})
+	res, err := ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{ScriptContents: "echo something_else", SyncRequest: true})
 	require.NoError(t, err)
 
 	// create a software install that references scripts
-	tfr1, err := fleet.NewTempFileReader(strings.NewReader("hello"), t.TempDir)
+	tfr1, err := automdm.NewTempFileReader(strings.NewReader("hello"), t.TempDir)
 	require.NoError(t, err)
-	swi, _, err := ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
+	swi, _, err := ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
 		InstallScript:     "install-script",
 		UninstallScript:   "uninstall-script",
 		PreInstallQuery:   "SELECT 1",
@@ -1788,7 +1788,7 @@ func testCleanupUnusedScriptContents(t *testing.T, ds *Datastore) {
 		Version:           "1.0",
 		Source:            "apps",
 		UserID:            user1.ID,
-		ValidatedLabels:   &fleet.LabelIdentsWithScope{},
+		ValidatedLabels:   &automdm.LabelIdentsWithScope{},
 	})
 	require.NoError(t, err)
 
@@ -1836,9 +1836,9 @@ func testCleanupUnusedScriptContents(t *testing.T, ds *Datastore) {
 	require.Equal(t, md5ChecksumScriptContent(res.ScriptContents), sc[0].Checksum)
 
 	// create a software install without a post-install script
-	tfr2, err := fleet.NewTempFileReader(strings.NewReader("hello"), t.TempDir)
+	tfr2, err := automdm.NewTempFileReader(strings.NewReader("hello"), t.TempDir)
 	require.NoError(t, err)
-	swi, _, err = ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
+	swi, _, err = ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
 		PreInstallQuery: "SELECT 1",
 		InstallScript:   "install-script",
 		UninstallScript: "uninstall-script",
@@ -1849,7 +1849,7 @@ func testCleanupUnusedScriptContents(t *testing.T, ds *Datastore) {
 		Version:         "1.0",
 		Source:          "apps",
 		UserID:          user1.ID,
-		ValidatedLabels: &fleet.LabelIdentsWithScope{},
+		ValidatedLabels: &automdm.LabelIdentsWithScope{},
 	})
 	require.NoError(t, err)
 
@@ -1888,17 +1888,17 @@ func testGetAnyScriptContents(t *testing.T, ds *Datastore) {
 func testDeleteScriptsAssignedToPolicy(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "team1"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
 
-	script, err := ds.NewScript(ctx, &fleet.Script{
+	script, err := ds.NewScript(ctx, &automdm.Script{
 		Name:           "script.sh",
 		TeamID:         &team1.ID,
 		ScriptContents: "hello world",
 	})
 	require.NoError(t, err)
 
-	p1, err := ds.NewTeamPolicy(ctx, team1.ID, nil, fleet.PolicyPayload{
+	p1, err := ds.NewTeamPolicy(ctx, team1.ID, nil, automdm.PolicyPayload{
 		Name:     "p1",
 		Query:    "SELECT 1;",
 		ScriptID: &script.ID,
@@ -1920,29 +1920,29 @@ func testDeletePendingHostScriptExecutionsForPolicy(t *testing.T, ds *Datastore)
 	ctx := context.Background()
 
 	user := test.NewUser(t, ds, "Alice", "alice@example.com", true)
-	team1, _ := ds.NewTeam(ctx, &fleet.Team{Name: "team1"})
+	team1, _ := ds.NewTeam(ctx, &automdm.Team{Name: "team1"})
 
-	script1, err := ds.NewScript(ctx, &fleet.Script{
+	script1, err := ds.NewScript(ctx, &automdm.Script{
 		Name:           "script1.sh",
 		TeamID:         &team1.ID,
 		ScriptContents: "hello world",
 	})
 	require.NoError(t, err)
-	script2, err := ds.NewScript(ctx, &fleet.Script{
+	script2, err := ds.NewScript(ctx, &automdm.Script{
 		Name:           "script2.sh",
 		TeamID:         &team1.ID,
 		ScriptContents: "hello world",
 	})
 	require.NoError(t, err)
 
-	p1, err := ds.NewTeamPolicy(ctx, team1.ID, nil, fleet.PolicyPayload{
+	p1, err := ds.NewTeamPolicy(ctx, team1.ID, nil, automdm.PolicyPayload{
 		Name:     "p1",
 		Query:    "SELECT 1;",
 		ScriptID: &script1.ID,
 	})
 	require.NoError(t, err)
 
-	p2, err := ds.NewTeamPolicy(ctx, team1.ID, nil, fleet.PolicyPayload{
+	p2, err := ds.NewTeamPolicy(ctx, team1.ID, nil, automdm.PolicyPayload{
 		Name:     "p2",
 		Query:    "SELECT 2;",
 		ScriptID: &script2.ID,
@@ -1950,7 +1950,7 @@ func testDeletePendingHostScriptExecutionsForPolicy(t *testing.T, ds *Datastore)
 	require.NoError(t, err)
 
 	// pending host script execution for correct policy
-	_, err = ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+	_, err = ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 		HostID:         1,
 		ScriptContents: "echo",
 		UserID:         &user.ID,
@@ -1972,7 +1972,7 @@ func testDeletePendingHostScriptExecutionsForPolicy(t *testing.T, ds *Datastore)
 	require.Equal(t, 0, len(pending))
 
 	// test pending host script execution for incorrect policy
-	hsr, err := ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+	hsr, err := ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 		HostID:         1,
 		ScriptContents: "echo",
 		UserID:         &user.ID,
@@ -1994,7 +1994,7 @@ func testDeletePendingHostScriptExecutionsForPolicy(t *testing.T, ds *Datastore)
 	require.Equal(t, 1, len(pending))
 
 	// test not pending host script execution for correct policy
-	scriptExecution, err := ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+	scriptExecution, err := ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 		HostID:         1,
 		ScriptContents: "echo",
 		UserID:         &user.ID,
@@ -2005,7 +2005,7 @@ func testDeletePendingHostScriptExecutionsForPolicy(t *testing.T, ds *Datastore)
 	require.NoError(t, err)
 
 	// record a result for the previous pending script
-	_, _, err = ds.SetHostScriptExecutionResult(ctx, &fleet.HostScriptResultPayload{
+	_, _, err = ds.SetHostScriptExecutionResult(ctx, &automdm.HostScriptResultPayload{
 		HostID:      1,
 		ExecutionID: hsr.ExecutionID,
 		Output:      "foo",
@@ -2014,7 +2014,7 @@ func testDeletePendingHostScriptExecutionsForPolicy(t *testing.T, ds *Datastore)
 	require.NoError(t, err)
 
 	// record a failed result for the current pending script
-	_, _, err = ds.SetHostScriptExecutionResult(ctx, &fleet.HostScriptResultPayload{
+	_, _, err = ds.SetHostScriptExecutionResult(ctx, &automdm.HostScriptResultPayload{
 		HostID:      1,
 		ExecutionID: scriptExecution.ExecutionID,
 		Output:      "foo",
@@ -2040,7 +2040,7 @@ func testDeletePendingHostScriptExecutionsForPolicy(t *testing.T, ds *Datastore)
 func testUpdateScriptContents(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
-	originalScript, err := ds.NewScript(ctx, &fleet.Script{
+	originalScript, err := ds.NewScript(ctx, &automdm.Script{
 		Name:           "script1",
 		ScriptContents: "hello world",
 	})
@@ -2083,47 +2083,47 @@ func testUpdateDeletingUpcomingScriptExecutions(t *testing.T, ds *Datastore) {
 	host1 := test.NewHost(t, ds, "host1", "10.0.0.1", "host1Key", "host1UUID", time.Now())
 	host2 := test.NewHost(t, ds, "host2", "10.0.0.2", "host2Key", "host2UUID", time.Now())
 
-	script1, err := ds.NewScript(ctx, &fleet.Script{
+	script1, err := ds.NewScript(ctx, &automdm.Script{
 		Name:           "script1",
 		ScriptContents: "contents1",
 	})
 	require.NoError(t, err)
 
-	script2, err := ds.NewScript(ctx, &fleet.Script{
+	script2, err := ds.NewScript(ctx, &automdm.Script{
 		Name:           "script2",
 		ScriptContents: "contents2",
 	})
 	require.NoError(t, err)
 
-	script3, err := ds.NewScript(ctx, &fleet.Script{
+	script3, err := ds.NewScript(ctx, &automdm.Script{
 		Name:           "script3",
 		ScriptContents: "contents3",
 	})
 	require.NoError(t, err)
 
 	// Queue script executions
-	_, err = ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+	_, err = ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 		HostID:   host1.ID,
 		ScriptID: &script1.ID,
 		UserID:   &user.ID,
 	})
 	require.NoError(t, err)
 
-	_, err = ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+	_, err = ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 		HostID:   host1.ID,
 		ScriptID: &script2.ID,
 		UserID:   &user.ID,
 	})
 	require.NoError(t, err)
 
-	_, err = ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+	_, err = ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 		HostID:   host2.ID,
 		ScriptID: &script2.ID,
 		UserID:   &user.ID,
 	})
 	require.NoError(t, err)
 
-	_, err = ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+	_, err = ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 		HostID:   host2.ID,
 		ScriptID: &script1.ID,
 		UserID:   &user.ID,
@@ -2172,7 +2172,7 @@ func testBatchExecuteWithStatus(t *testing.T, ds *Datastore) {
 
 	user := test.NewUser(t, ds, "user1", "user@example.com", true)
 
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "team1"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
 
 	hostNoScripts := test.NewHost(t, ds, "hostNoScripts", "10.0.0.1", "hostnoscripts", "hostnoscriptsuuid", time.Now())
@@ -2188,7 +2188,7 @@ func testBatchExecuteWithStatus(t *testing.T, ds *Datastore) {
 	test.SetOrbitEnrollment(t, host3, ds)
 	test.SetOrbitEnrollment(t, hostTeam1, ds)
 
-	script, err := ds.NewScript(ctx, &fleet.Script{
+	script, err := ds.NewScript(ctx, &automdm.Script{
 		Name:           "script1.sh",
 		ScriptContents: "echo hi",
 	})
@@ -2207,7 +2207,7 @@ func testBatchExecuteWithStatus(t *testing.T, ds *Datastore) {
 		return err
 	})
 
-	summaryList, err := ds.ListBatchScriptExecutions(ctx, fleet.BatchExecutionStatusFilter{
+	summaryList, err := ds.ListBatchScriptExecutions(ctx, automdm.BatchExecutionStatusFilter{
 		ExecutionID: &execID,
 	})
 	require.NoError(t, err)
@@ -2258,7 +2258,7 @@ func testBatchExecuteWithStatus(t *testing.T, ds *Datastore) {
 		require.NoError(t, err)
 		return nil
 	})
-	require.Equal(t, fleet.BatchExecuteIncompatiblePlatform, exec_error)
+	require.Equal(t, automdm.BatchExecuteIncompatiblePlatform, exec_error)
 	// Host No Scripts should have an error in its `batch_activity_host_results` row
 	ExecAdhocSQL(t, ds, func(q sqlx.ExtContext) error {
 		db := q.(*sqlx.DB)
@@ -2266,10 +2266,10 @@ func testBatchExecuteWithStatus(t *testing.T, ds *Datastore) {
 		require.NoError(t, err)
 		return nil
 	})
-	require.Equal(t, fleet.BatchExecuteIncompatibleFleetd, exec_error)
+	require.Equal(t, automdm.BatchExecuteIncompatibleAutoMDMd, exec_error)
 
 	// Set host 1 to have a successful script result
-	_, _, err = ds.SetHostScriptExecutionResult(ctx, &fleet.HostScriptResultPayload{
+	_, _, err = ds.SetHostScriptExecutionResult(ctx, &automdm.HostScriptResultPayload{
 		HostID:      host1.ID,
 		ExecutionID: host1Upcoming[0].ExecutionID,
 		Output:      "foo",
@@ -2278,7 +2278,7 @@ func testBatchExecuteWithStatus(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// Get the summary again
-	summaryList, err = ds.ListBatchScriptExecutions(ctx, fleet.BatchExecutionStatusFilter{
+	summaryList, err = ds.ListBatchScriptExecutions(ctx, automdm.BatchExecutionStatusFilter{
 		ExecutionID: &execID,
 	})
 	require.NoError(t, err)
@@ -2293,7 +2293,7 @@ func testBatchExecuteWithStatus(t *testing.T, ds *Datastore) {
 	require.Equal(t, *summary.NumCanceled, uint(0))
 
 	// Set host 1 to have a failed script result
-	_, _, err = ds.SetHostScriptExecutionResult(ctx, &fleet.HostScriptResultPayload{
+	_, _, err = ds.SetHostScriptExecutionResult(ctx, &automdm.HostScriptResultPayload{
 		HostID:      host2.ID,
 		ExecutionID: host2Upcoming[0].ExecutionID,
 		Output:      "bar",
@@ -2302,7 +2302,7 @@ func testBatchExecuteWithStatus(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// Get the summary again
-	summaryList, err = ds.ListBatchScriptExecutions(ctx, fleet.BatchExecutionStatusFilter{
+	summaryList, err = ds.ListBatchScriptExecutions(ctx, automdm.BatchExecutionStatusFilter{
 		ExecutionID: &execID,
 	})
 	require.NoError(t, err)
@@ -2319,7 +2319,7 @@ func testBatchExecuteWithStatus(t *testing.T, ds *Datastore) {
 	_, err = ds.CancelHostUpcomingActivity(ctx, host3.ID, host3Upcoming[0].ExecutionID)
 	require.NoError(t, err)
 	// Get the summary again
-	summaryList, err = ds.ListBatchScriptExecutions(ctx, fleet.BatchExecutionStatusFilter{
+	summaryList, err = ds.ListBatchScriptExecutions(ctx, automdm.BatchExecutionStatusFilter{
 		ExecutionID: &execID,
 	})
 	require.NoError(t, err)
@@ -2333,7 +2333,7 @@ func testBatchExecuteWithStatus(t *testing.T, ds *Datastore) {
 	require.Equal(t, *summary.NumCanceled, uint(1))
 
 	// The summary should be returned when filtering by status "scheduled".
-	summaryList, err = ds.ListBatchScriptExecutions(ctx, fleet.BatchExecutionStatusFilter{
+	summaryList, err = ds.ListBatchScriptExecutions(ctx, automdm.BatchExecutionStatusFilter{
 		Status: ptr.String("scheduled"),
 	})
 	require.NoError(t, err)
@@ -2347,7 +2347,7 @@ func testBatchExecuteWithStatus(t *testing.T, ds *Datastore) {
 	require.Equal(t, *summary.NumCanceled, uint(1))
 
 	// The summary should be returned when filtering by team 1.
-	summaryList, err = ds.ListBatchScriptExecutions(ctx, fleet.BatchExecutionStatusFilter{
+	summaryList, err = ds.ListBatchScriptExecutions(ctx, automdm.BatchExecutionStatusFilter{
 		TeamID: ptr.Uint(0),
 	})
 	require.NoError(t, err)
@@ -2366,7 +2366,7 @@ func testBatchExecuteWithStatus(t *testing.T, ds *Datastore) {
 		return err
 	})
 	// Get the summary again
-	summaryList, err = ds.ListBatchScriptExecutions(ctx, fleet.BatchExecutionStatusFilter{
+	summaryList, err = ds.ListBatchScriptExecutions(ctx, automdm.BatchExecutionStatusFilter{
 		ExecutionID: &execID,
 	})
 	require.NoError(t, err)
@@ -2380,11 +2380,11 @@ func testBatchExecuteWithStatus(t *testing.T, ds *Datastore) {
 	require.Equal(t, *summary.NumTargeted, uint(9))
 
 	// Get summary for nonexistent execution ID
-	summaryList, err = ds.ListBatchScriptExecutions(ctx, fleet.BatchExecutionStatusFilter{
+	summaryList, err = ds.ListBatchScriptExecutions(ctx, automdm.BatchExecutionStatusFilter{
 		ExecutionID: ptr.String("fake-bogus-id"),
 	})
 	require.Nil(t, summaryList)
-	require.True(t, fleet.IsNotFound(err))
+	require.True(t, automdm.IsNotFound(err))
 	require.ErrorContains(t, err, "fake-bogus-id")
 }
 
@@ -2393,7 +2393,7 @@ func testBatchScriptSchedule(t *testing.T, ds *Datastore) {
 
 	user := test.NewUser(t, ds, "user1", "user@example.com", true)
 
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "team1"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
 
 	host1 := test.NewHost(t, ds, "host1", "10.0.0.3", "host1key", "host1uuid", time.Now())
@@ -2412,7 +2412,7 @@ func testBatchScriptSchedule(t *testing.T, ds *Datastore) {
 	test.SetOrbitEnrollment(t, host4, ds)
 	test.SetOrbitEnrollment(t, hostWindows, ds)
 
-	script, err := ds.NewScript(ctx, &fleet.Script{
+	script, err := ds.NewScript(ctx, &automdm.Script{
 		Name:           "script1.sh",
 		ScriptContents: "echo hi",
 	})
@@ -2428,14 +2428,14 @@ func testBatchScriptSchedule(t *testing.T, ds *Datastore) {
 	// Should have scheduled one job
 	require.NotZero(t, jobs)
 	// find our job
-	var job *fleet.Job
+	var job *automdm.Job
 	for _, j := range jobs {
-		if j.Name == fleet.BatchActivityScriptsJobName {
+		if j.Name == automdm.BatchActivityScriptsJobName {
 			job = j
 		}
 	}
 	require.NotNil(t, job)
-	require.Equal(t, fleet.BatchActivityScriptsJobName, job.Name)
+	require.Equal(t, automdm.BatchActivityScriptsJobName, job.Name)
 	// Make sure the name matches the name on the worker job
 	batchJob := worker.BatchScripts{}
 	require.Equal(t, batchJob.Name(), job.Name)
@@ -2450,13 +2450,13 @@ func testBatchScriptSchedule(t *testing.T, ds *Datastore) {
 	require.Equal(t, user.ID, *batchActivity.UserID)
 	require.Equal(t, script.ID, *batchActivity.ScriptID)
 	require.Equal(t, script.Name, batchActivity.ScriptName)
-	require.Equal(t, fleet.BatchExecutionActivityScript, batchActivity.ActivityType)
+	require.Equal(t, automdm.BatchExecutionActivityScript, batchActivity.ActivityType)
 	require.Equal(t, job.ID, *batchActivity.JobID)
-	require.Equal(t, fleet.ScheduledBatchExecutionScheduled, batchActivity.Status)
+	require.Equal(t, automdm.ScheduledBatchExecutionScheduled, batchActivity.Status)
 	require.Equal(t, uint(3), *batchActivity.NumTargeted)
 
 	_, err = ds.GetBatchActivity(ctx, "missing")
-	require.True(t, fleet.IsNotFound(err))
+	require.True(t, automdm.IsNotFound(err))
 
 	hostResults, err := ds.GetBatchActivityHostResults(ctx, execID)
 	require.NoError(t, err)
@@ -2477,9 +2477,9 @@ func testBatchScriptSchedule(t *testing.T, ds *Datastore) {
 	require.Equal(t, user.ID, *batchActivity.UserID)
 	require.Equal(t, script.ID, *batchActivity.ScriptID)
 	require.Equal(t, script.Name, batchActivity.ScriptName)
-	require.Equal(t, fleet.BatchExecutionActivityScript, batchActivity.ActivityType)
+	require.Equal(t, automdm.BatchExecutionActivityScript, batchActivity.ActivityType)
 	require.Equal(t, job.ID, *batchActivity.JobID)
-	require.Equal(t, fleet.ScheduledBatchExecutionStarted, batchActivity.Status)
+	require.Equal(t, automdm.ScheduledBatchExecutionStarted, batchActivity.Status)
 	require.Equal(t, uint(3), *batchActivity.NumTargeted)
 
 	hostResults, err = ds.GetBatchActivityHostResults(ctx, execID)
@@ -2520,10 +2520,10 @@ func testBatchScriptSchedule(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 	require.Equal(t, execID, batchActivity.BatchExecutionID)
 	require.NotNil(t, batchActivity.StartedAt)
-	require.Equal(t, fleet.ScheduledBatchExecutionStarted, batchActivity.Status)
+	require.Equal(t, automdm.ScheduledBatchExecutionStarted, batchActivity.Status)
 	require.Equal(t, uint(5), *batchActivity.NumTargeted)
 
-	executions, err := ds.ListBatchScriptExecutions(ctx, fleet.BatchExecutionStatusFilter{
+	executions, err := ds.ListBatchScriptExecutions(ctx, automdm.BatchExecutionStatusFilter{
 		ExecutionID: &execID,
 	})
 	require.NoError(t, err)
@@ -2535,7 +2535,7 @@ func testBatchScriptSchedule(t *testing.T, ds *Datastore) {
 	require.Len(t, hostResults, 5)
 	for _, hostResult := range hostResults {
 		require.Equal(t, execID, hostResult.BatchExecutionID)
-		var upcomingScripts []*fleet.HostScriptResult
+		var upcomingScripts []*automdm.HostScriptResult
 		if hostResult.HostID != 0xbeef {
 			upcomingScripts, err = ds.ListPendingHostScriptExecutions(ctx, hostResult.HostID)
 			require.NoError(t, err)
@@ -2549,21 +2549,21 @@ func testBatchScriptSchedule(t *testing.T, ds *Datastore) {
 			// Bad platform
 			require.Empty(t, upcomingScripts)
 			require.NotNil(t, hostResult.Error)
-			require.Equal(t, fleet.BatchExecuteIncompatiblePlatform, *hostResult.Error)
+			require.Equal(t, automdm.BatchExecuteIncompatiblePlatform, *hostResult.Error)
 		case hostTeam1.ID:
 			// Host is on a different team than the script
 			require.Empty(t, upcomingScripts)
 			require.NotNil(t, hostResult.Error)
-			require.Equal(t, fleet.BatchExecuteIncompatibleTeam, *hostResult.Error)
+			require.Equal(t, automdm.BatchExecuteIncompatibleTeam, *hostResult.Error)
 		case hostNoScripts.ID:
 			// Host doesn't support scripts
 			require.Empty(t, upcomingScripts)
 			require.NotNil(t, hostResult.Error)
-			require.Equal(t, fleet.BatchExecuteIncompatibleFleetd, *hostResult.Error)
+			require.Equal(t, automdm.BatchExecuteIncompatibleAutoMDMd, *hostResult.Error)
 		case 0xbeef:
 			// Host was deleted after scheduling
 			require.NotNil(t, hostResult.Error)
-			require.Equal(t, fleet.BatchExecuteInvalidHost, *hostResult.Error)
+			require.Equal(t, automdm.BatchExecuteInvalidHost, *hostResult.Error)
 		default:
 			require.Failf(t, "forgot to check a host", "host_id: %d", hostResult.HostID)
 		}
@@ -2578,7 +2578,7 @@ func testBatchScriptSchedule(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// Get the summary again
-	summaryList, err := ds.ListBatchScriptExecutions(ctx, fleet.BatchExecutionStatusFilter{
+	summaryList, err := ds.ListBatchScriptExecutions(ctx, automdm.BatchExecutionStatusFilter{
 		ExecutionID: &execID,
 	})
 	require.NoError(t, err)
@@ -2602,7 +2602,7 @@ func testNewBatchScriptExecution(t *testing.T, ds *Datastore) {
 	test.SetOrbitEnrollment(t, host1, ds)
 	test.SetOrbitEnrollment(t, host2, ds)
 
-	script, err := ds.NewScript(ctx, &fleet.Script{
+	script, err := ds.NewScript(ctx, &automdm.Script{
 		Name:           "script1.sh",
 		ScriptContents: "echo hi",
 	})
@@ -2615,7 +2615,7 @@ func testNewBatchScriptExecution(t *testing.T, ds *Datastore) {
 
 	batchActivity, err := ds.GetBatchActivity(ctx, execID)
 	require.NoError(t, err)
-	require.Equal(t, fleet.ScheduledBatchExecutionScheduled, batchActivity.Status)
+	require.Equal(t, automdm.ScheduledBatchExecutionScheduled, batchActivity.Status)
 	require.Nil(t, batchActivity.JobID)
 	require.Nil(t, batchActivity.StartedAt)
 	require.Equal(t, user.ID, *batchActivity.UserID)
@@ -2640,7 +2640,7 @@ func testNewBatchScriptExecution(t *testing.T, ds *Datastore) {
 
 	batchActivity, err = ds.GetBatchActivity(ctx, execID)
 	require.NoError(t, err)
-	require.Equal(t, fleet.ScheduledBatchExecutionStarted, batchActivity.Status)
+	require.Equal(t, automdm.ScheduledBatchExecutionStarted, batchActivity.Status)
 	require.NotNil(t, batchActivity.StartedAt)
 
 	hostResults, err = ds.GetBatchActivityHostResults(ctx, execID)
@@ -2655,7 +2655,7 @@ func testNewBatchScriptExecution(t *testing.T, ds *Datastore) {
 	require.Len(t, upcomingScripts, 1)
 	require.Equal(t, *hostResults[0].HostExecutionID, upcomingScripts[0].ExecutionID)
 
-	executions, err := ds.ListBatchScriptExecutions(ctx, fleet.BatchExecutionStatusFilter{
+	executions, err := ds.ListBatchScriptExecutions(ctx, automdm.BatchExecutionStatusFilter{
 		ExecutionID: &execID,
 	})
 	require.NoError(t, err)
@@ -2669,9 +2669,9 @@ func testBatchScriptScheduleTeamTransfer(t *testing.T, ds *Datastore) {
 
 	user := test.NewUser(t, ds, "user1", "user@example.com", true)
 
-	teamA, err := ds.NewTeam(ctx, &fleet.Team{Name: "teamA"})
+	teamA, err := ds.NewTeam(ctx, &automdm.Team{Name: "teamA"})
 	require.NoError(t, err)
-	teamB, err := ds.NewTeam(ctx, &fleet.Team{Name: "teamB"})
+	teamB, err := ds.NewTeam(ctx, &automdm.Team{Name: "teamB"})
 	require.NoError(t, err)
 
 	// Both hosts start on team A, matching the script's team.
@@ -2680,7 +2680,7 @@ func testBatchScriptScheduleTeamTransfer(t *testing.T, ds *Datastore) {
 	test.SetOrbitEnrollment(t, hostStays, ds)
 	test.SetOrbitEnrollment(t, hostMoved, ds)
 
-	script, err := ds.NewScript(ctx, &fleet.Script{
+	script, err := ds.NewScript(ctx, &automdm.Script{
 		Name:           "script1.sh",
 		ScriptContents: "echo hi",
 		TeamID:         &teamA.ID,
@@ -2693,7 +2693,7 @@ func testBatchScriptScheduleTeamTransfer(t *testing.T, ds *Datastore) {
 	require.NotEmpty(t, execID)
 
 	// Move one host to a different team after scheduling but before the batch fires.
-	err = ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&teamB.ID, []uint{hostMoved.ID}))
+	err = ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&teamB.ID, []uint{hostMoved.ID}))
 	require.NoError(t, err)
 	movedHost, err := ds.Host(ctx, hostMoved.ID)
 	require.NoError(t, err)
@@ -2719,14 +2719,14 @@ func testBatchScriptScheduleTeamTransfer(t *testing.T, ds *Datastore) {
 			// Moved off the script's team, so it is skipped.
 			require.Nil(t, hostResult.HostExecutionID)
 			require.NotNil(t, hostResult.Error)
-			require.Equal(t, fleet.BatchExecuteIncompatibleTeam, *hostResult.Error)
+			require.Equal(t, automdm.BatchExecuteIncompatibleTeam, *hostResult.Error)
 			require.Empty(t, upcomingScripts)
 		default:
 			require.Failf(t, "unexpected host in batch", "host_id: %d", hostResult.HostID)
 		}
 	}
 
-	executions, err := ds.ListBatchScriptExecutions(ctx, fleet.BatchExecutionStatusFilter{
+	executions, err := ds.ListBatchScriptExecutions(ctx, automdm.BatchExecutionStatusFilter{
 		ExecutionID: &execID,
 	})
 	require.NoError(t, err)
@@ -2741,7 +2741,7 @@ func testMarkActivitiesAsCompleted(t *testing.T, ds *Datastore) {
 
 	user := test.NewUser(t, ds, "user1", "user@example.com", true)
 
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "team1"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
 
 	hostNoScripts := test.NewHost(t, ds, "hostNoScripts", "10.0.0.1", "hostnoscripts", "hostnoscriptsuuid", time.Now())
@@ -2757,7 +2757,7 @@ func testMarkActivitiesAsCompleted(t *testing.T, ds *Datastore) {
 	test.SetOrbitEnrollment(t, host3, ds)
 	test.SetOrbitEnrollment(t, hostTeam1, ds)
 
-	script, err := ds.NewScript(ctx, &fleet.Script{
+	script, err := ds.NewScript(ctx, &automdm.Script{
 		Name:           "script1.sh",
 		ScriptContents: "echo hi",
 	})
@@ -2786,7 +2786,7 @@ func testMarkActivitiesAsCompleted(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// Set host 1 to have a successful script result
-	_, _, err = ds.SetHostScriptExecutionResult(ctx, &fleet.HostScriptResultPayload{
+	_, _, err = ds.SetHostScriptExecutionResult(ctx, &automdm.HostScriptResultPayload{
 		HostID:      host1.ID,
 		ExecutionID: host1Upcoming[0].ExecutionID,
 		Output:      "foo",
@@ -2795,7 +2795,7 @@ func testMarkActivitiesAsCompleted(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// Set host 2 to have a failed script result
-	_, _, err = ds.SetHostScriptExecutionResult(ctx, &fleet.HostScriptResultPayload{
+	_, _, err = ds.SetHostScriptExecutionResult(ctx, &automdm.HostScriptResultPayload{
 		HostID:      host2.ID,
 		ExecutionID: host2Upcoming[0].ExecutionID,
 		Output:      "bar",
@@ -2820,7 +2820,7 @@ func testMarkActivitiesAsCompleted(t *testing.T, ds *Datastore) {
 	// First activity should be marked as finished and updated accordingly.
 	batchActivity, err := ds.GetBatchActivity(ctx, execID)
 	require.NoError(t, err)
-	require.Equal(t, fleet.ScheduledBatchExecutionFinished, batchActivity.Status)
+	require.Equal(t, automdm.ScheduledBatchExecutionFinished, batchActivity.Status)
 	require.Equal(t, uint(5), *batchActivity.NumTargeted)
 	require.Equal(t, uint(1), *batchActivity.NumRan)
 	require.Equal(t, uint(1), *batchActivity.NumErrored)
@@ -2831,7 +2831,7 @@ func testMarkActivitiesAsCompleted(t *testing.T, ds *Datastore) {
 	// Second activity should still be in "started" status.
 	batchActivity2, err := ds.GetBatchActivity(ctx, execID2)
 	require.NoError(t, err)
-	require.Equal(t, fleet.ScheduledBatchExecutionStarted, batchActivity2.Status)
+	require.Equal(t, automdm.ScheduledBatchExecutionStarted, batchActivity2.Status)
 
 	// Schedule another batch that we will cancel.
 	execID3, err := ds.NewBatchScriptExecution(ctx, &user.ID, script.ID, []uint{hostNoScripts.ID, hostWindows.ID, host1.ID, host2.ID, host3.ID})
@@ -2853,7 +2853,7 @@ func testMarkActivitiesAsCompleted(t *testing.T, ds *Datastore) {
 	// First activity should be marked as finished and updated accordingly.
 	batchActivity, err = ds.GetBatchActivity(ctx, execID3)
 	require.NoError(t, err)
-	require.Equal(t, fleet.ScheduledBatchExecutionFinished, batchActivity.Status)
+	require.Equal(t, automdm.ScheduledBatchExecutionFinished, batchActivity.Status)
 	require.Equal(t, uint(5), *batchActivity.NumTargeted)
 	require.Equal(t, uint(0), *batchActivity.NumRan)
 	require.Equal(t, uint(0), *batchActivity.NumErrored)
@@ -2865,7 +2865,7 @@ func testMarkActivitiesAsCompleted(t *testing.T, ds *Datastore) {
 	// In reality this could happen if all the hosts in a batch get deleted.
 	ExecAdhocSQL(t, ds, func(tx sqlx.ExtContext) error {
 		_, err := tx.ExecContext(ctx, "INSERT INTO batch_activities (execution_id, status, script_id, activity_type) VALUES (?, ?, ?, ?)",
-			"abc123", fleet.ScheduledBatchExecutionStarted, script.ID, "script")
+			"abc123", automdm.ScheduledBatchExecutionStarted, script.ID, "script")
 		return err
 	})
 
@@ -2876,7 +2876,7 @@ func testMarkActivitiesAsCompleted(t *testing.T, ds *Datastore) {
 	// Activity should be marked as finished and updated accordingly.
 	batchActivity, err = ds.GetBatchActivity(ctx, "abc123")
 	require.NoError(t, err)
-	require.Equal(t, fleet.ScheduledBatchExecutionFinished, batchActivity.Status)
+	require.Equal(t, automdm.ScheduledBatchExecutionFinished, batchActivity.Status)
 	require.Equal(t, uint(0), *batchActivity.NumTargeted)
 	require.Equal(t, uint(0), *batchActivity.NumRan)
 	require.Equal(t, uint(0), *batchActivity.NumErrored)
@@ -2890,7 +2890,7 @@ func testBatchScriptCancel(t *testing.T, ds *Datastore) {
 
 	user := test.NewUser(t, ds, "user1", "user@example.com", true)
 
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "team1"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
 
 	host1 := test.NewHost(t, ds, "host1", "10.0.0.3", "host1key", "host1uuid", time.Now())
@@ -2903,7 +2903,7 @@ func testBatchScriptCancel(t *testing.T, ds *Datastore) {
 	test.SetOrbitEnrollment(t, host3, ds)
 	test.SetOrbitEnrollment(t, hostTeam1, ds)
 
-	script, err := ds.NewScript(ctx, &fleet.Script{
+	script, err := ds.NewScript(ctx, &automdm.Script{
 		Name:           "script1.sh",
 		ScriptContents: "echo hi",
 	})
@@ -2918,10 +2918,10 @@ func testBatchScriptCancel(t *testing.T, ds *Datastore) {
 	err = ds.RunScheduledBatchActivity(ctx, execID1)
 	require.NoError(t, err)
 
-	summary1, err := ds.ListBatchScriptExecutions(ctx, fleet.BatchExecutionStatusFilter{ExecutionID: &execID1})
+	summary1, err := ds.ListBatchScriptExecutions(ctx, automdm.BatchExecutionStatusFilter{ExecutionID: &execID1})
 	require.NoError(t, err)
 	require.Len(t, summary1, 1)
-	require.Equal(t, fleet.ScheduledBatchExecutionStarted, summary1[0].Status)
+	require.Equal(t, automdm.ScheduledBatchExecutionStarted, summary1[0].Status)
 	require.False(t, summary1[0].Canceled)
 	require.Equal(t, uint(2), *summary1[0].NumTargeted)
 	require.Equal(t, uint(2), *summary1[0].NumPending)
@@ -2930,7 +2930,7 @@ func testBatchScriptCancel(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 	require.Len(t, upcoming1, 1)
 
-	_, _, err = ds.SetHostScriptExecutionResult(ctx, &fleet.HostScriptResultPayload{
+	_, _, err = ds.SetHostScriptExecutionResult(ctx, &automdm.HostScriptResultPayload{
 		HostID:      host1.ID,
 		ExecutionID: upcoming1[0].ExecutionID,
 		Output:      "",
@@ -2945,10 +2945,10 @@ func testBatchScriptCancel(t *testing.T, ds *Datastore) {
 	err = ds.CancelBatchScript(ctx, execID1)
 	require.NoError(t, err)
 
-	summary1, err = ds.ListBatchScriptExecutions(ctx, fleet.BatchExecutionStatusFilter{ExecutionID: &execID1})
+	summary1, err = ds.ListBatchScriptExecutions(ctx, automdm.BatchExecutionStatusFilter{ExecutionID: &execID1})
 	require.NoError(t, err)
 	require.Len(t, summary1, 1)
-	require.Equal(t, fleet.ScheduledBatchExecutionFinished, summary1[0].Status)
+	require.Equal(t, automdm.ScheduledBatchExecutionFinished, summary1[0].Status)
 	require.True(t, summary1[0].Canceled)
 	require.Equal(t, uint(0), *summary1[0].NumPending)
 	require.Equal(t, uint(1), *summary1[0].NumRan)
@@ -2970,10 +2970,10 @@ func testBatchScriptCancel(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 	require.NotEmpty(t, execID2)
 
-	summary2, err := ds.ListBatchScriptExecutions(ctx, fleet.BatchExecutionStatusFilter{ExecutionID: &execID2})
+	summary2, err := ds.ListBatchScriptExecutions(ctx, automdm.BatchExecutionStatusFilter{ExecutionID: &execID2})
 	require.NoError(t, err)
 	require.Len(t, summary2, 1)
-	require.Equal(t, fleet.ScheduledBatchExecutionScheduled, summary2[0].Status)
+	require.Equal(t, automdm.ScheduledBatchExecutionScheduled, summary2[0].Status)
 	require.False(t, summary2[0].Canceled)
 	require.Equal(t, uint(2), *summary2[0].NumTargeted)
 	require.Equal(t, uint(2), *summary2[0].NumPending)
@@ -2989,10 +2989,10 @@ func testBatchScriptCancel(t *testing.T, ds *Datastore) {
 	err = ds.CancelBatchScript(ctx, execID2)
 	require.NoError(t, err)
 
-	summary2, err = ds.ListBatchScriptExecutions(ctx, fleet.BatchExecutionStatusFilter{ExecutionID: &execID2})
+	summary2, err = ds.ListBatchScriptExecutions(ctx, automdm.BatchExecutionStatusFilter{ExecutionID: &execID2})
 	require.NoError(t, err)
 	require.Len(t, summary2, 1)
-	require.Equal(t, fleet.ScheduledBatchExecutionFinished, summary2[0].Status)
+	require.Equal(t, automdm.ScheduledBatchExecutionFinished, summary2[0].Status)
 	require.True(t, summary2[0].Canceled)
 	require.Equal(t, uint(0), *summary2[0].NumPending)
 	require.Equal(t, uint(0), *summary2[0].NumRan)
@@ -3013,21 +3013,21 @@ func testDeleteScriptActivatesNextActivity(t *testing.T, ds *Datastore) {
 	u := test.NewUser(t, ds, "Alice", "alice@example.com", true)
 
 	// create a couple of scripts
-	scriptA, err := ds.NewScript(ctx, &fleet.Script{
+	scriptA, err := ds.NewScript(ctx, &automdm.Script{
 		Name:           "a",
 		ScriptContents: "echo 'a'",
 	})
 	require.NoError(t, err)
-	scriptB, err := ds.NewScript(ctx, &fleet.Script{
+	scriptB, err := ds.NewScript(ctx, &automdm.Script{
 		Name:           "b",
 		ScriptContents: "echo 'b'",
 	})
 	require.NoError(t, err)
 
 	// create some hosts
-	hosts := make([]*fleet.Host, 4)
+	hosts := make([]*automdm.Host, 4)
 	for i := range hosts {
-		host, err := ds.NewHost(context.Background(), &fleet.Host{
+		host, err := ds.NewHost(context.Background(), &automdm.Host{
 			DetailUpdatedAt: time.Now(),
 			LabelUpdatedAt:  time.Now(),
 			SeenTime:        time.Now(),
@@ -3046,49 +3046,49 @@ func testDeleteScriptActivatesNextActivity(t *testing.T, ds *Datastore) {
 	// * hosts[1]: a, b
 	// * hosts[2]: b, a
 	// * hosts[3]: b
-	execHost0ScriptA, err := ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+	execHost0ScriptA, err := ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 		HostID:      hosts[0].ID,
 		ScriptID:    &scriptA.ID,
 		UserID:      &u.ID,
 		SyncRequest: true,
 	})
 	require.NoError(t, err)
-	execHost0ScriptB, err := ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+	execHost0ScriptB, err := ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 		HostID:      hosts[0].ID,
 		ScriptID:    &scriptB.ID,
 		UserID:      &u.ID,
 		SyncRequest: true,
 	})
 	require.NoError(t, err)
-	execHost1ScriptA, err := ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+	execHost1ScriptA, err := ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 		HostID:      hosts[1].ID,
 		ScriptID:    &scriptA.ID,
 		UserID:      &u.ID,
 		SyncRequest: true,
 	})
 	require.NoError(t, err)
-	execHost1ScriptB, err := ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+	execHost1ScriptB, err := ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 		HostID:      hosts[1].ID,
 		ScriptID:    &scriptB.ID,
 		UserID:      &u.ID,
 		SyncRequest: true,
 	})
 	require.NoError(t, err)
-	execHost2ScriptB, err := ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+	execHost2ScriptB, err := ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 		HostID:      hosts[2].ID,
 		ScriptID:    &scriptB.ID,
 		UserID:      &u.ID,
 		SyncRequest: true,
 	})
 	require.NoError(t, err)
-	execHost2ScriptA, err := ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+	execHost2ScriptA, err := ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 		HostID:      hosts[2].ID,
 		ScriptID:    &scriptA.ID,
 		UserID:      &u.ID,
 		SyncRequest: true,
 	})
 	require.NoError(t, err)
-	execHost3ScriptB, err := ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+	execHost3ScriptB, err := ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 		HostID:      hosts[3].ID,
 		ScriptID:    &scriptB.ID,
 		UserID:      &u.ID,
@@ -3115,7 +3115,7 @@ func testBatchSetScriptActivatesNextActivity(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
 	// batch-set some scripts
-	scripts, err := ds.BatchSetScripts(ctx, nil, []*fleet.Script{
+	scripts, err := ds.BatchSetScripts(ctx, nil, []*automdm.Script{
 		{Name: "A", ScriptContents: "C1"},
 		{Name: "B", ScriptContents: "C2"},
 		{Name: "C", ScriptContents: "C3"},
@@ -3129,9 +3129,9 @@ func testBatchSetScriptActivatesNextActivity(t *testing.T, ds *Datastore) {
 	}
 
 	// create some hosts
-	hosts := make([]*fleet.Host, 4)
+	hosts := make([]*automdm.Host, 4)
 	for i := range hosts {
-		host, err := ds.NewHost(context.Background(), &fleet.Host{
+		host, err := ds.NewHost(context.Background(), &automdm.Host{
 			DetailUpdatedAt: time.Now(),
 			LabelUpdatedAt:  time.Now(),
 			SeenTime:        time.Now(),
@@ -3150,51 +3150,51 @@ func testBatchSetScriptActivatesNextActivity(t *testing.T, ds *Datastore) {
 	// * hosts[1]: B, B, C
 	// * hosts[2]: C, A
 	// * hosts[3]: A, B, C
-	execHost0ScriptA, err := ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+	execHost0ScriptA, err := ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 		HostID: hosts[0].ID, ScriptID: ptr.Uint(scriptByName["A"]), SyncRequest: true, ScriptContents: "C1",
 	})
 	require.NoError(t, err)
-	execHost0ScriptC, err := ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+	execHost0ScriptC, err := ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 		HostID: hosts[0].ID, ScriptID: ptr.Uint(scriptByName["C"]), SyncRequest: true, ScriptContents: "C3",
 	})
 	require.NoError(t, err)
-	execHost0ScriptA2, err := ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+	execHost0ScriptA2, err := ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 		HostID: hosts[0].ID, ScriptID: ptr.Uint(scriptByName["A"]), SyncRequest: true, ScriptContents: "C1",
 	})
 	require.NoError(t, err)
-	execHost0ScriptB, err := ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+	execHost0ScriptB, err := ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 		HostID: hosts[0].ID, ScriptID: ptr.Uint(scriptByName["B"]), SyncRequest: true, ScriptContents: "C2",
 	})
 	require.NoError(t, err)
-	execHost1ScriptB, err := ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+	execHost1ScriptB, err := ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 		HostID: hosts[1].ID, ScriptID: ptr.Uint(scriptByName["B"]), SyncRequest: true, ScriptContents: "C2",
 	})
 	require.NoError(t, err)
-	execHost1ScriptB2, err := ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+	execHost1ScriptB2, err := ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 		HostID: hosts[1].ID, ScriptID: ptr.Uint(scriptByName["B"]), SyncRequest: true, ScriptContents: "C2",
 	})
 	require.NoError(t, err)
-	execHost1ScriptC, err := ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+	execHost1ScriptC, err := ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 		HostID: hosts[1].ID, ScriptID: ptr.Uint(scriptByName["C"]), SyncRequest: true, ScriptContents: "C3",
 	})
 	require.NoError(t, err)
-	execHost2ScriptC, err := ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+	execHost2ScriptC, err := ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 		HostID: hosts[2].ID, ScriptID: ptr.Uint(scriptByName["C"]), SyncRequest: true, ScriptContents: "C3",
 	})
 	require.NoError(t, err)
-	execHost2ScriptA, err := ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+	execHost2ScriptA, err := ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 		HostID: hosts[2].ID, ScriptID: ptr.Uint(scriptByName["A"]), SyncRequest: true, ScriptContents: "C1",
 	})
 	require.NoError(t, err)
-	execHost3ScriptA, err := ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+	execHost3ScriptA, err := ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 		HostID: hosts[3].ID, ScriptID: ptr.Uint(scriptByName["A"]), SyncRequest: true, ScriptContents: "C1",
 	})
 	require.NoError(t, err)
-	execHost3ScriptB, err := ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+	execHost3ScriptB, err := ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 		HostID: hosts[3].ID, ScriptID: ptr.Uint(scriptByName["B"]), SyncRequest: true, ScriptContents: "C2",
 	})
 	require.NoError(t, err)
-	execHost3ScriptC, err := ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+	execHost3ScriptC, err := ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 		HostID: hosts[3].ID, ScriptID: ptr.Uint(scriptByName["C"]), SyncRequest: true, ScriptContents: "C3",
 	})
 	require.NoError(t, err)
@@ -3205,7 +3205,7 @@ func testBatchSetScriptActivatesNextActivity(t *testing.T, ds *Datastore) {
 	checkUpcomingActivities(t, ds, hosts[3], execHost3ScriptA.ExecutionID, execHost3ScriptB.ExecutionID, execHost3ScriptC.ExecutionID)
 
 	// no change
-	_, err = ds.BatchSetScripts(ctx, nil, []*fleet.Script{
+	_, err = ds.BatchSetScripts(ctx, nil, []*automdm.Script{
 		{Name: "A", ScriptContents: "C1"},
 		{Name: "B", ScriptContents: "C2"},
 		{Name: "C", ScriptContents: "C3"},
@@ -3218,7 +3218,7 @@ func testBatchSetScriptActivatesNextActivity(t *testing.T, ds *Datastore) {
 	checkUpcomingActivities(t, ds, hosts[3], execHost3ScriptA.ExecutionID, execHost3ScriptB.ExecutionID, execHost3ScriptC.ExecutionID)
 
 	// batch-set removes A, updates B and creates D, cancelling any pending A and B executions
-	_, err = ds.BatchSetScripts(ctx, nil, []*fleet.Script{
+	_, err = ds.BatchSetScripts(ctx, nil, []*automdm.Script{
 		{Name: "B", ScriptContents: "C2updated"},
 		{Name: "C", ScriptContents: "C3"},
 		{Name: "D", ScriptContents: "C4"},
@@ -3231,7 +3231,7 @@ func testBatchSetScriptActivatesNextActivity(t *testing.T, ds *Datastore) {
 	checkUpcomingActivities(t, ds, hosts[3], execHost3ScriptC.ExecutionID)
 
 	// batch-set remove all
-	_, err = ds.BatchSetScripts(ctx, nil, []*fleet.Script{})
+	_, err = ds.BatchSetScripts(ctx, nil, []*automdm.Script{})
 	require.NoError(t, err)
 
 	checkUpcomingActivities(t, ds, hosts[0])
@@ -3245,13 +3245,13 @@ func testUpdateScriptToDuplicateContent(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
 	// Create two scripts with different content
-	script1, err := ds.NewScript(ctx, &fleet.Script{
+	script1, err := ds.NewScript(ctx, &automdm.Script{
 		Name:           "script1.sh",
 		ScriptContents: "echo hello",
 	})
 	require.NoError(t, err)
 
-	script2, err := ds.NewScript(ctx, &fleet.Script{
+	script2, err := ds.NewScript(ctx, &automdm.Script{
 		Name:           "script2.sh",
 		ScriptContents: "echo world",
 	})
@@ -3298,13 +3298,13 @@ func testUpdateSharedScriptContent(t *testing.T, ds *Datastore) {
 
 	// Create two scripts with the SAME content
 	sharedContent := "echo shared"
-	script1, err := ds.NewScript(ctx, &fleet.Script{
+	script1, err := ds.NewScript(ctx, &automdm.Script{
 		Name:           "script1.sh",
 		ScriptContents: sharedContent,
 	})
 	require.NoError(t, err)
 
-	script2, err := ds.NewScript(ctx, &fleet.Script{
+	script2, err := ds.NewScript(ctx, &automdm.Script{
 		Name:           "script2.sh",
 		ScriptContents: sharedContent,
 	})
@@ -3340,7 +3340,7 @@ func testUpdateScriptToSameContent(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
 	// Create a script
-	script, err := ds.NewScript(ctx, &fleet.Script{
+	script, err := ds.NewScript(ctx, &automdm.Script{
 		Name:           "script.sh",
 		ScriptContents: "echo hello",
 	})
@@ -3370,13 +3370,13 @@ func testCountHostScriptAttempts(t *testing.T, ds *Datastore) {
 	host := test.NewHost(t, ds, "host1", "10.0.0.1", "host1Key", "host1UUID", time.Now())
 	user := test.NewUser(t, ds, "User", "test@example.com", true)
 
-	policy, err := ds.NewGlobalPolicy(ctx, &user.ID, fleet.PolicyPayload{
+	policy, err := ds.NewGlobalPolicy(ctx, &user.ID, automdm.PolicyPayload{
 		Name:  "policy",
 		Query: "SELECT 1;",
 	})
 	require.NoError(t, err)
 
-	script, err := ds.NewScript(ctx, &fleet.Script{
+	script, err := ds.NewScript(ctx, &automdm.Script{
 		Name:           "test.sh",
 		ScriptContents: "echo test",
 	})
@@ -3388,7 +3388,7 @@ func testCountHostScriptAttempts(t *testing.T, ds *Datastore) {
 	require.Equal(t, 0, count)
 
 	// script execution attempt
-	execReq1, err := ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+	execReq1, err := ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 		HostID:   host.ID,
 		ScriptID: &script.ID,
 		PolicyID: &policy.ID,
@@ -3397,7 +3397,7 @@ func testCountHostScriptAttempts(t *testing.T, ds *Datastore) {
 	require.NotEmpty(t, execReq1.ExecutionID)
 
 	// Set result for first attempt
-	_, _, err = ds.SetHostScriptExecutionResult(ctx, &fleet.HostScriptResultPayload{
+	_, _, err = ds.SetHostScriptExecutionResult(ctx, &automdm.HostScriptResultPayload{
 		HostID:      host.ID,
 		ExecutionID: execReq1.ExecutionID,
 		Output:      "output1",
@@ -3412,7 +3412,7 @@ func testCountHostScriptAttempts(t *testing.T, ds *Datastore) {
 	require.Equal(t, 1, count)
 
 	// retry
-	execReq2, err := ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+	execReq2, err := ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 		HostID:   host.ID,
 		ScriptID: &script.ID,
 		PolicyID: &policy.ID,
@@ -3421,7 +3421,7 @@ func testCountHostScriptAttempts(t *testing.T, ds *Datastore) {
 	require.NotEmpty(t, execReq2.ExecutionID)
 
 	// Set result for second attempt
-	_, _, err = ds.SetHostScriptExecutionResult(ctx, &fleet.HostScriptResultPayload{
+	_, _, err = ds.SetHostScriptExecutionResult(ctx, &automdm.HostScriptResultPayload{
 		HostID:      host.ID,
 		ExecutionID: execReq2.ExecutionID,
 		Output:      "output2",
@@ -3436,7 +3436,7 @@ func testCountHostScriptAttempts(t *testing.T, ds *Datastore) {
 	require.Equal(t, 2, count)
 
 	// retry
-	execReq3, err := ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+	execReq3, err := ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 		HostID:   host.ID,
 		ScriptID: &script.ID,
 		PolicyID: &policy.ID,
@@ -3445,7 +3445,7 @@ func testCountHostScriptAttempts(t *testing.T, ds *Datastore) {
 	require.NotEmpty(t, execReq3.ExecutionID)
 
 	// Set result for third attempt
-	_, _, err = ds.SetHostScriptExecutionResult(ctx, &fleet.HostScriptResultPayload{
+	_, _, err = ds.SetHostScriptExecutionResult(ctx, &automdm.HostScriptResultPayload{
 		HostID:      host.ID,
 		ExecutionID: execReq3.ExecutionID,
 		Output:      "output3",
@@ -3460,14 +3460,14 @@ func testCountHostScriptAttempts(t *testing.T, ds *Datastore) {
 	require.Equal(t, 3, count)
 
 	// script execution but without policy_id
-	execReq4, err := ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+	execReq4, err := ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 		HostID:   host.ID,
 		ScriptID: &script.ID,
 	})
 	require.NoError(t, err)
 	require.NotEmpty(t, execReq4.ExecutionID)
 
-	_, _, err = ds.SetHostScriptExecutionResult(ctx, &fleet.HostScriptResultPayload{
+	_, _, err = ds.SetHostScriptExecutionResult(ctx, &automdm.HostScriptResultPayload{
 		HostID:      host.ID,
 		ExecutionID: execReq4.ExecutionID,
 		Output:      "output4",
@@ -3488,7 +3488,7 @@ func testCountHostScriptAttempts(t *testing.T, ds *Datastore) {
 	require.Equal(t, 0, count)
 
 	// Same host, different policy
-	policy2, err := ds.NewGlobalPolicy(ctx, &user.ID, fleet.PolicyPayload{
+	policy2, err := ds.NewGlobalPolicy(ctx, &user.ID, automdm.PolicyPayload{
 		Name:  "test policy 2",
 		Query: "SELECT 2;",
 	})
@@ -3498,7 +3498,7 @@ func testCountHostScriptAttempts(t *testing.T, ds *Datastore) {
 	require.Equal(t, 0, count)
 
 	// Same host and policy, new script
-	script2, err := ds.NewScript(ctx, &fleet.Script{
+	script2, err := ds.NewScript(ctx, &automdm.Script{
 		Name:           "test2.sh",
 		ScriptContents: "echo test2",
 	})
@@ -3512,11 +3512,11 @@ func testScriptModificationResetsAttemptNumber(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
 	// Create a team
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: t.Name()})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: t.Name()})
 	require.NoError(t, err)
 
 	// Create a policy
-	policy, err := ds.NewTeamPolicy(ctx, team.ID, nil, fleet.PolicyPayload{
+	policy, err := ds.NewTeamPolicy(ctx, team.ID, nil, automdm.PolicyPayload{
 		Name:     t.Name(),
 		Query:    "SELECT 1;",
 		Platform: "darwin",
@@ -3536,7 +3536,7 @@ func testScriptModificationResetsAttemptNumber(t *testing.T, ds *Datastore) {
 	})
 
 	// Create a script
-	script, err := ds.NewScript(ctx, &fleet.Script{
+	script, err := ds.NewScript(ctx, &automdm.Script{
 		Name:            "test.sh",
 		TeamID:          &team.ID,
 		ScriptContentID: uint(scriptContentID), //nolint:gosec // dismiss G115
@@ -3600,7 +3600,7 @@ func testScriptModificationResetsAttemptNumber(t *testing.T, ds *Datastore) {
 func testNewInternalHostScriptExecutionRequest(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
-	res, err := ds.NewInternalHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+	res, err := ds.NewInternalHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 		HostID:         1,
 		ScriptContents: "echo internal",
 	})
@@ -3614,30 +3614,30 @@ func testNewInternalHostScriptExecutionRequest(t *testing.T, ds *Datastore) {
 	require.Len(t, pendingAll, 1)
 	require.Equal(t, res.ID, pendingAll[0].ID)
 
-	resUser, err := ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+	resUser, err := ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 		HostID:         2,
 		ScriptContents: "echo user",
 	})
 	require.NoError(t, err)
 	require.NotZero(t, resUser.ID)
 
-	// Fleet queues the batch path for itself, so the upcoming activity is
-	// attributed to Fleet rather than showing a blank actor.
+	// AutoMDM queues the batch path for itself, so the upcoming activity is
+	// attributed to AutoMDM rather than showing a blank actor.
 	_, err = ds.BatchNewInternalHostScriptExecutionRequests(ctx, []uint{3}, "echo batch internal")
 	require.NoError(t, err)
 
-	batchUpcoming, _, err := ds.ListHostUpcomingActivities(ctx, 3, fleet.ListOptions{})
+	batchUpcoming, _, err := ds.ListHostUpcomingActivities(ctx, 3, automdm.ListOptions{})
 	require.NoError(t, err)
 	require.Len(t, batchUpcoming, 1)
-	require.True(t, batchUpcoming[0].FleetInitiated)
+	require.True(t, batchUpcoming[0].AutoMDMInitiated)
 	require.NotNil(t, batchUpcoming[0].ActorFullName)
-	require.Equal(t, "Fleet", *batchUpcoming[0].ActorFullName)
+	require.Equal(t, "AutoMDM", *batchUpcoming[0].ActorFullName)
 
 	// a user-requested run keeps its own actor
-	userUpcoming, _, err := ds.ListHostUpcomingActivities(ctx, 2, fleet.ListOptions{})
+	userUpcoming, _, err := ds.ListHostUpcomingActivities(ctx, 2, automdm.ListOptions{})
 	require.NoError(t, err)
 	require.Len(t, userUpcoming, 1)
-	require.False(t, userUpcoming[0].FleetInitiated)
+	require.False(t, userUpcoming[0].AutoMDMInitiated)
 
 	// the point of the batch path is many hosts in one call, each with its own
 	// execution ready to run
@@ -3669,7 +3669,7 @@ func testNewInternalHostScriptExecutionRequest(t *testing.T, ds *Datastore) {
 	require.Len(t, readyForHost3, 1)
 	require.NotEqual(t, secondForHost3[3], readyForHost3[0].ExecutionID)
 
-	upcomingForHost3, _, err := ds.ListHostUpcomingActivities(ctx, 3, fleet.ListOptions{})
+	upcomingForHost3, _, err := ds.ListHostUpcomingActivities(ctx, 3, automdm.ListOptions{})
 	require.NoError(t, err)
 	require.Len(t, upcomingForHost3, 2)
 }
@@ -3754,7 +3754,7 @@ func testCleanupHostScriptResults(t *testing.T, ds *Datastore) {
 	cutoff := now.Add(-24 * time.Hour)
 
 	host := test.NewHost(t, ds, "script-retention", "10.0.0.1", "srkey", uuid.NewString(), now)
-	script, err := ds.NewScript(ctx, &fleet.Script{Name: "retention.sh", ScriptContents: "echo retention"})
+	script, err := ds.NewScript(ctx, &automdm.Script{Name: "retention.sh", ScriptContents: "echo retention"})
 	require.NoError(t, err)
 
 	// The insert paths stamp both with NOW() and the sweep bounds both.
@@ -3890,7 +3890,7 @@ func testBatchScriptCancelWithLateResults(t *testing.T, ds *Datastore) {
 	test.SetOrbitEnrollment(t, host1, ds)
 	test.SetOrbitEnrollment(t, host2, ds)
 	test.SetOrbitEnrollment(t, host3, ds)
-	script, err := ds.NewScript(ctx, &fleet.Script{Name: "script1.sh", ScriptContents: "echo hi"})
+	script, err := ds.NewScript(ctx, &automdm.Script{Name: "script1.sh", ScriptContents: "echo hi"})
 	require.NoError(t, err)
 
 	cases := []struct {
@@ -3907,7 +3907,7 @@ func testBatchScriptCancelWithLateResults(t *testing.T, ds *Datastore) {
 			err = ds.RunScheduledBatchActivity(ctx, execID)
 			require.NoError(t, err)
 			hostExecutionIDs := map[uint]string{}
-			for _, h := range []*fleet.Host{host1, host2, host3} {
+			for _, h := range []*automdm.Host{host1, host2, host3} {
 				upcoming, err := ds.listUpcomingHostScriptExecutions(ctx, h.ID, false)
 				require.NoError(t, err)
 				require.Len(t, upcoming, 1)
@@ -3916,7 +3916,7 @@ func testBatchScriptCancelWithLateResults(t *testing.T, ds *Datastore) {
 
 			// report a successful result for host1, cancel host2 and host3, then report a failed result for host2
 			// and a successful result for host3, host2 and host3 should be counted and listed as canceled
-			_, _, err = ds.SetHostScriptExecutionResult(ctx, &fleet.HostScriptResultPayload{HostID: host1.ID, ExecutionID: hostExecutionIDs[host1.ID], ExitCode: 0}, nil)
+			_, _, err = ds.SetHostScriptExecutionResult(ctx, &automdm.HostScriptResultPayload{HostID: host1.ID, ExecutionID: hostExecutionIDs[host1.ID], ExitCode: 0}, nil)
 			require.NoError(t, err)
 
 			if c.cancelWholeBatch {
@@ -3929,13 +3929,13 @@ func testBatchScriptCancelWithLateResults(t *testing.T, ds *Datastore) {
 				require.NoError(t, err)
 			}
 
-			_, _, err = ds.SetHostScriptExecutionResult(ctx, &fleet.HostScriptResultPayload{HostID: host2.ID, ExecutionID: hostExecutionIDs[host2.ID], ExitCode: 1}, nil)
+			_, _, err = ds.SetHostScriptExecutionResult(ctx, &automdm.HostScriptResultPayload{HostID: host2.ID, ExecutionID: hostExecutionIDs[host2.ID], ExitCode: 1}, nil)
 			require.NoError(t, err)
-			_, _, err = ds.SetHostScriptExecutionResult(ctx, &fleet.HostScriptResultPayload{HostID: host3.ID, ExecutionID: hostExecutionIDs[host3.ID], ExitCode: 0}, nil)
+			_, _, err = ds.SetHostScriptExecutionResult(ctx, &automdm.HostScriptResultPayload{HostID: host3.ID, ExecutionID: hostExecutionIDs[host3.ID], ExitCode: 0}, nil)
 			require.NoError(t, err)
 
 			// host2 and host3 should count as canceled
-			summary, err := ds.ListBatchScriptExecutions(ctx, fleet.BatchExecutionStatusFilter{ExecutionID: &execID})
+			summary, err := ds.ListBatchScriptExecutions(ctx, automdm.BatchExecutionStatusFilter{ExecutionID: &execID})
 			require.NoError(t, err)
 			require.Equal(t, uint(3), *summary[0].NumTargeted)
 			require.Equal(t, uint(0), *summary[0].NumPending)
@@ -3947,9 +3947,9 @@ func testBatchScriptCancelWithLateResults(t *testing.T, ds *Datastore) {
 			// run what the batch completion cron runs, the batch should be finished with the same saved counts
 			err = ds.MarkActivitiesAsCompleted(ctx)
 			require.NoError(t, err)
-			summary, err = ds.ListBatchScriptExecutions(ctx, fleet.BatchExecutionStatusFilter{ExecutionID: &execID})
+			summary, err = ds.ListBatchScriptExecutions(ctx, automdm.BatchExecutionStatusFilter{ExecutionID: &execID})
 			require.NoError(t, err)
-			require.Equal(t, fleet.ScheduledBatchExecutionFinished, summary[0].Status)
+			require.Equal(t, automdm.ScheduledBatchExecutionFinished, summary[0].Status)
 			require.Equal(t, uint(3), *summary[0].NumTargeted)
 			require.Equal(t, uint(0), *summary[0].NumPending)
 			require.Equal(t, uint(1), *summary[0].NumRan)
@@ -3957,12 +3957,12 @@ func testBatchScriptCancelWithLateResults(t *testing.T, ds *Datastore) {
 			require.Equal(t, uint(2), *summary[0].NumCanceled)
 			require.Equal(t, uint(0), *summary[0].NumIncompatible)
 
-			canceledHosts := listHostsCheckCount(t, ds, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{BatchScriptExecutionIDFilter: &execID, BatchScriptExecutionStatusFilter: fleet.BatchScriptExecutionCanceled}, 2)
+			canceledHosts := listHostsCheckCount(t, ds, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{BatchScriptExecutionIDFilter: &execID, BatchScriptExecutionStatusFilter: automdm.BatchScriptExecutionCanceled}, 2)
 			canceledHostIDs := []uint{canceledHosts[0].ID, canceledHosts[1].ID}
 			require.ElementsMatch(t, []uint{host2.ID, host3.ID}, canceledHostIDs)
-			ranHosts := listHostsCheckCount(t, ds, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{BatchScriptExecutionIDFilter: &execID, BatchScriptExecutionStatusFilter: fleet.BatchScriptExecutionRan}, 1)
+			ranHosts := listHostsCheckCount(t, ds, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{BatchScriptExecutionIDFilter: &execID, BatchScriptExecutionStatusFilter: automdm.BatchScriptExecutionRan}, 1)
 			require.Equal(t, host1.ID, ranHosts[0].ID)
-			listHostsCheckCount(t, ds, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{BatchScriptExecutionIDFilter: &execID, BatchScriptExecutionStatusFilter: fleet.BatchScriptExecutionErrored}, 0)
+			listHostsCheckCount(t, ds, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{BatchScriptExecutionIDFilter: &execID, BatchScriptExecutionStatusFilter: automdm.BatchScriptExecutionErrored}, 0)
 		})
 	}
 }

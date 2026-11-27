@@ -6,12 +6,12 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 )
 
 func validateSetupServerURL(ctx context.Context, serverURL string) error {
-	invalid := &fleet.InvalidArgumentError{}
+	invalid := &automdm.InvalidArgumentError{}
 	var serverURLString string
 	if serverURL == "" {
 		invalid.Append("server_url", "missing required argument")
@@ -32,7 +32,7 @@ func ValidateServerURL(urlString string) error {
 
 	// no valid scheme provided
 	if !(strings.HasPrefix(urlString, "http://") || strings.HasPrefix(urlString, "https://")) {
-		return errors.New(fleet.InvalidServerURLMsg)
+		return errors.New(automdm.InvalidServerURLMsg)
 	}
 
 	// valid scheme provided - require host
@@ -41,7 +41,7 @@ func ValidateServerURL(urlString string) error {
 		return err
 	}
 	if parsed.Host == "" {
-		return errors.New(fleet.InvalidServerURLMsg)
+		return errors.New(automdm.InvalidServerURLMsg)
 	}
 
 	return nil

@@ -10,10 +10,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/pkg/removednames"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/platform/endpointer"
+	"github.com/anilyagiz/automdm/v4/pkg/removednames"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/platform/endpointer"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/throttled/throttled/v2/store/memstore"
@@ -35,7 +35,7 @@ func TestRemovedPaths(t *testing.T) {
 	for _, template := range removedPathTemplates {
 		served[shape(template)] = struct{}{}
 	}
-	// cmd/fleet/serve.go serves /version on the root mux, outside the API router. TestRemovedRootPath covers it.
+	// cmd/automdm/serve.go serves /version on the root mux, outside the API router. TestRemovedRootPath covers it.
 	served["/version"] = struct{}{}
 	for _, entry := range removednames.Filter(removednames.KindPath, 0) {
 		assert.Contains(t, served, shape(entry.Old))
@@ -80,7 +80,7 @@ func TestRemovedPaths(t *testing.T) {
 					assert.Equal(t, "Gone", body.Message)
 					require.Len(t, body.Errors, 1)
 					want := fmt.Sprintf(`The "%s %s" endpoint is not available anymore. What to use instead: %s`,
-						method, strings.TrimPrefix(entry.Old, "/api/_version_/fleet"), removednames.GuideURL)
+						method, strings.TrimPrefix(entry.Old, "/api/_version_/automdm"), removednames.GuideURL)
 					assert.Equal(t, want, body.Errors[0]["reason"])
 				})
 			}
@@ -98,18 +98,18 @@ func TestRemovedPathsThroughHandler(t *testing.T) {
 	endpointer.RegisterRemovedPaths(handler, []string{"v1", "2022-04"}, slog.New(slog.DiscardHandler), removedPaths())
 
 	for _, c := range []struct{ path, template string }{
-		{"/api/v1/fleet/team/1/policies", "/team/{fleet_id}/policies"},
-		{"/api/latest/fleet/teams/1/policies/count", "/teams/{fleet_id}/policies/count"}, // a literal next to {policy_id}
-		{"/api/v1/fleet/teams/1/policies/7", "/teams/{fleet_id}/policies/{policy_id}"},
-		{"/api/v1/fleet/team/1/schedule/7", "/team/{fleet_id}/schedule/{report_id}"},
-		{"/api/v1/fleet/packs/schedule", "/packs/schedule"}, // a literal next to {id}
-		{"/api/latest/fleet/packs/schedule/7", "/packs/schedule/{id}"},
-		{"/api/v1/fleet/packs/id/7", "/packs/id/{id}"},
-		{"/api/v1/fleet/packs/my-pack", "/packs/{id}"},
-		{"/api/v1/fleet/queries/run", "/queries/run"}, // a literal next to {id}
-		{"/api/latest/fleet/queries/delete", "/queries/delete"},
-		{"/api/v1/fleet/queries/my-report", "/queries/{id}"},
-		{"/api/mdm/apple/installer", "/api/mdm/apple/installer"}, // outside the Fleet API
+		{"/api/v1/automdm/team/1/policies", "/team/{team_id}/policies"},
+		{"/api/latest/automdm/teams/1/policies/count", "/teams/{team_id}/policies/count"}, // a literal next to {policy_id}
+		{"/api/v1/automdm/teams/1/policies/7", "/teams/{team_id}/policies/{policy_id}"},
+		{"/api/v1/automdm/team/1/schedule/7", "/team/{team_id}/schedule/{report_id}"},
+		{"/api/v1/automdm/packs/schedule", "/packs/schedule"}, // a literal next to {id}
+		{"/api/latest/automdm/packs/schedule/7", "/packs/schedule/{id}"},
+		{"/api/v1/automdm/packs/id/7", "/packs/id/{id}"},
+		{"/api/v1/automdm/packs/my-pack", "/packs/{id}"},
+		{"/api/v1/automdm/queries/run", "/queries/run"}, // a literal next to {id}
+		{"/api/latest/automdm/queries/delete", "/queries/delete"},
+		{"/api/v1/automdm/queries/my-report", "/queries/{id}"},
+		{"/api/mdm/apple/installer", "/api/mdm/apple/installer"}, // outside the AutoMDM API
 	} {
 		for _, method := range []string{http.MethodGet, http.MethodPost} {
 			t.Run(method+" "+c.path, func(t *testing.T) {
@@ -131,7 +131,7 @@ func TestRemovedPathsThroughHandler(t *testing.T) {
 	// HEAD is not one of the removed methods, but the GET pattern serves it.
 	t.Run("HEAD gets 410", func(t *testing.T) {
 		rec := httptest.NewRecorder()
-		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodHead, "/api/v1/fleet/teams/1/policies/count", nil))
+		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodHead, "/api/v1/automdm/teams/1/policies/count", nil))
 		require.Equal(t, http.StatusGone, rec.Code)
 
 		rec = httptest.NewRecorder()
@@ -169,15 +169,15 @@ func TestRemovedPathOverlaps(t *testing.T) {
 		wantStatus   int
 		wantAllow    string
 	}{
-		{http.MethodGet, "/api/v1/fleet/scripts/batch/abc/cancel", http.StatusMethodNotAllowed, http.MethodPost},
-		{http.MethodGet, "/api/v1/fleet/scripts/batch/abc/foo", http.StatusNotFound, ""},
-		{http.MethodPost, "/api/v1/fleet/hosts/1/configuration_profiles/foo/bar", http.StatusNotFound, ""},
-		{http.MethodGet, "/api/v1/fleet/hosts/1/refetch", http.StatusMethodNotAllowed, http.MethodPost},
-		{http.MethodGet, "/api/v1/fleet/hosts/1/labels", http.StatusMethodNotAllowed, "POST, DELETE"},
-		{http.MethodGet, "/api/v1/fleet/hosts/1/nothing", http.StatusNotFound, ""},
-		{http.MethodGet, "/api/v1/fleet/packs/1/scheduled", http.StatusGone, ""},
-		{http.MethodGet, "/api/v1/fleet/packs/1/nothing", http.StatusNotFound, ""},
-		{http.MethodDelete, "/api/v1/fleet/reports/my-report", http.StatusGone, ""},
+		{http.MethodGet, "/api/v1/automdm/scripts/batch/abc/cancel", http.StatusMethodNotAllowed, http.MethodPost},
+		{http.MethodGet, "/api/v1/automdm/scripts/batch/abc/foo", http.StatusNotFound, ""},
+		{http.MethodPost, "/api/v1/automdm/hosts/1/configuration_profiles/foo/bar", http.StatusNotFound, ""},
+		{http.MethodGet, "/api/v1/automdm/hosts/1/refetch", http.StatusMethodNotAllowed, http.MethodPost},
+		{http.MethodGet, "/api/v1/automdm/hosts/1/labels", http.StatusMethodNotAllowed, "POST, DELETE"},
+		{http.MethodGet, "/api/v1/automdm/hosts/1/nothing", http.StatusNotFound, ""},
+		{http.MethodGet, "/api/v1/automdm/packs/1/scheduled", http.StatusGone, ""},
+		{http.MethodGet, "/api/v1/automdm/packs/1/nothing", http.StatusNotFound, ""},
+		{http.MethodDelete, "/api/v1/automdm/reports/my-report", http.StatusGone, ""},
 		{http.MethodDelete, "/api/v1/other/reports/my-report", http.StatusNotFound, ""},
 	} {
 		t.Run(c.method+" "+c.path, func(t *testing.T) {
@@ -193,7 +193,7 @@ func TestRemovedPathOverlaps(t *testing.T) {
 func TestRemovedPathForEntryWithMethod(t *testing.T) {
 	t.Parallel()
 
-	const template = "/api/_version_/fleet/widgets/{name}"
+	const template = "/api/_version_/automdm/widgets/{name}"
 	pinned := removednames.Entry{
 		Kind: removednames.KindPath, Scope: removednames.ScopeRequest, Old: template, Context: http.MethodDelete,
 		Format: removednames.EndpointFormat{},
@@ -221,12 +221,12 @@ func TestRemovedSoftwarePathsNextToLiveRoutes(t *testing.T) {
 		wantStatus int
 	}{
 		// request POST-only software routes with GET, each should still return 405
-		{"/api/latest/fleet/software/package", http.StatusMethodNotAllowed},
-		{"/api/latest/fleet/software/batch", http.StatusMethodNotAllowed},
-		{"/api/latest/fleet/software/web_apps", http.StatusMethodNotAllowed},
+		{"/api/latest/automdm/software/package", http.StatusMethodNotAllowed},
+		{"/api/latest/automdm/software/batch", http.StatusMethodNotAllowed},
+		{"/api/latest/automdm/software/web_apps", http.StatusMethodNotAllowed},
 		// request software paths that are not a number, each should still return 404
-		{"/api/latest/fleet/software/foo", http.StatusNotFound},
-		{"/api/latest/fleet/software/123abc", http.StatusNotFound},
+		{"/api/latest/automdm/software/foo", http.StatusNotFound},
+		{"/api/latest/automdm/software/123abc", http.StatusNotFound},
 	} {
 		rec := httptest.NewRecorder()
 		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, c.path, nil))

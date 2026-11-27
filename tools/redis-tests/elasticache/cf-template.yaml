@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'Fleet ElastiCache IAM Authentication Test Environment with Serverless and Standalone'
+Description: 'AutoMDM ElastiCache IAM Authentication Test Environment with Serverless and Standalone'
 
 Parameters:
   KeyName:
@@ -20,7 +20,7 @@ Resources:
       EnableDnsSupport: true
       Tags:
         - Key: Name
-          Value: fleet-iam-test-vpc
+          Value: automdm-iam-test-vpc
 
   # Internet Gateway
   InternetGateway:
@@ -28,7 +28,7 @@ Resources:
     Properties:
       Tags:
         - Key: Name
-          Value: fleet-iam-test-igw
+          Value: automdm-iam-test-igw
 
   AttachGateway:
     Type: AWS::EC2::VPCGatewayAttachment
@@ -46,7 +46,7 @@ Resources:
       MapPublicIpOnLaunch: true
       Tags:
         - Key: Name
-          Value: fleet-iam-test-subnet-1
+          Value: automdm-iam-test-subnet-1
 
   PublicSubnet2:
     Type: AWS::EC2::Subnet
@@ -57,7 +57,7 @@ Resources:
       MapPublicIpOnLaunch: true
       Tags:
         - Key: Name
-          Value: fleet-iam-test-subnet-2
+          Value: automdm-iam-test-subnet-2
 
   # Route Table
   RouteTable:
@@ -66,7 +66,7 @@ Resources:
       VpcId: !Ref VPC
       Tags:
         - Key: Name
-          Value: fleet-iam-test-rt
+          Value: automdm-iam-test-rt
 
   PublicRoute:
     Type: AWS::EC2::Route
@@ -101,7 +101,7 @@ Resources:
           SourceSecurityGroupId: !Ref EC2SecurityGroup
       Tags:
         - Key: Name
-          Value: fleet-iam-test-cache-sg
+          Value: automdm-iam-test-cache-sg
 
   EC2SecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -115,7 +115,7 @@ Resources:
           CidrIp: 0.0.0.0/0
       Tags:
         - Key: Name
-          Value: fleet-iam-test-ec2-sg
+          Value: automdm-iam-test-ec2-sg
 
   # IAM Role for EC2
   EC2Role:
@@ -139,14 +139,14 @@ Resources:
                 Action:
                   - elasticache:Connect
                 Resource:
-                  # Access for 'fleet-test-user' cache user only
-                  - !Sub 'arn:aws:elasticache:${AWS::Region}:${AWS::AccountId}:user:fleet-test-user'
+                  # Access for 'automdm-test-user' cache user only
+                  - !Sub 'arn:aws:elasticache:${AWS::Region}:${AWS::AccountId}:user:automdm-test-user'
                   - !Sub 'arn:aws:elasticache:${AWS::Region}:${AWS::AccountId}:serverlesscache:*'
                   - !Sub 'arn:aws:elasticache:${AWS::Region}:${AWS::AccountId}:replicationgroup:*'
               - Effect: Allow
                 Action:
                   - sts:AssumeRole
-                Resource: !Sub 'arn:aws:iam::${AWS::AccountId}:role/fleet-elasticache-iam-test-assume-role'
+                Resource: !Sub 'arn:aws:iam::${AWS::AccountId}:role/automdm-elasticache-iam-test-assume-role'
 
   EC2InstanceProfile:
     Type: AWS::IAM::InstanceProfile
@@ -158,7 +158,7 @@ Resources:
   TestAssumeRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: fleet-elasticache-iam-test-assume-role
+      RoleName: automdm-elasticache-iam-test-assume-role
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -196,8 +196,8 @@ Resources:
   CacheUser:
     Type: AWS::ElastiCache::User
     Properties:
-      UserId: fleet-test-user
-      UserName: fleet-test-user
+      UserId: automdm-test-user
+      UserName: automdm-test-user
       Engine: valkey
       AuthenticationMode:
         Type: iam
@@ -218,7 +218,7 @@ Resources:
   CacheUserGroup:
     Type: AWS::ElastiCache::UserGroup
     Properties:
-      UserGroupId: fleet-test-group
+      UserGroupId: automdm-test-group
       Engine: valkey
       UserIds:
         - !Ref CacheUser
@@ -229,7 +229,7 @@ Resources:
     Type: AWS::ElastiCache::ServerlessCache
     DependsOn: CacheUserGroup
     Properties:
-      ServerlessCacheName: fleet-iam-test-cache
+      ServerlessCacheName: automdm-iam-test-cache
       Engine: valkey
       SecurityGroupIds:
         - !Ref ElastiCacheSecurityGroup
@@ -243,8 +243,8 @@ Resources:
     Type: AWS::ElastiCache::ReplicationGroup
     DependsOn: CacheUserGroup
     Properties:
-      ReplicationGroupId: fleet-iam-standalone
-      ReplicationGroupDescription: Fleet IAM test standalone cluster
+      ReplicationGroupId: automdm-iam-standalone
+      ReplicationGroupDescription: AutoMDM IAM test standalone cluster
       Engine: valkey
       EngineVersion: '7.2'
       CacheNodeType: cache.t3.micro
@@ -260,7 +260,7 @@ Resources:
       AtRestEncryptionEnabled: true
       Tags:
         - Key: Name
-          Value: fleet-iam-standalone
+          Value: automdm-iam-standalone
 
   # EC2 Instance
   EC2Instance:
@@ -275,7 +275,7 @@ Resources:
         - !Ref EC2SecurityGroup
       Tags:
         - Key: Name
-          Value: fleet-iam-test-instance
+          Value: automdm-iam-test-instance
 
 Outputs:
   ServerlessCacheEndpoint:

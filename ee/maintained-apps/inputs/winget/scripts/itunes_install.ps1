@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # iTunes64Setup.exe is a wrapper that chains Apple's MSIs (iTunes64.msi and
 # Apple Mobile Device Support). All chained MSIs set ALLUSERS=1, so the install

@@ -1,5 +1,5 @@
 # PowerShell script to download and install Cloudflare WARP on Windows 11
-# For use with Fleet MDM
+# For use with AutoMDM
 
 # Set strict mode for better error handling
 Set-StrictMode -Version Latest

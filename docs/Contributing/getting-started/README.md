@@ -1,12 +1,12 @@
-# Getting started with Fleet development
+# Getting started with AutoMDM development
 
-This directory contains documentation to help you get started with Fleet development.
+This directory contains documentation to help you get started with AutoMDM development.
 
 ## Setting up your development environment
 
-- [Building Fleet](building-fleet.md) - Instructions for building Fleet from source
+- [Building AutoMDM](building-automdm.md) - Instructions for building AutoMDM from source
 - [Testing and Local Development](testing-and-local-development.md) - Guide for testing and local development
-- [Run Locally Built Fleetd](run-locally-built-fleetd.md) - Guide for running a locally built fleetd
+- [Run Locally Built AutoMDMd](run-locally-built-automdmd.md) - Guide for running a locally built automdmd
 
 ## Next steps
 

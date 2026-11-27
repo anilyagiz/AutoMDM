@@ -1,7 +1,7 @@
 // Command govulndb-mirror mirrors the Go vulnerability database (https://vuln.go.dev) into the
-// gzipped JSON artifact that Fleet servers read from the fleetdm/vulnerabilities releases.
+// gzipped JSON artifact that AutoMDM servers read from the fleetdm/vulnerabilities releases.
 //
-// Fleet never reaches vuln.go.dev directly: mirroring keeps a single egress point for restricted
+// AutoMDM never reaches vuln.go.dev directly: mirroring keeps a single egress point for restricted
 // deployments, the same way the OSV feeds are mirrored. A job in fleetdm/vulnerabilities runs
 // this command and attaches what it writes to a release. The consumer is
 // server/vulnerabilities/govulndb, which also owns the artifact contract this command imports;
@@ -9,7 +9,7 @@
 //
 // The command does not fail the workflow over upstream trouble. When the collected database
 // looks wrong it skips the publish, says on its step outputs which check tripped and by how
-// much, and exits zero. Fleet reads a database with fewer advisories as those advisories having
+// much, and exits zero. AutoMDM reads a database with fewer advisories as those advisories having
 // been remediated and deletes the software_cve rows, so publishing a partial snapshot would
 // clear real vulnerabilities from customer hosts. Publishing nothing leaves the last good
 // artifact in place and costs only freshness.
@@ -27,7 +27,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/govulndb"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/govulndb"
 )
 
 const (
@@ -135,7 +135,7 @@ func execute(ctx context.Context, cfg config, logger *log.Logger, outputs io.Wri
 	case isSuspect(err):
 		logger.Printf("NOT PUBLISHING: %v", err)
 		logger.Printf("the latest release keeps no Go vulnerability database asset this run; " +
-			"Fleet servers hold on to the last good artifact they downloaded")
+			"AutoMDM servers hold on to the last good artifact they downloaded")
 		emit(outputs, "skipped", "true")
 		emit(outputs, "reason", oneLine(err.Error()))
 		return 0
@@ -163,7 +163,7 @@ func run(ctx context.Context, cfg config, logger *log.Logger) (string, error) {
 	}
 	logger.Printf("transformed into %d modules, %d advisories", len(artifact.Modules), countAdvisories(artifact))
 
-	// Published with the database so a fix to a rule reaches servers without a Fleet release.
+	// Published with the database so a fix to a rule reaches servers without an AutoMDM release.
 	artifact.ToolchainInstalls = govulndb.PublishedToolchainInstalls()
 
 	var previous *govulndb.Artifact

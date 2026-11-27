@@ -1,18 +1,18 @@
-## Hello! Welcome to Fleet's osquery tables documentation.
+## Hello! Welcome to AutoMDM's osquery tables documentation.
 
-This folder contains additional documentation that we add on top of the existing documentation for osquery to make the documentation of each table more useful for Fleet users.
+This folder contains additional documentation that we add on top of the existing documentation for osquery to make the documentation of each table more useful for AutoMDM users.
 
-Fleet's schema tables live in the `tables/` folder. Each osquery table with Fleet overrides has a corresponding YAML file that will override information in the osquery schema documentation.
+AutoMDM's schema tables live in the `tables/` folder. Each osquery table with AutoMDM overrides has a corresponding YAML file that will override information in the osquery schema documentation.
 
 The existing documentation data lives in the osquery repo at: https://github.com/osquery/osquery-site/tree/source/src/data/osquery_schema_versions.
 
 You can open PRs against a table's YAML file in the `tables/` folder or the osquery schema file. Just note that the data in a table's YAML file overwrites the osquery data whenever there is a conflict:
 
-1. Clone the fleetdm/fleet repository.
+1. Clone the automdm/automdm repository.
 
 2. Add or modify the table's YAML file, move to the `website` directory in the project root and run `node ./node_modules/sails/bin/sails run generate-merged-schema` to generate the merged JSON schema.
 
-Alternatively, you can find the table's page on the [Fleet website](https://fleetdm.com/tables) and click the "edit page" button.
+Alternatively, you can find the table's page on the [AutoMDM website](https://automdm.com/tables) and click the "edit page" button.
 
 When adding a new table or overriding an existing table use this template:
 

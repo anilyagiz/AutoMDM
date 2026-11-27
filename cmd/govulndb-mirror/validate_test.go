@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/govulndb"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/govulndb"
 	"github.com/stretchr/testify/require"
 )
 

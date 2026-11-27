@@ -8,19 +8,19 @@ import (
 	"sync/atomic"
 	"testing"
 
-	ma "github.com/fleetdm/fleet/v4/ee/maintained-apps"
-	"github.com/fleetdm/fleet/v4/server/dev_mode"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	ma "github.com/anilyagiz/automdm/v4/ee/maintained-apps"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/dev_mode"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // fakeFMACache is a minimal FMAInstallerCache backed by an in-memory version map.
 type fakeFMACache struct {
-	versions map[string]*fleet.MaintainedApp
+	versions map[string]*automdm.MaintainedApp
 }
 
-func (c fakeFMACache) GetCachedFMAInstallerMetadata(_ context.Context, _ *uint, _ uint, version string) (*fleet.MaintainedApp, error) {
+func (c fakeFMACache) GetCachedFMAInstallerMetadata(_ context.Context, _ *uint, _ uint, version string) (*automdm.MaintainedApp, error) {
 	if a, ok := c.versions[version]; ok {
 		return a, nil
 	}
@@ -34,8 +34,8 @@ func (fmaNotFoundErr) IsNotFound() bool { return true }
 
 func TestHydrate(t *testing.T) {
 	const slug = "test-app/darwin"
-	newApp := func() *fleet.MaintainedApp {
-		return &fleet.MaintainedApp{ID: 1, Name: "Test App", Slug: slug}
+	newApp := func() *automdm.MaintainedApp {
+		return &automdm.MaintainedApp{ID: 1, Name: "Test App", Slug: slug}
 	}
 
 	// Mock manifest server publishing 2.0 as the latest (currently-published) version.
@@ -58,11 +58,11 @@ func TestHydrate(t *testing.T) {
 		assert.NoError(t, json.NewEncoder(w).Encode(manifest))
 	}))
 	defer srv.Close()
-	dev_mode.SetOverride("FLEET_DEV_MAINTAINED_APPS_BASE_URL", srv.URL, t)
-	dev_mode.SetOverride("FLEET_DEV_MAINTAINED_APPS_FALLBACK_BASE_URL", srv.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_MAINTAINED_APPS_BASE_URL", srv.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_MAINTAINED_APPS_FALLBACK_BASE_URL", srv.URL, t)
 
 	// Cache holds only an older 1.0 (still cached, not the published latest).
-	cache := fakeFMACache{versions: map[string]*fleet.MaintainedApp{
+	cache := fakeFMACache{versions: map[string]*automdm.MaintainedApp{
 		"1.0": {Version: "1.0", Platform: "darwin", InstallerURL: "cached-1.0", SHA256: "hash-1.0", InstallScript: "ci", UninstallScript: "cu", AppOpenQuery: "cached-open-1.0"},
 	}}
 
@@ -100,7 +100,7 @@ func TestHydrate(t *testing.T) {
 		_, err := Hydrate(t.Context(), newApp(), "9.9", nil, cache)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "specified version is not available")
-		expectedMessage := `Couldn't edit "Test App": specified version is not available. Available versions are listed in the Fleet UI under Actions > Edit software.`
+		expectedMessage := `Couldn't edit "Test App": specified version is not available. Available versions are listed in the AutoMDM UI under Actions > Edit software.`
 		require.Equal(t, expectedMessage, err.Error())
 	})
 }
@@ -129,8 +129,8 @@ func TestFetchAppsListPrimarySuccess(t *testing.T) {
 	}))
 	t.Cleanup(fallback.Close)
 
-	dev_mode.SetOverride("FLEET_DEV_MAINTAINED_APPS_BASE_URL", primary.URL, t)
-	dev_mode.SetOverride("FLEET_DEV_MAINTAINED_APPS_FALLBACK_BASE_URL", fallback.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_MAINTAINED_APPS_BASE_URL", primary.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_MAINTAINED_APPS_FALLBACK_BASE_URL", fallback.URL, t)
 
 	apps, err := FetchAppsList(t.Context())
 	require.NoError(t, err)
@@ -154,8 +154,8 @@ func TestFetchAppsListFallbackOnPrimaryFailure(t *testing.T) {
 	}))
 	t.Cleanup(fallback.Close)
 
-	dev_mode.SetOverride("FLEET_DEV_MAINTAINED_APPS_BASE_URL", primary.URL, t)
-	dev_mode.SetOverride("FLEET_DEV_MAINTAINED_APPS_FALLBACK_BASE_URL", fallback.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_MAINTAINED_APPS_BASE_URL", primary.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_MAINTAINED_APPS_FALLBACK_BASE_URL", fallback.URL, t)
 
 	apps, err := FetchAppsList(t.Context())
 	require.NoError(t, err)
@@ -176,8 +176,8 @@ func TestFetchAppsListFallbackOnPrimary404(t *testing.T) {
 	}))
 	t.Cleanup(fallback.Close)
 
-	dev_mode.SetOverride("FLEET_DEV_MAINTAINED_APPS_BASE_URL", primary.URL, t)
-	dev_mode.SetOverride("FLEET_DEV_MAINTAINED_APPS_FALLBACK_BASE_URL", fallback.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_MAINTAINED_APPS_BASE_URL", primary.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_MAINTAINED_APPS_FALLBACK_BASE_URL", fallback.URL, t)
 
 	apps, err := FetchAppsList(t.Context())
 	require.NoError(t, err)
@@ -197,8 +197,8 @@ func TestFetchAppsListBothFail(t *testing.T) {
 	}))
 	t.Cleanup(fallback.Close)
 
-	dev_mode.SetOverride("FLEET_DEV_MAINTAINED_APPS_BASE_URL", primary.URL, t)
-	dev_mode.SetOverride("FLEET_DEV_MAINTAINED_APPS_FALLBACK_BASE_URL", fallback.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_MAINTAINED_APPS_BASE_URL", primary.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_MAINTAINED_APPS_FALLBACK_BASE_URL", fallback.URL, t)
 
 	_, err := FetchAppsList(t.Context())
 	require.Error(t, err)
@@ -217,8 +217,8 @@ func TestFetchAppsListFallbackOnPrimaryNetworkError(t *testing.T) {
 	}))
 	t.Cleanup(fallback.Close)
 
-	dev_mode.SetOverride("FLEET_DEV_MAINTAINED_APPS_BASE_URL", primary.URL, t)
-	dev_mode.SetOverride("FLEET_DEV_MAINTAINED_APPS_FALLBACK_BASE_URL", fallback.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_MAINTAINED_APPS_BASE_URL", primary.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_MAINTAINED_APPS_FALLBACK_BASE_URL", fallback.URL, t)
 
 	apps, err := FetchAppsList(t.Context())
 	require.NoError(t, err)
@@ -237,8 +237,8 @@ func TestFetchAppsListOnlyFallbackFails(t *testing.T) {
 	fallback := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	fallback.Close()
 
-	dev_mode.SetOverride("FLEET_DEV_MAINTAINED_APPS_BASE_URL", primary.URL, t)
-	dev_mode.SetOverride("FLEET_DEV_MAINTAINED_APPS_FALLBACK_BASE_URL", fallback.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_MAINTAINED_APPS_BASE_URL", primary.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_MAINTAINED_APPS_FALLBACK_BASE_URL", fallback.URL, t)
 
 	apps, err := FetchAppsList(t.Context())
 	require.NoError(t, err)
@@ -262,8 +262,8 @@ func TestFetchManifestDataFallbackUsedForSlugPath(t *testing.T) {
 	}))
 	t.Cleanup(fallback.Close)
 
-	dev_mode.SetOverride("FLEET_DEV_MAINTAINED_APPS_BASE_URL", primary.URL, t)
-	dev_mode.SetOverride("FLEET_DEV_MAINTAINED_APPS_FALLBACK_BASE_URL", fallback.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_MAINTAINED_APPS_BASE_URL", primary.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_MAINTAINED_APPS_FALLBACK_BASE_URL", fallback.URL, t)
 
 	body, err := fetchManifestFile(t.Context(), "/test-app.json")
 	require.NoError(t, err)
@@ -285,8 +285,8 @@ func TestFetchManifestDataPrimarySucceedsSkipsFallback(t *testing.T) {
 	}))
 	t.Cleanup(fallback.Close)
 
-	dev_mode.SetOverride("FLEET_DEV_MAINTAINED_APPS_BASE_URL", primary.URL, t)
-	dev_mode.SetOverride("FLEET_DEV_MAINTAINED_APPS_FALLBACK_BASE_URL", fallback.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_MAINTAINED_APPS_BASE_URL", primary.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_MAINTAINED_APPS_FALLBACK_BASE_URL", fallback.URL, t)
 
 	body, err := fetchManifestFile(t.Context(), "/something.json")
 	require.NoError(t, err)
@@ -295,16 +295,16 @@ func TestFetchManifestDataPrimarySucceedsSkipsFallback(t *testing.T) {
 }
 
 func TestResolveBaseURLsDefaults(t *testing.T) {
-	dev_mode.SetOverride("FLEET_DEV_MAINTAINED_APPS_BASE_URL", "", t)
-	dev_mode.SetOverride("FLEET_DEV_MAINTAINED_APPS_FALLBACK_BASE_URL", "", t)
+	dev_mode.SetOverride("AUTOMDM_DEV_MAINTAINED_APPS_BASE_URL", "", t)
+	dev_mode.SetOverride("AUTOMDM_DEV_MAINTAINED_APPS_FALLBACK_BASE_URL", "", t)
 	primary, fallback := resolveBaseURLs()
 	assert.Equal(t, fmaOutputsBase, primary)
 	assert.Equal(t, fmaOutputsFallbackBase, fallback)
 }
 
 func TestResolveBaseURLsWithOverrides(t *testing.T) {
-	dev_mode.SetOverride("FLEET_DEV_MAINTAINED_APPS_BASE_URL", "http://custom-primary", t)
-	dev_mode.SetOverride("FLEET_DEV_MAINTAINED_APPS_FALLBACK_BASE_URL", "http://custom-fallback", t)
+	dev_mode.SetOverride("AUTOMDM_DEV_MAINTAINED_APPS_BASE_URL", "http://custom-primary", t)
+	dev_mode.SetOverride("AUTOMDM_DEV_MAINTAINED_APPS_FALLBACK_BASE_URL", "http://custom-fallback", t)
 
 	primary, fallback := resolveBaseURLs()
 	assert.Equal(t, "http://custom-primary", primary)
@@ -387,8 +387,8 @@ func TestFetchAppsListFallbackOverrideViaEnvVar(t *testing.T) {
 	}))
 	t.Cleanup(customFallback.Close)
 
-	dev_mode.SetOverride("FLEET_DEV_MAINTAINED_APPS_BASE_URL", primary.URL, t)
-	dev_mode.SetOverride("FLEET_DEV_MAINTAINED_APPS_FALLBACK_BASE_URL", customFallback.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_MAINTAINED_APPS_BASE_URL", primary.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_MAINTAINED_APPS_FALLBACK_BASE_URL", customFallback.URL, t)
 
 	apps, err := FetchAppsList(t.Context())
 	require.NoError(t, err)

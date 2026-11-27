@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -60,13 +60,13 @@ type nanoQueueCandidate struct {
 	CreatedAt time.Time `db:"created_at"`
 }
 
-func (ds *Datastore) CleanupNanoCommands(ctx context.Context, opts fleet.MDMAppleCommandCleanupOptions, state *fleet.MDMAppleCommandCleanupState) (*fleet.MDMAppleCommandCleanupState, fleet.MDMAppleCommandCleanupStats, error) {
-	var stats fleet.MDMAppleCommandCleanupStats
+func (ds *Datastore) CleanupNanoCommands(ctx context.Context, opts automdm.MDMAppleCommandCleanupOptions, state *automdm.MDMAppleCommandCleanupState) (*automdm.MDMAppleCommandCleanupState, automdm.MDMAppleCommandCleanupStats, error) {
+	var stats automdm.MDMAppleCommandCleanupStats
 	if state == nil {
-		state = &fleet.MDMAppleCommandCleanupState{}
+		state = &automdm.MDMAppleCommandCleanupState{}
 	}
 	if state.Retention == nil {
-		state.Retention = make(map[string]fleet.MDMAppleCommandCleanupCursor)
+		state.Retention = make(map[string]automdm.MDMAppleCommandCleanupCursor)
 	}
 
 	// one row budget across the sweeps in order; a sweep's own scan cap does not stop the others
@@ -88,7 +88,7 @@ func (ds *Datastore) CleanupNanoCommands(ctx context.Context, opts fleet.MDMAppl
 		if budget > 0 {
 			deleted, cmdUUIDs, exhausted, err := ds.sweepCompletedNanoCommands(ctx, state, "short", opts.ShortRetention, budget,
 				func(rt, uuid string) bool {
-					return matchesAppleMDMRetentionClass(fleet.AppleMDMShortRetentionClasses, rt, uuid)
+					return matchesAppleMDMRetentionClass(automdm.AppleMDMShortRetentionClasses, rt, uuid)
 				})
 			if err != nil {
 				return state, stats, err
@@ -105,8 +105,8 @@ func (ds *Datastore) CleanupNanoCommands(ctx context.Context, opts fleet.MDMAppl
 	if opts.StandardRetention > 0 && budget > 0 {
 		deleted, cmdUUIDs, exhausted, err := ds.sweepCompletedNanoCommands(ctx, state, "standard", opts.StandardRetention, budget,
 			func(rt, uuid string) bool {
-				return slices.Contains(fleet.AppleMDMStandardRetentionRequestTypes, rt) ||
-					(shortTierAgesOutWithStandardTier && matchesAppleMDMRetentionClass(fleet.AppleMDMShortRetentionClasses, rt, uuid))
+				return slices.Contains(automdm.AppleMDMStandardRetentionRequestTypes, rt) ||
+					(shortTierAgesOutWithStandardTier && matchesAppleMDMRetentionClass(automdm.AppleMDMShortRetentionClasses, rt, uuid))
 			})
 		if err != nil {
 			return state, stats, err
@@ -138,7 +138,7 @@ func (ds *Datastore) CleanupNanoCommands(ctx context.Context, opts fleet.MDMAppl
 }
 
 // matchesAppleMDMRetentionClass reports whether a command belongs to one of classes.
-func matchesAppleMDMRetentionClass(classes []fleet.AppleMDMCommandRetentionClass, rt, uuid string) bool {
+func matchesAppleMDMRetentionClass(classes []automdm.AppleMDMCommandRetentionClass, rt, uuid string) bool {
 	for _, c := range classes {
 		if c.RequestType == rt && strings.HasPrefix(uuid, c.UUIDPrefix) {
 			return true
@@ -155,7 +155,7 @@ type nanoResultCandidate struct {
 
 // sweepCompletedNanoCommands deletes terminal pairs older than retention for commands accepted by
 // inClass, one keyset scan per status resuming from state and lapping once it reaches young rows.
-func (ds *Datastore) sweepCompletedNanoCommands(ctx context.Context, state *fleet.MDMAppleCommandCleanupState, tier string, retention time.Duration, budget int, inClass func(requestType, uuid string) bool) (int, []string, bool, error) {
+func (ds *Datastore) sweepCompletedNanoCommands(ctx context.Context, state *automdm.MDMAppleCommandCleanupState, tier string, retention time.Duration, budget int, inClass func(requestType, uuid string) bool) (int, []string, bool, error) {
 	// keyset over idx_ncr_status_updated_at as nested ORs so MySQL seeks to the cursor; classification
 	// happens after the scan so every scan costs exactly one index page
 	const candidatesStmt = `
@@ -172,7 +172,7 @@ func (ds *Datastore) sweepCompletedNanoCommands(ctx context.Context, state *flee
 	var deleted int
 	var touched []string
 	var capped bool
-	for _, status := range fleet.MDMAppleTerminalStatuses {
+	for _, status := range automdm.MDMAppleTerminalStatuses {
 		key := tier + ":" + status
 		// an unset key is the zero cursor, which sorts below every row
 		cursor := state.Retention[key]
@@ -198,7 +198,7 @@ func (ds *Datastore) sweepCompletedNanoCommands(ctx context.Context, state *flee
 				break
 			}
 			last := candidates[len(candidates)-1]
-			cursor = fleet.MDMAppleCommandCleanupCursor{UpdatedAt: last.UpdatedAt, ID: last.ID, CommandUUID: last.CommandUUID}
+			cursor = automdm.MDMAppleCommandCleanupCursor{UpdatedAt: last.UpdatedAt, ID: last.ID, CommandUUID: last.CommandUUID}
 			if pageFull {
 				state.Retention[key] = cursor
 			}
@@ -300,7 +300,7 @@ func (ds *Datastore) purgeInactiveNanoCommands(ctx context.Context, retention ti
 		limit := min(nanoCleanupScanBatchSize, budget-deleted)
 		stmt, args, err := sqlx.In(candidatesStmt,
 			cursor.Priority, cursor.Priority, cursor.CreatedAt, cursor.CreatedAt, cursor.ID, cursor.ID, cursor.CommandUUID,
-			int(retention.Seconds()), fleet.AppleMDMInactivePurgeDenylist, limit)
+			int(retention.Seconds()), automdm.AppleMDMInactivePurgeDenylist, limit)
 		if err != nil {
 			return deleted, touched, false, ctxerr.Wrap(ctx, err, "build inactive nano commands query")
 		}
@@ -450,7 +450,7 @@ const nanoOrphanCommandMinAge = 24 * time.Hour
 
 // mopOrphanedNanoCommands walks nano_commands oldest-first from state.Orphan deleting unreferenced rows; the cursor
 // laps on a short page and stays before the page on a budget hit so skipped rows are retried.
-func (ds *Datastore) mopOrphanedNanoCommands(ctx context.Context, state *fleet.MDMAppleCommandCleanupState, budget int) (int, bool, error) {
+func (ds *Datastore) mopOrphanedNanoCommands(ctx context.Context, state *automdm.MDMAppleCommandCleanupState, budget int) (int, bool, error) {
 	// keyset over idx_nano_commands_created_at + PK as nested ORs so MySQL seeks to the cursor
 	const scanStmt = `
 		SELECT command_uuid, created_at
@@ -474,7 +474,7 @@ func (ds *Datastore) mopOrphanedNanoCommands(ctx context.Context, state *fleet.M
 			return deleted, false, ctxerr.Wrap(ctx, err, "select nano commands for orphan mop")
 		}
 		if len(page) == 0 {
-			state.Orphan = fleet.MDMAppleCommandOrphanCursor{}
+			state.Orphan = automdm.MDMAppleCommandOrphanCursor{}
 			return deleted, false, nil
 		}
 		pageFull := len(page) == nanoCleanupScanBatchSize
@@ -492,9 +492,9 @@ func (ds *Datastore) mopOrphanedNanoCommands(ctx context.Context, state *fleet.M
 			return deleted, true, nil
 		}
 		last := page[len(page)-1]
-		cursor = fleet.MDMAppleCommandOrphanCursor{CreatedAt: last.CreatedAt, CommandUUID: last.CommandUUID}
+		cursor = automdm.MDMAppleCommandOrphanCursor{CreatedAt: last.CreatedAt, CommandUUID: last.CommandUUID}
 		if !pageFull {
-			state.Orphan = fleet.MDMAppleCommandOrphanCursor{}
+			state.Orphan = automdm.MDMAppleCommandOrphanCursor{}
 			return deleted, false, nil
 		}
 		state.Orphan = cursor

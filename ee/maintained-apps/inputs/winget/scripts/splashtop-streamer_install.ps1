@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # Splashtop's installer wraps a per-machine MSI and uses its own switches.
 # To link the streamer to a Splashtop Business account, add your deployment

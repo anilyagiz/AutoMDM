@@ -49,24 +49,24 @@ const validate = (formData: IPatchDeadlineFormData): IFormErrors => {
 
 const PatchDeadlineSection = ({
   router,
-  fleetId,
+  automdmId,
   isRouteOk,
   canManage,
   gitOpsModeEnabled,
 }: ILibrarySettingsCardProps) => {
   const queryClient = useQueryClient();
 
-  const { data, isLoading, isError } = usePatchDeadlineSettings(fleetId, {
+  const { data, isLoading, isError } = usePatchDeadlineSettings(automdmId, {
     enabled: isRouteOk,
   });
 
   // Share the `policies` cache key family so other consumers of the same
-  // (fleet, type=patch) list dedupe through React Query instead of
+  // (team, type=patch) list dedupe through React Query instead of
   // double-fetching. Response is "all patch policies"; the filter to
   // `patch_deadline: true` happens client-side below.
   const appsQueryKey: IPoliciesQueryKey = {
     scope: "policies",
-    fleetId,
+    automdmId,
     type: "patch",
   };
   const { data: policiesData, isError: isAppsError } = useQuery<
@@ -78,7 +78,7 @@ const PatchDeadlineSection = ({
     [appsQueryKey],
     () =>
       policiesAPI.loadAll({
-        fleetId,
+        automdmId,
         type: "patch",
       }),
     { enabled: isRouteOk, refetchOnWindowFocus: false }
@@ -96,7 +96,7 @@ const PatchDeadlineSection = ({
 
   const updateMutation = useMutation(patchDeadlineSettingsAPI.updateSettings, {
     onSuccess: () => {
-      queryClient.invalidateQueries(["patchDeadlineSettings", fleetId]);
+      queryClient.invalidateQueries(["patchDeadlineSettings", automdmId]);
       notify.success("Successfully updated patch deadline.");
     },
     onError: (err: unknown) => {
@@ -132,7 +132,7 @@ const PatchDeadlineSection = ({
   });
 
   // Reseed from the server whenever a new settings doc lands (first load, or
-  // the fleet switcher pulled a different fleet's row).
+  // the team switcher pulled a different team's row).
   useEffect(() => {
     if (data) reset({ days: data.days, time: data.time });
   }, [data, reset]);
@@ -152,7 +152,7 @@ const PatchDeadlineSection = ({
     const sortedDays = [...days].sort(
       (a, b) => WEEKDAY_ORDER[a] - WEEKDAY_ORDER[b]
     );
-    updateMutation.mutate({ fleet_id: fleetId, days: sortedDays, time });
+    updateMutation.mutate({ team_id: automdmId, days: sortedDays, time });
   };
 
   if (!isRouteOk || isLoading) {
@@ -189,12 +189,12 @@ const PatchDeadlineSection = ({
         variant="tab-panel"
         content={
           <>
-            Add a macOS Fleet-maintained app, and under <strong>Deploy</strong>{" "}
+            Add a macOS AutoMDM-maintained app, and under <strong>Deploy</strong>{" "}
             select <strong>Patch</strong> &gt; <strong>Force patch</strong> &gt;{" "}
             <strong>Deadline</strong>.{" "}
             {hasApps && <>Apps with this option are listed below. </>}
             <CustomLink
-              url="https://fleetdm.com/learn-more-about/patching-end-user-experience"
+              url="https://automdm.com/learn-more-about/patching-end-user-experience"
               text="See end user experience"
               newTab
             />
@@ -268,7 +268,7 @@ const PatchDeadlineSection = ({
         </div>
       )}
       {!isAppsError && hasApps && (
-        <PatchDeadlineAppsTable fleetId={fleetId} apps={apps} router={router} />
+        <PatchDeadlineAppsTable automdmId={automdmId} apps={apps} router={router} />
       )}
     </div>
   );

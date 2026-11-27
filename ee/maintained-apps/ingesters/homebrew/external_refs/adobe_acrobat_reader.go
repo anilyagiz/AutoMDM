@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	maintained_apps "github.com/fleetdm/fleet/v4/ee/maintained-apps"
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
+	maintained_apps "github.com/anilyagiz/automdm/v4/ee/maintained-apps"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
 )
 
 // The Homebrew cask's livecheck reads Adobe's download-page API, which can stop
@@ -20,13 +20,13 @@ import (
 var (
 	adobeReaderManifestURL = "https://armmf.adobe.com/arm-manifests/mac/AcrobatDC/reader/current_version.txt"
 	adobeReaderDMGURL      = "https://ardownload2.adobe.com/pub/adobe/reader/mac/AcrobatDC/%[1]s/AcroRdrDC_%[1]s_MUI.dmg"
-	adobeReaderClient      = fleethttp.NewClient(
-		fleethttp.WithTimeout(30*time.Second),
-		fleethttp.WithMaxResponseSize(1<<10),
+	adobeReaderClient      = automdmhttp.NewClient(
+		automdmhttp.WithTimeout(30*time.Second),
+		automdmhttp.WithMaxResponseSize(1<<10),
 	)
 	// The size cap also applies to HEAD responses' Content-Length, so the
 	// installer check needs a client without it.
-	adobeReaderHeadClient = fleethttp.NewClient(fleethttp.WithTimeout(30 * time.Second))
+	adobeReaderHeadClient = automdmhttp.NewClient(automdmhttp.WithTimeout(30 * time.Second))
 )
 
 var adobeReaderVersionPattern = regexp.MustCompile(`^\d+\.\d+\.\d+$`)

@@ -5,7 +5,7 @@ import (
 	"text/template"
 	"text/template/parse"
 
-	"github.com/fleetdm/fleet/v4/server/mdm/apple/mobileconfig"
+	"github.com/anilyagiz/automdm/v4/server/mdm/apple/mobileconfig"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -20,9 +20,9 @@ func TestProfileTemplatesEscapeFields(t *testing.T) {
 		"enrollmentProfileMobileconfigTemplate":                  enrollmentProfileMobileconfigTemplate,
 		"accountDrivenUserEnrollmentProfileMobileconfigTemplate": accountDrivenUserEnrollmentProfileMobileconfigTemplate,
 		"acmeEnrollmentProfileMobileconfigTemplate":              acmeEnrollmentProfileMobileconfigTemplate,
-		"mobileconfig.FleetdProfileTemplate":                     mobileconfig.FleetdProfileTemplate,
+		"mobileconfig.AutoMDMdProfileTemplate":                   mobileconfig.AutoMDMdProfileTemplate,
 		"mobileconfig.OTAMobileConfigTemplate":                   mobileconfig.OTAMobileConfigTemplate,
-		"mobileconfig.FleetCARootTemplate":                       mobileconfig.FleetCARootTemplate,
+		"mobileconfig.AutoMDMCARootTemplate":                     mobileconfig.AutoMDMCARootTemplate,
 	} {
 		var walk func(parse.Node)
 		walk = func(n parse.Node) {

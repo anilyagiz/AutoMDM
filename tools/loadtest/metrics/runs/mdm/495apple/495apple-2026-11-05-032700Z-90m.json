@@ -8,9 +8,9 @@
       "start": "2026-11-05T01:57:00Z",
       "end": "2026-11-05T03:27:00Z"
     },
-    "note": "4.95 RC (75e81b8), 50k macOS MDM: 100 profiles added to 50k Macs at 01:57Z (push storm; osquery-perf per-device push topic inflates Fleet push CPU/memory)"
+    "note": "4.95 RC (75e81b8), 50k macOS MDM: 100 profiles added to 50k Macs at 01:57Z (push storm; osquery-perf per-device push topic inflates AutoMDM push CPU/memory)"
   },
-  "fleet_server": {
+  "automdm_server": {
     "cpu_utilization": {
       "Average": 21.23,
       "Minimum": 16.08,
@@ -59,7 +59,7 @@
     }
   },
   "apns_mock": {
-    "service": "fleet-495apple-apple-apns-mock",
+    "service": "automdm-495apple-apple-apns-mock",
     "cpu_utilization": {
       "Average": 11.8,
       "Minimum": 3.55,
@@ -567,7 +567,7 @@
       "data_coverage": 1
     }
   },
-  "fleet_server_errors": {
+  "automdm_server_errors": {
     "error_count": 426.0,
     "sample_messages": [
       "{\"ts\":\"2026-11-05T03:25:31Z\",\"level\":\"warn\",\"msg\":\"health check failed\",\"component\":\"http\",\"component\":\"healthz\",\"err\":\"context deadline exceeded\",\"health-checker\":\"mysql\"}",
@@ -870,60 +870,60 @@
   },
   "container_health": {
     "abnormal_stops": 0,
-    "fleet_abnormal_stops": 0,
+    "automdm_abnormal_stops": 0,
     "running_tasks": 25,
     "failed_health_checks": 10,
     "unable_to_place": 0,
     "service_events": [
       {
-        "service": "fleet",
+        "service": "automdm",
         "at": "2026-11-04T19:59:21.100000-06:00",
-        "message": "(service fleet) has started 1 tasks: (task 95f22247309e4c44910686a778736454). Amazon ECS replaced 1 tasks due to an unhealthy status."
+        "message": "(service automdm) has started 1 tasks: (task 95f22247309e4c44910686a778736454). Amazon ECS replaced 1 tasks due to an unhealthy status."
       },
       {
-        "service": "fleet",
+        "service": "automdm",
         "at": "2026-11-04T19:59:58.019000-06:00",
-        "message": "(service fleet) (task 7882bd30323041e0bf9a5337be8e0ed7) (port 8080) is unhealthy in (target-group arn:aws:elasticloadbalancing:us-east-2:ACCOUNT_ID:targetgroup/fleet-495apple-int/9cbd84f8534b5aed) due to (reason Health checks failed with these codes: [500])."
+        "message": "(service automdm) (task 7882bd30323041e0bf9a5337be8e0ed7) (port 8080) is unhealthy in (target-group arn:aws:elasticloadbalancing:us-east-2:ACCOUNT_ID:targetgroup/automdm-495apple-int/9cbd84f8534b5aed) due to (reason Health checks failed with these codes: [500])."
       },
       {
-        "service": "fleet",
+        "service": "automdm",
         "at": "2026-11-04T19:59:58.043000-06:00",
-        "message": "(service fleet) (task 7882bd30323041e0bf9a5337be8e0ed7) (port 8080) is unhealthy in (target-group arn:aws:elasticloadbalancing:us-east-2:ACCOUNT_ID:targetgroup/fleet-495apple/2d0793c1f393ca19) due to (reason Health checks failed with these codes: [500])."
+        "message": "(service automdm) (task 7882bd30323041e0bf9a5337be8e0ed7) (port 8080) is unhealthy in (target-group arn:aws:elasticloadbalancing:us-east-2:ACCOUNT_ID:targetgroup/automdm-495apple/2d0793c1f393ca19) due to (reason Health checks failed with these codes: [500])."
       },
       {
-        "service": "fleet",
+        "service": "automdm",
         "at": "2026-11-04T20:10:52.348000-06:00",
-        "message": "(service fleet) has started 1 tasks: (task 595fd86c175f4f7296bc5f3f47de70cd). Amazon ECS replaced 1 tasks due to an unhealthy status."
+        "message": "(service automdm) has started 1 tasks: (task 595fd86c175f4f7296bc5f3f47de70cd). Amazon ECS replaced 1 tasks due to an unhealthy status."
       },
       {
-        "service": "fleet",
+        "service": "automdm",
         "at": "2026-11-04T20:11:19.994000-06:00",
-        "message": "(service fleet) (task 810af3cdc5444ba4851f70baa53c4669) (port 8080) is unhealthy in (target-group arn:aws:elasticloadbalancing:us-east-2:ACCOUNT_ID:targetgroup/fleet-495apple-int/9cbd84f8534b5aed) due to (reason Health checks failed with these codes: [500])."
+        "message": "(service automdm) (task 810af3cdc5444ba4851f70baa53c4669) (port 8080) is unhealthy in (target-group arn:aws:elasticloadbalancing:us-east-2:ACCOUNT_ID:targetgroup/automdm-495apple-int/9cbd84f8534b5aed) due to (reason Health checks failed with these codes: [500])."
       },
       {
-        "service": "fleet",
+        "service": "automdm",
         "at": "2026-11-04T20:11:20.022000-06:00",
-        "message": "(service fleet) (task 810af3cdc5444ba4851f70baa53c4669) (port 8080) is unhealthy in (target-group arn:aws:elasticloadbalancing:us-east-2:ACCOUNT_ID:targetgroup/fleet-495apple/2d0793c1f393ca19) due to (reason Health checks failed with these codes: [500])."
+        "message": "(service automdm) (task 810af3cdc5444ba4851f70baa53c4669) (port 8080) is unhealthy in (target-group arn:aws:elasticloadbalancing:us-east-2:ACCOUNT_ID:targetgroup/automdm-495apple/2d0793c1f393ca19) due to (reason Health checks failed with these codes: [500])."
       },
       {
-        "service": "fleet",
+        "service": "automdm",
         "at": "2026-11-04T21:16:29.550000-06:00",
-        "message": "(service fleet) has started 1 tasks: (task e24aae5e876c41e8880c57f5eb3dc8d1). Amazon ECS replaced 1 tasks due to an unhealthy status."
+        "message": "(service automdm) has started 1 tasks: (task e24aae5e876c41e8880c57f5eb3dc8d1). Amazon ECS replaced 1 tasks due to an unhealthy status."
       },
       {
-        "service": "fleet",
+        "service": "automdm",
         "at": "2026-11-04T21:16:57.973000-06:00",
-        "message": "(service fleet) (task dad126e4bd974aada2d696b1930f3b2d) (port 8080) is unhealthy in (target-group arn:aws:elasticloadbalancing:us-east-2:ACCOUNT_ID:targetgroup/fleet-495apple/2d0793c1f393ca19) due to (reason Health checks failed with these codes: [500])."
+        "message": "(service automdm) (task dad126e4bd974aada2d696b1930f3b2d) (port 8080) is unhealthy in (target-group arn:aws:elasticloadbalancing:us-east-2:ACCOUNT_ID:targetgroup/automdm-495apple/2d0793c1f393ca19) due to (reason Health checks failed with these codes: [500])."
       },
       {
-        "service": "fleet",
+        "service": "automdm",
         "at": "2026-11-04T21:25:39.246000-06:00",
-        "message": "(service fleet) has started 1 tasks: (task fbdea0001e28496282ea015c94e8a5a5). Amazon ECS replaced 1 tasks due to an unhealthy status."
+        "message": "(service automdm) has started 1 tasks: (task fbdea0001e28496282ea015c94e8a5a5). Amazon ECS replaced 1 tasks due to an unhealthy status."
       },
       {
-        "service": "fleet",
+        "service": "automdm",
         "at": "2026-11-04T21:26:17.893000-06:00",
-        "message": "(service fleet) (task 819c3c1fbf89497bb67782c93002c989) (port 8080) is unhealthy in (target-group arn:aws:elasticloadbalancing:us-east-2:ACCOUNT_ID:targetgroup/fleet-495apple/2d0793c1f393ca19) due to (reason Health checks failed with these codes: [500])."
+        "message": "(service automdm) (task 819c3c1fbf89497bb67782c93002c989) (port 8080) is unhealthy in (target-group arn:aws:elasticloadbalancing:us-east-2:ACCOUNT_ID:targetgroup/automdm-495apple/2d0793c1f393ca19) due to (reason Health checks failed with these codes: [500])."
       }
     ],
     "tasks": [

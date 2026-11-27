@@ -10,11 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
-	mdmtesting "github.com/fleetdm/fleet/v4/server/mdm/testing_utils"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
+	mdmtesting "github.com/anilyagiz/automdm/v4/server/mdm/testing_utils"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -53,7 +53,7 @@ func testEnqueueDeviceLockCommand(t *testing.T, ds *Datastore) {
 	ns, err := ds.NewMDMAppleMDMStorage()
 	require.NoError(t, err)
 
-	host, err := ds.NewHost(ctx, &fleet.Host{
+	host, err := ds.NewHost(ctx, &automdm.Host{
 		Hostname:      "test-host1-name",
 		OsqueryHostID: ptr.String("1337"),
 		NodeKey:       ptr.String("1337"),
@@ -64,10 +64,10 @@ func testEnqueueDeviceLockCommand(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 	nanoEnroll(t, ds, host, false)
 
-	listOpts := &fleet.MDMCommandListOptions{PerPage: 10, Filters: fleet.MDMCommandFilters{HostIdentifier: host.UUID}}
+	listOpts := &automdm.MDMCommandListOptions{PerPage: 10, Filters: automdm.MDMCommandFilters{HostIdentifier: host.UUID}}
 
 	// no commands yet
-	res, _, _, err := ds.ListMDMCommands(ctx, fleet.TeamFilter{User: test.UserAdmin}, listOpts)
+	res, _, _, err := ds.ListMDMCommands(ctx, automdm.TeamFilter{User: test.UserAdmin}, listOpts)
 	require.NoError(t, err)
 	require.Empty(t, res)
 
@@ -80,7 +80,7 @@ func testEnqueueDeviceLockCommand(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// command has no results yet, so the status is empty
-	res, _, _, err = ds.ListMDMCommands(ctx, fleet.TeamFilter{User: test.UserAdmin}, listOpts)
+	res, _, _, err = ds.ListMDMCommands(ctx, automdm.TeamFilter{User: test.UserAdmin}, listOpts)
 	require.NoError(t, err)
 	require.Len(t, res, 1)
 
@@ -103,7 +103,7 @@ func testEnqueueDeviceUnlockCommand(t *testing.T, ds *Datastore) {
 	ns, err := ds.NewMDMAppleMDMStorage()
 	require.NoError(t, err)
 
-	host, err := ds.NewHost(ctx, &fleet.Host{
+	host, err := ds.NewHost(ctx, &automdm.Host{
 		Hostname:      "test-host1-name",
 		OsqueryHostID: ptr.String("1337"),
 		NodeKey:       ptr.String("1337"),
@@ -114,10 +114,10 @@ func testEnqueueDeviceUnlockCommand(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 	nanoEnroll(t, ds, host, false)
 
-	listOpts := &fleet.MDMCommandListOptions{PerPage: 10, Filters: fleet.MDMCommandFilters{HostIdentifier: host.UUID}}
+	listOpts := &automdm.MDMCommandListOptions{PerPage: 10, Filters: automdm.MDMCommandFilters{HostIdentifier: host.UUID}}
 
 	// no commands yet
-	res, _, _, err := ds.ListMDMCommands(ctx, fleet.TeamFilter{User: test.UserAdmin}, listOpts)
+	res, _, _, err := ds.ListMDMCommands(ctx, automdm.TeamFilter{User: test.UserAdmin}, listOpts)
 	require.NoError(t, err)
 	require.Empty(t, res)
 
@@ -130,7 +130,7 @@ func testEnqueueDeviceUnlockCommand(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// command has no results yet, so the status is empty
-	res, _, _, err = ds.ListMDMCommands(ctx, fleet.TeamFilter{User: test.UserAdmin}, listOpts)
+	res, _, _, err = ds.ListMDMCommands(ctx, automdm.TeamFilter{User: test.UserAdmin}, listOpts)
 	require.NoError(t, err)
 	require.Len(t, res, 1)
 
@@ -152,7 +152,7 @@ func testGetPendingLockCommand(t *testing.T, ds *Datastore) {
 	ns, err := ds.NewMDMAppleMDMStorage()
 	require.NoError(t, err)
 
-	host, err := ds.NewHost(ctx, &fleet.Host{
+	host, err := ds.NewHost(ctx, &automdm.Host{
 		Hostname:      "test-host2-name",
 		OsqueryHostID: ptr.String("1338"),
 		NodeKey:       ptr.String("1338"),
@@ -247,7 +247,7 @@ func testEnqueueDeviceLockReplacesOrphanRef(t *testing.T, ds *Datastore) {
 	ns, err := ds.NewMDMAppleMDMStorage()
 	require.NoError(t, err)
 
-	host, err := ds.NewHost(ctx, &fleet.Host{
+	host, err := ds.NewHost(ctx, &automdm.Host{
 		Hostname:      "orphan-relock-name",
 		OsqueryHostID: new("4242"),
 		NodeKey:       new("4242"),
@@ -422,7 +422,7 @@ func testEnqueueDeviceLockCommandRaceCondition(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
 	// Create a test host
-	host, err := ds.NewHost(ctx, &fleet.Host{
+	host, err := ds.NewHost(ctx, &automdm.Host{
 		UUID:          "test-host-race-" + uuid.NewString(),
 		Platform:      "darwin",
 		OsqueryHostID: ptr.String("test-osquery-id"),
@@ -432,7 +432,7 @@ func testEnqueueDeviceLockCommandRaceCondition(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// Enable MDM for the host
-	err = ds.SetOrUpdateMDMData(ctx, host.ID, false, true, "https://test.local", false, "test-ref", "", fleet.PersonalEnrollmentTypeNone)
+	err = ds.SetOrUpdateMDMData(ctx, host.ID, false, true, "https://test.local", false, "test-ref", "", automdm.PersonalEnrollmentTypeNone)
 	require.NoError(t, err)
 
 	// Create nano_devices record first
@@ -560,17 +560,17 @@ func testRetrievePushCert(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		_ = ds.HardDeleteMDMConfigAsset(ctx, fleet.MDMAssetAPNSCert)
-		_ = ds.HardDeleteMDMConfigAsset(ctx, fleet.MDMAssetAPNSKey)
+		_ = ds.HardDeleteMDMConfigAsset(ctx, automdm.MDMAssetAPNSCert)
+		_ = ds.HardDeleteMDMConfigAsset(ctx, automdm.MDMAssetAPNSKey)
 		pushCertStaleness = nil
 	})
 
 	apnsCert, apnsKey, err := GenerateTestCertBytes(mdmtesting.NewTestMDMAppleCertTemplate())
 	require.NoError(t, err)
 
-	err = ds.InsertMDMConfigAssets(ctx, []fleet.MDMConfigAsset{
-		{Name: fleet.MDMAssetAPNSCert, Value: apnsCert},
-		{Name: fleet.MDMAssetAPNSKey, Value: apnsKey},
+	err = ds.InsertMDMConfigAssets(ctx, []automdm.MDMConfigAsset{
+		{Name: automdm.MDMAssetAPNSCert, Value: apnsCert},
+		{Name: automdm.MDMAssetAPNSKey, Value: apnsKey},
 	}, nil)
 	require.NoError(t, err)
 
@@ -594,8 +594,8 @@ func testRetrievePushCert(t *testing.T, ds *Datastore) {
 	// Insert a new cert with different content to simulate cert rotation
 	newApnsCert, newApnsKey, err := GenerateTestCertBytes(mdmtesting.NewTestMDMAppleCertTemplate())
 	require.NoError(t, err)
-	require.NoError(t, ds.InsertOrReplaceMDMConfigAsset(ctx, fleet.MDMConfigAsset{Name: fleet.MDMAssetAPNSCert, Value: newApnsCert}))
-	require.NoError(t, ds.InsertOrReplaceMDMConfigAsset(ctx, fleet.MDMConfigAsset{Name: fleet.MDMAssetAPNSKey, Value: newApnsKey}))
+	require.NoError(t, ds.InsertOrReplaceMDMConfigAsset(ctx, automdm.MDMConfigAsset{Name: automdm.MDMAssetAPNSCert, Value: newApnsCert}))
+	require.NoError(t, ds.InsertOrReplaceMDMConfigAsset(ctx, automdm.MDMConfigAsset{Name: automdm.MDMAssetAPNSKey, Value: newApnsKey}))
 
 	cert3, hash3, err := ns.RetrievePushCert(ctx, "com.apple.mgmt.test")
 	require.NoError(t, err)
@@ -612,8 +612,8 @@ func testIsPushCertStale(t *testing.T, ds *Datastore) {
 	ns, err := ds.NewMDMAppleMDMStorage()
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		_ = ds.HardDeleteMDMConfigAsset(ctx, fleet.MDMAssetAPNSCert)
-		_ = ds.HardDeleteMDMConfigAsset(ctx, fleet.MDMAssetAPNSKey)
+		_ = ds.HardDeleteMDMConfigAsset(ctx, automdm.MDMAssetAPNSCert)
+		_ = ds.HardDeleteMDMConfigAsset(ctx, automdm.MDMAssetAPNSKey)
 		pushCertStaleness = nil
 	})
 
@@ -626,9 +626,9 @@ func testIsPushCertStale(t *testing.T, ds *Datastore) {
 	apnsCert, apnsKey, err := GenerateTestCertBytes(mdmtesting.NewTestMDMAppleCertTemplate())
 	require.NoError(t, err)
 
-	err = ds.InsertMDMConfigAssets(ctx, []fleet.MDMConfigAsset{
-		{Name: fleet.MDMAssetAPNSCert, Value: apnsCert},
-		{Name: fleet.MDMAssetAPNSKey, Value: apnsKey},
+	err = ds.InsertMDMConfigAssets(ctx, []automdm.MDMConfigAsset{
+		{Name: automdm.MDMAssetAPNSCert, Value: apnsCert},
+		{Name: automdm.MDMAssetAPNSKey, Value: apnsKey},
 	}, nil)
 	require.NoError(t, err)
 
@@ -651,8 +651,8 @@ func testIsPushCertStale(t *testing.T, ds *Datastore) {
 	// Insert a new cert to simulate rotation
 	newApnsCert, newApnsKey, err := GenerateTestCertBytes(mdmtesting.NewTestMDMAppleCertTemplate())
 	require.NoError(t, err)
-	require.NoError(t, ds.InsertOrReplaceMDMConfigAsset(ctx, fleet.MDMConfigAsset{Name: fleet.MDMAssetAPNSCert, Value: newApnsCert}))
-	require.NoError(t, ds.InsertOrReplaceMDMConfigAsset(ctx, fleet.MDMConfigAsset{Name: fleet.MDMAssetAPNSKey, Value: newApnsKey}))
+	require.NoError(t, ds.InsertOrReplaceMDMConfigAsset(ctx, automdm.MDMConfigAsset{Name: automdm.MDMAssetAPNSCert, Value: newApnsCert}))
+	require.NoError(t, ds.InsertOrReplaceMDMConfigAsset(ctx, automdm.MDMConfigAsset{Name: automdm.MDMAssetAPNSKey, Value: newApnsKey}))
 
 	// Check staleness with old token - should not be stale since under 5 minutes
 	stale, err = ns.IsPushCertStale(ctx, "com.apple.mgmt.test", hash)
@@ -677,7 +677,7 @@ func testStorePushCert(t *testing.T, ds *Datastore) {
 
 	err = ns.StorePushCert(ctx, nil, nil)
 	require.Error(t, err)
-	require.Equal(t, "please use fleet.Datastore to manage MDM assets", err.Error())
+	require.Equal(t, "please use automdm.Datastore to manage MDM assets", err.Error())
 }
 
 func testNanoDisable(t *testing.T, ds *Datastore) {
@@ -685,8 +685,8 @@ func testNanoDisable(t *testing.T, ds *Datastore) {
 	ns, err := ds.NewMDMAppleMDMStorage()
 	require.NoError(t, err)
 
-	newEnrolledHost := func(i int, withUser bool) *fleet.Host {
-		h, err := ds.NewHost(ctx, &fleet.Host{
+	newEnrolledHost := func(i int, withUser bool) *automdm.Host {
+		h, err := ds.NewHost(ctx, &automdm.Host{
 			Hostname:      fmt.Sprintf("disable-host%d-name", i),
 			OsqueryHostID: new(fmt.Sprintf("disable-osquery-%d", i)),
 			NodeKey:       new(fmt.Sprintf("disable-nodekey-%d", i)),
@@ -747,8 +747,8 @@ func testRetrieveNextCommand(t *testing.T, ds *Datastore) {
 	ns, err := ds.NewMDMAppleMDMStorage()
 	require.NoError(t, err)
 
-	newEnrolledHost := func(hostUUID string) *fleet.Host {
-		h, err := ds.NewHost(ctx, &fleet.Host{
+	newEnrolledHost := func(hostUUID string) *automdm.Host {
+		h, err := ds.NewHost(ctx, &automdm.Host{
 			Hostname:      "next-cmd-" + hostUUID,
 			OsqueryHostID: new("next-cmd-osquery-" + hostUUID),
 			NodeKey:       new("next-cmd-nodekey-" + hostUUID),

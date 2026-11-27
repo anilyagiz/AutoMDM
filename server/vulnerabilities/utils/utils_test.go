@@ -7,32 +7,32 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/require"
 )
 
 func TestRecentVulns(t *testing.T) {
-	meta := []fleet.CVEMeta{
+	meta := []automdm.CVEMeta{
 		{CVE: "cve-recent-1"},
 		{CVE: "cve-recent-2"},
 		{CVE: "cve-recent-3"},
 	}
 
 	t.Run("no NVD nor OVAL vulns", func(t *testing.T) {
-		vulns, meta := RecentVulns[fleet.SoftwareVulnerability](nil, meta)
+		vulns, meta := RecentVulns[automdm.SoftwareVulnerability](nil, meta)
 		require.Empty(t, vulns)
 		require.Empty(t, meta)
 	})
 
 	t.Run("filters vulnerabilities based on max age", func(t *testing.T) {
-		ovalVulns := []fleet.SoftwareVulnerability{
+		ovalVulns := []automdm.SoftwareVulnerability{
 			{CVE: "cve-recent-1"},
 			{CVE: "cve-recent-2"},
 			{CVE: "cve-recent-2"},
 			{CVE: "cve-outdated-1"},
 		}
 
-		nvdVulns := []fleet.SoftwareVulnerability{
+		nvdVulns := []automdm.SoftwareVulnerability{
 			{CVE: "cve-recent-1"},
 			{CVE: "cve-recent-3"},
 			{CVE: "cve-outdated-2"},
@@ -45,7 +45,7 @@ func TestRecentVulns(t *testing.T) {
 			"cve-recent-3",
 		}
 
-		var input []fleet.SoftwareVulnerability
+		var input []automdm.SoftwareVulnerability
 		input = append(input, ovalVulns...)
 		input = append(input, nvdVulns...)
 
@@ -55,7 +55,7 @@ func TestRecentVulns(t *testing.T) {
 			actual = append(actual, r.GetCVE())
 		}
 
-		expectedMeta := map[string]fleet.CVEMeta{
+		expectedMeta := map[string]automdm.CVEMeta{
 			"cve-recent-1": {CVE: "cve-recent-1"},
 			"cve-recent-2": {CVE: "cve-recent-2"},
 			"cve-recent-3": {CVE: "cve-recent-3"},
@@ -69,8 +69,8 @@ func TestRecentVulns(t *testing.T) {
 
 func TestVulnsDelta(t *testing.T) {
 	t.Run("no existing vulnerabilities", func(t *testing.T) {
-		var found []fleet.SoftwareVulnerability
-		var existing []fleet.SoftwareVulnerability
+		var found []automdm.SoftwareVulnerability
+		var existing []automdm.SoftwareVulnerability
 
 		toInsert, toDelete := VulnsDelta(found, existing)
 		require.Empty(t, toInsert)
@@ -78,14 +78,14 @@ func TestVulnsDelta(t *testing.T) {
 	})
 
 	t.Run("existing match found", func(t *testing.T) {
-		found := []fleet.SoftwareVulnerability{
+		found := []automdm.SoftwareVulnerability{
 			{SoftwareID: 1, CVE: "cve_1"},
 			{SoftwareID: 1, CVE: "cve_2"},
 			{SoftwareID: 2, CVE: "cve_3"},
 			{SoftwareID: 2, CVE: "cve_4"},
 		}
 
-		existing := []fleet.SoftwareVulnerability{
+		existing := []automdm.SoftwareVulnerability{
 			{SoftwareID: 1, CVE: "cve_1"},
 			{SoftwareID: 1, CVE: "cve_2"},
 			{SoftwareID: 2, CVE: "cve_3"},
@@ -98,26 +98,26 @@ func TestVulnsDelta(t *testing.T) {
 	})
 
 	t.Run("existing differ from found", func(t *testing.T) {
-		found := []fleet.SoftwareVulnerability{
+		found := []automdm.SoftwareVulnerability{
 			{SoftwareID: 1, CVE: "cve_1"},
 			{SoftwareID: 1, CVE: "cve_2"},
 			{SoftwareID: 3, CVE: "cve_5"},
 			{SoftwareID: 3, CVE: "cve_6"},
 		}
 
-		existing := []fleet.SoftwareVulnerability{
+		existing := []automdm.SoftwareVulnerability{
 			{SoftwareID: 1, CVE: "cve_1"},
 			{SoftwareID: 1, CVE: "cve_2"},
 			{SoftwareID: 2, CVE: "cve_3"},
 			{SoftwareID: 2, CVE: "cve_4"},
 		}
 
-		expectedToInsert := []fleet.SoftwareVulnerability{
+		expectedToInsert := []automdm.SoftwareVulnerability{
 			{SoftwareID: 3, CVE: "cve_5"},
 			{SoftwareID: 3, CVE: "cve_6"},
 		}
 
-		expectedToDelete := []fleet.SoftwareVulnerability{
+		expectedToDelete := []automdm.SoftwareVulnerability{
 			{SoftwareID: 2, CVE: "cve_3"},
 			{SoftwareID: 2, CVE: "cve_4"},
 		}
@@ -128,9 +128,9 @@ func TestVulnsDelta(t *testing.T) {
 	})
 
 	t.Run("nothing found but vulns exist", func(t *testing.T) {
-		var found []fleet.SoftwareVulnerability
+		var found []automdm.SoftwareVulnerability
 
-		existing := []fleet.SoftwareVulnerability{
+		existing := []automdm.SoftwareVulnerability{
 			{SoftwareID: 1, CVE: "cve_1"},
 			{SoftwareID: 1, CVE: "cve_2"},
 			{SoftwareID: 2, CVE: "cve_3"},

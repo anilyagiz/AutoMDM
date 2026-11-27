@@ -13,11 +13,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/nvd"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/nvd/tools/cpedict"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/nvd/tools/wfn"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/nvd"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/nvd/tools/cpedict"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/nvd/tools/wfn"
 	"github.com/pandatix/nvdapi/common"
 	"github.com/pandatix/nvdapi/v2"
 )
@@ -52,7 +52,7 @@ func main() {
 	panicIf(err)
 	logger.InfoContext(ctx, fmt.Sprintf("CWD: %v", cwd))
 
-	client := fleethttp.NewClient(fleethttp.WithTimeout(httpClientTimeout))
+	client := automdmhttp.NewClient(automdmhttp.WithTimeout(httpClientTimeout))
 	dbPath := getCPEs(ctx, logger, client, apiKey, cwd)
 
 	logger.InfoContext(ctx, fmt.Sprintf("Sqlite file %s size: %.2f MB\n", dbPath, getSizeMB(dbPath)))

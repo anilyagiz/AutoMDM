@@ -112,13 +112,13 @@ export const getAutomationStatusIcon = (
   activity: IPolicyAutomationActivity
 ): { name: "error" | "success"; color?: Colors } => {
   if (activity.details?.skipped_install) {
-    return { name: "error", color: "ui-fleet-black-50" };
+    return { name: "error", color: "ui-automdm-black-50" };
   }
   if (
     activity.type === ActivityType.NotifiedEndUserBeforePatching &&
     activity.status === "success"
   ) {
-    return { name: "error", color: "ui-fleet-black-50" };
+    return { name: "error", color: "ui-automdm-black-50" };
   }
   return activity.status === "error" ? { name: "error" } : { name: "success" };
 };

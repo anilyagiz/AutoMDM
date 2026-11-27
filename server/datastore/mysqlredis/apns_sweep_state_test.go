@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/datastore/redis/redistest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis/redistest"
+	"github.com/anilyagiz/automdm/v4/server/mock"
 	redigo "github.com/gomodule/redigo/redis"
 	"github.com/stretchr/testify/require"
 )
@@ -32,7 +32,7 @@ func TestMDMAppleAPNsSweepState(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, state, "unset key reads as no pass in progress")
 
-	want := &fleet.MDMAppleAPNsSweepState{Cursor: "enrollment-uuid-42", BatchSize: 137}
+	want := &automdm.MDMAppleAPNsSweepState{Cursor: "enrollment-uuid-42", BatchSize: 137}
 	require.NoError(t, ds.SetMDMAppleAPNsSweepState(ctx, want))
 	state, err = ds.GetMDMAppleAPNsSweepState(ctx)
 	require.NoError(t, err)

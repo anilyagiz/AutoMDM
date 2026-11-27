@@ -8,34 +8,34 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	apple_mdm "github.com/fleetdm/fleet/v4/server/mdm/apple"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
-	"github.com/fleetdm/fleet/v4/server/worker"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	apple_mdm "github.com/anilyagiz/automdm/v4/server/mdm/apple"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
+	"github.com/anilyagiz/automdm/v4/server/worker"
 	"github.com/google/uuid"
 	"github.com/micromdm/plist"
 )
 
 type InstalledApplicationListResult interface {
-	fleet.MDMCommandResults
-	AvailableApps() []fleet.Software
+	automdm.MDMCommandResults
+	AvailableApps() []automdm.Software
 	HostPlatform() string
 }
 
 type installedApplicationListResult struct {
 	raw           []byte
-	availableApps []fleet.Software
+	availableApps []automdm.Software
 	uuid          string
 	hostUUID      string
 	hostPlatform  string
 }
 
-func (i *installedApplicationListResult) Raw() []byte                     { return i.raw }
-func (i *installedApplicationListResult) UUID() string                    { return i.uuid }
-func (i *installedApplicationListResult) HostUUID() string                { return i.hostUUID }
-func (i *installedApplicationListResult) AvailableApps() []fleet.Software { return i.availableApps }
-func (i *installedApplicationListResult) HostPlatform() string            { return i.hostPlatform }
+func (i *installedApplicationListResult) Raw() []byte                       { return i.raw }
+func (i *installedApplicationListResult) UUID() string                      { return i.uuid }
+func (i *installedApplicationListResult) HostUUID() string                  { return i.hostUUID }
+func (i *installedApplicationListResult) AvailableApps() []automdm.Software { return i.availableApps }
+func (i *installedApplicationListResult) HostPlatform() string              { return i.hostPlatform }
 
 func NewInstalledApplicationListResult(ctx context.Context, rawResult []byte, uuid, hostUUID, hostPlatform string) (InstalledApplicationListResult, error) {
 	var source string
@@ -62,20 +62,20 @@ func NewInstalledApplicationListResult(ctx context.Context, rawResult []byte, uu
 }
 
 func NewInstalledApplicationListResultsHandler(
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	commander *apple_mdm.MDMAppleCommander,
 	logger *slog.Logger,
 	verifyTimeout, verifyRequestDelay time.Duration,
-	newActivityFn fleet.NewActivityFunc,
-) fleet.MDMCommandResultsHandler {
-	return func(ctx context.Context, commandResults fleet.MDMCommandResults) error {
+	newActivityFn automdm.NewActivityFunc,
+) automdm.MDMCommandResultsHandler {
+	return func(ctx context.Context, commandResults automdm.MDMCommandResults) error {
 		installedAppResult, ok := commandResults.(InstalledApplicationListResult)
 		if !ok {
 			return ctxerr.New(ctx, "unexpected results type")
 		}
 
-		// Then it's not a command sent by Fleet, so skip it
-		if !strings.HasPrefix(installedAppResult.UUID(), fleet.VerifySoftwareInstallVPPPrefix) {
+		// Then it's not a command sent by AutoMDM, so skip it
+		if !strings.HasPrefix(installedAppResult.UUID(), automdm.VerifySoftwareInstallVPPPrefix) {
 			return nil
 		}
 
@@ -98,12 +98,12 @@ func NewInstalledApplicationListResultsHandler(
 			// acknowledgement on this host until the daily cleanup removes it.
 			return ctxerr.Wrap(
 				ctx,
-				ds.RemoveHostMDMCommandByHostUUID(ctx, installedAppResult.HostUUID(), fleet.VerifySoftwareInstallVPPPrefix),
+				ds.RemoveHostMDMCommandByHostUUID(ctx, installedAppResult.HostUUID(), automdm.VerifySoftwareInstallVPPPrefix),
 				"InstalledApplicationList handler: removing host mdm command with no installs to verify",
 			)
 		}
 
-		installsByBundleID := map[string]fleet.Software{}
+		installsByBundleID := map[string]automdm.Software{}
 		for _, install := range installedApps {
 			installsByBundleID[install.BundleIdentifier] = install
 		}
@@ -124,7 +124,7 @@ func NewInstalledApplicationListResultsHandler(
 			// Used to mark the install as failed
 			failFn func(ctx context.Context, hostID uint, installUUID string, verificationUUID string) error
 			// Used to get the activity data for an install
-			activityFn func(ctx context.Context, results *mdm.CommandResults, fromSetupExp bool, fromAutoUpdate bool, fromConfigurationResend bool) (*fleet.User, fleet.ActivityDetails, error)
+			activityFn func(ctx context.Context, results *mdm.CommandResults, fromSetupExp bool, fromAutoUpdate bool, fromConfigurationResend bool) (*automdm.User, automdm.ActivityDetails, error)
 		}
 
 		// The requireXcodeSpecialCase is used to identify if we need to poll the list of apps
@@ -134,7 +134,7 @@ func NewInstalledApplicationListResultsHandler(
 		const xcodeBundleID = "com.apple.dt.Xcode"
 		var poll, shouldRefetch, requireXcodeSpecialCase bool
 		setStatusForExpectedInstall := func(
-			expectedInstall *fleet.HostVPPSoftwareInstall,
+			expectedInstall *automdm.HostVPPSoftwareInstall,
 			setter installStatusSetter,
 		) error {
 			fromAutoUpdate, fromConfigurationResend, err := ds.GetVPPInstallAutomationReasons(ctx, expectedInstall.InstallCommandUUID)
@@ -151,14 +151,14 @@ func NewInstalledApplicationListResultsHandler(
 					return ctxerr.Wrap(ctx, err, "InstalledApplicationList handler: set vpp install verified")
 				}
 
-				terminalStatus = fleet.MDMAppleStatusAcknowledged
+				terminalStatus = automdm.MDMAppleStatusAcknowledged
 				shouldRefetch = true
 			case expectedInstall.InstallCommandAckAt != nil && time.Since(*expectedInstall.InstallCommandAckAt) > verifyTimeout:
 				if err := setter.failFn(ctx, expectedInstall.HostID, expectedInstall.InstallCommandUUID, installedAppResult.UUID()); err != nil {
 					return ctxerr.Wrap(ctx, err, "InstalledApplicationList handler: set vpp install failed")
 				}
 
-				terminalStatus = fleet.MDMAppleStatusError
+				terminalStatus = automdm.MDMAppleStatusError
 			}
 
 			if terminalStatus == "" {
@@ -175,7 +175,7 @@ func NewInstalledApplicationListResultsHandler(
 
 			// this might be a setup experience VPP install, so we'll try to update setup experience status
 			var fromSetupExperience bool
-			if updated, err := maybeUpdateSetupExperienceStatus(ctx, ds, fleet.SetupExperienceVPPInstallResult{
+			if updated, err := maybeUpdateSetupExperienceStatus(ctx, ds, automdm.SetupExperienceVPPInstallResult{
 				HostUUID:      installedAppResult.HostUUID(),
 				CommandUUID:   expectedInstall.InstallCommandUUID,
 				CommandStatus: terminalStatus,
@@ -189,7 +189,7 @@ func NewInstalledApplicationListResultsHandler(
 			// create an activity for installing only if we're in a terminal state
 			user, act, err := setter.activityFn(ctx, &mdm.CommandResults{CommandUUID: expectedInstall.InstallCommandUUID, Status: terminalStatus}, fromSetupExperience, fromAutoUpdate, fromConfigurationResend)
 			if err != nil {
-				if fleet.IsNotFound(err) {
+				if automdm.IsNotFound(err) {
 					// Then this isn't an MDM-based install, so no activity generated
 					return nil
 				}
@@ -204,8 +204,8 @@ func NewInstalledApplicationListResultsHandler(
 			// Count only installs the verification command settles, an install command that finished but was never verified
 			// isn't counted. In-house app installs have no policy_id, so only VPP installs are counted.
 			if expectedInstall.PolicyID != nil {
-				installVerified := terminalStatus == fleet.MDMAppleStatusAcknowledged
-				err = ds.IncrementHostPolicyAutomationRunCount(ctx, *expectedInstall.PolicyID, expectedInstall.HostID, fleet.ActivityInstalledAppStoreApp{}, installVerified)
+				installVerified := terminalStatus == automdm.MDMAppleStatusAcknowledged
+				err = ds.IncrementHostPolicyAutomationRunCount(ctx, *expectedInstall.PolicyID, expectedInstall.HostID, automdm.ActivityInstalledAppStoreApp{}, installVerified)
 				if err != nil {
 					logger.ErrorContext(ctx, "increment host policy automation run count for vpp install", "host_id", expectedInstall.HostID, "command_uuid", expectedInstall.InstallCommandUUID, "err", err)
 				}
@@ -218,7 +218,7 @@ func NewInstalledApplicationListResultsHandler(
 			setter := installStatusSetter{
 				ds.SetVPPInstallAsVerified,
 				ds.SetVPPInstallAsFailed,
-				func(ctx context.Context, results *mdm.CommandResults, fromSetupExp bool, fromAutoUpdate bool, fromConfigurationResend bool) (*fleet.User, fleet.ActivityDetails, error) {
+				func(ctx context.Context, results *mdm.CommandResults, fromSetupExp bool, fromAutoUpdate bool, fromConfigurationResend bool) (*automdm.User, automdm.ActivityDetails, error) {
 					user, act, err := ds.GetPastActivityDataForVPPAppInstall(ctx, results)
 					if err != nil {
 						return nil, nil, err
@@ -243,7 +243,7 @@ func NewInstalledApplicationListResultsHandler(
 				ds.SetInHouseAppInstallAsFailed,
 				// fromAutoUpdate is ignored: in-house apps have no auto-update flow
 				// and ActivityTypeInstalledSoftware has no field for it.
-				func(ctx context.Context, results *mdm.CommandResults, fromSetupExp bool, _ bool, _ bool) (*fleet.User, fleet.ActivityDetails, error) {
+				func(ctx context.Context, results *mdm.CommandResults, fromSetupExp bool, _ bool, _ bool) (*automdm.User, automdm.ActivityDetails, error) {
 					user, act, err := ds.GetPastActivityDataForInHouseAppInstall(ctx, results)
 					if err != nil {
 						return nil, nil, err
@@ -287,9 +287,9 @@ func NewInstalledApplicationListResultsHandler(
 				// was queued and the row is removed again, but it stays when
 				// only the APNs notification failed since the command is
 				// durably queued.
-				cmdUUID := fleet.RefetchAppsCommandUUID()
-				hostCmd := fleet.HostMDMCommand{HostID: hostID, CommandType: fleet.RefetchAppsCommandUUIDPrefix, CommandUUID: cmdUUID}
-				err = ds.AddHostMDMCommands(ctx, []fleet.HostMDMCommand{hostCmd})
+				cmdUUID := automdm.RefetchAppsCommandUUID()
+				hostCmd := automdm.HostMDMCommand{HostID: hostID, CommandType: automdm.RefetchAppsCommandUUIDPrefix, CommandUUID: cmdUUID}
+				err = ds.AddHostMDMCommands(ctx, []automdm.HostMDMCommand{hostCmd})
 				if err != nil {
 					return ctxerr.Wrap(ctx, err, "add host mdm commands")
 				}
@@ -313,7 +313,7 @@ func NewInstalledApplicationListResultsHandler(
 		// If we get here, we're in a terminal state, so we can remove the verify command.
 		return ctxerr.Wrap(
 			ctx,
-			ds.RemoveHostMDMCommand(ctx, fleet.HostMDMCommand{CommandType: fleet.VerifySoftwareInstallVPPPrefix, HostID: hostID}),
+			ds.RemoveHostMDMCommand(ctx, automdm.HostMDMCommand{CommandType: automdm.VerifySoftwareInstallVPPPrefix, HostID: hostID}),
 			"InstalledApplicationList handler: removing host mdm command",
 		)
 	}
@@ -336,7 +336,7 @@ func (i *deviceLocationResult) Latitude() float64  { return i.latitude }
 func (i *deviceLocationResult) Longitude() float64 { return i.longitude }
 
 type DeviceLocationResult interface {
-	fleet.MDMCommandResults
+	automdm.MDMCommandResults
 	HostID() uint
 	Latitude() float64
 	Longitude() float64
@@ -364,17 +364,17 @@ func NewDeviceLocationResult(result *mdm.CommandResults, hostID uint) (DeviceLoc
 }
 
 func NewDeviceLocationResultsHandler(
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	commander *apple_mdm.MDMAppleCommander,
 	logger *slog.Logger,
-) fleet.MDMCommandResultsHandler {
-	return func(ctx context.Context, commandResults fleet.MDMCommandResults) error {
+) automdm.MDMCommandResultsHandler {
+	return func(ctx context.Context, commandResults automdm.MDMCommandResults) error {
 		deviceLocResult, ok := commandResults.(DeviceLocationResult)
 		if !ok {
 			return ctxerr.New(ctx, "unexpected results type")
 		}
 
-		err := ds.InsertHostLocationData(ctx, fleet.HostLocationData{
+		err := ds.InsertHostLocationData(ctx, automdm.HostLocationData{
 			HostID:    deviceLocResult.HostID(),
 			Latitude:  deviceLocResult.Latitude(),
 			Longitude: deviceLocResult.Longitude(),
@@ -386,7 +386,7 @@ func NewDeviceLocationResultsHandler(
 ///////////////////////////////////////////////////////////////////////////////
 // Apple MDM Recovery Lock Password
 
-// recoveryLockResult wraps mdm.CommandResults to implement fleet.MDMCommandResults
+// recoveryLockResult wraps mdm.CommandResults to implement automdm.MDMCommandResults
 type recoveryLockResult struct {
 	cmdResult *mdm.CommandResults
 }
@@ -416,8 +416,8 @@ func (r *recoveryLockResult) passwordVerified() (bool, error) {
 	return resp.PasswordVerified, nil
 }
 
-// NewRecoveryLockResult wraps an mdm.CommandResults to implement fleet.MDMCommandResults
-func NewRecoveryLockResult(cmdResult *mdm.CommandResults) fleet.MDMCommandResults {
+// NewRecoveryLockResult wraps an mdm.CommandResults to implement automdm.MDMCommandResults
+func NewRecoveryLockResult(cmdResult *mdm.CommandResults) automdm.MDMCommandResults {
 	return &recoveryLockResult{cmdResult: cmdResult}
 }
 
@@ -426,11 +426,11 @@ const maxRecoveryLockRetries = 2 // 3 attempts total (initial + 2 retries)
 // NewSetRecoveryLockResultsHandler processes SetRecoveryLock command results.
 // It mainly enqueues the verify step, or attempt retry if non terminal failure.
 func NewSetRecoveryLockResultsHandler(
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	logger *slog.Logger,
 	commander *apple_mdm.MDMAppleCommander,
-) fleet.MDMCommandResultsHandler {
-	return func(ctx context.Context, results fleet.MDMCommandResults) error {
+) automdm.MDMCommandResultsHandler {
+	return func(ctx context.Context, results automdm.MDMCommandResults) error {
 		// Get the underlying result to access status and error chain
 		rlResult, ok := results.(*recoveryLockResult)
 		if !ok {
@@ -460,7 +460,7 @@ func NewSetRecoveryLockResultsHandler(
 		)
 
 		switch rlResult.CmdStatus() {
-		case fleet.MDMAppleStatusAcknowledged:
+		case automdm.MDMAppleStatusAcknowledged:
 			// PROMOTE TO VERIFYING and issue VerifyRecoveryLock with empty password
 			pendingVerifyCmdUUID := uuid.NewString()
 			logger.InfoContext(ctx, "acknowledged recovery lock, promoting to verifying",
@@ -472,7 +472,7 @@ func NewSetRecoveryLockResultsHandler(
 				return ctxerr.Wrap(ctx, err, "SetRecoveryLock handler: set recovery lock verifying")
 			}
 
-			if pendingRecoveryLock.OperationType == fleet.MDMOperationTypeRemove {
+			if pendingRecoveryLock.OperationType == automdm.MDMOperationTypeRemove {
 				if err := commander.VerifyClearRecoveryLock(ctx, hostUUID, pendingVerifyCmdUUID); err != nil {
 					if apnsErr, ok := errors.AsType[*apple_mdm.APNSDeliveryError](err); ok {
 						// Do not fail on APNS push failures.
@@ -509,11 +509,11 @@ func NewSetRecoveryLockResultsHandler(
 				}
 			}
 
-		case fleet.MDMAppleStatusError, fleet.MDMAppleStatusCommandFormatError:
+		case automdm.MDMAppleStatusError, automdm.MDMAppleStatusCommandFormatError:
 			errorMsg := apple_mdm.FmtErrorChain(rlResult.cmdResult.ErrorChain)
 			if errorMsg == "" {
 				// If no specific error message is available, provide a generic one based on the operation type
-				if pendingRecoveryLock.OperationType == fleet.MDMOperationTypeRemove {
+				if pendingRecoveryLock.OperationType == automdm.MDMOperationTypeRemove {
 					errorMsg = "ClearRecoveryLock command failed"
 				} else {
 					errorMsg = "SetRecoveryLock command failed"
@@ -521,7 +521,7 @@ func NewSetRecoveryLockResultsHandler(
 			}
 
 			if apple_mdm.IsRecoveryLockPasswordMismatchError(rlResult.cmdResult.ErrorChain) && pendingRecoveryLock.HasCurrentPassword {
-				// The device kept a lock that the new password can't replace, but Fleet has a
+				// The device kept a lock that the new password can't replace, but AutoMDM has a
 				// password on file — verify that one rather than failing outright. Common after a
 				// re-enrollment: the row is soft-deleted, the cron re-SETs as if the host were
 				// fresh, but the device never actually dropped the lock.
@@ -553,8 +553,8 @@ func NewSetRecoveryLockResultsHandler(
 			// Command format errors are terminal - command is malformed and won't succeed on retry.
 			// Password mismatch errors are also terminal - requires admin intervention.
 			// Retries exhausted - treat as terminal error.
-			if pendingRecoveryLock.OperationType == fleet.MDMOperationTypeRemove ||
-				rlResult.CmdStatus() == fleet.MDMAppleStatusCommandFormatError ||
+			if pendingRecoveryLock.OperationType == automdm.MDMOperationTypeRemove ||
+				rlResult.CmdStatus() == automdm.MDMAppleStatusCommandFormatError ||
 				apple_mdm.IsRecoveryLockPasswordMismatchError(rlResult.cmdResult.ErrorChain) ||
 				pendingRecoveryLock.Retries >= maxRecoveryLockRetries {
 				if err := ds.SetRecoveryLockFailed(ctx, hostUUID, results.UUID(), errorMsg); err != nil {
@@ -581,12 +581,12 @@ func NewSetRecoveryLockResultsHandler(
 }
 
 func NewVerifyRecoveryLockResultsHandler(
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	logger *slog.Logger,
 	commander *apple_mdm.MDMAppleCommander,
-	newActivityFn fleet.NewActivityFunc,
-) fleet.MDMCommandResultsHandler {
-	return func(ctx context.Context, results fleet.MDMCommandResults) error {
+	newActivityFn automdm.NewActivityFunc,
+) automdm.MDMCommandResultsHandler {
+	return func(ctx context.Context, results automdm.MDMCommandResults) error {
 		logger.DebugContext(ctx, "VerifyRecoveryLock results received",
 			"host_uuid", results.HostUUID(),
 			"command_uuid", results.UUID(),
@@ -611,7 +611,7 @@ func NewVerifyRecoveryLockResultsHandler(
 		}
 
 		switch rlResult.CmdStatus() {
-		case fleet.MDMAppleStatusAcknowledged:
+		case automdm.MDMAppleStatusAcknowledged:
 			verified, err := rlResult.passwordVerified()
 			if err != nil {
 				return ctxerr.Wrap(ctx, err, "VerifyRecoveryLock handler: read password verified")
@@ -620,7 +620,7 @@ func NewVerifyRecoveryLockResultsHandler(
 				// The device answered, and the answer is no: it holds a lock that isn't the
 				// password we sent. Nothing to retry, the next attempt gets the same answer.
 				errorMsg := "Device reported that the recovery lock password does not match"
-				if pending.OperationType == fleet.MDMOperationTypeRemove {
+				if pending.OperationType == automdm.MDMOperationTypeRemove {
 					errorMsg = "Device reported that a recovery lock password is still set"
 				}
 				if err := ds.SetRecoveryLockFailed(ctx, results.HostUUID(), results.UUID(), errorMsg); err != nil {
@@ -634,7 +634,7 @@ func NewVerifyRecoveryLockResultsHandler(
 				return nil
 			}
 
-			if pending.OperationType == fleet.MDMOperationTypeInstall {
+			if pending.OperationType == automdm.MDMOperationTypeInstall {
 				// verified the last set password, mark as verified and promote
 				if err := ds.SetRecoveryLockVerified(ctx, results.HostUUID(), results.UUID()); err != nil {
 					return ctxerr.Wrap(ctx, err, "VerifyRecoveryLock handler: set recovery lock verified failed")
@@ -644,7 +644,7 @@ func NewVerifyRecoveryLockResultsHandler(
 					return ctxerr.Wrap(ctx, err, "VerifyRecoveryLock handler: delete host recovery lock password failed")
 				}
 			}
-		case fleet.MDMAppleStatusCommandFormatError, fleet.MDMAppleStatusError:
+		case automdm.MDMAppleStatusCommandFormatError, automdm.MDMAppleStatusError:
 			shouldRetry := pending.Retries < maxRecoveryLockRetries
 			appleErr := apple_mdm.FmtErrorChain(rlResult.ErrorChain())
 
@@ -653,8 +653,8 @@ func NewVerifyRecoveryLockResultsHandler(
 			// - Command format error
 			// - Recovery lock password not set
 			// - Retries exhausted
-			if pending.OperationType == fleet.MDMOperationTypeRemove ||
-				rlResult.CmdStatus() == fleet.MDMAppleStatusCommandFormatError ||
+			if pending.OperationType == automdm.MDMOperationTypeRemove ||
+				rlResult.CmdStatus() == automdm.MDMAppleStatusCommandFormatError ||
 				apple_mdm.IsRecoveryLockPasswordNotSetError(rlResult.ErrorChain()) ||
 				!shouldRetry {
 
@@ -697,8 +697,8 @@ func NewVerifyRecoveryLockResultsHandler(
 		}
 
 		// Rotations aren't new passwords here: they log their activity when they're enqueued.
-		if rlResult.CmdStatus() == fleet.MDMAppleStatusAcknowledged && pending.SetsNewPassword &&
-			pending.OperationType == fleet.MDMOperationTypeInstall {
+		if rlResult.CmdStatus() == automdm.MDMAppleStatusAcknowledged && pending.SetsNewPassword &&
+			pending.OperationType == automdm.MDMOperationTypeInstall {
 
 			host, err := ds.HostLiteByIdentifier(ctx, results.HostUUID())
 			if err != nil || host == nil {
@@ -707,8 +707,8 @@ func NewVerifyRecoveryLockResultsHandler(
 					"err", err,
 				)
 			} else {
-				// Log the activity only if we could identify the host (fleet-initiated via WasFromAutomation)
-				if err := newActivityFn(ctx, nil, fleet.ActivityTypeSetHostRecoveryLockPassword{
+				// Log the activity only if we could identify the host (automdm-initiated via WasFromAutomation)
+				if err := newActivityFn(ctx, nil, automdm.ActivityTypeSetHostRecoveryLockPassword{
 					HostID:          host.ID,
 					HostDisplayName: host.DisplayName(),
 				}); err != nil {

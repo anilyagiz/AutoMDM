@@ -8,9 +8,9 @@
       "start": "2026-09-30T01:47:27Z",
       "end": "2026-09-30T02:07:27Z"
     },
-    "note": "qa-54047 pre-fix (4.92.1) after seeding: 20M hsr/1.2M hsi; fleetctl gitops 45s failure 01:56:49, curl apply 502@107s 01:59:42; scheduled cleanups 02:04:39-02:05:53"
+    "note": "qa-54047 pre-fix (4.92.1) after seeding: 20M hsr/1.2M hsi; automdmctl gitops 45s failure 01:56:49, curl apply 502@107s 01:59:42; scheduled cleanups 02:04:39-02:05:53"
   },
-  "fleet_server": {
+  "automdm_server": {
     "cpu_utilization": {
       "Average": 30.23,
       "Minimum": 30.07,
@@ -386,7 +386,7 @@
       "data_coverage": 1
     }
   },
-  "fleet_server_errors": {
+  "automdm_server_errors": {
     "error_count": 0.0,
     "sample_messages": []
   },

@@ -97,7 +97,7 @@ describe("HostSoftwareTableConfig", () => {
       await waitFor(() => {
         expect(
           screen.getByText(
-            "Currently, Fleet doesn't detect vulnerabilities for MCP servers."
+            "Currently, AutoMDM doesn't detect vulnerabilities for MCP servers."
           )
         ).toBeInTheDocument();
       });

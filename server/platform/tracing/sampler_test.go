@@ -23,13 +23,13 @@ func testRegistry() *Registry {
 	r.Register(http.MethodPost, "/api/osquery/distributed/read", TierHighVolume)
 	r.Register(http.MethodPost, "/api/v1/osquery/distributed/read", TierHighVolume)
 	r.Register(http.MethodPost, "/api/osquery/distributed/write", TierHighVolume)
-	r.Register(http.MethodPost, "/api/fleet/orbit/config", TierHighVolume)
-	r.Register(http.MethodHead, "/api/fleet/orbit/ping", TierHighVolume)
-	r.Register(http.MethodHead, "/api/_version_/fleet/device/{token}/ping", TierHighVolume)
-	r.Register(http.MethodGet, "/api/_version_/fleet/device/{token}/desktop", TierHighVolume)
-	r.Register(http.MethodGet, "/api/_version_/fleet/hosts", TierStandard)
-	r.Register(http.MethodGet, "/api/_version_/fleet/hosts/{id}", TierStandard)
-	r.Register(http.MethodGet, "/api/_version_/fleet/queries", TierStandard)
+	r.Register(http.MethodPost, "/api/automdm/orbit/config", TierHighVolume)
+	r.Register(http.MethodHead, "/api/automdm/orbit/ping", TierHighVolume)
+	r.Register(http.MethodHead, "/api/_version_/automdm/device/{token}/ping", TierHighVolume)
+	r.Register(http.MethodGet, "/api/_version_/automdm/device/{token}/desktop", TierHighVolume)
+	r.Register(http.MethodGet, "/api/_version_/automdm/hosts", TierStandard)
+	r.Register(http.MethodGet, "/api/_version_/automdm/hosts/{id}", TierStandard)
+	r.Register(http.MethodGet, "/api/_version_/automdm/queries", TierStandard)
 	return r
 }
 
@@ -93,10 +93,10 @@ func TestRouteTierSampler_NeverTierDropsUnconditionally(t *testing.T) {
 // always sample, both at default config and when ratios are forced to zero. The ratios=0 subtest is the stronger guarantee.
 func TestRouteTierSampler_AlwaysTierKeepsUnconditionally(t *testing.T) {
 	names := []string{
-		"vuln.update_host_counts",                      // cron
-		"POST /api/_version_/fleet/mdm/profiles/batch", // GitOps batch
-		"POST /api/fleet/orbit/enroll",                 // enroll
-		"some-future-endpoint-not-in-any-list",         // unknown
+		"vuln.update_host_counts",                        // cron
+		"POST /api/_version_/automdm/mdm/profiles/batch", // GitOps batch
+		"POST /api/automdm/orbit/enroll",                 // enroll
+		"some-future-endpoint-not-in-any-list",           // unknown
 	}
 
 	cases := []struct {
@@ -130,7 +130,7 @@ func TestRouteTierSampler_RatioSampling(t *testing.T) {
 	highRate := sampleRate(t, s, "POST /api/osquery/distributed/read", n)
 	require.InDelta(t, 0.1, highRate, tolerance, "high volume tier should track its configured ratio")
 
-	stdRate := sampleRate(t, s, "GET /api/_version_/fleet/hosts", n)
+	stdRate := sampleRate(t, s, "GET /api/_version_/automdm/hosts", n)
 	require.InDelta(t, 0.5, stdRate, tolerance, "standard tier should track its configured ratio")
 }
 
@@ -140,8 +140,8 @@ func TestRouteTierSampler_ForceFull(t *testing.T) {
 
 	for _, name := range []string{
 		"POST /api/osquery/distributed/read", // would be 0% via high volume
-		"GET /api/_version_/fleet/hosts",     // would be 0% via standard
-		"POST /api/fleet/orbit/enroll",       // already always
+		"GET /api/_version_/automdm/hosts",   // would be 0% via standard
+		"POST /api/automdm/orbit/enroll",     // already always
 	} {
 		t.Run(name, func(t *testing.T) {
 			for range 1000 {
@@ -183,7 +183,7 @@ func TestRouteTierSampler_ApplyRaceFree(t *testing.T) {
 
 	// Run for a tight window. The race detector will fail if there's a torn read.
 	for range 50_000 {
-		_ = sample(t, s, "POST /api/_version_/fleet/spec/teams")
+		_ = sample(t, s, "POST /api/_version_/automdm/spec/teams")
 	}
 	stop.Store(true)
 	readers.Wait()

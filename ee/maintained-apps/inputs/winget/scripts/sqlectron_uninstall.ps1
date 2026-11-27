@@ -7,7 +7,7 @@
 
 $displayNamePattern = '^sqlectron \d'
 $publisher = "The Sqlectron Team"
-$taskName = "fleet-uninstall-sqlectron"
+$taskName = "automdm-uninstall-sqlectron"
 $appDir = "AppData\Local\Programs\sqlectron"  # in each user's profile
 $taskRunning = 267009  # SCHED_S_TASK_RUNNING
 $timeoutSeconds = 300

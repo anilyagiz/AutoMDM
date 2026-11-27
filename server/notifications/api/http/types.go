@@ -3,7 +3,7 @@
 package http
 
 import (
-	"github.com/fleetdm/fleet/v4/server/notifications/api"
+	"github.com/anilyagiz/automdm/v4/server/notifications/api"
 )
 
 type GetNotificationRequest struct {

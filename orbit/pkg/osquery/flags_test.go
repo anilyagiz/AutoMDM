@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestFleetFlagsAcceptGzip(t *testing.T) {
-	u, err := url.Parse("https://fleet.example.com")
+func TestAutoMDMFlagsAcceptGzip(t *testing.T) {
+	u, err := url.Parse("https://automdm.example.com")
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -29,7 +29,7 @@ func TestFleetFlagsAcceptGzip(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.version, func(t *testing.T) {
-			flags := FleetFlags(tt.version, u)
+			flags := AutoMDMFlags(tt.version, u)
 			if tt.wantFlag {
 				assert.Contains(t, flags, "--tls_accept_gzip=true", "version %s missing flag", tt.version)
 			} else {

@@ -23,7 +23,7 @@ require_wipe_commands() {
 # passwd -l below only reaches accounts in /etc/shadow, so directory users
 # (SSSD/LDAP/Kerberos/AD) need pam_nologin to keep them out mid-wipe.
 block_logins() {
-    _msg="Fleet is wiping this system."
+    _msg="AutoMDM is wiping this system."
     echo "$_msg" > /etc/nologin
     echo "$_msg" > /run/nologin
 }
@@ -269,7 +269,7 @@ system_reset() {
 
 wipe_all_files() {
     require_wipe_commands
-    sleep 10 # Give fleetd enough time to register the script as completed
+    sleep 10 # Give automdmd enough time to register the script as completed
     prepare_system_reset
     unmount_network_filesystems
     wipe_btrfs_snapshots
@@ -284,10 +284,10 @@ if [ "$1" = "wipe" ]; then
 else
     # We are in the parent shell, block and logout users and begin the detached
     # wipe child process.
-    # Stage before locking anyone out: fleetd deletes this script's directory as
+    # Stage before locking anyone out: automdmd deletes this script's directory as
     # soon as we return, and systemd-run returns before the child has opened it.
     # /run stays writable on read-only-root images and the wipe never deletes it.
-    WIPE_SCRIPT=/run/fleet_wipe.sh
+    WIPE_SCRIPT=/run/automdm_wipe.sh
     if ! cp "$0" "$WIPE_SCRIPT"; then
         echo "Could not stage the wipe, so not locking logins on a host that will not be wiped" >&2
         exit 1
@@ -299,7 +299,7 @@ else
     # dies on every orbit restart and runs at a fifth of one CPU. Branch on
     # systemd-run failing rather than existing, or an old systemd leaves a host
     # locked out by block_logins and never wiped.
-    if ! systemd-run --unit=fleet-wipe /bin/sh "$WIPE_SCRIPT" wipe; then
+    if ! systemd-run --unit=automdm-wipe /bin/sh "$WIPE_SCRIPT" wipe; then
         (nohup sh "$WIPE_SCRIPT" wipe >/dev/null 2>/dev/null </dev/null) &
     fi
 fi

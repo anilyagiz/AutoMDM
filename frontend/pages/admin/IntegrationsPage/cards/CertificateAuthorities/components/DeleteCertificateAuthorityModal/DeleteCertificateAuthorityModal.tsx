@@ -45,7 +45,7 @@ const DeleteCertificateAuthorityModal = ({
       onExit={onExit}
     >
       <p>
-        Fleet won&apos;t remove certificates from the certificate authority (
+        AutoMDM won&apos;t remove certificates from the certificate authority (
         <b>{certAuthority.name}</b>) on existing hosts.
       </p>
       <div className="modal-cta-wrap">

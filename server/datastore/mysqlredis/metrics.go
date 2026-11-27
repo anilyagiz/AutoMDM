@@ -13,7 +13,7 @@ import (
 // no-op meter and all operations on these counters silently succeed.
 
 var (
-	meter = otel.Meter("fleet")
+	meter = otel.Meter("automdm")
 
 	// hostCacheLookups counts cache read attempts, labeled by result.
 	// Attribute `result` is one of: hit, negative_hit, miss.
@@ -33,7 +33,7 @@ var (
 func init() {
 	var err error
 	hostCacheLookups, err = meter.Int64Counter(
-		"fleet.host_cache.lookups",
+		"automdm.host_cache.lookups",
 		metric.WithDescription("Host lookup cache reads, labeled by result"),
 		metric.WithUnit("{event}"),
 	)
@@ -42,7 +42,7 @@ func init() {
 	}
 
 	hostCacheErrors, err = meter.Int64Counter(
-		"fleet.host_cache.errors",
+		"automdm.host_cache.errors",
 		metric.WithDescription("Host lookup cache Redis/serialization errors, labeled by operation"),
 		metric.WithUnit("{event}"),
 	)
@@ -51,7 +51,7 @@ func init() {
 	}
 
 	hostCacheInvalidations, err = meter.Int64Counter(
-		"fleet.host_cache.invalidations",
+		"automdm.host_cache.invalidations",
 		metric.WithDescription("Host lookup cache invalidations, labeled by the write path reason"),
 		metric.WithUnit("{event}"),
 	)

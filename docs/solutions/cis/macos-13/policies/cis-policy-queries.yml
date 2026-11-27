@@ -2,7 +2,7 @@
 # They are preserved for reference and for use by other tooling.
 # Affected fields: purpose, tags, contributors, platforms
 
-- name: "[macOS 13] CIS - Ensure All Apple-provided Software Is Current (Fleetd Required)"
+- name: "[macOS 13] CIS - Ensure All Apple-provided Software Is Current (AutoMDMd Required)"
   # platforms: macOS
   platform: darwin
   description: |
@@ -226,7 +226,7 @@
             name='allowCloudDocumentSync' AND 
             (value != 0 AND value != 'false')
         );  
-    /*CIS does not make a hard recommendation for this policy. Fleet has provided two policies (one failing, one succeeding). 
+    /*CIS does not make a hard recommendation for this policy. AutoMDM has provided two policies (one failing, one succeeding). 
       Depending on your organization's decision, you can delete this policy or its counterpart.*/
   # purpose: Informational
   # tags: compliance, CIS, CIS_Level2, CIS-macos-13-2.1.1.2-disabled, decision-needed
@@ -260,7 +260,7 @@
             name='allowCloudDocumentSync' AND 
             (value != 1 AND value != 'true')
         );  
-    /*CIS does not make a hard recommendation for this policy. Fleet has provided two policies (one failing, one succeeding). 
+    /*CIS does not make a hard recommendation for this policy. AutoMDM has provided two policies (one failing, one succeeding). 
       Depending on your organization's decision, you can delete this policy or its counterpart.*/
   # purpose: Informational
   # tags: compliance, CIS, CIS_Level2, CIS-macos-13-2.1.1.2-enabled, decision-needed
@@ -295,7 +295,7 @@
             name='allowCloudKeychainSync' AND 
             (value != 0 AND value != 'false')
         );  
-    /*CIS does not make a hard recommendation for this policy. Fleet has provided two policies (one failing, one succeeding). 
+    /*CIS does not make a hard recommendation for this policy. AutoMDM has provided two policies (one failing, one succeeding). 
       Depending on your organization's decision, you can delete this policy or its counterpart.*/
   # purpose: Informational
   # tags: compliance, CIS, CIS_Level2, CIS-macos-13-2.1.1.1-disable, decision-needed
@@ -330,7 +330,7 @@
             name='allowCloudKeychainSync' AND 
             (value != 1 AND value != 'true')
         );  
-    /*CIS does not make a hard recommendation for this policy. Fleet has provided two policies (one failing, one succeeding). 
+    /*CIS does not make a hard recommendation for this policy. AutoMDM has provided two policies (one failing, one succeeding). 
       Depending on your organization's decision, you can delete this policy or its counterpart.*/
   # purpose: Informational
   # tags: compliance, CIS, CIS_Level2, CIS-macos-13-2.1.1.1-enable, decision-needed
@@ -505,7 +505,7 @@
   # tags: compliance, CIS, CIS_Level1
   # contributors: defensivedepth
 
-- name: "[macOS 13] CIS - Ensure Time Is Set Within Appropriate Limits (Fleetd Required)"
+- name: "[macOS 13] CIS - Ensure Time Is Set Within Appropriate Limits (AutoMDMd Required)"
   # platforms: macOS
   platform: darwin
   description: |
@@ -1039,7 +1039,7 @@
       WHERE u.directory LIKE '/Users/%' AND
       p.value IS NULL
     );
-    /*CIS does not make a hard recommendation for this policy. Fleet has provided two policies (one failing, one succeeding). 
+    /*CIS does not make a hard recommendation for this policy. AutoMDM has provided two policies (one failing, one succeeding). 
       Depending on your organization's decision, you can delete this policy or its counterpart.*/
   # purpose: Informational
   # tags: compliance, CIS, CIS_Level1, CIS-macos-13-2.5.1-TypeToSiriEnabled-true, decision-needed
@@ -1065,7 +1065,7 @@
       WHERE u.directory LIKE '/Users/%' AND
       p.value IS NULL
     );
-    /*CIS does not make a hard recommendation for this policy. Fleet has provided two policies (one failing, one succeeding). 
+    /*CIS does not make a hard recommendation for this policy. AutoMDM has provided two policies (one failing, one succeeding). 
       Depending on your organization's decision, you can delete this policy or its counterpart.*/
   # purpose: Informational
   # tags: compliance, CIS, CIS_Level1, CIS-macos-13-2.5.1-TypeToSiriEnabled-false, decision-needed
@@ -1091,7 +1091,7 @@
       WHERE u.directory LIKE '/Users/%' AND
       p.value IS NULL
     );
-    /*CIS does not make a hard recommendation for this policy. Fleet has provided two policies (one failing, one succeeding). 
+    /*CIS does not make a hard recommendation for this policy. AutoMDM has provided two policies (one failing, one succeeding). 
       Depending on your organization's decision, you can delete this policy or its counterpart.*/
   # purpose: Informational
   # tags: compliance, CIS, CIS_Level1, CIS-macos-13-2.5.1-StatusMenuVisible-true, decision-needed
@@ -1117,7 +1117,7 @@
       WHERE u.directory LIKE '/Users/%' AND
       p.value IS NULL
     );
-    /*CIS does not make a hard recommendation for this policy. Fleet has provided two policies (one failing, one succeeding). 
+    /*CIS does not make a hard recommendation for this policy. AutoMDM has provided two policies (one failing, one succeeding). 
       Depending on your organization's decision, you can delete this policy or its counterpart.*/
   # purpose: Informational
   # tags: compliance, CIS, CIS_Level1, CIS-macos-13-2.5.1-StatusMenuVisible-false, decision-needed
@@ -1143,7 +1143,7 @@
       WHERE u.directory LIKE '/Users/%' AND
       p.value IS NULL
     );
-    /*CIS does not make a hard recommendation for this policy. Fleet has provided two policies (one failing, one succeeding). 
+    /*CIS does not make a hard recommendation for this policy. AutoMDM has provided two policies (one failing, one succeeding). 
       Depending on your organization's decision, you can delete this policy or its counterpart.*/
   # purpose: Informational
   # tags: compliance, CIS, CIS_Level1, CIS-macos-13-2.5.1-VoiceTriggerUserEnabled-true, decision-needed
@@ -1169,7 +1169,7 @@
       WHERE u.directory LIKE '/Users/%' AND
       p.value IS NULL
     );
-    /*CIS does not make a hard recommendation for this policy. Fleet has provided two policies (one failing, one succeeding). 
+    /*CIS does not make a hard recommendation for this policy. AutoMDM has provided two policies (one failing, one succeeding). 
       Depending on your organization's decision, you can delete this policy or its counterpart.*/
   # purpose: Informational
   # tags: compliance, CIS, CIS_Level1, CIS-macos-13-2.5.1-VoiceTriggerUserEnabled-false, decision-needed
@@ -1195,7 +1195,7 @@
       WHERE u.directory LIKE '/Users/%' AND
       p.value IS NULL
     );
-    /*CIS does not make a hard recommendation for this policy. Fleet has provided two policies (one failing, one succeeding). 
+    /*CIS does not make a hard recommendation for this policy. AutoMDM has provided two policies (one failing, one succeeding). 
       Depending on your organization's decision, you can delete this policy or its counterpart.*/
   # purpose: Informational
   # tags: compliance, CIS, CIS_Level1, CIS-macos-13-2.5.1-LockscreenEnabled-true, decision-needed
@@ -1221,7 +1221,7 @@
       WHERE u.directory LIKE '/Users/%' AND
       p.value IS NULL
     );
-    /*CIS does not make a hard recommendation for this policy. Fleet has provided two policies (one failing, one succeeding). 
+    /*CIS does not make a hard recommendation for this policy. AutoMDM has provided two policies (one failing, one succeeding). 
       Depending on your organization's decision, you can delete this policy or its counterpart.*/
   # purpose: Informational
   # tags: compliance, CIS, CIS_Level1, CIS-macos-13-2.5.1-LockscreenEnabled-false, decision-needed
@@ -1382,7 +1382,7 @@
   # tags: compliance, CIS, CIS_Level1, CIS-macos-13-2.6.3
   # contributors: sharon-fdm
 
-- name: "[macOS 13] CIS - Ensure an Administrator Password Is Required to Access System-Wide Preferences (Fleetd required)"
+- name: "[macOS 13] CIS - Ensure an Administrator Password Is Required to Access System-Wide Preferences (AutoMDMd required)"
   # platforms: macOS
   platform: darwin
   description: Checks that an Administrator Password Is Required to Access System-Wide Preferences
@@ -1459,7 +1459,7 @@
             name='Disable' AND 
             (value != 0 AND value != 'false')
         );  
-    /*CIS does not make a hard recommendation for this policy. Fleet has provided two policies (one failing, one succeeding). 
+    /*CIS does not make a hard recommendation for this policy. AutoMDM has provided two policies (one failing, one succeeding). 
       Depending on your organization's decision, you can delete this policy or its counterpart.*/
   # purpose: Informational
   # tags: compliance, CIS, CIS_Level1, CIS-macos-13-2.8.1-enabled, decision-needed
@@ -1493,13 +1493,13 @@
             name='Disable' AND 
             (value != 1 AND value != 'true')
         );  
-    /*CIS does not make a hard recommendation for this policy. Fleet has provided two policies (one failing, one succeeding). 
+    /*CIS does not make a hard recommendation for this policy. AutoMDM has provided two policies (one failing, one succeeding). 
       Depending on your organization's decision, you can delete this policy or its counterpart.*/
   # purpose: Informational
   # tags: compliance, CIS, CIS_Level1, CIS-macos-13-2.8.1-disabled, decision-needed
   # contributors: sharon-fdm
 
-- name: "[macOS 13] CIS - Ensure Power Nap Is Disabled for Intel Macs (Fleetd Required)"
+- name: "[macOS 13] CIS - Ensure Power Nap Is Disabled for Intel Macs (AutoMDMd Required)"
   # platforms: macOS
   platform: darwin
   description: |
@@ -1528,7 +1528,7 @@
   # tags: compliance, CIS, CIS_Level1, CIS-macos-13-2.9.1
   # contributors: lucasmrod
 
-- name: "[macOS 13] CIS - Ensure Wake for Network Access Is Disabled (Fleetd Required)"
+- name: "[macOS 13] CIS - Ensure Wake for Network Access Is Disabled (AutoMDMd Required)"
   # platforms: macOS
   platform: darwin
   description: |
@@ -1556,7 +1556,7 @@
   # tags: compliance, CIS, CIS_Level1, CIS-macos-13-2.9.2
   # contributors: lucasmrod
 
-- name: "[macOS 13] CIS - Ensure the OS is not Active When Resuming from Sleep (Fleetd, FDA Required)"
+- name: "[macOS 13] CIS - Ensure the OS is not Active When Resuming from Sleep (AutoMDMd, FDA Required)"
   # platforms: macOS
   platform: darwin
   description: |
@@ -1901,7 +1901,7 @@
   # tags: compliance, CIS, CIS_Level1, CIS-macos-13-2.10.5
   # contributors: sharon-fdm
 
-- name: "[macOS 13] CIS - Ensure Users' Accounts Do Not Have a Password Hint (Fleetd Required)"
+- name: "[macOS 13] CIS - Ensure Users' Accounts Do Not Have a Password Hint (AutoMDMd Required)"
   # platforms: macOS
   platform: darwin
   description: |
@@ -2358,7 +2358,7 @@
   # tags: compliance, CIS, CIS_Level1, CIS-macos-13-5.1.2
   # contributors: sharon-fdm
 
-- name: "[macOS 13] CIS - Ensure Apple Mobile File Integrity (AMFI) Is Enabled (fleetd required)"
+- name: "[macOS 13] CIS - Ensure Apple Mobile File Integrity (AMFI) Is Enabled (automdmd required)"
   # platforms: macOS
   platform: darwin
   description: |
@@ -2373,7 +2373,7 @@
   # tags: compliance, CIS, CIS_Level1, CIS-macos-13-5.1.3
   # contributors: sharon-fdm
 
-- name: "[macOS 13] CIS - Ensure Sealed System Volume (SSV) Is Enabled (fleetd required)"
+- name: "[macOS 13] CIS - Ensure Sealed System Volume (SSV) Is Enabled (automdmd required)"
   # platforms: macOS
   platform: darwin
   description: |
@@ -2438,7 +2438,7 @@
   # tags: compliance, CIS, CIS_Level1, CIS-macos-13-5.1.6
   # contributors: sharon-fdm
 
-- name: "[macOS 13] CIS - Ensure No World Writable Folders Exist in the Library Folder (Fleetd required)"
+- name: "[macOS 13] CIS - Ensure No World Writable Folders Exist in the Library Folder (AutoMDMd required)"
   # platforms: macOS
   platform: darwin
   description: |
@@ -2483,7 +2483,7 @@
   # tags: compliance, CIS, CIS_Level2, CIS-macos-13-5.1.7
   # contributors: sharon-fdm, getvictor
 
-- name: "[macOS 13] CIS - Ensure Password Account Lockout Threshold Is Configured (Fleetd required)"
+- name: "[macOS 13] CIS - Ensure Password Account Lockout Threshold Is Configured (AutoMDMd required)"
   # platforms: macOS
   platform: darwin
   description: |
@@ -2582,7 +2582,7 @@
   # tags: compliance, CIS, CIS_Level2, CIS-macos-13-5.2.5
   # contributors: sharon-fdm
 
-- name: "[macOS 13] CIS - Ensure Complex Password Must Contain Uppercase and Lowercase Characters Is Configured (Fleetd required)"
+- name: "[macOS 13] CIS - Ensure Complex Password Must Contain Uppercase and Lowercase Characters Is Configured (AutoMDMd required)"
   # platforms: macOS
   platform: darwin
   description: |
@@ -2596,7 +2596,7 @@
   # tags: compliance, CIS, CIS_Level1, CIS-macos-13-5.2.6
   # contributors: sharon-fdm
 
-- name: "[macOS 13] CIS - Ensure Password Age Is Configured (Fleetd Required)"
+- name: "[macOS 13] CIS - Ensure Password Age Is Configured (AutoMDMd Required)"
   # platforms: macOS
   platform: darwin
   description: |
@@ -2634,7 +2634,7 @@
   # tags: compliance, CIS, CIS_Level1, CIS-macos-13-5.2.8
   # contributors: sharon-fdm, getvictor
 
-- name: "[macOS 13] CIS - Ensure all user storage APFS volumes are encrypted (Fleetd Required)"
+- name: "[macOS 13] CIS - Ensure all user storage APFS volumes are encrypted (AutoMDMd Required)"
   # platforms: macOS
   platform: darwin
   description: |
@@ -2665,7 +2665,7 @@
   # tags: compliance, CIS, CIS_Level1, CIS-macos-13-5.3.1
   # contributors: artemist-work
 
-- name: "[macOS 13] CIS - Ensure all user storage CoreStorage volumes are encrypted (Fleetd Required)"
+- name: "[macOS 13] CIS - Ensure all user storage CoreStorage volumes are encrypted (AutoMDMd Required)"
   # platforms: macOS
   platform: darwin
   description: |
@@ -2684,7 +2684,7 @@
   # tags: compliance, CIS, CIS_Level1, CIS-macos-13-5.3.2
   # contributors: artemist-work
 
-- name: "[macOS 13] CIS - Ensure the Sudo Timeout Period Is Set to Zero (Fleetd Required)"
+- name: "[macOS 13] CIS - Ensure the Sudo Timeout Period Is Set to Zero (AutoMDMd Required)"
   # platforms: macOS
   platform: darwin
   description: |
@@ -2709,7 +2709,7 @@
   # tags: compliance, CIS, CIS_Level1, CIS-macos-13-5.4
   # contributors: lucasmrod
 
-- name: "[macOS 13] CIS - Ensure a Separate Timestamp Is Enabled for Each User/tty (Fleetd Required)"
+- name: "[macOS 13] CIS - Ensure a Separate Timestamp Is Enabled for Each User/tty (AutoMDMd Required)"
   # platforms: macOS
   platform: darwin
   description: |
@@ -2733,7 +2733,7 @@
   # tags: compliance, CIS, CIS_Level1, CIS-macos-13-5.5
   # contributors: lucasmrod
 
-- name: "[macOS 13] CIS - Ensure the \"root\" Account Is Disabled (Fleetd Required)"
+- name: "[macOS 13] CIS - Ensure the \"root\" Account Is Disabled (AutoMDMd Required)"
   # platforms: macOS
   platform: darwin
   description: |
@@ -2752,7 +2752,7 @@
   # tags: compliance, CIS, CIS_Level1, CIS-macos-13-5.6
   # contributors: lucasmrod
 
-- name: "[macOS 13] CIS - Ensure an Administrator Account Cannot Login to Another User's Active and Locked Session (Fleetd Required)"
+- name: "[macOS 13] CIS - Ensure an Administrator Account Cannot Login to Another User's Active and Locked Session (AutoMDMd Required)"
   # platforms: macOS
   platform: darwin
   description: |
@@ -2804,7 +2804,7 @@
   # tags: compliance, CIS, CIS_Level2, CIS-macos-13-5.8
   # contributors: lucasmrod
 
-- name: "[macOS 13] CIS - Ensure Legacy EFI Is Valid and Updating (Fleetd Required)"
+- name: "[macOS 13] CIS - Ensure Legacy EFI Is Valid and Updating (AutoMDMd Required)"
   # platforms: macOS
   platform: darwin
   description: |

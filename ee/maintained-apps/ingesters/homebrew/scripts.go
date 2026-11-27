@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/pkg/optjson"
+	"github.com/anilyagiz/automdm/v4/pkg/optjson"
 	"github.com/micromdm/plist"
 )
 
@@ -54,7 +54,7 @@ func installScriptForApp(app inputApp, cask *brewCask) (string, error) {
 		case len(artifact.App) > 0:
 			sb.Write("# copy to the applications folder")
 			// Quit the app before installing if it's running, and track state for relaunch.
-			// Stop if it won't quit: fleetd deletes $TMPDIR after the install, which
+			// Stop if it won't quit: automdmd deletes $TMPDIR after the install, which
 			// would take the moved-aside bundle the app is still running from.
 			sb.Writef("quit_and_track_application '%s' || exit 1", app.UniqueIdentifier)
 			// 'cp -R "$TMPDIR/<path>" "$APPDIR"' installs the bundle's basename, so
@@ -388,7 +388,7 @@ func processScript(script optjson.StringOr[map[string]any], sb *scriptBuilder, a
 		}
 
 		// Paths under the Caskroom only exist where Homebrew installed the app, so
-		// the directive can't do anything on a Fleet-managed host (same reason the
+		// the directive can't do anything on an AutoMDM-managed host (same reason the
 		// binary artifact skips them).
 		if strings.Contains(executable, "$HOMEBREW_PREFIX") ||
 			slices.ContainsFunc(cmdParts, func(p string) bool { return strings.Contains(p, "$HOMEBREW_PREFIX") }) {
@@ -415,7 +415,7 @@ func processScript(script optjson.StringOr[map[string]any], sb *scriptBuilder, a
 			}
 		}
 
-		// fleetd runs the script as root, so this runs as root with or without
+		// automdmd runs the script as root, so this runs as root with or without
 		// sudo and doesn't depend on anyone being logged in.
 		if needsSudo {
 			cmd = "sudo " + cmd
@@ -869,7 +869,7 @@ func (s *scriptBuilder) String() string {
 // of the homebrew implementation
 // https://github.com/Homebrew/brew/blob/e1ff668957dd8a66304c0290dfa66083e6c7444e/Library/Homebrew/cask/artifact/abstract_uninstall.rb#L92
 //
-// Homebrew's user pass runs as the user, but Fleet runs uninstall scripts as
+// Homebrew's user pass runs as the user, but AutoMDM runs uninstall scripts as
 // root, where launchctl list and remove only see the system domain. As root,
 // the user pass targets the console user's GUI domain and home folder instead.
 const removeLaunchctlServiceFunc = `remove_launchctl_service() {

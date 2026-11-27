@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
-func (mw metricsMiddleware) Login(ctx context.Context, email string, password string, supportsEmailVerification bool) (*fleet.User, *fleet.Session, error) {
+func (mw metricsMiddleware) Login(ctx context.Context, email string, password string, supportsEmailVerification bool) (*automdm.User, *automdm.Session, error) {
 	var (
-		user    *fleet.User
-		session *fleet.Session
+		user    *automdm.User
+		session *automdm.Session
 		err     error
 	)
 	defer func(begin time.Time) {
@@ -49,9 +49,9 @@ func (mw metricsMiddleware) DestroySession(ctx context.Context) error {
 	return err
 }
 
-func (mw metricsMiddleware) GetInfoAboutSessionsForUser(ctx context.Context, id uint) ([]*fleet.Session, error) {
+func (mw metricsMiddleware) GetInfoAboutSessionsForUser(ctx context.Context, id uint) ([]*automdm.Session, error) {
 	var (
-		sessions []*fleet.Session
+		sessions []*automdm.Session
 		err      error
 	)
 	defer func(begin time.Time) {
@@ -74,9 +74,9 @@ func (mw metricsMiddleware) DeleteSessionsForUser(ctx context.Context, id uint) 
 	return err
 }
 
-func (mw metricsMiddleware) GetInfoAboutSession(ctx context.Context, id uint) (*fleet.Session, error) {
+func (mw metricsMiddleware) GetInfoAboutSession(ctx context.Context, id uint) (*automdm.Session, error) {
 	var (
-		session *fleet.Session
+		session *automdm.Session
 		err     error
 	)
 	defer func(begin time.Time) {

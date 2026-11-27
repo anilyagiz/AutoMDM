@@ -7,7 +7,7 @@
 
 $displayNamePattern = '^Asana$'
 $publisher = "Asana, Inc."
-$taskName = "fleet-uninstall-asana"
+$taskName = "automdm-uninstall-asana"
 $appDir = "AppData\Local\Asana"  # in each user's profile
 $taskRunning = 267009  # SCHED_S_TASK_RUNNING
 $timeoutSeconds = 300

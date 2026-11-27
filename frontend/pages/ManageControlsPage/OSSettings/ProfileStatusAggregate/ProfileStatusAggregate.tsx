@@ -78,7 +78,7 @@ const ProfileStatusAggregate = ({
     const count = aggregateProfileStatusData[value];
 
     const hostsByStatusParams = {
-      fleet_id: teamId,
+      team_id: teamId,
       [HOSTS_QUERY_PARAMS.OS_SETTINGS]: value,
     };
 

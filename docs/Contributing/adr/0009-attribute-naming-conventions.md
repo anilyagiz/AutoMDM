@@ -10,11 +10,11 @@ Accepted
 
 ## Context
 
-Fleet uses structured logging, distributed tracing, and metrics for observability ([ADR-0005](0005-opentelemetry-standardization.md)). These signals share a common need: well-named attributes that engineers can use to search, filter, and correlate data.
+AutoMDM uses structured logging, distributed tracing, and metrics for observability ([ADR-0005](0005-opentelemetry-standardization.md)). These signals share a common need: well-named attributes that engineers can use to search, filter, and correlate data.
 
 Consistent attribute naming is valuable regardless of the backend. Whether logs go to AWS CloudWatch, traces go to an OTEL collector, or both end up in the same system, using the same key for the same concept (e.g., `host.id` in both a log line and a span) lets engineers correlate across signals.
 
-Fleet supports self-hosted (on-prem) deployments where customers pipe logs, traces, and metrics into their own observability systems. This makes attribute names a customer-facing surface. While only infrastructure engineers at customer organizations interact with this data directly, inconsistent or poorly named attributes make Fleet harder to operate and monitor.
+AutoMDM supports self-hosted (on-prem) deployments where customers pipe logs, traces, and metrics into their own observability systems. This makes attribute names a customer-facing surface. While only infrastructure engineers at customer organizations interact with this data directly, inconsistent or poorly named attributes make AutoMDM harder to operate and monitor.
 
 The codebase currently uses inconsistent attribute names:
 
@@ -33,7 +33,7 @@ Industry best practices make a strong case for standardized attribute naming:
 
 ## Decision
 
-Fleet will adopt a tiered attribute naming convention for all telemetry signals (logs, traces, metrics):
+AutoMDM will adopt a tiered attribute naming convention for all telemetry signals (logs, traces, metrics):
 
 ### Naming format
 
@@ -57,7 +57,7 @@ When an OpenTelemetry semantic convention attribute exists and matches the seman
 
 ### Tier 2: Domain-first custom attributes (no company prefix)
 
-For Fleet-specific concepts, use the same dot-namespaced style without a company prefix. This follows the "domain-first, never company-first" [guidance](https://opentelemetry.io/blog/2025/how-to-name-your-span-attributes/) and keeps attributes concise:
+For AutoMDM-specific concepts, use the same dot-namespaced style without a company prefix. This follows the "domain-first, never company-first" [guidance](https://opentelemetry.io/blog/2025/how-to-name-your-span-attributes/) and keeps attributes concise:
 
 | Namespace | Examples |
 |-----------|----------|
@@ -70,9 +70,9 @@ For Fleet-specific concepts, use the same dot-namespaced style without a company
 
 Some of these (e.g., `host.id`, `host.name`) are already defined as semantic convention resource attributes. Using the same names is intentional.
 
-### Metric names: `fleet.` prefix
+### Metric names: `automdm.` prefix
 
-Metric instrument names (not attributes on those metrics) use the `fleet.` prefix since they are registered globally and must be distinguishable from other libraries (e.g., `fleet.http.client_errors`).
+Metric instrument names (not attributes on those metrics) use the `automdm.` prefix since they are registered globally and must be distinguishable from other libraries (e.g., `automdm.http.client_errors`).
 
 ### Constants vs inline strings
 
@@ -108,10 +108,10 @@ Attributes with more than ~100 distinct values (e.g., `host.id`, `user.id`, `que
 
 ## Alternatives considered
 
-### Company prefix on all attributes (`fleet.*`)
+### Company prefix on all attributes (`automdm.*`)
 
 - **Pros**: Zero collision risk with semantic conventions, clear provenance
-- **Cons**: Verbose (`fleet.host.id` vs `host.id`), higher friction for engineers, goes against "domain-first" guidance
+- **Cons**: Verbose (`automdm.host.id` vs `host.id`), higher friction for engineers, goes against "domain-first" guidance
 - **Rejected because**: The adoption cost outweighs the low collision risk. Engineers are more likely to follow a convention that is concise.
 
 ### No convention (status quo)
@@ -122,7 +122,7 @@ Attributes with more than ~100 distinct values (e.g., `host.id`, `user.id`, `que
 
 ## References
 
-- [Telemetry attribute naming guide](../guides/telemetry-attribute-naming.md) - Fleet's practical conventions for day-to-day use
+- [Telemetry attribute naming guide](../guides/telemetry-attribute-naming.md) - AutoMDM's practical conventions for day-to-day use
 - [OTEL semantic conventions: naming](https://opentelemetry.io/docs/specs/semconv/general/naming/)
 - [How to name your span attributes (OTEL blog, 2025)](https://opentelemetry.io/blog/2025/how-to-name-your-span-attributes/)
 - [OTEL general attributes](https://opentelemetry.io/docs/specs/semconv/general/attributes/)

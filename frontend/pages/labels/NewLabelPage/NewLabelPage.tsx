@@ -225,7 +225,7 @@ const NewLabelPage = ({
   );
   const idpConfigured = !!scimIdPDetails?.last_request?.requested_at;
 
-  // Custom host vitals are a Fleet Free feature, so this query runs on all
+  // Custom host vitals are an AutoMDM Free feature, so this query runs on all
   // tiers. We fetch the full list (no search/pagination) to both gate the
   // "Host vitals" label type and populate the criteria selector.
   const customHostVitalsParams: IListCustomHostVitalsApiParams = {};
@@ -254,7 +254,7 @@ const NewLabelPage = ({
     ) : (
       <>
         To use host vitals labels, add a custom host vital. Identity provider
-        (IdP) group and department criteria are available in Fleet Premium.
+        (IdP) group and department criteria are available in AutoMDM Premium.
       </>
     );
   }
@@ -293,7 +293,7 @@ const NewLabelPage = ({
     setFormData(newFormData);
   };
 
-  // Clear the field's error on focus to match Fleet's validation pattern
+  // Clear the field's error on focus to match AutoMDM's validation pattern
   // (reports and policies clear name errors on focus, not on becoming valid).
   const onFieldFocus = (fieldName: "name" | "vitalValue") => {
     setFormErrors((prev) => {

@@ -176,7 +176,7 @@ func TestRetrieveSecretsManagerSecret_LocalStackDefaultRegion(t *testing.T) {
 	require.NoError(t, err)
 	client := secretsmanager.NewFromConfig(cfg)
 
-	secretName := "fleet-test-private-key-localstack"
+	secretName := "automdm-test-private-key-localstack"
 	privateKey := "test-key-exactly-32-bytes-long!"
 
 	// Clean up any existing secret
@@ -228,7 +228,7 @@ func TestRetrieveSecretsManagerSecret_LocalStackDifferentRegion(t *testing.T) {
 	require.NoError(t, err)
 	client := secretsmanager.NewFromConfig(cfg)
 
-	secretName := "fleet-test-private-key-localstack"
+	secretName := "automdm-test-private-key-localstack"
 	privateKey := "test-key-exactly-32-bytes-long!"
 
 	// Clean up any existing secret

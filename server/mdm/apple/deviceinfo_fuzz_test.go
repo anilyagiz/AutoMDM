@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/micromdm/plist"
 	"github.com/smallstep/pkcs7"
 	"github.com/stretchr/testify/require"
@@ -107,7 +107,7 @@ func FuzzParseDeviceinfo(f *testing.F) {
 	_, intermediate, leaf := fuzzDeviceChain(f)
 	body := []byte(`<plist><dict><key>SERIAL</key><string>synthetic-serial</string></dict></plist>`)
 	signed := fuzzSignedDeviceinfo(f, body, leaf, []*x509.Certificate{intermediate.cert}, true)
-	oversizedContent, err := plist.Marshal(fleet.MDMAppleMachineInfo{Serial: string(bytes.Repeat([]byte{'x'}, maxDeviceinfoSize))})
+	oversizedContent, err := plist.Marshal(automdm.MDMAppleMachineInfo{Serial: string(bytes.Repeat([]byte{'x'}, maxDeviceinfoSize))})
 	require.NoError(f, err)
 	oversized := fuzzSignedDeviceinfo(f, oversizedContent, leaf, []*x509.Certificate{intermediate.cert}, false)
 	unsigned, err := pkcs7.DegenerateCertificate(leaf.cert.Raw)

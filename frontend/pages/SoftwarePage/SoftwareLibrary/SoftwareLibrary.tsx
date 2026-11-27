@@ -1,5 +1,5 @@
 /**
- software/library Library tab — fleet-managed software available for installation
+ software/library Library tab — automdm-managed software available for installation
  */
 
 import { omit } from "lodash";

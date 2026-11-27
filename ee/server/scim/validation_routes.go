@@ -3,7 +3,7 @@ package scim
 import (
 	"net/http"
 
-	"github.com/fleetdm/fleet/v4/server/platform/endpointer"
+	"github.com/anilyagiz/automdm/v4/server/platform/endpointer"
 	kithttp "github.com/go-kit/kit/transport/http"
 )
 
@@ -21,7 +21,7 @@ import (
 // scimRootPath is the path prefix the SCIM handler is mounted under (see
 // RegisterSCIM). The /_version_/ placeholder is expanded to the concrete API
 // version when comparing against the api_endpoints catalog.
-const scimRootPath = "/api/_version_/fleet/scim"
+const scimRootPath = "/api/_version_/automdm/scim"
 
 // SCIM resource endpoints, matching the Endpoint of each resource type
 // registered in RegisterSCIM. Keep these in sync with that list.

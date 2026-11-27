@@ -2,8 +2,8 @@ import React from "react";
 
 import { IconNames } from "components/icons";
 import {
-  FLEET_ANDROID_CERTIFICATE_TEMPLATE_PROFILE_ID,
-  FLEET_FILEVAULT_PROFILE_DISPLAY_NAME,
+  AUTOMDM_ANDROID_CERTIFICATE_TEMPLATE_PROFILE_ID,
+  AUTOMDM_FILEVAULT_PROFILE_DISPLAY_NAME,
   HostNameSettingStatus,
   LinuxDiskEncryptionStatus,
   ProfileOperationType,
@@ -26,7 +26,7 @@ import {
 } from "./OSSettingsTableConfig";
 
 export const isDiskEncryptionProfile = (profileName: string) => {
-  return profileName === FLEET_FILEVAULT_PROFILE_DISPLAY_NAME;
+  return profileName === AUTOMDM_FILEVAULT_PROFILE_DISPLAY_NAME;
 };
 
 /** Values interpolated into a control's details message. */
@@ -38,7 +38,7 @@ export interface IControlMessageProps {
   isDiskEncryptionProfile: boolean;
   /** True on the My device page, where the end user reads the message. */
   isDeviceUser: boolean;
-  /** Fleet setting for macOS: disk encryption enforced without key escrow.
+  /** AutoMDM setting for macOS: disk encryption enforced without key escrow.
    * Disk encryption messages drop their key phrasing. */
   isMacOSDiskEncryptionEnforceOnly?: boolean;
   /** UUID of the profile associated with the control. Can be used with prefix checks to determine the type of profile. */
@@ -101,7 +101,7 @@ const diskEncryptionVerifiedMessage: ControlMessage = ({
 }) => (
   <>
     <b>{hostDisplayName}</b> turned disk encryption on
-    {!isMacOSDiskEncryptionEnforceOnly && " and sent the key to Fleet"}. Fleet
+    {!isMacOSDiskEncryptionEnforceOnly && " and sent the key to AutoMDM"}. AutoMDM
     verified.
   </>
 );
@@ -112,7 +112,7 @@ const diskEncryptionVerifyingMessage: ControlMessage = ({
 }) => (
   <>
     <b>{hostDisplayName}</b> acknowledged the MDM command to turn on disk
-    encryption. Fleet is verifying with osquery
+    encryption. AutoMDM is verifying with osquery
     {!isMacOSDiskEncryptionEnforceOnly &&
       " and retrieving the disk encryption key"}
     . This may take up to one hour.
@@ -143,7 +143,7 @@ const APPLE_PROFILE_VERIFIED_DISPLAY_CONFIG: ProfileDisplayOption = {
       diskEncryptionVerifiedMessage(props)
     ) : (
       <>
-        <b>{props.hostDisplayName}</b> applied <b>{props.settingName}</b>. Fleet
+        <b>{props.hostDisplayName}</b> applied <b>{props.settingName}</b>. AutoMDM
         verified.
       </>
     ),
@@ -160,7 +160,7 @@ const MAC_PROFILE_VERIFYING_DISPLAY_CONFIG: ProfileDisplayOption = {
         <b>{props.hostDisplayName}</b> acknowledged the MDM command to apply{" "}
         <b>{props.settingName}</b>.
         {!isDDMProfile({ profile_uuid: props.profileUUID }) && (
-          <> Fleet is verifying with osquery.</>
+          <> AutoMDM is verifying with osquery.</>
         )}
       </>
     ),
@@ -323,7 +323,7 @@ export const HOST_NAME_DISPLAY_CONFIG: Record<
     iconName: "pending",
     message: ({ hostDisplayName }) => (
       <>
-        <b>{hostDisplayName}</b> will be renamed to match this fleet&apos;s host
+        <b>{hostDisplayName}</b> will be renamed to match this team&apos;s host
         name template when it comes online.
       </>
     ),
@@ -334,7 +334,7 @@ export const HOST_NAME_DISPLAY_CONFIG: Record<
     message: ({ hostDisplayName }) => (
       <>
         <b>{hostDisplayName}</b> acknowledged the MDM command to rename it.
-        Fleet is verifying.
+        AutoMDM is verifying.
       </>
     ),
   },
@@ -343,8 +343,8 @@ export const HOST_NAME_DISPLAY_CONFIG: Record<
     iconName: "success-filled",
     message: ({ hostDisplayName }) => (
       <>
-        <b>{hostDisplayName}</b> was renamed to match this fleet&apos;s host
-        name template. Fleet verified.
+        <b>{hostDisplayName}</b> was renamed to match this team&apos;s host
+        name template. AutoMDM verified.
       </>
     ),
   },
@@ -353,7 +353,7 @@ export const HOST_NAME_DISPLAY_CONFIG: Record<
     iconName: "error",
     message: ({ hostDisplayName }) => (
       <>
-        <b>{hostDisplayName}</b> failed to apply this fleet&apos;s host name
+        <b>{hostDisplayName}</b> failed to apply this team&apos;s host name
         template.
       </>
     ),
@@ -369,7 +369,7 @@ export const RECOVERY_LOCK_PASSWORD_DISPLAY_CONFIG: Record<
     iconName: "success-filled",
     message: ({ hostDisplayName }) => (
       <>
-        Fleet set a recovery lock password for <b>{hostDisplayName}</b>.
+        AutoMDM set a recovery lock password for <b>{hostDisplayName}</b>.
       </>
     ),
   },
@@ -378,7 +378,7 @@ export const RECOVERY_LOCK_PASSWORD_DISPLAY_CONFIG: Record<
     iconName: "pending",
     message: ({ hostDisplayName }) => (
       <>
-        Fleet is setting a recovery lock password for <b>{hostDisplayName}</b>.
+        AutoMDM is setting a recovery lock password for <b>{hostDisplayName}</b>.
       </>
     ),
   },
@@ -387,7 +387,7 @@ export const RECOVERY_LOCK_PASSWORD_DISPLAY_CONFIG: Record<
     iconName: "pending",
     message: ({ hostDisplayName }) => (
       <>
-        Fleet is unsetting the recovery lock password for{" "}
+        AutoMDM is unsetting the recovery lock password for{" "}
         <b>{hostDisplayName}</b>.
       </>
     ),
@@ -397,7 +397,7 @@ export const RECOVERY_LOCK_PASSWORD_DISPLAY_CONFIG: Record<
     iconName: "error",
     message: ({ hostDisplayName }) => (
       <>
-        Fleet failed to set a recovery lock password for{" "}
+        AutoMDM failed to set a recovery lock password for{" "}
         <b>{hostDisplayName}</b>.
       </>
     ),
@@ -460,7 +460,7 @@ const getAndroidCertificateDisplayOption = (
         iconName: "success-filled",
         message: ({ hostDisplayName, settingName }) => (
           <>
-            <b>{hostDisplayName}</b> applied <b>{settingName}</b>. Fleet
+            <b>{hostDisplayName}</b> applied <b>{settingName}</b>. AutoMDM
             verified.
           </>
         ),
@@ -515,7 +515,7 @@ export const getControlDisplayOption = (
 
   if (
     platform === "android" &&
-    profileUUID === FLEET_ANDROID_CERTIFICATE_TEMPLATE_PROFILE_ID
+    profileUUID === AUTOMDM_ANDROID_CERTIFICATE_TEMPLATE_PROFILE_ID
   ) {
     return getAndroidCertificateDisplayOption(row, status, operationType);
   }

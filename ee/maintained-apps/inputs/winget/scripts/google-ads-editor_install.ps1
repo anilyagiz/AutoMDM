@@ -1,12 +1,12 @@
 # Learn more about install scripts:
-# http://fleetdm.com/learn-more-about/install-scripts
+# http://automdm.com/learn-more-about/install-scripts
 #
 # The Google Ads Editor MSI ships as both a per-user and a per-machine package
 # (same binary; the machine variant sets ALLUSERS=1). A plain silent install
-# under Fleet's SYSTEM context can land per-user (in the SYSTEM profile), so we
+# under AutoMDM's SYSTEM context can land per-user (in the SYSTEM profile), so we
 # force a true per-machine install by passing ALLUSERS=1 explicitly.
 
-$logFile = "${env:TEMP}/fleet-install-software.log"
+$logFile = "${env:TEMP}/automdm-install-software.log"
 
 try {
 

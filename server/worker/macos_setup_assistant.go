@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	apple_mdm "github.com/fleetdm/fleet/v4/server/mdm/apple"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanodep/godep"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	apple_mdm "github.com/anilyagiz/automdm/v4/server/mdm/apple"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanodep/godep"
 )
 
 // Name of the macos setup assistant job as registered in the worker. Note that
@@ -32,7 +32,7 @@ const (
 
 // MacosSetupAssistant is the job processor for the macos_setup_assistant job.
 type MacosSetupAssistant struct {
-	Datastore  fleet.Datastore
+	Datastore  automdm.Datastore
 	Log        *slog.Logger
 	DEPService *apple_mdm.DEPService
 	DEPClient  *godep.Client
@@ -47,7 +47,7 @@ func (m *MacosSetupAssistant) Name() string {
 type macosSetupAssistantArgs struct {
 	Task   MacosSetupAssistantTask `json:"task"`
 	TeamID *uint                   `json:"team_id,omitempty"` //nolint:apiparamcheck
-	// Note that only DEP-enrolled hosts in Fleet MDM should be provided.
+	// Note that only DEP-enrolled hosts in AutoMDM should be provided.
 	HostSerialNumbers []string `json:"host_serial_numbers,omitempty"`
 }
 
@@ -87,7 +87,7 @@ func (m *MacosSetupAssistant) Run(ctx context.Context, argsJSON json.RawMessage)
 func (m *MacosSetupAssistant) runProfileChanged(ctx context.Context, args macosSetupAssistantArgs) error {
 	team, err := m.getTeamNoTeam(ctx, args.TeamID)
 	if err != nil {
-		if fleet.IsNotFound(err) {
+		if automdm.IsNotFound(err) {
 			// team doesn't exist anymore, nothing to do (another job was enqueued to
 			// take care of team deletion)
 			return nil
@@ -143,7 +143,7 @@ func (m *MacosSetupAssistant) runProfileChanged(ctx context.Context, args macosS
 func (m *MacosSetupAssistant) runProfileDeleted(ctx context.Context, args macosSetupAssistantArgs) error {
 	team, err := m.getTeamNoTeam(ctx, args.TeamID)
 	if err != nil {
-		if fleet.IsNotFound(err) {
+		if automdm.IsNotFound(err) {
 			// team doesn't exist anymore, nothing to do (another job was enqueued to
 			// take care of team deletion)
 			return nil
@@ -155,10 +155,10 @@ func (m *MacosSetupAssistant) runProfileDeleted(ctx context.Context, args macosS
 	// not, then it was re-created before this job ran, so nothing to do (another
 	// job will take care of assigning the profile to the hosts).
 	_, err = m.Datastore.GetMDMAppleSetupAssistant(ctx, args.TeamID)
-	if err != nil && !fleet.IsNotFound(err) {
+	if err != nil && !automdm.IsNotFound(err) {
 		return ctxerr.Wrap(ctx, err, "check if setup assistant exists")
 	}
-	if !fleet.IsNotFound(err) {
+	if !automdm.IsNotFound(err) {
 		// a custom setup assistant was re-created, so nothing to do.
 		return nil
 	}
@@ -220,7 +220,7 @@ func (m *MacosSetupAssistant) runTeamDeleted(ctx context.Context, args macosSetu
 func (m *MacosSetupAssistant) runHostsTransferred(ctx context.Context, args macosSetupAssistantArgs, fromCooldown bool) error {
 	team, err := m.getTeamNoTeam(ctx, args.TeamID)
 	if err != nil {
-		if fleet.IsNotFound(err) {
+		if automdm.IsNotFound(err) {
 			// team doesn't exist anymore, nothing to do (another job was enqueued to
 			// take care of team deletion)
 			return nil
@@ -286,7 +286,7 @@ func (m *MacosSetupAssistant) runUpdateAllProfiles(ctx context.Context, args mac
 		return ctxerr.Wrap(ctx, err, "get all teams")
 	}
 
-	processTeam := func(team *fleet.TeamSummary) error {
+	processTeam := func(team *automdm.TeamSummary) error {
 		var teamID *uint
 		if team != nil {
 			teamID = &team.ID
@@ -319,10 +319,10 @@ func (m *MacosSetupAssistant) runUpdateProfile(ctx context.Context, args macosSe
 
 	// check if there is a custom setup assistant for that team
 	_, err := m.Datastore.GetMDMAppleSetupAssistant(ctx, args.TeamID)
-	if err != nil && !fleet.IsNotFound(err) {
+	if err != nil && !automdm.IsNotFound(err) {
 		return ctxerr.Wrap(ctx, err, "check if setup assistant exists")
 	}
-	if fleet.IsNotFound(err) {
+	if automdm.IsNotFound(err) {
 		// no setup assistant for that team, enqueue a profile deleted task so
 		// the default profile is assigned to the hosts.
 		if _, err := QueueMacosSetupAssistantJob(ctx, m.Datastore, m.Log, MacosSetupAssistantProfileDeleted, args.TeamID); err != nil {
@@ -344,8 +344,8 @@ func (m *MacosSetupAssistant) runUpdateProfile(ctx context.Context, args macosSe
 	return nil
 }
 
-func (m *MacosSetupAssistant) getTeamNoTeam(ctx context.Context, tmID *uint) (*fleet.Team, error) {
-	var team *fleet.Team
+func (m *MacosSetupAssistant) getTeamNoTeam(ctx context.Context, tmID *uint) (*automdm.Team, error) {
+	var team *automdm.Team
 	if tmID != nil {
 		tm, err := m.Datastore.TeamWithExtras(ctx, *tmID) // TODO see if we can convert this workflow to TeamLite
 		if err != nil {
@@ -360,7 +360,7 @@ func (m *MacosSetupAssistant) getTeamNoTeam(ctx context.Context, tmID *uint) (*f
 // the supported tasks, to be processed asynchronously via the worker.
 func QueueMacosSetupAssistantJob(
 	ctx context.Context,
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	logger *slog.Logger,
 	task MacosSetupAssistantTask,
 	teamID *uint,
@@ -372,7 +372,7 @@ func QueueMacosSetupAssistantJob(
 		"hosts_count", len(serialNumbers),
 	}
 	if teamID != nil {
-		attrs = append(attrs, "fleet_id", *teamID)
+		attrs = append(attrs, "team_id", *teamID)
 	}
 	logger.InfoContext(ctx, "queueing macOS setup assistant job", attrs...)
 
@@ -391,7 +391,7 @@ func QueueMacosSetupAssistantJob(
 
 // NewMacosSetupAssistantJob builds a macos_setup_assistant job without queuing
 // it, for callers that must queue it in the same transaction as their change.
-func NewMacosSetupAssistantJob(task MacosSetupAssistantTask, teamID *uint, serialNumbers ...string) (*fleet.Job, error) {
+func NewMacosSetupAssistantJob(task MacosSetupAssistantTask, teamID *uint, serialNumbers ...string) (*automdm.Job, error) {
 	return newJob(macosSetupAssistantJobName, &macosSetupAssistantArgs{
 		Task:              task,
 		TeamID:            teamID,
@@ -399,7 +399,7 @@ func NewMacosSetupAssistantJob(task MacosSetupAssistantTask, teamID *uint, seria
 	}, 0)
 }
 
-func ProcessDEPCooldowns(ctx context.Context, ds fleet.Datastore, logger *slog.Logger) error {
+func ProcessDEPCooldowns(ctx context.Context, ds automdm.Datastore, logger *slog.Logger) error {
 	serialsByTeamID, err := ds.GetDEPAssignProfileExpiredCooldowns(ctx)
 	if err != nil {
 		return ctxerr.Wrap(ctx, err, "getting cooldowns")
@@ -412,10 +412,10 @@ func ProcessDEPCooldowns(ctx context.Context, ds fleet.Datastore, logger *slog.L
 	// queue job for each team so that macOS setup assistant worker can pick it up and process it
 	for teamID, serials := range serialsByTeamID {
 		if len(serials) == 0 {
-			logger.InfoContext(ctx, "no cooldowns", "fleet_id", teamID)
+			logger.InfoContext(ctx, "no cooldowns", "team_id", teamID)
 			continue
 		}
-		logger.InfoContext(ctx, "processing cooldowns", "fleet_id", teamID, "serials", serials)
+		logger.InfoContext(ctx, "processing cooldowns", "team_id", teamID, "serials", serials)
 
 		var tid *uint
 		if teamID != 0 {

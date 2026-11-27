@@ -7,8 +7,8 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -63,7 +63,7 @@ func jsonColumn(v any) ([]byte, error) {
 	return json.Marshal(v)
 }
 
-func newDeviceVitalsRow(ctx context.Context, hostUUID string, vitals fleet.MDMAppleDeviceVitals) (*deviceVitalsRow, error) {
+func newDeviceVitalsRow(ctx context.Context, hostUUID string, vitals automdm.MDMAppleDeviceVitals) (*deviceVitalsRow, error) {
 	row := &deviceVitalsRow{
 		HostUUID: hostUUID,
 
@@ -117,7 +117,7 @@ func newDeviceVitalsRow(ctx context.Context, hostUUID string, vitals fleet.MDMAp
 // host_mdm_apple_device_vitals (most refetches are updates after the first),
 // plus a replace of the host's host_mdm_apple_service_subscriptions rows, in
 // a single transaction.
-func (ds *Datastore) SetOrUpdateHostMDMAppleDeviceVitals(ctx context.Context, hostUUID string, vitals fleet.MDMAppleDeviceVitals) error {
+func (ds *Datastore) SetOrUpdateHostMDMAppleDeviceVitals(ctx context.Context, hostUUID string, vitals automdm.MDMAppleDeviceVitals) error {
 	const updateStmt = `
 		UPDATE host_mdm_apple_device_vitals SET
 			udid = :udid,
@@ -206,7 +206,7 @@ func deleteHostMDMAppleDeviceVitalsDB(ctx context.Context, tx sqlx.ExtContext, h
 // present are deleted, current slots are upserted. Modeled on
 // ReplaceHostBatteries — the number of subscriptions per host is small
 // (dual-SIM at most), so a full diff-and-replace per call is cheap.
-func replaceHostMDMAppleServiceSubscriptions(ctx context.Context, tx sqlx.ExtContext, hostUUID string, subscriptions []fleet.MDMAppleServiceSubscription) error {
+func replaceHostMDMAppleServiceSubscriptions(ctx context.Context, tx sqlx.ExtContext, hostUUID string, subscriptions []automdm.MDMAppleServiceSubscription) error {
 	var existingSlots []string
 	if err := sqlx.SelectContext(ctx, tx, &existingSlots,
 		`SELECT slot FROM host_mdm_apple_service_subscriptions WHERE host_uuid = ?`, hostUUID); err != nil {
@@ -305,7 +305,7 @@ const serviceSubscriptionsSelectStmt = `
 	WHERE host_uuid = ?
 	ORDER BY slot`
 
-func (ds *Datastore) LoadHostMDMAppleDeviceVitals(ctx context.Context, host *fleet.Host) error {
+func (ds *Datastore) LoadHostMDMAppleDeviceVitals(ctx context.Context, host *automdm.Host) error {
 	var row deviceVitalsRow
 	err := sqlx.GetContext(ctx, ds.reader(ctx), &row, deviceVitalsSelectStmt, host.UUID)
 	switch err {
@@ -322,7 +322,7 @@ func (ds *Datastore) LoadHostMDMAppleDeviceVitals(ctx context.Context, host *fle
 		host.PushToken = row.PushToken
 		host.BatteryLevel = row.BatteryLevel
 		if row.CellularTechnology != nil {
-			host.CellularTechnology = new(fleet.MDMAppleCellularTechnology(*row.CellularTechnology))
+			host.CellularTechnology = new(automdm.MDMAppleCellularTechnology(*row.CellularTechnology))
 		}
 		host.AppAnalyticsEnabled = row.AppAnalyticsEnabled
 		host.AwaitingConfiguration = row.AwaitingConfiguration
@@ -338,21 +338,21 @@ func (ds *Datastore) LoadHostMDMAppleDeviceVitals(ctx context.Context, host *fle
 		host.LastCloudBackupDate = row.LastCloudBackupDate
 
 		if row.AccessibilitySettings != nil {
-			var v fleet.MDMAppleAccessibilitySettings
+			var v automdm.MDMAppleAccessibilitySettings
 			if err := json.Unmarshal(row.AccessibilitySettings, &v); err != nil {
 				return ctxerr.Wrap(ctx, err, "unmarshal host accessibility settings")
 			}
 			host.AccessibilitySettings = &v
 		}
 		if row.OrganizationInfo != nil {
-			var v fleet.MDMAppleOrganizationInfo
+			var v automdm.MDMAppleOrganizationInfo
 			if err := json.Unmarshal(row.OrganizationInfo, &v); err != nil {
 				return ctxerr.Wrap(ctx, err, "unmarshal host organization info")
 			}
 			host.OrganizationInfo = &v
 		}
 		if row.MDMOptions != nil {
-			var v fleet.MDMAppleDeviceVitalsMDMOptions
+			var v automdm.MDMAppleDeviceVitalsMDMOptions
 			if err := json.Unmarshal(row.MDMOptions, &v); err != nil {
 				return ctxerr.Wrap(ctx, err, "unmarshal host mdm options")
 			}
@@ -369,7 +369,7 @@ func (ds *Datastore) LoadHostMDMAppleDeviceVitals(ctx context.Context, host *fle
 		return ctxerr.Wrap(ctx, err, "get host mdm apple device vitals")
 	}
 
-	var subs []fleet.MDMAppleServiceSubscription
+	var subs []automdm.MDMAppleServiceSubscription
 	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &subs, serviceSubscriptionsSelectStmt, host.UUID); err != nil {
 		return ctxerr.Wrap(ctx, err, "get host mdm apple service subscriptions")
 	}

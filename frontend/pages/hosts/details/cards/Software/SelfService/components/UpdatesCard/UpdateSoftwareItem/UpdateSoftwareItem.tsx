@@ -39,7 +39,7 @@ const STATUS_CONFIG: Record<SoftwareInstallStatus, IStatusDisplayConfig> = {
   pending_install: {
     iconName: "pending",
     displayText: "Installing...",
-    tooltip: () => "Fleet is installing software.",
+    tooltip: () => "AutoMDM is installing software.",
   },
   failed_install: {
     iconName: "error",

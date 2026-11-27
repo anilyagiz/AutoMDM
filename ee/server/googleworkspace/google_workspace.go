@@ -1,6 +1,6 @@
 // Package googleworkspace implements pulling users and groups from a Google
 // Workspace directory via the Admin SDK Directory API, using a service account
-// with domain-wide delegation. It maps Google's data model onto Fleet's ScimUser
+// with domain-wide delegation. It maps Google's data model onto AutoMDM's ScimUser
 // so the sync engine can populate IdP host vitals (the scim_* tables).
 package googleworkspace
 
@@ -11,9 +11,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 	"golang.org/x/oauth2/google"
 	"golang.org/x/oauth2/jwt"
 	directory "google.golang.org/api/admin/directory/v1"
@@ -28,8 +28,8 @@ const (
 	membersPageSize = 200
 )
 
-// Field projections limiting each listing to what Fleet reads, so the API doesn't
-// serialize and Fleet doesn't parse the rest of the resource (a user carries
+// Field projections limiting each listing to what AutoMDM reads, so the API doesn't
+// serialize and AutoMDM doesn't parse the rest of the resource (a user carries
 // thumbnails, custom schemas, phones, addresses, aliases, SSH keys and more).
 //
 // nextPageToken must be present or Pages() cannot advance. name, organizations, and
@@ -52,7 +52,7 @@ const tokenURIKey = "token_uri"
 // endpointOverrideEnv, when set, redirects the Admin SDK Directory API base URL
 // (e.g. to the gw-directory-fake tool). For QA/load testing only — never set it
 // in production.
-const endpointOverrideEnv = "FLEET_TEST_GOOGLE_WORKSPACE_ENDPOINT"
+const endpointOverrideEnv = "AUTOMDM_TEST_GOOGLE_WORKSPACE_ENDPOINT"
 
 // directoryScopes are the read-only Admin SDK Directory API scopes that must be
 // authorized for the service account's client ID via domain-wide delegation in
@@ -118,7 +118,7 @@ const (
 //
 // ListUsers hands over one page at a time so the caller can map each page and let it
 // go: a raw *directory.User costs around 2 KB, mostly map[string]any overhead for the
-// fields the Admin SDK types as `any`, which is four times what Fleet's mapped
+// fields the Admin SDK types as `any`, which is four times what AutoMDM's mapped
 // ScimUser costs. Accumulating them all was the largest term in a sync's memory use.
 // Groups and members are returned whole — their raw objects are a tenth the size, and
 // streaming groups would mean issuing a members.list for every group in the middle of
@@ -129,7 +129,7 @@ type lowLevelAPI interface {
 	ListGroupMembers(ctx context.Context, groupKey string) ([]*directory.Member, error)
 }
 
-// Directory implements fleet.GoogleWorkspaceDirectory.
+// Directory implements automdm.GoogleWorkspaceDirectory.
 type Directory struct {
 	api    lowLevelAPI
 	domain string
@@ -139,7 +139,7 @@ type Directory struct {
 
 // NewDirectory builds a Directory that talks to the real Admin SDK Directory API
 // using the integration's service account and impersonated admin user.
-func NewDirectory(ctx context.Context, intg *fleet.GoogleWorkspaceIntegration, logger *slog.Logger, limits Limits) (fleet.GoogleWorkspaceDirectory, error) {
+func NewDirectory(ctx context.Context, intg *automdm.GoogleWorkspaceIntegration, logger *slog.Logger, limits Limits) (automdm.GoogleWorkspaceDirectory, error) {
 	api, err := newGoogleAPI(ctx, intg, logger, limits)
 	if err != nil {
 		return nil, err
@@ -149,8 +149,8 @@ func NewDirectory(ctx context.Context, intg *fleet.GoogleWorkspaceIntegration, l
 
 // NewDirectoryFactory returns a NewDirectory bound to limits, for injecting into
 // the sync cron (it matches cron.GoogleWorkspaceDirectoryFactory).
-func NewDirectoryFactory(limits Limits) func(context.Context, *fleet.GoogleWorkspaceIntegration, *slog.Logger) (fleet.GoogleWorkspaceDirectory, error) {
-	return func(ctx context.Context, intg *fleet.GoogleWorkspaceIntegration, logger *slog.Logger) (fleet.GoogleWorkspaceDirectory, error) {
+func NewDirectoryFactory(limits Limits) func(context.Context, *automdm.GoogleWorkspaceIntegration, *slog.Logger) (automdm.GoogleWorkspaceDirectory, error) {
+	return func(ctx context.Context, intg *automdm.GoogleWorkspaceIntegration, logger *slog.Logger) (automdm.GoogleWorkspaceDirectory, error) {
 		return NewDirectory(ctx, intg, logger, limits)
 	}
 }
@@ -164,9 +164,9 @@ func (d *Directory) log() *slog.Logger {
 
 // ListUsers returns every user in the configured domain mapped to a ScimUser. Each
 // page is mapped as it arrives so the raw Directory objects can be collected.
-func (d *Directory) ListUsers(ctx context.Context) ([]*fleet.ScimUser, error) {
+func (d *Directory) ListUsers(ctx context.Context) ([]*automdm.ScimUser, error) {
 	logger := d.log()
-	var out []*fleet.ScimUser
+	var out []*automdm.ScimUser
 	err := d.api.ListUsers(ctx, d.domain, func(users []*directory.User) error {
 		for _, u := range users {
 			// A user with no ID or primary email cannot be linked to a host, so skip it.
@@ -200,12 +200,12 @@ func (d *Directory) ListUsers(ctx context.Context) ([]*fleet.ScimUser, error) {
 
 // ListGroups returns every group in the configured domain with its members'
 // external IDs (Google user IDs).
-func (d *Directory) ListGroups(ctx context.Context) ([]*fleet.GoogleWorkspaceGroup, error) {
+func (d *Directory) ListGroups(ctx context.Context) ([]*automdm.GoogleWorkspaceGroup, error) {
 	groups, err := d.api.ListGroups(ctx, d.domain)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "list google workspace groups")
 	}
-	out := make([]*fleet.GoogleWorkspaceGroup, 0, len(groups))
+	out := make([]*automdm.GoogleWorkspaceGroup, 0, len(groups))
 	memberships := 0
 	for _, g := range groups {
 		if g.Id == "" {
@@ -238,7 +238,7 @@ func (d *Directory) ListGroups(ctx context.Context) ([]*fleet.GoogleWorkspaceGro
 			"display_name", groupDisplayName(g),
 			"num_members", len(memberIDs),
 		)
-		out = append(out, &fleet.GoogleWorkspaceGroup{
+		out = append(out, &automdm.GoogleWorkspaceGroup{
 			ExternalID:        g.Id,
 			DisplayName:       groupDisplayName(g),
 			MemberExternalIDs: memberIDs,
@@ -271,11 +271,11 @@ func rawJSON(v any) string {
 	return string(b)
 }
 
-// mapUser maps a Google Directory user onto a Fleet ScimUser. ExternalID is the
+// mapUser maps a Google Directory user onto an AutoMDM ScimUser. ExternalID is the
 // Google user ID; group membership is resolved separately from ListGroups.
-func mapUser(u *directory.User) *fleet.ScimUser {
+func mapUser(u *directory.User) *automdm.ScimUser {
 	active := !u.Suspended && !u.Archived
-	su := &fleet.ScimUser{
+	su := &automdm.ScimUser{
 		ExternalID: &u.Id,
 		UserName:   u.PrimaryEmail,
 		Active:     &active,
@@ -305,9 +305,9 @@ func groupDisplayName(g *directory.Group) string {
 // mapEmails maps Google's emails onto ScimUserEmail, de-duplicating by address
 // (case-insensitive) and guaranteeing the primary email is present and flagged
 // primary — the host↔user linking matches on the primary email.
-func mapEmails(primaryEmail string, raw []directoryEmail) []fleet.ScimUserEmail {
+func mapEmails(primaryEmail string, raw []directoryEmail) []automdm.ScimUserEmail {
 	seen := make(map[string]int, len(raw))
-	out := make([]fleet.ScimUserEmail, 0, len(raw))
+	out := make([]automdm.ScimUserEmail, 0, len(raw))
 	for _, e := range raw {
 		addr := strings.TrimSpace(e.Address)
 		if addr == "" {
@@ -316,7 +316,7 @@ func mapEmails(primaryEmail string, raw []directoryEmail) []fleet.ScimUserEmail 
 		if _, dup := seen[strings.ToLower(addr)]; dup {
 			continue
 		}
-		em := fleet.ScimUserEmail{Email: addr, Primary: new(e.Primary)}
+		em := automdm.ScimUserEmail{Email: addr, Primary: new(e.Primary)}
 		if e.Type != "" {
 			em.Type = new(e.Type)
 		}
@@ -333,7 +333,7 @@ func mapEmails(primaryEmail string, raw []directoryEmail) []fleet.ScimUserEmail 
 		return out
 	}
 	// Primary email wasn't in the emails array; prepend it.
-	return append([]fleet.ScimUserEmail{{Email: primaryEmail, Primary: new(true)}}, out...)
+	return append([]automdm.ScimUserEmail{{Email: primaryEmail, Primary: new(true)}}, out...)
 }
 
 // primaryDepartment returns the department of the primary organization, falling
@@ -418,17 +418,17 @@ func resolveTokenURL(ctx context.Context, values map[string]string, override str
 	return google.JWTTokenURL
 }
 
-func newGoogleAPI(ctx context.Context, intg *fleet.GoogleWorkspaceIntegration, logger *slog.Logger, limits Limits) (*googleAPI, error) {
+func newGoogleAPI(ctx context.Context, intg *automdm.GoogleWorkspaceIntegration, logger *slog.Logger, limits Limits) (*googleAPI, error) {
 	endpoint := os.Getenv(endpointOverrideEnv)
 	conf := &jwt.Config{
-		Email:      intg.ApiKey.Values[fleet.GoogleCalendarEmail],
+		Email:      intg.ApiKey.Values[automdm.GoogleCalendarEmail],
 		Scopes:     directoryScopes,
-		PrivateKey: []byte(intg.ApiKey.Values[fleet.GoogleCalendarPrivateKey]),
+		PrivateKey: []byte(intg.ApiKey.Values[automdm.GoogleCalendarPrivateKey]),
 		TokenURL:   resolveTokenURL(ctx, intg.ApiKey.Values, endpoint, logger),
 		Subject:    intg.ImpersonatedUserEmail,
 	}
 
-	opts := []option.ClientOption{option.WithHTTPClient(conf.Client(fleethttp.WithOAuth2Client(ctx)))}
+	opts := []option.ClientOption{option.WithHTTPClient(conf.Client(automdmhttp.WithOAuth2Client(ctx)))}
 	if endpoint != "" {
 		// QA/load-test only: redirect the Directory API to a fake server.
 		if logger != nil {

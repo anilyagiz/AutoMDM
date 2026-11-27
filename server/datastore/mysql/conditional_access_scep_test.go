@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -41,7 +41,7 @@ func testGetConditionalAccessCertBySerialAndCreatedAt(t *testing.T, ds *Datastor
 	ctx := t.Context()
 
 	// Create a test host
-	host, err := ds.NewHost(ctx, &fleet.Host{
+	host, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID:   ptr.String("test-host-1"),
 		NodeKey:         ptr.String("test-node-key-1"),
 		UUID:            "test-uuid-1",
@@ -72,19 +72,19 @@ func testGetConditionalAccessCertBySerialAndCreatedAt(t *testing.T, ds *Datastor
 	// Test non-existent serial
 	_, err = ds.GetConditionalAccessCertHostIDBySerialNumber(ctx, 999)
 	require.Error(t, err)
-	assert.True(t, fleet.IsNotFound(err))
+	assert.True(t, automdm.IsNotFound(err))
 
 	// Test non-existent host
 	_, err = ds.GetConditionalAccessCertCreatedAtByHostID(ctx, 999999)
 	require.Error(t, err)
-	assert.True(t, fleet.IsNotFound(err))
+	assert.True(t, automdm.IsNotFound(err))
 }
 
 func testRevokedConditionalAccessCertsNotReturned(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
 	// Create a test host
-	host, err := ds.NewHost(ctx, &fleet.Host{
+	host, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID:   ptr.String("test-host-6"),
 		NodeKey:         ptr.String("test-node-key-6"),
 		UUID:            "test-uuid-6",
@@ -101,7 +101,7 @@ func testRevokedConditionalAccessCertsNotReturned(t *testing.T, ds *Datastore) {
 	// Revoked certs should not be returned by serial number lookup
 	_, err = ds.GetConditionalAccessCertHostIDBySerialNumber(ctx, serialNumber)
 	require.Error(t, err)
-	assert.True(t, fleet.IsNotFound(err))
+	assert.True(t, automdm.IsNotFound(err))
 
 	// Note: GetConditionalAccessCertCreatedAtByHostID doesn't filter by revoked status
 	// since it's used for rate limiting checks, not authentication
@@ -111,7 +111,7 @@ func testExpiredConditionalAccessCertsNotReturned(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
 	// Create a test host
-	host, err := ds.NewHost(ctx, &fleet.Host{
+	host, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID:   ptr.String("test-host-7"),
 		NodeKey:         ptr.String("test-node-key-7"),
 		UUID:            "test-uuid-7",
@@ -128,7 +128,7 @@ func testExpiredConditionalAccessCertsNotReturned(t *testing.T, ds *Datastore) {
 	// Expired certs should not be returned by serial number lookup
 	_, err = ds.GetConditionalAccessCertHostIDBySerialNumber(ctx, serialNumber)
 	require.Error(t, err)
-	assert.True(t, fleet.IsNotFound(err))
+	assert.True(t, automdm.IsNotFound(err))
 
 	// Note: GetConditionalAccessCertCreatedAtByHostID doesn't filter by expiration status
 	// since it's used for rate limiting checks, not authentication
@@ -168,12 +168,12 @@ func testConditionalAccessCertificateLifecycle(t *testing.T, ds *Datastore) {
 	now := time.Now()
 
 	// Create two test hosts
-	host1, err := ds.NewHost(ctx, &fleet.Host{
+	host1, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID: ptr.String("test-host-lifecycle-1"), NodeKey: ptr.String("test-node-key-1"),
 		UUID: "test-uuid-1", Hostname: "test-hostname-1", Platform: "darwin", DetailUpdatedAt: now,
 	})
 	require.NoError(t, err)
-	host2, err := ds.NewHost(ctx, &fleet.Host{
+	host2, err := ds.NewHost(ctx, &automdm.Host{
 		OsqueryHostID: ptr.String("test-host-lifecycle-2"), NodeKey: ptr.String("test-node-key-2"),
 		UUID: "test-uuid-2", Hostname: "test-hostname-2", Platform: "darwin", DetailUpdatedAt: now,
 	})
@@ -197,7 +197,7 @@ func testConditionalAccessCertificateLifecycle(t *testing.T, ds *Datastore) {
 	// Revoked cert does not authenticate
 	_, err = ds.GetConditionalAccessCertHostIDBySerialNumber(ctx, s2_revoked)
 	require.Error(t, err)
-	assert.True(t, fleet.IsNotFound(err))
+	assert.True(t, automdm.IsNotFound(err))
 
 	// Cleanup with 1-hour grace: only host1's old cert eligible (host1's new cert is 2h old)
 	count, err := ds.RevokeOldConditionalAccessCerts(ctx, 1*time.Hour)
@@ -206,7 +206,7 @@ func testConditionalAccessCertificateLifecycle(t *testing.T, ds *Datastore) {
 
 	// Host1's old cert now revoked, new cert still works
 	_, err = ds.GetConditionalAccessCertHostIDBySerialNumber(ctx, s1_old)
-	assert.True(t, fleet.IsNotFound(err))
+	assert.True(t, automdm.IsNotFound(err))
 	_, err = ds.GetConditionalAccessCertHostIDBySerialNumber(ctx, s1_new)
 	require.NoError(t, err)
 
@@ -237,33 +237,33 @@ func testConditionalAccessOneTimeChallenges(t *testing.T, ds *Datastore) {
 	require.Regexp(t, `^[0-9a-f]{64}$`, challenge)
 
 	var row struct {
-		fleet.AppleSCEPChallengeInfo
+		automdm.AppleSCEPChallengeInfo
 		SecondsLeft int64 `db:"seconds_left"`
 	}
 	ExecAdhocSQL(t, ds, func(q sqlx.ExtContext) error {
 		return sqlx.GetContext(ctx, q, &row, `SELECT purpose, host_uuid, hardware_serial, idp_account_uuid,
 			TIMESTAMPDIFF(SECOND, NOW(6), expires_at) AS seconds_left FROM mdm_apple_scep_challenges WHERE challenge = ?`, challenge)
 	})
-	require.Equal(t, fleet.AppleSCEPChallengeInfo{Purpose: fleet.ConditionalAccessSCEPChallengePurpose, UUID: new("ca-host-uuid")}, row.AppleSCEPChallengeInfo)
-	require.InDelta(t, fleet.ConditionalAccessSCEPChallengeTTL.Seconds(), row.SecondsLeft, 5)
+	require.Equal(t, automdm.AppleSCEPChallengeInfo{Purpose: automdm.ConditionalAccessSCEPChallengePurpose, UUID: new("ca-host-uuid")}, row.AppleSCEPChallengeInfo)
+	require.InDelta(t, automdm.ConditionalAccessSCEPChallengeTTL.Seconds(), row.SecondsLeft, 5)
 
 	// every send until the host uses it carries the same challenge
 	again, err := ds.FindOrCreateWindowsConditionalAccessSCEPChallenge(ctx, enrollmentID)
 	require.NoError(t, err)
 	require.Equal(t, challenge, again)
 
-	// Fleet's Apple MDM SCEP server neither accepts nor uses it up
+	// AutoMDM's Apple MDM SCEP server neither accepts nor uses it up
 	_, err = ds.ConsumeAppleSCEPChallenge(ctx, challenge)
-	require.True(t, fleet.IsNotFound(err), err)
+	require.True(t, automdm.IsNotFound(err), err)
 
 	// another host's attempt fails without using it up
 	err = ds.ConsumeConditionalAccessSCEPChallenge(ctx, challenge, "other-host-uuid")
-	require.True(t, fleet.IsNotFound(err), err)
+	require.True(t, automdm.IsNotFound(err), err)
 	require.NoError(t, ds.ConsumeConditionalAccessSCEPChallenge(ctx, challenge, "ca-host-uuid"))
 
 	// single use
 	err = ds.ConsumeConditionalAccessSCEPChallenge(ctx, challenge, "ca-host-uuid")
-	require.True(t, fleet.IsNotFound(err), err)
+	require.True(t, automdm.IsNotFound(err), err)
 
 	// once used, the next send gets a new one
 	next, err := ds.FindOrCreateWindowsConditionalAccessSCEPChallenge(ctx, enrollmentID)
@@ -276,7 +276,7 @@ func testConditionalAccessOneTimeChallenges(t *testing.T, ds *Datastore) {
 		return err
 	})
 	err = ds.ConsumeConditionalAccessSCEPChallenge(ctx, next, "ca-host-uuid")
-	require.True(t, fleet.IsNotFound(err), err)
+	require.True(t, automdm.IsNotFound(err), err)
 	afterExpiry, err := ds.FindOrCreateWindowsConditionalAccessSCEPChallenge(ctx, enrollmentID)
 	require.NoError(t, err)
 	require.NotEqual(t, next, afterExpiry)
@@ -284,18 +284,18 @@ func testConditionalAccessOneTimeChallenges(t *testing.T, ds *Datastore) {
 	require.Error(t, ds.ConsumeConditionalAccessSCEPChallenge(ctx, "", "ca-host-uuid"))
 	require.Error(t, ds.ConsumeConditionalAccessSCEPChallenge(ctx, afterExpiry, ""))
 	err = ds.ConsumeConditionalAccessSCEPChallenge(ctx, "does-not-exist", "ca-host-uuid")
-	require.True(t, fleet.IsNotFound(err), err)
+	require.True(t, automdm.IsNotFound(err), err)
 
 	// a challenge must be bound to a host, so an enrollment not linked to one gets none
 	_, err = ds.FindOrCreateWindowsConditionalAccessSCEPChallenge(ctx, insertWindowsEnrollment(t, ds, "ca-hw-unlinked", "").ID)
 	require.Error(t, err)
 	_, err = ds.FindOrCreateWindowsConditionalAccessSCEPChallenge(ctx, 999999)
-	require.True(t, fleet.IsNotFound(err), err)
+	require.True(t, automdm.IsNotFound(err), err)
 
 	// the conditional access SCEP server doesn't accept an Apple MDM challenge, and leaves it usable
-	insertAppleSCEPChallenge(t, ds, "apple-renewal", fleet.AppleMDMCertPurposeSCEPRenewal, time.Hour, nil)
+	insertAppleSCEPChallenge(t, ds, "apple-renewal", automdm.AppleMDMCertPurposeSCEPRenewal, time.Hour, nil)
 	err = ds.ConsumeConditionalAccessSCEPChallenge(ctx, "apple-renewal", "uuid-apple-renewal")
-	require.True(t, fleet.IsNotFound(err), err)
+	require.True(t, automdm.IsNotFound(err), err)
 	_, err = ds.ConsumeAppleSCEPChallenge(ctx, "apple-renewal")
 	require.NoError(t, err)
 
@@ -319,7 +319,7 @@ func testConditionalAccessOneTimeChallenges(t *testing.T, ds *Datastore) {
 
 func testConditionalAccessOneTimeChallengeAppleExpansion(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
-	doc := `<string>` + fleet.HostSecretPlaceholder(fleet.HostSecretConditionalAccessSCEPChallenge) + `</string>`
+	doc := `<string>` + automdm.HostSecretPlaceholder(automdm.HostSecretConditionalAccessSCEPChallenge) + `</string>`
 	expand := func(t *testing.T, enrollmentID string) string {
 		t.Helper()
 		expanded, err := ds.ExpandHostSecrets(ctx, doc, enrollmentID)
@@ -329,18 +329,18 @@ func testConditionalAccessOneTimeChallengeAppleExpansion(t *testing.T, ds *Datas
 		return challenge
 	}
 
-	nanoEnroll(t, ds, &fleet.Host{UUID: "ca-mac-udid", Platform: "darwin"}, false)
+	nanoEnroll(t, ds, &automdm.Host{UUID: "ca-mac-udid", Platform: "darwin"}, false)
 	challenge := expand(t, "ca-mac-udid")
 	require.Equal(t, challenge, expand(t, "ca-mac-udid"))
 
 	// bound to the host the device channel names, which is the UUID in the profile's SAN
 	err := ds.ConsumeConditionalAccessSCEPChallenge(ctx, challenge, "other-udid")
-	require.True(t, fleet.IsNotFound(err), err)
+	require.True(t, automdm.IsNotFound(err), err)
 	require.NoError(t, ds.ConsumeConditionalAccessSCEPChallenge(ctx, challenge, "ca-mac-udid"))
 	require.NotEqual(t, challenge, expand(t, "ca-mac-udid"))
 
 	// separate from the renewal challenge for the same enrollment
-	renewal, err := ds.ExpandHostSecrets(ctx, `<string>`+fleet.HostSecretPlaceholder(fleet.HostSecretSCEPChallenge)+`</string>`, "ca-mac-udid")
+	renewal, err := ds.ExpandHostSecrets(ctx, `<string>`+automdm.HostSecretPlaceholder(automdm.HostSecretSCEPChallenge)+`</string>`, "ca-mac-udid")
 	require.NoError(t, err)
 	require.NotContains(t, renewal, expand(t, "ca-mac-udid"))
 

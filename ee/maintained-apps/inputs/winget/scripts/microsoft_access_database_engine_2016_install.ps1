@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # Self-extracting package whose setup.cmd forwards its first argument to
 # "msiexec /i AceRedist.msi", so /quiet reaches the MSI.

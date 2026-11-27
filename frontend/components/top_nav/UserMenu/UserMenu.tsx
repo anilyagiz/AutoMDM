@@ -33,7 +33,7 @@ interface IUserMenuProps {
 const getOptionBackgroundColor = (
   state: OptionProps<IDropdownOption, false, GroupBase<IDropdownOption>>
 ) => {
-  return state.isFocused ? COLORS["ui-fleet-black-10"] : "transparent";
+  return state.isFocused ? COLORS["ui-automdm-black-10"] : "transparent";
 };
 
 const CustomDropdownIndicator = (
@@ -47,7 +47,7 @@ const CustomDropdownIndicator = (
     <components.DropdownIndicator {...props} className={baseClass}>
       <Icon
         name="chevron-down"
-        color="ui-fleet-black-75"
+        color="ui-automdm-black-75"
         className={`${baseClass}__icon`}
       />
     </components.DropdownIndicator>
@@ -162,9 +162,9 @@ const UserMenu = ({
 
     if (isPremiumTier) {
       dropdownItems.push({
-        label: "Fleets",
-        value: "fleets",
-        onClick: () => onUserMenuItemClick(PATHS.ADMIN_FLEETS),
+        label: "Teams",
+        value: "teams",
+        onClick: () => onUserMenuItemClick(PATHS.ADMIN_TEAMS),
       });
     }
   } else if (currentUser && isAnyTeamAdmin) {
@@ -187,19 +187,19 @@ const UserMenu = ({
       value: "team-users",
       hasDividerBefore: true,
       onClick: () =>
-        onUserMenuItemClick(PATHS.FLEET_DETAILS_USERS(getTargetTeamId())),
+        onUserMenuItemClick(PATHS.TEAM_DETAILS_USERS(getTargetTeamId())),
     });
     dropdownItems.push({
       label: "Agent options",
       value: "team-agent-options",
       onClick: () =>
-        onUserMenuItemClick(PATHS.FLEET_DETAILS_OPTIONS(getTargetTeamId())),
+        onUserMenuItemClick(PATHS.TEAM_DETAILS_OPTIONS(getTargetTeamId())),
     });
     dropdownItems.push({
       label: "Settings",
       value: "team-settings",
       onClick: () =>
-        onUserMenuItemClick(PATHS.FLEET_DETAILS_SETTINGS(getTargetTeamId())),
+        onUserMenuItemClick(PATHS.TEAM_DETAILS_SETTINGS(getTargetTeamId())),
     });
   }
 
@@ -213,12 +213,12 @@ const UserMenu = ({
     label: (
       <span className={`${baseClass}__external-option`}>
         Documentation
-        <Icon name="external-link" color="ui-fleet-black-75" />
+        <Icon name="external-link" color="ui-automdm-black-75" />
       </span>
     ),
     value: "documentation",
     onClick: () => {
-      window.open("https://fleetdm.com/docs", "_blank");
+      window.open("https://automdm.com/docs", "_blank");
     },
   });
   dropdownItems.push({
@@ -246,7 +246,7 @@ const UserMenu = ({
       },
       ...(state.isFocused &&
         isKeyboardFocus && {
-          outline: `1px solid ${COLORS["core-fleet-black"]}`,
+          outline: `1px solid ${COLORS["core-automdm-black"]}`,
           outlineOffset: "1px",
         }),
       ...(state.menuIsOpen && {
@@ -265,8 +265,8 @@ const UserMenu = ({
     }),
     menu: (provided) => ({
       ...provided,
-      backgroundColor: COLORS["core-fleet-white"],
-      boxShadow: `0 2px 6px rgba(0, 0, 0, 0.1), 0 0 0 1px ${COLORS["ui-fleet-black-10"]}`,
+      backgroundColor: COLORS["core-automdm-white"],
+      boxShadow: `0 2px 6px rgba(0, 0, 0, 0.1), 0 0 0 1px ${COLORS["ui-automdm-black-10"]}`,
       borderRadius: "4px",
       zIndex: 6,
       marginTop: "7px",
@@ -292,10 +292,10 @@ const UserMenu = ({
       padding: "10px 8px",
       fontSize: "15px",
       backgroundColor: getOptionBackgroundColor(state),
-      color: COLORS["core-fleet-black"],
+      color: COLORS["core-automdm-black"],
       whiteSpace: "nowrap",
       "&:hover": {
-        backgroundColor: COLORS["ui-fleet-black-5"],
+        backgroundColor: COLORS["ui-automdm-black-5"],
       },
     }),
   };

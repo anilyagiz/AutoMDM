@@ -12,13 +12,13 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	platform_http "github.com/fleetdm/fleet/v4/server/platform/http"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	platform_http "github.com/anilyagiz/automdm/v4/server/platform/http"
 )
 
 type getSoftwareTitleIconsRequest struct {
 	TitleID uint  `url:"title_id"`
-	TeamID  *uint `query:"fleet_id"`
+	TeamID  *uint `query:"team_id"`
 }
 type getSoftwareTitleIconsResponse struct {
 	Err         error  `json:"error,omitempty"`
@@ -58,19 +58,19 @@ func (r getSoftwareTitleIconsResponse) HijackRender(ctx context.Context, w http.
 	_, _ = w.Write(r.ImageData)
 }
 
-func getSoftwareTitleIconsEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func getSoftwareTitleIconsEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*getSoftwareTitleIconsRequest)
 
 	if req.TeamID == nil {
-		return getSoftwareTitleIconsResponse{Err: &fleet.BadRequestError{Message: "fleet_id is required"}}, nil
+		return getSoftwareTitleIconsResponse{Err: &automdm.BadRequestError{Message: "team_id is required"}}, nil
 	}
 	if req.TitleID == 0 {
-		return getSoftwareTitleIconsResponse{Err: &fleet.BadRequestError{Message: "invalid title_id"}}, nil
+		return getSoftwareTitleIconsResponse{Err: &automdm.BadRequestError{Message: "invalid title_id"}}, nil
 	}
 
 	iconData, size, filename, err := svc.GetSoftwareTitleIcon(ctx, *req.TeamID, req.TitleID)
 	if err != nil {
-		var vppErr *fleet.VPPIconAvailable
+		var vppErr *automdm.VPPIconAvailable
 		if errors.As(err, &vppErr) {
 			// 302 redirect to vpp app IconURL
 			return getSoftwareTitleIconsRedirectResponse{RedirectURL: vppErr.IconURL}, nil
@@ -91,12 +91,12 @@ func (svc *Service) GetSoftwareTitleIcon(ctx context.Context, teamID uint, title
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return nil, 0, "", fleet.ErrMissingLicense
+	return nil, 0, "", automdm.ErrMissingLicense
 }
 
 type putSoftwareTitleIconRequest struct {
 	TitleID    uint  `url:"title_id"`
-	TeamID     *uint `query:"fleet_id"`
+	TeamID     *uint `query:"team_id"`
 	File       *multipart.FileHeader
 	HashSHA256 *string
 	Filename   *string
@@ -114,25 +114,25 @@ func (r putSoftwareTitleIconResponse) Error() error {
 func (putSoftwareTitleIconRequest) DecodeRequest(ctx context.Context, r *http.Request) (interface{}, error) {
 	titleID, ok := platform_http.PathVar(r, "title_id")
 	if !ok {
-		return nil, &fleet.BadRequestError{Message: "title_id is required"}
+		return nil, &automdm.BadRequestError{Message: "title_id is required"}
 	}
 	titleIDUint64, err := strconv.ParseUint(titleID, 10, 64)
 	if err != nil {
-		return nil, &fleet.BadRequestError{Message: "invalid title_id"}
+		return nil, &automdm.BadRequestError{Message: "invalid title_id"}
 	}
 	if titleIDUint64 > math.MaxUint {
-		return nil, &fleet.BadRequestError{Message: "title_id value too large"}
+		return nil, &automdm.BadRequestError{Message: "title_id value too large"}
 	}
-	teamID := r.URL.Query().Get("fleet_id")
+	teamID := r.URL.Query().Get("team_id")
 	if teamID == "" {
-		return nil, &fleet.BadRequestError{Message: "fleet_id is required"}
+		return nil, &automdm.BadRequestError{Message: "team_id is required"}
 	}
 	teamIDUint64, err := strconv.ParseUint(teamID, 10, 64)
 	if err != nil {
-		return nil, &fleet.BadRequestError{Message: "invalid fleet_id"}
+		return nil, &automdm.BadRequestError{Message: "invalid team_id"}
 	}
 	if teamIDUint64 > math.MaxUint {
-		return nil, &fleet.BadRequestError{Message: "fleet_id value too large"}
+		return nil, &automdm.BadRequestError{Message: "team_id value too large"}
 	}
 	teamIDUint := uint(teamIDUint64)
 
@@ -143,7 +143,7 @@ func (putSoftwareTitleIconRequest) DecodeRequest(ctx context.Context, r *http.Re
 
 	err = r.ParseMultipartForm(platform_http.MaxMultipartFormSize)
 	if err != nil {
-		return nil, &fleet.BadRequestError{
+		return nil, &automdm.BadRequestError{
 			Message:     "failed to parse multipart form",
 			InternalErr: err,
 		}
@@ -160,12 +160,12 @@ func (putSoftwareTitleIconRequest) DecodeRequest(ctx context.Context, r *http.Re
 	}
 
 	if decoded.File == nil && (decoded.HashSHA256 == nil || decoded.Filename == nil) {
-		return nil, &fleet.BadRequestError{
+		return nil, &automdm.BadRequestError{
 			Message: "either icon multipart field or hashSHA256 and filename are required",
 		}
 	}
 	if decoded.File != nil && (decoded.HashSHA256 != nil || decoded.Filename != nil) {
-		return nil, &fleet.BadRequestError{
+		return nil, &automdm.BadRequestError{
 			Message: "cannot specify both icon file and hashSHA256/filename",
 		}
 	}
@@ -174,7 +174,7 @@ func (putSoftwareTitleIconRequest) DecodeRequest(ctx context.Context, r *http.Re
 	if decoded.File != nil {
 		file, err := decoded.File.Open()
 		if err != nil {
-			return nil, &fleet.BadRequestError{Message: "failed to open file"}
+			return nil, &automdm.BadRequestError{Message: "failed to open file"}
 		}
 		defer file.Close()
 
@@ -186,10 +186,10 @@ func (putSoftwareTitleIconRequest) DecodeRequest(ctx context.Context, r *http.Re
 	return &decoded, nil
 }
 
-func putSoftwareTitleIconEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func putSoftwareTitleIconEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*putSoftwareTitleIconRequest)
 
-	payload := &fleet.UploadSoftwareTitleIconPayload{
+	payload := &automdm.UploadSoftwareTitleIconPayload{
 		TitleID: req.TitleID,
 		TeamID:  *req.TeamID,
 	}
@@ -201,7 +201,7 @@ func putSoftwareTitleIconEndpoint(ctx context.Context, request interface{}, svc 
 		}
 		defer file.Close()
 
-		tfr, err := fleet.NewTempFileReader(file, nil)
+		tfr, err := automdm.NewTempFileReader(file, nil)
 		if err != nil {
 			return putSoftwareTitleIconResponse{Err: err}, nil
 		}
@@ -225,49 +225,49 @@ func putSoftwareTitleIconEndpoint(ctx context.Context, request interface{}, svc 
 	}, nil
 }
 
-func (svc *Service) UploadSoftwareTitleIcon(ctx context.Context, payload *fleet.UploadSoftwareTitleIconPayload) (fleet.SoftwareTitleIcon, error) {
+func (svc *Service) UploadSoftwareTitleIcon(ctx context.Context, payload *automdm.UploadSoftwareTitleIconPayload) (automdm.SoftwareTitleIcon, error) {
 	// skipauth: No authorization check needed due to implementation returning
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return fleet.SoftwareTitleIcon{}, fleet.ErrMissingLicense
+	return automdm.SoftwareTitleIcon{}, automdm.ErrMissingLicense
 }
 
 func ValidateIcon(file io.ReadSeeker) error {
 	// Check file size first
 	fileSize, err := file.Seek(0, io.SeekEnd) // Seek to end to get size
 	if err != nil {
-		return &fleet.BadRequestError{Message: "failed to read file size"}
+		return &automdm.BadRequestError{Message: "failed to read file size"}
 	}
 	if _, err := file.Seek(0, io.SeekStart); err != nil { // Reset to beginning
-		return &fleet.BadRequestError{Message: "failed to rewind file"}
+		return &automdm.BadRequestError{Message: "failed to rewind file"}
 	}
 
 	maxSize := int64(100 * 1024) // 100KB
 	if fileSize > maxSize {
-		return &fleet.BadRequestError{Message: "icon must be less than 100KB"}
+		return &automdm.BadRequestError{Message: "icon must be less than 100KB"}
 	}
 
 	config, format, err := image.DecodeConfig(file)
 	if err != nil || format != "png" {
-		return &fleet.BadRequestError{Message: "icon must be a PNG image"}
+		return &automdm.BadRequestError{Message: "icon must be a PNG image"}
 	}
 
 	maxWidth, maxHeight := 1024, 1024
 	minWidth, minHeight := 120, 120
 
 	if config.Width > maxWidth || config.Height > maxHeight {
-		return &fleet.BadRequestError{Message: fmt.Sprintf("icon must be no larger than %dx%d pixels", maxWidth, maxHeight)}
+		return &automdm.BadRequestError{Message: fmt.Sprintf("icon must be no larger than %dx%d pixels", maxWidth, maxHeight)}
 	}
 	if config.Width < minWidth || config.Height < minHeight {
-		return &fleet.BadRequestError{Message: fmt.Sprintf("icon must be at least %dx%d pixels", minWidth, minHeight)}
+		return &automdm.BadRequestError{Message: fmt.Sprintf("icon must be at least %dx%d pixels", minWidth, minHeight)}
 	}
 	if config.Width != config.Height {
-		return &fleet.BadRequestError{Message: fmt.Sprintf("icon must be a square image (detected %dx%d pixels)", config.Width, config.Height)}
+		return &automdm.BadRequestError{Message: fmt.Sprintf("icon must be a square image (detected %dx%d pixels)", config.Width, config.Height)}
 	}
 
 	if _, err := file.Seek(0, 0); err != nil {
-		return &fleet.BadRequestError{Message: "failed to rewind file"}
+		return &automdm.BadRequestError{Message: "failed to rewind file"}
 	}
 
 	return nil
@@ -275,7 +275,7 @@ func ValidateIcon(file io.ReadSeeker) error {
 
 type deleteSoftwareTitleIconRequest struct {
 	TitleID uint  `url:"title_id"`
-	TeamID  *uint `query:"fleet_id"`
+	TeamID  *uint `query:"team_id"`
 }
 
 type deleteSoftwareTitleIconResponse struct {
@@ -286,14 +286,14 @@ func (r deleteSoftwareTitleIconResponse) Error() error {
 	return r.Err
 }
 
-func deleteSoftwareTitleIconEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func deleteSoftwareTitleIconEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*deleteSoftwareTitleIconRequest)
 
 	if req.TeamID == nil {
-		return getSoftwareTitleIconsResponse{Err: &fleet.BadRequestError{Message: "fleet_id is required"}}, nil
+		return getSoftwareTitleIconsResponse{Err: &automdm.BadRequestError{Message: "team_id is required"}}, nil
 	}
 	if req.TitleID == 0 {
-		return getSoftwareTitleIconsResponse{Err: &fleet.BadRequestError{Message: "invalid title_id"}}, nil
+		return getSoftwareTitleIconsResponse{Err: &automdm.BadRequestError{Message: "invalid title_id"}}, nil
 	}
 
 	err := svc.DeleteSoftwareTitleIcon(ctx, *req.TeamID, req.TitleID)
@@ -309,5 +309,5 @@ func (svc *Service) DeleteSoftwareTitleIcon(ctx context.Context, teamID uint, ti
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return fleet.ErrMissingLicense
+	return automdm.ErrMissingLicense
 }

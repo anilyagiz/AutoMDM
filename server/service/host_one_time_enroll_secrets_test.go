@@ -11,20 +11,20 @@ import (
 	"testing"
 	"time"
 
-	hostidentity_types "github.com/fleetdm/fleet/v4/ee/pkg/hostidentity/types"
-	activity_api "github.com/fleetdm/fleet/v4/server/activity/api"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxdb"
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm"
-	"github.com/fleetdm/fleet/v4/server/mdm/apple/mobileconfig"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	akvmock "github.com/fleetdm/fleet/v4/server/mock/redis_advanced"
+	hostidentity_types "github.com/anilyagiz/automdm/v4/ee/pkg/hostidentity/types"
+	activity_api "github.com/anilyagiz/automdm/v4/server/activity/api"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxdb"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	"github.com/anilyagiz/automdm/v4/server/mdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/apple/mobileconfig"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	akvmock "github.com/anilyagiz/automdm/v4/server/mock/redis_advanced"
 	"github.com/stretchr/testify/require"
 )
 
-// memoryKVStore is an in-memory fleet.KeyValueStore for exercising the
+// memoryKVStore is an in-memory automdm.KeyValueStore for exercising the
 // activity rate limit without Redis.
 func memoryKVStore() *akvmock.AdvancedKeyValueStore {
 	var mu sync.Mutex
@@ -50,10 +50,10 @@ func memoryKVStore() *akvmock.AdvancedKeyValueStore {
 
 type oneTimeEnrollFixture struct {
 	ds         *mock.DataStore
-	svc        fleet.Service
+	svc        automdm.Service
 	ctx        context.Context
-	row        fleet.HostOneTimeEnrollSecret
-	rejections *[]fleet.ActivityTypeHostEnrollmentRejected
+	row        automdm.HostOneTimeEnrollSecret
+	rejections *[]automdm.ActivityTypeHostEnrollmentRejected
 	enrolled   *int
 	logs       *bytes.Buffer
 	kv         *akvmock.AdvancedKeyValueStore
@@ -65,7 +65,7 @@ func newOneTimeEnrollFixture(t *testing.T, useOneTimeEnrollSecrets bool) *oneTim
 
 func newOneTimeEnrollFixtureWithMDM(t *testing.T, setMDM func(*config.MDMConfig)) *oneTimeEnrollFixture {
 	hostID := uint(42)
-	row := fleet.HostOneTimeEnrollSecret{
+	row := automdm.HostOneTimeEnrollSecret{
 		ID:             7,
 		Secret:         "one-time-secret",
 		HostID:         &hostID,
@@ -83,63 +83,63 @@ func newOneTimeEnrollFixtureWithMDM(t *testing.T, setMDM func(*config.MDMConfig)
 	opts := &TestServerOpts{KeyValueStore: kv, Logger: slog.New(slog.NewTextHandler(&logs, nil))}
 	svc, ctx := newTestServiceWithConfig(t, ds, cfg, nil, nil, opts)
 
-	var rejections []fleet.ActivityTypeHostEnrollmentRejected
+	var rejections []automdm.ActivityTypeHostEnrollmentRejected
 	var enrolled int
 	opts.ActivityMock.NewActivityFunc = func(_ context.Context, _ *activity_api.User, a activity_api.ActivityDetails) error {
 		switch act := a.(type) {
-		case fleet.ActivityTypeHostEnrollmentRejected:
+		case automdm.ActivityTypeHostEnrollmentRejected:
 			rejections = append(rejections, act)
-		case fleet.ActivityTypeFleetEnrolled:
+		case automdm.ActivityTypeAutoMDMEnrolled:
 			enrolled++
 		}
 		return nil
 	}
 
-	ds.GetHostOneTimeEnrollSecretFunc = func(ctx context.Context, secret string) (*fleet.HostOneTimeEnrollSecret, error) {
+	ds.GetHostOneTimeEnrollSecretFunc = func(ctx context.Context, secret string) (*automdm.HostOneTimeEnrollSecret, error) {
 		if secret == row.Secret {
 			r := row
 			return &r, nil
 		}
 		return nil, newNotFoundError()
 	}
-	ds.VerifyEnrollSecretFunc = func(ctx context.Context, secret string) (*fleet.EnrollSecret, error) {
+	ds.VerifyEnrollSecretFunc = func(ctx context.Context, secret string) (*automdm.EnrollSecret, error) {
 		if secret == "shared-secret" {
-			return &fleet.EnrollSecret{Secret: secret, TeamID: new(uint(9))}, nil
+			return &automdm.EnrollSecret{Secret: secret, TeamID: new(uint(9))}, nil
 		}
 		return nil, newNotFoundError()
 	}
 	ds.GetHostIdentityCertByNameFunc = func(ctx context.Context, name string) (*hostidentity_types.HostIdentityCertificate, error) {
 		return nil, newNotFoundError()
 	}
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		ac := &fleet.AppConfig{}
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		ac := &automdm.AppConfig{}
 		ac.MDM.EnabledAndConfigured = true
 		return ac, nil
 	}
-	ds.TeamLiteFunc = func(ctx context.Context, tid uint) (*fleet.TeamLite, error) {
-		return &fleet.TeamLite{ID: tid}, nil
+	ds.TeamLiteFunc = func(ctx context.Context, tid uint) (*automdm.TeamLite, error) {
+		return &automdm.TeamLite{ID: tid}, nil
 	}
-	ds.ClearEndUserAfterWindowsResetFunc = func(ctx context.Context, opts ...fleet.DatastoreEnrollOrbitOption) (bool, error) {
+	ds.ClearEndUserAfterWindowsResetFunc = func(ctx context.Context, opts ...automdm.DatastoreEnrollOrbitOption) (bool, error) {
 		return false, nil
 	}
-	ds.HostLiteFunc = func(ctx context.Context, id uint) (*fleet.Host, error) {
-		return &fleet.Host{ID: id, Hostname: "victim-mac"}, nil
+	ds.HostLiteFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
+		return &automdm.Host{ID: id, Hostname: "victim-mac"}, nil
 	}
-	ds.EnrollOrbitFunc = func(ctx context.Context, opts ...fleet.DatastoreEnrollOrbitOption) (*fleet.Host, error) {
-		return &fleet.Host{ID: hostID, UUID: row.HardwareUUID, Platform: "darwin"}, nil
+	ds.EnrollOrbitFunc = func(ctx context.Context, opts ...automdm.DatastoreEnrollOrbitOption) (*automdm.Host, error) {
+		return &automdm.Host{ID: hostID, UUID: row.HardwareUUID, Platform: "darwin"}, nil
 	}
-	ds.EnrollOsqueryFunc = func(ctx context.Context, opts ...fleet.DatastoreEnrollOsqueryOption) (*fleet.Host, error) {
-		return &fleet.Host{ID: hostID, UUID: row.HardwareUUID, Platform: "darwin"}, nil
+	ds.EnrollOsqueryFunc = func(ctx context.Context, opts ...automdm.DatastoreEnrollOsqueryOption) (*automdm.Host, error) {
+		return &automdm.Host{ID: hostID, UUID: row.HardwareUUID, Platform: "darwin"}, nil
 	}
 	ds.ExtendHostOrbitDebugUntilFunc = func(ctx context.Context, hostID uint, until time.Time) error { return nil }
-	ds.UpdateHostFunc = func(ctx context.Context, host *fleet.Host) error { return nil }
-	ds.SerialUpdateHostFunc = func(ctx context.Context, host *fleet.Host) error { return nil }
+	ds.UpdateHostFunc = func(ctx context.Context, host *automdm.Host) error { return nil }
+	ds.SerialUpdateHostFunc = func(ctx context.Context, host *automdm.Host) error { return nil }
 
 	return &oneTimeEnrollFixture{ds: ds, svc: svc, ctx: ctx, row: row, rejections: &rejections, enrolled: &enrolled, logs: &logs, kv: kv}
 }
 
-func (f *oneTimeEnrollFixture) orbitInfo() fleet.OrbitHostInfo {
-	return fleet.OrbitHostInfo{HardwareUUID: f.row.HardwareUUID, HardwareSerial: f.row.HardwareSerial, Platform: f.row.Platform, Hostname: "mac"}
+func (f *oneTimeEnrollFixture) orbitInfo() automdm.OrbitHostInfo {
+	return automdm.OrbitHostInfo{HardwareUUID: f.row.HardwareUUID, HardwareSerial: f.row.HardwareSerial, Platform: f.row.Platform, Hostname: "mac"}
 }
 
 func (f *oneTimeEnrollFixture) osqueryDetails() map[string]map[string]string {
@@ -149,16 +149,16 @@ func (f *oneTimeEnrollFixture) osqueryDetails() map[string]map[string]string {
 	}
 }
 
-func orbitEnrollConfig(opts []fleet.DatastoreEnrollOrbitOption) *fleet.DatastoreEnrollOrbitConfig {
-	c := &fleet.DatastoreEnrollOrbitConfig{}
+func orbitEnrollConfig(opts []automdm.DatastoreEnrollOrbitOption) *automdm.DatastoreEnrollOrbitConfig {
+	c := &automdm.DatastoreEnrollOrbitConfig{}
 	for _, o := range opts {
 		o(c)
 	}
 	return c
 }
 
-func osqueryEnrollConfig(opts []fleet.DatastoreEnrollOsqueryOption) *fleet.DatastoreEnrollOsqueryConfig {
-	c := &fleet.DatastoreEnrollOsqueryConfig{}
+func osqueryEnrollConfig(opts []automdm.DatastoreEnrollOsqueryOption) *automdm.DatastoreEnrollOsqueryConfig {
+	c := &automdm.DatastoreEnrollOsqueryConfig{}
 	for _, o := range opts {
 		o(c)
 	}
@@ -168,10 +168,10 @@ func osqueryEnrollConfig(opts []fleet.DatastoreEnrollOsqueryOption) *fleet.Datas
 func TestEnrollOrbitWithOneTimeEnrollSecret(t *testing.T) {
 	t.Run("matching identifiers consume the secret and use its team", func(t *testing.T) {
 		f := newOneTimeEnrollFixture(t, true)
-		var got *fleet.DatastoreEnrollOrbitConfig
-		f.ds.EnrollOrbitFunc = func(ctx context.Context, opts ...fleet.DatastoreEnrollOrbitOption) (*fleet.Host, error) {
+		var got *automdm.DatastoreEnrollOrbitConfig
+		f.ds.EnrollOrbitFunc = func(ctx context.Context, opts ...automdm.DatastoreEnrollOrbitOption) (*automdm.Host, error) {
 			got = orbitEnrollConfig(opts)
-			return &fleet.Host{ID: *f.row.HostID, UUID: f.row.HardwareUUID, Platform: "darwin"}, nil
+			return &automdm.Host{ID: *f.row.HostID, UUID: f.row.HardwareUUID, Platform: "darwin"}, nil
 		}
 
 		nodeKey, err := f.svc.EnrollOrbit(f.ctx, f.orbitInfo(), f.row.Secret, "")
@@ -198,29 +198,29 @@ func TestEnrollOrbitWithOneTimeEnrollSecret(t *testing.T) {
 		// one activity for three attempts against the same host and reason
 		require.Len(t, *f.rejections, 1)
 		got := (*f.rejections)[0]
-		require.Equal(t, fleet.EnrollmentRejectedOneTimeSecretIdentifierMismatch, got.Reason)
+		require.Equal(t, automdm.EnrollmentRejectedOneTimeSecretIdentifierMismatch, got.Reason)
 		require.Equal(t, f.row.HostID, got.HostID)
 		require.Equal(t, "victim-mac", got.HostDisplayName)
 		require.Equal(t, "SOMEONE-ELSE", got.HostSerial)
-		require.Equal(t, string(fleet.EnrollmentPlaneOrbit), got.EnrollmentPlane)
+		require.Equal(t, string(automdm.EnrollmentPlaneOrbit), got.EnrollmentPlane)
 
 		// a different reason for the same host is its own activity
-		f.ds.EnrollOrbitFunc = func(ctx context.Context, opts ...fleet.DatastoreEnrollOrbitOption) (*fleet.Host, error) {
-			return nil, &fleet.EnrollmentRejectedError{Reason: fleet.EnrollmentRejectedOneTimeSecretSpent, HostID: f.row.HostID}
+		f.ds.EnrollOrbitFunc = func(ctx context.Context, opts ...automdm.DatastoreEnrollOrbitOption) (*automdm.Host, error) {
+			return nil, &automdm.EnrollmentRejectedError{Reason: automdm.EnrollmentRejectedOneTimeSecretSpent, HostID: f.row.HostID}
 		}
 		_, err := f.svc.EnrollOrbit(f.ctx, f.orbitInfo(), f.row.Secret, "")
 		requireAuthFailed(t, err)
 		require.Len(t, *f.rejections, 2)
-		require.Equal(t, fleet.EnrollmentRejectedOneTimeSecretSpent, (*f.rejections)[1].Reason)
+		require.Equal(t, automdm.EnrollmentRejectedOneTimeSecretSpent, (*f.rejections)[1].Reason)
 	})
 
 	t.Run("shared secret carries the rejection option only when the flag is on", func(t *testing.T) {
 		for _, flag := range []bool{true, false} {
 			f := newOneTimeEnrollFixture(t, flag)
-			var got *fleet.DatastoreEnrollOrbitConfig
-			f.ds.EnrollOrbitFunc = func(ctx context.Context, opts ...fleet.DatastoreEnrollOrbitOption) (*fleet.Host, error) {
+			var got *automdm.DatastoreEnrollOrbitConfig
+			f.ds.EnrollOrbitFunc = func(ctx context.Context, opts ...automdm.DatastoreEnrollOrbitOption) (*automdm.Host, error) {
 				got = orbitEnrollConfig(opts)
-				return &fleet.Host{ID: 1, UUID: "other", Platform: "darwin"}, nil
+				return &automdm.Host{ID: 1, UUID: "other", Platform: "darwin"}, nil
 			}
 			_, err := f.svc.EnrollOrbit(f.ctx, f.orbitInfo(), "shared-secret", "")
 			require.NoError(t, err)
@@ -233,15 +233,15 @@ func TestEnrollOrbitWithOneTimeEnrollSecret(t *testing.T) {
 	t.Run("datastore rejection of a shared secret is generic to the caller and recorded", func(t *testing.T) {
 		f := newOneTimeEnrollFixture(t, true)
 		victim := uint(77)
-		f.ds.EnrollOrbitFunc = func(ctx context.Context, opts ...fleet.DatastoreEnrollOrbitOption) (*fleet.Host, error) {
-			return nil, &fleet.EnrollmentRejectedError{Reason: fleet.EnrollmentRejectedSharedSecretForMDMManagedHost, HostID: &victim}
+		f.ds.EnrollOrbitFunc = func(ctx context.Context, opts ...automdm.DatastoreEnrollOrbitOption) (*automdm.Host, error) {
+			return nil, &automdm.EnrollmentRejectedError{Reason: automdm.EnrollmentRejectedSharedSecretForMDMManagedHost, HostID: &victim}
 		}
 		_, err := f.svc.EnrollOrbit(f.ctx, f.orbitInfo(), "shared-secret", "")
 		requireAuthFailed(t, err)
-		var orbitErr fleet.OrbitError
+		var orbitErr automdm.OrbitError
 		require.NotErrorAs(t, err, &orbitErr)
 		require.Len(t, *f.rejections, 1)
-		require.Equal(t, fleet.EnrollmentRejectedSharedSecretForMDMManagedHost, (*f.rejections)[0].Reason)
+		require.Equal(t, automdm.EnrollmentRejectedSharedSecretForMDMManagedHost, (*f.rejections)[0].Reason)
 		require.Equal(t, &victim, (*f.rejections)[0].HostID)
 		require.Zero(t, *f.enrolled)
 		require.Contains(t, f.logs.String(), `msg="enrollment rejected"`)
@@ -264,7 +264,7 @@ func TestEnrollOrbitWithOneTimeEnrollSecret(t *testing.T) {
 				}
 				requireAuthFailed(t, err)
 				require.Len(t, *f.rejections, 1)
-				require.Equal(t, fleet.EnrollmentRejectedHostIdentityCertRequired, (*f.rejections)[0].Reason)
+				require.Equal(t, automdm.EnrollmentRejectedHostIdentityCertRequired, (*f.rejections)[0].Reason)
 				require.Equal(t, &victim, (*f.rejections)[0].HostID)
 				require.Zero(t, *f.enrolled)
 			})
@@ -296,7 +296,7 @@ func TestEnrollOrbitWithOneTimeEnrollSecret(t *testing.T) {
 					mdmConfig.WindowsOneTimeEnrollSecrets = tc.windowsOneTimeEnrollSecrets
 				})
 				f.row.Platform = tc.platform
-				f.ds.GetHostOneTimeEnrollSecretFunc = func(ctx context.Context, secret string) (*fleet.HostOneTimeEnrollSecret, error) {
+				f.ds.GetHostOneTimeEnrollSecretFunc = func(ctx context.Context, secret string) (*automdm.HostOneTimeEnrollSecret, error) {
 					r := f.row
 					return &r, nil
 				}
@@ -316,10 +316,10 @@ func TestEnrollOrbitWithOneTimeEnrollSecret(t *testing.T) {
 func TestEnrollOsqueryWithOneTimeEnrollSecret(t *testing.T) {
 	t.Run("matching identifiers consume the secret and use its team", func(t *testing.T) {
 		f := newOneTimeEnrollFixture(t, true)
-		var got *fleet.DatastoreEnrollOsqueryConfig
-		f.ds.EnrollOsqueryFunc = func(ctx context.Context, opts ...fleet.DatastoreEnrollOsqueryOption) (*fleet.Host, error) {
+		var got *automdm.DatastoreEnrollOsqueryConfig
+		f.ds.EnrollOsqueryFunc = func(ctx context.Context, opts ...automdm.DatastoreEnrollOsqueryOption) (*automdm.Host, error) {
 			got = osqueryEnrollConfig(opts)
-			return &fleet.Host{ID: *f.row.HostID, UUID: f.row.HardwareUUID, Platform: "darwin", OsqueryHostID: new(got.OsqueryHostID), NodeKey: new(got.NodeKey)}, nil
+			return &automdm.Host{ID: *f.row.HostID, UUID: f.row.HardwareUUID, Platform: "darwin", OsqueryHostID: new(got.OsqueryHostID), NodeKey: new(got.NodeKey)}, nil
 		}
 
 		nodeKey, err := f.svc.EnrollOsquery(f.ctx, f.row.Secret, f.row.HardwareUUID, f.osqueryDetails())
@@ -350,17 +350,17 @@ func TestEnrollOsqueryWithOneTimeEnrollSecret(t *testing.T) {
 		require.False(t, f.ds.EnrollOsqueryFuncInvoked)
 		// same host, same reason: a single activity across all attempts
 		require.Len(t, *f.rejections, 1)
-		require.Equal(t, fleet.EnrollmentRejectedOneTimeSecretIdentifierMismatch, (*f.rejections)[0].Reason)
-		require.Equal(t, string(fleet.EnrollmentPlaneOsquery), (*f.rejections)[0].EnrollmentPlane)
+		require.Equal(t, automdm.EnrollmentRejectedOneTimeSecretIdentifierMismatch, (*f.rejections)[0].Reason)
+		require.Equal(t, string(automdm.EnrollmentPlaneOsquery), (*f.rejections)[0].EnrollmentPlane)
 	})
 
 	t.Run("shared secret carries the rejection option only when the flag is on", func(t *testing.T) {
 		for _, flag := range []bool{true, false} {
 			f := newOneTimeEnrollFixture(t, flag)
-			var got *fleet.DatastoreEnrollOsqueryConfig
-			f.ds.EnrollOsqueryFunc = func(ctx context.Context, opts ...fleet.DatastoreEnrollOsqueryOption) (*fleet.Host, error) {
+			var got *automdm.DatastoreEnrollOsqueryConfig
+			f.ds.EnrollOsqueryFunc = func(ctx context.Context, opts ...automdm.DatastoreEnrollOsqueryOption) (*automdm.Host, error) {
 				got = osqueryEnrollConfig(opts)
-				return &fleet.Host{ID: 1, OsqueryHostID: new(got.OsqueryHostID), NodeKey: new(got.NodeKey)}, nil
+				return &automdm.Host{ID: 1, OsqueryHostID: new(got.OsqueryHostID), NodeKey: new(got.NodeKey)}, nil
 			}
 			_, err := f.svc.EnrollOsquery(f.ctx, "shared-secret", f.row.HardwareUUID, f.osqueryDetails())
 			require.NoError(t, err)
@@ -371,8 +371,8 @@ func TestEnrollOsqueryWithOneTimeEnrollSecret(t *testing.T) {
 
 	t.Run("datastore rejection is generic and recorded once", func(t *testing.T) {
 		f := newOneTimeEnrollFixture(t, true)
-		f.ds.EnrollOsqueryFunc = func(ctx context.Context, opts ...fleet.DatastoreEnrollOsqueryOption) (*fleet.Host, error) {
-			return nil, &fleet.EnrollmentRejectedError{Reason: fleet.EnrollmentRejectedSharedSecretForMDMManagedHost, HostID: f.row.HostID}
+		f.ds.EnrollOsqueryFunc = func(ctx context.Context, opts ...automdm.DatastoreEnrollOsqueryOption) (*automdm.Host, error) {
+			return nil, &automdm.EnrollmentRejectedError{Reason: automdm.EnrollmentRejectedSharedSecretForMDMManagedHost, HostID: f.row.HostID}
 		}
 		for range 2 {
 			_, err := f.svc.EnrollOsquery(f.ctx, "shared-secret", f.row.HardwareUUID, f.osqueryDetails())
@@ -386,7 +386,7 @@ func TestRecordEnrollmentRejectedWithoutKeyValueStore(t *testing.T) {
 	// With no key-value store the rejection is still refused and recorded; the
 	// rate limit simply does not apply.
 	f := newOneTimeEnrollFixture(t, true)
-	svc, ctx := newTestServiceWithConfig(t, f.ds, func() config.FleetConfig {
+	svc, ctx := newTestServiceWithConfig(t, f.ds, func() config.AutoMDMConfig {
 		cfg := config.TestConfig()
 		cfg.MDM.AppleOneTimeEnrollSecrets = true
 		return cfg
@@ -404,42 +404,42 @@ func TestRecordEnrollmentRejectedWithoutKeyValueStore(t *testing.T) {
 func requireAuthFailed(t *testing.T, err error) {
 	t.Helper()
 	require.Error(t, err)
-	var authErr *fleet.AuthFailedError
+	var authErr *automdm.AuthFailedError
 	require.ErrorAs(t, err, &authErr)
 }
 
-func TestEnsureFleetdConfigWithOneTimeEnrollSecrets(t *testing.T) {
+func TestEnsureAutoMDMdConfigWithOneTimeEnrollSecrets(t *testing.T) {
 	ctx := t.Context()
 	ds := new(mock.Store)
 	mdmConfig := config.MDMConfig{AppleSCEPCert: "./testdata/server.pem", AppleSCEPKey: "./testdata/server.key"}
 	signingCert, _, _, err := mdmConfig.AppleSCEP()
 	require.NoError(t, err)
 
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		ac := &fleet.AppConfig{}
-		ac.ServerSettings.ServerURL = "https://fleet.example.com"
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		ac := &automdm.AppConfig{}
+		ac.ServerSettings.ServerURL = "https://automdm.example.com"
 		return ac, nil
 	}
 	// team 1 has a shared secret, team 2 has none, and "no team" has none at
 	// all (so the aggregate omits it entirely).
-	ds.GetMDMAppleConfigProfileByTeamAndIdentifierFunc = func(ctx context.Context, teamID *uint, identifier string) (*fleet.MDMAppleConfigProfile, error) {
+	ds.GetMDMAppleConfigProfileByTeamAndIdentifierFunc = func(ctx context.Context, teamID *uint, identifier string) (*automdm.MDMAppleConfigProfile, error) {
 		return nil, newNotFoundError()
 	}
-	ds.AggregateEnrollSecretPerTeamFunc = func(ctx context.Context) ([]*fleet.EnrollSecret, error) {
-		return []*fleet.EnrollSecret{
+	ds.AggregateEnrollSecretPerTeamFunc = func(ctx context.Context) ([]*automdm.EnrollSecret, error) {
+		return []*automdm.EnrollSecret{
 			{Secret: "team-1-shared", TeamID: new(uint(1))},
 			{Secret: "", TeamID: new(uint(2))},
 		}, nil
 	}
-	var upserted []*fleet.MDMAppleConfigProfile
-	ds.BulkUpsertMDMAppleConfigProfilesFunc = func(ctx context.Context, ps []*fleet.MDMAppleConfigProfile) error {
+	var upserted []*automdm.MDMAppleConfigProfile
+	ds.BulkUpsertMDMAppleConfigProfilesFunc = func(ctx context.Context, ps []*automdm.MDMAppleConfigProfile) error {
 		upserted = ps
 		return nil
 	}
 
-	require.NoError(t, ensureFleetProfiles(ctx, ds, slog.New(slog.DiscardHandler), signingCert.Certificate[0], true))
+	require.NoError(t, ensureAutoMDMProfiles(ctx, ds, slog.New(slog.DiscardHandler), signingCert.Certificate[0], true))
 
-	fleetdByTeam := map[string]*fleet.MDMAppleConfigProfile{}
+	automdmdByTeam := map[string]*automdm.MDMAppleConfigProfile{}
 	caCount := 0
 	for _, p := range upserted {
 		key := "no-team"
@@ -447,113 +447,113 @@ func TestEnsureFleetdConfigWithOneTimeEnrollSecrets(t *testing.T) {
 			key = fmt.Sprintf("team-%d", *p.TeamID)
 		}
 		switch p.Name {
-		case mdm.FleetdConfigProfileName:
-			fleetdByTeam[key] = p
-		case mdm.FleetCAConfigProfileName:
+		case mdm.AutoMDMdConfigProfileName:
+			automdmdByTeam[key] = p
+		case mdm.AutoMDMCAConfigProfileName:
 			caCount++
 		}
 	}
-	require.Len(t, fleetdByTeam, 3, "fleetd profile for team 1, team 2 and no team")
+	require.Len(t, automdmdByTeam, 3, "automdmd profile for team 1, team 2 and no team")
 	require.Equal(t, 3, caCount)
-	for key, p := range fleetdByTeam {
-		require.Contains(t, string(p.Mobileconfig), fleet.HostSecretPlaceholder(fleet.HostSecretEnrollSecret), key)
+	for key, p := range automdmdByTeam {
+		require.Contains(t, string(p.Mobileconfig), automdm.HostSecretPlaceholder(automdm.HostSecretEnrollSecret), key)
 		require.NotContains(t, string(p.Mobileconfig), "team-1-shared", key)
 	}
 
 	// flag off keeps today's behavior: team 2 falls back to... nothing, since
 	// there is no global secret, and no "no team" profile is generated.
 	upserted = nil
-	require.NoError(t, ensureFleetProfiles(ctx, ds, slog.New(slog.DiscardHandler), signingCert.Certificate[0], false))
-	var fleetdOff int
+	require.NoError(t, ensureAutoMDMProfiles(ctx, ds, slog.New(slog.DiscardHandler), signingCert.Certificate[0], false))
+	var automdmdOff int
 	for _, p := range upserted {
-		if p.Name == mdm.FleetdConfigProfileName {
-			fleetdOff++
+		if p.Name == mdm.AutoMDMdConfigProfileName {
+			automdmdOff++
 			require.Contains(t, string(p.Mobileconfig), "team-1-shared")
-			require.NotContains(t, string(p.Mobileconfig), fleet.HostSecretPrefix)
+			require.NotContains(t, string(p.Mobileconfig), automdm.HostSecretPrefix)
 		}
 	}
-	require.Equal(t, 1, fleetdOff)
+	require.Equal(t, 1, automdmdOff)
 }
 
-func TestResendFleetdProfileWithOneTimeEnrollSecrets(t *testing.T) {
+func TestResendAutoMDMdProfileWithOneTimeEnrollSecrets(t *testing.T) {
 	const (
-		fleetdProfileUUID = "a-fleetd-profile"
-		customProfileUUID = "a-custom-profile"
-		hostID            = uint(1)
+		automdmdProfileUUID = "a-automdmd-profile"
+		customProfileUUID   = "a-custom-profile"
+		hostID              = uint(1)
 	)
-	newSvc := func(t *testing.T, flag bool, status fleet.MDMDeliveryStatus) (*mock.Store, fleet.Service, context.Context) {
+	newSvc := func(t *testing.T, flag bool, status automdm.MDMDeliveryStatus) (*mock.Store, automdm.Service, context.Context) {
 		ds := new(mock.Store)
 		cfg := config.TestConfig()
 		cfg.MDM.AppleOneTimeEnrollSecrets = flag
 		svc, ctx := newTestServiceWithConfig(t, ds, cfg, nil, nil, &TestServerOpts{
-			License:             &fleet.LicenseInfo{Tier: fleet.TierPremium},
+			License:             &automdm.LicenseInfo{Tier: automdm.TierPremium},
 			SkipCreateTestUsers: true,
 		})
-		ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-			return &fleet.AppConfig{MDM: fleet.MDM{EnabledAndConfigured: true}}, nil
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{MDM: automdm.MDM{EnabledAndConfigured: true}}, nil
 		}
-		ds.HostLiteFunc = func(ctx context.Context, hid uint) (*fleet.Host, error) {
-			return &fleet.Host{ID: hid, UUID: "host-uuid-1", Platform: "darwin"}, nil
+		ds.HostLiteFunc = func(ctx context.Context, hid uint) (*automdm.Host, error) {
+			return &automdm.Host{ID: hid, UUID: "host-uuid-1", Platform: "darwin"}, nil
 		}
-		ds.GetMDMAppleConfigProfileFunc = func(ctx context.Context, pid string) (*fleet.MDMAppleConfigProfile, error) {
+		ds.GetMDMAppleConfigProfileFunc = func(ctx context.Context, pid string) (*automdm.MDMAppleConfigProfile, error) {
 			name := "Custom profile"
-			if pid == fleetdProfileUUID {
-				name = mdm.FleetdConfigProfileName
+			if pid == automdmdProfileUUID {
+				name = mdm.AutoMDMdConfigProfileName
 			}
-			return &fleet.MDMAppleConfigProfile{ProfileUUID: pid, Name: name}, nil
+			return &automdm.MDMAppleConfigProfile{ProfileUUID: pid, Name: name}, nil
 		}
-		ds.GetHostMDMProfileInstallStatusFunc = func(ctx context.Context, hostUUID string, profUUID string) (fleet.MDMDeliveryStatus, error) {
+		ds.GetHostMDMProfileInstallStatusFunc = func(ctx context.Context, hostUUID string, profUUID string) (automdm.MDMDeliveryStatus, error) {
 			return status, nil
 		}
 		ds.ResendHostMDMProfileFunc = func(ctx context.Context, hostUUID, profUUID string) error { return nil }
-		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{GlobalRole: new(fleet.RoleAdmin)}})
+		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{GlobalRole: new(automdm.RoleAdmin)}})
 		return ds, svc, ctx
 	}
 
-	t.Run("admin can resend the fleetd profile while verifying", func(t *testing.T) {
-		ds, svc, ctx := newSvc(t, true, fleet.MDMDeliveryVerifying)
-		require.NoError(t, svc.ResendHostMDMProfile(ctx, hostID, fleetdProfileUUID))
+	t.Run("admin can resend the automdmd profile while verifying", func(t *testing.T) {
+		ds, svc, ctx := newSvc(t, true, automdm.MDMDeliveryVerifying)
+		require.NoError(t, svc.ResendHostMDMProfile(ctx, hostID, automdmdProfileUUID))
 		require.True(t, ds.ResendHostMDMProfileFuncInvoked)
 	})
 
 	t.Run("verified and failed are resendable as before", func(t *testing.T) {
-		for _, status := range []fleet.MDMDeliveryStatus{fleet.MDMDeliveryVerified, fleet.MDMDeliveryFailed} {
+		for _, status := range []automdm.MDMDeliveryStatus{automdm.MDMDeliveryVerified, automdm.MDMDeliveryFailed} {
 			ds, svc, ctx := newSvc(t, true, status)
-			require.NoError(t, svc.ResendHostMDMProfile(ctx, hostID, fleetdProfileUUID))
+			require.NoError(t, svc.ResendHostMDMProfile(ctx, hostID, automdmdProfileUUID))
 			require.True(t, ds.ResendHostMDMProfileFuncInvoked)
 		}
 	})
 
 	t.Run("pending stays a conflict", func(t *testing.T) {
-		ds, svc, ctx := newSvc(t, true, fleet.MDMDeliveryPending)
-		err := svc.ResendHostMDMProfile(ctx, hostID, fleetdProfileUUID)
+		ds, svc, ctx := newSvc(t, true, automdm.MDMDeliveryPending)
+		err := svc.ResendHostMDMProfile(ctx, hostID, automdmdProfileUUID)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "can’t be resent")
 		require.False(t, ds.ResendHostMDMProfileFuncInvoked)
 	})
 
 	t.Run("custom profiles in verifying are still a conflict", func(t *testing.T) {
-		ds, svc, ctx := newSvc(t, true, fleet.MDMDeliveryVerifying)
+		ds, svc, ctx := newSvc(t, true, automdm.MDMDeliveryVerifying)
 		err := svc.ResendHostMDMProfile(ctx, hostID, customProfileUUID)
 		require.ErrorContains(t, err, "can’t be resent")
 		require.False(t, ds.ResendHostMDMProfileFuncInvoked)
 	})
 
-	t.Run("flag off: fleetd profile in verifying is a conflict", func(t *testing.T) {
-		ds, svc, ctx := newSvc(t, false, fleet.MDMDeliveryVerifying)
-		err := svc.ResendHostMDMProfile(ctx, hostID, fleetdProfileUUID)
+	t.Run("flag off: automdmd profile in verifying is a conflict", func(t *testing.T) {
+		ds, svc, ctx := newSvc(t, false, automdm.MDMDeliveryVerifying)
+		err := svc.ResendHostMDMProfile(ctx, hostID, automdmdProfileUUID)
 		require.ErrorContains(t, err, "can’t be resent")
 		require.False(t, ds.ResendHostMDMProfileFuncInvoked)
 
-		ds, svc, ctx = newSvc(t, false, fleet.MDMDeliveryVerified)
-		require.NoError(t, svc.ResendHostMDMProfile(ctx, hostID, fleetdProfileUUID))
+		ds, svc, ctx = newSvc(t, false, automdm.MDMDeliveryVerified)
+		require.NoError(t, svc.ResendHostMDMProfile(ctx, hostID, automdmdProfileUUID))
 		require.True(t, ds.ResendHostMDMProfileFuncInvoked)
 	})
 
-	t.Run("device-token resend of the fleetd profile is refused with a descriptive error", func(t *testing.T) {
-		ds, svc, ctx := newSvc(t, true, fleet.MDMDeliveryVerified)
-		host := &fleet.Host{ID: hostID, UUID: "host-uuid-1", Platform: "darwin"}
-		err := svc.ResendDeviceHostMDMProfile(ctx, host, fleetdProfileUUID)
+	t.Run("device-token resend of the automdmd profile is refused with a descriptive error", func(t *testing.T) {
+		ds, svc, ctx := newSvc(t, true, automdm.MDMDeliveryVerified)
+		host := &automdm.Host{ID: hostID, UUID: "host-uuid-1", Platform: "darwin"}
+		err := svc.ResendDeviceHostMDMProfile(ctx, host, automdmdProfileUUID)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "Ask your IT admin")
 		var statusErr interface{ Status() int }
@@ -566,15 +566,15 @@ func TestResendFleetdProfileWithOneTimeEnrollSecrets(t *testing.T) {
 		require.True(t, ds.ResendHostMDMProfileFuncInvoked)
 	})
 
-	t.Run("flag off: device-token resend of the fleetd profile behaves as before", func(t *testing.T) {
-		ds, svc, ctx := newSvc(t, false, fleet.MDMDeliveryVerified)
-		host := &fleet.Host{ID: hostID, UUID: "host-uuid-1", Platform: "darwin"}
-		require.NoError(t, svc.ResendDeviceHostMDMProfile(ctx, host, fleetdProfileUUID))
+	t.Run("flag off: device-token resend of the automdmd profile behaves as before", func(t *testing.T) {
+		ds, svc, ctx := newSvc(t, false, automdm.MDMDeliveryVerified)
+		host := &automdm.Host{ID: hostID, UUID: "host-uuid-1", Platform: "darwin"}
+		require.NoError(t, svc.ResendDeviceHostMDMProfile(ctx, host, automdmdProfileUUID))
 		require.True(t, ds.ResendHostMDMProfileFuncInvoked)
 	})
 }
 
-func TestEnsureFleetdConfigRemovesPlaceholderProfilesWhenOff(t *testing.T) {
+func TestEnsureAutoMDMdConfigRemovesPlaceholderProfilesWhenOff(t *testing.T) {
 	ctx := t.Context()
 	mdmConfig := config.MDMConfig{AppleSCEPCert: "./testdata/server.pem", AppleSCEPKey: "./testdata/server.key"}
 	signingCert, _, _, err := mdmConfig.AppleSCEP()
@@ -587,54 +587,54 @@ func TestEnsureFleetdConfigRemovesPlaceholderProfilesWhenOff(t *testing.T) {
 	newDS := func(existingProfile string) (*mock.Store, *[]deletion) {
 		ds := new(mock.Store)
 		var deleted []deletion
-		ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-			ac := &fleet.AppConfig{}
-			ac.ServerSettings.ServerURL = "https://fleet.example.com"
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			ac := &automdm.AppConfig{}
+			ac.ServerSettings.ServerURL = "https://automdm.example.com"
 			return ac, nil
 		}
 		// team 1 has no shared secret and there is no global secret, so the
 		// aggregate has no "no team" entry at all.
-		ds.AggregateEnrollSecretPerTeamFunc = func(ctx context.Context) ([]*fleet.EnrollSecret, error) {
-			return []*fleet.EnrollSecret{{Secret: "", TeamID: new(uint(1))}}, nil
+		ds.AggregateEnrollSecretPerTeamFunc = func(ctx context.Context) ([]*automdm.EnrollSecret, error) {
+			return []*automdm.EnrollSecret{{Secret: "", TeamID: new(uint(1))}}, nil
 		}
-		ds.GetMDMAppleConfigProfileByTeamAndIdentifierFunc = func(ctx context.Context, teamID *uint, identifier string) (*fleet.MDMAppleConfigProfile, error) {
-			return &fleet.MDMAppleConfigProfile{TeamID: teamID, Identifier: identifier, Mobileconfig: []byte(existingProfile)}, nil
+		ds.GetMDMAppleConfigProfileByTeamAndIdentifierFunc = func(ctx context.Context, teamID *uint, identifier string) (*automdm.MDMAppleConfigProfile, error) {
+			return &automdm.MDMAppleConfigProfile{TeamID: teamID, Identifier: identifier, Mobileconfig: []byte(existingProfile)}, nil
 		}
 		ds.DeleteMDMAppleConfigProfileByTeamAndIdentifierFunc = func(ctx context.Context, teamID *uint, identifier string) error {
 			deleted = append(deleted, deletion{teamID, identifier})
 			return nil
 		}
-		ds.BulkUpsertMDMAppleConfigProfilesFunc = func(ctx context.Context, ps []*fleet.MDMAppleConfigProfile) error {
+		ds.BulkUpsertMDMAppleConfigProfilesFunc = func(ctx context.Context, ps []*automdm.MDMAppleConfigProfile) error {
 			require.Empty(t, ps)
 			return nil
 		}
 		return ds, &deleted
 	}
-	placeholderProfile := "<string>" + fleet.HostSecretPlaceholder(fleet.HostSecretEnrollSecret) + "</string>"
+	placeholderProfile := "<string>" + automdm.HostSecretPlaceholder(automdm.HostSecretEnrollSecret) + "</string>"
 
-	t.Run("placeholder fleetd profiles are removed for the team and for no team", func(t *testing.T) {
+	t.Run("placeholder automdmd profiles are removed for the team and for no team", func(t *testing.T) {
 		ds, deleted := newDS(placeholderProfile)
-		require.NoError(t, ensureFleetProfiles(ctx, ds, slog.New(slog.DiscardHandler), signingCert.Certificate[0], false))
-		// only the fleetd profile; the CA profile has nothing to do with enroll secrets
+		require.NoError(t, ensureAutoMDMProfiles(ctx, ds, slog.New(slog.DiscardHandler), signingCert.Certificate[0], false))
+		// only the automdmd profile; the CA profile has nothing to do with enroll secrets
 		require.ElementsMatch(t, []deletion{
-			{nil, mobileconfig.FleetdConfigPayloadIdentifier},
-			{new(uint(1)), mobileconfig.FleetdConfigPayloadIdentifier},
+			{nil, mobileconfig.AutoMDMdConfigPayloadIdentifier},
+			{new(uint(1)), mobileconfig.AutoMDMdConfigPayloadIdentifier},
 		}, *deleted)
 	})
 
 	t.Run("profiles built from a shared secret are left alone", func(t *testing.T) {
 		ds, deleted := newDS("<string>an-old-shared-secret</string>")
-		require.NoError(t, ensureFleetProfiles(ctx, ds, slog.New(slog.DiscardHandler), signingCert.Certificate[0], false))
+		require.NoError(t, ensureAutoMDMProfiles(ctx, ds, slog.New(slog.DiscardHandler), signingCert.Certificate[0], false))
 		require.Empty(t, *deleted)
 	})
 
 	t.Run("nothing is removed while the setting is on", func(t *testing.T) {
 		ds, deleted := newDS(placeholderProfile)
-		ds.BulkUpsertMDMAppleConfigProfilesFunc = func(ctx context.Context, ps []*fleet.MDMAppleConfigProfile) error {
+		ds.BulkUpsertMDMAppleConfigProfilesFunc = func(ctx context.Context, ps []*automdm.MDMAppleConfigProfile) error {
 			require.NotEmpty(t, ps)
 			return nil
 		}
-		require.NoError(t, ensureFleetProfiles(ctx, ds, slog.New(slog.DiscardHandler), signingCert.Certificate[0], true))
+		require.NoError(t, ensureAutoMDMProfiles(ctx, ds, slog.New(slog.DiscardHandler), signingCert.Certificate[0], true))
 		require.Empty(t, *deleted)
 		require.False(t, ds.GetMDMAppleConfigProfileByTeamAndIdentifierFuncInvoked)
 	})
@@ -647,19 +647,19 @@ func TestEnrollRejectSharedSecretForMDMHosts(t *testing.T) {
 	platforms := []struct {
 		name        string
 		setOneTime  func(*config.MDMConfig, bool)
-		setMDM      func(*fleet.AppConfig, bool)
+		setMDM      func(*automdm.AppConfig, bool)
 		rejectFlags func(on bool) rejectFlags
 	}{
 		{
 			name:        "Windows",
 			setOneTime:  func(c *config.MDMConfig, on bool) { c.WindowsOneTimeEnrollSecrets = on },
-			setMDM:      func(ac *fleet.AppConfig, on bool) { ac.MDM.WindowsEnabledAndConfigured = on },
+			setMDM:      func(ac *automdm.AppConfig, on bool) { ac.MDM.WindowsEnabledAndConfigured = on },
 			rejectFlags: func(on bool) rejectFlags { return rejectFlags{windows: on} },
 		},
 		{
 			name:        "Android",
 			setOneTime:  func(c *config.MDMConfig, on bool) { c.AndroidOneTimeEnrollSecrets = on },
-			setMDM:      func(ac *fleet.AppConfig, on bool) { ac.MDM.AndroidEnabledAndConfigured = on },
+			setMDM:      func(ac *automdm.AppConfig, on bool) { ac.MDM.AndroidEnabledAndConfigured = on },
 			rejectFlags: func(on bool) rejectFlags { return rejectFlags{android: on} },
 		},
 	}
@@ -680,21 +680,21 @@ func TestEnrollRejectSharedSecretForMDMHosts(t *testing.T) {
 				f := newOneTimeEnrollFixtureWithMDM(t, func(mdmConfig *config.MDMConfig) {
 					platform.setOneTime(mdmConfig, tc.oneTime)
 				})
-				f.ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-					ac := &fleet.AppConfig{}
+				f.ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+					ac := &automdm.AppConfig{}
 					ac.MDM.EnabledAndConfigured = true
 					platform.setMDM(ac, tc.mdmEnabled)
 					return ac, nil
 				}
-				var orbitCfg *fleet.DatastoreEnrollOrbitConfig
-				f.ds.EnrollOrbitFunc = func(ctx context.Context, opts ...fleet.DatastoreEnrollOrbitOption) (*fleet.Host, error) {
+				var orbitCfg *automdm.DatastoreEnrollOrbitConfig
+				f.ds.EnrollOrbitFunc = func(ctx context.Context, opts ...automdm.DatastoreEnrollOrbitOption) (*automdm.Host, error) {
 					orbitCfg = orbitEnrollConfig(opts)
-					return &fleet.Host{ID: 1, UUID: "other", Platform: "darwin"}, nil
+					return &automdm.Host{ID: 1, UUID: "other", Platform: "darwin"}, nil
 				}
-				var osqueryCfg *fleet.DatastoreEnrollOsqueryConfig
-				f.ds.EnrollOsqueryFunc = func(ctx context.Context, opts ...fleet.DatastoreEnrollOsqueryOption) (*fleet.Host, error) {
+				var osqueryCfg *automdm.DatastoreEnrollOsqueryConfig
+				f.ds.EnrollOsqueryFunc = func(ctx context.Context, opts ...automdm.DatastoreEnrollOsqueryOption) (*automdm.Host, error) {
 					osqueryCfg = osqueryEnrollConfig(opts)
-					return &fleet.Host{ID: 1, OsqueryHostID: new(osqueryCfg.OsqueryHostID), NodeKey: new(osqueryCfg.NodeKey)}, nil
+					return &automdm.Host{ID: 1, OsqueryHostID: new(osqueryCfg.OsqueryHostID), NodeKey: new(osqueryCfg.NodeKey)}, nil
 				}
 				want := platform.rejectFlags(tc.wantReject)
 
@@ -715,9 +715,9 @@ func TestEnrollRejectSharedSecretForMDMHosts(t *testing.T) {
 }
 
 func TestExpandWindowsHostSecrets(t *testing.T) {
-	placeholder := fleet.HostSecretPlaceholder(fleet.HostSecretEnrollSecret)
-	withPlaceholder := `<Data>FLEET_SECRET="` + placeholder + `"</Data>`
-	withCAChallenge := `<Data>` + fleet.HostSecretPlaceholder(fleet.HostSecretConditionalAccessSCEPChallenge) + `</Data>`
+	placeholder := automdm.HostSecretPlaceholder(automdm.HostSecretEnrollSecret)
+	withPlaceholder := `<Data>AUTOMDM_SECRET="` + placeholder + `"</Data>`
+	withCAChallenge := `<Data>` + automdm.HostSecretPlaceholder(automdm.HostSecretConditionalAccessSCEPChallenge) + `</Data>`
 	for _, tc := range []struct {
 		name    string
 		doc     string
@@ -727,9 +727,9 @@ func TestExpandWindowsHostSecrets(t *testing.T) {
 		wantErr string
 	}{
 		// The tokens never need escaping, but a value that did would not break the SyncML.
-		{name: "live secret is resolved, escaped", doc: withPlaceholder, live: "a&b", want: `<Data>FLEET_SECRET="a&amp;b"</Data>`},
-		// Nothing minted: the host gets an empty value, which fleetd reads as nothing waiting.
-		{name: "nothing minted resolves to empty", doc: withPlaceholder, want: `<Data>FLEET_SECRET=""</Data>`},
+		{name: "live secret is resolved, escaped", doc: withPlaceholder, live: "a&b", want: `<Data>AUTOMDM_SECRET="a&amp;b"</Data>`},
+		// Nothing minted: the host gets an empty value, which automdmd reads as nothing waiting.
+		{name: "nothing minted resolves to empty", doc: withPlaceholder, want: `<Data>AUTOMDM_SECRET=""</Data>`},
 		{name: "failed lookup is an error, not an empty secret", doc: withPlaceholder, liveErr: errors.New("db down"), wantErr: "db down"},
 		{name: "conditional access challenge is resolved", doc: withCAChallenge, live: "0a1b", want: `<Data>0a1b</Data>`},
 		{name: "conditional access challenge failure is an error", doc: withCAChallenge, liveErr: errors.New("db down"), wantErr: "db down"},

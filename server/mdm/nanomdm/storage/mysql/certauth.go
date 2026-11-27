@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
 )
 
 // Executes SQL statements that return a single COUNT(*) of rows.

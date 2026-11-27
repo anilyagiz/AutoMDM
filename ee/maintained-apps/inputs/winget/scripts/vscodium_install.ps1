@@ -2,7 +2,7 @@ $exeFilePath = "${env:INSTALLER_PATH}"
 
 try {
 
-# Setup can't replace VSCodium's files while they're in use. Fleet runs as
+# Setup can't replace VSCodium's files while they're in use. AutoMDM runs as
 # SYSTEM, outside the user's session, so it can't ask the app to close: stop it
 # first. Unsaved changes are lost.
 $running = Get-Process -ErrorAction SilentlyContinue |

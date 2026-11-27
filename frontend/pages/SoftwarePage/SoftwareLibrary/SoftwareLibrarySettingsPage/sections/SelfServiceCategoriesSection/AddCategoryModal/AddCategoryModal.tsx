@@ -10,13 +10,13 @@ import { MAX_ENTITY_CHAR_LENGTH } from "utilities/constants";
 const baseClass = "add-category-modal";
 
 interface IAddCategoryModalProps {
-  fleetId: number;
+  automdmId: number;
   onExit: () => void;
   onSuccess: () => void;
 }
 
 const AddCategoryModal = ({
-  fleetId,
+  automdmId,
   onExit,
   onSuccess,
 }: IAddCategoryModalProps) => {
@@ -39,14 +39,14 @@ const AddCategoryModal = ({
     setIsSubmitting(true);
     try {
       await selfServiceCategoriesAPI.addCategory({
-        fleet_id: fleetId,
+        team_id: automdmId,
         name: trimmedName,
       });
       onSuccess();
     } catch (e) {
       if (hasStatusKey(e) && e.status === 409) {
         setError(
-          "A self-service category with this name already exists in this fleet."
+          "A self-service category with this name already exists in this team."
         );
       } else {
         setError("Couldn't add self-service category.");

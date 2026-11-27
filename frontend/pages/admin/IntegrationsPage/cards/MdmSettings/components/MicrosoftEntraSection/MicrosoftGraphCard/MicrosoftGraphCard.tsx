@@ -59,7 +59,7 @@ const MicrosoftGraphCard = ({
         cta={<Button onClick={onViewDetails}>Connect</Button>}
       >
         Add a Microsoft Entra app registration to sync Windows Autopilot devices
-        to Fleet as pending hosts.
+        to AutoMDM as pending hosts.
       </SectionCard>
     );
   }
@@ -68,7 +68,7 @@ const MicrosoftGraphCard = ({
     return (
       <StoredCredentialCard iconName="error" editCredential={onViewDetails}>
         Microsoft Graph credential is invalid. Windows Autopilot devices
-        won&apos;t sync to Fleet as pending hosts.
+        won&apos;t sync to AutoMDM as pending hosts.
       </StoredCredentialCard>
     );
   }

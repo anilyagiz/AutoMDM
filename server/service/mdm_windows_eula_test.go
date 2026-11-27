@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
+	"github.com/anilyagiz/automdm/v4/server/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -25,20 +25,20 @@ func TestCustomWindowsTOSContent(t *testing.T) {
 
 	ds := new(mock.Store)
 	svc := &Service{ds: ds, logger: slog.New(slog.DiscardHandler)}
-	ctx := license.NewContext(t.Context(), &fleet.LicenseInfo{Tier: fleet.TierPremium})
+	ctx := license.NewContext(t.Context(), &automdm.LicenseInfo{Tier: automdm.TierPremium})
 
 	var metaErr error
 	uploadID, doc := "upload-1", "# Terms\n"
-	ds.MDMGetEULAMetadataFunc = func(ctx context.Context, platform fleet.MDMEULAPlatform) (*fleet.MDMEULA, error) {
+	ds.MDMGetEULAMetadataFunc = func(ctx context.Context, platform automdm.MDMEULAPlatform) (*automdm.MDMEULA, error) {
 		if metaErr != nil {
 			return nil, metaErr
 		}
-		return &fleet.MDMEULA{Token: uploadID, Platform: platform}, nil
+		return &automdm.MDMEULA{Token: uploadID, Platform: platform}, nil
 	}
 	var loads atomic.Int32
 	var loadErr error
 	release := make(chan struct{})
-	ds.MDMGetEULABytesFunc = func(ctx context.Context, platform fleet.MDMEULAPlatform, token string) (*fleet.MDMEULA, error) {
+	ds.MDMGetEULABytesFunc = func(ctx context.Context, platform automdm.MDMEULAPlatform, token string) (*automdm.MDMEULA, error) {
 		loads.Add(1)
 		if _, ok := ctx.Deadline(); !ok {
 			return nil, errors.New("the shared load must be bounded")
@@ -50,7 +50,7 @@ func TestCustomWindowsTOSContent(t *testing.T) {
 		if token != uploadID {
 			return nil, newNotFoundError()
 		}
-		return &fleet.MDMEULA{Platform: platform, Bytes: []byte(doc)}, nil
+		return &automdm.MDMEULA{Platform: platform, Bytes: []byte(doc)}, nil
 	}
 
 	// Concurrent misses share one load and render. Without a shared render, the waiting requests would each start a
@@ -94,9 +94,9 @@ func TestCustomWindowsTOSContent(t *testing.T) {
 	require.Empty(t, svc.customWindowsTOSContent(ctx))
 	metaErr = nil
 
-	// Fleet Free shows the default terms, and the downgrade clears the cache.
+	// AutoMDM Free shows the default terms, and the downgrade clears the cache.
 	require.NotEmpty(t, svc.customWindowsTOSContent(ctx))
-	freeCtx := license.NewContext(t.Context(), &fleet.LicenseInfo{Tier: fleet.TierFree})
+	freeCtx := license.NewContext(t.Context(), &automdm.LicenseInfo{Tier: automdm.TierFree})
 	require.Empty(t, svc.customWindowsTOSContent(freeCtx))
 	metaErr = errors.New("connection refused")
 	require.Empty(t, svc.customWindowsTOSContent(ctx))

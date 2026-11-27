@@ -8,9 +8,9 @@ import (
 	"os"
 	"testing"
 
-	activity_api "github.com/fleetdm/fleet/v4/server/activity/api"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
+	activity_api "github.com/anilyagiz/automdm/v4/server/activity/api"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -33,12 +33,12 @@ func TestRecordConditionalAccessFailureActivity(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	type recorded struct {
-		acts []fleet.ActivityTypeFailedAutomationConditionalAccess
+		acts []automdm.ActivityTypeFailedAutomationConditionalAccess
 	}
 	newRecorder := func(r *recorded) activity_api.NewActivityService {
-		return &mock.MockActivityService{NewActivityFunc: func(_ context.Context, user *activity_api.User, activity fleet.ActivityDetails) error {
+		return &mock.MockActivityService{NewActivityFunc: func(_ context.Context, user *activity_api.User, activity automdm.ActivityDetails) error {
 			require.Nil(t, user)
-			act, ok := activity.(fleet.ActivityTypeFailedAutomationConditionalAccess)
+			act, ok := activity.(automdm.ActivityTypeFailedAutomationConditionalAccess)
 			require.True(t, ok)
 			r.acts = append(r.acts, act)
 			return nil
@@ -88,12 +88,12 @@ func TestRecordSingleSignOnBlockedActivity(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	type recorded struct {
-		acts []fleet.ActivityTypeRanAutomationConditionalAccess
+		acts []automdm.ActivityTypeRanAutomationConditionalAccess
 	}
 	newRecorder := func(r *recorded) activity_api.NewActivityService {
-		return &mock.MockActivityService{NewActivityFunc: func(_ context.Context, user *activity_api.User, activity fleet.ActivityDetails) error {
+		return &mock.MockActivityService{NewActivityFunc: func(_ context.Context, user *activity_api.User, activity automdm.ActivityDetails) error {
 			require.Nil(t, user)
-			act, ok := activity.(fleet.ActivityTypeRanAutomationConditionalAccess)
+			act, ok := activity.(automdm.ActivityTypeRanAutomationConditionalAccess)
 			require.True(t, ok)
 			r.acts = append(r.acts, act)
 			return nil

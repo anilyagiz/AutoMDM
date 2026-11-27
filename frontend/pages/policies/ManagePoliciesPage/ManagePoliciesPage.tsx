@@ -15,7 +15,7 @@ import { SingleValue } from "react-select-5";
 import AutomationsButton from "components/buttons/AutomationsButton";
 import Button from "components/buttons/Button";
 import TableDataError from "components/DataError";
-import FleetsDropdown from "components/FleetsDropdown";
+import AutoMDMsDropdown from "components/AutoMDMsDropdown";
 import DropdownWrapper from "components/forms/fields/DropdownWrapper";
 import { CustomOptionType } from "components/forms/fields/DropdownWrapper/DropdownWrapper";
 import LastUpdatedText from "components/LastUpdatedText";
@@ -70,7 +70,7 @@ interface IManagePoliciesPageProps {
     key: string;
     pathname: string;
     query: {
-      fleet_id?: string;
+      team_id?: string;
       query?: string;
       order_key?: string;
       order_direction?: "asc" | "desc";
@@ -105,13 +105,13 @@ const getValidAutomationTypesForTeam = (
   teamIdForApi: number | undefined
 ): PoliciesAutomationFilter[] => {
   if (teamIdForApi === undefined) {
-    // All fleets → global policies only support webhook/ticket automations.
+    // All teams → global policies only support webhook/ticket automations.
     return GLOBAL_AUTOMATION_TYPES;
   }
   if (teamIdForApi === API_NO_TEAM_ID) {
     // Unassigned supports every automation type EXCEPT calendar events,
-    // which PolicyAutomationsFields hardcodes as fleet-only (never available
-    // for "All fleets" or "Unassigned").
+    // which PolicyAutomationsFields hardcodes as automdm-only (never available
+    // for "All teams" or "Unassigned").
     return AUTOMATION_TYPES.filter((type) => type !== "calendar");
   }
   return AUTOMATION_TYPES;
@@ -343,7 +343,7 @@ const ManagePolicyPage = ({
         orderDirection: sortDirection,
         orderKey: sortHeader,
         // teamIdForApi will never actually be undefined here
-        fleetId: teamIdForApi || 0,
+        automdmId: teamIdForApi || 0,
         // no teams does inherit
         mergeInherited: true,
         ...filterParams,
@@ -367,7 +367,7 @@ const ManagePolicyPage = ({
       {
         scope: "policiesCount",
         query: searchQuery,
-        fleetId: teamIdForApi || 0, // TODO: Fix number/undefined type
+        automdmId: teamIdForApi || 0, // TODO: Fix number/undefined type
         mergeInherited: true,
         ...filterParams,
         platform: targetedPlatformParam,
@@ -383,7 +383,7 @@ const ManagePolicyPage = ({
     }
   );
 
-  // The fleet's own policies, without the inherited ones, which decide
+  // The team's own policies, without the inherited ones, which decide
   // whether there's anything to automate or delete here.
   const {
     data: teamOwnPoliciesCountData,
@@ -395,7 +395,7 @@ const ManagePolicyPage = ({
       {
         scope: "policiesCount",
         query: searchQuery,
-        fleetId: teamIdForApi || 0,
+        automdmId: teamIdForApi || 0,
         ...filterParams,
         platform: targetedPlatformParam,
       },
@@ -410,8 +410,8 @@ const ManagePolicyPage = ({
     }
   );
 
-  // keepPreviousData can still hold another fleet's count; don't use it as
-  // this fleet's.
+  // keepPreviousData can still hold another team's count; don't use it as
+  // this team's.
   const teamOwnPoliciesCount = isPreviousTeamOwnPoliciesCount
     ? undefined
     : teamOwnPoliciesCountData;
@@ -448,7 +448,7 @@ const ManagePolicyPage = ({
     staleTime: 5000,
     refetchOnWindowFocus: false,
   });
-  const teamConfig = teamData?.fleet;
+  const teamConfig = teamData?.team;
 
   const automationsConfig = isAllTeamsSelected ? globalConfig : teamConfig;
 
@@ -465,7 +465,7 @@ const ManagePolicyPage = ({
 
   const queryClient = useQueryClient();
 
-  // Fleet and Unassigned lists include inherited policies, so any scope's
+  // AutoMDM and Unassigned lists include inherited policies, so any scope's
   // cached list or count can hold a deleted policy. Cached scopes not on
   // screen are dropped, since a stale cache would still show the row while it
   // refetches.
@@ -476,8 +476,8 @@ const ManagePolicyPage = ({
     });
   }, [queryClient]);
 
-  // Browser Back changes the fleet without onTeamChange; a delete
-  // confirmation must not carry another fleet's selection.
+  // Browser Back changes the team without onTeamChange; a delete
+  // confirmation must not carry another team's selection.
   useEffect(() => {
     setShowDeletePoliciesModal(false);
     setSelectedPolicyIds([]);
@@ -525,7 +525,7 @@ const ManagePolicyPage = ({
       }
 
       if (isRouteOk && teamIdForApi !== undefined) {
-        newQueryParams.fleet_id = teamIdForApi;
+        newQueryParams.team_id = teamIdForApi;
       }
 
       const locationPath = getNextLocationPath({
@@ -580,7 +580,7 @@ const ManagePolicyPage = ({
     router.push(
       currentTeamId === API_ALL_TEAMS_ID
         ? PATHS.NEW_POLICY
-        : `${PATHS.NEW_POLICY}?fleet_id=${currentTeamId}`
+        : `${PATHS.NEW_POLICY}?team_id=${currentTeamId}`
     );
   };
 
@@ -593,7 +593,7 @@ const ManagePolicyPage = ({
     setIsUpdatingPolicies(true);
     try {
       // One request deletes policies from any scope, including the inherited
-      // policies Primo mode lists in a fleet view.
+      // policies Primo mode lists in a team view.
       await policiesAPI.destroy(selectedPolicyIds);
       notify.success("Successfully deleted policies.");
     } catch (e) {
@@ -643,12 +643,12 @@ const ManagePolicyPage = ({
   // Show CTA buttons if there are no errors
   const showCtaButtons = !policiesErrors;
 
-  // A listed row of this fleet's own also counts, so a failed count request
-  // doesn't hide the fleet's policies from automations and delete.
+  // A listed row of this team's own also counts, so a failed count request
+  // doesn't hide the team's policies from automations and delete.
   const hasPoliciesToAutomate = isAllTeamsSelected
     ? (globalPoliciesCount ?? 0) > 0
     : (teamOwnPoliciesCount ?? 0) > 0 ||
-      !!teamPolicies?.some((policy) => policy.fleet_id === teamIdForApi);
+      !!teamPolicies?.some((policy) => policy.team_id === teamIdForApi);
   const hasPoliciesToDelete =
     hasPoliciesToAutomate || (isPrimoMode && (teamPolicies?.length ?? 0) > 0); // in Primo mode, allow deleting inherited policies, which will be included in teamPolicies, from this view
 
@@ -692,7 +692,7 @@ const ManagePolicyPage = ({
     return state === "disabled" ? undefined : state;
   };
   const otherAutomationType = toOtherAutomationType(automationsConfig);
-  // Inherited policies use the "All fleets" webhook or ticket destination.
+  // Inherited policies use the "All teams" webhook or ticket destination.
   const inheritedOtherAutomationType = toOtherAutomationType(globalConfig);
 
   const renderPoliciesCountAndLastUpdated = (
@@ -740,7 +740,7 @@ const ManagePolicyPage = ({
     {
       label: "All automations",
       value: "all",
-      helpText: "All policies added to Fleet.",
+      helpText: "All policies added to AutoMDM.",
     },
     {
       label: "Software",
@@ -750,7 +750,7 @@ const ManagePolicyPage = ({
     {
       label: "Patch",
       value: "patch",
-      helpText: "Patch policies for Fleet-maintained apps.",
+      helpText: "Patch policies for AutoMDM-maintained apps.",
     },
     {
       label: "Scripts",
@@ -938,9 +938,9 @@ const ManagePolicyPage = ({
         currentTeamId !== APP_CONTEXT_ALL_TEAMS_ID &&
         !globalConfigFromContext?.partnerships?.enable_primo ? (
           <div className={`${baseClass}__header__tooltip`}>
-            To manage automations add a policy to this fleet.
+            To manage automations add a policy to this team.
             <br />
-            For inherited policies select &ldquo;All fleets&rdquo;.
+            For inherited policies select &ldquo;All teams&rdquo;.
           </div>
         ) : (
           <div className={`${baseClass}__header__tooltip`}>
@@ -969,9 +969,9 @@ const ManagePolicyPage = ({
     if (isPremiumTier && !isPrimoMode) {
       if ((userTeams && userTeams.length > 1) || isOnGlobalTeam) {
         return (
-          <FleetsDropdown
-            currentUserFleets={userTeams || []}
-            selectedFleetId={currentTeamId}
+          <AutoMDMsDropdown
+            currentUserTeams={userTeams || []}
+            selectedAutoMDMId={currentTeamId}
             onChange={onTeamChange}
             includeUnassigned
           />
@@ -1036,20 +1036,20 @@ const ManagePolicyPage = ({
         )}
         {selectedPolicyForAutomations &&
           (() => {
-            // An inherited policy (fleet_id === null) is global even when viewed
-            // from within a fleet's list — its automations live on the global
+            // An inherited policy (team_id === null) is global even when viewed
+            // from within a team's list — its automations live on the global
             // config, so route the modal there.
             const isInheritedGlobal =
-              selectedPolicyForAutomations.fleet_id === null;
+              selectedPolicyForAutomations.team_id === null;
             const modalAutomationsConfig = isInheritedGlobal
               ? globalConfig
               : automationsConfig;
             return (
               <ManageAutomationsModal
                 policy={selectedPolicyForAutomations}
-                fleetName={
+                automdmName={
                   isInheritedGlobal
-                    ? "All fleets"
+                    ? "All teams"
                     : currentTeamSummary?.name ?? ""
                 }
                 isGlobalPolicy={isInheritedGlobal}

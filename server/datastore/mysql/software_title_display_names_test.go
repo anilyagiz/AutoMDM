@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
 )
@@ -75,9 +75,9 @@ func testGetSoftwareTitleDisplayName_PerTeamIsolation(t *testing.T, ds *Datastor
 	ctx := context.Background()
 	titleID := insertSoftwareTitleForTest(t, ds, "Firefox")
 
-	teamA, err := ds.NewTeam(ctx, &fleet.Team{Name: "team-a"})
+	teamA, err := ds.NewTeam(ctx, &automdm.Team{Name: "team-a"})
 	require.NoError(t, err)
-	teamB, err := ds.NewTeam(ctx, &fleet.Team{Name: "team-b"})
+	teamB, err := ds.NewTeam(ctx, &automdm.Team{Name: "team-b"})
 	require.NoError(t, err)
 
 	ExecAdhocSQL(t, ds, func(q sqlx.ExtContext) error {

@@ -50,6 +50,6 @@ Check out the [frontend test directory](../test/README.md) for information about
 
 Follow [this guide](../../docs/Contributing/getting-started/testing-and-local-development.md) to run tests locally.
 
-Visit the frontend [overview of Fleet UI testing](../docs/Contributing/guides/ui/fleet-ui-testing.md) for more information on our testing strategy, philosophies, and tools.
+Visit the frontend [overview of AutoMDM UI testing](../docs/Contributing/guides/ui/automdm-ui-testing.md) for more information on our testing strategy, philosophies, and tools.
 
 

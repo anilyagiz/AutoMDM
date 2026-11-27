@@ -7,25 +7,25 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	authzctx "github.com/fleetdm/fleet/v4/server/contexts/authz"
-	"github.com/fleetdm/fleet/v4/server/contexts/logging"
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	eu "github.com/fleetdm/fleet/v4/server/platform/endpointer"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	authzctx "github.com/anilyagiz/automdm/v4/server/contexts/authz"
+	"github.com/anilyagiz/automdm/v4/server/contexts/logging"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	eu "github.com/anilyagiz/automdm/v4/server/platform/endpointer"
 	kithttp "github.com/go-kit/kit/transport/http"
 	"github.com/stretchr/testify/require"
 )
 
 // muxVersionSegment is the version segment of the route template the router puts
 // in context.
-const muxVersionSegment = "/api/{fleetversion:(?:v1|2022-04|latest)}/"
+const muxVersionSegment = "/api/{automdmversion:(?:v1|2022-04|latest)}/"
 
 // testCatalogEndpoints is the minimal set of endpoints used across tests.
-var testCatalogEndpoints = []fleet.APIEndpoint{
-	fleet.NewAPIEndpointFromTpl("GET", "/api/v1/fleet/hosts"),
-	fleet.NewAPIEndpointFromTpl("GET", "/api/v1/fleet/hosts/:id"),
-	fleet.NewAPIEndpointFromTpl("POST", "/api/v1/fleet/scripts/run"),
-	fleet.NewAPIEndpointFromTpl("GET", "/api/v1/fleet/charts/:metric"),
+var testCatalogEndpoints = []automdm.APIEndpoint{
+	automdm.NewAPIEndpointFromTpl("GET", "/api/v1/automdm/hosts"),
+	automdm.NewAPIEndpointFromTpl("GET", "/api/v1/automdm/hosts/:id"),
+	automdm.NewAPIEndpointFromTpl("POST", "/api/v1/automdm/scripts/run"),
+	automdm.NewAPIEndpointFromTpl("GET", "/api/v1/automdm/charts/:metric"),
 }
 
 // testIsInCatalog builds a fingerprint set from testCatalogEndpoints and
@@ -54,7 +54,7 @@ func muxTemplate(pathSuffix string) string {
 func requireEndpointRestrictionDenied(t *testing.T, err error) {
 	t.Helper()
 	require.Error(t, err)
-	var umErr *fleet.UserMessageError
+	var umErr *automdm.UserMessageError
 	require.ErrorAs(t, err, &umErr)
 	require.Equal(t, http.StatusForbidden, umErr.StatusCode())
 	require.Equal(t, EndpointRestrictionDeniedMessage, umErr.UserMessage())
@@ -83,8 +83,8 @@ func TestAPIOnlyEndpointCheck(t *testing.T) {
 
 	t.Run("non-api-only user always passes through", func(t *testing.T) {
 		next, called := newNext()
-		ctx := ctxWithMethod("GET", muxTemplate("fleet/hosts"))
-		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{APIOnly: false}})
+		ctx := ctxWithMethod("GET", muxTemplate("automdm/hosts"))
+		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{APIOnly: false}})
 
 		_, err := newEndpoint(next)(ctx, nil)
 		require.NoError(t, err)
@@ -93,7 +93,7 @@ func TestAPIOnlyEndpointCheck(t *testing.T) {
 
 	t.Run("no viewer in context passes through", func(t *testing.T) {
 		next, called := newNext()
-		ctx := ctxWithMethod("GET", muxTemplate("fleet/hosts"))
+		ctx := ctxWithMethod("GET", muxTemplate("automdm/hosts"))
 		// no viewer set
 
 		_, err := newEndpoint(next)(ctx, nil)
@@ -103,8 +103,8 @@ func TestAPIOnlyEndpointCheck(t *testing.T) {
 
 	t.Run("api-only user, endpoint in catalog, no restrictions", func(t *testing.T) {
 		next, called := newNext()
-		ctx := ctxWithMethod("GET", muxTemplate("fleet/hosts"))
-		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{
+		ctx := ctxWithMethod("GET", muxTemplate("automdm/hosts"))
+		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{
 			APIOnly:      true,
 			APIEndpoints: nil,
 		}})
@@ -116,10 +116,10 @@ func TestAPIOnlyEndpointCheck(t *testing.T) {
 
 	t.Run("api-only user, empty APIEndpoints slice treated same as nil (no restrictions)", func(t *testing.T) {
 		next, called := newNext()
-		ctx := ctxWithMethod("GET", muxTemplate("fleet/hosts"))
-		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{
+		ctx := ctxWithMethod("GET", muxTemplate("automdm/hosts"))
+		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{
 			APIOnly:      true,
-			APIEndpoints: []fleet.APIEndpointRef{}, // empty, not nil
+			APIEndpoints: []automdm.APIEndpointRef{}, // empty, not nil
 		}})
 
 		_, err := newEndpoint(next)(ctx, nil)
@@ -129,8 +129,8 @@ func TestAPIOnlyEndpointCheck(t *testing.T) {
 
 	t.Run("api-only user, endpoint with placeholder in catalog, no restrictions", func(t *testing.T) {
 		next, called := newNext()
-		ctx := ctxWithMethod("GET", muxTemplate("fleet/hosts/{id:[0-9]+}"))
-		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{
+		ctx := ctxWithMethod("GET", muxTemplate("automdm/hosts/{id:[0-9]+}"))
+		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{
 			APIOnly:      true,
 			APIEndpoints: nil,
 		}})
@@ -142,10 +142,10 @@ func TestAPIOnlyEndpointCheck(t *testing.T) {
 
 	t.Run("api-only user with restrictions, HEAD uses the GET grant", func(t *testing.T) {
 		next, called := newNext()
-		ctx := ctxWithMethod("HEAD", muxTemplate("fleet/hosts"))
-		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{
+		ctx := ctxWithMethod("HEAD", muxTemplate("automdm/hosts"))
+		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{
 			APIOnly:      true,
-			APIEndpoints: []fleet.APIEndpointRef{{Method: "GET", Path: "/api/v1/fleet/hosts"}},
+			APIEndpoints: []automdm.APIEndpointRef{{Method: "GET", Path: "/api/v1/automdm/hosts"}},
 		}})
 
 		_, err := newEndpoint(next)(ctx, nil)
@@ -155,12 +155,12 @@ func TestAPIOnlyEndpointCheck(t *testing.T) {
 
 	t.Run("api-only user with restrictions, endpoint not in catalog", func(t *testing.T) {
 		next, called := newNext()
-		ctx := ctxWithMethod("GET", muxTemplate("fleet/secret_admin_endpoint"))
-		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{
+		ctx := ctxWithMethod("GET", muxTemplate("automdm/secret_admin_endpoint"))
+		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{
 			APIOnly: true,
 			// Non-empty restrictions force the middleware to run; the route
 			// is not in the catalog, so the catalog check rejects it.
-			APIEndpoints: []fleet.APIEndpointRef{{Method: "GET", Path: "/api/v1/fleet/hosts"}},
+			APIEndpoints: []automdm.APIEndpointRef{{Method: "GET", Path: "/api/v1/automdm/hosts"}},
 		}})
 
 		_, err := newEndpoint(next)(ctx, nil)
@@ -174,9 +174,9 @@ func TestAPIOnlyEndpointCheck(t *testing.T) {
 		// routeTemplateKey deliberately not set, as when a request reaches the endpoint without going through the router.
 		ctx := context.Background()
 		ctx = context.WithValue(ctx, kithttp.ContextKeyRequestMethod, "GET")
-		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{
+		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{
 			APIOnly:      true,
-			APIEndpoints: []fleet.APIEndpointRef{{Method: "GET", Path: "/api/v1/fleet/hosts"}},
+			APIEndpoints: []automdm.APIEndpointRef{{Method: "GET", Path: "/api/v1/automdm/hosts"}},
 		}})
 
 		_, err := newEndpoint(next)(ctx, nil)
@@ -189,9 +189,9 @@ func TestAPIOnlyEndpointCheck(t *testing.T) {
 		next, called := newNext()
 		// Neither method nor template set — empty fingerprint never matches catalog.
 		ctx := context.Background()
-		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{
+		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{
 			APIOnly:      true,
-			APIEndpoints: []fleet.APIEndpointRef{{Method: "GET", Path: "/api/v1/fleet/hosts"}},
+			APIEndpoints: []automdm.APIEndpointRef{{Method: "GET", Path: "/api/v1/automdm/hosts"}},
 		}})
 
 		_, err := newEndpoint(next)(ctx, nil)
@@ -204,10 +204,10 @@ func TestAPIOnlyEndpointCheck(t *testing.T) {
 		// Lower-case method must normalize to the same fingerprint as upper-case
 		// when matching against the catalog and the user's allow-list.
 		next, called := newNext()
-		ctx := ctxWithMethod("get", muxTemplate("fleet/hosts")) // lower-case
-		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{
+		ctx := ctxWithMethod("get", muxTemplate("automdm/hosts")) // lower-case
+		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{
 			APIOnly:      true,
-			APIEndpoints: []fleet.APIEndpointRef{{Method: "GET", Path: "/api/v1/fleet/hosts"}},
+			APIEndpoints: []automdm.APIEndpointRef{{Method: "GET", Path: "/api/v1/automdm/hosts"}},
 		}})
 
 		_, err := newEndpoint(next)(ctx, nil)
@@ -222,10 +222,10 @@ func TestAPIOnlyEndpointCheck(t *testing.T) {
 		ac := &authzctx.AuthorizationContext{}
 		ctx := authzctx.NewContext(context.Background(), ac)
 		ctx = context.WithValue(ctx, kithttp.ContextKeyRequestMethod, "GET")
-		ctx = eu.WithRouteTemplate(ctx, muxTemplate("fleet/secret_admin_endpoint"))
-		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{
+		ctx = eu.WithRouteTemplate(ctx, muxTemplate("automdm/secret_admin_endpoint"))
+		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{
 			APIOnly:      true,
-			APIEndpoints: []fleet.APIEndpointRef{{Method: "GET", Path: "/api/v1/fleet/hosts"}},
+			APIEndpoints: []automdm.APIEndpointRef{{Method: "GET", Path: "/api/v1/automdm/hosts"}},
 		}})
 
 		_, err := newEndpoint(next)(ctx, nil)
@@ -236,11 +236,11 @@ func TestAPIOnlyEndpointCheck(t *testing.T) {
 
 	t.Run("api-only user with restrictions, accessing allowed endpoint", func(t *testing.T) {
 		next, called := newNext()
-		ctx := ctxWithMethod("GET", muxTemplate("fleet/hosts"))
-		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{
+		ctx := ctxWithMethod("GET", muxTemplate("automdm/hosts"))
+		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{
 			APIOnly: true,
-			APIEndpoints: []fleet.APIEndpointRef{
-				{Method: "GET", Path: "/api/v1/fleet/hosts"},
+			APIEndpoints: []automdm.APIEndpointRef{
+				{Method: "GET", Path: "/api/v1/automdm/hosts"},
 			},
 		}})
 
@@ -251,12 +251,12 @@ func TestAPIOnlyEndpointCheck(t *testing.T) {
 
 	t.Run("api-only user with restrictions, accessing allowed placeholder endpoint", func(t *testing.T) {
 		next, called := newNext()
-		ctx := ctxWithMethod("GET", muxTemplate("fleet/hosts/{id:[0-9]+}"))
-		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{
+		ctx := ctxWithMethod("GET", muxTemplate("automdm/hosts/{id:[0-9]+}"))
+		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{
 			APIOnly: true,
 			// Stored path uses colon-prefix style as in the YAML catalog.
-			APIEndpoints: []fleet.APIEndpointRef{
-				{Method: "GET", Path: "/api/v1/fleet/hosts/:id"},
+			APIEndpoints: []automdm.APIEndpointRef{
+				{Method: "GET", Path: "/api/v1/automdm/hosts/:id"},
 			},
 		}})
 
@@ -267,11 +267,11 @@ func TestAPIOnlyEndpointCheck(t *testing.T) {
 
 	t.Run("api-only user with restrictions, accessing disallowed endpoint", func(t *testing.T) {
 		next, called := newNext()
-		ctx := ctxWithMethod("POST", muxTemplate("fleet/scripts/run"))
-		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{
+		ctx := ctxWithMethod("POST", muxTemplate("automdm/scripts/run"))
+		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{
 			APIOnly: true,
-			APIEndpoints: []fleet.APIEndpointRef{
-				{Method: "GET", Path: "/api/v1/fleet/hosts"},
+			APIEndpoints: []automdm.APIEndpointRef{
+				{Method: "GET", Path: "/api/v1/automdm/hosts"},
 			},
 		}})
 
@@ -286,11 +286,11 @@ func TestAPIOnlyEndpointCheck(t *testing.T) {
 		// The catalog check runs before the allow-list check; an explicit allow entry
 		// must not grant access to an endpoint that is not in the catalog.
 		next, called := newNext()
-		ctx := ctxWithMethod("GET", muxTemplate("fleet/secret_admin_endpoint"))
-		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{
+		ctx := ctxWithMethod("GET", muxTemplate("automdm/secret_admin_endpoint"))
+		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{
 			APIOnly: true,
-			APIEndpoints: []fleet.APIEndpointRef{
-				{Method: "GET", Path: "/api/v1/fleet/secret_admin_endpoint"},
+			APIEndpoints: []automdm.APIEndpointRef{
+				{Method: "GET", Path: "/api/v1/automdm/secret_admin_endpoint"},
 			},
 		}})
 
@@ -301,13 +301,13 @@ func TestAPIOnlyEndpointCheck(t *testing.T) {
 	})
 
 	t.Run("api-only user, wrong method for catalog endpoint is rejected at catalog step", func(t *testing.T) {
-		// POST /fleet/hosts is not in the catalog (only GET is), so the catalog check rejects it.
+		// POST /automdm/hosts is not in the catalog (only GET is), so the catalog check rejects it.
 		next, called := newNext()
-		ctx := ctxWithMethod("POST", muxTemplate("fleet/hosts"))
-		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{
+		ctx := ctxWithMethod("POST", muxTemplate("automdm/hosts"))
+		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{
 			APIOnly: true,
-			APIEndpoints: []fleet.APIEndpointRef{
-				{Method: "GET", Path: "/api/v1/fleet/hosts"},
+			APIEndpoints: []automdm.APIEndpointRef{
+				{Method: "GET", Path: "/api/v1/automdm/hosts"},
 			},
 		}})
 
@@ -322,11 +322,11 @@ func TestAPIOnlyEndpointCheck(t *testing.T) {
 		// catalog check passes. The user's allow-list does not include charts,
 		// so the allow-list check rejects the request.
 		next, called := newNext()
-		ctx := ctxWithMethod("GET", muxTemplate("fleet/charts/{metric}"))
-		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{
+		ctx := ctxWithMethod("GET", muxTemplate("automdm/charts/{metric}"))
+		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{
 			APIOnly: true,
-			APIEndpoints: []fleet.APIEndpointRef{
-				{Method: "GET", Path: "/api/v1/fleet/hosts"},
+			APIEndpoints: []automdm.APIEndpointRef{
+				{Method: "GET", Path: "/api/v1/automdm/hosts"},
 			},
 		}})
 
@@ -346,19 +346,19 @@ func TestAPIOnlyEndpointCheck(t *testing.T) {
 			{
 				name:       "endpoint not in catalog",
 				method:     "POST",
-				routeTpl:   muxTemplate("fleet/secret_admin_endpoint"),
+				routeTpl:   muxTemplate("automdm/secret_admin_endpoint"),
 				wantReason: "endpoint not in API endpoint catalog",
 			},
 			{
 				name:       "endpoint not in allow-list",
 				method:     "POST",
-				routeTpl:   muxTemplate("fleet/scripts/run"),
+				routeTpl:   muxTemplate("automdm/scripts/run"),
 				wantReason: "endpoint not in user's allowed API endpoints",
 			},
 			{
 				name:       "request method missing from context",
 				method:     "",
-				routeTpl:   muxTemplate("fleet/scripts/run"),
+				routeTpl:   muxTemplate("automdm/scripts/run"),
 				wantReason: "request method missing from request context",
 			},
 			{
@@ -379,9 +379,9 @@ func TestAPIOnlyEndpointCheck(t *testing.T) {
 				if c.routeTpl != "" {
 					ctx = eu.WithRouteTemplate(ctx, c.routeTpl)
 				}
-				ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{
+				ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{
 					APIOnly:      true,
-					APIEndpoints: []fleet.APIEndpointRef{{Method: "GET", Path: "/api/v1/fleet/hosts"}},
+					APIEndpoints: []automdm.APIEndpointRef{{Method: "GET", Path: "/api/v1/automdm/hosts"}},
 				}})
 
 				_, err := newEndpoint(next)(ctx, nil)
@@ -401,12 +401,12 @@ func TestAPIOnlyEndpointCheck(t *testing.T) {
 
 	t.Run("api-only user with multiple allowed endpoints, accessing one of them", func(t *testing.T) {
 		next, called := newNext()
-		ctx := ctxWithMethod("POST", muxTemplate("fleet/scripts/run"))
-		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{
+		ctx := ctxWithMethod("POST", muxTemplate("automdm/scripts/run"))
+		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{
 			APIOnly: true,
-			APIEndpoints: []fleet.APIEndpointRef{
-				{Method: "GET", Path: "/api/v1/fleet/hosts"},
-				{Method: "POST", Path: "/api/v1/fleet/scripts/run"},
+			APIEndpoints: []automdm.APIEndpointRef{
+				{Method: "GET", Path: "/api/v1/automdm/hosts"},
+				{Method: "POST", Path: "/api/v1/automdm/scripts/run"},
 			},
 		}})
 
@@ -417,7 +417,7 @@ func TestAPIOnlyEndpointCheck(t *testing.T) {
 }
 
 func TestEndpointRestrictionDeniedEncoding(t *testing.T) {
-	err := endpointRestrictionDenied(t.Context(), muxTemplate("fleet/hosts"), "endpoint not in user's allowed API endpoints")
+	err := endpointRestrictionDenied(t.Context(), muxTemplate("automdm/hosts"), "endpoint not in user's allowed API endpoints")
 
 	rec := httptest.NewRecorder()
 	eu.EncodeError(t.Context(), err, rec, nil)

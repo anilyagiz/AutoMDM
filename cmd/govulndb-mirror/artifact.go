@@ -8,10 +8,10 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/govulndb"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/govulndb"
 )
 
-// dateLayout is the snapshot date in the artifact's name. Fleet takes the lexically last asset
+// dateLayout is the snapshot date in the artifact's name. AutoMDM takes the lexically last asset
 // matching govulndb.FilePrefix and govulndb.FileExt on the latest release, so it has to stay
 // sortable.
 const dateLayout = "2006-01-02"

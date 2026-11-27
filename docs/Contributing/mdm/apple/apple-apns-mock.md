@@ -1,13 +1,13 @@
 # Mock APNs push server
 
-Fleet disables MDM push notifications during load tests today, so every simulated host checks in on a timer. That hides how Fleet behaves with realistic push-driven check-ins. `cmd/apple-apns-mock` is a stand-in for Apple's push notification service (APNs) that closes this gap: Fleet pushes to it exactly as it pushes to `api.push.apple.com`, and simulated devices receive wake-ups instead of polling.
+AutoMDM disables MDM push notifications during load tests today, so every simulated host checks in on a timer. That hides how AutoMDM behaves with realistic push-driven check-ins. `cmd/apple-apns-mock` is a stand-in for Apple's push notification service (APNs) that closes this gap: AutoMDM pushes to it exactly as it pushes to `api.push.apple.com`, and simulated devices receive wake-ups instead of polling.
 
 ## Architecture
 
 ```
                        POST /3/device/<token>
 +----------------+     {"mdm":"<PushMagic>"}     +-------------------+
-|  Fleet server  | ----------------------------> |  ALB (any target) |
+|  AutoMDM server  | ----------------------------> |  ALB (any target) |
 |    (buford)    |                               +-------------------+
 +----------------+                                 |       |       |
                                                    v       v       v
@@ -28,11 +28,11 @@ Fleet disables MDM push notifications during load tests today, so every simulate
                                               (pkg/mdm/apnsmock client)
 ```
 
-- Fleet's push path is unchanged: `server/mdm/nanomdm/push/buford` sends `POST /3/device/<token>` with body `{"mdm":"<PushMagic>"}` and no `apns-*` headers. Only the base URL differs.
+- AutoMDM's push path is unchanged: `server/mdm/nanomdm/push/buford` sends `POST /3/device/<token>` with body `{"mdm":"<PushMagic>"}` and no `apns-*` headers. Only the base URL differs.
 - Simulated devices hold a long-lived server-sent events (SSE) connection, the mock's stand-in for a real device's persistent APNs courier connection. Each `event: ping` should trigger an MDM check-in.
-- The load balancer gives a device's stream to one instance and Fleet's push for that device to another, so the instances coordinate through Redis. Redis is required; there is no single-instance mode.
+- The load balancer gives a device's stream to one instance and AutoMDM's push for that device to another, so the instances coordinate through Redis. Redis is required; there is no single-instance mode.
 
-The wire contract (request and response shapes, header semantics, error bodies) is documented in [`cmd/apple-apns-mock/README.md`](../../../../cmd/apple-apns-mock/README.md) and on the handlers in `cmd/apple-apns-mock/handlers.go`. `TestE2EBufordCompatibility` pins the contract against the actual buford client Fleet uses in production.
+The wire contract (request and response shapes, header semantics, error bodies) is documented in [`cmd/apple-apns-mock/README.md`](../../../../cmd/apple-apns-mock/README.md) and on the handlers in `cmd/apple-apns-mock/handlers.go`. `TestE2EBufordCompatibility` pins the contract against the actual buford client AutoMDM uses in production.
 
 ## Routing between instances
 
@@ -53,13 +53,13 @@ The `GETDEL` claim keeps delivery exactly-once while two instances briefly hold 
 
 Nodes that don't hold the token stop at a local map lookup and touch Redis not at all, which is what keeps the broadcast affordable.
 
-If Redis is unreachable, a push is answered `503 ServiceUnavailable` rather than dropped, and Fleet's `apns_push_to_pending_hosts` cron retries it. Existing streams keep working.
+If Redis is unreachable, a push is answered `503 ServiceUnavailable` rather than dropped, and AutoMDM's `apns_push_to_pending_hosts` cron retries it. Existing streams keep working.
 
 ## Store-and-forward and coalescing
 
 This is the behavior the old timer-driven setup couldn't model, and the main reason the mock exists. Semantics match real APNs:
 
-- **Connected device**: the push is delivered immediately and never stored. APNs doesn't redeliver. If the connection is replaced or drops before the push reaches the wire, it goes back to pending so the device gets it on reconnect. A wake-up genuinely lost mid-flight is recovered by Fleet's `apns_push_to_pending_hosts` cron, which re-pushes hosts with pending commands.
+- **Connected device**: the push is delivered immediately and never stored. APNs doesn't redeliver. If the connection is replaced or drops before the push reaches the wire, it goes back to pending so the device gets it on reconnect. A wake-up genuinely lost mid-flight is recovered by AutoMDM's `apns_push_to_pending_hosts` cron, which re-pushes hosts with pending commands.
 - **Offline device**: the push is kept as the token's single pending push and delivered when the device connects. A newer push overwrites the older one (APNs keeps only the most recent notification per device). Default retention is 24h; an `apns-expiration` header overrides it, with `0` meaning deliver-now-or-discard.
 - **Restart**: pending pushes survive, since they live in Redis rather than in the instance that took them.
 
@@ -67,13 +67,13 @@ Expiry is the Redis TTL on the pending key; there is nothing to sweep. Implement
 
 ## Device tokens
 
-Simulated clients derive their own tokens, so no coordination with the mock is needed: mdmtest clients send `hex("token" + serial)` with PushMagic `"pushmagic" + serial` in their TokenUpdate (`pkg/mdm/mdmtest/apple.go`). Fleet stores these in `nano_enrollments` like real tokens and pushes to them like real tokens.
+Simulated clients derive their own tokens, so no coordination with the mock is needed: mdmtest clients send `hex("token" + serial)` with PushMagic `"pushmagic" + serial` in their TokenUpdate (`pkg/mdm/mdmtest/apple.go`). AutoMDM stores these in `nano_enrollments` like real tokens and pushes to them like real tokens.
 
 The mock accepts any even-length hex token. Real APNs also enforces the 32-byte token length (verified against `api.push.apple.com` with `tools/mdm/apple/apnspush -direct`), but enforcing that would break the derived tokens. This is a deliberate divergence.
 
 ## Client library
 
-`pkg/mdm/apnsmock` is the Go client simulated devices use: connect, auto-reconnect with jittered backoff, deliver each push on a channel. Every reconnect backs off, including after a stream that ended cleanly, so an instance restart doesn't turn its share of the fleet into a reconnect storm. The channel is buffered 1 and drops pushes while full, the same coalescing rule as the server, because an MDM wake-up carries no unique data. The client needs no changes to work across instances — reconnects land wherever the load balancer sends them.
+`pkg/mdm/apnsmock` is the Go client simulated devices use: connect, auto-reconnect with jittered backoff, deliver each push on a channel. Every reconnect backs off, including after a stream that ended cleanly, so an instance restart doesn't turn its share of the team into a reconnect storm. The channel is buffered 1 and drops pushes while full, the same coalescing rule as the server, because an MDM wake-up carries no unique data. The client needs no changes to work across instances — reconnects land wherever the load balancer sends them.
 
 ## Scale
 
@@ -81,15 +81,15 @@ Target is 300k concurrent connections across three or four instances, 75k–100k
 
 Size Redis for the push rate, not the connection count: each push costs two round trips on the receiving instance and one `GETDEL` on the delivering one, and each announcement fans out to every instance. The instances hold only a handful of Redis connections each — one for the subscription plus a small command pool — so the 65,000-connection cap per node is never in play.
 
-The mock gets its own ElastiCache (`cache.m7g.large`, single node) rather than sharing Fleet's, so a full-fleet wave of ~900k commands doesn't perturb the system under test. Extra nodes would be read replicas, and every operation here is a write to the primary, so they buy failover rather than throughput; node size is the only lever. Tune with `apple_apns_mock_redis_instance_size` / `_count`, and the task with `apple_apns_mock_cpu` / `_memory` (GOMEMLIMIT is derived from the latter).
+The mock gets its own ElastiCache (`cache.m7g.large`, single node) rather than sharing AutoMDM's, so a full-automdm wave of ~900k commands doesn't perturb the system under test. Extra nodes would be read replicas, and every operation here is a write to the primary, so they buy failover rather than throughput; node size is the only lever. Tune with `apple_apns_mock_redis_instance_size` / `_count`, and the task with `apple_apns_mock_cpu` / `_memory` (GOMEMLIMIT is derived from the latter).
 
-Debugging aid: `tools/mdm/apple/apnspush -direct` sends raw pushes from a Fleet database to any APNs endpoint (real, sandbox, or this mock) and dumps the raw response. Its `-fake` flag derives mdmtest-style tokens for hosts that aren't in `nano_enrollments`.
+Debugging aid: `tools/mdm/apple/apnspush -direct` sends raw pushes from an AutoMDM database to any APNs endpoint (real, sandbox, or this mock) and dumps the raw response. Its `-fake` flag derives mdmtest-style tokens for hosts that aren't in `nano_enrollments`.
 
-## Configuring Fleet to use a custom APNs server
+## Configuring AutoMDM to use a custom APNs server
 
-To configure Fleet to use the mock APNs server, set `FLEET_DEV_MDM_APPLE_PUSH_SERVER_URL` to the base URL of the mock server. 
+To configure AutoMDM to use the mock APNs server, set `AUTOMDM_DEV_MDM_APPLE_PUSH_SERVER_URL` to the base URL of the mock server. 
 
-This requires Fleet to be started with `--dev`, and does **not** work alongside `FLEET_DEV_MDM_APPLE_DISABLE_PUSH`.
+This requires AutoMDM to be started with `--dev`, and does **not** work alongside `AUTOMDM_DEV_MDM_APPLE_DISABLE_PUSH`.
 
 ## Configuring osquery-perf to use custom APNs server
 
@@ -97,9 +97,9 @@ Set the `mdm_apns_url` flag to the mock's base URL. Simulated hosts then check i
 
 ## Load testing with mock APNS server
 
-To spin up a mock APNs server alongside Fleet in a loadtest environment, you need to select `yes` for the "Deploy the mock Apple APNs push server and point Fleet's MDM pushes at it?" option.
+To spin up a mock APNs server alongside AutoMDM in a loadtest environment, you need to select `yes` for the "Deploy the mock Apple APNs push server and point AutoMDM's MDM pushes at it?" option.
 
-This creates the container behind the internal ALB on its own hostname (`fleet-<workspace>-apns-mock.loadtest.fleetdm.com`) and points Fleet at it with `FLEET_DEV_MDM_APPLE_PUSH_SERVER_URL`. Scale it with `apple_apns_mock_instance_count`; it brings up its own Redis alongside.
+This creates the container behind the internal ALB on its own hostname (`automdm-<workspace>-apns-mock.loadtest.fleetdm.com`) and points AutoMDM at it with `AUTOMDM_DEV_MDM_APPLE_PUSH_SERVER_URL`. Scale it with `apple_apns_mock_instance_count`; it brings up its own Redis alongside.
 
 osquery-perf loadtesting needs the regular MDM knobs, but also now the `--mdm_apns_url=...` set to the base url. With this it should auto initiate sessions and listen for pings to do MDM check-ins.
 

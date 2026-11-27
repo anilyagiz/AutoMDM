@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # Enpass ships as a WiX "burn" bootstrapper that chains vcredist + the inner
 # Enpass MSI and registers a per-machine bundle ARP entry. Silent switches

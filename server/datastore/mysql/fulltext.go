@@ -9,7 +9,7 @@ var mysqlFTSSymbolRegexp = regexp.MustCompile("[-+@]+")
 
 // queryMinLength returns true if the query argument is longer than a "short" word.
 // What defines a "short" word is MySQL's "ft_min_word_len" VARIABLE, generally set
-// to 4 by default in Fleet deployments.
+// to 4 by default in AutoMDM deployments.
 //
 // TODO(lucas): Remove this method on #2627.
 func queryMinLength(query string) bool {

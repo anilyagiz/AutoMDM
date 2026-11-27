@@ -1,10 +1,10 @@
-# Reusable workflow that installs and validates a set of macOS Fleet-maintained
+# Reusable workflow that installs and validates a set of macOS AutoMDM-maintained
 # apps. Called by test-fma-darwin-pr-only.yml and test-fma-darwin.yml with a
 # matrix produced by .github/scripts/partition-fma-apps.sh. All darwin apps run
 # on the arm64 macos-latest runner (x86-only casks run under Rosetta 2, which
 # matches how customer Macs run them), so unlike Windows there is no
 # per-architecture routing.
-name: Validate Fleet Maintained Apps - Darwin
+name: Validate AutoMDM Maintained Apps - Darwin
 
 on:
   workflow_call:
@@ -43,17 +43,17 @@ jobs:
 
       # Changed-app detection and sharding happen in the calling workflow on a
       # Linux runner, so no git history is needed here.
-      - name: Checkout Fleet
+      - name: Checkout AutoMDM
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 1
-          path: fleet
+          path: automdm
           persist-credentials: false
 
       - name: Setup Go
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
-          go-version-file: "fleet/go.mod"
+          go-version-file: "automdm/go.mod"
 
       - name: Determine pre-installed apps to remove
         id: check-darwin-apps
@@ -75,7 +75,7 @@ jobs:
           {
             echo "has_google_chrome=$(has_flag 'google-chrome/darwin')"
             echo "has_icon_composer=$(has_flag 'icon-composer/darwin')"
-            echo "has_fleet_desktop=$(has_flag 'fleet-desktop/darwin')"
+            echo "has_automdm_desktop=$(has_flag 'automdm-desktop/darwin')"
           } >> "$GITHUB_OUTPUT"
         shell: bash
 
@@ -114,14 +114,14 @@ jobs:
             sudo rm -rf "$app"
           done
 
-      # Fleet Desktop's installer refuses to run unless the
+      # AutoMDM Desktop's installer refuses to run unless the
       # com.fleetdm.fleetd.config managed preferences profile is present
       # (it's normally delivered via MDM). CI runners aren't MDM-enrolled,
       # so we drop a stub plist in place before the validate step so the
-      # install script succeeds. This only runs when fleet-desktop/darwin
+      # install script succeeds. This only runs when automdm-desktop/darwin
       # is actually being validated in this shard.
-      - name: Create Fleet Desktop MDM config stub (CI-only)
-        if: steps.check-darwin-apps.outputs.has_fleet_desktop == 'true'
+      - name: Create AutoMDM Desktop MDM config stub (CI-only)
+        if: steps.check-darwin-apps.outputs.has_automdm_desktop == 'true'
         run: |
           sudo mkdir -p "/Library/Managed Preferences"
           sudo tee "/Library/Managed Preferences/com.fleetdm.fleetd.config.plist" > /dev/null <<'PLIST'
@@ -131,7 +131,7 @@ jobs:
           <dict>
               <key>EnrollSecret</key>
               <string>ci-test-placeholder</string>
-              <key>FleetURL</key>
+              <key>AutoMDMURL</key>
               <string>https://ci.test.example.com</string>
           </dict>
           </plist>
@@ -145,7 +145,7 @@ jobs:
         env:
           SLUGS_JSON: ${{ inputs.slugs }}
         run: |
-          cd fleet
+          cd automdm
           # Set GITHUB_WORKSPACE to current directory so scripts can find files
           export GITHUB_WORKSPACE="$PWD"
 

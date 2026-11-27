@@ -16,13 +16,13 @@ import (
 	"strconv"
 	"syscall"
 
-	"github.com/fleetdm/fleet/v4/server/mdm/scep/csrverifier"
-	executablecsrverifier "github.com/fleetdm/fleet/v4/server/mdm/scep/csrverifier/executable"
-	scepdepot "github.com/fleetdm/fleet/v4/server/mdm/scep/depot"
-	"github.com/fleetdm/fleet/v4/server/mdm/scep/depot/file"
-	scepserver "github.com/fleetdm/fleet/v4/server/mdm/scep/server"
+	"github.com/anilyagiz/automdm/v4/server/mdm/scep/csrverifier"
+	executablecsrverifier "github.com/anilyagiz/automdm/v4/server/mdm/scep/csrverifier/executable"
+	scepdepot "github.com/anilyagiz/automdm/v4/server/mdm/scep/depot"
+	"github.com/anilyagiz/automdm/v4/server/mdm/scep/depot/file"
+	scepserver "github.com/anilyagiz/automdm/v4/server/mdm/scep/server"
 
-	"github.com/fleetdm/fleet/v4/server/platform/logging"
+	"github.com/anilyagiz/automdm/v4/server/platform/logging"
 )
 
 // version info

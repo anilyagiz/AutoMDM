@@ -18,8 +18,8 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/mdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/mdm"
 )
 
 func main() {

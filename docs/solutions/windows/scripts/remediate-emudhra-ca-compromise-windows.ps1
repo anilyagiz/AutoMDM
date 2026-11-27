@@ -3,11 +3,11 @@
 #   1. Adds all 16 compromised intermediate certificates (8 keys, each issued by emSign
 #      and cross-signed by Sectigo AAA) to LocalMachine\Disallowed ("Untrusted Certificates").
 #      Works even where Microsoft's automatic disallowed-list update is blocked or offline.
-#   2. Strips the two compromised roots from fleetd's CA bundle
-#      (C:\Program Files\Orbit\certs.pem), which osqueryd uses for its TLS connection to Fleet.
-#      Only after proving the Fleet server's chain still reaches a self-signed root in the bundle.
-# Idempotent: safe to re-run. Built for Fleet "Run script" (runs as SYSTEM).
-# Save it as a Fleet script (it is larger than the 10,000-character ad hoc limit).
+#   2. Strips the two compromised roots from automdmd's CA bundle
+#      (C:\Program Files\Orbit\certs.pem), which osqueryd uses for its TLS connection to AutoMDM.
+#      Only after proving the AutoMDM server's chain still reaches a self-signed root in the bundle.
+# Idempotent: safe to re-run. Built for AutoMDM "Run script" (runs as SYSTEM).
+# Save it as an AutoMDM script (it is larger than the 10,000-character ad hoc limit).
 # Rollback: copy certs.pem.pre-emudhra back, and delete the 16 entries from
 # "Untrusted Certificates" in certlm.msc.
 # Exit: 0 = protected, 2 = a step was skipped or needs attention (read output), 1 = error.
@@ -38,12 +38,12 @@ $Intermediates = @(
     @{ Name = 'EM OV CS CA - G3C (via Sectigo AAA)'; Sha1 = '7FDE64753A957B98F172FD2AB0D922551909C7BA'; B64 = 'MIIDxTCCAq2gAwIBAgIRANal72E7OQ8y75zfNJ93KEEwDQYJKoZIhvcNAQELBQAwezELMAkGA1UEBhMCR0IxGzAZBgNVBAgMEkdyZWF0ZXIgTWFuY2hlc3RlcjEQMA4GA1UEBwwHU2FsZm9yZDEaMBgGA1UECgwRQ29tb2RvIENBIExpbWl0ZWQxITAfBgNVBAMMGEFBQSBDZXJ0aWZpY2F0ZSBTZXJ2aWNlczAeFw0yNTA1MTQwMDAwMDBaFw0yODEyMzEyMzU5NTlaMD8xCzAJBgNVBAYTAlVTMRQwEgYDVQQKDAtlTXVkaHJhIEluYzEaMBgGA1UEAwwRRU0gT1YgQ1MgQ0EgLSBHM0MwdjAQBgcqhkjOPQIBBgUrgQQAIgNiAAS58OBjRwKmnKaq3UQ8/WLEG5uksgkkaX15dOdpGhJvuWr7PjTC/TvF9IMGHyZdwqWENjRzI1EENrKPBPOGI2MGeYDiUD4CUy1lRiNacWWiWaHvSW90G1/e53hyCOS4+u+jggEsMIIBKDAfBgNVHSMEGDAWgBSgEQojPpbxB+zirynvgqV/0DCktDAdBgNVHQ4EFgQU7m9zKY1vv6ezG8OVNPYVVkR4ZrcwDgYDVR0PAQH/BAQDAgEGMBIGA1UdEwEB/wQIMAYBAf8CAQAwEwYDVR0lBAwwCgYIKwYBBQUHAwMwMgYDVR0gBCswKTAIBgZngQwBBAEwDQYLKwYBBAGDjiEBAAEwDgYMKwYBBAGDjiEBAoFIMEMGA1UdHwQ8MDowOKA2oDSGMmh0dHA6Ly9jcmwuY29tb2RvY2EuY29tL0FBQUNlcnRpZmljYXRlU2VydmljZXMuY3JsMDQGCCsGAQUFBwEBBCgwJjAkBggrBgEFBQcwAYYYaHR0cDovL29jc3AuY29tb2RvY2EuY29tMA0GCSqGSIb3DQEBCwUAA4IBAQBgGbZ+NDkn2Fr5dCVs/51+6cT5iEPP1stglX4TI2UaNh9LmPdltxXw3crV8gK5L8i+d+ScGibFy0obtBHNTldXDgLnAHIzY3n+pceyKj7O2ae9CYnyuu5RBifeI3XYKowWE+oXnVGFOy0CvCJ/JsdP6aYgoCa9hGnAYicYQQL6MOMQZ5PuhcSM8t4giIzrpgrEkUP93GYEemDG5Z8BYwKs80lLeQNBnwg/VHJ3iEF/o84RXYwrlrKqJ+33C094o6LNikMJCqOK/WYHZSR8Xyhf8GXFAj5pZuI6Bcpug2V/E7i42j8OBhc25aNYDqK+B0qmb90sjNUBg3tJeSIb/599' }
 )
 
-# fleetd installs under the 64-bit Program Files even when this runs in 32-bit PowerShell.
+# automdmd installs under the 64-bit Program Files even when this runs in 32-bit PowerShell.
 $ProgramFiles64 = $env:ProgramW6432
 if (-not $ProgramFiles64) { $ProgramFiles64 = $env:ProgramFiles }
 if (-not $ProgramFiles64) { $ProgramFiles64 = 'C:\Program Files' }
 $OrbitBundle = [IO.Path]::Combine($ProgramFiles64, 'Orbit', 'certs.pem')
-$OrbitSvcKey = 'HKLM:\SYSTEM\CurrentControlSet\Services\Fleet osquery'
+$OrbitSvcKey = 'HKLM:\SYSTEM\CurrentControlSet\Services\AutoMDM osquery'
 $script:ExitCode = 0
 
 function Write-Log([string]$Message) { Write-Output $Message }
@@ -191,7 +191,7 @@ function Get-OrbitEnv([string]$Name) {
     return ''
 }
 
-# fleetd packages built before Fleet 4.93.0 pass these settings as service arguments
+# automdmd packages built before AutoMDM 4.93.0 pass these settings as service arguments
 # (ImagePath) instead of the Environment value.
 function Get-OrbitArg([string]$Flag) {
     try {
@@ -211,7 +211,7 @@ function Get-OrbitSetting([string]$EnvName, [string]$Flag) {
     return $v
 }
 
-# Certificates of the chain Windows builds for the Fleet server, leaf first, root last.
+# Certificates of the chain Windows builds for the AutoMDM server, leaf first, root last.
 function Get-ServerChain([uri]$Uri) {
     $port = $Uri.Port
     if ($port -le 0) { $port = 443 }
@@ -220,7 +220,7 @@ function Get-ServerChain([uri]$Uri) {
     if (-not $iar.AsyncWaitHandle.WaitOne(15000)) { $tcp.Close(); throw "connect to $($Uri.Host):$port timed out" }
     $tcp.EndConnect($iar)
     # Bound the TLS handshake too: a server that accepts TCP but never answers would
-    # otherwise block AuthenticateAsClient until Fleet's script timeout kills the run.
+    # otherwise block AuthenticateAsClient until AutoMDM's script timeout kills the run.
     $tcp.ReceiveTimeout = 15000
     $tcp.SendTimeout = 15000
     $script:ServerChain = @()
@@ -241,35 +241,35 @@ function Get-ServerChain([uri]$Uri) {
 }
 
 function Repair-OrbitBundle {
-    if (-not (Test-Path -LiteralPath $OrbitBundle)) { Write-Log "FLEETD: $OrbitBundle not present (fleetd not installed)"; return }
+    if (-not (Test-Path -LiteralPath $OrbitBundle)) { Write-Log "AUTOMDMD: $OrbitBundle not present (automdmd not installed)"; return }
     $text = [IO.File]::ReadAllText($OrbitBundle)
     $result = Remove-BlockedFromPem $text
-    if ($result.Removed -eq 0) { Write-Log "FLEETD: $OrbitBundle already clean"; return }
+    if ($result.Removed -eq 0) { Write-Log "AUTOMDMD: $OrbitBundle already clean"; return }
 
     $kept = Get-PemThumbprints $result.Text
-    if ($kept.Count -lt 50) { Write-Warn "FLEETD: filtered bundle failed sanity check; not changed"; return }
-    foreach ($fp in $BlockedRootSha1) { if ($kept.ContainsKey($fp)) { Write-Warn "FLEETD: filter did not remove $fp; not changed"; return } }
+    if ($kept.Count -lt 50) { Write-Warn "AUTOMDMD: filtered bundle failed sanity check; not changed"; return }
+    foreach ($fp in $BlockedRootSha1) { if ($kept.ContainsKey($fp)) { Write-Warn "AUTOMDMD: filter did not remove $fp; not changed"; return } }
 
-    $pin = Get-OrbitSetting 'ORBIT_FLEET_CERTIFICATE' 'fleet-certificate'
-    $url = Get-OrbitSetting 'ORBIT_FLEET_URL' 'fleet-url'
+    $pin = Get-OrbitSetting 'ORBIT_AUTOMDM_CERTIFICATE' 'automdm-certificate'
+    $url = Get-OrbitSetting 'ORBIT_AUTOMDM_URL' 'automdm-url'
     if ($pin) {
-        Write-Log "FLEETD: osquery pins $pin, so certs.pem is unused; cleaning it anyway"
+        Write-Log "AUTOMDMD: osquery pins $pin, so certs.pem is unused; cleaning it anyway"
     } elseif ($url) {
-        try { $chain = Get-ServerChain ([uri]$url) } catch { Write-Warn "FLEETD: could not reach Fleet server ($($_.Exception.Message)); not changed"; return }
-        if ($chain.Count -eq 0) { Write-Warn "FLEETD: no certificate chain from Fleet server; not changed"; return }
+        try { $chain = Get-ServerChain ([uri]$url) } catch { Write-Warn "AUTOMDMD: could not reach AutoMDM server ($($_.Exception.Message)); not changed"; return }
+        if ($chain.Count -eq 0) { Write-Warn "AUTOMDMD: no certificate chain from AutoMDM server; not changed"; return }
         $thumbs = @($chain | ForEach-Object { $_.Thumbprint })
         $bad = @($Intermediates | Where-Object { $thumbs -contains $_.Sha1 })
-        if ($bad.Count -gt 0) { Write-Warn "FLEETD: Fleet server chains through a COMPROMISED intermediate ($($bad[0].Name)). Replace the server certificate now; not changed"; return }
+        if ($bad.Count -gt 0) { Write-Warn "AUTOMDMD: AutoMDM server chains through a COMPROMISED intermediate ($($bad[0].Name)). Replace the server certificate now; not changed"; return }
         # Windows may extend the chain through a cross-signed copy of a root to an older root
         # that the bundle does not carry. osquery's OpenSSL stops at the first CA it finds as
         # a self-signed root in the bundle, so match each CA in the chain by subject and public
         # key against the bundle's self-signed roots, not on the thumbprint of the last certificate.
         $anchors = Get-PemAnchorIds $result.Text
         $anchor = @($chain | Select-Object -Skip 1 | Where-Object { $anchors.ContainsKey($_.Subject + '|' + (Get-KeyId $_)) }) | Select-Object -First 1
-        if (-not $anchor) { Write-Warn "FLEETD: no CA in the Fleet server chain ($($thumbs -join ', ')) matches a self-signed root left in the filtered bundle; not changed"; return }
-        Write-Log "FLEETD: Fleet server chain is anchored by '$($anchor.Subject)', a self-signed root that stays in the bundle"
+        if (-not $anchor) { Write-Warn "AUTOMDMD: no CA in the AutoMDM server chain ($($thumbs -join ', ')) matches a self-signed root left in the filtered bundle; not changed"; return }
+        Write-Log "AUTOMDMD: AutoMDM server chain is anchored by '$($anchor.Subject)', a self-signed root that stays in the bundle"
     } else {
-        Write-Warn "FLEETD: Fleet URL not found under $OrbitSvcKey (Environment or ImagePath); cannot prove safety; not changed"; return
+        Write-Warn "AUTOMDMD: AutoMDM URL not found under $OrbitSvcKey (Environment or ImagePath); cannot prove safety; not changed"; return
     }
 
     $backup = "$OrbitBundle.pre-emudhra"
@@ -277,7 +277,7 @@ function Repair-OrbitBundle {
     $tmp = "$OrbitBundle.new"
     [IO.File]::WriteAllText($tmp, $result.Text, (New-Object System.Text.UTF8Encoding $false))
     [IO.File]::Replace($tmp, $OrbitBundle, [NullString]::Value)
-    Write-Log "FLEETD: removed $($result.Removed) root(s) from $OrbitBundle (backup: $backup). osquery reloads it on its next connection."
+    Write-Log "AUTOMDMD: removed $($result.Removed) root(s) from $OrbitBundle (backup: $backup). osquery reloads it on its next connection."
 }
 
 function Test-AutoUpdatePolicy {
@@ -296,7 +296,7 @@ function Invoke-Main {
         Write-Log '----- Windows certificate store -----'
         Add-DisallowedIntermediates
         Test-AutoUpdatePolicy
-        Write-Log '----- fleetd osquery CA bundle -----'
+        Write-Log '----- automdmd osquery CA bundle -----'
         Repair-OrbitBundle
         Write-Log '----- verification -----'
         $n = Test-DisallowedIntermediates

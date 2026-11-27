@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # Variables
-REPO_OWNER="fleetdm"
-REPO_NAME="fleet"
+REPO_OWNER="automdm"
+REPO_NAME="automdm"
 FILE_PATH="it-and-security/lib/macos/policies/update-1password.yml"
 BRANCH="main"
 

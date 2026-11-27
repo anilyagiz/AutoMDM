@@ -11,10 +11,10 @@ import (
 	"time"
 
 	"cloud.google.com/go/pubsub"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/dev_mode"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/dev_mode"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
 	"github.com/google/uuid"
 	"google.golang.org/api/androidmanagement/v1"
 	"google.golang.org/api/googleapi"
@@ -22,7 +22,7 @@ import (
 )
 
 // GoogleClient connects directly to Google's Android Management API. It is intended to be used for development/debugging.
-// To enable, set the following env vars: FLEET_DEV_ANDROID_GOOGLE_CLIENT=1 and FLEET_DEV_ANDROID_GOOGLE_SERVICE_CREDENTIALS=$(cat credentials.json)
+// To enable, set the following env vars: AUTOMDM_DEV_ANDROID_GOOGLE_CLIENT=1 and AUTOMDM_DEV_ANDROID_GOOGLE_SERVICE_CREDENTIALS=$(cat credentials.json)
 type GoogleClient struct {
 	logger                    *slog.Logger
 	mgmt                      *androidmanagement.Service
@@ -34,7 +34,7 @@ type GoogleClient struct {
 var _ Client = &GoogleClient{}
 
 func NewGoogleClient(ctx context.Context, logger *slog.Logger, getenv dev_mode.GetEnv) Client {
-	androidServiceCredentials := getenv("FLEET_DEV_ANDROID_GOOGLE_SERVICE_CREDENTIALS")
+	androidServiceCredentials := getenv("AUTOMDM_DEV_ANDROID_GOOGLE_SERVICE_CREDENTIALS")
 	if androidServiceCredentials == "" {
 		return nil
 	}
@@ -136,7 +136,7 @@ func (g *GoogleClient) createPubSub(ctx context.Context, pushURL string) (string
 	}
 
 	// Note: We could add a second level of authentication for the subscription, where, upon receiving a message,
-	// Fleet server does an API call to Google to verify the message validity.
+	// AutoMDM server does an API call to Google to verify the message validity.
 	_, err = pubSubClient.CreateSubscription(ctx, pubSubTopicAndSubscriptionID, pubsub.SubscriptionConfig{
 		Topic:             topic,
 		AckDeadline:       60 * time.Second,
@@ -346,7 +346,7 @@ func getLastPart(ctx context.Context, name string) (string, error) {
 
 type appNotFoundError struct{}
 
-var _ fleet.NotFoundError = (*appNotFoundError)(nil)
+var _ automdm.NotFoundError = (*appNotFoundError)(nil)
 
 func (p appNotFoundError) Error() string {
 	return "Couldn’t add software. The application ID isn’t available in Play Store. Please find ID on the Play Store and try again."

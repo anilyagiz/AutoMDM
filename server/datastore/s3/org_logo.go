@@ -6,11 +6,11 @@ import (
 	"io"
 	"path"
 
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	types "github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
 )
 
 type OrgLogoStore struct {
@@ -34,19 +34,19 @@ func NewOrgLogoStore(cfg config.S3Config) (*OrgLogoStore, error) {
 }
 
 // Put stores the logo bytes for mode under <bucket>/<prefix>/org-logos/<mode>.
-func (s *OrgLogoStore) Put(ctx context.Context, mode fleet.OrgLogoMode, content io.ReadSeeker) error {
+func (s *OrgLogoStore) Put(ctx context.Context, mode automdm.OrgLogoMode, content io.ReadSeeker) error {
 	return s.commonFileStore.Put(ctx, string(mode), content)
 }
 
-func (s *OrgLogoStore) Get(ctx context.Context, mode fleet.OrgLogoMode) (io.ReadCloser, int64, error) {
+func (s *OrgLogoStore) Get(ctx context.Context, mode automdm.OrgLogoMode) (io.ReadCloser, int64, error) {
 	return s.commonFileStore.Get(ctx, string(mode))
 }
 
-func (s *OrgLogoStore) Exists(ctx context.Context, mode fleet.OrgLogoMode) (bool, error) {
+func (s *OrgLogoStore) Exists(ctx context.Context, mode automdm.OrgLogoMode) (bool, error) {
 	return s.commonFileStore.Exists(ctx, string(mode))
 }
 
-func (s *OrgLogoStore) Delete(ctx context.Context, mode fleet.OrgLogoMode) error {
+func (s *OrgLogoStore) Delete(ctx context.Context, mode automdm.OrgLogoMode) error {
 	key := path.Join(s.prefix, s.pathPrefix, string(mode))
 	_, err := s.s3Client.DeleteObject(ctx, &s3.DeleteObjectInput{
 		Bucket: &s.bucket,

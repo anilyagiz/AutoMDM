@@ -45,7 +45,7 @@
 
   &__item-version {
     font-size: $xx-small;
-    color: $ui-fleet-black-75;
+    color: $ui-automdm-black-75;
     overflow: hidden;
     text-overflow: ellipsis;
     text-wrap: nowrap;
@@ -57,7 +57,7 @@
     justify-content: space-between;
     gap: $pad-small;
     padding-top: $pad-medium;
-    border-top: 1px solid $ui-fleet-black-10;
+    border-top: 1px solid $ui-automdm-black-10;
   }
 
   &__item-status {

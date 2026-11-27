@@ -7,7 +7,7 @@
     top: 70px;
     left: 0;
     z-index: 1;
-    background-color: $core-fleet-white;
+    background-color: $core-automdm-white;
     border-radius: 0px 0px 8px 8px;
 
     .table-container {
@@ -49,7 +49,7 @@
   }
   // hack because it's creating unwanted space
   .table-container {
-    background-color: $core-fleet-white;
+    background-color: $core-automdm-white;
 
     &__header {
       display: none;

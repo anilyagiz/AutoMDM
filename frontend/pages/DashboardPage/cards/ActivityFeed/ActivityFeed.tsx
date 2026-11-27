@@ -280,7 +280,7 @@ const ActivityFeed = ({
     details,
     created_at,
     actor_full_name,
-    fleet_initiated,
+    automdm_initiated,
   }: IShowActivityDetailsData) => {
     switch (type) {
       case ActivityType.LiveQuery:
@@ -305,7 +305,7 @@ const ActivityFeed = ({
             ? setIpaPackageInstallDetails({
                 ...details,
                 actor_full_name,
-                fleet_initiated,
+                automdm_initiated,
                 activity_created_at: created_at,
               })
             : setPackageInstallDetails({
@@ -332,7 +332,7 @@ const ActivityFeed = ({
         setVppInstallDetails({
           ...details,
           actor_full_name,
-          fleet_initiated,
+          automdm_initiated,
           activity_created_at: created_at,
         });
         break;
@@ -509,13 +509,13 @@ const ActivityFeed = ({
               ipaPackageInstallDetails.software_title,
               ipaPackageInstallDetails.software_display_name
             ),
-            fleetInstallStatus: (ipaPackageInstallDetails.status ||
+            automdmInstallStatus: (ipaPackageInstallDetails.status ||
               "pending_install") as SoftwareInstallUninstallStatus,
             hostDisplayName: ipaPackageInstallDetails.host_display_name || "",
             commandUuid: ipaPackageInstallDetails.command_uuid || "",
             failureReason: ipaPackageInstallDetails.failure_reason,
             actorFullName: ipaPackageInstallDetails.actor_full_name,
-            fleetInitiated: ipaPackageInstallDetails.fleet_initiated,
+            automdmInitiated: ipaPackageInstallDetails.automdm_initiated,
             selfService: ipaPackageInstallDetails.self_service,
             activityCreatedAt: ipaPackageInstallDetails.activity_created_at,
           }}
@@ -536,14 +536,14 @@ const ActivityFeed = ({
               vppInstallDetails.software_title,
               vppInstallDetails.software_display_name
             ),
-            fleetInstallStatus: (vppInstallDetails.status ||
+            automdmInstallStatus: (vppInstallDetails.status ||
               "pending_install") as SoftwareInstallUninstallStatus,
             hostDisplayName: vppInstallDetails.host_display_name || "",
             commandUuid: vppInstallDetails.command_uuid || "",
             platform: vppInstallDetails.host_platform,
             failureReason: vppInstallDetails.failure_reason,
             actorFullName: vppInstallDetails.actor_full_name,
-            fleetInitiated: vppInstallDetails.fleet_initiated,
+            automdmInitiated: vppInstallDetails.automdm_initiated,
             selfService: vppInstallDetails.self_service,
             vppTokenLocation: vppInstallDetails.vpp_token?.location,
             activityCreatedAt: vppInstallDetails.activity_created_at,

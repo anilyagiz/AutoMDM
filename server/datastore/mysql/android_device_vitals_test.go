@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,8 +32,8 @@ func TestHostMDMAndroidDeviceVitals(t *testing.T) {
 	}
 }
 
-func fullAndroidVitals() fleet.MDMAndroidDeviceVitals {
-	return fleet.MDMAndroidDeviceVitals{
+func fullAndroidVitals() automdm.MDMAndroidDeviceVitals {
+	return automdm.MDMAndroidDeviceVitals{
 		AdbEnabled:            new(true),
 		PasscodeProtected:     new(true),
 		PlayProtectEnabled:    new(false),
@@ -47,10 +47,10 @@ func fullAndroidVitals() fleet.MDMAndroidDeviceVitals {
 		IMEI:                  new("A1000031212"),
 		MEID:                  new("A00000292788E1"),
 		APILevel:              new(int64(36)),
-		SecurityPostureDetails: []fleet.MDMAndroidPostureDetail{
+		SecurityPostureDetails: []automdm.MDMAndroidPostureDetail{
 			{SecurityRisk: "UNKNOWN_OS", Advice: []string{"Update the OS"}},
 		},
-		TelephonyInfos: []fleet.MDMAndroidTelephonyInfo{
+		TelephonyInfos: []automdm.MDMAndroidTelephonyInfo{
 			{PhoneNumber: "+15555550100", CarrierName: "Acme Mobile", ICCID: "8901410321111111111"},
 			{PhoneNumber: "+15555550101", CarrierName: "Acme Mobile", ActivationState: "ACTIVATED"},
 		},
@@ -83,7 +83,7 @@ func testHostMDMAndroidDeviceVitalsInsertThenUpdate(t *testing.T, ds *Datastore)
 	require.Equal(t, "A00000292788E1", *row.MEID)
 
 	// Round-trip the JSON column back into the same Go type used to write it.
-	var gotTelephony []fleet.MDMAndroidTelephonyInfo
+	var gotTelephony []automdm.MDMAndroidTelephonyInfo
 	require.NoError(t, json.Unmarshal(row.TelephonyInfos, &gotTelephony))
 	require.Equal(t, vitals.TelephonyInfos, gotTelephony)
 
@@ -117,7 +117,7 @@ func testHostMDMAndroidDeviceVitalsNullHandling(t *testing.T, ds *Datastore) {
 
 	// A section the device didn't report (nil in the Go struct) must persist as
 	// SQL NULL, not error and not the JSON literal "null".
-	require.NoError(t, ds.SetOrUpdateHostMDMAndroidDeviceVitals(ctx, host.UUID, fleet.MDMAndroidDeviceVitals{}))
+	require.NoError(t, ds.SetOrUpdateHostMDMAndroidDeviceVitals(ctx, host.UUID, automdm.MDMAndroidDeviceVitals{}))
 
 	var row struct {
 		AdbEnabled             *bool   `db:"adb_enabled"`
@@ -150,11 +150,11 @@ func testHostMDMAndroidDeviceVitalsOverwriteClears(t *testing.T, ds *Datastore) 
 	// A status report is a full snapshot, so a section that stops being
 	// reported (the policy turning deviceSettingsEnabled off, say) must clear
 	// the stale values rather than leave them on the host.
-	require.NoError(t, ds.SetOrUpdateHostMDMAndroidDeviceVitals(ctx, host.UUID, fleet.MDMAndroidDeviceVitals{
+	require.NoError(t, ds.SetOrUpdateHostMDMAndroidDeviceVitals(ctx, host.UUID, automdm.MDMAndroidDeviceVitals{
 		Manufacturer: new("Google"),
 	}))
 
-	loaded := &fleet.Host{UUID: host.UUID}
+	loaded := &automdm.Host{UUID: host.UUID}
 	require.NoError(t, ds.LoadHostMDMAndroidDeviceVitals(ctx, loaded))
 	require.Equal(t, "Google", *loaded.Manufacturer)
 	require.Nil(t, loaded.AdbEnabled)
@@ -197,7 +197,7 @@ func testLoadHostMDMAndroidDeviceVitalsDBPartial(t *testing.T, ds *Datastore) {
 	host := test.NewHost(t, ds, "android-partial-host", "1.1.1.5", "android-partial-key", "android-partial-uuid", time.Now(),
 		test.WithPlatform("android"))
 
-	require.NoError(t, ds.SetOrUpdateHostMDMAndroidDeviceVitals(ctx, host.UUID, fleet.MDMAndroidDeviceVitals{
+	require.NoError(t, ds.SetOrUpdateHostMDMAndroidDeviceVitals(ctx, host.UUID, automdm.MDMAndroidDeviceVitals{
 		Manufacturer: new("Samsung"),
 		APILevel:     new(int64(34)),
 	}))

@@ -54,7 +54,7 @@ describe("ManualLabelForm", () => {
         config: {
           gitops: {
             gitops_mode_enabled: true,
-            repository_url: "https://github.com/example/fleet-gitops",
+            repository_url: "https://github.com/example/automdm-gitops",
           },
         },
       },

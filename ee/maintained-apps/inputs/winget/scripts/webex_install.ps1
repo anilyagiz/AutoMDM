@@ -1,14 +1,14 @@
 # Learn more about install scripts:
-# http://fleetdm.com/learn-more-about/install-scripts
+# http://automdm.com/learn-more-about/install-scripts
 #
 # Webex's MSI is a dual-purpose package that defaults to a per-user install
-# (ALLUSERS=2, MSIINSTALLPERUSER=1), so under Fleet's SYSTEM context it lands in
+# (ALLUSERS=2, MSIINSTALLPERUSER=1), so under AutoMDM's SYSTEM context it lands in
 # the SYSTEM account's profile, where no one can open it. Force the per-machine
 # install into Program Files, which is also what enables the Outlook
 # integration. First remove a copy an earlier install left in the SYSTEM
 # profile, so it isn't left behind unreachable.
 
-$logFile = "${env:TEMP}/fleet-install-software.log"
+$logFile = "${env:TEMP}/automdm-install-software.log"
 $upgradeCode = '{B9DCA8E9-B3A9-419A-9D6F-9BC3557EE72C}'
 
 # 3010 = reboot required, 1641 = reboot initiated

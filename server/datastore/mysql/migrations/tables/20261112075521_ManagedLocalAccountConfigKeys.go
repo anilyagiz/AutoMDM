@@ -9,7 +9,7 @@ func init() {
 	MigrationClient.AddMigration(Up_20261112075521, Down_20261112075521)
 }
 
-// Up_20261112075521 moves the managed local account settings to their Fleet 5 names under setup_experience in the global
+// Up_20261112075521 moves the managed local account settings to their AutoMDM 5 names under setup_experience in the global
 // config and every team config. default_team_config_json is left alone: nothing acts on its MDM settings.
 func Up_20261112075521(tx *sql.Tx) error {
 	for _, target := range []struct{ table, column string }{

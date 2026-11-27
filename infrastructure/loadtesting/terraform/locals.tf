@@ -1,6 +1,6 @@
 locals {
-  name   = "fleetdm-${terraform.workspace}"
-  prefix = "fleet-${terraform.workspace}"
+  name   = "automdm-${terraform.workspace}"
+  prefix = "automdm-${terraform.workspace}"
   extra_execution_iam_policies = concat(
     # module.cloudfront-software-installers.extra_execution_iam_policies,
     []
@@ -16,10 +16,10 @@ locals {
     }
   }
   additional_env_vars = [for k, v in merge({
-    "FLEET_VULNERABILITIES_DATABASES_PATH" : "/home/fleet"
-    "FLEET_LOGGING_DEBUG" : "true"
-    # Tracing can be added per-run through var.fleet_config.
-  }, var.fleet_config) : { name = k, value = v }]
+    "AUTOMDM_VULNERABILITIES_DATABASES_PATH" : "/home/automdm"
+    "AUTOMDM_LOGGING_DEBUG" : "true"
+    # Tracing can be added per-run through var.automdm_config.
+  }, var.automdm_config) : { name = k, value = v }]
   # Private Subnets from VPN VPC
   vpn_cidr_blocks = [
     "10.255.1.0/24",

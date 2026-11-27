@@ -20,7 +20,7 @@
     display: none;
     z-index: 99;
     border-radius: 2px;
-    background-color: $core-fleet-white;
+    background-color: $core-automdm-white;
     box-shadow: 0 4px 10px rgba(52, 59, 96, 0.15);
     animation: fade-in 150ms ease-out;
     &--opened {
@@ -39,7 +39,7 @@
     }
 
     .button {
-      color: $core-fleet-black;
+      color: $core-automdm-black;
       text-transform: none;
       text-align: left;
       font-weight: $regular;
@@ -54,8 +54,8 @@
 
       &:hover,
       &:focus {
-        background-color: $ui-fleet-black-10;
-        color: $core-fleet-black;
+        background-color: $ui-automdm-black-10;
+        color: $core-automdm-black;
       }
     }
   }

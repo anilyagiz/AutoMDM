@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
-"""Collect a compact DEX snapshot from the Fleet REST API.
+"""Collect a compact DEX snapshot from the AutoMDM REST API.
 
-Reads FLEET_URL and FLEET_API_TOKEN from the environment. Only issues GET
+Reads AUTOMDM_URL and AUTOMDM_API_TOKEN from the environment. Only issues GET
 requests. run.py calls collect() directly; run this file on its own to write
 a snapshot for debugging:
 
   collect.py --out snapshot.json
 
 Endpoints used (API-only user allowlist):
-  GET /api/v1/fleet/hosts            List hosts (populate_software)
-  GET /api/v1/fleet/hosts/:id        Get host (exclude_software)
-  GET /api/v1/fleet/fleets           List fleets
-  GET /api/v1/fleet/reports          List reports
-  GET /api/v1/fleet/reports/:id/report  Get report data
+  GET /api/v1/automdm/hosts            List hosts (populate_software)
+  GET /api/v1/automdm/hosts/:id        Get host (exclude_software)
+  GET /api/v1/automdm/teams           List teams
+  GET /api/v1/automdm/reports          List reports
+  GET /api/v1/automdm/reports/:id/report  Get report data
 
 DEX_WORKERS (default 8) sets how many requests run at once: host details use
 all of them, host pages and reports half each.
@@ -32,7 +32,7 @@ import urllib.request
 DEVICE_HEALTH_REPORT = "DEX - Hardware experience - Device health"
 OS_HEALTH_REPORT = "DEX - System experience - OS health"
 AI_TOOLS_REPORT = "DEX - AI governance - AI tools per host"
-# An earlier report that returns one row per tool. Before Fleet 4.93.0 a report
+# An earlier report that returns one row per tool. Before AutoMDM 4.93.0 a report
 # keeps at most 1,000 rows, so it only covers part of a larger fleet there.
 AI_TOOLS_ROWS_REPORT = "DEX - AI Tools - Surfaces AI tools on the host"
 # One row per host each. Connectivity and Analytics read these.
@@ -61,7 +61,7 @@ HOST_FIELDS = [
     "team_id", "team_name", "status", "seen_time", "uptime", "last_restarted_at",
     "last_enrolled_at", "created_at", "gigs_disk_space_available",
     "percent_disk_space_available", "software_updated_at", "detail_updated_at", "policy_updated_at",
-    "disk_encryption_enabled", "orbit_version", "osquery_version", "fleet_desktop_version",
+    "disk_encryption_enabled", "orbit_version", "osquery_version", "automdm_desktop_version",
 ]
 SOFTWARE_COLUMNS = ["name", "version", "source", "bundle_identifier", "last_opened_at", "path", "vendor"]
 
@@ -71,7 +71,7 @@ def die(msg):
     sys.exit(2)
 
 
-class Fleet:
+class AutoMDM:
     def __init__(self, url, token):
         url = url.strip().rstrip("/")
         if "://" not in url:
@@ -80,7 +80,7 @@ class Fleet:
         self.token = token
 
     def get(self, path, params=None, optional=False):
-        """GET a Fleet API path. With optional=True, a 402 (needs Fleet Premium)
+        """GET an AutoMDM API path. With optional=True, a 402 (needs AutoMDM Premium)
         or 404 returns None instead of stopping the run."""
         q = ("?" + urllib.parse.urlencode(params)) if params else ""
         req = urllib.request.Request(
@@ -134,24 +134,24 @@ def compact_software(sw, keep=None):
     return out
 
 
-def report_rows(fleet, fleets, name, info=None, many=False):
-    """Latest row per host, keyed by host ID as a string, from every copy of a report: global and per fleet.
+def report_rows(team, teams, name, info=None, many=False):
+    """Latest row per host, keyed by host ID as a string, from every copy of a report: global and per team.
     With many=True, each host gets {"last_fetched", "rows"} with every row from its latest results.
 
-    Pass a dict as info to learn whether the report exists and whether Fleet clipped it.
+    Pass a dict as info to learn whether the report exists and whether AutoMDM clipped it.
     """
     rows, seen = {}, set()
     info = {} if info is None else info
     info.update(found=False, clipped=False)
-    scopes = [{}] + [{"fleet_id": f["id"]} for f in fleets]
+    scopes = [{}] + [{"team_id": f["id"]} for f in teams]
     for scope in scopes:
-        d = fleet.get("/api/v1/fleet/reports", {**scope, "per_page": 500, "query": name}) or {}
+        d = team.get("/api/v1/automdm/reports", {**scope, "per_page": 500, "query": name}) or {}
         for r in d.get("reports") or d.get("queries") or []:
             if r.get("name") != name or r["id"] in seen:
                 continue
             seen.add(r["id"])
             info["found"] = True
-            rep = fleet.get(f"/api/v1/fleet/reports/{r['id']}/report")
+            rep = team.get(f"/api/v1/automdm/reports/{r['id']}/report")
             info["clipped"] = info["clipped"] or bool(rep.get("report_clipped"))
             for row in rep.get("results") or []:
                 hid = str(row.get("host_id"))
@@ -167,10 +167,10 @@ def report_rows(fleet, fleets, name, info=None, many=False):
     return rows
 
 
-def ai_tools(fleet, fleets):
+def ai_tools(team, teams):
     """Each host's ai_tools rows, from the one-row-per-host report where it has a row."""
     hosts = {}
-    for hid, r in report_rows(fleet, fleets, AI_TOOLS_REPORT).items():
+    for hid, r in report_rows(team, teams, AI_TOOLS_REPORT).items():
         try:
             tools = json.loads(r.get("tools") or "[]")
         except ValueError:
@@ -181,13 +181,13 @@ def ai_tools(fleet, fleets):
     # The per-tool report fills in hosts the per-host report hasn't heard from,
     # such as while a newly added per-host report is still collecting.
     clipped, seen = False, set()
-    for scope in [{}] + [{"fleet_id": f["id"]} for f in fleets]:
-        d = fleet.get("/api/v1/fleet/reports", {**scope, "per_page": 500, "query": AI_TOOLS_ROWS_REPORT}) or {}
+    for scope in [{}] + [{"team_id": f["id"]} for f in teams]:
+        d = team.get("/api/v1/automdm/reports", {**scope, "per_page": 500, "query": AI_TOOLS_ROWS_REPORT}) or {}
         for r in d.get("reports") or d.get("queries") or []:
             if r.get("name") != AI_TOOLS_ROWS_REPORT or r["id"] in seen:
                 continue
             seen.add(r["id"])
-            rep = fleet.get(f"/api/v1/fleet/reports/{r['id']}/report")
+            rep = team.get(f"/api/v1/automdm/reports/{r['id']}/report")
             clipped = clipped or bool(rep.get("report_clipped"))
             for row in rep.get("results") or []:
                 hid = str(row.get("host_id"))
@@ -201,17 +201,17 @@ def ai_tools(fleet, fleets):
 
 
 def awaiting_enrollment(h):
-    """A device assigned to Fleet in Apple Business that hasn't enrolled yet: Fleet lists
+    """A device assigned to AutoMDM in Apple Business that hasn't enrolled yet: AutoMDM lists
     it with only a serial and model. A Mac that enrolled through Apple Business and
-    later turned MDM off is also "Pending", but fleetd still reports for it."""
+    later turned MDM off is also "Pending", but automdmd still reports for it."""
     return h.get("mdm_status") == "Pending" and not h.get("osquery_version")
 
 
-def detail(fleet, h):
+def detail(team, h):
     """Get host adds custom host vitals (e.g. warranty dates), battery health,
-    each policy's result, and the country from GeoIP, when the Fleet server has
+    each policy's result, and the country from GeoIP, when the AutoMDM server has
     a GeoIP database. The policies themselves come back under "_policy_info"."""
-    g = fleet.get(f"/api/v1/fleet/hosts/{h['id']}", {"exclude_software": "true"}).get("host") or {}
+    g = team.get(f"/api/v1/automdm/hosts/{h['id']}", {"exclude_software": "true"}).get("host") or {}
     policies = [p for p in g.get("policies") or [] if p.get("id") is not None]
     # Only the department and the email domain of the end user from the identity
     # provider, never who they are: AI governance groups agent usage by department
@@ -225,11 +225,11 @@ def detail(fleet, h):
         "_policy_info": {str(p["id"]): {
             "name": p.get("name") or "", "description": p.get("description") or "", "resolution": p.get("resolution") or "",
             "critical": bool(p.get("critical")), "platform": p.get("platform") or "",
-            # "patch" for the policies Fleet keeps for Fleet-maintained apps; older Fleet has no type.
+            # "patch" for the policies AutoMDM keeps for AutoMDM-maintained apps; older AutoMDM has no type.
             "patch": p.get("type") == "patch",
             # A patch policy's query names the app it checks, which Patch velocity matches to its apps.
             **({"query": p.get("query") or ""} if p.get("type") == "patch" else {}),
-            "fleet_id": p.get("fleet_id", p.get("team_id"))} for p in policies},
+            "team_id": p.get("team_id", p.get("team_id"))} for p in policies},
         "vitals": {v.get("name"): v.get("value") for v in g.get("custom_host_vitals") or []},
         "batteries": g.get("batteries") or [],
         "country": (g.get("geolocation") or {}).get("country_iso") or "",
@@ -239,13 +239,13 @@ def detail(fleet, h):
     }
 
 
-def submit_reports(fleet, fleets, pool):
+def submit_reports(team, teams, pool):
     """Start fetching every DEX report side by side. finish_reports() collects them."""
     names = {"device_health": DEVICE_HEALTH_REPORT, "os_health": OS_HEALTH_REPORT, **DEX_REPORTS}
     info = {key: {} for key in names}
-    futures = {key: pool.submit(report_rows, fleet, fleets, name, info[key], key in MANY_ROW_REPORTS)
+    futures = {key: pool.submit(report_rows, team, teams, name, info[key], key in MANY_ROW_REPORTS)
                for key, name in names.items()}
-    futures["ai_tools"] = pool.submit(ai_tools, fleet, fleets)
+    futures["ai_tools"] = pool.submit(ai_tools, team, teams)
     return futures, info
 
 
@@ -262,7 +262,7 @@ def write_json(path, obj):
     os.replace(tmp, path)
 
 
-def collect(fleet, keep=None, workers=None, per_page=20, checkpoint=None, deadline=None):
+def collect(team, keep=None, workers=None, per_page=20, checkpoint=None, deadline=None):
     """Return the snapshot, or None when the deadline (a time.monotonic() value) passes first.
 
     With a checkpoint directory, each finished page of hosts (with their software
@@ -273,9 +273,9 @@ def collect(fleet, keep=None, workers=None, per_page=20, checkpoint=None, deadli
         os.makedirs(os.path.join(checkpoint, "pages"), exist_ok=True)
     started = dt.datetime.now(dt.timezone.utc)
 
-    # Fleet Free has no fleets; List fleets answers 402 there.
-    fl = fleet.get("/api/v1/fleet/fleets", {"per_page": 500}, optional=True) or {}
-    fleets = fl.get("fleets") or fl.get("teams") or []
+    # AutoMDM Free has no teams; List teams answers 402 there.
+    fl = team.get("/api/v1/automdm/teams", {"per_page": 500}, optional=True) or {}
+    teams = fl.get("teams") or fl.get("teams") or []
 
     done, last = {}, None
     if checkpoint:
@@ -288,7 +288,7 @@ def collect(fleet, keep=None, workers=None, per_page=20, checkpoint=None, deadli
                     last = page["page"] if last is None else min(last, page["page"])
 
     def fetch_page(n):
-        d = fleet.get("/api/v1/fleet/hosts", {
+        d = team.get("/api/v1/automdm/hosts", {
             "per_page": per_page, "page": n, "order_key": "id",
             "populate_software": "without_vulnerability_details",
         })
@@ -296,7 +296,7 @@ def collect(fleet, keep=None, workers=None, per_page=20, checkpoint=None, deadli
         for h in d.get("hosts") or []:
             row = {k: h.get(k) for k in HOST_FIELDS}
             row["failing_policies"] = (h.get("issues") or {}).get("failing_policies_count")
-            # Fleet Premium only; Fleet Free leaves it out.
+            # AutoMDM Premium only; AutoMDM Free leaves it out.
             row["critical_vulns"] = (h.get("issues") or {}).get("critical_vulnerabilities_count")
             row["mdm_status"] = (h.get("mdm") or {}).get("enrollment_status")
             hosts.append(row)
@@ -309,7 +309,7 @@ def collect(fleet, keep=None, workers=None, per_page=20, checkpoint=None, deadli
     if report_file and os.path.exists(report_file):
         with open(report_file) as f:
             reports = json.load(f)
-    report_futures, report_info = submit_reports(fleet, fleets, report_pool) if reports is None else ({}, {})
+    report_futures, report_info = submit_reports(team, teams, report_pool) if reports is None else ({}, {})
 
     page_pool = concurrent.futures.ThreadPoolExecutor(max_workers=max(1, workers // 2))
     detail_pool = concurrent.futures.ThreadPoolExecutor(max_workers=workers)
@@ -337,7 +337,7 @@ def collect(fleet, keep=None, workers=None, per_page=20, checkpoint=None, deadli
                 hosts = [h for h in hosts if not awaiting_enrollment(h)]
                 software = {k: v for k, v in software.items() if k in {str(h["id"]) for h in hosts}}
                 computers = [h for h in hosts if h["platform"] and h["platform"] not in NOT_COMPUTERS]
-                pending_details[n] = (hosts, software, {str(h["id"]): detail_pool.submit(detail, fleet, h) for h in computers})
+                pending_details[n] = (hosts, software, {str(h["id"]): detail_pool.submit(detail, team, h) for h in computers})
             for n, (hosts, software, futs) in list(pending_details.items()):
                 if all(f.done() for f in futs.values()):
                     del pending_details[n]
@@ -376,9 +376,9 @@ def collect(fleet, keep=None, workers=None, per_page=20, checkpoint=None, deadli
     return {
         "schema": 1,
         "generated_at": started.strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "fleet_url": fleet.url,
-        "fleets": [{"id": f["id"], "name": f["name"], "windows_updates": (f.get("mdm") or {}).get("windows_updates")}
-                   for f in fleets],
+        "automdm_url": team.url,
+        "teams": [{"id": f["id"], "name": f["name"], "windows_updates": (f.get("mdm") or {}).get("windows_updates")}
+                   for f in teams],
         "hosts": hosts,
         "software_columns": SOFTWARE_COLUMNS,
         "software": software,
@@ -389,10 +389,10 @@ def collect(fleet, keep=None, workers=None, per_page=20, checkpoint=None, deadli
 
 
 def from_env():
-    url, token = os.environ.get("FLEET_URL"), os.environ.get("FLEET_API_TOKEN")
+    url, token = os.environ.get("AUTOMDM_URL"), os.environ.get("AUTOMDM_API_TOKEN")
     if not url or not token:
-        die("FLEET_URL and FLEET_API_TOKEN must be set")
-    return Fleet(url, token)
+        die("AUTOMDM_URL and AUTOMDM_API_TOKEN must be set")
+    return AutoMDM(url, token)
 
 
 def summary(snap):

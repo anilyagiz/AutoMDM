@@ -3,7 +3,7 @@ package externalrefs
 import (
 	"fmt"
 
-	maintained_apps "github.com/fleetdm/fleet/v4/ee/maintained-apps"
+	maintained_apps "github.com/anilyagiz/automdm/v4/ee/maintained-apps"
 )
 
 // Funcs is a registry of enrichment functions keyed by app slug.

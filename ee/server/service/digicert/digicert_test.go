@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -31,7 +31,7 @@ func TestTimeout(t *testing.T) {
 	}))
 	defer mockDigiCertServer.Close()
 
-	config := fleet.DigiCertCA{
+	config := automdm.DigiCertCA{
 		URL:       mockDigiCertServer.URL,
 		APIToken:  "api_token",
 		ProfileID: profileID,
@@ -53,10 +53,10 @@ func TestGetCertificateTransientErrors(t *testing.T) {
 			if status == 0 {
 				server.Close()
 			}
-			config := fleet.DigiCertCA{URL: server.URL, APIToken: "token", ProfileID: "profile", CertificateCommonName: "cn", CertificateSeatID: "seat"}
+			config := automdm.DigiCertCA{URL: server.URL, APIToken: "token", ProfileID: "profile", CertificateCommonName: "cn", CertificateSeatID: "seat"}
 			_, err := NewService().GetCertificate(t.Context(), config)
 			require.Error(t, err)
-			_, isTransient := errors.AsType[fleet.CertificateAuthorityTransientError](err)
+			_, isTransient := errors.AsType[automdm.CertificateAuthorityTransientError](err)
 			assert.Equal(t, wantTransient, isTransient)
 		})
 	}

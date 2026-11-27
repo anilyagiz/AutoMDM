@@ -103,7 +103,7 @@ const AddEntraClientIdModal = ({ onExit }: IAddEntraClientIdModalProps) => {
               Find your <b>Application (client) ID</b> on{" "}
               <CustomLink
                 text="Microsoft Entra ID"
-                url="https://fleetdm.com/learn-more-about/microsoft-entra-tenant-id"
+                url="https://automdm.com/learn-more-about/microsoft-entra-tenant-id"
                 newTab
               />{" "}
               &gt; App registrations &gt; your MDM application &gt; Overview.

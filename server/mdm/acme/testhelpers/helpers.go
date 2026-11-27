@@ -11,8 +11,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/mdm/acme/internal/service"
-	"github.com/fleetdm/fleet/v4/server/mdm/acme/internal/types"
+	"github.com/anilyagiz/automdm/v4/server/mdm/acme/internal/service"
+	"github.com/anilyagiz/automdm/v4/server/mdm/acme/internal/types"
 	"github.com/fxamacker/cbor/v2"
 )
 

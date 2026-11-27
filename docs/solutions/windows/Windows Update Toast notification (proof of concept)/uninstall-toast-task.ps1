@@ -1,24 +1,24 @@
 <#
 .SYNOPSIS
-    Fleet Deployment Script: Uninstall & Clean Up Toast Notification System
-    Deploy via Fleet: Controls > Scripts > Add script
+    AutoMDM Deployment Script: Uninstall & Clean Up Toast Notification System
+    Deploy via AutoMDM: Controls > Scripts > Add script
 
 .DESCRIPTION
     Full cleanup of the toast notification PoC. Removes:
-    - The FleetWindowsUpdateToast scheduled task
-    - The deployed script directory ($env:ProgramData\Fleet\ToastNotification)
+    - The AutoMDMWindowsUpdateToast scheduled task
+    - The deployed script directory ($env:ProgramData\AutoMDM\ToastNotification)
     - Active toast notifications from the Action Center (best-effort)
 
     Safe to run even if the task was never installed. Idempotent.
 
 .NOTES
-    Run as Administrator (or via Fleet, which runs as SYSTEM).
+    Run as Administrator (or via AutoMDM, which runs as SYSTEM).
 #>
 
-$TaskName  = "FleetWindowsUpdateToast"
-$ScriptDir = "$env:ProgramData\Fleet\ToastNotification"
+$TaskName  = "AutoMDMWindowsUpdateToast"
+$ScriptDir = "$env:ProgramData\AutoMDM\ToastNotification"
 
-Write-Host "=== Fleet Toast Notification Cleanup ==="
+Write-Host "=== AutoMDM Toast Notification Cleanup ==="
 Write-Host ""
 
 # ============================================================
@@ -51,11 +51,11 @@ else {
     Write-Host "Script directory not found. Skipping."
 }
 
-# Clean up parent Fleet directory if empty
-$fleetDir = "$env:ProgramData\Fleet"
-if ((Test-Path $fleetDir) -and @(Get-ChildItem $fleetDir -ErrorAction SilentlyContinue).Count -eq 0) {
-    Remove-Item -Path $fleetDir -Force
-    Write-Host "Removed empty Fleet directory: $fleetDir"
+# Clean up parent AutoMDM directory if empty
+$automdmDir = "$env:ProgramData\AutoMDM"
+if ((Test-Path $automdmDir) -and @(Get-ChildItem $automdmDir -ErrorAction SilentlyContinue).Count -eq 0) {
+    Remove-Item -Path $automdmDir -Force
+    Write-Host "Removed empty AutoMDM directory: $automdmDir"
 }
 
 # ============================================================

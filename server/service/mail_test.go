@@ -11,10 +11,10 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/guregu/null.v3"
 )
@@ -23,7 +23,7 @@ var testMailpitSMTPPort = getTestMailpitSMTPPort()
 var testMailpitWebURL = getTestMailpitWebURL()
 
 func getTestMailpitSMTPPort() uint {
-	if port := os.Getenv("FLEET_MAILPIT_SMTP_PORT"); port != "" {
+	if port := os.Getenv("AUTOMDM_MAILPIT_SMTP_PORT"); port != "" {
 		if p, err := strconv.ParseUint(port, 10, 32); err == nil && p > 0 {
 			return uint(p)
 		}
@@ -32,7 +32,7 @@ func getTestMailpitSMTPPort() uint {
 }
 
 func getTestMailpitWebURL() string {
-	if port := os.Getenv("FLEET_MAILPIT_WEB_PORT"); port != "" {
+	if port := os.Getenv("AUTOMDM_MAILPIT_WEB_PORT"); port != "" {
 		return "http://127.0.0.1:" + port
 	}
 	return "http://127.0.0.1:8026"
@@ -60,7 +60,7 @@ func (e *notTestFoundError) Is(other error) bool {
 }
 
 func TestMailService(t *testing.T) {
-	// This mail test requires mailpit (ports read from env vars FLEET_MAILPIT_SMTP_PORT, FLEET_MAILPIT_WEB_PORT).
+	// This mail test requires mailpit (ports read from env vars AUTOMDM_MAILPIT_SMTP_PORT, AUTOMDM_MAILPIT_WEB_PORT).
 	if _, ok := os.LookupEnv("MAIL_TEST"); !ok {
 		t.Skip("Mail tests are disabled")
 	}
@@ -70,13 +70,13 @@ func TestMailService(t *testing.T) {
 		UseMailService: true,
 	})
 
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{
-			SMTPSettings: &fleet.SMTPSettings{
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{
+			SMTPSettings: &automdm.SMTPSettings{
 				SMTPEnabled:              true,
 				SMTPConfigured:           true,
-				SMTPAuthenticationType:   fleet.AuthTypeNameUserNamePassword,
-				SMTPAuthenticationMethod: fleet.AuthMethodNamePlain,
+				SMTPAuthenticationType:   automdm.AuthTypeNameUserNamePassword,
+				SMTPAuthenticationMethod: automdm.AuthMethodNamePlain,
 				SMTPUserName:             "mailpit-username",
 				SMTPPassword:             "mailpit-password",
 				SMTPEnableTLS:            false,
@@ -88,34 +88,34 @@ func TestMailService(t *testing.T) {
 		}, nil
 	}
 
-	ds.UserByEmailFunc = func(ctx context.Context, email string) (*fleet.User, error) {
+	ds.UserByEmailFunc = func(ctx context.Context, email string) (*automdm.User, error) {
 		return nil, newTestNotFoundError()
 	}
 
-	var invite *fleet.Invite
-	ds.NewInviteFunc = func(ctx context.Context, i *fleet.Invite) (*fleet.Invite, error) {
+	var invite *automdm.Invite
+	ds.NewInviteFunc = func(ctx context.Context, i *automdm.Invite) (*automdm.Invite, error) {
 		invite = i
 		return invite, nil
 	}
 
-	ds.SaveAppConfigFunc = func(ctx context.Context, info *fleet.AppConfig) error {
+	ds.SaveAppConfigFunc = func(ctx context.Context, info *automdm.AppConfig) error {
 		return nil
 	}
 
-	ds.InviteFunc = func(ctx context.Context, id uint) (*fleet.Invite, error) {
+	ds.InviteFunc = func(ctx context.Context, id uint) (*automdm.Invite, error) {
 		return invite, nil
 	}
 
-	ds.SaveABMTokenFunc = func(ctx context.Context, tok *fleet.ABMToken) error {
+	ds.SaveABMTokenFunc = func(ctx context.Context, tok *automdm.ABMToken) error {
 		return nil
 	}
 
-	ds.ListVPPTokensFunc = func(ctx context.Context) ([]*fleet.VPPTokenDB, error) {
-		return []*fleet.VPPTokenDB{}, nil
+	ds.ListVPPTokensFunc = func(ctx context.Context) ([]*automdm.VPPTokenDB, error) {
+		return []*automdm.VPPTokenDB{}, nil
 	}
 
-	ds.ListABMTokensFunc = func(ctx context.Context) ([]*fleet.ABMToken, error) {
-		return []*fleet.ABMToken{}, nil
+	ds.ListABMTokensFunc = func(ctx context.Context) ([]*automdm.ABMToken, error) {
+		return []*automdm.ABMToken{}, nil
 	}
 
 	ctx = test.UserContext(ctx, test.UserAdmin)
@@ -141,7 +141,7 @@ func TestMailService(t *testing.T) {
     "server": "127.0.0.1",
     "sender_address": "foobar_updated@example.com"
   }
-}`, testMailpitSMTPPort), fleet.ApplySpecOptions{})
+}`, testMailpitSMTPPort), automdm.ApplySpecOptions{})
 	require.NoError(t, err)
 
 	getLastMailPitMessage := func() map[string]interface{} {
@@ -163,10 +163,10 @@ func TestMailService(t *testing.T) {
 	}
 
 	lastMessage := getLastMailPitMessage()
-	require.Equal(t, "Hello from Fleet", lastMessage["Subject"])
+	require.Equal(t, "Hello from AutoMDM", lastMessage["Subject"])
 
 	// (2) Inviting a user should send an e-mail to join.
-	_, err = svc.InviteNewUser(ctx, fleet.InvitePayload{
+	_, err = svc.InviteNewUser(ctx, automdm.InvitePayload{
 		Email:      ptr.String("foobar_recipient@example.com"),
 		Name:       ptr.String("Foobar"),
 		GlobalRole: null.NewString("observer", true),
@@ -174,30 +174,30 @@ func TestMailService(t *testing.T) {
 	require.NoError(t, err)
 
 	lastMessage = getLastMailPitMessage()
-	require.Equal(t, "You have been invited to Fleet!", lastMessage["Subject"])
+	require.Equal(t, "You have been invited to AutoMDM!", lastMessage["Subject"])
 
-	ds.UserByIDFunc = func(ctx context.Context, id uint) (*fleet.User, error) {
+	ds.UserByIDFunc = func(ctx context.Context, id uint) (*automdm.User, error) {
 		if id == 1 {
 			return test.UserAdmin, nil
 		}
 		return nil, newNotFoundError()
 	}
-	ds.InviteByEmailFunc = func(ctx context.Context, email string) (*fleet.Invite, error) {
+	ds.InviteByEmailFunc = func(ctx context.Context, email string) (*automdm.Invite, error) {
 		return nil, newTestNotFoundError()
 	}
 	ds.PendingEmailChangeFunc = func(ctx context.Context, userID uint, newEmail, token string) error {
 		return nil
 	}
-	ds.SaveUserFunc = func(ctx context.Context, user *fleet.User) error {
+	ds.SaveUserFunc = func(ctx context.Context, user *automdm.User) error {
 		return nil
 	}
 
 	// (3) Changing e-mail address should send an e-mail for confirmation.
-	_, err = svc.ModifyUser(ctx, 1, fleet.UserPayload{
+	_, err = svc.ModifyUser(ctx, 1, automdm.UserPayload{
 		Email: ptr.String("useradmin_2@example.com"),
 	})
 	require.NoError(t, err)
 
 	lastMessage = getLastMailPitMessage()
-	require.Equal(t, "Confirm Fleet Email Change", lastMessage["Subject"])
+	require.Equal(t, "Confirm AutoMDM Email Change", lastMessage["Subject"])
 }

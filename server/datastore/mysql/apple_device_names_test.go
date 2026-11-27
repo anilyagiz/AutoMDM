@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm"
-	apple_mdm "github.com/fleetdm/fleet/v4/server/mdm/apple"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm"
+	apple_mdm "github.com/anilyagiz/automdm/v4/server/mdm/apple"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
 )
@@ -49,9 +49,9 @@ func TestHostDeviceNames(t *testing.T) {
 	}
 }
 
-// enrollAppleHostForDeviceName creates an Apple host and enrolls it in Fleet's
+// enrollAppleHostForDeviceName creates an Apple host and enrolls it in AutoMDM's
 // MDM. When personal is true, the host is marked as a personal (BYOD) enrollment.
-func enrollAppleHostForDeviceName(t *testing.T, ds *Datastore, name, platform string, teamID uint, personal bool) *fleet.Host {
+func enrollAppleHostForDeviceName(t *testing.T, ds *Datastore, name, platform string, teamID uint, personal bool) *automdm.Host {
 	ctx := t.Context()
 	host := test.NewHost(t, ds, name, "1.1.1.1", name+"-key", name+"-uuid", time.Now(),
 		test.WithPlatform(platform), test.WithTeamID(teamID))
@@ -62,17 +62,17 @@ func enrollAppleHostForDeviceName(t *testing.T, ds *Datastore, name, platform st
 	require.NoError(t, err)
 
 	nanoEnroll(t, ds, host, false)
-	require.NoError(t, ds.SetOrUpdateMDMData(ctx, host.ID, false, true, serverURL, true, fleet.WellKnownMDMFleet, "", manualProfileIf(personal)))
+	require.NoError(t, ds.SetOrUpdateMDMData(ctx, host.ID, false, true, serverURL, true, automdm.WellKnownMDMAutoMDM, "", manualProfileIf(personal)))
 	return host
 }
 
-func getDeviceNameRow(t *testing.T, ds *Datastore, hostUUID string) *fleet.HostDeviceNameEnforcement {
+func getDeviceNameRow(t *testing.T, ds *Datastore, hostUUID string) *automdm.HostDeviceNameEnforcement {
 	enforcement, err := ds.GetHostDeviceNameEnforcement(t.Context(), hostUUID)
 	require.NoError(t, err)
 	return enforcement
 }
 
-func reportDeviceName(t *testing.T, ds *Datastore, hostUUID, name string) fleet.DeviceNameRetryOutcome {
+func reportDeviceName(t *testing.T, ds *Datastore, hostUUID, name string) automdm.DeviceNameRetryOutcome {
 	outcome, err := ds.UpdateHostDeviceNameStatusFromReport(t.Context(), hostUUID, name)
 	require.NoError(t, err)
 	return outcome
@@ -84,7 +84,7 @@ func setDeviceNameRetries(t *testing.T, ds *Datastore, hostUUID string, retries 
 	require.NoError(t, err)
 }
 
-func applyDeviceNameCommandResult(t *testing.T, ds *Datastore, commandUUID string, acknowledged bool, detail string) fleet.DeviceNameRetryOutcome {
+func applyDeviceNameCommandResult(t *testing.T, ds *Datastore, commandUUID string, acknowledged bool, detail string) automdm.DeviceNameRetryOutcome {
 	outcome, err := ds.UpdateHostDeviceNameStatusFromCommand(t.Context(), commandUUID, acknowledged, detail, true)
 	require.NoError(t, err)
 	return outcome
@@ -93,7 +93,7 @@ func applyDeviceNameCommandResult(t *testing.T, ds *Datastore, commandUUID strin
 func testHostDeviceNamesEligibility(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "eligibility-team"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "eligibility-team"})
 	require.NoError(t, err)
 
 	macHost := enrollAppleHostForDeviceName(t, ds, "mac", "darwin", team.ID, false)
@@ -120,29 +120,29 @@ func testHostDeviceNamesEligibility(t *testing.T, ds *Datastore) {
 
 	require.NoError(t, ds.BulkUpsertHostDeviceNameEnforcement(ctx, &team.ID))
 
-	// Only Apple, Fleet-MDM enrolled, non-personal hosts get a row.
-	eligible := []*fleet.Host{macHost, iosHost, ipadHost}
+	// Only Apple, AutoMDM-MDM enrolled, non-personal hosts get a row.
+	eligible := []*automdm.Host{macHost, iosHost, ipadHost}
 	for _, h := range eligible {
 		row := getDeviceNameRow(t, ds, h.UUID)
 		require.Nil(t, row.Status, "eligible host %s should be queued (NULL status)", h.Hostname)
 	}
 
-	ineligible := []*fleet.Host{byodHost, udBYODHost, winHost, linuxHost, notEnrolled}
+	ineligible := []*automdm.Host{byodHost, udBYODHost, winHost, linuxHost, notEnrolled}
 	for _, h := range ineligible {
 		_, err := ds.GetHostDeviceNameEnforcement(ctx, h.UUID)
-		require.True(t, fleet.IsNotFound(err), "ineligible host %s should have no row", h.Hostname)
+		require.True(t, automdm.IsNotFound(err), "ineligible host %s should have no row", h.Hostname)
 	}
 
 	// A re-save re-queues even hosts that had already been verified: mark one
 	// verified, then bulk upsert resets its status back to NULL (ON DUPLICATE KEY
 	// UPDATE branch).
-	_, err = ds.writer(ctx).ExecContext(ctx, `UPDATE host_mdm_apple_device_names SET status = ? WHERE host_uuid = ?`, fleet.MDMDeliveryVerified, macHost.UUID)
+	_, err = ds.writer(ctx).ExecContext(ctx, `UPDATE host_mdm_apple_device_names SET status = ? WHERE host_uuid = ?`, automdm.MDMDeliveryVerified, macHost.UUID)
 	require.NoError(t, err)
 	require.NoError(t, ds.BulkUpsertHostDeviceNameEnforcement(ctx, &team.ID))
 	require.Nil(t, getDeviceNameRow(t, ds, macHost.UUID).Status, "re-save should reset a verified host back to queued")
 
 	// A second eligible host in another team, to prove delete is team-scoped.
-	otherTeam, err := ds.NewTeam(ctx, &fleet.Team{Name: "eligibility-other-team"})
+	otherTeam, err := ds.NewTeam(ctx, &automdm.Team{Name: "eligibility-other-team"})
 	require.NoError(t, err)
 	otherHost := enrollAppleHostForDeviceName(t, ds, "other-mac", "darwin", otherTeam.ID, false)
 	require.NoError(t, ds.BulkUpsertHostDeviceNameEnforcement(ctx, &otherTeam.ID))
@@ -151,7 +151,7 @@ func testHostDeviceNamesEligibility(t *testing.T, ds *Datastore) {
 	require.NoError(t, ds.DeleteHostDeviceNameEnforcementForTeam(ctx, &team.ID))
 	for _, h := range eligible {
 		_, err := ds.GetHostDeviceNameEnforcement(ctx, h.UUID)
-		require.True(t, fleet.IsNotFound(err), "row for %s should be deleted", h.Hostname)
+		require.True(t, automdm.IsNotFound(err), "row for %s should be deleted", h.Hostname)
 	}
 	require.Nil(t, getDeviceNameRow(t, ds, otherHost.UUID).Status, "other team's row must survive the delete")
 }
@@ -159,7 +159,7 @@ func testHostDeviceNamesEligibility(t *testing.T, ds *Datastore) {
 func testHostDeviceNamesCommandLifecycle(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "lifecycle-team"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "lifecycle-team"})
 	require.NoError(t, err)
 
 	host := enrollAppleHostForDeviceName(t, ds, "mac", "darwin", team.ID, false)
@@ -182,10 +182,10 @@ func testHostDeviceNamesCommandLifecycle(t *testing.T, ds *Datastore) {
 	require.Equal(t, team.ID, *pending[0].TeamID)
 
 	// Marking the command as sent moves the row to pending and records details.
-	require.NoError(t, ds.SetHostDeviceNameStatus(ctx, host.UUID, fleet.MDMDeliveryPending, new("DEVNAME-cmd-1"), "WS-SERIAL123", ""))
+	require.NoError(t, ds.SetHostDeviceNameStatus(ctx, host.UUID, automdm.MDMDeliveryPending, new("DEVNAME-cmd-1"), "WS-SERIAL123", ""))
 	row := getDeviceNameRow(t, ds, host.UUID)
 	require.NotNil(t, row.Status)
-	require.Equal(t, fleet.MDMDeliveryPending, *row.Status)
+	require.Equal(t, automdm.MDMDeliveryPending, *row.Status)
 	require.NotNil(t, row.CommandUUID)
 	require.Equal(t, "DEVNAME-cmd-1", *row.CommandUUID)
 	require.NotNil(t, row.ExpectedDeviceName)
@@ -196,10 +196,10 @@ func testHostDeviceNamesCommandLifecycle(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 	require.Empty(t, pending)
 
-	// An acknowledgment moves the row to verifying and renames the host in Fleet
+	// An acknowledgment moves the row to verifying and renames the host in AutoMDM
 	// (computer_name, hostname, display name) to the expected name, atomically.
 	applyDeviceNameCommandResult(t, ds, "DEVNAME-cmd-1", true, "")
-	require.Equal(t, fleet.MDMDeliveryVerifying, *getDeviceNameRow(t, ds, host.UUID).Status)
+	require.Equal(t, automdm.MDMDeliveryVerifying, *getDeviceNameRow(t, ds, host.UUID).Status)
 	renamed, err := ds.Host(ctx, host.ID)
 	require.NoError(t, err)
 	require.Equal(t, "WS-SERIAL123", renamed.ComputerName)
@@ -210,8 +210,8 @@ func testHostDeviceNamesCommandLifecycle(t *testing.T, ds *Datastore) {
 	// remain, clearing the command so its late result can't match again.
 	for i := 1; i <= mdm.MaxAppleDeviceNameRetries; i++ {
 		cmdUUID := fmt.Sprintf("DEVNAME-err-%d", i)
-		require.NoError(t, ds.SetHostDeviceNameStatus(ctx, host.UUID, fleet.MDMDeliveryPending, &cmdUUID, "WS-SERIAL123", ""))
-		require.Equal(t, fleet.DeviceNameRetried, applyDeviceNameCommandResult(t, ds, cmdUUID, false, "Apple error chain"))
+		require.NoError(t, ds.SetHostDeviceNameStatus(ctx, host.UUID, automdm.MDMDeliveryPending, &cmdUUID, "WS-SERIAL123", ""))
+		require.Equal(t, automdm.DeviceNameRetried, applyDeviceNameCommandResult(t, ds, cmdUUID, false, "Apple error chain"))
 		row = getDeviceNameRow(t, ds, host.UUID)
 		require.Nil(t, row.Status)
 		require.Nil(t, row.CommandUUID)
@@ -220,38 +220,38 @@ func testHostDeviceNamesCommandLifecycle(t *testing.T, ds *Datastore) {
 	}
 
 	// Once retries are used up, the next error fails the row.
-	require.NoError(t, ds.SetHostDeviceNameStatus(ctx, host.UUID, fleet.MDMDeliveryPending, new("DEVNAME-err-last"), "WS-SERIAL123", ""))
-	require.Equal(t, fleet.DeviceNameRetriesExhausted, applyDeviceNameCommandResult(t, ds, "DEVNAME-err-last", false, "Apple error chain"))
+	require.NoError(t, ds.SetHostDeviceNameStatus(ctx, host.UUID, automdm.MDMDeliveryPending, new("DEVNAME-err-last"), "WS-SERIAL123", ""))
+	require.Equal(t, automdm.DeviceNameRetriesExhausted, applyDeviceNameCommandResult(t, ds, "DEVNAME-err-last", false, "Apple error chain"))
 	row = getDeviceNameRow(t, ds, host.UUID)
-	require.Equal(t, fleet.MDMDeliveryFailed, *row.Status)
+	require.Equal(t, automdm.MDMDeliveryFailed, *row.Status)
 	require.Equal(t, "Apple error chain", row.Detail)
 	require.EqualValues(t, mdm.MaxAppleDeviceNameRetries, row.Retries)
 
 	// A non-retryable error (e.g. an unsupervised device) fails the row right away
 	// without using a retry.
 	require.NoError(t, ds.ResendHostDeviceName(ctx, host.UUID))
-	require.NoError(t, ds.SetHostDeviceNameStatus(ctx, host.UUID, fleet.MDMDeliveryPending, new("DEVNAME-not-supervised"), "WS-SERIAL123", ""))
+	require.NoError(t, ds.SetHostDeviceNameStatus(ctx, host.UUID, automdm.MDMDeliveryPending, new("DEVNAME-not-supervised"), "WS-SERIAL123", ""))
 	outcome, err := ds.UpdateHostDeviceNameStatusFromCommand(ctx, "DEVNAME-not-supervised", false, "The device is not supervised.", false)
 	require.NoError(t, err)
-	require.Equal(t, fleet.DeviceNameNotRetried, outcome)
+	require.Equal(t, automdm.DeviceNameNotRetried, outcome)
 	row = getDeviceNameRow(t, ds, host.UUID)
-	require.Equal(t, fleet.MDMDeliveryFailed, *row.Status)
+	require.Equal(t, automdm.MDMDeliveryFailed, *row.Status)
 	require.Equal(t, "The device is not supervised.", row.Detail)
 	require.Zero(t, row.Retries)
 
 	// An unknown command UUID is a not-found error.
 	_, err = ds.UpdateHostDeviceNameStatusFromCommand(ctx, "DEVNAME-nope", true, "", true)
-	require.True(t, fleet.IsNotFound(err))
+	require.True(t, automdm.IsNotFound(err))
 
 	// Getting an enforcement row for a host with none is a not-found error.
 	_, err = ds.GetHostDeviceNameEnforcement(ctx, "missing-uuid")
-	require.True(t, fleet.IsNotFound(err))
+	require.True(t, automdm.IsNotFound(err))
 }
 
 func testHostDeviceNamesDeactivateStaleCommands(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "deactivate-team"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "deactivate-team"})
 	require.NoError(t, err)
 	host := enrollAppleHostForDeviceName(t, ds, "mac", "darwin", team.ID, false)
 	other := enrollAppleHostForDeviceName(t, ds, "mac2", "darwin", team.ID, false)
@@ -279,17 +279,17 @@ func testHostDeviceNamesDeactivateStaleCommands(t *testing.T, ds *Datastore) {
 
 	// A lingering device-name command from an earlier send, a non-device-name
 	// command for the same host, and a device-name command for another host.
-	enqueueCmd(host.UUID, fleet.DeviceNameCommandUUIDPrefix+"stale", "Settings")
+	enqueueCmd(host.UUID, automdm.DeviceNameCommandUUIDPrefix+"stale", "Settings")
 	enqueueCmd(host.UUID, "INSTALL-profile", "InstallProfile")
-	enqueueCmd(other.UUID, fleet.DeviceNameCommandUUIDPrefix+"other", "Settings")
+	enqueueCmd(other.UUID, automdm.DeviceNameCommandUUIDPrefix+"other", "Settings")
 
 	require.NoError(t, ds.DeactivateHostDeviceNameCommands(ctx, []string{host.UUID}))
 
 	// Only the target host's device-name command is deactivated; its unrelated
 	// command and the other host's command are untouched.
-	require.False(t, queueActive(host.UUID, fleet.DeviceNameCommandUUIDPrefix+"stale"))
+	require.False(t, queueActive(host.UUID, automdm.DeviceNameCommandUUIDPrefix+"stale"))
 	require.True(t, queueActive(host.UUID, "INSTALL-profile"))
-	require.True(t, queueActive(other.UUID, fleet.DeviceNameCommandUUIDPrefix+"other"))
+	require.True(t, queueActive(other.UUID, automdm.DeviceNameCommandUUIDPrefix+"other"))
 
 	// Empty input is a no-op.
 	require.NoError(t, ds.DeactivateHostDeviceNameCommands(ctx, nil))
@@ -298,34 +298,34 @@ func testHostDeviceNamesDeactivateStaleCommands(t *testing.T, ds *Datastore) {
 func testHostDeviceNamesVerify(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "verify-team"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "verify-team"})
 	require.NoError(t, err)
 	host := enrollAppleHostForDeviceName(t, ds, "mac", "darwin", team.ID, false)
 
 	require.NoError(t, ds.BulkUpsertHostDeviceNameEnforcement(ctx, &team.ID))
-	require.NoError(t, ds.SetHostDeviceNameStatus(ctx, host.UUID, fleet.MDMDeliveryPending, new("DEVNAME-cmd"), "WS-1", ""))
+	require.NoError(t, ds.SetHostDeviceNameStatus(ctx, host.UUID, automdm.MDMDeliveryPending, new("DEVNAME-cmd"), "WS-1", ""))
 
 	// A NULL/pending row is left untouched by verification.
-	require.Equal(t, fleet.DeviceNameNotRetried, reportDeviceName(t, ds, host.UUID, "WS-1"))
-	require.Equal(t, fleet.MDMDeliveryPending, *getDeviceNameRow(t, ds, host.UUID).Status)
+	require.Equal(t, automdm.DeviceNameNotRetried, reportDeviceName(t, ds, host.UUID, "WS-1"))
+	require.Equal(t, automdm.MDMDeliveryPending, *getDeviceNameRow(t, ds, host.UUID).Status)
 
 	// Move to verifying, then a matching report verifies it.
 	_, err = ds.UpdateHostDeviceNameStatusFromCommand(ctx, "DEVNAME-cmd", true, "", true)
 	require.NoError(t, err)
-	require.Equal(t, fleet.DeviceNameNotRetried, reportDeviceName(t, ds, host.UUID, "WS-1"))
-	require.Equal(t, fleet.MDMDeliveryVerified, *getDeviceNameRow(t, ds, host.UUID).Status)
+	require.Equal(t, automdm.DeviceNameNotRetried, reportDeviceName(t, ds, host.UUID, "WS-1"))
+	require.Equal(t, automdm.MDMDeliveryVerified, *getDeviceNameRow(t, ds, host.UUID).Status)
 
 	// Re-verifying an already-verified, still-matching row is a no-op: status
 	// stays verified and the row is not rewritten (updated_at unchanged).
 	verifiedAt := getDeviceNameRow(t, ds, host.UUID).UpdatedAt
-	require.Equal(t, fleet.DeviceNameNotRetried, reportDeviceName(t, ds, host.UUID, "WS-1"))
+	require.Equal(t, automdm.DeviceNameNotRetried, reportDeviceName(t, ds, host.UUID, "WS-1"))
 	afterReverify := getDeviceNameRow(t, ds, host.UUID)
-	require.Equal(t, fleet.MDMDeliveryVerified, *afterReverify.Status)
+	require.Equal(t, automdm.MDMDeliveryVerified, *afterReverify.Status)
 	require.True(t, afterReverify.UpdatedAt.Equal(verifiedAt), "re-verifying a matching row must not rewrite it")
 
 	// A later mismatching report is drift: the row is re-queued for the cron,
 	// with the stale command cleared so its late result can't match.
-	require.Equal(t, fleet.DeviceNameRetried, reportDeviceName(t, ds, host.UUID, "renamed-by-user"))
+	require.Equal(t, automdm.DeviceNameRetried, reportDeviceName(t, ds, host.UUID, "renamed-by-user"))
 	row := getDeviceNameRow(t, ds, host.UUID)
 	require.Nil(t, row.Status)
 	require.Nil(t, row.CommandUUID)
@@ -337,27 +337,27 @@ func testHostDeviceNamesVerify(t *testing.T, ds *Datastore) {
 	// A failed row (e.g. the device rejected the command) is not reconciled:
 	// only a manual resend retries it, since an automatic retry would just fail
 	// again.
-	require.NoError(t, ds.SetHostDeviceNameStatus(ctx, host.UUID, fleet.MDMDeliveryFailed, nil, "WS-1", "rejected"))
-	require.Equal(t, fleet.DeviceNameNotRetried, reportDeviceName(t, ds, host.UUID, "renamed-by-user"))
-	require.Equal(t, fleet.DeviceNameNotRetried, reportDeviceName(t, ds, host.UUID, "WS-1"))
-	require.Equal(t, fleet.MDMDeliveryFailed, *getDeviceNameRow(t, ds, host.UUID).Status)
+	require.NoError(t, ds.SetHostDeviceNameStatus(ctx, host.UUID, automdm.MDMDeliveryFailed, nil, "WS-1", "rejected"))
+	require.Equal(t, automdm.DeviceNameNotRetried, reportDeviceName(t, ds, host.UUID, "renamed-by-user"))
+	require.Equal(t, automdm.DeviceNameNotRetried, reportDeviceName(t, ds, host.UUID, "WS-1"))
+	require.Equal(t, automdm.MDMDeliveryFailed, *getDeviceNameRow(t, ds, host.UUID).Status)
 
 	// A host with no row is a no-op (no error).
-	require.Equal(t, fleet.DeviceNameNotRetried, reportDeviceName(t, ds, "missing-uuid", "anything"))
+	require.Equal(t, automdm.DeviceNameNotRetried, reportDeviceName(t, ds, "missing-uuid", "anything"))
 }
 
 func testHostDeviceNamesResend(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "resend-team"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "resend-team"})
 	require.NoError(t, err)
 	host := enrollAppleHostForDeviceName(t, ds, "mac", "darwin", team.ID, false)
 
 	require.NoError(t, ds.BulkUpsertHostDeviceNameEnforcement(ctx, &team.ID))
-	require.NoError(t, ds.SetHostDeviceNameStatus(ctx, host.UUID, fleet.MDMDeliveryPending, new("DEVNAME-cmd"), "WS-1", ""))
+	require.NoError(t, ds.SetHostDeviceNameStatus(ctx, host.UUID, automdm.MDMDeliveryPending, new("DEVNAME-cmd"), "WS-1", ""))
 	setDeviceNameRetries(t, ds, host.UUID, mdm.MaxAppleDeviceNameRetries)
-	require.Equal(t, fleet.DeviceNameRetriesExhausted, applyDeviceNameCommandResult(t, ds, "DEVNAME-cmd", false, "boom"))
-	require.Equal(t, fleet.MDMDeliveryFailed, *getDeviceNameRow(t, ds, host.UUID).Status)
+	require.Equal(t, automdm.DeviceNameRetriesExhausted, applyDeviceNameCommandResult(t, ds, "DEVNAME-cmd", false, "boom"))
+	require.Equal(t, automdm.MDMDeliveryFailed, *getDeviceNameRow(t, ds, host.UUID).Status)
 
 	// Resend resets the status to NULL so the cron re-enqueues it, clears the
 	// previous command UUID so a late ack for it can't match this row, and
@@ -370,7 +370,7 @@ func testHostDeviceNamesResend(t *testing.T, ds *Datastore) {
 
 	// The previous command's late acknowledgment no longer matches any row.
 	_, err = ds.UpdateHostDeviceNameStatusFromCommand(ctx, "DEVNAME-cmd", true, "", true)
-	require.True(t, fleet.IsNotFound(err))
+	require.True(t, automdm.IsNotFound(err))
 	require.Nil(t, getDeviceNameRow(t, ds, host.UUID).Status, "late ack must not resurrect the row")
 
 	pending, err := ds.ListHostsPendingDeviceNameCommand(ctx, 10)
@@ -388,11 +388,11 @@ func testHostDeviceNamesReconcile(t *testing.T, ds *Datastore) {
 		require.NoError(t, err)
 	}
 
-	withTemplate, err := ds.NewTeam(ctx, &fleet.Team{Name: "with-template"})
+	withTemplate, err := ds.NewTeam(ctx, &automdm.Team{Name: "with-template"})
 	require.NoError(t, err)
-	setTemplate(withTemplate.ID, "WS-$FLEET_VAR_HOST_HARDWARE_SERIAL")
+	setTemplate(withTemplate.ID, "WS-$AUTOMDM_VAR_HOST_HARDWARE_SERIAL")
 
-	noTemplate, err := ds.NewTeam(ctx, &fleet.Team{Name: "no-template"})
+	noTemplate, err := ds.NewTeam(ctx, &automdm.Team{Name: "no-template"})
 	require.NoError(t, err)
 
 	hostWith := enrollAppleHostForDeviceName(t, ds, "with", "darwin", withTemplate.ID, false)
@@ -403,9 +403,9 @@ func testHostDeviceNamesReconcile(t *testing.T, ds *Datastore) {
 	// leaves template-less / ineligible hosts without a row.
 	require.NoError(t, ds.ReconcileHostDeviceNamesForHosts(ctx, []uint{hostWith.ID, hostWithout.ID, hostByod.ID}))
 	require.Nil(t, getDeviceNameRow(t, ds, hostWith.UUID).Status)
-	for _, h := range []*fleet.Host{hostWithout, hostByod} {
+	for _, h := range []*automdm.Host{hostWithout, hostByod} {
 		_, err := ds.GetHostDeviceNameEnforcement(ctx, h.UUID)
-		require.True(t, fleet.IsNotFound(err), "host %s should have no row", h.Hostname)
+		require.True(t, automdm.IsNotFound(err), "host %s should have no row", h.Hostname)
 	}
 
 	// Simulate a transfer: the host moves to the template-less team. Reconcile
@@ -414,7 +414,7 @@ func testHostDeviceNamesReconcile(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 	require.NoError(t, ds.ReconcileHostDeviceNamesForHosts(ctx, []uint{hostWith.ID}))
 	_, err = ds.GetHostDeviceNameEnforcement(ctx, hostWith.UUID)
-	require.True(t, fleet.IsNotFound(err), "row should be deleted after transfer to template-less team")
+	require.True(t, automdm.IsNotFound(err), "row should be deleted after transfer to template-less team")
 
 	// Transfer back to the template team: reconcile re-creates the queued row.
 	_, err = ds.writer(ctx).ExecContext(ctx, `UPDATE hosts SET team_id = ? WHERE id = ?`, withTemplate.ID, hostWith.ID)
@@ -438,7 +438,7 @@ func testHostDeviceNamesNoTeam(t *testing.T, ds *Datastore) {
 	}
 
 	// A team host proves the No-team writers never touch team-scoped rows.
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "no-team-scope-control"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "no-team-scope-control"})
 	require.NoError(t, err)
 	teamHost := enrollAppleHostForDeviceName(t, ds, "team-mac", "darwin", team.ID, false)
 	require.NoError(t, ds.BulkUpsertHostDeviceNameEnforcement(ctx, &team.ID))
@@ -447,7 +447,7 @@ func testHostDeviceNamesNoTeam(t *testing.T, ds *Datastore) {
 	// team, then moved to No team so team_id IS NULL).
 	noTeamMac := enrollAppleHostForDeviceName(t, ds, "noteam-mac", "darwin", team.ID, false)
 	noTeamByod := enrollAppleHostForDeviceName(t, ds, "noteam-byod", "ios", team.ID, true)
-	for _, h := range []*fleet.Host{noTeamMac, noTeamByod} {
+	for _, h := range []*automdm.Host{noTeamMac, noTeamByod} {
 		_, err := ds.writer(ctx).ExecContext(ctx, `UPDATE hosts SET team_id = NULL WHERE id = ?`, h.ID)
 		require.NoError(t, err)
 	}
@@ -457,13 +457,13 @@ func testHostDeviceNamesNoTeam(t *testing.T, ds *Datastore) {
 	require.NoError(t, ds.BulkUpsertHostDeviceNameEnforcement(ctx, nil))
 	require.Nil(t, getDeviceNameRow(t, ds, noTeamMac.UUID).Status)
 	_, err = ds.GetHostDeviceNameEnforcement(ctx, noTeamByod.UUID)
-	require.True(t, fleet.IsNotFound(err), "No-team BYOD host must not get a row")
+	require.True(t, automdm.IsNotFound(err), "No-team BYOD host must not get a row")
 	require.Nil(t, getDeviceNameRow(t, ds, teamHost.UUID).Status, "team host row must survive a No-team upsert")
 
 	// Delete with a nil team removes only No-team rows.
 	require.NoError(t, ds.DeleteHostDeviceNameEnforcementForTeam(ctx, nil))
 	_, err = ds.GetHostDeviceNameEnforcement(ctx, noTeamMac.UUID)
-	require.True(t, fleet.IsNotFound(err), "No-team row should be deleted")
+	require.True(t, automdm.IsNotFound(err), "No-team row should be deleted")
 	require.Nil(t, getDeviceNameRow(t, ds, teamHost.UUID).Status, "team host row must survive a No-team delete")
 
 	_, err = ds.writer(ctx).ExecContext(ctx,
@@ -471,24 +471,24 @@ func testHostDeviceNamesNoTeam(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 	require.NoError(t, ds.ReconcileHostDeviceNamesForHosts(ctx, []uint{noTeamMac.ID}))
 	_, err = ds.GetHostDeviceNameEnforcement(ctx, noTeamMac.UUID)
-	require.True(t, fleet.IsNotFound(err), "enrollment reconcile: JSON-null No-team template must not enforce")
-	require.NoError(t, ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(nil, []uint{noTeamMac.ID})))
+	require.True(t, automdm.IsNotFound(err), "enrollment reconcile: JSON-null No-team template must not enforce")
+	require.NoError(t, ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(nil, []uint{noTeamMac.ID})))
 	_, err = ds.GetHostDeviceNameEnforcement(ctx, noTeamMac.UUID)
-	require.True(t, fleet.IsNotFound(err), "team-scoped reconcile: JSON-null No-team template must not enforce")
+	require.True(t, automdm.IsNotFound(err), "team-scoped reconcile: JSON-null No-team template must not enforce")
 
 	// Reconcile resolves the No-team template from app config: with a template set
 	// the eligible No-team host is queued and BYOD stays rowless.
-	setNoTeamTemplate("WS-$FLEET_VAR_HOST_HARDWARE_SERIAL")
+	setNoTeamTemplate("WS-$AUTOMDM_VAR_HOST_HARDWARE_SERIAL")
 	require.NoError(t, ds.ReconcileHostDeviceNamesForHosts(ctx, []uint{noTeamMac.ID, noTeamByod.ID}))
 	require.Nil(t, getDeviceNameRow(t, ds, noTeamMac.UUID).Status)
 	_, err = ds.GetHostDeviceNameEnforcement(ctx, noTeamByod.UUID)
-	require.True(t, fleet.IsNotFound(err), "No-team BYOD host must not be reconciled into a row")
+	require.True(t, automdm.IsNotFound(err), "No-team BYOD host must not be reconciled into a row")
 
 	// Clearing the No-team template makes reconcile delete the orphaned row.
 	setNoTeamTemplate("")
 	require.NoError(t, ds.ReconcileHostDeviceNamesForHosts(ctx, []uint{noTeamMac.ID}))
 	_, err = ds.GetHostDeviceNameEnforcement(ctx, noTeamMac.UUID)
-	require.True(t, fleet.IsNotFound(err), "No-team row should be deleted after the template is cleared")
+	require.True(t, automdm.IsNotFound(err), "No-team row should be deleted after the template is cleared")
 }
 
 // setDeviceNameTemplate writes name_template into a team's config JSON directly,
@@ -506,11 +506,11 @@ func setDeviceNameTemplate(t *testing.T, ds *Datastore, teamID uint, tmpl string
 func testHostDeviceNamesTransferViaAddHostsToTeam(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
-	withTemplate, err := ds.NewTeam(ctx, &fleet.Team{Name: "transfer-with-template"})
+	withTemplate, err := ds.NewTeam(ctx, &automdm.Team{Name: "transfer-with-template"})
 	require.NoError(t, err)
-	setDeviceNameTemplate(t, ds, withTemplate.ID, "WS-$FLEET_VAR_HOST_HARDWARE_SERIAL")
+	setDeviceNameTemplate(t, ds, withTemplate.ID, "WS-$AUTOMDM_VAR_HOST_HARDWARE_SERIAL")
 
-	noTemplate, err := ds.NewTeam(ctx, &fleet.Team{Name: "transfer-no-template"})
+	noTemplate, err := ds.NewTeam(ctx, &automdm.Team{Name: "transfer-no-template"})
 	require.NoError(t, err)
 
 	// A host starts in the template team with a queued row.
@@ -524,41 +524,41 @@ func testHostDeviceNamesTransferViaAddHostsToTeam(t *testing.T, ds *Datastore) {
 
 	// template -> template-less: the row is deleted (enforcement stops) and the
 	// host's name is left untouched.
-	require.NoError(t, ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&noTemplate.ID, []uint{host.ID})))
+	require.NoError(t, ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&noTemplate.ID, []uint{host.ID})))
 	_, err = ds.GetHostDeviceNameEnforcement(ctx, host.UUID)
-	require.True(t, fleet.IsNotFound(err), "transfer to a template-less team should delete the enforcement row")
+	require.True(t, automdm.IsNotFound(err), "transfer to a template-less team should delete the enforcement row")
 	var name string
 	require.NoError(t, sqlx.GetContext(ctx, ds.reader(ctx), &name, `SELECT computer_name FROM hosts WHERE id = ?`, host.ID))
 	require.Equal(t, "keep-this-name", name, "transfer must not rename the host")
 
 	// template-less -> template: reconcile re-creates the queued row (UI reverts
 	// to Enforcing/Pending).
-	require.NoError(t, ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&withTemplate.ID, []uint{host.ID})))
+	require.NoError(t, ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&withTemplate.ID, []uint{host.ID})))
 	require.Nil(t, getDeviceNameRow(t, ds, host.UUID).Status, "transfer into a template team should create a queued row")
 
 	// template -> template (a different team that also has a template): the row is
 	// reset to NULL so the destination team's template is enforced afresh. Mark it
 	// verified first to prove the transfer resets an already-settled row.
-	_, err = ds.writer(ctx).ExecContext(ctx, `UPDATE host_mdm_apple_device_names SET status = ? WHERE host_uuid = ?`, fleet.MDMDeliveryVerified, host.UUID)
+	_, err = ds.writer(ctx).ExecContext(ctx, `UPDATE host_mdm_apple_device_names SET status = ? WHERE host_uuid = ?`, automdm.MDMDeliveryVerified, host.UUID)
 	require.NoError(t, err)
-	otherTemplate, err := ds.NewTeam(ctx, &fleet.Team{Name: "transfer-other-template"})
+	otherTemplate, err := ds.NewTeam(ctx, &automdm.Team{Name: "transfer-other-template"})
 	require.NoError(t, err)
-	setDeviceNameTemplate(t, ds, otherTemplate.ID, "Lab-$FLEET_VAR_HOST_HARDWARE_SERIAL")
-	require.NoError(t, ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&otherTemplate.ID, []uint{host.ID})))
+	setDeviceNameTemplate(t, ds, otherTemplate.ID, "Lab-$AUTOMDM_VAR_HOST_HARDWARE_SERIAL")
+	require.NoError(t, ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&otherTemplate.ID, []uint{host.ID})))
 	require.Nil(t, getDeviceNameRow(t, ds, host.UUID).Status, "transfer between template teams should reset the row to queued")
 
 	// template -> No team (No team has no template): the row is deleted.
-	require.NoError(t, ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(nil, []uint{host.ID})))
+	require.NoError(t, ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(nil, []uint{host.ID})))
 	_, err = ds.GetHostDeviceNameEnforcement(ctx, host.UUID)
-	require.True(t, fleet.IsNotFound(err), "transfer to a template-less No team should delete the enforcement row")
+	require.True(t, automdm.IsNotFound(err), "transfer to a template-less No team should delete the enforcement row")
 
 	// No team WITH a template: transferring the host into No team now queues a row,
 	// resolving the template from the global app config (the team-scoped reconcile's
 	// No-team branch).
 	_, err = ds.writer(ctx).ExecContext(ctx,
-		`UPDATE app_config_json SET json_value = JSON_SET(json_value, '$.mdm.name_template', ?)`, "NoTeam-$FLEET_VAR_HOST_HARDWARE_SERIAL")
+		`UPDATE app_config_json SET json_value = JSON_SET(json_value, '$.mdm.name_template', ?)`, "NoTeam-$AUTOMDM_VAR_HOST_HARDWARE_SERIAL")
 	require.NoError(t, err)
-	require.NoError(t, ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(nil, []uint{host.ID})))
+	require.NoError(t, ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(nil, []uint{host.ID})))
 	require.Nil(t, getDeviceNameRow(t, ds, host.UUID).Status, "transfer into No team with a template should queue a row")
 }
 
@@ -568,16 +568,16 @@ func testHostDeviceNamesTransferViaAddHostsToTeam(t *testing.T, ds *Datastore) {
 func testHostDeviceNamesTransferBatched(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
-	noTemplate, err := ds.NewTeam(ctx, &fleet.Team{Name: "batch-no-template"})
+	noTemplate, err := ds.NewTeam(ctx, &automdm.Team{Name: "batch-no-template"})
 	require.NoError(t, err)
-	withTemplate, err := ds.NewTeam(ctx, &fleet.Team{Name: "batch-with-template"})
+	withTemplate, err := ds.NewTeam(ctx, &automdm.Team{Name: "batch-with-template"})
 	require.NoError(t, err)
-	setDeviceNameTemplate(t, ds, withTemplate.ID, "WS-$FLEET_VAR_HOST_HARDWARE_SERIAL")
+	setDeviceNameTemplate(t, ds, withTemplate.ID, "WS-$AUTOMDM_VAR_HOST_HARDWARE_SERIAL")
 
 	// Three eligible hosts start in the template-less team (no rows) plus one BYOD
 	// host that must never get a row.
 	var hostIDs []uint
-	eligible := make([]*fleet.Host, 0, 3)
+	eligible := make([]*automdm.Host, 0, 3)
 	for i := range 3 {
 		h := enrollAppleHostForDeviceName(t, ds, "batch"+string(rune('a'+i)), "darwin", noTemplate.ID, false)
 		eligible = append(eligible, h)
@@ -588,18 +588,18 @@ func testHostDeviceNamesTransferBatched(t *testing.T, ds *Datastore) {
 
 	// Move all four into the template team with a batch size of 1 so the reconcile
 	// runs once per batch.
-	require.NoError(t, ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&withTemplate.ID, hostIDs).WithBatchSize(1)))
+	require.NoError(t, ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&withTemplate.ID, hostIDs).WithBatchSize(1)))
 	for _, h := range eligible {
 		require.Nil(t, getDeviceNameRow(t, ds, h.UUID).Status, "eligible host %s should be queued after batched transfer", h.Hostname)
 	}
 	_, err = ds.GetHostDeviceNameEnforcement(ctx, byod.UUID)
-	require.True(t, fleet.IsNotFound(err), "BYOD host must not get a row")
+	require.True(t, automdm.IsNotFound(err), "BYOD host must not get a row")
 
 	// Move them all back to the template-less team, again batched: all rows deleted.
-	require.NoError(t, ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&noTemplate.ID, hostIDs).WithBatchSize(2)))
+	require.NoError(t, ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&noTemplate.ID, hostIDs).WithBatchSize(2)))
 	for _, h := range eligible {
 		_, err = ds.GetHostDeviceNameEnforcement(ctx, h.UUID)
-		require.True(t, fleet.IsNotFound(err), "row for %s should be deleted after batched transfer out", h.Hostname)
+		require.True(t, automdm.IsNotFound(err), "row for %s should be deleted after batched transfer out", h.Hostname)
 	}
 }
 
@@ -609,9 +609,9 @@ func testHostDeviceNamesTransferBatched(t *testing.T, ds *Datastore) {
 func testHostDeviceNamesSummaryAndFilter(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "summary-team"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "summary-team"})
 	require.NoError(t, err)
-	setDeviceNameTemplate(t, ds, team.ID, "WS-$FLEET_VAR_HOST_HARDWARE_SERIAL")
+	setDeviceNameTemplate(t, ds, team.ID, "WS-$AUTOMDM_VAR_HOST_HARDWARE_SERIAL")
 
 	failedHost := enrollAppleHostForDeviceName(t, ds, "failed", "darwin", team.ID, false)
 	verifiedHost := enrollAppleHostForDeviceName(t, ds, "verified", "ios", team.ID, false)
@@ -623,16 +623,16 @@ func testHostDeviceNamesSummaryAndFilter(t *testing.T, ds *Datastore) {
 	require.NoError(t, ds.BulkUpsertHostDeviceNameEnforcement(ctx, &team.ID))
 	// The BYOD host is ineligible, so it never got a row.
 	_, err = ds.GetHostDeviceNameEnforcement(ctx, byodHost.UUID)
-	require.True(t, fleet.IsNotFound(err))
+	require.True(t, automdm.IsNotFound(err))
 
-	setStatus := func(hostUUID string, status fleet.MDMDeliveryStatus) {
+	setStatus := func(hostUUID string, status automdm.MDMDeliveryStatus) {
 		_, err := ds.writer(ctx).ExecContext(ctx, `UPDATE host_mdm_apple_device_names SET status = ? WHERE host_uuid = ?`, status, hostUUID)
 		require.NoError(t, err)
 	}
-	setStatus(failedHost.UUID, fleet.MDMDeliveryFailed)
-	setStatus(verifiedHost.UUID, fleet.MDMDeliveryVerified)
-	setStatus(verifyingHost.UUID, fleet.MDMDeliveryVerifying)
-	setStatus(comboHost.UUID, fleet.MDMDeliveryFailed)
+	setStatus(failedHost.UUID, automdm.MDMDeliveryFailed)
+	setStatus(verifiedHost.UUID, automdm.MDMDeliveryVerified)
+	setStatus(verifyingHost.UUID, automdm.MDMDeliveryVerifying)
+	setStatus(comboHost.UUID, automdm.MDMDeliveryFailed)
 	// queuedHost keeps its NULL status from the bulk upsert, which renders as pending.
 
 	// comboHost has a failed rename (set above) AND a verified (install) config
@@ -642,7 +642,7 @@ func testHostDeviceNamesSummaryAndFilter(t *testing.T, ds *Datastore) {
 		INSERT INTO host_mdm_apple_profiles
 			(host_uuid, profile_uuid, command_uuid, status, operation_type, detail, profile_name, profile_identifier, checksum)
 		VALUES (?, ?, '', ?, ?, '', 'p1', 'com.example.p1', ?)`,
-		comboHost.UUID, "a"+comboHost.UUID, fleet.MDMDeliveryVerified, fleet.MDMOperationTypeInstall, []byte("csum"))
+		comboHost.UUID, "a"+comboHost.UUID, automdm.MDMDeliveryVerified, automdm.MDMOperationTypeInstall, []byte("csum"))
 	require.NoError(t, err)
 
 	// Aggregate summary folds the rename statuses in (a NULL/queued row counts as
@@ -656,9 +656,9 @@ func testHostDeviceNamesSummaryAndFilter(t *testing.T, ds *Datastore) {
 
 	// Each aggregate card's host-list filter returns the matching hosts, including
 	// the queued (NULL-status) host under pending and comboHost under failed.
-	userFilter := fleet.TeamFilter{User: test.UserAdmin}
-	assertFilter := func(status fleet.OSSettingsStatus, want ...*fleet.Host) {
-		hosts, err := ds.ListHosts(ctx, userFilter, fleet.HostListOptions{TeamFilter: &team.ID, OSSettingsFilter: status})
+	userFilter := automdm.TeamFilter{User: test.UserAdmin}
+	assertFilter := func(status automdm.OSSettingsStatus, want ...*automdm.Host) {
+		hosts, err := ds.ListHosts(ctx, userFilter, automdm.HostListOptions{TeamFilter: &team.ID, OSSettingsFilter: status})
 		require.NoError(t, err)
 		gotIDs := make([]uint, 0, len(hosts))
 		for _, h := range hosts {
@@ -670,10 +670,10 @@ func testHostDeviceNamesSummaryAndFilter(t *testing.T, ds *Datastore) {
 		}
 		require.ElementsMatch(t, wantIDs, gotIDs)
 	}
-	assertFilter(fleet.OSSettingsFailed, failedHost, comboHost)
-	assertFilter(fleet.OSSettingsVerified, verifiedHost)
-	assertFilter(fleet.OSSettingsVerifying, verifyingHost)
-	assertFilter(fleet.OSSettingsPending, queuedHost)
+	assertFilter(automdm.OSSettingsFailed, failedHost, comboHost)
+	assertFilter(automdm.OSSettingsVerified, verifiedHost)
+	assertFilter(automdm.OSSettingsVerifying, verifyingHost)
+	assertFilter(automdm.OSSettingsPending, queuedHost)
 }
 
 func testHostDeviceNamesNoTeamSummaryAndFilter(t *testing.T, ds *Datastore) {
@@ -681,18 +681,18 @@ func testHostDeviceNamesNoTeamSummaryAndFilter(t *testing.T, ds *Datastore) {
 
 	// The No-team template lives on the global app config.
 	_, err := ds.writer(ctx).ExecContext(ctx,
-		`UPDATE app_config_json SET json_value = JSON_SET(json_value, '$.mdm.name_template', ?)`, "WS-$FLEET_VAR_HOST_HARDWARE_SERIAL")
+		`UPDATE app_config_json SET json_value = JSON_SET(json_value, '$.mdm.name_template', ?)`, "WS-$AUTOMDM_VAR_HOST_HARDWARE_SERIAL")
 	require.NoError(t, err)
 
 	// Hosts are enrolled into a temp team then moved to No team (team_id IS NULL).
-	tmpTeam, err := ds.NewTeam(ctx, &fleet.Team{Name: "noteam-summary-tmp"})
+	tmpTeam, err := ds.NewTeam(ctx, &automdm.Team{Name: "noteam-summary-tmp"})
 	require.NoError(t, err)
 	failedHost := enrollAppleHostForDeviceName(t, ds, "nt-failed", "darwin", tmpTeam.ID, false)
 	verifiedHost := enrollAppleHostForDeviceName(t, ds, "nt-verified", "ios", tmpTeam.ID, false)
 	verifyingHost := enrollAppleHostForDeviceName(t, ds, "nt-verifying", "ios", tmpTeam.ID, false)
 	queuedHost := enrollAppleHostForDeviceName(t, ds, "nt-queued", "ipados", tmpTeam.ID, false)
 	byodHost := enrollAppleHostForDeviceName(t, ds, "nt-byod", "ios", tmpTeam.ID, true)
-	for _, h := range []*fleet.Host{failedHost, verifiedHost, verifyingHost, queuedHost, byodHost} {
+	for _, h := range []*automdm.Host{failedHost, verifiedHost, verifyingHost, queuedHost, byodHost} {
 		_, err := ds.writer(ctx).ExecContext(ctx, `UPDATE hosts SET team_id = NULL WHERE id = ?`, h.ID)
 		require.NoError(t, err)
 	}
@@ -700,19 +700,19 @@ func testHostDeviceNamesNoTeamSummaryAndFilter(t *testing.T, ds *Datastore) {
 	require.NoError(t, ds.BulkUpsertHostDeviceNameEnforcement(ctx, nil))
 	// The BYOD host is ineligible, so it never got a row (and host-detail omits it).
 	_, err = ds.GetHostDeviceNameEnforcement(ctx, byodHost.UUID)
-	require.True(t, fleet.IsNotFound(err))
+	require.True(t, automdm.IsNotFound(err))
 
-	setStatus := func(hostUUID string, status fleet.MDMDeliveryStatus) {
+	setStatus := func(hostUUID string, status automdm.MDMDeliveryStatus) {
 		_, err := ds.writer(ctx).ExecContext(ctx, `UPDATE host_mdm_apple_device_names SET status = ? WHERE host_uuid = ?`, status, hostUUID)
 		require.NoError(t, err)
 	}
-	setStatus(failedHost.UUID, fleet.MDMDeliveryFailed)
-	setStatus(verifiedHost.UUID, fleet.MDMDeliveryVerified)
-	setStatus(verifyingHost.UUID, fleet.MDMDeliveryVerifying)
+	setStatus(failedHost.UUID, automdm.MDMDeliveryFailed)
+	setStatus(verifiedHost.UUID, automdm.MDMDeliveryVerified)
+	setStatus(verifyingHost.UUID, automdm.MDMDeliveryVerifying)
 	// queuedHost keeps its NULL status from the bulk upsert, which renders as pending.
 
 	// The host-detail row lookup returns the queued/failed rows (host-keyed).
-	require.Equal(t, fleet.MDMDeliveryFailed, *getDeviceNameRow(t, ds, failedHost.UUID).Status)
+	require.Equal(t, automdm.MDMDeliveryFailed, *getDeviceNameRow(t, ds, failedHost.UUID).Status)
 
 	// Aggregate summary for No team (nil team) folds the rename statuses in.
 	summary, err := ds.GetMDMAppleProfilesSummary(ctx, nil)
@@ -725,9 +725,9 @@ func testHostDeviceNamesNoTeamSummaryAndFilter(t *testing.T, ds *Datastore) {
 	// The os_settings host-list filter scoped to No team (TeamFilter == 0) returns
 	// the matching No-team hosts per bucket.
 	noTeam := uint(0)
-	userFilter := fleet.TeamFilter{User: test.UserAdmin}
-	assertFilter := func(status fleet.OSSettingsStatus, want ...*fleet.Host) {
-		hosts, err := ds.ListHosts(ctx, userFilter, fleet.HostListOptions{TeamFilter: &noTeam, OSSettingsFilter: status})
+	userFilter := automdm.TeamFilter{User: test.UserAdmin}
+	assertFilter := func(status automdm.OSSettingsStatus, want ...*automdm.Host) {
+		hosts, err := ds.ListHosts(ctx, userFilter, automdm.HostListOptions{TeamFilter: &noTeam, OSSettingsFilter: status})
 		require.NoError(t, err)
 		gotIDs := make([]uint, 0, len(hosts))
 		for _, h := range hosts {
@@ -739,10 +739,10 @@ func testHostDeviceNamesNoTeamSummaryAndFilter(t *testing.T, ds *Datastore) {
 		}
 		require.ElementsMatch(t, wantIDs, gotIDs)
 	}
-	assertFilter(fleet.OSSettingsFailed, failedHost)
-	assertFilter(fleet.OSSettingsVerified, verifiedHost)
-	assertFilter(fleet.OSSettingsVerifying, verifyingHost)
-	assertFilter(fleet.OSSettingsPending, queuedHost)
+	assertFilter(automdm.OSSettingsFailed, failedHost)
+	assertFilter(automdm.OSSettingsVerified, verifiedHost)
+	assertFilter(automdm.OSSettingsVerifying, verifyingHost)
+	assertFilter(automdm.OSSettingsPending, queuedHost)
 }
 
 // testHostDeviceNamesSummaryFilterLabel covers the os_settings host-list filter
@@ -751,26 +751,26 @@ func testHostDeviceNamesNoTeamSummaryAndFilter(t *testing.T, ds *Datastore) {
 func testHostDeviceNamesSummaryFilterLabel(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "label-team"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "label-team"})
 	require.NoError(t, err)
-	setDeviceNameTemplate(t, ds, team.ID, "WS-$FLEET_VAR_HOST_HARDWARE_SERIAL")
+	setDeviceNameTemplate(t, ds, team.ID, "WS-$AUTOMDM_VAR_HOST_HARDWARE_SERIAL")
 
 	failedHost := enrollAppleHostForDeviceName(t, ds, "label-failed", "darwin", team.ID, false)
 	verifiedHost := enrollAppleHostForDeviceName(t, ds, "label-verified", "ios", team.ID, false)
 	require.NoError(t, ds.BulkUpsertHostDeviceNameEnforcement(ctx, &team.ID))
-	_, err = ds.writer(ctx).ExecContext(ctx, `UPDATE host_mdm_apple_device_names SET status = ? WHERE host_uuid = ?`, fleet.MDMDeliveryFailed, failedHost.UUID)
+	_, err = ds.writer(ctx).ExecContext(ctx, `UPDATE host_mdm_apple_device_names SET status = ? WHERE host_uuid = ?`, automdm.MDMDeliveryFailed, failedHost.UUID)
 	require.NoError(t, err)
-	_, err = ds.writer(ctx).ExecContext(ctx, `UPDATE host_mdm_apple_device_names SET status = ? WHERE host_uuid = ?`, fleet.MDMDeliveryVerified, verifiedHost.UUID)
+	_, err = ds.writer(ctx).ExecContext(ctx, `UPDATE host_mdm_apple_device_names SET status = ? WHERE host_uuid = ?`, automdm.MDMDeliveryVerified, verifiedHost.UUID)
 	require.NoError(t, err)
 
-	label, err := ds.NewLabel(ctx, &fleet.Label{Name: "label-dn", Query: "select 1"})
+	label, err := ds.NewLabel(ctx, &automdm.Label{Name: "label-dn", Query: "select 1"})
 	require.NoError(t, err)
-	for _, h := range []*fleet.Host{failedHost, verifiedHost} {
+	for _, h := range []*automdm.Host{failedHost, verifiedHost} {
 		require.NoError(t, ds.RecordLabelQueryExecutions(ctx, h, map[uint]*bool{label.ID: new(true)}, time.Now(), false))
 	}
 
-	userFilter := fleet.TeamFilter{User: test.UserAdmin}
-	hosts, err := ds.ListHostsInLabel(ctx, userFilter, label.ID, fleet.HostListOptions{TeamFilter: &team.ID, OSSettingsFilter: fleet.OSSettingsFailed})
+	userFilter := automdm.TeamFilter{User: test.UserAdmin}
+	hosts, err := ds.ListHostsInLabel(ctx, userFilter, label.ID, automdm.HostListOptions{TeamFilter: &team.ID, OSSettingsFilter: automdm.OSSettingsFailed})
 	require.NoError(t, err)
 	require.Len(t, hosts, 1)
 	require.Equal(t, failedHost.ID, hosts[0].ID)
@@ -791,14 +791,14 @@ func testHostDeviceNamesTeamDeletionCleanup(t *testing.T, ds *Datastore) {
 		`UPDATE app_config_json SET json_value = JSON_SET(json_value, '$.mdm.name_template', CAST('null' AS JSON))`)
 	require.NoError(t, err)
 
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "delete-me"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "delete-me"})
 	require.NoError(t, err)
-	setDeviceNameTemplate(t, ds, team.ID, "WS-$FLEET_VAR_HOST_HARDWARE_SERIAL")
+	setDeviceNameTemplate(t, ds, team.ID, "WS-$AUTOMDM_VAR_HOST_HARDWARE_SERIAL")
 	host := enrollAppleHostForDeviceName(t, ds, "del", "darwin", team.ID, false)
 
-	otherTeam, err := ds.NewTeam(ctx, &fleet.Team{Name: "keep-me"})
+	otherTeam, err := ds.NewTeam(ctx, &automdm.Team{Name: "keep-me"})
 	require.NoError(t, err)
-	setDeviceNameTemplate(t, ds, otherTeam.ID, "WS-$FLEET_VAR_HOST_HARDWARE_SERIAL")
+	setDeviceNameTemplate(t, ds, otherTeam.ID, "WS-$AUTOMDM_VAR_HOST_HARDWARE_SERIAL")
 	otherHost := enrollAppleHostForDeviceName(t, ds, "keep", "darwin", otherTeam.ID, false)
 
 	require.NoError(t, ds.BulkUpsertHostDeviceNameEnforcement(ctx, &team.ID))
@@ -811,7 +811,7 @@ func testHostDeviceNamesTeamDeletionCleanup(t *testing.T, ds *Datastore) {
 	// The deleted team's host keeps its record but moves to No team; its
 	// enforcement row is gone.
 	_, err = ds.GetHostDeviceNameEnforcement(ctx, host.UUID)
-	require.True(t, fleet.IsNotFound(err), "enforcement row must be deleted with the team")
+	require.True(t, automdm.IsNotFound(err), "enforcement row must be deleted with the team")
 	movedHost, err := ds.Host(ctx, host.ID)
 	require.NoError(t, err)
 	require.Nil(t, movedHost.TeamID, "host should have moved to No team, not been deleted")
@@ -827,9 +827,9 @@ func testHostDeviceNamesTeamDeletionCleanup(t *testing.T, ds *Datastore) {
 func testHostDeviceNamesRequeueClearsStaleCommand(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "requeue-team"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "requeue-team"})
 	require.NoError(t, err)
-	setDeviceNameTemplate(t, ds, team.ID, "WS-$FLEET_VAR_HOST_HARDWARE_SERIAL")
+	setDeviceNameTemplate(t, ds, team.ID, "WS-$AUTOMDM_VAR_HOST_HARDWARE_SERIAL")
 	host := enrollAppleHostForDeviceName(t, ds, "mac", "darwin", team.ID, false)
 	_, err = ds.writer(ctx).ExecContext(ctx, `UPDATE hosts SET computer_name = ? WHERE id = ?`, "current-name", host.ID)
 	require.NoError(t, err)
@@ -837,7 +837,7 @@ func testHostDeviceNamesRequeueClearsStaleCommand(t *testing.T, ds *Datastore) {
 	require.NoError(t, ds.BulkUpsertHostDeviceNameEnforcement(ctx, &team.ID))
 	// Simulate a command in flight: pending row carrying a command UUID + the
 	// resolved name it expects the device to apply.
-	require.NoError(t, ds.SetHostDeviceNameStatus(ctx, host.UUID, fleet.MDMDeliveryPending, new("DEVNAME-stale"), "OLD-NAME", ""))
+	require.NoError(t, ds.SetHostDeviceNameStatus(ctx, host.UUID, automdm.MDMDeliveryPending, new("DEVNAME-stale"), "OLD-NAME", ""))
 
 	// A template change re-queues the row; the stale command tracking must be cleared.
 	require.NoError(t, ds.BulkUpsertHostDeviceNameEnforcement(ctx, &team.ID))
@@ -849,7 +849,7 @@ func testHostDeviceNamesRequeueClearsStaleCommand(t *testing.T, ds *Datastore) {
 	// A late ACK for the superseded command must not match the re-queued row and
 	// must not rename the host.
 	_, err = ds.UpdateHostDeviceNameStatusFromCommand(ctx, "DEVNAME-stale", true, "", true)
-	require.True(t, fleet.IsNotFound(err), "late ACK for a superseded command must not match the re-queued row")
+	require.True(t, automdm.IsNotFound(err), "late ACK for a superseded command must not match the re-queued row")
 	require.Nil(t, getDeviceNameRow(t, ds, host.UUID).Status, "row must remain queued")
 	h, err := ds.Host(ctx, host.ID)
 	require.NoError(t, err)
@@ -872,17 +872,17 @@ func testHostDeviceNamesTeamDeletionRequeuesUnderNoTeam(t *testing.T, ds *Datast
 
 	_, err := ds.writer(ctx).ExecContext(ctx,
 		`UPDATE app_config_json SET json_value = JSON_SET(json_value, '$.mdm.name_template', ?)`,
-		"NT-$FLEET_VAR_HOST_HARDWARE_SERIAL")
+		"NT-$AUTOMDM_VAR_HOST_HARDWARE_SERIAL")
 	require.NoError(t, err)
 
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "delete-into-noteam"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "delete-into-noteam"})
 	require.NoError(t, err)
-	setDeviceNameTemplate(t, ds, team.ID, "WS-$FLEET_VAR_HOST_HARDWARE_SERIAL")
+	setDeviceNameTemplate(t, ds, team.ID, "WS-$AUTOMDM_VAR_HOST_HARDWARE_SERIAL")
 	eligible := enrollAppleHostForDeviceName(t, ds, "elig", "darwin", team.ID, false)
 	byod := enrollAppleHostForDeviceName(t, ds, "byod", "ios", team.ID, true)
 	require.NoError(t, ds.BulkUpsertHostDeviceNameEnforcement(ctx, &team.ID))
 	// Put the eligible host mid-flight to also prove the reconcile resets it.
-	require.NoError(t, ds.SetHostDeviceNameStatus(ctx, eligible.UUID, fleet.MDMDeliveryPending, new("DEVNAME-x"), "WS-OLD", ""))
+	require.NoError(t, ds.SetHostDeviceNameStatus(ctx, eligible.UUID, automdm.MDMDeliveryPending, new("DEVNAME-x"), "WS-OLD", ""))
 
 	require.NoError(t, ds.DeleteTeam(ctx, team.ID))
 
@@ -895,13 +895,13 @@ func testHostDeviceNamesTeamDeletionRequeuesUnderNoTeam(t *testing.T, ds *Datast
 	require.NoError(t, err)
 	require.Nil(t, movedHost.TeamID, "host should have moved to No team")
 	_, err = ds.GetHostDeviceNameEnforcement(ctx, byod.UUID)
-	require.True(t, fleet.IsNotFound(err), "BYOD host must not be enforced under No team")
+	require.True(t, automdm.IsNotFound(err), "BYOD host must not be enforced under No team")
 }
 
 func testHostDeviceNamesHostDeletionCleanup(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "deletion-team"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "deletion-team"})
 	require.NoError(t, err)
 	host := enrollAppleHostForDeviceName(t, ds, "mac", "darwin", team.ID, false)
 
@@ -911,13 +911,13 @@ func testHostDeviceNamesHostDeletionCleanup(t *testing.T, ds *Datastore) {
 	// Deleting the host must remove its enforcement row (no FK cascades it).
 	require.NoError(t, ds.DeleteHost(ctx, host.ID))
 	_, err = ds.GetHostDeviceNameEnforcement(ctx, host.UUID)
-	require.True(t, fleet.IsNotFound(err), "enforcement row must be deleted with the host")
+	require.True(t, automdm.IsNotFound(err), "enforcement row must be deleted with the host")
 }
 
 func testHostDeviceNamesResolveResult(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "resolve-team"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "resolve-team"})
 	require.NoError(t, err)
 	host := enrollAppleHostForDeviceName(t, ds, "mac", "darwin", team.ID, false)
 
@@ -925,10 +925,10 @@ func testHostDeviceNamesResolveResult(t *testing.T, ds *Datastore) {
 
 	// A too-long resolution fails the row without sending a command; the row
 	// leaves the pending list so the cron does not retry it.
-	require.NoError(t, ds.SetHostDeviceNameStatus(ctx, host.UUID, fleet.MDMDeliveryFailed, nil, "", "Resolved name exceeds 63 bytes."))
+	require.NoError(t, ds.SetHostDeviceNameStatus(ctx, host.UUID, automdm.MDMDeliveryFailed, nil, "", "Resolved name exceeds 63 bytes."))
 	row := getDeviceNameRow(t, ds, host.UUID)
 	require.NotNil(t, row.Status)
-	require.Equal(t, fleet.MDMDeliveryFailed, *row.Status)
+	require.Equal(t, automdm.MDMDeliveryFailed, *row.Status)
 	require.Equal(t, "Resolved name exceeds 63 bytes.", row.Detail)
 	require.Nil(t, row.CommandUUID)
 	pending, err := ds.ListHostsPendingDeviceNameCommand(ctx, 10)
@@ -938,65 +938,65 @@ func testHostDeviceNamesResolveResult(t *testing.T, ds *Datastore) {
 	// An already-matching host goes straight to verified with the resolved name
 	// recorded, so later reports can still detect drift from that name.
 	require.NoError(t, ds.ResendHostDeviceName(ctx, host.UUID))
-	require.NoError(t, ds.SetHostDeviceNameStatus(ctx, host.UUID, fleet.MDMDeliveryVerified, nil, "WS-1", ""))
+	require.NoError(t, ds.SetHostDeviceNameStatus(ctx, host.UUID, automdm.MDMDeliveryVerified, nil, "WS-1", ""))
 	row = getDeviceNameRow(t, ds, host.UUID)
-	require.Equal(t, fleet.MDMDeliveryVerified, *row.Status)
+	require.Equal(t, automdm.MDMDeliveryVerified, *row.Status)
 	require.NotNil(t, row.ExpectedDeviceName)
 	require.Equal(t, "WS-1", *row.ExpectedDeviceName)
-	require.Equal(t, fleet.DeviceNameRetried, reportDeviceName(t, ds, host.UUID, "renamed-on-device"))
+	require.Equal(t, automdm.DeviceNameRetried, reportDeviceName(t, ds, host.UUID, "renamed-on-device"))
 	require.Nil(t, getDeviceNameRow(t, ds, host.UUID).Status)
 
 	// Recording a resolve result clears any previously sent command UUID, so a
 	// stale result for that command can't overwrite the outcome.
 	require.NoError(t, ds.ResendHostDeviceName(ctx, host.UUID))
-	require.NoError(t, ds.SetHostDeviceNameStatus(ctx, host.UUID, fleet.MDMDeliveryPending, new("DEVNAME-stale"), "WS-1", ""))
-	require.NoError(t, ds.SetHostDeviceNameStatus(ctx, host.UUID, fleet.MDMDeliveryVerified, nil, "WS-1", ""))
+	require.NoError(t, ds.SetHostDeviceNameStatus(ctx, host.UUID, automdm.MDMDeliveryPending, new("DEVNAME-stale"), "WS-1", ""))
+	require.NoError(t, ds.SetHostDeviceNameStatus(ctx, host.UUID, automdm.MDMDeliveryVerified, nil, "WS-1", ""))
 	_, err = ds.UpdateHostDeviceNameStatusFromCommand(ctx, "DEVNAME-stale", false, "boom", true)
-	require.True(t, fleet.IsNotFound(err))
-	require.Equal(t, fleet.MDMDeliveryVerified, *getDeviceNameRow(t, ds, host.UUID).Status)
+	require.True(t, automdm.IsNotFound(err))
+	require.Equal(t, automdm.MDMDeliveryVerified, *getDeviceNameRow(t, ds, host.UUID).Status)
 
 	// A host with no row is a no-op (no error).
-	require.NoError(t, ds.SetHostDeviceNameStatus(ctx, "missing-uuid", fleet.MDMDeliveryVerified, nil, "WS-1", ""))
+	require.NoError(t, ds.SetHostDeviceNameStatus(ctx, "missing-uuid", automdm.MDMDeliveryVerified, nil, "WS-1", ""))
 }
 
 func testHostDeviceNamesVerifyGracePeriod(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "grace-team"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "grace-team"})
 	require.NoError(t, err)
 	host := enrollAppleHostForDeviceName(t, ds, "mac", "darwin", team.ID, false)
 
 	require.NoError(t, ds.BulkUpsertHostDeviceNameEnforcement(ctx, &team.ID))
-	require.NoError(t, ds.SetHostDeviceNameStatus(ctx, host.UUID, fleet.MDMDeliveryPending, new("DEVNAME-cmd"), "WS-1", ""))
+	require.NoError(t, ds.SetHostDeviceNameStatus(ctx, host.UUID, automdm.MDMDeliveryPending, new("DEVNAME-cmd"), "WS-1", ""))
 	_, err = ds.UpdateHostDeviceNameStatusFromCommand(ctx, "DEVNAME-cmd", true, "", true)
 	require.NoError(t, err)
 
 	// A mismatching report arriving shortly after the acknowledgment is a report
 	// that was generated before the device applied the rename, not drift: the row
 	// stays verifying and waits for a fresh report.
-	require.Equal(t, fleet.DeviceNameNotRetried, reportDeviceName(t, ds, host.UUID, "stale-pre-rename-name"))
-	require.Equal(t, fleet.MDMDeliveryVerifying, *getDeviceNameRow(t, ds, host.UUID).Status)
+	require.Equal(t, automdm.DeviceNameNotRetried, reportDeviceName(t, ds, host.UUID, "stale-pre-rename-name"))
+	require.Equal(t, automdm.MDMDeliveryVerifying, *getDeviceNameRow(t, ds, host.UUID).Status)
 
 	// A matching report is trusted at any time.
-	require.Equal(t, fleet.DeviceNameNotRetried, reportDeviceName(t, ds, host.UUID, "WS-1"))
-	require.Equal(t, fleet.MDMDeliveryVerified, *getDeviceNameRow(t, ds, host.UUID).Status)
+	require.Equal(t, automdm.DeviceNameNotRetried, reportDeviceName(t, ds, host.UUID, "WS-1"))
+	require.Equal(t, automdm.MDMDeliveryVerified, *getDeviceNameRow(t, ds, host.UUID).Status)
 
 	// A mismatch on a verified row is genuine drift, grace period or not: the
 	// verified state was reached by a fresh post-rename report, so a later
 	// mismatch means the device was renamed off-template.
-	require.Equal(t, fleet.DeviceNameRetried, reportDeviceName(t, ds, host.UUID, "renamed-by-user"))
+	require.Equal(t, automdm.DeviceNameRetried, reportDeviceName(t, ds, host.UUID, "renamed-by-user"))
 	require.Nil(t, getDeviceNameRow(t, ds, host.UUID).Status)
 
 	// Once the grace period has elapsed, a mismatch on a still-verifying row is
 	// no longer explainable as an in-flight stale report and re-queues the row.
 	require.NoError(t, ds.ResendHostDeviceName(ctx, host.UUID))
-	require.NoError(t, ds.SetHostDeviceNameStatus(ctx, host.UUID, fleet.MDMDeliveryPending, new("DEVNAME-cmd-2"), "WS-1", ""))
+	require.NoError(t, ds.SetHostDeviceNameStatus(ctx, host.UUID, automdm.MDMDeliveryPending, new("DEVNAME-cmd-2"), "WS-1", ""))
 	_, err = ds.UpdateHostDeviceNameStatusFromCommand(ctx, "DEVNAME-cmd-2", true, "", true)
 	require.NoError(t, err)
 	_, err = ds.writer(ctx).ExecContext(ctx,
 		`UPDATE host_mdm_apple_device_names SET updated_at = DATE_SUB(NOW(6), INTERVAL 1 HOUR) WHERE host_uuid = ?`, host.UUID)
 	require.NoError(t, err)
-	require.Equal(t, fleet.DeviceNameRetried, reportDeviceName(t, ds, host.UUID, "still-the-old-name"))
+	require.Equal(t, automdm.DeviceNameRetried, reportDeviceName(t, ds, host.UUID, "still-the-old-name"))
 	require.Nil(t, getDeviceNameRow(t, ds, host.UUID).Status)
 }
 
@@ -1009,7 +1009,7 @@ func testHostDeviceNamesVerifyGracePeriod(t *testing.T, ds *Datastore) {
 func testHostDeviceNamesFullLifecycle(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "lifecycle-team"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "lifecycle-team"})
 	require.NoError(t, err)
 	host := enrollAppleHostForDeviceName(t, ds, "mac", "darwin", team.ID, false)
 	_, err = ds.writer(ctx).ExecContext(ctx, `UPDATE hosts SET hardware_serial = ?, computer_name = ? WHERE id = ?`, "SERIAL1", "old-name", host.ID)
@@ -1024,20 +1024,20 @@ func testHostDeviceNamesFullLifecycle(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 	require.Len(t, pending, 1)
 	require.Equal(t, host.UUID, pending[0].HostUUID)
-	require.NoError(t, ds.SetHostDeviceNameStatus(ctx, host.UUID, fleet.MDMDeliveryPending, new("DEVNAME-1"), "WS-SERIAL1", ""))
-	require.Equal(t, fleet.MDMDeliveryPending, *getDeviceNameRow(t, ds, host.UUID).Status)
+	require.NoError(t, ds.SetHostDeviceNameStatus(ctx, host.UUID, automdm.MDMDeliveryPending, new("DEVNAME-1"), "WS-SERIAL1", ""))
+	require.Equal(t, automdm.MDMDeliveryPending, *getDeviceNameRow(t, ds, host.UUID).Status)
 
-	// 3. MDM acks the command -> row goes verifying and the host is renamed in Fleet.
+	// 3. MDM acks the command -> row goes verifying and the host is renamed in AutoMDM.
 	applyDeviceNameCommandResult(t, ds, "DEVNAME-1", true, "")
-	require.Equal(t, fleet.MDMDeliveryVerifying, *getDeviceNameRow(t, ds, host.UUID).Status)
+	require.Equal(t, automdm.MDMDeliveryVerifying, *getDeviceNameRow(t, ds, host.UUID).Status)
 
 	// 4. Name ingestion reports the matching name -> verified.
-	require.Equal(t, fleet.DeviceNameNotRetried, reportDeviceName(t, ds, host.UUID, "WS-SERIAL1"))
-	require.Equal(t, fleet.MDMDeliveryVerified, *getDeviceNameRow(t, ds, host.UUID).Status)
+	require.Equal(t, automdm.DeviceNameNotRetried, reportDeviceName(t, ds, host.UUID, "WS-SERIAL1"))
+	require.Equal(t, automdm.MDMDeliveryVerified, *getDeviceNameRow(t, ds, host.UUID).Status)
 
 	// 5. The device drifts (renamed on-device) -> re-queued, and the cron sees
 	// it again without a manual resend.
-	require.Equal(t, fleet.DeviceNameRetried, reportDeviceName(t, ds, host.UUID, "renamed-on-device"))
+	require.Equal(t, automdm.DeviceNameRetried, reportDeviceName(t, ds, host.UUID, "renamed-on-device"))
 	require.Nil(t, getDeviceNameRow(t, ds, host.UUID).Status)
 	pending, err = ds.ListHostsPendingDeviceNameCommand(ctx, 10)
 	require.NoError(t, err)
@@ -1045,40 +1045,40 @@ func testHostDeviceNamesFullLifecycle(t *testing.T, ds *Datastore) {
 
 	// 6. A second command supersedes an in-flight one: the cron sends command 2
 	// while command 1 is still outstanding, then command 1's stale ack arrives.
-	require.NoError(t, ds.SetHostDeviceNameStatus(ctx, host.UUID, fleet.MDMDeliveryPending, new("DEVNAME-2a"), "WS-SERIAL1", ""))
-	require.NoError(t, ds.SetHostDeviceNameStatus(ctx, host.UUID, fleet.MDMDeliveryPending, new("DEVNAME-2b"), "WS-SERIAL1", ""))
+	require.NoError(t, ds.SetHostDeviceNameStatus(ctx, host.UUID, automdm.MDMDeliveryPending, new("DEVNAME-2a"), "WS-SERIAL1", ""))
+	require.NoError(t, ds.SetHostDeviceNameStatus(ctx, host.UUID, automdm.MDMDeliveryPending, new("DEVNAME-2b"), "WS-SERIAL1", ""))
 
 	// The superseded command's ack no longer matches the row -> not found, and
 	// the row is untouched (still pending on the newest command).
 	_, err = ds.UpdateHostDeviceNameStatusFromCommand(ctx, "DEVNAME-2a", true, "", true)
-	require.True(t, fleet.IsNotFound(err))
-	require.Equal(t, fleet.MDMDeliveryPending, *getDeviceNameRow(t, ds, host.UUID).Status)
+	require.True(t, automdm.IsNotFound(err))
+	require.Equal(t, automdm.MDMDeliveryPending, *getDeviceNameRow(t, ds, host.UUID).Status)
 
 	// The newest command's ack is applied and renames the host.
 	applyDeviceNameCommandResult(t, ds, "DEVNAME-2b", true, "")
-	require.Equal(t, fleet.DeviceNameNotRetried, reportDeviceName(t, ds, host.UUID, "WS-SERIAL1"))
-	require.Equal(t, fleet.MDMDeliveryVerified, *getDeviceNameRow(t, ds, host.UUID).Status)
+	require.Equal(t, automdm.DeviceNameNotRetried, reportDeviceName(t, ds, host.UUID, "WS-SERIAL1"))
+	require.Equal(t, automdm.MDMDeliveryVerified, *getDeviceNameRow(t, ds, host.UUID).Status)
 }
 
 func testHostDeviceNamesDriftRetryCap(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "drift-cap-team"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "drift-cap-team"})
 	require.NoError(t, err)
 	host := enrollAppleHostForDeviceName(t, ds, "mac", "darwin", team.ID, false)
 	require.NoError(t, ds.BulkUpsertHostDeviceNameEnforcement(ctx, &team.ID))
 
 	verify := func(cmdUUID string) {
-		require.NoError(t, ds.SetHostDeviceNameStatus(ctx, host.UUID, fleet.MDMDeliveryPending, &cmdUUID, "WS-1", ""))
-		require.Equal(t, fleet.DeviceNameNotRetried, applyDeviceNameCommandResult(t, ds, cmdUUID, true, ""))
-		require.Equal(t, fleet.DeviceNameNotRetried, reportDeviceName(t, ds, host.UUID, "WS-1"))
-		require.Equal(t, fleet.MDMDeliveryVerified, *getDeviceNameRow(t, ds, host.UUID).Status)
+		require.NoError(t, ds.SetHostDeviceNameStatus(ctx, host.UUID, automdm.MDMDeliveryPending, &cmdUUID, "WS-1", ""))
+		require.Equal(t, automdm.DeviceNameNotRetried, applyDeviceNameCommandResult(t, ds, cmdUUID, true, ""))
+		require.Equal(t, automdm.DeviceNameNotRetried, reportDeviceName(t, ds, host.UUID, "WS-1"))
+		require.Equal(t, automdm.MDMDeliveryVerified, *getDeviceNameRow(t, ds, host.UUID).Status)
 	}
 
 	// Each drift re-queues the row and uses one retry; verifying again doesn't restore the budget.
 	for i := 1; i <= mdm.MaxAppleDeviceNameRetries; i++ {
 		verify(fmt.Sprintf("DEVNAME-%d", i))
-		require.Equal(t, fleet.DeviceNameRetried, reportDeviceName(t, ds, host.UUID, "renamed-by-user"))
+		require.Equal(t, automdm.DeviceNameRetried, reportDeviceName(t, ds, host.UUID, "renamed-by-user"))
 		row := getDeviceNameRow(t, ds, host.UUID)
 		require.Nil(t, row.Status)
 		require.EqualValues(t, i, row.Retries)
@@ -1086,13 +1086,13 @@ func testHostDeviceNamesDriftRetryCap(t *testing.T, ds *Datastore) {
 
 	// With retries used up, the next drift fails the row until a manual resend.
 	verify("DEVNAME-last")
-	require.Equal(t, fleet.DeviceNameRetriesExhausted, reportDeviceName(t, ds, host.UUID, "renamed-by-user"))
+	require.Equal(t, automdm.DeviceNameRetriesExhausted, reportDeviceName(t, ds, host.UUID, "renamed-by-user"))
 	row := getDeviceNameRow(t, ds, host.UUID)
-	require.Equal(t, fleet.MDMDeliveryFailed, *row.Status)
+	require.Equal(t, automdm.MDMDeliveryFailed, *row.Status)
 	require.Contains(t, row.Detail, "renamed on the device")
 	require.Contains(t, row.Detail, fmt.Sprintf("re-applied the template %d times", mdm.MaxAppleDeviceNameRetries))
 	require.EqualValues(t, mdm.MaxAppleDeviceNameRetries, row.Retries)
-	require.Equal(t, fleet.DeviceNameNotRetried, reportDeviceName(t, ds, host.UUID, "renamed-again"))
+	require.Equal(t, automdm.DeviceNameNotRetried, reportDeviceName(t, ds, host.UUID, "renamed-again"))
 
 	// A template change restores the budget.
 	require.NoError(t, ds.BulkUpsertHostDeviceNameEnforcement(ctx, &team.ID))

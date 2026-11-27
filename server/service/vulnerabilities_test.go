@@ -5,22 +5,22 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/stretchr/testify/require"
 )
 
 func TestListVulnerabilities(t *testing.T) {
 	ds := new(mock.Store)
 	svc, ctx := newTestService(t, ds, nil, nil)
-	ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}})
+	ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}})
 
-	ds.ListVulnerabilitiesFunc = func(cxt context.Context, opt fleet.VulnListOptions) ([]fleet.VulnerabilityWithMetadata, *fleet.PaginationMetadata, error) {
-		return []fleet.VulnerabilityWithMetadata{
+	ds.ListVulnerabilitiesFunc = func(cxt context.Context, opt automdm.VulnListOptions) ([]automdm.VulnerabilityWithMetadata, *automdm.PaginationMetadata, error) {
+		return []automdm.VulnerabilityWithMetadata{
 			{
-				CVE: fleet.CVE{
+				CVE: automdm.CVE{
 					CVE:         "CVE-2019-1234",
 					Description: ptr.StringPtr("A vulnerability"),
 				},
@@ -31,13 +31,13 @@ func TestListVulnerabilities(t *testing.T) {
 	}
 
 	t.Run("no list options", func(t *testing.T) {
-		_, _, err := svc.ListVulnerabilities(ctx, fleet.VulnListOptions{})
+		_, _, err := svc.ListVulnerabilities(ctx, automdm.VulnListOptions{})
 		require.NoError(t, err)
 	})
 
 	t.Run("can only sort by supported columns", func(t *testing.T) {
 		// invalid order key
-		opts := fleet.VulnListOptions{ListOptions: fleet.ListOptions{
+		opts := automdm.VulnListOptions{ListOptions: automdm.ListOptions{
 			OrderKey: "invalid",
 		}, ValidSortColumns: freeValidVulnSortColumns}
 
@@ -57,15 +57,15 @@ func TestVulnerabilitesAuth(t *testing.T) {
 
 	svc, ctx := newTestService(t, ds, nil, nil)
 
-	ds.ListVulnerabilitiesFunc = func(cxt context.Context, opt fleet.VulnListOptions) ([]fleet.VulnerabilityWithMetadata, *fleet.PaginationMetadata, error) {
-		return []fleet.VulnerabilityWithMetadata{}, &fleet.PaginationMetadata{}, nil
+	ds.ListVulnerabilitiesFunc = func(cxt context.Context, opt automdm.VulnListOptions) ([]automdm.VulnerabilityWithMetadata, *automdm.PaginationMetadata, error) {
+		return []automdm.VulnerabilityWithMetadata{}, &automdm.PaginationMetadata{}, nil
 	}
 
-	ds.VulnerabilityFunc = func(cxt context.Context, cve string, teamID *uint, includeCVEScores bool) (*fleet.VulnerabilityWithMetadata, error) {
-		return &fleet.VulnerabilityWithMetadata{}, nil
+	ds.VulnerabilityFunc = func(cxt context.Context, cve string, teamID *uint, includeCVEScores bool) (*automdm.VulnerabilityWithMetadata, error) {
+		return &automdm.VulnerabilityWithMetadata{}, nil
 	}
 
-	ds.CountVulnerabilitiesFunc = func(cxt context.Context, opt fleet.VulnListOptions) (uint, error) {
+	ds.CountVulnerabilitiesFunc = func(cxt context.Context, opt automdm.VulnListOptions) (uint, error) {
 		return 0, nil
 	}
 
@@ -75,44 +75,44 @@ func TestVulnerabilitesAuth(t *testing.T) {
 
 	for _, tc := range []struct {
 		name                 string
-		user                 *fleet.User
+		user                 *automdm.User
 		shouldFailGlobalRead bool
 		shouldFailTeamRead   bool
 	}{
 		{
 			name: "global-admin",
-			user: &fleet.User{
+			user: &automdm.User{
 				ID:         1,
-				GlobalRole: ptr.String(fleet.RoleAdmin),
+				GlobalRole: ptr.String(automdm.RoleAdmin),
 			},
 			shouldFailGlobalRead: false,
 			shouldFailTeamRead:   false,
 		},
 		{
 			name: "global-maintainer",
-			user: &fleet.User{
+			user: &automdm.User{
 				ID:         1,
-				GlobalRole: ptr.String(fleet.RoleMaintainer),
+				GlobalRole: ptr.String(automdm.RoleMaintainer),
 			},
 			shouldFailGlobalRead: false,
 			shouldFailTeamRead:   false,
 		},
 		{
 			name: "global-observer",
-			user: &fleet.User{
+			user: &automdm.User{
 				ID:         1,
-				GlobalRole: ptr.String(fleet.RoleObserver),
+				GlobalRole: ptr.String(automdm.RoleObserver),
 			},
 			shouldFailGlobalRead: false,
 			shouldFailTeamRead:   false,
 		},
 		{
 			name: "team-admin-belongs-to-team",
-			user: &fleet.User{
+			user: &automdm.User{
 				ID: 1,
-				Teams: []fleet.UserTeam{{
-					Team: fleet.Team{ID: 1},
-					Role: fleet.RoleAdmin,
+				Teams: []automdm.UserTeam{{
+					Team: automdm.Team{ID: 1},
+					Role: automdm.RoleAdmin,
 				}},
 			},
 			shouldFailGlobalRead: true,
@@ -120,11 +120,11 @@ func TestVulnerabilitesAuth(t *testing.T) {
 		},
 		{
 			name: "team-maintainer-belongs-to-team",
-			user: &fleet.User{
+			user: &automdm.User{
 				ID: 1,
-				Teams: []fleet.UserTeam{{
-					Team: fleet.Team{ID: 1},
-					Role: fleet.RoleMaintainer,
+				Teams: []automdm.UserTeam{{
+					Team: automdm.Team{ID: 1},
+					Role: automdm.RoleMaintainer,
 				}},
 			},
 			shouldFailGlobalRead: true,
@@ -132,11 +132,11 @@ func TestVulnerabilitesAuth(t *testing.T) {
 		},
 		{
 			name: "team-observer-belongs-to-team",
-			user: &fleet.User{
+			user: &automdm.User{
 				ID: 1,
-				Teams: []fleet.UserTeam{{
-					Team: fleet.Team{ID: 1},
-					Role: fleet.RoleObserver,
+				Teams: []automdm.UserTeam{{
+					Team: automdm.Team{ID: 1},
+					Role: automdm.RoleObserver,
 				}},
 			},
 			shouldFailGlobalRead: true,
@@ -144,11 +144,11 @@ func TestVulnerabilitesAuth(t *testing.T) {
 		},
 		{
 			name: "team-admin-does-not-belong-to-team",
-			user: &fleet.User{
+			user: &automdm.User{
 				ID: 1,
-				Teams: []fleet.UserTeam{{
-					Team: fleet.Team{ID: 2},
-					Role: fleet.RoleAdmin,
+				Teams: []automdm.UserTeam{{
+					Team: automdm.Team{ID: 2},
+					Role: automdm.RoleAdmin,
 				}},
 			},
 			shouldFailGlobalRead: true,
@@ -157,18 +157,18 @@ func TestVulnerabilitesAuth(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx = viewer.NewContext(ctx, viewer.Viewer{User: tc.user})
-			_, _, err := svc.ListVulnerabilities(ctx, fleet.VulnListOptions{})
+			_, _, err := svc.ListVulnerabilities(ctx, automdm.VulnListOptions{})
 			checkAuthErr(t, tc.shouldFailGlobalRead, err)
 
-			_, _, err = svc.ListVulnerabilities(ctx, fleet.VulnListOptions{
+			_, _, err = svc.ListVulnerabilities(ctx, automdm.VulnListOptions{
 				TeamID: ptr.Uint(1),
 			})
 			checkAuthErr(t, tc.shouldFailTeamRead, err)
 
-			_, err = svc.CountVulnerabilities(ctx, fleet.VulnListOptions{})
+			_, err = svc.CountVulnerabilities(ctx, automdm.VulnListOptions{})
 			checkAuthErr(t, tc.shouldFailGlobalRead, err)
 
-			_, err = svc.CountVulnerabilities(ctx, fleet.VulnListOptions{
+			_, err = svc.CountVulnerabilities(ctx, automdm.VulnListOptions{
 				TeamID: ptr.Uint(1),
 			})
 			checkAuthErr(t, tc.shouldFailTeamRead, err)

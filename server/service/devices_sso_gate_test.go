@@ -8,37 +8,37 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/devicesso"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	svcmock "github.com/fleetdm/fleet/v4/server/mock/service"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/devicesso"
+	svcmock "github.com/anilyagiz/automdm/v4/server/mock/service"
 	"github.com/go-kit/kit/endpoint"
 	"github.com/stretchr/testify/require"
 )
 
-func newDeviceSSOGateTestService(host *fleet.Host) *svcmock.Service {
+func newDeviceSSOGateTestService(host *automdm.Host) *svcmock.Service {
 	svc := new(svcmock.Service)
-	svc.AuthenticateDeviceFunc = func(ctx context.Context, token string) (*fleet.Host, bool, error) {
+	svc.AuthenticateDeviceFunc = func(ctx context.Context, token string) (*automdm.Host, bool, error) {
 		return host, false, nil
 	}
-	svc.AuthenticateIDeviceByURLFunc = func(ctx context.Context, uuid string) (*fleet.Host, bool, error) {
+	svc.AuthenticateIDeviceByURLFunc = func(ctx context.Context, uuid string) (*automdm.Host, bool, error) {
 		return host, false, nil
 	}
 	return svc
 }
 
-func gatedDeviceChain(svc fleet.Service, endpointFn endpoint.Endpoint) endpoint.Endpoint {
+func gatedDeviceChain(svc automdm.Service, endpointFn endpoint.Endpoint) endpoint.Endpoint {
 	return authenticatedDevice(svc, slog.New(slog.DiscardHandler), requireDeviceSSOSession(svc)(endpointFn))
 }
 
 func TestAuthenticatedDeviceSSOGate(t *testing.T) {
-	host := &fleet.Host{ID: 1, UUID: "host-uuid-1", Platform: "darwin"}
-	ssoRequired := fleet.NewDeviceSSORequiredError("no device sso session")
+	host := &automdm.Host{ID: 1, UUID: "host-uuid-1", Platform: "darwin"}
+	ssoRequired := automdm.NewDeviceSSORequiredError("no device sso session")
 
 	t.Run("gated endpoint passes the resolved host and the cookie session", func(t *testing.T) {
 		svc := newDeviceSSOGateTestService(host)
 		var gotSessionID string
-		var gotHost *fleet.Host
-		svc.RequireDeviceSSOSessionFunc = func(ctx context.Context, host *fleet.Host, sessionID string) error {
+		var gotHost *automdm.Host
+		svc.RequireDeviceSSOSessionFunc = func(ctx context.Context, host *automdm.Host, sessionID string) error {
 			gotHost, gotSessionID = host, sessionID
 			return nil
 		}
@@ -61,10 +61,10 @@ func TestAuthenticatedDeviceSSOGate(t *testing.T) {
 	// The gate runs after host resolution, so it covers both.
 	t.Run("gate covers device URL authentication", func(t *testing.T) {
 		svc := newDeviceSSOGateTestService(host)
-		svc.AuthenticateDeviceFunc = func(ctx context.Context, token string) (*fleet.Host, bool, error) {
+		svc.AuthenticateDeviceFunc = func(ctx context.Context, token string) (*automdm.Host, bool, error) {
 			return nil, false, newNotFoundError()
 		}
-		svc.RequireDeviceSSOSessionFunc = func(ctx context.Context, host *fleet.Host, sessionID string) error {
+		svc.RequireDeviceSSOSessionFunc = func(ctx context.Context, host *automdm.Host, sessionID string) error {
 			return ssoRequired
 		}
 
@@ -79,13 +79,13 @@ func TestAuthenticatedDeviceSSOGate(t *testing.T) {
 
 	t.Run("an invalid token is rejected before the gate", func(t *testing.T) {
 		svc := new(svcmock.Service)
-		svc.AuthenticateDeviceFunc = func(ctx context.Context, token string) (*fleet.Host, bool, error) {
+		svc.AuthenticateDeviceFunc = func(ctx context.Context, token string) (*automdm.Host, bool, error) {
 			return nil, false, newNotFoundError()
 		}
-		svc.AuthenticateIDeviceByURLFunc = func(ctx context.Context, uuid string) (*fleet.Host, bool, error) {
+		svc.AuthenticateIDeviceByURLFunc = func(ctx context.Context, uuid string) (*automdm.Host, bool, error) {
 			return nil, false, newNotFoundError()
 		}
-		svc.RequireDeviceSSOSessionFunc = func(ctx context.Context, host *fleet.Host, sessionID string) error {
+		svc.RequireDeviceSSOSessionFunc = func(ctx context.Context, host *automdm.Host, sessionID string) error {
 			return nil
 		}
 
@@ -95,7 +95,7 @@ func TestAuthenticatedDeviceSSOGate(t *testing.T) {
 
 		_, err := mw(t.Context(), mockDeviceAuthRequest{Token: "bad-token"})
 		require.Error(t, err)
-		var ssoErr *fleet.DeviceSSORequiredError
+		var ssoErr *automdm.DeviceSSORequiredError
 		require.NotErrorAs(t, err, &ssoErr, "a bad token must not tell the browser to sign in")
 		require.False(t, svc.RequireDeviceSSOSessionFuncInvoked)
 	})
@@ -103,7 +103,7 @@ func TestAuthenticatedDeviceSSOGate(t *testing.T) {
 
 func TestDeviceSSORequiredErrorResponse(t *testing.T) {
 	rr := httptest.NewRecorder()
-	encodeError(t.Context(), fleet.NewDeviceSSORequiredError("no device sso session"), rr)
+	encodeError(t.Context(), automdm.NewDeviceSSORequiredError("no device sso session"), rr)
 
 	require.Equal(t, http.StatusUnauthorized, rr.Code)
 
@@ -123,7 +123,7 @@ func TestDeviceSSORequiredErrorResponse(t *testing.T) {
 
 func TestNonSSOErrorResponseHasNoMarker(t *testing.T) {
 	rr := httptest.NewRecorder()
-	encodeError(t.Context(), fleet.NewAuthRequiredError("invalid device token"), rr)
+	encodeError(t.Context(), automdm.NewAuthRequiredError("invalid device token"), rr)
 
 	require.Equal(t, http.StatusUnauthorized, rr.Code)
 	require.NotContains(t, rr.Body.String(), "sso_required")

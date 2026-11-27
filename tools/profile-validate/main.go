@@ -3,7 +3,7 @@
 //
 //	go run ./tools/profile-validate [-strict] [paths...]
 //
-// Paths are files or directories and default to the directories that hold Fleet's own profiles.
+// Paths are files or directories and default to the directories that hold AutoMDM's own profiles.
 // It prints one line per finding and exits 1 if there are any.
 package main
 
@@ -22,7 +22,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/pkg/mdm/profilevalidation"
+	"github.com/anilyagiz/automdm/v4/pkg/mdm/profilevalidation"
 )
 
 var defaultPaths = []string{"it-and-security", "docs/solutions", "ee/cis"}
@@ -56,7 +56,7 @@ func main() {
 
 // run validates every profile and declaration under paths, writes one line per finding to
 // out, and returns how many findings there were. A file that can't be read as a profile is logged
-// and skipped: the repo has profiles with GitOps environment variables that fleetctl expands
+// and skipped: the repo has profiles with GitOps environment variables that automdmctl expands
 // before upload.
 func run(ctx context.Context, logger *slog.Logger, out io.Writer, s *profilevalidation.ProfileValidationSchema, mode profilevalidation.Mode, paths []string) (int, error) {
 	var files, findings, skipped int

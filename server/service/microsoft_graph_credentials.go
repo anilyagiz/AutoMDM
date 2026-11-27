@@ -3,7 +3,7 @@ package service
 import (
 	"context"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
 /////////////////////////////////////////////////////////////////////////////////
@@ -11,13 +11,13 @@ import (
 /////////////////////////////////////////////////////////////////////////////////
 
 type listMicrosoftGraphCredentialsResponse struct {
-	MicrosoftGraphCredentials []*fleet.MicrosoftGraphCredentialMetadata `json:"microsoft_graph_credentials"`
-	Err                       error                                     `json:"error,omitempty"`
+	MicrosoftGraphCredentials []*automdm.MicrosoftGraphCredentialMetadata `json:"microsoft_graph_credentials"`
+	Err                       error                                       `json:"error,omitempty"`
 }
 
 func (r listMicrosoftGraphCredentialsResponse) Error() error { return r.Err }
 
-func listMicrosoftGraphCredentialsEndpoint(ctx context.Context, _ any, svc fleet.Service) (fleet.Errorer, error) {
+func listMicrosoftGraphCredentialsEndpoint(ctx context.Context, _ any, svc automdm.Service) (automdm.Errorer, error) {
 	creds, err := svc.ListMicrosoftGraphCredentials(ctx)
 	if err != nil {
 		return listMicrosoftGraphCredentialsResponse{Err: err}, nil
@@ -25,10 +25,10 @@ func listMicrosoftGraphCredentialsEndpoint(ctx context.Context, _ any, svc fleet
 	return listMicrosoftGraphCredentialsResponse{MicrosoftGraphCredentials: creds}, nil
 }
 
-func (svc *Service) ListMicrosoftGraphCredentials(ctx context.Context) ([]*fleet.MicrosoftGraphCredentialMetadata, error) {
+func (svc *Service) ListMicrosoftGraphCredentials(ctx context.Context) ([]*automdm.MicrosoftGraphCredentialMetadata, error) {
 	// skipauth: No authorization check needed due to implementation returning only license error.
 	svc.authz.SkipAuthorization(ctx)
-	return nil, fleet.ErrMissingLicense
+	return nil, automdm.ErrMissingLicense
 }
 
 /////////////////////////////////////////////////////////////////////////////////
@@ -36,8 +36,8 @@ func (svc *Service) ListMicrosoftGraphCredentials(ctx context.Context) ([]*fleet
 /////////////////////////////////////////////////////////////////////////////////
 
 type applyMicrosoftGraphCredentialsRequest struct {
-	MicrosoftGraphCredentials []fleet.MicrosoftGraphCredential `json:"microsoft_graph_credentials"`
-	DryRun                    bool                             `json:"dry_run"`
+	MicrosoftGraphCredentials []automdm.MicrosoftGraphCredential `json:"microsoft_graph_credentials"`
+	DryRun                    bool                               `json:"dry_run"`
 }
 
 type applyMicrosoftGraphCredentialsResponse struct {
@@ -46,7 +46,7 @@ type applyMicrosoftGraphCredentialsResponse struct {
 
 func (r applyMicrosoftGraphCredentialsResponse) Error() error { return r.Err }
 
-func applyMicrosoftGraphCredentialsEndpoint(ctx context.Context, request any, svc fleet.Service) (fleet.Errorer, error) {
+func applyMicrosoftGraphCredentialsEndpoint(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*applyMicrosoftGraphCredentialsRequest)
 	if err := svc.ApplyMicrosoftGraphCredentials(ctx, req.MicrosoftGraphCredentials, req.DryRun); err != nil {
 		return applyMicrosoftGraphCredentialsResponse{Err: err}, nil
@@ -54,8 +54,8 @@ func applyMicrosoftGraphCredentialsEndpoint(ctx context.Context, request any, sv
 	return applyMicrosoftGraphCredentialsResponse{}, nil
 }
 
-func (svc *Service) ApplyMicrosoftGraphCredentials(ctx context.Context, _ []fleet.MicrosoftGraphCredential, _ bool) error {
+func (svc *Service) ApplyMicrosoftGraphCredentials(ctx context.Context, _ []automdm.MicrosoftGraphCredential, _ bool) error {
 	// skipauth: No authorization check needed due to implementation returning only license error.
 	svc.authz.SkipAuthorization(ctx)
-	return fleet.ErrMissingLicense
+	return automdm.ErrMissingLicense
 }

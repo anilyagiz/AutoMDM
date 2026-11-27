@@ -172,17 +172,17 @@ const (
 )
 
 const (
-	FleetBitLockerTargetLocURI  = "/Vendor/MSFT/BitLocker"
-	FleetOSUpdateTargetLocURI   = "/Vendor/MSFT/Policy/Config/Update"
-	FleetRemoteWipeTargetLocURI = "/Vendor/MSFT/RemoteWipe"
+	AutoMDMBitLockerTargetLocURI  = "/Vendor/MSFT/BitLocker"
+	AutoMDMOSUpdateTargetLocURI   = "/Vendor/MSFT/Policy/Config/Update"
+	AutoMDMRemoteWipeTargetLocURI = "/Vendor/MSFT/RemoteWipe"
 
 	DiskEncryptionProfileRestrictionErrMsg = "Couldn't add. The configuration profile can't include BitLocker settings."
 )
 
-// MinSupportedEnrollmentVersion is the lowest MS-MDE2 discovery RequestVersion Fleet accepts.
+// MinSupportedEnrollmentVersion is the lowest MS-MDE2 discovery RequestVersion AutoMDM accepts.
 //
 // The discovery response pins the protocol to EnrollmentVersionV4 ("4.0") and the client
-// negotiates down from whatever version it advertised, so Fleet accepts any RequestVersion >= 4.0
+// negotiates down from whatever version it advertised, so AutoMDM accepts any RequestVersion >= 4.0
 // rather than an exact-match allow-list. This keeps enrollment working on newer Windows builds
 // that advertise higher versions (e.g. Windows 11 25H2 sends "9.0") without requiring a code
 // change for each Windows release.
@@ -243,10 +243,10 @@ const (
 	WstepRenewRetryInterval = "4"
 
 	// The PROVIDER-ID paramer specifies the server identifier for a management server used in the current management session
-	DocProvisioningAppProviderID = "Fleet"
+	DocProvisioningAppProviderID = "AutoMDM"
 
-	// DMClientPollIntervalLocURI is the DMClient Poll node Fleet writes to tune the Windows MDM poll cadence (the aggressive default vs the
-	// relaxed steady-state for hosts that can be woken on demand by fleetd).
+	// DMClientPollIntervalLocURI is the DMClient Poll node AutoMDM writes to tune the Windows MDM poll cadence (the aggressive default vs the
+	// relaxed steady-state for hosts that can be woken on demand by automdmd).
 	DMClientPollIntervalLocURI = "./Device/Vendor/MSFT/DMClient/Provider/" + DocProvisioningAppProviderID + "/Poll/IntervalForFirstSetOfRetries"
 
 	// The NAME parameter is used in the APPLICATION characteristic to specify a user readable application identity
@@ -296,7 +296,7 @@ const (
 	ReqSecTokenContextItemZeroTouchProvisioning = "ZeroTouchProvisioning"
 
 	// ReqSecTokenContextItemOfflineAutopilotCorrelator is a second Autopilot identifier that can accompany the item
-	// above. Fleet does not consume it and nothing links on it; it is logged as a diagnostic so that a device supplying
+	// above. AutoMDM does not consume it and nothing links on it; it is logged as a diagnostic so that a device supplying
 	// this instead of a ZTDID is distinguishable from one that supplied nothing.
 	ReqSecTokenContextItemOfflineAutopilotCorrelator = "OfflineAutoPilotEnrollmentCorrelator"
 
@@ -314,8 +314,8 @@ const (
 	// when a user is logged in through polling".
 	AlertTypeLoginStatus = "com.microsoft/MDM/LoginStatus"
 
-	// FleetdWindowsInstallerGUID is the GUID used for fleetd on Windows
-	FleetdWindowsInstallerGUID = "./Device/Vendor/MSFT/EnterpriseDesktopAppManagement/MSI/%7BA427C0AA-E2D5-40DF-ACE8-0D726A6BE096%7D/DownloadInstall"
+	// AutoMDMdWindowsInstallerGUID is the GUID used for automdmd on Windows
+	AutoMDMdWindowsInstallerGUID = "./Device/Vendor/MSFT/EnterpriseDesktopAppManagement/MSI/%7BA427C0AA-E2D5-40DF-ACE8-0D726A6BE096%7D/DownloadInstall"
 
 	AuthMD5       = "syncml:auth-md5"
 	AuthB64Format = "b64"

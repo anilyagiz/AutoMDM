@@ -1,4 +1,4 @@
-const THEME_KEY = "fleet-theme";
+const THEME_KEY = "automdm-theme";
 const TRANSITION_MS = 300;
 
 export type ThemeMode = "system" | "light" | "dark";
@@ -40,7 +40,7 @@ const applyDarkMode = (dark: boolean, animate: boolean): void => {
   }
   document.body.classList.toggle("dark-mode", dark);
   window.dispatchEvent(
-    new CustomEvent("fleet-theme-change", { detail: { dark } })
+    new CustomEvent("automdm-theme-change", { detail: { dark } })
   );
 };
 

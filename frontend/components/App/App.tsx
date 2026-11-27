@@ -15,11 +15,11 @@ import useDeepEffect from "hooks/useDeepEffect";
 import { ICertificateAuthorityPartial } from "interfaces/certificates";
 import ErrorPageLayout from "layouts/ErrorPageLayout";
 // @ts-ignore
-import Fleet403 from "pages/errors/Fleet403";
+import AutoMDM403 from "pages/errors/AutoMDM403";
 // @ts-ignore
-import Fleet404 from "pages/errors/Fleet404";
+import AutoMDM404 from "pages/errors/AutoMDM404";
 // @ts-ignore
-import Fleet500 from "pages/errors/Fleet500";
+import AutoMDM500 from "pages/errors/AutoMDM500";
 import page_titles from "router/page_titles";
 import PATHS from "router/paths";
 import certificatesAPI from "services/entities/certificates";
@@ -225,7 +225,7 @@ const App = ({ children, location, router }: IAppProps): JSX.Element => {
     }
   );
 
-  // Fleet-level users only see their own fleets' hosts, so only global users
+  // Team-level users only see their own teams' hosts, so only global users
   // get a total that can be compared against the license.
   const canCompareHostCountToLicense =
     !!isPremiumTier &&
@@ -273,9 +273,9 @@ const App = ({ children, location, router }: IAppProps): JSX.Element => {
 
   const fetchCurrentUser = useCallback(async () => {
     try {
-      const { user, available_fleets, settings } = await usersAPI.me();
+      const { user, available_teams, settings } = await usersAPI.me();
       setCurrentUser(user);
-      setAvailableTeams(user, available_fleets);
+      setAvailableTeams(user, available_teams);
       setUserSettings(settings);
       fetchConfig();
     } catch (error) {
@@ -373,11 +373,11 @@ const App = ({ children, location, router }: IAppProps): JSX.Element => {
 
     const overlayError = error as AxiosResponse;
 
-    let errorPage = <Fleet500 />;
+    let errorPage = <AutoMDM500 />;
     if (overlayError.status === 403 || overlayError.status === 402) {
-      errorPage = <Fleet403 />;
+      errorPage = <AutoMDM403 />;
     } else if (overlayError.status === 404) {
-      errorPage = <Fleet404 />;
+      errorPage = <AutoMDM404 />;
     }
 
     return (

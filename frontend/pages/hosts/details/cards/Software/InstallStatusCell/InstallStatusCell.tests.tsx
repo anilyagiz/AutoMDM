@@ -57,7 +57,7 @@ describe("InstallStatusCell - component", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders 'Installed' status with tooltip button even if not installed via Fleet", async () => {
+  it("renders 'Installed' status with tooltip button even if not installed via AutoMDM", async () => {
     const { user } = renderWithSetup(
       <InstallStatusCell
         software={{
@@ -116,7 +116,7 @@ describe("InstallStatusCell - component", () => {
     await user.hover(screen.getByText("Installing..."));
     await waitFor(() => {
       expect(
-        screen.getByText(/Fleet is installing software./i)
+        screen.getByText(/AutoMDM is installing software./i)
       ).toBeInTheDocument();
     });
 
@@ -188,7 +188,7 @@ describe("InstallStatusCell - component", () => {
     await user.hover(screen.getByText("Install (pending)"));
     await waitFor(() => {
       expect(
-        screen.getByText(/Fleet will install software/i)
+        screen.getByText(/AutoMDM will install software/i)
       ).toBeInTheDocument();
     });
   });
@@ -225,7 +225,7 @@ describe("InstallStatusCell - component", () => {
     await user.hover(screen.getByText("Running..."));
     await waitFor(() => {
       expect(
-        screen.getByText(/Fleet is running the script./i)
+        screen.getByText(/AutoMDM is running the script./i)
       ).toBeInTheDocument();
     });
 
@@ -263,7 +263,7 @@ describe("InstallStatusCell - component", () => {
     await user.hover(screen.getByText("Run (pending)"));
     await waitFor(() => {
       expect(
-        screen.getByText(/Fleet will run the script/i)
+        screen.getByText(/AutoMDM will run the script/i)
       ).toBeInTheDocument();
     });
   });
@@ -299,7 +299,7 @@ describe("InstallStatusCell - component", () => {
     await user.hover(screen.getByText("Uninstalling..."));
     await waitFor(() => {
       expect(
-        screen.getByText(/Fleet is uninstalling software./i)
+        screen.getByText(/AutoMDM is uninstalling software./i)
       ).toBeInTheDocument();
     });
 
@@ -341,7 +341,7 @@ describe("InstallStatusCell - component", () => {
     await user.hover(screen.getByText("Uninstall (pending)"));
     await waitFor(() => {
       expect(
-        screen.getByText(/Fleet will uninstall software/i)
+        screen.getByText(/AutoMDM will uninstall software/i)
       ).toBeInTheDocument();
     });
   });
@@ -645,7 +645,7 @@ describe("InstallStatusCell - component", () => {
     await user.hover(screen.getByText("Update available"));
     await waitFor(() => {
       expect(
-        screen.getByText(/Fleet can update software/i)
+        screen.getByText(/AutoMDM can update software/i)
       ).toBeInTheDocument();
     });
   });
@@ -673,7 +673,7 @@ describe("InstallStatusCell - component", () => {
     await user.hover(screen.getByText("Updating..."));
     await waitFor(() => {
       expect(
-        screen.getByText(/Fleet is updating software./i)
+        screen.getByText(/AutoMDM is updating software./i)
       ).toBeInTheDocument();
     });
 
@@ -710,7 +710,7 @@ describe("InstallStatusCell - component", () => {
     await user.hover(screen.getByText("Update (pending)"));
     await waitFor(() => {
       expect(
-        screen.getByText(/Fleet will update software/i)
+        screen.getByText(/AutoMDM will update software/i)
       ).toBeInTheDocument();
     });
   });

@@ -8,15 +8,15 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// The config and fleet settings keys that versions before Fleet 5 saved.
+// The config and team settings keys that versions before AutoMDM 5 saved.
 var formerlySavedKeyPaths = []string{
 	"$.scripts",
 	"$.mdm.volume_purchasing_program",
@@ -57,7 +57,7 @@ func requireNoFormerlySavedKeys(t *testing.T, source string, config map[string]a
 			object = child
 			objectName = segment
 		}
-		// Fleet responses only use the current object names, config responses use both.
+		// AutoMDM responses only use the current object names, config responses use both.
 		if object == nil {
 			continue
 		}
@@ -77,7 +77,7 @@ func requireNoFormerlySavedKeys(t *testing.T, source string, config map[string]a
 	require.Contains(t, mdm["setup_experience"], "enable_end_user_authentication", source)
 }
 
-func (s *integrationMDMTestSuite) TestConfigAndFleetSettingsLeaveOutFormerlySavedKeys() {
+func (s *integrationMDMTestSuite) TestConfigAndAutoMDMSettingsLeaveOutFormerlySavedKeys() {
 	t := s.T()
 	ctx := t.Context()
 	// The test context is already canceled when cleanups run.
@@ -140,10 +140,10 @@ func (s *integrationMDMTestSuite) TestConfigAndFleetSettingsLeaveOutFormerlySave
 
 	seedSavedCopies("app_config_json", "json_value", "")
 	require.Len(t, savedCopies("app_config_json", "json_value", ""), len(formerlySavedKeyPaths))
-	requireNoFormerlySavedKeys(t, "GET /config", decodeObject(s.Do("GET", "/api/latest/fleet/config", nil, http.StatusOK)))
+	requireNoFormerlySavedKeys(t, "GET /config", decodeObject(s.Do("GET", "/api/latest/automdm/config", nil, http.StatusOK)))
 
 	// The config doesn't keep the bootstrap package URL, and saving drops the earlier copies.
-	patchConfig := decodeObject(s.Do("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	patchConfig := decodeObject(s.Do("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 		"mdm": {"setup_experience": {"macos_bootstrap_package": "https://example.com/bootstrap.pkg"}}
 	}`), http.StatusOK))
 	requireNoFormerlySavedKeys(t, "PATCH /config", patchConfig)
@@ -157,12 +157,12 @@ func (s *integrationMDMTestSuite) TestConfigAndFleetSettingsLeaveOutFormerlySave
 		{`{"mdm": {"setup_experience": {"apple_setup_assistant": "assistant.json"}}}`, "apple_setup_assistant"},
 		{`{"mdm": {"setup_experience": {"macos_script": "script.sh"}}}`, "macos_script"},
 	} {
-		requireRejected("PATCH", "/api/latest/fleet/config", c.body, c.key)
+		requireRejected("PATCH", "/api/latest/automdm/config", c.body, c.key)
 	}
 
-	teamName := t.Name() + "fleet"
+	teamName := t.Name() + "team"
 	var createTeamResp teamResponse
-	s.DoJSON("POST", "/api/latest/fleet/fleets", &fleet.Team{Name: teamName}, http.StatusOK, &createTeamResp)
+	s.DoJSON("POST", "/api/latest/automdm/teams", &automdm.Team{Name: teamName}, http.StatusOK, &createTeamResp)
 	teamID := createTeamResp.Team.ID
 	require.NotZero(t, teamID)
 	t.Cleanup(func() {
@@ -172,11 +172,11 @@ func (s *integrationMDMTestSuite) TestConfigAndFleetSettingsLeaveOutFormerlySave
 	seedSavedCopies("teams", "config", "WHERE id = ?", teamID)
 	require.Len(t, savedCopies("teams", "config", "WHERE id = ?", teamID), len(formerlySavedKeyPaths))
 
-	fleetPath := fmt.Sprintf("/api/latest/fleet/fleets/%d", teamID)
-	getFleet := decodeObject(s.Do("GET", fleetPath, nil, http.StatusOK))
-	requireNoFormerlySavedKeys(t, "GET /fleets/:id", getFleet["fleet"].(map[string]any))
+	automdmPath := fmt.Sprintf("/api/latest/automdm/teams/%d", teamID)
+	getAutoMDM := decodeObject(s.Do("GET", automdmPath, nil, http.StatusOK))
+	requireNoFormerlySavedKeys(t, "GET /teams/:id", getAutoMDM["team"].(map[string]any))
 
-	s.Do("POST", "/api/latest/fleet/spec/fleets", json.RawMessage(fmt.Sprintf(`{"specs": [{
+	s.Do("POST", "/api/latest/automdm/spec/teams", json.RawMessage(fmt.Sprintf(`{"specs": [{
 		"name": %q,
 		"mdm": {"setup_experience": {"macos_bootstrap_package": "https://example.com/bootstrap.pkg"}}
 	}]}`, teamName)), http.StatusOK)
@@ -190,28 +190,28 @@ func (s *integrationMDMTestSuite) TestConfigAndFleetSettingsLeaveOutFormerlySave
 		{`"mdm": {"setup_experience": {"apple_setup_assistant": "assistant.json"}}`, "apple_setup_assistant"},
 		{`"mdm": {"setup_experience": {"macos_script": "script.sh"}}`, "macos_script"},
 	} {
-		requireRejected("POST", "/api/latest/fleet/spec/fleets", fmt.Sprintf(`{"specs": [{"name": %q, %s}]}`, teamName, c.spec), c.key)
+		requireRejected("POST", "/api/latest/automdm/spec/teams", fmt.Sprintf(`{"specs": [{"name": %q, %s}]}`, teamName, c.spec), c.key)
 	}
-	// The fleet PATCH endpoint ignores unknown keys, as it already did for the bootstrap package.
-	s.Do("PATCH", fleetPath, json.RawMessage(`{"mdm": {"setup_experience": {"macos_bootstrap_package": "https://example.com/bootstrap.pkg"}}}`),
+	// The team PATCH endpoint ignores unknown keys, as it already did for the bootstrap package.
+	s.Do("PATCH", automdmPath, json.RawMessage(`{"mdm": {"setup_experience": {"macos_bootstrap_package": "https://example.com/bootstrap.pkg"}}}`),
 		http.StatusOK)
 	require.Empty(t, savedCopies("teams", "config", "WHERE id = ?", teamID))
 
-	patchFleet := decodeObject(s.Do("PATCH", fleetPath, map[string]any{"description": "updated"}, http.StatusOK))
-	requireNoFormerlySavedKeys(t, "PATCH /fleets/:id", patchFleet["fleet"].(map[string]any))
+	patchAutoMDM := decodeObject(s.Do("PATCH", automdmPath, map[string]any{"description": "updated"}, http.StatusOK))
+	requireNoFormerlySavedKeys(t, "PATCH /teams/:id", patchAutoMDM["team"].(map[string]any))
 
-	listFleets := decodeObject(s.Do("GET", "/api/latest/fleet/fleets", nil, http.StatusOK))
-	var listedFleet map[string]any
-	for _, listed := range listFleets["fleets"].([]any) {
+	listAutoMDMs := decodeObject(s.Do("GET", "/api/latest/automdm/teams", nil, http.StatusOK))
+	var listedAutoMDM map[string]any
+	for _, listed := range listAutoMDMs["teams"].([]any) {
 		if candidate := listed.(map[string]any); candidate["name"] == teamName {
-			listedFleet = candidate
+			listedAutoMDM = candidate
 		}
 	}
-	require.NotNil(t, listedFleet)
-	requireNoFormerlySavedKeys(t, "GET /fleets", listedFleet)
+	require.NotNil(t, listedAutoMDM)
+	requireNoFormerlySavedKeys(t, "GET /teams", listedAutoMDM)
 
-	// Target search returns each fleet's whole config.
-	targets, err := io.ReadAll(s.Do("POST", "/api/latest/fleet/targets", map[string]any{"query": teamName}, http.StatusOK).Body)
+	// Target search returns each team's whole config.
+	targets, err := io.ReadAll(s.Do("POST", "/api/latest/automdm/targets", map[string]any{"query": teamName}, http.StatusOK).Body)
 	require.NoError(t, err)
 	require.Contains(t, string(targets), teamName)
 	require.NotContains(t, string(targets), "bootstrap.pkg")
@@ -232,45 +232,45 @@ func (s *integrationMDMTestSuite) TestManualAgentInstallChecksUploadedBootstrapP
 	_ = s.ds.DeleteMDMAppleBootstrapPackage(ctx, 0)
 
 	enable := json.RawMessage(`{"mdm": {"setup_experience": {"macos_manual_agent_install": true}}}`)
-	res := s.Do("PATCH", "/api/latest/fleet/config", enable, http.StatusUnprocessableEntity)
+	res := s.Do("PATCH", "/api/latest/automdm/config", enable, http.StatusUnprocessableEntity)
 	require.Contains(t, extractServerErrorText(res.Body), "first specify a bootstrap package")
 
-	require.NoError(t, s.ds.InsertMDMAppleBootstrapPackage(ctx, &fleet.MDMAppleBootstrapPackage{
+	require.NoError(t, s.ds.InsertMDMAppleBootstrapPackage(ctx, &automdm.MDMAppleBootstrapPackage{
 		Name:   "bootstrap.pkg",
 		Token:  uuid.NewString(),
 		Bytes:  []byte("bootstrap"),
 		Sha256: []byte("bootstrap-sha256"),
 	}, nil))
-	s.Do("PATCH", "/api/latest/fleet/config", enable, http.StatusOK)
+	s.Do("PATCH", "/api/latest/automdm/config", enable, http.StatusOK)
 	// The URL isn't saved, so later changes to other settings rely on the uploaded package too.
-	s.Do("PATCH", "/api/latest/fleet/config", json.RawMessage(`{"org_info": {"org_name": "manual agent install"}}`), http.StatusOK)
+	s.Do("PATCH", "/api/latest/automdm/config", json.RawMessage(`{"org_info": {"org_name": "manual agent install"}}`), http.StatusOK)
 	appConfig, err := s.ds.AppConfig(ctx)
 	require.NoError(t, err)
 	require.True(t, appConfig.MDM.MacOSSetup.ManualAgentInstall.Value)
 
 	// GitOps sends an empty URL when it's deleting the package, so the uploaded one doesn't count.
-	res = s.Do("PATCH", "/api/latest/fleet/config", json.RawMessage(`{"mdm": {"setup_experience": {
+	res = s.Do("PATCH", "/api/latest/automdm/config", json.RawMessage(`{"mdm": {"setup_experience": {
 		"macos_manual_agent_install": true, "macos_bootstrap_package": ""
 	}}}`), http.StatusUnprocessableEntity)
 	require.Contains(t, extractServerErrorText(res.Body), "first specify a bootstrap package")
 
 	var createTeamResp teamResponse
-	s.DoJSON("POST", "/api/latest/fleet/fleets", &fleet.Team{Name: t.Name()}, http.StatusOK, &createTeamResp)
+	s.DoJSON("POST", "/api/latest/automdm/teams", &automdm.Team{Name: t.Name()}, http.StatusOK, &createTeamResp)
 	teamID := createTeamResp.Team.ID
 	t.Cleanup(func() {
 		_ = s.ds.DeleteMDMAppleBootstrapPackage(cleanupCtx, teamID)
 		require.NoError(t, s.ds.DeleteTeam(cleanupCtx, teamID))
 	})
-	// Update fleet doesn't have the URL, so it checks the fleet's uploaded package.
-	fleetPath := fmt.Sprintf("/api/latest/fleet/fleets/%d", teamID)
-	res = s.Do("PATCH", fleetPath, enable, http.StatusUnprocessableEntity)
+	// Update team doesn't have the URL, so it checks the team's uploaded package.
+	automdmPath := fmt.Sprintf("/api/latest/automdm/teams/%d", teamID)
+	res = s.Do("PATCH", automdmPath, enable, http.StatusUnprocessableEntity)
 	require.Contains(t, extractServerErrorText(res.Body), "first specify a bootstrap package")
-	require.NoError(t, s.ds.InsertMDMAppleBootstrapPackage(ctx, &fleet.MDMAppleBootstrapPackage{
+	require.NoError(t, s.ds.InsertMDMAppleBootstrapPackage(ctx, &automdm.MDMAppleBootstrapPackage{
 		Name:   "bootstrap.pkg",
 		TeamID: teamID,
 		Token:  uuid.NewString(),
-		Bytes:  []byte("fleet bootstrap"),
-		Sha256: []byte("fleet-bootstrap-sha256"),
+		Bytes:  []byte("team bootstrap"),
+		Sha256: []byte("automdm-bootstrap-sha256"),
 	}, nil))
-	s.Do("PATCH", fleetPath, enable, http.StatusOK)
+	s.Do("PATCH", automdmPath, enable, http.StatusOK)
 }

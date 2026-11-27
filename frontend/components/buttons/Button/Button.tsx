@@ -196,12 +196,12 @@ class Button extends React.Component<IButtonProps, IButtonState> {
     // spinner both render white so they're visible.
     const hasWhiteText = WHITE_TEXT_VARIANTS.includes(variant!);
     // Match the icon to the button text: white on dark-fill variants,
-    // ui-fleet-black-75 on the light secondary/subdued variants.
-    let iconColor: "core-fleet-white" | "ui-fleet-black-75" | undefined;
+    // ui-automdm-black-75 on the light secondary/subdued variants.
+    let iconColor: "core-automdm-white" | "ui-automdm-black-75" | undefined;
     if (hasWhiteText) {
-      iconColor = "core-fleet-white";
+      iconColor = "core-automdm-white";
     } else if (variant === "secondary" || variant === "subdued") {
-      iconColor = "ui-fleet-black-75";
+      iconColor = "ui-automdm-black-75";
     }
     // Skip the icon on variants that don't support it — otherwise the SVG
     // renders unspaced against the label, since the `--with-icon` gap rule is

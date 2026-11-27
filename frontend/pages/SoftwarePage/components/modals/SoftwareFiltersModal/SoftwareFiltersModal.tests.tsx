@@ -381,7 +381,7 @@ describe("SoftwareFiltersModal component", () => {
     });
   });
 
-  it("shows only Types and Vulnerable software on Fleet Free", () => {
+  it("shows only Types and Vulnerable software on AutoMDM Free", () => {
     renderModal({ isPremiumTier: false, availableTypes: SOFTWARE_TYPES });
 
     expect(screen.getByText("Types")).toBeInTheDocument();
@@ -463,7 +463,7 @@ describe("SoftwareFiltersModal component", () => {
       expect(aiToolsSwitch()).toHaveAttribute("aria-checked", "true");
     });
 
-    it("is hidden on Fleet Free", () => {
+    it("is hidden on AutoMDM Free", () => {
       renderModal({ showAiToolFilter: true, isPremiumTier: false });
 
       expect(aiToolsSwitch()).not.toBeInTheDocument();

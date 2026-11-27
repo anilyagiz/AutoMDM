@@ -1,16 +1,16 @@
 # Windows 11 Enterprise benchmarks
 
-Fleet's policies have been written against v4.0.0 of the benchmark. You can refer to the [CIS website](https://www.cisecurity.org/cis-benchmarks) for full details about this version.
+AutoMDM's policies have been written against v4.0.0 of the benchmark. You can refer to the [CIS website](https://www.cisecurity.org/cis-benchmarks) for full details about this version.
 
-For requirements and usage details, see the [CIS Benchmarks](https://fleetdm.com/docs/using-fleet/cis-benchmarks) documentation.
+For requirements and usage details, see the [CIS Benchmarks](https://automdm.com/docs/using-automdm/cis-benchmarks) documentation.
 
 ### Contents
 
 | Folder | Description |
 |--------|-------------|
-| `policies/` | GitOps-compatible policy YAML — import via `fleetctl apply` or reference with `- path:` in `fleet.yml` |
-| `configuration-profiles/` | SyncML XML profiles — upload via Fleet UI or `fleetctl apply` to enforce the settings checked by the policies |
-| `scripts/` | PowerShell scripts — upload via Fleet UI or `fleetctl apply` and link as `run_script` remediation in the corresponding policy |
+| `policies/` | GitOps-compatible policy YAML — import via `automdmctl apply` or reference with `- path:` in `automdm.yml` |
+| `configuration-profiles/` | SyncML XML profiles — upload via AutoMDM UI or `automdmctl apply` to enforce the settings checked by the policies |
+| `scripts/` | PowerShell scripts — upload via AutoMDM UI or `automdmctl apply` and link as `run_script` remediation in the corresponding policy |
 
 ### Limitations
 

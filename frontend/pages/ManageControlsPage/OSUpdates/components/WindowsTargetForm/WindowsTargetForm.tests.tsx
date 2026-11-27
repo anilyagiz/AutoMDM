@@ -24,24 +24,24 @@ const renderForm = (isPremiumTier: boolean, currentTeamId = 2) => {
 };
 
 describe("WindowsTargetForm", () => {
-  it("links to the profile builder with Windows and the current fleet on Premium", () => {
+  it("links to the profile builder with Windows and the current team on Premium", () => {
     renderForm(true);
 
     const link = screen.getByRole("link", { name: "profile builder" });
     expect(link).toHaveAttribute(
       "href",
       expect.stringContaining(
-        "/controls/os-settings/configuration-profiles/new?fleet_id=2&platform=windows"
+        "/controls/os-settings/configuration-profiles/new?team_id=2&platform=windows"
       )
     );
   });
 
-  it("keeps the No fleet ID in the link", () => {
+  it("keeps the No team ID in the link", () => {
     renderForm(true, 0);
 
     expect(
       screen.getByRole("link", { name: "profile builder" })
-    ).toHaveAttribute("href", expect.stringContaining("fleet_id=0"));
+    ).toHaveAttribute("href", expect.stringContaining("team_id=0"));
   });
 
   it("does not show the profile builder link on Free", () => {

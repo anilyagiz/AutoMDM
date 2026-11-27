@@ -1,4 +1,4 @@
-// Package crypto provides cryptographic utilities for Fleet.
+// Package crypto provides cryptographic utilities for AutoMDM.
 package crypto
 
 import (

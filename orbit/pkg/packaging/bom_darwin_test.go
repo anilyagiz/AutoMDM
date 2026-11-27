@@ -33,7 +33,7 @@ func TestWriteBomMatchesMkbom(t *testing.T) {
 	writeFile(t, filepath.Join(root, "opt", "orbit", "osquery.flags"), []byte{}, 0o600)
 	writeFile(t, filepath.Join(root, "opt", "orbit", "bin", "orbit"), []byte("\x7fELF binary-ish payload"), 0o755)
 	writeFile(t, filepath.Join(root, "Library", "LaunchDaemons", "com.fleetdm.orbit.plist"), []byte("<plist/>\n"), 0o644)
-	writeFile(t, filepath.Join(root, "opt", "orbit", "bin", "desktop", "Fleet Desktop.app", "Contents", "Info.plist"), []byte("<x/>"), 0o644)
+	writeFile(t, filepath.Join(root, "opt", "orbit", "bin", "desktop", "AutoMDM Desktop.app", "Contents", "Info.plist"), []byte("<x/>"), 0o644)
 
 	// Reference BOM via the native pipeline (mirrors xarBom's darwin branch).
 	refBom := filepath.Join(root, "..", "ref.bom")
@@ -57,7 +57,7 @@ func TestWriteBomMatchesMkbom(t *testing.T) {
 
 // TestWriteBomRejectsSymlink verifies writeBom fails loudly on a symlink rather
 // than emitting a malformed BOM entry. Symlinks cannot legitimately appear in a
-// fleetd payload (extractTarGz rejects them; the orbit "current" symlink is
+// automdmd payload (extractTarGz rejects them; the orbit "current" symlink is
 // created by postinstall at install time), so this is a defensive guard.
 func TestWriteBomRejectsSymlink(t *testing.T) {
 	root := t.TempDir()

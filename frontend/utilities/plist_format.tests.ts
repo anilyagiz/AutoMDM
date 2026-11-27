@@ -26,7 +26,7 @@ const command = (data: string) => `<?xml version="1.0" encoding="UTF-8"?>
 
 const toBase64 = (bytes: Buffer) => bytes.toString("base64");
 
-// Stands in for the PKCS #7 envelope Fleet signs profiles with: binary DER
+// Stands in for the PKCS #7 envelope AutoMDM signs profiles with: binary DER
 // around the profile bytes. 0xe2 right before the XML is a UTF-8 lead byte, so
 // it checks that the start of the profile survives a lossy decode.
 const signedEnvelope = (profile: string) =>

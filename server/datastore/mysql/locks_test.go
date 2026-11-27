@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -90,7 +90,7 @@ const (
 )
 
 //nolint:unused // used in skipped tests
-func getMySQLServer(t *testing.T, r fleet.DBReader) mysqlServer {
+func getMySQLServer(t *testing.T, r automdm.DBReader) mysqlServer {
 	row := r.QueryRowxContext(context.Background(), "SELECT VERSION()")
 	var version string
 	require.NoError(t, row.Scan(&version))

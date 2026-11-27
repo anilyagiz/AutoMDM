@@ -41,7 +41,7 @@ Declare your endpoint and each of your API request paths to its expected JSON re
 
 Set the `DELAY` constant (in milliseconds) if you want to simulate a delayed API response.
 
-Set the `ENDPOINT` constant to the base route for your API endpoint (for example, `/latest/fleet`). 
+Set the `ENDPOINT` constant to the base route for your API endpoint (for example, `/latest/automdm`). 
 
 Use the `REQUEST_RESPONSE_MAPPINGS` dictionary to declare your request-responses mappings. For example,
 here's how you might configure the `GET hosts/manage` and `GET hosts/count`endpoints:
@@ -58,7 +58,7 @@ You can declare different responses for specific route parameters or query param
 you can use wildcards if you don't particularly care what parameter value is contained in the request. 
 The example below shows how you might use wildcards or specific values as the `id` route parameter 
 to get a host's device mapping by host id and how you might use wildcards or specific values 
-for the `team_id` query parameter to get hosts filtered by fleet id.
+for the `team_id` query parameter to get hosts filtered by team id.
 ```js
 const REQUEST_RESPONSE_MAPPINGS = {
     GET: {

@@ -10,7 +10,7 @@
   }
   &__page-description {
     margin: 0;
-    color: $ui-fleet-black-75;
+    color: $ui-automdm-black-75;
     font-size: $xx-small;
     font-style: italic;
   }
@@ -23,7 +23,7 @@
   &__label-platform {
     font-size: $x-small;
     font-weight: $regular;
-    color: $core-fleet-black;
+    color: $core-automdm-black;
     padding-bottom: $pad-large;
 
     p {
@@ -37,7 +37,7 @@
     }
 
     .help-text {
-      color: $core-fleet-blue;
+      color: $core-automdm-blue;
       padding-top: $pad-small;
     }
   }

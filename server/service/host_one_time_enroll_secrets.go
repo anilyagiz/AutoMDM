@@ -8,13 +8,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxdb"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm"
-	"github.com/fleetdm/fleet/v4/server/service/osquery_utils"
-	"github.com/fleetdm/fleet/v4/server/worker"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxdb"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/mdm"
+	"github.com/anilyagiz/automdm/v4/server/service/osquery_utils"
+	"github.com/anilyagiz/automdm/v4/server/worker"
 )
 
 // enrollmentRejectedActivityTTL bounds how often a host_enrollment_rejected
@@ -24,7 +24,7 @@ const enrollmentRejectedActivityTTL = 12 * time.Hour
 
 // enrollmentRejectedKeyPrefix is the key-value store namespace for the activity
 // rate limit. The braces keep all keys in one Redis Cluster slot, like the
-// other Fleet key prefixes.
+// other AutoMDM key prefixes.
 const enrollmentRejectedKeyPrefix = "{enrollment_rejected}"
 
 // androidAgentEnrollSecretResendTTL bounds how often a refused enrollment resends an Android host's agent configuration. It is
@@ -34,7 +34,7 @@ const androidAgentEnrollSecretResendTTL = time.Hour
 // enrollmentAttempt carries the identifiers an enrolling agent or device
 // presented, for logging and the rejection activity.
 type enrollmentAttempt struct {
-	plane          fleet.EnrollmentPlane
+	plane          automdm.EnrollmentPlane
 	platform       string
 	hardwareUUID   string
 	hardwareSerial string
@@ -43,10 +43,10 @@ type enrollmentAttempt struct {
 // lookupOneTimeEnrollSecret returns the one-time enroll secret matching the
 // presented value, or nil when the value is not a one-time secret (it may still
 // be a shared one) or was minted for a platform whose switch is off.
-func (svc *Service) lookupOneTimeEnrollSecret(ctx context.Context, secret string) (*fleet.HostOneTimeEnrollSecret, error) {
+func (svc *Service) lookupOneTimeEnrollSecret(ctx context.Context, secret string) (*automdm.HostOneTimeEnrollSecret, error) {
 	oneTime, err := svc.ds.GetHostOneTimeEnrollSecret(ctx, secret)
 	if err != nil {
-		if fleet.IsNotFound(err) {
+		if automdm.IsNotFound(err) {
 			return nil, nil
 		}
 		return nil, err
@@ -99,7 +99,7 @@ func (svc *Service) recordEnrollmentRejected(ctx context.Context, reason string,
 			displayName = host.DisplayName()
 		}
 	}
-	if err := svc.NewActivity(ctx, nil, fleet.ActivityTypeHostEnrollmentRejected{
+	if err := svc.NewActivity(ctx, nil, automdm.ActivityTypeHostEnrollmentRejected{
 		HostID:          hostID,
 		HostDisplayName: displayName,
 		HostSerial:      attempt.hardwareSerial,
@@ -122,7 +122,7 @@ func (svc *Service) recordEnrollmentRejected(ctx context.Context, reason string,
 // rejectedHostID returns the host a rejected enrollment targeted, preferring
 // the datastore's answer and falling back to the host the presented one-time
 // secret was bound to (the row can be deleted between lookup and consumption).
-func rejectedHostID(rejected *fleet.EnrollmentRejectedError, oneTime *fleet.HostOneTimeEnrollSecret) *uint {
+func rejectedHostID(rejected *automdm.EnrollmentRejectedError, oneTime *automdm.HostOneTimeEnrollSecret) *uint {
 	if rejected.HostID != nil {
 		return rejected.HostID
 	}
@@ -132,49 +132,49 @@ func rejectedHostID(rejected *fleet.EnrollmentRejectedError, oneTime *fleet.Host
 	return nil
 }
 
-// isFleetdConfigProfile reports whether the profile is the Fleet-managed fleetd
+// isAutoMDMdConfigProfile reports whether the profile is the AutoMDM-managed automdmd
 // configuration profile. Users cannot upload a profile with this name
 // (MDMAppleConfigProfile.ValidateUserProvided rejects it), so the name is a
 // reliable discriminator.
-func isFleetdConfigProfile(profileUUID, profileName string) bool {
-	return strings.HasPrefix(profileUUID, fleet.MDMAppleProfileUUIDPrefix) && profileName == mdm.FleetdConfigProfileName
+func isAutoMDMdConfigProfile(profileUUID, profileName string) bool {
+	return strings.HasPrefix(profileUUID, automdm.MDMAppleProfileUUIDPrefix) && profileName == mdm.AutoMDMdConfigProfileName
 }
 
-// isWindowsEnrollSecretProfile reports whether the profile is the Fleet-managed Fleetd enroll secret profile, whatever the switch.
+// isWindowsEnrollSecretProfile reports whether the profile is the AutoMDM-managed AutoMDMd enroll secret profile, whatever the switch.
 func isWindowsEnrollSecretProfile(profileUUID, profileName string) bool {
-	return strings.HasPrefix(profileUUID, fleet.MDMWindowsProfileUUIDPrefix) && profileName == mdm.FleetWindowsEnrollSecretProfileName
+	return strings.HasPrefix(profileUUID, automdm.MDMWindowsProfileUUIDPrefix) && profileName == mdm.AutoMDMWindowsEnrollSecretProfileName
 }
 
-// deliversOneTimeEnrollSecret reports whether resending this profile mints a new enrollment credential for the host: the fleetd
+// deliversOneTimeEnrollSecret reports whether resending this profile mints a new enrollment credential for the host: the automdmd
 // configuration profile on Apple, the enroll secret profile on Windows. Both names are reserved, so users cannot upload a
 // profile that impersonates one, which is what makes the name a reliable discriminator.
 func deliversOneTimeEnrollSecret(mdmConfig config.MDMConfig, profileUUID, profileName string) bool {
-	return (mdmConfig.AppleOneTimeEnrollSecrets && isFleetdConfigProfile(profileUUID, profileName)) ||
+	return (mdmConfig.AppleOneTimeEnrollSecrets && isAutoMDMdConfigProfile(profileUUID, profileName)) ||
 		(mdmConfig.WindowsOneTimeEnrollSecrets && isWindowsEnrollSecretProfile(profileUUID, profileName))
 }
 
-// rejectSharedSecretForWindowsMDMHosts reports whether a shared enroll secret must be refused for a Windows host enrolled in Fleet MDM.
-func rejectSharedSecretForWindowsMDMHosts(mdmConfig config.MDMConfig, appConfig *fleet.AppConfig) bool {
+// rejectSharedSecretForWindowsMDMHosts reports whether a shared enroll secret must be refused for a Windows host enrolled in AutoMDM.
+func rejectSharedSecretForWindowsMDMHosts(mdmConfig config.MDMConfig, appConfig *automdm.AppConfig) bool {
 	return mdmConfig.WindowsOneTimeEnrollSecrets && appConfig.MDM.WindowsEnabledAndConfigured
 }
 
 // rejectSharedSecretForAndroidMDMHosts reports whether a shared enroll secret must be refused for an Android host.
-func rejectSharedSecretForAndroidMDMHosts(mdmConfig config.MDMConfig, appConfig *fleet.AppConfig) bool {
+func rejectSharedSecretForAndroidMDMHosts(mdmConfig config.MDMConfig, appConfig *automdm.AppConfig) bool {
 	return mdmConfig.AndroidOneTimeEnrollSecrets && appConfig.MDM.AndroidEnabledAndConfigured
 }
 
-// maybeResendAndroidAgentEnrollSecret queues a resend of the Fleet agent's managed configuration, with a fresh one-time enroll
+// maybeResendAndroidAgentEnrollSecret queues a resend of the AutoMDM agent's managed configuration, with a fresh one-time enroll
 // secret, after a shared or spent secret was refused for an Android host. A device that enrolled before the setting was turned on, or
 // whose secret is spent, still has an unusable secret in its configuration and would otherwise keep being refused. The resend
 // goes only to the real device through Android management, so a refused impersonator gains nothing from triggering it. It is
 // rate limited per host, whether or not queueing succeeds, is skipped when the rate limit can't be checked, and never fails
 // the caller.
-func (svc *Service) maybeResendAndroidAgentEnrollSecret(ctx context.Context, appConfig *fleet.AppConfig, rejected *fleet.EnrollmentRejectedError) {
+func (svc *Service) maybeResendAndroidAgentEnrollSecret(ctx context.Context, appConfig *automdm.AppConfig, rejected *automdm.EnrollmentRejectedError) {
 	if !rejectSharedSecretForAndroidMDMHosts(svc.config.MDM, appConfig) || rejected.HostID == nil {
 		return
 	}
 	switch rejected.Reason {
-	case fleet.EnrollmentRejectedSharedSecretForMDMManagedHost, fleet.EnrollmentRejectedOneTimeSecretSpent:
+	case automdm.EnrollmentRejectedSharedSecretForMDMManagedHost, automdm.EnrollmentRejectedOneTimeSecretSpent:
 	default:
 		return
 	}
@@ -206,19 +206,19 @@ func (svc *Service) maybeResendAndroidAgentEnrollSecret(ctx context.Context, app
 		svc.logger.ErrorContext(ctx, "load android enterprise to resend agent enroll secret", "err", err, "host_id", host.ID)
 		return
 	}
-	if err := worker.QueueSendAndroidFleetAgentConfig(ctx, svc.ds, svc.logger, host.UUID, enterprise.Name()); err != nil {
+	if err := worker.QueueSendAndroidAutoMDMAgentConfig(ctx, svc.ds, svc.logger, host.UUID, enterprise.Name()); err != nil {
 		svc.logger.ErrorContext(ctx, "queue android agent enroll secret resend", "err", err, "host_id", host.ID)
 	}
 }
 
-// setIfNotExistsStore is a key-value store that can set a key only if it doesn't exist, atomically across Fleet servers.
+// setIfNotExistsStore is a key-value store that can set a key only if it doesn't exist, atomically across AutoMDM servers.
 type setIfNotExistsStore interface {
 	SetIfNotExists(ctx context.Context, key string, value string, expireTime time.Duration) (bool, error)
 }
 
 // reserveKey sets the key for the given time and reports whether this call set it, so that concurrent callers, on this
 // server or another, reserve it only once. A store without an atomic set falls back to get then set.
-func reserveKey(ctx context.Context, kv fleet.KeyValueStore, key string, ttl time.Duration) (bool, error) {
+func reserveKey(ctx context.Context, kv automdm.KeyValueStore, key string, ttl time.Duration) (bool, error) {
 	if atomic, ok := kv.(setIfNotExistsStore); ok {
 		return atomic.SetIfNotExists(ctx, key, "1", ttl)
 	}
@@ -229,17 +229,17 @@ func reserveKey(ctx context.Context, kv fleet.KeyValueStore, key string, ttl tim
 	return true, kv.Set(ctx, key, "1", ttl)
 }
 
-// errWindowsEnrollSecretProfileOff refuses a resend of the Fleetd enroll secret profile while mdm.windows_one_time_enroll_secrets is off.
+// errWindowsEnrollSecretProfileOff refuses a resend of the AutoMDMd enroll secret profile while mdm.windows_one_time_enroll_secrets is off.
 func errWindowsEnrollSecretProfileOff() error {
-	return fleet.NewInvalidArgumentError("HostMDMProfile",
-		"Couldn’t resend. The "+mdm.FleetWindowsEnrollSecretProfileName+
+	return automdm.NewInvalidArgumentError("HostMDMProfile",
+		"Couldn’t resend. The "+mdm.AutoMDMWindowsEnrollSecretProfileName+
 			" profile is only used when one-time enroll secrets are enabled for Windows.").WithStatus(http.StatusConflict)
 }
 
-// expandWindowsHostSecrets expands host-scoped secrets ($FLEET_HOST_SECRET_*) in a SyncML document about to be delivered to the
+// expandWindowsHostSecrets expands host-scoped secrets ($AUTOMDM_HOST_SECRET_*) in a SyncML document about to be delivered to the
 // given Windows MDM enrollment. A document without any is returned untouched.
 func (svc *Service) expandWindowsHostSecrets(ctx context.Context, document string, enrollmentID uint) (string, error) {
-	hostSecrets := fleet.ContainsPrefixVars(document, fleet.HostSecretPrefix)
+	hostSecrets := automdm.ContainsPrefixVars(document, automdm.HostSecretPrefix)
 	if len(hostSecrets) == 0 {
 		return document, nil
 	}
@@ -247,8 +247,8 @@ func (svc *Service) expandWindowsHostSecrets(ctx context.Context, document strin
 	secretValues := make(map[string]string, len(hostSecrets))
 	for _, secretType := range hostSecrets {
 		switch secretType {
-		case fleet.HostSecretEnrollSecret:
-			// Using primary: the fleetd install and the push to a deleted host's enrollment are minted and delivered in the
+		case automdm.HostSecretEnrollSecret:
+			// Using primary: the automdmd install and the push to a deleted host's enrollment are minted and delivered in the
 			// same management session, so a replica even slightly behind would resolve to nothing.
 			secret, err := svc.ds.GetLiveWindowsMDMOneTimeEnrollSecret(ctxdb.RequirePrimary(ctx, true), enrollmentID)
 			if err != nil {
@@ -256,7 +256,7 @@ func (svc *Service) expandWindowsHostSecrets(ctx context.Context, document strin
 			}
 			// Empty once the secret is consumed. The value is then delivered empty on purpose.
 			secretValues[secretType] = secret
-		case fleet.HostSecretConditionalAccessSCEPChallenge:
+		case automdm.HostSecretConditionalAccessSCEPChallenge:
 			challenge, err := svc.ds.FindOrCreateWindowsConditionalAccessSCEPChallenge(ctx, enrollmentID)
 			if err != nil {
 				return "", ctxerr.Wrapf(ctx, err, "resolving conditional access scep challenge for windows mdm enrollment %d", enrollmentID)
@@ -269,11 +269,11 @@ func (svc *Service) expandWindowsHostSecrets(ctx context.Context, document strin
 
 	// Windows profiles and commands are always XML, so the substituted value is XML-escaped. The values are URL-safe base64 or
 	// hex and so never actually need it, but the escaping is what keeps that an implementation detail.
-	return fleet.MaybeExpand(document, func(s string, _, _ int) (string, bool) {
-		if !strings.HasPrefix(s, fleet.HostSecretPrefix) {
+	return automdm.MaybeExpand(document, func(s string, _, _ int) (string, bool) {
+		if !strings.HasPrefix(s, automdm.HostSecretPrefix) {
 			return "", false
 		}
-		val, ok := secretValues[strings.TrimPrefix(s, fleet.HostSecretPrefix)]
+		val, ok := secretValues[strings.TrimPrefix(s, automdm.HostSecretPrefix)]
 		if !ok {
 			return "", false
 		}
@@ -289,7 +289,7 @@ func (svc *Service) expandWindowsHostSecrets(ctx context.Context, document strin
 // minted for. Failures here are logged, not returned. Linkage is post-enrollment bookkeeping, and enroll checks happen earlier:
 // consumption already refused a host that another Windows MDM enrollment claims, so unlike the serial branch this needs no
 // conflict check of its own.
-func (svc *Service) linkWindowsEnrollmentFromOneTimeSecret(ctx context.Context, host *fleet.Host, enrollmentID uint) {
+func (svc *Service) linkWindowsEnrollmentFromOneTimeSecret(ctx context.Context, host *automdm.Host, enrollmentID uint) {
 	// The primary: this runs during enrollment, moments after the rows involved were written, and a replica could miss them.
 	device, err := svc.ds.MDMWindowsGetEnrolledDeviceByID(ctxdb.RequirePrimary(ctx, true), enrollmentID)
 	if err != nil {

@@ -17,8 +17,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/tools/hangar/internal/fleetctl"
-	"github.com/fleetdm/fleet/tools/hangar/internal/settings"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/automdmctl"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/settings"
 )
 
 func TestSlug(t *testing.T) {
@@ -38,12 +38,12 @@ func TestSlug(t *testing.T) {
 	for target, want := range map[settings.InstallerTarget]string{
 		{TeamName: "💻 Workstations"}:          "workstations",
 		{TeamName: UnassignedName}:            "unassigned",
-		{EnrollSecret: "typed", TeamName: ""}: ManualFleet,
-		{TeamName: "📱"}:                       ManualFleet,
-		{TeamName: "📱", TeamID: new(uint(9))}: "fleet-9",
+		{EnrollSecret: "typed", TeamName: ""}: ManualAutoMDM,
+		{TeamName: "📱"}:                       ManualAutoMDM,
+		{TeamName: "📱", TeamID: new(uint(9))}: "automdm-9",
 	} {
-		if got := FleetSlug(target); got != want {
-			t.Errorf("FleetSlug(%+v) = %q, want %q", target, got, want)
+		if got := TeamSlug(target); got != want {
+			t.Errorf("TeamSlug(%+v) = %q, want %q", target, got, want)
 		}
 	}
 }
@@ -80,9 +80,9 @@ func TestOutputDir(t *testing.T) {
 	cases := []struct {
 		name, fileServer, repo, context, want string
 	}{
-		{"file server wins", "/srv/files", "/src/fleet", "default", "/srv/files/packages/default"},
-		{"repo fallback", "", "/src/fleet", "qa", "/src/fleet/packages/qa"},
-		{"manual build", "/srv/files", "/src/fleet", "", "/srv/files/packages"},
+		{"file server wins", "/srv/files", "/src/automdm", "default", "/srv/files/packages/default"},
+		{"repo fallback", "", "/src/automdm", "qa", "/src/automdm/packages/qa"},
+		{"manual build", "/srv/files", "/src/automdm", "", "/srv/files/packages"},
 	}
 	for _, c := range cases {
 		got, err := OutputDir(c.fileServer, c.repo, c.context)
@@ -90,7 +90,7 @@ func TestOutputDir(t *testing.T) {
 			t.Errorf("%s: OutputDir = %q, %v; want %q", c.name, got, err, c.want)
 		}
 	}
-	if got, err := OutputDir("", "/src/fleet", "../../tmp"); err != nil || filepath.Dir(got) != "/src/fleet/packages" {
+	if got, err := OutputDir("", "/src/automdm", "../../tmp"); err != nil || filepath.Dir(got) != "/src/automdm/packages" {
 		t.Errorf("context must stay one folder under packages/: %q, %v", got, err)
 	}
 	if _, err := OutputDir("", "", "default"); err == nil {
@@ -103,13 +103,13 @@ func TestOutputDir(t *testing.T) {
 
 func TestInstallerExt(t *testing.T) {
 	cases := map[string]string{
-		"fleetd-x-linux-amd64.pkg.tar.zst": ".pkg.tar.zst",
-		"fleetd-x-macos.pkg":               ".pkg",
-		"a.msi":                            ".msi",
-		"a.deb":                            ".deb",
-		"a.rpm":                            ".rpm",
-		"manifest.json":                    "",
-		"a.tar.zst":                        "",
+		"automdmd-x-linux-amd64.pkg.tar.zst": ".pkg.tar.zst",
+		"automdmd-x-macos.pkg":               ".pkg",
+		"a.msi":                              ".msi",
+		"a.deb":                              ".deb",
+		"a.rpm":                              ".rpm",
+		"manifest.json":                      "",
+		"a.tar.zst":                          "",
 	}
 	for name, want := range cases {
 		if got := InstallerExt(name); got != want {
@@ -125,15 +125,15 @@ func TestFileNames(t *testing.T) {
 		got = append(got, filepath.Base(j.OutFile))
 	}
 	want := []string{
-		"fleetd-workstations-macos.pkg",
-		"fleetd-workstations-windows-amd64.msi",
-		"fleetd-workstations-windows-arm64.msi",
-		"fleetd-workstations-linux-amd64.deb",
-		"fleetd-workstations-linux-arm64.deb",
-		"fleetd-workstations-linux-amd64.rpm",
-		"fleetd-workstations-linux-arm64.rpm",
-		"fleetd-workstations-linux-amd64.pkg.tar.zst",
-		"fleetd-workstations-linux-arm64.pkg.tar.zst",
+		"automdmd-workstations-macos.pkg",
+		"automdmd-workstations-windows-amd64.msi",
+		"automdmd-workstations-windows-arm64.msi",
+		"automdmd-workstations-linux-amd64.deb",
+		"automdmd-workstations-linux-arm64.deb",
+		"automdmd-workstations-linux-amd64.rpm",
+		"automdmd-workstations-linux-arm64.rpm",
+		"automdmd-workstations-linux-amd64.pkg.tar.zst",
+		"automdmd-workstations-linux-arm64.pkg.tar.zst",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("default names\n got %v\nwant %v", got, want)
@@ -142,25 +142,25 @@ func TestFileNames(t *testing.T) {
 	deb, _ := PlatformByKey("deb-arm64")
 	pkg, _ := PlatformByKey("macos")
 	cfg := def
-	cfg.FleetDesktop = false
+	cfg.AutoMDMDesktop = false
 	cfg.EnableScripts = false
-	if n := FileName("unassigned", deb, cfg); n != "fleetd-unassigned-linux-arm64-nodesktop-noscripts.deb" {
+	if n := FileName("unassigned", deb, cfg); n != "automdmd-unassigned-linux-arm64-nodesktop-noscripts.deb" {
 		t.Errorf("no desktop, no scripts: %q", n)
 	}
 	cfg = def
 	cfg.UpdateSource = settings.UpdateSourceLocalTUF
 	cfg.OrbitChannel = "edge"
-	if n := FileName("rc", pkg, cfg); n != "fleetd-rc-macos-tuf-edge.pkg" {
+	if n := FileName("rc", pkg, cfg); n != "automdmd-rc-macos-tuf-edge.pkg" {
 		t.Errorf("tuf+edge: %q", n)
 	}
 	cfg = def
 	cfg.OrbitChannel, cfg.DesktopChannel, cfg.OsquerydChannel = "edge", "edge", "edge"
-	if n := FileName("rc", pkg, cfg); n != "fleetd-rc-macos-edge.pkg" {
+	if n := FileName("rc", pkg, cfg); n != "automdmd-rc-macos-edge.pkg" {
 		t.Errorf("all edge: %q", n)
 	}
 	cfg = def
 	cfg.OrbitChannel, cfg.OsquerydChannel = "1.61.0", "edge"
-	if n := FileName("rc", pkg, cfg); n != "fleetd-rc-macos-orbit-1.61.0-osquery-edge.pkg" {
+	if n := FileName("rc", pkg, cfg); n != "automdmd-rc-macos-orbit-1.61.0-osquery-edge.pkg" {
 		t.Errorf("mixed channels: %q", n)
 	}
 }
@@ -173,32 +173,32 @@ func TestJobsSubsetAndEncode(t *testing.T) {
 		t.Fatalf("jobs = %+v", jobs)
 	}
 	enc := EncodeJobs(jobs)
-	wantEnc := "macos\tpkg\t-\t/o/fleetd-rc-macos.pkg\n" +
-		"rpm-arm64\trpm\tarm64\t/o/fleetd-rc-linux-arm64.rpm\n" +
-		"arch-arm64\tpkg.tar.zst\tarm64\t/o/fleetd-rc-linux-arm64.pkg.tar.zst\n"
+	wantEnc := "macos\tpkg\t-\t/o/automdmd-rc-macos.pkg\n" +
+		"rpm-arm64\trpm\tarm64\t/o/automdmd-rc-linux-arm64.rpm\n" +
+		"arch-arm64\tpkg.tar.zst\tarm64\t/o/automdmd-rc-linux-arm64.pkg.tar.zst\n"
 	if enc != wantEnc {
 		t.Errorf("EncodeJobs = %q", enc)
 	}
 }
 
 func TestCommonArgs(t *testing.T) {
-	in := BuildInputs{FleetURL: "https://fleet.example", EnrollSecret: "s3cret", UpdateURL: "https://tuf.example", UpdateRoots: `[{"k":1}]`}
+	in := BuildInputs{AutoMDMURL: "https://automdm.example", EnrollSecret: "s3cret", UpdateURL: "https://tuf.example", UpdateRoots: `[{"k":1}]`}
 	def := settings.DefaultInstallerOptions()
 	got := CommonArgs(def, in)
-	want := []string{"--fleet-url=https://fleet.example", "--enroll-secret=s3cret", "--disable-open-folder", "--fleet-desktop", "--enable-scripts"}
+	want := []string{"--automdm-url=https://automdm.example", "--enroll-secret=s3cret", "--disable-open-folder", "--automdm-desktop", "--enable-scripts"}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("default args %v", got)
 	}
 
 	cfg := def
-	cfg.FleetDesktop = false
+	cfg.AutoMDMDesktop = false
 	cfg.EnableScripts = false
 	cfg.Debug = true
 	cfg.DesktopChannel = "edge"
 	cfg.UpdateSource = settings.UpdateSourceLocalTUF
 	got = CommonArgs(cfg, in)
 	want = []string{
-		"--fleet-url=https://fleet.example", "--enroll-secret=s3cret", "--disable-open-folder", "--debug",
+		"--automdm-url=https://automdm.example", "--enroll-secret=s3cret", "--disable-open-folder", "--debug",
 		"--desktop-channel=edge", "--update-url=https://tuf.example", `--update-roots=[{"k":1}]`,
 	}
 	if !reflect.DeepEqual(got, want) {
@@ -208,21 +208,21 @@ func TestCommonArgs(t *testing.T) {
 
 func TestValidateConfig(t *testing.T) {
 	cfg := settings.DefaultInstallerOptions()
-	if err := ValidateConfig(cfg, settings.InstallerTarget{FleetURL: "https://f"}); err != nil {
+	if err := ValidateConfig(cfg, settings.InstallerTarget{AutoMDMURL: "https://f"}); err != nil {
 		t.Errorf("default config: %v", err)
 	}
-	if err := ValidateConfig(cfg, settings.InstallerTarget{FleetURL: "https://f\n--insecure"}); err == nil {
-		t.Error("newline in Fleet URL should be rejected")
+	if err := ValidateConfig(cfg, settings.InstallerTarget{AutoMDMURL: "https://f\n--insecure"}); err == nil {
+		t.Error("newline in AutoMDM URL should be rejected")
 	}
 }
 
 func TestValidateArgs(t *testing.T) {
-	ok := CommonArgs(settings.DefaultInstallerOptions(), BuildInputs{FleetURL: "https://f", EnrollSecret: "s"})
+	ok := CommonArgs(settings.DefaultInstallerOptions(), BuildInputs{AutoMDMURL: "https://f", EnrollSecret: "s"})
 	if err := ValidateArgs(ok); err != nil {
 		t.Errorf("valid args: %v", err)
 	}
 	// A server-supplied value with a line break is caught, not split into flags.
-	bad := CommonArgs(settings.DefaultInstallerOptions(), BuildInputs{FleetURL: "https://f", EnrollSecret: "s\n--insecure"})
+	bad := CommonArgs(settings.DefaultInstallerOptions(), BuildInputs{AutoMDMURL: "https://f", EnrollSecret: "s\n--insecure"})
 	if err := ValidateArgs(bad); err == nil || !strings.Contains(err.Error(), "--enroll-secret") {
 		t.Errorf("secret with newline: %v", err)
 	}
@@ -241,16 +241,16 @@ func TestParseExtraFlags(t *testing.T) {
 		t.Errorf("blank: %q %v", got, err)
 	}
 	for _, bad := range []string{
-		`--fleet-url=https://x`, `--outfile x.pkg`, `--enable-scripts`, `--host-identifier "unclosed`,
-		// fleetctl takes a single dash too.
+		`--automdm-url=https://x`, `--outfile x.pkg`, `--enable-scripts`, `--host-identifier "unclosed`,
+		// automdmctl takes a single dash too.
 		`-outfile=/elsewhere/x.pkg`, `-type deb`, `--host-identifier=instance -enroll-secret=`,
 	} {
 		if _, err := ParseExtraFlags(bad); err == nil {
 			t.Errorf("%q should be rejected", bad)
 		}
 	}
-	// Extra flags go last on the fleetctl command line.
-	args := CommonArgs(settings.DefaultInstallerOptions(), BuildInputs{FleetURL: "https://f", EnrollSecret: "s", ExtraFlags: want[:2]})
+	// Extra flags go last on the automdmctl command line.
+	args := CommonArgs(settings.DefaultInstallerOptions(), BuildInputs{AutoMDMURL: "https://f", EnrollSecret: "s", ExtraFlags: want[:2]})
 	if args[len(args)-2] != "--use-system-configuration" || args[len(args)-1] != "--host-identifier=instance" {
 		t.Errorf("args = %q", args)
 	}
@@ -266,8 +266,8 @@ func TestServerForAddress(t *testing.T) {
 		"https://127.0.0.1:8090/":      "s2",
 		"https://[::1]:8090":           "s2",
 		"https://localhost:8100":       "",
-		"https://fleetqa.ngrok.io":     "",
-		"https://fleet.example:8080":   "",
+		"https://automdmqa.ngrok.io":   "",
+		"https://automdm.example:8080": "",
 		"":                             "",
 		"not a url with spaces ::8080": "",
 	}
@@ -313,27 +313,27 @@ func TestUpdateManifest(t *testing.T) {
 	}
 	// Written just now, like a package from a build that ended a moment ago,
 	// so its modification time alone can't tell it from this build's output.
-	old := filepath.Join(dir, "fleetd-rc-macos.pkg")
+	old := filepath.Join(dir, "automdmd-rc-macos.pkg")
 	write(old)
-	msi := filepath.Join(dir, "fleetd-rc-windows-amd64.msi")
+	msi := filepath.Join(dir, "automdmd-rc-windows-amd64.msi")
 	write(msi)
 	// An existing entry for a file that's gone is pruned; one for a file that
 	// still exists (and wasn't rebuilt) is kept.
 	seed := Manifest{Files: map[string]ManifestEntry{
-		"fleetd-rc-macos.pkg": {Platform: "macos", Team: "old"},
-		"gone.deb":            {Platform: "deb-amd64"},
+		"automdmd-rc-macos.pkg": {Platform: "macos", Team: "old"},
+		"gone.deb":              {Platform: "deb-amd64"},
 	}}
 	b, _ := json.Marshal(seed)
 	if err := os.WriteFile(filepath.Join(dir, ManifestName), b, 0o644); err != nil {
 		t.Fatal(err)
 	}
 
-	built := filepath.Join(dir, "fleetd-rc-linux-arm64-desktop.deb")
+	built := filepath.Join(dir, "automdmd-rc-linux-arm64-desktop.deb")
 	jobs := []Job{
 		{Key: "deb-arm64", OutFile: built},
-		{Key: "rpm-arm64", OutFile: filepath.Join(dir, "fleetd-rc-linux-arm64-desktop.rpm")}, // failed: no file
-		{Key: "macos", OutFile: old},                                                         // failed rebuild: old file left in place
-		{Key: "windows-amd64", OutFile: msi},                                                 // rebuilt over an existing file
+		{Key: "rpm-arm64", OutFile: filepath.Join(dir, "automdmd-rc-linux-arm64-desktop.rpm")}, // failed: no file
+		{Key: "macos", OutFile: old},         // failed rebuild: old file left in place
+		{Key: "windows-amd64", OutFile: msi}, // rebuilt over an existing file
 	}
 	before := Snapshot(jobs)
 
@@ -345,7 +345,7 @@ func TestUpdateManifest(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	n, err := UpdateManifest(dir, jobs, before, ManifestEntry{Team: "Workstations", FleetURL: "https://f"})
+	n, err := UpdateManifest(dir, jobs, before, ManifestEntry{Team: "Workstations", AutoMDMURL: "https://f"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -360,12 +360,12 @@ func TestUpdateManifest(t *testing.T) {
 	if len(m.Files) != 3 {
 		t.Fatalf("manifest files = %v", m.Files)
 	}
-	for name, platform := range map[string]string{"fleetd-rc-linux-arm64-desktop.deb": "deb-arm64", "fleetd-rc-windows-amd64.msi": "windows-amd64"} {
+	for name, platform := range map[string]string{"automdmd-rc-linux-arm64-desktop.deb": "deb-arm64", "automdmd-rc-windows-amd64.msi": "windows-amd64"} {
 		if e := m.Files[name]; e.Platform != platform || e.Team != "Workstations" {
 			t.Errorf("entry for %s = %+v", name, e)
 		}
 	}
-	if e := m.Files["fleetd-rc-macos.pkg"]; e.Team != "old" {
+	if e := m.Files["automdmd-rc-macos.pkg"]; e.Team != "old" {
 		t.Errorf("kept entry = %+v", e)
 	}
 }
@@ -404,33 +404,33 @@ func TestListOutputs(t *testing.T) {
 	}
 }
 
-// fakeFleet serves the endpoints Scan reads. newRoutes controls whether the
-// server knows /fleets (current) or only /teams (older releases).
-func fakeFleet(t *testing.T, tier string, newRoutes bool) *httptest.Server {
+// fakeAutoMDM serves the endpoints Scan reads. newRoutes controls whether the
+// server knows /teams (current) or only /teams (older releases).
+func fakeAutoMDM(t *testing.T, tier string, newRoutes bool) *httptest.Server {
 	t.Helper()
 	return httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// "fleet-admin" is a user with a role on a fleet only.
+		// "team-admin" is a user with a role on a team only.
 		auth := r.Header.Get("Authorization")
-		if auth != "Bearer tok" && auth != "Bearer fleet-admin" {
+		if auth != "Bearer tok" && auth != "Bearer team-admin" {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
 		switch r.URL.Path {
-		case "/api/v1/fleet/config":
-			_, _ = w.Write([]byte(`{"server_settings":{"server_url":"https://fleet.public"},"license":{"tier":"` + tier + `"}}`))
-		case "/api/v1/fleet/spec/enroll_secret":
-			if auth == "Bearer fleet-admin" {
+		case "/api/v1/automdm/config":
+			_, _ = w.Write([]byte(`{"server_settings":{"server_url":"https://automdm.public"},"license":{"tier":"` + tier + `"}}`))
+		case "/api/v1/automdm/spec/enroll_secret":
+			if auth == "Bearer team-admin" {
 				w.WriteHeader(http.StatusForbidden)
 				return
 			}
 			_, _ = w.Write([]byte(`{"spec":{"secrets":[{"secret":"global"}]}}`))
-		case "/api/v1/fleet/fleets":
+		case "/api/v1/automdm/teams":
 			if !newRoutes {
 				w.WriteHeader(http.StatusNotFound)
 				return
 			}
-			_, _ = w.Write([]byte(`{"fleets":[{"id":3,"name":"💻 Workstations","secrets":[{"secret":"ws"}]},{"id":4,"name":"Empty","secrets":[]},{"id":5,"name":"Hidden","secrets":[{"secret":"********"}]}],"teams":[]}`))
-		case "/api/v1/fleet/teams":
+			_, _ = w.Write([]byte(`{"teams":[{"id":3,"name":"💻 Workstations","secrets":[{"secret":"ws"}]},{"id":4,"name":"Empty","secrets":[]},{"id":5,"name":"Hidden","secrets":[{"secret":"********"}]}],"teams":[]}`))
+		case "/api/v1/automdm/teams":
 			if tier != "premium" {
 				w.WriteHeader(http.StatusPaymentRequired)
 				return
@@ -443,9 +443,9 @@ func fakeFleet(t *testing.T, tier string, newRoutes bool) *httptest.Server {
 }
 
 func TestScan(t *testing.T) {
-	srv := fakeFleet(t, "premium", true)
+	srv := fakeAutoMDM(t, "premium", true)
 	defer srv.Close()
-	c, err := NewClient(fleetctl.Credentials{Address: srv.URL, Token: "tok", TLSSkipVerify: true})
+	c, err := NewClient(automdmctl.Credentials{Address: srv.URL, Token: "tok", TLSSkipVerify: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -453,7 +453,7 @@ func TestScan(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.ServerURL != "https://fleet.public" || !res.Premium || len(res.Teams) != 4 {
+	if res.ServerURL != "https://automdm.public" || !res.Premium || len(res.Teams) != 4 {
 		t.Fatalf("scan = %+v", res)
 	}
 	if s, _, err := SecretFor(res, nil); err != nil || s != "global" {
@@ -483,12 +483,12 @@ func TestScan(t *testing.T) {
 }
 
 func TestScanHonorsURLPrefixAndCustomHeaders(t *testing.T) {
-	inner := fakeFleet(t, "premium", true)
+	inner := fakeAutoMDM(t, "premium", true)
 	defer inner.Close()
 	for prefix, path := range map[string]string{
-		"/fleet-prefix/": "/fleet-prefix",
+		"/automdm-prefix/": "/automdm-prefix",
 		// A reserved character must stay part of the path, not start a fragment.
-		"fleet#prefix": "/fleet#prefix",
+		"team#prefix": "/automdm#prefix",
 	} {
 		// Like a server behind an access proxy on a path prefix.
 		proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -500,15 +500,15 @@ func TestScanHonorsURLPrefixAndCustomHeaders(t *testing.T) {
 			r.URL.Path = rest
 			inner.Config.Handler.ServeHTTP(w, r)
 		}))
-		c, err := NewClient(fleetctl.Credentials{
+		c, err := NewClient(automdmctl.Credentials{
 			Address: proxy.URL, Token: "tok", URLPrefix: prefix,
-			// Like fleetctl, a custom header can't replace the context's token.
+			// Like automdmctl, a custom header can't replace the context's token.
 			CustomHeaders: map[string]string{"X-Access": "letmein", "Authorization": "Bearer other"},
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
-		if res, err := c.Scan(context.Background()); err != nil || res.ServerURL != "https://fleet.public" {
+		if res, err := c.Scan(context.Background()); err != nil || res.ServerURL != "https://automdm.public" {
 			t.Errorf("prefix %q: scan through the proxy = %+v, %v", prefix, res, err)
 		}
 		proxy.Close()
@@ -516,9 +516,9 @@ func TestScanHonorsURLPrefixAndCustomHeaders(t *testing.T) {
 }
 
 func TestScanWithoutGlobalSecretAccess(t *testing.T) {
-	srv := fakeFleet(t, "premium", true)
+	srv := fakeAutoMDM(t, "premium", true)
 	defer srv.Close()
-	c, err := NewClient(fleetctl.Credentials{Address: srv.URL, Token: "fleet-admin", TLSSkipVerify: true})
+	c, err := NewClient(automdmctl.Credentials{Address: srv.URL, Token: "team-admin", TLSSkipVerify: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -539,18 +539,18 @@ func TestScanWithoutGlobalSecretAccess(t *testing.T) {
 }
 
 func TestScanErrorsSayWhatToFix(t *testing.T) {
-	srv := fakeFleet(t, "premium", true)
+	srv := fakeAutoMDM(t, "premium", true)
 	defer srv.Close()
 
-	c, err := NewClient(fleetctl.Credentials{Address: srv.URL, Token: "expired", TLSSkipVerify: true})
+	c, err := NewClient(automdmctl.Credentials{Address: srv.URL, Token: "expired", TLSSkipVerify: true})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := c.Scan(context.Background()); err == nil || !strings.Contains(err.Error(), "fleetctl login") {
+	if _, err := c.Scan(context.Background()); err == nil || !strings.Contains(err.Error(), "automdmctl login") {
 		t.Errorf("rejected token: %v", err)
 	}
 
-	c, err = NewClient(fleetctl.Credentials{Address: srv.URL, Token: "tok"})
+	c, err = NewClient(automdmctl.Credentials{Address: srv.URL, Token: "tok"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -564,23 +564,23 @@ func TestScanErrorsSayWhatToFix(t *testing.T) {
 	}
 	down := "https://" + l.Addr().String()
 	l.Close()
-	c, err = NewClient(fleetctl.Credentials{Address: down, Token: "tok", TLSSkipVerify: true})
+	c, err = NewClient(automdmctl.Credentials{Address: down, Token: "tok", TLSSkipVerify: true})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := c.Scan(context.Background()); err == nil || !strings.Contains(err.Error(), "no Fleet server is running") {
+	if _, err := c.Scan(context.Background()); err == nil || !strings.Contains(err.Error(), "no AutoMDM server is running") {
 		t.Errorf("server down: %v", err)
 	}
 
-	if _, err := NewClient(fleetctl.Credentials{Address: srv.URL}); err == nil || !strings.Contains(err.Error(), "fleetctl login") {
+	if _, err := NewClient(automdmctl.Credentials{Address: srv.URL}); err == nil || !strings.Contains(err.Error(), "automdmctl login") {
 		t.Errorf("no token: %v", err)
 	}
 }
 
 func TestScanOldRoutesAndFree(t *testing.T) {
-	old := fakeFleet(t, "premium", false)
+	old := fakeAutoMDM(t, "premium", false)
 	defer old.Close()
-	c, _ := NewClient(fleetctl.Credentials{Address: old.URL, Token: "tok", TLSSkipVerify: true})
+	c, _ := NewClient(automdmctl.Credentials{Address: old.URL, Token: "tok", TLSSkipVerify: true})
 	res, err := c.Scan(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -589,9 +589,9 @@ func TestScanOldRoutesAndFree(t *testing.T) {
 		t.Errorf("old routes teams = %+v", res.Teams)
 	}
 
-	free := fakeFleet(t, "free", true)
+	free := fakeAutoMDM(t, "free", true)
 	defer free.Close()
-	c, _ = NewClient(fleetctl.Credentials{Address: free.URL, Token: "tok", TLSSkipVerify: true})
+	c, _ = NewClient(automdmctl.Credentials{Address: free.URL, Token: "tok", TLSSkipVerify: true})
 	res, err = c.Scan(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -604,20 +604,20 @@ func TestScanOldRoutesAndFree(t *testing.T) {
 	down := httptest.NewServer(http.NotFoundHandler())
 	downURL := down.URL
 	down.Close()
-	c, _ = NewClient(fleetctl.Credentials{Address: downURL, Token: "tok"})
-	if _, err := c.Scan(context.Background()); err == nil || !strings.Contains(err.Error(), "no Fleet server is running") {
+	c, _ = NewClient(automdmctl.Credentials{Address: downURL, Token: "tok"})
+	if _, err := c.Scan(context.Background()); err == nil || !strings.Contains(err.Error(), "no AutoMDM server is running") {
 		t.Errorf("down server err = %v", err)
 	}
 
-	if _, err := NewClient(fleetctl.Credentials{Address: free.URL}); err == nil {
+	if _, err := NewClient(automdmctl.Credentials{Address: free.URL}); err == nil {
 		t.Error("missing token should fail")
 	}
 }
 
-// TestBuildScript runs build.sh against a stub fleetctl to check the flags it
+// TestBuildScript runs build.sh against a stub automdmctl to check the flags it
 // passes, that it keeps going after a failure, and the status lines the tab
 // parses.
-// buildScriptCmd writes build.sh and a fleetctl stub into a new dir and
+// buildScriptCmd writes build.sh and an automdmctl stub into a new dir and
 // returns a command that builds platforms with them into that dir.
 func buildScriptCmd(t *testing.T, stubSrc string, platforms ...string) (*exec.Cmd, string) {
 	t.Helper()
@@ -629,16 +629,16 @@ func buildScriptCmd(t *testing.T, stubSrc string, platforms ...string) (*exec.Cm
 	if err := os.WriteFile(script, []byte(BuildScript), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	stub := filepath.Join(dir, "fleetctl")
+	stub := filepath.Join(dir, "automdmctl")
 	if err := os.WriteFile(stub, []byte(stubSrc), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	cfg := settings.DefaultInstallerOptions()
 	cfg.Platforms = platforms
-	common := CommonArgs(cfg, BuildInputs{FleetURL: "https://f", EnrollSecret: "has space"})
+	common := CommonArgs(cfg, BuildInputs{AutoMDMURL: "https://f", EnrollSecret: "has space"})
 	cmd := exec.Command("bash", script)
 	cmd.Env = append(os.Environ(),
-		"HANGAR_FLEETCTL="+stub,
+		"HANGAR_AUTOMDMCTL="+stub,
 		"HANGAR_JOBS="+EncodeJobs(Jobs("rc", dir, cfg)),
 		"HANGAR_COMMON_ARGS="+strings.Join(common, "\n"),
 	)
@@ -654,13 +654,13 @@ echo "to stderr" >&2
 case "$*" in
   *--type=rpm*) exit 1;;
   *--type=deb*--arch=amd64*) exit 0;; # claims success, writes nothing
-  # Mimics fleetctl ignoring --outfile for arm64 .msi.
-  *--type=msi*--arch=arm64*) echo new > fleet-osquery-arm64.msi; exit 0;;
+  # Mimics automdmctl ignoring --outfile for arm64 .msi.
+  *--type=msi*--arch=arm64*) echo new > automdm-osquery-arm64.msi; exit 0;;
 esac
 for a in "$@"; do case "$a" in --outfile=*) touch "${a#--outfile=}";; esac; done
 `, "macos", "windows-arm64", "deb-amd64", "deb-arm64", "rpm-amd64", "arch-amd64")
 
-	for _, n := range []string{"fleetd-rc-windows-arm64.msi", "fleetd-rc-linux-amd64.deb"} {
+	for _, n := range []string{"automdmd-rc-windows-arm64.msi", "automdmd-rc-linux-amd64.deb"} {
 		if err := os.WriteFile(filepath.Join(dir, n), []byte("old\n"), 0o600); err != nil {
 			t.Fatal(err)
 		}
@@ -675,7 +675,7 @@ for a in "$@"; do case "$a" in --outfile=*) touch "${a#--outfile=}";; esac; done
 		t.Fatalf("expected non-zero exit with a failed job, output:\n%s", out)
 	}
 	for _, want := range []string{
-		"==> [macos] building fleetd-rc-macos.pkg",
+		"==> [macos] building automdmd-rc-macos.pkg",
 		"==> [macos] ok",
 		"==> [windows-arm64] ok",
 		"==> [deb-amd64] failed",
@@ -686,7 +686,7 @@ for a in "$@"; do case "$a" in --outfile=*) touch "${a#--outfile=}";; esac; done
 		// A job's own output, from either stream, is tagged with its key.
 		"[arch-amd64] to stdout",
 		"[arch-amd64] to stderr",
-		"[deb-amd64] fleetctl reported success but wrote no deb file",
+		"[deb-amd64] automdmctl reported success but wrote no deb file",
 	} {
 		if !strings.Contains(string(out), want) {
 			t.Errorf("output missing %q:\n%s", want, out)
@@ -708,7 +708,7 @@ for a in "$@"; do case "$a" in --outfile=*) touch "${a#--outfile=}";; esac; done
 		return ""
 	}
 	// A run that wrote nothing leaves the previous file alone.
-	if b, _ := os.ReadFile(filepath.Join(dir, "fleetd-rc-linux-amd64.deb")); string(b) != "old\n" {
+	if b, _ := os.ReadFile(filepath.Join(dir, "automdmd-rc-linux-amd64.deb")); string(b) != "old\n" {
 		t.Errorf("previous deb overwritten: %q", b)
 	}
 	// No work dirs (this build's or the stale one) are left next to the outputs.
@@ -724,7 +724,7 @@ for a in "$@"; do case "$a" in --outfile=*) touch "${a#--outfile=}";; esac; done
 	}
 	// The stray arm64 .msi was moved to its intended name (replacing an old
 	// one) and made readable.
-	msi := filepath.Join(dir, "fleetd-rc-windows-arm64.msi")
+	msi := filepath.Join(dir, "automdmd-rc-windows-arm64.msi")
 	if b, err := os.ReadFile(msi); err != nil || string(b) != "new\n" {
 		t.Errorf("arm64 msi = %q, %v", b, err)
 	}
@@ -734,16 +734,16 @@ for a in "$@"; do case "$a" in --outfile=*) touch "${a#--outfile=}";; esac; done
 	if pkg := call("--type=pkg "); !strings.HasPrefix(pkg, "args: package --type=pkg --outfile=") || strings.Contains(pkg, "--arch") {
 		t.Errorf("pkg call = %q", pkg)
 	}
-	if _, err := os.Stat(filepath.Join(dir, "fleetd-rc-linux-amd64.pkg.tar.zst")); err != nil {
+	if _, err := os.Stat(filepath.Join(dir, "automdmd-rc-linux-amd64.pkg.tar.zst")); err != nil {
 		t.Errorf("Arch package not moved into place: %v", err)
 	}
-	if deb := call("--type=deb --arch=arm64 "); !strings.Contains(deb, "--outfile=") || !strings.Contains(deb, "--enroll-secret=has space --disable-open-folder --fleet-desktop --enable-scripts") {
+	if deb := call("--type=deb --arch=arm64 "); !strings.Contains(deb, "--outfile=") || !strings.Contains(deb, "--enroll-secret=has space --disable-open-folder --automdm-desktop --enable-scripts") {
 		t.Errorf("deb call = %q", deb)
 	}
 }
 
 func TestBuildScriptSignaledJobHasNoResult(t *testing.T) {
-	// A job whose fleetctl dies by a signal (as under Stop) reports neither ok
+	// A job whose automdmctl dies by a signal (as under Stop) reports neither ok
 	// nor failed: the tab shows it as stopped or interrupted.
 	cmd, _ := buildScriptCmd(t, `#!/usr/bin/env bash
 case "$*" in
@@ -788,7 +788,7 @@ for a in "$@"; do case "$a" in --outfile=*) touch "${a#--outfile=}";; esac; done
 func TestBuildScriptStopEndsEveryJob(t *testing.T) {
 	for name, stub := range map[string]string{
 		"killed by the signal": "exec sleep 30",
-		// fleetctl can catch SIGTERM to clean up and then exit non-zero.
+		// automdmctl can catch SIGTERM to clean up and then exit non-zero.
 		"exits non-zero on SIGTERM": "trap 'sleep 0.2; exit 1' TERM\nsleep 30 & wait",
 	} {
 		t.Run(name, func(t *testing.T) {

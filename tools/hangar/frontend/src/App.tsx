@@ -5,7 +5,7 @@ import { StatusRail } from "./components/StatusRail";
 import { ServerSwitcher } from "./components/ServerSwitcher";
 import { FirstRunGate } from "./components/FirstRunGate";
 import { DatabaseTab } from "./components/tabs/DatabaseTab";
-import { FleetctlTab } from "./components/tabs/FleetctlTab";
+import { AutoMDMctlTab } from "./components/tabs/AutoMDMctlTab";
 import { GitTab } from "./components/tabs/GitTab";
 import { ServerTab } from "./components/tabs/ServerTab";
 import { LogsTab } from "./components/tabs/LogsTab";
@@ -379,12 +379,12 @@ export default function App() {
             goToLogs={goToLogs}
           />
         )}
-        {active === "fleetctl" && (
-          <FleetctlTab
+        {active === "automdmctl" && (
+          <AutoMDMctlTab
             settings={settings}
             onSettingsChange={setSettings}
             serve={serve}
-            goToSettings={() => goToSettings("fleetctl")}
+            goToSettings={() => goToSettings("automdmctl")}
             goToServer={() => setActive("server")}
             goToLogs={goToLogs}
           />
@@ -480,7 +480,7 @@ function QuitModal({
               style={{ fontSize: "var(--fs-x-small)", lineHeight: 1.5 }}
             >
               This will stop everything Hangar is running (every server's
-              fleet serve, ngrok, the python server, SCEP servers, osquery-perf,
+              automdm serve, ngrok, the python server, SCEP servers, osquery-perf,
               package builds) and run{" "}
               <span className="mono">docker compose down</span> for each server
               before closing the app.

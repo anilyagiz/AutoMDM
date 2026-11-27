@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -21,69 +21,69 @@ func TestService_ListSoftware(t *testing.T) {
 	ds := new(mock.Store)
 
 	var calledWithTeamID *uint
-	var calledWithOpt fleet.SoftwareListOptions
-	ds.ListSoftwareFunc = func(ctx context.Context, opt fleet.SoftwareListOptions) ([]fleet.Software, *fleet.PaginationMetadata, error) {
+	var calledWithOpt automdm.SoftwareListOptions
+	ds.ListSoftwareFunc = func(ctx context.Context, opt automdm.SoftwareListOptions) ([]automdm.Software, *automdm.PaginationMetadata, error) {
 		calledWithTeamID = opt.TeamID
 		calledWithOpt = opt
-		return []fleet.Software{}, &fleet.PaginationMetadata{}, nil
+		return []automdm.Software{}, &automdm.PaginationMetadata{}, nil
 	}
 
-	user := &fleet.User{
+	user := &automdm.User{
 		ID:         3,
 		Email:      "foo@bar.com",
-		GlobalRole: ptr.String(fleet.RoleAdmin),
+		GlobalRole: ptr.String(automdm.RoleAdmin),
 	}
 
 	svc, ctx := newTestService(t, ds, nil, nil)
 	ctx = viewer.NewContext(ctx, viewer.Viewer{User: user})
 
-	_, _, err := svc.ListSoftware(ctx, fleet.SoftwareListOptions{TeamID: ptr.Uint(42), ListOptions: fleet.ListOptions{PerPage: 77, Page: 4}})
+	_, _, err := svc.ListSoftware(ctx, automdm.SoftwareListOptions{TeamID: ptr.Uint(42), ListOptions: automdm.ListOptions{PerPage: 77, Page: 4}})
 	require.NoError(t, err)
 
 	assert.True(t, ds.ListSoftwareFuncInvoked)
 	assert.Equal(t, ptr.Uint(42), calledWithTeamID)
 	// sort order defaults to hosts_count descending, automatically, if not explicitly provided
-	assert.Equal(t, fleet.ListOptions{PerPage: 77, Page: 4, OrderKey: "hosts_count", OrderDirection: fleet.OrderDescending}, calledWithOpt.ListOptions)
+	assert.Equal(t, automdm.ListOptions{PerPage: 77, Page: 4, OrderKey: "hosts_count", OrderDirection: automdm.OrderDescending}, calledWithOpt.ListOptions)
 	assert.True(t, calledWithOpt.WithHostCounts)
 
 	// call again, this time with an explicit sort
 	ds.ListSoftwareFuncInvoked = false
-	_, _, err = svc.ListSoftware(ctx, fleet.SoftwareListOptions{TeamID: nil, ListOptions: fleet.ListOptions{PerPage: 11, Page: 2, OrderKey: "id", OrderDirection: fleet.OrderAscending}})
+	_, _, err = svc.ListSoftware(ctx, automdm.SoftwareListOptions{TeamID: nil, ListOptions: automdm.ListOptions{PerPage: 11, Page: 2, OrderKey: "id", OrderDirection: automdm.OrderAscending}})
 	require.NoError(t, err)
 
 	assert.True(t, ds.ListSoftwareFuncInvoked)
 	assert.Nil(t, calledWithTeamID)
-	assert.Equal(t, fleet.ListOptions{PerPage: 11, Page: 2, OrderKey: "id", OrderDirection: fleet.OrderAscending}, calledWithOpt.ListOptions)
+	assert.Equal(t, automdm.ListOptions{PerPage: 11, Page: 2, OrderKey: "id", OrderDirection: automdm.OrderAscending}, calledWithOpt.ListOptions)
 	assert.True(t, calledWithOpt.WithHostCounts)
 }
 
 func TestServiceSoftwareInventoryAuth(t *testing.T) {
 	ds := new(mock.Store)
 
-	ds.ListSoftwareFunc = func(ctx context.Context, opt fleet.SoftwareListOptions) ([]fleet.Software, *fleet.PaginationMetadata, error) {
-		return []fleet.Software{}, &fleet.PaginationMetadata{}, nil
+	ds.ListSoftwareFunc = func(ctx context.Context, opt automdm.SoftwareListOptions) ([]automdm.Software, *automdm.PaginationMetadata, error) {
+		return []automdm.Software{}, &automdm.PaginationMetadata{}, nil
 	}
-	ds.CountSoftwareFunc = func(ctx context.Context, opt fleet.SoftwareListOptions) (int, error) {
+	ds.CountSoftwareFunc = func(ctx context.Context, opt automdm.SoftwareListOptions) (int, error) {
 		return 0, nil
 	}
-	ds.SoftwareByIDFunc = func(ctx context.Context, id uint, teamID *uint, includeCVEScores bool, tmFilter *fleet.TeamFilter) (*fleet.Software, error) {
-		return &fleet.Software{}, nil
+	ds.SoftwareByIDFunc = func(ctx context.Context, id uint, teamID *uint, includeCVEScores bool, tmFilter *automdm.TeamFilter) (*automdm.Software, error) {
+		return &automdm.Software{}, nil
 	}
 	ds.TeamExistsFunc = func(ctx context.Context, teamID uint) (bool, error) { return true, nil }
 	svc, ctx := newTestService(t, ds, nil, nil)
 
 	for _, tc := range []struct {
 		name                 string
-		user                 *fleet.User
+		user                 *automdm.User
 		shouldFailGlobalRead bool
 		shouldFailTeamRead   bool
 		shouldFailGetByID    bool
 	}{
 		{
 			name: "global-admin",
-			user: &fleet.User{
+			user: &automdm.User{
 				ID:         1,
-				GlobalRole: ptr.String(fleet.RoleAdmin),
+				GlobalRole: ptr.String(automdm.RoleAdmin),
 			},
 			shouldFailGlobalRead: false,
 			shouldFailTeamRead:   false,
@@ -91,9 +91,9 @@ func TestServiceSoftwareInventoryAuth(t *testing.T) {
 		},
 		{
 			name: "global-maintainer",
-			user: &fleet.User{
+			user: &automdm.User{
 				ID:         1,
-				GlobalRole: ptr.String(fleet.RoleMaintainer),
+				GlobalRole: ptr.String(automdm.RoleMaintainer),
 			},
 			shouldFailGlobalRead: false,
 			shouldFailTeamRead:   false,
@@ -101,9 +101,9 @@ func TestServiceSoftwareInventoryAuth(t *testing.T) {
 		},
 		{
 			name: "global-observer",
-			user: &fleet.User{
+			user: &automdm.User{
 				ID:         1,
-				GlobalRole: ptr.String(fleet.RoleObserver),
+				GlobalRole: ptr.String(automdm.RoleObserver),
 			},
 			shouldFailGlobalRead: false,
 			shouldFailTeamRead:   false,
@@ -111,11 +111,11 @@ func TestServiceSoftwareInventoryAuth(t *testing.T) {
 		},
 		{
 			name: "team-admin-belongs-to-team",
-			user: &fleet.User{
+			user: &automdm.User{
 				ID: 1,
-				Teams: []fleet.UserTeam{{
-					Team: fleet.Team{ID: 1},
-					Role: fleet.RoleAdmin,
+				Teams: []automdm.UserTeam{{
+					Team: automdm.Team{ID: 1},
+					Role: automdm.RoleAdmin,
 				}},
 			},
 			shouldFailGlobalRead: true,
@@ -124,11 +124,11 @@ func TestServiceSoftwareInventoryAuth(t *testing.T) {
 		},
 		{
 			name: "team-maintainer-belongs-to-team",
-			user: &fleet.User{
+			user: &automdm.User{
 				ID: 1,
-				Teams: []fleet.UserTeam{{
-					Team: fleet.Team{ID: 1},
-					Role: fleet.RoleMaintainer,
+				Teams: []automdm.UserTeam{{
+					Team: automdm.Team{ID: 1},
+					Role: automdm.RoleMaintainer,
 				}},
 			},
 			shouldFailGlobalRead: true,
@@ -137,11 +137,11 @@ func TestServiceSoftwareInventoryAuth(t *testing.T) {
 		},
 		{
 			name: "team-observer-belongs-to-team",
-			user: &fleet.User{
+			user: &automdm.User{
 				ID: 1,
-				Teams: []fleet.UserTeam{{
-					Team: fleet.Team{ID: 1},
-					Role: fleet.RoleObserver,
+				Teams: []automdm.UserTeam{{
+					Team: automdm.Team{ID: 1},
+					Role: automdm.RoleObserver,
 				}},
 			},
 			shouldFailGlobalRead: true,
@@ -150,11 +150,11 @@ func TestServiceSoftwareInventoryAuth(t *testing.T) {
 		},
 		{
 			name: "team-admin-does-not-belong-to-team",
-			user: &fleet.User{
+			user: &automdm.User{
 				ID: 1,
-				Teams: []fleet.UserTeam{{
-					Team: fleet.Team{ID: 2},
-					Role: fleet.RoleAdmin,
+				Teams: []automdm.UserTeam{{
+					Team: automdm.Team{ID: 2},
+					Role: automdm.RoleAdmin,
 				}},
 			},
 			shouldFailGlobalRead: true,
@@ -163,11 +163,11 @@ func TestServiceSoftwareInventoryAuth(t *testing.T) {
 		},
 		{
 			name: "team-maintainer-does-not-belong-to-team",
-			user: &fleet.User{
+			user: &automdm.User{
 				ID: 1,
-				Teams: []fleet.UserTeam{{
-					Team: fleet.Team{ID: 2},
-					Role: fleet.RoleMaintainer,
+				Teams: []automdm.UserTeam{{
+					Team: automdm.Team{ID: 2},
+					Role: automdm.RoleMaintainer,
 				}},
 			},
 			shouldFailGlobalRead: true,
@@ -176,11 +176,11 @@ func TestServiceSoftwareInventoryAuth(t *testing.T) {
 		},
 		{
 			name: "team-observer-does-not-belong-to-team",
-			user: &fleet.User{
+			user: &automdm.User{
 				ID: 1,
-				Teams: []fleet.UserTeam{{
-					Team: fleet.Team{ID: 2},
-					Role: fleet.RoleObserver,
+				Teams: []automdm.UserTeam{{
+					Team: automdm.Team{ID: 2},
+					Role: automdm.RoleObserver,
 				}},
 			},
 			shouldFailGlobalRead: true,
@@ -191,9 +191,9 @@ func TestServiceSoftwareInventoryAuth(t *testing.T) {
 			// GitOps can list/count software but cannot fetch a single version
 			// because SoftwareByID also requires Host:list permission.
 			name: "global-gitops",
-			user: &fleet.User{
+			user: &automdm.User{
 				ID:         1,
-				GlobalRole: ptr.String(fleet.RoleGitOps),
+				GlobalRole: ptr.String(automdm.RoleGitOps),
 			},
 			shouldFailGlobalRead: false,
 			shouldFailTeamRead:   false,
@@ -201,11 +201,11 @@ func TestServiceSoftwareInventoryAuth(t *testing.T) {
 		},
 		{
 			name: "team-gitops-belongs-to-team",
-			user: &fleet.User{
+			user: &automdm.User{
 				ID: 1,
-				Teams: []fleet.UserTeam{{
-					Team: fleet.Team{ID: 1},
-					Role: fleet.RoleGitOps,
+				Teams: []automdm.UserTeam{{
+					Team: automdm.Team{ID: 1},
+					Role: automdm.RoleGitOps,
 				}},
 			},
 			shouldFailGlobalRead: true,
@@ -214,11 +214,11 @@ func TestServiceSoftwareInventoryAuth(t *testing.T) {
 		},
 		{
 			name: "team-gitops-does-not-belong-to-team",
-			user: &fleet.User{
+			user: &automdm.User{
 				ID: 1,
-				Teams: []fleet.UserTeam{{
-					Team: fleet.Team{ID: 2},
-					Role: fleet.RoleGitOps,
+				Teams: []automdm.UserTeam{{
+					Team: automdm.Team{ID: 2},
+					Role: automdm.RoleGitOps,
 				}},
 			},
 			shouldFailGlobalRead: true,
@@ -230,21 +230,21 @@ func TestServiceSoftwareInventoryAuth(t *testing.T) {
 			ctx := viewer.NewContext(ctx, viewer.Viewer{User: tc.user})
 
 			// List all software.
-			_, _, err := svc.ListSoftware(ctx, fleet.SoftwareListOptions{})
+			_, _, err := svc.ListSoftware(ctx, automdm.SoftwareListOptions{})
 			checkAuthErr(t, tc.shouldFailGlobalRead, err)
 
 			// Count all software.
-			_, err = svc.CountSoftware(ctx, fleet.SoftwareListOptions{})
+			_, err = svc.CountSoftware(ctx, automdm.SoftwareListOptions{})
 			checkAuthErr(t, tc.shouldFailGlobalRead, err)
 
 			// List software for a team.
-			_, _, err = svc.ListSoftware(ctx, fleet.SoftwareListOptions{
+			_, _, err = svc.ListSoftware(ctx, automdm.SoftwareListOptions{
 				TeamID: ptr.Uint(1),
 			})
 			checkAuthErr(t, tc.shouldFailTeamRead, err)
 
 			// Count software for a team.
-			_, err = svc.CountSoftware(ctx, fleet.SoftwareListOptions{
+			_, err = svc.CountSoftware(ctx, automdm.SoftwareListOptions{
 				TeamID: ptr.Uint(1),
 			})
 			checkAuthErr(t, tc.shouldFailTeamRead, err)
@@ -258,10 +258,10 @@ func TestServiceSoftwareInventoryAuth(t *testing.T) {
 func TestStreamSoftwareVersionsResponse(t *testing.T) {
 	updatedAt := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
 	lastOpened := time.Date(2026, 9, 30, 8, 0, 0, 0, time.UTC)
-	software := []fleet.Software{
+	software := []automdm.Software{
 		{
 			ID: 1, Name: "Google Chrome", Version: "120.0", Source: "apps", LastOpenedAt: &lastOpened,
-			Vulnerabilities: fleet.Vulnerabilities{
+			Vulnerabilities: automdm.Vulnerabilities{
 				{
 					CVE:               "CVE-2026-0001",
 					DetailsLink:       "https://nvd.nist.gov/vuln/detail/CVE-2026-0001",
@@ -282,9 +282,9 @@ func TestStreamSoftwareVersionsResponse(t *testing.T) {
 	}{
 		{"software with CVEs", listSoftwareVersionsResponse{
 			Count: 12345, CountsUpdatedAt: &updatedAt, Software: software,
-			Meta: &fleet.PaginationMetadata{HasNextResults: true},
+			Meta: &automdm.PaginationMetadata{HasNextResults: true},
 		}},
-		{"no software", listSoftwareVersionsResponse{Meta: &fleet.PaginationMetadata{}}},
+		{"no software", listSoftwareVersionsResponse{Meta: &automdm.PaginationMetadata{}}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			want, err := json.Marshal(tc.resp)
@@ -300,7 +300,7 @@ func TestStreamSoftwareVersionsResponse(t *testing.T) {
 	}
 
 	t.Run("stops writing once the client is gone", func(t *testing.T) {
-		many := make([]fleet.Software, 1000)
+		many := make([]automdm.Software, 1000)
 		for i := range many {
 			many[i] = software[0]
 		}

@@ -1,4 +1,4 @@
-// Package ejbcatest has a fake EJBCA that tests can run the EJBCA client and Fleet against. It answers like the REST API of EJBCA 9.6.3,
+// Package ejbcatest has a fake EJBCA that tests can run the EJBCA client and AutoMDM against. It answers like the REST API of EJBCA 9.6.3,
 // over TLS that requires a client certificate.
 package ejbcatest
 
@@ -26,8 +26,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/ee/server/service/certissue"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/ee/server/service/certissue"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/require"
 	"software.sslmate.com/src/go-pkcs12"
 )
@@ -83,7 +83,7 @@ func (ca *CA) clientCert(t *testing.T, notBefore, notAfter time.Time) (*x509.Cer
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
 	cert := ca.Issue(t, &x509.Certificate{
-		Subject:     pkix.Name{CommonName: "Fleet"},
+		Subject:     pkix.Name{CommonName: "AutoMDM"},
 		NotBefore:   notBefore,
 		NotAfter:    notAfter,
 		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
@@ -111,8 +111,8 @@ func (ca *CA) IssueClient(t *testing.T, notAfter time.Time) (certPEM, keyPEM str
 const (
 	// CAName, CertProfile, and EndEntityProfile are the names the fake knows by default.
 	CAName           = "ManagementCA"
-	CertProfile      = "fleetCertProfile"
-	EndEntityProfile = "fleetEEProfile"
+	CertProfile      = "automdmCertProfile"
+	EndEntityProfile = "automdmEEProfile"
 	// RESTAPIPrefix is where EJBCA serves its REST API.
 	RESTAPIPrefix       = "/ejbca/ejbca-rest-api"
 	adminNotAuthorized  = `{"error_code":403,"error_message":"Administrator is not authorized to resource /administrator. Msg: ."}`
@@ -327,9 +327,9 @@ func (f *Server) enroll(issuer *CA, r *http.Request) (int, string, error) {
 }
 
 // Config is a configuration for the fake EJBCA with a valid client certificate.
-func (f *Server) Config(t *testing.T) fleet.EJBCA {
+func (f *Server) Config(t *testing.T) automdm.EJBCA {
 	certPEM, keyPEM := f.ClientCA.IssueClient(t, time.Now().Add(24*time.Hour))
-	return fleet.EJBCA{
+	return automdm.EJBCA{
 		Name:                          "EJBCA",
 		URL:                           f.HTTP.URL,
 		MTLSCertPEM:                   certPEM,

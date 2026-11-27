@@ -14,6 +14,6 @@ examples: |-
   ```
 notes: |-
   On ChromeOS:
-    - This table requires the [fleetd Chrome extension](https://fleetdm.com/docs/using-fleet/chromeos).
+    - This table requires the [automdmd Chrome extension](https://automdm.com/docs/using-automdm/chromeos).
     - Uptime is calculated from the last Chrome profile startup, which serves as a proxy for the device's last reboot. The startup timestamp persists across extension service worker restarts.
     - The table returns no rows until the extension records its first Chrome profile startup after installation.

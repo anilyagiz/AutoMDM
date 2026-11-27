@@ -5,15 +5,15 @@ import (
 	"io"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
 
 // Only Get is reachable from openStagedUpload; the embedded interface covers the rest.
 type fakeStagedUploadStore struct {
-	fleet.StagedUploadStore
+	automdm.StagedUploadStore
 	getErr     error
 	getInvoked bool
 }
@@ -35,7 +35,7 @@ func TestOpenStagedUploadRequiresDirectUpload(t *testing.T) {
 
 	t.Run("option on", func(t *testing.T) {
 		store := &fakeStagedUploadStore{getErr: &notFoundError{}}
-		cfg := config.FleetConfig{}
+		cfg := config.AutoMDMConfig{}
 		cfg.S3.SoftwareInstallersSignedURL = true
 		cfg.S3.SoftwareInstallersBucket = "test-bucket"
 		svc := &Service{stagedUploadStore: store, config: cfg}

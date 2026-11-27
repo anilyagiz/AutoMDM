@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
@@ -31,8 +31,8 @@ func TestAppleBM(t *testing.T) {
 	}
 }
 
-func insertTestABMToken(t *testing.T, ds *Datastore, orgName string) *fleet.ABMToken {
-	tok, err := ds.InsertABMToken(t.Context(), &fleet.ABMToken{
+func insertTestABMToken(t *testing.T, ds *Datastore, orgName string) *automdm.ABMToken {
+	tok, err := ds.InsertABMToken(t.Context(), &automdm.ABMToken{
 		OrganizationName: orgName,
 		EncryptedToken:   []byte(uuid.NewString()),
 		RenewAt:          time.Now().Add(365 * 24 * time.Hour),
@@ -60,7 +60,7 @@ func testSetABMTokenDefault(t *testing.T, ds *Datastore) {
 	// no such token
 	err := ds.SetABMTokenDefault(ctx, 999)
 	require.Error(t, err)
-	var nfe fleet.NotFoundError
+	var nfe automdm.NotFoundError
 	require.ErrorAs(t, err, &nfe)
 
 	// the first token inserted is default on insert
@@ -139,7 +139,7 @@ func testSetABMTokenServerUUID(t *testing.T, ds *Datastore) {
 	// no such token
 	err := ds.SetABMTokenServerUUID(ctx, 999, "some-uuid")
 	require.Error(t, err)
-	var nfe fleet.NotFoundError
+	var nfe automdm.NotFoundError
 	require.ErrorAs(t, err, &nfe)
 
 	tok1 := insertTestABMToken(t, ds, "org1")

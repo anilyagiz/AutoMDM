@@ -130,18 +130,18 @@ describe("SoftwarePage tab configuration", () => {
   });
 });
 
-const ALL_FLEETS: ITeamSummary[] = [
-  { id: -1, name: "All fleets" },
+const ALL_TEAMS: ITeamSummary[] = [
+  { id: -1, name: "All teams" },
   { id: 7, name: "Workstations" },
   { id: 0, name: "Unassigned" },
 ];
 
 const GLOBAL_ADMIN = { isGlobalAdmin: true, isOnGlobalTeam: true };
 
-const FLEET_ADMIN = {
+const TEAM_ADMIN = {
   currentUser: createMockUser({
     global_role: null,
-    fleets: [{ id: 7, name: "Workstations", role: "admin" }],
+    teams: [{ id: 7, name: "Workstations", role: "admin" }],
   }) as IUser,
 };
 
@@ -163,7 +163,7 @@ const renderPage = ({
       app: {
         currentUser: createMockUser(),
         config: createMockConfig(),
-        availableTeams: ALL_FLEETS,
+        availableTeams: ALL_TEAMS,
         setCurrentTeam: jest.fn(),
         ...app,
       },
@@ -186,14 +186,14 @@ const renderPage = ({
 describe("SoftwarePage Library tab redirect", () => {
   it.each([
     {
-      name: "All fleets is selected",
+      name: "All teams is selected",
       app: { isPremiumTier: true, ...GLOBAL_ADMIN },
     },
     {
       name: "the instance is Free",
       app: { isFreeTier: true, isPremiumTier: false, ...GLOBAL_ADMIN },
     },
-  ])("redirects to Inventory with no fleet id when $name", async ({ app }) => {
+  ])("redirects to Inventory with no team id when $name", async ({ app }) => {
     const { router } = renderPage({ pathname: PATHS.SOFTWARE_LIBRARY, app });
 
     await waitFor(() => {
@@ -203,17 +203,17 @@ describe("SoftwarePage Library tab redirect", () => {
 
   it.each([
     {
-      name: "a fleet is selected",
-      app: { isPremiumTier: true, ...FLEET_ADMIN },
+      name: "a team is selected",
+      app: { isPremiumTier: true, ...TEAM_ADMIN },
     },
     {
-      name: "the user's fleets are still loading",
-      app: { isPremiumTier: true, ...FLEET_ADMIN, availableTeams: undefined },
+      name: "the user's teams are still loading",
+      app: { isPremiumTier: true, ...TEAM_ADMIN, availableTeams: undefined },
     },
   ])("stays on Library when $name", async ({ app }) => {
     const { router } = renderPage({
       pathname: PATHS.SOFTWARE_LIBRARY,
-      query: { fleet_id: "7" },
+      query: { team_id: "7" },
       app,
     });
 
@@ -352,7 +352,7 @@ describe("SoftwarePage AI tools filter", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("ignores the AI tools filter and AI types on Fleet Free", async () => {
+  it("ignores the AI tools filter and AI types on AutoMDM Free", async () => {
     const { user } = renderInventoryTab(
       { ai_tool: "true", types: "mcp_server,macos_app" },
       { isPremiumTier: false, isFreeTier: true }

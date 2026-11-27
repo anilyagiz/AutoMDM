@@ -3,11 +3,11 @@
 **Workspace:** `486-windows`
 **Date:** 2026-05-19
 **Goal:** Confirm 4.86 can sustain 30k Windows hosts with MDM enabled across the profile-interaction operations that previously stressed 4.85.
-**Result:** All four operations sustained without errors, deadlocks, evictions, or 5xx. Fleet server CPU held steady around 72%, RDS writer peaked at ~50%, replica lag stayed under 11ms. Significant headroom remained on every tier.
+**Result:** All four operations sustained without errors, deadlocks, evictions, or 5xx. AutoMDM server CPU held steady around 72%, RDS writer peaked at ~50%, replica lag stayed under 11ms. Significant headroom remained on every tier.
 
 ## Test plan
 
-Four sequential operations on a fleet of 32k Windows hosts (15 Fleet server containers, 16 loadtest containers, Aurora writer + 2 readers, ElastiCache Redis):
+Four sequential operations on a fleet of 32k Windows hosts (15 AutoMDM server containers, 16 loadtest containers, Aurora writer + 2 readers, ElastiCache Redis):
 
 | # | Time (local) | Operation | Window covered |
 |---|---|---|---|
@@ -20,8 +20,8 @@ Four sequential operations on a fleet of 32k Windows hosts (15 Fleet server cont
 
 | Metric | Test 1: add 15 | Test 2: → 0 prof | Test 3: → 15 prof | Test 4: team→team |
 |---|---|---|---|---|
-| **Fleet server CPU (avg)** | 72.29% | 71.55% | 73.78% | 71.56% |
-| **Fleet server mem (avg)** | 3.25% | 3.29% | 3.29% | 3.35% |
+| **AutoMDM server CPU (avg)** | 72.29% | 71.55% | 73.78% | 71.56% |
+| **AutoMDM server mem (avg)** | 3.25% | 3.29% | 3.29% | 3.35% |
 | **RDS writer CPU (avg)** | 47.62% | 38.20% | 50.11% | 50.72% |
 | **RDS writer connections** | 160 | 121 | 155 | 158 |
 | **RDS writer IOPS util** | 10.78% | 9.30% | 12.07% | 9.33% |
@@ -33,15 +33,15 @@ Four sequential operations on a fleet of 32k Windows hosts (15 Fleet server cont
 | **Aurora replica lag (max)** | ~9 ms | ~10 ms | ~8 ms | ~10 ms |
 | **Buffer cache hit ratio** | 100% / 99.99% | 100% / 99.99% | 100% / 99.99% | 100% / 99.99% |
 | **ALB 5xx** | 0 | 0 | 0 | 0 |
-| **Fleet server errors** | 0 | 0 | 0 | 0 |
+| **AutoMDM server errors** | 0 | 0 | 0 | 0 |
 | **Deadlocks** | 0 | 0 | 0 | 0 |
 | **ALB throughput** | 20.3M req / 17.7 GB | 11.5M req / 9.5 GB | 17.4M req / 15.3 GB | 14.4M req / 12.0 GB |
 
-## Fleet server CPU
+## AutoMDM server CPU
 
 CPU stayed within a tight 71.5 – 73.8% band across all four operations — i.e. the server tier behaved identically regardless of which profile operation was running. Memory was negligible at ~3.3%. With 15 containers running steady-state at ~72% and no scale-up triggered, the cluster has ~28% per-container headroom (and could scale out further if needed).
 
-No abnormal container stops, no restarts, no errors in the Fleet log stream over any of the four windows.
+No abnormal container stops, no restarts, no errors in the AutoMDM log stream over any of the four windows.
 
 ## RDS writer
 
@@ -60,7 +60,7 @@ Writer CPU peaked at 50.7% (Test 4) and never came near saturation. The heavier 
 
 Reader-1 stayed in the 51 – 58% CPU band; reader-2 ran consistently hotter at 64 – 76%, peaking at 76.17% during Test 3 (the heaviest profile-reapply operation). The asymmetry is just routing — both readers are healthy.
 
-Replica lag stayed between 7.9 and 10.2 ms across all four tests, which is well inside Aurora's healthy range and well below the threshold (20–50 ms) where stale reads start to matter for Fleet's workflows.
+Replica lag stayed between 7.9 and 10.2 ms across all four tests, which is well inside Aurora's healthy range and well below the threshold (20–50 ms) where stale reads start to matter for AutoMDM's workflows.
 
 Buffer cache hit ratio was 99.99% on both readers throughout — they're serving their working set entirely from memory.
 
@@ -68,7 +68,7 @@ Top reader queries are the expected MDM read paths: `windows_mdm_enrollments` lo
 
 ## Redis
 
-No notable activity. CPU 22–24%, memory ~1.6%, **0 evictions**, ~93–140 active connections. Cache hit rate sat at ~65% — this is the working baseline for Fleet's Redis usage pattern under load and didn't shift during any operation.
+No notable activity. CPU 22–24%, memory ~1.6%, **0 evictions**, ~93–140 active connections. Cache hit rate sat at ~65% — this is the working baseline for AutoMDM's Redis usage pattern under load and didn't shift during any operation.
 
 ## What this means
 

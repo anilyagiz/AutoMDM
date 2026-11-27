@@ -31,7 +31,7 @@ export type ProfileStatusSummaryResponse = Record<MdmProfileStatus, number>;
 export interface IGetProfilesApiParams {
   page?: number;
   per_page?: number;
-  fleet_id?: number;
+  team_id?: number;
 }
 
 export interface IMdmProfilesResponse {
@@ -73,7 +73,7 @@ export interface IUpdateProfileApiParams {
 }
 
 export interface IGetAssetsApiParams {
-  fleet_id?: number;
+  team_id?: number;
 }
 
 export interface IListAssetsResponse {
@@ -94,7 +94,7 @@ export const isDDMProfile = (profile: Pick<IMdmProfile, "profile_uuid">) => {
 };
 
 interface IUpdateSetupExperienceFormData {
-  fleet_id?: number;
+  team_id?: number;
   enable_end_user_authentication?: boolean;
   lock_end_user_info?: boolean;
   apple_enable_release_device_manually?: boolean;
@@ -107,7 +107,7 @@ interface IUpdateSetupExperienceFormData {
 }
 
 export interface IAppleSetupEnrollmentProfileResponse {
-  fleet_id: number | null;
+  team_id: number | null;
   name: string;
   uploaded_at: string;
   // enrollment profile is an object with keys found here https://developer.apple.com/documentation/devicemanagement/profile.
@@ -136,14 +136,14 @@ export interface IMDMAppleEnrollmentProfileParams {
 
 export interface IGetSetupExperienceScriptResponse {
   id: number;
-  fleet_id: number | null; // The API return null for no team in this case.
+  team_id: number | null; // The API return null for no team in this case.
   name: string;
   created_at: string;
   updated_at: string;
 }
 
 interface IGetSetupExperienceSoftwareParams extends Partial<PaginationParams> {
-  fleet_id: number;
+  team_id: number;
   platform: SetupExperiencePlatform;
 }
 
@@ -197,7 +197,7 @@ const mdmService = {
     formData.append("profile", file);
 
     if (teamId) {
-      formData.append("fleet_id", teamId.toString());
+      formData.append("team_id", teamId.toString());
     }
     if (name !== undefined) {
       formData.append("name", name);
@@ -313,7 +313,7 @@ const mdmService = {
     formData.append("asset", file);
 
     if (teamId) {
-      formData.append("fleet_id", teamId.toString());
+      formData.append("team_id", teamId.toString());
     }
 
     return sendRequest("POST", MDM_ASSETS, formData);
@@ -336,7 +336,7 @@ const mdmService = {
     let { PROFILES_STATUS_SUMMARY: path } = endpoints;
 
     if (teamId) {
-      path = `${path}?${buildQueryStringFromParams({ fleet_id: teamId })}`;
+      path = `${path}?${buildQueryStringFromParams({ team_id: teamId })}`;
     }
 
     return sendRequest("GET", path);
@@ -374,7 +374,7 @@ const mdmService = {
     }
 
     if (teamId) {
-      formData.append("fleet_id", teamId.toString());
+      formData.append("team_id", teamId.toString());
     }
 
     return sendRequest("POST", MDM_BOOTSTRAP_PACKAGE, formData);
@@ -391,7 +391,7 @@ const mdmService = {
     let { MDM_BOOTSTRAP_PACKAGE_SUMMARY: path } = endpoints;
 
     if (teamId) {
-      path = `${path}?${buildQueryStringFromParams({ fleet_id: teamId })}`;
+      path = `${path}?${buildQueryStringFromParams({ team_id: teamId })}`;
     }
 
     return sendRequest("GET", path);
@@ -440,7 +440,7 @@ const mdmService = {
   updateRequireAllSoftwareMacOS: (teamId: number, isEnabled: boolean) => {
     const { MDM_SETUP_EXPERIENCE } = endpoints;
     return sendRequest("PATCH", MDM_SETUP_EXPERIENCE, {
-      fleet_id: teamId,
+      team_id: teamId,
       macos_require_all_software: isEnabled,
     });
   },
@@ -448,7 +448,7 @@ const mdmService = {
   updateRequireAllSoftwareWindows: (teamId: number, isEnabled: boolean) => {
     const { MDM_SETUP_EXPERIENCE } = endpoints;
     return sendRequest("PATCH", MDM_SETUP_EXPERIENCE, {
-      fleet_id: teamId,
+      team_id: teamId,
       windows_require_all_software: isEnabled,
     });
   },
@@ -461,8 +461,8 @@ const mdmService = {
       ...updateData,
     };
 
-    if (updateData.fleet_id === API_NO_TEAM_ID) {
-      delete body.fleet_id;
+    if (updateData.team_id === API_NO_TEAM_ID) {
+      delete body.team_id;
     }
 
     return sendRequest("PATCH", MDM_SETUP_EXPERIENCE, body);
@@ -472,12 +472,12 @@ const mdmService = {
     const { MDM_SETUP_EXPERIENCE } = endpoints;
 
     const body: IUpdateSetupExperienceFormData = {
-      fleet_id: teamId,
+      team_id: teamId,
       apple_enable_release_device_manually: isEnabled,
     };
 
     if (teamId === API_NO_TEAM_ID) {
-      delete body.fleet_id;
+      delete body.team_id;
     }
 
     return sendRequest("PATCH", MDM_SETUP_EXPERIENCE, body);
@@ -490,7 +490,7 @@ const mdmService = {
     }
 
     const path = `${MDM_APPLE_SETUP_ENROLLMENT_PROFILE}?${buildQueryStringFromParams(
-      { fleet_id: teamId }
+      { team_id: teamId }
     )}`;
     return sendRequest("GET", path);
   },
@@ -514,7 +514,7 @@ const mdmService = {
             enrollment_profile: JSON.parse(reader.result as string),
           };
           if (teamId !== API_NO_TEAM_ID) {
-            body.fleet_id = teamId;
+            body.team_id = teamId;
           }
           resolve(
             sendRequest("POST", MDM_APPLE_SETUP_ENROLLMENT_PROFILE, body)
@@ -534,7 +534,7 @@ const mdmService = {
     }
 
     const path = `${MDM_APPLE_SETUP_ENROLLMENT_PROFILE}?${buildQueryStringFromParams(
-      { fleet_id: teamId }
+      { team_id: teamId }
     )}`;
     return sendRequest("DELETE", path);
   },
@@ -568,7 +568,7 @@ const mdmService = {
   ) => {
     return sendRequest("PUT", endpoints.MDM_SETUP_EXPERIENCE_SOFTWARE, {
       software_title_ids: softwareTitlesIds,
-      fleet_id: teamId,
+      team_id: teamId,
       platform,
     });
   },
@@ -580,7 +580,7 @@ const mdmService = {
 
     let path = MDM_SETUP_EXPERIENCE_SCRIPT;
     if (teamId) {
-      path += `?${buildQueryStringFromParams({ fleet_id: teamId })}`;
+      path += `?${buildQueryStringFromParams({ team_id: teamId })}`;
     }
 
     return sendRequest("GET", path);
@@ -591,7 +591,7 @@ const mdmService = {
 
     let path = MDM_SETUP_EXPERIENCE_SCRIPT;
     path += `?${buildQueryStringFromParams({
-      fleet_id: teamId,
+      team_id: teamId,
       alt: "media",
     })}`;
 
@@ -605,7 +605,7 @@ const mdmService = {
     formData.append("script", file);
 
     if (teamId) {
-      formData.append("fleet_id", teamId.toString());
+      formData.append("team_id", teamId.toString());
     }
 
     return sendRequest("POST", MDM_SETUP_EXPERIENCE_SCRIPT, formData);
@@ -615,7 +615,7 @@ const mdmService = {
     const { MDM_SETUP_EXPERIENCE_SCRIPT } = endpoints;
 
     const path = `${MDM_SETUP_EXPERIENCE_SCRIPT}?${buildQueryStringFromParams({
-      fleet_id: teamId,
+      team_id: teamId,
     })}`;
 
     return sendRequest("DELETE", path);

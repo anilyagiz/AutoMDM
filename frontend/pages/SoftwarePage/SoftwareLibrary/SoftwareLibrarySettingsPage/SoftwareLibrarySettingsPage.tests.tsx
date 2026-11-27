@@ -30,11 +30,11 @@ const buildLocation = ({ section, extraQuery = "" }: ILocationOpts = {}) => {
   const basePath = section
     ? `/software/library/settings/${section}`
     : "/software/library/settings";
-  const search = `?fleet_id=1${extraQuery ? `&${extraQuery}` : ""}`;
+  const search = `?team_id=1${extraQuery ? `&${extraQuery}` : ""}`;
   return {
     pathname: basePath,
     search,
-    query: { fleet_id: "1" },
+    query: { team_id: "1" },
     hash: "",
   };
 };
@@ -42,7 +42,7 @@ const buildLocation = ({ section, extraQuery = "" }: ILocationOpts = {}) => {
 describe("SoftwareLibrarySettingsPage", () => {
   beforeEach(() => jest.clearAllMocks());
 
-  it("renders the premium gate on Fleet Free", () => {
+  it("renders the premium gate on AutoMDM Free", () => {
     const render = createCustomRenderer({
       withBackendMock: true,
       context: {
@@ -63,9 +63,9 @@ describe("SoftwareLibrarySettingsPage", () => {
     );
 
     expect(
-      screen.getByText("This feature is included in Fleet Premium.")
+      screen.getByText("This feature is included in AutoMDM Premium.")
     ).toBeInTheDocument();
-    // Fleet Free has no concept of fleets. The dropdown trigger (the only
+    // AutoMDM Free has no concept of teams. The dropdown trigger (the only
     // button with aria-expanded) must be hidden, and a static page title
     // takes its place.
     expect(
@@ -98,7 +98,7 @@ describe("SoftwareLibrarySettingsPage", () => {
     await waitFor(() => {
       expect(router.replace).toHaveBeenCalledWith({
         pathname: "/software/library/settings/categories",
-        search: "?fleet_id=1",
+        search: "?team_id=1",
       });
     });
   });
@@ -125,7 +125,7 @@ describe("SoftwareLibrarySettingsPage", () => {
     await waitFor(() => {
       expect(router.replace).toHaveBeenCalledWith({
         pathname: "/software/library/settings/categories",
-        search: "?fleet_id=1&add_category=1",
+        search: "?team_id=1&add_category=1",
       });
     });
   });
@@ -165,7 +165,7 @@ describe("SoftwareLibrarySettingsPage", () => {
       />
     );
 
-    // The fleet dropdown renders on Premium.
+    // The team dropdown renders on Premium.
     expect(screen.getByRole("button", { expanded: false })).toBeInTheDocument();
 
     // The nav item and the section header both read "Self-service categories",

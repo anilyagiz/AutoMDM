@@ -6,12 +6,12 @@ import (
 	"crypto/x509"
 	"log/slog"
 
-	"github.com/fleetdm/fleet/v4/server/mdm/acme"
-	"github.com/fleetdm/fleet/v4/server/mdm/acme/api"
-	"github.com/fleetdm/fleet/v4/server/mdm/acme/internal/mysql"
-	"github.com/fleetdm/fleet/v4/server/mdm/acme/internal/service"
-	eu "github.com/fleetdm/fleet/v4/server/platform/endpointer"
-	platform_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/mdm/acme"
+	"github.com/anilyagiz/automdm/v4/server/mdm/acme/api"
+	"github.com/anilyagiz/automdm/v4/server/mdm/acme/internal/mysql"
+	"github.com/anilyagiz/automdm/v4/server/mdm/acme/internal/service"
+	eu "github.com/anilyagiz/automdm/v4/server/platform/endpointer"
+	platform_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
 	"github.com/go-kit/kit/endpoint"
 )
 

@@ -50,7 +50,7 @@ describe("ViewUnlockPinModal", () => {
     await waitFor(() => {
       expect(screen.getByText("123456")).toBeInTheDocument();
     });
-    expect(screen.getByText(/Fleet locked this host/)).toBeInTheDocument();
+    expect(screen.getByText(/AutoMDM locked this host/)).toBeInTheDocument();
     expect(screen.getByText("PIN:")).toBeInTheDocument();
     expect(
       screen.getByText(/If the PIN doesn't work, it was changed/)
@@ -87,7 +87,7 @@ describe("ViewUnlockPinModal", () => {
       expect(screen.getByText("123456")).toBeInTheDocument();
     });
     expect(
-      screen.queryByText(/Fleet locked this host/)
+      screen.queryByText(/AutoMDM locked this host/)
     ).not.toBeInTheDocument();
   });
 

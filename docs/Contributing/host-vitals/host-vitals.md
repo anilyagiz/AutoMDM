@@ -1,21 +1,21 @@
 # Host vitals architecture
 
-This document provides an overview of Fleet's Host Vitals architecture.
+This document provides an overview of AutoMDM's Host Vitals architecture.
 
 ## Introduction
 
-Host Vitals in Fleet provide real-time and historical information about the health and status of devices, including CPU usage, memory usage, disk usage, and uptime. This document provides insights into the design decisions, system components, and interactions specific to the Host Vitals functionality.
+Host Vitals in AutoMDM provide real-time and historical information about the health and status of devices, including CPU usage, memory usage, disk usage, and uptime. This document provides insights into the design decisions, system components, and interactions specific to the Host Vitals functionality.
 
 ## Architecture overview
 
-The Host Vitals architecture enables the collection, processing, and visualization of device health metrics across a fleet of devices. It leverages osquery's capabilities to collect system metrics and Fleet's infrastructure to process and display them.
+The Host Vitals architecture enables the collection, processing, and visualization of device health metrics across a fleet of devices. It leverages osquery's capabilities to collect system metrics and AutoMDM's infrastructure to process and display them.
 
 ## Key components
 
 - **Metrics Collection**: The process of collecting system metrics from devices.
 - **Metrics Processing**: The processing of collected metrics for storage and analysis.
 - **Metrics Storage**: The storage of metrics for historical analysis.
-- **Metrics Visualization**: The display of metrics in the Fleet UI.
+- **Metrics Visualization**: The display of metrics in the AutoMDM UI.
 
 ## Architecture diagram
 
@@ -32,7 +32,7 @@ osquery agent -> Server
 ```
 
 1. osquery agent collects system metrics using osquery tables.
-2. osquery agent sends the metrics to the Fleet server.
+2. osquery agent sends the metrics to the AutoMDM server.
 
 ### 2 - Server processes and stores metrics
 
@@ -56,11 +56,11 @@ UI -> Server -> DB
 
 ## Host vitals collected
 
-See the [host details API](https://fleetdm.com/docs/rest-api/rest-api#get-host) documentation for details on collected vitals.
+See the [host details API](https://automdm.com/docs/rest-api/rest-api#get-host) documentation for details on collected vitals.
 
 ### iOS and iPadOS
 
-iOS and iPadOS hosts don't run the osquery agent, so the collection flow above doesn't apply to them. Their vitals come from the `DeviceInformation` MDM command instead, which Fleet sends on each refetch and whose response it parses and stores.
+iOS and iPadOS hosts don't run the osquery agent, so the collection flow above doesn't apply to them. Their vitals come from the `DeviceInformation` MDM command instead, which AutoMDM sends on each refetch and whose response it parses and stores.
 
 The set of properties Apple can return, and the OS versions and access rights each requires, are documented in Apple's [`DeviceInformationCommand` queries dictionary](https://developer.apple.com/documentation/devicemanagement/deviceinformationcommand/command-data.dictionary/queries-data.dictionary).
 
@@ -72,11 +72,11 @@ Host Vitals collection can impact device and server performance, especially for 
 
 - **Collection Frequency**: More frequent collection can impact device performance.
 - **Metric Count**: Collecting more metrics can impact device and server performance.
-- **Fleet Size**: Collecting metrics from a large number of devices can impact server performance.
+- **AutoMDM Size**: Collecting metrics from a large number of devices can impact server performance.
 
 ## Related resources
 
-- [Host details API documentation](https://fleetdm.com/docs/rest-api/rest-api#get-host)
+- [Host details API documentation](https://automdm.com/docs/rest-api/rest-api#get-host)
 - [Apple `DeviceInformationCommand` queries dictionary](https://developer.apple.com/documentation/devicemanagement/deviceinformationcommand/command-data.dictionary/queries-data.dictionary) - The properties Apple can return for iOS and iPadOS hosts
 - [Orchestration Product Group Documentation](README.md) - Documentation for the Orchestration product group
 - [Orchestration Development Guides](../guides/README.md) - Guides for Orchestration development

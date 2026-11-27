@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/googleapi"
@@ -34,7 +34,7 @@ func TestIsNotFoundError(t *testing.T) {
 	}
 }
 
-func TestFleetErrFromAMAPI(t *testing.T) {
+func TestAutoMDMErrFromAMAPI(t *testing.T) {
 	tests := []struct {
 		name      string
 		err       error
@@ -55,7 +55,7 @@ func TestFleetErrFromAMAPI(t *testing.T) {
 			name: "400 bad request",
 			err:  &googleapi.Error{Code: http.StatusBadRequest, Message: "invalid command"},
 			checkFunc: func(t *testing.T, err error) {
-				var brErr *fleet.BadRequestError
+				var brErr *automdm.BadRequestError
 				require.ErrorAs(t, err, &brErr)
 				assert.Equal(t, "invalid command", brErr.Message)
 			},
@@ -64,7 +64,7 @@ func TestFleetErrFromAMAPI(t *testing.T) {
 			name: "400 bad request with empty message falls back to body",
 			err:  &googleapi.Error{Code: http.StatusBadRequest, Body: "bad params"},
 			checkFunc: func(t *testing.T, err error) {
-				var brErr *fleet.BadRequestError
+				var brErr *automdm.BadRequestError
 				require.ErrorAs(t, err, &brErr)
 				assert.Equal(t, "bad params", brErr.Message)
 			},
@@ -73,7 +73,7 @@ func TestFleetErrFromAMAPI(t *testing.T) {
 			name: "404 not found",
 			err:  &googleapi.Error{Code: http.StatusNotFound, Message: "device not found"},
 			checkFunc: func(t *testing.T, err error) {
-				require.True(t, fleet.IsNotFound(err))
+				require.True(t, automdm.IsNotFound(err))
 				assert.Contains(t, err.Error(), "device not found")
 			},
 		},
@@ -81,21 +81,21 @@ func TestFleetErrFromAMAPI(t *testing.T) {
 			name: "500 with entity not found in message (AMAPI quirk)",
 			err:  &googleapi.Error{Code: http.StatusInternalServerError, Message: "Requested entity was not found"},
 			checkFunc: func(t *testing.T, err error) {
-				require.True(t, fleet.IsNotFound(err))
+				require.True(t, automdm.IsNotFound(err))
 			},
 		},
 		{
 			name: "500 with entity not found in body only (AMAPI quirk)",
 			err:  &googleapi.Error{Code: http.StatusInternalServerError, Body: "Requested entity was not found"},
 			checkFunc: func(t *testing.T, err error) {
-				require.True(t, fleet.IsNotFound(err))
+				require.True(t, automdm.IsNotFound(err))
 			},
 		},
 		{
 			name: "409 conflict",
 			err:  &googleapi.Error{Code: http.StatusConflict, Message: "device state incompatible"},
 			checkFunc: func(t *testing.T, err error) {
-				var cErr *fleet.ConflictError
+				var cErr *automdm.ConflictError
 				require.ErrorAs(t, err, &cErr)
 				assert.Equal(t, "device state incompatible", cErr.Message)
 			},
@@ -119,13 +119,13 @@ func TestFleetErrFromAMAPI(t *testing.T) {
 			name: "wrapped google 404",
 			err:  fmt.Errorf("outer: %w", &googleapi.Error{Code: http.StatusNotFound, Message: "gone"}),
 			checkFunc: func(t *testing.T, err error) {
-				require.True(t, fleet.IsNotFound(err))
+				require.True(t, automdm.IsNotFound(err))
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := FleetErrFromAMAPI(tt.err)
+			result := AutoMDMErrFromAMAPI(tt.err)
 			if tt.wantNil {
 				assert.NoError(t, result)
 			} else {
@@ -142,7 +142,7 @@ func TestFleetErrFromAMAPI(t *testing.T) {
 // while remaining traversable by errors.Is/As. See #52547.
 func TestNotFoundErrorUnwrapForm(t *testing.T) {
 	amapiErr := &googleapi.Error{Code: http.StatusNotFound, Message: "device is gone"}
-	mapped := FleetErrFromAMAPI(amapiErr)
+	mapped := AutoMDMErrFromAMAPI(amapiErr)
 	require.Error(t, mapped)
 
 	nfErr, ok := mapped.(*notFoundError)

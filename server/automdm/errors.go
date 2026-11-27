@@ -1,0 +1,810 @@
+package automdm
+
+import (
+	"errors"
+	"fmt"
+	"net/http"
+	"time"
+
+	"github.com/anilyagiz/automdm/v4/pkg/removednames"
+	platform_errors "github.com/anilyagiz/automdm/v4/server/platform/errors"
+	platform_http "github.com/anilyagiz/automdm/v4/server/platform/http"
+	"github.com/rs/zerolog"
+)
+
+var (
+	ErrNoContext               = errors.New("context key not set")
+	ErrPasswordResetRequired   = platform_http.ErrPasswordResetRequired
+	ErrMissingLicense          = &licenseError{}
+	ErrMDMNotConfigured        = &MDMNotConfiguredError{}
+	ErrWindowsMDMNotConfigured = &WindowsMDMNotConfiguredError{}
+	ErrAndroidMDMNotConfigured = &AndroidMDMNotConfiguredError{}
+	ErrNotConfigured           = &NotConfiguredError{}
+
+	MDMNotConfiguredMessage                      = "MDM features aren't turned on in AutoMDM. For more information about setting up MDM, please visit https://automdm.com/docs/using-automdm"
+	WindowsMDMNotConfiguredMessage               = "Windows MDM isn't turned on. For more information about setting up MDM, please visit https://automdm.com/learn-more-about/windows-mdm"
+	AndroidMDMNotConfiguredMessage               = "Android MDM isn't turned on. For more information about setting up MDM, please visit https://automdm.com/learn-more-about/how-to-connect-android-enterprise"
+	AppleMDMNotConfiguredMessage                 = "macOS MDM isn't turned on. Visit https://automdm.com/docs/using-automdm to learn how to turn on MDM."
+	AppleOSVersionUnsupportedMessage             = "The minimum version isn't supported by Apple."
+	AppleOSVersionDeadlineInvalidMessage         = "The deadline isn't a valid date."
+	CantDeleteHostUnverifiedABMMessage           = "Couldn't delete host. AutoMDM couldn't reach Apple Business to check whether this host is still assigned. Please try again."
+	MyDeviceURLUnsupportedPlatformMessage        = "The My device page is only supported for macOS, Windows, Linux, and iOS/iPadOS hosts."
+	MyDeviceURLNotEnrolledMessage                = "The My device page isn't available until this host enrolls in MDM."
+	CantTurnOffMDMForWindowsHostsMessage         = "Can't turn off MDM for Windows hosts."
+	CantTurnOffMDMAlreadyTurnedOffMessage        = "Couldn't turn off MDM. This host already has MDM turned off."
+	CantTurnOffMDMForPersonalHostsMessage        = "Couldn't turn off MDM. This command isn't available for personal hosts."
+	CantUnenrollPendingUnenrollMessage           = "Couldn't unenroll. This host already has a pending unenroll. It will unenroll when it comes online."
+	CantWipePersonalHostsMessage                 = "Couldn't wipe. This command isn't available for personal hosts."
+	CantLockPersonalHostsMessage                 = "Couldn't lock. This command isn't available for personal hosts."
+	CantClearPasscodePersonalHostsMessage        = "Unlock token is not available for this device. Unable to issue ClearPasscode command."
+	CantClearPasscodeAccessRightsMessage         = "Clear passcode permissions are disabled for this host. Unable to issue ClearPasscode command."
+	CantLockManualIOSIpadOSHostsMessage          = "Couldn't lock. This command isn't available for manually enrolled iOS/iPadOS hosts."
+	CantDisableDiskEncryptionIfPINRequiredErrMsg = "Couldn't disable disk encryption, you need to disable the BitLocker PIN requirement first."
+	CantEnablePINRequiredIfDiskEncryptionEnabled = "Couldn't enable BitLocker PIN requirement, you must enable disk encryption first."
+	CantResendAppleDeclarationProfilesMessage    = "Can't resend declaration (DDM) profiles. Unlike configuration profiles (.mobileconfig), the host automatically checks in to get the latest DDM profiles."
+	CantAddSoftwareConflictMessage               = "Couldn't add software. %s already has an installer available for the %s team."
+	// Args: the two conflicting app names (order not significant).
+	CantAddConflictingFMAMessage = "Couldn't add software. Only one of %s or %s can be added to the same team."
+	// Args: the AutoMDM-maintained app name.
+	AutoMDMMaintainedAppManifestUnreachableMessage = "AutoMDM couldn't fetch the manifest for %s. Please try again."
+	// AddMaintainedAppTimeoutErrMsg is returned when AutoMDM's own 15-minute installer
+	// download timeout is exceeded (context.DeadlineExceeded).
+	AddMaintainedAppTimeoutErrMsg = "Couldn't add. Downloading the installer took longer than AutoMDM's 15-minute limit. This can happen with very large installers or a slow connection to the vendor's content delivery network (CDN). Try again, and make sure any proxy, gateway, or load balancer in front of AutoMDM allows the request to run at least that long."
+	// AddMaintainedAppCanceledErrMsg is returned when an upstream proxy, gateway, or
+	// load balancer cancels the request before the download finishes (context.Canceled).
+	AddMaintainedAppCanceledErrMsg                = "Couldn't add. The request was canceled before the installer finished downloading. This usually means a proxy, gateway, or load balancer in front of AutoMDM (for example, Envoy, or an AWS/GCP load balancer) closed the connection first. Increase its request and idle timeout above the time it takes to download large installers."
+	SoftwarePackageHashConflictMessage            = "%s package is already added (same SHA-256 hash)."
+	SoftwarePackageTitleMismatchMessage           = "Couldn't add. %s doesn't match the software title. To add it, go to Software and add it as new software."
+	SoftwareAlreadyHasVPPAppMessage               = "%s already has an Apple App Store (VPP) on the %s team."
+	SoftwareAlreadyHasAutoMDMMaintainedAppMessage = "%s already has an AutoMDM-maintained app on the %s team."
+	SoftwareAlreadyHasPackageMessage              = "%s already has a software package on the %s team."
+	SoftwarePackageLimitMessage                   = "%s already has %d versions. Before adding, delete one you no longer use."
+	SoftwareSelfServiceCategoriesConflictMessage  = "Couldn't add software (%q). self_service and categories can be specified either in the team-level file or in the package YAML file."
+	SoftwareSetupExperienceTeamLevelOnlyMessage   = "Couldn't add software (%q). setup_experience can be specified only in the team-level file."
+	SoftwareLabelsPackageLevelOnlyMessage         = "Couldn't add software (%q). Labels can be specified only in the package-level file when adding multiple packages of the same software."
+	SoftwareLabelsConflictMessage                 = "Couldn't add software (%q). Labels can be specified either in the team-level file or in the package YAML file."
+	ConfigProfileLabelScopingPremiumCauseMsg      = "Scoping configuration profiles with labels"
+	DDMCustomActivationPremiumCauseMsg            = "Custom activations for declaration (DDM) profiles"
+)
+
+const AutoMDM5MigrationGuide = "https://automdm.com/learn-more-about/automdm-5-upgrade"
+
+// ErrWithStatusCode is an interface for errors that should set a specific HTTP
+// status code.
+type ErrWithStatusCode interface {
+	error
+	StatusCode() int
+}
+
+// ErrWithInternal is an alias for platform_http.ErrWithInternal.
+type ErrWithInternal = platform_http.ErrWithInternal
+
+// ErrWithLogFields is an alias for platform_http.ErrWithLogFields.
+type ErrWithLogFields = platform_http.ErrWithLogFields
+
+// ErrWithRetryAfter is an alias for platform_http.ErrWithRetryAfter.
+type ErrWithRetryAfter = platform_http.ErrWithRetryAfter
+
+// ErrWithIsClientError is an alias for platform_errors.ErrWithIsClientError.
+type ErrWithIsClientError = platform_errors.ErrWithIsClientError
+
+type invalidArgWithStatusError struct {
+	*InvalidArgumentError
+	code int
+}
+
+func (e *invalidArgWithStatusError) Status() int {
+	if e.code == 0 {
+		// 422 is the default code for invalid args
+		return http.StatusUnprocessableEntity
+	}
+	return e.code
+}
+
+// ErrorUUIDer is an alias for platform_http.ErrorUUIDer.
+type ErrorUUIDer = platform_http.ErrorUUIDer
+
+// ErrorWithUUID is an alias for platform_http.ErrorWithUUID.
+type ErrorWithUUID = platform_http.ErrorWithUUID
+
+// InvalidArgumentError is the error returned when invalid data is presented to
+// a service method. It is a client error.
+type InvalidArgumentError struct {
+	Errors []InvalidArgument
+
+	ErrorWithUUID
+}
+
+// InvalidArgument is the details about a single invalid argument.
+type InvalidArgument struct {
+	name   string
+	reason string
+}
+
+// NewInvalidArgumentError returns a InvalidArgumentError with at least
+// one error.
+func NewInvalidArgumentError(name, reason string) *InvalidArgumentError {
+	var invalid InvalidArgumentError
+	invalid.Append(name, reason)
+	return &invalid
+}
+
+func (e *InvalidArgumentError) IsClientError() bool {
+	return true
+}
+
+func (e *InvalidArgumentError) Append(name, reason string) {
+	e.Errors = append(e.Errors, InvalidArgument{
+		name:   name,
+		reason: reason,
+	})
+}
+
+func (e *InvalidArgumentError) AppendInvalidArgument(invalidArg InvalidArgument) {
+	e.Errors = append(e.Errors, invalidArg)
+}
+
+func (e *InvalidArgumentError) Appendf(name, reasonFmt string, args ...interface{}) {
+	e.Append(name, fmt.Sprintf(reasonFmt, args...))
+}
+
+// WithStatus returns an error that combines the InvalidArgumentError
+// with a custom status code.
+func (e *InvalidArgumentError) WithStatus(code int) error {
+	return &invalidArgWithStatusError{e, code}
+}
+
+func (e *InvalidArgumentError) HasErrors() bool {
+	return len(e.Errors) != 0
+}
+
+// Error implements the error interface.
+func (e *InvalidArgumentError) Error() string {
+	switch len(e.Errors) {
+	case 0:
+		return "validation failed"
+	case 1:
+		return fmt.Sprintf("validation failed: %s %s", e.Errors[0].name, e.Errors[0].reason)
+	default:
+		return fmt.Sprintf("validation failed: %s %s and %d other errors", e.Errors[0].name, e.Errors[0].reason,
+			len(e.Errors))
+	}
+}
+
+func (e *InvalidArgumentError) Invalid() []map[string]string {
+	var invalid []map[string]string
+	for _, i := range e.Errors {
+		invalid = append(invalid, map[string]string{"name": i.name, "reason": i.reason})
+	}
+	return invalid
+}
+
+// BadRequestError is an alias for platform_http.BadRequestError.
+type BadRequestError = platform_http.BadRequestError
+
+// ParamRequiredDeprecationError is a bad request for a parameter that AutoMDM 5 made required, so that every
+// such change returns the same message and migration link.
+type ParamRequiredDeprecationError struct {
+	Param string
+}
+
+// NewParamRequiredDeprecationError returns a ParamRequiredDeprecationError for the named parameter.
+func NewParamRequiredDeprecationError(param string) *ParamRequiredDeprecationError {
+	return &ParamRequiredDeprecationError{Param: param}
+}
+
+func (e *ParamRequiredDeprecationError) Error() string {
+	return fmt.Sprintf(`The %q parameter is now required. Learn more: https://automdm.com/learn-more-about/automdm-5-upgrade`, e.Param)
+}
+
+// Messages returned to GitOps users for actions the role lost in AutoMDM 5.
+const (
+	GitOpsMDMCommandErrorMessage = "Users with the GitOps role can no longer run MDM commands. What to use instead: " +
+		AutoMDM5MigrationGuide
+	GitOpsViewHostByIdentifierErrorMessage = "Users with the GitOps role can no longer view hosts by identifier. What to use instead: " +
+		AutoMDM5MigrationGuide
+	GitOpsDeleteHostErrorMessage = "Users with the GitOps role can no longer delete hosts. What to use instead: " +
+		AutoMDM5MigrationGuide
+	GitOpsTransferHostErrorMessage = "Users with the GitOps role can no longer transfer hosts between teams. What to use instead: " +
+		AutoMDM5MigrationGuide
+)
+
+// BadRequestError makes the error encoder return a 400.
+func (e *ParamRequiredDeprecationError) BadRequestError() []map[string]string { return nil }
+
+// IsClientError implements ErrWithIsClientError.
+func (e *ParamRequiredDeprecationError) IsClientError() bool { return true }
+
+// RemovedAutoMDMVariableError is an AutoMDM variable that AutoMDM 5 removed. It renders as a 422 with the variable's removal message, which is
+// also the failure detail when a profile, app configuration, or certificate authority saved before the upgrade still uses it.
+type RemovedAutoMDMVariableError struct {
+	message string
+}
+
+// FindRemovedAutoMDMVariable returns a *RemovedAutoMDMVariableError for the first of names that AutoMDM 5 removed, and nil if there is none.
+// Names are without the AUTOMDM_VAR_ prefix, as variables.Find returns them.
+func FindRemovedAutoMDMVariable(names ...string) error {
+	for _, name := range names {
+		if entry, ok := removednames.Find(removednames.KindAutoMDMVariable, AutoMDMVarName(name).WithPrefix(), ""); ok {
+			return &RemovedAutoMDMVariableError{message: entry.Message()}
+		}
+	}
+	return nil
+}
+
+func (e *RemovedAutoMDMVariableError) Error() string { return e.message }
+
+// Invalid makes the error encoder return a 422.
+func (e *RemovedAutoMDMVariableError) Invalid() []map[string]string {
+	return []map[string]string{{"name": "base", "reason": e.message}}
+}
+
+// IsClientError implements ErrWithIsClientError.
+func (e *RemovedAutoMDMVariableError) IsClientError() bool { return true }
+
+// AuthFailedError is an alias for platform_http.AuthFailedError.
+type AuthFailedError = platform_http.AuthFailedError
+
+// NewAuthFailedError is an alias for platform_http.NewAuthFailedError.
+var NewAuthFailedError = platform_http.NewAuthFailedError
+
+// AuthRequiredError is an alias for platform_http.AuthRequiredError.
+type AuthRequiredError = platform_http.AuthRequiredError
+
+// NewAuthRequiredError is an alias for platform_http.NewAuthRequiredError.
+var NewAuthRequiredError = platform_http.NewAuthRequiredError
+
+// AuthUnavailableError is an alias for platform_http.AuthUnavailableError.
+type AuthUnavailableError = platform_http.AuthUnavailableError
+
+// NewAuthUnavailableError is an alias for platform_http.NewAuthUnavailableError.
+var NewAuthUnavailableError = platform_http.NewAuthUnavailableError
+
+// DeviceSSORequiredError is an alias for platform_http.DeviceSSORequiredError.
+type DeviceSSORequiredError = platform_http.DeviceSSORequiredError
+
+// NewDeviceSSORequiredError is an alias for platform_http.NewDeviceSSORequiredError.
+var NewDeviceSSORequiredError = platform_http.NewDeviceSSORequiredError
+
+// AuthHeaderRequiredError is an alias for platform_http.AuthHeaderRequiredError.
+type AuthHeaderRequiredError = platform_http.AuthHeaderRequiredError
+
+// NewAuthHeaderRequiredError is an alias for platform_http.NewAuthHeaderRequiredError.
+var NewAuthHeaderRequiredError = platform_http.NewAuthHeaderRequiredError
+
+// PermissionError, set when user is authenticated, but not allowed to perform action
+type PermissionError struct {
+	message string
+
+	ErrorWithUUID
+}
+
+func NewPermissionError(message string) *PermissionError {
+	return &PermissionError{message: message}
+}
+
+func (e *PermissionError) Error() string {
+	return e.message
+}
+
+func (e *PermissionError) PermissionError() []map[string]string {
+	var forbidden []map[string]string
+	return forbidden
+}
+
+// IsClientError implements ErrWithIsClientError.
+func (e *PermissionError) IsClientError() bool {
+	return true
+}
+
+// OTAForbiddenError is a special kind of forbidden error that intentionally
+// exposes information about the error so it can be shown in iPad/iPhone native
+// dialogs during OTA enrollment.
+//
+// I couldn't find any documentation but the way it works is:
+//
+// - if the response has a status code 403
+// - and the body has a `message` field
+//
+// the content of `message` will be displayed to the end user.
+type OTAForbiddenError struct {
+	ErrorWithUUID
+	InternalErr error
+}
+
+func (e *OTAForbiddenError) Error() string {
+	return "Couldn't install the profile. Invalid enroll secret. Please contact your IT admin."
+}
+
+func (e *OTAForbiddenError) StatusCode() int {
+	return http.StatusForbidden
+}
+
+func (e *OTAForbiddenError) Internal() string {
+	if e.InternalErr == nil {
+		return ""
+	}
+	return e.InternalErr.Error()
+}
+
+// IsClientError implements ErrWithIsClientError.
+func (e *OTAForbiddenError) IsClientError() bool {
+	return true
+}
+
+// licenseError is returned when the application is not properly licensed.
+type licenseError struct {
+	ErrorWithUUID
+	cause *string
+}
+
+func NewLicenseErrorWithCause(cause string) *licenseError {
+	return &licenseError{cause: &cause}
+}
+
+func (e *licenseError) Is(target error) bool {
+	_, ok := target.(*licenseError)
+	return ok
+}
+
+func (e *licenseError) Error() string {
+	if e.cause != nil {
+		return fmt.Sprintf("%s requires AutoMDM Premium license", *e.cause)
+	}
+	return "Requires AutoMDM Premium license"
+}
+
+func (e *licenseError) StatusCode() int {
+	return http.StatusPaymentRequired
+}
+
+// IsClientError implements ErrWithIsClientError.
+func (e *licenseError) IsClientError() bool {
+	return true
+}
+
+// MDMNotConfiguredError is used when an MDM endpoint or resource is accessed
+// without having MDM correctly configured.
+type MDMNotConfiguredError struct{}
+
+// Status implements the kithttp.StatusCoder interface so we can customize the
+// HTTP status code of the response returning this error.
+func (e *MDMNotConfiguredError) StatusCode() int {
+	return http.StatusBadRequest
+}
+
+func (e *MDMNotConfiguredError) Error() string {
+	return MDMNotConfiguredMessage
+}
+
+// IsClientError implements ErrWithIsClientError.
+func (e *MDMNotConfiguredError) IsClientError() bool {
+	return true
+}
+
+// WindowsMDMNotConfiguredError is used when an MDM endpoint or resource is accessed
+// without having Windows MDM correctly configured.
+type WindowsMDMNotConfiguredError struct{}
+
+// Status implements the kithttp.StatusCoder interface so we can customize the
+// HTTP status code of the response returning this error.
+func (e *WindowsMDMNotConfiguredError) StatusCode() int {
+	return http.StatusBadRequest
+}
+
+func (e *WindowsMDMNotConfiguredError) Error() string {
+	return WindowsMDMNotConfiguredMessage
+}
+
+// IsClientError implements ErrWithIsClientError.
+func (e *WindowsMDMNotConfiguredError) IsClientError() bool {
+	return true
+}
+
+// AndroidMDMNotConfiguredError is used when an MDM endpoint or resource is accessed
+// without having Android MDM correctly configured.
+type AndroidMDMNotConfiguredError struct{}
+
+// Status implements the kithttp.StatusCoder interface so we can customize the
+// HTTP status code of the response returning this error.
+func (e *AndroidMDMNotConfiguredError) StatusCode() int {
+	return http.StatusBadRequest
+}
+
+func (e *AndroidMDMNotConfiguredError) Error() string {
+	return AndroidMDMNotConfiguredMessage
+}
+
+// IsClientError implements ErrWithIsClientError.
+func (e *AndroidMDMNotConfiguredError) IsClientError() bool {
+	return true
+}
+
+// NotConfiguredError is a generic "not configured" error that can be used
+// when expected configuration is missing.
+type NotConfiguredError struct{}
+
+func (e *NotConfiguredError) Error() string {
+	return "not configured"
+}
+
+// GatewayError is an error type that generates a 502 or 504 status code.
+type GatewayError struct {
+	Message string
+	err     error
+	code    int
+
+	ErrorWithUUID
+}
+
+// NewBadGatewayError returns a GatewayError with the message and
+// error specified and that returns a 502 status code.
+func NewBadGatewayError(message string, err error) *GatewayError {
+	return &GatewayError{
+		Message: message,
+		err:     err,
+		code:    http.StatusBadGateway,
+	}
+}
+
+// NewGatewayTimeoutError returns a GatewayError with the message and
+// error specified and that returns a 504 status code.
+func NewGatewayTimeoutError(message string, err error) *GatewayError {
+	return &GatewayError{
+		Message: message,
+		err:     err,
+		code:    http.StatusGatewayTimeout,
+	}
+}
+
+// StatusCode implements the kithttp.StatusCoder interface so we can customize the
+// HTTP status code of the response returning this error.
+func (e *GatewayError) StatusCode() int {
+	return e.code
+}
+
+// Error returns the error message.
+func (e *GatewayError) Error() string {
+	msg := e.Message
+	if e.err != nil {
+		msg += ": " + e.err.Error()
+	}
+	return msg
+}
+
+// Error is an alias for platform_http.Error.
+// It's meant to be used for errors that are related to team logic specifically.
+type Error = platform_http.Error
+
+const (
+	// ErrNoRoleNeeded is the error number for valid role needed
+	ErrNoRoleNeeded = 1
+	// ErrNoOneAdminNeeded is the error number when all admins are about to be removed
+	ErrNoOneAdminNeeded = 2
+	// ErrNoUnknownTranslate is returned when an item type in the translate payload is unknown
+	ErrNoUnknownTranslate = 3
+	// ErrAPIOnlyRole is returned when a selected role for a user is for API only users.
+	ErrAPIOnlyRole = 4
+)
+
+// NewError returns an automdm error with the code and message specified
+func NewError(code int, message string) error {
+	return &Error{
+		Code:    code,
+		Message: message,
+	}
+}
+
+// NewErrorf returns an automdm error with the code, and message formatted
+// based on the format string and args specified
+func NewErrorf(code int, format string, args ...interface{}) error {
+	return &Error{
+		Code:    code,
+		Message: fmt.Sprintf(format, args...),
+	}
+}
+
+// UserMessageError is an alias for platform_http.UserMessageError.
+type UserMessageError = platform_http.UserMessageError
+
+// NewUserMessageError is an alias for platform_http.NewUserMessageError.
+var NewUserMessageError = platform_http.NewUserMessageError
+
+// IsJSONUnknownFieldError returns true if err is a JSON unknown field error.
+// There is no exported type or value for this error, so we have to match the
+// error message.
+func IsJSONUnknownFieldError(err error) bool {
+	return platform_http.IsJSONUnknownFieldError(err)
+}
+
+// GetJSONUnknownField returns the unknown field name from a JSON unknown field error.
+func GetJSONUnknownField(err error) *string {
+	return platform_http.GetJSONUnknownField(err)
+}
+
+// Cause returns the root error in err's chain.
+var Cause = platform_errors.Cause
+
+// AutoMDMdError is an error that can be reported by any of the automdmd
+// components.
+type AutoMDMdError struct {
+	ErrorSource         string         `json:"error_source"`
+	ErrorSourceVersion  string         `json:"error_source_version"`
+	ErrorTimestamp      time.Time      `json:"error_timestamp"`
+	ErrorMessage        string         `json:"error_message"`
+	ErrorAdditionalInfo map[string]any `json:"error_additional_info"`
+	// Vital errors are always reported to AutoMDM server.
+	Vital bool `json:"vital"`
+}
+
+// Error implements the error interface
+func (fe AutoMDMdError) Error() string {
+	return fe.ErrorMessage
+}
+
+// MarshalZerologObject implements `zerolog.LogObjectMarshaler` so all details
+// about the error can be logged by the components that use zerolog (Orbit,
+// AutoMDM Desktop)
+func (fe AutoMDMdError) MarshalZerologObject(e *zerolog.Event) {
+	e.Bool("vital", fe.Vital)
+	e.Str("error_source", fe.ErrorSource)
+	e.Str("error_source_version", fe.ErrorSourceVersion)
+	e.Time("error_timestamp", fe.ErrorTimestamp)
+	e.Str("error_message", fe.ErrorMessage)
+	e.Interface("error_additional_info", fe.ErrorAdditionalInfo)
+}
+
+// ToMap returns a map representation of the error
+func (fe AutoMDMdError) ToMap() map[string]any {
+	return map[string]any{
+		"vital":                 fe.Vital,
+		"error_source":          fe.ErrorSource,
+		"error_source_version":  fe.ErrorSourceVersion,
+		"error_timestamp":       fe.ErrorTimestamp,
+		"error_message":         fe.ErrorMessage,
+		"error_additional_info": fe.ErrorAdditionalInfo,
+	}
+}
+
+// OrbitError is used for orbit endpoints, to return an error message along
+// with a failed request's response.
+type OrbitError struct {
+	Message string
+	code    int
+}
+
+// Error implements the error interface for the OrbitError.
+func (e OrbitError) Error() string {
+	return e.Message
+}
+
+// StatusCode implements the ErrWithStatusCode interface for the OrbitError.
+func (e OrbitError) StatusCode() int {
+	if e.code == 0 {
+		return http.StatusInternalServerError
+	}
+	return e.code
+}
+
+// IsClientError implements ErrWithIsClientError.
+// Returns true for 4xx status codes, false for 5xx.
+func (e OrbitError) IsClientError() bool {
+	code := e.StatusCode()
+	return code >= 400 && code < 500
+}
+
+// OrbitIDPAuthRequiredMessage is matched verbatim by automdmd to decide it must
+// open the IdP sign-in window, so it must not change.
+const OrbitIDPAuthRequiredMessage = "END_USER_AUTH_REQUIRED"
+
+func NewOrbitIDPAuthRequiredError() *OrbitError {
+	return &OrbitError{
+		Message: OrbitIDPAuthRequiredMessage,
+		code:    http.StatusUnauthorized,
+	}
+}
+
+// IsOrbitIDPAuthRequired reports whether err is the response EnrollOrbit
+// returns when the device's end user must authenticate before enrolling.
+func IsOrbitIDPAuthRequired(err error) bool {
+	orbitErr, ok := errors.AsType[*OrbitError](err)
+	return ok && orbitErr.Message == OrbitIDPAuthRequiredMessage
+}
+
+// Messages that may be surfaced by the server or the automdmctl client.
+const (
+	// Hosts, general
+	HostNotFoundErrMsg           = "Host doesn't exist. Make sure you provide a valid host ID, hostname, UUID, or serial number. Learn more about host identifiers: https://automdm.com/learn-more-about/host-identifiers"
+	NoHostsTargetedErrMsg        = "No hosts targeted. Make sure you provide a valid hostname, UUID, or serial number. Learn more about host identifiers: https://automdm.com/learn-more-about/host-identifiers"
+	TargetedHostsDontExistErrMsg = "One or more targeted hosts don't exist. Make sure you provide a valid host ID, hostname, UUID, or serial number. Learn more about host identifiers: https://automdm.com/learn-more-about/host-identifiers"
+
+	// Scripts
+	RunScriptInvalidTypeErrMsg       = "File type not supported. Only .sh (Shell), .py (Python), and .ps1 (PowerShell) file types are allowed."
+	RunScriptHostOfflineErrMsg       = "Script can't run on offline host."
+	RunScriptForbiddenErrMsg         = "You don't have the right permissions in AutoMDM to run the script."
+	RunScriptAlreadyRunningErrMsg    = "A script is already running on this host. Please wait about 5 minutes to let it finish."
+	RunScriptHostTimeoutErrMsg       = "AutoMDM didn't hear back from the host in under 5 minutes (timeout for live scripts). AutoMDM doesn't know if the script ran because it didn't receive the result. Go to AutoMDM and check Host details > Activities to see script results."
+	RunScriptDisabledErrMsg          = "Scripts are disabled for this host. To run scripts, deploy the automdmd agent with scripts enabled."
+	RunScriptsOrbitDisabledErrMsg    = "Couldn't run script. To run a script, deploy the automdmd agent with --enable-scripts."
+	RunScriptAsyncScriptEnqueuedMsg  = "Script is running or will run when the host comes online."
+	RunScriptSavedMaxLenErrMsg       = "Script is too large. It's limited to 500,000 characters (approximately 10,000 lines)."
+	RunScripUnsavedMaxLenErrMsg      = "Script is too large. It's limited to 10,000 characters (approximately 125 lines)."
+	RunScriptGatewayTimeoutErrMsg    = "Gateway timeout. AutoMDM didn't hear back from the host and doesn't know if the script ran. Please make sure your load balancer timeout isn't shorter than the AutoMDM server timeout."
+	RunScriptAutoMDMVarsFailedErrMsg = "AutoMDM couldn't resolve variables in this script. See the script output for details."
+
+	// Software
+	InstallSoftwarePersonalAppleDeviceErrMsg = "Couldn't install. Currently, software install isn't supported on personal (BYOD) iOS and iPadOS hosts."
+
+	// End user authentication
+	EndUserAuthDEPWebURLConfiguredErrMsg = `End user authentication can't be configured when the configured automatic enrollment (DEP) profile specifies a configuration_web_url.` // #nosec G101
+
+	// Labels
+	InvalidLabelSpecifiedErrMsg = "Invalid label name(s):"
+
+	// Config
+	InvalidServerURLMsg = `AutoMDM server URL must use “https” or “http”.`
+
+	// macOS setup experience
+	BootstrapPkgNotDistributionErrMsg = "Couldn’t add. Bootstrap package must be a distribution package. Learn more at: https://automdm.com/learn-more-about/macos-distribution-packages"
+
+	// NDES/SCEP validation
+	MultipleSCEPPayloadsErrMsg          = "Add only one SCEP payload."
+	SCEPVariablesNotInSCEPPayloadErrMsg = "Variables prefixed with \"$AUTOMDM_VAR_SCEP_\", \"$AUTOMDM_VAR_CUSTOM_SCEP_\", \"$AUTOMDM_VAR_NDES_SCEP\" and \"$AUTOMDM_VAR_SMALLSTEP_\" must only be in the SCEP payload."
+
+	// Invalid list options combinations
+	FilterTitlesByPlatformNeedsTeamIdErrMsg = "The 'platform' and 'team_id' parameters must be used together to filter the software available for install."
+
+	softwareTypeFilterDocsURL                   = "https://automdm.com/docs/rest-api/rest-api#list-software"
+	InvalidSoftwareSourceErrMsg                 = "Invalid source: %q isn't a valid source. See the options: " + softwareTypeFilterDocsURL
+	InvalidSoftwareExtensionForErrMsg           = "Invalid extension_for: %q isn't a valid browser or IDE. See the options: " + softwareTypeFilterDocsURL
+	SoftwareExtensionForRequiresSourceErrMsg    = "extension_for requires source. Specify a browser or IDE extension source, like source=chrome_extensions&extension_for=brave."
+	SoftwareExtensionForSourceNotSelectedErrMsg = "%q is a %q value, but source doesn't include %[2]q."
+)
+
+// Error message variables
+var (
+	NDESSCEPVariablesMissingErrMsg              = fmt.Sprintf("SCEP profile for NDES certificate authority requires: $AUTOMDM_VAR_%s, $AUTOMDM_VAR_%s, and $AUTOMDM_VAR_%s variables.", AutoMDMVarNDESSCEPChallenge, AutoMDMVarNDESSCEPProxyURL, AutoMDMVarCertificateRenewalID)
+	SCEPRenewalIDWithoutURLChallengeErrMsg      = "Variable \"$AUTOMDM_VAR_" + string(AutoMDMVarCertificateRenewalID) + "\" can't be used if variables for SCEP URL and Challenge are not specified."
+	ConditionalAccessSCEPVariablesMissingErrMsg = fmt.Sprintf("SCEP profile for conditional access requires: $AUTOMDM_VAR_%s and $AUTOMDM_VAR_%s variables.", AutoMDMVarConditionalAccessSCEPURL, AutoMDMVarCertificateRenewalID)
+)
+
+const (
+	// DeleteCAReferencedByTemplatesErrMsg is the error substring used when a CA cannot be deleted because certificate templates still reference it.
+	DeleteCAReferencedByTemplatesErrMsg = "Certificate templates still reference it"
+)
+
+// ConflictError is used to indicate a conflict, such as a UUID conflict in the DB.
+type ConflictError struct {
+	Message string
+}
+
+// Error implements the error interface for the ConflictError.
+func (e ConflictError) Error() string {
+	return e.Message
+}
+
+// StatusCode implements the kithttp.StatusCoder interface.
+func (e ConflictError) StatusCode() int {
+	return http.StatusConflict
+}
+
+// HostGoogleDeviceIDConflictError is returned when a host is already bound to a different Google device ID.
+type HostGoogleDeviceIDConflictError struct {
+	StoredID string
+}
+
+func (e *HostGoogleDeviceIDConflictError) Error() string {
+	return "This host already has a different Google device ID."
+}
+
+func (e *HostGoogleDeviceIDConflictError) Invalid() []map[string]string {
+	return []map[string]string{{"name": "google_device_id", "reason": e.Error()}}
+}
+
+func (e *HostGoogleDeviceIDConflictError) Status() int { return http.StatusConflict }
+
+func (e *HostGoogleDeviceIDConflictError) IsClientError() bool { return true }
+
+// CertificateAuthorityTransientError is the 503 for a certificate request the CA could not
+// serve for a reason expected to clear on its own, such as no response or an HTTP 5xx.
+// Retry-After tells callers such as curl --retry when to try again.
+type CertificateAuthorityTransientError struct {
+	Message           string
+	RetryAfterSeconds int
+}
+
+func (e CertificateAuthorityTransientError) Error() string { return e.Message }
+
+// StatusCode implements the kithttp.StatusCoder interface.
+func (e CertificateAuthorityTransientError) StatusCode() int { return http.StatusServiceUnavailable }
+
+// RetryAfter implements platform_http.ErrWithRetryAfter.
+func (e CertificateAuthorityTransientError) RetryAfter() int { return e.RetryAfterSeconds }
+
+// LinuxEscrowInFlightError is the 409 for a LUKS escrow request refused because automdmd is already
+// handling one. Retry-After is how long until that state expires if automdmd sends nothing further.
+type LinuxEscrowInFlightError struct {
+	RetryAfterSeconds int
+}
+
+func (e LinuxEscrowInFlightError) Error() string { return LinuxEscrowInFlightMessage }
+
+// StatusCode implements the kithttp.StatusCoder interface.
+func (e LinuxEscrowInFlightError) StatusCode() int { return http.StatusConflict }
+
+// RetryAfter implements platform_http.ErrWithRetryAfter.
+func (e LinuxEscrowInFlightError) RetryAfter() int { return e.RetryAfterSeconds }
+
+// IsConflict implements the conflict interface for middleware compatibility
+func (e ConflictError) IsConflict() bool {
+	return true
+}
+
+// IsClientError implements ErrWithIsClientError.
+func (e ConflictError) IsClientError() bool {
+	return true
+}
+
+// Errorer is an alias for platform_http.Errorer.
+type Errorer = platform_http.Errorer
+
+type VPPIconAvailable struct {
+	IconURL string
+}
+
+func (e *VPPIconAvailable) Error() string {
+	return fmt.Sprintf("VPP icon available at: %s", e.IconURL)
+}
+
+// ABOnlyEnrollmentForbiddenError is returned by device-facing enrollment
+// endpoints when only Apple Business enrollment is allowed.
+type ABOnlyEnrollmentForbiddenError struct {
+	ErrorWithUUID
+	InternalErr error
+}
+
+func (e *ABOnlyEnrollmentForbiddenError) Error() string {
+	return "Manual enrollment is not available. Only devices assigned through Apple Business can enroll. Please contact your IT administrator."
+}
+
+func (e *ABOnlyEnrollmentForbiddenError) StatusCode() int { return http.StatusForbidden }
+
+func (e *ABOnlyEnrollmentForbiddenError) Internal() string {
+	if e.InternalErr != nil {
+		return e.InternalErr.Error()
+	}
+	return ""
+}
+
+// AutomaticEnrollmentRefusedError is returned when the Apple automatic enrollment profile request is refused. Setup
+// Assistant treats a 401 there as a request for a username and password, so it's a 403, and the reason is only logged.
+type AutomaticEnrollmentRefusedError struct {
+	ErrorWithUUID
+	Reason string
+}
+
+func (e *AutomaticEnrollmentRefusedError) Error() string {
+	return "This device can't enroll right now. Please contact your IT administrator."
+}
+
+func (e *AutomaticEnrollmentRefusedError) StatusCode() int { return http.StatusForbidden }
+
+func (e *AutomaticEnrollmentRefusedError) Internal() string { return e.Reason }
+
+func (e *AutomaticEnrollmentRefusedError) IsClientError() bool { return true }
+
+const AdminOnlyEnrollmentForbiddenErrMsg = "Manual enrollment is not available because only Apple Business enrollment is allowed for this organization."
+
+// This is a unique deprecation notice only used very few places, where a default was changed and thereby blocked, therefore not part of the pkg/removednames
+type NotAllowedByDefaultDeprecationError struct {
+	Method   string
+	Endpoint string
+}
+
+func (e *NotAllowedByDefaultDeprecationError) Error() string {
+	return fmt.Sprintf(`The "%s %s" endpoint is not available anymore by default. What to use instead: %s`, e.Method, e.Endpoint, AutoMDM5MigrationGuide)
+}
+
+func (e *NotAllowedByDefaultDeprecationError) StatusCode() int { return http.StatusGone }
+
+func (e *NotAllowedByDefaultDeprecationError) IsClientError() bool { return true }

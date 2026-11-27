@@ -7,8 +7,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/fleetdm/fleet/v4/tools/dibble/pkg/seed"
-	"github.com/fleetdm/fleet/v4/tools/dibble/pkg/themes"
+	"github.com/anilyagiz/automdm/v4/tools/dibble/pkg/seed"
+	"github.com/anilyagiz/automdm/v4/tools/dibble/pkg/themes"
 )
 
 // runAll executes every seeder in dependency order with the given counts.
@@ -59,12 +59,12 @@ func defaultAllCounts() allCounts {
 		CAs:             0,
 		EnrollSecrets:   true,
 		ActivityBatches: 0,
-		ActivityDSN:     "fleet:insecure@tcp(localhost:3306)/fleet",
+		ActivityDSN:     "automdm:insecure@tcp(localhost:3306)/automdm",
 		ActivityHostID:  1,
 		IDPUserCount:    0,
 		IDPHostCount:    0,
-		IDPDSN:          "fleet:insecure@tcp(localhost:3306)/fleet",
-		CAsDSN:          "fleet:insecure@tcp(localhost:3306)/fleet",
+		IDPDSN:          "automdm:insecure@tcp(localhost:3306)/automdm",
+		CAsDSN:          "automdm:insecure@tcp(localhost:3306)/automdm",
 	}
 }
 
@@ -190,12 +190,12 @@ func newAllCmd() *cobra.Command {
 	cmd.Flags().Int("users", 0, "Override user count (0 = default)")
 	cmd.Flags().Int("teams", 0, "Override team count (0 = default)")
 	cmd.Flags().Int("activity-batches", 0, "Seed N batches of fake activities via direct MySQL (0 = skip)")
-	cmd.Flags().String("activity-dsn", "", "MySQL DSN for the activity seeder (default fleet:insecure@tcp(localhost:3306)/fleet)")
+	cmd.Flags().String("activity-dsn", "", "MySQL DSN for the activity seeder (default automdm:insecure@tcp(localhost:3306)/automdm)")
 	cmd.Flags().Uint("activity-host-id", 0, "host_id used by the activity seeder for host-scoped rows (default 1)")
 	cmd.Flags().Int("idp-user-count", 0, "Seed N users with IDP accounts via direct MySQL (0 = skip)")
 	cmd.Flags().Int("idp-host-count", 5, "How many hosts to assign IDP accounts to (round-robin); only used when --idp-user-count > 0")
-	cmd.Flags().String("idp-dsn", "", "MySQL DSN for the IDP seeder (default fleet:insecure@tcp(localhost:3306)/fleet)")
+	cmd.Flags().String("idp-dsn", "", "MySQL DSN for the IDP seeder (default automdm:insecure@tcp(localhost:3306)/automdm)")
 	cmd.Flags().Int("cas", 0, "Seed N batches of fake certificate authorities via direct MySQL (0 = skip)")
-	cmd.Flags().String("cas-dsn", "", "MySQL DSN for the CA seeder (default fleet:insecure@tcp(localhost:3306)/fleet)")
+	cmd.Flags().String("cas-dsn", "", "MySQL DSN for the CA seeder (default automdm:insecure@tcp(localhost:3306)/automdm)")
 	return cmd
 }

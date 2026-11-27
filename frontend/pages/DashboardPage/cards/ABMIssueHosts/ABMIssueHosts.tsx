@@ -30,7 +30,7 @@ const ABMIssueHosts = ({
   // build the manage hosts URL filtered by missing and platform
   const queryParams = {
     dep_profile_error: true,
-    fleet_id: currentTeamId,
+    team_id: currentTeamId,
   };
 
   const endpoint = selectedPlatformLabelId

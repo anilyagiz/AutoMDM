@@ -4,7 +4,7 @@ package windowsupdate
 import (
 	"time"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/windows/oleconv"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/windows/oleconv"
 	"github.com/go-ole/go-ole"
 	"github.com/go-ole/go-ole/oleutil"
 )

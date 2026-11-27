@@ -14,15 +14,15 @@ import (
 	"path/filepath"
 	"strconv"
 
-	authzctx "github.com/fleetdm/fleet/v4/server/contexts/authz"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	hostctx "github.com/fleetdm/fleet/v4/server/contexts/host"
-	"github.com/fleetdm/fleet/v4/server/contexts/installersize"
-	"github.com/fleetdm/fleet/v4/server/contexts/logging"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/platform/endpointer"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	authzctx "github.com/anilyagiz/automdm/v4/server/contexts/authz"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	hostctx "github.com/anilyagiz/automdm/v4/server/contexts/host"
+	"github.com/anilyagiz/automdm/v4/server/contexts/installersize"
+	"github.com/anilyagiz/automdm/v4/server/contexts/logging"
+	"github.com/anilyagiz/automdm/v4/server/platform/endpointer"
 
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 )
 
 type uploadSoftwareInstallerRequest struct {
@@ -62,7 +62,7 @@ type updateSoftwareInstallerRequest struct {
 	LabelsIncludeAll  []string
 	Categories        []string
 	DisplayName       *string
-	// Version pins a Fleet-maintained app to a cached version; empty means "Latest", omitted leaves it unchanged.
+	// Version pins an AutoMDM-maintained app to a cached version; empty means "Latest", omitted leaves it unchanged.
 	Version *string
 	// Configuration is the in-house app's managed app configuration as raw XML bytes (iOS / iPadOS only). nil means leave unchanged.
 	Configuration []byte
@@ -74,16 +74,16 @@ type updateSoftwareInstallerRequest struct {
 	// before the patch is forced. Omitted leaves it unchanged. FMA-only.
 	NotifyBeforePatching *bool
 	// PatchDeadline skips the install while the app is open and notifies the end user an hour
-	// before the fleet's next patch deadline. Omitted leaves it unchanged. FMA-only.
+	// before the team's next patch deadline. Omitted leaves it unchanged. FMA-only.
 	PatchDeadline *bool
 }
 
 type uploadSoftwareInstallerResponse struct {
-	SoftwarePackage *fleet.SoftwareInstaller `json:"software_package,omitempty"`
-	Err             error                    `json:"error,omitempty"`
+	SoftwarePackage *automdm.SoftwareInstaller `json:"software_package,omitempty"`
+	Err             error                      `json:"error,omitempty"`
 }
 
-// TODO: Per-fleet authorization still runs after parsing because fleet_id is in the body.
+// TODO: Per-team authorization still runs after parsing because team_id is in the body.
 func (updateSoftwareInstallerRequest) DecodeRequest(ctx context.Context, r *http.Request) (interface{}, error) {
 	decoded := updateSoftwareInstallerRequest{}
 
@@ -99,19 +99,19 @@ func (updateSoftwareInstallerRequest) DecodeRequest(ctx context.Context, r *http
 	if err != nil {
 		var mbe *http.MaxBytesError
 		if errors.As(err, &mbe) {
-			return nil, &fleet.BadRequestError{
+			return nil, &automdm.BadRequestError{
 				Message: fmt.Sprintf("The maximum file size is %s.", installersize.Human(maxInstallerSize)),
 				// NOTE: Not wrapping `InternalErr: err` to prevent caller of DecodeRequest from returning a generic HTTP 413.
 			}
 		}
 		var nerr net.Error
 		if errors.As(err, &nerr) && nerr.Timeout() {
-			return nil, fleet.NewUserMessageError(
+			return nil, automdm.NewUserMessageError(
 				ctxerr.New(ctx, "Couldn't add. Please ensure your internet connection speed is sufficient and stable."),
 				http.StatusRequestTimeout,
 			)
 		}
-		return nil, &fleet.BadRequestError{
+		return nil, &automdm.BadRequestError{
 			Message:     "failed to parse multipart form: " + err.Error(),
 			InternalErr: err,
 		}
@@ -122,7 +122,7 @@ func (updateSoftwareInstallerRequest) DecodeRequest(ctx context.Context, r *http
 		decoded.File = r.MultipartForm.File["software"][0]
 		if decoded.File.Size > maxInstallerSize {
 			// Should never happen here since the request's body is limited to the maximum size.
-			return nil, &fleet.BadRequestError{
+			return nil, &automdm.BadRequestError{
 				Message: fmt.Sprintf("The maximum file size is %s.", installersize.Human(maxInstallerSize)),
 			}
 		}
@@ -132,19 +132,19 @@ func (updateSoftwareInstallerRequest) DecodeRequest(ctx context.Context, r *http
 	}
 
 	// default is no team
-	val, ok := r.Form["fleet_id"]
+	val, ok := r.Form["team_id"]
 	if ok {
-		fleetID, err := strconv.ParseUint(val[0], 10, 32)
+		automdmID, err := strconv.ParseUint(val[0], 10, 32)
 		if err != nil {
-			return nil, &fleet.BadRequestError{Message: fmt.Sprintf("Invalid fleet_id: %s", val[0])}
+			return nil, &automdm.BadRequestError{Message: fmt.Sprintf("Invalid team_id: %s", val[0])}
 		}
-		decoded.TeamID = ptr.Uint(uint(fleetID))
+		decoded.TeamID = ptr.Uint(uint(automdmID))
 	}
 
 	if idVal, ok := r.MultipartForm.Value["installer_id"]; ok && len(idVal) > 0 && idVal[0] != "" {
 		parsedInstallerID, err := strconv.ParseUint(idVal[0], 10, 32)
 		if err != nil {
-			return nil, &fleet.BadRequestError{Message: fmt.Sprintf("Invalid installer_id: %s", idVal[0])}
+			return nil, &automdm.BadRequestError{Message: fmt.Sprintf("Invalid installer_id: %s", idVal[0])}
 		}
 		installerID := uint(parsedInstallerID)
 		decoded.InstallerID = &installerID
@@ -182,7 +182,7 @@ func (updateSoftwareInstallerRequest) DecodeRequest(ctx context.Context, r *http
 	if patchVal, ok := r.MultipartForm.Value["patch"]; ok && len(patchVal) > 0 && patchVal[0] != "" {
 		parsed, err := strconv.ParseBool(patchVal[0])
 		if err != nil {
-			return nil, &fleet.BadRequestError{Message: fmt.Sprintf("failed to decode patch bool in multipart form: %s", err.Error())}
+			return nil, &automdm.BadRequestError{Message: fmt.Sprintf("failed to decode patch bool in multipart form: %s", err.Error())}
 		}
 		decoded.Patch = &parsed
 	}
@@ -190,7 +190,7 @@ func (updateSoftwareInstallerRequest) DecodeRequest(ctx context.Context, r *http
 	if patchWhenClosedVal, ok := r.MultipartForm.Value["patch_when_closed"]; ok && len(patchWhenClosedVal) > 0 && patchWhenClosedVal[0] != "" {
 		parsed, err := strconv.ParseBool(patchWhenClosedVal[0])
 		if err != nil {
-			return nil, &fleet.BadRequestError{Message: fmt.Sprintf("failed to decode patch_when_closed bool in multipart form: %s", err.Error())}
+			return nil, &automdm.BadRequestError{Message: fmt.Sprintf("failed to decode patch_when_closed bool in multipart form: %s", err.Error())}
 		}
 		decoded.PatchWhenClosed = &parsed
 	}
@@ -198,7 +198,7 @@ func (updateSoftwareInstallerRequest) DecodeRequest(ctx context.Context, r *http
 	if notifyBeforePatchingVal, ok := r.MultipartForm.Value["notify_before_patching"]; ok && len(notifyBeforePatchingVal) > 0 && notifyBeforePatchingVal[0] != "" {
 		parsed, err := strconv.ParseBool(notifyBeforePatchingVal[0])
 		if err != nil {
-			return nil, &fleet.BadRequestError{Message: fmt.Sprintf("failed to decode notify_before_patching bool in multipart form: %s", err.Error())}
+			return nil, &automdm.BadRequestError{Message: fmt.Sprintf("failed to decode notify_before_patching bool in multipart form: %s", err.Error())}
 		}
 		decoded.NotifyBeforePatching = &parsed
 	}
@@ -206,7 +206,7 @@ func (updateSoftwareInstallerRequest) DecodeRequest(ctx context.Context, r *http
 	if patchDeadlineVal, ok := r.MultipartForm.Value["patch_deadline"]; ok && len(patchDeadlineVal) > 0 && patchDeadlineVal[0] != "" {
 		parsed, err := strconv.ParseBool(patchDeadlineVal[0])
 		if err != nil {
-			return nil, &fleet.BadRequestError{Message: fmt.Sprintf("failed to decode patch_deadline bool in multipart form: %s", err.Error())}
+			return nil, &automdm.BadRequestError{Message: fmt.Sprintf("failed to decode patch_deadline bool in multipart form: %s", err.Error())}
 		}
 		decoded.PatchDeadline = &parsed
 	}
@@ -215,7 +215,7 @@ func (updateSoftwareInstallerRequest) DecodeRequest(ctx context.Context, r *http
 	if ok && len(val) > 0 && val[0] != "" {
 		parsed, err := strconv.ParseBool(val[0])
 		if err != nil {
-			return nil, &fleet.BadRequestError{Message: fmt.Sprintf("failed to decode self_service bool in multipart form: %s", err.Error())}
+			return nil, &automdm.BadRequestError{Message: fmt.Sprintf("failed to decode self_service bool in multipart form: %s", err.Error())}
 		}
 		decoded.SelfService = &parsed
 	}
@@ -224,7 +224,7 @@ func (updateSoftwareInstallerRequest) DecodeRequest(ctx context.Context, r *http
 	var inclAny, exclAny, inclAll, categories []string
 	var existsInclAny, existsExclAny, existsInclAll, existsCategories bool
 
-	inclAny, existsInclAny = r.MultipartForm.Value[string(fleet.LabelsIncludeAny)]
+	inclAny, existsInclAny = r.MultipartForm.Value[string(automdm.LabelsIncludeAny)]
 	switch {
 	case !existsInclAny:
 		decoded.LabelsIncludeAny = nil
@@ -234,7 +234,7 @@ func (updateSoftwareInstallerRequest) DecodeRequest(ctx context.Context, r *http
 		decoded.LabelsIncludeAny = inclAny
 	}
 
-	exclAny, existsExclAny = r.MultipartForm.Value[string(fleet.LabelsExcludeAny)]
+	exclAny, existsExclAny = r.MultipartForm.Value[string(automdm.LabelsExcludeAny)]
 	switch {
 	case !existsExclAny:
 		decoded.LabelsExcludeAny = nil
@@ -244,7 +244,7 @@ func (updateSoftwareInstallerRequest) DecodeRequest(ctx context.Context, r *http
 		decoded.LabelsExcludeAny = exclAny
 	}
 
-	inclAll, existsInclAll = r.MultipartForm.Value[string(fleet.LabelsIncludeAll)]
+	inclAll, existsInclAll = r.MultipartForm.Value[string(automdm.LabelsIncludeAll)]
 	switch {
 	case !existsInclAll:
 		decoded.LabelsIncludeAll = nil
@@ -267,8 +267,8 @@ func (updateSoftwareInstallerRequest) DecodeRequest(ctx context.Context, r *http
 	displayNameMultiPart, existsDisplayName := r.MultipartForm.Value["display_name"]
 	if existsDisplayName && len(displayNameMultiPart) > 0 {
 		decoded.DisplayName = ptr.String(displayNameMultiPart[0])
-		if len(*decoded.DisplayName) > fleet.SoftwareTitleDisplayNameMaxLength {
-			return nil, &fleet.BadRequestError{
+		if len(*decoded.DisplayName) > automdm.SoftwareTitleDisplayNameMaxLength {
+			return nil, &automdm.BadRequestError{
 				Message: "The maximum display name length is 255 characters.",
 			}
 		}
@@ -279,28 +279,28 @@ func (updateSoftwareInstallerRequest) DecodeRequest(ctx context.Context, r *http
 		if decoded.InstallScript != nil {
 			decodedScript, err := decodeBase64Script(*decoded.InstallScript)
 			if err != nil {
-				return nil, &fleet.BadRequestError{Message: "invalid base64 encoding for install_script"}
+				return nil, &automdm.BadRequestError{Message: "invalid base64 encoding for install_script"}
 			}
 			decoded.InstallScript = &decodedScript
 		}
 		if decoded.UninstallScript != nil {
 			decodedScript, err := decodeBase64Script(*decoded.UninstallScript)
 			if err != nil {
-				return nil, &fleet.BadRequestError{Message: "invalid base64 encoding for uninstall_script"}
+				return nil, &automdm.BadRequestError{Message: "invalid base64 encoding for uninstall_script"}
 			}
 			decoded.UninstallScript = &decodedScript
 		}
 		if decoded.PreInstallQuery != nil {
 			decodedScript, err := decodeBase64Script(*decoded.PreInstallQuery)
 			if err != nil {
-				return nil, &fleet.BadRequestError{Message: "invalid base64 encoding for pre_install_query"}
+				return nil, &automdm.BadRequestError{Message: "invalid base64 encoding for pre_install_query"}
 			}
 			decoded.PreInstallQuery = &decodedScript
 		}
 		if decoded.PostInstallScript != nil {
 			decodedScript, err := decodeBase64Script(*decoded.PostInstallScript)
 			if err != nil {
-				return nil, &fleet.BadRequestError{Message: "invalid base64 encoding for post_install_script"}
+				return nil, &automdm.BadRequestError{Message: "invalid base64 encoding for post_install_script"}
 			}
 			decoded.PostInstallScript = &decodedScript
 		}
@@ -309,10 +309,10 @@ func (updateSoftwareInstallerRequest) DecodeRequest(ctx context.Context, r *http
 	return &decoded, nil
 }
 
-func updateSoftwareInstallerEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func updateSoftwareInstallerEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*updateSoftwareInstallerRequest)
 
-	payload := &fleet.UpdateSoftwareInstallerPayload{
+	payload := &automdm.UpdateSoftwareInstallerPayload{
 		TitleID:              req.TitleID,
 		InstallerID:          ptr.ValOrZero(req.InstallerID),
 		TeamID:               req.TeamID,
@@ -340,7 +340,7 @@ func updateSoftwareInstallerEndpoint(ctx context.Context, request interface{}, s
 		}
 		defer ff.Close()
 
-		tfr, err := fleet.NewTempFileReader(ff, nil)
+		tfr, err := automdm.NewTempFileReader(ff, nil)
 		if err != nil {
 			return uploadSoftwareInstallerResponse{Err: err}, nil
 		}
@@ -362,15 +362,15 @@ func updateSoftwareInstallerEndpoint(ctx context.Context, request interface{}, s
 	return getSoftwareInstallerResponse{SoftwareInstaller: installer}, nil
 }
 
-func (svc *Service) UpdateSoftwareInstaller(ctx context.Context, payload *fleet.UpdateSoftwareInstallerPayload) (*fleet.SoftwareInstaller, error) {
+func (svc *Service) UpdateSoftwareInstaller(ctx context.Context, payload *automdm.UpdateSoftwareInstallerPayload) (*automdm.SoftwareInstaller, error) {
 	// skipauth: No authorization check needed due to implementation returning
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return nil, fleet.ErrMissingLicense
+	return nil, automdm.ErrMissingLicense
 }
 
-// TODO: Per-fleet authorization still runs after parsing because fleet_id is in the body.
+// TODO: Per-team authorization still runs after parsing because team_id is in the body.
 func (uploadSoftwareInstallerRequest) DecodeRequest(ctx context.Context, r *http.Request) (interface{}, error) {
 	decoded := uploadSoftwareInstallerRequest{}
 
@@ -379,19 +379,19 @@ func (uploadSoftwareInstallerRequest) DecodeRequest(ctx context.Context, r *http
 	if err != nil {
 		var mbe *http.MaxBytesError
 		if errors.As(err, &mbe) {
-			return nil, &fleet.BadRequestError{
+			return nil, &automdm.BadRequestError{
 				Message: fmt.Sprintf("The maximum file size is %s.", installersize.Human(maxInstallerSize)),
 				// NOTE: Not wrapping `InternalErr: err` to prevent caller of DecodeRequest from returning a generic HTTP 413.
 			}
 		}
 		var nerr net.Error
 		if errors.As(err, &nerr) && nerr.Timeout() {
-			return nil, fleet.NewUserMessageError(
+			return nil, automdm.NewUserMessageError(
 				ctxerr.New(ctx, "Couldn't add. Please ensure your internet connection speed is sufficient and stable."),
 				http.StatusRequestTimeout,
 			)
 		}
-		return nil, &fleet.BadRequestError{
+		return nil, &automdm.BadRequestError{
 			Message:     "failed to parse multipart form: " + err.Error(),
 			InternalErr: err,
 		}
@@ -402,7 +402,7 @@ func (uploadSoftwareInstallerRequest) DecodeRequest(ctx context.Context, r *http
 	}
 	if decoded.StagedUploadID == "" {
 		if len(r.MultipartForm.File["software"]) == 0 {
-			return nil, &fleet.BadRequestError{
+			return nil, &automdm.BadRequestError{
 				Message:     "software multipart field is required",
 				InternalErr: err,
 			}
@@ -412,26 +412,26 @@ func (uploadSoftwareInstallerRequest) DecodeRequest(ctx context.Context, r *http
 		if decoded.File.Size > maxInstallerSize {
 			// Should never happen here since the request's body is limited to the
 			// maximum size.
-			return nil, &fleet.BadRequestError{
+			return nil, &automdm.BadRequestError{
 				Message: fmt.Sprintf("The maximum file size is %s.", installersize.Human(maxInstallerSize)),
 			}
 		}
 	}
 
 	// default is no team
-	val, ok := r.Form["fleet_id"]
+	val, ok := r.Form["team_id"]
 	if ok {
-		fleetID, err := strconv.ParseUint(val[0], 10, 32)
+		automdmID, err := strconv.ParseUint(val[0], 10, 32)
 		if err != nil {
-			return nil, &fleet.BadRequestError{Message: fmt.Sprintf("Invalid fleet_id: %s", val[0])}
+			return nil, &automdm.BadRequestError{Message: fmt.Sprintf("Invalid team_id: %s", val[0])}
 		}
-		decoded.TeamID = ptr.Uint(uint(fleetID))
+		decoded.TeamID = ptr.Uint(uint(automdmID))
 	}
 
 	if v, ok := r.MultipartForm.Value["software_title_id"]; ok && len(v) > 0 && v[0] != "" {
 		parsedTitleID, err := strconv.ParseUint(v[0], 10, 32)
 		if err != nil {
-			return nil, &fleet.BadRequestError{Message: fmt.Sprintf("Invalid software_title_id: %s", v[0])}
+			return nil, &automdm.BadRequestError{Message: fmt.Sprintf("Invalid software_title_id: %s", v[0])}
 		}
 		titleID := uint(parsedTitleID)
 		decoded.TitleID = &titleID
@@ -465,7 +465,7 @@ func (uploadSoftwareInstallerRequest) DecodeRequest(ctx context.Context, r *http
 	if ok && len(val) > 0 && val[0] != "" {
 		parsed, err := strconv.ParseBool(val[0])
 		if err != nil {
-			return nil, &fleet.BadRequestError{Message: fmt.Sprintf("failed to decode self_service bool in multipart form: %s", err.Error())}
+			return nil, &automdm.BadRequestError{Message: fmt.Sprintf("failed to decode self_service bool in multipart form: %s", err.Error())}
 		}
 		decoded.SelfService = parsed
 	}
@@ -474,7 +474,7 @@ func (uploadSoftwareInstallerRequest) DecodeRequest(ctx context.Context, r *http
 	var inclAny, exclAny, inclAll []string
 	var existsInclAny, existsExclAny, existsInclAll bool
 
-	inclAny, existsInclAny = r.MultipartForm.Value[string(fleet.LabelsIncludeAny)]
+	inclAny, existsInclAny = r.MultipartForm.Value[string(automdm.LabelsIncludeAny)]
 	switch {
 	case !existsInclAny:
 		decoded.LabelsIncludeAny = nil
@@ -484,7 +484,7 @@ func (uploadSoftwareInstallerRequest) DecodeRequest(ctx context.Context, r *http
 		decoded.LabelsIncludeAny = inclAny
 	}
 
-	exclAny, existsExclAny = r.MultipartForm.Value[string(fleet.LabelsExcludeAny)]
+	exclAny, existsExclAny = r.MultipartForm.Value[string(automdm.LabelsExcludeAny)]
 	switch {
 	case !existsExclAny:
 		decoded.LabelsExcludeAny = nil
@@ -494,7 +494,7 @@ func (uploadSoftwareInstallerRequest) DecodeRequest(ctx context.Context, r *http
 		decoded.LabelsExcludeAny = exclAny
 	}
 
-	inclAll, existsInclAll = r.MultipartForm.Value[string(fleet.LabelsIncludeAll)]
+	inclAll, existsInclAll = r.MultipartForm.Value[string(automdm.LabelsIncludeAll)]
 	switch {
 	case !existsInclAll:
 		decoded.LabelsIncludeAll = nil
@@ -508,7 +508,7 @@ func (uploadSoftwareInstallerRequest) DecodeRequest(ctx context.Context, r *http
 	if ok && len(val) > 0 && val[0] != "" {
 		parsed, err := strconv.ParseBool(val[0])
 		if err != nil {
-			return nil, &fleet.BadRequestError{Message: fmt.Sprintf("failed to decode automatic_install bool in multipart form: %s", err.Error())}
+			return nil, &automdm.BadRequestError{Message: fmt.Sprintf("failed to decode automatic_install bool in multipart form: %s", err.Error())}
 		}
 		decoded.AutomaticInstall = parsed
 	}
@@ -517,16 +517,16 @@ func (uploadSoftwareInstallerRequest) DecodeRequest(ctx context.Context, r *http
 	if isScriptsEncoded(r) {
 		var err error
 		if decoded.InstallScript, err = decodeBase64Script(decoded.InstallScript); err != nil {
-			return nil, &fleet.BadRequestError{Message: "invalid base64 encoding for install_script"}
+			return nil, &automdm.BadRequestError{Message: "invalid base64 encoding for install_script"}
 		}
 		if decoded.UninstallScript, err = decodeBase64Script(decoded.UninstallScript); err != nil {
-			return nil, &fleet.BadRequestError{Message: "invalid base64 encoding for uninstall_script"}
+			return nil, &automdm.BadRequestError{Message: "invalid base64 encoding for uninstall_script"}
 		}
 		if decoded.PreInstallQuery, err = decodeBase64Script(decoded.PreInstallQuery); err != nil {
-			return nil, &fleet.BadRequestError{Message: "invalid base64 encoding for pre_install_query"}
+			return nil, &automdm.BadRequestError{Message: "invalid base64 encoding for pre_install_query"}
 		}
 		if decoded.PostInstallScript, err = decodeBase64Script(decoded.PostInstallScript); err != nil {
-			return nil, &fleet.BadRequestError{Message: "invalid base64 encoding for post_install_script"}
+			return nil, &automdm.BadRequestError{Message: "invalid base64 encoding for post_install_script"}
 		}
 	}
 
@@ -535,9 +535,9 @@ func (uploadSoftwareInstallerRequest) DecodeRequest(ctx context.Context, r *http
 
 func (r uploadSoftwareInstallerResponse) Error() error { return r.Err }
 
-func uploadSoftwareInstallerEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func uploadSoftwareInstallerEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*uploadSoftwareInstallerRequest)
-	var tfr *fleet.TempFileReader
+	var tfr *automdm.TempFileReader
 	if req.File != nil {
 		ff, err := req.File.Open()
 		if err != nil {
@@ -545,14 +545,14 @@ func uploadSoftwareInstallerEndpoint(ctx context.Context, request interface{}, s
 		}
 		defer ff.Close()
 
-		tfr, err = fleet.NewTempFileReader(ff, nil)
+		tfr, err = automdm.NewTempFileReader(ff, nil)
 		if err != nil {
 			return uploadSoftwareInstallerResponse{Err: err}, nil
 		}
 		defer tfr.Close()
 	}
 
-	payload := &fleet.UploadSoftwareInstallerPayload{
+	payload := &automdm.UploadSoftwareInstallerPayload{
 		TeamID:            req.TeamID,
 		TitleID:           req.TitleID,
 		InstallScript:     req.InstallScript,
@@ -588,27 +588,27 @@ func decodeStagedUploadFields(form *multipart.Form, fileField string) (uploadID,
 		return "", "", nil
 	}
 	if len(form.File[fileField]) > 0 {
-		return "", "", &fleet.BadRequestError{Message: fmt.Sprintf("only one of %s or upload_id can be provided", fileField)}
+		return "", "", &automdm.BadRequestError{Message: fmt.Sprintf("only one of %s or upload_id can be provided", fileField)}
 	}
 	if v := form.Value["filename"]; len(v) > 0 && v[0] != "" {
 		filename = filepath.Base(v[0])
 	}
 	if filename == "" {
-		return "", "", &fleet.BadRequestError{Message: "filename multipart field is required with upload_id"}
+		return "", "", &automdm.BadRequestError{Message: "filename multipart field is required with upload_id"}
 	}
 	return uploadID, filename, nil
 }
 
-func (svc *Service) UploadSoftwareInstaller(ctx context.Context, payload *fleet.UploadSoftwareInstallerPayload) (*fleet.SoftwareInstaller, error) {
+func (svc *Service) UploadSoftwareInstaller(ctx context.Context, payload *automdm.UploadSoftwareInstallerPayload) (*automdm.SoftwareInstaller, error) {
 	// skipauth: No authorization check needed due to implementation returning
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return nil, fleet.ErrMissingLicense
+	return nil, automdm.ErrMissingLicense
 }
 
 type deleteSoftwareInstallerRequest struct {
-	TeamID *uint `query:"fleet_id"`
+	TeamID *uint `query:"team_id"`
 	// InstallerID deletes one package; omitted deletes all of the title's packages.
 	InstallerID *uint `query:"installer_id,optional"`
 	// VersionID deletes one App Store app version, omitting it deletes every version of the title.
@@ -623,7 +623,7 @@ type deleteSoftwareInstallerResponse struct {
 func (r deleteSoftwareInstallerResponse) Error() error { return r.Err }
 func (r deleteSoftwareInstallerResponse) Status() int  { return http.StatusNoContent }
 
-func deleteSoftwareInstallerEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func deleteSoftwareInstallerEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*deleteSoftwareInstallerRequest)
 	err := svc.DeleteSoftwareInstaller(ctx, req.TitleID, req.TeamID, req.InstallerID, req.VersionID)
 	if err != nil {
@@ -637,14 +637,14 @@ func (svc *Service) DeleteSoftwareInstaller(ctx context.Context, titleID uint, t
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return fleet.ErrMissingLicense
+	return automdm.ErrMissingLicense
 }
 
 type getSoftwareInstallerRequest struct {
 	Alt string `query:"alt,optional"`
 	// TeamID is required. Kept as *uint so a missing query parameter returns a
 	// validation error instead of matching team 0.
-	TeamID  *uint `query:"fleet_id"`
+	TeamID  *uint `query:"team_id"`
 	TitleID uint  `url:"title_id"`
 	// InstallerID pins the download to a specific package on a multi-package
 	// title. Omit for single-package titles or to fall back to the first-added
@@ -657,7 +657,7 @@ type downloadSoftwareInstallerRequest struct {
 	Token   string `url:"token"`
 }
 
-func getSoftwareInstallerEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func getSoftwareInstallerEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*getSoftwareInstallerRequest)
 
 	payload, err := svc.DownloadSoftwareInstaller(ctx, false, req.Alt, req.TitleID, req.TeamID, req.InstallerID)
@@ -668,7 +668,7 @@ func getSoftwareInstallerEndpoint(ctx context.Context, request interface{}, svc 
 	return orbitDownloadSoftwareInstallerResponse{payload: payload}, nil
 }
 
-func getSoftwareInstallerTokenEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func getSoftwareInstallerTokenEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*getSoftwareInstallerRequest)
 
 	token, err := svc.GenerateSoftwareInstallerToken(ctx, req.Alt, req.TitleID, req.TeamID, req.InstallerID)
@@ -678,7 +678,7 @@ func getSoftwareInstallerTokenEndpoint(ctx context.Context, request interface{},
 	return getSoftwareInstallerTokenResponse{Token: token}, nil
 }
 
-func downloadSoftwareInstallerEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func downloadSoftwareInstallerEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*downloadSoftwareInstallerRequest)
 
 	meta, err := svc.GetSoftwareInstallerTokenMetadata(ctx, req.Token, req.TitleID)
@@ -705,30 +705,30 @@ func (svc *Service) GenerateSoftwareInstallerToken(ctx context.Context, _ string
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return "", fleet.ErrMissingLicense
+	return "", automdm.ErrMissingLicense
 }
 
-func (svc *Service) GetSoftwareInstallerTokenMetadata(ctx context.Context, _ string, _ uint) (*fleet.SoftwareInstallerTokenMetadata,
+func (svc *Service) GetSoftwareInstallerTokenMetadata(ctx context.Context, _ string, _ uint) (*automdm.SoftwareInstallerTokenMetadata,
 	error,
 ) {
 	// skipauth: No authorization check needed due to implementation returning
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return nil, fleet.ErrMissingLicense
+	return nil, automdm.ErrMissingLicense
 }
 
-func (svc *Service) GetSoftwareInstallerMetadata(ctx context.Context, _ bool, _ uint, _ *uint) (*fleet.SoftwareInstaller, error) {
+func (svc *Service) GetSoftwareInstallerMetadata(ctx context.Context, _ bool, _ uint, _ *uint) (*automdm.SoftwareInstaller, error) {
 	// skipauth: No authorization check needed due to implementation returning
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return nil, fleet.ErrMissingLicense
+	return nil, automdm.ErrMissingLicense
 }
 
 type getSoftwareInstallerResponse struct {
-	SoftwareInstaller *fleet.SoftwareInstaller `json:"software_installer,omitempty"`
-	Err               error                    `json:"error,omitempty"`
+	SoftwareInstaller *automdm.SoftwareInstaller `json:"software_installer,omitempty"`
+	Err               error                      `json:"error,omitempty"`
 }
 
 func (r getSoftwareInstallerResponse) Error() error { return r.Err }
@@ -743,7 +743,7 @@ func (r getSoftwareInstallerTokenResponse) Error() error { return r.Err }
 type orbitDownloadSoftwareInstallerResponse struct {
 	Err error `json:"error,omitempty"`
 	// fields used by hijackRender for the response.
-	payload *fleet.DownloadSoftwareInstallerPayload
+	payload *automdm.DownloadSoftwareInstallerPayload
 }
 
 func (r orbitDownloadSoftwareInstallerResponse) Error() error { return r.Err }
@@ -764,14 +764,14 @@ func (r orbitDownloadSoftwareInstallerResponse) HijackRender(ctx context.Context
 }
 
 func (svc *Service) DownloadSoftwareInstaller(ctx context.Context, _ bool, _ string, _ uint,
-	_ *uint, _ *uint) (*fleet.DownloadSoftwareInstallerPayload,
+	_ *uint, _ *uint) (*automdm.DownloadSoftwareInstallerPayload,
 	error,
 ) {
 	// skipauth: No authorization check needed due to implementation returning
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return nil, fleet.ErrMissingLicense
+	return nil, automdm.ErrMissingLicense
 }
 
 /////////////////////////////////////////////////////////////////////////////////
@@ -791,7 +791,7 @@ func (r installSoftwareResponse) Error() error { return r.Err }
 
 func (r installSoftwareResponse) Status() int { return http.StatusAccepted }
 
-func installSoftwareTitleEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func installSoftwareTitleEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*installSoftwareRequest)
 
 	err := svc.InstallSoftwareTitle(ctx, req.HostID, req.SoftwareTitleID)
@@ -807,19 +807,19 @@ func (svc *Service) InstallSoftwareTitle(ctx context.Context, hostID uint, softw
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return fleet.ErrMissingLicense
+	return automdm.ErrMissingLicense
 }
 
-func (svc *Service) CheckCanInstallVPPApps(ctx context.Context, appleDevice bool, host *fleet.Host) error {
-	return fleet.ErrMissingLicense // called downstream of auth checks so doesn't need skipauth
+func (svc *Service) CheckCanInstallVPPApps(ctx context.Context, appleDevice bool, host *automdm.Host) error {
+	return automdm.ErrMissingLicense // called downstream of auth checks so doesn't need skipauth
 }
 
-func (svc *Service) InstallVPPAppPostValidation(ctx context.Context, host *fleet.Host, vppApp *fleet.VPPApp, opts fleet.HostSoftwareInstallOptions) (string, error) {
-	return "", fleet.ErrMissingLicense // called downstream of auth checks so doesn't need skipauth
+func (svc *Service) InstallVPPAppPostValidation(ctx context.Context, host *automdm.Host, vppApp *automdm.VPPApp, opts automdm.HostSoftwareInstallOptions) (string, error) {
+	return "", automdm.ErrMissingLicense // called downstream of auth checks so doesn't need skipauth
 }
 
-func (svc *Service) InstallInHouseAppForSetupExperience(ctx context.Context, host *fleet.Host, inHouseAppID uint, softwareTitleID uint) (string, error) {
-	return "", fleet.ErrMissingLicense // called downstream of auth checks so doesn't need skipauth
+func (svc *Service) InstallInHouseAppForSetupExperience(ctx context.Context, host *automdm.Host, inHouseAppID uint, softwareTitleID uint) (string, error) {
+	return "", automdm.ErrMissingLicense // called downstream of auth checks so doesn't need skipauth
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -831,7 +831,7 @@ type uninstallSoftwareRequest struct {
 	SoftwareTitleID uint `url:"software_title_id"`
 }
 
-func uninstallSoftwareTitleEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func uninstallSoftwareTitleEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*uninstallSoftwareRequest)
 
 	err := svc.UninstallSoftwareTitle(ctx, req.HostID, req.SoftwareTitleID)
@@ -845,7 +845,7 @@ func uninstallSoftwareTitleEndpoint(ctx context.Context, request interface{}, sv
 func (svc *Service) UninstallSoftwareTitle(ctx context.Context, _ uint, _ uint) error {
 	// skipauth: No authorization check needed due to implementation returning only license error.
 	svc.authz.SkipAuthorization(ctx)
-	return fleet.ErrMissingLicense
+	return automdm.ErrMissingLicense
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -866,16 +866,16 @@ func (r *getDeviceSoftwareInstallResultsRequest) deviceAuthToken() string {
 }
 
 type getSoftwareInstallResultsResponse struct {
-	Err     error                              `json:"error,omitempty"`
-	Results *fleet.HostSoftwareInstallerResult `json:"results,omitempty"`
+	Err     error                                `json:"error,omitempty"`
+	Results *automdm.HostSoftwareInstallerResult `json:"results,omitempty"`
 }
 
 func (r getSoftwareInstallResultsResponse) Error() error { return r.Err }
 
-func getDeviceSoftwareInstallResultsEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func getDeviceSoftwareInstallResultsEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	_, ok := hostctx.FromContext(ctx)
 	if !ok {
-		err := ctxerr.Wrap(ctx, fleet.NewAuthRequiredError("internal error: missing host from request context"))
+		err := ctxerr.Wrap(ctx, automdm.NewAuthRequiredError("internal error: missing host from request context"))
 		return getSoftwareInstallResultsResponse{Err: err}, nil
 	}
 
@@ -888,7 +888,7 @@ func getDeviceSoftwareInstallResultsEndpoint(ctx context.Context, request interf
 	return &getSoftwareInstallResultsResponse{Results: results}, nil
 }
 
-func getSoftwareInstallResultsEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func getSoftwareInstallResultsEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*getSoftwareInstallResultsRequest)
 
 	results, err := svc.GetSoftwareInstallResults(ctx, req.InstallUUID)
@@ -899,12 +899,12 @@ func getSoftwareInstallResultsEndpoint(ctx context.Context, request interface{},
 	return &getSoftwareInstallResultsResponse{Results: results}, nil
 }
 
-func (svc *Service) GetSoftwareInstallResults(ctx context.Context, resultUUID string) (*fleet.HostSoftwareInstallerResult, error) {
+func (svc *Service) GetSoftwareInstallResults(ctx context.Context, resultUUID string) (*automdm.HostSoftwareInstallerResult, error) {
 	// skipauth: No authorization check needed due to implementation returning
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return nil, fleet.ErrMissingLicense
+	return nil, automdm.ErrMissingLicense
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -920,28 +920,28 @@ func (r *getDeviceSoftwareUninstallResultsRequest) deviceAuthToken() string {
 	return r.Token
 }
 
-func getDeviceSoftwareUninstallResultsEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func getDeviceSoftwareUninstallResultsEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	host, ok := hostctx.FromContext(ctx)
 	if !ok {
-		err := ctxerr.Wrap(ctx, fleet.NewAuthRequiredError("internal error: missing host from request context"))
+		err := ctxerr.Wrap(ctx, automdm.NewAuthRequiredError("internal error: missing host from request context"))
 		return getSoftwareInstallResultsResponse{Err: err}, nil
 	}
 
 	req := request.(*getDeviceSoftwareUninstallResultsRequest)
 	scriptResult, err := svc.GetSelfServiceUninstallScriptResult(ctx, host, req.ExecutionID)
 	if err != nil {
-		return fleet.GetScriptResultResponse{Err: err}, nil
+		return automdm.GetScriptResultResponse{Err: err}, nil
 	}
 
 	return setUpGetScriptResultResponse(scriptResult), nil
 }
 
-func (svc *Service) GetSelfServiceUninstallScriptResult(ctx context.Context, host *fleet.Host, execID string) (*fleet.HostScriptResult, error) {
+func (svc *Service) GetSelfServiceUninstallScriptResult(ctx context.Context, host *automdm.Host, execID string) (*automdm.HostScriptResult, error) {
 	// skipauth: No authorization check needed due to implementation returning
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return nil, fleet.ErrMissingLicense
+	return nil, automdm.ErrMissingLicense
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -949,9 +949,9 @@ func (svc *Service) GetSelfServiceUninstallScriptResult(ctx context.Context, hos
 ////////////////////////////////////////////////////////////////////////////////
 
 type batchSetSoftwareInstallersRequest struct {
-	TeamName string                            `json:"-" query:"fleet_name,optional"`
-	DryRun   bool                              `json:"-" query:"dry_run,optional"` // if true, apply validation but do not save changes
-	Software []*fleet.SoftwareInstallerPayload `json:"software"`
+	TeamName string                              `json:"-" query:"team_name,optional"`
+	DryRun   bool                                `json:"-" query:"dry_run,optional"` // if true, apply validation but do not save changes
+	Software []*automdm.SoftwareInstallerPayload `json:"software"`
 }
 
 type batchSetSoftwareInstallersResponse struct {
@@ -962,7 +962,7 @@ type batchSetSoftwareInstallersResponse struct {
 func (r batchSetSoftwareInstallersResponse) Error() error { return r.Err }
 func (r batchSetSoftwareInstallersResponse) Status() int  { return http.StatusAccepted }
 
-func batchSetSoftwareInstallersEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func batchSetSoftwareInstallersEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*batchSetSoftwareInstallersRequest)
 	requestUUID, err := svc.BatchSetSoftwareInstallers(ctx, req.TeamName, req.Software, req.DryRun)
 	if err != nil {
@@ -971,38 +971,38 @@ func batchSetSoftwareInstallersEndpoint(ctx context.Context, request interface{}
 	return batchSetSoftwareInstallersResponse{RequestUUID: requestUUID}, nil
 }
 
-func (svc *Service) BatchSetSoftwareInstallers(ctx context.Context, tmName string, payloads []*fleet.SoftwareInstallerPayload, dryRun bool) (string, error) {
+func (svc *Service) BatchSetSoftwareInstallers(ctx context.Context, tmName string, payloads []*automdm.SoftwareInstallerPayload, dryRun bool) (string, error) {
 	// skipauth: No authorization check needed due to implementation returning
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return "", fleet.ErrMissingLicense
+	return "", automdm.ErrMissingLicense
 }
 
 type batchSetSoftwareInstallersResultRequest struct {
 	RequestUUID string `url:"request_uuid"`
-	TeamName    string `query:"fleet_name,optional"`
+	TeamName    string `query:"team_name,optional"`
 	DryRun      bool   `query:"dry_run,optional"` // if true, apply validation but do not save changes
 }
 
 type batchSetSoftwareInstallersResultResponse struct {
-	Status   string                          `json:"status"`
-	Message  string                          `json:"message"`
-	Packages []fleet.SoftwarePackageResponse `json:"packages"`
+	Status   string                            `json:"status"`
+	Message  string                            `json:"message"`
+	Packages []automdm.SoftwarePackageResponse `json:"packages"`
 	// DeletedPackages lists the packages the batch deleted (dry run: would
 	// delete) because their title matches no entry in the request payload.
-	DeletedPackages []fleet.DeletedSoftwarePackage `json:"deleted_packages,omitempty"`
+	DeletedPackages []automdm.DeletedSoftwarePackage `json:"deleted_packages,omitempty"`
 	// Categories lists the self-service categories the batch's software references.
 	Categories []string `json:"categories,omitempty"`
 	// DownloadProgress reports each package's download status while the batch runs.
-	DownloadProgress []fleet.SoftwarePackageDownloadProgress `json:"download_progress,omitempty"`
+	DownloadProgress []automdm.SoftwarePackageDownloadProgress `json:"download_progress,omitempty"`
 
 	Err error `json:"error,omitempty"`
 }
 
 func (r batchSetSoftwareInstallersResultResponse) Error() error { return r.Err }
 
-func batchSetSoftwareInstallersResultEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func batchSetSoftwareInstallersResultEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*batchSetSoftwareInstallersResultRequest)
 	result, err := svc.GetBatchSetSoftwareInstallersResult(ctx, req.TeamName, req.RequestUUID, req.DryRun)
 	if err != nil {
@@ -1018,24 +1018,24 @@ func batchSetSoftwareInstallersResultEndpoint(ctx context.Context, request inter
 	}, nil
 }
 
-func (svc *Service) GetBatchSetSoftwareInstallersResult(ctx context.Context, tmName string, requestUUID string, dryRun bool) (*fleet.BatchSetSoftwareInstallersResult, error) {
+func (svc *Service) GetBatchSetSoftwareInstallersResult(ctx context.Context, tmName string, requestUUID string, dryRun bool) (*automdm.BatchSetSoftwareInstallersResult, error) {
 	// skipauth: No authorization check needed due to implementation returning
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return nil, fleet.ErrMissingLicense
+	return nil, automdm.ErrMissingLicense
 }
 
 //////////////////////////////////////////////////////////////////////////////
 // Self Service Install
 //////////////////////////////////////////////////////////////////////////////
 
-type fleetSelfServiceSoftwareInstallRequest struct {
+type automdmSelfServiceSoftwareInstallRequest struct {
 	Token           string `url:"token"`
 	SoftwareTitleID uint   `url:"software_title_id"`
 }
 
-func (r *fleetSelfServiceSoftwareInstallRequest) deviceAuthToken() string {
+func (r *automdmSelfServiceSoftwareInstallRequest) deviceAuthToken() string {
 	return r.Token
 }
 
@@ -1046,14 +1046,14 @@ type submitSelfServiceSoftwareInstallResponse struct {
 func (r submitSelfServiceSoftwareInstallResponse) Error() error { return r.Err }
 func (r submitSelfServiceSoftwareInstallResponse) Status() int  { return http.StatusAccepted }
 
-func submitSelfServiceSoftwareInstall(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func submitSelfServiceSoftwareInstall(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	host, ok := hostctx.FromContext(ctx)
 	if !ok {
-		err := ctxerr.Wrap(ctx, fleet.NewAuthRequiredError("internal error: missing host from request context"))
+		err := ctxerr.Wrap(ctx, automdm.NewAuthRequiredError("internal error: missing host from request context"))
 		return submitSelfServiceSoftwareInstallResponse{Err: err}, nil
 	}
 
-	req := request.(*fleetSelfServiceSoftwareInstallRequest)
+	req := request.(*automdmSelfServiceSoftwareInstallRequest)
 	if err := svc.SelfServiceInstallSoftwareTitle(ctx, host, req.SoftwareTitleID); err != nil {
 		return submitSelfServiceSoftwareInstallResponse{Err: err}, nil
 	}
@@ -1061,15 +1061,15 @@ func submitSelfServiceSoftwareInstall(ctx context.Context, request interface{}, 
 	return submitSelfServiceSoftwareInstallResponse{}, nil
 }
 
-func (svc *Service) SelfServiceInstallSoftwareTitle(ctx context.Context, host *fleet.Host, softwareTitleID uint) error {
+func (svc *Service) SelfServiceInstallSoftwareTitle(ctx context.Context, host *automdm.Host, softwareTitleID uint) error {
 	// skipauth: No authorization check needed due to implementation returning
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return fleet.ErrMissingLicense
+	return automdm.ErrMissingLicense
 }
 
-type fleetSelfServiceSoftwareInstallAllRequest struct {
+type automdmSelfServiceSoftwareInstallAllRequest struct {
 	Token      string `url:"token"`
 	CategoryID *uint  `query:"category_id,optional"`
 	// Query mirrors the `query` param on the self-service list endpoint. When
@@ -1079,7 +1079,7 @@ type fleetSelfServiceSoftwareInstallAllRequest struct {
 	Query string `query:"query,optional"`
 }
 
-func (r *fleetSelfServiceSoftwareInstallAllRequest) deviceAuthToken() string {
+func (r *automdmSelfServiceSoftwareInstallAllRequest) deviceAuthToken() string {
 	return r.Token
 }
 
@@ -1090,14 +1090,14 @@ type submitSelfServiceSoftwareInstallAllResponse struct {
 func (r submitSelfServiceSoftwareInstallAllResponse) Error() error { return r.Err }
 func (r submitSelfServiceSoftwareInstallAllResponse) Status() int  { return http.StatusAccepted }
 
-func submitSelfServiceSoftwareInstallAll(ctx context.Context, request any, svc fleet.Service) (fleet.Errorer, error) {
+func submitSelfServiceSoftwareInstallAll(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
 	host, ok := hostctx.FromContext(ctx)
 	if !ok {
-		err := ctxerr.Wrap(ctx, fleet.NewAuthRequiredError("internal error: missing host from request context"))
+		err := ctxerr.Wrap(ctx, automdm.NewAuthRequiredError("internal error: missing host from request context"))
 		return submitSelfServiceSoftwareInstallAllResponse{Err: err}, nil
 	}
 
-	req := request.(*fleetSelfServiceSoftwareInstallAllRequest)
+	req := request.(*automdmSelfServiceSoftwareInstallAllRequest)
 	if err := svc.SelfServiceInstallAllSoftwareTitles(ctx, host, req.CategoryID, req.Query); err != nil {
 		return submitSelfServiceSoftwareInstallAllResponse{Err: err}, nil
 	}
@@ -1105,20 +1105,20 @@ func submitSelfServiceSoftwareInstallAll(ctx context.Context, request any, svc f
 	return submitSelfServiceSoftwareInstallAllResponse{}, nil
 }
 
-func (svc *Service) SelfServiceInstallAllSoftwareTitles(ctx context.Context, host *fleet.Host, categoryID *uint, matchQuery string) error {
+func (svc *Service) SelfServiceInstallAllSoftwareTitles(ctx context.Context, host *automdm.Host, categoryID *uint, matchQuery string) error {
 	// skipauth: No authorization check needed due to implementation returning
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return fleet.ErrMissingLicense
+	return automdm.ErrMissingLicense
 }
 
-type fleetDeviceSoftwareUninstallRequest struct {
+type automdmDeviceSoftwareUninstallRequest struct {
 	Token           string `url:"token"`
 	SoftwareTitleID uint   `url:"software_title_id"`
 }
 
-func (r *fleetDeviceSoftwareUninstallRequest) deviceAuthToken() string {
+func (r *automdmDeviceSoftwareUninstallRequest) deviceAuthToken() string {
 	return r.Token
 }
 
@@ -1129,14 +1129,14 @@ type submitDeviceSoftwareUninstallResponse struct {
 func (r submitDeviceSoftwareUninstallResponse) Error() error { return r.Err }
 func (r submitDeviceSoftwareUninstallResponse) Status() int  { return http.StatusAccepted }
 
-func submitDeviceSoftwareUninstall(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func submitDeviceSoftwareUninstall(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	host, ok := hostctx.FromContext(ctx)
 	if !ok {
-		err := ctxerr.Wrap(ctx, fleet.NewAuthRequiredError("internal error: missing host from request context"))
+		err := ctxerr.Wrap(ctx, automdm.NewAuthRequiredError("internal error: missing host from request context"))
 		return submitDeviceSoftwareUninstallResponse{Err: err}, nil
 	}
 
-	req := request.(*fleetDeviceSoftwareUninstallRequest)
+	req := request.(*automdmDeviceSoftwareUninstallRequest)
 	if err := svc.UninstallSoftwareTitle(ctx, host.ID, req.SoftwareTitleID); err != nil {
 		return submitDeviceSoftwareUninstallResponse{Err: err}, nil
 	}
@@ -1144,11 +1144,11 @@ func submitDeviceSoftwareUninstall(ctx context.Context, request interface{}, svc
 	return submitDeviceSoftwareUninstallResponse{}, nil
 }
 
-func (svc *Service) HasSelfServiceSoftwareInstallers(ctx context.Context, host *fleet.Host) (bool, error) {
+func (svc *Service) HasSelfServiceSoftwareInstallers(ctx context.Context, host *automdm.Host) (bool, error) {
 	alreadyAuthenticated := svc.authz.IsAuthenticatedWith(ctx, authzctx.AuthnDeviceToken) ||
 		svc.authz.IsAuthenticatedWith(ctx, authzctx.AuthnDeviceURL)
 	if !alreadyAuthenticated {
-		if err := svc.authz.Authorize(ctx, host, fleet.ActionRead); err != nil {
+		if err := svc.authz.Authorize(ctx, host, automdm.ActionRead); err != nil {
 			return false, err
 		}
 	}
@@ -1161,16 +1161,16 @@ func (svc *Service) HasSelfServiceSoftwareInstallers(ctx context.Context, host *
 //////////////////////////////////////////////////////////////////////////////
 
 type batchAssociateAppStoreAppsRequest struct {
-	TeamName string                  `json:"-" query:"fleet_name,optional"`
-	DryRun   bool                    `json:"-" query:"dry_run,optional"`
-	Apps     []fleet.VPPBatchPayload `json:"app_store_apps"`
+	TeamName string                    `json:"-" query:"team_name,optional"`
+	DryRun   bool                      `json:"-" query:"dry_run,optional"`
+	Apps     []automdm.VPPBatchPayload `json:"app_store_apps"`
 }
 
 func (b *batchAssociateAppStoreAppsRequest) DecodeBody(ctx context.Context, r io.Reader, u url.Values, c []*x509.Certificate) error {
 	if err := json.NewDecoder(r).Decode(b); err != nil {
 		var typeErr *json.UnmarshalTypeError
 		if errors.As(err, &typeErr) {
-			return ctxerr.Wrap(ctx, fleet.NewUserMessageError(fmt.Errorf("Couldn't edit software. %q must be a %s, found %s", typeErr.Field, typeErr.Type.String(), typeErr.Value), http.StatusBadRequest))
+			return ctxerr.Wrap(ctx, automdm.NewUserMessageError(fmt.Errorf("Couldn't edit software. %q must be a %s, found %s", typeErr.Field, typeErr.Type.String(), typeErr.Value), http.StatusBadRequest))
 		}
 	}
 
@@ -1178,7 +1178,7 @@ func (b *batchAssociateAppStoreAppsRequest) DecodeBody(ctx context.Context, r io
 }
 
 type batchAssociateAppStoreAppsResponse struct {
-	Apps []fleet.VPPAppResponse `json:"app_store_apps"`
+	Apps []automdm.VPPAppResponse `json:"app_store_apps"`
 	// Categories lists the self-service categories the batch's apps reference.
 	Categories []string `json:"categories,omitempty"`
 	Err        error    `json:"error,omitempty"`
@@ -1186,7 +1186,7 @@ type batchAssociateAppStoreAppsResponse struct {
 
 func (r batchAssociateAppStoreAppsResponse) Error() error { return r.Err }
 
-func batchAssociateAppStoreAppsEndpoint(ctx context.Context, request any, svc fleet.Service) (fleet.Errorer, error) {
+func batchAssociateAppStoreAppsEndpoint(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*batchAssociateAppStoreAppsRequest)
 	apps, categories, err := svc.BatchAssociateVPPApps(ctx, req.TeamName, req.Apps, req.DryRun)
 	if err != nil {
@@ -1195,12 +1195,12 @@ func batchAssociateAppStoreAppsEndpoint(ctx context.Context, request any, svc fl
 	return batchAssociateAppStoreAppsResponse{Apps: apps, Categories: categories}, nil
 }
 
-func (svc *Service) BatchAssociateVPPApps(ctx context.Context, teamName string, payloads []fleet.VPPBatchPayload, dryRun bool) ([]fleet.VPPAppResponse, []string, error) {
+func (svc *Service) BatchAssociateVPPApps(ctx context.Context, teamName string, payloads []automdm.VPPBatchPayload, dryRun bool) ([]automdm.VPPAppResponse, []string, error) {
 	// skipauth: No authorization check needed due to implementation returning
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return nil, nil, fleet.ErrMissingLicense
+	return nil, nil, automdm.ErrMissingLicense
 }
 
 type getInHouseAppManifestRequest struct {
@@ -1233,7 +1233,7 @@ func (r getInHouseAppManifestResponse) HijackRender(ctx context.Context, w http.
 	}
 }
 
-func getInHouseAppManifestEndpoint(ctx context.Context, request any, svc fleet.Service) (fleet.Errorer, error) {
+func getInHouseAppManifestEndpoint(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*getInHouseAppManifestRequest)
 	manifest, err := svc.GetInHouseAppManifest(ctx, req.TitleID, req.Token)
 	if err != nil {
@@ -1248,7 +1248,7 @@ func (svc *Service) GetInHouseAppManifest(ctx context.Context, titleID uint, tok
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return nil, fleet.ErrMissingLicense
+	return nil, automdm.ErrMissingLicense
 }
 
 type getInHouseAppPackageRequest struct {
@@ -1257,7 +1257,7 @@ type getInHouseAppPackageRequest struct {
 }
 
 type getInHouseAppPackageResponse struct {
-	payload *fleet.DownloadSoftwareInstallerPayload
+	payload *automdm.DownloadSoftwareInstallerPayload
 
 	Err error `json:"error,omitempty"`
 }
@@ -1279,7 +1279,7 @@ func (r getInHouseAppPackageResponse) HijackRender(ctx context.Context, w http.R
 
 func (r getInHouseAppPackageResponse) Error() error { return r.Err }
 
-func getInHouseAppPackageEndpoint(ctx context.Context, request any, svc fleet.Service) (fleet.Errorer, error) {
+func getInHouseAppPackageEndpoint(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*getInHouseAppPackageRequest)
 	file, err := svc.GetInHouseAppPackage(ctx, req.TitleID, req.Token)
 	if err != nil {
@@ -1289,10 +1289,10 @@ func getInHouseAppPackageEndpoint(ctx context.Context, request any, svc fleet.Se
 	return &getInHouseAppPackageResponse{payload: file}, nil
 }
 
-func (svc *Service) GetInHouseAppPackage(ctx context.Context, titleID uint, token string) (*fleet.DownloadSoftwareInstallerPayload, error) {
+func (svc *Service) GetInHouseAppPackage(ctx context.Context, titleID uint, token string) (*automdm.DownloadSoftwareInstallerPayload, error) {
 	// skipauth: No authorization check needed due to implementation returning
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return nil, fleet.ErrMissingLicense
+	return nil, automdm.ErrMissingLicense
 }

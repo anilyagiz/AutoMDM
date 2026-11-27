@@ -50,11 +50,11 @@ describe("ReportPicker", () => {
     });
   });
 
-  it("passes teamId undefined when currentTeam is All fleets", async () => {
+  it("passes teamId undefined when currentTeam is All teams", async () => {
     renderPicker(
       <ReportPicker
         search=""
-        currentTeam={{ id: -1, name: "All fleets" }}
+        currentTeam={{ id: -1, name: "All teams" }}
         onSelect={jest.fn()}
       />
     );
@@ -66,7 +66,7 @@ describe("ReportPicker", () => {
     });
   });
 
-  it("renders the fleet-scoped empty state", async () => {
+  it("renders the team-scoped empty state", async () => {
     const { findByText } = renderPicker(
       <ReportPicker
         search=""
@@ -80,7 +80,7 @@ describe("ReportPicker", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders the search-specific empty state with fleet label", async () => {
+  it("renders the search-specific empty state with team label", async () => {
     const { findByText } = renderPicker(
       <ReportPicker
         search="missing"
@@ -94,7 +94,7 @@ describe("ReportPicker", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders 'in this fleet' empty state when Unassigned is selected", async () => {
+  it("renders 'in this team' empty state when Unassigned is selected", async () => {
     const { findByText } = renderPicker(
       <ReportPicker
         search=""
@@ -104,20 +104,20 @@ describe("ReportPicker", () => {
     );
 
     expect(
-      await findByText(/No reports found in this fleet\./)
+      await findByText(/No reports found in this team\./)
     ).toBeInTheDocument();
   });
 
-  it("renders a fleet-less empty state on All fleets", async () => {
+  it("renders a team-less empty state on All teams", async () => {
     const { findByText } = renderPicker(
       <ReportPicker
         search=""
-        currentTeam={{ id: -1, name: "All fleets" }}
+        currentTeam={{ id: -1, name: "All teams" }}
         onSelect={jest.fn()}
       />
     );
 
-    // No suffix when context is All fleets.
+    // No suffix when context is All teams.
     const node = await findByText(/^No reports found\.$/);
     expect(node).toBeInTheDocument();
   });

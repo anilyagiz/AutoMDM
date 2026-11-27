@@ -6,7 +6,7 @@ import { renderWithSetup } from "test/test-utils";
 import RotationFailedDetailsModal from "./RotationFailedDetailsModal";
 
 const REASON =
-  "Resetting password for _fleetadmin failed: The password does not meet the password policy requirements.";
+  "Resetting password for _automdmadmin failed: The password does not meet the password policy requirements.";
 
 describe("RotationFailedDetailsModal", () => {
   it("names the host in the failure sentence", () => {

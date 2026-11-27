@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/logging"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
-	"github.com/fleetdm/fleet/v4/server/mdm/android/mock"
-	"github.com/fleetdm/fleet/v4/server/mdm/android/service/androidmgmt"
+	"github.com/anilyagiz/automdm/v4/server/contexts/logging"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android/mock"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android/service/androidmgmt"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/androidmanagement/v1"
@@ -272,7 +272,7 @@ func TestRetryClientProxyTooManyRequests(t *testing.T) {
 	defer srv.Close()
 
 	proxy := androidmgmt.NewProxyClient(t.Context(), slog.New(slog.DiscardHandler), "license", func(name string) string {
-		if name == "FLEET_DEV_ANDROID_PROXY_ENDPOINT" {
+		if name == "AUTOMDM_DEV_ANDROID_PROXY_ENDPOINT" {
 			return srv.URL + "/"
 		}
 		return ""

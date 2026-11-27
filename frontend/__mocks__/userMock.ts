@@ -14,7 +14,7 @@ const DEFAULT_USER_MOCK: IUser = {
   api_only: false,
   last_login_at: null,
   last_activity_at: null,
-  fleets: [],
+  teams: [],
 };
 
 const createMockUser = (overrides?: Partial<IUser>): IUser => {

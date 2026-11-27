@@ -18,20 +18,20 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/cmd/osquery-perf/osquery_perf"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
+	"github.com/anilyagiz/automdm/v4/cmd/osquery-perf/osquery_perf"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
 	"github.com/google/uuid"
 	"google.golang.org/api/androidmanagement/v1"
 )
 
 // androidAgent simulates a single Android device for load testing.
-// It communicates with Fleet via PubSub messages (enrollment, status reports, command acks)
+// It communicates with AutoMDM via PubSub messages (enrollment, status reports, command acks)
 // and coordinates with a mock AMAPI proxy to get policy versions and pending commands.
 //
 // The proxy keeps devices in memory only, so a proxy restart leaves it listing no devices
 // until each agent registers again. Registering again only happens on the next status-report
-// tick, so a restart exposes a window of up to one --android_status_interval in which Fleet's
-// device reconciler can see the fleet as absent and unenroll it (one mdm_unenrolled activity
+// tick, so a restart exposes a window of up to one --android_status_interval in which AutoMDM's
+// device reconciler can see the team as absent and unenroll it (one mdm_unenrolled activity
 // per host) before the next status report re-enrolls it. Keep that interval short when
 // restarting the proxy mid-test; closing the window entirely means persisting the proxy's
 // device store across restarts.
@@ -49,8 +49,8 @@ type androidAgent struct {
 	deviceName           string // AMAPI resource name: enterprises/{id}/devices/{id}
 	enterpriseID         string
 	orbitNodeKey         string // obtained from orbit enrollment, used for certificate API auth
-	// agentEnrollSecret is the enroll secret in the Fleet agent's managed configuration, as the proxy last reported it. Orbit
-	// enrolls with it when set, like the real agent; with one-time enroll secrets on, Fleet refuses the shared one.
+	// agentEnrollSecret is the enroll secret in the AutoMDM agent's managed configuration, as the proxy last reported it. Orbit
+	// enrolls with it when set, like the real agent; with one-time enroll secrets on, AutoMDM refuses the shared one.
 	agentEnrollSecret string
 	// proxyReportsAgentSecret is set once the proxy is known to report the managed configuration's enroll secret. An older
 	// proxy doesn't, and then orbit enrolls with the shared secret.
@@ -71,7 +71,7 @@ type androidAgent struct {
 	bootloaderVersion   string
 	systemUpdateStatus  string
 
-	// Device settings, security posture and eSIM activation. Fleet stores these
+	// Device settings, security posture and eSIM activation. AutoMDM stores these
 	// as host vitals. Unlike the fields above they describe the device's current
 	// state rather than its identity, so a status report re-rolls them (see
 	// vitalsChurnProb).
@@ -92,7 +92,7 @@ type androidAgent struct {
 	meid string
 
 	// Whether the applied policy collects these sections at all. AMAPI omits a
-	// section it is not asked for, and Fleet nulls the matching columns when a
+	// section it is not asked for, and AutoMDM nulls the matching columns when a
 	// device stops reporting one.
 	reportsDeviceSettings  bool
 	reportsSecurityPosture bool
@@ -115,7 +115,7 @@ type androidAgent struct {
 
 	// lastState is the most recent state successfully polled from the mock proxy. It is
 	// reused when a later poll fails so the agent keeps reporting instead of going silent.
-	// Fleet's device reconciler unenrolls hosts that the proxy stops listing, and a status
+	// AutoMDM's device reconciler unenrolls hosts that the proxy stops listing, and a status
 	// report is what re-enrolls one, so an agent that goes quiet cannot recover.
 	// staleStateReports counts how many consecutive reports have used it.
 	lastState         *proxyDeviceState
@@ -177,14 +177,14 @@ var androidApps = []struct {
 	{"Duo Mobile", "com.duosecurity.duomobile", "4.62.0"},
 	{"CrowdStrike Falcon", "com.crowdstrike.android.falcon", "7.19.17004"},
 	{"Intune Company Portal", "com.microsoft.windowsintune.companyportal", "5.0.6233.0"},
-	{"Fleet Agent", "com.fleetdm.agent", "1.3.0"},
+	{"AutoMDM Agent", "com.fleetdm.agent", "1.3.0"},
 	{"Samsung Knox", "com.samsung.android.knox.containercore", "2.7.1"},
 	{"Google Admin", "com.google.android.apps.enterprise.cpanel", "2024.06.30.627"},
 	{"LastPass", "com.lastpass.lpandroid", "5.21.0.13562"},
 }
 
 // AMAPI's "no data" members for the eSIM-only telephony enums, which every
-// physical SIM reports and Fleet stores as no value at all.
+// physical SIM reports and AutoMDM stores as no value at all.
 const (
 	activationStateUnspecified = "ACTIVATION_STATE_UNSPECIFIED"
 	configModeUnspecified      = "CONFIG_MODE_UNSPECIFIED"
@@ -200,10 +200,10 @@ const defaultPolicyEditProb = 0.05
 // repeating the previous ones.
 //
 // A real device's posture and settings move far more rarely than this, but a
-// load test needs the vitals table to actually see row writes. Fleet's UPDATE
+// load test needs the vitals table to actually see row writes. AutoMDM's UPDATE
 // overwrites every column on every status report, yet MySQL changes no row,
 // writes no redo or binlog entry and does not advance updated_at when the values
-// are identical — so a fleet whose vitals never move measures none of the write
+// are identical — so a team whose vitals never move measures none of the write
 // cost a real one generates.
 const defaultVitalsChurnProb = 0.2
 
@@ -234,9 +234,9 @@ var androidKernelBases = map[string]string{
 
 // androidSecurityPatchLevels is the set of patch levels devices report, resolved
 // once at startup. It is a handful of recent months rather than a freely
-// generated date because Fleet folds the security patch level into
+// generated date because AutoMDM folds the security patch level into
 // hosts.os_version: a distinct value per device would inflate the os_versions
-// aggregation to one row per host, which no real fleet looks like. Deriving them
+// aggregation to one row per host, which no real team looks like. Deriving them
 // from the clock rather than hardcoding keeps a long-lived load-test harness from
 // reporting patch levels that are years stale, at the cost of the exact
 // os_versions rows differing between runs in different months.
@@ -280,13 +280,13 @@ var androidCarriers = []androidCarrier{
 
 // generateStableVitals produces the vitals that identify the device and never
 // change over its lifetime: who built it, what it runs, and which SIM cards are
-// in it. The distributions are weighted so a simulated fleet has a realistic
+// in it. The distributions are weighted so a simulated team has a realistic
 // spread — the aggregate shape matters more than any one device.
 //
 // securityPatchLevel is pinned here even though a real device's does move when
 // it installs an update, which is why a simulated device can report
 // SECURITY_UPDATE_AVAILABLE and then UP_TO_DATE without its patch level ever
-// changing. Fleet folds the patch level into hosts.os_version, so churning it
+// changing. AutoMDM folds the patch level into hosts.os_version, so churning it
 // would also churn operating_systems and host_operating_system — a much wider
 // blast radius than the vitals table this change is about.
 func (a *androidAgent) generateStableVitals() {
@@ -301,7 +301,7 @@ func (a *androidAgent) generateStableVitals() {
 	// Almost every managed device is encrypted; ACTIVE_PER_USER is what modern
 	// file-based encryption reports and ACTIVE what older full-disk encryption
 	// does. The unencrypted states are rare but not absent: they are the only
-	// ones that make Fleet store an encryption_type other than "on".
+	// ones that make AutoMDM store an encryption_type other than "on".
 	//
 	// Stable rather than volatile because none of these transitions exist on real
 	// hardware: UNSUPPORTED is a property of the device, and file-based vs
@@ -333,7 +333,7 @@ func generateRadioIdentifier(sims []*androidmanagement.TelephonyInfo) (imei, mei
 		return "", strings.ToUpper(randomHexString(14))
 	}
 	// An IMEI is 15 digits: 14 identifying the device plus a Luhn check digit,
-	// which is left random here because nothing in Fleet validates it.
+	// which is left random here because nothing in AutoMDM validates it.
 	return randomDigits(15), ""
 }
 
@@ -384,10 +384,10 @@ func (a *androidAgent) generateVolatileVitals() {
 	// Which sections are collected belongs to the applied policy, not to the
 	// moment, so it is decided per device in generateStableVitals. Re-rolling it
 	// rarely stands in for an admin editing the policy's status reporting
-	// settings, which is what makes Fleet null the columns of a section the
+	// settings, which is what makes AutoMDM null the columns of a section the
 	// device used to report. Re-rolling it every time would instead leave every
-	// host flickering between populated and empty vitals, which no real fleet
-	// does and which reads as a Fleet bug in the host UI.
+	// host flickering between populated and empty vitals, which no real team
+	// does and which reads as an AutoMDM bug in the host UI.
 	if rand.Float64() < a.policyEditProb { // #nosec G404 -- load testing only
 		a.rollCollectedSections()
 	}
@@ -425,7 +425,7 @@ func (a *androidAgent) rollSIMActivation() {
 // one, which is usually physical; a second one is always an eSIM, so a dual-SIM
 // device is either physical + eSIM or two eSIMs. Only eSIMs report an activation
 // state and config mode; a physical SIM reports the *_UNSPECIFIED sentinels,
-// which Fleet stores as no value at all.
+// which AutoMDM stores as no value at all.
 func generateTelephonyInfos() []*androidmanagement.TelephonyInfo {
 	simCount := 1
 	if rand.Float64() < 0.3 { // #nosec G404 -- load testing only
@@ -442,7 +442,7 @@ func generateTelephonyInfos() []*androidmanagement.TelephonyInfo {
 			CarrierName: carrier.name,
 			// 19 digits in total: the 89 telecom major industry identifier plus
 			// 17 more. The last of those is random rather than a real Luhn check
-			// digit, since nothing in Fleet validates it.
+			// digit, since nothing in AutoMDM validates it.
 			IccId:           "89" + randomDigits(17),
 			ActivationState: activationStateUnspecified,
 			ConfigMode:      configModeUnspecified,
@@ -591,7 +591,7 @@ func newAndroidAgent(
 }
 
 // runLoop is the main loop for the Android agent.
-// It registers with the mock proxy, sends enrollment to Fleet, then periodically sends status reports.
+// It registers with the mock proxy, sends enrollment to AutoMDM, then periodically sends status reports.
 func (a *androidAgent) runLoop() {
 	// Step 1: Register with mock AMAPI proxy (retry with backoff)
 	for attempt := 1; ; attempt++ {
@@ -607,7 +607,7 @@ func (a *androidAgent) runLoop() {
 		break
 	}
 
-	// Step 2: Send ENROLLMENT PubSub to Fleet (retry with backoff)
+	// Step 2: Send ENROLLMENT PubSub to AutoMDM (retry with backoff)
 	for attempt := 1; ; attempt++ {
 		if err := a.sendEnrollment(); err != nil {
 			if attempt >= 5 {
@@ -623,8 +623,8 @@ func (a *androidAgent) runLoop() {
 	a.stats.IncrementAndroidEnrollments()
 
 	// Step 2b: Orbit enrollment (retry with backoff, non-fatal). The status loop keeps trying until it succeeds, since the
-	// agent's managed configuration, and the enroll secret in it, arrives only after Fleet runs the setup experience. Like
-	// the real agent, this waits for that secret rather than presenting the shared one, which Fleet refuses when one-time
+	// agent's managed configuration, and the enroll secret in it, arrives only after AutoMDM runs the setup experience. Like
+	// the real agent, this waits for that secret rather than presenting the shared one, which AutoMDM refuses when one-time
 	// enroll secrets are on.
 	for attempt := 1; ; attempt++ {
 		a.refreshAgentEnrollSecret()
@@ -655,7 +655,7 @@ func (a *androidAgent) runLoop() {
 		// Poll proxy for current state (policy version, pending commands)
 		state, stale, err := a.currentState()
 		if errors.Is(err, errProxyDeviceDeleted) {
-			// Fleet unenrolled this host, so there is nothing left to simulate.
+			// AutoMDM unenrolled this host, so there is nothing left to simulate.
 			log.Printf("Android agent %d: device was deleted, stopping", a.agentIndex)
 			return
 		}
@@ -665,7 +665,7 @@ func (a *androidAgent) runLoop() {
 			continue
 		}
 		if stale {
-			// Still report, so the device doesn't look dead to Fleet's reconciler, but count
+			// Still report, so the device doesn't look dead to AutoMDM's reconciler, but count
 			// it: the state being reported is fabricated.
 			a.stats.IncrementAndroidErrors()
 		}
@@ -744,7 +744,7 @@ type proxyDeviceState struct {
 	AgentEnrollSecret *string `json:"agent_enroll_secret"`
 }
 
-// certTemplateResponse is the response from GET /api/fleetd/certificates/{id}
+// certTemplateResponse is the response from GET /api/automdmd/certificates/{id}
 type certTemplateResponse struct {
 	Certificate *certTemplateInfo `json:"certificate"`
 }
@@ -768,7 +768,7 @@ func (a *androidAgent) registerWithProxy() error {
 		EnterpriseID:         a.enterpriseID,
 	}
 	// When registering again after the proxy lost its in-memory state, hand back the policy
-	// we last observed so the proxy doesn't report a regressed policy to Fleet.
+	// we last observed so the proxy doesn't report a regressed policy to AutoMDM.
 	if a.lastState != nil {
 		body.PolicyName = a.lastState.PolicyName
 		body.PolicyVersion = a.lastState.PolicyVersion
@@ -798,7 +798,7 @@ func (a *androidAgent) registerWithProxy() error {
 // happens when the proxy is restarted since it only keeps devices in memory.
 var errProxyDeviceUnknown = errors.New("device not registered with proxy")
 
-// errProxyDeviceDeleted means Fleet deleted this device through AMAPI, i.e. the host was
+// errProxyDeviceDeleted means AutoMDM deleted this device through AMAPI, i.e. the host was
 // unenrolled. Unlike errProxyDeviceUnknown this is terminal: the device is gone on purpose
 // and must not register again.
 var errProxyDeviceDeleted = errors.New("device was deleted from the proxy")
@@ -856,7 +856,7 @@ func (a *androidAgent) pollProxyState() (*proxyDeviceState, error) {
 
 // currentState polls the mock proxy for this device's state, recovering from a proxy that
 // lost its in-memory registration by registering again. If the state still can't be fetched,
-// the last known state is reused so the agent keeps sending status reports. Fleet's hourly
+// the last known state is reused so the agent keeps sending status reports. AutoMDM's hourly
 // device reconciler unenrolls hosts the proxy no longer lists — which is every fake device
 // until it registers again after a proxy restart — and a status report is what re-enrolls
 // one, so an agent that goes quiet stays unenrolled.
@@ -899,7 +899,7 @@ func (a *androidAgent) lastKnownState(err error) (*proxyDeviceState, bool, error
 	a.staleStateReports++
 	log.Printf("Android agent %d: reusing last known proxy state (%d in a row): %v", a.agentIndex, a.staleStateReports, err)
 	// Pending commands were already acked against the earlier state; re-acking them would
-	// send duplicate operation results to Fleet.
+	// send duplicate operation results to AutoMDM.
 	stale := *a.lastState
 	stale.PendingCommands = nil
 	// Certificates can't have changed while the proxy is unreachable, so there is nothing to
@@ -910,7 +910,7 @@ func (a *androidAgent) lastKnownState(err error) (*proxyDeviceState, bool, error
 
 // deviceInfo builds the parts of the AMAPI device payload that describe the
 // device itself, which every message about it carries. Enrollment and status
-// reports must agree here: Fleet writes host vitals from both, so a section
+// reports must agree here: AutoMDM writes host vitals from both, so a section
 // present in one and absent from the other would make a host's vitals appear or
 // disappear as the messages arrive.
 func (a *androidAgent) deviceInfo() androidmanagement.Device {
@@ -960,7 +960,7 @@ func (a *androidAgent) deviceInfo() androidmanagement.Device {
 			VerifyAppsEnabled: a.verifyAppsEnabled,
 			EncryptionStatus:  a.encryptionStatus,
 			// Wire fidelity only: without this, omitempty drops the false
-			// booleans and AMAPI always sends them explicitly. Fleet reads them
+			// booleans and AMAPI always sends them explicitly. AutoMDM reads them
 			// back as false either way, since it takes the zero value of a
 			// deviceSettings that is present at all.
 			ForceSendFields: []string{"AdbEnabled", "IsDeviceSecure", "VerifyAppsEnabled"},
@@ -988,12 +988,12 @@ func (a *androidAgent) simSnapshot() []*androidmanagement.TelephonyInfo {
 	return sims
 }
 
-// sendEnrollment sends an ENROLLMENT PubSub message to Fleet.
+// sendEnrollment sends an ENROLLMENT PubSub message to AutoMDM.
 func (a *androidAgent) sendEnrollment() error {
 	return a.sendPubSubMessage(android.PubSubEnrollment, a.deviceInfo())
 }
 
-// sendStatusReport sends a STATUS_REPORT PubSub message to Fleet.
+// sendStatusReport sends a STATUS_REPORT PubSub message to AutoMDM.
 func (a *androidAgent) sendStatusReport(state *proxyDeviceState) error {
 	now := time.Now().UTC()
 
@@ -1024,7 +1024,7 @@ func (a *androidAgent) sendStatusReport(state *proxyDeviceState) error {
 	return a.sendPubSubMessage(android.PubSubStatusReport, device)
 }
 
-// sendCommandAck sends a COMMAND PubSub message to Fleet acknowledging a completed command.
+// sendCommandAck sends a COMMAND PubSub message to AutoMDM acknowledging a completed command.
 func (a *androidAgent) sendCommandAck(operationName string) error {
 	op := androidmanagement.Operation{
 		Name: operationName,
@@ -1065,7 +1065,7 @@ func (a *androidAgent) orbitEnroll() error {
 		return fmt.Errorf("marshal orbit enroll: %w", err)
 	}
 
-	url := fmt.Sprintf("%s/api/fleet/orbit/enroll", a.serverAddress)
+	url := fmt.Sprintf("%s/api/automdm/orbit/enroll", a.serverAddress)
 	resp, err := http.Post(url, "application/json", bytes.NewReader(data)) // #nosec G107 -- load testing
 	if err != nil {
 		return fmt.Errorf("orbit enroll request: %w", err)
@@ -1091,9 +1091,9 @@ func (a *androidAgent) orbitEnroll() error {
 	return nil
 }
 
-// getCertificateTemplate fetches a certificate template from Fleet.
+// getCertificateTemplate fetches a certificate template from AutoMDM.
 func (a *androidAgent) getCertificateTemplate(certID uint) (*certTemplateInfo, error) {
-	url := fmt.Sprintf("%s/api/fleetd/certificates/%d", a.serverAddress, certID)
+	url := fmt.Sprintf("%s/api/automdmd/certificates/%d", a.serverAddress, certID)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
@@ -1118,7 +1118,7 @@ func (a *androidAgent) getCertificateTemplate(certID uint) (*certTemplateInfo, e
 	return certResp.Certificate, nil
 }
 
-// updateCertificateStatus reports a certificate template's status to Fleet.
+// updateCertificateStatus reports a certificate template's status to AutoMDM.
 func (a *androidAgent) updateCertificateStatus(certID uint, status, operationType string) error {
 	now := time.Now().UTC()
 	notBefore := now.Add(-1 * time.Hour)
@@ -1150,7 +1150,7 @@ func (a *androidAgent) updateCertificateStatus(certID uint, status, operationTyp
 		return fmt.Errorf("marshal status: %w", err)
 	}
 
-	url := fmt.Sprintf("%s/api/fleetd/certificates/%d/status", a.serverAddress, certID)
+	url := fmt.Sprintf("%s/api/automdmd/certificates/%d/status", a.serverAddress, certID)
 	req, err := http.NewRequest("PUT", url, bytes.NewReader(data))
 	if err != nil {
 		return fmt.Errorf("create request: %w", err)
@@ -1171,7 +1171,7 @@ func (a *androidAgent) updateCertificateStatus(certID uint, status, operationTyp
 	return nil
 }
 
-// sendPubSubMessage constructs and sends a PubSub push message to Fleet's endpoint.
+// sendPubSubMessage constructs and sends a PubSub push message to AutoMDM's endpoint.
 func (a *androidAgent) sendPubSubMessage(notificationType android.NotificationType, payload any) error {
 	data, err := json.Marshal(payload)
 	if err != nil {
@@ -1196,8 +1196,8 @@ func (a *androidAgent) sendPubSubMessage(notificationType android.NotificationTy
 		return fmt.Errorf("marshal pubsub message: %w", err)
 	}
 
-	// POST to Fleet's PubSub endpoint with the token as a query parameter
-	url := fmt.Sprintf("%s/api/v1/fleet/android_enterprise/pubsub?token=%s", a.serverAddress, neturl.QueryEscape(a.pubSubToken))
+	// POST to AutoMDM's PubSub endpoint with the token as a query parameter
+	url := fmt.Sprintf("%s/api/v1/automdm/android_enterprise/pubsub?token=%s", a.serverAddress, neturl.QueryEscape(a.pubSubToken))
 	resp, err := http.Post(url, "application/json", bytes.NewReader(body)) // #nosec G107 -- URL is constructed from trusted config
 	if err != nil {
 		return fmt.Errorf("pubsub POST: %w", err)

@@ -8,13 +8,13 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/apple/appmanifest"
-	"github.com/fleetdm/fleet/v4/server/mdm/apple/mobileconfig"
-	mdmcrypto "github.com/fleetdm/fleet/v4/server/mdm/crypto"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
-	nanomdm_push "github.com/fleetdm/fleet/v4/server/mdm/nanomdm/push"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/mdm/apple/appmanifest"
+	"github.com/anilyagiz/automdm/v4/server/mdm/apple/mobileconfig"
+	mdmcrypto "github.com/anilyagiz/automdm/v4/server/mdm/crypto"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
+	nanomdm_push "github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/push"
 	"github.com/micromdm/plist"
 )
 
@@ -24,19 +24,19 @@ type commandPayload struct {
 	Command     any
 }
 
-// MDMAppleCommander contains methods to enqueue commands managed by Fleet and
+// MDMAppleCommander contains methods to enqueue commands managed by AutoMDM and
 // send push notifications to hosts.
 //
-// It's intentionally decoupled from fleet.Service so it can be used internally
+// It's intentionally decoupled from automdm.Service so it can be used internally
 // in crons and other services, leaving authentication/permission handling to
 // the caller.
 type MDMAppleCommander struct {
-	storage fleet.MDMAppleStore
+	storage automdm.MDMAppleStore
 	pusher  nanomdm_push.Pusher
 }
 
 // NewMDMAppleCommander creates a new commander instance.
-func NewMDMAppleCommander(mdmStorage fleet.MDMAppleStore, mdmPushService nanomdm_push.Pusher) *MDMAppleCommander {
+func NewMDMAppleCommander(mdmStorage automdm.MDMAppleStore, mdmPushService nanomdm_push.Pusher) *MDMAppleCommander {
 	return &MDMAppleCommander{
 		storage: mdmStorage,
 		pusher:  mdmPushService,
@@ -108,7 +108,7 @@ func (svc *MDMAppleCommander) RemoveProfile(ctx context.Context, hostUUIDs []str
 	return ctxerr.Wrap(ctx, err, "commander remove profile")
 }
 
-func (svc *MDMAppleCommander) DeviceLock(ctx context.Context, host *fleet.Host, uuid string) (unlockPIN string, err error) {
+func (svc *MDMAppleCommander) DeviceLock(ctx context.Context, host *automdm.Host, uuid string) (unlockPIN string, err error) {
 	// Check for existing pending lock command first
 	existingCmd, existingPIN, err := svc.storage.GetPendingLockCommand(ctx, host.UUID)
 	if err != nil {
@@ -185,7 +185,7 @@ func (svc *MDMAppleCommander) DeviceLock(ctx context.Context, host *fleet.Host, 
 	return unlockPIN, nil
 }
 
-func (svc *MDMAppleCommander) EnableLostMode(ctx context.Context, host *fleet.Host, commandUUID string, orgName string) error {
+func (svc *MDMAppleCommander) EnableLostMode(ctx context.Context, host *automdm.Host, commandUUID string, orgName string) error {
 	msg := fmt.Sprintf("This device is locked. It belongs to %s.", orgName)
 	cmdPayload := commandPayload{
 		CommandUUID: commandUUID,
@@ -216,7 +216,7 @@ func (svc *MDMAppleCommander) EnableLostMode(ctx context.Context, host *fleet.Ho
 	return nil
 }
 
-func (svc *MDMAppleCommander) DisableLostMode(ctx context.Context, host *fleet.Host, commandUUID string) error {
+func (svc *MDMAppleCommander) DisableLostMode(ctx context.Context, host *automdm.Host, commandUUID string) error {
 	raw := fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -247,7 +247,7 @@ func (svc *MDMAppleCommander) DisableLostMode(ctx context.Context, host *fleet.H
 	return nil
 }
 
-func (svc *MDMAppleCommander) EraseDevice(ctx context.Context, host *fleet.Host, uuid string) error {
+func (svc *MDMAppleCommander) EraseDevice(ctx context.Context, host *automdm.Host, uuid string) error {
 	pin, err := GenerateRandomPin(6)
 	if err != nil {
 		return ctxerr.Wrap(ctx, err, "generating random PIN for EraseDevice")
@@ -344,11 +344,11 @@ type SSOAccountConfig struct {
 // AdminAccountConfig holds the parameters for an AutoSetupAdminAccounts entry
 // in an AccountConfiguration MDM command.
 type AdminAccountConfig struct {
-	ShortName          string                   // e.g. "_fleetadmin"
-	FullName           string                   // e.g. "Fleet Admin"
-	PasswordHash       []byte                   // SALTED-SHA512-PBKDF2 plist from GenerateSaltedSHA512PBKDF2Hash
-	Hidden             bool                     // true → hidden from login window
-	PrimaryAccountType fleet.PrimaryAccountType // admin, standard, or none
+	ShortName          string                     // e.g. "_automdmadmin"
+	FullName           string                     // e.g. "AutoMDM Admin"
+	PasswordHash       []byte                     // SALTED-SHA512-PBKDF2 plist from GenerateSaltedSHA512PBKDF2Hash
+	Hidden             bool                       // true → hidden from login window
+	PrimaryAccountType automdm.PrimaryAccountType // admin, standard, or none
 }
 
 func (svc *MDMAppleCommander) AccountConfiguration(ctx context.Context, hostUUIDs []string,
@@ -359,7 +359,7 @@ func (svc *MDMAppleCommander) AccountConfiguration(ctx context.Context, hostUUID
 	var payload string
 
 	// Send primary account info if we have an SSO account, and no adminAccount config or the primary account type is not "none"
-	if ssoAccount != nil && (adminAccount == nil || adminAccount.PrimaryAccountType != fleet.PrimaryAccountTypeNone) {
+	if ssoAccount != nil && (adminAccount == nil || adminAccount.PrimaryAccountType != automdm.PrimaryAccountTypeNone) {
 		fullName, err := mobileconfig.XMLEscapeString(ssoAccount.FullName)
 		if err != nil {
 			return ctxerr.Wrap(ctx, err, "escaping primary account full name")
@@ -379,11 +379,11 @@ func (svc *MDMAppleCommander) AccountConfiguration(ctx context.Context, hostUUID
 
 	if adminAccount != nil {
 		switch adminAccount.PrimaryAccountType {
-		case fleet.PrimaryAccountTypeStandard:
+		case automdm.PrimaryAccountTypeStandard:
 			payload += `
     <key>SetPrimarySetupAccountAsRegularUser</key>
     <true />`
-		case fleet.PrimaryAccountTypeNone:
+		case automdm.PrimaryAccountTypeNone:
 			payload += `
     <key>SkipPrimarySetupAccountCreation</key>
     <true />`
@@ -709,14 +709,14 @@ func (svc *MDMAppleCommander) ClearPasscode(ctx context.Context, hostUUIDs []str
   <key>CommandUUID</key>
   <string>%s</string>
 </dict>
-</plist>`, "$"+fleet.HostSecretPrefix+fleet.HostSecretMDMUnlockToken, cmdUUID)
+</plist>`, "$"+automdm.HostSecretPrefix+automdm.HostSecretMDMUnlockToken, cmdUUID)
 
 	// We skip EnqueueCommand here, to avoid decoding the command as <data> is binary, which fails to decode with placeholder.
 	cmd := &mdm.Command{
 		CommandUUID: cmdUUID,
 		Raw:         []byte(raw),
 	}
-	cmd.Command.RequestType = fleet.AppleMDMCommandTypeClearPasscode
+	cmd.Command.RequestType = automdm.AppleMDMCommandTypeClearPasscode
 
 	return svc.enqueueAndNotify(ctx, hostUUIDs, cmd, mdm.CommandSubtypeNone, "")
 }
@@ -805,8 +805,8 @@ func (svc *MDMAppleCommander) SetRecoveryLock(ctx context.Context, hostUUIDs []s
 	cmdPayload := commandPayload{
 		CommandUUID: cmdUUID,
 		Command: map[string]any{
-			"RequestType": fleet.SetRecoveryLockCmdName,
-			"NewPassword": "$" + fleet.HostSecretPrefix + fleet.HostSecretRecoveryLockPendingPassword,
+			"RequestType": automdm.SetRecoveryLockCmdName,
+			"NewPassword": "$" + automdm.HostSecretPrefix + automdm.HostSecretRecoveryLockPendingPassword,
 		},
 	}
 	rawBytes, err := plist.MarshalIndent(cmdPayload, "    ")
@@ -824,13 +824,13 @@ func (svc *MDMAppleCommander) SetRecoveryLock(ctx context.Context, hostUUIDs []s
 func (svc *MDMAppleCommander) VerifyRecoveryLock(ctx context.Context, hostUUID, cmdUUID string) error {
 	// Use the host secret placeholder - the actual password will be injected at delivery time
 	// by ExpandHostSecrets, which looks up the password from host_recovery_key_passwords.
-	return svc.verifyRecoveryLock(ctx, hostUUID, cmdUUID, "$"+fleet.HostSecretPrefix+fleet.HostSecretRecoveryLockPendingPassword)
+	return svc.verifyRecoveryLock(ctx, hostUUID, cmdUUID, "$"+automdm.HostSecretPrefix+automdm.HostSecretRecoveryLockPendingPassword)
 }
 
 func (svc *MDMAppleCommander) VerifyRecoveryLockLastKnownPassword(ctx context.Context, hostUUID, cmdUUID string) error {
 	// Use the host secret placeholder for the last known password - the actual password will be injected at delivery time
 	// by ExpandHostSecrets, which looks up the password from host_recovery_key_passwords.
-	return svc.verifyRecoveryLock(ctx, hostUUID, cmdUUID, "$"+fleet.HostSecretPrefix+fleet.HostSecretRecoveryLockPassword)
+	return svc.verifyRecoveryLock(ctx, hostUUID, cmdUUID, "$"+automdm.HostSecretPrefix+automdm.HostSecretRecoveryLockPassword)
 }
 
 func (svc *MDMAppleCommander) VerifyClearRecoveryLock(ctx context.Context, hostUUID, cmdUUID string) error {
@@ -843,7 +843,7 @@ func (svc *MDMAppleCommander) verifyRecoveryLock(ctx context.Context, hostUUID, 
 	cmdPayload := commandPayload{
 		CommandUUID: cmdUUID,
 		Command: map[string]any{
-			"RequestType": fleet.VerifyRecoveryLockCmdName,
+			"RequestType": automdm.VerifyRecoveryLockCmdName,
 			"Password":    password,
 		},
 	}
@@ -868,7 +868,7 @@ func (svc *MDMAppleCommander) ClearRecoveryLock(ctx context.Context, hostUUIDs [
 		CommandUUID: cmdUUID,
 		Command: map[string]any{
 			"RequestType":     "SetRecoveryLock",
-			"CurrentPassword": "$" + fleet.HostSecretPrefix + fleet.HostSecretRecoveryLockPassword,
+			"CurrentPassword": "$" + automdm.HostSecretPrefix + automdm.HostSecretRecoveryLockPassword,
 			"NewPassword":     "",
 		},
 	}
@@ -933,9 +933,9 @@ func (svc *MDMAppleCommander) RotateRecoveryLock(ctx context.Context, hostUUIDs 
 	cmdPayload := commandPayload{
 		CommandUUID: cmdUUID,
 		Command: map[string]any{
-			"RequestType":     fleet.SetRecoveryLockCmdName,
-			"CurrentPassword": "$" + fleet.HostSecretPrefix + fleet.HostSecretRecoveryLockPassword,
-			"NewPassword":     "$" + fleet.HostSecretPrefix + fleet.HostSecretRecoveryLockPendingPassword,
+			"RequestType":     automdm.SetRecoveryLockCmdName,
+			"CurrentPassword": "$" + automdm.HostSecretPrefix + automdm.HostSecretRecoveryLockPassword,
+			"NewPassword":     "$" + automdm.HostSecretPrefix + automdm.HostSecretRecoveryLockPendingPassword,
 		},
 	}
 	rawBytes, err := plist.MarshalIndent(cmdPayload, "    ")
@@ -956,15 +956,15 @@ func (svc *MDMAppleCommander) RotateRecoveryLock(ctx context.Context, hostUUIDs 
 //
 // replyCertDER must be the Apple MDM CA certificate. Apple documents
 // ReplyEncryptionCertificate as optional, but macOS fails the command without it.
-// The reply is what lets Fleet store the new key as soon as the host acknowledges.
+// The reply is what lets AutoMDM store the new key as soon as the host acknowledges.
 func (svc *MDMAppleCommander) RotateFileVaultKey(ctx context.Context, hostUUID, cmdUUID string, replyCertDER []byte) error {
 	cmdPayload := commandPayload{
 		CommandUUID: cmdUUID,
 		Command: map[string]any{
-			"RequestType": fleet.RotateFileVaultKeyCmdName,
+			"RequestType": automdm.RotateFileVaultKeyCmdName,
 			"KeyType":     "personal",
 			"FileVaultUnlock": map[string]any{
-				"Password": fleet.HostSecretPlaceholder(fleet.HostSecretFileVaultKey),
+				"Password": automdm.HostSecretPlaceholder(automdm.HostSecretFileVaultKey),
 			},
 			"ReplyEncryptionCertificate": replyCertDER,
 		},

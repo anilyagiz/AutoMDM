@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -69,7 +69,7 @@ func testListVulnsByMultipleOSVersionsBatchQuery(t *testing.T, ds *Datastore) {
 func testListVulnsByMultipleOSVersionsEmptyInput(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
-	vulnsMap, err := ds.ListVulnsByMultipleOSVersions(ctx, []fleet.OSVersion{}, false, nil, nil)
+	vulnsMap, err := ds.ListVulnsByMultipleOSVersions(ctx, []automdm.OSVersion{}, false, nil, nil)
 	require.NoError(t, err)
 	assert.Empty(t, vulnsMap)
 }
@@ -123,7 +123,7 @@ func testListVulnsByMultipleOSVersionsWithTeamFilter(t *testing.T, ds *Datastore
 	teamID := uint(1)
 
 	// Test with team filter
-	vulnsMap, err := ds.ListVulnsByMultipleOSVersions(ctx, []fleet.OSVersion{linuxOS}, false, &teamID, nil)
+	vulnsMap, err := ds.ListVulnsByMultipleOSVersions(ctx, []automdm.OSVersion{linuxOS}, false, &teamID, nil)
 	require.NoError(t, err)
 
 	key := linuxOS.NameOnly + "-" + linuxOS.Version
@@ -138,7 +138,7 @@ func testListVulnsByMultipleOSVersionsNonExistentOS(t *testing.T, ds *Datastore)
 
 	// Create OS versions that don't exist in the database
 	// Don't set ID so it will be looked up by name/version
-	nonExistentOS := []fleet.OSVersion{
+	nonExistentOS := []automdm.OSVersion{
 		{
 			NameOnly: "NonExistent",
 			Version:  "1.0.0",
@@ -157,14 +157,14 @@ func testListVulnsByMultipleOSVersionsMixedPlatforms(t *testing.T, ds *Datastore
 	ctx := t.Context()
 
 	// Create OS versions for different platforms
-	osVersions := []fleet.OSVersion{}
+	osVersions := []automdm.OSVersion{}
 	platforms := []string{"linux", "darwin", "windows"}
 
 	for i, platform := range platforms {
 		osName := fmt.Sprintf("OS_%s", platform)
 		osVersion := fmt.Sprintf("1.0.%d", i)
 
-		os := fleet.OperatingSystem{
+		os := automdm.OperatingSystem{
 			Name:          osName,
 			Version:       osVersion,
 			Platform:      platform,
@@ -183,7 +183,7 @@ func testListVulnsByMultipleOSVersionsMixedPlatforms(t *testing.T, ds *Datastore
 		err = sqlx.GetContext(ctx, ds.writer(ctx), &result, stmt, osName, osVersion)
 		require.NoError(t, err)
 
-		osVersionObj := fleet.OSVersion{
+		osVersionObj := automdm.OSVersion{
 			ID:          result.ID,
 			OSVersionID: result.OSVersionID,
 			NameOnly:    osName,
@@ -198,14 +198,14 @@ func testListVulnsByMultipleOSVersionsMixedPlatforms(t *testing.T, ds *Datastore
 			setupKernelVulnsWithTeam(t, ds, ctx, osVersionObj)
 		} else {
 			// For non-Linux, add OS vulnerabilities to operating_system_vulnerabilities table
-			vulns := []fleet.OSVulnerability{
+			vulns := []automdm.OSVulnerability{
 				{
 					OSID:              result.ID,
 					CVE:               fmt.Sprintf("CVE-2024-PLAT-%d", i),
 					ResolvedInVersion: ptr.String(osVersion + ".1"),
 				},
 			}
-			_, err = ds.InsertOSVulnerabilities(ctx, vulns, fleet.UbuntuOVALSource)
+			_, err = ds.InsertOSVulnerabilities(ctx, vulns, automdm.UbuntuOVALSource)
 			require.NoError(t, err)
 		}
 	}
@@ -266,8 +266,8 @@ func testListVulnsByMultipleOSVersionsMixedPlatforms(t *testing.T, ds *Datastore
 
 // Helper function to set up test OS versions with vulnerabilities
 // Uses non-Linux platforms since operating_system_vulnerabilities table doesn't contain Linux vulns
-func setupTestOSVersionsWithVulns(t *testing.T, ds *Datastore, ctx context.Context) []fleet.OSVersion {
-	var osVersions []fleet.OSVersion
+func setupTestOSVersionsWithVulns(t *testing.T, ds *Datastore, ctx context.Context) []automdm.OSVersion {
+	var osVersions []automdm.OSVersion
 
 	// Use non-Linux platforms for testing operating_system_vulnerabilities
 	platforms := []string{"darwin", "windows", "chrome"}
@@ -277,7 +277,7 @@ func setupTestOSVersionsWithVulns(t *testing.T, ds *Datastore, ctx context.Conte
 		osName := osNames[i]
 		osVersion := "1.0." + string(rune('0'+i))
 
-		os := fleet.OperatingSystem{
+		os := automdm.OperatingSystem{
 			Name:          osName,
 			Version:       osVersion,
 			Platform:      platforms[i],
@@ -294,7 +294,7 @@ func setupTestOSVersionsWithVulns(t *testing.T, ds *Datastore, ctx context.Conte
 		err = ds.writer(ctx).QueryRowContext(ctx, stmt, osName, osVersion).Scan(&osID, &osVersionID)
 		require.NoError(t, err)
 
-		osVersionObj := fleet.OSVersion{
+		osVersionObj := automdm.OSVersion{
 			ID:          osID,
 			OSVersionID: osVersionID,
 			NameOnly:    osName,
@@ -304,7 +304,7 @@ func setupTestOSVersionsWithVulns(t *testing.T, ds *Datastore, ctx context.Conte
 		osVersions = append(osVersions, osVersionObj)
 
 		// Add vulnerabilities for this OS
-		vulns := []fleet.OSVulnerability{
+		vulns := []automdm.OSVulnerability{
 			{
 				OSID:              osID,
 				CVE:               "CVE-2024-000" + string(rune('1'+i)),
@@ -316,7 +316,7 @@ func setupTestOSVersionsWithVulns(t *testing.T, ds *Datastore, ctx context.Conte
 				ResolvedInVersion: nil,
 			},
 		}
-		_, err = ds.InsertOSVulnerabilities(ctx, vulns, fleet.UbuntuOVALSource)
+		_, err = ds.InsertOSVulnerabilities(ctx, vulns, automdm.UbuntuOVALSource)
 		require.NoError(t, err)
 	}
 
@@ -324,11 +324,11 @@ func setupTestOSVersionsWithVulns(t *testing.T, ds *Datastore, ctx context.Conte
 }
 
 // Helper function to set up a Linux OS with kernel vulnerabilities
-func setupLinuxOSWithKernelVulns(t *testing.T, ds *Datastore, ctx context.Context) fleet.OSVersion {
+func setupLinuxOSWithKernelVulns(t *testing.T, ds *Datastore, ctx context.Context) automdm.OSVersion {
 	osName := "Ubuntu"
 	osVersion := "22.04.0"
 
-	os := fleet.OperatingSystem{
+	os := automdm.OperatingSystem{
 		Name:          osName,
 		Version:       osVersion,
 		Platform:      "linux",
@@ -345,7 +345,7 @@ func setupLinuxOSWithKernelVulns(t *testing.T, ds *Datastore, ctx context.Contex
 	err = ds.writer(ctx).QueryRowContext(ctx, stmt, osName, osVersion).Scan(&osID, &osVersionID)
 	require.NoError(t, err)
 
-	osVersionObj := fleet.OSVersion{
+	osVersionObj := automdm.OSVersion{
 		ID:          osID,
 		OSVersionID: osVersionID,
 		NameOnly:    osName,
@@ -360,7 +360,7 @@ func setupLinuxOSWithKernelVulns(t *testing.T, ds *Datastore, ctx context.Contex
 }
 
 // Helper function to set up kernel vulnerabilities with team-specific data
-func setupKernelVulnsWithTeam(t *testing.T, ds *Datastore, ctx context.Context, osVersion fleet.OSVersion) {
+func setupKernelVulnsWithTeam(t *testing.T, ds *Datastore, ctx context.Context, osVersion automdm.OSVersion) {
 	// Create a software title and software entry
 	_, err := ds.writer(ctx).ExecContext(ctx, `
 		INSERT INTO software_titles (name, source, is_kernel)
@@ -425,11 +425,11 @@ func testListVulnsByMultipleLinuxOSWithManyKernels(t *testing.T, ds *Datastore) 
 	require.NoError(t, err)
 
 	// Create 3 Linux OS versions: Ubuntu 22.04.0, 22.04.1, 22.04.2
-	var osVersions []fleet.OSVersion
+	var osVersions []automdm.OSVersion
 	osVersionNames := []string{"22.04.0", "22.04.1", "22.04.2"}
 
 	for idx, osVersionName := range osVersionNames {
-		os := fleet.OperatingSystem{
+		os := automdm.OperatingSystem{
 			Name:          "Ubuntu",
 			Version:       osVersionName,
 			Platform:      "linux",
@@ -446,7 +446,7 @@ func testListVulnsByMultipleLinuxOSWithManyKernels(t *testing.T, ds *Datastore) 
 		err = ds.writer(ctx).QueryRowContext(ctx, stmt, "Ubuntu", osVersionName).Scan(&osID, &osVersionID)
 		require.NoError(t, err)
 
-		osVersions = append(osVersions, fleet.OSVersion{
+		osVersions = append(osVersions, automdm.OSVersion{
 			ID:          osID,
 			OSVersionID: osVersionID,
 			NameOnly:    "Ubuntu",
@@ -580,10 +580,10 @@ func testListVulnsByMultipleOSVersionsWithMaxVulnerabilities(t *testing.T, ds *D
 	testCases := []struct {
 		name           string
 		maxVulns       *int
-		osVersions     []fleet.OSVersion
+		osVersions     []automdm.OSVersion
 		expectError    bool
 		errorMessage   string
-		validateResult func(t *testing.T, vulnsMap map[string]fleet.OSVulnerabilitiesWithCount)
+		validateResult func(t *testing.T, vulnsMap map[string]automdm.OSVulnerabilitiesWithCount)
 	}{
 		{
 			name:         "negative value returns error",
@@ -596,7 +596,7 @@ func testListVulnsByMultipleOSVersionsWithMaxVulnerabilities(t *testing.T, ds *D
 			name:       "max = 0 returns empty array with count",
 			maxVulns:   ptr.Int(0),
 			osVersions: osVersions,
-			validateResult: func(t *testing.T, vulnsMap map[string]fleet.OSVulnerabilitiesWithCount) {
+			validateResult: func(t *testing.T, vulnsMap map[string]automdm.OSVulnerabilitiesWithCount) {
 				assert.Len(t, vulnsMap, 3)
 				for _, osV := range osVersions {
 					key := osV.NameOnly + "-" + osV.Version
@@ -611,7 +611,7 @@ func testListVulnsByMultipleOSVersionsWithMaxVulnerabilities(t *testing.T, ds *D
 			name:       "max = 1 limits to 1 vulnerability",
 			maxVulns:   ptr.Int(1),
 			osVersions: osVersions,
-			validateResult: func(t *testing.T, vulnsMap map[string]fleet.OSVulnerabilitiesWithCount) {
+			validateResult: func(t *testing.T, vulnsMap map[string]automdm.OSVulnerabilitiesWithCount) {
 				assert.Len(t, vulnsMap, 3)
 				for _, osV := range osVersions {
 					key := osV.NameOnly + "-" + osV.Version
@@ -626,7 +626,7 @@ func testListVulnsByMultipleOSVersionsWithMaxVulnerabilities(t *testing.T, ds *D
 			name:       "max exceeds total returns all vulnerabilities",
 			maxVulns:   ptr.Int(10),
 			osVersions: osVersions,
-			validateResult: func(t *testing.T, vulnsMap map[string]fleet.OSVulnerabilitiesWithCount) {
+			validateResult: func(t *testing.T, vulnsMap map[string]automdm.OSVulnerabilitiesWithCount) {
 				assert.Len(t, vulnsMap, 3)
 				for _, osV := range osVersions {
 					key := osV.NameOnly + "-" + osV.Version
@@ -640,8 +640,8 @@ func testListVulnsByMultipleOSVersionsWithMaxVulnerabilities(t *testing.T, ds *D
 		{
 			name:       "max = 1 for Linux kernel vulnerabilities",
 			maxVulns:   ptr.Int(1),
-			osVersions: []fleet.OSVersion{linuxOS},
-			validateResult: func(t *testing.T, vulnsMap map[string]fleet.OSVulnerabilitiesWithCount) {
+			osVersions: []automdm.OSVersion{linuxOS},
+			validateResult: func(t *testing.T, vulnsMap map[string]automdm.OSVulnerabilitiesWithCount) {
 				key := linuxOS.NameOnly + "-" + linuxOS.Version
 				vulnData, ok := vulnsMap[key]
 				assert.True(t, ok, "Should have vulnerabilities for Linux OS")
@@ -655,8 +655,8 @@ func testListVulnsByMultipleOSVersionsWithMaxVulnerabilities(t *testing.T, ds *D
 		{
 			name:       "multi-arch with max returns correct count",
 			maxVulns:   ptr.Int(3),
-			osVersions: []fleet.OSVersion{multiArchOS},
-			validateResult: func(t *testing.T, vulnsMap map[string]fleet.OSVulnerabilitiesWithCount) {
+			osVersions: []automdm.OSVersion{multiArchOS},
+			validateResult: func(t *testing.T, vulnsMap map[string]automdm.OSVulnerabilitiesWithCount) {
 				key := multiArchOS.NameOnly + "-" + multiArchOS.Version
 				vulnData, ok := vulnsMap[key]
 				assert.True(t, ok, "Should have vulnerabilities for multi-arch OS")
@@ -674,8 +674,8 @@ func testListVulnsByMultipleOSVersionsWithMaxVulnerabilities(t *testing.T, ds *D
 		{
 			name:       "multi-arch with max=0 returns correct count",
 			maxVulns:   ptr.Int(0),
-			osVersions: []fleet.OSVersion{multiArchOS},
-			validateResult: func(t *testing.T, vulnsMap map[string]fleet.OSVulnerabilitiesWithCount) {
+			osVersions: []automdm.OSVersion{multiArchOS},
+			validateResult: func(t *testing.T, vulnsMap map[string]automdm.OSVulnerabilitiesWithCount) {
 				key := multiArchOS.NameOnly + "-" + multiArchOS.Version
 				vulnData, ok := vulnsMap[key]
 				assert.True(t, ok, "Should have entry for %s", key)
@@ -687,7 +687,7 @@ func testListVulnsByMultipleOSVersionsWithMaxVulnerabilities(t *testing.T, ds *D
 			name:       "combined osVersions + linuxOS with max=1",
 			maxVulns:   ptr.Int(1),
 			osVersions: append(osVersions, linuxOS),
-			validateResult: func(t *testing.T, vulnsMap map[string]fleet.OSVulnerabilitiesWithCount) {
+			validateResult: func(t *testing.T, vulnsMap map[string]automdm.OSVulnerabilitiesWithCount) {
 				// Should have entries for all 3 non-Linux OS + 1 Linux OS = 4 total
 				assert.Len(t, vulnsMap, 4)
 
@@ -712,7 +712,7 @@ func testListVulnsByMultipleOSVersionsWithMaxVulnerabilities(t *testing.T, ds *D
 			name:       "combined osVersions + linuxOS with max=0",
 			maxVulns:   ptr.Int(0),
 			osVersions: append(osVersions, linuxOS),
-			validateResult: func(t *testing.T, vulnsMap map[string]fleet.OSVulnerabilitiesWithCount) {
+			validateResult: func(t *testing.T, vulnsMap map[string]automdm.OSVulnerabilitiesWithCount) {
 				assert.Len(t, vulnsMap, 4)
 
 				// All OS versions should return empty vulnerability arrays but correct counts
@@ -735,7 +735,7 @@ func testListVulnsByMultipleOSVersionsWithMaxVulnerabilities(t *testing.T, ds *D
 			name:       "combined all OS types with max=2",
 			maxVulns:   ptr.Int(2),
 			osVersions: append(append(osVersions, linuxOS), multiArchOS),
-			validateResult: func(t *testing.T, vulnsMap map[string]fleet.OSVulnerabilitiesWithCount) {
+			validateResult: func(t *testing.T, vulnsMap map[string]automdm.OSVulnerabilitiesWithCount) {
 				// Should have 3 non-Linux + 1 Linux + 1 multi-arch = 5 total
 				assert.Len(t, vulnsMap, 5)
 
@@ -785,12 +785,12 @@ func testListVulnsByMultipleOSVersionsWithMaxVulnerabilities(t *testing.T, ds *D
 // Helper function to set up a multi-architecture OS with vulnerabilities
 // Creates macOS 14.7.1 with two architectures (x86_64 and ARM) that map to the same key
 // This simulates the scenario where multiple operating_system_id values share name+version
-func setupMultiArchOSWithVulns(t *testing.T, ds *Datastore, ctx context.Context) fleet.OSVersion {
+func setupMultiArchOSWithVulns(t *testing.T, ds *Datastore, ctx context.Context) automdm.OSVersion {
 	osName := "macOS"
 	osVersion := "14.7.1"
 
 	// Create first OS entry (x86_64 architecture)
-	os1 := fleet.OperatingSystem{
+	os1 := automdm.OperatingSystem{
 		Name:          osName,
 		Version:       osVersion,
 		Arch:          "x86_64",
@@ -801,7 +801,7 @@ func setupMultiArchOSWithVulns(t *testing.T, ds *Datastore, ctx context.Context)
 	require.NoError(t, err)
 
 	// Create second OS entry (ARM architecture) - same name and version, different arch
-	os2 := fleet.OperatingSystem{
+	os2 := automdm.OperatingSystem{
 		Name:          osName,
 		Version:       osVersion,
 		Arch:          "arm64",
@@ -825,33 +825,33 @@ func setupMultiArchOSWithVulns(t *testing.T, ds *Datastore, ctx context.Context)
 	osID2 := osResults[1].ID // x86_64
 
 	// Add 10 CVEs to first architecture (CVE-2024-0001 through CVE-2024-0010)
-	var vulns1 []fleet.OSVulnerability
+	var vulns1 []automdm.OSVulnerability
 	for i := 1; i <= 10; i++ {
-		vulns1 = append(vulns1, fleet.OSVulnerability{
+		vulns1 = append(vulns1, automdm.OSVulnerability{
 			OSID:              osID1,
 			CVE:               fmt.Sprintf("CVE-2024-%04d", i),
 			ResolvedInVersion: ptr.String(osVersion + ".1"),
 		})
 	}
-	_, err = ds.InsertOSVulnerabilities(ctx, vulns1, fleet.NVDSource)
+	_, err = ds.InsertOSVulnerabilities(ctx, vulns1, automdm.NVDSource)
 	require.NoError(t, err)
 
 	// Add 10 CVEs to second architecture (CVE-2024-0006 through CVE-2024-0015)
 	// This creates 5 overlapping CVEs (0006-0010) and 5 unique CVEs (0011-0015)
-	var vulns2 []fleet.OSVulnerability
+	var vulns2 []automdm.OSVulnerability
 	for i := 6; i <= 15; i++ {
-		vulns2 = append(vulns2, fleet.OSVulnerability{
+		vulns2 = append(vulns2, automdm.OSVulnerability{
 			OSID:              osID2,
 			CVE:               fmt.Sprintf("CVE-2024-%04d", i),
 			ResolvedInVersion: ptr.String(osVersion + ".1"),
 		})
 	}
-	_, err = ds.InsertOSVulnerabilities(ctx, vulns2, fleet.NVDSource)
+	_, err = ds.InsertOSVulnerabilities(ctx, vulns2, automdm.NVDSource)
 	require.NoError(t, err)
 
 	// Return an OSVersion representing the merged key
 	// Note: We use the first OS's IDs, but the key "macOS-14.7.1" will aggregate both
-	return fleet.OSVersion{
+	return automdm.OSVersion{
 		ID:          osID1,
 		OSVersionID: osResults[0].OSVersionID,
 		NameOnly:    osName,

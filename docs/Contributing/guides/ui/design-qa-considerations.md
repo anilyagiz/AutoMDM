@@ -2,11 +2,11 @@
 
 This is meant to be a helpful checklist of 'events' or 'transactions' to help catch edge cases sooner rather than later while designing or testing new features or bugs.  Please feel free to add more if any are missing.
 
-## fleetd and Fleet Desktop
-- Fleet Free and Fleet Premium
+## automdmd and AutoMDM Desktop
+- AutoMDM Free and AutoMDM Premium
 - Windows/Mac/Linux, including supported Linux distros (at least one each of RPM-based and DEB-based)
 - If there's a new SwiftDialog version, test the new Mac setup and MDM migration flow and verify that there's no regressions.
-- Does the feature show up on, or change, the Fleet Desktop menu and the My device page?
+- Does the feature show up on, or change, the AutoMDM Desktop menu and the My device page?
 - Platform SSO (PSSO): registration state, token expiry and refresh, and what the host reports while registration is incomplete
 
 ## User
@@ -16,14 +16,14 @@ This is meant to be a helpful checklist of 'events' or 'transactions' to help ca
 - Update user permissions
 - API-only user
 
-## Fleet
+## AutoMDM
 
-- Create fleet
-- Remove fleet
+- Create team
+- Remove team
 - Unassigned
-- All fleets
-- Transfer host to this fleet
-- Transfer host from this fleet
+- All teams
+- Transfer host to this team
+- Transfer host from this team
 
 ## MDM
 
@@ -50,18 +50,18 @@ This is meant to be a helpful checklist of 'events' or 'transactions' to help ca
 - Setup experience software / scripts
 - SSO enabled for DEP enrollment
 - EULA added for DEP enrollment
-- Re-enrollment of a host Fleet has already seen (wipe and re-enroll, migration vs. fresh ADE enrollment)
+- Re-enrollment of a host AutoMDM has already seen (wipe and re-enroll, migration vs. fresh ADE enrollment)
 - Failure part-way through setup experience (software install fails, script fails, times out)
 - Certificate renewal (SCEP, NDES, custom CA) while the feature is in use
 - Disk encryption key escrow: expired, rotated, or not yet escrowed
 
 ## Software
 
-- Add software to fleet
+- Add software to team
   - FMA
   - VPP
   - custom package
-- Remove software from a fleet
+- Remove software from a team
 - Edit software (scripts / binary)
 - Add script
 - Run script
@@ -107,9 +107,9 @@ This is meant to be a helpful checklist of 'events' or 'transactions' to help ca
 
 ## Host
 
-- Enroll to Fleet using Fleet's agent (fleetd)
-- Enrolled via osquery (no orbit / fleetd)
-- Deleted from Fleet
+- Enroll to AutoMDM using AutoMDM's agent (automdmd)
+- Enrolled via osquery (no orbit / automdmd)
+- Deleted from AutoMDM
 - DEP enrollment
 - BYOD enrollment
 - ABM ghost host before enrolled
@@ -166,7 +166,7 @@ This is meant to be a helpful checklist of 'events' or 'transactions' to help ca
 - Views that load data have an empty state defined.
 
 ## Responsiveness and low-width browsers
-- Long database names rendered in the UI e.g. fleet names, scripts, software titles...
+- Long database names rendered in the UI e.g. team names, scripts, software titles...
 - Wide tables with many columns or wide columns (horizontal scroll vs. old, bad pattern of hiding columns)
 - Page load expectations (how long should it take for a page to load with x number of items in the API response)
 - Cron run time expectations (what is an acceptable change in amount of time it takes for a scheduled cron to complete)
@@ -176,9 +176,9 @@ This is meant to be a helpful checklist of 'events' or 'transactions' to help ca
 - States: Default, Hover (with mouse), Active (when clicked), Focus (keyboard highlight)
 
 ## User permissions
-- Premium vs. Free. Premium-only API endpoints and parameters return an easy to understand error message if you're using Fleet Free
+- Premium vs. Free. Premium-only API endpoints and parameters return an easy to understand error message if you're using AutoMDM Free
 - Global user (Admin, Maintainer, Observer, Observer+, API only)
-- Fleet-level user (Admin, Maintainer, Observer, Observer+, API only)
+- Team-level user (Admin, Maintainer, Observer, Observer+, API only)
 
 ## Retries
 - Operations with retries have defined limits (time, number of attempts, etc.) to avoid infinite loops and unbounded retrying

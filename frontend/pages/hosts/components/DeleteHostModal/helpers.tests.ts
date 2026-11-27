@@ -8,13 +8,13 @@ import { getSharedDeleteHostTarget } from "./helpers";
 const host = (
   id: number,
   platform: HostPlatform,
-  connectedToFleet = false,
+  connectedToAutoMDM = false,
   enrollmentStatus: MdmEnrollmentStatus | null = null
 ): IHost => {
   const mock = createMockHost({ id, platform });
   mock.mdm = {
     ...mock.mdm,
-    connected_to_fleet: connectedToFleet,
+    connected_to_automdm: connectedToAutoMDM,
     enrollment_status: enrollmentStatus,
   };
   return mock;
@@ -30,7 +30,7 @@ describe("getSharedDeleteHostTarget", () => {
       getSharedDeleteHostTarget([host(1, "darwin", true, "On (automatic)")])
     ).toEqual({
       platform: "darwin",
-      isMdmEnrolledInFleet: true,
+      isMdmEnrolledInTeam: true,
       mdmEnrollmentStatus: "On (automatic)",
     });
   });

@@ -100,7 +100,7 @@ const AddEntraTenantModal = ({ onExit }: IAddEntraTenantModalProps) => {
               Find your <b>Tenant ID</b>, on{" "}
               <CustomLink
                 text="Microsoft Entra ID > Home"
-                url="https://fleetdm.com/learn-more-about/microsoft-entra-tenant-id"
+                url="https://automdm.com/learn-more-about/microsoft-entra-tenant-id"
                 newTab
               />
             </>

@@ -61,11 +61,11 @@ describe("MicrosoftGraphPage", () => {
     mockedAPI.deleteCredentials.mockResolvedValue(undefined);
   });
 
-  it("paywalls the credential fields on Fleet Free", async () => {
+  it("paywalls the credential fields on AutoMDM Free", async () => {
     renderPage([], { isPremiumTier: false });
 
     expect(
-      await screen.findByText("This feature is included in Fleet Premium.")
+      await screen.findByText("This feature is included in AutoMDM Premium.")
     ).toBeInTheDocument();
     expect(screen.queryByLabelText("Tenant ID")).not.toBeInTheDocument();
     // The endpoint is premium-only, so Free should not even ask.

@@ -3,7 +3,7 @@
 package http
 
 import (
-	"github.com/fleetdm/fleet/v4/server/activity/api"
+	"github.com/anilyagiz/automdm/v4/server/activity/api"
 )
 
 // ListActivitiesRequest is the HTTP request type for listing activities.

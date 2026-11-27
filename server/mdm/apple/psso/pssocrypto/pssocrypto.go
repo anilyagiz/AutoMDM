@@ -1,6 +1,6 @@
 // Package pssocrypto holds the symmetric JOSE wire-format primitives for Apple
-// Platform SSO (PSSO): the pieces both the Fleet server and a PSSO client (the
-// macOS extension, and Fleet's MDM test/load simulator) must agree on byte for
+// Platform SSO (PSSO): the pieces both the AutoMDM server and a PSSO client (the
+// macOS extension, and AutoMDM's MDM test/load simulator) must agree on byte for
 // byte. Keeping them in one package means the two halves of every exchange are
 // built and parsed by the same code, so the wire format can't drift.
 //
@@ -14,7 +14,7 @@
 //   - JWE bodies use ECDH-ES with A256GCM, wrapped to the recipient's encryption
 //     pubkey, binding the agreed key to Apple's apu/apv party-info.
 //
-// Server-only concerns (datastore lookups, Fleet's signing key, the opaque
+// Server-only concerns (datastore lookups, AutoMDM's signing key, the opaque
 // key_context sealing) deliberately stay in ee/server/service and call into the
 // primitives here.
 package pssocrypto
@@ -61,7 +61,7 @@ const (
 	GrantTypeJWTBearer = "urn:ietf:params:oauth:grant-type:jwt-bearer" //nolint:gosec // G101 not a credential, a grant type
 )
 
-// JWE header `typ` media types. The first two are responses Fleet returns; the
+// JWE header `typ` media types. The first two are responses AutoMDM returns; the
 // last is the embedded login assertion the device sends when password
 // encryption is enabled.
 const (
@@ -82,7 +82,7 @@ const (
 // request body ("version": "1.0").
 const ProtocolVersion = "1.0"
 
-// KeyPurposeUserUnlock is the only key purpose Fleet provisions today: the
+// KeyPurposeUserUnlock is the only key purpose AutoMDM provisions today: the
 // offline FileVault/keychain unlock key, sent as "key_purpose" on key requests.
 const KeyPurposeUserUnlock = "user_unlock"
 
@@ -109,15 +109,15 @@ type TokenClaims struct {
 	// Assertion is the embedded login assertion. When the extension sets
 	// loginRequestEncryptionPublicKey, Apple drops the plaintext Password claim
 	// and instead places the password in this compact JWE
-	// (typ platformsso-encrypted-login-assertion+jwt), encrypted to Fleet's
+	// (typ platformsso-encrypted-login-assertion+jwt), encrypted to AutoMDM's
 	// published encryption key. The outer JWT remains signed by the device key.
 	Assertion    string     `json:"assertion,omitempty"`
 	Username     string     `json:"username,omitempty"`
 	Nonce        string     `json:"nonce,omitempty"`         // Apple session nonce, echoed in the response
 	JWECrypto    *JWECrypto `json:"jwe_crypto,omitempty"`    // response-encryption recipe
-	RequestNonce string     `json:"request_nonce,omitempty"` // Fleet-issued nonce from /nonce
+	RequestNonce string     `json:"request_nonce,omitempty"` // AutoMDM-issued nonce from /nonce
 	// RefreshToken is the current SSO refresh token the extension holds, carried
-	// on login renewals and key requests. Fleet treats it as opaque.
+	// on login renewals and key requests. AutoMDM treats it as opaque.
 	RefreshToken string `json:"refresh_token,omitempty"`
 
 	// PSSO 2.0 key request / key exchange (request_type "key_request" /
@@ -145,7 +145,7 @@ func (c *TokenClaims) Valid() error {
 	return nil
 }
 
-// JWECrypto is the jwe_crypto claim the extension sends to tell Fleet how to
+// JWECrypto is the jwe_crypto claim the extension sends to tell AutoMDM how to
 // encrypt the login response: ECDH-ES key agreement to the device encryption key
 // with A256GCM content encryption, binding the agreed key to the apu/apv
 // party-info the device chose.

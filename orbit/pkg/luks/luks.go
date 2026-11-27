@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/dialog"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/dialog"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/rs/zerolog/log"
 )
 
@@ -93,10 +93,10 @@ func DetectEncryptionType(dump *LuksDump) string {
 // hardware; the substring match is intentionally lenient.
 const snapdFDETokenSubstr = "fde"
 
-// FleetRecoveryKeyName is the name of the dedicated snapd recovery key slot
-// Fleet creates and escrows. Using a separate, named slot leaves the user's
+// AutoMDMRecoveryKeyName is the name of the dedicated snapd recovery key slot
+// AutoMDM creates and escrows. Using a separate, named slot leaves the user's
 // install-time "default-recovery" key untouched.
-const FleetRecoveryKeyName = "fleet-escrow"
+const AutoMDMRecoveryKeyName = "automdm-escrow"
 
 // IsSnapdManaged reports whether the LUKS2 volume is managed by snapd's secboot
 // FDE stack (as opposed to a plain passphrase or systemd-cryptenroll volume).
@@ -119,14 +119,14 @@ func IsSnapdManaged(dump *LuksDump) bool {
 // There is intentionally no "remove recovery key" operation: neither snapd's
 // /v2/system-volumes API nor the snap-tpmctl CLI exposes recovery-key/keyslot
 // deletion (only passphrase/PIN auth factors can be removed). A recovery key is
-// retired by rotating it (regenerate/replace), which EnsureFleetRecoveryKey
+// retired by rotating it (regenerate/replace), which EnsureAutoMDMRecoveryKey
 // does, so a failed escrow self-heals on the next attempt.
 type SnapdFDE interface {
 	// Detect reports whether this host uses snapd-managed TPM-backed FDE.
 	Detect(ctx context.Context) (bool, error)
-	// EnsureFleetRecoveryKey creates (or regenerates) the Fleet-owned recovery
+	// EnsureAutoMDMRecoveryKey creates (or regenerates) the AutoMDM-owned recovery
 	// key and returns its plaintext value to escrow.
-	EnsureFleetRecoveryKey(ctx context.Context) (string, error)
+	EnsureAutoMDMRecoveryKey(ctx context.Context) (string, error)
 }
 
 var recoveryKeyRegexp = regexp.MustCompile(`\d{5}(?:-\d{5})+`)
@@ -144,48 +144,48 @@ func parseRecoveryKey(output string) (string, error) {
 // runRecoveryKeyEscrow escrows a snapd-managed recovery key for hosts using
 // TPM-backed full-disk encryption (e.g. Ubuntu 26). Unlike the legacy
 // passphrase path it requires no end-user interaction: snapd owns the LUKS key
-// slots, so Fleet creates a dedicated recovery key and escrows it silently.
+// slots, so AutoMDM creates a dedicated recovery key and escrows it silently.
 //
-// Old Fleet servers reject the recovery-key payload shape (no Salt, no
+// Old AutoMDM servers reject the recovery-key payload shape (no Salt, no
 // KeySlot) with a misleading "passphrase, salt, and key_slot..." error. We
 // gate the whole path on CapabilityLUKSRecoveryKeyEscrow so a stale server
-// doesn't cause orbit to rotate the fleet-escrow slot's key on every retry
-// (see the add-then-replace logic in ensureFleetRecoveryKey).
+// doesn't cause orbit to rotate the automdm-escrow slot's key on every retry
+// (see the add-then-replace logic in ensureAutoMDMRecoveryKey).
 func (lr *LuksRunner) runRecoveryKeyEscrow(ctx context.Context, snapd SnapdFDE) error {
-	if !lr.escrower.GetServerCapabilities().Has(fleet.CapabilityLUKSRecoveryKeyEscrow) {
-		log.Warn().Msg("Fleet server does not advertise the LUKS recovery-key escrow capability; skipping this attempt. Upgrade the Fleet server to enable TPM-backed FDE key backup.")
+	if !lr.escrower.GetServerCapabilities().Has(automdm.CapabilityLUKSRecoveryKeyEscrow) {
+		log.Warn().Msg("AutoMDM server does not advertise the LUKS recovery-key escrow capability; skipping this attempt. Upgrade the AutoMDM server to enable TPM-backed FDE key backup.")
 		lr.notifyServerTooOldOnce()
 		return nil
 	}
 
-	response := LuksResponse{KeyType: fleet.LUKSKeyTypeRecoveryKey}
+	response := LuksResponse{KeyType: automdm.LUKSKeyTypeRecoveryKey}
 
 	log.Info().Msg("creating and enrolling snapd-managed FDE recovery key for escrow")
-	recoveryKey, err := snapd.EnsureFleetRecoveryKey(ctx)
+	recoveryKey, err := snapd.EnsureAutoMDMRecoveryKey(ctx)
 	if err != nil {
-		log.Error().Err(err).Msg("failed to create snapd-managed recovery key; reporting escrow error to Fleet")
-		response.Err = fmt.Sprintf("creating Fleet recovery key: %s", err)
+		log.Error().Err(err).Msg("failed to create snapd-managed recovery key; reporting escrow error to AutoMDM")
+		response.Err = fmt.Sprintf("creating AutoMDM recovery key: %s", err)
 		lr.recordRecoveryKeyFailure()
 		if sendErr := lr.escrower.SendLinuxKeyEscrowResponse(response); sendErr != nil {
 			return fmt.Errorf("reporting recovery key escrow error: %w", sendErr)
 		}
-		return fmt.Errorf("creating Fleet recovery key: %w", err)
+		return fmt.Errorf("creating AutoMDM recovery key: %w", err)
 	}
 
 	response.Passphrase = recoveryKey
-	log.Debug().Msg("sending escrowed recovery key to the Fleet server")
+	log.Debug().Msg("sending escrowed recovery key to the AutoMDM server")
 	if err := lr.escrower.SendLinuxKeyEscrowResponse(response); err != nil {
 		// The server did not record the key. snapd exposes no way to delete a
 		// recovery-key slot, so we cannot roll the enrolled key back — but it is
 		// harmless (its secret was never stored anywhere) and the host stays
 		// pending escrow, so the next attempt regenerates and replaces it in
 		// place. Escrow therefore self-heals on retry.
-		log.Error().Err(err).Msg("failed to escrow recovery key to Fleet; the host stays pending and will retry on the next check-in")
+		log.Error().Err(err).Msg("failed to escrow recovery key to AutoMDM; the host stays pending and will retry on the next check-in")
 		lr.recordRecoveryKeyFailure()
 		return fmt.Errorf("escrowing recovery key: %w", err)
 	}
 
-	log.Info().Msg("snapd-managed FDE recovery key escrowed to Fleet")
+	log.Info().Msg("snapd-managed FDE recovery key escrowed to AutoMDM")
 	lr.recordRecoveryKeySuccess()
 	return nil
 }
@@ -221,7 +221,7 @@ func (lr *LuksRunner) recordRecoveryKeySuccess() {
 	lr.serverTooOldNotified = false
 }
 
-// notifyServerTooOldOnce shows a one-shot notification when the Fleet server
+// notifyServerTooOldOnce shows a one-shot notification when the AutoMDM server
 // is too old to accept recovery-key escrow. This is distinct from the retry
 // notification because the situation is deterministic — no amount of retrying
 // will make it work until the admin upgrades — so we notify immediately, not
@@ -242,7 +242,7 @@ func (lr *LuksRunner) notifyServerTooOldOnce() {
 // showInfo shows an info dialog if a notifier is available. On headless hosts
 // (no zenity/kdialog installed, or no logged-in GUI user) this is a no-op
 // beyond a log line; the failure surfaces via the server-side "pending escrow"
-// state on the host's page in the Fleet UI.
+// state on the host's page in the AutoMDM UI.
 func (lr *LuksRunner) showInfo(title, text string) {
 	if lr.notifier == nil {
 		log.Debug().Str("title", title).Msg("no dialog notifier available; skipping user-facing recovery-key notification")
@@ -260,13 +260,13 @@ func (lr *LuksRunner) showInfo(title, text string) {
 type KeyEscrower interface {
 	SendLinuxKeyEscrowResponse(LuksResponse) error
 	// SendLinuxKeyEscrowStatus reports progress on an escrow request (see
-	// fleet.LinuxEscrowStatus*).
+	// automdm.LinuxEscrowStatus*).
 	SendLinuxKeyEscrowStatus(status string) error
-	// GetServerCapabilities returns the capabilities the Fleet server most
-	// recently advertised via the X-Fleet-Capabilities header. Used to gate
+	// GetServerCapabilities returns the capabilities the AutoMDM server most
+	// recently advertised via the X-AutoMDM-Capabilities header. Used to gate
 	// the snapd/TPM-backed FDE recovery-key escrow path on servers that
 	// understand the recovery-key payload shape.
-	GetServerCapabilities() fleet.CapabilityMap
+	GetServerCapabilities() automdm.CapabilityMap
 }
 
 // recoveryKeyFailureNotifyThreshold is the number of consecutive
@@ -280,9 +280,9 @@ const recoveryKeyFailureNotifyThreshold = 5
 // because the whole point of the TPM path is minimal end-user friction.
 const (
 	recoveryKeyEscrowFailedTitle = "Disk encryption"
-	recoveryKeyEscrowFailedText  = "Fleet couldn't back up your disk recovery key. Please contact your IT admin."
+	recoveryKeyEscrowFailedText  = "AutoMDM couldn't back up your disk recovery key. Please contact your IT admin."
 	recoveryKeyServerTooOldTitle = "Disk encryption"
-	recoveryKeyServerTooOldText  = "Your Fleet server needs an update before it can back up your disk recovery key. Please contact your IT admin."
+	recoveryKeyServerTooOldText  = "Your AutoMDM server needs an update before it can back up your disk recovery key. Please contact your IT admin."
 )
 
 type LuksRunner struct {
@@ -300,7 +300,7 @@ type LuksRunner struct {
 }
 
 type LuksResponse struct {
-	// Passphrase is a newly created passphrase generated by fleetd for securing the LUKS volume.
+	// Passphrase is a newly created passphrase generated by automdmd for securing the LUKS volume.
 	// This passphrase will be securely escrowed to the server.
 	Passphrase string
 
@@ -313,7 +313,7 @@ type LuksResponse struct {
 
 	// KeyType identifies how the escrowed secret unlocks the volume. Empty
 	// means the legacy passphrase path (with Salt + KeySlot);
-	// fleet.LUKSKeyTypeRecoveryKey means a snapd-managed TPM-backed FDE recovery
+	// automdm.LUKSKeyTypeRecoveryKey means a snapd-managed TPM-backed FDE recovery
 	// key, which has no Salt or KeySlot.
 	KeyType string
 

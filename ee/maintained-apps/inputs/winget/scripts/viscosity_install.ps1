@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 
 # Viscosity ships an Inno Setup installer. The base silent switches come from
 # the winget InstallerSwitches (/SP- /VERYSILENT /SUPPRESSMSGBOXES /NORESTART).

@@ -2,7 +2,7 @@ package service
 
 // MDM migration tests for the MDM suite.
 //
-// Belongs here: migrating macOS hosts from another MDM to Fleet — the macOS migration settings, the
+// Belongs here: migrating macOS hosts from another MDM to AutoMDM — the macOS migration settings, the
 // migration webhook, the end-to-end migration flow, and silent migration edge cases.
 //
 // Does not belong here: Windows MDM migration (integration_mdm_windows_enrollment_test.go) and fresh
@@ -20,12 +20,12 @@ import (
 	"os"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/mdm/mdmtest"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	apple_mdm "github.com/fleetdm/fleet/v4/server/mdm/apple"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanodep/godep"
+	"github.com/anilyagiz/automdm/v4/pkg/mdm/mdmtest"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	apple_mdm "github.com/anilyagiz/automdm/v4/server/mdm/apple"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanodep/godep"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,7 +36,7 @@ func (s *integrationMDMTestSuite) TestAppConfigMDMMacOSMigration() {
 
 	checkDefaultAppConfig := func() {
 		var ac appConfigResponse
-		s.DoJSON("GET", "/api/v1/fleet/config", nil, http.StatusOK, &ac)
+		s.DoJSON("GET", "/api/v1/automdm/config", nil, http.StatusOK, &ac)
 		require.False(t, ac.MDM.MacOSMigration.Enable)
 		require.Empty(t, ac.MDM.MacOSMigration.Mode)
 		require.Empty(t, ac.MDM.MacOSMigration.WebhookURL)
@@ -45,32 +45,32 @@ func (s *integrationMDMTestSuite) TestAppConfigMDMMacOSMigration() {
 
 	var acResp appConfigResponse
 	// missing webhook_url
-	s.DoJSON("PATCH", "/api/v1/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/v1/automdm/config", json.RawMessage(`{
 		"mdm": { "macos_migration": { "enable": true, "mode": "voluntary", "webhook_url": "" } }
   	}`), http.StatusUnprocessableEntity, &acResp)
 	checkDefaultAppConfig()
 
 	// invalid url scheme for webhook_url
-	s.DoJSON("PATCH", "/api/v1/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/v1/automdm/config", json.RawMessage(`{
 		"mdm": { "macos_migration": { "enable": true, "mode": "voluntary", "webhook_url": "ftp://example.com" } }
 	}`), http.StatusUnprocessableEntity, &acResp)
 	checkDefaultAppConfig()
 
 	// invalid mode
-	s.DoJSON("PATCH", "/api/v1/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/v1/automdm/config", json.RawMessage(`{
 		"mdm": { "macos_migration": { "enable": true, "mode": "foobar", "webhook_url": "https://example.com" } }
   	}`), http.StatusUnprocessableEntity, &acResp)
 	checkDefaultAppConfig()
 
 	// valid request
-	s.DoJSON("PATCH", "/api/v1/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/v1/automdm/config", json.RawMessage(`{
 		"mdm": { "macos_migration": { "enable": true, "mode": "voluntary", "webhook_url": "https://example.com" } }
 	}`), http.StatusOK, &acResp)
 
 	// confirm new app config
-	s.DoJSON("GET", "/api/v1/fleet/config", nil, http.StatusOK, &acResp)
+	s.DoJSON("GET", "/api/v1/automdm/config", nil, http.StatusOK, &acResp)
 	require.True(t, acResp.MDM.MacOSMigration.Enable)
-	require.Equal(t, fleet.MacOSMigrationModeVoluntary, acResp.MDM.MacOSMigration.Mode)
+	require.Equal(t, automdm.MacOSMigrationModeVoluntary, acResp.MDM.MacOSMigration.Mode)
 	require.Equal(t, "https://example.com", acResp.MDM.MacOSMigration.WebhookURL)
 }
 
@@ -85,7 +85,7 @@ func (s *integrationMDMTestSuite) TestMigrateMDMDeviceWebhook() {
 		w.WriteHeader(http.StatusOK)
 		switch r.URL.Path {
 		case "/test_mdm_migration":
-			var payload fleet.MigrateMDMDeviceWebhookPayload
+			var payload automdm.MigrateMDMDeviceWebhookPayload
 			b, err := io.ReadAll(r.Body)
 			assert.NoError(t, err)
 			err = json.Unmarshal(b, &payload)
@@ -102,8 +102,8 @@ func (s *integrationMDMTestSuite) TestMigrateMDMDeviceWebhook() {
 	defer webhookSrv.Close()
 
 	// patch app config with webhook url
-	acResp := fleet.AppConfig{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(fmt.Sprintf(`{
+	acResp := automdm.AppConfig{}
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(fmt.Sprintf(`{
 		"mdm": {
 			"macos_migration": {
 				"enable": true,
@@ -120,18 +120,18 @@ func (s *integrationMDMTestSuite) TestMigrateMDMDeviceWebhook() {
 	mdmURL := "https://mdm.example.com"
 
 	// host is a server so migration is not allowed
-	require.NoError(t, s.ds.SetOrUpdateMDMData(context.Background(), h.ID, isServer, enrolled, mdmURL, installedFromDEP, mdmName, "", fleet.PersonalEnrollmentTypeNone))
-	s.Do("POST", fmt.Sprintf("/api/v1/fleet/device/%s/migrate_mdm", "good-token"), nil, http.StatusBadRequest)
+	require.NoError(t, s.ds.SetOrUpdateMDMData(context.Background(), h.ID, isServer, enrolled, mdmURL, installedFromDEP, mdmName, "", automdm.PersonalEnrollmentTypeNone))
+	s.Do("POST", fmt.Sprintf("/api/v1/automdm/device/%s/migrate_mdm", "good-token"), nil, http.StatusBadRequest)
 	require.False(t, webhookCalled)
 
 	// host is not enrolled to MDM so migration is not allowed
-	require.NoError(t, s.ds.SetOrUpdateMDMData(context.Background(), h.ID, !isServer, !enrolled, mdmURL, installedFromDEP, mdmName, "", fleet.PersonalEnrollmentTypeNone))
-	s.Do("POST", fmt.Sprintf("/api/v1/fleet/device/%s/migrate_mdm", "good-token"), nil, http.StatusBadRequest)
+	require.NoError(t, s.ds.SetOrUpdateMDMData(context.Background(), h.ID, !isServer, !enrolled, mdmURL, installedFromDEP, mdmName, "", automdm.PersonalEnrollmentTypeNone))
+	s.Do("POST", fmt.Sprintf("/api/v1/automdm/device/%s/migrate_mdm", "good-token"), nil, http.StatusBadRequest)
 	require.False(t, webhookCalled)
 
-	// host is already enrolled to Fleet MDM so migration is not allowed
-	require.NoError(t, s.ds.SetOrUpdateMDMData(context.Background(), h.ID, !isServer, enrolled, mdmURL, installedFromDEP, fleet.WellKnownMDMFleet, "", fleet.PersonalEnrollmentTypeNone))
-	s.Do("POST", fmt.Sprintf("/api/v1/fleet/device/%s/migrate_mdm", "good-token"), nil, http.StatusBadRequest)
+	// host is already enrolled to AutoMDM so migration is not allowed
+	require.NoError(t, s.ds.SetOrUpdateMDMData(context.Background(), h.ID, !isServer, enrolled, mdmURL, installedFromDEP, automdm.WellKnownMDMAutoMDM, "", automdm.PersonalEnrollmentTypeNone))
+	s.Do("POST", fmt.Sprintf("/api/v1/automdm/device/%s/migrate_mdm", "good-token"), nil, http.StatusBadRequest)
 	require.False(t, webhookCalled)
 
 	// up to this point, the refetch critical queries timestamp has not been set
@@ -142,13 +142,13 @@ func (s *integrationMDMTestSuite) TestMigrateMDMDeviceWebhook() {
 
 	// host is enrolled to a third-party MDM but hasn't been assigned in
 	// ABM yet, so migration is not allowed
-	require.NoError(t, s.ds.SetOrUpdateMDMData(context.Background(), h.ID, !isServer, enrolled, mdmURL, installedFromDEP, mdmName, "", fleet.PersonalEnrollmentTypeNone))
-	s.Do("POST", fmt.Sprintf("/api/v1/fleet/device/%s/migrate_mdm", "good-token"), nil, http.StatusBadRequest)
+	require.NoError(t, s.ds.SetOrUpdateMDMData(context.Background(), h.ID, !isServer, enrolled, mdmURL, installedFromDEP, mdmName, "", automdm.PersonalEnrollmentTypeNone))
+	s.Do("POST", fmt.Sprintf("/api/v1/automdm/device/%s/migrate_mdm", "good-token"), nil, http.StatusBadRequest)
 	require.False(t, webhookCalled)
 
 	s.enableABM(t.Name())
 
-	// simulate that the device is assigned to Fleet in ABM
+	// simulate that the device is assigned to AutoMDM in ABM
 	s.mockDEPResponse(t.Name(), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		switch r.URL.Path {
@@ -180,7 +180,7 @@ func (s *integrationMDMTestSuite) TestMigrateMDMDeviceWebhook() {
 			var resp godep.ProfileResponse
 			resp.ProfileUUID = prof.ProfileUUID
 			resp.Devices = map[string]string{
-				prof.Devices[0]: string(fleet.DEPAssignProfileResponseSuccess),
+				prof.Devices[0]: string(automdm.DEPAssignProfileResponseSuccess),
 			}
 			encoder := json.NewEncoder(w)
 			err = encoder.Encode(resp)
@@ -190,7 +190,7 @@ func (s *integrationMDMTestSuite) TestMigrateMDMDeviceWebhook() {
 	s.runDEPSchedule()
 
 	// hosts meets all requirements, webhook is run
-	s.Do("POST", fmt.Sprintf("/api/v1/fleet/device/%s/migrate_mdm", "good-token"), nil, http.StatusNoContent)
+	s.Do("POST", fmt.Sprintf("/api/v1/automdm/device/%s/migrate_mdm", "good-token"), nil, http.StatusNoContent)
 	require.True(t, webhookCalled)
 	webhookCalled = false
 
@@ -201,7 +201,7 @@ func (s *integrationMDMTestSuite) TestMigrateMDMDeviceWebhook() {
 	require.True(t, h.RefetchCriticalQueriesUntil.After(time.Now()))
 
 	// calling again works but does not trigger the webhook, as it was called recently
-	s.Do("POST", fmt.Sprintf("/api/v1/fleet/device/%s/migrate_mdm", "good-token"), nil, http.StatusNoContent)
+	s.Do("POST", fmt.Sprintf("/api/v1/automdm/device/%s/migrate_mdm", "good-token"), nil, http.StatusNoContent)
 	require.False(t, webhookCalled)
 
 	// setting the refetch critical queries timestamp in the past triggers the webhook again
@@ -209,7 +209,7 @@ func (s *integrationMDMTestSuite) TestMigrateMDMDeviceWebhook() {
 	err = s.ds.UpdateHost(context.Background(), h)
 	require.NoError(t, err)
 
-	s.Do("POST", fmt.Sprintf("/api/v1/fleet/device/%s/migrate_mdm", "good-token"), nil, http.StatusNoContent)
+	s.Do("POST", fmt.Sprintf("/api/v1/automdm/device/%s/migrate_mdm", "good-token"), nil, http.StatusNoContent)
 	require.True(t, webhookCalled)
 	webhookCalled = false
 
@@ -218,8 +218,8 @@ func (s *integrationMDMTestSuite) TestMigrateMDMDeviceWebhook() {
 	err = s.ds.UpdateHost(context.Background(), h)
 	require.NoError(t, err)
 
-	require.NoError(t, s.ds.SetOrUpdateMDMData(context.Background(), h.ID, !isServer, enrolled, mdmURL, !installedFromDEP, mdmName, "", fleet.PersonalEnrollmentTypeNone))
-	s.Do("POST", fmt.Sprintf("/api/v1/fleet/device/%s/migrate_mdm", "good-token"), nil, http.StatusNoContent)
+	require.NoError(t, s.ds.SetOrUpdateMDMData(context.Background(), h.ID, !isServer, enrolled, mdmURL, !installedFromDEP, mdmName, "", automdm.PersonalEnrollmentTypeNone))
+	s.Do("POST", fmt.Sprintf("/api/v1/automdm/device/%s/migrate_mdm", "good-token"), nil, http.StatusNoContent)
 	require.True(t, webhookCalled)
 	webhookCalled = false
 
@@ -232,11 +232,11 @@ func (s *integrationMDMTestSuite) TestMigrateMDMDeviceWebhook() {
 	require.NoError(t, s.ds.UpdateHostRefetchCriticalQueriesUntil(context.Background(), h.ID, nil))
 
 	// bad token
-	s.Do("POST", fmt.Sprintf("/api/v1/fleet/device/%s/migrate_mdm", "bad-token"), nil, http.StatusUnauthorized)
+	s.Do("POST", fmt.Sprintf("/api/v1/automdm/device/%s/migrate_mdm", "bad-token"), nil, http.StatusUnauthorized)
 	require.False(t, webhookCalled)
 
 	// disable macos migration
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 		"mdm": {
 			"macos_migration": {
 				"enable": false,
@@ -248,7 +248,7 @@ func (s *integrationMDMTestSuite) TestMigrateMDMDeviceWebhook() {
 	require.False(t, acResp.MDM.MacOSMigration.Enable)
 
 	// expect error if macos migration is not configured
-	s.Do("POST", fmt.Sprintf("/api/v1/fleet/device/%s/migrate_mdm", "good-token"), nil, http.StatusBadRequest)
+	s.Do("POST", fmt.Sprintf("/api/v1/automdm/device/%s/migrate_mdm", "good-token"), nil, http.StatusBadRequest)
 	require.False(t, webhookCalled)
 }
 
@@ -265,8 +265,8 @@ func (s *integrationMDMTestSuite) TestMigrateMDMDeviceWebhookErrors() {
 	defer webhookSrv.Close()
 
 	// patch app config with webhook url
-	acResp := fleet.AppConfig{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(fmt.Sprintf(`{
+	acResp := automdm.AppConfig{}
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(fmt.Sprintf(`{
 		"mdm": {
 			"macos_migration": {
 				"enable": true,
@@ -283,12 +283,12 @@ func (s *integrationMDMTestSuite) TestMigrateMDMDeviceWebhookErrors() {
 
 	// host is enrolled to a third-party MDM but hasn't been assigned in
 	// ABM yet, so migration is not allowed
-	require.NoError(t, s.ds.SetOrUpdateMDMData(context.Background(), h.ID, !isServer, enrolled, mdmURL, installedFromDEP, mdmName, "", fleet.PersonalEnrollmentTypeNone))
-	s.Do("POST", fmt.Sprintf("/api/v1/fleet/device/%s/migrate_mdm", "good-token"), nil, http.StatusBadRequest)
+	require.NoError(t, s.ds.SetOrUpdateMDMData(context.Background(), h.ID, !isServer, enrolled, mdmURL, installedFromDEP, mdmName, "", automdm.PersonalEnrollmentTypeNone))
+	s.Do("POST", fmt.Sprintf("/api/v1/automdm/device/%s/migrate_mdm", "good-token"), nil, http.StatusBadRequest)
 	require.False(t, webhookCalled)
 
 	s.enableABM(t.Name())
-	// simulate that the device is assigned to Fleet in ABM
+	// simulate that the device is assigned to AutoMDM in ABM
 	s.mockDEPResponse(t.Name(), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		switch r.URL.Path {
@@ -319,7 +319,7 @@ func (s *integrationMDMTestSuite) TestMigrateMDMDeviceWebhookErrors() {
 			var resp godep.ProfileResponse
 			resp.ProfileUUID = prof.ProfileUUID
 			resp.Devices = map[string]string{
-				prof.Devices[0]: string(fleet.DEPAssignProfileResponseSuccess),
+				prof.Devices[0]: string(automdm.DEPAssignProfileResponseSuccess),
 			}
 			encoder := json.NewEncoder(w)
 			err = encoder.Encode(resp)
@@ -331,7 +331,7 @@ func (s *integrationMDMTestSuite) TestMigrateMDMDeviceWebhookErrors() {
 	// hosts meets all requirements, webhook is run but returns an error, server should respond with
 	// the same status code
 	require.False(t, webhookCalled)
-	s.Do("POST", fmt.Sprintf("/api/v1/fleet/device/%s/migrate_mdm", "good-token"), nil, http.StatusBadRequest)
+	s.Do("POST", fmt.Sprintf("/api/v1/automdm/device/%s/migrate_mdm", "good-token"), nil, http.StatusBadRequest)
 	require.True(t, webhookCalled)
 }
 
@@ -341,15 +341,15 @@ func (s *integrationMDMTestSuite) TestMDMMigration() {
 
 	// enable migration
 	var acResp appConfigResponse
-	s.DoJSON("PATCH", "/api/v1/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/v1/automdm/config", json.RawMessage(`{
 		"mdm": { "macos_migration": { "enable": true, "mode": "voluntary", "webhook_url": "https://example.com" } }
 	}`), http.StatusOK, &acResp)
 
 	abmToken := s.enableABM(t.Name())
 
-	checkMigrationResponses := func(host *fleet.Host, token string) {
-		getDesktopResp := fleetDesktopResponse{}
-		res := s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token+"/desktop", nil, http.StatusOK)
+	checkMigrationResponses := func(host *automdm.Host, token string) {
+		getDesktopResp := automdmDesktopResponse{}
+		res := s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token+"/desktop", nil, http.StatusOK)
 		require.NoError(t, json.NewDecoder(res.Body).Decode(&getDesktopResp))
 		require.NoError(t, res.Body.Close())
 		require.NoError(t, getDesktopResp.Err)
@@ -362,13 +362,13 @@ func (s *integrationMDMTestSuite) TestMDMMigration() {
 		require.Equal(t, acResp.OrgInfo.OrgName, getDesktopResp.Config.OrgInfo.OrgName)
 		require.Equal(t, acResp.MDM.MacOSMigration.Mode, getDesktopResp.Config.MDM.MacOSMigration.Mode)
 
-		orbitConfigResp := fleet.OrbitGetConfigResponse{}
-		s.DoJSON("POST", "/api/fleet/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *host.OrbitNodeKey)), http.StatusOK, &orbitConfigResp)
+		orbitConfigResp := automdm.OrbitGetConfigResponse{}
+		s.DoJSON("POST", "/api/automdm/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *host.OrbitNodeKey)), http.StatusOK, &orbitConfigResp)
 		require.False(t, orbitConfigResp.Notifications.NeedsMDMMigration)
 		require.False(t, orbitConfigResp.Notifications.RenewEnrollmentProfile)
 
-		// simulate that the device is assigned to Fleet in ABM
-		profileAssignmentStatusResponse := fleet.DEPAssignProfileResponseSuccess
+		// simulate that the device is assigned to AutoMDM in ABM
+		profileAssignmentStatusResponse := automdm.DEPAssignProfileResponseSuccess
 		s.mockDEPResponse(t.Name(), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			switch r.URL.Path {
@@ -427,15 +427,15 @@ func (s *integrationMDMTestSuite) TestMDMMigration() {
 			true,
 			"https://simplemdm.com",
 			true,
-			fleet.WellKnownMDMSimpleMDM,
+			automdm.WellKnownMDMSimpleMDM,
 			"",
-			fleet.PersonalEnrollmentTypeNone,
+			automdm.PersonalEnrollmentTypeNone,
 		)
 		require.NoError(t, err)
 
 		// simulate a response before we have the chance to assign the profile
-		getDesktopResp = fleetDesktopResponse{}
-		res = s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token+"/desktop", nil, http.StatusOK)
+		getDesktopResp = automdmDesktopResponse{}
+		res = s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token+"/desktop", nil, http.StatusOK)
 		require.NoError(t, json.NewDecoder(res.Body).Decode(&getDesktopResp))
 		require.NoError(t, res.Body.Close())
 		require.NoError(t, getDesktopResp.Err)
@@ -447,73 +447,73 @@ func (s *integrationMDMTestSuite) TestMDMMigration() {
 		require.Equal(t, acResp.OrgInfo.ContactURL, getDesktopResp.Config.OrgInfo.ContactURL)
 		require.Equal(t, acResp.OrgInfo.OrgName, getDesktopResp.Config.OrgInfo.OrgName)
 		require.Equal(t, acResp.MDM.MacOSMigration.Mode, getDesktopResp.Config.MDM.MacOSMigration.Mode)
-		orbitConfigResp = fleet.OrbitGetConfigResponse{}
-		s.DoJSON("POST", "/api/fleet/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *host.OrbitNodeKey)), http.StatusOK, &orbitConfigResp)
+		orbitConfigResp = automdm.OrbitGetConfigResponse{}
+		s.DoJSON("POST", "/api/automdm/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *host.OrbitNodeKey)), http.StatusOK, &orbitConfigResp)
 		require.False(t, orbitConfigResp.Notifications.NeedsMDMMigration)
 		require.False(t, orbitConfigResp.Notifications.RenewEnrollmentProfile)
 		cleanAssignmentStatus()
 
 		// simulate a "FAILED" JSON profile assignment
-		profileAssignmentStatusResponse = fleet.DEPAssignProfileResponseFailed
+		profileAssignmentStatusResponse = automdm.DEPAssignProfileResponseFailed
 		s.runDEPSchedule()
-		getDesktopResp = fleetDesktopResponse{}
-		res = s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token+"/desktop", nil, http.StatusOK)
+		getDesktopResp = automdmDesktopResponse{}
+		res = s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token+"/desktop", nil, http.StatusOK)
 		require.NoError(t, json.NewDecoder(res.Body).Decode(&getDesktopResp))
 		require.NoError(t, res.Body.Close())
 		require.False(t, getDesktopResp.Notifications.NeedsMDMMigration)
 		require.False(t, orbitConfigResp.Notifications.RenewEnrollmentProfile)
-		orbitConfigResp = fleet.OrbitGetConfigResponse{}
-		s.DoJSON("POST", "/api/fleet/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *host.OrbitNodeKey)), http.StatusOK, &orbitConfigResp)
+		orbitConfigResp = automdm.OrbitGetConfigResponse{}
+		s.DoJSON("POST", "/api/automdm/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *host.OrbitNodeKey)), http.StatusOK, &orbitConfigResp)
 		require.False(t, orbitConfigResp.Notifications.NeedsMDMMigration)
 		require.False(t, orbitConfigResp.Notifications.RenewEnrollmentProfile)
 		require.NoError(t, s.ds.DeleteHostDEPAssignments(ctx, abmToken.ID, []string{host.HardwareSerial}))
 		cleanAssignmentStatus()
 
 		// simulate a "THROTTLED" JSON profile assignment
-		profileAssignmentStatusResponse = fleet.DEPAssignProfileResponseThrottled
+		profileAssignmentStatusResponse = automdm.DEPAssignProfileResponseThrottled
 		s.runDEPSchedule()
-		getDesktopResp = fleetDesktopResponse{}
-		res = s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token+"/desktop", nil, http.StatusOK)
+		getDesktopResp = automdmDesktopResponse{}
+		res = s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token+"/desktop", nil, http.StatusOK)
 		require.NoError(t, json.NewDecoder(res.Body).Decode(&getDesktopResp))
 		require.NoError(t, res.Body.Close())
 		require.False(t, getDesktopResp.Notifications.NeedsMDMMigration)
 		require.False(t, orbitConfigResp.Notifications.RenewEnrollmentProfile)
-		orbitConfigResp = fleet.OrbitGetConfigResponse{}
-		s.DoJSON("POST", "/api/fleet/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *host.OrbitNodeKey)), http.StatusOK, &orbitConfigResp)
+		orbitConfigResp = automdm.OrbitGetConfigResponse{}
+		s.DoJSON("POST", "/api/automdm/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *host.OrbitNodeKey)), http.StatusOK, &orbitConfigResp)
 		require.False(t, orbitConfigResp.Notifications.NeedsMDMMigration)
 		require.False(t, orbitConfigResp.Notifications.RenewEnrollmentProfile)
 		require.NoError(t, s.ds.DeleteHostDEPAssignments(ctx, abmToken.ID, []string{host.HardwareSerial}))
 		cleanAssignmentStatus()
 
 		// simulate a "NOT_ACCESSIBLE" JSON profile assignment
-		profileAssignmentStatusResponse = fleet.DEPAssignProfileResponseNotAccessible
+		profileAssignmentStatusResponse = automdm.DEPAssignProfileResponseNotAccessible
 		s.runDEPSchedule()
-		getDesktopResp = fleetDesktopResponse{}
-		res = s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token+"/desktop", nil, http.StatusOK)
+		getDesktopResp = automdmDesktopResponse{}
+		res = s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token+"/desktop", nil, http.StatusOK)
 		require.NoError(t, json.NewDecoder(res.Body).Decode(&getDesktopResp))
 		require.NoError(t, res.Body.Close())
 		require.False(t, getDesktopResp.Notifications.NeedsMDMMigration)
 		require.False(t, orbitConfigResp.Notifications.RenewEnrollmentProfile)
-		s.DoJSON("POST", "/api/fleet/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *host.OrbitNodeKey)), http.StatusOK, &orbitConfigResp)
+		s.DoJSON("POST", "/api/automdm/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *host.OrbitNodeKey)), http.StatusOK, &orbitConfigResp)
 		require.False(t, orbitConfigResp.Notifications.NeedsMDMMigration)
 		require.False(t, orbitConfigResp.Notifications.RenewEnrollmentProfile)
 		require.NoError(t, s.ds.DeleteHostDEPAssignments(ctx, abmToken.ID, []string{host.HardwareSerial}))
 		cleanAssignmentStatus()
 
 		// simulate a "SUCCESS" JSON profile assignment
-		profileAssignmentStatusResponse = fleet.DEPAssignProfileResponseSuccess
+		profileAssignmentStatusResponse = automdm.DEPAssignProfileResponseSuccess
 		s.runDEPSchedule()
-		getDesktopResp = fleetDesktopResponse{}
-		res = s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token+"/desktop", nil, http.StatusOK)
+		getDesktopResp = automdmDesktopResponse{}
+		res = s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token+"/desktop", nil, http.StatusOK)
 		require.NoError(t, json.NewDecoder(res.Body).Decode(&getDesktopResp))
 		require.NoError(t, res.Body.Close())
 		require.True(t, getDesktopResp.Notifications.NeedsMDMMigration)
 		require.False(t, orbitConfigResp.Notifications.RenewEnrollmentProfile)
-		s.DoJSON("POST", "/api/fleet/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *host.OrbitNodeKey)), http.StatusOK, &orbitConfigResp)
+		s.DoJSON("POST", "/api/automdm/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *host.OrbitNodeKey)), http.StatusOK, &orbitConfigResp)
 		require.True(t, orbitConfigResp.Notifications.NeedsMDMMigration)
 		require.False(t, orbitConfigResp.Notifications.RenewEnrollmentProfile)
 
-		// simulate that the device needs to be enrolled in fleet, DEP capable
+		// simulate that the device needs to be enrolled in team, DEP capable
 		err = s.ds.SetOrUpdateMDMData(
 			ctx,
 			host.ID,
@@ -521,14 +521,14 @@ func (s *integrationMDMTestSuite) TestMDMMigration() {
 			false,
 			s.server.URL,
 			true,
-			fleet.WellKnownMDMFleet,
+			automdm.WellKnownMDMAutoMDM,
 			"",
-			fleet.PersonalEnrollmentTypeNone,
+			automdm.PersonalEnrollmentTypeNone,
 		)
 		require.NoError(t, err)
 
-		getDesktopResp = fleetDesktopResponse{}
-		res = s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token+"/desktop", nil, http.StatusOK)
+		getDesktopResp = automdmDesktopResponse{}
+		res = s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token+"/desktop", nil, http.StatusOK)
 		require.NoError(t, json.NewDecoder(res.Body).Decode(&getDesktopResp))
 		require.NoError(t, res.Body.Close())
 		require.NoError(t, getDesktopResp.Err)
@@ -541,12 +541,12 @@ func (s *integrationMDMTestSuite) TestMDMMigration() {
 		require.Equal(t, acResp.OrgInfo.OrgName, getDesktopResp.Config.OrgInfo.OrgName)
 		require.Equal(t, acResp.MDM.MacOSMigration.Mode, getDesktopResp.Config.MDM.MacOSMigration.Mode)
 
-		orbitConfigResp = fleet.OrbitGetConfigResponse{}
-		s.DoJSON("POST", "/api/fleet/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *host.OrbitNodeKey)), http.StatusOK, &orbitConfigResp)
+		orbitConfigResp = automdm.OrbitGetConfigResponse{}
+		s.DoJSON("POST", "/api/automdm/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *host.OrbitNodeKey)), http.StatusOK, &orbitConfigResp)
 		require.False(t, orbitConfigResp.Notifications.NeedsMDMMigration)
 		require.True(t, orbitConfigResp.Notifications.RenewEnrollmentProfile)
 
-		// simulate that the device is manually enrolled into fleet, but DEP capable
+		// simulate that the device is manually enrolled into team, but DEP capable
 		err = s.ds.SetOrUpdateMDMData(
 			ctx,
 			host.ID,
@@ -554,9 +554,9 @@ func (s *integrationMDMTestSuite) TestMDMMigration() {
 			true,
 			s.server.URL,
 			false,
-			fleet.WellKnownMDMFleet,
+			automdm.WellKnownMDMAutoMDM,
 			"",
-			fleet.PersonalEnrollmentTypeNone,
+			automdm.PersonalEnrollmentTypeNone,
 		)
 		require.NoError(t, err)
 		mdmDevice := mdmtest.NewTestMDMClientAppleDirect(mdmtest.AppleEnrollInfo{
@@ -569,8 +569,8 @@ func (s *integrationMDMTestSuite) TestMDMMigration() {
 		err = mdmDevice.Enroll()
 		require.NoError(t, err)
 		require.NoError(t, err)
-		getDesktopResp = fleetDesktopResponse{}
-		res = s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token+"/desktop", nil, http.StatusOK)
+		getDesktopResp = automdmDesktopResponse{}
+		res = s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token+"/desktop", nil, http.StatusOK)
 		require.NoError(t, json.NewDecoder(res.Body).Decode(&getDesktopResp))
 		require.NoError(t, res.Body.Close())
 		require.NoError(t, getDesktopResp.Err)
@@ -583,12 +583,12 @@ func (s *integrationMDMTestSuite) TestMDMMigration() {
 		require.Equal(t, acResp.OrgInfo.OrgName, getDesktopResp.Config.OrgInfo.OrgName)
 		require.Equal(t, acResp.MDM.MacOSMigration.Mode, getDesktopResp.Config.MDM.MacOSMigration.Mode)
 
-		orbitConfigResp = fleet.OrbitGetConfigResponse{}
-		s.DoJSON("POST", "/api/fleet/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *host.OrbitNodeKey)), http.StatusOK, &orbitConfigResp)
+		orbitConfigResp = automdm.OrbitGetConfigResponse{}
+		s.DoJSON("POST", "/api/automdm/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *host.OrbitNodeKey)), http.StatusOK, &orbitConfigResp)
 		require.False(t, orbitConfigResp.Notifications.NeedsMDMMigration)
 		require.False(t, orbitConfigResp.Notifications.RenewEnrollmentProfile)
 
-		// simulate a host that was reset to factory, but fleet still has an mdm record active
+		// simulate a host that was reset to factory, but team still has an mdm record active
 		err = s.ds.SetOrUpdateMDMData(
 			ctx,
 			host.ID,
@@ -596,13 +596,13 @@ func (s *integrationMDMTestSuite) TestMDMMigration() {
 			true,
 			s.server.URL,
 			false,
-			fleet.WellKnownMDMSimpleMDM,
+			automdm.WellKnownMDMSimpleMDM,
 			"",
-			fleet.PersonalEnrollmentTypeNone,
+			automdm.PersonalEnrollmentTypeNone,
 		)
 		require.NoError(t, err)
-		getDesktopResp = fleetDesktopResponse{}
-		res = s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token+"/desktop", nil, http.StatusOK)
+		getDesktopResp = automdmDesktopResponse{}
+		res = s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token+"/desktop", nil, http.StatusOK)
 		require.NoError(t, json.NewDecoder(res.Body).Decode(&getDesktopResp))
 		require.NoError(t, res.Body.Close())
 		require.NoError(t, getDesktopResp.Err)
@@ -615,8 +615,8 @@ func (s *integrationMDMTestSuite) TestMDMMigration() {
 		require.Equal(t, acResp.OrgInfo.OrgName, getDesktopResp.Config.OrgInfo.OrgName)
 		require.Equal(t, acResp.MDM.MacOSMigration.Mode, getDesktopResp.Config.MDM.MacOSMigration.Mode)
 
-		orbitConfigResp = fleet.OrbitGetConfigResponse{}
-		s.DoJSON("POST", "/api/fleet/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *host.OrbitNodeKey)), http.StatusOK, &orbitConfigResp)
+		orbitConfigResp = automdm.OrbitGetConfigResponse{}
+		s.DoJSON("POST", "/api/automdm/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *host.OrbitNodeKey)), http.StatusOK, &orbitConfigResp)
 		require.True(t, orbitConfigResp.Notifications.NeedsMDMMigration)
 		require.False(t, orbitConfigResp.Notifications.RenewEnrollmentProfile)
 
@@ -628,13 +628,13 @@ func (s *integrationMDMTestSuite) TestMDMMigration() {
 			true,
 			"https://simplemdm.com",
 			false,
-			fleet.WellKnownMDMSimpleMDM,
+			automdm.WellKnownMDMSimpleMDM,
 			"",
-			fleet.PersonalEnrollmentTypeNone,
+			automdm.PersonalEnrollmentTypeNone,
 		)
 		require.NoError(t, err)
-		getDesktopResp = fleetDesktopResponse{}
-		res = s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token+"/desktop", nil, http.StatusOK)
+		getDesktopResp = automdmDesktopResponse{}
+		res = s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token+"/desktop", nil, http.StatusOK)
 		require.NoError(t, json.NewDecoder(res.Body).Decode(&getDesktopResp))
 		require.NoError(t, res.Body.Close())
 		require.NoError(t, getDesktopResp.Err)
@@ -647,8 +647,8 @@ func (s *integrationMDMTestSuite) TestMDMMigration() {
 		require.Equal(t, acResp.OrgInfo.OrgName, getDesktopResp.Config.OrgInfo.OrgName)
 		require.Equal(t, acResp.MDM.MacOSMigration.Mode, getDesktopResp.Config.MDM.MacOSMigration.Mode)
 
-		orbitConfigResp = fleet.OrbitGetConfigResponse{}
-		s.DoJSON("POST", "/api/fleet/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *host.OrbitNodeKey)), http.StatusOK, &orbitConfigResp)
+		orbitConfigResp = automdm.OrbitGetConfigResponse{}
+		s.DoJSON("POST", "/api/automdm/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *host.OrbitNodeKey)), http.StatusOK, &orbitConfigResp)
 		require.True(t, orbitConfigResp.Notifications.NeedsMDMMigration)
 		require.False(t, orbitConfigResp.Notifications.RenewEnrollmentProfile)
 
@@ -673,9 +673,9 @@ func (s *integrationMDMTestSuite) TestMDMMigration() {
 	checkMigrationResponses(host, token)
 	require.NoError(t, s.ds.DeleteHostDEPAssignments(ctx, abmToken.ID, []string{host.HardwareSerial}))
 
-	tm, err := s.ds.NewTeam(ctx, &fleet.Team{Name: "team-1"})
+	tm, err := s.ds.NewTeam(ctx, &automdm.Team{Name: "team-1"})
 	require.NoError(t, err)
-	err = s.ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&tm.ID, []uint{host.ID}))
+	err = s.ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&tm.ID, []uint{host.ID}))
 	require.NoError(t, err)
 	checkMigrationResponses(host, token)
 }
@@ -686,16 +686,16 @@ func (s *integrationMDMTestSuite) TestSilentMigrationGotchas() {
 
 	host := createOrbitEnrolledHost(t, "darwin", t.Name(), s.ds)
 	// set the host as enrolled in a third-party MDM
-	err := s.ds.SetOrUpdateMDMData(ctx, host.ID, true, true, "https://foo.com", false, fleet.WellKnownMDMSimpleMDM, "", fleet.PersonalEnrollmentTypeNone)
+	err := s.ds.SetOrUpdateMDMData(ctx, host.ID, true, true, "https://foo.com", false, automdm.WellKnownMDMSimpleMDM, "", automdm.PersonalEnrollmentTypeNone)
 	require.NoError(t, err)
 
 	var hostResp getHostResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", host.ID), nil, http.StatusOK, &hostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", host.ID), nil, http.StatusOK, &hostResp)
 	require.NotNil(t, hostResp.Host)
-	require.NotNil(t, hostResp.Host.MDM.ConnectedToFleet)
-	require.False(t, *hostResp.Host.MDM.ConnectedToFleet)
+	require.NotNil(t, hostResp.Host.MDM.ConnectedToAutoMDM)
+	require.False(t, *hostResp.Host.MDM.ConnectedToAutoMDM)
 
-	// simulate that the device is assigned to Fleet in ABM
+	// simulate that the device is assigned to AutoMDM in ABM
 	s.enableABM(t.Name())
 	s.mockDEPResponse(t.Name(), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -728,7 +728,7 @@ func (s *integrationMDMTestSuite) TestSilentMigrationGotchas() {
 			var resp godep.ProfileResponse
 			resp.ProfileUUID = prof.ProfileUUID
 			resp.Devices = map[string]string{
-				prof.Devices[0]: string(fleet.DEPAssignProfileResponseSuccess),
+				prof.Devices[0]: string(automdm.DEPAssignProfileResponseSuccess),
 			}
 			encoder := json.NewEncoder(w)
 			err = encoder.Encode(resp)
@@ -739,17 +739,17 @@ func (s *integrationMDMTestSuite) TestSilentMigrationGotchas() {
 
 	// enable migrations
 	acResp := appConfigResponse{}
-	s.DoJSON("PATCH", "/api/v1/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/v1/automdm/config", json.RawMessage(`{
 		"mdm": { "macos_migration": { "enable": true, "mode": "voluntary", "webhook_url": "https://example.com" } }
 	}`), http.StatusOK, &acResp)
 
 	// orbit config asks for a migration but not to renew enrollment profile
-	resp := fleet.OrbitGetConfigResponse{}
-	s.DoJSON("POST", "/api/fleet/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *host.OrbitNodeKey)), http.StatusOK, &resp)
+	resp := automdm.OrbitGetConfigResponse{}
+	s.DoJSON("POST", "/api/automdm/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *host.OrbitNodeKey)), http.StatusOK, &resp)
 	require.False(t, resp.Notifications.RenewEnrollmentProfile)
 	require.True(t, resp.Notifications.NeedsMDMMigration)
 
-	// simulate that's actually enrolled to Fleet under the hood
+	// simulate that's actually enrolled to AutoMDM under the hood
 	mdmDevice := mdmtest.NewTestMDMClientAppleDirect(mdmtest.AppleEnrollInfo{
 		SCEPChallenge: s.scepChallenge,
 		SCEPURL:       s.server.URL + apple_mdm.SCEPPath,
@@ -762,33 +762,33 @@ func (s *integrationMDMTestSuite) TestSilentMigrationGotchas() {
 	err = mdmDevice.Enroll()
 	require.NoError(t, err)
 
-	// host response says that it's connected to Fleet (this just checks that the
+	// host response says that it's connected to AutoMDM (this just checks that the
 	// device exists and is enabled in nano_enrollments, which it is thanks to
 	// the mdmDevice.Enroll call above - the row is created during TokenUpdate).
 	hostResp = getHostResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", host.ID), nil, http.StatusOK, &hostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", host.ID), nil, http.StatusOK, &hostResp)
 	require.NotNil(t, hostResp.Host)
-	require.NotNil(t, hostResp.Host.MDM.ConnectedToFleet)
-	require.True(t, *hostResp.Host.MDM.ConnectedToFleet)
+	require.NotNil(t, hostResp.Host.MDM.ConnectedToAutoMDM)
+	require.True(t, *hostResp.Host.MDM.ConnectedToAutoMDM)
 
 	// orbit config asks for a migration because user migrations are enabled, but no ask to renew the enrollment profile.
-	resp = fleet.OrbitGetConfigResponse{}
-	s.DoJSON("POST", "/api/fleet/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *host.OrbitNodeKey)), http.StatusOK, &resp)
+	resp = automdm.OrbitGetConfigResponse{}
+	s.DoJSON("POST", "/api/automdm/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *host.OrbitNodeKey)), http.StatusOK, &resp)
 	require.False(t, resp.Notifications.RenewEnrollmentProfile)
 	require.True(t, resp.Notifications.NeedsMDMMigration)
 
-	// set an enroll secret so the fleetd profile is delivered
+	// set an enroll secret so the automdmd profile is delivered
 	var applyResp applyEnrollSecretSpecResponse
-	s.DoJSON("POST", "/api/latest/fleet/spec/enroll_secret", applyEnrollSecretSpecRequest{
-		Spec: &fleet.EnrollSecretSpec{
-			Secrets: []*fleet.EnrollSecret{{Secret: t.Name()}},
+	s.DoJSON("POST", "/api/latest/automdm/spec/enroll_secret", applyEnrollSecretSpecRequest{
+		Spec: &automdm.EnrollSecretSpec{
+			Secrets: []*automdm.EnrollSecret{{Secret: t.Name()}},
 		},
 	}, http.StatusOK, &applyResp)
 
 	// trigger the profile cron
 	s.awaitTriggerProfileSchedule(t)
 
-	// explicitly run the worker, which will send the install fleetd command
+	// explicitly run the worker, which will send the install automdmd command
 	// because the device is ADE-enrolled (due to the simulation of it being
 	// ingested from ABM)
 	s.awaitRunAppleMDMWorkerSchedule()
@@ -818,15 +818,15 @@ func (s *integrationMDMTestSuite) TestSilentMigrationGotchas() {
 	}
 
 	require.Equal(t, 1, installEnterpriseCount)
-	require.Len(t, installs, 2) // fleetd profile and root cert profile
+	require.Len(t, installs, 2) // automdmd profile and root cert profile
 
 	// trigger the scep renewals cron
 	cert, key, err := generateCertWithAPNsTopic()
 	require.NoError(t, err)
-	fleetCfg := config.TestConfig()
-	config.SetTestMDMConfig(s.T(), &fleetCfg, cert, key, "")
+	automdmCfg := config.TestConfig()
+	config.SetTestMDMConfig(s.T(), &automdmCfg, cert, key, "")
 	scepLogger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	err = RenewSCEPCertificates(ctx, scepLogger, s.ds, &fleetCfg, s.mdmCommander, s.acmeSvc)
+	err = RenewSCEPCertificates(ctx, scepLogger, s.ds, &automdmCfg, s.mdmCommander, s.acmeSvc)
 	require.NoError(t, err)
 
 	// no new commands were enqueued
@@ -835,21 +835,21 @@ func (s *integrationMDMTestSuite) TestSilentMigrationGotchas() {
 	require.Nil(t, cmd)
 
 	// set the host as completely unenrolled
-	err = s.ds.SetOrUpdateMDMData(ctx, host.ID, false, false, "", false, "", "", fleet.PersonalEnrollmentTypeNone)
+	err = s.ds.SetOrUpdateMDMData(ctx, host.ID, false, false, "", false, "", "", automdm.PersonalEnrollmentTypeNone)
 	require.NoError(t, err)
 	// orbit config asks to renew the enrollment profile, migration is not needed anymore so it's false
-	resp = fleet.OrbitGetConfigResponse{}
-	s.DoJSON("POST", "/api/fleet/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *host.OrbitNodeKey)), http.StatusOK, &resp)
+	resp = automdm.OrbitGetConfigResponse{}
+	s.DoJSON("POST", "/api/automdm/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *host.OrbitNodeKey)), http.StatusOK, &resp)
 	require.True(t, resp.Notifications.RenewEnrollmentProfile)
 	require.False(t, resp.Notifications.NeedsMDMMigration)
 
 	// with migrations disabled, it still asks to renew the enrollment profile
 	acResp = appConfigResponse{}
-	s.DoJSON("PATCH", "/api/v1/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/v1/automdm/config", json.RawMessage(`{
 		"mdm": { "macos_migration": { "enable": false } }
 	}`), http.StatusOK, &acResp)
-	resp = fleet.OrbitGetConfigResponse{}
-	s.DoJSON("POST", "/api/fleet/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *host.OrbitNodeKey)), http.StatusOK, &resp)
+	resp = automdm.OrbitGetConfigResponse{}
+	s.DoJSON("POST", "/api/automdm/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *host.OrbitNodeKey)), http.StatusOK, &resp)
 	require.True(t, resp.Notifications.RenewEnrollmentProfile)
 	require.False(t, resp.Notifications.NeedsMDMMigration)
 }

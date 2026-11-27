@@ -5,12 +5,12 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 	"github.com/jmoiron/sqlx"
 )
 
-func (ds *Datastore) CreateOrUpdateSoftwareTitleIcon(ctx context.Context, payload *fleet.UploadSoftwareTitleIconPayload) (*fleet.SoftwareTitleIcon, error) {
+func (ds *Datastore) CreateOrUpdateSoftwareTitleIcon(ctx context.Context, payload *automdm.UploadSoftwareTitleIconPayload) (*automdm.SoftwareTitleIcon, error) {
 	var query string
 	var args []any
 	query = `
@@ -25,7 +25,7 @@ func (ds *Datastore) CreateOrUpdateSoftwareTitleIcon(ctx context.Context, payloa
 		return nil, ctxerr.Wrap(ctx, err, "upserting software title icon")
 	}
 
-	return &fleet.SoftwareTitleIcon{
+	return &automdm.SoftwareTitleIcon{
 		TeamID:          payload.TeamID,
 		SoftwareTitleID: payload.TitleID,
 		StorageID:       payload.StorageID,
@@ -33,14 +33,14 @@ func (ds *Datastore) CreateOrUpdateSoftwareTitleIcon(ctx context.Context, payloa
 	}, nil
 }
 
-func (ds *Datastore) GetSoftwareTitleIcon(ctx context.Context, teamID uint, titleID uint) (*fleet.SoftwareTitleIcon, error) {
+func (ds *Datastore) GetSoftwareTitleIcon(ctx context.Context, teamID uint, titleID uint) (*automdm.SoftwareTitleIcon, error) {
 	args := []any{teamID, titleID}
 	query := `
 		SELECT team_id, software_title_id, storage_id, filename
 		FROM software_title_icons
 		WHERE team_id = ? AND software_title_id = ?
 	`
-	var icon fleet.SoftwareTitleIcon
+	var icon automdm.SoftwareTitleIcon
 	err := sqlx.GetContext(ctx, ds.reader(ctx), &icon, query, args...)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -62,9 +62,9 @@ func (ds *Datastore) GetTeamIdsForIconStorageId(ctx context.Context, storageID s
 	return teamIds, nil
 }
 
-func (ds *Datastore) GetSoftwareIconsByTeamAndTitleIds(ctx context.Context, teamID uint, titleIDs []uint) (map[uint]fleet.SoftwareTitleIcon, error) {
+func (ds *Datastore) GetSoftwareIconsByTeamAndTitleIds(ctx context.Context, teamID uint, titleIDs []uint) (map[uint]automdm.SoftwareTitleIcon, error) {
 	if len(titleIDs) == 0 {
-		return map[uint]fleet.SoftwareTitleIcon{}, nil
+		return map[uint]automdm.SoftwareTitleIcon{}, nil
 	}
 
 	var args []any
@@ -78,12 +78,12 @@ func (ds *Datastore) GetSoftwareIconsByTeamAndTitleIds(ctx context.Context, team
 		return nil, ctxerr.Wrap(ctx, err, "building query for get software title icons")
 	}
 
-	var icons []fleet.SoftwareTitleIcon
+	var icons []automdm.SoftwareTitleIcon
 	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &icons, query, args...); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "get software title icons")
 	}
 
-	iconsBySoftwareTitleID := make(map[uint]fleet.SoftwareTitleIcon, len(icons))
+	iconsBySoftwareTitleID := make(map[uint]automdm.SoftwareTitleIcon, len(icons))
 	for _, icon := range icons {
 		iconsBySoftwareTitleID[icon.SoftwareTitleID] = icon
 	}
@@ -127,7 +127,7 @@ func (ds *Datastore) DeleteIconsAssociatedWithTitlesWithoutInstallers(ctx contex
 	return nil
 }
 
-func (ds *Datastore) CleanupUnusedSoftwareTitleIcons(ctx context.Context, iconStore fleet.SoftwareTitleIconStore, removeCreatedBefore time.Time) error {
+func (ds *Datastore) CleanupUnusedSoftwareTitleIcons(ctx context.Context, iconStore automdm.SoftwareTitleIconStore, removeCreatedBefore time.Time) error {
 	if iconStore == nil {
 		return nil
 	}
@@ -143,8 +143,8 @@ func (ds *Datastore) CleanupUnusedSoftwareTitleIcons(ctx context.Context, iconSt
 	return ctxerr.Wrap(ctx, err, "cleanup unused software title icons")
 }
 
-func (ds *Datastore) ActivityDetailsForSoftwareTitleIcon(ctx context.Context, teamID uint, titleID uint) (fleet.DetailsForSoftwareIconActivity, error) {
-	var details fleet.DetailsForSoftwareIconActivity
+func (ds *Datastore) ActivityDetailsForSoftwareTitleIcon(ctx context.Context, teamID uint, titleID uint) (automdm.DetailsForSoftwareIconActivity, error) {
+	var details automdm.DetailsForSoftwareIconActivity
 	query := `
 		SELECT
 			software_installers.id AS software_installer_id,
@@ -181,7 +181,7 @@ func (ds *Datastore) ActivityDetailsForSoftwareTitleIcon(ctx context.Context, te
 	`
 	err := sqlx.GetContext(ctx, ds.reader(ctx), &details, query, teamID, titleID)
 	if err != nil {
-		return fleet.DetailsForSoftwareIconActivity{}, ctxerr.Wrap(ctx, err, "getting activity details for software title icon")
+		return automdm.DetailsForSoftwareIconActivity{}, ctxerr.Wrap(ctx, err, "getting activity details for software title icon")
 	}
 
 	type ActivitySoftwareLabel struct {
@@ -203,7 +203,7 @@ func (ds *Datastore) ActivityDetailsForSoftwareTitleIcon(ctx context.Context, te
 			WHERE software_installer_id = ?
 		`
 		if err := sqlx.SelectContext(ctx, ds.reader(ctx), &labels, labelQuery, details.SoftwareInstallerID); err != nil {
-			return fleet.DetailsForSoftwareIconActivity{}, ctxerr.Wrap(ctx, err, "getting labels for software title icon")
+			return automdm.DetailsForSoftwareIconActivity{}, ctxerr.Wrap(ctx, err, "getting labels for software title icon")
 		}
 	}
 	if details.AdamID != nil {
@@ -218,7 +218,7 @@ func (ds *Datastore) ActivityDetailsForSoftwareTitleIcon(ctx context.Context, te
 			WHERE vpp_app_team_id = ?
 		`
 		if err := sqlx.SelectContext(ctx, ds.reader(ctx), &labels, labelQuery, details.VPPAppTeamID); err != nil {
-			return fleet.DetailsForSoftwareIconActivity{}, ctxerr.Wrap(ctx, err, "getting labels for software title icon")
+			return automdm.DetailsForSoftwareIconActivity{}, ctxerr.Wrap(ctx, err, "getting labels for software title icon")
 		}
 	}
 	if details.InHouseAppID != nil {
@@ -233,26 +233,26 @@ func (ds *Datastore) ActivityDetailsForSoftwareTitleIcon(ctx context.Context, te
 			WHERE in_house_app_id = ?
 		`
 		if err := sqlx.SelectContext(ctx, ds.reader(ctx), &labels, labelQuery, details.InHouseAppID); err != nil {
-			return fleet.DetailsForSoftwareIconActivity{}, ctxerr.Wrap(ctx, err, "getting labels for software title icon")
+			return automdm.DetailsForSoftwareIconActivity{}, ctxerr.Wrap(ctx, err, "getting labels for software title icon")
 		}
 	}
 
 	for _, l := range labels {
 		switch {
 		case l.Exclude && !l.RequireAll:
-			details.LabelsExcludeAny = append(details.LabelsExcludeAny, fleet.ActivitySoftwareLabel{
+			details.LabelsExcludeAny = append(details.LabelsExcludeAny, automdm.ActivitySoftwareLabel{
 				ID:   l.ID,
 				Name: l.Name,
 			})
 
 		case !l.Exclude && l.RequireAll:
-			details.LabelsIncludeAll = append(details.LabelsIncludeAll, fleet.ActivitySoftwareLabel{
+			details.LabelsIncludeAll = append(details.LabelsIncludeAll, automdm.ActivitySoftwareLabel{
 				ID:   l.ID,
 				Name: l.Name,
 			})
 
 		case !l.Exclude && !l.RequireAll:
-			details.LabelsIncludeAny = append(details.LabelsIncludeAny, fleet.ActivitySoftwareLabel{
+			details.LabelsIncludeAny = append(details.LabelsIncludeAny, automdm.ActivitySoftwareLabel{
 				ID:   l.ID,
 				Name: l.Name,
 			})

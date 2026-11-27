@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -29,10 +29,10 @@ func TestEmailChanges(t *testing.T) {
 }
 
 func testEmailChangesConfirm(t *testing.T, ds *Datastore) {
-	user := &fleet.User{
+	user := &automdm.User{
 		Password:   []byte("foobar"),
 		Email:      "bob@bob.com",
-		GlobalRole: ptr.String(fleet.RoleObserver),
+		GlobalRole: ptr.String(automdm.RoleObserver),
 	}
 	user, err := ds.NewUser(context.Background(), user)
 	require.Nil(t, err)
@@ -51,10 +51,10 @@ func testEmailChangesConfirm(t *testing.T, ds *Datastore) {
 	// test that wrong user can't confirm e-mail change
 	err = ds.PendingEmailChange(context.Background(), user.ID, "other@bob.com", "uniquetoken")
 	require.Nil(t, err)
-	otheruser, err := ds.NewUser(context.Background(), &fleet.User{
+	otheruser, err := ds.NewUser(context.Background(), &automdm.User{
 		Password:   []byte("supersecret"),
 		Email:      "other@bobcom",
-		GlobalRole: ptr.String(fleet.RoleObserver),
+		GlobalRole: ptr.String(automdm.RoleObserver),
 	})
 	require.Nil(t, err)
 	_, err = ds.ConfirmPendingEmailChange(context.Background(), otheruser.ID, "uniquetoken")

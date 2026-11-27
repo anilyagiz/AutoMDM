@@ -29,7 +29,7 @@
     max-height: 210px;
     flex-direction: column;
     border-radius: $border-radius;
-    border: 1px solid $ui-fleet-black-10;
+    border: 1px solid $ui-automdm-black-10;
     overflow-y: auto;
 
     .loading-spinner {
@@ -49,7 +49,7 @@
     align-items: center;
 
     &:not(:last-child) {
-      border-bottom: 1px solid $ui-fleet-black-10;
+      border-bottom: 1px solid $ui-automdm-black-10;
     }
 
     .form-field--checkbox {
@@ -78,7 +78,7 @@
   }
 
   // Truncate long label names in the tabbed checkbox list.
-  .react-tabs__tab-panel .fleet-checkbox {
+  .react-tabs__tab-panel .automdm-checkbox {
     height: 20px;
     display: flex;
     align-items: center;
@@ -111,17 +111,17 @@
     gap: $pad-small;
     justify-content: center;
     text-align: center;
-    border: 1px solid $ui-fleet-black-10;
+    border: 1px solid $ui-automdm-black-10;
     border-radius: $border-radius-large;
 
     span {
-      color: $ui-fleet-black-75;
+      color: $ui-automdm-black-75;
     }
 
     &--title {
       font-size: $small;
       font-weight: $bold;
-      color: $core-fleet-black !important;
+      color: $core-automdm-black !important;
     }
 
     &--description {
@@ -143,7 +143,7 @@
     .form-field__label,
     .form-field__subtitle,
     .target-label-selector__label-name {
-      color: $ui-fleet-black-50;
+      color: $ui-automdm-black-50;
     }
   }
 }

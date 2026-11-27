@@ -5,13 +5,13 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/archtest"
+	"github.com/anilyagiz/automdm/v4/server/archtest"
 )
 
 const m = archtest.ModuleName
 
 var (
-	fleetDeps = regexp.MustCompile(`^github\.com/fleetdm/`)
+	automdmDeps = regexp.MustCompile(`^github\.com/automdm/`)
 
 	// Common allowed dependencies across activity packages
 	activityPkgs = []string{
@@ -30,7 +30,7 @@ var (
 		m + "/server/contexts/authz",
 		m + "/server/contexts/publicip",
 		m + "/server/contexts/redact",
-		m + "/pkg/fleethttp",
+		m + "/pkg/automdmhttp",
 		m + "/pkg/removednames",
 	}
 )
@@ -47,11 +47,11 @@ func TestActivityPackageDependencies(t *testing.T) {
 		ignoreDeps      []string
 	}{
 		{
-			name: "root package has no Fleet dependencies",
+			name: "root package has no AutoMDM dependencies",
 			pkg:  m + "/server/activity",
 		},
 		{
-			name: "api package has no Fleet dependencies",
+			name: "api package has no AutoMDM dependencies",
 			pkg:  m + "/server/activity/api",
 		},
 		{
@@ -112,7 +112,7 @@ func TestActivityPackageDependencies(t *testing.T) {
 			}
 
 			test := archtest.NewPackageTest(t, tc.pkg).
-				OnlyInclude(fleetDeps).
+				OnlyInclude(automdmDeps).
 				ShouldNotDependOn(shouldNotDepend...).
 				WithTests()
 

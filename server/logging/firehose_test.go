@@ -7,10 +7,10 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/anilyagiz/automdm/v4/server/logging/mock"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/firehose"
 	"github.com/aws/aws-sdk-go-v2/service/firehose/types"
-	"github.com/fleetdm/fleet/v4/server/logging/mock"
 	"github.com/stretchr/testify/assert"
 )
 

@@ -135,7 +135,7 @@ const Info = ({
   const [formData, setFormData] = useState<IOrgInfoFormData>({
     orgName: appConfig.org_info.org_name || "",
     orgSupportURL:
-      appConfig.org_info.contact_url || "https://fleetdm.com/company/contact",
+      appConfig.org_info.contact_url || "https://automdm.com/company/contact",
   });
 
   const { orgName, orgSupportURL } = formData;
@@ -345,7 +345,7 @@ const Info = ({
             This logo is displayed in the top navigation, setup experience
             window, and MDM migration dialog. Please use{" "}
             <CustomLink
-              url="https://fleetdm.com/learn-more-about/organization-logo-size"
+              url="https://automdm.com/learn-more-about/organization-logo-size"
               text="recommended sizes"
               newTab
             />

@@ -10,12 +10,12 @@ if [ -z "$TUF_PATH" ]; then
 fi
 export TUF_PATH
 
-export FLEET_ROOT_PASSPHRASE=p4ssphr4s3
-export FLEET_TARGETS_PASSPHRASE=p4ssphr4s3
-export FLEET_SNAPSHOT_PASSPHRASE=p4ssphr4s3
-export FLEET_TIMESTAMP_PASSPHRASE=p4ssphr4s3
+export AUTOMDM_ROOT_PASSPHRASE=p4ssphr4s3
+export AUTOMDM_TARGETS_PASSPHRASE=p4ssphr4s3
+export AUTOMDM_SNAPSHOT_PASSPHRASE=p4ssphr4s3
+export AUTOMDM_TIMESTAMP_PASSPHRASE=p4ssphr4s3
 
 major=$(echo $version | cut -d. -f1)
 minor=$(echo $version | cut -d. -f2)
 
-./build/fleetctl updates add --path $TUF_PATH --target $target_path --platform $system --name $target_name --version $version -t "$major.$minor" -t "$major" -t stable
+./build/automdmctl updates add --path $TUF_PATH --target $target_path --platform $system --name $target_name --version $version -t "$major.$minor" -t "$major" -t stable

@@ -5,7 +5,7 @@ package main
 // request/response shapes, header semantics, error bodies, SSE stream
 // behavior — is documented on pushHandler, parsePushHeaders, apnsPushError,
 // and eventsSSEHandler in handlers.go. TestE2ENanopushProvider verifies the
-// contract through the actual nanopush provider `fleet serve` uses in
+// contract through the actual nanopush provider `automdm serve` uses in
 // production.
 
 import (
@@ -27,11 +27,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/datastore/redis/redistest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/push/nanopush"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis/redistest"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/push/nanopush"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -83,7 +83,7 @@ func newTestServerOnRedis(t *testing.T, r testRedisEnv, keepAlive, writeTimeout 
 // testRedisEnv is one test's isolated slice of Redis. The package runs with
 // -parallel 8 and redistest cleans by key prefix, so each test gets its own.
 type testRedisEnv struct {
-	pool   fleet.RedisPool
+	pool   automdm.RedisPool
 	prefix string
 	nodes  *atomic.Int64
 }
@@ -155,7 +155,7 @@ func openEvents(t *testing.T, baseURL, token string) *http.Response {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/events?token="+token, nil)
 	require.NoError(t, err)
 	// No client timeout: SSE connections are long-lived by design.
-	resp, err := fleethttp.NewClient(fleethttp.WithNoTimeout()).Do(req)
+	resp, err := automdmhttp.NewClient(automdmhttp.WithNoTimeout()).Do(req)
 	require.NoError(t, err)
 	t.Cleanup(func() { resp.Body.Close() })
 	return resp
@@ -258,7 +258,7 @@ func waitStreamClosed(t *testing.T, c *sseClient, timeout time.Duration) {
 
 // pushRaw sends a push the way a spec-correct APNS client would, declaring
 // apns-push-type: mdm by default. Pass an empty string value in headers to
-// omit that header instead (Fleet sent no apns-* headers before the nanopush
+// omit that header instead (AutoMDM sent no apns-* headers before the nanopush
 // swap — TestE2EPushTypeHeader keeps that path covered).
 func pushRaw(t *testing.T, baseURL, token string, payload []byte, headers map[string]string) *http.Response {
 	t.Helper()
@@ -469,7 +469,7 @@ func TestE2EPushTypeHeader(t *testing.T) {
 	const token = "aabbccddee0c" // nolint:gosec // test token
 
 	t.Run("absent header is accepted", func(t *testing.T) {
-		// Fleet sent no apns-push-type header before the nanopush swap, so
+		// AutoMDM sent no apns-push-type header before the nanopush swap, so
 		// header-less pushes must keep working for older clients.
 		resp := pushRaw(t, srv.URL, token, []byte(`{"mdm":"m"}`), map[string]string{"apns-push-type": ""})
 		require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -561,7 +561,7 @@ func TestE2EPayloadLimits(t *testing.T) {
 func TestE2ETokenIsCaseInsensitive(t *testing.T) {
 	srv := newTestServer(t)
 
-	// Fleet always sends lowercase hex (hex.EncodeToString), but hex tokens
+	// AutoMDM always sends lowercase hex (hex.EncodeToString), but hex tokens
 	// are case-insensitive; normalize instead of relying on the caller.
 	c := sseConnect(t, srv.URL, "aabbccddee08")
 	waitConnected(t, srv.URL, 1)
@@ -605,7 +605,7 @@ func TestE2EReconnectReplacesOlderConnection(t *testing.T) {
 
 func TestE2ECrossInstanceDelivery(t *testing.T) {
 	// The reason Redis is here at all: the ALB gives a device's stream to one
-	// instance and Fleet's push to another.
+	// instance and AutoMDM's push to another.
 	env := testRedis(t)
 	holder, _ := newTestServerOnRedis(t, env, 30*time.Second, 10*time.Second)
 	pusher, _ := newTestServerOnRedis(t, env, 30*time.Second, 10*time.Second)
@@ -747,15 +747,15 @@ func TestE2EDisconnectedStreamIsReapedByKeepalive(t *testing.T) {
 }
 
 // TestE2ENanopushProvider drives the mock through the actual nanopush
-// provider — the code path `fleet serve` uses to talk to Apple — with the
+// provider — the code path `automdm serve` uses to talk to Apple — with the
 // same options production sets (expiration, custom client), so the mock is
-// proven against the headers Fleet really sends (apns-expiration,
+// proven against the headers AutoMDM really sends (apns-expiration,
 // apns-push-type: mdm, apns-topic).
 func TestE2ENanopushProvider(t *testing.T) {
 	srv := newTestServer(t)
 	factory := nanopush.NewFactory(
 		nanopush.WithNewClient(func(*tls.Certificate) (*http.Client, error) {
-			return fleethttp.NewClient(), nil
+			return automdmhttp.NewClient(), nil
 		}),
 		nanopush.WithExpiration(30*24*time.Hour),
 		nanopush.WithPushServerURL(srv.URL),

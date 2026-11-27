@@ -75,18 +75,18 @@ describe("useProfileGeneration", () => {
 
   const start = (onTimeout = jest.fn()) => {
     const hook = renderHook(() => useProfileGeneration({ onTimeout }));
-    act(() => hook.result.current.generate({ ...REQUEST, fleetId: 2 }));
+    act(() => hook.result.current.generate({ ...REQUEST, automdmId: 2 }));
     return hook;
   };
 
-  it("sends both requests at once, with the fleet only on the content request", () => {
+  it("sends both requests at once, with the team only on the content request", () => {
     start();
     expect(nameSpy).toHaveBeenCalledWith(
       expect.objectContaining({ ...REQUEST, signal: expect.anything() })
     );
-    expect(nameSpy.mock.calls[0][0]).not.toHaveProperty("fleetId");
+    expect(nameSpy.mock.calls[0][0]).not.toHaveProperty("automdmId");
     expect(contentSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ ...REQUEST, fleetId: 2 })
+      expect.objectContaining({ ...REQUEST, automdmId: 2 })
     );
   });
 
@@ -177,7 +177,7 @@ describe("useProfileGeneration", () => {
     expect(contentSpy.mock.calls[0][0].signal.aborted).toBe(true);
   });
 
-  it("treats Fleet's own AI service timeout as the cap", async () => {
+  it("treats AutoMDM's own AI service timeout as the cap", async () => {
     const onTimeout = jest.fn();
     const { result } = start(onTimeout);
     await act(async () =>

@@ -8,7 +8,7 @@ interface ITeamNameFieldProps {
 
 const TeamNameField = ({ name }: ITeamNameFieldProps) => {
   return (
-    <FormField label="Fleet" name="fleet_name">
+    <FormField label="AutoMDM" name="team_name">
       <p>{name}</p>
     </FormField>
   );

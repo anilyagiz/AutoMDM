@@ -33,7 +33,7 @@ const LoginPreviewPage = ({ router }: ILoginPreviewPageProps): JSX.Element => {
     try {
       const {
         user,
-        available_fleets,
+        available_teams,
         token,
         token_expires_at,
       } = await sessionsAPI.login(formData);
@@ -43,7 +43,7 @@ const LoginPreviewPage = ({ router }: ILoginPreviewPageProps): JSX.Element => {
       authToken.save(token, expiresAt);
 
       setCurrentUser(user);
-      setAvailableTeams(user, available_fleets);
+      setAvailableTeams(user, available_teams);
       setCurrentTeam(undefined);
 
       return router.push(DASHBOARD);
@@ -64,7 +64,7 @@ const LoginPreviewPage = ({ router }: ILoginPreviewPageProps): JSX.Element => {
 
   return (
     <AuthenticationFormWrapper header="Login successful">
-      <p>Taking you to the Fleet UI...</p>
+      <p>Taking you to the AutoMDM UI...</p>
       <LoginForm
         handleSubmit={onSubmit}
         isSubmitting={false}

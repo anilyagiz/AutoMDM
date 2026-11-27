@@ -3,14 +3,14 @@ package service
 import (
 	"context"
 
-	"github.com/fleetdm/fleet/v4/server/authz"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 )
 
-func (svc *Service) CreateInitialUser(ctx context.Context, p fleet.UserPayload) (*fleet.User, error) {
+func (svc *Service) CreateInitialUser(ctx context.Context, p automdm.UserPayload) (*automdm.User, error) {
 	// skipauth: Only the initial user creation should be allowed to skip
 	// authorization (because there is not yet a user context to check against).
 	svc.authz.SkipAuthorization(ctx)
@@ -20,27 +20,27 @@ func (svc *Service) CreateInitialUser(ctx context.Context, p fleet.UserPayload) 
 		return nil, err
 	}
 	if !setupRequired {
-		return nil, ctxerr.Wrap(ctx, &fleet.ConflictError{Message: "a user already exists"})
+		return nil, ctxerr.Wrap(ctx, &automdm.ConflictError{Message: "a user already exists"})
 	}
 
 	// Initial user should be global admin with no explicit teams
-	p.GlobalRole = ptr.String(fleet.RoleAdmin)
+	p.GlobalRole = ptr.String(automdm.RoleAdmin)
 	p.Teams = nil
 
 	return svc.newUser(ctx, p, svc.ds.NewInitialUser)
 }
 
-func (svc *Service) NewUser(ctx context.Context, p fleet.UserPayload) (*fleet.User, error) {
+func (svc *Service) NewUser(ctx context.Context, p automdm.UserPayload) (*automdm.User, error) {
 	return svc.newUser(ctx, p, svc.ds.NewUser)
 }
 
-func (svc *Service) newUser(ctx context.Context, p fleet.UserPayload, create func(context.Context, *fleet.User) (*fleet.User, error)) (*fleet.User, error) {
+func (svc *Service) newUser(ctx context.Context, p automdm.UserPayload, create func(context.Context, *automdm.User) (*automdm.User, error)) (*automdm.User, error) {
 	licChecker, _ := license.FromContext(ctx)
-	lic, _ := licChecker.(*fleet.LicenseInfo)
+	lic, _ := licChecker.(*automdm.LicenseInfo)
 	if lic == nil {
 		return nil, ctxerr.New(ctx, "license not found")
 	}
-	if err := fleet.ValidateUserRoles(true, p, *lic); err != nil {
+	if err := automdm.ValidateUserRoles(true, p, *lic); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "validate role")
 	}
 	if !lic.IsPremium() {
@@ -65,7 +65,7 @@ func (svc *Service) newUser(ctx context.Context, p fleet.UserPayload, create fun
 	if err := svc.NewActivity(
 		ctx,
 		adminUser,
-		fleet.ActivityTypeCreatedUser{
+		automdm.ActivityTypeCreatedUser{
 			UserID:    user.ID,
 			UserName:  user.Name,
 			UserEmail: user.Email,
@@ -73,14 +73,14 @@ func (svc *Service) newUser(ctx context.Context, p fleet.UserPayload, create fun
 	); err != nil {
 		return nil, err
 	}
-	if err := fleet.LogRoleChangeActivities(ctx, svc, adminUser, nil, nil, user, p.JITProvisioned); err != nil {
+	if err := automdm.LogRoleChangeActivities(ctx, svc, adminUser, nil, nil, user, p.JITProvisioned); err != nil {
 		return nil, err
 	}
 
 	return user, nil
 }
 
-func (svc *Service) UserUnauthorized(ctx context.Context, id uint) (*fleet.User, error) {
+func (svc *Service) UserUnauthorized(ctx context.Context, id uint) (*automdm.User, error) {
 	// Explicitly no authorization check. Should only be used by middleware.
 	return svc.ds.UserByID(ctx, id)
 }

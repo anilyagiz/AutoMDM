@@ -108,7 +108,7 @@ const generateColumnConfigs = (
           <Icon
             name="info"
             className="row-hover-button"
-            color="ui-fleet-black-50"
+            color="ui-automdm-black-50"
           />
         </Button>
       );

@@ -7,12 +7,12 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/activity"
-	api_http "github.com/fleetdm/fleet/v4/server/activity/api/http"
-	"github.com/fleetdm/fleet/v4/server/activity/internal/mysql"
-	"github.com/fleetdm/fleet/v4/server/activity/internal/service"
-	"github.com/fleetdm/fleet/v4/server/activity/internal/testutils"
-	"github.com/fleetdm/fleet/v4/server/platform/endpointer"
+	"github.com/anilyagiz/automdm/v4/server/activity"
+	api_http "github.com/anilyagiz/automdm/v4/server/activity/api/http"
+	"github.com/anilyagiz/automdm/v4/server/activity/internal/mysql"
+	"github.com/anilyagiz/automdm/v4/server/activity/internal/service"
+	"github.com/anilyagiz/automdm/v4/server/activity/internal/testutils"
+	"github.com/anilyagiz/automdm/v4/server/platform/endpointer"
 	"github.com/go-kit/kit/endpoint"
 	"github.com/stretchr/testify/require"
 )
@@ -84,7 +84,7 @@ func (s *integrationTestSuite) insertUser(t *testing.T, name, email string) uint
 // getActivities makes an HTTP request to list activities and returns the parsed response.
 func (s *integrationTestSuite) getActivities(t *testing.T, queryParams string) (*api_http.ListActivitiesResponse, int) {
 	t.Helper()
-	url := s.server.URL + "/api/v1/fleet/activities"
+	url := s.server.URL + "/api/v1/automdm/activities"
 	if queryParams != "" {
 		url += "?" + queryParams
 	}
@@ -116,7 +116,7 @@ func (s *integrationTestSuite) insertHost(t *testing.T, hostname string, teamID 
 // getHostPastActivities makes an HTTP request to list host past activities and returns the parsed response.
 func (s *integrationTestSuite) getHostPastActivities(t *testing.T, hostID uint, queryParams string) (*api_http.ListHostPastActivitiesResponse, int) {
 	t.Helper()
-	url := s.server.URL + "/api/v1/fleet/hosts/" + strconv.FormatUint(uint64(hostID), 10) + "/activities"
+	url := s.server.URL + "/api/v1/automdm/hosts/" + strconv.FormatUint(uint64(hostID), 10) + "/activities"
 	if queryParams != "" {
 		url += "?" + queryParams
 	}

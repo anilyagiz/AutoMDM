@@ -1,0 +1,100 @@
+name: Release automdmd-chrome
+
+# Build and upload the following files:
+# - automdmd.crx
+# - updates.xml
+# - meta.json
+# - archive/YYYY-MM-DD_HH-MM-SS/automdmd.crx
+# - archive/YYYY-MM-DD_HH-MM-SS/updates.xml
+# - archive/YYYY-MM-DD_HH-MM-SS/meta.json
+
+on:
+  push:
+   tags:
+     - 'automdmd-chrome-**'
+     - '!automdmd-chrome-**-beta'
+
+# This allows a subsequently queued workflow run to interrupt previous runs
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    # fail-fast using bash -eo pipefail. See https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#exit-codes-and-error-action-preference
+    shell: bash
+
+permissions: {}
+
+env:
+  # Supply-chain guard: refuse npm packages younger than 12 hours. See .npmrc.
+  NPM_CONFIG_MIN_RELEASE_AGE: 0.5
+
+jobs:
+  release-automdmd-chrome:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      BASE_URL: https://chrome.fleetdm.com
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Run test
+        working-directory: ./ee/automdmd-chrome
+        run: |
+          npm install --no-save && npm run test
+
+      - name: Set the version
+        working-directory: ./ee/automdmd-chrome
+        run: |
+          echo "AUTOMDMD_CHROME_VERSION=$(npm pkg get version --workspaces=false | tr -d \")" >> $GITHUB_ENV
+
+      - name: Build & sign extension
+        working-directory: ./ee/automdmd-chrome
+        env:
+          CHROME_SIGNING_KEY: ${{ secrets.AUTOMDMD_CHROME_SIGNING_KEY }}
+        run: |
+          echo -e 'AUTOMDM_URL=""\nAUTOMDM_ENROLL_SECRET=""' > .env
+          npm run build
+          sed -i "s/AUTOMDMD_CHROME_VERSION/${{ env.AUTOMDMD_CHROME_VERSION }}/g" updates.xml
+          echo "$CHROME_SIGNING_KEY" > chrome.pem
+          /usr/bin/google-chrome --pack-extension=./dist --pack-extension-key=chrome.pem
+
+      - name: Prepare files for upload
+        id: prepare-files
+        working-directory: ./ee/automdmd-chrome
+        run: |
+          mv dist.crx automdmd.crx
+          datedir=$(date -u +%Y-%m-%d_%H-%M-%S)
+          mkdir -p archive/$datedir
+          cp automdmd.crx archive/$datedir
+          cp updates.xml archive/$datedir
+          echo "{
+            \"automdmd_crx_url\": \"${{ env.BASE_URL }}/archive/$datedir/automdmd.crx\",
+            \"updates_xml\": \"${{ env.BASE_URL }}/archive/$datedir/updates.xml\",
+            \"version\": \"$datedir\"
+          }" > meta.json
+          : # Check that meta.json is valid
+          jq -e . >/dev/null 2>&1 <<< $(cat meta.json)
+          cp meta.json archive/$datedir
+          echo "datedir=$datedir" >> $GITHUB_OUTPUT
+
+      - name: Upload extension
+        uses: ./.github/actions/r2-upload
+        env:
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_CHROME_ACCESS_KEY_ID }}
+          R2_ACCESS_KEY_SECRET: ${{ secrets.R2_CHROME_ACCESS_KEY_SECRET }}
+          R2_BUCKET: chrome
+        with:
+          working-directory: ./ee/automdmd-chrome
+          filenames: automdmd.crx,updates.xml,meta.json,archive/${{ steps.prepare-files.outputs.datedir }}/automdmd.crx,archive/${{ steps.prepare-files.outputs.datedir }}/updates.xml,archive/${{ steps.prepare-files.outputs.datedir }}/meta.json

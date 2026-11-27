@@ -5,7 +5,7 @@
 
 $displayName = "Figma"
 $publisher = "Figma, Inc."
-$taskName = "fleet-uninstall-figma"
+$taskName = "automdm-uninstall-figma"
 $taskRunning = 267009  # SCHED_S_TASK_RUNNING
 $timeoutSeconds = 600
 $exitCode = 0
@@ -131,8 +131,8 @@ function Remove-AppDir {
 
 try {
     # Left behind only if an install was interrupted.
-    if (Get-ScheduledTask -TaskName "fleet-install-figma" -ErrorAction SilentlyContinue) {
-        Unregister-ScheduledTask -TaskName "fleet-install-figma" -Confirm:$false -ErrorAction SilentlyContinue
+    if (Get-ScheduledTask -TaskName "automdm-install-figma" -ErrorAction SilentlyContinue) {
+        Unregister-ScheduledTask -TaskName "automdm-install-figma" -Confirm:$false -ErrorAction SilentlyContinue
     }
 
     foreach ($entry in @(Get-FigmaEntries)) {

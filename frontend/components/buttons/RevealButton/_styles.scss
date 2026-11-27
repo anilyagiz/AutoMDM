@@ -14,12 +14,12 @@
   &:hover,
   &:focus {
     .component__tooltip-wrapper__element {
-      color: $ui-fleet-black-75-over;
+      color: $ui-automdm-black-75-over;
     }
 
     svg {
       path {
-        fill: $ui-fleet-black-75-over;
+        fill: $ui-automdm-black-75-over;
       }
     }
   }

@@ -9,7 +9,7 @@
 # Partial by design: it doesn't cover the out-of-memory path (CVE-2026-109618). PHP's
 # memory_limit=-1 guidance needs a cgroup limit and php_admin_value, so it is left to you.
 # Updating PHP is the only complete fix.
-# Idempotent: safe to re-run. Built for Fleet "Run script" (runs as root). Needs bash.
+# Idempotent: safe to re-run. Built for AutoMDM "Run script" (runs as root). Needs bash.
 # Rollback: delete the 99-php2shell-mitigation.ini files and restart the same services.
 # Exit: 0 = applied or nothing to do, 2 = applied with warnings (read output), 1 = error.
 # Advisory: https://github.com/php/php-src/security/advisories/GHSA-6wmf-4rv5-p3rp

@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -26,8 +26,8 @@ var inviteAllowedOrderKeys = common_mysql.OrderKeyAllowlist{
 }
 
 // NewInvite generates a new invitation.
-func (ds *Datastore) NewInvite(ctx context.Context, i *fleet.Invite) (*fleet.Invite, error) {
-	if err := fleet.ValidateRole(i.GlobalRole.Ptr(), i.Teams); err != nil {
+func (ds *Datastore) NewInvite(ctx context.Context, i *automdm.Invite) (*automdm.Invite, error) {
+	if err := automdm.ValidateRole(i.GlobalRole.Ptr(), i.Teams); err != nil {
 		return nil, err
 	}
 
@@ -49,7 +49,7 @@ func (ds *Datastore) NewInvite(ctx context.Context, i *fleet.Invite) (*fleet.Inv
 		i.ID = uint(id) //nolint:gosec // dismiss G115
 
 		if len(i.Teams) == 0 {
-			i.Teams = []fleet.UserTeam{}
+			i.Teams = []automdm.UserTeam{}
 			return nil
 		}
 
@@ -73,10 +73,10 @@ func (ds *Datastore) NewInvite(ctx context.Context, i *fleet.Invite) (*fleet.Inv
 	return i, nil
 }
 
-// ListInvites lists all invites in the Fleet database. Supply query options
-// using the opt parameter. See fleet.ListOptions
-func (ds *Datastore) ListInvites(ctx context.Context, opt fleet.ListOptions) ([]*fleet.Invite, error) {
-	invites := []*fleet.Invite{}
+// ListInvites lists all invites in the AutoMDM database. Supply query options
+// using the opt parameter. See automdm.ListOptions
+func (ds *Datastore) ListInvites(ctx context.Context, opt automdm.ListOptions) ([]*automdm.Invite, error) {
+	invites := []*automdm.Invite{}
 	query := "SELECT * FROM invites WHERE true"
 	query, params := searchLike(query, nil, opt.MatchQuery, inviteSearchColumns...)
 	query, params, err := appendListOptionsWithCursorToSQLSecure(query, params, &opt, inviteAllowedOrderKeys)
@@ -99,8 +99,8 @@ func (ds *Datastore) ListInvites(ctx context.Context, opt fleet.ListOptions) ([]
 }
 
 // Invite returns Invite identified by id.
-func (ds *Datastore) Invite(ctx context.Context, id uint) (*fleet.Invite, error) {
-	var invite fleet.Invite
+func (ds *Datastore) Invite(ctx context.Context, id uint) (*automdm.Invite, error) {
+	var invite automdm.Invite
 	err := sqlx.GetContext(ctx, ds.reader(ctx), &invite, "SELECT * FROM invites WHERE id = ?", id)
 	if err == sql.ErrNoRows {
 		return nil, ctxerr.Wrap(ctx, notFound("Invite").WithID(id))
@@ -108,7 +108,7 @@ func (ds *Datastore) Invite(ctx context.Context, id uint) (*fleet.Invite, error)
 		return nil, ctxerr.Wrap(ctx, err, "select invite by ID")
 	}
 
-	if err := ds.loadTeamsForInvites(ctx, []*fleet.Invite{&invite}); err != nil {
+	if err := ds.loadTeamsForInvites(ctx, []*automdm.Invite{&invite}); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "load teams")
 	}
 
@@ -116,8 +116,8 @@ func (ds *Datastore) Invite(ctx context.Context, id uint) (*fleet.Invite, error)
 }
 
 // InviteByEmail finds an Invite with a particular email, if one exists.
-func (ds *Datastore) InviteByEmail(ctx context.Context, email string) (*fleet.Invite, error) {
-	var invite fleet.Invite
+func (ds *Datastore) InviteByEmail(ctx context.Context, email string) (*automdm.Invite, error) {
+	var invite automdm.Invite
 	err := sqlx.GetContext(ctx, ds.reader(ctx), &invite, "SELECT * FROM invites WHERE email = ?", email)
 	if err == sql.ErrNoRows {
 		return nil, ctxerr.Wrap(ctx, notFound("Invite").
@@ -126,7 +126,7 @@ func (ds *Datastore) InviteByEmail(ctx context.Context, email string) (*fleet.In
 		return nil, ctxerr.Wrap(ctx, err, "sqlx get invite by email")
 	}
 
-	if err := ds.loadTeamsForInvites(ctx, []*fleet.Invite{&invite}); err != nil {
+	if err := ds.loadTeamsForInvites(ctx, []*automdm.Invite{&invite}); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "load teams")
 	}
 
@@ -134,8 +134,8 @@ func (ds *Datastore) InviteByEmail(ctx context.Context, email string) (*fleet.In
 }
 
 // InviteByToken finds an Invite with a particular token, if one exists.
-func (ds *Datastore) InviteByToken(ctx context.Context, token string) (*fleet.Invite, error) {
-	var invite fleet.Invite
+func (ds *Datastore) InviteByToken(ctx context.Context, token string) (*automdm.Invite, error) {
+	var invite automdm.Invite
 	err := sqlx.GetContext(ctx, ds.reader(ctx), &invite, "SELECT * FROM invites WHERE token = ?", token)
 	if err == sql.ErrNoRows {
 		return nil, ctxerr.Wrap(ctx, notFound("Invite").
@@ -144,7 +144,7 @@ func (ds *Datastore) InviteByToken(ctx context.Context, token string) (*fleet.In
 		return nil, ctxerr.Wrap(ctx, err, "sqlx get invite by token")
 	}
 
-	if err := ds.loadTeamsForInvites(ctx, []*fleet.Invite{&invite}); err != nil {
+	if err := ds.loadTeamsForInvites(ctx, []*automdm.Invite{&invite}); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "load teams")
 	}
 
@@ -155,15 +155,15 @@ func (ds *Datastore) DeleteInvite(ctx context.Context, id uint) error {
 	return ds.deleteEntity(ctx, invitesTable, id)
 }
 
-func (ds *Datastore) loadTeamsForInvites(ctx context.Context, invites []*fleet.Invite) error {
+func (ds *Datastore) loadTeamsForInvites(ctx context.Context, invites []*automdm.Invite) error {
 	inviteIDs := make([]uint, 0, len(invites)+1)
 	// Make sure the slice is never empty for IN by filling a nonexistent ID
 	inviteIDs = append(inviteIDs, 0)
-	idToInvite := make(map[uint]*fleet.Invite, len(invites))
+	idToInvite := make(map[uint]*automdm.Invite, len(invites))
 	for _, u := range invites {
 		// Initialize empty slice so we get an array in JSON responses instead
 		// of null if it is empty
-		u.Teams = []fleet.UserTeam{}
+		u.Teams = []automdm.UserTeam{}
 		// Track IDs for queries and matching
 		inviteIDs = append(inviteIDs, u.ID)
 		idToInvite[u.ID] = u
@@ -181,7 +181,7 @@ func (ds *Datastore) loadTeamsForInvites(ctx context.Context, invites []*fleet.I
 	}
 
 	var rows []struct {
-		fleet.UserTeam
+		automdm.UserTeam
 		InviteID uint `db:"invite_id"`
 	}
 	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &rows, sql, args...); err != nil {
@@ -197,7 +197,7 @@ func (ds *Datastore) loadTeamsForInvites(ctx context.Context, invites []*fleet.I
 	return nil
 }
 
-func (ds *Datastore) UpdateInvite(ctx context.Context, id uint, i *fleet.Invite) (*fleet.Invite, error) {
+func (ds *Datastore) UpdateInvite(ctx context.Context, id uint, i *automdm.Invite) (*automdm.Invite, error) {
 	return i, ds.withRetryTxx(ctx, func(tx sqlx.ExtContext) error {
 		_, err := tx.ExecContext(ctx,
 			`UPDATE invites SET invited_by = ?, email = ?, name = ?, position = ?, sso_enabled = ?, mfa_enabled = ?, global_role = ? WHERE id = ?`,

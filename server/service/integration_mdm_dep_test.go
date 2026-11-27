@@ -19,20 +19,20 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleetdbase"
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/pkg/mdm/mdmtest"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	apple_mdm "github.com/fleetdm/fleet/v4/server/mdm/apple"
-	"github.com/fleetdm/fleet/v4/server/mdm/apple/mobileconfig"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanodep/godep"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/push"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/service/contract"
-	"github.com/fleetdm/fleet/v4/server/test"
-	"github.com/fleetdm/fleet/v4/server/worker"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmdbase"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/pkg/mdm/mdmtest"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	apple_mdm "github.com/anilyagiz/automdm/v4/server/mdm/apple"
+	"github.com/anilyagiz/automdm/v4/server/mdm/apple/mobileconfig"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanodep/godep"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/push"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/service/contract"
+	"github.com/anilyagiz/automdm/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/worker"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	micromdm "github.com/micromdm/micromdm/mdm/mdm"
@@ -67,22 +67,22 @@ func (s *integrationMDMTestSuite) TestDEPEnrollReleaseDeviceGlobal() {
 
 	globalDevice := godep.Device{SerialNumber: uuid.New().String(), Model: "MacBook Pro", OS: "osx", OpType: "added"}
 
-	// set an enroll secret, the Fleetd configuration profile will be installed
+	// set an enroll secret, the AutoMDMd configuration profile will be installed
 	// on the host
 	enrollSecret := "test-release-dep-device"
-	err := s.ds.ApplyEnrollSecrets(ctx, nil, []*fleet.EnrollSecret{{Secret: enrollSecret}})
+	err := s.ds.ApplyEnrollSecrets(ctx, nil, []*automdm.EnrollSecret{{Secret: enrollSecret}})
 	require.NoError(t, err)
 
 	// add a valid bootstrap package
 	b, err := os.ReadFile(filepath.Join("testdata", "bootstrap-packages", "signed.pkg"))
 	require.NoError(t, err)
 	signedPkg := b
-	s.uploadBootstrapPackage(&fleet.MDMAppleBootstrapPackage{Bytes: signedPkg, Name: "pkg.pkg", TeamID: 0}, http.StatusOK, "", false)
+	s.uploadBootstrapPackage(&automdm.MDMAppleBootstrapPackage{Bytes: signedPkg, Name: "pkg.pkg", TeamID: 0}, http.StatusOK, "", false)
 
 	// add a custom setup assistant and ensure apple_enable_release_device_manually is
 	// false (the default)
 	noTeamProf := `{"x": 1}`
-	s.Do("POST", "/api/latest/fleet/enrollment_profiles/automatic", createMDMAppleSetupAssistantRequest{
+	s.Do("POST", "/api/latest/automdm/enrollment_profiles/automatic", createMDMAppleSetupAssistantRequest{
 		TeamID:            nil,
 		Name:              "no-team",
 		EnrollmentProfile: json.RawMessage(noTeamProf),
@@ -90,13 +90,13 @@ func (s *integrationMDMTestSuite) TestDEPEnrollReleaseDeviceGlobal() {
 	payload := map[string]any{
 		"apple_enable_release_device_manually": false,
 	}
-	s.Do("PATCH", "/api/latest/fleet/setup_experience", json.RawMessage(jsonMustMarshal(t, payload)), http.StatusNoContent)
+	s.Do("PATCH", "/api/latest/automdm/setup_experience", json.RawMessage(jsonMustMarshal(t, payload)), http.StatusNoContent)
 
 	// Configure the IdP, but leave end user authentication off for "No team":
-	// these devices enroll with the automatic enrollment token, which Fleet
-	// refuses for hosts in fleets that require end user authentication.
+	// these devices enroll with the automatic enrollment token, which AutoMDM
+	// refuses for hosts in teams that require end user authentication.
 	var acResp appConfigResponse
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(fmt.Sprintf(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(fmt.Sprintf(`{
 			"mdm": {
 				"end_user_authentication": {
 					"entity_id": "https://localhost:8080",
@@ -109,18 +109,18 @@ func (s *integrationMDMTestSuite) TestDEPEnrollReleaseDeviceGlobal() {
 
 	// add a global profile
 	globalProfile := mobileconfigForTest("N1", "I1")
-	s.Do("POST", "/api/v1/fleet/mdm/profiles/batch", appleProfilesBatchRequest([][]byte{globalProfile}), http.StatusNoContent)
+	s.Do("POST", "/api/v1/automdm/mdm/profiles/batch", appleProfilesBatchRequest([][]byte{globalProfile}), http.StatusNoContent)
 
 	// enable FileVault
-	s.Do("PATCH", "/api/latest/fleet/config", json.RawMessage([]byte(`{"mdm":{"apple_settings":{"enable_disk_encryption":true}}}`)), http.StatusOK)
+	s.Do("PATCH", "/api/latest/automdm/config", json.RawMessage([]byte(`{"mdm":{"apple_settings":{"enable_disk_encryption":true}}}`)), http.StatusOK)
 
-	s.enableABM("fleet_ade_test")
+	s.enableABM("automdm_ade_test")
 
 	// add a setup experience script to run for no team
 	extraArgs := make(map[string][]string)
 	body, headers := generateNewScriptMultipartRequest(t,
 		"script.sh", []byte(`echo "hello"`), s.token, extraArgs)
-	s.DoRawWithHeaders("POST", "/api/latest/fleet/setup_experience/script", body.Bytes(), http.StatusOK, headers)
+	s.DoRawWithHeaders("POST", "/api/latest/automdm/setup_experience/script", body.Bytes(), http.StatusOK, headers)
 
 	// test manual and automatic release with the new setup experience flow
 	for _, enableReleaseManually := range []bool{false, true} {
@@ -129,7 +129,7 @@ func (s *integrationMDMTestSuite) TestDEPEnrollReleaseDeviceGlobal() {
 				EnableReleaseManually:             enableReleaseManually,
 				TeamID:                            nil,
 				CustomProfileIdent:                "I1",
-				UseOldFleetdFlow:                  false,
+				UseOldAutoMDMdFlow:                false,
 				EnrollmentProfileFromDEPUsingPost: true,
 			})
 		})
@@ -143,7 +143,7 @@ func (s *integrationMDMTestSuite) TestDEPEnrollReleaseDeviceGlobal() {
 				EnableReleaseManually:             enableReleaseManually,
 				TeamID:                            nil,
 				CustomProfileIdent:                "I1",
-				UseOldFleetdFlow:                  false,
+				UseOldAutoMDMdFlow:                false,
 				EnrollmentProfileFromDEPUsingPost: true,
 			})
 		})
@@ -155,28 +155,28 @@ func (s *integrationMDMTestSuite) TestDEPEnrollReleaseDeviceGlobal() {
 				EnableReleaseManually: enableReleaseManually,
 				TeamID:                nil,
 				CustomProfileIdent:    "I1",
-				UseOldFleetdFlow:      true,
+				UseOldAutoMDMdFlow:    true,
 			})
 		})
 	}
 
 	// remove the setup experience script, run the new setup experience flow when
 	// there is no setup experience item to process (so it is bypassed)
-	s.Do("DELETE", "/api/latest/fleet/setup_experience/script", nil, http.StatusOK)
+	s.Do("DELETE", "/api/latest/automdm/setup_experience/script", nil, http.StatusOK)
 	for _, enableReleaseManually := range []bool{false, true} {
 		t.Run(fmt.Sprintf("enableReleaseManually=%t;bypass_flow", enableReleaseManually), func(t *testing.T) {
 			s.runDEPEnrollReleaseDeviceTest(t, globalDevice, DEPEnrollTestOpts{
 				EnableReleaseManually:             enableReleaseManually,
 				TeamID:                            nil,
 				CustomProfileIdent:                "I1",
-				UseOldFleetdFlow:                  false,
+				UseOldAutoMDMdFlow:                false,
 				EnrollmentProfileFromDEPUsingPost: true,
 			})
 		})
 	}
 
-	t.Run("manual agent install (no fleetd)", func(t *testing.T) {
-		s.Do("DELETE", "/api/latest/fleet/setup_experience/script", nil, http.StatusOK)
+	t.Run("manual agent install (no automdmd)", func(t *testing.T) {
+		s.Do("DELETE", "/api/latest/automdm/setup_experience/script", nil, http.StatusOK)
 		s.runDEPEnrollReleaseDeviceTest(t, globalDevice, DEPEnrollTestOpts{
 			EnableReleaseManually: false,
 			TeamID:                nil,
@@ -207,25 +207,25 @@ func (s *integrationMDMTestSuite) TestDEPEnrollReleaseDeviceTeam() {
 
 	teamDevice := godep.Device{SerialNumber: uuid.New().String(), Model: "MacBook Pro", OS: "osx", OpType: "added"}
 
-	tm, err := s.ds.NewTeam(ctx, &fleet.Team{Name: "test-team-device-release"})
+	tm, err := s.ds.NewTeam(ctx, &automdm.Team{Name: "test-team-device-release"})
 	require.NoError(t, err)
 
-	// set an enroll secret, the Fleetd configuration profile will be installed
+	// set an enroll secret, the AutoMDMd configuration profile will be installed
 	// on the host
 	enrollSecret := "test-release-dep-device-team"
-	err = s.ds.ApplyEnrollSecrets(ctx, &tm.ID, []*fleet.EnrollSecret{{Secret: enrollSecret}})
+	err = s.ds.ApplyEnrollSecrets(ctx, &tm.ID, []*automdm.EnrollSecret{{Secret: enrollSecret}})
 	require.NoError(t, err)
 
 	// add a valid bootstrap package
 	b, err := os.ReadFile(filepath.Join("testdata", "bootstrap-packages", "signed.pkg"))
 	require.NoError(t, err)
 	signedPkg := b
-	s.uploadBootstrapPackage(&fleet.MDMAppleBootstrapPackage{Bytes: signedPkg, Name: "pkg.pkg", TeamID: tm.ID}, http.StatusOK, "", false)
+	s.uploadBootstrapPackage(&automdm.MDMAppleBootstrapPackage{Bytes: signedPkg, Name: "pkg.pkg", TeamID: tm.ID}, http.StatusOK, "", false)
 
 	// add a custom setup assistant and ensure apple_enable_release_device_manually is
 	// false (the default)
 	teamProf := `{"y": 2}`
-	s.Do("POST", "/api/latest/fleet/enrollment_profiles/automatic", createMDMAppleSetupAssistantRequest{
+	s.Do("POST", "/api/latest/automdm/enrollment_profiles/automatic", createMDMAppleSetupAssistantRequest{
 		TeamID:            &tm.ID,
 		Name:              "team",
 		EnrollmentProfile: json.RawMessage(teamProf),
@@ -233,18 +233,18 @@ func (s *integrationMDMTestSuite) TestDEPEnrollReleaseDeviceTeam() {
 	payload := map[string]any{
 		"apple_enable_release_device_manually": false,
 	}
-	s.Do("PATCH", "/api/latest/fleet/setup_experience", json.RawMessage(jsonMustMarshal(t, payload)), http.StatusNoContent)
+	s.Do("PATCH", "/api/latest/automdm/setup_experience", json.RawMessage(jsonMustMarshal(t, payload)), http.StatusNoContent)
 
 	// setup IdP so that AccountConfiguration profile is sent after DEP enrollment
 	var acResp appConfigResponse
-	s.enableABM("fleet_ade_test")
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(fmt.Sprintf(`{
+	s.enableABM("automdm_ade_test")
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(fmt.Sprintf(`{
 			"mdm": {
 			       "apple_business": [{
 			         "organization_name": %q,
-			         "macos_fleet": %q,
-			         "ios_fleet": %q,
-			         "ipados_fleet": %q
+			         "macos_team": %q,
+			         "ios_team": %q,
+			         "ipados_team": %q
 			       }],
 				"end_user_authentication": {
 					"entity_id": "https://localhost:8080",
@@ -255,10 +255,10 @@ func (s *integrationMDMTestSuite) TestDEPEnrollReleaseDeviceTeam() {
 					"enable_end_user_authentication": true
 				}
 			}
-		}`, "fleet_ade_test", tm.Name, tm.Name, tm.Name, testSAMLIDPMetadataURL)), http.StatusOK, &acResp)
+		}`, "automdm_ade_test", tm.Name, tm.Name, tm.Name, testSAMLIDPMetadataURL)), http.StatusOK, &acResp)
 	require.NotEmpty(t, acResp.MDM.EndUserAuthentication)
 	t.Cleanup(func() {
-		s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+		s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 			"mdm": {
 				"setup_experience": {
 					"enable_end_user_authentication": false
@@ -272,18 +272,18 @@ func (s *integrationMDMTestSuite) TestDEPEnrollReleaseDeviceTeam() {
 
 	// add a team profile
 	teamProfile := mobileconfigForTest("N2", "I2")
-	s.Do("POST", "/api/v1/fleet/mdm/profiles/batch", appleProfilesBatchRequest([][]byte{teamProfile}), http.StatusNoContent, "fleet_id", fmt.Sprint(tm.ID))
+	s.Do("POST", "/api/v1/automdm/mdm/profiles/batch", appleProfilesBatchRequest([][]byte{teamProfile}), http.StatusNoContent, "team_id", fmt.Sprint(tm.ID))
 
 	// enable FileVault
-	s.Do("POST", "/api/latest/fleet/disk_encryption", updateDiskEncryptionRequest{TeamID: &tm.ID, EnableDiskEncryption: new(true)}, http.StatusNoContent)
+	s.Do("POST", "/api/latest/automdm/disk_encryption", updateDiskEncryptionRequest{TeamID: &tm.ID, EnableDiskEncryption: new(true)}, http.StatusNoContent)
 
 	// add a setup experience script to run for this team
 	extraArgs := map[string][]string{
-		"fleet_id": {fmt.Sprintf("%d", tm.ID)},
+		"team_id": {fmt.Sprintf("%d", tm.ID)},
 	}
 	body, headers := generateNewScriptMultipartRequest(t,
 		"script.sh", []byte(`echo "hello"`), s.token, extraArgs)
-	s.DoRawWithHeaders("POST", "/api/latest/fleet/setup_experience/script", body.Bytes(), http.StatusOK, headers)
+	s.DoRawWithHeaders("POST", "/api/latest/automdm/setup_experience/script", body.Bytes(), http.StatusOK, headers)
 
 	// test manual and automatic release with the new setup experience flow
 	for _, enableReleaseManually := range []bool{false, true} {
@@ -292,7 +292,7 @@ func (s *integrationMDMTestSuite) TestDEPEnrollReleaseDeviceTeam() {
 				EnableReleaseManually:             enableReleaseManually,
 				TeamID:                            &tm.ID,
 				CustomProfileIdent:                "I2",
-				UseOldFleetdFlow:                  false,
+				UseOldAutoMDMdFlow:                false,
 				EnrollmentProfileFromDEPUsingPost: true,
 			})
 		})
@@ -304,28 +304,28 @@ func (s *integrationMDMTestSuite) TestDEPEnrollReleaseDeviceTeam() {
 				EnableReleaseManually: enableReleaseManually,
 				TeamID:                &tm.ID,
 				CustomProfileIdent:    "I2",
-				UseOldFleetdFlow:      true,
+				UseOldAutoMDMdFlow:    true,
 			})
 		})
 	}
 
 	// remove the setup experience script, run the new setup experience flow when
 	// there is no setup experience item to process (so it is bypassed)
-	s.Do("DELETE", "/api/latest/fleet/setup_experience/script", nil, http.StatusOK, "fleet_id", fmt.Sprint(tm.ID))
+	s.Do("DELETE", "/api/latest/automdm/setup_experience/script", nil, http.StatusOK, "team_id", fmt.Sprint(tm.ID))
 	for _, enableReleaseManually := range []bool{false, true} {
 		t.Run(fmt.Sprintf("enableReleaseManually=%t;bypass_flow", enableReleaseManually), func(t *testing.T) {
 			s.runDEPEnrollReleaseDeviceTest(t, teamDevice, DEPEnrollTestOpts{
 				EnableReleaseManually:             enableReleaseManually,
 				TeamID:                            &tm.ID,
 				CustomProfileIdent:                "I2",
-				UseOldFleetdFlow:                  false,
+				UseOldAutoMDMdFlow:                false,
 				EnrollmentProfileFromDEPUsingPost: true,
 			})
 		})
 	}
 
-	t.Run("manual agent install (no fleetd)", func(t *testing.T) {
-		s.Do("DELETE", "/api/latest/fleet/setup_experience/script", nil, http.StatusOK, "fleet_id", fmt.Sprint(tm.ID))
+	t.Run("manual agent install (no automdmd)", func(t *testing.T) {
+		s.Do("DELETE", "/api/latest/automdm/setup_experience/script", nil, http.StatusOK, "team_id", fmt.Sprint(tm.ID))
 		s.runDEPEnrollReleaseDeviceTest(t, teamDevice, DEPEnrollTestOpts{
 			EnableReleaseManually: true,
 			TeamID:                &tm.ID,
@@ -356,17 +356,17 @@ func (s *integrationMDMTestSuite) TestDEPEnrollReleaseIphoneTeam() {
 
 	teamDevice := godep.Device{SerialNumber: "IOS0_SERIAL", Model: "iPhone 16 Pro", OS: "ios", DeviceFamily: "iPhone", OpType: "added"}
 
-	tm, err := s.ds.NewTeam(ctx, &fleet.Team{Name: "test-team-device-release"})
+	tm, err := s.ds.NewTeam(ctx, &automdm.Team{Name: "test-team-device-release"})
 	require.NoError(t, err)
 
 	enrollSecret := "test-release-dep-device-team"
-	err = s.ds.ApplyEnrollSecrets(ctx, &tm.ID, []*fleet.EnrollSecret{{Secret: enrollSecret}})
+	err = s.ds.ApplyEnrollSecrets(ctx, &tm.ID, []*automdm.EnrollSecret{{Secret: enrollSecret}})
 	require.NoError(t, err)
 
 	// add a custom setup assistant and ensure apple_enable_release_device_manually is
 	// false (the default)
 	teamProf := `{"y": 2}`
-	s.Do("POST", "/api/latest/fleet/enrollment_profiles/automatic", createMDMAppleSetupAssistantRequest{
+	s.Do("POST", "/api/latest/automdm/enrollment_profiles/automatic", createMDMAppleSetupAssistantRequest{
 		TeamID:            &tm.ID,
 		Name:              "team",
 		EnrollmentProfile: json.RawMessage(teamProf),
@@ -374,24 +374,24 @@ func (s *integrationMDMTestSuite) TestDEPEnrollReleaseIphoneTeam() {
 	payload := map[string]any{
 		"apple_enable_release_device_manually": false,
 	}
-	s.Do("PATCH", "/api/latest/fleet/setup_experience", json.RawMessage(jsonMustMarshal(t, payload)), http.StatusNoContent)
+	s.Do("PATCH", "/api/latest/automdm/setup_experience", json.RawMessage(jsonMustMarshal(t, payload)), http.StatusNoContent)
 
 	var acResp appConfigResponse
-	s.enableABM("fleet_ade_test")
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(fmt.Sprintf(`{
+	s.enableABM("automdm_ade_test")
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(fmt.Sprintf(`{
 			"mdm": {
 			       "apple_business": [{
 			         "organization_name": %q,
-			         "macos_fleet": %q,
-			         "ios_fleet": %q,
-			         "ipados_fleet": %q
+			         "macos_team": %q,
+			         "ios_team": %q,
+			         "ipados_team": %q
 			       }]
 			}
-		}`, "fleet_ade_test", tm.Name, tm.Name, tm.Name)), http.StatusOK, &acResp)
+		}`, "automdm_ade_test", tm.Name, tm.Name, tm.Name)), http.StatusOK, &acResp)
 
 	// add a team profile
 	teamProfile := mobileconfigForTest("N2", "I2")
-	s.Do("POST", "/api/v1/fleet/mdm/profiles/batch", appleProfilesBatchRequest([][]byte{teamProfile}), http.StatusNoContent, "fleet_id", fmt.Sprint(tm.ID))
+	s.Do("POST", "/api/v1/automdm/mdm/profiles/batch", appleProfilesBatchRequest([][]byte{teamProfile}), http.StatusNoContent, "team_id", fmt.Sprint(tm.ID))
 
 	for _, enableReleaseManually := range []bool{false, true} {
 		t.Run(fmt.Sprintf("enableReleaseManually=%t", enableReleaseManually), func(t *testing.T) {
@@ -399,7 +399,7 @@ func (s *integrationMDMTestSuite) TestDEPEnrollReleaseIphoneTeam() {
 				EnableReleaseManually:             enableReleaseManually,
 				TeamID:                            &tm.ID,
 				CustomProfileIdent:                "I2",
-				UseOldFleetdFlow:                  false,
+				UseOldAutoMDMdFlow:                false,
 				EnrollmentProfileFromDEPUsingPost: true,
 			})
 		})
@@ -411,7 +411,7 @@ type DEPEnrollTestOpts struct {
 	EnableReleaseManually             bool
 	TeamID                            *uint
 	CustomProfileIdent                string
-	UseOldFleetdFlow                  bool
+	UseOldAutoMDMdFlow                bool
 	ManualAgentInstall                bool
 	EnrollmentProfileFromDEPUsingPost bool
 }
@@ -432,27 +432,27 @@ func (s *integrationMDMTestSuite) runDEPEnrollReleaseDeviceTest(t *testing.T, de
 		"macos_manual_agent_install":           opts.ManualAgentInstall,
 	}
 	if opts.TeamID != nil {
-		payload["fleet_id"] = *opts.TeamID
+		payload["team_id"] = *opts.TeamID
 	}
 
-	s.Do("PATCH", "/api/latest/fleet/setup_experience", json.RawMessage(jsonMustMarshal(t, payload)), http.StatusNoContent)
+	s.Do("PATCH", "/api/latest/automdm/setup_experience", json.RawMessage(jsonMustMarshal(t, payload)), http.StatusNoContent)
 	t.Cleanup(func() {
 		// Get back to the default state.
 		payload["apple_enable_release_device_manually"] = false
 		payload["macos_manual_agent_install"] = false
-		s.Do("PATCH", "/api/latest/fleet/setup_experience", json.RawMessage(jsonMustMarshal(t, payload)), http.StatusNoContent)
+		s.Do("PATCH", "/api/latest/automdm/setup_experience", json.RawMessage(jsonMustMarshal(t, payload)), http.StatusNoContent)
 	})
 
 	// query all hosts - none yet
 	listHostsRes := listHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &listHostsRes)
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &listHostsRes)
 	require.Empty(t, listHostsRes.Hosts)
 
 	s.pushProvider.PushFunc = func(_ context.Context, pushes []*mdm.Push) (map[string]*push.Response, error) {
 		return map[string]*push.Response{}, nil
 	}
 
-	s.mockDEPResponse("fleet_ade_test", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	s.mockDEPResponse("automdm_ade_test", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		encoder := json.NewEncoder(w)
 		switch r.URL.Path {
 		case "/session":
@@ -480,7 +480,7 @@ func (s *integrationMDMTestSuite) runDEPEnrollReleaseDeviceTest(t *testing.T, de
 			resp.ProfileUUID = prof.ProfileUUID
 			resp.Devices = make(map[string]string, len(prof.Devices))
 			for _, device := range prof.Devices {
-				resp.Devices[device] = string(fleet.DEPAssignProfileResponseSuccess)
+				resp.Devices[device] = string(automdm.DEPAssignProfileResponseSuccess)
 			}
 			err = encoder.Encode(resp)
 			require.NoError(t, err)
@@ -493,7 +493,7 @@ func (s *integrationMDMTestSuite) runDEPEnrollReleaseDeviceTest(t *testing.T, de
 	s.runDEPSchedule()
 
 	listHostsRes = listHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &listHostsRes)
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &listHostsRes)
 	require.Len(t, listHostsRes.Hosts, 1)
 	require.Equal(t, listHostsRes.Hosts[0].HardwareSerial, device.SerialNumber)
 	enrolledHost := listHostsRes.Hosts[0].Host
@@ -521,7 +521,7 @@ func (s *integrationMDMTestSuite) runDEPEnrollReleaseDeviceTest(t *testing.T, de
 	// check if it has setup experience items or not
 	hasSetupExpItems := true
 	_, err = s.ds.GetHostAwaitingConfiguration(ctx, mdmDevice.UUID)
-	if fleet.IsNotFound(err) || device.MDMMigrationDeadline != nil {
+	if automdm.IsNotFound(err) || device.MDMMigrationDeadline != nil {
 		hasSetupExpItems = false
 	} else if err != nil {
 		require.NoError(t, err)
@@ -574,8 +574,8 @@ func (s *integrationMDMTestSuite) runDEPEnrollReleaseDeviceTest(t *testing.T, de
 		require.Len(t, cmds, 2)
 		require.True(t, seenDeclarativeManagement)
 	} else {
-		// expected commands: install fleetd, install bootstrap(if not migrating),
-		// install CA, install profiles (custom one, fleetd configuration, FileVault)
+		// expected commands: install automdmd, install bootstrap(if not migrating),
+		// install CA, install profiles (custom one, automdmd configuration, FileVault)
 		// (not expected: account configuration, since enrollment_reference not set)
 		expectedCommands := 6
 		if opts.ManualAgentInstall {
@@ -599,7 +599,7 @@ func (s *integrationMDMTestSuite) runDEPEnrollReleaseDeviceTest(t *testing.T, de
 	}
 
 	var installProfileCount, installEnterpriseCount, otherCount int
-	var profileCustomSeen, profileFleetdSeen, profileFleetCASeen, profileFileVaultSeen bool
+	var profileCustomSeen, profileAutoMDMdSeen, profileAutoMDMCASeen, profileFileVaultSeen bool
 	var lastInstallEnterpriseApplication *micromdm.InstallEnterpriseApplication
 	for _, cmd := range cmds {
 		switch cmd.Command.RequestType {
@@ -608,11 +608,11 @@ func (s *integrationMDMTestSuite) runDEPEnrollReleaseDeviceTest(t *testing.T, de
 			if strings.Contains(string(cmd.Command.InstallProfile.Payload), //nolint:gocritic // ignore ifElseChain
 				fmt.Sprintf("<string>%s</string>", opts.CustomProfileIdent)) {
 				profileCustomSeen = true
-			} else if strings.Contains(string(cmd.Command.InstallProfile.Payload), fmt.Sprintf("<string>%s</string>", mobileconfig.FleetdConfigPayloadIdentifier)) {
-				profileFleetdSeen = true
-			} else if strings.Contains(string(cmd.Command.InstallProfile.Payload), fmt.Sprintf("<string>%s</string>", mobileconfig.FleetCARootConfigPayloadIdentifier)) {
-				profileFleetCASeen = true
-			} else if strings.Contains(string(cmd.Command.InstallProfile.Payload), fmt.Sprintf("<string>%s</string", mobileconfig.FleetFileVaultPayloadIdentifier)) &&
+			} else if strings.Contains(string(cmd.Command.InstallProfile.Payload), fmt.Sprintf("<string>%s</string>", mobileconfig.AutoMDMdConfigPayloadIdentifier)) {
+				profileAutoMDMdSeen = true
+			} else if strings.Contains(string(cmd.Command.InstallProfile.Payload), fmt.Sprintf("<string>%s</string>", mobileconfig.AutoMDMCARootConfigPayloadIdentifier)) {
+				profileAutoMDMCASeen = true
+			} else if strings.Contains(string(cmd.Command.InstallProfile.Payload), fmt.Sprintf("<string>%s</string", mobileconfig.AutoMDMFileVaultPayloadIdentifier)) &&
 				strings.Contains(string(cmd.Command.InstallProfile.Payload), "ForceEnableInSetupAssistant") {
 				profileFileVaultSeen = true
 			}
@@ -630,11 +630,11 @@ func (s *integrationMDMTestSuite) runDEPEnrollReleaseDeviceTest(t *testing.T, de
 		require.Equal(t, 0, installEnterpriseCount)
 		require.Equal(t, 0, otherCount)
 		require.True(t, profileCustomSeen)
-		require.False(t, profileFleetdSeen)
-		require.True(t, profileFleetCASeen)
+		require.False(t, profileAutoMDMdSeen)
+		require.True(t, profileAutoMDMCASeen)
 		require.False(t, profileFileVaultSeen)
 
-		// for iDevices, fleetd is not installed so the rest of this test does not apply.
+		// for iDevices, automdmd is not installed so the rest of this test does not apply.
 		if opts.EnableReleaseManually {
 			// get the worker's pending job from the future, there should not be any
 			// because it needs to be released manually
@@ -699,33 +699,33 @@ func (s *integrationMDMTestSuite) runDEPEnrollReleaseDeviceTest(t *testing.T, de
 			require.NotNil(t, lastInstallEnterpriseApplication.Manifest)
 			require.GreaterOrEqual(t, len(lastInstallEnterpriseApplication.Manifest.ManifestItems), 1)
 			require.Len(t, lastInstallEnterpriseApplication.Manifest.ManifestItems[0].Assets, 1)
-			assert.Contains(t, lastInstallEnterpriseApplication.Manifest.ManifestItems[0].Assets[0].URL, "/api/latest/fleet/bootstrap?token=")
+			assert.Contains(t, lastInstallEnterpriseApplication.Manifest.ManifestItems[0].Assets[0].URL, "/api/latest/automdm/bootstrap?token=")
 		}
 	}
 	require.Equal(t, expectedInstallEnterpriseCount, installEnterpriseCount)
 	require.Equal(t, 0, otherCount)
 	require.True(t, profileCustomSeen)
-	require.True(t, profileFleetdSeen)
-	require.True(t, profileFleetCASeen)
+	require.True(t, profileAutoMDMdSeen)
+	require.True(t, profileAutoMDMCASeen)
 	require.True(t, profileFileVaultSeen)
 
-	// simulate fleetd being installed and the host being orbit-enrolled now
+	// simulate automdmd being installed and the host being orbit-enrolled now
 	enrolledHost.OsqueryHostID = ptr.String(mdmDevice.UUID)
 	orbitKey := setOrbitEnrollment(t, enrolledHost, s.ds)
 	enrolledHost.OrbitNodeKey = &orbitKey
 
-	// call the /config endpoint as fleetd would
-	var orbitConfigResp fleet.OrbitGetConfigResponse
-	var caps fleet.CapabilityMap
-	if opts.UseOldFleetdFlow {
+	// call the /config endpoint as automdmd would
+	var orbitConfigResp automdm.OrbitGetConfigResponse
+	var caps automdm.CapabilityMap
+	if opts.UseOldAutoMDMdFlow {
 		// important thing is that it doesn't have the CapabilitySetupExperience
-		caps.PopulateFromString(string(fleet.CapabilityEscrowBuddy))
+		caps.PopulateFromString(string(automdm.CapabilityEscrowBuddy))
 	} else {
-		caps = fleet.GetOrbitClientCapabilities()
+		caps = automdm.GetOrbitClientCapabilities()
 	}
 
-	res := s.DoRawWithHeaders("POST", "/api/fleet/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *enrolledHost.OrbitNodeKey)),
-		http.StatusOK, map[string]string{fleet.CapabilitiesHeader: caps.String()})
+	res := s.DoRawWithHeaders("POST", "/api/automdm/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *enrolledHost.OrbitNodeKey)),
+		http.StatusOK, map[string]string{automdm.CapabilitiesHeader: caps.String()})
 	b, err := io.ReadAll(res.Body)
 	require.NoError(t, err)
 	require.NoError(t, json.Unmarshal(b, &orbitConfigResp))
@@ -746,7 +746,7 @@ func (s *integrationMDMTestSuite) runDEPEnrollReleaseDeviceTest(t *testing.T, de
 		return
 	}
 
-	if opts.UseOldFleetdFlow || !hasSetupExpItems {
+	if opts.UseOldAutoMDMdFlow || !hasSetupExpItems {
 		// there should be a Release Device pending job
 		pending, err := s.ds.GetQueuedJobs(ctx, 2, time.Now().UTC().Add(time.Minute))
 		require.NoError(t, err)
@@ -756,9 +756,9 @@ func (s *integrationMDMTestSuite) runDEPEnrollReleaseDeviceTest(t *testing.T, de
 
 		// calling the orbit config endpoint again does NOT enqueue a new job, and doesn't
 		// return the RunSetupExperience notification anymore
-		orbitConfigResp = fleet.OrbitGetConfigResponse{}
-		res := s.DoRawWithHeaders("POST", "/api/fleet/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *enrolledHost.OrbitNodeKey)),
-			http.StatusOK, map[string]string{fleet.CapabilitiesHeader: caps.String()})
+		orbitConfigResp = automdm.OrbitGetConfigResponse{}
+		res := s.DoRawWithHeaders("POST", "/api/automdm/orbit/config", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *enrolledHost.OrbitNodeKey)),
+			http.StatusOK, map[string]string{automdm.CapabilitiesHeader: caps.String()})
 		b, err := io.ReadAll(res.Body)
 		require.NoError(t, err)
 		require.NoError(t, json.Unmarshal(b, &orbitConfigResp))
@@ -791,8 +791,8 @@ func (s *integrationMDMTestSuite) runDEPEnrollReleaseDeviceTest(t *testing.T, de
 		})
 
 		// call the /status endpoint to automatically release the host
-		var statusResp fleet.GetOrbitSetupExperienceStatusResponse
-		s.DoJSON("POST", "/api/fleet/orbit/setup_experience/status", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *enrolledHost.OrbitNodeKey)), http.StatusOK, &statusResp)
+		var statusResp automdm.GetOrbitSetupExperienceStatusResponse
+		s.DoJSON("POST", "/api/automdm/orbit/setup_experience/status", json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q}`, *enrolledHost.OrbitNodeKey)), http.StatusOK, &statusResp)
 	}
 
 	// make the device process the commands, it should receive the
@@ -835,7 +835,7 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignment() {
 
 	// set release device manually to true so there is no job enqueued at a later
 	// time to release the device (this is not what this test is about)
-	s.Do("PATCH", "/api/latest/fleet/setup_experience", json.RawMessage(jsonMustMarshal(t, map[string]any{
+	s.Do("PATCH", "/api/latest/automdm/setup_experience", json.RawMessage(jsonMustMarshal(t, map[string]any{
 		"apple_enable_release_device_manually": true,
 	})), http.StatusNoContent)
 
@@ -843,16 +843,16 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignment() {
 
 	// add global profiles
 	globalProfile := mobileconfigForTest("N1", "I1")
-	s.Do("POST", "/api/v1/fleet/mdm/profiles/batch", appleProfilesBatchRequest([][]byte{globalProfile}), http.StatusNoContent)
+	s.Do("POST", "/api/v1/automdm/mdm/profiles/batch", appleProfilesBatchRequest([][]byte{globalProfile}), http.StatusNoContent)
 
 	checkPostEnrollmentCommands := func(mdmDevice *mdmtest.TestAppleMDMClient, shouldReceive bool) {
-		// ensure fleet profiles
+		// ensure automdm profiles
 		s.awaitTriggerProfileSchedule(t)
 		// run the worker to process the DEP enroll request
 		s.awaitRunAppleMDMWorkerSchedule()
 
 		var seenDeclarativeManagement bool
-		var fleetdCmd, installProfileCmd *micromdm.CommandPayload
+		var automdmdCmd, installProfileCmd *micromdm.CommandPayload
 		cmd, err := mdmDevice.Idle()
 		require.NoError(t, err)
 		for cmd != nil {
@@ -867,8 +867,8 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignment() {
 			require.NoError(t, plist.Unmarshal(cmd.Raw, &fullCmd))
 			if fullCmd.Command.RequestType == "InstallEnterpriseApplication" &&
 				fullCmd.Command.InstallEnterpriseApplication.ManifestURL != nil &&
-				strings.Contains(*fullCmd.Command.InstallEnterpriseApplication.ManifestURL, fleetdbase.GetPKGManifestURL()) {
-				fleetdCmd = &fullCmd
+				strings.Contains(*fullCmd.Command.InstallEnterpriseApplication.ManifestURL, automdmdbase.GetPKGManifestURL()) {
+				automdmdCmd = &fullCmd
 			} else if cmd.Command.RequestType == "InstallProfile" {
 				installProfileCmd = &fullCmd
 			}
@@ -877,9 +877,9 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignment() {
 		}
 
 		if shouldReceive {
-			// received request to install fleetd
-			require.NotNil(t, fleetdCmd, "host didn't get a command to install fleetd")
-			require.NotNil(t, fleetdCmd.Command, "host didn't get a command to install fleetd")
+			// received request to install automdmd
+			require.NotNil(t, automdmdCmd, "host didn't get a command to install automdmd")
+			require.NotNil(t, automdmdCmd.Command, "host didn't get a command to install automdmd")
 
 			// received request to install the global configuration profile
 			require.NotNil(t, installProfileCmd, "host didn't get a command to install profiles")
@@ -887,7 +887,7 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignment() {
 
 			require.True(t, seenDeclarativeManagement)
 		} else {
-			require.Nil(t, fleetdCmd, "host got a command to install fleetd")
+			require.Nil(t, automdmdCmd, "host got a command to install automdmd")
 			require.Nil(t, installProfileCmd, "host got a command to install profiles")
 			require.False(t, seenDeclarativeManagement)
 		}
@@ -911,7 +911,7 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignment() {
 		RetryJobID            uint       `db:"retry_job_id"`
 		DeletedAt             *time.Time `db:"deleted_at"`
 	}
-	checkHostDEPAssignProfileResponses := func(deviceSerials []string, expectedProfileUUID string, expectedStatus fleet.DEPAssignProfileResponseStatus) map[string]hostDEPRow {
+	checkHostDEPAssignProfileResponses := func(deviceSerials []string, expectedProfileUUID string, expectedStatus automdm.DEPAssignProfileResponseStatus) map[string]hostDEPRow {
 		bySerial := make(map[string]hostDEPRow, len(deviceSerials))
 		for _, deviceSerial := range deviceSerials {
 			mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
@@ -962,7 +962,7 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignment() {
 	}
 
 	expectNoJobID := ptr.Uint(0) // used when expect no retry job
-	checkHostCooldown := func(serial, profUUID string, status fleet.DEPAssignProfileResponseStatus, expectUpdatedAt *time.Time, expectRetryJobID *uint) hostDEPRow {
+	checkHostCooldown := func(serial, profUUID string, status automdm.DEPAssignProfileResponseStatus, expectUpdatedAt *time.Time, expectRetryJobID *uint) hostDEPRow {
 		bySerial := checkHostDEPAssignProfileResponses([]string{serial}, profUUID, status)
 		d, ok := bySerial[serial]
 		require.True(t, ok)
@@ -975,9 +975,9 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignment() {
 		return d
 	}
 
-	checkListHostDEPError := func(serial string, expectStatus string, expectError bool) *fleet.HostResponse {
+	checkListHostDEPError := func(serial string, expectStatus string, expectError bool) *automdm.HostResponse {
 		listHostsRes := listHostsResponse{}
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts?query=%s", serial), nil, http.StatusOK, &listHostsRes)
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts?query=%s", serial), nil, http.StatusOK, &listHostsRes)
 		require.Len(t, listHostsRes.Hosts, 1)
 		require.Equal(t, serial, listHostsRes.Hosts[0].HardwareSerial)
 		require.Equal(t, expectStatus, *listHostsRes.Hosts[0].MDM.EnrollmentStatus)
@@ -1033,14 +1033,14 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignment() {
 			for _, device := range prof.Devices {
 				switch device {
 				case expectAssignProfileResponseNotAccessible:
-					resp.Devices[device] = string(fleet.DEPAssignProfileResponseNotAccessible)
+					resp.Devices[device] = string(automdm.DEPAssignProfileResponseNotAccessible)
 				case expectAssignProfileResponseFailed:
-					resp.Devices[device] = string(fleet.DEPAssignProfileResponseFailed)
+					resp.Devices[device] = string(automdm.DEPAssignProfileResponseFailed)
 				case expectAssignProfileResponseThrottled:
-					resp.Devices[device] = string(fleet.DEPAssignProfileResponseThrottled)
+					resp.Devices[device] = string(automdm.DEPAssignProfileResponseThrottled)
 					resp.RetryAfterSeconds = throttledRetryAfterSeconds
 				default:
-					resp.Devices[device] = string(fleet.DEPAssignProfileResponseSuccess)
+					resp.Devices[device] = string(automdm.DEPAssignProfileResponseSuccess)
 				}
 			}
 			err = encoder.Encode(resp)
@@ -1052,7 +1052,7 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignment() {
 
 	// query all hosts
 	listHostsRes := listHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &listHostsRes)
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &listHostsRes)
 	require.Empty(t, listHostsRes.Hosts)
 
 	// trigger a profile sync
@@ -1060,7 +1060,7 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignment() {
 
 	// all hosts should be returned from the hosts endpoint
 	listHostsRes = listHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &listHostsRes)
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &listHostsRes)
 	require.Len(t, listHostsRes.Hosts, len(devices))
 	var wantSerials []string
 	var gotSerials []string
@@ -1077,26 +1077,26 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignment() {
 	// - one when we do the device sync (/device/sync)
 	require.Len(t, profileAssignmentReqs, 2)
 	require.Len(t, profileAssignmentReqs[0].Devices, 1)
-	checkHostDEPAssignProfileResponses(profileAssignmentReqs[0].Devices, profileAssignmentReqs[0].ProfileUUID, fleet.DEPAssignProfileResponseSuccess)
+	checkHostDEPAssignProfileResponses(profileAssignmentReqs[0].Devices, profileAssignmentReqs[0].ProfileUUID, automdm.DEPAssignProfileResponseSuccess)
 	require.Len(t, profileAssignmentReqs[1].Devices, len(devices))
-	checkHostDEPAssignProfileResponses(profileAssignmentReqs[1].Devices, profileAssignmentReqs[1].ProfileUUID, fleet.DEPAssignProfileResponseSuccess)
+	checkHostDEPAssignProfileResponses(profileAssignmentReqs[1].Devices, profileAssignmentReqs[1].ProfileUUID, automdm.DEPAssignProfileResponseSuccess)
 	// record the default profile to be used in other tests
 	defaultProfileUUID := profileAssignmentReqs[1].ProfileUUID
 
 	// create a new host
 	nonDEPHost := createHostAndDeviceToken(t, s.ds, "not-dep")
 	listHostsRes = listHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &listHostsRes)
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &listHostsRes)
 	require.Len(t, listHostsRes.Hosts, len(devices)+1)
 
 	// filtering by MDM status works
 	listHostsRes = listHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts?mdm_enrollment_status=pending", nil, http.StatusOK, &listHostsRes)
+	s.DoJSON("GET", "/api/latest/automdm/hosts?mdm_enrollment_status=pending", nil, http.StatusOK, &listHostsRes)
 	require.Len(t, listHostsRes.Hosts, len(devices))
 
 	// searching by display name works
 	listHostsRes = listHostsResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts?query=%s", url.QueryEscape("MacBook Mini")), nil, http.StatusOK, &listHostsRes)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts?query=%s", url.QueryEscape("MacBook Mini")), nil, http.StatusOK, &listHostsRes)
 	require.Len(t, listHostsRes.Hosts, 3)
 	for _, host := range listHostsRes.Hosts {
 		require.Equal(t, "MacBook Mini", host.HardwareModel)
@@ -1119,11 +1119,11 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignment() {
 
 	// only one shows up as pending
 	listHostsRes = listHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts?mdm_enrollment_status=pending", nil, http.StatusOK, &listHostsRes)
+	s.DoJSON("GET", "/api/latest/automdm/hosts?mdm_enrollment_status=pending", nil, http.StatusOK, &listHostsRes)
 	require.Len(t, listHostsRes.Hosts, len(devices)-1)
 
 	activities := listActivitiesResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/activities", nil, http.StatusOK, &activities, "order_key", "created_at")
+	s.DoJSON("GET", "/api/latest/automdm/activities", nil, http.StatusOK, &activities, "order_key", "created_at")
 	found := false
 	for _, activity := range activities.Activities {
 		if activity.Type == "mdm_enrolled" &&
@@ -1147,18 +1147,18 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignment() {
 
 	// add devices[1].SerialNumber to a team
 	teamName := t.Name() + "team1"
-	team := &fleet.Team{
+	team := &automdm.Team{
 		Name:        teamName,
 		Description: "desc team1",
 	}
 	var createTeamResp teamResponse
-	s.DoJSON("POST", "/api/latest/fleet/fleets", team, http.StatusOK, &createTeamResp)
+	s.DoJSON("POST", "/api/latest/automdm/teams", team, http.StatusOK, &createTeamResp)
 	require.NotZero(t, createTeamResp.Team.ID)
 	team = createTeamResp.Team
 	var device1ID uint
 	for _, h := range listHostsRes.Hosts {
 		if h.HardwareSerial == devices[1].SerialNumber {
-			err = s.ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team.ID, []uint{h.ID}))
+			err = s.ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team.ID, []uint{h.ID}))
 			require.NoError(t, err)
 			device1ID = h.ID
 			break
@@ -1181,7 +1181,7 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignment() {
 	}
 	profileAssignmentReqs = []profileAssignmentReq{}
 
-	// Enroll the host to be deleted. It will stay in Fleet after deletion from DEP.
+	// Enroll the host to be deleted. It will stay in AutoMDM after deletion from DEP.
 	mdmDeviceToDelete := mdmtest.NewTestMDMClientAppleDEP(s.server.URL, depURLToken)
 	mdmDeviceToDelete.SerialNumber = deletedSerial
 	require.NoError(t, mdmDeviceToDelete.Enroll())
@@ -1192,7 +1192,7 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignment() {
 
 	// all hosts should be returned from the hosts endpoint
 	listHostsRes = listHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &listHostsRes)
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &listHostsRes)
 	// all previous devices + the manually added host + the new `addedSerial`
 	wantSerials = append(wantSerials, devices[3].SerialNumber, nonDEPHost.HardwareSerial)
 	require.Len(t, listHostsRes.Hosts, len(wantSerials))
@@ -1218,7 +1218,7 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignment() {
 	// TODO: seems like we're doing this request on each loop?
 	require.Len(t, profileAssignmentReqs[0].Devices, 1)
 	require.Equal(t, devices[0].SerialNumber, profileAssignmentReqs[0].Devices[0])
-	checkHostDEPAssignProfileResponses(profileAssignmentReqs[0].Devices, profileAssignmentReqs[0].ProfileUUID, fleet.DEPAssignProfileResponseSuccess)
+	checkHostDEPAssignProfileResponses(profileAssignmentReqs[0].Devices, profileAssignmentReqs[0].ProfileUUID, automdm.DEPAssignProfileResponseSuccess)
 
 	// profileAssignmentReqs[1] and [2] can be in any order
 	ix2Devices, ix1Device := 1, 2
@@ -1230,12 +1230,12 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignment() {
 	// - new device with "added"
 	require.Len(t, profileAssignmentReqs[ix2Devices].Devices, 2, "%#+v", profileAssignmentReqs)
 	require.ElementsMatch(t, []string{devices[0].SerialNumber, addedSerial}, profileAssignmentReqs[ix2Devices].Devices)
-	checkHostDEPAssignProfileResponses(profileAssignmentReqs[ix2Devices].Devices, profileAssignmentReqs[ix2Devices].ProfileUUID, fleet.DEPAssignProfileResponseSuccess)
+	checkHostDEPAssignProfileResponses(profileAssignmentReqs[ix2Devices].Devices, profileAssignmentReqs[ix2Devices].ProfileUUID, automdm.DEPAssignProfileResponseSuccess)
 
 	// - existing device with "modified" and a different team (thus different profile request)
 	require.Len(t, profileAssignmentReqs[ix1Device].Devices, 1)
 	require.Equal(t, devices[1].SerialNumber, profileAssignmentReqs[ix1Device].Devices[0])
-	checkHostDEPAssignProfileResponses(profileAssignmentReqs[ix1Device].Devices, profileAssignmentReqs[ix1Device].ProfileUUID, fleet.DEPAssignProfileResponseSuccess)
+	checkHostDEPAssignProfileResponses(profileAssignmentReqs[ix1Device].Devices, profileAssignmentReqs[ix1Device].ProfileUUID, automdm.DEPAssignProfileResponseSuccess)
 
 	// entries for all hosts except for the one with OpType = "deleted"
 	assignment, err := s.ds.GetHostDEPAssignment(ctx, deletedHostID)
@@ -1255,13 +1255,13 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignment() {
 	require.NoError(t, err)
 	checkPostEnrollmentCommands(mdmDevice, true)
 
-	// delete the device from Fleet
+	// delete the device from AutoMDM
 	var delResp deleteHostResponse
-	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/fleet/hosts/%d", mdmDeviceID), nil, http.StatusOK, &delResp)
+	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/automdm/hosts/%d", mdmDeviceID), nil, http.StatusOK, &delResp)
 
 	// the device comes back as pending
 	listHostsRes = listHostsResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts?query=%s", mdmDevice.UUID), nil, http.StatusOK, &listHostsRes)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts?query=%s", mdmDevice.UUID), nil, http.StatusOK, &listHostsRes)
 	require.Len(t, listHostsRes.Hosts, 1)
 	require.Equal(t, mdmDevice.SerialNumber, listHostsRes.Hosts[0].HardwareSerial)
 
@@ -1269,7 +1269,7 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignment() {
 	profileAssignmentReqs = []profileAssignmentReq{}
 	s.runWorker()
 	require.Equal(t, mdmDevice.SerialNumber, profileAssignmentReqs[0].Devices[0])
-	checkHostDEPAssignProfileResponses(profileAssignmentReqs[0].Devices, profileAssignmentReqs[0].ProfileUUID, fleet.DEPAssignProfileResponseSuccess)
+	checkHostDEPAssignProfileResponses(profileAssignmentReqs[0].Devices, profileAssignmentReqs[0].ProfileUUID, automdm.DEPAssignProfileResponseSuccess)
 
 	// it should get the post-enrollment commands
 	require.NoError(t, mdmDevice.Enroll())
@@ -1316,7 +1316,7 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignment() {
 	s.runDEPSchedule()
 	// all hosts should be returned from the hosts endpoint
 	listHostsRes = listHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &listHostsRes)
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &listHostsRes)
 	// all previous devices minus the pending deleted one
 	wantSerials = slices.DeleteFunc(wantSerials, func(s string) bool { return s == deletedSerial })
 	assert.Len(t, listHostsRes.Hosts, len(wantSerials))
@@ -1349,7 +1349,7 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignment() {
 	require.NoError(t, mdmDevice.Enroll())
 	checkPostEnrollmentCommands(mdmDevice, true)
 
-	// The user unenrolls from Fleet (e.g. was DEP enrolled but with `is_mdm_removable: true`
+	// The user unenrolls from AutoMDM (e.g. was DEP enrolled but with `is_mdm_removable: true`
 	// so the user removes the enrollment profile).
 	err = mdmDevice.Checkout()
 	require.NoError(t, err)
@@ -1360,7 +1360,7 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignment() {
 		return err
 	})
 
-	// Simulate fleetd re-enrolling automatically.
+	// Simulate automdmd re-enrolling automatically.
 	err = mdmDevice.Enroll()
 	require.NoError(t, err)
 	s.awaitRunAppleMDMWorkerSchedule()
@@ -1377,8 +1377,8 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignment() {
 		0,
 	)
 
-	// enroll a host into Fleet
-	eHost, err := s.ds.NewHost(context.Background(), &fleet.Host{
+	// enroll a host into AutoMDM
+	eHost, err := s.ds.NewHost(context.Background(), &automdm.Host{
 		ID:             1,
 		OsqueryHostID:  ptr.String("Desktop-ABCQWE"),
 		NodeKey:        ptr.String("Desktop-ABCQWE"),
@@ -1390,7 +1390,7 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignment() {
 	require.NoError(t, err)
 
 	// on team transfer, we don't assign a DEP profile to the device
-	s.Do("POST", "/api/v1/fleet/hosts/transfer",
+	s.Do("POST", "/api/v1/automdm/hosts/transfer",
 		addHostsToTeamRequest{TeamID: &team.ID, HostIDs: []uint{eHost.ID}}, http.StatusOK)
 	profileAssignmentReqs = []profileAssignmentReq{}
 	s.runWorker()
@@ -1404,43 +1404,43 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignment() {
 	s.runDEPSchedule()
 	require.NotEmpty(t, profileAssignmentReqs)
 	require.Equal(t, eHost.HardwareSerial, profileAssignmentReqs[0].Devices[0])
-	checkHostDEPAssignProfileResponses(profileAssignmentReqs[0].Devices, profileAssignmentReqs[0].ProfileUUID, fleet.DEPAssignProfileResponseSuccess)
+	checkHostDEPAssignProfileResponses(profileAssignmentReqs[0].Devices, profileAssignmentReqs[0].ProfileUUID, automdm.DEPAssignProfileResponseSuccess)
 
 	// report MDM info via osquery
-	require.NoError(t, s.ds.SetOrUpdateMDMData(ctx, eHost.ID, false, true, s.server.URL, true, fleet.WellKnownMDMFleet, "", fleet.PersonalEnrollmentTypeNone))
+	require.NoError(t, s.ds.SetOrUpdateMDMData(ctx, eHost.ID, false, true, s.server.URL, true, automdm.WellKnownMDMAutoMDM, "", automdm.PersonalEnrollmentTypeNone))
 	checkListHostDEPError(eHost.HardwareSerial, "On (automatic)", false)
 
 	// transfer to "no team", we assign a DEP profile to the device
 	profileAssignmentReqs = []profileAssignmentReq{}
-	s.Do("POST", "/api/v1/fleet/hosts/transfer",
+	s.Do("POST", "/api/v1/automdm/hosts/transfer",
 		addHostsToTeamRequest{TeamID: nil, HostIDs: []uint{eHost.ID}}, http.StatusOK)
 	s.runWorker()
 	require.NotEmpty(t, profileAssignmentReqs)
 	require.Equal(t, eHost.HardwareSerial, profileAssignmentReqs[0].Devices[0])
-	checkHostDEPAssignProfileResponses(profileAssignmentReqs[0].Devices, profileAssignmentReqs[0].ProfileUUID, fleet.DEPAssignProfileResponseSuccess)
+	checkHostDEPAssignProfileResponses(profileAssignmentReqs[0].Devices, profileAssignmentReqs[0].ProfileUUID, automdm.DEPAssignProfileResponseSuccess)
 	checkListHostDEPError(eHost.HardwareSerial, "On (automatic)", false)
 
 	// transfer to the team back again, we assign a DEP profile to the device again
-	s.Do("POST", "/api/v1/fleet/hosts/transfer",
+	s.Do("POST", "/api/v1/automdm/hosts/transfer",
 		addHostsToTeamRequest{TeamID: &team.ID, HostIDs: []uint{eHost.ID}}, http.StatusOK)
 	profileAssignmentReqs = []profileAssignmentReq{}
 	s.runWorker()
 	require.NotEmpty(t, profileAssignmentReqs)
 	require.Equal(t, eHost.HardwareSerial, profileAssignmentReqs[0].Devices[0])
-	checkHostDEPAssignProfileResponses(profileAssignmentReqs[0].Devices, profileAssignmentReqs[0].ProfileUUID, fleet.DEPAssignProfileResponseSuccess)
+	checkHostDEPAssignProfileResponses(profileAssignmentReqs[0].Devices, profileAssignmentReqs[0].ProfileUUID, automdm.DEPAssignProfileResponseSuccess)
 	checkListHostDEPError(eHost.HardwareSerial, "On (automatic)", false)
 
 	// transfer to "no team", but simulate a failed profile assignment
 	expectAssignProfileResponseFailed = eHost.HardwareSerial
 	profileAssignmentReqs = []profileAssignmentReq{}
-	s.Do("POST", "/api/v1/fleet/hosts/transfer",
+	s.Do("POST", "/api/v1/automdm/hosts/transfer",
 		addHostsToTeamRequest{TeamID: nil, HostIDs: []uint{eHost.ID}}, http.StatusOK)
 	checkPendingMacOSSetupAssistantJob("hosts_transferred", nil, []string{eHost.HardwareSerial}, 0)
 
 	s.runIntegrationsSchedule()
 	checkAssignProfileRequests(eHost.HardwareSerial, nil)
 	profUUID := profileAssignmentReqs[0].ProfileUUID
-	d := checkHostCooldown(eHost.HardwareSerial, profUUID, fleet.DEPAssignProfileResponseFailed, nil, expectNoJobID)
+	d := checkHostCooldown(eHost.HardwareSerial, profUUID, automdm.DEPAssignProfileResponseFailed, nil, expectNoJobID)
 	require.NotZero(t, d.ResponseUpdatedAt)
 	failedAt := d.ResponseUpdatedAt
 	checkNoJobsPending()
@@ -1450,19 +1450,19 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignment() {
 	// run the integrations schedule during the cooldown period
 	profileAssignmentReqs = []profileAssignmentReq{}
 	s.runIntegrationsSchedule()
-	require.Empty(t, profileAssignmentReqs)                                                                           // no new request during cooldown
-	checkHostCooldown(eHost.HardwareSerial, profUUID, fleet.DEPAssignProfileResponseFailed, &failedAt, expectNoJobID) // no change
+	require.Empty(t, profileAssignmentReqs)                                                                             // no new request during cooldown
+	checkHostCooldown(eHost.HardwareSerial, profUUID, automdm.DEPAssignProfileResponseFailed, &failedAt, expectNoJobID) // no change
 	checkNoJobsPending()
 
 	// create a new team
 	var tmResp teamResponse
-	s.DoJSON("POST", "/api/latest/fleet/fleets", &fleet.Team{
+	s.DoJSON("POST", "/api/latest/automdm/teams", &automdm.Team{
 		Name:        t.Name() + "dummy",
 		Description: "desc dummy",
 	}, http.StatusOK, &tmResp)
 	require.NotZero(t, createTeamResp.Team.ID)
 	dummyTeam := tmResp.Team
-	s.Do("POST", "/api/v1/fleet/hosts/transfer",
+	s.Do("POST", "/api/v1/automdm/hosts/transfer",
 		addHostsToTeamRequest{TeamID: &dummyTeam.ID, HostIDs: []uint{eHost.ID}}, http.StatusOK)
 	checkPendingMacOSSetupAssistantJob("hosts_transferred", &dummyTeam.ID, []string{eHost.HardwareSerial}, 0)
 
@@ -1470,8 +1470,8 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignment() {
 	// expect no assign profile request during cooldown
 	profileAssignmentReqs = []profileAssignmentReq{}
 	s.runIntegrationsSchedule()
-	require.Empty(t, profileAssignmentReqs)                                                                           // screened for cooldown
-	checkHostCooldown(eHost.HardwareSerial, profUUID, fleet.DEPAssignProfileResponseFailed, &failedAt, expectNoJobID) // no change
+	require.Empty(t, profileAssignmentReqs)                                                                             // screened for cooldown
+	checkHostCooldown(eHost.HardwareSerial, profUUID, automdm.DEPAssignProfileResponseFailed, &failedAt, expectNoJobID) // no change
 	checkNoJobsPending()
 
 	// cooldown hosts are screened from update profile jobs that would assign profiles
@@ -1479,8 +1479,8 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignment() {
 	require.NoError(t, err)
 	checkPendingMacOSSetupAssistantJob("update_profile", &dummyTeam.ID, []string{eHost.HardwareSerial}, 0)
 	s.runIntegrationsSchedule()
-	require.Empty(t, profileAssignmentReqs)                                                                           // screened for cooldown
-	checkHostCooldown(eHost.HardwareSerial, profUUID, fleet.DEPAssignProfileResponseFailed, &failedAt, expectNoJobID) // no change
+	require.Empty(t, profileAssignmentReqs)                                                                             // screened for cooldown
+	checkHostCooldown(eHost.HardwareSerial, profUUID, automdm.DEPAssignProfileResponseFailed, &failedAt, expectNoJobID) // no change
 	checkNoJobsPending()
 
 	// cooldown hosts are screened from delete profile jobs that would assign profiles
@@ -1488,16 +1488,16 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignment() {
 	require.NoError(t, err)
 	checkPendingMacOSSetupAssistantJob("profile_deleted", &dummyTeam.ID, []string{eHost.HardwareSerial}, 0)
 	s.runIntegrationsSchedule()
-	require.Empty(t, profileAssignmentReqs)                                                                           // screened for cooldown
-	checkHostCooldown(eHost.HardwareSerial, profUUID, fleet.DEPAssignProfileResponseFailed, &failedAt, expectNoJobID) // no change
+	require.Empty(t, profileAssignmentReqs)                                                                             // screened for cooldown
+	checkHostCooldown(eHost.HardwareSerial, profUUID, automdm.DEPAssignProfileResponseFailed, &failedAt, expectNoJobID) // no change
 	checkNoJobsPending()
 
 	// // TODO: Restore this test when FIXME on DeleteTeam is addressed
-	// s.Do("DELETE", fmt.Sprintf("/api/v1/fleet/fleets/%d", dummyTeam.ID), nil, http.StatusOK)
+	// s.Do("DELETE", fmt.Sprintf("/api/v1/automdm/teams/%d", dummyTeam.ID), nil, http.StatusOK)
 	// checkPendingMacOSSetupAssistantJob("team_deleted", nil, []string{eHost.HardwareSerial}, 0)
 	// s.runIntegrationsSchedule()
 	// require.Empty(t, profileAssignmentReqs) // screened for cooldown
-	// bySerial = checkHostDEPAssignProfileResponses([]string{eHost.HardwareSerial}, profUUID, fleet.DEPAssignProfileResponseFailed)
+	// bySerial = checkHostDEPAssignProfileResponses([]string{eHost.HardwareSerial}, profUUID, automdm.DEPAssignProfileResponseFailed)
 	// d, ok = bySerial[eHost.HardwareSerial]
 	// require.True(t, ok)
 	// require.Equal(t, failedAt, d.ResponseUpdatedAt)
@@ -1505,13 +1505,13 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignment() {
 	// checkNoJobsPending()
 
 	// transfer back to no team, expect no assign profile request during cooldown
-	s.Do("POST", "/api/v1/fleet/hosts/transfer",
+	s.Do("POST", "/api/v1/automdm/hosts/transfer",
 		addHostsToTeamRequest{TeamID: nil, HostIDs: []uint{eHost.ID}}, http.StatusOK)
 	checkPendingMacOSSetupAssistantJob("hosts_transferred", nil, []string{eHost.HardwareSerial}, 0)
 	profileAssignmentReqs = []profileAssignmentReq{}
 	s.runIntegrationsSchedule()
-	require.Empty(t, profileAssignmentReqs)                                                                           // screened for cooldown
-	checkHostCooldown(eHost.HardwareSerial, profUUID, fleet.DEPAssignProfileResponseFailed, &failedAt, expectNoJobID) // no change
+	require.Empty(t, profileAssignmentReqs)                                                                             // screened for cooldown
+	checkHostCooldown(eHost.HardwareSerial, profUUID, automdm.DEPAssignProfileResponseFailed, &failedAt, expectNoJobID) // no change
 	checkNoJobsPending()
 
 	// simulate expired cooldown
@@ -1520,7 +1520,7 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignment() {
 	profileAssignmentReqs = []profileAssignmentReq{}
 	s.runIntegrationsSchedule()
 	require.Empty(t, profileAssignmentReqs) // assign profile request will be made when the retry job is processed on the next worker run
-	d = checkHostCooldown(eHost.HardwareSerial, profUUID, fleet.DEPAssignProfileResponseFailed, &failedAt, nil)
+	d = checkHostCooldown(eHost.HardwareSerial, profUUID, automdm.DEPAssignProfileResponseFailed, &failedAt, nil)
 	require.NotZero(t, d.RetryJobID) // retry job created
 	jobID := d.RetryJobID
 	checkPendingMacOSSetupAssistantJob("hosts_cooldown", nil, []string{eHost.HardwareSerial}, jobID)
@@ -1528,8 +1528,8 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignment() {
 	// running the DEP schedule should not trigger a profile assignment request when the retry job is pending
 	profileAssignmentReqs = []profileAssignmentReq{}
 	s.runDEPSchedule()
-	require.Empty(t, profileAssignmentReqs)                                                                    // assign profile request will be made when the retry job is processed on the next worker run
-	checkHostCooldown(eHost.HardwareSerial, profUUID, fleet.DEPAssignProfileResponseFailed, &failedAt, &jobID) // no change
+	require.Empty(t, profileAssignmentReqs)                                                                      // assign profile request will be made when the retry job is processed on the next worker run
+	checkHostCooldown(eHost.HardwareSerial, profUUID, automdm.DEPAssignProfileResponseFailed, &failedAt, &jobID) // no change
 	checkPendingMacOSSetupAssistantJob("hosts_cooldown", nil, []string{eHost.HardwareSerial}, jobID)
 	checkListHostDEPError(eHost.HardwareSerial, "On (automatic)", true)
 
@@ -1538,7 +1538,7 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignment() {
 	profileAssignmentReqs = []profileAssignmentReq{}
 	s.runIntegrationsSchedule()
 	checkAssignProfileRequests(eHost.HardwareSerial, &profUUID)
-	d = checkHostCooldown(eHost.HardwareSerial, profUUID, fleet.DEPAssignProfileResponseSuccess, nil, expectNoJobID) // retry job cleared
+	d = checkHostCooldown(eHost.HardwareSerial, profUUID, automdm.DEPAssignProfileResponseSuccess, nil, expectNoJobID) // retry job cleared
 	require.True(t, d.ResponseUpdatedAt.After(failedAt))
 	succeededAt := d.ResponseUpdatedAt
 	checkNoJobsPending()
@@ -1548,7 +1548,7 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignment() {
 	profileAssignmentReqs = []profileAssignmentReq{}
 	s.runIntegrationsSchedule()
 	require.Empty(t, profileAssignmentReqs)
-	checkHostCooldown(eHost.HardwareSerial, profUUID, fleet.DEPAssignProfileResponseSuccess, &succeededAt, expectNoJobID) // no change
+	checkHostCooldown(eHost.HardwareSerial, profUUID, automdm.DEPAssignProfileResponseSuccess, &succeededAt, expectNoJobID) // no change
 	checkNoJobsPending()
 
 	// ingest new device via DEP but the profile assignment fails
@@ -1561,7 +1561,7 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignment() {
 	s.runDEPSchedule()
 	checkAssignProfileRequests(serial, nil)
 	profUUID = profileAssignmentReqs[0].ProfileUUID
-	d = checkHostCooldown(serial, profUUID, fleet.DEPAssignProfileResponseFailed, nil, expectNoJobID)
+	d = checkHostCooldown(serial, profUUID, automdm.DEPAssignProfileResponseFailed, nil, expectNoJobID)
 	require.NotZero(t, d.ResponseUpdatedAt)
 	failedAt = d.ResponseUpdatedAt
 	checkNoJobsPending()
@@ -1569,19 +1569,19 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignment() {
 
 	// transfer to team, no profile assignment request is made during the cooldown period
 	profileAssignmentReqs = []profileAssignmentReq{}
-	s.Do("POST", "/api/v1/fleet/hosts/transfer",
+	s.Do("POST", "/api/v1/automdm/hosts/transfer",
 		addHostsToTeamRequest{TeamID: &team.ID, HostIDs: []uint{h.ID}}, http.StatusOK)
 	checkPendingMacOSSetupAssistantJob("hosts_transferred", &team.ID, []string{serial}, 0)
 	s.runIntegrationsSchedule()
-	require.Empty(t, profileAssignmentReqs)                                                             // screened by cooldown
-	checkHostCooldown(serial, profUUID, fleet.DEPAssignProfileResponseFailed, &failedAt, expectNoJobID) // no change
+	require.Empty(t, profileAssignmentReqs)                                                               // screened by cooldown
+	checkHostCooldown(serial, profUUID, automdm.DEPAssignProfileResponseFailed, &failedAt, expectNoJobID) // no change
 	checkNoJobsPending()
 
 	// run the integrations schedule and expect no changes
 	profileAssignmentReqs = []profileAssignmentReq{}
 	s.runIntegrationsSchedule()
 	require.Empty(t, profileAssignmentReqs)
-	checkHostCooldown(serial, profUUID, fleet.DEPAssignProfileResponseFailed, &failedAt, expectNoJobID) // no change
+	checkHostCooldown(serial, profUUID, automdm.DEPAssignProfileResponseFailed, &failedAt, expectNoJobID) // no change
 	checkNoJobsPending()
 
 	// simulate expired cooldown
@@ -1590,7 +1590,7 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignment() {
 	profileAssignmentReqs = []profileAssignmentReq{}
 	s.runIntegrationsSchedule()
 	require.Empty(t, profileAssignmentReqs) // assign profile request will be made when the retry job is processed on the next worker run
-	d = checkHostCooldown(serial, profUUID, fleet.DEPAssignProfileResponseFailed, &failedAt, nil)
+	d = checkHostCooldown(serial, profUUID, automdm.DEPAssignProfileResponseFailed, &failedAt, nil)
 	require.NotZero(t, d.RetryJobID) // retry job created
 	jobID = d.RetryJobID
 	checkPendingMacOSSetupAssistantJob("hosts_cooldown", &team.ID, []string{serial}, jobID)
@@ -1602,7 +1602,7 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignment() {
 	checkAssignProfileRequests(serial, nil)
 	require.NotEqual(t, profUUID, profileAssignmentReqs[0].ProfileUUID) // retry job will use the current team profile instead
 	profUUID = profileAssignmentReqs[0].ProfileUUID
-	d = checkHostCooldown(serial, profUUID, fleet.DEPAssignProfileResponseSuccess, nil, expectNoJobID) // retry job cleared
+	d = checkHostCooldown(serial, profUUID, automdm.DEPAssignProfileResponseSuccess, nil, expectNoJobID) // retry job cleared
 	require.True(t, d.ResponseUpdatedAt.After(failedAt))
 	checkNoJobsPending()
 	// list hosts shows pending (because MDM detail query hasn't been reported) but dep profile
@@ -1627,7 +1627,7 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignment() {
 		} else {
 			require.Equal(t, expectProfileUUID, req.ProfileUUID)
 		}
-		d := checkHostCooldown(serial, req.ProfileUUID, fleet.DEPAssignProfileResponseNotAccessible, nil, expectNoJobID) // not accessible responses aren't retried
+		d := checkHostCooldown(serial, req.ProfileUUID, automdm.DEPAssignProfileResponseNotAccessible, nil, expectNoJobID) // not accessible responses aren't retried
 		require.NotZero(t, d.ResponseUpdatedAt)
 		failedAt = d.ResponseUpdatedAt
 	}
@@ -1640,7 +1640,7 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignment() {
 	profileAssignmentReqs = []profileAssignmentReq{}
 	s.runIntegrationsSchedule()
 	require.Empty(t, profileAssignmentReqs)
-	checkHostCooldown(serial, expectProfileUUID, fleet.DEPAssignProfileResponseNotAccessible, &failedAt, expectNoJobID) // no change
+	checkHostCooldown(serial, expectProfileUUID, automdm.DEPAssignProfileResponseNotAccessible, &failedAt, expectNoJobID) // no change
 	checkNoJobsPending()
 
 	expectAssignProfileResponseNotAccessible = ""
@@ -1655,7 +1655,7 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignment() {
 	s.runDEPSchedule()
 	checkAssignProfileRequests(serial, nil)
 	profUUID = profileAssignmentReqs[0].ProfileUUID
-	d = checkHostCooldown(serial, profUUID, fleet.DEPAssignProfileResponseThrottled, nil, expectNoJobID)
+	d = checkHostCooldown(serial, profUUID, automdm.DEPAssignProfileResponseThrottled, nil, expectNoJobID)
 	require.NotZero(t, d.ResponseUpdatedAt)
 	failedAt = d.ResponseUpdatedAt
 	checkNoJobsPending()
@@ -1663,19 +1663,19 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignment() {
 
 	// transfer to team, no profile assignment request is made during the cooldown period
 	profileAssignmentReqs = []profileAssignmentReq{}
-	s.Do("POST", "/api/v1/fleet/hosts/transfer",
+	s.Do("POST", "/api/v1/automdm/hosts/transfer",
 		addHostsToTeamRequest{TeamID: &team.ID, HostIDs: []uint{h.ID}}, http.StatusOK)
 	checkPendingMacOSSetupAssistantJob("hosts_transferred", &team.ID, []string{serial}, 0)
 	s.runIntegrationsSchedule()
-	require.Empty(t, profileAssignmentReqs)                                                                // screened by cooldown
-	checkHostCooldown(serial, profUUID, fleet.DEPAssignProfileResponseThrottled, &failedAt, expectNoJobID) // no change
+	require.Empty(t, profileAssignmentReqs)                                                                  // screened by cooldown
+	checkHostCooldown(serial, profUUID, automdm.DEPAssignProfileResponseThrottled, &failedAt, expectNoJobID) // no change
 	checkNoJobsPending()
 
 	// run the integrations schedule and expect no changes
 	profileAssignmentReqs = []profileAssignmentReq{}
 	s.runIntegrationsSchedule()
 	require.Empty(t, profileAssignmentReqs)
-	checkHostCooldown(serial, profUUID, fleet.DEPAssignProfileResponseThrottled, &failedAt, expectNoJobID) // no change
+	checkHostCooldown(serial, profUUID, automdm.DEPAssignProfileResponseThrottled, &failedAt, expectNoJobID) // no change
 	checkNoJobsPending()
 
 	// simulate expired cooldown
@@ -1684,7 +1684,7 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignment() {
 	profileAssignmentReqs = []profileAssignmentReq{}
 	s.runIntegrationsSchedule()
 	require.Empty(t, profileAssignmentReqs) // assign profile request will be made when the retry job is processed on the next worker run
-	d = checkHostCooldown(serial, profUUID, fleet.DEPAssignProfileResponseThrottled, &failedAt, nil)
+	d = checkHostCooldown(serial, profUUID, automdm.DEPAssignProfileResponseThrottled, &failedAt, nil)
 	require.NotZero(t, d.RetryJobID) // retry job created
 	jobID = d.RetryJobID
 	checkPendingMacOSSetupAssistantJob("hosts_cooldown", &team.ID, []string{serial}, jobID)
@@ -1696,7 +1696,7 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignment() {
 	checkAssignProfileRequests(serial, nil)
 	require.NotEqual(t, profUUID, profileAssignmentReqs[0].ProfileUUID) // retry job will use the current team profile instead
 	profUUID = profileAssignmentReqs[0].ProfileUUID
-	d = checkHostCooldown(serial, profUUID, fleet.DEPAssignProfileResponseSuccess, nil, expectNoJobID) // retry job cleared
+	d = checkHostCooldown(serial, profUUID, automdm.DEPAssignProfileResponseSuccess, nil, expectNoJobID) // retry job cleared
 	require.True(t, d.ResponseUpdatedAt.After(failedAt))
 	checkNoJobsPending()
 	// list hosts shows pending (because MDM detail query hasn't been reported) but dep profile
@@ -1718,10 +1718,10 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignment() {
 		require.Equal(t, "10", v)
 	}
 	profUUID = profileAssignmentReqs[0].ProfileUUID
-	checkHostCooldown(serial, profUUID, fleet.DEPAssignProfileResponseThrottled, nil, expectNoJobID)
+	checkHostCooldown(serial, profUUID, automdm.DEPAssignProfileResponseThrottled, nil, expectNoJobID)
 	h = checkListHostDEPError(serial, "Pending", true)
 	var depAssignmentResp getHostDEPAssignmentResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/dep_assignment", h.ID), nil, http.StatusOK, &depAssignmentResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/dep_assignment", h.ID), nil, http.StatusOK, &depAssignmentResp)
 	require.NotNil(t, depAssignmentResp.HostDEPAssignment.ThrottledRetryAfter)
 	require.WithinDuration(t, time.Now().Add(2*time.Hour), *depAssignmentResp.HostDEPAssignment.ThrottledRetryAfter, time.Minute)
 
@@ -1738,7 +1738,7 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignment() {
 		return err
 	})
 	s.runIntegrationsSchedule()
-	d = checkHostCooldown(serial, profUUID, fleet.DEPAssignProfileResponseThrottled, nil, nil)
+	d = checkHostCooldown(serial, profUUID, automdm.DEPAssignProfileResponseThrottled, nil, nil)
 	require.NotZero(t, d.RetryJobID)
 
 	expectAssignProfileResponseThrottled = ""
@@ -1746,10 +1746,10 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignment() {
 	profileAssignmentReqs = []profileAssignmentReq{}
 	s.runIntegrationsSchedule()
 	checkAssignProfileRequests(serial, nil)
-	checkHostCooldown(serial, profileAssignmentReqs[0].ProfileUUID, fleet.DEPAssignProfileResponseSuccess, nil, expectNoJobID)
+	checkHostCooldown(serial, profileAssignmentReqs[0].ProfileUUID, automdm.DEPAssignProfileResponseSuccess, nil, expectNoJobID)
 	checkNoJobsPending()
 	depAssignmentResp = getHostDEPAssignmentResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/dep_assignment", h.ID), nil, http.StatusOK, &depAssignmentResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/dep_assignment", h.ID), nil, http.StatusOK, &depAssignmentResp)
 	require.Nil(t, depAssignmentResp.HostDEPAssignment.ThrottledRetryAfter)
 
 	// run with devices that already have valid and invalid profiles
@@ -1768,10 +1768,10 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignment() {
 	require.Len(t, profileAssignmentReqs, 2)
 	require.Len(t, profileAssignmentReqs[0].Devices, 1) // The first device response only returns the first device
 	assert.ElementsMatch(t, []string{devices[0].SerialNumber}, profileAssignmentReqs[0].Devices)
-	checkHostDEPAssignProfileResponses(profileAssignmentReqs[0].Devices, profileAssignmentReqs[0].ProfileUUID, fleet.DEPAssignProfileResponseSuccess)
+	checkHostDEPAssignProfileResponses(profileAssignmentReqs[0].Devices, profileAssignmentReqs[0].ProfileUUID, automdm.DEPAssignProfileResponseSuccess)
 	require.Len(t, profileAssignmentReqs[1].Devices, 4) // All of them
 	assert.ElementsMatch(t, []string{devices[0].SerialNumber, devices[2].SerialNumber, devices[3].SerialNumber, devices[4].SerialNumber}, profileAssignmentReqs[1].Devices)
-	checkHostDEPAssignProfileResponses(profileAssignmentReqs[1].Devices, profileAssignmentReqs[1].ProfileUUID, fleet.DEPAssignProfileResponseSuccess)
+	checkHostDEPAssignProfileResponses(profileAssignmentReqs[1].Devices, profileAssignmentReqs[1].ProfileUUID, automdm.DEPAssignProfileResponseSuccess)
 
 	// run with only a device that already has the right profile, no errors and no assignments
 	devices = []godep.Device{
@@ -1792,7 +1792,7 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignment() {
 	require.Len(t, profileAssignmentReqs, 1)
 	require.Len(t, profileAssignmentReqs[0].Devices, 1)
 	assert.ElementsMatch(t, []string{devices[0].SerialNumber}, profileAssignmentReqs[0].Devices)
-	checkHostDEPAssignProfileResponses(profileAssignmentReqs[0].Devices, profileAssignmentReqs[0].ProfileUUID, fleet.DEPAssignProfileResponseSuccess)
+	checkHostDEPAssignProfileResponses(profileAssignmentReqs[0].Devices, profileAssignmentReqs[0].ProfileUUID, automdm.DEPAssignProfileResponseSuccess)
 }
 
 func (s *integrationMDMTestSuite) TestDEPProfileAssignmentWithMultipleABMs() {
@@ -1807,7 +1807,7 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignmentWithMultipleABMs() {
 		RetryJobID            uint      `db:"retry_job_id"`
 	}
 	checkHostDEPAssignProfileResponses := func(deviceSerials []string, expectedProfileUUID string,
-		expectedStatus fleet.DEPAssignProfileResponseStatus,
+		expectedStatus automdm.DEPAssignProfileResponseStatus,
 	) map[string]hostDEPRow {
 		bySerial := make(map[string]hostDEPRow, len(deviceSerials))
 		for _, deviceSerial := range deviceSerials {
@@ -1836,7 +1836,7 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignmentWithMultipleABMs() {
 
 	// set release device manually to true so there is no job enqueued at a later
 	// time to release the device (this is not what this test is about)
-	s.Do("PATCH", "/api/latest/fleet/setup_experience", json.RawMessage(jsonMustMarshal(t, map[string]any{
+	s.Do("PATCH", "/api/latest/automdm/setup_experience", json.RawMessage(jsonMustMarshal(t, map[string]any{
 		"apple_enable_release_device_manually": true,
 	})), http.StatusNoContent)
 
@@ -1847,26 +1847,26 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignmentWithMultipleABMs() {
 	s.enableABM(tmOrgName)
 
 	// create a new team
-	tm, err := s.ds.NewTeam(context.Background(), &fleet.Team{
+	tm, err := s.ds.NewTeam(context.Background(), &automdm.Team{
 		Name:        tmOrgName,
 		Description: "desc",
 	})
 	require.NoError(t, err)
 	// set the default bm assignment for that token to that team
 	acResp := appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(fmt.Sprintf(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(fmt.Sprintf(`{
 		"mdm": {
 			"apple_business": [{
 			  "organization_name": %q,
-			  "macos_fleet": %q,
-			  "ios_fleet": %q,
-			  "ipados_fleet": %q,
-			  "byod_fleet": %q
+			  "macos_team": %q,
+			  "ios_team": %q,
+			  "ipados_team": %q,
+			  "byod_team": %q
 			}]
 		}
 	}`, tmOrgName, tm.Name, tm.Name, tm.Name, tm.Name)), http.StatusOK, &acResp)
 	t.Cleanup(func() {
-		s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+		s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 			"mdm": {
 				"apple_business": []
 			}
@@ -1874,7 +1874,7 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignmentWithMultipleABMs() {
 	})
 	tmProf := `{"profile_name": "Team Profile"}`
 	var createResp createMDMAppleSetupAssistantResponse
-	s.DoJSON("POST", "/api/latest/fleet/enrollment_profiles/automatic", createMDMAppleSetupAssistantRequest{
+	s.DoJSON("POST", "/api/latest/automdm/enrollment_profiles/automatic", createMDMAppleSetupAssistantRequest{
 		TeamID:            &tm.ID,
 		Name:              tmOrgName,
 		EnrollmentProfile: json.RawMessage(tmProf),
@@ -1915,7 +1915,7 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignmentWithMultipleABMs() {
 			assert.Contains(t, teamProfileUUIDs, resp.ProfileUUID)
 			resp.Devices = make(map[string]string, len(prof.Devices))
 			for _, device := range prof.Devices {
-				resp.Devices[device] = string(fleet.DEPAssignProfileResponseSuccess)
+				resp.Devices[device] = string(automdm.DEPAssignProfileResponseSuccess)
 			}
 			err = encoder.Encode(resp)
 			require.NoError(t, err)
@@ -1956,7 +1956,7 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignmentWithMultipleABMs() {
 			assert.Contains(t, defaultProfileUUIDs, resp.ProfileUUID)
 			resp.Devices = make(map[string]string, len(prof.Devices))
 			for _, device := range prof.Devices {
-				resp.Devices[device] = string(fleet.DEPAssignProfileResponseSuccess)
+				resp.Devices[device] = string(automdm.DEPAssignProfileResponseSuccess)
 			}
 			err = encoder.Encode(resp)
 			require.NoError(t, err)
@@ -1967,7 +1967,7 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignmentWithMultipleABMs() {
 
 	// query all hosts
 	listHostsRes := listHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &listHostsRes)
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &listHostsRes)
 	require.Empty(t, listHostsRes.Hosts)
 
 	// trigger a profile sync
@@ -1975,7 +1975,7 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignmentWithMultipleABMs() {
 
 	// all hosts should be returned from the hosts endpoint
 	listHostsRes = listHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &listHostsRes)
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &listHostsRes)
 	numHosts := len(devices) + len(defaultOrgDevices)
 	assert.Len(t, listHostsRes.Hosts, numHosts)
 	defaultSerials := []string{defaultOrgDevices[0].SerialNumber, defaultOrgDevices[1].SerialNumber}
@@ -1993,8 +1993,8 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignmentWithMultipleABMs() {
 	require.GreaterOrEqual(t, len(defaultProfileUUIDs), 1)
 	require.Len(t, teamProfileUUIDs, 2)
 	checkHostDEPAssignProfileResponses(defaultSerials, defaultProfileUUIDs[len(defaultProfileUUIDs)-1],
-		fleet.DEPAssignProfileResponseSuccess)
-	checkHostDEPAssignProfileResponses(teamSerials, teamProfileUUIDs[len(teamProfileUUIDs)-1], fleet.DEPAssignProfileResponseSuccess)
+		automdm.DEPAssignProfileResponseSuccess)
+	checkHostDEPAssignProfileResponses(teamSerials, teamProfileUUIDs[len(teamProfileUUIDs)-1], automdm.DEPAssignProfileResponseSuccess)
 
 	// Delete the devices in one org, and add them to the other (x2)
 	devices = []godep.Device{
@@ -2019,7 +2019,7 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignmentWithMultipleABMs() {
 
 	// all hosts should be returned from the hosts endpoint; the 2 deleted and re-added hosts should switch teams and profiles
 	listHostsRes = listHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &listHostsRes)
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &listHostsRes)
 	assert.Len(t, listHostsRes.Hosts, numHosts)
 	defaultSerials = []string{defaultOrgDevices[0].SerialNumber, defaultOrgDevices[2].SerialNumber}
 	teamSerials = []string{devices[0].SerialNumber, devices[2].SerialNumber}
@@ -2034,8 +2034,8 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignmentWithMultipleABMs() {
 		}
 	}
 	checkHostDEPAssignProfileResponses(defaultSerials, defaultProfileUUIDs[len(defaultProfileUUIDs)-1],
-		fleet.DEPAssignProfileResponseSuccess)
-	checkHostDEPAssignProfileResponses(teamSerials, teamProfileUUIDs[len(teamProfileUUIDs)-1], fleet.DEPAssignProfileResponseSuccess)
+		automdm.DEPAssignProfileResponseSuccess)
+	checkHostDEPAssignProfileResponses(teamSerials, teamProfileUUIDs[len(teamProfileUUIDs)-1], automdm.DEPAssignProfileResponseSuccess)
 
 	// Delete the devices
 	devices = []godep.Device{
@@ -2058,7 +2058,7 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignmentWithMultipleABMs() {
 
 	// 2 hosts should be gone
 	listHostsRes = listHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &listHostsRes)
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &listHostsRes)
 	assert.Len(t, listHostsRes.Hosts, numHosts-2)
 	defaultSerials = []string{defaultOrgDevices[0].SerialNumber}
 	teamSerials = []string{devices[0].SerialNumber}
@@ -2073,8 +2073,8 @@ func (s *integrationMDMTestSuite) TestDEPProfileAssignmentWithMultipleABMs() {
 		}
 	}
 	checkHostDEPAssignProfileResponses(defaultSerials, defaultProfileUUIDs[len(defaultProfileUUIDs)-1],
-		fleet.DEPAssignProfileResponseSuccess)
-	checkHostDEPAssignProfileResponses(teamSerials, teamProfileUUIDs[len(teamProfileUUIDs)-1], fleet.DEPAssignProfileResponseSuccess)
+		automdm.DEPAssignProfileResponseSuccess)
+	checkHostDEPAssignProfileResponses(teamSerials, teamProfileUUIDs[len(teamProfileUUIDs)-1], automdm.DEPAssignProfileResponseSuccess)
 }
 
 func (s *integrationMDMTestSuite) TestReenrollingADEDeviceAfterRemovingItFromABM() {
@@ -2089,7 +2089,7 @@ func (s *integrationMDMTestSuite) TestReenrollingADEDeviceAfterRemovingItFromABM
 		// run the worker to assign configuration profiles
 		s.awaitTriggerProfileSchedule(t)
 
-		var fleetdCmd, installProfileCmd *micromdm.CommandPayload
+		var automdmdCmd, installProfileCmd *micromdm.CommandPayload
 		cmd, err := mdmDevice.Idle()
 		require.NoError(t, err)
 		for cmd != nil {
@@ -2103,8 +2103,8 @@ func (s *integrationMDMTestSuite) TestReenrollingADEDeviceAfterRemovingItFromABM
 			require.NoError(t, plist.Unmarshal(cmd.Raw, &fullCmd))
 			if fullCmd.Command.RequestType == "InstallEnterpriseApplication" &&
 				fullCmd.Command.InstallEnterpriseApplication.ManifestURL != nil &&
-				strings.Contains(*fullCmd.Command.InstallEnterpriseApplication.ManifestURL, fleetdbase.GetPKGManifestURL()) {
-				fleetdCmd = &fullCmd
+				strings.Contains(*fullCmd.Command.InstallEnterpriseApplication.ManifestURL, automdmdbase.GetPKGManifestURL()) {
+				automdmdCmd = &fullCmd
 			} else if cmd.Command.RequestType == "InstallProfile" {
 				installProfileCmd = &fullCmd
 			}
@@ -2113,15 +2113,15 @@ func (s *integrationMDMTestSuite) TestReenrollingADEDeviceAfterRemovingItFromABM
 		}
 
 		if shouldReceive {
-			// received request to install fleetd
-			require.NotNil(t, fleetdCmd, "host didn't get a command to install fleetd")
-			require.NotNil(t, fleetdCmd.Command, "host didn't get a command to install fleetd")
+			// received request to install automdmd
+			require.NotNil(t, automdmdCmd, "host didn't get a command to install automdmd")
+			require.NotNil(t, automdmdCmd.Command, "host didn't get a command to install automdmd")
 
 			// received request to install the global configuration profile
 			require.NotNil(t, installProfileCmd, "host didn't get a command to install profiles")
 			require.NotNil(t, installProfileCmd.Command, "host didn't get a command to install profiles")
 		} else {
-			require.Nil(t, fleetdCmd, "host got a command to install fleetd")
+			require.Nil(t, automdmdCmd, "host got a command to install automdmd")
 			require.Nil(t, installProfileCmd, "host got a command to install profiles")
 		}
 	}
@@ -2140,7 +2140,7 @@ func (s *integrationMDMTestSuite) TestReenrollingADEDeviceAfterRemovingItFromABM
 		RetryJobID            uint       `db:"retry_job_id"`
 		DeletedAt             *time.Time `db:"deleted_at"`
 	}
-	checkHostDEPAssignProfileResponses := func(deviceSerials []string, expectedProfileUUID string, expectedStatus fleet.DEPAssignProfileResponseStatus) map[string]hostDEPRow {
+	checkHostDEPAssignProfileResponses := func(deviceSerials []string, expectedProfileUUID string, expectedStatus automdm.DEPAssignProfileResponseStatus) map[string]hostDEPRow {
 		bySerial := make(map[string]hostDEPRow, len(deviceSerials))
 		for _, deviceSerial := range deviceSerials {
 			mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
@@ -2185,7 +2185,7 @@ func (s *integrationMDMTestSuite) TestReenrollingADEDeviceAfterRemovingItFromABM
 			resp.ProfileUUID = prof.ProfileUUID
 			resp.Devices = make(map[string]string, len(prof.Devices))
 			for _, device := range prof.Devices {
-				resp.Devices[device] = string(fleet.DEPAssignProfileResponseSuccess)
+				resp.Devices[device] = string(automdm.DEPAssignProfileResponseSuccess)
 			}
 			err = encoder.Encode(resp)
 			require.NoError(t, err)
@@ -2208,16 +2208,16 @@ func (s *integrationMDMTestSuite) TestReenrollingADEDeviceAfterRemovingItFromABM
 	err := mdmDevice.Enroll()
 	require.NoError(t, err)
 
-	// Ensure fleet profiles
+	// Ensure automdm profiles
 	s.awaitTriggerProfileSchedule(t)
 	s.awaitRunAppleMDMWorkerSchedule()
 
 	// Simulate an osquery enrollment too
 	// set an enroll secret
 	var applyResp applyEnrollSecretSpecResponse
-	s.DoJSON("POST", "/api/latest/fleet/spec/enroll_secret", applyEnrollSecretSpecRequest{
-		Spec: &fleet.EnrollSecretSpec{
-			Secrets: []*fleet.EnrollSecret{{Secret: t.Name()}},
+	s.DoJSON("POST", "/api/latest/automdm/spec/enroll_secret", applyEnrollSecretSpecRequest{
+		Spec: &automdm.EnrollSecretSpec{
+			Secrets: []*automdm.EnrollSecret{{Secret: t.Name()}},
 		},
 	}, http.StatusOK, &applyResp)
 
@@ -2234,7 +2234,7 @@ func (s *integrationMDMTestSuite) TestReenrollingADEDeviceAfterRemovingItFromABM
 	require.NotEmpty(t, enrollResp.NodeKey)
 
 	listHostsRes := listHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &listHostsRes)
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &listHostsRes)
 	require.Len(t, listHostsRes.Hosts, 1)
 	h := listHostsRes.Hosts[0]
 
@@ -2244,30 +2244,30 @@ func (s *integrationMDMTestSuite) TestReenrollingADEDeviceAfterRemovingItFromABM
 	checkPostEnrollmentCommands(mdmDevice, true)
 
 	var hostResp getHostResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/v1/fleet/hosts/%d", h.ID), getHostRequest{}, http.StatusOK, &hostResp)
-	// 1 profile with fleetd configuration + 1 root CA config
+	s.DoJSON("GET", fmt.Sprintf("/api/v1/automdm/hosts/%d", h.ID), getHostRequest{}, http.StatusOK, &hostResp)
+	// 1 profile with automdmd configuration + 1 root CA config
 	require.Len(t, *hostResp.Host.MDM.Profiles, 2)
 
 	// Turn MDM off in the host
-	s.Do("DELETE", fmt.Sprintf("/api/latest/fleet/hosts/%d/mdm", h.ID), nil, http.StatusNoContent)
+	s.Do("DELETE", fmt.Sprintf("/api/latest/automdm/hosts/%d/mdm", h.ID), nil, http.StatusNoContent)
 
 	// profiles are removed and the host is no longer enrolled
 	hostResp = getHostResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/v1/fleet/hosts/%d", h.ID), getHostRequest{}, http.StatusOK, &hostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/v1/automdm/hosts/%d", h.ID), getHostRequest{}, http.StatusOK, &hostResp)
 	require.Nil(t, hostResp.Host.MDM.Profiles)
 	require.Equal(t, "", hostResp.Host.MDM.Name)
 
 	err = mdmDevice.Checkout()
 	require.NoError(t, err)
 
-	// Simulate the device getting unassigned from Fleet in ABM
+	// Simulate the device getting unassigned from AutoMDM in ABM
 	devices = []godep.Device{
 		{SerialNumber: mdmDevice.SerialNumber, Model: "MacBook Pro", OS: "osx", OpType: "deleted", OpDate: time.Now()},
 	}
 
 	s.runDEPSchedule()
 
-	a := checkHostDEPAssignProfileResponses([]string{mdmDevice.SerialNumber}, profileAssignmentReqs[0].ProfileUUID, fleet.DEPAssignProfileResponseSuccess)
+	a := checkHostDEPAssignProfileResponses([]string{mdmDevice.SerialNumber}, profileAssignmentReqs[0].ProfileUUID, automdm.DEPAssignProfileResponseSuccess)
 	require.NotZero(t, a[mdmDevice.SerialNumber].DeletedAt)
 
 	// Now we add the device back into ABM
@@ -2282,7 +2282,7 @@ func (s *integrationMDMTestSuite) TestReenrollingADEDeviceAfterRemovingItFromABM
 
 	s.runDEPSchedule()
 
-	a = checkHostDEPAssignProfileResponses([]string{mdmDevice.SerialNumber}, profileAssignmentReqs[0].ProfileUUID, fleet.DEPAssignProfileResponseSuccess)
+	a = checkHostDEPAssignProfileResponses([]string{mdmDevice.SerialNumber}, profileAssignmentReqs[0].ProfileUUID, automdm.DEPAssignProfileResponseSuccess)
 	require.Nil(t, a[mdmDevice.SerialNumber].DeletedAt)
 
 	err = mdmDevice.Enroll()
@@ -2339,7 +2339,7 @@ func (s *integrationMDMTestSuite) TestEnforceMiniumOSVersion() {
 			resp.ProfileUUID = prof.ProfileUUID
 			resp.Devices = make(map[string]string, len(prof.Devices))
 			for _, device := range prof.Devices {
-				resp.Devices[device] = string(fleet.DEPAssignProfileResponseSuccess)
+				resp.Devices[device] = string(automdm.DEPAssignProfileResponseSuccess)
 			}
 			err = encoder.Encode(resp)
 			require.NoError(t, err)
@@ -2356,9 +2356,9 @@ func (s *integrationMDMTestSuite) TestEnforceMiniumOSVersion() {
 
 	// confirm that the devices were created
 	listHostsRes := listHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &listHostsRes)
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &listHostsRes)
 	require.Len(t, listHostsRes.Hosts, 2)
-	bySerial := make(map[string]*fleet.Host, len(devices))
+	bySerial := make(map[string]*automdm.Host, len(devices))
 	for _, h := range listHostsRes.Hosts {
 		bySerial[h.HardwareSerial] = h.Host
 	}
@@ -2366,19 +2366,19 @@ func (s *integrationMDMTestSuite) TestEnforceMiniumOSVersion() {
 	// create a team and add the second device to it
 	teamHost := bySerial[devices[1].SerialNumber]
 	require.NotNil(t, teamHost)
-	team := &fleet.Team{
+	team := &automdm.Team{
 		Name:        t.Name() + "team1",
 		Description: "desc team1",
 	}
 	var createTeamResp teamResponse
-	s.DoJSON("POST", "/api/latest/fleet/fleets", team, http.StatusOK, &createTeamResp)
+	s.DoJSON("POST", "/api/latest/automdm/teams", team, http.StatusOK, &createTeamResp)
 	require.NotZero(t, createTeamResp.Team.ID)
 	team = createTeamResp.Team
-	require.NoError(t, s.ds.AddHostsToTeam(context.Background(), fleet.NewAddHostsToTeamParams(&team.ID, []uint{teamHost.ID})))
+	require.NoError(t, s.ds.AddHostsToTeam(context.Background(), automdm.NewAddHostsToTeamParams(&team.ID, []uint{teamHost.ID})))
 
 	// this helper function calls the /enroll endpoint with the supplied machineInfo (from the test
 	// case) and checks for the expected response
-	checkMDMEnrollEndpoint := func(t *testing.T, machineInfo *fleet.MDMAppleMachineInfo, expectEnrollInfo *mdmtest.AppleEnrollInfo, expectSoftwareUpdate *fleet.MDMAppleSoftwareUpdateRequiredDetails, expectErr string, ssoDisabled bool) error {
+	checkMDMEnrollEndpoint := func(t *testing.T, machineInfo *automdm.MDMAppleMachineInfo, expectEnrollInfo *mdmtest.AppleEnrollInfo, expectSoftwareUpdate *automdm.MDMAppleSoftwareUpdateRequiredDetails, expectErr string, ssoDisabled bool) error {
 		var di string
 		if machineInfo != nil {
 			encoded, err := mdmtest.EncodeDeviceInfo(*machineInfo)
@@ -2403,7 +2403,7 @@ func (s *integrationMDMTestSuite) TestEnforceMiniumOSVersion() {
 		}
 
 		// nolint:gosec // this client is used for testing only
-		cc := fleethttp.NewClient(fleethttp.WithTLSClientConfig(&tls.Config{
+		cc := automdmhttp.NewClient(automdmhttp.WithTLSClientConfig(&tls.Config{
 			InsecureSkipVerify: true,
 		}))
 		response, err := cc.Do(request)
@@ -2460,10 +2460,10 @@ func (s *integrationMDMTestSuite) TestEnforceMiniumOSVersion() {
 			if err != nil {
 				return fmt.Errorf("read body: %w", err)
 			}
-			var sur fleet.MDMAppleSoftwareUpdateRequired
+			var sur automdm.MDMAppleSoftwareUpdateRequired
 			require.NoError(t, json.Unmarshal(body, &sur))
 			require.NotNil(t, sur)
-			require.Equal(t, fleet.MDMAppleSoftwareUpdateRequiredCode, sur.Code)
+			require.Equal(t, automdm.MDMAppleSoftwareUpdateRequiredCode, sur.Code)
 			require.Equal(t, *expectSoftwareUpdate, sur.Details)
 
 			return nil
@@ -2487,7 +2487,7 @@ func (s *integrationMDMTestSuite) TestEnforceMiniumOSVersion() {
 
 	// this helper function calls the /mdm/sso endpoint with the supplied machineInfo (from the test
 	// case) and checks for the expected response
-	checkMDMSSOEndpoint := func(t *testing.T, machineInfo *fleet.MDMAppleMachineInfo, expectSoftwareUpdate *fleet.MDMAppleSoftwareUpdateRequiredDetails, expectErr string) error {
+	checkMDMSSOEndpoint := func(t *testing.T, machineInfo *automdm.MDMAppleMachineInfo, expectSoftwareUpdate *automdm.MDMAppleSoftwareUpdateRequiredDetails, expectErr string) error {
 		request, err := http.NewRequest("GET", s.server.URL+"/mdm/sso", nil)
 		if err != nil {
 			return fmt.Errorf("create request: %w", err)
@@ -2499,7 +2499,7 @@ func (s *integrationMDMTestSuite) TestEnforceMiniumOSVersion() {
 		}
 
 		// nolint:gosec // this client is used for testing only
-		cc := fleethttp.NewClient(fleethttp.WithTLSClientConfig(&tls.Config{
+		cc := automdmhttp.NewClient(automdmhttp.WithTLSClientConfig(&tls.Config{
 			InsecureSkipVerify: true,
 		}))
 		response, err := cc.Do(request)
@@ -2526,10 +2526,10 @@ func (s *integrationMDMTestSuite) TestEnforceMiniumOSVersion() {
 			if err != nil {
 				return fmt.Errorf("read body: %w", err)
 			}
-			var sur fleet.MDMAppleSoftwareUpdateRequired
+			var sur automdm.MDMAppleSoftwareUpdateRequired
 			require.NoError(t, json.Unmarshal(body, &sur))
 			require.NotNil(t, sur)
-			require.Equal(t, fleet.MDMAppleSoftwareUpdateRequiredCode, sur.Code)
+			require.Equal(t, automdm.MDMAppleSoftwareUpdateRequiredCode, sur.Code)
 			require.Equal(t, *expectSoftwareUpdate, sur.Details)
 
 			return nil
@@ -2545,7 +2545,7 @@ func (s *integrationMDMTestSuite) TestEnforceMiniumOSVersion() {
 			// this is the expected happy path based on the test server setup (note that the full
 			// SSO callback flow is not being tested here, just the OS enforcement that is tied to
 			// the `GET /mdm/sso` initial request)
-			// https://github.com/fleetdm/fleet/blob/e62956924bbe041a1e75be2b0b7c6d1dd235a09d/server/service/testing_utils.go#L420-L421
+			// https://github.com/anilyagiz/automdm/blob/e62956924bbe041a1e75be2b0b7c6d1dd235a09d/server/service/testing_utils.go#L420-L421
 			return nil
 
 		default:
@@ -2558,11 +2558,11 @@ func (s *integrationMDMTestSuite) TestEnforceMiniumOSVersion() {
 		raw := json.RawMessage(fmt.Sprintf(`{ "mdm": { "macos_updates": { "minimum_version": "%s", "deadline": "%s", "update_new_hosts": true } } }`, minVersion, deadline))
 		if teamID == nil {
 			acResp := appConfigResponse{}
-			s.DoJSON("PATCH", "/api/latest/fleet/config", raw, http.StatusOK, &acResp)
+			s.DoJSON("PATCH", "/api/latest/automdm/config", raw, http.StatusOK, &acResp)
 			assert.NotNil(t, acResp.MDM.MacOSUpdates)
 		} else {
 			tcResp := teamResponse{}
-			s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d", *teamID), raw, http.StatusOK, &tcResp)
+			s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d", *teamID), raw, http.StatusOK, &tcResp)
 		}
 	}
 
@@ -2571,16 +2571,16 @@ func (s *integrationMDMTestSuite) TestEnforceMiniumOSVersion() {
 		raw := json.RawMessage(fmt.Sprintf(`{ "mdm": { "setup_experience": { "enable_end_user_authentication": %v } } }`, enable))
 		if teamID == nil {
 			acResp := appConfigResponse{}
-			s.DoJSON("PATCH", "/api/latest/fleet/config", raw, http.StatusOK, &acResp)
+			s.DoJSON("PATCH", "/api/latest/automdm/config", raw, http.StatusOK, &acResp)
 		} else {
 			tcResp := teamResponse{}
-			s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d", *teamID), raw, http.StatusOK, &tcResp)
+			s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d", *teamID), raw, http.StatusOK, &tcResp)
 		}
 	}
 
 	// configure idp settings
 	acResp := appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 			"mdm": {
 				"end_user_authentication": { "entity_id": "https://example.com", "idp_name": "example-idp", "metadata_url": "https://idp.example.com/metadata" }
 			}
@@ -2588,7 +2588,7 @@ func (s *integrationMDMTestSuite) TestEnforceMiniumOSVersion() {
 
 	t.Cleanup(func() {
 		acResp := appConfigResponse{}
-		s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+		s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 			"mdm": {
 				"macos_updates": { "minimum_version": null, "deadline": null },
 				"setup_experience": { "enable_end_user_authentication": false },
@@ -2599,8 +2599,8 @@ func (s *integrationMDMTestSuite) TestEnforceMiniumOSVersion() {
 
 	testCases := []struct {
 		name           string
-		machineInfo    *fleet.MDMAppleMachineInfo
-		updateRequired *fleet.MDMAppleSoftwareUpdateRequiredDetails
+		machineInfo    *automdm.MDMAppleMachineInfo
+		updateRequired *automdm.MDMAppleSoftwareUpdateRequiredDetails
 		// err is reserved for future test cases; currently we aren't expecting errors with this endpoint
 		// because product specs say to allow enrollment to proceed without software update so this
 		// is here so we can be explicit about those expectations and allow for future test cases
@@ -2609,7 +2609,7 @@ func (s *integrationMDMTestSuite) TestEnforceMiniumOSVersion() {
 	}{
 		{
 			name: "device above latest",
-			machineInfo: &fleet.MDMAppleMachineInfo{
+			machineInfo: &automdm.MDMAppleMachineInfo{
 				MDMCanRequestSoftwareUpdate: true,
 				Product:                     "Mac15,7",
 				OSVersion:                   "14.6.2",
@@ -2620,7 +2620,7 @@ func (s *integrationMDMTestSuite) TestEnforceMiniumOSVersion() {
 		},
 		{
 			name: "device equal to latest",
-			machineInfo: &fleet.MDMAppleMachineInfo{
+			machineInfo: &automdm.MDMAppleMachineInfo{
 				MDMCanRequestSoftwareUpdate: true,
 				Product:                     "Mac15,7",
 				OSVersion:                   latestMacOSVersion,
@@ -2631,20 +2631,20 @@ func (s *integrationMDMTestSuite) TestEnforceMiniumOSVersion() {
 		},
 		{
 			name: "device below latest",
-			machineInfo: &fleet.MDMAppleMachineInfo{
+			machineInfo: &automdm.MDMAppleMachineInfo{
 				MDMCanRequestSoftwareUpdate: true,
 				Product:                     "Mac15,7",
 				OSVersion:                   "14.4",
 				SupplementalBuildVersion:    "IRRELEVANT",
 				SoftwareUpdateDeviceID:      "J516sAP",
 			},
-			updateRequired: &fleet.MDMAppleSoftwareUpdateRequiredDetails{
+			updateRequired: &automdm.MDMAppleSoftwareUpdateRequiredDetails{
 				OSVersion: latestMacOSVersion,
 			},
 		},
 		{
 			name: "device below latest but MDM cannot request software update",
-			machineInfo: &fleet.MDMAppleMachineInfo{
+			machineInfo: &automdm.MDMAppleMachineInfo{
 				MDMCanRequestSoftwareUpdate: false,
 				Product:                     "Mac15,7",
 				OSVersion:                   "14.4",
@@ -2655,7 +2655,7 @@ func (s *integrationMDMTestSuite) TestEnforceMiniumOSVersion() {
 		},
 		{
 			name: "no match for software update device ID",
-			machineInfo: &fleet.MDMAppleMachineInfo{
+			machineInfo: &automdm.MDMAppleMachineInfo{
 				MDMCanRequestSoftwareUpdate: true,
 				Product:                     "Mac15,7",
 				OSVersion:                   "14.4",
@@ -2672,7 +2672,7 @@ func (s *integrationMDMTestSuite) TestEnforceMiniumOSVersion() {
 		},
 		{
 			name: "cannot parse OS version",
-			machineInfo: &fleet.MDMAppleMachineInfo{
+			machineInfo: &automdm.MDMAppleMachineInfo{
 				MDMCanRequestSoftwareUpdate: true,
 				Product:                     "Mac15,7",
 				OSVersion:                   "INVALID",
@@ -2690,7 +2690,7 @@ func (s *integrationMDMTestSuite) TestEnforceMiniumOSVersion() {
 		t.Run("sso disabled", func(t *testing.T) {
 			for _, tc := range testCases {
 				t.Run(tc.name, func(t *testing.T) {
-					var mi *fleet.MDMAppleMachineInfo
+					var mi *automdm.MDMAppleMachineInfo
 					if tc.machineInfo != nil {
 						miCopy := *tc.machineInfo
 						mi = &miCopy
@@ -2702,7 +2702,7 @@ func (s *integrationMDMTestSuite) TestEnforceMiniumOSVersion() {
 						expectEnrollInfo = &mdmtest.AppleEnrollInfo{
 							SCEPURL:        scepURL,
 							MDMURL:         mdmURL,
-							SCEPSubjectOUs: []string{apple_mdm.FleetEnrollmentSubjectOU},
+							SCEPSubjectOUs: []string{apple_mdm.AutoMDMEnrollmentSubjectOU},
 						}
 					}
 					require.NoError(t, checkMDMEnrollEndpoint(t, mi, expectEnrollInfo, tc.updateRequired, tc.err, true))
@@ -2716,7 +2716,7 @@ func (s *integrationMDMTestSuite) TestEnforceMiniumOSVersion() {
 
 			for _, tc := range testCases {
 				t.Run(tc.name, func(t *testing.T) {
-					var mi *fleet.MDMAppleMachineInfo
+					var mi *automdm.MDMAppleMachineInfo
 					if tc.machineInfo != nil {
 						miCopy := *tc.machineInfo
 						mi = &miCopy
@@ -2735,7 +2735,7 @@ func (s *integrationMDMTestSuite) TestEnforceMiniumOSVersion() {
 		t.Run("sso disabled", func(t *testing.T) {
 			for _, tc := range testCases {
 				t.Run(tc.name, func(t *testing.T) {
-					var mi *fleet.MDMAppleMachineInfo
+					var mi *automdm.MDMAppleMachineInfo
 					if tc.machineInfo != nil {
 						miCopy := *tc.machineInfo
 						mi = &miCopy
@@ -2749,7 +2749,7 @@ func (s *integrationMDMTestSuite) TestEnforceMiniumOSVersion() {
 						expectEnrollInfo = &mdmtest.AppleEnrollInfo{
 							SCEPURL:        s.server.URL + "/mdm/apple/scep",
 							MDMURL:         s.server.URL + "/mdm/apple/mdm",
-							SCEPSubjectOUs: []string{apple_mdm.FleetEnrollmentSubjectOU},
+							SCEPSubjectOUs: []string{apple_mdm.AutoMDMEnrollmentSubjectOU},
 						}
 					}
 
@@ -2764,7 +2764,7 @@ func (s *integrationMDMTestSuite) TestEnforceMiniumOSVersion() {
 
 			for _, tc := range testCases {
 				t.Run(tc.name, func(t *testing.T) {
-					var mi *fleet.MDMAppleMachineInfo
+					var mi *automdm.MDMAppleMachineInfo
 					if tc.machineInfo != nil {
 						miCopy := *tc.machineInfo
 						mi = &miCopy
@@ -2780,7 +2780,7 @@ func (s *integrationMDMTestSuite) TestEnforceMiniumOSVersion() {
 	t.Run("authentication runs before the OS version check", func(t *testing.T) {
 		// devices[0] is in no team, where the minimum version is set to latest,
 		// so this machine info is below the minimum
-		mi := &fleet.MDMAppleMachineInfo{
+		mi := &automdm.MDMAppleMachineInfo{
 			MDMCanRequestSoftwareUpdate: true,
 			Serial:                      devices[0].SerialNumber,
 			UDID:                        uuid.New().String(),
@@ -2809,7 +2809,7 @@ func (s *integrationMDMTestSuite) TestEnforceMiniumOSVersion() {
 		})
 
 		t.Run("authenticated request", func(t *testing.T) {
-			require.NoError(t, checkMDMEnrollEndpoint(t, mi, nil, &fleet.MDMAppleSoftwareUpdateRequiredDetails{OSVersion: latestMacOSVersion}, "", true))
+			require.NoError(t, checkMDMEnrollEndpoint(t, mi, nil, &automdm.MDMAppleSoftwareUpdateRequiredDetails{OSVersion: latestMacOSVersion}, "", true))
 		})
 	})
 }
@@ -2858,7 +2858,7 @@ func (s *integrationMDMTestSuite) TestDeleteMultipleHostsPendingDEP() {
 			resp.ProfileUUID = prof.ProfileUUID
 			resp.Devices = make(map[string]string, len(prof.Devices))
 			for _, device := range prof.Devices {
-				resp.Devices[device] = string(fleet.DEPAssignProfileResponseSuccess)
+				resp.Devices[device] = string(automdm.DEPAssignProfileResponseSuccess)
 			}
 			err = encoder.Encode(resp)
 			require.NoError(t, err)
@@ -2869,7 +2869,7 @@ func (s *integrationMDMTestSuite) TestDeleteMultipleHostsPendingDEP() {
 
 	// query all hosts
 	listHostsRes := listHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &listHostsRes)
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &listHostsRes)
 	require.Empty(t, listHostsRes.Hosts) // no hosts yet
 
 	// trigger a profile sync
@@ -2877,10 +2877,10 @@ func (s *integrationMDMTestSuite) TestDeleteMultipleHostsPendingDEP() {
 
 	// all devices should be returned from the hosts endpoint
 	listHostsRes = listHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &listHostsRes)
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &listHostsRes)
 	require.Len(t, listHostsRes.Hosts, len(devices))
 
-	bySerial := make(map[string]*fleet.HostResponse, len(devices))
+	bySerial := make(map[string]*automdm.HostResponse, len(devices))
 	for _, host := range listHostsRes.Hosts {
 		bySerial[host.HardwareSerial] = &host
 	}
@@ -2905,7 +2905,7 @@ func (s *integrationMDMTestSuite) TestDeleteMultipleHostsPendingDEP() {
 		return err
 	})
 	hostResp := getHostResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", target.ID), nil, http.StatusOK, &hostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", target.ID), nil, http.StatusOK, &hostResp)
 	require.Equal(t, then, hostResp.Host.CreatedAt)
 
 	// delete all hosts
@@ -2913,11 +2913,11 @@ func (s *integrationMDMTestSuite) TestDeleteMultipleHostsPendingDEP() {
 	for _, host := range listHostsRes.Hosts {
 		deleteIds = append(deleteIds, host.ID)
 	}
-	s.Do("POST", "/api/latest/fleet/hosts/delete", deleteHostsRequest{IDs: deleteIds}, http.StatusOK)
+	s.Do("POST", "/api/latest/automdm/hosts/delete", deleteHostsRequest{IDs: deleteIds}, http.StatusOK)
 
 	// all devices should be restored as pending DEP hosts
 	gotHosts := listHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &gotHosts)
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &gotHosts)
 	require.Len(t, gotHosts.Hosts, len(listHostsRes.Hosts))
 	for _, host := range gotHosts.Hosts {
 		h, ok := bySerial[host.HardwareSerial]
@@ -2943,7 +2943,7 @@ func (s *integrationMDMTestSuite) TestDeleteHostWithABMDisabledDeletesDEPAssignm
 	require.NoError(t, err)
 
 	serial := mdmtest.RandSerialNumber()
-	host, err := s.ds.NewHost(ctx, &fleet.Host{
+	host, err := s.ds.NewHost(ctx, &automdm.Host{
 		Hostname:        "dep-host-abm-off",
 		HardwareSerial:  serial,
 		UUID:            uuid.NewString(),
@@ -2954,7 +2954,7 @@ func (s *integrationMDMTestSuite) TestDeleteHostWithABMDisabledDeletesDEPAssignm
 		DetailUpdatedAt: time.Now(),
 	})
 	require.NoError(t, err)
-	require.NoError(t, s.ds.UpsertMDMAppleHostDEPAssignments(ctx, []fleet.Host{*host}, abmTok.ID, nil))
+	require.NoError(t, s.ds.UpsertMDMAppleHostDEPAssignments(ctx, []automdm.Host{*host}, abmTok.ID, nil))
 
 	dep, err := s.ds.GetHostDEPAssignment(ctx, host.ID)
 	require.NoError(t, err)
@@ -2970,7 +2970,7 @@ func (s *integrationMDMTestSuite) TestDeleteHostWithABMDisabledDeletesDEPAssignm
 	appCfg.MDM.AppleBMEnabledAndConfigured = false
 	require.NoError(t, s.ds.SaveAppConfig(ctx, appCfg))
 
-	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/fleet/hosts/%d", host.ID), nil, http.StatusOK, &deleteHostResponse{})
+	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/automdm/hosts/%d", host.ID), nil, http.StatusOK, &deleteHostResponse{})
 
 	dep, err = s.ds.GetHostDEPAssignment(ctx, host.ID)
 	require.NoError(t, err)
@@ -2992,16 +2992,16 @@ func (s *integrationMDMTestSuite) TestStickyMDMTeamEnrollment() {
 	differentTeamSecret := "different-team-enroll-secret"   //nolint:gosec // G101: test value only
 
 	// Team the automation will transfer the host to after MDM enroll.
-	automationTeam, err := s.ds.NewTeam(ctx, &fleet.Team{
+	automationTeam, err := s.ds.NewTeam(ctx, &automdm.Team{
 		Name:    "automation team",
-		Secrets: []*fleet.EnrollSecret{{Secret: automationTeamSecret}},
+		Secrets: []*automdm.EnrollSecret{{Secret: automationTeamSecret}},
 	})
 	require.NoError(t, err)
 
 	// A different team whose enroll secret will be used by orbit/osquery enroll.
-	_, err = s.ds.NewTeam(ctx, &fleet.Team{
+	_, err = s.ds.NewTeam(ctx, &automdm.Team{
 		Name:    "different team",
-		Secrets: []*fleet.EnrollSecret{{Secret: differentTeamSecret}},
+		Secrets: []*automdm.EnrollSecret{{Secret: differentTeamSecret}},
 	})
 	require.NoError(t, err)
 
@@ -3014,7 +3014,7 @@ func (s *integrationMDMTestSuite) TestStickyMDMTeamEnrollment() {
 	require.Nil(t, hostLite.TeamID)
 
 	// Simulate the automation: transfer the host to the automation team.
-	s.Do("POST", "/api/latest/fleet/hosts/transfer", &addHostsToTeamRequest{
+	s.Do("POST", "/api/latest/automdm/hosts/transfer", &addHostsToTeamRequest{
 		HostIDs: []uint{hostLite.ID},
 		TeamID:  &automationTeam.ID,
 	}, http.StatusOK)
@@ -3026,7 +3026,7 @@ func (s *integrationMDMTestSuite) TestStickyMDMTeamEnrollment() {
 
 	// Orbit-enroll using a different team's secret. The host must remain in the automation team.
 	var orbitResp enrollOrbitResponse
-	s.DoJSON("POST", "/api/fleet/orbit/enroll", fleet.EnrollOrbitRequest{
+	s.DoJSON("POST", "/api/automdm/orbit/enroll", automdm.EnrollOrbitRequest{
 		EnrollSecret:   differentTeamSecret,
 		HardwareUUID:   host.UUID,
 		HardwareSerial: mdmDevice.SerialNumber,
@@ -3104,7 +3104,7 @@ func (s *integrationMDMTestSuite) TestSoftwareInventoryForADEMacOSAfterWipeAndRe
 			resp.ProfileUUID = prof.ProfileUUID
 			resp.Devices = make(map[string]string, len(prof.Devices))
 			for _, device := range prof.Devices {
-				resp.Devices[device] = string(fleet.DEPAssignProfileResponseSuccess)
+				resp.Devices[device] = string(automdm.DEPAssignProfileResponseSuccess)
 			}
 			err = encoder.Encode(resp)
 			require.NoError(t, err)
@@ -3135,9 +3135,9 @@ func (s *integrationMDMTestSuite) TestSoftwareInventoryForADEMacOSAfterWipeAndRe
 		// Simulate an osquery enrollment too
 		// set an enroll secret
 		var applyResp applyEnrollSecretSpecResponse
-		s.DoJSON("POST", "/api/latest/fleet/spec/enroll_secret", applyEnrollSecretSpecRequest{
-			Spec: &fleet.EnrollSecretSpec{
-				Secrets: []*fleet.EnrollSecret{{Secret: t.Name()}},
+		s.DoJSON("POST", "/api/latest/automdm/spec/enroll_secret", applyEnrollSecretSpecRequest{
+			Spec: &automdm.EnrollSecretSpec{
+				Secrets: []*automdm.EnrollSecret{{Secret: t.Name()}},
 			},
 		}, http.StatusOK, &applyResp)
 
@@ -3159,11 +3159,11 @@ func (s *integrationMDMTestSuite) TestSoftwareInventoryForADEMacOSAfterWipeAndRe
 	mdmDevice := performHostEnroll()
 
 	listHostsRes := listHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &listHostsRes)
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &listHostsRes)
 	require.Len(t, listHostsRes.Hosts, 1)
 	h := listHostsRes.Hosts[0]
 
-	// ensure the host has an orbit key (so it doesn't fail with "does not have fleetd")
+	// ensure the host has an orbit key (so it doesn't fail with "does not have automdmd")
 	h.OrbitNodeKey = ptr.String("some-orbit-key")
 	err = s.ds.UpdateHost(ctx, h.Host)
 	require.NoError(t, err)
@@ -3183,9 +3183,9 @@ func (s *integrationMDMTestSuite) TestSoftwareInventoryForADEMacOSAfterWipeAndRe
 	}
 
 	// add a couple software installers to "no team"
-	tfr1, err := fleet.NewTempFileReader(strings.NewReader("installer1"), t.TempDir)
+	tfr1, err := automdm.NewTempFileReader(strings.NewReader("installer1"), t.TempDir)
 	require.NoError(t, err)
-	installerPayload1 := fleet.UploadSoftwareInstallerPayload{
+	installerPayload1 := automdm.UploadSoftwareInstallerPayload{
 		InstallScript:   "installer1",
 		PreInstallQuery: "SELECT 1",
 		InstallerFile:   tfr1,
@@ -3196,15 +3196,15 @@ func (s *integrationMDMTestSuite) TestSoftwareInventoryForADEMacOSAfterWipeAndRe
 		Source:          "apps",
 		UserID:          user.ID,
 		TeamID:          nil,
-		Platform:        string(fleet.MacOSPlatform),
-		ValidatedLabels: &fleet.LabelIdentsWithScope{},
+		Platform:        string(automdm.MacOSPlatform),
+		ValidatedLabels: &automdm.LabelIdentsWithScope{},
 	}
 	_, titleID1, err := s.ds.MatchOrCreateSoftwareInstaller(ctx, &installerPayload1)
 	require.NoError(t, err)
 
-	tfr2, err := fleet.NewTempFileReader(strings.NewReader("installer2"), t.TempDir)
+	tfr2, err := automdm.NewTempFileReader(strings.NewReader("installer2"), t.TempDir)
 	require.NoError(t, err)
-	installerPayload2 := fleet.UploadSoftwareInstallerPayload{
+	installerPayload2 := automdm.UploadSoftwareInstallerPayload{
 		InstallScript:   "installer2",
 		PreInstallQuery: "SELECT 1",
 		InstallerFile:   tfr2,
@@ -3214,15 +3214,15 @@ func (s *integrationMDMTestSuite) TestSoftwareInventoryForADEMacOSAfterWipeAndRe
 		Source:          "apps",
 		UserID:          user.ID,
 		TeamID:          nil,
-		Platform:        string(fleet.MacOSPlatform),
-		ValidatedLabels: &fleet.LabelIdentsWithScope{},
+		Platform:        string(automdm.MacOSPlatform),
+		ValidatedLabels: &automdm.LabelIdentsWithScope{},
 	}
 	_, titleID2, err := s.ds.MatchOrCreateSoftwareInstaller(ctx, &installerPayload2)
 	require.NoError(t, err)
 
 	// list host software inventory, both installers are listed
 	getHostSw := getHostSoftwareResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/software", h.ID), nil, http.StatusOK, &getHostSw, "available_for_install", "true")
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/software", h.ID), nil, http.StatusOK, &getHostSw, "available_for_install", "true")
 	require.Len(t, getHostSw.Software, 2)
 	require.Equal(t, titleID1, getHostSw.Software[0].ID)
 	require.Equal(t, installerPayload1.Title, getHostSw.Software[0].Name)
@@ -3230,13 +3230,13 @@ func (s *integrationMDMTestSuite) TestSoftwareInventoryForADEMacOSAfterWipeAndRe
 	require.Equal(t, installerPayload2.Title, getHostSw.Software[1].Name)
 
 	// install the first installer on the host
-	s.Do("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/software/%d/install", h.ID, titleID1), installSoftwareRequest{}, http.StatusAccepted)
+	s.Do("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/software/%d/install", h.ID, titleID1), installSoftwareRequest{}, http.StatusAccepted)
 	installUUID := getLatestSoftwareInstallExecID(t, s.ds, h.ID)
 
 	// process installation successfully
-	s.Do("POST", "/api/fleet/orbit/software_install/result", fleet.OrbitPostSoftwareInstallResultRequest{
+	s.Do("POST", "/api/automdm/orbit/software_install/result", automdm.OrbitPostSoftwareInstallResultRequest{
 		OrbitNodeKey: *h.OrbitNodeKey,
-		HostSoftwareInstallResultPayload: &fleet.HostSoftwareInstallResultPayload{
+		HostSoftwareInstallResultPayload: &automdm.HostSoftwareInstallResultPayload{
 			HostID:                h.ID,
 			InstallUUID:           installUUID,
 			InstallScriptExitCode: ptr.Int(0),
@@ -3245,9 +3245,9 @@ func (s *integrationMDMTestSuite) TestSoftwareInventoryForADEMacOSAfterWipeAndRe
 	}, http.StatusNoContent)
 
 	// wipe the host
-	var wipeResp fleet.WipeHostResponse
-	s.DoJSON("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/wipe", h.ID), nil, http.StatusOK, &wipeResp)
-	require.Equal(t, fleet.PendingActionWipe, wipeResp.PendingAction)
+	var wipeResp automdm.WipeHostResponse
+	s.DoJSON("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/wipe", h.ID), nil, http.StatusOK, &wipeResp)
+	require.Equal(t, automdm.PendingActionWipe, wipeResp.PendingAction)
 
 	// simulate a successful MDM result for the wipe command
 	cmd, err = mdmDevice.Idle()
@@ -3259,7 +3259,7 @@ func (s *integrationMDMTestSuite) TestSoftwareInventoryForADEMacOSAfterWipeAndRe
 
 	// refresh the host's status, it is wiped
 	var getHostResp getHostResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", h.ID), nil, http.StatusOK, &getHostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", h.ID), nil, http.StatusOK, &getHostResp)
 	require.NotNil(t, getHostResp.Host.MDM.DeviceStatus)
 	require.Equal(t, "wiped", *getHostResp.Host.MDM.DeviceStatus)
 	require.NotNil(t, getHostResp.Host.MDM.PendingAction)
@@ -3267,10 +3267,10 @@ func (s *integrationMDMTestSuite) TestSoftwareInventoryForADEMacOSAfterWipeAndRe
 
 	// delete the host record (will not really delete it as it is in ABM)
 	var delResp deleteHostResponse
-	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/fleet/hosts/%d", h.ID), nil, http.StatusOK, &delResp)
+	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/automdm/hosts/%d", h.ID), nil, http.StatusOK, &delResp)
 
 	listHostsRes = listHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &listHostsRes)
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &listHostsRes)
 	require.Len(t, listHostsRes.Hosts, 1)
 	require.Equal(t, h.ID, listHostsRes.Hosts[0].ID)
 
@@ -3279,7 +3279,7 @@ func (s *integrationMDMTestSuite) TestSoftwareInventoryForADEMacOSAfterWipeAndRe
 
 	// Sofware inventory should list both installers
 	getHostSw = getHostSoftwareResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/software", h.ID), nil, http.StatusOK, &getHostSw, "available_for_install", "true")
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/software", h.ID), nil, http.StatusOK, &getHostSw, "available_for_install", "true")
 	require.Len(t, getHostSw.Software, 2)
 	require.Equal(t, titleID1, getHostSw.Software[0].ID)
 	require.Equal(t, installerPayload1.Title, getHostSw.Software[0].Name)
@@ -3332,7 +3332,7 @@ func (s *integrationMDMTestSuite) TestDEPRequireACME() {
 			resp.ProfileUUID = prof.ProfileUUID
 			resp.Devices = make(map[string]string, len(prof.Devices))
 			for _, device := range prof.Devices {
-				resp.Devices[device] = string(fleet.DEPAssignProfileResponseSuccess)
+				resp.Devices[device] = string(automdm.DEPAssignProfileResponseSuccess)
 			}
 			err = encoder.Encode(resp)
 			require.NoError(t, err)
@@ -3350,9 +3350,9 @@ func (s *integrationMDMTestSuite) TestDEPRequireACME() {
 
 	// confirm that the devices were created
 	listHostsRes := listHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &listHostsRes)
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &listHostsRes)
 	require.Len(t, listHostsRes.Hosts, 5)
-	bySerial := make(map[string]*fleet.Host, len(devices))
+	bySerial := make(map[string]*automdm.Host, len(devices))
 	for _, h := range listHostsRes.Hosts {
 		bySerial[h.HardwareSerial] = h.Host
 	}
@@ -3394,7 +3394,7 @@ func (s *integrationMDMTestSuite) TestDEPRequireACME() {
 	})
 
 	var hostResp getHostResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/v1/fleet/hosts/%d", acmeHostID), getHostRequest{}, http.StatusOK, &hostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/v1/automdm/hosts/%d", acmeHostID), getHostRequest{}, http.StatusOK, &hostResp)
 	assert.True(t, hostResp.Host.MDMEnrollmentHardwareAttested)
 
 	// Intel Mac enrolls via SCEP, should not contain ACME directory URL in the profile
@@ -3413,7 +3413,7 @@ func (s *integrationMDMTestSuite) TestDEPRequireACME() {
 		return err
 	})
 
-	s.DoJSON("GET", fmt.Sprintf("/api/v1/fleet/hosts/%d", intelHostID), getHostRequest{}, http.StatusOK, &hostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/v1/automdm/hosts/%d", intelHostID), getHostRequest{}, http.StatusOK, &hostResp)
 	assert.False(t, hostResp.Host.MDMEnrollmentHardwareAttested)
 
 	// otaAppleSiliconDevice enrolls through OTA gets SCEP (not ACME) even though it would enroll
@@ -3435,7 +3435,7 @@ func (s *integrationMDMTestSuite) TestDEPRequireACME() {
 		return err
 	})
 
-	s.DoJSON("GET", fmt.Sprintf("/api/v1/fleet/hosts/%d", otaHostID), getHostRequest{}, http.StatusOK, &hostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/v1/automdm/hosts/%d", otaHostID), getHostRequest{}, http.StatusOK, &hostResp)
 	assert.False(t, hostResp.Host.MDMEnrollmentHardwareAttested)
 
 	// iPhoneDEPDevice enrolls through DEP and should have hardware attestation
@@ -3453,7 +3453,7 @@ func (s *integrationMDMTestSuite) TestDEPRequireACME() {
 		return err
 	})
 
-	s.DoJSON("GET", fmt.Sprintf("/api/v1/fleet/hosts/%d", iphoneHostID), getHostRequest{}, http.StatusOK, &hostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/v1/automdm/hosts/%d", iphoneHostID), getHostRequest{}, http.StatusOK, &hostResp)
 	assert.True(t, hostResp.Host.MDMEnrollmentHardwareAttested)
 
 	// Disable Require ACME, SCEP enroll a valid device via DEP, enable Require ACME and ensure renewal gets ACME
@@ -3476,7 +3476,7 @@ func (s *integrationMDMTestSuite) TestDEPRequireACME() {
 		return err
 	})
 
-	s.DoJSON("GET", fmt.Sprintf("/api/v1/fleet/hosts/%d", iPadHostID), getHostRequest{}, http.StatusOK, &hostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/v1/automdm/hosts/%d", iPadHostID), getHostRequest{}, http.StatusOK, &hostResp)
 	assert.False(t, hostResp.Host.MDMEnrollmentHardwareAttested)
 
 	mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
@@ -3485,7 +3485,7 @@ func (s *integrationMDMTestSuite) TestDEPRequireACME() {
 	})
 
 	require.NoError(t, iPadDEPDevice.Reenroll())
-	s.DoJSON("GET", fmt.Sprintf("/api/v1/fleet/hosts/%d", iPadHostID), getHostRequest{}, http.StatusOK, &hostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/v1/automdm/hosts/%d", iPadHostID), getHostRequest{}, http.StatusOK, &hostResp)
 	assert.True(t, hostResp.Host.MDMEnrollmentHardwareAttested)
 }
 
@@ -3514,7 +3514,7 @@ func (s *integrationMDMTestSuite) TestABOnlyEnrollmentBlocksAuthenticateForNonDE
 			assert.NoError(t, json.Unmarshal(b, &prof))
 			resp := godep.ProfileResponse{ProfileUUID: prof.ProfileUUID, Devices: make(map[string]string, len(prof.Devices))}
 			for _, serial := range prof.Devices {
-				resp.Devices[serial] = string(fleet.DEPAssignProfileResponseSuccess)
+				resp.Devices[serial] = string(automdm.DEPAssignProfileResponseSuccess)
 			}
 			assert.NoError(t, encoder.Encode(resp))
 		default:
@@ -3538,7 +3538,7 @@ func (s *integrationMDMTestSuite) TestABOnlyEnrollmentBlocksAuthenticateForNonDE
 	validDevice := mdmtest.NewTestMDMClientAppleDEPFromDevice(s.server.URL, depURLToken, depDevice.SerialNumber, depDevice.Model)
 	require.NoError(t, validDevice.Enroll())
 
-	// A device with a valid SCEP identity but no DEP assignment skips Fleet's
+	// A device with a valid SCEP identity but no DEP assignment skips AutoMDM's
 	// enrollment-profile endpoint entirely (NewTestMDMClientAppleDirect never calls it), so
 	// SCEP enrollment succeeds and the device reaches the raw Authenticate checkin — which
 	// must reject it on its own.
@@ -3554,7 +3554,7 @@ func (s *integrationMDMTestSuite) TestABOnlyEnrollmentBlocksAuthenticateForNonDE
 
 	// Rejected at Authenticate, so no host record should have been created for it.
 	listHostsRes := listHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &listHostsRes)
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &listHostsRes)
 	for _, h := range listHostsRes.Hosts {
 		assert.NotEqual(t, rogueDevice.UUID, h.UUID, "a host rejected at Authenticate must not be created")
 	}
@@ -3568,7 +3568,7 @@ func (s *integrationMDMTestSuite) TestGetDefaultDEPProfile() {
 
 	// First we clean up the table, to ensure we have a clean slate for the table
 	mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
-		_, err := q.ExecContext(context.Background(), `DELETE FROM mdm_apple_enrollment_profiles WHERE type = ?`, fleet.MDMAppleEnrollmentTypeAutomatic)
+		_, err := q.ExecContext(context.Background(), `DELETE FROM mdm_apple_enrollment_profiles WHERE type = ?`, automdm.MDMAppleEnrollmentTypeAutomatic)
 		return err
 	})
 
@@ -3577,7 +3577,7 @@ func (s *integrationMDMTestSuite) TestGetDefaultDEPProfile() {
 	t.Run("no default profile, returns in-code profile", func(t *testing.T) {
 		// Call the new endpoint, to get the default in code (no updated at) profile
 		var resp getDefaultMDMAppleSetupAssistantProfileResponse
-		s.DoJSON("GET", "/api/latest/fleet/enrollment_profiles/automatic/default", nil, http.StatusOK, &resp)
+		s.DoJSON("GET", "/api/latest/automdm/enrollment_profiles/automatic/default", nil, http.StatusOK, &resp)
 		require.NotNil(t, resp.Profile)
 		require.Nil(t, resp.UpdatedAt)
 
@@ -3589,7 +3589,7 @@ func (s *integrationMDMTestSuite) TestGetDefaultDEPProfile() {
 		require.NoError(t, depSvc.RunAssigner(t.Context()))
 
 		var resp getDefaultMDMAppleSetupAssistantProfileResponse
-		s.DoJSON("GET", "/api/latest/fleet/enrollment_profiles/automatic/default", nil, http.StatusOK, &resp)
+		s.DoJSON("GET", "/api/latest/automdm/enrollment_profiles/automatic/default", nil, http.StatusOK, &resp)
 		require.NotNil(t, resp.Profile)
 		require.NotNil(t, resp.UpdatedAt)
 		require.Equal(t, *defaultProfile, resp.Profile)
@@ -3599,23 +3599,23 @@ func (s *integrationMDMTestSuite) TestGetDefaultDEPProfile() {
 		t.Run("global observer fails", func(t *testing.T) {
 			s.setTokenForTest(t, TestObserverUserEmail, test.GoodPassword)
 			var resp getDefaultMDMAppleSetupAssistantProfileResponse
-			s.DoJSON("GET", "/api/latest/fleet/enrollment_profiles/automatic/default", nil, http.StatusForbidden, &resp)
+			s.DoJSON("GET", "/api/latest/automdm/enrollment_profiles/automatic/default", nil, http.StatusForbidden, &resp)
 		})
 
 		t.Run("global maintainer succeeds", func(t *testing.T) {
 			s.setTokenForTest(t, TestMaintainerUserEmail, test.GoodPassword)
 			var resp getDefaultMDMAppleSetupAssistantProfileResponse
-			s.DoJSON("GET", "/api/latest/fleet/enrollment_profiles/automatic/default", nil, http.StatusOK, &resp)
+			s.DoJSON("GET", "/api/latest/automdm/enrollment_profiles/automatic/default", nil, http.StatusOK, &resp)
 		})
 
-		ensureTeamExists := func(teamName string) *fleet.Team {
+		ensureTeamExists := func(teamName string) *automdm.Team {
 			team, err := s.ds.TeamByName(t.Context(), teamName)
 			if err == nil {
 				require.NoError(t, err)
 				return team
 			}
 
-			team, err = s.ds.NewTeam(t.Context(), &fleet.Team{Name: teamName})
+			team, err = s.ds.NewTeam(t.Context(), &automdm.Team{Name: teamName})
 			require.NoError(t, err)
 			return team
 		}
@@ -3628,47 +3628,47 @@ func (s *integrationMDMTestSuite) TestGetDefaultDEPProfile() {
 			email := "team_observer@example.com"
 			password := test.GoodPassword
 			cur := createUserResponse{}
-			s.DoJSON("POST", "/api/latest/fleet/users/admin", createUserRequest{
-				UserPayload: fleet.UserPayload{
+			s.DoJSON("POST", "/api/latest/automdm/users/admin", createUserRequest{
+				UserPayload: automdm.UserPayload{
 					Email:                    &email,
 					Password:                 &password,
 					Name:                     &email,
-					Teams:                    &[]fleet.UserTeam{{Team: fleet.Team{ID: defaultDEPTeam.ID}, Role: fleet.RoleObserver}},
+					Teams:                    &[]automdm.UserTeam{{Team: automdm.Team{ID: defaultDEPTeam.ID}, Role: automdm.RoleObserver}},
 					AdminForcedPasswordReset: new(false),
 				},
 			}, http.StatusOK, &cur)
 			t.Cleanup(func() {
-				s.Do("DELETE", fmt.Sprintf("/api/latest/fleet/users/%d", cur.User.ID), nil, http.StatusOK)
+				s.Do("DELETE", fmt.Sprintf("/api/latest/automdm/users/%d", cur.User.ID), nil, http.StatusOK)
 			})
 
 			s.setTokenForTest(t, email, password)
 			var resp getDefaultMDMAppleSetupAssistantProfileResponse
-			s.DoJSON("GET", "/api/latest/fleet/enrollment_profiles/automatic/default", nil, http.StatusForbidden, &resp)
+			s.DoJSON("GET", "/api/latest/automdm/enrollment_profiles/automatic/default", nil, http.StatusForbidden, &resp)
 		})
 
 		t.Run("team maintainer succeeds", func(t *testing.T) {
 			email := "team_maintainer@example.com"
 			password := test.GoodPassword
 			cur := createUserResponse{}
-			s.DoJSON("POST", "/api/latest/fleet/users/admin", createUserRequest{
-				UserPayload: fleet.UserPayload{
+			s.DoJSON("POST", "/api/latest/automdm/users/admin", createUserRequest{
+				UserPayload: automdm.UserPayload{
 					Email:    &email,
 					Password: &password,
 					Name:     &email,
-					Teams: &[]fleet.UserTeam{
-						{Team: fleet.Team{ID: extraTeam.ID}, Role: fleet.RoleObserver},
-						{Team: fleet.Team{ID: defaultDEPTeam.ID}, Role: fleet.RoleMaintainer},
+					Teams: &[]automdm.UserTeam{
+						{Team: automdm.Team{ID: extraTeam.ID}, Role: automdm.RoleObserver},
+						{Team: automdm.Team{ID: defaultDEPTeam.ID}, Role: automdm.RoleMaintainer},
 					},
 					AdminForcedPasswordReset: new(bool),
 				},
 			}, http.StatusOK, &cur)
 			t.Cleanup(func() {
-				s.Do("DELETE", fmt.Sprintf("/api/latest/fleet/users/%d", cur.User.ID), nil, http.StatusOK)
+				s.Do("DELETE", fmt.Sprintf("/api/latest/automdm/users/%d", cur.User.ID), nil, http.StatusOK)
 			})
 
 			s.setTokenForTest(t, email, password)
 			var resp getDefaultMDMAppleSetupAssistantProfileResponse
-			s.DoJSON("GET", "/api/latest/fleet/enrollment_profiles/automatic/default", nil, http.StatusOK, &resp)
+			s.DoJSON("GET", "/api/latest/automdm/enrollment_profiles/automatic/default", nil, http.StatusOK, &resp)
 		})
 
 		t.Cleanup(func() {
@@ -3706,7 +3706,7 @@ func (s *integrationMDMTestSuite) TestRotateAutomaticEnrollmentToken() {
 			assert.NoError(t, json.NewDecoder(r.Body).Decode(&req))
 			resp := godep.ProfileResponse{ProfileUUID: req.ProfileUUID, Devices: map[string]string{}}
 			for _, d := range req.Devices {
-				resp.Devices[d] = string(fleet.DEPAssignProfileResponseSuccess)
+				resp.Devices[d] = string(automdm.DEPAssignProfileResponseSuccess)
 			}
 			assert.NoError(t, json.NewEncoder(w).Encode(resp))
 		default:
@@ -3714,7 +3714,7 @@ func (s *integrationMDMTestSuite) TestRotateAutomaticEnrollmentToken() {
 		}
 	}))
 
-	const rotatePath = "/api/latest/fleet/enrollment_profiles/automatic/rotate_token"
+	const rotatePath = "/api/latest/automdm/enrollment_profiles/automatic/rotate_token"
 	rotate := func(body string, wantStatus int) rotateMDMAppleAutomaticEnrollmentTokenResponse {
 		t.Helper()
 		res := s.DoRaw("POST", rotatePath, []byte(body), wantStatus)
@@ -3730,7 +3730,7 @@ func (s *integrationMDMTestSuite) TestRotateAutomaticEnrollmentToken() {
 				PreviousToken *string `db:"previous_token"`
 			}
 			mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
-				return sqlx.GetContext(ctx, q, &row, `SELECT token, previous_token FROM mdm_apple_enrollment_profiles WHERE type = ?`, fleet.MDMAppleEnrollmentTypeAutomatic)
+				return sqlx.GetContext(ctx, q, &row, `SELECT token, previous_token FROM mdm_apple_enrollment_profiles WHERE type = ?`, automdm.MDMAppleEnrollmentTypeAutomatic)
 			})
 			require.NotContains(t, string(raw), row.Token)
 			if row.PreviousToken != nil {
@@ -3742,7 +3742,7 @@ func (s *integrationMDMTestSuite) TestRotateAutomaticEnrollmentToken() {
 
 	// no automatic enrollment profile yet
 	mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
-		_, err := q.ExecContext(ctx, `DELETE FROM mdm_apple_enrollment_profiles WHERE type = ?`, fleet.MDMAppleEnrollmentTypeAutomatic)
+		_, err := q.ExecContext(ctx, `DELETE FROM mdm_apple_enrollment_profiles WHERE type = ?`, automdm.MDMAppleEnrollmentTypeAutomatic)
 		return err
 	})
 	rotate(`{}`, http.StatusNotFound)
@@ -3753,28 +3753,28 @@ func (s *integrationMDMTestSuite) TestRotateAutomaticEnrollmentToken() {
 	rotate(`{"grace_period_hours": -1}`, http.StatusUnprocessableEntity)
 
 	// only global admins can rotate
-	team, err := s.ds.NewTeam(ctx, &fleet.Team{Name: t.Name()})
+	team, err := s.ds.NewTeam(ctx, &automdm.Team{Name: t.Name()})
 	require.NoError(t, err)
-	newUser := func(globalRole string, teamRole string) fleet.User {
-		u := fleet.User{
+	newUser := func(globalRole string, teamRole string) automdm.User {
+		u := automdm.User{
 			Name:  t.Name() + globalRole + teamRole,
 			Email: fmt.Sprintf("rotate-%s%s-%s@example.com", globalRole, teamRole, uuid.NewString()[:8]),
 		}
 		if globalRole != "" {
 			u.GlobalRole = new(globalRole)
 		} else {
-			u.Teams = []fleet.UserTeam{{Team: *team, Role: teamRole}}
+			u.Teams = []automdm.UserTeam{{Team: *team, Role: teamRole}}
 		}
 		require.NoError(t, u.SetPassword(test.GoodPassword, 10, 10))
 		_, err := s.ds.NewUser(ctx, &u)
 		require.NoError(t, err)
 		return u
 	}
-	var forbidden []fleet.User
-	for _, role := range []string{fleet.RoleMaintainer, fleet.RoleObserver, fleet.RoleObserverPlus, fleet.RoleTechnician, fleet.RoleGitOps} {
+	var forbidden []automdm.User
+	for _, role := range []string{automdm.RoleMaintainer, automdm.RoleObserver, automdm.RoleObserverPlus, automdm.RoleTechnician, automdm.RoleGitOps} {
 		forbidden = append(forbidden, newUser(role, ""))
 	}
-	for _, role := range []string{fleet.RoleAdmin, fleet.RoleMaintainer, fleet.RoleObserver} {
+	for _, role := range []string{automdm.RoleAdmin, automdm.RoleMaintainer, automdm.RoleObserver} {
 		forbidden = append(forbidden, newUser("", role))
 	}
 	for _, u := range forbidden {
@@ -3787,15 +3787,15 @@ func (s *integrationMDMTestSuite) TestRotateAutomaticEnrollmentToken() {
 	// an ABM-assigned device downloads its profile with the tokens
 	abmTok, err := s.ds.GetABMTokenByOrgName(ctx, t.Name())
 	require.NoError(t, err)
-	host, err := s.ds.NewHost(ctx, &fleet.Host{
+	host, err := s.ds.NewHost(ctx, &automdm.Host{
 		Hostname:       "rotate-dep-host",
 		HardwareSerial: mdmtest.RandSerialNumber(),
 		UUID:           uuid.NewString(),
 		Platform:       "darwin",
 	})
 	require.NoError(t, err)
-	require.NoError(t, s.ds.UpsertMDMAppleHostDEPAssignments(ctx, []fleet.Host{*host}, abmTok.ID, nil))
-	di, err := mdmtest.EncodeDeviceInfo(fleet.MDMAppleMachineInfo{Serial: host.HardwareSerial, UDID: host.UUID})
+	require.NoError(t, s.ds.UpsertMDMAppleHostDEPAssignments(ctx, []automdm.Host{*host}, abmTok.ID, nil))
+	di, err := mdmtest.EncodeDeviceInfo(automdm.MDMAppleMachineInfo{Serial: host.HardwareSerial, UDID: host.UUID})
 	require.NoError(t, err)
 	requireEnrolls := func(token string, ok bool) {
 		t.Helper()
@@ -3816,7 +3816,7 @@ func (s *integrationMDMTestSuite) TestRotateAutomaticEnrollmentToken() {
 	currentToken := func() string {
 		var token string
 		mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
-			return sqlx.GetContext(ctx, q, &token, `SELECT token FROM mdm_apple_enrollment_profiles WHERE type = ?`, fleet.MDMAppleEnrollmentTypeAutomatic)
+			return sqlx.GetContext(ctx, q, &token, `SELECT token FROM mdm_apple_enrollment_profiles WHERE type = ?`, automdm.MDMAppleEnrollmentTypeAutomatic)
 		})
 		return token
 	}
@@ -3837,7 +3837,7 @@ func (s *integrationMDMTestSuite) TestRotateAutomaticEnrollmentToken() {
 
 	// the previous token stops working once its grace period ends
 	mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
-		_, err := q.ExecContext(ctx, `UPDATE mdm_apple_enrollment_profiles SET previous_token_expires_at = NOW(6) - INTERVAL 1 SECOND WHERE type = ?`, fleet.MDMAppleEnrollmentTypeAutomatic)
+		_, err := q.ExecContext(ctx, `UPDATE mdm_apple_enrollment_profiles SET previous_token_expires_at = NOW(6) - INTERVAL 1 SECOND WHERE type = ?`, automdm.MDMAppleEnrollmentTypeAutomatic)
 		return err
 	})
 	requireEnrolls(token0, false)
@@ -3885,7 +3885,7 @@ func (s *integrationMDMTestSuite) TestAutomaticEnrollmentTokenRefusedWithEndUser
 	staticToken := func() string {
 		var token string
 		mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
-			return sqlx.GetContext(ctx, q, &token, `SELECT COALESCE(MAX(token), '') FROM mdm_apple_enrollment_profiles WHERE type = ?`, fleet.MDMAppleEnrollmentTypeAutomatic)
+			return sqlx.GetContext(ctx, q, &token, `SELECT COALESCE(MAX(token), '') FROM mdm_apple_enrollment_profiles WHERE type = ?`, automdm.MDMAppleEnrollmentTypeAutomatic)
 		})
 		return token
 	}
@@ -3893,17 +3893,17 @@ func (s *integrationMDMTestSuite) TestAutomaticEnrollmentTokenRefusedWithEndUser
 		require.NoError(t, apple_mdm.NewDEPService(s.ds, s.depStorage, s.logger).CreateDefaultAutomaticProfile(ctx))
 	}
 
-	euaTeam, err := s.ds.NewTeam(ctx, &fleet.Team{
+	euaTeam, err := s.ds.NewTeam(ctx, &automdm.Team{
 		Name:   t.Name() + " eua",
-		Config: fleet.TeamConfig{MDM: fleet.TeamMDM{MacOSSetup: fleet.MacOSSetup{EnableEndUserAuthentication: true}}},
+		Config: automdm.TeamConfig{MDM: automdm.TeamMDM{MacOSSetup: automdm.MacOSSetup{EnableEndUserAuthentication: true}}},
 	})
 	require.NoError(t, err)
-	otherTeam, err := s.ds.NewTeam(ctx, &fleet.Team{Name: t.Name() + " other"})
+	otherTeam, err := s.ds.NewTeam(ctx, &automdm.Team{Name: t.Name() + " other"})
 	require.NoError(t, err)
 
-	newDEPHost := func(teamID *uint, platform, product string) (*fleet.Host, string) {
+	newDEPHost := func(teamID *uint, platform, product string) (*automdm.Host, string) {
 		t.Helper()
-		host, err := s.ds.NewHost(ctx, &fleet.Host{
+		host, err := s.ds.NewHost(ctx, &automdm.Host{
 			Hostname:       "eua-dep-host-" + uuid.NewString()[:8],
 			HardwareSerial: mdmtest.RandSerialNumber(),
 			UUID:           uuid.NewString(),
@@ -3911,8 +3911,8 @@ func (s *integrationMDMTestSuite) TestAutomaticEnrollmentTokenRefusedWithEndUser
 			TeamID:         teamID,
 		})
 		require.NoError(t, err)
-		require.NoError(t, s.ds.UpsertMDMAppleHostDEPAssignments(ctx, []fleet.Host{*host}, abmTok.ID, nil))
-		di, err := mdmtest.EncodeDeviceInfo(fleet.MDMAppleMachineInfo{Serial: host.HardwareSerial, UDID: host.UUID, Product: product})
+		require.NoError(t, s.ds.UpsertMDMAppleHostDEPAssignments(ctx, []automdm.Host{*host}, abmTok.ID, nil))
+		di, err := mdmtest.EncodeDeviceInfo(automdm.MDMAppleMachineInfo{Serial: host.HardwareSerial, UDID: host.UUID, Product: product})
 		require.NoError(t, err)
 		return host, di
 	}
@@ -3926,7 +3926,7 @@ func (s *integrationMDMTestSuite) TestAutomaticEnrollmentTokenRefusedWithEndUser
 		require.Contains(t, extractServerErrorText(res.Body), "can't enroll right now")
 	}
 	const rejectedActivity = "host_enrollment_rejected"
-	requireRejection := func(host *fleet.Host) {
+	requireRejection := func(host *automdm.Host) {
 		t.Helper()
 		s.lastHostActivityMatches(host.ID, rejectedActivity, fmt.Sprintf(`{
 			"host_id": %d,
@@ -3942,7 +3942,7 @@ func (s *integrationMDMTestSuite) TestAutomaticEnrollmentTokenRefusedWithEndUser
 
 	token := staticToken()
 
-	// a host in a fleet with end user authentication is refused, once per 12 hours
+	// a host in a team with end user authentication is refused, once per 12 hours
 	euaHost, euaDI := newDEPHost(&euaTeam.ID, "darwin", "Mac15,7")
 	enroll(token, euaDI, false)
 	requireRejection(euaHost)
@@ -3950,7 +3950,7 @@ func (s *integrationMDMTestSuite) TestAutomaticEnrollmentTokenRefusedWithEndUser
 	requireRejection(euaHost)
 
 	// the one-time token from end user authentication still works
-	idpAcct := &fleet.MDMIdPAccount{Username: "eua-user", Email: "eua-user-" + uuid.NewString()[:8] + "@example.com"}
+	idpAcct := &automdm.MDMIdPAccount{Username: "eua-user", Email: "eua-user-" + uuid.NewString()[:8] + "@example.com"}
 	require.NoError(t, s.ds.InsertMDMIdPAccount(ctx, idpAcct))
 	idpAcct, err = s.ds.GetMDMIdPAccountByEmail(ctx, idpAcct.Email)
 	require.NoError(t, err)
@@ -3958,12 +3958,12 @@ func (s *integrationMDMTestSuite) TestAutomaticEnrollmentTokenRefusedWithEndUser
 	require.NoError(t, err)
 	enroll(challenge, euaDI, true)
 
-	// a host in a fleet without end user authentication is accepted, until it
-	// moves to a fleet with it
+	// a host in a team without end user authentication is accepted, until it
+	// moves to a team with it
 	otherHost, otherDI := newDEPHost(&otherTeam.ID, "darwin", "Mac15,7")
 	enroll(token, otherDI, true)
 	require.Zero(t, s.countHostActivitiesOfType(otherHost.ID, rejectedActivity))
-	require.NoError(t, s.ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&euaTeam.ID, []uint{otherHost.ID})))
+	require.NoError(t, s.ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&euaTeam.ID, []uint{otherHost.ID})))
 	enroll(token, otherDI, false)
 	requireRejection(otherHost)
 
@@ -3987,7 +3987,7 @@ func (s *integrationMDMTestSuite) TestAutomaticEnrollmentTokenRefusedWithEndUser
 	requireRejection(noTeamHost)
 
 	// the previous token is refused the same way during its grace period
-	s.Do("POST", "/api/latest/fleet/enrollment_profiles/automatic/rotate_token", json.RawMessage(`{}`), http.StatusOK)
+	s.Do("POST", "/api/latest/automdm/enrollment_profiles/automatic/rotate_token", json.RawMessage(`{}`), http.StatusOK)
 	_, stillOtherDI := newDEPHost(&otherTeam.ID, "darwin", "Mac15,7")
 	enroll(token, stillOtherDI, true)
 	prevTokenHost, prevTokenDI := newDEPHost(&euaTeam.ID, "darwin", "Mac15,7")
@@ -3995,7 +3995,7 @@ func (s *integrationMDMTestSuite) TestAutomaticEnrollmentTokenRefusedWithEndUser
 	requireRejection(prevTokenHost)
 	token = staticToken()
 
-	// a deleted host falls back to the AB token's default fleet for its platform
+	// a deleted host falls back to the AB token's default team for its platform
 	deletedHost, deletedDI := newDEPHost(&otherTeam.ID, "darwin", "Mac15,7")
 	mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
 		_, err := q.ExecContext(ctx, `DELETE FROM hosts WHERE id = ?`, deletedHost.ID)
@@ -4028,7 +4028,7 @@ func (s *integrationMDMTestSuite) TestAutomaticEnrollmentTokenRefusedWithEndUser
 	rejectionsBefore = s.countActivitiesOfType(rejectedActivity)
 	freshEUAHost, freshEUADI := newDEPHost(&euaTeam.ID, "darwin", "Mac15,7")
 	enroll("not-a-token", freshEUADI, false)
-	unassignedDI, err := mdmtest.EncodeDeviceInfo(fleet.MDMAppleMachineInfo{Serial: mdmtest.RandSerialNumber(), UDID: uuid.NewString(), Product: "Mac15,7"})
+	unassignedDI, err := mdmtest.EncodeDeviceInfo(automdm.MDMAppleMachineInfo{Serial: mdmtest.RandSerialNumber(), UDID: uuid.NewString(), Product: "Mac15,7"})
 	require.NoError(t, err)
 	enroll(token, unassignedDI, false)
 	require.Equal(t, rejectionsBefore, s.countActivitiesOfType(rejectedActivity))
@@ -4107,7 +4107,7 @@ func (s *integrationMDMTestSuite) TestBlockedEndpointsForABOnlyACMEConfig() {
 		// Every request validates the status code, so no need to do it here.
 		if isBlocked {
 			errorMsg := extractServerErrorText(resp.Body)
-			expectedErr := fleet.ABOnlyEnrollmentForbiddenError{}
+			expectedErr := automdm.ABOnlyEnrollmentForbiddenError{}
 			assert.Contains(t, errorMsg, expectedErr.Error())
 		}
 	}
@@ -4123,7 +4123,7 @@ func (s *integrationMDMTestSuite) TestBlockedEndpointsForABOnlyACMEConfig() {
 		// Every request validates the status code, so no need to do it here.
 		if isBlocked {
 			errorMsg := extractServerErrorText(resp.Body)
-			assert.Contains(t, errorMsg, fleet.AdminOnlyEnrollmentForbiddenErrMsg)
+			assert.Contains(t, errorMsg, automdm.AdminOnlyEnrollmentForbiddenErrMsg)
 		}
 	}
 
@@ -4145,22 +4145,22 @@ func (s *integrationMDMTestSuite) TestBlockedEndpointsForABOnlyACMEConfig() {
 
 	// setup team with enroll secret
 	enrollSecret := "team"
-	team, err := s.ds.NewTeam(t.Context(), &fleet.Team{Name: "team", Secrets: []*fleet.EnrollSecret{{Secret: enrollSecret}}})
+	team, err := s.ds.NewTeam(t.Context(), &automdm.Team{Name: "team", Secrets: []*automdm.EnrollSecret{{Secret: enrollSecret}}})
 	require.NoError(t, err)
 
 	// setup host so we can do device authenticated endpoints
-	host, err := s.ds.NewHost(t.Context(), &fleet.Host{TeamID: &team.ID})
+	host, err := s.ds.NewHost(t.Context(), &automdm.Host{TeamID: &team.ID})
 	require.NoError(t, err)
 
 	// Mint a fresh device auth token
-	s.DoRaw("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/device_url", host.ID), nil, http.StatusOK)
+	s.DoRaw("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/device_url", host.ID), nil, http.StatusOK)
 	authToken, err := s.ds.GetDeviceAuthToken(t.Context(), host.ID)
 	require.NoError(t, err)
 
 	// setup automatic enrollment profile to get a token
 	depProfileToken := "fake-dep-token" // nolint:gosec // test credential
-	_, err = s.ds.NewMDMAppleEnrollmentProfile(t.Context(), fleet.MDMAppleEnrollmentProfilePayload{
-		Type:       fleet.MDMAppleEnrollmentTypeAutomatic,
+	_, err = s.ds.NewMDMAppleEnrollmentProfile(t.Context(), automdm.MDMAppleEnrollmentProfilePayload{
+		Type:       automdm.MDMAppleEnrollmentTypeAutomatic,
 		DEPProfile: new(json.RawMessage(`{}`)),
 		Token:      depProfileToken,
 	})
@@ -4183,12 +4183,12 @@ func (s *integrationMDMTestSuite) TestBlockedEndpointsForABOnlyACMEConfig() {
 			resp = s.DoRaw("GET", apple_mdm.SCEPPath, nil, getUserStatusCode(isBlocked, http.StatusOK), "operation", "GetCACert")
 			assertUserFacingResponse(t, resp, isBlocked)
 
-			resp = s.DoRaw("GET", "/api/latest/fleet/enrollment_profiles/ota", nil, getUserStatusCode(isBlocked, http.StatusOK), "enroll_secret", enrollSecret)
+			resp = s.DoRaw("GET", "/api/latest/automdm/enrollment_profiles/ota", nil, getUserStatusCode(isBlocked, http.StatusOK), "enroll_secret", enrollSecret)
 			assertUserFacingResponse(t, resp, isBlocked)
 
 			// Both requests return 403 forbidden here, but the following assert makes sure the blocked is the AB only blocked, the other forbidden is due to missing ceritficates,
 			// but it means we passed the blocked check.
-			resp = s.DoRaw("POST", "/api/latest/fleet/ota_enrollment", signedDeviceInfo, getUserStatusCode(isBlocked, http.StatusForbidden), "enroll_secret", enrollSecret)
+			resp = s.DoRaw("POST", "/api/latest/automdm/ota_enrollment", signedDeviceInfo, getUserStatusCode(isBlocked, http.StatusForbidden), "enroll_secret", enrollSecret)
 			assertUserFacingResponse(t, resp, isBlocked)
 
 			// unblocked returns 401 with a redirect
@@ -4210,10 +4210,10 @@ func (s *integrationMDMTestSuite) TestBlockedEndpointsForABOnlyACMEConfig() {
 			resp = s.DoRaw("POST", "/api/mdm/apple/account_driven_enroll/fake-token", signedDeviceInfo, getUserStatusCode(isBlocked, http.StatusNotFound))
 			assertUserFacingResponse(t, resp, isBlocked)
 
-			resp = s.DoRaw("GET", "/api/latest/fleet/enrollment_profiles/manual", nil, getAdminStatusCode(isBlocked, http.StatusOK))
+			resp = s.DoRaw("GET", "/api/latest/automdm/enrollment_profiles/manual", nil, getAdminStatusCode(isBlocked, http.StatusOK))
 			assertAdminFacingResponse(t, resp, isBlocked)
 
-			resp = s.DoRawNoAuth("GET", fmt.Sprintf("/api/latest/fleet/device/%s/mdm/apple/manual_enrollment_profile", authToken), nil, getUserStatusCode(isBlocked, http.StatusOK))
+			resp = s.DoRawNoAuth("GET", fmt.Sprintf("/api/latest/automdm/device/%s/mdm/apple/manual_enrollment_profile", authToken), nil, getUserStatusCode(isBlocked, http.StatusOK))
 			assertUserFacingResponse(t, resp, isBlocked)
 
 			resp = s.DoRawNoAuth("GET", "/mdm/apple/service_discovery", nil, getUserStatusCode(isBlocked, http.StatusOK))

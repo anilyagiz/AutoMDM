@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/constant"
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/constant"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
 	"github.com/google/go-github/v37/github"
 	"github.com/urfave/cli/v2"
 )
@@ -101,7 +101,7 @@ func desktopCommand() *cli.Command {
 	)
 	return &cli.Command{
 		Name:  "desktop",
-		Usage: "Fetch Fleet Desktop executables from the generate-desktop-targets.yml action",
+		Usage: "Fetch AutoMDM Desktop executables from the generate-desktop-targets.yml action",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:        "git-tag",
@@ -115,7 +115,7 @@ func desktopCommand() *cli.Command {
 				EnvVars:     []string{"DOWNLOAD_ARTIFACTS_OUTPUT_DIRECTORY"},
 				Required:    true,
 				Destination: &outputDirectory,
-				Usage:       "name of the output directory to create and download the Fleet Desktop executables",
+				Usage:       "name of the output directory to create and download the AutoMDM Desktop executables",
 			},
 			&cli.StringFlag{
 				Name:        "github-username",
@@ -143,8 +143,8 @@ func desktopCommand() *cli.Command {
 				"macos":         "desktop.app.tar.gz",
 				"linux":         "desktop.tar.gz",
 				"linux-arm64":   "desktop-arm64.tar.gz",
-				"windows":       "fleet-desktop.exe",
-				"windows-arm64": "fleet-desktop-arm64.exe",
+				"windows":       "automdm-desktop.exe",
+				"windows-arm64": "automdm-desktop-arm64.exe",
 			}, outputDirectory, githubUsername, githubAPIToken, retry)
 		},
 	}
@@ -242,7 +242,7 @@ func extractZipFile(archiveReader *zip.File, destPath string) error {
 		defer destinationFile.Close()
 
 		// Write the destination file
-		// Ignoring gosec's G110 warning as these are artifacts downloaded from Fleet's Github.
+		// Ignoring gosec's G110 warning as these are artifacts downloaded from AutoMDM's Github.
 		if _, err = io.Copy(destinationFile, archiveFile); err != nil { //nolint:gosec
 			return fmt.Errorf("could not write file %s: %w", finalPath, err)
 		}
@@ -261,13 +261,13 @@ func downloadComponents(workflowName string, headBranch string, artifactNames ma
 	}
 	ctx := context.Background()
 	var workflowRun *github.WorkflowRun
-	gc := github.NewClient(fleethttp.NewClient())
+	gc := github.NewClient(automdmhttp.NewClient())
 	for {
-		workflow, _, err := gc.Actions.GetWorkflowByFileName(ctx, "fleetdm", "fleet", workflowName)
+		workflow, _, err := gc.Actions.GetWorkflowByFileName(ctx, "automdm", "automdm", workflowName)
 		if err != nil {
 			return err
 		}
-		workflowRuns, _, err := gc.Actions.ListWorkflowRunsByID(ctx, "fleetdm", "fleet", *workflow.ID, nil)
+		workflowRuns, _, err := gc.Actions.ListWorkflowRunsByID(ctx, "automdm", "automdm", *workflow.ID, nil)
 		if err != nil {
 			return err
 		}
@@ -304,7 +304,7 @@ func downloadComponents(workflowName string, headBranch string, artifactNames ma
 	fmt.Printf("  URL: %s\n", *workflowRun.HTMLURL)
 	var urls map[string]string
 	for {
-		artifactList, _, err := gc.Actions.ListWorkflowRunArtifacts(ctx, "fleetdm", "fleet", *workflowRun.ID, nil)
+		artifactList, _, err := gc.Actions.ListWorkflowRunArtifacts(ctx, "automdm", "automdm", *workflowRun.ID, nil)
 		if err != nil {
 			return err
 		}
@@ -355,7 +355,7 @@ func downloadComponents(workflowName string, headBranch string, artifactNames ma
 	for osName, downloadURL := range urls {
 		outputDir := filepath.Join(outputDirectory, osName)
 		fmt.Printf("Downloading and extracting %s into %s...\n", downloadURL, outputDir)
-		if err := downloadAndExtractZip(fleethttp.NewClient(fleethttp.WithNoTimeout()), githubUsername, githubAPIToken, downloadURL, outputDir); err != nil {
+		if err := downloadAndExtractZip(automdmhttp.NewClient(automdmhttp.WithNoTimeout()), githubUsername, githubAPIToken, downloadURL, outputDir); err != nil {
 			return err
 		}
 	}

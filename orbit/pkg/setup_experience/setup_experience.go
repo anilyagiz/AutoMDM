@@ -9,18 +9,18 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/constant"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/swiftdialog"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/token"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/update"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/constant"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/swiftdialog"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/token"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/update"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/rs/zerolog/log"
 )
 
-// OrbitClient is the minimal interface needed to communicate with the Fleet server.
+// OrbitClient is the minimal interface needed to communicate with the AutoMDM server.
 type OrbitClient interface {
-	GetSetupExperienceStatus(resetFailedSetupSteps bool) (*fleet.SetupExperienceStatusPayload, error)
+	GetSetupExperienceStatus(resetFailedSetupSteps bool) (*automdm.SetupExperienceStatusPayload, error)
 }
 
 // DeviceClient is the minimal interface needed to get the device's browser URL.
@@ -28,7 +28,7 @@ type DeviceClient interface {
 	BrowserDeviceURL(token string) string
 }
 
-// SetupExperiencer is the type that manages the Fleet setup experience flow during macOS Setup
+// SetupExperiencer is the type that manages the AutoMDM setup experience flow during macOS Setup
 // Assistant. It uses swiftDialog as a UI for showing the status of software installations and
 // script execution that are configured to run before the user has full access to the device.
 // If the setup experience is supposed to run, it will launch a single swiftDialog instance and then
@@ -61,7 +61,7 @@ func NewSetupExperiencer(orbitClient OrbitClient, deviceClient DeviceClient, roo
 	}
 }
 
-func (s *SetupExperiencer) Run(oc *fleet.OrbitConfig) error {
+func (s *SetupExperiencer) Run(oc *automdm.OrbitConfig) error {
 	if !oc.Notifications.RunSetupExperience {
 		log.Debug().Msg("skipping setup experience: notification flag is not set")
 		return nil
@@ -69,7 +69,7 @@ func (s *SetupExperiencer) Run(oc *fleet.OrbitConfig) error {
 
 	// If using the legacy UI, then call that method.
 	if s.UseLegacyUI {
-		// FIXME: We set this flag in the main orbit function https://github.com/fleetdm/fleet/blob/575a47410c2d2a4de569159ee71a5a4ba02682f7/orbit/cmd/orbit/orbit.go#L1217-L1218
+		// FIXME: We set this flag in the main orbit function https://github.com/anilyagiz/automdm/blob/575a47410c2d2a4de569159ee71a5a4ba02682f7/orbit/cmd/orbit/orbit.go#L1217-L1218
 		// Is there a potential race here where the server capabilities are not yet loaded
 		// when we check for them? Should we have a more robust way to handle the indeterminate
 		// state?
@@ -110,7 +110,7 @@ func (s *SetupExperiencer) Run(oc *fleet.OrbitConfig) error {
 	}
 	orgLogo := payload.OrgLogoURL
 	if orgLogo == "" {
-		orgLogo = "https://fleetdm.com/images/permanent/fleet-mark-color-40x40@4x.png"
+		orgLogo = "https://automdm.com/images/permanent/automdm-mark-color-40x40@4x.png"
 	}
 
 	// Determine whether we should start directly with the webview UI or show the UI for waiting on the
@@ -124,11 +124,11 @@ func (s *SetupExperiencer) Run(oc *fleet.OrbitConfig) error {
 		log.Info().Msgf("setup experience: profile pending: %s", pendingName)
 	}
 
-	bootstrapDone := payload.BootstrapPackage == nil || payload.BootstrapPackage.Status == fleet.MDMBootstrapPackageFailed || payload.BootstrapPackage.Status == fleet.MDMBootstrapPackageInstalled
+	bootstrapDone := payload.BootstrapPackage == nil || payload.BootstrapPackage.Status == automdm.MDMBootstrapPackageFailed || payload.BootstrapPackage.Status == automdm.MDMBootstrapPackageInstalled
 
-	accountConfigDone := payload.AccountConfiguration == nil || payload.AccountConfiguration.Status == fleet.MDMAppleStatusAcknowledged ||
-		payload.AccountConfiguration.Status == fleet.MDMAppleStatusError ||
-		payload.AccountConfiguration.Status == fleet.MDMAppleStatusCommandFormatError
+	accountConfigDone := payload.AccountConfiguration == nil || payload.AccountConfiguration.Status == automdm.MDMAppleStatusAcknowledged ||
+		payload.AccountConfiguration.Status == automdm.MDMAppleStatusError ||
+		payload.AccountConfiguration.Status == automdm.MDMAppleStatusCommandFormatError
 
 	log.Info().Msgf("setup experience status: bootstrap done: %t, profiles done: %t, account config done: %t", bootstrapDone, !isPending, accountConfigDone)
 
@@ -201,16 +201,16 @@ func (s *SetupExperiencer) Run(oc *fleet.OrbitConfig) error {
 		if len(payload.Software) > 0 {
 			for _, step := range payload.Software {
 				// If any step is not in a terminal state, then we're not done.
-				if (step.Status != fleet.SetupExperienceStatusFailure && step.Status != fleet.SetupExperienceStatusSuccess) ||
+				if (step.Status != automdm.SetupExperienceStatusFailure && step.Status != automdm.SetupExperienceStatusSuccess) ||
 					// If any software failed, and we're requiring all software to succeed, then we'll block completion.
-					(step.Status == fleet.SetupExperienceStatusFailure && payload.RequireAllSoftware) {
+					(step.Status == automdm.SetupExperienceStatusFailure && payload.RequireAllSoftware) {
 					allStepsDone = false
 				}
 			}
 		}
 
 		// If a script is still running, then we're not done.
-		if payload.Script != nil && payload.Script.Status != fleet.SetupExperienceStatusFailure && payload.Script.Status != fleet.SetupExperienceStatusSuccess {
+		if payload.Script != nil && payload.Script.Status != automdm.SetupExperienceStatusFailure && payload.Script.Status != automdm.SetupExperienceStatusSuccess {
 			allStepsDone = false
 		}
 	} else {
@@ -239,9 +239,9 @@ func (s *SetupExperiencer) Run(oc *fleet.OrbitConfig) error {
 	return nil
 }
 
-func anyProfilePending(profiles []*fleet.SetupExperienceConfigurationProfileResult) (bool, string) {
+func anyProfilePending(profiles []*automdm.SetupExperienceConfigurationProfileResult) (bool, string) {
 	for _, p := range profiles {
-		if p.Status == fleet.MDMDeliveryPending {
+		if p.Status == automdm.MDMDeliveryPending {
 			return true, p.Name
 		}
 	}
@@ -297,7 +297,7 @@ func (s *SetupExperiencer) startSwiftDialog(binaryPath, orgLogo string, startWit
 		}
 
 		if !startWithWebview {
-			initOpts.Message = "### Setting up your Mac...\n\nYour Mac is being configured by your organization using Fleet. This process may take some time to complete. Please don't attempt to restart or shut down the computer unless prompted to do so."
+			initOpts.Message = "### Setting up your Mac...\n\nYour Mac is being configured by your organization using AutoMDM. This process may take some time to complete. Please don't attempt to restart or shut down the computer unless prompted to do so."
 			initOpts.Icon = orgLogo
 		}
 
@@ -347,10 +347,10 @@ func NewLinuxSetupExperiencer(client OrbitClient, rootDir string) *LinuxSetupExp
 	}
 }
 
-// Run implements fleet.OrbitConfigReceiver.
+// Run implements automdm.OrbitConfigReceiver.
 //
-// Currently the fleet.OrbitConfig is ununsed but might be used in the future.
-func (s *LinuxSetupExperiencer) Run(_ *fleet.OrbitConfig) error {
+// Currently the automdm.OrbitConfig is ununsed but might be used in the future.
+func (s *LinuxSetupExperiencer) Run(_ *automdm.OrbitConfig) error {
 	info, err := ReadSetupExperienceStatusFile(s.rootDir)
 	if err != nil {
 		return fmt.Errorf("read setup experience file: %w", err)
@@ -374,9 +374,9 @@ func (s *LinuxSetupExperiencer) Run(_ *fleet.OrbitConfig) error {
 	return nil
 }
 
-func setupExperienceDone(payload *fleet.SetupExperienceStatusPayload) bool {
+func setupExperienceDone(payload *automdm.SetupExperienceStatusPayload) bool {
 	for _, software := range payload.Software {
-		if software != nil && (software.Status == fleet.SetupExperienceStatusPending || software.Status == fleet.SetupExperienceStatusRunning) {
+		if software != nil && (software.Status == automdm.SetupExperienceStatusPending || software.Status == automdm.SetupExperienceStatusRunning) {
 			return false
 		}
 	}
@@ -428,7 +428,7 @@ func WriteSetupExperienceStatusFile(rootDir string, exp *SetupExperienceInfo) er
 	return nil
 }
 
-func (s *SetupExperiencer) RunLegacy(oc *fleet.OrbitConfig) error {
+func (s *SetupExperiencer) RunLegacy(oc *automdm.OrbitConfig) error {
 	const doneMessage = `### Setup is complete\n\nPlease contact your IT Administrator if there were any errors.`
 
 	if !oc.Notifications.RunSetupExperience {
@@ -458,7 +458,7 @@ func (s *SetupExperiencer) RunLegacy(oc *fleet.OrbitConfig) error {
 	// If swiftDialog isn't up yet, then launch it
 	orgLogo := payload.OrgLogoURL
 	if orgLogo == "" {
-		orgLogo = "https://fleetdm.com/images/permanent/fleet-mark-color-40x40@4x.png"
+		orgLogo = "https://automdm.com/images/permanent/automdm-mark-color-40x40@4x.png"
 	}
 
 	if err := s.startSwiftDialogLegacy(binaryPath, orgLogo); err != nil {
@@ -483,7 +483,7 @@ func (s *SetupExperiencer) RunLegacy(oc *fleet.OrbitConfig) error {
 	log.Info().Msg("setup experience: checking for pending statuses")
 
 	if payload.BootstrapPackage != nil {
-		if payload.BootstrapPackage.Status != fleet.MDMBootstrapPackageFailed && payload.BootstrapPackage.Status != fleet.MDMBootstrapPackageInstalled {
+		if payload.BootstrapPackage.Status != automdm.MDMBootstrapPackageFailed && payload.BootstrapPackage.Status != automdm.MDMBootstrapPackageInstalled {
 			log.Info().Msg("setup experience: bootstrap package pending")
 			return nil
 		}
@@ -495,9 +495,9 @@ func (s *SetupExperiencer) RunLegacy(oc *fleet.OrbitConfig) error {
 	}
 
 	if payload.AccountConfiguration != nil {
-		if payload.AccountConfiguration.Status != fleet.MDMAppleStatusAcknowledged &&
-			payload.AccountConfiguration.Status != fleet.MDMAppleStatusError &&
-			payload.AccountConfiguration.Status != fleet.MDMAppleStatusCommandFormatError {
+		if payload.AccountConfiguration.Status != automdm.MDMAppleStatusAcknowledged &&
+			payload.AccountConfiguration.Status != automdm.MDMAppleStatusError &&
+			payload.AccountConfiguration.Status != automdm.MDMAppleStatusCommandFormatError {
 
 			log.Info().Msg("setup experience: account config pending")
 			return nil
@@ -517,7 +517,7 @@ func (s *SetupExperiencer) RunLegacy(oc *fleet.OrbitConfig) error {
 
 		var stepsDone int
 		var prog uint
-		var steps []*fleet.SetupExperienceStatusResult
+		var steps []*automdm.SetupExperienceStatusResult
 		if len(payload.Software) > 0 {
 			steps = payload.Software
 		}
@@ -566,7 +566,7 @@ func (s *SetupExperiencer) RunLegacy(oc *fleet.OrbitConfig) error {
 				s.uiSteps[step.Name] = currentStepState
 			}
 
-			if step.Status == fleet.SetupExperienceStatusFailure || step.Status == fleet.SetupExperienceStatusSuccess {
+			if step.Status == automdm.SetupExperienceStatusFailure || step.Status == automdm.SetupExperienceStatusSuccess {
 				stepsDone++
 				// The swiftDialog progress bar is out of 100
 				for range int(float32(1) / float32(len(steps)) * 100) {
@@ -653,7 +653,7 @@ func (s *SetupExperiencer) startSwiftDialogLegacy(binaryPath, orgLogo string) er
 	go func() {
 		initOpts := &swiftdialog.SwiftDialogOptions{
 			Title:            "none",
-			Message:          "### Setting up your Mac...\n\nYour Mac is being configured by your organization using Fleet. This process may take some time to complete. Please don't attempt to restart or shut down the computer unless prompted to do so.",
+			Message:          "### Setting up your Mac...\n\nYour Mac is being configured by your organization using AutoMDM. This process may take some time to complete. Please don't attempt to restart or shut down the computer unless prompted to do so.",
 			Icon:             orgLogo,
 			MessageAlignment: swiftdialog.AlignmentCenter,
 			CentreIcon:       true,
@@ -692,15 +692,15 @@ func (s *SetupExperiencer) startSwiftDialogLegacy(binaryPath, orgLogo string) er
 	return nil
 }
 
-func resultToListItem(result *fleet.SetupExperienceStatusResult) swiftdialog.ListItem {
+func resultToListItem(result *automdm.SetupExperienceStatusResult) swiftdialog.ListItem {
 	statusText := "Pending"
 	status := swiftdialog.StatusWait
 
 	switch result.Status {
-	case fleet.SetupExperienceStatusFailure:
+	case automdm.SetupExperienceStatusFailure:
 		status = swiftdialog.StatusFail
 		statusText = "Failed"
-	case fleet.SetupExperienceStatusSuccess:
+	case automdm.SetupExperienceStatusSuccess:
 		status = swiftdialog.StatusSuccess
 		statusText = "Installed"
 		if result.IsForScript() {

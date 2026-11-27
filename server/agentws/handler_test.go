@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,12 +20,12 @@ type fakeAuthenticator struct {
 	hosts map[string]uint // node key -> host ID
 }
 
-func (f *fakeAuthenticator) AuthenticateOrbitHost(ctx context.Context, nodeKey string) (*fleet.Host, bool, error) {
+func (f *fakeAuthenticator) AuthenticateOrbitHost(ctx context.Context, nodeKey string) (*automdm.Host, bool, error) {
 	id, ok := f.hosts[nodeKey]
 	if !ok {
 		return nil, false, errors.New("invalid node key")
 	}
-	return &fleet.Host{ID: id, Hostname: "host-" + nodeKey, Platform: "darwin"}, false, nil
+	return &automdm.Host{ID: id, Hostname: "host-" + nodeKey, Platform: "darwin"}, false, nil
 }
 
 func discardLogger() *slog.Logger {
@@ -96,14 +96,14 @@ func TestHandlerNotifyDelivery(t *testing.T) {
 	waitForConnCount(t, hub, 1)
 
 	// Host 1 is connected, hosts 2 and 3 are not.
-	sent := hub.Notify(fleet.AgentWSMessageTypeDistributedRead, fleet.AgentWSReasonDetail, []uint{1, 2, 3})
+	sent := hub.Notify(automdm.AgentWSMessageTypeDistributedRead, automdm.AgentWSReasonDetail, []uint{1, 2, 3})
 	assert.Equal(t, 1, sent)
 
 	require.NoError(t, ws.SetReadDeadline(time.Now().Add(2*time.Second)))
-	var msg fleet.AgentWSMessage
+	var msg automdm.AgentWSMessage
 	require.NoError(t, ws.ReadJSON(&msg))
-	assert.Equal(t, fleet.AgentWSMessageTypeDistributedRead, msg.Type)
-	assert.Equal(t, fleet.AgentWSReasonDetail, msg.Reason)
+	assert.Equal(t, automdm.AgentWSMessageTypeDistributedRead, msg.Type)
+	assert.Equal(t, automdm.AgentWSReasonDetail, msg.Reason)
 
 	// Byte counters: the delivered notification (and the 101 handshake
 	// response) count as bytes out; a client data frame counts as bytes in.
@@ -120,12 +120,12 @@ func TestHandlerNotifyDelivery(t *testing.T) {
 	assert.Equal(t, "darwin", snap[0].Platform)
 	assert.Equal(t, int64(1), snap[0].NotifiedCount)
 	assert.Equal(t, int64(0), snap[0].CoalescedCount)
-	assert.Equal(t, map[string]int64{fleet.AgentWSMessageTypeDistributedRead: 1}, snap[0].NotifiedByType)
+	assert.Equal(t, map[string]int64{automdm.AgentWSMessageTypeDistributedRead: 1}, snap[0].NotifiedByType)
 	assert.Equal(t, map[string]map[string]int64{
-		fleet.AgentWSMessageTypeDistributedRead: {fleet.AgentWSReasonDetail: 1},
+		automdm.AgentWSMessageTypeDistributedRead: {automdm.AgentWSReasonDetail: 1},
 	}, hub.NotifyCounts())
 	assert.NotNil(t, snap[0].LastNotifiedAt)
-	assert.Equal(t, fleet.AgentWSReasonDetail, snap[0].LastNotifyReason)
+	assert.Equal(t, automdm.AgentWSReasonDetail, snap[0].LastNotifyReason)
 	assert.False(t, snap[0].ConnectedAt.IsZero())
 }
 
@@ -145,11 +145,11 @@ func TestHandlerEvictsPreviousConnection(t *testing.T) {
 	require.Error(t, err)
 
 	// The second connection still receives notifications.
-	require.Equal(t, 1, hub.Notify(fleet.AgentWSMessageTypeDistributedRead, fleet.AgentWSReasonDetail, []uint{1}))
+	require.Equal(t, 1, hub.Notify(automdm.AgentWSMessageTypeDistributedRead, automdm.AgentWSReasonDetail, []uint{1}))
 	require.NoError(t, second.SetReadDeadline(time.Now().Add(2*time.Second)))
-	var msg fleet.AgentWSMessage
+	var msg automdm.AgentWSMessage
 	require.NoError(t, second.ReadJSON(&msg))
-	assert.Equal(t, fleet.AgentWSMessageTypeDistributedRead, msg.Type)
+	assert.Equal(t, automdm.AgentWSMessageTypeDistributedRead, msg.Type)
 }
 
 func TestHandlerDisconnectUnregisters(t *testing.T) {
@@ -161,7 +161,7 @@ func TestHandlerDisconnectUnregisters(t *testing.T) {
 
 	ws.Close()
 	waitForConnCount(t, hub, 0)
-	assert.Equal(t, 0, hub.Notify(fleet.AgentWSMessageTypeDistributedRead, fleet.AgentWSReasonDetail, []uint{1}))
+	assert.Equal(t, 0, hub.Notify(automdm.AgentWSMessageTypeDistributedRead, automdm.AgentWSReasonDetail, []uint{1}))
 }
 
 func TestHandlerClosesOnOversizedInboundMessage(t *testing.T) {
@@ -173,9 +173,9 @@ func TestHandlerClosesOnOversizedInboundMessage(t *testing.T) {
 
 	// A message within the limit is discarded; the connection stays up.
 	require.NoError(t, ws.WriteMessage(websocket.TextMessage, make([]byte, maxInboundMessageSize)))
-	require.Equal(t, 1, hub.Notify(fleet.AgentWSMessageTypeDistributedRead, fleet.AgentWSReasonDetail, []uint{1}))
+	require.Equal(t, 1, hub.Notify(automdm.AgentWSMessageTypeDistributedRead, automdm.AgentWSReasonDetail, []uint{1}))
 	require.NoError(t, ws.SetReadDeadline(time.Now().Add(2*time.Second)))
-	var msg fleet.AgentWSMessage
+	var msg automdm.AgentWSMessage
 	require.NoError(t, ws.ReadJSON(&msg))
 
 	// An oversized message gets the connection torn down.
@@ -240,5 +240,5 @@ func TestHubShutdownRejectsLateRegistrations(t *testing.T) {
 	require.Error(t, err)
 
 	assert.Equal(t, 0, hub.connCount())
-	assert.Equal(t, 0, hub.Notify(fleet.AgentWSMessageTypeDistributedRead, fleet.AgentWSReasonDetail, []uint{1}))
+	assert.Equal(t, 0, hub.Notify(automdm.AgentWSMessageTypeDistributedRead, automdm.AgentWSReasonDetail, []uint{1}))
 }

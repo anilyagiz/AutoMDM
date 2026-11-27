@@ -5,17 +5,17 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server"
-	authz_ctx "github.com/fleetdm/fleet/v4/server/contexts/authz"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxdb"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mail"
+	"github.com/anilyagiz/automdm/v4/server"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	authz_ctx "github.com/anilyagiz/automdm/v4/server/contexts/authz"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxdb"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	"github.com/anilyagiz/automdm/v4/server/mail"
 )
 
-func (svc *Service) NewAppConfig(ctx context.Context, p fleet.AppConfig) (*fleet.AppConfig, error) {
+func (svc *Service) NewAppConfig(ctx context.Context, p automdm.AppConfig) (*automdm.AppConfig, error) {
 	// skipauth: No user context yet when the app config is first created.
 	svc.authz.SkipAuthorization(ctx)
 
@@ -25,11 +25,11 @@ func (svc *Service) NewAppConfig(ctx context.Context, p fleet.AppConfig) (*fleet
 	}
 
 	// Set up a default enroll secret
-	secret, err := server.GenerateRandomText(fleet.EnrollSecretDefaultLength)
+	secret, err := server.GenerateRandomText(automdm.EnrollSecretDefaultLength)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "generate enroll secret string")
 	}
-	secrets := []*fleet.EnrollSecret{
+	secrets := []*automdm.EnrollSecret{
 		{
 			Secret: secret,
 		},
@@ -42,19 +42,19 @@ func (svc *Service) NewAppConfig(ctx context.Context, p fleet.AppConfig) (*fleet
 	return newConfig, nil
 }
 
-func (svc *Service) sendTestEmail(ctx context.Context, config *fleet.AppConfig) error {
+func (svc *Service) sendTestEmail(ctx context.Context, config *automdm.AppConfig) error {
 	vc, ok := viewer.FromContext(ctx)
 	if !ok {
-		return fleet.ErrNoContext
+		return automdm.ErrNoContext
 	}
 
-	var smtpSettings fleet.SMTPSettings
+	var smtpSettings automdm.SMTPSettings
 	if config.SMTPSettings != nil {
 		smtpSettings = *config.SMTPSettings
 	}
 
-	testMail := fleet.Email{
-		Subject: "Hello from Fleet",
+	testMail := automdm.Email{
+		Subject: "Hello from AutoMDM",
 		To:      []string{vc.User.Email},
 		Mailer: &mail.SMTPTestMailer{
 			BaseURL:  emailLinkBaseURL(config.ServerSettings.ServerURL, svc.config.Server.URLPrefix),
@@ -77,17 +77,17 @@ func cleanupURL(url string) string {
 	return strings.TrimRight(strings.Trim(url, " \t\n"), "/")
 }
 
-func (svc *Service) License(ctx context.Context) (*fleet.LicenseInfo, error) {
+func (svc *Service) License(ctx context.Context) (*automdm.LicenseInfo, error) {
 	if !svc.authz.IsAuthenticatedWith(ctx, authz_ctx.AuthnDeviceToken) &&
 		!svc.authz.IsAuthenticatedWith(ctx, authz_ctx.AuthnDeviceURL) {
-		if err := svc.authz.Authorize(ctx, &fleet.AppConfig{}, fleet.ActionRead); err != nil {
+		if err := svc.authz.Authorize(ctx, &automdm.AppConfig{}, automdm.ActionRead); err != nil {
 			return nil, err
 		}
 	}
 
 	licChecker, _ := license.FromContext(ctx)
 	// Type assert to get the concrete type to return.
-	lic, _ := licChecker.(*fleet.LicenseInfo)
+	lic, _ := licChecker.(*automdm.LicenseInfo)
 
 	return lic, nil
 }
@@ -101,15 +101,15 @@ func (svc *Service) SetupRequired(ctx context.Context) (bool, error) {
 	return !hasUsers, nil
 }
 
-func (svc *Service) UpdateIntervalConfig(ctx context.Context) (*fleet.UpdateIntervalConfig, error) {
-	return &fleet.UpdateIntervalConfig{
+func (svc *Service) UpdateIntervalConfig(ctx context.Context) (*automdm.UpdateIntervalConfig, error) {
+	return &automdm.UpdateIntervalConfig{
 		OSQueryDetail: svc.config.Osquery.DetailUpdateInterval,
 		OSQueryPolicy: svc.config.Osquery.PolicyUpdateInterval,
 	}, nil
 }
 
-func (svc *Service) VulnerabilitiesConfig(ctx context.Context) (*fleet.VulnerabilitiesConfig, error) {
-	return &fleet.VulnerabilitiesConfig{
+func (svc *Service) VulnerabilitiesConfig(ctx context.Context) (*automdm.VulnerabilitiesConfig, error) {
+	return &automdm.VulnerabilitiesConfig{
 		DatabasesPath:               svc.config.Vulnerabilities.DatabasesPath,
 		Periodicity:                 svc.config.Vulnerabilities.Periodicity,
 		CPEDatabaseURL:              svc.config.Vulnerabilities.CPEDatabaseURL,
@@ -123,16 +123,16 @@ func (svc *Service) VulnerabilitiesConfig(ctx context.Context) (*fleet.Vulnerabi
 	}, nil
 }
 
-func (svc *Service) LoggingConfig(ctx context.Context) (*fleet.Logging, error) {
+func (svc *Service) LoggingConfig(ctx context.Context) (*automdm.Logging, error) {
 	conf := svc.config
-	logging := &fleet.Logging{
+	logging := &automdm.Logging{
 		Debug: conf.Logging.Debug,
 		Json:  conf.Logging.JSON,
 	}
 
 	loggings := []struct {
 		plugin string
-		target *fleet.LoggingPlugin
+		target *automdm.LoggingPlugin
 	}{
 		{
 			plugin: conf.Osquery.StatusLogPlugin,
@@ -147,7 +147,7 @@ func (svc *Service) LoggingConfig(ctx context.Context) (*fleet.Logging, error) {
 	if conf.Activity.EnableAuditLog {
 		loggings = append(loggings, struct {
 			plugin string
-			target *fleet.LoggingPlugin
+			target *automdm.LoggingPlugin
 		}{
 			plugin: conf.Activity.AuditLogPlugin,
 			target: &logging.Audit,
@@ -157,23 +157,23 @@ func (svc *Service) LoggingConfig(ctx context.Context) (*fleet.Logging, error) {
 	for _, lp := range loggings {
 		switch lp.plugin {
 		case "", "filesystem":
-			*lp.target = fleet.LoggingPlugin{
+			*lp.target = automdm.LoggingPlugin{
 				Plugin: "filesystem",
-				Config: fleet.FilesystemConfig{
+				Config: automdm.FilesystemConfig{
 					FilesystemConfig: conf.Filesystem,
 				},
 			}
 		case "webhook":
-			*lp.target = fleet.LoggingPlugin{
+			*lp.target = automdm.LoggingPlugin{
 				Plugin: "webhook",
-				Config: fleet.WebhookConfig{
+				Config: automdm.WebhookConfig{
 					WebhookConfig: conf.Webhook,
 				},
 			}
 		case "kinesis":
-			*lp.target = fleet.LoggingPlugin{
+			*lp.target = automdm.LoggingPlugin{
 				Plugin: "kinesis",
-				Config: fleet.KinesisConfig{
+				Config: automdm.KinesisConfig{
 					Region:       conf.Kinesis.Region,
 					StatusStream: conf.Kinesis.StatusStream,
 					ResultStream: conf.Kinesis.ResultStream,
@@ -181,9 +181,9 @@ func (svc *Service) LoggingConfig(ctx context.Context) (*fleet.Logging, error) {
 				},
 			}
 		case "firehose":
-			*lp.target = fleet.LoggingPlugin{
+			*lp.target = automdm.LoggingPlugin{
 				Plugin: "firehose",
-				Config: fleet.FirehoseConfig{
+				Config: automdm.FirehoseConfig{
 					Region:       conf.Firehose.Region,
 					StatusStream: conf.Firehose.StatusStream,
 					ResultStream: conf.Firehose.ResultStream,
@@ -191,9 +191,9 @@ func (svc *Service) LoggingConfig(ctx context.Context) (*fleet.Logging, error) {
 				},
 			}
 		case "lambda":
-			*lp.target = fleet.LoggingPlugin{
+			*lp.target = automdm.LoggingPlugin{
 				Plugin: "lambda",
-				Config: fleet.LambdaConfig{
+				Config: automdm.LambdaConfig{
 					Region:         conf.Lambda.Region,
 					StatusFunction: conf.Lambda.StatusFunction,
 					ResultFunction: conf.Lambda.ResultFunction,
@@ -201,18 +201,18 @@ func (svc *Service) LoggingConfig(ctx context.Context) (*fleet.Logging, error) {
 				},
 			}
 		case "pubsub":
-			*lp.target = fleet.LoggingPlugin{
+			*lp.target = automdm.LoggingPlugin{
 				Plugin: "pubsub",
-				Config: fleet.PubSubConfig{
+				Config: automdm.PubSubConfig{
 					PubSubConfig: conf.PubSub,
 				},
 			}
 		case "stdout":
-			*lp.target = fleet.LoggingPlugin{Plugin: "stdout"}
+			*lp.target = automdm.LoggingPlugin{Plugin: "stdout"}
 		case "kafkarest":
-			*lp.target = fleet.LoggingPlugin{
+			*lp.target = automdm.LoggingPlugin{
 				Plugin: "kafkarest",
-				Config: fleet.KafkaRESTConfig{
+				Config: automdm.KafkaRESTConfig{
 					StatusTopic: conf.KafkaREST.StatusTopic,
 					ResultTopic: conf.KafkaREST.ResultTopic,
 					AuditTopic:  conf.KafkaREST.AuditTopic,
@@ -220,9 +220,9 @@ func (svc *Service) LoggingConfig(ctx context.Context) (*fleet.Logging, error) {
 				},
 			}
 		case "nats":
-			*lp.target = fleet.LoggingPlugin{
+			*lp.target = automdm.LoggingPlugin{
 				Plugin: "nats",
-				Config: fleet.NatsConfig{
+				Config: automdm.NatsConfig{
 					StatusSubject: conf.Nats.StatusSubject,
 					ResultSubject: conf.Nats.ResultSubject,
 					AuditSubject:  conf.Nats.AuditSubject,
@@ -230,9 +230,9 @@ func (svc *Service) LoggingConfig(ctx context.Context) (*fleet.Logging, error) {
 				},
 			}
 		case "splunk":
-			*lp.target = fleet.LoggingPlugin{
+			*lp.target = automdm.LoggingPlugin{
 				Plugin: "splunk",
-				Config: fleet.SplunkConfig{
+				Config: automdm.SplunkConfig{
 					URL:        conf.Splunk.URL,
 					Index:      conf.Splunk.Index,
 					Source:     conf.Splunk.Source,
@@ -246,18 +246,18 @@ func (svc *Service) LoggingConfig(ctx context.Context) (*fleet.Logging, error) {
 	return logging, nil
 }
 
-func (svc *Service) EmailConfig(ctx context.Context) (*fleet.EmailConfig, error) {
-	if err := svc.authz.Authorize(ctx, &fleet.AppConfig{}, fleet.ActionRead); err != nil {
+func (svc *Service) EmailConfig(ctx context.Context) (*automdm.EmailConfig, error) {
+	if err := svc.authz.Authorize(ctx, &automdm.AppConfig{}, automdm.ActionRead); err != nil {
 		return nil, err
 	}
 
 	conf := svc.config
-	var email *fleet.EmailConfig
+	var email *automdm.EmailConfig
 	switch conf.Email.EmailBackend {
 	case "ses":
-		email = &fleet.EmailConfig{
+		email = &automdm.EmailConfig{
 			Backend: conf.Email.EmailBackend,
-			Config: fleet.SESConfig{
+			Config: automdm.SESConfig{
 				Region:       conf.SES.Region,
 				SourceARN:    conf.SES.SourceArn,
 				SenderDomain: conf.SES.SenderDomain,
@@ -271,8 +271,8 @@ func (svc *Service) EmailConfig(ctx context.Context) (*fleet.EmailConfig, error)
 	return email, nil
 }
 
-func (svc *Service) PartnershipsConfig(ctx context.Context) (*fleet.Partnerships, error) {
-	if err := svc.authz.Authorize(ctx, &fleet.AppConfig{}, fleet.ActionRead); err != nil {
+func (svc *Service) PartnershipsConfig(ctx context.Context) (*automdm.Partnerships, error) {
+	if err := svc.authz.Authorize(ctx, &automdm.AppConfig{}, automdm.ActionRead); err != nil {
 		return nil, err
 	}
 	enablePrimo := svc.config.Partnerships.EnablePrimo
@@ -280,20 +280,20 @@ func (svc *Service) PartnershipsConfig(ctx context.Context) (*fleet.Partnerships
 		// for now, since this is the only partnership of this type, exclude the whole struct if not enabled
 		return nil, nil
 	}
-	return &fleet.Partnerships{
+	return &automdm.Partnerships{
 		EnablePrimo: svc.config.Partnerships.EnablePrimo,
 	}, nil
 }
 
-func (svc *Service) AuthSettings(ctx context.Context) (*fleet.AuthSettings, error) {
-	if err := svc.authz.Authorize(ctx, &fleet.AppConfig{}, fleet.ActionRead); err != nil {
+func (svc *Service) AuthSettings(ctx context.Context) (*automdm.AuthSettings, error) {
+	if err := svc.authz.Authorize(ctx, &automdm.AppConfig{}, automdm.ActionRead); err != nil {
 		return nil, err
 	}
 	if !svc.config.MDM.OneTimeEnrollSecretsEnabled() {
 		// Like Partnerships, omit the whole object while nothing in it is enabled.
 		return nil, nil
 	}
-	return &fleet.AuthSettings{
+	return &automdm.AuthSettings{
 		MDMAppleOneTimeEnrollSecrets:   svc.config.MDM.AppleOneTimeEnrollSecrets,
 		MDMWindowsOneTimeEnrollSecrets: svc.config.MDM.WindowsOneTimeEnrollSecrets,
 		MDMAndroidOneTimeEnrollSecrets: svc.config.MDM.AndroidOneTimeEnrollSecrets,

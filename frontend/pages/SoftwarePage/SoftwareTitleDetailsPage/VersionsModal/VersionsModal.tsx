@@ -39,7 +39,7 @@ const VersionsModal = ({
   const initialValue = getPreselectedVersionValue(pkg?.pinned_version);
 
   const options = useMemo(() => {
-    const opts = deriveVersionOptions(pkg?.fleet_maintained_versions ?? []);
+    const opts = deriveVersionOptions(pkg?.automdm_maintained_versions ?? []);
     // A pin no longer among the cached versions still needs an option so the
     // modal opens on the right radio. Format a caret major the same way as the
     // derived options rather than leaking "^N" into the label.
@@ -50,7 +50,7 @@ const VersionsModal = ({
       opts.push({ value: initialValue, label });
     }
     return opts;
-  }, [pkg?.fleet_maintained_versions, initialValue]);
+  }, [pkg?.automdm_maintained_versions, initialValue]);
 
   const [selectedValue, setSelectedValue] = useState(initialValue);
   const [isSaving, setIsSaving] = useState(false);

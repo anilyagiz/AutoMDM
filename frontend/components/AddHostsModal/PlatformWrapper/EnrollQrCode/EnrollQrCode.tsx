@@ -2,7 +2,7 @@ import { QRCodeSVG } from "qrcode.react";
 import React from "react";
 
 // Pinned to dark-on-light in both themes rather than using the equivalent
-// design tokens, which invert under `body.dark-mode` ($ui-fleet-black-75
+// design tokens, which invert under `body.dark-mode` ($ui-automdm-black-75
 // becomes #bebebf, $ui-off-white becomes #1e2128). Many scanners reject a
 // light-on-dark QR code. These are the same literals the OTA enrollment page
 // hardcodes for the same reason (frontend/templates/enroll-ota.html).

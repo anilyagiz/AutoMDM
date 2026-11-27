@@ -20,8 +20,8 @@ import (
 	"testing/synctest"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/nvd/tools/cvefeed/nvd/schema"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/nvd/tools/cvefeed/nvd/schema"
 	"github.com/google/go-cmp/cmp"
 	"github.com/pandatix/nvdapi/v2"
 	"github.com/stretchr/testify/require"
@@ -387,7 +387,7 @@ func TestSyncTimesOutStalledNVDRequest(t *testing.T) {
 		var requests int
 		syncer, err := NewCVE(t.TempDir())
 		require.NoError(t, err)
-		syncer.client = fleethttp.NewClient(fleethttp.WithNoTimeout())
+		syncer.client = automdmhttp.NewClient(automdmhttp.WithNoTimeout())
 		syncer.client.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
 			requests++
 			// Headers and part of the body arrive, then the body stalls: the

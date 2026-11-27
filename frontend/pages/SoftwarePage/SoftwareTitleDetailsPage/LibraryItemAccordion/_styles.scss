@@ -11,9 +11,9 @@
     align-items: center;
     gap: $pad-medium;
     padding: $pad-medium $pad-large $pad-medium $pad-medium;
-    background: $core-fleet-white;
+    background: $core-automdm-white;
     border: 0;
-    border-bottom: 1px solid $ui-fleet-black-10;
+    border-bottom: 1px solid $ui-automdm-black-10;
     width: 100%;
     cursor: pointer;
     text-align: left;
@@ -77,7 +77,7 @@
     padding: $pad-xsmall $pad-small;
     font-size: $x-small;
     font-weight: $bold;
-    color: $ui-fleet-black-75;
+    color: $ui-automdm-black-75;
     white-space: nowrap;
   }
 
@@ -95,7 +95,7 @@
     gap: $pad-medium;
     padding: $pad-large;
     background: $ui-off-white;
-    border-bottom: 1px solid $ui-fleet-black-10;
+    border-bottom: 1px solid $ui-automdm-black-10;
 
     > :nth-child(1) {
       margin-right: $pad-xlarge;
@@ -107,7 +107,7 @@
     align-items: center;
     gap: $pad-xlarge;
     padding-right: $pad-medium;
-    border-right: 1px solid $ui-fleet-black-10;
+    border-right: 1px solid $ui-automdm-black-10;
   }
 
   &__status-counts {
@@ -121,7 +121,7 @@
     align-items: center;
     gap: $pad-small;
     font-size: $x-small;
-    color: $ui-fleet-black-75;
+    color: $ui-automdm-black-75;
 
     // TooltipWrapper's inner element is block by default; force inline-flex
     // so its bounds match the icon's instead of growing to a line-height box.
@@ -160,13 +160,13 @@
   &__data-heading {
     font-size: $x-small;
     font-weight: $bold;
-    color: $ui-fleet-black-75;
+    color: $ui-automdm-black-75;
     margin: 0;
   }
 
   &__data-value {
     font-size: $x-small;
-    color: $ui-fleet-black-75;
+    color: $ui-automdm-black-75;
     margin: 0;
   }
 
@@ -179,7 +179,7 @@
 
   &__hash {
     font-size: $x-small;
-    color: $ui-fleet-black-75;
+    color: $ui-automdm-black-75;
     min-width: 0;
     flex: 0 1 auto;
   }
@@ -220,11 +220,11 @@
 
     .installer-details-widget__title,
     .installer-details-widget__details {
-      color: $ui-fleet-black-50;
+      color: $ui-automdm-black-50;
     }
 
     .library-item-accordion__header:hover {
-      background: $core-fleet-white;
+      background: $core-automdm-white;
     }
   }
 }
@@ -232,7 +232,7 @@
 .library-item-accordion-list {
   display: flex;
   flex-direction: column;
-  border: 1px solid $ui-fleet-black-10;
+  border: 1px solid $ui-automdm-black-10;
   border-radius: $border-radius-large;
   overflow: hidden;
 

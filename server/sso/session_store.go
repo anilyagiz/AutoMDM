@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis"
 	"github.com/crewjam/saml"
-	"github.com/fleetdm/fleet/v4/server/datastore/redis"
-	"github.com/fleetdm/fleet/v4/server/fleet"
 	redigo "github.com/gomodule/redigo/redis"
 )
 
@@ -65,7 +65,7 @@ type SSORequestData struct {
 	Initiator string `json:"initiator,omitempty"`
 	// DeviceSerial and DeviceUDID identify the device that started an mdm_sso
 	// flow, from the deviceinfo it presented. Unlike HostUUID, they come from
-	// the deviceinfo Fleet parsed and verified at initiation.
+	// the deviceinfo AutoMDM parsed and verified at initiation.
 	DeviceSerial string `json:"device_serial,omitempty"`
 	DeviceUDID   string `json:"device_udid,omitempty"`
 }
@@ -99,12 +99,12 @@ type SessionStore interface {
 }
 
 // NewSessionStore creates a SessionStore
-func NewSessionStore(pool fleet.RedisPool) SessionStore {
+func NewSessionStore(pool automdm.RedisPool) SessionStore {
 	return &store{pool}
 }
 
 type store struct {
-	pool fleet.RedisPool
+	pool automdm.RedisPool
 }
 
 func (s *store) create(sessionID, requestID, originalURL, metadata string, lifetimeSecs uint, requestData SSORequestData) error {
@@ -133,7 +133,7 @@ func (s *store) create(sessionID, requestID, originalURL, metadata string, lifet
 func (s *store) get(sessionID string) (*Session, error) {
 	key, ok := sessionKey(sessionID)
 	if !ok {
-		return nil, &sessionNotFoundError{authRequired: fleet.NewAuthRequiredError("session not found")}
+		return nil, &sessionNotFoundError{authRequired: automdm.NewAuthRequiredError("session not found")}
 	}
 	// not reading from a replica here as this gets called in close succession
 	// in the auth flow, with initiate SSO writing and callback SSO having to
@@ -143,7 +143,7 @@ func (s *store) get(sessionID string) (*Session, error) {
 	val, err := redigo.String(conn.Do("GET", key))
 	if err != nil {
 		if err == redigo.ErrNil {
-			return nil, &sessionNotFoundError{authRequired: fleet.NewAuthRequiredError("session not found")}
+			return nil, &sessionNotFoundError{authRequired: automdm.NewAuthRequiredError("session not found")}
 		}
 		return nil, err
 	}

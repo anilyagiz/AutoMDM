@@ -80,7 +80,7 @@ var (
 
 func parseNameAndDate(source string) (name string, date string) {
 	parts := strings.SplitN(strings.TrimSuffix(filepath.Base(source), ".go"), "_", 2)
-	// Stripping seconds [:8] because Fleet developers add seconds when re-arranging new migrations
+	// Stripping seconds [:8] because AutoMDM developers add seconds when re-arranging new migrations
 	// e.g.: 2022/10/10 15:43:46 fail to parse time: parsing time "20201021104586": second out of range
 	datePart := parts[0][:8]
 	mt, err := time.Parse("20060102", datePart)

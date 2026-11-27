@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	notifications_api "github.com/fleetdm/fleet/v4/server/notifications/api"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	notifications_api "github.com/anilyagiz/automdm/v4/server/notifications/api"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
@@ -48,7 +48,7 @@ func newPatchNotification(t *testing.T, ds *Datastore, hostID uint, status strin
 		if _, err := q.ExecContext(context.Background(), `
 			INSERT INTO notifications_end_user (uuid, host_id, status, kind, payload, attempt_count, expires_at)
 			VALUES (?, ?, ?, ?, '{}', ?, NOW(6) + INTERVAL 1 DAY)`,
-			notificationUUID, hostID, status, fleet.PatchNotificationKind, attemptCount); err != nil {
+			notificationUUID, hostID, status, automdm.PatchNotificationKind, attemptCount); err != nil {
 			return err
 		}
 		_, err := q.ExecContext(context.Background(),
@@ -62,7 +62,7 @@ func newPatchNotification(t *testing.T, ds *Datastore, hostID uint, status strin
 // when not, for a notification app to point at.
 func newPatchDeadlinePolicy(t *testing.T, ds *Datastore, name string, deadline bool) uint {
 	t.Helper()
-	policy, err := ds.NewGlobalPolicy(t.Context(), nil, fleet.PolicyPayload{Name: name, Query: "SELECT 1"})
+	policy, err := ds.NewGlobalPolicy(t.Context(), nil, automdm.PolicyPayload{Name: name, Query: "SELECT 1"})
 	require.NoError(t, err)
 	setPolicyPatchDeadline(t, ds, policy.ID, deadline)
 	return policy.ID
@@ -110,7 +110,7 @@ func testPatchNotificationExistsForApp(t *testing.T, ds *Datastore) {
 		titleID := newTestSoftwareTitle(t, ds, "app-"+status)
 		notificationUUID := newPatchNotification(t, ds, host.ID, status, 0)
 		require.NoError(t, ds.AddPatchNotificationApp(ctx, notificationUUID,
-			fleet.PatchNotificationApp{SoftwareTitleID: titleID}))
+			automdm.PatchNotificationApp{SoftwareTitleID: titleID}))
 
 		exists, err := ds.PatchNotificationExistsForApp(ctx, host.ID, titleID)
 		require.NoError(t, err)
@@ -152,7 +152,7 @@ func testPatchNotificationDisplayedExistsForApp(t *testing.T, ds *Datastore) {
 		titleID := newTestSoftwareTitle(t, ds, "displayed-app-"+c.name)
 		notificationUUID := newPatchNotification(t, ds, host.ID, c.status, 0)
 		require.NoError(t, ds.AddPatchNotificationApp(ctx, notificationUUID,
-			fleet.PatchNotificationApp{SoftwareTitleID: titleID}))
+			automdm.PatchNotificationApp{SoftwareTitleID: titleID}))
 		if c.displayed {
 			ExecAdhocSQL(t, ds, func(q sqlx.ExtContext) error {
 				_, err := q.ExecContext(ctx,
@@ -175,20 +175,20 @@ func testPatchNotificationDisplayedExistsForApp(t *testing.T, ds *Datastore) {
 func testPatchNotificationAddAndListApps(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 	host := test.NewHost(t, ds, "apps-host", "", "apps-key", "apps-uuid", time.Now())
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "patch-notification-team"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "patch-notification-team"})
 	require.NoError(t, err)
-	require.NoError(t, ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team.ID, []uint{host.ID})))
+	require.NoError(t, ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team.ID, []uint{host.ID})))
 
-	user, err := ds.NewUser(ctx, &fleet.User{
+	user, err := ds.NewUser(ctx, &automdm.User{
 		Name: "Admin", Password: []byte("p4ssw0rd.123"), Email: "patch-notifications@example.com",
-		GlobalRole: new(fleet.RoleAdmin),
+		GlobalRole: new(automdm.RoleAdmin),
 	})
 	require.NoError(t, err)
 
-	installerID, _, err := ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
+	installerID, _, err := ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
 		InstallScript: "echo", Filename: "app.pkg", StorageID: uuid.NewString(),
 		Title: "Notified App", Version: "1.0.0", Source: "apps", Platform: "darwin",
-		UserID: user.ID, TeamID: &team.ID, ValidatedLabels: &fleet.LabelIdentsWithScope{},
+		UserID: user.ID, TeamID: &team.ID, ValidatedLabels: &automdm.LabelIdentsWithScope{},
 	})
 	require.NoError(t, err)
 
@@ -199,11 +199,11 @@ func testPatchNotificationAddAndListApps(t *testing.T, ds *Datastore) {
 			`SELECT title_id FROM software_installers WHERE id = ?`, installerID)
 	})
 
-	policy, err := ds.NewTeamPolicy(ctx, team.ID, &user.ID, fleet.PolicyPayload{Name: "notify", Query: "SELECT 1;"})
+	policy, err := ds.NewTeamPolicy(ctx, team.ID, &user.ID, automdm.PolicyPayload{Name: "notify", Query: "SELECT 1;"})
 	require.NoError(t, err)
 
 	notificationUUID := newPatchNotification(t, ds, host.ID, notifications_api.EndUserNotificationPending, 0)
-	app := fleet.PatchNotificationApp{
+	app := automdm.PatchNotificationApp{
 		PolicyID:            &policy.ID,
 		SoftwareTitleID:     titleID,
 		SoftwareInstallerID: &installerID,
@@ -213,7 +213,7 @@ func testPatchNotificationAddAndListApps(t *testing.T, ds *Datastore) {
 	// adding the same app again does nothing rather than failing
 	require.NoError(t, ds.AddPatchNotificationApp(ctx, notificationUUID, app))
 
-	// the host's fleet has no display name or icon for this software title, so display_name falls
+	// the host's team has no display name or icon for this software title, so display_name falls
 	// back to the software title's name
 	apps, err := ds.ListPatchNotificationApps(ctx, notificationUUID)
 	require.NoError(t, err)
@@ -230,14 +230,14 @@ func testPatchNotificationAddAndListApps(t *testing.T, ds *Datastore) {
 	// created_at is what tells a later install that the app no longer needs updating
 	require.WithinDuration(t, time.Now().UTC(), apps[0].CreatedAt, time.Minute)
 
-	// give the software title a display name and an icon in the host's fleet
+	// give the software title a display name and an icon in the host's team
 	ExecAdhocSQL(t, ds, func(q sqlx.ExtContext) error {
 		_, err := q.ExecContext(ctx,
 			`INSERT INTO software_title_display_names (team_id, software_title_id, display_name) VALUES (?, ?, ?)`,
 			team.ID, titleID, "Notified App (renamed)")
 		return err
 	})
-	_, err = ds.CreateOrUpdateSoftwareTitleIcon(ctx, &fleet.UploadSoftwareTitleIconPayload{
+	_, err = ds.CreateOrUpdateSoftwareTitleIcon(ctx, &automdm.UploadSoftwareTitleIconPayload{
 		TitleID: titleID, TeamID: team.ID, StorageID: uuid.NewString(), Filename: "icon.png",
 	})
 	require.NoError(t, err)
@@ -318,21 +318,21 @@ func testPatchNotificationListAppsForNotifications(t *testing.T, ds *Datastore) 
 	installerHost := test.NewHost(t, ds, "batch-installer-host", "", "batch-installer-key", "batch-installer-uuid", time.Now())
 	noInstallerHost := test.NewHost(t, ds, "batch-no-installer-host", "", "batch-no-installer-key", "batch-no-installer-uuid", time.Now())
 
-	user, err := ds.NewUser(ctx, &fleet.User{
+	user, err := ds.NewUser(ctx, &automdm.User{
 		Name: "Admin", Password: []byte("p4ssw0rd.123"), Email: "patch-notification-batch@example.com",
-		GlobalRole: new(fleet.RoleAdmin),
+		GlobalRole: new(automdm.RoleAdmin),
 	})
 	require.NoError(t, err)
 
-	installerID, installerTitleID, err := ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
+	installerID, installerTitleID, err := ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
 		InstallScript: "echo", Filename: "batched.pkg", StorageID: uuid.NewString(),
 		Title: "Batched App", Version: "2.0.0", Source: "apps", Platform: "darwin",
-		UserID: user.ID, ValidatedLabels: &fleet.LabelIdentsWithScope{},
+		UserID: user.ID, ValidatedLabels: &automdm.LabelIdentsWithScope{},
 	})
 	require.NoError(t, err)
 
 	installerNotification := newPatchNotification(t, ds, installerHost.ID, notifications_api.EndUserNotificationDispatched, 1)
-	require.NoError(t, ds.AddPatchNotificationApp(ctx, installerNotification, fleet.PatchNotificationApp{
+	require.NoError(t, ds.AddPatchNotificationApp(ctx, installerNotification, automdm.PatchNotificationApp{
 		SoftwareTitleID: installerTitleID, SoftwareInstallerID: &installerID,
 	}))
 
@@ -340,7 +340,7 @@ func testPatchNotificationListAppsForNotifications(t *testing.T, ds *Datastore) 
 	// the row, so the app still comes back, with no installer id and no installer version.
 	noInstallerTitleID := newTestSoftwareTitle(t, ds, "Uninstallable App")
 	noInstallerNotification := newPatchNotification(t, ds, noInstallerHost.ID, notifications_api.EndUserNotificationDispatched, 1)
-	require.NoError(t, ds.AddPatchNotificationApp(ctx, noInstallerNotification, fleet.PatchNotificationApp{
+	require.NoError(t, ds.AddPatchNotificationApp(ctx, noInstallerNotification, automdm.PatchNotificationApp{
 		SoftwareTitleID: noInstallerTitleID,
 	}))
 
@@ -385,7 +385,7 @@ func testPatchNotificationListAppsForNotifications(t *testing.T, ds *Datastore) 
 
 func testPatchNotificationDeleteApps(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
-	// a host with no fleet, since ListPatchNotificationApps joins display names on COALESCE(h.team_id, 0)
+	// a host with no team, since ListPatchNotificationApps joins display names on COALESCE(h.team_id, 0)
 	host := test.NewHost(t, ds, "delete-apps-host", "", "delete-apps-key", "delete-apps-uuid", time.Now())
 	require.Nil(t, host.TeamID)
 
@@ -394,7 +394,7 @@ func testPatchNotificationDeleteApps(t *testing.T, ds *Datastore) {
 	stillOpen := newTestSoftwareTitle(t, ds, "Still Open App")
 	for _, titleID := range []uint{updated, stillOpen} {
 		require.NoError(t, ds.AddPatchNotificationApp(ctx, notificationUUID,
-			fleet.PatchNotificationApp{SoftwareTitleID: titleID}))
+			automdm.PatchNotificationApp{SoftwareTitleID: titleID}))
 	}
 
 	// deleting nothing leaves the notification's apps alone
@@ -413,7 +413,7 @@ func testPatchNotificationDeleteApps(t *testing.T, ds *Datastore) {
 	// another notification's row for the same software title is untouched
 	otherUUID := newPatchNotification(t, ds, host.ID, notifications_api.EndUserNotificationDispatched, 1)
 	require.NoError(t, ds.AddPatchNotificationApp(ctx, otherUUID,
-		fleet.PatchNotificationApp{SoftwareTitleID: stillOpen}))
+		automdm.PatchNotificationApp{SoftwareTitleID: stillOpen}))
 	require.NoError(t, ds.DeletePatchNotificationApps(ctx, notificationUUID, []uint{stillOpen}))
 	apps, err = ds.ListPatchNotificationApps(ctx, notificationUUID)
 	require.NoError(t, err)
@@ -470,7 +470,7 @@ func testPatchNotificationInstallAt(t *testing.T, ds *Datastore) {
 		_, err := q.ExecContext(ctx, `
 			INSERT INTO notifications_end_user (uuid, host_id, status, kind, payload, expires_at)
 			VALUES (?, ?, ?, ?, '{}', NOW(6) + INTERVAL 1 DAY)`,
-			rowless, host.ID, notifications_api.EndUserNotificationDispatched, fleet.PatchNotificationKind)
+			rowless, host.ID, notifications_api.EndUserNotificationDispatched, automdm.PatchNotificationKind)
 		return err
 	})
 	stored, err = ds.SetPatchNotificationInstallAt(ctx, rowless, deadline)
@@ -551,7 +551,7 @@ func testPatchNotificationListDue(t *testing.T, ds *Datastore) {
 	actedUnhandled := newPatchNotification(t, ds, host.ID, notifications_api.EndUserNotificationActed, 1)
 	setInstallAt(actedUnhandled, now.Add(-time.Minute))
 	markDisplayed(actedUnhandled)
-	require.NoError(t, ds.AddPatchNotificationApp(ctx, actedUnhandled, fleet.PatchNotificationApp{
+	require.NoError(t, ds.AddPatchNotificationApp(ctx, actedUnhandled, automdm.PatchNotificationApp{
 		SoftwareTitleID: newTestSoftwareTitle(t, ds, "Unhandled App"),
 	}))
 
@@ -560,7 +560,7 @@ func testPatchNotificationListDue(t *testing.T, ds *Datastore) {
 	setInstallAt(actedHandled, now.Add(-time.Minute))
 	markDisplayed(actedHandled)
 	handledTitleID := newTestSoftwareTitle(t, ds, "Handled App")
-	require.NoError(t, ds.AddPatchNotificationApp(ctx, actedHandled, fleet.PatchNotificationApp{
+	require.NoError(t, ds.AddPatchNotificationApp(ctx, actedHandled, automdm.PatchNotificationApp{
 		SoftwareTitleID: handledTitleID,
 	}))
 	require.NoError(t, ds.SetPatchNotificationAppsQueued(ctx, actedHandled, []uint{handledTitleID}))
@@ -570,7 +570,7 @@ func testPatchNotificationListDue(t *testing.T, ds *Datastore) {
 	setInstallAt(actedUpdatedInInventory, now.Add(-time.Minute))
 	markDisplayed(actedUpdatedInInventory)
 	updatedInInventoryTitleID := newTestSoftwareTitle(t, ds, "Updated In Inventory App")
-	require.NoError(t, ds.AddPatchNotificationApp(ctx, actedUpdatedInInventory, fleet.PatchNotificationApp{
+	require.NoError(t, ds.AddPatchNotificationApp(ctx, actedUpdatedInInventory, automdm.PatchNotificationApp{
 		SoftwareTitleID: updatedInInventoryTitleID,
 	}))
 	require.NoError(t, ds.SetPatchNotificationAppsUpdatedInInventory(ctx, actedUpdatedInInventory, []uint{updatedInInventoryTitleID}))
@@ -578,7 +578,7 @@ func testPatchNotificationListDue(t *testing.T, ds *Datastore) {
 	due, err := ds.ListPatchNotificationsDue(ctx, now.Add(5*time.Minute), 500)
 	require.NoError(t, err)
 
-	byUUID := make(map[string]fleet.PatchNotificationDue, len(due))
+	byUUID := make(map[string]automdm.PatchNotificationDue, len(due))
 	for _, notification := range due {
 		byUUID[notification.NotificationUUID] = notification
 	}
@@ -619,21 +619,21 @@ func testPatchNotificationListDue(t *testing.T, ds *Datastore) {
 func testPatchNotificationAppInstallStatuses(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 	host := test.NewHost(t, ds, "statuses-host", "", "statuses-key", "statuses-uuid", time.Now())
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "patch-notification-statuses-team"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "patch-notification-statuses-team"})
 	require.NoError(t, err)
-	require.NoError(t, ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team.ID, []uint{host.ID})))
+	require.NoError(t, ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team.ID, []uint{host.ID})))
 
-	user, err := ds.NewUser(ctx, &fleet.User{
+	user, err := ds.NewUser(ctx, &automdm.User{
 		Name: "Admin", Password: []byte("p4ssw0rd.123"), Email: "patch-notification-statuses@example.com",
-		GlobalRole: new(fleet.RoleAdmin),
+		GlobalRole: new(automdm.RoleAdmin),
 	})
 	require.NoError(t, err)
 
 	newInstaller := func(filename string) (uint, uint) {
-		installerID, _, err := ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
+		installerID, _, err := ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
 			InstallScript: "echo", Filename: filename, StorageID: uuid.NewString(),
 			Title: "Statuses App", Version: "1.0.0", Source: "apps", Platform: "darwin",
-			UserID: user.ID, TeamID: &team.ID, ValidatedLabels: &fleet.LabelIdentsWithScope{},
+			UserID: user.ID, TeamID: &team.ID, ValidatedLabels: &automdm.LabelIdentsWithScope{},
 		})
 		require.NoError(t, err)
 		var titleID uint
@@ -663,7 +663,7 @@ func testPatchNotificationAppInstallStatuses(t *testing.T, ds *Datastore) {
 	installed, failed := new(0), new(1)
 
 	notificationUUID := newPatchNotification(t, ds, host.ID, notifications_api.EndUserNotificationActed, 1)
-	require.NoError(t, ds.AddPatchNotificationApp(ctx, notificationUUID, fleet.PatchNotificationApp{
+	require.NoError(t, ds.AddPatchNotificationApp(ctx, notificationUUID, automdm.PatchNotificationApp{
 		SoftwareTitleID: titleID, SoftwareInstallerID: &firstInstallerID,
 	}))
 
@@ -673,7 +673,7 @@ func testPatchNotificationAppInstallStatuses(t *testing.T, ds *Datastore) {
 			`SELECT created_at FROM patch_notification_apps WHERE notification_uuid = ?`, notificationUUID)
 	})
 
-	// an app Fleet has not recorded an install for reports nothing
+	// an app AutoMDM has not recorded an install for reports nothing
 	statuses, err := ds.ListPatchNotificationAppInstallStatuses(ctx, notificationUUID)
 	require.NoError(t, err)
 	require.Empty(t, statuses)
@@ -688,19 +688,19 @@ func testPatchNotificationAppInstallStatuses(t *testing.T, ds *Datastore) {
 	addInstall(firstInstallerID, failed, appJoinedAt.Add(time.Minute), false)
 	statuses, err = ds.ListPatchNotificationAppInstallStatuses(ctx, notificationUUID)
 	require.NoError(t, err)
-	require.Equal(t, map[uint]fleet.SoftwareInstallerStatus{titleID: fleet.SoftwareInstallFailed}, statuses)
+	require.Equal(t, map[uint]automdm.SoftwareInstallerStatus{titleID: automdm.SoftwareInstallFailed}, statuses)
 
 	// an install against a different installer id for the title still patched the same app
 	addInstall(secondInstallerID, installed, appJoinedAt.Add(2*time.Minute), false)
 	statuses, err = ds.ListPatchNotificationAppInstallStatuses(ctx, notificationUUID)
 	require.NoError(t, err)
-	require.Equal(t, map[uint]fleet.SoftwareInstallerStatus{titleID: fleet.SoftwareInstalled}, statuses)
+	require.Equal(t, map[uint]automdm.SoftwareInstallerStatus{titleID: automdm.SoftwareInstalled}, statuses)
 
 	// a cancelled install is reported so the app stops waiting on it
 	addInstall(secondInstallerID, nil, appJoinedAt.Add(3*time.Minute), true)
 	statuses, err = ds.ListPatchNotificationAppInstallStatuses(ctx, notificationUUID)
 	require.NoError(t, err)
-	require.Equal(t, map[uint]fleet.SoftwareInstallerStatus{titleID: "canceled_install"}, statuses)
+	require.Equal(t, map[uint]automdm.SoftwareInstallerStatus{titleID: "canceled_install"}, statuses)
 
 	// a skip reads as a failed install, but it belongs to a policy run rather than this notification
 	skippedAt := appJoinedAt.Add(4 * time.Minute)
@@ -715,7 +715,7 @@ func testPatchNotificationAppInstallStatuses(t *testing.T, ds *Datastore) {
 	})
 	statuses, err = ds.ListPatchNotificationAppInstallStatuses(ctx, notificationUUID)
 	require.NoError(t, err)
-	require.Equal(t, map[uint]fleet.SoftwareInstallerStatus{titleID: "canceled_install"}, statuses)
+	require.Equal(t, map[uint]automdm.SoftwareInstallerStatus{titleID: "canceled_install"}, statuses)
 
 	// uninstalling the app marks its installs removed, which nulls host_software_installs.status,
 	// so the patch's own outcome has to keep reporting from execution_status
@@ -725,7 +725,7 @@ func testPatchNotificationAppInstallStatuses(t *testing.T, ds *Datastore) {
 	})
 	statuses, err = ds.ListPatchNotificationAppInstallStatuses(ctx, notificationUUID)
 	require.NoError(t, err)
-	require.Equal(t, map[uint]fleet.SoftwareInstallerStatus{titleID: "canceled_install"}, statuses)
+	require.Equal(t, map[uint]automdm.SoftwareInstallerStatus{titleID: "canceled_install"}, statuses)
 
 	// add an install carrying the app open query that ran with the app closed, the app should report installed
 	installedWithAppOpenQueryAt := appJoinedAt.Add(5 * time.Minute)
@@ -740,7 +740,7 @@ func testPatchNotificationAppInstallStatuses(t *testing.T, ds *Datastore) {
 	})
 	statuses, err = ds.ListPatchNotificationAppInstallStatuses(ctx, notificationUUID)
 	require.NoError(t, err)
-	require.Equal(t, map[uint]fleet.SoftwareInstallerStatus{titleID: fleet.SoftwareInstalled}, statuses)
+	require.Equal(t, map[uint]automdm.SoftwareInstallerStatus{titleID: automdm.SoftwareInstalled}, statuses)
 }
 
 func testPatchNotificationHostPatchDeadlineAt(t *testing.T, ds *Datastore) {
@@ -761,7 +761,7 @@ func testPatchNotificationHostPatchDeadlineAt(t *testing.T, ds *Datastore) {
 			_, err := q.ExecContext(ctx, `INSERT INTO patch_notifications (notification_uuid) VALUES (?)`, notificationUUID)
 			return err
 		})
-		require.NoError(t, ds.AddPatchNotificationApp(ctx, notificationUUID, fleet.PatchNotificationApp{
+		require.NoError(t, ds.AddPatchNotificationApp(ctx, notificationUUID, automdm.PatchNotificationApp{
 			PolicyID: &policyID, SoftwareTitleID: newTestSoftwareTitle(t, ds, notificationUUID),
 		}))
 		return notificationUUID
@@ -773,29 +773,29 @@ func testPatchNotificationHostPatchDeadlineAt(t *testing.T, ds *Datastore) {
 
 	// rows that don't count: a notify patch row, rows that are no longer open, and another host's row
 	soon := time.Now().UTC().Add(time.Hour).Truncate(time.Second)
-	newRow(host.ID, fleet.PatchNotificationKind, notifications_api.EndUserNotificationPending, soon)
+	newRow(host.ID, automdm.PatchNotificationKind, notifications_api.EndUserNotificationPending, soon)
 	for _, status := range []string{
 		notifications_api.EndUserNotificationActed,
 		notifications_api.EndUserNotificationFailed,
 		notifications_api.EndUserNotificationExpired,
 	} {
-		newRow(host.ID, fleet.PatchDeadlineNotificationKind, status, soon)
+		newRow(host.ID, automdm.PatchDeadlineNotificationKind, status, soon)
 	}
-	newRow(otherHost.ID, fleet.PatchDeadlineNotificationKind, notifications_api.EndUserNotificationPending, soon)
+	newRow(otherHost.ID, automdm.PatchDeadlineNotificationKind, notifications_api.EndUserNotificationPending, soon)
 	at, err = ds.GetHostPatchDeadlineAt(ctx, host.ID)
 	require.NoError(t, err)
 	require.Nil(t, at)
 
 	// a pending row's deadline is 1 hour after its first attempt
 	later := soon.Add(48 * time.Hour)
-	laterUUID := newRow(host.ID, fleet.PatchDeadlineNotificationKind, notifications_api.EndUserNotificationPending, later)
+	laterUUID := newRow(host.ID, automdm.PatchDeadlineNotificationKind, notifications_api.EndUserNotificationPending, later)
 	at, err = ds.GetHostPatchDeadlineAt(ctx, host.ID)
 	require.NoError(t, err)
 	require.NotNil(t, at)
 	require.WithinDuration(t, later.Add(time.Hour), *at, time.Second)
 
 	// the earliest of two open rows wins
-	earlierUUID := newRow(host.ID, fleet.PatchDeadlineNotificationKind, notifications_api.EndUserNotificationDispatched, soon)
+	earlierUUID := newRow(host.ID, automdm.PatchDeadlineNotificationKind, notifications_api.EndUserNotificationDispatched, soon)
 	at, err = ds.GetHostPatchDeadlineAt(ctx, host.ID)
 	require.NoError(t, err)
 	require.NotNil(t, at)
@@ -847,21 +847,21 @@ func testPatchNotificationPolicyOptionChanged(t *testing.T, ds *Datastore) {
 		change      func(policyID uint)
 		wantChanged bool
 	}{
-		{"deadline unchanged", fleet.PatchDeadlineNotificationKind, true, nil, false},
-		{"deadline turned off", fleet.PatchDeadlineNotificationKind, true, func(id uint) { setPolicyPatchDeadline(t, ds, id, false) }, true},
-		{"deadline policy deleted", fleet.PatchDeadlineNotificationKind, true, func(id uint) {
+		{"deadline unchanged", automdm.PatchDeadlineNotificationKind, true, nil, false},
+		{"deadline turned off", automdm.PatchDeadlineNotificationKind, true, func(id uint) { setPolicyPatchDeadline(t, ds, id, false) }, true},
+		{"deadline policy deleted", automdm.PatchDeadlineNotificationKind, true, func(id uint) {
 			_, err := ds.DeleteGlobalPolicies(ctx, []uint{id})
 			require.NoError(t, err)
 		}, true},
-		{"notify unchanged", fleet.PatchNotificationKind, false, nil, false},
-		{"notify turned to deadline", fleet.PatchNotificationKind, false, func(id uint) { setPolicyPatchDeadline(t, ds, id, true) }, true},
-		{"notify turned to patch when closed", fleet.PatchNotificationKind, false, func(id uint) {
+		{"notify unchanged", automdm.PatchNotificationKind, false, nil, false},
+		{"notify turned to deadline", automdm.PatchNotificationKind, false, func(id uint) { setPolicyPatchDeadline(t, ds, id, true) }, true},
+		{"notify turned to patch when closed", automdm.PatchNotificationKind, false, func(id uint) {
 			ExecAdhocSQL(t, ds, func(q sqlx.ExtContext) error {
 				_, err := q.ExecContext(ctx, `UPDATE policies SET notify_before_patching = 0, patch_when_closed = 1 WHERE id = ?`, id)
 				return err
 			})
 		}, true},
-		{"notify policy deleted", fleet.PatchNotificationKind, false, func(id uint) {
+		{"notify policy deleted", automdm.PatchNotificationKind, false, func(id uint) {
 			_, err := ds.DeleteGlobalPolicies(ctx, []uint{id})
 			require.NoError(t, err)
 		}, false},
@@ -876,7 +876,7 @@ func testPatchNotificationPolicyOptionChanged(t *testing.T, ds *Datastore) {
 				return err
 			})
 			require.NoError(t, ds.AddPatchNotificationApp(ctx, notificationUUID,
-				fleet.PatchNotificationApp{PolicyID: &policyID, SoftwareTitleID: titleID}))
+				automdm.PatchNotificationApp{PolicyID: &policyID, SoftwareTitleID: titleID}))
 			if c.change != nil {
 				c.change(policyID)
 			}
@@ -912,46 +912,46 @@ func testPatchNotificationPolicyOptionChanged(t *testing.T, ds *Datastore) {
 func testPatchNotificationHostTransfer(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
-	user, err := ds.NewUser(ctx, &fleet.User{
+	user, err := ds.NewUser(ctx, &automdm.User{
 		Name: "Admin", Password: []byte("p4ssw0rd.123"), Email: "patch-notification-transfer@example.com",
-		GlobalRole: new(fleet.RoleAdmin),
+		GlobalRole: new(automdm.RoleAdmin),
 	})
 	require.NoError(t, err)
-	oldFleet, err := ds.NewTeam(ctx, &fleet.Team{Name: "transfer old fleet"})
+	oldAutoMDM, err := ds.NewTeam(ctx, &automdm.Team{Name: "transfer old team"})
 	require.NoError(t, err)
-	newFleet, err := ds.NewTeam(ctx, &fleet.Team{Name: "transfer new fleet"})
+	newAutoMDM, err := ds.NewTeam(ctx, &automdm.Team{Name: "transfer new team"})
 	require.NoError(t, err)
 
 	newInstaller := func(title string, teamID uint) (installerID, titleID uint) {
-		installerID, titleID, err := ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
+		installerID, titleID, err := ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
 			InstallScript: "echo", Filename: title + ".pkg", StorageID: uuid.NewString(),
 			Title: title, Version: "2.0.0", Source: "apps", Platform: "darwin",
-			UserID: user.ID, TeamID: &teamID, ValidatedLabels: &fleet.LabelIdentsWithScope{},
+			UserID: user.ID, TeamID: &teamID, ValidatedLabels: &automdm.LabelIdentsWithScope{},
 		})
 		require.NoError(t, err)
 		return installerID, titleID
 	}
-	oldInstallerID, sharedTitleID := newInstaller("Shared App", oldFleet.ID)
-	secondInstallerID, secondTitleID := newInstaller("Old Fleet Only App", oldFleet.ID)
-	thirdInstallerID, thirdTitleID := newInstaller("New Fleet Only App", newFleet.ID)
+	oldInstallerID, sharedTitleID := newInstaller("Shared App", oldAutoMDM.ID)
+	secondInstallerID, secondTitleID := newInstaller("Old AutoMDM Only App", oldAutoMDM.ID)
+	thirdInstallerID, thirdTitleID := newInstaller("New AutoMDM Only App", newAutoMDM.ID)
 
 	var hostCount int
-	newHostInOldFleet := func() *fleet.Host {
+	newHostInOldAutoMDM := func() *automdm.Host {
 		hostCount++
 		name := fmt.Sprintf("transfer-%d", hostCount)
 		host := test.NewHost(t, ds, name, "", name+"-key", name+"-uuid", time.Now())
-		require.NoError(t, ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&oldFleet.ID, []uint{host.ID})))
+		require.NoError(t, ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&oldAutoMDM.ID, []uint{host.ID})))
 		return host
 	}
 	addApp := func(notificationUUID string, titleID, installerID uint) {
 		meta, err := ds.GetSoftwareInstallerMetadataByID(ctx, installerID)
 		require.NoError(t, err)
-		policy, err := ds.NewTeamPolicy(ctx, *meta.TeamID, nil, fleet.PolicyPayload{
+		policy, err := ds.NewTeamPolicy(ctx, *meta.TeamID, nil, automdm.PolicyPayload{
 			Name: uuid.NewString(), Query: "SELECT 1;",
 		})
 		require.NoError(t, err)
 		setPolicyPatchDeadline(t, ds, policy.ID, false)
-		require.NoError(t, ds.AddPatchNotificationApp(ctx, notificationUUID, fleet.PatchNotificationApp{
+		require.NoError(t, ds.AddPatchNotificationApp(ctx, notificationUUID, automdm.PatchNotificationApp{
 			PolicyID: &policy.ID, SoftwareTitleID: titleID, SoftwareInstallerID: &installerID,
 		}))
 	}
@@ -994,12 +994,12 @@ func testPatchNotificationHostTransfer(t *testing.T, ds *Datastore) {
 		}
 	}
 	moveTo := func(teamID *uint, hostIDs ...uint) {
-		require.NoError(t, ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(teamID, hostIDs)))
+		require.NoError(t, ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(teamID, hostIDs)))
 	}
 
 	for _, status := range []string{notifications_api.EndUserNotificationPending, notifications_api.EndUserNotificationDispatched} {
-		t.Run("a "+status+" notification closes with none of the old fleet's apps", func(t *testing.T) {
-			host := newHostInOldFleet()
+		t.Run("a "+status+" notification closes with none of the old team's apps", func(t *testing.T) {
+			host := newHostInOldAutoMDM()
 			notificationUUID := newPatchNotification(t, ds, host.ID, status, 0)
 			addApp(notificationUUID, sharedTitleID, oldInstallerID)
 			addApp(notificationUUID, secondTitleID, secondInstallerID)
@@ -1007,7 +1007,7 @@ func testPatchNotificationHostTransfer(t *testing.T, ds *Datastore) {
 			require.NoError(t, err)
 			require.True(t, exists)
 
-			moveTo(&newFleet.ID, host.ID)
+			moveTo(&newAutoMDM.ID, host.ID)
 
 			require.Empty(t, listedTitles(notificationUUID))
 			gotStatus, reason := statusAndReason(notificationUUID)
@@ -1021,7 +1021,7 @@ func testPatchNotificationHostTransfer(t *testing.T, ds *Datastore) {
 	}
 
 	t.Run("a toast on screen past its deadline is no longer due", func(t *testing.T) {
-		host := newHostInOldFleet()
+		host := newHostInOldAutoMDM()
 		notificationUUID := newPatchNotification(t, ds, host.ID, notifications_api.EndUserNotificationDispatched, 1)
 		addApp(notificationUUID, sharedTitleID, oldInstallerID)
 		setDueAndDisplayed(notificationUUID)
@@ -1030,21 +1030,21 @@ func testPatchNotificationHostTransfer(t *testing.T, ds *Datastore) {
 		require.NoError(t, err)
 		require.Len(t, due, 1)
 
-		moveTo(&newFleet.ID, host.ID)
+		moveTo(&newAutoMDM.ID, host.ID)
 
 		require.Empty(t, listedTitles(notificationUUID))
 		requireNotDue(notificationUUID)
 	})
 
 	t.Run("an acted notification keeps the install already out and drops the one not queued", func(t *testing.T) {
-		host := newHostInOldFleet()
+		host := newHostInOldAutoMDM()
 		notificationUUID := newPatchNotification(t, ds, host.ID, notifications_api.EndUserNotificationActed, 1)
 		addApp(notificationUUID, sharedTitleID, oldInstallerID)
 		addApp(notificationUUID, secondTitleID, secondInstallerID)
 		require.NoError(t, ds.SetPatchNotificationAppsQueued(ctx, notificationUUID, []uint{sharedTitleID}))
 		setDueAndDisplayed(notificationUUID)
 
-		moveTo(&newFleet.ID, host.ID)
+		moveTo(&newAutoMDM.ID, host.ID)
 
 		require.Equal(t, []uint{sharedTitleID}, listedTitles(notificationUUID))
 		gotStatus, _ := statusAndReason(notificationUUID)
@@ -1053,35 +1053,35 @@ func testPatchNotificationHostTransfer(t *testing.T, ds *Datastore) {
 	})
 
 	t.Run("an acted notification keeps an app the inventory shows as updated", func(t *testing.T) {
-		host := newHostInOldFleet()
+		host := newHostInOldAutoMDM()
 		notificationUUID := newPatchNotification(t, ds, host.ID, notifications_api.EndUserNotificationActed, 1)
 		addApp(notificationUUID, sharedTitleID, oldInstallerID)
 		require.NoError(t, ds.SetPatchNotificationAppsUpdatedInInventory(ctx, notificationUUID, []uint{sharedTitleID}))
 
-		moveTo(&newFleet.ID, host.ID)
+		moveTo(&newAutoMDM.ID, host.ID)
 
 		require.Equal(t, []uint{sharedTitleID}, listedTitles(notificationUUID))
 	})
 
-	t.Run("an app of the destination fleet stays and keeps the notification open", func(t *testing.T) {
-		host := newHostInOldFleet()
+	t.Run("an app of the destination team stays and keeps the notification open", func(t *testing.T) {
+		host := newHostInOldAutoMDM()
 		notificationUUID := newPatchNotification(t, ds, host.ID, notifications_api.EndUserNotificationPending, 0)
 		addApp(notificationUUID, sharedTitleID, oldInstallerID)
 		addApp(notificationUUID, thirdTitleID, thirdInstallerID)
 
-		moveTo(&newFleet.ID, host.ID)
+		moveTo(&newAutoMDM.ID, host.ID)
 
 		require.Equal(t, []uint{thirdTitleID}, listedTitles(notificationUUID))
 		gotStatus, _ := statusAndReason(notificationUUID)
 		require.Equal(t, notifications_api.EndUserNotificationPending, gotStatus)
 	})
 
-	t.Run("a move to the fleet the host is already in keeps an app with an installer", func(t *testing.T) {
-		host := newHostInOldFleet()
+	t.Run("a move to the team the host is already in keeps an app with an installer", func(t *testing.T) {
+		host := newHostInOldAutoMDM()
 		notificationUUID := newPatchNotification(t, ds, host.ID, notifications_api.EndUserNotificationPending, 0)
 		addApp(notificationUUID, sharedTitleID, oldInstallerID)
 
-		moveTo(&oldFleet.ID, host.ID)
+		moveTo(&oldAutoMDM.ID, host.ID)
 
 		require.Equal(t, []uint{sharedTitleID}, listedTitles(notificationUUID))
 		gotStatus, _ := statusAndReason(notificationUUID)
@@ -1089,20 +1089,20 @@ func testPatchNotificationHostTransfer(t *testing.T, ds *Datastore) {
 	})
 
 	t.Run("a notification the move removed nothing from stays open", func(t *testing.T) {
-		host := newHostInOldFleet()
+		host := newHostInOldAutoMDM()
 		notificationUUID := newPatchNotification(t, ds, host.ID, notifications_api.EndUserNotificationPending, 0)
 
-		moveTo(&newFleet.ID, host.ID)
+		moveTo(&newAutoMDM.ID, host.ID)
 
 		gotStatus, _ := statusAndReason(notificationUUID)
 		require.Equal(t, notifications_api.EndUserNotificationPending, gotStatus)
 	})
 
-	t.Run("a move to no fleet drops the old fleet's apps and an installer that was deleted", func(t *testing.T) {
-		host := newHostInOldFleet()
+	t.Run("a move to no team drops the old team's apps and an installer that was deleted", func(t *testing.T) {
+		host := newHostInOldAutoMDM()
 		notificationUUID := newPatchNotification(t, ds, host.ID, notifications_api.EndUserNotificationPending, 0)
 		addApp(notificationUUID, sharedTitleID, oldInstallerID)
-		require.NoError(t, ds.AddPatchNotificationApp(ctx, notificationUUID, fleet.PatchNotificationApp{SoftwareTitleID: secondTitleID}))
+		require.NoError(t, ds.AddPatchNotificationApp(ctx, notificationUUID, automdm.PatchNotificationApp{SoftwareTitleID: secondTitleID}))
 
 		moveTo(nil, host.ID)
 
@@ -1110,8 +1110,8 @@ func testPatchNotificationHostTransfer(t *testing.T, ds *Datastore) {
 	})
 
 	t.Run("a host not moved keeps its notification and a notification of another kind is left alone", func(t *testing.T) {
-		moved := newHostInOldFleet()
-		stayed := newHostInOldFleet()
+		moved := newHostInOldAutoMDM()
+		stayed := newHostInOldAutoMDM()
 		movedNotification := newPatchNotification(t, ds, moved.ID, notifications_api.EndUserNotificationPending, 0)
 		addApp(movedNotification, sharedTitleID, oldInstallerID)
 		stayedNotification := newPatchNotification(t, ds, stayed.ID, notifications_api.EndUserNotificationPending, 0)
@@ -1126,7 +1126,7 @@ func testPatchNotificationHostTransfer(t *testing.T, ds *Datastore) {
 			return err
 		})
 
-		moveTo(&newFleet.ID, moved.ID)
+		moveTo(&newAutoMDM.ID, moved.ID)
 
 		require.Equal(t, []uint{sharedTitleID}, listedTitles(stayedNotification))
 		gotStatus, _ := statusAndReason(stayedNotification)
@@ -1136,17 +1136,17 @@ func testPatchNotificationHostTransfer(t *testing.T, ds *Datastore) {
 	})
 
 	t.Run("more notifications than one write batch all close", func(t *testing.T) {
-		host := newHostInOldFleet()
+		host := newHostInOldAutoMDM()
 		notificationUUIDs := make([]string, 0, 1001)
 		for range 1001 {
 			notificationUUID := newPatchNotification(t, ds, host.ID, notifications_api.EndUserNotificationPending, 0)
-			require.NoError(t, ds.AddPatchNotificationApp(ctx, notificationUUID, fleet.PatchNotificationApp{
+			require.NoError(t, ds.AddPatchNotificationApp(ctx, notificationUUID, automdm.PatchNotificationApp{
 				SoftwareTitleID: sharedTitleID, SoftwareInstallerID: &oldInstallerID,
 			}))
 			notificationUUIDs = append(notificationUUIDs, notificationUUID)
 		}
 
-		moveTo(&newFleet.ID, host.ID)
+		moveTo(&newAutoMDM.ID, host.ID)
 
 		var open int
 		ExecAdhocSQL(t, ds, func(q sqlx.ExtContext) error {
@@ -1159,13 +1159,13 @@ func testPatchNotificationHostTransfer(t *testing.T, ds *Datastore) {
 	})
 
 	t.Run("every host in a batch is cleaned up", func(t *testing.T) {
-		first, second := newHostInOldFleet(), newHostInOldFleet()
+		first, second := newHostInOldAutoMDM(), newHostInOldAutoMDM()
 		firstNotification := newPatchNotification(t, ds, first.ID, notifications_api.EndUserNotificationPending, 0)
 		addApp(firstNotification, sharedTitleID, oldInstallerID)
 		secondNotification := newPatchNotification(t, ds, second.ID, notifications_api.EndUserNotificationPending, 0)
 		addApp(secondNotification, sharedTitleID, oldInstallerID)
 
-		moveTo(&newFleet.ID, first.ID, second.ID)
+		moveTo(&newAutoMDM.ID, first.ID, second.ID)
 
 		require.Empty(t, listedTitles(firstNotification))
 		require.Empty(t, listedTitles(secondNotification))

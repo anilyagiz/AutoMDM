@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/goose"
+	"github.com/anilyagiz/automdm/v4/server/goose"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
 )

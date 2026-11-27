@@ -131,7 +131,7 @@ const SoftwareInventory = ({
     }
   );
 
-  // This query checks if there are any installable software titles (VPP apps or Fleet-managed
+  // This query checks if there are any installable software titles (VPP apps or AutoMDM-managed
   // installers) available for the team. It only runs when the versions table is empty, to
   // determine which empty state message to show:
   // - If installable software exists: "Install software on your hosts to see versions."

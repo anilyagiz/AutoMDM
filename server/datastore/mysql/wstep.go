@@ -9,12 +9,12 @@ import (
 	"math/big"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/pkg/certificate"
-	microsoft_mdm "github.com/fleetdm/fleet/v4/server/mdm/microsoft"
+	"github.com/anilyagiz/automdm/v4/pkg/certificate"
+	microsoft_mdm "github.com/anilyagiz/automdm/v4/server/mdm/microsoft"
 )
 
 // CertStore implements storage tasks associated with MS-WSTEP messages in the MS-MDE2
-// protocol. It is implemented by fleet.Datastore.
+// protocol. It is implemented by automdm.Datastore.
 var _ microsoft_mdm.CertStore = (*Datastore)(nil)
 
 // WSTEPStoreCertificate stores a certificate under the given name.

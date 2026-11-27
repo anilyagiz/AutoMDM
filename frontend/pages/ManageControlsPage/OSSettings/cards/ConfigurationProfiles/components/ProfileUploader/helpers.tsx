@@ -10,7 +10,7 @@ import { generateSecretErrMsg } from "pages/SoftwarePage/helpers";
 import { listNamesFromSelectedLabels } from "services/entities/labels";
 import { isDDMProfile } from "services/entities/mdm";
 import {
-  formatFleet5RemovalMessage,
+  formatAutoMDM5RemovalMessage,
   generateGenericLearnMoreErrMsg,
 } from "utilities/helpers";
 
@@ -94,7 +94,7 @@ export const PROFILE_CONTENT_TYPES: Record<
   },
 };
 
-const SERVER_SECRET_PREFIX = "FLEET_SECRET_";
+const SERVER_SECRET_PREFIX = "AUTOMDM_SECRET_";
 
 /** What the file picker offers when adding, where the type isn't known yet. */
 export const ADD_PROFILE_ACCEPT =
@@ -162,7 +162,7 @@ const EXTENSION_CONTENT_TYPE: Record<string, ProfileContentType> = {
 };
 
 /** The type the server gives an uploaded file by its extension, for contents
- * the UI can't classify, such as a lone `$FLEET_SECRET_` placeholder. */
+ * the UI can't classify, such as a lone `$AUTOMDM_SECRET_` placeholder. */
 export const contentTypeForExtension = (
   ext: string
 ): ProfileContentType | null => EXTENSION_CONTENT_TYPE[ext] ?? null;
@@ -198,7 +198,7 @@ export const getAcceptedExtensions = (profile: IMdmProfile) => {
  * PayloadDisplayName). */
 export const PASTED_PROFILE_DEFAULT_NAME = "New profile";
 
-/** Names are unique per fleet, so an unnamed pasted profile takes "New
+/** Names are unique per team, so an unnamed pasted profile takes "New
  * profile", then the lowest free "New profile N" from 2. Compared without
  * case, as the database does. */
 export const nextPastedProfileName = (takenNames: string[]): string => {
@@ -324,7 +324,7 @@ export const getErrorMessage = (
           text="Learn more"
           newTab
           variant="flash-message-link"
-          url="https://fleetdm.com/learn-more-about/how-to-craft-android-profile"
+          url="https://automdm.com/learn-more-about/how-to-craft-android-profile"
         />
       </div>
     );
@@ -432,11 +432,11 @@ export const getErrorMessage = (
       : apiReason;
   }
 
-  const fleet5Removal = formatFleet5RemovalMessage(apiReason);
-  if (fleet5Removal) {
+  const automdm5Removal = formatAutoMDM5RemovalMessage(apiReason);
+  if (automdm5Removal) {
     return (
       <>
-        {couldnt} {fleet5Removal}
+        {couldnt} {automdm5Removal}
       </>
     );
   }
@@ -446,7 +446,7 @@ export const getErrorMessage = (
   }
 
   if (
-    apiReason.includes("Fleet variable") &&
+    apiReason.includes("AutoMDM variable") &&
     apiReason.includes("not supported in configuration profiles")
   ) {
     return generateUnsupportedVariableErrMsg(
@@ -463,7 +463,7 @@ export const getErrorMessage = (
   ) {
     return generateSCEPLearnMoreErrMsg(
       apiReason,
-      "https://fleetdm.com/learn-more-about/certificate-authorities",
+      "https://automdm.com/learn-more-about/certificate-authorities",
       couldnt
     );
   }
@@ -475,19 +475,19 @@ export const getErrorMessage = (
   ) {
     return generateSCEPLearnMoreErrMsg(
       apiReason,
-      "https://fleetdm.com/learn-more-about/custom-scep-configuration-profile",
+      "https://automdm.com/learn-more-about/custom-scep-configuration-profile",
       couldnt
     );
   }
 
   if (
     apiReason.includes(
-      "SCEP profile for NDES certificate authority requires: $FLEET_VAR_NDES_SCEP_CHALLENGE"
+      "SCEP profile for NDES certificate authority requires: $AUTOMDM_VAR_NDES_SCEP_CHALLENGE"
     )
   ) {
     return generateSCEPLearnMoreErrMsg(
       apiReason,
-      "https://fleetdm.com/learn-more-about/ndes-scep-configuration-profile",
+      "https://automdm.com/learn-more-about/ndes-scep-configuration-profile",
       couldnt
     );
   }

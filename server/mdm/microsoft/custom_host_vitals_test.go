@@ -6,22 +6,22 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
+	"github.com/anilyagiz/automdm/v4/server/mock"
 	"github.com/stretchr/testify/require"
 )
 
 func TestPreprocessWindowsProfileContentsCustomHostVitals(t *testing.T) {
 	ds := new(mock.Store)
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
 	}
-	ds.ListHostsLiteByUUIDsFunc = func(ctx context.Context, filter fleet.TeamFilter, uuids []string) ([]*fleet.Host, error) {
-		return []*fleet.Host{{ID: 55, UUID: "host-uuid-55"}}, nil
+	ds.ListHostsLiteByUUIDsFunc = func(ctx context.Context, filter automdm.TeamFilter, uuids []string) ([]*automdm.Host, error) {
+		return []*automdm.Host{{ID: 55, UUID: "host-uuid-55"}}, nil
 	}
 
-	ctx := license.NewContext(t.Context(), &fleet.LicenseInfo{Tier: fleet.TierPremium})
+	ctx := license.NewContext(t.Context(), &automdm.LicenseInfo{Tier: automdm.TierPremium})
 	appConfig, err := ds.AppConfig(ctx)
 	require.NoError(t, err)
 
@@ -32,11 +32,11 @@ func TestPreprocessWindowsProfileContentsCustomHostVitals(t *testing.T) {
 			DataStore:                  ds,
 			HostIDForUUIDCache:         map[string]uint{},
 			AppConfig:                  appConfig,
-			ManagedCertificatePayloads: &[]*fleet.MDMManagedCertificate{},
+			ManagedCertificatePayloads: &[]*automdm.MDMManagedCertificate{},
 		}
 	}
 
-	profile := `<Replace><Item><Data>$FLEET_HOST_VITAL_3</Data></Item></Replace>`
+	profile := `<Replace><Item><Data>$AUTOMDM_HOST_VITAL_3</Data></Item></Replace>`
 
 	t.Run("substitutes the host's value with XML escaping", func(t *testing.T) {
 		ds.ExpandCustomHostVitalsFunc = func(ctx context.Context, hostID uint, doc string) (string, error) {
@@ -52,22 +52,22 @@ func TestPreprocessWindowsProfileContentsCustomHostVitals(t *testing.T) {
 	})
 
 	t.Run("value substituted into a scep subject name is quoted", func(t *testing.T) {
-		scepProfile := testSyncMLItem(testDeviceSubjectNameLocURI, `CN=$FLEET_HOST_VITAL_3,O=Fleet QA`)
+		scepProfile := testSyncMLItem(testDeviceSubjectNameLocURI, `CN=$AUTOMDM_HOST_VITAL_3,O=AutoMDM QA`)
 		ds.ExpandCustomHostVitalsFunc = func(ctx context.Context, hostID uint, doc string) (string, error) {
 			// The document arrives with the subject name value already marked, so substitute into
 			// what was handed over rather than returning a canned profile.
-			return strings.Replace(doc, "$FLEET_HOST_VITAL_3", "Doe, Jane", 1), nil
+			return strings.Replace(doc, "$AUTOMDM_HOST_VITAL_3", "Doe, Jane", 1), nil
 		}
 		result, err := PreprocessWindowsProfileContentsForDeployment(newDeps(), ProfilePreprocessParams{
 			HostUUID: "host-uuid-55", ProfileUUID: "prof-1",
 		}, scepProfile)
 		require.NoError(t, err)
-		require.Equal(t, testSyncMLItem(testDeviceSubjectNameLocURI, `CN="Doe, Jane",O=Fleet QA`), result)
+		require.Equal(t, testSyncMLItem(testDeviceSubjectNameLocURI, `CN="Doe, Jane",O=AutoMDM QA`), result)
 	})
 
 	t.Run("missing/empty value marks the profile failed with detail", func(t *testing.T) {
 		ds.ExpandCustomHostVitalsFunc = func(ctx context.Context, hostID uint, doc string) (string, error) {
-			return "", &fleet.MissingCustomHostVitalValueError{MissingIDs: []uint{3}}
+			return "", &automdm.MissingCustomHostVitalValueError{MissingIDs: []uint{3}}
 		}
 		_, err := PreprocessWindowsProfileContentsForDeployment(newDeps(), ProfilePreprocessParams{
 			HostUUID: "host-uuid-55", ProfileUUID: "prof-1",
@@ -75,6 +75,6 @@ func TestPreprocessWindowsProfileContentsCustomHostVitals(t *testing.T) {
 		require.Error(t, err)
 		var procErr *MicrosoftProfileProcessingError
 		require.ErrorAs(t, err, &procErr)
-		require.Contains(t, procErr.Error(), "FLEET_HOST_VITAL_3")
+		require.Contains(t, procErr.Error(), "AUTOMDM_HOST_VITAL_3")
 	})
 }

@@ -46,7 +46,7 @@
     <key>PayloadIdentifier</key>
     <string>com.fleet.systemextensions</string>
     <key>PayloadOrganization</key>
-    <string>Fleet</string>
+    <string>AutoMDM</string>
     <key>PayloadRemovalDisallowed</key>
     <false/>
     <key>PayloadScope</key>

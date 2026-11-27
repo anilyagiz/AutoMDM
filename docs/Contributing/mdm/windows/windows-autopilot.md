@@ -1,10 +1,10 @@
 # Windows Autopilot
 
 ## Reference links
-- [Windows MDM Setup](https://fleetdm.com/guides/windows-mdm-setup#windows-autopilot)
+- [Windows MDM Setup](https://automdm.com/guides/windows-mdm-setup#windows-autopilot)
 - [Autopilot add devices](https://learn.microsoft.com/en-us/autopilot/add-devices)
 - [Assigning Intune licenses](https://learn.microsoft.com/en-gb/intune/intune-service/fundamentals/licenses-assign)
-- [Serve locally built Fleetd during Autopilot](https://github.com/fleetdm/fleet/blob/main/docs/Contributing/getting-started/testing-and-local-development.md#building-and-serving-your-own-fleetd-basemsi-installer-for-windows)
+- [Serve locally built AutoMDMd during Autopilot](https://github.com/anilyagiz/automdm/blob/main/docs/Contributing/getting-started/testing-and-local-development.md#building-and-serving-your-own-automdmd-basemsi-installer-for-windows)
 
 ## License requirements
 
@@ -15,9 +15,9 @@ These requirements were verified end to end against a live customer tenant in Au
   Mobility + Security E3. This is a tenant-level subscription, not a per-seat purchase. Autopilot profile authoring happens in the
   Intune admin center, so pick one that includes Intune.
 - Each **end user who enrolls a device** needs a **Microsoft Entra ID P1** license assigned. An Intune license is not required for the
-  end user. A user with Entra ID P1 and no Intune license completes enrollment to Fleet.
+  end user. A user with Entra ID P1 and no Intune license completes enrollment to AutoMDM.
 - The **admin** needs no license assigned. An unlicensed admin account can register Autopilot devices, manage deployment profiles in
-  the Intune admin center, and connect Entra to Fleet. See
+  the Intune admin center, and connect Entra to AutoMDM. See
   [unlicensed admin access](https://learn.microsoft.com/en-us/intune/fundamentals/licensing#unlicensed-admin-access), which is on by
   default for tenants created after July 2021. Older tenants must turn on **Allow access to unlicensed admins** first, and that can't
   be undone.
@@ -38,12 +38,12 @@ To assign licenses:
 
 In [entra.microsoft.com](https://entra.microsoft.com) > search "Mobility" > **Mobility (MDM and WIP)**:
 
-- **Fleet app**: MDM user scope must be **All** or **Some** (for a group containing your test users). If this is set to None, Entra will not issue an MDM URL to any user and enrollment will fail.
-- **Microsoft Intune app**: MDM user scope must be **None**. If both Fleet and Intune have active scopes, devices may enroll in Intune instead of Fleet.
+- **AutoMDM app**: MDM user scope must be **All** or **Some** (for a group containing your test users). If this is set to None, Entra will not issue an MDM URL to any user and enrollment will fail.
+- **Microsoft Intune app**: MDM user scope must be **None**. If both AutoMDM and Intune have active scopes, devices may enroll in Intune instead of AutoMDM.
 
 ### Verify Entra app configuration
 
-Follow the [Windows MDM Setup guide](https://fleetdm.com/guides/windows-mdm-setup#step-2-connect-fleet-to-microsoft-entra-id) to configure the Fleet app in Entra, including API permissions, Application ID URI, and admin consent.
+Follow the [Windows MDM Setup guide](https://automdm.com/guides/windows-mdm-setup#step-2-connect-automdm-to-microsoft-entra-id) to configure the AutoMDM app in Entra, including API permissions, Application ID URI, and admin consent.
 
 ## Configuring Windows Autopilot for development
 
@@ -106,7 +106,7 @@ SSH into the Proxmox host.
 
 **Set unique SMBIOS values** (all fields must be alphanumeric only -- no hyphens, no periods):
 ```bash
-qm set <VMID> -smbios1 "serial=<NAME>$(date +%s),uuid=$(cat /proc/sys/kernel/random/uuid),manufacturer=FleetDM,product=AutopilotDevVM,sku=<NAME>SKU$(date +%s),family=FleetAutopilotFamily,version=v1"
+qm set <VMID> -smbios1 "serial=<NAME>$(date +%s),uuid=$(cat /proc/sys/kernel/random/uuid),manufacturer=AutoMDM,product=AutopilotDevVM,sku=<NAME>SKU$(date +%s),family=AutoMDMAutopilotFamily,version=v1"
 ```
 Replace `<NAME>` with your name (e.g., `BOB`). The `$(date +%s)` timestamp ensures global uniqueness.
 
@@ -196,7 +196,7 @@ qm start <VMID>
 
 2. OOBE starts. Autopilot skips region/keyboard/network screens and goes straight to checking for updates, then shows your org branding and the Entra sign-in screen.
 3. Sign in with your Entra test user credentials (must have Entra ID P1 license assigned -- see [License requirements](#license-requirements))
-4. Device joins Entra and enrolls in Fleet MDM
+4. Device joins Entra and enrolls in AutoMDM
 
 ### Subsequent test cycles
 
@@ -213,9 +213,9 @@ qm start <VMID>
 | OOBE shows unfamiliar org logo | Cross-tenant hash collision: another org registered a similar QEMU VM | Delete their registration or maximize VM uniqueness |
 | "Name your device" instead of Autopilot branding | Profile not assigned, or AUTOPILOT_MARKER missing | Verify Profile status = Assigned in Intune; re-register and re-sysprep |
 | `ZtdDeviceIsNotRegistered` in diagnostics (Ctrl+Shift+D) | Device hash not registered in any tenant | Upload hash to Intune and wait for Assigned |
-| `binarySecurityToken is empty` in Fleet logs | User's Entra ID P1 license not assigned, or Fleet MDM user scope = None | Assign license to the enrolling user; set Fleet MDM user scope to All in Entra Mobility |
+| `binarySecurityToken is empty` in AutoMDM logs | User's Entra ID P1 license not assigned, or AutoMDM user scope = None | Assign license to the enrolling user; set AutoMDM user scope to All in Entra Mobility |
 | `0x80180024` error during enrollment | Authentication failure -- often stale state from failed attempts | Restore clean snapshot and retry |
-| MDM URL empty in `dsregcmd /status` | License not assigned or not yet propagated, or Fleet MDM user scope = None | Assign license, set scope to All, wait 15-30 min, run `dsregcmd /refreshprt` |
+| MDM URL empty in `dsregcmd /status` | License not assigned or not yet propagated, or AutoMDM user scope = None | Assign license, set scope to All, wait 15-30 min, run `dsregcmd /refreshprt` |
 | Sysprep fails with BitLocker error | BitLocker auto-enabled during Windows install | Run `manage-bde -off C:` and wait for full decryption |
 | Disk not visible during Windows install | VirtIO SCSI needs driver | Load driver from VirtIO CD: `vioscsi\w11\amd64` |
 | No network in OOBE | Wrong network adapter type | Use Intel E1000E (not VirtIO) for the network adapter |
@@ -249,7 +249,7 @@ Microsoft Entra requires a **verified custom domain** for the MDM application UR
    - Add the **TXT record** that Microsoft Entra provides on the **root domain** (e.g., `yourdomain.xyz`) for domain verification.
    - Note: DNS standards don't allow CNAME records to coexist with other record types at the same name. Using a subdomain for the CNAME avoids this conflict -- the root domain stays free for the Entra TXT verification record.
 4. **Verify the root domain in Entra:** go to [Entra > Domain names](https://entra.microsoft.com/#view/Microsoft_AAD_IAM/ActiveDirectoryMenuBlade/~/Domains) > Add custom domain, enter your root domain (e.g., `yourdomain.xyz`), and verify it using the TXT record.
-5. **Configure the MDM application in Entra** following the [Windows MDM Setup guide](https://fleetdm.com/guides/windows-mdm-setup#step-2-connect-fleet-to-microsoft-entra-id). Use your **subdomain** (e.g., `mdm.yourdomain.xyz`) for all MDM URLs (Application ID URI, discovery URL, terms of use URL).
+5. **Configure the MDM application in Entra** following the [Windows MDM Setup guide](https://automdm.com/guides/windows-mdm-setup#step-2-connect-automdm-to-microsoft-entra-id). Use your **subdomain** (e.g., `mdm.yourdomain.xyz`) for all MDM URLs (Application ID URI, discovery URL, terms of use URL).
 
 **Alternative: Caddy reverse proxy.** If you have a server with a public IP and a domain you control, you can use [Caddy](https://caddyserver.com/) as a reverse proxy with automatic Let's Encrypt TLS instead of ngrok. Point a DNS A record to your server's IP and run:
 ```bash
@@ -257,13 +257,13 @@ caddy reverse-proxy --from your-subdomain.yourdomain.com --to https://localhost:
 ```
 Caddy auto-provisions the TLS certificate. This avoids ngrok entirely and is more stable for long-running test setups.
 
-Example ngrok config with a custom domain for the Fleet server:
+Example ngrok config with a custom domain for the AutoMDM server:
 ```yaml
 version: "3"
 agent:
     authtoken: <your_ngrok_authtoken>
 tunnels:
-    fleet:
+    team:
         proto: http
         schemes: [https]
         hostname: mdm.yourdomain.xyz  # subdomain CNAME'd to ngrok
@@ -283,4 +283,4 @@ tunnels:
         inspect: true
 ```
 
-Only the Fleet server tunnel needs the custom domain. The installer and TUF tunnels can use regular ngrok subdomains.
+Only the AutoMDM server tunnel needs the custom domain. The installer and TUF tunnels can use regular ngrok subdomains.

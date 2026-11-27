@@ -14,12 +14,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
-	android_service "github.com/fleetdm/fleet/v4/server/mdm/android/service"
-	"github.com/fleetdm/fleet/v4/server/mdm/android/service/androidmgmt"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
+	android_service "github.com/anilyagiz/automdm/v4/server/mdm/android/service"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android/service/androidmgmt"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
@@ -42,8 +42,8 @@ func (s *integrationMDMTestSuite) TestAndroidAppsSelfService() {
 	var addAppResp addAppStoreAppResponse
 	s.DoJSON(
 		"POST",
-		"/api/latest/fleet/software/app_store_apps",
-		&addAppStoreAppRequest{AppStoreID: "com.should.fail", Platform: fleet.AndroidPlatform},
+		"/api/latest/automdm/software/app_store_apps",
+		&addAppStoreAppRequest{AppStoreID: "com.should.fail", Platform: automdm.AndroidPlatform},
 		http.StatusBadRequest,
 		&addAppResp,
 	)
@@ -51,11 +51,11 @@ func (s *integrationMDMTestSuite) TestAndroidAppsSelfService() {
 	s.enableAndroidMDM(t)
 
 	// Android MDM setup
-	androidApp := &fleet.VPPApp{
-		VPPAppTeam: fleet.VPPAppTeam{
-			VPPAppID: fleet.VPPAppID{
+	androidApp := &automdm.VPPApp{
+		VPPAppTeam: automdm.VPPAppTeam{
+			VPPAppID: automdm.VPPAppID{
 				AdamID:   "com.whatsapp",
-				Platform: fleet.AndroidPlatform,
+				Platform: automdm.AndroidPlatform,
 			},
 		},
 		Name:             "WhatsApp",
@@ -66,32 +66,32 @@ func (s *integrationMDMTestSuite) TestAndroidAppsSelfService() {
 	// Invalid application ID format: should fail
 	r := s.Do(
 		"POST",
-		"/api/latest/fleet/software/app_store_apps",
-		&addAppStoreAppRequest{AppStoreID: "thisisnotanappid", Platform: fleet.AndroidPlatform},
+		"/api/latest/automdm/software/app_store_apps",
+		&addAppStoreAppRequest{AppStoreID: "thisisnotanappid", Platform: automdm.AndroidPlatform},
 		http.StatusUnprocessableEntity,
 	)
 	require.Contains(t, extractServerErrorText(r.Body), "Application ID must be a valid Android application ID")
 
-	// Fleet agent app: should fail (cannot be added manually)
-	for _, fleetAgentPkg := range []string{
+	// AutoMDM agent app: should fail (cannot be added manually)
+	for _, automdmAgentPkg := range []string{
 		"com.fleetdm.agent",
 		"com.fleetdm.agent.pingali",
 		"com.fleetdm.agent.private.testuser",
 	} {
 		r = s.Do(
 			"POST",
-			"/api/latest/fleet/software/app_store_apps",
-			&addAppStoreAppRequest{AppStoreID: fleetAgentPkg, Platform: fleet.AndroidPlatform},
+			"/api/latest/automdm/software/app_store_apps",
+			&addAppStoreAppRequest{AppStoreID: automdmAgentPkg, Platform: automdm.AndroidPlatform},
 			http.StatusUnprocessableEntity,
 		)
-		require.Contains(t, extractServerErrorText(r.Body), "The Fleet agent cannot be added manually",
-			"expected Fleet Agent package %s to be blocked", fleetAgentPkg)
+		require.Contains(t, extractServerErrorText(r.Body), "The AutoMDM agent cannot be added manually",
+			"expected AutoMDM Agent package %s to be blocked", automdmAgentPkg)
 	}
 
 	// Missing platform: should fail
 	r = s.Do(
 		"POST",
-		"/api/latest/fleet/software/app_store_apps",
+		"/api/latest/automdm/software/app_store_apps",
 		&addAppStoreAppRequest{AppStoreID: "com.valid.app.id"},
 		http.StatusUnprocessableEntity,
 	)
@@ -105,8 +105,8 @@ func (s *integrationMDMTestSuite) TestAndroidAppsSelfService() {
 
 	r = s.Do(
 		"POST",
-		"/api/latest/fleet/software/app_store_apps",
-		&addAppStoreAppRequest{AppStoreID: "com.app.id.not.found", Platform: fleet.AndroidPlatform},
+		"/api/latest/automdm/software/app_store_apps",
+		&addAppStoreAppRequest{AppStoreID: "com.app.id.not.found", Platform: automdm.AndroidPlatform},
 		http.StatusUnprocessableEntity,
 	)
 	s.Assert().Contains(extractServerErrorText(r.Body), "Couldn't add software. The application ID \"com.app.id.not.found\" isn't available in Play Store. Please find ID on the Play Store and try again.")
@@ -137,8 +137,8 @@ func (s *integrationMDMTestSuite) TestAndroidAppsSelfService() {
 	// Valid application ID format, but wrong platform specified: should fail
 	r = s.Do(
 		"POST",
-		"/api/latest/fleet/software/app_store_apps",
-		&addAppStoreAppRequest{AppStoreID: "com.valid", Platform: fleet.MacOSPlatform},
+		"/api/latest/automdm/software/app_store_apps",
+		&addAppStoreAppRequest{AppStoreID: "com.valid", Platform: automdm.MacOSPlatform},
 		http.StatusUnprocessableEntity,
 	)
 	require.Contains(t, extractServerErrorText(r.Body), "Couldn't add software. \"com.valid\" isn't available in Apple Business or Play Store. Please purchase a license in Apple Business or find the app in Play Store and try again.")
@@ -146,8 +146,8 @@ func (s *integrationMDMTestSuite) TestAndroidAppsSelfService() {
 	// Add Android app
 	s.DoJSON(
 		"POST",
-		"/api/latest/fleet/software/app_store_apps",
-		&addAppStoreAppRequest{AppStoreID: androidApp.AdamID, Platform: fleet.AndroidPlatform},
+		"/api/latest/automdm/software/app_store_apps",
+		&addAppStoreAppRequest{AppStoreID: androidApp.AdamID, Platform: automdm.AndroidPlatform},
 		http.StatusOK,
 		&addAppResp,
 	)
@@ -165,9 +165,9 @@ func (s *integrationMDMTestSuite) TestAndroidAppsSelfService() {
 	require.NoError(t, err)
 	require.Len(t, secrets, 1)
 
-	assets, err := s.ds.GetAllMDMConfigAssetsByName(ctx, []fleet.MDMAssetName{fleet.MDMAssetAndroidPubSubToken}, nil)
+	assets, err := s.ds.GetAllMDMConfigAssetsByName(ctx, []automdm.MDMAssetName{automdm.MDMAssetAndroidPubSubToken}, nil)
 	require.NoError(t, err)
-	pubsubToken := assets[fleet.MDMAssetAndroidPubSubToken]
+	pubsubToken := assets[automdm.MDMAssetAndroidPubSubToken]
 	require.NotEmpty(t, pubsubToken.Value)
 
 	deviceID1 := createAndroidDeviceID("test-android")
@@ -193,20 +193,20 @@ func (s *integrationMDMTestSuite) TestAndroidAppsSelfService() {
 			PubSubMessage: *enrollmentMessage,
 		}
 
-		s.Do("POST", "/api/v1/fleet/android_enterprise/pubsub", &req, http.StatusOK, "token", string(pubsubToken.Value))
+		s.Do("POST", "/api/v1/automdm/android_enterprise/pubsub", &req, http.StatusOK, "token", string(pubsubToken.Value))
 	}
 
 	var hosts listHostsResponse
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &hosts)
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &hosts)
 
 	assert.Len(t, hosts.Hosts, 2)
 
 	host1 := hosts.Hosts[0]
-	assert.Equal(t, host1.Platform, string(fleet.AndroidPlatform))
+	assert.Equal(t, host1.Platform, string(automdm.AndroidPlatform))
 
 	// Should see it in host software library
 	getHostSw := getHostSoftwareResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/software", host1.ID), nil, http.StatusOK, &getHostSw, "available_for_install", "true")
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/software", host1.ID), nil, http.StatusOK, &getHostSw, "available_for_install", "true")
 	assert.Len(t, getHostSw.Software, 1)
 	s.Assert().NotNil(getHostSw.Software[0].AppStoreApp)
 	s.Assert().Equal(androidApp.AdamID, getHostSw.Software[0].AppStoreApp.AppStoreID)
@@ -218,7 +218,7 @@ func (s *integrationMDMTestSuite) TestAndroidAppsSelfService() {
 	require.NoError(t, err)
 
 	var listSWTitles listSoftwareTitlesResponse
-	s.DoJSON("GET", "/api/latest/fleet/software/titles", nil, http.StatusOK, &listSWTitles, "fleet_id", fmt.Sprint(0))
+	s.DoJSON("GET", "/api/latest/automdm/software/titles", nil, http.StatusOK, &listSWTitles, "team_id", fmt.Sprint(0))
 
 	s.Assert().Len(listSWTitles.SoftwareTitles, 1)
 	s.Equal(androidApp.AdamID, listSWTitles.SoftwareTitles[0].AppStoreApps[0].AppStoreID)
@@ -236,7 +236,7 @@ func (s *integrationMDMTestSuite) TestAndroidAppsSelfService() {
 
 	s.DoJSON(
 		"PATCH",
-		fmt.Sprintf("/api/latest/fleet/software/titles/%d/app_store_app", getHostSw.Software[0].ID),
+		fmt.Sprintf("/api/latest/automdm/software/titles/%d/app_store_app", getHostSw.Software[0].ID),
 		&updateAppStoreAppRequest{SelfService: ptr.Bool(false)},
 		http.StatusOK,
 		&addAppResp,
@@ -253,14 +253,14 @@ func (s *integrationMDMTestSuite) TestAndroidAppsSelfService() {
 
 	// Add some apps to a different team. They shouldn't be sent to our existing host
 	var newTeamResp teamResponse
-	s.DoJSON("POST", "/api/latest/fleet/fleets", &createTeamRequest{Name: new("Team 1")}, http.StatusOK, &newTeamResp)
+	s.DoJSON("POST", "/api/latest/automdm/teams", &createTeamRequest{Name: new("Team 1")}, http.StatusOK, &newTeamResp)
 	team := newTeamResp.Team
 	// Add Android app
-	androidAppNewTeam := &fleet.VPPApp{
-		VPPAppTeam: fleet.VPPAppTeam{
-			VPPAppID: fleet.VPPAppID{
+	androidAppNewTeam := &automdm.VPPApp{
+		VPPAppTeam: automdm.VPPAppTeam{
+			VPPAppID: automdm.VPPAppID{
 				AdamID:   "com.my.cool.app",
-				Platform: fleet.AndroidPlatform,
+				Platform: automdm.AndroidPlatform,
 			},
 		},
 		Name:             "My cool app",
@@ -269,29 +269,29 @@ func (s *integrationMDMTestSuite) TestAndroidAppsSelfService() {
 	}
 	s.DoJSON(
 		"POST",
-		"/api/latest/fleet/software/app_store_apps",
-		&addAppStoreAppRequest{AppStoreID: androidAppNewTeam.AdamID, Platform: fleet.AndroidPlatform, TeamID: &team.ID},
+		"/api/latest/automdm/software/app_store_apps",
+		&addAppStoreAppRequest{AppStoreID: androidAppNewTeam.AdamID, Platform: automdm.AndroidPlatform, TeamID: &team.ID},
 		http.StatusOK,
 		&addAppResp,
 	)
 
 	// New app should not show up in "No team" library
-	s.DoJSON("GET", "/api/latest/fleet/software/titles", nil, http.StatusOK, &listSWTitles, "fleet_id", fmt.Sprint(0))
+	s.DoJSON("GET", "/api/latest/automdm/software/titles", nil, http.StatusOK, &listSWTitles, "team_id", fmt.Sprint(0))
 	s.Assert().Len(listSWTitles.SoftwareTitles, 1)
 	s.Equal(androidApp.AdamID, listSWTitles.SoftwareTitles[0].AppStoreApps[0].AppStoreID) // just the app we had before
 	s.Empty(listSWTitles.SoftwareTitles[0].AppStoreApps[0].Version)
 
 	// New app SHOULD show up in our new team library
-	s.DoJSON("GET", "/api/latest/fleet/software/titles", nil, http.StatusOK, &listSWTitles, "fleet_id", fmt.Sprint(team.ID))
+	s.DoJSON("GET", "/api/latest/automdm/software/titles", nil, http.StatusOK, &listSWTitles, "team_id", fmt.Sprint(team.ID))
 	s.Assert().Len(listSWTitles.SoftwareTitles, 1)
 	s.Equal(androidAppNewTeam.AdamID, listSWTitles.SoftwareTitles[0].AppStoreApps[0].AppStoreID)
 	s.Empty(listSWTitles.SoftwareTitles[0].AppStoreApps[0].Version)
 
-	androidAppNewTeam2 := &fleet.VPPApp{
-		VPPAppTeam: fleet.VPPAppTeam{
-			VPPAppID: fleet.VPPAppID{
+	androidAppNewTeam2 := &automdm.VPPApp{
+		VPPAppTeam: automdm.VPPAppTeam{
+			VPPAppID: automdm.VPPAppID{
 				AdamID:   "com.my.cool.app.two",
-				Platform: fleet.AndroidPlatform,
+				Platform: automdm.AndroidPlatform,
 			},
 		},
 		Name:             "My cool app 2",
@@ -303,21 +303,21 @@ func (s *integrationMDMTestSuite) TestAndroidAppsSelfService() {
 
 	s.DoJSON(
 		"POST",
-		"/api/latest/fleet/software/app_store_apps",
-		&addAppStoreAppRequest{AppStoreID: androidAppNewTeam2.AdamID, Platform: fleet.AndroidPlatform, TeamID: &team.ID},
+		"/api/latest/automdm/software/app_store_apps",
+		&addAppStoreAppRequest{AppStoreID: androidAppNewTeam2.AdamID, Platform: automdm.AndroidPlatform, TeamID: &team.ID},
 		http.StatusOK,
 		&addAppResp,
 	)
 	require.Equal(t, androidAppNewTeam2.Name, addAppResp.Name)
 
-	s.DoJSON("GET", "/api/latest/fleet/software/titles", nil, http.StatusOK, &listSWTitles, "fleet_id", fmt.Sprint(team.ID))
+	s.DoJSON("GET", "/api/latest/automdm/software/titles", nil, http.StatusOK, &listSWTitles, "team_id", fmt.Sprint(team.ID))
 	s.Assert().Len(listSWTitles.SoftwareTitles, 2)
-	s.Assert().True(slices.ContainsFunc(listSWTitles.SoftwareTitles, func(t fleet.SoftwareTitleListResult) bool {
+	s.Assert().True(slices.ContainsFunc(listSWTitles.SoftwareTitles, func(t automdm.SoftwareTitleListResult) bool {
 		return t.AppStoreApps[0].AppStoreID == androidAppNewTeam.AdamID || t.AppStoreApps[0].AppStoreID == androidAppNewTeam2.AdamID
 	}))
 
-	s.lastActivityMatches(fleet.ActivityAddedAppStoreApp{}.ActivityName(),
-		withVPPToken(t, fmt.Sprintf(`{"version_name": "Default version", "fleet_name": "%s", "software_title": "%s", "software_title_id": %d, "app_store_id": "%s", "fleet_id": %s, "platform": "%s", "self_service": true}`, team.Name, androidAppNewTeam2.Name, addAppResp.TitleID, androidAppNewTeam2.AdamID, fmt.Sprint(team.ID), androidAppNewTeam2.Platform), nil), 0)
+	s.lastActivityMatches(automdm.ActivityAddedAppStoreApp{}.ActivityName(),
+		withVPPToken(t, fmt.Sprintf(`{"version_name": "Default version", "team_name": "%s", "software_title": "%s", "software_title_id": %d, "app_store_id": "%s", "team_id": %s, "platform": "%s", "self_service": true}`, team.Name, androidAppNewTeam2.Name, addAppResp.TitleID, androidAppNewTeam2.AdamID, fmt.Sprint(team.ID), androidAppNewTeam2.Platform), nil), 0)
 
 	s.androidAPIClient.EnterprisesPoliciesPatchFuncInvoked = false
 	s.runWorkerUntilDone()
@@ -336,13 +336,13 @@ func (s *integrationMDMTestSuite) TestAndroidAppsSelfService() {
 		s.Assert().Contains(policyName, host1.UUID)
 	}
 
-	// the device reports applying its own policy, then transfer it to the fleet and run the worker and the Android profile
-	// schedule, it should get the fleet's apps
+	// the device reports applying its own policy, then transfer it to the team and run the worker and the Android profile
+	// schedule, it should get the team's apps
 	mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
 		_, err := q.ExecContext(ctx, `UPDATE android_devices SET applied_policy_id = ? WHERE host_id = ?`, host1.UUID, host1.ID)
 		return err
 	})
-	s.DoJSON("POST", "/api/latest/fleet/hosts/transfer", addHostsToTeamRequest{
+	s.DoJSON("POST", "/api/latest/automdm/hosts/transfer", addHostsToTeamRequest{
 		TeamID:  &team.ID,
 		HostIDs: []uint{host1.ID},
 	}, http.StatusOK, &addHostsToTeamResponse{})
@@ -354,7 +354,7 @@ func (s *integrationMDMTestSuite) TestAndroidAppsSelfService() {
 	s.True(s.androidAPIClient.EnterprisesPoliciesRemovePolicyApplicationsFuncInvoked)
 
 	// Transfer host back to "No team"
-	s.DoJSON("POST", "/api/latest/fleet/hosts/transfer", addHostsToTeamRequest{
+	s.DoJSON("POST", "/api/latest/automdm/hosts/transfer", addHostsToTeamRequest{
 		TeamID:  nil,
 		HostIDs: []uint{host1.ID},
 	}, http.StatusOK, &addHostsToTeamResponse{})
@@ -365,7 +365,7 @@ func (s *integrationMDMTestSuite) TestAndroidAppsSelfService() {
 
 	// Title with no configuration should omit it from response
 	var getAppResp map[string]any
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/software/titles/%d", addAppResp.TitleID), &getSoftwareTitleRequest{
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/software/titles/%d", addAppResp.TitleID), &getSoftwareTitleRequest{
 		ID:     addAppResp.TitleID,
 		TeamID: nil,
 	}, http.StatusOK, &getAppResp)
@@ -373,11 +373,11 @@ func (s *integrationMDMTestSuite) TestAndroidAppsSelfService() {
 
 	// Android app with configuration
 	appConfiguration := json.RawMessage(`{"workProfileWidgets": "WORK_PROFILE_WIDGETS_ALLOWED"}`)
-	androidAppWithConfig := &fleet.VPPApp{
-		VPPAppTeam: fleet.VPPAppTeam{
-			VPPAppID: fleet.VPPAppID{
+	androidAppWithConfig := &automdm.VPPApp{
+		VPPAppTeam: automdm.VPPAppTeam{
+			VPPAppID: automdm.VPPAppID{
 				AdamID:   "com.fooooooo",
-				Platform: fleet.AndroidPlatform,
+				Platform: automdm.AndroidPlatform,
 			},
 			Configuration: appConfiguration,
 		},
@@ -392,7 +392,7 @@ func (s *integrationMDMTestSuite) TestAndroidAppsSelfService() {
 	var appWithConfigResp addAppStoreAppResponse
 	s.DoJSON(
 		"POST",
-		"/api/latest/fleet/software/app_store_apps",
+		"/api/latest/automdm/software/app_store_apps",
 		&addAppStoreAppRequest{
 			AppStoreID:    androidAppWithConfig.AdamID,
 			Platform:      androidAppWithConfig.VPPAppID.Platform,
@@ -404,11 +404,11 @@ func (s *integrationMDMTestSuite) TestAndroidAppsSelfService() {
 	require.Equal(t, androidAppWithConfig.Name, appWithConfigResp.Name)
 
 	// Verify that activity includes configuration
-	s.lastActivityMatches(fleet.ActivityAddedAppStoreApp{}.ActivityName(),
-		withVPPToken(t, fmt.Sprintf(`{"version_name": "Default version", "fleet_name": "%s", "software_title": "%s", "software_title_id": %d, "app_store_id": "%s", "fleet_id": %s, "platform": "%s", "self_service": true,"configuration": %s}`, fleet.DisplayNameNoTeam, androidAppWithConfig.Name, appWithConfigResp.TitleID, androidAppWithConfig.AdamID, "null", androidAppWithConfig.Platform, androidAppWithConfig.Configuration), nil), 0)
+	s.lastActivityMatches(automdm.ActivityAddedAppStoreApp{}.ActivityName(),
+		withVPPToken(t, fmt.Sprintf(`{"version_name": "Default version", "team_name": "%s", "software_title": "%s", "software_title_id": %d, "app_store_id": "%s", "team_id": %s, "platform": "%s", "self_service": true,"configuration": %s}`, automdm.DisplayNameNoTeam, androidAppWithConfig.Name, appWithConfigResp.TitleID, androidAppWithConfig.AdamID, "null", androidAppWithConfig.Platform, androidAppWithConfig.Configuration), nil), 0)
 
 	// Should see it in host software library
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/software", host1.ID), nil, http.StatusOK, &getHostSw, "available_for_install", "true")
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/software", host1.ID), nil, http.StatusOK, &getHostSw, "available_for_install", "true")
 	assert.Len(t, getHostSw.Software, 2)
 	s.Assert().NotNil(getHostSw.Software[1].AppStoreApp)
 	s.Assert().Equal(androidAppWithConfig.AdamID, getHostSw.Software[1].AppStoreApp.AppStoreID)
@@ -416,18 +416,18 @@ func (s *integrationMDMTestSuite) TestAndroidAppsSelfService() {
 	// Edit app without changing configuration
 	s.DoJSON(
 		"PATCH",
-		fmt.Sprintf("/api/latest/fleet/software/titles/%d/app_store_app", appWithConfigResp.TitleID),
+		fmt.Sprintf("/api/latest/automdm/software/titles/%d/app_store_app", appWithConfigResp.TitleID),
 		&updateAppStoreAppRequest{},
 		http.StatusOK,
 		&addAppResp,
 	)
-	s.lastActivityMatches(fleet.ActivityEditedAppStoreApp{}.ActivityName(), "", 0)
+	s.lastActivityMatches(automdm.ActivityEditedAppStoreApp{}.ActivityName(), "", 0)
 
 	var titleWithConfigResp getSoftwareTitleResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/software/titles/%d", appWithConfigResp.TitleID), &getSoftwareTitleRequest{
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/software/titles/%d", appWithConfigResp.TitleID), &getSoftwareTitleRequest{
 		ID:     appWithConfigResp.TitleID,
 		TeamID: nil,
-	}, http.StatusOK, &titleWithConfigResp, "fleet_id", "0")
+	}, http.StatusOK, &titleWithConfigResp, "team_id", "0")
 
 	require.Len(t, titleWithConfigResp.SoftwareTitle.AppStoreApps, 1)
 	require.Contains(t, string(titleWithConfigResp.SoftwareTitle.AppStoreApps[0].Configuration), "workProfileWidgets")
@@ -436,7 +436,7 @@ func (s *integrationMDMTestSuite) TestAndroidAppsSelfService() {
 	newConfig := json.RawMessage(`{"managedConfiguration": {"key": "value"}}`)
 	s.DoJSON(
 		"PATCH",
-		fmt.Sprintf("/api/latest/fleet/software/titles/%d/app_store_app", appWithConfigResp.TitleID),
+		fmt.Sprintf("/api/latest/automdm/software/titles/%d/app_store_app", appWithConfigResp.TitleID),
 		&updateAppStoreAppRequest{
 			Configuration: newConfig,
 		},
@@ -445,30 +445,30 @@ func (s *integrationMDMTestSuite) TestAndroidAppsSelfService() {
 	)
 
 	// Verify that configuration changed and last activity is correct
-	s.lastActivityMatches(fleet.ActivityEditedAppStoreApp{}.ActivityName(),
-		withVPPToken(t, fmt.Sprintf(`{"version_name": "Default version", "fleet_name": "%s", "software_title": "%s", "software_icon_url":"https://example.com/1.jpg", "software_title_id": %d, "app_store_id": "%s", "fleet_id": %s, "software_display_name":"", "platform": "%s", "self_service": true,"configuration": %s}`, "", androidAppWithConfig.Name, appWithConfigResp.TitleID, androidAppWithConfig.AdamID, "null", androidAppWithConfig.Platform, newConfig), nil), 0)
+	s.lastActivityMatches(automdm.ActivityEditedAppStoreApp{}.ActivityName(),
+		withVPPToken(t, fmt.Sprintf(`{"version_name": "Default version", "team_name": "%s", "software_title": "%s", "software_icon_url":"https://example.com/1.jpg", "software_title_id": %d, "app_store_id": "%s", "team_id": %s, "software_display_name":"", "platform": "%s", "self_service": true,"configuration": %s}`, "", androidAppWithConfig.Name, appWithConfigResp.TitleID, androidAppWithConfig.AdamID, "null", androidAppWithConfig.Platform, newConfig), nil), 0)
 }
 
 func (s *integrationMDMTestSuite) TestAndroidSetupExperienceSoftware() {
 	t := s.T()
 	s.enableAndroidMDM(t)
 
-	app1 := &fleet.VPPApp{
-		VPPAppTeam: fleet.VPPAppTeam{
-			VPPAppID: fleet.VPPAppID{
+	app1 := &automdm.VPPApp{
+		VPPAppTeam: automdm.VPPAppTeam{
+			VPPAppID: automdm.VPPAppID{
 				AdamID:   "com.test1",
-				Platform: fleet.AndroidPlatform,
+				Platform: automdm.AndroidPlatform,
 			},
 		},
 		Name:             "Test1",
 		BundleIdentifier: "com.test1",
 		IconURL:          "https://example.com/1",
 	}
-	app2 := &fleet.VPPApp{
-		VPPAppTeam: fleet.VPPAppTeam{
-			VPPAppID: fleet.VPPAppID{
+	app2 := &automdm.VPPApp{
+		VPPAppTeam: automdm.VPPAppTeam{
+			VPPAppID: automdm.VPPAppID{
 				AdamID:   "com.test2",
-				Platform: fleet.AndroidPlatform,
+				Platform: automdm.AndroidPlatform,
 			},
 		},
 		Name:             "Test2",
@@ -476,7 +476,7 @@ func (s *integrationMDMTestSuite) TestAndroidSetupExperienceSoftware() {
 		IconURL:          "https://example.com/2",
 	}
 
-	androidApps := []*fleet.VPPApp{app1, app2}
+	androidApps := []*automdm.VPPApp{app1, app2}
 	s.androidAPIClient.EnterprisesApplicationsFunc = func(ctx context.Context, enterpriseName string, packageName string) (*androidmanagement.Application, error) {
 		for _, app := range androidApps {
 			if app.AdamID == packageName {
@@ -488,17 +488,17 @@ func (s *integrationMDMTestSuite) TestAndroidSetupExperienceSoftware() {
 
 	// add Android app 1
 	var addAppResp addAppStoreAppResponse
-	s.DoJSON("POST", "/api/latest/fleet/software/app_store_apps", &addAppStoreAppRequest{
+	s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps", &addAppStoreAppRequest{
 		AppStoreID: app1.AdamID,
-		Platform:   fleet.AndroidPlatform,
+		Platform:   automdm.AndroidPlatform,
 	}, http.StatusOK, &addAppResp)
 	app1TitleID := addAppResp.TitleID
 
 	// add Android app 2
 	addAppResp = addAppStoreAppResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/software/app_store_apps", &addAppStoreAppRequest{
+	s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps", &addAppStoreAppRequest{
 		AppStoreID: app2.AdamID,
-		Platform:   fleet.AndroidPlatform,
+		Platform:   automdm.AndroidPlatform,
 	}, http.StatusOK, &addAppResp)
 	app2TitleID := addAppResp.TitleID
 
@@ -506,20 +506,20 @@ func (s *integrationMDMTestSuite) TestAndroidSetupExperienceSoftware() {
 
 	// add app 1 to Android setup experience
 	var putResp putSetupExperienceSoftwareResponse
-	s.DoJSON("PUT", "/api/latest/fleet/setup_experience/software", &putSetupExperienceSoftwareRequest{
-		Platform: string(fleet.AndroidPlatform),
+	s.DoJSON("PUT", "/api/latest/automdm/setup_experience/software", &putSetupExperienceSoftwareRequest{
+		Platform: string(automdm.AndroidPlatform),
 		TeamID:   0,
 		TitleIDs: []uint{app1TitleID},
 	}, http.StatusOK, &putResp)
 
 	// verify that the expected activity got created
-	s.lastActivityOfTypeMatches(fleet.ActivityEditedSetupExperienceSoftware{}.ActivityName(),
-		`{"platform": "android", "fleet_id": 0, "fleet_name": ""}`, 0)
+	s.lastActivityOfTypeMatches(automdm.ActivityEditedSetupExperienceSoftware{}.ActivityName(),
+		`{"platform": "android", "team_id": 0, "team_name": ""}`, 0)
 
 	// list the available setup experience software and verify that only app 1 is installed at setup
 	var getResp getSetupExperienceSoftwareResponse
-	s.DoJSON("GET", "/api/latest/fleet/setup_experience/software", nil, http.StatusOK, &getResp,
-		"fleet_id", "0", "platform", string(fleet.AndroidPlatform), "order_key", "name")
+	s.DoJSON("GET", "/api/latest/automdm/setup_experience/software", nil, http.StatusOK, &getResp,
+		"team_id", "0", "platform", string(automdm.AndroidPlatform), "order_key", "name")
 	require.Len(t, getResp.SoftwareTitles, 2)
 	require.Equal(t, app1TitleID, getResp.SoftwareTitles[0].ID)
 	require.Equal(t, app1.Name, getResp.SoftwareTitles[0].Name)
@@ -533,15 +533,15 @@ func (s *integrationMDMTestSuite) TestAndroidSetupExperienceSoftware() {
 	require.False(t, *getResp.SoftwareTitles[1].AppStoreApp.InstallDuringSetup)
 
 	// set app1 and app2 to be installed at setup
-	s.DoJSON("PUT", "/api/latest/fleet/setup_experience/software", &putSetupExperienceSoftwareRequest{
-		Platform: string(fleet.AndroidPlatform),
+	s.DoJSON("PUT", "/api/latest/automdm/setup_experience/software", &putSetupExperienceSoftwareRequest{
+		Platform: string(automdm.AndroidPlatform),
 		TeamID:   0,
 		TitleIDs: []uint{app1TitleID, app2TitleID},
 	}, http.StatusOK, &putResp)
 
 	getResp = getSetupExperienceSoftwareResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/setup_experience/software", nil, http.StatusOK, &getResp,
-		"fleet_id", "0", "platform", string(fleet.AndroidPlatform), "order_key", "name")
+	s.DoJSON("GET", "/api/latest/automdm/setup_experience/software", nil, http.StatusOK, &getResp,
+		"team_id", "0", "platform", string(automdm.AndroidPlatform), "order_key", "name")
 	require.Len(t, getResp.SoftwareTitles, 2)
 	require.Equal(t, app1TitleID, getResp.SoftwareTitles[0].ID)
 	require.NotNil(t, getResp.SoftwareTitles[0].AppStoreApp.InstallDuringSetup)
@@ -551,15 +551,15 @@ func (s *integrationMDMTestSuite) TestAndroidSetupExperienceSoftware() {
 	require.True(t, *getResp.SoftwareTitles[1].AppStoreApp.InstallDuringSetup)
 
 	// unset all apps to be installed at setup
-	s.DoJSON("PUT", "/api/latest/fleet/setup_experience/software", &putSetupExperienceSoftwareRequest{
-		Platform: string(fleet.AndroidPlatform),
+	s.DoJSON("PUT", "/api/latest/automdm/setup_experience/software", &putSetupExperienceSoftwareRequest{
+		Platform: string(automdm.AndroidPlatform),
 		TeamID:   0,
 		TitleIDs: []uint{},
 	}, http.StatusOK, &putResp)
 
 	getResp = getSetupExperienceSoftwareResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/setup_experience/software", nil, http.StatusOK, &getResp,
-		"fleet_id", "0", "platform", string(fleet.AndroidPlatform), "order_key", "name")
+	s.DoJSON("GET", "/api/latest/automdm/setup_experience/software", nil, http.StatusOK, &getResp,
+		"team_id", "0", "platform", string(automdm.AndroidPlatform), "order_key", "name")
 	require.Len(t, getResp.SoftwareTitles, 2)
 	require.Equal(t, app1TitleID, getResp.SoftwareTitles[0].ID)
 	require.NotNil(t, getResp.SoftwareTitles[0].AppStoreApp.InstallDuringSetup)
@@ -627,7 +627,7 @@ func (s *integrationMDMTestSuite) enableAndroidMDM(t *testing.T) string {
 
 	// Create enterprise
 	var signupResp android.EnterpriseSignupResponse
-	s.DoJSON("GET", "/api/v1/fleet/android_enterprise/signup_url", nil, http.StatusOK, &signupResp)
+	s.DoJSON("GET", "/api/v1/automdm/android_enterprise/signup_url", nil, http.StatusOK, &signupResp)
 
 	const enterpriseToken = "enterpriseToken"
 
@@ -645,7 +645,7 @@ func (s *integrationMDMTestSuite) enableAndroidMDM(t *testing.T) string {
 	}
 
 	resp := android.GetEnterpriseResponse{}
-	s.DoJSON("GET", "/api/v1/fleet/android_enterprise", nil, http.StatusOK, &resp)
+	s.DoJSON("GET", "/api/v1/automdm/android_enterprise", nil, http.StatusOK, &resp)
 	assert.Equal(t, enterpriseID, resp.EnterpriseID)
 
 	return enterpriseID
@@ -669,7 +669,7 @@ func (s *integrationMDMTestSuite) TestBatchAndroidApps() {
 
 	teamName := "Android Team For All Tests"
 	var createTeamResp teamResponse
-	s.DoJSON("POST", "/api/latest/fleet/fleets", &fleet.Team{
+	s.DoJSON("POST", "/api/latest/automdm/teams", &automdm.Team{
 		Name: teamName,
 	}, http.StatusOK, &createTeamResp)
 	require.NotZero(t, createTeamResp.Team.ID)
@@ -678,12 +678,12 @@ func (s *integrationMDMTestSuite) TestBatchAndroidApps() {
 	t.Run("android app configurations", func(t *testing.T) {
 		// Android app with configuration
 		exampleConfiguration := json.RawMessage(`{"workProfileWidgets":"WORK_PROFILE_WIDGETS_ALLOWED","credentialProviderPolicy":"CREDENTIAL_PROVIDER_ALLOWED"}`)
-		androidAppFoo := &fleet.VPPApp{
-			VPPAppTeam: fleet.VPPAppTeam{
+		androidAppFoo := &automdm.VPPApp{
+			VPPAppTeam: automdm.VPPAppTeam{
 				AppTeamID: ptr.ValOrZero(teamID),
-				VPPAppID: fleet.VPPAppID{
+				VPPAppID: automdm.VPPAppID{
 					AdamID:   "com.foo",
-					Platform: fleet.AndroidPlatform,
+					Platform: automdm.AndroidPlatform,
 				},
 				Configuration: exampleConfiguration,
 			},
@@ -691,7 +691,7 @@ func (s *integrationMDMTestSuite) TestBatchAndroidApps() {
 
 		// Add Android app
 		var appWithConfigResp addAppStoreAppResponse
-		s.DoJSON("POST", "/api/latest/fleet/software/app_store_apps",
+		s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps",
 			&addAppStoreAppRequest{
 				TeamID:        teamID,
 				AppStoreID:    androidAppFoo.AdamID,
@@ -702,30 +702,30 @@ func (s *integrationMDMTestSuite) TestBatchAndroidApps() {
 		)
 
 		// Verify that activity includes configuration
-		s.lastActivityMatches(fleet.ActivityAddedAppStoreApp{}.ActivityName(),
-			withVPPToken(t, fmt.Sprintf(`{"version_name": "Default version", "fleet_name": "%s", "software_title": "%s", "software_title_id": %d, "app_store_id": "%s", "fleet_id": %d, "platform": "%s", "self_service": true,"configuration": %s}`, teamName, "Test App", appWithConfigResp.TitleID, androidAppFoo.AdamID, ptr.ValOrZero(teamID), androidAppFoo.Platform, androidAppFoo.Configuration), nil), 0)
+		s.lastActivityMatches(automdm.ActivityAddedAppStoreApp{}.ActivityName(),
+			withVPPToken(t, fmt.Sprintf(`{"version_name": "Default version", "team_name": "%s", "software_title": "%s", "software_title_id": %d, "app_store_id": "%s", "team_id": %d, "platform": "%s", "self_service": true,"configuration": %s}`, teamName, "Test App", appWithConfigResp.TitleID, androidAppFoo.AdamID, ptr.ValOrZero(teamID), androidAppFoo.Platform, androidAppFoo.Configuration), nil), 0)
 
 		var listSWTitles listSoftwareTitlesResponse
-		s.DoJSON("GET", "/api/latest/fleet/software/titles", nil, http.StatusOK, &listSWTitles, "fleet_id", fmt.Sprint(*teamID))
+		s.DoJSON("GET", "/api/latest/automdm/software/titles", nil, http.StatusOK, &listSWTitles, "team_id", fmt.Sprint(*teamID))
 		s.Assert().Len(listSWTitles.SoftwareTitles, 1)
 		s.Equal(androidAppFoo.AdamID, listSWTitles.SoftwareTitles[0].AppStoreApps[0].AppStoreID)
 
 		// Batch app store apps call won't create an activity
 		var batchResp batchAssociateAppStoreAppsResponse
-		s.DoJSON("POST", "/api/latest/fleet/software/app_store_apps/batch",
+		s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps/batch",
 			batchAssociateAppStoreAppsRequest{
 				DryRun: false,
-				Apps: []fleet.VPPBatchPayload{
-					{AppStoreID: "app_1", SelfService: true, Platform: fleet.AndroidPlatform, Configuration: json.RawMessage("{}")},
-					{AppStoreID: "app_2", SelfService: true, Platform: fleet.AndroidPlatform, Configuration: json.RawMessage("{}")},
-					{AppStoreID: "app_3", SelfService: true, Platform: fleet.AndroidPlatform, Configuration: json.RawMessage("{}")},
-					{AppStoreID: "app_4", SelfService: true, Platform: fleet.AndroidPlatform, Configuration: exampleConfiguration},
+				Apps: []automdm.VPPBatchPayload{
+					{AppStoreID: "app_1", SelfService: true, Platform: automdm.AndroidPlatform, Configuration: json.RawMessage("{}")},
+					{AppStoreID: "app_2", SelfService: true, Platform: automdm.AndroidPlatform, Configuration: json.RawMessage("{}")},
+					{AppStoreID: "app_3", SelfService: true, Platform: automdm.AndroidPlatform, Configuration: json.RawMessage("{}")},
+					{AppStoreID: "app_4", SelfService: true, Platform: automdm.AndroidPlatform, Configuration: exampleConfiguration},
 				},
 			},
-			http.StatusOK, &batchResp, "fleet_name", teamName,
+			http.StatusOK, &batchResp, "team_name", teamName,
 		)
 
-		s.DoJSON("GET", "/api/latest/fleet/software/titles", nil, http.StatusOK, &listSWTitles, "fleet_id", fmt.Sprint(*teamID))
+		s.DoJSON("GET", "/api/latest/automdm/software/titles", nil, http.StatusOK, &listSWTitles, "team_id", fmt.Sprint(*teamID))
 		s.Assert().Len(listSWTitles.SoftwareTitles, 4)
 		// Look up title IDs by app store ID (ordering within tied hosts_count is by ID, not name).
 		var titleApp1, titleApp2 uint
@@ -745,40 +745,40 @@ func (s *integrationMDMTestSuite) TestBatchAndroidApps() {
 		// Batch app store apps call won't create an activity
 
 		// Add apps to team 0
-		s.DoJSON("POST", "/api/latest/fleet/software/app_store_apps/batch",
+		s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps/batch",
 			batchAssociateAppStoreAppsRequest{
 				DryRun: false,
-				Apps: []fleet.VPPBatchPayload{
-					{AppStoreID: "app_1", SelfService: true, Platform: fleet.AndroidPlatform, Configuration: json.RawMessage("{}")},
-					{AppStoreID: "app_2", SelfService: true, Platform: fleet.AndroidPlatform, Configuration: json.RawMessage("{}")},
-					{AppStoreID: "app_3", SelfService: true, Platform: fleet.AndroidPlatform, Configuration: json.RawMessage("{}")},
-					{AppStoreID: "app_4", SelfService: true, Platform: fleet.AndroidPlatform, Configuration: json.RawMessage("{}")},
+				Apps: []automdm.VPPBatchPayload{
+					{AppStoreID: "app_1", SelfService: true, Platform: automdm.AndroidPlatform, Configuration: json.RawMessage("{}")},
+					{AppStoreID: "app_2", SelfService: true, Platform: automdm.AndroidPlatform, Configuration: json.RawMessage("{}")},
+					{AppStoreID: "app_3", SelfService: true, Platform: automdm.AndroidPlatform, Configuration: json.RawMessage("{}")},
+					{AppStoreID: "app_4", SelfService: true, Platform: automdm.AndroidPlatform, Configuration: json.RawMessage("{}")},
 				},
 			}, http.StatusOK, &batchResp,
 		)
 
-		s.DoJSON("GET", "/api/latest/fleet/software/titles", nil, http.StatusOK, &listSWTitles, "fleet_id", fmt.Sprint(0))
+		s.DoJSON("GET", "/api/latest/automdm/software/titles", nil, http.StatusOK, &listSWTitles, "team_id", fmt.Sprint(0))
 		s.Assert().Len(listSWTitles.SoftwareTitles, 4)
 
 		// Update configurations
-		s.DoJSON("POST", "/api/latest/fleet/software/app_store_apps/batch",
+		s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps/batch",
 			batchAssociateAppStoreAppsRequest{
 				DryRun: false,
-				Apps: []fleet.VPPBatchPayload{
-					{AppStoreID: "app_1", Platform: fleet.AndroidPlatform, Configuration: nil},
-					{AppStoreID: "app_2", Platform: fleet.AndroidPlatform, Configuration: exampleConfiguration},
-					{AppStoreID: "app_3", Platform: fleet.AndroidPlatform, Configuration: json.RawMessage("{}")},
-					{AppStoreID: "app_4", Platform: fleet.AndroidPlatform, Configuration: json.RawMessage("{}")},
+				Apps: []automdm.VPPBatchPayload{
+					{AppStoreID: "app_1", Platform: automdm.AndroidPlatform, Configuration: nil},
+					{AppStoreID: "app_2", Platform: automdm.AndroidPlatform, Configuration: exampleConfiguration},
+					{AppStoreID: "app_3", Platform: automdm.AndroidPlatform, Configuration: json.RawMessage("{}")},
+					{AppStoreID: "app_4", Platform: automdm.AndroidPlatform, Configuration: json.RawMessage("{}")},
 				},
 			},
-			http.StatusOK, &batchResp, "fleet_name", teamName,
+			http.StatusOK, &batchResp, "team_name", teamName,
 		)
 
-		s.DoJSON("GET", "/api/latest/fleet/software/titles", nil, http.StatusOK, &listSWTitles, "fleet_id", fmt.Sprint(*teamID))
+		s.DoJSON("GET", "/api/latest/automdm/software/titles", nil, http.StatusOK, &listSWTitles, "team_id", fmt.Sprint(*teamID))
 		s.Assert().Len(listSWTitles.SoftwareTitles, 4)
 
 		var titleResp getSoftwareTitleResponse
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/software/titles/%d", titleApp1), &getSoftwareTitleRequest{
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/software/titles/%d", titleApp1), &getSoftwareTitleRequest{
 			ID:     titleApp1,
 			TeamID: teamID,
 		}, http.StatusOK, &titleResp)
@@ -786,7 +786,7 @@ func (s *integrationMDMTestSuite) TestBatchAndroidApps() {
 		require.Len(t, titleResp.SoftwareTitle.AppStoreApps, 1)
 		require.JSONEq(t, `{}`, string(titleResp.SoftwareTitle.AppStoreApps[0].Configuration))
 
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/software/titles/%d", titleApp2), &getSoftwareTitleRequest{
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/software/titles/%d", titleApp2), &getSoftwareTitleRequest{
 			ID:     titleApp2,
 			TeamID: teamID,
 		}, http.StatusOK, &titleResp)
@@ -796,21 +796,21 @@ func (s *integrationMDMTestSuite) TestBatchAndroidApps() {
 		require.Contains(t, string(titleResp.SoftwareTitle.AppStoreApps[0].Configuration), `"credentialProviderPolicy": "CREDENTIAL_PROVIDER_ALLOWED"`)
 
 		// Remove 2 other apps, 2 configurations should be deleted and 2 should be emptied/remain
-		s.DoJSON("POST", "/api/latest/fleet/software/app_store_apps/batch",
+		s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps/batch",
 			batchAssociateAppStoreAppsRequest{
 				DryRun: false,
-				Apps: []fleet.VPPBatchPayload{
-					{AppStoreID: "app_1", Platform: fleet.AndroidPlatform, Configuration: nil},
-					{AppStoreID: "app_2", Platform: fleet.AndroidPlatform, Configuration: exampleConfiguration},
+				Apps: []automdm.VPPBatchPayload{
+					{AppStoreID: "app_1", Platform: automdm.AndroidPlatform, Configuration: nil},
+					{AppStoreID: "app_2", Platform: automdm.AndroidPlatform, Configuration: exampleConfiguration},
 				},
 			},
-			http.StatusOK, &batchResp, "fleet_name", teamName,
+			http.StatusOK, &batchResp, "team_name", teamName,
 		)
 
-		s.DoJSON("GET", "/api/latest/fleet/software/titles", nil, http.StatusOK, &listSWTitles, "fleet_id", fmt.Sprint(*teamID))
+		s.DoJSON("GET", "/api/latest/automdm/software/titles", nil, http.StatusOK, &listSWTitles, "team_id", fmt.Sprint(*teamID))
 		s.Assert().Len(listSWTitles.SoftwareTitles, 2)
 
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/software/titles/%d", titleApp1), &getSoftwareTitleRequest{
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/software/titles/%d", titleApp1), &getSoftwareTitleRequest{
 			ID:     titleApp1,
 			TeamID: teamID,
 		}, http.StatusOK, &titleResp)
@@ -818,7 +818,7 @@ func (s *integrationMDMTestSuite) TestBatchAndroidApps() {
 		require.Len(t, titleResp.SoftwareTitle.AppStoreApps, 1)
 		require.JSONEq(t, `{}`, string(titleResp.SoftwareTitle.AppStoreApps[0].Configuration))
 
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/software/titles/%d", titleApp2), &getSoftwareTitleRequest{
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/software/titles/%d", titleApp2), &getSoftwareTitleRequest{
 			ID:     titleApp2,
 			TeamID: teamID,
 		}, http.StatusOK, &titleResp)
@@ -827,12 +827,12 @@ func (s *integrationMDMTestSuite) TestBatchAndroidApps() {
 		require.Contains(t, string(titleResp.SoftwareTitle.AppStoreApps[0].Configuration), `"workProfileWidgets": "WORK_PROFILE_WIDGETS_ALLOWED"`)
 		require.Contains(t, string(titleResp.SoftwareTitle.AppStoreApps[0].Configuration), `"credentialProviderPolicy": "CREDENTIAL_PROVIDER_ALLOWED"`)
 
-		s.DoJSON("POST", "/api/latest/fleet/software/app_store_apps/batch",
+		s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps/batch",
 			batchAssociateAppStoreAppsRequest{
 				DryRun: false,
-				Apps:   []fleet.VPPBatchPayload{},
+				Apps:   []automdm.VPPBatchPayload{},
 			},
-			http.StatusOK, &batchResp, "fleet_name", teamName,
+			http.StatusOK, &batchResp, "team_name", teamName,
 		)
 	})
 	t.Run("android app setup experience", func(t *testing.T) {
@@ -845,60 +845,60 @@ func (s *integrationMDMTestSuite) TestBatchAndroidApps() {
 		})
 
 		var batchResp batchAssociateAppStoreAppsResponse
-		s.DoJSON("POST", "/api/latest/fleet/software/app_store_apps/batch",
+		s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps/batch",
 			batchAssociateAppStoreAppsRequest{
 				DryRun: false,
-				Apps:   []fleet.VPPBatchPayload{},
+				Apps:   []automdm.VPPBatchPayload{},
 			},
 			http.StatusOK, &batchResp,
 		)
 		// Should create an edited setup experience activity, as new software was added
-		s.DoJSON("POST", "/api/latest/fleet/software/app_store_apps/batch",
+		s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps/batch",
 			batchAssociateAppStoreAppsRequest{
 				DryRun: false,
-				Apps: []fleet.VPPBatchPayload{
-					{AppStoreID: "app_1", Platform: fleet.AndroidPlatform, InstallDuringSetup: ptr.Bool(false)},
-					{AppStoreID: "app_2", Platform: fleet.AndroidPlatform, InstallDuringSetup: ptr.Bool(true)},
+				Apps: []automdm.VPPBatchPayload{
+					{AppStoreID: "app_1", Platform: automdm.AndroidPlatform, InstallDuringSetup: ptr.Bool(false)},
+					{AppStoreID: "app_2", Platform: automdm.AndroidPlatform, InstallDuringSetup: ptr.Bool(true)},
 				},
 			},
-			http.StatusOK, &batchResp, "fleet_name", teamName,
+			http.StatusOK, &batchResp, "team_name", teamName,
 		)
 
 		// Should not create an edited setup experience activity, nothing changed
-		s.DoJSON("POST", "/api/latest/fleet/software/app_store_apps/batch",
+		s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps/batch",
 			batchAssociateAppStoreAppsRequest{
 				DryRun: false,
-				Apps: []fleet.VPPBatchPayload{
-					{AppStoreID: "app_1", Platform: fleet.AndroidPlatform, InstallDuringSetup: ptr.Bool(false)},
-					{AppStoreID: "app_2", Platform: fleet.AndroidPlatform, InstallDuringSetup: ptr.Bool(true)},
+				Apps: []automdm.VPPBatchPayload{
+					{AppStoreID: "app_1", Platform: automdm.AndroidPlatform, InstallDuringSetup: ptr.Bool(false)},
+					{AppStoreID: "app_2", Platform: automdm.AndroidPlatform, InstallDuringSetup: ptr.Bool(true)},
 				},
 			},
-			http.StatusOK, &batchResp, "fleet_name", teamName,
+			http.StatusOK, &batchResp, "team_name", teamName,
 		)
 
 		// Should create an edited setup experience activity, existing software changed
-		s.DoJSON("POST", "/api/latest/fleet/software/app_store_apps/batch",
+		s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps/batch",
 			batchAssociateAppStoreAppsRequest{
 				DryRun: false,
-				Apps: []fleet.VPPBatchPayload{
-					{AppStoreID: "app_1", Platform: fleet.AndroidPlatform, InstallDuringSetup: ptr.Bool(true)},
-					{AppStoreID: "app_2", Platform: fleet.AndroidPlatform, InstallDuringSetup: ptr.Bool(true)},
+				Apps: []automdm.VPPBatchPayload{
+					{AppStoreID: "app_1", Platform: automdm.AndroidPlatform, InstallDuringSetup: ptr.Bool(true)},
+					{AppStoreID: "app_2", Platform: automdm.AndroidPlatform, InstallDuringSetup: ptr.Bool(true)},
 				},
 			},
-			http.StatusOK, &batchResp, "fleet_name", teamName,
+			http.StatusOK, &batchResp, "team_name", teamName,
 		)
 
 		// Should create an edited setup experience activity, as new software was added
-		s.DoJSON("POST", "/api/latest/fleet/software/app_store_apps/batch",
+		s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps/batch",
 			batchAssociateAppStoreAppsRequest{
 				DryRun: false,
-				Apps: []fleet.VPPBatchPayload{
-					{AppStoreID: "app_1", Platform: fleet.AndroidPlatform, InstallDuringSetup: ptr.Bool(true)},
-					{AppStoreID: "app_2", Platform: fleet.AndroidPlatform, InstallDuringSetup: ptr.Bool(true)},
-					{AppStoreID: "app_3", Platform: fleet.AndroidPlatform, InstallDuringSetup: ptr.Bool(true)},
+				Apps: []automdm.VPPBatchPayload{
+					{AppStoreID: "app_1", Platform: automdm.AndroidPlatform, InstallDuringSetup: ptr.Bool(true)},
+					{AppStoreID: "app_2", Platform: automdm.AndroidPlatform, InstallDuringSetup: ptr.Bool(true)},
+					{AppStoreID: "app_3", Platform: automdm.AndroidPlatform, InstallDuringSetup: ptr.Bool(true)},
 				},
 			},
-			http.StatusOK, &batchResp, "fleet_name", teamName,
+			http.StatusOK, &batchResp, "team_name", teamName,
 		)
 		var count int
 		mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
@@ -924,7 +924,7 @@ func (s *integrationMDMTestSuite) TestAndroidAppsUninstallOnDelete() {
 
 	// create a team for the test host that will not be affected
 	var createTeamResp teamResponse
-	s.DoJSON("POST", "/api/latest/fleet/fleets", &fleet.Team{Name: "test"}, http.StatusOK, &createTeamResp)
+	s.DoJSON("POST", "/api/latest/automdm/teams", &automdm.Team{Name: "test"}, http.StatusOK, &createTeamResp)
 	teamID := createTeamResp.Team.ID
 
 	s.enableAndroidMDM(t)
@@ -964,12 +964,12 @@ func (s *integrationMDMTestSuite) TestAndroidAppsUninstallOnDelete() {
 	}
 
 	// add some Android apps
-	androidApps := make([]*fleet.VPPApp, 5)
+	androidApps := make([]*automdm.VPPApp, 5)
 	titleIDs := make([]uint, len(androidApps))
 	for i := range androidApps {
-		androidApps[i] = &fleet.VPPApp{
-			VPPAppTeam: fleet.VPPAppTeam{
-				VPPAppID: fleet.VPPAppID{AdamID: "com.app" + fmt.Sprint(i), Platform: fleet.AndroidPlatform},
+		androidApps[i] = &automdm.VPPApp{
+			VPPAppTeam: automdm.VPPAppTeam{
+				VPPAppID: automdm.VPPAppID{AdamID: "com.app" + fmt.Sprint(i), Platform: automdm.AndroidPlatform},
 			},
 			Name:             "App" + fmt.Sprint(i),
 			BundleIdentifier: "com.app" + fmt.Sprint(i),
@@ -984,16 +984,16 @@ func (s *integrationMDMTestSuite) TestAndroidAppsUninstallOnDelete() {
 		if i == len(androidApps)-1 {
 			teamIDPtr = &teamID
 		}
-		s.DoJSON("POST", "/api/latest/fleet/software/app_store_apps", &addAppStoreAppRequest{
+		s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps", &addAppStoreAppRequest{
 			AppStoreID: androidApps[i].AdamID,
-			Platform:   fleet.AndroidPlatform,
+			Platform:   automdm.AndroidPlatform,
 			TeamID:     teamIDPtr,
 		}, http.StatusOK, &addAppResp)
 		titleIDs[i] = addAppResp.TitleID
 	}
 
 	// delete app [0] and run the Android profile schedule, no host exists yet so no app list should be sent
-	s.Do("DELETE", fmt.Sprintf("/api/latest/fleet/software/titles/%d/available_for_install", titleIDs[0]), nil, http.StatusNoContent, "fleet_id", "0")
+	s.Do("DELETE", fmt.Sprintf("/api/latest/automdm/software/titles/%d/available_for_install", titleIDs[0]), nil, http.StatusNoContent, "team_id", "0")
 	s.awaitTriggerAndroidProfileSchedule(t)
 	require.Empty(t, sentAppLists)
 
@@ -1002,9 +1002,9 @@ func (s *integrationMDMTestSuite) TestAndroidAppsUninstallOnDelete() {
 	require.NoError(t, err)
 	require.Len(t, secrets, 1)
 
-	assets, err := s.ds.GetAllMDMConfigAssetsByName(ctx, []fleet.MDMAssetName{fleet.MDMAssetAndroidPubSubToken}, nil)
+	assets, err := s.ds.GetAllMDMConfigAssetsByName(ctx, []automdm.MDMAssetName{automdm.MDMAssetAndroidPubSubToken}, nil)
 	require.NoError(t, err)
-	pubsubToken := assets[fleet.MDMAssetAndroidPubSubToken]
+	pubsubToken := assets[automdm.MDMAssetAndroidPubSubToken]
 	require.NotEmpty(t, pubsubToken.Value)
 
 	deviceID1 := createAndroidDeviceID("test-android")
@@ -1024,23 +1024,23 @@ func (s *integrationMDMTestSuite) TestAndroidAppsUninstallOnDelete() {
 			EnrollmentTokenData: fmt.Sprintf(`{"EnrollSecret": "%s"}`, secrets[0].Secret),
 		}, d.esi)
 		req = android_service.PubSubPushRequest{PubSubMessage: *enrollmentMessage}
-		s.Do("POST", "/api/v1/fleet/android_enterprise/pubsub", &req, http.StatusOK, "token", string(pubsubToken.Value))
+		s.Do("POST", "/api/v1/automdm/android_enterprise/pubsub", &req, http.StatusOK, "token", string(pubsubToken.Value))
 	}
 
 	var hosts listHostsResponse
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &hosts)
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &hosts)
 	require.Len(t, hosts.Hosts, 3)
 	host1 := hosts.Hosts[0]
 	host2 := hosts.Hosts[1]
 	host3 := hosts.Hosts[2] // isolated host, not affected by test
 
 	// transfer host3 to the team
-	s.DoJSON("POST", "/api/latest/fleet/hosts/transfer", addHostsToTeamRequest{
+	s.DoJSON("POST", "/api/latest/automdm/hosts/transfer", addHostsToTeamRequest{
 		TeamID:  &teamID,
 		HostIDs: []uint{host3.ID},
 	}, http.StatusOK, &addHostsToTeamResponse{})
 
-	// run the worker, the hosts get their fleet's android apps as self-service-available
+	// run the worker, the hosts get their team's android apps as self-service-available
 	s.runWorkerUntilDone()
 
 	// the devices report applying their own policies, so later app changes are sent to them, and run the Android profile
@@ -1060,9 +1060,9 @@ func (s *integrationMDMTestSuite) TestAndroidAppsUninstallOnDelete() {
 		return err
 	})
 
-	for _, host := range []fleet.HostResponse{host1, host2} {
+	for _, host := range []automdm.HostResponse{host1, host2} {
 		var getHostSw getHostSoftwareResponse
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/software", host.ID), nil, http.StatusOK, &getHostSw,
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/software", host.ID), nil, http.StatusOK, &getHostSw,
 			"available_for_install", "true", "order_key", "name")
 		require.Len(t, getHostSw.Software, 3)
 		require.NotNil(t, getHostSw.Software[0].AppStoreApp)
@@ -1073,9 +1073,9 @@ func (s *integrationMDMTestSuite) TestAndroidAppsUninstallOnDelete() {
 		require.Equal(t, androidApps[3].AdamID, getHostSw.Software[2].AppStoreApp.AppStoreID)
 	}
 
-	// delete app [1] and run the Android profile schedule, both hosts should get only a removal of it and the fleet
+	// delete app [1] and run the Android profile schedule, both hosts should get only a removal of it and the team
 	// host nothing
-	s.Do("DELETE", fmt.Sprintf("/api/latest/fleet/software/titles/%d/available_for_install", titleIDs[1]), nil, http.StatusNoContent, "fleet_id", "0")
+	s.Do("DELETE", fmt.Sprintf("/api/latest/automdm/software/titles/%d/available_for_install", titleIDs[1]), nil, http.StatusNoContent, "team_id", "0")
 	s.awaitTriggerAndroidProfileSchedule(t)
 	require.Empty(t, sentAppLists)
 	require.Equal(t, map[string][]string{
@@ -1084,9 +1084,9 @@ func (s *integrationMDMTestSuite) TestAndroidAppsUninstallOnDelete() {
 	}, removedApps)
 	clear(removedApps)
 
-	for _, host := range []fleet.HostResponse{host1, host2} {
+	for _, host := range []automdm.HostResponse{host1, host2} {
 		var getHostSw getHostSoftwareResponse
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/software", host.ID), nil, http.StatusOK, &getHostSw,
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/software", host.ID), nil, http.StatusOK, &getHostSw,
 			"available_for_install", "true", "order_key", "name")
 		require.Len(t, getHostSw.Software, 2)
 		require.NotNil(t, getHostSw.Software[0].AppStoreApp)
@@ -1097,9 +1097,9 @@ func (s *integrationMDMTestSuite) TestAndroidAppsUninstallOnDelete() {
 
 	// batch-set to keep only app [3] (effectively deletes app[2]), as per a gitops run
 	var batchResp batchAssociateAppStoreAppsResponse
-	s.DoJSON("POST", "/api/latest/fleet/software/app_store_apps/batch", batchAssociateAppStoreAppsRequest{
-		Apps: []fleet.VPPBatchPayload{
-			{AppStoreID: androidApps[3].AdamID, SelfService: true, Platform: fleet.AndroidPlatform, Configuration: json.RawMessage("{}")},
+	s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps/batch", batchAssociateAppStoreAppsRequest{
+		Apps: []automdm.VPPBatchPayload{
+			{AppStoreID: androidApps[3].AdamID, SelfService: true, Platform: automdm.AndroidPlatform, Configuration: json.RawMessage("{}")},
 		},
 	}, http.StatusOK, &batchResp)
 
@@ -1117,9 +1117,9 @@ func (s *integrationMDMTestSuite) TestAndroidAppsUninstallOnDelete() {
 	}, removedApps)
 	clear(removedApps)
 
-	for _, host := range []fleet.HostResponse{host1, host2} {
+	for _, host := range []automdm.HostResponse{host1, host2} {
 		var getHostSw getHostSoftwareResponse
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/software", host.ID), nil, http.StatusOK, &getHostSw,
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/software", host.ID), nil, http.StatusOK, &getHostSw,
 			"available_for_install", "true", "order_key", "name")
 		require.Len(t, getHostSw.Software, 1)
 		require.NotNil(t, getHostSw.Software[0].AppStoreApp)
@@ -1128,8 +1128,8 @@ func (s *integrationMDMTestSuite) TestAndroidAppsUninstallOnDelete() {
 
 	// batch-set to remove all apps
 	batchResp = batchAssociateAppStoreAppsResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/software/app_store_apps/batch", batchAssociateAppStoreAppsRequest{
-		Apps: []fleet.VPPBatchPayload{},
+	s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps/batch", batchAssociateAppStoreAppsRequest{
+		Apps: []automdm.VPPBatchPayload{},
 	}, http.StatusOK, &batchResp)
 
 	// run the Android profile schedule, both hosts should get only a removal of app [3]
@@ -1141,17 +1141,17 @@ func (s *integrationMDMTestSuite) TestAndroidAppsUninstallOnDelete() {
 	}, removedApps)
 	clear(removedApps)
 
-	for _, host := range []fleet.HostResponse{host1, host2} {
+	for _, host := range []automdm.HostResponse{host1, host2} {
 		var getHostSw getHostSoftwareResponse
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/software", host.ID), nil, http.StatusOK, &getHostSw,
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/software", host.ID), nil, http.StatusOK, &getHostSw,
 			"available_for_install", "true", "order_key", "name")
 		require.Len(t, getHostSw.Software, 0)
 	}
 
 	// batch-set again without any app and run the Android profile schedule, no app list should be sent
 	batchResp = batchAssociateAppStoreAppsResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/software/app_store_apps/batch", batchAssociateAppStoreAppsRequest{
-		Apps: []fleet.VPPBatchPayload{},
+	s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps/batch", batchAssociateAppStoreAppsRequest{
+		Apps: []automdm.VPPBatchPayload{},
 	}, http.StatusOK, &batchResp)
 
 	s.awaitTriggerAndroidProfileSchedule(t)
@@ -1159,7 +1159,7 @@ func (s *integrationMDMTestSuite) TestAndroidAppsUninstallOnDelete() {
 
 	// isolated host was unaffected, still has the same team app
 	var getHostSw getHostSoftwareResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/software", host3.ID), nil, http.StatusOK, &getHostSw,
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/software", host3.ID), nil, http.StatusOK, &getHostSw,
 		"available_for_install", "true", "order_key", "name")
 	require.Len(t, getHostSw.Software, 1)
 	require.NotNil(t, getHostSw.Software[0].AppStoreApp)
@@ -1182,7 +1182,7 @@ func (s *integrationMDMTestSuite) TestAndroidWebApps() {
 		"title": {"Web App"},
 		"url":   {"https://example.com"},
 	})
-	res := s.DoRawWithHeaders("POST", "/api/latest/fleet/software/web_apps", body.Bytes(), http.StatusBadRequest, headers)
+	res := s.DoRawWithHeaders("POST", "/api/latest/automdm/software/web_apps", body.Bytes(), http.StatusBadRequest, headers)
 	require.Contains(t, extractServerErrorText(res.Body), "Android MDM isn't turned on.")
 
 	enterpriseID := s.enableAndroidMDM(t)
@@ -1276,7 +1276,7 @@ func (s *integrationMDMTestSuite) TestAndroidWebApps() {
 				"title": {c.title},
 				"url":   {c.url},
 			})
-			res := s.DoRawWithHeaders("POST", "/api/latest/fleet/software/web_apps", body.Bytes(), c.wantStatus, headers)
+			res := s.DoRawWithHeaders("POST", "/api/latest/automdm/software/web_apps", body.Bytes(), c.wantStatus, headers)
 			if c.wantErrMsg != "" {
 				require.Contains(t, extractServerErrorText(res.Body), c.wantErrMsg)
 			} else {
@@ -1318,70 +1318,70 @@ func (s *integrationMDMTestSuite) TestAndroidWebAppsCannotSetConfiguration() {
 		"url":   {"https://example.com"},
 	})
 	var resp createAndroidWebAppResponse
-	res := s.DoRawWithHeaders("POST", "/api/latest/fleet/software/web_apps", body.Bytes(), http.StatusOK, headers)
+	res := s.DoRawWithHeaders("POST", "/api/latest/automdm/software/web_apps", body.Bytes(), http.StatusOK, headers)
 	err = json.NewDecoder(res.Body).Decode(&resp)
 	require.NoError(t, err)
 	webAppID := resp.AppStoreID
 
-	// add it to Fleet with configuration, will fail
-	res = s.Do("POST", "/api/latest/fleet/software/app_store_apps", &addAppStoreAppRequest{
-		AppStoreID: webAppID, Platform: fleet.AndroidPlatform, Configuration: json.RawMessage(`{"key":"value"}`),
+	// add it to AutoMDM with configuration, will fail
+	res = s.Do("POST", "/api/latest/automdm/software/app_store_apps", &addAppStoreAppRequest{
+		AppStoreID: webAppID, Platform: automdm.AndroidPlatform, Configuration: json.RawMessage(`{"key":"value"}`),
 	}, http.StatusUnprocessableEntity)
 	require.Contains(t, extractServerErrorText(res.Body), "Android web apps don't support configurations.")
 
 	// add it without configuration, will work
 	var addResp addAppStoreAppResponse
-	s.DoJSON("POST", "/api/latest/fleet/software/app_store_apps", &addAppStoreAppRequest{
-		AppStoreID: webAppID, Platform: fleet.AndroidPlatform,
+	s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps", &addAppStoreAppRequest{
+		AppStoreID: webAppID, Platform: automdm.AndroidPlatform,
 	}, http.StatusOK, &addResp)
 	webAppTitleID := addResp.TitleID
 
 	// update it with configuration, will fail
-	res = s.Do("PATCH", fmt.Sprintf("/api/latest/fleet/software/titles/%d/app_store_app", webAppTitleID),
+	res = s.Do("PATCH", fmt.Sprintf("/api/latest/automdm/software/titles/%d/app_store_app", webAppTitleID),
 		&updateAppStoreAppRequest{Configuration: json.RawMessage(`{"key":"value"}`)},
 		http.StatusUnprocessableEntity)
 	require.Contains(t, extractServerErrorText(res.Body), "Android web apps don't support configurations.")
 
 	// update it without configuration, will work
 	var updateResp updateAppStoreAppResponse
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/software/titles/%d/app_store_app", webAppTitleID),
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/software/titles/%d/app_store_app", webAppTitleID),
 		&updateAppStoreAppRequest{DisplayName: ptr.String("MyWebApp")},
 		http.StatusOK, &updateResp)
 	require.Equal(t, webAppID, updateResp.AppStoreApp.AdamID)
 	require.Equal(t, "MyWebApp", updateResp.AppStoreApp.DisplayName)
-	require.Equal(t, fleet.DefaultAppStoreAppVersionName, updateResp.AppStoreApp.VersionName)
+	require.Equal(t, automdm.DefaultAppStoreAppVersionName, updateResp.AppStoreApp.VersionName)
 	require.True(t, updateResp.AppStoreApp.SelfService)
 	require.Nil(t, updateResp.AppStoreApp.Configuration)
 
 	// batch-set with configuration, will fail
-	res = s.Do("POST", "/api/latest/fleet/software/app_store_apps/batch",
+	res = s.Do("POST", "/api/latest/automdm/software/app_store_apps/batch",
 		batchAssociateAppStoreAppsRequest{
 			DryRun: false,
-			Apps: []fleet.VPPBatchPayload{
-				{AppStoreID: webAppID, SelfService: true, Platform: fleet.AndroidPlatform, Configuration: json.RawMessage(`{"key":"value"}`)},
+			Apps: []automdm.VPPBatchPayload{
+				{AppStoreID: webAppID, SelfService: true, Platform: automdm.AndroidPlatform, Configuration: json.RawMessage(`{"key":"value"}`)},
 			},
 		}, http.StatusUnprocessableEntity)
 	require.Contains(t, extractServerErrorText(res.Body), "Android web apps don't support configurations.")
 
 	// batch-set with multiple Android apps, with configuration on the webApp, will fail
-	res = s.Do("POST", "/api/latest/fleet/software/app_store_apps/batch",
+	res = s.Do("POST", "/api/latest/automdm/software/app_store_apps/batch",
 		batchAssociateAppStoreAppsRequest{
 			DryRun: false,
-			Apps: []fleet.VPPBatchPayload{
-				{AppStoreID: webAppID, SelfService: true, Platform: fleet.AndroidPlatform, Configuration: json.RawMessage(`{"key":"value"}`)},
-				{AppStoreID: "com.google.chrome", SelfService: true, Platform: fleet.AndroidPlatform},
+			Apps: []automdm.VPPBatchPayload{
+				{AppStoreID: webAppID, SelfService: true, Platform: automdm.AndroidPlatform, Configuration: json.RawMessage(`{"key":"value"}`)},
+				{AppStoreID: "com.google.chrome", SelfService: true, Platform: automdm.AndroidPlatform},
 			},
 		}, http.StatusUnprocessableEntity)
 	require.Contains(t, extractServerErrorText(res.Body), "Android web apps don't support configurations.")
 
 	// batch-set without configuration, will work
 	var batchResp batchAssociateAppStoreAppsResponse
-	s.DoJSON("POST", "/api/latest/fleet/software/app_store_apps/batch",
+	s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps/batch",
 		batchAssociateAppStoreAppsRequest{
 			DryRun: false,
-			Apps: []fleet.VPPBatchPayload{
-				{AppStoreID: webAppID, SelfService: true, Platform: fleet.AndroidPlatform},
-				{AppStoreID: "com.google.chrome", SelfService: true, Platform: fleet.AndroidPlatform},
+			Apps: []automdm.VPPBatchPayload{
+				{AppStoreID: webAppID, SelfService: true, Platform: automdm.AndroidPlatform},
+				{AppStoreID: "com.google.chrome", SelfService: true, Platform: automdm.AndroidPlatform},
 			},
 		}, http.StatusOK, &batchResp)
 	require.Len(t, batchResp.Apps, 2)
@@ -1415,7 +1415,7 @@ func (s *integrationMDMTestSuite) TestAndroidWebAppsDuplicateName() {
 		"url":   {"https://example.com"},
 	})
 	var resp1 createAndroidWebAppResponse
-	res := s.DoRawWithHeaders("POST", "/api/latest/fleet/software/web_apps", body.Bytes(), http.StatusOK, headers)
+	res := s.DoRawWithHeaders("POST", "/api/latest/automdm/software/web_apps", body.Bytes(), http.StatusOK, headers)
 	err = json.NewDecoder(res.Body).Decode(&resp1)
 	require.NoError(t, err)
 	webAppID1 := resp1.AppStoreID
@@ -1425,40 +1425,40 @@ func (s *integrationMDMTestSuite) TestAndroidWebAppsDuplicateName() {
 		"url":   {"https://different-url.com"},
 	})
 	var resp2 createAndroidWebAppResponse
-	res = s.DoRawWithHeaders("POST", "/api/latest/fleet/software/web_apps", body.Bytes(), http.StatusOK, headers)
+	res = s.DoRawWithHeaders("POST", "/api/latest/automdm/software/web_apps", body.Bytes(), http.StatusOK, headers)
 	err = json.NewDecoder(res.Body).Decode(&resp2)
 	require.NoError(t, err)
 	webAppID2 := resp2.AppStoreID
 
 	// create a team to add the apps to
-	tm, err := s.ds.NewTeam(ctx, &fleet.Team{Name: t.Name()})
+	tm, err := s.ds.NewTeam(ctx, &automdm.Team{Name: t.Name()})
 	require.NoError(t, err)
 
 	// add the first web app to the team
 	var addResp addAppStoreAppResponse
-	s.DoJSON("POST", "/api/latest/fleet/software/app_store_apps", &addAppStoreAppRequest{
-		AppStoreID: webAppID1, Platform: fleet.AndroidPlatform, TeamID: &tm.ID,
+	s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps", &addAppStoreAppRequest{
+		AppStoreID: webAppID1, Platform: automdm.AndroidPlatform, TeamID: &tm.ID,
 	}, http.StatusOK, &addResp)
 
 	// add the second web app (same name) to the same team
-	res = s.Do("POST", "/api/latest/fleet/software/app_store_apps", &addAppStoreAppRequest{
-		AppStoreID: webAppID2, Platform: fleet.AndroidPlatform, TeamID: &tm.ID,
+	res = s.Do("POST", "/api/latest/automdm/software/app_store_apps", &addAppStoreAppRequest{
+		AppStoreID: webAppID2, Platform: automdm.AndroidPlatform, TeamID: &tm.ID,
 	}, http.StatusConflict)
 	errMsg := extractServerErrorText(res.Body)
 	require.Contains(t, errMsg, `Couldn't add.`)
 	require.Contains(t, errMsg, `"Duplicate Web App"`)
-	require.Contains(t, errMsg, "already exists in this fleet")
+	require.Contains(t, errMsg, "already exists in this team")
 
 	// add the second web app (same name, rejected from team 1) to a different team
-	tm2, err := s.ds.NewTeam(ctx, &fleet.Team{Name: t.Name() + "2"})
+	tm2, err := s.ds.NewTeam(ctx, &automdm.Team{Name: t.Name() + "2"})
 	require.NoError(t, err)
 	var addResp2 addAppStoreAppResponse
-	s.DoJSON("POST", "/api/latest/fleet/software/app_store_apps", &addAppStoreAppRequest{
-		AppStoreID: webAppID2, Platform: fleet.AndroidPlatform, TeamID: &tm2.ID,
+	s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps", &addAppStoreAppRequest{
+		AppStoreID: webAppID2, Platform: automdm.AndroidPlatform, TeamID: &tm2.ID,
 	}, http.StatusOK, &addResp2)
 }
 
-func (s *integrationMDMTestSuite) TestAndroidAppConfigFleetVariables() {
+func (s *integrationMDMTestSuite) TestAndroidAppConfigAutoMDMVariables() {
 	t := s.T()
 
 	s.enableAndroidMDM(t)
@@ -1470,12 +1470,12 @@ func (s *integrationMDMTestSuite) TestAndroidAppConfigFleetVariables() {
 
 	// ---- Supported variables should be accepted ----
 
-	supportedConfig := json.RawMessage(`{"managedConfiguration": {"deviceId": "$FLEET_VAR_HOST_UUID", "serial": "${FLEET_VAR_HOST_HARDWARE_SERIAL}"}}`)
+	supportedConfig := json.RawMessage(`{"managedConfiguration": {"deviceId": "$AUTOMDM_VAR_HOST_UUID", "serial": "${AUTOMDM_VAR_HOST_HARDWARE_SERIAL}"}}`)
 	var addResp addAppStoreAppResponse
-	s.DoJSON("POST", "/api/latest/fleet/software/app_store_apps",
+	s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps",
 		&addAppStoreAppRequest{
 			AppStoreID:    "com.duo.security",
-			Platform:      fleet.AndroidPlatform,
+			Platform:      automdm.AndroidPlatform,
 			Configuration: supportedConfig,
 		},
 		http.StatusOK, &addResp,
@@ -1483,53 +1483,53 @@ func (s *integrationMDMTestSuite) TestAndroidAppConfigFleetVariables() {
 
 	// Verify the config was stored correctly with variables (not yet substituted)
 	var titleResp getSoftwareTitleResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/software/titles/%d", addResp.TitleID),
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/software/titles/%d", addResp.TitleID),
 		&getSoftwareTitleRequest{ID: addResp.TitleID},
-		http.StatusOK, &titleResp, "fleet_id", "0",
+		http.StatusOK, &titleResp, "team_id", "0",
 	)
 	require.Len(t, titleResp.SoftwareTitle.AppStoreApps, 1)
-	require.Contains(t, string(titleResp.SoftwareTitle.AppStoreApps[0].Configuration), "$FLEET_VAR_HOST_UUID")
-	require.Contains(t, string(titleResp.SoftwareTitle.AppStoreApps[0].Configuration), "${FLEET_VAR_HOST_HARDWARE_SERIAL}")
+	require.Contains(t, string(titleResp.SoftwareTitle.AppStoreApps[0].Configuration), "$AUTOMDM_VAR_HOST_UUID")
+	require.Contains(t, string(titleResp.SoftwareTitle.AppStoreApps[0].Configuration), "${AUTOMDM_VAR_HOST_HARDWARE_SERIAL}")
 
 	// ---- Unsupported variables should be rejected ----
 
-	unsupportedConfig := json.RawMessage(`{"managedConfiguration": {"chal": "$FLEET_VAR_NDES_SCEP_CHALLENGE"}}`)
-	r := s.Do("POST", "/api/latest/fleet/software/app_store_apps",
+	unsupportedConfig := json.RawMessage(`{"managedConfiguration": {"chal": "$AUTOMDM_VAR_NDES_SCEP_CHALLENGE"}}`)
+	r := s.Do("POST", "/api/latest/automdm/software/app_store_apps",
 		&addAppStoreAppRequest{
 			AppStoreID:    "com.unsupported.var",
-			Platform:      fleet.AndroidPlatform,
+			Platform:      automdm.AndroidPlatform,
 			Configuration: unsupportedConfig,
 		},
 		http.StatusBadRequest,
 	)
-	require.Contains(t, extractServerErrorText(r.Body), "Unsupported variable $FLEET_VAR_NDES_SCEP_CHALLENGE")
+	require.Contains(t, extractServerErrorText(r.Body), "Unsupported variable $AUTOMDM_VAR_NDES_SCEP_CHALLENGE")
 
 	// ---- Batch (GitOps) path: unsupported variables rejected ----
 
-	batchUnsupported := []fleet.VPPBatchPayload{
+	batchUnsupported := []automdm.VPPBatchPayload{
 		{
 			AppStoreID:    "com.batch.unsupported",
-			Platform:      fleet.AndroidPlatform,
+			Platform:      automdm.AndroidPlatform,
 			SelfService:   true,
-			Configuration: json.RawMessage(`{"managedConfiguration": {"url": "$FLEET_VAR_CUSTOM_SCEP_PROXY_URL_MyCA"}}`),
+			Configuration: json.RawMessage(`{"managedConfiguration": {"url": "$AUTOMDM_VAR_CUSTOM_SCEP_PROXY_URL_MyCA"}}`),
 		},
 	}
-	s.Do("POST", "/api/latest/fleet/software/app_store_apps/batch",
+	s.Do("POST", "/api/latest/automdm/software/app_store_apps/batch",
 		&batchAssociateAppStoreAppsRequest{Apps: batchUnsupported},
 		http.StatusBadRequest,
 	)
 
 	// ---- Batch (GitOps) path: supported variables accepted ----
 
-	batchSupported := []fleet.VPPBatchPayload{
+	batchSupported := []automdm.VPPBatchPayload{
 		{
 			AppStoreID:    "com.batch.supported",
-			Platform:      fleet.AndroidPlatform,
+			Platform:      automdm.AndroidPlatform,
 			SelfService:   true,
-			Configuration: json.RawMessage(`{"managedConfiguration": {"uuid": "$FLEET_VAR_HOST_UUID"}}`),
+			Configuration: json.RawMessage(`{"managedConfiguration": {"uuid": "$AUTOMDM_VAR_HOST_UUID"}}`),
 		},
 	}
-	s.Do("POST", "/api/latest/fleet/software/app_store_apps/batch",
+	s.Do("POST", "/api/latest/automdm/software/app_store_apps/batch",
 		&batchAssociateAppStoreAppsRequest{Apps: batchSupported, DryRun: true},
 		http.StatusOK,
 	)
@@ -1547,15 +1547,15 @@ func (s *integrationMDMTestSuite) TestAndroidAppConfigCustomHostVitals() {
 
 	vital, err := s.ds.CreateCustomHostVital(context.Background(), t.Name())
 	require.NoError(t, err)
-	vitalToken := fmt.Sprintf("$%s%d", fleet.CustomHostVitalPrefix, vital.ID)
+	vitalToken := fmt.Sprintf("$%s%d", automdm.CustomHostVitalPrefix, vital.ID)
 
 	// ---- Single add: a reference to an unknown vital ID is rejected ----
 
-	r := s.Do("POST", "/api/latest/fleet/software/app_store_apps",
+	r := s.Do("POST", "/api/latest/automdm/software/app_store_apps",
 		&addAppStoreAppRequest{
 			AppStoreID:    "com.unknown.vital",
-			Platform:      fleet.AndroidPlatform,
-			Configuration: json.RawMessage(`{"managedConfiguration": {"assetTag": "$FLEET_HOST_VITAL_999999"}}`),
+			Platform:      automdm.AndroidPlatform,
+			Configuration: json.RawMessage(`{"managedConfiguration": {"assetTag": "$AUTOMDM_HOST_VITAL_999999"}}`),
 		},
 		http.StatusUnprocessableEntity,
 	)
@@ -1563,11 +1563,11 @@ func (s *integrationMDMTestSuite) TestAndroidAppConfigCustomHostVitals() {
 
 	// ---- Single add: a malformed vital reference is rejected ----
 
-	r = s.Do("POST", "/api/latest/fleet/software/app_store_apps",
+	r = s.Do("POST", "/api/latest/automdm/software/app_store_apps",
 		&addAppStoreAppRequest{
 			AppStoreID:    "com.malformed.vital",
-			Platform:      fleet.AndroidPlatform,
-			Configuration: json.RawMessage(`{"managedConfiguration": {"assetTag": "$FLEET_HOST_VITAL_asset_tag"}}`),
+			Platform:      automdm.AndroidPlatform,
+			Configuration: json.RawMessage(`{"managedConfiguration": {"assetTag": "$AUTOMDM_HOST_VITAL_asset_tag"}}`),
 		},
 		http.StatusUnprocessableEntity,
 	)
@@ -1576,10 +1576,10 @@ func (s *integrationMDMTestSuite) TestAndroidAppConfigCustomHostVitals() {
 	// ---- Single add: a valid vital reference is accepted ----
 
 	var addResp addAppStoreAppResponse
-	s.DoJSON("POST", "/api/latest/fleet/software/app_store_apps",
+	s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps",
 		&addAppStoreAppRequest{
 			AppStoreID:    "com.valid.vital",
-			Platform:      fleet.AndroidPlatform,
+			Platform:      automdm.AndroidPlatform,
 			Configuration: json.RawMessage(fmt.Sprintf(`{"managedConfiguration": {"assetTag": "%s"}}`, vitalToken)),
 		},
 		http.StatusOK, &addResp,
@@ -1587,9 +1587,9 @@ func (s *integrationMDMTestSuite) TestAndroidAppConfigCustomHostVitals() {
 
 	// ---- Update: a reference to an unknown vital ID is rejected ----
 
-	r = s.Do("PATCH", fmt.Sprintf("/api/latest/fleet/software/titles/%d/app_store_app", addResp.TitleID),
+	r = s.Do("PATCH", fmt.Sprintf("/api/latest/automdm/software/titles/%d/app_store_app", addResp.TitleID),
 		&updateAppStoreAppRequest{
-			Configuration: json.RawMessage(`{"managedConfiguration": {"assetTag": "$FLEET_HOST_VITAL_999999"}}`),
+			Configuration: json.RawMessage(`{"managedConfiguration": {"assetTag": "$AUTOMDM_HOST_VITAL_999999"}}`),
 		},
 		http.StatusUnprocessableEntity,
 	)
@@ -1602,9 +1602,9 @@ func (s *integrationMDMTestSuite) TestAndroidPubSubStatusReport_MissingHardwareI
 
 	s.enableAndroidMDM(t)
 
-	assets, err := s.ds.GetAllMDMConfigAssetsByName(ctx, []fleet.MDMAssetName{fleet.MDMAssetAndroidPubSubToken}, nil)
+	assets, err := s.ds.GetAllMDMConfigAssetsByName(ctx, []automdm.MDMAssetName{automdm.MDMAssetAndroidPubSubToken}, nil)
 	require.NoError(t, err)
-	pubsubToken := assets[fleet.MDMAssetAndroidPubSubToken]
+	pubsubToken := assets[automdm.MDMAssetAndroidPubSubToken]
 	require.NotEmpty(t, pubsubToken.Value)
 
 	deviceJSON := fmt.Sprintf(`{"name":%q,"appliedState":"ACTIVE"}`, createAndroidDeviceID("missing-hardware-info"))
@@ -1614,7 +1614,7 @@ func (s *integrationMDMTestSuite) TestAndroidPubSubStatusReport_MissingHardwareI
 			Data:       base64.StdEncoding.EncodeToString([]byte(deviceJSON)),
 		},
 	}
-	s.Do("POST", "/api/v1/fleet/android_enterprise/pubsub", &req, http.StatusOK, "token", string(pubsubToken.Value))
+	s.Do("POST", "/api/v1/automdm/android_enterprise/pubsub", &req, http.StatusOK, "token", string(pubsubToken.Value))
 }
 
 func (s *integrationMDMTestSuite) TestAndroidAppsLabelScope() {
@@ -1645,9 +1645,9 @@ func (s *integrationMDMTestSuite) TestAndroidAppsLabelScope() {
 	secrets, err := s.ds.GetEnrollSecrets(ctx, nil)
 	require.NoError(t, err)
 	require.Len(t, secrets, 1)
-	assets, err := s.ds.GetAllMDMConfigAssetsByName(ctx, []fleet.MDMAssetName{fleet.MDMAssetAndroidPubSubToken}, nil)
+	assets, err := s.ds.GetAllMDMConfigAssetsByName(ctx, []automdm.MDMAssetName{automdm.MDMAssetAndroidPubSubToken}, nil)
 	require.NoError(t, err)
-	pubsubToken := assets[fleet.MDMAssetAndroidPubSubToken]
+	pubsubToken := assets[automdm.MDMAssetAndroidPubSubToken]
 	require.NotEmpty(t, pubsubToken.Value)
 
 	for _, name := range []string{"label-scope-pilot-a", "label-scope-pilot-b", "label-scope-other"} {
@@ -1656,13 +1656,13 @@ func (s *integrationMDMTestSuite) TestAndroidAppsLabelScope() {
 			EnrollmentTokenData: fmt.Sprintf(`{"EnrollSecret": "%s"}`, secrets[0].Secret),
 		}, strings.ToUpper(uuid.New().String()))
 		req := android_service.PubSubPushRequest{PubSubMessage: *enrollmentMessage}
-		s.Do("POST", "/api/v1/fleet/android_enterprise/pubsub", &req, http.StatusOK, "token", string(pubsubToken.Value))
+		s.Do("POST", "/api/v1/automdm/android_enterprise/pubsub", &req, http.StatusOK, "token", string(pubsubToken.Value))
 	}
 	// run the enrollment jobs before the app exists, so only the app's own delivery is recorded
 	s.runWorkerUntilDone()
 
 	var hostsResp listHostsResponse
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &hostsResp, "platform", "android", "order_key", "id")
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &hostsResp, "platform", "android", "order_key", "id")
 	require.Len(t, hostsResp.Hosts, 3)
 	pilotHostA, pilotHostB, otherHost := hostsResp.Hosts[0], hostsResp.Hosts[1], hostsResp.Hosts[2]
 
@@ -1673,8 +1673,8 @@ func (s *integrationMDMTestSuite) TestAndroidAppsLabelScope() {
 		return err
 	})
 
-	var labelResp fleet.CreateLabelResponse
-	s.DoJSON("POST", "/api/latest/fleet/labels", &fleet.LabelPayload{
+	var labelResp automdm.CreateLabelResponse
+	s.DoJSON("POST", "/api/latest/automdm/labels", &automdm.LabelPayload{
 		Name:    "Android pilot " + t.Name(),
 		HostIDs: []uint{pilotHostA.ID, pilotHostB.ID},
 	}, http.StatusOK, &labelResp)
@@ -1683,14 +1683,14 @@ func (s *integrationMDMTestSuite) TestAndroidAppsLabelScope() {
 	const appID = "com.example.labelscope"
 	clear(madeAvailable)
 	var addAppResp addAppStoreAppResponse
-	s.DoJSON("POST", "/api/latest/fleet/software/app_store_apps", &addAppStoreAppRequest{
+	s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps", &addAppStoreAppRequest{
 		AppStoreID:       appID,
-		Platform:         fleet.AndroidPlatform,
+		Platform:         automdm.AndroidPlatform,
 		LabelsIncludeAny: []string{pilotLabel.Name},
 	}, http.StatusOK, &addAppResp)
 
 	var titleResp getSoftwareTitleResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/software/titles/%d", addAppResp.TitleID), nil, http.StatusOK, &titleResp, "fleet_id", "0")
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/software/titles/%d", addAppResp.TitleID), nil, http.StatusOK, &titleResp, "team_id", "0")
 	require.Len(t, titleResp.SoftwareTitle.AppStoreApps, 1)
 	require.Len(t, titleResp.SoftwareTitle.AppStoreApps[0].LabelsIncludeAny, 1)
 	require.Equal(t, pilotLabel.ID, titleResp.SoftwareTitle.AppStoreApps[0].LabelsIncludeAny[0].LabelID)
@@ -1737,9 +1737,9 @@ func (s *integrationMDMTestSuite) TestAndroidAppsTargetHostOwnPolicy() {
 	secrets, err := s.ds.GetEnrollSecrets(ctx, nil)
 	require.NoError(t, err)
 	require.Len(t, secrets, 1)
-	assets, err := s.ds.GetAllMDMConfigAssetsByName(ctx, []fleet.MDMAssetName{fleet.MDMAssetAndroidPubSubToken}, nil)
+	assets, err := s.ds.GetAllMDMConfigAssetsByName(ctx, []automdm.MDMAssetName{automdm.MDMAssetAndroidPubSubToken}, nil)
 	require.NoError(t, err)
-	pubsubToken := assets[fleet.MDMAssetAndroidPubSubToken]
+	pubsubToken := assets[automdm.MDMAssetAndroidPubSubToken]
 	require.NotEmpty(t, pubsubToken.Value)
 	for _, name := range []string{"own-policy", "default-policy", "no-policy"} {
 		enrollmentMessage := enrollmentMessageWithEnterpriseSpecificID(t, androidmanagement.Device{
@@ -1747,16 +1747,16 @@ func (s *integrationMDMTestSuite) TestAndroidAppsTargetHostOwnPolicy() {
 			EnrollmentTokenData: fmt.Sprintf(`{"EnrollSecret": "%s"}`, secrets[0].Secret),
 		}, strings.ToUpper(uuid.New().String()))
 		req := android_service.PubSubPushRequest{PubSubMessage: *enrollmentMessage}
-		s.Do("POST", "/api/v1/fleet/android_enterprise/pubsub", &req, http.StatusOK, "token", string(pubsubToken.Value))
+		s.Do("POST", "/api/v1/automdm/android_enterprise/pubsub", &req, http.StatusOK, "token", string(pubsubToken.Value))
 	}
 	// run the enrollment jobs before the apps exist, so only the app changes below are recorded
 	s.runWorkerUntilDone()
 
 	var hostsResp listHostsResponse
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &hostsResp, "platform", "android", "order_key", "id")
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &hostsResp, "platform", "android", "order_key", "id")
 	require.Len(t, hostsResp.Hosts, 3)
 	onOwnPolicy, onDefaultPolicy, noPolicyReported := hostsResp.Hosts[0], hostsResp.Hosts[1], hostsResp.Hosts[2]
-	setAppliedPolicy := func(host fleet.HostResponse, policyID *string) {
+	setAppliedPolicy := func(host automdm.HostResponse, policyID *string) {
 		mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
 			_, err := q.ExecContext(ctx, `UPDATE android_devices SET applied_policy_id = ? WHERE host_id = ?`, policyID, host.ID)
 			return err
@@ -1776,9 +1776,9 @@ func (s *integrationMDMTestSuite) TestAndroidAppsTargetHostOwnPolicy() {
 	t.Run("adding an app", func(t *testing.T) {
 		clear(appChanges)
 		var addAppResp addAppStoreAppResponse
-		s.DoJSON("POST", "/api/latest/fleet/software/app_store_apps", &addAppStoreAppRequest{
+		s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps", &addAppStoreAppRequest{
 			AppStoreID: appID,
-			Platform:   fleet.AndroidPlatform,
+			Platform:   automdm.AndroidPlatform,
 		}, http.StatusOK, &addAppResp)
 		titleID = addAppResp.TitleID
 
@@ -1789,10 +1789,10 @@ func (s *integrationMDMTestSuite) TestAndroidAppsTargetHostOwnPolicy() {
 
 	t.Run("a GitOps run setting the apps", func(t *testing.T) {
 		clear(appChanges)
-		s.DoJSON("POST", "/api/latest/fleet/software/app_store_apps/batch", batchAssociateAppStoreAppsRequest{
-			Apps: []fleet.VPPBatchPayload{
-				{AppStoreID: appID, SelfService: true, Platform: fleet.AndroidPlatform},
-				{AppStoreID: appID + ".second", SelfService: true, Platform: fleet.AndroidPlatform},
+		s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps/batch", batchAssociateAppStoreAppsRequest{
+			Apps: []automdm.VPPBatchPayload{
+				{AppStoreID: appID, SelfService: true, Platform: automdm.AndroidPlatform},
+				{AppStoreID: appID + ".second", SelfService: true, Platform: automdm.AndroidPlatform},
 			},
 		}, http.StatusOK, &batchAssociateAppStoreAppsResponse{})
 
@@ -1803,7 +1803,7 @@ func (s *integrationMDMTestSuite) TestAndroidAppsTargetHostOwnPolicy() {
 
 	t.Run("deleting the app", func(t *testing.T) {
 		clear(appChanges)
-		s.Do("DELETE", fmt.Sprintf("/api/latest/fleet/software/titles/%d/available_for_install", titleID), nil, http.StatusNoContent, "fleet_id", "0")
+		s.Do("DELETE", fmt.Sprintf("/api/latest/automdm/software/titles/%d/available_for_install", titleID), nil, http.StatusNoContent, "team_id", "0")
 
 		// run the Android profile schedule, only the host on its own policy should get a removal of the app
 		s.awaitTriggerAndroidProfileSchedule(t)

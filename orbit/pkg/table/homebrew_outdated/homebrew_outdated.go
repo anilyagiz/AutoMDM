@@ -1,4 +1,4 @@
-// Package homebrew_outdated implements the fleetd `homebrew_outdated` osquery
+// Package homebrew_outdated implements the automdmd `homebrew_outdated` osquery
 // table, which returns one row per installed version of each outdated Homebrew
 // package (formula or cask) on macOS.
 package homebrew_outdated

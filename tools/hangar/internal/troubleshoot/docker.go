@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/tools/hangar/internal/shellpath"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/shellpath"
 )
 
 // Container is a running Docker container found by ScanDocker.
@@ -19,7 +19,7 @@ type Container struct {
 	Name  string `json:"name"`
 	Image string `json:"image"`
 	// Project and Service are the compose labels; both "" for a container
-	// started with plain docker run (e.g. fleetctl package's .msi build).
+	// started with plain docker run (e.g. automdmctl package's .msi build).
 	Project string `json:"project"`
 	Service string `json:"service"`
 	Status  string `json:"status"`

@@ -1,24 +1,24 @@
-# Configs and tools for testing Fleet
+# Configs and tools for testing AutoMDM
 
-The files in this directory are intended to assist with Fleet development.
+The files in this directory are intended to assist with AutoMDM development.
 
-- `docker-compose.yml`: This docker-compose file helps with starting `osqueryd` instances for testing Fleet. More on this [below](#testing-with-containerized-osqueryd).
+- `docker-compose.yml`: This docker-compose file helps with starting `osqueryd` instances for testing AutoMDM. More on this [below](#testing-with-containerized-osqueryd).
 
 - `example_osquery.conf`: An example osquery config file that sets up basic configuration for distributed queries.
 
 - `example_osquery.flags`: An example osquery flagfile setting the config options that must be loaded before the full JSON config.
 
-- `fleet.crt` & `fleet.key`: Self-signed SSL certificate & key useful for testing locally with `osqueryd`. Works with the domain `host.docker.internal` (exposed within docker containers as the host's IP). Should **never** be used in production.
+- `automdm.crt` & `automdm.key`: Self-signed SSL certificate & key useful for testing locally with `osqueryd`. Works with the domain `host.docker.internal` (exposed within docker containers as the host's IP). Should **never** be used in production.
 
 ## Testing with containerized Linux hosts
 
-Using Docker enables us to rapidly spin up and down pre-configured Linux hosts (`osqueryd` instances) for testing Fleet. Currently we have container images for Ubuntu14 and Centos7 hosts.
+Using Docker enables us to rapidly spin up and down pre-configured Linux hosts (`osqueryd` instances) for testing AutoMDM. Currently we have container images for Ubuntu14 and Centos7 hosts.
 
 Docker and docker-compose are the only dependencies. The necessary container images will be pulled from Docker Cloud on first run.
 
 ### Usage
 
-Set the environment variable `ENROLL_SECRET` to the value of your Fleet enroll secret (available on the manage hosts page, or via `fleetctl get enroll-secret`).
+Set the environment variable `ENROLL_SECRET` to the value of your AutoMDM enroll secret (available on the manage hosts page, or via `automdmctl get enroll-secret`).
 
 ```
 export ENROLL_SECRET=<your-enroll-secret>
@@ -30,10 +30,10 @@ Then, To start one host each of Centos 6, Centos 7, Ubuntu 14, and Ubuntu 16, us
 docker-compose up
 ```
 
-You can optionally, set `FLEET_SERVER` if you want to connect to a fleet server
+You can optionally, set `AUTOMDM_SERVER` if you want to connect to an automdm server
 besides `host.docker.internal:8080`.
 
-The hosts (osqueryd instances) are configured to use the TLS plugins at `host.docker.internal:8080`. Using the `example_osquery.flags` in this directory should configure Fleet with the appropriate settings for these `osqueryd` containers to connect.
+The hosts (osqueryd instances) are configured to use the TLS plugins at `host.docker.internal:8080`. Using the `example_osquery.flags` in this directory should configure AutoMDM with the appropriate settings for these `osqueryd` containers to connect.
 
 Linux users should use the overrides (which add DNS entries for
 `host.docker.internal` based on the `DOCKER_HOST` env var):

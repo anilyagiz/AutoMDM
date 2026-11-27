@@ -7,12 +7,12 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/authz"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/logging"
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/websocket"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/logging"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	"github.com/anilyagiz/automdm/v4/server/websocket"
 	"github.com/igm/sockjs-go/v3/sockjs"
 )
 
@@ -40,7 +40,7 @@ type campaignStatus struct {
 
 type statsToSave struct {
 	hostID uint
-	*fleet.Stats
+	*automdm.Stats
 	outputSize uint64
 }
 
@@ -48,7 +48,7 @@ type statsTracker struct {
 	saveStats         bool
 	aggregationNeeded bool
 	stats             []statsToSave
-	lastStatsEntry    *fleet.LiveQueryStats
+	lastStatsEntry    *automdm.LiveQueryStats
 }
 
 func (svc Service) StreamCampaignResults(ctx context.Context, conn *websocket.Conn, campaignID uint) {
@@ -58,7 +58,7 @@ func (svc Service) StreamCampaignResults(ctx context.Context, conn *websocket.Co
 	// Explicitly set ObserverCanRun: true in this check because we check that the user trying to
 	// read results is the same user that initiated the query. This means the observer check already
 	// happened with the actual value for this query.
-	if err := svc.authz.Authorize(ctx, &fleet.TargetedQuery{Query: &fleet.Query{ObserverCanRun: true}}, fleet.ActionRun); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.TargetedQuery{Query: &automdm.Query{ObserverCanRun: true}}, automdm.ActionRun); err != nil {
 		logger.InfoContext(ctx, "stream results authorization failed")
 		conn.WriteJSONError(authz.ForbiddenErrorMessage) //nolint:errcheck
 		return
@@ -75,7 +75,7 @@ func (svc Service) StreamCampaignResults(ctx context.Context, conn *websocket.Co
 	// Since we are reading from the replica DB, the campaign may not be found until it is replicated from the master.
 	done := make(chan error, 1)
 	stop := make(chan struct{}, 1)
-	var campaign *fleet.DistributedQueryCampaign
+	var campaign *automdm.DistributedQueryCampaign
 	go func() {
 		var err error
 		for {
@@ -150,7 +150,7 @@ func (svc Service) StreamCampaignResults(ctx context.Context, conn *websocket.Co
 
 	// to improve performance of the frontend rendering the results table, we
 	// add the "host_display_name" field to every row and clean null rows.
-	mapHostnameRows := func(res *fleet.DistributedQueryResult) {
+	mapHostnameRows := func(res *automdm.DistributedQueryResult) {
 		filteredRows := []map[string]string{}
 		for _, row := range res.Rows {
 			if row == nil {
@@ -241,7 +241,7 @@ func (svc Service) StreamCampaignResults(ctx context.Context, conn *websocket.Co
 		case res := <-readChan:
 			// Receive a result and push it over the websocket
 			switch res := res.(type) {
-			case fleet.DistributedQueryResult: // includes error host responses, though they don't contribute to the "result" nor "no result" counts reported in status messages
+			case automdm.DistributedQueryResult: // includes error host responses, though they don't contribute to the "result" nor "no result" counts reported in status messages
 
 				// Calculate result size for performance stats
 				outputSize := calculateOutputSize(&perfStatsTracker, &res)
@@ -264,8 +264,8 @@ func (svc Service) StreamCampaignResults(ctx context.Context, conn *websocket.Co
 					logger.ErrorContext(ctx, "error writing to channel", "err", err)
 				}
 				if res.Error == nil {
-					// Fleet considers a host-reported error to be neither a "result" nor "no result"
-					// The Fleet UI currently tracks errors as they stream in, though the server doesn't
+					// AutoMDM considers a host-reported error to be neither a "result" nor "no result"
+					// The AutoMDM UI currently tracks errors as they stream in, though the server doesn't
 					// report that count here
 					if len(res.Rows) == 0 {
 						status.CountOfHostsWithNoResults++
@@ -305,7 +305,7 @@ func (svc Service) StreamCampaignResults(ctx context.Context, conn *websocket.Co
 func (svc Service) addLiveQueryActivity(
 	ctx context.Context, targetsCount uint, queryID uint, logger *slog.Logger,
 ) {
-	activityData := fleet.ActivityTypeLiveQuery{
+	activityData := automdm.ActivityTypeLiveQuery{
 		TargetsCount: targetsCount,
 	}
 	// Query returns SQL, name, and aggregated stats
@@ -328,7 +328,7 @@ func (svc Service) addLiveQueryActivity(
 	}
 }
 
-func calculateOutputSize(perfStatsTracker *statsTracker, res *fleet.DistributedQueryResult) uint64 {
+func calculateOutputSize(perfStatsTracker *statsTracker, res *automdm.DistributedQueryResult) uint64 {
 	outputSize := uint64(0)
 	// We only need the output size if other stats are present.
 	if perfStatsTracker.saveStats && res.Stats != nil {
@@ -373,7 +373,7 @@ func (svc Service) updateStats(
 			return
 		}
 		// Convert current Stats to a map
-		statsMap := make(map[uint]*fleet.LiveQueryStats)
+		statsMap := make(map[uint]*automdm.LiveQueryStats)
 		for i := range currentStats {
 			statsMap[currentStats[i].HostID] = currentStats[i]
 		}
@@ -388,7 +388,7 @@ func (svc Service) updateStats(
 		for _, gatheredStats := range tracker.stats {
 			stats, ok := statsMap[gatheredStats.hostID]
 			if !ok {
-				newStats := fleet.LiveQueryStats{
+				newStats := automdm.LiveQueryStats{
 					HostID:        gatheredStats.hostID,
 					Executions:    1,
 					AverageMemory: gatheredStats.Memory,
@@ -436,7 +436,7 @@ func (svc Service) updateStats(
 			done := make(chan error, 1)
 			stop := make(chan struct{}, 1)
 			go func() {
-				var stats []*fleet.LiveQueryStats
+				var stats []*automdm.LiveQueryStats
 				var err error
 				for {
 					select {
@@ -471,7 +471,7 @@ func (svc Service) updateStats(
 			}
 		}
 
-		err := svc.ds.CalculateAggregatedPerfStatsPercentiles(ctx, fleet.AggregatedStatsTypeScheduledQuery, queryID)
+		err := svc.ds.CalculateAggregatedPerfStatsPercentiles(ctx, automdm.AggregatedStatsTypeScheduledQuery, queryID)
 		if err != nil {
 			logger.ErrorContext(ctx, "error aggregating performance stats", "err", err)
 			tracker.saveStats = false

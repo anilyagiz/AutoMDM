@@ -15,9 +15,9 @@ export const getPatchDeadlineSettingsHandler = (
 ) =>
   http.get(settingsUrl, ({ request }) => {
     const url = new URL(request.url);
-    const fleetId = Number(url.searchParams.get("fleet_id") ?? 0);
+    const automdmId = Number(url.searchParams.get("team_id") ?? 0);
     const settings: IPatchDeadlineSettings = {
-      fleet_id: fleetId,
+      team_id: automdmId,
       days: ["tuesday"] as Weekday[],
       time: "17:00",
       ...overrides,
@@ -58,7 +58,7 @@ export const updatePatchDeadlineSettingsServerErrorHandler = http.patch(
   () => HttpResponse.json({ message: "Internal server error" }, { status: 500 })
 );
 
-// The fleet in `fleet_id` doesn't exist.
+// The team in `team_id` doesn't exist.
 export const getPatchDeadlineSettingsNotFoundHandler = http.get(
   settingsUrl,
   () => HttpResponse.json({ message: "Not found" }, { status: 404 })
@@ -72,18 +72,18 @@ export const getPatchDeadlineSettingsServerErrorHandler = http.get(
 // Each entry becomes a patch-type policy with the given software under
 // `patch_software`, matching the real BE response shape. `patch_deadline`
 // defaults to true; pass false to mimic another patch option, which
-// `type=patch` also returns. Only requests for `fleetId` get the apps.
+// `type=patch` also returns. Only requests for `automdmId` get the apps.
 export const getPatchDeadlineAppsHandler = (
   apps: (Partial<IPolicySoftwareToInstall> & {
     patch_deadline?: boolean;
   })[] = [],
-  fleetId = 1
+  automdmId = 1
 ) =>
   http.get(patchPoliciesUrl, ({ request }) => {
     const params = new URL(request.url).searchParams;
     if (
       params.get("type") !== "patch" ||
-      params.get("fleet_id") !== String(fleetId)
+      params.get("team_id") !== String(automdmId)
     ) {
       return HttpResponse.json({ policies: [] });
     }

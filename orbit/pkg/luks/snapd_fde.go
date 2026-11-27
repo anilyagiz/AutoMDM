@@ -65,9 +65,9 @@ func newSnapdSocketFDE() *snapdSocketFDE {
 	return &snapdSocketFDE{client: newSnapdClient()}
 }
 
-// ensureFleetRecoveryKey generates a recovery key and enrolls it under the
-// dedicated Fleet-owned key slot name, returning the recovery key to escrow.
-func (s *snapdSocketFDE) ensureFleetRecoveryKey(ctx context.Context) (string, error) {
+// ensureAutoMDMRecoveryKey generates a recovery key and enrolls it under the
+// dedicated AutoMDM-owned key slot name, returning the recovery key to escrow.
+func (s *snapdSocketFDE) ensureAutoMDMRecoveryKey(ctx context.Context) (string, error) {
 	// Step 1: generate a recovery key. snapd answers synchronously with the key
 	// value and a transient id used to enroll it.
 	log.Debug().Str("action", actionGenerateRecoveryKey).Msg("requesting snapd to generate a recovery key")
@@ -83,7 +83,7 @@ func (s *snapdSocketFDE) ensureFleetRecoveryKey(ctx context.Context) (string, er
 	log.Debug().Str("key_id", gen.KeyID).Int("recovery_key_len", len(gen.RecoveryKey)).
 		Msg("snapd generated a recovery key")
 
-	// Step 2: enroll the generated key under the Fleet-owned name (a name-only
+	// Step 2: enroll the generated key under the AutoMDM-owned name (a name-only
 	// keyslot targets both system containers). This is asynchronous because it
 	// mutates the LUKS volume. On first run the slot does not exist so
 	// add-recovery-key applies; on a retry the slot already exists, so we fall
@@ -92,9 +92,9 @@ func (s *snapdSocketFDE) ensureFleetRecoveryKey(ctx context.Context) (string, er
 	// so unrelated failures (auth, transport, malformed request) surface as
 	// errors instead of silently rotating an existing key we couldn't add for
 	// a different reason.
-	slots := []keyslotRef{{Name: FleetRecoveryKeyName}}
-	log.Debug().Str("action", actionAddRecoveryKey).Str("keyslot", FleetRecoveryKeyName).Str("key_id", gen.KeyID).
-		Msg("enrolling recovery key under Fleet keyslot")
+	slots := []keyslotRef{{Name: AutoMDMRecoveryKeyName}}
+	log.Debug().Str("action", actionAddRecoveryKey).Str("keyslot", AutoMDMRecoveryKeyName).Str("key_id", gen.KeyID).
+		Msg("enrolling recovery key under AutoMDM keyslot")
 	addErr := s.client.requestAsync(ctx, http.MethodPost, systemVolumesPath, recoveryKeyActionRequest{
 		Action: actionAddRecoveryKey, KeyID: gen.KeyID, Keyslots: slots,
 	}, nil)
@@ -103,7 +103,7 @@ func (s *snapdSocketFDE) ensureFleetRecoveryKey(ctx context.Context) (string, er
 		if !errors.As(addErr, &apiErr) || !apiErr.isConflict() {
 			return "", fmt.Errorf("enrolling snapd recovery key: %w", addErr)
 		}
-		log.Debug().Err(addErr).Str("action", actionReplaceRecoveryKey).Str("keyslot", FleetRecoveryKeyName).
+		log.Debug().Err(addErr).Str("action", actionReplaceRecoveryKey).Str("keyslot", AutoMDMRecoveryKeyName).
 			Msg("add-recovery-key reports the slot already exists; retrying with replace-recovery-key")
 		if rerr := s.client.requestAsync(ctx, http.MethodPost, systemVolumesPath, recoveryKeyActionRequest{
 			Action: actionReplaceRecoveryKey, KeyID: gen.KeyID, Keyslots: slots,
@@ -122,6 +122,6 @@ func (s *snapdSocketFDE) ensureFleetRecoveryKey(ctx context.Context) (string, er
 		return "", fmt.Errorf("validating snapd recovery key: %w", err)
 	}
 
-	log.Info().Str("keyslot", FleetRecoveryKeyName).Msg("snapd-managed recovery key enrolled and validated")
+	log.Info().Str("keyslot", AutoMDMRecoveryKeyName).Msg("snapd-managed recovery key enrolled and validated")
 	return gen.RecoveryKey, nil
 }

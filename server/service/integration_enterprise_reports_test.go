@@ -2,7 +2,7 @@ package service
 
 // Report tests for the enterprise (premium) suite.
 //
-// Belongs here: fleet reports and schedules, report label scoping, and a host's report list.
+// Belongs here: team reports and schedules, report label scoping, and a host's report list.
 //
 // Does not belong here: label CRUD (integration_enterprise_labels_test.go) and policies
 // (integration_enterprise_policies_test.go).
@@ -13,7 +13,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,7 +22,7 @@ import (
 func (s *integrationEnterpriseTestSuite) TestTeamQueries() {
 	t := s.T()
 
-	team1, err := s.ds.NewTeam(context.Background(), &fleet.Team{
+	team1, err := s.ds.NewTeam(context.Background(), &automdm.Team{
 		ID:          42,
 		Name:        "team1" + t.Name(),
 		Description: "desc team1",
@@ -35,34 +35,34 @@ func (s *integrationEnterpriseTestSuite) TestTeamQueries() {
 	})
 
 	// create global query
-	params := fleet.QueryPayload{
+	params := automdm.QueryPayload{
 		Name:  new("global1"),
 		Query: new("select * from time;"),
 	}
-	var createQueryResp fleet.CreateQueryResponse
-	s.DoJSON("POST", "/api/latest/fleet/reports", &params, http.StatusOK, &createQueryResp)
+	var createQueryResp automdm.CreateQueryResponse
+	s.DoJSON("POST", "/api/latest/automdm/reports", &params, http.StatusOK, &createQueryResp)
 	defer s.cleanupQuery(createQueryResp.Report.ID)
 
 	// create team query
-	params = fleet.QueryPayload{
+	params = automdm.QueryPayload{
 		Name:   new("team1"),
 		Query:  new("select * from time;"),
 		TeamID: new(team1.ID),
 	}
-	createQueryResp = fleet.CreateQueryResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/reports", &params, http.StatusOK, &createQueryResp)
+	createQueryResp = automdm.CreateQueryResponse{}
+	s.DoJSON("POST", "/api/latest/automdm/reports", &params, http.StatusOK, &createQueryResp)
 	defer s.cleanupQuery(createQueryResp.Report.ID)
 
 	// list team queries
-	var listQueriesResp fleet.ListQueriesResponse
-	s.DoJSON("GET", "/api/latest/fleet/reports", nil, http.StatusOK, &listQueriesResp, "fleet_id", fmt.Sprint(team1.ID))
+	var listQueriesResp automdm.ListQueriesResponse
+	s.DoJSON("GET", "/api/latest/automdm/reports", nil, http.StatusOK, &listQueriesResp, "team_id", fmt.Sprint(team1.ID))
 	require.Len(t, listQueriesResp.Queries, 1)
 	assert.Equal(t, "team1", listQueriesResp.Queries[0].Name)
 	assert.Equal(t, 1, listQueriesResp.Count)
 	assert.Equal(t, 0, listQueriesResp.InheritedQueryCount)
 
 	// list merged team queries
-	s.DoJSON("GET", "/api/latest/fleet/reports", nil, http.StatusOK, &listQueriesResp, "fleet_id", fmt.Sprint(team1.ID), "merge_inherited", "true", "order_key", "fleet_id", "order_direction", "desc")
+	s.DoJSON("GET", "/api/latest/automdm/reports", nil, http.StatusOK, &listQueriesResp, "team_id", fmt.Sprint(team1.ID), "merge_inherited", "true", "order_key", "team_id", "order_direction", "desc")
 	require.Len(t, listQueriesResp.Queries, 2)
 	assert.Equal(t, "team1", listQueriesResp.Queries[0].Name)
 	assert.Equal(t, "global1", listQueriesResp.Queries[1].Name)
@@ -71,8 +71,8 @@ func (s *integrationEnterpriseTestSuite) TestTeamQueries() {
 }
 
 func (s *integrationEnterpriseTestSuite) cleanupQuery(queryID uint) {
-	var delResp fleet.DeleteQueryByIDResponse
-	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/fleet/reports/%d", queryID), nil, http.StatusOK, &delResp)
+	var delResp automdm.DeleteQueryByIDResponse
+	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/automdm/reports/%d", queryID), nil, http.StatusOK, &delResp)
 }
 
 // TestQueryLabelsIncludeAll mirrors TestPolicyLabelsIncludeAll for queries (reports),
@@ -82,20 +82,20 @@ func (s *integrationEnterpriseTestSuite) TestQueryLabelsIncludeAll() {
 	t := s.T()
 	ctx := context.Background()
 
-	var lblResp fleet.CreateLabelResponse
-	s.DoJSON("POST", "/api/latest/fleet/labels", fleet.LabelPayload{Name: uuid.NewString(), Query: "SELECT 1"}, http.StatusOK, &lblResp)
+	var lblResp automdm.CreateLabelResponse
+	s.DoJSON("POST", "/api/latest/automdm/labels", automdm.LabelPayload{Name: uuid.NewString(), Query: "SELECT 1"}, http.StatusOK, &lblResp)
 	lblA := lblResp.Label
-	lblResp = fleet.CreateLabelResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/labels", fleet.LabelPayload{Name: uuid.NewString(), Query: "SELECT 2"}, http.StatusOK, &lblResp)
+	lblResp = automdm.CreateLabelResponse{}
+	s.DoJSON("POST", "/api/latest/automdm/labels", automdm.LabelPayload{Name: uuid.NewString(), Query: "SELECT 2"}, http.StatusOK, &lblResp)
 	lblB := lblResp.Label
 
 	// Create a query with include_all.
 	autoOn := true
-	var createResp fleet.CreateQueryResponse
-	s.DoJSON("POST", "/api/latest/fleet/reports", fleet.QueryPayload{
+	var createResp automdm.CreateQueryResponse
+	s.DoJSON("POST", "/api/latest/automdm/reports", automdm.QueryPayload{
 		Name:               new("q-include-all-" + t.Name()),
 		Query:              new("SELECT 1"),
-		Logging:            new(fleet.LoggingSnapshot),
+		Logging:            new(automdm.LoggingSnapshot),
 		Interval:           new(uint(60)),
 		AutomationsEnabled: &autoOn,
 		LabelsIncludeAll:   []string{lblA.Name, lblB.Name},
@@ -106,30 +106,30 @@ func (s *integrationEnterpriseTestSuite) TestQueryLabelsIncludeAll() {
 
 	// Mutex rejection on create. Assert on the specific validation error so a
 	// generic 400 (e.g., name required) cannot silently satisfy the test.
-	rejCreateResp := s.Do("POST", "/api/latest/fleet/reports", fleet.QueryPayload{
+	rejCreateResp := s.Do("POST", "/api/latest/automdm/reports", automdm.QueryPayload{
 		Name:             new("q-rej-" + t.Name()),
 		Query:            new("SELECT 1"),
-		Logging:          new(fleet.LoggingSnapshot),
+		Logging:          new(automdm.LoggingSnapshot),
 		LabelsIncludeAll: []string{lblA.Name},
 		LabelsIncludeAny: []string{lblB.Name},
 	}, http.StatusBadRequest)
-	require.Contains(t, extractServerErrorText(rejCreateResp.Body), fleet.ErrQueryConflictingLabels.Error())
+	require.Contains(t, extractServerErrorText(rejCreateResp.Body), automdm.ErrQueryConflictingLabels.Error())
 
 	// Built-in labels can't be used as custom targets.
-	for _, payload := range []fleet.QueryPayload{
-		{LabelsIncludeAny: []string{fleet.BuiltinLabelNameMacOS}},
-		{LabelsIncludeAll: []string{lblA.Name, fleet.BuiltinLabelNameAllHosts}},
+	for _, payload := range []automdm.QueryPayload{
+		{LabelsIncludeAny: []string{automdm.BuiltinLabelNameMacOS}},
+		{LabelsIncludeAll: []string{lblA.Name, automdm.BuiltinLabelNameAllHosts}},
 	} {
 		payload.Name = new("q-builtin-" + t.Name())
 		payload.Query = new("SELECT 1")
-		res := s.Do("POST", "/api/latest/fleet/reports", payload, http.StatusBadRequest)
+		res := s.Do("POST", "/api/latest/automdm/reports", payload, http.StatusBadRequest)
 		require.Contains(t, extractServerErrorText(res.Body), "label is built-in. Only custom labels are supported.")
 
 		payload.Name, payload.Query = nil, nil
-		res = s.Do("PATCH", fmt.Sprintf("/api/latest/fleet/reports/%d", createResp.Report.ID), payload, http.StatusBadRequest)
+		res = s.Do("PATCH", fmt.Sprintf("/api/latest/automdm/reports/%d", createResp.Report.ID), payload, http.StatusBadRequest)
 		require.Contains(t, extractServerErrorText(res.Body), "label is built-in. Only custom labels are supported.")
 
-		res = s.Do("POST", "/api/latest/fleet/spec/reports", fleet.ApplyQuerySpecsRequest{Specs: []*fleet.QuerySpec{{
+		res = s.Do("POST", "/api/latest/automdm/spec/reports", automdm.ApplyQuerySpecsRequest{Specs: []*automdm.QuerySpec{{
 			Name:             "q-builtin-spec-" + t.Name(),
 			Query:            "SELECT 1",
 			LabelsIncludeAny: payload.LabelsIncludeAny,
@@ -140,22 +140,22 @@ func (s *integrationEnterpriseTestSuite) TestQueryLabelsIncludeAll() {
 
 	// PATCH: switch from include_all to include_any (clears include_all).
 	includeAny := []string{lblA.Name}
-	var modifyResp fleet.ModifyQueryResponse
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/reports/%d", createResp.Report.ID), fleet.QueryPayload{
+	var modifyResp automdm.ModifyQueryResponse
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/reports/%d", createResp.Report.ID), automdm.QueryPayload{
 		LabelsIncludeAny: includeAny,
 	}, http.StatusOK, &modifyResp)
 	require.Empty(t, modifyResp.Report.LabelsIncludeAll)
 	require.Len(t, modifyResp.Report.LabelsIncludeAny, 1)
 
 	// PATCH mutex rejection. Assert on the specific validation error.
-	rejPatchResp := s.Do("PATCH", fmt.Sprintf("/api/latest/fleet/reports/%d", createResp.Report.ID), fleet.QueryPayload{
+	rejPatchResp := s.Do("PATCH", fmt.Sprintf("/api/latest/automdm/reports/%d", createResp.Report.ID), automdm.QueryPayload{
 		LabelsIncludeAny: []string{lblA.Name},
 		LabelsIncludeAll: []string{lblB.Name},
 	}, http.StatusBadRequest)
-	require.Contains(t, extractServerErrorText(rejPatchResp.Body), fleet.ErrQueryConflictingLabels.Error())
+	require.Contains(t, extractServerErrorText(rejPatchResp.Body), automdm.ErrQueryConflictingLabels.Error())
 
 	// Switch back to include_all so the end-to-end test below uses it.
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/reports/%d", createResp.Report.ID), fleet.QueryPayload{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/reports/%d", createResp.Report.ID), automdm.QueryPayload{
 		LabelsIncludeAll: []string{lblA.Name, lblB.Name},
 	}, http.StatusOK, &modifyResp)
 	require.Len(t, modifyResp.Report.LabelsIncludeAll, 2)
@@ -163,8 +163,8 @@ func (s *integrationEnterpriseTestSuite) TestQueryLabelsIncludeAll() {
 
 	// End-to-end: scheduled-query distribution should only return the query
 	// for hosts that are members of BOTH labels.
-	mkHost := func(suffix string) *fleet.Host {
-		h, err := s.ds.NewHost(ctx, &fleet.Host{
+	mkHost := func(suffix string) *automdm.Host {
+		h, err := s.ds.NewHost(ctx, &automdm.Host{
 			DetailUpdatedAt: time.Now(), LabelUpdatedAt: time.Now(), PolicyUpdatedAt: time.Now(), SeenTime: time.Now(),
 			OsqueryHostID: new("q" + suffix + t.Name()), NodeKey: new("q" + suffix + t.Name()),
 			UUID: uuid.New().String(), Hostname: t.Name() + "-" + suffix + ".local", Platform: "linux",
@@ -199,28 +199,28 @@ func (s *integrationEnterpriseTestSuite) TestListHostReportsIncludeAllPremium() 
 	t := s.T()
 	ctx := t.Context()
 
-	labelA, err := s.ds.NewLabel(ctx, &fleet.Label{Name: t.Name() + "-A", Query: "SELECT 1"})
+	labelA, err := s.ds.NewLabel(ctx, &automdm.Label{Name: t.Name() + "-A", Query: "SELECT 1"})
 	require.NoError(t, err)
-	labelB, err := s.ds.NewLabel(ctx, &fleet.Label{Name: t.Name() + "-B", Query: "SELECT 1"})
+	labelB, err := s.ds.NewLabel(ctx, &automdm.Label{Name: t.Name() + "-B", Query: "SELECT 1"})
 	require.NoError(t, err)
 
 	admin := s.users[TestAdminUserEmail]
-	qIncludeAll, err := s.ds.NewQuery(ctx, &fleet.Query{
+	qIncludeAll, err := s.ds.NewQuery(ctx, &automdm.Query{
 		Name:        t.Name() + "_include_all",
 		Query:       "SELECT 1",
 		AuthorID:    &admin.ID,
 		Saved:       true,
 		DiscardData: false,
-		Logging:     fleet.LoggingSnapshot,
-		LabelsIncludeAll: []fleet.LabelIdent{
+		Logging:     automdm.LoggingSnapshot,
+		LabelsIncludeAll: []automdm.LabelIdent{
 			{LabelName: labelA.Name},
 			{LabelName: labelB.Name},
 		},
 	})
 	require.NoError(t, err)
 
-	mkHost := func(suffix string) *fleet.Host {
-		h, err := s.ds.NewHost(ctx, &fleet.Host{
+	mkHost := func(suffix string) *automdm.Host {
+		h, err := s.ds.NewHost(ctx, &automdm.Host{
 			DetailUpdatedAt: time.Now(),
 			LabelUpdatedAt:  time.Now(),
 			PolicyUpdatedAt: time.Now(),
@@ -244,7 +244,7 @@ func (s *integrationEnterpriseTestSuite) TestListHostReportsIncludeAllPremium() 
 	hasIncludeAllReport := func(hostID uint) bool {
 		t.Helper()
 		var resp listHostReportsResponse
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/reports", hostID), nil, http.StatusOK, &resp, "include_reports_dont_store_results", "true")
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/reports", hostID), nil, http.StatusOK, &resp, "include_reports_dont_store_results", "true")
 		for _, r := range resp.Reports {
 			if r.ReportID == qIncludeAll.ID {
 				return true

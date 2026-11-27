@@ -6,14 +6,14 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/fleetdm/fleet/v4/server/chart/api"
-	eu "github.com/fleetdm/fleet/v4/server/platform/endpointer"
-	platform_http "github.com/fleetdm/fleet/v4/server/platform/http"
+	"github.com/anilyagiz/automdm/v4/server/chart/api"
+	eu "github.com/anilyagiz/automdm/v4/server/platform/endpointer"
+	platform_http "github.com/anilyagiz/automdm/v4/server/platform/http"
 	"github.com/go-kit/kit/endpoint"
 	kithttp "github.com/go-kit/kit/transport/http"
 )
 
-// encodeResponse encodes the response as JSON using the common Fleet encoding pattern.
+// encodeResponse encodes the response as JSON using the common AutoMDM encoding pattern.
 func encodeResponse(ctx context.Context, w http.ResponseWriter, response any) error {
 	return eu.EncodeCommonResponse(ctx, w, response,
 		func(w http.ResponseWriter, response any) error {
@@ -21,7 +21,7 @@ func encodeResponse(ctx context.Context, w http.ResponseWriter, response any) er
 			enc.SetIndent("", "  ")
 			return enc.Encode(response)
 		},
-		nil, // no domain-specific error encoder; standard fleet errors are handled by common encoder
+		nil, // no domain-specific error encoder; standard automdm errors are handled by common encoder
 	)
 }
 

@@ -13,7 +13,7 @@ jest.mock("services/entities/users");
 describe("ResetPasswordPage", () => {
   it("sends a user with no role to the no access page", async () => {
     (usersAPI.performRequiredPasswordReset as jest.Mock).mockRejectedValue({
-      data: { message: "either global role or fleet role needs to be defined" },
+      data: { message: "either global role or team role needs to be defined" },
     });
     const router = createMockRouter();
     const render = createCustomRenderer({

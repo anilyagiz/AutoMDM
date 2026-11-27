@@ -9,25 +9,25 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/file"
-	"github.com/fleetdm/fleet/v4/pkg/scripts"
-	"github.com/fleetdm/fleet/v4/server/authz"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxdb"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/pkg/file"
+	"github.com/anilyagiz/automdm/v4/pkg/scripts"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxdb"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
 // Run Script on a Host (async)
 ////////////////////////////////////////////////////////////////////////////////
 
-func runScriptEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.RunScriptRequest)
+func runScriptEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.RunScriptRequest)
 
 	var noWait time.Duration
-	result, err := svc.RunHostScript(ctx, &fleet.HostScriptRequestPayload{
+	result, err := svc.RunHostScript(ctx, &automdm.HostScriptRequestPayload{
 		HostID:         req.HostID,
 		ScriptID:       req.ScriptID,
 		ScriptContents: req.ScriptContents,
@@ -35,9 +35,9 @@ func runScriptEndpoint(ctx context.Context, request interface{}, svc fleet.Servi
 		TeamID:         req.TeamID,
 	}, noWait)
 	if err != nil {
-		return fleet.RunScriptResponse{Err: err}, nil
+		return automdm.RunScriptResponse{Err: err}, nil
 	}
-	return fleet.RunScriptResponse{HostID: result.HostID, ExecutionID: result.ExecutionID}, nil
+	return automdm.RunScriptResponse{HostID: result.HostID, ExecutionID: result.ExecutionID}, nil
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -47,14 +47,14 @@ func runScriptEndpoint(ctx context.Context, request interface{}, svc fleet.Servi
 // this is to be used only by tests, to be able to use a shorter timeout.
 var testRunScriptWaitForResult time.Duration
 
-func runScriptSyncEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func runScriptSyncEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	waitForResult := scripts.MaxServerWaitTime
 	if testRunScriptWaitForResult != 0 {
 		waitForResult = testRunScriptWaitForResult
 	}
 
-	req := request.(*fleet.RunScriptSyncRequest)
-	result, err := svc.RunHostScript(ctx, &fleet.HostScriptRequestPayload{
+	req := request.(*automdm.RunScriptSyncRequest)
+	result, err := svc.RunHostScript(ctx, &automdm.HostScriptRequestPayload{
 		HostID:         req.HostID,
 		ScriptID:       req.ScriptID,
 		ScriptContents: req.ScriptContents,
@@ -64,7 +64,7 @@ func runScriptSyncEndpoint(ctx context.Context, request interface{}, svc fleet.S
 	var hostTimeout bool
 	if err != nil {
 		if !errors.Is(err, context.DeadlineExceeded) {
-			return fleet.RunScriptSyncResponse{Err: err}, nil
+			return automdm.RunScriptSyncResponse{Err: err}, nil
 		}
 		// We should still return the execution id and host id in this timeout case,
 		// so the user knows what script request to look at in the UI. We cannot
@@ -74,7 +74,7 @@ func runScriptSyncEndpoint(ctx context.Context, request interface{}, svc fleet.S
 		hostTimeout = true
 	}
 	result.Message = result.UserMessage(hostTimeout, result.Timeout)
-	return fleet.RunScriptSyncResponse{
+	return automdm.RunScriptSyncResponse{
 		HostScriptResult: result,
 		HostTimeout:      hostTimeout,
 	}, nil
@@ -82,14 +82,14 @@ func runScriptSyncEndpoint(ctx context.Context, request interface{}, svc fleet.S
 
 func (svc *Service) GetScriptIDByName(ctx context.Context, scriptName string, teamID *uint) (uint, error) {
 	// TODO: confirm auth level
-	if err := svc.authz.Authorize(ctx, &fleet.Script{TeamID: teamID}, fleet.ActionRead); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.Script{TeamID: teamID}, automdm.ActionRead); err != nil {
 		return 0, err
 	}
 
 	id, err := svc.ds.GetScriptIDByName(ctx, scriptName, teamID)
 	if err != nil {
-		if fleet.IsNotFound(err) {
-			return 0, fleet.NewInvalidArgumentError("script_name", fmt.Sprintf(`Script '%s' doesn’t exist.`, scriptName))
+		if automdm.IsNotFound(err) {
+			return 0, automdm.NewInvalidArgumentError("script_name", fmt.Sprintf(`Script '%s' doesn’t exist.`, scriptName))
 		}
 		return 0, err
 	}
@@ -98,7 +98,7 @@ func (svc *Service) GetScriptIDByName(ctx context.Context, scriptName string, te
 
 const maxPendingScripts = 1000
 
-func (svc *Service) RunHostScript(ctx context.Context, request *fleet.HostScriptRequestPayload, waitForResult time.Duration) (*fleet.HostScriptResult, error) {
+func (svc *Service) RunHostScript(ctx context.Context, request *automdm.HostScriptRequestPayload, waitForResult time.Duration) (*automdm.HostScriptResult, error) {
 	// Must check for presence of mutually exclusive parameters before
 	// authorization, as the permissions are not the same in all cases.
 	// There's no harm in returning the error if this validation fails,
@@ -113,16 +113,16 @@ func (svc *Service) RunHostScript(ctx context.Context, request *fleet.HostScript
 		lic, _ := license.FromContext(ctx)
 		if !lic.IsPremium() {
 			svc.authz.SkipAuthorization(ctx)
-			return nil, fleet.ErrMissingLicense
+			return nil, automdm.ErrMissingLicense
 		}
 	}
 
 	if request.ScriptContents != "" {
-		if err := fleet.ValidateEmbeddedSecretsAndCustomHostVitals(ctx, svc.ds, []string{request.ScriptContents}); err != nil {
+		if err := automdm.ValidateEmbeddedSecretsAndCustomHostVitals(ctx, svc.ds, []string{request.ScriptContents}); err != nil {
 			svc.authz.SkipAuthorization(ctx)
-			return nil, fleet.NewInvalidArgumentError("script", err.Error())
+			return nil, automdm.NewInvalidArgumentError("script", err.Error())
 		}
-		if err := fleet.ValidateFleetVariablesInScript(request.ScriptContents, license.IsPremium(ctx)); err != nil {
+		if err := automdm.ValidateAutoMDMVariablesInScript(request.ScriptContents, license.IsPremium(ctx)); err != nil {
 			svc.authz.SkipAuthorization(ctx)
 			return nil, err
 		}
@@ -144,8 +144,8 @@ func (svc *Service) RunHostScript(ctx context.Context, request *fleet.HostScript
 	if err != nil {
 		// if error is because the host does not exist, check first if the user
 		// had access to run a script (to prevent leaking valid host ids).
-		if fleet.IsNotFound(err) {
-			if err := svc.authz.Authorize(ctx, &fleet.HostScriptResult{ScriptID: request.ScriptID}, fleet.ActionWrite); err != nil {
+		if automdm.IsNotFound(err) {
+			if err := svc.authz.Authorize(ctx, &automdm.HostScriptResult{ScriptID: request.ScriptID}, automdm.ActionWrite); err != nil {
 				return nil, err
 			}
 		}
@@ -154,24 +154,24 @@ func (svc *Service) RunHostScript(ctx context.Context, request *fleet.HostScript
 	}
 
 	if host.OrbitNodeKey == nil || *host.OrbitNodeKey == "" {
-		// fleetd is required to run scripts so if the host is enrolled via plain osquery we return
+		// automdmd is required to run scripts so if the host is enrolled via plain osquery we return
 		// an error
 		svc.authz.SkipAuthorization(ctx)
-		return nil, fleet.NewUserMessageError(errors.New(fleet.RunScriptDisabledErrMsg), http.StatusUnprocessableEntity)
+		return nil, automdm.NewUserMessageError(errors.New(automdm.RunScriptDisabledErrMsg), http.StatusUnprocessableEntity)
 	}
 
 	// If scripts are disabled (according to the last detail query), we return an error.
 	// host.ScriptsEnabled may be nil for older orbit versions.
 	if host.ScriptsEnabled != nil && !*host.ScriptsEnabled {
 		svc.authz.SkipAuthorization(ctx)
-		return nil, fleet.NewUserMessageError(errors.New(fleet.RunScriptsOrbitDisabledErrMsg), http.StatusUnprocessableEntity)
+		return nil, automdm.NewUserMessageError(errors.New(automdm.RunScriptsOrbitDisabledErrMsg), http.StatusUnprocessableEntity)
 	}
 
 	maxPending := maxPendingScripts
 
 	// authorize with the host's team; script_id matters because some roles can
 	// only run saved scripts, not ad hoc ones.
-	if err := svc.authz.Authorize(ctx, &fleet.HostScriptResult{TeamID: host.TeamID, ScriptID: request.ScriptID}, fleet.ActionWrite); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.HostScriptResult{TeamID: host.TeamID, ScriptID: request.ScriptID}, automdm.ActionWrite); err != nil {
 		return nil, err
 	}
 
@@ -179,8 +179,8 @@ func (svc *Service) RunHostScript(ctx context.Context, request *fleet.HostScript
 	if request.ScriptID != nil {
 		script, err := svc.ds.Script(ctx, *request.ScriptID)
 		if err != nil {
-			if fleet.IsNotFound(err) {
-				return nil, fleet.NewInvalidArgumentError("script_id", `No script exists for the provided "script_id".`).
+			if automdm.IsNotFound(err) {
+				return nil, automdm.NewInvalidArgumentError("script_id", `No script exists for the provided "script_id".`).
 					WithStatus(http.StatusNotFound)
 			}
 			return nil, err
@@ -193,7 +193,7 @@ func (svc *Service) RunHostScript(ctx context.Context, request *fleet.HostScript
 			hostTmID = *host.TeamID
 		}
 		if scriptTmID != hostTmID {
-			return nil, fleet.NewInvalidArgumentError("script_id", `The script does not belong to the same fleet (or "Unassigned") as the host.`)
+			return nil, automdm.NewInvalidArgumentError("script_id", `The script does not belong to the same team (or "Unassigned") as the host.`)
 		}
 
 		isQueued, err := svc.ds.IsExecutionPendingForHost(ctx, request.HostID, *request.ScriptID)
@@ -202,13 +202,13 @@ func (svc *Service) RunHostScript(ctx context.Context, request *fleet.HostScript
 		}
 
 		if isQueued {
-			return nil, fleet.NewInvalidArgumentError("script_id", `The script is already queued on the given host.`).WithStatus(http.StatusConflict)
+			return nil, automdm.NewInvalidArgumentError("script_id", `The script is already queued on the given host.`).WithStatus(http.StatusConflict)
 		}
 
 		contents, err := svc.ds.GetScriptContents(ctx, *request.ScriptID)
 		if err != nil {
-			if fleet.IsNotFound(err) {
-				return nil, fleet.NewInvalidArgumentError("script_id", `No script exists for the provided "script_id".`).
+			if automdm.IsNotFound(err) {
+				return nil, automdm.NewInvalidArgumentError("script_id", `No script exists for the provided "script_id".`).
 					WithStatus(http.StatusNotFound)
 			}
 			return nil, err
@@ -218,14 +218,14 @@ func (svc *Service) RunHostScript(ctx context.Context, request *fleet.HostScript
 		isSavedScript = true
 	}
 
-	if err := fleet.ValidateHostScriptContents(request.ScriptContents, isSavedScript); err != nil {
-		return nil, fleet.NewInvalidArgumentError("script_contents", err.Error())
+	if err := automdm.ValidateHostScriptContents(request.ScriptContents, isSavedScript); err != nil {
+		return nil, automdm.NewInvalidArgumentError("script_contents", err.Error())
 	}
 
 	asyncExecution := waitForResult <= 0
 
-	if !asyncExecution && host.Status(time.Now()) != fleet.StatusOnline {
-		return nil, fleet.NewInvalidArgumentError("host_id", fleet.RunScriptHostOfflineErrMsg)
+	if !asyncExecution && host.Status(time.Now()) != automdm.StatusOnline {
+		return nil, automdm.NewInvalidArgumentError("host_id", automdm.RunScriptHostOfflineErrMsg)
 	}
 
 	pending, err := svc.ds.ListPendingHostScriptExecutions(ctx, request.HostID)
@@ -233,13 +233,13 @@ func (svc *Service) RunHostScript(ctx context.Context, request *fleet.HostScript
 		return nil, ctxerr.Wrap(ctx, err, "list host pending script executions")
 	}
 	if len(pending) >= maxPending {
-		return nil, fleet.NewInvalidArgumentError(
+		return nil, automdm.NewInvalidArgumentError(
 			"script_id", "cannot queue more than 1000 scripts per host",
 		).WithStatus(http.StatusConflict)
 	}
 
 	if !asyncExecution && len(pending) > 0 {
-		return nil, fleet.NewInvalidArgumentError("script_id", fleet.RunScriptAlreadyRunningErrMsg).WithStatus(http.StatusConflict)
+		return nil, automdm.NewInvalidArgumentError("script_id", automdm.RunScriptAlreadyRunningErrMsg).WithStatus(http.StatusConflict)
 	}
 
 	// create the script execution request, the host will be notified of the
@@ -300,21 +300,21 @@ func (svc *Service) RunHostScript(ctx context.Context, request *fleet.HostScript
 // Get script result for a host
 ////////////////////////////////////////////////////////////////////////////////
 
-func getScriptResultEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.GetScriptResultRequest)
+func getScriptResultEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.GetScriptResultRequest)
 	scriptResult, err := svc.GetScriptResult(ctx, req.ExecutionID)
 	if err != nil {
-		return fleet.GetScriptResultResponse{Err: err}, nil
+		return automdm.GetScriptResultResponse{Err: err}, nil
 	}
 
 	return setUpGetScriptResultResponse(scriptResult), nil
 }
 
-func setUpGetScriptResultResponse(scriptResult *fleet.HostScriptResult) *fleet.GetScriptResultResponse {
+func setUpGetScriptResultResponse(scriptResult *automdm.HostScriptResult) *automdm.GetScriptResultResponse {
 	hostTimeout := scriptResult.HostTimeout(scripts.MaxServerWaitTime)
 	scriptResult.Message = scriptResult.UserMessage(hostTimeout, scriptResult.Timeout)
 
-	return &fleet.GetScriptResultResponse{
+	return &automdm.GetScriptResultResponse{
 		ScriptContents: scriptResult.ScriptContents,
 		ScriptID:       scriptResult.ScriptID,
 		ExitCode:       scriptResult.ExitCode,
@@ -329,11 +329,11 @@ func setUpGetScriptResultResponse(scriptResult *fleet.HostScriptResult) *fleet.G
 	}
 }
 
-func (svc *Service) GetScriptResult(ctx context.Context, execID string) (*fleet.HostScriptResult, error) {
+func (svc *Service) GetScriptResult(ctx context.Context, execID string) (*automdm.HostScriptResult, error) {
 	scriptResult, err := svc.ds.GetHostScriptExecutionResult(ctx, execID)
 	if err != nil {
-		if fleet.IsNotFound(err) {
-			if err := svc.authz.Authorize(ctx, &fleet.HostScriptResult{}, fleet.ActionRead); err != nil {
+		if automdm.IsNotFound(err) {
+			if err := svc.authz.Authorize(ctx, &automdm.HostScriptResult{}, automdm.ActionRead); err != nil {
 				return nil, err
 			}
 		}
@@ -347,21 +347,21 @@ func (svc *Service) GetScriptResult(ctx context.Context, execID string) (*fleet.
 		if err != nil {
 			// if error is because the host does not exist, check first if the user
 			// had access to run a script (to prevent leaking valid host ids).
-			if fleet.IsNotFound(err) {
-				if err := svc.authz.Authorize(ctx, &fleet.HostScriptResult{}, fleet.ActionRead); err != nil {
+			if automdm.IsNotFound(err) {
+				if err := svc.authz.Authorize(ctx, &automdm.HostScriptResult{}, automdm.ActionRead); err != nil {
 					return nil, err
 				}
 			}
 			svc.authz.SkipAuthorization(ctx)
 			return nil, ctxerr.Wrap(ctx, err, "get host lite")
 		}
-		if err := svc.authz.Authorize(ctx, &fleet.HostScriptResult{TeamID: host.TeamID}, fleet.ActionRead); err != nil {
+		if err := svc.authz.Authorize(ctx, &automdm.HostScriptResult{TeamID: host.TeamID}, automdm.ActionRead); err != nil {
 			return nil, err
 		}
 		scriptResult.Hostname = host.DisplayName()
 	} else {
 		// host was deleted, authorize for no-team as a fallback
-		if err := svc.authz.Authorize(ctx, &fleet.HostScriptResult{}, fleet.ActionRead); err != nil {
+		if err := svc.authz.Authorize(ctx, &automdm.HostScriptResult{}, automdm.ActionRead); err != nil {
 			return nil, err
 		}
 	}
@@ -373,24 +373,24 @@ func (svc *Service) GetScriptResult(ctx context.Context, execID string) (*fleet.
 // Create a (saved) script (via a multipart file upload)
 ////////////////////////////////////////////////////////////////////////////////
 
-func createScriptEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.CreateScriptRequest)
+func createScriptEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.CreateScriptRequest)
 
 	scriptFile, err := req.Script.Open()
 	if err != nil {
-		return &fleet.CreateScriptResponse{Err: err}, nil
+		return &automdm.CreateScriptResponse{Err: err}, nil
 	}
 	defer scriptFile.Close()
 
 	script, err := svc.NewScript(ctx, req.TeamID, filepath.Base(req.Script.Filename), scriptFile)
 	if err != nil {
-		return fleet.CreateScriptResponse{Err: err}, nil
+		return automdm.CreateScriptResponse{Err: err}, nil
 	}
-	return fleet.CreateScriptResponse{ScriptID: script.ID}, nil
+	return automdm.CreateScriptResponse{ScriptID: script.ID}, nil
 }
 
-func (svc *Service) NewScript(ctx context.Context, teamID *uint, name string, r io.Reader) (*fleet.Script, error) {
-	if err := svc.authz.Authorize(ctx, &fleet.Script{TeamID: teamID}, fleet.ActionWrite); err != nil {
+func (svc *Service) NewScript(ctx context.Context, teamID *uint, name string, r io.Reader) (*automdm.Script, error) {
+	if err := svc.authz.Authorize(ctx, &automdm.Script{TeamID: teamID}, automdm.ActionWrite); err != nil {
 		return nil, err
 	}
 
@@ -399,34 +399,34 @@ func (svc *Service) NewScript(ctx context.Context, teamID *uint, name string, r 
 		return nil, ctxerr.Wrap(ctx, err, "read script contents")
 	}
 
-	script := &fleet.Script{
+	script := &automdm.Script{
 		TeamID:         teamID,
 		Name:           name,
 		ScriptContents: file.Dos2UnixNewlines(string(b)),
 	}
 
-	if err := fleet.ValidateEmbeddedSecretsAndCustomHostVitals(ctx, svc.ds, []string{script.ScriptContents}); err != nil {
-		return nil, fleet.NewInvalidArgumentError("script", err.Error())
+	if err := automdm.ValidateEmbeddedSecretsAndCustomHostVitals(ctx, svc.ds, []string{script.ScriptContents}); err != nil {
+		return nil, automdm.NewInvalidArgumentError("script", err.Error())
 	}
 
-	if err := fleet.ValidateFleetVariablesInScript(script.ScriptContents, license.IsPremium(ctx)); err != nil {
+	if err := automdm.ValidateAutoMDMVariablesInScript(script.ScriptContents, license.IsPremium(ctx)); err != nil {
 		return nil, err
 	}
 
 	if err := script.ValidateNewScript(); err != nil {
-		return nil, fleet.NewInvalidArgumentError("script", err.Error())
+		return nil, automdm.NewInvalidArgumentError("script", err.Error())
 	}
 
 	savedScript, err := svc.ds.NewScript(ctx, script)
 	if err != nil {
 		var (
-			existsErr fleet.AlreadyExistsError
-			fkErr     fleet.ForeignKeyError
+			existsErr automdm.AlreadyExistsError
+			fkErr     automdm.ForeignKeyError
 		)
 		if errors.As(err, &existsErr) {
-			err = fleet.NewInvalidArgumentError("script", "A script with this name already exists.").WithStatus(http.StatusConflict)
+			err = automdm.NewInvalidArgumentError("script", "A script with this name already exists.").WithStatus(http.StatusConflict)
 		} else if errors.As(err, &fkErr) {
-			err = fleet.NewInvalidArgumentError("fleet_id", "The fleet does not exist.").WithStatus(http.StatusNotFound)
+			err = automdm.NewInvalidArgumentError("team_id", "The team does not exist.").WithStatus(http.StatusNotFound)
 		}
 		return nil, ctxerr.Wrap(ctx, err, "create script")
 	}
@@ -443,7 +443,7 @@ func (svc *Service) NewScript(ctx context.Context, teamID *uint, name string, r 
 	if err := svc.NewActivity(
 		ctx,
 		authz.UserFromContext(ctx),
-		fleet.ActivityTypeAddedScript{
+		automdm.ActivityTypeAddedScript{
 			TeamID:     teamID,
 			TeamName:   teamName,
 			ScriptName: script.Name,
@@ -459,17 +459,17 @@ func (svc *Service) NewScript(ctx context.Context, teamID *uint, name string, r 
 // Delete a (saved) script
 ////////////////////////////////////////////////////////////////////////////////
 
-func deleteScriptEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.DeleteScriptRequest)
+func deleteScriptEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.DeleteScriptRequest)
 	err := svc.DeleteScript(ctx, req.ScriptID)
 	if err != nil {
-		return fleet.DeleteScriptResponse{Err: err}, nil
+		return automdm.DeleteScriptResponse{Err: err}, nil
 	}
-	return fleet.DeleteScriptResponse{}, nil
+	return automdm.DeleteScriptResponse{}, nil
 }
 
 func (svc *Service) DeleteScript(ctx context.Context, scriptID uint) error {
-	script, err := svc.authorizeScriptByID(ctx, scriptID, fleet.ActionWrite)
+	script, err := svc.authorizeScriptByID(ctx, scriptID, automdm.ActionWrite)
 	if err != nil {
 		return err
 	}
@@ -490,7 +490,7 @@ func (svc *Service) DeleteScript(ctx context.Context, scriptID uint) error {
 	if err := svc.NewActivity(
 		ctx,
 		authz.UserFromContext(ctx),
-		fleet.ActivityTypeDeletedScript{
+		automdm.ActivityTypeDeletedScript{
 			TeamID:     script.TeamID,
 			TeamName:   teamName,
 			ScriptName: script.Name,
@@ -506,20 +506,20 @@ func (svc *Service) DeleteScript(ctx context.Context, scriptID uint) error {
 // List (saved) scripts (paginated)
 ////////////////////////////////////////////////////////////////////////////////
 
-func listScriptsEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.ListScriptsRequest)
+func listScriptsEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.ListScriptsRequest)
 	scripts, meta, err := svc.ListScripts(ctx, req.TeamID, req.ListOptions)
 	if err != nil {
-		return fleet.ListScriptsResponse{Err: err}, nil
+		return automdm.ListScriptsResponse{Err: err}, nil
 	}
-	return fleet.ListScriptsResponse{
+	return automdm.ListScriptsResponse{
 		Meta:    meta,
 		Scripts: scripts,
 	}, nil
 }
 
-func (svc *Service) ListScripts(ctx context.Context, teamID *uint, opt fleet.ListOptions) ([]*fleet.Script, *fleet.PaginationMetadata, error) {
-	if err := svc.authz.Authorize(ctx, &fleet.Script{TeamID: teamID}, fleet.ActionRead); err != nil {
+func (svc *Service) ListScripts(ctx context.Context, teamID *uint, opt automdm.ListOptions) ([]*automdm.Script, *automdm.PaginationMetadata, error) {
+	if err := svc.authz.Authorize(ctx, &automdm.Script{TeamID: teamID}, automdm.ActionRead); err != nil {
 		return nil, nil, err
 	}
 
@@ -527,7 +527,7 @@ func (svc *Service) ListScripts(ctx context.Context, teamID *uint, opt fleet.Lis
 	opt.After = ""
 	// custom ordering is not supported, always by name
 	opt.OrderKey = "name"
-	opt.OrderDirection = fleet.OrderAscending
+	opt.OrderDirection = automdm.OrderAscending
 	// no matching query support
 	opt.MatchQuery = ""
 	// always include metadata for scripts
@@ -540,26 +540,26 @@ func (svc *Service) ListScripts(ctx context.Context, teamID *uint, opt fleet.Lis
 // Get/download a (saved) script
 ////////////////////////////////////////////////////////////////////////////////
 
-func getScriptEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.GetScriptRequest)
+func getScriptEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.GetScriptRequest)
 
 	downloadRequested := req.Alt == "media"
 	script, content, err := svc.GetScript(ctx, req.ScriptID, downloadRequested)
 	if err != nil {
-		return fleet.GetScriptResponse{Err: err}, nil
+		return automdm.GetScriptResponse{Err: err}, nil
 	}
 
 	if downloadRequested {
-		return fleet.DownloadFileResponse{
+		return automdm.DownloadFileResponse{
 			Content:  content,
 			Filename: fmt.Sprintf("%s %s", time.Now().Format(time.DateOnly), script.Name),
 		}, nil
 	}
-	return fleet.GetScriptResponse{Script: script}, nil
+	return automdm.GetScriptResponse{Script: script}, nil
 }
 
-func (svc *Service) GetScript(ctx context.Context, scriptID uint, withContent bool) (*fleet.Script, []byte, error) {
-	script, err := svc.authorizeScriptByID(ctx, scriptID, fleet.ActionRead)
+func (svc *Service) GetScript(ctx context.Context, scriptID uint, withContent bool) (*automdm.Script, []byte, error) {
+	script, err := svc.authorizeScriptByID(ctx, scriptID, automdm.ActionRead)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -578,30 +578,30 @@ func (svc *Service) GetScript(ctx context.Context, scriptID uint, withContent bo
 // Update Script Contents
 ////////////////////////////////////////////////////////////////////////////////
 
-func updateScriptEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.UpdateScriptRequest)
+func updateScriptEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.UpdateScriptRequest)
 
 	scriptFile, err := req.Script.Open()
 	if err != nil {
-		return &fleet.UpdateScriptResponse{Err: err}, nil
+		return &automdm.UpdateScriptResponse{Err: err}, nil
 	}
 	defer scriptFile.Close()
 
 	script, err := svc.UpdateScript(ctx, req.ScriptID, scriptFile)
 	if err != nil {
-		return fleet.UpdateScriptResponse{Err: err}, nil
+		return automdm.UpdateScriptResponse{Err: err}, nil
 	}
-	return fleet.UpdateScriptResponse{ScriptID: script.ID}, nil
+	return automdm.UpdateScriptResponse{ScriptID: script.ID}, nil
 }
 
-func (svc *Service) UpdateScript(ctx context.Context, scriptID uint, r io.Reader) (*fleet.Script, error) {
+func (svc *Service) UpdateScript(ctx context.Context, scriptID uint, r io.Reader) (*automdm.Script, error) {
 	script, err := svc.ds.Script(ctx, scriptID)
 	if err != nil {
 		svc.authz.SkipAuthorization(ctx)
 		return nil, ctxerr.Wrap(ctx, err, "finding original script to update")
 	}
 
-	if err := svc.authz.Authorize(ctx, &fleet.Script{TeamID: script.TeamID}, fleet.ActionWrite); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.Script{TeamID: script.TeamID}, automdm.ActionWrite); err != nil {
 		return nil, err
 	}
 
@@ -612,16 +612,16 @@ func (svc *Service) UpdateScript(ctx context.Context, scriptID uint, r io.Reader
 
 	scriptContents := file.Dos2UnixNewlines(string(b))
 
-	if err := fleet.ValidateEmbeddedSecretsAndCustomHostVitals(ctx, svc.ds, []string{scriptContents}); err != nil {
-		return nil, fleet.NewInvalidArgumentError("script", err.Error())
+	if err := automdm.ValidateEmbeddedSecretsAndCustomHostVitals(ctx, svc.ds, []string{scriptContents}); err != nil {
+		return nil, automdm.NewInvalidArgumentError("script", err.Error())
 	}
 
-	if err := fleet.ValidateFleetVariablesInScript(scriptContents, license.IsPremium(ctx)); err != nil {
+	if err := automdm.ValidateAutoMDMVariablesInScript(scriptContents, license.IsPremium(ctx)); err != nil {
 		return nil, err
 	}
 
-	if err := (&fleet.Script{Name: script.Name, ScriptContents: scriptContents}).ValidateNewScript(); err != nil {
-		return nil, fleet.NewInvalidArgumentError("script", err.Error())
+	if err := (&automdm.Script{Name: script.Name, ScriptContents: scriptContents}).ValidateNewScript(); err != nil {
+		return nil, automdm.NewInvalidArgumentError("script", err.Error())
 	}
 
 	// Update the script
@@ -642,7 +642,7 @@ func (svc *Service) UpdateScript(ctx context.Context, scriptID uint, r io.Reader
 	if err := svc.NewActivity(
 		ctx,
 		authz.UserFromContext(ctx),
-		fleet.ActivityTypeUpdatedScript{
+		automdm.ActivityTypeUpdatedScript{
 			TeamID:     script.TeamID,
 			TeamName:   teamName,
 			ScriptName: script.Name,
@@ -658,36 +658,36 @@ func (svc *Service) UpdateScript(ctx context.Context, scriptID uint, r io.Reader
 // Get Host Script Details
 ////////////////////////////////////////////////////////////////////////////////
 
-func getHostScriptDetailsEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.GetHostScriptDetailsRequest)
-	var meta *fleet.PaginationMetadata
-	scripts, _, err := hostByIDOrIdentifier(ctx, svc, req.Identifier, func(hostID uint) (scripts []*fleet.HostScriptDetail, err error) {
+func getHostScriptDetailsEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.GetHostScriptDetailsRequest)
+	var meta *automdm.PaginationMetadata
+	scripts, _, err := hostByIDOrIdentifier(ctx, svc, req.Identifier, func(hostID uint) (scripts []*automdm.HostScriptDetail, err error) {
 		scripts, meta, err = svc.GetHostScriptDetails(ctx, hostID, req.ListOptions)
 		return scripts, err
 	})
 	if err != nil {
-		return fleet.GetHostScriptDetailsResponse{Err: err}, nil
+		return automdm.GetHostScriptDetailsResponse{Err: err}, nil
 	}
-	return fleet.GetHostScriptDetailsResponse{
+	return automdm.GetHostScriptDetailsResponse{
 		Scripts: scripts,
 		Meta:    meta,
 	}, nil
 }
 
-func (svc *Service) GetHostScriptDetails(ctx context.Context, hostID uint, opt fleet.ListOptions) ([]*fleet.HostScriptDetail, *fleet.PaginationMetadata, error) {
+func (svc *Service) GetHostScriptDetails(ctx context.Context, hostID uint, opt automdm.ListOptions) ([]*automdm.HostScriptDetail, *automdm.PaginationMetadata, error) {
 	h, err := svc.ds.HostLite(ctx, hostID)
 	if err != nil {
-		if fleet.IsNotFound(err) {
+		if automdm.IsNotFound(err) {
 			// if error is because the host does not exist, check first if the user
 			// had global access (to prevent leaking valid host ids).
-			if err := svc.authz.Authorize(ctx, &fleet.Script{}, fleet.ActionRead); err != nil {
+			if err := svc.authz.Authorize(ctx, &automdm.Script{}, automdm.ActionRead); err != nil {
 				return nil, nil, err
 			}
 		}
 		return nil, nil, err
 	}
 
-	if err := svc.authz.Authorize(ctx, &fleet.Script{TeamID: h.TeamID}, fleet.ActionRead); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.Script{TeamID: h.TeamID}, automdm.ActionRead); err != nil {
 		return nil, nil, err
 	}
 
@@ -707,19 +707,19 @@ func (svc *Service) GetHostScriptDetails(ctx context.Context, hostID uint, opt f
 // Batch Replace Scripts
 ////////////////////////////////////////////////////////////////////////////////
 
-func batchSetScriptsEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.BatchSetScriptsRequest)
+func batchSetScriptsEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.BatchSetScriptsRequest)
 	scriptList, err := svc.BatchSetScripts(ctx, req.TeamID, req.TeamName, req.Scripts, req.DryRun)
 	if err != nil {
-		return fleet.BatchSetScriptsResponse{Err: err}, nil
+		return automdm.BatchSetScriptsResponse{Err: err}, nil
 	}
-	return fleet.BatchSetScriptsResponse{Scripts: scriptList}, nil
+	return automdm.BatchSetScriptsResponse{Scripts: scriptList}, nil
 }
 
-func (svc *Service) BatchSetScripts(ctx context.Context, maybeTmID *uint, maybeTmName *string, payloads []fleet.ScriptPayload, dryRun bool) ([]fleet.ScriptResponse, error) {
+func (svc *Service) BatchSetScripts(ctx context.Context, maybeTmID *uint, maybeTmName *string, payloads []automdm.ScriptPayload, dryRun bool) ([]automdm.ScriptResponse, error) {
 	if maybeTmID != nil && maybeTmName != nil {
 		svc.authz.SkipAuthorization(ctx) // so that the error message is not replaced by "forbidden"
-		return nil, ctxerr.Wrap(ctx, fleet.NewInvalidArgumentError("fleet_name", "cannot specify both fleet_id and fleet_name"))
+		return nil, ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("team_name", "cannot specify both team_id and team_name"))
 	}
 
 	var teamID *uint
@@ -728,10 +728,10 @@ func (svc *Service) BatchSetScripts(ctx context.Context, maybeTmID *uint, maybeT
 	if maybeTmID != nil || maybeTmName != nil {
 		team, err := svc.EnterpriseOverrides.TeamByIDOrName(ctx, maybeTmID, maybeTmName)
 		if err != nil {
-			// On a dry run the fleet may not have been created yet. teamID then
+			// On a dry run the team may not have been created yet. teamID then
 			// stays nil (Unassigned), which is fine: a dry run returns before
-			// anything fleet-specific is read or written.
-			if !dryRun || !fleet.IsNotFound(err) {
+			// anything automdm-specific is read or written.
+			if !dryRun || !automdm.IsNotFound(err) {
 				return nil, err
 			}
 		} else {
@@ -740,15 +740,15 @@ func (svc *Service) BatchSetScripts(ctx context.Context, maybeTmID *uint, maybeT
 		}
 	}
 
-	if err := svc.authz.Authorize(ctx, &fleet.Script{TeamID: teamID}, fleet.ActionWrite); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.Script{TeamID: teamID}, automdm.ActionWrite); err != nil {
 		return nil, ctxerr.Wrap(ctx, err)
 	}
 
-	scripts := make([]*fleet.Script, 0, len(payloads))
+	scripts := make([]*automdm.Script, 0, len(payloads))
 	scriptNames := make([]string, 0, len(payloads))
 	scriptContents := []string{}
 	for i, p := range payloads {
-		script := &fleet.Script{
+		script := &automdm.Script{
 			ScriptContents: string(p.ScriptContents),
 			Name:           p.Name,
 			TeamID:         teamID,
@@ -756,21 +756,21 @@ func (svc *Service) BatchSetScripts(ctx context.Context, maybeTmID *uint, maybeT
 
 		if err := script.ValidateNewScript(); err != nil {
 			return nil, ctxerr.Wrap(ctx,
-				fleet.NewInvalidArgumentError(fmt.Sprintf("scripts[%d]", i), err.Error()))
+				automdm.NewInvalidArgumentError(fmt.Sprintf("scripts[%d]", i), err.Error()))
 		}
 
 		// unlike the embedded secrets validation below, this is a static check,
 		// so it runs before the post-loop dryRun return to surface errors on
 		// gitops dry runs
-		if err := fleet.ValidateFleetVariablesInScript(script.ScriptContents, license.IsPremium(ctx)); err != nil {
+		if err := automdm.ValidateAutoMDMVariablesInScript(script.ScriptContents, license.IsPremium(ctx)); err != nil {
 			// re-key validation errors on the indexed field, matching the rest
 			// of this loop, so callers can tell which script failed
-			var argErr *fleet.InvalidArgumentError
+			var argErr *automdm.InvalidArgumentError
 			if errors.As(err, &argErr) && len(argErr.Invalid()) > 0 {
 				return nil, ctxerr.Wrap(ctx,
-					fleet.NewInvalidArgumentError(fmt.Sprintf("scripts[%d]", i), argErr.Invalid()[0]["reason"]))
+					automdm.NewInvalidArgumentError(fmt.Sprintf("scripts[%d]", i), argErr.Invalid()[0]["reason"]))
 			}
-			return nil, ctxerr.Wrap(ctx, err, "validate fleet variables in script")
+			return nil, ctxerr.Wrap(ctx, err, "validate automdm variables in script")
 		}
 
 		scriptNames = append(scriptNames, script.Name)
@@ -785,7 +785,7 @@ func (svc *Service) BatchSetScripts(ctx context.Context, maybeTmID *uint, maybeT
 	}
 	if found {
 		return nil, ctxerr.Wrap(ctx,
-			fleet.NewInvalidArgumentError(fmt.Sprintf("scripts[%d]", duplicateIndex),
+			automdm.NewInvalidArgumentError(fmt.Sprintf("scripts[%d]", duplicateIndex),
 				fmt.Sprintf("Couldn’t edit scripts. More than one script has the same file name: %q", scriptNames[duplicateIndex])),
 			"duplicate script by name")
 	}
@@ -794,8 +794,8 @@ func (svc *Service) BatchSetScripts(ctx context.Context, maybeTmID *uint, maybeT
 		return nil, nil
 	}
 
-	if err := fleet.ValidateEmbeddedSecretsAndCustomHostVitals(ctx, svc.ds, scriptContents); err != nil {
-		return nil, fleet.NewInvalidArgumentError("script", err.Error())
+	if err := automdm.ValidateEmbeddedSecretsAndCustomHostVitals(ctx, svc.ds, scriptContents); err != nil {
+		return nil, automdm.NewInvalidArgumentError("script", err.Error())
 	}
 
 	scriptResponses, err := svc.ds.BatchSetScripts(ctx, teamID, scripts)
@@ -804,7 +804,7 @@ func (svc *Service) BatchSetScripts(ctx context.Context, maybeTmID *uint, maybeT
 	}
 
 	if err := svc.NewActivity(
-		ctx, authz.UserFromContext(ctx), &fleet.ActivityTypeEditedScript{
+		ctx, authz.UserFromContext(ctx), &automdm.ActivityTypeEditedScript{
 			TeamID:   teamID,
 			TeamName: teamName,
 		}); err != nil {
@@ -813,26 +813,26 @@ func (svc *Service) BatchSetScripts(ctx context.Context, maybeTmID *uint, maybeT
 	return scriptResponses, nil
 }
 
-func batchScriptExecutionHostResultsEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.BatchScriptExecutionHostResultsRequest)
+func batchScriptExecutionHostResultsEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.BatchScriptExecutionHostResultsRequest)
 	hosts, meta, count, err := svc.BatchScriptExecutionHostResults(ctx, req.BatchExecutionID, req.BatchExecutionStatus, req.ListOptions)
 	if err != nil {
-		return fleet.BatchScriptExecutionHostResultsResponse{Err: err}, nil
+		return automdm.BatchScriptExecutionHostResultsResponse{Err: err}, nil
 	}
-	return fleet.BatchScriptExecutionHostResultsResponse{Hosts: hosts, Meta: *meta, Count: count}, nil
+	return automdm.BatchScriptExecutionHostResultsResponse{Hosts: hosts, Meta: *meta, Count: count}, nil
 }
 
-func batchScriptExecutionStatusEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.BatchScriptExecutionStatusRequest)
+func batchScriptExecutionStatusEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.BatchScriptExecutionStatusRequest)
 	status, err := svc.BatchScriptExecutionStatus(ctx, req.BatchExecutionID)
 	if err != nil {
-		return fleet.BatchScriptExecutionStatusResponse{Err: err}, nil
+		return automdm.BatchScriptExecutionStatusResponse{Err: err}, nil
 	}
-	return fleet.BatchScriptExecutionStatusResponse{BatchActivity: *status}, nil
+	return automdm.BatchScriptExecutionStatusResponse{BatchActivity: *status}, nil
 }
 
-func batchScriptExecutionListEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.BatchScriptExecutionListRequest)
+func batchScriptExecutionListEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.BatchScriptExecutionListRequest)
 
 	page := 0
 	pageSize := 0
@@ -844,7 +844,7 @@ func batchScriptExecutionListEndpoint(ctx context.Context, request interface{}, 
 	}
 	// Set query offset based on the specified page and page size.
 	offset := uint(page * pageSize) //nolint:gosec // dismiss G115
-	filter := fleet.BatchExecutionStatusFilter{
+	filter := automdm.BatchExecutionStatusFilter{
 		TeamID: &req.TeamID,
 		Status: req.Status,
 		Offset: &offset,
@@ -852,7 +852,7 @@ func batchScriptExecutionListEndpoint(ctx context.Context, request interface{}, 
 	}
 	list, count, err := svc.BatchScriptExecutionList(ctx, filter)
 	if err != nil {
-		return fleet.BatchScriptExecutionStatusResponse{Err: err}, nil
+		return automdm.BatchScriptExecutionStatusResponse{Err: err}, nil
 	}
 	// Get the # of results returned by this query.
 	listSize := len(list)
@@ -862,46 +862,46 @@ func batchScriptExecutionListEndpoint(ctx context.Context, request interface{}, 
 	resultsSeen := (page * pageSize) + listSize
 	// If it's less than the total count, we have more results.
 	hasNextResults := resultsSeen < int(count)
-	return fleet.BatchScriptExecutionListResponse{
+	return automdm.BatchScriptExecutionListResponse{
 		BatchScriptExecutions: list,
 		Count:                 uint(count), //nolint:gosec // dismiss G115
-		Meta: fleet.PaginationMetadata{
+		Meta: automdm.PaginationMetadata{
 			HasNextResults:     hasNextResults,
 			HasPreviousResults: hasPreviousResults,
 		},
 	}, nil
 }
 
-func batchScriptCancelEndpoint(ctx context.Context, request any, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.BatchScriptCancelRequest)
+func batchScriptCancelEndpoint(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.BatchScriptCancelRequest)
 	if err := svc.BatchScriptCancel(ctx, req.BatchExecutionID); err != nil {
-		return fleet.BatchScriptCancelResponse{Err: err}, nil
+		return automdm.BatchScriptCancelResponse{Err: err}, nil
 	}
 
-	return fleet.BatchScriptCancelResponse{}, nil
+	return automdm.BatchScriptCancelResponse{}, nil
 }
 
 func (svc *Service) BatchScriptCancel(ctx context.Context, batchExecutionID string) error {
-	summaryList, err := svc.ds.ListBatchScriptExecutions(ctx, fleet.BatchExecutionStatusFilter{
+	summaryList, err := svc.ds.ListBatchScriptExecutions(ctx, automdm.BatchExecutionStatusFilter{
 		ExecutionID: &batchExecutionID,
 	})
-	if err != nil && !fleet.IsNotFound(err) {
+	if err != nil && !automdm.IsNotFound(err) {
 		svc.authz.SkipAuthorization(ctx)
 		return ctxerr.Wrap(ctx, err, "get batch script summary")
-	} else if err != nil && fleet.IsNotFound(err) {
-		if authErr := svc.authz.Authorize(ctx, &fleet.Script{}, fleet.ActionRead); authErr != nil {
+	} else if err != nil && automdm.IsNotFound(err) {
+		if authErr := svc.authz.Authorize(ctx, &automdm.Script{}, automdm.ActionRead); authErr != nil {
 			return authErr
 		}
 		return err // return the not found from the db.
 	}
 
 	if len(summaryList) > 1 {
-		return ctxerr.Wrap(ctx, fleet.NewInvalidArgumentError("batch_execution_id", "expected a single batch execution status, got multiple"))
+		return ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("batch_execution_id", "expected a single batch execution status, got multiple"))
 	}
 
 	summary := (summaryList)[0]
 
-	if err := svc.authz.Authorize(ctx, &fleet.Script{TeamID: summary.TeamID}, fleet.ActionWrite); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.Script{TeamID: summary.TeamID}, automdm.ActionWrite); err != nil {
 		return err
 	}
 	if err := svc.ds.CancelBatchScript(ctx, batchExecutionID); err != nil {
@@ -927,7 +927,7 @@ func (svc *Service) BatchScriptCancel(ctx context.Context, batchExecutionID stri
 		canceled = *batchActivity.NumCanceled
 	}
 
-	if err := svc.NewActivity(ctx, ctxUser, fleet.ActivityTypeBatchScriptCanceled{
+	if err := svc.NewActivity(ctx, ctxUser, automdm.ActivityTypeBatchScriptCanceled{
 		BatchExecutionID: batchExecutionID,
 		ScriptName:       batchActivity.ScriptName,
 		HostCount:        targeted,
@@ -939,40 +939,40 @@ func (svc *Service) BatchScriptCancel(ctx context.Context, batchExecutionID stri
 	return nil
 }
 
-func (svc *Service) BatchScriptExecutionStatus(ctx context.Context, batchExecutionID string) (*fleet.BatchActivity, error) {
-	summaryList, err := svc.ds.ListBatchScriptExecutions(ctx, fleet.BatchExecutionStatusFilter{
+func (svc *Service) BatchScriptExecutionStatus(ctx context.Context, batchExecutionID string) (*automdm.BatchActivity, error) {
+	summaryList, err := svc.ds.ListBatchScriptExecutions(ctx, automdm.BatchExecutionStatusFilter{
 		ExecutionID: &batchExecutionID,
 	})
-	if err != nil && !fleet.IsNotFound(err) {
+	if err != nil && !automdm.IsNotFound(err) {
 		svc.authz.SkipAuthorization(ctx)
 		return nil, ctxerr.Wrap(ctx, err, "get batch script summary")
-	} else if err != nil && fleet.IsNotFound(err) {
-		if authErr := svc.authz.Authorize(ctx, &fleet.Script{}, fleet.ActionRead); authErr != nil {
+	} else if err != nil && automdm.IsNotFound(err) {
+		if authErr := svc.authz.Authorize(ctx, &automdm.Script{}, automdm.ActionRead); authErr != nil {
 			return nil, authErr
 		}
 		return nil, err // return the not found from the db.
 	}
 
 	if len(summaryList) > 1 {
-		return nil, ctxerr.Wrap(ctx, fleet.NewInvalidArgumentError("batch_execution_id", "expected a single batch execution status, got multiple"))
+		return nil, ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("batch_execution_id", "expected a single batch execution status, got multiple"))
 	}
 
 	summary := (summaryList)[0]
 
-	if authErr := svc.authz.Authorize(ctx, &fleet.Script{TeamID: summary.TeamID}, fleet.ActionRead); authErr != nil {
+	if authErr := svc.authz.Authorize(ctx, &automdm.Script{TeamID: summary.TeamID}, automdm.ActionRead); authErr != nil {
 		return nil, authErr
 	}
 
 	return &summary, nil
 }
 
-func (svc *Service) BatchScriptExecutionHostResults(ctx context.Context, batchExecutionID string, status fleet.BatchScriptExecutionStatus, opt fleet.ListOptions) (hosts []fleet.BatchScriptHost, meta *fleet.PaginationMetadata, count uint, err error) {
+func (svc *Service) BatchScriptExecutionHostResults(ctx context.Context, batchExecutionID string, status automdm.BatchScriptExecutionStatus, opt automdm.ListOptions) (hosts []automdm.BatchScriptHost, meta *automdm.PaginationMetadata, count uint, err error) {
 	// Get the batch activity.
 	batchActivity, err := svc.ds.GetBatchActivity(ctx, batchExecutionID)
 	if err != nil {
-		if !fleet.IsNotFound(err) {
+		if !automdm.IsNotFound(err) {
 			svc.authz.SkipAuthorization(ctx)
-		} else if authErr := svc.authz.Authorize(ctx, &fleet.Script{}, fleet.ActionRead); authErr != nil {
+		} else if authErr := svc.authz.Authorize(ctx, &automdm.Script{}, automdm.ActionRead); authErr != nil {
 			return nil, nil, 0, authErr
 		}
 		return nil, nil, 0, ctxerr.Wrap(ctx, err, "getting batch activity")
@@ -994,13 +994,13 @@ func (svc *Service) BatchScriptExecutionHostResults(ctx context.Context, batchEx
 	}
 
 	// Authorize based on the script's team ID.
-	if err = svc.authz.Authorize(ctx, &fleet.Script{TeamID: script.TeamID}, fleet.ActionRead); err != nil {
+	if err = svc.authz.Authorize(ctx, &automdm.Script{TeamID: script.TeamID}, automdm.ActionRead); err != nil {
 		return nil, nil, 0, err
 	}
 
 	// Validate the supplied batch execution status.
 	if !status.IsValid() {
-		return nil, nil, 0, fleet.NewInvalidArgumentError("batch_execution_status", "invalid batch execution status")
+		return nil, nil, 0, automdm.NewInvalidArgumentError("batch_execution_status", "invalid batch execution status")
 	}
 
 	// Always include pagination info.
@@ -1008,7 +1008,7 @@ func (svc *Service) BatchScriptExecutionHostResults(ctx context.Context, batchEx
 	// Default sort order is name ascending.
 	if opt.OrderKey == "" {
 		opt.OrderKey = "display_name"
-		opt.OrderDirection = fleet.OrderAscending
+		opt.OrderDirection = automdm.OrderAscending
 	}
 
 	hosts, meta, count, err = svc.ds.ListBatchScriptHosts(ctx, batchExecutionID, status, opt)
@@ -1019,8 +1019,8 @@ func (svc *Service) BatchScriptExecutionHostResults(ctx context.Context, batchEx
 	return hosts, meta, count, nil
 }
 
-func (svc *Service) BatchScriptExecutionList(ctx context.Context, filter fleet.BatchExecutionStatusFilter) ([]fleet.BatchActivity, int64, error) {
-	if err := svc.authz.Authorize(ctx, &fleet.Script{TeamID: filter.TeamID}, fleet.ActionRead); err != nil {
+func (svc *Service) BatchScriptExecutionList(ctx context.Context, filter automdm.BatchExecutionStatusFilter) ([]automdm.BatchActivity, int64, error) {
+	if err := svc.authz.Authorize(ctx, &automdm.Script{TeamID: filter.TeamID}, automdm.ActionRead); err != nil {
 		return nil, 0, err
 	}
 	// Get the count first.
@@ -1037,16 +1037,16 @@ func (svc *Service) BatchScriptExecutionList(ctx context.Context, filter fleet.B
 	return summaryList, count, nil
 }
 
-func (svc *Service) authorizeScriptByID(ctx context.Context, scriptID uint, authzAction string) (*fleet.Script, error) {
+func (svc *Service) authorizeScriptByID(ctx context.Context, scriptID uint, authzAction string) (*automdm.Script, error) {
 	// first, get the script because we don't know which team id it is for.
 	script, err := svc.ds.Script(ctx, scriptID)
 	if err != nil {
-		if fleet.IsNotFound(err) {
+		if automdm.IsNotFound(err) {
 			// couldn't get the script to have its team, authorize with a no-team
 			// script as a fallback - the requested script does not exist so there's
 			// no way to know what team it would be for, and returning a 404 without
 			// authorization would leak the existing/non existing ids.
-			if err := svc.authz.Authorize(ctx, &fleet.Script{}, authzAction); err != nil {
+			if err := svc.authz.Authorize(ctx, &automdm.Script{}, authzAction); err != nil {
 				return nil, err
 			}
 		}
@@ -1065,13 +1065,13 @@ func (svc *Service) authorizeScriptByID(ctx context.Context, scriptID uint, auth
 // Bulk script execution
 ////////////////////////////////////////////////////////////////////////////////
 
-func batchScriptRunEndpoint(ctx context.Context, request any, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.BatchScriptRunRequest)
+func batchScriptRunEndpoint(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.BatchScriptRunRequest)
 	batchID, err := svc.BatchScriptExecute(ctx, req.ScriptID, req.HostIDs, req.Filters, req.NotBefore)
 	if err != nil {
-		return fleet.BatchScriptRunResponse{Err: err}, nil
+		return automdm.BatchScriptRunResponse{Err: err}, nil
 	}
-	return fleet.BatchScriptRunResponse{BatchExecutionID: batchID}, nil
+	return automdm.BatchScriptRunResponse{BatchExecutionID: batchID}, nil
 }
 
 const MAX_BATCH_EXECUTION_HOSTS = 5000
@@ -1079,17 +1079,17 @@ const MAX_BATCH_EXECUTION_HOSTS = 5000
 func (svc *Service) BatchScriptExecute(ctx context.Context, scriptID uint, hostIDs []uint, filters *map[string]any, notBefore *time.Time) (string, error) {
 	// If we are given both host IDs and filters, return an error
 	if len(hostIDs) > 0 && filters != nil {
-		return "", fleet.NewInvalidArgumentError("filters", "cannot specify both host_ids and filters")
+		return "", automdm.NewInvalidArgumentError("filters", "cannot specify both host_ids and filters")
 	}
 
 	// Use the authorize script by ID to handle authz
-	script, err := svc.authorizeScriptByID(ctx, scriptID, fleet.ActionWrite)
+	script, err := svc.authorizeScriptByID(ctx, scriptID, automdm.ActionWrite)
 	if err != nil {
 		return "", err
 	}
 
 	// Authorize the actual execution with the script's team
-	if err := svc.authz.Authorize(ctx, &fleet.HostScriptResult{TeamID: script.TeamID}, fleet.ActionWrite); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.HostScriptResult{TeamID: script.TeamID}, automdm.ActionWrite); err != nil {
 		return "", err
 	}
 
@@ -1099,7 +1099,7 @@ func (svc *Service) BatchScriptExecute(ctx context.Context, scriptID uint, hostI
 		userId = &ctxUser.ID
 	}
 
-	var hosts []*fleet.Host
+	var hosts []*automdm.Host
 
 	// If we are given filters, we need to get the hosts matching those filters
 	if filters != nil {
@@ -1109,14 +1109,14 @@ func (svc *Service) BatchScriptExecute(ctx context.Context, scriptID uint, hostI
 		}
 
 		if opt == nil {
-			return "", fleet.NewInvalidArgumentError("filters", "filters must be a valid set of host list options")
+			return "", automdm.NewInvalidArgumentError("filters", "filters must be a valid set of host list options")
 		}
 
 		if opt.TeamFilter == nil {
-			return "", fleet.NewInvalidArgumentError("filters", "filters must include a fleet filter")
+			return "", automdm.NewInvalidArgumentError("filters", "filters must include a team filter")
 		}
 
-		filter := fleet.TeamFilter{User: ctxUser, IncludeObserver: true}
+		filter := automdm.TeamFilter{User: ctxUser, IncludeObserver: true}
 
 		// Load hosts, either from label if provided or from all hosts.
 		if lid != nil {
@@ -1137,11 +1137,11 @@ func (svc *Service) BatchScriptExecute(ctx context.Context, scriptID uint, hostI
 		}
 	}
 	if len(hosts) == 0 {
-		return "", &fleet.BadRequestError{Message: "no hosts match the specified host IDs"}
+		return "", &automdm.BadRequestError{Message: "no hosts match the specified host IDs"}
 	}
 
 	if len(hosts) > MAX_BATCH_EXECUTION_HOSTS {
-		return "", fleet.NewInvalidArgumentError("filters", "too_many_hosts")
+		return "", automdm.NewInvalidArgumentError("filters", "too_many_hosts")
 	}
 
 	hostIDsToExecute := make([]uint, 0, len(hosts))
@@ -1151,14 +1151,14 @@ func (svc *Service) BatchScriptExecute(ctx context.Context, scriptID uint, hostI
 			continue
 		}
 		if host.TeamID == nil || script.TeamID == nil || *host.TeamID != *script.TeamID {
-			return "", fleet.NewInvalidArgumentError("host_ids", "all hosts must be on the same fleet as the script")
+			return "", automdm.NewInvalidArgumentError("host_ids", "all hosts must be on the same team as the script")
 		}
 	}
 
 	if notBefore == nil || notBefore.Before(time.Now()) {
 		batchID, err := svc.ds.NewBatchScriptExecution(ctx, userId, scriptID, hostIDsToExecute)
 		if err != nil {
-			return "", fleet.NewUserMessageError(err, http.StatusBadRequest)
+			return "", automdm.NewUserMessageError(err, http.StatusBadRequest)
 		}
 
 		// Insert script executions and activities in a separate goroutine, because it can be quite
@@ -1166,7 +1166,7 @@ func (svc *Service) BatchScriptExecute(ctx context.Context, scriptID uint, hostI
 		// Read the batch from the primary, a replica can lag behind the batch row written above.
 		go svc.runBatchScriptExecution(ctxdb.RequirePrimary(context.WithoutCancel(ctx), true), batchID)
 
-		if err := svc.NewActivity(ctx, ctxUser, fleet.ActivityTypeRanScriptBatch{
+		if err := svc.NewActivity(ctx, ctxUser, automdm.ActivityTypeRanScriptBatch{
 			ScriptName:       script.Name,
 			BatchExecutionID: batchID,
 			HostCount:        uint(len(hostIDsToExecute)),
@@ -1181,10 +1181,10 @@ func (svc *Service) BatchScriptExecute(ctx context.Context, scriptID uint, hostI
 	notBeforeUTC := notBefore.UTC()
 	batchID, err := svc.ds.BatchScheduleScript(ctx, userId, scriptID, hostIDsToExecute, notBeforeUTC)
 	if err != nil {
-		return "", fleet.NewUserMessageError(err, http.StatusBadRequest)
+		return "", automdm.NewUserMessageError(err, http.StatusBadRequest)
 	}
 
-	if err := svc.NewActivity(ctx, ctxUser, fleet.ActivityTypeBatchScriptScheduled{
+	if err := svc.NewActivity(ctx, ctxUser, automdm.ActivityTypeBatchScriptScheduled{
 		ScriptName:       &script.Name,
 		BatchExecutionID: batchID,
 		HostCount:        uint(len(hostIDsToExecute)),
@@ -1209,14 +1209,14 @@ func (svc *Service) runBatchScriptExecution(ctx context.Context, batchID string)
 // Lock host
 ////////////////////////////////////////////////////////////////////////////////
 
-func lockHostEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.LockHostRequest)
+func lockHostEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.LockHostRequest)
 	unlockPIN, err := svc.LockHost(ctx, req.HostID, req.ViewPin)
 	if err != nil {
-		return fleet.LockHostResponse{Err: err}, nil
+		return automdm.LockHostResponse{Err: err}, nil
 	}
 	// We bail from locking if the host is locked or wiped, so we can assume the host is unlocked at this point
-	response := &fleet.LockHostResponse{DeviceStatus: fleet.DeviceStatusUnlocked, PendingAction: fleet.PendingActionLock}
+	response := &automdm.LockHostResponse{DeviceStatus: automdm.DeviceStatusUnlocked, PendingAction: automdm.PendingActionLock}
 
 	if req.ViewPin && unlockPIN != "" {
 		response.UnlockPIN = unlockPIN
@@ -1229,23 +1229,23 @@ func (svc *Service) LockHost(ctx context.Context, _ uint, _ bool) (string, error
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return "", fleet.ErrMissingLicense
+	return "", automdm.ErrMissingLicense
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // Unlock host
 ////////////////////////////////////////////////////////////////////////////////
 
-func unlockHostEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.UnlockHostRequest)
+func unlockHostEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.UnlockHostRequest)
 	res, err := svc.UnlockHost(ctx, req.HostID)
 	if err != nil {
-		return fleet.UnlockHostResponse{Err: err}, nil
+		return automdm.UnlockHostResponse{Err: err}, nil
 	}
 
 	// Only macOS and Android return an unlock PIN; for other platforms the UnlockHost call
 	// triggers the unlocking without further user action.
-	return fleet.UnlockHostResponse{
+	return automdm.UnlockHostResponse{
 		HostID:        &req.HostID,
 		UnlockPIN:     res.UnlockPIN,
 		LockedAt:      res.LockedAt,
@@ -1254,32 +1254,32 @@ func unlockHostEndpoint(ctx context.Context, request interface{}, svc fleet.Serv
 	}, nil
 }
 
-func (svc *Service) UnlockHost(ctx context.Context, hostID uint) (*fleet.HostUnlockResult, error) {
+func (svc *Service) UnlockHost(ctx context.Context, hostID uint) (*automdm.HostUnlockResult, error) {
 	// skipauth: No authorization check needed due to implementation returning
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return nil, fleet.ErrMissingLicense
+	return nil, automdm.ErrMissingLicense
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // Wipe host
 ////////////////////////////////////////////////////////////////////////////////
 
-func wipeHostEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.WipeHostRequest)
+func wipeHostEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.WipeHostRequest)
 	if err := svc.WipeHost(ctx, req.HostID); err != nil {
-		return fleet.WipeHostResponse{Err: err}, nil
+		return automdm.WipeHostResponse{Err: err}, nil
 	}
 	// WipeHost refuses a locked or wiped host. A wipe queued behind an acknowledged reset is reported as unlocked here too,
 	// although getting the host shows its reset status.
-	return fleet.WipeHostResponse{DeviceStatus: fleet.DeviceStatusUnlocked, PendingAction: fleet.PendingActionWipe}, nil
+	return automdm.WipeHostResponse{DeviceStatus: automdm.DeviceStatusUnlocked, PendingAction: automdm.PendingActionWipe}, nil
 }
 
 func (svc *Service) WipeHost(ctx context.Context, hostID uint) error {
 	// First ensure the user has access to list hosts, then check the specific
 	// host once team_id is loaded.
-	if err := svc.authz.Authorize(ctx, &fleet.Host{}, fleet.ActionList); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.Host{}, automdm.ActionList); err != nil {
 		return authz.GitOpsHostListError(ctx, err)
 	}
 	host, err := svc.ds.Host(ctx, hostID)
@@ -1291,28 +1291,28 @@ func (svc *Service) WipeHost(ctx context.Context, hostID uint) error {
 	// Authorize as "execute mdm_command", which is the correct access
 	// requirement and is what happens for macOS platforms.
 	notFoundErr := ctxerr.Wrap(ctx, common_mysql.NotFound("Host").WithID(hostID), "wipe host")
-	if err := svc.authz.AuthorizeOrNotFound(ctx, fleet.MDMCommandAuthz{TeamID: host.TeamID}, fleet.ActionWrite, notFoundErr); err != nil {
+	if err := svc.authz.AuthorizeOrNotFound(ctx, automdm.MDMCommandAuthz{TeamID: host.TeamID}, automdm.ActionWrite, notFoundErr); err != nil {
 		return authz.GitOpsMDMCommandError(ctx, host.TeamID, err)
 	}
 
-	// On Fleet Free, Wipe is only available for Android hosts. Wipe for macOS, Windows, Linux and iOS/iPadOS
-	// remains a Fleet Premium feature, implemented by the ee WipeHost method which shadows this one on Premium
+	// On AutoMDM Free, Wipe is only available for Android hosts. Wipe for macOS, Windows, Linux and iOS/iPadOS
+	// remains an AutoMDM Premium feature, implemented by the ee WipeHost method which shadows this one on Premium
 	// deployments (so Android-on-Premium also goes through ee, not here).
-	if host.FleetPlatform() != "android" {
-		return fleet.ErrMissingLicense
+	if host.AutoMDMPlatform() != "android" {
+		return automdm.ErrMissingLicense
 	}
 
-	if err := fleet.ValidateAndroidWipeRequest(ctx, svc.ds, host); err != nil {
+	if err := automdm.ValidateAndroidWipeRequest(ctx, svc.ds, host); err != nil {
 		return ctxerr.Wrap(ctx, err, "validate android wipe request")
 	}
 
-	// the wipe command requires the host to be MDM-enrolled in Fleet
-	connected, err := svc.ds.IsHostConnectedToFleetMDM(ctx, host)
+	// the wipe command requires the host to be MDM-enrolled in AutoMDM
+	connected, err := svc.ds.IsHostConnectedToAutoMDMMDM(ctx, host)
 	if err != nil {
-		return ctxerr.Wrap(ctx, err, "checking if host is connected to Fleet")
+		return ctxerr.Wrap(ctx, err, "checking if host is connected to AutoMDM")
 	}
 	if !connected {
-		return ctxerr.Wrap(ctx, fleet.NewInvalidArgumentError("host_id", "Can't wipe the host because it doesn't have MDM turned on."))
+		return ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("host_id", "Can't wipe the host because it doesn't have MDM turned on."))
 	}
 
 	// validations based on host's actions status (pending lock, unlock, wipe)
@@ -1332,10 +1332,10 @@ func (svc *Service) WipeHost(ctx context.Context, hostID uint) error {
 	if err := svc.NewActivity(
 		ctx,
 		authz.UserFromContext(ctx),
-		fleet.ActivityTypeWipedHost{
+		automdm.ActivityTypeWipedHost{
 			HostID:          host.ID,
 			HostDisplayName: host.DisplayName(),
-			HostPlatform:    host.FleetPlatform(),
+			HostPlatform:    host.AutoMDMPlatform(),
 		},
 	); err != nil {
 		return ctxerr.Wrap(ctx, err, "create activity for wipe host request")
@@ -1347,13 +1347,13 @@ func (svc *Service) WipeHost(ctx context.Context, hostID uint) error {
 // Reset host
 ////////////////////////////////////////////////////////////////////////////////
 
-func resetHostEndpoint(ctx context.Context, request any, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.ResetHostRequest)
+func resetHostEndpoint(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.ResetHostRequest)
 	if err := svc.ResetHost(ctx, req.HostID); err != nil {
-		return fleet.ResetHostResponse{Err: err}, nil
+		return automdm.ResetHostResponse{Err: err}, nil
 	}
 	// A locked, wiped or reset host is rejected, so the host is unlocked here.
-	return fleet.ResetHostResponse{DeviceStatus: fleet.DeviceStatusUnlocked, PendingAction: fleet.PendingActionReset}, nil
+	return automdm.ResetHostResponse{DeviceStatus: automdm.DeviceStatusUnlocked, PendingAction: automdm.PendingActionReset}, nil
 }
 
 func (svc *Service) ResetHost(ctx context.Context, hostID uint) error {
@@ -1361,5 +1361,5 @@ func (svc *Service) ResetHost(ctx context.Context, hostID uint) error {
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return fleet.ErrMissingLicense
+	return automdm.ErrMissingLicense
 }

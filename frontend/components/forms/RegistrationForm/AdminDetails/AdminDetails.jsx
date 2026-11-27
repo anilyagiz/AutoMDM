@@ -49,7 +49,7 @@ class AdminDetails extends Component {
         autoComplete="off"
         noValidate
       >
-        <p>Additional admins can be designated within the Fleet app.</p>
+        <p>Additional admins can be designated within the AutoMDM app.</p>
         <InputField
           {...fields.name}
           label="Full name"

@@ -8,7 +8,7 @@
  * either `knownFailure` (valid osquery SQL we cannot parse yet, so fixing it
  * means updating the entry) or a `note` explaining the rejection: broken SQL,
  * or a deliberate exclusion such as non-SELECT statements and bound parameters
- * nothing in Fleet can bind. `name` appears only on hand-written cases whose
+ * nothing in AutoMDM can bind. `name` appears only on hand-written cases whose
  * intent is not obvious from the SQL.
  *
  * corpus.json is hand-maintained: add a case to it when you fix or find a

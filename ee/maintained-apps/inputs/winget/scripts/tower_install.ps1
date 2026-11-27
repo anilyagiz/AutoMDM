@@ -1,12 +1,12 @@
 # Learn more about install scripts:
-# http://fleetdm.com/learn-more-about/install-scripts
+# http://automdm.com/learn-more-about/install-scripts
 #
 # Tower's MSI installs per user by default (ALLUSERS=2 + MSIINSTALLPERUSER=1),
-# so under Fleet's SYSTEM context it lands in the SYSTEM account's profile,
+# so under AutoMDM's SYSTEM context it lands in the SYSTEM account's profile,
 # where no one can open it. Force a per-machine install into Program Files, and
 # first remove a copy that an earlier install left in the SYSTEM profile.
 
-$logFile = "${env:TEMP}/fleet-install-software.log"
+$logFile = "${env:TEMP}/automdm-install-software.log"
 $upgradeCode = '{871FD9D0-41D3-52BE-AF69-12F8B08740C0}'
 
 # 3010 = reboot required, 1641 = reboot initiated
@@ -46,7 +46,7 @@ if ($dependencies -match 'net(\d+)-x64-desktop') {
 
   if (-not $hasRuntime) {
     Write-Host "Tower requires the Microsoft .NET Desktop Runtime $major (x64), which was not found on this host."
-    Write-Host "Install it (for example, with the Microsoft .NET Desktop Runtime $major Fleet-maintained app), then retry."
+    Write-Host "Install it (for example, with the Microsoft .NET Desktop Runtime $major AutoMDM-maintained app), then retry."
     Exit 1
   }
 }

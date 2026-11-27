@@ -11,8 +11,8 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/pkg/str"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/pkg/str"
 )
 
 const (
@@ -34,7 +34,7 @@ func AllowHTTP() RelayOption {
 	return func(o *relayOptions) { o.allowHTTP = true }
 }
 
-// relay sends this server's URL as the Origin, which fleetdm.com calls back.
+// relay sends this server's URL as the Origin, which automdm.com calls back.
 type relay struct {
 	uri    string
 	uriErr error
@@ -52,7 +52,7 @@ func NewRelay(uri string, opts ...RelayOption) Relay {
 	return &relay{
 		uri:    strings.TrimRight(uri, "/"),
 		uriErr: validateRelayURI(uri, o.allowHTTP),
-		c:      fleethttp.NewClient(fleethttp.WithFollowRedir(false)),
+		c:      automdmhttp.NewClient(automdmhttp.WithFollowRedir(false)),
 	}
 }
 
@@ -76,24 +76,24 @@ type registerRequest struct {
 
 // Registration holds the per-server secret.
 type Registration struct {
-	FleetServerSecret string `json:"fleetServerSecret"`
+	AutoMDMServerSecret string `json:"automdmServerSecret"`
 }
 
 func (r *relay) Register(ctx context.Context, serverURL, customerID string) (*Registration, error) {
 	var resp Registration
-	// Errors carry only fleetdm.com's answer: the caller names the operation.
+	// Errors carry only automdm.com's answer: the caller names the operation.
 	if err := r.send(ctx, http.MethodPost, serverURL, registerRequest{CustomerID: customerID}, &resp); err != nil {
 		return nil, err
 	}
-	if resp.FleetServerSecret == "" {
-		return nil, errors.New("empty fleetServerSecret in response")
+	if resp.AutoMDMServerSecret == "" {
+		return nil, errors.New("empty automdmServerSecret in response")
 	}
 	return &resp, nil
 }
 
 type deregisterRequest struct {
 	CustomerID string `json:"googleCustomerId"`
-	Secret     string `json:"fleetServerSecret"`
+	Secret     string `json:"automdmServerSecret"`
 }
 
 func (r *relay) Deregister(ctx context.Context, serverURL, customerID, secret string) error {

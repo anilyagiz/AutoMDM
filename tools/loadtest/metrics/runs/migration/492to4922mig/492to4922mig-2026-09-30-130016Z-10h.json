@@ -10,7 +10,7 @@
     },
     "note": "qa-54047 overnight drain on 4.92.2 RC (dc3a236617): cleanups_then_aggregation hourly 03:04-12:04, 100k hsr + 100k hsi deleted per run"
   },
-  "fleet_server": {
+  "automdm_server": {
     "cpu_utilization": {
       "Average": 30.04,
       "Minimum": 28.34,
@@ -386,7 +386,7 @@
       "data_coverage": 1
     }
   },
-  "fleet_server_errors": {
+  "automdm_server_errors": {
     "error_count": 0.0,
     "sample_messages": []
   },

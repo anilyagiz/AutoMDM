@@ -8,14 +8,14 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/variables"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/variables"
 )
 
 // Windows parses the SCEP SubjectName as an X.500 string: ",", "+" and ";" separate attributes, and
 // a value holding any of them must be quoted across its whole length. Verified on Windows 11:
 // CertEnroll rejects CN=user+idp@example.com and the RFC 4514 form CN=user\+idp@example.com, a partly
-// quoted value fails too, and CN=alice;O=Fleet QA parses as two attributes. Unlike RFC 4514 a
+// quoted value fails too, and CN=alice;O=AutoMDM QA parses as two attributes. Unlike RFC 4514 a
 // backslash is not an escape here, it is literal inside quotes and out; a quote inside a quoted
 // value is written as "".
 //
@@ -25,8 +25,8 @@ import (
 // already destroyed. A second pass afterwards doubles any quote that arrived inside those quotes.
 //
 // Windows reads the decoded profile, so both passes read a character reference the way Windows will,
-// with one exception that separates Fleet's writing from the admin's: a raw quote bounds a value,
-// and an escaped one is content. Fleet only ever substitutes an escaped quote, so the second pass
+// with one exception that separates AutoMDM's writing from the admin's: a raw quote bounds a value,
+// and an escaped one is content. AutoMDM only ever substitutes an escaped quote, so the second pass
 // can double what it substituted and leave what the admin wrote alone.
 
 const (
@@ -65,7 +65,7 @@ func SubjectNameAttributes(decodedDN string) []string {
 }
 
 // HasEntityQuotedSubstitution reports whether a raw SCEP SubjectName <Data> has a character reference for a quote, such
-// as "&quot;", in a value Fleet substitutes into.
+// as "&quot;", in a value AutoMDM substitutes into.
 func HasEntityQuotedSubstitution(rawData string) bool {
 	if lead, _, _ := unwrapCDATA(rawData); lead != "" {
 		// Inside CDATA a reference is literal text, so no special handling needed.
@@ -113,7 +113,7 @@ func quoteAttributeValue(attribute string) string {
 
 // doubleAttributeQuotes is the second pass: it doubles any quote inside a quoted value. Every
 // substitution into profile XML is escaped, so a substituted quote arrives as an entity and the raw
-// quotes bounding each value are only ever Fleet's or the admin's.
+// quotes bounding each value are only ever AutoMDM's or the admin's.
 func doubleAttributeQuotes(attribute string) string {
 	key, value, found := strings.Cut(attribute, "=")
 	trimmed := strings.TrimSpace(value)
@@ -213,15 +213,15 @@ func cutAnyPrefix(s string, prefixes ...string) (after string, found bool) {
 	return s, false
 }
 
-// carriesSubstitution reports whether Fleet will replace something in this value. Host vitals count:
-// like Fleet variables they are XML-escaped, but neither carries X.500 escaping.
+// carriesSubstitution reports whether AutoMDM will replace something in this value. Host vitals count:
+// like AutoMDM variables they are XML-escaped, but neither carries X.500 escaping.
 func carriesSubstitution(value string) bool {
-	return variables.Find(value) != nil || fleet.FindCustomHostVitalIDs(value) != nil
+	return variables.Find(value) != nil || automdm.FindCustomHostVitalIDs(value) != nil
 }
 
 // substitutedQuote is how a quote inside a substituted value reaches the profile: every path that
 // substitutes one escapes it with xml.EscapeText, which spells a quote this way and no other. So a
-// quote in this spelling is content Fleet put there, while a raw quote or a "&quot;" is the admin's
+// quote in this spelling is content AutoMDM put there, while a raw quote or a "&quot;" is the admin's
 // own X.500 writing, already saying what they meant it to say.
 const substitutedQuote = "&#34;"
 
@@ -235,7 +235,7 @@ func doubleSubstitutedQuotes(value string) string {
 // transformSCEPSubjectNameData applies transformAttribute to each attribute of every SCEP
 // SubjectName <Data>, leaving every other byte of the profile untouched.
 func transformSCEPSubjectNameData(profileContents string, transformAttribute func(attribute string) string) string {
-	if !strings.Contains(profileContents, fleet.WindowsSCEPSubjectNameSuffix) {
+	if !strings.Contains(profileContents, automdm.WindowsSCEPSubjectNameSuffix) {
 		return profileContents
 	}
 	spans, err := scepSubjectNameDataSpans(profileContents)
@@ -361,9 +361,9 @@ func scepSubjectNameDataSpans(profileContents string) ([]dataSpan, error) {
 // isSCEPSubjectNameLocURI canonicalizes first so every scope spelling hits. The suffix excludes
 // SubjectAlternativeNames, which is a ";"-separated list rather than a DN.
 func isSCEPSubjectNameLocURI(locURI string) bool {
-	canonical := fleet.CanonicalizeSCEPScope(locURI)
-	return fleet.IsWindowsSCEPLocURI(canonical) &&
-		strings.HasSuffix(canonical, fleet.WindowsSCEPSubjectNameSuffix)
+	canonical := automdm.CanonicalizeSCEPScope(locURI)
+	return automdm.IsWindowsSCEPLocURI(canonical) &&
+		strings.HasSuffix(canonical, automdm.WindowsSCEPSubjectNameSuffix)
 }
 
 func inTargetLocURI(stack []string) bool {

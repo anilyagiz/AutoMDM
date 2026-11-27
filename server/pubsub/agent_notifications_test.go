@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/datastore/redis/redistest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis/redistest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -52,12 +52,12 @@ func TestAgentNotificationsRoundTrip(t *testing.T) {
 		// sharing this Redis subscribes to the same channel, and realistic IDs
 		// would make it notify real connected hosts about a test "campaign".
 		require.NoError(t, notifier.NotifyAgentsForLiveQuery(ctx, []uint{testHostIDOffset + 1, testHostIDOffset + 2, testHostIDOffset + 3}, testCampaignIDOffset+42))
-		require.NoError(t, notifier.NotifyOrbitConfigHosts(ctx, []uint{testHostIDOffset + 4}, fleet.AgentWSReasonActivity))
+		require.NoError(t, notifier.NotifyOrbitConfigHosts(ctx, []uint{testHostIDOffset + 4}, automdm.AgentWSReasonActivity))
 		// A team ID beyond any real one, for the same reason as the host IDs.
-		testScope := fleet.AgentNotificationScopeTeam(testHostIDOffset)
-		require.NoError(t, notifier.NotifyOrbitConfigScope(ctx, testScope, fleet.AgentWSReasonSettings))
-		require.NoError(t, notifier.NotifyOsqueryConfigHosts(ctx, []uint{testHostIDOffset + 5}, fleet.AgentWSReasonSettings))
-		require.NoError(t, notifier.NotifyOsqueryConfigScope(ctx, testScope, fleet.AgentWSReasonReports))
+		testScope := automdm.AgentNotificationScopeTeam(testHostIDOffset)
+		require.NoError(t, notifier.NotifyOrbitConfigScope(ctx, testScope, automdm.AgentWSReasonSettings))
+		require.NoError(t, notifier.NotifyOsqueryConfigHosts(ctx, []uint{testHostIDOffset + 5}, automdm.AgentWSReasonSettings))
+		require.NoError(t, notifier.NotifyOsqueryConfigScope(ctx, testScope, automdm.AgentWSReasonReports))
 
 		require.Eventually(t, func() bool {
 			mu.Lock()
@@ -67,29 +67,29 @@ func TestAgentNotificationsRoundTrip(t *testing.T) {
 
 		mu.Lock()
 		defer mu.Unlock()
-		assert.Equal(t, fleet.AgentWSMessageTypeDistributedRead, received[0].Type)
+		assert.Equal(t, automdm.AgentWSMessageTypeDistributedRead, received[0].Type)
 		assert.Equal(t, []uint{testHostIDOffset + 1, testHostIDOffset + 2, testHostIDOffset + 3}, received[0].HostIDs)
-		assert.Equal(t, fleet.AgentWSReasonLiveQuery(testCampaignIDOffset+42), received[0].Reason)
+		assert.Equal(t, automdm.AgentWSReasonLiveQuery(testCampaignIDOffset+42), received[0].Reason)
 		assert.Empty(t, received[0].Scope)
 
 		assert.Equal(t, AgentNotification{
-			Type:    fleet.AgentWSMessageTypeOrbitConfig,
+			Type:    automdm.AgentWSMessageTypeOrbitConfig,
 			HostIDs: []uint{testHostIDOffset + 4},
-			Reason:  fleet.AgentWSReasonActivity,
+			Reason:  automdm.AgentWSReasonActivity,
 		}, received[1])
 		assert.Equal(t, AgentNotification{
-			Type:   fleet.AgentWSMessageTypeOrbitConfig,
-			Reason: fleet.AgentWSReasonSettings,
+			Type:   automdm.AgentWSMessageTypeOrbitConfig,
+			Reason: automdm.AgentWSReasonSettings,
 			Scope:  testScope,
 		}, received[2])
 		assert.Equal(t, AgentNotification{
-			Type:    fleet.AgentWSMessageTypeOsqueryConfig,
+			Type:    automdm.AgentWSMessageTypeOsqueryConfig,
 			HostIDs: []uint{testHostIDOffset + 5},
-			Reason:  fleet.AgentWSReasonSettings,
+			Reason:  automdm.AgentWSReasonSettings,
 		}, received[3])
 		assert.Equal(t, AgentNotification{
-			Type:   fleet.AgentWSMessageTypeOsqueryConfig,
-			Reason: fleet.AgentWSReasonReports,
+			Type:   automdm.AgentWSMessageTypeOsqueryConfig,
+			Reason: automdm.AgentWSReasonReports,
 			Scope:  testScope,
 		}, received[4])
 	}
@@ -120,7 +120,7 @@ func (c *captureNotifier) NotifyOrbitConfigHosts(ctx context.Context, hostIDs []
 	return c.record(fmt.Sprintf("hosts %v %s", hostIDs, reason))
 }
 
-func (c *captureNotifier) NotifyOrbitConfigScope(ctx context.Context, scope fleet.AgentNotificationScope, reason string) error {
+func (c *captureNotifier) NotifyOrbitConfigScope(ctx context.Context, scope automdm.AgentNotificationScope, reason string) error {
 	return c.record(fmt.Sprintf("scope %s %s", scope, reason))
 }
 
@@ -128,7 +128,7 @@ func (c *captureNotifier) NotifyOsqueryConfigHosts(ctx context.Context, hostIDs 
 	return c.record(fmt.Sprintf("osquery hosts %v %s", hostIDs, reason))
 }
 
-func (c *captureNotifier) NotifyOsqueryConfigScope(ctx context.Context, scope fleet.AgentNotificationScope, reason string) error {
+func (c *captureNotifier) NotifyOsqueryConfigScope(ctx context.Context, scope automdm.AgentNotificationScope, reason string) error {
 	return c.record(fmt.Sprintf("osquery scope %s %s", scope, reason))
 }
 
@@ -148,16 +148,16 @@ func TestDelayedAgentNotifier(t *testing.T) {
 			return n.NotifyAgentsForLiveQuery(ctx, []uint{1, 2}, 42)
 		}, liveDelay, "live [1 2] 42"},
 		{"orbit config hosts", func(ctx context.Context, n *DelayedAgentNotifier) error {
-			return n.NotifyOrbitConfigHosts(ctx, []uint{3}, fleet.AgentWSReasonActivity)
+			return n.NotifyOrbitConfigHosts(ctx, []uint{3}, automdm.AgentWSReasonActivity)
 		}, 0, "hosts [3] activity"},
 		{"orbit config scope", func(ctx context.Context, n *DelayedAgentNotifier) error {
-			return n.NotifyOrbitConfigScope(ctx, fleet.AgentNotificationScopeTeam(5), fleet.AgentWSReasonSettings)
+			return n.NotifyOrbitConfigScope(ctx, automdm.AgentNotificationScopeTeam(5), automdm.AgentWSReasonSettings)
 		}, scopeDelay, "scope team:5 settings"},
 		{"osquery config hosts", func(ctx context.Context, n *DelayedAgentNotifier) error {
-			return n.NotifyOsqueryConfigHosts(ctx, []uint{3}, fleet.AgentWSReasonSettings)
+			return n.NotifyOsqueryConfigHosts(ctx, []uint{3}, automdm.AgentWSReasonSettings)
 		}, 0, "osquery hosts [3] settings"},
 		{"osquery config scope", func(ctx context.Context, n *DelayedAgentNotifier) error {
-			return n.NotifyOsqueryConfigScope(ctx, fleet.AgentNotificationScopeGlobal, fleet.AgentWSReasonReports)
+			return n.NotifyOsqueryConfigScope(ctx, automdm.AgentNotificationScopeGlobal, automdm.AgentWSReasonReports)
 		}, scopeDelay, "osquery scope global reports"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
@@ -199,11 +199,11 @@ func TestDelayedAgentNotifierBatchesHosts(t *testing.T) {
 		OsqueryConfigHosts: 200 * time.Millisecond,
 	}, slog.New(slog.DiscardHandler))
 
-	require.NoError(t, notifier.NotifyOrbitConfigHosts(t.Context(), []uint{3, 1}, fleet.AgentWSReasonActivity))
-	require.NoError(t, notifier.NotifyOrbitConfigHosts(t.Context(), []uint{2, 1}, fleet.AgentWSReasonActivity))
-	require.NoError(t, notifier.NotifyOrbitConfigHosts(t.Context(), []uint{4}, fleet.AgentWSReasonMDM))
+	require.NoError(t, notifier.NotifyOrbitConfigHosts(t.Context(), []uint{3, 1}, automdm.AgentWSReasonActivity))
+	require.NoError(t, notifier.NotifyOrbitConfigHosts(t.Context(), []uint{2, 1}, automdm.AgentWSReasonActivity))
+	require.NoError(t, notifier.NotifyOrbitConfigHosts(t.Context(), []uint{4}, automdm.AgentWSReasonMDM))
 	// Same reason, different type: batched separately.
-	require.NoError(t, notifier.NotifyOsqueryConfigHosts(t.Context(), []uint{6}, fleet.AgentWSReasonActivity))
+	require.NoError(t, notifier.NotifyOsqueryConfigHosts(t.Context(), []uint{6}, automdm.AgentWSReasonActivity))
 
 	for range 3 {
 		select {
@@ -217,7 +217,7 @@ func TestDelayedAgentNotifierBatchesHosts(t *testing.T) {
 	inner.mu.Unlock()
 
 	// The window is over: the next notification starts a new batch.
-	require.NoError(t, notifier.NotifyOrbitConfigHosts(t.Context(), []uint{5}, fleet.AgentWSReasonActivity))
+	require.NoError(t, notifier.NotifyOrbitConfigHosts(t.Context(), []uint{5}, automdm.AgentWSReasonActivity))
 	select {
 	case <-inner.notified:
 	case <-time.After(5 * time.Second):
@@ -250,7 +250,7 @@ func TestAgentNotificationsResubscribe(t *testing.T) {
 	// Still delivering after resubscribing. Publish until received, as
 	// notifications published before the resubscription are lost.
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		assert.NoError(c, notifier.NotifyOrbitConfigHosts(ctx, []uint{testHostIDOffset + 1}, fleet.AgentWSReasonActivity))
+		assert.NoError(c, notifier.NotifyOrbitConfigHosts(ctx, []uint{testHostIDOffset + 1}, automdm.AgentWSReasonActivity))
 		assert.Positive(c, received.Load())
 	}, 5*time.Second, 200*time.Millisecond)
 }
@@ -289,7 +289,7 @@ func TestAgentNotificationsChunking(t *testing.T) {
 	var total int
 	for _, n := range received {
 		total += len(n.HostIDs)
-		assert.Equal(t, fleet.AgentWSReasonLiveQuery(testCampaignIDOffset+7), n.Reason)
+		assert.Equal(t, automdm.AgentWSReasonLiveQuery(testCampaignIDOffset+7), n.Reason)
 	}
 	assert.Equal(t, len(hostIDs), total)
 }

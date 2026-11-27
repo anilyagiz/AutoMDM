@@ -1,12 +1,12 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # This installer puts Front in the profile of whoever runs it, so running it from
 # this script's SYSTEM context would leave it where nobody can launch it. Run the
 # installer as the signed-in user instead.
 
 $exeFilePath = "${env:INSTALLER_PATH}"
-$taskName = "fleet-install-front"
+$taskName = "automdm-install-front"
 $taskRunning = 267009  # SCHED_S_TASK_RUNNING
 $appDir = "AppData\Local\Programs\Front"  # in each user's profile
 $exitCode = 0
@@ -34,7 +34,7 @@ try {
         [System.Security.Principal.SecurityIdentifier]).Value
     Write-Host "Installing Front for $userAccount."
 
-    # Fleet's installer directory is not readable by that user, so stage a copy in
+    # AutoMDM's installer directory is not readable by that user, so stage a copy in
     # a new folder only SYSTEM and Administrators can write to.
     $security = New-Object System.Security.AccessControl.DirectorySecurity
     $security.SetAccessRuleProtection($true, $false)
@@ -43,7 +43,7 @@ try {
             (New-Object System.Security.Principal.SecurityIdentifier($grant[0])), $grant[1],
             "ContainerInherit, ObjectInherit", "None", "Allow")))
     }
-    $stageDir = Join-Path $env:ProgramData ("fleet-front-" + [guid]::NewGuid().ToString("N"))
+    $stageDir = Join-Path $env:ProgramData ("automdm-front-" + [guid]::NewGuid().ToString("N"))
     [void][System.IO.Directory]::CreateDirectory($stageDir, $security)
     $stagedInstaller = Join-Path $stageDir (Split-Path $exeFilePath -Leaf)
     Copy-Item -LiteralPath $exeFilePath -Destination $stagedInstaller -Force -ErrorAction Stop

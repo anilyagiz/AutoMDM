@@ -3,8 +3,8 @@ package wstransport
 import (
 	"context"
 
-	"github.com/fleetdm/fleet/v4/client"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/client"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/osquery/osquery-go/plugin/distributed"
 )
 
@@ -12,7 +12,7 @@ import (
 // --distributed_plugin to route its distributed queries through orbit. (This
 // is the plugin's registry entry name, unrelated to the extension manager's
 // extension name.)
-const DistributedPluginName = "fleet_orbit_distributed"
+const DistributedPluginName = "automdm_orbit_distributed"
 
 // distributedClient is the subset of client.OrbitClient used by the
 // distributed plugin.
@@ -22,11 +22,11 @@ type distributedClient interface {
 }
 
 // NewDistributedPlugin returns the osquery distributed plugin that serves
-// queries from the manager's cache and forwards results to the Fleet server
+// queries from the manager's cache and forwards results to the AutoMDM server
 // over HTTP. Query pickup and write completion feed the manager's iteration
 // state machine. osquery's usual distributed poll becomes a localhost thrift
 // call answered from memory — no network traffic until there is actual work.
-func NewDistributedPlugin(m *Manager, fleetClient distributedClient) *distributed.Plugin {
+func NewDistributedPlugin(m *Manager, automdmClient distributedClient) *distributed.Plugin {
 	getQueries := func(ctx context.Context) (*distributed.GetQueriesResult, error) {
 		queries, discovery, accelerate := m.takeQueries()
 		if queries == nil {
@@ -46,10 +46,10 @@ func NewDistributedPlugin(m *Manager, fleetClient distributedClient) *distribute
 			return nil
 		}
 		req := &client.DistributedWriteRequest{
-			Results:  make(fleet.OsqueryDistributedQueryResults, len(results)),
-			Statuses: make(map[string]fleet.OsqueryStatus, len(results)),
+			Results:  make(automdm.OsqueryDistributedQueryResults, len(results)),
+			Statuses: make(map[string]automdm.OsqueryStatus, len(results)),
 			Messages: make(map[string]string),
-			Stats:    make(map[string]*fleet.Stats),
+			Stats:    make(map[string]*automdm.Stats),
 		}
 		for _, result := range results {
 			rows := result.Rows
@@ -57,12 +57,12 @@ func NewDistributedPlugin(m *Manager, fleetClient distributedClient) *distribute
 				rows = []map[string]string{}
 			}
 			req.Results[result.QueryName] = rows
-			req.Statuses[result.QueryName] = fleet.OsqueryStatus(result.Status)
+			req.Statuses[result.QueryName] = automdm.OsqueryStatus(result.Status)
 			if result.Message != "" {
 				req.Messages[result.QueryName] = result.Message
 			}
 			if result.QueryStats != nil {
-				req.Stats[result.QueryName] = &fleet.Stats{
+				req.Stats[result.QueryName] = &automdm.Stats{
 					WallTimeMs: uint64(result.QueryStats.WallTimeMs), //nolint:gosec // osquery stats are non-negative
 					UserTime:   uint64(result.QueryStats.UserTime),   //nolint:gosec // osquery stats are non-negative
 					SystemTime: uint64(result.QueryStats.SystemTime), //nolint:gosec // osquery stats are non-negative
@@ -70,7 +70,7 @@ func NewDistributedPlugin(m *Manager, fleetClient distributedClient) *distribute
 				}
 			}
 		}
-		return fleetClient.DistributedWrite(req)
+		return automdmClient.DistributedWrite(req)
 	}
 
 	return distributed.NewPlugin(DistributedPluginName, getQueries, writeResults)

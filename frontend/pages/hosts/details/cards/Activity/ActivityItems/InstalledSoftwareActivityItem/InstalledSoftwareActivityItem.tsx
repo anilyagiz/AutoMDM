@@ -60,7 +60,7 @@ const InstalledSoftwareActivityItem = ({
         onCancel={onCancel}
         isSoloActivity={isSoloActivity}
       >
-        <b>Fleet</b> skipped install of <b>{title}</b>
+        <b>AutoMDM</b> skipped install of <b>{title}</b>
         {versionSuffix} on <b>{details.host_display_name || "this host"}</b>.
       </ActivityItem>
     );
@@ -97,18 +97,18 @@ const InstalledSoftwareActivityItem = ({
     status,
     isScriptPackageSource
   );
-  if (tab !== "past" && activity.fleet_initiated) {
+  if (tab !== "past" && activity.automdm_initiated) {
     installedSoftwarePrefix =
       status === "pending_uninstall" ? "will uninstall" : "will install";
   }
 
-  // Auto-update installs are always Fleet-initiated even when the payload
+  // Auto-update installs are always AutoMDM-initiated even when the payload
   // carries a stale actor (e.g. a pre-fix retry that re-attributed to the
   // admin who set up the schedule). A missing actor means the initiating
   // admin has been deleted since the install was queued (LEFT JOIN on users
   // returns nil). Trim so whitespace-only names also count as missing. Both
-  // cases render as "Fleet".
-  const actor = from_auto_update || !actorName?.trim() ? "Fleet" : actorName;
+  // cases render as "AutoMDM".
+  const actor = from_auto_update || !actorName?.trim() ? "AutoMDM" : actorName;
 
   return (
     <ActivityItem

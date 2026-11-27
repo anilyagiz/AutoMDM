@@ -1,20 +1,20 @@
 provider:
-  name: fleetdm_teams
+  name: automdm_teams
   schema_ref: '#/components/schemas/Team'
 
 resources:
   team:
     create:
-      path: /api/v1/fleet/fleets
+      path: /api/v1/automdm/teams
       method: POST
     read:
-      path: /api/v1/fleet/fleets/{id}
+      path: /api/v1/automdm/teams/{id}
       method: GET
     update:
-      path: /api/v1/fleet/fleets/{id}
+      path: /api/v1/automdm/teams/{id}
       method: PUT
     delete:
-      path: /api/v1/fleet/fleets/{id}
+      path: /api/v1/automdm/teams/{id}
       method: DELETE
     schema:
       attributes:

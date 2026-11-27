@@ -1,12 +1,12 @@
 # macOS 26 Tahoe — CIS benchmark
 
-Fleet policies for the **CIS Apple macOS 26 Tahoe Benchmark, v1.1.0**.
+AutoMDM policies for the **CIS Apple macOS 26 Tahoe Benchmark, v1.1.0**.
 
 ## Status
 
 **Generation complete.** All automated recommendations across
 §1–§6 of the CIS Apple macOS 26 Tahoe Benchmark v1.1.0 are
-covered. §7 (Supplemental) is skipped per Fleet convention.
+covered. §7 (Supplemental) is skipped per AutoMDM convention.
 Manual-only recommendations are documented in **Limitations**.
 
 ### v1.1.0 update
@@ -16,7 +16,7 @@ Updated from v1.0.0 to v1.1.0 (CIS "Jun 1, 2026" release). Changes:
 - **2.3.5 Device Management** — new informational sub-section only (no recommendation), so no policy.
 - **2.7.1** rescoped to the *current user* only and moved to Level 1; the query now checks the current console user's Dock hot corners.
 - **3.4** retitled "…Retained for 30 Days"; requirement relaxed to `expire-after:` ≥ 30 days (no size requirement).
-- **3.5** — only the CIS *remediation* changed (`chmod 700`), but its *audit* still checks 440, so Fleet's query is unchanged (it accepts 440/400).
+- **3.5** — only the CIS *remediation* changed (`chmod 700`), but its *audit* still checks 440, so AutoMDM's query is unchanged (it accepts 440/400).
 - **5.1.6** — CIS added `2>/dev/null`; `find_cmd` already handles that, so the query is unchanged.
 - **5.1.7** — query now excludes the non-accessible `/Library/AppStore` folder.
 - **5.3.1** — CIS split disk encryption into internal (5.3.1) and external (5.3.2) and moved the internal APFS check to **Automated**; a new 5.3.1 policy was added (previously Manual/limitation). Apple's sealed asset cryptex volumes (no role, names ending in `Cryptex`) are excluded since they cannot be encrypted. 5.3.2 (external) and 5.3.3 (FAT32/ExFAT) remain in **Limitations**.
@@ -36,7 +36,7 @@ Updated from v1.0.0 to v1.1.0 (CIS "Jun 1, 2026" release). Changes:
 
 ## Limitations
 
-Manual-assessment recommendations cannot be automated as Fleet
+Manual-assessment recommendations cannot be automated as AutoMDM
 policies. They are listed here for reference so auditors know where to
 perform out-of-band checks.
 
@@ -95,7 +95,7 @@ perform out-of-band checks.
   approved inventory — not mechanically checkable.
 - **5.2.3** Ensure Complex Password Must Contain Alphabetic
   Characters (Level 2, Manual). CIS explicitly left as Manual —
-  Fleet does not ship an automated policy.
+  AutoMDM does not ship an automated policy.
 - **5.2.4** Ensure Complex Password Must Contain Numeric
   Character (Level 2, Manual).
 - **5.2.5** Ensure Complex Password Must Contain Special
@@ -103,7 +103,7 @@ perform out-of-band checks.
 - **5.2.6** Ensure Complex Password Must Contain Uppercase and
   Lowercase Characters (Level 2, Manual).
 - **5.3.2** Ensure all APFS and HFS+ external user storage volumes
-  are encrypted (Level 1, Automated). The fleetd `apfs_volumes`
+  are encrypted (Level 1, Automated). The automdmd `apfs_volumes`
   table does not expose an internal/external indicator, so
   "external" volumes cannot be reliably identified as a policy
   query. Internal APFS volumes are covered by the automated 5.3.1
@@ -131,8 +131,8 @@ perform out-of-band checks.
 
 ### Section 1 notes
 
-- **1.1** depends on the fleetd-specific `software_update` osquery
-  table. Hosts running upstream osquery without fleetd will be unable
+- **1.1** depends on the automdmd-specific `software_update` osquery
+  table. Hosts running upstream osquery without automdmd will be unable
   to evaluate this policy.
 - **1.6** (software update deferment) also passes when no deferment
   profile is installed — the query checks for a managed value
@@ -247,7 +247,7 @@ perform out-of-band checks.
   fail on hosts without FileVault configured.
 - **2.6.7** (Lockdown Mode) is Manual — see Limitations.
 - **2.6.8** (admin password for system-wide preferences) — query
-  uses the fleetd `authdb` table (flagged `(Fleetd Required)`) and
+  uses the automdmd `authdb` table (flagged `(AutoMDMd Required)`) and
   checks all eight `system.preferences.*` rights for
   `shared=false`, `group=admin`, `authenticate-user=true`,
   `session-owner=false`. The pass script reimplements the CIS
@@ -261,8 +261,8 @@ perform out-of-band checks.
   with mode in {700, 701, 710, 711}. Excludes `/Users/Shared/`.
   Pass script sets 700; fail script loosens the console user's
   home to 755.
-- **5.1.2** (SIP) uses fleetd-independent `sip_config` table.
-  5.1.3 AMFI uses fleetd `nvram_info`. 5.1.4 SSV uses fleetd
+- **5.1.2** (SIP) uses automdmd-independent `sip_config` table.
+  5.1.3 AMFI uses automdmd `nvram_info`. 5.1.4 SSV uses automdmd
   `csrutil_info`. All three are one-liner state checks.
   Neither 5.1.2 nor 5.1.3 nor 5.1.4 ships test scripts —
   disabling SIP requires a reboot into Recovery, and the state
@@ -272,13 +272,13 @@ perform out-of-band checks.
   bit. Fail script creates a stub world-writable `.app` bundle.
 - **5.1.6** and **5.1.7** scan `/System/Volumes/Data/System` and
   `/Library` for world-writable directories. 5.1.6 uses the
-  fleetd `find_cmd` table (faster than walking the `file` table);
+  automdmd `find_cmd` table (faster than walking the `file` table);
   5.1.7 uses the core `file` table with sticky-bit filter and
   `extended_attributes.com.apple.rootless` exclusion. As of v1.1.0
   the 5.1.7 query also excludes the non-accessible `/Library/AppStore`
   folder per the updated CIS audit.
 - **5.3.1** (internal APFS volumes encrypted) — added in v1.1.0
-  (Automated; it was Manual in v1.0.0). Query uses the fleetd
+  (Automated; it was Manual in v1.0.0). Query uses the automdmd
   `apfs_volumes` table, requiring `filevault=1` on every volume
   that has no reserved role (VM/Update/Recovery/Preboot/xART/
   Hardware). Apple's sealed, read-only asset cryptex volumes (no
@@ -288,18 +288,18 @@ perform out-of-band checks.
   (CIS 5.3.2) and FAT32/ExFAT (5.3.3) are documented in
   Limitations. Encryption cannot be applied by a script, so no
   test scripts ship (MANUAL).
-- **5.2.1–5.2.2, 5.2.7–5.2.8** all use the fleetd `pwd_policy`
+- **5.2.1–5.2.2, 5.2.7–5.2.8** all use the automdmd `pwd_policy`
   or `password_policy` table. Scripts use `pwpolicy
   -setglobalpolicy` despite the CIS note that the command is
   deprecated — it is still the only terminal-scriptable path.
 - **5.4, 5.5, 5.11** each drop a file into `/etc/sudoers.d/` via
   `tee`. macOS ignores sudoers.d filenames containing `.`, so
   scripts use `CIS_5_4_sudoconfiguration` (no extension).
-  Each query reads the fleetd `sudo_info` table which parses
+  Each query reads the automdmd `sudo_info` table which parses
   `sudo -V` output.
-- **5.6** uses the fleetd `dscl` table to verify the root
+- **5.6** uses the automdmd `dscl` table to verify the root
   account has no `AuthenticationAuthority` (i.e. is disabled).
-- **5.7** uses the fleetd `authdb` table with JSON extraction of
+- **5.7** uses the automdmd `authdb` table with JSON extraction of
   the rule string; rule must contain `authenticate-session-owner`.
 - **5.8** (Login banner) — requires the banner file to exist at
   `/Library/Security/PolicyBanner.{txt,rtf}` with mode 0644,
@@ -369,7 +369,7 @@ perform out-of-band checks.
   Accepts either 440 or 400 since Apple's default and CIS's
   remediation have varied. Note: v1.1.0 changed only the CIS
   *remediation* to `chmod 700`, which contradicts its own audit
-  (still `-r--r-----`/440); the Fleet query follows the audit and
+  (still `-r--r-----`/440); the AutoMDM query follows the audit and
   is unchanged.
 
 ### Section 2.1 notes
@@ -392,7 +392,7 @@ perform out-of-band checks.
   is evaluated (see the console-user caveat in
   `ee/cis/CIS-BENCHMARKS.md`); the `_pass`/`_fail` scripts toggle
   corners for the console user. They write the user's Dock plist by
-  path so they also work through Fleet's script execution, where
+  path so they also work through AutoMDM's script execution, where
   per-user `defaults write` fails (see the console-user pattern in
   `ee/cis/CIS-BENCHMARKS.md`).
 
@@ -406,13 +406,13 @@ perform out-of-band checks.
 ### Section 2.10 notes
 
 - **2.10.1.2** (Apple Silicon sleep ≤15 min) — query uses the
-  fleetd `pmset` table with JSON extraction, branching on
+  automdmd `pmset` table with JSON extraction, branching on
   `Battery Power` first, falling back to `AC Power`. Default-
   passes on non-Apple-Silicon hosts via `system_info.cpu_type`
   check. Also automatically satisfied when the 2.11.1 screen
   saver profile is enforced, per CIS's own note.
 - **2.10.2** (Power Nap) and **2.10.3** (Wake for Network
-  Access) — both use the fleetd `pmset` table; require pass on
+  Access) — both use the automdmd `pmset` table; require pass on
   both AC Power and Battery Power. 2.10.2 is Intel-specific; on
   Apple Silicon, `pmset -a powernap` may be ignored but the
   query still returns the current setting regardless.
@@ -422,7 +422,7 @@ perform out-of-band checks.
 ### Section 2.12 notes
 
 - **2.12.1** (no password hints on local accounts) — query uses
-  the fleetd `user_login_settings` table which enumerates local
+  the automdmd `user_login_settings` table which enumerates local
   users and reports `password_hint_enabled` per account. Pass
   script removes the `hint` attribute from all local users via
   `dscl`; fail script sets a test hint on the console user.
@@ -493,7 +493,7 @@ perform out-of-band checks.
 
 ## Org-decision policies
 
-Where CIS leaves the choice to the organization, Fleet provides both
+Where CIS leaves the choice to the organization, AutoMDM provides both
 enable and disable profile variants.
 
 (empty — populated per section)

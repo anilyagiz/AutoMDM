@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	oval_input "github.com/fleetdm/fleet/v4/server/vulnerabilities/oval/input"
-	oval_parsed "github.com/fleetdm/fleet/v4/server/vulnerabilities/oval/parsed"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	oval_input "github.com/anilyagiz/automdm/v4/server/vulnerabilities/oval/input"
+	oval_parsed "github.com/anilyagiz/automdm/v4/server/vulnerabilities/oval/parsed"
 	"github.com/stretchr/testify/require"
 )
 
@@ -703,7 +703,7 @@ func TestOvalParser(t *testing.T) {
 		result, err := mapToRhelResult(xmlResult)
 		require.NoError(t, err)
 
-		testCases := []fleet.OSVersion{
+		testCases := []automdm.OSVersion{
 			{
 				Platform: "rhel",
 				Name:     "CentOS Linux 7.9.2009",

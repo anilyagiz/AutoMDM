@@ -13,12 +13,12 @@ import (
 	"testing"
 	"time"
 
-	activity_api "github.com/fleetdm/fleet/v4/server/activity/api"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/policies"
-	"github.com/fleetdm/fleet/v4/server/service"
+	activity_api "github.com/anilyagiz/automdm/v4/server/activity/api"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/policies"
+	"github.com/anilyagiz/automdm/v4/server/service"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -29,10 +29,10 @@ func TestTriggerFailingPoliciesWebhookBasic(t *testing.T) {
 	requestBody := ""
 
 	policyID1 := uint(1)
-	ds.PolicyFunc = func(ctx context.Context, id uint) (*fleet.Policy, error) {
+	ds.PolicyFunc = func(ctx context.Context, id uint) (*automdm.Policy, error) {
 		if id == policyID1 {
-			return &fleet.Policy{
-				PolicyData: fleet.PolicyData{
+			return &automdm.Policy{
+				PolicyData: automdm.PolicyData{
 					ID:          policyID1,
 					Name:        "policy1",
 					Query:       "select 42",
@@ -64,30 +64,30 @@ func TestTriggerFailingPoliciesWebhookBasic(t *testing.T) {
 		ts.Close()
 	})
 
-	ac := &fleet.AppConfig{
-		WebhookSettings: fleet.WebhookSettings{
-			FailingPoliciesWebhook: fleet.FailingPoliciesWebhookSettings{
+	ac := &automdm.AppConfig{
+		WebhookSettings: automdm.WebhookSettings{
+			FailingPoliciesWebhook: automdm.FailingPoliciesWebhookSettings{
 				Enable:         true,
 				DestinationURL: ts.URL,
 			},
 		},
-		ServerSettings: fleet.ServerSettings{
-			ServerURL: "https://fleet.example.com",
+		ServerSettings: automdm.ServerSettings{
+			ServerURL: "https://automdm.example.com",
 		},
 	}
 
-	ds.AppConfigFunc = func(context.Context) (*fleet.AppConfig, error) {
+	ds.AppConfigFunc = func(context.Context) (*automdm.AppConfig, error) {
 		return ac, nil
 	}
 
 	failingPolicySet := service.NewMemFailingPolicySet()
-	err := failingPolicySet.AddHost(policyID1, fleet.PolicySetHost{
+	err := failingPolicySet.AddHost(policyID1, automdm.PolicySetHost{
 		ID:          1,
 		Hostname:    "host1.example",
 		DisplayName: "display1",
 	})
 	require.NoError(t, err)
-	err = failingPolicySet.AddHost(policyID1, fleet.PolicySetHost{
+	err = failingPolicySet.AddHost(policyID1, automdm.PolicySetHost{
 		ID:          2,
 		Hostname:    "host2.example",
 		DisplayName: "display2",
@@ -95,7 +95,7 @@ func TestTriggerFailingPoliciesWebhookBasic(t *testing.T) {
 	require.NoError(t, err)
 
 	mockClock := time.Now()
-	err = policies.TriggerFailingPoliciesAutomation(context.Background(), ds, slog.New(slog.DiscardHandler), failingPolicySet, func(pol *fleet.Policy, cfg policies.FailingPolicyAutomationConfig) error {
+	err = policies.TriggerFailingPoliciesAutomation(context.Background(), ds, slog.New(slog.DiscardHandler), failingPolicySet, func(pol *automdm.Policy, cfg policies.FailingPolicyAutomationConfig) error {
 		serverURL, err := url.Parse(ac.ServerSettings.ServerURL)
 		if err != nil {
 			return err
@@ -118,7 +118,7 @@ func TestTriggerFailingPoliciesWebhookBasic(t *testing.T) {
         "author_id": 1,
         "author_name": "Alice",
         "author_email": "alice@example.com",
-		"fleet_id": null,
+		"team_id": null,
         "resolution": "policy1 resolution",
         "platform": "darwin",
         "created_at": "0001-01-01T00:00:00Z",
@@ -143,13 +143,13 @@ func TestTriggerFailingPoliciesWebhookBasic(t *testing.T) {
             "id": 1,
             "hostname": "host1.example",
             "display_name": "display1",
-            "url": "https://fleet.example.com/hosts/1"
+            "url": "https://automdm.example.com/hosts/1"
         },
         {
             "id": 2,
             "hostname": "host2.example",
             "display_name": "display2",
-            "url": "https://fleet.example.com/hosts/2"
+            "url": "https://automdm.example.com/hosts/2"
         }
     ]
 }`, timestamp), requestBody)
@@ -160,7 +160,7 @@ func TestTriggerFailingPoliciesWebhookBasic(t *testing.T) {
 
 	requestBody = ""
 
-	err = policies.TriggerFailingPoliciesAutomation(context.Background(), ds, slog.New(slog.DiscardHandler), failingPolicySet, func(pol *fleet.Policy, cfg policies.FailingPolicyAutomationConfig) error {
+	err = policies.TriggerFailingPoliciesAutomation(context.Background(), ds, slog.New(slog.DiscardHandler), failingPolicySet, func(pol *automdm.Policy, cfg policies.FailingPolicyAutomationConfig) error {
 		serverURL, err := url.Parse(ac.ServerSettings.ServerURL)
 		if err != nil {
 			return err
@@ -192,9 +192,9 @@ func TestTriggerFailingPoliciesWebhookTeam(t *testing.T) {
 
 	teamID := uint(1)
 
-	policiesByID := map[uint]*fleet.Policy{
+	policiesByID := map[uint]*automdm.Policy{
 		1: {
-			PolicyData: fleet.PolicyData{
+			PolicyData: automdm.PolicyData{
 				ID:                    1,
 				Name:                  "policy1",
 				Query:                 "select 1",
@@ -212,7 +212,7 @@ func TestTriggerFailingPoliciesWebhookTeam(t *testing.T) {
 			},
 		},
 		2: {
-			PolicyData: fleet.PolicyData{
+			PolicyData: automdm.PolicyData{
 				ID:          2,
 				Name:        "policy2",
 				Query:       "select 2",
@@ -227,7 +227,7 @@ func TestTriggerFailingPoliciesWebhookTeam(t *testing.T) {
 			},
 		},
 		3: {
-			PolicyData: fleet.PolicyData{
+			PolicyData: automdm.PolicyData{
 				ID:          2,
 				Name:        "policy3",
 				Query:       "select 3",
@@ -243,20 +243,20 @@ func TestTriggerFailingPoliciesWebhookTeam(t *testing.T) {
 		},
 	}
 
-	ds.PolicyFunc = func(ctx context.Context, id uint) (*fleet.Policy, error) {
+	ds.PolicyFunc = func(ctx context.Context, id uint) (*automdm.Policy, error) {
 		policy, ok := policiesByID[id]
 		if !ok {
 			return nil, ctxerr.Wrap(ctx, sql.ErrNoRows)
 		}
 		return policy, nil
 	}
-	ds.TeamLiteFunc = func(ctx context.Context, tid uint) (*fleet.TeamLite, error) {
+	ds.TeamLiteFunc = func(ctx context.Context, tid uint) (*automdm.TeamLite, error) {
 		if tid == teamID {
-			return &fleet.TeamLite{
+			return &automdm.TeamLite{
 				ID: teamID,
-				Config: fleet.TeamConfigLite{
-					WebhookSettings: fleet.TeamWebhookSettings{
-						FailingPoliciesWebhook: fleet.FailingPoliciesWebhookSettings{
+				Config: automdm.TeamConfigLite{
+					WebhookSettings: automdm.TeamWebhookSettings{
+						FailingPoliciesWebhook: automdm.FailingPoliciesWebhookSettings{
 							Enable:         true,
 							DestinationURL: ts.URL,
 						},
@@ -267,24 +267,24 @@ func TestTriggerFailingPoliciesWebhookTeam(t *testing.T) {
 		return nil, ctxerr.Wrap(ctx, sql.ErrNoRows)
 	}
 
-	ac := &fleet.AppConfig{
-		ServerSettings: fleet.ServerSettings{
-			ServerURL: "https://fleet.example.com",
+	ac := &automdm.AppConfig{
+		ServerSettings: automdm.ServerSettings{
+			ServerURL: "https://automdm.example.com",
 		},
 	}
 
-	ds.AppConfigFunc = func(context.Context) (*fleet.AppConfig, error) {
+	ds.AppConfigFunc = func(context.Context) (*automdm.AppConfig, error) {
 		return ac, nil
 	}
 
 	failingPolicySet := service.NewMemFailingPolicySet()
-	err := failingPolicySet.AddHost(1, fleet.PolicySetHost{
+	err := failingPolicySet.AddHost(1, automdm.PolicySetHost{
 		ID:          1,
 		Hostname:    "host1",
 		DisplayName: "display1",
 	})
 	require.NoError(t, err)
-	err = failingPolicySet.AddHost(2, fleet.PolicySetHost{
+	err = failingPolicySet.AddHost(2, automdm.PolicySetHost{
 		ID:          2,
 		Hostname:    "host2",
 		DisplayName: "display2",
@@ -292,7 +292,7 @@ func TestTriggerFailingPoliciesWebhookTeam(t *testing.T) {
 	require.NoError(t, err)
 
 	now := time.Now()
-	err = policies.TriggerFailingPoliciesAutomation(context.Background(), ds, slog.New(slog.DiscardHandler), failingPolicySet, func(pol *fleet.Policy, cfg policies.FailingPolicyAutomationConfig) error {
+	err = policies.TriggerFailingPoliciesAutomation(context.Background(), ds, slog.New(slog.DiscardHandler), failingPolicySet, func(pol *automdm.Policy, cfg policies.FailingPolicyAutomationConfig) error {
 		serverURL, err := url.Parse(ac.ServerSettings.ServerURL)
 		if err != nil {
 			return err
@@ -318,7 +318,7 @@ func TestTriggerFailingPoliciesWebhookTeam(t *testing.T) {
         "author_id": 1,
         "author_name": "Alice",
         "author_email": "alice@example.com",
-		"fleet_id": 1,
+		"team_id": 1,
         "resolution": "policy1 resolution",
         "platform": "darwin",
         "created_at": "0001-01-01T00:00:00Z",
@@ -343,7 +343,7 @@ func TestTriggerFailingPoliciesWebhookTeam(t *testing.T) {
             "id": 1,
             "hostname": "host1",
             "display_name": "display1",
-            "url": "https://fleet.example.com/hosts/1"
+            "url": "https://automdm.example.com/hosts/1"
         }
     ]
 }`, timestamp), webhookBody)
@@ -354,7 +354,7 @@ func TestTriggerFailingPoliciesWebhookTeam(t *testing.T) {
 
 	webhookBody = ""
 
-	err = policies.TriggerFailingPoliciesAutomation(context.Background(), ds, slog.New(slog.DiscardHandler), failingPolicySet, func(pol *fleet.Policy, cfg policies.FailingPolicyAutomationConfig) error {
+	err = policies.TriggerFailingPoliciesAutomation(context.Background(), ds, slog.New(slog.DiscardHandler), failingPolicySet, func(pol *automdm.Policy, cfg policies.FailingPolicyAutomationConfig) error {
 		serverURL, err := url.Parse(ac.ServerSettings.ServerURL)
 		if err != nil {
 			return err
@@ -367,22 +367,22 @@ func TestTriggerFailingPoliciesWebhookTeam(t *testing.T) {
 }
 
 func TestSendFailingPoliciesWebhookRecordsFailureActivity(t *testing.T) {
-	p := &fleet.Policy{
-		PolicyData: fleet.PolicyData{
+	p := &automdm.Policy{
+		PolicyData: automdm.PolicyData{
 			ID:   7,
 			Name: "policy7",
 		},
 	}
 
-	makeHosts := func(c int) []fleet.PolicySetHost {
-		hosts := make([]fleet.PolicySetHost, c)
+	makeHosts := func(c int) []automdm.PolicySetHost {
+		hosts := make([]automdm.PolicySetHost, c)
 		for i := range hosts {
-			hosts[i] = fleet.PolicySetHost{ID: uint(i + 1), Hostname: fmt.Sprintf("h-%d", i+1)} //nolint:gosec
+			hosts[i] = automdm.PolicySetHost{ID: uint(i + 1), Hostname: fmt.Sprintf("h-%d", i+1)} //nolint:gosec
 		}
 		return hosts
 	}
 
-	serverURL, err := url.Parse("https://fleet.example.com")
+	serverURL, err := url.Parse("https://automdm.example.com")
 	require.NoError(t, err)
 	now := time.Now()
 
@@ -400,8 +400,8 @@ func TestSendFailingPoliciesWebhookRecordsFailureActivity(t *testing.T) {
 			require.NoError(t, failingPolicySet.AddHost(p.ID, host))
 		}
 
-		var recorded []fleet.ActivityDetails
-		newActivitySvc := &mock.MockActivityService{NewActivityFunc: func(_ context.Context, user *activity_api.User, activity fleet.ActivityDetails) error {
+		var recorded []automdm.ActivityDetails
+		newActivitySvc := &mock.MockActivityService{NewActivityFunc: func(_ context.Context, user *activity_api.User, activity automdm.ActivityDetails) error {
 			require.Nil(t, user)
 			recorded = append(recorded, activity)
 			return nil
@@ -414,7 +414,7 @@ func TestSendFailingPoliciesWebhookRecordsFailureActivity(t *testing.T) {
 		require.Error(t, err)
 
 		require.Len(t, recorded, 1)
-		act, ok := recorded[0].(fleet.ActivityTypeFailedAutomationWebhook)
+		act, ok := recorded[0].(automdm.ActivityTypeFailedAutomationWebhook)
 		require.True(t, ok)
 		assert.Equal(t, p.ID, act.PolicyID)
 		assert.Equal(t, []uint{1, 2}, act.HostIDList)
@@ -440,8 +440,8 @@ func TestSendFailingPoliciesWebhookRecordsFailureActivity(t *testing.T) {
 			require.NoError(t, failingPolicySet.AddHost(p.ID, host))
 		}
 
-		var recorded []fleet.ActivityDetails
-		newActivitySvc := &mock.MockActivityService{NewActivityFunc: func(_ context.Context, _ *activity_api.User, activity fleet.ActivityDetails) error {
+		var recorded []automdm.ActivityDetails
+		newActivitySvc := &mock.MockActivityService{NewActivityFunc: func(_ context.Context, _ *activity_api.User, activity automdm.ActivityDetails) error {
 			recorded = append(recorded, activity)
 			return nil
 		}}
@@ -454,29 +454,29 @@ func TestSendFailingPoliciesWebhookRecordsFailureActivity(t *testing.T) {
 		// no failure activity recorded on success (the sent activity is
 		// exercised by TestSendFailingPoliciesWebhookRecordsQueuedActivity)
 		for _, act := range recorded {
-			_, isFailure := act.(fleet.ActivityTypeFailedAutomationWebhook)
+			_, isFailure := act.(automdm.ActivityTypeFailedAutomationWebhook)
 			assert.False(t, isFailure)
 		}
 	})
 }
 
 func TestSendFailingPoliciesWebhookRecordsQueuedActivity(t *testing.T) {
-	p := &fleet.Policy{
-		PolicyData: fleet.PolicyData{
+	p := &automdm.Policy{
+		PolicyData: automdm.PolicyData{
 			ID:   7,
 			Name: "policy7",
 		},
 	}
 
-	makeHosts := func(c int) []fleet.PolicySetHost {
-		hosts := make([]fleet.PolicySetHost, c)
+	makeHosts := func(c int) []automdm.PolicySetHost {
+		hosts := make([]automdm.PolicySetHost, c)
 		for i := range hosts {
-			hosts[i] = fleet.PolicySetHost{ID: uint(i + 1), Hostname: fmt.Sprintf("h-%d", i+1)} //nolint:gosec
+			hosts[i] = automdm.PolicySetHost{ID: uint(i + 1), Hostname: fmt.Sprintf("h-%d", i+1)} //nolint:gosec
 		}
 		return hosts
 	}
 
-	serverURL, err := url.Parse("https://fleet.example.com")
+	serverURL, err := url.Parse("https://automdm.example.com")
 	require.NoError(t, err)
 	now := time.Now()
 
@@ -493,10 +493,10 @@ func TestSendFailingPoliciesWebhookRecordsQueuedActivity(t *testing.T) {
 			require.NoError(t, failingPolicySet.AddHost(p.ID, host))
 		}
 
-		var recorded []fleet.ActivityTypeRanAutomationWebhook
-		newActivitySvc := &mock.MockActivityService{NewActivityFunc: func(_ context.Context, user *activity_api.User, activity fleet.ActivityDetails) error {
+		var recorded []automdm.ActivityTypeRanAutomationWebhook
+		newActivitySvc := &mock.MockActivityService{NewActivityFunc: func(_ context.Context, user *activity_api.User, activity automdm.ActivityDetails) error {
 			require.Nil(t, user)
-			act, ok := activity.(fleet.ActivityTypeRanAutomationWebhook)
+			act, ok := activity.(automdm.ActivityTypeRanAutomationWebhook)
 			require.True(t, ok)
 			recorded = append(recorded, act)
 			return nil
@@ -543,8 +543,8 @@ func TestSendBatchedPOSTs(t *testing.T) {
 	t.Cleanup(func() {
 		ts.Close()
 	})
-	p := &fleet.Policy{
-		PolicyData: fleet.PolicyData{
+	p := &automdm.Policy{
+		PolicyData: automdm.PolicyData{
 			ID:          1,
 			Name:        "policy1",
 			Query:       "select 42",
@@ -558,10 +558,10 @@ func TestSendBatchedPOSTs(t *testing.T) {
 		},
 	}
 
-	makeHosts := func(c int) []fleet.PolicySetHost {
-		hosts := make([]fleet.PolicySetHost, c)
+	makeHosts := func(c int) []automdm.PolicySetHost {
+		hosts := make([]automdm.PolicySetHost, c)
 		for i := 0; i < len(hosts); i++ {
-			hosts[i] = fleet.PolicySetHost{
+			hosts[i] = automdm.PolicySetHost{
 				ID:       uint(i + 1), //nolint:gosec // dismiss G115
 				Hostname: fmt.Sprintf("hostname-%d", i+1),
 			}
@@ -570,7 +570,7 @@ func TestSendBatchedPOSTs(t *testing.T) {
 	}
 
 	now := time.Now()
-	serverURL, err := url.Parse("https://fleet.example.com")
+	serverURL, err := url.Parse("https://automdm.example.com")
 	require.NoError(t, err)
 
 	for _, tc := range []struct {

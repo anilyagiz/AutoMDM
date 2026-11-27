@@ -52,7 +52,7 @@ wait_for_installer() {
 quit_mozilla_vpn || exit 1
 
 # On some Macs the installer never returns, which would block the host's other
-# installs until Fleet kills this script an hour later. The postinstall's last
+# installs until AutoMDM kills this script an hour later. The postinstall's last
 # step opens the app, so quitting it is tried before giving up.
 installer -pkg "$INSTALLER_PATH" -target / &
 installer_pid=$!

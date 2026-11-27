@@ -9,14 +9,14 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	activity_api "github.com/fleetdm/fleet/v4/server/activity/api"
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/dev_mode"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	activity_api "github.com/anilyagiz/automdm/v4/server/activity/api"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	"github.com/anilyagiz/automdm/v4/server/dev_mode"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -59,7 +59,7 @@ func Test_logRoleChangeActivities(t *testing.T) {
 				2: "bar",
 				3: "baz",
 			},
-			expectActivities: []string{"deleted_user_global_role", "changed_user_fleet_role", "changed_user_fleet_role", "changed_user_fleet_role"},
+			expectActivities: []string{"deleted_user_global_role", "changed_user_team_role", "changed_user_team_role", "changed_user_team_role"},
 		}, {
 			name: "DeleteModifyTeam",
 			oldTeamRoles: map[uint]string{
@@ -71,7 +71,7 @@ func Test_logRoleChangeActivities(t *testing.T) {
 				2: "newRole",
 				3: "baz",
 			},
-			expectActivities: []string{"changed_user_fleet_role", "deleted_user_fleet_role"},
+			expectActivities: []string{"changed_user_team_role", "deleted_user_team_role"},
 		},
 	}
 	ds := new(mock.Store)
@@ -82,31 +82,31 @@ func Test_logRoleChangeActivities(t *testing.T) {
 		activities = append(activities, activity.ActivityName())
 		return nil
 	}
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			activities = activities[:0]
-			oldTeams := make([]fleet.UserTeam, 0, len(tt.oldTeamRoles))
+			oldTeams := make([]automdm.UserTeam, 0, len(tt.oldTeamRoles))
 			for id, r := range tt.oldTeamRoles {
-				oldTeams = append(oldTeams, fleet.UserTeam{
-					Team: fleet.Team{ID: id},
+				oldTeams = append(oldTeams, automdm.UserTeam{
+					Team: automdm.Team{ID: id},
 					Role: r,
 				})
 			}
-			newTeams := make([]fleet.UserTeam, 0, len(tt.newTeamRoles))
+			newTeams := make([]automdm.UserTeam, 0, len(tt.newTeamRoles))
 			for id, r := range tt.newTeamRoles {
-				newTeams = append(newTeams, fleet.UserTeam{
-					Team: fleet.Team{ID: id},
+				newTeams = append(newTeams, automdm.UserTeam{
+					Team: automdm.Team{ID: id},
 					Role: r,
 				})
 			}
-			newUser := &fleet.User{
+			newUser := &automdm.User{
 				GlobalRole: tt.newRole,
 				Teams:      newTeams,
 			}
-			require.NoError(t, fleet.LogRoleChangeActivities(ctx, svc, &fleet.User{}, tt.oldRole, oldTeams, newUser, false))
+			require.NoError(t, automdm.LogRoleChangeActivities(ctx, svc, &automdm.User{}, tt.oldRole, oldTeams, newUser, false))
 			require.Equal(t, tt.expectActivities, activities)
 		})
 	}
@@ -114,10 +114,10 @@ func Test_logRoleChangeActivities(t *testing.T) {
 
 func isRoleChangeActivity(activity activity_api.ActivityDetails) bool {
 	switch activity.(type) {
-	case fleet.ActivityTypeChangedUserGlobalRole,
-		fleet.ActivityTypeDeletedUserGlobalRole,
-		fleet.ActivityTypeChangedUserTeamRole,
-		fleet.ActivityTypeDeletedUserTeamRole:
+	case automdm.ActivityTypeChangedUserGlobalRole,
+		automdm.ActivityTypeDeletedUserGlobalRole,
+		automdm.ActivityTypeChangedUserTeamRole,
+		automdm.ActivityTypeDeletedUserTeamRole:
 		return true
 	}
 	return false
@@ -130,29 +130,29 @@ func TestNewUserRoleActivityJIT(t *testing.T) {
 			opts := &TestServerOpts{}
 			svc, ctx := newTestService(t, ds, nil, nil, opts)
 
-			var roleActivities []fleet.ActivityTypeChangedUserGlobalRole
+			var roleActivities []automdm.ActivityTypeChangedUserGlobalRole
 			opts.ActivityMock.NewActivityFunc = func(_ context.Context, _ *activity_api.User, activity activity_api.ActivityDetails) error {
-				if a, ok := activity.(fleet.ActivityTypeChangedUserGlobalRole); ok {
+				if a, ok := activity.(automdm.ActivityTypeChangedUserGlobalRole); ok {
 					roleActivities = append(roleActivities, a)
 				}
 				return nil
 			}
-			ds.NewUserFunc = func(ctx context.Context, user *fleet.User) (*fleet.User, error) {
+			ds.NewUserFunc = func(ctx context.Context, user *automdm.User) (*automdm.User, error) {
 				user.ID = 1
 				return user, nil
 			}
 
-			_, err := svc.NewUser(ctx, fleet.UserPayload{
+			_, err := svc.NewUser(ctx, automdm.UserPayload{
 				Name:           new("SSO User"),
 				Email:          new("sso@example.com"),
 				SSOEnabled:     new(true),
-				GlobalRole:     new(fleet.RoleObserver),
+				GlobalRole:     new(automdm.RoleObserver),
 				JITProvisioned: jitProvisioned,
 			})
 			require.NoError(t, err)
 
 			require.Len(t, roleActivities, 1)
-			require.Equal(t, fleet.RoleObserver, roleActivities[0].Role)
+			require.Equal(t, automdm.RoleObserver, roleActivities[0].Role)
 			require.Equal(t, jitProvisioned, roleActivities[0].JIT)
 		})
 	}
@@ -160,111 +160,111 @@ func TestNewUserRoleActivityJIT(t *testing.T) {
 
 func TestCancelHostUpcomingActivityAuth(t *testing.T) {
 	ds := new(mock.Store)
-	svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: &fleet.LicenseInfo{Tier: fleet.TierPremium}})
+	svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: &automdm.LicenseInfo{Tier: automdm.TierPremium}})
 
 	const (
 		teamHostID   = 1
 		globalHostID = 2
 	)
 
-	teamHost := &fleet.Host{TeamID: ptr.Uint(1), Platform: "darwin"}
-	globalHost := &fleet.Host{Platform: "darwin"}
+	teamHost := &automdm.Host{TeamID: ptr.Uint(1), Platform: "darwin"}
+	globalHost := &automdm.Host{Platform: "darwin"}
 
-	ds.HostLiteFunc = func(ctx context.Context, hostID uint) (*fleet.Host, error) {
+	ds.HostLiteFunc = func(ctx context.Context, hostID uint) (*automdm.Host, error) {
 		if hostID == teamHostID {
 			return teamHost, nil
 		}
 		return globalHost, nil
 	}
-	ds.CancelHostUpcomingActivityFunc = func(ctx context.Context, hostID uint, execID string) (fleet.ActivityDetails, error) {
+	ds.CancelHostUpcomingActivityFunc = func(ctx context.Context, hostID uint, execID string) (automdm.ActivityDetails, error) {
 		return nil, nil
 	}
-	ds.GetHostUpcomingActivityMetaFunc = func(ctx context.Context, hostID uint, execID string) (*fleet.UpcomingActivityMeta, error) {
-		return &fleet.UpcomingActivityMeta{}, nil
+	ds.GetHostUpcomingActivityMetaFunc = func(ctx context.Context, hostID uint, execID string) (*automdm.UpcomingActivityMeta, error) {
+		return &automdm.UpcomingActivityMeta{}, nil
 	}
 	// svc.CancelHostUpcomingActivity now looks up VPP release info before the
 	// cancel runs (so pre-activation cancels can still release the reserved
 	// seat). This test doesn't exercise VPP installs, so return notFound to
 	// skip the release path.
-	ds.GetVPPInstallReleaseInfoForCancelFunc = func(ctx context.Context, hostID uint, execID string) (*fleet.VPPInstallReleaseInfo, error) {
+	ds.GetVPPInstallReleaseInfoForCancelFunc = func(ctx context.Context, hostID uint, execID string) (*automdm.VPPInstallReleaseInfo, error) {
 		return nil, &notFoundError{}
 	}
 
 	cases := []struct {
 		name             string
-		user             *fleet.User
+		user             *automdm.User
 		shouldFailGlobal bool
 		shouldFailTeam   bool
 	}{
 		{
 			name:             "global observer",
-			user:             &fleet.User{GlobalRole: ptr.String(fleet.RoleObserver)},
+			user:             &automdm.User{GlobalRole: ptr.String(automdm.RoleObserver)},
 			shouldFailGlobal: true,
 			shouldFailTeam:   true,
 		},
 		{
 			name:             "team observer",
-			user:             &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleObserver}}},
+			user:             &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserver}}},
 			shouldFailGlobal: true,
 			shouldFailTeam:   true,
 		},
 		{
 			name:             "global observer plus",
-			user:             &fleet.User{GlobalRole: ptr.String(fleet.RoleObserverPlus)},
+			user:             &automdm.User{GlobalRole: ptr.String(automdm.RoleObserverPlus)},
 			shouldFailGlobal: true,
 			shouldFailTeam:   true,
 		},
 		{
 			name:             "team observer plus",
-			user:             &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleObserverPlus}}},
+			user:             &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserverPlus}}},
 			shouldFailGlobal: true,
 			shouldFailTeam:   true,
 		},
 		{
 			name:             "global admin",
-			user:             &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)},
+			user:             &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)},
 			shouldFailGlobal: false,
 			shouldFailTeam:   false,
 		},
 		{
 			name:             "team admin",
-			user:             &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleAdmin}}},
+			user:             &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleAdmin}}},
 			shouldFailGlobal: true,
 			shouldFailTeam:   false,
 		},
 		{
 			name:             "global maintainer",
-			user:             &fleet.User{GlobalRole: ptr.String(fleet.RoleMaintainer)},
+			user:             &automdm.User{GlobalRole: ptr.String(automdm.RoleMaintainer)},
 			shouldFailGlobal: false,
 			shouldFailTeam:   false,
 		},
 		{
 			name:             "team maintainer",
-			user:             &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleMaintainer}}},
+			user:             &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleMaintainer}}},
 			shouldFailGlobal: true,
 			shouldFailTeam:   false,
 		},
 		{
 			name:             "team admin wrong team",
-			user:             &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 42}, Role: fleet.RoleAdmin}}},
+			user:             &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 42}, Role: automdm.RoleAdmin}}},
 			shouldFailGlobal: true,
 			shouldFailTeam:   true,
 		},
 		{
 			name:             "team maintainer wrong team",
-			user:             &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 42}, Role: fleet.RoleMaintainer}}},
+			user:             &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 42}, Role: automdm.RoleMaintainer}}},
 			shouldFailGlobal: true,
 			shouldFailTeam:   true,
 		},
 		{
 			name:             "global gitops",
-			user:             &fleet.User{GlobalRole: ptr.String(fleet.RoleGitOps)},
+			user:             &automdm.User{GlobalRole: ptr.String(automdm.RoleGitOps)},
 			shouldFailGlobal: true,
 			shouldFailTeam:   true,
 		},
 		{
 			name:             "team gitops",
-			user:             &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleGitOps}}},
+			user:             &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleGitOps}}},
 			shouldFailGlobal: true,
 			shouldFailTeam:   true,
 		},
@@ -284,40 +284,40 @@ func TestCancelHostUpcomingActivityAuth(t *testing.T) {
 
 func TestGetHostActivitiesWebhookSettings(t *testing.T) {
 	newLicenseCtx := func(t *testing.T, tier string) context.Context {
-		return license.NewContext(t.Context(), &fleet.LicenseInfo{Tier: tier})
+		return license.NewContext(t.Context(), &automdm.LicenseInfo{Tier: tier})
 	}
 
 	teamID1, teamID2 := uint(1), uint(2)
-	hostInTeam := func(id uint, teamID *uint) *fleet.Host {
-		return &fleet.Host{ID: id, TeamID: teamID}
+	hostInTeam := func(id uint, teamID *uint) *automdm.Host {
+		return &automdm.Host{ID: id, TeamID: teamID}
 	}
 
-	newDS := func(hosts []*fleet.Host, teamWebhooks map[uint]*fleet.HostActivitiesWebhookSettings, noTeamWebhook *fleet.HostActivitiesWebhookSettings) *mock.Store {
+	newDS := func(hosts []*automdm.Host, teamWebhooks map[uint]*automdm.HostActivitiesWebhookSettings, noTeamWebhook *automdm.HostActivitiesWebhookSettings) *mock.Store {
 		ds := new(mock.Store)
-		ds.ListHostsLiteByIDsFunc = func(ctx context.Context, ids []uint) ([]*fleet.Host, error) {
+		ds.ListHostsLiteByIDsFunc = func(ctx context.Context, ids []uint) ([]*automdm.Host, error) {
 			return hosts, nil
 		}
-		ds.TeamLitesByIDsFunc = func(ctx context.Context, ids []uint) ([]*fleet.TeamLite, error) {
-			teams := make([]*fleet.TeamLite, 0, len(ids))
+		ds.TeamLitesByIDsFunc = func(ctx context.Context, ids []uint) ([]*automdm.TeamLite, error) {
+			teams := make([]*automdm.TeamLite, 0, len(ids))
 			for _, tid := range ids {
 				// ID 0 ("Unassigned") is always present, synthesized from the
 				// default team config like the real bulk query.
 				if tid == 0 {
-					teams = append(teams, &fleet.TeamLite{
+					teams = append(teams, &automdm.TeamLite{
 						ID:     0,
-						Config: fleet.TeamConfigLite{WebhookSettings: fleet.TeamWebhookSettings{HostActivitiesWebhook: noTeamWebhook}},
+						Config: automdm.TeamConfigLite{WebhookSettings: automdm.TeamWebhookSettings{HostActivitiesWebhook: noTeamWebhook}},
 					})
 					continue
 				}
-				// Fleets absent from teamWebhooks are "deleted": omitted from
+				// Teams absent from teamWebhooks are "deleted": omitted from
 				// the result.
 				webhook, ok := teamWebhooks[tid]
 				if !ok {
 					continue
 				}
-				teams = append(teams, &fleet.TeamLite{
+				teams = append(teams, &automdm.TeamLite{
 					ID:     tid,
-					Config: fleet.TeamConfigLite{WebhookSettings: fleet.TeamWebhookSettings{HostActivitiesWebhook: webhook}},
+					Config: automdm.TeamConfigLite{WebhookSettings: automdm.TeamWebhookSettings{HostActivitiesWebhook: webhook}},
 				})
 			}
 			return teams, nil
@@ -325,55 +325,55 @@ func TestGetHostActivitiesWebhookSettings(t *testing.T) {
 		return ds
 	}
 
-	enabled := func(url string) *fleet.HostActivitiesWebhookSettings {
-		return &fleet.HostActivitiesWebhookSettings{Enable: true, DestinationURL: url}
+	enabled := func(url string) *automdm.HostActivitiesWebhookSettings {
+		return &automdm.HostActivitiesWebhookSettings{Enable: true, DestinationURL: url}
 	}
 
 	t.Run("free tier returns nil without touching the datastore", func(t *testing.T) {
-		ds := newDS([]*fleet.Host{hostInTeam(1, &teamID1)}, map[uint]*fleet.HostActivitiesWebhookSettings{teamID1: enabled("https://example.com")}, nil)
+		ds := newDS([]*automdm.Host{hostInTeam(1, &teamID1)}, map[uint]*automdm.HostActivitiesWebhookSettings{teamID1: enabled("https://example.com")}, nil)
 		svc := &Service{ds: ds}
-		settings, err := svc.GetHostActivitiesWebhookSettings(newLicenseCtx(t, fleet.TierFree), []uint{1})
+		settings, err := svc.GetHostActivitiesWebhookSettings(newLicenseCtx(t, automdm.TierFree), []uint{1})
 		require.NoError(t, err)
 		require.Nil(t, settings)
 		require.False(t, ds.ListHostsLiteByIDsFuncInvoked)
 	})
 
-	t.Run("returns the host's fleet webhook", func(t *testing.T) {
-		ds := newDS([]*fleet.Host{hostInTeam(1, &teamID1)}, map[uint]*fleet.HostActivitiesWebhookSettings{teamID1: enabled("https://example.com/a")}, nil)
+	t.Run("returns the host's team webhook", func(t *testing.T) {
+		ds := newDS([]*automdm.Host{hostInTeam(1, &teamID1)}, map[uint]*automdm.HostActivitiesWebhookSettings{teamID1: enabled("https://example.com/a")}, nil)
 		svc := &Service{ds: ds}
-		settings, err := svc.GetHostActivitiesWebhookSettings(newLicenseCtx(t, fleet.TierPremium), []uint{1})
+		settings, err := svc.GetHostActivitiesWebhookSettings(newLicenseCtx(t, automdm.TierPremium), []uint{1})
 		require.NoError(t, err)
 		require.Len(t, settings, 1)
 		require.Equal(t, "https://example.com/a", settings[0].DestinationURL)
 	})
 
-	t.Run("dedups hosts in the same fleet", func(t *testing.T) {
+	t.Run("dedups hosts in the same team", func(t *testing.T) {
 		ds := newDS(
-			[]*fleet.Host{hostInTeam(1, &teamID1), hostInTeam(2, &teamID1)},
-			map[uint]*fleet.HostActivitiesWebhookSettings{teamID1: enabled("https://example.com/a")},
+			[]*automdm.Host{hostInTeam(1, &teamID1), hostInTeam(2, &teamID1)},
+			map[uint]*automdm.HostActivitiesWebhookSettings{teamID1: enabled("https://example.com/a")},
 			nil,
 		)
 		svc := &Service{ds: ds}
-		settings, err := svc.GetHostActivitiesWebhookSettings(newLicenseCtx(t, fleet.TierPremium), []uint{1, 2})
+		settings, err := svc.GetHostActivitiesWebhookSettings(newLicenseCtx(t, automdm.TierPremium), []uint{1, 2})
 		require.NoError(t, err)
 		require.Len(t, settings, 1)
 		require.Equal(t, []uint{1, 2}, settings[0].HostIDs)
 	})
 
-	t.Run("hosts across fleets return one webhook per enabled fleet", func(t *testing.T) {
+	t.Run("hosts across teams return one webhook per enabled team", func(t *testing.T) {
 		ds := newDS(
-			[]*fleet.Host{hostInTeam(1, &teamID1), hostInTeam(2, &teamID2), hostInTeam(3, nil)},
-			map[uint]*fleet.HostActivitiesWebhookSettings{
+			[]*automdm.Host{hostInTeam(1, &teamID1), hostInTeam(2, &teamID2), hostInTeam(3, nil)},
+			map[uint]*automdm.HostActivitiesWebhookSettings{
 				teamID1: enabled("https://example.com/a"),
 				teamID2: {Enable: false, DestinationURL: "https://example.com/disabled"},
 			},
 			enabled("https://example.com/no-team"),
 		)
 		svc := &Service{ds: ds}
-		settings, err := svc.GetHostActivitiesWebhookSettings(newLicenseCtx(t, fleet.TierPremium), []uint{1, 2, 3})
+		settings, err := svc.GetHostActivitiesWebhookSettings(newLicenseCtx(t, automdm.TierPremium), []uint{1, 2, 3})
 		require.NoError(t, err)
-		// Each delivery carries only its own fleet's hosts (the fleet-2 host is
-		// absent entirely: that fleet's webhook is disabled).
+		// Each delivery carries only its own team's hosts (the automdm-2 host is
+		// absent entirely: that team's webhook is disabled).
 		hostsByURL := make(map[string][]uint, len(settings))
 		for _, s := range settings {
 			hostsByURL[s.DestinationURL] = s.HostIDs
@@ -384,20 +384,20 @@ func TestGetHostActivitiesWebhookSettings(t *testing.T) {
 		}, hostsByURL)
 	})
 
-	t.Run("fleets sharing a destination URL yield separate scoped deliveries", func(t *testing.T) {
+	t.Run("teams sharing a destination URL yield separate scoped deliveries", func(t *testing.T) {
 		ds := newDS(
-			[]*fleet.Host{hostInTeam(1, &teamID1), hostInTeam(2, &teamID2)},
-			map[uint]*fleet.HostActivitiesWebhookSettings{
+			[]*automdm.Host{hostInTeam(1, &teamID1), hostInTeam(2, &teamID2)},
+			map[uint]*automdm.HostActivitiesWebhookSettings{
 				teamID1: enabled("https://example.com/shared"),
 				teamID2: enabled("https://example.com/shared"),
 			},
 			nil,
 		)
 		svc := &Service{ds: ds}
-		settings, err := svc.GetHostActivitiesWebhookSettings(newLicenseCtx(t, fleet.TierPremium), []uint{1, 2})
+		settings, err := svc.GetHostActivitiesWebhookSettings(newLicenseCtx(t, automdm.TierPremium), []uint{1, 2})
 		require.NoError(t, err)
-		// A delivery is one fleet's subscription: sharing a URL must not merge
-		// fleets' host IDs into one payload.
+		// A delivery is one team's subscription: sharing a URL must not merge
+		// teams' host IDs into one payload.
 		require.Len(t, settings, 2)
 		require.Equal(t, "https://example.com/shared", settings[0].DestinationURL)
 		require.Equal(t, []uint{1}, settings[0].HostIDs)
@@ -405,14 +405,14 @@ func TestGetHostActivitiesWebhookSettings(t *testing.T) {
 		require.Equal(t, []uint{2}, settings[1].HostIDs)
 	})
 
-	t.Run("a fleet and no-fleet sharing a destination stay separate deliveries", func(t *testing.T) {
+	t.Run("a team and no-team sharing a destination stay separate deliveries", func(t *testing.T) {
 		ds := newDS(
-			[]*fleet.Host{hostInTeam(1, &teamID1), hostInTeam(2, nil)},
-			map[uint]*fleet.HostActivitiesWebhookSettings{teamID1: enabled("https://example.com/shared")},
+			[]*automdm.Host{hostInTeam(1, &teamID1), hostInTeam(2, nil)},
+			map[uint]*automdm.HostActivitiesWebhookSettings{teamID1: enabled("https://example.com/shared")},
 			enabled("https://example.com/shared"),
 		)
 		svc := &Service{ds: ds}
-		settings, err := svc.GetHostActivitiesWebhookSettings(newLicenseCtx(t, fleet.TierPremium), []uint{1, 2})
+		settings, err := svc.GetHostActivitiesWebhookSettings(newLicenseCtx(t, automdm.TierPremium), []uint{1, 2})
 		require.NoError(t, err)
 		require.Len(t, settings, 2)
 		require.Equal(t, []uint{1}, settings[0].HostIDs)
@@ -420,33 +420,33 @@ func TestGetHostActivitiesWebhookSettings(t *testing.T) {
 	})
 
 	t.Run("no-team host uses the default team config", func(t *testing.T) {
-		ds := newDS([]*fleet.Host{hostInTeam(1, nil)}, nil, enabled("https://example.com/no-team"))
+		ds := newDS([]*automdm.Host{hostInTeam(1, nil)}, nil, enabled("https://example.com/no-team"))
 		svc := &Service{ds: ds}
-		settings, err := svc.GetHostActivitiesWebhookSettings(newLicenseCtx(t, fleet.TierPremium), []uint{1})
+		settings, err := svc.GetHostActivitiesWebhookSettings(newLicenseCtx(t, automdm.TierPremium), []uint{1})
 		require.NoError(t, err)
 		require.Len(t, settings, 1)
 		require.Equal(t, "https://example.com/no-team", settings[0].DestinationURL)
 	})
 
-	t.Run("deleted fleet is skipped", func(t *testing.T) {
-		ds := newDS([]*fleet.Host{hostInTeam(1, &teamID1)}, nil, nil) // fleet absent from the bulk lookup
+	t.Run("deleted team is skipped", func(t *testing.T) {
+		ds := newDS([]*automdm.Host{hostInTeam(1, &teamID1)}, nil, nil) // team absent from the bulk lookup
 		svc := &Service{ds: ds}
-		settings, err := svc.GetHostActivitiesWebhookSettings(newLicenseCtx(t, fleet.TierPremium), []uint{1})
+		settings, err := svc.GetHostActivitiesWebhookSettings(newLicenseCtx(t, automdm.TierPremium), []uint{1})
 		require.NoError(t, err)
 		require.Empty(t, settings)
 	})
 
 	t.Run("nil or empty-URL webhooks are filtered", func(t *testing.T) {
 		ds := newDS(
-			[]*fleet.Host{hostInTeam(1, &teamID1), hostInTeam(2, &teamID2)},
-			map[uint]*fleet.HostActivitiesWebhookSettings{
+			[]*automdm.Host{hostInTeam(1, &teamID1), hostInTeam(2, &teamID2)},
+			map[uint]*automdm.HostActivitiesWebhookSettings{
 				teamID1: nil,
 				teamID2: {Enable: true, DestinationURL: ""},
 			},
 			nil,
 		)
 		svc := &Service{ds: ds}
-		settings, err := svc.GetHostActivitiesWebhookSettings(newLicenseCtx(t, fleet.TierPremium), []uint{1, 2})
+		settings, err := svc.GetHostActivitiesWebhookSettings(newLicenseCtx(t, automdm.TierPremium), []uint{1, 2})
 		require.NoError(t, err)
 		require.Empty(t, settings)
 	})
@@ -454,7 +454,7 @@ func TestGetHostActivitiesWebhookSettings(t *testing.T) {
 	t.Run("no host IDs short-circuits", func(t *testing.T) {
 		ds := new(mock.Store)
 		svc := &Service{ds: ds}
-		settings, err := svc.GetHostActivitiesWebhookSettings(newLicenseCtx(t, fleet.TierPremium), nil)
+		settings, err := svc.GetHostActivitiesWebhookSettings(newLicenseCtx(t, automdm.TierPremium), nil)
 		require.NoError(t, err)
 		require.Nil(t, settings)
 		require.False(t, ds.ListHostsLiteByIDsFuncInvoked)
@@ -466,7 +466,7 @@ func TestGetHostActivitiesWebhookSettings(t *testing.T) {
 func TestCancelActivitiesAndNotificationsForHost(t *testing.T) {
 	ctx := context.Background()
 	ds := new(mock.Store)
-	ds.BatchCancelAllHostUpcomingActivitiesFunc = func(context.Context, uint) ([]fleet.ActivityDetails, error) {
+	ds.BatchCancelAllHostUpcomingActivitiesFunc = func(context.Context, uint) ([]automdm.ActivityDetails, error) {
 		return nil, nil
 	}
 
@@ -480,7 +480,7 @@ func TestCancelActivitiesAndNotificationsForHost(t *testing.T) {
 	require.True(t, notificationsSvc.FailNotificationsForHostFuncInvoked)
 
 	// Cancelling the upcoming activities is the part of this cleanup the caller can still retry.
-	ds.BatchCancelAllHostUpcomingActivitiesFunc = func(context.Context, uint) ([]fleet.ActivityDetails, error) {
+	ds.BatchCancelAllHostUpcomingActivitiesFunc = func(context.Context, uint) ([]automdm.ActivityDetails, error) {
 		return nil, errors.New("database is down")
 	}
 	err = cancelActivitiesAndNotificationsForHost(ctx, ds, notificationsSvc, slog.New(slog.DiscardHandler), 1)
@@ -489,8 +489,8 @@ func TestCancelActivitiesAndNotificationsForHost(t *testing.T) {
 
 func TestReleaseVPPSeatUsesRecordedToken(t *testing.T) {
 	const adamID = "adam-1"
-	// The host moved to a fleet whose first token is not the one that reserved the seat.
-	host := &fleet.Host{ID: 1, HardwareSerial: "SERIAL-1", TeamID: new(uint(9))}
+	// The host moved to a team whose first token is not the one that reserved the seat.
+	host := &automdm.Host{ID: 1, HardwareSerial: "SERIAL-1", TeamID: new(uint(9))}
 
 	var auths []string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -499,30 +499,30 @@ func TestReleaseVPPSeatUsesRecordedToken(t *testing.T) {
 		_, _ = w.Write([]byte(`{"eventId":"evt"}`))
 	}))
 	t.Cleanup(srv.Close)
-	dev_mode.SetOverride("FLEET_DEV_VPP_URL", srv.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_VPP_URL", srv.URL, t)
 
 	newSvc := func() (*Service, *mock.Store) {
 		ds := new(mock.Store)
-		ds.GetHostMDMFunc = func(ctx context.Context, hostID uint) (*fleet.HostMDM, error) {
+		ds.GetHostMDMFunc = func(ctx context.Context, hostID uint) (*automdm.HostMDM, error) {
 			return nil, common_mysql.NotFound("HostMDM")
 		}
 		return &Service{ds: ds, logger: slog.New(slog.DiscardHandler)}, ds
 	}
-	info := func(tokenID *uint) *fleet.VPPInstallReleaseInfo {
-		return &fleet.VPPInstallReleaseInfo{AdamID: adamID, AssociatedEventID: "evt", VPPTokenID: tokenID}
+	info := func(tokenID *uint) *automdm.VPPInstallReleaseInfo {
+		return &automdm.VPPInstallReleaseInfo{AdamID: adamID, AssociatedEventID: "evt", VPPTokenID: tokenID}
 	}
 
 	t.Run("recorded token", func(t *testing.T) {
 		auths = nil
 		svc, ds := newSvc()
-		ds.GetVPPTokenFunc = func(ctx context.Context, id uint) (*fleet.VPPTokenDB, error) {
+		ds.GetVPPTokenFunc = func(ctx context.Context, id uint) (*automdm.VPPTokenDB, error) {
 			require.Equal(t, uint(5), id)
-			return &fleet.VPPTokenDB{ID: 5, Token: "tok-5"}, nil
+			return &automdm.VPPTokenDB{ID: 5, Token: "tok-5"}, nil
 		}
 
 		require.NoError(t, svc.releaseVPPSeat(t.Context(), host, info(new(uint(5))), nil))
 		require.Equal(t, []string{"Bearer tok-5"}, auths)
-		require.False(t, ds.GetVPPTokenByTeamIDFuncInvoked, "the host fleet's token must not be used")
+		require.False(t, ds.GetVPPTokenByTeamIDFuncInvoked, "the host team's token must not be used")
 	})
 
 	t.Run("no recorded token", func(t *testing.T) {
@@ -537,7 +537,7 @@ func TestReleaseVPPSeatUsesRecordedToken(t *testing.T) {
 	t.Run("recorded token deleted", func(t *testing.T) {
 		auths = nil
 		svc, ds := newSvc()
-		ds.GetVPPTokenFunc = func(ctx context.Context, id uint) (*fleet.VPPTokenDB, error) {
+		ds.GetVPPTokenFunc = func(ctx context.Context, id uint) (*automdm.VPPTokenDB, error) {
 			return nil, common_mysql.NotFound("VPPToken")
 		}
 

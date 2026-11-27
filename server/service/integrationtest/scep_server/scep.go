@@ -16,9 +16,9 @@ import (
 	"testing"
 	"time"
 
-	scepdepot "github.com/fleetdm/fleet/v4/server/mdm/scep/depot"
-	filedepot "github.com/fleetdm/fleet/v4/server/mdm/scep/depot/file"
-	scepserver "github.com/fleetdm/fleet/v4/server/mdm/scep/server"
+	scepdepot "github.com/anilyagiz/automdm/v4/server/mdm/scep/depot"
+	filedepot "github.com/anilyagiz/automdm/v4/server/mdm/scep/depot/file"
+	scepserver "github.com/anilyagiz/automdm/v4/server/mdm/scep/server"
 	"github.com/smallstep/scep"
 )
 
@@ -44,7 +44,7 @@ func StartTestSCEPServer(t *testing.T) *httptest.Server {
 		t.Fatalf("failed to write ca.pem: %v", err)
 	}
 
-	// Spin up an "external" SCEP server, which Fleet server will proxy
+	// Spin up an "external" SCEP server, which AutoMDM server will proxy
 	newSCEPServer := func(t *testing.T) *httptest.Server {
 		var server *httptest.Server
 		t.Cleanup(func() {

@@ -6,10 +6,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
-// Datastore decorates a fleet.Datastore so that every successful
+// Datastore decorates an automdm.Datastore so that every successful
 // config-affecting write fires the appropriate ETag invalidation (see the
 // package docs for the deployment-wide vs per-host split).
 //
@@ -24,21 +24,21 @@ import (
 // TestEveryWrappedMethodHasAHookCase requires one, so a wrapper cannot be
 // declared without proving it fires.
 //
-// If it cannot, do nothing: this type embeds fleet.Datastore, so the method is
+// If it cannot, do nothing: this type embeds automdm.Datastore, so the method is
 // promoted and passes straight through. That convenience is also the trap —
 // forgetting to wrap a config-affecting write produces no compile error and no
 // test failure, just hosts told {"etag":"ok"} against a config that changed,
 // until the backstop TTL expires up to an hour later. Nothing detects that
 // automatically; reflection cannot distinguish a promoted method from a
-// declared one, and snapshotting fleet.Datastore was tried and rejected as too
+// declared one, and snapshotting automdm.Datastore was tried and rejected as too
 // noisy to be trustworthy (see coverage_test.go). It is a review concern.
 type Datastore struct {
-	fleet.Datastore
-	store  fleet.ConfigETagStore
+	automdm.Datastore
+	store  automdm.ConfigETagStore
 	logger *slog.Logger
 	// errLogLast rate-limits invalidation-failure error logging (unix
 	// seconds of the last emitted line). Per-host invalidations run at
-	// fleet scale on every label cycle; during a Redis outage, unlimited
+	// team scale on every label cycle; during a Redis outage, unlimited
 	// error logging would emit at that same volume.
 	errLogLast atomic.Int64
 }
@@ -49,7 +49,7 @@ type Datastore struct {
 // included. Flipping the feature on later is still safe because every
 // enabling boot bumps the ETag generation before serving (see initRedis), so
 // records from a window without these hooks can never validate.
-func New(ds fleet.Datastore, store fleet.ConfigETagStore, logger *slog.Logger) *Datastore {
+func New(ds automdm.Datastore, store automdm.ConfigETagStore, logger *slog.Logger) *Datastore {
 	return &Datastore{
 		Datastore: ds,
 		store:     store,
@@ -58,7 +58,7 @@ func New(ds fleet.Datastore, store fleet.ConfigETagStore, logger *slog.Logger) *
 }
 
 // logErrRateLimited logs invalidation failures at most once per 30 seconds
-// per Fleet instance.
+// per AutoMDM instance.
 func (d *Datastore) logErrRateLimited(ctx context.Context, msg string, args ...any) {
 	const minInterval = 30 // seconds
 	now := time.Now().Unix()
@@ -104,7 +104,7 @@ func (d *Datastore) invalidateAndResetLabelScopes(ctx context.Context, reason st
 // publish quarantine. Errors are rate-limited-logged and swallowed: label
 // persistence must never fail because Redis is unreachable — the record's
 // jittered backstop TTL bounds the resulting staleness. Rate limiting
-// matters here specifically because this path runs at fleet scale on every
+// matters here specifically because this path runs at team scale on every
 // label cycle; a Redis outage must not log at that volume (failure counts
 // are in the store's invalidations_total{result="error"} metric).
 func (d *Datastore) invalidateHost(ctx context.Context, hostID uint, reason string) {
@@ -120,7 +120,7 @@ func (d *Datastore) invalidateHost(ctx context.Context, hostID uint, reason stri
 // alter the rendered osquery config.
 // ///////////////////////////////////////////////////////////////////////////
 
-func (d *Datastore) SaveAppConfig(ctx context.Context, info *fleet.AppConfig) error {
+func (d *Datastore) SaveAppConfig(ctx context.Context, info *automdm.AppConfig) error {
 	if err := d.Datastore.SaveAppConfig(ctx, info); err != nil {
 		return err
 	}
@@ -132,7 +132,7 @@ func (d *Datastore) SaveAppConfig(ctx context.Context, info *fleet.AppConfig) er
 // Teams: team agent options and team features live on the team record.
 // ///////////////////////////////////////////////////////////////////////////
 
-func (d *Datastore) NewTeam(ctx context.Context, team *fleet.Team) (*fleet.Team, error) {
+func (d *Datastore) NewTeam(ctx context.Context, team *automdm.Team) (*automdm.Team, error) {
 	t, err := d.Datastore.NewTeam(ctx, team)
 	if err != nil {
 		return nil, err
@@ -141,7 +141,7 @@ func (d *Datastore) NewTeam(ctx context.Context, team *fleet.Team) (*fleet.Team,
 	return t, nil
 }
 
-func (d *Datastore) SaveTeam(ctx context.Context, team *fleet.Team) (*fleet.Team, error) {
+func (d *Datastore) SaveTeam(ctx context.Context, team *automdm.Team) (*automdm.Team, error) {
 	t, err := d.Datastore.SaveTeam(ctx, team)
 	if err != nil {
 		return nil, err
@@ -166,7 +166,7 @@ func (d *Datastore) DeleteTeam(ctx context.Context, tid uint) error {
 // between shared and per-host mode.
 // ///////////////////////////////////////////////////////////////////////////
 
-func (d *Datastore) ApplyQueries(ctx context.Context, authorID uint, queries []*fleet.Query, queriesToDiscardResults map[uint]struct{}) error {
+func (d *Datastore) ApplyQueries(ctx context.Context, authorID uint, queries []*automdm.Query, queriesToDiscardResults map[uint]struct{}) error {
 	err := d.Datastore.ApplyQueries(ctx, authorID, queries, queriesToDiscardResults)
 	// Invalidate even on error: batches commit independently, so earlier ones
 	// may have changed reports.
@@ -174,7 +174,7 @@ func (d *Datastore) ApplyQueries(ctx context.Context, authorID uint, queries []*
 	return err
 }
 
-func (d *Datastore) NewQuery(ctx context.Context, query *fleet.Query, opts ...fleet.OptionalArg) (*fleet.Query, error) {
+func (d *Datastore) NewQuery(ctx context.Context, query *automdm.Query, opts ...automdm.OptionalArg) (*automdm.Query, error) {
 	q, err := d.Datastore.NewQuery(ctx, query, opts...)
 	if err != nil {
 		return nil, err
@@ -183,7 +183,7 @@ func (d *Datastore) NewQuery(ctx context.Context, query *fleet.Query, opts ...fl
 	return q, nil
 }
 
-func (d *Datastore) SaveQuery(ctx context.Context, query *fleet.Query, shouldDiscardResults bool, shouldDeleteStats bool) error {
+func (d *Datastore) SaveQuery(ctx context.Context, query *automdm.Query, shouldDiscardResults bool, shouldDeleteStats bool) error {
 	if err := d.Datastore.SaveQuery(ctx, query, shouldDiscardResults, shouldDeleteStats); err != nil {
 		return err
 	}
@@ -242,7 +242,7 @@ func (d *Datastore) DeleteLabel(ctx context.Context, id uint) error {
 // its own concrete receiver, so these two overrides can never both fire for
 // one logical apply (and even if a future implementation changed that,
 // doubled deployment invalidation is harmless).
-func (d *Datastore) ApplyLabelSpecs(ctx context.Context, specs []*fleet.LabelSpec) error {
+func (d *Datastore) ApplyLabelSpecs(ctx context.Context, specs []*automdm.LabelSpec) error {
 	if err := d.Datastore.ApplyLabelSpecs(ctx, specs); err != nil {
 		return err
 	}
@@ -250,7 +250,7 @@ func (d *Datastore) ApplyLabelSpecs(ctx context.Context, specs []*fleet.LabelSpe
 	return nil
 }
 
-func (d *Datastore) ApplyLabelSpecsWithAuthor(ctx context.Context, specs []*fleet.LabelSpec, authorID *uint) error {
+func (d *Datastore) ApplyLabelSpecsWithAuthor(ctx context.Context, specs []*automdm.LabelSpec, authorID *uint) error {
 	if err := d.Datastore.ApplyLabelSpecsWithAuthor(ctx, specs, authorID); err != nil {
 		return err
 	}
@@ -267,7 +267,7 @@ func (d *Datastore) ApplyLabelSpecsWithAuthor(ctx context.Context, specs []*flee
 // membership diff for a rare path. Label-QUERY edits alone would not need a
 // hook (membership changes flow through subsequent evaluation cycles), but
 // over-invalidating here is free.
-func (d *Datastore) SaveLabel(ctx context.Context, label *fleet.Label, hostIDs []uint, teamFilter fleet.TeamFilter) (*fleet.LabelWithTeamName, []uint, error) {
+func (d *Datastore) SaveLabel(ctx context.Context, label *automdm.Label, hostIDs []uint, teamFilter automdm.TeamFilter) (*automdm.LabelWithTeamName, []uint, error) {
 	l, ids, err := d.Datastore.SaveLabel(ctx, label, hostIDs, teamFilter)
 	if err != nil {
 		return nil, nil, err
@@ -279,7 +279,7 @@ func (d *Datastore) SaveLabel(ctx context.Context, label *fleet.Label, hostIDs [
 // UpdateLabelMembershipByHostIDs replaces a manual label's membership with
 // the given host list — same removal blindness as SaveLabel, same
 // deployment-wide answer.
-func (d *Datastore) UpdateLabelMembershipByHostIDs(ctx context.Context, label fleet.Label, hostIds []uint, teamFilter fleet.TeamFilter) (*fleet.Label, []uint, error) {
+func (d *Datastore) UpdateLabelMembershipByHostIDs(ctx context.Context, label automdm.Label, hostIds []uint, teamFilter automdm.TeamFilter) (*automdm.Label, []uint, error) {
 	l, ids, err := d.Datastore.UpdateLabelMembershipByHostIDs(ctx, label, hostIds, teamFilter)
 	if err != nil {
 		return nil, nil, err
@@ -296,7 +296,7 @@ func (d *Datastore) UpdateLabelMembershipByHostIDs(ctx context.Context, label fl
 // every member every 5 minutes). The datastore method computes and returns
 // exactly the hosts whose membership VALUE changed, inside its own
 // transaction — invalidate precisely those.
-func (d *Datastore) UpdateLabelMembershipByHostCriteria(ctx context.Context, hvl fleet.HostVitalsLabel) (*fleet.Label, []uint, error) {
+func (d *Datastore) UpdateLabelMembershipByHostCriteria(ctx context.Context, hvl automdm.HostVitalsLabel) (*automdm.Label, []uint, error) {
 	label, changedHostIDs, err := d.Datastore.UpdateLabelMembershipByHostCriteria(ctx, hvl)
 	if err != nil {
 		return nil, nil, err
@@ -335,7 +335,7 @@ func (d *Datastore) RemoveLabelsFromHost(ctx context.Context, hostID uint, label
 // invalidation runs only after the underlying write succeeds — invalidating
 // before commit would let an intervening build republish pre-change
 // membership before the write completes.
-func (d *Datastore) RecordLabelQueryExecutions(ctx context.Context, host *fleet.Host, results map[uint]*bool, t time.Time, deferredSaveHost bool) error {
+func (d *Datastore) RecordLabelQueryExecutions(ctx context.Context, host *automdm.Host, results map[uint]*bool, t time.Time, deferredSaveHost bool) error {
 	if err := d.Datastore.RecordLabelQueryExecutions(ctx, host, results, t, deferredSaveHost); err != nil {
 		return err
 	}

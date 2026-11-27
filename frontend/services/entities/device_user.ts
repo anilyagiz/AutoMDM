@@ -69,7 +69,7 @@ export interface IInitiateDeviceSSOResponse {
 }
 
 export interface IGetDeviceGoogleConditionalAccessResponse {
-  /** fleetdm.com's sign-in page, present only when the host should sign in. */
+  /** automdm.com's sign-in page, present only when the host should sign in. */
   sign_in_url?: string;
 }
 
@@ -111,7 +111,7 @@ export default {
     return sendRequest("POST", path);
   },
 
-  /** Starts the Fleet Desktop SSO flow. Sets the SSO handshake cookie and
+  /** Starts the AutoMDM Desktop SSO flow. Sets the SSO handshake cookie and
    * returns the IdP URL to navigate to; the session cookie is set server-side
    * when the IdP calls back. */
   initiateDeviceSSO: (

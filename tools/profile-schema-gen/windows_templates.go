@@ -10,7 +10,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/pkg/mdm/profilevalidation"
+	"github.com/anilyagiz/automdm/v4/pkg/mdm/profilevalidation"
 )
 
 // windowsTemplatesPath is the profile generator's third-party ADMX template data. It's in this repo,

@@ -16,7 +16,7 @@ import useFormValidation, { IFormErrors } from "hooks/useFormValidation";
 import { ITeam } from "interfaces/team";
 import { UserRole } from "interfaces/user";
 import PATHS from "router/paths";
-import { FLEET_GUIDES_BASE_LINK, PRIMO_TOOLTIP } from "utilities/constants";
+import { AUTOMDM_GUIDES_BASE_LINK, PRIMO_TOOLTIP } from "utilities/constants";
 
 import { roleOptions } from "../../helpers/userManagementHelpers";
 import SelectedTeamsForm from "../SelectedTeamsForm/SelectedTeamsForm";
@@ -49,7 +49,7 @@ export interface IUserFormData {
   sso_enabled: boolean;
   mfa_enabled?: boolean;
   global_role: UserRole | null;
-  fleets: ITeam[];
+  teams: ITeam[];
   currentUserId?: number;
   invited_by?: number;
   role?: UserRole;
@@ -144,7 +144,7 @@ const UserForm = ({
       sso_enabled: isSsoEnabled || false,
       mfa_enabled: isMfaEnabled || false,
       global_role: defaultGlobalRole || null,
-      fleets: defaultTeams || [],
+      teams: defaultTeams || [],
     },
     validate,
     serverErrors,
@@ -159,7 +159,7 @@ const UserForm = ({
   // `hydrate` setter.
   useEffect(() => {
     if (isPrimoMode) {
-      commitFields({ global_role: "observer", fleets: [] });
+      commitFields({ global_role: "observer", teams: [] });
     }
   }, [isPrimoMode, commitFields]);
 
@@ -194,7 +194,7 @@ const UserForm = ({
       sso_enabled: data.sso_enabled,
       mfa_enabled: data.mfa_enabled,
       global_role: data.global_role,
-      fleets: data.fleets,
+      teams: data.teams,
       currentUserId,
     };
 
@@ -223,8 +223,8 @@ const UserForm = ({
     }
 
     return data.global_role !== null
-      ? { ...submitData, global_role: data.global_role, fleets: [] }
-      : { ...submitData, global_role: null, fleets: data.fleets };
+      ? { ...submitData, global_role: data.global_role, teams: [] }
+      : { ...submitData, global_role: null, teams: data.teams };
   };
 
   const onValidSubmit = (data: UserFormState) =>
@@ -237,10 +237,10 @@ const UserForm = ({
           <InfoBanner className={`${baseClass}__user-permissions-info`}>
             <p>
               Global users can manage or observe all users, entities, and
-              settings in Fleet.
+              settings in AutoMDM.
             </p>
             <CustomLink
-              url="https://fleetdm.com/docs/using-fleet/permissions#user-permissions"
+              url="https://automdm.com/docs/using-automdm/permissions#user-permissions"
               text="Learn more about user permissions"
               newTab
               variant="banner-link"
@@ -265,15 +265,15 @@ const UserForm = ({
     return (
       <div>
         <p>
-          <strong>You have no fleets.</strong>
+          <strong>You have no teams.</strong>
         </p>
         <p>
-          Expecting to see fleets? Try again in a few seconds as the system
+          Expecting to see teams? Try again in a few seconds as the system
           catches up or&nbsp;
           <CustomLink
             className={`${baseClass}__create-team-link`}
-            url={PATHS.ADMIN_FLEETS}
-            text="create a fleet"
+            url={PATHS.ADMIN_TEAMS}
+            text="create a team"
           />
           .
         </p>
@@ -292,11 +292,11 @@ const UserForm = ({
                 className={`${baseClass}__user-permissions-info`}
               >
                 <p>
-                  Users can manage or observe fleet-specific users, entities,
-                  and settings in Fleet.
+                  Users can manage or observe automdm-specific users, entities,
+                  and settings in AutoMDM.
                 </p>
                 <CustomLink
-                  url={`${FLEET_GUIDES_BASE_LINK}/role-based-access#fleet-level-user-permissions`}
+                  url={`${AUTOMDM_GUIDES_BASE_LINK}/role-based-access#team-level-user-permissions`}
                   text="Learn more about user permissions"
                   newTab
                   variant="banner-link"
@@ -304,25 +304,25 @@ const UserForm = ({
               </InfoBanner>
               <SelectedTeamsForm
                 availableTeams={availableTeams}
-                usersCurrentTeams={formData.fleets}
-                onFormChange={(fleets: ITeam[]) => commitFields({ fleets })}
+                usersCurrentTeams={formData.teams}
+                onFormChange={(teams: ITeam[]) => commitFields({ teams })}
                 isApiOnly={isApiOnly}
                 disabled={isSubmitting}
               />
             </>
           ) : (
             <SelectRoleForm
-              currentTeam={currentTeam || formData.fleets[0]}
-              teams={formData.fleets}
+              currentTeam={currentTeam || formData.teams[0]}
+              teams={formData.teams}
               defaultTeamRole={defaultTeamRole || "Observer"}
-              onFormChange={(fleets: ITeam[]) => commitFields({ fleets })}
+              onFormChange={(teams: ITeam[]) => commitFields({ teams })}
               isApiOnly={isApiOnly}
               disabled={isSubmitting}
             />
           ))}
-        {getError("fleets") && (
+        {getError("teams") && (
           <div className="form-field__label form-field__label--error">
-            {getError("fleets")}
+            {getError("teams")}
           </div>
         )}
         {!availableTeams.length && renderNoTeamsMessage()}
@@ -332,8 +332,8 @@ const UserForm = ({
 
   if (!isPremiumTier && !isGlobalUser) {
     console.log(
-      `Note: Fleet Free UI does not have fleets options.\n
-        User ${formData.name} is already assigned to a fleet and cannot be reassigned without access to Fleet Premium UI.`
+      `Note: AutoMDM Free UI does not have teams options.\n
+        User ${formData.name} is already assigned to a team and cannot be reassigned without access to AutoMDM Premium UI.`
     );
   }
 
@@ -481,11 +481,11 @@ const UserForm = ({
           isNewUser ? (
             <>
               This password is temporary. This user will be asked to set a new
-              password after logging in to the Fleet UI.
+              password after logging in to the AutoMDM UI.
               <br />
               <br />
               This user will not be asked to set a new password after logging in
-              to fleetctl or the Fleet API.
+              to automdmctl or the AutoMDM API.
             </>
           ) : undefined
         }
@@ -551,7 +551,7 @@ const UserForm = ({
           />
           <Radio
             className={`${baseClass}__radio-input`}
-            label="Assign to fleet(s)"
+            label="Assign to team(s)"
             id="assign-teams"
             checked={!isGlobalUser}
             value={UserTeamType.AssignTeams}
@@ -576,7 +576,7 @@ const UserForm = ({
         />
         <Radio
           className={`${baseClass}__radio-input`}
-          label={`Assign to fleet(s)`}
+          label={`Assign to team(s)`}
           id="assign-teams"
           checked={!isGlobalUser}
           value={UserTeamType.AssignTeams}

@@ -15,10 +15,10 @@ import { UNCHANGED_PASSWORD_API_RESPONSE } from "utilities/constants";
 
 const API_KEY_JSON_PLACEHOLDER = `{
   "type": "service_account",
-  "project_id": "fleet-idp-sync",
+  "project_id": "automdm-idp-sync",
   "private_key_id": "<private key id>",
   "private_key": "-----BEGIN PRIVATE KEY----\\n<private key>\\n-----END PRIVATE KEY-----\\n",
-  "client_email": "fleet-idp-sync@fleet-idp-sync.iam.gserviceaccount.com",
+  "client_email": "automdm-idp-sync@automdm-idp-sync.iam.gserviceaccount.com",
   "client_id": "<client id>",
   "token_uri": "https://oauth2.googleapis.com/token",
   "universe_domain": "googleapis.com"
@@ -188,7 +188,7 @@ const GoogleWorkspaceSection = ({
         content={
           <>
             Configure these settings to populate IdP host vitals from Google
-            Workspace. When Google Workspace is connected, Fleet ignores SCIM
+            Workspace. When Google Workspace is connected, AutoMDM ignores SCIM
             provisioning from other IdPs (e.g Okta, Entra ID).
           </>
         }

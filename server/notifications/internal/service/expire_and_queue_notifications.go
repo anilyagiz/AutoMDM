@@ -4,7 +4,7 @@ import (
 	"context"
 	_ "embed"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 )
 
 // a batch is one notification for each of up to this many hosts
@@ -41,7 +41,7 @@ func (s *Service) ExpireAndQueueNotifications(ctx context.Context) error {
 		}
 
 		// the script is the same for every notification, so nothing is rendered
-		// here. GetHostScript puts each notification's URL into it when fleetd
+		// here. GetHostScript puts each notification's URL into it when automdmd
 		// fetches it.
 		executionIDByHost, err := s.scriptQueue.QueueScriptForHosts(ctx, hostIDs, endUserNotificationScript)
 		if err != nil {

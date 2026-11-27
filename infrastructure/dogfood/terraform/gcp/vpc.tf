@@ -47,12 +47,12 @@ module "private-service-access" {
 module "cloud_router" {
   source  = "terraform-google-modules/cloud-router/google"
   version = "~> 6.0"
-  name    = "fleet-cloud-router"
+  name    = "automdm-cloud-router"
   project = var.project_id
   network = module.vpc.network_name
   region  = var.region
 
   nats = [{
-    name = "fleet-vpc-nat"
+    name = "automdm-vpc-nat"
   }]
 }

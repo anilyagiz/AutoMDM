@@ -6,11 +6,11 @@ import { renderWithSetup } from "test/test-utils";
 import ProfileBottomBar from "./ProfileBottomBar";
 
 describe("ProfileBottomBar", () => {
-  it("says the profile applies to all hosts in the fleet", () => {
+  it("says the profile applies to all hosts in the team", () => {
     renderWithSetup(
       <ProfileBottomBar
         targetType="All hosts"
-        fleetName="Workstations"
+        automdmName="Workstations"
         submitButton={<button type="submit">Add profile</button>}
       />
     );
@@ -23,7 +23,7 @@ describe("ProfileBottomBar", () => {
     ).toBeInTheDocument();
   });
 
-  it("says custom targets and leaves out a missing fleet", () => {
+  it("says custom targets and leaves out a missing team", () => {
     renderWithSetup(
       <ProfileBottomBar targetType="Custom" submitButton={null} />
     );

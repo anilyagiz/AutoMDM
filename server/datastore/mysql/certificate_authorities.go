@@ -11,17 +11,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/certificate"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/crypto"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/pkg/certificate"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/crypto"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/jmoiron/sqlx"
 )
 
 type certificateAuthorityWithEncryptedSecrets struct {
-	fleet.CertificateAuthority
+	automdm.CertificateAuthority
 	APITokenEncrypted                []byte `db:"api_token_encrypted"`
 	PasswordEncrypted                []byte `db:"password_encrypted"`
 	ChallengeEncrypted               []byte `db:"challenge_encrypted"`
@@ -48,7 +48,7 @@ const googleCASColumns = `
 		google_cas_ca_pool,
 		google_cas_api_key_json_encrypted,`
 
-func (ds *Datastore) GetCertificateAuthorityByID(ctx context.Context, id uint, includeSecrets bool) (*fleet.CertificateAuthority, error) {
+func (ds *Datastore) GetCertificateAuthorityByID(ctx context.Context, id uint, includeSecrets bool) (*automdm.CertificateAuthority, error) {
 	stmt := `
 	SELECT
 		id,
@@ -137,22 +137,22 @@ func (ds *Datastore) postprocessRetrievedCertificateAuthority(ctx context.Contex
 		}
 	} else {
 		if ca.APITokenEncrypted != nil {
-			ca.APIToken = ptr.String(fleet.MaskedPassword)
+			ca.APIToken = ptr.String(automdm.MaskedPassword)
 		}
 		if ca.PasswordEncrypted != nil {
-			ca.Password = ptr.String(fleet.MaskedPassword)
+			ca.Password = ptr.String(automdm.MaskedPassword)
 		}
 		if ca.ChallengeEncrypted != nil {
-			ca.Challenge = ptr.String(fleet.MaskedPassword)
+			ca.Challenge = ptr.String(automdm.MaskedPassword)
 		}
 		if ca.ClientSecretEncrypted != nil {
-			ca.ClientSecret = ptr.String(fleet.MaskedPassword)
+			ca.ClientSecret = ptr.String(automdm.MaskedPassword)
 		}
 		if ca.MTLSKeyEncrypted != nil {
-			ca.MTLSKeyPEM = new(fleet.MaskedPassword)
+			ca.MTLSKeyPEM = new(automdm.MaskedPassword)
 		}
 		if ca.GoogleCASAPIKeyJSONEncrypted != nil {
-			ca.GoogleCASAPIKeyJSON = new(fleet.MaskedPassword)
+			ca.GoogleCASAPIKeyJSON = new(automdm.MaskedPassword)
 		}
 	}
 	if ca.MTLSCertPEM != nil {
@@ -181,7 +181,7 @@ func (ds *Datastore) mtlsCertExpiry(ctx context.Context, caID uint, certPEM stri
 	return &cert.NotAfter
 }
 
-func (ds *Datastore) GetAllCertificateAuthorities(ctx context.Context, includeSecrets bool) ([]*fleet.CertificateAuthority, error) {
+func (ds *Datastore) GetAllCertificateAuthorities(ctx context.Context, includeSecrets bool) ([]*automdm.CertificateAuthority, error) {
 	stmt := `
 	SELECT
 		id,
@@ -211,7 +211,7 @@ func (ds *Datastore) GetAllCertificateAuthorities(ctx context.Context, includeSe
 		return nil, ctxerr.Wrapf(ctx, err, "select CertificateAuthorities")
 	}
 
-	processedCAs := make([]*fleet.CertificateAuthority, 0, len(cas))
+	processedCAs := make([]*automdm.CertificateAuthority, 0, len(cas))
 
 	for _, ca := range cas {
 		if err := ds.postprocessRetrievedCertificateAuthority(ctx, &ca, includeSecrets); err != nil {
@@ -223,7 +223,7 @@ func (ds *Datastore) GetAllCertificateAuthorities(ctx context.Context, includeSe
 	return processedCAs, nil
 }
 
-func (ds *Datastore) ListCertificateAuthorities(ctx context.Context) ([]*fleet.CertificateAuthoritySummary, error) {
+func (ds *Datastore) ListCertificateAuthorities(ctx context.Context) ([]*automdm.CertificateAuthoritySummary, error) {
 	stmt := `
 	SELECT
 		id, name, type, mtls_cert_pem
@@ -233,7 +233,7 @@ func (ds *Datastore) ListCertificateAuthorities(ctx context.Context) ([]*fleet.C
 		name
 	`
 
-	var cas []*fleet.CertificateAuthoritySummary = []*fleet.CertificateAuthoritySummary{}
+	var cas []*automdm.CertificateAuthoritySummary = []*automdm.CertificateAuthoritySummary{}
 	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &cas, stmt); err != nil {
 		return nil, ctxerr.Wrapf(ctx, err, "list CertificateAuthorities")
 	}
@@ -247,17 +247,17 @@ func (ds *Datastore) ListCertificateAuthorities(ctx context.Context) ([]*fleet.C
 	return cas, nil
 }
 
-func (ds *Datastore) GetGroupedCertificateAuthorities(ctx context.Context, includeSecrets bool) (*fleet.GroupedCertificateAuthorities, error) {
+func (ds *Datastore) GetGroupedCertificateAuthorities(ctx context.Context, includeSecrets bool) (*automdm.GroupedCertificateAuthorities, error) {
 	allCertificateAuthorities, err := ds.GetAllCertificateAuthorities(ctx, includeSecrets)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "getting all certificates for grouping")
 	}
 
-	return fleet.GroupCertificateAuthoritiesByType(allCertificateAuthorities)
+	return automdm.GroupCertificateAuthoritiesByType(allCertificateAuthorities)
 }
 
 // Create CA. MUST include secrets
-func (ds *Datastore) NewCertificateAuthority(ctx context.Context, ca *fleet.CertificateAuthority) (*fleet.CertificateAuthority, error) {
+func (ds *Datastore) NewCertificateAuthority(ctx context.Context, ca *automdm.CertificateAuthority) (*automdm.CertificateAuthority, error) {
 	args, placeholders, err := sqlGenerateArgsForInsertCertificateAuthority(ctx, ds.serverPrivateKey, ca)
 	if err != nil {
 		return nil, err
@@ -370,7 +370,7 @@ const sqlUpsertCertificateAuthority = sqlInsertCertificateAuthority + ` ON DUPLI
 	google_cas_ca_pool = VALUES(google_cas_ca_pool),
 	google_cas_api_key_json_encrypted = VALUES(google_cas_api_key_json_encrypted)`
 
-func sqlGenerateArgsForInsertCertificateAuthority(ctx context.Context, serverPrivateKey string, ca *fleet.CertificateAuthority) ([]interface{}, string, error) {
+func sqlGenerateArgsForInsertCertificateAuthority(ctx context.Context, serverPrivateKey string, ca *automdm.CertificateAuthority) ([]interface{}, string, error) {
 	var upns []byte
 	var encryptedPassword []byte
 	var encryptedChallenge []byte
@@ -456,7 +456,7 @@ func sqlGenerateArgsForInsertCertificateAuthority(ctx context.Context, serverPri
 	return args, placeholders, nil
 }
 
-func batchUpsertCertificateAuthorities(ctx context.Context, tx sqlx.ExtContext, serverPrivateKey string, certificateAuthorities []*fleet.CertificateAuthority) error {
+func batchUpsertCertificateAuthorities(ctx context.Context, tx sqlx.ExtContext, serverPrivateKey string, certificateAuthorities []*automdm.CertificateAuthority) error {
 	if len(certificateAuthorities) == 0 {
 		return nil
 	}
@@ -482,7 +482,7 @@ func batchUpsertCertificateAuthorities(ctx context.Context, tx sqlx.ExtContext, 
 	return nil
 }
 
-func batchDeleteCertificateAuthorities(ctx context.Context, tx sqlx.ExtContext, certificateAuthorities []*fleet.CertificateAuthority) error {
+func batchDeleteCertificateAuthorities(ctx context.Context, tx sqlx.ExtContext, certificateAuthorities []*automdm.CertificateAuthority) error {
 	if len(certificateAuthorities) == 0 {
 		return nil
 	}
@@ -491,8 +491,8 @@ func batchDeleteCertificateAuthorities(ctx context.Context, tx sqlx.ExtContext, 
 	_, err := tx.ExecContext(ctx, `DELETE FROM certificate_authorities WHERE (name, type) IN (`+placeholders+`)`, args...)
 	if err != nil {
 		if isMySQLForeignKey(err) {
-			return &fleet.ConflictError{
-				Message: "Couldn't delete certificate authority. " + fleet.DeleteCAReferencedByTemplatesErrMsg + ". Please remove the certificate templates first.",
+			return &automdm.ConflictError{
+				Message: "Couldn't delete certificate authority. " + automdm.DeleteCAReferencedByTemplatesErrMsg + ". Please remove the certificate templates first.",
 			}
 		}
 		return ctxerr.Wrap(ctx, err, "deleting certificate authorities")
@@ -502,7 +502,7 @@ func batchDeleteCertificateAuthorities(ctx context.Context, tx sqlx.ExtContext, 
 }
 
 // caNameTypeTuples returns the placeholders and args that match the CAs by (name, type).
-func caNameTypeTuples(cas []*fleet.CertificateAuthority) (string, []any) {
+func caNameTypeTuples(cas []*automdm.CertificateAuthority) (string, []any) {
 	args := make([]any, 0, len(cas)*2)
 	for _, ca := range cas {
 		args = append(args, ca.Name, ca.Type)
@@ -511,8 +511,8 @@ func caNameTypeTuples(cas []*fleet.CertificateAuthority) (string, []any) {
 }
 
 // deleteCertificateTemplatesUsingCAsDB deletes the certificate templates that use the CAs, and has the hosts remove the certificates they
-// got from them, like deleting a template does. It returns the IDs of the fleets the templates belonged to.
-func deleteCertificateTemplatesUsingCAsDB(ctx context.Context, tx sqlx.ExtContext, cas []*fleet.CertificateAuthority) ([]uint, error) {
+// got from them, like deleting a template does. It returns the IDs of the teams the templates belonged to.
+func deleteCertificateTemplatesUsingCAsDB(ctx context.Context, tx sqlx.ExtContext, cas []*automdm.CertificateAuthority) ([]uint, error) {
 	if len(cas) == 0 {
 		return nil, nil
 	}
@@ -533,11 +533,11 @@ func deleteCertificateTemplatesUsingCAsDB(ctx context.Context, tx sqlx.ExtContex
 		return nil, nil
 	}
 	templateIDs := make([]uint, 0, len(templates))
-	fleetIDs := make([]uint, 0, len(templates))
+	automdmIDs := make([]uint, 0, len(templates))
 	for _, template := range templates {
 		templateIDs = append(templateIDs, template.ID)
-		if !slices.Contains(fleetIDs, template.TeamID) {
-			fleetIDs = append(fleetIDs, template.TeamID)
+		if !slices.Contains(automdmIDs, template.TeamID) {
+			automdmIDs = append(automdmIDs, template.TeamID)
 		}
 	}
 
@@ -551,20 +551,20 @@ func deleteCertificateTemplatesUsingCAsDB(ctx context.Context, tx sqlx.ExtContex
 	if _, err := tx.ExecContext(ctx, stmt, deleteArgs...); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "delete certificate templates using deleted certificate authorities")
 	}
-	return fleetIDs, nil
+	return automdmIDs, nil
 }
 
-func (ds *Datastore) BatchApplyCertificateAuthorities(ctx context.Context, ops fleet.CertificateAuthoritiesBatchOperations,
+func (ds *Datastore) BatchApplyCertificateAuthorities(ctx context.Context, ops automdm.CertificateAuthoritiesBatchOperations,
 ) ([]uint, error) {
-	upserts := make([]*fleet.CertificateAuthority, 0, len(ops.Add)+len(ops.Update))
+	upserts := make([]*automdm.CertificateAuthority, 0, len(ops.Add)+len(ops.Update))
 	upserts = append(upserts, ops.Add...)
 	upserts = append(upserts, ops.Update...)
 
-	var templateFleetIDs []uint
+	var templateTeamIDs []uint
 	err := ds.withRetryTxx(ctx, func(tx sqlx.ExtContext) error {
-		resendCANames := make(map[fleet.CAType][]string, len(profileCATypes))
+		resendCANames := make(map[automdm.CAType][]string, len(profileCATypes))
 		for _, t := range profileCATypes {
-			var updates []*fleet.CertificateAuthority
+			var updates []*automdm.CertificateAuthority
 			var names []string
 			for _, ca := range ops.Update {
 				if ca.Type == string(t.caType) {
@@ -590,7 +590,7 @@ func (ds *Datastore) BatchApplyCertificateAuthorities(ctx context.Context, ops f
 		}
 		if ops.DeleteCertificateTemplates {
 			var err error
-			if templateFleetIDs, err = deleteCertificateTemplatesUsingCAsDB(ctx, tx, ops.Delete); err != nil {
+			if templateTeamIDs, err = deleteCertificateTemplatesUsingCAsDB(ctx, tx, ops.Delete); err != nil {
 				return err
 			}
 		}
@@ -619,22 +619,22 @@ func (ds *Datastore) BatchApplyCertificateAuthorities(ctx context.Context, ops f
 	if err != nil {
 		return nil, err
 	}
-	return templateFleetIDs, nil
+	return templateTeamIDs, nil
 }
 
 // profileCATypes are the CA types that issue a certificate for each host when a profile that uses their data variable is delivered.
 var profileCATypes = []struct {
-	caType  fleet.CAType
-	dataVar fleet.FleetVarName
+	caType  automdm.CAType
+	dataVar automdm.AutoMDMVarName
 }{
-	{fleet.CATypeDigiCert, fleet.FleetVarDigiCertDataPrefix},
-	{fleet.CATypeEJBCA, fleet.FleetVarEJBCADataPrefix},
+	{automdm.CATypeDigiCert, automdm.AutoMDMVarDigiCertDataPrefix},
+	{automdm.CATypeEJBCA, automdm.AutoMDMVarEJBCADataPrefix},
 }
 
 // getCAsForUpdateDB locks the CAs of a type matching where, selecting only the fields that certificateFieldsChanged compares. The result is
 // keyed by the lowercase name, because the column compares names without regard to case.
-func (ds *Datastore) getCAsForUpdateDB(ctx context.Context, tx sqlx.ExtContext, caType fleet.CAType, where string, args ...any,
-) (map[string]*fleet.CertificateAuthority, error) {
+func (ds *Datastore) getCAsForUpdateDB(ctx context.Context, tx sqlx.ExtContext, caType automdm.CAType, where string, args ...any,
+) (map[string]*automdm.CertificateAuthority, error) {
 	stmt, args, err := sqlx.In(`
 		SELECT
 			id, type, name, profile_id, certificate_common_name, certificate_user_principal_names, certificate_seat_id, ejbca_ca_name,
@@ -649,7 +649,7 @@ func (ds *Datastore) getCAsForUpdateDB(ctx context.Context, tx sqlx.ExtContext, 
 	if err := sqlx.SelectContext(ctx, tx, &rows, stmt, args...); err != nil {
 		return nil, ctxerr.Wrapf(ctx, err, "select %s certificate authorities for update", caType)
 	}
-	cas := make(map[string]*fleet.CertificateAuthority, len(rows))
+	cas := make(map[string]*automdm.CertificateAuthority, len(rows))
 	for _, row := range rows {
 		if err := ds.postprocessRetrievedCertificateAuthority(ctx, &row, false); err != nil {
 			return nil, err
@@ -661,17 +661,17 @@ func (ds *Datastore) getCAsForUpdateDB(ctx context.Context, tx sqlx.ExtContext, 
 
 // certificateFieldsChanged reports whether an update changes what the CA puts in issued certificates. Nil fields are unchanged in a
 // partial update, but cleared in a full replacement such as a batch apply.
-func certificateFieldsChanged(oldCA, ca *fleet.CertificateAuthority, fullReplacement bool) bool {
+func certificateFieldsChanged(oldCA, ca *automdm.CertificateAuthority, fullReplacement bool) bool {
 	upnsChanged := (ca.CertificateUserPrincipalNames != nil || fullReplacement) &&
 		!slices.Equal(ptr.ValOrZero(ca.CertificateUserPrincipalNames), ptr.ValOrZero(oldCA.CertificateUserPrincipalNames))
 	changed := func(updated, old *string) bool {
 		return (updated != nil || fullReplacement) && ptr.ValOrZero(updated) != ptr.ValOrZero(old)
 	}
-	switch fleet.CAType(ca.Type) {
-	case fleet.CATypeDigiCert:
+	switch automdm.CAType(ca.Type) {
+	case automdm.CATypeDigiCert:
 		return changed(ca.ProfileID, oldCA.ProfileID) || changed(ca.CertificateCommonName, oldCA.CertificateCommonName) ||
 			changed(ca.CertificateSeatID, oldCA.CertificateSeatID) || upnsChanged
-	case fleet.CATypeEJBCA:
+	case automdm.CATypeEJBCA:
 		return changed(ca.EJBCACAName, oldCA.EJBCACAName) || changed(ca.EJBCACertificateProfileName, oldCA.EJBCACertificateProfileName) ||
 			changed(ca.EJBCAEndEntityProfileName, oldCA.EJBCAEndEntityProfileName) ||
 			changed(ca.CertificateCommonName, oldCA.CertificateCommonName) ||
@@ -681,7 +681,7 @@ func certificateFieldsChanged(oldCA, ca *fleet.CertificateAuthority, fullReplace
 	}
 }
 
-func (ds *Datastore) DeleteCertificateAuthority(ctx context.Context, certificateAuthorityID uint) (*fleet.CertificateAuthoritySummary, error) {
+func (ds *Datastore) DeleteCertificateAuthority(ctx context.Context, certificateAuthorityID uint) (*automdm.CertificateAuthoritySummary, error) {
 	stmt := `
 	SELECT
 		id, name, type
@@ -691,7 +691,7 @@ func (ds *Datastore) DeleteCertificateAuthority(ctx context.Context, certificate
 		id = ?
 	`
 
-	var ca fleet.CertificateAuthoritySummary
+	var ca automdm.CertificateAuthoritySummary
 	if err := sqlx.GetContext(ctx, ds.reader(ctx), &ca, stmt, certificateAuthorityID); err != nil {
 		if strings.Contains(err.Error(), "no rows in result set") {
 			return nil, common_mysql.NotFound(fmt.Sprintf("certificate authority with id %d", certificateAuthorityID))
@@ -703,8 +703,8 @@ func (ds *Datastore) DeleteCertificateAuthority(ctx context.Context, certificate
 	result, err := ds.writer(ctx).ExecContext(ctx, stmt, certificateAuthorityID)
 	if err != nil {
 		if isMySQLForeignKey(err) {
-			return nil, fleet.ConflictError{
-				Message: "Couldn't delete certificate authority. " + fleet.DeleteCAReferencedByTemplatesErrMsg + ". Please remove the certificate templates first.",
+			return nil, automdm.ConflictError{
+				Message: "Couldn't delete certificate authority. " + automdm.DeleteCAReferencedByTemplatesErrMsg + ". Please remove the certificate templates first.",
 			}
 		}
 		return nil, ctxerr.Wrap(ctx, err, fmt.Sprintf("deleting certificate authority with id %d", certificateAuthorityID))
@@ -722,7 +722,7 @@ func (ds *Datastore) DeleteCertificateAuthority(ctx context.Context, certificate
 	return &ca, nil
 }
 
-func (ds *Datastore) UpdateCertificateAuthorityByID(ctx context.Context, certificateAuthorityID uint, ca *fleet.CertificateAuthority) error {
+func (ds *Datastore) UpdateCertificateAuthorityByID(ctx context.Context, certificateAuthorityID uint, ca *automdm.CertificateAuthority) error {
 	oldCA, err := ds.GetCertificateAuthorityByID(ctx, certificateAuthorityID, false)
 	if err != nil {
 		return ctxerr.Wrapf(ctx, err, "getting certificate authority with id %d", certificateAuthorityID)
@@ -731,7 +731,7 @@ func (ds *Datastore) UpdateCertificateAuthorityByID(ctx context.Context, certifi
 	// If the name is being updated, check if it's the same as the old one.
 	sameName := ca.Name != nil && *oldCA.Name == *ca.Name
 	if sameName {
-		return fleet.ConflictError{Message: "a certificate authority with this name already exists"}
+		return automdm.ConflictError{Message: "a certificate authority with this name already exists"}
 	}
 
 	var updateArgs []any
@@ -750,9 +750,9 @@ func (ds *Datastore) UpdateCertificateAuthorityByID(ctx context.Context, certifi
 
 	return ds.withRetryTxx(ctx, func(tx sqlx.ExtContext) error {
 		var resendCAName *string
-		dataVar, resends := dataVarForCAType(fleet.CAType(ca.Type))
+		dataVar, resends := dataVarForCAType(automdm.CAType(ca.Type))
 		if resends {
-			oldCAs, err := ds.getCAsForUpdateDB(ctx, tx, fleet.CAType(ca.Type), "id = ?", certificateAuthorityID)
+			oldCAs, err := ds.getCAsForUpdateDB(ctx, tx, automdm.CAType(ca.Type), "id = ?", certificateAuthorityID)
 			if err != nil {
 				return err
 			}
@@ -783,7 +783,7 @@ func (ds *Datastore) UpdateCertificateAuthorityByID(ctx context.Context, certifi
 }
 
 // dataVarForCAType returns the prefix of the profile variable that gets a host its certificate from a CA of the type, if it has one.
-func dataVarForCAType(caType fleet.CAType) (fleet.FleetVarName, bool) {
+func dataVarForCAType(caType automdm.CAType) (automdm.AutoMDMVarName, bool) {
 	for _, t := range profileCATypes {
 		if t.caType == caType {
 			return t.dataVar, true
@@ -794,10 +794,10 @@ func dataVarForCAType(caType fleet.CAType) (fleet.FleetVarName, bool) {
 
 // generateUpdateQuery generates the SQL update query for a Certificate Authority based on the provided fields
 // and will also return the arguments to be used in the query.
-func (ds *Datastore) generateUpdateQueryWithArgs(ctx context.Context, ca *fleet.CertificateAuthority, args *[]any) (string, error) {
+func (ds *Datastore) generateUpdateQueryWithArgs(ctx context.Context, ca *automdm.CertificateAuthority, args *[]any) (string, error) {
 	updates := []string{}
 	switch ca.Type {
-	case string(fleet.CATypeDigiCert):
+	case string(automdm.CATypeDigiCert):
 		if ca.Name != nil {
 			updates = append(updates, "name = ?")
 			*args = append(*args, *ca.Name)
@@ -834,7 +834,7 @@ func (ds *Datastore) generateUpdateQueryWithArgs(ctx context.Context, ca *fleet.
 			updates = append(updates, "certificate_seat_id = ?")
 			*args = append(*args, *ca.CertificateSeatID)
 		}
-	case string(fleet.CATypeHydrant):
+	case string(automdm.CATypeHydrant):
 		if ca.URL != nil {
 			updates = append(updates, "url = ?")
 			*args = append(*args, *ca.URL)
@@ -856,7 +856,7 @@ func (ds *Datastore) generateUpdateQueryWithArgs(ctx context.Context, ca *fleet.
 			*args = append(*args, encryptedClientSecret)
 		}
 
-	case string(fleet.CATypeCustomESTProxy):
+	case string(automdm.CATypeCustomESTProxy):
 		if ca.URL != nil {
 			updates = append(updates, "url = ?")
 			*args = append(*args, *ca.URL)
@@ -878,7 +878,7 @@ func (ds *Datastore) generateUpdateQueryWithArgs(ctx context.Context, ca *fleet.
 			*args = append(*args, encryptedPassword)
 		}
 
-	case string(fleet.CATypeNDESSCEPProxy):
+	case string(automdm.CATypeNDESSCEPProxy):
 		if ca.URL != nil {
 			updates = append(updates, "url = ?")
 			*args = append(*args, *ca.URL)
@@ -900,7 +900,7 @@ func (ds *Datastore) generateUpdateQueryWithArgs(ctx context.Context, ca *fleet.
 			*args = append(*args, encryptedPassword)
 		}
 
-	case string(fleet.CATypeCustomSCEPProxy):
+	case string(automdm.CATypeCustomSCEPProxy):
 		if ca.Name != nil {
 			updates = append(updates, "name = ?")
 			*args = append(*args, *ca.Name)
@@ -917,7 +917,7 @@ func (ds *Datastore) generateUpdateQueryWithArgs(ctx context.Context, ca *fleet.
 			}
 			*args = append(*args, encryptedChallenge)
 		}
-	case string(fleet.CATypeSmallstep):
+	case string(automdm.CATypeSmallstep):
 		if ca.Name != nil {
 			updates = append(updates, "name = ?")
 			*args = append(*args, *ca.Name)
@@ -942,7 +942,7 @@ func (ds *Datastore) generateUpdateQueryWithArgs(ctx context.Context, ca *fleet.
 			}
 			*args = append(*args, encryptedPassword)
 		}
-	case string(fleet.CATypeEJBCA):
+	case string(automdm.CATypeEJBCA):
 		for _, f := range []struct {
 			column string
 			value  *string
@@ -989,7 +989,7 @@ func (ds *Datastore) generateUpdateQueryWithArgs(ctx context.Context, ca *fleet.
 				*args = append(*args, upns)
 			}
 		}
-	case string(fleet.CATypeGoogleCAS):
+	case string(automdm.CATypeGoogleCAS):
 		for _, f := range []struct {
 			column string
 			value  *string

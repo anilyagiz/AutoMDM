@@ -10,7 +10,7 @@
     },
     "note": "76k enrolled with 2 profiles on the enrolling team"
   },
-  "fleet_server": {
+  "automdm_server": {
     "cpu_utilization": {
       "Average": 80.55,
       "Minimum": 79.77,
@@ -59,7 +59,7 @@
     }
   },
   "apns_mock": {
-    "service": "fleet-mock-apns-apple-apns-mock",
+    "service": "automdm-mock-apns-apple-apns-mock",
     "cpu_utilization": {
       "Average": 3.38,
       "Minimum": 3.35,
@@ -460,7 +460,7 @@
       "data_coverage": 1
     }
   },
-  "fleet_server_errors": {
+  "automdm_server_errors": {
     "error_count": 0.0,
     "sample_messages": []
   },

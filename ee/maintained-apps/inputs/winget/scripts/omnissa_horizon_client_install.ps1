@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # Omnissa Horizon Client ships as a WiX Burn bundle (.exe); /quiet runs it silently.
 

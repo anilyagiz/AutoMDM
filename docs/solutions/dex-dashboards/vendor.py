@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""The latest releases from outside Fleet, so the pages measure computers against
-what vendors shipped rather than the newest version the fleet happens to run.
+"""The latest releases from outside AutoMDM, so the pages measure computers against
+what vendors shipped rather than the newest version the team happens to run.
 
   macOS    SOFA, sofafeed.macadmins.io: Apple's releases with their dates, which
            major versions Apple still updates, and the newest Apple silicon
            generation among Mac models
   Windows  Microsoft's Security Update Guide, api.msrc.microsoft.com: the newest
            security build of each Windows release, and the month's hotpatch build
-  fleetd   Fleet's update server, updates.fleetdm.com: the stable channel
+  automdmd   AutoMDM's update server, updates.fleetdm.com: the stable channel
 
 Only issues GET requests. Each source fails on its own, and a page whose source
-is missing falls back to the newest version the fleet runs. run.py calls fetch();
+is missing falls back to the newest version the team runs. run.py calls fetch();
 run this file on its own to see what the sources return:
 
   vendor.py --out vendor.json
@@ -25,13 +25,13 @@ SOFA_URL = "https://sofafeed.macadmins.io/v2/macos_data_feed.json"
 MSRC_UPDATES_URL = "https://api.msrc.microsoft.com/cvrf/v3.0/updates"
 TUF_TARGETS_URL = "https://updates.fleetdm.com/targets.json"
 TIMEOUT = 120
-# "Windows 11 Version 25H2 for x64-based Systems" is the release Fleet reports as "Windows 11 25H2".
+# "Windows 11 Version 25H2 for x64-based Systems" is the release AutoMDM reports as "Windows 11 25H2".
 WINDOWS_PRODUCT = re.compile(r"(Windows 1[01]) Version (\d\dH\d) for x64-based Systems")
-FLEETD_TARGETS = {"orbit": "orbit", "osqueryd": "osquery", "desktop": "desktop"}
+AUTOMDMD_TARGETS = {"orbit": "orbit", "osqueryd": "osquery", "desktop": "desktop"}
 
 
 def get_json(url):
-    req = urllib.request.Request(url, headers={"Accept": "application/json", "User-Agent": "fleet-dex-dashboards"})
+    req = urllib.request.Request(url, headers={"Accept": "application/json", "User-Agent": "automdm-dex-dashboards"})
     with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
         return json.load(r)
 
@@ -107,12 +107,12 @@ def windows():
             "hotpatch": {t: b for t, b in hotpatch.items() if t in builds}}
 
 
-def fleetd():
+def automdmd():
     targets = get_json(TUF_TARGETS_URL)["signed"]["targets"]
     out = {}
     for path, meta in targets.items():
         parts = path.split("/")
-        name = FLEETD_TARGETS.get(parts[0])
+        name = AUTOMDMD_TARGETS.get(parts[0])
         v = (meta.get("custom") or {}).get("version")
         if name and len(parts) > 2 and parts[2] == "stable" and v and (name not in out or numeric(v) > numeric(out[name])):
             out[name] = v
@@ -123,7 +123,7 @@ def fleetd():
 
 def fetch():
     out = {"fetched_at": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}
-    for name, source in (("macos", macos), ("windows", windows), ("fleetd", fleetd)):
+    for name, source in (("macos", macos), ("windows", windows), ("automdmd", automdmd)):
         try:
             out[name] = source()
         except Exception as e:
@@ -138,7 +138,7 @@ def summary(v):
     return "vendor: " + " ".join([
         one("macos", lambda s: max((m["latest"] for m in s["majors"].values()), key=numeric)),
         one("windows", lambda s: s["month"]),
-        one("fleetd", lambda s: s.get("orbit", "?")),
+        one("automdmd", lambda s: s.get("orbit", "?")),
     ])
 
 
@@ -150,7 +150,7 @@ def main():
     with open(args.out, "w") as f:
         json.dump(v, f, indent=1)
     print(summary(v))
-    for name in ("macos", "windows", "fleetd"):
+    for name in ("macos", "windows", "automdmd"):
         if "error" in v[name]:
             print(f"{name}: {v[name]['error']}")
 

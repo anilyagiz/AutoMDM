@@ -113,8 +113,8 @@ const Munki = ({
                         <>
                           To see Munki versions, deploy&nbsp;
                           <CustomLink
-                            url="https://fleetdm.com/learn-more-about/fleetd"
-                            text="Fleet's agent (fleetd)"
+                            url="https://automdm.com/learn-more-about/automdmd"
+                            text="AutoMDM's agent (automdmd)"
                             newTab
                           />
                           .

@@ -40,9 +40,9 @@ const createGetTeamHandler = ({
   windowsPINRequired = false,
   linuxEscrowEnabled = false,
 }: ITeamDiskEncryptionMdm = {}) => {
-  return http.get(baseUrl("/fleets/:id"), () => {
+  return http.get(baseUrl("/teams/:id"), () => {
     return HttpResponse.json({
-      fleet: {
+      team: {
         ...createMockTeam(),
         mdm: createMockMdmConfig({
           apple_settings: {
@@ -120,7 +120,7 @@ const platformTabPath = (
   teamId: number
 ) =>
   getPathWithQueryParams(PATHS.CONTROLS_DISK_ENCRYPTION_PLATFORM(platform), {
-    fleet_id: teamId,
+    team_id: teamId,
   });
 
 const findEnforceCheckbox = () =>
@@ -142,7 +142,7 @@ describe("DiskEncryption", () => {
   it("renders the premium feature message for free tier", () => {
     renderDiskEncryption({ teamId: 0, isPremiumTier: false });
 
-    expect(screen.getByText(/Fleet Premium/)).toBeInTheDocument();
+    expect(screen.getByText(/AutoMDM Premium/)).toBeInTheDocument();
     expect(screen.queryByRole("tab")).toBeNull();
   });
 
@@ -228,9 +228,9 @@ describe("DiskEncryption", () => {
     });
   });
 
-  it("shows an error state when the fleet's settings fail to load", async () => {
+  it("shows an error state when the team's settings fail to load", async () => {
     mockServer.use(
-      http.get(baseUrl("/fleets/:id"), () =>
+      http.get(baseUrl("/teams/:id"), () =>
         HttpResponse.json({ message: "error" }, { status: 500 })
       )
     );
@@ -297,7 +297,7 @@ describe("DiskEncryption", () => {
           enable_disk_encryption: false,
           enable_escrow_disk_encryption_key: true,
         },
-        fleet_id: 1,
+        team_id: 1,
       });
     });
   });
@@ -322,7 +322,7 @@ describe("DiskEncryption", () => {
           enable_disk_encryption: true,
           require_bitlocker_pin: false,
         },
-        fleet_id: 1,
+        team_id: 1,
       });
     });
   });
@@ -344,12 +344,12 @@ describe("DiskEncryption", () => {
     await waitFor(() => {
       expect(requestBody).toEqual({
         linux_settings: { enable_escrow_disk_encryption_key: true },
-        fleet_id: 1,
+        team_id: 1,
       });
     });
   });
 
-  it("omits fleet_id when saving for hosts with no fleet", async () => {
+  it("omits team_id when saving for hosts with no team", async () => {
     let requestBody: Record<string, unknown> | undefined;
     mockServer.use(createGetConfigHandler());
     mockServer.use(createGetDiskEncryptionSummaryHandler());
@@ -398,7 +398,7 @@ describe("DiskEncryption", () => {
           enable_disk_encryption: false,
           require_bitlocker_pin: false,
         },
-        fleet_id: 1,
+        team_id: 1,
       });
     });
   });
@@ -438,7 +438,7 @@ describe("DiskEncryption", () => {
           enable_disk_encryption: false,
           require_bitlocker_pin: false,
         },
-        fleet_id: 1,
+        team_id: 1,
       });
     });
   });
@@ -566,7 +566,7 @@ describe("DiskEncryption", () => {
       expect(router.push).toHaveBeenCalledWith(
         getPathWithQueryParams(PATHS.MANAGE_HOSTS_LABEL(labelId), {
           os_settings_disk_encryption: "verified",
-          fleet_id: 1,
+          team_id: 1,
         })
       );
     }
@@ -583,7 +583,7 @@ describe("DiskEncryption", () => {
     expect(router.push).toHaveBeenCalledWith(
       getPathWithQueryParams(PATHS.MANAGE_HOSTS, {
         os_settings_disk_encryption: "verified",
-        fleet_id: 1,
+        team_id: 1,
       })
     );
   });

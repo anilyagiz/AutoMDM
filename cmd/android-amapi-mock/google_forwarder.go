@@ -224,7 +224,7 @@ func writeJSON(w http.ResponseWriter, v any) {
 	json.NewEncoder(w).Encode(v) //nolint:errcheck
 }
 
-// writeGoogleError passes Google's own error response through, so Fleet can tell a 404 or 429 from a
+// writeGoogleError passes Google's own error response through, so AutoMDM can tell a 404 or 429 from a
 // failure to reach Google, which is reported as a 502.
 func writeGoogleError(w http.ResponseWriter, err error) {
 	log.Printf("googleForwarder: Google API error: %v", err)

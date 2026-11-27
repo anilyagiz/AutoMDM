@@ -4,9 +4,9 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/platform/endpointer"
-	platform_http "github.com/fleetdm/fleet/v4/server/platform/http"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/platform/endpointer"
+	platform_http "github.com/anilyagiz/automdm/v4/server/platform/http"
 )
 
 type calendarWebhookRequest struct {
@@ -36,7 +36,7 @@ type calendarWebhookResponse struct {
 
 func (r calendarWebhookResponse) Error() error { return r.Err }
 
-func calendarWebhookEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func calendarWebhookEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*calendarWebhookRequest)
 	err := svc.CalendarWebhook(ctx, req.eventUUID, req.googleChannelID, req.googleResourceState)
 	if err != nil {
@@ -50,5 +50,5 @@ func calendarWebhookEndpoint(ctx context.Context, request interface{}, svc fleet
 func (svc *Service) CalendarWebhook(ctx context.Context, eventUUID string, channelID string, resourceState string) error {
 	// skipauth: No authorization check needed due to implementation returning only license error.
 	svc.authz.SkipAuthorization(ctx)
-	return fleet.ErrMissingLicense
+	return automdm.ErrMissingLicense
 }

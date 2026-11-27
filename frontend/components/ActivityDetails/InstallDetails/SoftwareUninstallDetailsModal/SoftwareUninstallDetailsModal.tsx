@@ -61,7 +61,7 @@ export const StatusMessage = ({
   const renderStatusCopy = () => {
     const prefix = (
       <>
-        Fleet {getInstallDetailsStatusPredicate(status)} <b>{softwareName}</b>
+        AutoMDM {getInstallDetailsStatusPredicate(status)} <b>{softwareName}</b>
       </>
     );
     let suffix = null;

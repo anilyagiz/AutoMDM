@@ -15,7 +15,7 @@
       "guid": "656d4a952012df4a938ea7b4a741eb8e",
       "origin_story_identifier": "cloud:4be52380e9d25dfd9c0431229580c706:2a298336c7bd82875939c82f2005137f",
       "options": {
-        "url": "https://<<RESOURCE.jamf_pro_server_url>>/api/v3/computers-inventory?filter=hardware.serialNumber==<<migrate_to_fleet_webhook.body.host.hardware_serial>>",
+        "url": "https://<<RESOURCE.jamf_pro_server_url>>/api/v3/computers-inventory?filter=hardware.serialNumber==<<migrate_to_automdm_webhook.body.host.hardware_serial>>",
         "method": "get",
         "headers": {
           "accept": "application/json",
@@ -41,7 +41,7 @@
     },
     {
       "type": "Agents::WebhookAgent",
-      "name": "Migrate to Fleet Webhook",
+      "name": "Migrate to AutoMDM Webhook",
       "disabled": false,
       "description": null,
       "guid": "64d007a331aa81eb9eae027691219933",
@@ -150,7 +150,7 @@
       "width": 570
     },
     {
-      "content": "# Configuration\n\n## Jamf\n\nSet up a Jamf Pro [API Role and Client](https://learn.jamf.com/en-US/bundle/jamf-pro-documentation-current/page/API_Roles_and_Clients.html) with these permissions:\n\n- Computers Create\n- Computers Read\n- Computers Update\n- Send Computer Unmanage Command\n\n## Tines\n\n- Replace Resource: Jamf Pro server URL (`myserver.jamfcloud.com`).\n- Set up Credential: Jamf Pro with the API Client from step 2.\n\n## Fleet\n\n**Read our [macOS MDM migration](https://fleetdm.com/guides/mdm-migration) guide!** At the least:\n\n- Set up MDM in **Settings** > **Integrations** > **MDM**.\n- Then, scroll down to **End user migration workflow**, enable the toggle, choose the **Mode**, and paste the **Webhook URL** from the Migrate to Fleet webhook action on the right. Don't forget to select **Save**!\n\n# Migration\n\n- Assign the device to your Fleet server in ABM.\n- Within 30 minutes, the Fleet Desktop menu bar icon on the device will have a **Migrate to Fleet** button. Select this, and then **Start**. Within a couple of minutes, the webhook will fire off.\n\n## Cleanup\n\nAfter the device is migrated, use Fleet to [deploy a script](https://github.com/fleetdm/fleet/tree/main/docs/solutions/macos/scripts/remove-jamf.sh) to remove the Jamf framework from the device.",
+      "content": "# Configuration\n\n## Jamf\n\nSet up a Jamf Pro [API Role and Client](https://learn.jamf.com/en-US/bundle/jamf-pro-documentation-current/page/API_Roles_and_Clients.html) with these permissions:\n\n- Computers Create\n- Computers Read\n- Computers Update\n- Send Computer Unmanage Command\n\n## Tines\n\n- Replace Resource: Jamf Pro server URL (`myserver.jamfcloud.com`).\n- Set up Credential: Jamf Pro with the API Client from step 2.\n\n## AutoMDM\n\n**Read our [macOS MDM migration](https://automdm.com/guides/mdm-migration) guide!** At the least:\n\n- Set up MDM in **Settings** > **Integrations** > **MDM**.\n- Then, scroll down to **End user migration workflow**, enable the toggle, choose the **Mode**, and paste the **Webhook URL** from the Migrate to AutoMDM webhook action on the right. Don't forget to select **Save**!\n\n# Migration\n\n- Assign the device to your AutoMDM server in ABM.\n- Within 30 minutes, the AutoMDM Desktop menu bar icon on the device will have a **Migrate to AutoMDM** button. Select this, and then **Start**. Within a couple of minutes, the webhook will fire off.\n\n## Cleanup\n\nAfter the device is migrated, use AutoMDM to [deploy a script](https://github.com/anilyagiz/automdm/tree/main/docs/solutions/macos/scripts/remove-jamf.sh) to remove the Jamf framework from the device.",
       "position": [
         -600,
         -375

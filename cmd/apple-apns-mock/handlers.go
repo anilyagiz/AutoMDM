@@ -212,7 +212,7 @@ func pingEvent(payload []byte) string {
 }
 
 // pushHandler serves POST /3/device/{token}, the same shape as
-// api.push.apple.com. It accepts what Fleet's nanopush client sends — a raw
+// api.push.apple.com. It accepts what AutoMDM's nanopush client sends — a raw
 // JSON body with apns-expiration, apns-push-type: mdm, and apns-topic — as
 // well as requests with no apns-* headers at all (legacy clients), and
 // applies APNs payload limits. The payload is forwarded verbatim, not parsed.
@@ -250,7 +250,7 @@ func pushHandler(w http.ResponseWriter, r *http.Request, c *coordinator, logger 
 		expiration = *headers.Expiration
 	}
 	// A push that cannot be stored or announced was not accepted; saying so
-	// lets Fleet's pending-hosts cron retry it.
+	// lets AutoMDM's pending-hosts cron retry it.
 	if err := c.Push(r.Context(), token, payload, expiration); err != nil {
 		apnsPushError(w, headers, errServiceUnavailable)
 		return
@@ -265,7 +265,7 @@ func pushHandler(w http.ResponseWriter, r *http.Request, c *coordinator, logger 
 // keeps an "absent" behavior so clients that send no apns-* headers still
 // work; this struct is the extension point for future headers
 // (apns-priority, apns-collapse-id, ...). apns-topic is accepted but not
-// modeled: Fleet deployments use a single topic and pending pushes are keyed
+// modeled: AutoMDM deployments use a single topic and pending pushes are keyed
 // by token alone.
 type pushHeaders struct {
 	PushID     string     // apns-id: echoed back if given (else a generated UUID); non-UUID → 400 BadMessageId

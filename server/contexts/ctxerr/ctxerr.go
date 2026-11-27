@@ -20,7 +20,7 @@ import (
 	"strings"
 	"time"
 
-	platform_errors "github.com/fleetdm/fleet/v4/server/platform/errors"
+	platform_errors "github.com/anilyagiz/automdm/v4/server/platform/errors"
 	"github.com/getsentry/sentry-go"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -34,22 +34,22 @@ const errHandlerKey key = 0
 // Defining here for testing purposes
 var nowFn = time.Now
 
-// FleetError is the error implementation used by this package.
-type FleetError struct {
+// AutoMDMError is the error implementation used by this package.
+type AutoMDMError struct {
 	msg   string          // error message to be prepended to cause
 	stack stackTracer     // stack trace where this error was created
 	cause error           // original error that caused this error if non-nil
 	data  json.RawMessage // additional metadata about the error (timestamps, etc)
 }
 
-type fleetErrorJSON struct {
+type automdmErrorJSON struct {
 	Message string          `json:"message,omitempty"`
 	Data    json.RawMessage `json:"data,omitempty"`
 	Stack   []string        `json:"stack,omitempty"`
 }
 
 // Error implements the error interface.
-func (e FleetError) Error() string {
+func (e AutoMDMError) Error() string {
 	if e.cause == nil {
 		return e.msg
 	}
@@ -57,12 +57,12 @@ func (e FleetError) Error() string {
 }
 
 // Unwrap implements the error Unwrap interface introduced in go1.13.
-func (e *FleetError) Unwrap() error {
+func (e *AutoMDMError) Unwrap() error {
 	return e.cause
 }
 
 // Stack returns a call stack for the error
-func (e *FleetError) Stack() []string {
+func (e *AutoMDMError) Stack() []string {
 	return e.stack.List()
 }
 
@@ -71,13 +71,13 @@ func (e *FleetError) Stack() []string {
 // the name that sentry looks for, but returns the []uintptr slice (which works
 // because of how they handle the returned value via reflection).
 // https://github.com/getsentry/sentry-go/blob/master/stacktrace.go#L44-L49
-func (e *FleetError) StackFrames() []uintptr {
+func (e *AutoMDMError) StackFrames() []uintptr {
 	return e.stack.(stack) // outside of tests, e.stack is always a stack type
 }
 
-// LogFields implements fleet.ErrWithLogFields, so attached error data can be
+// LogFields implements automdm.ErrWithLogFields, so attached error data can be
 // logged along with the error
-func (e *FleetError) LogFields() []any {
+func (e *AutoMDMError) LogFields() []any {
 	var fields []any
 	var data map[string]any
 
@@ -133,7 +133,7 @@ func encodeData(ctx context.Context, data map[string]interface{}, augment bool) 
 func newError(ctx context.Context, msg string, cause error, data map[string]interface{}) error {
 	stack := newStack(2)
 	edata := encodeData(ctx, data, true)
-	return &FleetError{msg, stack, cause, edata}
+	return &AutoMDMError{msg, stack, cause, edata}
 }
 
 func wrapError(ctx context.Context, msg string, cause error, data map[string]interface{}) error {
@@ -142,17 +142,17 @@ func wrapError(ctx context.Context, msg string, cause error, data map[string]int
 	}
 
 	stack := newStack(2)
-	var ferr *FleetError
-	isFleetError := errors.As(cause, &ferr)
+	var ferr *AutoMDMError
+	isAutoMDMError := errors.As(cause, &ferr)
 
-	// If the error is a FleetError, don't add the full stack trace as it should
+	// If the error is an AutoMDMError, don't add the full stack trace as it should
 	// already be present.
-	if isFleetError {
+	if isAutoMDMError {
 		stack = stack[:1]
 	}
 
-	edata := encodeData(ctx, data, !isFleetError)
-	return &FleetError{msg, stack, cause, edata}
+	edata := encodeData(ctx, data, !isAutoMDMError)
+	return &AutoMDMError{msg, stack, cause, edata}
 }
 
 // New creates a new error with the given message.
@@ -194,14 +194,14 @@ func Cause(err error) error {
 	return platform_errors.Cause(err)
 }
 
-// FleetCause is similar to Cause, but returns the root-most
-// FleetError in the chain
-func FleetCause(err error) *FleetError {
-	var ferr, aux *FleetError
+// AutoMDMCause is similar to Cause, but returns the root-most
+// AutoMDMError in the chain
+func AutoMDMCause(err error) *AutoMDMError {
+	var ferr, aux *AutoMDMError
 	var ok bool
 
 	for err != nil {
-		if aux, ok = err.(*FleetError); ok {
+		if aux, ok = err.(*AutoMDMError); ok {
 			ferr = aux
 		}
 		err = Unwrap(err)
@@ -219,18 +219,18 @@ func Unwrap(err error) error {
 
 // MarshalJSON provides a JSON representation of a whole error chain.
 func MarshalJSON(err error) ([]byte, error) {
-	chain := make([]fleetErrorJSON, 0)
+	chain := make([]automdmErrorJSON, 0)
 
 	for err != nil {
 		switch v := err.(type) {
-		case *FleetError:
-			chain = append(chain, fleetErrorJSON{
+		case *AutoMDMError:
+			chain = append(chain, automdmErrorJSON{
 				Message: v.msg,
 				Data:    v.data,
 				Stack:   v.stack.List(),
 			})
 		default:
-			chain = append(chain, fleetErrorJSON{Message: v.Error()})
+			chain = append(chain, automdmErrorJSON{Message: v.Error()})
 		}
 
 		err = Unwrap(err)
@@ -277,20 +277,20 @@ func Handle(ctx context.Context, err error) {
 	}
 
 	// as a last resource, wrap the error if there isn't
-	// a FleetError in the chain
-	var ferr *FleetError
+	// an AutoMDMError in the chain
+	var ferr *AutoMDMError
 	if !errors.As(err, &ferr) {
-		wrapped := wrapError(ctx, "missing FleetError in chain", err, nil)
+		wrapped := wrapError(ctx, "missing AutoMDMError in chain", err, nil)
 		if wrapped == nil {
 			return // shouldn't happen since err is not nil, but be safe
 		}
-		// wrapError returns an error interface, but we know it's a *FleetError
-		ferr = wrapped.(*FleetError)
+		// wrapError returns an error interface, but we know it's an *AutoMDMError
+		ferr = wrapped.(*AutoMDMError)
 	}
 
 	cause := ferr
-	if rootCause := FleetCause(ferr); rootCause != nil {
-		// use the FleetCause error so we report the most relevant stacktrace
+	if rootCause := AutoMDMCause(ferr); rootCause != nil {
+		// use the AutoMDMCause error so we report the most relevant stacktrace
 		// (the one from the initial New/Wrap call).
 		cause = rootCause
 	}

@@ -13,12 +13,12 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/contexts/logging"
-	"github.com/fleetdm/fleet/v4/server/dev_mode"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/apple/mobileconfig"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
+	"github.com/anilyagiz/automdm/v4/server/contexts/logging"
+	"github.com/anilyagiz/automdm/v4/server/dev_mode"
+	"github.com/anilyagiz/automdm/v4/server/mdm/apple/mobileconfig"
 	"github.com/google/uuid"
 )
 
@@ -35,9 +35,9 @@ const conditionalAccessAppleProfileTemplate = `<?xml version="1.0" encoding="UTF
             <key>PayloadContent</key>
             <data>{{ xml .CACertBase64 }}</data>
             <key>PayloadDescription</key>
-            <string>Fleet conditional access CA certificate</string>
+            <string>AutoMDM conditional access CA certificate</string>
             <key>PayloadDisplayName</key>
-            <string>Fleet conditional access CA</string>
+            <string>AutoMDM conditional access CA</string>
             <key>PayloadIdentifier</key>
             <string>com.fleetdm.conditional-access-ca</string>
             <key>PayloadType</key>
@@ -52,9 +52,9 @@ const conditionalAccessAppleProfileTemplate = `<?xml version="1.0" encoding="UTF
 			<key>PayloadContent</key>
 			<dict>
 				<key>URL</key>
-				<string>$FLEET_VAR_CONDITIONAL_ACCESS_SCEP_URL</string>
+				<string>$AUTOMDM_VAR_CONDITIONAL_ACCESS_SCEP_URL</string>
 				<key>Challenge</key>
-				<string>$FLEET_VAR_CONDITIONAL_ACCESS_SCEP_CHALLENGE</string>
+				<string>$AUTOMDM_VAR_CONDITIONAL_ACCESS_SCEP_CHALLENGE</string>
 				<key>Keysize</key>
 				<integer>2048</integer>
 				<key>Key Type</key>
@@ -76,7 +76,7 @@ const conditionalAccessAppleProfileTemplate = `<?xml version="1.0" encoding="UTF
 					<array>
 						<array>
 							<string>OU</string>
-							<string>$FLEET_VAR_CERTIFICATE_RENEWAL_ID</string>
+							<string>$AUTOMDM_VAR_CERTIFICATE_RENEWAL_ID</string>
 						</array>
 					</array>
 				</array>
@@ -98,9 +98,9 @@ const conditionalAccessAppleProfileTemplate = `<?xml version="1.0" encoding="UTF
                 <false/>
 			</dict>
 			<key>PayloadDescription</key>
-			<string>Configures SCEP for Fleet conditional access for Okta certificate</string>
+			<string>Configures SCEP for AutoMDM conditional access for Okta certificate</string>
 			<key>PayloadDisplayName</key>
-			<string>Fleet conditional access SCEP</string>
+			<string>AutoMDM conditional access SCEP</string>
 			<key>PayloadIdentifier</key>
 			<string>com.fleetdm.conditional-access-scep</string>
 			<key>PayloadType</key>
@@ -119,7 +119,7 @@ const conditionalAccessAppleProfileTemplate = `<?xml version="1.0" encoding="UTF
             <key>PayloadDescription</key>
             <string>Identity preference for mTLS endpoints</string>
             <key>PayloadDisplayName</key>
-            <string>Fleet mTLS identity preference</string>
+            <string>AutoMDM mTLS identity preference</string>
             <key>PayloadIdentifier</key>
             <string>com.fleetdm.conditional-access-preference</string>
             <key>PayloadType</key>
@@ -167,7 +167,7 @@ const conditionalAccessAppleProfileTemplate = `<?xml version="1.0" encoding="UTF
 	<key>PayloadDescription</key>
 	<string>Configures SCEP enrollment for Okta conditional access</string>
 	<key>PayloadDisplayName</key>
-	<string>Fleet conditional access for Okta</string>
+	<string>AutoMDM conditional access for Okta</string>
 	<key>PayloadIdentifier</key>
 	<string>com.fleetdm.conditional-access-okta</string>
 	<key>PayloadOrganization</key>
@@ -212,18 +212,18 @@ var conditionalAccessAppleProfileTemplateParsed = template.Must(
 		Funcs(conditionalAccessProfileFuncMap).
 		Parse(conditionalAccessAppleProfileTemplate))
 
-// fleetConditionalAccessNamespace is a custom UUID namespace for Fleet Okta conditional access profiles.
-// Generated using: uuid.NewSHA1(uuid.NameSpaceURL, []byte("https://fleetdm.com/learn-more-about/okta-conditional-access"))
-// This ensures UUIDs are unique to Fleet's Okta conditional access feature and won't collide with other systems.
-var fleetConditionalAccessNamespace = uuid.Must(uuid.Parse("fe5c0046-e83e-5a1d-9693-ace1348d34ec"))
+// automdmConditionalAccessNamespace is a custom UUID namespace for AutoMDM Okta conditional access profiles.
+// Generated using: uuid.NewSHA1(uuid.NameSpaceURL, []byte("https://automdm.com/learn-more-about/okta-conditional-access"))
+// This ensures UUIDs are unique to AutoMDM's Okta conditional access feature and won't collide with other systems.
+var automdmConditionalAccessNamespace = uuid.Must(uuid.Parse("fe5c0046-e83e-5a1d-9693-ace1348d34ec"))
 
 // generateDeterministicUUID generates a UUID v5 based on the server URL and a component name.
 // This ensures the same server always generates the same UUIDs for profile components.
 func generateDeterministicUUID(serverURL, component string) string {
-	// Use Fleet's conditional access namespace to avoid collisions
+	// Use AutoMDM's conditional access namespace to avoid collisions
 	// Create a deterministic UUID based on serverURL + component
 	name := fmt.Sprintf("%s:%s", serverURL, component)
-	return uuid.NewSHA1(fleetConditionalAccessNamespace, []byte(name)).String()
+	return uuid.NewSHA1(automdmConditionalAccessNamespace, []byte(name)).String()
 }
 
 type appleProfileTemplateData struct {
@@ -250,7 +250,7 @@ func (r conditionalAccessGetIdPSigningCertResponse) HijackRender(ctx context.Con
 	w.Header().Set("Content-Length", strconv.FormatInt(int64(len(r.CertPEM)), 10))
 	w.Header().Set("Content-Type", "application/x-pem-file")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-	w.Header().Set("Content-Disposition", "attachment; filename=\"fleet-idp-signing-cert.pem\"")
+	w.Header().Set("Content-Disposition", "attachment; filename=\"automdm-idp-signing-cert.pem\"")
 
 	// OK to just log the error here as writing anything on `http.ResponseWriter` sets the status code to 200 (and it can't be
 	// changed.) Clients should rely on matching content-length with the header provided
@@ -260,7 +260,7 @@ func (r conditionalAccessGetIdPSigningCertResponse) HijackRender(ctx context.Con
 	}
 }
 
-func conditionalAccessGetIdPSigningCertEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func conditionalAccessGetIdPSigningCertEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	certPEM, err := svc.ConditionalAccessGetIdPSigningCert(ctx)
 	if err != nil {
 		return conditionalAccessGetIdPSigningCertResponse{Err: err}, nil
@@ -272,24 +272,24 @@ func conditionalAccessGetIdPSigningCertEndpoint(ctx context.Context, request int
 
 func (svc *Service) ConditionalAccessGetIdPSigningCert(ctx context.Context) (certPEM []byte, err error) {
 	// Check user is authorized to read conditional access Okta IdP certificate
-	if err := svc.authz.Authorize(ctx, &fleet.ConditionalAccessIDPAssets{}, fleet.ActionRead); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.ConditionalAccessIDPAssets{}, automdm.ActionRead); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "failed to authorize")
 	}
 
 	// Check that server private key is configured
 	if len(svc.config.Server.PrivateKey) == 0 {
-		return nil, &fleet.BadRequestError{Message: "Fleet server private key is not configured. Learn more: https://fleetdm.com/learn-more-about/fleet-server-private-key"}
+		return nil, &automdm.BadRequestError{Message: "AutoMDM server private key is not configured. Learn more: https://automdm.com/learn-more-about/automdm-server-private-key"}
 	}
 
 	// Load IdP certificate from mdm_config_assets
-	assets, err := svc.ds.GetAllMDMConfigAssetsByName(ctx, []fleet.MDMAssetName{
-		fleet.MDMAssetConditionalAccessIDPCert,
+	assets, err := svc.ds.GetAllMDMConfigAssetsByName(ctx, []automdm.MDMAssetName{
+		automdm.MDMAssetConditionalAccessIDPCert,
 	}, nil)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "failed to load IdP certificate")
 	}
 
-	certAsset, ok := assets[fleet.MDMAssetConditionalAccessIDPCert]
+	certAsset, ok := assets[automdm.MDMAssetConditionalAccessIDPCert]
 	if !ok {
 		return nil, ctxerr.New(ctx, "IdP certificate not configured")
 	}
@@ -308,7 +308,7 @@ func (r conditionalAccessGetIdPAppleProfileResponse) HijackRender(ctx context.Co
 	w.Header().Set("Content-Length", strconv.FormatInt(int64(len(r.ProfileData)), 10))
 	w.Header().Set("Content-Type", "application/x-apple-aspen-config")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-	w.Header().Set("Content-Disposition", "attachment; filename=\"fleet-conditional-access.mobileconfig\"")
+	w.Header().Set("Content-Disposition", "attachment; filename=\"automdm-conditional-access.mobileconfig\"")
 
 	// OK to just log the error here as writing anything on `http.ResponseWriter` sets the status code to 200 (and it can't be
 	// changed.) Clients should rely on matching content-length with the header provided
@@ -318,7 +318,7 @@ func (r conditionalAccessGetIdPAppleProfileResponse) HijackRender(ctx context.Co
 	}
 }
 
-func conditionalAccessGetIdPAppleProfileEndpoint(ctx context.Context, _ interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func conditionalAccessGetIdPAppleProfileEndpoint(ctx context.Context, _ interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	profileData, err := svc.ConditionalAccessGetIdPAppleProfile(ctx)
 	if err != nil {
 		return conditionalAccessGetIdPAppleProfileResponse{Err: err}, nil
@@ -329,7 +329,7 @@ func conditionalAccessGetIdPAppleProfileEndpoint(ctx context.Context, _ interfac
 }
 
 // conditionalAccessProfileInputs are the values every conditional access profile is rendered from. The SCEP URL and
-// challenge are Fleet variables filled in at delivery.
+// challenge are AutoMDM variables filled in at delivery.
 type conditionalAccessProfileInputs struct {
 	caCert    *x509.Certificate
 	serverURL string
@@ -341,23 +341,23 @@ type conditionalAccessProfileInputs struct {
 func (svc *Service) loadConditionalAccessProfileInputs(ctx context.Context) (*conditionalAccessProfileInputs, error) {
 	// The CA outlives a downgrade, but the SCEP server and IdP are only served on Premium.
 	if !license.IsPremium(ctx) {
-		return nil, fleet.ErrMissingLicense
+		return nil, automdm.ErrMissingLicense
 	}
 
 	// Check that server private key is configured
 	if len(svc.config.Server.PrivateKey) == 0 {
-		return nil, &fleet.BadRequestError{Message: "Fleet server private key is not configured. Learn more: https://fleetdm.com/learn-more-about/fleet-server-private-key"}
+		return nil, &automdm.BadRequestError{Message: "AutoMDM server private key is not configured. Learn more: https://automdm.com/learn-more-about/automdm-server-private-key"}
 	}
 
 	// Load CA certificate for SCEP from mdm_config_assets
-	assets, err := svc.ds.GetAllMDMConfigAssetsByName(ctx, []fleet.MDMAssetName{
-		fleet.MDMAssetConditionalAccessCACert,
+	assets, err := svc.ds.GetAllMDMConfigAssetsByName(ctx, []automdm.MDMAssetName{
+		automdm.MDMAssetConditionalAccessCACert,
 	}, nil)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "failed to load conditional access CA certificate")
 	}
 
-	caCertAsset, ok := assets[fleet.MDMAssetConditionalAccessCACert]
+	caCertAsset, ok := assets[automdm.MDMAssetConditionalAccessCACert]
 	if !ok {
 		return nil, ctxerr.New(ctx, "conditional access CA certificate not configured")
 	}
@@ -380,7 +380,7 @@ func (svc *Service) loadConditionalAccessProfileInputs(ctx context.Context) (*co
 		return nil, ctxerr.Wrap(ctx, err, "failed to load app config")
 	}
 	if strings.TrimSpace(appConfig.ServerSettings.ServerURL) == "" {
-		return nil, &fleet.BadRequestError{Message: "server URL is not configured"}
+		return nil, &automdm.BadRequestError{Message: "server URL is not configured"}
 	}
 
 	// Get mTLS URL using ConditionalAccessIdPSSOURL, which also checks the server URL parses.
@@ -398,7 +398,7 @@ func (svc *Service) loadConditionalAccessProfileInputs(ctx context.Context) (*co
 
 func (svc *Service) ConditionalAccessGetIdPAppleProfile(ctx context.Context) (profileData []byte, err error) {
 	// Check user is authorized to read conditional access Apple profile
-	if err := svc.authz.Authorize(ctx, &fleet.ConditionalAccessIDPAssets{}, fleet.ActionRead); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.ConditionalAccessIDPAssets{}, automdm.ActionRead); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "failed to authorize")
 	}
 
@@ -420,7 +420,7 @@ func (svc *Service) ConditionalAccessGetIdPAppleProfile(ctx context.Context) (pr
 	if err := conditionalAccessAppleProfileTemplateParsed.Execute(&buf, appleProfileTemplateData{
 		// Base64 encode the DER certificate for the profile
 		CACertBase64:     base64.StdEncoding.EncodeToString(in.caCert.Raw),
-		CertificateCN:    fleet.ConditionalAccessOktaCertificateCN,
+		CertificateCN:    automdm.ConditionalAccessOktaCertificateCN,
 		MTLSURL:          in.mtlsURL,
 		CACertUUID:       caCertUUID,
 		SCEPPayloadUUID:  scepPayloadUUID,

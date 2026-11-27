@@ -27,13 +27,13 @@ const renderPickerInCommand = (
   ui: React.ReactElement
 ): ReturnType<typeof renderInClient> => renderInClient(<Command>{ui}</Command>);
 
-// Minimal IPolicyStats — the picker only reads id, name, type, fleet_id,
+// Minimal IPolicyStats — the picker only reads id, name, type, team_id,
 // and critical. Cast through `unknown` to skip the full shape.
 const policyWith = (
   fields: Partial<IPolicyStats> & Pick<IPolicyStats, "id" | "name">
 ): IPolicyStats =>
   (({
-    fleet_id: null,
+    team_id: null,
     type: "",
     critical: false,
     ...fields,
@@ -45,23 +45,23 @@ beforeEach(() => {
 });
 
 describe("PolicyPicker", () => {
-  it("lists All fleets policies without fleet_id when currentTeam is All fleets", async () => {
+  it("lists All teams policies without team_id when currentTeam is All teams", async () => {
     renderPicker(
       <PolicyPicker
         search=""
-        currentTeam={{ id: -1, name: "All fleets" }}
+        currentTeam={{ id: -1, name: "All teams" }}
         onSelect={jest.fn()}
       />
     );
 
     await waitFor(() => {
       expect(mockedPolicies.loadAll).toHaveBeenCalledWith(
-        expect.objectContaining({ fleetId: undefined, mergeInherited: false })
+        expect.objectContaining({ automdmId: undefined, mergeInherited: false })
       );
     });
   });
 
-  it("lists the fleet's policies with mergeInherited when a real team is selected", async () => {
+  it("lists the team's policies with mergeInherited when a real team is selected", async () => {
     renderPicker(
       <PolicyPicker
         search=""
@@ -72,12 +72,12 @@ describe("PolicyPicker", () => {
 
     await waitFor(() => {
       expect(mockedPolicies.loadAll).toHaveBeenCalledWith(
-        expect.objectContaining({ fleetId: 5, mergeInherited: true })
+        expect.objectContaining({ automdmId: 5, mergeInherited: true })
       );
     });
   });
 
-  it("lists with fleetId 0 and mergeInherited for Unassigned", async () => {
+  it("lists with automdmId 0 and mergeInherited for Unassigned", async () => {
     renderPicker(
       <PolicyPicker
         search=""
@@ -88,7 +88,7 @@ describe("PolicyPicker", () => {
 
     await waitFor(() => {
       expect(mockedPolicies.loadAll).toHaveBeenCalledWith(
-        expect.objectContaining({ fleetId: 0, mergeInherited: true })
+        expect.objectContaining({ automdmId: 0, mergeInherited: true })
       );
     });
   });
@@ -109,7 +109,7 @@ describe("PolicyPicker", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders 'in this fleet' empty state when Unassigned is selected", async () => {
+  it("renders 'in this team' empty state when Unassigned is selected", async () => {
     const { findByText } = renderPicker(
       <PolicyPicker
         search=""
@@ -119,15 +119,15 @@ describe("PolicyPicker", () => {
     );
 
     expect(
-      await findByText(/No policies found in this fleet\./)
+      await findByText(/No policies found in this team\./)
     ).toBeInTheDocument();
   });
 
-  it("renders a fleet-less empty state on All fleets", async () => {
+  it("renders a team-less empty state on All teams", async () => {
     const { findByText } = renderPicker(
       <PolicyPicker
         search=""
-        currentTeam={{ id: -1, name: "All fleets" }}
+        currentTeam={{ id: -1, name: "All teams" }}
         onSelect={jest.fn()}
       />
     );
@@ -135,11 +135,11 @@ describe("PolicyPicker", () => {
     expect(await findByText(/^No policies found\.$/)).toBeInTheDocument();
   });
 
-  it("renders a search-specific empty state with query but no fleet suffix on All fleets", async () => {
+  it("renders a search-specific empty state with query but no team suffix on All teams", async () => {
     const { findByText } = renderPicker(
       <PolicyPicker
         search="missing"
-        currentTeam={{ id: -1, name: "All fleets" }}
+        currentTeam={{ id: -1, name: "All teams" }}
         onSelect={jest.fn()}
       />
     );
@@ -163,7 +163,7 @@ describe("PolicyPicker", () => {
       const { findByText } = renderPickerInCommand(
         <PolicyPicker
           search="patch-on"
-          currentTeam={{ id: -1, name: "All fleets" }}
+          currentTeam={{ id: -1, name: "All teams" }}
           onSelect={jest.fn()}
         />
       );
@@ -180,7 +180,7 @@ describe("PolicyPicker", () => {
       const { findByText, queryByText } = renderPickerInCommand(
         <PolicyPicker
           search="patch-off"
-          currentTeam={{ id: -1, name: "All fleets" }}
+          currentTeam={{ id: -1, name: "All teams" }}
           onSelect={jest.fn()}
         />
       );

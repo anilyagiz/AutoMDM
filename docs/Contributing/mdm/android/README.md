@@ -1,6 +1,6 @@
 # Android MDM
 
-Contributor docs for Fleet's Android MDM feature area.
+Contributor docs for AutoMDM's Android MDM feature area.
 
 - [Android MDM](android-mdm.md)
 - [Android certificates](android-certificates.md)

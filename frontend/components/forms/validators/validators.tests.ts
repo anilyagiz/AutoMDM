@@ -49,7 +49,7 @@ describe("isEqual (re-exported from lodash)", () => {
 
 describe("isValidEmail", () => {
   it("returns true for valid emails", () => {
-    ["hi@thegnar.co", "hi@gnar.dog", "fleet@gmail.com"].forEach((email) => {
+    ["hi@thegnar.co", "hi@gnar.dog", "team@gmail.com"].forEach((email) => {
       expect(isValidEmail(email)).toBe(true);
     });
   });
@@ -63,7 +63,7 @@ describe("isValidEmail", () => {
 
 describe("isValidURL", () => {
   it("accepts http/https URLs without an explicit protocol list", () => {
-    expect(isValidURL({ url: "https://fleetdm.com" })).toBe(true);
+    expect(isValidURL({ url: "https://automdm.com" })).toBe(true);
     expect(isValidURL({ url: "http://example.com/path?q=1" })).toBe(true);
   });
 
@@ -103,8 +103,8 @@ describe("isValidHostname", () => {
   it("accepts FQDNs, IPs, localhost, and bracketed IPv6, with optional port", () => {
     type TestCase = [string, boolean];
     const testCases: TestCase[] = [
-      ["fleet.example.com", true],
-      ["fleet.example.com:8090", true],
+      ["automdm.example.com", true],
+      ["automdm.example.com:8090", true],
       ["192.168.0.1", true],
       ["192.168.0.1:9090", true],
       ["2001:0db8:85a3:0000:0000:8a2e:0370:7334", true],

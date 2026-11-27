@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/notifications/api"
+	"github.com/anilyagiz/automdm/v4/server/notifications/api"
 )
 
 // Datastore is what the service needs of the notifications tables. Each method

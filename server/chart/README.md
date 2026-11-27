@@ -1,14 +1,14 @@
 # Chart bounded context
 
-Time-series charting for the Fleet dashboard. Given a metric like "how many hosts
+Time-series charting for the AutoMDM dashboard. Given a metric like "how many hosts
 were online" or "how many hosts were affected by a critical CVE," this package
 records a per-hour history and serves it back as bucketed data points the frontend
 renders as a line, checkerboard, etc.
 
 This is a **self-contained bounded context** (like `server/activity/` and
-`server/mdm/`), not the traditional `server/fleet` → `server/service` →
+`server/mdm/`), not the traditional `server/automdm` → `server/service` →
 `server/datastore` layering. It owns its own types, datastore, service, HTTP
-transport, and bootstrap, and it must not import `server/fleet` or
+transport, and bootstrap, and it must not import `server/automdm` or
 `server/contexts/viewer` directly — an architecture test enforces this (see
 [Dependency rules](#dependency-rules)).
 
@@ -42,12 +42,12 @@ against the mask, and returns the population count per bucket. Everything is set
 math on bitmaps; a "value" on the chart is always a distinct-host count.
 
 ```
-collection cron (cmd/fleet/cron.go)
+collection cron (cmd/automdm/cron.go)
   └─ Service.CollectDatasets(scope)
        └─ Dataset.Collect()  ──reads hosts──▶ DatasetStore (FindOnlineHostIDs, AffectedHostIDsByCVE, …)
             └─ store.RecordBucketData(strategy, map[entity]*bitmap)  ──writes──▶ host_scd_data
 
-HTTP GET /api/_version_/fleet/charts/{metric}
+HTTP GET /api/_version_/automdm/charts/{metric}
   └─ getChartDataEndpoint ─▶ Service.GetChartData()
        ├─ ViewerProvider.ViewerScope()      → team scope for authz + data
        ├─ authz.Authorize()                 → fail closed
@@ -60,8 +60,8 @@ HTTP GET /api/_version_/fleet/charts/{metric}
 | Path | Role | May depend on |
 |------|------|---------------|
 | `server/chart` (root) | Bitmap helpers (`blob.go`), `Dataset` implementations (`datasets.go`), shared constants | `api` only |
-| `server/chart/api` | **Public surface.** `Service`, `Dataset`, `DatasetStore`, `ViewerProvider` interfaces; request/response types | nothing in Fleet |
-| `server/chart/api/http` | HTTP request/response DTOs (wire tags, e.g. `fleet_id`) | `api` only |
+| `server/chart/api` | **Public surface.** `Service`, `Dataset`, `DatasetStore`, `ViewerProvider` interfaces; request/response types | nothing in AutoMDM |
+| `server/chart/api/http` | HTTP request/response DTOs (wire tags, e.g. `team_id`) | `api` only |
 | `server/chart/internal/types` | Internal `Datastore` interface, `HostFilter` | `api` only |
 | `server/chart/internal/mysql` | MySQL `Datastore` implementation, SQL, SCD read/write | chart, types, platform |
 | `server/chart/internal/service` | `Service` implementation, authz, host-filter cache, bucket math | chart, platform |
@@ -69,7 +69,7 @@ HTTP GET /api/_version_/fleet/charts/{metric}
 | `server/chart/internal/testutils` | Test helpers | — |
 
 External code only ever touches `bootstrap.New` and the `api` package. The
-anti-corruption layer that bridges to legacy Fleet types lives **outside** this
+anti-corruption layer that bridges to legacy AutoMDM types lives **outside** this
 tree in `server/acl/chartacl` (the only place that imports both chart `api` and
 `server/contexts/viewer`).
 
@@ -78,14 +78,14 @@ tree in `server/acl/chartacl` (the only place that imports both chart `api` and
 `arch_test.go` runs `archtest` assertions on every package. The rules in plain
 English:
 
-- `api` has **zero** Fleet dependencies (it's the contract).
+- `api` has **zero** AutoMDM dependencies (it's the contract).
 - `api/http`, `internal/types`, and the root `chart` package depend on **`api`
   only**.
 - `internal/mysql` and `internal/service` may additionally use `server/platform/...`
   and `server/contexts/...`, plus other chart packages.
-- **No chart package may import `server/fleet` or `server/contexts/viewer`.**
+- **No chart package may import `server/automdm` or `server/contexts/viewer`.**
 
-If you need something from legacy Fleet (the current user, a fleet config value),
+If you need something from legacy AutoMDM (the current user, an automdm config value),
 do not import it — add a narrow interface to `api` (see `ViewerProvider`) and
 implement it in `server/acl/chartacl`. Then wire it through `bootstrap.New`.
 
@@ -184,13 +184,13 @@ The read-side aggregation for both strategies lives in `aggregateBucket`
 
 ## The write path (collection)
 
-1. A cron (`newChartDataCollectionSchedule` in `cmd/fleet/cron.go`, default 1h)
+1. A cron (`newChartDataCollectionSchedule` in `cmd/automdm/cron.go`, default 1h)
    calls `Service.CollectDatasets(ctx, now, scope)`.
 2. `scope` is a `CollectScopeFn` built fresh each tick from AppConfig + team
    configs (`buildChartScopeResolver`). For each dataset it returns `(skip,
-   disabledFleetIDs)` — whether the dataset is globally off, and which fleets opted
+   disabledTeamIDs)` — whether the dataset is globally off, and which teams opted
    out.
-3. For each registered dataset, `Collect(ctx, store, now, disabledFleetIDs)` runs.
+3. For each registered dataset, `Collect(ctx, store, now, disabledTeamIDs)` runs.
    A failure is logged and the loop continues — one dataset can't block the others.
 4. `Collect` reads host state through the narrow `DatasetStore` interface
    (`FindOnlineHostIDs`, `AffectedHostIDsByCVE`, `TrackedCriticalCVEs`), builds
@@ -250,17 +250,17 @@ slice. **Do not "normalize" one to the other.**
 
 Whether a dataset collects at all is gated by `HistoricalDataSettings` in AppConfig
 (global) and per-team config (`Features.HistoricalData`). The cron's scope resolver
-translates these into `skip` / `disabledFleetIDs`.
+translates these into `skip` / `disabledTeamIDs`.
 
 When an admin **disables** a dataset, already-collected data must be removed. That
-flip is handled by `fleet.OnHistoricalDataChanged` (in `server/fleet/historical_data.go`),
+flip is handled by `automdm.OnHistoricalDataChanged` (in `server/automdm/historical_data.go`),
 which enqueues a worker job *after* the config commit:
 
 - **Global disable** → `chart_scrub_dataset_global` job →
   `Service.ScrubDatasetGlobal` → `DeleteAllForDataset` (batched delete of all rows
   for the dataset).
-- **Per-fleet disable** → `chart_scrub_dataset_fleet` job →
-  `Service.ScrubDatasetFleet` → resolve the fleets' host IDs into a mask, then
+- **Per-team disable** → `chart_scrub_dataset_automdm` job →
+  `Service.ScrubDatasetAutoMDM` → resolve the teams' host IDs into a mask, then
   `ApplyScrubMaskToDataset` walks every row and `BlobANDNOT`s the mask out. Both are
   idempotent.
 
@@ -284,8 +284,8 @@ battery.
    func (b *BatteryDataset) SampleStrategy() api.SampleStrategy { return api.SampleStrategySnapshot }
    func (b *BatteryDataset) DefaultVisualization() string       { return "line" }
 
-   func (b *BatteryDataset) Collect(ctx context.Context, store api.DatasetStore, now time.Time, disabledFleetIDs []uint) error {
-       hostIDs, err := store.FindHealthyBatteryHostIDs(ctx, disabledFleetIDs) // new store method
+   func (b *BatteryDataset) Collect(ctx context.Context, store api.DatasetStore, now time.Time, disabledTeamIDs []uint) error {
+       hostIDs, err := store.FindHealthyBatteryHostIDs(ctx, disabledTeamIDs) // new store method
        if err != nil {
            return err
        }
@@ -308,7 +308,7 @@ battery.
    `internal/mysql/charts.go`. Keep these read-only and bounded; stream large joins
    (see `streamCVEHostPairs`).
 
-3. **Register the dataset** in `cmd/fleet/serve.go::createChartBoundedContext`:
+3. **Register the dataset** in `cmd/automdm/serve.go::createChartBoundedContext`:
 
    ```go
    chartSvc.RegisterDataset(&chart.BatteryDataset{})
@@ -318,7 +318,7 @@ battery.
 
 4. **Wire config gating** (if the dataset is opt-in/out): add a sub-key to
    `HistoricalDataSettings`, teach `Enabled(name)` about it, and add a row to the
-   change list in `fleet.OnHistoricalDataChanged` so disabling it triggers a scrub.
+   change list in `automdm.OnHistoricalDataChanged` so disabling it triggers a scrub.
    The scrub workers are dataset-agnostic and need no changes.
 
 5. **Test** the collector and the read aggregation. MySQL-backed tests live in
@@ -330,11 +330,11 @@ new column or index).
 
 ## How charts reach the frontend
 
-- Route: `GET /api/_version_/fleet/charts/{metric}` (registered in
+- Route: `GET /api/_version_/automdm/charts/{metric}` (registered in
   `internal/service/handler.go`).
 - Query params: `days`, `resolution` (hours), `tz_offset` (minutes, from JS
-  `Date.getTimezoneOffset()`), `fleet_id` (note the teams→fleets rename — the wire
-  name is `fleet_id`, the Go field stays `TeamID`), `label_ids`, `platforms`,
+  `Date.getTimezoneOffset()`), `team_id` (note the teams→teams rename — the wire
+  name is `team_id`, the Go field stays `TeamID`), `label_ids`, `platforms`,
   `include_host_ids`, `exclude_host_ids` (comma lists).
 - The response carries `visualization` (from `DefaultVisualization()`), so the
   frontend learns how to render each metric from the backend rather than hardcoding
@@ -354,7 +354,7 @@ MYSQL_TEST=1 go test -run TestName ./server/chart/internal/mysql/...
 ```
 
 `arch_test.go` is part of `go test ./server/chart/...` and will fail the build if a
-package grows a forbidden dependency (e.g. an accidental `server/fleet` import).
+package grows a forbidden dependency (e.g. an accidental `server/automdm` import).
 When you add a store method, run `go test ./server/service/` too — uninitialized
 mocks elsewhere can crash if an interface method is missing.
 
@@ -379,10 +379,10 @@ mocks elsewhere can crash if an interface method is missing.
 Related code outside this tree:
 
 - `server/acl/chartacl/` — anti-corruption layer (viewer and platform expander adapters).
-- `cmd/fleet/serve.go` — `createChartBoundedContext`, dataset registration.
-- `cmd/fleet/cron.go` — collection schedule, scope resolver, cleanup.
+- `cmd/automdm/serve.go` — `createChartBoundedContext`, dataset registration.
+- `cmd/automdm/cron.go` — collection schedule, scope resolver, cleanup.
 - `server/worker/chart_scrub.go` — scrub worker jobs.
-- `server/fleet/historical_data.go` — config-flip → scrub/activity orchestration.
+- `server/automdm/historical_data.go` — config-flip → scrub/activity orchestration.
 - `server/datastore/mysql/migrations/tables/20260423161823_AddHostSCDData.go` — the table migration.
 - `tools/charts-backfill/`, `tools/charts-collect/` — dev tools (see below).
 
@@ -409,7 +409,7 @@ Crucially, it backfills in the mode that **matches the dataset's
   long open row, a small fraction "flip" on day boundaries to produce closed
   segments. CVE cardinality follows a long-tail distribution (most CVEs touch a
   handful of hosts, a few are browser/kernel-wide) so unioning hundreds of entities
-  doesn't saturate at fleet size. The final segment per entity stays open
+  doesn't saturate at team size. The final segment per entity stays open
   (`valid_to` = sentinel) so the live collector compares against it on its next
   tick rather than stacking a row on top.
 
@@ -423,7 +423,7 @@ go run ./tools/charts-backfill --dataset cve --days 30 --use-tracked-cves
 # Scope to specific hosts / entities / a custom DSN:
 go run ./tools/charts-backfill --dataset uptime --days 7 --host-ids 1,2,3
 go run ./tools/charts-backfill --dataset cve --days 30 --entity-ids CVE-2024-1,CVE-2024-2
-go run ./tools/charts-backfill --mysql-dsn "fleet:fleet@tcp(localhost:3306)/fleet"
+go run ./tools/charts-backfill --mysql-dsn "automdm:automdm@tcp(localhost:3306)/automdm"
 ```
 
 Key flags: `--dataset` (default `uptime`), `--days` (30), `--start-date`
@@ -437,20 +437,20 @@ If you add a snapshot-strategy dataset, add its name to `snapshotDatasets` in
 generates it in the right shape; otherwise it defaults to the accumulate/hourly
 model.
 
-### `tools/charts-collect` — real data from a live Fleet
+### `tools/charts-collect` — real data from a live AutoMDM
 
-The other tool pulls **real** state from a running Fleet instance over the REST API
+The other tool pulls **real** state from a running AutoMDM instance over the REST API
 (currently uptime + CVE) and writes it into a local DB. It's the out-of-process
 stand-in for the in-server collection cron — designed to run hourly against e.g.
-dogfood. Use this when you want a chart backed by real fleet data rather than
+dogfood. Use this when you want a chart backed by real team data rather than
 synthetic noise.
 
 ```bash
-go run ./tools/charts-collect --fleet-url https://dogfood.fleetdm.com --fleet-token <token>
+go run ./tools/charts-collect --automdm-url https://dogfood.fleetdm.com --automdm-token <token>
 ```
 
-Targets are also configurable via `FLEET_URL` / `FLEET_TOKEN` / `MYSQL_DSN`, and
-the DSN falls back to the standard `FLEET_MYSQL_*` env vars. See
+Targets are also configurable via `AUTOMDM_URL` / `AUTOMDM_TOKEN` / `MYSQL_DSN`, and
+the DSN falls back to the standard `AUTOMDM_MYSQL_*` env vars. See
 `tools/charts-collect/README.md`.
 
 > Both tools duplicate a few storage constants (the `9999-12-31` open sentinel,

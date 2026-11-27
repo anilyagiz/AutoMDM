@@ -7,7 +7,7 @@
 
 $displayNamePattern = '^Notion\ Calendar \d'
 $publisher = "Notion Labs, Inc."
-$taskName = "fleet-uninstall-notion-calendar"
+$taskName = "automdm-uninstall-notion-calendar"
 $appDir = "AppData\Local\Programs\notion-calendar-web"  # in each user's profile
 $taskRunning = 267009  # SCHED_S_TASK_RUNNING
 $timeoutSeconds = 300

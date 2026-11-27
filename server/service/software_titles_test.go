@@ -5,26 +5,26 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/stretchr/testify/require"
 )
 
 func TestServiceSoftwareTitlesAuth(t *testing.T) {
 	ds := new(mock.Store)
 
-	ds.ListSoftwareTitlesFunc = func(ctx context.Context, opt fleet.SoftwareTitleListOptions, tmf fleet.TeamFilter) ([]fleet.SoftwareTitleListResult, int, *fleet.PaginationMetadata, error) {
-		return []fleet.SoftwareTitleListResult{}, 0, &fleet.PaginationMetadata{}, nil
+	ds.ListSoftwareTitlesFunc = func(ctx context.Context, opt automdm.SoftwareTitleListOptions, tmf automdm.TeamFilter) ([]automdm.SoftwareTitleListResult, int, *automdm.PaginationMetadata, error) {
+		return []automdm.SoftwareTitleListResult{}, 0, &automdm.PaginationMetadata{}, nil
 	}
-	ds.SoftwareTitleByIDFunc = func(ctx context.Context, id uint, teamID *uint, tmFilter fleet.TeamFilter) (*fleet.SoftwareTitle, error) {
-		return &fleet.SoftwareTitle{}, nil
+	ds.SoftwareTitleByIDFunc = func(ctx context.Context, id uint, teamID *uint, tmFilter automdm.TeamFilter) (*automdm.SoftwareTitle, error) {
+		return &automdm.SoftwareTitle{}, nil
 	}
 	ds.TeamExistsFunc = func(ctx context.Context, teamID uint) (bool, error) { return true, nil }
-	ds.SoftwareTitleByIDFunc = func(ctx context.Context, id uint, teamID *uint, tmFilter fleet.TeamFilter) (*fleet.SoftwareTitle, error) {
-		return &fleet.SoftwareTitle{BundleIdentifier: ptr.String("foo")}, nil
+	ds.SoftwareTitleByIDFunc = func(ctx context.Context, id uint, teamID *uint, tmFilter automdm.TeamFilter) (*automdm.SoftwareTitle, error) {
+		return &automdm.SoftwareTitle{BundleIdentifier: ptr.String("foo")}, nil
 	}
 	ds.UpdateSoftwareTitleNameFunc = func(ctx context.Context, id uint, name string) error {
 		return nil
@@ -34,7 +34,7 @@ func TestServiceSoftwareTitlesAuth(t *testing.T) {
 
 	for _, tc := range []struct {
 		name                 string
-		user                 *fleet.User
+		user                 *automdm.User
 		shouldFailGlobalRead bool
 		shouldFailTeamRead   bool
 		shouldFailGetByID    bool
@@ -42,9 +42,9 @@ func TestServiceSoftwareTitlesAuth(t *testing.T) {
 	}{
 		{
 			name: "global-admin",
-			user: &fleet.User{
+			user: &automdm.User{
 				ID:         1,
-				GlobalRole: ptr.String(fleet.RoleAdmin),
+				GlobalRole: ptr.String(automdm.RoleAdmin),
 			},
 			shouldFailGlobalRead: false,
 			shouldFailTeamRead:   false,
@@ -53,9 +53,9 @@ func TestServiceSoftwareTitlesAuth(t *testing.T) {
 		},
 		{
 			name: "global-maintainer",
-			user: &fleet.User{
+			user: &automdm.User{
 				ID:         1,
-				GlobalRole: ptr.String(fleet.RoleMaintainer),
+				GlobalRole: ptr.String(automdm.RoleMaintainer),
 			},
 			shouldFailGlobalRead: false,
 			shouldFailTeamRead:   false,
@@ -64,9 +64,9 @@ func TestServiceSoftwareTitlesAuth(t *testing.T) {
 		},
 		{
 			name: "global-observer",
-			user: &fleet.User{
+			user: &automdm.User{
 				ID:         1,
-				GlobalRole: ptr.String(fleet.RoleObserver),
+				GlobalRole: ptr.String(automdm.RoleObserver),
 			},
 			shouldFailGlobalRead: false,
 			shouldFailTeamRead:   false,
@@ -75,11 +75,11 @@ func TestServiceSoftwareTitlesAuth(t *testing.T) {
 		},
 		{
 			name: "team-admin-belongs-to-team",
-			user: &fleet.User{
+			user: &automdm.User{
 				ID: 1,
-				Teams: []fleet.UserTeam{{
-					Team: fleet.Team{ID: 1},
-					Role: fleet.RoleAdmin,
+				Teams: []automdm.UserTeam{{
+					Team: automdm.Team{ID: 1},
+					Role: automdm.RoleAdmin,
 				}},
 			},
 			shouldFailGlobalRead: true,
@@ -89,11 +89,11 @@ func TestServiceSoftwareTitlesAuth(t *testing.T) {
 		},
 		{
 			name: "team-maintainer-belongs-to-team",
-			user: &fleet.User{
+			user: &automdm.User{
 				ID: 1,
-				Teams: []fleet.UserTeam{{
-					Team: fleet.Team{ID: 1},
-					Role: fleet.RoleMaintainer,
+				Teams: []automdm.UserTeam{{
+					Team: automdm.Team{ID: 1},
+					Role: automdm.RoleMaintainer,
 				}},
 			},
 			shouldFailGlobalRead: true,
@@ -103,11 +103,11 @@ func TestServiceSoftwareTitlesAuth(t *testing.T) {
 		},
 		{
 			name: "team-observer-belongs-to-team",
-			user: &fleet.User{
+			user: &automdm.User{
 				ID: 1,
-				Teams: []fleet.UserTeam{{
-					Team: fleet.Team{ID: 1},
-					Role: fleet.RoleObserver,
+				Teams: []automdm.UserTeam{{
+					Team: automdm.Team{ID: 1},
+					Role: automdm.RoleObserver,
 				}},
 			},
 			shouldFailGlobalRead: true,
@@ -117,11 +117,11 @@ func TestServiceSoftwareTitlesAuth(t *testing.T) {
 		},
 		{
 			name: "team-admin-does-not-belong-to-team",
-			user: &fleet.User{
+			user: &automdm.User{
 				ID: 1,
-				Teams: []fleet.UserTeam{{
-					Team: fleet.Team{ID: 2},
-					Role: fleet.RoleAdmin,
+				Teams: []automdm.UserTeam{{
+					Team: automdm.Team{ID: 2},
+					Role: automdm.RoleAdmin,
 				}},
 			},
 			shouldFailGlobalRead: true,
@@ -131,11 +131,11 @@ func TestServiceSoftwareTitlesAuth(t *testing.T) {
 		},
 		{
 			name: "team-maintainer-does-not-belong-to-team",
-			user: &fleet.User{
+			user: &automdm.User{
 				ID: 1,
-				Teams: []fleet.UserTeam{{
-					Team: fleet.Team{ID: 2},
-					Role: fleet.RoleMaintainer,
+				Teams: []automdm.UserTeam{{
+					Team: automdm.Team{ID: 2},
+					Role: automdm.RoleMaintainer,
 				}},
 			},
 			shouldFailGlobalRead: true,
@@ -145,11 +145,11 @@ func TestServiceSoftwareTitlesAuth(t *testing.T) {
 		},
 		{
 			name: "team-observer-does-not-belong-to-team",
-			user: &fleet.User{
+			user: &automdm.User{
 				ID: 1,
-				Teams: []fleet.UserTeam{{
-					Team: fleet.Team{ID: 2},
-					Role: fleet.RoleObserver,
+				Teams: []automdm.UserTeam{{
+					Team: automdm.Team{ID: 2},
+					Role: automdm.RoleObserver,
 				}},
 			},
 			shouldFailGlobalRead: true,
@@ -161,9 +161,9 @@ func TestServiceSoftwareTitlesAuth(t *testing.T) {
 			// GitOps can list software titles but cannot fetch a single title
 			// because SoftwareTitleByID also requires Host:list permission.
 			name: "global-gitops",
-			user: &fleet.User{
+			user: &automdm.User{
 				ID:         1,
-				GlobalRole: ptr.String(fleet.RoleGitOps),
+				GlobalRole: ptr.String(automdm.RoleGitOps),
 			},
 			shouldFailGlobalRead: false,
 			shouldFailTeamRead:   false,
@@ -172,11 +172,11 @@ func TestServiceSoftwareTitlesAuth(t *testing.T) {
 		},
 		{
 			name: "team-gitops-belongs-to-team",
-			user: &fleet.User{
+			user: &automdm.User{
 				ID: 1,
-				Teams: []fleet.UserTeam{{
-					Team: fleet.Team{ID: 1},
-					Role: fleet.RoleGitOps,
+				Teams: []automdm.UserTeam{{
+					Team: automdm.Team{ID: 1},
+					Role: automdm.RoleGitOps,
 				}},
 			},
 			shouldFailGlobalRead: true,
@@ -186,11 +186,11 @@ func TestServiceSoftwareTitlesAuth(t *testing.T) {
 		},
 		{
 			name: "team-gitops-does-not-belong-to-team",
-			user: &fleet.User{
+			user: &automdm.User{
 				ID: 1,
-				Teams: []fleet.UserTeam{{
-					Team: fleet.Team{ID: 2},
-					Role: fleet.RoleGitOps,
+				Teams: []automdm.UserTeam{{
+					Team: automdm.Team{ID: 2},
+					Role: automdm.RoleGitOps,
 				}},
 			},
 			shouldFailGlobalRead: true,
@@ -201,14 +201,14 @@ func TestServiceSoftwareTitlesAuth(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := viewer.NewContext(ctx, viewer.Viewer{User: tc.user})
-			premiumCtx := license.NewContext(ctx, &fleet.LicenseInfo{Tier: fleet.TierPremium})
+			premiumCtx := license.NewContext(ctx, &automdm.LicenseInfo{Tier: automdm.TierPremium})
 
 			// List all software titles.
-			_, _, _, err := svc.ListSoftwareTitles(ctx, fleet.SoftwareTitleListOptions{})
+			_, _, _, err := svc.ListSoftwareTitles(ctx, automdm.SoftwareTitleListOptions{})
 			checkAuthErr(t, tc.shouldFailGlobalRead, err)
 
 			// List software for a team.
-			_, _, _, err = svc.ListSoftwareTitles(premiumCtx, fleet.SoftwareTitleListOptions{
+			_, _, _, err = svc.ListSoftwareTitles(premiumCtx, automdm.SoftwareTitleListOptions{
 				TeamID: ptr.Uint(1),
 			})
 			checkAuthErr(t, tc.shouldFailTeamRead, err)
@@ -216,10 +216,10 @@ func TestServiceSoftwareTitlesAuth(t *testing.T) {
 			// List software for a team should fail no matter what
 			// with a non-premium context
 			if !tc.shouldFailTeamRead {
-				_, _, _, err = svc.ListSoftwareTitles(ctx, fleet.SoftwareTitleListOptions{
+				_, _, _, err = svc.ListSoftwareTitles(ctx, automdm.SoftwareTitleListOptions{
 					TeamID: ptr.Uint(1),
 				})
-				require.ErrorContains(t, err, "Requires Fleet Premium license")
+				require.ErrorContains(t, err, "Requires AutoMDM Premium license")
 			}
 
 			// Get a software title for a team
@@ -235,7 +235,7 @@ func TestServiceSoftwareTitlesAuth(t *testing.T) {
 
 // TestSoftwareTitleByIDInstallerDetails covers the two authorization rules the
 // title detail response depends on: the "no team" scope is authorized even when
-// no fleet is given, and script contents and managed app configuration reach
+// no team is given, and script contents and managed app configuration reach
 // only callers who can read the installer, not merely software inventory.
 func TestSoftwareTitleByIDInstallerDetails(t *testing.T) {
 	const (
@@ -248,16 +248,16 @@ func TestSoftwareTitleByIDInstallerDetails(t *testing.T) {
 
 	ds := new(mock.Store)
 	ds.TeamExistsFunc = func(ctx context.Context, teamID uint) (bool, error) { return true, nil }
-	ds.SoftwareTitleByIDFunc = func(ctx context.Context, id uint, teamID *uint, tmFilter fleet.TeamFilter) (*fleet.SoftwareTitle, error) {
-		return &fleet.SoftwareTitle{
+	ds.SoftwareTitleByIDFunc = func(ctx context.Context, id uint, teamID *uint, tmFilter automdm.TeamFilter) (*automdm.SoftwareTitle, error) {
+		return &automdm.SoftwareTitle{
 			ID:                      id,
 			Name:                    "Foo",
 			SoftwareInstallersCount: 1,
 			VPPAppsCount:            1,
 		}, nil
 	}
-	ds.GetSoftwarePackagesByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint) ([]*fleet.SoftwareInstaller, error) {
-		return []*fleet.SoftwareInstaller{{
+	ds.GetSoftwarePackagesByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint) ([]*automdm.SoftwareInstaller, error) {
+		return []*automdm.SoftwareInstaller{{
 			InstallerID:       1,
 			TitleID:           &titleID,
 			Name:              "foo.pkg",
@@ -272,30 +272,30 @@ func TestSoftwareTitleByIDInstallerDetails(t *testing.T) {
 			Configuration:     appConfiguration,
 		}}, nil
 	}
-	ds.GetSoftwareInstallerMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint, withScriptContents bool) (*fleet.SoftwareInstaller, error) {
-		return &fleet.SoftwareInstaller{InstallerID: 1, DisplayName: "Foo"}, nil
+	ds.GetSoftwareInstallerMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint, withScriptContents bool) (*automdm.SoftwareInstaller, error) {
+		return &automdm.SoftwareInstaller{InstallerID: 1, DisplayName: "Foo"}, nil
 	}
 	ds.GetCategoriesForSoftwareInstallersFunc = func(ctx context.Context, installerIDs []uint) (map[uint][]string, error) {
 		return nil, nil
 	}
-	ds.GetSummaryHostSoftwareInstallsFunc = func(ctx context.Context, installerID uint) (*fleet.SoftwareInstallerStatusSummary, error) {
-		return &fleet.SoftwareInstallerStatusSummary{}, nil
+	ds.GetSummaryHostSoftwareInstallsFunc = func(ctx context.Context, installerID uint) (*automdm.SoftwareInstallerStatusSummary, error) {
+		return &automdm.SoftwareInstallerStatusSummary{}, nil
 	}
-	ds.GetVPPAppMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint) (*fleet.VPPAppStoreApp, error) {
-		return &fleet.VPPAppStoreApp{Name: "Bar", Configuration: appConfiguration}, nil
+	ds.GetVPPAppMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint) (*automdm.VPPAppStoreApp, error) {
+		return &automdm.VPPAppStoreApp{Name: "Bar", Configuration: appConfiguration}, nil
 	}
-	ds.GetAppStoreAppVersionsByTeamAndTitleIDFunc = func(ctx context.Context, teamID uint, titleID uint) ([]*fleet.VPPAppStoreApp, error) {
-		return []*fleet.VPPAppStoreApp{{Name: "Bar", Configuration: appConfiguration}}, nil
+	ds.GetAppStoreAppVersionsByTeamAndTitleIDFunc = func(ctx context.Context, teamID uint, titleID uint) ([]*automdm.VPPAppStoreApp, error) {
+		return []*automdm.VPPAppStoreApp{{Name: "Bar", Configuration: appConfiguration}}, nil
 	}
-	ds.GetSummaryHostVPPAppInstallsFunc = func(ctx context.Context, versions []*fleet.VPPAppStoreApp) (map[uint]*fleet.VPPAppStatusSummary, error) {
-		return map[uint]*fleet.VPPAppStatusSummary{0: {}}, nil
+	ds.GetSummaryHostVPPAppInstallsFunc = func(ctx context.Context, versions []*automdm.VPPAppStoreApp) (map[uint]*automdm.VPPAppStatusSummary, error) {
+		return map[uint]*automdm.VPPAppStatusSummary{0: {}}, nil
 	}
 
 	svc, ctx := newTestService(t, ds, nil, nil)
 
 	for _, tc := range []struct {
 		name string
-		user *fleet.User
+		user *automdm.User
 		// canReadInstaller is whether the role holds installable_entity read.
 		canReadInstaller bool
 		// installersWithoutTeam is whether the role can read the "no team" scope.
@@ -303,13 +303,13 @@ func TestSoftwareTitleByIDInstallerDetails(t *testing.T) {
 	}{
 		{
 			name:                  "global-admin",
-			user:                  &fleet.User{ID: 1, GlobalRole: new(fleet.RoleAdmin)},
+			user:                  &automdm.User{ID: 1, GlobalRole: new(automdm.RoleAdmin)},
 			canReadInstaller:      true,
 			installersWithoutTeam: true,
 		},
 		{
 			name:                  "global-maintainer",
-			user:                  &fleet.User{ID: 1, GlobalRole: new(fleet.RoleMaintainer)},
+			user:                  &automdm.User{ID: 1, GlobalRole: new(automdm.RoleMaintainer)},
 			canReadInstaller:      true,
 			installersWithoutTeam: true,
 		},
@@ -318,58 +318,58 @@ func TestSoftwareTitleByIDInstallerDetails(t *testing.T) {
 			// from a hardcoded admin/maintainer list: it reads installers but is
 			// neither.
 			name:                  "global-technician",
-			user:                  &fleet.User{ID: 1, GlobalRole: new(fleet.RoleTechnician)},
+			user:                  &automdm.User{ID: 1, GlobalRole: new(automdm.RoleTechnician)},
 			canReadInstaller:      true,
 			installersWithoutTeam: true,
 		},
 		{
 			name:                  "global-observer",
-			user:                  &fleet.User{ID: 1, GlobalRole: new(fleet.RoleObserver)},
+			user:                  &automdm.User{ID: 1, GlobalRole: new(automdm.RoleObserver)},
 			canReadInstaller:      false,
 			installersWithoutTeam: true,
 		},
 		{
 			name:                  "global-observer-plus",
-			user:                  &fleet.User{ID: 1, GlobalRole: new(fleet.RoleObserverPlus)},
+			user:                  &automdm.User{ID: 1, GlobalRole: new(automdm.RoleObserverPlus)},
 			canReadInstaller:      false,
 			installersWithoutTeam: true,
 		},
 		{
 			name: "team-admin",
-			user: &fleet.User{ID: 1, Teams: []fleet.UserTeam{{
-				Team: fleet.Team{ID: 1}, Role: fleet.RoleAdmin,
+			user: &automdm.User{ID: 1, Teams: []automdm.UserTeam{{
+				Team: automdm.Team{ID: 1}, Role: automdm.RoleAdmin,
 			}}},
 			canReadInstaller:      true,
 			installersWithoutTeam: false,
 		},
 		{
 			name: "team-maintainer",
-			user: &fleet.User{ID: 1, Teams: []fleet.UserTeam{{
-				Team: fleet.Team{ID: 1}, Role: fleet.RoleMaintainer,
+			user: &automdm.User{ID: 1, Teams: []automdm.UserTeam{{
+				Team: automdm.Team{ID: 1}, Role: automdm.RoleMaintainer,
 			}}},
 			canReadInstaller:      true,
 			installersWithoutTeam: false,
 		},
 		{
 			name: "team-technician",
-			user: &fleet.User{ID: 1, Teams: []fleet.UserTeam{{
-				Team: fleet.Team{ID: 1}, Role: fleet.RoleTechnician,
+			user: &automdm.User{ID: 1, Teams: []automdm.UserTeam{{
+				Team: automdm.Team{ID: 1}, Role: automdm.RoleTechnician,
 			}}},
 			canReadInstaller:      true,
 			installersWithoutTeam: false,
 		},
 		{
 			name: "team-observer",
-			user: &fleet.User{ID: 1, Teams: []fleet.UserTeam{{
-				Team: fleet.Team{ID: 1}, Role: fleet.RoleObserver,
+			user: &automdm.User{ID: 1, Teams: []automdm.UserTeam{{
+				Team: automdm.Team{ID: 1}, Role: automdm.RoleObserver,
 			}}},
 			canReadInstaller:      false,
 			installersWithoutTeam: false,
 		},
 		{
 			name: "team-observer-plus",
-			user: &fleet.User{ID: 1, Teams: []fleet.UserTeam{{
-				Team: fleet.Team{ID: 1}, Role: fleet.RoleObserverPlus,
+			user: &automdm.User{ID: 1, Teams: []automdm.UserTeam{{
+				Team: automdm.Team{ID: 1}, Role: automdm.RoleObserverPlus,
 			}}},
 			canReadInstaller:      false,
 			installersWithoutTeam: false,
@@ -377,7 +377,7 @@ func TestSoftwareTitleByIDInstallerDetails(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := viewer.NewContext(ctx, viewer.Viewer{User: tc.user})
-			ctx = license.NewContext(ctx, &fleet.LicenseInfo{Tier: fleet.TierPremium})
+			ctx = license.NewContext(ctx, &automdm.LicenseInfo{Tier: automdm.TierPremium})
 
 			title, err := svc.SoftwareTitleByID(ctx, 1, new(uint(1)))
 			require.NoError(t, err)
@@ -414,7 +414,7 @@ func TestSoftwareTitleByIDInstallerDetails(t *testing.T) {
 			}
 			require.Equal(t, "Bar", title.AppStoreApps[0].Name)
 
-			// get the title without a fleet, the request should succeed without any installer data
+			// get the title without a team, the request should succeed without any installer data
 			ds.TeamExistsFuncInvoked = false
 			noTeamTitle, err := svc.SoftwareTitleByID(ctx, 1, nil)
 			require.NoError(t, err)
@@ -432,14 +432,14 @@ func TestSoftwareTitleByIDInstallerDetails(t *testing.T) {
 
 func TestSoftwareNameUpdate(t *testing.T) {
 	ds := new(mock.Store)
-	ds.SoftwareTitleByIDFunc = func(ctx context.Context, id uint, teamID *uint, tmFilter fleet.TeamFilter) (*fleet.SoftwareTitle, error) {
+	ds.SoftwareTitleByIDFunc = func(ctx context.Context, id uint, teamID *uint, tmFilter automdm.TeamFilter) (*automdm.SoftwareTitle, error) {
 		return nil, &notFoundError{}
 	}
 
 	svc, ctx := newTestService(t, ds, nil, nil)
-	ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{
+	ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{
 		ID:         1,
-		GlobalRole: ptr.String(fleet.RoleAdmin),
+		GlobalRole: ptr.String(automdm.RoleAdmin),
 	}})
 
 	// Title not found
@@ -448,8 +448,8 @@ func TestSoftwareNameUpdate(t *testing.T) {
 	require.False(t, ds.UpdateHostSoftwareFuncInvoked)
 
 	// Title found but doesn't have a bundle ID
-	title := &fleet.SoftwareTitle{}
-	ds.SoftwareTitleByIDFunc = func(ctx context.Context, id uint, teamID *uint, tmFilter fleet.TeamFilter) (*fleet.SoftwareTitle, error) {
+	title := &automdm.SoftwareTitle{}
+	ds.SoftwareTitleByIDFunc = func(ctx context.Context, id uint, teamID *uint, tmFilter automdm.TeamFilter) (*automdm.SoftwareTitle, error) {
 		return title, nil
 	}
 	err = svc.UpdateSoftwareName(ctx, 1, "2 Chrome 2 Furious")
@@ -457,7 +457,7 @@ func TestSoftwareNameUpdate(t *testing.T) {
 	require.False(t, ds.UpdateHostSoftwareFuncInvoked)
 
 	// Title found with bundle ID but user didn't provide a name
-	title = &fleet.SoftwareTitle{BundleIdentifier: ptr.String("foo")}
+	title = &automdm.SoftwareTitle{BundleIdentifier: ptr.String("foo")}
 	err = svc.UpdateSoftwareName(ctx, 1, "")
 	require.ErrorContains(t, err, "name")
 	require.False(t, ds.UpdateHostSoftwareFuncInvoked)
@@ -473,8 +473,8 @@ func TestSoftwareNameUpdate(t *testing.T) {
 
 func TestSoftwareTitleByIDTeamIDZero(t *testing.T) {
 	ds := new(mock.Store)
-	ds.SoftwareTitleByIDFunc = func(ctx context.Context, id uint, teamID *uint, tmFilter fleet.TeamFilter) (*fleet.SoftwareTitle, error) {
-		return &fleet.SoftwareTitle{BundleIdentifier: new("com.example.app")}, nil
+	ds.SoftwareTitleByIDFunc = func(ctx context.Context, id uint, teamID *uint, tmFilter automdm.TeamFilter) (*automdm.SoftwareTitle, error) {
+		return &automdm.SoftwareTitle{BundleIdentifier: new("com.example.app")}, nil
 	}
 	ds.TeamExistsFunc = func(ctx context.Context, teamID uint) (bool, error) { return true, nil }
 
@@ -483,11 +483,11 @@ func TestSoftwareTitleByIDTeamIDZero(t *testing.T) {
 	teamIDZero := new(uint) // *uint pointing to 0
 
 	// Team-scoped user on team 1 should not be able to access software with team_id=0
-	teamUser := &fleet.User{
+	teamUser := &automdm.User{
 		ID: 1,
-		Teams: []fleet.UserTeam{{
-			Team: fleet.Team{ID: 1},
-			Role: fleet.RoleAdmin,
+		Teams: []automdm.UserTeam{{
+			Team: automdm.Team{ID: 1},
+			Role: automdm.RoleAdmin,
 		}},
 	}
 	ctx = viewer.NewContext(ctx, viewer.Viewer{User: teamUser})
@@ -496,9 +496,9 @@ func TestSoftwareTitleByIDTeamIDZero(t *testing.T) {
 	checkAuthErr(t, true, err)
 
 	// Global admin should still be able to access software with team_id=0
-	globalAdmin := &fleet.User{
+	globalAdmin := &automdm.User{
 		ID:         2,
-		GlobalRole: new(fleet.RoleAdmin),
+		GlobalRole: new(automdm.RoleAdmin),
 	}
 	adminCtx := viewer.NewContext(ctx, viewer.Viewer{User: globalAdmin})
 
@@ -508,50 +508,50 @@ func TestSoftwareTitleByIDTeamIDZero(t *testing.T) {
 
 func TestListSoftwareTitlesOmitSoftwarePackage(t *testing.T) {
 	ds := new(mock.Store)
-	ds.ListSoftwareTitlesFunc = func(ctx context.Context, opt fleet.SoftwareTitleListOptions, tmf fleet.TeamFilter) ([]fleet.SoftwareTitleListResult, int, *fleet.PaginationMetadata, error) {
-		return []fleet.SoftwareTitleListResult{
+	ds.ListSoftwareTitlesFunc = func(ctx context.Context, opt automdm.SoftwareTitleListOptions, tmf automdm.TeamFilter) ([]automdm.SoftwareTitleListResult, int, *automdm.PaginationMetadata, error) {
+		return []automdm.SoftwareTitleListResult{
 			{
 				ID:              1,
 				Name:            "Custom package",
-				SoftwarePackage: &fleet.SoftwarePackageOrApp{Name: "custom.pkg"},
-				Packages:        []fleet.SoftwarePackageListItem{{InstallerID: 10, Name: "custom.pkg"}},
+				SoftwarePackage: &automdm.SoftwarePackageOrApp{Name: "custom.pkg"},
+				Packages:        []automdm.SoftwarePackageListItem{{InstallerID: 10, Name: "custom.pkg"}},
 			},
 			{
 				ID:              2,
-				Name:            "Fleet-maintained app",
-				SoftwarePackage: &fleet.SoftwarePackageOrApp{Name: "fma.pkg", FleetMaintainedAppID: new(uint(5))},
-				Packages:        []fleet.SoftwarePackageListItem{{InstallerID: 11, Name: "fma.pkg", FleetMaintainedAppID: new(uint(5))}},
+				Name:            "AutoMDM-maintained app",
+				SoftwarePackage: &automdm.SoftwarePackageOrApp{Name: "fma.pkg", AutoMDMMaintainedAppID: new(uint(5))},
+				Packages:        []automdm.SoftwarePackageListItem{{InstallerID: 11, Name: "fma.pkg", AutoMDMMaintainedAppID: new(uint(5))}},
 			},
 			{
 				ID:              3,
 				Name:            "Script package",
-				SoftwarePackage: &fleet.SoftwarePackageOrApp{Name: "script.sh"},
-				Packages:        []fleet.SoftwarePackageListItem{{InstallerID: 12, Name: "script.sh"}},
+				SoftwarePackage: &automdm.SoftwarePackageOrApp{Name: "script.sh"},
+				Packages:        []automdm.SoftwarePackageListItem{{InstallerID: 12, Name: "script.sh"}},
 			},
 			{
 				ID:              4,
 				Name:            "In-house app",
-				SoftwarePackage: &fleet.SoftwarePackageOrApp{Name: "app.ipa"},
-				Packages:        []fleet.SoftwarePackageListItem{{InstallerID: 13, Name: "app.ipa"}},
+				SoftwarePackage: &automdm.SoftwarePackageOrApp{Name: "app.ipa"},
+				Packages:        []automdm.SoftwarePackageListItem{{InstallerID: 13, Name: "app.ipa"}},
 			},
 			{
 				ID:          5,
 				Name:        "App Store app",
-				AppStoreApp: &fleet.SoftwarePackageOrApp{AppStoreID: "12345"},
+				AppStoreApp: &automdm.SoftwarePackageOrApp{AppStoreID: "12345"},
 			},
 			{
 				ID:   6,
 				Name: "No package",
 			},
-		}, 6, &fleet.PaginationMetadata{}, nil
+		}, 6, &automdm.PaginationMetadata{}, nil
 	}
 
 	svc, ctx := newTestService(t, ds, nil, nil)
-	ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{ID: 1, GlobalRole: new(fleet.RoleAdmin)}})
-	ctx = license.NewContext(ctx, &fleet.LicenseInfo{Tier: fleet.TierPremium})
+	ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{ID: 1, GlobalRole: new(automdm.RoleAdmin)}})
+	ctx = license.NewContext(ctx, &automdm.LicenseInfo{Tier: automdm.TierPremium})
 
 	// list the software titles, no title should have software_package in its JSON
-	titles, count, _, err := svc.ListSoftwareTitles(ctx, fleet.SoftwareTitleListOptions{TeamID: new(uint(1))})
+	titles, count, _, err := svc.ListSoftwareTitles(ctx, automdm.SoftwareTitleListOptions{TeamID: new(uint(1))})
 	require.NoError(t, err)
 	require.Equal(t, 6, count)
 	require.Len(t, titles, 6)
@@ -565,23 +565,23 @@ func TestListSoftwareTitlesOmitSoftwarePackage(t *testing.T) {
 		require.Contains(t, titleFields, "packages", title.Name)
 	}
 
-	// check the packages of the custom package and Fleet-maintained app titles, they should be unchanged
-	require.Equal(t, []fleet.SoftwarePackageListItem{{InstallerID: 10, Name: "custom.pkg"}}, titles[0].Packages)
-	require.Equal(t, []fleet.SoftwarePackageListItem{{InstallerID: 11, Name: "fma.pkg", FleetMaintainedAppID: new(uint(5))}}, titles[1].Packages)
+	// check the packages of the custom package and AutoMDM-maintained app titles, they should be unchanged
+	require.Equal(t, []automdm.SoftwarePackageListItem{{InstallerID: 10, Name: "custom.pkg"}}, titles[0].Packages)
+	require.Equal(t, []automdm.SoftwarePackageListItem{{InstallerID: 11, Name: "fma.pkg", AutoMDMMaintainedAppID: new(uint(5))}}, titles[1].Packages)
 }
 
 func TestSoftwareTitleByIDNilTeamIDExistsElsewhere(t *testing.T) {
 	ds := new(mock.Store)
-	var filtersUsed []fleet.TeamFilter
-	ds.SoftwareTitleByIDFunc = func(ctx context.Context, id uint, teamID *uint, tmFilter fleet.TeamFilter) (*fleet.SoftwareTitle, error) {
+	var filtersUsed []automdm.TeamFilter
+	ds.SoftwareTitleByIDFunc = func(ctx context.Context, id uint, teamID *uint, tmFilter automdm.TeamFilter) (*automdm.SoftwareTitle, error) {
 		filtersUsed = append(filtersUsed, tmFilter)
 		return nil, newNotFoundError()
 	}
 
 	svc, ctx := newTestService(t, ds, nil, nil)
-	teamUser := &fleet.User{
+	teamUser := &automdm.User{
 		ID:    1,
-		Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleObserver}},
+		Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserver}},
 	}
 	ctx = viewer.NewContext(ctx, viewer.Viewer{User: teamUser})
 
@@ -589,7 +589,7 @@ func TestSoftwareTitleByIDNilTeamIDExistsElsewhere(t *testing.T) {
 	require.Error(t, err)
 	// A title's existence on a team the caller can't see must not be
 	// distinguishable (via status code) from it not existing at all.
-	require.True(t, fleet.IsNotFound(err), "expected NotFound, got: %v", err)
+	require.True(t, automdm.IsNotFound(err), "expected NotFound, got: %v", err)
 
 	// Guard against reintroducing a secondary lookup: exactly one call, and
 	// never with a global-role filter standing in for the real caller.
@@ -600,42 +600,42 @@ func TestSoftwareTitleByIDNilTeamIDExistsElsewhere(t *testing.T) {
 func TestSoftwareTitleByIDVPPToken(t *testing.T) {
 	ds := new(mock.Store)
 	ds.TeamExistsFunc = func(ctx context.Context, teamID uint) (bool, error) { return true, nil }
-	ds.SoftwareTitleByIDFunc = func(ctx context.Context, id uint, teamID *uint, tmFilter fleet.TeamFilter) (*fleet.SoftwareTitle, error) {
-		return &fleet.SoftwareTitle{ID: id, Name: "Foo", VPPAppsCount: 1}, nil
+	ds.SoftwareTitleByIDFunc = func(ctx context.Context, id uint, teamID *uint, tmFilter automdm.TeamFilter) (*automdm.SoftwareTitle, error) {
+		return &automdm.SoftwareTitle{ID: id, Name: "Foo", VPPAppsCount: 1}, nil
 	}
-	ds.GetSummaryHostVPPAppInstallsFunc = func(ctx context.Context, versions []*fleet.VPPAppStoreApp) (map[uint]*fleet.VPPAppStatusSummary, error) {
-		summaries := make(map[uint]*fleet.VPPAppStatusSummary, len(versions))
+	ds.GetSummaryHostVPPAppInstallsFunc = func(ctx context.Context, versions []*automdm.VPPAppStoreApp) (map[uint]*automdm.VPPAppStatusSummary, error) {
+		summaries := make(map[uint]*automdm.VPPAppStatusSummary, len(versions))
 		for _, v := range versions {
-			summaries[v.VPPAppsTeamsID] = &fleet.VPPAppStatusSummary{}
+			summaries[v.VPPAppsTeamsID] = &automdm.VPPAppStatusSummary{}
 		}
 		return summaries, nil
 	}
 	var versionTokenID *uint
 	var secondVersionTokenID *uint
-	ds.GetAppStoreAppVersionsByTeamAndTitleIDFunc = func(ctx context.Context, teamID uint, titleID uint) ([]*fleet.VPPAppStoreApp, error) {
-		versions := []*fleet.VPPAppStoreApp{{Name: "Bar", VPPTokenID: versionTokenID}}
+	ds.GetAppStoreAppVersionsByTeamAndTitleIDFunc = func(ctx context.Context, teamID uint, titleID uint) ([]*automdm.VPPAppStoreApp, error) {
+		versions := []*automdm.VPPAppStoreApp{{Name: "Bar", VPPTokenID: versionTokenID}}
 		if secondVersionTokenID != nil {
-			versions = append(versions, &fleet.VPPAppStoreApp{Name: "Bar", VersionName: "Beta", VPPAppsTeamsID: 2, VPPTokenID: secondVersionTokenID})
+			versions = append(versions, &automdm.VPPAppStoreApp{Name: "Bar", VersionName: "Beta", VPPAppsTeamsID: 2, VPPTokenID: secondVersionTokenID})
 		}
 		return versions, nil
 	}
-	ds.GetVPPTokenFunc = func(ctx context.Context, tokenID uint) (*fleet.VPPTokenDB, error) {
+	ds.GetVPPTokenFunc = func(ctx context.Context, tokenID uint) (*automdm.VPPTokenDB, error) {
 		if tokenID != 2 {
 			return nil, &notFoundError{}
 		}
-		return &fleet.VPPTokenDB{ID: 2, OrgName: "Acme Org", Location: "Acme Japan", CountryCode: "jp"}, nil
+		return &automdm.VPPTokenDB{ID: 2, OrgName: "Acme Org", Location: "Acme Japan", CountryCode: "jp"}, nil
 	}
 
 	svc, ctx := newTestService(t, ds, nil, nil)
-	ctx = license.NewContext(ctx, &fleet.LicenseInfo{Tier: fleet.TierPremium})
-	ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{ID: 1, GlobalRole: new(fleet.RoleAdmin)}})
+	ctx = license.NewContext(ctx, &automdm.LicenseInfo{Tier: automdm.TierPremium})
+	ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{ID: 1, GlobalRole: new(automdm.RoleAdmin)}})
 
-	t.Run("fleet with a token", func(t *testing.T) {
+	t.Run("team with a token", func(t *testing.T) {
 		versionTokenID = new(uint(2))
 		title, err := svc.SoftwareTitleByID(ctx, 1, new(uint(1)))
 		require.NoError(t, err)
 		require.Len(t, title.AppStoreApps, 1)
-		require.Equal(t, &fleet.VPPTokenSummary{ID: 2, OrgName: "Acme Org", Location: "Acme Japan", CountryCode: "jp"}, title.AppStoreApps[0].VPPToken)
+		require.Equal(t, &automdm.VPPTokenSummary{ID: 2, OrgName: "Acme Org", Location: "Acme Japan", CountryCode: "jp"}, title.AppStoreApps[0].VPPToken)
 	})
 
 	t.Run("app without a token", func(t *testing.T) {
@@ -654,7 +654,7 @@ func TestSoftwareTitleByIDVPPToken(t *testing.T) {
 		require.Nil(t, title.AppStoreApps[0].VPPToken)
 	})
 
-	t.Run("no fleet", func(t *testing.T) {
+	t.Run("no team", func(t *testing.T) {
 		versionTokenID = new(uint(2))
 		ds.GetVPPTokenFuncInvoked = false
 		title, err := svc.SoftwareTitleByID(ctx, 1, nil)
@@ -671,6 +671,6 @@ func TestSoftwareTitleByIDVPPToken(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, title.AppStoreApps, 2)
 		require.Nil(t, title.AppStoreApps[0].VPPToken)
-		require.Equal(t, &fleet.VPPTokenSummary{ID: 2, OrgName: "Acme Org", Location: "Acme Japan", CountryCode: "jp"}, title.AppStoreApps[1].VPPToken)
+		require.Equal(t, &automdm.VPPTokenSummary{ID: 2, OrgName: "Acme Org", Location: "Acme Japan", CountryCode: "jp"}, title.AppStoreApps[1].VPPToken)
 	})
 }

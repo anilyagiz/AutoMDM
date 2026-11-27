@@ -1,4 +1,4 @@
-// package scripts contains constants used by fleetd and the server to
+// package scripts contains constants used by automdmd and the server to
 // coordinate script execution timeouts.
 package scripts
 

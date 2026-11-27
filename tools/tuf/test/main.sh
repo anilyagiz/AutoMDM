@@ -2,10 +2,10 @@
 
 set -ex
 
-export FLEET_ROOT_PASSPHRASE=p4ssphr4s3
-export FLEET_TARGETS_PASSPHRASE=p4ssphr4s3
-export FLEET_SNAPSHOT_PASSPHRASE=p4ssphr4s3
-export FLEET_TIMESTAMP_PASSPHRASE=p4ssphr4s3
+export AUTOMDM_ROOT_PASSPHRASE=p4ssphr4s3
+export AUTOMDM_TARGETS_PASSPHRASE=p4ssphr4s3
+export AUTOMDM_SNAPSHOT_PASSPHRASE=p4ssphr4s3
+export AUTOMDM_TIMESTAMP_PASSPHRASE=p4ssphr4s3
 
 if [ -z "$TUF_PATH" ]; then
   TUF_PATH=test_tuf
@@ -23,28 +23,28 @@ if { [ -n "$GENERATE_PKG" ] || [ -n "$GENERATE_DEB" ] || [ -n "$GENERATE_RPM" ] 
 fi
 
 if [ -n "$KEY_EXPIRATION_DURATION" ]; then
-  export EXTRA_FLEETCTL_LDFLAGS="$EXTRA_FLEETCTL_LDFLAGS -X github.com/fleetdm/fleet/v4/ee/fleetctl.keyExpirationDuration=$KEY_EXPIRATION_DURATION"
+  export EXTRA_AUTOMDMCTL_LDFLAGS="$EXTRA_AUTOMDMCTL_LDFLAGS -X github.com/anilyagiz/automdm/v4/ee/automdmctl.keyExpirationDuration=$KEY_EXPIRATION_DURATION"
 fi
 if [ -n "$SNAPSHOT_EXPIRATION_DURATION" ]; then
-  export EXTRA_FLEETCTL_LDFLAGS="$EXTRA_FLEETCTL_LDFLAGS -X github.com/fleetdm/fleet/v4/ee/fleetctl.snapshotExpirationDuration=$SNAPSHOT_EXPIRATION_DURATION"
+  export EXTRA_AUTOMDMCTL_LDFLAGS="$EXTRA_AUTOMDMCTL_LDFLAGS -X github.com/anilyagiz/automdm/v4/ee/automdmctl.snapshotExpirationDuration=$SNAPSHOT_EXPIRATION_DURATION"
 fi
 if [ -n "$TARGETS_EXPIRATION_DURATION" ]; then
-  export EXTRA_FLEETCTL_LDFLAGS="$EXTRA_FLEETCTL_LDFLAGS -X github.com/fleetdm/fleet/v4/ee/fleetctl.targetsExpirationDuration=$TARGETS_EXPIRATION_DURATION"
+  export EXTRA_AUTOMDMCTL_LDFLAGS="$EXTRA_AUTOMDMCTL_LDFLAGS -X github.com/anilyagiz/automdm/v4/ee/automdmctl.targetsExpirationDuration=$TARGETS_EXPIRATION_DURATION"
 fi
 if [ -n "$TIMESTAMP_EXPIRATION_DURATION" ]; then
-  export EXTRA_FLEETCTL_LDFLAGS="$EXTRA_FLEETCTL_LDFLAGS -X github.com/fleetdm/fleet/v4/ee/fleetctl.timestampExpirationDuration=$TIMESTAMP_EXPIRATION_DURATION"
+  export EXTRA_AUTOMDMCTL_LDFLAGS="$EXTRA_AUTOMDMCTL_LDFLAGS -X github.com/anilyagiz/automdm/v4/ee/automdmctl.timestampExpirationDuration=$TIMESTAMP_EXPIRATION_DURATION"
 fi
 
-make fleetctl
+make automdmctl
 ./tools/tuf/test/create_repository.sh
 
-ROOT_KEYS=$(./build/fleetctl updates roots --path "$TUF_PATH")
+ROOT_KEYS=$(./build/automdmctl updates roots --path "$TUF_PATH")
 export ROOT_KEYS
 
 echo "#########"
-echo "To generate packages set the following options in 'fleetctl package':"
+echo "To generate packages set the following options in 'automdmctl package':"
 echo "--update-roots='$ROOT_KEYS' --update-url=http://localhost:8081"
-echo "You can also pass the above flags to 'fleetctl preview'."
+echo "You can also pass the above flags to 'automdmctl preview'."
 echo "#########"
 
 if [ -z "$SKIP_SERVER" ]; then

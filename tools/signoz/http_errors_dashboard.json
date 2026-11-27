@@ -1,12 +1,12 @@
 {
-  "title": "Fleet HTTP errors",
-  "description": "HTTP error volume split by class: 4XX client errors and 5XX server errors, broken down by error.type. This is the 'Errors' signal of the RED method / Google SRE Golden Signals for the Fleet API.",
+  "title": "AutoMDM HTTP errors",
+  "description": "HTTP error volume split by class: 4XX client errors and 5XX server errors, broken down by error.type. This is the 'Errors' signal of the RED method / Google SRE Golden Signals for the AutoMDM API.",
   "tags": [],
   "variables": {
     "environment": {
       "id": "environment",
       "name": "environment",
-      "description": "Deployment environment to view, auto-discovered from the deployment.environment resource attribute. Fleet always emits deployment.environment (default value 'default', overridable via OTEL_RESOURCE_ATTRIBUTES) so this key exists in every SigNoz instance Fleet reports to, which makes the dynamic lookup safe. Defaults to ALL so all environments show.",
+      "description": "Deployment environment to view, auto-discovered from the deployment.environment resource attribute. AutoMDM always emits deployment.environment (default value 'default', overridable via OTEL_RESOURCE_ATTRIBUTES) so this key exists in every SigNoz instance AutoMDM reports to, which makes the dynamic lookup safe. Defaults to ALL so all environments show.",
       "type": "DYNAMIC",
       "dynamicVariablesAttribute": "deployment.environment",
       "dynamicVariablesSource": "Metrics",
@@ -52,7 +52,7 @@
             {
               "aggregations": [
                 {
-                  "metricName": "fleet.http.client_errors",
+                  "metricName": "automdm.http.client_errors",
                   "reduceTo": "sum",
                   "spaceAggregation": "sum",
                   "temporality": "",
@@ -63,7 +63,7 @@
               "disabled": false,
               "expression": "A",
               "filter": {
-                "expression": "service.name = 'fleet' AND deployment.environment IN $environment"
+                "expression": "service.name = 'automdm' AND deployment.environment IN $environment"
               },
               "functions": [],
               "groupBy": [
@@ -181,7 +181,7 @@
             {
               "aggregations": [
                 {
-                  "metricName": "fleet.http.server_errors",
+                  "metricName": "automdm.http.server_errors",
                   "reduceTo": "sum",
                   "spaceAggregation": "sum",
                   "temporality": "",
@@ -192,7 +192,7 @@
               "disabled": false,
               "expression": "A",
               "filter": {
-                "expression": "service.name = 'fleet' AND deployment.environment IN $environment"
+                "expression": "service.name = 'automdm' AND deployment.environment IN $environment"
               },
               "functions": [],
               "groupBy": [

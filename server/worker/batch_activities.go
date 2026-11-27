@@ -5,21 +5,21 @@ import (
 	"encoding/json"
 	"log/slog"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 )
 
 type BatchScripts struct {
-	Datastore fleet.Datastore
+	Datastore automdm.Datastore
 	Log       *slog.Logger
 }
 
 func (b *BatchScripts) Name() string {
-	return fleet.BatchActivityScriptsJobName
+	return automdm.BatchActivityScriptsJobName
 }
 
 func (b *BatchScripts) Run(ctx context.Context, jobArgs json.RawMessage) error {
-	var args fleet.BatchActivityScriptJobArgs
+	var args automdm.BatchActivityScriptJobArgs
 
 	if err := json.Unmarshal(jobArgs, &args); err != nil {
 		return ctxerr.Wrap(ctx, err, "unmarshal json")
@@ -31,7 +31,7 @@ func (b *BatchScripts) Run(ctx context.Context, jobArgs json.RawMessage) error {
 	}
 
 	// The job was already started, close the job
-	if activity.Status != fleet.ScheduledBatchExecutionScheduled {
+	if activity.Status != automdm.ScheduledBatchExecutionScheduled {
 		return nil
 	}
 

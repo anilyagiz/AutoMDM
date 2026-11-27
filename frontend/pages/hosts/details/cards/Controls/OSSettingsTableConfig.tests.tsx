@@ -1,6 +1,6 @@
 import { createMockHostMdmProfile } from "__mocks__/hostMock";
 import { IHostMdmData, IHostMdmHostNameSetting } from "interfaces/host";
-import { FLEET_ANDROID_CERTIFICATE_TEMPLATE_PROFILE_ID } from "interfaces/mdm";
+import { AUTOMDM_ANDROID_CERTIFICATE_TEMPLATE_PROFILE_ID } from "interfaces/mdm";
 import {
   generateRecoveryLockPasswordSetting,
   generateWinDiskEncryptionSetting,
@@ -161,7 +161,7 @@ describe("generateTableData - Linux disk encryption row", () => {
   );
 
   it.each(["arch", "cachyos", "manjaro", "debian"])(
-    "builds no rows for %s hosts, which Fleet cannot escrow keys for",
+    "builds no rows for %s hosts, which AutoMDM cannot escrow keys for",
     (platform) => {
       expect(generateTableData(mdmData, platform)).toBeNull();
     }
@@ -232,27 +232,27 @@ describe("getRowActionProps", () => {
   });
 
   describe("canResendWhileVerifying", () => {
-    const fleetdRow = () =>
+    const automdmdRow = () =>
       createMockHostMdmProfile({
-        profile_uuid: "a-fleetd",
-        name: "Fleetd configuration",
+        profile_uuid: "a-automdmd",
+        name: "AutoMDMd configuration",
         platform: "darwin",
         status: "verifying",
       });
 
-    it("is offered for the Fleetd configuration profile when one-time enroll secrets are on", () => {
+    it("is offered for the AutoMDMd configuration profile when one-time enroll secrets are on", () => {
       expect(
-        getRowActionProps(fleetdRow(), true, false, false, true)
+        getRowActionProps(automdmdRow(), true, false, false, true)
           .canResendWhileVerifying
       ).toBe(true);
     });
 
     it("is not offered when one-time enroll secrets are off", () => {
       expect(
-        getRowActionProps(fleetdRow(), true, false, false, false)
+        getRowActionProps(automdmdRow(), true, false, false, false)
           .canResendWhileVerifying
       ).toBe(false);
-      expect(getRowActionProps(fleetdRow(), true).canResendWhileVerifying).toBe(
+      expect(getRowActionProps(automdmdRow(), true).canResendWhileVerifying).toBe(
         false
       );
     });
@@ -308,7 +308,7 @@ describe("getRowActionProps", () => {
 
   it("offers the real resend, not the disabled Android state, for an Android certificate row", () => {
     const row = createMockHostMdmProfile({
-      profile_uuid: FLEET_ANDROID_CERTIFICATE_TEMPLATE_PROFILE_ID,
+      profile_uuid: AUTOMDM_ANDROID_CERTIFICATE_TEMPLATE_PROFILE_ID,
       platform: "android",
       status: "failed",
       certificate_template_id: 1,

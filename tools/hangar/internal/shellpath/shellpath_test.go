@@ -36,7 +36,7 @@ func TestAugmentInherited(t *testing.T) {
 		t.Errorf("first entry = %q, want /opt/homebrew/bin", parts[0])
 	}
 	// Home-derived tool dirs are present.
-	for _, want := range []string{"/Users/tester/go/bin", "/Users/tester/.local/bin", "/Users/tester/.fleetctl"} {
+	for _, want := range []string{"/Users/tester/go/bin", "/Users/tester/.local/bin", "/Users/tester/.automdmctl"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("augmented PATH missing %q: %s", want, got)
 		}
@@ -147,7 +147,7 @@ func TestAugmentInheritedEmptyHome(t *testing.T) {
 	// fixed dirs. Note /usr/local/go/bin is a FIXED dir and stays.
 	got := augmentInherited("", "/usr/bin")
 	for _, p := range strings.Split(got, ":") {
-		if p == "go/bin" || p == ".local/bin" || p == ".fleetctl" {
+		if p == "go/bin" || p == ".local/bin" || p == ".automdmctl" {
 			t.Errorf("empty home produced relative entry %q: %s", p, got)
 		}
 	}

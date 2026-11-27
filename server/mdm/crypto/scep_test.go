@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mock"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
 )
@@ -77,14 +77,14 @@ func TestVerify(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			ds.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []fleet.MDMAssetName,
-				_ sqlx.QueryerContext) (map[fleet.MDMAssetName]fleet.MDMConfigAsset, error) {
+			ds.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []automdm.MDMAssetName,
+				_ sqlx.QueryerContext) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
 				if tt.rootCert == nil {
 					return nil, errors.New("test error")
 				}
 
-				return map[fleet.MDMAssetName]fleet.MDMConfigAsset{
-					fleet.MDMAssetCACert: {Value: tt.rootCert},
+				return map[automdm.MDMAssetName]automdm.MDMConfigAsset{
+					automdm.MDMAssetCACert: {Value: tt.rootCert},
 				}, nil
 			}
 

@@ -55,7 +55,7 @@ func TestChosenHandlesSortedByNumber(t *testing.T) {
 		{Number: 108, Title: "🍎 #g-apple-at-work"},
 		{Number: 70, Title: "📦 #g-software"},
 	}
-	m := newOnboardModel("fleetdm", projects)
+	m := newOnboardModel("automdm", projects)
 	// Select all three (indices into the source slice).
 	m.selected = map[int]struct{}{0: {}, 1: {}, 2: {}}
 
@@ -77,7 +77,7 @@ func TestSeedSelection(t *testing.T) {
 		{Number: 109, Title: "❤️‍🩹 #g-auto-patching"},
 		{Number: 70, Title: "📦 #g-software"},
 	}
-	m := newOnboardModel("fleetdm", projects)
+	m := newOnboardModel("automdm", projects)
 	// Seed from a config mixing a name and a numeric id.
 	m.seedSelection([]string{"g-apple-at-work", "109"})
 

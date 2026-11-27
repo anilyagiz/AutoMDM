@@ -12,15 +12,15 @@ export interface IMdmApple {
 }
 
 export interface IMdmAppleBm {
-  default_fleet?: string;
+  default_team?: string;
   apple_id: string;
   org_name: string;
   mdm_server_url: string;
   renew_date: string;
 }
 
-export type ITokenFleet = {
-  fleet_id: number;
+export type ITokenAutoMDM = {
+  team_id: number;
   name: string;
 };
 
@@ -33,10 +33,10 @@ export interface IMdmAbToken {
   terms_expired: boolean;
   token_invalid: boolean;
   default: boolean;
-  macos_fleet: ITokenFleet;
-  ios_fleet: ITokenFleet;
-  ipados_fleet: ITokenFleet;
-  byod_fleet: ITokenFleet;
+  macos_team: ITokenAutoMDM;
+  ios_team: ITokenAutoMDM;
+  ipados_team: ITokenAutoMDM;
+  byod_team: ITokenAutoMDM;
 }
 
 export interface IMdmVppToken {
@@ -50,7 +50,7 @@ export interface IMdmVppToken {
    */
   country_code: string;
   renew_date: string;
-  fleets: ITokenFleet[] | null; // null means token isn't configured to a fleet; empty array means all fleets
+  teams: ITokenAutoMDM[] | null; // null means token isn't configured to a team; empty array means all teams
   /** Null for rows the backend can't date. Renders "---". */
   created_at: string | null;
 }
@@ -253,7 +253,7 @@ export interface IProfileLabel {
 
 export interface IMdmProfile {
   profile_uuid: string;
-  fleet_id: number;
+  team_id: number;
   name: string;
   description?: string;
   /** The PayloadDisplayName inside a .mobileconfig, which can differ from
@@ -316,7 +316,7 @@ export interface IHostMdmProfile {
   managed_local_account: string | null;
   // identifier when this profile represents an Android certificate template
   certificate_template_id?: number;
-  /** Whether Fleet is in the middle of automatically retrying this profile after a failed
+  /** Whether AutoMDM is in the middle of automatically retrying this profile after a failed
    * install, along with the retries already used and the number allowed. Only present on Android
    * certificate templates, and only on installs — removals are never retried. Note a manual
    * resend also sets retry_count, so only `retrying` identifies an automatic retry. */
@@ -368,14 +368,14 @@ export const isLinuxDiskEncryptionStatus = (
 ): status is LinuxDiskEncryptionStatus =>
   ["verified", "failed", "action_required"].includes(status);
 
-export const FLEET_FILEVAULT_PROFILE_DISPLAY_NAME = "Disk encryption";
-export const FLEET_FLEETD_CONFIG_PROFILE_DISPLAY_NAME = "Fleetd configuration";
-export const FLEET_WINDOWS_ENROLL_SECRET_PROFILE_DISPLAY_NAME =
-  "Fleetd enroll secret";
-export const FLEET_RECOVERY_LOCK_PASSWORD_DISPLAY_NAME =
+export const AUTOMDM_FILEVAULT_PROFILE_DISPLAY_NAME = "Disk encryption";
+export const AUTOMDM_AUTOMDMD_CONFIG_PROFILE_DISPLAY_NAME = "AutoMDMd configuration";
+export const AUTOMDM_WINDOWS_ENROLL_SECRET_PROFILE_DISPLAY_NAME =
+  "AutoMDMd enroll secret";
+export const AUTOMDM_RECOVERY_LOCK_PASSWORD_DISPLAY_NAME =
   "Recovery Lock password";
-export const FLEET_ANDROID_CERTIFICATE_TEMPLATE_PROFILE_ID =
-  "fleet-host-certificate-template";
+export const AUTOMDM_ANDROID_CERTIFICATE_TEMPLATE_PROFILE_ID =
+  "automdm-host-certificate-template";
 
 export type RecoveryLockPasswordStatus =
   | "verified"
@@ -393,7 +393,7 @@ export interface IMdmSSOResponse {
 
 export interface IBootstrapPackageMetadata {
   name: string;
-  fleet_id: number;
+  team_id: number;
   sha256: string;
   token: string;
   created_at: string;
@@ -499,14 +499,14 @@ export const isAndroidCOBO = (enrollmentStatus: MdmEnrollmentStatus | null) => {
 // canTriggerAPNSPing checks the host state if it's allowed to hit APNS ping, it does not do any permission level checks.
 
 type ICanTriggerAPNSPingHost = Pick<IHostDevice, "platform"> & {
-  mdm: Pick<IHostMdmData, "connected_to_fleet"> &
+  mdm: Pick<IHostMdmData, "connected_to_automdm"> &
     Pick<IHostMdmData, "enrollment_status">;
 };
 
 export const canTriggerAPNSPing = (host: ICanTriggerAPNSPingHost) => {
   return (
     isAppleDevice(host.platform) &&
-    host.mdm.connected_to_fleet &&
+    host.mdm.connected_to_automdm &&
     host.mdm.enrollment_status !== null &&
     ([
       "On (automatic)",

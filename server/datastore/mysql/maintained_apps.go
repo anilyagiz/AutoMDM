@@ -7,25 +7,25 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxdb"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxdb"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
 	"github.com/jmoiron/sqlx"
 )
 
 // maintainedAppsAllowedOrderKeys allowlists order keys for listing
-// Fleet-maintained apps. The list is a combined-by-app view (see
-// ListAvailableFleetMaintainedApps), so name is the only meaningful key; it's
+// AutoMDM-maintained apps. The list is a combined-by-app view (see
+// ListAvailableAutoMDMMaintainedApps), so name is the only meaningful key; it's
 // validation-only, since ORDER BY is hard-coded below.
 var maintainedAppsAllowedOrderKeys = common_mysql.OrderKeyAllowlist{
 	"name": "fma.name",
 }
 
-func (ds *Datastore) UpsertMaintainedApp(ctx context.Context, app *fleet.MaintainedApp) (*fleet.MaintainedApp, error) {
+func (ds *Datastore) UpsertMaintainedApp(ctx context.Context, app *automdm.MaintainedApp) (*automdm.MaintainedApp, error) {
 	const upsertStmt = `
 INSERT INTO
-	fleet_maintained_apps (name, slug, platform, unique_identifier)
+	automdm_maintained_apps (name, slug, platform, unique_identifier)
 VALUES
 	(?, ?, ?, ?)
 ON DUPLICATE KEY UPDATE
@@ -65,7 +65,7 @@ var maintainedAppNameReconcileBatchSize = 500
 var maintainedAppNameReconcileDiscoveryLimit = 10_000
 
 // ReconcileMaintainedAppSoftwareNames renames macOS software_titles and software rows
-// to the canonical Fleet-maintained app name (e.g. "Code" -> "Microsoft Visual Studio
+// to the canonical AutoMDM-maintained app name (e.g. "Code" -> "Microsoft Visual Studio
 // Code"). Inventory and the installer already share a title via bundle_identifier, so
 // only the name needs correcting. Batched and idempotent.
 //
@@ -155,7 +155,7 @@ func (ds *Datastore) ReconcileMaintainedAppSoftwareNames(ctx context.Context) er
 	}
 
 	if (renamedTitles > 0 || renamedSoftware > 0) && ds.logger != nil {
-		ds.logger.InfoContext(ctx, "reconciled Fleet-maintained app software names",
+		ds.logger.InfoContext(ctx, "reconciled AutoMDM-maintained app software names",
 			"software_titles_renamed", renamedTitles, "software_renamed", renamedSoftware)
 	}
 
@@ -181,8 +181,8 @@ const (
 	catalogNamesByTitle = `
 		SELECT si.title_id, MIN(fma.name) AS name
 		FROM software_installers si
-		JOIN fleet_maintained_apps fma
-			ON fma.id = si.fleet_maintained_app_id AND fma.platform = 'darwin'
+		JOIN automdm_maintained_apps fma
+			ON fma.id = si.automdm_maintained_app_id AND fma.platform = 'darwin'
 		WHERE si.title_id IS NOT NULL
 		GROUP BY si.title_id
 		HAVING COUNT(DISTINCT fma.name) = 1`
@@ -190,7 +190,7 @@ const (
 	// darwin bundle identifiers mapping to exactly one app name; shared ones are excluded.
 	catalogNamesByIdentifier = `
 		SELECT unique_identifier, MIN(name) AS name
-		FROM fleet_maintained_apps
+		FROM automdm_maintained_apps
 		WHERE platform = 'darwin'
 		GROUP BY unique_identifier
 		HAVING COUNT(DISTINCT name) = 1`
@@ -291,7 +291,7 @@ func (ds *Datastore) ReconcileWindowsMaintainedAppSoftwareTitles(ctx context.Con
 // cross-app ambiguity rule agree with the ingestion path exactly.
 func (ds *Datastore) staleWindowsTitlesByDestination(
 	ctx context.Context,
-	fmaMatches []fleet.MaintainedApp,
+	fmaMatches []automdm.MaintainedApp,
 	allPrefixes []windowsFMAPrefix,
 ) (map[uint][]uint, error) {
 	var nameConds []string
@@ -435,7 +435,7 @@ func (ds *Datastore) mergeWindowsFMATitle(ctx context.Context, destinationID uin
 	}
 
 	if ds.logger != nil {
-		ds.logger.InfoContext(ctx, "merged Windows software titles into the title owned by a Fleet-maintained app installer",
+		ds.logger.InfoContext(ctx, "merged Windows software titles into the title owned by an AutoMDM-maintained app installer",
 			"destination_title_id", destinationID,
 			"merged_title_ids", staleIDs,
 			"merged_count", len(staleIDs),
@@ -445,15 +445,15 @@ func (ds *Datastore) mergeWindowsFMATitle(ctx context.Context, destinationID uin
 	return nil
 }
 
-// fleetMaintainedAppsTeamJoin is the FROM clause plus the LEFT JOIN that
-// determines, for a given team, whether each Fleet-maintained app has already
+// automdmMaintainedAppsTeamJoin is the FROM clause plus the LEFT JOIN that
+// determines, for a given team, whether each AutoMDM-maintained app has already
 // been added (via a software installer or VPP app). team_titles.id is non-NULL
 // when the app is already added to the team. It expects three `?` args, all the
 // team's global_or_team_id.
-const fleetMaintainedAppsTeamJoin = `
-			FROM fleet_maintained_apps fma
+const automdmMaintainedAppsTeamJoin = `
+			FROM automdm_maintained_apps fma
 			LEFT JOIN (
-				SELECT st.id, st.unique_identifier, st.name, si.platform, si.fleet_maintained_app_id
+				SELECT st.id, st.unique_identifier, st.name, si.platform, si.automdm_maintained_app_id
 				FROM software_installers si
 				INNER JOIN software_titles st ON st.id = si.title_id
 				WHERE si.global_or_team_id = ? AND si.platform IN ('darwin','windows')
@@ -471,18 +471,18 @@ const fleetMaintainedAppsTeamJoin = `
 			) team_titles
 				-- Match the exact FMA the title was added with, so a shared bundle
 				-- identifier (Firefox vs Firefox ESR) doesn't mark the sibling added.
-				ON team_titles.fleet_maintained_app_id = fma.id
+				ON team_titles.automdm_maintained_app_id = fma.id
 				-- Not added via an FMA: fall back to the bundle identifier, scoped to
 				-- the same platform so a darwin title can't match a windows FMA (or
 				-- vice versa) when their identifiers happen to collide.
 				OR (
-					team_titles.fleet_maintained_app_id IS NULL
+					team_titles.automdm_maintained_app_id IS NULL
 					AND team_titles.platform = fma.platform
 					AND team_titles.unique_identifier = fma.unique_identifier
 				)
 				-- pattern match fma name to a similar title name, since upgrade_code is not surfaced in fma table
 				OR (
-					team_titles.fleet_maintained_app_id IS NULL
+					team_titles.automdm_maintained_app_id IS NULL
 					AND team_titles.platform = fma.platform
 					AND fma.platform = 'windows'
 					-- Box Drive is the only FMA at the point of writing this where unique_identifier is shorter than name
@@ -492,9 +492,9 @@ const fleetMaintainedAppsTeamJoin = `
 
 // teamFMATitlesJoin selects software_title_id alongside the team join, for use
 // directly after `SELECT fma.id, fma.name, ..., `.
-const teamFMATitlesJoin = `team_titles.id software_title_id ` + fleetMaintainedAppsTeamJoin
+const teamFMATitlesJoin = `team_titles.id software_title_id ` + automdmMaintainedAppsTeamJoin
 
-func (ds *Datastore) GetMaintainedAppByID(ctx context.Context, appID uint, teamID *uint) (*fleet.MaintainedApp, error) {
+func (ds *Datastore) GetMaintainedAppByID(ctx context.Context, appID uint, teamID *uint) (*automdm.MaintainedApp, error) {
 	stmt := `SELECT fma.id, fma.name, fma.platform, fma.unique_identifier, fma.slug, `
 	var args []any
 
@@ -502,13 +502,13 @@ func (ds *Datastore) GetMaintainedAppByID(ctx context.Context, appID uint, teamI
 		stmt += teamFMATitlesJoin
 		args = []any{teamID, teamID, teamID}
 	} else {
-		stmt += `NULL software_title_id FROM fleet_maintained_apps fma`
+		stmt += `NULL software_title_id FROM automdm_maintained_apps fma`
 	}
 
 	stmt += ` WHERE fma.id = ?`
 	args = append(args, appID)
 
-	var app fleet.MaintainedApp
+	var app automdm.MaintainedApp
 	if err := sqlx.GetContext(ctx, ds.reader(ctx), &app, stmt, args...); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ctxerr.Wrap(ctx, notFound("MaintainedApp"), "no matching maintained app found")
@@ -520,7 +520,7 @@ func (ds *Datastore) GetMaintainedAppByID(ctx context.Context, appID uint, teamI
 	return &app, nil
 }
 
-func (ds *Datastore) GetMaintainedAppBySlug(ctx context.Context, slug string, teamID *uint) (*fleet.MaintainedApp, error) {
+func (ds *Datastore) GetMaintainedAppBySlug(ctx context.Context, slug string, teamID *uint) (*automdm.MaintainedApp, error) {
 	stmt := `SELECT fma.id, fma.name, fma.platform, fma.unique_identifier, fma.slug, `
 	var args []any
 
@@ -528,13 +528,13 @@ func (ds *Datastore) GetMaintainedAppBySlug(ctx context.Context, slug string, te
 		stmt += teamFMATitlesJoin
 		args = []any{teamID, teamID, teamID}
 	} else {
-		stmt += `NULL software_title_id FROM fleet_maintained_apps fma`
+		stmt += `NULL software_title_id FROM automdm_maintained_apps fma`
 	}
 
 	stmt += ` WHERE fma.slug = ?`
 	args = append(args, slug)
 
-	var app fleet.MaintainedApp
+	var app automdm.MaintainedApp
 	if err := sqlx.GetContext(ctx, ds.reader(ctx), &app, stmt, args...); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ctxerr.Wrap(ctx, notFound("MaintainedApp"), "no matching maintained app found")
@@ -546,7 +546,7 @@ func (ds *Datastore) GetMaintainedAppBySlug(ctx context.Context, slug string, te
 	return &app, nil
 }
 
-func (ds *Datastore) ListAvailableFleetMaintainedApps(ctx context.Context, teamID *uint, opt fleet.MaintainedAppListOptions) ([]fleet.MaintainedApp, *fleet.PaginationMetadata, error) {
+func (ds *Datastore) ListAvailableAutoMDMMaintainedApps(ctx context.Context, teamID *uint, opt automdm.MaintainedAppListOptions) ([]automdm.MaintainedApp, *automdm.PaginationMetadata, error) {
 	dbReader := ds.reader(ctx)
 
 	// Paginate by app name without a platform suffix like " for macOS", and return every platform
@@ -554,10 +554,10 @@ func (ds *Datastore) ListAvailableFleetMaintainedApps(ctx context.Context, teamI
 	// pages. The count is the number of installable platform entries, so an app shipped on both
 	// platforms counts twice. The team join tells us whether each app is already added, for the
 	// "available only" filter.
-	fromClause := `FROM fleet_maintained_apps fma`
+	fromClause := `FROM automdm_maintained_apps fma`
 	var fromArgs []any
 	if teamID != nil {
-		fromClause = fleetMaintainedAppsTeamJoin
+		fromClause = automdmMaintainedAppsTeamJoin
 		fromArgs = []any{teamID, teamID, teamID}
 	}
 
@@ -570,7 +570,7 @@ func (ds *Datastore) ListAvailableFleetMaintainedApps(ctx context.Context, teamI
 		fromClause += `
 			LEFT JOIN (
 				SELECT REGEXP_REPLACE(name, ' for (macOS|Mac|Windows)$', '') AS merged_name
-				FROM fleet_maintained_apps
+				FROM automdm_maintained_apps
 				GROUP BY merged_name
 				HAVING COUNT(*) > 1
 			) merged_names ON merged_names.merged_name = REGEXP_REPLACE(fma.name, ' for (macOS|Mac|Windows)$', '')`
@@ -592,20 +592,20 @@ func (ds *Datastore) ListAvailableFleetMaintainedApps(ctx context.Context, teamI
 	countArgs := append(append([]any{}, fromArgs...), whereArgs...)
 	var filteredCount int
 	if err := sqlx.GetContext(ctx, dbReader, &filteredCount, `SELECT COUNT(DISTINCT fma.id) `+fromClause+where, countArgs...); err != nil {
-		return nil, nil, ctxerr.Wrap(ctx, err, "get fleet maintained apps count")
+		return nil, nil, ctxerr.Wrap(ctx, err, "get automdm maintained apps count")
 	}
 
 	if filteredCount == 0 {
 		// Distinguish an empty library (an error) from filters matching nothing
 		// (an empty, non-error result).
 		var totalCount int
-		if err := sqlx.GetContext(ctx, dbReader, &totalCount, `SELECT COUNT(id) FROM fleet_maintained_apps`); err != nil {
-			return nil, nil, ctxerr.Wrap(ctx, err, "get fleet maintained apps total count")
+		if err := sqlx.GetContext(ctx, dbReader, &totalCount, `SELECT COUNT(id) FROM automdm_maintained_apps`); err != nil {
+			return nil, nil, ctxerr.Wrap(ctx, err, "get automdm maintained apps total count")
 		}
 		if totalCount == 0 {
-			return nil, nil, &fleet.NoMaintainedAppsInDatabaseError{}
+			return nil, nil, &automdm.NoMaintainedAppsInDatabaseError{}
 		}
-		return []fleet.MaintainedApp{}, &fleet.PaginationMetadata{HasPreviousResults: opt.Page > 0}, nil
+		return []automdm.MaintainedApp{}, &automdm.PaginationMetadata{HasPreviousResults: opt.Page > 0}, nil
 	}
 
 	// Validate the requested order key against the allowlist, which permits only
@@ -614,7 +614,7 @@ func (ds *Datastore) ListAvailableFleetMaintainedApps(ctx context.Context, teamI
 	// empty key skips validation and falls through to the default name ordering.
 	if key := opt.OrderKey; key != "" {
 		if _, ok := maintainedAppsAllowedOrderKeys[key]; !ok {
-			return nil, nil, ctxerr.Wrap(ctx, common_mysql.InvalidOrderKeyError{Key: key, Allowed: maintainedAppsAllowedOrderKeys.AllowedKeys()}, "list fleet maintained apps")
+			return nil, nil, ctxerr.Wrap(ctx, common_mysql.InvalidOrderKeyError{Key: key, Allowed: maintainedAppsAllowedOrderKeys.AllowedKeys()}, "list automdm maintained apps")
 		}
 	}
 	direction := "ASC"
@@ -631,17 +631,17 @@ func (ds *Datastore) ListAvailableFleetMaintainedApps(ctx context.Context, teamI
 	pageNamesArgs := append(append([]any{}, fromArgs...), whereArgs...)
 	var pageNames []string
 	if err := sqlx.SelectContext(ctx, dbReader, &pageNames, pageNamesStmt, pageNamesArgs...); err != nil {
-		return nil, nil, ctxerr.Wrap(ctx, err, "selecting fleet maintained app page names")
+		return nil, nil, ctxerr.Wrap(ctx, err, "selecting automdm maintained app page names")
 	}
 
-	meta := &fleet.PaginationMetadata{HasPreviousResults: opt.Page > 0, TotalResults: uint(filteredCount)} //nolint:gosec // dismiss G115
-	if uint(len(pageNames)) > perPage {                                                                    //nolint:gosec // dismiss G115
+	meta := &automdm.PaginationMetadata{HasPreviousResults: opt.Page > 0, TotalResults: uint(filteredCount)} //nolint:gosec // dismiss G115
+	if uint(len(pageNames)) > perPage {                                                                      //nolint:gosec // dismiss G115
 		meta.HasNextResults = true
 		pageNames = pageNames[:perPage]
 	}
 	if len(pageNames) == 0 {
 		// Page is past the last result.
-		return []fleet.MaintainedApp{}, meta, nil
+		return []automdm.MaintainedApp{}, meta, nil
 	}
 
 	// Fetch every platform row for the names on this page so the UI can combine
@@ -652,20 +652,20 @@ func (ds *Datastore) ListAvailableFleetMaintainedApps(ctx context.Context, teamI
 		selectStmt += teamFMATitlesJoin + ` WHERE REGEXP_REPLACE(fma.name, ' for (macOS|Mac|Windows)$', '') IN (?)`
 		rowsArgs = []any{teamID, teamID, teamID, pageNames}
 	} else {
-		selectStmt += `NULL software_title_id FROM fleet_maintained_apps fma WHERE REGEXP_REPLACE(fma.name, ' for (macOS|Mac|Windows)$', '') IN (?)`
+		selectStmt += `NULL software_title_id FROM automdm_maintained_apps fma WHERE REGEXP_REPLACE(fma.name, ' for (macOS|Mac|Windows)$', '') IN (?)`
 		rowsArgs = []any{pageNames}
 	}
 	selectStmt += fmt.Sprintf(` ORDER BY REGEXP_REPLACE(fma.name, ' for (macOS|Mac|Windows)$', '') %s, fma.name %s, fma.slug ASC`, direction, direction)
 
 	selectStmt, rowsArgs, err := sqlx.In(selectStmt, rowsArgs...)
 	if err != nil {
-		return nil, nil, ctxerr.Wrap(ctx, err, "building list fleet maintained apps query")
+		return nil, nil, ctxerr.Wrap(ctx, err, "building list automdm maintained apps query")
 	}
 	selectStmt = dbReader.Rebind(selectStmt)
 
-	var avail []fleet.MaintainedApp
+	var avail []automdm.MaintainedApp
 	if err := sqlx.SelectContext(ctx, dbReader, &avail, selectStmt, rowsArgs...); err != nil {
-		return nil, nil, ctxerr.Wrap(ctx, err, "selecting available fleet maintained apps")
+		return nil, nil, ctxerr.Wrap(ctx, err, "selecting available automdm maintained apps")
 	}
 
 	return avail, meta, nil
@@ -676,7 +676,7 @@ func (ds *Datastore) GetFMANamesByIdentifier(ctx context.Context) (map[string]st
 	// single canonical name, so callers fall back to the osquery-reported name.
 	query := `
 		SELECT unique_identifier, MIN(name) AS name
-		FROM fleet_maintained_apps
+		FROM automdm_maintained_apps
 		WHERE platform = 'darwin'
 		GROUP BY unique_identifier
 		HAVING COUNT(DISTINCT name) = 1`
@@ -704,10 +704,10 @@ func (ds *Datastore) GetFMANamesByIdentifier(ctx context.Context) (map[string]st
 
 // GetWindowsFMAMatches returns the Windows FMAs that name matching should consider,
 // populated with only the fields MaintainedApp.WinMatchPrefixes needs.
-func (ds *Datastore) GetWindowsFMAMatches(ctx context.Context) ([]fleet.MaintainedApp, error) {
+func (ds *Datastore) GetWindowsFMAMatches(ctx context.Context) ([]automdm.MaintainedApp, error) {
 	// Restricted to FMAs that are actually added somewhere, via their installer link.
 	// Prefix matching on a program name is only as precise as the name allows: the FMA
-	// manifests pair it with a publisher check, which fleet_maintained_apps does not
+	// manifests pair it with a publisher check, which automdm_maintained_apps does not
 	// carry, so requiring a deliberate install is what bounds the blast radius.
 	//
 	// The installer link also supplies the title to merge onto. An app's per-team
@@ -720,15 +720,15 @@ func (ds *Datastore) GetWindowsFMAMatches(ctx context.Context) ([]fleet.Maintain
 	query := `
 		SELECT fma.name, fma.unique_identifier, fma.platform,
 			MIN(si.title_id) AS software_title_id, MIN(st.name) AS title_name
-		FROM fleet_maintained_apps fma
+		FROM automdm_maintained_apps fma
 		JOIN software_installers si
-			ON si.fleet_maintained_app_id = fma.id AND si.title_id IS NOT NULL
+			ON si.automdm_maintained_app_id = fma.id AND si.title_id IS NOT NULL
 		JOIN software_titles st ON st.id = si.title_id
 		WHERE fma.platform = 'windows' AND fma.name != ''
 		GROUP BY fma.id, fma.name, fma.unique_identifier, fma.platform
 		HAVING COUNT(DISTINCT si.title_id) = 1`
 
-	var apps []fleet.MaintainedApp
+	var apps []automdm.MaintainedApp
 	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &apps, query); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "query Windows FMA matches")
 	}
@@ -736,14 +736,14 @@ func (ds *Datastore) GetWindowsFMAMatches(ctx context.Context) ([]fleet.Maintain
 	return apps, nil
 }
 
-func (ds *Datastore) ClearRemovedFleetMaintainedApps(ctx context.Context, slugsToKeep []string) error {
-	stmt := `DELETE FROM fleet_maintained_apps WHERE slug NOT IN (?)`
+func (ds *Datastore) ClearRemovedAutoMDMMaintainedApps(ctx context.Context, slugsToKeep []string) error {
+	stmt := `DELETE FROM automdm_maintained_apps WHERE slug NOT IN (?)`
 
 	var err error
 	var args []any
 	switch len(slugsToKeep) {
 	case 0:
-		stmt = `DELETE FROM fleet_maintained_apps`
+		stmt = `DELETE FROM automdm_maintained_apps`
 	default:
 		stmt, args, err = sqlx.In(stmt, slugsToKeep)
 		if err != nil {

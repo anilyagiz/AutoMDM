@@ -10,9 +10,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/macoffice"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/msrc/parsed"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/nvd"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/macoffice"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/msrc/parsed"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/nvd"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -36,13 +36,13 @@ func checkCPETranslations(vulnPath string) {
 }
 
 func checkMacOfficeNotes(vulnPath string) {
-	// Iterate over each file in the vulnPath directory that starts with `fleet_macoffice`
+	// Iterate over each file in the vulnPath directory that starts with `automdm_macoffice`
 	files, err := os.ReadDir(vulnPath)
 	if err != nil {
 		panic(fmt.Sprintf("failed to read directory: %v", err))
 	}
 	for _, file := range files {
-		if strings.HasPrefix(file.Name(), "fleet_macoffice") && strings.HasSuffix(file.Name(), ".json") {
+		if strings.HasPrefix(file.Name(), "automdm_macoffice") && strings.HasSuffix(file.Name(), ".json") {
 			filePath := filepath.Join(vulnPath, file.Name())
 
 			payload, err := os.ReadFile(filePath)
@@ -60,13 +60,13 @@ func checkMacOfficeNotes(vulnPath string) {
 }
 
 func checkMSRCVulnerabilities(vulnPath string) {
-	// Iterate over each file in the vulnPath directory that starts with `fleet_msrc`
+	// Iterate over each file in the vulnPath directory that starts with `automdm_msrc`
 	files, err := os.ReadDir(vulnPath)
 	if err != nil {
 		panic(fmt.Sprintf("failed to read directory: %v", err))
 	}
 	for _, file := range files {
-		if strings.HasPrefix(file.Name(), "fleet_msrc") && strings.HasSuffix(file.Name(), ".json") {
+		if strings.HasPrefix(file.Name(), "automdm_msrc") && strings.HasSuffix(file.Name(), ".json") {
 			filePath := filepath.Join(vulnPath, file.Name())
 			// Attempt to parse the file as a MSRC feed.
 			_, err := parsed.UnmarshalBulletin(filePath)

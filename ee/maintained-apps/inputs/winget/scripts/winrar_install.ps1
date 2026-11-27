@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # WinRAR ships as a self-extracting installer. "-s1" performs a silent
 # install with no windows; it installs per-machine into Program Files.

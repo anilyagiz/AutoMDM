@@ -126,7 +126,7 @@ const UsersForm = ({
 
     try {
       await mdmAPI.updateSetupExperienceSettings({
-        fleet_id: currentTeamId,
+        team_id: currentTeamId,
         enable_end_user_authentication: formData.endUserAuthEnabled,
         // Each platform's fields are omitted when its MDM is off, because the
         // server rejects the whole request otherwise.
@@ -143,7 +143,7 @@ const UsersForm = ({
         }),
       });
 
-      // The request writes into the app config or the fleet, which several
+      // The request writes into the app config or the team, which several
       // other cards read from the same cache keys, so drop them.
       await queryClient.invalidateQueries(["config"]);
       if (currentTeamId !== APP_CONTEXT_NO_TEAM_ID) {

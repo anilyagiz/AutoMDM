@@ -1,5 +1,5 @@
 package mdm
 
 const (
-	BYODIdpCookieName = "__Host-FLEETBYODIDP"
+	BYODIdpCookieName = "__Host-AUTOMDMBYODIDP"
 )

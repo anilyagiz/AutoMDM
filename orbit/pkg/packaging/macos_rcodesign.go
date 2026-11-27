@@ -7,8 +7,8 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/fleetdm/fleet/v4/pkg/retry"
-	"github.com/fleetdm/fleet/v4/pkg/secure"
+	"github.com/anilyagiz/automdm/v4/pkg/retry"
+	"github.com/anilyagiz/automdm/v4/pkg/secure"
 )
 
 func rSign(pkgPath, cert string) error {

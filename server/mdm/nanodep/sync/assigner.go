@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/mdm/nanodep/godep"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanodep/log"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanodep/log/ctxlog"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanodep/godep"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanodep/log"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanodep/log/ctxlog"
 )
 
 type AssignerProfileRetriever interface {

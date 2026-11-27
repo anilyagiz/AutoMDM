@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
 	"github.com/google/uuid"
 	"google.golang.org/api/androidmanagement/v1"
 )
@@ -52,10 +52,10 @@ func handleRegister(store *deviceStore) http.HandlerFunc {
 			PolicyVersion:        req.PolicyVersion,
 		}
 		// A device that registers again after this process lost its state (restart) reports the
-		// policy it last observed, so it doesn't tell Fleet its applied policy regressed.
+		// policy it last observed, so it doesn't tell AutoMDM its applied policy regressed.
 		//
 		// A version outside the restorable range is a bug in the caller rather than recovered
-		// state, and must not be reported to Fleet: Fleet verifies profiles whose
+		// state, and must not be reported to AutoMDM: AutoMDM verifies profiles whose
 		// included_in_policy_version is <= the applied version, so an absurdly high version
 		// would flip every pending profile to Verified. Drop the reported policy in that case;
 		// store.register then keeps whatever policy it already has for the device, or starts a
@@ -69,7 +69,7 @@ func handleRegister(store *deviceStore) http.HandlerFunc {
 			store.notePolicyRestored(d.PolicyName)
 		}
 
-		// A device Fleet deleted through AMAPI was genuinely unenrolled; letting it register
+		// A device AutoMDM deleted through AMAPI was genuinely unenrolled; letting it register
 		// again would resurrect it and re-enroll the host.
 		if !store.register(&d) {
 			http.Error(w, "device was deleted", http.StatusGone)
@@ -86,7 +86,7 @@ func handleGetState(store *deviceStore) http.HandlerFunc {
 		d := store.getByESID(esid)
 		if d == nil {
 			// Distinguish "this process forgot the device" (the agent should register again)
-			// from "Fleet deleted the device" (the agent must stop).
+			// from "AutoMDM deleted the device" (the agent must stop).
 			if store.wasDeleted(esid) {
 				http.Error(w, "device was deleted", http.StatusGone)
 				return
@@ -100,8 +100,8 @@ func handleGetState(store *deviceStore) http.HandlerFunc {
 		if d.PolicyName != "" {
 			// Report the higher of the version this process issued for the policy and the
 			// version the device already observed (which is higher after a restart, since the
-			// version counter starts over). Reporting a lower version would tell Fleet the
-			// device's applied policy went backwards, and Fleet only verifies profiles whose
+			// version counter starts over). Reporting a lower version would tell AutoMDM the
+			// device's applied policy went backwards, and AutoMDM only verifies profiles whose
 			// included_in_policy_version is <= the applied version — so profiles delivered
 			// before the restart would be stuck Pending.
 			if v := store.getPolicyVersion(d.PolicyName); v > policyVersion {
@@ -149,7 +149,7 @@ func handleDevicesGet(store *deviceStore) http.HandlerFunc {
 			"name":                 name,
 			"appliedPolicyVersion": fmt.Sprintf("%d", d.PolicyVersion),
 			"appliedPolicyName":    d.PolicyName,
-			// Fleet checks a re-enrollment's hardware identity against this before resetting the host.
+			// AutoMDM checks a re-enrollment's hardware identity against this before resetting the host.
 			"hardwareInfo": map[string]any{"enterpriseSpecificId": d.EnterpriseSpecificID},
 		}
 		d.mu.Unlock()
@@ -160,7 +160,7 @@ func handleDevicesGet(store *deviceStore) http.HandlerFunc {
 }
 
 // handleOperationsGet reports every operation on a fake device as done, since simulated
-// devices ack commands as soon as they see them. Fleet looks the operation up when it
+// devices ack commands as soon as they see them. AutoMDM looks the operation up when it
 // handles a COMMAND notification.
 // Operations on devices the mock doesn't know are forwarded to Google when it is configured.
 func handleOperationsGet(store *deviceStore, google *googleForwarder) http.HandlerFunc {
@@ -328,7 +328,7 @@ func handleDevicesList(store *deviceStore, google *googleForwarder) http.Handler
 // ---- Policy handlers ----
 
 // policyOptions turns on checks for policy requests that real AMAPI accepts but that show a bug
-// in Fleet, or that AMAPI rejects but the mock accepts by default.
+// in AutoMDM, or that AMAPI rejects but the mock accepts by default.
 type policyOptions struct {
 	rejectDefaultPolicyApps bool
 }
@@ -352,7 +352,7 @@ func guardPolicyRequest(opts policyOptions, next http.HandlerFunc) http.HandlerF
 		}
 		if opts.rejectDefaultPolicyApps && changesApps && android.IsDefaultPolicyID(id) {
 			writeAMAPIError(w, http.StatusBadRequest, "FAILED_PRECONDITION",
-				"mock: Fleet must not change the apps of the default policy "+policyName(r))
+				"mock: AutoMDM must not change the apps of the default policy "+policyName(r))
 			return
 		}
 
@@ -386,7 +386,7 @@ func handlePoliciesPatch(store *deviceStore, google *googleForwarder) http.Handl
 			return
 		}
 
-		// The app list Fleet patches includes the Fleet agent with its managed configuration.
+		// The app list AutoMDM patches includes the AutoMDM agent with its managed configuration.
 		if isFakeDevice && r.Body != nil {
 			if bodyBytes, err := io.ReadAll(r.Body); err == nil {
 				var policy struct {
@@ -419,7 +419,7 @@ func handlePolicyAction(store *deviceStore) http.HandlerFunc {
 		// Only a simulated device's policy is checked: a real device's policy can be created
 		// through Google, which this process doesn't track.
 		if store.requirePolicies && store.getByESID(hostUUID) != nil && !store.policyExists(name) {
-			// The body Fleet sees from AMAPI, through the fleetdm.com proxy, for a policy that
+			// The body AutoMDM sees from AMAPI, through the automdm.com proxy, for a policy that
 			// doesn't exist.
 			log.Printf("Policy action on missing policy %q", name) // #nosec G706 -- load testing tool
 			http.Error(w, "Not Found", http.StatusNotFound)
@@ -461,10 +461,10 @@ func handleEnrollmentTokenCreate() http.HandlerFunc {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			// The enterprise the token was asked for, not a literal "mock":
-			// Fleet stores this name against the token it created.
+			// AutoMDM stores this name against the token it created.
 			"name":  "enterprises/" + r.PathValue("eid") + "/enrollmentTokens/" + token,
 			"value": token,
-			// AMAPI always sets this, and Fleet's zero-touch configuration
+			// AMAPI always sets this, and AutoMDM's zero-touch configuration
 			// parses it rather than treating it as optional. Leaving it out
 			// failed that request with a time-parsing error that said nothing
 			// about which side was at fault.
@@ -479,7 +479,7 @@ func handleEnrollmentTokenCreate() http.HandlerFunc {
 // or unreadable duration gets AMAPI's own default of one hour.
 //
 // The arithmetic is in Unix seconds rather than a time.Duration on purpose:
-// Fleet asks for 31536000000s for a zero-touch token, which is a thousand
+// AutoMDM asks for 31536000000s for a zero-touch token, which is a thousand
 // years and does not fit in a time.Duration at all, so time.ParseDuration
 // rejects the one value this handler most needs to answer.
 func enrollmentTokenExpiry(now time.Time, duration string) time.Time {
@@ -525,7 +525,7 @@ func handleEnterprisesList(store *deviceStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		known := store.knownEnterprises()
 
-		// Fleet unenrolls every Android host and turns Android MDM off when its enterprise is
+		// AutoMDM unenrolls every Android host and turns Android MDM off when its enterprise is
 		// absent from a successful list. An empty list here only means nothing has been observed
 		// yet, and a failed list is already treated as a technical problem, which is what it is.
 		if len(known) == 0 {
@@ -574,7 +574,7 @@ func extractAndStoreCertTemplateIDs(store *deviceStore, hostUUID string, body []
 		}
 
 		for _, ct := range config.CertificateTemplateIDs {
-			if ct.Operation == string(fleet.MDMOperationTypeInstall) {
+			if ct.Operation == string(automdm.MDMOperationTypeInstall) {
 				certIDs = append(certIDs, ct.ID)
 			}
 		}
@@ -602,7 +602,7 @@ type managedApp struct {
 	ManagedConfiguration json.RawMessage `json:"managedConfiguration"`
 }
 
-// storeAgentEnrollSecret records the enroll secret in the Fleet agent's managed configuration, so the simulated agent can
+// storeAgentEnrollSecret records the enroll secret in the AutoMDM agent's managed configuration, so the simulated agent can
 // enroll orbit with it. Only the agent's package counts, since other apps' configurations are free-form.
 func storeAgentEnrollSecret(store *deviceStore, hostUUID string, apps []managedApp) {
 	d := store.getByESID(hostUUID)

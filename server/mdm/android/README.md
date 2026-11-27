@@ -1,6 +1,6 @@
-The MDM Android package attempts to decouple Android-specific service and datastore implementations from the core Fleet server code.
+The MDM Android package attempts to decouple Android-specific service and datastore implementations from the core AutoMDM server code.
 
-Any tightly coupled code that needs both the core Fleet server and the Android-specific features must live in the main server/fleet,
+Any tightly coupled code that needs both the core AutoMDM server and the Android-specific features must live in the main server/automdm,
 server/service, and server/datastore packages. Typical example are MySQL queries. Any code that implements Android-specific functionality
 should live in the server/mdm/android package. For example, the common code from server/datastore package can call the android datastore
 methods as needed.

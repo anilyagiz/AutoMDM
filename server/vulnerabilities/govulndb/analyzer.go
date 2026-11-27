@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 	"golang.org/x/mod/semver"
 )
 
@@ -22,13 +22,13 @@ const vulnBatchSize = 500
 // with nil rules, toolchain installs are left to NVD.
 func Analyze(
 	ctx context.Context,
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	artifact *Artifact,
 	toolchains *ToolchainRules,
 	collectVulns bool,
 	startTime time.Time,
 	logger *slog.Logger,
-) ([]fleet.SoftwareVulnerability, error) {
+) ([]automdm.SoftwareVulnerability, error) {
 	analysisStart := time.Now()
 
 	if artifact == nil {
@@ -37,13 +37,13 @@ func Analyze(
 	}
 
 	var (
-		found     []fleet.SoftwareVulnerability
-		newVulns  []fleet.SoftwareVulnerability
+		found     []automdm.SoftwareVulnerability
+		newVulns  []automdm.SoftwareVulnerability
 		softwareN int
 	)
 
-	insertBatch := func(batch []fleet.SoftwareVulnerability) error {
-		inserted, err := ds.InsertSoftwareVulnerabilities(ctx, batch, fleet.GoVulnDBSource)
+	insertBatch := func(batch []automdm.SoftwareVulnerability) error {
+		inserted, err := ds.InsertSoftwareVulnerabilities(ctx, batch, automdm.GoVulnDBSource)
 		if err != nil {
 			return ctxerr.Wrap(ctx, err, "inserting Go vulnerabilities")
 		}
@@ -55,8 +55,8 @@ func Analyze(
 
 	scan := func(
 		what string,
-		opts fleet.SoftwareIterQueryOptions,
-		match func(*fleet.Software, *Artifact) []fleet.SoftwareVulnerability,
+		opts automdm.SoftwareIterQueryOptions,
+		match func(*automdm.Software, *Artifact) []automdm.SoftwareVulnerability,
 	) error {
 		iter, err := ds.AllSoftwareIterator(ctx, opts)
 		if err != nil {
@@ -89,7 +89,7 @@ func Analyze(
 
 	// From here on, errors still return newVulns: those rows are inserted, so the next run sees
 	// them as known and dropping them would suppress their automations forever.
-	if err := scan("go binaries", fleet.SoftwareIterQueryOptions{
+	if err := scan("go binaries", automdm.SoftwareIterQueryOptions{
 		IncludedSources: []string{goBinariesSource},
 	}, matchBinary); err != nil {
 		return newVulns, err
@@ -107,7 +107,7 @@ func Analyze(
 	}
 
 	// Only delete once every insert has refreshed updated_at on the rows that still match.
-	if err := ds.DeleteOutOfDateVulnerabilities(ctx, fleet.GoVulnDBSource, startTime); err != nil {
+	if err := ds.DeleteOutOfDateVulnerabilities(ctx, automdm.GoVulnDBSource, startTime); err != nil {
 		return newVulns, ctxerr.Wrap(ctx, err, "deleting out of date Go vulnerabilities")
 	}
 
@@ -124,7 +124,7 @@ func Analyze(
 // matchBinary returns the vulnerabilities the artifact reports for one Go binary row: module
 // advisories by module path (extension_id) against the binary's own version, and stdlib
 // advisories by the toolchain it was built with (release), since that code is compiled in.
-func matchBinary(software *fleet.Software, artifact *Artifact) []fleet.SoftwareVulnerability {
+func matchBinary(software *automdm.Software, artifact *Artifact) []automdm.SoftwareVulnerability {
 	vulns := newVulnSet(software.ID)
 
 	if modulePath := software.ExtensionID; modulePath != "" && modulePath != ToolchainModule {
@@ -147,7 +147,7 @@ func matchBinary(software *fleet.Software, artifact *Artifact) []fleet.SoftwareV
 type vulnSet struct {
 	softwareID uint
 	seen       map[string]struct{}
-	vulns      []fleet.SoftwareVulnerability
+	vulns      []automdm.SoftwareVulnerability
 }
 
 func newVulnSet(softwareID uint) *vulnSet {
@@ -167,7 +167,7 @@ func (v *vulnSet) addAffected(advisories []Advisory, version string, resolvedIn 
 				continue
 			}
 			v.seen[cve] = struct{}{}
-			v.vulns = append(v.vulns, fleet.SoftwareVulnerability{
+			v.vulns = append(v.vulns, automdm.SoftwareVulnerability{
 				SoftwareID:        v.softwareID,
 				CVE:               cve,
 				ResolvedInVersion: resolvedIn(fixed),
@@ -210,7 +210,7 @@ func (a Advisory) affects(version string) (fixed string, affected bool) {
 	return "", false
 }
 
-// moduleVersion canonicalizes a Go binary's own version. Fleet stores it as reported, leading
+// moduleVersion canonicalizes a Go binary's own version. AutoMDM stores it as reported, leading
 // "v" included, and "(devel)" for a working-tree build, which has nothing to compare against.
 func moduleVersion(version string) (string, bool) {
 	if version == "" || version == develVersion {

@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/authz"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
 	"golang.org/x/text/unicode/norm"
 )
 
@@ -17,10 +17,10 @@ import (
 // List custom host vitals
 //////////////////////////////////////////////////////////////////////////////////
 
-func listCustomHostVitalsEndpoint(ctx context.Context, request any, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.ListCustomHostVitalsRequest)
+func listCustomHostVitalsEndpoint(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.ListCustomHostVitalsRequest)
 	vitals, meta, count, err := svc.ListCustomHostVitals(ctx, req.ListOptions)
-	return fleet.ListCustomHostVitalsResponse{
+	return automdm.ListCustomHostVitalsResponse{
 		CustomHostVitals: vitals,
 		Meta:             meta,
 		Count:            count,
@@ -30,9 +30,9 @@ func listCustomHostVitalsEndpoint(ctx context.Context, request any, svc fleet.Se
 
 func (svc *Service) ListCustomHostVitals(
 	ctx context.Context,
-	opts fleet.ListOptions,
-) (customHostVitals []fleet.CustomHostVital, meta *fleet.PaginationMetadata, count int, err error) {
-	if err := svc.authz.Authorize(ctx, &fleet.CustomHostVital{}, fleet.ActionRead); err != nil {
+	opts automdm.ListOptions,
+) (customHostVitals []automdm.CustomHostVital, meta *automdm.PaginationMetadata, count int, err error) {
+	if err := svc.authz.Authorize(ctx, &automdm.CustomHostVital{}, automdm.ActionRead); err != nil {
 		return nil, nil, 0, err
 	}
 
@@ -40,7 +40,7 @@ func (svc *Service) ListCustomHostVitals(
 	opts.IncludeMetadata = true
 	if opts.OrderKey == "" {
 		opts.OrderKey = "name"
-		opts.OrderDirection = fleet.OrderAscending
+		opts.OrderDirection = automdm.OrderAscending
 	}
 
 	customHostVitals, meta, count, err = svc.ds.ListCustomHostVitals(ctx, opts)
@@ -54,21 +54,21 @@ func (svc *Service) ListCustomHostVitals(
 // Create custom host vital
 //////////////////////////////////////////////////////////////////////////////////
 
-func createCustomHostVitalEndpoint(ctx context.Context, request any, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.CreateCustomHostVitalRequest)
+func createCustomHostVitalEndpoint(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.CreateCustomHostVitalRequest)
 	vital, err := svc.CreateCustomHostVital(ctx, req.Name)
 	if err != nil {
-		return fleet.CreateCustomHostVitalResponse{Err: err}, nil
+		return automdm.CreateCustomHostVitalResponse{Err: err}, nil
 	}
-	return fleet.CreateCustomHostVitalResponse{CustomHostVital: vital}, nil
+	return automdm.CreateCustomHostVitalResponse{CustomHostVital: vital}, nil
 }
 
-func (svc *Service) CreateCustomHostVital(ctx context.Context, name string) (*fleet.CustomHostVital, error) {
-	if err := svc.authz.Authorize(ctx, &fleet.CustomHostVital{}, fleet.ActionWrite); err != nil {
+func (svc *Service) CreateCustomHostVital(ctx context.Context, name string) (*automdm.CustomHostVital, error) {
+	if err := svc.authz.Authorize(ctx, &automdm.CustomHostVital{}, automdm.ActionWrite); err != nil {
 		return nil, err
 	}
 
-	if err := fleet.ValidateCustomHostVitalName(name); err != nil {
+	if err := automdm.ValidateCustomHostVitalName(name); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "validate custom host vital name")
 	}
 
@@ -80,7 +80,7 @@ func (svc *Service) CreateCustomHostVital(ctx context.Context, name string) (*fl
 	if err := svc.NewActivity(
 		ctx,
 		authz.UserFromContext(ctx),
-		fleet.ActivityTypeCreatedCustomHostVital{
+		automdm.ActivityTypeCreatedCustomHostVital{
 			CustomHostVitalID:   vital.ID,
 			CustomHostVitalName: vital.Name,
 		},
@@ -95,21 +95,21 @@ func (svc *Service) CreateCustomHostVital(ctx context.Context, name string) (*fl
 // Update (rename) custom host vital
 //////////////////////////////////////////////////////////////////////////////////
 
-func updateCustomHostVitalEndpoint(ctx context.Context, request any, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.UpdateCustomHostVitalRequest)
+func updateCustomHostVitalEndpoint(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.UpdateCustomHostVitalRequest)
 	vital, err := svc.UpdateCustomHostVital(ctx, req.ID, req.Name)
 	if err != nil {
-		return fleet.UpdateCustomHostVitalResponse{Err: err}, nil
+		return automdm.UpdateCustomHostVitalResponse{Err: err}, nil
 	}
-	return fleet.UpdateCustomHostVitalResponse{CustomHostVital: vital}, nil
+	return automdm.UpdateCustomHostVitalResponse{CustomHostVital: vital}, nil
 }
 
-func (svc *Service) UpdateCustomHostVital(ctx context.Context, id uint, name string) (*fleet.CustomHostVital, error) {
-	if err := svc.authz.Authorize(ctx, &fleet.CustomHostVital{}, fleet.ActionWrite); err != nil {
+func (svc *Service) UpdateCustomHostVital(ctx context.Context, id uint, name string) (*automdm.CustomHostVital, error) {
+	if err := svc.authz.Authorize(ctx, &automdm.CustomHostVital{}, automdm.ActionWrite); err != nil {
 		return nil, err
 	}
 
-	if err := fleet.ValidateCustomHostVitalName(name); err != nil {
+	if err := automdm.ValidateCustomHostVitalName(name); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "validate custom host vital name")
 	}
 
@@ -121,7 +121,7 @@ func (svc *Service) UpdateCustomHostVital(ctx context.Context, id uint, name str
 	if err := svc.NewActivity(
 		ctx,
 		authz.UserFromContext(ctx),
-		fleet.ActivityTypeEditedCustomHostVital{
+		automdm.ActivityTypeEditedCustomHostVital{
 			CustomHostVitalID:   vital.ID,
 			CustomHostVitalName: vital.Name,
 		},
@@ -136,21 +136,21 @@ func (svc *Service) UpdateCustomHostVital(ctx context.Context, id uint, name str
 // Delete custom host vital
 //////////////////////////////////////////////////////////////////////////////////
 
-func deleteCustomHostVitalEndpoint(ctx context.Context, request any, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.DeleteCustomHostVitalRequest)
+func deleteCustomHostVitalEndpoint(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.DeleteCustomHostVitalRequest)
 	err := svc.DeleteCustomHostVital(ctx, req.ID)
-	return fleet.DeleteCustomHostVitalResponse{Err: err}, nil
+	return automdm.DeleteCustomHostVitalResponse{Err: err}, nil
 }
 
 func (svc *Service) DeleteCustomHostVital(ctx context.Context, id uint) error {
-	if err := svc.authz.Authorize(ctx, &fleet.CustomHostVital{}, fleet.ActionWrite); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.CustomHostVital{}, automdm.ActionWrite); err != nil {
 		return err
 	}
 
 	name, err := svc.ds.DeleteCustomHostVital(ctx, id)
 	if err != nil {
-		if usedErr, ok := errors.AsType[*fleet.CustomHostVitalUsedError](err); ok {
-			return ctxerr.Wrap(ctx, &fleet.ConflictError{
+		if usedErr, ok := errors.AsType[*automdm.CustomHostVitalUsedError](err); ok {
+			return ctxerr.Wrap(ctx, &automdm.ConflictError{
 				Message: fmt.Sprintf("Couldn't delete. %s", usedErr.Error()),
 			}, "delete custom host vital")
 		}
@@ -160,7 +160,7 @@ func (svc *Service) DeleteCustomHostVital(ctx context.Context, id uint) error {
 	if err := svc.NewActivity(
 		ctx,
 		authz.UserFromContext(ctx),
-		fleet.ActivityTypeDeletedCustomHostVital{
+		automdm.ActivityTypeDeletedCustomHostVital{
 			CustomHostVitalID:   id,
 			CustomHostVitalName: name,
 		},
@@ -175,15 +175,15 @@ func (svc *Service) DeleteCustomHostVital(ctx context.Context, id uint) error {
 // Set host custom host vital value
 //////////////////////////////////////////////////////////////////////////////////
 
-func setHostCustomHostVitalValueEndpoint(ctx context.Context, request any, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.SetHostCustomHostVitalValueRequest)
+func setHostCustomHostVitalValueEndpoint(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.SetHostCustomHostVitalValueRequest)
 	err := svc.SetHostCustomHostVitalValue(ctx, req.HostID, req.ID, req.Value)
-	return fleet.SetHostCustomHostVitalValueResponse{Err: err}, nil
+	return automdm.SetHostCustomHostVitalValueResponse{Err: err}, nil
 }
 
 func (svc *Service) SetHostCustomHostVitalValue(ctx context.Context, hostID uint, vitalID uint, value string) error {
 	// Authorize against the host so team-scoped roles are enforced (host-write pattern).
-	if err := svc.authz.Authorize(ctx, &fleet.Host{}, fleet.ActionList); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.Host{}, automdm.ActionList); err != nil {
 		return err
 	}
 
@@ -192,7 +192,7 @@ func (svc *Service) SetHostCustomHostVitalValue(ctx context.Context, hostID uint
 		return ctxerr.Wrap(ctx, err, "find host for setting custom host vital value")
 	}
 
-	if err := svc.authz.Authorize(ctx, &fleet.HostCustomHostVitalValue{TeamID: host.TeamID}, fleet.ActionWrite); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.HostCustomHostVitalValue{TeamID: host.TeamID}, automdm.ActionWrite); err != nil {
 		return err
 	}
 
@@ -208,7 +208,7 @@ func (svc *Service) SetHostCustomHostVitalValue(ctx context.Context, hostID uint
 	if err := svc.NewActivity(
 		ctx,
 		authz.UserFromContext(ctx),
-		fleet.ActivityTypeEditedCustomHostVitalValue{
+		automdm.ActivityTypeEditedCustomHostVitalValue{
 			HostID:              hostID,
 			HostDisplayName:     host.DisplayName(),
 			CustomHostVitalID:   vitalID,
@@ -221,7 +221,7 @@ func (svc *Service) SetHostCustomHostVitalValue(ctx context.Context, hostID uint
 	return nil
 }
 
-func (svc *Service) customHostVitalByID(ctx context.Context, id uint) (*fleet.CustomHostVital, error) {
+func (svc *Service) customHostVitalByID(ctx context.Context, id uint) (*automdm.CustomHostVital, error) {
 	vitals, err := svc.ds.GetCustomHostVitals(ctx, []uint{id})
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "get custom host vital by id")
@@ -236,14 +236,14 @@ func (svc *Service) customHostVitalByID(ctx context.Context, id uint) (*fleet.Cu
 // Upsert custom host vitals (spec)
 //////////////////////////////////////////////////////////////////////////////////
 
-func upsertCustomHostVitalsEndpoint(ctx context.Context, request any, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.UpsertCustomHostVitalsRequest)
+func upsertCustomHostVitalsEndpoint(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.UpsertCustomHostVitalsRequest)
 	err := svc.UpsertCustomHostVitals(ctx, req.CustomHostVitals, req.DryRun)
-	return fleet.UpsertCustomHostVitalsResponse{Err: err}, nil
+	return automdm.UpsertCustomHostVitalsResponse{Err: err}, nil
 }
 
-func (svc *Service) UpsertCustomHostVitals(ctx context.Context, customHostVitals []fleet.CustomHostVital, dryRun bool) error {
-	if err := svc.authz.Authorize(ctx, &fleet.CustomHostVital{}, fleet.ActionWrite); err != nil {
+func (svc *Service) UpsertCustomHostVitals(ctx context.Context, customHostVitals []automdm.CustomHostVital, dryRun bool) error {
+	if err := svc.authz.Authorize(ctx, &automdm.CustomHostVital{}, automdm.ActionWrite); err != nil {
 		return err
 	}
 
@@ -253,12 +253,12 @@ func (svc *Service) UpsertCustomHostVitals(ctx context.Context, customHostVitals
 	// check and then fail as a raw DB duplicate-key error at insert time.
 	seen := make(map[string]string, len(customHostVitals)) // collation key -> original name
 	for _, vital := range customHostVitals {
-		if err := fleet.ValidateCustomHostVitalName(vital.Name); err != nil {
+		if err := automdm.ValidateCustomHostVitalName(vital.Name); err != nil {
 			return ctxerr.Wrap(ctx, err, "validate custom host vital name")
 		}
 		key := norm.NFC.String(strings.ToLower(vital.Name))
 		if prev, ok := seen[key]; ok {
-			return ctxerr.Wrap(ctx, fleet.NewInvalidArgumentError("custom_host_vitals",
+			return ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("custom_host_vitals",
 				fmt.Sprintf("duplicate custom host vital names: %q and %q must differ by more than letter case", prev, vital.Name)))
 		}
 		seen[key] = vital.Name
@@ -270,8 +270,8 @@ func (svc *Service) UpsertCustomHostVitals(ctx context.Context, customHostVitals
 
 	created, deleted, err := svc.ds.UpsertCustomHostVitals(ctx, customHostVitals)
 	if err != nil {
-		if usedErr, ok := errors.AsType[*fleet.CustomHostVitalUsedError](err); ok {
-			return ctxerr.Wrap(ctx, &fleet.ConflictError{
+		if usedErr, ok := errors.AsType[*automdm.CustomHostVitalUsedError](err); ok {
+			return ctxerr.Wrap(ctx, &automdm.ConflictError{
 				Message: fmt.Sprintf("Couldn't delete. %s", usedErr.Error()),
 			}, "upsert custom host vitals")
 		}
@@ -283,7 +283,7 @@ func (svc *Service) UpsertCustomHostVitals(ctx context.Context, customHostVitals
 		if err := svc.NewActivity(
 			ctx,
 			user,
-			fleet.ActivityTypeCreatedCustomHostVital{
+			automdm.ActivityTypeCreatedCustomHostVital{
 				CustomHostVitalID:   vital.ID,
 				CustomHostVitalName: vital.Name,
 			},
@@ -295,7 +295,7 @@ func (svc *Service) UpsertCustomHostVitals(ctx context.Context, customHostVitals
 		if err := svc.NewActivity(
 			ctx,
 			user,
-			fleet.ActivityTypeDeletedCustomHostVital{
+			automdm.ActivityTypeDeletedCustomHostVital{
 				CustomHostVitalID:   vital.ID,
 				CustomHostVitalName: vital.Name,
 			},

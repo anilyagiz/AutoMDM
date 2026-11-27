@@ -10,12 +10,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
-	"github.com/fleetdm/fleet/v4/server/mdm/android/service/androidmgmt"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android/service/androidmgmt"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/androidmanagement/v1"
@@ -26,25 +26,25 @@ func TestSoftwareWorker(t *testing.T) {
 	// call TruncateTables immediately as some DB migrations may create jobs
 	mysqltest.TruncateTables(t, ds)
 
-	mysqltest.SetTestABMAssets(t, ds, "fleet")
+	mysqltest.SetTestABMAssets(t, ds, "automdm")
 }
 
 // mockAndroidModule is a mock implementation of the android.Service interface for testing.
 type mockAndroidModule struct {
 	android.Service
 
-	buildFleetAgentApplicationPolicyFunc func(ctx context.Context, hostUUID string) (*androidmanagement.ApplicationPolicy, error)
-	setAppsForAndroidPolicyFunc          func(ctx context.Context, enterpriseName string, appPolicies []*androidmanagement.ApplicationPolicy, hostUUIDs map[string]string) error
-	addAppsToAndroidPolicyFunc           func(ctx context.Context, enterpriseName string, appPolicies []*androidmanagement.ApplicationPolicy, hostUUIDs map[string]string) (map[string]*android.MDMAndroidPolicyRequest, error)
-	removeAppsFromAndroidPolicyFunc      func(ctx context.Context, enterpriseName string, packageNames []string, hostUUIDs map[string]string) (map[string]*android.MDMAndroidPolicyRequest, error)
-	prepareHostPolicyFunc                func(ctx context.Context, enterpriseName, hostUUID string, teamID uint) error
-	patchDeviceFunc                      func(ctx context.Context, policyID, deviceName string, device *androidmanagement.Device) (bool, error)
-	buildAndSendFleetAgentConfigFunc     func(ctx context.Context, enterpriseName string, hostUUIDs []string, skipHostsWithoutNewCerts bool) error
-	sendFleetAgentConfigFunc             func(ctx context.Context, enterpriseName string, hostUUID string) error
+	buildAutoMDMAgentApplicationPolicyFunc func(ctx context.Context, hostUUID string) (*androidmanagement.ApplicationPolicy, error)
+	setAppsForAndroidPolicyFunc            func(ctx context.Context, enterpriseName string, appPolicies []*androidmanagement.ApplicationPolicy, hostUUIDs map[string]string) error
+	addAppsToAndroidPolicyFunc             func(ctx context.Context, enterpriseName string, appPolicies []*androidmanagement.ApplicationPolicy, hostUUIDs map[string]string) (map[string]*android.MDMAndroidPolicyRequest, error)
+	removeAppsFromAndroidPolicyFunc        func(ctx context.Context, enterpriseName string, packageNames []string, hostUUIDs map[string]string) (map[string]*android.MDMAndroidPolicyRequest, error)
+	prepareHostPolicyFunc                  func(ctx context.Context, enterpriseName, hostUUID string, teamID uint) error
+	patchDeviceFunc                        func(ctx context.Context, policyID, deviceName string, device *androidmanagement.Device) (bool, error)
+	buildAndSendAutoMDMAgentConfigFunc     func(ctx context.Context, enterpriseName string, hostUUIDs []string, skipHostsWithoutNewCerts bool) error
+	sendAutoMDMAgentConfigFunc             func(ctx context.Context, enterpriseName string, hostUUID string) error
 }
 
-func (m *mockAndroidModule) SendFleetAgentConfig(ctx context.Context, enterpriseName string, hostUUID string) error {
-	return m.sendFleetAgentConfigFunc(ctx, enterpriseName, hostUUID)
+func (m *mockAndroidModule) SendAutoMDMAgentConfig(ctx context.Context, enterpriseName string, hostUUID string) error {
+	return m.sendAutoMDMAgentConfigFunc(ctx, enterpriseName, hostUUID)
 }
 
 func (m *mockAndroidModule) PrepareHostPolicy(ctx context.Context, enterpriseName, hostUUID string, teamID uint) error {
@@ -58,9 +58,9 @@ func (m *mockAndroidModule) PatchDevice(ctx context.Context, policyID, deviceNam
 	return m.patchDeviceFunc(ctx, policyID, deviceName, device)
 }
 
-func (m *mockAndroidModule) BuildAndSendFleetAgentConfig(ctx context.Context, enterpriseName string, hostUUIDs []string, skipHostsWithoutNewCerts bool) error {
-	if m.buildAndSendFleetAgentConfigFunc != nil {
-		return m.buildAndSendFleetAgentConfigFunc(ctx, enterpriseName, hostUUIDs, skipHostsWithoutNewCerts)
+func (m *mockAndroidModule) BuildAndSendAutoMDMAgentConfig(ctx context.Context, enterpriseName string, hostUUIDs []string, skipHostsWithoutNewCerts bool) error {
+	if m.buildAndSendAutoMDMAgentConfigFunc != nil {
+		return m.buildAndSendAutoMDMAgentConfigFunc(ctx, enterpriseName, hostUUIDs, skipHostsWithoutNewCerts)
 	}
 	return nil
 }
@@ -69,9 +69,9 @@ func (m *mockAndroidModule) RemoveAppsFromAndroidPolicy(ctx context.Context, ent
 	return m.removeAppsFromAndroidPolicyFunc(ctx, enterpriseName, packageNames, hostUUIDs)
 }
 
-func (m *mockAndroidModule) BuildFleetAgentApplicationPolicy(ctx context.Context, hostUUID string) (*androidmanagement.ApplicationPolicy, error) {
-	if m.buildFleetAgentApplicationPolicyFunc != nil {
-		return m.buildFleetAgentApplicationPolicyFunc(ctx, hostUUID)
+func (m *mockAndroidModule) BuildAutoMDMAgentApplicationPolicy(ctx context.Context, hostUUID string) (*androidmanagement.ApplicationPolicy, error) {
+	if m.buildAutoMDMAgentApplicationPolicyFunc != nil {
+		return m.buildAutoMDMAgentApplicationPolicyFunc(ctx, hostUUID)
 	}
 	return nil, nil
 }
@@ -90,16 +90,16 @@ func (m *mockAndroidModule) SetAppsForAndroidPolicy(ctx context.Context, enterpr
 	return nil, nil
 }
 
-func TestUpdateAndroidHostsAfterFleetTransferMovesCertificateTemplates(t *testing.T) {
+func TestUpdateAndroidHostsAfterTeamTransferMovesCertificateTemplates(t *testing.T) {
 	ctx := t.Context()
 	hostUUID := "test-host-uuid"
 	hostID := uint(1)
 	teamID := uint(2)
 
 	ds := new(mock.Store)
-	ds.AndroidHostLiteByHostUUIDFunc = func(ctx context.Context, uuid string) (*fleet.AndroidHost, error) {
-		return &fleet.AndroidHost{
-			Host: &fleet.Host{
+	ds.AndroidHostLiteByHostUUIDFunc = func(ctx context.Context, uuid string) (*automdm.AndroidHost, error) {
+		return &automdm.AndroidHost{
+			Host: &automdm.Host{
 				ID:     hostID,
 				UUID:   hostUUID,
 				TeamID: ptr.Uint(teamID),
@@ -116,29 +116,29 @@ func TestUpdateAndroidHostsAfterFleetTransferMovesCertificateTemplates(t *testin
 	}
 	androidModule := &mockAndroidModule{
 		setAppsForAndroidPolicyFunc: func(ctx context.Context, enterpriseName string, appPolicies []*androidmanagement.ApplicationPolicy, hostUUIDs map[string]string) error {
-			t.Fatal("the Android profile reconciler sends the app list after a fleet transfer, not the worker")
+			t.Fatal("the Android profile reconciler sends the app list after a team transfer, not the worker")
 			return nil
 		},
 	}
 	worker := &SoftwareWorker{Datastore: ds, AndroidModule: androidModule, Log: slog.New(slog.DiscardHandler)}
 
-	// run the fleet transfer task, the host's certificate templates should be moved to its new fleet, with its apps
+	// run the team transfer task, the host's certificate templates should be moved to its new team, with its apps
 	// not flagged and no app list sent
-	err := worker.updateAndroidHostsAfterFleetTransfer(ctx, map[string]uint{hostUUID: hostID})
+	err := worker.updateAndroidHostsAfterTeamTransfer(ctx, map[string]uint{hostUUID: hostID})
 	require.NoError(t, err)
 	require.True(t, ds.SetHostCertificateTemplatesToPendingRemoveForHostFuncInvoked)
 	require.Equal(t, teamID, newTeamID)
 	require.False(t, ds.SetHostAndroidSoftwareInstallsNeedsResendFuncInvoked)
 }
 
-func TestSoftwareWorkerSendAndroidFleetAgentConfig(t *testing.T) {
+func TestSoftwareWorkerSendAndroidAutoMDMAgentConfig(t *testing.T) {
 	ds := new(mock.Store)
-	var queued *fleet.Job
-	ds.NewJobFunc = func(ctx context.Context, job *fleet.Job) (*fleet.Job, error) {
+	var queued *automdm.Job
+	ds.NewJobFunc = func(ctx context.Context, job *automdm.Job) (*automdm.Job, error) {
 		queued = job
 		return job, nil
 	}
-	require.NoError(t, QueueSendAndroidFleetAgentConfig(t.Context(), ds, slog.New(slog.DiscardHandler), "host-1", "enterprises/test"))
+	require.NoError(t, QueueSendAndroidAutoMDMAgentConfig(t.Context(), ds, slog.New(slog.DiscardHandler), "host-1", "enterprises/test"))
 	require.NotNil(t, queued)
 	require.Equal(t, softwareWorkerJobName, queued.Name)
 
@@ -149,7 +149,7 @@ func TestSoftwareWorkerSendAndroidFleetAgentConfig(t *testing.T) {
 		sendErr error
 	)
 	androidModule := &mockAndroidModule{
-		sendFleetAgentConfigFunc: func(ctx context.Context, enterpriseName string, hostUUID string) error {
+		sendAutoMDMAgentConfigFunc: func(ctx context.Context, enterpriseName string, hostUUID string) error {
 			calls++
 			gotEnt, gotHost = enterpriseName, hostUUID
 			return sendErr
@@ -205,8 +205,8 @@ func TestSoftwareWorkerRunDisablesAMAPIRetry(t *testing.T) {
 		},
 	}
 	ds := new(mock.Store)
-	ds.AndroidHostLiteByHostUUIDFunc = func(ctx context.Context, hostUUID string) (*fleet.AndroidHost, error) {
-		return &fleet.AndroidHost{Host: &fleet.Host{ID: 1, UUID: hostUUID}, Device: &android.Device{}}, nil
+	ds.AndroidHostLiteByHostUUIDFunc = func(ctx context.Context, hostUUID string) (*automdm.AndroidHost, error) {
+		return &automdm.AndroidHost{Host: &automdm.Host{ID: 1, UUID: hostUUID}, Device: &android.Device{}}, nil
 	}
 	ds.SetHostCertificateTemplatesToPendingRemoveForHostFunc = func(ctx context.Context, hostUUID string) error {
 		return nil
@@ -214,16 +214,16 @@ func TestSoftwareWorkerRunDisablesAMAPIRetry(t *testing.T) {
 	ds.CreatePendingCertificateTemplatesForNewHostFunc = func(ctx context.Context, hostUUID string, teamID uint) (int64, error) {
 		return 0, nil
 	}
-	ds.GetAndroidAppsInScopeForHostFunc = func(ctx context.Context, hostID uint) ([]fleet.VPPAppTeam, error) {
+	ds.GetAndroidAppsInScopeForHostFunc = func(ctx context.Context, hostID uint) ([]automdm.VPPAppTeam, error) {
 		return nil, nil
 	}
 	ds.BulkGetAndroidAppConfigurationsFunc = func(ctx context.Context, vppAppTeamIDs []uint) (map[string][]byte, error) {
 		return map[string][]byte{}, nil
 	}
-	ds.BulkUpsertHostAndroidSoftwareInstallsFunc = func(ctx context.Context, installs []fleet.HostAndroidSoftwareInstall, removedInstalls []fleet.HostAndroidSoftwareInstall) error {
+	ds.BulkUpsertHostAndroidSoftwareInstallsFunc = func(ctx context.Context, installs []automdm.HostAndroidSoftwareInstall, removedInstalls []automdm.HostAndroidSoftwareInstall) error {
 		return nil
 	}
-	ds.ReplaceHostAndroidSoftwareInstallsFunc = func(ctx context.Context, hostID uint, installs []fleet.HostAndroidSoftwareInstall) error {
+	ds.ReplaceHostAndroidSoftwareInstallsFunc = func(ctx context.Context, hostID uint, installs []automdm.HostAndroidSoftwareInstall) error {
 		return nil
 	}
 	w := &SoftwareWorker{Datastore: ds, AndroidModule: androidModule, Log: slog.New(slog.DiscardHandler)}
@@ -243,8 +243,8 @@ func TestSoftwareWorkerRunDisablesAMAPIRetry(t *testing.T) {
 func TestQueueBulkSetAndroidAppsAvailableForHostsChunking(t *testing.T) {
 	ds := new(mock.Store)
 
-	var jobs []*fleet.Job
-	ds.NewJobFunc = func(ctx context.Context, job *fleet.Job) (*fleet.Job, error) {
+	var jobs []*automdm.Job
+	ds.NewJobFunc = func(ctx context.Context, job *automdm.Job) (*automdm.Job, error) {
 		job.ID = uint(len(jobs) + 1)
 		jobs = append(jobs, job)
 		return job, nil
@@ -288,16 +288,16 @@ func TestRunAndroidSetupExperienceInstallsFirstAddedFlaggedVersion(t *testing.T)
 	const hostUUID = "setup-host-uuid"
 
 	ds := new(mock.Store)
-	ds.AndroidHostLiteByHostUUIDFunc = func(ctx context.Context, uuid string) (*fleet.AndroidHost, error) {
-		return &fleet.AndroidHost{Host: &fleet.Host{ID: 1, UUID: hostUUID}, Device: &android.Device{AppliedPolicyID: new(hostUUID)}}, nil
+	ds.AndroidHostLiteByHostUUIDFunc = func(ctx context.Context, uuid string) (*automdm.AndroidHost, error) {
+		return &automdm.AndroidHost{Host: &automdm.Host{ID: 1, UUID: hostUUID}, Device: &android.Device{AppliedPolicyID: new(hostUUID)}}, nil
 	}
-	ds.GetAndroidAppsInScopeForHostFunc = func(ctx context.Context, hostID uint) ([]fleet.VPPAppTeam, error) {
+	ds.GetAndroidAppsInScopeForHostFunc = func(ctx context.Context, hostID uint) ([]automdm.VPPAppTeam, error) {
 		return nil, nil
 	}
-	ds.GetVPPAppsToInstallDuringSetupExperienceFunc = func(ctx context.Context, teamID *uint, platform string) ([]fleet.VPPAppTeam, error) {
-		return []fleet.VPPAppTeam{
-			{AdamID: "com.example.app", Platform: fleet.AndroidPlatform, AppTeamID: 1},
-			{AdamID: "com.example.app", Platform: fleet.AndroidPlatform, AppTeamID: 2},
+	ds.GetVPPAppsToInstallDuringSetupExperienceFunc = func(ctx context.Context, teamID *uint, platform string) ([]automdm.VPPAppTeam, error) {
+		return []automdm.VPPAppTeam{
+			{AdamID: "com.example.app", Platform: automdm.AndroidPlatform, AppTeamID: 1},
+			{AdamID: "com.example.app", Platform: automdm.AndroidPlatform, AppTeamID: 2},
 		}, nil
 	}
 	var configVersionIDs []uint
@@ -305,16 +305,16 @@ func TestRunAndroidSetupExperienceInstallsFirstAddedFlaggedVersion(t *testing.T)
 		configVersionIDs = vppAppTeamIDs
 		return map[string][]byte{}, nil
 	}
-	var upsertedInstalls []fleet.HostAndroidSoftwareInstall
-	ds.BulkUpsertHostAndroidSoftwareInstallsFunc = func(ctx context.Context, installs []fleet.HostAndroidSoftwareInstall, removedInstalls []fleet.HostAndroidSoftwareInstall) error {
+	var upsertedInstalls []automdm.HostAndroidSoftwareInstall
+	ds.BulkUpsertHostAndroidSoftwareInstallsFunc = func(ctx context.Context, installs []automdm.HostAndroidSoftwareInstall, removedInstalls []automdm.HostAndroidSoftwareInstall) error {
 		upsertedInstalls = append(upsertedInstalls, installs...)
 		return nil
 	}
-	ds.ReplaceHostAndroidSoftwareInstallsFunc = func(ctx context.Context, hostID uint, installs []fleet.HostAndroidSoftwareInstall) error {
+	ds.ReplaceHostAndroidSoftwareInstallsFunc = func(ctx context.Context, hostID uint, installs []automdm.HostAndroidSoftwareInstall) error {
 		return nil
 	}
-	var installs []*fleet.HostAndroidVPPSoftwareInstall
-	ds.InsertAndroidSetupExperienceSoftwareInstallFunc = func(ctx context.Context, payload *fleet.HostAndroidVPPSoftwareInstall) error {
+	var installs []*automdm.HostAndroidVPPSoftwareInstall
+	ds.InsertAndroidSetupExperienceSoftwareInstallFunc = func(ctx context.Context, payload *automdm.HostAndroidVPPSoftwareInstall) error {
 		installs = append(installs, payload)
 		return nil
 	}
@@ -342,7 +342,7 @@ func TestRunAndroidSetupExperienceInstallsFirstAddedFlaggedVersion(t *testing.T)
 	require.Equal(t, "com.example.app", upsertedInstalls[0].AdamID)
 	require.Equal(t, new(uint(1)), upsertedInstalls[0].VPPAppTeamID)
 	require.Equal(t, android.AppStatusPreinstalled, upsertedInstalls[0].InstallType)
-	require.Equal(t, fleet.AndroidSoftwareInstallStatusPending, upsertedInstalls[0].Status)
+	require.Equal(t, automdm.AndroidSoftwareInstallStatusPending, upsertedInstalls[0].Status)
 	require.Equal(t, new(int64(1)), upsertedInstalls[0].InPolicyVersion)
 }
 
@@ -352,17 +352,17 @@ func TestRunAndroidSetupExperienceWithInstallConstraint(t *testing.T) {
 	const otherApp = "com.example.other"
 
 	ds := new(mock.Store)
-	ds.AndroidHostLiteByHostUUIDFunc = func(ctx context.Context, uuid string) (*fleet.AndroidHost, error) {
-		return &fleet.AndroidHost{Host: &fleet.Host{ID: 1, UUID: hostUUID}, Device: &android.Device{AppliedPolicyID: new(hostUUID)}}, nil
+	ds.AndroidHostLiteByHostUUIDFunc = func(ctx context.Context, uuid string) (*automdm.AndroidHost, error) {
+		return &automdm.AndroidHost{Host: &automdm.Host{ID: 1, UUID: hostUUID}, Device: &android.Device{AppliedPolicyID: new(hostUUID)}}, nil
 	}
-	apps := []fleet.VPPAppTeam{
-		{AdamID: constrainedApp, Platform: fleet.AndroidPlatform, AppTeamID: 1},
-		{AdamID: otherApp, Platform: fleet.AndroidPlatform, AppTeamID: 2},
+	apps := []automdm.VPPAppTeam{
+		{AdamID: constrainedApp, Platform: automdm.AndroidPlatform, AppTeamID: 1},
+		{AdamID: otherApp, Platform: automdm.AndroidPlatform, AppTeamID: 2},
 	}
-	ds.GetAndroidAppsInScopeForHostFunc = func(ctx context.Context, hostID uint) ([]fleet.VPPAppTeam, error) {
+	ds.GetAndroidAppsInScopeForHostFunc = func(ctx context.Context, hostID uint) ([]automdm.VPPAppTeam, error) {
 		return apps, nil
 	}
-	ds.GetVPPAppsToInstallDuringSetupExperienceFunc = func(ctx context.Context, teamID *uint, platform string) ([]fleet.VPPAppTeam, error) {
+	ds.GetVPPAppsToInstallDuringSetupExperienceFunc = func(ctx context.Context, teamID *uint, platform string) ([]automdm.VPPAppTeam, error) {
 		return apps, nil
 	}
 	ds.BulkGetAndroidAppConfigurationsFunc = func(ctx context.Context, vppAppTeamIDs []uint) (map[string][]byte, error) {
@@ -370,14 +370,14 @@ func TestRunAndroidSetupExperienceWithInstallConstraint(t *testing.T) {
 			constrainedApp: []byte(`{"installConstraint": [{"chargingConstraint": "INSTALL_ONLY_WHEN_CHARGING"}]}`),
 		}, nil
 	}
-	ds.BulkUpsertHostAndroidSoftwareInstallsFunc = func(ctx context.Context, installs []fleet.HostAndroidSoftwareInstall, removedInstalls []fleet.HostAndroidSoftwareInstall) error {
+	ds.BulkUpsertHostAndroidSoftwareInstallsFunc = func(ctx context.Context, installs []automdm.HostAndroidSoftwareInstall, removedInstalls []automdm.HostAndroidSoftwareInstall) error {
 		return nil
 	}
-	ds.ReplaceHostAndroidSoftwareInstallsFunc = func(ctx context.Context, hostID uint, installs []fleet.HostAndroidSoftwareInstall) error {
+	ds.ReplaceHostAndroidSoftwareInstallsFunc = func(ctx context.Context, hostID uint, installs []automdm.HostAndroidSoftwareInstall) error {
 		return nil
 	}
-	var installs []*fleet.HostAndroidVPPSoftwareInstall
-	ds.InsertAndroidSetupExperienceSoftwareInstallFunc = func(ctx context.Context, payload *fleet.HostAndroidVPPSoftwareInstall) error {
+	var installs []*automdm.HostAndroidVPPSoftwareInstall
+	ds.InsertAndroidSetupExperienceSoftwareInstallFunc = func(ctx context.Context, payload *automdm.HostAndroidVPPSoftwareInstall) error {
 		installs = append(installs, payload)
 		return nil
 	}
@@ -433,7 +433,7 @@ func TestRunAndroidSetupExperienceWithInstallConstraint(t *testing.T) {
 	require.Len(t, installs, 2)
 }
 
-// A re-enrolled host reuses its host-specific policy, so making its fleet's apps available
+// A re-enrolled host reuses its host-specific policy, so making its team's apps available
 // must replace the policy's app list, dropping the apps of the previous enrollment.
 func TestMakeAndroidAppsAvailableForHostReplacesAppList(t *testing.T) {
 	const (
@@ -444,38 +444,38 @@ func TestMakeAndroidAppsAvailableForHostReplacesAppList(t *testing.T) {
 
 	cases := []struct {
 		name         string
-		appsInScope  []fleet.VPPAppTeam
+		appsInScope  []automdm.VPPAppTeam
 		buildAgent   func(ctx context.Context, hostUUID string) (*androidmanagement.ApplicationPolicy, error)
 		wantErr      bool
 		wantPackages []string
 	}{
 		{
-			name:         "fleet with apps",
-			appsInScope:  []fleet.VPPAppTeam{{AdamID: "com.example.one", AppTeamID: 1}, {AdamID: "com.example.two", AppTeamID: 2}},
+			name:         "team with apps",
+			appsInScope:  []automdm.VPPAppTeam{{AdamID: "com.example.one", AppTeamID: 1}, {AdamID: "com.example.two", AppTeamID: 2}},
 			wantPackages: []string{"com.example.one", "com.example.two", agentPackage},
 		},
 		{
-			name:         "fleet without apps",
+			name:         "team without apps",
 			wantPackages: []string{agentPackage},
 		},
 		{
-			name:        "fleet agent not configured",
-			appsInScope: []fleet.VPPAppTeam{{AdamID: "com.example.one", AppTeamID: 1}},
+			name:        "automdm agent not configured",
+			appsInScope: []automdm.VPPAppTeam{{AdamID: "com.example.one", AppTeamID: 1}},
 			buildAgent: func(ctx context.Context, hostUUID string) (*androidmanagement.ApplicationPolicy, error) {
 				return nil, nil
 			},
 			wantPackages: []string{"com.example.one"},
 		},
 		{
-			name: "fleet without apps and fleet agent not configured",
+			name: "team without apps and automdm agent not configured",
 			buildAgent: func(ctx context.Context, hostUUID string) (*androidmanagement.ApplicationPolicy, error) {
 				return nil, nil
 			},
 			wantPackages: nil,
 		},
 		{
-			name:        "fleet agent policy fails to build",
-			appsInScope: []fleet.VPPAppTeam{{AdamID: "com.example.one", AppTeamID: 1}},
+			name:        "automdm agent policy fails to build",
+			appsInScope: []automdm.VPPAppTeam{{AdamID: "com.example.one", AppTeamID: 1}},
 			buildAgent: func(ctx context.Context, hostUUID string) (*androidmanagement.ApplicationPolicy, error) {
 				return nil, errors.New("no enroll secret")
 			},
@@ -486,17 +486,17 @@ func TestMakeAndroidAppsAvailableForHostReplacesAppList(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			ds := new(mock.Store)
-			ds.AndroidHostLiteByHostUUIDFunc = func(ctx context.Context, uuid string) (*fleet.AndroidHost, error) {
-				return &fleet.AndroidHost{Host: &fleet.Host{ID: 1, UUID: uuid}, Device: &android.Device{DeviceID: "device-id"}}, nil
+			ds.AndroidHostLiteByHostUUIDFunc = func(ctx context.Context, uuid string) (*automdm.AndroidHost, error) {
+				return &automdm.AndroidHost{Host: &automdm.Host{ID: 1, UUID: uuid}, Device: &android.Device{DeviceID: "device-id"}}, nil
 			}
-			ds.GetAndroidAppsInScopeForHostFunc = func(ctx context.Context, hostID uint) ([]fleet.VPPAppTeam, error) {
+			ds.GetAndroidAppsInScopeForHostFunc = func(ctx context.Context, hostID uint) ([]automdm.VPPAppTeam, error) {
 				return c.appsInScope, nil
 			}
 			ds.BulkGetAndroidAppConfigurationsFunc = func(ctx context.Context, vppAppTeamIDs []uint) (map[string][]byte, error) {
 				return map[string][]byte{}, nil
 			}
 			var upsertedAdamIDs []string
-			ds.ReplaceHostAndroidSoftwareInstallsFunc = func(ctx context.Context, hostID uint, installs []fleet.HostAndroidSoftwareInstall) error {
+			ds.ReplaceHostAndroidSoftwareInstallsFunc = func(ctx context.Context, hostID uint, installs []automdm.HostAndroidSoftwareInstall) error {
 				for _, install := range installs {
 					upsertedAdamIDs = append(upsertedAdamIDs, install.AdamID)
 				}
@@ -513,7 +513,7 @@ func TestMakeAndroidAppsAvailableForHostReplacesAppList(t *testing.T) {
 			var setPackages []string
 			var setHosts map[string]string
 			androidModule := &mockAndroidModule{
-				buildFleetAgentApplicationPolicyFunc: buildAgent,
+				buildAutoMDMAgentApplicationPolicyFunc: buildAgent,
 				setAppsForAndroidPolicyFunc: func(ctx context.Context, enterpriseName string, appPolicies []*androidmanagement.ApplicationPolicy, hostUUIDs map[string]string) error {
 					setCalls++
 					setHosts = hostUUIDs
@@ -540,7 +540,7 @@ func TestMakeAndroidAppsAvailableForHostReplacesAppList(t *testing.T) {
 			require.Equal(t, map[string]string{hostUUID: hostUUID}, setHosts)
 			require.Equal(t, c.wantPackages, setPackages)
 
-			// read the upserted installs, they should match the sent list, the fleet agent included
+			// read the upserted installs, they should match the sent list, the automdm agent included
 			require.Equal(t, c.wantPackages, upsertedAdamIDs)
 		})
 	}
@@ -564,7 +564,7 @@ func TestMakeAndroidAppsAvailableForHostSkipsUnresolvableAppConfig(t *testing.T)
 	}{
 		{
 			name:         "missing custom host vital value",
-			expandErr:    &fleet.MissingCustomHostVitalValueError{MissingIDs: []uint{7}, MissingNames: []string{"Asset tag"}},
+			expandErr:    &automdm.MissingCustomHostVitalValueError{MissingIDs: []uint{7}, MissingNames: []string{"Asset tag"}},
 			wantPackages: []string{"com.example.noconfig", "com.fleetdm.agent"},
 		},
 		{
@@ -577,20 +577,20 @@ func TestMakeAndroidAppsAvailableForHostSkipsUnresolvableAppConfig(t *testing.T)
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			ds := new(mock.Store)
-			ds.AndroidHostLiteByHostUUIDFunc = func(ctx context.Context, uuid string) (*fleet.AndroidHost, error) {
-				return &fleet.AndroidHost{Host: &fleet.Host{ID: 1, UUID: uuid, Platform: "android"}, Device: &android.Device{DeviceID: "device-id"}}, nil
+			ds.AndroidHostLiteByHostUUIDFunc = func(ctx context.Context, uuid string) (*automdm.AndroidHost, error) {
+				return &automdm.AndroidHost{Host: &automdm.Host{ID: 1, UUID: uuid, Platform: "android"}, Device: &android.Device{DeviceID: "device-id"}}, nil
 			}
 			ds.ResetMDMAndroidHostProfilesForRedeliveryFunc = func(ctx context.Context, uuid string) error { return nil }
-			ds.GetAndroidAppsInScopeForHostFunc = func(ctx context.Context, hostID uint) ([]fleet.VPPAppTeam, error) {
-				return []fleet.VPPAppTeam{{AdamID: "com.example.vital", AppTeamID: 1}, {AdamID: "com.example.noconfig", AppTeamID: 2}}, nil
+			ds.GetAndroidAppsInScopeForHostFunc = func(ctx context.Context, hostID uint) ([]automdm.VPPAppTeam, error) {
+				return []automdm.VPPAppTeam{{AdamID: "com.example.vital", AppTeamID: 1}, {AdamID: "com.example.noconfig", AppTeamID: 2}}, nil
 			}
 			ds.BulkGetAndroidAppConfigurationsFunc = func(ctx context.Context, vppAppTeamIDs []uint) (map[string][]byte, error) {
-				return map[string][]byte{"com.example.vital": []byte(`{"managedConfiguration":{"assetTag":"$FLEET_HOST_VITAL_7"}}`)}, nil
+				return map[string][]byte{"com.example.vital": []byte(`{"managedConfiguration":{"assetTag":"$AUTOMDM_HOST_VITAL_7"}}`)}, nil
 			}
-			ds.BulkUpsertHostAndroidSoftwareInstallsFunc = func(ctx context.Context, installs []fleet.HostAndroidSoftwareInstall, removedInstalls []fleet.HostAndroidSoftwareInstall) error {
+			ds.BulkUpsertHostAndroidSoftwareInstallsFunc = func(ctx context.Context, installs []automdm.HostAndroidSoftwareInstall, removedInstalls []automdm.HostAndroidSoftwareInstall) error {
 				return nil
 			}
-			ds.ReplaceHostAndroidSoftwareInstallsFunc = func(ctx context.Context, hostID uint, installs []fleet.HostAndroidSoftwareInstall) error {
+			ds.ReplaceHostAndroidSoftwareInstallsFunc = func(ctx context.Context, hostID uint, installs []automdm.HostAndroidSoftwareInstall) error {
 				return nil
 			}
 			ds.ExpandCustomHostVitalsFunc = func(ctx context.Context, hostID uint, document string) (string, error) {
@@ -600,7 +600,7 @@ func TestMakeAndroidAppsAvailableForHostSkipsUnresolvableAppConfig(t *testing.T)
 			var setPackages []string
 			var devicePatched bool
 			androidModule := &mockAndroidModule{
-				buildFleetAgentApplicationPolicyFunc: func(ctx context.Context, hostUUID string) (*androidmanagement.ApplicationPolicy, error) {
+				buildAutoMDMAgentApplicationPolicyFunc: func(ctx context.Context, hostUUID string) (*androidmanagement.ApplicationPolicy, error) {
 					return &androidmanagement.ApplicationPolicy{PackageName: "com.fleetdm.agent"}, nil
 				},
 				setAppsForAndroidPolicyFunc: func(ctx context.Context, enterpriseName string, appPolicies []*androidmanagement.ApplicationPolicy, hostUUIDs map[string]string) error {
@@ -631,7 +631,7 @@ func TestMakeAndroidAppsAvailableForHostSkipsUnresolvableAppConfig(t *testing.T)
 }
 
 // Moving a host off the default policy replaces every setting of its host-specific policy with
-// its fleet's default policy, which a re-enrolled host reuses and the reconciler may already have
+// its team's default policy, which a re-enrolled host reuses and the reconciler may already have
 // filled, so the host's profiles must be queued for redelivery after the patch. The device must
 // only be moved to that policy once its app list was replaced, so it never sees a previous
 // enrollment's apps.
@@ -648,7 +648,7 @@ func TestMakeAndroidAppsAvailableForHostPolicyOrder(t *testing.T) {
 	var hostTeamID *uint
 	androidModule := &mockAndroidModule{
 		prepareHostPolicyFunc: func(ctx context.Context, enterprise, uuid string, teamID uint) error {
-			calls = append(calls, fmt.Sprintf("prepare policy %s/policies/%s for fleet %d", enterprise, uuid, teamID))
+			calls = append(calls, fmt.Sprintf("prepare policy %s/policies/%s for team %d", enterprise, uuid, teamID))
 			return patchPolicyErr
 		},
 		setAppsForAndroidPolicyFunc: func(ctx context.Context, enterpriseName string, appPolicies []*androidmanagement.ApplicationPolicy, hostUUIDs map[string]string) error {
@@ -661,23 +661,23 @@ func TestMakeAndroidAppsAvailableForHostPolicyOrder(t *testing.T) {
 		},
 	}
 	ds := new(mock.Store)
-	ds.AndroidHostLiteByHostUUIDFunc = func(ctx context.Context, uuid string) (*fleet.AndroidHost, error) {
-		return &fleet.AndroidHost{Host: &fleet.Host{UUID: uuid, TeamID: hostTeamID}, Device: &android.Device{DeviceID: "device-id"}}, nil
+	ds.AndroidHostLiteByHostUUIDFunc = func(ctx context.Context, uuid string) (*automdm.AndroidHost, error) {
+		return &automdm.AndroidHost{Host: &automdm.Host{UUID: uuid, TeamID: hostTeamID}, Device: &android.Device{DeviceID: "device-id"}}, nil
 	}
 	ds.ResetMDMAndroidHostProfilesForRedeliveryFunc = func(ctx context.Context, uuid string) error {
 		calls = append(calls, "reset profiles "+uuid)
 		return nil
 	}
-	ds.GetAndroidAppsInScopeForHostFunc = func(ctx context.Context, hostID uint) ([]fleet.VPPAppTeam, error) {
+	ds.GetAndroidAppsInScopeForHostFunc = func(ctx context.Context, hostID uint) ([]automdm.VPPAppTeam, error) {
 		return nil, nil
 	}
 	ds.BulkGetAndroidAppConfigurationsFunc = func(ctx context.Context, vppAppTeamIDs []uint) (map[string][]byte, error) {
 		return map[string][]byte{}, nil
 	}
-	ds.BulkUpsertHostAndroidSoftwareInstallsFunc = func(ctx context.Context, installs []fleet.HostAndroidSoftwareInstall, removedInstalls []fleet.HostAndroidSoftwareInstall) error {
+	ds.BulkUpsertHostAndroidSoftwareInstallsFunc = func(ctx context.Context, installs []automdm.HostAndroidSoftwareInstall, removedInstalls []automdm.HostAndroidSoftwareInstall) error {
 		return nil
 	}
-	ds.ReplaceHostAndroidSoftwareInstallsFunc = func(ctx context.Context, hostID uint, installs []fleet.HostAndroidSoftwareInstall) error {
+	ds.ReplaceHostAndroidSoftwareInstallsFunc = func(ctx context.Context, hostID uint, installs []automdm.HostAndroidSoftwareInstall) error {
 		return nil
 	}
 	w := &SoftwareWorker{Datastore: ds, AndroidModule: androidModule, Log: slog.New(slog.DiscardHandler)}
@@ -685,17 +685,17 @@ func TestMakeAndroidAppsAvailableForHostPolicyOrder(t *testing.T) {
 	for _, c := range []struct {
 		enrollPolicyID string
 		hostTeamID     *uint
-		wantFleet      uint
+		wantAutoMDM    uint
 	}{
 		{defaultPolicyID, nil, 0},
-		{android.FleetDefaultPolicyID(0), nil, 0},
-		{android.FleetDefaultPolicyID(5), new(uint(5)), 5},
+		{android.AutoMDMDefaultPolicyID(0), nil, 0},
+		{android.AutoMDMDefaultPolicyID(5), new(uint(5)), 5},
 	} {
 		t.Run("enrollment policy "+c.enrollPolicyID, func(t *testing.T) {
 			calls, patchPolicyErr, setAppsErr, hostTeamID = nil, nil, nil, c.hostTeamID
 			require.NoError(t, w.makeAndroidAppsAvailableForHost(t.Context(), hostUUID, 1, enterpriseName, c.enrollPolicyID))
 			assert.Equal(t, []string{
-				fmt.Sprintf("prepare policy %s for fleet %d", hostPolicyName, c.wantFleet),
+				fmt.Sprintf("prepare policy %s for team %d", hostPolicyName, c.wantAutoMDM),
 				"reset profiles " + hostUUID,
 				"set apps " + hostUUID,
 				"patch device " + enterpriseName + "/devices/device-id to " + hostPolicyName,
@@ -706,14 +706,14 @@ func TestMakeAndroidAppsAvailableForHostPolicyOrder(t *testing.T) {
 	t.Run("policy patch fails", func(t *testing.T) {
 		calls, patchPolicyErr, setAppsErr, hostTeamID = nil, errors.New("nope"), nil, nil
 		require.Error(t, w.makeAndroidAppsAvailableForHost(t.Context(), hostUUID, 1, enterpriseName, defaultPolicyID))
-		assert.Equal(t, []string{"prepare policy " + hostPolicyName + " for fleet 0"}, calls)
+		assert.Equal(t, []string{"prepare policy " + hostPolicyName + " for team 0"}, calls)
 	})
 
 	t.Run("app list replace fails", func(t *testing.T) {
 		calls, patchPolicyErr, setAppsErr, hostTeamID = nil, nil, errors.New("nope"), nil
 		require.Error(t, w.makeAndroidAppsAvailableForHost(t.Context(), hostUUID, 1, enterpriseName, defaultPolicyID))
 		assert.Equal(t, []string{
-			"prepare policy " + hostPolicyName + " for fleet 0",
+			"prepare policy " + hostPolicyName + " for team 0",
 			"reset profiles " + hostUUID,
 			"set apps " + hostUUID,
 		}, calls, "the device must stay off the host policy")

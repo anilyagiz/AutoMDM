@@ -64,7 +64,7 @@ export type IStatusDisplayConfig = {
 export const RECENT_SUCCESS_ACTION_MESSAGE = (
   action: "installed" | "uninstalled" | "updated"
 ) =>
-  `Fleet successfully ${action} software and is fetching latest software inventory.`;
+  `AutoMDM successfully ${action} software and is fetching latest software inventory.`;
 
 const failedInstallTooltip: IStatusDisplayConfig["tooltip"] = ({
   lastInstalledAt = null,
@@ -149,10 +149,10 @@ export const INSTALL_STATUS_DISPLAY_OPTIONS: Record<
       isSelfService || isHostOnline ? "Installing..." : "Install (pending)",
     tooltip: ({ isSelfService, isHostOnline }) =>
       isSelfService || isHostOnline ? (
-        "Fleet is installing software."
+        "AutoMDM is installing software."
       ) : (
         <>
-          Fleet will install software
+          AutoMDM will install software
           <br /> when the host comes online.
         </>
       ),
@@ -163,10 +163,10 @@ export const INSTALL_STATUS_DISPLAY_OPTIONS: Record<
       isSelfService || isHostOnline ? "Installing..." : "Install (pending)",
     tooltip: ({ isSelfService, isHostOnline }) =>
       isSelfService || isHostOnline ? (
-        "Fleet is installing software."
+        "AutoMDM is installing software."
       ) : (
         <>
-          Fleet will install software
+          AutoMDM will install software
           <br /> when the host comes online.
         </>
       ),
@@ -177,10 +177,10 @@ export const INSTALL_STATUS_DISPLAY_OPTIONS: Record<
       isSelfService || isHostOnline ? "Uninstalling..." : "Uninstall (pending)",
     tooltip: ({ isSelfService, isHostOnline }) =>
       isSelfService || isHostOnline ? (
-        "Fleet is uninstalling software."
+        "AutoMDM is uninstalling software."
       ) : (
         <>
-          Fleet will uninstall software
+          AutoMDM will uninstall software
           <br />
           when the host comes online.
         </>
@@ -192,10 +192,10 @@ export const INSTALL_STATUS_DISPLAY_OPTIONS: Record<
       isSelfService || isHostOnline ? "Uninstalling..." : "Uninstall (pending)",
     tooltip: ({ isSelfService, isHostOnline }) =>
       isSelfService || isHostOnline ? (
-        "Fleet is uninstalling software."
+        "AutoMDM is uninstalling software."
       ) : (
         <>
-          Fleet will uninstall software
+          AutoMDM will uninstall software
           <br />
           when the host comes online.
         </>
@@ -208,7 +208,7 @@ export const INSTALL_STATUS_DISPLAY_OPTIONS: Record<
   },
   skipped_install: {
     iconName: "error",
-    iconColor: "ui-fleet-black-50",
+    iconColor: "ui-automdm-black-50",
     displayText: "Patch skipped",
     tooltip: () => SKIPPED_INSTALL_DETAILS,
   },
@@ -223,10 +223,10 @@ export const INSTALL_STATUS_DISPLAY_OPTIONS: Record<
       isSelfService || isHostOnline ? "Updating..." : "Update (pending)",
     tooltip: ({ isSelfService, isHostOnline }) =>
       isSelfService || isHostOnline ? (
-        "Fleet is updating software."
+        "AutoMDM is updating software."
       ) : (
         <>
-          Fleet will update software
+          AutoMDM will update software
           <br /> when the host comes online.
         </>
       ),
@@ -237,24 +237,24 @@ export const INSTALL_STATUS_DISPLAY_OPTIONS: Record<
       isSelfService || isHostOnline ? "Updating..." : "Update (pending)",
     tooltip: ({ isSelfService, isHostOnline }) =>
       isSelfService || isHostOnline ? (
-        "Fleet is updating software."
+        "AutoMDM is updating software."
       ) : (
         <>
-          Fleet will update software
+          AutoMDM will update software
           <br /> when the host comes online.
         </>
       ),
   },
   update_available: {
     iconName: "error",
-    iconColor: "ui-fleet-black-50",
+    iconColor: "ui-automdm-black-50",
     displayText: "Update available",
     tooltip: ({ isSelfService, isHostOnline }) =>
       isSelfService || isHostOnline ? (
-        "Fleet can update software."
+        "AutoMDM can update software."
       ) : (
         <>
-          Fleet can update software
+          AutoMDM can update software
           <br /> when the host comes online.
         </>
       ),
@@ -266,7 +266,7 @@ export const INSTALL_STATUS_DISPLAY_OPTIONS: Record<
   },
   failed_uninstall_update_available: {
     iconName: "error", // Match update available icon and not failed uninstall icon
-    iconColor: "ui-fleet-black-50",
+    iconColor: "ui-automdm-black-50",
     displayText: "Update available", // Shows "Update available" modal instead of "Failed (uninstall)" modal as of 4.82 #31663
     // Tooltip indicates failure info in host activity logs
     tooltip: failedUninstallTooltip,
@@ -306,17 +306,17 @@ export const INSTALL_STATUS_DISPLAY_OPTIONS: Record<
   running_script: {
     iconName: "pending",
     displayText: "Running...",
-    tooltip: () => "Fleet is running the script.",
+    tooltip: () => "AutoMDM is running the script.",
   },
   pending_script: {
     iconName: "pending",
     displayText: "Run (pending)",
     tooltip: ({ isSelfService, isHostOnline }) =>
       isSelfService || isHostOnline ? (
-        "Fleet is running the script."
+        "AutoMDM is running the script."
       ) : (
         <>
-          Fleet will run the script when the host
+          AutoMDM will run the script when the host
           <br /> comes online.
         </>
       ),
@@ -491,8 +491,8 @@ const InstallStatusCell = ({
       isHostOnline
     );
 
-    // Software "installed" by Fleet (backend) and shows as "installed" (UI)
-    const isInstalledInFleetAndUI =
+    // Software "installed" by AutoMDM (backend) and shows as "installed" (UI)
+    const isInstalledInTeamAndUI =
       software.status === "installed" && software.ui_status === "installed";
 
     // Is this an Apple App Store app missing 'last_install' info? (Old clients <4.72 bug)
@@ -502,7 +502,7 @@ const InstallStatusCell = ({
     // keep clickable except for App Store apps missing last_install (modal would be empty)
     const shouldOnClickBeDisabled =
       isMissingLastInstallInfo &&
-      (software.status === "failed_install" || isInstalledInFleetAndUI);
+      (software.status === "failed_install" || isInstalledInTeamAndUI);
 
     const isScriptPackage = SCRIPT_PACKAGE_SOURCES.includes(software.source);
 

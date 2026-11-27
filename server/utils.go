@@ -12,8 +12,8 @@ import (
 	"math/big"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/bindata"
-	platformhttp "github.com/fleetdm/fleet/v4/server/platform/http"
+	"github.com/anilyagiz/automdm/v4/server/bindata"
+	platformhttp "github.com/anilyagiz/automdm/v4/server/platform/http"
 )
 
 // GenerateRandomEmail generates a random email using baseEmail as the base.
@@ -35,7 +35,7 @@ func GenerateRandomEmail(baseEmail string) (string, error) {
 }
 
 // GenerateRandomPwd generates a random text that
-// complies with Fleet's password requirements.
+// complies with AutoMDM's password requirements.
 func GenerateRandomPwd() (string, error) {
 	pwd, err := GenerateRandomText(14)
 	if err != nil {
@@ -74,20 +74,20 @@ func GenerateRandomURLSafeText(keySize int) (string, error) {
 
 // PostJSONWithTimeout marshals v as JSON and POSTs it to the given URL with a 30-second timeout.
 //
-// Deprecated: Use github.com/fleetdm/fleet/v4/server/platform/http.PostJSONWithTimeout instead.
+// Deprecated: Use github.com/anilyagiz/automdm/v4/server/platform/http.PostJSONWithTimeout instead.
 var PostJSONWithTimeout = platformhttp.PostJSONWithTimeout
 
 // MaskSecretURLParams masks URL query values whose param name contains one of the
 // secret-ish keywords. It accepts a raw string and returns a redacted string if the raw
 // string is URL-parseable. If it is not URL-parseable, the raw string is returned unchanged.
 //
-// Deprecated: Use github.com/fleetdm/fleet/v4/server/platform/http.MaskSecretURLParams instead.
+// Deprecated: Use github.com/anilyagiz/automdm/v4/server/platform/http.MaskSecretURLParams instead.
 var MaskSecretURLParams = platformhttp.MaskSecretURLParams
 
 // MaskURLError checks if the provided error is a *url.Error. If so, it applies MaskSecretURLParams
 // to the URL value and returns the modified error. If not, the error is returned unchanged.
 //
-// Deprecated: Use github.com/fleetdm/fleet/v4/server/platform/http.MaskURLError instead.
+// Deprecated: Use github.com/anilyagiz/automdm/v4/server/platform/http.MaskURLError instead.
 var MaskURLError = platformhttp.MaskURLError
 
 // TODO: Consider moving other crypto functions from server/mdm/apple/util to here
@@ -146,5 +146,5 @@ func RemoveDuplicatesFromSlice[T comparable](slice []T) []T {
 
 // NeverTimestamp is the timestamp used to indicate that an event has never
 // occurred. For example, `hosts.detail_updated_at` is set to this value to indicate
-// that Fleet has never updated the host vitals.
+// that AutoMDM has never updated the host vitals.
 const NeverTimestamp = "2000-01-01 00:00:00"

@@ -15,7 +15,7 @@ import java.util.concurrent.TimeUnit
 
 class BootReceiver : BroadcastReceiver() {
     companion object {
-        private const val TAG = "fleet-boot"
+        private const val TAG = "automdm-boot"
     }
 
     override fun onReceive(context: Context?, intent: Intent?) {

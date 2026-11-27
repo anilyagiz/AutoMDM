@@ -9,7 +9,7 @@ import (
 )
 
 // RedisPool is the minimal Redis pool interface needed by the ACME bounded context.
-// fleet.RedisPool satisfies this implicitly via Go's structural typing.
+// automdm.RedisPool satisfies this implicitly via Go's structural typing.
 type RedisPool interface {
 	Get() redigo.Conn
 }
@@ -29,7 +29,7 @@ func (f CSRSignerFunc) SignX509CSRWithCallback(csr *x509.CertificateRequest, sub
 
 // DataProviders combines all external dependency interfaces for the ACME
 // bounded context. Methods are narrowed to exactly what ACME needs,
-// keeping the bounded context decoupled from Fleet-internal types.
+// keeping the bounded context decoupled from AutoMDM-internal types.
 type DataProviders interface {
 	// ServerURL returns the base URL used to construct ACME endpoint URLs.
 	ServerURL(ctx context.Context) (string, error)

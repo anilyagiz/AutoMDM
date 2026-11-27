@@ -6,7 +6,7 @@ const createMockApiError = (reason: string) => ({
 
 describe("getPolicyAutomationErrorMessage", () => {
   it("passes through the API reason when a declaration was selected", () => {
-    const reason = "Couldn't add. Fleet can't resend declaration (DDM).";
+    const reason = "Couldn't add. AutoMDM can't resend declaration (DDM).";
     expect(getPolicyAutomationErrorMessage(createMockApiError(reason))).toBe(
       reason
     );

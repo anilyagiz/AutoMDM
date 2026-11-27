@@ -8,19 +8,19 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	mockservice "github.com/anilyagiz/automdm/v4/server/mock/service"
+	platform_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/elimity-com/scim"
 	scimerrors "github.com/elimity-com/scim/errors"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	mockservice "github.com/fleetdm/fleet/v4/server/mock/service"
-	platform_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
-	"github.com/fleetdm/fleet/v4/server/ptr"
 	"github.com/scim2/filter-parser/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// alreadyExistsErr implements fleet.AlreadyExistsError for testing.
+// alreadyExistsErr implements automdm.AlreadyExistsError for testing.
 type alreadyExistsErr struct {
 	msg string
 }
@@ -38,10 +38,10 @@ func newTestMocks() *testMocks {
 		ds:  new(mock.Store),
 		svc: new(mockservice.Service),
 	}
-	m.ds.UserByEmailFunc = func(ctx context.Context, email string) (*fleet.User, error) {
+	m.ds.UserByEmailFunc = func(ctx context.Context, email string) (*automdm.User, error) {
 		return nil, platform_mysql.NotFound("User")
 	}
-	m.ds.SetScimUserFleetUserIDFunc = func(ctx context.Context, scimUserID uint, fleetUserID uint) error {
+	m.ds.SetScimUserTeamUserIDFunc = func(ctx context.Context, scimUserID uint, teamUserID uint) error {
 		return nil
 	}
 	return m
@@ -55,10 +55,10 @@ func (m *testMocks) newTestHandler() *UserHandler {
 	}
 }
 
-// matchFleetUserByEmail stubs UserByEmail to return user for the given email
+// matchTeamUserByEmail stubs UserByEmail to return user for the given email
 // and NotFound for any other.
-func (m *testMocks) matchFleetUserByEmail(email string, user *fleet.User) {
-	m.ds.UserByEmailFunc = func(ctx context.Context, e string) (*fleet.User, error) {
+func (m *testMocks) matchTeamUserByEmail(email string, user *automdm.User) {
+	m.ds.UserByEmailFunc = func(ctx context.Context, e string) (*automdm.User, error) {
 		if e == email {
 			return user, nil
 		}
@@ -72,8 +72,8 @@ func (m *testMocks) matchFleetUserByEmail(email string, user *fleet.User) {
 // unlinked.
 func (m *testMocks) captureLinkedBeforeReplace() *bool {
 	linkedBefore := new(false)
-	m.ds.ReplaceScimUserFunc = func(ctx context.Context, user *fleet.ScimUser) ([]fleet.ActivityTypeResentCertificate, error) {
-		*linkedBefore = m.ds.SetScimUserFleetUserIDFuncInvoked
+	m.ds.ReplaceScimUserFunc = func(ctx context.Context, user *automdm.ScimUser) ([]automdm.ActivityTypeResentCertificate, error) {
+		*linkedBefore = m.ds.SetScimUserTeamUserIDFuncInvoked
 		return nil, nil
 	}
 	return linkedBefore
@@ -87,7 +87,7 @@ func patchReplaceOp(t *testing.T, path string, value any) scim.PatchOperation {
 	return scim.PatchOperation{Op: scim.PatchOperationReplace, Path: &parsed, Value: value}
 }
 
-type fleetUserOpts struct {
+type teamUserOpts struct {
 	id         uint
 	name       string
 	email      string
@@ -96,12 +96,12 @@ type fleetUserOpts struct {
 	ssoEnabled bool
 }
 
-func newTestFleetUser(opts *fleetUserOpts) *fleet.User {
-	user := &fleet.User{
+func newTestTeamUser(opts *teamUserOpts) *automdm.User {
+	user := &automdm.User{
 		ID:         100,
 		Name:       "Test User",
 		Email:      "user@example.com",
-		GlobalRole: ptr.String(fleet.RoleMaintainer),
+		GlobalRole: ptr.String(automdm.RoleMaintainer),
 		APIOnly:    false,
 		SSOEnabled: true,
 	}
@@ -125,20 +125,20 @@ func newTestFleetUser(opts *fleetUserOpts) *fleet.User {
 }
 
 type scimUserOpts struct {
-	id          uint
-	userName    string
-	fleetUserID uint
-	active      *bool
-	givenName   string
-	familyName  string
-	emails      []fleet.ScimUserEmail
+	id         uint
+	userName   string
+	teamUserID uint
+	active     *bool
+	givenName  string
+	familyName string
+	emails     []automdm.ScimUserEmail
 }
 
-func newTestScimUser(opts *scimUserOpts) *fleet.ScimUser {
-	user := &fleet.ScimUser{
+func newTestScimUser(opts *scimUserOpts) *automdm.ScimUser {
+	user := &automdm.ScimUser{
 		ID:       1,
 		UserName: "user@example.com",
-		Emails:   []fleet.ScimUserEmail{},
+		Emails:   []automdm.ScimUserEmail{},
 	}
 	if opts != nil {
 		if opts.id != 0 {
@@ -147,8 +147,8 @@ func newTestScimUser(opts *scimUserOpts) *fleet.ScimUser {
 		if opts.userName != "" {
 			user.UserName = opts.userName
 		}
-		if opts.fleetUserID != 0 {
-			user.FleetUserID = new(opts.fleetUserID)
+		if opts.teamUserID != 0 {
+			user.TeamUserID = new(opts.teamUserID)
 		}
 		if opts.active != nil {
 			user.Active = opts.active
@@ -180,23 +180,23 @@ func newTestAttrs(userName string, active *bool, givenName, familyName string) m
 	return attrs
 }
 
-func TestDeleteMatchingFleetUser(t *testing.T) {
+func TestDeleteMatchingTeamUser(t *testing.T) {
 	t.Run("no link and no emails: skips deletion and flags it in the audit log", func(t *testing.T) {
 		mocks := newTestMocks()
-		var gotActivity fleet.ActivityDetails
-		mocks.svc.NewActivityFunc = func(ctx context.Context, user *fleet.User, activity fleet.ActivityDetails) error {
+		var gotActivity automdm.ActivityDetails
+		mocks.svc.NewActivityFunc = func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error {
 			gotActivity = activity
 			return nil
 		}
 		handler := mocks.newTestHandler()
 		scimUser := newTestScimUser(&scimUserOpts{id: 7, userName: "johndoe"})
 
-		err := handler.deleteMatchingFleetUser(t.Context(), scimUser)
+		err := handler.deleteMatchingTeamUser(t.Context(), scimUser)
 		require.NoError(t, err)
 		require.False(t, mocks.ds.UserByEmailFuncInvoked)
 		require.False(t, mocks.ds.DeleteUserFuncInvoked)
 
-		skipped, ok := gotActivity.(fleet.ActivityTypeScimUserDeprovisionSkipped)
+		skipped, ok := gotActivity.(automdm.ActivityTypeScimUserDeprovisionSkipped)
 		require.True(t, ok, "expected skipped-deprovision activity, got %T", gotActivity)
 		require.Equal(t, uint(7), skipped.ScimUserID)
 		require.Equal(t, "johndoe", skipped.ScimUserName)
@@ -204,25 +204,25 @@ func TestDeleteMatchingFleetUser(t *testing.T) {
 
 	t.Run("resolves via durable scim_users.user_id link, not email", func(t *testing.T) {
 		mocks := newTestMocks()
-		fleetUser := newTestFleetUser(&fleetUserOpts{id: 100, email: "victim@example.com", ssoEnabled: true})
+		automdmUser := newTestTeamUser(&teamUserOpts{id: 100, email: "victim@example.com", ssoEnabled: true})
 
-		mocks.ds.UserByIDFunc = func(ctx context.Context, id uint) (*fleet.User, error) {
+		mocks.ds.UserByIDFunc = func(ctx context.Context, id uint) (*automdm.User, error) {
 			require.Equal(t, uint(100), id)
-			return fleetUser, nil
+			return automdmUser, nil
 		}
 		mocks.ds.DeleteUserFunc = func(ctx context.Context, id uint) error {
 			require.Equal(t, uint(100), id)
 			return nil
 		}
-		mocks.svc.NewActivityFunc = func(ctx context.Context, user *fleet.User, activity fleet.ActivityDetails) error {
+		mocks.svc.NewActivityFunc = func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error {
 			return nil
 		}
 
 		handler := mocks.newTestHandler()
-		// Identifiers are garbage (mutated), but the durable link points at the Fleet user.
-		scimUser := newTestScimUser(&scimUserOpts{id: 7, userName: "nondomain_user_bypass", fleetUserID: 100})
+		// Identifiers are garbage (mutated), but the durable link points at the AutoMDM user.
+		scimUser := newTestScimUser(&scimUserOpts{id: 7, userName: "nondomain_user_bypass", teamUserID: 100})
 
-		err := handler.deleteMatchingFleetUser(t.Context(), scimUser)
+		err := handler.deleteMatchingTeamUser(t.Context(), scimUser)
 		require.NoError(t, err)
 
 		require.True(t, mocks.ds.UserByIDFuncInvoked)
@@ -230,27 +230,27 @@ func TestDeleteMatchingFleetUser(t *testing.T) {
 		require.True(t, mocks.ds.DeleteUserFuncInvoked)
 	})
 
-	t.Run("linked Fleet user already deleted: no-op", func(t *testing.T) {
+	t.Run("linked AutoMDM user already deleted: no-op", func(t *testing.T) {
 		mocks := newTestMocks()
-		mocks.ds.UserByIDFunc = func(ctx context.Context, id uint) (*fleet.User, error) {
+		mocks.ds.UserByIDFunc = func(ctx context.Context, id uint) (*automdm.User, error) {
 			return nil, platform_mysql.NotFound("User")
 		}
 		handler := mocks.newTestHandler()
-		scimUser := newTestScimUser(&scimUserOpts{id: 7, userName: "x@example.com", fleetUserID: 100})
+		scimUser := newTestScimUser(&scimUserOpts{id: 7, userName: "x@example.com", teamUserID: 100})
 
-		err := handler.deleteMatchingFleetUser(t.Context(), scimUser)
+		err := handler.deleteMatchingTeamUser(t.Context(), scimUser)
 		require.NoError(t, err)
 		require.True(t, mocks.ds.UserByIDFuncInvoked)
 		require.False(t, mocks.ds.DeleteUserFuncInvoked)
 	})
 
-	t.Run("userName is email, matches Fleet user", func(t *testing.T) {
+	t.Run("userName is email, matches AutoMDM user", func(t *testing.T) {
 		mocks := newTestMocks()
-		fleetUser := newTestFleetUser(&fleetUserOpts{name: "John Doe", email: "john@example.com", ssoEnabled: true})
+		automdmUser := newTestTeamUser(&teamUserOpts{name: "John Doe", email: "john@example.com", ssoEnabled: true})
 
-		mocks.ds.UserByEmailFunc = func(ctx context.Context, email string) (*fleet.User, error) {
+		mocks.ds.UserByEmailFunc = func(ctx context.Context, email string) (*automdm.User, error) {
 			if email == "john@example.com" {
-				return fleetUser, nil
+				return automdmUser, nil
 			}
 			return nil, platform_mysql.NotFound("User")
 		}
@@ -260,9 +260,9 @@ func TestDeleteMatchingFleetUser(t *testing.T) {
 		}
 
 		var activityCreated bool
-		mocks.svc.NewActivityFunc = func(ctx context.Context, user *fleet.User, activity fleet.ActivityDetails) error {
+		mocks.svc.NewActivityFunc = func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error {
 			activityCreated = true
-			deleted, ok := activity.(fleet.ActivityTypeDeletedUser)
+			deleted, ok := activity.(automdm.ActivityTypeDeletedUser)
 			require.True(t, ok)
 			assert.Equal(t, uint(100), deleted.UserID)
 			assert.Equal(t, "John Doe", deleted.UserName)
@@ -274,7 +274,7 @@ func TestDeleteMatchingFleetUser(t *testing.T) {
 		handler := mocks.newTestHandler()
 		scimUser := newTestScimUser(&scimUserOpts{userName: "john@example.com"})
 
-		err := handler.deleteMatchingFleetUser(t.Context(), scimUser)
+		err := handler.deleteMatchingTeamUser(t.Context(), scimUser)
 		require.NoError(t, err)
 
 		assert.True(t, mocks.ds.UserByEmailFuncInvoked)
@@ -284,21 +284,21 @@ func TestDeleteMatchingFleetUser(t *testing.T) {
 
 	t.Run("skips deletion of API-only user", func(t *testing.T) {
 		mocks := newTestMocks()
-		fleetUser := newTestFleetUser(&fleetUserOpts{
+		automdmUser := newTestTeamUser(&teamUserOpts{
 			email:      "api@example.com",
-			globalRole: fleet.RoleAdmin,
+			globalRole: automdm.RoleAdmin,
 			apiOnly:    true,
 			ssoEnabled: true,
 		})
 
-		mocks.ds.UserByEmailFunc = func(ctx context.Context, email string) (*fleet.User, error) {
-			return fleetUser, nil
+		mocks.ds.UserByEmailFunc = func(ctx context.Context, email string) (*automdm.User, error) {
+			return automdmUser, nil
 		}
 
 		handler := mocks.newTestHandler()
 		scimUser := newTestScimUser(&scimUserOpts{userName: "api@example.com"})
 
-		err := handler.deleteMatchingFleetUser(t.Context(), scimUser)
+		err := handler.deleteMatchingTeamUser(t.Context(), scimUser)
 		require.NoError(t, err)
 
 		assert.True(t, mocks.ds.UserByEmailFuncInvoked)
@@ -307,19 +307,19 @@ func TestDeleteMatchingFleetUser(t *testing.T) {
 
 	t.Run("skips deletion of non-SSO user", func(t *testing.T) {
 		mocks := newTestMocks()
-		fleetUser := newTestFleetUser(&fleetUserOpts{
+		automdmUser := newTestTeamUser(&teamUserOpts{
 			email:      "nonsso@example.com",
 			ssoEnabled: false,
 		})
 
-		mocks.ds.UserByEmailFunc = func(ctx context.Context, email string) (*fleet.User, error) {
-			return fleetUser, nil
+		mocks.ds.UserByEmailFunc = func(ctx context.Context, email string) (*automdm.User, error) {
+			return automdmUser, nil
 		}
 
 		handler := mocks.newTestHandler()
 		scimUser := newTestScimUser(&scimUserOpts{userName: "nonsso@example.com"})
 
-		err := handler.deleteMatchingFleetUser(t.Context(), scimUser)
+		err := handler.deleteMatchingTeamUser(t.Context(), scimUser)
 		require.NoError(t, err)
 
 		assert.True(t, mocks.ds.UserByEmailFuncInvoked)
@@ -328,23 +328,23 @@ func TestDeleteMatchingFleetUser(t *testing.T) {
 
 	t.Run("prevents deleting last global admin", func(t *testing.T) {
 		mocks := newTestMocks()
-		fleetUser := newTestFleetUser(&fleetUserOpts{
+		automdmUser := newTestTeamUser(&teamUserOpts{
 			email:      "admin@example.com",
-			globalRole: fleet.RoleAdmin,
+			globalRole: automdm.RoleAdmin,
 			ssoEnabled: true,
 		})
 
-		mocks.ds.UserByEmailFunc = func(ctx context.Context, email string) (*fleet.User, error) {
-			return fleetUser, nil
+		mocks.ds.UserByEmailFunc = func(ctx context.Context, email string) (*automdm.User, error) {
+			return automdmUser, nil
 		}
 		mocks.ds.DeleteUserIfNotLastAdminFunc = func(ctx context.Context, id uint) error {
-			return fleet.ErrLastGlobalAdmin
+			return automdm.ErrLastGlobalAdmin
 		}
 
 		handler := mocks.newTestHandler()
 		scimUser := newTestScimUser(&scimUserOpts{userName: "admin@example.com"})
 
-		err := handler.deleteMatchingFleetUser(t.Context(), scimUser)
+		err := handler.deleteMatchingTeamUser(t.Context(), scimUser)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "cannot delete last global admin")
 
@@ -355,26 +355,26 @@ func TestDeleteMatchingFleetUser(t *testing.T) {
 
 	t.Run("allows deleting admin when multiple admins exist", func(t *testing.T) {
 		mocks := newTestMocks()
-		fleetUser := newTestFleetUser(&fleetUserOpts{
+		automdmUser := newTestTeamUser(&teamUserOpts{
 			email:      "admin@example.com",
-			globalRole: fleet.RoleAdmin,
+			globalRole: automdm.RoleAdmin,
 			ssoEnabled: true,
 		})
 
-		mocks.ds.UserByEmailFunc = func(ctx context.Context, email string) (*fleet.User, error) {
-			return fleetUser, nil
+		mocks.ds.UserByEmailFunc = func(ctx context.Context, email string) (*automdm.User, error) {
+			return automdmUser, nil
 		}
 		mocks.ds.DeleteUserIfNotLastAdminFunc = func(ctx context.Context, id uint) error {
 			return nil
 		}
-		mocks.svc.NewActivityFunc = func(ctx context.Context, user *fleet.User, activity fleet.ActivityDetails) error {
+		mocks.svc.NewActivityFunc = func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error {
 			return nil
 		}
 
 		handler := mocks.newTestHandler()
 		scimUser := newTestScimUser(&scimUserOpts{userName: "admin@example.com"})
 
-		err := handler.deleteMatchingFleetUser(t.Context(), scimUser)
+		err := handler.deleteMatchingTeamUser(t.Context(), scimUser)
 		require.NoError(t, err)
 
 		assert.True(t, mocks.ds.DeleteUserIfNotLastAdminFuncInvoked)
@@ -382,51 +382,51 @@ func TestDeleteMatchingFleetUser(t *testing.T) {
 
 	t.Run("matches on scim_user_emails when userName is not email", func(t *testing.T) {
 		mocks := newTestMocks()
-		fleetUser := newTestFleetUser(&fleetUserOpts{
+		automdmUser := newTestTeamUser(&teamUserOpts{
 			name:       "Jane Doe",
 			email:      "jane@work.com",
 			ssoEnabled: true,
 		})
 
-		mocks.ds.UserByEmailFunc = func(ctx context.Context, email string) (*fleet.User, error) {
+		mocks.ds.UserByEmailFunc = func(ctx context.Context, email string) (*automdm.User, error) {
 			if email == "jane@work.com" {
-				return fleetUser, nil
+				return automdmUser, nil
 			}
 			return nil, platform_mysql.NotFound("User")
 		}
 		mocks.ds.DeleteUserFunc = func(ctx context.Context, id uint) error {
 			return nil
 		}
-		mocks.svc.NewActivityFunc = func(ctx context.Context, user *fleet.User, activity fleet.ActivityDetails) error {
+		mocks.svc.NewActivityFunc = func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error {
 			return nil
 		}
 
 		handler := mocks.newTestHandler()
 		scimUser := newTestScimUser(&scimUserOpts{
 			userName: "janedoe", // Not an email
-			emails: []fleet.ScimUserEmail{
+			emails: []automdm.ScimUserEmail{
 				{Email: "jane@personal.com"},
 				{Email: "jane@work.com"},
 			},
 		})
 
-		err := handler.deleteMatchingFleetUser(t.Context(), scimUser)
+		err := handler.deleteMatchingTeamUser(t.Context(), scimUser)
 		require.NoError(t, err)
 
 		assert.True(t, mocks.ds.DeleteUserFuncInvoked)
 	})
 
-	t.Run("no matching Fleet user found", func(t *testing.T) {
+	t.Run("no matching AutoMDM user found", func(t *testing.T) {
 		mocks := newTestMocks()
-		mocks.ds.UserByEmailFunc = func(ctx context.Context, email string) (*fleet.User, error) {
+		mocks.ds.UserByEmailFunc = func(ctx context.Context, email string) (*automdm.User, error) {
 			return nil, platform_mysql.NotFound("User")
 		}
 
 		handler := mocks.newTestHandler()
-		// Routine case: an IdP user with an email but no Fleet account.
+		// Routine case: an IdP user with an email but no AutoMDM account.
 		scimUser := newTestScimUser(&scimUserOpts{userName: "nobody@example.com"})
 
-		err := handler.deleteMatchingFleetUser(t.Context(), scimUser)
+		err := handler.deleteMatchingTeamUser(t.Context(), scimUser)
 		require.NoError(t, err)
 
 		assert.True(t, mocks.ds.UserByEmailFuncInvoked)
@@ -437,27 +437,27 @@ func TestDeleteMatchingFleetUser(t *testing.T) {
 
 	t.Run("email case insensitive matching", func(t *testing.T) {
 		mocks := newTestMocks()
-		fleetUser := newTestFleetUser(&fleetUserOpts{ssoEnabled: true})
+		automdmUser := newTestTeamUser(&teamUserOpts{ssoEnabled: true})
 
 		var emailQueried string
-		mocks.ds.UserByEmailFunc = func(ctx context.Context, email string) (*fleet.User, error) {
+		mocks.ds.UserByEmailFunc = func(ctx context.Context, email string) (*automdm.User, error) {
 			emailQueried = email
 			if email == "user@example.com" {
-				return fleetUser, nil
+				return automdmUser, nil
 			}
 			return nil, platform_mysql.NotFound("User")
 		}
 		mocks.ds.DeleteUserFunc = func(ctx context.Context, id uint) error {
 			return nil
 		}
-		mocks.svc.NewActivityFunc = func(ctx context.Context, user *fleet.User, activity fleet.ActivityDetails) error {
+		mocks.svc.NewActivityFunc = func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error {
 			return nil
 		}
 
 		handler := mocks.newTestHandler()
 		scimUser := newTestScimUser(&scimUserOpts{userName: "USER@EXAMPLE.COM"})
 
-		err := handler.deleteMatchingFleetUser(t.Context(), scimUser)
+		err := handler.deleteMatchingTeamUser(t.Context(), scimUser)
 		require.NoError(t, err)
 
 		assert.Equal(t, "user@example.com", emailQueried)
@@ -465,41 +465,41 @@ func TestDeleteMatchingFleetUser(t *testing.T) {
 	})
 }
 
-func TestLinkMatchingFleetUser(t *testing.T) {
+func TestLinkMatchingTeamUser(t *testing.T) {
 	t.Run("set-once: does not re-point or re-query an existing link", func(t *testing.T) {
 		mocks := newTestMocks()
 		handler := mocks.newTestHandler()
 		// Identifiers now point at a different (victim) address, but the record
 		// is already linked. Linking must be a no-op.
-		scimUser := newTestScimUser(&scimUserOpts{id: 7, userName: "victim@example.com", fleetUserID: 100})
+		scimUser := newTestScimUser(&scimUserOpts{id: 7, userName: "victim@example.com", teamUserID: 100})
 
-		handler.linkMatchingFleetUser(t.Context(), scimUser)
+		handler.linkMatchingTeamUser(t.Context(), scimUser)
 
 		require.False(t, mocks.ds.UserByEmailFuncInvoked, "must not look up when already linked")
-		require.False(t, mocks.ds.SetScimUserFleetUserIDFuncInvoked, "must not re-point an existing link")
-		require.NotNil(t, scimUser.FleetUserID)
-		require.Equal(t, uint(100), *scimUser.FleetUserID)
+		require.False(t, mocks.ds.SetScimUserTeamUserIDFuncInvoked, "must not re-point an existing link")
+		require.NotNil(t, scimUser.TeamUserID)
+		require.Equal(t, uint(100), *scimUser.TeamUserID)
 	})
 
 	t.Run("links when unlinked and an email matches", func(t *testing.T) {
 		mocks := newTestMocks()
-		mocks.matchFleetUserByEmail("user@example.com", newTestFleetUser(&fleetUserOpts{id: 100, email: "user@example.com"}))
-		var setScimID, setFleetID uint
-		mocks.ds.SetScimUserFleetUserIDFunc = func(ctx context.Context, scimUserID uint, fleetUserID uint) error {
+		mocks.matchTeamUserByEmail("user@example.com", newTestTeamUser(&teamUserOpts{id: 100, email: "user@example.com"}))
+		var setScimID, setTeamID uint
+		mocks.ds.SetScimUserTeamUserIDFunc = func(ctx context.Context, scimUserID uint, teamUserID uint) error {
 			setScimID = scimUserID
-			setFleetID = fleetUserID
+			setTeamID = teamUserID
 			return nil
 		}
 		handler := mocks.newTestHandler()
 		scimUser := newTestScimUser(&scimUserOpts{id: 7, userName: "user@example.com"})
 
-		handler.linkMatchingFleetUser(t.Context(), scimUser)
+		handler.linkMatchingTeamUser(t.Context(), scimUser)
 
-		require.True(t, mocks.ds.SetScimUserFleetUserIDFuncInvoked)
+		require.True(t, mocks.ds.SetScimUserTeamUserIDFuncInvoked)
 		require.Equal(t, uint(7), setScimID)
-		require.Equal(t, uint(100), setFleetID)
-		require.NotNil(t, scimUser.FleetUserID)
-		require.Equal(t, uint(100), *scimUser.FleetUserID)
+		require.Equal(t, uint(100), setTeamID)
+		require.NotNil(t, scimUser.TeamUserID)
+		require.Equal(t, uint(100), *scimUser.TeamUserID)
 	})
 
 	t.Run("no email match leaves the record unlinked", func(t *testing.T) {
@@ -507,33 +507,33 @@ func TestLinkMatchingFleetUser(t *testing.T) {
 		handler := mocks.newTestHandler()
 		scimUser := newTestScimUser(&scimUserOpts{id: 7, userName: "user@example.com"})
 
-		handler.linkMatchingFleetUser(t.Context(), scimUser)
+		handler.linkMatchingTeamUser(t.Context(), scimUser)
 
 		require.True(t, mocks.ds.UserByEmailFuncInvoked)
-		require.False(t, mocks.ds.SetScimUserFleetUserIDFuncInvoked)
-		require.Nil(t, scimUser.FleetUserID)
+		require.False(t, mocks.ds.SetScimUserTeamUserIDFuncInvoked)
+		require.Nil(t, scimUser.TeamUserID)
 	})
 }
 
 func TestUserHandlerDelete(t *testing.T) {
-	t.Run("deletes SCIM user and matching Fleet user", func(t *testing.T) {
+	t.Run("deletes SCIM user and matching AutoMDM user", func(t *testing.T) {
 		mocks := newTestMocks()
 		scimUser := newTestScimUser(nil)
-		fleetUser := newTestFleetUser(&fleetUserOpts{ssoEnabled: true})
+		automdmUser := newTestTeamUser(&teamUserOpts{ssoEnabled: true})
 
-		mocks.ds.ScimUserByIDFunc = func(ctx context.Context, id uint) (*fleet.ScimUser, error) {
+		mocks.ds.ScimUserByIDFunc = func(ctx context.Context, id uint) (*automdm.ScimUser, error) {
 			return scimUser, nil
 		}
-		mocks.ds.UserByEmailFunc = func(ctx context.Context, email string) (*fleet.User, error) {
-			return fleetUser, nil
+		mocks.ds.UserByEmailFunc = func(ctx context.Context, email string) (*automdm.User, error) {
+			return automdmUser, nil
 		}
 		mocks.ds.DeleteUserFunc = func(ctx context.Context, id uint) error {
 			return nil
 		}
-		mocks.ds.DeleteScimUserFunc = func(ctx context.Context, id uint) ([]fleet.ActivityTypeResentCertificate, error) {
+		mocks.ds.DeleteScimUserFunc = func(ctx context.Context, id uint) ([]automdm.ActivityTypeResentCertificate, error) {
 			return nil, nil
 		}
-		mocks.svc.NewActivityFunc = func(ctx context.Context, user *fleet.User, activity fleet.ActivityDetails) error {
+		mocks.svc.NewActivityFunc = func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error {
 			return nil
 		}
 
@@ -548,27 +548,27 @@ func TestUserHandlerDelete(t *testing.T) {
 		assert.True(t, mocks.ds.DeleteScimUserFuncInvoked)
 	})
 
-	t.Run("SCIM deletion proceeds even if Fleet user deletion fails", func(t *testing.T) {
+	t.Run("SCIM deletion proceeds even if AutoMDM user deletion fails", func(t *testing.T) {
 		mocks := newTestMocks()
 		scimUser := newTestScimUser(&scimUserOpts{userName: "admin@example.com"})
-		fleetUser := newTestFleetUser(&fleetUserOpts{
+		automdmUser := newTestTeamUser(&teamUserOpts{
 			email:      "admin@example.com",
-			globalRole: fleet.RoleAdmin,
+			globalRole: automdm.RoleAdmin,
 			ssoEnabled: true,
 		})
 
-		mocks.ds.ScimUserByIDFunc = func(ctx context.Context, id uint) (*fleet.ScimUser, error) {
+		mocks.ds.ScimUserByIDFunc = func(ctx context.Context, id uint) (*automdm.ScimUser, error) {
 			return scimUser, nil
 		}
-		mocks.ds.UserByEmailFunc = func(ctx context.Context, email string) (*fleet.User, error) {
-			return fleetUser, nil
+		mocks.ds.UserByEmailFunc = func(ctx context.Context, email string) (*automdm.User, error) {
+			return automdmUser, nil
 		}
-		// Last admin - Fleet user deletion will fail
+		// Last admin - AutoMDM user deletion will fail
 		mocks.ds.DeleteUserIfNotLastAdminFunc = func(ctx context.Context, id uint) error {
-			return fleet.ErrLastGlobalAdmin
+			return automdm.ErrLastGlobalAdmin
 		}
 		// SCIM user deletion should still succeed
-		mocks.ds.DeleteScimUserFunc = func(ctx context.Context, id uint) ([]fleet.ActivityTypeResentCertificate, error) {
+		mocks.ds.DeleteScimUserFunc = func(ctx context.Context, id uint) ([]automdm.ActivityTypeResentCertificate, error) {
 			return nil, nil
 		}
 
@@ -584,11 +584,11 @@ func TestUserHandlerDelete(t *testing.T) {
 
 	t.Run("returns error when SCIM user not found", func(t *testing.T) {
 		mocks := newTestMocks()
-		mocks.ds.ScimUserByIDFunc = func(ctx context.Context, id uint) (*fleet.ScimUser, error) {
+		mocks.ds.ScimUserByIDFunc = func(ctx context.Context, id uint) (*automdm.ScimUser, error) {
 			return nil, platform_mysql.NotFound("ScimUser")
 		}
 		// DeleteScimUser is still called to ensure triggerResendProfilesForIDPUserDeleted runs
-		mocks.ds.DeleteScimUserFunc = func(ctx context.Context, id uint) ([]fleet.ActivityTypeResentCertificate, error) {
+		mocks.ds.DeleteScimUserFunc = func(ctx context.Context, id uint) ([]automdm.ActivityTypeResentCertificate, error) {
 			return nil, platform_mysql.NotFound("ScimUser")
 		}
 
@@ -673,47 +673,47 @@ func TestWasDeactivated(t *testing.T) {
 }
 
 func TestUserHandlerReplaceDeactivation(t *testing.T) {
-	t.Run("deletes Fleet user when SCIM user is deactivated via Replace", func(t *testing.T) {
+	t.Run("deletes AutoMDM user when SCIM user is deactivated via Replace", func(t *testing.T) {
 		mocks := newTestMocks()
 		existingScimUser := newTestScimUser(&scimUserOpts{
 			active:     ptr.Bool(true),
 			userName:   "user@example.com",
 			givenName:  "John",
 			familyName: "Doe",
-			emails:     []fleet.ScimUserEmail{{Email: "user@example.com", Primary: new(true)}},
+			emails:     []automdm.ScimUserEmail{{Email: "user@example.com", Primary: new(true)}},
 		})
-		fleetUser := newTestFleetUser(&fleetUserOpts{ssoEnabled: true})
+		automdmUser := newTestTeamUser(&teamUserOpts{ssoEnabled: true})
 
-		mocks.ds.ScimUserByIDFunc = func(ctx context.Context, id uint) (*fleet.ScimUser, error) {
+		mocks.ds.ScimUserByIDFunc = func(ctx context.Context, id uint) (*automdm.ScimUser, error) {
 			return existingScimUser, nil
 		}
 		// userName is changing to a non-email value, so uniqueness check misses.
-		mocks.ds.ScimUserByUserNameFunc = func(ctx context.Context, userName string) (*fleet.ScimUser, error) {
+		mocks.ds.ScimUserByUserNameFunc = func(ctx context.Context, userName string) (*automdm.ScimUser, error) {
 			return nil, platform_mysql.NotFound("ScimUser")
 		}
-		mocks.ds.ReplaceScimUserFunc = func(ctx context.Context, user *fleet.ScimUser) ([]fleet.ActivityTypeResentCertificate, error) {
+		mocks.ds.ReplaceScimUserFunc = func(ctx context.Context, user *automdm.ScimUser) ([]automdm.ActivityTypeResentCertificate, error) {
 			return nil, nil
 		}
-		// Only the pre-replace identifier resolves the Fleet user; the incoming
+		// Only the pre-replace identifier resolves the AutoMDM user; the incoming
 		// (mutated) userName/emails must not be used for lookup. Linking happens
 		// off the pre-mutation email, after which deletion resolves by id.
 		var lookedUpEmails []string
-		mocks.ds.UserByEmailFunc = func(ctx context.Context, email string) (*fleet.User, error) {
+		mocks.ds.UserByEmailFunc = func(ctx context.Context, email string) (*automdm.User, error) {
 			lookedUpEmails = append(lookedUpEmails, email)
 			if email == "user@example.com" {
-				return fleetUser, nil
+				return automdmUser, nil
 			}
 			return nil, platform_mysql.NotFound("User")
 		}
-		mocks.ds.UserByIDFunc = func(ctx context.Context, id uint) (*fleet.User, error) {
-			return fleetUser, nil
+		mocks.ds.UserByIDFunc = func(ctx context.Context, id uint) (*automdm.User, error) {
+			return automdmUser, nil
 		}
 		mocks.ds.DeleteUserFunc = func(ctx context.Context, id uint) error {
 			assert.Equal(t, uint(100), id)
 			return nil
 		}
-		mocks.svc.NewActivityFunc = func(ctx context.Context, user *fleet.User, activity fleet.ActivityDetails) error {
-			deleted, ok := activity.(fleet.ActivityTypeDeletedUser)
+		mocks.svc.NewActivityFunc = func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error {
+			deleted, ok := activity.(automdm.ActivityTypeDeletedUser)
 			require.True(t, ok)
 			assert.True(t, deleted.FromScimUserDeletion)
 			return nil
@@ -728,7 +728,7 @@ func TestUserHandlerReplaceDeactivation(t *testing.T) {
 		_, err := handler.Replace(req, "1", attrs)
 		require.NoError(t, err)
 
-		assert.Contains(t, lookedUpEmails, "user@example.com", "expected the pre-replace identifier to be used for Fleet user resolution")
+		assert.Contains(t, lookedUpEmails, "user@example.com", "expected the pre-replace identifier to be used for AutoMDM user resolution")
 		assert.True(t, mocks.ds.DeleteUserFuncInvoked)
 	})
 
@@ -741,13 +741,13 @@ func TestUserHandlerReplaceDeactivation(t *testing.T) {
 			familyName: "Doe",
 		})
 
-		mocks.ds.ScimUserByIDFunc = func(ctx context.Context, id uint) (*fleet.ScimUser, error) {
+		mocks.ds.ScimUserByIDFunc = func(ctx context.Context, id uint) (*automdm.ScimUser, error) {
 			return existingScimUser, nil
 		}
-		mocks.ds.ScimUserByUserNameFunc = func(ctx context.Context, userName string) (*fleet.ScimUser, error) {
+		mocks.ds.ScimUserByUserNameFunc = func(ctx context.Context, userName string) (*automdm.ScimUser, error) {
 			return nil, platform_mysql.NotFound("ScimUser")
 		}
-		mocks.matchFleetUserByEmail("user@example.com", newTestFleetUser(&fleetUserOpts{ssoEnabled: true}))
+		mocks.matchTeamUserByEmail("user@example.com", newTestTeamUser(&teamUserOpts{ssoEnabled: true}))
 		linkedBeforeMutationPersisted := mocks.captureLinkedBeforeReplace()
 
 		handler := mocks.newTestHandler()
@@ -757,11 +757,11 @@ func TestUserHandlerReplaceDeactivation(t *testing.T) {
 		_, err := handler.Replace(httptest.NewRequest(http.MethodPut, "/scim/v2/Users/1", nil), "1", attrs)
 		require.NoError(t, err)
 
-		require.True(t, mocks.ds.SetScimUserFleetUserIDFuncInvoked)
+		require.True(t, mocks.ds.SetScimUserTeamUserIDFuncInvoked)
 		require.True(t, *linkedBeforeMutationPersisted, "link must be established before ReplaceScimUser persists the mutation")
 	})
 
-	t.Run("does not delete Fleet user when active state unchanged", func(t *testing.T) {
+	t.Run("does not delete AutoMDM user when active state unchanged", func(t *testing.T) {
 		mocks := newTestMocks()
 		existingScimUser := newTestScimUser(&scimUserOpts{
 			active:     ptr.Bool(true),
@@ -769,13 +769,13 @@ func TestUserHandlerReplaceDeactivation(t *testing.T) {
 			familyName: "Doe",
 		})
 
-		mocks.ds.ScimUserByIDFunc = func(ctx context.Context, id uint) (*fleet.ScimUser, error) {
+		mocks.ds.ScimUserByIDFunc = func(ctx context.Context, id uint) (*automdm.ScimUser, error) {
 			return existingScimUser, nil
 		}
-		mocks.ds.ScimUserByUserNameFunc = func(ctx context.Context, userName string) (*fleet.ScimUser, error) {
+		mocks.ds.ScimUserByUserNameFunc = func(ctx context.Context, userName string) (*automdm.ScimUser, error) {
 			return existingScimUser, nil
 		}
-		mocks.ds.ReplaceScimUserFunc = func(ctx context.Context, user *fleet.ScimUser) ([]fleet.ActivityTypeResentCertificate, error) {
+		mocks.ds.ReplaceScimUserFunc = func(ctx context.Context, user *automdm.ScimUser) ([]automdm.ActivityTypeResentCertificate, error) {
 			return nil, nil
 		}
 
@@ -788,7 +788,7 @@ func TestUserHandlerReplaceDeactivation(t *testing.T) {
 		assert.False(t, mocks.ds.DeleteUserFuncInvoked)
 	})
 
-	t.Run("does not delete Fleet user when already inactive", func(t *testing.T) {
+	t.Run("does not delete AutoMDM user when already inactive", func(t *testing.T) {
 		mocks := newTestMocks()
 		existingScimUser := newTestScimUser(&scimUserOpts{
 			active:     ptr.Bool(false), // Already inactive
@@ -796,13 +796,13 @@ func TestUserHandlerReplaceDeactivation(t *testing.T) {
 			familyName: "Doe",
 		})
 
-		mocks.ds.ScimUserByIDFunc = func(ctx context.Context, id uint) (*fleet.ScimUser, error) {
+		mocks.ds.ScimUserByIDFunc = func(ctx context.Context, id uint) (*automdm.ScimUser, error) {
 			return existingScimUser, nil
 		}
-		mocks.ds.ScimUserByUserNameFunc = func(ctx context.Context, userName string) (*fleet.ScimUser, error) {
+		mocks.ds.ScimUserByUserNameFunc = func(ctx context.Context, userName string) (*automdm.ScimUser, error) {
 			return existingScimUser, nil
 		}
-		mocks.ds.ReplaceScimUserFunc = func(ctx context.Context, user *fleet.ScimUser) ([]fleet.ActivityTypeResentCertificate, error) {
+		mocks.ds.ReplaceScimUserFunc = func(ctx context.Context, user *automdm.ScimUser) ([]automdm.ActivityTypeResentCertificate, error) {
 			return nil, nil
 		}
 
@@ -823,15 +823,15 @@ func TestUserHandlerReplaceDeactivation(t *testing.T) {
 			familyName: "Doe",
 		})
 
-		mocks.ds.ScimUserByIDFunc = func(ctx context.Context, id uint) (*fleet.ScimUser, error) {
+		mocks.ds.ScimUserByIDFunc = func(ctx context.Context, id uint) (*automdm.ScimUser, error) {
 			return existingScimUser, nil
 		}
 		// Pre-check passes (no other user with this username)
-		mocks.ds.ScimUserByUserNameFunc = func(ctx context.Context, userName string) (*fleet.ScimUser, error) {
+		mocks.ds.ScimUserByUserNameFunc = func(ctx context.Context, userName string) (*automdm.ScimUser, error) {
 			return nil, platform_mysql.NotFound("ScimUser")
 		}
 		// ReplaceScimUser returns a wrapped AlreadyExistsError (race condition: concurrent update took the username)
-		mocks.ds.ReplaceScimUserFunc = func(ctx context.Context, user *fleet.ScimUser) ([]fleet.ActivityTypeResentCertificate, error) {
+		mocks.ds.ReplaceScimUserFunc = func(ctx context.Context, user *automdm.ScimUser) ([]automdm.ActivityTypeResentCertificate, error) {
 			return nil, fmt.Errorf("update scim user: %w", &alreadyExistsErr{msg: "user_name already exists"})
 		}
 
@@ -855,15 +855,15 @@ func TestUserHandlerReplaceDeactivation(t *testing.T) {
 			familyName: "Doe",
 		})
 
-		mocks.ds.ScimUserByIDFunc = func(ctx context.Context, id uint) (*fleet.ScimUser, error) {
+		mocks.ds.ScimUserByIDFunc = func(ctx context.Context, id uint) (*automdm.ScimUser, error) {
 			return existingScimUser, nil
 		}
-		mocks.ds.ScimUserByUserNameFunc = func(ctx context.Context, userName string) (*fleet.ScimUser, error) {
+		mocks.ds.ScimUserByUserNameFunc = func(ctx context.Context, userName string) (*automdm.ScimUser, error) {
 			return existingScimUser, nil
 		}
 		// ReplaceScimUser returns a validation error (field too long)
-		mocks.ds.ReplaceScimUserFunc = func(ctx context.Context, user *fleet.ScimUser) ([]fleet.ActivityTypeResentCertificate, error) {
-			return nil, &fleet.SCIMValidationError{Field: "given_name", Message: "exceeds maximum length of 255 characters"}
+		mocks.ds.ReplaceScimUserFunc = func(ctx context.Context, user *automdm.ScimUser) ([]automdm.ActivityTypeResentCertificate, error) {
+			return nil, &automdm.SCIMValidationError{Field: "given_name", Message: "exceeds maximum length of 255 characters"}
 		}
 
 		handler := mocks.newTestHandler()
@@ -878,7 +878,7 @@ func TestUserHandlerReplaceDeactivation(t *testing.T) {
 		assert.Contains(t, scimErr.Detail, "given_name")
 	})
 
-	t.Run("deletes Fleet user when emails are dropped in a deactivating Replace with unchanged userName", func(t *testing.T) {
+	t.Run("deletes AutoMDM user when emails are dropped in a deactivating Replace with unchanged userName", func(t *testing.T) {
 		mocks := newTestMocks()
 		// userName stays the same and is not an email, so resolution can only
 		// succeed via the persisted email — exercising the same-userName branch.
@@ -887,35 +887,35 @@ func TestUserHandlerReplaceDeactivation(t *testing.T) {
 			userName:   "someuser",
 			givenName:  "John",
 			familyName: "Doe",
-			emails:     []fleet.ScimUserEmail{{Email: "victim@example.com", Type: new("work"), Primary: new(true)}},
+			emails:     []automdm.ScimUserEmail{{Email: "victim@example.com", Type: new("work"), Primary: new(true)}},
 		})
-		fleetUser := newTestFleetUser(&fleetUserOpts{ssoEnabled: true})
+		automdmUser := newTestTeamUser(&teamUserOpts{ssoEnabled: true})
 
-		mocks.ds.ScimUserByIDFunc = func(ctx context.Context, id uint) (*fleet.ScimUser, error) {
+		mocks.ds.ScimUserByIDFunc = func(ctx context.Context, id uint) (*automdm.ScimUser, error) {
 			return existingScimUser, nil
 		}
-		mocks.ds.ScimUserByUserNameFunc = func(ctx context.Context, userName string) (*fleet.ScimUser, error) {
+		mocks.ds.ScimUserByUserNameFunc = func(ctx context.Context, userName string) (*automdm.ScimUser, error) {
 			return existingScimUser, nil
 		}
-		mocks.ds.ReplaceScimUserFunc = func(ctx context.Context, user *fleet.ScimUser) ([]fleet.ActivityTypeResentCertificate, error) {
+		mocks.ds.ReplaceScimUserFunc = func(ctx context.Context, user *automdm.ScimUser) ([]automdm.ActivityTypeResentCertificate, error) {
 			return nil, nil
 		}
 		var lookedUpEmails []string
-		mocks.ds.UserByEmailFunc = func(ctx context.Context, email string) (*fleet.User, error) {
+		mocks.ds.UserByEmailFunc = func(ctx context.Context, email string) (*automdm.User, error) {
 			lookedUpEmails = append(lookedUpEmails, email)
 			if email == "victim@example.com" {
-				return fleetUser, nil
+				return automdmUser, nil
 			}
 			return nil, platform_mysql.NotFound("User")
 		}
-		mocks.ds.UserByIDFunc = func(ctx context.Context, id uint) (*fleet.User, error) {
-			return fleetUser, nil
+		mocks.ds.UserByIDFunc = func(ctx context.Context, id uint) (*automdm.User, error) {
+			return automdmUser, nil
 		}
 		mocks.ds.DeleteUserFunc = func(ctx context.Context, id uint) error {
 			assert.Equal(t, uint(100), id)
 			return nil
 		}
-		mocks.svc.NewActivityFunc = func(ctx context.Context, user *fleet.User, activity fleet.ActivityDetails) error {
+		mocks.svc.NewActivityFunc = func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error {
 			return nil
 		}
 
@@ -926,47 +926,47 @@ func TestUserHandlerReplaceDeactivation(t *testing.T) {
 		_, err := handler.Replace(httptest.NewRequest(http.MethodPut, "/scim/v2/Users/1", nil), "1", attrs)
 		require.NoError(t, err)
 
-		assert.Contains(t, lookedUpEmails, "victim@example.com", "expected the pre-replace email to be used for Fleet user resolution")
+		assert.Contains(t, lookedUpEmails, "victim@example.com", "expected the pre-replace email to be used for AutoMDM user resolution")
 		assert.True(t, mocks.ds.DeleteUserFuncInvoked)
 	})
 }
 
 func TestUserHandlerPatchDeactivation(t *testing.T) {
-	t.Run("deletes Fleet user when SCIM user is deactivated via Patch with path", func(t *testing.T) {
+	t.Run("deletes AutoMDM user when SCIM user is deactivated via Patch with path", func(t *testing.T) {
 		mocks := newTestMocks()
 		existingScimUser := newTestScimUser(&scimUserOpts{
 			active:     ptr.Bool(true),
 			userName:   "user@example.com",
 			givenName:  "John",
 			familyName: "Doe",
-			emails:     []fleet.ScimUserEmail{{Email: "user@example.com", Primary: new(true)}},
+			emails:     []automdm.ScimUserEmail{{Email: "user@example.com", Primary: new(true)}},
 		})
-		fleetUser := newTestFleetUser(&fleetUserOpts{ssoEnabled: true})
+		automdmUser := newTestTeamUser(&teamUserOpts{ssoEnabled: true})
 
-		mocks.ds.ScimUserByIDFunc = func(ctx context.Context, id uint) (*fleet.ScimUser, error) {
+		mocks.ds.ScimUserByIDFunc = func(ctx context.Context, id uint) (*automdm.ScimUser, error) {
 			return existingScimUser, nil
 		}
-		mocks.ds.ReplaceScimUserFunc = func(ctx context.Context, user *fleet.ScimUser) ([]fleet.ActivityTypeResentCertificate, error) {
+		mocks.ds.ReplaceScimUserFunc = func(ctx context.Context, user *automdm.ScimUser) ([]automdm.ActivityTypeResentCertificate, error) {
 			return nil, nil
 		}
-		// Only the pre-patch identifier resolves the Fleet user; the mutated
+		// Only the pre-patch identifier resolves the AutoMDM user; the mutated
 		// userName/emails from the same PATCH must not be used for lookup.
 		var lookedUpEmails []string
-		mocks.ds.UserByEmailFunc = func(ctx context.Context, email string) (*fleet.User, error) {
+		mocks.ds.UserByEmailFunc = func(ctx context.Context, email string) (*automdm.User, error) {
 			lookedUpEmails = append(lookedUpEmails, email)
 			if email == "user@example.com" {
-				return fleetUser, nil
+				return automdmUser, nil
 			}
 			return nil, platform_mysql.NotFound("User")
 		}
-		mocks.ds.UserByIDFunc = func(ctx context.Context, id uint) (*fleet.User, error) {
-			return fleetUser, nil
+		mocks.ds.UserByIDFunc = func(ctx context.Context, id uint) (*automdm.User, error) {
+			return automdmUser, nil
 		}
 		mocks.ds.DeleteUserFunc = func(ctx context.Context, id uint) error {
 			assert.Equal(t, uint(100), id)
 			return nil
 		}
-		mocks.svc.NewActivityFunc = func(ctx context.Context, user *fleet.User, activity fleet.ActivityDetails) error {
+		mocks.svc.NewActivityFunc = func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error {
 			return nil
 		}
 
@@ -991,36 +991,36 @@ func TestUserHandlerPatchDeactivation(t *testing.T) {
 		_, err = handler.Patch(req, "1", patchOps)
 		require.NoError(t, err)
 
-		assert.Contains(t, lookedUpEmails, "user@example.com", "expected the pre-patch identifier to be used for Fleet user resolution")
+		assert.Contains(t, lookedUpEmails, "user@example.com", "expected the pre-patch identifier to be used for AutoMDM user resolution")
 		assert.True(t, mocks.ds.DeleteUserFuncInvoked)
 	})
 
-	t.Run("deletes Fleet user when SCIM user is deactivated via Patch without path", func(t *testing.T) {
+	t.Run("deletes AutoMDM user when SCIM user is deactivated via Patch without path", func(t *testing.T) {
 		mocks := newTestMocks()
 		existingScimUser := newTestScimUser(&scimUserOpts{
 			active:     ptr.Bool(true),
 			givenName:  "John",
 			familyName: "Doe",
 		})
-		fleetUser := newTestFleetUser(&fleetUserOpts{ssoEnabled: true})
+		automdmUser := newTestTeamUser(&teamUserOpts{ssoEnabled: true})
 
-		mocks.ds.ScimUserByIDFunc = func(ctx context.Context, id uint) (*fleet.ScimUser, error) {
+		mocks.ds.ScimUserByIDFunc = func(ctx context.Context, id uint) (*automdm.ScimUser, error) {
 			return existingScimUser, nil
 		}
-		mocks.ds.ReplaceScimUserFunc = func(ctx context.Context, user *fleet.ScimUser) ([]fleet.ActivityTypeResentCertificate, error) {
+		mocks.ds.ReplaceScimUserFunc = func(ctx context.Context, user *automdm.ScimUser) ([]automdm.ActivityTypeResentCertificate, error) {
 			return nil, nil
 		}
-		mocks.ds.UserByEmailFunc = func(ctx context.Context, email string) (*fleet.User, error) {
-			return fleetUser, nil
+		mocks.ds.UserByEmailFunc = func(ctx context.Context, email string) (*automdm.User, error) {
+			return automdmUser, nil
 		}
-		mocks.ds.UserByIDFunc = func(ctx context.Context, id uint) (*fleet.User, error) {
-			return fleetUser, nil
+		mocks.ds.UserByIDFunc = func(ctx context.Context, id uint) (*automdm.User, error) {
+			return automdmUser, nil
 		}
 		mocks.ds.DeleteUserFunc = func(ctx context.Context, id uint) error {
 			assert.Equal(t, uint(100), id)
 			return nil
 		}
-		mocks.svc.NewActivityFunc = func(ctx context.Context, user *fleet.User, activity fleet.ActivityDetails) error {
+		mocks.svc.NewActivityFunc = func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error {
 			return nil
 		}
 
@@ -1037,7 +1037,7 @@ func TestUserHandlerPatchDeactivation(t *testing.T) {
 		assert.True(t, mocks.ds.DeleteUserFuncInvoked)
 	})
 
-	t.Run("does not delete Fleet user when active unchanged via Patch", func(t *testing.T) {
+	t.Run("does not delete AutoMDM user when active unchanged via Patch", func(t *testing.T) {
 		mocks := newTestMocks()
 		existingScimUser := newTestScimUser(&scimUserOpts{
 			active:     ptr.Bool(true),
@@ -1045,10 +1045,10 @@ func TestUserHandlerPatchDeactivation(t *testing.T) {
 			familyName: "Doe",
 		})
 
-		mocks.ds.ScimUserByIDFunc = func(ctx context.Context, id uint) (*fleet.ScimUser, error) {
+		mocks.ds.ScimUserByIDFunc = func(ctx context.Context, id uint) (*automdm.ScimUser, error) {
 			return existingScimUser, nil
 		}
-		mocks.ds.ReplaceScimUserFunc = func(ctx context.Context, user *fleet.ScimUser) ([]fleet.ActivityTypeResentCertificate, error) {
+		mocks.ds.ReplaceScimUserFunc = func(ctx context.Context, user *automdm.ScimUser) ([]automdm.ActivityTypeResentCertificate, error) {
 			return nil, nil
 		}
 
@@ -1068,7 +1068,7 @@ func TestUserHandlerPatchDeactivation(t *testing.T) {
 		assert.False(t, mocks.ds.DeleteUserFuncInvoked)
 	})
 
-	t.Run("does not delete Fleet user when already inactive", func(t *testing.T) {
+	t.Run("does not delete AutoMDM user when already inactive", func(t *testing.T) {
 		mocks := newTestMocks()
 		existingScimUser := newTestScimUser(&scimUserOpts{
 			active:     ptr.Bool(false), // Already inactive
@@ -1076,10 +1076,10 @@ func TestUserHandlerPatchDeactivation(t *testing.T) {
 			familyName: "Doe",
 		})
 
-		mocks.ds.ScimUserByIDFunc = func(ctx context.Context, id uint) (*fleet.ScimUser, error) {
+		mocks.ds.ScimUserByIDFunc = func(ctx context.Context, id uint) (*automdm.ScimUser, error) {
 			return existingScimUser, nil
 		}
-		mocks.ds.ReplaceScimUserFunc = func(ctx context.Context, user *fleet.ScimUser) ([]fleet.ActivityTypeResentCertificate, error) {
+		mocks.ds.ReplaceScimUserFunc = func(ctx context.Context, user *automdm.ScimUser) ([]automdm.ActivityTypeResentCertificate, error) {
 			return nil, nil
 		}
 
@@ -1107,11 +1107,11 @@ func TestUserHandlerPatchDeactivation(t *testing.T) {
 			familyName: "Doe",
 		})
 
-		mocks.ds.ScimUserByIDFunc = func(ctx context.Context, id uint) (*fleet.ScimUser, error) {
+		mocks.ds.ScimUserByIDFunc = func(ctx context.Context, id uint) (*automdm.ScimUser, error) {
 			return existingScimUser, nil
 		}
 		// ReplaceScimUser returns a wrapped AlreadyExistsError (race condition: concurrent update took the username)
-		mocks.ds.ReplaceScimUserFunc = func(ctx context.Context, user *fleet.ScimUser) ([]fleet.ActivityTypeResentCertificate, error) {
+		mocks.ds.ReplaceScimUserFunc = func(ctx context.Context, user *automdm.ScimUser) ([]automdm.ActivityTypeResentCertificate, error) {
 			return nil, fmt.Errorf("update scim user: %w", &alreadyExistsErr{msg: "user_name already exists"})
 		}
 
@@ -1134,7 +1134,7 @@ func TestUserHandlerPatchDeactivation(t *testing.T) {
 		assert.Equal(t, scimerrors.ScimTypeUniqueness, scimErr.ScimType)
 	})
 
-	t.Run("deletes Fleet user when an email is rewritten in place in the same deactivating Patch", func(t *testing.T) {
+	t.Run("deletes AutoMDM user when an email is rewritten in place in the same deactivating Patch", func(t *testing.T) {
 		mocks := newTestMocks()
 		// userName is not an email, so the only lookup candidate is the email
 		// element rewritten in place below — exercising the emails clone.
@@ -1143,32 +1143,32 @@ func TestUserHandlerPatchDeactivation(t *testing.T) {
 			userName:   "someuser",
 			givenName:  "John",
 			familyName: "Doe",
-			emails:     []fleet.ScimUserEmail{{Email: "victim@example.com", Type: new("work"), Primary: new(true)}},
+			emails:     []automdm.ScimUserEmail{{Email: "victim@example.com", Type: new("work"), Primary: new(true)}},
 		})
-		fleetUser := newTestFleetUser(&fleetUserOpts{ssoEnabled: true})
+		automdmUser := newTestTeamUser(&teamUserOpts{ssoEnabled: true})
 
-		mocks.ds.ScimUserByIDFunc = func(ctx context.Context, id uint) (*fleet.ScimUser, error) {
+		mocks.ds.ScimUserByIDFunc = func(ctx context.Context, id uint) (*automdm.ScimUser, error) {
 			return existingScimUser, nil
 		}
-		mocks.ds.ReplaceScimUserFunc = func(ctx context.Context, user *fleet.ScimUser) ([]fleet.ActivityTypeResentCertificate, error) {
+		mocks.ds.ReplaceScimUserFunc = func(ctx context.Context, user *automdm.ScimUser) ([]automdm.ActivityTypeResentCertificate, error) {
 			return nil, nil
 		}
 		var lookedUpEmails []string
-		mocks.ds.UserByEmailFunc = func(ctx context.Context, email string) (*fleet.User, error) {
+		mocks.ds.UserByEmailFunc = func(ctx context.Context, email string) (*automdm.User, error) {
 			lookedUpEmails = append(lookedUpEmails, email)
 			if email == "victim@example.com" {
-				return fleetUser, nil
+				return automdmUser, nil
 			}
 			return nil, platform_mysql.NotFound("User")
 		}
-		mocks.ds.UserByIDFunc = func(ctx context.Context, id uint) (*fleet.User, error) {
-			return fleetUser, nil
+		mocks.ds.UserByIDFunc = func(ctx context.Context, id uint) (*automdm.User, error) {
+			return automdmUser, nil
 		}
 		mocks.ds.DeleteUserFunc = func(ctx context.Context, id uint) error {
 			assert.Equal(t, uint(100), id)
 			return nil
 		}
-		mocks.svc.NewActivityFunc = func(ctx context.Context, user *fleet.User, activity fleet.ActivityDetails) error {
+		mocks.svc.NewActivityFunc = func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error {
 			return nil
 		}
 
@@ -1189,7 +1189,7 @@ func TestUserHandlerPatchDeactivation(t *testing.T) {
 		_, err = handler.Patch(req, "1", patchOps)
 		require.NoError(t, err)
 
-		assert.Contains(t, lookedUpEmails, "victim@example.com", "expected the pre-patch email to be used for Fleet user resolution")
+		assert.Contains(t, lookedUpEmails, "victim@example.com", "expected the pre-patch email to be used for AutoMDM user resolution")
 		assert.True(t, mocks.ds.DeleteUserFuncInvoked)
 	})
 
@@ -1197,32 +1197,32 @@ func TestUserHandlerPatchDeactivation(t *testing.T) {
 		mocks := newTestMocks()
 		// Two-step variant: identifiers were already mutated and persisted by an
 		// earlier request, but the durable scim_users.user_id link survives, so this
-		// deactivation still deprovisions the Fleet user.
+		// deactivation still deprovisions the AutoMDM user.
 		existingScimUser := newTestScimUser(&scimUserOpts{
-			id:          9,
-			active:      new(true),
-			userName:    "nondomain_user_bypass",
-			fleetUserID: 100,
-			givenName:   "John",
-			familyName:  "Doe",
+			id:         9,
+			active:     new(true),
+			userName:   "nondomain_user_bypass",
+			teamUserID: 100,
+			givenName:  "John",
+			familyName: "Doe",
 		})
-		fleetUser := newTestFleetUser(&fleetUserOpts{id: 100, ssoEnabled: true})
+		automdmUser := newTestTeamUser(&teamUserOpts{id: 100, ssoEnabled: true})
 
-		mocks.ds.ScimUserByIDFunc = func(ctx context.Context, id uint) (*fleet.ScimUser, error) {
+		mocks.ds.ScimUserByIDFunc = func(ctx context.Context, id uint) (*automdm.ScimUser, error) {
 			return existingScimUser, nil
 		}
-		mocks.ds.ReplaceScimUserFunc = func(ctx context.Context, user *fleet.ScimUser) ([]fleet.ActivityTypeResentCertificate, error) {
+		mocks.ds.ReplaceScimUserFunc = func(ctx context.Context, user *automdm.ScimUser) ([]automdm.ActivityTypeResentCertificate, error) {
 			return nil, nil
 		}
-		mocks.ds.UserByIDFunc = func(ctx context.Context, id uint) (*fleet.User, error) {
+		mocks.ds.UserByIDFunc = func(ctx context.Context, id uint) (*automdm.User, error) {
 			require.Equal(t, uint(100), id)
-			return fleetUser, nil
+			return automdmUser, nil
 		}
 		mocks.ds.DeleteUserFunc = func(ctx context.Context, id uint) error {
 			require.Equal(t, uint(100), id)
 			return nil
 		}
-		mocks.svc.NewActivityFunc = func(ctx context.Context, user *fleet.User, activity fleet.ActivityDetails) error {
+		mocks.svc.NewActivityFunc = func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error {
 			return nil
 		}
 
@@ -1233,7 +1233,7 @@ func TestUserHandlerPatchDeactivation(t *testing.T) {
 		_, err := handler.Patch(req, "9", patchOps)
 		require.NoError(t, err)
 
-		require.True(t, mocks.ds.UserByIDFuncInvoked, "should resolve the Fleet user via the durable link")
+		require.True(t, mocks.ds.UserByIDFuncInvoked, "should resolve the AutoMDM user via the durable link")
 		require.True(t, mocks.ds.DeleteUserFuncInvoked)
 	})
 
@@ -1246,10 +1246,10 @@ func TestUserHandlerPatchDeactivation(t *testing.T) {
 			familyName: "Doe",
 		})
 
-		mocks.ds.ScimUserByIDFunc = func(ctx context.Context, id uint) (*fleet.ScimUser, error) {
+		mocks.ds.ScimUserByIDFunc = func(ctx context.Context, id uint) (*automdm.ScimUser, error) {
 			return existingScimUser, nil
 		}
-		mocks.matchFleetUserByEmail("user@example.com", newTestFleetUser(&fleetUserOpts{ssoEnabled: true}))
+		mocks.matchTeamUserByEmail("user@example.com", newTestTeamUser(&teamUserOpts{ssoEnabled: true}))
 		linkedBeforeMutationPersisted := mocks.captureLinkedBeforeReplace()
 
 		handler := mocks.newTestHandler()
@@ -1259,43 +1259,43 @@ func TestUserHandlerPatchDeactivation(t *testing.T) {
 		_, err := handler.Patch(httptest.NewRequest(http.MethodPatch, "/scim/v2/Users/1", nil), "1", patchOps)
 		require.NoError(t, err)
 
-		require.True(t, mocks.ds.SetScimUserFleetUserIDFuncInvoked)
+		require.True(t, mocks.ds.SetScimUserTeamUserIDFuncInvoked)
 		require.True(t, *linkedBeforeMutationPersisted, "link must be established before ReplaceScimUser persists the mutation")
 	})
 
-	t.Run("deletes Fleet user when identifiers are mutated via a pathless multi-op Patch", func(t *testing.T) {
+	t.Run("deletes AutoMDM user when identifiers are mutated via a pathless multi-op Patch", func(t *testing.T) {
 		mocks := newTestMocks()
 		existingScimUser := newTestScimUser(&scimUserOpts{
 			active:     new(true),
 			userName:   "user@example.com",
 			givenName:  "John",
 			familyName: "Doe",
-			emails:     []fleet.ScimUserEmail{{Email: "user@example.com", Primary: new(true)}},
+			emails:     []automdm.ScimUserEmail{{Email: "user@example.com", Primary: new(true)}},
 		})
-		fleetUser := newTestFleetUser(&fleetUserOpts{ssoEnabled: true})
+		automdmUser := newTestTeamUser(&teamUserOpts{ssoEnabled: true})
 
-		mocks.ds.ScimUserByIDFunc = func(ctx context.Context, id uint) (*fleet.ScimUser, error) {
+		mocks.ds.ScimUserByIDFunc = func(ctx context.Context, id uint) (*automdm.ScimUser, error) {
 			return existingScimUser, nil
 		}
-		mocks.ds.ReplaceScimUserFunc = func(ctx context.Context, user *fleet.ScimUser) ([]fleet.ActivityTypeResentCertificate, error) {
+		mocks.ds.ReplaceScimUserFunc = func(ctx context.Context, user *automdm.ScimUser) ([]automdm.ActivityTypeResentCertificate, error) {
 			return nil, nil
 		}
 		var lookedUpEmails []string
-		mocks.ds.UserByEmailFunc = func(ctx context.Context, email string) (*fleet.User, error) {
+		mocks.ds.UserByEmailFunc = func(ctx context.Context, email string) (*automdm.User, error) {
 			lookedUpEmails = append(lookedUpEmails, email)
 			if email == "user@example.com" {
-				return fleetUser, nil
+				return automdmUser, nil
 			}
 			return nil, platform_mysql.NotFound("User")
 		}
-		mocks.ds.UserByIDFunc = func(ctx context.Context, id uint) (*fleet.User, error) {
-			return fleetUser, nil
+		mocks.ds.UserByIDFunc = func(ctx context.Context, id uint) (*automdm.User, error) {
+			return automdmUser, nil
 		}
 		mocks.ds.DeleteUserFunc = func(ctx context.Context, id uint) error {
 			assert.Equal(t, uint(100), id)
 			return nil
 		}
-		mocks.svc.NewActivityFunc = func(ctx context.Context, user *fleet.User, activity fleet.ActivityDetails) error {
+		mocks.svc.NewActivityFunc = func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error {
 			return nil
 		}
 
@@ -1314,7 +1314,7 @@ func TestUserHandlerPatchDeactivation(t *testing.T) {
 		_, err := handler.Patch(req, "1", patchOps)
 		require.NoError(t, err)
 
-		assert.Contains(t, lookedUpEmails, "user@example.com", "expected the pre-patch identifier to be used for Fleet user resolution")
+		assert.Contains(t, lookedUpEmails, "user@example.com", "expected the pre-patch identifier to be used for AutoMDM user resolution")
 		assert.True(t, mocks.ds.DeleteUserFuncInvoked)
 	})
 }
@@ -1328,12 +1328,12 @@ func TestUserHandlerCreateReactivation(t *testing.T) {
 			familyName: "Doe",
 		})
 
-		mocks.ds.ScimUserByUserNameFunc = func(ctx context.Context, userName string) (*fleet.ScimUser, error) {
+		mocks.ds.ScimUserByUserNameFunc = func(ctx context.Context, userName string) (*automdm.ScimUser, error) {
 			return existingScimUser, nil
 		}
 
-		var replacedUser *fleet.ScimUser
-		mocks.ds.ReplaceScimUserFunc = func(ctx context.Context, user *fleet.ScimUser) ([]fleet.ActivityTypeResentCertificate, error) {
+		var replacedUser *automdm.ScimUser
+		mocks.ds.ReplaceScimUserFunc = func(ctx context.Context, user *automdm.ScimUser) ([]automdm.ActivityTypeResentCertificate, error) {
 			replacedUser = user
 			return nil, nil
 		}
@@ -1369,13 +1369,13 @@ func TestUserHandlerCreateReactivation(t *testing.T) {
 			userName:   "someuser",
 			givenName:  "John",
 			familyName: "Doe",
-			emails:     []fleet.ScimUserEmail{{Email: "victim@example.com", Primary: new(true)}},
+			emails:     []automdm.ScimUserEmail{{Email: "victim@example.com", Primary: new(true)}},
 		})
 
-		mocks.ds.ScimUserByUserNameFunc = func(ctx context.Context, userName string) (*fleet.ScimUser, error) {
+		mocks.ds.ScimUserByUserNameFunc = func(ctx context.Context, userName string) (*automdm.ScimUser, error) {
 			return existingScimUser, nil
 		}
-		mocks.matchFleetUserByEmail("victim@example.com", newTestFleetUser(&fleetUserOpts{ssoEnabled: true}))
+		mocks.matchTeamUserByEmail("victim@example.com", newTestTeamUser(&teamUserOpts{ssoEnabled: true}))
 		linkedBeforeMutationPersisted := mocks.captureLinkedBeforeReplace()
 
 		handler := mocks.newTestHandler()
@@ -1385,7 +1385,7 @@ func TestUserHandlerCreateReactivation(t *testing.T) {
 		_, err := handler.Create(req, attrs)
 		require.NoError(t, err)
 
-		require.True(t, mocks.ds.SetScimUserFleetUserIDFuncInvoked, "expected the persisted email to establish the link")
+		require.True(t, mocks.ds.SetScimUserTeamUserIDFuncInvoked, "expected the persisted email to establish the link")
 		require.True(t, *linkedBeforeMutationPersisted, "link must be established before ReplaceScimUser persists the incoming attributes")
 	})
 
@@ -1397,7 +1397,7 @@ func TestUserHandlerCreateReactivation(t *testing.T) {
 			familyName: "Doe",
 		})
 
-		mocks.ds.ScimUserByUserNameFunc = func(ctx context.Context, userName string) (*fleet.ScimUser, error) {
+		mocks.ds.ScimUserByUserNameFunc = func(ctx context.Context, userName string) (*automdm.ScimUser, error) {
 			return existingScimUser, nil
 		}
 
@@ -1422,7 +1422,7 @@ func TestUserHandlerCreateReactivation(t *testing.T) {
 			familyName: "Doe",
 		})
 
-		mocks.ds.ScimUserByUserNameFunc = func(ctx context.Context, userName string) (*fleet.ScimUser, error) {
+		mocks.ds.ScimUserByUserNameFunc = func(ctx context.Context, userName string) (*automdm.ScimUser, error) {
 			return existingScimUser, nil
 		}
 
@@ -1442,12 +1442,12 @@ func TestUserHandlerCreateReactivation(t *testing.T) {
 		mocks := newTestMocks()
 
 		// No existing user found during pre-check (simulating race condition)
-		mocks.ds.ScimUserByUserNameFunc = func(ctx context.Context, userName string) (*fleet.ScimUser, error) {
+		mocks.ds.ScimUserByUserNameFunc = func(ctx context.Context, userName string) (*automdm.ScimUser, error) {
 			return nil, platform_mysql.NotFound("ScimUser")
 		}
 
 		// CreateScimUser returns a wrapped AlreadyExistsError (as ctxerr.Wrap produces in production)
-		mocks.ds.CreateScimUserFunc = func(ctx context.Context, user *fleet.ScimUser) (uint, error) {
+		mocks.ds.CreateScimUserFunc = func(ctx context.Context, user *automdm.ScimUser) (uint, error) {
 			return 0, fmt.Errorf("insert scim user: %w", &alreadyExistsErr{msg: "user_name already exists"})
 		}
 
@@ -1469,13 +1469,13 @@ func TestUserHandlerCreateReactivation(t *testing.T) {
 		mocks := newTestMocks()
 
 		// No existing user found during pre-check
-		mocks.ds.ScimUserByUserNameFunc = func(ctx context.Context, userName string) (*fleet.ScimUser, error) {
+		mocks.ds.ScimUserByUserNameFunc = func(ctx context.Context, userName string) (*automdm.ScimUser, error) {
 			return nil, platform_mysql.NotFound("ScimUser")
 		}
 
 		// CreateScimUser returns a validation error (field too long)
-		mocks.ds.CreateScimUserFunc = func(ctx context.Context, user *fleet.ScimUser) (uint, error) {
-			return 0, &fleet.SCIMValidationError{Field: "user_name", Message: "exceeds maximum length of 255 characters"}
+		mocks.ds.CreateScimUserFunc = func(ctx context.Context, user *automdm.ScimUser) (uint, error) {
+			return 0, &automdm.SCIMValidationError{Field: "user_name", Message: "exceeds maximum length of 255 characters"}
 		}
 
 		handler := mocks.newTestHandler()
@@ -1499,7 +1499,7 @@ func TestUserHandlerCreateReactivation(t *testing.T) {
 			familyName: "Doe",
 		}) // Active is nil (not explicitly deactivated)
 
-		mocks.ds.ScimUserByUserNameFunc = func(ctx context.Context, userName string) (*fleet.ScimUser, error) {
+		mocks.ds.ScimUserByUserNameFunc = func(ctx context.Context, userName string) (*automdm.ScimUser, error) {
 			return existingScimUser, nil
 		}
 
@@ -1519,15 +1519,15 @@ func TestUserHandlerCreateReactivation(t *testing.T) {
 func TestUserHandlerPatchUnknownAttributes(t *testing.T) {
 	const enterpriseExtURN = "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User"
 
-	setupMocks := func(t *testing.T) (*testMocks, *fleet.ScimUser, **fleet.ScimUser) {
+	setupMocks := func(t *testing.T) (*testMocks, *automdm.ScimUser, **automdm.ScimUser) {
 		t.Helper()
 		mocks := newTestMocks()
 		existingUser := newTestScimUser(&scimUserOpts{active: new(true), givenName: "John", familyName: "Doe"})
-		mocks.ds.ScimUserByIDFunc = func(ctx context.Context, id uint) (*fleet.ScimUser, error) {
+		mocks.ds.ScimUserByIDFunc = func(ctx context.Context, id uint) (*automdm.ScimUser, error) {
 			return existingUser, nil
 		}
-		var saved *fleet.ScimUser
-		mocks.ds.ReplaceScimUserFunc = func(ctx context.Context, user *fleet.ScimUser) ([]fleet.ActivityTypeResentCertificate, error) {
+		var saved *automdm.ScimUser
+		mocks.ds.ReplaceScimUserFunc = func(ctx context.Context, user *automdm.ScimUser) ([]automdm.ActivityTypeResentCertificate, error) {
 			saved = user
 			return nil, nil
 		}
@@ -1660,7 +1660,7 @@ func TestUserHandlerPatchUnknownAttributes(t *testing.T) {
 	})
 
 	t.Run("remove op with unrecognized explicit path is silently skipped", func(t *testing.T) {
-		// Removing an attribute Fleet doesn't store is a no-op by definition; verify
+		// Removing an attribute AutoMDM doesn't store is a no-op by definition; verify
 		// it doesn't 400 and doesn't trigger a DB write.
 		mocks, _, _ := setupMocks(t)
 		handler := mocks.newTestHandler()

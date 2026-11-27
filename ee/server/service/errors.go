@@ -3,11 +3,11 @@ package service
 import (
 	"net/http"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
 type notFoundError struct {
-	fleet.ErrorWithUUID
+	automdm.ErrorWithUUID
 	reason string
 }
 

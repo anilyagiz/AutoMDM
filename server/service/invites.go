@@ -6,11 +6,11 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mail"
+	"github.com/anilyagiz/automdm/v4/server"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	"github.com/anilyagiz/automdm/v4/server/mail"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -18,17 +18,17 @@ import (
 ////////////////////////////////////////////////////////////////////////////////
 
 type createInviteRequest struct {
-	fleet.InvitePayload
+	automdm.InvitePayload
 }
 
 type createInviteResponse struct {
-	Invite *fleet.Invite `json:"invite,omitempty"`
-	Err    error         `json:"error,omitempty"`
+	Invite *automdm.Invite `json:"invite,omitempty"`
+	Err    error           `json:"error,omitempty"`
 }
 
 func (r createInviteResponse) Error() error { return r.Err }
 
-func createInviteEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func createInviteEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*createInviteRequest)
 	invite, err := svc.InviteNewUser(ctx, req.InvitePayload)
 	if err != nil {
@@ -37,24 +37,24 @@ func createInviteEndpoint(ctx context.Context, request interface{}, svc fleet.Se
 	return createInviteResponse{invite, nil}, nil
 }
 
-var SSOMFAConflict = &fleet.ConflictError{Message: "Fleet MFA is is not applicable to SSO users"}
+var SSOMFAConflict = &automdm.ConflictError{Message: "AutoMDM MFA is is not applicable to SSO users"}
 
-func (svc *Service) InviteNewUser(ctx context.Context, payload fleet.InvitePayload) (*fleet.Invite, error) {
-	if err := svc.authz.Authorize(ctx, &fleet.Invite{}, fleet.ActionWrite); err != nil {
+func (svc *Service) InviteNewUser(ctx context.Context, payload automdm.InvitePayload) (*automdm.Invite, error) {
+	if err := svc.authz.Authorize(ctx, &automdm.Invite{}, automdm.ActionWrite); err != nil {
 		return nil, err
 	}
 
 	if payload.Email == nil {
-		return nil, ctxerr.Wrap(ctx, fleet.NewInvalidArgumentError("email", "missing required argument"))
+		return nil, ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("email", "missing required argument"))
 	}
 	*payload.Email = strings.ToLower(*payload.Email)
 
 	// verify that the user with the given email does not already exist
 	_, err := svc.ds.UserByEmail(ctx, *payload.Email)
 	if err == nil {
-		return nil, ctxerr.Wrap(ctx, fleet.NewInvalidArgumentError("email", "a user with this account already exists"))
+		return nil, ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("email", "a user with this account already exists"))
 	}
-	var nfe fleet.NotFoundError
+	var nfe automdm.NotFoundError
 	if !errors.As(err, &nfe) {
 		return nil, err
 	}
@@ -71,7 +71,7 @@ func (svc *Service) InviteNewUser(ctx context.Context, payload fleet.InvitePaylo
 		return nil, err
 	}
 
-	invite := &fleet.Invite{
+	invite := &automdm.Invite{
 		Email:      *payload.Email,
 		InvitedBy:  inviter.ID,
 		Token:      token,
@@ -109,12 +109,12 @@ func (svc *Service) InviteNewUser(ctx context.Context, payload fleet.InvitePaylo
 	if invitedBy == "" {
 		invitedBy = inviter.Email
 	}
-	var smtpSettings fleet.SMTPSettings
+	var smtpSettings automdm.SMTPSettings
 	if config.SMTPSettings != nil {
 		smtpSettings = *config.SMTPSettings
 	}
-	inviteEmail := fleet.Email{
-		Subject:      "You have been invited to Fleet!",
+	inviteEmail := automdm.Email{
+		Subject:      "You have been invited to AutoMDM!",
 		To:           []string{invite.Email},
 		ServerURL:    config.ServerSettings.ServerURL,
 		SMTPSettings: smtpSettings,
@@ -134,7 +134,7 @@ func (svc *Service) InviteNewUser(ctx context.Context, payload fleet.InvitePaylo
 	return invite, nil
 }
 
-func (svc *Service) ValidateInvite(ctx context.Context, invite fleet.Invite) error {
+func (svc *Service) ValidateInvite(ctx context.Context, invite automdm.Invite) error {
 	if !invite.MFAEnabled {
 		return nil
 	}
@@ -144,7 +144,7 @@ func (svc *Service) ValidateInvite(ctx context.Context, invite fleet.Invite) err
 		return err
 	}
 	if lic == nil || !lic.IsPremium() {
-		return fleet.ErrMissingLicense
+		return automdm.ErrMissingLicense
 	}
 	if invite.SSOEnabled {
 		return SSOMFAConflict
@@ -158,32 +158,32 @@ func (svc *Service) ValidateInvite(ctx context.Context, invite fleet.Invite) err
 ////////////////////////////////////////////////////////////////////////////////
 
 type listInvitesRequest struct {
-	ListOptions fleet.ListOptions `url:"list_options"`
+	ListOptions automdm.ListOptions `url:"list_options"`
 }
 
 type listInvitesResponse struct {
-	Invites []fleet.Invite `json:"invites"`
-	Err     error          `json:"error,omitempty"`
+	Invites []automdm.Invite `json:"invites"`
+	Err     error            `json:"error,omitempty"`
 }
 
 func (r listInvitesResponse) Error() error { return r.Err }
 
-func listInvitesEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func listInvitesEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*listInvitesRequest)
 	invites, err := svc.ListInvites(ctx, req.ListOptions)
 	if err != nil {
 		return listInvitesResponse{Err: err}, nil
 	}
 
-	resp := listInvitesResponse{Invites: []fleet.Invite{}}
+	resp := listInvitesResponse{Invites: []automdm.Invite{}}
 	for _, invite := range invites {
 		resp.Invites = append(resp.Invites, *invite)
 	}
 	return resp, nil
 }
 
-func (svc *Service) ListInvites(ctx context.Context, opt fleet.ListOptions) ([]*fleet.Invite, error) {
-	if err := svc.authz.Authorize(ctx, &fleet.Invite{}, fleet.ActionRead); err != nil {
+func (svc *Service) ListInvites(ctx context.Context, opt automdm.ListOptions) ([]*automdm.Invite, error) {
+	if err := svc.authz.Authorize(ctx, &automdm.Invite{}, automdm.ActionRead); err != nil {
 		return nil, err
 	}
 	return svc.ds.ListInvites(ctx, opt)
@@ -195,17 +195,17 @@ func (svc *Service) ListInvites(ctx context.Context, opt fleet.ListOptions) ([]*
 
 type updateInviteRequest struct {
 	ID uint `url:"id"`
-	fleet.InvitePayload
+	automdm.InvitePayload
 }
 
 type updateInviteResponse struct {
-	Invite *fleet.Invite `json:"invite"`
-	Err    error         `json:"error,omitempty"`
+	Invite *automdm.Invite `json:"invite"`
+	Err    error           `json:"error,omitempty"`
 }
 
 func (r updateInviteResponse) Error() error { return r.Err }
 
-func updateInviteEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func updateInviteEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*updateInviteRequest)
 	invite, err := svc.UpdateInvite(ctx, req.ID, req.InvitePayload)
 	if err != nil {
@@ -215,8 +215,8 @@ func updateInviteEndpoint(ctx context.Context, request interface{}, svc fleet.Se
 	return updateInviteResponse{Invite: invite}, nil
 }
 
-func (svc *Service) UpdateInvite(ctx context.Context, id uint, payload fleet.InvitePayload) (*fleet.Invite, error) {
-	if err := svc.authz.Authorize(ctx, &fleet.Invite{}, fleet.ActionWrite); err != nil {
+func (svc *Service) UpdateInvite(ctx context.Context, id uint, payload automdm.InvitePayload) (*automdm.Invite, error) {
+	if err := svc.authz.Authorize(ctx, &automdm.Invite{}, automdm.ActionWrite); err != nil {
 		return nil, err
 	}
 
@@ -264,7 +264,7 @@ func (svc *Service) UpdateInvite(ctx context.Context, id uint, payload fleet.Inv
 	}
 
 	if payload.GlobalRole.Valid || len(payload.Teams) > 0 {
-		if err := fleet.ValidateRole(payload.GlobalRole.Ptr(), payload.Teams); err != nil {
+		if err := automdm.ValidateRole(payload.GlobalRole.Ptr(), payload.Teams); err != nil {
 			return nil, err
 		}
 		invite.GlobalRole = payload.GlobalRole
@@ -288,7 +288,7 @@ type deleteInviteResponse struct {
 
 func (r deleteInviteResponse) Error() error { return r.Err }
 
-func deleteInviteEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func deleteInviteEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*deleteInviteRequest)
 	err := svc.DeleteInvite(ctx, req.ID)
 	if err != nil {
@@ -298,7 +298,7 @@ func deleteInviteEndpoint(ctx context.Context, request interface{}, svc fleet.Se
 }
 
 func (svc *Service) DeleteInvite(ctx context.Context, id uint) error {
-	if err := svc.authz.Authorize(ctx, &fleet.Invite{}, fleet.ActionWrite); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.Invite{}, automdm.ActionWrite); err != nil {
 		return err
 	}
 	return svc.ds.DeleteInvite(ctx, id)
@@ -313,13 +313,13 @@ type verifyInviteRequest struct {
 }
 
 type verifyInviteResponse struct {
-	Invite *fleet.Invite `json:"invite"`
-	Err    error         `json:"error,omitempty"`
+	Invite *automdm.Invite `json:"invite"`
+	Err    error           `json:"error,omitempty"`
 }
 
 func (r verifyInviteResponse) Error() error { return r.Err }
 
-func verifyInviteEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func verifyInviteEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*verifyInviteRequest)
 	invite, err := svc.VerifyInvite(ctx, req.Token)
 	if err != nil {
@@ -328,7 +328,7 @@ func verifyInviteEndpoint(ctx context.Context, request interface{}, svc fleet.Se
 	return verifyInviteResponse{Invite: invite}, nil
 }
 
-func (svc *Service) VerifyInvite(ctx context.Context, token string) (*fleet.Invite, error) {
+func (svc *Service) VerifyInvite(ctx context.Context, token string) (*automdm.Invite, error) {
 	// skipauth: There is no viewer context at this point. We rely on verifying
 	// the invite for authNZ.
 	svc.authz.SkipAuthorization(ctx)
@@ -339,12 +339,12 @@ func (svc *Service) VerifyInvite(ctx context.Context, token string) (*fleet.Invi
 	}
 
 	if invite.Token != token {
-		return nil, fleet.NewInvalidArgumentError("invite_token", "Invite Token does not match Email Address.")
+		return nil, automdm.NewInvalidArgumentError("invite_token", "Invite Token does not match Email Address.")
 	}
 
 	expiresAt := invite.CreatedAt.Add(svc.config.App.InviteTokenValidityPeriod)
 	if svc.clock.Now().After(expiresAt) {
-		return nil, fleet.NewInvalidArgumentError("invite_token", "Invite token has expired.")
+		return nil, automdm.NewInvalidArgumentError("invite_token", "Invite token has expired.")
 	}
 
 	return invite, nil

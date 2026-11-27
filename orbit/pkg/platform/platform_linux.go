@@ -16,7 +16,7 @@ func init() {
 	// (or /proc/uptime on containerized hosts) once per process, on every call.
 	//
 	// orbit enumerates the full process table on a recurring basis (e.g. the
-	// Fleet Desktop watchdog polls every 15s via GetProcessesByName), so this
+	// AutoMDM Desktop watchdog polls every 15s via GetProcessesByName), so this
 	// caused the host-wide /proc/stat file to be read N times per poll, where N
 	// is the total number of running processes. The btime field lives near the
 	// end of /proc/stat, so each read scans the entire file just to recover a

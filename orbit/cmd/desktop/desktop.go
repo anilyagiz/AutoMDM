@@ -16,20 +16,20 @@ import (
 	"time"
 
 	"fyne.io/systray"
-	fleetclient "github.com/fleetdm/fleet/v4/client"
-	"github.com/fleetdm/fleet/v4/orbit/cmd/desktop/menu"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/backoff"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/constant"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/go-paniclog"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/migration"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/profiles"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/token"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/update"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/useraction"
-	"github.com/fleetdm/fleet/v4/pkg/certificate"
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/pkg/open"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	automdmclient "github.com/anilyagiz/automdm/v4/client"
+	"github.com/anilyagiz/automdm/v4/orbit/cmd/desktop/menu"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/backoff"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/constant"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/go-paniclog"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/migration"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/profiles"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/token"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/update"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/useraction"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/pkg/certificate"
+	"github.com/anilyagiz/automdm/v4/pkg/open"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/gofrs/flock"
 	"github.com/oklog/run"
 	"github.com/rs/zerolog"
@@ -63,7 +63,7 @@ func setupRunners() {
 	}
 
 	if err := runnerGroup.Run(); err != nil {
-		log.Error().Err(err).Msg("Fleet Desktop runners terminated")
+		log.Error().Err(err).Msg("AutoMDM Desktop runners terminated")
 		return
 	}
 }
@@ -74,10 +74,10 @@ func main() {
 	// This context will be used as a general context to handle graceful shutdown in the future.
 	offlineWatcherCtx, cancelOfflineWatcherCtx := context.WithCancel(context.Background())
 
-	// Orbits uses --version to get the fleet-desktop version. Logs do not need to be set up when running this.
+	// Orbits uses --version to get the automdm-desktop version. Logs do not need to be set up when running this.
 	if len(os.Args) > 1 && os.Args[1] == "--version" {
 		// Must work with update.GetVersion
-		fmt.Println("fleet-desktop", version)
+		fmt.Println("automdm-desktop", version)
 		return
 	}
 
@@ -86,55 +86,55 @@ func main() {
 
 	// Our TUF provided targets must support launching with "--help".
 	if len(os.Args) > 1 && os.Args[1] == "--help" {
-		fmt.Println("Fleet Desktop application executable")
+		fmt.Println("AutoMDM Desktop application executable")
 		return
 	}
-	log.Info().Msgf("fleet-desktop version=%s", version)
+	log.Info().Msgf("automdm-desktop version=%s", version)
 
-	if permanentError := os.Getenv("FLEET_DESKTOP_PERMANENT_ERROR"); permanentError != "" {
+	if permanentError := os.Getenv("AUTOMDM_DESKTOP_PERMANENT_ERROR"); permanentError != "" {
 		runWithPermanentError(permanentError)
 	}
 
-	identifierPath := os.Getenv("FLEET_DESKTOP_DEVICE_IDENTIFIER_PATH")
+	identifierPath := os.Getenv("AUTOMDM_DESKTOP_DEVICE_IDENTIFIER_PATH")
 	if identifierPath == "" {
-		log.Fatal().Msg("missing URL environment FLEET_DESKTOP_DEVICE_IDENTIFIER_PATH")
+		log.Fatal().Msg("missing URL environment AUTOMDM_DESKTOP_DEVICE_IDENTIFIER_PATH")
 	}
 
-	fleetURL := os.Getenv("FLEET_DESKTOP_FLEET_URL")
-	if fleetURL == "" {
-		log.Fatal().Msg("missing URL environment FLEET_DESKTOP_FLEET_URL")
+	automdmURL := os.Getenv("AUTOMDM_DESKTOP_AUTOMDM_URL")
+	if automdmURL == "" {
+		log.Fatal().Msg("missing URL environment AUTOMDM_DESKTOP_AUTOMDM_URL")
 	}
 
 	// Prefer file-path env vars (set by newer orbit versions that avoid
 	// exposing secrets in process argv). Fall back to inline content env
 	// vars for backward compatibility with older orbit.
 	var (
-		fleetClientCrt *tls.Certificate
-		err            error
+		automdmClientCrt *tls.Certificate
+		err              error
 	)
-	fleetTLSClientCertPath := os.Getenv("FLEET_DESKTOP_FLEET_TLS_CLIENT_CERTIFICATE_PATH")
-	fleetTLSClientKeyPath := os.Getenv("FLEET_DESKTOP_FLEET_TLS_CLIENT_KEY_PATH")
-	if fleetTLSClientCertPath != "" && fleetTLSClientKeyPath != "" {
-		certFromFiles, loadErr := certificate.LoadClientCertificateFromFiles(fleetTLSClientCertPath, fleetTLSClientKeyPath)
+	automdmTLSClientCertPath := os.Getenv("AUTOMDM_DESKTOP_AUTOMDM_TLS_CLIENT_CERTIFICATE_PATH")
+	automdmTLSClientKeyPath := os.Getenv("AUTOMDM_DESKTOP_AUTOMDM_TLS_CLIENT_KEY_PATH")
+	if automdmTLSClientCertPath != "" && automdmTLSClientKeyPath != "" {
+		certFromFiles, loadErr := certificate.LoadClientCertificateFromFiles(automdmTLSClientCertPath, automdmTLSClientKeyPath)
 		if loadErr != nil {
-			log.Fatal().Err(loadErr).Msg("load fleet tls client certificate from files")
+			log.Fatal().Err(loadErr).Msg("load team tls client certificate from files")
 		}
 		if certFromFiles != nil {
-			fleetClientCrt = &certFromFiles.Crt
+			automdmClientCrt = &certFromFiles.Crt
 		}
 	} else {
-		fleetTLSClientCertificate := os.Getenv("FLEET_DESKTOP_FLEET_TLS_CLIENT_CERTIFICATE")
-		fleetTLSClientKey := os.Getenv("FLEET_DESKTOP_FLEET_TLS_CLIENT_KEY")
-		fleetClientCrt, err = certificate.LoadClientCertificate(fleetTLSClientCertificate, fleetTLSClientKey)
+		automdmTLSClientCertificate := os.Getenv("AUTOMDM_DESKTOP_AUTOMDM_TLS_CLIENT_CERTIFICATE")
+		automdmTLSClientKey := os.Getenv("AUTOMDM_DESKTOP_AUTOMDM_TLS_CLIENT_KEY")
+		automdmClientCrt, err = certificate.LoadClientCertificate(automdmTLSClientCertificate, automdmTLSClientKey)
 		if err != nil {
-			log.Fatal().Err(err).Msg("load fleet tls client certificate")
+			log.Fatal().Err(err).Msg("load team tls client certificate")
 		}
 	}
-	fleetAlternativeBrowserHost := os.Getenv("FLEET_DESKTOP_ALTERNATIVE_BROWSER_HOST")
-	if fleetClientCrt != nil {
+	automdmAlternativeBrowserHost := os.Getenv("AUTOMDM_DESKTOP_ALTERNATIVE_BROWSER_HOST")
+	if automdmClientCrt != nil {
 		log.Info().Msg("Using TLS client certificate and key to authenticate to the server.")
 	}
-	tufUpdateRoot := os.Getenv("FLEET_DESKTOP_TUF_UPDATE_ROOT")
+	tufUpdateRoot := os.Getenv("AUTOMDM_DESKTOP_TUF_UPDATE_ROOT")
 	if tufUpdateRoot != "" {
 		log.Info().Msgf("got a TUF update root: %s", tufUpdateRoot)
 	}
@@ -142,7 +142,7 @@ func main() {
 	// We've only seen this bug appear on Linux under certain very
 	// specific conditions
 	if runtime.GOOS == "linux" {
-		// Ensure only one instance of Fleet Desktop is running at a time
+		// Ensure only one instance of AutoMDM Desktop is running at a time
 		lockFile, err := getLockfile()
 		if err != nil {
 			log.Fatal().Err(err).Msg("could not secure lock file")
@@ -177,8 +177,8 @@ func main() {
 	// DesktopSummary already runs at most once every 5 minutes.
 	// See #45553 for the full behavioral contract.
 
-	// Used to trigger a policy check when clicking on "My device" or "About Fleet".
-	var fleetDesktopCheckTrigger atomic.Bool
+	// Used to trigger a policy check when clicking on "My device" or "About AutoMDM".
+	var automdmDesktopCheckTrigger atomic.Bool
 
 	// we have seen some cases where systray.Run() does not call onReady seemingly due to early
 	// initialization states with the GUI such as Windows Autopilot first time setup. This ensures
@@ -197,7 +197,7 @@ func main() {
 		close(trayAppDisplayed)
 		log.Info().Msg("ready")
 
-		systray.SetTooltip("Fleet Desktop")
+		systray.SetTooltip("AutoMDM Desktop")
 
 		if runtime.GOOS == "linux" {
 			// Set a static title to ensure a consistent System Tray ID across
@@ -205,7 +205,7 @@ func main() {
 			// ID using the process PID if the title is not set, which prevents
 			// the OS from persisting user settings (like 'Always Hidden' or 'Pinned')
 			// between sessions on Debian.
-			systray.SetTitle("Fleet Desktop")
+			systray.SetTitle("AutoMDM Desktop")
 		}
 
 		// Default to dark theme icon because this seems to be a better fit on Linux (Ubuntu at
@@ -221,17 +221,17 @@ func main() {
 		}
 
 		var insecureSkipVerify bool
-		if os.Getenv("FLEET_DESKTOP_INSECURE") != "" {
+		if os.Getenv("AUTOMDM_DESKTOP_INSECURE") != "" {
 			insecureSkipVerify = true
 		}
-		rootCA := os.Getenv("FLEET_DESKTOP_FLEET_ROOT_CA")
+		rootCA := os.Getenv("AUTOMDM_DESKTOP_AUTOMDM_ROOT_CA")
 
-		client, err := fleetclient.NewDeviceClient(
-			fleetURL,
+		client, err := automdmclient.NewDeviceClient(
+			automdmURL,
 			insecureSkipVerify,
 			rootCA,
-			fleetClientCrt,
-			fleetAlternativeBrowserHost,
+			automdmClientCrt,
+			automdmAlternativeBrowserHost,
 		)
 		if err != nil {
 			log.Fatal().Err(err).Msg("unable to initialize request client")
@@ -249,26 +249,26 @@ func main() {
 		})
 
 		reportError := func(err error, info map[string]any) {
-			if !client.GetServerCapabilities().Has(fleet.CapabilityErrorReporting) {
+			if !client.GetServerCapabilities().Has(automdm.CapabilityErrorReporting) {
 				log.Info().Msg("skipped reporting error to the server as it doesn't have the capability enabled")
 				return
 			}
 
-			fleetdErr := fleet.FleetdError{
-				ErrorSource:         "fleet-desktop",
+			automdmdErr := automdm.AutoMDMdError{
+				ErrorSource:         "automdm-desktop",
 				ErrorSourceVersion:  version,
 				ErrorTimestamp:      time.Now(),
 				ErrorMessage:        err.Error(),
 				ErrorAdditionalInfo: info,
 			}
 
-			if err := client.ReportError(tokenReader.GetCached(), fleetdErr); err != nil {
-				log.Error().Err(err).EmbedObject(fleetdErr).Msg("reporting error to Fleet server")
+			if err := client.ReportError(tokenReader.GetCached(), automdmdErr); err != nil {
+				log.Error().Err(err).EmbedObject(automdmdErr).Msg("reporting error to AutoMDM server")
 			}
 		}
 
 		if runtime.GOOS == "darwin" {
-			m, s, o, err := mdmMigrationSetup(offlineWatcherCtx, tufUpdateRoot, fleetURL, client, &tokenReader)
+			m, s, o, err := mdmMigrationSetup(offlineWatcherCtx, tufUpdateRoot, automdmURL, client, &tokenReader)
 			if err != nil {
 				go reportError(err, nil)
 				log.Error().Err(err).Msg("setting up MDM migration resources")
@@ -287,7 +287,7 @@ func main() {
 		}
 
 		// checkToken performs API test calls to enable the "My device" item as
-		// soon as the device auth token is registered by Fleet.
+		// soon as the device auth token is registered by AutoMDM.
 		checkToken := func() <-chan interface{} {
 			menuManager.SetConnecting()
 			done := make(chan interface{})
@@ -304,10 +304,10 @@ func main() {
 					refetchToken()
 					summary, err := client.DesktopSummary(tokenReader.GetCached())
 
-					if err == nil || errors.Is(err, fleetclient.ErrMissingLicense) {
+					if err == nil || errors.Is(err, automdmclient.ErrMissingLicense) {
 						log.Debug().Msg("enabling tray items")
-						isFreeTier := errors.Is(err, fleetclient.ErrMissingLicense)
-						var desktopSummary *fleet.DesktopSummary
+						isFreeTier := errors.Is(err, automdmclient.ErrMissingLicense)
+						var desktopSummary *automdm.DesktopSummary
 						if summary != nil {
 							desktopSummary = &summary.DesktopSummary
 						}
@@ -367,12 +367,12 @@ func main() {
 				pinToast                *bitLockerPINToast
 			)
 			if runtime.GOOS == "windows" {
-				// The marker keeps track of the toast notification across Fleet Desktop restarts.
+				// The marker keeps track of the toast notification across AutoMDM Desktop restarts.
 				var markerPath string
 				if dir, err := logDir(); err != nil {
 					log.Error().Err(err).Msg("find directory for the BitLocker PIN toast marker")
 				} else {
-					markerPath = filepath.Join(dir, "Fleet", "bitlocker-pin-toast")
+					markerPath = filepath.Join(dir, "AutoMDM", "bitlocker-pin-toast")
 				}
 				loginID, err := currentLoginID()
 				if err != nil {
@@ -392,38 +392,38 @@ func main() {
 					log.Error().Err(err).Int("count", pingErrCount).Msg("ping failed")
 					pingErrCount++
 					// We try 5 more times to make sure one bad request doesn't trigger the offline indicator.
-					// So it might take up to ~1m (6 * 10s) for Fleet Desktop to show the offline indicator.
+					// So it might take up to ~1m (6 * 10s) for AutoMDM Desktop to show the offline indicator.
 					if pingErrCount >= 6 {
 						menuManager.SetOffline()
 					}
 					continue
 				}
 
-				// Successfully connected to Fleet.
+				// Successfully connected to AutoMDM.
 				pingErrCount = 0
 
-				// Check if we need to fetch the "Fleet desktop" summary from Fleet.
+				// Check if we need to fetch the "AutoMDM desktop" summary from AutoMDM.
 				if !menuManager.IsOfflineIndicatorDisplayed() &&
-					!fleetDesktopCheckTrigger.Load() &&
+					!automdmDesktopCheckTrigger.Load() &&
 					(!lastDesktopSummaryCheck.IsZero() && time.Since(lastDesktopSummaryCheck) < desktopSummaryInterval) {
 					continue
 				}
 
 				lastDesktopSummaryCheck = time.Now()
-				fleetDesktopCheckTrigger.Store(false)
+				automdmDesktopCheckTrigger.Store(false)
 				// We set offlineIndicatorDisplayed to false because we do not want to retry the
-				// Fleet Desktop summary every 10s if Ping works but DesktopSummary doesn't
+				// AutoMDM Desktop summary every 10s if Ping works but DesktopSummary doesn't
 				// (to avoid server load issues).
 				menuManager.SetOfflineIndicatorDisplayed(false)
 
 				sum, err := client.DesktopSummary(tokenReader.GetCached())
 				if err != nil {
 					switch {
-					case errors.Is(err, fleetclient.ErrMissingLicense):
-						// Policy reporting in Fleet Desktop requires a license,
+					case errors.Is(err, automdmclient.ErrMissingLicense):
+						// Policy reporting in AutoMDM Desktop requires a license,
 						// so we just show the "My device" item as usual.
-						menuManager.SetConnected(&fleet.DesktopSummary{}, true)
-					case errors.Is(err, fleetclient.ErrUnauthenticated):
+						menuManager.SetConnected(&automdm.DesktopSummary{}, true)
+					case errors.Is(err, automdmclient.ErrUnauthenticated):
 						log.Debug().Err(err).Msg("get desktop summary auth failure")
 						// This usually happens every ~1 hour when the token expires.
 						// checkToken has its own backoff to avoid retry storms (#44816).
@@ -464,14 +464,14 @@ func main() {
 					}
 
 					// we perform this check locally on the client too to avoid showing the
-					// dialog if the client has already migrated but the Fleet server
+					// dialog if the client has already migrated but the AutoMDM server
 					// doesn't know about this state yet.
-					enrolledIntoFleet, err := fleethttp.HostnamesMatch(enrollURL, fleetURL)
+					enrolledIntoTeam, err := automdmhttp.HostnamesMatch(enrollURL, automdmURL)
 					if err != nil {
 						log.Error().Err(err).Msg("comparing MDM server URLs")
 						continue
 					}
-					if !enrolledIntoFleet {
+					if !enrolledIntoTeam {
 						// isUnmanaged captures two important bits of information:
 						//
 						// - The notification coming from the server, which is based on information that's
@@ -480,7 +480,7 @@ func main() {
 						// - The current enrollment status of the device.
 						isUnmanaged := sum.Notifications.RenewEnrollmentProfile && !enrolled
 						forceModeEnabled := sum.Notifications.NeedsMDMMigration &&
-							sum.Config.MDM.MacOSMigration.Mode == fleet.MacOSMigrationModeForced
+							sum.Config.MDM.MacOSMigration.Mode == automdm.MacOSMigrationModeForced
 
 						// update org info in case it changed
 						mdmMigrator.SetProps(useraction.MDMMigratorProps{
@@ -527,7 +527,7 @@ func main() {
 						log.Error().Err(err).Str("url", openURL).Msg("open browser policies")
 					}
 					// Also refresh the device status by forcing the polling ticker to fire
-					fleetDesktopCheckTrigger.Store(true)
+					automdmDesktopCheckTrigger.Store(true)
 					pingTicker.Reset(1 * time.Millisecond)
 				case <-menuManager.Items.Transparency.ClickedCh():
 					openURL := client.BrowserTransparencyURL(tokenReader.GetCached())
@@ -540,7 +540,7 @@ func main() {
 						log.Error().Err(err).Str("url", openURL).Msg("open browser self-service")
 					}
 					// Also refresh the device status by forcing the polling ticker to fire
-					fleetDesktopCheckTrigger.Store(true)
+					automdmDesktopCheckTrigger.Store(true)
 					pingTicker.Reset(1 * time.Millisecond)
 				case <-menuManager.Items.MigrateMDM.ClickedCh():
 					if offline := offlineWatcher.ShowIfOffline(offlineWatcherCtx); offline {
@@ -614,7 +614,7 @@ func main() {
 }
 
 type mdmMigrationHandler struct {
-	client      *fleetclient.DeviceClient
+	client      *automdmclient.DeviceClient
 	tokenReader *token.Reader
 }
 
@@ -642,24 +642,24 @@ func (m *mdmMigrationHandler) ShowInstructions() error {
 
 // Servers older than the hidden-policies feature don't report the unhidden
 // count, so fall back to the total to keep the pre-upgrade behavior.
-func trayFailingPoliciesCount(sum fleet.DesktopSummary) *uint {
+func trayFailingPoliciesCount(sum automdm.DesktopSummary) *uint {
 	if sum.FailingUnhiddenPolicies != nil {
 		return sum.FailingUnhiddenPolicies
 	}
 	return sum.FailingPolicies
 }
 
-// getLockfile checks for the fleet desktop lock file, and returns an error if it can't secure it.
+// getLockfile checks for the automdm desktop lock file, and returns an error if it can't secure it.
 func getLockfile() (*flock.Flock, error) {
 	dir, err := logDir()
 	if err != nil {
 		return nil, fmt.Errorf("unable to get logdir for lock: %w", err)
 	}
 	// Same as the log dir in setupLogs()
-	dir = filepath.Join(dir, "Fleet")
+	dir = filepath.Join(dir, "AutoMDM")
 
-	lockFilePath := filepath.Join(dir, "fleet-desktop.lock")
-	log.Debug().Msgf("acquiring fleet desktop lockfile: %s", lockFilePath)
+	lockFilePath := filepath.Join(dir, "automdm-desktop.lock")
+	log.Debug().Msgf("acquiring automdm desktop lockfile: %s", lockFilePath)
 
 	lock := flock.New(lockFilePath)
 	locked, err := lock.TryLock()
@@ -667,7 +667,7 @@ func getLockfile() (*flock.Flock, error) {
 		return nil, fmt.Errorf("error getting lock on %s: %w", lockFilePath, err)
 	}
 	if !locked {
-		return nil, errors.New("another instance of fleet desktop has the lock")
+		return nil, errors.New("another instance of automdm desktop has the lock")
 	}
 
 	log.Debug().Msgf("lock acquired on %s", lockFilePath)
@@ -686,7 +686,7 @@ func setupLogs() {
 		return
 	}
 
-	dir = filepath.Join(dir, "Fleet")
+	dir = filepath.Join(dir, "AutoMDM")
 
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		stderrOut := zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339Nano, NoColor: true}
@@ -696,7 +696,7 @@ func setupLogs() {
 	}
 
 	logFile := &lumberjack.Logger{
-		Filename:   filepath.Join(dir, "fleet-desktop.log"),
+		Filename:   filepath.Join(dir, "automdm-desktop.log"),
 		MaxSize:    25, // megabytes
 		MaxBackups: 3,
 		MaxAge:     28, // days
@@ -719,7 +719,7 @@ func setupStderr() {
 		return
 	}
 
-	stderrFile, err := os.OpenFile(filepath.Join(dir, "Fleet", "fleet-desktop.err"), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666) // nolint:gosec // G302
+	stderrFile, err := os.OpenFile(filepath.Join(dir, "AutoMDM", "automdm-desktop.err"), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666) // nolint:gosec // G302
 	if err != nil {
 		log.Error().Err(err).Msg("create file to redirect stderr")
 		return
@@ -779,7 +779,7 @@ func logDir() (string, error) {
 	return dir, nil
 }
 
-func mdmMigrationSetup(ctx context.Context, tufUpdateRoot, fleetURL string, client *fleetclient.DeviceClient, tokenReader *token.Reader) (useraction.MDMMigrator, chan struct{}, useraction.MDMOfflineWatcher, error) {
+func mdmMigrationSetup(ctx context.Context, tufUpdateRoot, automdmURL string, client *automdmclient.DeviceClient, tokenReader *token.Reader) (useraction.MDMMigrator, chan struct{}, useraction.MDMOfflineWatcher, error) {
 	dir, err := migration.Dir()
 	if err != nil {
 		return nil, nil, nil, err
@@ -803,7 +803,7 @@ func mdmMigrationSetup(ctx context.Context, tufUpdateRoot, fleetURL string, clie
 			tokenReader: tokenReader,
 		},
 		mrw,
-		fleetURL,
+		automdmURL,
 		swiftDialogCh,
 	)
 
@@ -816,14 +816,14 @@ func runWithPermanentError(errorMessage string) {
 	onReady := func() {
 		log.Info().Msg("ready")
 
-		systray.SetTooltip("Fleet Desktop")
+		systray.SetTooltip("AutoMDM Desktop")
 
 		// Default to dark theme icon because this seems to be a better fit on Linux (Ubuntu at
 		// least). On macOS this is used as a template icon anyway.
 		systray.SetTemplateIcon(iconDark, iconDark)
 
 		// Add a disabled menu item with the current version
-		versionItem := systray.AddMenuItem(fmt.Sprintf("Fleet Desktop v%s", version), "")
+		versionItem := systray.AddMenuItem(fmt.Sprintf("AutoMDM Desktop v%s", version), "")
 		versionItem.Disable()
 		systray.AddSeparator()
 

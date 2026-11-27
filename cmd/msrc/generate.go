@@ -9,10 +9,10 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/io"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/msrc"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/msrc/parsed"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/io"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/msrc"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/msrc/parsed"
 	"github.com/google/go-github/v37/github"
 )
 
@@ -40,10 +40,10 @@ func main() {
 
 	ctx := context.Background()
 
-	githubHttp := fleethttp.NewGithubClient()
+	githubHttp := automdmhttp.NewGithubClient()
 	ghAPI := io.NewGitHubClient(githubHttp, github.NewClient(githubHttp).Repositories, wd)
 
-	msrcHttp := fleethttp.NewClient(fleethttp.WithNoTimeout())
+	msrcHttp := automdmhttp.NewClient(automdmhttp.WithNoTimeout())
 	msrcAPI := msrc.NewMSRCClient(msrcHttp, inPath, msrc.MSRCBaseURL)
 
 	fmt.Println("Downloading existing MSRC bulletins...")

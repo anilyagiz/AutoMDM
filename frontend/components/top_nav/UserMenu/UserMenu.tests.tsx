@@ -55,7 +55,7 @@ describe("UserMenu - component", () => {
     ).toBeInTheDocument();
 
     expect(
-      screen.queryByRole("menuitem", { name: /fleets/i })
+      screen.queryByRole("menuitem", { name: /teams/i })
     ).not.toBeInTheDocument();
   });
 
@@ -95,7 +95,7 @@ describe("UserMenu - component", () => {
       screen.getByRole("menuitem", { name: /users/i })
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("menuitem", { name: /fleets/i })
+      screen.getByRole("menuitem", { name: /teams/i })
     ).toBeInTheDocument();
     expect(
       screen.getByRole("menuitem", { name: /my account/i })
@@ -108,7 +108,7 @@ describe("UserMenu - component", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders correct menu items for a fleet-level admin", async () => {
+  it("renders correct menu items for a team-level admin", async () => {
     const mockTeam = createMockTeam({ role: "admin" });
 
     const render = createCustomRenderer({
@@ -126,7 +126,7 @@ describe("UserMenu - component", () => {
         onUserMenuItemClick={noop}
         isGlobalAdmin={false}
         isAnyTeamAdmin
-        currentUser={createMockUser({ global_role: null, fleets: [mockTeam] })}
+        currentUser={createMockUser({ global_role: null, teams: [mockTeam] })}
         currentTeam={createMockTeamSummary({ id: mockTeam.id })}
       />
     );
@@ -162,7 +162,7 @@ describe("UserMenu - component", () => {
       screen.queryByRole("menuitem", { name: /integrations/i })
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("menuitem", { name: /fleets/i })
+      screen.queryByRole("menuitem", { name: /teams/i })
     ).not.toBeInTheDocument();
   });
 
@@ -262,7 +262,7 @@ describe("UserMenu - component", () => {
       screen.queryByRole("menuitem", { name: /agent options/i })
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("menuitem", { name: /fleets/i })
+      screen.queryByRole("menuitem", { name: /teams/i })
     ).not.toBeInTheDocument();
   });
 });

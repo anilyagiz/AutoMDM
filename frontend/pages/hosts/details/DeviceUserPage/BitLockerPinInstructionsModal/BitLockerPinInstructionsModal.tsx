@@ -10,7 +10,7 @@ interface IBitLockerPinInstructionsModalProps {
 
 const baseClass = "bit-locker-pin-instructions-modal";
 
-/** Windows instructions for an end user whose fleetd cannot be handed a PIN, so they set it themselves. */
+/** Windows instructions for an end user whose automdmd cannot be handed a PIN, so they set it themselves. */
 const BitLockerPinInstructionsModal = ({
   onExit,
 }: IBitLockerPinInstructionsModalProps) => {

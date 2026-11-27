@@ -4,7 +4,7 @@ import React, { Component } from "react";
 
 import AdminDetails from "components/forms/RegistrationForm/AdminDetails";
 import ConfirmationPage from "components/forms/RegistrationForm/ConfirmationPage";
-import FleetDetails from "components/forms/RegistrationForm/FleetDetails";
+import TeamDetails from "components/forms/RegistrationForm/TeamDetails";
 import OrgDetails from "components/forms/RegistrationForm/OrgDetails";
 
 const baseClass = "user-registration";
@@ -87,14 +87,14 @@ class RegistrationForm extends Component {
       `${baseClass}__field-wrapper--org`
     );
 
-    const fleetDetailsContainerClass = classnames(
+    const teamDetailsContainerClass = classnames(
       `${baseClass}__container`,
-      `${baseClass}__container--fleet`
+      `${baseClass}__container--automdm`
     );
 
-    const fleetDetailsClass = classnames(
+    const teamDetailsClass = classnames(
       `${baseClass}__field-wrapper`,
-      `${baseClass}__field-wrapper--fleet`
+      `${baseClass}__field-wrapper--automdm`
     );
 
     const confirmationContainerClass = classnames(
@@ -139,11 +139,11 @@ class RegistrationForm extends Component {
         </div>
       ),
       3: (
-        <div className={fleetDetailsContainerClass}>
-          <FleetDetails
+        <div className={teamDetailsContainerClass}>
+          <TeamDetails
             formData={formData}
             handleSubmit={onPageFormSubmit}
-            className={fleetDetailsClass}
+            className={teamDetailsClass}
             currentPage={isCurrentPage(3)}
           />
         </div>

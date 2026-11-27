@@ -103,7 +103,7 @@ const AISessionModal = ({ hostId, session, onExit }: IAISessionModalProps) => {
       return session.tool_call_count > 0 ? (
         <EmptyState
           header="No events collected"
-          info="Events can take a while to appear after the session. They aren't collected if Fleet is set to store sessions without their tool calls."
+          info="Events can take a while to appear after the session. They aren't collected if AutoMDM is set to store sessions without their tool calls."
           width="small"
           variant="list"
         />
@@ -130,7 +130,7 @@ const AISessionModal = ({ hostId, session, onExit }: IAISessionModalProps) => {
                 >
                   <Icon
                     name={isExpanded ? "chevron-down" : "chevron-right"}
-                    color="core-fleet-black"
+                    color="core-automdm-black"
                   />
                   <span className={`${baseClass}__event-time`}>
                     {formatTime(event.executed_at, "pp")}

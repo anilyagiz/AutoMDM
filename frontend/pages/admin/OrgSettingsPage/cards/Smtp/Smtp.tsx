@@ -13,7 +13,7 @@ import TooltipWrapper from "components/TooltipWrapper";
 import { AppContext } from "context/app";
 import useFormValidation, { IFormErrors } from "hooks/useFormValidation";
 import SettingsSection from "pages/admin/components/SettingsSection";
-import { CONTACT_FLEET_LINK } from "utilities/constants";
+import { CONTACT_AUTOMDM_LINK } from "utilities/constants";
 
 import {
   IAppConfigFormProps,
@@ -180,7 +180,7 @@ const Smtp = ({
             To configure SMTP,{" "}
             <CustomLink
               url={
-                isPremiumTier ? CONTACT_FLEET_LINK : "https://fleetdm.com/slack"
+                isPremiumTier ? CONTACT_AUTOMDM_LINK : "https://automdm.com/slack"
               }
               text="get help"
               newTab
@@ -210,7 +210,7 @@ const Smtp = ({
           <InputField
             label="Sender address"
             {...getTextFieldProps("smtpSenderAddress")}
-            tooltip="The sender address for emails from Fleet."
+            tooltip="The sender address for emails from AutoMDM."
             disabled={isSubmitting}
           />
           <div className="smtp-server-inputs">

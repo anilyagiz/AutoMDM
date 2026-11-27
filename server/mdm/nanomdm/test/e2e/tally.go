@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/storage"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/storage"
 )
 
 type tokenTallyDevice interface {

@@ -1,2 +1,2 @@
 ARG TAG
-FROM fleetdm/fleet:$TAG
+FROM automdm/automdm:$TAG

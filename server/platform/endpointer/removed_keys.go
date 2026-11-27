@@ -12,7 +12,7 @@ import (
 	"sync/atomic"
 )
 
-// RemovedKeyError reports a request parameter that Fleet 5 removed or renamed. Its message comes from
+// RemovedKeyError reports a request parameter that AutoMDM 5 removed or renamed. Its message comes from
 // SetRemovedKeyMessage. It renders as the usual 422 validation error, {"message", "errors": [{"name", "reason"}]}.
 type RemovedKeyError struct {
 	Key string
@@ -23,7 +23,7 @@ type RemovedKeyError struct {
 var removedKeyMessage atomic.Pointer[func(key string) string]
 
 // SetRemovedKeyMessage sets how RemovedKeyError words its message. The platform layer has no wording of its own: the
-// service sets the Fleet 5 one from pkg/removednames, as it does for removed paths (RemovedPath.Message).
+// service sets the AutoMDM 5 one from pkg/removednames, as it does for removed paths (RemovedPath.Message).
 func SetRemovedKeyMessage(f func(key string) string) { removedKeyMessage.Store(&f) }
 
 func (e *RemovedKeyError) Error() string {

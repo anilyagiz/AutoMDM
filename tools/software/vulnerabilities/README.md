@@ -9,11 +9,11 @@
 # Vulnerability Data Seeder
 
 The purpose of `seed_vuln_data.go` is to provide developers an easy way to insert hosts and software
-into your local development Fleet server without needing a real host or osquery-perf
+into your local development AutoMDM server without needing a real host or osquery-perf
 
 ## Usage
 
-1. Ensure your local development environment is running using `docker-compose up` and `fleet serve`
+1. Ensure your local development environment is running using `docker-compose up` and `automdm serve`
 
 2. Optional: Review and modify the software titles in the following files in this folder:
 

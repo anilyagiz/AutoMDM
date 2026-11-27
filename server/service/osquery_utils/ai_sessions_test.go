@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -60,7 +60,7 @@ func nestedValue(depth int) string {
 	return strings.Repeat("[", depth) + "1" + strings.Repeat("]", depth)
 }
 
-// TestAIAgentSessionsDiscovery runs the discovery queries against sqlite: a fleetd whose tables lack the columns Fleet
+// TestAIAgentSessionsDiscovery runs the discovery queries against sqlite: an automdmd whose tables lack the columns AutoMDM
 // reads must not be asked for them.
 func TestAIAgentSessionsDiscovery(t *testing.T) {
 	for _, c := range []struct {
@@ -111,7 +111,7 @@ func TestAIAgentSessionsQuery(t *testing.T) {
 		user_messages BIGINT, assistant_messages BIGINT, tool_calls BIGINT, input_tokens BIGINT, output_tokens BIGINT,
 		cache_read_tokens BIGINT, cache_write_tokens BIGINT, transcript_path TEXT, transcript_size_bytes BIGINT)`)
 	require.NoError(t, err)
-	// The host's clock, not Fleet's.
+	// The host's clock, not AutoMDM's.
 	hostNow := int64(1_800_000_000)
 	_, err = db.Exec(`CREATE TABLE time (unix_time BIGINT)`)
 	require.NoError(t, err)
@@ -153,13 +153,13 @@ func TestAIAgentSessionsQuery(t *testing.T) {
 func TestBuildAIAgentSessionEventsQuery(t *testing.T) {
 	ctx := t.Context()
 	logger := slog.New(slog.DiscardHandler)
-	host := &fleet.Host{ID: 1}
+	host := &automdm.Host{ID: 1}
 	endedAt := time.Unix(1_800_000_000, 0).UTC()
 	const maxEvents = 40
 
 	ds := new(mock.Store)
-	var cursors []*fleet.HostAISessionEventsCursor
-	ds.ListHostAISessionsNeedingEventsFunc = func(ctx context.Context, hostID uint, limit int, maxEventsArg uint) ([]*fleet.HostAISessionEventsCursor, error) {
+	var cursors []*automdm.HostAISessionEventsCursor
+	ds.ListHostAISessionsNeedingEventsFunc = func(ctx context.Context, hostID uint, limit int, maxEventsArg uint) ([]*automdm.HostAISessionEventsCursor, error) {
 		require.EqualValues(t, 1, hostID)
 		require.Equal(t, aiSessionsPerEventsQuery, limit)
 		require.EqualValues(t, maxEvents, maxEventsArg)
@@ -169,16 +169,16 @@ func TestBuildAIAgentSessionEventsQuery(t *testing.T) {
 	_, ok := buildAIAgentSessionEventsQuery(ctx, logger, host, ds, maxEvents, 0)
 	require.False(t, ok)
 
-	ds.ListHostAISessionsNeedingEventsFunc = func(ctx context.Context, hostID uint, limit int, maxEvents uint) ([]*fleet.HostAISessionEventsCursor, error) {
+	ds.ListHostAISessionsNeedingEventsFunc = func(ctx context.Context, hostID uint, limit int, maxEvents uint) ([]*automdm.HostAISessionEventsCursor, error) {
 		return nil, errors.New("boom")
 	}
 	_, ok = buildAIAgentSessionEventsQuery(ctx, logger, host, ds, maxEvents, 0)
 	require.False(t, ok)
 
-	ds.ListHostAISessionsNeedingEventsFunc = func(ctx context.Context, hostID uint, limit int, maxEvents uint) ([]*fleet.HostAISessionEventsCursor, error) {
+	ds.ListHostAISessionsNeedingEventsFunc = func(ctx context.Context, hostID uint, limit int, maxEvents uint) ([]*automdm.HostAISessionEventsCursor, error) {
 		return cursors, nil
 	}
-	cursors = []*fleet.HostAISessionEventsCursor{
+	cursors = []*automdm.HostAISessionEventsCursor{
 		// Never read.
 		{Agent: "claude_code", AgentSessionID: "fresh", TranscriptPath: "/u/a/fresh.jsonl", EndedAt: &endedAt},
 		// The last result was cut after three calls.
@@ -269,7 +269,7 @@ func TestBuildAIAgentSessionEventsQuery(t *testing.T) {
 	require.Zero(t, endedAts["undecided"])
 
 	// A session ID is quoted as a path is.
-	cursors = []*fleet.HostAISessionEventsCursor{{Agent: "claude_code", AgentSessionID: "x' OR '1'='1", TranscriptPath: "/u/a/x.jsonl"}}
+	cursors = []*automdm.HostAISessionEventsCursor{{Agent: "claude_code", AgentSessionID: "x' OR '1'='1", TranscriptPath: "/u/a/x.jsonl"}}
 	query, ok = buildAIAgentSessionEventsQuery(ctx, logger, host, ds, maxEvents, 0)
 	require.True(t, ok)
 	var requestedID string
@@ -278,7 +278,7 @@ func TestBuildAIAgentSessionEventsQuery(t *testing.T) {
 
 	// With a limit per refresh, a session catching up is asked for that many calls after those stored. One rereading
 	// its undecided calls isn't limited: those are stored already, and a reread cut short would be repeated.
-	cursors = []*fleet.HostAISessionEventsCursor{
+	cursors = []*automdm.HostAISessionEventsCursor{
 		{Agent: "claude_code", AgentSessionID: "fresh", TranscriptPath: "/u/a/fresh.jsonl"},
 		{Agent: "claude_code", AgentSessionID: "cut", TranscriptPath: "/u/a/cut.jsonl", EventCount: 3},
 		{Agent: "codex_cli", AgentSessionID: "undecided", TranscriptPath: "/u/a/undecided.jsonl", EventCount: 6, RereadFromToolCallIndex: new(uint(2))},
@@ -307,7 +307,7 @@ func TestBuildAIAgentSessionEventsQuery(t *testing.T) {
 
 	cursors = cursors[:1]
 	// The detail query asks with the configured limit.
-	ds.ListHostAISessionsNeedingEventsFunc = func(ctx context.Context, hostID uint, limit int, maxEventsArg uint) ([]*fleet.HostAISessionEventsCursor, error) {
+	ds.ListHostAISessionsNeedingEventsFunc = func(ctx context.Context, hostID uint, limit int, maxEventsArg uint) ([]*automdm.HostAISessionEventsCursor, error) {
 		require.EqualValues(t, 7, maxEventsArg)
 		return cursors, nil
 	}
@@ -319,11 +319,11 @@ func TestBuildAIAgentSessionEventsQuery(t *testing.T) {
 func TestDirectIngestAIAgentSessions(t *testing.T) {
 	ctx := t.Context()
 	logger := slog.New(slog.DiscardHandler)
-	host := &fleet.Host{ID: 7}
+	host := &automdm.Host{ID: 7}
 
 	ds := new(mock.Store)
-	var got []*fleet.HostAISession
-	ds.UpsertHostAISessionsFunc = func(ctx context.Context, hostID uint, sessions []*fleet.HostAISession) error {
+	var got []*automdm.HostAISession
+	ds.UpsertHostAISessionsFunc = func(ctx context.Context, hostID uint, sessions []*automdm.HostAISession) error {
 		require.EqualValues(t, 7, hostID)
 		got = sessions
 		return nil
@@ -361,7 +361,7 @@ func TestDirectIngestAIAgentSessions(t *testing.T) {
 
 	startedAt := time.Unix(1800000000, 0).UTC()
 	endedAt := time.Unix(1800003600, 0).UTC()
-	require.Equal(t, &fleet.HostAISession{
+	require.Equal(t, &automdm.HostAISession{
 		Agent:                 "claude_code",
 		AgentSessionID:        "s1",
 		AgentVersion:          "2.1.0",
@@ -383,8 +383,8 @@ func TestDirectIngestAIAgentSessions(t *testing.T) {
 		TranscriptPath:        "/Users/alice/.claude/projects/app/s1.jsonl",
 		TranscriptSize:        12345,
 	}, got[0])
-	require.Equal(t, &fleet.HostAISession{Agent: "cursor", AgentSessionID: "s2"}, got[1])
-	require.Equal(t, &fleet.HostAISession{
+	require.Equal(t, &automdm.HostAISession{Agent: "cursor", AgentSessionID: "s2"}, got[1])
+	require.Equal(t, &automdm.HostAISession{
 		Agent:            "codex_cli",
 		AgentSessionID:   "s3",
 		UserMessageCount: math.MaxUint32,
@@ -392,7 +392,7 @@ func TestDirectIngestAIAgentSessions(t *testing.T) {
 		InputTokenCount:  math.MaxUint64,
 	}, got[2])
 
-	ds.UpsertHostAISessionsFunc = func(ctx context.Context, hostID uint, sessions []*fleet.HostAISession) error {
+	ds.UpsertHostAISessionsFunc = func(ctx context.Context, hostID uint, sessions []*automdm.HostAISession) error {
 		return errors.New("boom")
 	}
 	require.Error(t, directIngestAIAgentSessions(ctx, logger, host, ds, rows))
@@ -402,12 +402,12 @@ func TestDirectIngestAIAgentSessionEvents(t *testing.T) {
 	ctx := t.Context()
 	const maxEvents = 40
 	logger := slog.New(slog.DiscardHandler)
-	host := &fleet.Host{ID: 7}
+	host := &automdm.Host{ID: 7}
 
 	ds := new(mock.Store)
-	var gotRequested []*fleet.HostAISessionEventsCursor
-	var got []*fleet.HostAISessionEvent
-	ds.UpsertHostAISessionEventsFunc = func(ctx context.Context, hostID uint, requested []*fleet.HostAISessionEventsCursor, events []*fleet.HostAISessionEvent) error {
+	var gotRequested []*automdm.HostAISessionEventsCursor
+	var got []*automdm.HostAISessionEvent
+	ds.UpsertHostAISessionEventsFunc = func(ctx context.Context, hostID uint, requested []*automdm.HostAISessionEventsCursor, events []*automdm.HostAISessionEvent) error {
 		require.EqualValues(t, 7, hostID)
 		gotRequested = requested
 		got = events
@@ -423,7 +423,7 @@ func TestDirectIngestAIAgentSessionEvents(t *testing.T) {
 		{"agent": "cursor", "session_id": "s2", "tool_call_index": "0", "session_ended_at": "0", "requested": "1"},
 		{"agent": "", "session_id": "s3", "tool_call_index": "0", "requested": "1"},
 	}
-	wantRequested := []*fleet.HostAISessionEventsCursor{
+	wantRequested := []*automdm.HostAISessionEventsCursor{
 		{Agent: "claude_code", AgentSessionID: "s1"},
 		{Agent: "cursor", AgentSessionID: "s2"},
 	}
@@ -463,12 +463,12 @@ func TestDirectIngestAIAgentSessionEvents(t *testing.T) {
 	endedAt := time.Unix(1800003600, 0).UTC()
 	require.JSONEq(t, `{"name":"Bash","id":"toolu_1","input":{"command":"ls -la"}}`, string(got[0].Payload))
 	got[0].Payload = nil
-	require.Equal(t, &fleet.HostAISessionEvent{
+	require.Equal(t, &automdm.HostAISessionEvent{
 		Agent:          "claude_code",
 		AgentSessionID: "s1",
 		SessionEndedAt: &endedAt,
 		ToolCallIndex:  3,
-		Action:         fleet.AISessionActionExecute,
+		Action:         automdm.AISessionActionExecute,
 		Target:         "ls -la",
 		Decision:       "allowed",
 		ExecutedAt:     &executedAt,
@@ -476,19 +476,19 @@ func TestDirectIngestAIAgentSessionEvents(t *testing.T) {
 	}, got[0])
 
 	require.JSONEq(t, `{"name":"read_file","id":"","input":"main.go"}`, string(got[1].Payload))
-	require.Equal(t, fleet.AISessionActionRead, got[1].Action)
+	require.Equal(t, automdm.AISessionActionRead, got[1].Action)
 	require.EqualValues(t, 70000, got[1].ContentLength)
 	require.True(t, got[1].Truncated)
 	require.Nil(t, got[1].ExecutedAt)
 	require.Nil(t, got[1].SessionEndedAt)
 	require.Empty(t, got[1].Decision)
 
-	// An action a newer fleetd reports is kept as is.
-	require.Equal(t, fleet.AISessionAction("something_new"), got[2].Action)
+	// An action a newer automdmd reports is kept as is.
+	require.Equal(t, automdm.AISessionAction("something_new"), got[2].Action)
 	require.Nil(t, got[2].ExecutedAt)
 	require.Nil(t, got[2].SessionEndedAt)
 
-	ds.UpsertHostAISessionEventsFunc = func(ctx context.Context, hostID uint, requested []*fleet.HostAISessionEventsCursor, events []*fleet.HostAISessionEvent) error {
+	ds.UpsertHostAISessionEventsFunc = func(ctx context.Context, hostID uint, requested []*automdm.HostAISessionEventsCursor, events []*automdm.HostAISessionEvent) error {
 		return errors.New("boom")
 	}
 	require.Error(t, directIngestAIAgentSessionEvents(ctx, logger, host, ds, rows, maxEvents))

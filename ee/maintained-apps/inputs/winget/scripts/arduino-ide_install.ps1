@@ -1,13 +1,13 @@
 # Learn more about install scripts:
-# http://fleetdm.com/learn-more-about/install-scripts
+# http://automdm.com/learn-more-about/install-scripts
 #
 # The Arduino IDE MSI is a dual-purpose package (ALLUSERS=2 +
-# MSIINSTALLPERUSER=1), so a plain silent install under Fleet's SYSTEM context
+# MSIINSTALLPERUSER=1), so a plain silent install under AutoMDM's SYSTEM context
 # lands in the SYSTEM profile, where some bundled file paths exceed 260
 # characters and the install fails with 1603. Force a per-machine install into
 # Program Files.
 
-$logFile = "${env:TEMP}/fleet-install-software.log"
+$logFile = "${env:TEMP}/automdm-install-software.log"
 
 # 3010 = reboot required, 1641 = reboot initiated
 $successCodes = @(0, 3010, 1641)

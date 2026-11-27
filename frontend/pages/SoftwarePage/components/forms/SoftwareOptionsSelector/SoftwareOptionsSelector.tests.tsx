@@ -29,7 +29,7 @@ const defaultProps = {
 
 const getSwitchByLabelText = (text: string) => {
   const label = screen.getByText(text);
-  const wrapper = label.closest(".fleet-slider__wrapper");
+  const wrapper = label.closest(".automdm-slider__wrapper");
   if (!wrapper) throw new Error(`Wrapper not found for "${text}"`);
   const btn = wrapper.querySelector('button[role="switch"]');
   if (!btn) throw new Error(`Switch button not found for "${text}"`);
@@ -122,12 +122,12 @@ describe("SoftwareOptionsSelector", () => {
       const link = await screen.findByRole("link", { name: /add category/i });
       expect(link).toHaveAttribute(
         "href",
-        "/software/library/settings/categories?fleet_id=1"
+        "/software/library/settings/categories?team_id=1"
       );
       expect(screen.getByText("to assign software to it.")).toBeInTheDocument();
     });
 
-    it("includes fleet_id=0 in the Add category link when on no team", async () => {
+    it("includes team_id=0 in the Add category link when on no team", async () => {
       mockServer.use(emptySelfServiceCategoriesHandler);
 
       renderComponent({ ...selfServiceEditingProps, teamId: 0 });
@@ -135,7 +135,7 @@ describe("SoftwareOptionsSelector", () => {
       const link = await screen.findByRole("link", { name: /add category/i });
       expect(link).toHaveAttribute(
         "href",
-        "/software/library/settings/categories?fleet_id=0"
+        "/software/library/settings/categories?team_id=0"
       );
     });
 

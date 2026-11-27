@@ -8,7 +8,7 @@ interface IEye {
   size?: IconSizes;
 }
 
-const Eye = ({ color = "ui-fleet-black-75", size = "medium" }: IEye) => {
+const Eye = ({ color = "ui-automdm-black-75", size = "medium" }: IEye) => {
   return (
     <svg
       width={ICON_SIZES[size]}

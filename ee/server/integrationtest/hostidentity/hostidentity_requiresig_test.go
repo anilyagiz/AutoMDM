@@ -11,10 +11,10 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/service/contract"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	"github.com/anilyagiz/automdm/v4/server/service/contract"
 	"github.com/stretchr/testify/require"
 )
 
@@ -46,7 +46,7 @@ func testOrbitEnrollAndConfigWithRequiredSignature(t *testing.T, s *Suite) {
 	cert, eccPrivateKey := testGetCertWithCurve(t, s, elliptic.P384())
 
 	// Test enrollment first WITHOUT signature (should fail)
-	enrollRequest := fleet.EnrollOrbitRequest{
+	enrollRequest := automdm.EnrollOrbitRequest{
 		EnrollSecret:      testEnrollmentSecret,
 		HardwareUUID:      "test-uuid-" + cert.Subject.CommonName,
 		HardwareSerial:    "test-serial-" + cert.Subject.CommonName,
@@ -55,13 +55,13 @@ func testOrbitEnrollAndConfigWithRequiredSignature(t *testing.T, s *Suite) {
 	}
 
 	// Test without signature first (should fail)
-	s.Do(t, "POST", "/api/fleet/orbit/enroll", enrollRequest, http.StatusUnauthorized)
+	s.Do(t, "POST", "/api/automdm/orbit/enroll", enrollRequest, http.StatusUnauthorized)
 
 	// Now test with signature (should succeed)
 	reqBody, err := json.Marshal(enrollRequest)
 	require.NoError(t, err)
 
-	req, err := http.NewRequest("POST", s.Server.URL+"/api/fleet/orbit/enroll", bytes.NewReader(reqBody))
+	req, err := http.NewRequest("POST", s.Server.URL+"/api/automdm/orbit/enroll", bytes.NewReader(reqBody))
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
 
@@ -73,7 +73,7 @@ func testOrbitEnrollAndConfigWithRequiredSignature(t *testing.T, s *Suite) {
 	require.NoError(t, err)
 
 	// Send the signed request
-	client := fleethttp.NewClient()
+	client := automdmhttp.NewClient()
 	httpResp, err := client.Do(req)
 	require.NoError(t, err)
 	defer httpResp.Body.Close()
@@ -90,13 +90,13 @@ func testOrbitEnrollAndConfigWithRequiredSignature(t *testing.T, s *Suite) {
 
 	// Test config endpoint without signature (should fail)
 	configReq := orbitConfigRequest{OrbitNodeKey: enrollResp.OrbitNodeKey}
-	s.Do(t, "POST", "/api/fleet/orbit/config", configReq, http.StatusUnauthorized)
+	s.Do(t, "POST", "/api/automdm/orbit/config", configReq, http.StatusUnauthorized)
 
 	// Test config endpoint with signature (should succeed)
 	reqBody, err = json.Marshal(configReq)
 	require.NoError(t, err)
 
-	req, err = http.NewRequest("POST", s.Server.URL+"/api/fleet/orbit/config", bytes.NewReader(reqBody))
+	req, err = http.NewRequest("POST", s.Server.URL+"/api/automdm/orbit/config", bytes.NewReader(reqBody))
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
 
@@ -133,7 +133,7 @@ func testOsqueryEnrollFailsWithoutSignature(t *testing.T, s *Suite) {
 func testOrbitEnrollFailsWithoutSignature(t *testing.T, s *Suite) {
 	identifier := "orbit-enroll-without-signature-test"
 	// Test orbit enrollment without signature (should fail)
-	enrollRequest := fleet.EnrollOrbitRequest{
+	enrollRequest := automdm.EnrollOrbitRequest{
 		EnrollSecret:      testEnrollmentSecret,
 		HardwareUUID:      "test-uuid-" + identifier,
 		HardwareSerial:    "test-serial-" + identifier,
@@ -143,5 +143,5 @@ func testOrbitEnrollFailsWithoutSignature(t *testing.T, s *Suite) {
 
 	// Send request without HTTP signature (should fail)
 	// Use Do instead of DoJSON since the server returns HTML error pages
-	s.Do(t, "POST", "/api/fleet/orbit/enroll", enrollRequest, http.StatusUnauthorized)
+	s.Do(t, "POST", "/api/automdm/orbit/enroll", enrollRequest, http.StatusUnauthorized)
 }

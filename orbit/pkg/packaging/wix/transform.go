@@ -98,8 +98,8 @@ func transform(cur *node, stack *[]*node) error {
 		sddl := "O:SYG:SYD:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;0x1200a9;;;BU)"
 		source := cur.Attrs.Get("Source")
 		if strings.HasSuffix(source, "secret.txt") ||
-			strings.HasSuffix(source, "fleet_client.key") ||
-			strings.HasSuffix(source, "fleet_client.crt") ||
+			strings.HasSuffix(source, "automdm_client.key") ||
+			strings.HasSuffix(source, "automdm_client.crt") ||
 			strings.HasSuffix(source, "update_client.key") ||
 			strings.HasSuffix(source, "update_client.crt") {
 			// Restrict TLS private keys, certs, and the enrollment secret

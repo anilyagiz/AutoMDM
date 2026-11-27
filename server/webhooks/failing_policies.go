@@ -11,11 +11,11 @@ import (
 	"strconv"
 	"time"
 
-	activity_api "github.com/fleetdm/fleet/v4/server/activity/api"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/platform/endpointer"
-	fleethttp "github.com/fleetdm/fleet/v4/server/platform/http"
+	activity_api "github.com/anilyagiz/automdm/v4/server/activity/api"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/platform/endpointer"
+	automdmhttp "github.com/anilyagiz/automdm/v4/server/platform/http"
 )
 
 // recordWebhookFailedActivity records a failed_automation_webhook
@@ -25,8 +25,8 @@ import (
 func recordWebhookFailedActivity(
 	ctx context.Context,
 	newActivitySvc activity_api.NewActivityService,
-	policy *fleet.Policy,
-	batch []fleet.PolicySetHost,
+	policy *automdm.Policy,
+	batch []automdm.PolicySetHost,
 	postErr error,
 	logger *slog.Logger,
 ) {
@@ -48,14 +48,14 @@ func recordWebhookFailedActivity(
 	if errResponse == "" {
 		// network-level failures (e.g. connection refused) have no server
 		// response; fall back to the (masked) error message.
-		errResponse = fleethttp.MaskURLError(postErr).Error()
+		errResponse = automdmhttp.MaskURLError(postErr).Error()
 	}
 	hostIDs := make([]uint, len(batch))
 	for i, host := range batch {
 		hostIDs[i] = host.ID
 	}
 
-	if err := newActivitySvc.NewActivity(ctx, nil, fleet.ActivityTypeFailedAutomationWebhook{
+	if err := newActivitySvc.NewActivity(ctx, nil, automdm.ActivityTypeFailedAutomationWebhook{
 		PolicyID:      policy.ID,
 		HostIDList:    hostIDs,
 		StatusCode:    statusCode,
@@ -72,15 +72,15 @@ func recordWebhookFailedActivity(
 func recordWebhookRanActivity(
 	ctx context.Context,
 	newActivitySvc activity_api.NewActivityService,
-	policy *fleet.Policy,
-	batch []fleet.PolicySetHost,
+	policy *automdm.Policy,
+	batch []automdm.PolicySetHost,
 	logger *slog.Logger,
 ) {
 	hostIDs := make([]uint, len(batch))
 	for i, host := range batch {
 		hostIDs[i] = host.ID
 	}
-	if err := newActivitySvc.NewActivity(ctx, nil, fleet.ActivityTypeRanAutomationWebhook{
+	if err := newActivitySvc.NewActivity(ctx, nil, automdm.ActivityTypeRanAutomationWebhook{
 		PolicyID:   policy.ID,
 		HostIDList: hostIDs,
 	}); err != nil {
@@ -94,8 +94,8 @@ func recordWebhookRanActivity(
 // send, the corresponding hosts are removed from the failing policies set.
 func SendFailingPoliciesBatchedPOSTs(
 	ctx context.Context,
-	policy *fleet.Policy,
-	failingPoliciesSet fleet.FailingPolicySet,
+	policy *automdm.Policy,
+	failingPoliciesSet automdm.FailingPolicySet,
 	hostBatchSize int,
 	serverURL *url.URL,
 	webhookURL *url.URL,
@@ -141,9 +141,9 @@ func SendFailingPoliciesBatchedPOSTs(
 			Policy:       policy,
 			FailingHosts: failingHosts,
 		}
-		logger.DebugContext(ctx, "sending failing policy batch", "payload", payload, "url", fleethttp.MaskSecretURLParams(webhookURL.String()), "batch", len(batch))
+		logger.DebugContext(ctx, "sending failing policy batch", "payload", payload, "url", automdmhttp.MaskSecretURLParams(webhookURL.String()), "batch", len(batch))
 
-		// Marshal and duplicate renamed JSON keys (e.g. fleet_id → also team_id)
+		// Marshal and duplicate renamed JSON keys (e.g. team_id → also team_id)
 		// so that webhook consumers see both the new and deprecated field names.
 		jsonBytes, err := json.Marshal(&payload)
 		if err != nil {
@@ -153,9 +153,9 @@ func SendFailingPoliciesBatchedPOSTs(
 			jsonBytes = endpointer.DuplicateJSONKeys(jsonBytes, rules, endpointer.DuplicateJSONKeysOpts{Compact: true})
 		}
 
-		if err := fleethttp.PostJSONWithTimeout(ctx, webhookURL.String(), json.RawMessage(jsonBytes), logger); err != nil {
+		if err := automdmhttp.PostJSONWithTimeout(ctx, webhookURL.String(), json.RawMessage(jsonBytes), logger); err != nil {
 			recordWebhookFailedActivity(ctx, newActivitySvc, policy, batch, err, logger)
-			return ctxerr.Wrapf(ctx, fleethttp.MaskURLError(err), "posting to %q", fleethttp.MaskSecretURLParams(webhookURL.String()))
+			return ctxerr.Wrapf(ctx, automdmhttp.MaskURLError(err), "posting to %q", automdmhttp.MaskSecretURLParams(webhookURL.String()))
 		}
 		recordWebhookRanActivity(ctx, newActivitySvc, policy, batch, logger)
 		if err := failingPoliciesSet.RemoveHosts(policy.ID, batch); err != nil {
@@ -166,9 +166,9 @@ func SendFailingPoliciesBatchedPOSTs(
 }
 
 type failingPoliciesPayload struct {
-	Timestamp    time.Time     `json:"timestamp"`
-	Policy       *fleet.Policy `json:"policy"`
-	FailingHosts []failingHost `json:"hosts"`
+	Timestamp    time.Time       `json:"timestamp"`
+	Policy       *automdm.Policy `json:"policy"`
+	FailingHosts []failingHost   `json:"hosts"`
 }
 
 type failingHost struct {
@@ -178,7 +178,7 @@ type failingHost struct {
 	URL         string `json:"url"`
 }
 
-func makeFailingHost(host fleet.PolicySetHost, serverURL *url.URL) failingHost {
+func makeFailingHost(host automdm.PolicySetHost, serverURL *url.URL) failingHost {
 	u := *serverURL
 	u.Path = path.Join(serverURL.Path, "hosts", strconv.FormatUint(uint64(host.ID), 10))
 	return failingHost{

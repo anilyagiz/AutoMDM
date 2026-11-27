@@ -8,7 +8,7 @@ import Icon from "components/Icon";
 import TooltipWrapper from "components/TooltipWrapper";
 import { IInputFieldParseTarget } from "interfaces/form_field";
 
-const baseClass = "fleet-checkbox";
+const baseClass = "automdm-checkbox";
 
 export type CheckboxVariant = "default" | "danger";
 

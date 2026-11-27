@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -53,9 +53,9 @@ func awaitAttempt(t *testing.T, r *Receiver) {
 	}
 }
 
-func notification(enabled bool) *fleet.OrbitConfig {
-	return &fleet.OrbitConfig{
-		Notifications: fleet.OrbitConfigNotifications{CreateWindowsManagedLocalAccount: enabled},
+func notification(enabled bool) *automdm.OrbitConfig {
+	return &automdm.OrbitConfig{
+		Notifications: automdm.OrbitConfigNotifications{CreateWindowsManagedLocalAccount: enabled},
 	}
 }
 
@@ -97,7 +97,7 @@ func TestReceiverRun(t *testing.T) {
 
 		awaitAttempt(t, r)
 
-		assert.Equal(t, fleet.ManagedLocalAccountUsername, gotUser)
+		assert.Equal(t, automdm.ManagedLocalAccountUsername, gotUser)
 		calls, escrowed, clientError := esc.snapshot()
 		assert.Equal(t, 1, calls)
 		assert.Empty(t, clientError)
@@ -121,7 +121,7 @@ func TestReceiverRun(t *testing.T) {
 		assert.Contains(t, clientError, "NetUserAdd failed: access denied")
 	})
 
-	// The account exists with a password Fleet does not know. Nothing local records success, so the flow
+	// The account exists with a password AutoMDM does not know. Nothing local records success, so the flow
 	// re-runs and resets the password once the retry window has passed. A failed escrow arms the same
 	// throttle as a failed creation, since neither got a password safely to the server.
 	t.Run("a failed escrow leaves nothing that would block a retry", func(t *testing.T) {

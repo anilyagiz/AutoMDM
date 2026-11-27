@@ -17,15 +17,15 @@ const MdmEnrolledActivityItem = ({
   if (isAndroid(platform) || isIPadOrIPhone(platform)) {
     content = actor_full_name ? (
       <>
-        <b>{actor_full_name}</b> told Fleet to enroll this host.
+        <b>{actor_full_name}</b> told AutoMDM to enroll this host.
       </>
     ) : (
-      <>This host enrolled to Fleet.</>
+      <>This host enrolled to AutoMDM.</>
     );
   } else {
     content = actor_full_name ? (
       <>
-        <b>{actor_full_name}</b> told Fleet to turn on mobile device management
+        <b>{actor_full_name}</b> told AutoMDM to turn on mobile device management
         (MDM) for this host.
       </>
     ) : (

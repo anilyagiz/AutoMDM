@@ -12,18 +12,18 @@ import (
 	"github.com/WatchBeam/clock"
 	_ "github.com/go-sql-driver/mysql"
 
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 )
 
 var (
 	// MySQL config
 	mysqlAddr = "localhost:3306"
-	mysqlUser = "fleet"
+	mysqlUser = "automdm"
 	mysqlPass = "insecure"
-	mysqlDB   = "fleet"
+	mysqlDB   = "automdm"
 
 	// CSV paths
 	macCSVPath    = "./tools/software/vulnerabilities/software-macos.csv"
@@ -31,7 +31,7 @@ var (
 	ubuntuCSVPath = "./tools/software/vulnerabilities/software-ubuntu.csv"
 )
 
-func readCSVFile(filePath string) ([]fleet.Software, error) {
+func readCSVFile(filePath string) ([]automdm.Software, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return nil, err
@@ -44,9 +44,9 @@ func readCSVFile(filePath string) ([]fleet.Software, error) {
 		return nil, err
 	}
 
-	var software []fleet.Software
+	var software []automdm.Software
 	for _, line := range lines[1:] { // Skip header
-		software = append(software, fleet.Software{
+		software = append(software, automdm.Software{
 			Name:             line[0],
 			Version:          line[1],
 			Source:           line[2],
@@ -60,7 +60,7 @@ func readCSVFile(filePath string) ([]fleet.Software, error) {
 	return software, nil
 }
 
-func createOrGetHost(ctx context.Context, ds *mysql.Datastore, identifier string, base fleet.Host) (*fleet.Host, error) {
+func createOrGetHost(ctx context.Context, ds *mysql.Datastore, identifier string, base automdm.Host) (*automdm.Host, error) {
 	h, err := ds.HostByIdentifier(ctx, identifier)
 	if err == nil && h != nil {
 		return h, nil
@@ -99,7 +99,7 @@ func main() {
 	now := time.Now()
 
 	// macOS hosts
-	var macHosts []*fleet.Host
+	var macHosts []*automdm.Host
 	if *macosCount > 0 {
 		fmt.Printf("Creating %d macOS host(s)…\n", *macosCount)
 		for i := 1; i <= *macosCount; i++ {
@@ -107,7 +107,7 @@ func main() {
 			if *macosCount > 1 {
 				name = fmt.Sprintf("macos-seed-host-%d", i)
 			}
-			host, err := createOrGetHost(ctx, ds, name, fleet.Host{
+			host, err := createOrGetHost(ctx, ds, name, automdm.Host{
 				DetailUpdatedAt: now,
 				LabelUpdatedAt:  now,
 				PolicyUpdatedAt: now,
@@ -126,7 +126,7 @@ func main() {
 	}
 
 	// Windows hosts
-	var winHosts []*fleet.Host
+	var winHosts []*automdm.Host
 	if *windowsCount > 0 {
 		fmt.Printf("Creating %d Windows host(s)…\n", *windowsCount)
 		for i := 1; i <= *windowsCount; i++ {
@@ -134,7 +134,7 @@ func main() {
 			if *windowsCount > 1 {
 				name = fmt.Sprintf("windows-seed-host-%d", i)
 			}
-			host, err := createOrGetHost(ctx, ds, name, fleet.Host{
+			host, err := createOrGetHost(ctx, ds, name, automdm.Host{
 				DetailUpdatedAt: now,
 				LabelUpdatedAt:  now,
 				PolicyUpdatedAt: now,
@@ -158,7 +158,7 @@ func main() {
 		fmt.Printf("Creating %d Ubuntu host(s)…\n", *ubuntuCount)
 		for i := 1; i <= *ubuntuCount; i++ {
 			name := fmt.Sprintf("ubuntu-seed-host-%d", i)
-			host, err := createOrGetHost(ctx, ds, name, fleet.Host{
+			host, err := createOrGetHost(ctx, ds, name, automdm.Host{
 				DetailUpdatedAt: now,
 				LabelUpdatedAt:  now,
 				PolicyUpdatedAt: now,
@@ -172,7 +172,7 @@ func main() {
 				fmt.Printf("create ubuntu host failed (%s): %v\n", name, err)
 				continue
 			}
-			if err := ds.UpdateHostOperatingSystem(ctx, host.ID, fleet.OperatingSystem{
+			if err := ds.UpdateHostOperatingSystem(ctx, host.ID, automdm.OperatingSystem{
 				Name:           "Ubuntu",
 				Version:        fmt.Sprintf("20.04.%d", i),
 				Platform:       "ubuntu",
@@ -233,9 +233,9 @@ func main() {
 	if *linuxKernels > 0 && len(ubuntuIDs) > 0 {
 		fmt.Printf("Adding %d Linux kernel package(s) per Ubuntu host…\n", *linuxKernels)
 		for _, ubuntuID := range ubuntuIDs {
-			var pkgs []fleet.Software
+			var pkgs []automdm.Software
 			for k := 1; k <= *linuxKernels; k++ {
-				pkgs = append(pkgs, fleet.Software{
+				pkgs = append(pkgs, automdm.Software{
 					Name:     fmt.Sprintf("linux-image-6.8.0-%d-generic", k),
 					Version:  fmt.Sprintf("6.8.0-%d", k),
 					Source:   "Package (deb)",

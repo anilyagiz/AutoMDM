@@ -5,14 +5,14 @@ package bootstrap
 import (
 	"log/slog"
 
-	"github.com/fleetdm/fleet/v4/server/activity"
-	"github.com/fleetdm/fleet/v4/server/activity/api"
-	"github.com/fleetdm/fleet/v4/server/activity/internal/mysql"
-	"github.com/fleetdm/fleet/v4/server/activity/internal/service"
-	platform_authz "github.com/fleetdm/fleet/v4/server/platform/authz"
-	eu "github.com/fleetdm/fleet/v4/server/platform/endpointer"
-	platform_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
-	"github.com/fleetdm/fleet/v4/server/platform/tracing"
+	"github.com/anilyagiz/automdm/v4/server/activity"
+	"github.com/anilyagiz/automdm/v4/server/activity/api"
+	"github.com/anilyagiz/automdm/v4/server/activity/internal/mysql"
+	"github.com/anilyagiz/automdm/v4/server/activity/internal/service"
+	platform_authz "github.com/anilyagiz/automdm/v4/server/platform/authz"
+	eu "github.com/anilyagiz/automdm/v4/server/platform/endpointer"
+	platform_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/platform/tracing"
 	"github.com/go-kit/kit/endpoint"
 )
 

@@ -8,7 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -21,19 +21,19 @@ func TestEnrollSendsEUAToken(t *testing.T) {
 	testCases := []struct {
 		name   string
 		token  string
-		assert func(t *testing.T, receivedBody fleet.EnrollOrbitRequest, rawBody []byte)
+		assert func(t *testing.T, receivedBody automdm.EnrollOrbitRequest, rawBody []byte)
 	}{
 		{
 			name:  "eua_token included in enroll request when set",
 			token: euaTokenValue,
-			assert: func(t *testing.T, receivedBody fleet.EnrollOrbitRequest, rawBody []byte) {
+			assert: func(t *testing.T, receivedBody automdm.EnrollOrbitRequest, rawBody []byte) {
 				require.Equal(t, euaTokenValue, receivedBody.EUAToken)
 			},
 		},
 		{
 			name:  "eua_token omitted from enroll request when empty",
 			token: "",
-			assert: func(t *testing.T, receivedBody fleet.EnrollOrbitRequest, rawBody []byte) {
+			assert: func(t *testing.T, receivedBody automdm.EnrollOrbitRequest, rawBody []byte) {
 				// Verify the eua_token key is not present in the JSON body (omitempty).
 				require.Falsef(t, bytes.Contains(rawBody, []byte(`"eua_token"`)),
 					"eua_token should not appear in JSON when empty, got: %s", string(rawBody))
@@ -43,7 +43,7 @@ func TestEnrollSendsEUAToken(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			var receivedBody fleet.EnrollOrbitRequest
+			var receivedBody automdm.EnrollOrbitRequest
 			var rawBody []byte
 
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -52,7 +52,7 @@ func TestEnrollSendsEUAToken(t *testing.T) {
 				assert.NoError(t, err)
 				assert.NoError(t, json.Unmarshal(rawBody, &receivedBody))
 
-				resp := fleet.EnrollOrbitResponse{OrbitNodeKey: testNodeKey}
+				resp := automdm.EnrollOrbitResponse{OrbitNodeKey: testNodeKey}
 				w.Header().Set("Content-Type", "application/json")
 				err = json.NewEncoder(w).Encode(resp)
 				assert.NoError(t, err)
@@ -61,10 +61,10 @@ func TestEnrollSendsEUAToken(t *testing.T) {
 
 			oc := &OrbitClient{
 				enrollSecret: "secret",
-				hostInfo:     fleet.OrbitHostInfo{HardwareUUID: "uuid-1", Platform: "windows"},
+				hostInfo:     automdm.OrbitHostInfo{HardwareUUID: "uuid-1", Platform: "windows"},
 			}
 			oc.SetEUAToken(tc.token)
-			bc, err := NewBaseClient(srv.URL, true, "", "", nil, fleet.CapabilityMap{}, nil)
+			bc, err := NewBaseClient(srv.URL, true, "", "", nil, automdm.CapabilityMap{}, nil)
 			require.NoError(t, err)
 			oc.BaseClient = bc
 

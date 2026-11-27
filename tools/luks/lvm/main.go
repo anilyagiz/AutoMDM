@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/lvm"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/lvm"
 )
 
 func main() {

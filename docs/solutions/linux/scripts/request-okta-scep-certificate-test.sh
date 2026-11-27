@@ -1,7 +1,7 @@
 #!/bin/bash
 # NOTE: This script deploys an Okta device certificate, but Okta Verify for Linux
 # doesn't use it to mark the host as managed yet. Learn more:
-# https://fleetdm.com/guides/deploy-okta-fastpass-for-linux
+# https://automdm.com/guides/deploy-okta-fastpass-for-linux
 #
 # Enroll this host's Okta device certificate over SCEP and install it.
 #
@@ -23,8 +23,8 @@ umask 077
 CHALLENGE_URL="<Okta-challenge-URL>"
 SCEP_URL="<Okta-SCEP-URL>"
 SCEP_USERNAME="<Okta-SCEP-username>"
-SCEP_PASSWORD="${FLEET_SECRET_OKTA_SCEP_PASSWORD}"
-IDP_USERNAME="${FLEET_VAR_HOST_END_USER_IDP_USERNAME}"
+SCEP_PASSWORD="${AUTOMDM_SECRET_OKTA_SCEP_PASSWORD}"
+IDP_USERNAME="${AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME}"
 
 CERT_DIR="${CERT_DIR:-/etc/okta}"
 KEY_PATH="$CERT_DIR/device.key"
@@ -48,7 +48,7 @@ esac
 case "$CHALLENGE_URL$SCEP_URL$SCEP_USERNAME" in
   *"<Okta-"*) die "Fill in CHALLENGE_URL, SCEP_URL and SCEP_USERNAME at the top of the script" ;;
 esac
-[ -n "$SCEP_PASSWORD" ] || die "FLEET_SECRET_OKTA_SCEP_PASSWORD is empty"
+[ -n "$SCEP_PASSWORD" ] || die "AUTOMDM_SECRET_OKTA_SCEP_PASSWORD is empty"
 # IDP_USERNAME is optional; without it the CN is just "Okta FastPass".
 
 # Private scratch dir; always cleaned up, including on failure.

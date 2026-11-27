@@ -29,14 +29,14 @@ const EJBCACertRenewalMessage = ({
       {expired ? (
         <>
           The client certificate of an EJBCA certificate authority (CA) has
-          expired. Fleet can’t get certificates from EJBCA until you upload a
-          new one. Users with the admin role in Fleet can update it.
+          expired. AutoMDM can’t get certificates from EJBCA until you upload a
+          new one. Users with the admin role in AutoMDM can update it.
         </>
       ) : (
         <>
           The client certificate of an EJBCA certificate authority (CA) is less
-          than 30 days from expiration. If it expires, Fleet won’t be able to
-          get certificates from EJBCA. Users with the admin role in Fleet can
+          than 30 days from expiration. If it expires, AutoMDM won’t be able to
+          get certificates from EJBCA. Users with the admin role in AutoMDM can
           update it.
         </>
       )}

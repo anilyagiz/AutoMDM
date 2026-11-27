@@ -51,7 +51,7 @@ const renderInstallerDisplayText = (
   androidPlayStoreId?: string
 ) => {
   if (installerType === "package") {
-    return isFma ? "Fleet-maintained" : "Custom package";
+    return isFma ? "AutoMDM-maintained" : "Custom package";
   }
   if (androidPlayStoreId) {
     if (isAndroidWebApp(androidPlayStoreId)) {
@@ -93,9 +93,9 @@ interface IInstallerDetailsWidgetProps {
   hideVersion?: boolean;
   /** Suppress every hover tooltip the widget would normally render (title
    * truncation, FMA "change in Actions > Edit" hint, App Store "Updated every
-   * hour", Android Play Store link, "Fleet couldn't read the version", and the
+   * hour", Android Play Store link, "AutoMDM couldn't read the version", and the
    * `addedAt` formatted-time tooltip). Used by inactive LibraryItemAccordion
-   * rows, whose outer wrapper already shows the rollback hover tooltip — Fleet
+   * rows, whose outer wrapper already shows the rollback hover tooltip — AutoMDM
    * UI avoids stacking two tooltips on the same hover target across the app,
    * so the widget's tooltips have to defer to the row-level one. */
   disableTooltips?: boolean;
@@ -176,7 +176,7 @@ const InstallerDetailsWidget = ({
             disableTooltip={disableTooltips}
             tipContent={
               <span>
-                Fleet couldn&apos;t read the version from {softwareName}.
+                AutoMDM couldn&apos;t read the version from {softwareName}.
                 {installerType === "package" && (
                   <>
                     {" "}

@@ -7,17 +7,17 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"golang.org/x/sync/singleflight"
 )
 
-// Datastore is the mysqlredis datastore type - it wraps the fleet.Datastore
+// Datastore is the mysqlredis datastore type - it wraps the automdm.Datastore
 // interface to keep track of enrolled hosts and extends it to implement the
-// fleet.EnrollHostLimiter interface which indicates when the limit is
+// automdm.EnrollHostLimiter interface which indicates when the limit is
 // reached.
 type Datastore struct {
-	fleet.Datastore
-	pool fleet.RedisPool
+	automdm.Datastore
+	pool automdm.RedisPool
 
 	// options
 	enforceHostLimit int // <= 0 means do not enforce
@@ -45,7 +45,7 @@ func WithEnforcedHostLimit(limit int) Option {
 
 // WithHostCache enables the Redis-backed cache for LoadHostByNodeKey and
 // LoadHostByOrbitNodeKey lookups. ttl is the base TTL; actual per-entry TTL is
-// jittered by ±10% to avoid synchronized expiry across a fleet. A ttl of zero
+// jittered by ±10% to avoid synchronized expiry across a team. A ttl of zero
 // or negative disables the cache (same effect as not calling this option).
 func WithHostCache(ttl time.Duration) Option {
 	return func(o *Datastore) {
@@ -67,7 +67,7 @@ func WithLogger(logger *slog.Logger) Option {
 
 // New creates a Datastore that wraps ds and uses pool to execute redis-based
 // operations.
-func New(ds fleet.Datastore, pool fleet.RedisPool, opts ...Option) *Datastore {
+func New(ds automdm.Datastore, pool automdm.RedisPool, opts ...Option) *Datastore {
 	newDS := &Datastore{Datastore: ds, pool: pool, logger: slog.New(slog.DiscardHandler)}
 	for _, opt := range opts {
 		opt(newDS)

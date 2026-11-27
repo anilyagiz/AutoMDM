@@ -23,11 +23,11 @@ import (
 
 	jwt "github.com/golang-jwt/jwt/v4"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/dev_mode"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/apple/psso/pssocrypto"
-	"github.com/fleetdm/fleet/v4/server/mdm/apple/psso/regtoken"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/dev_mode"
+	"github.com/anilyagiz/automdm/v4/server/mdm/apple/psso/pssocrypto"
+	"github.com/anilyagiz/automdm/v4/server/mdm/apple/psso/regtoken"
 	jose "github.com/go-jose/go-jose/v4"
 )
 
@@ -51,10 +51,10 @@ const (
 	appBundleID       = "com.fleetdm.fleet-desktop"
 	extensionBundleID = "com.fleetdm.fleet-desktop.pssoextension"
 
-	fleetTeamID = "8VBZ3948LU"
+	automdmTeamID = "8VBZ3948LU"
 )
 
-// getPSSOSigningKey loads Fleet's PSSO signing key from mdm_config_assets,
+// getPSSOSigningKey loads AutoMDM's PSSO signing key from mdm_config_assets,
 // caching it after first use. The key (and CA) are created when the feature is
 // first configured (bootstrapPSSOAssets); a missing key here means the feature
 // isn't configured, so this never mints — it returns an error.
@@ -71,7 +71,7 @@ func (svc *Service) loadPSSOSigningKeyLocked(ctx context.Context) (*ecdsa.Privat
 		return svc.pssoState.signingKey, svc.pssoState.kid, nil
 	}
 	assets, err := svc.ds.GetAllMDMConfigAssetsByName(ctx,
-		[]fleet.MDMAssetName{fleet.MDMAssetPSSOSigningKey},
+		[]automdm.MDMAssetName{automdm.MDMAssetPSSOSigningKey},
 		nil,
 	)
 	if err != nil {
@@ -80,7 +80,7 @@ func (svc *Service) loadPSSOSigningKeyLocked(ctx context.Context) (*ecdsa.Privat
 		}
 		return nil, "", ctxerr.Wrap(ctx, err, "get psso signing key asset")
 	}
-	asset, ok := assets[fleet.MDMAssetPSSOSigningKey]
+	asset, ok := assets[automdm.MDMAssetPSSOSigningKey]
 	if !ok || len(asset.Value) == 0 {
 		return nil, "", ctxerr.New(ctx, "psso signing key asset is empty")
 	}
@@ -93,7 +93,7 @@ func (svc *Service) loadPSSOSigningKeyLocked(ctx context.Context) (*ecdsa.Privat
 	return key, kid, nil
 }
 
-// getPSSOEncryptionKey loads Fleet's PSSO password-encryption key from
+// getPSSOEncryptionKey loads AutoMDM's PSSO password-encryption key from
 // mdm_config_assets, caching it after first use. Like the signing key, it is
 // created when the feature is first configured (bootstrapPSSOAssets) and never
 // minted here; a missing key means the feature isn't configured.
@@ -104,7 +104,7 @@ func (svc *Service) getPSSOEncryptionKey(ctx context.Context) (*ecdsa.PrivateKey
 		return svc.pssoState.encryptionKey, svc.pssoState.encKID, nil
 	}
 	assets, err := svc.ds.GetAllMDMConfigAssetsByName(ctx,
-		[]fleet.MDMAssetName{fleet.MDMAssetPSSOEncryptionKey},
+		[]automdm.MDMAssetName{automdm.MDMAssetPSSOEncryptionKey},
 		nil,
 	)
 	if err != nil {
@@ -113,7 +113,7 @@ func (svc *Service) getPSSOEncryptionKey(ctx context.Context) (*ecdsa.PrivateKey
 		}
 		return nil, "", ctxerr.Wrap(ctx, err, "get psso encryption key asset")
 	}
-	asset, ok := assets[fleet.MDMAssetPSSOEncryptionKey]
+	asset, ok := assets[automdm.MDMAssetPSSOEncryptionKey]
 	if !ok || len(asset.Value) == 0 {
 		return nil, "", ctxerr.New(ctx, "psso encryption key asset is empty")
 	}
@@ -146,7 +146,7 @@ func (svc *Service) getPSSOCA(ctx context.Context) (*ecdsa.PrivateKey, *x509.Cer
 	}
 
 	assets, err := svc.ds.GetAllMDMConfigAssetsByName(ctx,
-		[]fleet.MDMAssetName{fleet.MDMAssetPSSOCACert},
+		[]automdm.MDMAssetName{automdm.MDMAssetPSSOCACert},
 		nil,
 	)
 	if err != nil {
@@ -155,7 +155,7 @@ func (svc *Service) getPSSOCA(ctx context.Context) (*ecdsa.PrivateKey, *x509.Cer
 		}
 		return nil, nil, ctxerr.Wrap(ctx, err, "get psso ca cert asset")
 	}
-	asset, ok := assets[fleet.MDMAssetPSSOCACert]
+	asset, ok := assets[automdm.MDMAssetPSSOCACert]
 	if !ok || len(asset.Value) == 0 {
 		return nil, nil, ctxerr.New(ctx, "psso ca cert asset is empty")
 	}
@@ -193,7 +193,7 @@ func parsePSSOSigningKeyPEM(pemBytes []byte) (*ecdsa.PrivateKey, string, error) 
 }
 
 // computeKID returns base64url-nopad SHA-256 of the SubjectPublicKeyInfo DER
-// encoding of pub. Used only for Fleet's own signing key (JWKS/JWT kid).
+// encoding of pub. Used only for AutoMDM's own signing key (JWKS/JWT kid).
 // Device key kids are different: the extension computes them as SHA-256 of
 // the raw X9.63 point bytes and submits them at registration.
 func computeKID(pub *ecdsa.PublicKey) (string, error) {
@@ -211,7 +211,7 @@ func isAssetNotFound(err error) bool {
 	if err == nil {
 		return false
 	}
-	if fleet.IsNotFound(err) {
+	if automdm.IsNotFound(err) {
 		return true
 	}
 	return errors.Is(err, sql.ErrNoRows)
@@ -227,12 +227,12 @@ const (
 // pssoSettingsIfConfigured resolves the Platform SSO settings for the current
 // request, returning nil when the feature isn't configured. The public IdP
 // fields come from AppConfig.MDM.AppleAccountProvisioning and the issuer is the
-// Fleet server URL. The client secret lives in mdm_config_assets (a separate,
+// AutoMDM server URL. The client secret lives in mdm_config_assets (a separate,
 // uncached read + decrypt); only the token flow needs it, so pass skipSecret
 // from the endpoints that don't (nonce, registration, JWKS, AASA) to avoid the
 // extra read. Read per request so configuring, clearing, or repointing the IdP
 // takes effect without a server restart.
-func (svc *Service) pssoSettingsIfConfigured(ctx context.Context, loadSecret bool) (*fleet.PSSOSettings, error) {
+func (svc *Service) pssoSettingsIfConfigured(ctx context.Context, loadSecret bool) (*automdm.PSSOSettings, error) {
 	cfg, err := svc.ds.AppConfig(ctx)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "load app config for psso")
@@ -242,7 +242,7 @@ func (svc *Service) pssoSettingsIfConfigured(ctx context.Context, loadSecret boo
 		return nil, nil
 	}
 
-	settings := &fleet.PSSOSettings{
+	settings := &automdm.PSSOSettings{
 		IssuerURL:   cfg.ServerSettings.ServerURL,
 		IdPTokenURL: aap.OAuthIdPTokenURL.Value,
 		IdPClientID: aap.OAuthIdPClientID.Value,
@@ -269,7 +269,7 @@ func (svc *Service) pssoSettingsIfConfigured(ctx context.Context, loadSecret boo
 // account provisioning feature, or "" if none is stored.
 func (svc *Service) pssoIdPClientSecret(ctx context.Context) (string, error) {
 	assets, err := svc.ds.GetAllMDMConfigAssetsByName(ctx,
-		[]fleet.MDMAssetName{fleet.MDMAssetAppleAccountProvisioningIdPClientSecret},
+		[]automdm.MDMAssetName{automdm.MDMAssetAppleAccountProvisioningIdPClientSecret},
 		nil,
 	)
 	if err != nil {
@@ -278,7 +278,7 @@ func (svc *Service) pssoIdPClientSecret(ctx context.Context) (string, error) {
 		}
 		return "", ctxerr.Wrap(ctx, err, "get psso idp client secret asset")
 	}
-	asset, ok := assets[fleet.MDMAssetAppleAccountProvisioningIdPClientSecret]
+	asset, ok := assets[automdm.MDMAssetAppleAccountProvisioningIdPClientSecret]
 	if !ok || len(asset.Value) == 0 {
 		return "", nil
 	}
@@ -288,7 +288,7 @@ func (svc *Service) pssoIdPClientSecret(ctx context.Context) (string, error) {
 // errPSSONotConfigured is returned from the device-facing endpoints when the
 // feature is disabled or missing required settings. Return it unwrapped (no
 // ctxerr.Wrap) so errors.Is matches on pointer identity.
-var errPSSONotConfigured = &fleet.BadRequestError{Message: "Platform SSO is not configured"}
+var errPSSONotConfigured = &automdm.BadRequestError{Message: "Platform SSO is not configured"}
 
 // pssoNonceTTL is how long an issued nonce remains valid before it's
 // rejected. Five minutes comfortably covers the extension's immediate
@@ -334,7 +334,7 @@ func (svc *Service) PSSONonce(ctx context.Context) (string, error) {
 // for the unauthenticated token endpoint.
 func (svc *Service) consumePSSORequestNonce(ctx context.Context, requestNonce string) error {
 	if requestNonce == "" {
-		return &fleet.BadRequestError{Message: "psso token: missing request_nonce"}
+		return &automdm.BadRequestError{Message: "psso token: missing request_nonce"}
 	}
 	if svc.pssoNonceStore == nil {
 		return ctxerr.New(ctx, "psso nonce store not configured")
@@ -344,7 +344,7 @@ func (svc *Service) consumePSSORequestNonce(ctx context.Context, requestNonce st
 		return ctxerr.Wrap(ctx, err, "consume psso request_nonce")
 	}
 	if !ok {
-		return &fleet.BadRequestError{Message: "psso token: invalid or expired request_nonce"}
+		return &automdm.BadRequestError{Message: "psso token: invalid or expired request_nonce"}
 	}
 	return nil
 }
@@ -357,7 +357,7 @@ func (svc *Service) consumePSSORequestNonce(ctx context.Context, requestNonce st
 // simply submits the public halves of its Secure Enclave signing and
 // encryption keys. User identity is established later, on each password login
 // at the token endpoint.
-func (svc *Service) PSSORegisterDevice(ctx context.Context, req fleet.PSSODeviceRegistrationRequest) error {
+func (svc *Service) PSSORegisterDevice(ctx context.Context, req automdm.PSSODeviceRegistrationRequest) error {
 	// skipauth: This is an unauthenticated device-initiated endpoint. The
 	// device proves itself later by signing token requests with the signing
 	// key registered here, verified against the kid.
@@ -372,15 +372,15 @@ func (svc *Service) PSSORegisterDevice(ctx context.Context, req fleet.PSSODevice
 	}
 
 	if req.DeviceSigningKey == "" || req.DeviceEncryptionKey == "" || req.SigningKeyID == "" || req.EncryptionKeyID == "" {
-		return &fleet.BadRequestError{Message: "missing required psso registration fields"}
+		return &automdm.BadRequestError{Message: "missing required psso registration fields"}
 	}
 	if req.RegistrationToken == "" {
-		return &fleet.BadRequestError{Message: "psso registration: missing registration token"}
+		return &automdm.BadRequestError{Message: "psso registration: missing registration token"}
 	}
 
 	// The registration token is what authenticates the device: it is a
-	// Fleet-signed JWT delivered in the configuration profile and bound to a
-	// specific host. Verify it with Fleet's PSSO signing key and take the host
+	// AutoMDM-signed JWT delivered in the configuration profile and bound to a
+	// specific host. Verify it with AutoMDM's PSSO signing key and take the host
 	// UUID from the token's subject — the device-reported DeviceUUID is not
 	// trusted for identity (an unauthenticated caller who guesses an enrolled
 	// host's hardware UUID must not be able to register keys for it).
@@ -390,7 +390,7 @@ func (svc *Service) PSSORegisterDevice(ctx context.Context, req fleet.PSSODevice
 	}
 	hostUUID, err := regtoken.Validate(req.RegistrationToken, &signingKey.PublicKey, time.Now())
 	if err != nil {
-		return &fleet.BadRequestError{Message: "psso registration: invalid registration token", InternalErr: err}
+		return &automdm.BadRequestError{Message: "psso registration: invalid registration token", InternalErr: err}
 	}
 
 	// Reject unparseable key material up front: a bad PEM stored here would
@@ -398,11 +398,11 @@ func (svc *Service) PSSORegisterDevice(ctx context.Context, req fleet.PSSODevice
 	// subsequent login.
 	signingPub, err := pssocrypto.ParseECPublicKeyPEM([]byte(req.DeviceSigningKey))
 	if err != nil {
-		return &fleet.BadRequestError{Message: "psso registration: signing key is not a valid P-256 public key"}
+		return &automdm.BadRequestError{Message: "psso registration: signing key is not a valid P-256 public key"}
 	}
 	encryptionPub, err := pssocrypto.ParseECPublicKeyPEM([]byte(req.DeviceEncryptionKey))
 	if err != nil {
-		return &fleet.BadRequestError{Message: "psso registration: encryption key is not a valid P-256 public key"}
+		return &automdm.BadRequestError{Message: "psso registration: encryption key is not a valid P-256 public key"}
 	}
 
 	// The token endpoint resolves a device's host by looking its key up by kid,
@@ -416,35 +416,35 @@ func (svc *Service) PSSORegisterDevice(ctx context.Context, req fleet.PSSODevice
 		return ctxerr.Wrap(ctx, err, "derive psso signing key id")
 	}
 	if signingKID != pssocrypto.CanonicalizeKID(req.SigningKeyID) {
-		return &fleet.BadRequestError{Message: "psso registration: signing key id does not match signing key"}
+		return &automdm.BadRequestError{Message: "psso registration: signing key id does not match signing key"}
 	}
 	encryptionKID, err := pssocrypto.KIDFromRawECPoint(encryptionPub)
 	if err != nil {
 		return ctxerr.Wrap(ctx, err, "derive psso encryption key id")
 	}
 	if encryptionKID != pssocrypto.CanonicalizeKID(req.EncryptionKeyID) {
-		return &fleet.BadRequestError{Message: "psso registration: encryption key id does not match encryption key"}
+		return &automdm.BadRequestError{Message: "psso registration: encryption key id does not match encryption key"}
 	}
 
 	// PSSO requires a matching enrolled host; the registration is keyed by the
 	// host UUID carried in the (validated) registration token.
 	host, err := svc.ds.HostByUUID(ctx, hostUUID)
 	if err != nil {
-		if fleet.IsNotFound(err) {
-			return &fleet.BadRequestError{Message: fmt.Sprintf("psso registration: no enrolled host matches device UUID %q", hostUUID)}
+		if automdm.IsNotFound(err) {
+			return &automdm.BadRequestError{Message: fmt.Sprintf("psso registration: no enrolled host matches device UUID %q", hostUUID)}
 		}
 		return ctxerr.Wrap(ctx, err, "look up host by device uuid")
 	}
 
-	keys := []fleet.PSSOKey{
+	keys := []automdm.PSSOKey{
 		{
 			KID:     signingKID,
-			KeyType: fleet.PSSOKeyTypeSigning,
+			KeyType: automdm.PSSOKeyTypeSigning,
 			PEM:     req.DeviceSigningKey,
 		},
 		{
 			KID:     encryptionKID,
-			KeyType: fleet.PSSOKeyTypeEncryption,
+			KeyType: automdm.PSSOKeyTypeEncryption,
 			PEM:     req.DeviceEncryptionKey,
 		},
 	}
@@ -472,7 +472,7 @@ func (svc *Service) PSSOToken(ctx context.Context, jwtBytes []byte) ([]byte, err
 	}
 
 	if len(jwtBytes) == 0 {
-		return nil, &fleet.BadRequestError{Message: "psso token: empty request body"}
+		return nil, &automdm.BadRequestError{Message: "psso token: empty request body"}
 	}
 
 	claims, signKey, err := svc.parsePSSOInboundJWT(ctx, jwtBytes)
@@ -503,18 +503,18 @@ func (svc *Service) PSSOToken(ctx context.Context, jwtBytes []byte) ([]byte, err
 	if claims.GrantType == pssocrypto.GrantTypePassword || claims.GrantType == pssocrypto.GrantTypeJWTBearer {
 		return svc.handlePSSOPasswordLogin(ctx, settings, signKey.HostUUID, claims)
 	}
-	return nil, &fleet.BadRequestError{Message: "psso token: unsupported grant_type/request_type"}
+	return nil, &automdm.BadRequestError{Message: "psso token: unsupported grant_type/request_type"}
 }
 
 // pssoDefaultTokenTTL is the id_token / refresh_token lifetime used when the
 // upstream IdP doesn't return an expires_in.
 const pssoDefaultTokenTTL = time.Hour
 
-// pssoAccountClaimPrefix namespaces the IdP claims Fleet forwards into the
+// pssoAccountClaimPrefix namespaces the IdP claims AutoMDM forwards into the
 // minted id_token so they can be referenced from the profile's
 // TokenToUserMapping (e.g. mapping AccountName to a custom "accountUsername"
 // claim for the macOS short name). Only claims whose names begin with this
-// prefix (case-insensitive) cross the IdP -> Fleet-signed-token boundary; no
+// prefix (case-insensitive) cross the IdP -> AutoMDM-signed-token boundary; no
 // registered OIDC/JWT claim uses it, so it can't collide with reserved claims.
 const pssoAccountClaimPrefix = "account"
 
@@ -522,7 +522,7 @@ const pssoAccountClaimPrefix = "account"
 // id_token `iss` claim against. Apple's login configuration derives the issuer
 // from the extension's configured hostname — a bare hostname with no scheme —
 // so the configured IssuerURL is reduced to its host.
-func pssoIDTokenIssuer(settings *fleet.PSSOSettings) string {
+func pssoIDTokenIssuer(settings *automdm.PSSOSettings) string {
 	// Hostname() (not Host) so a non-default port is dropped: the extension
 	// derives the issuer from the BaseURL via Swift's URL.host, which excludes
 	// the port. Returning Host here would mint iss with the port and the device
@@ -535,8 +535,8 @@ func pssoIDTokenIssuer(settings *fleet.PSSOSettings) string {
 
 // verifyAppleAccountProvisioning checks Apple account provisioning settings
 // with the IdP before they're saved.
-func (svc *Service) verifyAppleAccountProvisioning(ctx context.Context, settings fleet.AppleAccountProvisioning, clientSecret string) error {
-	return pssoIdPClientFromSettings(&fleet.PSSOSettings{
+func (svc *Service) verifyAppleAccountProvisioning(ctx context.Context, settings automdm.AppleAccountProvisioning, clientSecret string) error {
+	return pssoIdPClientFromSettings(&automdm.PSSOSettings{
 		IdPTokenURL:     settings.OAuthIdPTokenURL.Value,
 		IdPClientID:     settings.OAuthIdPClientID.Value,
 		IdPClientSecret: clientSecret,
@@ -548,7 +548,7 @@ func (svc *Service) verifyAppleAccountProvisioning(ctx context.Context, settings
 // restart. Returns the interface so an alternate backend (e.g. an LDAP bind
 // client for IdPs that reject ROPG) can be selected here later. Tests fake
 // the upstream IdP at the network boundary via PSSOOIDCROPGClient.HTTPClient.
-func pssoIdPClientFromSettings(settings *fleet.PSSOSettings) fleet.PSSOIdPClient {
+func pssoIdPClientFromSettings(settings *automdm.PSSOSettings) automdm.PSSOIdPClient {
 	return PSSOOIDCROPGClient{
 		TokenURL:     settings.IdPTokenURL,
 		ClientID:     settings.IdPClientID,
@@ -557,13 +557,13 @@ func pssoIdPClientFromSettings(settings *fleet.PSSOSettings) fleet.PSSOIdPClient
 	}
 }
 
-// buildPSSOIDTokenClaims assembles the claim set for the id_token Fleet mints
+// buildPSSOIDTokenClaims assembles the claim set for the id_token AutoMDM mints
 // and signs in the login response. It forwards the IdP's standard identity
 // claims plus any namespaced "account*" custom claims (so the profile's
 // TokenToUserMapping can map the macOS short name / full name to them), then
-// sets Fleet's own iss/sub/aud/nonce/iat/exp last so a misconfigured or
+// sets AutoMDM's own iss/sub/aud/nonce/iat/exp last so a misconfigured or
 // malicious IdP can never override the claims the device validates.
-func buildPSSOIDTokenClaims(idpClaims *fleet.PSSOClaims, issuer, audience, nonce string, now time.Time, expiresIn int) jwt.MapClaims {
+func buildPSSOIDTokenClaims(idpClaims *automdm.PSSOClaims, issuer, audience, nonce string, now time.Time, expiresIn int) jwt.MapClaims {
 	out := jwt.MapClaims{
 		"email":              idpClaims.Email,
 		"name":               idpClaims.Name,
@@ -586,15 +586,15 @@ func buildPSSOIDTokenClaims(idpClaims *fleet.PSSOClaims, issuer, audience, nonce
 // handlePSSOPasswordLogin services a PSSO v2 Password login request. The
 // extension sends a signed JWT carrying the plaintext password (the JWS is the
 // integrity/authenticity envelope; transport is TLS) and a jwe_crypto recipe.
-// Fleet validates the password against the upstream IdP, then returns the
+// AutoMDM validates the password against the upstream IdP, then returns the
 // resulting OIDC claims as a server-signed JWT wrapped in a JWE encrypted per
 // that recipe.
-func (svc *Service) handlePSSOPasswordLogin(ctx context.Context, settings *fleet.PSSOSettings, hostUUID string, claims *pssocrypto.TokenClaims) ([]byte, error) {
+func (svc *Service) handlePSSOPasswordLogin(ctx context.Context, settings *automdm.PSSOSettings, hostUUID string, claims *pssocrypto.TokenClaims) ([]byte, error) {
 	if claims.JWECrypto == nil || claims.JWECrypto.APV == "" {
-		return nil, &fleet.BadRequestError{Message: "psso password login: missing jwe_crypto recipe"}
+		return nil, &automdm.BadRequestError{Message: "psso password login: missing jwe_crypto recipe"}
 	}
 	if claims.JWECrypto.Alg != "ECDH-ES" || claims.JWECrypto.Enc != "A256GCM" {
-		return nil, &fleet.BadRequestError{Message: fmt.Sprintf("psso password login: unsupported jwe_crypto %q/%q", claims.JWECrypto.Alg, claims.JWECrypto.Enc)}
+		return nil, &automdm.BadRequestError{Message: fmt.Sprintf("psso password login: unsupported jwe_crypto %q/%q", claims.JWECrypto.Alg, claims.JWECrypto.Enc)}
 	}
 
 	username := claims.Username
@@ -607,7 +607,7 @@ func (svc *Service) handlePSSOPasswordLogin(ctx context.Context, settings *fleet
 		return nil, err
 	}
 	if username == "" || password == "" {
-		return nil, &fleet.BadRequestError{Message: "psso password login: missing username or password"}
+		return nil, &automdm.BadRequestError{Message: "psso password login: missing username or password"}
 	}
 
 	idpClient := pssoIdPClientFromSettings(settings)
@@ -622,8 +622,8 @@ func (svc *Service) handlePSSOPasswordLogin(ctx context.Context, settings *fleet
 	}
 
 	// Per Apple's JWE login-response doc, the response id_token is verified by
-	// the device against jwksEndpointURL (Fleet's JWKS). The upstream IdP's
-	// id_token is signed by the IdP's key and would not verify there, so Fleet
+	// the device against jwksEndpointURL (AutoMDM's JWKS). The upstream IdP's
+	// id_token is signed by the IdP's key and would not verify there, so AutoMDM
 	// mints its own id_token. The device validates: nonce == request nonce,
 	// iss == the profile issuer (hostname, no scheme), aud contains the
 	// clientID, iat in the past, exp in the future.
@@ -679,7 +679,7 @@ const pssoUsedLoginAssertionTTL = 90 * 24 * time.Hour
 // resolvePSSOLoginPassword returns the plaintext password for a password login.
 // With password encryption disabled it's the plaintext Password claim. With it
 // enabled the Password claim is empty and the password lives in the encrypted
-// embedded assertion, which Fleet decrypts with its PSSO encryption key. The
+// embedded assertion, which AutoMDM decrypts with its PSSO encryption key. The
 // username is always taken from the (signed) outer JWT, not the assertion.
 func (svc *Service) resolvePSSOLoginPassword(ctx context.Context, claims *pssocrypto.TokenClaims) (string, error) {
 	if claims.Password != "" {
@@ -698,10 +698,10 @@ func (svc *Service) resolvePSSOLoginPassword(ctx context.Context, claims *pssocr
 	// it, so the nonce match alone wouldn't stop the assertion from being sent again in another device's request.
 	assertionNonce, err := pssocrypto.LoginAssertionNonce([]byte(claims.Assertion), &encKey.PublicKey)
 	if err != nil {
-		return "", &fleet.BadRequestError{Message: "psso password login: invalid login assertion", InternalErr: err}
+		return "", &automdm.BadRequestError{Message: "psso password login: invalid login assertion", InternalErr: err}
 	}
 	if assertionNonce != claims.Nonce && assertionNonce != claims.RequestNonce {
-		return "", &fleet.BadRequestError{Message: "psso password login: login assertion is for another request"}
+		return "", &automdm.BadRequestError{Message: "psso password login: login assertion is for another request"}
 	}
 
 	plaintext, err := pssocrypto.DecryptPartyInfoJWE([]byte(claims.Assertion), encKey, pssocrypto.TypEncryptedLoginAssertion)
@@ -717,7 +717,7 @@ func (svc *Service) resolvePSSOLoginPassword(ctx context.Context, claims *pssocr
 		return "", ctxerr.Wrap(ctx, err, "record psso login assertion")
 	}
 	if !firstUse {
-		return "", &fleet.BadRequestError{Message: "psso password login: login assertion was already used"}
+		return "", &automdm.BadRequestError{Message: "psso password login: login assertion was already used"}
 	}
 
 	password, err := pssocrypto.ParseEmbeddedAssertionPassword(plaintext)
@@ -729,14 +729,14 @@ func (svc *Service) resolvePSSOLoginPassword(ctx context.Context, claims *pssocr
 
 // handlePSSOKeyRequest services a PSSO 2.0 key request (request_type
 // "key_request", key_purpose "user_unlock"). Per Apple's "Supporting key
-// requests and key exchange requests" doc, Fleet provisions a fresh EC256 key
+// requests and key exchange requests" doc, AutoMDM provisions a fresh EC256 key
 // pair, certifies its public half, and returns {certificate, iat, exp,
 // key_context} in a JWE (typ=platformsso-key-response+jwt) encrypted to the
 // device. key_context carries the provisioned PRIVATE key, sealed under a
 // server key, so the later key exchange can recover it statelessly.
 func (svc *Service) handlePSSOKeyRequest(ctx context.Context, hostUUID string, claims *pssocrypto.TokenClaims) ([]byte, error) {
 	if claims.JWECrypto == nil || claims.JWECrypto.APV == "" {
-		return nil, &fleet.BadRequestError{Message: "psso key request: missing jwe_crypto recipe"}
+		return nil, &automdm.BadRequestError{Message: "psso key request: missing jwe_crypto recipe"}
 	}
 	encPub, err := svc.resolvePSSOEncryptionKey(ctx, hostUUID, claims.JWECrypto.APV)
 	if err != nil {
@@ -784,7 +784,7 @@ func (svc *Service) handlePSSOKeyRequest(ctx context.Context, hostUUID string, c
 }
 
 // issuePSSOProvisionedCertificate issues an X.509 certificate over a
-// server-provisioned public key, signed by Fleet's persisted PSSO CA. This is
+// server-provisioned public key, signed by AutoMDM's persisted PSSO CA. This is
 // the certificate returned in a key-request response; the device uses its public
 // key for its half of the unlock-key Diffie-Hellman.
 func (svc *Service) issuePSSOProvisionedCertificate(ctx context.Context, provisionedKey *ecdsa.PublicKey) ([]byte, error) {
@@ -800,7 +800,7 @@ func (svc *Service) issuePSSOProvisionedCertificate(ctx context.Context, provisi
 	now := time.Now()
 	devTmpl := &x509.Certificate{
 		SerialNumber: serial,
-		Subject:      pkix.Name{CommonName: "Fleet PSSO Device Key"},
+		Subject:      pkix.Name{CommonName: "AutoMDM PSSO Device Key"},
 		NotBefore:    now.Add(-time.Hour),
 		NotAfter:     now.AddDate(1, 0, 0),
 		KeyUsage:     x509.KeyUsageDigitalSignature | x509.KeyUsageKeyAgreement,
@@ -814,16 +814,16 @@ func (svc *Service) issuePSSOProvisionedCertificate(ctx context.Context, provisi
 
 // handlePSSOKeyExchange services a PSSO 2.0 key exchange (request_type
 // "key_exchange"). The device sends its DH public key (other_publickey) plus
-// the key_context Fleet issued during the key request. Fleet recovers the
+// the key_context AutoMDM issued during the key request. AutoMDM recovers the
 // provisioned private key from key_context, computes the raw ECDH shared
 // secret against other_publickey (this is the unlock key), and returns
 // {iat, exp, key, key_context} in the same JWE envelope.
 func (svc *Service) handlePSSOKeyExchange(ctx context.Context, hostUUID string, claims *pssocrypto.TokenClaims) ([]byte, error) {
 	if claims.JWECrypto == nil || claims.JWECrypto.APV == "" {
-		return nil, &fleet.BadRequestError{Message: "psso key exchange: missing jwe_crypto recipe"}
+		return nil, &automdm.BadRequestError{Message: "psso key exchange: missing jwe_crypto recipe"}
 	}
 	if claims.OtherPublicKey == "" || claims.KeyContext == "" {
-		return nil, &fleet.BadRequestError{Message: "psso key exchange: missing other_publickey or key_context"}
+		return nil, &automdm.BadRequestError{Message: "psso key exchange: missing other_publickey or key_context"}
 	}
 
 	signingKey, _, err := svc.getPSSOSigningKey(ctx)
@@ -841,10 +841,10 @@ func (svc *Service) handlePSSOKeyExchange(ctx context.Context, hostUUID string, 
 	// Bind the sealed key_context to the device: reject a context replayed by, or
 	// fetched onto, any device other than the one it was issued to.
 	if kc.HostUUID != hostUUID {
-		return nil, &fleet.BadRequestError{Message: "psso key exchange: key_context host mismatch"}
+		return nil, &automdm.BadRequestError{Message: "psso key exchange: key_context host mismatch"}
 	}
 	if kc.KeyPurpose != pssoKeyPurposeUserUnlock {
-		return nil, &fleet.BadRequestError{Message: "psso key exchange: unsupported key_context purpose"}
+		return nil, &automdm.BadRequestError{Message: "psso key exchange: unsupported key_context purpose"}
 	}
 
 	otherRaw, err := pssocrypto.DecodeBase64Flexible(claims.OtherPublicKey)
@@ -879,7 +879,7 @@ func (svc *Service) handlePSSOKeyExchange(ctx context.Context, hostUUID string, 
 	return jwe, nil
 }
 
-// PSSOJWKS returns the JWKS JSON with Fleet's PSSO signing public key. When
+// PSSOJWKS returns the JWKS JSON with AutoMDM's PSSO signing public key. When
 // the feature is not configured it returns a 404 (not a 400 like the
 // device-facing endpoints) so the endpoint is indistinguishable from absent.
 func (svc *Service) PSSOJWKS(ctx context.Context) ([]byte, error) {
@@ -935,10 +935,10 @@ type pssoAASAApps struct {
 }
 
 // pssoDevAASAAppIDs returns the local-development app ID override read from
-// FLEET_DEV_PSSO_AASA_APP_IDS (comma-separated <TeamID>.<BundleID>)
+// AUTOMDM_DEV_PSSO_AASA_APP_IDS (comma-separated <TeamID>.<BundleID>)
 func pssoDevAASAAppIDs() []string {
 	var ids []string
-	for id := range strings.SplitSeq(dev_mode.Env("FLEET_DEV_PSSO_AASA_APP_IDS"), ",") {
+	for id := range strings.SplitSeq(dev_mode.Env("AUTOMDM_DEV_PSSO_AASA_APP_IDS"), ",") {
 		if id = strings.TrimSpace(id); id != "" {
 			ids = append(ids, id)
 		}
@@ -947,7 +947,7 @@ func pssoDevAASAAppIDs() []string {
 }
 
 // PSSOAASA returns the apple-app-site-association JSON Apple's framework
-// uses to validate the extension's authsrv: entitlement against Fleet's
+// uses to validate the extension's authsrv: entitlement against AutoMDM's
 // hostname. Returns 404 when the feature is not configured. Note Apple's CDN
 // caches this document for hours, so hosts may see a config change with a
 // 6–24h delay.
@@ -966,12 +966,12 @@ func (svc *Service) PSSOAASA(ctx context.Context) ([]byte, error) {
 
 	// A contributor testing locally signs the extension under their own
 	// (non-production) Apple Developer team, so the published app IDs must match
-	// that team. The FLEET_DEV_PSSO_AASA_APP_IDS override supplies them; it is
+	// that team. The AUTOMDM_DEV_PSSO_AASA_APP_IDS override supplies them; it is
 	// honored only when the server runs with --dev (dev_mode.Env gates on it), so
-	// production only uses Fleet's built-in app IDs but dev servers allow the production
+	// production only uses AutoMDM's built-in app IDs but dev servers allow the production
 	// binary or a local development override.
 	ids := pssoDevAASAAppIDs()
-	ids = append(ids, fleetTeamID+"."+appBundleID, fleetTeamID+"."+extensionBundleID)
+	ids = append(ids, automdmTeamID+"."+appBundleID, automdmTeamID+"."+extensionBundleID)
 	doc := pssoAASA{
 		AuthSrv: pssoAASAApps{
 			Apps: ids,

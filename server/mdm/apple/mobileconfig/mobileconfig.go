@@ -7,18 +7,18 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/mdm"
-	"github.com/fleetdm/fleet/v4/server/variables"
+	"github.com/anilyagiz/automdm/v4/server/mdm"
+	"github.com/anilyagiz/automdm/v4/server/variables"
 	"github.com/micromdm/plist"
 )
 
 const (
-	// FleetFileVaultPayloadIdentifier is the value for the PayloadIdentifier
-	// used by Fleet to configure FileVault and FileVault Escrow.
-	FleetFileVaultPayloadIdentifier   = "com.fleetdm.fleet.mdm.filevault"
-	FleetFileVaultPayloadType         = "com.apple.MCX.FileVault2"
-	FleetCustomSettingsPayloadType    = "com.apple.MCX"
-	FleetRecoveryKeyEscrowPayloadType = "com.apple.security.FDERecoveryKeyEscrow"
+	// AutoMDMFileVaultPayloadIdentifier is the value for the PayloadIdentifier
+	// used by AutoMDM to configure FileVault and FileVault Escrow.
+	AutoMDMFileVaultPayloadIdentifier   = "com.fleetdm.fleet.mdm.filevault"
+	AutoMDMFileVaultPayloadType         = "com.apple.MCX.FileVault2"
+	AutoMDMCustomSettingsPayloadType    = "com.apple.MCX"
+	AutoMDMRecoveryKeyEscrowPayloadType = "com.apple.security.FDERecoveryKeyEscrow"
 
 	// ACMEPayloadType is the Apple-defined PayloadType for ACME certificate
 	// payloads (com.apple.security.acme).
@@ -28,55 +28,55 @@ const (
 	SCEPPayloadType                        = "com.apple.security.scep"
 	DiskEncryptionProfileRestrictionErrMsg = "Couldn't add. The configuration profile can't include FileVault settings."
 
-	// FleetdConfigPayloadIdentifier is the value for the PayloadIdentifier used
-	// by fleetd to read configuration values from the system.
-	FleetdConfigPayloadIdentifier = "com.fleetdm.fleetd.config"
+	// AutoMDMdConfigPayloadIdentifier is the value for the PayloadIdentifier used
+	// by automdmd to read configuration values from the system.
+	AutoMDMdConfigPayloadIdentifier = "com.fleetdm.fleetd.config"
 
-	// FleetCARootConfigPayloadIdentifier TODO
-	FleetCARootConfigPayloadIdentifier = "com.fleetdm.caroot"
+	// AutoMDMCARootConfigPayloadIdentifier TODO
+	AutoMDMCARootConfigPayloadIdentifier = "com.fleetdm.caroot"
 
-	// FleetEnrollmentPayloadIdentifier is the value for the PayloadIdentifier used
-	// by Fleet to enroll a device with the MDM server.
-	FleetEnrollmentPayloadIdentifier = "com.fleetdm.fleet.mdm.apple.mdm"
+	// AutoMDMEnrollmentPayloadIdentifier is the value for the PayloadIdentifier used
+	// by AutoMDM to enroll a device with the MDM server.
+	AutoMDMEnrollmentPayloadIdentifier = "com.fleetdm.fleet.mdm.apple.mdm"
 
-	// FleetEnrollReferenceKey is the key used by Fleet of the URL query parameter representing a unique
+	// AutoMDMEnrollReferenceKey is the key used by AutoMDM of the URL query parameter representing a unique
 	// identifier for an MDM enrollment. The unique value of the query parameter is appended to the
-	// Fleet server URL when an MDM enrollment profile is generated for download by a device.
+	// AutoMDM server URL when an MDM enrollment profile is generated for download by a device.
 	//
 	// TODO: We have some inconsistencies where we use enroll_reference sometimes and
 	// enrollment_reference other times. It really should be the same everywhere, but
 	// it seems to be working now because the values are matching where they need to match.
 	// We should clean this up at some point and update hardcoded values in the codebase.
-	FleetEnrollReferenceKey = "enroll_reference"
+	AutoMDMEnrollReferenceKey = "enroll_reference"
 )
 
-// FleetPayloadIdentifiers returns a map of PayloadIdentifier strings
-// that are handled and delivered by Fleet.
+// AutoMDMPayloadIdentifiers returns a map of PayloadIdentifier strings
+// that are handled and delivered by AutoMDM.
 //
 // TODO(roperzh): at some point we should also include
 // apple_mdm.FletPayloadIdentifier here too, but that requires moving a lot of
 // files around due to import cycles.
-func FleetPayloadIdentifiers() map[string]struct{} {
+func AutoMDMPayloadIdentifiers() map[string]struct{} {
 	return map[string]struct{}{
-		FleetFileVaultPayloadIdentifier:    {},
-		FleetdConfigPayloadIdentifier:      {},
-		FleetCARootConfigPayloadIdentifier: {},
+		AutoMDMFileVaultPayloadIdentifier:    {},
+		AutoMDMdConfigPayloadIdentifier:      {},
+		AutoMDMCARootConfigPayloadIdentifier: {},
 	}
 }
 
-// FleetPayloadTypes returns a map of PayloadType strings
-// that are fully or partially handled and delivered by Fleet.
-func FleetPayloadTypes() map[string]struct{} {
+// AutoMDMPayloadTypes returns a map of PayloadType strings
+// that are fully or partially handled and delivered by AutoMDM.
+func AutoMDMPayloadTypes() map[string]struct{} {
 	return map[string]struct{}{
-		FleetRecoveryKeyEscrowPayloadType:        {},
-		FleetFileVaultPayloadType:                {},
-		FleetCustomSettingsPayloadType:           {},
+		AutoMDMRecoveryKeyEscrowPayloadType:      {},
+		AutoMDMFileVaultPayloadType:              {},
+		AutoMDMCustomSettingsPayloadType:         {},
 		"com.apple.security.FDERecoveryRedirect": {}, // no longer supported in macOS 10.13 and later
 	}
 }
 
 // Mobileconfig is the byte slice corresponding to an XML property list (i.e. plist) representation
-// of an Apple MDM configuration profile in Fleet.
+// of an Apple MDM configuration profile in AutoMDM.
 //
 // Configuration profiles are used to configure Apple devices. See also
 // https://developer.apple.com/documentation/devicemanagement/configuring_multiple_devices_using_profiles.
@@ -91,21 +91,21 @@ type Parsed struct {
 
 func (mc Mobileconfig) IsSignedProfile() bool {
 	trimmed := bytes.TrimSpace(mc)
-	if bytes.HasPrefix(trimmed, []byte("${FLEET_")) || bytes.HasPrefix(trimmed, []byte("$FLEET_")) {
+	if bytes.HasPrefix(trimmed, []byte("${AUTOMDM_")) || bytes.HasPrefix(trimmed, []byte("$AUTOMDM_")) {
 		return false // Not a signed profile since it only contains secret variable.
 	}
 	return !bytes.HasPrefix(bytes.TrimSpace(mc), []byte("<?xml"))
 }
 
-// ParseConfigProfile attempts to parse the Mobileconfig byte slice as a Fleet MDMAppleConfigProfile.
+// ParseConfigProfile attempts to parse the Mobileconfig byte slice as an AutoMDM MDMAppleConfigProfile.
 //
-// The byte slice must be XML or PKCS7 parseable. Fleet also requires that it contains both
+// The byte slice must be XML or PKCS7 parseable. AutoMDM also requires that it contains both
 // a PayloadIdentifier and a PayloadDisplayName and that it has PayloadType set to "Configuration".
 //
 // Adapted from https://github.com/micromdm/micromdm/blob/main/platform/profile/profile.go
 func (mc Mobileconfig) ParseConfigProfile() (*Parsed, error) {
 	mcBytes := mc
-	// Remove Fleet variables expected in <data> section.
+	// Remove AutoMDM variables expected in <data> section.
 	mcBytes = variables.ProfileDataVariableRegex.ReplaceAll(mcBytes, []byte(""))
 	if mc.IsSignedProfile() {
 		return nil, errors.New("signed profiles are not supported")
@@ -153,7 +153,7 @@ type payloadSummary struct {
 // See also https://developer.apple.com/documentation/devicemanagement/toplevel
 func (mc Mobileconfig) payloadSummary() ([]payloadSummary, error) {
 	mcBytes := mc
-	// Remove Fleet variables expected in <data> section.
+	// Remove AutoMDM variables expected in <data> section.
 	mcBytes = variables.ProfileDataVariableRegex.ReplaceAll(mcBytes, []byte(""))
 	if mc.IsSignedProfile() {
 		return nil, errors.New("signed profiles are not supported")
@@ -245,20 +245,20 @@ func (mc *Mobileconfig) ScreenPayloads(allowCustomFileVault bool) error {
 		}
 	}
 
-	fleetNames := mdm.FleetReservedProfileNames()
-	fleetIdentifiers := FleetPayloadIdentifiers()
-	fleetTypes := FleetPayloadTypes()
+	automdmNames := mdm.AutoMDMReservedProfileNames()
+	automdmIdentifiers := AutoMDMPayloadIdentifiers()
+	automdmTypes := AutoMDMPayloadTypes()
 	screenedTypes := []string{}
 	screenedIdentifiers := []string{}
 	screenedNames := []string{}
 	for _, t := range pct {
-		if _, ok := fleetTypes[t.Type]; ok {
+		if _, ok := automdmTypes[t.Type]; ok {
 			screenedTypes = append(screenedTypes, t.Type)
 		}
-		if _, ok := fleetIdentifiers[t.Identifier]; ok {
+		if _, ok := automdmIdentifiers[t.Identifier]; ok {
 			screenedIdentifiers = append(screenedIdentifiers, t.Identifier)
 		}
-		if _, ok := fleetNames[t.Name]; ok {
+		if _, ok := automdmNames[t.Name]; ok {
 			screenedNames = append(screenedNames, t.Name)
 		}
 	}
@@ -267,11 +267,11 @@ func (mc *Mobileconfig) ScreenPayloads(allowCustomFileVault bool) error {
 		var unsupportedTypes []string
 		for _, t := range screenedTypes {
 			switch t {
-			case FleetFileVaultPayloadType, FleetRecoveryKeyEscrowPayloadType:
+			case AutoMDMFileVaultPayloadType, AutoMDMRecoveryKeyEscrowPayloadType:
 				if !allowCustomFileVault {
 					return errors.New(DiskEncryptionProfileRestrictionErrMsg)
 				}
-			case FleetCustomSettingsPayloadType:
+			case AutoMDMCustomSettingsPayloadType:
 				contains, err := ContainsFDEFileVaultOptionsPayload(*mc)
 				if err != nil {
 					return fmt.Errorf("checking for FDEVileVaultOptions payload: %w", err)

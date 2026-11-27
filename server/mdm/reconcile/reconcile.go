@@ -9,7 +9,7 @@ package reconcile
 import (
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
 // EntityAppliesToHost is the shared top-level dispatcher for MDM label-gated entities (profiles and declarations). It applies the
@@ -21,11 +21,11 @@ import (
 //
 // entityOnHost reports whether the entity is currently on the host: an install-operation row exists for it in the platform's
 // per-entity host_mdm_* table (host_mdm_apple_profiles, host_mdm_apple_declarations, host_mdm_windows_profiles,
-// host_mdm_android_profiles), whatever its status (including failed — Fleet still intends the entity to be there). No row, or a
+// host_mdm_android_profiles), whatever its status (including failed — AutoMDM still intends the entity to be there). No row, or a
 // remove-operation row, means not on host. It drives the unknown-membership rules so that a dynamic label the host hasn't
 // evaluated yet preserves the entity's current state instead of forcing a removal.
 func EntityAppliesToHost(
-	e fleet.MDMLabeledEntity,
+	e automdm.MDMLabeledEntity,
 	hostEffectiveTeamID uint,
 	hostLabelUpdatedAt time.Time,
 	hostLabels map[uint]struct{},
@@ -35,12 +35,12 @@ func EntityAppliesToHost(
 		return false
 	}
 
-	if e.GetIncludeMode() != fleet.MDMProfileIncludeNone {
+	if e.GetIncludeMode() != automdm.MDMProfileIncludeNone {
 		var ok bool
 		switch e.GetIncludeMode() {
-		case fleet.MDMProfileIncludeAll:
+		case automdm.MDMProfileIncludeAll:
 			ok = HandlerIncludeAll(e.GetIncludeLabels(), hostLabelUpdatedAt, hostLabels, entityOnHost)
-		case fleet.MDMProfileIncludeAny:
+		case automdm.MDMProfileIncludeAny:
 			ok = HandlerIncludeAny(e.GetIncludeLabels(), hostLabels)
 		default:
 			return false
@@ -62,8 +62,8 @@ func EntityAppliesToHost(
 // membershipUnknown reports whether the host's membership in the label cannot be known yet: a dynamic label created after the
 // host's last label-query report (hostLabelUpdatedAt) has never been evaluated by the host, so the absence of a membership row
 // carries no signal. Manual and host-vitals labels are server-populated, so their membership is always considered known.
-func membershipUnknown(l fleet.MDMProfileLabelRef, hostLabelUpdatedAt time.Time) bool {
-	return l.LabelMembershipType == int(fleet.LabelMembershipTypeDynamic) &&
+func membershipUnknown(l automdm.MDMProfileLabelRef, hostLabelUpdatedAt time.Time) bool {
+	return l.LabelMembershipType == int(automdm.LabelMembershipTypeDynamic) &&
 		!l.CreatedAt.IsZero() &&
 		hostLabelUpdatedAt.Before(l.CreatedAt)
 }
@@ -74,7 +74,7 @@ func membershipUnknown(l fleet.MDMProfileLabelRef, hostLabelUpdatedAt time.Time)
 // A label with unknown membership (see membershipUnknown) counts as a member only when the entity is already on the host, so
 // adding a label to an entity's scope doesn't remove it from hosts that haven't evaluated the label yet; hosts without the
 // entity keep waiting for confirmed membership. A confirmed non-member label still disqualifies regardless of entityOnHost.
-func HandlerIncludeAll(labels []fleet.MDMProfileLabelRef, hostLabelUpdatedAt time.Time, hostLabels map[uint]struct{}, entityOnHost bool) bool {
+func HandlerIncludeAll(labels []automdm.MDMProfileLabelRef, hostLabelUpdatedAt time.Time, hostLabels map[uint]struct{}, entityOnHost bool) bool {
 	if len(labels) == 0 {
 		return false
 	}
@@ -95,7 +95,7 @@ func HandlerIncludeAll(labels []fleet.MDMProfileLabelRef, hostLabelUpdatedAt tim
 
 // HandlerIncludeAny checks that host is a member of at least one include label. Broken labels can't match (host can't be a member
 // of a deleted label) so they're silently skipped.
-func HandlerIncludeAny(labels []fleet.MDMProfileLabelRef, hostLabels map[uint]struct{}) bool {
+func HandlerIncludeAny(labels []automdm.MDMProfileLabelRef, hostLabels map[uint]struct{}) bool {
 	for _, l := range labels {
 		if l.LabelID == nil {
 			continue
@@ -119,7 +119,7 @@ func HandlerIncludeAny(labels []fleet.MDMProfileLabelRef, hostLabels map[uint]st
 //
 // Returns true if the host should be excluded, false if the host passes the exclude gate.
 func HandlerExcludeAny(
-	labels []fleet.MDMProfileLabelRef,
+	labels []automdm.MDMProfileLabelRef,
 	hostLabelUpdatedAt time.Time,
 	hostLabels map[uint]struct{},
 	entityOnHost bool,

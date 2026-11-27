@@ -72,7 +72,7 @@ export const generateSoftwareTableHeaders = ({
 
         const softwareTitleDetailsPath = getPathWithQueryParams(
           PATHS.SOFTWARE_TITLE_DETAILS(id.toString()),
-          { fleet_id: teamId }
+          { team_id: teamId }
         );
 
         const hasInstaller = !!app_store_app || !!pkg;

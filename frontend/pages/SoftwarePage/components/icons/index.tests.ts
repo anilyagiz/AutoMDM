@@ -88,7 +88,7 @@ describe("getMatchedSoftwareIcon", () => {
       ).toBe(AcrobatReader);
     });
 
-    it("matches the ARM64 Zoom Fleet-maintained app to Zoom", () => {
+    it("matches the ARM64 Zoom AutoMDM-maintained app to Zoom", () => {
       expect(
         getMatchedSoftwareIcon({ name: "Zoom (ARM64)", source: "programs" })
       ).toBe(Zoom);

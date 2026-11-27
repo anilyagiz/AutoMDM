@@ -156,12 +156,12 @@ const WindowsAutomaticEnrollmentPage = () => {
           <PageDescription
             content={
               <>
-                To connect Fleet to Microsoft Entra, follow the instructions in
+                To connect AutoMDM to Microsoft Entra, follow the instructions in
                 the{" "}
                 <CustomLink
                   newTab
                   text="guide"
-                  url="https://fleetdm.com/learn-more-about/connect-microsoft-entra"
+                  url="https://automdm.com/learn-more-about/connect-microsoft-entra"
                 />
               </>
             }

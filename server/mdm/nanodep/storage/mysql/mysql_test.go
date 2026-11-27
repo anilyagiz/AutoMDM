@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/mdm/nanodep/storage"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanodep/storage/storagetest"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanodep/storage"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanodep/storage/storagetest"
 	_ "github.com/go-sql-driver/mysql"
 )
 

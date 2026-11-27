@@ -7,8 +7,8 @@ permissions: {}
 
 jobs:
   cleanup:
-    # Only run for branch deletions (not tag deletions) in the fleetdm/fleet repo.
-    if: ${{ github.event.ref_type == 'branch' && github.repository == 'fleetdm/fleet' }}
+    # Only run for branch deletions (not tag deletions) in the automdm/automdm repo.
+    if: ${{ github.event.ref_type == 'branch' && github.repository == 'automdm/automdm' }}
     runs-on: ubuntu-latest
     environment: Docker Hub
     steps:
@@ -53,7 +53,7 @@ jobs:
 
           # Delete the tag (ignore 404 — tag may not exist)
           HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE \
-            "https://hub.docker.com/v2/repositories/fleetdm/fleet/tags/${TAG}/" \
+            "https://hub.docker.com/v2/repositories/automdm/automdm/tags/${TAG}/" \
             -H "Authorization: Bearer $TOKEN")
 
           if [[ "$HTTP_STATUS" == "204" ]]; then
@@ -73,8 +73,8 @@ jobs:
         run: |
           # The robot account used for `docker push` can only authenticate against the
           # registry API (not Quay's REST API), so delete the tag via the v2 manifest endpoint.
-          TOKEN=$(curl -s -u "fleetdm+fleetreleaser:$QUAY_REGISTRY_PASSWORD" \
-            "https://quay.io/v2/auth?service=quay.io&scope=repository:fleetdm/fleet:pull,push" \
+          TOKEN=$(curl -s -u "automdm+automdmreleaser:$QUAY_REGISTRY_PASSWORD" \
+            "https://quay.io/v2/auth?service=quay.io&scope=repository:automdm/automdm:pull,push" \
             | jq -r .token)
 
           if [[ -z "$TOKEN" || "$TOKEN" == "null" ]]; then
@@ -83,7 +83,7 @@ jobs:
           fi
 
           HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE \
-            "https://quay.io/v2/fleetdm/fleet/manifests/${TAG}" \
+            "https://quay.io/v2/automdm/automdm/manifests/${TAG}" \
             -H "Authorization: Bearer $TOKEN")
 
           if [[ "$HTTP_STATUS" == "202" || "$HTTP_STATUS" == "200" || "$HTTP_STATUS" == "204" ]]; then

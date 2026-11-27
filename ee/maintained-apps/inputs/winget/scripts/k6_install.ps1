@@ -1,11 +1,11 @@
 # Learn more about install scripts:
-# http://fleetdm.com/learn-more-about/install-scripts
+# http://automdm.com/learn-more-about/install-scripts
 #
 # k6's MSI doesn't set ALLUSERS, so without ALLUSERS=1 it registers only for the
-# account that runs it (SYSTEM, under Fleet). A copy registered that way by an
+# account that runs it (SYSTEM, under AutoMDM). A copy registered that way by an
 # earlier install is removed first so it isn't left behind next to the new one.
 
-$logFile = "${env:TEMP}/fleet-install-software.log"
+$logFile = "${env:TEMP}/automdm-install-software.log"
 $upgradeCode = '{8C5F9495-F697-4780-ABFD-90DCC2F681B6}'
 
 # 3010 = reboot required, 1641 = reboot initiated

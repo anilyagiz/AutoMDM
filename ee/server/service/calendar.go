@@ -6,10 +6,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/authz"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/service/calendar"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/service/calendar"
 	"github.com/google/uuid"
 )
 
@@ -69,7 +69,7 @@ func (svc *Service) CalendarWebhook(ctx context.Context, eventUUID string, chann
 	eventDetails, err := svc.ds.GetCalendarEventDetailsByUUID(ctx, eventUUID)
 	if err != nil {
 		svc.authz.SkipAuthorization(ctx)
-		if fleet.IsNotFound(err) {
+		if automdm.IsNotFound(err) {
 			// We could try to stop the channel callbacks here, but that may not be secure since we don't know if the request is legitimate
 			svc.logger.InfoContext(ctx, "Received calendar callback, but did not find corresponding event in database", "event_uuid",
 				eventUUID, "channel_id", channelID)
@@ -88,7 +88,7 @@ func (svc *Service) CalendarWebhook(ctx context.Context, eventUUID string, chann
 	if eventDetails.TeamID == nil {
 		// Should not happen
 		svc.authz.SkipAuthorization(ctx)
-		return fmt.Errorf("calendar event %s has no fleet ID", eventUUID)
+		return fmt.Errorf("calendar event %s has no team ID", eventUUID)
 	}
 
 	localConfig := &calendar.Config{
@@ -118,7 +118,7 @@ func (svc *Service) CalendarWebhook(ctx context.Context, eventUUID string, chann
 			// We got the lock, so we can process the event. We need to refetch the event from DB, since it may have changed since the last fetch.
 			eventDetails, err = svc.ds.GetCalendarEventDetailsByUUID(ctx, eventUUID)
 			if err != nil {
-				if fleet.IsNotFound(err) {
+				if automdm.IsNotFound(err) {
 					// We found the event the first time, but it was deleted before we got the lock.
 					svc.logger.InfoContext(ctx, "Received calendar callback, but the event was just deleted", "event_uuid",
 						eventUUID, "channel_id", channelID)
@@ -169,16 +169,16 @@ func (svc *Service) CalendarWebhook(ctx context.Context, eventUUID string, chann
 	return nil
 }
 
-func (svc *Service) processCalendarEvent(ctx context.Context, eventDetails *fleet.CalendarEventDetails,
-	googleCalendarIntegrationConfig *fleet.GoogleCalendarIntegration, userCalendar fleet.UserCalendar) error {
+func (svc *Service) processCalendarEvent(ctx context.Context, eventDetails *automdm.CalendarEventDetails,
+	googleCalendarIntegrationConfig *automdm.GoogleCalendarIntegration, userCalendar automdm.UserCalendar) error {
 
 	var generatedTag string
 	// This flag indicates that calendar event should no longer exist, and we can stop watching it.
 	stopChannel := false
-	var genBodyFn fleet.CalendarGenBodyFn = func(conflict bool) (body string, ok bool, err error) {
+	var genBodyFn automdm.CalendarGenBodyFn = func(conflict bool) (body string, ok bool, err error) {
 
 		// This function is called when a new event is being created.
-		var team *fleet.TeamLite
+		var team *automdm.TeamLite
 		team, err = svc.ds.TeamLite(ctx, *eventDetails.TeamID)
 		if err != nil {
 			return "", false, err
@@ -190,7 +190,7 @@ func (svc *Service) processCalendarEvent(ctx context.Context, eventDetails *flee
 			return "", false, nil
 		}
 
-		var policies []fleet.PolicyCalendarData
+		var policies []automdm.PolicyCalendarData
 		policies, err = svc.ds.GetCalendarPolicies(ctx, team.ID)
 		if err != nil {
 			return "", false, err
@@ -206,7 +206,7 @@ func (svc *Service) processCalendarEvent(ctx context.Context, eventDetails *flee
 			policyIDs = append(policyIDs, policy.ID)
 		}
 
-		var hosts []fleet.HostPolicyMembershipData
+		var hosts []automdm.HostPolicyMembershipData
 		hosts, err = svc.ds.GetTeamHostsPolicyMemberships(
 			ctx,
 			googleCalendarIntegrationConfig.Domain,
@@ -239,7 +239,7 @@ func (svc *Service) processCalendarEvent(ctx context.Context, eventDetails *flee
 	if err != nil {
 		return ctxerr.Wrap(ctx, err, "configure calendar")
 	}
-	event, updated, err := userCalendar.GetAndUpdateEvent(&eventDetails.CalendarEvent, genBodyFn, fleet.CalendarGetAndUpdateEventOpts{})
+	event, updated, err := userCalendar.GetAndUpdateEvent(&eventDetails.CalendarEvent, genBodyFn, automdm.CalendarGetAndUpdateEventOpts{})
 	if err != nil {
 		return ctxerr.Wrap(ctx, err, "get and update event")
 	}
@@ -258,7 +258,7 @@ func (svc *Service) processCalendarEvent(ctx context.Context, eventDetails *flee
 			return ctxerr.Wrap(ctx, err, "save calendar event body tag")
 		}
 		_, err = svc.ds.CreateOrUpdateCalendarEvent(ctx, event.UUID, event.Email, event.StartTime, event.EndTime, event.Data,
-			event.TimeZone, *eventDetails.HostID, fleet.CalendarWebhookStatusNone)
+			event.TimeZone, *eventDetails.HostID, automdm.CalendarWebhookStatusNone)
 		if err != nil {
 			return ctxerr.Wrap(ctx, err, "create or update calendar event")
 		}
@@ -426,7 +426,7 @@ func (svc *Service) processCalendarEventAsync(ctx context.Context, eventUUID str
 
 	eventDetails, err := svc.ds.GetCalendarEventDetailsByUUID(ctx, eventUUID)
 	if err != nil {
-		if fleet.IsNotFound(err) {
+		if automdm.IsNotFound(err) {
 			// We found this event when the callback initially came in. So the event may have been removed or re-created since then.
 			return true
 		}
@@ -435,7 +435,7 @@ func (svc *Service) processCalendarEventAsync(ctx context.Context, eventUUID str
 	}
 	if eventDetails.TeamID == nil {
 		// Should not happen
-		svc.logger.ErrorContext(ctx, "Calendar event has no fleet ID", "uuid", eventUUID)
+		svc.logger.ErrorContext(ctx, "Calendar event has no team ID", "uuid", eventUUID)
 		return false
 	}
 

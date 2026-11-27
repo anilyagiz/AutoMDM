@@ -11,16 +11,16 @@ const getHostStatusPreview = (teamScope?: boolean) => {
     unseen_hosts: 1,
     total_hosts: 2,
     days_unseen: 3,
-    fleet_id: 123,
+    team_id: 123,
   } as Record<string, number>;
 
   if (!teamScope) {
-    delete data.fleet_id;
+    delete data.team_id;
   }
 
   return {
     text:
-      "More than X% of your hosts have not checked into Fleet for more than Y days. You've been sent this message because the Host status webhook is enabled in your Fleet instance.",
+      "More than X% of your hosts have not checked into AutoMDM for more than Y days. You've been sent this message because the Host status webhook is enabled in your AutoMDM instance.",
     data,
   };
 };

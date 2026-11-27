@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Used in the Nudge guide: https://fleetdm.com/guides/enforce-os-updates-on-macos-with-nudge
+# Used in the Nudge guide: https://automdm.com/guides/enforce-os-updates-on-macos-with-nudge
 # If you change this script, update the guide too.
 
 PLIST_PATH="/Library/LaunchAgents/com.github.macadmins.Nudge.plist"

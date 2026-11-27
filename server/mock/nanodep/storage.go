@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/mdm/nanodep/client"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanodep/storage"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanodep/client"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanodep/storage"
 )
 
 var _ storage.AllDEPStorage = (*Storage)(nil)

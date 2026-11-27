@@ -43,7 +43,7 @@ export interface ISoftware {
   vendor?: string;
   release?: string;
   icon_url: string | null; // Only available on team view if an admin uploaded an icon to a team's software
-  /** Fleet marked this software as an AI tool (Premium; always false on Free). */
+  /** AutoMDM marked this software as an AI tool (Premium; always false on Free). */
   ai_tool?: boolean;
 }
 
@@ -116,7 +116,7 @@ export interface ISoftwareAppStoreAppStatus {
   failed: number;
 }
 
-export interface IFleetMaintainedVersion {
+export interface IAutoMDMMaintainedVersion {
   id: number;
   version: string;
   filename: string;
@@ -152,9 +152,9 @@ export interface ISoftwarePackage {
   labels_include_all: ILabelSoftwareTitle[] | null;
   labels_exclude_any: ILabelSoftwareTitle[] | null;
   categories?: SoftwareCategory[] | null;
-  fleet_maintained_app_id?: number | null;
-  fleet_maintained_app_slug?: string;
-  fleet_maintained_versions?: IFleetMaintainedVersion[] | null;
+  automdm_maintained_app_id?: number | null;
+  automdm_maintained_app_slug?: string;
+  automdm_maintained_versions?: IAutoMDMMaintainedVersion[] | null;
   /** Version pin: null/absent = Latest, exact version = exact pin, caret
    * ("^149") = major-version pin. */
   pinned_version?: string | null;
@@ -192,8 +192,8 @@ export interface IAppStoreApp {
   /** iOS/iPadOS: XML plist string. Android: parsed JSON object (BE sends
    * json.RawMessage which Axios auto-parses). */
   configuration?: string | Record<string, unknown>;
-  /** The token the app was added from on this fleet. Null for Google Play
-   * apps and when the title isn't fetched for a fleet. */
+  /** The token the app was added from on this team. Null for Google Play
+   * apps and when the title isn't fetched for a team. */
   vpp_token?: IVppTokenSummary | null;
 }
 
@@ -208,7 +208,7 @@ export interface IAppStoreApp {
 export interface IAppStoreAppVersion {
   /** Version id. Used to target this version in PATCH/DELETE requests. */
   id: number;
-  /** Admin-provided version name, unique per title per fleet. */
+  /** Admin-provided version name, unique per title per team. */
   name: string;
   app_store_id: string;
   platform: typeof HOST_APPLE_PLATFORMS[number] | "android";
@@ -231,8 +231,8 @@ export interface IAppStoreAppVersion {
   /** iOS/iPadOS: XML plist string. Android: parsed JSON object (BE sends
    * json.RawMessage which Axios auto-parses). */
   configuration?: string | Record<string, unknown>;
-  /** The token the app was added from on this fleet. Null for Google Play
-   * apps and when the title isn't fetched for a fleet. */
+  /** The token the app was added from on this team. Null for Google Play
+   * apps and when the title isn't fetched for a team. */
   vpp_token?: IVppTokenSummary | null;
 }
 
@@ -270,7 +270,7 @@ export interface ISoftwareTitle {
   auto_update_enabled?: boolean;
   auto_update_window_start?: string;
   auto_update_window_end?: string;
-  /** Fleet marked this software as an AI tool (Premium; always false on Free). */
+  /** AutoMDM marked this software as an AI tool (Premium; always false on Free). */
   ai_tool?: boolean;
 }
 
@@ -300,7 +300,7 @@ export interface ISoftwareTitleDetails {
   auto_update_enabled?: boolean;
   auto_update_window_start?: string;
   auto_update_window_end?: string;
-  /** Fleet marked this software as an AI tool (Premium; always false on Free). */
+  /** AutoMDM marked this software as an AI tool (Premium; always false on Free). */
   ai_tool?: boolean;
 }
 
@@ -333,7 +333,7 @@ export interface ISoftwareVersion {
   generated_cpe: string;
   vulnerabilities: ISoftwareVulnerability[] | null;
   hosts_count?: number;
-  /** Fleet marked this software as an AI tool (Premium; always false on Free). */
+  /** AutoMDM marked this software as an AI tool (Premium; always false on Free). */
   ai_tool?: boolean;
 }
 
@@ -352,7 +352,7 @@ export const MACOS_APP_SOFTWARE_TYPE = "macos_app";
 
 // Keys are used in the page URLs (`?types=`), so never rename them.
 // IMPORTANT: Keep sources and extension_for values in sync with
-// softwareTypeFilterSources in server/fleet/software.go.
+// softwareTypeFilterSources in server/automdm/software.go.
 const SOFTWARE_TYPE_VARIANTS = [
   {
     key: "adobe_plugin",
@@ -716,7 +716,7 @@ const SOFTWARE_TYPE_VARIANTS = [
   },
 ] as const;
 
-// Sources Fleet no longer collects; their labels are kept for historical rows.
+// Sources AutoMDM no longer collects; their labels are kept for historical rows.
 const LEGACY_SOURCE_TYPES = {
   apt_sources: "Package (APT)",
   yum_sources: "Package (YUM)",
@@ -743,7 +743,7 @@ export interface ISoftwareType {
   platforms: readonly SoftwareTypePlatform[];
   /** Installer-only sources never appear in a host's inventory. */
   installerOnly?: boolean;
-  /** Hidden on Fleet Free, where the API rejects the source. */
+  /** Hidden on AutoMDM Free, where the API rejects the source. */
   premiumOnly?: boolean;
 }
 
@@ -770,7 +770,7 @@ const SOFTWARE_TYPES_BY_SOURCE = new Map(
 );
 
 /** Labels for extension rows the catalog can't match because extension_for is
- * empty (ingested before Fleet recorded the browser). */
+ * empty (ingested before AutoMDM recorded the browser). */
 const EXTENSION_SOURCE_FALLBACK: Partial<Record<SoftwareSource, string>> = {
   chrome_extensions: "Browser extension",
   firefox_addons: "Browser extension",
@@ -898,14 +898,14 @@ export const SCRIPT_PACKAGE_SOURCES = [
   "py_packages",
 ];
 
-/** Mirrors `fleet.MaxPackagesPerTitle` in `server/fleet/software_installer.go`.
+/** Mirrors `team.MaxPackagesPerTitle` in `server/automdm/software_installer.go`.
  * The backend rejects the upload past this cap with the `SoftwarePackageLimitMessage`
  * conflict error — the UI uses this constant to disable "+ Add version" and
  * surface a matching tooltip before the user hits the API. Keep in sync if
  * the backend limit changes. */
 export const MAX_PACKAGES_PER_TITLE = 10;
 
-/** Mirrors the backend cap on App Store app versions per title per fleet. */
+/** Mirrors the backend cap on App Store app versions per title per team. */
 export const MAX_APP_STORE_APP_VERSIONS_PER_TITLE = 10;
 
 /** Sources that don't map cleanly to versions or hosts in software inventory.
@@ -925,16 +925,16 @@ export const NO_VERSION_TOOLTIP_BY_SOURCE: Partial<
   Record<SoftwareSource, string>
 > = {
   mcp_servers:
-    "Fleet doesn't detect MCP server versions yet. Most MCP servers run with npx or uvx, which pick the version at launch unless it's pinned.",
+    "AutoMDM doesn't detect MCP server versions yet. Most MCP servers run with npx or uvx, which pick the version at launch unless it's pinned.",
   ai_skills: "AI skills are markdown files, so they don't have versions.",
 };
 
-/** Sources Fleet never scans for vulnerabilities, with the reason shown on the "---" cell. */
+/** Sources AutoMDM never scans for vulnerabilities, with the reason shown on the "---" cell. */
 export const NO_VULNERABILITIES_TOOLTIP_BY_SOURCE: Partial<
   Record<SoftwareSource, string>
 > = {
   mcp_servers:
-    "Currently, Fleet doesn't detect vulnerabilities for MCP servers.",
+    "Currently, AutoMDM doesn't detect vulnerabilities for MCP servers.",
   ai_skills:
     "AI skills are markdown files, so they don't have vulnerabilities.",
 };
@@ -1084,7 +1084,7 @@ export const resolveUninstallStatus = (
 
 /**
  * ISoftwareInstallResult is the shape of a software install result object
- * returned by the Fleet API.
+ * returned by the AutoMDM API.
  */
 export interface ISoftwareInstallResult {
   host_display_name?: string;
@@ -1212,7 +1212,7 @@ export interface IHostSoftware {
   auto_update_enabled?: boolean;
   auto_update_window_start?: string;
   auto_update_window_end?: string;
-  /** Fleet marked this software as an AI tool (Premium; always false on Free). */
+  /** AutoMDM marked this software as an AI tool (Premium; always false on Free). */
   ai_tool?: boolean;
 }
 
@@ -1221,7 +1221,7 @@ export interface IHostSoftware {
  *
  * These are more detailed than the raw API `.status` and are determined by:
  * - Whether the host is online or offline
- * - If the fleet-installed version is newer than any in installed_versions
+ * - If the automdm-installed version is newer than any in installed_versions
  * - Special handling for tarballs (tgz_packages)
  * - Cases where the software inventory has not yet updated to reflect a recent change
  *   (i.e., last_install date vs host software's updated_at date)
@@ -1247,7 +1247,7 @@ export const HOST_SOFTWARE_UI_PENDING_STATUSES = [
   "pending_install", // Install scheduled (no newer installer version)
   "pending_uninstall", // Uninstall scheduled
   "pending_update", // Update scheduled (no newer installer version)
-  "pending_script", // Fleet-initiated script run scheduled
+  "pending_script", // AutoMDM-initiated script run scheduled
 ] as const;
 export type HostSoftwareUiPendingStatus = typeof HOST_SOFTWARE_UI_PENDING_STATUSES[number];
 export const isSoftwarePendingStatus = (
@@ -1259,10 +1259,10 @@ export const isSoftwarePendingStatus = (
 
 // In-progress UI statuses for ONLINE hosts
 export const HOST_SOFTWARE_UI_IN_PROGRESS_STATUSES = [
-  "installing", // Fleet-initiated install in progress
-  "updating", // Update (install) in progress with newer fleet installer
-  "uninstalling", // Fleet-initiated uninstall in progress
-  "running_script", // Fleet-initiated script run in progress
+  "installing", // AutoMDM-initiated install in progress
+  "updating", // Update (install) in progress with newer automdm installer
+  "uninstalling", // AutoMDM-initiated uninstall in progress
+  "running_script", // AutoMDM-initiated script run in progress
 ] as const;
 export type HostSoftwareUiInProgressStatus = typeof HOST_SOFTWARE_UI_IN_PROGRESS_STATUSES[number];
 export const isSoftwareInProgressStatus = (
@@ -1274,7 +1274,7 @@ export const isSoftwareInProgressStatus = (
 
 // Success/steady-state UI statuses
 export const HOST_SOFTWARE_UI_SUCCESS_STATUSES = [
-  "installed", // Present in inventory; no newer fleet installer version (tarballs: successful install only)
+  "installed", // Present in inventory; no newer automdm installer version (tarballs: successful install only)
   "uninstalled", // Not present in inventory (tarballs: successful uninstall or never installed)
   // NOTE: Recently statuses cannot apply to tarballs as we cannot detect inventory
   "recently_updated", // Update applied (installer newer than inventory), but inventory not yet refreshed
@@ -1293,7 +1293,7 @@ export const isSoftwareSuccessStatus = (
 
 // Update-available UI status
 export const HOST_SOFTWARE_UI_UPDATE_AVAILABLE_STATUSES = [
-  "update_available", // In inventory, but newer fleet installer version is available
+  "update_available", // In inventory, but newer automdm installer version is available
   "skipped_install", // Patch-when-closed skip; renders as a deferred update
 ] as const;
 export type HostSoftwareUiUpdateAvailableStatus = typeof HOST_SOFTWARE_UI_UPDATE_AVAILABLE_STATUSES[number];
@@ -1346,13 +1346,13 @@ const INSTALL_STATUS_PREDICATES: Record<
   pending: "pending",
   installed: "installed",
   uninstalled: "uninstalled",
-  pending_install: "told Fleet to install",
+  pending_install: "told AutoMDM to install",
   failed_install: "failed to install",
-  pending_uninstall: "told Fleet to uninstall",
+  pending_uninstall: "told AutoMDM to uninstall",
   failed_uninstall: "failed to uninstall",
   ran_script: "ran", // Script-only software
   failed_script: "failed to run", // Script-only software
-  pending_script: "told Fleet to run", // Script-only software
+  pending_script: "told AutoMDM to run", // Script-only software
 } as const;
 
 export const getInstallUninstallStatusPredicate = (
@@ -1490,16 +1490,16 @@ export const isIpadOrIphoneSoftware = (platform: string) =>
 export const isAndroidSoftwareSource = (source: string) =>
   source === "android_apps";
 
-export interface IFleetMaintainedApp {
+export interface IAutoMDMMaintainedApp {
   id: number;
   name: string;
   version: string;
-  platform: FleetMaintainedAppPlatform;
+  platform: AutoMDMMaintainedAppPlatform;
   slug: string; // "<app-token>/<platform>", e.g. "figma/darwin"
-  software_title_id?: number; // null unless the team already has the software added (as a Fleet-maintained app, App Store (app), or custom package)
+  software_title_id?: number; // null unless the team already has the software added (as an AutoMDM-maintained app, App Store (app), or custom package)
 }
 
-export type FleetMaintainedAppPlatform = Extract<
+export type AutoMDMMaintainedAppPlatform = Extract<
   Platform,
   "darwin" | "windows"
 >;
@@ -1509,14 +1509,14 @@ export interface ICombinedFMA {
   name: string;
   /** Name shown in the table, without a platform suffix like " for macOS" */
   displayName: string;
-  macos: Omit<IFleetMaintainedApp, "name"> | null;
-  windows: Omit<IFleetMaintainedApp, "name"> | null;
+  macos: Omit<IAutoMDMMaintainedApp, "name"> | null;
+  windows: Omit<IAutoMDMMaintainedApp, "name"> | null;
 }
-export interface IFleetMaintainedAppDetails {
+export interface IAutoMDMMaintainedAppDetails {
   id: number;
   name: string;
   version: string;
-  platform: FleetMaintainedAppPlatform;
+  platform: AutoMDMMaintainedAppPlatform;
   pre_install_script: string;
   install_script: string;
   post_install_script: string;
@@ -1524,7 +1524,7 @@ export interface IFleetMaintainedAppDetails {
   automatic_install_query: string;
   url: string;
   slug: string;
-  software_title_id?: number; // null unless the team already has the software added (as a Fleet-maintained app, App Store (app), or custom package)
+  software_title_id?: number; // null unless the team already has the software added (as an AutoMDM-maintained app, App Store (app), or custom package)
   categories: SoftwareCategory[] | null;
 }
 

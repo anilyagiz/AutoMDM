@@ -39,9 +39,9 @@
   }
 
   &__count {
-    background-color: $core-fleet-black;
+    background-color: $core-automdm-black;
     border-radius: $border-radius;
-    color: $core-fleet-white;
+    color: $core-automdm-white;
     font-size: $xx-small;
     line-height: 16px;
     font-weight: $bold;
@@ -49,32 +49,32 @@
   }
 
   &__icon {
-    color: $core-fleet-black;
+    color: $core-automdm-black;
     font-size: $small;
     margin-left: $pad-small;
 
     &--online {
-      color: $core-fleet-black;
+      color: $core-automdm-black;
     }
 
     &--offline {
-      color: $core-fleet-black;
+      color: $core-automdm-black;
     }
   }
 
   &__ip {
-    color: $core-fleet-black;
+    color: $core-automdm-black;
     font-size: $x-small;
   }
 
   &__label-host {
-    color: $core-fleet-purple;
+    color: $core-automdm-purple;
     font-size: $medium;
     margin-left: $pad-small;
   }
 
   &__label-label {
-    color: $core-fleet-black !important; // Override .Select > .Select-menu-outer .is-disabled *, .actions-dropdown .is-disabled *, .react-select__option .is-disabled *
+    color: $core-automdm-black !important; // Override .Select > .Select-menu-outer .is-disabled *, .actions-dropdown .is-disabled *, .react-select__option .is-disabled *
     font-size: $xx-small;
     margin-left: $pad-small;
 
@@ -92,7 +92,7 @@
 
   &__target-icon {
     font-size: $medium;
-    color: $core-fleet-black;
+    color: $core-automdm-black;
     margin-right: $pad-xsmall;
   }
 

@@ -9,7 +9,7 @@ interface IPendingProps {
 }
 
 const Pending = ({
-  color = "ui-fleet-black-50",
+  color = "ui-automdm-black-50",
   size = "medium",
 }: IPendingProps) => {
   return (

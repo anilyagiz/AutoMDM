@@ -31,8 +31,8 @@ var geminiChat = lines(
 
 func writeGeminiFixture(t *testing.T, home string) string {
 	t.Helper()
-	proj := filepath.Join(home, ".gemini", "tmp", "fleet")
-	writeFile(t, filepath.Join(proj, ".project_root"), "/Users/alice/GitHub/fleet\n")
+	proj := filepath.Join(home, ".gemini", "tmp", "automdm")
+	writeFile(t, filepath.Join(proj, ".project_root"), "/Users/alice/GitHub/automdm\n")
 	chat := filepath.Join(proj, "chats", "session-2026-08-01T10-00-aaaaaaaa.jsonl")
 	writeFile(t, chat, geminiChat)
 
@@ -64,7 +64,7 @@ func TestGeminiCLISessions(t *testing.T) {
 	require.Len(t, rows, 2)
 	byID := rowsByID(rows)
 	requireRow(t, map[string]string{
-		"project_path":  "/Users/alice/GitHub/fleet",
+		"project_path":  "/Users/alice/GitHub/automdm",
 		"model":         "gemini-3-pro",
 		"started_at":    "1785578400",
 		"ended_at":      "1785578700",
@@ -81,7 +81,7 @@ func TestGeminiCLISessions(t *testing.T) {
 
 	logOnly := byID["bbbb"]
 	require.Equal(t, "2", logOnly["user_messages"])
-	require.Equal(t, "/Users/alice/GitHub/fleet", logOnly["project_path"])
+	require.Equal(t, "/Users/alice/GitHub/automdm", logOnly["project_path"])
 	require.Equal(t, "30", logOnly["duration_seconds"])
 }
 

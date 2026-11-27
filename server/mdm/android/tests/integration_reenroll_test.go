@@ -6,10 +6,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
-	"github.com/fleetdm/fleet/v4/server/mdm/android/service"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android/service"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
@@ -42,14 +42,14 @@ func (s *reenrollTestSuite) TestClearsStateOnReenrollment() {
 
 	// Create the enterprise.
 	var signupResp android.EnterpriseSignupResponse
-	s.DoJSON("GET", "/api/v1/fleet/android_enterprise/signup_url", nil, http.StatusOK, &signupResp)
-	s.FleetSvc.On("NewActivity", mock.Anything, mock.Anything, mock.AnythingOfType("fleet.ActivityTypeEnabledAndroidMDM")).Return(nil)
+	s.DoJSON("GET", "/api/v1/automdm/android_enterprise/signup_url", nil, http.StatusOK, &signupResp)
+	s.AutoMDMSvc.On("NewActivity", mock.Anything, mock.Anything, mock.AnythingOfType("automdm.ActivityTypeEnabledAndroidMDM")).Return(nil)
 	s.Do("GET", s.ProxyCallbackURL, nil, http.StatusOK, "enterpriseToken", "enterpriseToken")
 	s.AndroidAPIClient.EnterprisesListFunc = func(_ context.Context, _ string) ([]*androidmanagement.Enterprise, error) {
 		return []*androidmanagement.Enterprise{{Name: "enterprises/" + EnterpriseID}}, nil
 	}
 	resp := android.GetEnterpriseResponse{}
-	s.DoJSON("GET", "/api/v1/fleet/android_enterprise", nil, http.StatusOK, &resp)
+	s.DoJSON("GET", "/api/v1/automdm/android_enterprise", nil, http.StatusOK, &resp)
 	assert.Equal(t, EnterpriseID, resp.EnterpriseID)
 
 	// App config is mocked in this harness, so set it directly. Past activities are
@@ -59,10 +59,10 @@ func (s *reenrollTestSuite) TestClearsStateOnReenrollment() {
 	s.AppConfig.ActivityExpirySettings.PreserveHostActivitiesOnReenrollment = true
 	s.AppConfigMu.Unlock()
 
-	require.NoError(t, s.DS.ApplyEnrollSecrets(ctx, nil, []*fleet.EnrollSecret{{Secret: "enrollsecret"}}))
-	assets, err := s.DS.Datastore.GetAllMDMConfigAssetsByName(ctx, []fleet.MDMAssetName{fleet.MDMAssetAndroidPubSubToken}, nil)
+	require.NoError(t, s.DS.ApplyEnrollSecrets(ctx, nil, []*automdm.EnrollSecret{{Secret: "enrollsecret"}}))
+	assets, err := s.DS.Datastore.GetAllMDMConfigAssetsByName(ctx, []automdm.MDMAssetName{automdm.MDMAssetAndroidPubSubToken}, nil)
 	require.NoError(t, err)
-	pubsubToken := string(assets[fleet.MDMAssetAndroidPubSubToken].Value)
+	pubsubToken := string(assets[automdm.MDMAssetAndroidPubSubToken].Value)
 	require.NotEmpty(t, pubsubToken)
 
 	enterpriseSpecificID := strings.ToUpper(uuid.New().String())
@@ -72,10 +72,10 @@ func (s *reenrollTestSuite) TestClearsStateOnReenrollment() {
 			EnrollmentTokenData: `{"EnrollSecret": "enrollsecret"}`,
 		}, enterpriseSpecificID)
 		req := service.PubSubPushRequest{PubSubMessage: *msg}
-		s.Do("POST", "/api/v1/fleet/android_enterprise/pubsub", &req, http.StatusOK, "token", pubsubToken)
+		s.Do("POST", "/api/v1/automdm/android_enterprise/pubsub", &req, http.StatusOK, "token", pubsubToken)
 	}
 
-	// First enrollment: the host is new to Fleet.
+	// First enrollment: the host is new to AutoMDM.
 	enroll()
 
 	host, err := s.DS.Datastore.AndroidHostLite(ctx, enterpriseSpecificID)
@@ -104,12 +104,12 @@ func (s *reenrollTestSuite) TestClearsStateOnReenrollment() {
 	// Seed the state a re-enrolled device leaves behind.
 
 	// A manual label (must survive) and a dynamic one (must not).
-	manualLabel, err := s.DS.Datastore.NewLabel(ctx, &fleet.Label{
-		Name: "manual-label", LabelMembershipType: fleet.LabelMembershipTypeManual,
+	manualLabel, err := s.DS.Datastore.NewLabel(ctx, &automdm.Label{
+		Name: "manual-label", LabelMembershipType: automdm.LabelMembershipTypeManual,
 	})
 	require.NoError(t, err)
-	dynamicLabel, err := s.DS.Datastore.NewLabel(ctx, &fleet.Label{
-		Name: "dynamic-label", Query: "SELECT 1", LabelMembershipType: fleet.LabelMembershipTypeDynamic,
+	dynamicLabel, err := s.DS.Datastore.NewLabel(ctx, &automdm.Label{
+		Name: "dynamic-label", Query: "SELECT 1", LabelMembershipType: automdm.LabelMembershipTypeDynamic,
 	})
 	require.NoError(t, err)
 	mysqltest.ExecAdhocSQL(t, s.DS.Datastore, func(q sqlx.ExtContext) error {
@@ -130,13 +130,13 @@ func (s *reenrollTestSuite) TestClearsStateOnReenrollment() {
 	require.NoError(t, s.DS.Datastore.LockHostViaAndroidMDM(ctx, host.Host, lockCmd, "258147"))
 
 	// A pending software install.
-	vppApp, err := s.DS.Datastore.InsertVPPAppWithTeam(ctx, &fleet.VPPApp{
+	vppApp, err := s.DS.Datastore.InsertVPPAppWithTeam(ctx, &automdm.VPPApp{
 		Name: "vpp1", BundleIdentifier: "com.app.vpp1",
-		VPPAppTeam: fleet.VPPAppTeam{VPPAppID: fleet.VPPAppID{AdamID: "com.app.vpp1", Platform: fleet.AndroidPlatform}},
+		VPPAppTeam: automdm.VPPAppTeam{VPPAppID: automdm.VPPAppID{AdamID: "com.app.vpp1", Platform: automdm.AndroidPlatform}},
 	}, nil, nil)
 	require.NoError(t, err)
 	installCmdUUID := uuid.NewString()
-	require.NoError(t, s.DS.Datastore.InsertAndroidSetupExperienceSoftwareInstall(ctx, &fleet.HostAndroidVPPSoftwareInstall{
+	require.NoError(t, s.DS.Datastore.InsertAndroidSetupExperienceSoftwareInstall(ctx, &automdm.HostAndroidVPPSoftwareInstall{
 		HostID: hostID, AdamID: vppApp.AdamID, CommandUUID: installCmdUUID, AssociatedEventID: "1",
 	}))
 

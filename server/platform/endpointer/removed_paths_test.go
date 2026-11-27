@@ -18,17 +18,17 @@ func TestRegisterRemovedPaths(t *testing.T) {
 
 	r := NewRouter()
 	ok := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
-	r.Handle(Route{Name: "kept", Path: "/api/v1/fleet/kept"}, ok)
+	r.Handle(Route{Name: "kept", Path: "/api/v1/automdm/kept"}, ok)
 	// A live route with the same shape as the method-limited removed path below, registered first as in the API.
-	r.Handle(Route{Name: "partly", Methods: []string{http.MethodGet}, Path: "/api/v1/fleet/partly/{id:[0-9]+}"}, ok)
+	r.Handle(Route{Name: "partly", Methods: []string{http.MethodGet}, Path: "/api/v1/automdm/partly/{id:[0-9]+}"}, ok)
 	var logs bytes.Buffer
 	RegisterRemovedPaths(r, []string{"v1", "2022-04"}, slog.New(slog.NewJSONHandler(&logs, nil)), []RemovedPath{
 		{
-			Path:    "/api/_version_/fleet/gone/{id}",
+			Path:    "/api/_version_/automdm/gone/{id}",
 			Message: func(method string) string { return "gone via " + method },
 		},
 		{
-			Path:    "/api/_version_/fleet/partly/{name}",
+			Path:    "/api/_version_/automdm/partly/{name}",
 			Methods: []string{http.MethodDelete},
 			Message: func(method string) string { return "partly gone via " + method },
 		},
@@ -40,17 +40,17 @@ func TestRegisterRemovedPaths(t *testing.T) {
 		wantStatus         int
 		wantMessage        string
 	}{
-		{"v1", http.MethodGet, "/api/v1/fleet/gone/1?token=secret", http.StatusGone, "gone via GET"},
-		{"dated version", http.MethodPost, "/api/2022-04/fleet/gone/abc", http.StatusGone, "gone via POST"},
-		{"head is served by the GET pattern", http.MethodHead, "/api/v1/fleet/gone/1", http.StatusGone, ""},
-		{"latest", http.MethodDelete, "/api/latest/fleet/gone/1", http.StatusGone, "gone via DELETE"},
-		{"unknown version", http.MethodGet, "/api/v9/fleet/gone/1", http.StatusNotFound, ""},
-		{"other path", http.MethodGet, "/api/v1/fleet/kept", http.StatusOK, ""},
-		{"limited to its method", http.MethodDelete, "/api/latest/fleet/partly/abc", http.StatusGone, "partly gone via DELETE"},
-		{"limited, live route with the same shape", http.MethodGet, "/api/v1/fleet/partly/1", http.StatusOK, ""},
-		{"limited, other method", http.MethodGet, "/api/v1/fleet/partly/abc", http.StatusMethodNotAllowed, ""},
-		{"limited, other method on a live route's value", http.MethodPut, "/api/v1/fleet/partly/1", http.StatusMethodNotAllowed, ""},
-		{"limited, head", http.MethodHead, "/api/v1/fleet/partly/abc", http.StatusMethodNotAllowed, ""},
+		{"v1", http.MethodGet, "/api/v1/automdm/gone/1?token=secret", http.StatusGone, "gone via GET"},
+		{"dated version", http.MethodPost, "/api/2022-04/automdm/gone/abc", http.StatusGone, "gone via POST"},
+		{"head is served by the GET pattern", http.MethodHead, "/api/v1/automdm/gone/1", http.StatusGone, ""},
+		{"latest", http.MethodDelete, "/api/latest/automdm/gone/1", http.StatusGone, "gone via DELETE"},
+		{"unknown version", http.MethodGet, "/api/v9/automdm/gone/1", http.StatusNotFound, ""},
+		{"other path", http.MethodGet, "/api/v1/automdm/kept", http.StatusOK, ""},
+		{"limited to its method", http.MethodDelete, "/api/latest/automdm/partly/abc", http.StatusGone, "partly gone via DELETE"},
+		{"limited, live route with the same shape", http.MethodGet, "/api/v1/automdm/partly/1", http.StatusOK, ""},
+		{"limited, other method", http.MethodGet, "/api/v1/automdm/partly/abc", http.StatusMethodNotAllowed, ""},
+		{"limited, other method on a live route's value", http.MethodPut, "/api/v1/automdm/partly/1", http.StatusMethodNotAllowed, ""},
+		{"limited, head", http.MethodHead, "/api/v1/automdm/partly/abc", http.StatusMethodNotAllowed, ""},
 	} {
 		if c.wantStatus == http.StatusGone {
 			removedRequests++
@@ -76,8 +76,8 @@ func TestRegisterRemovedPaths(t *testing.T) {
 	var entry map[string]any
 	require.NoError(t, json.Unmarshal([]byte(lines[0]), &entry))
 	assert.Equal(t, "WARN", entry["level"])
-	assert.Equal(t, "/api/v1/fleet/gone/1", entry["uri"])
-	assert.Equal(t, "/api/_version_/fleet/gone/{id}", entry["removed_path"])
+	assert.Equal(t, "/api/v1/automdm/gone/1", entry["uri"])
+	assert.Equal(t, "/api/_version_/automdm/gone/{id}", entry["removed_path"])
 	assert.NotContains(t, logs.String(), "secret")
 }
 
@@ -87,11 +87,11 @@ func TestRegisterRemovedPathsWithOverlap(t *testing.T) {
 	r := NewRouter()
 	var logs bytes.Buffer
 	RegisterRemovedPaths(r, []string{"v1"}, slog.New(slog.NewJSONHandler(&logs, nil)), []RemovedPath{{
-		Path: "/api/_version_/fleet/items/{id}/old/{name}",
+		Path: "/api/_version_/automdm/items/{id}/old/{name}",
 		Overlap: RemovedPathOverlap{
 			Method:            http.MethodPost,
-			RouteTemplate:     "/api/_version_/fleet/items/{id}/{old_segment}/{name}",
-			WrongMethodRoutes: map[string][]string{"/api/_version_/fleet/items/{id}/live/{name}": {http.MethodGet}},
+			RouteTemplate:     "/api/_version_/automdm/items/{id}/{old_segment}/{name}",
+			WrongMethodRoutes: map[string][]string{"/api/_version_/automdm/items/{id}/live/{name}": {http.MethodGet}},
 		},
 		Message: func(method string) string { return "gone via " + method },
 	}})
@@ -101,11 +101,11 @@ func TestRegisterRemovedPathsWithOverlap(t *testing.T) {
 		wantStatus         int
 		wantBody           string
 	}{
-		{"overlapping method", http.MethodPost, "/api/v1/fleet/items/1/old/abc", http.StatusGone, "gone via POST"},
-		{"other method", http.MethodGet, "/api/v1/fleet/items/1/old/abc", http.StatusGone, "gone via GET"},
-		{"live path on a method it does not serve", http.MethodPost, "/api/v1/fleet/items/1/live/abc", http.StatusMethodNotAllowed, ""},
-		{"other value is an unknown path", http.MethodPost, "/api/v1/fleet/items/1/other/abc", http.StatusNotFound, "404 page not found\n"},
-		{"other value on another method is a mismatch", http.MethodPut, "/api/v1/fleet/items/1/other/abc", http.StatusMethodNotAllowed, ""},
+		{"overlapping method", http.MethodPost, "/api/v1/automdm/items/1/old/abc", http.StatusGone, "gone via POST"},
+		{"other method", http.MethodGet, "/api/v1/automdm/items/1/old/abc", http.StatusGone, "gone via GET"},
+		{"live path on a method it does not serve", http.MethodPost, "/api/v1/automdm/items/1/live/abc", http.StatusMethodNotAllowed, ""},
+		{"other value is an unknown path", http.MethodPost, "/api/v1/automdm/items/1/other/abc", http.StatusNotFound, "404 page not found\n"},
+		{"other value on another method is a mismatch", http.MethodPut, "/api/v1/automdm/items/1/other/abc", http.StatusMethodNotAllowed, ""},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			rec := httptest.NewRecorder()
@@ -120,15 +120,15 @@ func TestRegisterRemovedPathsWithOverlap(t *testing.T) {
 func TestLiteralSegmentsMatch(t *testing.T) {
 	t.Parallel()
 
-	const template = "/api/_version_/fleet/hosts/{host_id}/configuration_profiles/resend/{profile_uuid}"
+	const template = "/api/_version_/automdm/hosts/{host_id}/configuration_profiles/resend/{profile_uuid}"
 	for _, c := range []struct {
 		name        string
 		requestPath string
 		want        bool
 	}{
-		{"removed path", "/api/v1/fleet/hosts/1/configuration_profiles/resend/abc", true},
-		{"under a URL prefix", "/prefix/api/latest/fleet/hosts/1/configuration_profiles/resend/abc", true},
-		{"other literal", "/api/v1/fleet/hosts/1/configuration_profiles/foo/abc", false},
+		{"removed path", "/api/v1/automdm/hosts/1/configuration_profiles/resend/abc", true},
+		{"under a URL prefix", "/prefix/api/latest/automdm/hosts/1/configuration_profiles/resend/abc", true},
+		{"other literal", "/api/v1/automdm/hosts/1/configuration_profiles/foo/abc", false},
 		{"too few segments", "/resend/abc", false},
 	} {
 		t.Run(c.name, func(t *testing.T) {
@@ -144,16 +144,16 @@ func TestRegisterRemovedPathsWithMethodsAndOverlap(t *testing.T) {
 	RegisterRemovedPaths(r, []string{"v1"}, slog.New(slog.DiscardHandler), []RemovedPath{
 		{
 			// The overlap route takes the only removed method.
-			Path:    "/api/_version_/fleet/items/{id}/old/{name}",
+			Path:    "/api/_version_/automdm/items/{id}/old/{name}",
 			Methods: []string{http.MethodPost},
-			Overlap: RemovedPathOverlap{Method: http.MethodPost, RouteTemplate: "/api/_version_/fleet/items/{id}/{old_segment}/{name}"},
+			Overlap: RemovedPathOverlap{Method: http.MethodPost, RouteTemplate: "/api/_version_/automdm/items/{id}/{old_segment}/{name}"},
 			Message: func(method string) string { return "gone via " + method },
 		},
 		{
 			// The overlap is for a method that wasn't removed, so it isn't registered.
-			Path:    "/api/_version_/fleet/things/{id}/old/{name}",
+			Path:    "/api/_version_/automdm/things/{id}/old/{name}",
 			Methods: []string{http.MethodDelete},
-			Overlap: RemovedPathOverlap{Method: http.MethodPost, RouteTemplate: "/api/_version_/fleet/things/{id}/{old_segment}/{name}"},
+			Overlap: RemovedPathOverlap{Method: http.MethodPost, RouteTemplate: "/api/_version_/automdm/things/{id}/{old_segment}/{name}"},
 			Message: func(method string) string { return "gone via " + method },
 		},
 	})
@@ -162,11 +162,11 @@ func TestRegisterRemovedPathsWithMethodsAndOverlap(t *testing.T) {
 		name, method, path string
 		wantStatus         int
 	}{
-		{"overlap method", http.MethodPost, "/api/v1/fleet/items/1/old/abc", http.StatusGone},
-		{"overlap method, other literal", http.MethodPost, "/api/v1/fleet/items/1/other/abc", http.StatusNotFound},
-		{"method that wasn't removed", http.MethodGet, "/api/v1/fleet/items/1/old/abc", http.StatusMethodNotAllowed},
-		{"removed method without its overlap", http.MethodDelete, "/api/v1/fleet/things/1/old/abc", http.StatusGone},
-		{"overlap for a method that wasn't removed", http.MethodPost, "/api/v1/fleet/things/1/old/abc", http.StatusMethodNotAllowed},
+		{"overlap method", http.MethodPost, "/api/v1/automdm/items/1/old/abc", http.StatusGone},
+		{"overlap method, other literal", http.MethodPost, "/api/v1/automdm/items/1/other/abc", http.StatusNotFound},
+		{"method that wasn't removed", http.MethodGet, "/api/v1/automdm/items/1/old/abc", http.StatusMethodNotAllowed},
+		{"removed method without its overlap", http.MethodDelete, "/api/v1/automdm/things/1/old/abc", http.StatusGone},
+		{"overlap for a method that wasn't removed", http.MethodPost, "/api/v1/automdm/things/1/old/abc", http.StatusMethodNotAllowed},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			rec := httptest.NewRecorder()

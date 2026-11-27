@@ -1,21 +1,21 @@
 ---
 name: api-design-check
-description: Check a proposed or changed Fleet REST API endpoint against existing API conventions (URL shape, parameter names, pagination, response envelope, status codes, Fleets/Reports naming, Premium markers, api_endpoints.yml). Use when asked to "check API conventions", "review this API design", "is this endpoint consistent", or when reviewing a reference-docs PR labeled ~api-or-yaml-design.
+description: Check a proposed or changed AutoMDM REST API endpoint against existing API conventions (URL shape, parameter names, pagination, response envelope, status codes, Teams/Reports naming, Premium markers, api_endpoints.yml). Use when asked to "check API conventions", "review this API design", "is this endpoint consistent", or when reviewing a reference-docs PR labeled ~api-or-yaml-design.
 allowed-tools: Read, Grep, Glob, Bash
 effort: high
 ---
 
-# Check an API design against existing Fleet conventions
+# Check an API design against existing AutoMDM conventions
 
 Target: $ARGUMENTS
 
 The target can be a PR number, a branch, a spec file, or a pasted endpoint. With no target, use the current branch's diff against `main`.
 
-Fleet has no written API style guide. The rule is "be consistent with what's already there", so this check compares the proposal with **real existing endpoints**. `references/conventions.md` records the patterns that are hard to infer from a single neighbor.
+AutoMDM has no written API style guide. The rule is "be consistent with what's already there", so this check compares the proposal with **real existing endpoints**. `references/conventions.md` records the patterns that are hard to infer from a single neighbor.
 
 ## 1. Collect the proposed endpoints
 
-- **Docs PR or branch**: diff `docs/API/rest-api.md` (and `docs/Contributing/reference/api-for-contributors.md` for internal endpoints). Each endpoint is a `### Heading`, then a `` `METHOD /api/v1/fleet/...` `` line, then `#### Parameters`, `#### Example`, and `##### Default response`.
+- **Docs PR or branch**: diff `docs/API/rest-api.md` (and `docs/Contributing/reference/api-for-contributors.md` for internal endpoints). Each endpoint is a `### Heading`, then a `` `METHOD /api/v1/automdm/...` `` line, then `#### Parameters`, `#### Example`, and `##### Default response`.
 - **Code**: diff `server/service/handler.go` and `ee/server/service/handler.go` for new `ue.GET/POST/PATCH/PUT/DELETE` registrations. Read the matching request and response structs for the parameter and response field names.
 - **Spec or pasted text**: read the endpoint definitions directly.
 
@@ -25,8 +25,8 @@ For each endpoint, write down: the method, the path, the parameters (name, type,
 
 For each proposed endpoint, find 2–4 existing endpoints to compare it with, in `docs/API/rest-api.md`. Use them in this order:
 
-1. The same resource with a different verb. For a new `PATCH /fleet/foo/:id`, compare `GET /fleet/foo/:id` and `POST /fleet/foo`.
-2. The same kind of operation on a sibling resource. A new list endpoint is compared with other `List ...` endpoints, a host-scoped action with other `POST /hosts/:id/...` actions, and a Fleet Desktop endpoint with other `/device/:token/...` endpoints.
+1. The same resource with a different verb. For a new `PATCH /automdm/foo/:id`, compare `GET /automdm/foo/:id` and `POST /automdm/foo`.
+2. The same kind of operation on a sibling resource. A new list endpoint is compared with other `List ...` endpoints, a host-scoped action with other `POST /hosts/:id/...` actions, and an AutoMDM Desktop endpoint with other `/device/:token/...` endpoints.
 3. Recently added endpoints over old ones when they disagree. Check with `git log -S '<path>' --format='%h %ad' --date=short -- "docs/API/rest-api.md"`. Older endpoints are often the inconsistent ones.
 
 Quote the neighbor you compared against in each finding. A finding with no existing endpoint as evidence is an opinion, so drop it or label it as one.
@@ -37,11 +37,11 @@ Go through `references/conventions.md` section by section. At minimum, check the
 
 - **URL**: the resource noun and its plural form, snake_case, path parameter names, and where it sits in the hierarchy (`/hosts/:id/...`, `/device/:token/...`, `/spec/...`, `.../batch`).
 - **Method and verb**: the HTTP method matches the heading verb (List/Get/Create/Add/Update/Delete), and actions are `POST` to a sub-path.
-- **Parameters**: the names and types of shared parameters (`fleet_id`, `page`, `per_page`, `order_key`, `order_direction`, `after`, `query`, `platform`, `labels_include_any`, ...), and that `In` (path/query/body/form) is correct. A path parameter documented as `body` is a doc bug.
+- **Parameters**: the names and types of shared parameters (`team_id`, `page`, `per_page`, `order_key`, `order_direction`, `after`, `query`, `platform`, `labels_include_any`, ...), and that `In` (path/query/body/form) is correct. A path parameter documented as `body` is a doc bug.
 - **Response**: the list envelope (`{"<plural>": [...], "meta": {...}}` and/or `count`), the single-object shape (a bare object or wrapped in `{"<singular>": {...}}`, matching the resource's other endpoints), IDs as integers, timestamps as RFC 3339 UTC, and snake_case keys.
 - **Status codes**: 200 for normal success, 202 for queued or async host actions, 204 for no body, and 201 only for SCIM. Error codes should match the semantics neighbors use (409 conflict, 422 validation, 404 not found).
-- **Terminology**: new names use `fleet`/`fleets` and `report`/`reports`, never `team`/`query` in the product sense. Renamed fields need the `renameto` alias in code.
-- **Premium and auth**: the `_Available in Fleet Premium._` marker on Premium-only parameters and endpoints, and a documented non-default auth (node key, device token).
+- **Terminology**: new names use `automdm`/`teams` and `report`/`reports`, never `team`/`query` in the product sense. Renamed fields need the `renameto` alias in code.
+- **Premium and auth**: the `_Available in AutoMDM Premium._` marker on Premium-only parameters and endpoints, and a documented non-default auth (node key, device token).
 - **Registration**: the new endpoint is listed in `server/api_endpoints/api_endpoints.yml` with a display name that matches the doc heading.
 - **Doc structure**: the section order, a `Default response` with `Status:`, an example that uses realistic IDs, and a link from the section's table of contents.
 

@@ -33,44 +33,44 @@ import (
 	"github.com/WatchBeam/clock"
 
 	"github.com/MicahParks/jwkset"
+	"github.com/anilyagiz/automdm/v4/server/dev_mode"
+	"github.com/anilyagiz/automdm/v4/server/mdm/acme/testhelpers"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
+	android_mock "github.com/anilyagiz/automdm/v4/server/mdm/android/mock"
+	android_service "github.com/anilyagiz/automdm/v4/server/mdm/android/service"
+	"github.com/anilyagiz/automdm/v4/server/pubsub"
 	"github.com/davecgh/go-spew/spew"
-	"github.com/fleetdm/fleet/v4/server/dev_mode"
-	"github.com/fleetdm/fleet/v4/server/mdm/acme/testhelpers"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
-	android_mock "github.com/fleetdm/fleet/v4/server/mdm/android/mock"
-	android_service "github.com/fleetdm/fleet/v4/server/mdm/android/service"
-	"github.com/fleetdm/fleet/v4/server/pubsub"
 
-	svc_scep "github.com/fleetdm/fleet/v4/ee/server/service/scep"
-	"github.com/fleetdm/fleet/v4/pkg/fleetdbase"
-	shared_mdm "github.com/fleetdm/fleet/v4/pkg/mdm"
-	"github.com/fleetdm/fleet/v4/pkg/mdm/mdmtest"
-	"github.com/fleetdm/fleet/v4/pkg/optjson"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/datastore/filesystem"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/datastore/redis/redistest"
-	"github.com/fleetdm/fleet/v4/server/datastore/s3/s3test"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/live_query/live_query_mock"
-	servermdm "github.com/fleetdm/fleet/v4/server/mdm"
-	apple_mdm "github.com/fleetdm/fleet/v4/server/mdm/apple"
-	"github.com/fleetdm/fleet/v4/server/mdm/apple/mobileconfig"
-	"github.com/fleetdm/fleet/v4/server/mdm/apple/vpp"
-	"github.com/fleetdm/fleet/v4/server/mdm/microsoft/syncml"
-	nanodep_client "github.com/fleetdm/fleet/v4/server/mdm/nanodep/client"
-	nanodep_storage "github.com/fleetdm/fleet/v4/server/mdm/nanodep/storage"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanodep/tokenpki"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/push"
-	nanomdm_pushsvc "github.com/fleetdm/fleet/v4/server/mdm/nanomdm/push/service"
-	googlecas_mock "github.com/fleetdm/fleet/v4/server/mock/googlecas"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/service/mock"
-	"github.com/fleetdm/fleet/v4/server/service/redis_key_value"
-	"github.com/fleetdm/fleet/v4/server/service/schedule"
-	"github.com/fleetdm/fleet/v4/server/worker"
+	svc_scep "github.com/anilyagiz/automdm/v4/ee/server/service/scep"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmdbase"
+	shared_mdm "github.com/anilyagiz/automdm/v4/pkg/mdm"
+	"github.com/anilyagiz/automdm/v4/pkg/mdm/mdmtest"
+	"github.com/anilyagiz/automdm/v4/pkg/optjson"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/datastore/filesystem"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis/redistest"
+	"github.com/anilyagiz/automdm/v4/server/datastore/s3/s3test"
+	"github.com/anilyagiz/automdm/v4/server/live_query/live_query_mock"
+	servermdm "github.com/anilyagiz/automdm/v4/server/mdm"
+	apple_mdm "github.com/anilyagiz/automdm/v4/server/mdm/apple"
+	"github.com/anilyagiz/automdm/v4/server/mdm/apple/mobileconfig"
+	"github.com/anilyagiz/automdm/v4/server/mdm/apple/vpp"
+	"github.com/anilyagiz/automdm/v4/server/mdm/microsoft/syncml"
+	nanodep_client "github.com/anilyagiz/automdm/v4/server/mdm/nanodep/client"
+	nanodep_storage "github.com/anilyagiz/automdm/v4/server/mdm/nanodep/storage"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanodep/tokenpki"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/push"
+	nanomdm_pushsvc "github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/push/service"
+	googlecas_mock "github.com/anilyagiz/automdm/v4/server/mock/googlecas"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/service/mock"
+	"github.com/anilyagiz/automdm/v4/server/service/redis_key_value"
+	"github.com/anilyagiz/automdm/v4/server/service/schedule"
+	"github.com/anilyagiz/automdm/v4/server/worker"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	micromdm "github.com/micromdm/micromdm/mdm/mdm"
@@ -90,8 +90,8 @@ func TestIntegrationsMDM(t *testing.T) {
 type integrationMDMTestSuite struct {
 	suite.Suite
 	withServer
-	fleetCfg                     config.FleetConfig
-	fleetDMNextCSRStatus         atomic.Value
+	automdmCfg                   config.AutoMDMConfig
+	automdmNextCSRStatus         atomic.Value
 	pushProvider                 *mock.APNSPushProvider
 	depStorage                   nanodep_storage.AllDEPStorage
 	profileSchedule              *schedule.Schedule
@@ -125,29 +125,29 @@ type integrationMDMTestSuite struct {
 	appleVPPProxySrv          *httptest.Server
 	appleVPPProxySrvData      map[string]string
 	appleGDMFSrv              *httptest.Server
-	mockedDownloadFleetdmMeta fleetdbase.Metadata
+	mockedDownloadAutoMDMMeta automdmdbase.Metadata
 	scepConfig                *svc_scep.SCEPConfigService
 	androidAPIClient          *android_mock.Client
 	androidSvc                android.Service
 	proxyCallbackURL          string
 	jwtSigningKey             *rsa.PrivateKey
-	softwareInstallerStore    fleet.SoftwareInstallerStore
-	stagedUploadStore         fleet.StagedUploadStore
-	acmeSvc                   fleet.ACMEWriteService
-	keyValueStore             fleet.AdvancedKeyValueStore
+	softwareInstallerStore    automdm.SoftwareInstallerStore
+	stagedUploadStore         automdm.StagedUploadStore
+	acmeSvc                   automdm.ACMEWriteService
+	keyValueStore             automdm.AdvancedKeyValueStore
 }
 
 // appleVPPConfigSrvConf is used to configure the mock server that mocks Apple's VPP endpoints.
 type appleVPPConfigSrvConf struct {
 	Assets []vpp.Asset
 	// AssetsByBearer overrides Assets for requests whose Authorization header
-	// is "Bearer <key>". The bearer Fleet sends is the uploaded token file's
+	// is "Bearer <key>". The bearer AutoMDM sends is the uploaded token file's
 	// base64 content.
 	AssetsByBearer map[string][]vpp.Asset
 	SerialNumbers  []string
 	Location       string
 	// Disassociations records every /assets/disassociate request the mock
-	// server received, in order. Used by tests that assert Fleet released a
+	// server received, in order. Used by tests that assert AutoMDM released a
 	// previously-reserved VPP seat (e.g. on install failure or cancel).
 	Disassociations []vpp.DisassociateAssetsRequest
 	// AuthCalls records the path and Authorization header of every
@@ -179,14 +179,14 @@ var defaultVPPAssetList = []vpp.Asset{
 	},
 }
 
-const defaultFakeJWTKeyID = "fleetdefaultkeyid"
+const defaultFakeJWTKeyID = "automdmdefaultkeyid"
 
 const vppVerifyTimeout = 10 * time.Minute
 
 // requireTrackedRefetchCommands asserts the host's tracking rows cover exactly
 // the given refetch command types, each recording the full prefixed UUID of
 // the command it tracks (the exact UUIDs are random).
-func requireTrackedRefetchCommands(t *testing.T, commands []fleet.HostMDMCommand, hostID uint, commandTypes ...string) {
+func requireTrackedRefetchCommands(t *testing.T, commands []automdm.HostMDMCommand, hostID uint, commandTypes ...string) {
 	gotTypes := make([]string, 0, len(commands))
 	for _, c := range commands {
 		assert.Equal(t, hostID, c.HostID)
@@ -209,35 +209,35 @@ func (s *integrationMDMTestSuite) SetupSuite() {
 	err = s.ds.SaveAppConfig(context.Background(), appConf)
 	require.NoError(s.T(), err)
 
-	fleetCfg := config.TestConfig()
-	fleetCfg.MDM.AppleConnectJWT = "fake-token" // skip as we test VPP auth elsewhere
+	automdmCfg := config.TestConfig()
+	automdmCfg.MDM.AppleConnectJWT = "fake-token" // skip as we test VPP auth elsewhere
 	// Custom activations are opt-in on the server (#50764); the DDM suite covers
 	// them, so this suite runs with them on.
-	fleetCfg.MDM.AllowCustomActivations = true
+	automdmCfg.MDM.AllowCustomActivations = true
 	testCert, testKey, err := apple_mdm.NewSCEPCACertKey()
 	require.NoError(s.T(), err)
 	testCertPEM := tokenpki.PEMCertificate(testCert.Raw)
 	testKeyPEM := tokenpki.PEMRSAPrivateKey(testKey)
-	config.SetTestMDMConfig(s.T(), &fleetCfg, testCertPEM, testKeyPEM, "../../server/service/testdata")
-	fleetCfg.Osquery.EnrollCooldown = 0
-	fleetCfg.Server.VPPVerifyRequestDelay = 0 * time.Second // Remove the delay to speed up tests
-	fleetCfg.Server.VPPVerifyTimeout = vppVerifyTimeout
-	fleetCfg.MDM.AppleSCEPStaticChallengeEnabled = true // Enable static challenge for SCEP in integration tests
+	config.SetTestMDMConfig(s.T(), &automdmCfg, testCertPEM, testKeyPEM, "../../server/service/testdata")
+	automdmCfg.Osquery.EnrollCooldown = 0
+	automdmCfg.Server.VPPVerifyRequestDelay = 0 * time.Second // Remove the delay to speed up tests
+	automdmCfg.Server.VPPVerifyTimeout = vppVerifyTimeout
+	automdmCfg.MDM.AppleSCEPStaticChallengeEnabled = true // Enable static challenge for SCEP in integration tests
 
 	mdmStorage, err := s.ds.NewMDMAppleMDMStorage()
 	require.NoError(s.T(), err)
-	mdmStorage.SetNewActivityFunc(func(ctx context.Context, user *fleet.User, activity fleet.ActivityDetails) error {
-		return s.fleetSvc.NewActivity(ctx, user, activity)
+	mdmStorage.SetNewActivityFunc(func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error {
+		return s.automdmSvc.NewActivity(ctx, user, activity)
 	})
 	depStorage, err := s.ds.NewMDMAppleDEPStorage()
 	require.NoError(s.T(), err)
 	scepStorage, err := s.ds.NewSCEPDepot()
 	require.NoError(s.T(), err)
-	conditionalAccessSCEPStorage, err := s.ds.NewConditionalAccessSCEPDepot(slog.New(slog.DiscardHandler), &fleetCfg)
+	conditionalAccessSCEPStorage, err := s.ds.NewConditionalAccessSCEPDepot(slog.New(slog.DiscardHandler), &automdmCfg)
 	s.Require().NoError(err)
 
 	pushLog := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	if os.Getenv("FLEET_INTEGRATION_TESTS_DISABLE_LOG") != "" {
+	if os.Getenv("AUTOMDM_INTEGRATION_TESTS_DISABLE_LOG") != "" {
 		pushLog = slog.New(slog.DiscardHandler)
 	}
 	pushFactory, pushProvider := newMockAPNSPushProviderFactory()
@@ -252,7 +252,7 @@ func (s *integrationMDMTestSuite) SetupSuite() {
 	s.withServer.lq = live_query_mock.New(s.T())
 
 	wlog := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	if os.Getenv("FLEET_INTEGRATION_TESTS_DISABLE_LOG") != "" {
+	if os.Getenv("AUTOMDM_INTEGRATION_TESTS_DISABLE_LOG") != "" {
 		wlog = slog.New(slog.DiscardHandler)
 	}
 
@@ -262,8 +262,8 @@ func (s *integrationMDMTestSuite) SetupSuite() {
 	}
 	androidMockClient.InitDeviceLookupMocks()
 	androidSvc, err := android_service.NewServiceWithClient(wlog, s.ds, androidMockClient, "test-private-key", s.ds,
-		func(ctx context.Context, user *fleet.User, activity fleet.ActivityDetails) error {
-			return s.fleetSvc.NewActivity(ctx, user, activity)
+		func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error {
+			return s.automdmSvc.NewActivity(ctx, user, activity)
 		}, config.AndroidAgentConfig{
 			Package:       "com.fleetdm.agent",
 			SigningSHA256: "abc123def456",
@@ -320,18 +320,18 @@ func (s *integrationMDMTestSuite) SetupSuite() {
 	var appleMDMWorkerSchedule *schedule.Schedule
 	var appleOSUpdatesSchedule *schedule.Schedule
 	cronLog := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	if os.Getenv("FLEET_INTEGRATION_TESTS_DISABLE_LOG") != "" {
+	if os.Getenv("AUTOMDM_INTEGRATION_TESTS_DISABLE_LOG") != "" {
 		cronLog = slog.New(slog.DiscardHandler)
 	}
 	serverLogger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	if os.Getenv("FLEET_INTEGRATION_TESTS_DISABLE_LOG") != "" {
+	if os.Getenv("AUTOMDM_INTEGRATION_TESTS_DISABLE_LOG") != "" {
 		serverLogger = slog.New(slog.DiscardHandler)
 	}
 
-	var softwareInstallerStore fleet.SoftwareInstallerStore
-	var bootstrapPackageStore fleet.MDMBootstrapPackageStore
+	var softwareInstallerStore automdm.SoftwareInstallerStore
+	var bootstrapPackageStore automdm.MDMBootstrapPackageStore
 	_, localS3Enabled := os.LookupEnv("S3_STORAGE_TEST")
-	if wantStore := os.Getenv("FLEET_INTEGRATION_TESTS_SOFTWARE_INSTALLER_STORE"); localS3Enabled &&
+	if wantStore := os.Getenv("AUTOMDM_INTEGRATION_TESTS_SOFTWARE_INSTALLER_STORE"); localS3Enabled &&
 		(wantStore == "s3" || (wantStore == "" && time.Now().UnixNano()%2 == 0)) {
 
 		s.T().Log(">>> using S3-compatible software installer store")
@@ -341,8 +341,8 @@ func (s *integrationMDMTestSuite) SetupSuite() {
 	s.softwareInstallerStore = softwareInstallerStore
 	if localS3Enabled {
 		s.stagedUploadStore = s3test.SetupStagedUploadStore(s.T(), "integration-tests", "")
-		fleetCfg.S3.SoftwareInstallersSignedURL = true
-		fleetCfg.S3.SoftwareInstallersBucket = "integration-tests"
+		automdmCfg.S3.SoftwareInstallersSignedURL = true
+		automdmCfg.S3.SoftwareInstallersBucket = "integration-tests"
 	}
 	scepTimeout := ptr.Duration(10 * time.Second)
 	s.scepConfig = svc_scep.NewSCEPConfigService(serverLogger, scepTimeout).(*svc_scep.SCEPConfigService)
@@ -356,13 +356,13 @@ func (s *integrationMDMTestSuite) SetupSuite() {
 
 	s.googleCASService = &googlecas_mock.Service{}
 	serverConfig := TestServerOpts{
-		License: &fleet.LicenseInfo{
-			Tier: fleet.TierPremium,
+		License: &automdm.LicenseInfo{
+			Tier: automdm.TierPremium,
 		},
 		GoogleCASService:       s.googleCASService,
 		DBConns:                s.dbConns,
 		Logger:                 serverLogger,
-		FleetConfig:            &fleetCfg,
+		AutoMDMConfig:          &automdmCfg,
 		MDMStorage:             mdmStorage,
 		DEPStorage:             depStorage,
 		SCEPStorage:            scepStorage,
@@ -379,9 +379,9 @@ func (s *integrationMDMTestSuite) SetupSuite() {
 		AndroidModule:          androidSvc,
 		KeyValueStore:          keyValueStore,
 		StartCronSchedules: []TestNewScheduleFunc{
-			func(ctx context.Context, ds fleet.Datastore) fleet.NewCronScheduleFunc {
-				return func() (fleet.CronSchedule, error) {
-					const name = string(fleet.CronMDMAppleProfileManager)
+			func(ctx context.Context, ds automdm.Datastore) automdm.NewCronScheduleFunc {
+				return func() (automdm.CronSchedule, error) {
+					const name = string(automdm.CronMDMAppleProfileManager)
 					logger := cronLog
 					profileSchedule = schedule.New(
 						ctx, name, s.T().Name(), 1*time.Hour, ds, ds,
@@ -429,9 +429,9 @@ func (s *integrationMDMTestSuite) SetupSuite() {
 					return profileSchedule, nil
 				}
 			},
-			func(ctx context.Context, ds fleet.Datastore) fleet.NewCronScheduleFunc {
-				return func() (fleet.CronSchedule, error) {
-					const name = string(fleet.CronAppleMDMWorker)
+			func(ctx context.Context, ds automdm.Datastore) automdm.NewCronScheduleFunc {
+				return func() (automdm.CronSchedule, error) {
+					const name = string(automdm.CronAppleMDMWorker)
 					logger := cronLog
 					appleMDMWorkerSchedule = schedule.New(
 						ctx, name, s.T().Name(), 1*time.Hour, ds, ds,
@@ -447,9 +447,9 @@ func (s *integrationMDMTestSuite) SetupSuite() {
 					return appleMDMWorkerSchedule, nil
 				}
 			},
-			func(ctx context.Context, ds fleet.Datastore) fleet.NewCronScheduleFunc {
-				return func() (fleet.CronSchedule, error) {
-					const name = string(fleet.CronAppleMDMOSUpdatesSchedule)
+			func(ctx context.Context, ds automdm.Datastore) automdm.NewCronScheduleFunc {
+				return func() (automdm.CronSchedule, error) {
+					const name = string(automdm.CronAppleMDMOSUpdatesSchedule)
 					logger := cronLog
 					appleOSUpdatesSchedule = schedule.New(
 						ctx, name, s.T().Name(), 1*time.Hour, ds, ds,
@@ -464,9 +464,9 @@ func (s *integrationMDMTestSuite) SetupSuite() {
 					return appleOSUpdatesSchedule, nil
 				}
 			},
-			func(ctx context.Context, ds fleet.Datastore) fleet.NewCronScheduleFunc {
-				return func() (fleet.CronSchedule, error) {
-					const name = string(fleet.CronWorkerIntegrations)
+			func(ctx context.Context, ds automdm.Datastore) automdm.NewCronScheduleFunc {
+				return func() (automdm.CronSchedule, error) {
+					const name = string(automdm.CronWorkerIntegrations)
 					logger := cronLog
 					integrationsSchedule = schedule.New(
 						ctx, name, s.T().Name(), 1*time.Minute, ds, ds,
@@ -491,9 +491,9 @@ func (s *integrationMDMTestSuite) SetupSuite() {
 					return integrationsSchedule, nil
 				}
 			},
-			func(ctx context.Context, ds fleet.Datastore) fleet.NewCronScheduleFunc {
-				return func() (fleet.CronSchedule, error) {
-					const name = string(fleet.CronCleanupsThenAggregation)
+			func(ctx context.Context, ds automdm.Datastore) automdm.NewCronScheduleFunc {
+				return func() (automdm.CronSchedule, error) {
+					const name = string(automdm.CronCleanupsThenAggregation)
 					logger := cronLog
 					cleanupsSchedule = schedule.New(
 						ctx, name, s.T().Name(), 1*time.Hour, ds, ds,
@@ -511,9 +511,9 @@ func (s *integrationMDMTestSuite) SetupSuite() {
 					return cleanupsSchedule, nil
 				}
 			},
-			func(ctx context.Context, ds fleet.Datastore) fleet.NewCronScheduleFunc {
-				return func() (fleet.CronSchedule, error) {
-					const name = string(fleet.CronMDMAndroidProfileManager)
+			func(ctx context.Context, ds automdm.Datastore) automdm.NewCronScheduleFunc {
+				return func() (automdm.CronSchedule, error) {
+					const name = string(automdm.CronMDMAndroidProfileManager)
 					logger := cronLog
 					androidProfileSchedule = schedule.New(
 						ctx, name, s.T().Name(), 1*time.Hour, ds, ds,
@@ -538,15 +538,15 @@ func (s *integrationMDMTestSuite) SetupSuite() {
 					return androidProfileSchedule, nil
 				}
 			},
-			func(ctx context.Context, ds fleet.Datastore) fleet.NewCronScheduleFunc {
-				return func() (fleet.CronSchedule, error) {
-					const name = string(fleet.CronAppleMDMIPhoneIPadRefetcher)
+			func(ctx context.Context, ds automdm.Datastore) automdm.NewCronScheduleFunc {
+				return func() (automdm.CronSchedule, error) {
+					const name = string(automdm.CronAppleMDMIPhoneIPadRefetcher)
 					logger := cronLog
 					refetcherSchedule := schedule.New(
 						ctx, name, s.T().Name(), 1*time.Hour, ds, ds,
 						schedule.WithLogger(logger),
 						schedule.WithJob("cron_iphone_ipad_refetcher", func(ctx context.Context) error {
-							return apple_mdm.IOSiPadOSRefetch(ctx, ds, mdmCommander, logger, s.fleetSvc.NewActivity, 1000)
+							return apple_mdm.IOSiPadOSRefetch(ctx, ds, mdmCommander, logger, s.automdmSvc.NewActivity, 1000)
 						}),
 					)
 					return refetcherSchedule, nil
@@ -570,14 +570,14 @@ func (s *integrationMDMTestSuite) SetupSuite() {
 
 	// ensure all our tests support challenges with invalid XML characters
 	s.scepChallenge = "scepcha/><llenge"
-	err = s.ds.InsertMDMConfigAssets(context.Background(), []fleet.MDMConfigAsset{
-		{Name: fleet.MDMAssetSCEPChallenge, Value: []byte(s.scepChallenge)},
+	err = s.ds.InsertMDMConfigAssets(context.Background(), []automdm.MDMConfigAsset{
+		{Name: automdm.MDMAssetSCEPChallenge, Value: []byte(s.scepChallenge)},
 	}, nil)
 	require.NoError(s.T(), err)
 
-	svc, ctx := NewTestService(s.T(), s.ds, fleetCfg, &serverConfig)
+	svc, ctx := NewTestService(s.T(), s.ds, automdmCfg, &serverConfig)
 	// This is a bit of a code smell but I don't see a better way to initialize this for the tests. The
-	// initialization pattern works fine in our normal fleet server setup
+	// initialization pattern works fine in our normal automdm server setup
 	appleMDMJob.VPPInstaller = svc
 	appleMDMJob.InHouseAppInstaller = svc
 
@@ -585,10 +585,10 @@ func (s *integrationMDMTestSuite) SetupSuite() {
 
 	s.server = server
 	s.users = users
-	s.fleetSvc = svc
+	s.automdmSvc = svc
 	s.token = s.getTestAdminToken()
 	s.cachedAdminToken = s.token
-	s.fleetCfg = fleetCfg
+	s.automdmCfg = automdmCfg
 	s.pushProvider = pushProvider
 	s.depStorage = depStorage
 	s.integrationsSchedule = integrationsSchedule
@@ -603,16 +603,16 @@ func (s *integrationMDMTestSuite) SetupSuite() {
 	s.androidAPIClient = androidMockClient
 	s.keyValueStore = keyValueStore
 
-	// FIXME: Sort out dependency injection between Fleet service and ACME service, especially around
-	// testing cron jobs. For now, this works because the ACME service is embedded in the Fleet
-	// service, but it feels backwards in comparison to how things are injected by the Fleet
+	// FIXME: Sort out dependency injection between AutoMDM service and ACME service, especially around
+	// testing cron jobs. For now, this works because the ACME service is embedded in the AutoMDM
+	// service, but it feels backwards in comparison to how things are injected by the AutoMDM
 	// service into the cron. Something smells wrong here.
-	acmeSvc, ok := svc.(fleet.ACMEWriteService)
-	require.True(s.T(), ok, "fleet service should be ACMEWriteService")
+	acmeSvc, ok := svc.(automdm.ACMEWriteService)
+	require.True(s.T(), ok, "automdm service should be ACMEWriteService")
 	s.acmeSvc = acmeSvc
 
-	fleetdmSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		status := s.fleetDMNextCSRStatus.Swap(http.StatusOK)
+	automdmSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		status := s.automdmNextCSRStatus.Swap(http.StatusOK)
 		statusCode := status.(int)
 		// Set x-exit header for invalid email domain errors (400 or 422 status)
 		if statusCode == http.StatusBadRequest || statusCode == http.StatusUnprocessableEntity {
@@ -643,7 +643,7 @@ func (s *integrationMDMTestSuite) SetupSuite() {
 		s.appleVPPConfigSrvConfig = &appleVPPConfigSrvConf{
 			Assets:        defaultVPPAssetList,
 			SerialNumbers: []string{"123", "456"},
-			Location:      "Fleet Location One",
+			Location:      "AutoMDM Location One",
 		}
 	}
 
@@ -657,7 +657,7 @@ func (s *integrationMDMTestSuite) SetupSuite() {
 
 		// Handle /assets/disassociate — must come before the /associate
 		// catch-all below (HasSuffix prevents the substring "associate" from
-		// swallowing this case). Records every call so tests can assert Fleet
+		// swallowing this case). Records every call so tests can assert AutoMDM
 		// released a reserved seat.
 		if strings.HasSuffix(r.URL.Path, "/disassociate") || strings.HasSuffix(r.URL.Path, "/associate") {
 			s.appleVPPConfigSrvConfig.AuthCalls = append(s.appleVPPConfigSrvConfig.AuthCalls, appleVPPAuthCall{Path: r.URL.Path, Authorization: r.Header.Get("Authorization")})
@@ -850,28 +850,28 @@ func (s *integrationMDMTestSuite) SetupSuite() {
 		_, err = w.Write(b)
 		require.NoError(s.T(), err)
 	}))
-	dev_mode.SetOverride("FLEET_DEV_GDMF_URL", s.appleGDMFSrv.URL, s.T())
+	dev_mode.SetOverride("AUTOMDM_DEV_GDMF_URL", s.appleGDMFSrv.URL, s.T())
 
-	s.T().Setenv("TEST_FLEETDM_API_URL", fleetdmSrv.URL)
-	s.T().Setenv("FLEET_DEV_STOKEN_AUTHENTICATED_APPS_URL", s.appleVPPProxySrv.URL)
+	s.T().Setenv("TEST_AUTOMDM_API_URL", automdmSrv.URL)
+	s.T().Setenv("AUTOMDM_DEV_STOKEN_AUTHENTICATED_APPS_URL", s.appleVPPProxySrv.URL)
 
-	s.mockedDownloadFleetdmMeta = fleetdbase.Metadata{
-		MSIURL:           fmt.Sprintf("https://download-testing.fleetdm.com/archive/stable/%s/fleetd-base.msi", uuid.NewString()),
+	s.mockedDownloadAutoMDMMeta = automdmdbase.Metadata{
+		MSIURL:           fmt.Sprintf("https://download-testing.fleetdm.com/archive/stable/%s/automdmd-base.msi", uuid.NewString()),
 		MSISha256:        uuid.NewString(),
-		PKGURL:           fmt.Sprintf("https://download-testing.fleetdm.com/archive/stable/%s/fleetd-base.pkg", uuid.NewString()),
+		PKGURL:           fmt.Sprintf("https://download-testing.fleetdm.com/archive/stable/%s/automdmd-base.pkg", uuid.NewString()),
 		PKGSha256:        uuid.NewString(),
-		ManifestPlistURL: fmt.Sprintf("https://download-testing.fleetdm.com/archive/stable/%s/fleetd-base-manifest.plist", uuid.NewString()),
+		ManifestPlistURL: fmt.Sprintf("https://download-testing.fleetdm.com/archive/stable/%s/automdmd-base-manifest.plist", uuid.NewString()),
 		Version:          "2024-06-25_03-01-17",
 	}
-	downloadFleetdmSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	downloadAutoMDMSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/stable/meta.json" {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			require.NoError(s.T(), json.NewEncoder(w).Encode(s.mockedDownloadFleetdmMeta))
+			require.NoError(s.T(), json.NewEncoder(w).Encode(s.mockedDownloadAutoMDMMeta))
 		}
 	}))
-	s.T().Setenv("FLEET_DEV_DOWNLOAD_FLEETDM_URL", downloadFleetdmSrv.URL)
-	s.T().Cleanup(downloadFleetdmSrv.Close)
+	s.T().Setenv("AUTOMDM_DEV_DOWNLOAD_AUTOMDM_URL", downloadAutoMDMSrv.URL)
+	s.T().Cleanup(downloadAutoMDMSrv.Close)
 
 	appConf, err = s.ds.AppConfig(context.Background())
 	require.NoError(s.T(), err)
@@ -885,13 +885,13 @@ func (s *integrationMDMTestSuite) SetupSuite() {
 
 	// create a global enroll secret
 	var applyResp applyEnrollSecretSpecResponse
-	s.DoJSON("POST", "/api/latest/fleet/spec/enroll_secret", applyEnrollSecretSpecRequest{
-		Spec: &fleet.EnrollSecretSpec{
-			Secrets: []*fleet.EnrollSecret{{Secret: "global-secret"}},
+	s.DoJSON("POST", "/api/latest/automdm/spec/enroll_secret", applyEnrollSecretSpecRequest{
+		Spec: &automdm.EnrollSecretSpec{
+			Secrets: []*automdm.EnrollSecret{{Secret: "global-secret"}},
 		},
 	}, http.StatusOK, &applyResp)
 
-	s.T().Cleanup(fleetdmSrv.Close)
+	s.T().Cleanup(automdmSrv.Close)
 	s.T().Cleanup(s.appleVPPConfigSrv.Close)
 	s.T().Cleanup(s.appleVPPProxySrv.Close)
 	s.T().Cleanup(s.appleGDMFSrv.Close)
@@ -925,9 +925,9 @@ func (s *integrationMDMTestSuite) SetupSuite() {
 	}))
 	s.T().Cleanup(jwksServer.Close)
 	s.jwtSigningKey = testKey
-	s.T().Setenv("FLEET_DEV_AZURE_JWT_JWKS_URI", jwksServer.URL+"/jwks.json")
+	s.T().Setenv("AUTOMDM_DEV_AZURE_JWT_JWKS_URI", jwksServer.URL+"/jwks.json")
 
-	dev_mode.SetOverride("FLEET_DEV_BATCH_RETRY_INTERVAL", "1s")
+	dev_mode.SetOverride("AUTOMDM_DEV_BATCH_RETRY_INTERVAL", "1s")
 }
 
 func (s *integrationMDMTestSuite) TearDownSuite() {
@@ -937,15 +937,15 @@ func (s *integrationMDMTestSuite) TearDownSuite() {
 	err = s.ds.SaveAppConfig(context.Background(), appConf)
 	require.NoError(s.T(), err)
 
-	dev_mode.ClearOverride("FLEET_DEV_BATCH_RETRY_INTERVAL")
+	dev_mode.ClearOverride("AUTOMDM_DEV_BATCH_RETRY_INTERVAL")
 }
 
 func (s *integrationMDMTestSuite) FailNextCSRRequestWith(status int) {
-	s.fleetDMNextCSRStatus.Store(status)
+	s.automdmNextCSRStatus.Store(status)
 }
 
 func (s *integrationMDMTestSuite) SucceedNextCSRRequest() {
-	s.fleetDMNextCSRStatus.Store(http.StatusOK)
+	s.automdmNextCSRStatus.Store(http.StatusOK)
 }
 
 func (s *integrationMDMTestSuite) TearDownTest() {
@@ -969,17 +969,17 @@ func (s *integrationMDMTestSuite) TearDownTest() {
 	// ensure enable release manually is false
 	appCfg.MDM.MacOSSetup.EnableReleaseDeviceManually = optjson.SetBool(false)
 	// ensure global Windows OS updates are always disabled for the next test
-	appCfg.MDM.WindowsUpdates = fleet.WindowsUpdates{}
+	appCfg.MDM.WindowsUpdates = automdm.WindowsUpdates{}
 	appCfg.MDM.EnabledAndConfigured = true
 	appCfg.MDM.AppleBMEnabledAndConfigured = true
 	appCfg.MDM.AndroidEnabledAndConfigured = true
 
-	appCfg.MDM.EndUserAuthentication = fleet.MDMEndUserAuthentication{} // Reset end user auth
+	appCfg.MDM.EndUserAuthentication = automdm.MDMEndUserAuthentication{} // Reset end user auth
 
 	// abm_tokens is truncated below, so the app config entries referencing them
 	// must go too, otherwise the next test's config PATCH fails validation with
 	// "token with organization name X doesn't exist"
-	appCfg.MDM.AppleBusinessManager = optjson.Slice[fleet.MDMAppleABMAssignmentInfo]{}
+	appCfg.MDM.AppleBusinessManager = optjson.Slice[automdm.MDMAppleABMAssignmentInfo]{}
 
 	// ensure the server URL is constant
 	appCfg.ServerSettings.ServerURL = s.server.URL
@@ -989,7 +989,7 @@ func (s *integrationMDMTestSuite) TearDownTest() {
 	s.withServer.commonTearDownTest(t)
 
 	// use a sql statement to delete all profiles, since the datastore prevents
-	// deleting the fleet-specific ones.
+	// deleting the automdm-specific ones.
 	mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
 		_, err := q.ExecContext(ctx, "DELETE FROM mdm_apple_configuration_profiles")
 		return err
@@ -1124,7 +1124,7 @@ func (s *integrationMDMTestSuite) TearDownTest() {
 
 // withDEPDeviceDetails answers Apple's "Get Device Details" endpoint, which host
 // deletion consults to tell a device released from Apple Business apart from one
-// Fleet still owns. Every requested serial is reported as still assigned, which is
+// AutoMDM still owns. Every requested serial is reported as still assigned, which is
 // the state these suites set up; without this the lookup fails and deletes are
 // refused. Tests needing a different answer should serve /devices themselves and
 // bypass this wrapper.
@@ -1277,36 +1277,36 @@ func checkNextPayloads(t *testing.T, mdmDevice *mdmtest.TestAppleMDMClient, forc
 	return installs, removes
 }
 
-func setupExpectedFleetdProfile(t *testing.T, serverURL string, enrollSecret string, teamID *uint) []byte {
+func setupExpectedAutoMDMdProfile(t *testing.T, serverURL string, enrollSecret string, teamID *uint) []byte {
 	var b bytes.Buffer
-	params := mobileconfig.FleetdProfileOptions{
+	params := mobileconfig.AutoMDMdProfileOptions{
 		EnrollSecret: enrollSecret,
 		ServerURL:    serverURL,
-		PayloadType:  mobileconfig.FleetdConfigPayloadIdentifier,
-		PayloadName:  servermdm.FleetdConfigProfileName,
+		PayloadType:  mobileconfig.AutoMDMdConfigPayloadIdentifier,
+		PayloadName:  servermdm.AutoMDMdConfigProfileName,
 	}
-	err := mobileconfig.FleetdProfileTemplate.Execute(&b, params)
+	err := mobileconfig.AutoMDMdProfileTemplate.Execute(&b, params)
 	require.NoError(t, err)
 	return b.Bytes()
 }
 
 func setupExpectedCAProfile(t *testing.T, ds *mysql.Datastore) []byte {
-	assets, err := ds.GetAllMDMConfigAssetsByName(context.Background(), []fleet.MDMAssetName{
-		fleet.MDMAssetCACert,
+	assets, err := ds.GetAllMDMConfigAssetsByName(context.Background(), []automdm.MDMAssetName{
+		automdm.MDMAssetCACert,
 	}, nil)
 	require.NoError(t, err)
 
-	block, _ := pem.Decode(assets[fleet.MDMAssetCACert].Value)
+	block, _ := pem.Decode(assets[automdm.MDMAssetCACert].Value)
 	require.NotNil(t, block)
 	require.Equal(t, "CERTIFICATE", block.Type)
 
 	var b bytes.Buffer
-	params := mobileconfig.FleetCARootTemplateOptions{
-		PayloadName:       servermdm.FleetCAConfigProfileName,
-		PayloadIdentifier: mobileconfig.FleetCARootConfigPayloadIdentifier,
+	params := mobileconfig.AutoMDMCARootTemplateOptions{
+		PayloadName:       servermdm.AutoMDMCAConfigProfileName,
+		PayloadIdentifier: mobileconfig.AutoMDMCARootConfigPayloadIdentifier,
 		Certificate:       base64.StdEncoding.EncodeToString(block.Bytes),
 	}
-	err = mobileconfig.FleetCARootTemplate.Execute(&b, params)
+	err = mobileconfig.AutoMDMCARootTemplate.Execute(&b, params)
 	require.NoError(t, err)
 	return b.Bytes()
 }
@@ -1327,8 +1327,8 @@ func setupPusher(s *integrationMDMTestSuite, t *testing.T, mdmDevice *mdmtest.Te
 	t.Cleanup(func() { s.pushProvider.PushFunc = origPush })
 }
 
-func createHostThenEnrollMDM(ds fleet.Datastore, fleetServerURL string, t *testing.T) (*fleet.Host, *mdmtest.TestAppleMDMClient) {
-	fleetHost, err := ds.NewHost(context.Background(), &fleet.Host{
+func createHostThenEnrollMDM(ds automdm.Datastore, automdmServerURL string, t *testing.T) (*automdm.Host, *mdmtest.TestAppleMDMClient) {
+	automdmHost, err := ds.NewHost(context.Background(), &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -1343,14 +1343,14 @@ func createHostThenEnrollMDM(ds fleet.Datastore, fleetServerURL string, t *testi
 		HardwareSerial: mdmtest.RandSerialNumber(),
 	})
 	require.NoError(t, err)
-	mdmDevice := enrollMacOSHostInMDMManually(t, fleetHost, ds, fleetServerURL)
+	mdmDevice := enrollMacOSHostInMDMManually(t, automdmHost, ds, automdmServerURL)
 
-	return fleetHost, mdmDevice
+	return automdmHost, mdmDevice
 }
 
-func enrollMacOSHostInMDMManually(t *testing.T, host *fleet.Host, ds fleet.Datastore, fleetServerURL string) *mdmtest.TestAppleMDMClient {
+func enrollMacOSHostInMDMManually(t *testing.T, host *automdm.Host, ds automdm.Datastore, automdmServerURL string) *mdmtest.TestAppleMDMClient {
 	desktopToken := uuid.New().String()
-	mdmDevice := mdmtest.NewTestMDMClientAppleDesktopManual(fleetServerURL, desktopToken)
+	mdmDevice := mdmtest.NewTestMDMClientAppleDesktopManual(automdmServerURL, desktopToken)
 	mdmDevice.UUID = host.UUID
 	mdmDevice.SerialNumber = host.HardwareSerial
 
@@ -1362,7 +1362,7 @@ func enrollMacOSHostInMDMManually(t *testing.T, host *fleet.Host, ds fleet.Datas
 	return mdmDevice
 }
 
-func (s *integrationMDMTestSuite) createAppleMobileHostThenDEPEnrollMDM(platform string, serial string) (*fleet.Host, *mdmtest.TestAppleMDMClient) {
+func (s *integrationMDMTestSuite) createAppleMobileHostThenDEPEnrollMDM(platform string, serial string) (*automdm.Host, *mdmtest.TestAppleMDMClient) {
 	ctx := context.Background()
 	t := s.T()
 
@@ -1374,7 +1374,7 @@ func (s *integrationMDMTestSuite) createAppleMobileHostThenDEPEnrollMDM(platform
 	// create a host with minimal information and the serial, no uuid/osquery id
 	// (as when created via DEP sync).
 	dbZeroTime := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
-	fleetHost, err := s.ds.NewHost(ctx, &fleet.Host{
+	automdmHost, err := s.ds.NewHost(ctx, &automdm.Host{
 		HardwareSerial:   serial,
 		HardwareModel:    model,
 		Platform:         platform,
@@ -1383,9 +1383,9 @@ func (s *integrationMDMTestSuite) createAppleMobileHostThenDEPEnrollMDM(platform
 		RefetchRequested: true,
 	})
 	require.NoError(t, err)
-	require.Equal(t, dbZeroTime, fleetHost.LastEnrolledAt)
+	require.Equal(t, dbZeroTime, automdmHost.LastEnrolledAt)
 
-	s.createDEPAssignmentForHost(t, fleetHost)
+	s.createDEPAssignmentForHost(t, automdmHost)
 
 	depURLToken := loadEnrollmentProfileDEPToken(t, s.ds)
 	mdmDevice := mdmtest.NewTestMDMClientAppleDEPFromDevice(s.server.URL, depURLToken, serial, model)
@@ -1393,12 +1393,12 @@ func (s *integrationMDMTestSuite) createAppleMobileHostThenDEPEnrollMDM(platform
 	err = mdmDevice.Enroll()
 	require.NoError(t, err)
 
-	return fleetHost, mdmDevice
+	return automdmHost, mdmDevice
 }
 
-// createDEPAssignmentForHost records the host as DEP-assigned to Fleet, as the
+// createDEPAssignmentForHost records the host as DEP-assigned to AutoMDM, as the
 // DEP sync would, so it can enroll through the automatic enrollment endpoint.
-func (s *integrationMDMTestSuite) createDEPAssignmentForHost(t *testing.T, host *fleet.Host) {
+func (s *integrationMDMTestSuite) createDEPAssignmentForHost(t *testing.T, host *automdm.Host) {
 	mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
 		_, err := q.ExecContext(t.Context(), `
 			INSERT INTO host_dep_assignments (host_id, hardware_serial)
@@ -1409,7 +1409,7 @@ func (s *integrationMDMTestSuite) createDEPAssignmentForHost(t *testing.T, host 
 	})
 }
 
-func (s *integrationMDMTestSuite) createAppleMobileHostThenEnrollMDM(platform string) (*fleet.Host, *mdmtest.TestAppleMDMClient) {
+func (s *integrationMDMTestSuite) createAppleMobileHostThenEnrollMDM(platform string) (*automdm.Host, *mdmtest.TestAppleMDMClient) {
 	ctx := context.Background()
 	t := s.T()
 
@@ -1422,7 +1422,7 @@ func (s *integrationMDMTestSuite) createAppleMobileHostThenEnrollMDM(platform st
 	// (as when created via DEP sync).
 	dbZeroTime := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
 	serialNumber := mdmtest.RandSerialNumber()
-	fleetHost, err := s.ds.NewHost(ctx, &fleet.Host{
+	automdmHost, err := s.ds.NewHost(ctx, &automdm.Host{
 		UUID:             uuid.NewString(),
 		HardwareSerial:   serialNumber,
 		HardwareModel:    model,
@@ -1432,7 +1432,7 @@ func (s *integrationMDMTestSuite) createAppleMobileHostThenEnrollMDM(platform st
 		RefetchRequested: true,
 	})
 	require.NoError(t, err)
-	require.Equal(t, dbZeroTime, fleetHost.LastEnrolledAt)
+	require.Equal(t, dbZeroTime, automdmHost.LastEnrolledAt)
 
 	// Perform the MDM enrollment.
 	mdmEnrollInfo := mdmtest.AppleEnrollInfo{
@@ -1443,20 +1443,20 @@ func (s *integrationMDMTestSuite) createAppleMobileHostThenEnrollMDM(platform st
 
 	mdmDevice := mdmtest.NewTestMDMClientAppleDirect(mdmEnrollInfo, model)
 	mdmDevice.SerialNumber = serialNumber
-	mdmDevice.UUID = fleetHost.UUID
+	mdmDevice.UUID = automdmHost.UUID
 	err = mdmDevice.Enroll()
 	require.NoError(t, err)
 
-	return fleetHost, mdmDevice
+	return automdmHost, mdmDevice
 }
 
 // Simulates an iPod Touch MDM enrollment. We made this a separate method
-// becuase this is not a device type we are fully supporting in fleet,
+// becuase this is not a device type we are fully supporting in team,
 // so we want to keep it isolated from the iPhone/iPad host creation methods.
 // Functionally it is the same as createAppleMobileHostThenEnrollMDM with
 // an "ios" platform argument, and we expect the device to behave the same way
 // as an iPhone device.
-func (s *integrationMDMTestSuite) createIpodHostThenEnrollMDM() (*fleet.Host, *mdmtest.TestAppleMDMClient) {
+func (s *integrationMDMTestSuite) createIpodHostThenEnrollMDM() (*automdm.Host, *mdmtest.TestAppleMDMClient) {
 	ctx := context.Background()
 	t := s.T()
 
@@ -1467,7 +1467,7 @@ func (s *integrationMDMTestSuite) createIpodHostThenEnrollMDM() (*fleet.Host, *m
 	// (as when created via DEP sync).
 	dbZeroTime := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
 	serialNumber := mdmtest.RandSerialNumber()
-	fleetHost, err := s.ds.NewHost(ctx, &fleet.Host{
+	automdmHost, err := s.ds.NewHost(ctx, &automdm.Host{
 		UUID:           uuid.NewString(),
 		HardwareSerial: serialNumber,
 		HardwareModel:  model, Platform: "ios",
@@ -1476,7 +1476,7 @@ func (s *integrationMDMTestSuite) createIpodHostThenEnrollMDM() (*fleet.Host, *m
 		RefetchRequested: true,
 	})
 	require.NoError(t, err)
-	require.Equal(t, dbZeroTime, fleetHost.LastEnrolledAt)
+	require.Equal(t, dbZeroTime, automdmHost.LastEnrolledAt)
 
 	// Perform the MDM enrollment.
 	mdmEnrollInfo := mdmtest.AppleEnrollInfo{
@@ -1487,48 +1487,48 @@ func (s *integrationMDMTestSuite) createIpodHostThenEnrollMDM() (*fleet.Host, *m
 
 	mdmDevice := mdmtest.NewTestMDMClientAppleDirect(mdmEnrollInfo, model)
 	mdmDevice.SerialNumber = serialNumber
-	mdmDevice.UUID = fleetHost.UUID
+	mdmDevice.UUID = automdmHost.UUID
 	err = mdmDevice.Enroll()
 	require.NoError(t, err)
 
-	return fleetHost, mdmDevice
+	return automdmHost, mdmDevice
 }
 
-func createWindowsHostThenEnrollMDM(ds fleet.Datastore, fleetServerURL string, t *testing.T) (*fleet.Host, *mdmtest.TestWindowsMDMClient) {
+func createWindowsHostThenEnrollMDM(ds automdm.Datastore, automdmServerURL string, t *testing.T) (*automdm.Host, *mdmtest.TestWindowsMDMClient) {
 	host := createOrbitEnrolledHost(t, "windows", uuid.NewString(), ds)
-	mdmDevice := enrollWindowsHostInMDMViaOrbit(t, host, ds, fleetServerURL)
+	mdmDevice := enrollWindowsHostInMDMViaOrbit(t, host, ds, automdmServerURL)
 	return host, mdmDevice
 }
 
-func enrollWindowsHostInMDMViaOrbit(t *testing.T, host *fleet.Host, ds fleet.Datastore, fleetServerURL string) *mdmtest.TestWindowsMDMClient {
-	mdmDevice := mdmtest.NewTestMDMClientWindowsProgramatic(fleetServerURL, *host.OrbitNodeKey)
+func enrollWindowsHostInMDMViaOrbit(t *testing.T, host *automdm.Host, ds automdm.Datastore, automdmServerURL string) *mdmtest.TestWindowsMDMClient {
+	mdmDevice := mdmtest.NewTestMDMClientWindowsProgramatic(automdmServerURL, *host.OrbitNodeKey)
 	err := mdmDevice.Enroll()
 	require.NoError(t, err)
 	_, err = ds.UpdateMDMWindowsEnrollmentsHostUUID(context.Background(), host.UUID, mdmDevice.DeviceID)
 	require.NoError(t, err)
-	err = ds.SetOrUpdateMDMData(context.Background(), host.ID, false, true, fleetServerURL, false, fleet.WellKnownMDMFleet, "", fleet.PersonalEnrollmentTypeNone)
+	err = ds.SetOrUpdateMDMData(context.Background(), host.ID, false, true, automdmServerURL, false, automdm.WellKnownMDMAutoMDM, "", automdm.PersonalEnrollmentTypeNone)
 	require.NoError(t, err)
 	return mdmDevice
 }
 
 // Note that this method only creates the MDM Enrollment but it will still need to be linked to the host record either
 // via DS methods or by simualting a refetch.
-func (s *integrationMDMTestSuite) enrollWindowsMDMViaSettingsApp(fleetServerURL, email, tenantID string, opts ...mdmtest.TestWindowsMDMClientOption) *mdmtest.TestWindowsMDMClient {
+func (s *integrationMDMTestSuite) enrollWindowsMDMViaSettingsApp(automdmServerURL, email, tenantID string, opts ...mdmtest.TestWindowsMDMClientOption) *mdmtest.TestWindowsMDMClient {
 	opts = append([]mdmtest.TestWindowsMDMClientOption{
 		mdmtest.TestWindowsMDMClientNotInOOBE(),
 		mdmtest.TestWindowsMDMClientWithSigningKeyAndTenantID(s.jwtSigningKey, defaultFakeJWTKeyID, tenantID),
 	}, opts...)
-	mdmDevice := mdmtest.NewTestMDMClientWindowsAutomatic(fleetServerURL, email, opts...)
+	mdmDevice := mdmtest.NewTestMDMClientWindowsAutomatic(automdmServerURL, email, opts...)
 	err := mdmDevice.Enroll()
 	require.NoError(s.T(), err)
 	return mdmDevice
 }
 
-func (s *integrationMDMTestSuite) enrollWindowsHostInMDMViaAutopilot(fleetServerURL, email, tenantID string, opts ...mdmtest.TestWindowsMDMClientOption) *mdmtest.TestWindowsMDMClient {
+func (s *integrationMDMTestSuite) enrollWindowsHostInMDMViaAutopilot(automdmServerURL, email, tenantID string, opts ...mdmtest.TestWindowsMDMClientOption) *mdmtest.TestWindowsMDMClient {
 	opts = append([]mdmtest.TestWindowsMDMClientOption{
 		mdmtest.TestWindowsMDMClientWithSigningKeyAndTenantID(s.jwtSigningKey, defaultFakeJWTKeyID, tenantID),
 	}, opts...)
-	mdmDevice := mdmtest.NewTestMDMClientWindowsAutomatic(fleetServerURL, email, opts...)
+	mdmDevice := mdmtest.NewTestMDMClientWindowsAutomatic(automdmServerURL, email, opts...)
 	err := mdmDevice.Enroll()
 	require.NoError(s.T(), err)
 	return mdmDevice
@@ -1588,7 +1588,7 @@ func (s *integrationMDMTestSuite) setSkipWorkerJobs(t *testing.T) {
 }
 
 // only asserts the profile identifier, status and operation (per host)
-func (s *integrationMDMTestSuite) assertHostAppleConfigProfiles(want map[*fleet.Host][]fleet.HostMDMAppleProfile) {
+func (s *integrationMDMTestSuite) assertHostAppleConfigProfiles(want map[*automdm.Host][]automdm.HostMDMAppleProfile) {
 	t := s.T()
 	ds := s.ds
 	ctx := context.Background()
@@ -1620,7 +1620,7 @@ func (s *integrationMDMTestSuite) assertHostAppleConfigProfiles(want map[*fleet.
 }
 
 // only asserts the profile name, status and operation (per host)
-func (s *integrationMDMTestSuite) assertHostWindowsConfigProfiles(want map[*fleet.Host][]fleet.HostMDMWindowsProfile) {
+func (s *integrationMDMTestSuite) assertHostWindowsConfigProfiles(want map[*automdm.Host][]automdm.HostMDMWindowsProfile) {
 	t := s.T()
 	ds := s.ds
 	ctx := context.Background()
@@ -1647,12 +1647,12 @@ func (s *integrationMDMTestSuite) assertHostWindowsConfigProfiles(want map[*flee
 	}
 }
 
-func (s *integrationMDMTestSuite) assertConfigProfilesByIdentifier(teamID *uint, profileIdent string, exists bool) (profile *fleet.MDMAppleConfigProfile) {
+func (s *integrationMDMTestSuite) assertConfigProfilesByIdentifier(teamID *uint, profileIdent string, exists bool) (profile *automdm.MDMAppleConfigProfile) {
 	t := s.T()
 	if teamID == nil {
 		teamID = new(uint(0))
 	}
-	var cfgProfs []*fleet.MDMAppleConfigProfile
+	var cfgProfs []*automdm.MDMAppleConfigProfile
 	mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
 		return sqlx.SelectContext(context.Background(), q, &cfgProfs, `SELECT * FROM mdm_apple_configuration_profiles WHERE team_id = ?`, teamID)
 	})
@@ -1679,7 +1679,7 @@ func (s *integrationMDMTestSuite) assertMacOSConfigProfilesByName(teamID *uint, 
 	if teamID == nil {
 		teamID = new(uint(0))
 	}
-	var cfgProfs []*fleet.MDMAppleConfigProfile
+	var cfgProfs []*automdm.MDMAppleConfigProfile
 	mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
 		return sqlx.SelectContext(context.Background(), q, &cfgProfs, `SELECT name FROM mdm_apple_configuration_profiles WHERE team_id = ?`, teamID)
 	})
@@ -1703,7 +1703,7 @@ func (s *integrationMDMTestSuite) assertMacOSDeclarationsByName(teamID *uint, de
 	if teamID == nil {
 		teamID = new(uint(0))
 	}
-	var cfgProfs []*fleet.MDMAppleConfigProfile
+	var cfgProfs []*automdm.MDMAppleConfigProfile
 	mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
 		return sqlx.SelectContext(context.Background(), q, &cfgProfs, `SELECT name FROM mdm_apple_declarations WHERE team_id = ?`, teamID)
 	})
@@ -1727,7 +1727,7 @@ func (s *integrationMDMTestSuite) assertWindowsConfigProfilesByName(teamID *uint
 	if teamID == nil {
 		teamID = new(uint(0))
 	}
-	var cfgProfs []*fleet.MDMWindowsConfigProfile
+	var cfgProfs []*automdm.MDMWindowsConfigProfile
 	mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
 		return sqlx.SelectContext(context.Background(), q, &cfgProfs,
 			`SELECT profile_uuid, team_id, name, syncml, created_at, uploaded_at FROM mdm_windows_configuration_profiles WHERE team_id = ?`,
@@ -1749,7 +1749,7 @@ func (s *integrationMDMTestSuite) assertWindowsConfigProfilesByName(teamID *uint
 }
 
 // generates the body and headers part of a multipart request ready to be
-// used via s.DoRawWithHeaders to POST /api/_version_/fleet/configuration_profiles.
+// used via s.DoRawWithHeaders to POST /api/_version_/automdm/configuration_profiles.
 func generateNewProfileMultipartRequest(t *testing.T,
 	fileName string, fileContent []byte, token string, extraFields map[string][]string,
 ) (*bytes.Buffer, map[string]string) {
@@ -1818,7 +1818,7 @@ func generateMultipartRequestWithFiles(t *testing.T,
 }
 
 func (s *integrationMDMTestSuite) uploadBootstrapPackage(
-	pkg *fleet.MDMAppleBootstrapPackage,
+	pkg *automdm.MDMAppleBootstrapPackage,
 	expectedStatus int,
 	wantErr string,
 	dryRun bool,
@@ -1835,7 +1835,7 @@ func (s *integrationMDMTestSuite) uploadBootstrapPackage(
 	require.NoError(t, err)
 
 	// add the team_id field
-	err = w.WriteField("fleet_id", fmt.Sprint(pkg.TeamID))
+	err = w.WriteField("team_id", fmt.Sprint(pkg.TeamID))
 	require.NoError(t, err)
 
 	w.Close()
@@ -1846,7 +1846,7 @@ func (s *integrationMDMTestSuite) uploadBootstrapPackage(
 		"Authorization": fmt.Sprintf("Bearer %s", s.token),
 	}
 
-	res := s.DoRawWithHeaders("POST", "/api/latest/fleet/bootstrap", b.Bytes(), expectedStatus, headers, "dry_run", strconv.FormatBool(dryRun))
+	res := s.DoRawWithHeaders("POST", "/api/latest/automdm/bootstrap", b.Bytes(), expectedStatus, headers, "dry_run", strconv.FormatBool(dryRun))
 
 	if wantErr != "" {
 		errMsg := extractServerErrorText(res.Body)
@@ -1854,12 +1854,12 @@ func (s *integrationMDMTestSuite) uploadBootstrapPackage(
 	}
 }
 
-func (s *integrationMDMTestSuite) uploadEULA(eula *fleet.MDMEULA, expectedStatus int, wantErr string) {
+func (s *integrationMDMTestSuite) uploadEULA(eula *automdm.MDMEULA, expectedStatus int, wantErr string) {
 	s.uploadEULAFile("", "", eula, expectedStatus, wantErr)
 }
 
 // uploadEULAFile posts eula with platform in the form, left out when empty. query is appended to the path.
-func (s *integrationMDMTestSuite) uploadEULAFile(platform, query string, eula *fleet.MDMEULA, expectedStatus int, wantErr string) {
+func (s *integrationMDMTestSuite) uploadEULAFile(platform, query string, eula *automdm.MDMEULA, expectedStatus int, wantErr string) {
 	t := s.T()
 
 	var b bytes.Buffer
@@ -1879,7 +1879,7 @@ func (s *integrationMDMTestSuite) uploadEULAFile(platform, query string, eula *f
 		"Authorization": fmt.Sprintf("Bearer %s", s.token),
 	}
 
-	res := s.DoRawWithHeaders("POST", "/api/latest/fleet/setup_experience/eula"+query, b.Bytes(), expectedStatus, headers)
+	res := s.DoRawWithHeaders("POST", "/api/latest/automdm/setup_experience/eula"+query, b.Bytes(), expectedStatus, headers)
 
 	if wantErr != "" {
 		errMsg := extractServerErrorText(res.Body)
@@ -1903,12 +1903,12 @@ func (s *integrationMDMTestSuite) setTokenForTest(t *testing.T, email, password 
 func (s *integrationMDMTestSuite) setUpMDMSSO(t *testing.T, lockEndUserInfo bool) appConfigResponse {
 	// MDM SSO fields are empty by default
 	acResp := appConfigResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
+	s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
 	assert.Empty(t, acResp.MDM.EndUserAuthentication.SSOProviderSettings)
 
 	// set the SSO fields
 	acResp = appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(fmt.Sprintf(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(fmt.Sprintf(`{
 			"server_settings": {
 				"server_url": "https://localhost:8080"
 			},
@@ -1924,7 +1924,7 @@ func (s *integrationMDMTestSuite) setUpMDMSSO(t *testing.T, lockEndUserInfo bool
 				}
 			}
 		}`, testSAMLIDPMetadataURL, lockEndUserInfo)), http.StatusOK, &acResp)
-	wantSettings := fleet.SSOProviderSettings{
+	wantSettings := automdm.SSOProviderSettings{
 		EntityID:    "mdm.test.com",
 		IDPName:     "SimpleSAML",
 		MetadataURL: testSAMLIDPMetadataURL,
@@ -1932,7 +1932,7 @@ func (s *integrationMDMTestSuite) setUpMDMSSO(t *testing.T, lockEndUserInfo bool
 	assert.Equal(t, wantSettings, acResp.MDM.EndUserAuthentication.SSOProviderSettings)
 
 	t.Cleanup(func() {
-		s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+		s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 				"server_settings": {
 					"server_url": "`+s.server.URL+`"
 				},
@@ -1952,7 +1952,7 @@ func (s *integrationMDMTestSuite) setUpMDMSSO(t *testing.T, lockEndUserInfo bool
 
 	// check that they are returned by a GET /config
 	acResp = appConfigResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
+	s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
 	assert.Equal(t, wantSettings, acResp.MDM.EndUserAuthentication.SSOProviderSettings)
 	return acResp
 }
@@ -2026,12 +2026,12 @@ func (s *integrationMDMTestSuite) verifyEnrollmentProfile(rawProfile []byte, enr
 		require.NoError(t, err)
 		rootCA := x509.NewCertPool()
 
-		assets, err := s.ds.GetAllMDMConfigAssetsByName(context.Background(), []fleet.MDMAssetName{
-			fleet.MDMAssetCACert,
+		assets, err := s.ds.GetAllMDMConfigAssetsByName(context.Background(), []automdm.MDMAssetName{
+			automdm.MDMAssetCACert,
 		}, nil)
 		require.NoError(t, err)
 
-		require.True(t, rootCA.AppendCertsFromPEM(assets[fleet.MDMAssetCACert].Value))
+		require.True(t, rootCA.AppendCertsFromPEM(assets[automdm.MDMAssetCACert].Value))
 		require.NoError(t, p7.VerifyWithChain(rootCA))
 		rawProfile = p7.Content
 	}
@@ -2098,7 +2098,7 @@ func (s *integrationMDMTestSuite) runWorkerUntilDoneWithChecks(failIfFailedJobs 
 	}, 5*time.Second, 100*time.Millisecond, "jobs still pending after processing")
 
 	if failIfFailedJobs {
-		var failedJobs []*fleet.Job
+		var failedJobs []*automdm.Job
 		t := s.T()
 		mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
 			return sqlx.SelectContext(t.Context(), q, &failedJobs, "SELECT name, args, state, error FROM jobs WHERE state NOT IN ('queued', 'success')")
@@ -2109,8 +2109,8 @@ func (s *integrationMDMTestSuite) runWorkerUntilDoneWithChecks(failIfFailedJobs 
 
 func (s *integrationMDMTestSuite) runDEPSchedule() {
 	ctx := context.Background()
-	fleetSyncer := apple_mdm.NewDEPService(s.ds, s.depStorage, s.logger)
-	err := fleetSyncer.RunAssigner(ctx)
+	automdmSyncer := apple_mdm.NewDEPService(s.ds, s.depStorage, s.logger)
+	err := automdmSyncer.RunAssigner(ctx)
 	s.Require().NoError(err)
 }
 
@@ -2235,7 +2235,7 @@ func (s *integrationMDMTestSuite) awaitRunCleanupSchedule() {
 }
 
 // enrollRequestHWDevID is the hardware ID every newSecurityTokenMsg request presents. A test enrolling a new host with it
-// must first delete the enrollment a previous test left, which Fleet refuses to hand over to a different host.
+// must first delete the enrollment a previous test left, which AutoMDM refuses to hand over to a different host.
 const enrollRequestHWDevID = "CF1D12AA5AE42E47D52465E9A71316CAF3AFCC1D3088F230F4D50B371FB2256F"
 
 func (s *integrationMDMTestSuite) newSecurityTokenMsg(encodedBinToken string, deviceToken bool, missingContextItem bool) ([]byte, error) {
@@ -2331,7 +2331,7 @@ func (s *integrationMDMTestSuite) newSecurityTokenMsg(encodedBinToken string, de
 	return requestBytes, nil
 }
 
-func (s *integrationMDMTestSuite) checkMDMProfilesSummaries(t *testing.T, teamID *uint, expectedSummary fleet.MDMProfilesSummary) {
+func (s *integrationMDMTestSuite) checkMDMProfilesSummaries(t *testing.T, teamID *uint, expectedSummary automdm.MDMProfilesSummary) {
 	// The Windows profiles summary reads the maintained host_mdm_windows_profiles_status rollup. Some tests simulate device reports
 	// by writing host_mdm_windows_profiles directly, bypassing the write paths that maintain the rollup, so reconcile it before
 	// reading.
@@ -2339,21 +2339,21 @@ func (s *integrationMDMTestSuite) checkMDMProfilesSummaries(t *testing.T, teamID
 
 	var queryParams []string
 	if teamID != nil {
-		queryParams = append(queryParams, "fleet_id", fmt.Sprintf("%d", *teamID))
+		queryParams = append(queryParams, "team_id", fmt.Sprintf("%d", *teamID))
 	}
 
 	var combined getMDMProfilesSummaryResponse
-	s.DoJSON("GET", "/api/v1/fleet/configuration_profiles/summary", getMDMProfilesSummaryRequest{}, http.StatusOK, &combined, queryParams...)
+	s.DoJSON("GET", "/api/v1/automdm/configuration_profiles/summary", getMDMProfilesSummaryRequest{}, http.StatusOK, &combined, queryParams...)
 	require.Equal(t, expectedSummary.Failed, combined.Failed, "failed summary count doesn't match")
 	require.Equal(t, expectedSummary.Pending, combined.Pending, "pending summary count doesn't match")
 	require.Equal(t, expectedSummary.Verifying, combined.Verifying, "verifying summary count doesn't match")
 	require.Equal(t, expectedSummary.Verified, combined.Verified, "verified summary count doesn't match")
 }
 
-func (s *integrationMDMTestSuite) enableABM(orgName string) *fleet.ABMToken {
+func (s *integrationMDMTestSuite) enableABM(orgName string) *automdm.ABMToken {
 	t := s.T()
 	var abmResp generateABMKeyPairResponse
-	s.DoJSON("GET", "/api/latest/fleet/mdm/apple/ab_public_key", nil, http.StatusOK, &abmResp)
+	s.DoJSON("GET", "/api/latest/automdm/mdm/apple/ab_public_key", nil, http.StatusOK, &abmResp)
 	require.NoError(t, abmResp.Err)
 	require.NotEmpty(t, abmResp.PublicKey)
 	block, _ := pem.Decode(abmResp.PublicKey)
@@ -2410,13 +2410,13 @@ func (s *integrationMDMTestSuite) enableABM(orgName string) *fleet.ABMToken {
 
 	// verify that all the secrets are in the db
 	ctx := context.Background()
-	assets, err := s.ds.GetAllMDMConfigAssetsByName(ctx, []fleet.MDMAssetName{
-		fleet.MDMAssetABMCert,
-		fleet.MDMAssetABMKey,
+	assets, err := s.ds.GetAllMDMConfigAssetsByName(ctx, []automdm.MDMAssetName{
+		automdm.MDMAssetABMCert,
+		automdm.MDMAssetABMKey,
 	}, nil)
 	require.NoError(t, err)
 	require.Len(t, assets, 2)
-	require.Equal(t, abmResp.PublicKey, assets[fleet.MDMAssetABMCert].Value)
+	require.Equal(t, abmResp.PublicKey, assets[automdm.MDMAssetABMCert].Value)
 
 	tok, err := s.ds.GetABMTokenByOrgName(ctx, orgName)
 	require.NoError(t, err)
@@ -2448,7 +2448,7 @@ func (s *integrationMDMTestSuite) appleCoreCertsSetup() {
 	// Successful request
 	resp := getMDMAppleCSRResponse{}
 	s.SucceedNextCSRRequest()
-	s.DoJSON("GET", "/api/latest/fleet/mdm/apple/request_csr", getMDMAppleCSRRequest{}, http.StatusOK, &resp)
+	s.DoJSON("GET", "/api/latest/automdm/mdm/apple/request_csr", getMDMAppleCSRRequest{}, http.StatusOK, &resp)
 	require.NotNil(t, resp.CSR)
 	block, _ := pem.Decode(resp.CSR)
 	require.NotNil(t, block)
@@ -2456,13 +2456,13 @@ func (s *integrationMDMTestSuite) appleCoreCertsSetup() {
 
 	// Check that we created the right assets
 	originalAssets, err := s.ds.GetAllMDMConfigAssetsByName(ctx,
-		[]fleet.MDMAssetName{fleet.MDMAssetCACert, fleet.MDMAssetCAKey, fleet.MDMAssetAPNSKey}, nil)
+		[]automdm.MDMAssetName{automdm.MDMAssetCACert, automdm.MDMAssetCAKey, automdm.MDMAssetAPNSKey}, nil)
 	require.NoError(t, err)
 	require.Len(t, originalAssets, 3)
 
 	resp = getMDMAppleCSRResponse{}
 	s.SucceedNextCSRRequest()
-	s.DoJSON("GET", "/api/latest/fleet/mdm/apple/request_csr", getMDMAppleCSRRequest{}, http.StatusOK, &resp)
+	s.DoJSON("GET", "/api/latest/automdm/mdm/apple/request_csr", getMDMAppleCSRRequest{}, http.StatusOK, &resp)
 	require.NotNil(t, resp.CSR)
 	block, _ = pem.Decode(resp.CSR)
 	require.NotNil(t, block)
@@ -2470,7 +2470,7 @@ func (s *integrationMDMTestSuite) appleCoreCertsSetup() {
 
 	// Check that the assets stayed the same in the subsequent call
 	assets, err := s.ds.GetAllMDMConfigAssetsByName(ctx,
-		[]fleet.MDMAssetName{fleet.MDMAssetCACert, fleet.MDMAssetCAKey, fleet.MDMAssetAPNSKey}, nil)
+		[]automdm.MDMAssetName{automdm.MDMAssetCACert, automdm.MDMAssetCAKey, automdm.MDMAssetAPNSKey}, nil)
 	require.NoError(t, err)
 	require.Equal(t, originalAssets, assets)
 
@@ -2486,7 +2486,7 @@ func (s *integrationMDMTestSuite) appleCoreCertsSetup() {
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		BasicConstraintsValid: true,
 		Subject: pkix.Name{
-			CommonName: "Fleet",
+			CommonName: "AutoMDM",
 			ExtraNames: []pkix.AttributeTypeAndValue{
 				{
 					Type:  asn1.ObjectIdentifier{0, 9, 2342, 19200300, 100, 1, 1},
@@ -2501,10 +2501,10 @@ func (s *integrationMDMTestSuite) appleCoreCertsSetup() {
 	certDER, err := x509.CreateCertificate(rand.Reader, certTemplate, testCert, csr.PublicKey, testKey)
 	require.NoError(t, err)
 	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
-	s.uploadDataViaForm("/api/latest/fleet/mdm/apple/apns_certificate", "certificate", "certificate.pem", certPEM, http.StatusAccepted, "", nil)
+	s.uploadDataViaForm("/api/latest/automdm/mdm/apple/apns_certificate", "certificate", "certificate.pem", certPEM, http.StatusAccepted, "", nil)
 
 	assets, err = s.ds.GetAllMDMConfigAssetsByName(ctx,
-		[]fleet.MDMAssetName{fleet.MDMAssetCACert, fleet.MDMAssetCAKey, fleet.MDMAssetAPNSKey, fleet.MDMAssetAPNSCert}, nil)
+		[]automdm.MDMAssetName{automdm.MDMAssetCACert, automdm.MDMAssetCAKey, automdm.MDMAssetAPNSKey, automdm.MDMAssetAPNSCert}, nil)
 	require.NoError(t, err)
 	require.Len(t, assets, 4)
 }
@@ -2529,15 +2529,15 @@ func (s *integrationMDMTestSuite) uploadABMToken(encryptedToken []byte, expected
 		"Authorization": fmt.Sprintf("Bearer %s", s.token),
 	}
 
-	res := s.DoRawWithHeaders("POST", "/api/latest/fleet/ab_tokens", b.Bytes(), expectedStatus, headers)
+	res := s.DoRawWithHeaders("POST", "/api/latest/automdm/ab_tokens", b.Bytes(), expectedStatus, headers)
 	if wantErr != "" {
 		errMsg := extractServerErrorText(res.Body)
 		assert.Contains(t, errMsg, wantErr)
 	}
 }
 
-func checkInstallFleetdCommandSent(t *testing.T, mdmDevice *mdmtest.TestAppleMDMClient, wantCommand bool) {
-	foundInstallFleetdCommand := false
+func checkInstallAutoMDMdCommandSent(t *testing.T, mdmDevice *mdmtest.TestAppleMDMClient, wantCommand bool) {
+	foundInstallAutoMDMdCommand := false
 	cmd, err := mdmDevice.Idle()
 	require.NoError(t, err)
 	for cmd != nil {
@@ -2556,14 +2556,14 @@ func checkInstallFleetdCommandSent(t *testing.T, mdmDevice *mdmtest.TestAppleMDM
 		}
 
 		if manifest := fullCmd.Command.InstallEnterpriseApplication.ManifestURL; manifest != nil {
-			foundInstallFleetdCommand = true
+			foundInstallAutoMDMdCommand = true
 			require.Equal(t, "InstallEnterpriseApplication", cmd.Command.RequestType)
-			require.Contains(t, *fullCmd.Command.InstallEnterpriseApplication.ManifestURL, fleetdbase.GetPKGManifestURL())
+			require.Contains(t, *fullCmd.Command.InstallEnterpriseApplication.ManifestURL, automdmdbase.GetPKGManifestURL())
 		}
 		cmd, err = mdmDevice.Acknowledge(cmd.CommandUUID)
 		require.NoError(t, err)
 	}
-	require.Equal(t, wantCommand, foundInstallFleetdCommand)
+	require.Equal(t, wantCommand, foundInstallAutoMDMdCommand)
 }
 
 func (s *integrationMDMTestSuite) getSignedOTAEnrollmentBody(t *testing.T, reqBody []byte) ([]byte, *x509.Certificate, *rsa.PrivateKey) {
@@ -2602,7 +2602,7 @@ func (s *integrationMDMTestSuite) registerResetVPPProxyData(t *testing.T) {
 	t.Cleanup(func() { s.appleVPPProxySrvData = oldApps })
 }
 
-func pluckHostIDsFromHostResponse(hosts []fleet.HostResponse) []uint {
+func pluckHostIDsFromHostResponse(hosts []automdm.HostResponse) []uint {
 	if len(hosts) == 0 {
 		return nil
 	}

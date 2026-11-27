@@ -17,12 +17,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis/redistest"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/crewjam/saml"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/datastore/redis/redistest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/test"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -39,7 +39,7 @@ func (s *integrationSSOTestSuite) SetupSuite() {
 
 	pool := redistest.SetupRedis(s.T(), "zz", false, false, false)
 	opts := &TestServerOpts{Pool: pool, DBConns: s.dbConns}
-	if os.Getenv("FLEET_INTEGRATION_TESTS_DISABLE_LOG") != "" {
+	if os.Getenv("AUTOMDM_INTEGRATION_TESTS_DISABLE_LOG") != "" {
 		opts.Logger = slog.New(slog.DiscardHandler)
 	}
 	users, server := RunServerForTestsWithDS(s.T(), s.ds, opts)
@@ -58,7 +58,7 @@ func (s *integrationSSOTestSuite) TestGetSSOSettings() {
 	t := s.T()
 
 	acResp := appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(fmt.Sprintf(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(fmt.Sprintf(`{
 		"sso_settings": {
 			"enable_sso": true,
 			"entity_id": "https://localhost:8080",
@@ -71,16 +71,16 @@ func (s *integrationSSOTestSuite) TestGetSSOSettings() {
 
 	// double-check the settings
 	var resGet ssoSettingsResponse
-	s.DoJSON("GET", "/api/v1/fleet/sso", nil, http.StatusOK, &resGet)
+	s.DoJSON("GET", "/api/v1/automdm/sso", nil, http.StatusOK, &resGet)
 	require.True(t, resGet.Settings.SSOEnabled)
 
 	// Javascript redirect URLs are forbidden
 	var resIni initiateSSOResponse
-	s.DoJSON("POST", "/api/v1/fleet/sso", map[string]string{"relay_url": "javascript:alert(1)"}, http.StatusBadRequest, &resIni)
+	s.DoJSON("POST", "/api/v1/automdm/sso", map[string]string{"relay_url": "javascript:alert(1)"}, http.StatusBadRequest, &resIni)
 
 	// initiate an SSO auth
 	resIni = initiateSSOResponse{}
-	s.DoJSON("POST", "/api/v1/fleet/sso", map[string]string{}, http.StatusOK, &resIni)
+	s.DoJSON("POST", "/api/v1/automdm/sso", map[string]string{}, http.StatusOK, &resIni)
 	require.NotEmpty(t, resIni.URL)
 
 	parsed, err := url.Parse(resIni.URL)
@@ -90,17 +90,17 @@ func (s *integrationSSOTestSuite) TestGetSSOSettings() {
 	assert.NotEmpty(t, encoded)
 	authReq := inflate(t, encoded)
 	assert.Equal(t, "https://localhost:8080", authReq.Issuer.Value)
-	assert.Equal(t, "Fleet", authReq.ProviderName)
+	assert.Equal(t, "AutoMDM", authReq.ProviderName)
 	assert.True(t, strings.HasPrefix(authReq.ID, "id"), authReq.ID)
 }
 
 func (s *integrationSSOTestSuite) TestSSOInvalidMetadataURL() {
 	t := s.T()
 
-	badMetadataUrl := "https://www.fleetdm.com"
+	badMetadataUrl := "https://automdm.com"
 	acResp := appConfigResponse{}
 	s.DoJSON(
-		"PATCH", "/api/latest/fleet/config", json.RawMessage(
+		"PATCH", "/api/latest/automdm/config", json.RawMessage(
 			`{
 		"sso_settings": {
 			"enable_sso": true,
@@ -117,7 +117,7 @@ func (s *integrationSSOTestSuite) TestSSOInvalidMetadataURL() {
 	var resIni initiateSSOResponse
 	expectedStatus := http.StatusBadRequest
 	t.Logf("Expecting 400 %v status when bad SSO metadata_url is set: %v", expectedStatus, badMetadataUrl)
-	s.DoJSON("POST", "/api/v1/fleet/sso", map[string]string{}, expectedStatus, &resIni)
+	s.DoJSON("POST", "/api/v1/automdm/sso", map[string]string{}, expectedStatus, &resIni)
 }
 
 func (s *integrationSSOTestSuite) TestSSOInvalidMetadata() {
@@ -126,7 +126,7 @@ func (s *integrationSSOTestSuite) TestSSOInvalidMetadata() {
 	badMetadata := "<EntityDescriptor>foo</EntityDescriptor>"
 	acResp := appConfigResponse{}
 	s.DoJSON(
-		"PATCH", "/api/latest/fleet/config", json.RawMessage(
+		"PATCH", "/api/latest/automdm/config", json.RawMessage(
 			`{
 		"sso_settings": {
 			"enable_sso": true,
@@ -144,13 +144,13 @@ func (s *integrationSSOTestSuite) TestSSOInvalidMetadata() {
 	var resIni initiateSSOResponse
 	expectedStatus := http.StatusBadRequest
 	t.Logf("Expecting %v status when bad SSO metadata is provided: %v", expectedStatus, badMetadata)
-	s.DoJSON("POST", "/api/v1/fleet/sso", map[string]string{}, expectedStatus, &resIni)
+	s.DoJSON("POST", "/api/v1/automdm/sso", map[string]string{}, expectedStatus, &resIni)
 }
 
 func (s *integrationSSOTestSuite) TestSSOValidation() {
 	acResp := appConfigResponse{}
 	// Test we are validating metadata_url
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 		"sso_settings": {
 			"enable_sso": true,
 			"entity_id": "https://localhost:8080",
@@ -164,7 +164,7 @@ func (s *integrationSSOTestSuite) TestSSOLogin() {
 	t := s.T()
 
 	acResp := appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(fmt.Sprintf(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(fmt.Sprintf(`{
         "server_settings": {
           "server_url": "https://localhost:8080"
         },
@@ -179,7 +179,7 @@ func (s *integrationSSOTestSuite) TestSSOLogin() {
 
 	// Register current number of activities.
 	activitiesResp := listActivitiesResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/activities", nil, http.StatusOK, &activitiesResp)
+	s.DoJSON("GET", "/api/latest/automdm/activities", nil, http.StatusOK, &activitiesResp)
 	require.NoError(t, activitiesResp.Err)
 	oldActivitiesCount := len(activitiesResp.Activities)
 
@@ -190,16 +190,16 @@ func (s *integrationSSOTestSuite) TestSSOLogin() {
 	newActivitiesCount := 1
 	checkNewFailedLoginActivity := func() {
 		activitiesResp = listActivitiesResponse{}
-		s.DoJSON("GET", "/api/latest/fleet/activities", nil, http.StatusOK, &activitiesResp)
+		s.DoJSON("GET", "/api/latest/automdm/activities", nil, http.StatusOK, &activitiesResp)
 		require.NoError(t, activitiesResp.Err)
 		require.Len(t, activitiesResp.Activities, oldActivitiesCount+newActivitiesCount)
 		sort.Slice(activitiesResp.Activities, func(i, j int) bool {
 			return activitiesResp.Activities[i].ID < activitiesResp.Activities[j].ID
 		})
 		activity := activitiesResp.Activities[len(activitiesResp.Activities)-1]
-		require.Equal(t, activity.Type, fleet.ActivityTypeUserFailedLogin{}.ActivityName())
+		require.Equal(t, activity.Type, automdm.ActivityTypeUserFailedLogin{}.ActivityName())
 		require.NotNil(t, activity.Details)
-		actDetails := fleet.ActivityTypeUserFailedLogin{}
+		actDetails := automdm.ActivityTypeUserFailedLogin{}
 		err := json.Unmarshal(*activity.Details, &actDetails)
 		require.NoError(t, err)
 		require.Equal(t, "sso_user@example.com", actDetails.Email)
@@ -224,13 +224,13 @@ func (s *integrationSSOTestSuite) TestSSOLogin() {
 	checkNewFailedLoginActivity()
 
 	// an user created by an admin without SSOEnabled can't log-in
-	params := fleet.UserPayload{
+	params := automdm.UserPayload{
 		Name:       ptr.String("SSO User 1"),
 		Email:      ptr.String("sso_user@example.com"),
-		GlobalRole: ptr.String(fleet.RoleObserver),
+		GlobalRole: ptr.String(automdm.RoleObserver),
 		SSOEnabled: ptr.Bool(false),
 	}
-	s.Do("POST", "/api/latest/fleet/users/admin", &params, http.StatusUnprocessableEntity)
+	s.Do("POST", "/api/latest/automdm/users/admin", &params, http.StatusUnprocessableEntity)
 	body = s.LoginSSOUser("sso_user", "user123#")
 	require.Contains(t, body, "/login?status=account_invalid")
 
@@ -238,24 +238,24 @@ func (s *integrationSSOTestSuite) TestSSOLogin() {
 	checkNewFailedLoginActivity()
 
 	// A user created by an admin with SSOEnabled is able to log-in
-	params = fleet.UserPayload{
+	params = automdm.UserPayload{
 		Name:       ptr.String("SSO User 2"),
 		Email:      ptr.String("sso_user2@example.com"),
-		GlobalRole: ptr.String(fleet.RoleObserver),
+		GlobalRole: ptr.String(automdm.RoleObserver),
 		SSOEnabled: ptr.Bool(true),
 	}
-	s.Do("POST", "/api/latest/fleet/users/admin", &params, http.StatusOK)
+	s.Do("POST", "/api/latest/automdm/users/admin", &params, http.StatusOK)
 	body = s.LoginSSOUser("sso_user2", "user123#")
-	require.Contains(t, body, "Redirecting to Fleet at  ...")
+	require.Contains(t, body, "Redirecting to AutoMDM at  ...")
 
 	// a new activity item is created
 	activitiesResp = listActivitiesResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/activities", nil, http.StatusOK, &activitiesResp)
+	s.DoJSON("GET", "/api/latest/automdm/activities", nil, http.StatusOK, &activitiesResp)
 	require.NoError(t, activitiesResp.Err)
 	require.NotEmpty(t, activitiesResp.Activities)
 	require.Condition(t, func() bool {
 		for _, a := range activitiesResp.Activities {
-			if (a.Type == fleet.ActivityTypeUserLoggedIn{}.ActivityName()) && *a.ActorEmail == "sso_user2@example.com" {
+			if (a.Type == automdm.ActivityTypeUserLoggedIn{}.ActivityName()) && *a.ActorEmail == "sso_user2@example.com" {
 				return true
 			}
 		}
@@ -267,7 +267,7 @@ func (s *integrationSSOTestSuite) TestSSOLoginDisallowedWithPremiumRoles() {
 	t := s.T()
 
 	acResp := appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(fmt.Sprintf(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(fmt.Sprintf(`{
         "server_settings": {
           "server_url": "https://localhost:8080"
         },
@@ -282,7 +282,7 @@ func (s *integrationSSOTestSuite) TestSSOLoginDisallowedWithPremiumRoles() {
 
 	user, err := s.ds.UserByEmail(t.Context(), "sso_user2@example.com")
 	switch {
-	case fleet.IsNotFound(err):
+	case automdm.IsNotFound(err):
 		// OK, proceed.
 	case err == nil:
 		// Cleanup (probably created by other tests)
@@ -293,9 +293,9 @@ func (s *integrationSSOTestSuite) TestSSOLoginDisallowedWithPremiumRoles() {
 	}
 
 	t.Run("global premium roles", func(t *testing.T) {
-		for _, role := range []string{fleet.RoleTechnician, fleet.RoleObserverPlus} {
+		for _, role := range []string{automdm.RoleTechnician, automdm.RoleObserverPlus} {
 			// Create user.
-			u := &fleet.User{
+			u := &automdm.User{
 				Name:       "SSO User 2",
 				Email:      "sso_user2@example.com",
 				GlobalRole: ptr.String(role),
@@ -306,7 +306,7 @@ func (s *integrationSSOTestSuite) TestSSOLoginDisallowedWithPremiumRoles() {
 			require.NoError(t, err)
 
 			// Attempt to log in.
-			res := s.loginSSOUser("sso_user2", "user123#", "/api/v1/fleet/sso", http.StatusPaymentRequired)
+			res := s.loginSSOUser("sso_user2", "user123#", "/api/v1/automdm/sso", http.StatusPaymentRequired)
 			t.Cleanup(func() {
 				res.Body.Close()
 			})
@@ -327,20 +327,20 @@ func (s *integrationSSOTestSuite) TestPerformRequiredPasswordResetWithSSO() {
 	// create a non-SSO user
 	var createResp createUserResponse
 	userRawPwd := test.GoodPassword
-	params := fleet.UserPayload{
+	params := automdm.UserPayload{
 		Name:       ptr.String("extra"),
 		Email:      ptr.String("extra@asd.com"),
 		Password:   ptr.String(userRawPwd),
-		GlobalRole: ptr.String(fleet.RoleObserver),
+		GlobalRole: ptr.String(automdm.RoleObserver),
 	}
-	s.DoJSON("POST", "/api/latest/fleet/users/admin", params, http.StatusOK, &createResp)
+	s.DoJSON("POST", "/api/latest/automdm/users/admin", params, http.StatusOK, &createResp)
 	assert.NotZero(t, createResp.User.ID)
 	assert.True(t, createResp.User.AdminForcedPasswordReset)
 	nonSSOUser := *createResp.User
 
 	// enable SSO
 	acResp := appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(fmt.Sprintf(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(fmt.Sprintf(`{
 		"sso_settings": {
 			"enable_sso": true,
 			"entity_id": "https://localhost:8080",
@@ -354,7 +354,7 @@ func (s *integrationSSOTestSuite) TestPerformRequiredPasswordResetWithSSO() {
 	s.token = s.getTestToken(nonSSOUser.Email, userRawPwd)
 	perfPwdResetResp := performRequiredPasswordResetResponse{}
 	newRawPwd := "new_password2!"
-	s.DoJSON("POST", "/api/latest/fleet/perform_required_password_reset", performRequiredPasswordResetRequest{
+	s.DoJSON("POST", "/api/latest/automdm/perform_required_password_reset", performRequiredPasswordResetRequest{
 		Password: newRawPwd,
 	}, http.StatusOK, &perfPwdResetResp)
 	require.False(t, perfPwdResetResp.User.AdminForcedPasswordReset)
@@ -374,7 +374,7 @@ func (s *integrationSSOTestSuite) TestPerformRequiredPasswordResetWithSSO() {
 	// perform a required password change using the mocked SSO user, disallowed
 	perfPwdResetResp = performRequiredPasswordResetResponse{}
 	newRawPwd = "new_password2!"
-	s.DoJSON("POST", "/api/latest/fleet/perform_required_password_reset", performRequiredPasswordResetRequest{
+	s.DoJSON("POST", "/api/latest/automdm/perform_required_password_reset", performRequiredPasswordResetRequest{
 		Password: newRawPwd,
 	}, http.StatusForbidden, &perfPwdResetResp)
 }
@@ -420,7 +420,7 @@ func (s *integrationSSOTestSuite) TestSSOLoginWithMetadata() {
   </md:IDPSSODescriptor>
 </md:EntityDescriptor>`, testSAMLIDPMetadataURL, testSAMLIDPSLOURL, testSAMLIDPSSOURL))
 	require.NoError(t, err)
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(fmt.Sprintf(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(fmt.Sprintf(`{
 		"server_settings": {
 			"server_url": "https://localhost:8080"
 		},
@@ -435,17 +435,17 @@ func (s *integrationSSOTestSuite) TestSSOLoginWithMetadata() {
 
 	// Create sso_user2@example.com if it doesn't exist (because this is
 	// a free instance and doesn't support enable_jit_provisioning).
-	u := &fleet.User{
+	u := &automdm.User{
 		Name:       "SSO User 2",
 		Email:      "sso_user2@example.com",
-		GlobalRole: ptr.String(fleet.RoleObserver),
+		GlobalRole: ptr.String(automdm.RoleObserver),
 		SSOEnabled: true,
 		Password:   []byte{},
 	}
 	_, _ = s.ds.NewUser(context.Background(), u)
 
 	body := s.LoginSSOUser("sso_user2", "user123#")
-	require.Contains(t, body, "Redirecting to Fleet at  ...")
+	require.Contains(t, body, "Redirecting to AutoMDM at  ...")
 }
 
 // This test increases coverage on using server_url.hostname as
@@ -454,7 +454,7 @@ func (s *integrationSSOTestSuite) TestSSOLoginNoEntityID() {
 	t := s.T()
 
 	acResp := appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(fmt.Sprintf(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(fmt.Sprintf(`{
         "server_settings": {
           "server_url": "https://localhost:8080"
         },
@@ -475,10 +475,10 @@ func (s *integrationSSOTestSuite) TestSSOLoginNoEntityID() {
 
 	// Create sso_user2@example.com if it doesn't exist (because this is
 	// a free instance and doesn't support enable_jit_provisioning).
-	u := &fleet.User{
+	u := &automdm.User{
 		Name:       "SSO User 2",
 		Email:      "sso_user2@example.com",
-		GlobalRole: ptr.String(fleet.RoleObserver),
+		GlobalRole: ptr.String(automdm.RoleObserver),
 		SSOEnabled: true,
 		Password:   []byte{},
 	}
@@ -498,7 +498,7 @@ func (s *integrationSSOTestSuite) TestSSOLoginSAMLResponseTampered() {
 	}
 
 	acResp := appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(fmt.Sprintf(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(fmt.Sprintf(`{
         "server_settings": {
           "server_url": "https://localhost:8080"
         },
@@ -513,10 +513,10 @@ func (s *integrationSSOTestSuite) TestSSOLoginSAMLResponseTampered() {
 
 	// Create sso_user2@example.com if it doesn't exist (because this is
 	// a free instance and doesn't support enable_jit_provisioning).
-	u := &fleet.User{
+	u := &automdm.User{
 		Name:       "SSO User 2",
 		Email:      "sso_user2@example.com",
-		GlobalRole: ptr.String(fleet.RoleObserver),
+		GlobalRole: ptr.String(automdm.RoleObserver),
 		SSOEnabled: true,
 		Password:   []byte{},
 	}
@@ -525,7 +525,7 @@ func (s *integrationSSOTestSuite) TestSSOLoginSAMLResponseTampered() {
 	idpUsername := "sso_user2"
 	client := s.newSSOTestClient()
 	var resIni initiateSSOResponse
-	res := s.doWithClient(client, "POST", "/api/v1/fleet/sso", []byte(`{}`), http.StatusOK, nil)
+	res := s.doWithClient(client, "POST", "/api/v1/automdm/sso", []byte(`{}`), http.StatusOK, nil)
 	require.NoError(t, json.NewDecoder(res.Body).Decode(&resIni))
 	require.NoError(t, resIni.Error())
 	samlResponse := s.completeSAMLLogin(client, resIni.URL, idpUsername, "user123#")
@@ -535,7 +535,7 @@ func (s *integrationSSOTestSuite) TestSSOLoginSAMLResponseTampered() {
 	tamperedSAMLResponseDecoded := strings.ReplaceAll(string(samlResponseDecoded), idpUsername, "sso_us3r2")
 	tamperedSAMLResponseEncoded := base64.RawStdEncoding.EncodeToString([]byte(tamperedSAMLResponseDecoded))
 
-	res = s.doWithClient(client, "POST", "/api/v1/fleet/sso/callback", nil, http.StatusOK, nil, "SAMLResponse", tamperedSAMLResponseEncoded)
+	res = s.doWithClient(client, "POST", "/api/v1/automdm/sso/callback", nil, http.StatusOK, nil, "SAMLResponse", tamperedSAMLResponseEncoded)
 	defer res.Body.Close()
 	body, err := io.ReadAll(res.Body)
 	require.NoError(t, err)
@@ -543,13 +543,13 @@ func (s *integrationSSOTestSuite) TestSSOLoginSAMLResponseTampered() {
 }
 
 // Enabling IdP-initiated login must not relax the InResponseTo check for
-// SP-initiated logins, which do have a Fleet-issued request ID to compare
+// SP-initiated logins, which do have an AutoMDM-issued request ID to compare
 // against.
 func (s *integrationSSOTestSuite) TestSSOLoginSessionExpired() {
 	t := s.T()
 
 	acResp := appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(fmt.Sprintf(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(fmt.Sprintf(`{
         "server_settings": {
           "server_url": "https://localhost:8080"
         },
@@ -563,10 +563,10 @@ func (s *integrationSSOTestSuite) TestSSOLoginSessionExpired() {
 	}`, testSAMLIDPMetadataURL)), http.StatusOK, &acResp)
 	require.NotNil(t, acResp)
 
-	u := &fleet.User{
+	u := &automdm.User{
 		Name:       "SSO User 2",
 		Email:      "sso_user2@example.com",
-		GlobalRole: new(fleet.RoleObserver),
+		GlobalRole: new(automdm.RoleObserver),
 		SSOEnabled: true,
 		Password:   []byte{},
 	}
@@ -574,7 +574,7 @@ func (s *integrationSSOTestSuite) TestSSOLoginSessionExpired() {
 
 	client := s.newSSOTestClient()
 	var resIni initiateSSOResponse
-	res := s.doWithClient(client, "POST", "/api/v1/fleet/sso", []byte(`{}`), http.StatusOK, nil)
+	res := s.doWithClient(client, "POST", "/api/v1/automdm/sso", []byte(`{}`), http.StatusOK, nil)
 	require.NoError(t, json.NewDecoder(res.Body).Decode(&resIni))
 	require.NoError(t, resIni.Error())
 	var sessionCookie *http.Cookie
@@ -588,7 +588,7 @@ func (s *integrationSSOTestSuite) TestSSOLoginSessionExpired() {
 	samlResponse := s.completeSAMLLogin(client, resIni.URL, "sso_user2", "user123#")
 
 	// The browser dropped the handshake cookie, or it outlived its session.
-	res = s.DoRawNoAuth("POST", "/api/v1/fleet/sso/callback?SAMLResponse="+url.QueryEscape(samlResponse), nil, http.StatusOK)
+	res = s.DoRawNoAuth("POST", "/api/v1/automdm/sso/callback?SAMLResponse="+url.QueryEscape(samlResponse), nil, http.StatusOK)
 	defer res.Body.Close()
 	body, err := io.ReadAll(res.Body)
 	require.NoError(t, err)
@@ -599,7 +599,7 @@ func (s *integrationSSOTestSuite) TestSSOLoginIdPInitiatedEnabledKeepsRequestIDC
 	t := s.T()
 
 	acResp := appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(fmt.Sprintf(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(fmt.Sprintf(`{
         "server_settings": {
           "server_url": "https://localhost:8080"
         },
@@ -613,10 +613,10 @@ func (s *integrationSSOTestSuite) TestSSOLoginIdPInitiatedEnabledKeepsRequestIDC
 	}`, testSAMLIDPMetadataURL)), http.StatusOK, &acResp)
 	require.NotNil(t, acResp)
 
-	u := &fleet.User{
+	u := &automdm.User{
 		Name:       "SSO User 2",
 		Email:      "sso_user2@example.com",
-		GlobalRole: new(fleet.RoleObserver),
+		GlobalRole: new(automdm.RoleObserver),
 		SSOEnabled: true,
 		Password:   []byte{},
 	}
@@ -624,24 +624,24 @@ func (s *integrationSSOTestSuite) TestSSOLoginIdPInitiatedEnabledKeepsRequestIDC
 
 	// A regular SP-initiated login still works with the setting on.
 	body := s.LoginSSOUser("sso_user2", "user123#")
-	require.Contains(t, body, "Redirecting to Fleet at  ...")
+	require.Contains(t, body, "Redirecting to AutoMDM at  ...")
 
 	// Start two SSO flows on the same client. The cookie jar keeps the second
 	// session cookie, but the IdP is answering the first request, so the
 	// response's InResponseTo does not match the session's request ID.
 	client := s.newSSOTestClient()
 	var firstIni initiateSSOResponse
-	res := s.doWithClient(client, "POST", "/api/v1/fleet/sso", []byte(`{}`), http.StatusOK, nil)
+	res := s.doWithClient(client, "POST", "/api/v1/automdm/sso", []byte(`{}`), http.StatusOK, nil)
 	require.NoError(t, json.NewDecoder(res.Body).Decode(&firstIni))
 	require.NoError(t, firstIni.Error())
 	var secondIni initiateSSOResponse
-	res = s.doWithClient(client, "POST", "/api/v1/fleet/sso", []byte(`{}`), http.StatusOK, nil)
+	res = s.doWithClient(client, "POST", "/api/v1/automdm/sso", []byte(`{}`), http.StatusOK, nil)
 	require.NoError(t, json.NewDecoder(res.Body).Decode(&secondIni))
 	require.NoError(t, secondIni.Error())
 	require.NotEqual(t, firstIni.URL, secondIni.URL)
 
 	samlResponse := s.completeSAMLLogin(client, firstIni.URL, "sso_user2", "user123#")
-	res = s.doWithClient(client, "POST", "/api/v1/fleet/sso/callback", nil, http.StatusOK, nil, "SAMLResponse", samlResponse)
+	res = s.doWithClient(client, "POST", "/api/v1/automdm/sso/callback", nil, http.StatusOK, nil, "SAMLResponse", samlResponse)
 	defer res.Body.Close()
 	rawBody, err := io.ReadAll(res.Body)
 	require.NoError(t, err)
@@ -652,7 +652,7 @@ func (s *integrationSSOTestSuite) TestSSOLoginSAMLResponseReplay() {
 	t := s.T()
 
 	acResp := appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(fmt.Sprintf(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(fmt.Sprintf(`{
         "server_settings": {
           "server_url": "https://localhost:8080"
         },
@@ -666,17 +666,17 @@ func (s *integrationSSOTestSuite) TestSSOLoginSAMLResponseReplay() {
 	}`, testSAMLIDPMetadataURL)), http.StatusOK, &acResp)
 	require.NotNil(t, acResp)
 
-	u := &fleet.User{
+	u := &automdm.User{
 		Name:       "SSO User 2",
 		Email:      "sso_user2@example.com",
-		GlobalRole: new(fleet.RoleObserver),
+		GlobalRole: new(automdm.RoleObserver),
 		SSOEnabled: true,
 		Password:   []byte{},
 	}
 	_, _ = s.ds.NewUser(context.Background(), u)
 
 	postCallback := func(samlResponse string) string {
-		res := s.DoRawNoAuth("POST", "/api/v1/fleet/sso/callback?SAMLResponse="+url.QueryEscape(samlResponse), nil, http.StatusOK)
+		res := s.DoRawNoAuth("POST", "/api/v1/automdm/sso/callback?SAMLResponse="+url.QueryEscape(samlResponse), nil, http.StatusOK)
 		defer res.Body.Close()
 		body, err := io.ReadAll(res.Body)
 		require.NoError(t, err)
@@ -688,7 +688,7 @@ func (s *integrationSSOTestSuite) TestSSOLoginSAMLResponseReplay() {
 	idpInitiatedResponse := s.completeSAMLLogin(client,
 		fmt.Sprintf("%s?spentityid=%s", testSAMLIDPSSOURL, "sso.test.com"), "sso_user2", "user123#")
 	idpBody := postCallback(idpInitiatedResponse)
-	require.Contains(t, idpBody, "Redirecting to Fleet at / ...")
+	require.Contains(t, idpBody, "Redirecting to AutoMDM at / ...")
 	// CSP blocks inline scripts, so the redirect must not rely on one.
 	require.Contains(t, idpBody, `<meta http-equiv="refresh" content="0;url=/">`)
 	require.NotContains(t, idpBody, "<script")
@@ -698,23 +698,23 @@ func (s *integrationSSOTestSuite) TestSSOLoginSAMLResponseReplay() {
 	// without the session cookie must not be accepted as an IdP-initiated login.
 	client = s.newSSOTestClient()
 	var resIni initiateSSOResponse
-	res := s.doWithClient(client, "POST", "/api/v1/fleet/sso", []byte(`{}`), http.StatusOK, nil)
+	res := s.doWithClient(client, "POST", "/api/v1/automdm/sso", []byte(`{}`), http.StatusOK, nil)
 	require.NoError(t, json.NewDecoder(res.Body).Decode(&resIni))
 	require.NoError(t, resIni.Error())
 	spInitiatedResponse := s.completeSAMLLogin(client, resIni.URL, "sso_user2", "user123#")
-	res = s.doWithClient(client, "POST", "/api/v1/fleet/sso/callback", nil, http.StatusOK, nil, "SAMLResponse", spInitiatedResponse)
+	res = s.doWithClient(client, "POST", "/api/v1/automdm/sso/callback", nil, http.StatusOK, nil, "SAMLResponse", spInitiatedResponse)
 	defer res.Body.Close()
 	body, err := io.ReadAll(res.Body)
 	require.NoError(t, err)
-	require.Contains(t, string(body), "Redirecting to Fleet at  ...")
+	require.Contains(t, string(body), "Redirecting to AutoMDM at  ...")
 	require.Contains(t, postCallback(spInitiatedResponse), "/login?status=error")
 
 	// A captured SP-initiated response that was never used to log in (e.g. the
 	// user abandoned the flow) is rejected too when the setting is off.
 	acResp = appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{"sso_settings": {"enable_sso_idp_login": false}}`), http.StatusOK, &acResp)
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{"sso_settings": {"enable_sso_idp_login": false}}`), http.StatusOK, &acResp)
 	client = s.newSSOTestClient()
-	res = s.doWithClient(client, "POST", "/api/v1/fleet/sso", []byte(`{}`), http.StatusOK, nil)
+	res = s.doWithClient(client, "POST", "/api/v1/automdm/sso", []byte(`{}`), http.StatusOK, nil)
 	require.NoError(t, json.NewDecoder(res.Body).Decode(&resIni))
 	require.NoError(t, resIni.Error())
 	unusedResponse := s.completeSAMLLogin(client, resIni.URL, "sso_user2", "user123#")
@@ -743,7 +743,7 @@ func (s *integrationSSOTestSuite) TestSSOServerURL() {
 
 	// Configure SSO with a specific SSO server URL and inline metadata
 	acResp := appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(fmt.Sprintf(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(fmt.Sprintf(`{
 		"sso_settings": {
 			"enable_sso": true,
 			"entity_id": "https://localhost:8080",
@@ -761,7 +761,7 @@ func (s *integrationSSOTestSuite) TestSSOServerURL() {
 
 	// Initiate SSO
 	var resIni initiateSSOResponse
-	s.DoJSON("POST", "/api/v1/fleet/sso", map[string]string{}, http.StatusOK, &resIni)
+	s.DoJSON("POST", "/api/v1/automdm/sso", map[string]string{}, http.StatusOK, &resIni)
 	require.NotEmpty(t, resIni.URL)
 
 	// Parse the auth request to verify it uses the SSO URL
@@ -774,5 +774,5 @@ func (s *integrationSSOTestSuite) TestSSOServerURL() {
 
 	// Check that the ACS URL in the auth request uses the SSO server URL
 	require.NotNil(t, authReq.AssertionConsumerServiceURL)
-	assert.Equal(t, "https://admin.localhost:8080/api/v1/fleet/sso/callback", authReq.AssertionConsumerServiceURL)
+	assert.Equal(t, "https://admin.localhost:8080/api/v1/automdm/sso/callback", authReq.AssertionConsumerServiceURL)
 }

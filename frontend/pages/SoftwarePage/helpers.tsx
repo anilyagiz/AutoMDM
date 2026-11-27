@@ -4,7 +4,7 @@
  * 2. software/SoftwarePage should be its own subdirectory that is only for the main software nav
  * 3. Separate this file into /software/helpers and software/SoftwarePage/helpers
  * 4. software/SoftwarePage will include its child tabs: /SoftwareTitles /SoftwareOS and /SoftwareVulnerabilities
- * 5. Create software/components for components shared across software pages such as SoftwareVppForm and FleetAppDetailsForm
+ * 5. Create software/components for components shared across software pages such as SoftwareVppForm and AutoMDMAppDetailsForm
  */
 
 import React from "react";
@@ -26,7 +26,7 @@ import {
 } from "interfaces/software";
 import { LEARN_MORE_ABOUT_BASE_LINK } from "utilities/constants";
 import {
-  formatFleet5RemovalMessage,
+  formatAutoMDM5RemovalMessage,
   internationalTimeOnlyFormat,
 } from "utilities/helpers";
 
@@ -141,7 +141,7 @@ export const generateSelectedLabels = (
   );
 };
 
-// Used in FleetAppDetailsForm and PackageForm
+// Used in AutoMDMAppDetailsForm and PackageForm
 export const generateHelpText = (
   automaticInstall: boolean,
   customTarget: string
@@ -188,7 +188,7 @@ export const generateHelpText = (
   );
 };
 
-// Used in FleetAppDetailsForm and PackageForm
+// Used in AutoMDMAppDetailsForm and PackageForm
 export const CUSTOM_TARGET_OPTIONS: IDropdownOption[] = [
   {
     value: "labelsIncludeAny",
@@ -265,7 +265,7 @@ export const getSelfServiceTooltip = (
 
   return (
     <>
-      End users can install from <strong>Fleet Desktop</strong> &gt;{" "}
+      End users can install from <strong>AutoMDM Desktop</strong> &gt;{" "}
       <CustomLink
         newTab
         text="Self service"
@@ -490,8 +490,8 @@ const PROFILE_ONLY_VARIABLE_PATTERNS = [
 const isProfileOnlyVariable = (varNameWithoutPrefix: string): boolean =>
   PROFILE_ONLY_VARIABLE_PATTERNS.some((p) => p.test(varNameWithoutPrefix));
 
-const rewriteUnsupportedFleetVarReason = (reason: string): string | null => {
-  const match = reason.match(/\$FLEET_VAR_(\w+)/);
+const rewriteUnsupportedAutoMDMVarReason = (reason: string): string | null => {
+  const match = reason.match(/\$AUTOMDM_VAR_(\w+)/);
   if (!match) return null;
   const [fullVarName, varNameWithoutPrefix] = match;
   if (isProfileOnlyVariable(varNameWithoutPrefix)) {
@@ -500,8 +500,8 @@ const rewriteUnsupportedFleetVarReason = (reason: string): string | null => {
   return `Couldn't edit. Variable "${fullVarName}" doesn't exist.`;
 };
 
-const rewriteMissingFleetSecretReason = (reason: string): string | null => {
-  const regex = /"\$FLEET_SECRET_\w+"/g;
+const rewriteMissingAutoMDMSecretReason = (reason: string): string | null => {
+  const regex = /"\$AUTOMDM_SECRET_\w+"/g;
   const varNames: string[] = [];
   let m = regex.exec(reason);
   while (m) {
@@ -515,34 +515,34 @@ const rewriteMissingFleetSecretReason = (reason: string): string | null => {
   return `Couldn't edit. Variable${plural} ${quoted} ${verb} exist.`;
 };
 
-/** Rewrites the backend's raw `$FLEET_VAR_` / `$FLEET_SECRET_` error reasons
+/** Rewrites the backend's raw `$AUTOMDM_VAR_` / `$AUTOMDM_SECRET_` error reasons
  * into user-facing copy. Returns `null` when the reason isn't a variable
  * error, so callers can fall back to the raw reason or their own default. The
- * BE validates FLEET_VAR variables one at a time and returns on the first
- * unsupported one; FLEET_SECRET errors can carry multiple names. */
+ * BE validates AUTOMDM_VAR variables one at a time and returns on the first
+ * unsupported one; AUTOMDM_SECRET errors can carry multiple names. */
 export const rewriteVariableErrorReason = (reason: string): React.ReactNode => {
-  const fleet5Removal = formatFleet5RemovalMessage(reason);
-  if (fleet5Removal) {
-    return <>Couldn&apos;t edit. {fleet5Removal}</>;
+  const automdm5Removal = formatAutoMDM5RemovalMessage(reason);
+  if (automdm5Removal) {
+    return <>Couldn&apos;t edit. {automdm5Removal}</>;
   }
   if (
     reason.includes("unsupported variable") &&
-    reason.includes("$FLEET_VAR_")
+    reason.includes("$AUTOMDM_VAR_")
   ) {
-    return rewriteUnsupportedFleetVarReason(reason);
+    return rewriteUnsupportedAutoMDMVarReason(reason);
   }
   if (
     reason.includes("missing from database") &&
-    reason.includes("$FLEET_SECRET_")
+    reason.includes("$AUTOMDM_SECRET_")
   ) {
-    return rewriteMissingFleetSecretReason(reason);
+    return rewriteMissingAutoMDMSecretReason(reason);
   }
   return null;
 };
 
 /** Routes a submit error from the Add/Edit version modals: the backend's
- * duplicate-version-name conflict goes to the Name field; `$FLEET_VAR_` /
- * `$FLEET_SECRET_` errors are rewritten the same way Edit configuration does;
+ * duplicate-version-name conflict goes to the Name field; `$AUTOMDM_VAR_` /
+ * `$AUTOMDM_SECRET_` errors are rewritten the same way Edit configuration does;
  * anything else surfaces the server's reason in the toast (e.g. an unknown
  * managed-config key), falling back to the generic message only when the
  * server returned no reason. */

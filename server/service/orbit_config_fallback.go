@@ -7,8 +7,8 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/logging"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/logging"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -21,8 +21,8 @@ import (
 var orbitConfigFallbackChanges = mustNewOrbitConfigFallbackChangesCounter()
 
 func mustNewOrbitConfigFallbackChangesCounter() metric.Int64Counter {
-	c, err := otel.Meter("fleet").Int64Counter(
-		"fleet.agentws.orbit_config.fallback_changes",
+	c, err := otel.Meter("automdm").Int64Counter(
+		"automdm.agentws.orbit_config.fallback_changes",
 		metric.WithDescription("Count of orbit config fields that agents found changed on a fallback poll, by field"),
 		metric.WithUnit("{field}"),
 	)
@@ -33,7 +33,7 @@ func mustNewOrbitConfigFallbackChangesCounter() metric.Int64Counter {
 }
 
 // orbitConfigFields is the set of field names an agent may report in
-// fleet.OrbitConfigFallbackChangesHeader; anything else is ignored, bounding
+// automdm.OrbitConfigFallbackChangesHeader; anything else is ignored, bounding
 // the metric's cardinality.
 var orbitConfigFields = func() map[string]struct{} {
 	fields := make(map[string]struct{})
@@ -43,8 +43,8 @@ var orbitConfigFields = func() map[string]struct{} {
 			fields[prefix+name] = struct{}{}
 		}
 	}
-	add(reflect.TypeFor[fleet.OrbitConfig](), "")
-	add(reflect.TypeFor[fleet.OrbitConfigNotifications](), "notifications.")
+	add(reflect.TypeFor[automdm.OrbitConfig](), "")
+	add(reflect.TypeFor[automdm.OrbitConfigNotifications](), "notifications.")
 	return fields
 }()
 
@@ -54,8 +54,8 @@ var orbitConfigFields = func() map[string]struct{} {
 // doesn't reach zero with label-scoped reports; a steady count without them
 // points at a write missing a nudge.
 var osqueryConfigFallbackChanges = func() metric.Int64Counter {
-	c, err := otel.Meter("fleet").Int64Counter(
-		"fleet.agentws.osquery_config.fallback_changes",
+	c, err := otel.Meter("automdm").Int64Counter(
+		"automdm.agentws.osquery_config.fallback_changes",
 		metric.WithDescription("Count of osquery configs that agents found changed on a fallback poll"),
 		metric.WithUnit("{config}"),
 	)
@@ -73,10 +73,10 @@ func recordOsqueryConfigFallbackChange(ctx context.Context) {
 type orbitConfigFallbackChangesKey struct{}
 
 // orbitConfigFallbackChangesContext stores the request's
-// fleet.OrbitConfigFallbackChangesHeader in the context. It is only read
+// automdm.OrbitConfigFallbackChangesHeader in the context. It is only read
 // once the host is authenticated (see recordOrbitConfigFallbackChanges).
 func orbitConfigFallbackChangesContext(ctx context.Context, r *http.Request) context.Context {
-	if v := r.Header.Get(fleet.OrbitConfigFallbackChangesHeader); v != "" {
+	if v := r.Header.Get(automdm.OrbitConfigFallbackChangesHeader); v != "" {
 		return context.WithValue(ctx, orbitConfigFallbackChangesKey{}, v)
 	}
 	return ctx

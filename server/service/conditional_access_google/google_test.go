@@ -20,9 +20,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/str"
-	"github.com/fleetdm/fleet/v4/server/dev_mode"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/pkg/str"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/dev_mode"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2/google"
 )
@@ -215,7 +215,7 @@ func TestCheckDelegationReturnsGoogleReason(t *testing.T) {
 
 	err := client.CheckDelegation(t.Context())
 	require.EqualError(t, err, "Not Authorized to access this resource/api")
-	require.False(t, fleet.IsNotFound(err))
+	require.False(t, automdm.IsNotFound(err))
 	// A 403 on the delegation check isn't about a resource.
 	require.False(t, IsStale(err))
 	require.True(t, IsAuthError(err))
@@ -228,7 +228,7 @@ func TestCheckDelegationNotFoundIsNotAMissingResource(t *testing.T) {
 
 	err := client.CheckDelegation(t.Context())
 	require.EqualError(t, err, "Requested entity was not found.")
-	require.False(t, fleet.IsNotFound(err))
+	require.False(t, automdm.IsNotFound(err))
 	require.False(t, IsStale(err))
 	// The check names no device, so any refusal is about the delegation.
 	require.True(t, IsAuthError(err))
@@ -346,15 +346,15 @@ func TestCloudIdentityCallStopsOnCancel(t *testing.T) {
 func TestSetClientState(t *testing.T) {
 	cases := []struct {
 		name  string
-		state fleet.GoogleConditionalAccessClientState
+		state automdm.GoogleConditionalAccessClientState
 		mask  string
 		body  string
 	}{
-		{"managed", fleet.GoogleConditionalAccessClientState{Managed: new(true)}, "managed", `{"managed":"MANAGED"}`},
-		{"unmanaged", fleet.GoogleConditionalAccessClientState{Managed: new(false)}, "managed", `{"managed":"UNMANAGED"}`},
-		{"managed with custom ID", fleet.GoogleConditionalAccessClientState{Managed: new(true), CustomID: new("host-uuid-1")},
+		{"managed", automdm.GoogleConditionalAccessClientState{Managed: new(true)}, "managed", `{"managed":"MANAGED"}`},
+		{"unmanaged", automdm.GoogleConditionalAccessClientState{Managed: new(false)}, "managed", `{"managed":"UNMANAGED"}`},
+		{"managed with custom ID", automdm.GoogleConditionalAccessClientState{Managed: new(true), CustomID: new("host-uuid-1")},
 			"managed,customId", `{"managed":"MANAGED","customId":"host-uuid-1"}`},
-		{"custom ID only", fleet.GoogleConditionalAccessClientState{CustomID: new("host-uuid-1")}, "customId", `{"customId":"host-uuid-1"}`},
+		{"custom ID only", automdm.GoogleConditionalAccessClientState{CustomID: new("host-uuid-1")}, "customId", `{"customId":"host-uuid-1"}`},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -365,7 +365,7 @@ func TestSetClientState(t *testing.T) {
 			require.Len(t, fake.requests, 1)
 			req := fake.requests[0]
 			require.Equal(t, http.MethodPatch, req.Method)
-			require.Equal(t, "/v1/devices/dev1/deviceUsers/user1/clientStates/02cajzvg-fleet", req.URL.Path)
+			require.Equal(t, "/v1/devices/dev1/deviceUsers/user1/clientStates/02cajzvg-automdm", req.URL.Path)
 			require.Equal(t, "customers/02cajzvg", req.URL.Query().Get("customer"))
 			require.Equal(t, c.mask, req.URL.Query().Get("updateMask"))
 			require.JSONEq(t, c.body, fake.bodies[0])
@@ -374,7 +374,7 @@ func TestSetClientState(t *testing.T) {
 
 	t.Run("nothing to write", func(t *testing.T) {
 		client, fake := newTestCloudIdentity(t)
-		err := client.SetClientState(t.Context(), "devices/dev1/deviceUsers/user1", fleet.GoogleConditionalAccessClientState{})
+		err := client.SetClientState(t.Context(), "devices/dev1/deviceUsers/user1", automdm.GoogleConditionalAccessClientState{})
 		require.Error(t, err)
 		require.Empty(t, fake.requests)
 	})
@@ -385,8 +385,8 @@ func TestSetClientStateNotFound(t *testing.T) {
 	fake.apiStatus = http.StatusNotFound
 	fake.apiBody = `{"error":{"code":404,"message":"Requested entity was not found.","status":"NOT_FOUND"}}`
 
-	err := client.SetClientState(t.Context(), "devices/gone/deviceUsers/user1", fleet.GoogleConditionalAccessClientState{Managed: new(false)})
-	require.True(t, fleet.IsNotFound(err))
+	err := client.SetClientState(t.Context(), "devices/gone/deviceUsers/user1", automdm.GoogleConditionalAccessClientState{Managed: new(false)})
+	require.True(t, automdm.IsNotFound(err))
 	require.True(t, IsStale(err))
 	require.False(t, IsAuthError(err))
 }
@@ -396,14 +396,14 @@ func TestSetClientStateForbiddenIsStale(t *testing.T) {
 	fake.apiStatus = http.StatusForbidden
 	fake.apiBody = `{"error":{"code":403,"message":"nope"}}`
 
-	err := client.SetClientState(t.Context(), "devices/left/deviceUsers/user1", fleet.GoogleConditionalAccessClientState{Managed: new(true), CustomID: new("host-uuid-1")})
-	require.False(t, fleet.IsNotFound(err))
+	err := client.SetClientState(t.Context(), "devices/left/deviceUsers/user1", automdm.GoogleConditionalAccessClientState{Managed: new(true), CustomID: new("host-uuid-1")})
+	require.False(t, automdm.IsNotFound(err))
 	require.True(t, IsStale(err))
 	require.False(t, IsAuthError(err))
 }
 
 func TestSetClientStateOperationResult(t *testing.T) {
-	state := fleet.GoogleConditionalAccessClientState{Managed: new(true)}
+	state := automdm.GoogleConditionalAccessClientState{Managed: new(true)}
 	cases := []struct {
 		name                                  string
 		body                                  string
@@ -444,7 +444,7 @@ func TestSetClientStateOperationResult(t *testing.T) {
 				return
 			}
 			require.EqualError(t, err, c.wantErr)
-			require.Equal(t, c.notFound, fleet.IsNotFound(err))
+			require.Equal(t, c.notFound, automdm.IsNotFound(err))
 			require.Equal(t, c.stale, IsStale(err))
 			require.Equal(t, c.authErr, IsAuthError(err))
 			require.Equal(t, c.unavailable, IsUnavailable(err))
@@ -462,7 +462,7 @@ func TestCloudIdentityTokenReusedPerClient(t *testing.T) {
 	require.Empty(t, fake.assertions)
 
 	require.NoError(t, client.CheckDelegation(t.Context()))
-	require.NoError(t, client.SetClientState(t.Context(), "devices/dev1/deviceUsers/user1", fleet.GoogleConditionalAccessClientState{Managed: new(false)}))
+	require.NoError(t, client.SetClientState(t.Context(), "devices/dev1/deviceUsers/user1", automdm.GoogleConditionalAccessClientState{Managed: new(false)}))
 	// One token for both calls of the same client.
 	require.Len(t, fake.assertions, 1)
 }
@@ -527,7 +527,7 @@ func TestAuthError(t *testing.T) {
 	fake.tokenStatus = http.StatusBadRequest
 	fake.tokenBody = `{"error":"unauthorized_client","error_description":"Client is unauthorized"}`
 
-	err := client.SetClientState(t.Context(), "devices/d/deviceUsers/u", fleet.GoogleConditionalAccessClientState{Managed: new(true), CustomID: new("host-uuid-1")})
+	err := client.SetClientState(t.Context(), "devices/d/deviceUsers/u", automdm.GoogleConditionalAccessClientState{Managed: new(true), CustomID: new("host-uuid-1")})
 	require.True(t, IsAuthError(err))
 	require.False(t, IsStale(err))
 
@@ -536,7 +536,7 @@ func TestAuthError(t *testing.T) {
 	fake.apiBody = `{"error":{"code":401,"message":"bad token"}}`
 	require.True(t, IsAuthError(client.CheckDelegation(t.Context())))
 	// A refused token on a device call isn't about the device.
-	err = client.SetClientState(t.Context(), "devices/d/deviceUsers/u", fleet.GoogleConditionalAccessClientState{Managed: new(true)})
+	err = client.SetClientState(t.Context(), "devices/d/deviceUsers/u", automdm.GoogleConditionalAccessClientState{Managed: new(true)})
 	require.True(t, IsAuthError(err))
 	require.False(t, IsStale(err))
 
@@ -578,14 +578,14 @@ func TestListDeviceUserNames(t *testing.T) {
 	fake.apiStatus = http.StatusNotFound
 	fake.apiBody = `{"error":{"code":404,"message":"Requested entity was not found."}}`
 	_, err = client.ListDeviceUserNames(t.Context(), "gone")
-	require.True(t, fleet.IsNotFound(err))
+	require.True(t, automdm.IsNotFound(err))
 	require.True(t, IsStale(err))
 
 	// A device that left the Workspace.
 	fake.apiStatus = http.StatusForbidden
 	fake.apiBody = `{"error":{"code":403,"message":"nope"}}`
 	_, err = client.ListDeviceUserNames(t.Context(), "left")
-	require.False(t, fleet.IsNotFound(err))
+	require.False(t, automdm.IsNotFound(err))
 	require.True(t, IsStale(err))
 	require.False(t, IsAuthError(err))
 
@@ -636,7 +636,7 @@ func TestDeviceIDThatCannotNameADevice(t *testing.T) {
 		"dev1%", "dev1%zz", "%2D", "%2E%2E", "dev1%3Fx", "dev1%23x", "dev1%5Cx",
 	} {
 		_, err := client.ListDeviceUserNames(t.Context(), id)
-		require.True(t, fleet.IsNotFound(err), id)
+		require.True(t, automdm.IsNotFound(err), id)
 		require.True(t, IsStale(err), id)
 		require.False(t, IsAuthError(err), id)
 

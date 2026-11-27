@@ -1,6 +1,6 @@
-# Creating Icons for Fleet-maintained Apps
+# Creating Icons for AutoMDM-maintained Apps
 
-App icons for the Fleet server and [fleetdm.com software catalog](https://fleetdm.com/software-catalog) can be generated using the following script on macOS using an associated `.app` bundle.
+App icons for the AutoMDM server and [automdm.com software catalog](https://automdm.com/software-catalog) can be generated using the following script on macOS using an associated `.app` bundle.
 
 ## Usage
 
@@ -8,7 +8,7 @@ App icons for the Fleet server and [fleetdm.com software catalog](https://fleetd
 bash tools/software/icons/generate-icons.sh -s slug-name [-a /path/to/App.app | -i /path/to/icon.png]
 ```
 
-- `-s`: Slug name for the Fleet-maintained app (required). The portion before the slash will be used in the output filenames.
+- `-s`: Slug name for the AutoMDM-maintained app (required). The portion before the slash will be used in the output filenames.
 - `-a`: Path to the `.app` bundle (e.g. `/Applications/Safari.app`). Required if `-i` is not provided.
 - `-i`: Path to a PNG icon file. Required if `-a` is not provided. The icon will be resized to 128x128 if larger.
 

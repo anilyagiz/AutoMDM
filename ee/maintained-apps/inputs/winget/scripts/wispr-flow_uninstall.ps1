@@ -7,7 +7,7 @@
 
 $displayNamePattern = '^Wispr Flow$'
 $publisher = "Wispr Flow"
-$taskName = "fleet-uninstall-wispr-flow"
+$taskName = "automdm-uninstall-wispr-flow"
 $appDir = "AppData\Local\WisprFlow"  # in each user's profile
 $taskRunning = 267009  # SCHED_S_TASK_RUNNING
 $timeoutSeconds = 300

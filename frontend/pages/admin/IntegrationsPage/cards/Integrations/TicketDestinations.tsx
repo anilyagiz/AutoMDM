@@ -292,7 +292,7 @@ const TicketDestinations = (): JSX.Element => {
         emptyComponent={() => (
           <EmptyState
             header="No ticket destinations"
-            info="Create tickets whenever Fleet detects vulnerabilities or failing policies."
+            info="Create tickets whenever AutoMDM detects vulnerabilities or failing policies."
             primaryButton={
               <Button onClick={toggleAddTicketDestinationModal}>
                 Add ticket destination
@@ -312,7 +312,7 @@ const TicketDestinations = (): JSX.Element => {
       <PageDescription
         content={
           <>
-            Add or edit integrations to create tickets when Fleet detects new
+            Add or edit integrations to create tickets when AutoMDM detects new
             vulnerabilities.{" "}
             <CustomLink
               url={`${LEARN_MORE_ABOUT_BASE_LINK}/policy-automations`}

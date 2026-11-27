@@ -1,11 +1,11 @@
 <!-- DO NOT EDIT. This document is automatically generated. -->
 # Understanding host vitals
 
-Following is a summary of the detail queries hardcoded in Fleet used to populate the device details:
+Following is a summary of the detail queries hardcoded in AutoMDM used to populate the device details:
 
 ## ai_agent_session_events
 
-- Description: Fleet Premium only. Built for each host at every refresh from the AI sessions Fleet already stored, so a session's tool calls trail the session by a refresh. Asks for the tool calls of up to 5 sessions that still need them, resuming after the calls Fleet already has, up to the session's first 10,000 by default (`osquery_ai_session_max_tool_calls`) and, when `osquery_ai_session_max_tool_calls_per_refresh` is set, at most that many new calls per session. Each session's tool calls are preceded by a constant row naming the session as requested, so Fleet can tell a session that returned no calls from one it didn't ask for. After 3 requests in a row return no calls for a session, such as when its transcript is gone from the host, Fleet stops asking until the session is active again. Requires `fleetd`
+- Description: AutoMDM Premium only. Built for each host at every refresh from the AI sessions AutoMDM already stored, so a session's tool calls trail the session by a refresh. Asks for the tool calls of up to 5 sessions that still need them, resuming after the calls AutoMDM already has, up to the session's first 10,000 by default (`osquery_ai_session_max_tool_calls`) and, when `osquery_ai_session_max_tool_calls_per_refresh` is set, at most that many new calls per session. Each session's tool calls are preceded by a constant row naming the session as requested, so AutoMDM can tell a session that returned no calls from one it didn't ask for. After 3 requests in a row return no calls for a session, such as when its transcript is gone from the host, AutoMDM stops asking until the session is active again. Requires `automdmd`
 
 - Platforms: darwin, windows, linux, ubuntu, zorin, debian, parrot, rhel, centos, sles, kali, gentoo, amzn, pop, arch, linuxmint, void, nixos, endeavouros, manjaro, manjaro-arm, opensuse-leap, opensuse-tumbleweed, tuxedo, neon, archarm, flatcar, coreos, cachyos, omarchy, amd-ryzen-ai-developer-platform, chainguard
 
@@ -21,7 +21,7 @@ SELECT 1 WHERE EXISTS (SELECT 1 FROM osquery_registry WHERE active = true AND re
 
 ## ai_agent_sessions
 
-- Description: Fleet Premium only. Reads the AI coding agent sessions active in the last 7 days, by the host's clock. Sessions that are gone from the host's result are kept until 30 days after they were last active. Requires `fleetd`
+- Description: AutoMDM Premium only. Reads the AI coding agent sessions active in the last 7 days, by the host's clock. Sessions that are gone from the host's result are kept until 30 days after they were last active. Requires `automdmd`
 
 - Platforms: darwin, windows, linux, ubuntu, zorin, debian, parrot, rhel, centos, sles, kali, gentoo, amzn, pop, arch, linuxmint, void, nixos, endeavouros, manjaro, manjaro-arm, opensuse-leap, opensuse-tumbleweed, tuxedo, neon, archarm, flatcar, coreos, cachyos, omarchy, amd-ryzen-ai-developer-platform, chainguard
 
@@ -865,7 +865,7 @@ SELECT 1 FROM osquery_registry WHERE active = true AND registry = 'table' AND na
 WITH cached_users AS (WITH cached_groups AS (select * from groups)
  SELECT uid, uuid, username, type, groupname, shell
  FROM users LEFT JOIN cached_groups USING (gid)
- WHERE type <> 'special' AND shell NOT LIKE '%/false' AND shell NOT LIKE '%/nologin' AND shell NOT LIKE '%/shutdown' AND shell NOT LIKE '%/halt' AND username NOT LIKE '%$' AND (username NOT LIKE '\_%' ESCAPE '\' OR username = '_fleetadmin') AND NOT (username = 'sync' AND shell ='/bin/sync' AND directory <> ''))
+ WHERE type <> 'special' AND shell NOT LIKE '%/false' AND shell NOT LIKE '%/nologin' AND shell NOT LIKE '%/shutdown' AND shell NOT LIKE '%/halt' AND username NOT LIKE '%$' AND (username NOT LIKE '\_%' ESCAPE '\' OR username = '_automdmadmin') AND NOT (username = 'sync' AND shell ='/bin/sync' AND directory <> ''))
 SELECT
   name,
   version,
@@ -888,7 +888,7 @@ FROM cached_users CROSS JOIN jetbrains_plugins USING (uid)
 WITH cached_users AS (WITH cached_groups AS (select * from groups)
  SELECT uid, uuid, username, type, groupname, shell
  FROM users LEFT JOIN cached_groups USING (gid)
- WHERE type <> 'special' AND shell NOT LIKE '%/false' AND shell NOT LIKE '%/nologin' AND shell NOT LIKE '%/shutdown' AND shell NOT LIKE '%/halt' AND username NOT LIKE '%$' AND (username NOT LIKE '\_%' ESCAPE '\' OR username = '_fleetadmin') AND NOT (username = 'sync' AND shell ='/bin/sync' AND directory <> ''))
+ WHERE type <> 'special' AND shell NOT LIKE '%/false' AND shell NOT LIKE '%/nologin' AND shell NOT LIKE '%/shutdown' AND shell NOT LIKE '%/halt' AND username NOT LIKE '%$' AND (username NOT LIKE '\_%' ESCAPE '\' OR username = '_automdmadmin') AND NOT (username = 'sync' AND shell ='/bin/sync' AND directory <> ''))
 SELECT
   name AS name,
   version AS version,
@@ -969,13 +969,13 @@ SELECT
 FROM cached_users CROSS JOIN firefox_addons USING (uid);
 ```
 
-## software_linux_fleetd_nix
+## software_linux_automdmd_nix
 
 - Platforms: nixos
 
 - Discovery query:
 ```sql
-SELECT 1 FROM osquery_registry WHERE active = true AND registry = 'table' AND name = 'fleetd_nix_packages'
+SELECT 1 FROM osquery_registry WHERE active = true AND registry = 'table' AND name = 'automdmd_nix_packages'
 ```
 
 - Query:
@@ -990,16 +990,16 @@ SELECT
   '' AS vendor,
   '' AS arch,
   store_path AS installed_path
-FROM fleetd_nix_packages
+FROM automdmd_nix_packages
 ```
 
-## software_linux_fleetd_pacman
+## software_linux_automdmd_pacman
 
 - Platforms: linux, ubuntu, zorin, debian, parrot, rhel, centos, sles, kali, gentoo, amzn, pop, arch, linuxmint, void, nixos, endeavouros, manjaro, manjaro-arm, opensuse-leap, opensuse-tumbleweed, tuxedo, neon, archarm, flatcar, coreos, cachyos, omarchy, amd-ryzen-ai-developer-platform, chainguard
 
 - Discovery query:
 ```sql
-SELECT 1 FROM osquery_registry WHERE active = true AND registry = 'table' AND name = 'fleetd_pacman_packages'
+SELECT 1 FROM osquery_registry WHERE active = true AND registry = 'table' AND name = 'automdmd_pacman_packages'
 ```
 
 - Query:
@@ -1009,7 +1009,7 @@ WITH packages AS (
     name,
     arch,
     CASE WHEN instr(version, ':') > 0 THEN substr(version, instr(version, ':') + 1) ELSE version END AS version_release
-  FROM fleetd_pacman_packages
+  FROM automdmd_pacman_packages
 )
 SELECT
   name AS name,
@@ -1033,7 +1033,7 @@ FROM packages
 WITH cached_users AS (WITH cached_groups AS (select * from groups)
  SELECT uid, uuid, username, type, groupname, shell
  FROM users LEFT JOIN cached_groups USING (gid)
- WHERE type <> 'special' AND shell NOT LIKE '%/false' AND shell NOT LIKE '%/nologin' AND shell NOT LIKE '%/shutdown' AND shell NOT LIKE '%/halt' AND username NOT LIKE '%$' AND (username NOT LIKE '\_%' ESCAPE '\' OR username = '_fleetadmin') AND NOT (username = 'sync' AND shell ='/bin/sync' AND directory <> ''))
+ WHERE type <> 'special' AND shell NOT LIKE '%/false' AND shell NOT LIKE '%/nologin' AND shell NOT LIKE '%/shutdown' AND shell NOT LIKE '%/halt' AND username NOT LIKE '%$' AND (username NOT LIKE '\_%' ESCAPE '\' OR username = '_automdmadmin') AND NOT (username = 'sync' AND shell ='/bin/sync' AND directory <> ''))
 SELECT
   COALESCE(NULLIF(display_name, ''), NULLIF(bundle_name, ''), NULLIF(NULLIF(bundle_executable, ''), 'run.sh'),
     CASE WHEN name IS NOT NULL AND lower(name) LIKE '%.app' THEN substr(name, 1, length(name) - 4) ELSE name END
@@ -1127,7 +1127,7 @@ AND NOT EXISTS (SELECT 1 FROM file WHERE file.path LIKE CONCAT(homebrew_packages
 
 ## software_macos_codesign
 
-- Description: A software override query[^1] to append codesign information to macOS software entries. Requires `fleetd`
+- Description: A software override query[^1] to append codesign information to macOS software entries. Requires `automdmd`
 
 - Platforms: darwin
 
@@ -1145,7 +1145,7 @@ SELECT c.*
 
 ## software_macos_executable_sha256
 
-- Description: A software override query[^1] to append the sha256 hash of app bundle executables to macOS software entries. Requires `fleetd`
+- Description: A software override query[^1] to append the sha256 hash of app bundle executables to macOS software entries. Requires `automdmd`
 
 - Platforms: darwin
 
@@ -1163,7 +1163,7 @@ SELECT eh.*
 
 ## software_macos_firefox
 
-- Description: A software override query[^1] to differentiate between Firefox and Firefox ESR on macOS. Requires `fleetd`
+- Description: A software override query[^1] to differentiate between Firefox and Firefox ESR on macOS. Requires `automdmd`
 
 - Platforms: darwin
 
@@ -1205,7 +1205,7 @@ WITH app_paths AS (
 
 ## software_macos_homebrew_executable_sha256
 
-- Description: A software override query[^1] to append the sha256 hash of Mach-O executables installed by Homebrew formulae to macOS software entries. Requires `fleetd`
+- Description: A software override query[^1] to append the sha256 hash of Mach-O executables installed by Homebrew formulae to macOS software entries. Requires `automdmd`
 
 - Platforms: darwin
 
@@ -1267,7 +1267,7 @@ SELECT
 
 ## software_python_packages_with_users_dir
 
-- Description: As of osquery version 5.16.0, the python_packages table searches user directories with support from a cross join on users. See https://fleetdm.com/guides/osquery-consider-joining-against-the-users-table.
+- Description: As of osquery version 5.16.0, the python_packages table searches user directories with support from a cross join on users. See https://automdm.com/guides/osquery-consider-joining-against-the-users-table.
 
 - Platforms: linux, ubuntu, zorin, debian, parrot, rhel, centos, sles, kali, gentoo, amzn, pop, arch, linuxmint, void, nixos, endeavouros, manjaro, manjaro-arm, opensuse-leap, opensuse-tumbleweed, tuxedo, neon, archarm, flatcar, coreos, cachyos, omarchy, amd-ryzen-ai-developer-platform, chainguard, darwin, windows
 
@@ -1285,7 +1285,7 @@ SELECT 1 FROM (
 WITH cached_users AS (WITH cached_groups AS (select * from groups)
  SELECT uid, uuid, username, type, groupname, shell
  FROM users LEFT JOIN cached_groups USING (gid)
- WHERE type <> 'special' AND shell NOT LIKE '%/false' AND shell NOT LIKE '%/nologin' AND shell NOT LIKE '%/shutdown' AND shell NOT LIKE '%/halt' AND username NOT LIKE '%$' AND (username NOT LIKE '\_%' ESCAPE '\' OR username = '_fleetadmin') AND NOT (username = 'sync' AND shell ='/bin/sync' AND directory <> ''))
+ WHERE type <> 'special' AND shell NOT LIKE '%/false' AND shell NOT LIKE '%/nologin' AND shell NOT LIKE '%/shutdown' AND shell NOT LIKE '%/halt' AND username NOT LIKE '%$' AND (username NOT LIKE '\_%' ESCAPE '\' OR username = '_automdmadmin') AND NOT (username = 'sync' AND shell ='/bin/sync' AND directory <> ''))
 		SELECT
 		  name AS name,
 		  version AS version,
@@ -1331,7 +1331,7 @@ SELECT 1 FROM osquery_registry WHERE active = true AND registry = 'table' AND na
 WITH cached_users AS (WITH cached_groups AS (select * from groups)
  SELECT uid, uuid, username, type, groupname, shell
  FROM users LEFT JOIN cached_groups USING (gid)
- WHERE type <> 'special' AND shell NOT LIKE '%/false' AND shell NOT LIKE '%/nologin' AND shell NOT LIKE '%/shutdown' AND shell NOT LIKE '%/halt' AND username NOT LIKE '%$' AND (username NOT LIKE '\_%' ESCAPE '\' OR username = '_fleetadmin') AND NOT (username = 'sync' AND shell ='/bin/sync' AND directory <> ''))
+ WHERE type <> 'special' AND shell NOT LIKE '%/false' AND shell NOT LIKE '%/nologin' AND shell NOT LIKE '%/shutdown' AND shell NOT LIKE '%/halt' AND username NOT LIKE '%$' AND (username NOT LIKE '\_%' ESCAPE '\' OR username = '_automdmadmin') AND NOT (username = 'sync' AND shell ='/bin/sync' AND directory <> ''))
 SELECT
   name,
   version,
@@ -1354,7 +1354,7 @@ FROM cached_users CROSS JOIN vscode_extensions USING (uid)
 WITH cached_users AS (WITH cached_groups AS (select * from groups)
  SELECT uid, uuid, username, type, groupname, shell
  FROM users LEFT JOIN cached_groups USING (gid)
- WHERE type <> 'special' AND shell NOT LIKE '%/false' AND shell NOT LIKE '%/nologin' AND shell NOT LIKE '%/shutdown' AND shell NOT LIKE '%/halt' AND username NOT LIKE '%$' AND (username NOT LIKE '\_%' ESCAPE '\' OR username = '_fleetadmin') AND NOT (username = 'sync' AND shell ='/bin/sync' AND directory <> ''))
+ WHERE type <> 'special' AND shell NOT LIKE '%/false' AND shell NOT LIKE '%/nologin' AND shell NOT LIKE '%/shutdown' AND shell NOT LIKE '%/halt' AND username NOT LIKE '%$' AND (username NOT LIKE '\_%' ESCAPE '\' OR username = '_automdmadmin') AND NOT (username = 'sync' AND shell ='/bin/sync' AND directory <> ''))
 SELECT
   name AS name,
   version AS version,
@@ -1513,7 +1513,7 @@ select * from uptime limit 1
 WITH cached_groups AS (select * from groups)
  SELECT uid, uuid, username, type, groupname, shell
  FROM users LEFT JOIN cached_groups USING (gid)
- WHERE type <> 'special' AND shell NOT LIKE '%/false' AND shell NOT LIKE '%/nologin' AND shell NOT LIKE '%/shutdown' AND shell NOT LIKE '%/halt' AND username NOT LIKE '%$' AND (username NOT LIKE '\_%' ESCAPE '\' OR username = '_fleetadmin') AND NOT (username = 'sync' AND shell ='/bin/sync' AND directory <> '')
+ WHERE type <> 'special' AND shell NOT LIKE '%/false' AND shell NOT LIKE '%/nologin' AND shell NOT LIKE '%/shutdown' AND shell NOT LIKE '%/halt' AND username NOT LIKE '%$' AND (username NOT LIKE '\_%' ESCAPE '\' OR username = '_automdmadmin') AND NOT (username = 'sync' AND shell ='/bin/sync' AND directory <> '')
 ```
 
 ## users_chrome

@@ -22,24 +22,24 @@ import (
 	"testing"
 	"time"
 
-	ma "github.com/fleetdm/fleet/v4/ee/maintained-apps"
-	"github.com/fleetdm/fleet/v4/pkg/file"
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/pkg/optjson"
-	"github.com/fleetdm/fleet/v4/server/authz"
-	"github.com/fleetdm/fleet/v4/server/config"
-	authz_ctx "github.com/fleetdm/fleet/v4/server/contexts/authz"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxdb"
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/datastore/s3"
-	"github.com/fleetdm/fleet/v4/server/dev_mode"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	redismock "github.com/fleetdm/fleet/v4/server/mock/redis"
-	svcmock "github.com/fleetdm/fleet/v4/server/mock/service"
-	mocksoftware "github.com/fleetdm/fleet/v4/server/mock/software"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	ma "github.com/anilyagiz/automdm/v4/ee/maintained-apps"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/pkg/file"
+	"github.com/anilyagiz/automdm/v4/pkg/optjson"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	authz_ctx "github.com/anilyagiz/automdm/v4/server/contexts/authz"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxdb"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	"github.com/anilyagiz/automdm/v4/server/datastore/s3"
+	"github.com/anilyagiz/automdm/v4/server/dev_mode"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	redismock "github.com/anilyagiz/automdm/v4/server/mock/redis"
+	svcmock "github.com/anilyagiz/automdm/v4/server/mock/service"
+	mocksoftware "github.com/anilyagiz/automdm/v4/server/mock/software"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -55,7 +55,7 @@ blah${PACKAGE_ID}withConcat
 quotes and braces for "${PACKAGE_ID}"
 ${PACKAGE_ID}`
 
-	payload := fleet.UploadSoftwareInstallerPayload{
+	payload := automdm.UploadSoftwareInstallerPayload{
 		Extension:       "exe",
 		UninstallScript: input,
 		PackageIDs:      []string{"com.foo"},
@@ -72,7 +72,7 @@ quotes and braces for 'com.foo'
 'com.foo'`
 	assert.Equal(t, expected, payload.UninstallScript)
 
-	payload = fleet.UploadSoftwareInstallerPayload{
+	payload = automdm.UploadSoftwareInstallerPayload{
 		Extension:       "pkg",
 		UninstallScript: input,
 		PackageIDs:      []string{"com.foo", "com.bar"},
@@ -113,7 +113,7 @@ quotes and braces for (
 	require.NoError(t, preProcessUninstallScript(&payload))
 	assert.Equal(t, `'foo'`, payload.UninstallScript)
 
-	payload = fleet.UploadSoftwareInstallerPayload{
+	payload = automdm.UploadSoftwareInstallerPayload{
 		Extension:       "msi",
 		UninstallScript: "$PACKAGE_ID $UPGRADE_CODE",
 		UpgradeCode:     "foo",
@@ -144,7 +144,7 @@ func TestPreProcessUninstallScriptMaliciousInput(t *testing.T) {
 
 	for _, tc := range maliciousIDs {
 		t.Run(tc.name, func(t *testing.T) {
-			payload := fleet.UploadSoftwareInstallerPayload{
+			payload := automdm.UploadSoftwareInstallerPayload{
 				Extension:       "deb",
 				UninstallScript: "$PACKAGE_ID",
 				PackageIDs:      []string{tc.id},
@@ -164,7 +164,7 @@ func TestPreProcessUninstallScriptMaliciousInput(t *testing.T) {
 		"my-app_v2.0+build1",
 	}
 	for _, id := range validIDs {
-		payload := fleet.UploadSoftwareInstallerPayload{
+		payload := automdm.UploadSoftwareInstallerPayload{
 			Extension:       "deb",
 			UninstallScript: "$PACKAGE_ID",
 			PackageIDs:      []string{id},
@@ -180,7 +180,7 @@ func TestPreProcessUninstallScriptSkipsValidationWhenNoTemplateVars(t *testing.T
 	nonASCIIID := "CrossCore\u00ae Embedded Studio v3.0.2"
 
 	t.Run("non-ASCII ID succeeds when script has no template vars", func(t *testing.T) {
-		payload := fleet.UploadSoftwareInstallerPayload{
+		payload := automdm.UploadSoftwareInstallerPayload{
 			Extension:       "exe",
 			UninstallScript: `$softwareName = "CrossCore Embedded Studio"`,
 			PackageIDs:      []string{nonASCIIID},
@@ -190,7 +190,7 @@ func TestPreProcessUninstallScriptSkipsValidationWhenNoTemplateVars(t *testing.T
 	})
 
 	t.Run("non-ASCII ID succeeds when script uses PACKAGE_ID", func(t *testing.T) {
-		payload := fleet.UploadSoftwareInstallerPayload{
+		payload := automdm.UploadSoftwareInstallerPayload{
 			Extension:       "exe",
 			UninstallScript: "$PACKAGE_ID",
 			PackageIDs:      []string{nonASCIIID},
@@ -200,7 +200,7 @@ func TestPreProcessUninstallScriptSkipsValidationWhenNoTemplateVars(t *testing.T
 	})
 
 	t.Run("non-ASCII upgrade code succeeds when script has no UPGRADE_CODE", func(t *testing.T) {
-		payload := fleet.UploadSoftwareInstallerPayload{
+		payload := automdm.UploadSoftwareInstallerPayload{
 			Extension:       "msi",
 			UninstallScript: "msiexec /x $PACKAGE_ID /quiet",
 			PackageIDs:      []string{"valid-id"},
@@ -211,7 +211,7 @@ func TestPreProcessUninstallScriptSkipsValidationWhenNoTemplateVars(t *testing.T
 	})
 
 	t.Run("non-ASCII upgrade code succeeds when script uses UPGRADE_CODE", func(t *testing.T) {
-		payload := fleet.UploadSoftwareInstallerPayload{
+		payload := automdm.UploadSoftwareInstallerPayload{
 			Extension:       "msi",
 			UninstallScript: "msiexec /x $UPGRADE_CODE /quiet",
 			PackageIDs:      []string{"valid-id"},
@@ -222,7 +222,7 @@ func TestPreProcessUninstallScriptSkipsValidationWhenNoTemplateVars(t *testing.T
 	})
 
 	t.Run("dmg skips validation entirely", func(t *testing.T) {
-		payload := fleet.UploadSoftwareInstallerPayload{
+		payload := automdm.UploadSoftwareInstallerPayload{
 			Extension:       "dmg",
 			UninstallScript: "$PACKAGE_ID\n\necho 'foo'",
 			PackageIDs:      []string{nonASCIIID},
@@ -232,7 +232,7 @@ func TestPreProcessUninstallScriptSkipsValidationWhenNoTemplateVars(t *testing.T
 	})
 
 	t.Run("zip skips validation entirely", func(t *testing.T) {
-		payload := fleet.UploadSoftwareInstallerPayload{
+		payload := automdm.UploadSoftwareInstallerPayload{
 			Extension:       "zip",
 			UninstallScript: "$PACKAGE_ID\n\necho 'foo'",
 			PackageIDs:      []string{nonASCIIID},
@@ -242,7 +242,7 @@ func TestPreProcessUninstallScriptSkipsValidationWhenNoTemplateVars(t *testing.T
 	})
 
 	t.Run("empty PackageIDs skips processing", func(t *testing.T) {
-		payload := fleet.UploadSoftwareInstallerPayload{
+		payload := automdm.UploadSoftwareInstallerPayload{
 			Extension:       "exe",
 			UninstallScript: "$PACKAGE_ID",
 			PackageIDs:      []string{},
@@ -257,11 +257,11 @@ func TestInstallUninstallAuth(t *testing.T) {
 	ds := new(mock.Store)
 	svc := newTestService(t, ds)
 
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
 	}
-	ds.HostFunc = func(ctx context.Context, id uint) (*fleet.Host, error) {
-		return &fleet.Host{
+	ds.HostFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
+		return &automdm.Host{
 			OrbitNodeKey: ptr.String("orbit_key"),
 			Platform:     "darwin",
 			TeamID:       ptr.Uint(1),
@@ -269,21 +269,21 @@ func TestInstallUninstallAuth(t *testing.T) {
 	}
 	ds.GetSoftwareInstallerMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint,
 		withScriptContents bool,
-	) (*fleet.SoftwareInstaller, error) {
-		return &fleet.SoftwareInstaller{
+	) (*automdm.SoftwareInstaller, error) {
+		return &automdm.SoftwareInstaller{
 			Name:     "installer.pkg",
 			Platform: "darwin",
 			TeamID:   ptr.Uint(1),
 		}, nil
 	}
 	mockSoftwarePackagesFromMetadata(ds)
-	ds.GetHostLastInstallDataFunc = func(ctx context.Context, hostID uint, installerID uint) (*fleet.HostLastInstallData, error) {
+	ds.GetHostLastInstallDataFunc = func(ctx context.Context, hostID uint, installerID uint) (*automdm.HostLastInstallData, error) {
 		return nil, nil
 	}
 	ds.ResetNonPolicyInstallAttemptsFunc = func(ctx context.Context, hostID uint, softwareInstallerID uint) error {
 		return nil
 	}
-	ds.InsertSoftwareInstallRequestFunc = func(ctx context.Context, hostID uint, softwareInstallerID uint, opts fleet.HostSoftwareInstallOptions) (string,
+	ds.InsertSoftwareInstallRequestFunc = func(ctx context.Context, hostID uint, softwareInstallerID uint, opts automdm.HostSoftwareInstallOptions) (string,
 		error,
 	) {
 		return "request_id", nil
@@ -301,37 +301,37 @@ func TestInstallUninstallAuth(t *testing.T) {
 
 	testCases := []struct {
 		name       string
-		user       *fleet.User
+		user       *automdm.User
 		shouldFail bool
 	}{
 		{
 			"global admin",
-			&fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)},
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)},
 			false,
 		},
 		{
 			"global maintainer",
-			&fleet.User{GlobalRole: ptr.String(fleet.RoleMaintainer)},
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleMaintainer)},
 			false,
 		},
 		{
 			"global observer",
-			&fleet.User{GlobalRole: ptr.String(fleet.RoleObserver)},
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleObserver)},
 			true,
 		},
 		{
 			"team admin",
-			&fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleAdmin}}},
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleAdmin}}},
 			false,
 		},
 		{
 			"team maintainer",
-			&fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleMaintainer}}},
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleMaintainer}}},
 			false,
 		},
 		{
 			"team observer",
-			&fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleObserver}}},
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserver}}},
 			true,
 		},
 	}
@@ -349,22 +349,22 @@ func TestUninstallSoftwareTitle(t *testing.T) {
 	ds := new(mock.Store)
 	svc := newTestService(t, ds)
 
-	host := &fleet.Host{
+	host := &automdm.Host{
 		OrbitNodeKey: ptr.String("orbit_key"),
 		Platform:     "darwin",
 		TeamID:       ptr.Uint(1),
 	}
 
-	ds.HostFunc = func(ctx context.Context, id uint) (*fleet.Host, error) {
+	ds.HostFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
 		return host, nil
 	}
 
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
 	}
 
 	host.ScriptsEnabled = ptr.Bool(false)
-	require.ErrorContains(t, svc.UninstallSoftwareTitle(context.Background(), 1, 10), fleet.RunScriptsOrbitDisabledErrMsg)
+	require.ErrorContains(t, svc.UninstallSoftwareTitle(context.Background(), 1, 10), automdm.RunScriptsOrbitDisabledErrMsg)
 }
 
 // TestUninstallSoftwareTitleSelfServiceScope covers the My Device uninstall path
@@ -385,11 +385,11 @@ func TestUninstallSoftwareTitleSelfServiceScope(t *testing.T) {
 	}
 	adminContext := func() context.Context {
 		return viewer.NewContext(context.Background(), viewer.Viewer{
-			User: &fleet.User{GlobalRole: new(fleet.RoleAdmin)},
+			User: &automdm.User{GlobalRole: new(automdm.RoleAdmin)},
 		})
 	}
-	pkg := func(id uint, selfService bool) *fleet.SoftwareInstaller {
-		return &fleet.SoftwareInstaller{
+	pkg := func(id uint, selfService bool) *automdm.SoftwareInstaller {
+		return &automdm.SoftwareInstaller{
 			InstallerID: id,
 			Name:        "installer.pkg",
 			Platform:    "darwin",
@@ -401,7 +401,7 @@ func TestUninstallSoftwareTitleSelfServiceScope(t *testing.T) {
 	testCases := []struct {
 		name string
 		// packages of the title, first-added first.
-		packages []*fleet.SoftwareInstaller
+		packages []*automdm.SoftwareInstaller
 		// inScope reports label scoping per installer ID; missing means in scope.
 		outOfScope map[uint]bool
 		asAdmin    bool
@@ -411,35 +411,35 @@ func TestUninstallSoftwareTitleSelfServiceScope(t *testing.T) {
 	}{
 		{
 			name:            "device, self-service and in scope",
-			packages:        []*fleet.SoftwareInstaller{pkg(selfServiceInstallerID, true)},
+			packages:        []*automdm.SoftwareInstaller{pkg(selfServiceInstallerID, true)},
 			wantInstallerID: selfServiceInstallerID,
 		},
 		{
 			name:            "device, not self-service",
-			packages:        []*fleet.SoftwareInstaller{pkg(notSelfServiceInstallerID, false)},
+			packages:        []*automdm.SoftwareInstaller{pkg(notSelfServiceInstallerID, false)},
 			wantErrContains: "not available through self-service",
 		},
 		{
 			name:            "device, self-service but out of label scope",
-			packages:        []*fleet.SoftwareInstaller{pkg(selfServiceInstallerID, true)},
+			packages:        []*automdm.SoftwareInstaller{pkg(selfServiceInstallerID, true)},
 			outOfScope:      map[uint]bool{selfServiceInstallerID: true},
 			wantErrContains: "isn't member of the labels",
 		},
 		{
 			name:            "device, not self-service and out of label scope",
-			packages:        []*fleet.SoftwareInstaller{pkg(notSelfServiceInstallerID, false)},
+			packages:        []*automdm.SoftwareInstaller{pkg(notSelfServiceInstallerID, false)},
 			outOfScope:      map[uint]bool{notSelfServiceInstallerID: true},
 			wantErrContains: "isn't member of the labels",
 		},
 		{
 			name:            "device, title has no packages",
-			packages:        []*fleet.SoftwareInstaller{},
+			packages:        []*automdm.SoftwareInstaller{},
 			wantErrContains: "not available for uninstall",
 		},
 		{
 			// First-added wins on the install path, so it has to win here too.
 			name: "device, several eligible packages",
-			packages: []*fleet.SoftwareInstaller{
+			packages: []*automdm.SoftwareInstaller{
 				pkg(selfServiceInstallerID, true),
 				pkg(notSelfServiceInstallerID+1, true),
 			},
@@ -448,7 +448,7 @@ func TestUninstallSoftwareTitleSelfServiceScope(t *testing.T) {
 		{
 			// The first-added package is ineligible, so the next one is used.
 			name: "device, first-added package not self-service",
-			packages: []*fleet.SoftwareInstaller{
+			packages: []*automdm.SoftwareInstaller{
 				pkg(notSelfServiceInstallerID, false),
 				pkg(notSelfServiceInstallerID+1, true),
 			},
@@ -456,7 +456,7 @@ func TestUninstallSoftwareTitleSelfServiceScope(t *testing.T) {
 		},
 		{
 			name: "device, first-added package out of scope",
-			packages: []*fleet.SoftwareInstaller{
+			packages: []*automdm.SoftwareInstaller{
 				pkg(selfServiceInstallerID, true),
 				pkg(notSelfServiceInstallerID+1, true),
 			},
@@ -466,7 +466,7 @@ func TestUninstallSoftwareTitleSelfServiceScope(t *testing.T) {
 		{
 			// A role-bearing caller can still remove ineligible software.
 			name:            "admin, not self-service and out of label scope",
-			packages:        []*fleet.SoftwareInstaller{pkg(notSelfServiceInstallerID, false)},
+			packages:        []*automdm.SoftwareInstaller{pkg(notSelfServiceInstallerID, false)},
 			outOfScope:      map[uint]bool{notSelfServiceInstallerID: true},
 			asAdmin:         true,
 			wantInstallerID: notSelfServiceInstallerID,
@@ -479,23 +479,23 @@ func TestUninstallSoftwareTitleSelfServiceScope(t *testing.T) {
 			ds := new(mock.Store)
 			svc := newTestService(t, ds)
 
-			ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-				return &fleet.AppConfig{}, nil
+			ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+				return &automdm.AppConfig{}, nil
 			}
-			ds.HostFunc = func(ctx context.Context, id uint) (*fleet.Host, error) {
-				return &fleet.Host{
+			ds.HostFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
+				return &automdm.Host{
 					ID:           id,
 					OrbitNodeKey: new("orbit_key"),
 					Platform:     "darwin",
 					TeamID:       new(uint(1)),
 				}, nil
 			}
-			ds.GetSoftwarePackagesByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint) ([]*fleet.SoftwareInstaller, error) {
+			ds.GetSoftwarePackagesByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint) ([]*automdm.SoftwareInstaller, error) {
 				return tt.packages, nil
 			}
 			ds.GetSoftwareInstallerMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint,
 				withScriptContents bool,
-			) (*fleet.SoftwareInstaller, error) {
+			) (*automdm.SoftwareInstaller, error) {
 				if len(tt.packages) == 0 {
 					return nil, &notFoundError{}
 				}
@@ -504,7 +504,7 @@ func TestUninstallSoftwareTitleSelfServiceScope(t *testing.T) {
 			ds.IsSoftwareInstallerLabelScopedFunc = func(ctx context.Context, installerID, hostID uint) (bool, error) {
 				return !tt.outOfScope[installerID], nil
 			}
-			ds.GetHostLastInstallDataFunc = func(ctx context.Context, hostID, installerID uint) (*fleet.HostLastInstallData, error) {
+			ds.GetHostLastInstallDataFunc = func(ctx context.Context, hostID, installerID uint) (*automdm.HostLastInstallData, error) {
 				return nil, nil
 			}
 			ds.GetAnyScriptContentsFunc = func(ctx context.Context, id uint) ([]byte, error) {
@@ -555,32 +555,32 @@ func TestInstallSoftwareTitleAllowsPersonallyEnrolledDevices(t *testing.T) {
 	// Returning NotFound from the in-house and VPP app lookups makes the code
 	// surface the standard "title not available" error — proving we got past
 	// the old gate without entangling this test in the install flow.
-	ds.GetInHouseAppMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint) (*fleet.SoftwareInstaller, error) {
+	ds.GetInHouseAppMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint) (*automdm.SoftwareInstaller, error) {
 		return nil, nil
 	}
-	ds.ListHostAppStoreAppVersionsFunc = func(ctx context.Context, host *fleet.Host) (map[uint]*fleet.HostAppStoreAppVersion, error) {
-		return map[uint]*fleet.HostAppStoreAppVersion{}, nil
+	ds.ListHostAppStoreAppVersionsFunc = func(ctx context.Context, host *automdm.Host) (map[uint]*automdm.HostAppStoreAppVersion, error) {
+		return map[uint]*automdm.HostAppStoreAppVersion{}, nil
 	}
 
-	ctx := viewer.NewContext(context.Background(), viewer.Viewer{User: &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}})
+	ctx := viewer.NewContext(context.Background(), viewer.Viewer{User: &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}})
 
-	host := &fleet.Host{
+	host := &automdm.Host{
 		UUID:         "personal-ios",
 		OrbitNodeKey: ptr.String("orbit_key"),
 		Platform:     "ios",
 		TeamID:       ptr.Uint(1),
-		MDM: fleet.MDMHostData{
-			EnrollmentStatus: ptr.String(string(fleet.MDMEnrollStatusPersonal)),
+		MDM: automdm.MDMHostData{
+			EnrollmentStatus: ptr.String(string(automdm.MDMEnrollStatusPersonal)),
 		},
 	}
 
-	ds.HostFunc = func(ctx context.Context, id uint) (*fleet.Host, error) {
+	ds.HostFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
 		return host, nil
 	}
 
 	err := svc.InstallSoftwareTitle(ctx, 1, 10)
 	require.Error(t, err)
-	require.NotContains(t, err.Error(), fleet.InstallSoftwarePersonalAppleDeviceErrMsg,
+	require.NotContains(t, err.Error(), automdm.InstallSoftwarePersonalAppleDeviceErrMsg,
 		"BYOD gate must no longer block install for personally-enrolled iOS/iPadOS hosts")
 	require.ErrorContains(t, err, "Software title is not available for install",
 		"control flow must reach the standard not-found path")
@@ -635,10 +635,10 @@ func TestSoftwareInstallerPayloadFromSlug(t *testing.T) {
 		require.NoError(t, err)
 	}))
 	t.Cleanup(manifestServer.Close)
-	dev_mode.SetOverride("FLEET_DEV_MAINTAINED_APPS_BASE_URL", manifestServer.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_MAINTAINED_APPS_BASE_URL", manifestServer.URL, t)
 
-	ds.GetMaintainedAppBySlugFunc = func(ctx context.Context, slug string, teamID *uint) (*fleet.MaintainedApp, error) {
-		return &fleet.MaintainedApp{
+	ds.GetMaintainedAppBySlugFunc = func(ctx context.Context, slug string, teamID *uint) (*automdm.MaintainedApp, error) {
+		return &automdm.MaintainedApp{
 			ID:               1,
 			Name:             "1Password",
 			Platform:         "darwin",
@@ -646,7 +646,7 @@ func TestSoftwareInstallerPayloadFromSlug(t *testing.T) {
 			Slug:             "1password/darwin",
 		}, nil
 	}
-	payload := fleet.SoftwareInstallerPayload{Slug: ptr.String("1password/darwin")}
+	payload := automdm.SoftwareInstallerPayload{Slug: ptr.String("1password/darwin")}
 	err = svc.maintainedAppFromSlug(context.Background(), &payload, nil)
 	require.NoError(t, err)
 	err = svc.softwareInstallerPayloadFromMaintainedApp(context.Background(), &payload, nil)
@@ -655,10 +655,10 @@ func TestSoftwareInstallerPayloadFromSlug(t *testing.T) {
 	assert.Equal(t, onePasswordSHA, payload.SHA256)
 	assert.NotEmpty(t, payload.InstallScript)
 	assert.NotEmpty(t, payload.UninstallScript)
-	assert.True(t, payload.FleetMaintained)
+	assert.True(t, payload.AutoMDMMaintained)
 
-	ds.GetMaintainedAppBySlugFunc = func(ctx context.Context, slug string, teamID *uint) (*fleet.MaintainedApp, error) {
-		return &fleet.MaintainedApp{
+	ds.GetMaintainedAppBySlugFunc = func(ctx context.Context, slug string, teamID *uint) (*automdm.MaintainedApp, error) {
+		return &automdm.MaintainedApp{
 			ID:               1,
 			Name:             "Google Chrome",
 			Platform:         "darwin",
@@ -666,7 +666,7 @@ func TestSoftwareInstallerPayloadFromSlug(t *testing.T) {
 			Slug:             "google-chrome/darwin",
 		}, nil
 	}
-	payload = fleet.SoftwareInstallerPayload{Slug: ptr.String("google-chrome/darwin")}
+	payload = automdm.SoftwareInstallerPayload{Slug: ptr.String("google-chrome/darwin")}
 	err = svc.maintainedAppFromSlug(context.Background(), &payload, nil)
 	require.NoError(t, err)
 	err = svc.softwareInstallerPayloadFromMaintainedApp(context.Background(), &payload, nil)
@@ -675,21 +675,21 @@ func TestSoftwareInstallerPayloadFromSlug(t *testing.T) {
 	assert.Empty(t, payload.SHA256)
 	assert.NotEmpty(t, payload.InstallScript)
 	assert.NotEmpty(t, payload.UninstallScript)
-	assert.True(t, payload.FleetMaintained)
+	assert.True(t, payload.AutoMDMMaintained)
 
-	payload = fleet.SoftwareInstallerPayload{URL: "https://fleetdm.com"}
+	payload = automdm.SoftwareInstallerPayload{URL: "https://automdm.com"}
 	err = svc.maintainedAppFromSlug(context.Background(), &payload, nil)
 	require.NoError(t, err)
 	assert.Nil(t, payload.Slug)
 	assert.Nil(t, payload.MaintainedApp)
-	assert.Equal(t, "https://fleetdm.com", payload.URL)
+	assert.Equal(t, "https://automdm.com", payload.URL)
 	assert.Empty(t, payload.SHA256)
 	assert.Empty(t, payload.InstallScript)
 	assert.Empty(t, payload.UninstallScript)
-	assert.False(t, payload.FleetMaintained)
+	assert.False(t, payload.AutoMDMMaintained)
 
-	ds.GetMaintainedAppBySlugFunc = func(ctx context.Context, slug string, teamID *uint) (*fleet.MaintainedApp, error) {
-		return &fleet.MaintainedApp{
+	ds.GetMaintainedAppBySlugFunc = func(ctx context.Context, slug string, teamID *uint) (*automdm.MaintainedApp, error) {
+		return &automdm.MaintainedApp{
 			ID:               1,
 			Name:             "1Password",
 			Platform:         "darwin",
@@ -700,12 +700,12 @@ func TestSoftwareInstallerPayloadFromSlug(t *testing.T) {
 	}
 
 	// Newest download first, and it is on a major the pin doesn't allow.
-	ds.GetFleetMaintainedVersionsByTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint) ([]fleet.FleetMaintainedVersion, error) {
-		return []fleet.FleetMaintainedVersion{{ID: 1, Version: "27.0.0"}, {ID: 2, Version: "26.0.0"}}, nil
+	ds.GetAutoMDMMaintainedVersionsByTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint) ([]automdm.AutoMDMMaintainedVersion, error) {
+		return []automdm.AutoMDMMaintainedVersion{{ID: 1, Version: "27.0.0"}, {ID: 2, Version: "26.0.0"}}, nil
 	}
 
-	ds.GetCachedFMAInstallerMetadataFunc = func(ctx context.Context, teamID *uint, fmaID uint, version string) (*fleet.MaintainedApp, error) {
-		return &fleet.MaintainedApp{
+	ds.GetCachedFMAInstallerMetadataFunc = func(ctx context.Context, teamID *uint, fmaID uint, version string) (*automdm.MaintainedApp, error) {
+		return &automdm.MaintainedApp{
 			ID:               1,
 			Name:             "1Password",
 			Platform:         "darwin",
@@ -738,7 +738,7 @@ func TestSoftwareInstallerPayloadFromSlug(t *testing.T) {
 
 	for _, vt := range versionPinValidationTests {
 		t.Run(vt.name, func(t *testing.T) {
-			payload := fleet.SoftwareInstallerPayload{Slug: ptr.String("1password/darwin"), RollbackVersion: vt.version}
+			payload := automdm.SoftwareInstallerPayload{Slug: ptr.String("1password/darwin"), RollbackVersion: vt.version}
 			err = svc.maintainedAppFromSlug(context.Background(), &payload, nil)
 			if vt.wantErr != "" {
 				require.Error(t, err)
@@ -764,13 +764,13 @@ func TestGetInHouseAppManifest(t *testing.T) {
 
 	const validToken = "00000000-0000-0000-0000-000000000001"
 
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{ServerSettings: fleet.ServerSettings{ServerURL: "https://example.com"}}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{ServerSettings: automdm.ServerSettings{ServerURL: "https://example.com"}}, nil
 	}
 
-	ds.GetInHouseAppInstallTokenMetadataFunc = func(ctx context.Context, token string) (*fleet.InHouseAppInstallTokenMetadata, error) {
+	ds.GetInHouseAppInstallTokenMetadataFunc = func(ctx context.Context, token string) (*automdm.InHouseAppInstallTokenMetadata, error) {
 		if token == validToken {
-			return &fleet.InHouseAppInstallTokenMetadata{
+			return &automdm.InHouseAppInstallTokenMetadata{
 				Token:           validToken,
 				SoftwareTitleID: 1,
 				TeamID:          0,
@@ -781,9 +781,9 @@ func TestGetInHouseAppManifest(t *testing.T) {
 		return nil, &notFoundError{}
 	}
 
-	ds.GetInHouseAppMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint) (*fleet.SoftwareInstaller, error) {
+	ds.GetInHouseAppMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint) (*automdm.SoftwareInstaller, error) {
 		if titleID == 1 {
-			return &fleet.SoftwareInstaller{
+			return &automdm.SoftwareInstaller{
 				BundleIdentifier: "com.foo.bar",
 				Version:          "1.2.3",
 				SoftwareTitle:    "test in-house app",
@@ -806,7 +806,7 @@ func TestGetInHouseAppManifest(t *testing.T) {
             <key>kind</key>
             <string>software-package</string>
             <key>url</key>
-            <string>https://example.com/api/latest/fleet/software/titles/1/in_house_app/00000000-0000-0000-0000-000000000001</string>
+            <string>https://example.com/api/latest/automdm/software/titles/1/in_house_app/00000000-0000-0000-0000-000000000001</string>
           </dict>
           <dict>
             <key>kind</key>
@@ -839,7 +839,7 @@ func TestGetInHouseAppManifest(t *testing.T) {
 
 	_, err = svc.GetInHouseAppManifest(ctx, 1, "ffffffff-ffff-ffff-ffff-ffffffffffff")
 	require.Error(t, err)
-	var permErr *fleet.PermissionError
+	var permErr *automdm.PermissionError
 	require.ErrorAs(t, err, &permErr)
 
 	// Wrong-length token is rejected before a DB lookup happens.
@@ -873,7 +873,7 @@ func TestGetInHouseAppManifest(t *testing.T) {
 }
 
 // The device fetches the manifest and then the .ipa named inside it, so on a
-// split-hostname deploy both URLs have to be the one Apple devices reach Fleet on.
+// split-hostname deploy both URLs have to be the one Apple devices reach AutoMDM on.
 func TestGetInHouseAppManifestAppleServerURL(t *testing.T) {
 	ds := new(mock.Store)
 	svc := newTestService(t, ds)
@@ -881,14 +881,14 @@ func TestGetInHouseAppManifestAppleServerURL(t *testing.T) {
 
 	const validToken = "00000000-0000-0000-0000-000000000003"
 
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{
-			ServerSettings: fleet.ServerSettings{ServerURL: "https://admin.example.com"},
-			MDM:            fleet.MDM{AppleServerURL: "https://devices.example.com"},
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{
+			ServerSettings: automdm.ServerSettings{ServerURL: "https://admin.example.com"},
+			MDM:            automdm.MDM{AppleServerURL: "https://devices.example.com"},
 		}, nil
 	}
-	ds.GetInHouseAppInstallTokenMetadataFunc = func(ctx context.Context, token string) (*fleet.InHouseAppInstallTokenMetadata, error) {
-		return &fleet.InHouseAppInstallTokenMetadata{
+	ds.GetInHouseAppInstallTokenMetadataFunc = func(ctx context.Context, token string) (*automdm.InHouseAppInstallTokenMetadata, error) {
+		return &automdm.InHouseAppInstallTokenMetadata{
 			Token:           validToken,
 			SoftwareTitleID: 1,
 			TeamID:          0,
@@ -896,8 +896,8 @@ func TestGetInHouseAppManifestAppleServerURL(t *testing.T) {
 			ExpiresAt:       time.Now().Add(time.Hour),
 		}, nil
 	}
-	ds.GetInHouseAppMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint) (*fleet.SoftwareInstaller, error) {
-		return &fleet.SoftwareInstaller{
+	ds.GetInHouseAppMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint) (*automdm.SoftwareInstaller, error) {
+		return &automdm.SoftwareInstaller{
 			BundleIdentifier: "com.foo.bar",
 			Version:          "1.2.3",
 			SoftwareTitle:    "test in-house app",
@@ -908,7 +908,7 @@ func TestGetInHouseAppManifestAppleServerURL(t *testing.T) {
 	manifest, err := svc.GetInHouseAppManifest(ctx, 1, validToken)
 	require.NoError(t, err)
 	assert.Contains(t, string(manifest),
-		"<string>https://devices.example.com/api/latest/fleet/software/titles/1/in_house_app/"+validToken+"</string>")
+		"<string>https://devices.example.com/api/latest/automdm/software/titles/1/in_house_app/"+validToken+"</string>")
 	assert.NotContains(t, string(manifest), "admin.example.com")
 }
 
@@ -919,9 +919,9 @@ func TestGetInHouseAppPackageTokenAuth(t *testing.T) {
 
 	const validToken = "00000000-0000-0000-0000-000000000002"
 
-	ds.GetInHouseAppInstallTokenMetadataFunc = func(ctx context.Context, token string) (*fleet.InHouseAppInstallTokenMetadata, error) {
+	ds.GetInHouseAppInstallTokenMetadataFunc = func(ctx context.Context, token string) (*automdm.InHouseAppInstallTokenMetadata, error) {
 		if token == validToken {
-			return &fleet.InHouseAppInstallTokenMetadata{
+			return &automdm.InHouseAppInstallTokenMetadata{
 				Token:           validToken,
 				SoftwareTitleID: 5,
 				TeamID:          2,
@@ -935,7 +935,7 @@ func TestGetInHouseAppPackageTokenAuth(t *testing.T) {
 	// Unknown token → permission error before the metadata mock would fire.
 	_, err := svc.GetInHouseAppPackage(ctx, 5, "ffffffff-ffff-ffff-ffff-ffffffffffff")
 	require.Error(t, err)
-	var permErr *fleet.PermissionError
+	var permErr *automdm.PermissionError
 	require.ErrorAs(t, err, &permErr)
 	require.False(t, ds.GetInHouseAppMetadataByTeamAndTitleIDFuncInvoked)
 
@@ -965,13 +965,13 @@ func TestBatchNeedsWindowsTitleReconcile(t *testing.T) {
 
 	cases := []struct {
 		name       string
-		installers []*fleet.UploadSoftwareInstallerPayload
+		installers []*automdm.UploadSoftwareInstallerPayload
 		want       bool
 	}{
 		{"empty batch", nil, false},
 		{
 			"custom installers only",
-			[]*fleet.UploadSoftwareInstallerPayload{
+			[]*automdm.UploadSoftwareInstallerPayload{
 				{Title: "Custom", Platform: "windows"},
 				{Title: "Other", Platform: "darwin"},
 			},
@@ -979,9 +979,9 @@ func TestBatchNeedsWindowsTitleReconcile(t *testing.T) {
 		},
 		{
 			"maintained app present",
-			[]*fleet.UploadSoftwareInstallerPayload{
+			[]*automdm.UploadSoftwareInstallerPayload{
 				{Title: "Custom", Platform: "windows"},
-				{Title: "Granola", Platform: "windows", FleetMaintainedAppID: &fmaID},
+				{Title: "Granola", Platform: "windows", AutoMDMMaintainedAppID: &fmaID},
 			},
 			true,
 		},
@@ -990,14 +990,14 @@ func TestBatchNeedsWindowsTitleReconcile(t *testing.T) {
 			// is not reliably populated this far down the batch payload chain and the
 			// reconcile is a no-op for non-Windows apps anyway.
 			"maintained app with no platform set",
-			[]*fleet.UploadSoftwareInstallerPayload{
-				{Title: "Granola", FleetMaintainedAppID: &fmaID},
+			[]*automdm.UploadSoftwareInstallerPayload{
+				{Title: "Granola", AutoMDMMaintainedAppID: &fmaID},
 			},
 			true,
 		},
 		{
 			"nil entries are skipped",
-			[]*fleet.UploadSoftwareInstallerPayload{nil, {Title: "Custom"}},
+			[]*automdm.UploadSoftwareInstallerPayload{nil, {Title: "Custom"}},
 			false,
 		},
 	}
@@ -1009,7 +1009,7 @@ func TestBatchNeedsWindowsTitleReconcile(t *testing.T) {
 	}
 }
 
-func newTestService(t *testing.T, ds fleet.Datastore) *Service {
+func newTestService(t *testing.T, ds automdm.Datastore) *Service {
 	t.Helper()
 	authorizer, err := authz.NewAuthorizer()
 	require.NoError(t, err)
@@ -1027,16 +1027,16 @@ func newTestService(t *testing.T, ds fleet.Datastore) *Service {
 // precedence resolver) to return the single installer that GetSoftwareInstallerMetadataByTeamAndTitleID
 // yields, so install-path unit tests keep their installer defined in one place.
 func mockSoftwarePackagesFromMetadata(ds *mock.Store) {
-	ds.GetSoftwarePackagesByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint) ([]*fleet.SoftwareInstaller, error) {
+	ds.GetSoftwarePackagesByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint) ([]*automdm.SoftwareInstaller, error) {
 		si, err := ds.GetSoftwareInstallerMetadataByTeamAndTitleID(ctx, teamID, titleID, false)
 		if err != nil {
 			return nil, err
 		}
-		return []*fleet.SoftwareInstaller{si}, nil
+		return []*automdm.SoftwareInstaller{si}, nil
 	}
 }
 
-func newTestServiceWithMock(t *testing.T, ds fleet.Datastore) (*Service, *svcmock.Service) {
+func newTestServiceWithMock(t *testing.T, ds automdm.Datastore) (*Service, *svcmock.Service) {
 	t.Helper()
 	authorizer, err := authz.NewAuthorizer()
 	require.NoError(t, err)
@@ -1060,7 +1060,7 @@ func TestUpdateSoftwareInstallerMatchesSoftwareIdentity(t *testing.T) {
 		svc       *Service
 		ds        *mock.Store
 		ctx       context.Context
-		installer *fleet.SoftwareInstaller
+		installer *automdm.SoftwareInstaller
 		teamID    uint
 	}
 
@@ -1069,7 +1069,7 @@ func TestUpdateSoftwareInstallerMatchesSoftwareIdentity(t *testing.T) {
 		ds := new(mock.Store)
 		svc, baseSvc := newTestServiceWithMock(t, ds)
 		teamID := uint(0)
-		installer := &fleet.SoftwareInstaller{
+		installer := &automdm.SoftwareInstaller{
 			TeamID:          &teamID,
 			TitleID:         new(titleID),
 			Name:            filename,
@@ -1088,7 +1088,7 @@ func TestUpdateSoftwareInstallerMatchesSoftwareIdentity(t *testing.T) {
 		firstInstaller := installer
 		if multiplePackages {
 			installerCount = 2
-			firstInstaller = &fleet.SoftwareInstaller{
+			firstInstaller = &automdm.SoftwareInstaller{
 				TeamID:        &teamID,
 				TitleID:       new(titleID),
 				Name:          filename,
@@ -1098,37 +1098,37 @@ func TestUpdateSoftwareInstallerMatchesSoftwareIdentity(t *testing.T) {
 				StorageID:     "first-installer-storage-id",
 				SoftwareTitle: storedTitleName,
 			}
-			ds.GetSoftwarePackagesByTeamAndTitleIDFunc = func(ctx context.Context, gotTeamID *uint, gotTitleID uint) ([]*fleet.SoftwareInstaller, error) {
+			ds.GetSoftwarePackagesByTeamAndTitleIDFunc = func(ctx context.Context, gotTeamID *uint, gotTitleID uint) ([]*automdm.SoftwareInstaller, error) {
 				require.Equal(t, &teamID, gotTeamID)
 				require.Equal(t, titleID, gotTitleID)
-				return []*fleet.SoftwareInstaller{firstInstaller, installer}, nil
+				return []*automdm.SoftwareInstaller{firstInstaller, installer}, nil
 			}
 		}
 
 		ds.ValidateEmbeddedSecretsFunc = func(context.Context, []string) error { return nil }
-		ds.SoftwareTitleByIDFunc = func(ctx context.Context, gotTitleID uint, gotTeamID *uint, _ fleet.TeamFilter) (*fleet.SoftwareTitle, error) {
+		ds.SoftwareTitleByIDFunc = func(ctx context.Context, gotTitleID uint, gotTeamID *uint, _ automdm.TeamFilter) (*automdm.SoftwareTitle, error) {
 			require.Equal(t, titleID, gotTitleID)
 			require.Equal(t, &teamID, gotTeamID)
-			return &fleet.SoftwareTitle{
+			return &automdm.SoftwareTitle{
 				ID:                      titleID,
 				Name:                    storedTitleName,
 				SoftwareInstallersCount: installerCount,
 			}, nil
 		}
-		ds.GetSoftwareInstallerMetadataByTeamAndTitleIDFunc = func(ctx context.Context, gotTeamID *uint, gotTitleID uint, withScripts bool) (*fleet.SoftwareInstaller, error) {
+		ds.GetSoftwareInstallerMetadataByTeamAndTitleIDFunc = func(ctx context.Context, gotTeamID *uint, gotTitleID uint, withScripts bool) (*automdm.SoftwareInstaller, error) {
 			require.Equal(t, &teamID, gotTeamID)
 			require.Equal(t, titleID, gotTitleID)
 			require.True(t, withScripts)
 			return firstInstaller, nil
 		}
-		ds.GetSoftwareInstallerMetadataByTeamTitleAndInstallerIDFunc = func(ctx context.Context, gotTeamID *uint, gotTitleID, gotInstallerID uint, withScripts bool) (*fleet.SoftwareInstaller, error) {
+		ds.GetSoftwareInstallerMetadataByTeamTitleAndInstallerIDFunc = func(ctx context.Context, gotTeamID *uint, gotTitleID, gotInstallerID uint, withScripts bool) (*automdm.SoftwareInstaller, error) {
 			require.Equal(t, &teamID, gotTeamID)
 			require.Equal(t, titleID, gotTitleID)
 			require.Equal(t, targetInstallerID, gotInstallerID)
 			require.True(t, withScripts)
 			return installer, nil
 		}
-		ds.SaveInstallerUpdatesFunc = func(ctx context.Context, payload *fleet.UpdateSoftwareInstallerPayload) error {
+		ds.SaveInstallerUpdatesFunc = func(ctx context.Context, payload *automdm.UpdateSoftwareInstallerPayload) error {
 			require.Equal(t, targetInstallerID, payload.InstallerID)
 			installer.Name = payload.Filename
 			installer.Version = payload.Version
@@ -1143,11 +1143,11 @@ func TestUpdateSoftwareInstallerMatchesSoftwareIdentity(t *testing.T) {
 			require.True(t, packageUpdated)
 			return nil
 		}
-		ds.GetSummaryHostSoftwareInstallsFunc = func(ctx context.Context, installerID uint) (*fleet.SoftwareInstallerStatusSummary, error) {
+		ds.GetSummaryHostSoftwareInstallsFunc = func(ctx context.Context, installerID uint) (*automdm.SoftwareInstallerStatusSummary, error) {
 			require.Equal(t, targetInstallerID, installerID)
 			return nil, nil
 		}
-		baseSvc.NewActivityFunc = func(context.Context, *fleet.User, fleet.ActivityDetails) error { return nil }
+		baseSvc.NewActivityFunc = func(context.Context, *automdm.User, automdm.ActivityDetails) error { return nil }
 
 		store := &mocksoftware.SoftwareInstallerStore{
 			ExistsFunc: func(context.Context, string) (bool, error) { return false, nil },
@@ -1157,7 +1157,7 @@ func TestUpdateSoftwareInstallerMatchesSoftwareIdentity(t *testing.T) {
 
 		ctx := authz_ctx.NewContext(t.Context(), &authz_ctx.AuthorizationContext{})
 		ctx = viewer.NewContext(ctx, viewer.Viewer{
-			User: &fleet.User{ID: 1, GlobalRole: new(fleet.RoleAdmin)},
+			User: &automdm.User{ID: 1, GlobalRole: new(automdm.RoleAdmin)},
 		})
 		return testState{svc: svc, ds: ds, ctx: ctx, installer: installer, teamID: teamID}
 	}
@@ -1170,12 +1170,12 @@ func TestUpdateSoftwareInstallerMatchesSoftwareIdentity(t *testing.T) {
 		return contents, hex.EncodeToString(sum[:])
 	}
 
-	newReplacement := func(t *testing.T, contents []byte) *fleet.TempFileReader {
+	newReplacement := func(t *testing.T, contents []byte) *automdm.TempFileReader {
 		t.Helper()
 		// XAR and MSI readers ignore trailing data, giving this test a distinct package hash
 		// while preserving the installer's extracted software identity.
 		replacement := append(bytes.Clone(contents), '\n')
-		tfr, err := fleet.NewTempFileReader(bytes.NewReader(replacement), t.TempDir)
+		tfr, err := automdm.NewTempFileReader(bytes.NewReader(replacement), t.TempDir)
 		require.NoError(t, err)
 		t.Cleanup(func() { require.NoError(t, tfr.Close()) })
 		return tfr
@@ -1184,14 +1184,14 @@ func TestUpdateSoftwareInstallerMatchesSoftwareIdentity(t *testing.T) {
 	t.Run("bundle identifier allows a different title name on a targeted package", func(t *testing.T) {
 		contents, storageID := readInstaller(t, "testdata/dummy_installer.pkg")
 		state := setup(t, "Dummy App", "dummy_installer.pkg", "pkg", "darwin", storageID, []string{"com.example.dummy"}, true)
-		state.ds.GetExistingSoftwareInstallerTitleIDFunc = func(ctx context.Context, payload *fleet.UploadSoftwareInstallerPayload) (uint, error) {
+		state.ds.GetExistingSoftwareInstallerTitleIDFunc = func(ctx context.Context, payload *automdm.UploadSoftwareInstallerPayload) (uint, error) {
 			require.Equal(t, "DummyApp", payload.Title)
 			require.Equal(t, "apps", payload.Source)
 			require.Equal(t, "com.example.dummy", payload.BundleIdentifier)
 			return titleID, nil
 		}
 
-		updated, err := state.svc.UpdateSoftwareInstaller(state.ctx, &fleet.UpdateSoftwareInstallerPayload{
+		updated, err := state.svc.UpdateSoftwareInstaller(state.ctx, &automdm.UpdateSoftwareInstallerPayload{
 			TitleID:       titleID,
 			TeamID:        &state.teamID,
 			InstallerID:   targetInstallerID,
@@ -1207,35 +1207,35 @@ func TestUpdateSoftwareInstallerMatchesSoftwareIdentity(t *testing.T) {
 
 	t.Run("rejects patch controls on a non-FMA installer", func(t *testing.T) {
 		state := setup(t, "Dummy App", "dummy_installer.pkg", "pkg", "darwin", "dummy-storage", []string{"com.example.dummy"}, false)
-		_, err := state.svc.UpdateSoftwareInstaller(state.ctx, &fleet.UpdateSoftwareInstallerPayload{
+		_, err := state.svc.UpdateSoftwareInstaller(state.ctx, &automdm.UpdateSoftwareInstallerPayload{
 			TitleID: titleID,
 			TeamID:  &state.teamID,
 			Patch:   new(true),
 		})
-		require.ErrorContains(t, err, `"patch", "patch_when_closed", "notify_before_patching", and "patch_deadline" are only available for Fleet-maintained apps.`)
+		require.ErrorContains(t, err, `"patch", "patch_when_closed", "notify_before_patching", and "patch_deadline" are only available for AutoMDM-maintained apps.`)
 
-		_, err = state.svc.UpdateSoftwareInstaller(state.ctx, &fleet.UpdateSoftwareInstallerPayload{
+		_, err = state.svc.UpdateSoftwareInstaller(state.ctx, &automdm.UpdateSoftwareInstallerPayload{
 			TitleID:       titleID,
 			TeamID:        &state.teamID,
 			PatchDeadline: new(true),
 		})
-		require.ErrorContains(t, err, `"patch_deadline" are only available for Fleet-maintained apps.`)
+		require.ErrorContains(t, err, `"patch_deadline" are only available for AutoMDM-maintained apps.`)
 	})
 
 	t.Run("upgrade code allows a different title name", func(t *testing.T) {
-		contents, storageID := readInstaller(t, "../../../server/service/testdata/software-installers/fleet-osquery.msi")
-		state := setup(t, "Fleet agent", "fleet-osquery.msi", "msi", "windows", storageID, []string{"{70A53353-01E5-424B-8819-ED882B3805D9}"}, false)
-		state.ds.GetExistingSoftwareInstallerTitleIDFunc = func(ctx context.Context, payload *fleet.UploadSoftwareInstallerPayload) (uint, error) {
-			require.Equal(t, "Fleet osquery", payload.Title)
+		contents, storageID := readInstaller(t, "../../../server/service/testdata/software-installers/automdm-osquery.msi")
+		state := setup(t, "AutoMDM agent", "automdm-osquery.msi", "msi", "windows", storageID, []string{"{70A53353-01E5-424B-8819-ED882B3805D9}"}, false)
+		state.ds.GetExistingSoftwareInstallerTitleIDFunc = func(ctx context.Context, payload *automdm.UploadSoftwareInstallerPayload) (uint, error) {
+			require.Equal(t, "AutoMDM osquery", payload.Title)
 			require.Equal(t, "programs", payload.Source)
 			require.NotEmpty(t, payload.UpgradeCode)
 			return titleID, nil
 		}
 
-		updated, err := state.svc.UpdateSoftwareInstaller(state.ctx, &fleet.UpdateSoftwareInstallerPayload{
+		updated, err := state.svc.UpdateSoftwareInstaller(state.ctx, &automdm.UpdateSoftwareInstallerPayload{
 			TitleID:       titleID,
 			TeamID:        &state.teamID,
-			Filename:      "fleet-osquery.msi",
+			Filename:      "automdm-osquery.msi",
 			InstallerFile: newReplacement(t, contents),
 		})
 		require.NoError(t, err)
@@ -1254,11 +1254,11 @@ func TestUpdateSoftwareInstallerMatchesSoftwareIdentity(t *testing.T) {
 		t.Run("different software is rejected when "+tt.name, func(t *testing.T) {
 			contents, storageID := readInstaller(t, "testdata/dummy_installer.pkg")
 			state := setup(t, "Dummy App", "dummy_installer.pkg", "pkg", "darwin", storageID, []string{"com.example.dummy"}, false)
-			state.ds.GetExistingSoftwareInstallerTitleIDFunc = func(context.Context, *fleet.UploadSoftwareInstallerPayload) (uint, error) {
+			state.ds.GetExistingSoftwareInstallerTitleIDFunc = func(context.Context, *automdm.UploadSoftwareInstallerPayload) (uint, error) {
 				return tt.resolvedTitleID, tt.resolveErr
 			}
 
-			_, err := state.svc.UpdateSoftwareInstaller(state.ctx, &fleet.UpdateSoftwareInstallerPayload{
+			_, err := state.svc.UpdateSoftwareInstaller(state.ctx, &automdm.UpdateSoftwareInstallerPayload{
 				TitleID:       titleID,
 				TeamID:        &state.teamID,
 				Filename:      "dummy_installer.pkg",
@@ -1271,17 +1271,17 @@ func TestUpdateSoftwareInstallerMatchesSoftwareIdentity(t *testing.T) {
 	}
 
 	t.Run("different upgrade code is rejected", func(t *testing.T) {
-		contents, storageID := readInstaller(t, "../../../server/service/testdata/software-installers/fleet-osquery.msi")
-		state := setup(t, "Fleet agent", "fleet-osquery.msi", "msi", "windows", storageID, []string{"{70A53353-01E5-424B-8819-ED882B3805D9}"}, false)
-		state.ds.GetExistingSoftwareInstallerTitleIDFunc = func(ctx context.Context, payload *fleet.UploadSoftwareInstallerPayload) (uint, error) {
+		contents, storageID := readInstaller(t, "../../../server/service/testdata/software-installers/automdm-osquery.msi")
+		state := setup(t, "AutoMDM agent", "automdm-osquery.msi", "msi", "windows", storageID, []string{"{70A53353-01E5-424B-8819-ED882B3805D9}"}, false)
+		state.ds.GetExistingSoftwareInstallerTitleIDFunc = func(ctx context.Context, payload *automdm.UploadSoftwareInstallerPayload) (uint, error) {
 			require.NotEmpty(t, payload.UpgradeCode)
 			return 0, &notFoundError{}
 		}
 
-		_, err := state.svc.UpdateSoftwareInstaller(state.ctx, &fleet.UpdateSoftwareInstallerPayload{
+		_, err := state.svc.UpdateSoftwareInstaller(state.ctx, &automdm.UpdateSoftwareInstallerPayload{
 			TitleID:       titleID,
 			TeamID:        &state.teamID,
-			Filename:      "fleet-osquery.msi",
+			Filename:      "automdm-osquery.msi",
 			InstallerFile: newReplacement(t, contents),
 		})
 		require.ErrorContains(t, err, "The selected package is for different software.")
@@ -1291,17 +1291,17 @@ func TestUpdateSoftwareInstallerMatchesSoftwareIdentity(t *testing.T) {
 
 	t.Run("extension mismatch takes precedence", func(t *testing.T) {
 		_, storageID := readInstaller(t, "testdata/dummy_installer.pkg")
-		msiContents, _ := readInstaller(t, "../../../server/service/testdata/software-installers/fleet-osquery.msi")
+		msiContents, _ := readInstaller(t, "../../../server/service/testdata/software-installers/automdm-osquery.msi")
 		state := setup(t, "Dummy App", "dummy_installer.pkg", "pkg", "darwin", storageID, []string{"com.example.dummy"}, false)
-		state.ds.GetExistingSoftwareInstallerTitleIDFunc = func(context.Context, *fleet.UploadSoftwareInstallerPayload) (uint, error) {
+		state.ds.GetExistingSoftwareInstallerTitleIDFunc = func(context.Context, *automdm.UploadSoftwareInstallerPayload) (uint, error) {
 			t.Fatal("identity resolver must not run before the extension check")
 			return 0, nil
 		}
 
-		_, err := state.svc.UpdateSoftwareInstaller(state.ctx, &fleet.UpdateSoftwareInstallerPayload{
+		_, err := state.svc.UpdateSoftwareInstaller(state.ctx, &automdm.UpdateSoftwareInstallerPayload{
 			TitleID:       titleID,
 			TeamID:        &state.teamID,
-			Filename:      "fleet-osquery.msi",
+			Filename:      "automdm-osquery.msi",
 			InstallerFile: newReplacement(t, msiContents),
 		})
 		require.ErrorContains(t, err, "The selected package is for a different file type.")
@@ -1311,7 +1311,7 @@ func TestUpdateSoftwareInstallerMatchesSoftwareIdentity(t *testing.T) {
 	t.Run("non-file edit does not resolve identity", func(t *testing.T) {
 		_, storageID := readInstaller(t, "testdata/dummy_installer.pkg")
 		state := setup(t, "Dummy App", "dummy_installer.pkg", "pkg", "darwin", storageID, []string{"com.example.dummy"}, false)
-		state.ds.GetExistingSoftwareInstallerTitleIDFunc = func(context.Context, *fleet.UploadSoftwareInstallerPayload) (uint, error) {
+		state.ds.GetExistingSoftwareInstallerTitleIDFunc = func(context.Context, *automdm.UploadSoftwareInstallerPayload) (uint, error) {
 			t.Fatal("identity resolver must not run without a replacement file")
 			return 0, nil
 		}
@@ -1322,7 +1322,7 @@ func TestUpdateSoftwareInstallerMatchesSoftwareIdentity(t *testing.T) {
 			return nil
 		}
 
-		updated, err := state.svc.UpdateSoftwareInstaller(state.ctx, &fleet.UpdateSoftwareInstallerPayload{
+		updated, err := state.svc.UpdateSoftwareInstaller(state.ctx, &automdm.UpdateSoftwareInstallerPayload{
 			TitleID:     titleID,
 			TeamID:      &state.teamID,
 			SelfService: new(true),
@@ -1336,17 +1336,17 @@ func TestUpdateSoftwareInstallerMatchesSoftwareIdentity(t *testing.T) {
 	t.Run("same-named package with an unresolved identity is accepted via the name fallback", func(t *testing.T) {
 		// A same-named Windows MSI whose upgrade_code changed resolves to not-found by identity; the
 		// name fallback must still accept it.
-		contents, storageID := readInstaller(t, "../../../server/service/testdata/software-installers/fleet-osquery.msi")
-		state := setup(t, "Fleet osquery", "fleet-osquery.msi", "msi", "windows", storageID, []string{"{70A53353-01E5-424B-8819-ED882B3805D9}"}, false)
-		state.ds.GetExistingSoftwareInstallerTitleIDFunc = func(ctx context.Context, payload *fleet.UploadSoftwareInstallerPayload) (uint, error) {
-			require.Equal(t, "Fleet osquery", payload.Title)
+		contents, storageID := readInstaller(t, "../../../server/service/testdata/software-installers/automdm-osquery.msi")
+		state := setup(t, "AutoMDM osquery", "automdm-osquery.msi", "msi", "windows", storageID, []string{"{70A53353-01E5-424B-8819-ED882B3805D9}"}, false)
+		state.ds.GetExistingSoftwareInstallerTitleIDFunc = func(ctx context.Context, payload *automdm.UploadSoftwareInstallerPayload) (uint, error) {
+			require.Equal(t, "AutoMDM osquery", payload.Title)
 			return 0, &notFoundError{}
 		}
 
-		updated, err := state.svc.UpdateSoftwareInstaller(state.ctx, &fleet.UpdateSoftwareInstallerPayload{
+		updated, err := state.svc.UpdateSoftwareInstaller(state.ctx, &automdm.UpdateSoftwareInstallerPayload{
 			TitleID:       titleID,
 			TeamID:        &state.teamID,
-			Filename:      "fleet-osquery.msi",
+			Filename:      "automdm-osquery.msi",
 			InstallerFile: newReplacement(t, contents),
 		})
 		require.NoError(t, err)
@@ -1357,11 +1357,11 @@ func TestUpdateSoftwareInstallerMatchesSoftwareIdentity(t *testing.T) {
 	t.Run("different software is rejected on a targeted multi-package installer", func(t *testing.T) {
 		contents, storageID := readInstaller(t, "testdata/dummy_installer.pkg")
 		state := setup(t, "Different Osquery Name", "dummy_installer.pkg", "pkg", "darwin", storageID, []string{"com.example.dummy"}, true)
-		state.ds.GetExistingSoftwareInstallerTitleIDFunc = func(context.Context, *fleet.UploadSoftwareInstallerPayload) (uint, error) {
+		state.ds.GetExistingSoftwareInstallerTitleIDFunc = func(context.Context, *automdm.UploadSoftwareInstallerPayload) (uint, error) {
 			return titleID + 1, nil // resolves to a different title
 		}
 
-		_, err := state.svc.UpdateSoftwareInstaller(state.ctx, &fleet.UpdateSoftwareInstallerPayload{
+		_, err := state.svc.UpdateSoftwareInstaller(state.ctx, &automdm.UpdateSoftwareInstallerPayload{
 			TitleID:       titleID,
 			TeamID:        &state.teamID,
 			InstallerID:   targetInstallerID,
@@ -1374,23 +1374,23 @@ func TestUpdateSoftwareInstallerMatchesSoftwareIdentity(t *testing.T) {
 		require.Equal(t, storageID, state.installer.StorageID)
 	})
 
-	t.Run("fleet-maintained app rejects a file change with the FMA message before identity resolution", func(t *testing.T) {
+	t.Run("automdm-maintained app rejects a file change with the FMA message before identity resolution", func(t *testing.T) {
 		contents, storageID := readInstaller(t, "../../../server/service/testdata/software-installers/EchoApp.pkg")
 		state := setup(t, "Dummy App", "dummy_installer.pkg", "pkg", "darwin", storageID, []string{"com.example.dummy"}, false)
 		fmaID := uint(7)
-		state.installer.FleetMaintainedAppID = &fmaID
-		state.ds.GetExistingSoftwareInstallerTitleIDFunc = func(context.Context, *fleet.UploadSoftwareInstallerPayload) (uint, error) {
-			t.Fatal("identity resolver must not run for a fleet-maintained app")
+		state.installer.AutoMDMMaintainedAppID = &fmaID
+		state.ds.GetExistingSoftwareInstallerTitleIDFunc = func(context.Context, *automdm.UploadSoftwareInstallerPayload) (uint, error) {
+			t.Fatal("identity resolver must not run for an automdm-maintained app")
 			return 0, nil
 		}
 
-		_, err := state.svc.UpdateSoftwareInstaller(state.ctx, &fleet.UpdateSoftwareInstallerPayload{
+		_, err := state.svc.UpdateSoftwareInstaller(state.ctx, &automdm.UpdateSoftwareInstallerPayload{
 			TitleID:       titleID,
 			TeamID:        &state.teamID,
 			Filename:      "echoapp.pkg",
 			InstallerFile: newReplacement(t, contents),
 		})
-		require.ErrorContains(t, err, "The package can't be changed for Fleet-maintained apps.")
+		require.ErrorContains(t, err, "The package can't be changed for AutoMDM-maintained apps.")
 		require.False(t, state.ds.GetExistingSoftwareInstallerTitleIDFuncInvoked)
 		require.False(t, state.ds.SaveInstallerUpdatesFuncInvoked)
 	})
@@ -1400,11 +1400,11 @@ func TestUpdateSoftwareInstallerMatchesSoftwareIdentity(t *testing.T) {
 		// name ("DummyApp"), but its identity resolves to a different title, so it must be rejected.
 		contents, storageID := readInstaller(t, "testdata/dummy_installer.pkg")
 		state := setup(t, "DummyApp", "dummy_installer.pkg", "pkg", "darwin", storageID, []string{"com.example.dummy"}, false)
-		state.ds.GetExistingSoftwareInstallerTitleIDFunc = func(context.Context, *fleet.UploadSoftwareInstallerPayload) (uint, error) {
+		state.ds.GetExistingSoftwareInstallerTitleIDFunc = func(context.Context, *automdm.UploadSoftwareInstallerPayload) (uint, error) {
 			return titleID + 1, nil // resolves to a different existing title
 		}
 
-		_, err := state.svc.UpdateSoftwareInstaller(state.ctx, &fleet.UpdateSoftwareInstallerPayload{
+		_, err := state.svc.UpdateSoftwareInstaller(state.ctx, &automdm.UpdateSoftwareInstallerPayload{
 			TitleID:       titleID,
 			TeamID:        &state.teamID,
 			Filename:      "dummy_installer.pkg",
@@ -1419,18 +1419,18 @@ func TestUpdateSoftwareInstallerMatchesSoftwareIdentity(t *testing.T) {
 		// A sibling MSI whose own upgrade_code differs from the title's: the title lookup can't see it
 		// (returns not-found), and the title was renamed so the name fallback also fails — but the
 		// edited installer's own upgrade_code matches, so the fast path accepts without hitting the DB.
-		contents, storageID := readInstaller(t, "../../../server/service/testdata/software-installers/fleet-osquery.msi")
-		state := setup(t, "Renamed osquery title", "fleet-osquery.msi", "msi", "windows", storageID, []string{"{70A53353-01E5-424B-8819-ED882B3805D9}"}, false)
-		state.installer.UpgradeCode = "{B681CB20-107E-428A-9B14-2D3C1AFED244}" // fleet-osquery.msi's own upgrade code
-		state.ds.GetExistingSoftwareInstallerTitleIDFunc = func(context.Context, *fleet.UploadSoftwareInstallerPayload) (uint, error) {
+		contents, storageID := readInstaller(t, "../../../server/service/testdata/software-installers/automdm-osquery.msi")
+		state := setup(t, "Renamed osquery title", "automdm-osquery.msi", "msi", "windows", storageID, []string{"{70A53353-01E5-424B-8819-ED882B3805D9}"}, false)
+		state.installer.UpgradeCode = "{B681CB20-107E-428A-9B14-2D3C1AFED244}" // automdm-osquery.msi's own upgrade code
+		state.ds.GetExistingSoftwareInstallerTitleIDFunc = func(context.Context, *automdm.UploadSoftwareInstallerPayload) (uint, error) {
 			t.Fatal("title lookup must be skipped when the upgrade code fast path matches")
 			return 0, nil
 		}
 
-		updated, err := state.svc.UpdateSoftwareInstaller(state.ctx, &fleet.UpdateSoftwareInstallerPayload{
+		updated, err := state.svc.UpdateSoftwareInstaller(state.ctx, &automdm.UpdateSoftwareInstallerPayload{
 			TitleID:       titleID,
 			TeamID:        &state.teamID,
-			Filename:      "fleet-osquery.msi",
+			Filename:      "automdm-osquery.msi",
 			InstallerFile: newReplacement(t, contents),
 		})
 		require.NoError(t, err)
@@ -1442,11 +1442,11 @@ func TestUpdateSoftwareInstallerMatchesSoftwareIdentity(t *testing.T) {
 	t.Run("a datastore error resolving identity is propagated", func(t *testing.T) {
 		contents, storageID := readInstaller(t, "testdata/dummy_installer.pkg")
 		state := setup(t, "Dummy App", "dummy_installer.pkg", "pkg", "darwin", storageID, []string{"com.example.dummy"}, false)
-		state.ds.GetExistingSoftwareInstallerTitleIDFunc = func(context.Context, *fleet.UploadSoftwareInstallerPayload) (uint, error) {
+		state.ds.GetExistingSoftwareInstallerTitleIDFunc = func(context.Context, *automdm.UploadSoftwareInstallerPayload) (uint, error) {
 			return 0, errors.New("datastore boom")
 		}
 
-		_, err := state.svc.UpdateSoftwareInstaller(state.ctx, &fleet.UpdateSoftwareInstallerPayload{
+		_, err := state.svc.UpdateSoftwareInstaller(state.ctx, &automdm.UpdateSoftwareInstallerPayload{
 			TitleID:       titleID,
 			TeamID:        &state.teamID,
 			Filename:      "dummy_installer.pkg",
@@ -1462,11 +1462,11 @@ func TestUpdateSoftwareInstallerMatchesSoftwareIdentity(t *testing.T) {
 		// result must not reject on its own — it falls through to the name check, which matches here.
 		contents, storageID := readInstaller(t, "../../../server/service/testdata/software-installers/vim.deb")
 		state := setup(t, "vim", "vim.deb", "deb", "linux", storageID, []string{"vim"}, false)
-		state.ds.GetExistingSoftwareInstallerTitleIDFunc = func(context.Context, *fleet.UploadSoftwareInstallerPayload) (uint, error) {
+		state.ds.GetExistingSoftwareInstallerTitleIDFunc = func(context.Context, *automdm.UploadSoftwareInstallerPayload) (uint, error) {
 			return titleID + 1, nil // ambiguous name-only match returns another same-named title
 		}
 
-		updated, err := state.svc.UpdateSoftwareInstaller(state.ctx, &fleet.UpdateSoftwareInstallerPayload{
+		updated, err := state.svc.UpdateSoftwareInstaller(state.ctx, &automdm.UpdateSoftwareInstallerPayload{
 			TitleID:       titleID,
 			TeamID:        &state.teamID,
 			Filename:      "vim.deb",
@@ -1480,7 +1480,7 @@ func TestUpdateSoftwareInstallerMatchesSoftwareIdentity(t *testing.T) {
 
 // Software installer and setup-experience uploads validate referenced custom
 // host vitals, so mock-backed tests that don't care about it needn't stub it.
-func defaultMockCustomHostVitalsValidation(ds fleet.Datastore) {
+func defaultMockCustomHostVitalsValidation(ds automdm.Datastore) {
 	if mockDS, ok := ds.(*mock.Store); ok && mockDS.ValidateReferencedCustomHostVitalsFunc == nil {
 		mockDS.ValidateReferencedCustomHostVitalsFunc = func(ctx context.Context, documents []string) error { return nil }
 	}
@@ -1499,11 +1499,11 @@ func TestAddScriptPackageMetadata(t *testing.T) {
 		_, err = tmpFile.WriteString(scriptContents)
 		require.NoError(t, err)
 
-		tfr, err := fleet.NewKeepFileReader(tmpFile.Name())
+		tfr, err := automdm.NewKeepFileReader(tmpFile.Name())
 		require.NoError(t, err)
 		defer tfr.Close()
 
-		payload := &fleet.UploadSoftwareInstallerPayload{
+		payload := &automdm.UploadSoftwareInstallerPayload{
 			InstallerFile: tfr,
 			Filename:      "install-app.sh",
 		}
@@ -1529,11 +1529,11 @@ func TestAddScriptPackageMetadata(t *testing.T) {
 		_, err = tmpFile.WriteString(scriptContents)
 		require.NoError(t, err)
 
-		tfr, err := fleet.NewKeepFileReader(tmpFile.Name())
+		tfr, err := automdm.NewKeepFileReader(tmpFile.Name())
 		require.NoError(t, err)
 		defer tfr.Close()
 
-		payload := &fleet.UploadSoftwareInstallerPayload{
+		payload := &automdm.UploadSoftwareInstallerPayload{
 			InstallerFile: tfr,
 			Filename:      "install-app.sh",
 		}
@@ -1553,11 +1553,11 @@ func TestAddScriptPackageMetadata(t *testing.T) {
 		_, err = tmpFile.WriteString("#!/bin/bash\necho 'Installing software'\n")
 		require.NoError(t, err)
 
-		tfr, err := fleet.NewKeepFileReader(tmpFile.Name())
+		tfr, err := automdm.NewKeepFileReader(tmpFile.Name())
 		require.NoError(t, err)
 		defer tfr.Close()
 
-		payload := &fleet.UploadSoftwareInstallerPayload{
+		payload := &automdm.UploadSoftwareInstallerPayload{
 			InstallerFile: tfr,
 			Filename:      "install-app.SH",
 		}
@@ -1589,13 +1589,13 @@ func TestAddScriptPackageMetadata(t *testing.T) {
 		_, err = tmpFile.Write(ipa.Bytes())
 		require.NoError(t, err)
 
-		tfr, err := fleet.NewKeepFileReader(tmpFile.Name())
+		tfr, err := automdm.NewKeepFileReader(tmpFile.Name())
 		require.NoError(t, err)
 		defer tfr.Close()
 
-		payload := &fleet.UploadSoftwareInstallerPayload{InstallerFile: tfr, Filename: "big.ipa"}
+		payload := &automdm.UploadSoftwareInstallerPayload{InstallerFile: tfr, Filename: "big.ipa"}
 		_, err = svc.addMetadataToSoftwarePayload(ctx, payload, false)
-		var badReq *fleet.BadRequestError
+		var badReq *automdm.BadRequestError
 		require.ErrorAs(t, err, &badReq)
 		require.ErrorIs(t, err, file.ErrInvalidInstaller)
 		require.Equal(t, "Uploaded file is not a valid installer package.", badReq.Message)
@@ -1609,11 +1609,11 @@ func TestAddScriptPackageMetadata(t *testing.T) {
 		_, err = tmpFile.WriteString(scriptContents)
 		require.NoError(t, err)
 
-		tfr, err := fleet.NewKeepFileReader(tmpFile.Name())
+		tfr, err := automdm.NewKeepFileReader(tmpFile.Name())
 		require.NoError(t, err)
 		defer tfr.Close()
 
-		payload := &fleet.UploadSoftwareInstallerPayload{
+		payload := &automdm.UploadSoftwareInstallerPayload{
 			InstallerFile: tfr,
 			Filename:      "install-app.ps1",
 		}
@@ -1640,11 +1640,11 @@ func TestAddScriptPackageMetadata(t *testing.T) {
 		_, err = tmpFile.WriteString(scriptContents)
 		require.NoError(t, err)
 
-		tfr, err := fleet.NewKeepFileReader(tmpFile.Name())
+		tfr, err := automdm.NewKeepFileReader(tmpFile.Name())
 		require.NoError(t, err)
 		defer tfr.Close()
 
-		payload := &fleet.UploadSoftwareInstallerPayload{
+		payload := &automdm.UploadSoftwareInstallerPayload{
 			InstallerFile: tfr,
 			Filename:      "install-app.ps1",
 		}
@@ -1662,11 +1662,11 @@ func TestAddScriptPackageMetadata(t *testing.T) {
 		_, err = tmpFile.WriteString(scriptContents)
 		require.NoError(t, err)
 
-		tfr, err := fleet.NewKeepFileReader(tmpFile.Name())
+		tfr, err := automdm.NewKeepFileReader(tmpFile.Name())
 		require.NoError(t, err)
 		defer tfr.Close()
 
-		payload := &fleet.UploadSoftwareInstallerPayload{
+		payload := &automdm.UploadSoftwareInstallerPayload{
 			InstallerFile: tfr,
 			Filename:      "install-app.py",
 		}
@@ -1692,11 +1692,11 @@ func TestAddScriptPackageMetadata(t *testing.T) {
 		_, err = tmpFile.WriteString(scriptContents)
 		require.NoError(t, err)
 
-		tfr, err := fleet.NewKeepFileReader(tmpFile.Name())
+		tfr, err := automdm.NewKeepFileReader(tmpFile.Name())
 		require.NoError(t, err)
 		defer tfr.Close()
 
-		payload := &fleet.UploadSoftwareInstallerPayload{
+		payload := &automdm.UploadSoftwareInstallerPayload{
 			InstallerFile: tfr,
 			Filename:      "install-app.py",
 		}
@@ -1715,11 +1715,11 @@ func TestAddScriptPackageMetadata(t *testing.T) {
 		_, err = tmpFile.WriteString(scriptContents)
 		require.NoError(t, err)
 
-		tfr, err := fleet.NewKeepFileReader(tmpFile.Name())
+		tfr, err := automdm.NewKeepFileReader(tmpFile.Name())
 		require.NoError(t, err)
 		defer tfr.Close()
 
-		payload := &fleet.UploadSoftwareInstallerPayload{
+		payload := &automdm.UploadSoftwareInstallerPayload{
 			InstallerFile: tfr,
 			Filename:      "test.py",
 		}
@@ -1738,11 +1738,11 @@ func TestAddScriptPackageMetadata(t *testing.T) {
 		_, err = tmpFile.WriteString(scriptContents)
 		require.NoError(t, err)
 
-		tfr, err := fleet.NewKeepFileReader(tmpFile.Name())
+		tfr, err := automdm.NewKeepFileReader(tmpFile.Name())
 		require.NoError(t, err)
 		defer tfr.Close()
 
-		payload := &fleet.UploadSoftwareInstallerPayload{
+		payload := &automdm.UploadSoftwareInstallerPayload{
 			InstallerFile: tfr,
 			Filename:      "test.py",
 		}
@@ -1761,11 +1761,11 @@ func TestAddScriptPackageMetadata(t *testing.T) {
 		_, err = tmpFile.WriteString(scriptContents)
 		require.NoError(t, err)
 
-		tfr, err := fleet.NewKeepFileReader(tmpFile.Name())
+		tfr, err := automdm.NewKeepFileReader(tmpFile.Name())
 		require.NoError(t, err)
 		defer tfr.Close()
 
-		payload := &fleet.UploadSoftwareInstallerPayload{
+		payload := &automdm.UploadSoftwareInstallerPayload{
 			InstallerFile: tfr,
 			Filename:      "test.sh",
 		}
@@ -1781,11 +1781,11 @@ func TestAddScriptPackageMetadata(t *testing.T) {
 		require.NoError(t, err)
 		defer tmpFile.Close()
 
-		tfr, err := fleet.NewKeepFileReader(tmpFile.Name())
+		tfr, err := automdm.NewKeepFileReader(tmpFile.Name())
 		require.NoError(t, err)
 		defer tfr.Close()
 
-		payload := &fleet.UploadSoftwareInstallerPayload{
+		payload := &automdm.UploadSoftwareInstallerPayload{
 			InstallerFile: tfr,
 			Filename:      "test.sh",
 		}
@@ -1803,11 +1803,11 @@ func TestAddScriptPackageMetadata(t *testing.T) {
 		_, err = tmpFile.WriteString(scriptContents)
 		require.NoError(t, err)
 
-		tfr, err := fleet.NewKeepFileReader(tmpFile.Name())
+		tfr, err := automdm.NewKeepFileReader(tmpFile.Name())
 		require.NoError(t, err)
 		defer tfr.Close()
 
-		payload := &fleet.UploadSoftwareInstallerPayload{
+		payload := &automdm.UploadSoftwareInstallerPayload{
 			InstallerFile: tfr,
 			Filename:      "test.sh",
 			Title:         "My Custom Title",
@@ -1826,11 +1826,11 @@ func TestAddScriptPackageMetadata(t *testing.T) {
 		_, err = tmpFile.WriteString(scriptContents)
 		require.NoError(t, err)
 
-		tfr, err := fleet.NewKeepFileReader(tmpFile.Name())
+		tfr, err := automdm.NewKeepFileReader(tmpFile.Name())
 		require.NoError(t, err)
 		defer tfr.Close()
 
-		payload := &fleet.UploadSoftwareInstallerPayload{
+		payload := &automdm.UploadSoftwareInstallerPayload{
 			InstallerFile: tfr,
 			Filename:      "test.sh",
 		}
@@ -1848,18 +1848,18 @@ func TestAddScriptPackageMetadata(t *testing.T) {
 		_, err = tmpFile.WriteString(scriptContents)
 		require.NoError(t, err)
 
-		tfr, err := fleet.NewKeepFileReader(tmpFile.Name())
+		tfr, err := automdm.NewKeepFileReader(tmpFile.Name())
 		require.NoError(t, err)
 		defer tfr.Close()
 
-		payload := &fleet.UploadSoftwareInstallerPayload{
+		payload := &automdm.UploadSoftwareInstallerPayload{
 			InstallerFile: tfr,
 			Filename:      "test.ps1",
 		}
 
 		err = svc.addScriptPackageMetadata(ctx, payload, "ps1")
 		require.Error(t, err)
-		var bre *fleet.BadRequestError
+		var bre *automdm.BadRequestError
 		require.ErrorAs(t, err, &bre)
 		require.Equal(t, `Script validation failed: PowerShell scripts must not start with a shebang ("#!").`, bre.Message)
 	})
@@ -1872,18 +1872,18 @@ func TestAddScriptPackageMetadata(t *testing.T) {
 		_, err = tmpFile.WriteString(scriptContents)
 		require.NoError(t, err)
 
-		tfr, err := fleet.NewKeepFileReader(tmpFile.Name())
+		tfr, err := automdm.NewKeepFileReader(tmpFile.Name())
 		require.NoError(t, err)
 		defer tfr.Close()
 
-		payload := &fleet.UploadSoftwareInstallerPayload{
+		payload := &automdm.UploadSoftwareInstallerPayload{
 			InstallerFile: tfr,
 			Filename:      "test.ps1",
 		}
 
 		err = svc.addScriptPackageMetadata(ctx, payload, "ps1")
 		require.Error(t, err)
-		var bre *fleet.BadRequestError
+		var bre *automdm.BadRequestError
 		require.ErrorAs(t, err, &bre)
 		require.Equal(t, `Script validation failed: PowerShell scripts must not start with a shebang ("#!").`, bre.Message)
 	})
@@ -1900,8 +1900,8 @@ func TestAddScriptPackageMetadataLargeScript(t *testing.T) {
 		// SavedScriptMaxRuneLen (500K). Script packages are persisted via GitOps
 		// and should use the saved script limit.
 		scriptContents := "#!/bin/bash\n" + strings.Repeat("echo 'line'\n", 1000)
-		require.Greater(t, len(scriptContents), fleet.UnsavedScriptMaxRuneLen)
-		require.Less(t, len(scriptContents), fleet.SavedScriptMaxRuneLen)
+		require.Greater(t, len(scriptContents), automdm.UnsavedScriptMaxRuneLen)
+		require.Less(t, len(scriptContents), automdm.SavedScriptMaxRuneLen)
 
 		tmpFile, err := os.CreateTemp(t.TempDir(), "test-*.sh")
 		require.NoError(t, err)
@@ -1909,11 +1909,11 @@ func TestAddScriptPackageMetadataLargeScript(t *testing.T) {
 		_, err = tmpFile.WriteString(scriptContents)
 		require.NoError(t, err)
 
-		tfr, err := fleet.NewKeepFileReader(tmpFile.Name())
+		tfr, err := automdm.NewKeepFileReader(tmpFile.Name())
 		require.NoError(t, err)
 		defer tfr.Close()
 
-		payload := &fleet.UploadSoftwareInstallerPayload{
+		payload := &automdm.UploadSoftwareInstallerPayload{
 			InstallerFile: tfr,
 			Filename:      "large-install.sh",
 		}
@@ -1926,8 +1926,8 @@ func TestAddScriptPackageMetadataLargeScript(t *testing.T) {
 	t.Run("large powershell script within saved limit", func(t *testing.T) {
 		t.Parallel()
 		scriptContents := strings.Repeat("Write-Host 'line'\r\n", 1000)
-		require.Greater(t, len(scriptContents), fleet.UnsavedScriptMaxRuneLen)
-		require.Less(t, len(scriptContents), fleet.SavedScriptMaxRuneLen)
+		require.Greater(t, len(scriptContents), automdm.UnsavedScriptMaxRuneLen)
+		require.Less(t, len(scriptContents), automdm.SavedScriptMaxRuneLen)
 
 		tmpFile, err := os.CreateTemp(t.TempDir(), "test-*.ps1")
 		require.NoError(t, err)
@@ -1935,11 +1935,11 @@ func TestAddScriptPackageMetadataLargeScript(t *testing.T) {
 		_, err = tmpFile.WriteString(scriptContents)
 		require.NoError(t, err)
 
-		tfr, err := fleet.NewKeepFileReader(tmpFile.Name())
+		tfr, err := automdm.NewKeepFileReader(tmpFile.Name())
 		require.NoError(t, err)
 		defer tfr.Close()
 
-		payload := &fleet.UploadSoftwareInstallerPayload{
+		payload := &automdm.UploadSoftwareInstallerPayload{
 			InstallerFile: tfr,
 			Filename:      "large-install.ps1",
 		}
@@ -1952,8 +1952,8 @@ func TestAddScriptPackageMetadataLargeScript(t *testing.T) {
 	t.Run("large python script within saved limit", func(t *testing.T) {
 		t.Parallel()
 		scriptContents := "#!/usr/bin/env python3\n" + strings.Repeat("print('line')\n", 1000)
-		require.Greater(t, len(scriptContents), fleet.UnsavedScriptMaxRuneLen)
-		require.Less(t, len(scriptContents), fleet.SavedScriptMaxRuneLen)
+		require.Greater(t, len(scriptContents), automdm.UnsavedScriptMaxRuneLen)
+		require.Less(t, len(scriptContents), automdm.SavedScriptMaxRuneLen)
 
 		tmpFile, err := os.CreateTemp(t.TempDir(), "test-*.py")
 		require.NoError(t, err)
@@ -1961,11 +1961,11 @@ func TestAddScriptPackageMetadataLargeScript(t *testing.T) {
 		_, err = tmpFile.WriteString(scriptContents)
 		require.NoError(t, err)
 
-		tfr, err := fleet.NewKeepFileReader(tmpFile.Name())
+		tfr, err := automdm.NewKeepFileReader(tmpFile.Name())
 		require.NoError(t, err)
 		defer tfr.Close()
 
-		payload := &fleet.UploadSoftwareInstallerPayload{
+		payload := &automdm.UploadSoftwareInstallerPayload{
 			InstallerFile: tfr,
 			Filename:      "large-install.py",
 		}
@@ -1984,8 +1984,8 @@ func TestInstallShScriptOnDarwin(t *testing.T) {
 	svc := newTestService(t, ds)
 
 	// Mock darwin host
-	ds.HostFunc = func(ctx context.Context, id uint) (*fleet.Host, error) {
-		return &fleet.Host{
+	ds.HostFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
+		return &automdm.Host{
 			ID:           1,
 			OrbitNodeKey: ptr.String("orbit_key"),
 			Platform:     "darwin",
@@ -1994,13 +1994,13 @@ func TestInstallShScriptOnDarwin(t *testing.T) {
 	}
 
 	// Not an in-house app
-	ds.GetInHouseAppMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint) (*fleet.SoftwareInstaller, error) {
+	ds.GetInHouseAppMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint) (*automdm.SoftwareInstaller, error) {
 		return nil, nil
 	}
 
 	// Mock .sh installer metadata (platform='linux' as .sh files are stored)
-	ds.GetSoftwareInstallerMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint, withScriptContents bool) (*fleet.SoftwareInstaller, error) {
-		return &fleet.SoftwareInstaller{
+	ds.GetSoftwareInstallerMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint, withScriptContents bool) (*automdm.SoftwareInstaller, error) {
+		return &automdm.SoftwareInstaller{
 			InstallerID: 10,
 			Name:        "script.sh",
 			Extension:   "sh",
@@ -2018,7 +2018,7 @@ func TestInstallShScriptOnDarwin(t *testing.T) {
 	}
 
 	// No pending install
-	ds.GetHostLastInstallDataFunc = func(ctx context.Context, hostID, installerID uint) (*fleet.HostLastInstallData, error) {
+	ds.GetHostLastInstallDataFunc = func(ctx context.Context, hostID, installerID uint) (*automdm.HostLastInstallData, error) {
 		return nil, nil
 	}
 
@@ -2028,13 +2028,13 @@ func TestInstallShScriptOnDarwin(t *testing.T) {
 	}
 
 	// Capture that install request was inserted
-	ds.InsertSoftwareInstallRequestFunc = func(ctx context.Context, hostID uint, softwareInstallerID uint, opts fleet.HostSoftwareInstallOptions) (string, error) {
+	ds.InsertSoftwareInstallRequestFunc = func(ctx context.Context, hostID uint, softwareInstallerID uint, opts automdm.HostSoftwareInstallOptions) (string, error) {
 		return "install-uuid", nil
 	}
 
 	// Create admin user context
 	ctx := viewer.NewContext(context.Background(), viewer.Viewer{
-		User: &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)},
+		User: &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)},
 	})
 
 	// Install .sh on darwin should succeed (not return BadRequestError)
@@ -2048,15 +2048,15 @@ func TestInstallShScriptOnDarwin(t *testing.T) {
 func TestInstallerCompatibleWithHost(t *testing.T) {
 	t.Parallel()
 
-	installer := func(name, platform string) *fleet.SoftwareInstaller {
-		return &fleet.SoftwareInstaller{Name: name, Platform: platform}
+	installer := func(name, platform string) *automdm.SoftwareInstaller {
+		return &automdm.SoftwareInstaller{Name: name, Platform: platform}
 	}
-	host := func(platform string) *fleet.Host { return &fleet.Host{Platform: platform} }
+	host := func(platform string) *automdm.Host { return &automdm.Host{Platform: platform} }
 
 	cases := []struct {
 		name      string
-		installer *fleet.SoftwareInstaller
-		host      *fleet.Host
+		installer *automdm.SoftwareInstaller
+		host      *automdm.Host
 		want      bool
 	}{
 		{".py on darwin", installer("script.py", "linux"), host("darwin"), true},
@@ -2111,8 +2111,8 @@ func TestInstallZipInstallerUsesStoredPlatform(t *testing.T) {
 	ds := new(mock.Store)
 	svc := newTestService(t, ds)
 
-	ds.HostFunc = func(ctx context.Context, id uint) (*fleet.Host, error) {
-		return &fleet.Host{
+	ds.HostFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
+		return &automdm.Host{
 			ID:           1,
 			OrbitNodeKey: new("orbit_key"),
 			Platform:     "windows",
@@ -2120,12 +2120,12 @@ func TestInstallZipInstallerUsesStoredPlatform(t *testing.T) {
 		}, nil
 	}
 
-	ds.GetInHouseAppMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint) (*fleet.SoftwareInstaller, error) {
+	ds.GetInHouseAppMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint) (*automdm.SoftwareInstaller, error) {
 		return nil, nil
 	}
 
-	ds.GetSoftwareInstallerMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint, withScriptContents bool) (*fleet.SoftwareInstaller, error) {
-		return &fleet.SoftwareInstaller{
+	ds.GetSoftwareInstallerMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint, withScriptContents bool) (*automdm.SoftwareInstaller, error) {
+		return &automdm.SoftwareInstaller{
 			InstallerID: 10,
 			Name:        "codex-x86_64-pc-windows-msvc.exe.zip",
 			Extension:   "zip",
@@ -2141,7 +2141,7 @@ func TestInstallZipInstallerUsesStoredPlatform(t *testing.T) {
 		return true, nil
 	}
 
-	ds.GetHostLastInstallDataFunc = func(ctx context.Context, hostID, installerID uint) (*fleet.HostLastInstallData, error) {
+	ds.GetHostLastInstallDataFunc = func(ctx context.Context, hostID, installerID uint) (*automdm.HostLastInstallData, error) {
 		return nil, nil
 	}
 
@@ -2149,12 +2149,12 @@ func TestInstallZipInstallerUsesStoredPlatform(t *testing.T) {
 		return nil
 	}
 
-	ds.InsertSoftwareInstallRequestFunc = func(ctx context.Context, hostID uint, softwareInstallerID uint, opts fleet.HostSoftwareInstallOptions) (string, error) {
+	ds.InsertSoftwareInstallRequestFunc = func(ctx context.Context, hostID uint, softwareInstallerID uint, opts automdm.HostSoftwareInstallOptions) (string, error) {
 		return "install-uuid", nil
 	}
 
 	ctx := viewer.NewContext(context.Background(), viewer.Viewer{
-		User: &fleet.User{GlobalRole: new(fleet.RoleAdmin)},
+		User: &automdm.User{GlobalRole: new(automdm.RoleAdmin)},
 	})
 
 	err := svc.InstallSoftwareTitle(ctx, 1, 100)
@@ -2170,8 +2170,8 @@ func TestUninstallZipInstallerUsesStoredPlatform(t *testing.T) {
 	ds := new(mock.Store)
 	svc := newTestService(t, ds)
 
-	ds.HostFunc = func(ctx context.Context, id uint) (*fleet.Host, error) {
-		return &fleet.Host{
+	ds.HostFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
+		return &automdm.Host{
 			ID:           1,
 			OrbitNodeKey: new("orbit_key"),
 			Platform:     "windows",
@@ -2179,8 +2179,8 @@ func TestUninstallZipInstallerUsesStoredPlatform(t *testing.T) {
 		}, nil
 	}
 
-	ds.GetSoftwareInstallerMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint, withScriptContents bool) (*fleet.SoftwareInstaller, error) {
-		return &fleet.SoftwareInstaller{
+	ds.GetSoftwareInstallerMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint, withScriptContents bool) (*automdm.SoftwareInstaller, error) {
+		return &automdm.SoftwareInstaller{
 			InstallerID:              10,
 			Name:                     "codex-x86_64-pc-windows-msvc.exe.zip",
 			Extension:                "zip",
@@ -2191,7 +2191,7 @@ func TestUninstallZipInstallerUsesStoredPlatform(t *testing.T) {
 		}, nil
 	}
 
-	ds.GetHostLastInstallDataFunc = func(ctx context.Context, hostID, installerID uint) (*fleet.HostLastInstallData, error) {
+	ds.GetHostLastInstallDataFunc = func(ctx context.Context, hostID, installerID uint) (*automdm.HostLastInstallData, error) {
 		return nil, nil
 	}
 
@@ -2204,7 +2204,7 @@ func TestUninstallZipInstallerUsesStoredPlatform(t *testing.T) {
 	}
 
 	ctx := viewer.NewContext(context.Background(), viewer.Viewer{
-		User: &fleet.User{GlobalRole: new(fleet.RoleAdmin)},
+		User: &automdm.User{GlobalRole: new(automdm.RoleAdmin)},
 	})
 
 	err := svc.UninstallSoftwareTitle(ctx, 1, 100)
@@ -2221,8 +2221,8 @@ func TestSelfServiceInstallZipInstallerUsesStoredPlatform(t *testing.T) {
 	ds := new(mock.Store)
 	svc := newTestService(t, ds)
 
-	ds.GetSoftwareInstallerMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint, withScriptContents bool) (*fleet.SoftwareInstaller, error) {
-		return &fleet.SoftwareInstaller{
+	ds.GetSoftwareInstallerMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint, withScriptContents bool) (*automdm.SoftwareInstaller, error) {
+		return &automdm.SoftwareInstaller{
 			InstallerID: 10,
 			Name:        "codex-x86_64-pc-windows-msvc.exe.zip",
 			Extension:   "zip",
@@ -2242,11 +2242,11 @@ func TestSelfServiceInstallZipInstallerUsesStoredPlatform(t *testing.T) {
 		return nil
 	}
 
-	ds.InsertSoftwareInstallRequestFunc = func(ctx context.Context, hostID uint, softwareInstallerID uint, opts fleet.HostSoftwareInstallOptions) (string, error) {
+	ds.InsertSoftwareInstallRequestFunc = func(ctx context.Context, hostID uint, softwareInstallerID uint, opts automdm.HostSoftwareInstallOptions) (string, error) {
 		return "install-uuid", nil
 	}
 
-	host := &fleet.Host{
+	host := &automdm.Host{
 		ID:           1,
 		OrbitNodeKey: new("orbit_key"),
 		Platform:     "windows",
@@ -2265,8 +2265,8 @@ func TestInstallShScriptOnWindowsFails(t *testing.T) {
 	svc := newTestService(t, ds)
 
 	// Mock Windows host
-	ds.HostFunc = func(ctx context.Context, id uint) (*fleet.Host, error) {
-		return &fleet.Host{
+	ds.HostFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
+		return &automdm.Host{
 			ID:           1,
 			OrbitNodeKey: ptr.String("orbit_key"),
 			Platform:     "windows",
@@ -2275,13 +2275,13 @@ func TestInstallShScriptOnWindowsFails(t *testing.T) {
 	}
 
 	// Not an in-house app
-	ds.GetInHouseAppMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint) (*fleet.SoftwareInstaller, error) {
+	ds.GetInHouseAppMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint) (*automdm.SoftwareInstaller, error) {
 		return nil, nil
 	}
 
 	// Mock .sh installer metadata
-	ds.GetSoftwareInstallerMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint, withScriptContents bool) (*fleet.SoftwareInstaller, error) {
-		return &fleet.SoftwareInstaller{
+	ds.GetSoftwareInstallerMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint, withScriptContents bool) (*automdm.SoftwareInstaller, error) {
+		return &automdm.SoftwareInstaller{
 			InstallerID: 10,
 			Name:        "script.sh",
 			Extension:   "sh",
@@ -2299,20 +2299,20 @@ func TestInstallShScriptOnWindowsFails(t *testing.T) {
 	}
 
 	// No pending install
-	ds.GetHostLastInstallDataFunc = func(ctx context.Context, hostID, installerID uint) (*fleet.HostLastInstallData, error) {
+	ds.GetHostLastInstallDataFunc = func(ctx context.Context, hostID, installerID uint) (*automdm.HostLastInstallData, error) {
 		return nil, nil
 	}
 
 	// Create admin user context
 	ctx := viewer.NewContext(context.Background(), viewer.Viewer{
-		User: &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)},
+		User: &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)},
 	})
 
 	// Install .sh on windows should fail with BadRequestError
 	err := svc.InstallSoftwareTitle(ctx, 1, 100)
 	require.Error(t, err, ".sh install on windows should fail")
 
-	var bre *fleet.BadRequestError
+	var bre *automdm.BadRequestError
 	require.ErrorAs(t, err, &bre, "error should be BadRequestError")
 	require.NotNil(t, bre)
 	require.Contains(t, bre.Message, "can be installed only on macOS and Linux hosts")
@@ -2329,8 +2329,8 @@ func TestInstallPyScriptOnUnixLike(t *testing.T) {
 			ds := new(mock.Store)
 			svc := newTestService(t, ds)
 
-			ds.HostFunc = func(ctx context.Context, id uint) (*fleet.Host, error) {
-				return &fleet.Host{
+			ds.HostFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
+				return &automdm.Host{
 					ID:           1,
 					OrbitNodeKey: new("orbit_key"),
 					Platform:     platform,
@@ -2338,12 +2338,12 @@ func TestInstallPyScriptOnUnixLike(t *testing.T) {
 				}, nil
 			}
 
-			ds.GetInHouseAppMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint) (*fleet.SoftwareInstaller, error) {
+			ds.GetInHouseAppMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint) (*automdm.SoftwareInstaller, error) {
 				return nil, nil
 			}
 
-			ds.GetSoftwareInstallerMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint, withScriptContents bool) (*fleet.SoftwareInstaller, error) {
-				return &fleet.SoftwareInstaller{
+			ds.GetSoftwareInstallerMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint, withScriptContents bool) (*automdm.SoftwareInstaller, error) {
+				return &automdm.SoftwareInstaller{
 					InstallerID: 10,
 					Name:        "script.py",
 					Extension:   "py",
@@ -2359,7 +2359,7 @@ func TestInstallPyScriptOnUnixLike(t *testing.T) {
 				return true, nil
 			}
 
-			ds.GetHostLastInstallDataFunc = func(ctx context.Context, hostID, installerID uint) (*fleet.HostLastInstallData, error) {
+			ds.GetHostLastInstallDataFunc = func(ctx context.Context, hostID, installerID uint) (*automdm.HostLastInstallData, error) {
 				return nil, nil
 			}
 
@@ -2367,12 +2367,12 @@ func TestInstallPyScriptOnUnixLike(t *testing.T) {
 				return nil
 			}
 
-			ds.InsertSoftwareInstallRequestFunc = func(ctx context.Context, hostID uint, softwareInstallerID uint, opts fleet.HostSoftwareInstallOptions) (string, error) {
+			ds.InsertSoftwareInstallRequestFunc = func(ctx context.Context, hostID uint, softwareInstallerID uint, opts automdm.HostSoftwareInstallOptions) (string, error) {
 				return "install-uuid", nil
 			}
 
 			ctx := viewer.NewContext(context.Background(), viewer.Viewer{
-				User: &fleet.User{GlobalRole: new(fleet.RoleAdmin)},
+				User: &automdm.User{GlobalRole: new(automdm.RoleAdmin)},
 			})
 
 			err := svc.InstallSoftwareTitle(ctx, 1, 100)
@@ -2387,8 +2387,8 @@ func TestInstallPyScriptOnWindowsFails(t *testing.T) {
 	ds := new(mock.Store)
 	svc := newTestService(t, ds)
 
-	ds.HostFunc = func(ctx context.Context, id uint) (*fleet.Host, error) {
-		return &fleet.Host{
+	ds.HostFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
+		return &automdm.Host{
 			ID:           1,
 			OrbitNodeKey: new("orbit_key"),
 			Platform:     "windows",
@@ -2396,12 +2396,12 @@ func TestInstallPyScriptOnWindowsFails(t *testing.T) {
 		}, nil
 	}
 
-	ds.GetInHouseAppMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint) (*fleet.SoftwareInstaller, error) {
+	ds.GetInHouseAppMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint) (*automdm.SoftwareInstaller, error) {
 		return nil, nil
 	}
 
-	ds.GetSoftwareInstallerMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint, withScriptContents bool) (*fleet.SoftwareInstaller, error) {
-		return &fleet.SoftwareInstaller{
+	ds.GetSoftwareInstallerMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint, withScriptContents bool) (*automdm.SoftwareInstaller, error) {
+		return &automdm.SoftwareInstaller{
 			InstallerID: 10,
 			Name:        "script.py",
 			Extension:   "py",
@@ -2417,18 +2417,18 @@ func TestInstallPyScriptOnWindowsFails(t *testing.T) {
 		return true, nil
 	}
 
-	ds.GetHostLastInstallDataFunc = func(ctx context.Context, hostID, installerID uint) (*fleet.HostLastInstallData, error) {
+	ds.GetHostLastInstallDataFunc = func(ctx context.Context, hostID, installerID uint) (*automdm.HostLastInstallData, error) {
 		return nil, nil
 	}
 
 	ctx := viewer.NewContext(context.Background(), viewer.Viewer{
-		User: &fleet.User{GlobalRole: new(fleet.RoleAdmin)},
+		User: &automdm.User{GlobalRole: new(automdm.RoleAdmin)},
 	})
 
 	err := svc.InstallSoftwareTitle(ctx, 1, 100)
 	require.Error(t, err, ".py install on windows should fail")
 
-	var bre *fleet.BadRequestError
+	var bre *automdm.BadRequestError
 	require.ErrorAs(t, err, &bre, "error should be BadRequestError")
 	require.NotNil(t, bre)
 	require.Contains(t, bre.Message, "can be installed only on macOS and Linux hosts")
@@ -2436,7 +2436,7 @@ func TestInstallPyScriptOnWindowsFails(t *testing.T) {
 
 // .py packages are stored with platform='linux'. The uninstall gate has to
 // honour the same unix-like exception as the install gate, or a package that
-// installed fine on a darwin host can never be removed through Fleet.
+// installed fine on a darwin host can never be removed through AutoMDM.
 func TestUninstallPyScriptOnUnixLike(t *testing.T) {
 	t.Parallel()
 
@@ -2446,8 +2446,8 @@ func TestUninstallPyScriptOnUnixLike(t *testing.T) {
 			ds := new(mock.Store)
 			svc := newTestService(t, ds)
 
-			ds.HostFunc = func(ctx context.Context, id uint) (*fleet.Host, error) {
-				return &fleet.Host{
+			ds.HostFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
+				return &automdm.Host{
 					ID:           1,
 					OrbitNodeKey: new("orbit_key"),
 					Platform:     platform,
@@ -2455,12 +2455,12 @@ func TestUninstallPyScriptOnUnixLike(t *testing.T) {
 				}, nil
 			}
 
-			ds.GetInHouseAppMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint) (*fleet.SoftwareInstaller, error) {
+			ds.GetInHouseAppMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint) (*automdm.SoftwareInstaller, error) {
 				return nil, nil
 			}
 
-			ds.GetSoftwareInstallerMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint, withScriptContents bool) (*fleet.SoftwareInstaller, error) {
-				return &fleet.SoftwareInstaller{
+			ds.GetSoftwareInstallerMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint, withScriptContents bool) (*automdm.SoftwareInstaller, error) {
+				return &automdm.SoftwareInstaller{
 					InstallerID:              10,
 					Name:                     "script.py",
 					Extension:                "py",
@@ -2476,7 +2476,7 @@ func TestUninstallPyScriptOnUnixLike(t *testing.T) {
 				return true, nil
 			}
 
-			ds.GetHostLastInstallDataFunc = func(ctx context.Context, hostID, installerID uint) (*fleet.HostLastInstallData, error) {
+			ds.GetHostLastInstallDataFunc = func(ctx context.Context, hostID, installerID uint) (*automdm.HostLastInstallData, error) {
 				return nil, nil
 			}
 
@@ -2489,7 +2489,7 @@ func TestUninstallPyScriptOnUnixLike(t *testing.T) {
 			}
 
 			ctx := viewer.NewContext(t.Context(), viewer.Viewer{
-				User: &fleet.User{GlobalRole: new(fleet.RoleAdmin)},
+				User: &automdm.User{GlobalRole: new(automdm.RoleAdmin)},
 			})
 
 			err := svc.UninstallSoftwareTitle(ctx, 1, 100)
@@ -2506,8 +2506,8 @@ func TestUninstallPyScriptOnWindowsFails(t *testing.T) {
 	ds := new(mock.Store)
 	svc := newTestService(t, ds)
 
-	ds.HostFunc = func(ctx context.Context, id uint) (*fleet.Host, error) {
-		return &fleet.Host{
+	ds.HostFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
+		return &automdm.Host{
 			ID:           1,
 			OrbitNodeKey: new("orbit_key"),
 			Platform:     "windows",
@@ -2515,12 +2515,12 @@ func TestUninstallPyScriptOnWindowsFails(t *testing.T) {
 		}, nil
 	}
 
-	ds.GetInHouseAppMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint) (*fleet.SoftwareInstaller, error) {
+	ds.GetInHouseAppMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint) (*automdm.SoftwareInstaller, error) {
 		return nil, nil
 	}
 
-	ds.GetSoftwareInstallerMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint, withScriptContents bool) (*fleet.SoftwareInstaller, error) {
-		return &fleet.SoftwareInstaller{
+	ds.GetSoftwareInstallerMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint, withScriptContents bool) (*automdm.SoftwareInstaller, error) {
+		return &automdm.SoftwareInstaller{
 			InstallerID:              10,
 			Name:                     "script.py",
 			Extension:                "py",
@@ -2536,18 +2536,18 @@ func TestUninstallPyScriptOnWindowsFails(t *testing.T) {
 		return true, nil
 	}
 
-	ds.GetHostLastInstallDataFunc = func(ctx context.Context, hostID, installerID uint) (*fleet.HostLastInstallData, error) {
+	ds.GetHostLastInstallDataFunc = func(ctx context.Context, hostID, installerID uint) (*automdm.HostLastInstallData, error) {
 		return nil, nil
 	}
 
 	ctx := viewer.NewContext(t.Context(), viewer.Viewer{
-		User: &fleet.User{GlobalRole: new(fleet.RoleAdmin)},
+		User: &automdm.User{GlobalRole: new(automdm.RoleAdmin)},
 	})
 
 	err := svc.UninstallSoftwareTitle(ctx, 1, 100)
 	require.Error(t, err, ".py uninstall on windows should fail")
 
-	var bre *fleet.BadRequestError
+	var bre *automdm.BadRequestError
 	require.ErrorAs(t, err, &bre, "error should be BadRequestError")
 	require.NotNil(t, bre)
 	// The message has to name both platforms, the way the install path does.
@@ -2566,8 +2566,8 @@ func TestSelfServiceInstallPyScriptOnUnixLike(t *testing.T) {
 			ds := new(mock.Store)
 			svc := newTestService(t, ds)
 
-			ds.GetSoftwareInstallerMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint, withScriptContents bool) (*fleet.SoftwareInstaller, error) {
-				return &fleet.SoftwareInstaller{
+			ds.GetSoftwareInstallerMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint, withScriptContents bool) (*automdm.SoftwareInstaller, error) {
+				return &automdm.SoftwareInstaller{
 					InstallerID: 10,
 					Name:        "script.py",
 					Extension:   "py",
@@ -2587,11 +2587,11 @@ func TestSelfServiceInstallPyScriptOnUnixLike(t *testing.T) {
 				return nil
 			}
 
-			ds.InsertSoftwareInstallRequestFunc = func(ctx context.Context, hostID uint, softwareInstallerID uint, opts fleet.HostSoftwareInstallOptions) (string, error) {
+			ds.InsertSoftwareInstallRequestFunc = func(ctx context.Context, hostID uint, softwareInstallerID uint, opts automdm.HostSoftwareInstallOptions) (string, error) {
 				return "install-uuid", nil
 			}
 
-			host := &fleet.Host{
+			host := &automdm.Host{
 				ID:           1,
 				OrbitNodeKey: new("orbit_key"),
 				Platform:     platform,
@@ -2615,32 +2615,32 @@ func TestSelfServiceInstallSoftwareTitleAllowsPersonallyEnrolledDevices(t *testi
 	// Returning NotFound from both software-installer and VPP-app lookups makes
 	// the code surface the standard "title not available" error — proving we
 	// got past the old gate without entangling this test in the install flow.
-	ds.GetSoftwareInstallerMetadataByTeamAndTitleIDFunc = func(_ context.Context, _ *uint, _ uint, _ bool) (*fleet.SoftwareInstaller, error) {
+	ds.GetSoftwareInstallerMetadataByTeamAndTitleIDFunc = func(_ context.Context, _ *uint, _ uint, _ bool) (*automdm.SoftwareInstaller, error) {
 		return nil, &notFoundError{}
 	}
 	// The title has no packages, so the precedence resolver returns none and the flow falls through
 	// to the VPP/in-house lookups (both not found) — the same "not available" path as before.
-	ds.GetSoftwarePackagesByTeamAndTitleIDFunc = func(_ context.Context, _ *uint, _ uint) ([]*fleet.SoftwareInstaller, error) {
+	ds.GetSoftwarePackagesByTeamAndTitleIDFunc = func(_ context.Context, _ *uint, _ uint) ([]*automdm.SoftwareInstaller, error) {
 		return nil, nil
 	}
-	ds.ListHostAppStoreAppVersionsFunc = func(_ context.Context, _ *fleet.Host) (map[uint]*fleet.HostAppStoreAppVersion, error) {
-		return map[uint]*fleet.HostAppStoreAppVersion{}, nil
+	ds.ListHostAppStoreAppVersionsFunc = func(_ context.Context, _ *automdm.Host) (map[uint]*automdm.HostAppStoreAppVersion, error) {
+		return map[uint]*automdm.HostAppStoreAppVersion{}, nil
 	}
-	ds.GetInHouseAppMetadataByTeamAndTitleIDFunc = func(_ context.Context, _ *uint, _ uint) (*fleet.SoftwareInstaller, error) {
+	ds.GetInHouseAppMetadataByTeamAndTitleIDFunc = func(_ context.Context, _ *uint, _ uint) (*automdm.SoftwareInstaller, error) {
 		return nil, &notFoundError{}
 	}
 
 	for _, platform := range []string{"ios", "ipados"} {
-		fakeHost := &fleet.Host{
+		fakeHost := &automdm.Host{
 			Platform: platform,
-			MDM: fleet.MDMHostData{
-				EnrollmentStatus: ptr.String(string(fleet.MDMEnrollStatusPersonal)),
+			MDM: automdm.MDMHostData{
+				EnrollmentStatus: ptr.String(string(automdm.MDMEnrollStatusPersonal)),
 			},
 		}
 
 		err := svc.SelfServiceInstallSoftwareTitle(t.Context(), fakeHost, 1)
 		require.Error(t, err, "platform %s", platform)
-		require.NotContains(t, err.Error(), fleet.InstallSoftwarePersonalAppleDeviceErrMsg,
+		require.NotContains(t, err.Error(), automdm.InstallSoftwarePersonalAppleDeviceErrMsg,
 			"BYOD gate must no longer block self-service for platform %s", platform)
 		require.ErrorContains(t, err, "Software title is not available for install",
 			"control flow must reach the standard not-found path for platform %s", platform)
@@ -2802,7 +2802,7 @@ func TestGetInstallScript(t *testing.T) {
 
 	defaultPkgScript := file.GetInstallScript("pkg")
 	defaultDebScript := file.GetInstallScript("deb")
-	fleetdScript := file.InstallPkgFleetdScript
+	automdmdScript := file.InstallPkgAutoMDMdScript
 	customScript := "#!/bin/sh\necho custom"
 
 	tests := []struct {
@@ -2813,35 +2813,35 @@ func TestGetInstallScript(t *testing.T) {
 		expected   string
 	}{
 		{
-			name:       "fleetd pkg returns fleetd script",
+			name:       "automdmd pkg returns automdmd script",
 			extension:  "pkg",
 			packageIDs: []string{"com.fleetdm.orbit.base.pkg"},
 			current:    "",
-			expected:   fleetdScript,
+			expected:   automdmdScript,
 		},
 		{
-			name:       "fleetd pkg overrides default script",
+			name:       "automdmd pkg overrides default script",
 			extension:  "pkg",
 			packageIDs: []string{"com.fleetdm.orbit.base.pkg"},
 			current:    defaultPkgScript,
-			expected:   fleetdScript,
+			expected:   automdmdScript,
 		},
 		{
-			name:       "fleetd pkg overrides custom script",
+			name:       "automdmd pkg overrides custom script",
 			extension:  "pkg",
 			packageIDs: []string{"com.fleetdm.orbit.base.pkg"},
 			current:    customScript,
-			expected:   fleetdScript,
+			expected:   automdmdScript,
 		},
 		{
-			name:       "non-fleetd pkg returns default script",
+			name:       "non-automdmd pkg returns default script",
 			extension:  "pkg",
 			packageIDs: []string{"com.example.app"},
 			current:    "",
 			expected:   defaultPkgScript,
 		},
 		{
-			name:       "non-fleetd pkg preserves custom script",
+			name:       "non-automdmd pkg preserves custom script",
 			extension:  "pkg",
 			packageIDs: []string{"com.example.app"},
 			current:    customScript,
@@ -2888,12 +2888,12 @@ func TestBatchSetSoftwareInstallersDryRunEmptyShortCircuit(t *testing.T) {
 	}
 
 	ds := new(mock.Store)
-	ds.TeamByNameFunc = func(ctx context.Context, name string) (*fleet.Team, error) {
-		return &fleet.Team{ID: 1, Name: name}, nil
+	ds.TeamByNameFunc = func(ctx context.Context, name string) (*automdm.Team, error) {
+		return &automdm.Team{ID: 1, Name: name}, nil
 	}
 	// The team has no installers, so the empty-payload dry run has nothing to
 	// report as pending deletion and must short-circuit.
-	ds.GetSoftwareInstallersPendingDeletionFunc = func(ctx context.Context, tmID *uint, incoming []fleet.SoftwareTitleIdentifier) ([]fleet.DeletedSoftwarePackage, error) {
+	ds.GetSoftwareInstallersPendingDeletionFunc = func(ctx context.Context, tmID *uint, incoming []automdm.SoftwareTitleIdentifier) ([]automdm.DeletedSoftwarePackage, error) {
 		return nil, nil
 	}
 
@@ -2902,7 +2902,7 @@ func TestBatchSetSoftwareInstallersDryRunEmptyShortCircuit(t *testing.T) {
 	svc.logger = slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	ctx := viewer.NewContext(context.Background(), viewer.Viewer{
-		User: &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)},
+		User: &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)},
 	})
 
 	// Cover both the team-scoped (tmName != "") and no-team (tmName == "") paths.
@@ -2912,13 +2912,13 @@ func TestBatchSetSoftwareInstallersDryRunEmptyShortCircuit(t *testing.T) {
 	cases := []struct {
 		name             string
 		tmName           string
-		payloads         []*fleet.SoftwareInstallerPayload
+		payloads         []*automdm.SoftwareInstallerPayload
 		expectTeamLookup bool
 	}{
 		{"team scoped, nil payloads", "TestEmpty", nil, true},
-		{"team scoped, empty payloads", "TestEmpty", []*fleet.SoftwareInstallerPayload{}, true},
+		{"team scoped, empty payloads", "TestEmpty", []*automdm.SoftwareInstallerPayload{}, true},
 		{"no team, nil payloads", "", nil, false},
-		{"no team, empty payloads", "", []*fleet.SoftwareInstallerPayload{}, false},
+		{"no team, empty payloads", "", []*automdm.SoftwareInstallerPayload{}, false},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -2940,7 +2940,7 @@ func TestBatchSetSoftwareInstallersDryRunEmptyShortCircuit(t *testing.T) {
 	}
 }
 
-func TestBatchSetSoftwareInstallersDryRunNewFleet(t *testing.T) {
+func TestBatchSetSoftwareInstallersDryRunNewTeam(t *testing.T) {
 	t.Parallel()
 
 	kvs := &redismock.KeyValueStore{
@@ -2951,18 +2951,18 @@ func TestBatchSetSoftwareInstallersDryRunNewFleet(t *testing.T) {
 	}
 
 	ds := new(mock.Store)
-	ds.TeamByNameFunc = func(ctx context.Context, name string) (*fleet.Team, error) {
+	ds.TeamByNameFunc = func(ctx context.Context, name string) (*automdm.Team, error) {
 		return nil, &notFoundError{}
 	}
-	ds.GetMaintainedAppBySlugFunc = func(ctx context.Context, slug string, teamID *uint) (*fleet.MaintainedApp, error) {
+	ds.GetMaintainedAppBySlugFunc = func(ctx context.Context, slug string, teamID *uint) (*automdm.MaintainedApp, error) {
 		return nil, &notFoundError{}
 	}
-	// A nil team ID means Unassigned, so a fleet that doesn't exist yet must never
+	// A nil team ID means Unassigned, so a team that doesn't exist yet must never
 	// be checked against Unassigned's installers or categories.
-	ds.GetSoftwareInstallersPendingDeletionFunc = func(ctx context.Context, tmID *uint, incoming []fleet.SoftwareTitleIdentifier) ([]fleet.DeletedSoftwarePackage, error) {
+	ds.GetSoftwareInstallersPendingDeletionFunc = func(ctx context.Context, tmID *uint, incoming []automdm.SoftwareTitleIdentifier) ([]automdm.DeletedSoftwarePackage, error) {
 		return nil, nil
 	}
-	ds.ListSoftwareCategoriesFunc = func(ctx context.Context, teamID uint) ([]fleet.SoftwareCategory, error) {
+	ds.ListSoftwareCategoriesFunc = func(ctx context.Context, teamID uint) ([]automdm.SoftwareCategory, error) {
 		return nil, nil
 	}
 
@@ -2971,18 +2971,18 @@ func TestBatchSetSoftwareInstallersDryRunNewFleet(t *testing.T) {
 	svc.logger = slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	ctx := viewer.NewContext(t.Context(), viewer.Viewer{
-		User: &fleet.User{GlobalRole: new(fleet.RoleAdmin)},
+		User: &automdm.User{GlobalRole: new(automdm.RoleAdmin)},
 	})
 
 	cases := []struct {
 		name     string
-		payloads []*fleet.SoftwareInstallerPayload
+		payloads []*automdm.SoftwareInstallerPayload
 		wantErr  string
 	}{
-		{"unknown Fleet-maintained app", []*fleet.SoftwareInstallerPayload{{Slug: new("not-a-real-app/darwin")}}, "isn't a supported Fleet-maintained app"},
-		{"invalid URL", []*fleet.SoftwareInstallerPayload{{URL: "not a url"}}, `URL ("not a url") is invalid`},
-		{"always_download with hash", []*fleet.SoftwareInstallerPayload{{URL: "https://example.com/app.pkg", SHA256: "abc", AlwaysDownload: true}}, "cannot be used with 'hash_sha256'"},
-		{"valid payload", []*fleet.SoftwareInstallerPayload{{URL: "https://example.com/app.pkg", Categories: optjson.SetSlice([]string{"Browsers"})}}, ""},
+		{"unknown AutoMDM-maintained app", []*automdm.SoftwareInstallerPayload{{Slug: new("not-a-real-app/darwin")}}, "isn't a supported AutoMDM-maintained app"},
+		{"invalid URL", []*automdm.SoftwareInstallerPayload{{URL: "not a url"}}, `URL ("not a url") is invalid`},
+		{"always_download with hash", []*automdm.SoftwareInstallerPayload{{URL: "https://example.com/app.pkg", SHA256: "abc", AlwaysDownload: true}}, "cannot be used with 'hash_sha256'"},
+		{"valid payload", []*automdm.SoftwareInstallerPayload{{URL: "https://example.com/app.pkg", Categories: optjson.SetSlice([]string{"Browsers"})}}, ""},
 		{"empty payload", nil, ""},
 	}
 	for _, c := range cases {
@@ -2990,7 +2990,7 @@ func TestBatchSetSoftwareInstallersDryRunNewFleet(t *testing.T) {
 			ds.GetSoftwareInstallersPendingDeletionFuncInvoked = false
 			ds.ListSoftwareCategoriesFuncInvoked = false
 
-			requestUUID, err := svc.BatchSetSoftwareInstallers(ctx, "New fleet", c.payloads, true)
+			requestUUID, err := svc.BatchSetSoftwareInstallers(ctx, "New team", c.payloads, true)
 			if c.wantErr != "" {
 				require.ErrorContains(t, err, c.wantErr)
 			} else {
@@ -3003,22 +3003,22 @@ func TestBatchSetSoftwareInstallersDryRunNewFleet(t *testing.T) {
 	}
 
 	t.Run("real run still fails", func(t *testing.T) {
-		_, err := svc.BatchSetSoftwareInstallers(ctx, "New fleet", nil, false)
-		require.True(t, fleet.IsNotFound(err))
+		_, err := svc.BatchSetSoftwareInstallers(ctx, "New team", nil, false)
+		require.True(t, automdm.IsNotFound(err))
 	})
 
-	t.Run("fleet-scoped user can't validate for a new fleet", func(t *testing.T) {
+	t.Run("team-scoped user can't validate for a new team", func(t *testing.T) {
 		teamCtx := viewer.NewContext(t.Context(), viewer.Viewer{
-			User: &fleet.User{Teams: []fleet.UserTeam{{ID: 1, Role: fleet.RoleAdmin}}},
+			User: &automdm.User{Teams: []automdm.UserTeam{{ID: 1, Role: automdm.RoleAdmin}}},
 		})
-		_, err := svc.BatchSetSoftwareInstallers(teamCtx, "New fleet", nil, true)
+		_, err := svc.BatchSetSoftwareInstallers(teamCtx, "New team", nil, true)
 		checkAuthErr(t, true, err)
 	})
 }
 
 func TestSelfServiceInstallAllSoftwareTitles(t *testing.T) {
 	ctx := t.Context()
-	host := &fleet.Host{ID: 1, Platform: "darwin"}
+	host := &automdm.Host{ID: 1, Platform: "darwin"}
 
 	// Each field injects a failure at one point of the flow; a nil field means that
 	// step succeeds. The zero value drives two successful package installs.
@@ -3030,28 +3030,28 @@ func TestSelfServiceInstallAllSoftwareTitles(t *testing.T) {
 
 	setup := func(fail failures) (*Service, *strings.Builder) {
 		ds := new(mock.Store)
-		ds.GetSoftwareTitlesForInstallAllFunc = func(ctx context.Context, host *fleet.Host, categoryID *uint, matchQuery string) ([]*fleet.HostSoftwareWithInstaller, *string, error) {
+		ds.GetSoftwareTitlesForInstallAllFunc = func(ctx context.Context, host *automdm.Host, categoryID *uint, matchQuery string) ([]*automdm.HostSoftwareWithInstaller, *string, error) {
 			if fail.getTitles != nil {
 				return nil, nil, fail.getTitles
 			}
-			return []*fleet.HostSoftwareWithInstaller{{ID: 10}, {ID: 11}}, nil, nil
+			return []*automdm.HostSoftwareWithInstaller{{ID: 10}, {ID: 11}}, nil, nil
 		}
-		ds.ListHostAppStoreAppVersionsFunc = func(ctx context.Context, host *fleet.Host) (map[uint]*fleet.HostAppStoreAppVersion, error) {
-			return map[uint]*fleet.HostAppStoreAppVersion{}, nil
+		ds.ListHostAppStoreAppVersionsFunc = func(ctx context.Context, host *automdm.Host) (map[uint]*automdm.HostAppStoreAppVersion, error) {
+			return map[uint]*automdm.HostAppStoreAppVersion{}, nil
 		}
-		ds.GetSoftwareInstallerMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint, withScriptContents bool) (*fleet.SoftwareInstaller, error) {
+		ds.GetSoftwareInstallerMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint, withScriptContents bool) (*automdm.SoftwareInstaller, error) {
 			if fail.installTitle != nil {
 				return nil, fail.installTitle
 			}
-			return &fleet.SoftwareInstaller{InstallerID: 1, SelfService: true, Name: "foo.pkg"}, nil
+			return &automdm.SoftwareInstaller{InstallerID: 1, SelfService: true, Name: "foo.pkg"}, nil
 		}
 		// The per-title self-service install now resolves the package via the precedence resolver,
 		// so the per-title failure injection lives on this read.
-		ds.GetSoftwarePackagesByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint) ([]*fleet.SoftwareInstaller, error) {
+		ds.GetSoftwarePackagesByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint) ([]*automdm.SoftwareInstaller, error) {
 			if fail.installTitle != nil {
 				return nil, fail.installTitle
 			}
-			return []*fleet.SoftwareInstaller{{InstallerID: 1, SelfService: true, Name: "foo.pkg"}}, nil
+			return []*automdm.SoftwareInstaller{{InstallerID: 1, SelfService: true, Name: "foo.pkg"}}, nil
 		}
 		ds.IsSoftwareInstallerLabelScopedFunc = func(ctx context.Context, installerID uint, hostID uint) (bool, error) {
 			return true, nil
@@ -3059,11 +3059,11 @@ func TestSelfServiceInstallAllSoftwareTitles(t *testing.T) {
 		ds.ResetNonPolicyInstallAttemptsFunc = func(ctx context.Context, hostID uint, softwareInstallerID uint) error {
 			return nil
 		}
-		ds.InsertSoftwareInstallRequestFunc = func(ctx context.Context, hostID uint, softwareInstallerID uint, opts fleet.HostSoftwareInstallOptions) (string, error) {
+		ds.InsertSoftwareInstallRequestFunc = func(ctx context.Context, hostID uint, softwareInstallerID uint, opts automdm.HostSoftwareInstallOptions) (string, error) {
 			return "exec-uuid", nil
 		}
 		svc, baseSvc := newTestServiceWithMock(t, ds)
-		baseSvc.NewActivityFunc = func(ctx context.Context, user *fleet.User, activity fleet.ActivityDetails) error {
+		baseSvc.NewActivityFunc = func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error {
 			return fail.newActivity
 		}
 		var logs strings.Builder
@@ -3095,12 +3095,12 @@ func TestSelfServiceInstallAllSoftwareTitles(t *testing.T) {
 	t.Run("passes the match query through to the datastore", func(t *testing.T) {
 		var seenMatch string
 		ds := new(mock.Store)
-		ds.GetSoftwareTitlesForInstallAllFunc = func(ctx context.Context, host *fleet.Host, categoryID *uint, matchQuery string) ([]*fleet.HostSoftwareWithInstaller, *string, error) {
+		ds.GetSoftwareTitlesForInstallAllFunc = func(ctx context.Context, host *automdm.Host, categoryID *uint, matchQuery string) ([]*automdm.HostSoftwareWithInstaller, *string, error) {
 			seenMatch = matchQuery
 			return nil, nil, nil
 		}
-		ds.ListHostAppStoreAppVersionsFunc = func(ctx context.Context, host *fleet.Host) (map[uint]*fleet.HostAppStoreAppVersion, error) {
-			return map[uint]*fleet.HostAppStoreAppVersion{}, nil
+		ds.ListHostAppStoreAppVersionsFunc = func(ctx context.Context, host *automdm.Host) (map[uint]*automdm.HostAppStoreAppVersion, error) {
+			return map[uint]*automdm.HostAppStoreAppVersion{}, nil
 		}
 		svc, _ := newTestServiceWithMock(t, ds)
 		require.NoError(t, svc.SelfServiceInstallAllSoftwareTitles(ctx, host, nil, "zoom"))
@@ -3145,19 +3145,19 @@ func TestBatchSetSoftwareInstallersDryRunEmptyReportsDeletions(t *testing.T) {
 
 	kvs, getKey := inMemoryKeyValueStore()
 
-	wouldDelete := []fleet.DeletedSoftwarePackage{
+	wouldDelete := []automdm.DeletedSoftwarePackage{
 		{TeamID: nil, TitleID: 1, DisplayName: "Cool App"},
 		{TeamID: nil, TitleID: 2, DisplayName: "Teammate Tool"},
 	}
 
 	ds := new(mock.Store)
-	ds.GetSoftwareInstallersPendingDeletionFunc = func(ctx context.Context, tmID *uint, incoming []fleet.SoftwareTitleIdentifier) ([]fleet.DeletedSoftwarePackage, error) {
+	ds.GetSoftwareInstallersPendingDeletionFunc = func(ctx context.Context, tmID *uint, incoming []automdm.SoftwareTitleIdentifier) ([]automdm.DeletedSoftwarePackage, error) {
 		// assert (not require): this runs on the batch goroutine, where FailNow would misbehave.
 		assert.Empty(t, incoming)
 		return wouldDelete, nil
 	}
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
 	}
 
 	svc := newTestService(t, ds)
@@ -3165,7 +3165,7 @@ func TestBatchSetSoftwareInstallersDryRunEmptyReportsDeletions(t *testing.T) {
 	svc.logger = slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	ctx := viewer.NewContext(t.Context(), viewer.Viewer{
-		User: &fleet.User{GlobalRole: new(fleet.RoleAdmin)},
+		User: &automdm.User{GlobalRole: new(automdm.RoleAdmin)},
 	})
 
 	// Empty payload + dry run, but the (no-)team has installers: must NOT
@@ -3182,14 +3182,14 @@ func TestBatchSetSoftwareInstallersDryRunEmptyReportsDeletions(t *testing.T) {
 
 	deletedJSON := getKey(batchSoftwarePrefix + requestUUID + batchSoftwareDeletedSuffix)
 	require.NotNil(t, deletedJSON, "deleted-packages key must be written before completion")
-	var gotDeleted []fleet.DeletedSoftwarePackage
+	var gotDeleted []automdm.DeletedSoftwarePackage
 	require.NoError(t, json.Unmarshal([]byte(*deletedJSON), &gotDeleted))
 	require.Equal(t, wouldDelete, gotDeleted)
 
 	// The result endpoint returns the deleted packages on the dry-run completed branch.
 	result, err := svc.GetBatchSetSoftwareInstallersResult(ctx, "", requestUUID, true)
 	require.NoError(t, err)
-	require.Equal(t, fleet.BatchSetSoftwareInstallersStatusCompleted, result.Status)
+	require.Equal(t, automdm.BatchSetSoftwareInstallersStatusCompleted, result.Status)
 	require.Empty(t, result.Message)
 	require.Empty(t, result.Packages)
 	require.Equal(t, wouldDelete, result.DeletedPackages)
@@ -3203,7 +3203,7 @@ func TestBatchSetSoftwareInstallersSkipsURLValidationForScriptPackages(t *testin
 	svc.logger = slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	ctx := viewer.NewContext(t.Context(), viewer.Viewer{
-		User: &fleet.User{GlobalRole: new(fleet.RoleAdmin)},
+		User: &automdm.User{GlobalRole: new(automdm.RoleAdmin)},
 	})
 
 	// Script only packages use a "script://filename" url to pass the filename,
@@ -3221,7 +3221,7 @@ func TestBatchSetSoftwareInstallersSkipsURLValidationForScriptPackages(t *testin
 	for _, name := range scriptFilenames {
 		// The trailing "not a url" payload is a tripwire: validation only reaches and
 		// rejects it if the script:// payload before it was accepted.
-		payloads := []*fleet.SoftwareInstallerPayload{
+		payloads := []*automdm.SoftwareInstallerPayload{
 			{URL: "script://" + name, InstallScript: "echo hi"},
 			{URL: "not a url"},
 		}
@@ -3341,31 +3341,31 @@ func TestSoftwareBatchUploadFMAVersionCache(t *testing.T) {
 				_ = json.NewEncoder(w).Encode(manifest)
 			}))
 			t.Cleanup(manifestSrv.Close)
-			dev_mode.SetOverride("FLEET_DEV_MAINTAINED_APPS_BASE_URL", manifestSrv.URL, t)
-			dev_mode.SetOverride("FLEET_DEV_MAINTAINED_APPS_FALLBACK_BASE_URL", manifestSrv.URL, t)
+			dev_mode.SetOverride("AUTOMDM_DEV_MAINTAINED_APPS_BASE_URL", manifestSrv.URL, t)
+			dev_mode.SetOverride("AUTOMDM_DEV_MAINTAINED_APPS_FALLBACK_BASE_URL", manifestSrv.URL, t)
 
 			ds := new(mock.Store)
-			ds.TeamLiteFunc = func(ctx context.Context, tmID uint) (*fleet.TeamLite, error) {
-				return &fleet.TeamLite{ID: tmID}, nil
+			ds.TeamLiteFunc = func(ctx context.Context, tmID uint) (*automdm.TeamLite, error) {
+				return &automdm.TeamLite{ID: tmID}, nil
 			}
-			ds.GetTeamsWithInstallerByHashFunc = func(ctx context.Context, sha256, url string) (map[uint][]*fleet.ExistingSoftwareInstaller, error) {
+			ds.GetTeamsWithInstallerByHashFunc = func(ctx context.Context, sha256, url string) (map[uint][]*automdm.ExistingSoftwareInstaller, error) {
 				return nil, nil
 			}
 			ds.HasFMAInstallerVersionFunc = func(ctx context.Context, tmID *uint, fmaID uint, version string) (bool, string, error) {
 				return c.versionExists, c.cachedHash, nil
 			}
-			ds.GetInstallerByTeamAndURLFunc = func(ctx context.Context, tmID *uint, url string) (*fleet.ExistingSoftwareInstaller, error) {
+			ds.GetInstallerByTeamAndURLFunc = func(ctx context.Context, tmID *uint, url string) (*automdm.ExistingSoftwareInstaller, error) {
 				return nil, nil
 			}
-			ds.GetSoftwareInstallersPendingDeletionFunc = func(ctx context.Context, tmID *uint, incoming []fleet.SoftwareTitleIdentifier) ([]fleet.DeletedSoftwarePackage, error) {
+			ds.GetSoftwareInstallersPendingDeletionFunc = func(ctx context.Context, tmID *uint, incoming []automdm.SoftwareTitleIdentifier) ([]automdm.DeletedSoftwarePackage, error) {
 				return nil, nil
 			}
-			var applied []*fleet.UploadSoftwareInstallerPayload
-			ds.BatchSetSoftwareInstallersFunc = func(ctx context.Context, tmID *uint, installers []*fleet.UploadSoftwareInstallerPayload) ([]uint, error) {
+			var applied []*automdm.UploadSoftwareInstallerPayload
+			ds.BatchSetSoftwareInstallersFunc = func(ctx context.Context, tmID *uint, installers []*automdm.UploadSoftwareInstallerPayload) ([]uint, error) {
 				applied = installers
 				return nil, nil
 			}
-			ds.BatchSetInHouseAppsInstallersFunc = func(ctx context.Context, tmID *uint, installers []*fleet.UploadSoftwareInstallerPayload) error {
+			ds.BatchSetInHouseAppsInstallersFunc = func(ctx context.Context, tmID *uint, installers []*automdm.UploadSoftwareInstallerPayload) error {
 				return nil
 			}
 			ds.ReconcileWindowsMaintainedAppSoftwareTitlesFunc = func(ctx context.Context) error { return nil }
@@ -3382,9 +3382,9 @@ func TestSoftwareBatchUploadFMAVersionCache(t *testing.T) {
 
 			svc.softwareInstallStore = store
 
-			payload := &fleet.SoftwareInstallerPayload{
+			payload := &automdm.SoftwareInstallerPayload{
 				Slug: new("zoom/darwin"),
-				MaintainedApp: &fleet.MaintainedApp{
+				MaintainedApp: &automdm.MaintainedApp{
 					ID:               7,
 					Name:             "Zoom",
 					Slug:             "zoom/darwin",
@@ -3393,7 +3393,7 @@ func TestSoftwareBatchUploadFMAVersionCache(t *testing.T) {
 				},
 			}
 
-			svc.softwareBatchUpload("req-uuid", new(teamID), 1, []*fleet.SoftwareInstallerPayload{payload}, false)
+			svc.softwareBatchUpload("req-uuid", new(teamID), 1, []*automdm.SoftwareInstallerPayload{payload}, false)
 
 			require.Equal(t, c.wantDownload, downloads.Load() > 0, "installer download")
 			require.Len(t, applied, 1)
@@ -3405,7 +3405,7 @@ func TestSoftwareBatchUploadFMAVersionCache(t *testing.T) {
 }
 
 func TestBatchSetSoftwareInstallersStopsAfterFirstFailure(t *testing.T) {
-	dev_mode.SetOverride("FLEET_DEV_BATCH_RETRY_INTERVAL", "1ms", t)
+	dev_mode.SetOverride("AUTOMDM_DEV_BATCH_RETRY_INTERVAL", "1ms", t)
 
 	kvs, getKey := inMemoryKeyValueStore()
 
@@ -3424,10 +3424,10 @@ func TestBatchSetSoftwareInstallersStopsAfterFirstFailure(t *testing.T) {
 	t.Cleanup(installerSrv.Close)
 
 	ds := new(mock.Store)
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
 	}
-	ds.GetTeamsWithInstallerByHashFunc = func(ctx context.Context, sha256, url string) (map[uint][]*fleet.ExistingSoftwareInstaller, error) {
+	ds.GetTeamsWithInstallerByHashFunc = func(ctx context.Context, sha256, url string) (map[uint][]*automdm.ExistingSoftwareInstaller, error) {
 		return nil, nil
 	}
 
@@ -3436,10 +3436,10 @@ func TestBatchSetSoftwareInstallersStopsAfterFirstFailure(t *testing.T) {
 	svc.logger = slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	ctx := viewer.NewContext(t.Context(), viewer.Viewer{
-		User: &fleet.User{GlobalRole: new(fleet.RoleAdmin)},
+		User: &automdm.User{GlobalRole: new(automdm.RoleAdmin)},
 	})
 
-	payloads := []*fleet.SoftwareInstallerPayload{
+	payloads := []*automdm.SoftwareInstallerPayload{
 		{URL: installerSrv.URL + "/a.pkg", AlwaysDownload: true},
 		{URL: installerSrv.URL + "/b.pkg", AlwaysDownload: true},
 		{URL: installerSrv.URL + "/c.pkg", AlwaysDownload: true},
@@ -3458,7 +3458,7 @@ func TestBatchSetSoftwareInstallersStopsAfterFirstFailure(t *testing.T) {
 
 // Not parallel: it shortens the package-level stall timeout.
 func TestBatchSetSoftwareInstallersFailsOnStalledDownload(t *testing.T) {
-	dev_mode.SetOverride("FLEET_DEV_BATCH_RETRY_INTERVAL", "1ms", t)
+	dev_mode.SetOverride("AUTOMDM_DEV_BATCH_RETRY_INTERVAL", "1ms", t)
 	orig := installerDownloadStallTimeout
 	installerDownloadStallTimeout = 300 * time.Millisecond
 	t.Cleanup(func() { installerDownloadStallTimeout = orig })
@@ -3485,10 +3485,10 @@ func TestBatchSetSoftwareInstallersFailsOnStalledDownload(t *testing.T) {
 	t.Cleanup(installerSrv.Close)
 
 	ds := new(mock.Store)
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
 	}
-	ds.GetTeamsWithInstallerByHashFunc = func(ctx context.Context, sha256, url string) (map[uint][]*fleet.ExistingSoftwareInstaller, error) {
+	ds.GetTeamsWithInstallerByHashFunc = func(ctx context.Context, sha256, url string) (map[uint][]*automdm.ExistingSoftwareInstaller, error) {
 		return nil, nil
 	}
 
@@ -3497,10 +3497,10 @@ func TestBatchSetSoftwareInstallersFailsOnStalledDownload(t *testing.T) {
 	svc.logger = slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	ctx := viewer.NewContext(t.Context(), viewer.Viewer{
-		User: &fleet.User{GlobalRole: new(fleet.RoleAdmin)},
+		User: &automdm.User{GlobalRole: new(automdm.RoleAdmin)},
 	})
 
-	payloads := []*fleet.SoftwareInstallerPayload{
+	payloads := []*automdm.SoftwareInstallerPayload{
 		{URL: installerSrv.URL + "/a.pkg", AlwaysDownload: true},
 		{URL: installerSrv.URL + "/b.pkg", AlwaysDownload: true},
 		{URL: installerSrv.URL + "/c.pkg", AlwaysDownload: true},
@@ -3518,7 +3518,7 @@ func TestBatchSetSoftwareInstallersFailsOnStalledDownload(t *testing.T) {
 		return true
 	}, 10*time.Second, 50*time.Millisecond, "batch never failed")
 	require.Contains(t, status, "no data received")
-	require.EqualValues(t, fleet.BatchDownloadMaxRetries, downloads[0].Load())
+	require.EqualValues(t, automdm.BatchDownloadMaxRetries, downloads[0].Load())
 	require.Zero(t, downloads[1].Load())
 	require.Zero(t, downloads[2].Load())
 }
@@ -3544,12 +3544,12 @@ func TestGetBatchSetSoftwareInstallersResultMissingDeletedKey(t *testing.T) {
 	svc.logger = slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	ctx := viewer.NewContext(t.Context(), viewer.Viewer{
-		User: &fleet.User{GlobalRole: new(fleet.RoleAdmin)},
+		User: &automdm.User{GlobalRole: new(automdm.RoleAdmin)},
 	})
 
 	result, err := svc.GetBatchSetSoftwareInstallersResult(ctx, "", "test-uuid", true)
 	require.NoError(t, err)
-	require.Equal(t, fleet.BatchSetSoftwareInstallersStatusCompleted, result.Status)
+	require.Equal(t, automdm.BatchSetSoftwareInstallersStatusCompleted, result.Status)
 	require.Empty(t, result.Message)
 	require.Empty(t, result.Packages)
 	require.Empty(t, result.DeletedPackages)
@@ -3747,13 +3747,13 @@ func TestInstallDuringSetupForFannedOutPlatform(t *testing.T) {
 func TestPlanPatchPolicy(t *testing.T) {
 	titleID := uint(42)
 	teamID := uint(0)
-	fmaInstaller := &fleet.SoftwareInstaller{TitleID: &titleID, FleetMaintainedAppID: new(uint(7)), PreInstallQuery: "SELECT old;"}
-	nonFMAInstaller := &fleet.SoftwareInstaller{TitleID: &titleID}
-	macFMAInstaller := &fleet.SoftwareInstaller{TitleID: &titleID, FleetMaintainedAppID: new(uint(7)), Platform: "darwin"}
-	windowsFMAInstaller := &fleet.SoftwareInstaller{TitleID: &titleID, FleetMaintainedAppID: new(uint(7)), Platform: "windows"}
+	fmaInstaller := &automdm.SoftwareInstaller{TitleID: &titleID, AutoMDMMaintainedAppID: new(uint(7)), PreInstallQuery: "SELECT old;"}
+	nonFMAInstaller := &automdm.SoftwareInstaller{TitleID: &titleID}
+	macFMAInstaller := &automdm.SoftwareInstaller{TitleID: &titleID, AutoMDMMaintainedAppID: new(uint(7)), Platform: "darwin"}
+	windowsFMAInstaller := &automdm.SoftwareInstaller{TitleID: &titleID, AutoMDMMaintainedAppID: new(uint(7)), Platform: "windows"}
 
-	payload := func(patch *bool, patchWhenClosed *bool) *fleet.UpdateSoftwareInstallerPayload {
-		return &fleet.UpdateSoftwareInstallerPayload{TitleID: titleID, TeamID: &teamID, Patch: patch, PatchWhenClosed: patchWhenClosed}
+	payload := func(patch *bool, patchWhenClosed *bool) *automdm.UpdateSoftwareInstallerPayload {
+		return &automdm.UpdateSoftwareInstallerPayload{TitleID: titleID, TeamID: &teamID, Patch: patch, PatchWhenClosed: patchWhenClosed}
 	}
 
 	// patch_when_closed set without patch enabled is rejected, whether patch is omitted with no
@@ -3769,15 +3769,15 @@ func TestPlanPatchPolicy(t *testing.T) {
 	t.Run("rejects pre-install edit while managed", func(t *testing.T) {
 		p := payload(nil, nil)
 		p.PreInstallQuery = new("SELECT changed;")
-		_, _, _, _, err := planPatchPolicy(p, fmaInstaller, &fleet.PatchPolicyData{ID: 9, PatchWhenClosed: true})
-		require.ErrorContains(t, err, "managed by Fleet")
+		_, _, _, _, err := planPatchPolicy(p, fmaInstaller, &automdm.PatchPolicyData{ID: 9, PatchWhenClosed: true})
+		require.ErrorContains(t, err, "managed by AutoMDM")
 	})
 
 	// A pre-install edit on a non-FMA package is never managed; nothing to plan.
 	t.Run("allows pre-install edit on non-FMA package", func(t *testing.T) {
 		p := payload(nil, nil)
 		p.PreInstallQuery = new("SELECT changed;")
-		patchFlag, _, _, _, err := planPatchPolicy(p, nonFMAInstaller, &fleet.PatchPolicyData{ID: 9, PatchWhenClosed: true})
+		patchFlag, _, _, _, err := planPatchPolicy(p, nonFMAInstaller, &automdm.PatchPolicyData{ID: 9, PatchWhenClosed: true})
 		require.NoError(t, err)
 		assert.False(t, patchFlag)
 	})
@@ -3799,14 +3799,14 @@ func TestPlanPatchPolicy(t *testing.T) {
 
 	// patch:false disables the existing patch policy.
 	t.Run("disables when patch off", func(t *testing.T) {
-		patchFlag, _, _, _, err := planPatchPolicy(payload(new(false), nil), fmaInstaller, &fleet.PatchPolicyData{ID: 9})
+		patchFlag, _, _, _, err := planPatchPolicy(payload(new(false), nil), fmaInstaller, &automdm.PatchPolicyData{ID: 9})
 		require.NoError(t, err)
 		assert.False(t, patchFlag)
 	})
 
 	// Toggling patch_when_closed on an existing policy keeps patch on and flips the value.
 	t.Run("updates patch_when_closed on existing policy", func(t *testing.T) {
-		patchFlag, patchWhenClosedFlag, _, _, err := planPatchPolicy(payload(nil, new(true)), fmaInstaller, &fleet.PatchPolicyData{ID: 9, PatchWhenClosed: false})
+		patchFlag, patchWhenClosedFlag, _, _, err := planPatchPolicy(payload(nil, new(true)), fmaInstaller, &automdm.PatchPolicyData{ID: 9, PatchWhenClosed: false})
 		require.NoError(t, err)
 		assert.True(t, patchFlag)
 		assert.True(t, patchWhenClosedFlag)
@@ -3816,7 +3816,7 @@ func TestPlanPatchPolicy(t *testing.T) {
 	t.Run("pre-install edit allowed when patch_when_closed is off", func(t *testing.T) {
 		p := payload(nil, nil)
 		p.PreInstallQuery = new("SELECT changed;")
-		_, patchWhenClosedFlag, _, _, err := planPatchPolicy(p, fmaInstaller, &fleet.PatchPolicyData{ID: 9, PatchWhenClosed: false})
+		_, patchWhenClosedFlag, _, _, err := planPatchPolicy(p, fmaInstaller, &automdm.PatchPolicyData{ID: 9, PatchWhenClosed: false})
 		require.NoError(t, err)
 		assert.False(t, patchWhenClosedFlag)
 	})
@@ -3837,7 +3837,7 @@ func TestPlanPatchPolicy(t *testing.T) {
 	t.Run("notify_before_patching displaces patch_when_closed on an existing policy", func(t *testing.T) {
 		p := payload(nil, nil)
 		p.NotifyBeforePatching = new(true)
-		patchFlag, patchWhenClosedFlag, notifyFlag, _, err := planPatchPolicy(p, macFMAInstaller, &fleet.PatchPolicyData{ID: 9, PatchWhenClosed: true})
+		patchFlag, patchWhenClosedFlag, notifyFlag, _, err := planPatchPolicy(p, macFMAInstaller, &automdm.PatchPolicyData{ID: 9, PatchWhenClosed: true})
 		require.NoError(t, err)
 		assert.True(t, patchFlag)
 		assert.False(t, patchWhenClosedFlag)
@@ -3860,15 +3860,15 @@ func TestPlanPatchPolicy(t *testing.T) {
 		p := payload(new(true), new(true))
 		p.NotifyBeforePatching = new(true)
 		_, _, _, _, err := planPatchPolicy(p, macFMAInstaller, nil)
-		require.ErrorContains(t, err, fleet.ErrPolicyPatchOptionsMutuallyExclusive.Error())
+		require.ErrorContains(t, err, automdm.ErrPolicyPatchOptionsMutuallyExclusive.Error())
 	})
 
-	// Fleet Desktop has no notify command on Windows yet.
+	// AutoMDM Desktop has no notify command on Windows yet.
 	t.Run("rejects notify_before_patching on a windows app", func(t *testing.T) {
 		p := payload(new(true), nil)
 		p.NotifyBeforePatching = new(true)
 		_, _, _, _, err := planPatchPolicy(p, windowsFMAInstaller, nil)
-		require.ErrorContains(t, err, "only available for macOS Fleet-maintained apps")
+		require.ErrorContains(t, err, "only available for macOS AutoMDM-maintained apps")
 	})
 
 	// The pre-install query is managed while notify_before_patching is in effect, same as
@@ -3876,8 +3876,8 @@ func TestPlanPatchPolicy(t *testing.T) {
 	t.Run("rejects pre-install edit while notify_before_patching is on", func(t *testing.T) {
 		p := payload(nil, nil)
 		p.PreInstallQuery = new("SELECT changed;")
-		_, _, _, _, err := planPatchPolicy(p, macFMAInstaller, &fleet.PatchPolicyData{ID: 9, NotifyBeforePatching: true})
-		require.ErrorContains(t, err, "managed by Fleet")
+		_, _, _, _, err := planPatchPolicy(p, macFMAInstaller, &automdm.PatchPolicyData{ID: 9, NotifyBeforePatching: true})
+		require.ErrorContains(t, err, "managed by AutoMDM")
 	})
 
 	t.Run("patch_deadline alone displaces the patch_when_closed default", func(t *testing.T) {
@@ -3894,7 +3894,7 @@ func TestPlanPatchPolicy(t *testing.T) {
 	t.Run("patch_deadline displaces patch_when_closed on an existing policy", func(t *testing.T) {
 		p := payload(nil, nil)
 		p.PatchDeadline = new(true)
-		_, patchWhenClosedFlag, _, deadlineFlag, err := planPatchPolicy(p, macFMAInstaller, &fleet.PatchPolicyData{ID: 9, PatchWhenClosed: true})
+		_, patchWhenClosedFlag, _, deadlineFlag, err := planPatchPolicy(p, macFMAInstaller, &automdm.PatchPolicyData{ID: 9, PatchWhenClosed: true})
 		require.NoError(t, err)
 		assert.False(t, patchWhenClosedFlag)
 		assert.True(t, deadlineFlag)
@@ -3903,7 +3903,7 @@ func TestPlanPatchPolicy(t *testing.T) {
 	t.Run("patch_deadline displaces notify_before_patching on an existing policy", func(t *testing.T) {
 		p := payload(nil, nil)
 		p.PatchDeadline = new(true)
-		_, patchWhenClosedFlag, notifyFlag, deadlineFlag, err := planPatchPolicy(p, macFMAInstaller, &fleet.PatchPolicyData{ID: 9, NotifyBeforePatching: true})
+		_, patchWhenClosedFlag, notifyFlag, deadlineFlag, err := planPatchPolicy(p, macFMAInstaller, &automdm.PatchPolicyData{ID: 9, NotifyBeforePatching: true})
 		require.NoError(t, err)
 		assert.False(t, patchWhenClosedFlag)
 		assert.False(t, notifyFlag)
@@ -3913,7 +3913,7 @@ func TestPlanPatchPolicy(t *testing.T) {
 	t.Run("notify_before_patching displaces patch_deadline on an existing policy", func(t *testing.T) {
 		p := payload(nil, nil)
 		p.NotifyBeforePatching = new(true)
-		_, patchWhenClosedFlag, notifyFlag, deadlineFlag, err := planPatchPolicy(p, macFMAInstaller, &fleet.PatchPolicyData{ID: 9, PatchDeadline: true})
+		_, patchWhenClosedFlag, notifyFlag, deadlineFlag, err := planPatchPolicy(p, macFMAInstaller, &automdm.PatchPolicyData{ID: 9, PatchDeadline: true})
 		require.NoError(t, err)
 		assert.False(t, patchWhenClosedFlag)
 		assert.True(t, notifyFlag)
@@ -3921,7 +3921,7 @@ func TestPlanPatchPolicy(t *testing.T) {
 	})
 
 	t.Run("patch_when_closed displaces patch_deadline on an existing policy", func(t *testing.T) {
-		_, patchWhenClosedFlag, notifyFlag, deadlineFlag, err := planPatchPolicy(payload(nil, new(true)), macFMAInstaller, &fleet.PatchPolicyData{ID: 9, PatchDeadline: true})
+		_, patchWhenClosedFlag, notifyFlag, deadlineFlag, err := planPatchPolicy(payload(nil, new(true)), macFMAInstaller, &automdm.PatchPolicyData{ID: 9, PatchDeadline: true})
 		require.NoError(t, err)
 		assert.True(t, patchWhenClosedFlag)
 		assert.False(t, notifyFlag)
@@ -3929,7 +3929,7 @@ func TestPlanPatchPolicy(t *testing.T) {
 	})
 
 	t.Run("omitted patch_deadline keeps the existing value", func(t *testing.T) {
-		_, patchWhenClosedFlag, notifyFlag, deadlineFlag, err := planPatchPolicy(payload(nil, nil), macFMAInstaller, &fleet.PatchPolicyData{ID: 9, PatchDeadline: true})
+		_, patchWhenClosedFlag, notifyFlag, deadlineFlag, err := planPatchPolicy(payload(nil, nil), macFMAInstaller, &automdm.PatchPolicyData{ID: 9, PatchDeadline: true})
 		require.NoError(t, err)
 		assert.False(t, patchWhenClosedFlag)
 		assert.False(t, notifyFlag)
@@ -3939,7 +3939,7 @@ func TestPlanPatchPolicy(t *testing.T) {
 	t.Run("explicit patch_deadline false clears it", func(t *testing.T) {
 		p := payload(nil, new(true))
 		p.PatchDeadline = new(false)
-		_, patchWhenClosedFlag, _, deadlineFlag, err := planPatchPolicy(p, macFMAInstaller, &fleet.PatchPolicyData{ID: 9, PatchDeadline: true})
+		_, patchWhenClosedFlag, _, deadlineFlag, err := planPatchPolicy(p, macFMAInstaller, &automdm.PatchPolicyData{ID: 9, PatchDeadline: true})
 		require.NoError(t, err)
 		assert.True(t, patchWhenClosedFlag)
 		assert.False(t, deadlineFlag)
@@ -3949,13 +3949,13 @@ func TestPlanPatchPolicy(t *testing.T) {
 		p := payload(new(true), new(true))
 		p.PatchDeadline = new(true)
 		_, _, _, _, err := planPatchPolicy(p, macFMAInstaller, nil)
-		require.ErrorContains(t, err, fleet.ErrPolicyPatchOptionsMutuallyExclusive.Error())
+		require.ErrorContains(t, err, automdm.ErrPolicyPatchOptionsMutuallyExclusive.Error())
 
 		p = payload(new(true), nil)
 		p.NotifyBeforePatching = new(true)
 		p.PatchDeadline = new(true)
 		_, _, _, _, err = planPatchPolicy(p, macFMAInstaller, nil)
-		require.ErrorContains(t, err, fleet.ErrPolicyPatchOptionsMutuallyExclusive.Error())
+		require.ErrorContains(t, err, automdm.ErrPolicyPatchOptionsMutuallyExclusive.Error())
 	})
 
 	t.Run("rejects patch_deadline without patch", func(t *testing.T) {
@@ -3972,14 +3972,14 @@ func TestPlanPatchPolicy(t *testing.T) {
 		p := payload(new(true), nil)
 		p.PatchDeadline = new(true)
 		_, _, _, _, err := planPatchPolicy(p, windowsFMAInstaller, nil)
-		require.ErrorContains(t, err, fleet.ErrPolicyPatchDeadlineRequiresMacOS.Error())
+		require.ErrorContains(t, err, automdm.ErrPolicyPatchDeadlineRequiresMacOS.Error())
 	})
 
 	t.Run("rejects pre-install edit while patch_deadline is on", func(t *testing.T) {
 		p := payload(nil, nil)
 		p.PreInstallQuery = new("SELECT changed;")
-		_, _, _, _, err := planPatchPolicy(p, macFMAInstaller, &fleet.PatchPolicyData{ID: 9, PatchDeadline: true})
-		require.ErrorContains(t, err, `"pre_install_query" is managed by Fleet and can't be set directly while "patch_deadline" is enabled.`)
+		_, _, _, _, err := planPatchPolicy(p, macFMAInstaller, &automdm.PatchPolicyData{ID: 9, PatchDeadline: true})
+		require.ErrorContains(t, err, `"pre_install_query" is managed by AutoMDM and can't be set directly while "patch_deadline" is enabled.`)
 	})
 
 	t.Run("patch_deadline on a non-FMA installer plans nothing", func(t *testing.T) {
@@ -3992,31 +3992,31 @@ func TestPlanPatchPolicy(t *testing.T) {
 	})
 }
 
-func TestValidateFleetVariablesOnInstallerScripts(t *testing.T) {
-	premiumCtx := license.NewContext(context.Background(), &fleet.LicenseInfo{Tier: fleet.TierPremium})
-	freeCtx := license.NewContext(context.Background(), &fleet.LicenseInfo{Tier: fleet.TierFree})
+func TestValidateAutoMDMVariablesOnInstallerScripts(t *testing.T) {
+	premiumCtx := license.NewContext(context.Background(), &automdm.LicenseInfo{Tier: automdm.TierPremium})
+	freeCtx := license.NewContext(context.Background(), &automdm.LicenseInfo{Tier: automdm.TierFree})
 
-	good := "echo $FLEET_VAR_HOST_UUID and ${FLEET_VAR_HOST_END_USER_IDP_USERNAME}"
-	bad := "echo $FLEET_VAR_NONEXISTENT"
+	good := "echo $AUTOMDM_VAR_HOST_UUID and ${AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME}"
+	bad := "echo $AUTOMDM_VAR_NONEXISTENT"
 	plain := "echo hello"
 
 	t.Run("no variables passes on both tiers", func(t *testing.T) {
 		for _, ctx := range []context.Context{premiumCtx, freeCtx} {
-			require.NoError(t, validateFleetVariablesOnInstallerScripts(ctx, &plain, nil, &plain))
+			require.NoError(t, validateAutoMDMVariablesOnInstallerScripts(ctx, &plain, nil, &plain))
 		}
 	})
 
 	t.Run("supported variables pass on premium", func(t *testing.T) {
-		require.NoError(t, validateFleetVariablesOnInstallerScripts(premiumCtx, &good, &good, &good))
+		require.NoError(t, validateAutoMDMVariablesOnInstallerScripts(premiumCtx, &good, &good, &good))
 	})
 
 	t.Run("unsupported variable names the script", func(t *testing.T) {
-		err := validateFleetVariablesOnInstallerScripts(premiumCtx, &plain, &bad, nil)
+		err := validateAutoMDMVariablesOnInstallerScripts(premiumCtx, &plain, &bad, nil)
 		require.ErrorContains(t, err, "post-install script")
-		require.ErrorContains(t, err, "Fleet variable $FLEET_VAR_NONEXISTENT is not supported in scripts.")
+		require.ErrorContains(t, err, "AutoMDM variable $AUTOMDM_VAR_NONEXISTENT is not supported in scripts.")
 
-		err = validateFleetVariablesOnInstallerScripts(premiumCtx, &bad, nil, &bad)
-		var iae *fleet.InvalidArgumentError
+		err = validateAutoMDMVariablesOnInstallerScripts(premiumCtx, &bad, nil, &bad)
+		var iae *automdm.InvalidArgumentError
 		require.ErrorAs(t, err, &iae)
 		invalid := iae.Invalid()
 		require.Len(t, invalid, 2)
@@ -4025,8 +4025,8 @@ func TestValidateFleetVariablesOnInstallerScripts(t *testing.T) {
 	})
 
 	t.Run("any variable on free returns license error", func(t *testing.T) {
-		err := validateFleetVariablesOnInstallerScripts(freeCtx, &plain, nil, &good)
-		require.ErrorIs(t, err, fleet.ErrMissingLicense)
+		err := validateAutoMDMVariablesOnInstallerScripts(freeCtx, &plain, nil, &good)
+		require.ErrorIs(t, err, automdm.ErrMissingLicense)
 	})
 }
 
@@ -4040,61 +4040,61 @@ func TestUpdateSoftwareInstallerScriptEditedFlags(t *testing.T) {
 
 	// setup returns the service plus a reader for whatever payload reached the
 	// datastore, which is where the computed flags land.
-	setup := func(t *testing.T, installEdited bool, uninstallEdited bool) (*Service, context.Context, func() *fleet.UpdateSoftwareInstallerPayload) {
+	setup := func(t *testing.T, installEdited bool, uninstallEdited bool) (*Service, context.Context, func() *automdm.UpdateSoftwareInstallerPayload) {
 		t.Helper()
 		ds := new(mock.Store)
 		svc, baseSvc := newTestServiceWithMock(t, ds)
 		teamID := uint(0)
 		fmaID := uint(3)
-		installer := &fleet.SoftwareInstaller{
-			TeamID:                &teamID,
-			TitleID:               new(titleID),
-			InstallerID:           installerID,
-			Name:                  "app.pkg",
-			Extension:             "pkg",
-			Version:               "1.0",
-			Platform:              "darwin",
-			PackageIDList:         "com.example.app",
-			FleetMaintainedAppID:  &fmaID,
-			InstallScript:         storedInstall,
-			UninstallScript:       storedUninstall,
-			InstallScriptEdited:   installEdited,
-			UninstallScriptEdited: uninstallEdited,
+		installer := &automdm.SoftwareInstaller{
+			TeamID:                 &teamID,
+			TitleID:                new(titleID),
+			InstallerID:            installerID,
+			Name:                   "app.pkg",
+			Extension:              "pkg",
+			Version:                "1.0",
+			Platform:               "darwin",
+			PackageIDList:          "com.example.app",
+			AutoMDMMaintainedAppID: &fmaID,
+			InstallScript:          storedInstall,
+			UninstallScript:        storedUninstall,
+			InstallScriptEdited:    installEdited,
+			UninstallScriptEdited:  uninstallEdited,
 		}
 
 		ds.ValidateEmbeddedSecretsFunc = func(context.Context, []string) error { return nil }
 		ds.ValidateReferencedCustomHostVitalsFunc = func(context.Context, []string) error { return nil }
-		ds.SoftwareTitleByIDFunc = func(context.Context, uint, *uint, fleet.TeamFilter) (*fleet.SoftwareTitle, error) {
-			return &fleet.SoftwareTitle{ID: titleID, Name: "App", SoftwareInstallersCount: 1}, nil
+		ds.SoftwareTitleByIDFunc = func(context.Context, uint, *uint, automdm.TeamFilter) (*automdm.SoftwareTitle, error) {
+			return &automdm.SoftwareTitle{ID: titleID, Name: "App", SoftwareInstallersCount: 1}, nil
 		}
-		ds.GetSoftwareInstallerMetadataByTeamAndTitleIDFunc = func(context.Context, *uint, uint, bool) (*fleet.SoftwareInstaller, error) {
+		ds.GetSoftwareInstallerMetadataByTeamAndTitleIDFunc = func(context.Context, *uint, uint, bool) (*automdm.SoftwareInstaller, error) {
 			return installer, nil
 		}
-		ds.GetSoftwareInstallerMetadataByTeamTitleAndInstallerIDFunc = func(context.Context, *uint, uint, uint, bool) (*fleet.SoftwareInstaller, error) {
+		ds.GetSoftwareInstallerMetadataByTeamTitleAndInstallerIDFunc = func(context.Context, *uint, uint, uint, bool) (*automdm.SoftwareInstaller, error) {
 			return installer, nil
 		}
-		ds.GetPatchPolicyFunc = func(context.Context, *uint, uint) (*fleet.PatchPolicyData, error) {
+		ds.GetPatchPolicyFunc = func(context.Context, *uint, uint) (*automdm.PatchPolicyData, error) {
 			return nil, &notFoundError{}
 		}
 		ds.ProcessInstallerUpdateSideEffectsFunc = func(context.Context, uint, bool, bool) error { return nil }
-		ds.GetSummaryHostSoftwareInstallsFunc = func(context.Context, uint) (*fleet.SoftwareInstallerStatusSummary, error) {
+		ds.GetSummaryHostSoftwareInstallsFunc = func(context.Context, uint) (*automdm.SoftwareInstallerStatusSummary, error) {
 			return nil, nil
 		}
-		baseSvc.NewActivityFunc = func(context.Context, *fleet.User, fleet.ActivityDetails) error { return nil }
+		baseSvc.NewActivityFunc = func(context.Context, *automdm.User, automdm.ActivityDetails) error { return nil }
 
-		var saved *fleet.UpdateSoftwareInstallerPayload
-		ds.SaveInstallerUpdatesFunc = func(ctx context.Context, payload *fleet.UpdateSoftwareInstallerPayload) error {
+		var saved *automdm.UpdateSoftwareInstallerPayload
+		ds.SaveInstallerUpdatesFunc = func(ctx context.Context, payload *automdm.UpdateSoftwareInstallerPayload) error {
 			saved = payload
 			return nil
 		}
 
 		ctx := authz_ctx.NewContext(t.Context(), &authz_ctx.AuthorizationContext{})
-		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{ID: 1, GlobalRole: new(fleet.RoleAdmin)}})
+		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{ID: 1, GlobalRole: new(automdm.RoleAdmin)}})
 
-		return svc, ctx, func() *fleet.UpdateSoftwareInstallerPayload { return saved }
+		return svc, ctx, func() *automdm.UpdateSoftwareInstallerPayload { return saved }
 	}
 
-	update := func(t *testing.T, svc *Service, ctx context.Context, payload *fleet.UpdateSoftwareInstallerPayload) {
+	update := func(t *testing.T, svc *Service, ctx context.Context, payload *automdm.UpdateSoftwareInstallerPayload) {
 		t.Helper()
 		teamID := uint(0)
 		payload.TitleID = titleID
@@ -4106,7 +4106,7 @@ func TestUpdateSoftwareInstallerScriptEditedFlags(t *testing.T) {
 	t.Run("editing the install script marks only the install script", func(t *testing.T) {
 		svc, ctx, saved := setup(t, false, false)
 
-		update(t, svc, ctx, &fleet.UpdateSoftwareInstallerPayload{
+		update(t, svc, ctx, &automdm.UpdateSoftwareInstallerPayload{
 			InstallScript: new("#!/bin/sh\necho custom\n"),
 		})
 
@@ -4118,7 +4118,7 @@ func TestUpdateSoftwareInstallerScriptEditedFlags(t *testing.T) {
 	t.Run("editing the uninstall script marks only the uninstall script", func(t *testing.T) {
 		svc, ctx, saved := setup(t, false, false)
 
-		update(t, svc, ctx, &fleet.UpdateSoftwareInstallerPayload{
+		update(t, svc, ctx, &automdm.UpdateSoftwareInstallerPayload{
 			UninstallScript: new("#!/bin/sh\necho custom uninstall\n"),
 		})
 
@@ -4130,7 +4130,7 @@ func TestUpdateSoftwareInstallerScriptEditedFlags(t *testing.T) {
 	t.Run("resubmitting the stored script is not an edit", func(t *testing.T) {
 		svc, ctx, saved := setup(t, false, false)
 
-		update(t, svc, ctx, &fleet.UpdateSoftwareInstallerPayload{
+		update(t, svc, ctx, &automdm.UpdateSoftwareInstallerPayload{
 			InstallScript:   new(storedInstall),
 			PreInstallQuery: new("SELECT 1"),
 		})
@@ -4143,7 +4143,7 @@ func TestUpdateSoftwareInstallerScriptEditedFlags(t *testing.T) {
 	t.Run("an existing edit survives an update that leaves the scripts alone", func(t *testing.T) {
 		svc, ctx, saved := setup(t, true, false)
 
-		update(t, svc, ctx, &fleet.UpdateSoftwareInstallerPayload{
+		update(t, svc, ctx, &automdm.UpdateSoftwareInstallerPayload{
 			PreInstallQuery: new("SELECT 1"),
 		})
 
@@ -4167,18 +4167,18 @@ func TestDownloadInstallerURLBlocksPrivateNetworks(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		mode      fleethttp.NetworkBlockingMode
+		mode      automdmhttp.NetworkBlockingMode
 		wantReach bool
 	}{
-		{"disabled", fleethttp.BlockingDisabled, true},
-		{"bypass all", fleethttp.BlockingBypassAll, true},
-		{"full", fleethttp.BlockingFull, false},
-		{"private allowed", fleethttp.BlockingPrivateAllowed, false},
+		{"disabled", automdmhttp.BlockingDisabled, true},
+		{"bypass all", automdmhttp.BlockingBypassAll, true},
+		{"full", automdmhttp.BlockingFull, false},
+		{"private allowed", automdmhttp.BlockingPrivateAllowed, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			fleethttp.SetNetworkBlockingMode(tt.mode)
-			t.Cleanup(func() { fleethttp.SetNetworkBlockingMode(fleethttp.BlockingDisabled) })
+			automdmhttp.SetNetworkBlockingMode(tt.mode)
+			t.Cleanup(func() { automdmhttp.SetNetworkBlockingMode(automdmhttp.BlockingDisabled) })
 
 			before := hits.Load()
 			resp, tfr, err := downloadInstallerURL(t.Context(), srv.URL+"/installer.sh", "", maxSize)
@@ -4189,7 +4189,7 @@ func TestDownloadInstallerURLBlocksPrivateNetworks(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, http.StatusOK, resp.StatusCode)
 			} else {
-				require.ErrorIs(t, err, fleethttp.ErrPrivateNetworkBlocked)
+				require.ErrorIs(t, err, automdmhttp.ErrPrivateNetworkBlocked)
 			}
 			// Assert on the connection, not just the error: the reachable rows
 			// prove the listener is up.
@@ -4278,11 +4278,11 @@ func TestFillSoftwareInstallerPayloadFromExistingUpgradeCode(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			svc := newTestService(t, new(mock.Store))
-			existing := &fleet.ExistingSoftwareInstaller{Title: "title", Source: c.source, UpgradeCode: c.code, PackageIDs: []string{"product"}}
+			existing := &automdm.ExistingSoftwareInstaller{Title: "title", Source: c.source, UpgradeCode: c.code, PackageIDs: []string{"product"}}
 			if c.bundle != "" {
 				existing.BundleIdentifier = &c.bundle
 			}
-			payload := &fleet.UploadSoftwareInstallerPayload{UninstallScript: "custom script"}
+			payload := &automdm.UploadSoftwareInstallerPayload{UninstallScript: "custom script"}
 			require.NoError(t, svc.fillSoftwareInstallerPayloadFromExisting(t.Context(), payload, existing, "hash"))
 			require.Equal(t, c.code, payload.UpgradeCode)
 			require.Equal(t, c.wantIdentity, payload.UniqueIdentifier())
@@ -4306,24 +4306,24 @@ func TestSoftwareBatchUploadMSIReuseUninstallScript(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			ds := new(mock.Store)
-			ds.TeamLiteFunc = func(ctx context.Context, tmID uint) (*fleet.TeamLite, error) {
-				return &fleet.TeamLite{ID: tmID}, nil
+			ds.TeamLiteFunc = func(ctx context.Context, tmID uint) (*automdm.TeamLite, error) {
+				return &automdm.TeamLite{ID: tmID}, nil
 			}
-			ds.GetTeamsWithInstallerByHashFunc = func(ctx context.Context, sha256, url string) (map[uint][]*fleet.ExistingSoftwareInstaller, error) {
-				return map[uint][]*fleet.ExistingSoftwareInstaller{1: {{
+			ds.GetTeamsWithInstallerByHashFunc = func(ctx context.Context, sha256, url string) (map[uint][]*automdm.ExistingSoftwareInstaller, error) {
+				return map[uint][]*automdm.ExistingSoftwareInstaller{1: {{
 					Title: "MSI", Extension: "msi", Filename: "test.msi", Platform: "windows", Source: "programs",
 					UpgradeCode: c.code, PackageIDs: []string{"product-id"},
 				}}}, nil
 			}
-			ds.GetSoftwareInstallersPendingDeletionFunc = func(ctx context.Context, tmID *uint, incoming []fleet.SoftwareTitleIdentifier) ([]fleet.DeletedSoftwarePackage, error) {
+			ds.GetSoftwareInstallersPendingDeletionFunc = func(ctx context.Context, tmID *uint, incoming []automdm.SoftwareTitleIdentifier) ([]automdm.DeletedSoftwarePackage, error) {
 				return nil, nil
 			}
-			var applied []*fleet.UploadSoftwareInstallerPayload
-			ds.BatchSetSoftwareInstallersFunc = func(ctx context.Context, tmID *uint, installers []*fleet.UploadSoftwareInstallerPayload) ([]uint, error) {
+			var applied []*automdm.UploadSoftwareInstallerPayload
+			ds.BatchSetSoftwareInstallersFunc = func(ctx context.Context, tmID *uint, installers []*automdm.UploadSoftwareInstallerPayload) ([]uint, error) {
 				applied = installers
 				return nil, nil
 			}
-			ds.BatchSetInHouseAppsInstallersFunc = func(ctx context.Context, tmID *uint, installers []*fleet.UploadSoftwareInstallerPayload) error {
+			ds.BatchSetInHouseAppsInstallersFunc = func(ctx context.Context, tmID *uint, installers []*automdm.UploadSoftwareInstallerPayload) error {
 				return nil
 			}
 			ds.ReconcileWindowsMaintainedAppSoftwareTitlesFunc = func(ctx context.Context) error { return nil }
@@ -4334,7 +4334,7 @@ func TestSoftwareBatchUploadMSIReuseUninstallScript(t *testing.T) {
 				ExistsFunc: func(ctx context.Context, id string) (bool, error) { return true, nil },
 			}
 
-			svc.softwareBatchUpload("req-uuid", new(uint(1)), 1, []*fleet.SoftwareInstallerPayload{{SHA256: "hash", UninstallScript: c.script}}, false)
+			svc.softwareBatchUpload("req-uuid", new(uint(1)), 1, []*automdm.SoftwareInstallerPayload{{SHA256: "hash", UninstallScript: c.script}}, false)
 
 			status, err := svc.keyValueStore.Get(t.Context(), batchSoftwarePrefix+"req-uuid")
 			require.NoError(t, err)
@@ -4342,7 +4342,7 @@ func TestSoftwareBatchUploadMSIReuseUninstallScript(t *testing.T) {
 			require.Equal(t, batchSetCompleted, *status)
 			require.Len(t, applied, 1)
 			require.Equal(t, c.code, applied[0].UpgradeCode)
-			want := &fleet.UploadSoftwareInstallerPayload{Extension: "msi", UpgradeCode: c.code, PackageIDs: []string{"product-id"}, UninstallScript: c.wantRaw}
+			want := &automdm.UploadSoftwareInstallerPayload{Extension: "msi", UpgradeCode: c.code, PackageIDs: []string{"product-id"}, UninstallScript: c.wantRaw}
 			require.NoError(t, preProcessUninstallScript(want))
 			require.Equal(t, want.UninstallScript, applied[0].UninstallScript)
 		})
@@ -4352,20 +4352,20 @@ func TestSoftwareBatchUploadMSIReuseUninstallScript(t *testing.T) {
 func TestSoftwareBatchUploadKeepsTitleAttachedByName(t *testing.T) {
 	run := func(t *testing.T, dryRun bool, resolveErr error) (status string, deleted *string) {
 		ds := new(mock.Store)
-		ds.TeamLiteFunc = func(ctx context.Context, tmID uint) (*fleet.TeamLite, error) {
-			return &fleet.TeamLite{ID: tmID}, nil
+		ds.TeamLiteFunc = func(ctx context.Context, tmID uint) (*automdm.TeamLite, error) {
+			return &automdm.TeamLite{ID: tmID}, nil
 		}
-		ds.GetTeamsWithInstallerByHashFunc = func(ctx context.Context, sha256, url string) (map[uint][]*fleet.ExistingSoftwareInstaller, error) {
+		ds.GetTeamsWithInstallerByHashFunc = func(ctx context.Context, sha256, url string) (map[uint][]*automdm.ExistingSoftwareInstaller, error) {
 			title, bundle := "ForkLift", "com.example.forklift"
 			if sha256 == "new-hash" {
 				title, bundle = "New App", "com.example.new"
 			}
-			return map[uint][]*fleet.ExistingSoftwareInstaller{1: {{
+			return map[uint][]*automdm.ExistingSoftwareInstaller{1: {{
 				Title: title, Extension: "pkg", Filename: title + ".pkg", Platform: "darwin", Source: "apps",
 				BundleIdentifier: &bundle, PackageIDs: []string{bundle},
 			}}}, nil
 		}
-		ds.GetExistingSoftwareInstallerTitleIDFunc = func(ctx context.Context, payload *fleet.UploadSoftwareInstallerPayload) (uint, error) {
+		ds.GetExistingSoftwareInstallerTitleIDFunc = func(ctx context.Context, payload *automdm.UploadSoftwareInstallerPayload) (uint, error) {
 			require.True(t, ctxdb.IsPrimaryRequired(ctx))
 			switch {
 			case payload.Title == "New App":
@@ -4378,11 +4378,13 @@ func TestSoftwareBatchUploadKeepsTitleAttachedByName(t *testing.T) {
 			return 99, nil
 		}
 		// Title 20 came from inventory (lowercase name); title 5 is another title displayed as "ForkLift".
-		ds.GetSoftwareInstallersPendingDeletionFunc = func(ctx context.Context, tmID *uint, incoming []fleet.SoftwareTitleIdentifier) ([]fleet.DeletedSoftwarePackage, error) {
-			return []fleet.DeletedSoftwarePackage{{TitleID: 20, DisplayName: "forklift"}, {TitleID: 5, DisplayName: "ForkLift"}}, nil
+		ds.GetSoftwareInstallersPendingDeletionFunc = func(ctx context.Context, tmID *uint, incoming []automdm.SoftwareTitleIdentifier) ([]automdm.DeletedSoftwarePackage, error) {
+			return []automdm.DeletedSoftwarePackage{{TitleID: 20, DisplayName: "forklift"}, {TitleID: 5, DisplayName: "ForkLift"}}, nil
 		}
-		ds.BatchSetSoftwareInstallersFunc = func(context.Context, *uint, []*fleet.UploadSoftwareInstallerPayload) ([]uint, error) { return nil, nil }
-		ds.BatchSetInHouseAppsInstallersFunc = func(context.Context, *uint, []*fleet.UploadSoftwareInstallerPayload) error { return nil }
+		ds.BatchSetSoftwareInstallersFunc = func(context.Context, *uint, []*automdm.UploadSoftwareInstallerPayload) ([]uint, error) {
+			return nil, nil
+		}
+		ds.BatchSetInHouseAppsInstallersFunc = func(context.Context, *uint, []*automdm.UploadSoftwareInstallerPayload) error { return nil }
 		ds.ReconcileWindowsMaintainedAppSoftwareTitlesFunc = func(context.Context) error { return nil }
 
 		svc := newTestService(t, ds)
@@ -4390,7 +4392,7 @@ func TestSoftwareBatchUploadKeepsTitleAttachedByName(t *testing.T) {
 		svc.softwareInstallStore = &mocksoftware.SoftwareInstallerStore{
 			ExistsFunc: func(ctx context.Context, id string) (bool, error) { return true, nil },
 		}
-		svc.softwareBatchUpload("req-uuid", new(uint(1)), 1, []*fleet.SoftwareInstallerPayload{{SHA256: "new-hash"}, {SHA256: "forklift-hash"}}, dryRun)
+		svc.softwareBatchUpload("req-uuid", new(uint(1)), 1, []*automdm.SoftwareInstallerPayload{{SHA256: "new-hash"}, {SHA256: "forklift-hash"}}, dryRun)
 
 		got, err := svc.keyValueStore.Get(t.Context(), batchSoftwarePrefix+"req-uuid")
 		require.NoError(t, err)
@@ -4405,9 +4407,9 @@ func TestSoftwareBatchUploadKeepsTitleAttachedByName(t *testing.T) {
 			status, deleted := run(t, dryRun, nil)
 			require.Equal(t, batchSetCompleted, status)
 			require.NotNil(t, deleted)
-			var got []fleet.DeletedSoftwarePackage
+			var got []automdm.DeletedSoftwarePackage
 			require.NoError(t, json.Unmarshal([]byte(*deleted), &got))
-			require.Equal(t, []fleet.DeletedSoftwarePackage{{TitleID: 5, DisplayName: "ForkLift"}}, got)
+			require.Equal(t, []automdm.DeletedSoftwarePackage{{TitleID: 5, DisplayName: "ForkLift"}}, got)
 		})
 	}
 
@@ -4439,30 +4441,30 @@ func TestSoftwareBatchUploadWindowsFMAKeepsManifestUninstallScript(t *testing.T)
 		}))
 	}))
 	t.Cleanup(manifestServer.Close)
-	dev_mode.SetOverride("FLEET_DEV_MAINTAINED_APPS_BASE_URL", manifestServer.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_MAINTAINED_APPS_BASE_URL", manifestServer.URL, t)
 
 	ds := new(mock.Store)
-	ds.GetMaintainedAppBySlugFunc = func(ctx context.Context, slug string, teamID *uint) (*fleet.MaintainedApp, error) {
-		return &fleet.MaintainedApp{ID: 1, Name: "App", Platform: "windows", Slug: slug}, nil
+	ds.GetMaintainedAppBySlugFunc = func(ctx context.Context, slug string, teamID *uint) (*automdm.MaintainedApp, error) {
+		return &automdm.MaintainedApp{ID: 1, Name: "App", Platform: "windows", Slug: slug}, nil
 	}
-	ds.TeamLiteFunc = func(ctx context.Context, tmID uint) (*fleet.TeamLite, error) {
-		return &fleet.TeamLite{ID: tmID}, nil
+	ds.TeamLiteFunc = func(ctx context.Context, tmID uint) (*automdm.TeamLite, error) {
+		return &automdm.TeamLite{ID: tmID}, nil
 	}
-	ds.GetTeamsWithInstallerByHashFunc = func(ctx context.Context, sha256, url string) (map[uint][]*fleet.ExistingSoftwareInstaller, error) {
+	ds.GetTeamsWithInstallerByHashFunc = func(ctx context.Context, sha256, url string) (map[uint][]*automdm.ExistingSoftwareInstaller, error) {
 		return nil, nil
 	}
 	ds.HasFMAInstallerVersionFunc = func(ctx context.Context, tmID *uint, fmaID uint, version string) (bool, string, error) {
 		return true, cachedHash, nil
 	}
-	ds.GetSoftwareInstallersPendingDeletionFunc = func(ctx context.Context, tmID *uint, incoming []fleet.SoftwareTitleIdentifier) ([]fleet.DeletedSoftwarePackage, error) {
+	ds.GetSoftwareInstallersPendingDeletionFunc = func(ctx context.Context, tmID *uint, incoming []automdm.SoftwareTitleIdentifier) ([]automdm.DeletedSoftwarePackage, error) {
 		return nil, nil
 	}
-	var applied []*fleet.UploadSoftwareInstallerPayload
-	ds.BatchSetSoftwareInstallersFunc = func(ctx context.Context, tmID *uint, installers []*fleet.UploadSoftwareInstallerPayload) ([]uint, error) {
+	var applied []*automdm.UploadSoftwareInstallerPayload
+	ds.BatchSetSoftwareInstallersFunc = func(ctx context.Context, tmID *uint, installers []*automdm.UploadSoftwareInstallerPayload) ([]uint, error) {
 		applied = installers
 		return nil, nil
 	}
-	ds.BatchSetInHouseAppsInstallersFunc = func(ctx context.Context, tmID *uint, installers []*fleet.UploadSoftwareInstallerPayload) error {
+	ds.BatchSetInHouseAppsInstallersFunc = func(ctx context.Context, tmID *uint, installers []*automdm.UploadSoftwareInstallerPayload) error {
 		return nil
 	}
 	ds.ReconcileWindowsMaintainedAppSoftwareTitlesFunc = func(ctx context.Context) error { return nil }
@@ -4473,9 +4475,9 @@ func TestSoftwareBatchUploadWindowsFMAKeepsManifestUninstallScript(t *testing.T)
 		ExistsFunc: func(ctx context.Context, id string) (bool, error) { return id == cachedHash, nil },
 	}
 
-	payload := &fleet.SoftwareInstallerPayload{Slug: new("app/windows")}
+	payload := &automdm.SoftwareInstallerPayload{Slug: new("app/windows")}
 	require.NoError(t, svc.maintainedAppFromSlug(t.Context(), payload, new(uint(1))))
-	svc.softwareBatchUpload("req-uuid", new(uint(1)), 1, []*fleet.SoftwareInstallerPayload{payload}, false)
+	svc.softwareBatchUpload("req-uuid", new(uint(1)), 1, []*automdm.SoftwareInstallerPayload{payload}, false)
 
 	status, err := svc.keyValueStore.Get(t.Context(), batchSoftwarePrefix+"req-uuid")
 	require.NoError(t, err)
@@ -4498,7 +4500,7 @@ type fmaRecoveryBatchResult struct {
 	status    string
 	downloads int32
 	stored    []byte
-	applied   []*fleet.UploadSoftwareInstallerPayload
+	applied   []*automdm.UploadSoftwareInstallerPayload
 	ds        *mock.Store
 	store     *mocksoftware.SoftwareInstallerStore
 }
@@ -4538,30 +4540,30 @@ func runFMARecoveryBatch(t *testing.T, opts fmaRecoveryBatchOptions) *fmaRecover
 		})
 	}))
 	t.Cleanup(manifest.Close)
-	dev_mode.SetOverride("FLEET_DEV_MAINTAINED_APPS_BASE_URL", manifest.URL, t)
-	dev_mode.SetOverride("FLEET_DEV_MAINTAINED_APPS_FALLBACK_BASE_URL", manifest.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_MAINTAINED_APPS_BASE_URL", manifest.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_MAINTAINED_APPS_FALLBACK_BASE_URL", manifest.URL, t)
 	ds := r.ds
-	ds.TeamLiteFunc = func(ctx context.Context, id uint) (*fleet.TeamLite, error) { return &fleet.TeamLite{ID: id}, nil }
-	ds.GetTeamsWithInstallerByHashFunc = func(context.Context, string, string) (map[uint][]*fleet.ExistingSoftwareInstaller, error) {
+	ds.TeamLiteFunc = func(ctx context.Context, id uint) (*automdm.TeamLite, error) { return &automdm.TeamLite{ID: id}, nil }
+	ds.GetTeamsWithInstallerByHashFunc = func(context.Context, string, string) (map[uint][]*automdm.ExistingSoftwareInstaller, error) {
 		return nil, nil
 	}
-	ds.GetInstallerByTeamAndURLFunc = func(context.Context, *uint, string) (*fleet.ExistingSoftwareInstaller, error) { return nil, nil }
+	ds.GetInstallerByTeamAndURLFunc = func(context.Context, *uint, string) (*automdm.ExistingSoftwareInstaller, error) { return nil, nil }
 	ds.HasFMAInstallerVersionFunc = func(context.Context, *uint, uint, string) (bool, string, error) { return opts.cached, opts.hash, nil }
-	ds.GetCachedFMAInstallerMetadataFunc = func(context.Context, *uint, uint, string) (*fleet.MaintainedApp, error) {
-		return &fleet.MaintainedApp{Version: "1.0", SHA256: opts.hash, InstallerURL: url,
+	ds.GetCachedFMAInstallerMetadataFunc = func(context.Context, *uint, uint, string) (*automdm.MaintainedApp, error) {
+		return &automdm.MaintainedApp{Version: "1.0", SHA256: opts.hash, InstallerURL: url,
 			Platform: opts.platform, InstallScript: "echo install", UninstallScript: "echo uninstall"}, nil
 	}
-	ds.GetFleetMaintainedVersionsByTitleIDFunc = func(context.Context, *uint, uint) ([]fleet.FleetMaintainedVersion, error) {
-		return []fleet.FleetMaintainedVersion{{ID: 9, Version: "1.0"}}, nil
+	ds.GetAutoMDMMaintainedVersionsByTitleIDFunc = func(context.Context, *uint, uint) ([]automdm.AutoMDMMaintainedVersion, error) {
+		return []automdm.AutoMDMMaintainedVersion{{ID: 9, Version: "1.0"}}, nil
 	}
-	ds.GetSoftwareInstallersPendingDeletionFunc = func(context.Context, *uint, []fleet.SoftwareTitleIdentifier) ([]fleet.DeletedSoftwarePackage, error) {
+	ds.GetSoftwareInstallersPendingDeletionFunc = func(context.Context, *uint, []automdm.SoftwareTitleIdentifier) ([]automdm.DeletedSoftwarePackage, error) {
 		return nil, nil
 	}
-	ds.BatchSetSoftwareInstallersFunc = func(_ context.Context, _ *uint, p []*fleet.UploadSoftwareInstallerPayload) ([]uint, error) {
+	ds.BatchSetSoftwareInstallersFunc = func(_ context.Context, _ *uint, p []*automdm.UploadSoftwareInstallerPayload) ([]uint, error) {
 		r.applied = p
 		return nil, nil
 	}
-	ds.BatchSetInHouseAppsInstallersFunc = func(context.Context, *uint, []*fleet.UploadSoftwareInstallerPayload) error { return nil }
+	ds.BatchSetInHouseAppsInstallersFunc = func(context.Context, *uint, []*automdm.UploadSoftwareInstallerPayload) error { return nil }
 	ds.ReconcileWindowsMaintainedAppSoftwareTitlesFunc = func(context.Context) error { return nil }
 	r.store = &mocksoftware.SoftwareInstallerStore{
 		ExistsFunc: func(context.Context, string) (bool, error) { return opts.present, opts.existsErr },
@@ -4575,10 +4577,10 @@ func runFMARecoveryBatch(t *testing.T, opts fmaRecoveryBatchOptions) *fmaRecover
 	svc.softwareInstallStore = r.store
 	kvs, _ := inMemoryKeyValueStore()
 	svc.keyValueStore = kvs
-	p := &fleet.SoftwareInstallerPayload{Slug: new("example/" + opts.platform), RollbackVersion: opts.pin,
-		MaintainedApp: &fleet.MaintainedApp{ID: 7, Name: "Example", Slug: "example/" + opts.platform,
+	p := &automdm.SoftwareInstallerPayload{Slug: new("example/" + opts.platform), RollbackVersion: opts.pin,
+		MaintainedApp: &automdm.MaintainedApp{ID: 7, Name: "Example", Slug: "example/" + opts.platform,
 			Platform: opts.platform, UniqueIdentifier: "example", TitleID: new(uint(1))}}
-	svc.softwareBatchUpload("fma-recovery", new(uint(1)), 1, []*fleet.SoftwareInstallerPayload{p}, opts.dryRun)
+	svc.softwareBatchUpload("fma-recovery", new(uint(1)), 1, []*automdm.SoftwareInstallerPayload{p}, opts.dryRun)
 	status, err := kvs.Get(t.Context(), batchSoftwarePrefix+"fma-recovery")
 	require.NoError(t, err)
 	require.NotNil(t, status)
@@ -4681,19 +4683,19 @@ func runURLBatch(t *testing.T, body []byte, sha256 string, prepare func(*mock.St
 	t.Cleanup(srv.Close)
 
 	ds = new(mock.Store)
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) { return &fleet.AppConfig{}, nil }
-	ds.TeamLiteFunc = func(ctx context.Context, id uint) (*fleet.TeamLite, error) { return &fleet.TeamLite{ID: id}, nil }
-	ds.GetTeamsWithInstallerByHashFunc = func(context.Context, string, string) (map[uint][]*fleet.ExistingSoftwareInstaller, error) {
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) { return &automdm.AppConfig{}, nil }
+	ds.TeamLiteFunc = func(ctx context.Context, id uint) (*automdm.TeamLite, error) { return &automdm.TeamLite{ID: id}, nil }
+	ds.GetTeamsWithInstallerByHashFunc = func(context.Context, string, string) (map[uint][]*automdm.ExistingSoftwareInstaller, error) {
 		return nil, nil
 	}
-	ds.GetInstallerByTeamAndURLFunc = func(context.Context, *uint, string) (*fleet.ExistingSoftwareInstaller, error) { return nil, nil }
-	ds.GetSoftwareInstallersPendingDeletionFunc = func(context.Context, *uint, []fleet.SoftwareTitleIdentifier) ([]fleet.DeletedSoftwarePackage, error) {
+	ds.GetInstallerByTeamAndURLFunc = func(context.Context, *uint, string) (*automdm.ExistingSoftwareInstaller, error) { return nil, nil }
+	ds.GetSoftwareInstallersPendingDeletionFunc = func(context.Context, *uint, []automdm.SoftwareTitleIdentifier) ([]automdm.DeletedSoftwarePackage, error) {
 		return nil, nil
 	}
-	ds.BatchSetSoftwareInstallersFunc = func(context.Context, *uint, []*fleet.UploadSoftwareInstallerPayload) ([]uint, error) {
+	ds.BatchSetSoftwareInstallersFunc = func(context.Context, *uint, []*automdm.UploadSoftwareInstallerPayload) ([]uint, error) {
 		return nil, nil
 	}
-	ds.BatchSetInHouseAppsInstallersFunc = func(context.Context, *uint, []*fleet.UploadSoftwareInstallerPayload) error { return nil }
+	ds.BatchSetInHouseAppsInstallersFunc = func(context.Context, *uint, []*automdm.UploadSoftwareInstallerPayload) error { return nil }
 	ds.ReconcileWindowsMaintainedAppSoftwareTitlesFunc = func(context.Context) error { return nil }
 	if prepare != nil {
 		prepare(ds)
@@ -4709,7 +4711,7 @@ func runURLBatch(t *testing.T, body []byte, sha256 string, prepare func(*mock.St
 	}
 
 	svc.softwareBatchUpload("req-uuid", new(uint(1)), 1,
-		[]*fleet.SoftwareInstallerPayload{{URL: srv.URL + "/app.pkg", SHA256: sha256, AlwaysDownload: true}}, false)
+		[]*automdm.SoftwareInstallerPayload{{URL: srv.URL + "/app.pkg", SHA256: sha256, AlwaysDownload: true}}, false)
 	got, err := svc.keyValueStore.Get(t.Context(), batchSoftwarePrefix+"req-uuid")
 	require.NoError(t, err)
 	require.NotNil(t, got)
@@ -4717,7 +4719,7 @@ func runURLBatch(t *testing.T, body []byte, sha256 string, prepare func(*mock.St
 }
 
 func TestSoftwareBatchUploadMalformedPackage(t *testing.T) {
-	dev_mode.SetOverride("FLEET_DEV_BATCH_RETRY_INTERVAL", "1ms", t)
+	dev_mode.SetOverride("AUTOMDM_DEV_BATCH_RETRY_INTERVAL", "1ms", t)
 
 	crafted, err := os.ReadFile("testdata/xar_no_data.pkg")
 	require.NoError(t, err)
@@ -4762,7 +4764,7 @@ func TestSoftwareBatchUploadRecoversPanic(t *testing.T) {
 	require.NoError(t, err)
 
 	status, _, logs := runURLBatch(t, valid, "", func(ds *mock.Store) {
-		ds.GetTeamsWithInstallerByHashFunc = func(context.Context, string, string) (map[uint][]*fleet.ExistingSoftwareInstaller, error) {
+		ds.GetTeamsWithInstallerByHashFunc = func(context.Context, string, string) (map[uint][]*automdm.ExistingSoftwareInstaller, error) {
 			panic("boom")
 		}
 	})

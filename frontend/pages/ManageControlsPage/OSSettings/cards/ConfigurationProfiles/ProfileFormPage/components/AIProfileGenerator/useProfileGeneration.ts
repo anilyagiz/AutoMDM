@@ -13,7 +13,7 @@ export const READING_STEP_MS = 1000;
 /** Product's cap on a generation; past it the admin is sent to the manual view. */
 export const GENERATION_TIMEOUT_MS = 10000;
 
-// Fleet's own call to the AI service gives up just inside the cap, so its
+// AutoMDM's own call to the AI service gives up just inside the cap, so its
 // timeout is the cap being reached.
 const SERVER_TIMEOUT_REASON = "The AI service timed out.";
 
@@ -26,11 +26,11 @@ export const GENERATION_STEP_LABELS: Record<GenerationStep, string> = {
 };
 
 export interface IGenerationError {
-  /** "decline" when the AI couldn't make this profile, "limit" when Fleet
+  /** "decline" when the AI couldn't make this profile, "limit" when AutoMDM
    * Free's prompt limit is reached, "failure" otherwise. */
   kind: "decline" | "limit" | "failure";
   reason: string;
-  /** For "limit": whole days until the limit resets, if Fleet said. */
+  /** For "limit": whole days until the limit resets, if AutoMDM said. */
   retryAfterDays?: number;
 }
 
@@ -39,8 +39,8 @@ export type GenerationStatus = "idle" | "generating" | "done" | "error";
 export interface IGenerationRequest {
   instructions: string;
   platform: AutofillConfigProfilePlatform;
-  /** Left out for Unassigned and on Fleet Free. */
-  fleetId?: number;
+  /** Left out for Unassigned and on AutoMDM Free. */
+  automdmId?: number;
 }
 
 interface IGenerationState {
@@ -115,7 +115,7 @@ const useProfileGeneration = ({ onTimeout }: IUseProfileGenerationOptions) => {
   useEffect(() => abortRun, [abortRun]);
 
   const generate = useCallback(
-    ({ instructions, platform, fleetId }: IGenerationRequest) => {
+    ({ instructions, platform, automdmId }: IGenerationRequest) => {
       abortRun();
       const controller = new AbortController();
       controllerRef.current = controller;
@@ -168,7 +168,7 @@ const useProfileGeneration = ({ onTimeout }: IUseProfileGenerationOptions) => {
         );
 
       autofillAPI
-        .getConfigProfileContent({ instructions, platform, fleetId, signal })
+        .getConfigProfileContent({ instructions, platform, automdmId, signal })
         .then((profile) => {
           // The name request keeps running, so a late name can still fill
           // the summary.

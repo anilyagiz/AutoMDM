@@ -8,9 +8,9 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/ee/pkg/hostidentity/types"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/ee/pkg/hostidentity/types"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 )
 
 type key int
@@ -18,8 +18,8 @@ type key int
 const hostIdentityKey key = 0
 
 var sigAuthenticatedEndpoints = []*regexp.Regexp{
-	regexp.MustCompile(`^/api/(?:v1|latest)/fleet/certificate_authorities/\d+/request_certificate$`),
-	regexp.MustCompile(`^/api/fleet/orbit/`),
+	regexp.MustCompile(`^/api/(?:v1|latest)/automdm/certificate_authorities/\d+/request_certificate$`),
+	regexp.MustCompile(`^/api/automdm/orbit/`),
 	regexp.MustCompile(`/osquery/`),
 }
 
@@ -48,7 +48,7 @@ func FromContext(ctx context.Context) (types.HostIdentityCertificate, bool) {
 // to it, and then calls the handler passed as parameter to the MiddlewareFunc.
 type MiddlewareFunc func(http.Handler) http.Handler
 
-func Middleware(ds fleet.Datastore, requireSignature bool, logger *slog.Logger) (MiddlewareFunc, error) {
+func Middleware(ds automdm.Datastore, requireSignature bool, logger *slog.Logger) (MiddlewareFunc, error) {
 	// Initialize HTTP signature verifier
 	httpSig := NewHTTPSig(ds, logger)
 	verifier, err := httpSig.Verifier()
@@ -65,7 +65,7 @@ func Middleware(ds fleet.Datastore, requireSignature bool, logger *slog.Logger) 
 
 			// We do not verify the "ping" endpoint since it is used to get server capabilities and does not carry any data.
 			// This endpoint is unauthenticated.
-			if strings.HasSuffix(req.URL.Path, "/api/fleet/orbit/ping") {
+			if strings.HasSuffix(req.URL.Path, "/api/automdm/orbit/ping") {
 				next.ServeHTTP(w, req)
 				return
 			}

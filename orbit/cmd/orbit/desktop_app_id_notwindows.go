@@ -2,4 +2,4 @@
 
 package main
 
-func registerFleetDesktopAppID(string) {}
+func registerAutoMDMDesktopAppID(string) {}

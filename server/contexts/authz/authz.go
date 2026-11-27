@@ -28,7 +28,7 @@ type AuthenticationMethod int
 // List of supported authentication methods.
 const (
 	// AuthnUserToken is when authentication is done via a user's API token,
-	// obtained via user/password login (or fleetctl for API-only users).
+	// obtained via user/password login (or automdmctl for API-only users).
 	// This authentication mode supports granular authorization.
 	AuthnUserToken AuthenticationMethod = iota
 	// AuthnHostToken is when authentication is done via the osquery host

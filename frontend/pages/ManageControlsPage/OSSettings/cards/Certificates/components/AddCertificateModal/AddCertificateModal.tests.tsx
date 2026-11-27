@@ -18,9 +18,9 @@ const mockOnSuccess = jest.fn();
 
 const NAME_PLACEHOLDER = "VPN certificate";
 const SUBJECT_NAME_PLACEHOLDER =
-  "CN=$FLEET_VAR_HOST_END_USER_IDP_USERNAME, O=Your Organization";
+  "CN=$AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME, O=Your Organization";
 const SAN_PLACEHOLDER =
-  "UPN=$FLEET_VAR_HOST_END_USER_IDP_USERNAME, EMAIL=$FLEET_VAR_HOST_END_USER_IDP_USERNAME";
+  "UPN=$AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME, EMAIL=$AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME";
 
 const getCAsHandler = http.get(baseUrl("/certificate_authorities"), () => {
   return HttpResponse.json({

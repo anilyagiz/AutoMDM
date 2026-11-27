@@ -4,35 +4,35 @@ Status: research / design proposal. Not yet scheduled.
 
 ## Abstract
 
-Fleet manages company-owned Android devices but cannot provision them without a human touching each one:
-an admin generates a one-hour enrollment token and someone scans a QR code on every device. Fleet has a
+AutoMDM manages company-owned Android devices but cannot provision them without a human touching each one:
+an admin generates a one-hour enrollment token and someone scans a QR code on every device. AutoMDM has a
 zero-touch path on Apple (Automated Device Enrollment via Apple Business) and none on Android. This
 document specifies what it would take to close that gap using Google's Android zero-touch enrollment, so
 that a device purchased from a zero-touch reseller ships straight to an employee and provisions itself
-into the correct Fleet team on first boot.
+into the correct AutoMDM team on first boot.
 
 Zero-touch introduces no new enrollment protocol. Google's provisioning service pre-stages the same
-Android Management API (AMAPI) enrollment token Fleet already creates and delivers it to the device
-instead of a QR code. The device then follows the AMAPI path Fleet already supports, and Fleet is notified
+Android Management API (AMAPI) enrollment token AutoMDM already creates and delivers it to the device
+instead of a QR code. The device then follows the AMAPI path AutoMDM already supports, and AutoMDM is notified
 by the Pub/Sub `ENROLLMENT` message it already handles. Profile delivery, software installs, commands, and
 host vitals are reused unchanged.
 
-Four workstreams follow. **One:** decide how Fleet reaches the customer's zero-touch account. There are
+Four workstreams follow. **One:** decide how AutoMDM reaches the customer's zero-touch account. There are
 four options, and the choice drives everything else: Google's **zero-touch iframe**, which is an AMAPI call
-and so needs no new credential and routes through Fleet's existing proxy, but generates a configuration the
+and so needs no new credential and routes through AutoMDM's existing proxy, but generates a configuration the
 admin cannot modify; a **service-account key** for the Android Device Provisioning Partner API, which fits an
 automated cron but currently requires a Google Form and email confirmation to link; **interactive OAuth**,
-self-service but bound to one admin's Google account; or **no integration at all**, with Fleet emitting the
+self-service but bound to one admin's Google account; or **no integration at all**, with AutoMDM emitting the
 provisioning extras for the admin to paste into Google's portal. **Two:** integrate whichever API that
-implies — the provisioning API is already in Fleet's module graph, so no new dependency either way.
-**Three:** build the Fleet side — long-lived reusable tokens, a configuration per team, a reconciliation
-cron, pending-host records, activities, GitOps keys, REST endpoints, UI. **Four:** change how Fleet
-identifies the target team at enrollment. Fleet embeds a mutable enroll secret in the token's
-`additionalData`, so rotating a team's enroll secret silently breaks enrollment for every device that Fleet
+implies — the provisioning API is already in AutoMDM's module graph, so no new dependency either way.
+**Three:** build the AutoMDM side — long-lived reusable tokens, a configuration per team, a reconciliation
+cron, pending-host records, activities, GitOps keys, REST endpoints, UI. **Four:** change how AutoMDM
+identifies the target team at enrollment. AutoMDM embeds a mutable enroll secret in the token's
+`additionalData`, so rotating a team's enroll secret silently breaks enrollment for every device that AutoMDM
 has not seen before — which is every new zero-touch device. That is a correctness prerequisite, not an
 enhancement.
 
-Phase 1 ships usable zero-touch with **no** Google API integration: Fleet emits the DPC extras JSON and the
+Phase 1 ships usable zero-touch with **no** Google API integration: AutoMDM emits the DPC extras JSON and the
 admin pastes it into Google's portal once per team. It is small, unblocks customers immediately, and proves
 the token and team-identity model before the access decision is made. One question should be answered before
 anything is built, because it is cheap and it reshapes the plan: whether the zero-touch iframe can carry
@@ -42,12 +42,12 @@ per-team provisioning extras. If it can, it removes the credential problem entir
 
 - [Scope](#scope)
 - [How Android zero-touch enrollment works](#how-android-zero-touch-enrollment-works)
-- [Where Fleet is today](#where-fleet-is-today)
+- [Where AutoMDM is today](#where-automdm-is-today)
 - [Gap analysis](#gap-analysis)
 - [Google APIs required](#google-apis-required)
 - [Credential and authorization options](#credential-and-authorization-options)
 - [Design](#design)
-- [Fleet modifications](#fleet-modifications)
+- [AutoMDM modifications](#automdm-modifications)
 - [Phased delivery](#phased-delivery)
 - [Edge cases and failure modes](#edge-cases-and-failure-modes)
 - [Testing plan](#testing-plan)
@@ -58,14 +58,14 @@ per-team provisioning extras. If it can, it removes the credential problem entir
 
 ## Scope
 
-Android is the only company-owned platform where Fleet has no zero-touch path.
+Android is the only company-owned platform where AutoMDM has no zero-touch path.
 
-| Platform | Zero-touch mechanism | Fleet status |
+| Platform | Zero-touch mechanism | AutoMDM status |
 | --- | --- | --- |
 | macOS / iOS / iPadOS | Apple Automated Device Enrollment (ADE) via Apple Business | Supported. See `docs/Contributing/mdm/apple/automated-device-enrollment.md` |
 | Android (company-owned) | Google Android zero-touch enrollment | **Not supported — this document** |
 | Windows | Windows Autopilot (via Entra ID) | Supported. See `docs/Contributing/mdm/windows/windows-autopilot.md` and `articles/windows-mdm-setup.md` |
-| ChromeOS | Chrome zero-touch enrollment (same provisioning API, `deviceType` `DEVICE_TYPE_CHROME_OS`) | Out of scope; Fleet has no ChromeOS MDM |
+| ChromeOS | Chrome zero-touch enrollment (same provisioning API, `deviceType` `DEVICE_TYPE_CHROME_OS`) | Out of scope; AutoMDM has no ChromeOS MDM |
 
 Zero-touch supports three management modes, differing only in the `allowPersonalUsage` value on the
 enrollment token:
@@ -101,9 +101,9 @@ mechanism, not just by policy.
    purchase, managed at `https://enterprise.google.com/android/zero-touch/customers`, addressed as
    `customers/{CUSTOMER_ID}`.
 3. **DPC (Device Policy Controller)** — the agent that provisions and manages the device. For AMAPI-based
-   EMMs, that is Google's **Android Device Policy** (`com.google.android.apps.work.clouddpc`). Fleet ships
+   EMMs, that is Google's **Android Device Policy** (`com.google.android.apps.work.clouddpc`). AutoMDM ships
    no DPC.
-4. **EMM (Fleet)** — provides the console where admins manage configurations, calling the customer API on
+4. **EMM (AutoMDM)** — provides the console where admins manage configurations, calling the customer API on
    the admin's behalf.
 
 ### Configurations
@@ -113,10 +113,10 @@ extras handed to that DPC, support contact details, and a message shown during s
 
 | Field | Required | Notes |
 | --- | --- | --- |
-| `configurationName` | Yes | Shown to admins in the portal. Fleet would use the team name. |
+| `configurationName` | Yes | Shown to admins in the portal. AutoMDM would use the team name. |
 | `dpcResourcePath` | Yes | `customers/{CUST_ID}/dpcs/*`. Discover via `customers.dpcs.list`; do not hardcode. |
-| `dpcExtras` | No | JSON string of provisioning extras. **Fleet's enrollment token goes here.** |
-| `companyName` | Yes | Shown on device during provisioning. Fleet would default to the org name in app config. |
+| `dpcExtras` | No | JSON string of provisioning extras. **AutoMDM's enrollment token goes here.** |
+| `companyName` | Yes | Shown on device during provisioning. AutoMDM would default to the org name in app config. |
 | `contactEmail` | Yes | Validated by Google. Shown before provisioning. |
 | `contactPhone` | Yes | Shown before provisioning. Digits, spaces, `+`, `-`, `()`. |
 | `customMessage` | No | One or two sentences shown before provisioning. |
@@ -148,8 +148,8 @@ back to the reseller.
    enrolls into the AMAPI enterprise. (Google's zero-touch guide still names the
    `ACTION_PROVISION_MANAGED_DEVICE` intent here, but that action was deprecated in API level 31 and now
    fails on Android 12+; the current flow uses `ACTION_PROVISION_MANAGED_DEVICE_FROM_TRUSTED_SOURCE` with
-   `ACTION_GET_PROVISIONING_MODE`. This is informational for Fleet, which does not implement a DPC.)
-6. AMAPI publishes an `ENROLLMENT` notification to the enterprise's Pub/Sub topic. **Fleet re-enters here,
+   `ACTION_GET_PROVISIONING_MODE`. This is informational for AutoMDM, which does not implement a DPC.)
+6. AMAPI publishes an `ENROLLMENT` notification to the enterprise's Pub/Sub topic. **AutoMDM re-enters here,
    on the code path it already has.**
 
 ### When provisioning triggers
@@ -200,7 +200,7 @@ the device, where it is expensive to debug.
 
 Other guidance from the EMM guide that does apply:
 
-- Put Fleet-specific values inside `PROVISIONING_ADMIN_EXTRAS_BUNDLE`, not as top-level extras.
+- Put AutoMDM-specific values inside `PROVISIONING_ADMIN_EXTRAS_BUNDLE`, not as top-level extras.
 - Do not put credentials or secrets in a configuration. The enrollment token is the one unavoidable
   exception and is scoped to enrollment.
 - Supported and reasonable to expose later: `EXTRA_PROVISIONING_LOCALE`, `EXTRA_PROVISIONING_TIME_ZONE`,
@@ -218,7 +218,7 @@ Other guidance from the EMM guide that does apply:
 
 ### Devices the organization already owns
 
-An organization's existing Android fleet generally cannot be moved onto zero-touch, and this is the most
+An organization's existing Android team generally cannot be moved onto zero-touch, and this is the most
 consequential limitation for adoption. Registration is performed by the reseller that sold the device;
 there is no self-service path, and Google's newer "automatic zero-touch enrollment" framing in the
 Workspace documentation still requires reseller registration. A device bought at retail or through a
@@ -226,10 +226,10 @@ non-participating channel has no route in.
 
 Devices bought from a participating reseller can often be registered retroactively on request — the
 reseller has the tooling (`partners.devices.claim`) and the sales record — but that is the reseller's call
-and outside Fleet's control. Deregistering also requires the reseller to reverse.
+and outside AutoMDM's control. Deregistering also requires the reseller to reverse.
 
 So zero-touch is a forward-looking capability tied to procurement, not a migration path for an installed
-base. For devices already owned, Fleet's existing enrollment link and QR code reach the same *management*
+base. For devices already owned, AutoMDM's existing enrollment link and QR code reach the same *management*
 end state — a fully managed device in the correct team — at one human touch per device at factory-reset
 time.
 
@@ -242,9 +242,9 @@ Noted for completeness and **not proposed here**: Samsung Knox Mobile Enrollment
 self-registration of already-owned devices via the Knox Deployment App or a KME QR profile, without
 reseller involvement, and can target AMAPI. It is a separate program and a distinct integration effort.
 
-## Where Fleet is today
+## Where AutoMDM is today
 
-Fleet's Android MDM lives in `server/mdm/android/` as a decoupled bounded context (see
+AutoMDM's Android MDM lives in `server/mdm/android/` as a decoupled bounded context (see
 `server/mdm/android/README.md`).
 
 ### Enrollment token creation
@@ -260,7 +260,7 @@ enrollment surface. It:
    `query:` tags, no `json:` tags** (`service.go:480-484`), so the wire format uses Go field names and
    includes a third field:
    `{"EnrollSecret":"...","FullyManaged":false,"IdpUUID":"..."}`. `FullyManaged` is always `false`
-   because `CreateEnrollmentToken` never sets it when marshalling. Fleet's own integration tests encode
+   because `CreateEnrollmentToken` never sets it when marshalling. AutoMDM's own integration tests encode
    this shape (`server/mdm/android/tests/integration_os_version_test.go:82`).
 5. Sets `allowPersonalUsage` from a `fully_managed` query parameter — `PERSONAL_USAGE_DISALLOWED` when
    true, `PERSONAL_USAGE_ALLOWED` otherwise (`service.go:608`).
@@ -270,7 +270,7 @@ enrollment surface. It:
    code.
 
 The frontend surface is `frontend/components/AddHostsModal/PlatformWrapper/AndroidPanel/AndroidPanel.tsx`,
-which offers a work-profile / fully-managed radio and builds a Fleet enrollment URL.
+which offers a work-profile / fully-managed radio and builds an AutoMDM enrollment URL.
 
 ### Enrollment completion
 
@@ -280,17 +280,17 @@ It unmarshals `device.EnrollmentTokenData` back into the same struct, re-verifie
 resolves the team, and creates or updates the host. `addNewHost` (`pubsub.go:893`) is the
 new-device path and maps AMAPI `hardwareInfo.serialNumber` into `host.HardwareSerial` (`pubsub.go:947`),
 which matters for correlating zero-touch device records later. `ENROLLMENT` is among the notification
-types Fleet enables at enterprise creation (`service.go:299`).
+types AutoMDM enables at enterprise creation (`service.go:299`).
 
 ### AMAPI client
 
 `androidmgmt.Client` (`server/mdm/android/service/androidmgmt/client.go`) has two implementations:
 
 - `ProxyClient` — the default. Routes AMAPI calls through `https://fleetdm.com/api/android/` using a
-  per-enterprise `FleetServerSecret` bearer token. Fleet's hosted proxy owns the Google Cloud project, the
+  per-enterprise `AutoMDMServerSecret` bearer token. AutoMDM's hosted proxy owns the Google Cloud project, the
   service credentials, and the Pub/Sub topic.
-- `GoogleClient` — development only, selected when `FLEET_DEV_ANDROID_GOOGLE_CLIENT` is `1`/`ON`
-  (`service.go:115`) with credentials in `FLEET_DEV_ANDROID_GOOGLE_SERVICE_CREDENTIALS`. Talks to Google
+- `GoogleClient` — development only, selected when `AUTOMDM_DEV_ANDROID_GOOGLE_CLIENT` is `1`/`ON`
+  (`service.go:115`) with credentials in `AUTOMDM_DEV_ANDROID_GOOGLE_SERVICE_CREDENTIALS`. Talks to Google
   directly with a service account.
 
 This proxy architecture is the most important existing constraint on the design.
@@ -299,12 +299,12 @@ This proxy architecture is the most important existing constraint on the design.
 
 `android_enterprises` holds one row: `enterprise_id`, `signup_name`, `signup_token`, `pubsub_topic_id`,
 `user_id`. Secrets live in `mdm_config_assets`, encrypted at rest with the server private key
-(`server/datastore/mysql/apple_mdm.go:6007`), under names in `server/fleet/mdm.go` —
-`android_pubsub_token`, `android_fleet_server_secret`. There is no per-team Android enrollment state.
+(`server/datastore/mysql/apple_mdm.go:6007`), under names in `server/automdm/mdm.go` —
+`android_pubsub_token`, `android_automdm_server_secret`. There is no per-team Android enrollment state.
 
 ## Gap analysis
 
-| Capability | Needed for zero-touch | Fleet today |
+| Capability | Needed for zero-touch | AutoMDM today |
 | --- | --- | --- |
 | Long-lived, reusable enrollment token | Yes — one token serves many devices over months | 1 hour, `oneTimeOnly: true` |
 | Stable team identification in the token | Yes — the token outlives enroll secret rotations | Embeds the mutable enroll secret |
@@ -324,7 +324,7 @@ This proxy architecture is the most important existing constraint on the design.
 ### 1. Android Device Provisioning Partner API — customer surface (new)
 
 - **Service**: `androiddeviceprovisioning.googleapis.com`
-- **Go package**: `google.golang.org/api/androiddeviceprovisioning/v1` — already in Fleet's module graph
+- **Go package**: `google.golang.org/api/androiddeviceprovisioning/v1` — already in AutoMDM's module graph
   via `google.golang.org/api v0.269.0` (`go.mod:181`). No new dependency. It exposes `CustomersService`,
   `CustomersConfigurationsService`, `CustomersDevicesService`, and `CustomersDpcsService`.
 - **OAuth scope**: `https://www.googleapis.com/auth/androidworkzerotouchemm`. This differs from the
@@ -334,12 +334,12 @@ This proxy architecture is the most important existing constraint on the design.
 - **Required header for error handling**: `X-GOOG-API-FORMAT-VERSION: 2`, without which Google does not
   return the structured `TosError` detail described below.
 
-| Method | Use in Fleet |
+| Method | Use in AutoMDM |
 | --- | --- |
 | `customers.list` | Discover the customer accounts the credential can act on. Returns `Company` objects — "the customer accounts the calling user is a member of" — and is paginated. |
 | `customers.dpcs.list` | Find the Android Device Policy resource path for `dpcResourcePath`. Match on the last path component; never hardcode. |
-| `customers.configurations.list` | Diff Fleet's rows against Google's; detect out-of-band edits and deletions. |
-| `customers.configurations.create` | Create a configuration per Fleet team. |
+| `customers.configurations.list` | Diff AutoMDM's rows against Google's; detect out-of-band edits and deletions. |
+| `customers.configurations.create` | Create a configuration per AutoMDM team. |
 | `customers.configurations.patch` | Update `dpcExtras` on token rotation, metadata on team rename. |
 | `customers.configurations.delete` | Remove a configuration when a team is deleted or opts out. |
 | `customers.devices.list` | Enumerate claimed devices for pending-host records. Paginated via `nextPageToken`. |
@@ -348,26 +348,26 @@ This proxy architecture is the most important existing constraint on the design.
 | `customers.devices:removeConfiguration` | Remove a device's configuration. |
 | `customers.devices:unclaim` | Destructive and reseller-only to reverse; expose behind explicit confirmation, if at all. |
 
-Not needed: the `partners.*` reseller surface. Device claiming is a supply-chain function and Fleet should
+Not needed: the `partners.*` reseller surface. Device claiming is a supply-chain function and AutoMDM should
 not attempt to become a reseller.
 
 **Terms of service**: calls return `403 Forbidden` with a `TosError` body until the acting user has
-accepted the current zero-touch terms. Fleet must detect this case specifically and link to
+accepted the current zero-touch terms. AutoMDM must detect this case specifically and link to
 `https://enterprise.google.com/android/zero-touch/customers`. Google can update terms at any time, so this
 is not a setup-only error — it can appear on a working integration and must be handled in the cron.
 
 ### 2. Android Management API (existing, extended)
 
-New usage of an API Fleet already calls:
+New usage of an API AutoMDM already calls:
 
 - `enterprises.enrollmentTokens.create` with:
   - `duration` set explicitly. Accepts 1 minute to roughly 10,000 years; default 1 hour. A duration that
     would overflow the maximum timestamp is coerced.
   - `oneTimeOnly: false`, so many devices can use one token.
   - `allowPersonalUsage` per management mode.
-  - `additionalData` — max 1024 characters, surfaced on the device as `enrollmentTokenData`. Fleet's only
+  - `additionalData` — max 1024 characters, surfaced on the device as `enrollmentTokenData`. AutoMDM's only
     channel for carrying team intent through provisioning; the ceiling is a real constraint.
-  - `policyName` — Fleet already points this at `{enterprise}/policies/1`
+  - `policyName` — AutoMDM already points this at `{enterprise}/policies/1`
     (`android.DefaultAndroidPolicyID`).
 - `enterprises.enrollmentTokens.delete` — revoke a leaked or superseded token.
 - `enterprises.enrollmentTokens.list` — lists active, unexpired tokens, but **returns only a partial
@@ -382,7 +382,7 @@ Unchanged. Zero-touch devices produce the same `ENROLLMENT` notification as QR-c
 
 ### 4. Optional: AMAPI `signinDetail`, only if end-user IdP auth is required
 
-Zero-touch hands the device a token with no browser involved, so Fleet's existing IdP flow cannot apply.
+Zero-touch hands the device a token with no browser involved, so AutoMDM's existing IdP flow cannot apply.
 That flow takes the IdP account either from an explicit `idp_uuid` query parameter, which is checked first
 (`service.go:500`), or from a cookie (`mdm.BYODIdpCookieName`, `service.go:508`) — both of which require a
 browser. Note the requirement itself is not BYOD-specific: `RequiresEnrollOTAAuthentication`
@@ -400,7 +400,7 @@ extra to a QR code, NFC payload, or **Zero-touch configuration**." Google's cano
 in fact the *sign-in* variant — its placeholder inside `PROVISIONING_ADMIN_EXTRAS_BUNDLE` is
 `"{Sign In URL token}"`, not a plain enrollment token.
 
-**A cheaper mechanism probably covers Fleet's need.** `googleAuthenticationOptions` on the enrollment token
+**A cheaper mechanism probably covers AutoMDM's need.** `googleAuthenticationOptions` on the enrollment token
 takes `authenticationRequirement` (`OPTIONAL` / `REQUIRED`) and `requiredAccountEmail`, overrides the
 enterprise-wide `googleAuthenticationSettings` policy, and hides the Skip button on the Google sign-in
 screen. It applies to a plain enrollment token and therefore to zero-touch, giving account-attributed
@@ -408,9 +408,9 @@ enrollment with no device-facing web flow. Caveat: it is **not** present in the 
 `google.golang.org/api v0.269.0` generated code, so it needs a library bump. Google also notes that
 `PERSONAL_USAGE_DISALLOWED` already "requires users to sign in with a work email to access the device."
 
-`signinDetail` remains a substantial sub-project — Fleet would serve an unauthenticated, device-facing web
+`signinDetail` remains a substantial sub-project — AutoMDM would serve an unauthenticated, device-facing web
 flow that mints enrollment tokens. **Recommendation: exclude `signinDetail` from initial scope and evaluate
-`googleAuthenticationOptions` first**, since it is a field on a call Fleet already makes.
+`googleAuthenticationOptions` first**, since it is a field on a call AutoMDM already makes.
 
 ## Credential and authorization options
 
@@ -419,34 +419,34 @@ This decision gates Phase 2 and should be settled before implementation starts.
 ### Option A — Service account key uploaded by the admin
 
 The admin creates a Google Cloud project, enables the API, creates a service account, downloads its JSON
-key, and uploads it to Fleet. Fleet uses two-legged OAuth with the `androidworkzerotouchemm` scope.
+key, and uploads it to AutoMDM. AutoMDM uses two-legged OAuth with the `androidworkzerotouchemm` scope.
 
 - **Pros**: no refresh-token lifecycle, no consent UI, no dependency on one person's Google account.
   Google recommends service accounts for continuously-running automated services, which is what the
-  reconciliation cron is. Mirrors Fleet's ABM token UX: do work in the vendor portal, download a
+  reconciliation cron is. Mirrors AutoMDM's ABM token UX: do work in the vendor portal, download a
   credential, upload it.
 - **Cons**: the service account must be linked to the customer account, and per Google's current
   documentation that linking is a **Google Form submission followed by email confirmation**, not a portal
-  action. That is human latency of unknown duration on the customer's critical path, opaque to Fleet.
+  action. That is human latency of unknown duration on the customer's critical path, opaque to AutoMDM.
 - **Verify first**: whether the customer portal has since gained a self-service linking screen (the
   reseller portal has one), and whether there is a limit on linked service accounts per organization.
 
 ### Option B — Interactive OAuth (three-legged)
 
-Fleet registers an OAuth client; the admin consents with the Google account their reseller established in
-the zero-touch account; Fleet stores the refresh token. This is the pattern Google's EMM integration guide
+AutoMDM registers an OAuth client; the admin consents with the Google account their reseller established in
+the zero-touch account; AutoMDM stores the refresh token. This is the pattern Google's EMM integration guide
 describes.
 
-- **Pros**: self-service, no Google Form, works immediately after consent. Consistent with Fleet's AMAPI
-  signup, which already round-trips through `fleetdm.com` with a callback URL.
+- **Pros**: self-service, no Google Form, works immediately after consent. Consistent with AutoMDM's AMAPI
+  signup, which already round-trips through `automdm.com` with a callback URL.
 - **Cons**: the grant is bound to one person's Google account and breaks when their access is removed — a
   recurring support burden. `androidworkzerotouchemm` is likely a sensitive scope requiring Google app
-  verification, a schedule risk. Refresh tokens can be revoked without notice, so Fleet needs re-consent
-  detection. Self-hosted Fleet needs its own OAuth client or a proxy-mediated redirect URI.
+  verification, a schedule risk. Refresh tokens can be revoked without notice, so AutoMDM needs re-consent
+  detection. Self-hosted AutoMDM needs its own OAuth client or a proxy-mediated redirect URI.
 
-### Option C — No API: Fleet emits the DPC extras, admin pastes them
+### Option C — No API: AutoMDM emits the DPC extras, admin pastes them
 
-Fleet generates a long-lived reusable token per team and displays the complete `dpcExtras` JSON with a
+AutoMDM generates a long-lived reusable token per team and displays the complete `dpcExtras` JSON with a
 copy button and portal instructions. The admin creates the configuration by hand.
 
 - **Pros**: no API integration, no credential storage, no authorization risk. Works for every customer
@@ -456,19 +456,19 @@ copy button and portal instructions. The admin creates the configuration by hand
 
 ### Option D — The AMAPI zero-touch iframe
 
-Google ships a path purpose-built for AMAPI EMMs that avoids the provisioning API entirely. Fleet calls
+Google ships a path purpose-built for AMAPI EMMs that avoids the provisioning API entirely. AutoMDM calls
 `enterprises.webTokens.create` with `iframeFeature: 'ZERO_TOUCH'`, then embeds
 `https://enterprise.google.com/android/zero-touch/embedded/companyhome` with `token`, `dpcId`
 (`com.google.android.apps.work.clouddpc`), and an optional `dpcExtras` URL parameter carrying URL-encoded
 provisioning extras. The admin links their own zero-touch account from inside the iframe.
 
-- **Pros**: `webTokens.create` is an **AMAPI** call, so it routes through Fleet's existing proxy with the
+- **Pros**: `webTokens.create` is an **AMAPI** call, so it routes through AutoMDM's existing proxy with the
   existing credential. No customer-supplied credential, no Google Form, no OAuth client, no new API
   integration, and no new secret to store. Google's IT-admin help actively points customers at it: "Many
   EMMs also implement the zero-touch iframe to simplify the process of setting up zero-touch devices after
   you purchase them from a reseller."
 - **Cons**, and they are structural: "The zero-touch iframe automatically generates a zero-touch
-  configuration. This configuration is not modifiable by the IT admin." Fleet sets the extras once via the
+  configuration. This configuration is not modifiable by the IT admin." AutoMDM sets the extras once via the
   `dpcExtras` URL parameter and otherwise does not control the configuration. That appears to rule out the
   configuration-per-team model this document is built on, and with it per-device team assignment,
   pending-host records, and drift detection — everything that needs `customers.*`. Google also describes
@@ -492,23 +492,23 @@ cheap to answer and changes the plan materially.
   out of scope. It removes the entire credential problem, which is otherwise this project's largest risk.
 
 Either way C remains worth shipping first: it is small, unblocks customers immediately, and everything it
-forces Fleet to get right — long-lived tokens, the team-identity fix, extras generation — is reused by every
+forces AutoMDM to get right — long-lived tokens, the team-identity fix, extras generation — is reused by every
 other option.
 
-### The Fleet Cloud proxy question
+### The AutoMDM Cloud proxy question
 
 This applies to Options A and B only; Option D routes through the existing proxy by construction.
 
-Fleet's AMAPI traffic defaults through `https://fleetdm.com/api/android/`, with Fleet's hosted project
+AutoMDM's AMAPI traffic defaults through `https://fleetdm.com/api/android/`, with AutoMDM's hosted project
 owning the credentials. The **provisioning API** cannot follow that model:
 
-- The customer's zero-touch account was established by *their* reseller. Fleet's hosted service account
+- The customer's zero-touch account was established by *their* reseller. AutoMDM's hosted service account
   has no relationship to it and cannot gain one without the customer linking it.
 - A single shared service account linked to many customer accounts would make `customers.list` return
-  every linked customer to every caller, putting Fleet's proxy in charge of tenant isolation on a
+  every linked customer to every caller, putting AutoMDM's proxy in charge of tenant isolation on a
   credential with no per-tenant scoping. **Reject this.**
 
-So under A or B, zero-touch credentials are **per-Fleet-instance and customer-supplied** and provisioning
+So under A or B, zero-touch credentials are **per-AutoMDM-instance and customer-supplied** and provisioning
 API calls go **direct to Google**, regardless of how AMAPI traffic is routed. That is a deliberate
 divergence from the rest of Android MDM and should be commented in the code. Under D the question does not
 arise, which is a further argument for resolving D first.
@@ -517,14 +517,14 @@ arise, which is a further argument for resolving D first.
 
 ### Configuration per team
 
-Each Fleet team that opts into zero-touch gets one long-lived enrollment token carrying that team's
+Each AutoMDM team that opts into zero-touch gets one long-lived enrollment token carrying that team's
 identity in `additionalData` and its management mode in `allowPersonalUsage`, plus one Configuration whose
 `dpcExtras` embeds that token and whose `configurationName` derives from the team name.
 
-Google permits one default configuration per customer account, so Fleet exposes a single **default team
+Google permits one default configuration per customer account, so AutoMDM exposes a single **default team
 for zero-touch**. That team's configuration carries `isDefault: true` and receives all newly purchased
 devices; other teams' devices are placed with `customers.devices:applyConfiguration`. Changing the default
-patches two configurations, and Fleet must read back Google's state rather than assume its own view is
+patches two configurations, and AutoMDM must read back Google's state rather than assume its own view is
 authoritative, because setting a new default silently flips the old one to `false`.
 
 `allowPersonalUsage` is fixed at token creation, so a configuration is per (team, management mode). Keep
@@ -544,13 +544,13 @@ if err != nil {
 ```
 
 Fine for a one-hour token. For a token embedded in a configuration for a year it is a latent outage:
-**once an admin rotates that team's enroll secret, every zero-touch device Fleet has never seen before
-enrolls into AMAPI and then fails to become a Fleet host** — managed by Google, invisible in Fleet, visible
+**once an admin rotates that team's enroll secret, every zero-touch device AutoMDM has never seen before
+enrolls into AMAPI and then fails to become an AutoMDM host** — managed by Google, invisible in AutoMDM, visible
 only as a repeating Pub/Sub error.
 
 The scope matters. `enrollHost` branches on `getExistingHost`, and only the new-device path is fatal. For a
-device Fleet already knows, a secret that fails to verify is explicitly tolerated (`pubsub.go:628-631`,
-`if err != nil && !fleet.IsNotFound(err)`) and the host keeps its existing team. Since `getAndroidHostKey`
+device AutoMDM already knows, a secret that fails to verify is explicitly tolerated (`pubsub.go:628-631`,
+`if err != nil && !automdm.IsNotFound(err)`) and the host keeps its existing team. Since `getAndroidHostKey`
 is stable across unenroll/re-enroll for the same device and enterprise, a *factory-reset* zero-touch device
 takes the tolerant path and survives. The breakage lands on new hardware out of the box — the primary
 zero-touch scenario, so the finding stands, but it is not every device.
@@ -599,7 +599,7 @@ deliberate deviation.
 ### Pending hosts
 
 `customers.devices.list` returns hardware identifiers before a device has ever booted, and AMAPI reports
-`hardwareInfo.serialNumber` at enrollment, which Fleet stores as `HardwareSerial` (`pubsub.go:947`). That
+`hardwareInfo.serialNumber` at enrollment, which AutoMDM stores as `HardwareSerial` (`pubsub.go:947`). That
 enables an Android analogue of Apple's `host_dep_assignments` "awaiting enrollment" view.
 
 Caveats:
@@ -609,7 +609,7 @@ Caveats:
 - AMAPI documents that on personally-owned devices running Android 12+, `serialNumber` is the same value as
   `enterpriseSpecificId` rather than a real serial. Company-owned zero-touch devices should report a true
   serial, but the code must not assume the field is meaningful.
-- Normalize on both sides before comparing. `fleet.Preprocess` (`server/fleet/utils.go:65`) covers only
+- Normalize on both sides before comparing. `automdm.Preprocess` (`server/automdm/utils.go:65`) covers only
   whitespace trimming and Unicode NFC — it does **not** case-fold or strip leading zeros, so those need
   handling separately. Google also warns that `serialNumber` "might not be unique across different device
   models," so serial alone is not a safe key. For dual-SIM devices Google advises resellers to register the
@@ -623,11 +623,11 @@ Two registrations exist, owned by different parties. Conflating them produces wr
 lock-in.
 
 **The zero-touch claim belongs to the customer.** It lives in their customer account, created by their
-reseller against their organization. Fleet is not a party to it. Fleet's credential is a delegated caller
+reseller against their organization. AutoMDM is not a party to it. AutoMDM's credential is a delegated caller
 the customer can revoke at any time without affecting the claim.
 
-**The AMAPI enterprise is bound to Fleet.** `EnterprisesCreate` passes `ProjectId(g.androidProjectID)`
-(`androidmgmt/google_client.go:92`), so the enterprise belongs to a Google Cloud project — Fleet's, in the
+**The AMAPI enterprise is bound to AutoMDM.** `EnterprisesCreate` passes `ProjectId(g.androidProjectID)`
+(`androidmgmt/google_client.go:92`), so the enterprise belongs to a Google Cloud project — AutoMDM's, in the
 default proxy deployment. That makes it an *EMM-managed* enterprise, which cannot be transferred to
 another EMM's project. A deployment using `GoogleClient` with the customer's own credentials would create
 it under the customer's project instead; that path is development-only today, but it is the lever if
@@ -636,16 +636,16 @@ enterprise ownership becomes a customer requirement.
 **The only coupling between the two systems is the enrollment token string in `dpcExtras`** — a mutable
 field in a record the customer owns.
 
-Migrating away from Fleet:
+Migrating away from AutoMDM:
 
 - **The zero-touch side migrates cleanly.** Portal admins replace the token in `dpcExtras` with the
   incoming EMM's, or point devices at a new configuration. Devices stay claimed; no reseller involvement.
-  They can do this **without Fleet's cooperation**, even if the instance is gone. Worth stating plainly in
+  They can do this **without AutoMDM's cooperation**, even if the instance is gone. Worth stating plainly in
   customer-facing material.
 - **The AMAPI side requires a factory reset per device.** Device Owner cannot be transferred over the air
   between EMM enterprises. AMAPI's DPC migration facility covers custom-DPC-to-Android-Device-Policy
   *within one enterprise*, not cross-EMM. This is a universal Android Enterprise constraint and applies
-  identically to customers migrating *to* Fleet.
+  identically to customers migrating *to* AutoMDM.
 - **Zero-touch makes migration easier.** Repoint the configuration, then factory reset in batches; each
   device self-provisions into the new EMM with no hands-on step.
 
@@ -654,7 +654,7 @@ deletion of all AM API devices associated with the deleted enterprise" and is on
 EMM-managed enterprises. `Service.DeleteEnterprise` (`service.go:424`, calling `EnterpriseDelete` at
 `service.go:442`) runs when an admin turns off Android MDM. **It is not the only caller**: a second path
 reaches `EnterpriseDelete` at `service.go:820` from `VerifyExistingEnterpriseIfAny` (`service.go:801`), which
-the `cleanup_android_enterprise` cron job invokes (`cmd/fleet/cron.go:1600`). The cascade can therefore fire
+the `cleanup_android_enterprise` cron job invokes (`cmd/automdm/cron.go:1600`). The cascade can therefore fire
 with no admin action at all. If zero-touch configurations exist, deleting
 the enterprise invalidates the token still embedded in them, so every subsequent factory reset hits a dead
 token and cannot complete provisioning. **Turning off Android MDM therefore breaks provisioning for every
@@ -666,7 +666,7 @@ Mitigations:
   and device counts. Treat as a Phase 2 release blocker.
 - The `cleanup_android_enterprise` cron path needs the same guard. A UI-only check leaves the cascade
   reachable from a background job, which is the worse case because no one is watching when it fires.
-- Provide a "prepare for migration" action that deletes Fleet's configurations (leaving claims intact)
+- Provide a "prepare for migration" action that deletes AutoMDM's configurations (leaving claims intact)
   before enterprise deletion, so devices boot unmanaged instead of looping.
 - Document the order: repoint or delete configurations → reset devices → delete the enterprise.
 - Verify on hardware what state devices land in after a cascaded enterprise deletion. Google does not
@@ -674,13 +674,13 @@ Mitigations:
 
 ### Reconciliation cron
 
-Following `newAndroidMDMDeviceReconcilerSchedule` (`cmd/fleet/cron.go:2515`) and registered in
-`cmd/fleet/cron_registration.go`:
+Following `newAndroidMDMDeviceReconcilerSchedule` (`cmd/automdm/cron.go:2515`) and registered in
+`cmd/automdm/cron_registration.go`:
 
 1. Verify the credential; mark the integration invalid and stop if it fails.
 2. `customers.list` — confirm the expected customer account is still reachable.
 3. `customers.dpcs.list` — refresh the Android Device Policy resource path.
-4. `customers.configurations.list` — diff against Fleet's rows. Recreate configurations deleted out of
+4. `customers.configurations.list` — diff against AutoMDM's rows. Recreate configurations deleted out of
    band, re-patch drifted `dpcExtras`, reconcile which configuration Google considers default.
 5. Rotate tokens approaching expiry.
 6. `customers.devices.list` (paginated) — upsert pending device records, reconcile per-device assignments
@@ -694,7 +694,7 @@ reconciler needed its pagination loop bounded (commit `8a65ecf20bf`) and the sam
 Google's per-project quotas for this API are not stated in the documentation reviewed and should be
 confirmed before choosing an interval for large fleets.
 
-## Fleet modifications
+## AutoMDM modifications
 
 ### New package
 
@@ -726,7 +726,7 @@ Plus a `mock/` package in the style of `server/mdm/android/mock/client.go`, and 
 
 ### Database
 
-Two new tables. Timestamps at `TIMESTAMP(6)` precision per Fleet's MySQL conventions.
+Two new tables. Timestamps at `TIMESTAMP(6)` precision per AutoMDM's MySQL conventions.
 
 ```sql
 CREATE TABLE `android_zero_touch_configurations` (
@@ -738,7 +738,7 @@ CREATE TABLE `android_zero_touch_configurations` (
   `configuration_id` VARCHAR(64) NOT NULL DEFAULT '',
   `configuration_name` VARCHAR(255) NOT NULL DEFAULT '',
   `is_default` TINYINT(1) NOT NULL DEFAULT '0',
-  -- Fleet-side intent
+  -- AutoMDM-side intent
   `management_mode` VARCHAR(40) NOT NULL,  -- store the AMAPI allowPersonalUsage value verbatim,
                                            -- not the GitOps alias; map at the YAML boundary
   `company_name` VARCHAR(255) NOT NULL DEFAULT '',
@@ -755,7 +755,7 @@ CREATE TABLE `android_zero_touch_configurations` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `idx_android_zt_global_or_team_id` (`global_or_team_id`),
   KEY `fk_android_zt_team_id` (`team_id`),
-  -- SET NULL, not CASCADE: the row must survive team deletion so the cron knows Fleet created the
+  -- SET NULL, not CASCADE: the row must survive team deletion so the cron knows AutoMDM created the
   -- Google-side configuration and may therefore delete it. See the failure-mode table.
   CONSTRAINT `fk_android_zt_team_id` FOREIGN KEY (`team_id`) REFERENCES `teams` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -794,7 +794,7 @@ the migration timestamp will likely need bumping before merge.
 
 ### Secrets
 
-New `MDMAssetName` values in `server/fleet/mdm.go`, encrypted in `mdm_config_assets`:
+New `MDMAssetName` values in `server/automdm/mdm.go`, encrypted in `mdm_config_assets`:
 
 - `android_zero_touch_service_account` — uploaded service-account JSON key (Option A).
 - `android_zero_touch_oauth_refresh_token` — refresh token (Option B).
@@ -806,22 +806,22 @@ New `MDMAssetName` values in `server/fleet/mdm.go`, encrypted in `mdm_config_ass
 ### Service layer and API
 
 New endpoints in `server/mdm/android/service/handler.go`, with request/response structs carrying
-`Err error` per Fleet's API conventions. Paths below use `:name` for readability; Fleet registers with
+`Err error` per AutoMDM's API conventions. Paths below use `:name` for readability; AutoMDM registers with
 gorilla-mux brace syntax — `{token}` at `handler.go:35`, `{id:[0-9]+}` elsewhere — so the real
 registrations would use `{team_id:[0-9]+}` and `{id:[0-9]+}`.
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `GET` | `/api/_version_/fleet/android_enterprise/zero_touch` | Status: linked customer, credential validity, ToS state, last sync, errors |
-| `POST` | `/api/_version_/fleet/android_enterprise/zero_touch/credentials` | Upload service-account key, or begin OAuth |
-| `DELETE` | `/api/_version_/fleet/android_enterprise/zero_touch/credentials` | Disconnect |
-| `GET` | `/api/_version_/fleet/android_enterprise/zero_touch/configurations` | List Fleet's configurations |
-| `PUT` | `/api/_version_/fleet/android_enterprise/zero_touch/configurations/:team_id` | Create or update a team's configuration |
-| `DELETE` | `/api/_version_/fleet/android_enterprise/zero_touch/configurations/:team_id` | Remove |
-| `POST` | `/api/_version_/fleet/android_enterprise/zero_touch/configurations/:team_id/rotate_token` | Force rotation |
-| `GET` | `/api/_version_/fleet/android_enterprise/zero_touch/dpc_extras/:team_id` | Phase 1: the copy-paste JSON |
-| `GET` | `/api/_version_/fleet/android_enterprise/zero_touch/devices` | Paginated device list with team and enrollment status |
-| `POST` | `/api/_version_/fleet/android_enterprise/zero_touch/devices/:id/team` | Move a device to a team |
+| `GET` | `/api/_version_/automdm/android_enterprise/zero_touch` | Status: linked customer, credential validity, ToS state, last sync, errors |
+| `POST` | `/api/_version_/automdm/android_enterprise/zero_touch/credentials` | Upload service-account key, or begin OAuth |
+| `DELETE` | `/api/_version_/automdm/android_enterprise/zero_touch/credentials` | Disconnect |
+| `GET` | `/api/_version_/automdm/android_enterprise/zero_touch/configurations` | List AutoMDM's configurations |
+| `PUT` | `/api/_version_/automdm/android_enterprise/zero_touch/configurations/:team_id` | Create or update a team's configuration |
+| `DELETE` | `/api/_version_/automdm/android_enterprise/zero_touch/configurations/:team_id` | Remove |
+| `POST` | `/api/_version_/automdm/android_enterprise/zero_touch/configurations/:team_id/rotate_token` | Force rotation |
+| `GET` | `/api/_version_/automdm/android_enterprise/zero_touch/dpc_extras/:team_id` | Phase 1: the copy-paste JSON |
+| `GET` | `/api/_version_/automdm/android_enterprise/zero_touch/devices` | Paginated device list with team and enrollment status |
+| `POST` | `/api/_version_/automdm/android_enterprise/zero_touch/devices/:id/team` | Move a device to a team |
 
 Authorize first in the service method; validate inputs there too, accumulating into one
 `InvalidArgumentError`; wrap errors with `ctxerr.Wrap`; return client errors as 4xx without logging them
@@ -829,10 +829,10 @@ as server errors. Google-side validation failures — a rejected `contactEmail`,
 are client errors, not 500s. Validate both fields locally as well, so the admin gets a field-level error
 instead of a round-trip failure.
 
-**Tier gating needs a product decision.** Zero-touch is a company-owned-fleet feature, which argues for
+**Tier gating needs a product decision.** Zero-touch is a company-owned-automdm feature, which argues for
 Premium, consistent with ABM/ADE. The mechanism is less open than it first appears: `server/mdm/android/`
 itself contains no license checks, but Android tier gating already exists outside the bounded context —
-`fleet.AndroidPremiumOnlyJSONKeys` (`server/fleet/android.go:59`, enforced at `:87`) gates `systemUpdate`
+`automdm.AndroidPremiumOnlyJSONKeys` (`server/automdm/android.go:59`, enforced at `:87`) gates `systemUpdate`
 in Android profiles, and `ee/server/service/` does hold Android code (`service.go:47` carries
 `androidModule android.Service`; `hosts.go` dispatches Android lock/wipe; `mdm.go` has
 `clearPasscodeAndroid`). Gating outside the bounded context, with the module injected into the EE service,
@@ -859,7 +859,7 @@ New types, documented in `docs/API/global-audit-logs.md`: `enabled_android_zero_
 
 ### GitOps
 
-**There is no top-level `mdm:` key in Fleet GitOps.** Valid top-level keys are enumerated at
+**There is no top-level `mdm:` key in AutoMDM GitOps.** Valid top-level keys are enumerated at
 `pkg/spec/gitops.go:522`: `name`, `settings`, `org_settings`, `agent_options`, `controls`, `policies`,
 `reports`, `software`, `labels`, `custom_host_vitals`. Existing Android settings live under
 `controls.android_settings`, and MDM connector configuration under `org_settings.mdm`, which is
@@ -869,7 +869,7 @@ That forces a choice, and it should be made deliberately rather than by picking 
 tidiest:
 
 - **Connector-shaped** — put it under `org_settings.mdm`, following `apple_business`, which is documented as
-  configurable only for "All fleets." Global credential plus per-team configuration then cannot both live in
+  configurable only for "All teams." Global credential plus per-team configuration then cannot both live in
   YAML, so per-team settings would need another home.
 - **Controls-shaped** — put per-team settings under `controls.android_settings.zero_touch`, which works in
   `default.yml`, `teams/*.yml`, and `teams/no-team.yml`, with the credential handled separately under
@@ -907,9 +907,9 @@ than against the DB.
 - Free/Primo gating per the `tier-modes` conventions, if gated.
 - Command palette entries per the `command-palette` conventions.
 
-### fleetctl
+### automdmctl
 
-`fleetctl get android-zero-touch` or equivalent, plus whatever `fleetctl gitops` needs to round-trip the
+`automdmctl get android-zero-touch` or equivalent, plus whatever `automdmctl gitops` needs to round-trip the
 new keys.
 
 ### Documentation
@@ -932,13 +932,13 @@ carry per-team provisioning extras. A yes reshapes Phase 2 into "wire up `enterp
 render an iframe" and deletes the credential workstream; a no confirms the provisioning-API path below.
 
 **Phase 2 — customer API integration** (only if the iframe cannot do per-team). Credential upload and
-validation; client package and mock; configuration table; create/patch/delete from Fleet; reconciliation
+validation; client package and mock; configuration table; create/patch/delete from AutoMDM; reconciliation
 cron; activities; ToS handling; UI; the turn-off guard **and the `cleanup_android_enterprise` cron guard**.
 
 **Phase 3 — device-level management.** Device list sync, pending hosts, per-device override, host
 correlation, hosts-list integration.
 
-**Phase 4 — parity.** GitOps, fleetctl, dedicated-device support, optional provisioning extras, and — only
+**Phase 4 — parity.** GitOps, automdmctl, dedicated-device support, optional provisioning extras, and — only
 if `googleAuthenticationOptions` proves insufficient — `signinDetail` authentication.
 
 Phase 1 is independently shippable and worth doing even if Phases 2–4 never are.
@@ -947,16 +947,16 @@ Phase 1 is independently shippable and worth doing even if Phases 2–4 never ar
 
 | Scenario | Consequence | Handling |
 | --- | --- | --- |
-| Enroll secret rotated while a zero-touch token is live | Devices enroll into AMAPI but never become Fleet hosts — silent, delayed | v2 `team_id` fix plus re-issue on rotation. **Highest-severity item here** |
-| Admin edits or deletes the configuration in Google's portal | Fleet's view is wrong; devices provision with stale extras or not at all | Cron detects drift, restores, records `sync_error` |
-| Team deleted in Fleet | Orphaned Google configuration | Needs a tombstone, or `ON DELETE SET NULL` rather than `CASCADE`. **`CASCADE` is wrong**: once the row is gone Fleet cannot tell it created the Google-side configuration, colliding with the "never delete what Fleet did not create" rule below |
+| Enroll secret rotated while a zero-touch token is live | Devices enroll into AMAPI but never become AutoMDM hosts — silent, delayed | v2 `team_id` fix plus re-issue on rotation. **Highest-severity item here** |
+| Admin edits or deletes the configuration in Google's portal | AutoMDM's view is wrong; devices provision with stale extras or not at all | Cron detects drift, restores, records `sync_error` |
+| Team deleted in AutoMDM | Orphaned Google configuration | Needs a tombstone, or `ON DELETE SET NULL` rather than `CASCADE`. **`CASCADE` is wrong**: once the row is gone AutoMDM cannot tell it created the Google-side configuration, colliding with the "never delete what AutoMDM did not create" rule below |
 | Team was the zero-touch default | New purchases have no default | Refuse deletion, or reassign the default and warn |
 | Token expires | All zero-touch provisioning fails at once, fleet-wide | Rotate 30 days early; treat approaching expiry as a monitored condition |
 | Google ToS updated | Every API call 403s mid-life | Detect `TosError` with `X-GOOG-API-FORMAT-VERSION: 2`; surface an actionable banner |
 | Credential revoked or key deleted | Cron fails silently | Mark integration invalid, surface in UI, stop retrying hot |
 | Android MDM turned off while zero-touch configurations exist | `enterprises.delete` cascades and invalidates the embedded token; each device breaks at its *next* reset, long after the action | Block or hard-warn on turn-off; offer pre-offboarding cleanup. **Phase 2 release blocker** |
-| Customer migrates to another EMM | Factory reset needed per device regardless of EMM; claims unaffected | Document repoint-then-reset order; do not delete the Fleet enterprise first |
-| Two Fleet instances share a customer account | Configurations fight over `isDefault` | Detect unknown configurations; never delete ones Fleet did not create |
+| Customer migrates to another EMM | Factory reset needed per device regardless of EMM; claims unaffected | Document repoint-then-reset order; do not delete the AutoMDM enterprise first |
+| Two AutoMDM instances share a customer account | Configurations fight over `isDefault` | Detect unknown configurations; never delete ones AutoMDM did not create |
 | Device factory reset | Re-provisions via zero-touch | `GetAndroidDeviceLastTeamID` restores the last-known team; keep that precedence |
 | Device unclaimed at the reseller | Zero-touch stops applying; re-registration needs the reseller | Reconcile removals; mark the pending device gone rather than deleting history |
 | Device never boots | Pending host lingers | Show claim age; allow dismissal |
@@ -964,7 +964,7 @@ Phase 1 is independently shippable and worth doing even if Phases 2–4 never ar
 | No network during setup | Zero-touch skipped, device boots unmanaged, then self-resets on first connection to Google after a one-hour warning | Expose `forcedResetTime`; document all three reset triggers |
 | Serial number missing, substituted, or mismatched | Pending device never correlates, or a duplicate host appears | Multi-key correlation with normalization; prefer no match over a wrong one |
 | `additionalData` exceeds 1024 chars | Token creation fails | Validate length before the API call |
-| Non-GMS or pre-8.0 device | Zero-touch does not apply | Document; nothing Fleet can do |
+| Non-GMS or pre-8.0 device | Zero-touch does not apply | Document; nothing AutoMDM can do |
 
 ## Testing plan
 
@@ -981,23 +981,23 @@ Phase 1 is independently shippable and worth doing even if Phases 2–4 never ar
 - **Integration** — extend `server/mdm/android/tests/` and the mock at `cmd/android-amapi-mock/` with a
   provisioning-API surface, so the cron and endpoints run without Google.
 - **Multi-team** — per `CLAUDE.md`: "No team", multiple teams, and the default-team transition.
-- **Multi-host** — at least two zero-touch devices from different manufacturers in manual QA, per Fleet's
+- **Multi-host** — at least two zero-touch devices from different manufacturers in manual QA, per AutoMDM's
   multi-host requirement. OEM differences in serial/IMEI reporting are the likeliest correlation bugs and
   one device will not reveal them.
 - **GitOps** — add, edit, and *remove* the key in all three placements.
 - **Manual QA prerequisites** — a zero-touch customer test account (obtainable from Google with a
   corporate email) and at least one reseller-claimed device. Google's rule that the DPC must be published
-  on Play is satisfied automatically, since Fleet uses Android Device Policy.
+  on Play is satisfied automatically, since AutoMDM uses Android Device Policy.
 - **Frontend** — Jest coverage for the new settings section and Add-hosts tab.
 
 ## Security considerations
 
 - The enrollment token in `dpcExtras` is a bearer credential for joining the AMAPI enterprise. Its blast
-  radius is bounded — it enrolls devices, it cannot read or write Fleet data — but a leaked reusable token
+  radius is bounded — it enrolls devices, it cannot read or write AutoMDM data — but a leaked reusable token
   lets an attacker enroll arbitrary devices into a team, polluting inventory and potentially pulling
   team-scoped configuration profiles. Since Android profiles support variables and certificate templates,
   that warrants a threat-model review.
-- Never place the Fleet enroll secret, IdP credentials, or any Fleet API token in `dpcExtras`. Google gives
+- Never place the AutoMDM enroll secret, IdP credentials, or any AutoMDM API token in `dpcExtras`. Google gives
   the reason, which is stronger than a general secrets-hygiene argument: "A masquerading device may be able
   to use a false IMEI or serial number to read the configuration." Configuration contents are effectively
   readable by anyone who can guess a claimed device's hardware ID.
@@ -1008,11 +1008,11 @@ Phase 1 is independently shippable and worth doing even if Phases 2–4 never ar
 - Team-scope authorization on all new endpoints using the double-authorize pattern.
 - `customers.devices:unclaim` is reseller-only to reverse. Either do not expose it or require typed
   confirmation.
-- Run a `fleet-security-auditor` pass before merge.
+- Run an `automdm-security-auditor` pass before merge.
 
 ## Open questions
 
-Claims in this document come from Google's published reference documentation or from Fleet's source, except
+Claims in this document come from Google's published reference documentation or from AutoMDM's source, except
 where the text says otherwise. Where something is inference, contested between Google's own documents, or
 needs hardware to settle, it is flagged in place in the section it affects — see in particular the
 `dpcExtras` payload, `signinDetail` with zero-touch, service-account linking, and post-offboarding device
@@ -1025,7 +1025,7 @@ state. The questions below are the ones that block decisions.
    partner team on two points: whether customer-account service-account linking is still a Google Form, and
    whether `androidworkzerotouchemm` is a sensitive scope requiring app verification.
 3. **Proxy divergence** — under Options A and B, is "provisioning API goes direct to Google" acceptable to
-   Fleet Cloud, given every other Android call is proxied? Moot under the iframe.
+   AutoMDM Cloud, given every other Android call is proxied? Moot under the iframe.
 4. **Does `googleAuthenticationOptions` satisfy the end-user-authentication requirement?** If yes,
    `signinDetail` drops out of scope entirely and a library bump replaces a multi-week sub-project.
 5. **Tier gating** — Premium or Free? The mechanism already exists (see the service-layer section); this is
@@ -1036,7 +1036,7 @@ state. The questions below are the ones that block decisions.
 7. **Pending hosts** — ship in Phase 3 or defer until real device data exists?
 8. **Multiple customer accounts** — can one organization hold several (per reseller, per region)?
    `customers.list` is paginated and returns every account the caller belongs to; Google's own quickstarts
-   take the first element. Fleet must not do that silently.
+   take the first element. AutoMDM must not do that silently.
 9. **Dedicated devices** — COSU in the first release or deferred? Affects whether management mode must be
    per-configuration rather than per-team.
 
@@ -1084,7 +1084,7 @@ check `googleAuthenticationOptions` first, which is a library bump plus a field.
 - [Migrate existing devices to AMAPI](https://developers.google.com/android/management/dpc-migration)
 - [Notifications (Pub/Sub)](https://developers.google.com/android/management/notifications)
 
-### Fleet
+### AutoMDM
 
 - `server/mdm/android/README.md` — bounded-context rationale
 - `server/mdm/android/service/service.go:549` — `CreateEnrollmentToken`
@@ -1092,6 +1092,6 @@ check `googleAuthenticationOptions` first, which is a library bump plus a field.
 - `server/mdm/android/service/pubsub.go:599` — `enrollHost`
 - `server/mdm/android/service/pubsub.go:893` — `addNewHost`
 - `server/mdm/android/service/androidmgmt/client.go` — AMAPI client interface
-- `cmd/fleet/cron.go:2515` — Android device reconciler cron pattern
+- `cmd/automdm/cron.go:2515` — Android device reconciler cron pattern
 - `docs/Contributing/mdm/apple/automated-device-enrollment.md` — the Apple analogue
 - `docs/Contributing/mdm/android/android-mdm.md`

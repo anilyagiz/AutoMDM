@@ -7,7 +7,7 @@
 
 $displayNamePattern = '^Standard Notes \d'
 $publisher = "Standard Notes"
-$taskName = "fleet-uninstall-standard-notes"
+$taskName = "automdm-uninstall-standard-notes"
 $appDir = "AppData\Local\Programs\@standardnotesinner-desktop"  # in each user's profile
 $taskRunning = 267009  # SCHED_S_TASK_RUNNING
 $timeoutSeconds = 300

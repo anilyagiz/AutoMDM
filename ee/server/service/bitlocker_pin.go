@@ -5,25 +5,25 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/str"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	hostctx "github.com/fleetdm/fleet/v4/server/contexts/host"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm"
-	microsoft_mdm "github.com/fleetdm/fleet/v4/server/mdm/microsoft"
+	"github.com/anilyagiz/automdm/v4/pkg/str"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	hostctx "github.com/anilyagiz/automdm/v4/server/contexts/host"
+	"github.com/anilyagiz/automdm/v4/server/mdm"
+	microsoft_mdm "github.com/anilyagiz/automdm/v4/server/mdm/microsoft"
 )
 
 // BitLocker startup PIN handoff.
 //
-// A standard user can't set a startup PIN without UAC elevation, and the browser modal can't reach fleetd, which runs as SYSTEM.
+// A standard user can't set a startup PIN without UAC elevation, and the browser modal can't reach automdmd, which runs as SYSTEM.
 // So the server stores the PIN encrypted with its private key until the agent collects it once on its next config poll, applies
 // it, and reports back. Only the agent can collect it. An uncollected PIN is cleared by the hourly cleanups cron after its TTL,
 // so the worst case is the TTL plus an hour.
 
 const (
 	bitLockerPINNotNeededMessage   = "This host doesn't need a BitLocker PIN."
-	bitLockerPINAgentTooOldMessage = "Fleet's agent on this host is too old to set a BitLocker PIN. Update fleetd and try again."
-	bitLockerPINUnreadableError    = "Fleet could not read the submitted PIN. Try again."
+	bitLockerPINAgentTooOldMessage = "AutoMDM's agent on this host is too old to set a BitLocker PIN. Update automdmd and try again."
+	bitLockerPINUnreadableError    = "AutoMDM could not read the submitted PIN. Try again."
 )
 
 // bitLockerPINAgentState is whether a host has an agent that could apply an end-user-chosen startup PIN.
@@ -32,31 +32,31 @@ type bitLockerPINAgentState int
 const (
 	// bitLockerPINAgentNotEligible means the host is not Windows, or is not enrolled in Windows MDM, so no agent could apply a PIN.
 	bitLockerPINAgentNotEligible bitLockerPINAgentState = iota
-	// bitLockerPINAgentTooOld means the host is enrolled, but its fleetd predates the BitLocker PIN capability.
+	// bitLockerPINAgentTooOld means the host is enrolled, but its automdmd predates the BitLocker PIN capability.
 	bitLockerPINAgentTooOld
 	bitLockerPINAgentCapable
 )
 
 // bitLockerPINAgent reports whether this host's agent could apply an end-user-chosen BitLocker startup PIN.
-func (svc *Service) bitLockerPINAgent(ctx context.Context, host *fleet.Host) (bitLockerPINAgentState, error) {
-	if host.FleetPlatform() != "windows" {
+func (svc *Service) bitLockerPINAgent(ctx context.Context, host *automdm.Host) (bitLockerPINAgentState, error) {
+	if host.AutoMDMPlatform() != "windows" {
 		return bitLockerPINAgentNotEligible, nil
 	}
 
 	state, err := svc.ds.GetMDMWindowsHostConfigState(ctx, host.UUID)
 	switch {
-	case fleet.IsNotFound(err):
+	case automdm.IsNotFound(err):
 		return bitLockerPINAgentNotEligible, nil
 	case err != nil:
 		return bitLockerPINAgentNotEligible, ctxerr.Wrap(ctx, err, "get windows mdm config state for bitlocker pin")
-	case !state.FleetdBitLockerPINCapable:
+	case !state.AutoMDMdBitLockerPINCapable:
 		return bitLockerPINAgentTooOld, nil
 	}
 	return bitLockerPINAgentCapable, nil
 }
 
-func (svc *Service) SubmitBitLockerPIN(ctx context.Context, host *fleet.Host, pin string) error {
-	// The device auth token in the URL is the authorization for this endpoint; there is no Fleet user.
+func (svc *Service) SubmitBitLockerPIN(ctx context.Context, host *automdm.Host, pin string) error {
+	// The device auth token in the URL is the authorization for this endpoint; there is no AutoMDM user.
 	svc.authz.SkipAuthorization(ctx)
 
 	if err := microsoft_mdm.ValidateBitLockerPIN(pin); err != nil {
@@ -64,9 +64,9 @@ func (svc *Service) SubmitBitLockerPIN(ctx context.Context, host *fleet.Host, pi
 	}
 
 	// Re-check eligibility on submit rather than trusting the page, which may be showing a stale view of a host whose
-	// fleet stopped requiring a PIN, or whose PIN another session already set. The capability is checked first because
+	// team stopped requiring a PIN, or whose PIN another session already set. The capability is checked first because
 	// it comes off a cheap row, and an agent that can't apply a PIN makes the BitLocker status irrelevant.
-	notNeeded := &fleet.BadRequestError{Message: bitLockerPINNotNeededMessage}
+	notNeeded := &automdm.BadRequestError{Message: bitLockerPINNotNeededMessage}
 	agent, err := svc.bitLockerPINAgent(ctx, host)
 	switch {
 	case err != nil:
@@ -74,7 +74,7 @@ func (svc *Service) SubmitBitLockerPIN(ctx context.Context, host *fleet.Host, pi
 	case agent == bitLockerPINAgentNotEligible:
 		return notNeeded
 	case agent == bitLockerPINAgentTooOld:
-		return &fleet.BadRequestError{Message: bitLockerPINAgentTooOldMessage}
+		return &automdm.BadRequestError{Message: bitLockerPINAgentTooOldMessage}
 	}
 	de, err := svc.ds.GetMDMWindowsBitLockerStatus(ctx, host)
 	if err != nil {
@@ -98,8 +98,8 @@ func (svc *Service) SubmitBitLockerPIN(ctx context.Context, host *fleet.Host, pi
 
 // BitLockerPINStateForDevice reports what the My device page needs to decide which modal to show and what to poll for.
 func (svc *Service) BitLockerPINStateForDevice(
-	ctx context.Context, host *fleet.Host,
-) (bool, *fleet.HostBitLockerPINRequest, error) {
+	ctx context.Context, host *automdm.Host,
+) (bool, *automdm.HostBitLockerPINRequest, error) {
 	// Device-authenticated.
 	svc.authz.SkipAuthorization(ctx)
 
@@ -112,7 +112,7 @@ func (svc *Service) BitLockerPINStateForDevice(
 
 	req, err := svc.ds.GetBitLockerPINRequest(ctx, host.ID)
 	switch {
-	case fleet.IsNotFound(err):
+	case automdm.IsNotFound(err):
 		req = nil
 	case err != nil:
 		return false, nil, ctxerr.Wrap(ctx, err, "get bitlocker pin request")
@@ -121,9 +121,9 @@ func (svc *Service) BitLockerPINStateForDevice(
 	// past its TTL is already uncollectable, and a delivered one past the result timeout is no longer waited on, so
 	// report either as timed out.
 	if req != nil && req.Expired(time.Now()) {
-		req = &fleet.HostBitLockerPINRequest{
-			Status:    fleet.BitLockerPINRequestFailed,
-			Error:     fleet.BitLockerPINRequestTimedOutError,
+		req = &automdm.HostBitLockerPINRequest{
+			Status:    automdm.BitLockerPINRequestFailed,
+			Error:     automdm.BitLockerPINRequestTimedOutError,
 			CreatedAt: req.CreatedAt,
 		}
 	}
@@ -132,12 +132,12 @@ func (svc *Service) BitLockerPINStateForDevice(
 }
 
 func (svc *Service) GetBitLockerPINForHost(ctx context.Context) (string, string, error) {
-	// Orbit node key authentication, not a Fleet user.
+	// Orbit node key authentication, not an AutoMDM user.
 	svc.authz.SkipAuthorization(ctx)
 
 	host, ok := hostctx.FromContext(ctx)
 	if !ok {
-		return "", "", ctxerr.Wrap(ctx, fleet.NewAuthRequiredError("internal error: missing host from request context"))
+		return "", "", ctxerr.Wrap(ctx, automdm.NewAuthRequiredError("internal error: missing host from request context"))
 	}
 
 	if svc.config.Server.PrivateKey == "" {
@@ -155,7 +155,7 @@ func (svc *Service) GetBitLockerPINForHost(ctx context.Context) (string, string,
 	if err != nil {
 		// The ciphertext is already gone, so nothing can rescue this submission. Retire it as failed.
 		if outcomeErr := svc.ds.SetBitLockerPINRequestOutcome(ctx, host, requestUUID,
-			fleet.BitLockerPINRequestFailed, bitLockerPINUnreadableError); outcomeErr != nil {
+			automdm.BitLockerPINRequestFailed, bitLockerPINUnreadableError); outcomeErr != nil {
 			svc.logger.ErrorContext(ctx, "retiring undecryptable bitlocker pin request", "err", outcomeErr)
 		}
 		return "", "", ctxerr.Wrap(ctx, err, "internal error: could not decrypt BitLocker PIN")
@@ -165,21 +165,21 @@ func (svc *Service) GetBitLockerPINForHost(ctx context.Context) (string, string,
 }
 
 func (svc *Service) SetBitLockerPINOutcome(
-	ctx context.Context, requestUUID string, outcome fleet.BitLockerPINRequestStatus, clientError string,
+	ctx context.Context, requestUUID string, outcome automdm.BitLockerPINRequestStatus, clientError string,
 ) error {
-	// Orbit node key authentication, not a Fleet user.
+	// Orbit node key authentication, not an AutoMDM user.
 	svc.authz.SkipAuthorization(ctx)
 
 	host, ok := hostctx.FromContext(ctx)
 	if !ok {
-		return ctxerr.Wrap(ctx, fleet.NewAuthRequiredError("internal error: missing host from request context"))
+		return ctxerr.Wrap(ctx, automdm.NewAuthRequiredError("internal error: missing host from request context"))
 	}
 
-	// clientError is untrusted input from fleetd: normalize it before judging whether it says anything.
-	clientError = str.TruncateRunes(strings.TrimSpace(clientError), fleet.BitLockerPINClientErrorMaxLength)
+	// clientError is untrusted input from automdmd: normalize it before judging whether it says anything.
+	clientError = str.TruncateRunes(strings.TrimSpace(clientError), automdm.BitLockerPINClientErrorMaxLength)
 
 	switch outcome {
-	case fleet.BitLockerPINRequestSet:
+	case automdm.BitLockerPINRequestSet:
 		// Record the outcome first, and only go on if it actually landed on a submission this host collected.
 		if err := svc.ds.SetBitLockerPINRequestOutcome(ctx, host, requestUUID, outcome, ""); err != nil {
 			return ctxerr.Wrap(ctx, err, "set bitlocker pin request outcome")
@@ -196,8 +196,8 @@ func (svc *Service) SetBitLockerPINOutcome(
 			svc.logger.ErrorContext(ctx, "requesting refetch after bitlocker pin set", "host_id", host.ID, "err", err)
 			ctxerr.Handle(ctx, err)
 		}
-		// The end user chose the PIN, so this is deliberately recorded with no actor rather than as Fleet-initiated.
-		if err := svc.NewActivity(ctx, nil, fleet.ActivityTypeCreatedDiskEncryptionPIN{
+		// The end user chose the PIN, so this is deliberately recorded with no actor rather than as AutoMDM-initiated.
+		if err := svc.NewActivity(ctx, nil, automdm.ActivityTypeCreatedDiskEncryptionPIN{
 			HostID:          host.ID,
 			HostDisplayName: host.DisplayName(),
 		}); err != nil {
@@ -206,17 +206,17 @@ func (svc *Service) SetBitLockerPINOutcome(
 			ctxerr.Handle(ctx, err)
 		}
 
-	case fleet.BitLockerPINRequestFailed:
+	case automdm.BitLockerPINRequestFailed:
 		if clientError == "" {
-			return fleet.NewInvalidArgumentError("client_error", "cannot be empty when outcome is failed")
+			return automdm.NewInvalidArgumentError("client_error", "cannot be empty when outcome is failed")
 		}
 		if err := svc.ds.SetBitLockerPINRequestOutcome(ctx, host, requestUUID, outcome, clientError); err != nil {
 			return ctxerr.Wrap(ctx, err, "set bitlocker pin request outcome")
 		}
 
 	default:
-		// The outcome is untrusted input from fleetd, so it is truncated rather than echoed whole into the error and the logs.
-		return &fleet.BadRequestError{Message: "unknown outcome " + str.TruncateRunes(string(outcome), 32)}
+		// The outcome is untrusted input from automdmd, so it is truncated rather than echoed whole into the error and the logs.
+		return &automdm.BadRequestError{Message: "unknown outcome " + str.TruncateRunes(string(outcome), 32)}
 	}
 
 	return nil

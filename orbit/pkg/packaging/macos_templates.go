@@ -24,11 +24,11 @@ var macosPackageInfoTemplate = template.Must(template.New("").Option("missingkey
 var macosDistributionTemplate = template.Must(template.New("").Option("missingkey=error").Parse(
 	`<?xml version="1.0" encoding="utf-8"?>
 <installer-gui-script minSpecVersion="2">
-	<title>Fleet osquery</title>
+	<title>AutoMDM osquery</title>
 	<choices-outline>
 	    <line choice="choiceBase"/>
     </choices-outline>
-    <choice id="choiceBase" title="Fleet osquery" enabled="false" selected="true" description="Standard installation for Fleet osquery.">
+    <choice id="choiceBase" title="AutoMDM osquery" enabled="false" selected="true" description="Standard installation for AutoMDM osquery.">
         <pkg-ref id="{{.Identifier}}.base.pkg"/>
     </choice>
     {{/* base.pkg specified here is the foldername that contains the package contents */}}
@@ -66,12 +66,12 @@ if [ -f /opt/orbit/.inband_upgrade ]; then
 	# any plist changes from the upgrade are picked up.
 	echo "Detected in-band upgrade (orbit upgrading orbit). Delaying service"
 	echo "restart to prevent orbit from being stopped mid-install."
-	(sleep 30; pkill fleet-desktop || true; launchctl bootout "system/${DAEMON_LABEL}" || true; launchctl enable "system/${DAEMON_LABEL}"; count=0; while ! launchctl bootstrap system "${DAEMON_PLIST}"; do sleep 1; count=$((count+1)); if [ "$count" -eq 30 ]; then echo "Failed to bootstrap system ${DAEMON_PLIST}"; exit 1; fi; echo "Retrying launchctl bootstrap..."; done; launchctl kickstart "system/${DAEMON_LABEL}") &>/dev/null &
+	(sleep 30; pkill automdm-desktop || true; launchctl bootout "system/${DAEMON_LABEL}" || true; launchctl enable "system/${DAEMON_LABEL}"; count=0; while ! launchctl bootstrap system "${DAEMON_PLIST}"; do sleep 1; count=$((count+1)); if [ "$count" -eq 30 ]; then echo "Failed to bootstrap system ${DAEMON_PLIST}"; exit 1; fi; echo "Retrying launchctl bootstrap..."; done; launchctl kickstart "system/${DAEMON_LABEL}") &>/dev/null &
 	exit 0
 fi
 
 # Stop the previous desktop agent
-pkill fleet-desktop || true
+pkill automdm-desktop || true
 # Remove any pre-existing version of the config
 launchctl bootout "system/${DAEMON_LABEL}"
 
@@ -121,17 +121,17 @@ var macosLaunchdTemplate = template.Must(template.New("").Option("missingkey=err
 		<key>ORBIT_INSECURE</key>
 		<string>true</string>
 		{{- end }}
-		{{- if .FleetCertificate }}
-		<key>ORBIT_FLEET_CERTIFICATE</key>
-		<string>/opt/orbit/fleet.pem</string>
+		{{- if .AutoMDMCertificate }}
+		<key>ORBIT_AUTOMDM_CERTIFICATE</key>
+		<string>/opt/orbit/automdm.pem</string>
 		{{- end }}
 		{{- if .EnrollSecret }}
 		<key>ORBIT_ENROLL_SECRET_PATH</key>
 		<string>/opt/orbit/secret.txt</string>
 		{{- end }}
-		{{- if .FleetURL }}
-		<key>ORBIT_FLEET_URL</key>
-		<string>{{ .FleetURL }}</string>
+		{{- if .AutoMDMURL }}
+		<key>ORBIT_AUTOMDM_URL</key>
+		<string>{{ .AutoMDMURL }}</string>
 		{{- end }}
 		{{- if .UseSystemConfiguration }}
 		<key>ORBIT_USE_SYSTEM_CONFIGURATION</key>
@@ -156,13 +156,13 @@ var macosLaunchdTemplate = template.Must(template.New("").Option("missingkey=err
 		<string>/opt/orbit/update.pem</string>
 		{{- end }}
 		{{- if .Desktop }}
-		<key>ORBIT_FLEET_DESKTOP</key>
+		<key>ORBIT_AUTOMDM_DESKTOP</key>
 		<string>true</string>
 		<key>ORBIT_DESKTOP_CHANNEL</key>
 		<string>{{ .DesktopChannel }}</string>
-		{{- if .FleetDesktopAlternativeBrowserHost }}
-		<key>ORBIT_FLEET_DESKTOP_ALTERNATIVE_BROWSER_HOST</key>
-		<string>{{ .FleetDesktopAlternativeBrowserHost }}</string>
+		{{- if .AutoMDMDesktopAlternativeBrowserHost }}
+		<key>ORBIT_AUTOMDM_DESKTOP_ALTERNATIVE_BROWSER_HOST</key>
+		<string>{{ .AutoMDMDesktopAlternativeBrowserHost }}</string>
 		{{- end }}
 		{{- end }}
 		<key>ORBIT_UPDATE_INTERVAL</key>

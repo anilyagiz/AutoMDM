@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/dev_mode"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/dev_mode"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
 )
@@ -37,7 +37,7 @@ func TestGetBaseURLAndBuildMetadataRequest(t *testing.T) {
 
 	t.Run("Custom URL", func(t *testing.T) {
 		customURL := "http://localhost:8000"
-		dev_mode.SetOverride("FLEET_DEV_STOKEN_AUTHENTICATED_APPS_URL", customURL, t)
+		dev_mode.SetOverride("AUTOMDM_DEV_STOKEN_AUTHENTICATED_APPS_URL", customURL, t)
 		require.Equal(t, customURL, getBaseURL(false, "us"))
 		require.Equal(t, customURL, getBaseURL(true, "us")) // dev env var should override config param default behavior
 
@@ -47,15 +47,15 @@ func TestGetBaseURLAndBuildMetadataRequest(t *testing.T) {
 		require.Empty(t, req.Header.Get("Cookie"))
 	})
 
-	t.Run("FLEET_DEV_VPP_REGION overrides caller region", func(t *testing.T) {
-		dev_mode.SetOverride("FLEET_DEV_STOKEN_AUTHENTICATED_APPS_URL", "", t)
-		dev_mode.SetOverride("FLEET_DEV_VPP_REGION", "fr", t)
+	t.Run("AUTOMDM_DEV_VPP_REGION overrides caller region", func(t *testing.T) {
+		dev_mode.SetOverride("AUTOMDM_DEV_STOKEN_AUTHENTICATED_APPS_URL", "", t)
+		dev_mode.SetOverride("AUTOMDM_DEV_VPP_REGION", "fr", t)
 		require.Equal(t, "https://fleetdm.com/api/vpp/v1/metadata/fr?platform=iphone&additionalPlatforms=ipad,mac&extend[apps]=latestVersionInfo", getBaseURL(false, "us"))
 	})
 
-	t.Run("Direct to Apple via FLEET_DEV env var", func(t *testing.T) {
-		dev_mode.SetOverride("FLEET_DEV_STOKEN_AUTHENTICATED_APPS_URL", "apple", t)
-		dev_mode.SetOverride("FLEET_DEV_VPP_REGION", "", t)
+	t.Run("Direct to Apple via AUTOMDM_DEV env var", func(t *testing.T) {
+		dev_mode.SetOverride("AUTOMDM_DEV_STOKEN_AUTHENTICATED_APPS_URL", "apple", t)
+		dev_mode.SetOverride("AUTOMDM_DEV_VPP_REGION", "", t)
 		baseURL := getBaseURL(false, "us")
 		require.Equal(t, "https://api.ent.apple.com/v1/catalog/us/stoken-authenticated-apps?platform=iphone&additionalPlatforms=ipad,mac&extend[apps]=latestVersionInfo", baseURL)
 
@@ -66,7 +66,7 @@ func TestGetBaseURLAndBuildMetadataRequest(t *testing.T) {
 	})
 
 	t.Run("Direct to Apple due to bearer token override", func(t *testing.T) {
-		dev_mode.SetOverride("FLEET_DEV_VPP_REGION", "fr", t)
+		dev_mode.SetOverride("AUTOMDM_DEV_VPP_REGION", "fr", t)
 		baseURL := getBaseURL(true, "us")
 		require.Equal(t, "https://api.ent.apple.com/v1/catalog/fr/stoken-authenticated-apps?platform=iphone&additionalPlatforms=ipad,mac&extend[apps]=latestVersionInfo", baseURL)
 
@@ -79,7 +79,7 @@ func TestGetBaseURLAndBuildMetadataRequest(t *testing.T) {
 
 func setupFakeServer(t *testing.T, handler http.HandlerFunc) Config {
 	server := httptest.NewServer(handler)
-	dev_mode.SetOverride("FLEET_DEV_STOKEN_AUTHENTICATED_APPS_URL", server.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_STOKEN_AUTHENTICATED_APPS_URL", server.URL, t)
 	t.Cleanup(server.Close)
 	return Config{
 		baseURLForRegion: func(region string) string { return server.URL },
@@ -189,38 +189,38 @@ func TestGetMetadataRetries(t *testing.T) {
 
 // mockDataStore implements the DataStore interface for testing getAuthenticator
 type mockDataStore struct {
-	appConfig                   *fleet.AppConfig
+	appConfig                   *automdm.AppConfig
 	appConfigErr                error
-	assets                      map[fleet.MDMAssetName]fleet.MDMConfigAsset
+	assets                      map[automdm.MDMAssetName]automdm.MDMConfigAsset
 	getAssetsErr                error
-	insertedAsset               *fleet.MDMConfigAsset
-	hardDeletedAsset            fleet.MDMAssetName
+	insertedAsset               *automdm.MDMConfigAsset
+	hardDeletedAsset            automdm.MDMAssetName
 	insertOrReplaceCalled       bool
 	hardDeleteCalled            bool
 	getAssetsByNameCalled       bool
 	insertMDMConfigAssetsCalled bool
 }
 
-func (m *mockDataStore) AppConfig(ctx context.Context) (*fleet.AppConfig, error) {
+func (m *mockDataStore) AppConfig(ctx context.Context) (*automdm.AppConfig, error) {
 	return m.appConfig, m.appConfigErr
 }
 
-func (m *mockDataStore) AppConfigUrls(ctx context.Context) (*fleet.AppConfigUrls, error) {
+func (m *mockDataStore) AppConfigUrls(ctx context.Context) (*automdm.AppConfigUrls, error) {
 	return nil, nil
 }
 
-func (m *mockDataStore) InsertMDMConfigAssets(ctx context.Context, assets []fleet.MDMConfigAsset, tx sqlx.ExtContext) error {
+func (m *mockDataStore) InsertMDMConfigAssets(ctx context.Context, assets []automdm.MDMConfigAsset, tx sqlx.ExtContext) error {
 	m.insertMDMConfigAssetsCalled = true
 	return nil
 }
 
-func (m *mockDataStore) InsertOrReplaceMDMConfigAsset(ctx context.Context, asset fleet.MDMConfigAsset) error {
+func (m *mockDataStore) InsertOrReplaceMDMConfigAsset(ctx context.Context, asset automdm.MDMConfigAsset) error {
 	m.insertOrReplaceCalled = true
 	m.insertedAsset = &asset
 	return nil
 }
 
-func (m *mockDataStore) GetAllMDMConfigAssetsByName(ctx context.Context, assetNames []fleet.MDMAssetName, queryerContext sqlx.QueryerContext) (map[fleet.MDMAssetName]fleet.MDMConfigAsset, error) {
+func (m *mockDataStore) GetAllMDMConfigAssetsByName(ctx context.Context, assetNames []automdm.MDMAssetName, queryerContext sqlx.QueryerContext) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
 	m.getAssetsByNameCalled = true
 	if m.getAssetsErr != nil {
 		return nil, m.getAssetsErr
@@ -228,25 +228,25 @@ func (m *mockDataStore) GetAllMDMConfigAssetsByName(ctx context.Context, assetNa
 	return m.assets, nil
 }
 
-func (m *mockDataStore) GetAllMDMConfigAssetsHashes(ctx context.Context, assetNames []fleet.MDMAssetName) (map[fleet.MDMAssetName]string, error) {
+func (m *mockDataStore) GetAllMDMConfigAssetsHashes(ctx context.Context, assetNames []automdm.MDMAssetName) (map[automdm.MDMAssetName]string, error) {
 	return nil, nil
 }
 
-func (m *mockDataStore) GetAllMDMConfigAssetsByNameIncludingDeleted(ctx context.Context, assetNames []fleet.MDMAssetName) ([]fleet.MDMConfigAsset, error) {
+func (m *mockDataStore) GetAllMDMConfigAssetsByNameIncludingDeleted(ctx context.Context, assetNames []automdm.MDMAssetName) ([]automdm.MDMConfigAsset, error) {
 	return nil, nil
 }
 
-func (m *mockDataStore) DeleteMDMConfigAssetsByName(ctx context.Context, assetNames []fleet.MDMAssetName) error {
+func (m *mockDataStore) DeleteMDMConfigAssetsByName(ctx context.Context, assetNames []automdm.MDMAssetName) error {
 	return nil
 }
 
-func (m *mockDataStore) HardDeleteMDMConfigAsset(ctx context.Context, assetName fleet.MDMAssetName) error {
+func (m *mockDataStore) HardDeleteMDMConfigAsset(ctx context.Context, assetName automdm.MDMAssetName) error {
 	m.hardDeleteCalled = true
 	m.hardDeletedAsset = assetName
 	return nil
 }
 
-func (m *mockDataStore) ReplaceMDMConfigAssets(ctx context.Context, assets []fleet.MDMConfigAsset, tx sqlx.ExtContext) error {
+func (m *mockDataStore) ReplaceMDMConfigAssets(ctx context.Context, assets []automdm.MDMConfigAsset, tx sqlx.ExtContext) error {
 	return nil
 }
 
@@ -275,9 +275,9 @@ func TestConfig(t *testing.T) {
 func TestAuthentication(t *testing.T) {
 	t.Run("returns cached token from database when not forced renewal", func(t *testing.T) {
 		ds := &mockDataStore{
-			assets: map[fleet.MDMAssetName]fleet.MDMConfigAsset{
-				fleet.MDMAssetVPPProxyBearerToken: {
-					Name:  fleet.MDMAssetVPPProxyBearerToken,
+			assets: map[automdm.MDMAssetName]automdm.MDMConfigAsset{
+				automdm.MDMAssetVPPProxyBearerToken: {
+					Name:  automdm.MDMAssetVPPProxyBearerToken,
 					Value: []byte("cached-token-from-db"),
 				},
 			},
@@ -297,24 +297,24 @@ func TestAuthentication(t *testing.T) {
 			// Verify the URL and license key are set
 			body, err := io.ReadAll(r.Body)
 			require.NoError(t, err)
-			require.JSONEq(t, `{"fleetServerUrl": "https://fleet.example.com", "fleetLicenseKey": "test-license-key"}`, string(body))
+			require.JSONEq(t, `{"automdmServerUrl": "https://automdm.example.com", "automdmLicenseKey": "test-license-key"}`, string(body))
 
 			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`{"fleetServerSecret": "new-token-from-auth"}`))
+			_, _ = w.Write([]byte(`{"automdmServerSecret": "new-token-from-auth"}`))
 		}))
 		defer authServer.Close()
-		dev_mode.SetOverride("FLEET_DEV_VPP_PROXY_AUTH_URL", authServer.URL, t)
+		dev_mode.SetOverride("AUTOMDM_DEV_VPP_PROXY_AUTH_URL", authServer.URL, t)
 
 		ds := &mockDataStore{
-			assets: map[fleet.MDMAssetName]fleet.MDMConfigAsset{
-				fleet.MDMAssetVPPProxyBearerToken: {
-					Name:  fleet.MDMAssetVPPProxyBearerToken,
+			assets: map[automdm.MDMAssetName]automdm.MDMConfigAsset{
+				automdm.MDMAssetVPPProxyBearerToken: {
+					Name:  automdm.MDMAssetVPPProxyBearerToken,
 					Value: []byte("cached-token-from-db"),
 				},
 			},
-			appConfig: &fleet.AppConfig{
-				ServerSettings: fleet.ServerSettings{
-					ServerURL: "https://fleet.example.com",
+			appConfig: &automdm.AppConfig{
+				ServerSettings: automdm.ServerSettings{
+					ServerURL: "https://automdm.example.com",
 				},
 			},
 		}
@@ -327,11 +327,11 @@ func TestAuthentication(t *testing.T) {
 		require.False(t, ds.getAssetsByNameCalled)
 		// Should have stored the new token
 		require.True(t, ds.insertOrReplaceCalled)
-		require.Equal(t, fleet.MDMAssetVPPProxyBearerToken, ds.insertedAsset.Name)
+		require.Equal(t, automdm.MDMAssetVPPProxyBearerToken, ds.insertedAsset.Name)
 		require.Equal(t, []byte("new-token-from-auth"), ds.insertedAsset.Value)
 		// Should have deleted the old token
 		require.True(t, ds.hardDeleteCalled)
-		require.Equal(t, fleet.MDMAssetVPPProxyBearerToken, ds.hardDeletedAsset)
+		require.Equal(t, automdm.MDMAssetVPPProxyBearerToken, ds.hardDeletedAsset)
 	})
 
 	t.Run("requests new token when nothing in database and no forced renewal", func(t *testing.T) {
@@ -340,19 +340,19 @@ func TestAuthentication(t *testing.T) {
 			// Verify the URL and license key are set
 			body, err := io.ReadAll(r.Body)
 			require.NoError(t, err)
-			require.JSONEq(t, `{"fleetServerUrl": "https://fleet.example.com", "fleetLicenseKey": "my-license-key"}`, string(body))
+			require.JSONEq(t, `{"automdmServerUrl": "https://automdm.example.com", "automdmLicenseKey": "my-license-key"}`, string(body))
 
 			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`{"fleetServerSecret": "fresh-token"}`))
+			_, _ = w.Write([]byte(`{"automdmServerSecret": "fresh-token"}`))
 		}))
 		defer authServer.Close()
-		dev_mode.SetOverride("FLEET_DEV_VPP_PROXY_AUTH_URL", authServer.URL, t)
+		dev_mode.SetOverride("AUTOMDM_DEV_VPP_PROXY_AUTH_URL", authServer.URL, t)
 
 		ds := &mockDataStore{
-			assets: map[fleet.MDMAssetName]fleet.MDMConfigAsset{}, // Empty - no cached token
-			appConfig: &fleet.AppConfig{
-				ServerSettings: fleet.ServerSettings{
-					ServerURL: "https://fleet.example.com",
+			assets: map[automdm.MDMAssetName]automdm.MDMConfigAsset{}, // Empty - no cached token
+			appConfig: &automdm.AppConfig{
+				ServerSettings: automdm.ServerSettings{
+					ServerURL: "https://automdm.example.com",
 				},
 			},
 		}
@@ -365,7 +365,7 @@ func TestAuthentication(t *testing.T) {
 		require.True(t, ds.getAssetsByNameCalled)
 		// Should have stored the new token
 		require.True(t, ds.insertOrReplaceCalled)
-		require.Equal(t, fleet.MDMAssetVPPProxyBearerToken, ds.insertedAsset.Name)
+		require.Equal(t, automdm.MDMAssetVPPProxyBearerToken, ds.insertedAsset.Name)
 		require.Equal(t, []byte("fresh-token"), ds.insertedAsset.Value)
 	})
 
@@ -376,13 +376,13 @@ func TestAuthentication(t *testing.T) {
 			_, _ = w.Write([]byte(`{"error": "invalid license"}`))
 		}))
 		defer authServer.Close()
-		dev_mode.SetOverride("FLEET_DEV_VPP_PROXY_AUTH_URL", authServer.URL, t)
+		dev_mode.SetOverride("AUTOMDM_DEV_VPP_PROXY_AUTH_URL", authServer.URL, t)
 
 		ds := &mockDataStore{
-			assets: map[fleet.MDMAssetName]fleet.MDMConfigAsset{}, // Empty
-			appConfig: &fleet.AppConfig{
-				ServerSettings: fleet.ServerSettings{
-					ServerURL: "https://fleet.example.com",
+			assets: map[automdm.MDMAssetName]automdm.MDMConfigAsset{}, // Empty
+			appConfig: &automdm.AppConfig{
+				ServerSettings: automdm.ServerSettings{
+					ServerURL: "https://automdm.example.com",
 				},
 			},
 		}
@@ -397,16 +397,16 @@ func TestAuthentication(t *testing.T) {
 		// Set up a mock auth server that returns empty token
 		authServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`{"fleetServerSecret": ""}`))
+			_, _ = w.Write([]byte(`{"automdmServerSecret": ""}`))
 		}))
 		defer authServer.Close()
-		dev_mode.SetOverride("FLEET_DEV_VPP_PROXY_AUTH_URL", authServer.URL, t)
+		dev_mode.SetOverride("AUTOMDM_DEV_VPP_PROXY_AUTH_URL", authServer.URL, t)
 
 		ds := &mockDataStore{
-			assets: map[fleet.MDMAssetName]fleet.MDMConfigAsset{},
-			appConfig: &fleet.AppConfig{
-				ServerSettings: fleet.ServerSettings{
-					ServerURL: "https://fleet.example.com",
+			assets: map[automdm.MDMAssetName]automdm.MDMConfigAsset{},
+			appConfig: &automdm.AppConfig{
+				ServerSettings: automdm.ServerSettings{
+					ServerURL: "https://automdm.example.com",
 				},
 			},
 		}
@@ -495,7 +495,7 @@ func TestDoRetries(t *testing.T) {
 			})
 
 			start := time.Now()
-			req, err := http.NewRequest(http.MethodGet, dev_mode.Env("FLEET_DEV_STOKEN_AUTHENTICATED_APPS_URL"), nil)
+			req, err := http.NewRequest(http.MethodGet, dev_mode.Env("AUTOMDM_DEV_STOKEN_AUTHENTICATED_APPS_URL"), nil)
 			require.NoError(t, err)
 			err = do(req, func(forceRenew bool) (string, error) {
 				if forceRenew {

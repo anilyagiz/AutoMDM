@@ -3,11 +3,11 @@
 CIS Benchmark Test Runner
 
 Automates CIS benchmark policy testing against macOS VMs using tart,
-fleetctl, and Fleet's team/MDM infrastructure.
+automdmctl, and AutoMDM's team/MDM infrastructure.
 
 Usage:
     python3 cis-test-runner.py --macos-version 14 --all \
-        --fleet-url https://fleet.example.com --fleet-token TOKEN
+        --automdm-url https://automdm.example.com --automdm-token TOKEN
 
 Dependencies: pyyaml (pip3 install pyyaml)
 """
@@ -152,16 +152,16 @@ NON_AUTOMATABLE_CIS_IDS: dict[str, dict[str, str]] = {
 }
 
 # ---------------------------------------------------------------------------
-# fleetctl config reading
+# automdmctl config reading
 # ---------------------------------------------------------------------------
 
 
-def read_fleetctl_config(context: str = "default") -> dict:
-    """Read URL and token from the fleetctl config file (~/.fleet/config).
+def read_automdmctl_config(context: str = "default") -> dict:
+    """Read URL and token from the automdmctl config file (~/.automdm/config).
 
     Returns a dict with 'address' and 'token' keys (may be empty strings).
     """
-    config_path = Path.home() / ".fleet" / "config"
+    config_path = Path.home() / ".team" / "config"
     if not config_path.exists():
         return {"address": "", "token": ""}
 
@@ -216,7 +216,7 @@ class TestResult:
 
 
 @dataclass
-class FleetTeam:
+class AutoMDMTeam:
     name: str
     team_id: int = 0
     enroll_secret: str = ""
@@ -616,19 +616,19 @@ def scp_to_vm(ip: str, local_path: Path, remote_path: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Fleet API helpers
+# AutoMDM API helpers
 # ---------------------------------------------------------------------------
 
 
-def fleet_api(
-    fleet_url: str,
+def automdm_api(
+    automdm_url: str,
     token: str,
     method: str,
     path: str,
     body: dict | None = None,
 ) -> dict | None:
-    """Make a Fleet API request. Returns parsed JSON or None."""
-    url = f"{fleet_url}{path}"
+    """Make an AutoMDM API request. Returns parsed JSON or None."""
+    url = f"{automdm_url}{path}"
     data = json.dumps(body).encode() if body else None
     req = Request(url, data=data, method=method)
     req.add_header("Authorization", f"Bearer {token}")
@@ -642,27 +642,27 @@ def fleet_api(
             return None
     except HTTPError as e:
         body_text = e.read().decode() if e.fp else ""
-        log_error(f"Fleet API {method} {path} returned {e.code}: {body_text}")
+        log_error(f"AutoMDM API {method} {path} returned {e.code}: {body_text}")
         raise
     except URLError as e:
-        log_error(f"Fleet API {method} {path} failed: {e.reason}")
+        log_error(f"AutoMDM API {method} {path} failed: {e.reason}")
         raise
 
 
 # ---------------------------------------------------------------------------
-# Fleet team management
+# AutoMDM team management
 # ---------------------------------------------------------------------------
 
 
-def create_fleet_team(
-    fleet_url: str, token: str, fleetctl: str, team_name: str, enroll_secret: str
-) -> FleetTeam:
-    """Create a Fleet team via fleetctl apply and return the team info."""
+def create_team_team(
+    automdm_url: str, token: str, automdmctl: str, team_name: str, enroll_secret: str
+) -> AutoMDMTeam:
+    """Create an AutoMDM team via automdmctl apply and return the team info."""
     team_yaml = {
         "apiVersion": "v1",
-        "kind": "fleet",
+        "kind": "team",
         "spec": {
-            "fleet": {
+            "team": {
                 "name": team_name,
                 "secrets": [{"secret": enroll_secret}],
             }
@@ -677,16 +677,16 @@ def create_fleet_team(
         tmp_path = f.name
 
     try:
-        log(f"Creating Fleet team: {team_name}")
-        run_cmd([fleetctl, "apply", "-f", tmp_path])
+        log(f"Creating AutoMDM team: {team_name}")
+        run_cmd([automdmctl, "apply", "-f", tmp_path])
     finally:
         os.unlink(tmp_path)
 
     # Get team ID. Try --name filter first, fall back to scanning all.
     team_id = 0
     for get_cmd in [
-        [fleetctl, "get", "fleets", "--json", "--name", team_name],
-        [fleetctl, "get", "fleets", "--json"],
+        [automdmctl, "get", "teams", "--json", "--name", team_name],
+        [automdmctl, "get", "teams", "--json"],
     ]:
         result = run_cmd(get_cmd, check=False)
         if result.returncode != 0 or not result.stdout:
@@ -700,7 +700,7 @@ def create_fleet_team(
             except json.JSONDecodeError:
                 continue
             spec = team_data.get("spec", {})
-            team_obj = spec.get("fleet") or {}
+            team_obj = spec.get("team") or {}
             if team_obj.get("name") == team_name:
                 team_id = team_obj.get("id", 0)
                 break
@@ -711,13 +711,13 @@ def create_fleet_team(
         log_error("Could not determine team ID after creation")
 
     log(f"Team created: {team_name} (ID: {team_id})")
-    return FleetTeam(name=team_name, team_id=team_id, enroll_secret=enroll_secret)
+    return AutoMDMTeam(name=team_name, team_id=team_id, enroll_secret=enroll_secret)
 
 
 def push_profiles_to_team(
-    fleet_url: str,
+    automdm_url: str,
     token: str,
-    fleetctl: str,
+    automdmctl: str,
     team_name: str,
     profiles: list[Path],
 ) -> None:
@@ -725,7 +725,7 @@ def push_profiles_to_team(
 
     Deduplicates by path so callers can include the same profile
     multiple times (e.g., an org-decision profile used by several
-    pairs) without triggering PayloadDisplayName conflicts in Fleet.
+    pairs) without triggering PayloadDisplayName conflicts in AutoMDM.
     """
     # Dedupe by absolute path
     seen: set[str] = set()
@@ -744,9 +744,9 @@ def push_profiles_to_team(
 
     team_yaml = {
         "apiVersion": "v1",
-        "kind": "fleet",
+        "kind": "team",
         "spec": {
-            "fleet": {
+            "team": {
                 "name": team_name,
                 "mdm": {
                     "apple_settings": {
@@ -766,39 +766,39 @@ def push_profiles_to_team(
 
     try:
         log(f"Pushing {len(unique)} MDM profile(s) to team {team_name}")
-        run_cmd([fleetctl, "apply", "-f", tmp_path])
+        run_cmd([automdmctl, "apply", "-f", tmp_path])
     finally:
         os.unlink(tmp_path)
 
 
-def delete_fleet_team(fleet_url: str, token: str, team_id: int) -> None:
-    """Delete a Fleet team and all its associated data."""
-    log(f"Deleting Fleet team ID {team_id}")
+def delete_team_team(automdm_url: str, token: str, team_id: int) -> None:
+    """Delete an AutoMDM team and all its associated data."""
+    log(f"Deleting AutoMDM team ID {team_id}")
     try:
-        fleet_api(fleet_url, token, "DELETE", f"/api/v1/fleet/fleets/{team_id}")
+        automdm_api(automdm_url, token, "DELETE", f"/api/v1/automdm/teams/{team_id}")
     except HTTPError:
         log_error(f"Failed to delete team {team_id}")
 
 
-def delete_fleet_host(fleet_url: str, token: str, host_id: int) -> None:
-    """Delete a host from Fleet."""
-    log(f"Deleting Fleet host ID {host_id}")
+def delete_team_host(automdm_url: str, token: str, host_id: int) -> None:
+    """Delete a host from AutoMDM."""
+    log(f"Deleting AutoMDM host ID {host_id}")
     try:
-        fleet_api(fleet_url, token, "DELETE", f"/api/v1/fleet/hosts/{host_id}")
+        automdm_api(automdm_url, token, "DELETE", f"/api/v1/automdm/hosts/{host_id}")
     except HTTPError:
         log_error(f"Failed to delete host {host_id}")
 
 
 def transfer_host_to_team(
-    fleet_url: str, token: str, host_id: int, team_id: int
+    automdm_url: str, token: str, host_id: int, team_id: int
 ) -> None:
     """Move a host into a specific team."""
     log(f"Transferring host {host_id} to team {team_id}")
     try:
-        fleet_api(
-            fleet_url, token, "POST",
-            "/api/v1/fleet/hosts/transfer",
-            body={"fleet_id": team_id, "hosts": [host_id]},
+        automdm_api(
+            automdm_url, token, "POST",
+            "/api/v1/automdm/hosts/transfer",
+            body={"team_id": team_id, "hosts": [host_id]},
         )
     except HTTPError as e:
         log_error(f"Failed to transfer host {host_id} to team {team_id}: {e}")
@@ -806,14 +806,14 @@ def transfer_host_to_team(
 
 
 def get_host_by_hostname(
-    fleet_url: str, token: str, hostname: str
+    automdm_url: str, token: str, hostname: str
 ) -> dict | None:
-    """Look up a host by hostname in Fleet (case-insensitive)."""
+    """Look up a host by hostname in AutoMDM (case-insensitive)."""
     from urllib.parse import quote
 
     target = hostname.lower()
-    data = fleet_api(
-        fleet_url, token, "GET", f"/api/v1/fleet/hosts?query={quote(hostname)}"
+    data = automdm_api(
+        automdm_url, token, "GET", f"/api/v1/automdm/hosts?query={quote(hostname)}"
     )
     if data and data.get("hosts"):
         for host in data["hosts"]:
@@ -823,30 +823,30 @@ def get_host_by_hostname(
 
 
 # ---------------------------------------------------------------------------
-# Fleet agent build
+# AutoMDM agent build
 # ---------------------------------------------------------------------------
 
 
-def build_fleet_pkg(fleet_url: str, enroll_secret: str, fleetctl: str) -> Path:
-    """Build a fleetd .pkg using fleetctl."""
-    pkg_path = Path("fleet-macos.pkg")
+def build_automdm_pkg(automdm_url: str, enroll_secret: str, automdmctl: str) -> Path:
+    """Build an automdmd .pkg using automdmctl."""
+    pkg_path = Path("automdm-macos.pkg")
     if pkg_path.exists():
         pkg_path.unlink()
 
-    log("Building fleet agent package...")
+    log("Building automdm agent package...")
     run_cmd([
-        fleetctl, "package",
+        automdmctl, "package",
         "--type=pkg",
         "--enable-scripts",
-        "--fleet-desktop",
+        "--automdm-desktop",
         "--disable-open-folder",
-        f"--fleet-url={fleet_url}",
+        f"--automdm-url={automdm_url}",
         f"--enroll-secret={enroll_secret}",
         f"--outfile={pkg_path}",
     ], timeout=300)
 
     if not pkg_path.exists():
-        raise RuntimeError(f"fleetctl package did not produce {pkg_path}")
+        raise RuntimeError(f"automdmctl package did not produce {pkg_path}")
 
     log(f"Package built: {pkg_path}")
     return pkg_path
@@ -943,14 +943,14 @@ def delete_vm(name: str) -> None:
 
 
 def install_agent(ip: str, pkg_path: Path) -> None:
-    """Copy and install the fleet agent on the VM."""
+    """Copy and install the automdm agent on the VM."""
     log("Copying agent package to VM...")
-    scp_to_vm(ip, pkg_path, "fleet-macos.pkg")
+    scp_to_vm(ip, pkg_path, "automdm-macos.pkg")
 
     log("Installing agent...")
     result = ssh(
         ip,
-        f"echo {VM_PASS} | sudo -S installer -pkg fleet-macos.pkg -target /",
+        f"echo {VM_PASS} | sudo -S installer -pkg automdm-macos.pkg -target /",
         timeout=120,
     )
     if result.returncode != 0:
@@ -971,24 +971,24 @@ def wait_for_identifier(ip: str, timeout: int = 120) -> str:
     raise TimeoutError("Orbit identifier did not appear")
 
 
-def wait_for_fleet_registration(
-    fleet_url: str, identifier: str, timeout: int = 120
+def wait_for_team_registration(
+    automdm_url: str, identifier: str, timeout: int = 120
 ) -> None:
-    """Poll until the host is registered in Fleet."""
-    log("Waiting for Fleet registration...")
+    """Poll until the host is registered in AutoMDM."""
+    log("Waiting for AutoMDM registration...")
     deadline = time.time() + timeout
-    url = f"{fleet_url}/device/{identifier}"
+    url = f"{automdm_url}/device/{identifier}"
     while time.time() < deadline:
         try:
             req = Request(url)
             with urlopen(req, timeout=10) as resp:
                 if resp.status == 200:
-                    log("Host registered in Fleet")
+                    log("Host registered in AutoMDM")
                     return
         except (HTTPError, URLError):
             pass
         time.sleep(5)
-    raise TimeoutError("Host did not register in Fleet")
+    raise TimeoutError("Host did not register in AutoMDM")
 
 
 def get_hostname(ip: str) -> str:
@@ -999,17 +999,17 @@ def get_hostname(ip: str) -> str:
     return result.stdout.strip()
 
 
-def enroll_mdm(ip: str, fleet_url: str, identifier: str) -> None:
+def enroll_mdm(ip: str, automdm_url: str, identifier: str) -> None:
     """Download and open the MDM enrollment profile, prompt user.
 
-    Fetches the enrollment profile from the Fleet device API. If the
-    Fleet server has Apple MDM configured, this returns an actual
+    Fetches the enrollment profile from the AutoMDM device API. If the
+    AutoMDM server has Apple MDM configured, this returns an actual
     .mobileconfig XML plist. If not, it returns a JSON with an
     enroll_url — in that case we fetch the profile from that URL.
     """
     log("Fetching MDM enrollment profile...")
     mdm_api_url = (
-        f"{fleet_url}/api/latest/fleet/device/"
+        f"{automdm_url}/api/latest/automdm/device/"
         f"{identifier}/mdm/apple/manual_enrollment_profile"
     )
 
@@ -1024,7 +1024,7 @@ def enroll_mdm(ip: str, fleet_url: str, identifier: str) -> None:
     # The device API may return:
     # a) An actual mobileconfig (legacy)
     # b) A JSON with enroll_url pointing to /enroll?enroll_secret=...
-    #    The actual profile is at /api/v1/fleet/enrollment_profiles/ota
+    #    The actual profile is at /api/v1/automdm/enrollment_profiles/ota
     #    with the same enroll_secret query parameter.
     if b"<?xml" not in content and b"plist" not in content:
         try:
@@ -1045,7 +1045,7 @@ def enroll_mdm(ip: str, fleet_url: str, identifier: str) -> None:
                 )
 
             ota_url = (
-                f"{fleet_url}/api/v1/fleet/enrollment_profiles/ota"
+                f"{automdm_url}/api/v1/automdm/enrollment_profiles/ota"
                 f"?enroll_secret={enroll_secret}"
             )
             log_verbose(f"Fetching OTA enrollment profile from {ota_url}")
@@ -1056,13 +1056,13 @@ def enroll_mdm(ip: str, fleet_url: str, identifier: str) -> None:
             except (HTTPError, URLError) as e:
                 raise RuntimeError(
                     f"Failed to fetch OTA enrollment profile: {e}. "
-                    "Ensure Apple MDM is configured on the Fleet server."
+                    "Ensure Apple MDM is configured on the AutoMDM server."
                 )
 
     if b"<?xml" not in content and b"plist" not in content:
         raise RuntimeError(
-            "Fleet returned an invalid MDM enrollment profile. "
-            "Ensure Apple MDM is fully configured on the Fleet server "
+            "AutoMDM returned an invalid MDM enrollment profile. "
+            "Ensure Apple MDM is fully configured on the AutoMDM server "
             "(APNs certificate, SCEP). Without MDM, profile-based "
             "CIS policies cannot be tested."
         )
@@ -1090,7 +1090,7 @@ def enroll_mdm(ip: str, fleet_url: str, identifier: str) -> None:
     print("The MDM enrollment profile has been opened on the VM.")
     print("Complete the following steps in the tart VM GUI:")
     print("  1. Go to System Settings > Privacy & Security > Profiles")
-    print("  2. Click on the Fleet MDM profile")
+    print("  2. Click on the AutoMDM profile")
     print("  3. Click 'Enroll' and enter the password: admin")
     print()
     input("Press Enter when MDM enrollment is complete...")
@@ -1105,7 +1105,7 @@ def enroll_mdm(ip: str, fleet_url: str, identifier: str) -> None:
 def wait_for_query_pass(
     query: str,
     hostname: str,
-    fleetctl: str,
+    automdmctl: str,
     query_timeout: int,
     deadline_seconds: int = 90,
     poll_interval: int = 10,
@@ -1124,19 +1124,19 @@ def wait_for_query_pass(
     """
     deadline = time.time() + deadline_seconds
     while time.time() < deadline:
-        if run_query(query, hostname, fleetctl, query_timeout) == expected:
+        if run_query(query, hostname, automdmctl, query_timeout) == expected:
             return True
         time.sleep(poll_interval)
     return False
 
 
 def run_query(
-    query: str, hostname: str, fleetctl: str, timeout: int = 60
+    query: str, hostname: str, automdmctl: str, timeout: int = 60
 ) -> bool:
-    """Run a policy query via fleetctl. Returns True if query returns rows."""
+    """Run a policy query via automdmctl. Returns True if query returns rows."""
     result = run_cmd(
         [
-            fleetctl, "query",
+            automdmctl, "query",
             f"--query={query}",
             f"--hosts={hostname}",
             "--exit",
@@ -1148,10 +1148,10 @@ def run_query(
 
     if result.returncode != 0:
         detail = (result.stderr or result.stdout or "").strip() or "(no output)"
-        raise RuntimeError(f"fleetctl query failed: {detail}")
+        raise RuntimeError(f"automdmctl query failed: {detail}")
 
     stdout = result.stdout or ""
-    # fleetctl query outputs one JSON object per line per host:
+    # automdmctl query outputs one JSON object per line per host:
     #   {"host":"hostname","rows":[{"1":"1",...}]}
     # If the query matches, "rows" is a non-empty array.
     # If it doesn't match, "rows" is an empty array [].
@@ -1226,11 +1226,11 @@ def run_test(
     plan: TestPlan,
     ip: str,
     hostname: str,
-    fleetctl: str,
+    automdmctl: str,
     query_timeout: int,
     pre_profile_passed: set[str] | None = None,
-    fleet_url: str = "",
-    fleet_token: str = "",
+    automdm_url: str = "",
+    automdm_token: str = "",
     team_name: str = "",
     base_profiles: list[Path] | None = None,
 ) -> TestResult:
@@ -1260,15 +1260,15 @@ def run_test(
                 # Step 1: remove profile → query should poll to False
                 log_verbose("Removing profile via MDM...")
                 push_profiles_to_team(
-                    fleet_url, fleet_token, fleetctl, team_name, other_profiles
+                    automdm_url, automdm_token, automdmctl, team_name, other_profiles
                 )
                 if not wait_for_query_pass(
-                    policy.query, hostname, fleetctl, query_timeout,
+                    policy.query, hostname, automdmctl, query_timeout,
                     deadline_seconds=mdm_deadline, expected=False,
                 ):
                     # Restore before returning
                     push_profiles_to_team(
-                        fleet_url, fleet_token, fleetctl, team_name,
+                        automdm_url, automdm_token, automdmctl, team_name,
                         other_profiles + list(plan.profiles),
                     )
                     return TestResult(
@@ -1280,11 +1280,11 @@ def run_test(
                 # Step 2: re-install profile → query should poll to True
                 log_verbose("Re-pushing profile via MDM...")
                 push_profiles_to_team(
-                    fleet_url, fleet_token, fleetctl, team_name,
+                    automdm_url, automdm_token, automdmctl, team_name,
                     other_profiles + list(plan.profiles),
                 )
                 if not wait_for_query_pass(
-                    policy.query, hostname, fleetctl, query_timeout,
+                    policy.query, hostname, automdmctl, query_timeout,
                     deadline_seconds=mdm_deadline, expected=True,
                 ):
                     return TestResult(
@@ -1298,7 +1298,7 @@ def run_test(
             log_verbose("Running fail script...")
             run_script_on_vm(ip, plan.fail_script)
             time.sleep(5)
-            if run_query(policy.query, hostname, fleetctl, query_timeout):
+            if run_query(policy.query, hostname, automdmctl, query_timeout):
                 return TestResult(
                     cis_id, name, "FAIL",
                     "Expected query to fail after fail script, but it returned rows",
@@ -1307,7 +1307,7 @@ def run_test(
             log_verbose("Running pass script...")
             run_script_on_vm(ip, plan.pass_script)
             time.sleep(5)
-            if not run_query(policy.query, hostname, fleetctl, query_timeout):
+            if not run_query(policy.query, hostname, automdmctl, query_timeout):
                 return TestResult(
                     cis_id, name, "FAIL",
                     "Expected query to pass after pass script, but it returned no rows",
@@ -1319,7 +1319,7 @@ def run_test(
             log_verbose("Running pass-only script...")
             run_script_on_vm(ip, plan.pass_only_script)
             time.sleep(5)
-            if not run_query(policy.query, hostname, fleetctl, query_timeout):
+            if not run_query(policy.query, hostname, automdmctl, query_timeout):
                 return TestResult(
                     cis_id, name, "FAIL",
                     "Query returned no rows after running pass script",
@@ -1347,7 +1347,7 @@ def run_test(
             # Poll instead of checking once — MDM delivery time varies
             # and the fixed 30s wait in Phase 5 isn't always enough.
             if not wait_for_query_pass(
-                policy.query, hostname, fleetctl, query_timeout
+                policy.query, hostname, automdmctl, query_timeout
             ):
                 return TestResult(
                     cis_id, name, "FAIL",
@@ -1381,19 +1381,19 @@ def run_test(
             if enable_prof:
                 log_verbose("Pushing enable profile + base profiles...")
                 push_profiles_to_team(
-                    fleet_url, fleet_token, fleetctl, team_name,
+                    automdm_url, automdm_token, automdmctl, team_name,
                     other_profiles + [enable_prof],
                 )
 
                 if not wait_for_query_pass(
-                    enable_pol.query, hostname, fleetctl, query_timeout,
+                    enable_pol.query, hostname, automdmctl, query_timeout,
                     deadline_seconds=org_deadline, expected=True,
                 ):
                     failures.append(
                         "Enable policy did not pass after enable profile"
                     )
                 if disable_pol and not wait_for_query_pass(
-                    disable_pol.query, hostname, fleetctl, query_timeout,
+                    disable_pol.query, hostname, automdmctl, query_timeout,
                     deadline_seconds=org_deadline, expected=False,
                 ):
                     failures.append(
@@ -1404,19 +1404,19 @@ def run_test(
             if disable_prof:
                 log_verbose("Pushing disable profile + base profiles...")
                 push_profiles_to_team(
-                    fleet_url, fleet_token, fleetctl, team_name,
+                    automdm_url, automdm_token, automdmctl, team_name,
                     other_profiles + [disable_prof],
                 )
 
                 if disable_pol and not wait_for_query_pass(
-                    disable_pol.query, hostname, fleetctl, query_timeout,
+                    disable_pol.query, hostname, automdmctl, query_timeout,
                     deadline_seconds=org_deadline, expected=True,
                 ):
                     failures.append(
                         "Disable policy did not pass after disable profile"
                     )
                 if not wait_for_query_pass(
-                    enable_pol.query, hostname, fleetctl, query_timeout,
+                    enable_pol.query, hostname, automdmctl, query_timeout,
                     deadline_seconds=org_deadline, expected=False,
                 ):
                     failures.append(
@@ -1429,7 +1429,7 @@ def run_test(
             if other_profiles:
                 log_verbose("Restoring base profiles...")
                 push_profiles_to_team(
-                    fleet_url, fleet_token, fleetctl, team_name,
+                    automdm_url, automdm_token, automdmctl, team_name,
                     other_profiles,
                 )
                 time.sleep(15)
@@ -1445,7 +1445,7 @@ def run_test(
             if not applied:
                 return TestResult(cis_id, name, "SKIP", "User skipped")
             time.sleep(5)
-            if not run_query(policy.query, hostname, fleetctl, query_timeout):
+            if not run_query(policy.query, hostname, automdmctl, query_timeout):
                 return TestResult(
                     cis_id, name, "FAIL",
                     "Query returned no rows after manual remediation",
@@ -1465,7 +1465,7 @@ def run_test(
 # ---------------------------------------------------------------------------
 
 
-def print_summary(results: list[TestResult], team: FleetTeam) -> int:
+def print_summary(results: list[TestResult], team: AutoMDMTeam) -> int:
     """Print test results summary. Returns exit code."""
     passed = [r for r in results if r.status == "PASS"]
     failed = [r for r in results if r.status == "FAIL"]
@@ -1515,12 +1515,12 @@ def parse_args() -> argparse.Namespace:
         description="""\
 Automated CIS benchmark policy test runner.
 
-Creates a fresh macOS VM using tart, enrolls it in a dedicated Fleet
+Creates a fresh macOS VM using tart, enrolls it in a dedicated AutoMDM
 team, and runs each selected CIS policy query to verify that the
 osquery SQL correctly detects compliance and non-compliance.
 
-The tool creates a temporary Fleet team with its own enroll secret,
-builds a fleet agent package bound to that team, and installs it in
+The tool creates a temporary AutoMDM team with its own enroll secret,
+builds an automdm agent package bound to that team, and installs it in
 the VM. If any selected policies require MDM profiles, the tool
 prompts for interactive MDM enrollment and pushes the profiles to the
 team automatically.
@@ -1539,9 +1539,9 @@ Prerequisites:
   - tart (brew install cirruslabs/cli/tart)
   - sshpass (brew install esolitos/ipa/sshpass)
   - pyyaml (pip3 install pyyaml)
-  - A running Fleet instance with MDM configured
-  - A Fleet API token (Fleet UI > My account, or fleetctl login)
-  - fleetctl built locally (make build from repo root)
+  - A running AutoMDM instance with MDM configured
+  - An AutoMDM API token (AutoMDM UI > My account, or automdmctl login)
+  - automdmctl built locally (make build from repo root)
 
 Examples:
   # Test a single benchmark
@@ -1637,64 +1637,64 @@ Examples:
         ),
     )
 
-    # --- Fleet connection ---
-    fleet = parser.add_argument_group(
-        "fleet connection",
-        "How to connect to the Fleet server. The tool creates a "
-        "temporary team and builds a fleet agent bound to it. "
-        "By default, the URL and token are read from the fleetctl "
-        "config file (~/.fleet/config) so that a logged-in fleetctl "
-        "session works with no extra flags. Use --fleet-url and "
-        "--fleet-token to override, or set FLEET_URL and "
-        "FLEET_API_TOKEN environment variables.",
+    # --- AutoMDM connection ---
+    team = parser.add_argument_group(
+        "team connection",
+        "How to connect to the AutoMDM server. The tool creates a "
+        "temporary team and builds an automdm agent bound to it. "
+        "By default, the URL and token are read from the automdmctl "
+        "config file (~/.automdm/config) so that a logged-in automdmctl "
+        "session works with no extra flags. Use --automdm-url and "
+        "--automdm-token to override, or set AUTOMDM_URL and "
+        "AUTOMDM_API_TOKEN environment variables.",
     )
-    fleet.add_argument(
-        "--fleet-url",
+    team.add_argument(
+        "--automdm-url",
         default="",
         metavar="URL",
         help=(
-            "Fleet server URL (e.g., https://fleet.example.com). "
-            "Resolution order: this flag, then $FLEET_URL, then the "
-            "address from the fleetctl config file."
+            "AutoMDM server URL (e.g., https://automdm.example.com). "
+            "Resolution order: this flag, then $AUTOMDM_URL, then the "
+            "address from the automdmctl config file."
         ),
     )
-    fleet.add_argument(
-        "--fleet-token",
+    team.add_argument(
+        "--automdm-token",
         default="",
         metavar="TOKEN",
         help=(
-            "Fleet API token for authenticated API calls (team "
+            "AutoMDM API token for authenticated API calls (team "
             "creation, host lookup, profile push, cleanup). "
-            "Resolution order: this flag, then $FLEET_API_TOKEN, then "
-            "the token from the fleetctl config file. To populate the "
-            "config file, run: fleetctl login"
+            "Resolution order: this flag, then $AUTOMDM_API_TOKEN, then "
+            "the token from the automdmctl config file. To populate the "
+            "config file, run: automdmctl login"
         ),
     )
-    fleet.add_argument(
-        "--fleetctl-context",
+    team.add_argument(
+        "--automdmctl-context",
         default="default",
         metavar="CTX",
         help=(
-            "Name of the fleetctl config context to read credentials "
-            "from when --fleet-url or --fleet-token are not provided. "
+            "Name of the automdmctl config context to read credentials "
+            "from when --automdm-url or --automdm-token are not provided. "
             "(default: default)"
         ),
     )
-    fleet.add_argument(
-        "--fleetctl-path",
-        default="./build/fleetctl",
+    team.add_argument(
+        "--automdmctl-path",
+        default="./build/automdmctl",
         metavar="PATH",
         help=(
-            "Path to the fleetctl binary. Used to build the agent "
+            "Path to the automdmctl binary. Used to build the agent "
             "package, apply team configurations, and run live queries. "
-            "(default: ./build/fleetctl)"
+            "(default: ./build/automdmctl)"
         ),
     )
-    fleet.add_argument(
+    team.add_argument(
         "--pkg-path",
         metavar="PATH",
         help=(
-            "Path to a pre-built fleetd .pkg. If provided, "
+            "Path to a pre-built automdmd .pkg. If provided, "
             "skips building a new package. WARNING: the pre-built "
             "package contains a baked-in enroll secret that may not "
             "match the test team this tool creates. The VM may enroll "
@@ -1753,9 +1753,9 @@ Examples:
         "--cleanup",
         action="store_true",
         help=(
-            "Delete the Fleet team, the enrolled host record, and the "
+            "Delete the AutoMDM team, the enrolled host record, and the "
             "tart VM after the run. Without this flag, the team and "
-            "host remain in Fleet for inspection (the VM is still "
+            "host remain in AutoMDM for inspection (the VM is still "
             "deleted unless --keep-vm is also set)."
         ),
     )
@@ -1768,7 +1768,7 @@ Examples:
         default=60,
         metavar="SECS",
         help=(
-            "Timeout in seconds for each fleetctl live query. "
+            "Timeout in seconds for each automdmctl live query. "
             "Increase if queries are slow to return. (default: 60)"
         ),
     )
@@ -1779,7 +1779,7 @@ Examples:
         metavar="SECS",
         help=(
             "Timeout in seconds for the VM to boot, get an IP, and "
-            "complete fleet enrollment. Increase for slow networks "
+            "complete automdm enrollment. Increase for slow networks "
             "or large VM images. (default: 180)"
         ),
     )
@@ -1811,58 +1811,58 @@ def main() -> int:
     args = parse_args()
     VERBOSE = args.verbose
 
-    # Resolve Fleet URL and token: flag -> env var -> fleetctl config
-    fleetctl_config = read_fleetctl_config(args.fleetctl_context)
+    # Resolve AutoMDM URL and token: flag -> env var -> automdmctl config
+    automdmctl_config = read_automdmctl_config(args.automdmctl_context)
 
-    fleet_url = (
-        args.fleet_url
-        or os.environ.get("FLEET_URL", "")
-        or fleetctl_config["address"]
+    automdm_url = (
+        args.automdm_url
+        or os.environ.get("AUTOMDM_URL", "")
+        or automdmctl_config["address"]
     ).rstrip("/")
 
-    fleet_token = (
-        args.fleet_token
-        or os.environ.get("FLEET_API_TOKEN", "")
-        or fleetctl_config["token"]
+    automdm_token = (
+        args.automdm_token
+        or os.environ.get("AUTOMDM_API_TOKEN", "")
+        or automdmctl_config["token"]
     )
 
-    if not fleet_url:
+    if not automdm_url:
         log_error(
-            "Fleet URL not found. Provide --fleet-url, set $FLEET_URL, "
-            "or log in with: fleetctl login"
+            "AutoMDM URL not found. Provide --automdm-url, set $AUTOMDM_URL, "
+            "or log in with: automdmctl login"
         )
         return 1
-    if not fleet_token:
+    if not automdm_token:
         log_error(
-            "Fleet API token not found. Provide --fleet-token, set "
-            "$FLEET_API_TOKEN, or log in with: fleetctl login"
+            "AutoMDM API token not found. Provide --automdm-token, set "
+            "$AUTOMDM_API_TOKEN, or log in with: automdmctl login"
         )
         return 1
 
-    log(f"Using Fleet server: {fleet_url}")
-    if fleet_url == fleetctl_config["address"] and not args.fleet_url:
+    log(f"Using AutoMDM server: {automdm_url}")
+    if automdm_url == automdmctl_config["address"] and not args.automdm_url:
         log_verbose(
-            f"(credentials from fleetctl config, context: {args.fleetctl_context})"
+            f"(credentials from automdmctl config, context: {args.automdmctl_context})"
         )
 
-    fleetctl = args.fleetctl_path
+    automdmctl = args.automdmctl_path
     version_info = VERSION_MAP[args.macos_version]
     vm_name = args.vm_name or f"cis-test-macos-{args.macos_version}"
     tart_image = args.tart_image or version_info["image"]
 
-    # Pre-flight: verify the Fleet API token is valid
-    log("Verifying Fleet API token...")
+    # Pre-flight: verify the AutoMDM API token is valid
+    log("Verifying AutoMDM API token...")
     try:
-        fleet_api(fleet_url, fleet_token, "GET", "/api/v1/fleet/me")
+        automdm_api(automdm_url, automdm_token, "GET", "/api/v1/automdm/me")
     except (HTTPError, URLError) as e:
         status = getattr(e, "code", None)
         if status == 401:
             log_error(
-                "Fleet API token is invalid or expired. "
-                "Please re-authenticate with: fleetctl login"
+                "AutoMDM API token is invalid or expired. "
+                "Please re-authenticate with: automdmctl login"
             )
         else:
-            log_error(f"Cannot reach Fleet server at {fleet_url}: {e}")
+            log_error(f"Cannot reach AutoMDM server at {automdm_url}: {e}")
         return 1
 
     # Resolve CIS directory
@@ -1973,11 +1973,11 @@ def main() -> int:
     if any_needs_mdm:
         log("Some policies require MDM — will prompt for MDM enrollment")
 
-    # Phase 2: Create Fleet team
+    # Phase 2: Create AutoMDM team
     enroll_secret = str(uuid.uuid4())
     timestamp = time.strftime("%Y%m%d-%H%M%S")
     team_name = f"CIS-Test-macOS-{args.macos_version}-{timestamp}"
-    team = create_fleet_team(fleet_url, fleet_token, fleetctl, team_name, enroll_secret)
+    team = create_team_team(automdm_url, automdm_token, automdmctl, team_name, enroll_secret)
 
     vm_proc = None
     results = list(skip_results)
@@ -2026,20 +2026,20 @@ def main() -> int:
                 team.hostname = hostname
                 log(f"VM hostname: {hostname}")
 
-                # Check if the agent is installed and the host is in Fleet
+                # Check if the agent is installed and the host is in AutoMDM
                 result = ssh(ip, "cat /opt/orbit/identifier 2>/dev/null", timeout=10)
                 has_identifier = result.returncode == 0 and result.stdout.strip()
-                host_info = get_host_by_hostname(fleet_url, fleet_token, hostname) if has_identifier else None
+                host_info = get_host_by_hostname(automdm_url, automdm_token, hostname) if has_identifier else None
 
                 if host_info:
                     identifier = result.stdout.strip()
                     team.host_id = host_info.get("id")
-                    log(f"Fleet host ID: {team.host_id}")
-                    log("Host found in Fleet, skipping agent install")
+                    log(f"AutoMDM host ID: {team.host_id}")
+                    log("Host found in AutoMDM, skipping agent install")
                     needs_agent_install = False
                 else:
                     log(
-                        "Host not found in Fleet — will re-install agent "
+                        "Host not found in AutoMDM — will re-install agent "
                         "to enroll in the test team"
                     )
 
@@ -2057,7 +2057,7 @@ def main() -> int:
                     "in the test team, rebuild without --pkg-path."
                 )
             else:
-                pkg_path = build_fleet_pkg(fleet_url, team.enroll_secret, fleetctl)
+                pkg_path = build_automdm_pkg(automdm_url, team.enroll_secret, automdmctl)
 
             create_vm(vm_name, tart_image)
             vm_proc = start_vm(vm_name)
@@ -2080,27 +2080,27 @@ def main() -> int:
                 if args.pkg_path:
                     pkg_path = Path(args.pkg_path)
                 else:
-                    pkg_path = build_fleet_pkg(fleet_url, team.enroll_secret, fleetctl)
+                    pkg_path = build_automdm_pkg(automdm_url, team.enroll_secret, automdmctl)
 
             install_agent(ip, pkg_path)
             identifier = wait_for_identifier(ip, timeout=args.boot_timeout)
-            wait_for_fleet_registration(fleet_url, identifier, timeout=args.boot_timeout)
+            wait_for_team_registration(automdm_url, identifier, timeout=args.boot_timeout)
 
-            # Look up host ID in Fleet
-            time.sleep(10)  # Give Fleet a moment to index the host
-            host_info = get_host_by_hostname(fleet_url, fleet_token, hostname)
+            # Look up host ID in AutoMDM
+            time.sleep(10)  # Give AutoMDM a moment to index the host
+            host_info = get_host_by_hostname(automdm_url, automdm_token, hostname)
             if host_info:
                 team.host_id = host_info.get("id")
-                log(f"Fleet host ID: {team.host_id}")
+                log(f"AutoMDM host ID: {team.host_id}")
 
         # Validate the host landed in the correct team; if not,
         # transfer it. This happens when the VM was previously
         # enrolled with a different secret (e.g., --keep-vm with a
         # host that's already MDM-enrolled from a prior run).
         if team.host_id and team.team_id:
-            host_info = get_host_by_hostname(fleet_url, fleet_token, hostname)
+            host_info = get_host_by_hostname(automdm_url, automdm_token, hostname)
             if host_info:
-                host_team_id = host_info.get("fleet_id")
+                host_team_id = host_info.get("team_id")
                 if host_team_id == team.team_id:
                     log(f"Host is in the correct team (ID: {team.team_id})")
                 else:
@@ -2111,7 +2111,7 @@ def main() -> int:
                     )
                     try:
                         transfer_host_to_team(
-                            fleet_url, fleet_token, team.host_id, team.team_id
+                            automdm_url, automdm_token, team.host_id, team.team_id
                         )
                         log(f"Host transferred to team {team.team_id}")
                     except HTTPError:
@@ -2125,17 +2125,17 @@ def main() -> int:
         if any_needs_mdm:
             # Check if the host is already MDM-enrolled; if so, skip
             # the interactive enrollment step. Poll a few times since
-            # Fleet may take a moment to refresh MDM status after
+            # AutoMDM may take a moment to refresh MDM status after
             # an agent re-install.
             already_mdm = False
             for attempt in range(6):
-                host_info = get_host_by_hostname(fleet_url, fleet_token, hostname)
+                host_info = get_host_by_hostname(automdm_url, automdm_token, hostname)
                 mdm = (host_info or {}).get("mdm", {}) or {}
                 mdm_status = mdm.get("enrollment_status")
                 if (
                     mdm_status
                     and "On" in str(mdm_status)
-                    and mdm.get("connected_to_fleet")
+                    and mdm.get("connected_to_automdm")
                 ):
                     already_mdm = True
                     log(
@@ -2151,7 +2151,7 @@ def main() -> int:
                     time.sleep(5)
 
             if not already_mdm:
-                enroll_mdm(ip, fleet_url, identifier)
+                enroll_mdm(ip, automdm_url, identifier)
 
             # Before pushing profiles, verify that profile-only
             # policies currently fail (no profiles installed yet).
@@ -2167,13 +2167,13 @@ def main() -> int:
             if profile_plans:
                 log("Clearing team profiles to get a clean baseline...")
                 push_profiles_to_team(
-                    fleet_url, fleet_token, fleetctl, team_name, []
+                    automdm_url, automdm_token, automdmctl, team_name, []
                 )
                 time.sleep(20)  # Wait for the host to process removal
 
                 log(f"Verifying {len(profile_plans)} profile-only queries fail before delivery...")
                 for plan in profile_plans:
-                    passes = run_query(plan.policy.query, hostname, fleetctl, args.query_timeout)
+                    passes = run_query(plan.policy.query, hostname, automdmctl, args.query_timeout)
                     if passes:
                         pre_profile_passed.add(plan.policy.cis_id)
                         log(f"  [!] CIS {plan.policy.cis_id}: already passes (may not detect non-compliance)")
@@ -2209,7 +2209,7 @@ def main() -> int:
             base_profiles = list({str(p): p for p in all_profiles}.values())
             if base_profiles:
                 push_profiles_to_team(
-                    fleet_url, fleet_token, fleetctl, team_name, base_profiles
+                    automdm_url, automdm_token, automdmctl, team_name, base_profiles
                 )
                 log("Waiting for profiles to be delivered...")
                 time.sleep(30)
@@ -2220,10 +2220,10 @@ def main() -> int:
         log(f"Running {len(active_plans)} test(s)...")
         for plan in active_plans:
             result = run_test(
-                plan, ip, hostname, fleetctl, args.query_timeout,
+                plan, ip, hostname, automdmctl, args.query_timeout,
                 pre_profile_passed=pre_profile_passed,
-                fleet_url=fleet_url,
-                fleet_token=fleet_token,
+                automdm_url=automdm_url,
+                automdm_token=automdm_token,
                 team_name=team_name,
                 base_profiles=base_profiles,
             )
@@ -2247,9 +2247,9 @@ def main() -> int:
         # Phase 8: Cleanup
         if args.cleanup:
             if team.host_id:
-                delete_fleet_host(fleet_url, fleet_token, team.host_id)
+                delete_team_host(automdm_url, automdm_token, team.host_id)
             if team.team_id:
-                delete_fleet_team(fleet_url, fleet_token, team.team_id)
+                delete_team_team(automdm_url, automdm_token, team.team_id)
             # Delete the VM even if this process didn't start it
             # (e.g., --keep-vm path that reused a running VM). The
             # --cleanup flag promises to clean up the VM; ownership

@@ -1,4 +1,4 @@
-# Releasing Fleet
+# Releasing AutoMDM
 
 ## Setup
 
@@ -47,7 +47,7 @@ This will create the minor release candidate branch, changelog PRs (`main` and R
 
 **2. Complete quality assurance**
 
-A Quality Assurance Engineer from each product group needs to [confirm that their product group is ready](https://fleetdm.com/handbook/engineering#indicate-your-product-group-is-release-ready) before proceeding to the next step.
+A Quality Assurance Engineer from each product group needs to [confirm that their product group is ready](https://automdm.com/handbook/engineering#indicate-your-product-group-is-release-ready) before proceeding to the next step.
 
 
 **3. Merge changelog and version bump**
@@ -73,21 +73,21 @@ Wait for publish process to complete.
 
 **6. Update the fleetdm/terraform repo**
 
-Update all Fleet version references in our [fleetdm/terraform](https://github.com/fleetdm/fleet-terraform) repo and submit a PR.
+Update all AutoMDM version references in our [fleetdm/terraform](https://github.com/fleetdm/fleet-terraform) repo and submit a PR.
 
 
 **7. Merge milestone pull requests**
 
 Merge any pull requests associated with this release milestone, which include reference documentation, feature guides, and a release announcement article. 
 
-Wait for the release article to appear on the [Fleet articles page](https://fleetdm.com/articles).
+Wait for the release article to appear on the [AutoMDM articles page](https://automdm.com/articles).
 
 
 **8. Post to LinkedIn company page**
 
-When the release article is published, create a LinkedIn post on Fleet's company page. Copy the previous version announcement post, update the headline features and associated emojis, and update the URL to point to the new release article. Publish the LinkedIn post, then copy a link to the post. 
+When the release article is published, create a LinkedIn post on AutoMDM's company page. Copy the previous version announcement post, update the headline features and associated emojis, and update the URL to point to the new release article. Publish the LinkedIn post, then copy a link to the post. 
 
-Open the Fleet releaser script and search for a variable called `linkedin_post_url`. Change the associated value to the new LinkedIn post URL. 
+Open the AutoMDM releaser script and search for a variable called `linkedin_post_url`. Change the associated value to the new LinkedIn post URL. 
 
 
 **9. Announce release**
@@ -98,17 +98,17 @@ Open the Fleet releaser script and search for a variable called `linkedin_post_u
 
 Change `{current_version}` to the current version that was just released. For example: `./tools/release/publish_release.sh -mnu -v 4.50.0`. 
 
-Open the Fleet channels in the osquery Slack and MacAdmins Slack and update the topic to point to the new release. 
+Open the AutoMDM channels in the osquery Slack and MacAdmins Slack and update the topic to point to the new release. 
 
 
 **10. Conclude the milestone**
 
-Complete the [conclude the milestone ritual](https://fleetdm.com/handbook/engineering#conclude-current-milestone).
+Complete the [conclude the milestone ritual](https://automdm.com/handbook/engineering#conclude-current-milestone).
 
 
 ## Major Release
 
-A major release (`X.0.0`) follows the same steps as a minor release. Use `-j` in place of `-m` in every command (`-j`, `-jg`, `-juq`). The release candidate branch is named `rc-major-fleet-vX.0.0`.
+A major release (`X.0.0`) follows the same steps as a minor release. Use `-j` in place of `-m` in every command (`-j`, `-jg`, `-juq`). The release candidate branch is named `rc-major-automdm-vX.0.0`.
 
 
 ## Patch release
@@ -130,7 +130,7 @@ This will create the patch release candidate branch, changelog PRs (`main` and R
 
 **3. Complete quality assurance**
 
-A Quality Assurance Engineer from each product group needs to [confirm that their product group is ready](https://fleetdm.com/handbook/engineering#indicate-your-product-group-is-release-ready) before proceeding to the next step.
+A Quality Assurance Engineer from each product group needs to [confirm that their product group is ready](https://automdm.com/handbook/engineering#indicate-your-product-group-is-release-ready) before proceeding to the next step.
 
 
 **4. Merge changelog and version bump**
@@ -153,32 +153,32 @@ Wait for build to run, which typically takes about fifteen minutes.
 ./tools/release/publish_release.sh -u
 ```
 
-> During the publish process, the release script will attempt to publish `fleetctl` to NPM. If this times out or otherise fails, you need to publish to NPM manually. From the `/tools/fleetctl-npm/` directory, run `npm publish`.
+> During the publish process, the release script will attempt to publish `automdmctl` to NPM. If this times out or otherise fails, you need to publish to NPM manually. From the `/tools/automdmctl-npm/` directory, run `npm publish`.
 
 **7. Update the fleetdm/terraform repo**
 
-Update all Fleet version references in our [fleetdm/terraform](https://github.com/fleetdm/fleet-terraform) repo and submit a PR.
+Update all AutoMDM version references in our [fleetdm/terraform](https://github.com/fleetdm/fleet-terraform) repo and submit a PR.
 
 **8. Announce the release**
 
-The release script will announce the patch in the #general channel. Open the Fleet channels in the osquery Slack and MacAdmins Slack and update the topic to point to the new release. 
+The release script will announce the patch in the #general channel. Open the AutoMDM channels in the osquery Slack and MacAdmins Slack and update the topic to point to the new release. 
 
 
 **9. Conclude the milestone**
 
-Complete the [conclude the milestone ritual](https://fleetdm.com/handbook/engineering#conclude-current-milestone).
+Complete the [conclude the milestone ritual](https://automdm.com/handbook/engineering#conclude-current-milestone).
 
 ## Using the Backport check script
 
 ```sh
-./tools/release/backport-check.sh fleet-v4.81.0 rc-patch-fleet-v4.81.1 rc-minor-fleet-v4.82.0
+./tools/release/backport-check.sh automdm-v4.81.0 rc-patch-automdm-v4.81.1 rc-minor-automdm-v4.82.0
 ```
 
 Example output
 ```
-Indexing rc-minor-fleet-v4.82.0 since merge-base with fleet-v4.81.0 (6e9d46202e9b54e1b83542179f40ed880586d3f4)...
+Indexing rc-minor-automdm-v4.82.0 since merge-base with automdm-v4.81.0 (6e9d46202e9b54e1b83542179f40ed880586d3f4)...
 
-=== INCLUDED (present on rc-minor-fleet-v4.82.0) ===
+=== INCLUDED (present on rc-minor-automdm-v4.82.0) ===
 STATUS     PATCH_SHA     MINOR_SHA     MATCH     SUBJECT
 --------   ------------  ------------  --------  ----------------------------------------
 INCLUDED   8798f6cee5ea  b1d0a5c2da8c  subject   End user UI: Update logo loading spinner styling (#39234)
@@ -188,7 +188,7 @@ INCLUDED   a3c6f7e3a1c6  ba1862595e4e  subject   Add route for Microsoft Entra h
 ...
 INCLUDED   4ec78002e0d6  3b825449757f  subject   Set secure cookie in SSO callback (#40765) (#40806)
 
-=== MISSING (not found on rc-minor-fleet-v4.82.0) ===
+=== MISSING (not found on rc-minor-automdm-v4.82.0) ===
 STATUS     PATCH_SHA     SUBJECT
 --------   ------------  ----------------------------------------
 MISSING    cb08454ddfef  improve windows resending (#40365)
@@ -197,8 +197,8 @@ MISSING    9e64a65f29c9  Improved validation for packages (#40407)
 MISSING    5df0a554fe1d  Add migration to update host_certificates_template UUID column size (… (#40709)
 MISSING    82890f883369  Exorcise edited_enroll_secrets from v4.81.1 (#40714)
 MISSING    1adbfb89429b  Cherry-pick: Remove "do not enqueue setup experience items >24 hours after enrollment" logic for macOS hosts (#40739) (#40748)
-MISSING    ac068800375a  Adding changes for Fleet v4.81.1 (#40704)
-MISSING    729c324074c3  Avoid panics on VPP install command errors when command not initiated by Fleet VPP install -> 4.81.0 (#40395)
+MISSING    ac068800375a  Adding changes for AutoMDM v4.81.1 (#40704)
+MISSING    729c324074c3  Avoid panics on VPP install command errors when command not initiated by AutoMDM VPP install -> 4.81.0 (#40395)
 ```
 
 For each item in missing you can verify manually by opening the PR's at the end of each line to trace back to the original issue and validate if a related PR made it into the minor branch you are targeting.

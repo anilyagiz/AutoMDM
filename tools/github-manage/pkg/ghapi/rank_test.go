@@ -251,11 +251,11 @@ func TestDesiredColumnOrderDuplicateNumbersAcrossRepos(t *testing.T) {
 		inRepo(mkItem("conf-123", 123, "Ready", "story"), "fleetdm/confidential"),
 		mkItem("bug", 20, "Ready", "bug"),
 		mkItem("story-p0", 10, "Ready", "story", "P0"),
-		inRepo(mkItem("fleet-123", 123, "Ready", "~sub-task"), "fleetdm/fleet"),
+		inRepo(mkItem("automdm-123", 123, "Ready", "~sub-task"), "automdm/automdm"),
 	}
-	parents := map[string]string{IssueRefKey("fleetdm/fleet", 123): tkey(10)}
+	parents := map[string]string{IssueRefKey("automdm/automdm", 123): tkey(10)}
 	desired := DesiredColumnOrder(column, parents, LabelsByKey(column))
-	want := []string{"story-p0", "fleet-123", "bug", "conf-123"}
+	want := []string{"story-p0", "automdm-123", "bug", "conf-123"}
 	for i, w := range want {
 		if desired[i].ID != w {
 			t.Fatalf("position %d = %s, want %s (full: %v)", i, desired[i].ID, w, ids(desired))

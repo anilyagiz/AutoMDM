@@ -111,7 +111,7 @@ func TestDefaultAgeCutoff(t *testing.T) {
 	})
 }
 
-// Fleet asks for sessions started in the last 30 days with started_at >=,
+// AutoMDM asks for sessions started in the last 30 days with started_at >=,
 // a filter osquery applies to the rows the table returns: the table selects
 // sessions by when their transcript was last written. A session whose start
 // is unknown reports 0, so the filter leaves it out.
@@ -652,9 +652,9 @@ func TestScanJSONL(t *testing.T) {
 
 func TestResolveSlugPath(t *testing.T) {
 	root := t.TempDir()
-	require.NoError(t, os.MkdirAll(filepath.Join(root, "Users", "alice", "GitHub", "fleet-extensions"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "Users", "alice", "GitHub", "automdm-extensions"), 0o755))
 	for _, tc := range []struct{ slug, want string }{
-		{"Users-alice-GitHub-fleet-extensions", filepath.Join(root, "Users", "alice", "GitHub", "fleet-extensions")},
+		{"Users-alice-GitHub-automdm-extensions", filepath.Join(root, "Users", "alice", "GitHub", "automdm-extensions")},
 		{"Users-alice-GitHub", filepath.Join(root, "Users", "alice", "GitHub")},
 		{"Users-bob-Projects-thing", filepath.Join(root, "Users", "bob", "Projects", "thing")},
 		{"-", ""},

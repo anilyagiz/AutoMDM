@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # Mullvad VPN uses an NSIS installer that always installs for all users.
 # /S runs it silently. It force-quits a running Mullvad VPN and restarts

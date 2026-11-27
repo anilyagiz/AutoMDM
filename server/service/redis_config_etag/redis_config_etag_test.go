@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/datastore/redis"
-	"github.com/fleetdm/fleet/v4/server/datastore/redis/redistest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis/redistest"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -45,7 +45,7 @@ func setupStore(t testing.TB, cluster, redir bool) *Store {
 	return newStoreForTest(t, pool)
 }
 
-func newStoreForTest(t testing.TB, pool fleet.RedisPool) *Store {
+func newStoreForTest(t testing.TB, pool automdm.RedisPool) *Store {
 	return &Store{
 		pool:           pool,
 		logger:         slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -289,22 +289,22 @@ func testLabelScopesState(t *testing.T, s *Store) {
 	ctx := context.Background()
 
 	loaderCalls := 0
-	loader := func(v fleet.ConfigETagLabelScopes, err error) func(context.Context) (fleet.ConfigETagLabelScopes, error) {
-		return func(context.Context) (fleet.ConfigETagLabelScopes, error) {
+	loader := func(v automdm.ConfigETagLabelScopes, err error) func(context.Context) (automdm.ConfigETagLabelScopes, error) {
+		return func(context.Context) (automdm.ConfigETagLabelScopes, error) {
 			loaderCalls++
 			return v, err
 		}
 	}
 
 	// miss → loader runs and the answer is cached
-	scopes, err := s.LabelScopes(ctx, loader(fleet.ConfigETagLabelScopes{TeamIDs: []uint{3}}, nil))
+	scopes, err := s.LabelScopes(ctx, loader(automdm.ConfigETagLabelScopes{TeamIDs: []uint{3}}, nil))
 	require.NoError(t, err)
 	require.False(t, scopes.Global)
 	require.Equal(t, []uint{3}, scopes.TeamIDs)
 	require.Equal(t, 1, loaderCalls)
 
 	// cached → loader must NOT run again
-	scopes, err = s.LabelScopes(ctx, loader(fleet.ConfigETagLabelScopes{Global: true}, nil))
+	scopes, err = s.LabelScopes(ctx, loader(automdm.ConfigETagLabelScopes{Global: true}, nil))
 	require.NoError(t, err)
 	require.False(t, scopes.Global, "cached answer wins until reset/expiry")
 	require.Equal(t, []uint{3}, scopes.TeamIDs)
@@ -312,19 +312,19 @@ func testLabelScopesState(t *testing.T, s *Store) {
 
 	// reset → loader runs again, new answer cached
 	require.NoError(t, s.ResetLabelScopes(ctx))
-	scopes, err = s.LabelScopes(ctx, loader(fleet.ConfigETagLabelScopes{Global: true}, nil))
+	scopes, err = s.LabelScopes(ctx, loader(automdm.ConfigETagLabelScopes{Global: true}, nil))
 	require.NoError(t, err)
 	require.True(t, scopes.Global)
 	require.Equal(t, 2, loaderCalls)
 
 	// loader error → error out (caller must treat as unknown → bypass)
 	require.NoError(t, s.ResetLabelScopes(ctx))
-	_, err = s.LabelScopes(ctx, loader(fleet.ConfigETagLabelScopes{}, errors.New("db down")))
+	_, err = s.LabelScopes(ctx, loader(automdm.ConfigETagLabelScopes{}, errors.New("db down")))
 	require.Error(t, err)
 
 	// the cached state key carries the bounded TTL
 	require.NoError(t, s.ResetLabelScopes(ctx))
-	_, err = s.LabelScopes(ctx, loader(fleet.ConfigETagLabelScopes{Global: true}, nil))
+	_, err = s.LabelScopes(ctx, loader(automdm.ConfigETagLabelScopes{Global: true}, nil))
 	require.NoError(t, err)
 	conn := redis.ConfigureDoer(s.pool, s.pool.Get())
 	defer conn.Close()
@@ -372,7 +372,7 @@ func TestTTLDerivations(t *testing.T) {
 // TestGateLoaderLeaderElection: one Redis miss must NOT become one database
 // query per concurrent config request. Exactly one concurrent caller (the
 // elected leader) runs the loader; losers return
-// fleet.ErrConfigETagGateLoading immediately — they never wait and never
+// automdm.ErrConfigETagGateLoading immediately — they never wait and never
 // query — and the state-write therefore happens at most once per miss
 // window per container.
 func TestGateLoaderLeaderElection(t *testing.T) {
@@ -381,10 +381,10 @@ func TestGateLoaderLeaderElection(t *testing.T) {
 	ctx := context.Background()
 
 	var loaderCalls atomic.Int64
-	slowLoader := func(context.Context) (fleet.ConfigETagLabelScopes, error) {
+	slowLoader := func(context.Context) (automdm.ConfigETagLabelScopes, error) {
 		loaderCalls.Add(1)
 		time.Sleep(100 * time.Millisecond) // hold the miss window open
-		return fleet.ConfigETagLabelScopes{Global: true}, nil
+		return automdm.ConfigETagLabelScopes{Global: true}, nil
 	}
 
 	const workers = 50
@@ -394,7 +394,7 @@ func TestGateLoaderLeaderElection(t *testing.T) {
 		wg.Go(func() {
 			_, err := s.LabelScopes(ctx, slowLoader)
 			switch {
-			case errors.Is(err, fleet.ErrConfigETagGateLoading):
+			case errors.Is(err, automdm.ErrConfigETagGateLoading):
 				contended.Add(1)
 			case err != nil:
 				failed.Add(1)

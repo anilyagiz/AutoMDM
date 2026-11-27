@@ -2,11 +2,11 @@ import { flatMap } from "lodash";
 
 import { IOsQueryTable } from "interfaces/osquery_table";
 
-import osqueryFleetTablesJSON from "../../schema/osquery_fleet_schema.json";
+import osqueryAutoMDMTablesJSON from "../../schema/osquery_automdm_schema.json";
 
 // Typecasting explicitly here as we are adding more rigid types such as
 // OsqueryPlatform for platform names, instead of just any strings.
-const queryTable = osqueryFleetTablesJSON as IOsQueryTable[];
+const queryTable = osqueryAutoMDMTablesJSON as IOsQueryTable[];
 
 export const osqueryTables = queryTable.sort((a, b) => {
   return a.name >= b.name ? 1 : -1;

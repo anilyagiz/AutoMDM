@@ -1,12 +1,12 @@
 # Android Certificate Authentication Test Server
 
-A simple mTLS (mutual TLS) test server for validating Android device certificate-based authentication with Fleet.
+A simple mTLS (mutual TLS) test server for validating Android device certificate-based authentication with AutoMDM.
 
 ## Overview
 
-This server validates client certificates issued via SCEP (Simple Certificate Enrollment Protocol) to Android devices enrolled in Fleet. It demonstrates the end-to-end flow of:
+This server validates client certificates issued via SCEP (Simple Certificate Enrollment Protocol) to Android devices enrolled in AutoMDM. It demonstrates the end-to-end flow of:
 
-1. Fleet managing Android devices
+1. AutoMDM managing Android devices
 2. SCEP server issuing device certificates
 3. Devices authenticating to resources using those certificates
 
@@ -14,7 +14,7 @@ This server validates client certificates issued via SCEP (Simple Certificate En
 
 - Go 1.21+
 - [micromdm/scep](https://github.com/micromdm/scep) server
-- Fleet server with Android MDM enabled
+- AutoMDM server with Android MDM enabled
 
 ## Quick Start
 
@@ -35,7 +35,7 @@ curl -LO https://github.com/micromdm/scep/releases/latest/download/scepserver-da
 ./scepserver ca -init \
   -organization "Your Organization" \
   -country "US" \
-  -common_name "Fleet SCEP CA"
+  -common_name "AutoMDM SCEP CA"
 ```
 
 This creates a `depot/` directory containing:
@@ -51,19 +51,19 @@ This creates a `depot/` directory containing:
 
 The SCEP endpoint will be available at `http://localhost:2016/scep`.
 
-### 2. Configure Fleet for SCEP
+### 2. Configure AutoMDM for SCEP
 
-Configure Fleet to use your SCEP server for Android certificate enrollment. Add the SCEP configuration to your Fleet server:
+Configure AutoMDM to use your SCEP server for Android certificate enrollment. Add the SCEP configuration to your AutoMDM server:
 
 ```yaml
-# fleet.yml
+# automdm.yml
 mdm:
   android:
     scep_url: "http://your-scep-server:2016/scep"
     scep_challenge: "your-secret-challenge"
 ```
 
-Fleet will automatically request certificates for enrolled Android devices through the SCEP protocol.
+AutoMDM will automatically request certificates for enrolled Android devices through the SCEP protocol.
 
 ### 3. Run the Certificate Auth Server
 

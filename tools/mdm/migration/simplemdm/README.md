@@ -1,8 +1,8 @@
 ### SimpleMDM Webhook
 
 A tiny web server you can use as a webhook callback for the MDM migration [end user
-workflow](https://fleetdm.com/docs/using-fleet/mdm-migration-guide#end-user-workflow) for a given
-device from SimpleMDM to Fleet.
+workflow](https://automdm.com/docs/using-automdm/mdm-migration-guide#end-user-workflow) for a given
+device from SimpleMDM to AutoMDM.
 
 Use the `api-token` flag to specify the API token for your SimpleMDM server. Use the `device-id`
 flag to specify the device ID you want to migrate. The device ID is the numerical ID of the device
@@ -26,4 +26,4 @@ Server running at http://localhost:4648
 
 2. Configure an https proxy (e.g., ngrok) to forward requests to localhost.
 
-3. Use the https address when configuring the Fleet migration webhook URL.
+3. Use the https address when configuring the AutoMDM migration webhook URL.

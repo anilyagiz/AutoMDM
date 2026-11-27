@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
 	"github.com/stretchr/testify/require"
 )
 
@@ -49,6 +49,6 @@ func TestSignSASURL(t *testing.T) {
 		require.NoError(t, err)
 
 		_, err = store.Sign(context.Background(), "abc123", 15*time.Minute)
-		require.ErrorIs(t, err, fleet.ErrNotConfigured)
+		require.ErrorIs(t, err, automdm.ErrNotConfigured)
 	})
 }

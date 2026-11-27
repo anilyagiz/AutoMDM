@@ -80,7 +80,7 @@ const CustomSCEPForm = ({
         onChange={onInputChange}
         parseTarget
         placeholder="WIFI_CERTIFICATE"
-        helpText="Letters, numbers, and underscores only. Fleet will create configuration profile variables with the name as suffix (e.g. $FLEET_VAR_CUSTOM_SCEP_CHALLENGE_WIFI_CERTIFICATE)."
+        helpText="Letters, numbers, and underscores only. AutoMDM will create configuration profile variables with the name as suffix (e.g. $AUTOMDM_VAR_CUSTOM_SCEP_CHALLENGE_WIFI_CERTIFICATE)."
         inputOptions={{ maxLength: MAX_ENTITY_CHAR_LENGTH }}
       />
       <InputField

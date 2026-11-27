@@ -50,19 +50,19 @@ jobs:
               console.log(`Tagged bug as unreleased`);
             };
 
-            // Parse Fleet version from issue body
+            // Parse AutoMDM version from issue body
             const body = issue.body || '';
-            const versionMatch = body.match(/\*\*Fleet versions?\*\*:\s*(.+)/i);
+            const versionMatch = body.match(/\*\*AutoMDM versions?\*\*:\s*(.+)/i);
 
-            // Also check for Orbit/Fleetd version (case insensitive)
-            const orbitMatch = body.match(/\*\*(?:Orbit|Fleetd) versions?\*\*:\s*(.+)/i);
+            // Also check for Orbit/AutoMDMd version (case insensitive)
+            const orbitMatch = body.match(/\*\*(?:Orbit|AutoMDMd) versions?\*\*:\s*(.+)/i);
 
             if (!versionMatch || !versionMatch[1]) {
-              console.log('No Fleet version found in issue body');
+              console.log('No AutoMDM version found in issue body');
 
-              // If no Fleet version but has Orbit/Fleetd version, check that instead
+              // If no AutoMDM version but has Orbit/AutoMDMd version, check that instead
               if (orbitMatch && orbitMatch[1]) {
-                console.log('Found Orbit/Fleetd version, will check that instead');
+                console.log('Found Orbit/AutoMDMd version, will check that instead');
               } else {
                 await tagAsUnreleased();
                 return;
@@ -79,11 +79,11 @@ jobs:
 
             console.log(`Found reported version: ${reportedVersion}`);
             if (orbitVersion) {
-              console.log(`Found Orbit/Fleetd version: ${orbitVersion}`);
+              console.log(`Found Orbit/AutoMDMd version: ${orbitVersion}`);
             }
 
             // Treat as unreleased if reported version is RC/main/unknown/todo
-            // Check both Fleet version and Orbit/Fleetd version if present
+            // Check both AutoMDM version and Orbit/AutoMDMd version if present
             const versionsToCheck = [];
 
             if (reportedVersion &&
@@ -93,7 +93,7 @@ jobs:
                 !reportedVersion.toLowerCase().includes('main') &&
                 !reportedVersion.toLowerCase().includes('rc') &&
                 reportedVersion !== '4.x') {
-              versionsToCheck.push({ version: reportedVersion, type: 'fleet' });
+              versionsToCheck.push({ version: reportedVersion, type: 'automdm' });
             }
 
             if (orbitVersion &&
@@ -117,21 +117,21 @@ jobs:
             }
 
             // Determine what we need to fetch based on versions present
-            const needsFleetReleases = versionsToCheck.some(v => v.type === 'fleet');
+            const needsAutoMDMReleases = versionsToCheck.some(v => v.type === 'automdm');
             const needsOrbitTags = versionsToCheck.some(v => v.type === 'orbit');
 
-            // Fetch Fleet releases only if we have a Fleet version to check
-            let releasedFleetVersions = [];
-            if (needsFleetReleases) {
+            // Fetch AutoMDM releases only if we have an AutoMDM version to check
+            let releasedAutoMDMVersions = [];
+            if (needsAutoMDMReleases) {
               const allReleases = await github.paginate(github.rest.repos.listReleases, {
-                owner: "fleetdm",
-                repo: "fleet",
+                owner: "automdm",
+                repo: "automdm",
                 per_page: 100
               });
 
-              // Extract version numbers from Fleet releases
-              // Fleet releases are tagged as "fleet-v4.X.X" or similar
-              releasedFleetVersions = allReleases
+              // Extract version numbers from AutoMDM releases
+              // AutoMDM releases are tagged as "automdm-v4.X.X" or similar
+              releasedAutoMDMVersions = allReleases
                 .map(release => {
                   // Try to extract from name
                   const nameMatch = release.name?.match(/(\d+\.\d+\.\d+)/);
@@ -142,16 +142,16 @@ jobs:
                 .filter(v => v !== null);
             }
 
-            // Fetch tags only if we have an orbit/fleetd version to check
+            // Fetch tags only if we have an orbit/automdmd version to check
             let releasedOrbitVersions = [];
             if (needsOrbitTags) {
               const allTags = await github.paginate(github.rest.repos.listTags, {
-                owner: "fleetdm",
-                repo: "fleet",
+                owner: "automdm",
+                repo: "automdm",
                 per_page: 100
               });
 
-              // Extract orbit/fleetd versions from tags
+              // Extract orbit/automdmd versions from tags
               // Orbit tags are like "orbit-v1.X.X"
               releasedOrbitVersions = allTags
                 .filter(tag => tag.name.match(/^orbit-v\d+\.\d+\.\d+$/))
@@ -188,7 +188,7 @@ jobs:
                 const normalizedVersion = normalizeVersion(v);
 
                 // Check against the appropriate list based on type
-                const releasedVersions = type === 'orbit' ? releasedOrbitVersions : releasedFleetVersions;
+                const releasedVersions = type === 'orbit' ? releasedOrbitVersions : releasedAutoMDMVersions;
 
                 if (releasedVersions.some(releasedVer => releasedVer === normalizedVersion)) {
                   console.log(`Found released ${type} version: ${normalizedVersion}`);

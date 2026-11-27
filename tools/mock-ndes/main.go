@@ -1,11 +1,11 @@
 // Command mock-ndes is a minimal mock of a Microsoft NDES (Network Device
-// Enrollment Service) server, intended for exercising Fleet's NDES SCEP proxy
+// Enrollment Service) server, intended for exercising AutoMDM's NDES SCEP proxy
 // end-to-end without a real Windows Server / Active Directory Certificate
 // Services deployment.
 //
-// It emulates the two surfaces Fleet talks to:
+// It emulates the two surfaces AutoMDM talks to:
 //
-//  1. The NDES admin page (default path /certsrv/mscep_admin/) which Fleet
+//  1. The NDES admin page (default path /certsrv/mscep_admin/) which AutoMDM
 //     scrapes over HTTP(S) with Basic/NTLM auth to obtain a one-time SCEP
 //     challenge password. The page is rendered as UTF-16 LE HTML, exactly like
 //     a real Windows NDES server, containing the line:
@@ -14,7 +14,7 @@
 //  2. The SCEP endpoint (default path /certsrv/mscep/mscep.dll) which answers
 //     the GetCACaps, GetCACert and PKIOperation operations. PKIOperation issues
 //     a real certificate signed by a CA generated (or loaded) at startup, using
-//     Fleet's own SCEP server implementation, so the full enrollment round-trip
+//     AutoMDM's own SCEP server implementation, so the full enrollment round-trip
 //     can be tested.
 //
 // Every request and response is logged verbosely so the SCEP/NDES conversation
@@ -46,17 +46,17 @@ import (
 	"time"
 	"unicode/utf16"
 
-	"github.com/fleetdm/fleet/v4/server/mdm/scep/challenge"
-	scepdepot "github.com/fleetdm/fleet/v4/server/mdm/scep/depot"
-	filedepot "github.com/fleetdm/fleet/v4/server/mdm/scep/depot/file"
-	scepserver "github.com/fleetdm/fleet/v4/server/mdm/scep/server"
+	"github.com/anilyagiz/automdm/v4/server/mdm/scep/challenge"
+	scepdepot "github.com/anilyagiz/automdm/v4/server/mdm/scep/depot"
+	filedepot "github.com/anilyagiz/automdm/v4/server/mdm/scep/depot/file"
+	scepserver "github.com/anilyagiz/automdm/v4/server/mdm/scep/server"
 )
 
 const (
 	defaultAdminPath = "/certsrv/mscep_admin/"
 	defaultSCEPPath  = "/certsrv/mscep/mscep.dll"
 
-	// Strings Fleet's proxy looks for to surface specific NDES errors. See
+	// Strings AutoMDM's proxy looks for to surface specific NDES errors. See
 	// ee/server/service/scep/scep_proxy.go.
 	cacheFullMessage           = "The password cache is full."
 	insufficientPermissionsMsg = "You do not have sufficient permission to enroll with SCEP."
@@ -92,7 +92,7 @@ func main() {
 	logger := slog.New(handler)
 	ctx := context.Background()
 
-	// CA + depot setup. We reuse Fleet's file depot and signer so PKIOperation
+	// CA + depot setup. We reuse AutoMDM's file depot and signer so PKIOperation
 	// issues real certificates.
 	dir := *caDir
 	if dir == "" {
@@ -222,7 +222,7 @@ func (h *adminHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if !ok || !userMatch || !passMatch {
 			h.logger.WarnContext(ctx, "admin page auth failed",
 				"provided_basic_auth", ok, "provided_user", user)
-			// Offer Basic auth. Fleet's client uses an NTLM negotiator with
+			// Offer Basic auth. AutoMDM's client uses an NTLM negotiator with
 			// AllowBasicAuth, so a Basic challenge is sufficient.
 			w.Header().Set("WWW-Authenticate", `Basic realm="NDES"`)
 			http.Error(w, "401 Unauthorized", http.StatusUnauthorized)
@@ -260,7 +260,7 @@ func (h *adminHandler) write(w http.ResponseWriter, ctx context.Context, html st
 		body = []byte(html)
 	} else {
 		// Real Windows NDES serves UTF-16 LE, frequently without a charset in
-		// the Content-Type header and without a BOM. Fleet detects this.
+		// the Content-Type header and without a BOM. AutoMDM detects this.
 		w.Header().Set("Content-Type", "text/html")
 		body = utf16LE(html)
 	}
@@ -428,7 +428,7 @@ func ensureCA(dir string) (*x509.Certificate, error) {
 	}
 	tmpl := &x509.Certificate{
 		SerialNumber:          big.NewInt(1),
-		Subject:               pkix.Name{CommonName: "Mock NDES Root CA", Organization: []string{"Fleet Mock NDES"}},
+		Subject:               pkix.Name{CommonName: "Mock NDES Root CA", Organization: []string{"AutoMDM Mock NDES"}},
 		NotBefore:             time.Now().Add(-time.Hour),
 		NotAfter:              time.Now().AddDate(10, 0, 0),
 		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign | x509.KeyUsageDigitalSignature,

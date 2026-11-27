@@ -14,11 +14,11 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/constant"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/packaging"
-	"github.com/fleetdm/fleet/v4/pkg/buildpkg"
-	"github.com/fleetdm/fleet/v4/pkg/secure"
-	"github.com/fleetdm/fleet/v4/server/version"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/constant"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/packaging"
+	"github.com/anilyagiz/automdm/v4/pkg/buildpkg"
+	"github.com/anilyagiz/automdm/v4/pkg/secure"
+	"github.com/anilyagiz/automdm/v4/server/version"
 	"github.com/mitchellh/gon/package/zip"
 	"github.com/rs/zerolog"
 	zlog "github.com/rs/zerolog/log"
@@ -42,7 +42,7 @@ func exitErrHandler(c *cli.Context, err error) {
 func createApp(reader io.Reader, stdout io.Writer, stderr io.Writer, exitErrHandler cli.ExitErrHandlerFunc) *cli.App {
 	app := cli.NewApp()
 	app.Name = "desktop"
-	app.Usage = "Tool to generate the Fleet Desktop application"
+	app.Usage = "Tool to generate the AutoMDM Desktop application"
 	app.ExitErrHandler = exitErrHandler
 	cli.VersionPrinter = func(c *cli.Context) {
 		version.PrintFull()
@@ -53,13 +53,13 @@ func createApp(reader io.Reader, stdout io.Writer, stderr io.Writer, exitErrHand
 	app.Flags = []cli.Flag{
 		&cli.StringFlag{
 			Name:    "version",
-			Usage:   "Version of the Fleet Desktop application",
-			EnvVars: []string{"FLEET_DESKTOP_VERSION"},
+			Usage:   "Version of the AutoMDM Desktop application",
+			EnvVars: []string{"AUTOMDM_DESKTOP_VERSION"},
 		},
 		&cli.BoolFlag{
 			Name:    "verbose",
 			Usage:   "Log detailed information when building the application",
-			EnvVars: []string{"FLEET_DESKTOP_VERBOSE"},
+			EnvVars: []string{"AUTOMDM_DESKTOP_VERBOSE"},
 		},
 	}
 
@@ -72,18 +72,18 @@ func createApp(reader io.Reader, stdout io.Writer, stderr io.Writer, exitErrHand
 func macos() *cli.Command {
 	return &cli.Command{
 		Name:        "macos",
-		Usage:       "Creates the Fleet Desktop Application for macOS",
-		Description: "Builds and signs the Fleet Desktop .app bundle for macOS",
+		Usage:       "Creates the AutoMDM Desktop Application for macOS",
+		Description: "Builds and signs the AutoMDM Desktop .app bundle for macOS",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:    "authority",
 				Usage:   "Authority to use on the codesign invocation (if not set, app is not signed)",
-				EnvVars: []string{"FLEET_DESKTOP_APPLE_AUTHORITY"},
+				EnvVars: []string{"AUTOMDM_DESKTOP_APPLE_AUTHORITY"},
 			},
 			&cli.BoolFlag{
 				Name:    "notarize",
 				Usage:   "If true, the generated application will be notarized and stapled. Requires the `AC_USERNAME` and `AC_PASSWORD` to be set in the environment",
-				EnvVars: []string{"FLEET_DESKTOP_NOTARIZE"},
+				EnvVars: []string{"AUTOMDM_DESKTOP_NOTARIZE"},
 			},
 		},
 		Action: func(c *cli.Context) error {
@@ -99,7 +99,7 @@ func macos() *cli.Command {
 
 func createMacOSApp(version, authority string, notarize bool) error {
 	const (
-		appDir           = "Fleet Desktop.app"
+		appDir           = "AutoMDM Desktop.app"
 		bundleIdentifier = "com.fleetdm.desktop"
 		// infoPList is the Info.plist file to use for the macOS .app bundle.
 		//
@@ -110,13 +110,13 @@ func createMacOSApp(version, authority string, notarize bool) error {
 <plist version="1.0">
 <dict>
 	<key>CFBundleExecutable</key>
-	<string>fleet-desktop</string>
+	<string>automdm-desktop</string>
 	<key>CFBundleIdentifier</key>
 	<string>%s</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>fleet-desktop</string>
+	<string>automdm-desktop</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -133,7 +133,7 @@ func createMacOSApp(version, authority string, notarize bool) error {
 	)
 
 	if runtime.GOOS != "darwin" {
-		return errors.New(`the "Fleet Desktop" macOS app can only be created from macOS`)
+		return errors.New(`the "AutoMDM Desktop" macOS app can only be created from macOS`)
 	}
 
 	defer os.RemoveAll(appDir)
@@ -156,14 +156,14 @@ func createMacOSApp(version, authority string, notarize bool) error {
 	/* #nosec G204 -- arguments are actually well defined */
 	buildExec := exec.Command("go", "build",
 		"-o", amdBinaryPath,
-		"-ldflags", os.ExpandEnv("-s -w -X=main.version=$FLEET_DESKTOP_VERSION"),
+		"-ldflags", os.ExpandEnv("-s -w -X=main.version=$AUTOMDM_DESKTOP_VERSION"),
 		"./"+filepath.Join("orbit", "cmd", "desktop"),
 	)
 	buildExec.Env = append(os.Environ(), "CGO_ENABLED=1", "GOOS=darwin", "GOARCH=amd64")
 	buildExec.Stderr = os.Stderr
 	buildExec.Stdout = os.Stdout
 
-	zlog.Info().Str("command", buildExec.String()).Msg("Build fleet-desktop executable amd64")
+	zlog.Info().Str("command", buildExec.String()).Msg("Build automdm-desktop executable amd64")
 	if err := buildExec.Run(); err != nil {
 		return fmt.Errorf("compile for amd64: %w", err)
 	}
@@ -172,14 +172,14 @@ func createMacOSApp(version, authority string, notarize bool) error {
 	/* #nosec G204 -- arguments are actually well defined */
 	buildExec = exec.Command("go", "build",
 		"-o", armBinaryPath,
-		"-ldflags", os.ExpandEnv("-s -w -X=main.version=$FLEET_DESKTOP_VERSION"),
+		"-ldflags", os.ExpandEnv("-s -w -X=main.version=$AUTOMDM_DESKTOP_VERSION"),
 		"./"+filepath.Join("orbit", "cmd", "desktop"),
 	)
 	buildExec.Env = append(os.Environ(), "CGO_ENABLED=1", "GOOS=darwin", "GOARCH=arm64")
 	buildExec.Stderr = os.Stderr
 	buildExec.Stdout = os.Stdout
 
-	zlog.Info().Str("command", buildExec.String()).Msg("Build fleet-desktop executable arm64")
+	zlog.Info().Str("command", buildExec.String()).Msg("Build automdm-desktop executable arm64")
 	if err := buildExec.Run(); err != nil {
 		return fmt.Errorf("compile for arm64: %w", err)
 	}
@@ -216,7 +216,7 @@ func createMacOSApp(version, authority string, notarize bool) error {
 	if authority != "" {
 		codeSign := exec.Command("codesign", "-s", authority, "-i", bundleIdentifier, "-f", "-v", "--timestamp", "--options", "runtime", appDir)
 
-		zlog.Info().Str("command", codeSign.String()).Msg("Sign Fleet Desktop.app")
+		zlog.Info().Str("command", codeSign.String()).Msg("Sign AutoMDM Desktop.app")
 
 		codeSign.Stderr = os.Stderr
 		codeSign.Stdout = os.Stdout

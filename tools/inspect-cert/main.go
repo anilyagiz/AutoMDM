@@ -10,9 +10,9 @@ import (
 	"os"
 	"time"
 
+	"github.com/anilyagiz/automdm/v4/pkg/certificate"
+	"github.com/anilyagiz/automdm/v4/server/config"
 	"github.com/davecgh/go-spew/spew"
-	"github.com/fleetdm/fleet/v4/pkg/certificate"
-	"github.com/fleetdm/fleet/v4/server/config"
 )
 
 func main() {

@@ -21,7 +21,7 @@ resource "aws_iam_openid_connect_provider" "github" {
 }
 
 # --- Trust policy for fleetdm/confidential repo ---
-data "aws_iam_policy_document" "fleetdm_confidential_cloudflare_trust" {
+data "aws_iam_policy_document" "automdm_confidential_cloudflare_trust" {
   statement {
     actions = ["sts:AssumeRoleWithWebIdentity"]
 
@@ -46,13 +46,13 @@ data "aws_iam_policy_document" "fleetdm_confidential_cloudflare_trust" {
   }
 }
 
-resource "aws_iam_role" "fleetdm_confidential_cloudflare" {
-  name               = "fleetdm-confidential-cloudflare-terraform"
-  assume_role_policy = data.aws_iam_policy_document.fleetdm_confidential_cloudflare_trust.json
+resource "aws_iam_role" "automdm_confidential_cloudflare" {
+  name               = "automdm-confidential-cloudflare-terraform"
+  assume_role_policy = data.aws_iam_policy_document.automdm_confidential_cloudflare_trust.json
 }
 
 # --- Policy for backend S3/KMS/DynamoDB ---
-data "aws_iam_policy_document" "fleetdm_confidential_cloudflare_rw" {
+data "aws_iam_policy_document" "automdm_confidential_cloudflare_rw" {
   # Full access to the specific Cloudflare tfstate object
   statement {
     sid = "S3ManageTfstate"
@@ -110,13 +110,13 @@ data "aws_iam_policy_document" "fleetdm_confidential_cloudflare_rw" {
   }
 }
 
-resource "aws_iam_policy" "fleetdm_confidential_cloudflare_rw" {
-  name   = "fleetdm-confidential-cloudflare-terraform"
-  policy = data.aws_iam_policy_document.fleetdm_confidential_cloudflare_rw.json
+resource "aws_iam_policy" "automdm_confidential_cloudflare_rw" {
+  name   = "automdm-confidential-cloudflare-terraform"
+  policy = data.aws_iam_policy_document.automdm_confidential_cloudflare_rw.json
 }
 
-resource "aws_iam_role_policy_attachment" "fleetdm_confidential_cloudflare_rw_attach" {
-  role       = aws_iam_role.fleetdm_confidential_cloudflare.name
-  policy_arn = aws_iam_policy.fleetdm_confidential_cloudflare_rw.arn
+resource "aws_iam_role_policy_attachment" "automdm_confidential_cloudflare_rw_attach" {
+  role       = aws_iam_role.automdm_confidential_cloudflare.name
+  policy_arn = aws_iam_policy.automdm_confidential_cloudflare_rw.arn
 }
 

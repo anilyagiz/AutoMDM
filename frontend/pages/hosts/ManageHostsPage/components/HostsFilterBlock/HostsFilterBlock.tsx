@@ -627,16 +627,16 @@ const HostsFilterBlock = ({
           return (
             <>
               Migration or new Mac setup won&apos;t work. Apple&apos;s servers
-              rejected the request to assign a profile to these hosts. Fleet
+              rejected the request to assign a profile to these hosts. AutoMDM
               will try again every hour.
             </>
           );
         case "THROTTLED":
           return (
             <>
-              Migration or new Mac setup won&apos;t work. Fleet hit Apple&apos;s
+              Migration or new Mac setup won&apos;t work. AutoMDM hit Apple&apos;s
               API rate limit when preparing the macOS Setup Assistant for these
-              hosts. Fleet will try again within 24 hours of each host&apos;s
+              hosts. AutoMDM will try again within 24 hours of each host&apos;s
               last throttled response.
             </>
           );
@@ -645,7 +645,7 @@ const HostsFilterBlock = ({
             <>
               Migration or new Mac setup won&apos;t work. Details are not
               accessible from Apple Business (AB). Verify these hosts are
-              assigned to your MDM server and Fleet has access permissions.
+              assigned to your MDM server and AutoMDM has access permissions.
             </>
           );
         default:

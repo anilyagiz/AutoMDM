@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # The AWS Session Manager Plugin ships as a WiX "burn" bootstrapper
 # (SessionManagerPluginSetup.exe) that chains the per-arch MSI and registers a

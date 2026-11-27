@@ -11,20 +11,20 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/backoff"
-	"github.com/fleetdm/fleet/v4/pkg/certificate"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/backoff"
+	"github.com/anilyagiz/automdm/v4/pkg/certificate"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/gorilla/websocket"
 	"github.com/rs/zerolog/log"
 )
 
 // notificationsPath is the server's agent WebSocket endpoint.
-const notificationsPath = "/api/fleet/orbit/notifications"
+const notificationsPath = "/api/automdm/orbit/notifications"
 
 // Options configures a Manager. ServerURL, NodeKeyFunc, Client and Cache are
 // required; zero-valued tunables get the defaults below.
 type Options struct {
-	// ServerURL is the base URL of the Fleet server (http(s) scheme; it is
+	// ServerURL is the base URL of the AutoMDM server (http(s) scheme; it is
 	// rewritten to ws(s) for the WebSocket dial).
 	ServerURL *url.URL
 	// RootCA is the path of a PEM file with server CA certificates (optional).
@@ -115,7 +115,7 @@ const (
 	iterAwaitingWrite
 )
 
-// Manager holds the WebSocket connection to the Fleet server, polling on
+// Manager holds the WebSocket connection to the AutoMDM server, polling on
 // PollInterval while it is disconnected. It is an oklog/run-compatible
 // subsystem (Execute/Interrupt).
 //
@@ -237,17 +237,17 @@ func (m *Manager) readLoop(conn *websocket.Conn) error {
 	go m.pingLoop(conn, pingDone)
 
 	for {
-		var msg fleet.AgentWSMessage
+		var msg automdm.AgentWSMessage
 		if err := conn.ReadJSON(&msg); err != nil {
 			return err
 		}
 		log.Debug().Str("type", msg.Type).Str("reason", msg.Reason).Msg("check-now notification received")
 		switch msg.Type {
-		case fleet.AgentWSMessageTypeDistributedRead:
+		case automdm.AgentWSMessageTypeDistributedRead:
 			m.trigger()
-		case fleet.AgentWSMessageTypeOrbitConfig:
+		case automdm.AgentWSMessageTypeOrbitConfig:
 			m.onOrbitConfig()
-		case fleet.AgentWSMessageTypeOsqueryConfig:
+		case automdm.AgentWSMessageTypeOsqueryConfig:
 			if m.opts.OnOsqueryConfig != nil {
 				m.opts.OnOsqueryConfig()
 			}

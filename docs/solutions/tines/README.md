@@ -11,13 +11,13 @@ These are best practices to be followed by Fleeties when creating and sharing St
   - `mac-update.json`
   - `apple-device-location.json` — If the command applies to more than just Macs, use `apple` as the prefix.
 - After exporting, open the .json file and:
-  - Double-check to make sure your Fleet email (or any other confidential information) isn't in the contents.
+  - Double-check to make sure your AutoMDM email (or any other confidential information) isn't in the contents.
   - Add an empty newline at the bottom of the file.
 
 
 ## [Apple device location](apple-device-location.json)
 
-A custom MDM command sent through Fleet to get a device's location. It pauses for 30 seconds after sending the command, so that the device can report back its location before Fleet attempts to retrieve it.
+A custom MDM command sent through AutoMDM to get a device's location. It pauses for 30 seconds after sending the command, so that the device can report back its location before AutoMDM attempts to retrieve it.
 
 A device needs to be [locked](#lock-commands) (known as "Lost Mode" in the Apple world) before the location can be requested.
 
@@ -28,14 +28,14 @@ Originally created for `customer-reedtimmer`.
 
 ## [Lock commands](lock-commands.json)
 
-Fleet API commands to lock and unlock hosts.
+AutoMDM API commands to lock and unlock hosts.
 
 Originally created for `customer-reedtimmer`.
 
 ## [MDM Migration (Jamf Pro)](mdm-migration-jamf-pro.json)
 
-Used when migrating from Jamf Pro to Fleet. This receives the migration web hook from Fleet, looks up that serial number in Jamf Pro via Jamf's API, then sends an unenroll command from Jamf.
+Used when migrating from Jamf Pro to AutoMDM. This receives the migration web hook from AutoMDM, looks up that serial number in Jamf Pro via Jamf's API, then sends an unenroll command from Jamf.
 
 ## [Import IdP users](import-idp-users.json)
 
-An example workflow for mapping Fleet hosts to the associated user in asset management. This workflow iterates over hosts in Fleet, uses the Oomnitza API to retrieve the assigned user, and updates Fleet's device mapping with the correct user.
+An example workflow for mapping AutoMDM hosts to the associated user in asset management. This workflow iterates over hosts in AutoMDM, uses the Oomnitza API to retrieve the assigned user, and updates AutoMDM's device mapping with the correct user.

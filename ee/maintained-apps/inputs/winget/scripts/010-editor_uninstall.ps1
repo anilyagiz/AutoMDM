@@ -1,4 +1,4 @@
-# Fleet extracts name from installer (EXE) and saves it to PACKAGE_ID
+# AutoMDM extracts name from installer (EXE) and saves it to PACKAGE_ID
 # variable
 # For 010 Editor, we match against DisplayName "010 Editor" which appears in registry
 $softwareName = "010 Editor"

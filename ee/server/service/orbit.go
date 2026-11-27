@@ -4,30 +4,30 @@ import (
 	"context"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	hostctx "github.com/fleetdm/fleet/v4/server/contexts/host"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	apple_mdm "github.com/fleetdm/fleet/v4/server/mdm/apple"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	hostctx "github.com/anilyagiz/automdm/v4/server/contexts/host"
+	apple_mdm "github.com/anilyagiz/automdm/v4/server/mdm/apple"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 )
 
-func (svc *Service) GetOrbitSetupExperienceStatus(ctx context.Context, orbitNodeKey string, forceRelease bool, resetFailedSetupSteps bool) (*fleet.SetupExperienceStatusPayload, error) {
+func (svc *Service) GetOrbitSetupExperienceStatus(ctx context.Context, orbitNodeKey string, forceRelease bool, resetFailedSetupSteps bool) (*automdm.SetupExperienceStatusPayload, error) {
 	// this is not a user-authenticated endpoint
 	svc.authz.SkipAuthorization(ctx)
 
 	host, ok := hostctx.FromContext(ctx)
 	if !ok {
-		err := ctxerr.Wrap(ctx, fleet.NewAuthRequiredError("internal error: missing host from request context"))
+		err := ctxerr.Wrap(ctx, automdm.NewAuthRequiredError("internal error: missing host from request context"))
 		return nil, err
 	}
 
-	if fleet.IsLinux(host.Platform) || host.Platform == "windows" {
+	if automdm.IsLinux(host.Platform) || host.Platform == "windows" {
 		// Windows and Linux setup experience only have software.
 		status, err := svc.getHostSetupExperienceStatus(ctx, host)
 		if err != nil {
 			return nil, ctxerr.Wrap(ctx, err, "get host setup experience status")
 		}
-		return &fleet.SetupExperienceStatusPayload{
+		return &automdm.SetupExperienceStatusPayload{
 			Software: status.Software,
 		}, nil
 	}
@@ -39,14 +39,14 @@ func (svc *Service) GetOrbitSetupExperienceStatus(ctx context.Context, orbitNode
 
 	// get the status of the bootstrap package deployment
 	bootstrapPkg, err := svc.ds.GetHostMDMMacOSSetup(ctx, host.ID)
-	if err != nil && !fleet.IsNotFound(err) {
+	if err != nil && !automdm.IsNotFound(err) {
 		return nil, ctxerr.Wrap(ctx, err, "get bootstrap package status")
 	}
 
 	// NOTE: bootstrapPkg can be nil if there was none to install.
-	var bootstrapPkgResult *fleet.SetupExperienceBootstrapPackageResult
+	var bootstrapPkgResult *automdm.SetupExperienceBootstrapPackageResult
 	if bootstrapPkg != nil {
-		bootstrapPkgResult = &fleet.SetupExperienceBootstrapPackageResult{
+		bootstrapPkgResult = &automdm.SetupExperienceBootstrapPackageResult{
 			Name:   bootstrapPkg.BootstrapPackageName,
 			Status: bootstrapPkg.BootstrapPackageStatus,
 		}
@@ -57,28 +57,28 @@ func (svc *Service) GetOrbitSetupExperienceStatus(ctx context.Context, orbitNode
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "get configuration profiles status")
 	}
-	var cfgProfResults []*fleet.SetupExperienceConfigurationProfileResult
+	var cfgProfResults []*automdm.SetupExperienceConfigurationProfileResult
 	for _, prof := range cfgProfs {
 		// NOTE: DDM profiles (declarations) are ignored because while a device is
 		// awaiting to be released, it cannot process a DDM session (at least
 		// that's what we noticed during testing).
-		if strings.HasPrefix(prof.ProfileUUID, fleet.MDMAppleDeclarationUUIDPrefix) {
+		if strings.HasPrefix(prof.ProfileUUID, automdm.MDMAppleDeclarationUUIDPrefix) {
 			continue
 		}
 
-		// NOTE: user-scoped profiles are ignored because they are not sent by Fleet
+		// NOTE: user-scoped profiles are ignored because they are not sent by AutoMDM
 		// until after the device is released - there is no user-channel available
 		// on the host until after the release, and after the user actually created
 		// the user account.
-		if prof.Scope == fleet.PayloadScopeUser {
+		if prof.Scope == automdm.PayloadScopeUser {
 			continue
 		}
 
-		status := fleet.MDMDeliveryPending
+		status := automdm.MDMDeliveryPending
 		if prof.Status != nil {
 			status = *prof.Status
 		}
-		cfgProfResults = append(cfgProfResults, &fleet.SetupExperienceConfigurationProfileResult{
+		cfgProfResults = append(cfgProfResults, &automdm.SetupExperienceConfigurationProfileResult{
 			ProfileUUID: prof.ProfileUUID,
 			Name:        prof.Name,
 			Status:      status,
@@ -89,40 +89,40 @@ func (svc *Service) GetOrbitSetupExperienceStatus(ctx context.Context, orbitNode
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "listing apple config profiles to install")
 	}
-	profilesMissingInstallation = fleet.FilterOutUserScopedProfiles(profilesMissingInstallation)
+	profilesMissingInstallation = automdm.FilterOutUserScopedProfiles(profilesMissingInstallation)
 
 	if len(profilesMissingInstallation) > 0 {
 		for _, prof := range profilesMissingInstallation {
-			cfgProfResults = append(cfgProfResults, &fleet.SetupExperienceConfigurationProfileResult{
+			cfgProfResults = append(cfgProfResults, &automdm.SetupExperienceConfigurationProfileResult{
 				ProfileUUID: prof.ProfileUUID,
 				Name:        prof.ProfileName,
-				Status:      fleet.MDMDeliveryPending, // Default to pending as it's not installed yet.
+				Status:      automdm.MDMDeliveryPending, // Default to pending as it's not installed yet.
 			})
 		}
 	}
 
 	// AccountConfiguration covers the (optional) command to setup SSO.
-	adminTeamFilter := fleet.TeamFilter{
-		User: &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)},
+	adminTeamFilter := automdm.TeamFilter{
+		User: &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)},
 	}
-	acctCmds, _, _, err := svc.ds.ListMDMCommands(ctx, adminTeamFilter, &fleet.MDMCommandListOptions{
+	acctCmds, _, _, err := svc.ds.ListMDMCommands(ctx, adminTeamFilter, &automdm.MDMCommandListOptions{
 		// PerPage 1: only acctCmds[0] is read below.
-		ListOptions: fleet.ListOptions{PerPage: 1},
-		Filters: fleet.MDMCommandFilters{
+		ListOptions: automdm.ListOptions{PerPage: 1},
+		Filters: automdm.MDMCommandFilters{
 			HostIdentifier: host.UUID,
 			RequestType:    "AccountConfiguration",
 		},
 	})
-	if err != nil && !fleet.IsNotFound(err) {
+	if err != nil && !automdm.IsNotFound(err) {
 		return nil, ctxerr.Wrap(ctx, err, "list AccountConfiguration commands")
 	}
 
-	var acctCfgResult *fleet.SetupExperienceAccountConfigurationResult
+	var acctCfgResult *automdm.SetupExperienceAccountConfigurationResult
 	if len(acctCmds) > 0 {
 		// there may be more than one if e.g. the worker job that sends them had to
 		// retry, but they would all be processed anyway so we can only care about
 		// the first one.
-		acctCfgResult = &fleet.SetupExperienceAccountConfigurationResult{
+		acctCfgResult = &automdm.SetupExperienceAccountConfigurationResult{
 			CommandUUID: acctCmds[0].CommandUUID,
 			Status:      acctCmds[0].Status,
 		}
@@ -142,7 +142,7 @@ func (svc *Service) GetOrbitSetupExperienceStatus(ctx context.Context, orbitNode
 
 	hasFailedSoftwareInstall := false
 	for _, r := range res {
-		if r.IsForSoftware() && r.Status == fleet.SetupExperienceStatusFailure {
+		if r.IsForSoftware() && r.Status == automdm.SetupExperienceStatusFailure {
 			hasFailedSoftwareInstall = true
 			break
 		}
@@ -173,12 +173,12 @@ func (svc *Service) GetOrbitSetupExperienceStatus(ctx context.Context, orbitNode
 		return nil, ctxerr.Wrap(ctx, err, "recording cancelled setup experience installs")
 	}
 
-	payload := &fleet.SetupExperienceStatusPayload{
+	payload := &automdm.SetupExperienceStatusPayload{
 		BootstrapPackage:      bootstrapPkgResult,
 		ConfigurationProfiles: cfgProfResults,
 		AccountConfiguration:  acctCfgResult,
-		Software:              make([]*fleet.SetupExperienceStatusResult, 0),
-		OrgLogoURL:            fleet.AbsolutizeLogoURL(appCfg.OrgInfo.OrgLogoURLLightMode, appCfg.ServerSettings.ServerURL),
+		Software:              make([]*automdm.SetupExperienceStatusResult, 0),
+		OrgLogoURL:            automdm.AbsolutizeLogoURL(appCfg.OrgInfo.OrgLogoURLLightMode, appCfg.ServerSettings.ServerURL),
 		RequireAllSoftware:    requireAllSoftware,
 	}
 	for _, r := range res {
@@ -233,13 +233,13 @@ func (svc *Service) recordCanceledSetupExperienceSoftwareActivities(
 	hostUUID string,
 	hostDisplayName string,
 	teamID *uint,
-	results []*fleet.SetupExperienceStatusResult,
+	results []*automdm.SetupExperienceStatusResult,
 ) error {
 	for _, r := range results {
-		if r.Status != fleet.SetupExperienceStatusCancelled {
+		if r.Status != automdm.SetupExperienceStatusCancelled {
 			continue
 		}
-		r.Status = fleet.SetupExperienceStatusFailure
+		r.Status = automdm.SetupExperienceStatusFailure
 		svc.logger.InfoContext(ctx, "emitting activity for canceled setup experience software", "host_uuid", hostUUID, "software_name", r.Name)
 		err := svc.ds.UpdateSetupExperienceStatusResult(ctx, r)
 		if err != nil {
@@ -254,7 +254,7 @@ func (svc *Service) recordCanceledSetupExperienceSoftwareActivities(
 			softwareDisplayName = dn
 		}
 		if r.IsForSoftwarePackage() {
-			if err := svc.NewActivity(ctx, nil, fleet.ActivityTypeCanceledInstallSoftware{
+			if err := svc.NewActivity(ctx, nil, automdm.ActivityTypeCanceledInstallSoftware{
 				HostID:              hostID,
 				HostDisplayName:     hostDisplayName,
 				SoftwareTitle:       r.Name,
@@ -265,7 +265,7 @@ func (svc *Service) recordCanceledSetupExperienceSoftwareActivities(
 				return ctxerr.Wrap(ctx, err, "creating activity for canceled setup experience software install")
 			}
 		} else if r.IsForVPPApp() {
-			if err := svc.NewActivity(ctx, nil, fleet.ActivityTypeCanceledInstallAppStoreApp{
+			if err := svc.NewActivity(ctx, nil, automdm.ActivityTypeCanceledInstallAppStoreApp{
 				HostID:              hostID,
 				HostDisplayName:     hostDisplayName,
 				SoftwareTitle:       r.Name,
@@ -281,7 +281,7 @@ func (svc *Service) recordCanceledSetupExperienceSoftwareActivities(
 	return nil
 }
 
-func isDeviceReleasedManually(ctx context.Context, ds fleet.Datastore, host *fleet.Host) (bool, error) {
+func isDeviceReleasedManually(ctx context.Context, ds automdm.Datastore, host *automdm.Host) (bool, error) {
 	var manualRelease bool
 	if host.TeamID == nil {
 		ac, err := ds.AppConfig(ctx)
@@ -299,47 +299,47 @@ func isDeviceReleasedManually(ctx context.Context, ds fleet.Datastore, host *fle
 	return manualRelease, nil
 }
 
-func isDeviceReadyForRelease(payload *fleet.SetupExperienceStatusPayload) bool {
+func isDeviceReadyForRelease(payload *automdm.SetupExperienceStatusPayload) bool {
 	// default to "do release" and return false as soon as we find a reason not
 	// to.
 
 	if payload.BootstrapPackage != nil {
-		if payload.BootstrapPackage.Status != fleet.MDMBootstrapPackageFailed &&
-			payload.BootstrapPackage.Status != fleet.MDMBootstrapPackageInstalled {
+		if payload.BootstrapPackage.Status != automdm.MDMBootstrapPackageFailed &&
+			payload.BootstrapPackage.Status != automdm.MDMBootstrapPackageInstalled {
 			// bootstrap package is still pending, not ready for release
 			return false
 		}
 	}
 
 	if payload.AccountConfiguration != nil {
-		if payload.AccountConfiguration.Status != fleet.MDMAppleStatusAcknowledged &&
-			payload.AccountConfiguration.Status != fleet.MDMAppleStatusError &&
-			payload.AccountConfiguration.Status != fleet.MDMAppleStatusCommandFormatError {
+		if payload.AccountConfiguration.Status != automdm.MDMAppleStatusAcknowledged &&
+			payload.AccountConfiguration.Status != automdm.MDMAppleStatusError &&
+			payload.AccountConfiguration.Status != automdm.MDMAppleStatusCommandFormatError {
 			// account configuration command is still pending, not ready for release
 			return false
 		}
 	}
 
 	for _, prof := range payload.ConfigurationProfiles {
-		if prof.Status != fleet.MDMDeliveryFailed &&
-			prof.Status != fleet.MDMDeliveryVerifying &&
-			prof.Status != fleet.MDMDeliveryVerified {
+		if prof.Status != automdm.MDMDeliveryFailed &&
+			prof.Status != automdm.MDMDeliveryVerifying &&
+			prof.Status != automdm.MDMDeliveryVerified {
 			// profile is still pending, not ready for release
 			return false
 		}
 	}
 
 	for _, sw := range payload.Software {
-		if sw.Status != fleet.SetupExperienceStatusFailure &&
-			sw.Status != fleet.SetupExperienceStatusSuccess {
+		if sw.Status != automdm.SetupExperienceStatusFailure &&
+			sw.Status != automdm.SetupExperienceStatusSuccess {
 			// software is still pending, not ready for release
 			return false
 		}
 	}
 
 	if payload.Script != nil {
-		if payload.Script.Status != fleet.SetupExperienceStatusFailure &&
-			payload.Script.Status != fleet.SetupExperienceStatusSuccess {
+		if payload.Script.Status != automdm.SetupExperienceStatusFailure &&
+			payload.Script.Status != automdm.SetupExperienceStatusSuccess {
 			// script is still pending, not ready for release
 			return false
 		}
@@ -348,14 +348,14 @@ func isDeviceReadyForRelease(payload *fleet.SetupExperienceStatusPayload) bool {
 	return true
 }
 
-func (svc *Service) SetupExperienceInit(ctx context.Context) (*fleet.SetupExperienceInitResult, error) {
+func (svc *Service) SetupExperienceInit(ctx context.Context) (*automdm.SetupExperienceInitResult, error) {
 	// This is an orbit endpoint, not a user-authenticated endpoint.
 	svc.authz.SkipAuthorization(ctx)
 
 	// NOTE: currently, Android does not go through the "init" setup experience flow as it
 	// doesn't support any on-device UI (such as the screen showing setup progress) nor any
 	// ordering of installs - all software to install is provided as part of the Android policy
-	// when the host enrolls in Fleet.
+	// when the host enrolls in AutoMDM.
 	// See https://github.com/fleetdm/fleet/issues/33761#issuecomment-3548996114
 
 	host, ok := hostctx.FromContext(ctx)
@@ -369,7 +369,7 @@ func (svc *Service) SetupExperienceInit(ctx context.Context) (*fleet.SetupExperi
 		teamID = *host.TeamID
 	}
 
-	hostUUID, err := fleet.HostUUIDForSetupExperience(host)
+	hostUUID, err := automdm.HostUUIDForSetupExperience(host)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "failed to get host's UUID for the setup experience")
 	}
@@ -401,7 +401,7 @@ func (svc *Service) SetupExperienceInit(ctx context.Context) (*fleet.SetupExperi
 		}
 	}
 
-	return &fleet.SetupExperienceInitResult{
+	return &automdm.SetupExperienceInitResult{
 		Enabled: enabled,
 	}, nil
 }

@@ -15,9 +15,9 @@ func TestUp_20261109155711(t *testing.T) {
 		Path   string `db:"path"`
 	}
 	const (
-		oldByName = "/api/v1/fleet/reports/:name"
-		oldByID   = "/api/v1/fleet/reports/id/:id"
-		newByID   = "/api/v1/fleet/reports/:id"
+		oldByName = "/api/v1/automdm/reports/:name"
+		oldByID   = "/api/v1/automdm/reports/id/:id"
+		newByID   = "/api/v1/automdm/reports/:id"
 	)
 	del := func(path string) endpoint { return endpoint{Method: "DELETE", Path: path} }
 
@@ -45,37 +45,37 @@ func TestUp_20261109155711(t *testing.T) {
 		{
 			name: "non-catalog placeholder names, version placeholder, and lowercase method",
 			before: []endpoint{
-				{Method: "delete", Path: "/api/_version_/fleet/reports/{report_name}"},
-				del("/api/v1/fleet/reports/id/{report_id}"),
+				{Method: "delete", Path: "/api/_version_/automdm/reports/{report_name}"},
+				del("/api/v1/automdm/reports/id/{report_id}"),
 			},
 			after: []endpoint{del(oldByID), del(newByID)},
 		},
 		{
 			// The old by-name grant's exact string equals the new by-ID path.
 			name:   "by name saved with an :id placeholder",
-			before: []endpoint{del("/api/v1/fleet/reports/:id")},
+			before: []endpoint{del("/api/v1/automdm/reports/:id")},
 			after:  []endpoint{del(newByID)},
 		},
 		{
 			name:   "by name saved with an :id placeholder alongside by ID",
-			before: []endpoint{del("/api/v1/fleet/reports/:id"), del(oldByID)},
+			before: []endpoint{del("/api/v1/automdm/reports/:id"), del(oldByID)},
 			after:  []endpoint{del(oldByID), del(newByID)},
 		},
 		{
 			name: "unrelated grants are untouched",
 			before: []endpoint{
-				{Method: "GET", Path: "/api/v1/fleet/reports/:id"},
-				{Method: "PATCH", Path: "/api/v1/fleet/reports/:id"},
-				{Method: "POST", Path: "/api/v1/fleet/reports/delete"},
-				del("/api/v1/fleet/labels/:name"),
-				del("/api/v1/fleet/packs/id/:id"),
+				{Method: "GET", Path: "/api/v1/automdm/reports/:id"},
+				{Method: "PATCH", Path: "/api/v1/automdm/reports/:id"},
+				{Method: "POST", Path: "/api/v1/automdm/reports/delete"},
+				del("/api/v1/automdm/labels/:name"),
+				del("/api/v1/automdm/packs/id/:id"),
 			},
 			after: []endpoint{
-				{Method: "GET", Path: "/api/v1/fleet/reports/:id"},
-				{Method: "PATCH", Path: "/api/v1/fleet/reports/:id"},
-				{Method: "POST", Path: "/api/v1/fleet/reports/delete"},
-				del("/api/v1/fleet/labels/:name"),
-				del("/api/v1/fleet/packs/id/:id"),
+				{Method: "GET", Path: "/api/v1/automdm/reports/:id"},
+				{Method: "PATCH", Path: "/api/v1/automdm/reports/:id"},
+				{Method: "POST", Path: "/api/v1/automdm/reports/delete"},
+				del("/api/v1/automdm/labels/:name"),
+				del("/api/v1/automdm/packs/id/:id"),
 			},
 		},
 	}

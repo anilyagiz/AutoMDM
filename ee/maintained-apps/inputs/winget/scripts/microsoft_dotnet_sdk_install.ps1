@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # The .NET SDK installs machine-wide. It replaces an older SDK from the same
 # feature band (e.g. 9.0.3xx) but leaves SDKs from other bands side by side.

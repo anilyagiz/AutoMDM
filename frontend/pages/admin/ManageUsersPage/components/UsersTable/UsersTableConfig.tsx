@@ -83,7 +83,7 @@ export interface IUserTableData {
 }
 
 // The inactivity window is enforced server-side (see UserInactiveAfter in
-// server/fleet/users.go); these tooltips just describe it.
+// server/automdm/users.go); these tooltips just describe it.
 const USER_INACTIVE_TOOLTIP = "Hasn't logged in for 30+ days";
 const API_ONLY_INACTIVE_TOOLTIP = "No API activity for 30+ days";
 
@@ -101,7 +101,7 @@ const generateUserStatus = (user: IUser): string =>
 // Invites come from a separate endpoint and have no server-computed status,
 // so their status stays derived client-side.
 const generateInviteStatus = (invite: IInvite): string =>
-  invite.global_role === null && invite.fleets.length === 0
+  invite.global_role === null && invite.teams.length === 0
     ? "No access"
     : "Invite pending";
 
@@ -269,8 +269,8 @@ const generateTableHeaders = (
   // Add Teams column for premium tier
   if (isPremiumTier) {
     tableHeaders.splice(2, 0, {
-      title: "Fleets",
-      Header: "Fleets",
+      title: "Teams",
+      Header: "Teams",
       accessor: "teams",
       disableSortBy: true,
       Cell: (cellProps: ICellProps) => {
@@ -371,10 +371,10 @@ const enhanceUserData = (
       name: user.name || DEFAULT_EMPTY_CELL_VALUE,
       status: generateUserStatus(user),
       email: user.email,
-      teams: generateTeam(user.fleets, user.global_role),
-      teamNames: generateTeamNames(user.fleets),
-      roleGroups: generateRoleGroups(user.fleets),
-      role: generateRole(user.fleets, user.global_role),
+      teams: generateTeam(user.teams, user.global_role),
+      teamNames: generateTeamNames(user.teams),
+      roleGroups: generateRoleGroups(user.teams),
+      role: generateRole(user.teams, user.global_role),
       actions: generateActionDropdownOptions(
         user.id === currentUserId,
         false,
@@ -396,10 +396,10 @@ const enhanceInviteData = (invites: IInvite[]): IUserTableData[] => {
       name: invite.name || DEFAULT_EMPTY_CELL_VALUE,
       status: generateInviteStatus(invite),
       email: invite.email,
-      teams: generateTeam(invite.fleets, invite.global_role),
-      teamNames: generateTeamNames(invite.fleets),
-      roleGroups: generateRoleGroups(invite.fleets),
-      role: generateRole(invite.fleets, invite.global_role),
+      teams: generateTeam(invite.teams, invite.global_role),
+      teamNames: generateTeamNames(invite.teams),
+      roleGroups: generateRoleGroups(invite.teams),
+      role: generateRole(invite.teams, invite.global_role),
       actions: generateActionDropdownOptions(
         false,
         true,
@@ -409,7 +409,7 @@ const enhanceInviteData = (invites: IInvite[]): IUserTableData[] => {
       id: `invite-${invite.id}`,
       apiId: invite.id,
       type: "invite",
-      api_only: false, // api only users are created through fleetctl and not invites
+      api_only: false, // api only users are created through automdmctl and not invites
       apiEndpointCount: 0,
     };
   });

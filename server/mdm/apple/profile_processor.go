@@ -12,16 +12,16 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/ee/server/service/digicert"
-	"github.com/fleetdm/fleet/v4/ee/server/service/ejbca"
-	"github.com/fleetdm/fleet/v4/ee/server/service/scep"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/apple/mobileconfig"
-	"github.com/fleetdm/fleet/v4/server/mdm/profiles"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/variables"
+	"github.com/anilyagiz/automdm/v4/ee/server/service/digicert"
+	"github.com/anilyagiz/automdm/v4/ee/server/service/ejbca"
+	"github.com/anilyagiz/automdm/v4/ee/server/service/scep"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
+	"github.com/anilyagiz/automdm/v4/server/mdm/apple/mobileconfig"
+	"github.com/anilyagiz/automdm/v4/server/mdm/profiles"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/variables"
 	"github.com/google/uuid"
 )
 
@@ -34,12 +34,12 @@ type EnqueueResult struct {
 }
 
 func ProcessAndEnqueueProfiles(ctx context.Context,
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	logger *slog.Logger,
-	appConfig *fleet.AppConfig,
+	appConfig *automdm.AppConfig,
 	commander *MDMAppleCommander,
-	installTargets, removeTargets map[string]*fleet.CmdTarget,
-	hostProfilesToInstallMap map[fleet.HostProfileUUID]*fleet.MDMAppleBulkUpsertHostProfilePayload,
+	installTargets, removeTargets map[string]*automdm.CmdTarget,
+	hostProfilesToInstallMap map[automdm.HostProfileUUID]*automdm.MDMAppleBulkUpsertHostProfilePayload,
 	userEnrollmentsToHostUUIDsMap map[string]string,
 	profileContents map[string]mobileconfig.Mobileconfig,
 ) (*EnqueueResult, error) {
@@ -73,7 +73,7 @@ func ProcessAndEnqueueProfiles(ctx context.Context,
 	}
 
 	// Find the profiles containing secret variables.
-	profilesWithSecrets, err := fleet.FindProfilesWithSecrets(ctx, logger, installTargets, profileContents)
+	profilesWithSecrets, err := automdm.FindProfilesWithSecrets(ctx, logger, installTargets, profileContents)
 	if err != nil {
 		return nil, err
 	}
@@ -87,18 +87,18 @@ func ProcessAndEnqueueProfiles(ctx context.Context,
 	var wgProd, wgCons sync.WaitGroup
 	ch := make(chan remoteResult)
 
-	execCmd := func(profUUID string, target *fleet.CmdTarget, op fleet.MDMOperationType) {
+	execCmd := func(profUUID string, target *automdm.CmdTarget, op automdm.MDMOperationType) {
 		defer wgProd.Done()
 
 		var err error
 		switch op {
-		case fleet.MDMOperationTypeInstall:
+		case automdm.MDMOperationTypeInstall:
 			if _, ok := profilesWithSecrets[profUUID]; ok {
 				err = commander.EnqueueCommandInstallProfileWithSecrets(ctx, target.EnrollmentIDs, profileContents[profUUID], target.CmdUUID, target.ProfileName)
 			} else {
 				err = commander.InstallProfile(ctx, target.EnrollmentIDs, profileContents[profUUID], target.CmdUUID, target.ProfileName)
 			}
-		case fleet.MDMOperationTypeRemove:
+		case automdm.MDMOperationTypeRemove:
 			err = commander.RemoveProfile(ctx, target.EnrollmentIDs, target.ProfileIdentifier, target.CmdUUID, target.ProfileName)
 		}
 
@@ -119,11 +119,11 @@ func ProcessAndEnqueueProfiles(ctx context.Context,
 	}
 	for profUUID, target := range installTargets {
 		wgProd.Add(1)
-		go execCmd(profUUID, target, fleet.MDMOperationTypeInstall)
+		go execCmd(profUUID, target, automdm.MDMOperationTypeInstall)
 	}
 	for profUUID, target := range removeTargets {
 		wgProd.Add(1)
-		go execCmd(profUUID, target, fleet.MDMOperationTypeRemove)
+		go execCmd(profUUID, target, automdm.MDMOperationTypeRemove)
 	}
 
 	result := &EnqueueResult{
@@ -149,28 +149,28 @@ func ProcessAndEnqueueProfiles(ctx context.Context,
 
 func preprocessProfileContents(
 	ctx context.Context,
-	appConfig *fleet.AppConfig,
-	ds fleet.Datastore,
-	scepConfig fleet.SCEPConfigService,
-	digiCertService fleet.DigiCertService,
-	ejbcaService fleet.EJBCAService,
+	appConfig *automdm.AppConfig,
+	ds automdm.Datastore,
+	scepConfig automdm.SCEPConfigService,
+	digiCertService automdm.DigiCertService,
+	ejbcaService automdm.EJBCAService,
 	logger *slog.Logger,
-	targets map[string]*fleet.CmdTarget,
+	targets map[string]*automdm.CmdTarget,
 	profileContents map[string]mobileconfig.Mobileconfig,
-	hostProfilesToInstallMap map[fleet.HostProfileUUID]*fleet.MDMAppleBulkUpsertHostProfilePayload,
+	hostProfilesToInstallMap map[automdm.HostProfileUUID]*automdm.MDMAppleBulkUpsertHostProfilePayload,
 	userEnrollmentsToHostUUIDsMap map[string]string,
-	groupedCAs *fleet.GroupedCertificateAuthorities,
+	groupedCAs *automdm.GroupedCertificateAuthorities,
 ) error {
-	// This method replaces Fleet variables ($FLEET_VAR_<NAME>) in the profile
+	// This method replaces AutoMDM variables ($AUTOMDM_VAR_<NAME>) in the profile
 	// contents, generating a unique profile for each host. For a 2KB profile and
 	// 30K hosts, this method may generate ~60MB of profile data in memory.
 
 	var (
 		// Copy of NDES SCEP config which will contain unencrypted password, if needed
-		ndesConfig    *fleet.NDESSCEPProxyCA
+		ndesConfig    *automdm.NDESSCEPProxyCA
 		pkcs12CAs     = make(map[string]pkcs12CA) // the CAs of the profile that deliver a PKCS#12, by pkcs12CAVariable.cacheKey
-		customSCEPCAs map[string]*fleet.CustomSCEPProxyCA
-		smallstepCAs  map[string]*fleet.SmallstepSCEPProxyCA
+		customSCEPCAs map[string]*automdm.CustomSCEPProxyCA
+		smallstepCAs  map[string]*automdm.SmallstepSCEPProxyCA
 	)
 
 	pkcs12CATypes := newPKCS12CATypes(digiCertService, ejbcaService)
@@ -179,7 +179,7 @@ func preprocessProfileContents(
 	// need to look it up more than once per host.
 	hostIDForUUIDCache := make(map[string]uint)
 
-	var addedTargets map[string]*fleet.CmdTarget
+	var addedTargets map[string]*automdm.CmdTarget
 	for profUUID, target := range targets {
 		contents, ok := profileContents[profUUID]
 		if !ok {
@@ -187,29 +187,29 @@ func preprocessProfileContents(
 			continue
 		}
 
-		// Check if Fleet variables or custom host vitals are present.
+		// Check if AutoMDM variables or custom host vitals are present.
 		contentsStr := string(contents)
-		fleetVars := variables.Find(contentsStr)
-		hasHostVitals := len(fleet.FindCustomHostVitalIDs(contentsStr)) > 0
-		if len(fleetVars) == 0 && !hasHostVitals {
+		automdmVars := variables.Find(contentsStr)
+		hasHostVitals := len(automdm.FindCustomHostVitalIDs(contentsStr)) > 0
+		if len(automdmVars) == 0 && !hasHostVitals {
 			continue
 		}
 
 		// The PSSO device registration token is host-independent: it resolves to
-		// the same $FLEET_HOST_SECRET_ placeholder for every host, which is then
-		// expanded into a per-host, Fleet-signed JWT at command-delivery time
+		// the same $AUTOMDM_HOST_SECRET_ placeholder for every host, which is then
+		// expanded into a per-host, AutoMDM-signed JWT at command-delivery time
 		// (see ExpandHostSecrets). Substitute it once on the shared contents. If
-		// it is the only Fleet variable, the contents are identical for every
+		// it is the only AutoMDM variable, the contents are identical for every
 		// host, so we skip the per-host profile fan-out and send a single shared
 		// command — the per-host token is injected at delivery time.
-		if slices.Contains(fleetVars, string(fleet.FleetVarPSSODeviceRegistrationToken)) {
-			contentsStr = profiles.ReplaceFleetVariableInXML(
-				fleet.FleetVarPSSODeviceRegistrationTokenRegexp, contentsStr,
-				"$"+fleet.HostSecretPrefix+fleet.HostSecretPSSODeviceRegistrationToken)
-			fleetVars = slices.DeleteFunc(fleetVars, func(v string) bool {
-				return v == string(fleet.FleetVarPSSODeviceRegistrationToken)
+		if slices.Contains(automdmVars, string(automdm.AutoMDMVarPSSODeviceRegistrationToken)) {
+			contentsStr = profiles.ReplaceAutoMDMVariableInXML(
+				automdm.AutoMDMVarPSSODeviceRegistrationTokenRegexp, contentsStr,
+				"$"+automdm.HostSecretPrefix+automdm.HostSecretPSSODeviceRegistrationToken)
+			automdmVars = slices.DeleteFunc(automdmVars, func(v string) bool {
+				return v == string(automdm.AutoMDMVarPSSODeviceRegistrationToken)
 			})
-			if len(fleetVars) == 0 {
+			if len(automdmVars) == 0 {
 				profileContents[profUUID] = mobileconfig.Mobileconfig(contentsStr)
 				continue
 			}
@@ -219,17 +219,17 @@ func preprocessProfileContents(
 		// once on the shared contents. The challenge is created for the host when the command is sent (see
 		// ExpandHostSecrets), so the stored command never holds one.
 		isConditionalAccessVar := func(v string) bool {
-			return v == string(fleet.FleetVarConditionalAccessSCEPURL) || v == string(fleet.FleetVarConditionalAccessSCEPChallenge)
+			return v == string(automdm.AutoMDMVarConditionalAccessSCEPURL) || v == string(automdm.AutoMDMVarConditionalAccessSCEPChallenge)
 		}
-		if slices.ContainsFunc(fleetVars, isConditionalAccessVar) {
-			scepURL, err := url.JoinPath(appConfig.ServerSettings.ServerURL, fleet.ConditionalAccessSCEPPath)
+		if slices.ContainsFunc(automdmVars, isConditionalAccessVar) {
+			scepURL, err := url.JoinPath(appConfig.ServerSettings.ServerURL, automdm.ConditionalAccessSCEPPath)
 			if err != nil {
 				return ctxerr.Wrap(ctx, err, "building conditional access SCEP URL")
 			}
-			contentsStr = profiles.ReplaceFleetVariableInXML(fleet.FleetVarConditionalAccessSCEPURLRegexp, contentsStr, scepURL)
-			contentsStr = profiles.ReplaceFleetVariableInXML(fleet.FleetVarConditionalAccessSCEPChallengeRegexp, contentsStr,
-				fleet.HostSecretPlaceholder(fleet.HostSecretConditionalAccessSCEPChallenge))
-			fleetVars = slices.DeleteFunc(fleetVars, isConditionalAccessVar)
+			contentsStr = profiles.ReplaceAutoMDMVariableInXML(automdm.AutoMDMVarConditionalAccessSCEPURLRegexp, contentsStr, scepURL)
+			contentsStr = profiles.ReplaceAutoMDMVariableInXML(automdm.AutoMDMVarConditionalAccessSCEPChallengeRegexp, contentsStr,
+				automdm.HostSecretPlaceholder(automdm.HostSecretConditionalAccessSCEPChallenge))
+			automdmVars = slices.DeleteFunc(automdmVars, isConditionalAccessVar)
 		}
 
 		var variablesUpdatedAt *time.Time
@@ -241,102 +241,102 @@ func preprocessProfileContents(
 		// validation works as expected
 		// In the future we should expand variablesUpdatedAt logic to include non-CA variables as
 		// well
-		for _, fleetVar := range fleetVars {
-			_, isPKCS12CA := findPKCS12CAVariable(pkcs12CATypes, fleetVar)
-			if isPKCS12CA || fleetVar == string(fleet.FleetVarSCEPRenewalID) || fleetVar == string(fleet.FleetVarCertificateRenewalID) ||
-				fleetVar == string(fleet.FleetVarNDESSCEPChallenge) || fleetVar == string(fleet.FleetVarNDESSCEPProxyURL) || fleetVar == string(fleet.FleetVarHostUUID) ||
-				strings.HasPrefix(fleetVar, string(fleet.FleetVarSmallstepSCEPChallengePrefix)) || strings.HasPrefix(fleetVar, string(fleet.FleetVarSmallstepSCEPProxyURLPrefix)) ||
-				strings.HasPrefix(fleetVar, string(fleet.FleetVarCustomSCEPChallengePrefix)) || strings.HasPrefix(fleetVar, string(fleet.FleetVarCustomSCEPProxyURLPrefix)) {
+		for _, automdmVar := range automdmVars {
+			_, isPKCS12CA := findPKCS12CAVariable(pkcs12CATypes, automdmVar)
+			if isPKCS12CA || automdmVar == string(automdm.AutoMDMVarSCEPRenewalID) || automdmVar == string(automdm.AutoMDMVarCertificateRenewalID) ||
+				automdmVar == string(automdm.AutoMDMVarNDESSCEPChallenge) || automdmVar == string(automdm.AutoMDMVarNDESSCEPProxyURL) || automdmVar == string(automdm.AutoMDMVarHostUUID) ||
+				strings.HasPrefix(automdmVar, string(automdm.AutoMDMVarSmallstepSCEPChallengePrefix)) || strings.HasPrefix(automdmVar, string(automdm.AutoMDMVarSmallstepSCEPProxyURLPrefix)) ||
+				strings.HasPrefix(automdmVar, string(automdm.AutoMDMVarCustomSCEPChallengePrefix)) || strings.HasPrefix(automdmVar, string(automdm.AutoMDMVarCustomSCEPProxyURLPrefix)) {
 				// Give a few minutes leeway to account for clock skew
 				variablesUpdatedAt = ptr.Time(time.Now().UTC().Add(-3 * time.Minute))
 				break
 			}
 		}
 
-	initialFleetVarLoop:
-		for _, fleetVar := range fleetVars {
-			pkcs12Var, isPKCS12CA := findPKCS12CAVariable(pkcs12CATypes, fleetVar)
+	initialAutoMDMVarLoop:
+		for _, automdmVar := range automdmVars {
+			pkcs12Var, isPKCS12CA := findPKCS12CAVariable(pkcs12CATypes, automdmVar)
 			switch {
-			case fleetVar == string(fleet.FleetVarNDESSCEPChallenge) || fleetVar == string(fleet.FleetVarNDESSCEPProxyURL):
+			case automdmVar == string(automdm.AutoMDMVarNDESSCEPChallenge) || automdmVar == string(automdm.AutoMDMVarNDESSCEPProxyURL):
 				configured, err := isNDESSCEPConfigured(ctx, logger, groupedCAs, ds, hostProfilesToInstallMap, userEnrollmentsToHostUUIDsMap, profUUID, target)
 				if err != nil {
 					return ctxerr.Wrap(ctx, err, "checking NDES SCEP configuration")
 				}
 				if !configured {
 					valid = false
-					break initialFleetVarLoop
+					break initialAutoMDMVarLoop
 				}
 
-			case fleetVar == string(fleet.FleetVarHostHardwareSerial) || fleetVar == string(fleet.FleetVarHostPlatform) ||
-				fleetVar == string(fleet.FleetVarHostEndUserIDPUsername) || fleetVar == string(fleet.FleetVarHostEndUserIDPUsernameLocalPart) ||
-				fleetVar == string(fleet.FleetVarHostEndUserIDPGroups) || fleetVar == string(fleet.FleetVarHostEndUserIDPDepartment) ||
-				fleetVar == string(fleet.FleetVarSCEPRenewalID) || fleetVar == string(fleet.FleetVarCertificateRenewalID) ||
-				fleetVar == string(fleet.FleetVarHostEndUserIDPFullname) || fleetVar == string(fleet.FleetVarHostEndUserIDPExternalID) ||
-				fleetVar == string(fleet.FleetVarHostUUID):
+			case automdmVar == string(automdm.AutoMDMVarHostHardwareSerial) || automdmVar == string(automdm.AutoMDMVarHostPlatform) ||
+				automdmVar == string(automdm.AutoMDMVarHostEndUserIDPUsername) || automdmVar == string(automdm.AutoMDMVarHostEndUserIDPUsernameLocalPart) ||
+				automdmVar == string(automdm.AutoMDMVarHostEndUserIDPGroups) || automdmVar == string(automdm.AutoMDMVarHostEndUserIDPDepartment) ||
+				automdmVar == string(automdm.AutoMDMVarSCEPRenewalID) || automdmVar == string(automdm.AutoMDMVarCertificateRenewalID) ||
+				automdmVar == string(automdm.AutoMDMVarHostEndUserIDPFullname) || automdmVar == string(automdm.AutoMDMVarHostEndUserIDPExternalID) ||
+				automdmVar == string(automdm.AutoMDMVarHostUUID):
 				// No extra validation needed for these variables
 
 			case isPKCS12CA:
 				configured, err := isPKCS12CAConfigured(ctx, logger, groupedCAs, ds, hostProfilesToInstallMap, userEnrollmentsToHostUUIDsMap, pkcs12CAs,
-					profUUID, target, pkcs12Var, fleetVar)
+					profUUID, target, pkcs12Var, automdmVar)
 				if err != nil {
 					return ctxerr.Wrapf(ctx, err, "checking %s configuration", pkcs12Var.caType.vendor)
 				}
 				if !configured {
 					valid = false
-					break initialFleetVarLoop
+					break initialAutoMDMVarLoop
 				}
 
-			case strings.HasPrefix(fleetVar, string(fleet.FleetVarCustomSCEPChallengePrefix)) || strings.HasPrefix(fleetVar, string(fleet.FleetVarCustomSCEPProxyURLPrefix)):
-				caName, found := strings.CutPrefix(fleetVar, string(fleet.FleetVarCustomSCEPChallengePrefix))
+			case strings.HasPrefix(automdmVar, string(automdm.AutoMDMVarCustomSCEPChallengePrefix)) || strings.HasPrefix(automdmVar, string(automdm.AutoMDMVarCustomSCEPProxyURLPrefix)):
+				caName, found := strings.CutPrefix(automdmVar, string(automdm.AutoMDMVarCustomSCEPChallengePrefix))
 				if !found {
-					caName, _ = strings.CutPrefix(fleetVar, string(fleet.FleetVarCustomSCEPProxyURLPrefix))
+					caName, _ = strings.CutPrefix(automdmVar, string(automdm.AutoMDMVarCustomSCEPProxyURLPrefix))
 				}
 
 				if customSCEPCAs == nil {
-					customSCEPCAs = make(map[string]*fleet.CustomSCEPProxyCA)
+					customSCEPCAs = make(map[string]*automdm.CustomSCEPProxyCA)
 					if groupedCAs != nil {
 						for _, ca := range groupedCAs.CustomScepProxy {
 							customSCEPCAs[ca.Name] = &ca
 						}
 					}
 				}
-				err := profiles.IsCustomSCEPConfigured(ctx, customSCEPCAs, caName, fleetVar, func(errMsg string) error {
-					_, err := fleet.MarkProfilesFailed(ctx, ds, logger, target, hostProfilesToInstallMap, userEnrollmentsToHostUUIDsMap, profUUID, errMsg, ptr.Time(time.Now().UTC()))
+				err := profiles.IsCustomSCEPConfigured(ctx, customSCEPCAs, caName, automdmVar, func(errMsg string) error {
+					_, err := automdm.MarkProfilesFailed(ctx, ds, logger, target, hostProfilesToInstallMap, userEnrollmentsToHostUUIDsMap, profUUID, errMsg, ptr.Time(time.Now().UTC()))
 					return err
 				})
 				if err != nil {
 					valid = false
-					break initialFleetVarLoop
+					break initialAutoMDMVarLoop
 				}
 
-			case strings.HasPrefix(fleetVar, string(fleet.FleetVarSmallstepSCEPChallengePrefix)) || strings.HasPrefix(fleetVar, string(fleet.FleetVarSmallstepSCEPProxyURLPrefix)):
+			case strings.HasPrefix(automdmVar, string(automdm.AutoMDMVarSmallstepSCEPChallengePrefix)) || strings.HasPrefix(automdmVar, string(automdm.AutoMDMVarSmallstepSCEPProxyURLPrefix)):
 				if smallstepCAs == nil {
-					smallstepCAs = make(map[string]*fleet.SmallstepSCEPProxyCA)
+					smallstepCAs = make(map[string]*automdm.SmallstepSCEPProxyCA)
 				}
-				caName, found := strings.CutPrefix(fleetVar, string(fleet.FleetVarSmallstepSCEPChallengePrefix))
+				caName, found := strings.CutPrefix(automdmVar, string(automdm.AutoMDMVarSmallstepSCEPChallengePrefix))
 				if !found {
-					caName, _ = strings.CutPrefix(fleetVar, string(fleet.FleetVarSmallstepSCEPProxyURLPrefix))
+					caName, _ = strings.CutPrefix(automdmVar, string(automdm.AutoMDMVarSmallstepSCEPProxyURLPrefix))
 				}
 
 				configured, err := isSmallstepSCEPConfigured(ctx, logger, groupedCAs, ds, hostProfilesToInstallMap, userEnrollmentsToHostUUIDsMap, smallstepCAs, profUUID, target, caName,
-					fleetVar)
+					automdmVar)
 				if err != nil {
 					return ctxerr.Wrap(ctx, err, "checking Smallstep SCEP configuration")
 				}
 				if !configured {
 					valid = false
-					break initialFleetVarLoop
+					break initialAutoMDMVarLoop
 				}
 
 			default:
 				// Otherwise, error out since this variable is unknown
-				detail := fmt.Sprintf("Unknown Fleet variable $FLEET_VAR_%s found in profile. Please update or remove.",
-					fleetVar)
-				// A profile saved before the upgrade can still use a variable Fleet 5 removed.
-				if err := fleet.FindRemovedFleetVariable(fleetVar); err != nil {
+				detail := fmt.Sprintf("Unknown AutoMDM variable $AUTOMDM_VAR_%s found in profile. Please update or remove.",
+					automdmVar)
+				// A profile saved before the upgrade can still use a variable AutoMDM 5 removed.
+				if err := automdm.FindRemovedAutoMDMVariable(automdmVar); err != nil {
 					detail = err.Error()
 				}
-				_, err := fleet.MarkProfilesFailed(ctx, ds, logger, target, hostProfilesToInstallMap, userEnrollmentsToHostUUIDsMap, profUUID, detail, variablesUpdatedAt)
+				_, err := automdm.MarkProfilesFailed(ctx, ds, logger, target, hostProfilesToInstallMap, userEnrollmentsToHostUUIDsMap, profUUID, detail, variablesUpdatedAt)
 				if err != nil {
 					return err
 				}
@@ -349,17 +349,17 @@ func preprocessProfileContents(
 			continue
 		}
 
-		// Currently, all supported Fleet variables are unique per host, so we split the profile into multiple profiles.
+		// Currently, all supported AutoMDM variables are unique per host, so we split the profile into multiple profiles.
 		// We generate a new temporary profileUUID which is currently only used to install the profile.
 		// The profileUUID in host_mdm_apple_profiles is still the original profileUUID.
 		// We also generate a new commandUUID which is used to install the profile via nano_commands table.
 		if addedTargets == nil {
-			addedTargets = make(map[string]*fleet.CmdTarget, 1)
+			addedTargets = make(map[string]*automdm.CmdTarget, 1)
 		}
 		// We store the timestamp when the challenge was retrieved to know if it has expired.
-		var managedCertificatePayloads []*fleet.MDMManagedCertificate
+		var managedCertificatePayloads []*automdm.MDMManagedCertificate
 		// We need to update the profiles of each host with the new command UUID
-		profilesToUpdate := make([]*fleet.MDMAppleBulkUpsertHostProfilePayload, 0, len(target.EnrollmentIDs))
+		profilesToUpdate := make([]*automdm.MDMAppleBulkUpsertHostProfilePayload, 0, len(target.EnrollmentIDs))
 		for _, enrollmentID := range target.EnrollmentIDs {
 			tempProfUUID := uuid.NewString()
 			// Use the same UUID for command UUID, which will be the primary key for nano_commands
@@ -372,14 +372,14 @@ func preprocessProfileContents(
 			hostUUID := profile.HostUUID
 
 			// some variables need more information about the host; build a skeleton host and hydrate if we need more info
-			hostLite := fleet.Host{UUID: hostUUID}
+			hostLite := automdm.Host{UUID: hostUUID}
 			onMismatchedHostCount := func(hostCount int) error {
-				return ctxerr.Wrap(ctx, ds.UpdateOrDeleteHostMDMAppleProfile(ctx, &fleet.HostMDMAppleProfile{
+				return ctxerr.Wrap(ctx, ds.UpdateOrDeleteHostMDMAppleProfile(ctx, &automdm.HostMDMAppleProfile{
 					CommandUUID:        target.CmdUUID,
 					HostUUID:           hostLite.UUID,
-					Status:             &fleet.MDMDeliveryFailed,
+					Status:             &automdm.MDMDeliveryFailed,
 					Detail:             fmt.Sprintf("Unexpected number of hosts (%d) for UUID %s.", hostCount, hostLite.UUID),
-					OperationType:      fleet.MDMOperationTypeInstall,
+					OperationType:      automdm.MDMOperationTypeInstall,
 					VariablesUpdatedAt: variablesUpdatedAt,
 				}), "could not retrieve host by UUID for profile variable substitution")
 			}
@@ -392,14 +392,14 @@ func preprocessProfileContents(
 			// Holds the records of the certificates issued for this host while its profile is built. They are saved only if the whole
 			// profile is sent: after a later failure the host keeps its old certificates, and a new record would give a wrong expiry.
 			// This only matters for a profile that gets more than one certificate, which is rare and not possible with some CA types (like SCEP).
-			var pkcs12ManagedCertificates []*fleet.MDMManagedCertificate
+			var pkcs12ManagedCertificates []*automdm.MDMManagedCertificate
 
-		fleetVarLoop:
-			for _, fleetVar := range fleetVars {
-				pkcs12Var, isPKCS12CA := findPKCS12CAVariable(pkcs12CATypes, fleetVar)
+		automdmVarLoop:
+			for _, automdmVar := range automdmVars {
+				pkcs12Var, isPKCS12CA := findPKCS12CAVariable(pkcs12CATypes, automdmVar)
 				var err error
 				switch {
-				case fleetVar == string(fleet.FleetVarNDESSCEPChallenge):
+				case automdmVar == string(automdm.AutoMDMVarNDESSCEPChallenge):
 					if ndesConfig == nil {
 						if groupedCAs == nil || groupedCAs.NDESSCEP == nil {
 							logger.ErrorContext(ctx, "missing NDES CA configuration for profile with NDES variables", "host_uuid", hostUUID, "profile_uuid", profUUID)
@@ -416,47 +416,47 @@ func preprocessProfileContents(
 							logger.WarnContext(ctx, "could not reach NDES for a SCEP challenge; leaving profile queued for a later tick",
 								"host_uuid", hostUUID, "profile_uuid", profUUID, "err", err)
 							failed = true
-							break fleetVarLoop
+							break automdmVarLoop
 						}
 						detail := scep.NDESChallengeErrorToDetail(err)
-						err := ds.UpdateOrDeleteHostMDMAppleProfile(ctx, &fleet.HostMDMAppleProfile{
+						err := ds.UpdateOrDeleteHostMDMAppleProfile(ctx, &automdm.HostMDMAppleProfile{
 							CommandUUID:        target.CmdUUID,
 							HostUUID:           hostUUID,
-							Status:             &fleet.MDMDeliveryFailed,
+							Status:             &automdm.MDMDeliveryFailed,
 							Detail:             detail,
-							OperationType:      fleet.MDMOperationTypeInstall,
+							OperationType:      automdm.MDMOperationTypeInstall,
 							VariablesUpdatedAt: variablesUpdatedAt,
 						})
 						if err != nil {
 							return ctxerr.Wrap(ctx, err, "updating host MDM Apple profile for NDES SCEP challenge")
 						}
 						failed = true
-						break fleetVarLoop
+						break automdmVarLoop
 					}
-					payload := &fleet.MDMManagedCertificate{
+					payload := &automdm.MDMManagedCertificate{
 						HostUUID:             hostUUID,
 						ProfileUUID:          profUUID,
 						ChallengeRetrievedAt: ptr.Time(time.Now()),
-						Type:                 fleet.CAConfigNDES,
+						Type:                 automdm.CAConfigNDES,
 						CAName:               "NDES",
 					}
 					managedCertificatePayloads = append(managedCertificatePayloads, payload)
 
-					hostContents = profiles.ReplaceFleetVariableInXML(fleet.FleetVarNDESSCEPChallengeRegexp, hostContents, challenge)
+					hostContents = profiles.ReplaceAutoMDMVariableInXML(automdm.AutoMDMVarNDESSCEPChallengeRegexp, hostContents, challenge)
 
-				case fleetVar == string(fleet.FleetVarNDESSCEPProxyURL):
+				case automdmVar == string(automdm.AutoMDMVarNDESSCEPProxyURL):
 					// Insert the SCEP URL into the profile contents
 					hostContents = profiles.ReplaceNDESSCEPProxyURLVariable(appConfig.MDMUrl(), hostUUID, profUUID, hostContents)
 
-				case fleetVar == string(fleet.FleetVarSCEPRenewalID), fleetVar == string(fleet.FleetVarCertificateRenewalID):
+				case automdmVar == string(automdm.AutoMDMVarSCEPRenewalID), automdmVar == string(automdm.AutoMDMVarCertificateRenewalID):
 					// Insert the renewal ID into the SCEP/ACME Payload CN or OU.
 					// Both legacy SCEP_RENEWAL_ID and the preferred
 					// CERTIFICATE_RENEWAL_ID substitute to the same value.
-					fleetRenewalID := "fleet-" + profUUID
-					hostContents = profiles.ReplaceFleetVariableInXML(fleet.FleetVarRenewalIDRegexp, hostContents, fleetRenewalID)
+					automdmRenewalID := "automdm-" + profUUID
+					hostContents = profiles.ReplaceAutoMDMVariableInXML(automdm.AutoMDMVarRenewalIDRegexp, hostContents, automdmRenewalID)
 
-				case strings.HasPrefix(fleetVar, string(fleet.FleetVarCustomSCEPChallengePrefix)):
-					replacedContents, replacedVariable, err := profiles.ReplaceCustomSCEPChallengeVariable(ctx, logger, fleetVar, customSCEPCAs, hostContents)
+				case strings.HasPrefix(automdmVar, string(automdm.AutoMDMVarCustomSCEPChallengePrefix)):
+					replacedContents, replacedVariable, err := profiles.ReplaceCustomSCEPChallengeVariable(ctx, logger, automdmVar, customSCEPCAs, hostContents)
 					if err != nil {
 						return ctxerr.Wrap(ctx, err, "replacing custom SCEP challenge variable")
 					}
@@ -465,8 +465,8 @@ func preprocessProfileContents(
 					}
 					hostContents = replacedContents
 
-				case strings.HasPrefix(fleetVar, string(fleet.FleetVarCustomSCEPProxyURLPrefix)):
-					replacedContents, managedCertificate, replacedVariable, err := profiles.ReplaceCustomSCEPProxyURLVariable(ctx, logger, ds, appConfig, fleetVar, customSCEPCAs, hostContents, hostUUID, profUUID)
+				case strings.HasPrefix(automdmVar, string(automdm.AutoMDMVarCustomSCEPProxyURLPrefix)):
+					replacedContents, managedCertificate, replacedVariable, err := profiles.ReplaceCustomSCEPProxyURLVariable(ctx, logger, ds, appConfig, automdmVar, customSCEPCAs, hostContents, hostUUID, profUUID)
 					if err != nil {
 						return ctxerr.Wrap(ctx, err, "replacing custom SCEP proxy URL variable")
 					}
@@ -476,8 +476,8 @@ func preprocessProfileContents(
 					hostContents = replacedContents
 					managedCertificatePayloads = append(managedCertificatePayloads, managedCertificate)
 
-				case strings.HasPrefix(fleetVar, string(fleet.FleetVarSmallstepSCEPChallengePrefix)):
-					caName := strings.TrimPrefix(fleetVar, string(fleet.FleetVarSmallstepSCEPChallengePrefix))
+				case strings.HasPrefix(automdmVar, string(automdm.AutoMDMVarSmallstepSCEPChallengePrefix)):
+					caName := strings.TrimPrefix(automdmVar, string(automdm.AutoMDMVarSmallstepSCEPChallengePrefix))
 					ca, ok := smallstepCAs[caName]
 					if !ok {
 						logger.ErrorContext(ctx, "Smallstep SCEP CA not found. "+
@@ -487,81 +487,81 @@ func preprocessProfileContents(
 					logger.DebugContext(ctx, "fetching Smallstep SCEP challenge", "host_uuid", hostUUID, "profile_uuid", profUUID)
 					challenge, err := scepConfig.GetSmallstepSCEPChallenge(ctx, *ca)
 					if err != nil {
-						detail := fmt.Sprintf("Fleet couldn't populate $FLEET_VAR_%s. %s", fleet.FleetVarSmallstepSCEPChallengePrefix, err.Error())
-						err := ds.UpdateOrDeleteHostMDMAppleProfile(ctx, &fleet.HostMDMAppleProfile{
+						detail := fmt.Sprintf("AutoMDM couldn't populate $AUTOMDM_VAR_%s. %s", automdm.AutoMDMVarSmallstepSCEPChallengePrefix, err.Error())
+						err := ds.UpdateOrDeleteHostMDMAppleProfile(ctx, &automdm.HostMDMAppleProfile{
 							CommandUUID:        target.CmdUUID,
 							HostUUID:           hostUUID,
-							Status:             &fleet.MDMDeliveryFailed,
+							Status:             &automdm.MDMDeliveryFailed,
 							Detail:             detail,
-							OperationType:      fleet.MDMOperationTypeInstall,
+							OperationType:      automdm.MDMOperationTypeInstall,
 							VariablesUpdatedAt: variablesUpdatedAt,
 						})
 						if err != nil {
 							return ctxerr.Wrap(ctx, err, "updating host MDM Apple profile for Smallstep SCEP challenge")
 						}
 						failed = true
-						break fleetVarLoop
+						break automdmVarLoop
 					}
 					logger.InfoContext(ctx, "retrieved SCEP challenge from Smallstep", "host_uuid", hostUUID, "profile_uuid", profUUID)
 
-					payload := &fleet.MDMManagedCertificate{
+					payload := &automdm.MDMManagedCertificate{
 						HostUUID:             hostUUID,
 						ProfileUUID:          profUUID,
 						ChallengeRetrievedAt: ptr.Time(time.Now()),
-						Type:                 fleet.CAConfigSmallstep,
+						Type:                 automdm.CAConfigSmallstep,
 						CAName:               caName,
 					}
 					managedCertificatePayloads = append(managedCertificatePayloads, payload)
-					hostContents, err = profiles.ReplaceExactFleetPrefixVariableInXML(string(fleet.FleetVarSmallstepSCEPChallengePrefix), ca.Name, hostContents, challenge)
+					hostContents, err = profiles.ReplaceExactAutoMDMPrefixVariableInXML(string(automdm.AutoMDMVarSmallstepSCEPChallengePrefix), ca.Name, hostContents, challenge)
 					if err != nil {
 						return ctxerr.Wrap(ctx, err, "replacing Smallstep SCEP challenge variable")
 					}
 
-				case strings.HasPrefix(fleetVar, string(fleet.FleetVarSmallstepSCEPProxyURLPrefix)):
+				case strings.HasPrefix(automdmVar, string(automdm.AutoMDMVarSmallstepSCEPProxyURLPrefix)):
 					// Insert the SCEP URL into the profile contents
-					caName := strings.TrimPrefix(fleetVar, string(fleet.FleetVarSmallstepSCEPProxyURLPrefix))
+					caName := strings.TrimPrefix(automdmVar, string(automdm.AutoMDMVarSmallstepSCEPProxyURLPrefix))
 					proxyURL := fmt.Sprintf("%s%s%s", appConfig.MDMUrl(), SCEPProxyPath,
 						url.PathEscape(fmt.Sprintf("%s,%s,%s", hostUUID, profUUID, caName)))
-					hostContents, err = profiles.ReplaceExactFleetPrefixVariableInXML(string(fleet.FleetVarSmallstepSCEPProxyURLPrefix), caName, hostContents, proxyURL)
+					hostContents, err = profiles.ReplaceExactAutoMDMPrefixVariableInXML(string(automdm.AutoMDMVarSmallstepSCEPProxyURLPrefix), caName, hostContents, proxyURL)
 					if err != nil {
 						return ctxerr.Wrap(ctx, err, "replacing Smallstep SCEP URL variable")
 					}
 
-				case fleetVar == string(fleet.FleetVarHostHardwareSerial):
+				case automdmVar == string(automdm.AutoMDMVarHostHardwareSerial):
 					hostLite, ok, err = profiles.HydrateHost(ctx, ds, hostLite, onMismatchedHostCount)
 					if err != nil {
 						return ctxerr.Wrap(ctx, err, "getting host hardware serial")
 					}
 					if !ok {
 						failed = true
-						break fleetVarLoop
+						break automdmVarLoop
 					}
-					hostContents = profiles.ReplaceFleetVariableInXML(fleet.FleetVarHostHardwareSerialRegexp, hostContents, hostLite.HardwareSerial)
-				case fleetVar == string(fleet.FleetVarHostPlatform):
+					hostContents = profiles.ReplaceAutoMDMVariableInXML(automdm.AutoMDMVarHostHardwareSerialRegexp, hostContents, hostLite.HardwareSerial)
+				case automdmVar == string(automdm.AutoMDMVarHostPlatform):
 					hostLite, ok, err = profiles.HydrateHost(ctx, ds, hostLite, onMismatchedHostCount)
 					if err != nil {
 						return ctxerr.Wrap(ctx, err, "getting host platform")
 					}
 					if !ok {
 						failed = true
-						break fleetVarLoop
+						break automdmVarLoop
 					}
 					platform := hostLite.Platform
 					if platform == "darwin" {
 						platform = "macos"
 					}
 
-					hostContents = profiles.ReplaceFleetVariableInXML(fleet.FleetVarHostPlatformRegexp, hostContents, platform)
-				case fleetVar == string(fleet.FleetVarHostEndUserIDPUsername) || fleetVar == string(fleet.FleetVarHostEndUserIDPUsernameLocalPart) ||
-					fleetVar == string(fleet.FleetVarHostEndUserIDPGroups) || fleetVar == string(fleet.FleetVarHostEndUserIDPDepartment) ||
-					fleetVar == string(fleet.FleetVarHostEndUserIDPFullname) || fleetVar == string(fleet.FleetVarHostEndUserIDPExternalID):
-					replacedContents, replacedVariable, err := profiles.ReplaceHostEndUserIDPVariables(ctx, ds, fleetVar, hostContents, hostUUID, hostIDForUUIDCache, func(errMsg string) error {
-						err := ds.UpdateOrDeleteHostMDMAppleProfile(ctx, &fleet.HostMDMAppleProfile{
+					hostContents = profiles.ReplaceAutoMDMVariableInXML(automdm.AutoMDMVarHostPlatformRegexp, hostContents, platform)
+				case automdmVar == string(automdm.AutoMDMVarHostEndUserIDPUsername) || automdmVar == string(automdm.AutoMDMVarHostEndUserIDPUsernameLocalPart) ||
+					automdmVar == string(automdm.AutoMDMVarHostEndUserIDPGroups) || automdmVar == string(automdm.AutoMDMVarHostEndUserIDPDepartment) ||
+					automdmVar == string(automdm.AutoMDMVarHostEndUserIDPFullname) || automdmVar == string(automdm.AutoMDMVarHostEndUserIDPExternalID):
+					replacedContents, replacedVariable, err := profiles.ReplaceHostEndUserIDPVariables(ctx, ds, automdmVar, hostContents, hostUUID, hostIDForUUIDCache, func(errMsg string) error {
+						err := ds.UpdateOrDeleteHostMDMAppleProfile(ctx, &automdm.HostMDMAppleProfile{
 							CommandUUID:        target.CmdUUID,
 							HostUUID:           hostUUID,
-							Status:             &fleet.MDMDeliveryFailed,
+							Status:             &automdm.MDMDeliveryFailed,
 							Detail:             errMsg,
-							OperationType:      fleet.MDMOperationTypeInstall,
+							OperationType:      automdm.MDMOperationTypeInstall,
 							VariablesUpdatedAt: variablesUpdatedAt,
 						})
 						return err
@@ -571,7 +571,7 @@ func preprocessProfileContents(
 					}
 					if !replacedVariable {
 						failed = true
-						break fleetVarLoop
+						break automdmVarLoop
 					}
 
 					hostContents = replacedContents
@@ -579,8 +579,8 @@ func preprocessProfileContents(
 				case isPKCS12CA && !pkcs12Var.isData:
 					// We will replace the password when we populate the certificate data
 
-				case fleetVar == string(fleet.FleetVarHostUUID):
-					hostContents = profiles.ReplaceFleetVariableInXML(fleet.FleetVarHostUUIDRegexp, hostContents, hostUUID)
+				case automdmVar == string(automdm.AutoMDMVarHostUUID):
+					hostContents = profiles.ReplaceAutoMDMVariableInXML(automdm.AutoMDMVarHostUUIDRegexp, hostContents, hostUUID)
 
 				case isPKCS12CA:
 					ca, ok := pkcs12CAs[pkcs12Var.cacheKey()]
@@ -596,7 +596,7 @@ func preprocessProfileContents(
 					}
 					if !ok {
 						failed = true
-						break fleetVarLoop
+						break automdmVarLoop
 					}
 					hostContents = updatedContents
 					pkcs12ManagedCertificates = append(pkcs12ManagedCertificates, managed)
@@ -606,8 +606,8 @@ func preprocessProfileContents(
 				}
 			}
 
-			// Expand per-host custom host vitals ($FLEET_HOST_VITAL_<id>). This is a
-			// top-level prefix not handled by the FLEET_VAR_ loop above. On a
+			// Expand per-host custom host vitals ($AUTOMDM_HOST_VITAL_<id>). This is a
+			// top-level prefix not handled by the AUTOMDM_VAR_ loop above. On a
 			// missing/empty value for this host, mark the profile failed with a
 			// detail rather than shipping a blank substitution.
 			if !failed && hasHostVitals {
@@ -622,16 +622,16 @@ func preprocessProfileContents(
 					hostLite = hostForVitals
 					expanded, err := ds.ExpandCustomHostVitals(ctx, hostLite.ID, hostContents)
 					if err != nil {
-						var missing *fleet.MissingCustomHostVitalValueError
+						var missing *automdm.MissingCustomHostVitalValueError
 						if !errors.As(err, &missing) {
 							return ctxerr.Wrap(ctx, err, "expanding custom host vitals")
 						}
-						if updErr := ds.UpdateOrDeleteHostMDMAppleProfile(ctx, &fleet.HostMDMAppleProfile{
+						if updErr := ds.UpdateOrDeleteHostMDMAppleProfile(ctx, &automdm.HostMDMAppleProfile{
 							CommandUUID:        target.CmdUUID,
 							HostUUID:           hostUUID,
-							Status:             &fleet.MDMDeliveryFailed,
+							Status:             &automdm.MDMDeliveryFailed,
 							Detail:             missing.Error(),
-							OperationType:      fleet.MDMOperationTypeInstall,
+							OperationType:      automdm.MDMOperationTypeInstall,
 							VariablesUpdatedAt: variablesUpdatedAt,
 						}); updErr != nil {
 							return ctxerr.Wrap(ctx, updErr, "marking profile failed for missing custom host vital")
@@ -645,7 +645,7 @@ func preprocessProfileContents(
 
 			if !failed {
 				managedCertificatePayloads = append(managedCertificatePayloads, pkcs12ManagedCertificates...)
-				addedTargets[tempProfUUID] = &fleet.CmdTarget{
+				addedTargets[tempProfUUID] = &automdm.CmdTarget{
 					CmdUUID:           tempCmdUUID,
 					ProfileIdentifier: target.ProfileIdentifier,
 					ProfileName:       target.ProfileName,
@@ -684,14 +684,14 @@ const digiCertVarHint = " The variable is used in the DigiCert certificate autho
 // ejbcaVarHint tells admins that a failing IdP variable lives in the EJBCA CA fields, not in the profile.
 const ejbcaVarHint = " The variable is used in the EJBCA certificate authority, not in the profile."
 
-// replaceFleetVarInCAItem expands the Fleet variables of one field of a certificate authority for the host. varHint is added to the profile
+// replaceAutoMDMVarInCAItem expands the AutoMDM variables of one field of a certificate authority for the host. varHint is added to the profile
 // detail of a failure, to tell the admin the variable is in the certificate authority.
-func replaceFleetVarInCAItem(ctx context.Context, ds fleet.Datastore, target *fleet.CmdTarget, hostLite fleet.Host, caVarsCache map[string]string, item *string, hostIDForUUIDCache map[string]uint, variablesUpdatedAt *time.Time, onMismatchedHostCount func(int) error, varHint string) (bool, error) {
-	caFleetVars := variables.Find(*item)
-	for _, caVar := range caFleetVars {
+func replaceAutoMDMVarInCAItem(ctx context.Context, ds automdm.Datastore, target *automdm.CmdTarget, hostLite automdm.Host, caVarsCache map[string]string, item *string, hostIDForUUIDCache map[string]uint, variablesUpdatedAt *time.Time, onMismatchedHostCount func(int) error, varHint string) (bool, error) {
+	caAutoMDMVars := variables.Find(*item)
+	for _, caVar := range caAutoMDMVars {
 		switch {
-		case caVar == string(fleet.FleetVarHostHardwareSerial):
-			hardwareSerial, ok := caVarsCache[string(fleet.FleetVarHostHardwareSerial)]
+		case caVar == string(automdm.AutoMDMVarHostHardwareSerial):
+			hardwareSerial, ok := caVarsCache[string(automdm.AutoMDMVarHostHardwareSerial)]
 			if !ok {
 				var err error
 				hostLite, ok, err = profiles.HydrateHost(ctx, ds, hostLite, onMismatchedHostCount)
@@ -702,11 +702,11 @@ func replaceFleetVarInCAItem(ctx context.Context, ds fleet.Datastore, target *fl
 					return false, nil
 				}
 				hardwareSerial = hostLite.HardwareSerial
-				caVarsCache[string(fleet.FleetVarHostHardwareSerial)] = hostLite.HardwareSerial
+				caVarsCache[string(automdm.AutoMDMVarHostHardwareSerial)] = hostLite.HardwareSerial
 			}
 			*item = variables.Replace(*item, caVar, hardwareSerial)
-		case caVar == string(fleet.FleetVarHostPlatform):
-			platform, ok := caVarsCache[string(fleet.FleetVarHostPlatform)]
+		case caVar == string(automdm.AutoMDMVarHostPlatform):
+			platform, ok := caVarsCache[string(automdm.AutoMDMVarHostPlatform)]
 			if !ok {
 				var err error
 				hostLite, ok, err = profiles.HydrateHost(ctx, ds, hostLite, onMismatchedHostCount)
@@ -721,22 +721,22 @@ func replaceFleetVarInCAItem(ctx context.Context, ds fleet.Datastore, target *fl
 					platform = "macos"
 				}
 
-				caVarsCache[string(fleet.FleetVarHostPlatform)] = platform
+				caVarsCache[string(automdm.AutoMDMVarHostPlatform)] = platform
 			}
 			*item = variables.Replace(*item, caVar, platform)
-		case caVar == string(fleet.FleetVarHostUUID):
+		case caVar == string(automdm.AutoMDMVarHostUUID):
 			*item = variables.Replace(*item, caVar, hostLite.UUID)
-		case slices.Contains(fleet.IDPFleetVariables, fleet.FleetVarName(caVar)):
+		case slices.Contains(automdm.IDPAutoMDMVariables, automdm.AutoMDMVarName(caVar)):
 			value, ok := caVarsCache[caVar]
 			if !ok {
 				var err error
 				value, _, ok, err = profiles.ResolveHostEndUserIDPValue(ctx, ds, caVar, hostLite.UUID, hostIDForUUIDCache, func(errMsg string) error {
-					return ds.UpdateOrDeleteHostMDMAppleProfile(ctx, &fleet.HostMDMAppleProfile{
+					return ds.UpdateOrDeleteHostMDMAppleProfile(ctx, &automdm.HostMDMAppleProfile{
 						CommandUUID:        target.CmdUUID,
 						HostUUID:           hostLite.UUID,
-						Status:             &fleet.MDMDeliveryFailed,
+						Status:             &automdm.MDMDeliveryFailed,
 						Detail:             strings.TrimSpace(errMsg) + varHint,
-						OperationType:      fleet.MDMOperationTypeInstall,
+						OperationType:      automdm.MDMOperationTypeInstall,
 						VariablesUpdatedAt: variablesUpdatedAt,
 					})
 				})
@@ -750,18 +750,18 @@ func replaceFleetVarInCAItem(ctx context.Context, ds fleet.Datastore, target *fl
 			}
 			*item = variables.Replace(*item, caVar, value)
 		default:
-			// Validated when the CA was saved, so this is a CA saved before the upgrade that still uses a variable Fleet 5
+			// Validated when the CA was saved, so this is a CA saved before the upgrade that still uses a variable AutoMDM 5
 			// removed. Fail rather than send the variable to the CA as literal text.
-			detail := fmt.Sprintf("Unknown Fleet variable $FLEET_VAR_%s. Please update or remove.", caVar)
-			if err := fleet.FindRemovedFleetVariable(caVar); err != nil {
+			detail := fmt.Sprintf("Unknown AutoMDM variable $AUTOMDM_VAR_%s. Please update or remove.", caVar)
+			if err := automdm.FindRemovedAutoMDMVariable(caVar); err != nil {
 				detail = err.Error()
 			}
-			err := ds.UpdateOrDeleteHostMDMAppleProfile(ctx, &fleet.HostMDMAppleProfile{
+			err := ds.UpdateOrDeleteHostMDMAppleProfile(ctx, &automdm.HostMDMAppleProfile{
 				CommandUUID:        target.CmdUUID,
 				HostUUID:           hostLite.UUID,
-				Status:             &fleet.MDMDeliveryFailed,
+				Status:             &automdm.MDMDeliveryFailed,
 				Detail:             detail + varHint,
-				OperationType:      fleet.MDMOperationTypeInstall,
+				OperationType:      automdm.MDMOperationTypeInstall,
 				VariablesUpdatedAt: variablesUpdatedAt,
 			})
 			if err != nil {
@@ -773,32 +773,32 @@ func replaceFleetVarInCAItem(ctx context.Context, ds fleet.Datastore, target *fl
 	return true, nil
 }
 
-func isNDESSCEPConfigured(ctx context.Context, logger *slog.Logger, groupedCAs *fleet.GroupedCertificateAuthorities, ds fleet.Datastore,
-	hostProfilesToInstallMap map[fleet.HostProfileUUID]*fleet.MDMAppleBulkUpsertHostProfilePayload, userEnrollmentsToHostUUIDsMap map[string]string, profUUID string, target *fleet.CmdTarget,
+func isNDESSCEPConfigured(ctx context.Context, logger *slog.Logger, groupedCAs *automdm.GroupedCertificateAuthorities, ds automdm.Datastore,
+	hostProfilesToInstallMap map[automdm.HostProfileUUID]*automdm.MDMAppleBulkUpsertHostProfilePayload, userEnrollmentsToHostUUIDsMap map[string]string, profUUID string, target *automdm.CmdTarget,
 ) (bool, error) {
 	if !license.IsPremium(ctx) {
-		return fleet.MarkProfilesFailed(ctx, ds, logger, target, hostProfilesToInstallMap, userEnrollmentsToHostUUIDsMap, profUUID, "NDES SCEP Proxy requires a Fleet Premium license.", ptr.Time(time.Now().UTC()))
+		return automdm.MarkProfilesFailed(ctx, ds, logger, target, hostProfilesToInstallMap, userEnrollmentsToHostUUIDsMap, profUUID, "NDES SCEP Proxy requires an AutoMDM Premium license.", ptr.Time(time.Now().UTC()))
 	}
 	if groupedCAs == nil || groupedCAs.NDESSCEP == nil {
-		return fleet.MarkProfilesFailed(ctx, ds, logger, target, hostProfilesToInstallMap, userEnrollmentsToHostUUIDsMap, profUUID,
+		return automdm.MarkProfilesFailed(ctx, ds, logger, target, hostProfilesToInstallMap, userEnrollmentsToHostUUIDsMap, profUUID,
 			"NDES SCEP Proxy is not configured. Please configure in Settings > Integrations > Certificates.", ptr.Time(time.Now().UTC()))
 	}
 	return true, nil
 }
 
-func isSmallstepSCEPConfigured(ctx context.Context, logger *slog.Logger, groupedCAs *fleet.GroupedCertificateAuthorities, ds fleet.Datastore,
-	hostProfilesToInstallMap map[fleet.HostProfileUUID]*fleet.MDMAppleBulkUpsertHostProfilePayload,
+func isSmallstepSCEPConfigured(ctx context.Context, logger *slog.Logger, groupedCAs *automdm.GroupedCertificateAuthorities, ds automdm.Datastore,
+	hostProfilesToInstallMap map[automdm.HostProfileUUID]*automdm.MDMAppleBulkUpsertHostProfilePayload,
 	userEnrollmentsToHostUUIDsMap map[string]string,
-	existingSmallstepSCEPCAs map[string]*fleet.SmallstepSCEPProxyCA, profUUID string, target *fleet.CmdTarget, caName string, fleetVar string,
+	existingSmallstepSCEPCAs map[string]*automdm.SmallstepSCEPProxyCA, profUUID string, target *automdm.CmdTarget, caName string, automdmVar string,
 ) (bool, error) {
 	if !license.IsPremium(ctx) {
-		return fleet.MarkProfilesFailed(ctx, ds, logger, target, hostProfilesToInstallMap, userEnrollmentsToHostUUIDsMap, profUUID, "Smallstep SCEP integration requires a Fleet Premium license.", ptr.Time(time.Now().UTC()))
+		return automdm.MarkProfilesFailed(ctx, ds, logger, target, hostProfilesToInstallMap, userEnrollmentsToHostUUIDsMap, profUUID, "Smallstep SCEP integration requires an AutoMDM Premium license.", ptr.Time(time.Now().UTC()))
 	}
 	if _, ok := existingSmallstepSCEPCAs[caName]; ok {
 		return true, nil
 	}
 	configured := false
-	var scepCA *fleet.SmallstepSCEPProxyCA
+	var scepCA *automdm.SmallstepSCEPProxyCA
 	if groupedCAs != nil && len(groupedCAs.Smallstep) > 0 {
 		for _, ca := range groupedCAs.Smallstep {
 			if ca.Name == caName {
@@ -809,26 +809,26 @@ func isSmallstepSCEPConfigured(ctx context.Context, logger *slog.Logger, grouped
 		}
 	}
 	if !configured || scepCA == nil {
-		return fleet.MarkProfilesFailed(ctx, ds, logger, target, hostProfilesToInstallMap, userEnrollmentsToHostUUIDsMap, profUUID,
-			fmt.Sprintf("Fleet couldn't populate $%s because %s certificate authority doesn't exist.", fleetVar, caName), ptr.Time(time.Now().UTC()))
+		return automdm.MarkProfilesFailed(ctx, ds, logger, target, hostProfilesToInstallMap, userEnrollmentsToHostUUIDsMap, profUUID,
+			fmt.Sprintf("AutoMDM couldn't populate $%s because %s certificate authority doesn't exist.", automdmVar, caName), ptr.Time(time.Now().UTC()))
 	}
 
 	existingSmallstepSCEPCAs[caName] = scepCA
 	return true, nil
 }
 
-func getHostProfileToInstallByEnrollmentID(hostProfilesToInstallMap map[fleet.HostProfileUUID]*fleet.MDMAppleBulkUpsertHostProfilePayload,
+func getHostProfileToInstallByEnrollmentID(hostProfilesToInstallMap map[automdm.HostProfileUUID]*automdm.MDMAppleBulkUpsertHostProfilePayload,
 	userEnrollmentsToHostUUIDsMap map[string]string,
 	enrollmentID,
 	profUUID string,
-) (*fleet.MDMAppleBulkUpsertHostProfilePayload, bool) {
-	profile, ok := hostProfilesToInstallMap[fleet.HostProfileUUID{HostUUID: enrollmentID, ProfileUUID: profUUID}]
+) (*automdm.MDMAppleBulkUpsertHostProfilePayload, bool) {
+	profile, ok := hostProfilesToInstallMap[automdm.HostProfileUUID{HostUUID: enrollmentID, ProfileUUID: profUUID}]
 	if !ok {
 		var hostUUID string
 		// If sending to the user channel the enrollmentID will have to be mapped back to the host UUID.
 		hostUUID, ok = userEnrollmentsToHostUUIDsMap[enrollmentID]
 		if ok {
-			profile, ok = hostProfilesToInstallMap[fleet.HostProfileUUID{HostUUID: hostUUID, ProfileUUID: profUUID}]
+			profile, ok = hostProfilesToInstallMap[automdm.HostProfileUUID{HostUUID: hostUUID, ProfileUUID: profUUID}]
 		}
 	}
 	return profile, ok

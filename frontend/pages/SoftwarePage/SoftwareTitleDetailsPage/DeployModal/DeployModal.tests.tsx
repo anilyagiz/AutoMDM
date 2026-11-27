@@ -3,7 +3,7 @@ import { noop } from "lodash";
 import React from "react";
 
 import {
-  createMockFleetMaintainedAppDetails,
+  createMockAutoMDMMaintainedAppDetails,
   createMockSoftwarePackage,
   createMockSoftwareTitle,
 } from "__mocks__/softwareMock";
@@ -15,7 +15,7 @@ import { createCustomRenderer } from "test/test-utils";
 import DeployModal from "./DeployModal";
 
 const renderModal = ({
-  softwarePackage = createMockSoftwarePackage({ fleet_maintained_app_id: 1 }),
+  softwarePackage = createMockSoftwarePackage({ automdm_maintained_app_id: 1 }),
   gitOpsModeEnabled = false,
   onExit = noop,
   onSuccess = noop,
@@ -51,8 +51,8 @@ const renderModal = ({
 
 describe("DeployModal", () => {
   beforeEach(() => {
-    jest.spyOn(softwareAPI, "getFleetMaintainedApp").mockResolvedValue({
-      fleet_maintained_app: createMockFleetMaintainedAppDetails(),
+    jest.spyOn(softwareAPI, "getAutoMDMMaintainedApp").mockResolvedValue({
+      automdm_maintained_app: createMockAutoMDMMaintainedAppDetails(),
     });
     jest.spyOn(policiesAPI, "create").mockResolvedValue({} as never);
     jest.spyOn(policiesAPI, "update").mockResolvedValue({} as never);
@@ -64,7 +64,7 @@ describe("DeployModal", () => {
   it("reflects an externally-created manual patch policy", () => {
     renderModal({
       softwarePackage: createMockSoftwarePackage({
-        fleet_maintained_app_id: 1,
+        automdm_maintained_app_id: 1,
         patch_policy: {
           id: 22,
           name: "Firefox up to date",
@@ -104,7 +104,7 @@ describe("DeployModal", () => {
     // automations locked on.
     await waitFor(() =>
       expect(policiesAPI.create).toHaveBeenCalledWith({
-        fleet_id: 1,
+        team_id: 1,
         type: "patch",
         software_title_id: 10,
         automation_type: "software",
@@ -138,7 +138,7 @@ describe("DeployModal", () => {
 
     await waitFor(() =>
       expect(policiesAPI.create).toHaveBeenCalledWith({
-        fleet_id: 1,
+        team_id: 1,
         type: "patch",
         software_title_id: 10,
         automation_type: "software",
@@ -153,7 +153,7 @@ describe("DeployModal", () => {
   it("updates an existing Force patch policy from immediate to Notify before patching", async () => {
     const { user } = renderModal({
       softwarePackage: createMockSoftwarePackage({
-        fleet_maintained_app_id: 1,
+        automdm_maintained_app_id: 1,
         patch_policy: {
           id: 22,
           name: "Firefox up to date",
@@ -199,7 +199,7 @@ describe("DeployModal", () => {
     // immediately — not be silently rewritten to Deadline on open.
     renderModal({
       softwarePackage: createMockSoftwarePackage({
-        fleet_maintained_app_id: 1,
+        automdm_maintained_app_id: 1,
         patch_policy: {
           id: 22,
           name: "Firefox up to date",
@@ -222,7 +222,7 @@ describe("DeployModal", () => {
   it("loads an existing deadline policy with Deadline selected", async () => {
     renderModal({
       softwarePackage: createMockSoftwarePackage({
-        fleet_maintained_app_id: 1,
+        automdm_maintained_app_id: 1,
         patch_policy: {
           id: 22,
           name: "Firefox up to date",
@@ -254,7 +254,7 @@ describe("DeployModal", () => {
 
     await waitFor(() =>
       expect(policiesAPI.create).toHaveBeenCalledWith({
-        fleet_id: 1,
+        team_id: 1,
         name: "[Install software] Firefox",
         description:
           "Policy triggers automatic install of Firefox on each host that's missing this software.",
@@ -267,8 +267,8 @@ describe("DeployModal", () => {
   });
 
   it("shows a specific error and skips the create when the FMA install query is missing", async () => {
-    jest.spyOn(softwareAPI, "getFleetMaintainedApp").mockResolvedValue({
-      fleet_maintained_app: createMockFleetMaintainedAppDetails({
+    jest.spyOn(softwareAPI, "getAutoMDMMaintainedApp").mockResolvedValue({
+      automdm_maintained_app: createMockAutoMDMMaintainedAppDetails({
         automatic_install_query: "",
       }),
     });
@@ -291,15 +291,15 @@ describe("DeployModal", () => {
     expect(onExit).not.toHaveBeenCalled();
   });
 
-  it("shows the server's message and skips the create when Fleet can't fetch the FMA manifest on save", async () => {
+  it("shows the server's message and skips the create when AutoMDM can't fetch the FMA manifest on save", async () => {
     const reason =
-      "Fleet couldn't fetch the manifest for Firefox. Please try again.";
+      "AutoMDM couldn't fetch the manifest for Firefox. Please try again.";
     const manifestError = {
       status: 502,
       data: { message: reason, errors: [{ name: "base", reason }] },
     };
     jest
-      .spyOn(softwareAPI, "getFleetMaintainedApp")
+      .spyOn(softwareAPI, "getAutoMDMMaintainedApp")
       .mockRejectedValue(manifestError);
     const errorSpy = jest.spyOn(notify, "error");
     const onExit = jest.fn();
@@ -320,7 +320,7 @@ describe("DeployModal", () => {
   it("attaches install automation when a manual patch policy changes to Force patch", async () => {
     const { user } = renderModal({
       softwarePackage: createMockSoftwarePackage({
-        fleet_maintained_app_id: 1,
+        automdm_maintained_app_id: 1,
         patch_policy: {
           id: 22,
           name: "Firefox up to date",
@@ -351,7 +351,7 @@ describe("DeployModal", () => {
   it("removes install automation when Force patch changes to manual", async () => {
     const { user } = renderModal({
       softwarePackage: createMockSoftwarePackage({
-        fleet_maintained_app_id: 1,
+        automdm_maintained_app_id: 1,
         patch_policy: {
           id: 22,
           name: "Firefox up to date",
@@ -385,7 +385,7 @@ describe("DeployModal", () => {
     const { user } = renderModal({
       onSuccess,
       softwarePackage: createMockSoftwarePackage({
-        fleet_maintained_app_id: 1,
+        automdm_maintained_app_id: 1,
         // A script automation with continuous on: not a software install.
         patch_policy: {
           id: 22,
@@ -406,7 +406,7 @@ describe("DeployModal", () => {
   it("clears stale patch flags on a manual patch policy without touching its automation", async () => {
     const { user } = renderModal({
       softwarePackage: createMockSoftwarePackage({
-        fleet_maintained_app_id: 1,
+        automdm_maintained_app_id: 1,
         patch_policy: {
           id: 22,
           name: "Firefox up to date",
@@ -434,7 +434,7 @@ describe("DeployModal", () => {
   it("clears stale continuous_automations_enabled when saving a Force + Immediate policy that still has it on", async () => {
     const { user } = renderModal({
       softwarePackage: createMockSoftwarePackage({
-        fleet_maintained_app_id: 1,
+        automdm_maintained_app_id: 1,
         patch_policy: {
           id: 22,
           name: "Firefox up to date",
@@ -468,7 +468,7 @@ describe("DeployModal", () => {
   it("deletes Force install and Patch policies independently", async () => {
     const { user } = renderModal({
       softwarePackage: createMockSoftwarePackage({
-        fleet_maintained_app_id: 1,
+        automdm_maintained_app_id: 1,
         automatic_install_policies: [
           { id: 11, name: "[Install software] Firefox", type: "dynamic" },
         ],

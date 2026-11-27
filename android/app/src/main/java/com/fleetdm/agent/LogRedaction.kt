@@ -3,7 +3,7 @@ package com.fleetdm.agent
 /** Stands in for a secret that must not reach logs. */
 internal const val REDACTED = "<redacted>"
 
-/** Path of Fleet's SCEP proxy. Its URLs end with a one-time challenge. */
+/** Path of AutoMDM's SCEP proxy. Its URLs end with a one-time challenge. */
 internal const val SCEP_PROXY_PATH = "/mdm/scep/proxy/"
 
 // A SCEP proxy URL ends with the comma-separated identifier
@@ -13,7 +13,7 @@ internal const val SCEP_PROXY_PATH = "/mdm/scep/proxy/"
 // short of it would leave the challenge in the text.
 private val SCEP_PROXY_IDENTIFIER = Regex("""(${Regex.escape(SCEP_PROXY_PATH)})([^/?\s"'<>)\]}]+)""")
 
-// Commas are percent-encoded in some Fleet-generated SCEP URLs.
+// Commas are percent-encoded in some AutoMDM-generated SCEP URLs.
 private val IDENTIFIER_FIELD_SEPARATOR = Regex(""",|%2C""", RegexOption.IGNORE_CASE)
 
 // hostUUID, template ID and CA type are safe to log; everything after them is the challenge.
@@ -24,12 +24,12 @@ private const val NON_SECRET_IDENTIFIER_FIELDS = 3
 // value is matched as a JSON string, escapes included, so a challenge holding a quote doesn't cut
 // the match short. The closing quote is optional because the quoted input may be cut off mid-value.
 private val JSON_CHALLENGE_FIELD =
-    Regex("\"(scep_challenge|fleet_challenge)\"\\s*:\\s*\"[^\"\\\\]*(?:\\\\.[^\"\\\\]*)*\\\\?(\"|$)")
+    Regex("\"(scep_challenge|automdm_challenge)\"\\s*:\\s*\"[^\"\\\\]*(?:\\\\.[^\"\\\\]*)*\\\\?(\"|$)")
 
 /**
  * Strips enrollment secrets from text on its way to a log, log file, or status detail.
  *
- * Redacts the challenge in Fleet SCEP proxy URLs and in certificate template JSON, both of which
+ * Redacts the challenge in AutoMDM SCEP proxy URLs and in certificate template JSON, both of which
  * reach us inside exception messages thrown by the HTTP and serialization stacks. Anyone with a USB
  * cable can read logcat, so a challenge that lands there is a challenge anyone can use.
  */
@@ -61,7 +61,7 @@ internal fun String?.redacted(): String = when {
 }
 
 /**
- * Builds the redacted text [FleetLog] writes for one entry: the message, and the stack trace of the
+ * Builds the redacted text [AutoMDMLog] writes for one entry: the message, and the stack trace of the
  * throwable (cause chain included) when there is one.
  */
 internal fun renderLogEntry(msg: String, throwable: Throwable?): Pair<String, String?> =

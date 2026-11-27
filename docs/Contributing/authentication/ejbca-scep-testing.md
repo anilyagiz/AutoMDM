@@ -1,6 +1,6 @@
 # EJBCA SCEP testing
 
-Sets up a local EJBCA Community CA for end-to-end testing of Fleet's custom SCEP integration.
+Sets up a local EJBCA Community CA for end-to-end testing of AutoMDM's custom SCEP integration.
 Prefer this over `step-ca` or `micromdm/scep` when you need:
 
 - Full SAN preservation, including `otherName` (Microsoft UPN, OID `1.3.6.1.4.1.311.20.2.3`).
@@ -10,8 +10,8 @@ Prefer this over `step-ca` or `micromdm/scep` when you need:
 ## Prerequisites
 
 - Docker
-- Fleet dev server running locally
-- A device or test harness that drives SCEP enrollment against Fleet
+- AutoMDM dev server running locally
+- A device or test harness that drives SCEP enrollment against AutoMDM
 
 ## Set up EJBCA in Docker
 
@@ -50,9 +50,9 @@ challenge.
 
 Admin UI → **CA Functions → Certificate Profiles**:
 
-1. Type `FleetQACertProfile` in the **Identifier** field.
+1. Type `AutoMDMQACertProfile` in the **Identifier** field.
 2. Click **Clone** on the `ENDUSER` row.
-3. **Edit** the new `FleetQACertProfile` row.
+3. **Edit** the new `AutoMDMQACertProfile` row.
 4. Check **Allow Extension Override**. Without this, EJBCA rebuilds the SAN from its typed
    fields and drops `otherName` (UPN).
 5. **Save**.
@@ -61,8 +61,8 @@ Admin UI → **CA Functions → Certificate Profiles**:
 
 Admin UI → **RA Functions → End Entity Profiles**:
 
-1. Type `FleetQAEEP` in the **Identifier** field and click **Add Profile**.
-2. Select `FleetQAEEP` and click **Edit End Entity Profile**.
+1. Type `AutoMDMQAEEP` in the **Identifier** field and click **Add Profile**.
+2. Select `AutoMDMQAEEP` and click **Edit End Entity Profile**.
 3. Under **Subject Alternative Name**, add each of these (select from the dropdown, click
    **Add**):
    - DNS Name
@@ -71,8 +71,8 @@ Admin UI → **RA Functions → End Entity Profiles**:
    - Uniform Resource Identifier (URI)
    - MS UPN, User Principal Name
 4. Under **Main Certificate Data**:
-   - **Default Certificate Profile** → `FleetQACertProfile`
-   - **Available Certificate Profiles** → highlight `FleetQACertProfile`
+   - **Default Certificate Profile** → `AutoMDMQACertProfile`
+   - **Available Certificate Profiles** → highlight `AutoMDMQACertProfile`
    - **Default CA** → `ManagementCA`
    - **Available CAs** → highlight `ManagementCA`
 5. **Save**.
@@ -84,34 +84,34 @@ which complicates testing. Stick with CN-only subjects.
 ### 3. SCEP alias
 
 ```bash
-docker exec ejbca bin/ejbca.sh config scep addalias fleetqa
+docker exec ejbca bin/ejbca.sh config scep addalias automdmqa
 docker exec ejbca bin/ejbca.sh config scep updatealias \
-    --alias fleetqa --key operationmode --value CA
+    --alias automdmqa --key operationmode --value CA
 docker exec ejbca bin/ejbca.sh config scep updatealias \
-    --alias fleetqa --key ra.certificateProfile --value FleetQACertProfile
+    --alias automdmqa --key ra.certificateProfile --value AutoMDMQACertProfile
 docker exec ejbca bin/ejbca.sh config scep updatealias \
-    --alias fleetqa --key ra.entityProfile --value FleetQAEEP
+    --alias automdmqa --key ra.entityProfile --value AutoMDMQAEEP
 docker exec ejbca bin/ejbca.sh config scep updatealias \
-    --alias fleetqa --key ra.defaultCA --value ManagementCA
+    --alias automdmqa --key ra.defaultCA --value ManagementCA
 ```
 
-### 4. Wire EJBCA into Fleet as a custom SCEP CA
+### 4. Wire EJBCA into AutoMDM as a custom SCEP CA
 
-Fleet validates the SCEP URL with a real `GetCACert` probe and will reject EJBCA's
+AutoMDM validates the SCEP URL with a real `GetCACert` probe and will reject EJBCA's
 self-signed HTTPS cert, so register the **HTTP** port (`8480`):
 
 ```bash
-FLEET_TOKEN="$(awk '/^  qa:/,/^  [a-z]/' ~/.fleet/config | awk '/token:/ {print $2}')"
+AUTOMDM_TOKEN="$(awk '/^  qa:/,/^  [a-z]/' ~/.automdm/config | awk '/token:/ {print $2}')"
 
 curl -sk -X POST \
-    -H "Authorization: Bearer $FLEET_TOKEN" \
+    -H "Authorization: Bearer $AUTOMDM_TOKEN" \
     -H "Content-Type: application/json" \
     -d '{"custom_scep_proxy":{
           "name":"EJBCA_QA",
-          "url":"http://localhost:8480/ejbca/publicweb/apply/scep/fleetqa/pkiclient.exe",
-          "challenge":"fleet-qa-scep-challenge"
+          "url":"http://localhost:8480/ejbca/publicweb/apply/scep/automdmqa/pkiclient.exe",
+          "challenge":"automdm-qa-scep-challenge"
         }}' \
-    https://localhost:8080/api/latest/fleet/certificate_authorities
+    https://localhost:8080/api/latest/automdm/certificate_authorities
 ```
 
 The URL must end in `/pkiclient.exe` — the "clean" form `/scep/<alias>` returns
@@ -132,20 +132,20 @@ docker exec ejbca bin/ejbca.sh ra addendentity \
     --caname ManagementCA \
     --type 1 \
     --token USERGENERATED \
-    --password fleet-qa-scep-challenge \
-    --certprofile FleetQACertProfile \
-    --eeprofile FleetQAEEP
+    --password automdm-qa-scep-challenge \
+    --certprofile AutoMDMQACertProfile \
+    --eeprofile AutoMDMQAEEP
 ```
 
-The `--password` must match the SCEP `challenge` value on Fleet's CA record.
+The `--password` must match the SCEP `challenge` value on AutoMDM's CA record.
 
-### Create the Fleet certificate template
+### Create the AutoMDM certificate template
 
-Using the Fleet CA `id` returned from the create-CA call:
+Using the AutoMDM CA `id` returned from the create-CA call:
 
 ```bash
 curl -sk -X POST \
-    -H "Authorization: Bearer $FLEET_TOKEN" \
+    -H "Authorization: Bearer $AUTOMDM_TOKEN" \
     -H "Content-Type: application/json" \
     -d '{
       "name": "qa-test",
@@ -154,7 +154,7 @@ curl -sk -X POST \
       "certificate_authority_id": <CA_ID>,
       "team_id": <TEAM_ID>
     }' \
-    https://localhost:8080/api/latest/fleet/certificates
+    https://localhost:8080/api/latest/automdm/certificates
 ```
 
 Wait for the agent's 15-minute poll cycle, or restart the agent to trigger enrollment now.
@@ -191,7 +191,7 @@ After each successful enrollment, the end entity flips from status `NEW` (10) to
 docker exec ejbca bin/ejbca.sh ra setendentitystatus \
     --username 'qa-user@example.com' -S 10
 docker exec ejbca bin/ejbca.sh ra setpwd \
-    --username 'qa-user@example.com' --password fleet-qa-scep-challenge
+    --username 'qa-user@example.com' --password automdm-qa-scep-challenge
 ```
 
 ## Cleanup
@@ -199,10 +199,10 @@ docker exec ejbca bin/ejbca.sh ra setpwd \
 ```bash
 docker rm -f ejbca
 
-curl -sk -X DELETE -H "Authorization: Bearer $FLEET_TOKEN" \
-    https://localhost:8080/api/latest/fleet/certificates/<TEMPLATE_ID>
-curl -sk -X DELETE -H "Authorization: Bearer $FLEET_TOKEN" \
-    https://localhost:8080/api/latest/fleet/certificate_authorities/<CA_ID>
+curl -sk -X DELETE -H "Authorization: Bearer $AUTOMDM_TOKEN" \
+    https://localhost:8080/api/latest/automdm/certificates/<TEMPLATE_ID>
+curl -sk -X DELETE -H "Authorization: Bearer $AUTOMDM_TOKEN" \
+    https://localhost:8080/api/latest/automdm/certificate_authorities/<CA_ID>
 ```
 
 ## Gotchas
@@ -210,7 +210,7 @@ curl -sk -X DELETE -H "Authorization: Bearer $FLEET_TOKEN" \
 - **EJBCA-CE has no SCEP RA mode.** Each new CSR subject DN needs its own pre-created
   end entity.
 - **EJBCA's self-signed TLS cert is for `ejbca.local`.** Use the HTTP port (`8480`) for
-  the Fleet → EJBCA leg; use HTTPS (`8443`) only for the Admin UI in your browser.
+  the AutoMDM → EJBCA leg; use HTTPS (`8443`) only for the Admin UI in your browser.
 - **End entity status doesn't reset automatically.** After enrollment, status moves to
   `GENERATED`. Subsequent SCEP requests for the same username will fail with
   `User <name> not found.` (a misleading message — the user exists, but is no longer in

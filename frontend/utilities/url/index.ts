@@ -156,7 +156,7 @@ export const getSoftwareFilterParams = ({
       software_title_id: softwareTitleId,
       [HOSTS_QUERY_PARAMS.SOFTWARE_STATUS]: softwareStatus,
       app_store_app_version_id: appStoreAppVersionId,
-      fleet_id: teamId,
+      team_id: teamId,
     };
   }
 
@@ -177,7 +177,7 @@ export const reconcileMutuallyInclusiveHostParams = ({
   macSettingsStatus,
   osSettings,
 }: IMutuallyInclusiveHostParams) => {
-  const reconciled: Record<string, unknown> = { fleet_id: teamId };
+  const reconciled: Record<string, unknown> = { team_id: teamId };
 
   if (label) {
     // if label is present, include team_id in the query but exclude others
@@ -186,15 +186,15 @@ export const reconcileMutuallyInclusiveHostParams = ({
 
   if (macSettingsStatus) {
     // ensure apple_settings filter is always applied in
-    // conjunction with a fleet_id, 0 (no fleets) by default
+    // conjunction with a team_id, 0 (no teams) by default
     reconciled.apple_settings = macSettingsStatus;
-    reconciled.fleet_id = teamId ?? 0;
+    reconciled.team_id = teamId ?? 0;
   }
   if (osSettings) {
     // ensure os_settings filter is always applied in
-    // conjunction with a fleet_id, 0 (no fleets) by default
+    // conjunction with a team_id, 0 (no teams) by default
     reconciled[HOSTS_QUERY_PARAMS.OS_SETTINGS] = osSettings;
-    reconciled.fleet_id = teamId ?? 0;
+    reconciled.team_id = teamId ?? 0;
   }
 
   return reconciled;

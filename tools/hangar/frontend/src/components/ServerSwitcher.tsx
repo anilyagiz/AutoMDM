@@ -2,7 +2,7 @@ import type { Settings } from "../lib/ipc";
 import { serverColorVar } from "../lib/servers";
 import type { ServerHealth } from "../lib/useSystemHealth";
 
-/// Top-bar control for switching between local Fleet servers and seeing each
+/// Top-bar control for switching between local AutoMDM servers and seeing each
 /// one's status at a glance. One pill per server: a single status dot (green
 /// and pulsing when anything is running on that server, grey when off — the
 /// same dot the Server-tab process cards use), the name, and an accent border

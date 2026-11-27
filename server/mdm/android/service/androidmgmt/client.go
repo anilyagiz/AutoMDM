@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
 	"google.golang.org/api/androidmanagement/v1"
 	"google.golang.org/api/googleapi"
 )
@@ -50,7 +50,7 @@ type Client interface {
 
 	// EnterprisesDevicesOperationsGet fetches the current state of an Operation returned by
 	// EnterprisesDevicesIssueCommand. It is the authoritative source for a command's outcome and lets
-	// Fleet reconcile commands whose Pub/Sub COMMAND notification never arrived. operationName is the
+	// AutoMDM reconcile commands whose Pub/Sub COMMAND notification never arrived. operationName is the
 	// full AMAPI resource name (enterprises/X/devices/Y/operations/Z). See:
 	// https://developers.google.com/android/management/reference/rest/v1/enterprises.devices.operations/get
 	EnterprisesDevicesOperationsGet(ctx context.Context, operationName string) (*androidmanagement.Operation, error)
@@ -102,15 +102,15 @@ type EnterprisesCreateRequest struct {
 
 	// PubSubPushURL is the URL to push Android PubSub messages to.
 	PubSubPushURL string
-	// ServerURL is the Fleet server URL.
+	// ServerURL is the AutoMDM server URL.
 	ServerURL string
 }
 
 type EnterprisesCreateResponse struct {
 	// EnterpriseName is the Google name of the Android Enterprise, like: enterprise/LC00r8aycu
 	EnterpriseName string
-	// FleetServerSecret is the secret used to authenticate with fleetdm.com. It is encrypted at rest.
-	FleetServerSecret string
+	// AutoMDMServerSecret is the secret used to authenticate with automdm.com. It is encrypted at rest.
+	AutoMDMServerSecret string
 	// TopicName is the Google PubSub topic name, like: projects/project_id/topics/topic_id. It is only present Google API client is used
 	// directly (no proxy). We save it for debugging purposes.
 	TopicName string
@@ -170,10 +170,10 @@ func IsConflictError(err error) bool {
 	return false
 }
 
-// FleetErrFromAMAPI maps a *googleapi.Error to the corresponding Fleet error
+// AutoMDMErrFromAMAPI maps a *googleapi.Error to the corresponding AutoMDM error
 // type. Returns nil when err is nil or is not a *googleapi.Error,
 // in which case the caller should fall through to its default error handling.
-func FleetErrFromAMAPI(err error) error {
+func AutoMDMErrFromAMAPI(err error) error {
 	ae, ok := errors.AsType[*googleapi.Error](err)
 	if !ok {
 		return nil
@@ -184,17 +184,17 @@ func FleetErrFromAMAPI(err error) error {
 	}
 	switch {
 	case IsBadRequestError(err):
-		return &fleet.BadRequestError{Message: msg, InternalErr: err}
+		return &automdm.BadRequestError{Message: msg, InternalErr: err}
 	case IsNotFoundError(err):
 		return &notFoundError{message: msg, internalErr: err}
 	case IsConflictError(err):
-		return &fleet.ConflictError{Message: msg}
+		return &automdm.ConflictError{Message: msg}
 	default:
 		return nil
 	}
 }
 
-// notFoundError implements the fleet IsNotFound interface so the HTTP layer
+// notFoundError implements the team IsNotFound interface so the HTTP layer
 // returns 404.
 type notFoundError struct {
 	message     string

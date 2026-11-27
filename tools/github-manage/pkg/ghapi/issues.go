@@ -103,7 +103,7 @@ func SetMilestoneToIssue(issueNumber int, milestone string) error {
 
 // AddIssueToProject adds an issue to a project.
 func AddIssueToProject(issueNumber int, projectID int) error {
-	command := fmt.Sprintf("gh project item-add %d --owner fleetdm --url https://github.com/fleetdm/fleet/issues/%d", projectID, issueNumber)
+	command := fmt.Sprintf("gh project item-add %d --owner automdm --url https://github.com/fleetdm/fleet/issues/%d", projectID, issueNumber)
 	_, err := RunCommandAndReturnOutput(command)
 	if err != nil {
 		return err
@@ -124,7 +124,7 @@ func RemoveIssueFromProject(issueNumber int, projectID int) error {
 	}
 
 	// Remove the item using the project ID and item ID
-	command := fmt.Sprintf("gh project item-delete %d --owner fleetdm --id %s", projectID, itemID)
+	command := fmt.Sprintf("gh project item-delete %d --owner automdm --id %s", projectID, itemID)
 	_, err = RunCommandAndReturnOutput(command)
 	if err != nil {
 		return fmt.Errorf("failed to remove issue %d from project %d: %v", issueNumber, projectID, err)

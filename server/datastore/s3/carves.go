@@ -10,12 +10,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/ptr"
 )
 
 const (
@@ -47,7 +47,7 @@ type s3HeadObjectAPI interface {
 // relying on AWS S3 storage
 type CarveStore struct {
 	*s3store
-	metadatadb fleet.CarveStore
+	metadatadb automdm.CarveStore
 	// headObjectAPI probes object existence during cleanup; defaults to the S3
 	// client and is overridable in tests.
 	headObjectAPI s3HeadObjectAPI
@@ -61,7 +61,7 @@ type CarveStore struct {
 }
 
 // NewCarveStore creates a new store with the given config
-func NewCarveStore(config config.S3Config, metadatadb fleet.CarveStore) (*CarveStore, error) {
+func NewCarveStore(config config.S3Config, metadatadb automdm.CarveStore) (*CarveStore, error) {
 	s3store, err := newS3Store(config.CarvesToInternalCfg())
 	if err != nil {
 		return nil, err
@@ -79,13 +79,13 @@ func NewCarveStore(config config.S3Config, metadatadb fleet.CarveStore) (*CarveS
 
 // generateS3Key builds S3 key from carve metadata
 // all keys are prefixed by date so that they can easily be listed chronologically
-func (c *CarveStore) generateS3Key(metadata *fleet.CarveMetadata) string {
+func (c *CarveStore) generateS3Key(metadata *automdm.CarveMetadata) string {
 	simpleDateHour := metadata.CreatedAt.Format(timePrefixFormat)
 	return fmt.Sprintf("%s%s/%s", c.prefix, simpleDateHour, metadata.Name)
 }
 
 // NewCarve initializes a new file carving session
-func (c *CarveStore) NewCarve(ctx context.Context, metadata *fleet.CarveMetadata) (*fleet.CarveMetadata, error) {
+func (c *CarveStore) NewCarve(ctx context.Context, metadata *automdm.CarveMetadata) (*automdm.CarveMetadata, error) {
 	objectKey := c.generateS3Key(metadata)
 
 	var checksumAlgorithm types.ChecksumAlgorithm
@@ -120,7 +120,7 @@ func (c *CarveStore) NewCarve(ctx context.Context, metadata *fleet.CarveMetadata
 
 // UpdateCarve updates carve definition in database
 // Only max_block and expired are updatable
-func (c *CarveStore) UpdateCarve(ctx context.Context, metadata *fleet.CarveMetadata) error {
+func (c *CarveStore) UpdateCarve(ctx context.Context, metadata *automdm.CarveMetadata) error {
 	return c.metadatadb.UpdateCarve(ctx, metadata)
 }
 
@@ -181,11 +181,11 @@ func (c *CarveStore) CleanupCarves(ctx context.Context, now time.Time) (int, err
 	}
 	// Oldest-first and capped so a backlog drains deterministically across runs
 	// without any single run making an unbounded number of S3 requests.
-	nonExpiredCarves, err := c.ListCarves(ctx, fleet.CarveListOptions{
-		ListOptions: fleet.ListOptions{
+	nonExpiredCarves, err := c.ListCarves(ctx, automdm.CarveListOptions{
+		ListOptions: automdm.ListOptions{
 			PerPage:        uint(maxPerRun), //nolint:gosec // bounded small positive config value
 			OrderKey:       "created_at",
-			OrderDirection: fleet.OrderAscending,
+			OrderDirection: automdm.OrderAscending,
 		},
 		Expired: false,
 	})
@@ -194,7 +194,7 @@ func (c *CarveStore) CleanupCarves(ctx context.Context, now time.Time) (int, err
 	}
 
 	cutoff := now.Add(-24 * time.Hour)
-	var candidates []*fleet.CarveMetadata
+	var candidates []*automdm.CarveMetadata
 	for _, carve := range nonExpiredCarves {
 		// Skip carves too new to have been lifecycle-deleted, and carves whose
 		// multipart upload hasn't completed: their object isn't in S3 yet, so
@@ -212,7 +212,7 @@ func (c *CarveStore) CleanupCarves(ctx context.Context, now time.Time) (int, err
 	// below is a single batched statement, so there is no concurrent DB access.
 	var (
 		mu       sync.Mutex
-		toExpire []*fleet.CarveMetadata
+		toExpire []*automdm.CarveMetadata
 		probeErr error
 	)
 	sem := make(chan struct{}, concurrency)
@@ -220,7 +220,7 @@ func (c *CarveStore) CleanupCarves(ctx context.Context, now time.Time) (int, err
 	for _, carve := range candidates {
 		wg.Add(1)
 		sem <- struct{}{}
-		go func(carve *fleet.CarveMetadata) {
+		go func(carve *automdm.CarveMetadata) {
 			defer wg.Done()
 			defer func() { <-sem }()
 			// Bound each probe so a hung request cannot stall wg.Wait indefinitely.
@@ -260,22 +260,22 @@ func (c *CarveStore) CleanupCarves(ctx context.Context, now time.Time) (int, err
 }
 
 // Carve returns carve metadata by ID
-func (c *CarveStore) Carve(ctx context.Context, carveID int64) (*fleet.CarveMetadata, error) {
+func (c *CarveStore) Carve(ctx context.Context, carveID int64) (*automdm.CarveMetadata, error) {
 	return c.metadatadb.Carve(ctx, carveID)
 }
 
 // CarveBySessionId returns carve metadata by session ID
-func (c *CarveStore) CarveBySessionId(ctx context.Context, sessionID string) (*fleet.CarveMetadata, error) {
+func (c *CarveStore) CarveBySessionId(ctx context.Context, sessionID string) (*automdm.CarveMetadata, error) {
 	return c.metadatadb.CarveBySessionId(ctx, sessionID)
 }
 
 // CarveByName returns carve metadata by name
-func (c *CarveStore) CarveByName(ctx context.Context, name string) (*fleet.CarveMetadata, error) {
+func (c *CarveStore) CarveByName(ctx context.Context, name string) (*automdm.CarveMetadata, error) {
 	return c.metadatadb.CarveByName(ctx, name)
 }
 
 // ListCarves returns a list of the currently available carves
-func (c *CarveStore) ListCarves(ctx context.Context, opt fleet.CarveListOptions) ([]*fleet.CarveMetadata, error) {
+func (c *CarveStore) ListCarves(ctx context.Context, opt automdm.CarveListOptions) ([]*automdm.CarveMetadata, error) {
 	return c.metadatadb.ListCarves(ctx, opt)
 }
 
@@ -317,7 +317,7 @@ func (c *CarveStore) listCompletedParts(ctx context.Context, objectKey, uploadID
 const maxPartNumber = 10_000
 
 // NewBlock uploads a new block for a specific carve
-func (c *CarveStore) NewBlock(ctx context.Context, metadata *fleet.CarveMetadata, blockID int64, data []byte) error {
+func (c *CarveStore) NewBlock(ctx context.Context, metadata *automdm.CarveMetadata, blockID int64, data []byte) error {
 	if blockID < 0 || blockID >= maxPartNumber {
 		return ctxerr.Errorf(ctx, "invalid blockID (must be 0-9_999): %d", blockID)
 	}
@@ -370,7 +370,7 @@ func (c *CarveStore) NewBlock(ctx context.Context, metadata *fleet.CarveMetadata
 }
 
 // GetBlock returns a block of data for a carve
-func (c *CarveStore) GetBlock(ctx context.Context, metadata *fleet.CarveMetadata, blockID int64) ([]byte, error) {
+func (c *CarveStore) GetBlock(ctx context.Context, metadata *automdm.CarveMetadata, blockID int64) ([]byte, error) {
 	objectKey := c.generateS3Key(metadata)
 	// blockID is 0-indexed and sequential so can be perfectly used for evaluating ranges
 	// range extremes are inclusive as for RFC-2616 (section 14.35)

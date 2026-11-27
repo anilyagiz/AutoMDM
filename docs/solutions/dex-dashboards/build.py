@@ -63,7 +63,7 @@ SUPPORT_RE = re.compile(
 # Agents IT deploys everywhere. They are opened by the system, not by people,
 # so they are never seats to reclaim.
 MANAGED_AGENTS = {
-    "fleet desktop", "fleet osquery", "fleet-osquery", "orbit", "nudge", "santa", "okta verify",
+    "automdm desktop", "automdm osquery", "automdm-osquery", "orbit", "nudge", "santa", "okta verify",
     "falcon", "crowdstrike windows sensor", "sentinelone", "sentinel agent", "jamf connect",
     "self service", "munki", "managed software center", "company portal",
 }
@@ -121,7 +121,7 @@ VENDOR_NAMES = {
     "webex": "Webex", "amazon": "Amazon", "amazonaws": "AWS", "hnc": "Discord",
     "anysphere": "Cursor", "warp": "Warp", "raycast": "Raycast", "obsproject": "OBS",
     "videolan": "VideoLAN", "wireshark": "Wireshark", "iterm2": "iTerm2", "macpaw": "MacPaw",
-    "digidna": "DigiDNA", "kandji": "Kandji", "jamf": "Jamf", "fleetdm": "Fleet",
+    "digidna": "DigiDNA", "kandji": "Kandji", "jamf": "Jamf", "automdm": "AutoMDM",
     "blackmagic-design": "Blackmagic Design", "winehq": "WineHQ", "macadmins": "Mac Admins",
     "northpolesec": "North Pole Security", "simplemdm": "SimpleMDM",
     "slacktechnologies": "Slack", "zoomvideocommunications": "Zoom", "zoomcommunications": "Zoom",
@@ -179,7 +179,7 @@ def vcmp(a, b):
 
 
 def vendor(snap, name):
-    """A source vendor.py fetched ("macos", "windows", or "fleetd"), or None when it failed."""
+    """A source vendor.py fetched ("macos", "windows", or "automdmd"), or None when it failed."""
     v = (snap.get("vendor") or {}).get(name)
     return v if v and "error" not in v else None
 
@@ -365,9 +365,9 @@ def trim_daily(daily, keep_days, today):
     return {k: v for k, v in daily.items() if k >= cutoff}
 
 
-def count_into(day, fleet, plat, **counts):
-    """Daily trend counts are kept per fleet and platform, so the page's filters can sum them."""
-    row = day.setdefault(f"{fleet}|{plat}", {})
+def count_into(day, team, plat, **counts):
+    """Daily trend counts are kept per team and platform, so the page's filters can sum them."""
+    row = day.setdefault(f"{team}|{plat}", {})
     for k, v in counts.items():
         if v:
             row[k] = row.get(k, 0) + v
@@ -444,17 +444,17 @@ def build_lifecycle(snap, hist):
             strain[hid] = {d: v for d, v in days.items() if d > (today - dt.timedelta(days=45)).isoformat()}
 
         batteries = det.get("batteries") or []
-        fleet_batt = batteries[0].get("health") if batteries else None
+        automdm_batt = batteries[0].get("health") if batteries else None
         cycles = batteries[0].get("cycle_count") if batteries else None
         score = dh.get("battery_health_score") or None
-        battery_service = score == "replace" or (fleet_batt or "").lower().startswith("service")
+        battery_service = score == "replace" or (automdm_batt or "").lower().startswith("service")
         mem = h.get("memory") or 0
         ram = round(mem / 2**30) if mem else None
         warranty = (det.get("vitals") or {}).get(WARRANTY_VITAL) or None
         os_version = h.get("os_version") or ""
         model = mkt or " ".join(x for x in (h.get("hardware_vendor") if plat != "macos" else "", h.get("hardware_model")) if x)
         m = {
-            "id": h["id"], "name": host_name(h), "fleet": h.get("team_name") or "Unassigned", "p": plat,
+            "id": h["id"], "name": host_name(h), "team": h.get("team_name") or "Unassigned", "p": plat,
             "model": model, "model_id": h.get("hardware_model") or "",
             "serial": h.get("hardware_serial") or "",
             "chip": cpu["label"] if cpu else ((h.get("cpu_brand") or "").strip() or "Unknown"),
@@ -467,7 +467,7 @@ def build_lifecycle(snap, hist):
             "windows10": plat == "windows" and "Windows 10" in os_version,
             "battery_pct": float(dh["battery_health_pct"]) if dh.get("battery_health_pct") else None,
             "battery_cycles": int(dh["battery_cycles"]) if (dh.get("battery_cycles") or "").isdigit() else cycles,
-            "battery_score": score, "battery_fleet": fleet_batt, "battery_service": battery_service,
+            "battery_score": score, "battery_automdm": automdm_batt, "battery_service": battery_service,
             "swap": dh.get("swap_pressure") if dh_fresh else None,
             "uptime_days": round(uptime_days, 1) if uptime_days is not None else None,
             "pressured_now": pressured,
@@ -488,7 +488,7 @@ def build_lifecycle(snap, hist):
             m["verdict"] = lifecycle_verdict(m)
         devices.append(m)
 
-    # Hosts that are gone from Fleet stop accruing history.
+    # Hosts that are gone from AutoMDM stop accruing history.
     live = {str(m["id"]) for m in devices}
     for hid in list(strain):
         if hid not in live:
@@ -497,10 +497,10 @@ def build_lifecycle(snap, hist):
     day = {}
     for m in devices:
         scored = m["verdict"] not in ("stale", "virtual")
-        count_into(day, m["fleet"], m["p"], **{m["verdict"]: 1}, scored=int(scored), old=int(scored and m["old"]))
+        count_into(day, m["team"], m["p"], **{m["verdict"]: 1}, scored=int(scored), old=int(scored and m["old"]))
     days_collected = len({d for v in strain.values() for d in v})
     return {
-        "generated_at": snap["generated_at"], "fleet_url": snap["fleet_url"],
+        "generated_at": snap["generated_at"], "automdm_url": snap["automdm_url"],
         "history_since": hist["since"], "history_days": days_collected,
         "devices": devices, "current_gen": current_gen, "current_gen_source": "SOFA" if vendor(snap, "macos") else None,
         "old_cpu_years": OLD_CPU_YEARS,
@@ -563,7 +563,7 @@ def tracked_apps(snap, hid, plat, need_path=True):
                 continue
             key, vend = bid or name, vendor_of(bid, name)
         elif plat == "windows":
-            # Fleet matches Windows prefetch data to a program by its install
+            # AutoMDM matches Windows prefetch data to a program by its install
             # folder, so a program without one never gets a last-opened time.
             if source != "programs" or (need_path and not path) or WINDOWS_BUILTIN_RE.search(name):
                 continue
@@ -632,7 +632,7 @@ def build_software(snap, hist):
             h = hosts[str(hid)]
             count_into(day, h.get("team_name") or "Unassigned", r["p"], seats=1, idle=int(ds is None or ds >= IDLE_DAYS))
     return {
-        "generated_at": snap["generated_at"], "fleet_url": snap["fleet_url"],
+        "generated_at": snap["generated_at"], "automdm_url": snap["automdm_url"],
         "hosts": host_map(hosts, active),
         "apps": sorted(rows, key=lambda r: -len(r["h"])),
         "idle_days": IDLE_DAYS, "min_installs": MIN_INSTALLS, "stale_days": STALE_DAYS,
@@ -729,7 +729,7 @@ def like_re(pattern):
 
 def patch_policy_matcher(platform, query):
     """Which Patch velocity title a patch policy checks, as a test on title keys, or None.
-    Fleet builds the policy's query from the app's bundle ID on macOS, and on Windows
+    AutoMDM builds the policy's query from the app's bundle ID on macOS, and on Windows
     from its program name (=, LIKE, or IN, sometimes with NOT LIKE exclusions)."""
     unquote = lambda s: s.replace("''", "'")
     if "darwin" in platform:
@@ -762,8 +762,8 @@ def patch_policy_matcher(platform, query):
 
 
 # A patch policy passes once the app reaches the version in its query, the latest in
-# Fleet's maintained-apps catalog. A few compare bundle_version, which isn't the
-# version Fleet's inventory reports, so they don't set a bar.
+# AutoMDM's maintained-apps catalog. A few compare bundle_version, which isn't the
+# version AutoMDM's inventory reports, so they don't set a bar.
 PATCH_TARGET_RE = re.compile(r"version_compare\s*\(\s*(?:bundle_short_version|version)\s*,\s*" + SQL_STRING + r"\s*\)\s*<\s*0", re.I)
 
 
@@ -830,9 +830,9 @@ def update_name(month):
 
 
 def os_targets(snap):
-    """{"fleet|windows": [deadline days, grace days]} for fleets with a Windows OS update deadline."""
+    """{"team|windows": [deadline days, grace days]} for teams with a Windows OS update deadline."""
     out = {}
-    for f in snap.get("fleets") or []:
+    for f in snap.get("teams") or []:
         wu = f.get("windows_updates") or {}
         if wu.get("deadline_days") is not None:
             out[f"{f['name']}|windows"] = [wu["deadline_days"], wu.get("grace_period_days") or 0]
@@ -978,7 +978,7 @@ def build_patch(snap, hist):
 
     # Per-title installs on hosts that still check in, as [host, version], plus a 1
     # when a patch policy for that app applies to the host. The page aggregates these
-    # (per fleet and platform) against each title's newest release: the vendor's for
+    # (per team and platform) against each title's newest release: the vendor's for
     # macOS and Windows, the patch policy's for apps that have one, and otherwise the
     # highest version two computers run.
     active = [hid for hid in current if is_active(hosts[hid], now)]
@@ -1007,7 +1007,7 @@ def build_patch(snap, hist):
                 t["per_release"] = True
                 t["update"] = update_name(vendor(snap, "windows")["month"])
         elif key in targets:
-            t["newest"], t["source"] = targets[key], "Fleet-maintained apps"
+            t["newest"], t["source"] = targets[key], "AutoMDM-maintained apps"
         else:
             release = [v for hid, v, *_ in hv if not (key == "os:macOS" and str(hid) in beta_hosts)]
             t["newest"] = newest_release(release or [e[1] for e in hv], set())
@@ -1018,14 +1018,14 @@ def build_patch(snap, hist):
         index[key] = len(titles)
         titles.append(t)
 
-    def fleet_of(hid):
+    def automdm_of(hid):
         return hosts[str(hid)].get("team_name") or "Unassigned"
 
     # Timed updates as totals, not one row per update, so the page stays small on a
-    # large fleet. Keys are "fleet|platform" so the page's filters can add them up;
+    # large fleet. Keys are "team|platform" so the page's filters can add them up;
     # lags are whole days, so the page's medians match a per-update list exactly.
     active_set = set(active)
-    # OS updates are also counted on their own, since a fleet's OS update deadline sets their target.
+    # OS updates are also counted on their own, since a team's OS update deadline sets their target.
     lags, os_lags, by_host, by_app = {}, {}, {}, {}
     for key, rows in events.items():
         ti = index.get(key)
@@ -1034,7 +1034,7 @@ def build_patch(snap, hist):
         for hid, day_i, lag in rows:
             if lag is None or day_i < first_day or str(hid) not in active_set:
                 continue
-            fp = f"{fleet_of(hid)}|{titles[ti]['p']}"
+            fp = f"{automdm_of(hid)}|{titles[ti]['p']}"
             for tally in (lags, os_lags) if titles[ti]["type"] == "os" else (lags,):
                 counts = tally.setdefault(fp, {})
                 counts[lag] = counts.get(lag, 0) + 1
@@ -1057,14 +1057,14 @@ def build_patch(snap, hist):
             hot = t["type"] == "os" and on_hotpatch(t, v)
             current_v = int(hot or vcmp(v, latest if t.get("per_release") and latest else t["newest"]) >= 0)
             if t["type"] == "app":
-                count_into(day, fleet_of(hid), t["p"], app_installs=1, app_current=current_v)
+                count_into(day, automdm_of(hid), t["p"], app_installs=1, app_current=current_v)
             else:
-                count_into(day, fleet_of(hid), t["p"], os_installs=1, os_current=current_v,
+                count_into(day, automdm_of(hid), t["p"], os_installs=1, os_current=current_v,
                            os_patched=int(hot or vcmp(v, latest) >= 0) if latest else current_v)
     for rows in events.values():
         for hid, day_i, _ in rows:
             if day_i == today_i and str(hid) in hosts:
-                count_into(day, fleet_of(hid), platform_of(hosts[str(hid)]), updates=1)
+                count_into(day, automdm_of(hid), platform_of(hosts[str(hid)]), updates=1)
 
     # macOS updates queued to install on their own. The history keeps the first day each Mac
     # was seen waiting on its version, so the page can tell a fresh download from a stuck one.
@@ -1081,11 +1081,11 @@ def build_patch(snap, hist):
         prev = waiting.get(hid)
         first = prev[1] if prev and prev[0] == q[0] else D
         queued[hid] = [*q, first, (h.get("os_version") or "").replace("macOS ", "").strip()]
-        count_into(day, fleet_of(hid), "macos", os_queued=1,
+        count_into(day, automdm_of(hid), "macos", os_queued=1,
                    os_queued_stuck=int((today - dt.date.fromisoformat(first)).days >= QUEUED_STUCK_DAYS))
     hist["queued"] = {hid: [q[0], q[3]] for hid, q in queued.items()}
     return {
-        "generated_at": snap["generated_at"], "fleet_url": snap["fleet_url"],
+        "generated_at": snap["generated_at"], "automdm_url": snap["automdm_url"],
         "history_since": hist["since"], "sla_days": PATCH_SLA_DAYS, "stale_days": STALE_DAYS,
         "min_installs": MIN_INSTALLS, "hosts": host_map(hosts, active),
         "titles": titles, "betas": betas,
@@ -1174,7 +1174,7 @@ HOME_RE = re.compile(r"^(/Users/[^/]+|/home/[^/]+|/root|[A-Za-z]:\\Users\\[^\\]+
 # recounted every run and only older days are final.
 AI_USAGE_DAYS = 30
 AI_USAGE_FIELDS = ("sessions", "prompts", "tool_calls", "input", "output", "cache_read", "cache_write")
-# fleetd's ai_agent_sessions agents: (label, product on this page, every session
+# automdmd's ai_agent_sessions agents: (label, product on this page, every session
 # of the product is in the table). Copilot's and Cursor's editors keep no
 # transcripts the table reads, so no sessions there doesn't mean unused.
 AI_SESSION_AGENTS = {
@@ -1253,7 +1253,7 @@ def ai_signin(account, company):
 def ai_company_domains(snap):
     """Email domains that count as company sign-ins, where they came from, and the identity
     provider domains left out as personal: DEX_COMPANY_DOMAINS, or else the domains of the
-    end users Fleet has from the identity provider, minus personal email providers."""
+    end users AutoMDM has from the identity provider, minus personal email providers."""
     env = [d.strip().lower().lstrip("@") for d in os.environ.get("DEX_COMPANY_DOMAINS", "").split(",") if d.strip()]
     if env:
         return set(env), "setting", set()
@@ -1358,7 +1358,7 @@ def build_ai(snap, hist):
         return p["h"].setdefault(hid, {"s": set(), "v": "", "live": False, "opened": None, "sess": None})
 
     for hid in ids:
-        # Last-opened times from Fleet's software inventory (apps only).
+        # Last-opened times from AutoMDM's software inventory (apps only).
         for sname, ver, source, bid, last, path, vendor in software_rows(snap, hid):
             prod = AI_INVENTORY_APPS.get(html.unescape(sname)) if source in ("apps", "programs") else None
             if prod and last and (opened := parse_ts(last)):
@@ -1549,7 +1549,7 @@ def build_ai(snap, hist):
                 **({"d": dept} if dept else {})}
 
     return {
-        "generated_at": snap["generated_at"], "fleet_url": snap["fleet_url"], "history_since": hist["since"],
+        "generated_at": snap["generated_at"], "automdm_url": snap["automdm_url"], "history_since": hist["since"],
         "windows": AI_WINDOWS, "stale_days": STALE_DAYS,
         "source": {"report": ai.get("report"), "clipped": bool(ai.get("clipped")), "reported": len(reported),
                    "per_host": ai.get("per_host", 0)},
@@ -1681,7 +1681,7 @@ def build_connectivity(snap, hist):
         else:
             del wifi_hist[hid]
     return {
-        "generated_at": snap["generated_at"], "fleet_url": snap["fleet_url"], "history_since": hist["since"],
+        "generated_at": snap["generated_at"], "automdm_url": snap["automdm_url"], "history_since": hist["since"],
         "stale_days": STALE_DAYS, "weak_days": WEAK_DAYS, "rows": rows,
         "reports": {k: bool((info.get(k) or {}).get("found")) for k in ("wifi", "vpn")},
         "trend": save_trend(hist, today, day),
@@ -1692,7 +1692,7 @@ def build_connectivity(snap, hist):
 
 # (key, label, domain, platforms). Platforms None means every computer.
 ANALYTICS_SOURCES = [
-    ("checkin", "Fleet check-in", "Fleet agent", None),
+    ("checkin", "AutoMDM check-in", "AutoMDM agent", None),
     ("details", "Host details", "Hardware and health", None),
     ("software", "Software inventory", "Software", None),
     ("policies", "Policies", "Security", None),
@@ -1748,16 +1748,16 @@ def build_analytics(snap, hist):
     ids = [hid for hid, h in hosts.items() if platform_of(h) and is_active(h, now)]
 
     def found(key):
-        """Fleet's own timestamps always exist; a report counts only once someone adds it."""
+        """AutoMDM's own timestamps always exist; a report counts only once someone adds it."""
         return key in HOST_TIMESTAMPS or bool((info.get(key) or {}).get("found"))
 
     vers = {"orbit": [], "osquery": [], "desktop": []}
     for hid in ids:
         h = hosts[hid]
-        for k, field in (("orbit", "orbit_version"), ("osquery", "osquery_version"), ("desktop", "fleet_desktop_version")):
+        for k, field in (("orbit", "orbit_version"), ("osquery", "osquery_version"), ("desktop", "automdm_desktop_version")):
             if h.get(field):
                 vers[k].append(h[field])
-    stable = vendor(snap, "fleetd") or {}
+    stable = vendor(snap, "automdmd") or {}
     newest = {k: stable.get(k) or (newest_release(v, set()) if v else None) for k, v in vers.items()}
 
     out, day = {}, {}
@@ -1776,7 +1776,7 @@ def build_analytics(snap, hist):
                 t = parse_ts(((dex.get(key) or {}).get(hid) or {}).get("last_fetched"))
             ages[key] = round(days_between(t, now), 2) if t else None
         controls = posture(plat, h, dex, hid)
-        v = [h.get("orbit_version") or "", h.get("osquery_version") or "", h.get("fleet_desktop_version") or ""]
+        v = [h.get("orbit_version") or "", h.get("osquery_version") or "", h.get("automdm_desktop_version") or ""]
         current = bool(newest["orbit"] and v[0] and vcmp(v[0], newest["orbit"]) >= 0)
         up = round((h.get("uptime") or 0) / 1e9 / 86400, 1) if h.get("uptime") else None
         out[hid] = {"n": host_name(h), "f": h.get("team_name") or "Unassigned", "p": plat, "virtual": is_virtual(h),
@@ -1786,7 +1786,7 @@ def build_analytics(snap, hist):
                    disk_known=int(controls["disk"] is not None), disk_on=int(controls["disk"] == 1),
                    agent_current=int(current), failing=int((h.get("failing_policies") or 0) > 0))
     return {
-        "generated_at": snap["generated_at"], "fleet_url": snap["fleet_url"], "history_since": hist["since"],
+        "generated_at": snap["generated_at"], "automdm_url": snap["automdm_url"], "history_since": hist["since"],
         "stale_days": STALE_DAYS, "fresh_days": FRESH_DAYS, "uptime_overdue": UPTIME_OVERDUE_DAYS,
         "sources": [{"key": k, "label": label, "domain": domain, "platforms": sorted(plats) if plats else None,
                      "found": found(k), "clipped": bool((info.get(k) or {}).get("clipped"))}
@@ -1798,7 +1798,7 @@ def build_analytics(snap, hist):
 
 # Grams of CO2 per kWh of electricity generated, latest year per country (2025
 # for most). Source: Ember, via Our World in Data's "Carbon intensity of
-# electricity generation" (CC BY 4.0). Keyed by the ISO country code Fleet's
+# electricity generation" (CC BY 4.0). Keyed by the ISO country code AutoMDM's
 # GeoIP lookup returns.
 GRID_INTENSITY = {
     "AE": 468, "AF": 131, "AG": 595, "AL": 25, "AM": 212, "AO": 185, "AR": 346, "AS": 611, "AT": 117, "AU": 525,
@@ -1826,7 +1826,7 @@ GRID_INTENSITY = {
 }
 GRID_SOURCE = "Ember via Our World in Data (CC BY 4.0), latest year per country"
 # Used for computers with no GeoIP country. Unset, it falls back to the most
-# common country in the fleet.
+# common country in the team.
 DEFAULT_GRID = os.environ.get("DEX_GRID_INTENSITY", "")
 HOST_KWH_DAYS = 35
 SPOT_DAYS = 30
@@ -1895,7 +1895,7 @@ def energy_reading(hist, hid, row):
     """Turn a new Mac energy counter reading into kWh per UTC day.
 
     The counter is millijoules since boot. Time comes from the host's own
-    uptime, because Fleet can receive a result long after the host recorded it.
+    uptime, because AutoMDM can receive a result long after the host recorded it.
     """
     e, up, t = as_int(row.get("energy_mj")), as_int(row.get("uptime_s")), parse_ts(row.get("last_fetched"))
     if e is None or up is None or up <= 0 or t is None:
@@ -1966,12 +1966,12 @@ def build_sustainability(snap, hist):
     rows, day = [], {}
     for hid in ids:
         h, det = hosts[hid], details.get(hid) or {}
-        plat, fleet_name = platform_of(h), h.get("team_name") or "Unassigned"
-        key = f"{fleet_name}|{plat}"
+        plat, team_name = platform_of(h), h.get("team_name") or "Unassigned"
+        key = f"{team_name}|{plat}"
         country = det.get("country") or ""
         grid = GRID_INTENSITY.get(country) or fallback
         up_days = round(h["uptime"] / 1e9 / 86400, 1) if h.get("uptime") else None
-        r = {"id": int(hid), "n": host_name(h), "f": fleet_name, "p": plat,
+        r = {"id": int(hid), "n": host_name(h), "f": team_name, "p": plat,
              "model": det.get("hardware_marketing_name") or h.get("hardware_model") or "Unknown",
              "country": country, "grid": grid, "grid_known": country in GRID_INTENSITY, "up": up_days,
              "kind": None, "measured": False, "avg_boot_w": None, "now_w": None, "spot_w": None, "spot_n": 0,
@@ -2059,7 +2059,7 @@ def build_sustainability(snap, hist):
             r[f"kwh{days}"] = round(sum(v[0] for v in got), 4) if got else None
             r[f"hours{days}"] = round(sum(v[1] for v in got), 2) if got else None
         rows.append(r)
-        count_into(day, fleet_name, plat, computers=1, sleep_off=r["sleep_off"] or 0,
+        count_into(day, team_name, plat, computers=1, sleep_off=r["sleep_off"] or 0,
                    never_slept=r["never_slept"] or 0, measured=int(r["measured"]))
 
     keep = set(ids)
@@ -2083,7 +2083,7 @@ def build_sustainability(snap, hist):
         for k, (kwh, co2) in by_key.items():
             merged.setdefault(k, {}).update(kwh=round(kwh, 4), co2=round(co2, 1))
     return {
-        "generated_at": snap["generated_at"], "fleet_url": snap["fleet_url"], "history_since": hist["since"],
+        "generated_at": snap["generated_at"], "automdm_url": snap["automdm_url"], "history_since": hist["since"],
         "rows": rows, "trend": [[d, trend[d]] for d in sorted(trend)],
         "grid": {"fallback": fallback, "fallback_from": fallback_from, "source": GRID_SOURCE},
         "never_slept_days": NEVER_SLEPT_DAYS, "long_display_min": LONG_DISPLAY_MIN, "spot_days": SPOT_DAYS,
@@ -2097,7 +2097,7 @@ def build_sustainability(snap, hist):
 # ---------------------------------------------------------------- policies
 
 def build_policies(snap, hist):
-    """Each policy's pass, fail, and no-result counts per fleet and platform, kept per
+    """Each policy's pass, fail, and no-result counts per team and platform, kept per
     day for a year, so the page can show any day since the history began. Daily totals
     are kept for all policies, patch policies (p_), and the rest (o_), and again for
     critical policies alone (c_, cp_, co_)."""
@@ -2106,11 +2106,11 @@ def build_policies(snap, hist):
     D = today.isoformat()
     hist.setdefault("schema", 1)
     hist.setdefault("since", D)
-    # "fleet|platform" keys, referenced by index from each day's rows.
+    # "team|platform" keys, referenced by index from each day's rows.
     keys = hist.setdefault("keys", [])
     index = {k: i for i, k in enumerate(keys)}
     hosts = {str(h["id"]): h for h in snap["hosts"]}
-    fleet_names = {f["id"]: f["name"] for f in snap.get("fleets") or []}
+    team_names = {f["id"]: f["name"] for f in snap.get("teams") or []}
     info = snap.get("policies") or {}
 
     counts, failing, active, day = {}, {}, [], {}
@@ -2121,8 +2121,8 @@ def build_policies(snap, hist):
         if not plat or not results or not is_active(h, now):
             continue
         active.append(hid)
-        fleet = h.get("team_name") or "Unassigned"
-        fp = f"{fleet}|{plat}"
+        team = h.get("team_name") or "Unassigned"
+        fp = f"{team}|{plat}"
         if fp not in index:
             index[fp] = len(keys)
             keys.append(fp)
@@ -2138,23 +2138,23 @@ def build_policies(snap, hist):
                 for kind in ("", t, "c_", "c" + t) if p.get("critical") else ("", t):
                     tally[kind][0 if r == 1 else 1] += 1
         for kind, (passed, failed) in tally.items():
-            count_into(day, fleet, plat, **{kind + "computers": int(bool(passed or failed)), kind + "all_pass": int(passed > 0 and not failed),
+            count_into(day, team, plat, **{kind + "computers": int(bool(passed or failed)), kind + "all_pass": int(passed > 0 and not failed),
                                             kind + "any_fail": int(failed > 0), kind + "passed": passed, kind + "failed": failed})
 
     days = hist.setdefault("days", {})
     days[D] = {pid: [[ki, *c] for ki, c in sorted(by_key.items())] for pid, by_key in sorted(counts.items())}
     hist["days"] = days = trim_daily(days, TREND_DAYS, today)
-    # Name, critical, platform, and fleet for every policy in the kept days, current ones updated.
+    # Name, critical, platform, and team for every policy in the kept days, current ones updated.
     names = hist.setdefault("policies", {})
     for pid, p in info.items():
-        names[pid] = [p["name"], int(p["critical"]), p["platform"], fleet_names.get(p["fleet_id"], "") if p["fleet_id"] else "",
+        names[pid] = [p["name"], int(p["critical"]), p["platform"], team_names.get(p["team_id"], "") if p["team_id"] else "",
                       int(bool(p.get("patch")))]
     seen = {pid for rows in days.values() for pid in rows}
     for pid in [p for p in names if p not in seen]:
         del names[pid]
 
     return {
-        "generated_at": snap["generated_at"], "fleet_url": snap["fleet_url"], "history_since": hist["since"],
+        "generated_at": snap["generated_at"], "automdm_url": snap["automdm_url"], "history_since": hist["since"],
         "keys": keys, "policies": names, "days": [[d, days[d]] for d in sorted(days)],
         "current": {pid: {"d": p["description"], "r": p["resolution"]} for pid, p in info.items() if pid in counts},
         "failing": failing, "hosts": host_map(hosts, active),
@@ -2185,23 +2185,23 @@ EXP_SIGNALS = [
      "unit": "days", "step": 1, "cap": 7, "better": "lower",
      "about": "Days in the last 7 with heavy swapping, from the Device health report, weighed by uptime as on Hardware lifecycle."},
     {"id": "uptime", "cat": "performance", "label": "Days since restart", "plats": None, "kind": "number",
-     "unit": "days", "step": 1, "cap": 35, "better": "lower", "about": "Days since the computer last restarted, from Fleet."},
+     "unit": "days", "step": 1, "cap": 35, "better": "lower", "about": "Days since the computer last restarted, from AutoMDM."},
     {"id": "disk_free", "cat": "performance", "label": "Free disk space", "plats": None, "kind": "number",
-     "unit": "%", "step": 2, "cap": 35, "better": "higher", "about": "Share of the disk that's free, from Fleet."},
+     "unit": "%", "step": 2, "cap": 35, "better": "higher", "about": "Share of the disk that's free, from AutoMDM."},
     {"id": "cpu_age", "cat": "device", "label": "CPU age", "plats": None, "kind": "number",
      "unit": "years", "step": 1, "cap": 15, "better": "lower", "about": "Years since the CPU came out, as on Hardware lifecycle."},
     {"id": "ram", "cat": "device", "label": "Memory (RAM)", "plats": None, "kind": "levels",
      "levels": [["lt8", "Under 8 GB"], ["8", "8 to 15 GB"], ["16", "16 to 23 GB"], ["24", "24 to 31 GB"],
-                ["32", "32 to 63 GB"], ["64", "64 GB or more"]], "about": "Installed memory, from Fleet."},
+                ["32", "32 to 63 GB"], ["64", "64 GB or more"]], "about": "Installed memory, from AutoMDM."},
     {"id": "battery", "cat": "device", "label": "Battery health", "plats": None, "kind": "levels",
      "levels": [["service", "Needs service"], ["worn", "Worn"], ["good", "Good"]],
      "about": "Good is 80% or more of the battery's design capacity, worn is 60 to 79%, and needs service is less, or when the OS recommends service. Computers without a battery don't count."},
     {"id": "disk_encryption", "cat": "security", "label": "Disk encryption", "plats": None, "kind": "levels",
-     "levels": OFF_ON, "about": "FileVault, BitLocker, or LUKS, from Fleet."},
+     "levels": OFF_ON, "about": "FileVault, BitLocker, or LUKS, from AutoMDM."},
     {"id": "os_current", "cat": "security", "label": "OS up to date", "plats": None, "kind": "levels",
      "levels": [["unsupported", "Release no longer updated"], ["behind", "Missing updates"],
                 ["older", "Patched, older release"], ["newest", "Newest"]],
-     "about": "Measured as on Patch velocity: against Apple's newest macOS, the latest update for each Windows release, and the newest point release of each Linux release in the fleet."},
+     "about": "Measured as on Patch velocity: against Apple's newest macOS, the latest update for each Windows release, and the newest point release of each Linux release in the team."},
     {"id": "firewall", "cat": "security", "label": "Firewall", "plats": ["macos", "windows"], "kind": "levels",
      "levels": OFF_ON, "about": "From the macOS Security posture and Windows firewall status reports."},
     {"id": "gatekeeper", "cat": "security", "label": "Gatekeeper", "plats": ["macos"], "kind": "levels",
@@ -2215,12 +2215,12 @@ EXP_SIGNALS = [
     {"id": "antivirus", "cat": "security", "label": "Antivirus", "plats": ["windows"], "kind": "levels",
      "levels": OFF_ON, "about": "From Windows Security Center, in the firewall status report."},
     {"id": "critical_policies", "cat": "security", "label": "Failing critical policies", "plats": None, "kind": "number",
-     "unit": "", "step": 1, "cap": 35, "better": "lower", "about": "Fleet policies marked critical that the computer fails."},
+     "unit": "", "step": 1, "cap": 35, "better": "lower", "about": "AutoMDM policies marked critical that the computer fails."},
     {"id": "policies", "cat": "security", "label": "Failing policies", "plats": None, "kind": "number",
-     "unit": "", "step": 1, "cap": 35, "better": "lower", "about": "Fleet policies the computer fails, critical or not."},
+     "unit": "", "step": 1, "cap": 35, "better": "lower", "about": "AutoMDM policies the computer fails, critical or not."},
     {"id": "vulns", "cat": "security", "label": "Critical vulnerabilities", "plats": None, "kind": "number",
      "unit": "", "step": 1, "cap": 35, "better": "lower",
-     "about": "Software vulnerabilities on the computer rated critical (CVSS 9 or higher), from Fleet Premium."},
+     "about": "Software vulnerabilities on the computer rated critical (CVSS 9 or higher), from AutoMDM Premium."},
     {"id": "ai_risk", "cat": "security", "label": "High-risk AI findings", "plats": None, "kind": "number",
      "unit": "", "step": 1, "cap": 35, "better": "lower", "about": "High-risk findings on AI governance."},
     {"id": "apps_behind", "cat": "software", "label": "Apps behind on updates", "plats": None, "kind": "number",
@@ -2232,11 +2232,11 @@ EXP_SIGNALS = [
      "levels": [["unusable", "Unusable"], ["poor", "Poor"], ["fair", "Fair"], ["good", "Good"], ["excellent", "Excellent"]],
      "about": "Signal strength, as on Connectivity. Macs on Ethernet don't count."},
     {"id": "checkin", "cat": "connectivity", "label": "Last check-in", "plats": None, "kind": "number",
-     "unit": "days", "step": 1, "cap": 35, "better": "lower", "about": "Days since the computer last checked in with Fleet."},
+     "unit": "days", "step": 1, "cap": 35, "better": "lower", "about": "Days since the computer last checked in with AutoMDM."},
 ]
 EXP_BY_ID = {s["id"]: s for s in EXP_SIGNALS}
 
-# Fleet's starting point. Admins change it on the page, or with a JSON file in the
+# AutoMDM's starting point. Admins change it on the page, or with a JSON file in the
 # same shape (DEX_SCORING_FILE or run.py --scoring). Weights are relative within
 # their group. bands: [threshold, points] in order, the last threshold null for
 # everything else; "at most" for a lower-is-better signal, "at least" otherwise.
@@ -2434,14 +2434,14 @@ def exp_ram(gb):
 
 
 def exp_battery(m):
-    pct, score, fleet = m.get("battery_pct"), m.get("battery_score"), (m.get("battery_fleet") or "").lower()
+    pct, score, team = m.get("battery_pct"), m.get("battery_score"), (m.get("battery_automdm") or "").lower()
     if m.get("battery_service") or score == "replace":
         return "service"
     if pct is not None:
         return "good" if pct >= 80 else "worn" if pct >= 60 else "service"
     if score in ("good", "degraded"):
         return "good" if score == "good" else "worn"
-    return "good" if fleet in ("normal", "good") else None
+    return "good" if team in ("normal", "good") else None
 
 
 def exp_os_cohort(plat, os_version):
@@ -2591,7 +2591,7 @@ def build_experience(snap, hist, pages, page_hists, scoring=None, scoring_source
     day_rows = {}
     for hid, s in codes.items():
         h = hosts[hid]
-        plat, fleet = platform_of(h), h.get("team_name") or "Unassigned"
+        plat, team = platform_of(h), h.get("team_name") or "Unassigned"
         for di in range(n_days):
             block = s[di * S:(di + 1) * S]
             if block == blank or (block[chk] != "." and EXP_CODES.index(block[chk]) > cfg["stale_days"]):
@@ -2600,7 +2600,7 @@ def build_experience(snap, hist, pages, page_hists, scoring=None, scoring_source
             if comp is None:
                 continue
             d = (start + dt.timedelta(days=di)).isoformat()
-            count_into(day_rows.setdefault(d, {}), fleet, plat, scored=1, score10=round(comp * 10),
+            count_into(day_rows.setdefault(d, {}), team, plat, scored=1, score10=round(comp * 10),
                        good=int(comp >= cfg["target"]),
                        **{f"c_{c}": round(v * 10) for c, v in cats.items()}, **{f"n_{c}": 1 for c in cats})
     kept = {d: v for d, v in (hist.get("trend") or {}).items() if d < start.isoformat()}
@@ -2608,7 +2608,7 @@ def build_experience(snap, hist, pages, page_hists, scoring=None, scoring_source
     hist["grades"], hist["target"] = cfg["grades"], cfg["target"]
     hist["weights"] = {c: cat["weight"] for c, cat in cfg["categories"].items()}
 
-    names = {"fleets": [], "models": [], "chips": [], "oses": [], "depts": []}
+    names = {"teams": [], "models": [], "chips": [], "oses": [], "depts": []}
     lookup = {k: {} for k in names}
 
     def ix(kind, value):
@@ -2622,13 +2622,13 @@ def build_experience(snap, hist, pages, page_hists, scoring=None, scoring_source
     for hid in sorted(codes, key=int):
         h, m = hosts[hid], life.get(hid) or {}
         plat = platform_of(h)
-        out_hosts.append([int(hid), host_name(h), ix("fleets", h.get("team_name") or "Unassigned"), plat,
+        out_hosts.append([int(hid), host_name(h), ix("teams", h.get("team_name") or "Unassigned"), plat,
                           ix("models", m.get("model") or h.get("hardware_model")), ix("chips", m.get("chip_family")),
                           ix("oses", exp_os_cohort(plat, h.get("os_version"))),
                           ix("depts", (details.get(hid) or {}).get("department")), codes[hid]])
     used = {str(pid) for f in facts.values() for pid in f.get("pol", [])}
     return {
-        "generated_at": snap["generated_at"], "fleet_url": snap["fleet_url"], "history_since": hist["since"],
+        "generated_at": snap["generated_at"], "automdm_url": snap["automdm_url"], "history_since": hist["since"],
         "categories": [{"id": c, "label": label, "about": about} for c, label, about in EXP_CATEGORIES],
         "signals": [{k: v for k, v in s.items() if v is not None} for s in EXP_SIGNALS],
         "codes": EXP_CODES, "scoring": cfg, "scoring_source": scoring_source, "builtin": DEFAULT_SCORING,
@@ -2727,7 +2727,7 @@ def build_overview(snap, page_hists):
         if plat:
             key = f"{h.get('team_name') or 'Unassigned'}|{plat}"
             hosts[key] = hosts.get(key, 0) + 1
-    return {"generated_at": snap["generated_at"], "fleet_url": snap["fleet_url"], "hosts": hosts, "pages": pages}
+    return {"generated_at": snap["generated_at"], "automdm_url": snap["automdm_url"], "hosts": hosts, "pages": pages}
 
 
 def render(templates, page, data):

@@ -28,7 +28,7 @@ const OSRequirementDescription = ({
           </p>
           <CustomLink
             text="Learn more"
-            url="https://fleetdm.com/learn-more-about/os-updates-apple"
+            url="https://automdm.com/learn-more-about/os-updates-apple"
             newTab
           />
         </>
@@ -45,7 +45,7 @@ const OSRequirementDescription = ({
           </p>
           <CustomLink
             text="Learn more"
-            url="https://fleetdm.com/learn-more-about/os-updates-windows"
+            url="https://automdm.com/learn-more-about/os-updates-windows"
             newTab
           />
         </>
@@ -58,7 +58,7 @@ const OSRequirementDescription = ({
           <p>End users are notified an hour before the deadline.</p>
           <CustomLink
             text="Learn more"
-            url="https://fleetdm.com/learn-more-about/os-updates-apple"
+            url="https://automdm.com/learn-more-about/os-updates-apple"
             newTab
           />
         </>

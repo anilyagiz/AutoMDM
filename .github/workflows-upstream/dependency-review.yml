@@ -35,5 +35,5 @@ jobs:
           # install. Remove once the advisory's patched ranges are corrected upstream.
           # GHSA-j965-2qgj-vjmq (aws-sdk v2 region validation) has no fixed v2
           # release; the guidance is to migrate to SDK v3. skipper-s3 (used by the
-          # fleet-agent-downloader) supports only v2.
+          # automdm-agent-downloader) supports only v2.
           allow-ghsas: GHSA-mh99-v99m-4gvg, GHSA-j965-2qgj-vjmq

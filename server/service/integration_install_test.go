@@ -15,13 +15,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/datastore/s3"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	software_mock "github.com/fleetdm/fleet/v4/server/mock/software"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	"github.com/anilyagiz/automdm/v4/server/datastore/s3"
+	software_mock "github.com/anilyagiz/automdm/v4/server/mock/software"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
@@ -48,21 +48,21 @@ func (s *integrationInstallTestSuite) SetupSuite() {
 	softwareInstallStore := &software_mock.SoftwareInstallerStore{}
 	s.softwareInstallStore = softwareInstallStore
 
-	fleetConfig := config.TestConfig()
+	automdmConfig := config.TestConfig()
 	signer, _ := rsa.GenerateKey(rand.Reader, 2048)
 	// Signing settings are only honored when S3 is the selected storage backend (bucket set).
-	fleetConfig.S3.SoftwareInstallersBucket = "test-bucket"
-	fleetConfig.S3.SoftwareInstallersCloudFrontSigner = signer
+	automdmConfig.S3.SoftwareInstallersBucket = "test-bucket"
+	automdmConfig.S3.SoftwareInstallersCloudFrontSigner = signer
 	installConfig := TestServerOpts{
-		License: &fleet.LicenseInfo{
-			Tier: fleet.TierPremium,
+		License: &automdm.LicenseInfo{
+			Tier: automdm.TierPremium,
 		},
 		Logger:               slog.New(slog.NewTextHandler(os.Stdout, nil)),
 		EnableCachedDS:       true,
 		SoftwareInstallStore: softwareInstallStore,
-		FleetConfig:          &fleetConfig,
+		AutoMDMConfig:        &automdmConfig,
 	}
-	if os.Getenv("FLEET_INTEGRATION_TESTS_DISABLE_LOG") != "" {
+	if os.Getenv("AUTOMDM_INTEGRATION_TESTS_DISABLE_LOG") != "" {
 		installConfig.Logger = slog.New(slog.DiscardHandler)
 	}
 	users, server := RunServerForTestsWithDS(s.T(), s.ds, &installConfig)
@@ -77,7 +77,7 @@ func (s *integrationInstallTestSuite) TearDownTest() {
 }
 
 // TestSoftwareInstallerSignedURL tests that the software installer signed URL is returned.
-// We test using both mock and real fleet.SoftwareInstallerStore.Sign functions.
+// We test using both mock and real automdm.SoftwareInstallerStore.Sign functions.
 func (s *integrationInstallTestSuite) TestSoftwareInstallerSignedURL() {
 	t := s.T()
 
@@ -115,12 +115,12 @@ func (s *integrationInstallTestSuite) TestSoftwareInstallerSignedURL() {
 	}
 
 	var createTeamResp teamResponse
-	s.DoJSON("POST", "/api/latest/fleet/fleets", &fleet.Team{
+	s.DoJSON("POST", "/api/latest/automdm/teams", &automdm.Team{
 		Name: t.Name(),
 	}, http.StatusOK, &createTeamResp)
 	require.NotZero(t, createTeamResp.Team.ID)
 
-	payload := &fleet.UploadSoftwareInstallerPayload{
+	payload := &automdm.UploadSoftwareInstallerPayload{
 		TeamID:            &createTeamResp.Team.ID,
 		InstallScript:     "another install script",
 		PreInstallQuery:   "another pre install query",
@@ -150,18 +150,18 @@ func (s *integrationInstallTestSuite) TestSoftwareInstallerSignedURL() {
 
 	// create an orbit host, assign to team
 	hostInTeam := createOrbitEnrolledHost(t, "linux", "orbit-host-team", s.ds)
-	require.NoError(t, s.ds.AddHostsToTeam(context.Background(), fleet.NewAddHostsToTeamParams(&createTeamResp.Team.ID, []uint{hostInTeam.ID})))
+	require.NoError(t, s.ds.AddHostsToTeam(context.Background(), automdm.NewAddHostsToTeamParams(&createTeamResp.Team.ID, []uint{hostInTeam.ID})))
 
 	// Create a software installation request
-	s.Do("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/software/%d/install", hostInTeam.ID, titleID), installSoftwareRequest{},
+	s.Do("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/software/%d/install", hostInTeam.ID, titleID), installSoftwareRequest{},
 		http.StatusAccepted)
 
 	// Get the InstallerUUID
 	installUUID := getLatestSoftwareInstallExecID(t, s.ds, hostInTeam.ID)
 
 	// Fetch installer details
-	var orbitSoftwareResp fleet.OrbitGetSoftwareInstallResponse
-	s.DoJSON("POST", "/api/fleet/orbit/software_install/details", fleet.OrbitGetSoftwareInstallRequest{
+	var orbitSoftwareResp automdm.OrbitGetSoftwareInstallResponse
+	s.DoJSON("POST", "/api/automdm/orbit/software_install/details", automdm.OrbitGetSoftwareInstallRequest{
 		InstallUUID:  installUUID,
 		OrbitNodeKey: *hostInTeam.OrbitNodeKey,
 	}, http.StatusOK, &orbitSoftwareResp)
@@ -174,8 +174,8 @@ func (s *integrationInstallTestSuite) TestSoftwareInstallerSignedURL() {
 	s.softwareInstallStore.SignFunc = func(ctx context.Context, fileID string, expiresIn time.Duration) (string, error) {
 		return "", errors.New("error signing")
 	}
-	orbitSoftwareResp = fleet.OrbitGetSoftwareInstallResponse{}
-	s.DoJSON("POST", "/api/fleet/orbit/software_install/details", fleet.OrbitGetSoftwareInstallRequest{
+	orbitSoftwareResp = automdm.OrbitGetSoftwareInstallResponse{}
+	s.DoJSON("POST", "/api/automdm/orbit/software_install/details", automdm.OrbitGetSoftwareInstallRequest{
 		InstallUUID:  installUUID,
 		OrbitNodeKey: *hostInTeam.OrbitNodeKey,
 	}, http.StatusOK, &orbitSoftwareResp)
@@ -193,9 +193,9 @@ func (s *integrationInstallTestSuite) TestSoftwareInstallerSignedURL() {
 	s3Store, err := s3.NewTestSoftwareInstallerStore(s3Config)
 	require.NoError(t, err)
 	s.softwareInstallStore.SignFunc = func(ctx context.Context, fileID string, expiresIn time.Duration) (string, error) {
-		return s3Store.Sign(ctx, fileID, fleet.SoftwareInstallerSignedURLExpiry)
+		return s3Store.Sign(ctx, fileID, automdm.SoftwareInstallerSignedURLExpiry)
 	}
-	s.DoJSON("POST", "/api/fleet/orbit/software_install/details", fleet.OrbitGetSoftwareInstallRequest{
+	s.DoJSON("POST", "/api/automdm/orbit/software_install/details", automdm.OrbitGetSoftwareInstallRequest{
 		InstallUUID:  installUUID,
 		OrbitNodeKey: *hostInTeam.OrbitNodeKey,
 	}, http.StatusOK, &orbitSoftwareResp)
@@ -229,7 +229,7 @@ func (s *integrationInstallTestSuite) TestShScriptInstallOnDarwin() {
 	filename := "test-script.sh"
 
 	// Create a .sh script file in-memory
-	tfr, err := fleet.NewTempFileReader(strings.NewReader("#!/bin/bash\necho 'hello world'\n"), t.TempDir)
+	tfr, err := automdm.NewTempFileReader(strings.NewReader("#!/bin/bash\necho 'hello world'\n"), t.TempDir)
 	require.NoError(t, err)
 	defer tfr.Close()
 
@@ -248,13 +248,13 @@ func (s *integrationInstallTestSuite) TestShScriptInstallOnDarwin() {
 
 	// Create a team
 	var createTeamResp teamResponse
-	s.DoJSON("POST", "/api/latest/fleet/fleets", &fleet.Team{
+	s.DoJSON("POST", "/api/latest/automdm/teams", &automdm.Team{
 		Name: t.Name(),
 	}, http.StatusOK, &createTeamResp)
 	require.NotZero(t, createTeamResp.Team.ID)
 
 	// Upload .sh script package
-	s.uploadSoftwareInstaller(t, &fleet.UploadSoftwareInstallerPayload{
+	s.uploadSoftwareInstaller(t, &automdm.UploadSoftwareInstallerPayload{
 		TeamID:        &createTeamResp.Team.ID,
 		Filename:      filename,
 		InstallerFile: tfr,
@@ -275,18 +275,18 @@ func (s *integrationInstallTestSuite) TestShScriptInstallOnDarwin() {
 
 	// Create a darwin (macOS) orbit host and assign to team
 	darwinHost := createOrbitEnrolledHost(t, "darwin", "darwin-sh-host", s.ds)
-	require.NoError(t, s.ds.AddHostsToTeam(context.Background(), fleet.NewAddHostsToTeamParams(&createTeamResp.Team.ID, []uint{darwinHost.ID})))
+	require.NoError(t, s.ds.AddHostsToTeam(context.Background(), automdm.NewAddHostsToTeamParams(&createTeamResp.Team.ID, []uint{darwinHost.ID})))
 
 	// Install .sh on darwin should succeed
-	s.Do("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/software/%d/install", darwinHost.ID, titleID), installSoftwareRequest{},
+	s.Do("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/software/%d/install", darwinHost.ID, titleID), installSoftwareRequest{},
 		http.StatusAccepted)
 
 	// Get the install UUID
 	installUUID := getLatestSoftwareInstallExecID(t, s.ds, darwinHost.ID)
 
 	// Fetch installer details via orbit endpoint
-	var orbitSoftwareResp fleet.OrbitGetSoftwareInstallResponse
-	s.DoJSON("POST", "/api/fleet/orbit/software_install/details", fleet.OrbitGetSoftwareInstallRequest{
+	var orbitSoftwareResp automdm.OrbitGetSoftwareInstallResponse
+	s.DoJSON("POST", "/api/automdm/orbit/software_install/details", automdm.OrbitGetSoftwareInstallRequest{
 		InstallUUID:  installUUID,
 		OrbitNodeKey: *darwinHost.OrbitNodeKey,
 	}, http.StatusOK, &orbitSoftwareResp)
@@ -316,12 +316,12 @@ func (s *integrationInstallTestSuite) TestGetInHouseAppManifestSignedURL() {
 		return signURL, nil
 	}
 
-	s.uploadSoftwareInstaller(t, &fleet.UploadSoftwareInstallerPayload{Filename: "ipa_test.ipa"}, http.StatusOK, "")
+	s.uploadSoftwareInstaller(t, &automdm.UploadSoftwareInstallerPayload{Filename: "ipa_test.ipa"}, http.StatusOK, "")
 
 	var titleResp listSoftwareTitlesResponse
-	s.DoJSON("GET", "/api/latest/fleet/software/titles", listSoftwareTitlesRequest{
-		SoftwareTitleListOptions: fleet.SoftwareTitleListOptions{Platform: "ios"},
-	}, http.StatusOK, &titleResp, "fleet_id", "0")
+	s.DoJSON("GET", "/api/latest/automdm/software/titles", listSoftwareTitlesRequest{
+		SoftwareTitleListOptions: automdm.SoftwareTitleListOptions{Platform: "ios"},
+	}, http.StatusOK, &titleResp, "team_id", "0")
 	require.Len(t, titleResp.SoftwareTitles, 1)
 	require.Equal(t, "ipa_test", titleResp.SoftwareTitles[0].Name)
 	titleID := titleResp.SoftwareTitles[0].ID
@@ -339,7 +339,7 @@ func (s *integrationInstallTestSuite) TestGetInHouseAppManifestSignedURL() {
 		return s.ds.CreateInHouseAppInstallToken(context.Background(), q, token, titleID, *teamID, 1)
 	})
 	res := s.DoRawNoAuth("GET",
-		fmt.Sprintf("/api/latest/fleet/software/titles/%d/in_house_app/manifest/%s", titleID, token),
+		fmt.Sprintf("/api/latest/automdm/software/titles/%d/in_house_app/manifest/%s", titleID, token),
 		nil, http.StatusOK)
 
 	manifest := readManifest(res)
@@ -348,7 +348,7 @@ func (s *integrationInstallTestSuite) TestGetInHouseAppManifestSignedURL() {
 	require.Contains(t, string(manifest), escapedURL)
 }
 
-func (s *integrationInstallTestSuite) TestSoftwareInstallerFleetVariables() {
+func (s *integrationInstallTestSuite) TestSoftwareInstallerAutoMDMVariables() {
 	t := s.T()
 	ctx := context.Background()
 
@@ -363,31 +363,31 @@ func (s *integrationInstallTestSuite) TestSoftwareInstallerFleetVariables() {
 	}
 
 	var createTeamResp teamResponse
-	s.DoJSON("POST", "/api/latest/fleet/fleets", &fleet.Team{Name: t.Name()}, http.StatusOK, &createTeamResp)
+	s.DoJSON("POST", "/api/latest/automdm/teams", &automdm.Team{Name: t.Name()}, http.StatusOK, &createTeamResp)
 	teamID := createTeamResp.Team.ID
 
-	const unsupportedVarErrMsg = "Fleet variable $FLEET_VAR_NONEXISTENT is not supported in scripts."
+	const unsupportedVarErrMsg = "AutoMDM variable $AUTOMDM_VAR_NONEXISTENT is not supported in scripts."
 
 	// upload validation: unsupported and CA variables are rejected, naming the script
 	uploadCases := []struct {
-		payload *fleet.UploadSoftwareInstallerPayload
+		payload *automdm.UploadSoftwareInstallerPayload
 		errMsg  string
 	}{
-		{&fleet.UploadSoftwareInstallerPayload{TeamID: &teamID, Filename: "ruby.deb", InstallScript: "echo $FLEET_VAR_NONEXISTENT"}, unsupportedVarErrMsg},
-		{&fleet.UploadSoftwareInstallerPayload{TeamID: &teamID, Filename: "ruby.deb", PostInstallScript: "echo ${FLEET_VAR_NONEXISTENT}"}, unsupportedVarErrMsg},
-		{&fleet.UploadSoftwareInstallerPayload{TeamID: &teamID, Filename: "ruby.deb", UninstallScript: "echo $FLEET_VAR_NDES_SCEP_PROXY_URL"}, "Fleet variable $FLEET_VAR_NDES_SCEP_PROXY_URL is not supported in scripts."},
+		{&automdm.UploadSoftwareInstallerPayload{TeamID: &teamID, Filename: "ruby.deb", InstallScript: "echo $AUTOMDM_VAR_NONEXISTENT"}, unsupportedVarErrMsg},
+		{&automdm.UploadSoftwareInstallerPayload{TeamID: &teamID, Filename: "ruby.deb", PostInstallScript: "echo ${AUTOMDM_VAR_NONEXISTENT}"}, unsupportedVarErrMsg},
+		{&automdm.UploadSoftwareInstallerPayload{TeamID: &teamID, Filename: "ruby.deb", UninstallScript: "echo $AUTOMDM_VAR_NDES_SCEP_PROXY_URL"}, "AutoMDM variable $AUTOMDM_VAR_NDES_SCEP_PROXY_URL is not supported in scripts."},
 	}
 	for _, c := range uploadCases {
 		s.uploadSoftwareInstaller(t, c.payload, http.StatusUnprocessableEntity, c.errMsg)
 	}
 
 	// supported variables in all three scripts are accepted and stored unexpanded
-	payload := &fleet.UploadSoftwareInstallerPayload{
+	payload := &automdm.UploadSoftwareInstallerPayload{
 		TeamID:            &teamID,
 		Filename:          "ruby.deb",
-		InstallScript:     "install $FLEET_VAR_HOST_HARDWARE_SERIAL",
-		PostInstallScript: "post ${FLEET_VAR_HOST_UUID}",
-		UninstallScript:   "uninstall $FLEET_VAR_HOST_PLATFORM",
+		InstallScript:     "install $AUTOMDM_VAR_HOST_HARDWARE_SERIAL",
+		PostInstallScript: "post ${AUTOMDM_VAR_HOST_UUID}",
+		UninstallScript:   "uninstall $AUTOMDM_VAR_HOST_PLATFORM",
 	}
 	s.uploadSoftwareInstaller(t, payload, http.StatusOK, "")
 
@@ -401,33 +401,33 @@ func (s *integrationInstallTestSuite) TestSoftwareInstallerFleetVariables() {
 	titleID := *meta.TitleID
 
 	host := createOrbitEnrolledHost(t, "ubuntu", "installer-vars", s.ds)
-	require.NoError(t, s.ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&teamID, []uint{host.ID})))
+	require.NoError(t, s.ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&teamID, []uint{host.ID})))
 
-	s.Do("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/software/%d/install", host.ID, titleID), installSoftwareRequest{},
+	s.Do("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/software/%d/install", host.ID, titleID), installSoftwareRequest{},
 		http.StatusAccepted)
 	installUUID := getLatestSoftwareInstallExecID(t, s.ds, host.ID)
 
 	// stored contents are unexpanded; the orbit details fetch resolves them for the host
 	stored, err := s.ds.GetSoftwareInstallDetails(ctx, installUUID)
 	require.NoError(t, err)
-	require.Equal(t, "install $FLEET_VAR_HOST_HARDWARE_SERIAL", stored.InstallScript)
+	require.Equal(t, "install $AUTOMDM_VAR_HOST_HARDWARE_SERIAL", stored.InstallScript)
 
-	var detailsResp fleet.OrbitGetSoftwareInstallResponse
-	s.DoJSON("POST", "/api/fleet/orbit/software_install/details", fleet.OrbitGetSoftwareInstallRequest{
+	var detailsResp automdm.OrbitGetSoftwareInstallResponse
+	s.DoJSON("POST", "/api/automdm/orbit/software_install/details", automdm.OrbitGetSoftwareInstallRequest{
 		InstallUUID:  installUUID,
 		OrbitNodeKey: *host.OrbitNodeKey,
 	}, http.StatusOK, &detailsResp)
-	requireVarsDelivered(t, detailsResp.InstallScript, "install $FLEET_VAR_HOST_HARDWARE_SERIAL",
+	requireVarsDelivered(t, detailsResp.InstallScript, "install $AUTOMDM_VAR_HOST_HARDWARE_SERIAL",
 		map[string]string{"HOST_HARDWARE_SERIAL": host.HardwareSerial})
-	requireVarsDelivered(t, detailsResp.PostInstallScript, "post ${FLEET_VAR_HOST_UUID}",
+	requireVarsDelivered(t, detailsResp.PostInstallScript, "post ${AUTOMDM_VAR_HOST_UUID}",
 		map[string]string{"HOST_UUID": host.UUID})
-	requireVarsDelivered(t, detailsResp.UninstallScript, "uninstall $FLEET_VAR_HOST_PLATFORM",
+	requireVarsDelivered(t, detailsResp.UninstallScript, "uninstall $AUTOMDM_VAR_HOST_PLATFORM",
 		map[string]string{"HOST_PLATFORM": "ubuntu"})
 
 	// the host completes the install so the queue is free for the failure case
-	s.Do("POST", "/api/fleet/orbit/software_install/result", fleet.OrbitPostSoftwareInstallResultRequest{
+	s.Do("POST", "/api/automdm/orbit/software_install/result", automdm.OrbitPostSoftwareInstallResultRequest{
 		OrbitNodeKey: *host.OrbitNodeKey,
-		HostSoftwareInstallResultPayload: &fleet.HostSoftwareInstallResultPayload{
+		HostSoftwareInstallResultPayload: &automdm.HostSoftwareInstallResultPayload{
 			HostID:                host.ID,
 			InstallUUID:           installUUID,
 			InstallScriptExitCode: new(0),
@@ -436,45 +436,45 @@ func (s *integrationInstallTestSuite) TestSoftwareInstallerFleetVariables() {
 	}, http.StatusNoContent)
 
 	// update validation: unsupported variable is rejected
-	s.updateSoftwareInstaller(t, &fleet.UpdateSoftwareInstallerPayload{
+	s.updateSoftwareInstaller(t, &automdm.UpdateSoftwareInstallerPayload{
 		TitleID:       titleID,
 		TeamID:        &teamID,
-		InstallScript: new("echo $FLEET_VAR_NONEXISTENT"),
+		InstallScript: new("echo $AUTOMDM_VAR_NONEXISTENT"),
 	}, http.StatusUnprocessableEntity, unsupportedVarErrMsg)
 
 	// update to an IdP variable the host can't resolve
-	s.updateSoftwareInstaller(t, &fleet.UpdateSoftwareInstallerPayload{
+	s.updateSoftwareInstaller(t, &automdm.UpdateSoftwareInstallerPayload{
 		TitleID:       titleID,
 		TeamID:        &teamID,
-		InstallScript: new("install $FLEET_VAR_HOST_END_USER_IDP_USERNAME"),
+		InstallScript: new("install $AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME"),
 	}, http.StatusOK, "")
 
-	s.Do("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/software/%d/install", host.ID, titleID), installSoftwareRequest{},
+	s.Do("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/software/%d/install", host.ID, titleID), installSoftwareRequest{},
 		http.StatusAccepted)
 	failUUID := getLatestSoftwareInstallExecID(t, s.ds, host.ID)
 
 	// the details fetch records the failure server-side and returns not found
-	s.DoJSON("POST", "/api/fleet/orbit/software_install/details", fleet.OrbitGetSoftwareInstallRequest{
+	s.DoJSON("POST", "/api/automdm/orbit/software_install/details", automdm.OrbitGetSoftwareInstallRequest{
 		InstallUUID:  failUUID,
 		OrbitNodeKey: *host.OrbitNodeKey,
 	}, http.StatusNotFound, &detailsResp)
 
 	results, err := s.ds.GetSoftwareInstallResults(ctx, failUUID)
 	require.NoError(t, err)
-	require.Equal(t, fleet.SoftwareInstallFailed, results.Status)
+	require.Equal(t, automdm.SoftwareInstallFailed, results.Status)
 	require.NotNil(t, results.Output)
-	require.Contains(t, *results.Output, "There is no IdP username for this host. Fleet couldn't populate $FLEET_VAR_HOST_END_USER_IDP_USERNAME.")
+	require.Contains(t, *results.Output, "There is no IdP username for this host. AutoMDM couldn't populate $AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME.")
 
 	// the user-facing results endpoint renders the reason, not a generic error
 	var installResultsResp getSoftwareInstallResultsResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/software/install/%s/results", failUUID), nil, http.StatusOK, &installResultsResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/software/install/%s/results", failUUID), nil, http.StatusOK, &installResultsResp)
 	require.NotNil(t, installResultsResp.Results.Output)
-	require.Contains(t, *installResultsResp.Results.Output, "Fleet couldn't resolve variables in this software's scripts.")
+	require.Contains(t, *installResultsResp.Results.Output, "AutoMDM couldn't resolve variables in this software's scripts.")
 	require.Contains(t, *installResultsResp.Results.Output, "There is no IdP username for this host.")
 
 	// a repeated fetch of the failed install stays not-found and does not
 	// record a second result
-	s.DoJSON("POST", "/api/fleet/orbit/software_install/details", fleet.OrbitGetSoftwareInstallRequest{
+	s.DoJSON("POST", "/api/automdm/orbit/software_install/details", automdm.OrbitGetSoftwareInstallRequest{
 		InstallUUID:  failUUID,
 		OrbitNodeKey: *host.OrbitNodeKey,
 	}, http.StatusNotFound, &detailsResp)
@@ -485,7 +485,7 @@ func (s *integrationInstallTestSuite) TestSoftwareInstallerFleetVariables() {
 	// the failed execution left the host's upcoming queue; a retry of the
 	// install may be queued under a new execution id
 	var upcomingResp listHostUpcomingActivitiesResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/activities/upcoming", host.ID), nil, http.StatusOK, &upcomingResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/activities/upcoming", host.ID), nil, http.StatusOK, &upcomingResp)
 	for _, act := range upcomingResp.Activities {
 		require.NotContains(t, string(*act.Details), failUUID)
 	}

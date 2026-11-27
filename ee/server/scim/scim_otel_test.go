@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/sdk/trace"
@@ -25,103 +25,103 @@ func TestSCIMOTELMiddleware(t *testing.T) {
 			name:         "Users list",
 			path:         "Users",
 			method:       "GET",
-			expectedSpan: "GET /api/v1/fleet/scim/Users",
+			expectedSpan: "GET /api/v1/automdm/scim/Users",
 		},
 		{
 			name:         "Users list with trailing slash",
 			path:         "Users/",
 			method:       "GET",
-			expectedSpan: "GET /api/v1/fleet/scim/Users",
+			expectedSpan: "GET /api/v1/automdm/scim/Users",
 		},
 		{
 			name:         "Individual user - hides ID",
 			path:         "Users/12345",
 			method:       "GET",
-			expectedSpan: "GET /api/v1/fleet/scim/Users/{id}",
+			expectedSpan: "GET /api/v1/automdm/scim/Users/{id}",
 		},
 		{
 			name:         "Update user - hides ID",
 			path:         "Users/67890",
 			method:       "PATCH",
-			expectedSpan: "PATCH /api/v1/fleet/scim/Users/{id}",
+			expectedSpan: "PATCH /api/v1/automdm/scim/Users/{id}",
 		},
 		{
 			name:         "Groups list",
 			path:         "Groups",
 			method:       "GET",
-			expectedSpan: "GET /api/v1/fleet/scim/Groups",
+			expectedSpan: "GET /api/v1/automdm/scim/Groups",
 		},
 		{
 			name:         "Individual group - hides ID",
 			path:         "Groups/abc-def-123",
 			method:       "PUT",
-			expectedSpan: "PUT /api/v1/fleet/scim/Groups/{id}",
+			expectedSpan: "PUT /api/v1/automdm/scim/Groups/{id}",
 		},
 		{
 			name:         "Schemas",
 			path:         "Schemas",
 			method:       "GET",
-			expectedSpan: "GET /api/v1/fleet/scim/Schemas",
+			expectedSpan: "GET /api/v1/automdm/scim/Schemas",
 		},
 		{
 			name:         "Individual schema",
 			path:         "Schemas/urn:ietf:params:scim:schemas:core:2.0:User",
 			method:       "GET",
-			expectedSpan: "GET /api/v1/fleet/scim/Schemas/{id}",
+			expectedSpan: "GET /api/v1/automdm/scim/Schemas/{id}",
 		},
 		{
 			name:         "Service provider config",
 			path:         "ServiceProviderConfig",
 			method:       "GET",
-			expectedSpan: "GET /api/v1/fleet/scim/ServiceProviderConfig",
+			expectedSpan: "GET /api/v1/automdm/scim/ServiceProviderConfig",
 		},
 		{
 			name:         "Resource types",
 			path:         "ResourceTypes",
 			method:       "GET",
-			expectedSpan: "GET /api/v1/fleet/scim/ResourceTypes",
+			expectedSpan: "GET /api/v1/automdm/scim/ResourceTypes",
 		},
 		{
 			name:         "Individual resource type",
 			path:         "ResourceTypes/User",
 			method:       "GET",
-			expectedSpan: "GET /api/v1/fleet/scim/ResourceTypes/{id}",
+			expectedSpan: "GET /api/v1/automdm/scim/ResourceTypes/{id}",
 		},
 		{
 			name:         "Unknown path - fixed label",
 			path:         "SomethingElse",
 			method:       "GET",
-			expectedSpan: "GET /api/v1/fleet/scim/{unknown}",
+			expectedSpan: "GET /api/v1/automdm/scim/{unknown}",
 		},
 		{
 			name:         "Bulk operations endpoint - not served, fixed label",
 			path:         "Bulk",
 			method:       "POST",
-			expectedSpan: "POST /api/v1/fleet/scim/{unknown}",
+			expectedSpan: "POST /api/v1/automdm/scim/{unknown}",
 		},
 		{
 			name:         "Search endpoint - not served, fixed label",
 			path:         ".search",
 			method:       "POST",
-			expectedSpan: "POST /api/v1/fleet/scim/{unknown}",
+			expectedSpan: "POST /api/v1/automdm/scim/{unknown}",
 		},
 		{
 			name:         "Unknown resource with ID - fixed label",
 			path:         "CustomResource/abc123",
 			method:       "GET",
-			expectedSpan: "GET /api/v1/fleet/scim/{unknown}",
+			expectedSpan: "GET /api/v1/automdm/scim/{unknown}",
 		},
 		{
 			name:         "Unknown nested path with ID - fixed label",
 			path:         "Custom/Resource/123",
 			method:       "DELETE",
-			expectedSpan: "DELETE /api/v1/fleet/scim/{unknown}",
+			expectedSpan: "DELETE /api/v1/automdm/scim/{unknown}",
 		},
 		{
 			name:         "Caller-controlled unknown segment stays out of the trace",
 			path:         "leak-7f3a9c",
 			method:       "GET",
-			expectedSpan: "GET /api/v1/fleet/scim/{unknown}",
+			expectedSpan: "GET /api/v1/automdm/scim/{unknown}",
 		},
 	}
 
@@ -132,7 +132,7 @@ func TestSCIMOTELMiddleware(t *testing.T) {
 			tp := trace.NewTracerProvider(trace.WithSpanProcessor(sr))
 
 			// tracing_type is left unset, as in the documented configuration.
-			cfg := config.FleetConfig{
+			cfg := config.AutoMDMConfig{
 				Logging: config.LoggingConfig{
 					TracingEnabled: true,
 				},
@@ -145,10 +145,10 @@ func TestSCIMOTELMiddleware(t *testing.T) {
 
 			// Wrap with SCIM OTEL middleware
 			tracer := tp.Tracer("test")
-			wrappedHandler := scimOTELMiddleware(testHandler, "/api/v1/fleet/scim", cfg)
+			wrappedHandler := scimOTELMiddleware(testHandler, "/api/v1/automdm/scim", cfg)
 
 			// Create request - now OTEL runs before StripPrefix so it sees the full path
-			req := httptest.NewRequest(tc.method, "/api/v1/fleet/scim/"+tc.path, nil)
+			req := httptest.NewRequest(tc.method, "/api/v1/automdm/scim/"+tc.path, nil)
 
 			// Add span to context
 			ctx, span := tracer.Start(req.Context(), "test-parent-span")
@@ -193,7 +193,7 @@ func TestSCIMOTELMiddleware(t *testing.T) {
 func TestSCIMOTELMiddleware_Disabled(t *testing.T) {
 	t.Parallel()
 	// Create test configuration with OTEL disabled
-	cfg := config.FleetConfig{
+	cfg := config.AutoMDMConfig{
 		Logging: config.LoggingConfig{
 			TracingEnabled: false,
 		},
@@ -207,10 +207,10 @@ func TestSCIMOTELMiddleware_Disabled(t *testing.T) {
 	})
 
 	// Wrap with SCIM OTEL middleware
-	wrappedHandler := scimOTELMiddleware(testHandler, "/api/v1/fleet/scim", cfg)
+	wrappedHandler := scimOTELMiddleware(testHandler, "/api/v1/automdm/scim", cfg)
 
 	// Create request - OTEL sees the full path now
-	req := httptest.NewRequest("GET", "/api/v1/fleet/scim/Users", nil)
+	req := httptest.NewRequest("GET", "/api/v1/automdm/scim/Users", nil)
 	w := httptest.NewRecorder()
 
 	// Execute request

@@ -7,14 +7,14 @@ import (
 	"crypto/x509"
 	"sync"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
-var _ fleet.GoogleCASService = (*Service)(nil)
+var _ automdm.GoogleCASService = (*Service)(nil)
 
-type VerifyCAPoolFunc func(ctx context.Context, ca fleet.GoogleCASCA) error
+type VerifyCAPoolFunc func(ctx context.Context, ca automdm.GoogleCASCA) error
 
-type IssueCertificateFunc func(ctx context.Context, ca fleet.GoogleCASCA, csr *x509.CertificateRequest) (*x509.Certificate, error)
+type IssueCertificateFunc func(ctx context.Context, ca automdm.GoogleCASCA, csr *x509.CertificateRequest) (*x509.Certificate, error)
 
 type Service struct {
 	VerifyCAPoolFunc        VerifyCAPoolFunc
@@ -26,14 +26,14 @@ type Service struct {
 	mu sync.Mutex
 }
 
-func (s *Service) VerifyCAPool(ctx context.Context, ca fleet.GoogleCASCA) error {
+func (s *Service) VerifyCAPool(ctx context.Context, ca automdm.GoogleCASCA) error {
 	s.mu.Lock()
 	s.VerifyCAPoolFuncInvoked = true
 	s.mu.Unlock()
 	return s.VerifyCAPoolFunc(ctx, ca)
 }
 
-func (s *Service) IssueCertificate(ctx context.Context, ca fleet.GoogleCASCA, csr *x509.CertificateRequest) (*x509.Certificate, error) {
+func (s *Service) IssueCertificate(ctx context.Context, ca automdm.GoogleCASCA, csr *x509.CertificateRequest) (*x509.Certificate, error) {
 	s.mu.Lock()
 	s.IssueCertificateFuncInvoked = true
 	s.mu.Unlock()

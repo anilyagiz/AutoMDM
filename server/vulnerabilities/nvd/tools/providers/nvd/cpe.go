@@ -26,8 +26,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/nvd/tools/providers/lib/client"
 	"github.com/facebookincubator/flog"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/nvd/tools/providers/lib/client"
 )
 
 // CPE defines the CPE data feed for synchronization.

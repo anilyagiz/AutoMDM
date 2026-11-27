@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/datastore/redis"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis"
 	redigo "github.com/gomodule/redigo/redis"
 )
 
@@ -22,14 +22,14 @@ const apnsSweepStateKey = "mdm:apple:apns_sweep_state"
 // the beginning with a recomputed batch size, and re-pushing an enrollment
 // is a contentless, idempotent nudge. Undecodable state is treated the same
 // way rather than wedging the cron on a poisoned key.
-func (d *Datastore) GetMDMAppleAPNsSweepState(ctx context.Context) (*fleet.MDMAppleAPNsSweepState, error) {
+func (d *Datastore) GetMDMAppleAPNsSweepState(ctx context.Context) (*automdm.MDMAppleAPNsSweepState, error) {
 	conn := redis.ConfigureDoer(d.pool, d.pool.Get())
 	defer conn.Close()
 
 	raw, err := redigo.Bytes(conn.Do("GET", apnsSweepStateKey))
 	switch {
 	case err == nil:
-		var state fleet.MDMAppleAPNsSweepState
+		var state automdm.MDMAppleAPNsSweepState
 		if err := json.Unmarshal(raw, &state); err != nil {
 			// complete the self-heal: drop the poisoned key so it doesn't
 			// linger for the next read or a confused operator
@@ -48,7 +48,7 @@ func (d *Datastore) GetMDMAppleAPNsSweepState(ctx context.Context) (*fleet.MDMAp
 
 // SetMDMAppleAPNsSweepState persists the APNs sweep cron's pass state. A nil
 // state deletes the key (pass complete; the next tick starts a new pass).
-func (d *Datastore) SetMDMAppleAPNsSweepState(ctx context.Context, state *fleet.MDMAppleAPNsSweepState) error {
+func (d *Datastore) SetMDMAppleAPNsSweepState(ctx context.Context, state *automdm.MDMAppleAPNsSweepState) error {
 	conn := redis.ConfigureDoer(d.pool, d.pool.Get())
 	defer conn.Close()
 

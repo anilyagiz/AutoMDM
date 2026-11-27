@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/service/schedule/scheduletest"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	"github.com/anilyagiz/automdm/v4/server/service/schedule/scheduletest"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 )
@@ -22,14 +22,14 @@ func TestNewSchedule(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	jobRan := false
-	s := New(ctx, "test_new_schedule", "test_instance", 1*time.Second, scheduletest.NopLocker{}, scheduletest.SetUpMockStatsStore("test_new_schedule", fleet.CronStats{
+	s := New(ctx, "test_new_schedule", "test_instance", 1*time.Second, scheduletest.NopLocker{}, scheduletest.SetUpMockStatsStore("test_new_schedule", automdm.CronStats{
 		ID:        1,
-		StatsType: fleet.CronStatsTypeScheduled,
+		StatsType: automdm.CronStatsTypeScheduled,
 		Name:      "test_new_schedule",
 		Instance:  "test_instance",
 		CreatedAt: time.Now().Truncate(1 * time.Second),
 		UpdatedAt: time.Now().Truncate(1 * time.Second),
-		Status:    fleet.CronStatsStatusCompleted,
+		Status:    automdm.CronStatsStatusCompleted,
 	}),
 		WithJob("test_job", func(ctx context.Context) error {
 			jobRan = true
@@ -56,14 +56,14 @@ func TestScheduleLocker(t *testing.T) {
 	instance := "test_instance"
 	interval := 1 * time.Second
 	locker := scheduletest.SetupMockLocker(name, instance, time.Now().Add(-interval))
-	statsStore := scheduletest.SetUpMockStatsStore(name, fleet.CronStats{
+	statsStore := scheduletest.SetUpMockStatsStore(name, automdm.CronStats{
 		ID:        1,
-		StatsType: fleet.CronStatsTypeScheduled,
+		StatsType: automdm.CronStatsTypeScheduled,
 		Name:      name,
 		Instance:  instance,
 		CreatedAt: time.Now().Truncate(1 * time.Second).Add(-interval),
 		UpdatedAt: time.Now().Truncate(1 * time.Second).Add(-interval),
-		Status:    fleet.CronStatsStatusCompleted,
+		Status:    automdm.CronStatsStatusCompleted,
 	})
 
 	jobRunCount := 0
@@ -162,14 +162,14 @@ func TestMultipleSchedules(t *testing.T) {
 			opts = append(opts, WithJob(job.ID, job.Fn))
 			jobNames = append(jobNames, job.ID)
 		}
-		s := New(ctx, tc.name, tc.instanceID, tc.interval, scheduletest.NopLocker{}, scheduletest.SetUpMockStatsStore(tc.name, fleet.CronStats{
+		s := New(ctx, tc.name, tc.instanceID, tc.interval, scheduletest.NopLocker{}, scheduletest.SetUpMockStatsStore(tc.name, automdm.CronStats{
 			ID:        1,
-			StatsType: fleet.CronStatsTypeScheduled,
+			StatsType: automdm.CronStatsTypeScheduled,
 			Name:      tc.name,
 			Instance:  tc.instanceID,
 			CreatedAt: time.Now().Truncate(1 * time.Second),
 			UpdatedAt: time.Now().Truncate(1 * time.Second),
-			Status:    fleet.CronStatsStatusCompleted,
+			Status:    automdm.CronStatsStatusCompleted,
 		}), opts...)
 		s.Start()
 		ss = append(ss, s)
@@ -200,14 +200,14 @@ func TestMultipleJobsInOrder(t *testing.T) {
 
 	jobs := make(chan int)
 
-	s := New(ctx, "test_schedule", "test_instance", 1000*time.Millisecond, scheduletest.NopLocker{}, scheduletest.SetUpMockStatsStore("test_schedule", fleet.CronStats{
+	s := New(ctx, "test_schedule", "test_instance", 1000*time.Millisecond, scheduletest.NopLocker{}, scheduletest.SetUpMockStatsStore("test_schedule", automdm.CronStats{
 		ID:        1,
-		StatsType: fleet.CronStatsTypeScheduled,
+		StatsType: automdm.CronStatsTypeScheduled,
 		Name:      "test_schedule",
 		Instance:  "test_instance",
 		CreatedAt: time.Now().Truncate(1 * time.Second),
 		UpdatedAt: time.Now().Truncate(1 * time.Second),
-		Status:    fleet.CronStatsStatusCompleted,
+		Status:    automdm.CronStatsStatusCompleted,
 	}),
 		WithJob("test_job_1", func(ctx context.Context) error {
 			jobs <- 1
@@ -283,14 +283,14 @@ func TestClearScheduleErrors(t *testing.T) {
 	ctx := context.Background()
 	errored := false
 
-	s := New(ctx, "test_schedule", "test_instance", 1000*time.Millisecond, scheduletest.NopLocker{}, scheduletest.SetUpMockStatsStore("test_schedule", fleet.CronStats{
+	s := New(ctx, "test_schedule", "test_instance", 1000*time.Millisecond, scheduletest.NopLocker{}, scheduletest.SetUpMockStatsStore("test_schedule", automdm.CronStats{
 		ID:        1,
-		StatsType: fleet.CronStatsTypeScheduled,
+		StatsType: automdm.CronStatsTypeScheduled,
 		Name:      "test_schedule_clear_errors",
 		Instance:  "test_instance",
 		CreatedAt: time.Now().Truncate(1 * time.Second),
 		UpdatedAt: time.Now().Truncate(1 * time.Second),
-		Status:    fleet.CronStatsStatusCompleted,
+		Status:    automdm.CronStatsStatusCompleted,
 	}),
 		WithJob("test_job_1", func(ctx context.Context) error {
 			if !errored {
@@ -316,14 +316,14 @@ func TestConfigReloadCheck(t *testing.T) {
 	newSchedInterval := 2600 * time.Millisecond
 
 	jobsRun := 0
-	s := New(ctx, "test_schedule", "test_instance", initialSchedInterval, scheduletest.NopLocker{}, scheduletest.SetUpMockStatsStore("test_schedule", fleet.CronStats{
+	s := New(ctx, "test_schedule", "test_instance", initialSchedInterval, scheduletest.NopLocker{}, scheduletest.SetUpMockStatsStore("test_schedule", automdm.CronStats{
 		ID:        1,
-		StatsType: fleet.CronStatsTypeScheduled,
+		StatsType: automdm.CronStatsTypeScheduled,
 		Name:      "test_schedule",
 		Instance:  "test_instance",
 		CreatedAt: time.Now().Truncate(1 * time.Second).Add(-initialSchedInterval),
 		UpdatedAt: time.Now().Truncate(1 * time.Second).Add(-initialSchedInterval),
-		Status:    fleet.CronStatsStatusCompleted,
+		Status:    automdm.CronStatsStatusCompleted,
 	}),
 		WithConfigReloadInterval(100*time.Millisecond, func(_ context.Context) (time.Duration, error) {
 			return newSchedInterval, nil
@@ -359,14 +359,14 @@ func TestJobPanicRecover(t *testing.T) {
 
 	jobRan := false
 
-	s := New(ctx, "test_schedule", "test_instance", 1*time.Second, scheduletest.NopLocker{}, scheduletest.SetUpMockStatsStore("test_schedule", fleet.CronStats{
+	s := New(ctx, "test_schedule", "test_instance", 1*time.Second, scheduletest.NopLocker{}, scheduletest.SetUpMockStatsStore("test_schedule", automdm.CronStats{
 		ID:        1,
-		StatsType: fleet.CronStatsTypeScheduled,
+		StatsType: automdm.CronStatsTypeScheduled,
 		Name:      "test_schedule",
 		Instance:  "test_instance",
 		CreatedAt: time.Now().Truncate(1 * time.Second).Add(-1 * time.Second),
 		UpdatedAt: time.Now().Truncate(1 * time.Second).Add(-1 * time.Second),
-		Status:    fleet.CronStatsStatusCompleted,
+		Status:    automdm.CronStatsStatusCompleted,
 	}),
 		WithJob("job_1", func(ctx context.Context) error {
 			panic("job_1")
@@ -402,14 +402,14 @@ func TestScheduleReleaseLock(t *testing.T) {
 	err := ml.AddChannels(t, "unlocked")
 	require.NoError(t, err)
 
-	ms := scheduletest.SetUpMockStatsStore(name, fleet.CronStats{
+	ms := scheduletest.SetUpMockStatsStore(name, automdm.CronStats{
 		ID:        1,
-		StatsType: fleet.CronStatsTypeScheduled,
+		StatsType: automdm.CronStatsTypeScheduled,
 		Name:      name,
 		Instance:  instance,
 		CreatedAt: time.Now().Truncate(1 * time.Second).Add(-schedInterval),
 		UpdatedAt: time.Now().Truncate(1 * time.Second).Add(-schedInterval),
-		Status:    fleet.CronStatsStatusCompleted,
+		Status:    automdm.CronStatsStatusCompleted,
 	})
 
 	jobCount := 0
@@ -458,14 +458,14 @@ func TestScheduleHoldLock(t *testing.T) {
 	ml := scheduletest.SetupMockLocker(name, instance, time.Now().Add(-schedInterval))
 	require.NoError(t, ml.AddChannels(t, "unlocked"))
 
-	ms := scheduletest.SetUpMockStatsStore(name, fleet.CronStats{
+	ms := scheduletest.SetUpMockStatsStore(name, automdm.CronStats{
 		ID:        1,
-		StatsType: fleet.CronStatsTypeScheduled,
+		StatsType: automdm.CronStatsTypeScheduled,
 		Name:      name,
 		Instance:  instance,
 		CreatedAt: time.Now().Truncate(time.Second).Add(-schedInterval),
 		UpdatedAt: time.Now().Truncate(time.Second).Add(-schedInterval),
-		Status:    fleet.CronStatsStatusCompleted,
+		Status:    automdm.CronStatsStatusCompleted,
 	})
 
 	jobCount := 0
@@ -516,15 +516,15 @@ func TestTriggerReleaseLock(t *testing.T) {
 	locker := scheduletest.SetupMockLocker(name, instanceID, time.Now().Truncate(1*time.Second))
 	err := locker.AddChannels(t, "unlocked")
 	require.NoError(t, err)
-	seedStats := fleet.CronStats{
+	seedStats := automdm.CronStats{
 		ID:        1,
-		StatsType: fleet.CronStatsTypeScheduled,
+		StatsType: automdm.CronStatsTypeScheduled,
 		Name:      name,
 		Instance:  instanceID,
 		CreatedAt: time.Now().Truncate(1 * time.Second),
 		UpdatedAt: time.Now().Truncate(1 * time.Second),
 
-		Status: fleet.CronStatsStatusCompleted,
+		Status: automdm.CronStatsStatusCompleted,
 	}
 	statsStore := scheduletest.SetUpMockStatsStore(name, seedStats)
 
@@ -552,16 +552,16 @@ func TestTriggerReleaseLock(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, stats, 2)
 
-		statsByType := make(map[fleet.CronStatsType]fleet.CronStats)
+		statsByType := make(map[automdm.CronStatsType]automdm.CronStats)
 		for _, s := range stats {
 			statsByType[s.StatsType] = s
 		}
 		require.Len(t, statsByType, 2)
-		require.Contains(t, statsByType, fleet.CronStatsTypeTriggered)
-		require.Contains(t, statsByType, fleet.CronStatsTypeScheduled)
+		require.Contains(t, statsByType, automdm.CronStatsTypeTriggered)
+		require.Contains(t, statsByType, automdm.CronStatsTypeScheduled)
 
-		require.Equal(t, fleet.CronStatsStatusCompleted, statsByType[fleet.CronStatsTypeTriggered].Status)
-		require.Equal(t, seedStats, statsByType[fleet.CronStatsTypeScheduled])
+		require.Equal(t, automdm.CronStatsStatusCompleted, statsByType[automdm.CronStatsTypeTriggered].Status)
+		require.Equal(t, seedStats, statsByType[automdm.CronStatsTypeScheduled])
 	}
 
 	require.True(t, locker.GetExpiration().Before(time.Now()))
@@ -577,7 +577,7 @@ func TestMultipleScheduleInstancesConfigChangesDS(t *testing.T) {
 	ds := mysqltest.CreateMySQLDS(t)
 	defer ds.Close()
 
-	_, err := ds.InsertCronStats(ctx, fleet.CronStatsTypeScheduled, name, "a", fleet.CronStatsStatusCompleted)
+	_, err := ds.InsertCronStats(ctx, automdm.CronStatsTypeScheduled, name, "a", automdm.CronStatsStatusCompleted)
 	require.NoError(t, err)
 
 	ac, err := ds.AppConfig(ctx)
@@ -657,15 +657,15 @@ func TestTriggerSingleInstance(t *testing.T) {
 	jobRuntime := 1200 * time.Millisecond
 
 	locker := scheduletest.SetupMockLocker(name, instanceID, time.Now().Truncate(1*time.Second))
-	statsStore := scheduletest.SetUpMockStatsStore(name, fleet.CronStats{
+	statsStore := scheduletest.SetUpMockStatsStore(name, automdm.CronStats{
 		ID:        1,
-		StatsType: fleet.CronStatsTypeScheduled,
+		StatsType: automdm.CronStatsTypeScheduled,
 		Name:      name,
 		Instance:  instanceID,
 		CreatedAt: time.Now().Truncate(1 * time.Second),
 		UpdatedAt: time.Now().Truncate(1 * time.Second),
 
-		Status: fleet.CronStatsStatusCompleted,
+		Status: automdm.CronStatsStatusCompleted,
 	})
 
 	jobsRun := uint32(0)
@@ -782,14 +782,14 @@ func TestTriggerMultipleInstances(t *testing.T) {
 
 		instanceIDs := strings.Split("abcdef", "")
 		locker := scheduletest.SetupMockLocker(c.name, instanceIDs[0], time.Now().Add(-schedInterval))
-		statsStore := scheduletest.SetUpMockStatsStore(c.name, fleet.CronStats{
+		statsStore := scheduletest.SetUpMockStatsStore(c.name, automdm.CronStats{
 			ID:        1,
-			StatsType: fleet.CronStatsTypeScheduled,
+			StatsType: automdm.CronStatsTypeScheduled,
 			Name:      c.name,
 			Instance:  instanceIDs[0],
 			CreatedAt: time.Now().Add(-schedInterval).Add(-c.jobRuntime),
 			UpdatedAt: time.Now().Add(-schedInterval),
-			Status:    fleet.CronStatsStatusCompleted,
+			Status:    automdm.CronStatsStatusCompleted,
 		})
 
 		jobsRun := uint32(0)
@@ -833,14 +833,14 @@ func TestTriggerPollPicksUpQueuedRecord(t *testing.T) {
 	schedInterval := 10 * time.Second // long interval so scheduled runs don't interfere
 
 	locker := scheduletest.SetupMockLocker(name, instanceID, time.Now().Add(-schedInterval))
-	statsStore := scheduletest.SetUpMockStatsStore(name, fleet.CronStats{
+	statsStore := scheduletest.SetUpMockStatsStore(name, automdm.CronStats{
 		ID:        1,
-		StatsType: fleet.CronStatsTypeScheduled,
+		StatsType: automdm.CronStatsTypeScheduled,
 		Name:      name,
 		Instance:  instanceID,
 		CreatedAt: time.Now().Truncate(1 * time.Second),
 		UpdatedAt: time.Now().Truncate(1 * time.Second),
-		Status:    fleet.CronStatsStatusCompleted,
+		Status:    automdm.CronStatsStatusCompleted,
 	})
 
 	jobsRun := atomic.Uint32{}
@@ -856,7 +856,7 @@ func TestTriggerPollPicksUpQueuedRecord(t *testing.T) {
 
 	// Simulate an external server inserting a queued trigger record
 	queuedID, err := statsStore.InsertCronStats(
-		ctx, fleet.CronStatsTypeTriggered, name, "trigger-api", fleet.CronStatsStatusQueued,
+		ctx, automdm.CronStatsTypeTriggered, name, "trigger-api", automdm.CronStatsStatusQueued,
 	)
 	require.NoError(t, err)
 
@@ -869,7 +869,7 @@ func TestTriggerPollPicksUpQueuedRecord(t *testing.T) {
 			return false
 		}
 		for _, st := range stats {
-			if st.ID == queuedID && st.Status == fleet.CronStatsStatusCompleted {
+			if st.ID == queuedID && st.Status == automdm.CronStatsStatusCompleted {
 				return true
 			}
 		}
@@ -884,7 +884,7 @@ func TestTriggerPollPicksUpQueuedRecord(t *testing.T) {
 	found := false
 	for _, st := range stats {
 		if st.ID == queuedID {
-			require.Equal(t, fleet.CronStatsStatusCompleted, st.Status)
+			require.Equal(t, automdm.CronStatsStatusCompleted, st.Status)
 			require.Equal(t, instanceID, st.Instance, "instance should be updated to the worker that claimed it")
 			found = true
 		}
@@ -899,19 +899,19 @@ func TestTriggerPollIgnoresNonQueuedRecords(t *testing.T) {
 	instanceID := "test_instance"
 	schedInterval := 10 * time.Second
 
-	statsStore := scheduletest.SetUpMockStatsStore(name, fleet.CronStats{
+	statsStore := scheduletest.SetUpMockStatsStore(name, automdm.CronStats{
 		ID:        1,
-		StatsType: fleet.CronStatsTypeScheduled,
+		StatsType: automdm.CronStatsTypeScheduled,
 		Name:      name,
 		Instance:  instanceID,
 		CreatedAt: time.Now().Truncate(1 * time.Second),
 		UpdatedAt: time.Now().Truncate(1 * time.Second),
-		Status:    fleet.CronStatsStatusCompleted,
+		Status:    automdm.CronStatsStatusCompleted,
 	})
 
 	// Insert a completed triggered record — should be ignored by poll
 	_, err := statsStore.InsertCronStats(
-		ctx, fleet.CronStatsTypeTriggered, name, "trigger-api", fleet.CronStatsStatusCompleted,
+		ctx, automdm.CronStatsTypeTriggered, name, "trigger-api", automdm.CronStatsStatusCompleted,
 	)
 	require.NoError(t, err)
 
@@ -933,61 +933,61 @@ func TestTriggerPollIgnoresNonQueuedRecords(t *testing.T) {
 
 func TestRemoteTriggerSchedule(t *testing.T) {
 	t.Run("trigger inserts queued record", func(t *testing.T) {
-		store := scheduletest.SetUpMockStatsStore(string(fleet.CronVulnerabilities))
-		rts := NewRemoteTriggerSchedule(string(fleet.CronVulnerabilities), store)
+		store := scheduletest.SetUpMockStatsStore(string(automdm.CronVulnerabilities))
+		rts := NewRemoteTriggerSchedule(string(automdm.CronVulnerabilities), store)
 
 		stats, didTrigger, err := rts.Trigger(t.Context())
 		require.NoError(t, err)
 		require.True(t, didTrigger)
 		require.Nil(t, stats)
 
-		latestStats, err := store.GetLatestCronStats(t.Context(), string(fleet.CronVulnerabilities))
+		latestStats, err := store.GetLatestCronStats(t.Context(), string(automdm.CronVulnerabilities))
 		require.NoError(t, err)
 		require.Len(t, latestStats, 1)
-		require.Equal(t, fleet.CronStatsTypeTriggered, latestStats[0].StatsType)
+		require.Equal(t, automdm.CronStatsTypeTriggered, latestStats[0].StatsType)
 		require.Equal(t, "trigger-api", latestStats[0].Instance)
-		require.Equal(t, fleet.CronStatsStatusQueued, latestStats[0].Status)
+		require.Equal(t, automdm.CronStatsStatusQueued, latestStats[0].Status)
 	})
 
 	t.Run("already queued returns conflict stats", func(t *testing.T) {
-		store := scheduletest.SetUpMockStatsStore(string(fleet.CronVulnerabilities), fleet.CronStats{
+		store := scheduletest.SetUpMockStatsStore(string(automdm.CronVulnerabilities), automdm.CronStats{
 			ID:        1,
-			StatsType: fleet.CronStatsTypeTriggered,
-			Name:      string(fleet.CronVulnerabilities),
-			Status:    fleet.CronStatsStatusQueued,
+			StatsType: automdm.CronStatsTypeTriggered,
+			Name:      string(automdm.CronVulnerabilities),
+			Status:    automdm.CronStatsStatusQueued,
 		})
-		rts := NewRemoteTriggerSchedule(string(fleet.CronVulnerabilities), store)
+		rts := NewRemoteTriggerSchedule(string(automdm.CronVulnerabilities), store)
 
 		stats, didTrigger, err := rts.Trigger(t.Context())
 		require.NoError(t, err)
 		require.False(t, didTrigger)
 		require.NotNil(t, stats)
-		require.Equal(t, fleet.CronStatsStatusQueued, stats.Status)
+		require.Equal(t, automdm.CronStatsStatusQueued, stats.Status)
 	})
 
 	t.Run("already pending returns conflict stats", func(t *testing.T) {
-		store := scheduletest.SetUpMockStatsStore(string(fleet.CronVulnerabilities), fleet.CronStats{
+		store := scheduletest.SetUpMockStatsStore(string(automdm.CronVulnerabilities), automdm.CronStats{
 			ID:        1,
-			StatsType: fleet.CronStatsTypeTriggered,
-			Name:      string(fleet.CronVulnerabilities),
-			Status:    fleet.CronStatsStatusPending,
+			StatsType: automdm.CronStatsTypeTriggered,
+			Name:      string(automdm.CronVulnerabilities),
+			Status:    automdm.CronStatsStatusPending,
 		})
-		rts := NewRemoteTriggerSchedule(string(fleet.CronVulnerabilities), store)
+		rts := NewRemoteTriggerSchedule(string(automdm.CronVulnerabilities), store)
 
 		stats, didTrigger, err := rts.Trigger(t.Context())
 		require.NoError(t, err)
 		require.False(t, didTrigger)
 		require.NotNil(t, stats)
-		require.Equal(t, fleet.CronStatsStatusPending, stats.Status)
+		require.Equal(t, automdm.CronStatsStatusPending, stats.Status)
 	})
 
 	t.Run("name returns schedule name", func(t *testing.T) {
-		rts := NewRemoteTriggerSchedule(string(fleet.CronVulnerabilities), scheduletest.SetUpMockStatsStore(string(fleet.CronVulnerabilities)))
-		require.Equal(t, string(fleet.CronVulnerabilities), rts.Name())
+		rts := NewRemoteTriggerSchedule(string(automdm.CronVulnerabilities), scheduletest.SetUpMockStatsStore(string(automdm.CronVulnerabilities)))
+		require.Equal(t, string(automdm.CronVulnerabilities), rts.Name())
 	})
 
 	t.Run("start is a no-op", func(t *testing.T) {
-		rts := NewRemoteTriggerSchedule(string(fleet.CronVulnerabilities), scheduletest.SetUpMockStatsStore(string(fleet.CronVulnerabilities)))
+		rts := NewRemoteTriggerSchedule(string(automdm.CronVulnerabilities), scheduletest.SetUpMockStatsStore(string(automdm.CronVulnerabilities)))
 		rts.Start() // should not panic
 	})
 }
@@ -998,15 +998,15 @@ func TestRemoteTriggerSchedule(t *testing.T) {
 // the terminal state of a run.
 type ctxAwareStatsStore struct {
 	mu     sync.Mutex
-	status fleet.CronStatsStatus
-	errors fleet.CronScheduleErrors
+	status automdm.CronStatsStatus
+	errors automdm.CronScheduleErrors
 }
 
-func (s *ctxAwareStatsStore) GetLatestCronStats(_ context.Context, _ string) ([]fleet.CronStats, error) {
-	return []fleet.CronStats{}, nil
+func (s *ctxAwareStatsStore) GetLatestCronStats(_ context.Context, _ string) ([]automdm.CronStats, error) {
+	return []automdm.CronStats{}, nil
 }
 
-func (s *ctxAwareStatsStore) InsertCronStats(ctx context.Context, _ fleet.CronStatsType, _ string, _ string, status fleet.CronStatsStatus) (int, error) {
+func (s *ctxAwareStatsStore) InsertCronStats(ctx context.Context, _ automdm.CronStatsType, _ string, _ string, status automdm.CronStatsStatus) (int, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
@@ -1016,7 +1016,7 @@ func (s *ctxAwareStatsStore) InsertCronStats(ctx context.Context, _ fleet.CronSt
 	return 1, nil
 }
 
-func (s *ctxAwareStatsStore) UpdateCronStats(ctx context.Context, _ int, status fleet.CronStatsStatus, cronErrors *fleet.CronScheduleErrors) error {
+func (s *ctxAwareStatsStore) UpdateCronStats(ctx context.Context, _ int, status automdm.CronStatsStatus, cronErrors *automdm.CronScheduleErrors) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -1029,17 +1029,17 @@ func (s *ctxAwareStatsStore) UpdateCronStats(ctx context.Context, _ int, status 
 	return nil
 }
 
-func (s *ctxAwareStatsStore) ClaimCronStats(_ context.Context, _ int, _ string, _ fleet.CronStatsStatus) error {
+func (s *ctxAwareStatsStore) ClaimCronStats(_ context.Context, _ int, _ string, _ automdm.CronStatsStatus) error {
 	return nil
 }
 
-func (s *ctxAwareStatsStore) getStatus() fleet.CronStatsStatus {
+func (s *ctxAwareStatsStore) getStatus() automdm.CronStatsStatus {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.status
 }
 
-func (s *ctxAwareStatsStore) getErrors() fleet.CronScheduleErrors {
+func (s *ctxAwareStatsStore) getErrors() automdm.CronScheduleErrors {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.errors
@@ -1056,9 +1056,9 @@ func TestRunWithStats(t *testing.T) {
 		// jobs builds the schedule's jobs. cancel cancels the run's context, so a
 		// job can simulate a shutdown signal arriving mid-run.
 		jobs            func(cancel context.CancelFunc) []Option
-		statsType       fleet.CronStatsType
+		statsType       automdm.CronStatsType
 		existingStatsID int // > 0 mirrors a claimed triggered run (skips the insert)
-		wantStatus      fleet.CronStatsStatus
+		wantStatus      automdm.CronStatsStatus
 		wantErrorKeys   []string // exact set of job IDs expected in the persisted errors
 	}{
 		{
@@ -1074,8 +1074,8 @@ func TestRunWithStats(t *testing.T) {
 					}),
 				}
 			},
-			statsType:  fleet.CronStatsTypeScheduled,
-			wantStatus: fleet.CronStatsStatusCanceled,
+			statsType:  automdm.CronStatsTypeScheduled,
+			wantStatus: automdm.CronStatsStatusCanceled,
 			// The second job also returns its context error on the already-cancelled
 			// context, so both jobs are persisted.
 			wantErrorKeys: []string{"interrupted_job", "never_reached_cleanly"},
@@ -1085,8 +1085,8 @@ func TestRunWithStats(t *testing.T) {
 			jobs: func(context.CancelFunc) []Option {
 				return []Option{WithJob("ok_job", func(context.Context) error { return nil })}
 			},
-			statsType:  fleet.CronStatsTypeScheduled,
-			wantStatus: fleet.CronStatsStatusCompleted,
+			statsType:  automdm.CronStatsTypeScheduled,
+			wantStatus: automdm.CronStatsStatusCompleted,
 		},
 		{
 			name: "cancellation racing a clean run records completed",
@@ -1100,8 +1100,8 @@ func TestRunWithStats(t *testing.T) {
 					}),
 				}
 			},
-			statsType:  fleet.CronStatsTypeScheduled,
-			wantStatus: fleet.CronStatsStatusCompleted,
+			statsType:  automdm.CronStatsTypeScheduled,
+			wantStatus: automdm.CronStatsStatusCompleted,
 		},
 		{
 			name: "interrupted triggered run records canceled with errors",
@@ -1113,9 +1113,9 @@ func TestRunWithStats(t *testing.T) {
 					}),
 				}
 			},
-			statsType:       fleet.CronStatsTypeTriggered,
+			statsType:       automdm.CronStatsTypeTriggered,
 			existingStatsID: 42,
-			wantStatus:      fleet.CronStatsStatusCanceled,
+			wantStatus:      automdm.CronStatsStatusCanceled,
 			wantErrorKeys:   []string{"interrupted_job"},
 		},
 		{
@@ -1123,8 +1123,8 @@ func TestRunWithStats(t *testing.T) {
 			jobs: func(context.CancelFunc) []Option {
 				return []Option{WithJob("failing_job", func(context.Context) error { return errors.New("boom") })}
 			},
-			statsType:     fleet.CronStatsTypeScheduled,
-			wantStatus:    fleet.CronStatsStatusCompleted,
+			statsType:     automdm.CronStatsTypeScheduled,
+			wantStatus:    automdm.CronStatsStatusCompleted,
 			wantErrorKeys: []string{"failing_job"},
 		},
 	}

@@ -10,17 +10,17 @@ import { secondsToHms } from "utilities/helpers";
 const baseClass = "agent-options-card";
 interface IAgentOptionsProps {
   osqueryData: { [key: string]: any };
-  wrapFleetHelper: (helperFn: (value: any) => string, value: string) => string;
+  wrapAutoMDMHelper: (helperFn: (value: any) => string, value: string) => string;
   isChromeOS?: boolean;
   className?: string;
 }
 
 const CHROMEOS_AGENT_OPTIONS = ["Not supported", "Not supported", "10 secs"];
 const CHROMEOS_AGENT_OPTIONS_TOOLTIP_MESSAGE =
-  "Chromebooks ignore Fleet’s agent options configuration. The options displayed below are the same for all Chromebooks.";
+  "Chromebooks ignore AutoMDM’s agent options configuration. The options displayed below are the same for all Chromebooks.";
 const AgentOptions = ({
   osqueryData,
-  wrapFleetHelper,
+  wrapAutoMDMHelper,
   isChromeOS = false,
   className,
 }: IAgentOptionsProps): JSX.Element => {
@@ -39,15 +39,15 @@ const AgentOptions = ({
       distributedInterval,
     ] = CHROMEOS_AGENT_OPTIONS;
   } else {
-    configTLSRefresh = wrapFleetHelper(
+    configTLSRefresh = wrapAutoMDMHelper(
       secondsToHms,
       osqueryData.config_tls_refresh
     );
-    loggerTLSPeriod = wrapFleetHelper(
+    loggerTLSPeriod = wrapAutoMDMHelper(
       secondsToHms,
       osqueryData.logger_tls_period
     );
-    distributedInterval = wrapFleetHelper(
+    distributedInterval = wrapAutoMDMHelper(
       secondsToHms,
       osqueryData.distributed_interval
     );

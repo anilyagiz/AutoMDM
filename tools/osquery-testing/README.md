@@ -13,7 +13,7 @@ OS tailored query tables are named:
 - windows.txt
 - linux.txt
 
-The following flags should be set in the Fleet agent options before running the test tables:
+The following flags should be set in the AutoMDM agent options before running the test tables:
 
 ```
 Options:

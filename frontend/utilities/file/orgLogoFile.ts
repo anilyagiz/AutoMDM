@@ -1,7 +1,7 @@
 export const ORG_LOGO_ACCEPT = ".png,.jpg,.jpeg,.webp,.svg";
 export const ORG_LOGO_MAX_SIZE_BYTES = 100 * 1024; // 100 KB
 export const ORG_LOGO_HELP_TEXT =
-  "Personalize Fleet with your brand. For best results, use a square image at least 150px wide.";
+  "Personalize AutoMDM with your brand. For best results, use a square image at least 150px wide.";
 export const ORG_LOGO_ALLOWED_TYPES = ["png", "jpeg", "webp", "svg"] as const;
 
 export type ImageFileType = typeof ORG_LOGO_ALLOWED_TYPES[number];

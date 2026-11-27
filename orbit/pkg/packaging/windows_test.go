@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -44,12 +44,12 @@ func TestCreateVersionInfo(t *testing.T) {
 		require.Equal(t, result.FixedFileInfo.FileType, "01")
 		require.Equal(t, result.FixedFileInfo.FileSubType, "00")
 
-		require.Equal(t, result.StringFileInfo.Comments, "Fleet osquery")
-		require.Equal(t, result.StringFileInfo.CompanyName, "Fleet Device Management (fleetdm.com)")
-		require.Equal(t, result.StringFileInfo.FileDescription, "Fleet osquery installer")
+		require.Equal(t, result.StringFileInfo.Comments, "AutoMDM osquery")
+		require.Equal(t, result.StringFileInfo.CompanyName, "Fleet Device Management (automdm.com)")
+		require.Equal(t, result.StringFileInfo.FileDescription, "AutoMDM osquery installer")
 		require.Equal(t, result.StringFileInfo.FileVersion, "1.2.3.0")
 		require.Equal(t, result.StringFileInfo.LegalCopyright, fmt.Sprintf("%d Fleet Device Management Inc.", time.Now().Year()))
-		require.Equal(t, result.StringFileInfo.ProductName, "Fleet osquery")
+		require.Equal(t, result.StringFileInfo.ProductName, "AutoMDM osquery")
 		require.Equal(t, result.StringFileInfo.ProductVersion, "1.2.3.0")
 		require.Equal(t, result.ManifestPath, manifestPath)
 	})
@@ -68,11 +68,11 @@ func TestWriteResourceSyso(t *testing.T) {
 }
 
 func TestMSIFilename(t *testing.T) {
-	assert.Equal(t, "fleet-windows-amd64.msi", msiFilename(Options{}))
-	assert.Equal(t, "fleet-windows-amd64.msi", msiFilename(Options{Architecture: ArchAmd64}))
-	assert.Equal(t, "fleet-windows-arm64-workstations.msi", msiFilename(Options{Architecture: ArchArm64, FleetName: "Workstations"}))
+	assert.Equal(t, "automdm-windows-amd64.msi", msiFilename(Options{}))
+	assert.Equal(t, "automdm-windows-amd64.msi", msiFilename(Options{Architecture: ArchAmd64}))
+	assert.Equal(t, "automdm-windows-arm64-workstations.msi", msiFilename(Options{Architecture: ArchArm64, AutoMDMName: "Workstations"}))
 	assert.Equal(t, "out/custom.msi", msiFilename(Options{CustomOutfile: "out/custom.msi"}))
-	assert.Equal(t, "out/custom.msi", msiFilename(Options{CustomOutfile: "out/custom.msi", Architecture: ArchArm64, FleetName: "Workstations"}))
+	assert.Equal(t, "out/custom.msi", msiFilename(Options{CustomOutfile: "out/custom.msi", Architecture: ArchArm64, AutoMDMName: "Workstations"}))
 }
 
 func TestSanitizeVersion(t *testing.T) {
@@ -111,7 +111,7 @@ func TestSanitizeVersion(t *testing.T) {
 func TestDownloadAndExtractZip(t *testing.T) {
 	t.Parallel()
 	path := t.TempDir()
-	client := fleethttp.NewClient()
+	client := automdmhttp.NewClient()
 	err := downloadAndExtractZip(client, wixDownload, path)
 	require.NoError(t, err)
 	assert.FileExists(t, filepath.Join(path, "heat.exe"))

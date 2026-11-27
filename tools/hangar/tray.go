@@ -5,7 +5,7 @@ import (
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 
-	"github.com/fleetdm/fleet/tools/hangar/internal/traymenu"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/traymenu"
 )
 
 const mainWindowName = "main"
@@ -22,7 +22,7 @@ func newTrayController(app *application.App, icon []byte) *trayController {
 	// Template mode renders the icon as a system-colored silhouette in the
 	// menu bar (alpha-only), matching the rest of the macOS menu bar.
 	t.SetTemplateIcon(icon)
-	t.SetTooltip("Fleet Hangar")
+	t.SetTooltip("AutoMDM Hangar")
 	c := &trayController{app: app, tray: t}
 	c.update(traymenu.State{})
 	// Left-click opens the main window; the menu shows on right-click.

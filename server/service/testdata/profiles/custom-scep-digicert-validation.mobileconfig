@@ -22,13 +22,13 @@
                         <array>
                             <array>
                                 <string>CN</string>
-                                <string>%SerialNumber% WIFI 1 ${FLEET_VAR_SCEP_RENEWAL_ID}</string>
+                                <string>%SerialNumber% WIFI 1 ${AUTOMDM_VAR_SCEP_RENEWAL_ID}</string>
                             </array>
                         </array>
                         <array>
                             <array>
                                 <string>OU</string>
-                                <string>FLEET DEVICE MANAGEMENT</string>
+                                <string>AUTOMDM DEVICE MANAGEMENT</string>
                             </array>
                         </array>
                     </array>
@@ -46,9 +46,9 @@
             </dict>
             <dict>
                 <key>Password</key>
-                <string>$FLEET_VAR_DIGICERT_PASSWORD_caName</string>
+                <string>$AUTOMDM_VAR_DIGICERT_PASSWORD_caName</string>
                 <key>PayloadContent</key>
-                <data>${FLEET_VAR_DIGICERT_DATA_caName}</data>
+                <data>${AUTOMDM_VAR_DIGICERT_DATA_caName}</data>
                 <key>PayloadDisplayName</key>
                 <string>CertificatePKCS12 Test_CA2</string>
                 <key>PayloadIdentifier</key>
@@ -96,7 +96,7 @@
         <key>PayloadDisplayName</key>
         <string>SCEP proxy cert 2</string>
         <key>PayloadIdentifier</key>
-        <string>Fleet.custom.SCEP2</string>
+        <string>AutoMDM.custom.SCEP2</string>
         <key>PayloadType</key>
         <string>Configuration</string>
         <key>PayloadUUID</key>

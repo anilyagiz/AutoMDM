@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 
 # Grok Bot ships an electron-builder NSIS installer that defaults to a per-user
 # install; /allusers installs it to Program Files for every user.

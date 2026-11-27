@@ -4,16 +4,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/oval"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/oval"
 	"github.com/stretchr/testify/require"
 )
 
 func TestSync(t *testing.T) {
 	t.Run("#whatToDownload", func(t *testing.T) {
-		osVersions := fleet.OSVersions{
+		osVersions := automdm.OSVersions{
 			CountsUpdatedAt: time.Now(),
-			OSVersions: []fleet.OSVersion{
+			OSVersions: []automdm.OSVersion{
 				{
 					HostsCount: 1,
 					Platform:   "ubuntu",
@@ -42,11 +42,11 @@ func TestSync(t *testing.T) {
 	})
 
 	t.Run("#whatToDownload skips host-supplied traversal platforms", func(t *testing.T) {
-		osVersions := fleet.OSVersions{
-			OSVersions: []fleet.OSVersion{
+		osVersions := automdm.OSVersions{
+			OSVersions: []automdm.OSVersion{
 				{Platform: "amzn_01/../../pwned-a/f", Name: "Amazon Linux 1.0.0"},
 				{Platform: "amzn", Name: "Amazon Linux 2023.0.0"},
-				{Platform: "amzn_01/../fleet_goval_dictionary_amzn", Name: "Amazon Linux 2023.0.0"},
+				{Platform: "amzn_01/../automdm_goval_dictionary_amzn", Name: "Amazon Linux 2023.0.0"},
 				{Platform: "rhel", Name: "Red Hat Enterprise Linux 9.0.0"},
 			},
 		}

@@ -6,6 +6,6 @@ func init() { register(userRolesEntries...) }
 var userRolesEntries = []Entry{
 	{Kind: KindPath, Scope: ScopeRequest, Old: pathPrefix + "/users/roles/spec", New: pathPrefix + "/users/{id}"},
 	{Kind: KindSpecKind, Scope: ScopeRequest, Old: "user_roles"},
-	{Kind: KindCommand, Scope: ScopeRequest, Old: "fleetctl user create-users", New: "fleetctl user create"},
-	{Kind: KindCommand, Scope: ScopeRequest, Old: "fleetctl user delete-users", New: "fleetctl user delete"},
+	{Kind: KindCommand, Scope: ScopeRequest, Old: "automdmctl user create-users", New: "automdmctl user create"},
+	{Kind: KindCommand, Scope: ScopeRequest, Old: "automdmctl user delete-users", New: "automdmctl user delete"},
 }

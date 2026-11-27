@@ -18,23 +18,23 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/anilyagiz/automdm/v4/ee/pkg/hostidentity/types"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/dev_mode"
+	"github.com/anilyagiz/automdm/v4/server/mdm/assets"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/cryptoutil"
+	scepdepot "github.com/anilyagiz/automdm/v4/server/mdm/scep/depot"
+	"github.com/anilyagiz/automdm/v4/server/mdm/scep/kitlogadapter"
+	scepserver "github.com/anilyagiz/automdm/v4/server/mdm/scep/server"
+	"github.com/anilyagiz/automdm/v4/server/service/middleware/otel"
 	"github.com/cenkalti/backoff/v4"
-	"github.com/fleetdm/fleet/v4/ee/pkg/hostidentity/types"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/dev_mode"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/assets"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/cryptoutil"
-	scepdepot "github.com/fleetdm/fleet/v4/server/mdm/scep/depot"
-	"github.com/fleetdm/fleet/v4/server/mdm/scep/kitlogadapter"
-	scepserver "github.com/fleetdm/fleet/v4/server/mdm/scep/server"
-	"github.com/fleetdm/fleet/v4/server/service/middleware/otel"
 	"github.com/smallstep/scep"
 )
 
 const (
-	scepPath         = "/api/fleet/orbit/host_identity/scep"
+	scepPath         = "/api/automdm/orbit/host_identity/scep"
 	scepValidityDays = 365
 )
 
@@ -52,10 +52,10 @@ func (e *RateLimitError) Error() string {
 func (e *RateLimitError) StatusCode() int { return http.StatusTooManyRequests }
 
 // getCertValidityDays returns the certificate validity period in days.
-// It checks for FLEET_DEV_HOST_IDENTITY_CERT_VALIDITY_DAYS environment variable
+// It checks for AUTOMDM_DEV_HOST_IDENTITY_CERT_VALIDITY_DAYS environment variable
 // and falls back to scepValidityDays if not set or invalid.
 func getCertValidityDays() int {
-	if envValue := dev_mode.Env("FLEET_DEV_HOST_IDENTITY_CERT_VALIDITY_DAYS"); envValue != "" {
+	if envValue := dev_mode.Env("AUTOMDM_DEV_HOST_IDENTITY_CERT_VALIDITY_DAYS"); envValue != "" {
 		if days, err := strconv.Atoi(envValue); err == nil && days > 0 {
 			return days
 		}
@@ -63,16 +63,16 @@ func getCertValidityDays() int {
 	return scepValidityDays
 }
 
-// RegisterSCEP registers the HTTP handler for SCEP service needed for fleetd enrollment.
+// RegisterSCEP registers the HTTP handler for SCEP service needed for automdmd enrollment.
 func RegisterSCEP(
 	mux *http.ServeMux,
 	scepStorage scepdepot.Depot,
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	logger *slog.Logger,
-	fleetConfig *config.FleetConfig,
+	automdmConfig *config.AutoMDMConfig,
 ) error {
-	if fleetConfig == nil {
-		return errors.New("fleet config is nil")
+	if automdmConfig == nil {
+		return errors.New("automdm config is nil")
 	}
 	err := initAssets(ds)
 	if err != nil {
@@ -84,7 +84,7 @@ func RegisterSCEP(
 	))
 
 	signer = challengeMiddleware(ds, signer)
-	signer = renewalMiddleware(ds, logger, fleetConfig.Auth.RequireHostIdentityRenewalKeyBinding, signer)
+	signer = renewalMiddleware(ds, logger, automdmConfig.Auth.RequireHostIdentityRenewalKeyBinding, signer)
 	scepService := NewSCEPService(
 		ds,
 		signer,
@@ -101,7 +101,7 @@ func RegisterSCEP(
 	// This note also applies to the other SCEP servers we use.
 	// That is why we're not using ctxerr wrappers here.
 	scepHandler := scepserver.MakeHTTPHandler(e, scepService, scepLogger)
-	scepHandler = otel.WrapHandler(scepHandler, scepPath, *fleetConfig)
+	scepHandler = otel.WrapHandler(scepHandler, scepPath, *automdmConfig)
 	mux.Handle(scepPath, scepHandler)
 	return nil
 }
@@ -109,9 +109,9 @@ func RegisterSCEP(
 // challengeMiddleware checks that ChallengePassword matches an enrollment secret, and refuses to issue a certificate for a name that
 // already holds a valid one, unless that certificate was never used to enroll a host and the request is for the same key. Replacing any
 // other certificate requires a renewal request, which proves possession of the existing key.
-func challengeMiddleware(ds fleet.Datastore, next scepserver.CSRSignerContext) scepserver.CSRSignerContextFunc {
+func challengeMiddleware(ds automdm.Datastore, next scepserver.CSRSignerContext) scepserver.CSRSignerContextFunc {
 	return func(ctx context.Context, m *scep.CSRReqMessage) (*x509.Certificate, error) {
-		// Check if this is a renewal request by looking for the custom Fleet extension
+		// Check if this is a renewal request by looking for the custom AutoMDM extension
 		if hasRenewalExtension(m.CSR) {
 			// Skip challenge verification for renewal requests
 			// The renewal middleware will handle authentication
@@ -123,7 +123,7 @@ func challengeMiddleware(ds fleet.Datastore, next scepserver.CSRSignerContext) s
 		}
 		_, err := ds.VerifyEnrollSecret(ctx, m.ChallengePassword)
 		switch {
-		case fleet.IsNotFound(err):
+		case automdm.IsNotFound(err):
 			return nil, errors.New("invalid challenge")
 		case err != nil:
 			return nil, fmt.Errorf("verifying enrollment secret: %w", err)
@@ -132,7 +132,7 @@ func challengeMiddleware(ds fleet.Datastore, next scepserver.CSRSignerContext) s
 		commonName := m.CSR.Subject.CommonName
 		existingCert, err := ds.GetHostIdentityCertByName(ctx, commonName)
 		switch {
-		case fleet.IsNotFound(err):
+		case automdm.IsNotFound(err):
 			return next.SignCSRContext(ctx, m)
 		case err != nil:
 			return nil, fmt.Errorf("checking existing host identity certificate: %w", err)
@@ -172,7 +172,7 @@ func hasRenewalExtension(csr *x509.CertificateRequest) bool {
 
 // renewalMiddleware handles certificate renewal with proof-of-possession.
 // Until requireKeyBinding is set, it also accepts legacy proofs signed over only the serial number, which any key can reuse.
-func renewalMiddleware(ds fleet.Datastore, logger *slog.Logger, requireKeyBinding bool, next scepserver.CSRSignerContext) scepserver.CSRSignerContextFunc {
+func renewalMiddleware(ds automdm.Datastore, logger *slog.Logger, requireKeyBinding bool, next scepserver.CSRSignerContext) scepserver.CSRSignerContextFunc {
 	return func(ctx context.Context, m *scep.CSRReqMessage) (*x509.Certificate, error) {
 		// Check if this is a renewal request
 		var renewalData types.RenewalData
@@ -231,11 +231,11 @@ func renewalMiddleware(ds fleet.Datastore, logger *slog.Logger, requireKeyBindin
 				return nil, errors.New("invalid renewal signature")
 			}
 			if requireKeyBinding {
-				logger.WarnContext(ctx, "legacy renewal proof rejected, upgrade fleetd",
+				logger.WarnContext(ctx, "legacy renewal proof rejected, upgrade automdmd",
 					"serial", renewalData.SerialNumber, "cn", oldCertData.CommonName)
 				return nil, errors.New("renewal proof is not bound to the CSR key")
 			}
-			logger.WarnContext(ctx, "renewal proof is not bound to the CSR key, upgrade fleetd",
+			logger.WarnContext(ctx, "renewal proof is not bound to the CSR key, upgrade automdmd",
 				"serial", renewalData.SerialNumber, "cn", oldCertData.CommonName)
 		}
 
@@ -279,7 +279,7 @@ type service struct {
 
 	logger *slog.Logger
 
-	ds fleet.Datastore
+	ds automdm.Datastore
 }
 
 func (svc *service) GetCACaps(_ context.Context) ([]byte, error) {
@@ -298,8 +298,8 @@ func (svc *service) GetCACaps(_ context.Context) ([]byte, error) {
 	// [ ] Renewal            // Supports certificate renewal (same or new key, new cert)
 	// [ ] Update             // Supports certificate update (new key)
 	//
-	// Fleet-specific:
-	// [x] Fleet-Renewal-Key-Binding // Verifies renewal proofs bound to the CSR key; fleetd won't fall back to legacy proofs
+	// AutoMDM-specific:
+	// [x] AutoMDM-Renewal-Key-Binding // Verifies renewal proofs bound to the CSR key; automdmd won't fall back to legacy proofs
 	//
 	// These capabilities are implied by the protocol and don't need to be explicitly declared:
 	// [x] SCEPStandard       // Conforms to a known SCEP standard version
@@ -318,17 +318,17 @@ func (svc *service) GetCACert(ctx context.Context, _ string) ([]byte, int, error
 	return cert.Leaf.Raw, 1, nil
 }
 
-func caKeyPair(ctx context.Context, ds fleet.MDMAssetRetriever) (*tls.Certificate, error) {
-	return assets.KeyPair(ctx, ds, fleet.MDMAssetHostIdentityCACert, fleet.MDMAssetHostIdentityCAKey)
+func caKeyPair(ctx context.Context, ds automdm.MDMAssetRetriever) (*tls.Certificate, error) {
+	return assets.KeyPair(ctx, ds, automdm.MDMAssetHostIdentityCACert, automdm.MDMAssetHostIdentityCAKey)
 }
 
 func (svc *service) PKIOperation(ctx context.Context, data []byte) ([]byte, error) {
 	if len(data) == 0 {
-		return nil, &fleet.BadRequestError{Message: "missing data for PKIOperation"}
+		return nil, &automdm.BadRequestError{Message: "missing data for PKIOperation"}
 	}
 
 	if err := cryptoutil.ValidateBERDepth(data, cryptoutil.MaxBERDepth); err != nil {
-		return nil, &fleet.BadRequestError{
+		return nil, &automdm.BadRequestError{
 			Message:     "invalid request body",
 			InternalErr: err,
 		}
@@ -337,7 +337,7 @@ func (svc *service) PKIOperation(ctx context.Context, data []byte) ([]byte, erro
 	msg, err := scep.ParsePKIMessage(data, scep.WithLogger(kitlogadapter.NewLogger(svc.logger)))
 	if err != nil {
 		// The body is not a valid SCEP pkiMessage, which is a client error.
-		return nil, &fleet.BadRequestError{
+		return nil, &automdm.BadRequestError{
 			Message:     "invalid request body",
 			InternalErr: err,
 		}
@@ -395,7 +395,7 @@ func (svc *service) GetNextCACert(_ context.Context) ([]byte, error) {
 }
 
 // NewSCEPService creates a new scep service
-func NewSCEPService(ds fleet.Datastore, signer scepserver.CSRSignerContext, logger *slog.Logger) scepserver.Service {
+func NewSCEPService(ds automdm.Datastore, signer scepserver.CSRSignerContext, logger *slog.Logger) scepserver.Service {
 	return &service{
 		ds:     ds,
 		signer: signer,

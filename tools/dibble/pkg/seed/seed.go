@@ -11,7 +11,7 @@ import (
 
 // MultipartFile is one file part of a multipart upload. The FieldName is the
 // form field (e.g. "script", "profile"); the Filename is what the server sees
-// when it inspects the upload's name — important because Fleet uses extensions
+// when it inspects the upload's name — important because AutoMDM uses extensions
 // like .mobileconfig / .xml to detect MDM profile platforms.
 type MultipartFile struct {
 	FieldName string

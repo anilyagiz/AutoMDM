@@ -1,9 +1,9 @@
-# Releasing updates to Fleet's TUF repository
+# Releasing updates to AutoMDM's TUF repository
 
-The `releaser.sh` script automates the building and releasing of fleetd and osquery updates on [Fleet's TUF repository](https://updates.fleetdm.com).
+The `releaser.sh` script automates the building and releasing of automdmd and osquery updates on [AutoMDM's TUF repository](https://updates.fleetdm.com).
 
 > - The script was developed and tested on macOS Intel.
-> - It currently supports pushing new `fleetd` and `osqueryd` versions.
+> - It currently supports pushing new `automdmd` and `osqueryd` versions.
 > - By storing credentials encrypted in a USB flash drive and storing their decryption passphrase on 1Password we are enforcing a form of 2FA.
 > - First, new releases are pushed to https://updates-staging.fleetdm.com. After verification (smoke test), releases are pushed to production, by syncing https://updates-staging.fleetdm.com to https://updates.fleetdm.com.
 
@@ -12,8 +12,8 @@ The `releaser.sh` script automates the building and releasing of fleetd and osqu
 graph LR;
 subgraph Workstation;
     releaser[releaser.sh];
-    1password("<div><img src='../../website/assets/images/articles/tales-from-fleet-security-securing-1password-cover-1600x900@2x.jpg' /></div>1Password");
-    usb("<div><img src='../../website/assets/images/articles/config-less-fleetd-agent-deployment-1600x900@2x.png' /></div>USB flash drive");
+    1password("<div><img src='../../website/assets/images/articles/tales-from-team-security-securing-1password-cover-1600x900@2x.jpg' /></div>1Password");
+    usb("<div><img src='../../website/assets/images/articles/config-less-automdmd-agent-deployment-1600x900@2x.png' /></div>USB flash drive");
     repository[(./repository)];
 end;
 r2_staging("<div><img src='../../website/assets/images/app-icon-cloudflare-warp-60x60@2x.png' /></div>r2://updates-staging");
@@ -23,7 +23,7 @@ usb--(1) copy encrypted signing keys-->releaser;
 1password--(2) get passphrases to decrypt encrypted signing keys-->releaser;
 1password--(3) get Github API token-->releaser;
 r2_staging--(4) pull TUF repository-->releaser;
-releaser--(5) build components (new updates)\n(osqueryd, orbit, Fleet Desktop)-->github;
+releaser--(5) build components (new updates)\n(osqueryd, orbit, AutoMDM Desktop)-->github;
 github--(6) download built components-->releaser;
 releaser--(7) push updates and signed metadata-->r2_staging;
 ```
@@ -47,7 +47,7 @@ Following is the checklist for all credentials and configuration needed to run t
 - 1Password 8 application.
 - Install and configure 1Password's `op` cli to connect to the application: https://developer.1password.com/docs/cli/get-started/
 - `rclone`
-- `fleetctl`: Either built from source or installed by npm.
+- `automdmctl`: Either built from source or installed by npm.
 - `tuf`: Download the release from https://github.com/theupdateframework/go-tuf/releases/tag/v0.5.2 and place the `tuf` executable in `/usr/local/bin/tuf`. You will need to make an exception in "Privacy & Security" because the executable is not signed.
 - `gh`: `brew install gh`.
 
@@ -98,8 +98,8 @@ tuf gen-key targets && echo
 tuf gen-key snapshot && echo
 tuf gen-key timestamp && echo
 ```
-2. Store the '$TUF_DIRECTORY/keys' folder (that contains the encrypted keys) on a USB flash drive that you will ONLY use for releasing fleetd updates.
-3. Share '$TUF_DIRECTORY/staged/root.json' with Fleet member with the 'root' role, who will sign with its root key and push it to the remote repository.
+2. Store the '$TUF_DIRECTORY/keys' folder (that contains the encrypted keys) on a USB flash drive that you will ONLY use for releasing automdmd updates.
+3. Share '$TUF_DIRECTORY/staged/root.json' with AutoMDM member with the 'root' role, who will sign with its root key and push it to the remote repository.
 4. The human with the `root` role will run the following commands to sign the provided `staged/root.json`:
 ```sh
 tuf sign
@@ -111,8 +111,8 @@ And push the newly signed `root.json` to the remote repository.
 
 ### Encrypted keys in USB
 
-For releasing fleetd you need to plug in the USB that contains encrypted signing keys.
-In this guide we assume the USB device will be mounted in `/Volumes/FLEET-UPD/` and it ONLY contains a `keys/` directory.
+For releasing automdmd you need to plug in the USB that contains encrypted signing keys.
+In this guide we assume the USB device will be mounted in `/Volumes/AUTOMDM-UPD/` and it ONLY contains a `keys/` directory.
 
 ### Github
 
@@ -139,25 +139,25 @@ It will be used to create a PR which is used to update the changelog and trigger
 
 Following are samples of the script execution to release components to `edge` and `stable`.
 
-> When releasing fleetd you need to checkout the branch (e.g. `main`) you want to release.
+> When releasing automdmd you need to checkout the branch (e.g. `main`) you want to release.
 
-> NOTE: When releasing fleetd:
+> NOTE: When releasing automdmd:
 > If there are only `orbit` changes on a release we still have to release the `desktop` component with its version string bumped
 > (even if there are no changes in it). This is due to the fact that we want users to see the new version in the tray icon,
-> e.g. `"Fleet Desktop v1.21.0"`. Technical debt: We could improve this process to reduce the complexity of releasing
-> fleetd when there are no Fleet Desktop changes.
+> e.g. `"AutoMDM Desktop v1.21.0"`. Technical debt: We could improve this process to reduce the complexity of releasing
+> automdmd when there are no AutoMDM Desktop changes.
 
 ### Releasing to `edge`
 
-#### Releasing fleetd `1.23.0` to `edge`
+#### Releasing automdmd `1.23.0` to `edge`
 
 1. Push to staging:
 ```sh
 TUF_DIRECTORY=/Users/foobar/updates-staging.fleetdm.com \
-COMPONENT=fleetd \
+COMPONENT=automdmd \
 ACTION=release-to-edge \
 VERSION=1.23.0 \
-KEYS_SOURCE_DIRECTORY=/Volumes/FLEET-UPD/keys \
+KEYS_SOURCE_DIRECTORY=/Volumes/AUTOMDM-UPD/keys \
 TARGETS_PASSPHRASE_1PASSWORD_PATH="Private/UPDATES TARGETS/password" \
 SNAPSHOT_PASSPHRASE_1PASSWORD_PATH="Private/UPDATES SNAPSHOT/password" \
 TIMESTAMP_PASSPHRASE_1PASSWORD_PATH="Private/UPDATES TIMESTAMP/password" \
@@ -169,13 +169,13 @@ GITHUB_TOKEN_1PASSWORD_PATH="Private/Github Token/password" \
 3. Push to production:
 ```sh
 ACTION=release-to-production \
-COMPONENT=fleetd \
+COMPONENT=automdmd \
 VERSION=1.23.0 \
 ./tools/tuf/releaser.sh
 ```
 4. Create PR with changelog against `main` (it may fail with conflicts when using patch branches):
 ```sh
-ACTION=create-fleetd-release-pr \
+ACTION=create-automdmd-release-pr \
 VERSION=1.23.0 \
 ./tools/tuf/releaser.sh
 ```
@@ -190,7 +190,7 @@ TUF_DIRECTORY=/Users/foobar/updates-staging.fleetdm.com \
 COMPONENT=osqueryd \
 ACTION=release-to-edge \
 VERSION=5.12.1 \
-KEYS_SOURCE_DIRECTORY=/Volumes/FLEET-UPD/keys \
+KEYS_SOURCE_DIRECTORY=/Volumes/AUTOMDM-UPD/keys \
 TARGETS_PASSPHRASE_1PASSWORD_PATH="Private/UPDATES TARGETS/password" \
 SNAPSHOT_PASSPHRASE_1PASSWORD_PATH="Private/UPDATES SNAPSHOT/password" \
 TIMESTAMP_PASSPHRASE_1PASSWORD_PATH="Private/UPDATES TIMESTAMP/password" \
@@ -207,15 +207,15 @@ ACTION=release-to-production ./tools/tuf/releaser.sh
 
 ### Promoting from `edge` to `stable`
 
-#### Promoting fleetd `1.23.0` from `edge` to `stable`
+#### Promoting automdmd `1.23.0` from `edge` to `stable`
 
 1. Push to staging:
 ```sh
 TUF_DIRECTORY=/Users/foobar/updates-staging.fleetdm.com \
-COMPONENT=fleetd \
+COMPONENT=automdmd \
 ACTION=promote-edge-to-stable \
 VERSION=1.23.0 \
-KEYS_SOURCE_DIRECTORY=/Volumes/FLEET-UPD/keys \
+KEYS_SOURCE_DIRECTORY=/Volumes/AUTOMDM-UPD/keys \
 TARGETS_PASSPHRASE_1PASSWORD_PATH="Private/UPDATES TARGETS/password" \
 SNAPSHOT_PASSPHRASE_1PASSWORD_PATH="Private/UPDATES SNAPSHOT/password" \
 TIMESTAMP_PASSPHRASE_1PASSWORD_PATH="Private/UPDATES TIMESTAMP/password" \
@@ -225,7 +225,7 @@ TIMESTAMP_PASSPHRASE_1PASSWORD_PATH="Private/UPDATES TIMESTAMP/password" \
 3. Push to production:
 ```sh
 ACTION=release-to-production \
-COMPONENT=fleetd \
+COMPONENT=automdmd \
 VERSION=1.23.0 \
 ./tools/tuf/releaser.sh
 ```
@@ -239,7 +239,7 @@ TUF_DIRECTORY=/Users/foobar/updates-staging.fleetdm.com \
 COMPONENT=osqueryd \
 ACTION=promote-edge-to-stable \
 VERSION=5.12.1 \
-KEYS_SOURCE_DIRECTORY=/Volumes/FLEET-UPD/keys \
+KEYS_SOURCE_DIRECTORY=/Volumes/AUTOMDM-UPD/keys \
 TARGETS_PASSPHRASE_1PASSWORD_PATH="Private/UPDATES TARGETS/password" \
 SNAPSHOT_PASSPHRASE_1PASSWORD_PATH="Private/UPDATES SNAPSHOT/password" \
 TIMESTAMP_PASSPHRASE_1PASSWORD_PATH="Private/UPDATES TIMESTAMP/password" \
@@ -262,14 +262,14 @@ VERSION=5.19.0 \
 
 > macOS only component
 
-1. Download `swiftDialog` from the desired run of https://github.com/fleetdm/fleet/actions/workflows/generate-swift-dialog-targets.yml.
+1. Download `swiftDialog` from the desired run of https://github.com/anilyagiz/automdm/actions/workflows/generate-swift-dialog-targets.yml.
 2. Extract the downloaded `.zip` to `/path/to/swiftDialog.app.tar.gz`
 3. Push to staging:  
 ```sh
 TUF_DIRECTORY=/Users/foobar/updates-staging.fleetdm.com \
 ACTION=release-swiftDialog-to-stable \
 VERSION=2.5.6 \
-KEYS_SOURCE_DIRECTORY=/Volumes/FLEET-UPD/keys \
+KEYS_SOURCE_DIRECTORY=/Volumes/AUTOMDM-UPD/keys \
 TARGETS_PASSPHRASE_1PASSWORD_PATH="Private/UPDATES TARGETS/password" \
 SNAPSHOT_PASSPHRASE_1PASSWORD_PATH="Private/UPDATES SNAPSHOT/password" \
 TIMESTAMP_PASSPHRASE_1PASSWORD_PATH="Private/UPDATES TIMESTAMP/password" \
@@ -291,7 +291,7 @@ The `Escrow Buddy` pkg installer can be generated by running:
 make escrow-buddy-pkg version=1.0.0 out-path=.
 ```
 ```sh
-fleetctl updates add --target /path/to/escrowBuddy.pkg --platform macos --name escrowBuddy --version 1.0.0 -t stable
+automdmctl updates add --target /path/to/escrowBuddy.pkg --platform macos --name escrowBuddy --version 1.0.0 -t stable
 ```
 
 #### Updating timestamp
@@ -300,7 +300,7 @@ fleetctl updates add --target /path/to/escrowBuddy.pkg --platform macos --name e
 ```sh
 TUF_DIRECTORY=/Users/foobar/updates-staging.fleetdm.com \
 ACTION=update-timestamp \
-KEYS_SOURCE_DIRECTORY=/Volumes/FLEET-UPD/keys \
+KEYS_SOURCE_DIRECTORY=/Volumes/AUTOMDM-UPD/keys \
 TIMESTAMP_PASSPHRASE_1PASSWORD_PATH="Private/UPDATES TIMESTAMP/password" \
 ./tools/tuf/releaser.sh
 ```
@@ -309,22 +309,22 @@ TIMESTAMP_PASSPHRASE_1PASSWORD_PATH="Private/UPDATES TIMESTAMP/password" \
 ACTION=release-to-production ./tools/tuf/releaser.sh
 ```
 
-### Doing a patch release of fleetd
+### Doing a patch release of automdmd
 
-Patch releases follow the same process as releasing a minor version, except instead of checking out the `main` branch of Fleet locally, you check out a patch branch of Fleet, e.g.:
+Patch releases follow the same process as releasing a minor version, except instead of checking out the `main` branch of AutoMDM locally, you check out a patch branch of AutoMDM, e.g.:
 
 ```
-git checkout rc-minor-fleetd-v1.41.1
+git checkout rc-minor-automdmd-v1.41.1
 ```
 
-As always, the `VERSION` env var used when running `releaser.sh` should match the version of the fleetd release, e.g.
+As always, the `VERSION` env var used when running `releaser.sh` should match the version of the automdmd release, e.g.
 
 ```sh
 TUF_DIRECTORY=/Users/foobar/updates-staging.fleetdm.com \
-COMPONENT=fleetd \
+COMPONENT=automdmd \
 ACTION=release-to-edge \
 VERSION=1.41.1 # <-- note the patch version \
-KEYS_SOURCE_DIRECTORY=/Volumes/FLEET-UPD/keys \
+KEYS_SOURCE_DIRECTORY=/Volumes/AUTOMDM-UPD/keys \
 TARGETS_PASSPHRASE_1PASSWORD_PATH="Private/UPDATES TARGETS/password" \
 SNAPSHOT_PASSPHRASE_1PASSWORD_PATH="Private/UPDATES SNAPSHOT/password" \
 TIMESTAMP_PASSPHRASE_1PASSWORD_PATH="Private/UPDATES TIMESTAMP/password" \
@@ -333,16 +333,16 @@ GITHUB_TOKEN_1PASSWORD_PATH="Private/Github Token/password" \
 ./tools/tuf/releaser.sh
 ```
 
-See https://github.com/fleetdm/fleet/blob/main/orbit/TUF.md to find the latest released version.
+See https://github.com/anilyagiz/automdm/blob/main/orbit/TUF.md to find the latest released version.
 
 After following the rest of the "Releasing to edge" steps above, publish your release using the instructions in "Promoting from edge to stable" above as you would for a minor release, again remembering to set the `VERSION` accordingly.
 
 ## Testing and improving the script
 
-- You can specify `GIT_REPOSITORY_DIRECTORY` to set a separate path for the Fleet repository (it uses the current by default).
+- You can specify `GIT_REPOSITORY_DIRECTORY` to set a separate path for the AutoMDM repository (it uses the current by default).
 This is sometimes necessary if the tooling the script uses is not present in the branch we are trying to release from.
 ```sh
-git clone git@github.com:fleetdm/fleet.git <SOME_DIRECTORY>
+git clone git@github.com:automdm/automdm.git <SOME_DIRECTORY>
 GIT_REPOSITORY_DIRECTORY=<SOME_DIRECTORY>
 ```
 
@@ -356,7 +356,7 @@ GIT_REPOSITORY_DIRECTORY=<SOME_DIRECTORY>
 
 ### Invalid timestamp.json version
 
-The following issue was solved by resigning the timestamp metadata `fleetctl updates timestamp` (executed three times to increase the version to `4175`)
+The following issue was solved by resigning the timestamp metadata `automdmctl updates timestamp` (executed three times to increase the version to `4175`)
 ```sh
 2022-08-23T13:44:48-03:00 INF update failed error="update metadata: update metadata: tuf: failed to decode timestamp.json: version 4172 is lower than current version 4174"
 2022-08-23T13:59:48-03:00 INF update failed error="update metadata: update metadata: tuf: failed to decode timestamp.json: version 4172 is lower than current version 4174"

@@ -10,12 +10,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
-	android_mock "github.com/fleetdm/fleet/v4/server/mdm/android/mock"
-	"github.com/fleetdm/fleet/v4/server/mdm/android/service/androidmgmt"
-	"github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
+	android_mock "github.com/anilyagiz/automdm/v4/server/mdm/android/mock"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android/service/androidmgmt"
+	"github.com/anilyagiz/automdm/v4/server/mock"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/androidmanagement/v1"
 	"google.golang.org/api/googleapi"
@@ -49,14 +49,14 @@ type androidAppReconcileSentList struct {
 }
 
 type androidAppReconcileState struct {
-	hosts                  []*fleet.Host
-	installs               []*fleet.HostAndroidSoftwareInstall
-	appsInScopeByHostID    map[uint][]fleet.VPPAppTeam
+	hosts                  []*automdm.Host
+	installs               []*automdm.HostAndroidSoftwareInstall
+	appsInScopeByHostID    map[uint][]automdm.VPPAppTeam
 	configurationUpdatedAt *time.Time
 	firstVersionConfig     []byte
 	secondVersionConfig    []byte
-	setupApps              []*fleet.HostAndroidVPPSoftwareInstall
-	profilesToSend         []*fleet.MDMAndroidProfilePayload
+	setupApps              []*automdm.HostAndroidVPPSoftwareInstall
+	profilesToSend         []*automdm.MDMAndroidProfilePayload
 	expandErr              error
 	agentErr               error
 	setAppsErrByHostUUID   map[string]error
@@ -66,8 +66,8 @@ type androidAppReconcileState struct {
 	sentOpts                   []androidmgmt.PoliciesPatchOpts
 	sentConfigsByHostUUID      map[string]map[string]string
 	sentInstallTypesByHostUUID map[string]map[string]string
-	upserted                   []fleet.HostAndroidSoftwareInstall
-	removed                    []fleet.HostAndroidSoftwareInstall
+	upserted                   []automdm.HostAndroidSoftwareInstall
+	removed                    []automdm.HostAndroidSoftwareInstall
 	recordedRetries            int
 	pendingApplyConfigAppIDs   []string
 	flaggedSentHostIDs         []uint
@@ -78,46 +78,46 @@ func TestReconcileAndroidApps(t *testing.T) {
 		firstVersionID  uint = 10
 		secondVersionID uint = 11
 	)
-	hostA := &fleet.Host{ID: 1, UUID: "host-a", Platform: "android"}
-	hostB := &fleet.Host{ID: 2, UUID: "host-b", Platform: "android"}
+	hostA := &automdm.Host{ID: 1, UUID: "host-a", Platform: "android"}
+	hostB := &automdm.Host{ID: 2, UUID: "host-b", Platform: "android"}
 	builtAt := time.Now().Add(-time.Hour)
-	appOne := fleet.VPPAppTeam{AdamID: "com.example.one", AppTeamID: firstVersionID}
-	appOneSecondVersion := fleet.VPPAppTeam{AdamID: "com.example.one", AppTeamID: secondVersionID}
+	appOne := automdm.VPPAppTeam{AdamID: "com.example.one", AppTeamID: firstVersionID}
+	appOneSecondVersion := automdm.VPPAppTeam{AdamID: "com.example.one", AppTeamID: secondVersionID}
 
 	state := &androidAppReconcileState{}
 
 	ds := new(mock.Store)
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{MDM: fleet.MDM{AndroidEnabledAndConfigured: true}}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{MDM: automdm.MDM{AndroidEnabledAndConfigured: true}}, nil
 	}
 	ds.GetEnterpriseFunc = func(ctx context.Context) (*android.Enterprise, error) {
 		return &android.Enterprise{EnterpriseID: "test"}, nil
 	}
-	ds.ListAndroidHostsOnHostPolicyFunc = func(ctx context.Context) ([]*fleet.Host, error) {
+	ds.ListAndroidHostsOnHostPolicyFunc = func(ctx context.Context) ([]*automdm.Host, error) {
 		return state.hosts, nil
 	}
-	ds.ListAndroidAppsInScopeForHostsFunc = func(ctx context.Context, hostIDs []uint) (map[uint][]fleet.VPPAppTeam, error) {
+	ds.ListAndroidAppsInScopeForHostsFunc = func(ctx context.Context, hostIDs []uint) (map[uint][]automdm.VPPAppTeam, error) {
 		return state.appsInScopeByHostID, nil
 	}
-	ds.ListHostMDMAndroidVPPAppsFromSetupExperienceFunc = func(ctx context.Context, hostIDs []uint) (map[uint][]*fleet.HostAndroidVPPSoftwareInstall, error) {
-		setupAppsByHostID := make(map[uint][]*fleet.HostAndroidVPPSoftwareInstall)
+	ds.ListHostMDMAndroidVPPAppsFromSetupExperienceFunc = func(ctx context.Context, hostIDs []uint) (map[uint][]*automdm.HostAndroidVPPSoftwareInstall, error) {
+		setupAppsByHostID := make(map[uint][]*automdm.HostAndroidVPPSoftwareInstall)
 		for _, setupApp := range state.setupApps {
 			setupAppsByHostID[setupApp.HostID] = append(setupAppsByHostID[setupApp.HostID], setupApp)
 		}
 		return setupAppsByHostID, nil
 	}
-	ds.ListHostAndroidSoftwareInstallsFunc = func(ctx context.Context, hostIDs []uint) (map[uint]map[string]*fleet.HostAndroidSoftwareInstall, error) {
-		installsByHostID := make(map[uint]map[string]*fleet.HostAndroidSoftwareInstall)
+	ds.ListHostAndroidSoftwareInstallsFunc = func(ctx context.Context, hostIDs []uint) (map[uint]map[string]*automdm.HostAndroidSoftwareInstall, error) {
+		installsByHostID := make(map[uint]map[string]*automdm.HostAndroidSoftwareInstall)
 		for _, install := range state.installs {
 			if installsByHostID[install.HostID] == nil {
-				installsByHostID[install.HostID] = make(map[string]*fleet.HostAndroidSoftwareInstall)
+				installsByHostID[install.HostID] = make(map[string]*automdm.HostAndroidSoftwareInstall)
 			}
 			installsByHostID[install.HostID][install.AdamID] = install
 		}
 		return installsByHostID, nil
 	}
-	ds.GetAndroidAppStoreAppVersionsByIDFunc = func(ctx context.Context) (map[uint]*fleet.VPPAppStoreApp, error) {
-		return map[uint]*fleet.VPPAppStoreApp{
+	ds.GetAndroidAppStoreAppVersionsByIDFunc = func(ctx context.Context) (map[uint]*automdm.VPPAppStoreApp, error) {
+		return map[uint]*automdm.VPPAppStoreApp{
 			firstVersionID:  {VPPAppsTeamsID: firstVersionID, ConfigurationUpdatedAt: state.configurationUpdatedAt, Configuration: state.firstVersionConfig},
 			secondVersionID: {VPPAppsTeamsID: secondVersionID, Configuration: state.secondVersionConfig},
 		}, nil
@@ -125,7 +125,7 @@ func TestReconcileAndroidApps(t *testing.T) {
 	ds.ExpandCustomHostVitalsFunc = func(ctx context.Context, hostID uint, document string) (string, error) {
 		return "", state.expandErr
 	}
-	ds.BulkUpsertHostAndroidSoftwareInstallsFunc = func(ctx context.Context, installs []fleet.HostAndroidSoftwareInstall, removedInstalls []fleet.HostAndroidSoftwareInstall) error {
+	ds.BulkUpsertHostAndroidSoftwareInstallsFunc = func(ctx context.Context, installs []automdm.HostAndroidSoftwareInstall, removedInstalls []automdm.HostAndroidSoftwareInstall) error {
 		state.upserted = append(state.upserted, installs...)
 		state.removed = append(state.removed, removedInstalls...)
 		return nil
@@ -133,16 +133,16 @@ func TestReconcileAndroidApps(t *testing.T) {
 	ds.NewAndroidPolicyRequestFunc = func(ctx context.Context, req *android.MDMAndroidPolicyRequest) error {
 		return nil
 	}
-	ds.AndroidHostLiteByHostUUIDFunc = func(ctx context.Context, hostUUID string) (*fleet.AndroidHost, error) {
-		return &fleet.AndroidHost{Host: &fleet.Host{UUID: hostUUID}, Device: &android.Device{AppliedPolicyID: new(hostUUID)}}, nil
+	ds.AndroidHostLiteByHostUUIDFunc = func(ctx context.Context, hostUUID string) (*automdm.AndroidHost, error) {
+		return &automdm.AndroidHost{Host: &automdm.Host{UUID: hostUUID}, Device: &android.Device{AppliedPolicyID: new(hostUUID)}}, nil
 	}
-	ds.GetEnrollSecretsFunc = func(ctx context.Context, teamID *uint) ([]*fleet.EnrollSecret, error) {
+	ds.GetEnrollSecretsFunc = func(ctx context.Context, teamID *uint) ([]*automdm.EnrollSecret, error) {
 		if state.agentErr != nil {
 			return nil, state.agentErr
 		}
-		return []*fleet.EnrollSecret{{Secret: "secret"}}, nil
+		return []*automdm.EnrollSecret{{Secret: "secret"}}, nil
 	}
-	ds.ListCertificateTemplatesForHostsFunc = func(ctx context.Context, hostUUIDs []string) ([]fleet.CertificateTemplateForHost, error) {
+	ds.ListCertificateTemplatesForHostsFunc = func(ctx context.Context, hostUUIDs []string) ([]automdm.CertificateTemplateForHost, error) {
 		return nil, nil
 	}
 	ds.SetAndroidAppInstallPendingApplyConfigFunc = func(ctx context.Context, hostUUID, applicationID string, policyVersion int64) error {
@@ -158,13 +158,13 @@ func TestReconcileAndroidApps(t *testing.T) {
 	ds.ListAndroidHostUUIDsWithPendingCertificateTemplatesFunc = func(ctx context.Context, afterHostUUID string, limit int) ([]string, error) {
 		return nil, nil
 	}
-	ds.ListAndroidFleetDefaultPolicyProfilesFunc = func(ctx context.Context, teamID *uint) ([]*fleet.MDMAndroidConfigProfile, error) {
+	ds.ListAndroidAutoMDMDefaultPolicyProfilesFunc = func(ctx context.Context, teamID *uint) ([]*automdm.MDMAndroidConfigProfile, error) {
 		return nil, nil
 	}
-	ds.GetAndroidFleetDefaultPolicyChecksumsFunc = func(ctx context.Context) (map[uint][]byte, error) {
+	ds.GetAndroidAutoMDMDefaultPolicyChecksumsFunc = func(ctx context.Context) (map[uint][]byte, error) {
 		return nil, nil
 	}
-	ds.ListAndroidFleetDefaultPolicyDeletedFleetsFunc = func(ctx context.Context) ([]uint, error) {
+	ds.ListAndroidAutoMDMDefaultPolicyDeletedTeamsFunc = func(ctx context.Context) ([]uint, error) {
 		return nil, nil
 	}
 
@@ -178,7 +178,7 @@ func TestReconcileAndroidApps(t *testing.T) {
 	ds.GetMDMAndroidProfilesWriteTimeFunc = func(ctx context.Context) (time.Time, error) {
 		return time.Now(), nil
 	}
-	ds.ListMDMAndroidProfilesToSendFunc = func(ctx context.Context, cursor string, batchSize int) ([]*fleet.MDMAndroidProfilePayload, []*fleet.MDMAndroidProfilePayload, error) {
+	ds.ListMDMAndroidProfilesToSendFunc = func(ctx context.Context, cursor string, batchSize int) ([]*automdm.MDMAndroidProfilePayload, []*automdm.MDMAndroidProfilePayload, error) {
 		return state.profilesToSend, nil, nil
 	}
 	ds.GetMDMAndroidProfilesContentsFunc = func(ctx context.Context, uuids []string) (map[string]json.RawMessage, error) {
@@ -188,7 +188,7 @@ func TestReconcileAndroidApps(t *testing.T) {
 		}
 		return contents, nil
 	}
-	ds.BulkUpsertMDMAndroidHostProfilesUnlessResetSinceFunc = func(ctx context.Context, payload []*fleet.MDMAndroidProfilePayload, since time.Time) error {
+	ds.BulkUpsertMDMAndroidHostProfilesUnlessResetSinceFunc = func(ctx context.Context, payload []*automdm.MDMAndroidProfilePayload, since time.Time) error {
 		return nil
 	}
 
@@ -234,24 +234,24 @@ func TestReconcileAndroidApps(t *testing.T) {
 	reconcile := func(batchSize int) error {
 		return ReconcileProfilesWithClient(t.Context(), ds, logger, "", client, config.AndroidAgentConfig{Package: "com.fleetdm.agent", SigningSHA256: "abc123def456"}, batchSize, retryCounter)
 	}
-	agentInstall := func(hostID uint, status string, needsResend bool) *fleet.HostAndroidSoftwareInstall {
-		return &fleet.HostAndroidSoftwareInstall{HostID: hostID, AdamID: "com.fleetdm.agent", InstallType: android.AppStatusForceInstalled, Status: status, NeedsResend: needsResend, PolicyBuiltAt: builtAt, UpdatedAt: time.Now().Add(-2 * time.Hour)}
+	agentInstall := func(hostID uint, status string, needsResend bool) *automdm.HostAndroidSoftwareInstall {
+		return &automdm.HostAndroidSoftwareInstall{HostID: hostID, AdamID: "com.fleetdm.agent", InstallType: android.AppStatusForceInstalled, Status: status, NeedsResend: needsResend, PolicyBuiltAt: builtAt, UpdatedAt: time.Now().Add(-2 * time.Hour)}
 	}
-	appOneInstall := func(hostID uint, status string, needsResend bool, updatedAt time.Time) *fleet.HostAndroidSoftwareInstall {
-		return &fleet.HostAndroidSoftwareInstall{HostID: hostID, AdamID: "com.example.one", InstallType: android.AppStatusAvailable, VPPAppTeamID: new(firstVersionID), Status: status, NeedsResend: needsResend, PolicyBuiltAt: builtAt, UpdatedAt: updatedAt}
+	appOneInstall := func(hostID uint, status string, needsResend bool, updatedAt time.Time) *automdm.HostAndroidSoftwareInstall {
+		return &automdm.HostAndroidSoftwareInstall{HostID: hostID, AdamID: "com.example.one", InstallType: android.AppStatusAvailable, VPPAppTeamID: new(firstVersionID), Status: status, NeedsResend: needsResend, PolicyBuiltAt: builtAt, UpdatedAt: updatedAt}
 	}
 
-	t.Run("a host with a new app in scope gets the app and the Fleet agent and another host with no changes gets no request", func(t *testing.T) {
+	t.Run("a host with a new app in scope gets the app and the AutoMDM agent and another host with no changes gets no request", func(t *testing.T) {
 		*state = androidAppReconcileState{
-			hosts: []*fleet.Host{hostA, hostB},
-			installs: []*fleet.HostAndroidSoftwareInstall{
-				appOneInstall(hostB.ID, fleet.AndroidSoftwareInstallStatusVerified, false, time.Time{}),
-				agentInstall(hostB.ID, fleet.AndroidSoftwareInstallStatusVerified, false),
+			hosts: []*automdm.Host{hostA, hostB},
+			installs: []*automdm.HostAndroidSoftwareInstall{
+				appOneInstall(hostB.ID, automdm.AndroidSoftwareInstallStatusVerified, false, time.Time{}),
+				agentInstall(hostB.ID, automdm.AndroidSoftwareInstallStatusVerified, false),
 			},
-			appsInScopeByHostID: map[uint][]fleet.VPPAppTeam{hostA.ID: {appOne}, hostB.ID: {appOne}},
+			appsInScopeByHostID: map[uint][]automdm.VPPAppTeam{hostA.ID: {appOne}, hostB.ID: {appOne}},
 		}
 
-		// run the cron, only host A should get a request, its app and the Fleet agent recorded as pending in the returned
+		// run the cron, only host A should get a request, its app and the AutoMDM agent recorded as pending in the returned
 		// policy version
 		err := reconcile(0)
 		require.NoError(t, err)
@@ -261,22 +261,22 @@ func TestReconcileAndroidApps(t *testing.T) {
 		require.Equal(t, hostA.ID, state.upserted[0].HostID)
 		require.Equal(t, "com.example.one", state.upserted[0].AdamID)
 		require.Equal(t, new(firstVersionID), state.upserted[0].VPPAppTeamID)
-		require.Equal(t, fleet.AndroidSoftwareInstallStatusPending, state.upserted[0].Status)
+		require.Equal(t, automdm.AndroidSoftwareInstallStatusPending, state.upserted[0].Status)
 		require.Equal(t, new(int64(5)), state.upserted[0].InPolicyVersion)
 		require.False(t, state.upserted[0].PolicyBuiltAt.IsZero())
 		require.Equal(t, hostA.ID, state.upserted[1].HostID)
 		require.Equal(t, "com.fleetdm.agent", state.upserted[1].AdamID)
 		require.Nil(t, state.upserted[1].VPPAppTeamID)
 		require.Equal(t, android.AppStatusForceInstalled, state.upserted[1].InstallType)
-		require.Equal(t, fleet.AndroidSoftwareInstallStatusPending, state.upserted[1].Status)
+		require.Equal(t, automdm.AndroidSoftwareInstallStatusPending, state.upserted[1].Status)
 		require.Equal(t, new(int64(5)), state.upserted[1].InPolicyVersion)
 	})
 
 	t.Run("two hosts with an app whose configuration uses the host UUID variable each get their own UUID in the app's configuration", func(t *testing.T) {
 		*state = androidAppReconcileState{
-			hosts:               []*fleet.Host{hostA, hostB},
-			appsInScopeByHostID: map[uint][]fleet.VPPAppTeam{hostA.ID: {appOne}, hostB.ID: {appOne}},
-			firstVersionConfig:  []byte(`{"managedConfiguration":{"deviceId":"$FLEET_VAR_HOST_UUID"}}`),
+			hosts:               []*automdm.Host{hostA, hostB},
+			appsInScopeByHostID: map[uint][]automdm.VPPAppTeam{hostA.ID: {appOne}, hostB.ID: {appOne}},
+			firstVersionConfig:  []byte(`{"managedConfiguration":{"deviceId":"$AUTOMDM_VAR_HOST_UUID"}}`),
 		}
 
 		// run the cron, host A and host B should each get app one with their own UUID substituted in its configuration
@@ -289,14 +289,14 @@ func TestReconcileAndroidApps(t *testing.T) {
 
 	t.Run("a host with a failed app gets it as pending with a new app and a host with only the failed app gets no request", func(t *testing.T) {
 		*state = androidAppReconcileState{
-			hosts: []*fleet.Host{hostA, hostB},
-			installs: []*fleet.HostAndroidSoftwareInstall{
-				appOneInstall(hostA.ID, fleet.AndroidSoftwareInstallStatusFailed, false, time.Time{}),
-				agentInstall(hostA.ID, fleet.AndroidSoftwareInstallStatusVerified, false),
-				appOneInstall(hostB.ID, fleet.AndroidSoftwareInstallStatusFailed, false, time.Time{}),
-				agentInstall(hostB.ID, fleet.AndroidSoftwareInstallStatusVerified, false),
+			hosts: []*automdm.Host{hostA, hostB},
+			installs: []*automdm.HostAndroidSoftwareInstall{
+				appOneInstall(hostA.ID, automdm.AndroidSoftwareInstallStatusFailed, false, time.Time{}),
+				agentInstall(hostA.ID, automdm.AndroidSoftwareInstallStatusVerified, false),
+				appOneInstall(hostB.ID, automdm.AndroidSoftwareInstallStatusFailed, false, time.Time{}),
+				agentInstall(hostB.ID, automdm.AndroidSoftwareInstallStatusVerified, false),
 			},
-			appsInScopeByHostID: map[uint][]fleet.VPPAppTeam{
+			appsInScopeByHostID: map[uint][]automdm.VPPAppTeam{
 				hostA.ID: {appOne, {AdamID: "com.example.two", AppTeamID: secondVersionID}},
 				hostB.ID: {appOne},
 			},
@@ -310,18 +310,18 @@ func TestReconcileAndroidApps(t *testing.T) {
 		require.Len(t, state.upserted, 3)
 		require.Equal(t, hostA.ID, state.upserted[0].HostID)
 		require.Equal(t, "com.example.one", state.upserted[0].AdamID)
-		require.Equal(t, fleet.AndroidSoftwareInstallStatusPending, state.upserted[0].Status)
+		require.Equal(t, automdm.AndroidSoftwareInstallStatusPending, state.upserted[0].Status)
 		require.Equal(t, "com.example.two", state.upserted[1].AdamID)
 		require.Equal(t, "com.fleetdm.agent", state.upserted[2].AdamID)
 	})
 
 	t.Run("a host with a new app in scope gets both apps and only the new app's install is upserted", func(t *testing.T) {
 		*state = androidAppReconcileState{
-			hosts: []*fleet.Host{hostA},
-			installs: []*fleet.HostAndroidSoftwareInstall{
-				{HostID: hostA.ID, AdamID: "com.example.one", InstallType: android.AppStatusAvailable, VPPAppTeamID: new(firstVersionID), Status: fleet.AndroidSoftwareInstallStatusPending, InPolicyVersion: new(int64(4)), PolicyBuiltAt: builtAt},
+			hosts: []*automdm.Host{hostA},
+			installs: []*automdm.HostAndroidSoftwareInstall{
+				{HostID: hostA.ID, AdamID: "com.example.one", InstallType: android.AppStatusAvailable, VPPAppTeamID: new(firstVersionID), Status: automdm.AndroidSoftwareInstallStatusPending, InPolicyVersion: new(int64(4)), PolicyBuiltAt: builtAt},
 			},
-			appsInScopeByHostID: map[uint][]fleet.VPPAppTeam{hostA.ID: {
+			appsInScopeByHostID: map[uint][]automdm.VPPAppTeam{hostA.ID: {
 				appOne,
 				{AdamID: "com.example.two", AppTeamID: secondVersionID},
 			}},
@@ -340,9 +340,9 @@ func TestReconcileAndroidApps(t *testing.T) {
 
 	t.Run("previously sent policy had an app that's now out of scope, send a policy with it before removing it", func(t *testing.T) {
 		*state = androidAppReconcileState{
-			hosts: []*fleet.Host{hostA},
-			installs: []*fleet.HostAndroidSoftwareInstall{
-				appOneInstall(hostA.ID, fleet.AndroidSoftwareInstallStatusVerified, false, time.Time{}),
+			hosts: []*automdm.Host{hostA},
+			installs: []*automdm.HostAndroidSoftwareInstall{
+				appOneInstall(hostA.ID, automdm.AndroidSoftwareInstallStatusVerified, false, time.Time{}),
 			},
 		}
 
@@ -359,11 +359,11 @@ func TestReconcileAndroidApps(t *testing.T) {
 
 	t.Run("previously sent policy had another version with a different configuration, send the version in scope", func(t *testing.T) {
 		*state = androidAppReconcileState{
-			hosts: []*fleet.Host{hostA},
-			installs: []*fleet.HostAndroidSoftwareInstall{
-				appOneInstall(hostA.ID, fleet.AndroidSoftwareInstallStatusVerified, false, time.Time{}),
+			hosts: []*automdm.Host{hostA},
+			installs: []*automdm.HostAndroidSoftwareInstall{
+				appOneInstall(hostA.ID, automdm.AndroidSoftwareInstallStatusVerified, false, time.Time{}),
 			},
-			appsInScopeByHostID: map[uint][]fleet.VPPAppTeam{hostA.ID: {appOneSecondVersion}},
+			appsInScopeByHostID: map[uint][]automdm.VPPAppTeam{hostA.ID: {appOneSecondVersion}},
 			firstVersionConfig:  []byte(`{"managedConfiguration":{"v":"1"}}`),
 			secondVersionConfig: []byte(`{"managedConfiguration":{"v":"2"}}`),
 		}
@@ -378,12 +378,12 @@ func TestReconcileAndroidApps(t *testing.T) {
 
 	t.Run("previously sent policy had another version with the same configuration, set only the install's version", func(t *testing.T) {
 		*state = androidAppReconcileState{
-			hosts: []*fleet.Host{hostA},
-			installs: []*fleet.HostAndroidSoftwareInstall{
-				appOneInstall(hostA.ID, fleet.AndroidSoftwareInstallStatusVerified, false, time.Time{}),
-				agentInstall(hostA.ID, fleet.AndroidSoftwareInstallStatusVerified, false),
+			hosts: []*automdm.Host{hostA},
+			installs: []*automdm.HostAndroidSoftwareInstall{
+				appOneInstall(hostA.ID, automdm.AndroidSoftwareInstallStatusVerified, false, time.Time{}),
+				agentInstall(hostA.ID, automdm.AndroidSoftwareInstallStatusVerified, false),
 			},
-			appsInScopeByHostID: map[uint][]fleet.VPPAppTeam{hostA.ID: {appOneSecondVersion}},
+			appsInScopeByHostID: map[uint][]automdm.VPPAppTeam{hostA.ID: {appOneSecondVersion}},
 			firstVersionConfig:  []byte(`{"managedConfiguration":{"v":"1"}}`),
 			secondVersionConfig: []byte(`{"managedConfiguration":{"v":"1"}}`),
 		}
@@ -394,21 +394,21 @@ func TestReconcileAndroidApps(t *testing.T) {
 		require.Empty(t, state.sent)
 		require.Len(t, state.upserted, 1)
 		require.Equal(t, new(secondVersionID), state.upserted[0].VPPAppTeamID)
-		require.Equal(t, fleet.AndroidSoftwareInstallStatusVerified, state.upserted[0].Status)
+		require.Equal(t, automdm.AndroidSoftwareInstallStatusVerified, state.upserted[0].Status)
 		require.True(t, builtAt.Equal(state.upserted[0].PolicyBuiltAt))
 	})
 
 	t.Run("previously sent policy had another version with the same configuration and another install type, send the version in scope", func(t *testing.T) {
 		*state = androidAppReconcileState{
-			hosts: []*fleet.Host{hostA},
-			installs: []*fleet.HostAndroidSoftwareInstall{
-				appOneInstall(hostA.ID, fleet.AndroidSoftwareInstallStatusVerified, false, time.Time{}),
-				agentInstall(hostA.ID, fleet.AndroidSoftwareInstallStatusVerified, false),
+			hosts: []*automdm.Host{hostA},
+			installs: []*automdm.HostAndroidSoftwareInstall{
+				appOneInstall(hostA.ID, automdm.AndroidSoftwareInstallStatusVerified, false, time.Time{}),
+				agentInstall(hostA.ID, automdm.AndroidSoftwareInstallStatusVerified, false),
 			},
-			appsInScopeByHostID: map[uint][]fleet.VPPAppTeam{hostA.ID: {appOneSecondVersion}},
+			appsInScopeByHostID: map[uint][]automdm.VPPAppTeam{hostA.ID: {appOneSecondVersion}},
 			firstVersionConfig:  []byte(`{"managedConfiguration":{"v":"1"}}`),
 			secondVersionConfig: []byte(`{"managedConfiguration":{"v":"1"}}`),
-			setupApps:           []*fleet.HostAndroidVPPSoftwareInstall{{HostID: hostA.ID, AdamID: "com.example.one", VPPAppTeamID: secondVersionID}},
+			setupApps:           []*automdm.HostAndroidVPPSoftwareInstall{{HostID: hostA.ID, AdamID: "com.example.one", VPPAppTeamID: secondVersionID}},
 		}
 
 		// run the cron, host A should get a request and its row should be set to the second version as preinstalled
@@ -419,18 +419,18 @@ func TestReconcileAndroidApps(t *testing.T) {
 		require.Equal(t, "com.example.one", state.upserted[0].AdamID)
 		require.Equal(t, new(secondVersionID), state.upserted[0].VPPAppTeamID)
 		require.Equal(t, android.AppStatusPreinstalled, state.upserted[0].InstallType)
-		require.Equal(t, fleet.AndroidSoftwareInstallStatusPending, state.upserted[0].Status)
+		require.Equal(t, automdm.AndroidSoftwareInstallStatusPending, state.upserted[0].Status)
 	})
 
 	t.Run("previously sent policy had the version in scope with another install type, send the new install type", func(t *testing.T) {
 		*state = androidAppReconcileState{
-			hosts: []*fleet.Host{hostA},
-			installs: []*fleet.HostAndroidSoftwareInstall{
-				appOneInstall(hostA.ID, fleet.AndroidSoftwareInstallStatusVerified, false, time.Time{}),
-				agentInstall(hostA.ID, fleet.AndroidSoftwareInstallStatusVerified, false),
+			hosts: []*automdm.Host{hostA},
+			installs: []*automdm.HostAndroidSoftwareInstall{
+				appOneInstall(hostA.ID, automdm.AndroidSoftwareInstallStatusVerified, false, time.Time{}),
+				agentInstall(hostA.ID, automdm.AndroidSoftwareInstallStatusVerified, false),
 			},
-			appsInScopeByHostID: map[uint][]fleet.VPPAppTeam{hostA.ID: {appOne}},
-			setupApps:           []*fleet.HostAndroidVPPSoftwareInstall{{HostID: hostA.ID, AdamID: "com.example.one", VPPAppTeamID: firstVersionID}},
+			appsInScopeByHostID: map[uint][]automdm.VPPAppTeam{hostA.ID: {appOne}},
+			setupApps:           []*automdm.HostAndroidVPPSoftwareInstall{{HostID: hostA.ID, AdamID: "com.example.one", VPPAppTeamID: firstVersionID}},
 		}
 
 		// run the cron, host A should get app one as preinstalled and its row should be upserted as preinstalled
@@ -445,11 +445,11 @@ func TestReconcileAndroidApps(t *testing.T) {
 
 	t.Run("previously sent policy had another version whose configuration was edited since, send the version in scope", func(t *testing.T) {
 		*state = androidAppReconcileState{
-			hosts: []*fleet.Host{hostA},
-			installs: []*fleet.HostAndroidSoftwareInstall{
-				appOneInstall(hostA.ID, fleet.AndroidSoftwareInstallStatusVerified, false, time.Time{}),
+			hosts: []*automdm.Host{hostA},
+			installs: []*automdm.HostAndroidSoftwareInstall{
+				appOneInstall(hostA.ID, automdm.AndroidSoftwareInstallStatusVerified, false, time.Time{}),
 			},
-			appsInScopeByHostID:    map[uint][]fleet.VPPAppTeam{hostA.ID: {appOneSecondVersion}},
+			appsInScopeByHostID:    map[uint][]automdm.VPPAppTeam{hostA.ID: {appOneSecondVersion}},
 			firstVersionConfig:     []byte(`{"managedConfiguration":{"v":"1"}}`),
 			secondVersionConfig:    []byte(`{"managedConfiguration":{"v":"1"}}`),
 			configurationUpdatedAt: new(builtAt.Add(time.Minute)),
@@ -463,11 +463,11 @@ func TestReconcileAndroidApps(t *testing.T) {
 
 	t.Run("previously sent policy had a version that was since deleted, send the version in scope", func(t *testing.T) {
 		*state = androidAppReconcileState{
-			hosts: []*fleet.Host{hostA},
-			installs: []*fleet.HostAndroidSoftwareInstall{
-				{HostID: hostA.ID, AdamID: "com.example.one", InstallType: android.AppStatusAvailable, Status: fleet.AndroidSoftwareInstallStatusVerified, PolicyBuiltAt: builtAt},
+			hosts: []*automdm.Host{hostA},
+			installs: []*automdm.HostAndroidSoftwareInstall{
+				{HostID: hostA.ID, AdamID: "com.example.one", InstallType: android.AppStatusAvailable, Status: automdm.AndroidSoftwareInstallStatusVerified, PolicyBuiltAt: builtAt},
 			},
-			appsInScopeByHostID: map[uint][]fleet.VPPAppTeam{hostA.ID: {appOneSecondVersion}},
+			appsInScopeByHostID: map[uint][]automdm.VPPAppTeam{hostA.ID: {appOneSecondVersion}},
 		}
 
 		// run the cron, host A should get the app
@@ -478,11 +478,11 @@ func TestReconcileAndroidApps(t *testing.T) {
 
 	t.Run("a host whose version configuration changed after its policy was built gets the app again", func(t *testing.T) {
 		*state = androidAppReconcileState{
-			hosts: []*fleet.Host{hostA},
-			installs: []*fleet.HostAndroidSoftwareInstall{
-				appOneInstall(hostA.ID, fleet.AndroidSoftwareInstallStatusVerified, false, time.Time{}),
+			hosts: []*automdm.Host{hostA},
+			installs: []*automdm.HostAndroidSoftwareInstall{
+				appOneInstall(hostA.ID, automdm.AndroidSoftwareInstallStatusVerified, false, time.Time{}),
 			},
-			appsInScopeByHostID:    map[uint][]fleet.VPPAppTeam{hostA.ID: {appOne}},
+			appsInScopeByHostID:    map[uint][]automdm.VPPAppTeam{hostA.ID: {appOne}},
 			configurationUpdatedAt: new(builtAt.Add(time.Minute)),
 		}
 
@@ -494,12 +494,12 @@ func TestReconcileAndroidApps(t *testing.T) {
 
 	t.Run("a host whose version configuration changed before its policy was built gets no request", func(t *testing.T) {
 		*state = androidAppReconcileState{
-			hosts: []*fleet.Host{hostA},
-			installs: []*fleet.HostAndroidSoftwareInstall{
-				appOneInstall(hostA.ID, fleet.AndroidSoftwareInstallStatusVerified, false, time.Time{}),
-				agentInstall(hostA.ID, fleet.AndroidSoftwareInstallStatusVerified, false),
+			hosts: []*automdm.Host{hostA},
+			installs: []*automdm.HostAndroidSoftwareInstall{
+				appOneInstall(hostA.ID, automdm.AndroidSoftwareInstallStatusVerified, false, time.Time{}),
+				agentInstall(hostA.ID, automdm.AndroidSoftwareInstallStatusVerified, false),
 			},
-			appsInScopeByHostID:    map[uint][]fleet.VPPAppTeam{hostA.ID: {appOne}},
+			appsInScopeByHostID:    map[uint][]automdm.VPPAppTeam{hostA.ID: {appOne}},
 			configurationUpdatedAt: new(builtAt.Add(-time.Minute)),
 		}
 
@@ -511,11 +511,11 @@ func TestReconcileAndroidApps(t *testing.T) {
 
 	t.Run("a host flagged for resend gets the app again", func(t *testing.T) {
 		*state = androidAppReconcileState{
-			hosts: []*fleet.Host{hostA},
-			installs: []*fleet.HostAndroidSoftwareInstall{
-				appOneInstall(hostA.ID, fleet.AndroidSoftwareInstallStatusVerified, true, time.Time{}),
+			hosts: []*automdm.Host{hostA},
+			installs: []*automdm.HostAndroidSoftwareInstall{
+				appOneInstall(hostA.ID, automdm.AndroidSoftwareInstallStatusVerified, true, time.Time{}),
 			},
-			appsInScopeByHostID: map[uint][]fleet.VPPAppTeam{hostA.ID: {appOne}},
+			appsInScopeByHostID: map[uint][]automdm.VPPAppTeam{hostA.ID: {appOne}},
 		}
 
 		// run the cron, host A should get the app and its new row should not be flagged
@@ -527,16 +527,16 @@ func TestReconcileAndroidApps(t *testing.T) {
 
 	t.Run("a host with a setup experience app out of scope keeps it preinstalled when it gets a new app", func(t *testing.T) {
 		*state = androidAppReconcileState{
-			hosts: []*fleet.Host{hostA},
-			installs: []*fleet.HostAndroidSoftwareInstall{
-				{HostID: hostA.ID, AdamID: "com.example.setup", InstallType: android.AppStatusPreinstalled, VPPAppTeamID: new(secondVersionID), Status: fleet.AndroidSoftwareInstallStatusPending, PolicyBuiltAt: builtAt},
-				agentInstall(hostA.ID, fleet.AndroidSoftwareInstallStatusVerified, false),
+			hosts: []*automdm.Host{hostA},
+			installs: []*automdm.HostAndroidSoftwareInstall{
+				{HostID: hostA.ID, AdamID: "com.example.setup", InstallType: android.AppStatusPreinstalled, VPPAppTeamID: new(secondVersionID), Status: automdm.AndroidSoftwareInstallStatusPending, PolicyBuiltAt: builtAt},
+				agentInstall(hostA.ID, automdm.AndroidSoftwareInstallStatusVerified, false),
 			},
-			appsInScopeByHostID: map[uint][]fleet.VPPAppTeam{hostA.ID: {appOne}},
-			setupApps:           []*fleet.HostAndroidVPPSoftwareInstall{{HostID: hostA.ID, AdamID: "com.example.setup", VPPAppTeamID: secondVersionID}},
+			appsInScopeByHostID: map[uint][]automdm.VPPAppTeam{hostA.ID: {appOne}},
+			setupApps:           []*automdm.HostAndroidVPPSoftwareInstall{{HostID: hostA.ID, AdamID: "com.example.setup", VPPAppTeamID: secondVersionID}},
 		}
 
-		// run the cron, host A should get the new app, the setup experience app and the Fleet agent, and the setup
+		// run the cron, host A should get the new app, the setup experience app and the AutoMDM agent, and the setup
 		// experience app's row should be neither upserted nor removed
 		err := reconcile(0)
 		require.NoError(t, err)
@@ -548,12 +548,12 @@ func TestReconcileAndroidApps(t *testing.T) {
 		require.Empty(t, state.removed)
 	})
 
-	t.Run("no apps in scope and no previously sent policy, send a policy with only the Fleet agent", func(t *testing.T) {
+	t.Run("no apps in scope and no previously sent policy, send a policy with only the AutoMDM agent", func(t *testing.T) {
 		*state = androidAppReconcileState{
-			hosts: []*fleet.Host{hostA},
+			hosts: []*automdm.Host{hostA},
 		}
 
-		// run the cron, host A should get a list with only the Fleet agent, which replaces any apps older jobs left in its
+		// run the cron, host A should get a list with only the AutoMDM agent, which replaces any apps older jobs left in its
 		// policy, and the agent's row should be upserted as pending in the returned policy version
 		err := reconcile(0)
 		require.NoError(t, err)
@@ -561,12 +561,12 @@ func TestReconcileAndroidApps(t *testing.T) {
 		require.Len(t, state.upserted, 1)
 		require.Equal(t, "com.fleetdm.agent", state.upserted[0].AdamID)
 		require.Equal(t, android.AppStatusForceInstalled, state.upserted[0].InstallType)
-		require.Equal(t, fleet.AndroidSoftwareInstallStatusPending, state.upserted[0].Status)
+		require.Equal(t, automdm.AndroidSoftwareInstallStatusPending, state.upserted[0].Status)
 		require.Equal(t, new(int64(5)), state.upserted[0].InPolicyVersion)
 
 		// read back the agent's row and run the cron again, nothing should be sent to host A
 		upsertedAgentInstall := state.upserted[0]
-		state.installs = []*fleet.HostAndroidSoftwareInstall{&upsertedAgentInstall}
+		state.installs = []*automdm.HostAndroidSoftwareInstall{&upsertedAgentInstall}
 		state.sent = nil
 		err = reconcile(0)
 		require.NoError(t, err)
@@ -575,51 +575,51 @@ func TestReconcileAndroidApps(t *testing.T) {
 
 	t.Run("a host rejected by the api is recorded as failed and another host still gets its request", func(t *testing.T) {
 		*state = androidAppReconcileState{
-			hosts:                []*fleet.Host{hostA, hostB},
-			appsInScopeByHostID:  map[uint][]fleet.VPPAppTeam{hostA.ID: {appOne}, hostB.ID: {appOne}},
+			hosts:                []*automdm.Host{hostA, hostB},
+			appsInScopeByHostID:  map[uint][]automdm.VPPAppTeam{hostA.ID: {appOne}, hostB.ID: {appOne}},
 			setAppsErrByHostUUID: map[string]error{"host-a": &googleapi.Error{Code: http.StatusBadRequest}},
 		}
 
-		// run the cron, host A's app and Fleet agent should be recorded as request failed and host B's as sent
+		// run the cron, host A's app and AutoMDM agent should be recorded as request failed and host B's as sent
 		err := reconcile(0)
 		require.NoError(t, err)
 		require.Len(t, state.sent, 2)
 		require.Len(t, state.upserted, 4)
 		require.Equal(t, hostA.ID, state.upserted[0].HostID)
 		require.Equal(t, "com.example.one", state.upserted[0].AdamID)
-		require.Equal(t, fleet.AndroidSoftwareInstallStatusRequestFailed, state.upserted[0].Status)
+		require.Equal(t, automdm.AndroidSoftwareInstallStatusRequestFailed, state.upserted[0].Status)
 		require.False(t, state.upserted[0].NeedsResend)
 		require.Equal(t, hostA.ID, state.upserted[1].HostID)
 		require.Equal(t, "com.fleetdm.agent", state.upserted[1].AdamID)
-		require.Equal(t, fleet.AndroidSoftwareInstallStatusRequestFailed, state.upserted[1].Status)
+		require.Equal(t, automdm.AndroidSoftwareInstallStatusRequestFailed, state.upserted[1].Status)
 		require.Equal(t, hostB.ID, state.upserted[2].HostID)
-		require.Equal(t, fleet.AndroidSoftwareInstallStatusPending, state.upserted[2].Status)
+		require.Equal(t, automdm.AndroidSoftwareInstallStatusPending, state.upserted[2].Status)
 	})
 
-	t.Run("a host whose policy gets a not modified response has its app and Fleet agent recorded as pending with no policy version", func(t *testing.T) {
+	t.Run("a host whose policy gets a not modified response has its app and AutoMDM agent recorded as pending with no policy version", func(t *testing.T) {
 		*state = androidAppReconcileState{
-			hosts:                []*fleet.Host{hostA},
-			appsInScopeByHostID:  map[uint][]fleet.VPPAppTeam{hostA.ID: {appOne}},
+			hosts:                []*automdm.Host{hostA},
+			appsInScopeByHostID:  map[uint][]automdm.VPPAppTeam{hostA.ID: {appOne}},
 			setAppsErrByHostUUID: map[string]error{"host-a": &googleapi.Error{Code: http.StatusNotModified}},
 		}
 
-		// run the cron, host A's app and Fleet agent should be recorded as pending with no policy version, so a later run
+		// run the cron, host A's app and AutoMDM agent should be recorded as pending with no policy version, so a later run
 		// won't send them again
 		err := reconcile(0)
 		require.NoError(t, err)
 		require.Len(t, state.sent, 1)
 		require.Len(t, state.upserted, 2)
 		require.Equal(t, "com.example.one", state.upserted[0].AdamID)
-		require.Equal(t, fleet.AndroidSoftwareInstallStatusPending, state.upserted[0].Status)
+		require.Equal(t, automdm.AndroidSoftwareInstallStatusPending, state.upserted[0].Status)
 		require.Nil(t, state.upserted[0].InPolicyVersion)
 		require.Equal(t, "com.fleetdm.agent", state.upserted[1].AdamID)
-		require.Equal(t, fleet.AndroidSoftwareInstallStatusPending, state.upserted[1].Status)
+		require.Equal(t, automdm.AndroidSoftwareInstallStatusPending, state.upserted[1].Status)
 	})
 
 	t.Run("a host whose list was sent has the installs saved during the run flagged and a rejected host doesn't", func(t *testing.T) {
 		*state = androidAppReconcileState{
-			hosts:                []*fleet.Host{hostA, hostB},
-			appsInScopeByHostID:  map[uint][]fleet.VPPAppTeam{hostA.ID: {appOne}, hostB.ID: {appOne}},
+			hosts:                []*automdm.Host{hostA, hostB},
+			appsInScopeByHostID:  map[uint][]automdm.VPPAppTeam{hostA.ID: {appOne}, hostB.ID: {appOne}},
 			setAppsErrByHostUUID: map[string]error{"host-a": &googleapi.Error{Code: http.StatusBadRequest}},
 		}
 
@@ -631,12 +631,12 @@ func TestReconcileAndroidApps(t *testing.T) {
 
 	t.Run("a host whose app failed for a missing value and then flagged for resend gets the app right away", func(t *testing.T) {
 		*state = androidAppReconcileState{
-			hosts: []*fleet.Host{hostA},
-			installs: []*fleet.HostAndroidSoftwareInstall{
-				appOneInstall(hostA.ID, fleet.AndroidSoftwareInstallStatusFailed, true, time.Now()),
-				agentInstall(hostA.ID, fleet.AndroidSoftwareInstallStatusVerified, false),
+			hosts: []*automdm.Host{hostA},
+			installs: []*automdm.HostAndroidSoftwareInstall{
+				appOneInstall(hostA.ID, automdm.AndroidSoftwareInstallStatusFailed, true, time.Now()),
+				agentInstall(hostA.ID, automdm.AndroidSoftwareInstallStatusVerified, false),
 			},
-			appsInScopeByHostID: map[uint][]fleet.VPPAppTeam{hostA.ID: {appOne}},
+			appsInScopeByHostID: map[uint][]automdm.VPPAppTeam{hostA.ID: {appOne}},
 		}
 
 		// run the cron, host A should get the app without waiting to retry and no retry should be counted
@@ -648,12 +648,12 @@ func TestReconcileAndroidApps(t *testing.T) {
 
 	t.Run("a host whose request failed less than an hour ago gets a configuration edit right away", func(t *testing.T) {
 		*state = androidAppReconcileState{
-			hosts: []*fleet.Host{hostA},
-			installs: []*fleet.HostAndroidSoftwareInstall{
-				appOneInstall(hostA.ID, fleet.AndroidSoftwareInstallStatusRequestFailed, false, time.Now().Add(-10*time.Minute)),
-				agentInstall(hostA.ID, fleet.AndroidSoftwareInstallStatusRequestFailed, false),
+			hosts: []*automdm.Host{hostA},
+			installs: []*automdm.HostAndroidSoftwareInstall{
+				appOneInstall(hostA.ID, automdm.AndroidSoftwareInstallStatusRequestFailed, false, time.Now().Add(-10*time.Minute)),
+				agentInstall(hostA.ID, automdm.AndroidSoftwareInstallStatusRequestFailed, false),
 			},
-			appsInScopeByHostID:    map[uint][]fleet.VPPAppTeam{hostA.ID: {appOne}},
+			appsInScopeByHostID:    map[uint][]automdm.VPPAppTeam{hostA.ID: {appOne}},
 			configurationUpdatedAt: new(builtAt.Add(time.Minute)),
 		}
 
@@ -666,9 +666,9 @@ func TestReconcileAndroidApps(t *testing.T) {
 
 	t.Run("a quota error on a host's profile patch with its app list saves none of the host's apps", func(t *testing.T) {
 		*state = androidAppReconcileState{
-			hosts:                []*fleet.Host{hostA},
-			appsInScopeByHostID:  map[uint][]fleet.VPPAppTeam{hostA.ID: {appOne}},
-			profilesToSend:       []*fleet.MDMAndroidProfilePayload{{HostUUID: "host-a", ProfileUUID: "profile-1", ProfileName: "Profile 1"}},
+			hosts:                []*automdm.Host{hostA},
+			appsInScopeByHostID:  map[uint][]automdm.VPPAppTeam{hostA.ID: {appOne}},
+			profilesToSend:       []*automdm.MDMAndroidProfilePayload{{HostUUID: "host-a", ProfileUUID: "profile-1", ProfileName: "Profile 1"}},
 			setAppsErrByHostUUID: map[string]error{"host-a": &googleapi.Error{Code: http.StatusTooManyRequests}},
 		}
 
@@ -681,13 +681,13 @@ func TestReconcileAndroidApps(t *testing.T) {
 
 	t.Run("a host whose request failed less than an hour ago gets no request", func(t *testing.T) {
 		*state = androidAppReconcileState{
-			hosts: []*fleet.Host{hostA},
-			installs: []*fleet.HostAndroidSoftwareInstall{
-				appOneInstall(hostA.ID, fleet.AndroidSoftwareInstallStatusRequestFailed, false, time.Now().Add(-10*time.Minute)),
-				{HostID: hostA.ID, AdamID: "com.example.leaving", InstallType: android.AppStatusAvailable, VPPAppTeamID: new(secondVersionID), Status: fleet.AndroidSoftwareInstallStatusRequestFailed, PolicyBuiltAt: builtAt, UpdatedAt: time.Now().Add(-10 * time.Minute)},
-				agentInstall(hostA.ID, fleet.AndroidSoftwareInstallStatusRequestFailed, false),
+			hosts: []*automdm.Host{hostA},
+			installs: []*automdm.HostAndroidSoftwareInstall{
+				appOneInstall(hostA.ID, automdm.AndroidSoftwareInstallStatusRequestFailed, false, time.Now().Add(-10*time.Minute)),
+				{HostID: hostA.ID, AdamID: "com.example.leaving", InstallType: android.AppStatusAvailable, VPPAppTeamID: new(secondVersionID), Status: automdm.AndroidSoftwareInstallStatusRequestFailed, PolicyBuiltAt: builtAt, UpdatedAt: time.Now().Add(-10 * time.Minute)},
+				agentInstall(hostA.ID, automdm.AndroidSoftwareInstallStatusRequestFailed, false),
 			},
-			appsInScopeByHostID: map[uint][]fleet.VPPAppTeam{hostA.ID: {appOne}},
+			appsInScopeByHostID: map[uint][]automdm.VPPAppTeam{hostA.ID: {appOne}},
 		}
 
 		// run the cron, nothing should be sent, including the removal of the app out of scope, and no retry counted
@@ -699,12 +699,12 @@ func TestReconcileAndroidApps(t *testing.T) {
 
 	t.Run("a host whose request failed over an hour ago is sent again and the retry is counted", func(t *testing.T) {
 		*state = androidAppReconcileState{
-			hosts: []*fleet.Host{hostA},
-			installs: []*fleet.HostAndroidSoftwareInstall{
-				appOneInstall(hostA.ID, fleet.AndroidSoftwareInstallStatusRequestFailed, false, time.Now().Add(-2*time.Hour)),
-				agentInstall(hostA.ID, fleet.AndroidSoftwareInstallStatusRequestFailed, false),
+			hosts: []*automdm.Host{hostA},
+			installs: []*automdm.HostAndroidSoftwareInstall{
+				appOneInstall(hostA.ID, automdm.AndroidSoftwareInstallStatusRequestFailed, false, time.Now().Add(-2*time.Hour)),
+				agentInstall(hostA.ID, automdm.AndroidSoftwareInstallStatusRequestFailed, false),
 			},
-			appsInScopeByHostID: map[uint][]fleet.VPPAppTeam{hostA.ID: {appOne}},
+			appsInScopeByHostID: map[uint][]automdm.VPPAppTeam{hostA.ID: {appOne}},
 			retries:             1,
 		}
 
@@ -717,12 +717,12 @@ func TestReconcileAndroidApps(t *testing.T) {
 
 	t.Run("a host retried twice gets no request until its retry count expires", func(t *testing.T) {
 		*state = androidAppReconcileState{
-			hosts: []*fleet.Host{hostA},
-			installs: []*fleet.HostAndroidSoftwareInstall{
-				appOneInstall(hostA.ID, fleet.AndroidSoftwareInstallStatusRequestFailed, false, time.Now().Add(-2*time.Hour)),
-				agentInstall(hostA.ID, fleet.AndroidSoftwareInstallStatusRequestFailed, false),
+			hosts: []*automdm.Host{hostA},
+			installs: []*automdm.HostAndroidSoftwareInstall{
+				appOneInstall(hostA.ID, automdm.AndroidSoftwareInstallStatusRequestFailed, false, time.Now().Add(-2*time.Hour)),
+				agentInstall(hostA.ID, automdm.AndroidSoftwareInstallStatusRequestFailed, false),
 			},
-			appsInScopeByHostID: map[uint][]fleet.VPPAppTeam{hostA.ID: {appOne}},
+			appsInScopeByHostID: map[uint][]automdm.VPPAppTeam{hostA.ID: {appOne}},
 			retries:             2,
 		}
 
@@ -741,15 +741,15 @@ func TestReconcileAndroidApps(t *testing.T) {
 
 	t.Run("a host whose retry the batch size leaves for the next run uses no retry", func(t *testing.T) {
 		*state = androidAppReconcileState{
-			hosts: []*fleet.Host{hostA, hostB},
-			installs: []*fleet.HostAndroidSoftwareInstall{
-				appOneInstall(hostA.ID, fleet.AndroidSoftwareInstallStatusVerified, false, time.Time{}),
-				agentInstall(hostA.ID, fleet.AndroidSoftwareInstallStatusVerified, false),
-				appOneInstall(hostB.ID, fleet.AndroidSoftwareInstallStatusRequestFailed, false, time.Now().Add(-2*time.Hour)),
-				agentInstall(hostB.ID, fleet.AndroidSoftwareInstallStatusRequestFailed, false),
+			hosts: []*automdm.Host{hostA, hostB},
+			installs: []*automdm.HostAndroidSoftwareInstall{
+				appOneInstall(hostA.ID, automdm.AndroidSoftwareInstallStatusVerified, false, time.Time{}),
+				agentInstall(hostA.ID, automdm.AndroidSoftwareInstallStatusVerified, false),
+				appOneInstall(hostB.ID, automdm.AndroidSoftwareInstallStatusRequestFailed, false, time.Now().Add(-2*time.Hour)),
+				agentInstall(hostB.ID, automdm.AndroidSoftwareInstallStatusRequestFailed, false),
 			},
-			appsInScopeByHostID: map[uint][]fleet.VPPAppTeam{hostA.ID: {appOne}, hostB.ID: {appOne}},
-			profilesToSend:      []*fleet.MDMAndroidProfilePayload{{HostUUID: "host-a", ProfileUUID: "profile-1", ProfileName: "Profile 1"}},
+			appsInScopeByHostID: map[uint][]automdm.VPPAppTeam{hostA.ID: {appOne}, hostB.ID: {appOne}},
+			profilesToSend:      []*automdm.MDMAndroidProfilePayload{{HostUUID: "host-a", ProfileUUID: "profile-1", ProfileName: "Profile 1"}},
 		}
 
 		// run the cron with a batch size of 1, host A's profile patch should use the run's only patch and host B's retry
@@ -762,9 +762,9 @@ func TestReconcileAndroidApps(t *testing.T) {
 
 	t.Run("a host with profile changes gets its app list in its profile patch when the batch has no room for another host", func(t *testing.T) {
 		*state = androidAppReconcileState{
-			hosts:               []*fleet.Host{hostA, hostB},
-			appsInScopeByHostID: map[uint][]fleet.VPPAppTeam{hostA.ID: {appOne}, hostB.ID: {appOne}},
-			profilesToSend:      []*fleet.MDMAndroidProfilePayload{{HostUUID: "host-b", ProfileUUID: "profile-1", ProfileName: "Profile 1"}},
+			hosts:               []*automdm.Host{hostA, hostB},
+			appsInScopeByHostID: map[uint][]automdm.VPPAppTeam{hostA.ID: {appOne}, hostB.ID: {appOne}},
+			profilesToSend:      []*automdm.MDMAndroidProfilePayload{{HostUUID: "host-b", ProfileUUID: "profile-1", ProfileName: "Profile 1"}},
 		}
 
 		// run the cron with a batch size of 1, host B's profile patch should include its app list and host A, which has no
@@ -777,11 +777,11 @@ func TestReconcileAndroidApps(t *testing.T) {
 
 	t.Run("a host whose request failed less than an hour ago gets a new app in scope right away without counting a retry", func(t *testing.T) {
 		*state = androidAppReconcileState{
-			hosts: []*fleet.Host{hostA},
-			installs: []*fleet.HostAndroidSoftwareInstall{
-				appOneInstall(hostA.ID, fleet.AndroidSoftwareInstallStatusRequestFailed, false, time.Now().Add(-10*time.Minute)),
+			hosts: []*automdm.Host{hostA},
+			installs: []*automdm.HostAndroidSoftwareInstall{
+				appOneInstall(hostA.ID, automdm.AndroidSoftwareInstallStatusRequestFailed, false, time.Now().Add(-10*time.Minute)),
 			},
-			appsInScopeByHostID: map[uint][]fleet.VPPAppTeam{hostA.ID: {
+			appsInScopeByHostID: map[uint][]automdm.VPPAppTeam{hostA.ID: {
 				appOne,
 				{AdamID: "com.example.two", AppTeamID: secondVersionID},
 			}},
@@ -797,8 +797,8 @@ func TestReconcileAndroidApps(t *testing.T) {
 
 	t.Run("a quota error stops the run", func(t *testing.T) {
 		*state = androidAppReconcileState{
-			hosts:                []*fleet.Host{hostA, hostB},
-			appsInScopeByHostID:  map[uint][]fleet.VPPAppTeam{hostA.ID: {appOne}, hostB.ID: {appOne}},
+			hosts:                []*automdm.Host{hostA, hostB},
+			appsInScopeByHostID:  map[uint][]automdm.VPPAppTeam{hostA.ID: {appOne}, hostB.ID: {appOne}},
 			setAppsErrByHostUUID: map[string]error{"host-a": &googleapi.Error{Code: http.StatusTooManyRequests}},
 		}
 
@@ -809,10 +809,10 @@ func TestReconcileAndroidApps(t *testing.T) {
 		require.Empty(t, state.upserted)
 	})
 
-	t.Run("a Fleet agent that can't be built sends nothing for the host", func(t *testing.T) {
+	t.Run("an AutoMDM agent that can't be built sends nothing for the host", func(t *testing.T) {
 		*state = androidAppReconcileState{
-			hosts:               []*fleet.Host{hostA},
-			appsInScopeByHostID: map[uint][]fleet.VPPAppTeam{hostA.ID: {appOne}},
+			hosts:               []*automdm.Host{hostA},
+			appsInScopeByHostID: map[uint][]automdm.VPPAppTeam{hostA.ID: {appOne}},
 			agentErr:            sql.ErrConnDone,
 		}
 
@@ -825,13 +825,13 @@ func TestReconcileAndroidApps(t *testing.T) {
 
 	t.Run("a host with an app whose configuration uses a value the host doesn't have gets no request and the app is upserted as failed", func(t *testing.T) {
 		*state = androidAppReconcileState{
-			hosts: []*fleet.Host{hostA},
-			appsInScopeByHostID: map[uint][]fleet.VPPAppTeam{hostA.ID: {
+			hosts: []*automdm.Host{hostA},
+			appsInScopeByHostID: map[uint][]automdm.VPPAppTeam{hostA.ID: {
 				appOne,
 				{AdamID: "com.example.vital", AppTeamID: secondVersionID},
 			}},
-			secondVersionConfig: []byte(`{"managedConfiguration":{"tag":"$FLEET_HOST_VITAL_7"}}`),
-			expandErr:           &fleet.MissingCustomHostVitalValueError{MissingIDs: []uint{7}, MissingNames: []string{"Host vital 1"}},
+			secondVersionConfig: []byte(`{"managedConfiguration":{"tag":"$AUTOMDM_HOST_VITAL_7"}}`),
+			expandErr:           &automdm.MissingCustomHostVitalValueError{MissingIDs: []uint{7}, MissingNames: []string{"Host vital 1"}},
 		}
 
 		// run the cron, host A should get no request, and only the vital app should be upserted, as failed with no policy
@@ -841,19 +841,19 @@ func TestReconcileAndroidApps(t *testing.T) {
 		require.Empty(t, state.sent)
 		require.Len(t, state.upserted, 1)
 		require.Equal(t, "com.example.vital", state.upserted[0].AdamID)
-		require.Equal(t, fleet.AndroidSoftwareInstallStatusFailed, state.upserted[0].Status)
+		require.Equal(t, automdm.AndroidSoftwareInstallStatusFailed, state.upserted[0].Status)
 		require.Nil(t, state.upserted[0].InPolicyVersion)
 	})
 
 	t.Run("a full batch sends to the first host that needs a list, skipping a host with no changes, and the next run sends the rest", func(t *testing.T) {
-		hostC := &fleet.Host{ID: 3, UUID: "host-c", Platform: "android"}
+		hostC := &automdm.Host{ID: 3, UUID: "host-c", Platform: "android"}
 		*state = androidAppReconcileState{
-			hosts: []*fleet.Host{hostA, hostB, hostC},
-			installs: []*fleet.HostAndroidSoftwareInstall{
-				appOneInstall(hostA.ID, fleet.AndroidSoftwareInstallStatusVerified, false, time.Time{}),
-				agentInstall(hostA.ID, fleet.AndroidSoftwareInstallStatusVerified, false),
+			hosts: []*automdm.Host{hostA, hostB, hostC},
+			installs: []*automdm.HostAndroidSoftwareInstall{
+				appOneInstall(hostA.ID, automdm.AndroidSoftwareInstallStatusVerified, false, time.Time{}),
+				agentInstall(hostA.ID, automdm.AndroidSoftwareInstallStatusVerified, false),
 			},
-			appsInScopeByHostID: map[uint][]fleet.VPPAppTeam{hostA.ID: {appOne}, hostB.ID: {appOne}, hostC.ID: {appOne}},
+			appsInScopeByHostID: map[uint][]automdm.VPPAppTeam{hostA.ID: {appOne}, hostB.ID: {appOne}, hostC.ID: {appOne}},
 		}
 
 		// run the cron with a batch size of 1, host A has no changes so host B should get the run's only list
@@ -863,8 +863,8 @@ func TestReconcileAndroidApps(t *testing.T) {
 
 		// save host B's apps as sent and run the cron again, host C should get its list
 		state.installs = append(state.installs,
-			appOneInstall(hostB.ID, fleet.AndroidSoftwareInstallStatusPending, false, time.Time{}),
-			agentInstall(hostB.ID, fleet.AndroidSoftwareInstallStatusPending, false),
+			appOneInstall(hostB.ID, automdm.AndroidSoftwareInstallStatusPending, false, time.Time{}),
+			agentInstall(hostB.ID, automdm.AndroidSoftwareInstallStatusPending, false),
 		)
 		state.sent = nil
 		err = reconcile(1)
@@ -874,65 +874,65 @@ func TestReconcileAndroidApps(t *testing.T) {
 }
 
 func TestReconcileAndroidAppsRemoval(t *testing.T) {
-	hostA := &fleet.Host{ID: 1, UUID: "host-a", Platform: "android"}
-	hostB := &fleet.Host{ID: 2, UUID: "host-b", Platform: "android"}
-	appOne := fleet.VPPAppTeam{AdamID: "com.example.one", AppTeamID: 10}
-	agentInstall := func(hostID uint) *fleet.HostAndroidSoftwareInstall {
-		return &fleet.HostAndroidSoftwareInstall{HostID: hostID, AdamID: "com.fleetdm.agent", InstallType: android.AppStatusForceInstalled, Status: fleet.AndroidSoftwareInstallStatusVerified}
+	hostA := &automdm.Host{ID: 1, UUID: "host-a", Platform: "android"}
+	hostB := &automdm.Host{ID: 2, UUID: "host-b", Platform: "android"}
+	appOne := automdm.VPPAppTeam{AdamID: "com.example.one", AppTeamID: 10}
+	agentInstall := func(hostID uint) *automdm.HostAndroidSoftwareInstall {
+		return &automdm.HostAndroidSoftwareInstall{HostID: hostID, AdamID: "com.fleetdm.agent", InstallType: android.AppStatusForceInstalled, Status: automdm.AndroidSoftwareInstallStatusVerified}
 	}
-	appOneInstall := func(hostID uint) *fleet.HostAndroidSoftwareInstall {
-		return &fleet.HostAndroidSoftwareInstall{HostID: hostID, AdamID: "com.example.one", InstallType: android.AppStatusAvailable, VPPAppTeamID: new(uint(10)), Status: fleet.AndroidSoftwareInstallStatusVerified}
+	appOneInstall := func(hostID uint) *automdm.HostAndroidSoftwareInstall {
+		return &automdm.HostAndroidSoftwareInstall{HostID: hostID, AdamID: "com.example.one", InstallType: android.AppStatusAvailable, VPPAppTeamID: new(uint(10)), Status: automdm.AndroidSoftwareInstallStatusVerified}
 	}
-	setupAppInstall := func(hostID uint) *fleet.HostAndroidSoftwareInstall {
-		return &fleet.HostAndroidSoftwareInstall{HostID: hostID, AdamID: "com.example.setup", InstallType: android.AppStatusPreinstalled, VPPAppTeamID: new(uint(11)), Status: fleet.AndroidSoftwareInstallStatusVerified}
+	setupAppInstall := func(hostID uint) *automdm.HostAndroidSoftwareInstall {
+		return &automdm.HostAndroidSoftwareInstall{HostID: hostID, AdamID: "com.example.setup", InstallType: android.AppStatusPreinstalled, VPPAppTeamID: new(uint(11)), Status: automdm.AndroidSoftwareInstallStatusVerified}
 	}
 
 	type removalTestState struct {
-		hosts               []*fleet.Host
-		installs            []*fleet.HostAndroidSoftwareInstall
-		appsInScopeByHostID map[uint][]fleet.VPPAppTeam
-		profilesToSend      []*fleet.MDMAndroidProfilePayload
+		hosts               []*automdm.Host
+		installs            []*automdm.HostAndroidSoftwareInstall
+		appsInScopeByHostID map[uint][]automdm.VPPAppTeam
+		profilesToSend      []*automdm.MDMAndroidProfilePayload
 		patchErr            error
 		removeErr           error
 
 		patchOpts           []androidmgmt.PoliciesPatchOpts
 		patchedInstallTypes map[string]string
 		removedPackages     []string
-		upserted            []fleet.HostAndroidSoftwareInstall
-		removed             []fleet.HostAndroidSoftwareInstall
+		upserted            []automdm.HostAndroidSoftwareInstall
+		removed             []automdm.HostAndroidSoftwareInstall
 	}
 	state := &removalTestState{}
 
 	ds := new(mock.Store)
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{MDM: fleet.MDM{AndroidEnabledAndConfigured: true}}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{MDM: automdm.MDM{AndroidEnabledAndConfigured: true}}, nil
 	}
 	ds.GetEnterpriseFunc = func(ctx context.Context) (*android.Enterprise, error) {
 		return &android.Enterprise{EnterpriseID: "test"}, nil
 	}
-	ds.ListAndroidHostsOnHostPolicyFunc = func(ctx context.Context) ([]*fleet.Host, error) {
+	ds.ListAndroidHostsOnHostPolicyFunc = func(ctx context.Context) ([]*automdm.Host, error) {
 		return state.hosts, nil
 	}
-	ds.ListAndroidAppsInScopeForHostsFunc = func(ctx context.Context, hostIDs []uint) (map[uint][]fleet.VPPAppTeam, error) {
+	ds.ListAndroidAppsInScopeForHostsFunc = func(ctx context.Context, hostIDs []uint) (map[uint][]automdm.VPPAppTeam, error) {
 		return state.appsInScopeByHostID, nil
 	}
-	ds.ListHostMDMAndroidVPPAppsFromSetupExperienceFunc = func(ctx context.Context, hostIDs []uint) (map[uint][]*fleet.HostAndroidVPPSoftwareInstall, error) {
+	ds.ListHostMDMAndroidVPPAppsFromSetupExperienceFunc = func(ctx context.Context, hostIDs []uint) (map[uint][]*automdm.HostAndroidVPPSoftwareInstall, error) {
 		return nil, nil
 	}
-	ds.ListHostAndroidSoftwareInstallsFunc = func(ctx context.Context, hostIDs []uint) (map[uint]map[string]*fleet.HostAndroidSoftwareInstall, error) {
-		installsByHostID := make(map[uint]map[string]*fleet.HostAndroidSoftwareInstall)
+	ds.ListHostAndroidSoftwareInstallsFunc = func(ctx context.Context, hostIDs []uint) (map[uint]map[string]*automdm.HostAndroidSoftwareInstall, error) {
+		installsByHostID := make(map[uint]map[string]*automdm.HostAndroidSoftwareInstall)
 		for _, install := range state.installs {
 			if installsByHostID[install.HostID] == nil {
-				installsByHostID[install.HostID] = make(map[string]*fleet.HostAndroidSoftwareInstall)
+				installsByHostID[install.HostID] = make(map[string]*automdm.HostAndroidSoftwareInstall)
 			}
 			installsByHostID[install.HostID][install.AdamID] = install
 		}
 		return installsByHostID, nil
 	}
-	ds.GetAndroidAppStoreAppVersionsByIDFunc = func(ctx context.Context) (map[uint]*fleet.VPPAppStoreApp, error) {
-		return map[uint]*fleet.VPPAppStoreApp{10: {VPPAppsTeamsID: 10}, 11: {VPPAppsTeamsID: 11}}, nil
+	ds.GetAndroidAppStoreAppVersionsByIDFunc = func(ctx context.Context) (map[uint]*automdm.VPPAppStoreApp, error) {
+		return map[uint]*automdm.VPPAppStoreApp{10: {VPPAppsTeamsID: 10}, 11: {VPPAppsTeamsID: 11}}, nil
 	}
-	ds.BulkUpsertHostAndroidSoftwareInstallsFunc = func(ctx context.Context, installs []fleet.HostAndroidSoftwareInstall, removedInstalls []fleet.HostAndroidSoftwareInstall) error {
+	ds.BulkUpsertHostAndroidSoftwareInstallsFunc = func(ctx context.Context, installs []automdm.HostAndroidSoftwareInstall, removedInstalls []automdm.HostAndroidSoftwareInstall) error {
 		state.upserted = append(state.upserted, installs...)
 		state.removed = append(state.removed, removedInstalls...)
 		return nil
@@ -940,13 +940,13 @@ func TestReconcileAndroidAppsRemoval(t *testing.T) {
 	ds.NewAndroidPolicyRequestFunc = func(ctx context.Context, req *android.MDMAndroidPolicyRequest) error {
 		return nil
 	}
-	ds.AndroidHostLiteByHostUUIDFunc = func(ctx context.Context, hostUUID string) (*fleet.AndroidHost, error) {
-		return &fleet.AndroidHost{Host: &fleet.Host{UUID: hostUUID}, Device: &android.Device{AppliedPolicyID: new(hostUUID)}}, nil
+	ds.AndroidHostLiteByHostUUIDFunc = func(ctx context.Context, hostUUID string) (*automdm.AndroidHost, error) {
+		return &automdm.AndroidHost{Host: &automdm.Host{UUID: hostUUID}, Device: &android.Device{AppliedPolicyID: new(hostUUID)}}, nil
 	}
-	ds.GetEnrollSecretsFunc = func(ctx context.Context, teamID *uint) ([]*fleet.EnrollSecret, error) {
-		return []*fleet.EnrollSecret{{Secret: "secret"}}, nil
+	ds.GetEnrollSecretsFunc = func(ctx context.Context, teamID *uint) ([]*automdm.EnrollSecret, error) {
+		return []*automdm.EnrollSecret{{Secret: "secret"}}, nil
 	}
-	ds.ListCertificateTemplatesForHostsFunc = func(ctx context.Context, hostUUIDs []string) ([]fleet.CertificateTemplateForHost, error) {
+	ds.ListCertificateTemplatesForHostsFunc = func(ctx context.Context, hostUUIDs []string) ([]automdm.CertificateTemplateForHost, error) {
 		return nil, nil
 	}
 	ds.SetHostAndroidSoftwareInstallsNeedsResendFunc = func(ctx context.Context, hostIDs []uint, builtAfter *time.Time, adamID *string) error {
@@ -955,13 +955,13 @@ func TestReconcileAndroidAppsRemoval(t *testing.T) {
 	ds.ListAndroidHostUUIDsWithPendingCertificateTemplatesFunc = func(ctx context.Context, afterHostUUID string, limit int) ([]string, error) {
 		return nil, nil
 	}
-	ds.ListAndroidFleetDefaultPolicyProfilesFunc = func(ctx context.Context, teamID *uint) ([]*fleet.MDMAndroidConfigProfile, error) {
+	ds.ListAndroidAutoMDMDefaultPolicyProfilesFunc = func(ctx context.Context, teamID *uint) ([]*automdm.MDMAndroidConfigProfile, error) {
 		return nil, nil
 	}
-	ds.GetAndroidFleetDefaultPolicyChecksumsFunc = func(ctx context.Context) (map[uint][]byte, error) {
+	ds.GetAndroidAutoMDMDefaultPolicyChecksumsFunc = func(ctx context.Context) (map[uint][]byte, error) {
 		return nil, nil
 	}
-	ds.ListAndroidFleetDefaultPolicyDeletedFleetsFunc = func(ctx context.Context) ([]uint, error) {
+	ds.ListAndroidAutoMDMDefaultPolicyDeletedTeamsFunc = func(ctx context.Context) ([]uint, error) {
 		return nil, nil
 	}
 	ds.GetMDMAndroidReconcileCursorFunc = func(ctx context.Context) (string, error) {
@@ -973,7 +973,7 @@ func TestReconcileAndroidAppsRemoval(t *testing.T) {
 	ds.GetMDMAndroidProfilesWriteTimeFunc = func(ctx context.Context) (time.Time, error) {
 		return time.Now(), nil
 	}
-	ds.ListMDMAndroidProfilesToSendFunc = func(ctx context.Context, cursor string, batchSize int) ([]*fleet.MDMAndroidProfilePayload, []*fleet.MDMAndroidProfilePayload, error) {
+	ds.ListMDMAndroidProfilesToSendFunc = func(ctx context.Context, cursor string, batchSize int) ([]*automdm.MDMAndroidProfilePayload, []*automdm.MDMAndroidProfilePayload, error) {
 		return state.profilesToSend, nil, nil
 	}
 	ds.GetMDMAndroidProfilesContentsFunc = func(ctx context.Context, uuids []string) (map[string]json.RawMessage, error) {
@@ -983,7 +983,7 @@ func TestReconcileAndroidAppsRemoval(t *testing.T) {
 		}
 		return contents, nil
 	}
-	ds.BulkUpsertMDMAndroidHostProfilesUnlessResetSinceFunc = func(ctx context.Context, payload []*fleet.MDMAndroidProfilePayload, since time.Time) error {
+	ds.BulkUpsertMDMAndroidHostProfilesUnlessResetSinceFunc = func(ctx context.Context, payload []*automdm.MDMAndroidProfilePayload, since time.Time) error {
 		return nil
 	}
 
@@ -1020,9 +1020,9 @@ func TestReconcileAndroidAppsRemoval(t *testing.T) {
 
 	t.Run("a deleted setup experience app and a new app go in one patch before the setup experience app is removed", func(t *testing.T) {
 		*state = removalTestState{
-			hosts:               []*fleet.Host{hostA},
-			installs:            []*fleet.HostAndroidSoftwareInstall{setupAppInstall(hostA.ID), agentInstall(hostA.ID)},
-			appsInScopeByHostID: map[uint][]fleet.VPPAppTeam{hostA.ID: {appOne}},
+			hosts:               []*automdm.Host{hostA},
+			installs:            []*automdm.HostAndroidSoftwareInstall{setupAppInstall(hostA.ID), agentInstall(hostA.ID)},
+			appsInScopeByHostID: map[uint][]automdm.VPPAppTeam{hostA.ID: {appOne}},
 		}
 
 		// run the cron, the setup experience app should be patched as preinstalled and then removed
@@ -1038,7 +1038,7 @@ func TestReconcileAndroidAppsRemoval(t *testing.T) {
 		require.Equal(t, []string{"com.example.setup"}, state.removedPackages)
 		require.Len(t, state.upserted, 2)
 		require.Equal(t, "com.example.one", state.upserted[0].AdamID)
-		require.Equal(t, fleet.AndroidSoftwareInstallStatusPending, state.upserted[0].Status)
+		require.Equal(t, automdm.AndroidSoftwareInstallStatusPending, state.upserted[0].Status)
 		require.Equal(t, "com.fleetdm.agent", state.upserted[1].AdamID)
 		require.Len(t, state.removed, 1)
 		require.Equal(t, "com.example.setup", state.removed[0].AdamID)
@@ -1046,8 +1046,8 @@ func TestReconcileAndroidAppsRemoval(t *testing.T) {
 
 	t.Run("an app out of scope with no other app changes sends only the removal", func(t *testing.T) {
 		*state = removalTestState{
-			hosts:    []*fleet.Host{hostA},
-			installs: []*fleet.HostAndroidSoftwareInstall{appOneInstall(hostA.ID), agentInstall(hostA.ID)},
+			hosts:    []*automdm.Host{hostA},
+			installs: []*automdm.HostAndroidSoftwareInstall{appOneInstall(hostA.ID), agentInstall(hostA.ID)},
 		}
 
 		// run the cron, the app should be removed without a patch
@@ -1063,9 +1063,9 @@ func TestReconcileAndroidAppsRemoval(t *testing.T) {
 
 	t.Run("profile changes and an app out of scope with no other app changes patch only the profiles before the app is removed", func(t *testing.T) {
 		*state = removalTestState{
-			hosts:          []*fleet.Host{hostA},
-			installs:       []*fleet.HostAndroidSoftwareInstall{appOneInstall(hostA.ID), agentInstall(hostA.ID)},
-			profilesToSend: []*fleet.MDMAndroidProfilePayload{{HostUUID: "host-a", ProfileUUID: "profile-1", ProfileName: "Profile 1"}},
+			hosts:          []*automdm.Host{hostA},
+			installs:       []*automdm.HostAndroidSoftwareInstall{appOneInstall(hostA.ID), agentInstall(hostA.ID)},
+			profilesToSend: []*automdm.MDMAndroidProfilePayload{{HostUUID: "host-a", ProfileUUID: "profile-1", ProfileName: "Profile 1"}},
 		}
 
 		// run the cron, the profiles patch should leave the policy's apps unchanged and the app should be removed after it
@@ -1081,9 +1081,9 @@ func TestReconcileAndroidAppsRemoval(t *testing.T) {
 
 	t.Run("a rejected patch sends no removal and sets the app out of scope to request failed", func(t *testing.T) {
 		*state = removalTestState{
-			hosts:               []*fleet.Host{hostA},
-			installs:            []*fleet.HostAndroidSoftwareInstall{setupAppInstall(hostA.ID), agentInstall(hostA.ID)},
-			appsInScopeByHostID: map[uint][]fleet.VPPAppTeam{hostA.ID: {appOne}},
+			hosts:               []*automdm.Host{hostA},
+			installs:            []*automdm.HostAndroidSoftwareInstall{setupAppInstall(hostA.ID), agentInstall(hostA.ID)},
+			appsInScopeByHostID: map[uint][]automdm.VPPAppTeam{hostA.ID: {appOne}},
 			patchErr:            &googleapi.Error{Code: http.StatusBadRequest},
 		}
 
@@ -1095,18 +1095,18 @@ func TestReconcileAndroidAppsRemoval(t *testing.T) {
 		require.Empty(t, state.removed)
 		require.Len(t, state.upserted, 3)
 		require.Equal(t, "com.example.one", state.upserted[0].AdamID)
-		require.Equal(t, fleet.AndroidSoftwareInstallStatusRequestFailed, state.upserted[0].Status)
+		require.Equal(t, automdm.AndroidSoftwareInstallStatusRequestFailed, state.upserted[0].Status)
 		require.Equal(t, "com.fleetdm.agent", state.upserted[1].AdamID)
-		require.Equal(t, fleet.AndroidSoftwareInstallStatusRequestFailed, state.upserted[1].Status)
+		require.Equal(t, automdm.AndroidSoftwareInstallStatusRequestFailed, state.upserted[1].Status)
 		require.Equal(t, "com.example.setup", state.upserted[2].AdamID)
-		require.Equal(t, fleet.AndroidSoftwareInstallStatusRequestFailed, state.upserted[2].Status)
+		require.Equal(t, automdm.AndroidSoftwareInstallStatusRequestFailed, state.upserted[2].Status)
 	})
 
 	t.Run("a rejected removal sets only the removed app to request failed", func(t *testing.T) {
 		*state = removalTestState{
-			hosts:               []*fleet.Host{hostA},
-			installs:            []*fleet.HostAndroidSoftwareInstall{setupAppInstall(hostA.ID), agentInstall(hostA.ID)},
-			appsInScopeByHostID: map[uint][]fleet.VPPAppTeam{hostA.ID: {appOne}},
+			hosts:               []*automdm.Host{hostA},
+			installs:            []*automdm.HostAndroidSoftwareInstall{setupAppInstall(hostA.ID), agentInstall(hostA.ID)},
+			appsInScopeByHostID: map[uint][]automdm.VPPAppTeam{hostA.ID: {appOne}},
 			removeErr:           &googleapi.Error{Code: http.StatusBadRequest},
 		}
 
@@ -1118,20 +1118,20 @@ func TestReconcileAndroidAppsRemoval(t *testing.T) {
 		require.Empty(t, state.removed)
 		require.Len(t, state.upserted, 3)
 		require.Equal(t, "com.example.one", state.upserted[0].AdamID)
-		require.Equal(t, fleet.AndroidSoftwareInstallStatusPending, state.upserted[0].Status)
+		require.Equal(t, automdm.AndroidSoftwareInstallStatusPending, state.upserted[0].Status)
 		require.Equal(t, new(int64(5)), state.upserted[0].InPolicyVersion)
 		require.Equal(t, "com.fleetdm.agent", state.upserted[1].AdamID)
-		require.Equal(t, fleet.AndroidSoftwareInstallStatusPending, state.upserted[1].Status)
+		require.Equal(t, automdm.AndroidSoftwareInstallStatusPending, state.upserted[1].Status)
 		require.Equal(t, "com.example.setup", state.upserted[2].AdamID)
-		require.Equal(t, fleet.AndroidSoftwareInstallStatusRequestFailed, state.upserted[2].Status)
+		require.Equal(t, automdm.AndroidSoftwareInstallStatusRequestFailed, state.upserted[2].Status)
 		require.Nil(t, state.upserted[2].InPolicyVersion)
 	})
 
 	t.Run("a quota error on the removal stops the run and leaves the removed app unsaved", func(t *testing.T) {
 		*state = removalTestState{
-			hosts:               []*fleet.Host{hostA, hostB},
-			installs:            []*fleet.HostAndroidSoftwareInstall{appOneInstall(hostA.ID), agentInstall(hostA.ID)},
-			appsInScopeByHostID: map[uint][]fleet.VPPAppTeam{hostB.ID: {appOne}},
+			hosts:               []*automdm.Host{hostA, hostB},
+			installs:            []*automdm.HostAndroidSoftwareInstall{appOneInstall(hostA.ID), agentInstall(hostA.ID)},
+			appsInScopeByHostID: map[uint][]automdm.VPPAppTeam{hostB.ID: {appOne}},
 			removeErr:           &googleapi.Error{Code: http.StatusTooManyRequests},
 		}
 
@@ -1145,10 +1145,10 @@ func TestReconcileAndroidAppsRemoval(t *testing.T) {
 	})
 	t.Run("a quota error on a retried removal doesn't increase the host's retry count", func(t *testing.T) {
 		requestFailedAppOneInstall := appOneInstall(hostA.ID)
-		requestFailedAppOneInstall.Status = fleet.AndroidSoftwareInstallStatusRequestFailed
+		requestFailedAppOneInstall.Status = automdm.AndroidSoftwareInstallStatusRequestFailed
 		*state = removalTestState{
-			hosts:     []*fleet.Host{hostA},
-			installs:  []*fleet.HostAndroidSoftwareInstall{requestFailedAppOneInstall, agentInstall(hostA.ID)},
+			hosts:     []*automdm.Host{hostA},
+			installs:  []*automdm.HostAndroidSoftwareInstall{requestFailedAppOneInstall, agentInstall(hostA.ID)},
 			removeErr: &googleapi.Error{Code: http.StatusTooManyRequests},
 		}
 

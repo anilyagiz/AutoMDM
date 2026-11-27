@@ -81,9 +81,9 @@ interface IAutomationsErrors {
 interface IPolicyAutomationsFieldsProps {
   policy: IPolicy;
   /** When true, only the webhook or ticket automation is offered (global /
-   *  "All fleets" policies, and every policy on Fleet Free). */
+   *  "All teams" policies, and every policy on AutoMDM Free). */
   isGlobalPolicy: boolean;
-  /** undefined for "All fleets", 0 for "Unassigned", positive for a fleet. */
+  /** undefined for "All teams", 0 for "Unassigned", positive for a team. */
   teamIdForApi: number | undefined;
   /** Config that owns the policy's automations (team config, or global config
    *  for inherited/global policies). */
@@ -91,8 +91,8 @@ interface IPolicyAutomationsFieldsProps {
   /** Global config — needed to read conditional access on the "Unassigned"
    *  view. */
   globalConfig: IConfig | undefined;
-  /** Fleet display name, used in the "Not enabled for <fleet>" hints. */
-  fleetName: string;
+  /** AutoMDM display name, used in the "Not enabled for <team>" hints. */
+  automdmName: string;
   /** Present only for patch policies on Premium. */
   patchOption?: PatchOption;
   /** Present only for patch policies on Premium — the "Force patch" end-user
@@ -120,7 +120,7 @@ const PolicyAutomationsFields = forwardRef<
       teamIdForApi,
       automationsConfig,
       globalConfig,
-      fleetName,
+      automdmName,
       patchOption,
       endUserExperience,
       patchSlot,
@@ -133,8 +133,8 @@ const PolicyAutomationsFields = forwardRef<
 
     const ticketOrWebhookState = getTicketOrWebhookState(automationsConfig);
 
-    // Only admins (global, or fleet-level admin of this policy's fleet) may
-    // manage the webhook/ticket automation. For "All fleets" and "Unassigned"
+    // Only admins (global, or team-level admin of this policy's team) may
+    // manage the webhook/ticket automation. For "All teams" and "Unassigned"
     // policies there is no team-level admin, so it's global-admin only.
     const canEditWebhookOrTicket =
       !!isGlobalAdmin ||
@@ -143,8 +143,8 @@ const PolicyAutomationsFields = forwardRef<
         !!currentUser &&
         permissions.isTeamAdmin(currentUser, teamIdForApi));
 
-    // Calendar events are a fleet-only feature: they're never available for
-    // "All fleets" or "Unassigned" policies.
+    // Calendar events are an automdm-only feature: they're never available for
+    // "All teams" or "Unassigned" policies.
     const isUnassigned = teamIdForApi === API_NO_TEAM_ID;
     const isCalendarEnabledForTeam =
       !isGlobalPolicy && !isUnassigned
@@ -287,15 +287,15 @@ const PolicyAutomationsFields = forwardRef<
     const canFetchTeamScopedLists =
       !isGlobalPolicy && teamIdForApi !== undefined;
     const { data: softwareTitlesData } = useSoftwareTitles({
-      fleetId: teamIdForApi ?? 0,
+      automdmId: teamIdForApi ?? 0,
       enabled: canFetchTeamScopedLists && showSoftwarePicker,
     });
     const { data: scriptsData } = useScripts({
-      fleetId: teamIdForApi ?? 0,
+      automdmId: teamIdForApi ?? 0,
       enabled: canFetchTeamScopedLists && effectiveAutomation === "script",
     });
     const { data: profilesData } = useProfiles({
-      fleetId: teamIdForApi ?? 0,
+      automdmId: teamIdForApi ?? 0,
       enabled:
         canFetchTeamScopedLists &&
         effectiveAutomation === "configuration_profile",
@@ -499,7 +499,7 @@ const PolicyAutomationsFields = forwardRef<
       },
     }));
 
-    const notEnabledTooltip = `Not enabled for ${fleetName}.`;
+    const notEnabledTooltip = `Not enabled for ${automdmName}.`;
     const isWebhookOrTicketLocked =
       !canEditWebhookOrTicket && effectiveAutomation === "webhook_or_ticket";
 
@@ -703,7 +703,7 @@ const PolicyAutomationsFields = forwardRef<
               helpText={
                 <>
                   <CustomLink
-                    url="https://fleetdm.com/learn-more-about/policy-automations"
+                    url="https://automdm.com/learn-more-about/policy-automations"
                     text="Learn more"
                     newTab
                   />{" "}

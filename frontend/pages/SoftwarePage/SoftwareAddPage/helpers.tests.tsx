@@ -31,14 +31,14 @@ describe("ensurePeriod", () => {
 // --- formatAlreadyAvailableInstallMessage tests ---
 
 describe("formatAlreadyAvailableInstallMessage", () => {
-  it("formats the Fleet-maintained app conflict with bolded title and fleet", () => {
+  it("formats the AutoMDM-maintained app conflict with bolded title and team", () => {
     const msg =
-      "Zoom already has a Fleet-maintained app on the Testing & QA fleet.";
+      "Zoom already has an AutoMDM-maintained app on the Testing & QA team.";
     const { container } = render(
       <>{formatAlreadyAvailableInstallMessage(msg)}</>
     );
     expect(container.textContent).toBe(
-      "Couldn't add. Zoom already has a Fleet-maintained app on the Testing & QA fleet."
+      "Couldn't add. Zoom already has an AutoMDM-maintained app on the Testing & QA team."
     );
     const bolds = container.querySelectorAll("b");
     expect(bolds).toHaveLength(2);
@@ -46,14 +46,14 @@ describe("formatAlreadyAvailableInstallMessage", () => {
     expect(bolds[1].textContent).toBe("Testing & QA");
   });
 
-  it("formats the Apple App Store (VPP) conflict with bolded title and fleet", () => {
+  it("formats the Apple App Store (VPP) conflict with bolded title and team", () => {
     const msg =
-      "Zoom already has an Apple App Store (VPP) on the Testing & QA fleet.";
+      "Zoom already has an Apple App Store (VPP) on the Testing & QA team.";
     const { container } = render(
       <>{formatAlreadyAvailableInstallMessage(msg)}</>
     );
     expect(container.textContent).toBe(
-      "Couldn't add. Zoom already has an Apple App Store (VPP) on the Testing & QA fleet."
+      "Couldn't add. Zoom already has an Apple App Store (VPP) on the Testing & QA team."
     );
     const bolds = container.querySelectorAll("b");
     expect(bolds).toHaveLength(2);
@@ -61,58 +61,58 @@ describe("formatAlreadyAvailableInstallMessage", () => {
     expect(bolds[1].textContent).toBe("Testing & QA");
   });
 
-  it("formats the software package conflict with bolded title and fleet", () => {
+  it("formats the software package conflict with bolded title and team", () => {
     const msg =
-      "Zoom already has a software package on the Testing & QA fleet.";
+      "Zoom already has a software package on the Testing & QA team.";
     const { container } = render(
       <>{formatAlreadyAvailableInstallMessage(msg)}</>
     );
     expect(container.textContent).toBe(
-      "Couldn't add. Zoom already has a software package on the Testing & QA fleet."
+      "Couldn't add. Zoom already has a software package on the Testing & QA team."
     );
   });
 
   it("formats the package-limit conflict with bolded title and preserved count", () => {
     const msg =
-      "Fleet osquery already has 10 versions. Before adding, delete one you no longer use.";
+      "AutoMDM osquery already has 10 versions. Before adding, delete one you no longer use.";
     const { container } = render(
       <>{formatAlreadyAvailableInstallMessage(msg)}</>
     );
     expect(container.textContent).toBe(
-      "Couldn't add. Fleet osquery already has 10 versions. Before adding, delete one you no longer use."
+      "Couldn't add. AutoMDM osquery already has 10 versions. Before adding, delete one you no longer use."
     );
     const bolds = container.querySelectorAll("b");
     expect(bolds).toHaveLength(1);
-    expect(bolds[0].textContent).toBe("Fleet osquery");
+    expect(bolds[0].textContent).toBe("AutoMDM osquery");
   });
 
   it("falls back to the legacy 'installer available' copy when the backend still emits it", () => {
-    const msg = `${ADD_SOFTWARE_ERROR_PREFIX} MyApp already has an installer available for the Marketing fleet.`;
+    const msg = `${ADD_SOFTWARE_ERROR_PREFIX} MyApp already has an installer available for the Marketing team.`;
     const { container } = render(
       <>{formatAlreadyAvailableInstallMessage(msg)}</>
     );
     expect(container.textContent).toContain("Couldn't add.");
     expect(container.textContent).toContain("MyApp");
-    expect(container.textContent).toContain("Marketing fleet");
+    expect(container.textContent).toContain("Marketing team");
   });
 
   it("strips the legacy 'Couldn't add software.' prefix before matching", () => {
-    const msg = `Couldn't add software. Zoom already has a Fleet-maintained app on the Testing & QA fleet.`;
+    const msg = `Couldn't add software. Zoom already has an AutoMDM-maintained app on the Testing & QA team.`;
     const result = formatAlreadyAvailableInstallMessage(msg);
     const { container } = render(<>{result}</>);
     expect(container.textContent).toBe(
-      "Couldn't add. Zoom already has a Fleet-maintained app on the Testing & QA fleet."
+      "Couldn't add. Zoom already has an AutoMDM-maintained app on the Testing & QA team."
     );
   });
 
-  it("handles the legacy quote-style 'SoftwareInstaller/In-house app ... already exists with fleet' format", () => {
-    const msg = `SoftwareInstaller "MyApp" already exists with fleet "Marketing".`;
+  it("handles the legacy quote-style 'SoftwareInstaller/In-house app ... already exists with team' format", () => {
+    const msg = `SoftwareInstaller "MyApp" already exists with team "Marketing".`;
     const { container } = render(
       <>{formatAlreadyAvailableInstallMessage(msg)}</>
     );
     expect(container.textContent).toContain("Couldn't add.");
     expect(container.textContent).toContain("MyApp");
-    expect(container.textContent).toContain("Marketing fleet");
+    expect(container.textContent).toContain("Marketing team");
   });
 
   it("returns null when the string doesn't match any known pattern", () => {

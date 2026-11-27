@@ -7,7 +7,7 @@
 
 $displayNamePattern = '^Franz \d'
 $publisher = "Stefan Malzner"
-$taskName = "fleet-uninstall-franz"
+$taskName = "automdm-uninstall-franz"
 $appDir = "AppData\Local\Programs\franz"  # in each user's profile
 $taskRunning = 267009  # SCHED_S_TASK_RUNNING
 $timeoutSeconds = 300

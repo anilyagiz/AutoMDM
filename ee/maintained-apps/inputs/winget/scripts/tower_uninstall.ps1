@@ -1,4 +1,4 @@
-# Fleet uninstalls app by finding all related product codes for the specified upgrade code.
+# AutoMDM uninstalls app by finding all related product codes for the specified upgrade code.
 # Tower's winget manifest declares a placeholder ProductCode ("MSI:Tower") instead of the
 # real GUID, so the default product-code-based uninstall fails with 1619. The MSI's
 # UpgradeCode is stable across releases, so uninstall via RelatedProducts instead.

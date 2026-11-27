@@ -30,7 +30,7 @@
 			<key>EncryptCertPayloadUUID</key>
 			<string>A326B71F-EB80-41A5-A8CD-A6F932544281</string>
 			<key>Location</key>
-			<string>Fleet</string>
+			<string>AutoMDM</string>
 			<key>PayloadDisplayName</key>
 			<string>FileVault Recovery Key Escrow</string>
 			<key>PayloadIdentifier</key>
@@ -44,7 +44,7 @@
 		</dict>
 		<dict>
 			<key>PayloadCertificateFileName</key>
-			<string>Fleet certificate</string>
+			<string>AutoMDM certificate</string>
 			<key>PayloadContent</key>
 			<data>VEVTVF9DRVJUSUZJQ0FURQ==</data>
 			<key>PayloadDisplayName</key>

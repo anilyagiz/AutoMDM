@@ -319,7 +319,7 @@ const SQLEditor = ({
         enableLiveAutocompletion
         editorProps={{ $blockScrolling: Infinity }}
         fontSize={fontSize}
-        mode="fleet"
+        mode="automdm"
         minLines={2}
         maxLines={maxLines}
         name={name}
@@ -331,7 +331,7 @@ const SQLEditor = ({
         setOptions={{ enableLinking: true, hasCssTransforms: true }}
         showGutter={showGutter}
         showPrintMargin={false}
-        theme="fleet"
+        theme="automdm"
         value={value}
         placeholder={placeholder}
         width="100%"

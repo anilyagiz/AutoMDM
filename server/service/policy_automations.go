@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/fleetdm/fleet/v4/pkg/optjson"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/pkg/optjson"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
 	"golang.org/x/text/unicode/norm"
 )
 
@@ -22,36 +22,36 @@ type policyAutomationCompanions struct {
 	profileUUID     bool
 }
 
-// checkAutomationTypeLicense checks that the automation type is available on the license. Fleet Free has webhook or
+// checkAutomationTypeLicense checks that the automation type is available on the license. AutoMDM Free has webhook or
 // ticket and no automation; the rest are Premium, like the fields they stand for.
-func checkAutomationTypeLicense(ctx context.Context, automationType *fleet.PolicyAutomation) error {
-	if automationType != nil && *automationType != fleet.PolicyAutomationWebhookOrTicket && !license.IsPremium(ctx) {
-		return fleet.ErrMissingLicense
+func checkAutomationTypeLicense(ctx context.Context, automationType *automdm.PolicyAutomation) error {
+	if automationType != nil && *automationType != automdm.PolicyAutomationWebhookOrTicket && !license.IsPremium(ctx) {
+		return automdm.ErrMissingLicense
 	}
 	return nil
 }
 
 // checkAutomationTypeCompanions checks that the request sets the field the automation type needs, and no field of
 // another automation type.
-func checkAutomationTypeCompanions(automationType *fleet.PolicyAutomation, c policyAutomationCompanions) error {
+func checkAutomationTypeCompanions(automationType *automdm.PolicyAutomation, c policyAutomationCompanions) error {
 	if automationType != nil && !automationType.IsValid() {
-		return &fleet.BadRequestError{Message: fmt.Sprintf("invalid automation_type %q", *automationType)}
+		return &automdm.BadRequestError{Message: fmt.Sprintf("invalid automation_type %q", *automationType)}
 	}
 	for _, f := range []struct {
 		set        bool
 		field      string
-		automation fleet.PolicyAutomation
+		automation automdm.PolicyAutomation
 	}{
-		{c.softwareTitleID, "software_title_id", fleet.PolicyAutomationSoftware},
-		{c.scriptID, "script_id", fleet.PolicyAutomationScript},
-		{c.profileUUID, "profile_uuid", fleet.PolicyAutomationConfigurationProfile},
+		{c.softwareTitleID, "software_title_id", automdm.PolicyAutomationSoftware},
+		{c.scriptID, "script_id", automdm.PolicyAutomationScript},
+		{c.profileUUID, "profile_uuid", automdm.PolicyAutomationConfigurationProfile},
 	} {
 		wanted := automationType != nil && *automationType == f.automation
 		switch {
 		case wanted && !f.set:
-			return &fleet.BadRequestError{Message: fmt.Sprintf("automation_type %q requires %s", f.automation, f.field)}
+			return &automdm.BadRequestError{Message: fmt.Sprintf("automation_type %q requires %s", f.automation, f.field)}
 		case automationType != nil && !wanted && f.set:
-			return &fleet.BadRequestError{Message: fmt.Sprintf("%s can only be set with automation_type %q", f.field, f.automation)}
+			return &automdm.BadRequestError{Message: fmt.Sprintf("%s can only be set with automation_type %q", f.field, f.automation)}
 		}
 	}
 	return nil
@@ -60,11 +60,11 @@ func checkAutomationTypeCompanions(automationType *fleet.PolicyAutomation, c pol
 // checkCreateCompanions checks that a new policy's software_title_id, software_package_id, script_id, and profile_uuid
 // come with the automation_type they belong to. A patch policy's software_title_id names the app it checks, so it
 // doesn't need one.
-func checkCreateCompanions(req fleet.CreatePolicyRequest) error {
+func checkCreateCompanions(req automdm.CreatePolicyRequest) error {
 	if req.AutomationType != nil {
 		return nil
 	}
-	patch := req.Type != nil && *req.Type == fleet.PolicyTypePatch
+	patch := req.Type != nil && *req.Type == automdm.PolicyTypePatch
 	for _, f := range []struct {
 		set   bool
 		field string
@@ -75,7 +75,7 @@ func checkCreateCompanions(req fleet.CreatePolicyRequest) error {
 		{req.ProfileUUID != nil && *req.ProfileUUID != "", "profile_uuid"},
 	} {
 		if f.set {
-			return &fleet.BadRequestError{Message: fmt.Sprintf("%s requires automation_type", f.field)}
+			return &automdm.BadRequestError{Message: fmt.Sprintf("%s requires automation_type", f.field)}
 		}
 	}
 	return nil
@@ -84,31 +84,31 @@ func checkCreateCompanions(req fleet.CreatePolicyRequest) error {
 // checkUpdateCompanions checks an update without automation_type, which can only change the item of the policy's
 // current automation, such as the script of a policy that runs a script. A patch policy's software_title_id is
 // checked by normalizePatchPolicyUpdate.
-func checkUpdateCompanions(policy *fleet.Policy, p fleet.ModifyPolicyPayload) error {
+func checkUpdateCompanions(policy *automdm.Policy, p automdm.ModifyPolicyPayload) error {
 	current := policy.Automations()
-	patch := policy.Type == fleet.PolicyTypePatch
+	patch := policy.Type == automdm.PolicyTypePatch
 	for _, f := range []struct {
 		set, value bool
 		field      string
-		automation fleet.PolicyAutomation
+		automation automdm.PolicyAutomation
 	}{
 		{!patch && p.SoftwareTitleID.Set, p.SoftwareTitleID.Valid && p.SoftwareTitleID.Value != 0, "software_title_id",
-			fleet.PolicyAutomationSoftware},
+			automdm.PolicyAutomationSoftware},
 		{p.SoftwareInstallerID.Set, p.SoftwareInstallerID.Valid && p.SoftwareInstallerID.Value != 0, "software_package_id",
-			fleet.PolicyAutomationSoftware},
-		{p.ScriptID.Set, p.ScriptID.Valid && p.ScriptID.Value != 0, "script_id", fleet.PolicyAutomationScript},
+			automdm.PolicyAutomationSoftware},
+		{p.ScriptID.Set, p.ScriptID.Valid && p.ScriptID.Value != 0, "script_id", automdm.PolicyAutomationScript},
 		{p.ProfileUUID.Set, p.ProfileUUID.Valid && p.ProfileUUID.Value != "", "profile_uuid",
-			fleet.PolicyAutomationConfigurationProfile},
+			automdm.PolicyAutomationConfigurationProfile},
 	} {
 		has := slices.Contains(current, f.automation)
 		switch {
 		case !f.set:
 		case f.value && !has:
-			return &fleet.BadRequestError{Message: fmt.Sprintf(
+			return &automdm.BadRequestError{Message: fmt.Sprintf(
 				"%s can only change the item of a policy with automation_type %q; set automation_type to switch automations",
 				f.field, f.automation)}
 		case !f.value && has:
-			return &fleet.BadRequestError{Message: fmt.Sprintf(
+			return &automdm.BadRequestError{Message: fmt.Sprintf(
 				"%s can't be removed on its own; set automation_type to null to remove the automation", f.field)}
 		}
 	}
@@ -117,11 +117,11 @@ func checkUpdateCompanions(policy *fleet.Policy, p fleet.ModifyPolicyPayload) er
 
 // checkPolicyAutomations checks the automations a write leaves the policy with. Automations the policy already had are
 // allowed, so policies saved before these rules can still be edited, but can't gain or swap in another automation.
-func checkPolicyAutomations(teamID *uint, before, after []fleet.PolicyAutomation) error {
+func checkPolicyAutomations(teamID *uint, before, after []automdm.PolicyAutomation) error {
 	if len(after) > 1 {
 		for _, a := range after {
 			if !slices.Contains(before, a) {
-				return &fleet.BadRequestError{Message: errPolicyOneAutomation}
+				return &automdm.BadRequestError{Message: errPolicyOneAutomation}
 			}
 		}
 	}
@@ -130,12 +130,12 @@ func checkPolicyAutomations(teamID *uint, before, after []fleet.PolicyAutomation
 			continue
 		}
 		switch {
-		case teamID == nil && a != fleet.PolicyAutomationWebhookOrTicket:
-			return &fleet.BadRequestError{Message: fmt.Sprintf(`%q policies can only have automation_type %q`,
-				fleet.DisplayNameAllTeams, fleet.PolicyAutomationWebhookOrTicket)}
-		case teamID != nil && *teamID == 0 && a == fleet.PolicyAutomationCalendar:
-			return &fleet.BadRequestError{Message: fmt.Sprintf(`%q policies can't have automation_type %q`,
-				fleet.DisplayNameNoTeam, fleet.PolicyAutomationCalendar)}
+		case teamID == nil && a != automdm.PolicyAutomationWebhookOrTicket:
+			return &automdm.BadRequestError{Message: fmt.Sprintf(`%q policies can only have automation_type %q`,
+				automdm.DisplayNameAllTeams, automdm.PolicyAutomationWebhookOrTicket)}
+		case teamID != nil && *teamID == 0 && a == automdm.PolicyAutomationCalendar:
+			return &automdm.BadRequestError{Message: fmt.Sprintf(`%q policies can't have automation_type %q`,
+				automdm.DisplayNameNoTeam, automdm.PolicyAutomationCalendar)}
 		}
 	}
 	return nil
@@ -145,13 +145,13 @@ func checkPolicyAutomations(teamID *uint, before, after []fleet.PolicyAutomation
 // policies on or off, which takes the same access as changing the scope's webhook and ticket settings.
 func (svc *Service) authorizeWebhookOrTicketChange(ctx context.Context, teamID *uint) error {
 	if teamID == nil || *teamID == 0 {
-		return svc.authz.Authorize(ctx, &fleet.AppConfig{}, fleet.ActionWrite)
+		return svc.authz.Authorize(ctx, &automdm.AppConfig{}, automdm.ActionWrite)
 	}
-	return svc.authz.Authorize(ctx, &fleet.Team{ID: *teamID}, fleet.ActionWrite)
+	return svc.authz.Authorize(ctx, &automdm.Team{ID: *teamID}, automdm.ActionWrite)
 }
 
 // checkNewPolicyAutomations runs the automation rules on a policy about to be created.
-func (svc *Service) checkNewPolicyAutomations(ctx context.Context, teamID *uint, p fleet.PolicyPayload) error {
+func (svc *Service) checkNewPolicyAutomations(ctx context.Context, teamID *uint, p automdm.PolicyPayload) error {
 	if err := checkPolicyAutomations(teamID, nil, p.Automations()); err != nil {
 		return ctxerr.Wrap(ctx, err, "check policy automations")
 	}
@@ -164,14 +164,14 @@ func (svc *Service) checkNewPolicyAutomations(ctx context.Context, teamID *uint,
 // applyAutomationType turns the update's automation_type into the automation fields it replaces, so the rest of the
 // update treats both request shapes the same way. It returns whether the policy ends up with the webhook or ticket
 // automation, which isn't one of those fields.
-func applyAutomationType(teamID *uint, p *fleet.ModifyPolicyPayload) (webhookOrTicket bool, err error) {
-	var automationType *fleet.PolicyAutomation
+func applyAutomationType(teamID *uint, p *automdm.ModifyPolicyPayload) (webhookOrTicket bool, err error) {
+	var automationType *automdm.PolicyAutomation
 	if p.AutomationType.Valid {
 		automationType = &p.AutomationType.Value
 		if !automationType.IsValid() {
-			return false, &fleet.BadRequestError{Message: fmt.Sprintf("invalid automation_type %q", *automationType)}
+			return false, &automdm.BadRequestError{Message: fmt.Sprintf("invalid automation_type %q", *automationType)}
 		}
-		if err := checkPolicyAutomations(teamID, nil, []fleet.PolicyAutomation{*automationType}); err != nil {
+		if err := checkPolicyAutomations(teamID, nil, []automdm.PolicyAutomation{*automationType}); err != nil {
 			return false, err
 		}
 	}
@@ -181,43 +181,43 @@ func applyAutomationType(teamID *uint, p *fleet.ModifyPolicyPayload) (webhookOrT
 		profileUUID:     p.ProfileUUID.Valid && p.ProfileUUID.Value != "",
 	}
 	if automationType == nil && (companions.softwareTitleID || companions.scriptID || companions.profileUUID) {
-		return false, &fleet.BadRequestError{Message: "software_title_id, script_id, and profile_uuid can't be set when automation_type is null"}
+		return false, &automdm.BadRequestError{Message: "software_title_id, script_id, and profile_uuid can't be set when automation_type is null"}
 	}
 	if err := checkAutomationTypeCompanions(automationType, companions); err != nil {
 		return false, err
 	}
 
-	is := func(a fleet.PolicyAutomation) bool { return automationType != nil && *automationType == a }
-	if (p.CalendarEventsEnabled != nil && *p.CalendarEventsEnabled && !is(fleet.PolicyAutomationCalendar)) ||
-		(p.ConditionalAccessEnabled != nil && *p.ConditionalAccessEnabled && !is(fleet.PolicyAutomationConditionalAccess)) {
-		return false, &fleet.BadRequestError{Message: errPolicyOneAutomation}
+	is := func(a automdm.PolicyAutomation) bool { return automationType != nil && *automationType == a }
+	if (p.CalendarEventsEnabled != nil && *p.CalendarEventsEnabled && !is(automdm.PolicyAutomationCalendar)) ||
+		(p.ConditionalAccessEnabled != nil && *p.ConditionalAccessEnabled && !is(automdm.PolicyAutomationConditionalAccess)) {
+		return false, &automdm.BadRequestError{Message: errPolicyOneAutomation}
 	}
-	p.CalendarEventsEnabled = new(is(fleet.PolicyAutomationCalendar))
-	p.ConditionalAccessEnabled = new(is(fleet.PolicyAutomationConditionalAccess))
+	p.CalendarEventsEnabled = new(is(automdm.PolicyAutomationCalendar))
+	p.ConditionalAccessEnabled = new(is(automdm.PolicyAutomationConditionalAccess))
 	// A set field with no value removes that automation.
-	if !is(fleet.PolicyAutomationSoftware) {
+	if !is(automdm.PolicyAutomationSoftware) {
 		p.SoftwareTitleID = optjson.Any[uint]{Set: true}
 		p.SoftwareInstallerID = optjson.Any[uint]{}
 	}
-	if !is(fleet.PolicyAutomationScript) {
+	if !is(automdm.PolicyAutomationScript) {
 		p.ScriptID = optjson.Any[uint]{Set: true}
 	}
-	if !is(fleet.PolicyAutomationConfigurationProfile) {
+	if !is(automdm.PolicyAutomationConfigurationProfile) {
 		p.ProfileUUID = optjson.String{Set: true}
 	}
-	return is(fleet.PolicyAutomationWebhookOrTicket), nil
+	return is(automdm.PolicyAutomationWebhookOrTicket), nil
 }
 
-func isPatchPolicySpec(spec *fleet.PolicySpec) bool {
-	return spec.Type == fleet.PolicyTypePatch && spec.FleetMaintainedAppSlug != ""
+func isPatchPolicySpec(spec *automdm.PolicySpec) bool {
+	return spec.Type == automdm.PolicyTypePatch && spec.AutoMDMMaintainedAppSlug != ""
 }
 
-// policySpecTeamID is the spec's scope: nil for "All fleets", 0 for "Unassigned".
-func policySpecTeamID(spec *fleet.PolicySpec, teamIDsByName map[string]uint) *uint {
+// policySpecTeamID is the spec's scope: nil for "All teams", 0 for "Unassigned".
+func policySpecTeamID(spec *automdm.PolicySpec, teamIDsByName map[string]uint) *uint {
 	switch spec.Team {
 	case "":
 		return nil
-	case fleet.DisplayNameNoTeam:
+	case automdm.DisplayNameNoTeam:
 		return new(uint(0))
 	default:
 		return new(teamIDsByName[spec.Team])
@@ -226,10 +226,10 @@ func policySpecTeamID(spec *fleet.PolicySpec, teamIDsByName map[string]uint) *ui
 
 // authorizeWebhookOrTicketSpecChanges checks that the user can change the webhook or ticket automation of every spec
 // that turns it on or off. A spec for a new policy changes it when it turns it on.
-func (svc *Service) authorizeWebhookOrTicketSpecChanges(ctx context.Context, specs []*fleet.PolicySpec, teamIDsByName map[string]uint) error {
+func (svc *Service) authorizeWebhookOrTicketSpecChanges(ctx context.Context, specs []*automdm.PolicySpec, teamIDsByName map[string]uint) error {
 	type scope struct {
 		teamID *uint
-		specs  []*fleet.PolicySpec
+		specs  []*automdm.PolicySpec
 	}
 	scopes := make(map[string]*scope)
 	for _, spec := range specs {
@@ -245,7 +245,7 @@ func (svc *Service) authorizeWebhookOrTicketSpecChanges(ctx context.Context, spe
 		for _, spec := range sc.specs {
 			names = append(names, norm.NFC.String(spec.Name))
 			if isPatchPolicySpec(spec) && sc.teamID != nil {
-				slugs = append(slugs, spec.FleetMaintainedAppSlug)
+				slugs = append(slugs, spec.AutoMDMMaintainedAppSlug)
 			}
 		}
 		current, err := svc.ds.WebhooksAndTicketsByPolicyName(ctx, sc.teamID, names)
@@ -260,7 +260,7 @@ func (svc *Service) authorizeWebhookOrTicketSpecChanges(ctx context.Context, spe
 		}
 		for _, spec := range sc.specs {
 			before := current[norm.NFC.String(spec.Name)]
-			if enabled, ok := currentBySlug[spec.FleetMaintainedAppSlug]; ok && isPatchPolicySpec(spec) {
+			if enabled, ok := currentBySlug[spec.AutoMDMMaintainedAppSlug]; ok && isPatchPolicySpec(spec) {
 				before = enabled
 			}
 			if spec.WebhooksAndTicketsEnabled != before {
@@ -277,11 +277,11 @@ func (svc *Service) authorizeWebhookOrTicketSpecChanges(ctx context.Context, spe
 // normalizePatchPolicyCreate maps a new patch policy's software_title_id, which names the app it checks, onto the fields
 // the rest of create uses: patch_software_title_id for that app, and software_title_id for its install, kept only when
 // automation_type turns patching on. Requests with patch_software_title_id keep their meaning.
-func normalizePatchPolicyCreate(tp *fleet.NewTeamPolicyPayload) error {
-	if tp.Type == nil || *tp.Type != fleet.PolicyTypePatch {
+func normalizePatchPolicyCreate(tp *automdm.NewTeamPolicyPayload) error {
+	if tp.Type == nil || *tp.Type != automdm.PolicyTypePatch {
 		return nil
 	}
-	patching := tp.AutomationType != nil && *tp.AutomationType == fleet.PolicyAutomationSoftware
+	patching := tp.AutomationType != nil && *tp.AutomationType == automdm.PolicyAutomationSoftware
 	titleSet := tp.SoftwareTitleID != nil && *tp.SoftwareTitleID != 0
 	switch {
 	case tp.PatchSoftwareTitleID == nil && titleSet:
@@ -290,7 +290,7 @@ func normalizePatchPolicyCreate(tp *fleet.NewTeamPolicyPayload) error {
 			tp.SoftwareTitleID = nil
 		}
 	case tp.PatchSoftwareTitleID != nil && titleSet && *tp.SoftwareTitleID != *tp.PatchSoftwareTitleID:
-		return &fleet.BadRequestError{Message: "software_title_id and patch_software_title_id must be the same app"}
+		return &automdm.BadRequestError{Message: "software_title_id and patch_software_title_id must be the same app"}
 	}
 	if patching && !titleSet && tp.PatchSoftwareTitleID != nil {
 		tp.SoftwareTitleID = new(*tp.PatchSoftwareTitleID)
@@ -301,15 +301,15 @@ func normalizePatchPolicyCreate(tp *fleet.NewTeamPolicyPayload) error {
 // normalizePatchPolicyUpdate applies the update rules of a patch policy: its app can't change, so automation_type
 // "software" alone turns patching on for that app. With another automation_type, software_title_id only names the
 // app; without automation_type it keeps its legacy meaning of installing the app.
-func normalizePatchPolicyUpdate(policy *fleet.Policy, p *fleet.ModifyPolicyPayload) error {
-	if policy.Type != fleet.PolicyTypePatch || policy.PatchSoftwareTitleID == nil {
+func normalizePatchPolicyUpdate(policy *automdm.Policy, p *automdm.ModifyPolicyPayload) error {
+	if policy.Type != automdm.PolicyTypePatch || policy.PatchSoftwareTitleID == nil {
 		return nil
 	}
 	titleSet := p.SoftwareTitleID.Valid && p.SoftwareTitleID.Value != 0
 	if titleSet && p.SoftwareTitleID.Value != *policy.PatchSoftwareTitleID {
-		return &fleet.BadRequestError{Message: "a patch policy's software_title_id can't be changed"}
+		return &automdm.BadRequestError{Message: "a patch policy's software_title_id can't be changed"}
 	}
-	patching := p.AutomationType.Valid && p.AutomationType.Value == fleet.PolicyAutomationSoftware
+	patching := p.AutomationType.Valid && p.AutomationType.Value == automdm.PolicyAutomationSoftware
 	switch {
 	case patching && !titleSet:
 		p.SoftwareTitleID = optjson.Any[uint]{Set: true, Valid: true, Value: *policy.PatchSoftwareTitleID}

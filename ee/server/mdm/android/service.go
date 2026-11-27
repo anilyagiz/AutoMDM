@@ -8,14 +8,14 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/authz"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxdb"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	licensectx "github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
-	"github.com/fleetdm/fleet/v4/server/mdm/android/service/androidmgmt"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxdb"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	licensectx "github.com/anilyagiz/automdm/v4/server/contexts/license"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android/service/androidmgmt"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"google.golang.org/api/androidmanagement/v1"
 )
 
@@ -27,8 +27,8 @@ const zeroTouchTokenDuration = "31536000000s"
 // Service wraps a core android.Service with premium feature implementations.
 type Service struct {
 	android.Service
-	ds        fleet.AndroidDatastore
-	fleetDS   fleet.Datastore
+	ds        automdm.AndroidDatastore
+	automdmDS automdm.Datastore
 	apiClient androidmgmt.Client
 	authz     *authz.Authorizer
 	logger    *slog.Logger
@@ -36,8 +36,8 @@ type Service struct {
 
 func NewService(
 	svc android.Service,
-	ds fleet.AndroidDatastore,
-	fleetDS fleet.Datastore,
+	ds automdm.AndroidDatastore,
+	automdmDS automdm.Datastore,
 	apiClient androidmgmt.Client,
 	logger *slog.Logger,
 ) (*Service, error) {
@@ -48,7 +48,7 @@ func NewService(
 	return &Service{
 		Service:   svc,
 		ds:        ds,
-		fleetDS:   fleetDS,
+		automdmDS: automdmDS,
 		apiClient: apiClient,
 		authz:     authorizer,
 		logger:    logger,
@@ -57,16 +57,16 @@ func NewService(
 
 // teamEnrollmentRequest is the payload embedded in AMAPI enrollment token additionalData.
 type teamEnrollmentRequest struct {
-	TeamID *uint `json:"fleet_id"`
+	TeamID *uint `json:"team_id"`
 }
 
 func (svc *Service) GetZeroTouchConfiguration(ctx context.Context, teamID *uint) (*android.ZeroTouchConfigurationResponse, error) {
 	if !licensectx.IsPremium(ctx) {
 		svc.authz.SkipAuthorization(ctx)
-		return nil, fleet.ErrMissingLicense
+		return nil, automdm.ErrMissingLicense
 	}
 
-	if err := svc.authz.Authorize(ctx, &android.Enterprise{}, fleet.ActionWrite); err != nil {
+	if err := svc.authz.Authorize(ctx, &android.Enterprise{}, automdm.ActionWrite); err != nil {
 		return nil, err
 	}
 
@@ -76,21 +76,21 @@ func (svc *Service) GetZeroTouchConfiguration(ctx context.Context, teamID *uint)
 		return nil, ctxerr.Wrap(ctx, err, "getting app config")
 	}
 	if !appConfig.MDM.AndroidEnabledAndConfigured {
-		return nil, fleet.NewInvalidArgumentError("android",
+		return nil, automdm.NewInvalidArgumentError("android",
 			"Android MDM is NOT configured").WithStatus(http.StatusNotFound)
 	}
 
-	// 0 means Unassigned; storing it as team_id would violate the fleets foreign key.
+	// 0 means Unassigned; storing it as team_id would violate the teams foreign key.
 	if teamID != nil && *teamID == 0 {
 		teamID = nil
 	}
 	if teamID != nil {
-		exists, err := svc.fleetDS.TeamExists(ctx, *teamID)
+		exists, err := svc.automdmDS.TeamExists(ctx, *teamID)
 		if err != nil {
-			return nil, ctxerr.Wrap(ctx, err, "checking if fleet exists")
+			return nil, ctxerr.Wrap(ctx, err, "checking if team exists")
 		}
 		if !exists {
-			return nil, fleet.NewInvalidArgumentError("fleet_id", fmt.Sprintf("fleet %d does not exist", *teamID)).
+			return nil, automdm.NewInvalidArgumentError("team_id", fmt.Sprintf("team %d does not exist", *teamID)).
 				WithStatus(http.StatusNotFound)
 		}
 	}
@@ -99,22 +99,22 @@ func (svc *Service) GetZeroTouchConfiguration(ctx context.Context, teamID *uint)
 
 	// Check if a token already exists
 	existing, err := svc.ds.GetZeroTouchEnrollmentToken(ctx, teamID)
-	if err != nil && !fleet.IsNotFound(err) {
+	if err != nil && !automdm.IsNotFound(err) {
 		return nil, ctxerr.Wrap(ctx, err, "getting existing zero-touch token")
 	}
-	if existing != nil && existing.UsesFleetPolicy {
+	if existing != nil && existing.UsesAutoMDMPolicy {
 		return buildDPCExtrasResponse(existing), nil
 	}
 
-	// A fleet without a token falls back to the global default policy rather than having none; the next
-	// view replaces it once the fleet's policy can be created. An existing token is simply kept.
+	// A team without a token falls back to the global default policy rather than having none; the next
+	// view replaces it once the team's policy can be created. An existing token is simply kept.
 	token, err := svc.newZeroTouchToken(ctx, teamID, existing == nil)
 	if err != nil {
 		if existing == nil {
 			return nil, err
 		}
 		svc.logger.WarnContext(ctx, "failed to replace the zero-touch token created against the global default policy",
-			"fleet_id", ptr.ValOrZero(teamID), "err", err)
+			"team_id", ptr.ValOrZero(teamID), "err", err)
 		return buildDPCExtrasResponse(existing), nil
 	}
 
@@ -131,13 +131,13 @@ func (svc *Service) GetZeroTouchConfiguration(ctx context.Context, teamID *uint)
 	replaced, err := svc.ds.ReplaceZeroTouchEnrollmentToken(ctx, existing.TokenName, token)
 	if err != nil {
 		svc.logger.WarnContext(ctx, "failed to save the zero-touch token that replaces the one created against the global default policy",
-			"fleet_id", ptr.ValOrZero(teamID), "err", err)
+			"team_id", ptr.ValOrZero(teamID), "err", err)
 		return buildDPCExtrasResponse(existing), nil
 	}
 	return buildDPCExtrasResponse(replaced), nil
 }
 
-// newZeroTouchToken creates a zero-touch enrollment token in AMAPI that points at the fleet's default policy,
+// newZeroTouchToken creates a zero-touch enrollment token in AMAPI that points at the team's default policy,
 // or, if that policy can't be created and allowGlobalPolicy is set, at the global default policy.
 func (svc *Service) newZeroTouchToken(ctx context.Context, teamID *uint, allowGlobalPolicy bool) (*android.ZeroTouchToken, error) {
 	enterprise, err := svc.ds.GetEnterprise(ctx)
@@ -155,15 +155,15 @@ func (svc *Service) newZeroTouchToken(ctx context.Context, teamID *uint, allowGl
 	if teamID != nil {
 		policyTeamID = *teamID
 	}
-	usesFleetPolicy := true
-	policyName, err := svc.EnsureFleetDefaultPolicy(ctx, enterprise.Name(), policyTeamID)
+	usesAutoMDMPolicy := true
+	policyName, err := svc.EnsureAutoMDMDefaultPolicy(ctx, enterprise.Name(), policyTeamID)
 	if err != nil {
 		if !allowGlobalPolicy {
-			return nil, ctxerr.Wrap(ctx, err, "ensuring the fleet's default policy")
+			return nil, ctxerr.Wrap(ctx, err, "ensuring the team's default policy")
 		}
-		svc.logger.ErrorContext(ctx, "failed to ensure the fleet's android default policy, creating the zero-touch token on the global one",
-			"fleet_id", policyTeamID, "err", err)
-		usesFleetPolicy = false
+		svc.logger.ErrorContext(ctx, "failed to ensure the team's android default policy, creating the zero-touch token on the global one",
+			"team_id", policyTeamID, "err", err)
+		usesAutoMDMPolicy = false
 		policyName = fmt.Sprintf("%s/policies/%d", enterprise.Name(), android.DefaultAndroidPolicyID)
 	}
 
@@ -194,23 +194,23 @@ func (svc *Service) newZeroTouchToken(ctx context.Context, teamID *uint, allowGl
 	}
 
 	return &android.ZeroTouchToken{
-		TeamID:          teamID,
-		TokenName:       amapiToken.Name,
-		TokenValue:      amapiToken.Value,
-		ExpiresAt:       expiresAt,
-		UsesFleetPolicy: usesFleetPolicy,
+		TeamID:            teamID,
+		TokenName:         amapiToken.Name,
+		TokenValue:        amapiToken.Value,
+		ExpiresAt:         expiresAt,
+		UsesAutoMDMPolicy: usesAutoMDMPolicy,
 	}, nil
 }
 
 func (svc *Service) getClientAuthenticationSecret(ctx context.Context) (string, error) {
-	assets, err := svc.ds.GetAllMDMConfigAssetsByName(ctx, []fleet.MDMAssetName{fleet.MDMAssetAndroidFleetServerSecret}, nil)
+	assets, err := svc.ds.GetAllMDMConfigAssetsByName(ctx, []automdm.MDMAssetName{automdm.MDMAssetAndroidAutoMDMServerSecret}, nil)
 	switch {
-	case fleet.IsNotFound(err):
+	case automdm.IsNotFound(err):
 		return "", nil
 	case err != nil:
 		return "", ctxerr.Wrap(ctx, err, "getting Android authentication secret")
 	}
-	return string(assets[fleet.MDMAssetAndroidFleetServerSecret].Value), nil
+	return string(assets[automdm.MDMAssetAndroidAutoMDMServerSecret].Value), nil
 }
 
 type dpcExtras struct {

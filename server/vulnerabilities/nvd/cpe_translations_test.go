@@ -5,7 +5,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/require"
 )
 
@@ -19,7 +19,7 @@ func TestFirefoxDeveloperEditionTranslation(t *testing.T) {
 	translations, err := loadCPETranslations(filepath.Join(".", cpeTranslationsFilename))
 	require.NoError(t, err)
 
-	software := &fleet.Software{
+	software := &automdm.Software{
 		Name:             "Firefox Developer Edition.app",
 		BundleIdentifier: "org.mozilla.firefoxdeveloperedition",
 		Source:           "apps",
@@ -40,7 +40,7 @@ func TestTranslate(t *testing.T) {
 	tests := []struct {
 		name         string
 		translations CPETranslations
-		software     fleet.Software
+		software     automdm.Software
 		matched      bool
 		want         CPETranslation
 	}{
@@ -57,7 +57,7 @@ func TestTranslate(t *testing.T) {
 					},
 				},
 			},
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:   "NotMyApp",
 				Source: "apps",
 			},
@@ -77,7 +77,7 @@ func TestTranslate(t *testing.T) {
 					},
 				},
 			},
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:   "MyApp",
 				Source: "apps",
 			},
@@ -101,7 +101,7 @@ func TestTranslate(t *testing.T) {
 					},
 				},
 			},
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:             "MyApp",
 				BundleIdentifier: "com.mycompany.myapp",
 				Source:           "apps",
@@ -126,7 +126,7 @@ func TestTranslate(t *testing.T) {
 					},
 				},
 			},
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:   "MyApp",
 				Source: "apps",
 			},
@@ -149,7 +149,7 @@ func TestTranslate(t *testing.T) {
 					},
 				},
 			},
-			software: fleet.Software{
+			software: automdm.Software{
 				Name:   "NotMyApp",
 				Source: "apps",
 			},

@@ -19,7 +19,7 @@ import EditQueryForm from "./EditQueryForm";
 jest.mock("services/entities/queries");
 
 const baseUrl = (path: string) => {
-  return `/api/latest/fleet${path}`;
+  return `/api/latest/automdm${path}`;
 };
 
 const mockLabels = [
@@ -108,7 +108,7 @@ describe("EditQueryForm - component", () => {
         await screen.findByRole("button", { name: "Live report" })
       );
       expect(mockRouter.push).toHaveBeenCalledWith(
-        "/reports/1/live?from=edit&fleet_id=2"
+        "/reports/1/live?from=edit&team_id=2"
       );
     }
   );
@@ -598,12 +598,12 @@ describe("EditQueryForm - component", () => {
     // Find the automations slider
     const automationsSlider = screen
       .getByText("Automations on")
-      .closest(".fleet-slider__wrapper") as HTMLElement;
+      .closest(".automdm-slider__wrapper") as HTMLElement;
     expect(automationsSlider).toBeInTheDocument();
 
     // Check if the automations are enabled
     const automationsButton = within(automationsSlider).getByRole("switch");
-    expect(automationsButton).toHaveClass("fleet-slider--active");
+    expect(automationsButton).toHaveClass("automdm-slider--active");
 
     // Check if the warning icon is present
     const warningIcon = within(automationsSlider).getByTestId("warning-icon");

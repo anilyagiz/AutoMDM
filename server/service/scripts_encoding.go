@@ -8,7 +8,7 @@ import (
 // ScriptsEncodedHeader is the HTTP header used to signal that script fields
 // in the request body are base64-encoded. This is used to bypass WAF rules
 // that may block requests containing shell/PowerShell script patterns.
-const ScriptsEncodedHeader = "X-Fleet-Scripts-Encoded"
+const ScriptsEncodedHeader = "X-AutoMDM-Scripts-Encoded"
 
 // decodeBase64Script decodes a base64-encoded script string.
 // Returns empty string for empty input, which allows callers to pass through

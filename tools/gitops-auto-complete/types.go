@@ -4,23 +4,23 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/pkg/spec"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/pkg/spec"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/invopop/jsonschema"
 )
 
-// GitOpsSpec spells out the top-level GitOps keys with Fleet's typed structs, since
+// GitOpsSpec spells out the top-level GitOps keys with AutoMDM's typed structs, since
 // spec.GitOps has no json tags and would reflect to PascalCase keys.
 type GitOpsSpec struct {
 	Name             string                       `json:"name,omitempty"`
 	OrgSettings      *spec.GitOpsOrgSettings      `json:"org_settings,omitempty"`
-	TeamSettings     *spec.GitOpsFleetSettings    `json:"settings,omitempty"`
-	AgentOptions     *fleet.AgentOptions          `json:"agent_options,omitempty"`
+	TeamSettings     *spec.GitOpsAutoMDMSettings  `json:"settings,omitempty"`
+	AgentOptions     *automdm.AgentOptions        `json:"agent_options,omitempty"`
 	Controls         ControlsWithTypes            `json:"controls"`
 	Policies         []*spec.GitOpsPolicySpec     `json:"policies,omitempty"`
 	Reports          []*spec.Query                `json:"reports,omitempty"`
 	Software         spec.GitOpsSoftware          `json:"software"`
-	Labels           []*fleet.LabelSpec           `json:"labels,omitempty"`
+	Labels           []*automdm.LabelSpec         `json:"labels,omitempty"`
 	CustomHostVitals []spec.GitOpsCustomHostVital `json:"custom_host_vitals,omitempty"`
 }
 
@@ -35,19 +35,19 @@ type ControlsWithTypes struct {
 
 	NameTemplate string `json:"name_template"`
 
-	MacOSUpdates   *fleet.AppleOSUpdateSettings `json:"macos_updates"`
-	IOSUpdates     *fleet.AppleOSUpdateSettings `json:"ios_updates"`
-	IPadOSUpdates  *fleet.AppleOSUpdateSettings `json:"ipados_updates"`
-	WindowsUpdates *fleet.WindowsUpdates        `json:"windows_updates"`
+	MacOSUpdates   *automdm.AppleOSUpdateSettings `json:"macos_updates"`
+	IOSUpdates     *automdm.AppleOSUpdateSettings `json:"ios_updates"`
+	IPadOSUpdates  *automdm.AppleOSUpdateSettings `json:"ipados_updates"`
+	WindowsUpdates *automdm.WindowsUpdates        `json:"windows_updates"`
 
-	MacOSSetup               *fleet.MacOSSetup               `json:"setup_experience"`
-	AppleAccountProvisioning *fleet.AppleAccountProvisioning `json:"apple_account_provisioning"`
-	Scripts                  []fleet.BaseItem                `json:"scripts"`
+	MacOSSetup               *automdm.MacOSSetup               `json:"setup_experience"`
+	AppleAccountProvisioning *automdm.AppleAccountProvisioning `json:"apple_account_provisioning"`
+	Scripts                  []automdm.BaseItem                `json:"scripts"`
 
-	MacOSSettings   *fleet.MacOSSettings   `json:"apple_settings"`
-	WindowsSettings *fleet.WindowsSettings `json:"windows_settings"`
-	AndroidSettings *fleet.AndroidSettings `json:"android_settings"`
-	LinuxSettings   *fleet.LinuxSettings   `json:"linux_settings"`
+	MacOSSettings   *automdm.MacOSSettings   `json:"apple_settings"`
+	WindowsSettings *automdm.WindowsSettings `json:"windows_settings"`
+	AndroidSettings *automdm.AndroidSettings `json:"android_settings"`
+	LinuxSettings   *automdm.LinuxSettings   `json:"linux_settings"`
 
 	AppleRequireHardwareAttestation  bool `json:"apple_require_hardware_attestation"`
 	OnlyAllowAppleBusinessEnrollment bool `json:"only_allow_apple_business_enrollment"`
@@ -84,9 +84,9 @@ func typeMapper(goType reflect.Type) *jsonschema.Schema {
 		return &jsonschema.Schema{Type: "object"}
 	}
 
-	// fleet.Duration embeds time.Duration, so invopop emits a self-referential $def
+	// automdm.Duration embeds time.Duration, so invopop emits a self-referential $def
 	// that overflows yamlls' resolver. It marshals to a string like "24h".
-	if strings.HasSuffix(packagePath, "server/fleet") && goType.Name() == "Duration" {
+	if strings.HasSuffix(packagePath, "server/automdm") && goType.Name() == "Duration" {
 		return &jsonschema.Schema{Type: "string"}
 	}
 

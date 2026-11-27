@@ -5,9 +5,9 @@ import (
 	"database/sql"
 	"errors"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -99,16 +99,16 @@ func (ds *AndroidDatastore) DeleteAllEnterprises(ctx context.Context) error {
 			return ctxerr.Wrap(ctx, err, "deleting all enterprises")
 		}
 
-		// Aligns Fleet's state with the AMAPI state
+		// Aligns AutoMDM's state with the AMAPI state
 		_, err = tx.ExecContext(ctx, `DELETE FROM vpp_apps_teams WHERE platform = 'android'`)
 		if err != nil {
 			return ctxerr.Wrap(ctx, err, "deleting all android app store apps")
 		}
 
 		// The default policies belonged to the deleted enterprise; a new one starts without any.
-		_, err = tx.ExecContext(ctx, `DELETE FROM android_fleet_default_policies`)
+		_, err = tx.ExecContext(ctx, `DELETE FROM android_automdm_default_policies`)
 		if err != nil {
-			return ctxerr.Wrap(ctx, err, "deleting android fleet default policies")
+			return ctxerr.Wrap(ctx, err, "deleting android team default policies")
 		}
 
 		return nil

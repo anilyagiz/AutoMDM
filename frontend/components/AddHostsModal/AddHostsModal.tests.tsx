@@ -107,7 +107,7 @@ describe("AddHostsModal", () => {
     );
     expect(osquerydCommand).toBeInTheDocument();
     // Plain osquery reveals extra content inside the Advanced tab; the
-    // fleetctl command above it (with --enable-scripts) stays on screen.
+    // automdmctl command above it (with --enable-scripts) stays on screen.
     expect(screen.queryByText(/--enable-scripts/i)).toBeInTheDocument();
   });
 
@@ -451,7 +451,7 @@ describe("AddHostsModal", () => {
           (_, element) =>
             element?.tagName === "P" &&
             element.textContent ===
-              `Only ${hosts} can enroll to Fleet. Add an enroll secret to enroll other hosts.`
+              `Only ${hosts} can enroll to AutoMDM. Add an enroll secret to enroll other hosts.`
         )
       ).toBeInTheDocument();
       expect(

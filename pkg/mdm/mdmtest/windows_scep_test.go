@@ -4,7 +4,7 @@ import (
 	"encoding/xml"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -14,9 +14,9 @@ import (
 // SCEP CSP with all required fields.
 func TestExtractSCEPCommandsAtomicLayout(t *testing.T) {
 	atomic := buildAtomicSCEPCmd(t, "/Device", "uniq-1", "https://scep.example.com/scep", "challenge-abc",
-		"CN=device-1,OU=fleet-1")
-	cmds := map[string]fleet.ProtoCmdOperation{
-		atomic.CmdID.Value: {Verb: fleet.CmdAtomic, Cmd: atomic},
+		"CN=device-1,OU=automdm-1")
+	cmds := map[string]automdm.ProtoCmdOperation{
+		atomic.CmdID.Value: {Verb: automdm.CmdAtomic, Cmd: atomic},
 	}
 
 	c := &TestWindowsMDMClient{}
@@ -26,8 +26,8 @@ func TestExtractSCEPCommandsAtomicLayout(t *testing.T) {
 	assert.Equal(t, "uniq-1", got[0].UniqueID)
 	assert.Equal(t, "https://scep.example.com/scep", got[0].ServerURL)
 	assert.Equal(t, "challenge-abc", got[0].Challenge)
-	assert.Equal(t, "CN=device-1,OU=fleet-1", got[0].SubjectName)
-	assert.Equal(t, "7+urn:device:fleet:uuid:uniq-1", got[0].SubjectAlternativeNames)
+	assert.Equal(t, "CN=device-1,OU=automdm-1", got[0].SubjectName)
+	assert.Equal(t, "7+urn:device:automdm:uuid:uniq-1", got[0].SubjectAlternativeNames)
 	assert.Equal(t, atomic.CmdID.Value, got[0].AtomicCmdID)
 	assert.NotEmpty(t, got[0].EnrollCmdID)
 }
@@ -39,13 +39,13 @@ func TestExtractSCEPCommandsAtomicLayout(t *testing.T) {
 func TestExtractSCEPCommandsSurfacesIncomplete(t *testing.T) {
 	// Only Challenge is set: missing ServerURL, SubjectName, and the Enroll Exec.
 	loc := "./Device/Vendor/MSFT/ClientCertificateInstall/SCEP/incomplete/Install/Challenge"
-	add := fleet.SyncMLCmd{
-		XMLName: xml.Name{Local: fleet.CmdAdd},
-		CmdID:   fleet.CmdID{Value: uuid.NewString()},
-		Items:   []fleet.CmdItem{{Target: &loc, Data: &fleet.RawXmlData{Content: "ch"}}},
+	add := automdm.SyncMLCmd{
+		XMLName: xml.Name{Local: automdm.CmdAdd},
+		CmdID:   automdm.CmdID{Value: uuid.NewString()},
+		Items:   []automdm.CmdItem{{Target: &loc, Data: &automdm.RawXmlData{Content: "ch"}}},
 	}
-	cmds := map[string]fleet.ProtoCmdOperation{
-		add.CmdID.Value: {Verb: fleet.CmdAdd, Cmd: add},
+	cmds := map[string]automdm.ProtoCmdOperation{
+		add.CmdID.Value: {Verb: automdm.CmdAdd, Cmd: add},
 	}
 	complete, incomplete := (&TestWindowsMDMClient{}).ExtractSCEPCommands(cmds)
 	assert.Empty(t, complete)
@@ -58,44 +58,44 @@ func TestExtractSCEPCommandsSurfacesIncomplete(t *testing.T) {
 	assert.Contains(t, missing, "/Install/Enroll Exec")
 }
 
-// buildAtomicSCEPCmd constructs an Atomic command containing the typical SCEP CSP nodes Fleet
+// buildAtomicSCEPCmd constructs an Atomic command containing the typical SCEP CSP nodes AutoMDM
 // sends, plus an Exec on /Install/Enroll. locPrefix should be either "/Device" or "/User".
-func buildAtomicSCEPCmd(t *testing.T, locPrefix, uniqueID, serverURL, challenge, subject string) fleet.SyncMLCmd {
+func buildAtomicSCEPCmd(t *testing.T, locPrefix, uniqueID, serverURL, challenge, subject string) automdm.SyncMLCmd {
 	t.Helper()
-	mkAdd := func(field, data string) fleet.SyncMLCmd {
+	mkAdd := func(field, data string) automdm.SyncMLCmd {
 		loc := "." + locPrefix + "/Vendor/MSFT/ClientCertificateInstall/SCEP/" + uniqueID + "/Install/" + field
-		return fleet.SyncMLCmd{
-			XMLName: xml.Name{Local: fleet.CmdAdd},
-			CmdID:   fleet.CmdID{Value: uuid.NewString()},
-			Items:   []fleet.CmdItem{{Target: &loc, Data: &fleet.RawXmlData{Content: data}}},
+		return automdm.SyncMLCmd{
+			XMLName: xml.Name{Local: automdm.CmdAdd},
+			CmdID:   automdm.CmdID{Value: uuid.NewString()},
+			Items:   []automdm.CmdItem{{Target: &loc, Data: &automdm.RawXmlData{Content: data}}},
 		}
 	}
 	enrollLoc := "." + locPrefix + "/Vendor/MSFT/ClientCertificateInstall/SCEP/" + uniqueID + "/Install/Enroll"
-	return fleet.SyncMLCmd{
-		XMLName: xml.Name{Local: fleet.CmdAtomic},
-		CmdID:   fleet.CmdID{Value: uuid.NewString()},
-		AddCommands: []fleet.SyncMLCmd{
+	return automdm.SyncMLCmd{
+		XMLName: xml.Name{Local: automdm.CmdAtomic},
+		CmdID:   automdm.CmdID{Value: uuid.NewString()},
+		AddCommands: []automdm.SyncMLCmd{
 			mkAdd("ServerURL", serverURL),
 			mkAdd("Challenge", challenge),
 			mkAdd("SubjectName", subject),
-			mkAdd("SubjectAlternativeNames", "7+urn:device:fleet:uuid:"+uniqueID),
+			mkAdd("SubjectAlternativeNames", "7+urn:device:automdm:uuid:"+uniqueID),
 			mkAdd("KeyLength", "2048"),
 			mkAdd("HashAlgorithm", "SHA-256"),
 		},
-		ExecCommands: []fleet.SyncMLCmd{{
-			XMLName: xml.Name{Local: fleet.CmdExec},
-			CmdID:   fleet.CmdID{Value: uuid.NewString()},
-			Items:   []fleet.CmdItem{{Target: &enrollLoc}},
+		ExecCommands: []automdm.SyncMLCmd{{
+			XMLName: xml.Name{Local: automdm.CmdExec},
+			CmdID:   automdm.CmdID{Value: uuid.NewString()},
+			Items:   []automdm.CmdItem{{Target: &enrollLoc}},
 		}},
 	}
 }
 
-// Windows CertEnroll accepts quoted RDN values, and Fleet quotes values it substitutes into SubjectName.
+// Windows CertEnroll accepts quoted RDN values, and AutoMDM quotes values it substitutes into SubjectName.
 func TestParseSCEPSubjectQuotedValues(t *testing.T) {
-	n, err := parseSCEPSubject(`CN=Fleet conditional access for Okta,OU="fleet-abc"`)
+	n, err := parseSCEPSubject(`CN=AutoMDM conditional access for Okta,OU="automdm-abc"`)
 	require.NoError(t, err)
-	assert.Equal(t, "Fleet conditional access for Okta", n.CommonName)
-	assert.Equal(t, []string{"fleet-abc"}, n.OrganizationalUnit)
+	assert.Equal(t, "AutoMDM conditional access for Okta", n.CommonName)
+	assert.Equal(t, []string{"automdm-abc"}, n.OrganizationalUnit)
 
 	n, err = parseSCEPSubject(`CN="say ""hi"""`)
 	require.NoError(t, err)
@@ -103,10 +103,10 @@ func TestParseSCEPSubjectQuotedValues(t *testing.T) {
 }
 
 func TestParseSCEPSubjectAltNameURIs(t *testing.T) {
-	uris, err := parseSCEPSubjectAltNameURIs("2+user@example.com;7+urn:device:fleet:uuid:ABC;3+host.example.com")
+	uris, err := parseSCEPSubjectAltNameURIs("2+user@example.com;7+urn:device:automdm:uuid:ABC;3+host.example.com")
 	require.NoError(t, err)
 	require.Len(t, uris, 1)
-	assert.Equal(t, "urn:device:fleet:uuid:ABC", uris[0].String())
+	assert.Equal(t, "urn:device:automdm:uuid:ABC", uris[0].String())
 
 	uris, err = parseSCEPSubjectAltNameURIs("")
 	require.NoError(t, err)

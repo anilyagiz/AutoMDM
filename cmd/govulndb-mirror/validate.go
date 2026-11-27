@@ -1,10 +1,10 @@
 package main
 
-import "github.com/fleetdm/fleet/v4/server/vulnerabilities/govulndb"
+import "github.com/anilyagiz/automdm/v4/server/vulnerabilities/govulndb"
 
 // validate reports whether a snapshot is safe to publish.
 //
-// Fleet reads a database with fewer advisories as those advisories having been remediated and
+// AutoMDM reads a database with fewer advisories as those advisories having been remediated and
 // deletes the matching software_cve rows, so a snapshot that is empty, missing its most
 // load-bearing key, or noticeably smaller than the last published one has to be held back rather
 // than shipped. The failure mode of holding back is stale data; the failure mode of shipping is

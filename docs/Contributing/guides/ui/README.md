@@ -1,10 +1,10 @@
-# Fleet UI Development Guides
+# AutoMDM UI Development Guides
 
-This directory contains guides for UI development in Fleet.
+This directory contains guides for UI development in AutoMDM.
 
 ## UI Development
 
-- [Fleet UI Testing](fleet-ui-testing.md) - Guide for testing the Fleet UI
+- [AutoMDM UI Testing](automdm-ui-testing.md) - Guide for testing the AutoMDM UI
 - [Generating UI Component Boilerplate](generating-ui-component-boilerplate.md) - Guide for generating UI component boilerplate
 - [Design QA Considerations](design-qa-considerations.md) - Guide for design QA considerations
 

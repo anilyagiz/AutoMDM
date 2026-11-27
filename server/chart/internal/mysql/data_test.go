@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/RoaringBitmap/roaring"
-	"github.com/fleetdm/fleet/v4/server/chart"
-	"github.com/fleetdm/fleet/v4/server/chart/api"
-	"github.com/fleetdm/fleet/v4/server/chart/internal/testutils"
+	"github.com/anilyagiz/automdm/v4/server/chart"
+	"github.com/anilyagiz/automdm/v4/server/chart/api"
+	"github.com/anilyagiz/automdm/v4/server/chart/internal/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

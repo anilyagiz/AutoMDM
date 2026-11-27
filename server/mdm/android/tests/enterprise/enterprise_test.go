@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
-	"github.com/fleetdm/fleet/v4/server/mdm/android/service"
-	"github.com/fleetdm/fleet/v4/server/mdm/android/tests"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android/service"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android/tests"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -50,11 +50,11 @@ func (s *enterpriseTestSuite) TestEnterprise() {
 
 	// Enterprise doesn't exist.
 	var resp android.GetEnterpriseResponse
-	s.DoJSON("GET", "/api/v1/fleet/android_enterprise", nil, http.StatusNotFound, &resp)
+	s.DoJSON("GET", "/api/v1/automdm/android_enterprise", nil, http.StatusNotFound, &resp)
 
 	// Create enterprise
 	var signupResp android.EnterpriseSignupResponse
-	s.DoJSON("GET", "/api/v1/fleet/android_enterprise/signup_url", nil, http.StatusOK, &signupResp)
+	s.DoJSON("GET", "/api/v1/automdm/android_enterprise/signup_url", nil, http.StatusOK, &signupResp)
 	assert.Equal(s.T(), tests.EnterpriseSignupURL, signupResp.Url)
 	s.T().Logf("callbackURL: %s", s.ProxyCallbackURL)
 
@@ -75,25 +75,25 @@ func (s *enterpriseTestSuite) TestEnterprise() {
 
 	// Now enterprise exists and we can retrieve it.
 	resp = android.GetEnterpriseResponse{}
-	s.DoJSON("GET", "/api/v1/fleet/android_enterprise", nil, http.StatusOK, &resp)
+	s.DoJSON("GET", "/api/v1/automdm/android_enterprise", nil, http.StatusOK, &resp)
 	assert.Equal(s.T(), tests.EnterpriseID, resp.EnterpriseID)
 
 	// Delete enterprise and make sure we can't find it.
-	s.Do("DELETE", "/api/v1/fleet/android_enterprise", nil, http.StatusOK)
+	s.Do("DELETE", "/api/v1/automdm/android_enterprise", nil, http.StatusOK)
 
 	// Reset LIST mock to empty after deletion
 	s.AndroidAPIClient.EnterprisesListFunc = func(_ context.Context, _ string) ([]*androidmanagement.Enterprise, error) {
 		return []*androidmanagement.Enterprise{}, nil
 	}
 
-	s.DoJSON("GET", "/api/v1/fleet/android_enterprise", nil, http.StatusNotFound, &resp)
+	s.DoJSON("GET", "/api/v1/automdm/android_enterprise", nil, http.StatusNotFound, &resp)
 }
 
 func (s *enterpriseTestSuite) TestEnterpriseSSE() {
 	s.SetupTest()
 
 	// Test happy path
-	resp := s.Do("GET", "/api/v1/fleet/android_enterprise/signup_sse", nil, http.StatusOK)
+	resp := s.Do("GET", "/api/v1/automdm/android_enterprise/signup_sse", nil, http.StatusOK)
 	sseDone := make(chan struct{})
 	go func() {
 		data, err := io.ReadAll(resp.Body)
@@ -115,16 +115,16 @@ func (s *enterpriseTestSuite) TestEnterpriseSSE() {
 	}
 
 	// Test with Android already enabled
-	resp = s.Do("GET", "/api/v1/fleet/android_enterprise/signup_sse", nil, http.StatusOK)
+	resp = s.Do("GET", "/api/v1/automdm/android_enterprise/signup_sse", nil, http.StatusOK)
 	data, err := io.ReadAll(resp.Body)
 	require.NoError(s.T(), err)
 	assert.Equal(s.T(), service.SignupSSESuccess, string(data))
 
 	// Test with error
-	s.WithServer.DS.AppConfigFunc = func(_ context.Context) (*fleet.AppConfig, error) {
+	s.WithServer.DS.AppConfigFunc = func(_ context.Context) (*automdm.AppConfig, error) {
 		return nil, assert.AnError
 	}
-	resp = s.Do("GET", "/api/v1/fleet/android_enterprise/signup_sse", nil, http.StatusOK)
+	resp = s.Do("GET", "/api/v1/automdm/android_enterprise/signup_sse", nil, http.StatusOK)
 	data, err = io.ReadAll(resp.Body)
 	assert.NoError(s.T(), err)
 	assert.Contains(s.T(), string(data), assert.AnError.Error())

@@ -1,6 +1,6 @@
 # Moved
 
-The Fleet Terraform Modules have moved to [`fleetdm/fleet-terraform`](https://github.com/fleetdm/fleet-terraform).
+The AutoMDM Terraform Modules have moved to [`fleetdm/fleet-terraform`](https://github.com/fleetdm/fleet-terraform).
 
 The tags for all legacy versions of modules are still available by their named versions.
 

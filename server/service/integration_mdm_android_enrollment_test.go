@@ -22,16 +22,16 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
-	android_mock "github.com/fleetdm/fleet/v4/server/mdm/android/mock"
-	android_service "github.com/fleetdm/fleet/v4/server/mdm/android/service"
-	"github.com/fleetdm/fleet/v4/server/mdm/android/service/androidmgmt"
-	"github.com/fleetdm/fleet/v4/server/mdm/android/tests"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
+	android_mock "github.com/anilyagiz/automdm/v4/server/mdm/android/mock"
+	android_service "github.com/anilyagiz/automdm/v4/server/mdm/android/service"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android/service/androidmgmt"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android/tests"
 	"google.golang.org/api/androidmanagement/v1"
 	"google.golang.org/api/googleapi"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
@@ -75,7 +75,7 @@ func (s *integrationMDMTestSuite) TestAndroidHostUnenrollMDM() {
 
 	// BYO host -> WIPE command, no Delete call.
 	byoHostID := createAndroidHostForTest(t, s.ds, nil, false)
-	s.Do("DELETE", fmt.Sprintf("/api/latest/fleet/hosts/%d/mdm", byoHostID), nil, http.StatusNoContent)
+	s.Do("DELETE", fmt.Sprintf("/api/latest/automdm/hosts/%d/mdm", byoHostID), nil, http.StatusNoContent)
 	require.True(t, didCallAMAPIIssueWipe, "expected BYO unenroll to call EnterprisesDevicesIssueCommand")
 	require.False(t, didCallAMAPIDelete, "BYO unenroll must not call EnterprisesDevicesDelete")
 	require.NotNil(t, issuedCommand)
@@ -87,30 +87,30 @@ func (s *integrationMDMTestSuite) TestAndroidHostUnenrollMDM() {
 	// The transient work-profile-wipe status surfaces as a pending unenroll for BYO Android, not a pending wipe, so the UI can hide
 	// conflicting actions without showing a wipe badge. The host transitions to "Off" once it removes its work profile.
 	var byoResp getHostResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", byoHostID), nil, http.StatusOK, &byoResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", byoHostID), nil, http.StatusOK, &byoResp)
 	require.NotNil(t, byoResp.Host.MDM.PendingAction)
-	require.Equal(t, string(fleet.PendingActionUnenroll), *byoResp.Host.MDM.PendingAction)
+	require.Equal(t, string(automdm.PendingActionUnenroll), *byoResp.Host.MDM.PendingAction)
 	require.NotNil(t, byoResp.Host.MDM.DeviceStatus)
 	require.Equal(t, "unlocked", *byoResp.Host.MDM.DeviceStatus, "BYO Android unenroll must not surface a wipe device_status")
 
 	// The pending unenroll also shows up when listing hosts with their device status.
 	var listResp listHostsResponse
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &listResp, "include_device_status", "true")
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &listResp, "include_device_status", "true")
 	var listedBYO bool
 	for _, h := range listResp.Hosts {
 		if h.ID == byoHostID {
 			listedBYO = true
 			require.NotNil(t, h.MDM.PendingAction)
-			require.Equal(t, string(fleet.PendingActionUnenroll), *h.MDM.PendingAction)
+			require.Equal(t, string(automdm.PendingActionUnenroll), *h.MDM.PendingAction)
 		}
 	}
 	require.True(t, listedBYO, "BYO host must be listed")
 
 	// Neither a second Unenroll nor a Wipe may queue another work-profile wipe while the first is pending.
 	didCallAMAPIIssueWipe = false
-	res := s.Do("DELETE", fmt.Sprintf("/api/latest/fleet/hosts/%d/mdm", byoHostID), nil, http.StatusConflict)
-	require.Contains(t, extractServerErrorText(res.Body), fleet.CantUnenrollPendingUnenrollMessage)
-	s.Do("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/wipe", byoHostID), nil, http.StatusUnprocessableEntity)
+	res := s.Do("DELETE", fmt.Sprintf("/api/latest/automdm/hosts/%d/mdm", byoHostID), nil, http.StatusConflict)
+	require.Contains(t, extractServerErrorText(res.Body), automdm.CantUnenrollPendingUnenrollMessage)
+	s.Do("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/wipe", byoHostID), nil, http.StatusUnprocessableEntity)
 	require.False(t, didCallAMAPIIssueWipe, "no AMAPI command may be issued while the BYO unenroll is pending")
 
 	// The wipe_ref is still written under the hood (suppression is presentation-only), so the work-profile wipe runs.
@@ -127,7 +127,7 @@ func (s *integrationMDMTestSuite) TestAndroidHostUnenrollMDM() {
 
 	// COBO host -> Delete call, no WIPE.
 	coboHostID := createAndroidHostForTest(t, s.ds, nil, true)
-	s.Do("DELETE", fmt.Sprintf("/api/latest/fleet/hosts/%d/mdm", coboHostID), nil, http.StatusNoContent)
+	s.Do("DELETE", fmt.Sprintf("/api/latest/automdm/hosts/%d/mdm", coboHostID), nil, http.StatusNoContent)
 	require.True(t, didCallAMAPIDelete, "COBO unenroll must call EnterprisesDevicesDelete")
 	require.False(t, didCallAMAPIIssueWipe, "COBO unenroll must not call EnterprisesDevicesIssueCommand")
 
@@ -147,11 +147,11 @@ func (s *integrationMDMTestSuite) TestAndroidHostUnenrollMDM() {
 		return nil, &googleapi.Error{Code: http.StatusNotFound, Message: "Not Found"}
 	}
 	byoGoneHostID := createAndroidHostForTest(t, s.ds, nil, false)
-	s.Do("DELETE", fmt.Sprintf("/api/latest/fleet/hosts/%d/mdm", byoGoneHostID), nil, http.StatusNoContent)
+	s.Do("DELETE", fmt.Sprintf("/api/latest/automdm/hosts/%d/mdm", byoGoneHostID), nil, http.StatusNoContent)
 	require.True(t, didCallAMAPIIssueWipe, "expected BYO unenroll to attempt IssueCommand even when device is gone")
 }
 
-// TestAndroidLockWipeClearPasscode exercises the three commands end-to-end against the real Fleet HTTP handler stack with a
+// TestAndroidLockWipeClearPasscode exercises the three commands end-to-end against the real AutoMDM HTTP handler stack with a
 // mocked AMAPI client: lock (BYO + COBO), wipe (both), clear-passcode (both), and the Pub/Sub COMMAND ack that
 // transitions a pending row to acknowledged. Each assertion checks that (1) the mock IssueCommand was called with the right
 // type/duration, (2) the mdm_android_commands row is persisted with the right status, and where applicable (3) host_mdm_actions
@@ -202,31 +202,31 @@ func (s *integrationMDMTestSuite) TestAndroidAMAPIErrorStatusMapping() {
 
 			// COBO hosts: lock, wipe and clear passcode are all allowed.
 			lockHostID := createAndroidHostForTest(t, s.ds, nil, true)
-			s.Do("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/lock", lockHostID), nil, ae.want)
+			s.Do("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/lock", lockHostID), nil, ae.want)
 
 			wipeHostID := createAndroidHostForTest(t, s.ds, nil, true)
-			s.Do("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/wipe", wipeHostID), nil, ae.want)
+			s.Do("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/wipe", wipeHostID), nil, ae.want)
 
 			passcodeHostID := createAndroidHostForTest(t, s.ds, nil, true)
-			s.Do("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/clear_passcode", passcodeHostID), nil, ae.want)
+			s.Do("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/clear_passcode", passcodeHostID), nil, ae.want)
 
 			// BYO hosts may be locked too, and take the same path as COBO.
 			byoLockHostID := createAndroidHostForTest(t, s.ds, nil, false)
-			s.Do("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/lock", byoLockHostID), nil, ae.want)
+			s.Do("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/lock", byoLockHostID), nil, ae.want)
 
 			// Custom commands reach the mapping through a different service entry point
 			// (server/service/mdm.go) than the three commands above, so cover it separately.
 			customHostID := createAndroidHostForTest(t, s.ds, nil, true)
 			var customHost getHostResponse
-			s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", customHostID), nil, http.StatusOK, &customHost)
-			s.Do("POST", "/api/latest/fleet/commands/run", &runMDMCommandRequest{
+			s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", customHostID), nil, http.StatusOK, &customHost)
+			s.Do("POST", "/api/latest/automdm/commands/run", &runMDMCommandRequest{
 				Command:   base64.StdEncoding.EncodeToString([]byte(`{"type":"REBOOT"}`)),
 				HostUUIDs: []string{customHost.Host.UUID},
 			}, ae.want)
 
 			// BYO unenroll issues the work-profile wipe, so it goes through the same mapping.
 			unenrollHostID := createAndroidHostForTest(t, s.ds, nil, false)
-			s.Do("DELETE", fmt.Sprintf("/api/latest/fleet/hosts/%d/mdm", unenrollHostID), nil, ae.wantUnenroll)
+			s.Do("DELETE", fmt.Sprintf("/api/latest/automdm/hosts/%d/mdm", unenrollHostID), nil, ae.wantUnenroll)
 		})
 	}
 }
@@ -251,8 +251,8 @@ func (s *integrationMDMTestSuite) TestAndroidLockWipeClearPasscode() {
 	// The Pub/Sub COMMAND handler authenticates against the AndroidPubSubToken asset. The real signup flow inserts this when AMAPI
 	// creates the enterprise; in this test we shortcut the signup and seed the token directly so the COMMAND notification path can run.
 	const pubsubToken = "test-android-pubsub-token"
-	require.NoError(t, s.ds.InsertOrReplaceMDMConfigAsset(ctx, fleet.MDMConfigAsset{
-		Name:  fleet.MDMAssetAndroidPubSubToken,
+	require.NoError(t, s.ds.InsertOrReplaceMDMConfigAsset(ctx, automdm.MDMConfigAsset{
+		Name:  automdm.MDMAssetAndroidPubSubToken,
 		Value: []byte(pubsubToken),
 	}))
 
@@ -284,7 +284,7 @@ func (s *integrationMDMTestSuite) TestAndroidLockWipeClearPasscode() {
 		return issueCalls[i], issueDeviceNames[i], issueOpNames[i]
 	}
 
-	// deliverPubSubCommand simulates an AMAPI COMMAND notification arriving at Fleet's Pub/Sub endpoint with the supplied Operation envelope.
+	// deliverPubSubCommand simulates an AMAPI COMMAND notification arriving at AutoMDM's Pub/Sub endpoint with the supplied Operation envelope.
 	deliverPubSubCommand := func(t *testing.T, op androidmanagement.Operation) {
 		t.Helper()
 		android_mock.RegisterOperation(op)
@@ -294,7 +294,7 @@ func (s *integrationMDMTestSuite) TestAndroidLockWipeClearPasscode() {
 			Attributes: map[string]string{"notificationType": string(android.PubSubCommand)},
 			Data:       base64.StdEncoding.EncodeToString(body),
 		}
-		s.Do("POST", "/api/v1/fleet/android_enterprise/pubsub", &req, http.StatusOK, "token", pubsubToken)
+		s.Do("POST", "/api/v1/automdm/android_enterprise/pubsub", &req, http.StatusOK, "token", pubsubToken)
 	}
 
 	// assertHostMDMStatus fetches /hosts/{id} and asserts DeviceStatus + PendingAction. Both fields are always set to non-nil string
@@ -302,7 +302,7 @@ func (s *integrationMDMTestSuite) TestAndroidLockWipeClearPasscode() {
 	assertHostMDMStatus := func(t *testing.T, hostID uint, wantPendingAction, wantDeviceStatus string) {
 		t.Helper()
 		var resp getHostResponse
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", hostID), nil, http.StatusOK, &resp)
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", hostID), nil, http.StatusOK, &resp)
 		require.NotNil(t, resp.Host.MDM.PendingAction)
 		require.Equal(t, wantPendingAction, *resp.Host.MDM.PendingAction)
 		require.NotNil(t, resp.Host.MDM.DeviceStatus)
@@ -315,14 +315,14 @@ func (s *integrationMDMTestSuite) TestAndroidLockWipeClearPasscode() {
 	assertUnlockPINAvailable := func(t *testing.T, hostID uint, want bool) {
 		t.Helper()
 		var resp getHostResponse
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", hostID), nil, http.StatusOK, &resp)
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", hostID), nil, http.StatusOK, &resp)
 		require.NotNil(t, resp.Host.MDM.UnlockPINAvailable)
 		require.Equal(t, want, *resp.Host.MDM.UnlockPINAvailable)
 	}
 	countHostActivities := func(t *testing.T, hostID uint, activityType string) int {
 		t.Helper()
 		var listActivities listActivitiesResponse
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/activities", hostID), nil, http.StatusOK, &listActivities, "per_page", "100")
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/activities", hostID), nil, http.StatusOK, &listActivities, "per_page", "100")
 		n := 0
 		for _, act := range listActivities.Activities {
 			if act.Type == activityType {
@@ -339,10 +339,10 @@ func (s *integrationMDMTestSuite) TestAndroidLockWipeClearPasscode() {
 	sixDigitPIN := regexp.MustCompile(`^[0-9]{6}$`)
 
 	t.Run("Lock COBO resets the PIN, and unlock returns it once the device acknowledges", func(t *testing.T) {
-		var lockResp fleet.LockHostResponse
-		s.DoJSON("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/lock", coboHostID), nil, http.StatusOK, &lockResp, "view_pin", "true")
-		require.Equal(t, fleet.PendingActionLock, lockResp.PendingAction)
-		require.Equal(t, fleet.DeviceStatusUnlocked, lockResp.DeviceStatus)
+		var lockResp automdm.LockHostResponse
+		s.DoJSON("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/lock", coboHostID), nil, http.StatusOK, &lockResp, "view_pin", "true")
+		require.Equal(t, automdm.PendingActionLock, lockResp.PendingAction)
+		require.Equal(t, automdm.DeviceStatusUnlocked, lockResp.DeviceStatus)
 		// The device isn't registered with the AMAPI mock, so devices.get fails and the default PIN is used.
 		require.Regexp(t, sixDigitPIN, lockResp.UnlockPIN)
 		pin := lockResp.UnlockPIN
@@ -361,14 +361,14 @@ func (s *integrationMDMTestSuite) TestAndroidLockWipeClearPasscode() {
 		require.True(t, row.RawCommand.Valid)
 		require.NotContains(t, row.RawCommand.V, "newPassword")
 		require.NotContains(t, row.RawCommand.V, pin)
-		s.lastHostActivityMatches(coboHostID, fleet.ActivityTypeLockedHost{}.ActivityName(),
+		s.lastHostActivityMatches(coboHostID, automdm.ActivityTypeLockedHost{}.ActivityName(),
 			fmt.Sprintf(`{"host_id": %d, "host_display_name": %q, "view_pin": true}`, coboHostID, "Android Storage Test Device"), 0)
 
 		// host_mdm_actions.lock_ref is the link the host page reads to surface PendingAction=lock.
 		assertHostMDMStatus(t, coboHostID, "lock", "unlocked")
 		assertUnlockPINAvailable(t, coboHostID, false)
 
-		res := s.Do("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/unlock", coboHostID), nil, http.StatusUnprocessableEntity)
+		res := s.Do("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/unlock", coboHostID), nil, http.StatusUnprocessableEntity)
 		require.Contains(t, extractServerErrorText(res.Body), "Host has pending lock request. Host cannot be unlocked until lock is complete.")
 
 		// Simulate the AMAPI Pub/Sub COMMAND notification reporting a successful device ack.
@@ -378,46 +378,46 @@ func (s *integrationMDMTestSuite) TestAndroidLockWipeClearPasscode() {
 		require.NoError(t, err)
 		require.Equal(t, string(android.MDMAndroidCommandStatusAcknowledged), row.Status)
 
-		// Fleet can't observe the device-side unlock (no AMAPI signal), so the host is never reported as "locked", which keeps
+		// AutoMDM can't observe the device-side unlock (no AMAPI signal), so the host is never reported as "locked", which keeps
 		// Lock (for a new PIN) and Wipe available. See HostLockWipeStatus.IsLocked.
 		assertHostMDMStatus(t, coboHostID, "", "unlocked")
 		assertUnlockPINAvailable(t, coboHostID, true)
 
 		// The command results API serves raw_command and raw_result, which must never contain the PIN.
 		var resultsResp getMDMCommandResultsResponse
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/commands/results?command_uuid=%s", row.CommandUUID), nil, http.StatusOK, &resultsResp)
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/commands/results?command_uuid=%s", row.CommandUUID), nil, http.StatusOK, &resultsResp)
 		require.Len(t, resultsResp.Results, 1)
 		require.NotContains(t, string(resultsResp.Results[0].Payload), pin)
 		require.NotContains(t, string(resultsResp.Results[0].Result), pin)
 
 		issuedBefore := issueCount()
 		for range 2 {
-			var unlockResp fleet.UnlockHostResponse
-			s.DoJSON("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/unlock", coboHostID), nil, http.StatusOK, &unlockResp)
+			var unlockResp automdm.UnlockHostResponse
+			s.DoJSON("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/unlock", coboHostID), nil, http.StatusOK, &unlockResp)
 			require.Equal(t, pin, unlockResp.UnlockPIN)
 			require.NotNil(t, unlockResp.LockedAt)
 			require.True(t, row.UpdatedAt.Equal(*unlockResp.LockedAt), "locked_at %s, ack %s", unlockResp.LockedAt, row.UpdatedAt)
-			require.Equal(t, fleet.DeviceStatusUnlocked, unlockResp.DeviceStatus)
+			require.Equal(t, automdm.DeviceStatusUnlocked, unlockResp.DeviceStatus)
 			require.Empty(t, unlockResp.PendingAction)
 			require.NotNil(t, unlockResp.HostID)
 			require.Equal(t, coboHostID, *unlockResp.HostID)
 		}
 		require.Equal(t, issuedBefore, issueCount(), "unlock must not issue an AMAPI command")
-		require.Equal(t, 2, countHostActivities(t, coboHostID, fleet.ActivityTypeViewedHostUnlockPIN{}.ActivityName()))
-		require.Zero(t, countHostActivities(t, coboHostID, fleet.ActivityTypeUnlockedHost{}.ActivityName()))
-		s.lastHostActivityMatches(coboHostID, fleet.ActivityTypeViewedHostUnlockPIN{}.ActivityName(),
+		require.Equal(t, 2, countHostActivities(t, coboHostID, automdm.ActivityTypeViewedHostUnlockPIN{}.ActivityName()))
+		require.Zero(t, countHostActivities(t, coboHostID, automdm.ActivityTypeUnlockedHost{}.ActivityName()))
+		s.lastHostActivityMatches(coboHostID, automdm.ActivityTypeViewedHostUnlockPIN{}.ActivityName(),
 			fmt.Sprintf(`{"host_id": %d, "host_display_name": %q, "host_platform": "android"}`, coboHostID, "Android Storage Test Device"), 0)
 	})
 
 	t.Run("Lock again replaces the PIN and lock time", func(t *testing.T) {
-		var before fleet.UnlockHostResponse
-		s.DoJSON("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/unlock", coboHostID), nil, http.StatusOK, &before)
+		var before automdm.UnlockHostResponse
+		s.DoJSON("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/unlock", coboHostID), nil, http.StatusOK, &before)
 
 		// Without view_pin, the PIN isn't returned and the activity says so.
-		var lockResp fleet.LockHostResponse
-		s.DoJSON("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/lock", coboHostID), nil, http.StatusOK, &lockResp)
+		var lockResp automdm.LockHostResponse
+		s.DoJSON("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/lock", coboHostID), nil, http.StatusOK, &lockResp)
 		require.Empty(t, lockResp.UnlockPIN)
-		s.lastHostActivityMatches(coboHostID, fleet.ActivityTypeLockedHost{}.ActivityName(),
+		s.lastHostActivityMatches(coboHostID, automdm.ActivityTypeLockedHost{}.ActivityName(),
 			fmt.Sprintf(`{"host_id": %d, "host_display_name": %q, "view_pin": false}`, coboHostID, "Android Storage Test Device"), 0)
 
 		cmd, _, opName := lastIssue()
@@ -429,15 +429,15 @@ func (s *integrationMDMTestSuite) TestAndroidLockWipeClearPasscode() {
 		row, err := s.ds.GetMDMAndroidCommandByOperationName(ctx, opName)
 		require.NoError(t, err)
 
-		var after fleet.UnlockHostResponse
-		s.DoJSON("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/unlock", coboHostID), nil, http.StatusOK, &after)
+		var after automdm.UnlockHostResponse
+		s.DoJSON("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/unlock", coboHostID), nil, http.StatusOK, &after)
 		require.Equal(t, newPIN, after.UnlockPIN)
 		require.NotNil(t, after.LockedAt)
 		require.True(t, row.UpdatedAt.Equal(*after.LockedAt))
 		require.True(t, after.LockedAt.After(*before.LockedAt))
 	})
 
-	t.Run("Unlock works for a locked host no longer connected to Fleet MDM", func(t *testing.T) {
+	t.Run("Unlock works for a locked host no longer connected to AutoMDM", func(t *testing.T) {
 		mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
 			_, err := q.ExecContext(ctx, `UPDATE host_mdm SET enrolled = 0 WHERE host_id = ?`, coboHostID)
 			return err
@@ -449,8 +449,8 @@ func (s *integrationMDMTestSuite) TestAndroidLockWipeClearPasscode() {
 			})
 		})
 
-		var unlockResp fleet.UnlockHostResponse
-		s.DoJSON("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/unlock", coboHostID), nil, http.StatusOK, &unlockResp)
+		var unlockResp automdm.UnlockHostResponse
+		s.DoJSON("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/unlock", coboHostID), nil, http.StatusOK, &unlockResp)
 		require.Regexp(t, sixDigitPIN, unlockResp.UnlockPIN)
 	})
 
@@ -465,8 +465,8 @@ func (s *integrationMDMTestSuite) TestAndroidLockWipeClearPasscode() {
 			}}, nil
 		}
 
-		var lockResp fleet.LockHostResponse
-		s.DoJSON("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/lock", policyHostID), nil, http.StatusOK, &lockResp, "view_pin", "true")
+		var lockResp automdm.LockHostResponse
+		s.DoJSON("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/lock", policyHostID), nil, http.StatusOK, &lockResp, "view_pin", "true")
 		require.GreaterOrEqual(t, len(lockResp.UnlockPIN), 12)
 		require.Regexp(t, `[a-z]`, lockResp.UnlockPIN)
 		require.Regexp(t, `[0-9]`, lockResp.UnlockPIN)
@@ -475,8 +475,8 @@ func (s *integrationMDMTestSuite) TestAndroidLockWipeClearPasscode() {
 		require.Equal(t, lockResp.UnlockPIN, cmd.NewPassword)
 		deliverPubSubCommand(t, androidmanagement.Operation{Name: opName, Done: true})
 
-		var unlockResp fleet.UnlockHostResponse
-		s.DoJSON("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/unlock", policyHostID), nil, http.StatusOK, &unlockResp)
+		var unlockResp automdm.UnlockHostResponse
+		s.DoJSON("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/unlock", policyHostID), nil, http.StatusOK, &unlockResp)
 		require.Equal(t, lockResp.UnlockPIN, unlockResp.UnlockPIN)
 	})
 
@@ -484,10 +484,10 @@ func (s *integrationMDMTestSuite) TestAndroidLockWipeClearPasscode() {
 		hostA := createAndroidHostForTest(t, s.ds, nil, true)
 		hostB := createAndroidHostForTest(t, s.ds, nil, false)
 
-		var respA, respB fleet.LockHostResponse
-		s.DoJSON("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/lock", hostA), nil, http.StatusOK, &respA, "view_pin", "true")
+		var respA, respB automdm.LockHostResponse
+		s.DoJSON("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/lock", hostA), nil, http.StatusOK, &respA, "view_pin", "true")
 		_, _, opA := lastIssue()
-		s.DoJSON("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/lock", hostB), nil, http.StatusOK, &respB, "view_pin", "true")
+		s.DoJSON("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/lock", hostB), nil, http.StatusOK, &respB, "view_pin", "true")
 		_, _, opB := lastIssue()
 		// 1 in ~10^6 chance of a false failure.
 		require.NotEqual(t, respA.UnlockPIN, respB.UnlockPIN)
@@ -495,55 +495,55 @@ func (s *integrationMDMTestSuite) TestAndroidLockWipeClearPasscode() {
 		deliverPubSubCommand(t, androidmanagement.Operation{Name: opA, Done: true})
 		deliverPubSubCommand(t, androidmanagement.Operation{Name: opB, Done: true})
 
-		var unlockA, unlockB fleet.UnlockHostResponse
-		s.DoJSON("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/unlock", hostA), nil, http.StatusOK, &unlockA)
-		s.DoJSON("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/unlock", hostB), nil, http.StatusOK, &unlockB)
+		var unlockA, unlockB automdm.UnlockHostResponse
+		s.DoJSON("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/unlock", hostA), nil, http.StatusOK, &unlockA)
+		s.DoJSON("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/unlock", hostB), nil, http.StatusOK, &unlockB)
 		require.Equal(t, respA.UnlockPIN, unlockA.UnlockPIN)
 		require.Equal(t, respB.UnlockPIN, unlockB.UnlockPIN)
 	})
 
 	t.Run("Wipe is accepted after an acknowledged lock", func(t *testing.T) {
 		lockedHostID := createAndroidHostForTest(t, s.ds, nil, true)
-		s.Do("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/lock", lockedHostID), nil, http.StatusOK)
+		s.Do("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/lock", lockedHostID), nil, http.StatusOK)
 		_, _, opName := lastIssue()
 		deliverPubSubCommand(t, androidmanagement.Operation{Name: opName, Done: true})
 
-		s.Do("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/wipe", lockedHostID), nil, http.StatusOK)
+		s.Do("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/wipe", lockedHostID), nil, http.StatusOK)
 		assertHostMDMStatus(t, lockedHostID, "wipe", "unlocked")
 
-		res := s.Do("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/unlock", lockedHostID), nil, http.StatusUnprocessableEntity)
+		res := s.Do("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/unlock", lockedHostID), nil, http.StatusUnprocessableEntity)
 		require.Contains(t, extractServerErrorText(res.Body), "Host has pending wipe request. Cannot process unlock requests once host is wiped.")
 
 		_, _, wipeOp := lastIssue()
 		deliverPubSubCommand(t, androidmanagement.Operation{Name: wipeOp, Done: true})
 		assertUnlockPINAvailable(t, lockedHostID, false)
-		res = s.Do("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/unlock", lockedHostID), nil, http.StatusUnprocessableEntity)
+		res = s.Do("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/unlock", lockedHostID), nil, http.StatusUnprocessableEntity)
 		require.Contains(t, extractServerErrorText(res.Body), "Host is wiped. Cannot process unlock requests once host is wiped.")
 	})
 
 	t.Run("Lock and Clear passcode can't overlap", func(t *testing.T) {
 		guardHostID := createAndroidHostForTest(t, s.ds, nil, true)
 
-		s.Do("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/clear_passcode", guardHostID), nil, http.StatusOK)
+		s.Do("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/clear_passcode", guardHostID), nil, http.StatusOK)
 		_, _, clearOp := lastIssue()
 		issuedBefore := issueCount()
-		res := s.Do("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/lock", guardHostID), nil, http.StatusUnprocessableEntity)
+		res := s.Do("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/lock", guardHostID), nil, http.StatusUnprocessableEntity)
 		require.Contains(t, extractServerErrorText(res.Body),
 			"Host has pending clear passcode request. Host cannot be locked until clear passcode is complete.")
 		require.Equal(t, issuedBefore, issueCount())
 		deliverPubSubCommand(t, androidmanagement.Operation{Name: clearOp, Done: true})
 
-		s.Do("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/lock", guardHostID), nil, http.StatusOK)
+		s.Do("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/lock", guardHostID), nil, http.StatusOK)
 		issuedBefore = issueCount()
-		res = s.Do("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/clear_passcode", guardHostID), nil, http.StatusUnprocessableEntity)
+		res = s.Do("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/clear_passcode", guardHostID), nil, http.StatusUnprocessableEntity)
 		require.Contains(t, extractServerErrorText(res.Body), "Host has pending lock request. Passcode cannot be cleared until lock is complete.")
 		require.Equal(t, issuedBefore, issueCount())
 	})
 
-	t.Run("No PIN to show for a never-locked host or a lock from before Fleet 5", func(t *testing.T) {
+	t.Run("No PIN to show for a never-locked host or a lock from before AutoMDM 5", func(t *testing.T) {
 		neverLockedID := createAndroidHostForTest(t, s.ds, nil, true)
 		assertUnlockPINAvailable(t, neverLockedID, false)
-		res := s.Do("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/unlock", neverLockedID), nil, http.StatusConflict)
+		res := s.Do("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/unlock", neverLockedID), nil, http.StatusConflict)
 		require.Contains(t, extractServerErrorText(res.Body), "Host is already unlocked.")
 
 		legacyHostID := createAndroidHostForTest(t, s.ds, nil, true)
@@ -558,20 +558,20 @@ func (s *integrationMDMTestSuite) TestAndroidLockWipeClearPasscode() {
 			Status:        string(android.MDMAndroidCommandStatusAcknowledged),
 		}))
 		mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
-			_, err := q.ExecContext(ctx, `INSERT INTO host_mdm_actions (host_id, lock_ref, fleet_platform) VALUES (?, ?, 'android')`,
+			_, err := q.ExecContext(ctx, `INSERT INTO host_mdm_actions (host_id, lock_ref, automdm_platform) VALUES (?, ?, 'android')`,
 				legacyHostID, legacyCmdUUID)
 			return err
 		})
 		assertUnlockPINAvailable(t, legacyHostID, false)
-		res = s.Do("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/unlock", legacyHostID), nil, http.StatusConflict)
+		res = s.Do("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/unlock", legacyHostID), nil, http.StatusConflict)
 		require.Contains(t, extractServerErrorText(res.Body), "Host is already unlocked.")
 	})
 
 	t.Run("Wipe BYO issues WIPE and unenrolls via Pub/Sub ack", func(t *testing.T) {
-		var wipeResp fleet.WipeHostResponse
-		s.DoJSON("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/wipe", byoHostID), nil, http.StatusOK, &wipeResp)
+		var wipeResp automdm.WipeHostResponse
+		s.DoJSON("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/wipe", byoHostID), nil, http.StatusOK, &wipeResp)
 		// The wipe response reports the pending wipe even though GET host suppresses it for BYO below.
-		require.Equal(t, fleet.PendingActionWipe, wipeResp.PendingAction)
+		require.Equal(t, automdm.PendingActionWipe, wipeResp.PendingAction)
 
 		cmd, _, opName := lastIssue()
 		require.Equal(t, string(android.MDMAndroidCommandTypeWipe), cmd.Type)
@@ -582,13 +582,13 @@ func (s *integrationMDMTestSuite) TestAndroidLockWipeClearPasscode() {
 		require.NoError(t, err)
 		require.Equal(t, string(android.MDMAndroidCommandStatusPending), row.Status)
 		require.Equal(t, string(android.MDMAndroidCommandTypeWipe), row.CommandType)
-		s.lastHostActivityMatches(byoHostID, fleet.ActivityTypeWipedHost{}.ActivityName(), "", 0)
+		s.lastHostActivityMatches(byoHostID, automdm.ActivityTypeWipedHost{}.ActivityName(), "", 0)
 
 		// BYO wipe_ref surfaces as a pending unenroll on the host page, the same as BYO Unenroll which also runs a WIPE.
 		assertHostMDMStatus(t, byoHostID, "unenroll", "unlocked")
 
 		// Unenroll on top of the pending work-profile wipe is refused.
-		s.Do("DELETE", fmt.Sprintf("/api/latest/fleet/hosts/%d/mdm", byoHostID), nil, http.StatusConflict)
+		s.Do("DELETE", fmt.Sprintf("/api/latest/automdm/hosts/%d/mdm", byoHostID), nil, http.StatusConflict)
 		_, _, lastOpName := lastIssue()
 		require.Equal(t, opName, lastOpName, "a refused unenroll must not issue an AMAPI command")
 
@@ -601,7 +601,7 @@ func (s *integrationMDMTestSuite) TestAndroidLockWipeClearPasscode() {
 		byoHostMDM, err := s.ds.GetHostMDM(ctx, byoHostID)
 		require.NoError(t, err)
 		require.False(t, byoHostMDM.Enrolled, "BYO Wipe ack must flip host_mdm.enrolled to false")
-		s.lastHostActivityMatches(byoHostID, fleet.ActivityTypeMDMUnenrolled{}.ActivityName(), "", 0)
+		s.lastHostActivityMatches(byoHostID, automdm.ActivityTypeMDMUnenrolled{}.ActivityName(), "", 0)
 
 		// Only the work profile was removed, so the ack clears wipe_ref and the host is not shown as wiped.
 		assertHostMDMStatus(t, byoHostID, "", "unlocked")
@@ -610,27 +610,27 @@ func (s *integrationMDMTestSuite) TestAndroidLockWipeClearPasscode() {
 	t.Run("Custom WIPE and Clear passcode on BYO with a pending wipe are refused", func(t *testing.T) {
 		pendingWipeHostID := createAndroidHostForTest(t, s.ds, nil, false)
 		var hostResp getHostResponse
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", pendingWipeHostID), nil, http.StatusOK, &hostResp)
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", pendingWipeHostID), nil, http.StatusOK, &hostResp)
 
-		var wipeResp fleet.WipeHostResponse
-		s.DoJSON("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/wipe", pendingWipeHostID), nil, http.StatusOK, &wipeResp)
+		var wipeResp automdm.WipeHostResponse
+		s.DoJSON("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/wipe", pendingWipeHostID), nil, http.StatusOK, &wipeResp)
 		_, _, wipeOpName := lastIssue()
-		wipeActID := s.lastHostActivityMatches(pendingWipeHostID, fleet.ActivityTypeWipedHost{}.ActivityName(), "", 0)
+		wipeActID := s.lastHostActivityMatches(pendingWipeHostID, automdm.ActivityTypeWipedHost{}.ActivityName(), "", 0)
 
 		for _, payload := range []string{`{"type":"WIPE","wipeParams":{}}`, `{"wipeParams":{}}`} {
-			res := s.Do("POST", "/api/latest/fleet/commands/run", &runMDMCommandRequest{
+			res := s.Do("POST", "/api/latest/automdm/commands/run", &runMDMCommandRequest{
 				Command:   base64.StdEncoding.EncodeToString([]byte(payload)),
 				HostUUIDs: []string{hostResp.Host.UUID},
 			}, http.StatusUnprocessableEntity)
 			require.Contains(t, extractServerErrorText(res.Body), "Host has pending wipe request. The host will be wiped when it comes online.")
 		}
 
-		res := s.Do("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/clear_passcode", pendingWipeHostID), nil, http.StatusUnprocessableEntity)
+		res := s.Do("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/clear_passcode", pendingWipeHostID), nil, http.StatusUnprocessableEntity)
 		require.Contains(t, extractServerErrorText(res.Body), "Host has pending wipe request. Cannot process clear passcode requests once host is wiped.")
 
 		_, _, lastOpName := lastIssue()
 		require.Equal(t, wipeOpName, lastOpName, "a refused request must not issue an AMAPI command")
-		s.lastHostActivityMatches(pendingWipeHostID, fleet.ActivityTypeWipedHost{}.ActivityName(), "", wipeActID)
+		s.lastHostActivityMatches(pendingWipeHostID, automdm.ActivityTypeWipedHost{}.ActivityName(), "", wipeActID)
 
 		deliverPubSubCommand(t, androidmanagement.Operation{Name: wipeOpName, Done: true})
 		assertHostMDMStatus(t, pendingWipeHostID, "", "unlocked")
@@ -639,10 +639,10 @@ func (s *integrationMDMTestSuite) TestAndroidLockWipeClearPasscode() {
 	t.Run("Custom WIPE command on BYO unenrolls via Pub/Sub ack", func(t *testing.T) {
 		customByoHostID := createAndroidHostForTest(t, s.ds, nil, false)
 		var hostResp getHostResponse
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", customByoHostID), nil, http.StatusOK, &hostResp)
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", customByoHostID), nil, http.StatusOK, &hostResp)
 
 		var runResp runMDMCommandResponse
-		s.DoJSON("POST", "/api/latest/fleet/commands/run", &runMDMCommandRequest{
+		s.DoJSON("POST", "/api/latest/automdm/commands/run", &runMDMCommandRequest{
 			Command:   base64.StdEncoding.EncodeToString([]byte(`{"wipeParams":{}}`)),
 			HostUUIDs: []string{hostResp.Host.UUID},
 		}, http.StatusOK, &runResp)
@@ -660,7 +660,7 @@ func (s *integrationMDMTestSuite) TestAndroidLockWipeClearPasscode() {
 		customByoHostMDM, err := s.ds.GetHostMDM(ctx, customByoHostID)
 		require.NoError(t, err)
 		require.False(t, customByoHostMDM.Enrolled, "BYO custom WIPE ack must flip host_mdm.enrolled to false")
-		s.lastHostActivityMatches(customByoHostID, fleet.ActivityTypeMDMUnenrolled{}.ActivityName(), "", 0)
+		s.lastHostActivityMatches(customByoHostID, automdm.ActivityTypeMDMUnenrolled{}.ActivityName(), "", 0)
 		assertHostMDMStatus(t, customByoHostID, "", "unlocked")
 	})
 
@@ -669,9 +669,9 @@ func (s *integrationMDMTestSuite) TestAndroidLockWipeClearPasscode() {
 		// a fresh COBO host to keep the assertion focused on the wipe-issue path, not on the lock/wipe interaction.
 		wipeHostID := createAndroidHostForTest(t, s.ds, nil, true)
 
-		var wipeResp fleet.WipeHostResponse
-		s.DoJSON("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/wipe", wipeHostID), nil, http.StatusOK, &wipeResp)
-		require.Equal(t, fleet.PendingActionWipe, wipeResp.PendingAction)
+		var wipeResp automdm.WipeHostResponse
+		s.DoJSON("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/wipe", wipeHostID), nil, http.StatusOK, &wipeResp)
+		require.Equal(t, automdm.PendingActionWipe, wipeResp.PendingAction)
 
 		cmd, _, opName := lastIssue()
 		require.Equal(t, string(android.MDMAndroidCommandTypeWipe), cmd.Type)
@@ -699,7 +699,7 @@ func (s *integrationMDMTestSuite) TestAndroidLockWipeClearPasscode() {
 		require.False(t, wipeHostMDM.Enrolled, "COBO Wipe ack must flip host_mdm.enrolled to false")
 
 		// wipe_ref stays so the host page surfaces "Wiped" -- COBO Wipe is destructive and the
-		// badge is correct. The host stays in Fleet until an admin deletes it manually or device re-enrolls.
+		// badge is correct. The host stays in AutoMDM until an admin deletes it manually or device re-enrolls.
 		assertHostMDMStatus(t, wipeHostID, "", "wiped")
 	})
 
@@ -708,8 +708,8 @@ func (s *integrationMDMTestSuite) TestAndroidLockWipeClearPasscode() {
 		// clear-passcode (both surface the same "Clear passcode pending" device status).
 		passHostID := createAndroidHostForTest(t, s.ds, nil, false)
 
-		var cpResp fleet.ClearPasscodeResponse
-		s.DoJSON("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/clear_passcode", passHostID), nil, http.StatusOK, &cpResp)
+		var cpResp automdm.ClearPasscodeResponse
+		s.DoJSON("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/clear_passcode", passHostID), nil, http.StatusOK, &cpResp)
 		require.NotNil(t, cpResp.CommandEnqueueResult)
 		require.Equal(t, string(android.MDMAndroidCommandTypeResetPassword), cpResp.RequestType)
 		require.NotEmpty(t, cpResp.CommandUUID, "clear-passcode response must include the persisted command UUID for lookup")
@@ -743,8 +743,8 @@ func (s *integrationMDMTestSuite) TestAndroidLockWipeClearPasscode() {
 	t.Run("Pub/Sub COMMAND with op.Error transitions row to error", func(t *testing.T) {
 		// Issue a lock against a fresh COBO host so we have a known pending row to fail.
 		errHostID := createAndroidHostForTest(t, s.ds, nil, true)
-		var lockResp fleet.LockHostResponse
-		s.DoJSON("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/lock", errHostID), nil, http.StatusOK, &lockResp)
+		var lockResp automdm.LockHostResponse
+		s.DoJSON("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/lock", errHostID), nil, http.StatusOK, &lockResp)
 		_, _, opName := lastIssue()
 
 		// Deliver an Operation with an Error set -- AMAPI's signal that the device rejected the command.
@@ -767,7 +767,7 @@ func (s *integrationMDMTestSuite) TestAndroidLockWipeClearPasscode() {
 
 		// A failed lock leaves no PIN to show.
 		assertUnlockPINAvailable(t, errHostID, false)
-		res := s.Do("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/unlock", errHostID), nil, http.StatusConflict)
+		res := s.Do("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/unlock", errHostID), nil, http.StatusConflict)
 		require.Contains(t, extractServerErrorText(res.Body), "Host is already unlocked.")
 	})
 
@@ -775,12 +775,12 @@ func (s *integrationMDMTestSuite) TestAndroidLockWipeClearPasscode() {
 		// Accepted behavior: lock_ref moves to the new command, so once it fails (e.g. INVALID_VALUE) there's no PIN to show
 		// even though the previous one may still work on the device.
 		relockHostID := createAndroidHostForTest(t, s.ds, nil, true)
-		s.Do("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/lock", relockHostID), nil, http.StatusOK)
+		s.Do("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/lock", relockHostID), nil, http.StatusOK)
 		_, _, firstOp := lastIssue()
 		deliverPubSubCommand(t, androidmanagement.Operation{Name: firstOp, Done: true})
 		assertUnlockPINAvailable(t, relockHostID, true)
 
-		s.Do("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/lock", relockHostID), nil, http.StatusOK)
+		s.Do("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/lock", relockHostID), nil, http.StatusOK)
 		_, _, secondOp := lastIssue()
 		deliverPubSubCommand(t, androidmanagement.Operation{
 			Name:  secondOp,
@@ -789,13 +789,13 @@ func (s *integrationMDMTestSuite) TestAndroidLockWipeClearPasscode() {
 		})
 
 		assertUnlockPINAvailable(t, relockHostID, false)
-		res := s.Do("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/unlock", relockHostID), nil, http.StatusConflict)
+		res := s.Do("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/unlock", relockHostID), nil, http.StatusConflict)
 		require.Contains(t, extractServerErrorText(res.Body), "Host is already unlocked.")
 	})
 
 	t.Run("A lock the device rejects through the command's errorCode has no PIN to show", func(t *testing.T) {
 		rejectedHostID := createAndroidHostForTest(t, s.ds, nil, true)
-		s.Do("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/lock", rejectedHostID), nil, http.StatusOK)
+		s.Do("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/lock", rejectedHostID), nil, http.StatusOK)
 		_, _, lockOp := lastIssue()
 		deliverPubSubCommand(t, androidmanagement.Operation{
 			Name:     lockOp,
@@ -804,7 +804,7 @@ func (s *integrationMDMTestSuite) TestAndroidLockWipeClearPasscode() {
 		})
 
 		assertUnlockPINAvailable(t, rejectedHostID, false)
-		res := s.Do("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/unlock", rejectedHostID), nil, http.StatusConflict)
+		res := s.Do("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/unlock", rejectedHostID), nil, http.StatusConflict)
 		require.Contains(t, extractServerErrorText(res.Body), "Host is already unlocked.")
 		var row struct {
 			Status    string  `db:"status"`
@@ -863,7 +863,7 @@ func (s *integrationMDMTestSuite) TestAndroidEnterpriseDeletedDetection() {
 
 	// First, create an enterprise to test with
 	var signupResp android.EnterpriseSignupResponse
-	s.DoJSON("GET", "/api/latest/fleet/android_enterprise/signup_url", nil, http.StatusOK, &signupResp)
+	s.DoJSON("GET", "/api/latest/automdm/android_enterprise/signup_url", nil, http.StatusOK, &signupResp)
 
 	const enterpriseToken = "enterpriseToken"
 	s.Do("GET", proxyCallbackURL, nil, http.StatusOK, "enterpriseToken", enterpriseToken)
@@ -877,7 +877,7 @@ func (s *integrationMDMTestSuite) TestAndroidEnterpriseDeletedDetection() {
 
 	// Verify enterprise exists
 	var resp android.GetEnterpriseResponse
-	s.DoJSON("GET", "/api/latest/fleet/android_enterprise", nil, http.StatusOK, &resp)
+	s.DoJSON("GET", "/api/latest/automdm/android_enterprise", nil, http.StatusOK, &resp)
 	assert.Equal(t, tests.EnterpriseID, resp.EnterpriseID)
 
 	t.Run("enterprise deleted detection", func(t *testing.T) {
@@ -888,7 +888,7 @@ func (s *integrationMDMTestSuite) TestAndroidEnterpriseDeletedDetection() {
 
 		// Attempt to get enterprise - should return 200 until cron is ran
 		var getResp android.GetEnterpriseResponse
-		s.DoJSON("GET", "/api/latest/fleet/android_enterprise", nil, http.StatusOK, &getResp)
+		s.DoJSON("GET", "/api/latest/automdm/android_enterprise", nil, http.StatusOK, &getResp)
 		// Verify LIST API was not called
 		assert.False(t, s.androidAPIClient.EnterprisesListFuncInvoked)
 
@@ -899,7 +899,7 @@ func (s *integrationMDMTestSuite) TestAndroidEnterpriseDeletedDetection() {
 		assert.True(t, s.androidAPIClient.EnterprisesListFuncInvoked)
 
 		// Attempt to get enterprise - should now return 404 since cron detected deletion
-		s.DoJSON("GET", "/api/v1/fleet/android_enterprise", nil, http.StatusNotFound, &getResp)
+		s.DoJSON("GET", "/api/v1/automdm/android_enterprise", nil, http.StatusNotFound, &getResp)
 	})
 }
 
@@ -919,10 +919,10 @@ func (s *integrationMDMTestSuite) TestAndroidEnroll() {
 	require.NotNil(t, host1.MDM.EnrollmentStatus)
 	require.Equal(t, "On (automatic)", *host1.MDM.EnrollmentStatus)
 	require.NotNil(t, host2.MDM.EnrollmentStatus)
-	require.Equal(t, fleet.MDMEnrollmentStatusPersonal, *host2.MDM.EnrollmentStatus)
+	require.Equal(t, automdm.MDMEnrollmentStatusPersonal, *host2.MDM.EnrollmentStatus)
 
 	// Do the same but with a team
-	tm, err := s.ds.NewTeam(ctx, &fleet.Team{Name: "test team", Secrets: []*fleet.EnrollSecret{{Secret: uuid.NewString()}}})
+	tm, err := s.ds.NewTeam(ctx, &automdm.Team{Name: "test team", Secrets: []*automdm.EnrollSecret{{Secret: uuid.NewString()}}})
 	require.NoError(t, err)
 
 	host3, _, _ := s.createAndEnrollAndroidDevice(t, "test-android3", &tm.ID, true)
@@ -931,7 +931,7 @@ func (s *integrationMDMTestSuite) TestAndroidEnroll() {
 	require.NotNil(t, host3.MDM.EnrollmentStatus)
 	require.Equal(t, "On (automatic)", *host3.MDM.EnrollmentStatus)
 	require.NotNil(t, host4.MDM.EnrollmentStatus)
-	require.Equal(t, fleet.MDMEnrollmentStatusPersonal, *host4.MDM.EnrollmentStatus)
+	require.Equal(t, automdm.MDMEnrollmentStatusPersonal, *host4.MDM.EnrollmentStatus)
 }
 
 func (s *integrationMDMTestSuite) TestAndroidReenrollKeepsDiskSpace() {
@@ -958,11 +958,11 @@ func (s *integrationMDMTestSuite) TestAndroidReenrollKeepsDiskSpace() {
 	}
 	push := func(msg *android.PubSubMessage) {
 		req := android_service.PubSubPushRequest{PubSubMessage: *msg}
-		s.Do("POST", "/api/v1/fleet/android_enterprise/pubsub", &req, http.StatusOK, "token", string(pubSubToken.Value))
+		s.Do("POST", "/api/v1/automdm/android_enterprise/pubsub", &req, http.StatusOK, "token", string(pubSubToken.Value))
 	}
 	requireDisk := func(hostID uint, available, percent, total float64) {
 		var hostResp getHostResponse
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", hostID), nil, http.StatusOK, &hostResp)
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", hostID), nil, http.StatusOK, &hostResp)
 		assert.InDelta(t, available, hostResp.Host.GigsDiskSpaceAvailable, 0.01)
 		assert.InDelta(t, percent, hostResp.Host.PercentDiskSpaceAvailable, 0.01)
 		assert.InDelta(t, total, hostResp.Host.GigsTotalDiskSpace, 0.01)
@@ -976,14 +976,14 @@ func (s *integrationMDMTestSuite) TestAndroidReenrollKeepsDiskSpace() {
 	push(withoutMemoryEvents(statusReportMessageWithEnterpriseSpecificID(t, deviceInfo, host.UUID)))
 	requireDisk(host.ID, 35, 27.34, 128)
 
-	// A device new to Fleet that has never measured storage still reads as not supported.
+	// A device new to AutoMDM that has never measured storage still reads as not supported.
 	newDeviceID := strings.ToUpper(uuid.New().String())
 	push(withoutMemoryEvents(enrollmentMessageWithEnterpriseSpecificID(t, androidmanagement.Device{
 		Name:                createAndroidDeviceID("android-disk-unmeasured"),
 		EnrollmentTokenData: deviceInfo.EnrollmentTokenData,
 	}, newDeviceID)))
 	var hosts listHostsResponse
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &hosts, "query", newDeviceID)
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &hosts, "query", newDeviceID)
 	require.Len(t, hosts.Hosts, 1)
 	requireDisk(hosts.Hosts[0].ID, -1, -1, 64)
 
@@ -1015,8 +1015,8 @@ func (s *integrationMDMTestSuite) TestAndroidCustomCommandsListAndResults() {
 	}))
 
 	const pubsubToken = "test-android-custom-cmd-pubsub-token"
-	require.NoError(t, s.ds.InsertOrReplaceMDMConfigAsset(ctx, fleet.MDMConfigAsset{
-		Name:  fleet.MDMAssetAndroidPubSubToken,
+	require.NoError(t, s.ds.InsertOrReplaceMDMConfigAsset(ctx, automdm.MDMConfigAsset{
+		Name:  automdm.MDMAssetAndroidPubSubToken,
 		Value: []byte(pubsubToken),
 	}))
 
@@ -1036,14 +1036,14 @@ func (s *integrationMDMTestSuite) TestAndroidCustomCommandsListAndResults() {
 
 	// Get the host UUID for API calls.
 	var hostResp getHostResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", coboHostID), nil, http.StatusOK, &hostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", coboHostID), nil, http.StatusOK, &hostResp)
 	hostUUID := hostResp.Host.UUID
 
 	// Send a custom REBOOT command via the API.
 	rebootJSON := `{"type":"REBOOT"}`
 	encoded := base64.StdEncoding.EncodeToString([]byte(rebootJSON))
 	var runResp runMDMCommandResponse
-	s.DoJSON("POST", "/api/latest/fleet/commands/run", &runMDMCommandRequest{
+	s.DoJSON("POST", "/api/latest/automdm/commands/run", &runMDMCommandRequest{
 		Command:   encoded,
 		HostUUIDs: []string{hostUUID},
 	}, http.StatusOK, &runResp)
@@ -1056,7 +1056,7 @@ func (s *integrationMDMTestSuite) TestAndroidCustomCommandsListAndResults() {
 
 	// Verify the command appears in GET /commands?host_identifier=<uuid>.
 	var listResp listMDMCommandsResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/commands?host_identifier=%s", hostUUID), nil, http.StatusOK, &listResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/commands?host_identifier=%s", hostUUID), nil, http.StatusOK, &listResp)
 	var found bool
 	for _, cmd := range listResp.Results {
 		if cmd.CommandUUID == cmdUUID {
@@ -1070,7 +1070,7 @@ func (s *integrationMDMTestSuite) TestAndroidCustomCommandsListAndResults() {
 
 	// Verify command results show pending (no Pub/Sub ack yet).
 	var resultsResp getMDMCommandResultsResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/commands/results?command_uuid=%s", cmdUUID), nil, http.StatusOK, &resultsResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/commands/results?command_uuid=%s", cmdUUID), nil, http.StatusOK, &resultsResp)
 	require.Len(t, resultsResp.Results, 1)
 	assert.Equal(t, "Pending", resultsResp.Results[0].Status)
 	assert.Equal(t, "REBOOT", resultsResp.Results[0].RequestType)
@@ -1090,10 +1090,10 @@ func (s *integrationMDMTestSuite) TestAndroidCustomCommandsListAndResults() {
 		Attributes: map[string]string{"notificationType": string(android.PubSubCommand)},
 		Data:       base64.StdEncoding.EncodeToString(body),
 	}
-	s.Do("POST", "/api/v1/fleet/android_enterprise/pubsub", &req, http.StatusOK, "token", pubsubToken)
+	s.Do("POST", "/api/v1/automdm/android_enterprise/pubsub", &req, http.StatusOK, "token", pubsubToken)
 
 	// Verify command results now show acknowledged with raw_result.
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/commands/results?command_uuid=%s", cmdUUID), nil, http.StatusOK, &resultsResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/commands/results?command_uuid=%s", cmdUUID), nil, http.StatusOK, &resultsResp)
 	require.Len(t, resultsResp.Results, 1)
 	assert.Equal(t, "Acknowledged", resultsResp.Results[0].Status)
 	assert.NotEmpty(t, resultsResp.Results[0].Result, "raw_result should be populated after Pub/Sub ack")
@@ -1105,17 +1105,17 @@ func (s *integrationMDMTestSuite) TestAndroidCustomCommandsListAndResults() {
 
 	// Verify command_status filter works for Android hosts.
 	var filteredResp listMDMCommandsResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/commands?host_identifier=%s&command_status=ran", hostUUID), nil, http.StatusOK, &filteredResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/commands?host_identifier=%s&command_status=ran", hostUUID), nil, http.StatusOK, &filteredResp)
 	require.Len(t, filteredResp.Results, 1, "command_status=ran should return the acknowledged command")
 	assert.Equal(t, cmdUUID, filteredResp.Results[0].CommandUUID)
 
 	// Filtering by pending should return no results (the command already acked).
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/commands?host_identifier=%s&command_status=pending", hostUUID), nil, http.StatusOK, &filteredResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/commands?host_identifier=%s&command_status=pending", hostUUID), nil, http.StatusOK, &filteredResp)
 	require.Empty(t, filteredResp.Results, "command_status=pending should return no results after ack")
 
 	// Verify raw_command stores the original payload (without injected duration).
 	resultsResp = getMDMCommandResultsResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/commands/results?command_uuid=%s", cmdUUID), nil, http.StatusOK, &resultsResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/commands/results?command_uuid=%s", cmdUUID), nil, http.StatusOK, &resultsResp)
 	require.Len(t, resultsResp.Results, 1)
 	assert.JSONEq(t, rebootJSON, string(resultsResp.Results[0].Payload), "raw_command should match the original payload without injected duration")
 }
@@ -1145,13 +1145,13 @@ func (s *integrationMDMTestSuite) TestAndroidCustomCommandRejectedOnPersonallyOw
 	byodHostID := createAndroidHostForTest(t, s.ds, nil, false)
 
 	var hostResp getHostResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", byodHostID), nil, http.StatusOK, &hostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", byodHostID), nil, http.StatusOK, &hostResp)
 	hostUUID := hostResp.Host.UUID
 	require.True(t, hostResp.Host.MDM.IsPersonalEnrollment)
 
 	lastActivityID := s.lastActivityMatches("", "", 0)
 
-	res := s.Do("POST", "/api/latest/fleet/commands/run", &runMDMCommandRequest{
+	res := s.Do("POST", "/api/latest/automdm/commands/run", &runMDMCommandRequest{
 		Command:   base64.StdEncoding.EncodeToString([]byte(`{"type":"REBOOT"}`)),
 		HostUUIDs: []string{hostUUID},
 	}, http.StatusBadRequest)
@@ -1163,7 +1163,7 @@ func (s *integrationMDMTestSuite) TestAndroidCustomCommandRejectedOnPersonallyOw
 
 	// No command row, so the command does not show up as pending or ran for this host.
 	var listResp listMDMCommandsResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/commands?host_identifier=%s", hostUUID), nil, http.StatusOK, &listResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/commands?host_identifier=%s", hostUUID), nil, http.StatusOK, &listResp)
 	require.Empty(t, listResp.Results)
 
 	// The reported symptom: no activity may claim the command ran. Asserting the newest activity is unchanged
@@ -1172,11 +1172,11 @@ func (s *integrationMDMTestSuite) TestAndroidCustomCommandRejectedOnPersonallyOw
 
 	// A command type AMAPI does support on a work profile is still issued, so the check is not over-broad.
 	var runResp runMDMCommandResponse
-	s.DoJSON("POST", "/api/latest/fleet/commands/run", &runMDMCommandRequest{
+	s.DoJSON("POST", "/api/latest/automdm/commands/run", &runMDMCommandRequest{
 		Command:   base64.StdEncoding.EncodeToString([]byte(`{"type":"CLEAR_APP_DATA","clearAppsDataParams":{"packageNames":["com.example.app"]}}`)),
 		HostUUIDs: []string{hostUUID},
 	}, http.StatusOK, &runResp)
 	require.NotEmpty(t, runResp.CommandUUID)
 	require.Equal(t, int32(1), issueCalls.Load())
-	s.lastActivityMatches(fleet.ActivityTypeRanCustomMDMCommand{}.ActivityName(), "", 0)
+	s.lastActivityMatches(automdm.ActivityTypeRanCustomMDMCommand{}.ActivityName(), "", 0)
 }

@@ -1,4 +1,4 @@
-// Command gitops-auto-complete generates a JSON schema from Fleet's GitOps Go
+// Command gitops-auto-complete generates a JSON schema from AutoMDM's GitOps Go
 // structs so editors (yamlls) can offer completion/validation for GitOps YAML.
 package main
 
@@ -16,28 +16,28 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/fleetdm/fleet/v4/pkg/spec"
+	"github.com/anilyagiz/automdm/v4/pkg/spec"
 	"github.com/invopop/jsonschema"
 )
 
-// generatedOsqueryOptions is the Fleet-generated file defining the osqueryOptions and
+// generatedOsqueryOptions is the AutoMDM-generated file defining the osqueryOptions and
 // osqueryCommandLineFlags structs, which back config.options and command_line_flags.
-const generatedOsqueryOptions = "server/fleet/agent_options_generated.go"
+const generatedOsqueryOptions = "server/automdm/agent_options_generated.go"
 
 // agentOptionsBase holds the hand-written per-OS structs that both of those structs
 // embed, so it's parsed alongside the generated file.
-const agentOptionsBase = "server/fleet/agent_options.go"
+const agentOptionsBase = "server/automdm/agent_options.go"
 
 func main() {
 	if len(os.Args) > 1 && (os.Args[1] == "-h" || os.Args[1] == "--help") {
 		fmt.Println(`Usage: gitops-auto-complete [output-file]
 
-Generates a JSON schema from Fleet's GitOps structs for yaml-language-server.
+Generates a JSON schema from AutoMDM's GitOps structs for yaml-language-server.
 With an output-file, writes the schema there; otherwise prints to stdout.`)
 		return
 	}
 
-	// Resolve Fleet source paths from this file's own location so the tool works
+	// Resolve AutoMDM source paths from this file's own location so the tool works
 	// from any working directory, not just the module root.
 	repoRoot := ""
 	if _, thisFile, _, ok := runtime.Caller(0); ok {
@@ -55,7 +55,7 @@ With an output-file, writes the schema there; otherwise prints to stdout.`)
 		// single top-level $ref, so yamlls offers root-level key completion.
 		ExpandedStruct: true,
 	}
-	addFleetGoComments(reflector, repoRoot)
+	addTeamGoComments(reflector, repoRoot)
 
 	raw, err := json.Marshal(reflector.Reflect(&GitOpsSpec{}))
 	if err != nil {
@@ -129,10 +129,10 @@ With an output-file, writes the schema there; otherwise prints to stdout.`)
 
 // --- building the base schema from Go types ---
 
-// addFleetGoComments pulls Fleet's Go doc comments into field descriptions (shown
+// addTeamGoComments pulls AutoMDM's Go doc comments into field descriptions (shown
 // on hover). AddGoComments derives package paths from the walk dir relative to cwd,
 // so it runs from the repo root and restores cwd afterward.
-func addFleetGoComments(reflector *jsonschema.Reflector, repoRoot string) {
+func addTeamGoComments(reflector *jsonschema.Reflector, repoRoot string) {
 	workingDir, err := os.Getwd()
 	if err != nil {
 		return
@@ -144,15 +144,15 @@ func addFleetGoComments(reflector *jsonschema.Reflector, repoRoot string) {
 	}
 	defer func() { _ = os.Chdir(workingDir) }()
 
-	const base = "github.com/fleetdm/fleet/v4"
-	_ = reflector.AddGoComments(base, "server/fleet")
+	const base = "github.com/anilyagiz/automdm/v4"
+	_ = reflector.AddGoComments(base, "server/automdm")
 	_ = reflector.AddGoComments(base, "pkg/spec")
 }
 
-// osqueryStructSchema parses one of Fleet's generated osquery structs (osqueryOptions
+// osqueryStructSchema parses one of AutoMDM's generated osquery structs (osqueryOptions
 // for config.options, osqueryCommandLineFlags for command_line_flags) into a strict
 // object schema, so its keys get completion, types, and unknown-key validation matching
-// what Fleet enforces. Both structs embed per-OS structs that live in the hand-written
+// what AutoMDM enforces. Both structs embed per-OS structs that live in the hand-written
 // agent_options.go, so every source file is parsed and the embeds are pulled up into one
 // flat set of keys. The structs are unexported, so we parse the AST rather than reflect.
 func osqueryStructSchema(rootStruct string, paths ...string) (map[string]any, error) {
@@ -241,7 +241,7 @@ func reflectProperties(v any) map[string]any {
 
 // toSnake converts a Go field name to snake_case. invopop applies KeyNamer to the
 // json-tag name when a tag is present, so already-snake tags pass through unchanged.
-// Untagged Fleet fields like GitOpsSoftware.Packages get fixed.
+// Untagged AutoMDM fields like GitOpsSoftware.Packages get fixed.
 func toSnake(name string) string {
 	runes := []rune(name)
 	result := make([]rune, 0, len(runes)+4)
@@ -267,8 +267,8 @@ func toSnake(name string) string {
 	return string(result)
 }
 
-// collectRenames walks the type tree recording json-tag -> renameto name. Fleet
-// aliases many config keys with a `renameto` tag for the new fleets/reports
+// collectRenames walks the type tree recording json-tag -> renameto name. AutoMDM
+// aliases many config keys with a `renameto` tag for the new teams/reports
 // terminology, and GitOps YAML uses the renamed key, but invopop only reads json.
 func collectRenames(goType reflect.Type, visited map[reflect.Type]bool, renames map[string]string) {
 	for goType.Kind() == reflect.Pointer || goType.Kind() == reflect.Slice || goType.Kind() == reflect.Array || goType.Kind() == reflect.Map {
@@ -330,7 +330,7 @@ func mergeCommandLineFlags(schemaKeys map[string]any, commandLineFlags map[strin
 }
 
 // mergeMissingMDMKeys copies gitops-only MDM keys into the "MDM" def, whose base
-// fleet.MDM (org_settings.mdm) omits them. spec.GitOpsMDM embeds fleet.MDM and adds
+// automdm.MDM (org_settings.mdm) omits them. spec.GitOpsMDM embeds automdm.MDM and adds
 // them (e.g. end_user_license_agreement), so add whichever the def is missing.
 func mergeMissingMDMKeys(schemaKeys map[string]any, gitOpsMDM spec.GitOpsMDM) {
 	extraProperties := reflectProperties(&gitOpsMDM)
@@ -562,7 +562,7 @@ func addGitOpsKeyNotes(schemaKeys map[string]any) {
 
 // fixYaraRules rewrites the reflected YaraRule shape. AppConfig.YaraRules reflects to
 // {name, contents}, but gitops org_settings.yara_rules items are {path} file references
-// (fleet.YaraRuleSpec), so swap the properties to match what gitops accepts.
+// (automdm.YaraRuleSpec), so swap the properties to match what gitops accepts.
 func fixYaraRules(schemaKeys map[string]any) {
 	definition, ok := definitionByName(schemaKeys, "YaraRule")
 	if !ok {
@@ -635,16 +635,16 @@ func relaxNulls(nodes []map[string]any) {
 
 		switch schemaType {
 		case "integer", "number":
-			// Left untyped. Some Fleet ints marshal as string enums, like
+			// Left untyped. Some AutoMDM ints marshal as string enums, like
 			// label_membership_type (a uint that marshals as "dynamic"), so a number
-			// check would reject a value fleetctl accepts. Reflection can't tell those
+			// check would reject a value automdmctl accepts. Reflection can't tell those
 			// apart from real ints, so numeric leaves stay unchecked.
 			delete(node, "type")
 		case "string", "boolean", "object", "array":
 			// Keep the type as [type, null] so a wrong type is still caught while an
 			// empty null placeholder validates. This makes yamlls offer null in value
 			// completion, a limitation we accept so a real error like an unquoted
-			// version: 13.0 shows up in the editor, not at apply time. fleetctl rejects
+			// version: 13.0 shows up in the editor, not at apply time. automdmctl rejects
 			// that value too, since ghodss decodes it as a number into a Go string.
 			node["type"] = []any{schemaType, "null"}
 		}

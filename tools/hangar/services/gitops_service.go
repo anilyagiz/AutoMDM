@@ -1,6 +1,6 @@
 package services
 
-import "github.com/fleetdm/fleet/tools/hangar/internal/gitops"
+import "github.com/anilyagiz/automdm/tools/hangar/internal/gitops"
 
 // GitopsService exposes GitOps repo discovery + target checks. Mirrors gitops.rs.
 type GitopsService struct{}

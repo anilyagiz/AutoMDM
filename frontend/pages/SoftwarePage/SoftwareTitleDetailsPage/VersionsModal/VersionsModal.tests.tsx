@@ -23,9 +23,9 @@ jest.mock("components/ToastNotification", () => ({
 
 const fmaPackage = (overrides?: Partial<ISoftwarePackage>) =>
   createMockSoftwarePackage({
-    fleet_maintained_app_id: 5,
+    automdm_maintained_app_id: 5,
     version: "149.0.2",
-    fleet_maintained_versions: [
+    automdm_maintained_versions: [
       {
         id: 1,
         version: "149.0.2",
@@ -92,7 +92,7 @@ describe("VersionsModal", () => {
   it("preselects the major-version radio for a caret pin", () => {
     renderModal({
       pinned_version: "^149",
-      fleet_maintained_versions: [
+      automdm_maintained_versions: [
         {
           id: 1,
           version: "149.0.2",
@@ -117,7 +117,7 @@ describe("VersionsModal", () => {
     // only ^149 — the fallback must synthesize a properly-labeled ^148 option.
     renderModal({
       pinned_version: "^148",
-      fleet_maintained_versions: [
+      automdm_maintained_versions: [
         {
           id: 1,
           version: "149.0.2",

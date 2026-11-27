@@ -6,13 +6,13 @@
         <array>
             <dict>
                 <key>Username</key>
-                <string>$FLEET_VAR_HOST_END_USER_IDP_USERNAME</string>
+                <string>$AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME</string>
                 <key>LocalPart</key>
-								<string>${FLEET_VAR_HOST_END_USER_IDP_USERNAME_LOCAL_PART}</string>
+								<string>${AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME_LOCAL_PART}</string>
                 <key>Department</key>
-				<string>${FLEET_VAR_HOST_END_USER_IDP_DEPARTMENT}</string>
+				<string>${AUTOMDM_VAR_HOST_END_USER_IDP_DEPARTMENT}</string>
                 <key>Groups</key>
-                <string>$FLEET_VAR_HOST_END_USER_IDP_GROUPS</string>
+                <string>$AUTOMDM_VAR_HOST_END_USER_IDP_GROUPS</string>
                 <key>Other</key>
                 <string>%s</string>
             </dict>
@@ -20,7 +20,7 @@
         <key>PayloadDisplayName</key>
         <string>Various settings</string>
         <key>PayloadIdentifier</key>
-        <string>Fleet.custom.VariousSettings</string>
+        <string>AutoMDM.custom.VariousSettings</string>
         <key>PayloadType</key>
         <string>Configuration</string>
         <key>PayloadUUID</key>

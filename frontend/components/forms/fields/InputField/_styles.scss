@@ -1,11 +1,11 @@
 .input-field {
   line-height: $line-height;
-  background-color: $core-fleet-white;
-  border: solid 1px $ui-fleet-black-10;
+  background-color: $core-automdm-white;
+  border: solid 1px $ui-automdm-black-10;
   border-radius: $border-radius;
   font-size: $x-small;
   padding: $pad-small $pad-medium;
-  color: $core-fleet-black;
+  color: $core-automdm-black;
   font-family: "Inter", sans-serif;
   box-sizing: border-box;
   height: 36px;
@@ -13,22 +13,22 @@
   width: 100%;
 
   &::placeholder {
-    color: $ui-fleet-black-50;
+    color: $ui-automdm-black-50;
   }
 
   &:focus:not(.input-field--read-only),
   &:focus-visible:not(.input-field--read-only) {
     box-shadow: none;
     outline: 0;
-    border: 1px solid $ui-fleet-black-75-down;
+    border: 1px solid $ui-automdm-black-75-down;
   }
 
   &--disabled {
-    color: $ui-fleet-black-50;
+    color: $ui-automdm-black-50;
 
     .form-field__label,
     .form-field__help-text {
-      color: $ui-fleet-black-50;
+      color: $ui-automdm-black-50;
     }
   }
 
@@ -40,8 +40,8 @@
 
     &:focus {
       border-color: $ui-error;
-      background-color: $core-fleet-white;
-      color: $core-fleet-black;
+      background-color: $core-automdm-white;
+      color: $core-automdm-black;
     }
   }
 
@@ -60,7 +60,7 @@
     display: block;
     font-size: $medium;
     font-weight: $regular;
-    color: $core-fleet-black;
+    color: $core-automdm-black;
     margin-bottom: $pad-xsmall;
 
     &--error {
@@ -79,10 +79,10 @@
     font-weight: $regular;
     line-height: $line-height;
     letter-spacing: 1px;
-    color: $core-fleet-blue;
+    color: $core-automdm-blue;
 
     code {
-      color: $ui-fleet-black-75;
+      color: $ui-automdm-black-75;
       background-color: $ui-light-grey;
       padding: $pad-xxsmall;
       font-family: "SourceCodePro", $monospace;
@@ -96,7 +96,7 @@
     gap: $pad-xsmall;
     position: absolute;
     right: 0;
-    background-color: $core-fleet-white;
+    background-color: $core-automdm-white;
 
     &--text-area {
       top: -30px;
@@ -126,7 +126,7 @@
   }
 
   &__action-button {
-    .fleeticon {
+    .automdmicon {
       width: 16px;
       height: 16px;
     }

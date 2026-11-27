@@ -1,358 +1,358 @@
-%fleeticon {
+%automdmicon {
   display: inline-block;
-  font: normal normal normal 14px/1 "fleeticons";
+  font: normal normal normal 14px/1 "automdmicons";
   font-size: inherit;
   text-rendering: auto;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-[class^="fleeticon-"],
-[class*=" fleeticon-"],
-.fleeticon {
-  @extend %fleeticon;
+[class^="automdmicon-"],
+[class*=" automdmicon-"],
+.automdmicon {
+  @extend %automdmicon;
 }
 
-.fleeticon-lg {
+.automdmicon-lg {
   font-size: 1.33333333em;
   line-height: 0.75em;
   vertical-align: -15%;
 }
 
-.fleeticon-2x {
+.automdmicon-2x {
   font-size: 2em;
 }
 
-.fleeticon-3x {
+.automdmicon-3x {
   font-size: 3em;
 }
 
-.fleeticon-4x {
+.automdmicon-4x {
   font-size: 4em;
 }
 
-.fleeticon-5x {
+.automdmicon-5x {
   font-size: 5em;
 }
 
-.fleeticon-fw {
+.automdmicon-fw {
   width: 1.28571429em;
   text-align: center;
 }
 
-.fleeticon-chevrondown:before {
+.automdmicon-chevrondown:before {
   content: "\f004";
 }
 
-.fleeticon-chevronleft:before {
+.automdmicon-chevronleft:before {
   content: "\f006";
 }
 
-.fleeticon-chevronright:before {
+.automdmicon-chevronright:before {
   content: "\f008";
 }
 
-.fleeticon-chevronup:before {
+.automdmicon-chevronup:before {
   content: "\f00a";
 }
 
-.fleeticon-cpu:before {
+.automdmicon-cpu:before {
   content: "\f00c";
 }
 
-.fleeticon-downcaret:before {
+.automdmicon-downcaret:before {
   content: "\f00d";
 }
 
-.fleeticon-filter:before {
+.automdmicon-filter:before {
   content: "\f00f";
 }
 
-.fleeticon-mac:before {
+.automdmicon-mac:before {
   content: "\f012";
 }
 
-.fleeticon-memory:before {
+.automdmicon-memory:before {
   content: "\f013";
 }
 
-.fleeticon-storage:before {
+.automdmicon-storage:before {
   content: "\f019";
 }
 
-.fleeticon-upcaret:before {
+.automdmicon-upcaret:before {
   content: "\f01b";
 }
 
-.fleeticon-uptime:before {
+.automdmicon-uptime:before {
   content: "\f01c";
 }
 
-.fleeticon-world:before {
+.automdmicon-world:before {
   content: "\f01d";
 }
 
-.fleeticon-osquery:before {
+.automdmicon-osquery:before {
   content: "\f021";
 }
 
-.fleeticon-join:before {
+.automdmicon-join:before {
   content: "\f022";
 }
 
-.fleeticon-add-button:before {
+.automdmicon-add-button:before {
   content: "\f029";
 }
 
-.fleeticon-help:before {
+.automdmicon-help:before {
   content: "\f030";
 }
 
-.fleeticon-admin:before {
+.automdmicon-admin:before {
   content: "\f031";
 }
 
-.fleeticon-config:before {
+.automdmicon-config:before {
   content: "\f032";
 }
 
-.fleeticon-success-check:before {
+.automdmicon-success-check:before {
   content: "\f035";
 }
 
-.fleeticon-offline:before {
+.automdmicon-offline:before {
   content: "\f036";
 }
 
-.fleeticon-windows-original:before {
+.automdmicon-windows-original:before {
   content: "\f037";
 }
 
-.fleeticon-centos-original:before {
+.automdmicon-centos-original:before {
   content: "\f038";
 }
 
-.fleeticon-ubuntu-original:before {
+.automdmicon-ubuntu-original:before {
   content: "\f039";
 }
 
-.fleeticon-apple-original:before {
+.automdmicon-apple-original:before {
   content: "\f03a";
 }
 
-.fleeticon-search:before {
+.automdmicon-search:before {
   content: "\f03b";
 }
 
-.fleeticon-all-hosts:before {
+.automdmicon-all-hosts:before {
   content: "\f03c";
 }
 
-.fleeticon-alerts:before {
+.automdmicon-alerts:before {
   content: "\f03e";
 }
 
-.fleeticon-logout:before {
+.automdmicon-logout:before {
   content: "\f03f";
 }
 
-.fleeticon-account:before {
+.automdmicon-account:before {
   content: "\f040";
 }
 
-.fleeticon-clipboard:before {
+.automdmicon-clipboard:before {
   content: "\f043";
 }
 
-.fleeticon-list-select:before {
+.automdmicon-list-select:before {
   content: "\f044";
 }
 
-.fleeticon-grid-select:before {
+.automdmicon-grid-select:before {
   content: "\f045";
 }
 
-.fleeticon-label:before {
+.automdmicon-label:before {
   content: "\f033";
 }
 
-.fleeticon-docker:before {
+.automdmicon-docker:before {
   content: "\f046";
 }
 
-.fleeticon-cloud:before {
+.automdmicon-cloud:before {
   content: "\f047";
 }
 
-.fleeticon-self-hosted:before {
+.automdmicon-self-hosted:before {
   content: "\f048";
 }
 
-.fleeticon-help-solid:before {
+.automdmicon-help-solid:before {
   content: "\f049";
 }
 
-.fleeticon-help-stroke:before {
+.automdmicon-help-stroke:before {
   content: "\f04a";
 }
 
-.fleeticon-warning-filled:before {
+.automdmicon-warning-filled:before {
   content: "\f04b";
 }
 
-.fleeticon-delete-cloud:before {
+.automdmicon-delete-cloud:before {
   content: "\f04c";
 }
 
-.fleeticon-pdf:before {
+.automdmicon-pdf:before {
   content: "\f04d";
 }
 
-.fleeticon-credit-card-small:before {
+.automdmicon-credit-card-small:before {
   content: "\f04e";
 }
 
-.fleeticon-billing-card:before {
+.automdmicon-billing-card:before {
   content: "\f04f";
 }
 
-.fleeticon-lock-big:before {
+.automdmicon-lock-big:before {
   content: "\f050";
 }
 
-.fleeticon-link-big:before {
+.automdmicon-link-big:before {
   content: "\f051";
 }
 
-.fleeticon-briefcase:before {
+.automdmicon-briefcase:before {
   content: "\f052";
 }
 
-.fleeticon-name-card:before {
+.automdmicon-name-card:before {
   content: "\f053";
 }
 
-.fleeticon-business:before {
+.automdmicon-business:before {
   content: "\f055";
 }
 
-.fleeticon-clock:before {
+.automdmicon-clock:before {
   content: "\f056";
 }
 
-.fleeticon-host-large:before {
+.automdmicon-host-large:before {
   content: "\f057";
 }
 
-.fleeticon-single-host:before {
+.automdmicon-single-host:before {
   content: "\f03d";
 }
 
-.fleeticon-username:before {
+.automdmicon-username:before {
   content: "\f02a";
 }
 
-.fleeticon-password:before {
+.automdmicon-password:before {
   content: "\f02b";
 }
 
-.fleeticon-email:before {
+.automdmicon-email:before {
   content: "\f02c";
 }
 
-.fleeticon-hosts:before {
+.automdmicon-hosts:before {
   content: "\f02e";
 }
 
-.fleeticon-query:before {
+.automdmicon-query:before {
   content: "\f02d";
 }
 
-.fleeticon-import:before {
+.automdmicon-import:before {
   content: "\f058";
 }
 
-.fleeticon-pencil:before {
+.automdmicon-pencil:before {
   content: "\f059";
 }
 
-.fleeticon-add-plus:before {
+.automdmicon-add-plus:before {
   content: "\f05a";
 }
 
-.fleeticon-x:before {
+.automdmicon-x:before {
   content: "\f05b";
 }
 
-.fleeticon-right-arrow:before {
+.automdmicon-right-arrow:before {
   content: "\f05d";
 }
 
-.fleeticon-camera:before {
+.automdmicon-camera:before {
   content: "\f05e";
 }
 
-.fleeticon-plus-minus:before {
+.automdmicon-plus-minus:before {
   content: "\f05f";
 }
 
-.fleeticon-bold-plus:before {
+.automdmicon-bold-plus:before {
   content: "\f060";
 }
 
-.fleeticon-linux-original:before {
+.automdmicon-linux-original:before {
   content: "\f061";
 }
 
-.fleeticon-clock2:before {
+.automdmicon-clock2:before {
   content: "\f063";
 }
 
-.fleeticon-trash:before {
+.automdmicon-trash:before {
   content: "\f064";
 }
 
-.fleeticon-laptop-plus:before {
+.automdmicon-laptop-plus:before {
   content: "\f066";
 }
 
-.fleeticon-wrench-hand:before {
+.automdmicon-wrench-hand:before {
   content: "\f067";
 }
 
-.fleeticon-external-link:before {
+.automdmicon-external-link:before {
   content: "\f068";
 }
 
-.fleeticon-fullscreen:before {
+.automdmicon-fullscreen:before {
   content: "\f069";
 }
 
-.fleeticon-windowed:before {
+.automdmicon-windowed:before {
   content: "\f06a";
 }
 
-.fleeticon-heroku:before {
+.automdmicon-heroku:before {
   content: "\f06b";
 }
 
-.fleeticon-ubuntu:before {
+.automdmicon-ubuntu:before {
   content: "\f06c";
 }
 
-.fleeticon-windows:before {
+.automdmicon-windows:before {
   content: "\f06d";
 }
 
-.fleeticon-centos:before {
+.automdmicon-centos:before {
   content: "\f06e";
 }
 
-.fleeticon-apple:before {
+.automdmicon-apple:before {
   content: "\f06f";
 }
 
-.fleeticon-linux:before {
+.automdmicon-linux:before {
   content: "\f070";
 }
 

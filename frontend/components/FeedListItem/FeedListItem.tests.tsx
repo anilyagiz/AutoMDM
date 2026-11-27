@@ -7,7 +7,7 @@ import FeedListItem from "./FeedListItem";
 
 describe("FeedListItem", () => {
   const defaultProps = {
-    useFleetAvatar: true,
+    useAutoMDMAvatar: true,
     createdAt: new Date("2024-01-01T12:00:00Z"),
   };
 

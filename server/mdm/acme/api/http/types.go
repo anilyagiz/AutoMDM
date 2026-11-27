@@ -15,9 +15,9 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/mdm/acme/internal/redis_nonces_store"
-	"github.com/fleetdm/fleet/v4/server/mdm/acme/internal/types"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/mdm/acme/internal/redis_nonces_store"
+	"github.com/anilyagiz/automdm/v4/server/mdm/acme/internal/types"
 	"go.step.sm/crypto/jose"
 )
 

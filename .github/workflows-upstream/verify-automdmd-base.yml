@@ -1,0 +1,185 @@
+name: Verify automdmd-base files at https://download.fleetdm.com
+
+on:
+  workflow_dispatch: # Manual
+    inputs:
+      base-url:
+        description: "The base URL to download the files from"
+        required: false
+        default: "https://download.fleetdm.com"
+        type: string
+  workflow_call:
+    inputs:
+      base-url:
+        description: "The base URL to download the files from"
+        required: false
+        default: "https://download.fleetdm.com"
+        type: string
+  schedule:
+    - cron: "0 5 * * *" # Nightly 5AM UTC, not at the same time as release-automdmd-base workflow
+
+# This workflow is called by release-automdmd-base workflow, so it does not have its own concurrency group.
+
+defaults:
+  run:
+    # fail-fast using bash -eo pipefail. See https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#exit-codes-and-error-action-preference
+    shell: bash
+
+permissions: {}
+
+jobs:
+  verify-checksums:
+    runs-on: ubuntu-latest
+    env:
+      BASE_URL: ${{ inputs.base-url || 'https://download.fleetdm.com' }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: audit
+
+      - name: Verify checksums
+        run: |
+          curl -O ${{ env.BASE_URL }}/stable/meta.json
+          curl -O ${{ env.BASE_URL }}/stable/automdmd-base.msi
+          automdmd_base_msi_sha256=$(shasum -a 256 automdmd-base.msi | cut -d ' ' -f 1)
+          if [ "$(jq --raw-output '.automdmd_base_msi_sha256' meta.json)" != "$automdmd_base_msi_sha256" ]; then
+            echo "Checksum mismatch for automdmd-base.msi"
+            exit 1
+          else
+            echo "Checksum matches for automdmd-base.msi"
+          fi
+          curl -O ${{ env.BASE_URL }}/stable/automdmd-base.pkg
+          automdmd_base_pkg_sha256=$(shasum -a 256 automdmd-base.pkg | cut -d ' ' -f 1)
+          if [ "$(jq --raw-output '.automdmd_base_pkg_sha256' meta.json)" != "$automdmd_base_pkg_sha256" ]; then
+              echo "Checksum mismatch for automdmd-base.pkg"
+              exit 1
+          else
+              echo "Checksum matches for automdmd-base.pkg"
+          fi
+          : # Check the files at the permalinks
+          curl -o automdmd-base-permalink.msi "$(jq --raw-output '.automdmd_base_msi_url' meta.json)"
+          diff automdmd-base.msi automdmd-base-permalink.msi
+          curl -o automdmd-base-permalink.pkg "$(jq --raw-output '.automdmd_base_pkg_url' meta.json)"
+          diff automdmd-base.pkg automdmd-base-permalink.pkg
+      - name: Slack Notification
+        if: failure()
+        uses: slackapi/slack-github-action@e28cf165c92ffef168d23c5c9000cffc8a25e117 # v1.24.0
+        with:
+          payload: |
+            {
+              "text": "${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head.html_url }}",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "Verify automdmd-base files > ${{ github.job}} result: ${{ job.status }}\nhttps://github.com/anilyagiz/automdm/actions/runs/${{
+                    github.run_id }}\n${{ github.event.pull_request.html_url ||
+                    github.event.head.html_url }}"
+                  }
+                }
+              ]
+            }
+        env:
+          JOB_STATUS: ${{ job.status }}
+          EVENT_URL: ${{ github.event.pull_request.html_url || github.event.head.html_url }}
+          RUN_URL: https://github.com/anilyagiz/automdm/actions/runs/${{ github.run_id }}\n${{ github.event.pull_request.html_url || github.event.head.html_url }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_G_HELP_ENGINEERING_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+
+  verify-automdmd-base-msi:
+    runs-on: windows-latest
+    env:
+      BASE_URL: ${{ inputs.base-url || 'https://download.fleetdm.com' }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: audit
+
+      - name: Download automdmd-base.msi
+        shell: powershell
+        run: |
+          Invoke-WebRequest "${{ env.BASE_URL }}/stable/automdmd-base.msi" -OutFile "automdmd-base.msi"
+          if (! $?) { exit 1 }
+          Get-ChildItem
+
+      - name: Install automdmd-base.msi
+        shell: powershell
+        run: |
+          Start-Process msiexec "/i automdmd-base.msi /qn AUTOMDM_URL='https://automdm.example.com' AUTOMDM_SECRET='insecure'" -Wait
+          if (! $?) { exit 1 }
+          Start-Sleep -Seconds 60
+          cd "C:\Windows\System32\config\systemprofile\AppData\Local\AutoMDM\Orbit\Logs"
+          Get-ChildItem
+          if (!(Test-Path "C:\Windows\System32\config\systemprofile\AppData\Local\AutoMDM\Orbit\Logs\orbit-osquery.log" -PathType Leaf)) { exit 1 }
+      - name: Slack Notification
+        if: failure()
+        uses: slackapi/slack-github-action@e28cf165c92ffef168d23c5c9000cffc8a25e117 # v1.24.0
+        with:
+          payload: |
+            {
+              "text": "${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head.html_url }}",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "Verify automdmd-base files > ${{ github.job}} result: ${{ job.status }}\nhttps://github.com/anilyagiz/automdm/actions/runs/${{
+                    github.run_id }}\n${{ github.event.pull_request.html_url ||
+                    github.event.head.html_url }}"
+                  }
+                }
+              ]
+            }
+        env:
+          JOB_STATUS: ${{ job.status }}
+          EVENT_URL: ${{ github.event.pull_request.html_url || github.event.head.html_url }}
+          RUN_URL: https://github.com/anilyagiz/automdm/actions/runs/${{ github.run_id }}\n${{ github.event.pull_request.html_url || github.event.head.html_url }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_G_HELP_ENGINEERING_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+
+  verify-automdmd-base-pkg:
+    runs-on: macos-latest
+    env:
+      BASE_URL: ${{ inputs.base-url || 'https://download.fleetdm.com' }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: audit
+
+      - name: Download automdmd-base.pkg
+        run: |
+          curl -O ${{ env.BASE_URL }}/stable/automdmd-base.pkg
+
+      - name: Install automdmd-base.pkg
+        run: |
+          sudo installer -pkg automdmd-base.pkg -target /
+
+      - name: Slack Notification
+        if: failure()
+        uses: slackapi/slack-github-action@e28cf165c92ffef168d23c5c9000cffc8a25e117 # v1.24.0
+        with:
+          payload: |
+            {
+              "text": "${{ job.status }}\n${{ github.event.pull_request.html_url || github.event.head.html_url }}",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "Verify automdmd-base files > ${{ github.job}} result: ${{ job.status }}\nhttps://github.com/anilyagiz/automdm/actions/runs/${{
+                    github.run_id }}\n${{ github.event.pull_request.html_url ||
+                    github.event.head.html_url }}"
+                  }
+                }
+              ]
+            }
+        env:
+          JOB_STATUS: ${{ job.status }}
+          EVENT_URL: ${{ github.event.pull_request.html_url || github.event.head.html_url }}
+          RUN_URL: https://github.com/anilyagiz/automdm/actions/runs/${{ github.run_id }}\n${{ github.event.pull_request.html_url || github.event.head.html_url }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_G_HELP_ENGINEERING_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK

@@ -1,7 +1,7 @@
 import React from "react";
 
 import CustomLink from "components/CustomLink";
-import FleetMarkdown from "components/FleetMarkdown";
+import AutoMDMMarkdown from "components/AutoMDMMarkdown";
 import DropdownWrapper from "components/forms/fields/DropdownWrapper";
 import { CustomOptionType } from "components/forms/fields/DropdownWrapper/DropdownWrapper";
 import Icon from "components/Icon/Icon";
@@ -81,7 +81,7 @@ const QuerySidePanel = ({
           }
         }}
       >
-        <Icon name="close" color="ui-fleet-black-50" />
+        <Icon name="close" color="ui-automdm-black-50" />
       </div>
       <div className={baseClass}>
         <div className={`${baseClass}__choose-table`}>
@@ -98,14 +98,14 @@ const QuerySidePanel = ({
           <span className={`${baseClass}__mdm-required`}>Requires MDM</span>
         )}
         <div className={`${baseClass}__description`}>
-          <FleetMarkdown markdown={description} />
+          <AutoMDMMarkdown markdown={description} />
         </div>
         <QueryTablePlatforms platforms={platforms} />
         <QueryTableColumns columns={columns} />
         {examples && <QueryTableExample example={examples} />}
         {notes && <QueryTableNotes notes={notes} />}
         <CustomLink
-          url={`https://www.fleetdm.com/tables/${name}`}
+          url={`https://automdm.com/tables/${name}`}
           text="Source"
           newTab
         />

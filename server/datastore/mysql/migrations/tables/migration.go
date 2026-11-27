@@ -10,15 +10,15 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/goose"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/goose"
 	"github.com/jmoiron/sqlx"
 	"github.com/pkg/errors"
 )
 
 var MigrationClient = newMigrationClient()
 
-// Helpers for migrations added after the Fleet 5 baseline. Referenced here so
+// Helpers for migrations added after the AutoMDM 5 baseline. Referenced here so
 // the unused linter doesn't flag them while no migration uses them.
 var _ = []any{
 	logger, basicMigrationStep, basicMigrationStepWithArgs, incrementalMigrationStep, withSteps,
@@ -35,11 +35,11 @@ func newMigrationClient() *goose.Client {
 	// of concurrently in-flight migrations, and the guard helpers in this file
 	// (columnExists, indexExistsTx, ...) protect against reordering as well as
 	// retries.
-	// Every migration after the Fleet 5 baseline may be applied out of order,
+	// Every migration after the AutoMDM 5 baseline may be applied out of order,
 	// so a migration shipped in a patch release with a timestamp older than
-	// already-applied migrations is picked up on the next `fleet prepare db`
+	// already-applied migrations is picked up on the next `automdm prepare db`
 	// instead of requiring renumbering.
-	c.MinOutOfOrderVersion = Fleet5BaselineVersion
+	c.MinOutOfOrderVersion = AutoMDM5BaselineVersion
 	return c
 }
 
@@ -277,7 +277,7 @@ func addIndexesTx(tx *sql.Tx, table string, indexes ...indexDef) error {
 
 // updateAppConfigJSON updates the `json_value` stored in the `app_config_json` after applying the
 // supplied callback to the current config object.
-func updateAppConfigJSON(tx *sql.Tx, fn func(config *fleet.AppConfig) error) error {
+func updateAppConfigJSON(tx *sql.Tx, fn func(config *automdm.AppConfig) error) error {
 	var raw []byte
 	row := tx.QueryRow(`SELECT json_value FROM app_config_json LIMIT 1`)
 	if err := row.Scan(&raw); err != nil {
@@ -287,7 +287,7 @@ func updateAppConfigJSON(tx *sql.Tx, fn func(config *fleet.AppConfig) error) err
 		return errors.Wrap(err, "select app_config_json")
 	}
 
-	var config fleet.AppConfig
+	var config automdm.AppConfig
 	if err := json.Unmarshal(raw, &config); err != nil {
 		return errors.Wrap(err, "unmarshal app_config_json")
 	}

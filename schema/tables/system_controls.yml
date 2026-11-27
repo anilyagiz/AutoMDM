@@ -19,7 +19,7 @@ examples: |-
   SELECT name,current_value FROM system_controls WHERE name='net.inet.ip.forwarding' AND current_value='1';
   ```
 notes: |-
-  Because the `system_control` table provides access to a large quantity of low-level, unique settings available via `sysctl` it is ideal for use in Fleet policies.
+  Because the `system_control` table provides access to a large quantity of low-level, unique settings available via `sysctl` it is ideal for use in AutoMDM policies.
 
   E.g., the number of CPU cores can be obtained with the following `sysctl` command:
   

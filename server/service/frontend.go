@@ -12,11 +12,11 @@ import (
 	"regexp"
 
 	"github.com/WatchBeam/clock"
+	shared_mdm "github.com/anilyagiz/automdm/v4/pkg/mdm"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/bindata"
+	"github.com/anilyagiz/automdm/v4/server/platform/endpointer"
 	assetfs "github.com/elazarl/go-bindata-assetfs"
-	shared_mdm "github.com/fleetdm/fleet/v4/pkg/mdm"
-	"github.com/fleetdm/fleet/v4/server/bindata"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/platform/endpointer"
 	"github.com/klauspost/compress/gzhttp"
 )
 
@@ -88,10 +88,10 @@ func ServeFrontend(urlPrefix string, sandbox bool, logger *slog.Logger, serveCSP
 // ServeEndUserEnrollOTA implements the entrypoint handler for the /enroll
 // path, used to add hosts in "BYOD" mode (currently, iPhone/iPad/Android).
 func ServeEndUserEnrollOTA(
-	svc fleet.Service,
+	svc automdm.Service,
 	urlPrefix string,
-	ds fleet.Datastore,
-	kv fleet.KeyValueStore,
+	ds automdm.Datastore,
+	kv automdm.KeyValueStore,
 	clk clock.Clock,
 	logger *slog.Logger,
 	serveCSP bool,
@@ -113,7 +113,7 @@ func ServeEndUserEnrollOTA(
 			return
 		}
 		if setupRequired {
-			herr(ctx, w, "fleet instance not setup")
+			herr(ctx, w, "automdm instance not setup")
 			return
 		}
 
@@ -153,7 +153,7 @@ func ServeEndUserEnrollOTA(
 			// offering the enrollment profile to download.
 			if byodCookie, _ := r.Cookie(shared_mdm.BYODIdpCookieName); byodCookie != nil && byodCookie.Value != "" {
 				uuid, err := shared_mdm.ValidateBYODIdPSession(r.Context(), kv, clk, byodCookie.Value)
-				var noSession *fleet.AuthRequiredError
+				var noSession *automdm.AuthRequiredError
 				switch {
 				case errors.As(err, &noSession):
 				case err != nil:
@@ -215,8 +215,8 @@ func ServeEndUserEnrollNextSteps(urlPrefix string, logger *slog.Logger, serveCSP
 	})
 }
 
-func generateEnrollOTAURL(fleetURL string, enrollSecret string) (string, error) {
-	path, err := url.JoinPath(fleetURL, "/api/v1/fleet/enrollment_profiles/ota")
+func generateEnrollOTAURL(automdmURL string, enrollSecret string) (string, error) {
+	path, err := url.JoinPath(automdmURL, "/api/v1/automdm/enrollment_profiles/ota")
 	if err != nil {
 		return "", fmt.Errorf("creating path for end user ota enrollment url: %w", err)
 	}
@@ -267,7 +267,7 @@ func executeEnrollTemplate(w io.Writer, pageData enrollPageData) error {
 	return nil
 }
 
-func renderEnrollPage(w io.Writer, appCfg *fleet.AppConfig, urlPrefix, enrollSecret, errorMessage, nonce string, appleManualEnrollmentBlocked bool) error {
+func renderEnrollPage(w io.Writer, appCfg *automdm.AppConfig, urlPrefix, enrollSecret, errorMessage, nonce string, appleManualEnrollmentBlocked bool) error {
 	enrollURL, err := generateEnrollOTAURL(urlPrefix, enrollSecret)
 	if err != nil {
 		return fmt.Errorf("generate enroll ota url: %w", err)
@@ -284,7 +284,7 @@ func renderEnrollPage(w io.Writer, appCfg *fleet.AppConfig, urlPrefix, enrollSec
 	})
 }
 
-func initiateOTAEnrollSSO(svc fleet.Service, w http.ResponseWriter, r *http.Request, enrollSecret string) error {
+func initiateOTAEnrollSSO(svc automdm.Service, w http.ResponseWriter, r *http.Request, enrollSecret string) error {
 	requestURL := "/enroll?enroll_secret=" + url.QueryEscape(enrollSecret)
 	// pass the fully_managed parameter for Android enrollments so that it is returned after the callback, else the
 	// user won't get the android fully managed page
@@ -295,7 +295,7 @@ func initiateOTAEnrollSSO(svc fleet.Service, w http.ResponseWriter, r *http.Requ
 	if r.URL.Query().Get("byod") == "true" {
 		requestURL += "&byod=true"
 	}
-	ssnID, ssnDurationSecs, idpURL, err := svc.InitiateMDMSSO(r.Context(), fleet.SSOInitiatorOTAEnroll, requestURL, "", nil)
+	ssnID, ssnDurationSecs, idpURL, err := svc.InitiateMDMSSO(r.Context(), automdm.SSOInitiatorOTAEnroll, requestURL, "", nil)
 	if err != nil {
 		return err
 	}

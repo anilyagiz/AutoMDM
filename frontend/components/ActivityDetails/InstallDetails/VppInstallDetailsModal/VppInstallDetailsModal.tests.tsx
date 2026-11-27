@@ -48,7 +48,7 @@ describe("getStatusMessage helper function", () => {
         commandUpdatedAt: "2025-07-29T22:49:52Z",
       })
     );
-    expect(screen.getByText(/Fleet tried to install/i)).toBeInTheDocument();
+    expect(screen.getByText(/AutoMDM tried to install/i)).toBeInTheDocument();
     expect(
       screen.getByText(
         /but couldn't because the host was locked or was running on battery power while in Power Nap/i
@@ -78,7 +78,7 @@ describe("getStatusMessage helper function", () => {
     expect(screen.getByText(/Refetch/i)).toBeInTheDocument();
   });
 
-  it("renders the actor-driven failure sentence when Fleet failed the install before sending it to the device (admin actor)", () => {
+  it("renders the actor-driven failure sentence when AutoMDM failed the install before sending it to the device (admin actor)", () => {
     render(
       getStatusMessage({
         displayStatus: "failed_install",
@@ -89,9 +89,9 @@ describe("getStatusMessage helper function", () => {
         commandUpdatedAt: "2026-05-27T22:49:52Z",
         platform: "ipados",
         failureReason:
-          "There is no IdP department for this host. Fleet couldn't populate $FLEET_VAR_HOST_END_USER_IDP_DEPARTMENT.",
+          "There is no IdP department for this host. AutoMDM couldn't populate $AUTOMDM_VAR_HOST_END_USER_IDP_DEPARTMENT.",
         actorFullName: "Carlo DiCelico",
-        fleetInitiated: false,
+        automdmInitiated: false,
         selfService: false,
       })
     );
@@ -103,7 +103,7 @@ describe("getStatusMessage helper function", () => {
     expect(screen.getByText("Logic Pro")).toBeInTheDocument();
   });
 
-  it("renders 'Fleet' as the actor when the install is Fleet-initiated (policy, auto-update, setup experience)", () => {
+  it("renders 'AutoMDM' as the actor when the install is AutoMDM-initiated (policy, auto-update, setup experience)", () => {
     render(
       getStatusMessage({
         displayStatus: "failed_install",
@@ -114,10 +114,10 @@ describe("getStatusMessage helper function", () => {
         commandUpdatedAt: "2026-05-27T22:49:52Z",
         platform: "ipados",
         failureReason: "There is no IdP username for this host. …",
-        fleetInitiated: true,
+        automdmInitiated: true,
       })
     );
-    expect(screen.getByText("Fleet")).toBeInTheDocument();
+    expect(screen.getByText("AutoMDM")).toBeInTheDocument();
     expect(screen.getByText(/failed to install/i)).toBeInTheDocument();
   });
 
@@ -151,7 +151,7 @@ describe("getStatusMessage helper function", () => {
         platform: "android",
       })
     );
-    expect(screen.getByText(/Fleet failed to install/i)).toBeInTheDocument();
+    expect(screen.getByText(/AutoMDM failed to install/i)).toBeInTheDocument();
     expect(
       screen.getByText(/The end user can retry via the Google Play Store/i)
     ).toBeInTheDocument();
@@ -170,7 +170,7 @@ describe("getStatusMessage helper function", () => {
         platform: "android",
       })
     );
-    expect(screen.getByText(/Fleet failed to install/i)).toBeInTheDocument();
+    expect(screen.getByText(/AutoMDM failed to install/i)).toBeInTheDocument();
     expect(
       screen.getByText(/Retry via the Google Play Store in your work profile/i)
     ).toBeInTheDocument();
@@ -191,7 +191,7 @@ describe("getStatusMessage helper function", () => {
         platform: "windows",
       })
     );
-    expect(screen.getByText(/Fleet failed to install/i)).toBeInTheDocument();
+    expect(screen.getByText(/AutoMDM failed to install/i)).toBeInTheDocument();
     expect(screen.queryByText(/Google Play Store/i)).not.toBeInTheDocument();
   });
 
@@ -300,7 +300,7 @@ describe("getStatusMessage helper function", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        /the install took longer than 20 minutes, so Fleet marked it as failed/i
+        /the install took longer than 20 minutes, so AutoMDM marked it as failed/i
       )
     ).toBeInTheDocument();
     expect(
@@ -328,7 +328,7 @@ describe("getStatusMessage helper function", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        /the install took longer than .*, so Fleet marked it as failed/i
+        /the install took longer than .*, so AutoMDM marked it as failed/i
       )
     ).toBeInTheDocument();
     expect(
@@ -353,7 +353,7 @@ describe("getStatusMessage helper function", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        /the install took longer than .*, so Fleet marked it as failed/i
+        /the install took longer than .*, so AutoMDM marked it as failed/i
       )
     ).toBeInTheDocument();
     expect(
@@ -378,7 +378,7 @@ describe("getStatusMessage helper function", () => {
 
     expect(
       screen.getByText(
-        /the install took longer than 20 minutes, so Fleet marked it as failed/i
+        /the install took longer than 20 minutes, so AutoMDM marked it as failed/i
       )
     ).toBeInTheDocument();
     expect(screen.queryByText(/Marko's MacBook Pro/i)).not.toBeInTheDocument();
@@ -501,12 +501,12 @@ describe("getStatusMessage helper function", () => {
         commandUpdatedAt: "2025-07-29T22:49:52Z",
       })
     );
-    expect(screen.getByText(/Fleet installed/i)).toBeInTheDocument();
+    expect(screen.getByText(/AutoMDM installed/i)).toBeInTheDocument();
     expect(screen.getByText(/Logic Pro/i)).toBeInTheDocument();
     expect(screen.getByText(/Marko's MacBook Pro/i)).toBeInTheDocument();
   });
 
-  it("shows manual install message when installed not through Fleet", () => {
+  it("shows manual install message when installed not through AutoMDM", () => {
     render(
       getStatusMessage({
         displayStatus: "installed",
@@ -533,7 +533,7 @@ describe("getStatusMessage helper function", () => {
         commandUpdatedAt: "2025-07-29T22:49:52Z",
       })
     );
-    expect(screen.getByText(/Fleet installed/i)).toBeInTheDocument();
+    expect(screen.getByText(/AutoMDM installed/i)).toBeInTheDocument();
     expect(screen.getByText(/the host/i)).toBeInTheDocument();
   });
 
@@ -617,11 +617,11 @@ describe("VPP Install Details Modal", () => {
   });
 
   describe("config-update note", () => {
-    const configUpdateRe = /When the app's configuration is updated Fleet also updates the app\./i;
+    const configUpdateRe = /When the app's configuration is updated AutoMDM also updates the app\./i;
 
     const renderNoteCase = (
       platform: "ios" | "ipados" | "darwin",
-      fleetInstallStatus: "installed" | "pending_install" | "failed_install"
+      automdmInstallStatus: "installed" | "pending_install" | "failed_install"
     ) => {
       // Minimal command-results handler: a 200 with an acknowledged result so
       // the modal routes to the status-rendering branch without errors.
@@ -649,7 +649,7 @@ describe("VPP Install Details Modal", () => {
 
       const hostSoftware = createMockHostSoftware({
         id: 123,
-        status: fleetInstallStatus,
+        status: automdmInstallStatus,
         name: "Keynote",
         display_name: "Keynote",
         installed_versions: [],
@@ -666,7 +666,7 @@ describe("VPP Install Details Modal", () => {
       renderWithBackend(
         <VppInstallDetailsModal
           details={{
-            fleetInstallStatus,
+            automdmInstallStatus,
             hostDisplayName: "Mock Host",
             appName: "Keynote",
             commandUuid: "mock-uuid",
@@ -711,11 +711,11 @@ describe("VPP Install Details Modal", () => {
   });
 
   describe("license sentence", () => {
-    const licenseRe = /Fleet assigned license from/i;
+    const licenseRe = /AutoMDM assigned license from/i;
 
     const renderLicenseCase = (
       platform: "ios" | "ipados" | "darwin",
-      fleetInstallStatus: "installed" | "pending_install" | "failed_install",
+      automdmInstallStatus: "installed" | "pending_install" | "failed_install",
       withTokenLocation = true
     ) => {
       mockServer.use(
@@ -742,7 +742,7 @@ describe("VPP Install Details Modal", () => {
       renderWithBackend(
         <VppInstallDetailsModal
           details={{
-            fleetInstallStatus,
+            automdmInstallStatus,
             hostDisplayName: "Marko's iPhone",
             appName: "Zoom Workplace",
             commandUuid: "mock-uuid",
@@ -760,7 +760,7 @@ describe("VPP Install Details Modal", () => {
         renderLicenseCase(platform, "installed");
         expect(await screen.findByText("Acme Inc.")).toBeInTheDocument();
         expect(screen.getByText(licenseRe)).toHaveTextContent(
-          /Fleet assigned license from Acme Inc\. VPP token\./
+          /AutoMDM assigned license from Acme Inc\. VPP token\./
         );
       }
     );
@@ -844,7 +844,7 @@ describe("VPP Install Details Modal", () => {
     renderWithBackend(
       <VppInstallDetailsModal
         details={{
-          fleetInstallStatus: "failed_install",
+          automdmInstallStatus: "failed_install",
           hostDisplayName: "Marko's MacBook Pro",
           appName: "Keynote",
           commandUuid: "acknowledged-uuid",
@@ -858,13 +858,13 @@ describe("VPP Install Details Modal", () => {
     await waitFor(() => {
       expect(
         screen.getByText(
-          /the install took longer than 20 minutes, so Fleet marked it as failed/i
+          /the install took longer than 20 minutes, so AutoMDM marked it as failed/i
         )
       ).toBeInTheDocument();
     });
     expect(
       screen.getByText(
-        /If the install finishes later, Fleet will update the status when the host is refetched/i
+        /If the install finishes later, AutoMDM will update the status when the host is refetched/i
       )
     ).toBeInTheDocument();
   });
@@ -913,25 +913,25 @@ describe("VPP Install Details Modal", () => {
     renderWithBackend(
       <VppInstallDetailsModal
         details={{
-          fleetInstallStatus: "failed_install",
+          automdmInstallStatus: "failed_install",
           hostDisplayName: "iPad-kiosk-1334",
           appName: "Zoom",
           commandUuid: "error-1407-uuid",
           platform: "ipados",
-          fleetInitiated: true,
+          automdmInitiated: true,
         }}
         onCancel={jest.fn()}
       />
     );
 
-    // load the 1407 command result, the status line should name Fleet, the app and the host
+    // load the 1407 command result, the status line should name AutoMDM, the app and the host
     await waitFor(() => {
       expect(
         screen.getByText(
           (_, element) =>
             element?.tagName === "SPAN" &&
             element.textContent ===
-              "Fleet failed to install Zoom on iPad-kiosk-1334."
+              "AutoMDM failed to install Zoom on iPad-kiosk-1334."
         )
       ).toBeInTheDocument();
     });
@@ -978,7 +978,7 @@ describe("VPP Install Details Modal", () => {
     renderWithBackend(
       <VppInstallDetailsModal
         details={{
-          fleetInstallStatus: "failed_install",
+          automdmInstallStatus: "failed_install",
           hostDisplayName: "Marko's MacBook Pro",
           appName: "Logic Pro",
           commandUuid: "failed-update-uuid",
@@ -1026,7 +1026,7 @@ describe("VPP Install Details Modal", () => {
       <QueryClientProvider client={client}>
         <VppInstallDetailsModal
           details={{
-            fleetInstallStatus: "pending_install",
+            automdmInstallStatus: "pending_install",
             hostDisplayName: "Marko's MacBook Pro",
             appName: "Keynote",
             commandUuid: "missing-uuid",

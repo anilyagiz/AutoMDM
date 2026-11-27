@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/anilyagiz/automdm/v4/ee/pkg/hostidentity/types"
+	"github.com/anilyagiz/automdm/v4/ee/server/service/hostidentity/httpsig"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/authz"
 	"github.com/aws/smithy-go/ptr"
-	"github.com/fleetdm/fleet/v4/ee/pkg/hostidentity/types"
-	"github.com/fleetdm/fleet/v4/ee/server/service/hostidentity/httpsig"
-	"github.com/fleetdm/fleet/v4/server/contexts/authz"
-	"github.com/fleetdm/fleet/v4/server/fleet"
 	kithttp "github.com/go-kit/kit/transport/http"
 	"github.com/stretchr/testify/assert"
 )
@@ -71,7 +71,7 @@ func TestHTTPMessageSignAuth(t *testing.T) {
 		},
 		{
 			Name: "auth path with good cert context 2",
-			Path: "/api/fleet/orbit/foo",
+			Path: "/api/automdm/orbit/foo",
 			Err:  "",
 			HostIdentCert: &types.HostIdentityCertificate{
 				NotValidAfter: time.Now().Add(24 * time.Hour),
@@ -81,7 +81,7 @@ func TestHTTPMessageSignAuth(t *testing.T) {
 		},
 		{
 			Name: "auth path with good cert context 3",
-			Path: "/api/v1/fleet/certificate_authorities/3/request_certificate",
+			Path: "/api/v1/automdm/certificate_authorities/3/request_certificate",
 			Err:  "",
 			HostIdentCert: &types.HostIdentityCertificate{
 				NotValidAfter: time.Now().Add(24 * time.Hour),
@@ -129,8 +129,8 @@ func TestHTTPMessageSignAuth(t *testing.T) {
 			if tc.Err == "" {
 				assert.NoError(t, err)
 			} else {
-				authErr := &fleet.AuthFailedError{}
-				authHeaderErr := &fleet.AuthHeaderRequiredError{}
+				authErr := &automdm.AuthFailedError{}
+				authHeaderErr := &automdm.AuthHeaderRequiredError{}
 				switch {
 				case errors.As(err, &authErr):
 					assert.Contains(t, authErr.Internal(), tc.Err)

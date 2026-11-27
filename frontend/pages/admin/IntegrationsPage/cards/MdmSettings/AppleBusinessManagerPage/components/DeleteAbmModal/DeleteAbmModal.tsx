@@ -55,7 +55,7 @@ const DeleteAbmModal = ({
     >
       <p>
         New hosts purchased in <b>{tokenOrgName}</b> won&apos;t automatically
-        enroll to Fleet.
+        enroll to AutoMDM.
         {tokenIsDefault && tokensCount === 2 && (
           <> Your remaining token will become the default automatically.</>
         )}

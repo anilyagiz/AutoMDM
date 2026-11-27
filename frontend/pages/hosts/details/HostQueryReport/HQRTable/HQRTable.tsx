@@ -150,7 +150,7 @@ const HQRTable = ({
         <EmptyState
           className={`${baseClass}__collecting-results`}
           header="Collecting results..."
-          info={`Fleet is collecting report results from ${hostName}. Check back later.`}
+          info={`AutoMDM is collecting report results from ${hostName}. Check back later.`}
         />
       );
     }

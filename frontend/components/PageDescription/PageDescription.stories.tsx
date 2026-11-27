@@ -49,7 +49,7 @@ export const RichContent: Story = {
     content: (
       <>
         Supports <strong>rich</strong> content, including{" "}
-        <CustomLink url="https://fleetdm.com" text="links" newTab />.
+        <CustomLink url="https://automdm.com" text="links" newTab />.
       </>
     ),
   },

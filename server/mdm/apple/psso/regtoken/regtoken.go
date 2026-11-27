@@ -1,8 +1,8 @@
 // Package regtoken mints and validates the Apple Platform SSO device
 // registration token.
 //
-// The token authenticates a device to Fleet's PSSO device registration
-// endpoint. It is a Fleet-signed JWT (ES256, signed with the PSSO signing key),
+// The token authenticates a device to AutoMDM's PSSO device registration
+// endpoint. It is an AutoMDM-signed JWT (ES256, signed with the PSSO signing key),
 // bound to a single host via its UUID (the `sub` claim), and locked to the
 // device-registration use via a fixed audience so it cannot be replayed against
 // any other endpoint.
@@ -24,7 +24,7 @@ import (
 const (
 	// audience locks the token to device registration. Validation rejects any
 	// token whose audience differs, so it cannot be presented to another flow.
-	audience = "fleet-psso-device-registration"
+	audience = "automdm-psso-device-registration"
 
 	// DefaultValidity is the token lifetime. A long lifetime lets a device reuse
 	// the same token across re-registrations without resending the profile.
@@ -64,7 +64,7 @@ func Mint(key *ecdsa.PrivateKey, hostUUID string, now time.Time) (string, error)
 	return signed, nil
 }
 
-// MintFromPEM parses a SEC1 EC private key PEM (Fleet's stored PSSO signing key)
+// MintFromPEM parses a SEC1 EC private key PEM (AutoMDM's stored PSSO signing key)
 // and mints a token for hostUUID. It exists so callers that hold the raw asset
 // PEM (e.g. the datastore at command-delivery time) need not duplicate the key
 // parsing or pull in the service layer.
@@ -101,9 +101,9 @@ func Validate(tokenString string, key *ecdsa.PublicKey, now time.Time) (string, 
 	if !claims.VerifyExpiresAt(now, true) {
 		return "", errors.New("regtoken: token expired or missing expiry")
 	}
-	// Reject a token whose issued-at is in the future (or absent). Fleet always
+	// Reject a token whose issued-at is in the future (or absent). AutoMDM always
 	// mints with iat=now, so a future iat indicates a malformed or tampered
-	// token even though only Fleet's key can produce a valid signature.
+	// token even though only AutoMDM's key can produce a valid signature.
 	if !claims.VerifyIssuedAt(now, true) {
 		return "", errors.New("regtoken: issued-at is in the future or missing")
 	}
@@ -129,7 +129,7 @@ func parseECPrivateKeyPEM(pemBytes []byte) (*ecdsa.PrivateKey, error) {
 }
 
 // computeKID returns base64url-nopad SHA-256 of the SubjectPublicKeyInfo DER
-// encoding of pub, matching the kid Fleet uses for its PSSO signing key
+// encoding of pub, matching the kid AutoMDM uses for its PSSO signing key
 // elsewhere (JWKS/JWT).
 func computeKID(pub *ecdsa.PublicKey) (string, error) {
 	der, err := x509.MarshalPKIXPublicKey(pub)

@@ -7,7 +7,7 @@
 
 $displayNamePattern = '^Mullvad\ Browser$'
 $publisher = "Mullvad VPN"
-$taskName = "fleet-uninstall-mullvad-browser"
+$taskName = "automdm-uninstall-mullvad-browser"
 $appDir = "AppData\Local\Mullvad\MullvadBrowser\Release"  # in each user's profile
 $taskRunning = 267009  # SCHED_S_TASK_RUNNING
 $timeoutSeconds = 300

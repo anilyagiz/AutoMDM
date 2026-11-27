@@ -278,7 +278,7 @@ describe("BootstrapPackage", () => {
 
     await waitFor(() => {
       expect(updateSpy).toHaveBeenCalledWith({
-        fleet_id: 0,
+        team_id: 0,
         macos_manual_agent_install: false,
       });
     });

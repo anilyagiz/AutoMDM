@@ -3,10 +3,10 @@ package service
 import (
 	"context"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
-func (svc *Service) ListSoftware(ctx context.Context, opts fleet.SoftwareListOptions) ([]fleet.Software, *fleet.PaginationMetadata, error) {
+func (svc *Service) ListSoftware(ctx context.Context, opts automdm.SoftwareListOptions) ([]automdm.Software, *automdm.PaginationMetadata, error) {
 	// reuse ListSoftware, but include cve scores in premium version
 	// unless without_vulnerability_details is set to true
 	// including these details causes a lot of memory bloat
@@ -16,7 +16,7 @@ func (svc *Service) ListSoftware(ctx context.Context, opts fleet.SoftwareListOpt
 	return svc.Service.ListSoftware(ctx, opts)
 }
 
-func (svc *Service) SoftwareByID(ctx context.Context, id uint, teamID *uint, _ bool) (*fleet.Software, error) {
+func (svc *Service) SoftwareByID(ctx context.Context, id uint, teamID *uint, _ bool) (*automdm.Software, error) {
 	// reuse SoftwareByID, but include cve scores in premium version
 	return svc.Service.SoftwareByID(ctx, id, teamID, true)
 }

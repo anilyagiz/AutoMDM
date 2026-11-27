@@ -1,5 +1,5 @@
 # Agent Ransack ships as a zip containing the x64 MSI (agentransack_x64_<build>.msi).
-# Fleet downloads the zip to INSTALLER_PATH; this script extracts it and installs
+# AutoMDM downloads the zip to INSTALLER_PATH; this script extracts it and installs
 # the MSI per-machine and silently. The MSI sets ALLUSERS=1, so it always
 # installs machine-wide.
 

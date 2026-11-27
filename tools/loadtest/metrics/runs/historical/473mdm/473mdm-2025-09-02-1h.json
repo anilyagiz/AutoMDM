@@ -8,7 +8,7 @@
     "source": "spreadsheet-backfill",
     "sheet_row": 34
   },
-  "fleet_server": {
+  "automdm_server": {
     "cpu_utilization": {
       "Average": 14.0
     },
@@ -80,20 +80,20 @@
       }
     }
   ],
-  "fleet_server_errors": {
+  "automdm_server_errors": {
     "error_count": 0
   },
   "backfill": {
-    "source": "Fleet release load testing results (Google Sheet), manual-logging era",
+    "source": "AutoMDM release load testing results (Google Sheet), manual-logging era",
     "purpose": "Ticket #28133",
     "one_click": null,
     "notes": null,
     "raw": {
       "full_day": "no",
-      "fleet_containers": "20",
+      "automdm_containers": "20",
       "loadtest_containers": "10",
-      "fleet_cpu": "~14%",
-      "fleet_mem": "~1.6%",
+      "automdm_cpu": "~14%",
+      "automdm_mem": "~1.6%",
       "errors": "No new errors",
       "writer_top_sql": "COMMIT",
       "writer_cpu": "~1%",

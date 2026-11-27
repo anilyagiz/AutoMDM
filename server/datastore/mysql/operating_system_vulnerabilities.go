@@ -8,14 +8,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
 	"github.com/jmoiron/sqlx"
 )
 
-func (ds *Datastore) ListOSVulnerabilitiesByOS(ctx context.Context, osID uint) ([]fleet.OSVulnerability, error) {
-	r := []fleet.OSVulnerability{}
+func (ds *Datastore) ListOSVulnerabilitiesByOS(ctx context.Context, osID uint) ([]automdm.OSVulnerability, error) {
+	r := []automdm.OSVulnerability{}
 
 	stmt := `
 		SELECT
@@ -34,10 +34,10 @@ func (ds *Datastore) ListOSVulnerabilitiesByOS(ctx context.Context, osID uint) (
 	return r, nil
 }
 
-func (ds *Datastore) ListVulnsByOsNameAndVersion(ctx context.Context, name, version string, includeCVSS bool, teamID *uint, maxVulnerabilities *int) (fleet.OSVulnerabilitiesWithCount, error) {
+func (ds *Datastore) ListVulnsByOsNameAndVersion(ctx context.Context, name, version string, includeCVSS bool, teamID *uint, maxVulnerabilities *int) (automdm.OSVulnerabilitiesWithCount, error) {
 	// Validate maxVulnerabilities parameter
 	if maxVulnerabilities != nil && *maxVulnerabilities < 0 {
-		return fleet.OSVulnerabilitiesWithCount{}, fleet.NewInvalidArgumentError("max_vulnerabilities", "max_vulnerabilities must be >= 0")
+		return automdm.OSVulnerabilitiesWithCount{}, automdm.NewInvalidArgumentError("max_vulnerabilities", "max_vulnerabilities must be >= 0")
 	}
 
 	var tmID uint
@@ -159,15 +159,15 @@ func (ds *Datastore) ListVulnsByOsNameAndVersion(ctx context.Context, name, vers
 
 	var results []cvssResult
 	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &results, stmt, args...); err != nil {
-		return fleet.OSVulnerabilitiesWithCount{}, ctxerr.Wrap(ctx, err, "error executing SQL statement")
+		return automdm.OSVulnerabilitiesWithCount{}, ctxerr.Wrap(ctx, err, "error executing SQL statement")
 	}
 
 	totalCount := 0
-	vulns := make(fleet.Vulnerabilities, 0)
+	vulns := make(automdm.Vulnerabilities, 0)
 	for _, r := range results {
 		totalCount = r.TotalCount
 		if r.CVE != "" { // Skip the count-only row when max=0
-			vulns = append(vulns, fleet.CVE{
+			vulns = append(vulns, automdm.CVE{
 				CVE:               r.CVE,
 				CreatedAt:         r.CreatedAt,
 				CVSSScore:         &r.CVSSScore,
@@ -180,13 +180,13 @@ func (ds *Datastore) ListVulnsByOsNameAndVersion(ctx context.Context, name, vers
 		}
 	}
 
-	return fleet.OSVulnerabilitiesWithCount{
+	return automdm.OSVulnerabilitiesWithCount{
 		Vulnerabilities: vulns,
 		Count:           totalCount,
 	}, nil
 }
 
-func (ds *Datastore) listVulnsWithoutCVSS(ctx context.Context, linuxTeamFilter string, maxVulnerabilities *int, args []any) (fleet.OSVulnerabilitiesWithCount,
+func (ds *Datastore) listVulnsWithoutCVSS(ctx context.Context, linuxTeamFilter string, maxVulnerabilities *int, args []any) (automdm.OSVulnerabilitiesWithCount,
 	error) {
 	// Simple query without CVSS metadata
 	baseCTE := `
@@ -262,34 +262,34 @@ func (ds *Datastore) listVulnsWithoutCVSS(ctx context.Context, linuxTeamFilter s
 
 	var results []simpleResult
 	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &results, stmt, args...); err != nil {
-		return fleet.OSVulnerabilitiesWithCount{}, ctxerr.Wrap(ctx, err, "error executing SQL statement")
+		return automdm.OSVulnerabilitiesWithCount{}, ctxerr.Wrap(ctx, err, "error executing SQL statement")
 	}
 
 	totalCount := 0
-	vulns := make(fleet.Vulnerabilities, 0)
+	vulns := make(automdm.Vulnerabilities, 0)
 	for _, r := range results {
 		totalCount = r.TotalCount
 		if r.CVE != "" { // Skip the count-only row when max=0
-			vulns = append(vulns, fleet.CVE{
+			vulns = append(vulns, automdm.CVE{
 				CVE:       r.CVE,
 				CreatedAt: r.CreatedAt,
 			})
 		}
 	}
 
-	return fleet.OSVulnerabilitiesWithCount{
+	return automdm.OSVulnerabilitiesWithCount{
 		Vulnerabilities: vulns,
 		Count:           totalCount,
 	}, nil
 }
 
-func (ds *Datastore) InsertOSVulnerabilities(ctx context.Context, vulnerabilities []fleet.OSVulnerability, source fleet.VulnerabilitySource) (int64, error) {
+func (ds *Datastore) InsertOSVulnerabilities(ctx context.Context, vulnerabilities []automdm.OSVulnerability, source automdm.VulnerabilitySource) (int64, error) {
 	if len(vulnerabilities) == 0 {
 		return 0, nil
 	}
 
 	var totalAffected int64
-	err := common_mysql.BatchProcessSimple(vulnerabilities, vulnBatchSize, func(batch []fleet.OSVulnerability) error {
+	err := common_mysql.BatchProcessSimple(vulnerabilities, vulnBatchSize, func(batch []automdm.OSVulnerability) error {
 		values := strings.TrimSuffix(strings.Repeat("(?,?,?,?),", len(batch)), ",")
 		stmt := fmt.Sprintf(`
 			INSERT INTO operating_system_vulnerabilities (operating_system_id, cve, source, resolved_in_version)
@@ -318,7 +318,7 @@ func (ds *Datastore) InsertOSVulnerabilities(ctx context.Context, vulnerabilitie
 	return totalAffected, err
 }
 
-func (ds *Datastore) InsertOSVulnerability(ctx context.Context, v fleet.OSVulnerability, s fleet.VulnerabilitySource) (bool, error) {
+func (ds *Datastore) InsertOSVulnerability(ctx context.Context, v automdm.OSVulnerability, s automdm.VulnerabilitySource) (bool, error) {
 	if v.CVE == "" {
 		return false, fmt.Errorf("inserting operating system vulnerability: CVE cannot be empty %#v", v)
 	}
@@ -354,7 +354,7 @@ func (ds *Datastore) InsertOSVulnerability(ctx context.Context, v fleet.OSVulner
 	return lastID != 0 && affected == 1, nil
 }
 
-func (ds *Datastore) DeleteOSVulnerabilities(ctx context.Context, vulnerabilities []fleet.OSVulnerability) error {
+func (ds *Datastore) DeleteOSVulnerabilities(ctx context.Context, vulnerabilities []automdm.OSVulnerability) error {
 	if len(vulnerabilities) == 0 {
 		return nil
 	}
@@ -374,7 +374,7 @@ func (ds *Datastore) DeleteOSVulnerabilities(ctx context.Context, vulnerabilitie
 	return nil
 }
 
-func (ds *Datastore) DeleteOutOfDateOSVulnerabilities(ctx context.Context, src fleet.VulnerabilitySource, olderThan time.Time) error {
+func (ds *Datastore) DeleteOutOfDateOSVulnerabilities(ctx context.Context, src automdm.VulnerabilitySource, olderThan time.Time) error {
 	// Note: operating_system_version_vulnerabilities cleanup is handled automatically
 	// by refreshOSVersionVulnerabilities, which removes stale entries during its refresh
 	deleteStmt := `
@@ -398,8 +398,8 @@ func (ds *Datastore) DeleteOrphanedOSVulnerabilities(ctx context.Context) error 
 	return nil
 }
 
-func (ds *Datastore) ListKernelsByOS(ctx context.Context, osVersionID uint, teamID *uint) ([]*fleet.Kernel, error) {
-	var kernels []*fleet.Kernel
+func (ds *Datastore) ListKernelsByOS(ctx context.Context, osVersionID uint, teamID *uint) ([]*automdm.Kernel, error) {
+	var kernels []*automdm.Kernel
 
 	stmt := `
 SELECT DISTINCT
@@ -439,12 +439,12 @@ GROUP BY id, cve, version
 		return nil, ctxerr.Wrap(ctx, err, "listing kernels by OS name")
 	}
 
-	kernelSet := make(map[uint]*fleet.Kernel)
+	kernelSet := make(map[uint]*automdm.Kernel)
 
 	for _, result := range results {
 		k, ok := kernelSet[result.ID]
 		if !ok {
-			kernel := &fleet.Kernel{
+			kernel := &automdm.Kernel{
 				ID:         result.ID,
 				Version:    result.Version,
 				HostsCount: result.HostsCount,
@@ -672,7 +672,7 @@ func processLinuxVulnResults(
 	results []vulnResult,
 	osVersionIDToKeyMap map[uint]string,
 	totalCountByOSVersionID map[uint]uint, // Output: tracks total counts per os_version_id
-	vulnsByKey map[string][]fleet.CVE, // Output: CVEs grouped by "name-version" key
+	vulnsByKey map[string][]automdm.CVE, // Output: CVEs grouped by "name-version" key
 	cveSet map[string]struct{}, // Output: global set of all CVEs for CVSS fetching
 	logger *slog.Logger,
 ) {
@@ -692,7 +692,7 @@ func processLinuxVulnResults(
 			totalCountByOSVersionID[r.OSVersionID] = *r.TotalCount
 		}
 
-		vuln := fleet.CVE{
+		vuln := automdm.CVE{
 			CVE:       r.CVE,
 			CreatedAt: r.CreatedAt,
 		}
@@ -716,7 +716,7 @@ func processVulnResults(
 	results []vulnResult,
 	osIDToKeyMap map[uint]string, // Maps operating_system_id to "name-version" key
 	totalCountByOSID map[uint]uint, // Output: tracks total counts per operating_system_id
-	vulnsByKey map[string][]fleet.CVE, // Output: CVEs grouped by "name-version" key
+	vulnsByKey map[string][]automdm.CVE, // Output: CVEs grouped by "name-version" key
 	cveSetByKey map[string]map[string]struct{}, // Output: unique CVEs per key for accurate counting
 	cveSet map[string]struct{}, // Output: global set of all CVEs
 ) {
@@ -734,7 +734,7 @@ func processVulnResults(
 		}
 		cveSetByKey[key][r.CVE] = struct{}{}
 
-		vuln := fleet.CVE{
+		vuln := automdm.CVE{
 			CVE:       r.CVE,
 			CreatedAt: r.CreatedAt,
 		}
@@ -768,19 +768,19 @@ func processVulnResults(
 // for large datasets.
 func (ds *Datastore) ListVulnsByMultipleOSVersions(
 	ctx context.Context,
-	osVersions []fleet.OSVersion,
+	osVersions []automdm.OSVersion,
 	includeCVSS bool,
 	teamID *uint,
 	maxVulnerabilities *int,
-) (map[string]fleet.OSVulnerabilitiesWithCount, error) {
-	result := make(map[string]fleet.OSVulnerabilitiesWithCount)
+) (map[string]automdm.OSVulnerabilitiesWithCount, error) {
+	result := make(map[string]automdm.OSVulnerabilitiesWithCount)
 	if len(osVersions) == 0 {
 		return result, nil
 	}
 
 	// Validate maxVulnerabilities parameter
 	if maxVulnerabilities != nil && *maxVulnerabilities < 0 {
-		return nil, fleet.NewInvalidArgumentError("max_vulnerabilities", "max_vulnerabilities must be >= 0")
+		return nil, automdm.NewInvalidArgumentError("max_vulnerabilities", "max_vulnerabilities must be >= 0")
 	}
 
 	// Step 1: Separate Linux from non-Linux OS versions
@@ -792,7 +792,7 @@ func (ds *Datastore) ListVulnsByMultipleOSVersions(
 	linuxOSVersionIDs := make([]uint, 0)       // unique os_version_id values for Linux
 
 	// Track non-Linux OS info for database lookup
-	nonLinuxOSVersions := make([]fleet.OSVersion, 0)
+	nonLinuxOSVersions := make([]automdm.OSVersion, 0)
 	nonLinuxOSIDMap := make(map[uint]string) // os.id -> "name-version" key
 	nonLinuxOSIDs := make([]uint, 0)         // os.id values for non-Linux
 
@@ -800,15 +800,15 @@ func (ds *Datastore) ListVulnsByMultipleOSVersions(
 	for _, os := range osVersions {
 		key := fmt.Sprintf("%s-%s", os.NameOnly, os.Version)
 
-		if fleet.IsLinux(os.Platform) {
+		if automdm.IsLinux(os.Platform) {
 			// For Linux, track by os_version_id (no need to fetch os.id)
 			if _, exists := linuxOSVersionMap[os.OSVersionID]; !exists {
 				linuxOSVersionMap[os.OSVersionID] = key
 				linuxOSVersionIDs = append(linuxOSVersionIDs, os.OSVersionID)
 				// Initialize result map entry for Linux
 				if _, exists := result[key]; !exists {
-					result[key] = fleet.OSVulnerabilitiesWithCount{
-						Vulnerabilities: make([]fleet.CVE, 0),
+					result[key] = automdm.OSVulnerabilitiesWithCount{
+						Vulnerabilities: make([]automdm.CVE, 0),
 						Count:           0,
 					}
 				}
@@ -850,8 +850,8 @@ func (ds *Datastore) ListVulnsByMultipleOSVersions(
 			nonLinuxOSIDMap[r.ID] = key
 			// Initialize result map entry for non-Linux
 			if _, exists := result[key]; !exists {
-				result[key] = fleet.OSVulnerabilitiesWithCount{
-					Vulnerabilities: make([]fleet.CVE, 0),
+				result[key] = automdm.OSVulnerabilitiesWithCount{
+					Vulnerabilities: make([]automdm.CVE, 0),
 					Count:           0,
 				}
 			}
@@ -1065,7 +1065,7 @@ func (ds *Datastore) ListVulnsByMultipleOSVersions(
 	osVulnResults = <-osVulnsChan
 	kernelVulnResults = <-kernelVulnsChan
 
-	vulnsByKey := make(map[string][]fleet.CVE)
+	vulnsByKey := make(map[string][]automdm.CVE)
 	cveSetByKey := make(map[string]map[string]struct{}) // Track unique CVEs per key for accurate counting
 	cveSet := make(map[string]struct{})
 	// Track total counts per key when using LIMIT - this is the count BEFORE limiting
@@ -1226,7 +1226,7 @@ func (ds *Datastore) ListVulnsByMultipleOSVersions(
 		// Apply per-key limit after deduplication if maxVulnerabilities is specified (only needed for non-Linux)
 		if maxVulnerabilities != nil {
 			if *maxVulnerabilities == 0 {
-				vulns = []fleet.CVE{}
+				vulns = []automdm.CVE{}
 			} else if len(vulns) > *maxVulnerabilities {
 				sort.Slice(vulns, func(i, j int) bool {
 					return vulns[i].CVE > vulns[j].CVE
@@ -1236,10 +1236,10 @@ func (ds *Datastore) ListVulnsByMultipleOSVersions(
 		}
 
 		if vulns == nil {
-			vulns = []fleet.CVE{}
+			vulns = []automdm.CVE{}
 		}
 
-		result[key] = fleet.OSVulnerabilitiesWithCount{
+		result[key] = automdm.OSVulnerabilitiesWithCount{
 			Vulnerabilities: vulns,
 			Count:           count,
 		}

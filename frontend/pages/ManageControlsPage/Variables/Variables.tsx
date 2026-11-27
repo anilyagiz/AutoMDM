@@ -47,7 +47,7 @@ const Variables = ({ router, params, location }: IVariablesProps) => {
         variant="tab-panel"
         content={
           isPremiumTier
-            ? "Add global variables and custom host vitals to use in scripts and configuration profiles for all fleets."
+            ? "Add global variables and custom host vitals to use in scripts and configuration profiles for all teams."
             : "Add global variables and custom host vitals to use in scripts and configuration profiles."
         }
       />

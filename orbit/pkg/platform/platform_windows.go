@@ -16,8 +16,8 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/constant"
 	"github.com/digitalocean/go-smbios/smbios"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/constant"
 	"github.com/go-ole/go-ole"
 	"github.com/go-ole/go-ole/oleutil"
 	"github.com/google/uuid"

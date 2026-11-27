@@ -9,24 +9,24 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/apple/mobileconfig"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/apple/mobileconfig"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/stretchr/testify/require"
 )
 
-func TestGetFleetdConfig(t *testing.T) {
+func TestGetAutoMDMdConfig(t *testing.T) {
 	testErr := errors.New("test error")
 	cases := []struct {
 		cmdOut  *string
 		cmdErr  error
-		wantOut *fleet.MDMAppleFleetdConfig
+		wantOut *automdm.MDMAppleAutoMDMdConfig
 		wantErr error
 	}{
 		{nil, testErr, nil, testErr},
 		{ptr.String("invalid-xml"), nil, nil, io.EOF},
-		{&emptyOutput, nil, &fleet.MDMAppleFleetdConfig{}, nil},
-		{&withFleetdConfig, nil, &fleet.MDMAppleFleetdConfig{EnrollSecret: "ENROLL_SECRET", FleetURL: "https://test.example.com"}, nil},
+		{&emptyOutput, nil, &automdm.MDMAppleAutoMDMdConfig{}, nil},
+		{&withAutoMDMdConfig, nil, &automdm.MDMAppleAutoMDMdConfig{EnrollSecret: "ENROLL_SECRET", AutoMDMURL: "https://test.example.com"}, nil},
 	}
 
 	origExecProfileCmd := execProfileCmd
@@ -42,7 +42,7 @@ func TestGetFleetdConfig(t *testing.T) {
 			return &buf, nil
 		}
 
-		out, err := GetFleetdConfig()
+		out, err := GetAutoMDMdConfig()
 		require.ErrorIs(t, err, c.wantErr)
 		require.Equal(t, c.wantOut, out)
 	}
@@ -55,7 +55,7 @@ var (
 <dict/>
 </plist>`
 
-	withFleetdConfig = `
+	withAutoMDMdConfig = `
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -78,7 +78,7 @@ var (
 					<dict>
 						<key>EnrollSecret</key>
 						<string>ENROLL_SECRET</string>
-						<key>FleetURL</key>
+						<key>AutoMDMURL</key>
 						<string>https://test.example.com</string>
 					</dict>
 					<key>PayloadDescription</key>
@@ -108,7 +108,7 @@ var (
 </dict>
 </plist>`
 
-	withFleetdConfigAndEnrollment = `
+	withAutoMDMdConfigAndEnrollment = `
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -131,7 +131,7 @@ var (
 					<dict>
 						<key>EnrollSecret</key>
 						<string>ENROLL_SECRET</string>
-						<key>FleetURL</key>
+						<key>AutoMDMURL</key>
 						<string>https://test.example.com</string>
 					</dict>
 					<key>PayloadDescription</key>
@@ -229,11 +229,11 @@ func TestCustomInstallerWorkflow(t *testing.T) {
 		wantEmail string
 		wantErr   error
 	}{
-		{"happy path", withFleetdConfigAndEnrollment, "user@example.com", nil},
+		{"happy path", withAutoMDMdConfigAndEnrollment, "user@example.com", nil},
 		{"empty profiles", emptyOutput, "", ErrNotFound},
-		{"no enrollment payload", withFleetdConfig, "", ErrNotFound},
-		{"wrong payload identifier", strings.Replace(withFleetdConfigAndEnrollment, mobileconfig.FleetEnrollmentPayloadIdentifier, "wrong-identifier", 1), "", ErrNotFound},
-		{"no end user email key", strings.Replace(withFleetdConfigAndEnrollment, "EndUserEmail", "WrongKey", 1), "", ErrNotFound},
+		{"no enrollment payload", withAutoMDMdConfig, "", ErrNotFound},
+		{"wrong payload identifier", strings.Replace(withAutoMDMdConfigAndEnrollment, mobileconfig.AutoMDMEnrollmentPayloadIdentifier, "wrong-identifier", 1), "", ErrNotFound},
+		{"no end user email key", strings.Replace(withAutoMDMdConfigAndEnrollment, "EndUserEmail", "WrongKey", 1), "", ErrNotFound},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			execProfileCmd = func() (*bytes.Buffer, error) {
@@ -369,7 +369,7 @@ func TestParseMDMEnrollmentStatus(t *testing.T) {
 }
 
 func TestCheckAssignedEnrollmentProfile(t *testing.T) {
-	fleetURL := "https://valid.com"
+	automdmURL := "https://valid.com"
 	cases := []struct {
 		name    string
 		cmdOut  *string
@@ -517,7 +517,7 @@ func TestCheckAssignedEnrollmentProfile(t *testing.T) {
 				return []byte(*c.cmdOut), nil
 			}
 
-			err := CheckAssignedEnrollmentProfile(fleetURL)
+			err := CheckAssignedEnrollmentProfile(automdmURL)
 			if c.wantErr != nil {
 				require.ErrorContains(t, err, c.wantErr.Error())
 			} else {
@@ -533,7 +533,7 @@ func TestGetProfilePayloadContent(t *testing.T) {
 
 	execProfileCmd = func() (*bytes.Buffer, error) {
 		var buf bytes.Buffer
-		buf.WriteString(withFleetdConfigAndEnrollment)
+		buf.WriteString(withAutoMDMdConfigAndEnrollment)
 		return &buf, nil
 	}
 
@@ -569,16 +569,16 @@ func TestGetProfilePayloadContent(t *testing.T) {
 	require.Empty(t, ws.foo)
 
 	// struct type is acceptable and returns the expected value type corresponds to the payload identifier
-	c, err := getProfilePayloadContent[fleet.MDMAppleFleetdConfig]("com.fleetdm.fleetd.config")
+	c, err := getProfilePayloadContent[automdm.MDMAppleAutoMDMdConfig]("com.fleetdm.fleetd.config")
 	require.NoError(t, err)
 	require.NotNil(t, c)
-	require.Equal(t, *c, fleet.MDMAppleFleetdConfig{EnrollSecret: "ENROLL_SECRET", FleetURL: "https://test.example.com"})
+	require.Equal(t, *c, automdm.MDMAppleAutoMDMdConfig{EnrollSecret: "ENROLL_SECRET", AutoMDMURL: "https://test.example.com"})
 
 	// struct type is acceptable and returns the expected value type corresponds to the payload identifier
-	e, err := getProfilePayloadContent[fleet.MDMCustomEnrollmentProfileItem]("com.fleetdm.fleet.mdm.apple.mdm")
+	e, err := getProfilePayloadContent[automdm.MDMCustomEnrollmentProfileItem]("com.fleetdm.fleet.mdm.apple.mdm")
 	require.NoError(t, err)
 	require.NotNil(t, e)
-	require.Equal(t, *e, fleet.MDMCustomEnrollmentProfileItem{EndUserEmail: "user@example.com"})
+	require.Equal(t, *e, automdm.MDMCustomEnrollmentProfileItem{EndUserEmail: "user@example.com"})
 
 	// map type is acceptable
 	m, err := getProfilePayloadContent[map[string]any]("com.fleetdm.fleet.mdm.apple.mdm")
@@ -590,7 +590,7 @@ func TestGetProfilePayloadContent(t *testing.T) {
 	require.Equal(t, "user@example.com", v)
 	_, ok = gotMap["EnrollSecret"]
 	require.False(t, ok)
-	_, ok = gotMap["FleetURL"]
+	_, ok = gotMap["AutoMDMURL"]
 	require.False(t, ok)
 
 	// map type is acceptable
@@ -601,7 +601,7 @@ func TestGetProfilePayloadContent(t *testing.T) {
 	v, ok = gotMap["EnrollSecret"]
 	require.True(t, ok)
 	require.Equal(t, "ENROLL_SECRET", v)
-	v, ok = gotMap["FleetURL"]
+	v, ok = gotMap["AutoMDMURL"]
 	require.True(t, ok)
 	require.Equal(t, "https://test.example.com", v)
 	_, ok = gotMap["EndUserEmail"]

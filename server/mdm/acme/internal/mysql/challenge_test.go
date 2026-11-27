@@ -3,8 +3,8 @@ package mysql
 import (
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/mdm/acme/internal/testutils"
-	"github.com/fleetdm/fleet/v4/server/mdm/acme/internal/types"
+	"github.com/anilyagiz/automdm/v4/server/mdm/acme/internal/testutils"
+	"github.com/anilyagiz/automdm/v4/server/mdm/acme/internal/types"
 	"github.com/stretchr/testify/require"
 )
 

@@ -205,7 +205,7 @@ describe("SiteTopNav - component", () => {
         config={createMockConfig()}
         currentUser={createMockUser({
           global_role: "",
-          fleets: [createMockTeam({ role: "admin" })],
+          teams: [createMockTeam({ role: "admin" })],
         })}
         location={urlLocation}
         onLogoutUser={noop}

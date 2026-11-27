@@ -7,7 +7,7 @@ interface ICheckboxProps {
   color?: Colors;
 }
 
-const Checkbox = ({ color = "core-fleet-green" }: ICheckboxProps) => {
+const Checkbox = ({ color = "core-automdm-green" }: ICheckboxProps) => {
   const clipPathId = uniqueId("clip-path-");
 
   return (

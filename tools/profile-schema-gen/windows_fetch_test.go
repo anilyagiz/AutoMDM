@@ -14,8 +14,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/pkg/mdm/profilevalidation"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/pkg/mdm/profilevalidation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -86,7 +86,7 @@ func TestResolveDDF(t *testing.T) {
 			}))
 			defer srv.Close()
 
-			got, err := resolveDDF(t.Context(), slog.New(slog.DiscardHandler), fleethttp.NewClient(), srv.URL)
+			got, err := resolveDDF(t.Context(), slog.New(slog.DiscardHandler), automdmhttp.NewClient(), srv.URL)
 			if c.wantErr != "" {
 				require.ErrorContains(t, err, c.wantErr)
 				return
@@ -147,7 +147,7 @@ func TestDownloadDDF(t *testing.T) {
 	})
 	download := func(path, wantSHA string) (string, string, error) {
 		dest := t.TempDir()
-		got, err := downloadDDF(t.Context(), logger, fleethttp.NewClient(), srv.URL+path, wantSHA, dest)
+		got, err := downloadDDF(t.Context(), logger, automdmhttp.NewClient(), srv.URL+path, wantSHA, dest)
 		return dest, got, err
 	}
 
@@ -220,7 +220,7 @@ func TestRunWindowsFetchPinned(t *testing.T) {
 	srv := ddfServer(t, map[string][]byte{"/DDFv2Feb2026.zip": zipData})
 	pin := profilevalidation.WindowsVersion{Release: "DDFv2Feb2026", URL: srv.URL + "/DDFv2Feb2026.zip", SHA256: sha256Hex(zipData)}
 	run := func(dir string, pin profilevalidation.WindowsVersion) (profilevalidation.WindowsVersion, error) {
-		return runWindows(t.Context(), slog.New(slog.DiscardHandler), fleethttp.NewClient(), windowsRunOptions{Dir: dir, Pinned: &pin, FetchPinned: true})
+		return runWindows(t.Context(), slog.New(slog.DiscardHandler), automdmhttp.NewClient(), windowsRunOptions{Dir: dir, Pinned: &pin, FetchPinned: true})
 	}
 
 	t.Run("downloads and marks", func(t *testing.T) {
@@ -278,7 +278,7 @@ func TestRunWindowsUpdate(t *testing.T) {
 	defer srv.Close()
 	target, err := url.Parse(srv.URL)
 	require.NoError(t, err)
-	client := fleethttp.NewClient()
+	client := automdmhttp.NewClient()
 	client.Transport = microsoftTransport{target: target}
 	want := profilevalidation.WindowsVersion{Release: "DDFv2Feb2026", URL: newURL, SHA256: sha256Hex(newZip)}
 

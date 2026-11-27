@@ -10,12 +10,12 @@ import (
 )
 
 func TestRegistry_LookupNormalizes(t *testing.T) {
-	// One fixture covers all input shapes that should resolve to the same registered route: fleetversion templates (multi
+	// One fixture covers all input shapes that should resolve to the same registered route: automdmversion templates (multi
 	// version and single version), mux regex constrained params, and already normalized inputs.
 	r := NewRegistry()
-	r.Register(http.MethodGet, "/api/_version_/fleet/hosts", TierStandard)
-	r.Register(http.MethodGet, "/api/_version_/fleet/hosts/{id}", TierStandard)
-	r.Register(http.MethodPatch, "/api/_version_/fleet/fleets/{fleet_id}/secrets", TierAlways)
+	r.Register(http.MethodGet, "/api/_version_/automdm/hosts", TierStandard)
+	r.Register(http.MethodGet, "/api/_version_/automdm/hosts/{id}", TierStandard)
+	r.Register(http.MethodPatch, "/api/_version_/automdm/teams/{team_id}/secrets", TierAlways)
 
 	cases := []struct {
 		name   string
@@ -25,37 +25,37 @@ func TestRegistry_LookupNormalizes(t *testing.T) {
 	}{
 		{
 			name:   "regex version template",
-			input:  "GET /api/{fleetversion:(?:v1|2022-04|latest)}/fleet/hosts",
+			input:  "GET /api/{automdmversion:(?:v1|2022-04|latest)}/automdm/hosts",
 			want:   TierStandard,
 			wantOK: true,
 		},
 		{
 			name:   "single version regex template",
-			input:  "GET /api/{fleetversion:(?:latest)}/fleet/hosts",
+			input:  "GET /api/{automdmversion:(?:latest)}/automdm/hosts",
 			want:   TierStandard,
 			wantOK: true,
 		},
 		{
 			name:   "already normalized form",
-			input:  "GET /api/_version_/fleet/hosts",
+			input:  "GET /api/_version_/automdm/hosts",
 			want:   TierStandard,
 			wantOK: true,
 		},
 		{
 			name:   "mux regex param {id:[0-9]+}",
-			input:  "GET /api/{fleetversion:(?:v1|2022-04|latest)}/fleet/hosts/{id:[0-9]+}",
+			input:  "GET /api/{automdmversion:(?:v1|2022-04|latest)}/automdm/hosts/{id:[0-9]+}",
 			want:   TierStandard,
 			wantOK: true,
 		},
 		{
-			name:   "mux regex param {fleet_id:[0-9]+}",
-			input:  "PATCH /api/{fleetversion:(?:v1|2022-04|latest)}/fleet/fleets/{fleet_id:[0-9]+}/secrets",
+			name:   "mux regex param {team_id:[0-9]+}",
+			input:  "PATCH /api/{automdmversion:(?:v1|2022-04|latest)}/automdm/teams/{team_id:[0-9]+}/secrets",
 			want:   TierAlways,
 			wantOK: true,
 		},
 		{
 			name:   "HEAD takes the GET tier",
-			input:  "HEAD /api/{fleetversion:(?:v1|2022-04|latest)}/fleet/hosts/{id:[0-9]+}",
+			input:  "HEAD /api/{automdmversion:(?:v1|2022-04|latest)}/automdm/hosts/{id:[0-9]+}",
 			want:   TierStandard,
 			wantOK: true,
 		},
@@ -85,9 +85,9 @@ func TestRegistry_RegisterNormalizesSymmetrically(t *testing.T) {
 	// Inverse of TestRegistry_LookupNormalizes: registering with the regex form must also resolve via lookup of the bare form.
 	// This is the invariant the Register side normalization delivers.
 	r := NewRegistry()
-	r.Register(http.MethodGet, "/api/_version_/fleet/hosts/{id:[0-9]+}", TierStandard)
+	r.Register(http.MethodGet, "/api/_version_/automdm/hosts/{id:[0-9]+}", TierStandard)
 
-	got, ok := r.Lookup("GET /api/{fleetversion:(?:latest)}/fleet/hosts/{id}")
+	got, ok := r.Lookup("GET /api/{automdmversion:(?:latest)}/automdm/hosts/{id}")
 	require.True(t, ok, "regex form registration must be findable via simple form lookup")
 	require.Equal(t, TierStandard, got)
 }
@@ -107,10 +107,10 @@ func TestRegistry_RegisterOverwrites(t *testing.T) {
 		// {id} and {id:[0-9]+} are the same logical route after normalization. The second Register must overwrite the first
 		// regardless of which surface form was used.
 		r := NewRegistry()
-		r.Register(http.MethodGet, "/api/_version_/fleet/hosts/{id}", TierStandard)
-		r.Register(http.MethodGet, "/api/_version_/fleet/hosts/{id:[0-9]+}", TierHighVolume)
+		r.Register(http.MethodGet, "/api/_version_/automdm/hosts/{id}", TierStandard)
+		r.Register(http.MethodGet, "/api/_version_/automdm/hosts/{id:[0-9]+}", TierHighVolume)
 
-		got, _ := r.Lookup("GET /api/_version_/fleet/hosts/{id}")
+		got, _ := r.Lookup("GET /api/_version_/automdm/hosts/{id}")
 		require.Equal(t, TierHighVolume, got)
 	})
 }
@@ -150,28 +150,28 @@ func TestCleanRouteTemplate(t *testing.T) {
 	}{
 		{"GET /healthz", "GET /healthz"},
 		{
-			"GET /api/{fleetversion:(?:v1|2022-04|latest)}/fleet/hosts",
-			"GET /api/_version_/fleet/hosts",
+			"GET /api/{automdmversion:(?:v1|2022-04|latest)}/automdm/hosts",
+			"GET /api/_version_/automdm/hosts",
 		},
 		{
-			"GET /api/_version_/fleet/queries",
-			"GET /api/_version_/fleet/queries",
+			"GET /api/_version_/automdm/queries",
+			"GET /api/_version_/automdm/queries",
 		},
 		{"vuln.update_host_counts", "vuln.update_host_counts"},
 		// Mux regex constraints on path params are stripped to the bare {name} form so the registry can stay decoupled from the
 		// constraint syntax.
 		{
-			"GET /api/_version_/fleet/hosts/{id:[0-9]+}",
-			"GET /api/_version_/fleet/hosts/{id}",
+			"GET /api/_version_/automdm/hosts/{id:[0-9]+}",
+			"GET /api/_version_/automdm/hosts/{id}",
 		},
 		{
-			"PATCH /api/{fleetversion:(?:v1|2022-04|latest)}/fleet/fleets/{fleet_id:[0-9]+}/secrets",
-			"PATCH /api/_version_/fleet/fleets/{fleet_id}/secrets",
+			"PATCH /api/{automdmversion:(?:v1|2022-04|latest)}/automdm/teams/{team_id:[0-9]+}/secrets",
+			"PATCH /api/_version_/automdm/teams/{team_id}/secrets",
 		},
 		// Params without a regex constraint pass through unchanged.
 		{
-			"GET /api/_version_/fleet/device/{token}/desktop",
-			"GET /api/_version_/fleet/device/{token}/desktop",
+			"GET /api/_version_/automdm/device/{token}/desktop",
+			"GET /api/_version_/automdm/device/{token}/desktop",
 		},
 	}
 	for _, c := range cases {

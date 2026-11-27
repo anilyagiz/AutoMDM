@@ -9,8 +9,8 @@ import (
 	"net"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/ai_tools/internal/classify"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/ai_tools/internal/proc"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/ai_tools/internal/classify"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/ai_tools/internal/proc"
 )
 
 // Socket is one classified network endpoint owned by a process.

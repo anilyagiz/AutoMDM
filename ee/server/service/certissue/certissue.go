@@ -13,8 +13,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 	"golang.org/x/crypto/cryptobyte"
 	cryptobyteasn1 "golang.org/x/crypto/cryptobyte/asn1"
 	"software.sslmate.com/src/go-pkcs12"

@@ -37,7 +37,7 @@ const diskEncryptionService = {
     let { DISK_ENCRYPTION: path } = endpoints;
 
     if (teamId) {
-      path = `${path}?${buildQueryStringFromParams({ fleet_id: teamId })}`;
+      path = `${path}?${buildQueryStringFromParams({ team_id: teamId })}`;
     }
     return sendRequest("GET", path);
   },
@@ -48,8 +48,8 @@ const diskEncryptionService = {
     const { UPDATE_DISK_ENCRYPTION } = endpoints;
     return sendRequest("POST", UPDATE_DISK_ENCRYPTION, {
       ...formData,
-      // the server expects fleet_id to be omitted for "No fleet", not 0
-      fleet_id: teamId === APP_CONTEXT_NO_TEAM_ID ? undefined : teamId,
+      // the server expects team_id to be omitted for "No team", not 0
+      team_id: teamId === APP_CONTEXT_NO_TEAM_ID ? undefined : teamId,
     });
   },
   triggerLinuxDiskEncryptionKeyEscrow: (token: string) => {

@@ -15,7 +15,7 @@ const createTestFormData = (overrides?: Partial<IGoogleCASFormData>) => ({
   location: "us-central1",
   apiKeyJson: JSON.stringify({
     type: "service_account",
-    client_email: "fleet@my-project.iam.gserviceaccount.com",
+    client_email: "team@my-project.iam.gserviceaccount.com",
     private_key: "test-private-key",
   }),
   ...overrides,

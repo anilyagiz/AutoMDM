@@ -14,14 +14,14 @@ import (
 	"os"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/mdm/nanodep/tokenpki"
-	"github.com/fleetdm/fleet/v4/server/mdm/scep/depot"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanodep/tokenpki"
+	"github.com/anilyagiz/automdm/v4/server/mdm/scep/depot"
 )
 
 const (
-	defaultFleetDMAPIURL     = "https://fleetdm.com"
+	defaultTeamDMAPIURL      = "https://automdm.com"
 	getSignedAPNSCSRPath     = "/api/v1/deliver-apple-csr"
-	depCertificateCommonName = "Fleet"
+	depCertificateCommonName = "AutoMDM"
 	depCertificateExpiryDays = 30
 )
 
@@ -58,13 +58,13 @@ func NewPrivateKey() (*rsa.PrivateKey, error) {
 	return newPrivateKey()
 }
 
-type FleetWebsiteError struct {
+type AutoMDMWebsiteError struct {
 	Status   int
 	message  string
 	ExitType string // populated from x-exit response header
 }
 
-func (e FleetWebsiteError) Error() string {
+func (e AutoMDMWebsiteError) Error() string {
 	if e.message != "" {
 		return e.message
 	}
@@ -80,7 +80,7 @@ type websiteSignCSRResponse struct {
 	CSR []byte `json:"csr"`
 }
 
-// GetSignedAPNSCSRNoEmail makes a request to the fleetdm.com API to get a signed APNs
+// GetSignedAPNSCSRNoEmail makes a request to the automdm.com API to get a signed APNs
 // CSR and returns the signed CSR directly.
 func GetSignedAPNSCSRNoEmail(client *http.Client, csr *x509.CertificateRequest) ([]byte, error) {
 	csrPEM := EncodeCertRequestPEM(csr)
@@ -95,34 +95,34 @@ func GetSignedAPNSCSRNoEmail(client *http.Client, csr *x509.CertificateRequest) 
 	}
 
 	// for testing
-	baseURL := defaultFleetDMAPIURL
-	if x := os.Getenv("TEST_FLEETDM_API_URL"); x != "" {
+	baseURL := defaultTeamDMAPIURL
+	if x := os.Getenv("TEST_AUTOMDM_API_URL"); x != "" {
 		baseURL = strings.TrimRight(x, "/")
 	}
 	u := baseURL + getSignedAPNSCSRPath + "?deliveryMethod=json"
 
 	req, err := http.NewRequest(http.MethodPost, u, bytes.NewReader(b))
 	if err != nil {
-		return nil, fmt.Errorf("creating csr signing request for fleetdm api: %w", err)
+		return nil, fmt.Errorf("creating csr signing request for automdm api: %w", err)
 	}
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("sending csr signing request to fleetdm api: %w", err)
+		return nil, fmt.Errorf("sending csr signing request to automdm api: %w", err)
 	}
 	defer resp.Body.Close()
 
 	respBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("parsing CSR body response from fleetdm api: %w", err)
+		return nil, fmt.Errorf("parsing CSR body response from automdm api: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, FleetWebsiteError{Status: resp.StatusCode, message: string(respBytes), ExitType: resp.Header.Get("x-exit")}
+		return nil, AutoMDMWebsiteError{Status: resp.StatusCode, message: string(respBytes), ExitType: resp.Header.Get("x-exit")}
 	}
 
 	var csrResp websiteSignCSRResponse
 	if err := json.Unmarshal(respBytes, &csrResp); err != nil {
-		return nil, fmt.Errorf("unmarshalling signed csr response from fleetdm api: %w", err)
+		return nil, fmt.Errorf("unmarshalling signed csr response from automdm api: %w", err)
 	}
 
 	return csrResp.CSR, nil

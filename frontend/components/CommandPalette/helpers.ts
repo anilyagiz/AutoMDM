@@ -1,7 +1,7 @@
 import { IConfig } from "interfaces/config";
 import { APP_CONTEXT_ALL_TEAMS_ID, ITeamSummary } from "interfaces/team";
 import paths from "router/paths";
-import { FLEET_SCOPED_HOST_FILTER_PARAMS } from "services/entities/hosts";
+import { TEAM_SCOPED_HOST_FILTER_PARAMS } from "services/entities/hosts";
 
 import buildAutomationsItems from "./groups/automations";
 import buildCommandsItems from "./groups/commands";
@@ -65,8 +65,8 @@ export interface ICommandPaletteContext {
    *  page despite passing `canWrite`. Gates every software-add palette
    *  item (FMA, VPP, Android, custom package). */
   canAddSoftware?: boolean;
-  /** Global or current-fleet admin/maintainer. Gates `add-profile`, where
-   *  `isAdminOrMaintainer` would pass a technician who admins another fleet. */
+  /** Global or current-team admin/maintainer. Gates `add-profile`, where
+   *  `isAdminOrMaintainer` would pass a technician who admins another team. */
   canAddConfigurationProfile?: boolean;
   /** Global or any-team admin/maintainer. Gates the admin/maintainer-only
    *  Controls > OS settings sub-items (Certificates, Passwords, Host names),
@@ -276,7 +276,7 @@ export const computeBestMatch = (
     charCount < BEST_MATCH_FULL_LADDER_MIN ? SCORE_LABEL_PREFIX : 1;
 
   // Split on whitespace only for tokenization — hyphens stay attached
-  // because hyphenated phrases like "fleet-maintained" are intentional
+  // because hyphenated phrases like "automdm-maintained" are intentional
   // single tokens in user input. (Hyphen-splitting happens inside the
   // text being matched against, via scoreMatch's WORD_SPLIT.)
   const tokens = queryLower.split(/\s+/).filter(Boolean);
@@ -433,10 +433,10 @@ export const buildPaletteItems = (
   ];
 };
 
-// Per-page fleet picker behavior. One row per path prefix; each row
+// Per-page team picker behavior. One row per path prefix; each row
 // declares overrides off the common defaults:
 //
-//   default all:        "native"  — page renders All fleets inline
+//   default all:        "native"  — page renders All teams inline
 //   default unassigned: "hidden"  — picker omits Unassigned
 //
 // Overrides:
@@ -446,8 +446,8 @@ export const buildPaletteItems = (
 //                      or, for SOFTWARE_LIBRARY, the explicit redirect in
 //                      SoftwarePage when All is selected on the Library tab.
 //   all = "hidden"   — omit from picker. Reserved for admin views where
-//                      "all fleets" is conceptually meaningless (no global
-//                      view of fleet-level user/option/settings config).
+//                      "all teams" is conceptually meaningless (no global
+//                      view of team-level user/option/settings config).
 //   unassigned = "native" — page renders Unassigned (id 0) inline. Mirrors
 //                      `useTeamIdParam({ includeNoTeam: true })`.
 //
@@ -455,9 +455,9 @@ export const buildPaletteItems = (
 // dimension (e.g. /software/library inherits unassigned:"native" from
 // /software while overriding all to "redirect" via its own row).
 //
-// Scope: Premium, non-Primo only. The fleet picker doesn't exist on Fleet
+// Scope: Premium, non-Primo only. The team picker doesn't exist on AutoMDM
 // Free or in Primo mode — both entry points (Cmd+Shift+F and the
-// fleet-switcher button) are gated behind `canSwitchFleet`, which requires
+// team-switcher button) are gated behind `canSwitchTeam`, which requires
 // `isPremiumTier && !isPrimoMode`. This table and its resolver describe
 // the picker's behavior within that gated surface; do not consult them
 // from Free or Primo code paths.
@@ -465,35 +465,35 @@ export const buildPaletteItems = (
 type AllOverride = "redirect" | "hidden";
 type UnassignedOverride = "native";
 
-interface PageFleetRule {
+interface PageAutoMDMRule {
   prefix: string;
   all?: AllOverride;
   unassigned?: UnassignedOverride;
 }
 
-const PAGE_FLEET_RULES: ReadonlyArray<PageFleetRule> = [
+const PAGE_AUTOMDM_RULES: ReadonlyArray<PageAutoMDMRule> = [
   { prefix: paths.CONTROLS, all: "redirect", unassigned: "native" },
   { prefix: paths.SOFTWARE_LIBRARY, all: "redirect" },
   { prefix: paths.SOFTWARE, unassigned: "native" },
   { prefix: paths.NEW_REPORT, all: "redirect" },
   { prefix: `${paths.ROOT}hosts`, unassigned: "native" },
   { prefix: `${paths.ROOT}policies`, unassigned: "native" },
-  { prefix: `${paths.ROOT}settings/fleets/users`, all: "hidden" },
-  { prefix: `${paths.ROOT}settings/fleets/options`, all: "hidden" },
-  { prefix: `${paths.ROOT}settings/fleets/settings`, all: "hidden" },
+  { prefix: `${paths.ROOT}settings/teams/users`, all: "hidden" },
+  { prefix: `${paths.ROOT}settings/teams/options`, all: "hidden" },
+  { prefix: `${paths.ROOT}settings/teams/settings`, all: "hidden" },
 ];
 
-interface ResolvedFleetSupport {
+interface ResolvedAutoMDMSupport {
   all: "native" | AllOverride;
   unassigned: "native" | "hidden";
 }
 
-const resolvePageFleetSupport = (pathname: string): ResolvedFleetSupport => {
-  let all: ResolvedFleetSupport["all"] = "native";
-  let unassigned: ResolvedFleetSupport["unassigned"] = "hidden";
+const resolvePageAutoMDMSupport = (pathname: string): ResolvedAutoMDMSupport => {
+  let all: ResolvedAutoMDMSupport["all"] = "native";
+  let unassigned: ResolvedAutoMDMSupport["unassigned"] = "hidden";
   let allPrefixLen = -1;
   let unassignedPrefixLen = -1;
-  PAGE_FLEET_RULES.forEach((rule) => {
+  PAGE_AUTOMDM_RULES.forEach((rule) => {
     if (!pathname.startsWith(rule.prefix)) return;
     if (rule.all && rule.prefix.length > allPrefixLen) {
       all = rule.all;
@@ -508,56 +508,56 @@ const resolvePageFleetSupport = (pathname: string): ResolvedFleetSupport => {
 };
 
 export const pathSupportsUnassigned = (pathname: string): boolean =>
-  resolvePageFleetSupport(pathname).unassigned === "native";
+  resolvePageAutoMDMSupport(pathname).unassigned === "native";
 
-export const pathSupportsAllFleets = (pathname: string): boolean =>
-  resolvePageFleetSupport(pathname).all !== "hidden";
+export const pathSupportsAllTeams = (pathname: string): boolean =>
+  resolvePageAutoMDMSupport(pathname).all !== "hidden";
 
 /**
- * Build the next URL for a fleet switch initiated from the command palette.
+ * Build the next URL for a team switch initiated from the command palette.
  *
  * This bypasses useTeamIdParam.handleTeamChange (which owns per-page
  * `overrideParamsOnTeamChange` config), so it reproduces handleTeamChange's
- * generic strip rules (page) plus the fleet-scoped Hosts
+ * generic strip rules (page) plus the team-scoped Hosts
  * filter keys (script_batch_execution_*, software_status on switch to All).
  */
-export const buildFleetSwitchUrl = ({
+export const buildAutoMDMSwitchUrl = ({
   pathname,
   currentSearch,
-  fleetId,
+  automdmId,
 }: {
   pathname: string;
   currentSearch: string;
-  fleetId: number;
+  automdmId: number;
 }): string => {
-  const isAll = fleetId === APP_CONTEXT_ALL_TEAMS_ID;
-  const isUnassignedTarget = fleetId === 0;
-  const support = resolvePageFleetSupport(pathname);
+  const isAll = automdmId === APP_CONTEXT_ALL_TEAMS_ID;
+  const isUnassignedTarget = automdmId === 0;
+  const support = resolvePageAutoMDMSupport(pathname);
 
-  // All fleets: page can't render it but the picker keeps the option as a
+  // All teams: page can't render it but the picker keeps the option as a
   // shortcut. Redirect to Hosts (which supports All).
   if (isAll && support.all === "redirect") {
     return paths.MANAGE_HOSTS;
   }
-  // Unassigned: page can't render it. Keep fleet_id=0 on the fallback URL
-  // — useTeamIdParam coerces a missing param back to All fleets (-1),
+  // Unassigned: page can't render it. Keep team_id=0 on the fallback URL
+  // — useTeamIdParam coerces a missing param back to All teams (-1),
   // which would silently undo the switch. This branch is defensive; the
   // picker already filters unsupported Unassigned via pathSupportsUnassigned.
   if (isUnassignedTarget && support.unassigned !== "native") {
-    return `${paths.MANAGE_HOSTS}?fleet_id=0`;
+    return `${paths.MANAGE_HOSTS}?team_id=0`;
   }
 
   const params = new URLSearchParams(currentSearch);
   if (isAll) {
-    params.delete("fleet_id");
+    params.delete("team_id");
   } else {
-    params.set("fleet_id", String(fleetId));
+    params.set("team_id", String(automdmId));
   }
   params.delete("page");
   params.delete("script_batch_execution_id");
   params.delete("script_batch_execution_status");
   if (isAll) {
-    FLEET_SCOPED_HOST_FILTER_PARAMS.forEach((param) => params.delete(param));
+    TEAM_SCOPED_HOST_FILTER_PARAMS.forEach((param) => params.delete(param));
   }
   const qs = params.toString();
   return qs ? `${pathname}?${qs}` : pathname;

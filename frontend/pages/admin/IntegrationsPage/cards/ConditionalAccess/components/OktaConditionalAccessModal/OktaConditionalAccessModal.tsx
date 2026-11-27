@@ -146,7 +146,7 @@ const OktaConditionalAccessModal = ({
       const url = URL.createObjectURL(blob);
       const downloadLink = document.createElement("a");
       downloadLink.href = url;
-      downloadLink.download = "fleet-idp-signing-cert.pem";
+      downloadLink.download = "automdm-idp-signing-cert.pem";
       downloadLink.click();
       downloadLink.remove();
       URL.revokeObjectURL(url);
@@ -268,7 +268,7 @@ const OktaConditionalAccessModal = ({
         <div className={`${baseClass}__certificate-section`}>
           <div className="form-field__label">
             <TooltipWrapper
-              tipContent="Upload this certificate in Okta when creating the Fleet IdP."
+              tipContent="Upload this certificate in Okta when creating the AutoMDM IdP."
               underline
             >
               Identity provider (IdP) signature certificate

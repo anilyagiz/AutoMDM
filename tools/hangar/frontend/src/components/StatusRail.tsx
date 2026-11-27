@@ -119,7 +119,7 @@ function ProcSummary({
 
 function shortLabel(label: string): string {
   // Trim verbose labels for the compact 3–4 procs view.
-  if (label.startsWith("fleet serve")) return "serve";
+  if (label.startsWith("automdm serve")) return "serve";
   if (label.startsWith("docker compose")) return "docker";
   if (label === "python http.server") return "http";
   return label;

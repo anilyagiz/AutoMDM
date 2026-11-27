@@ -35,25 +35,25 @@ const AndroidZeroTouchPage = () => {
     isAndroidMdmEnabledAndConfigured,
   } = useContext(AppContext);
 
-  const [selectedFleetId, setSelectedFleetId] = useState(
+  const [selectedAutoMDMId, setSelectedTeamId] = useState(
     APP_CONTEXT_NO_TEAM_ID
   );
-  const selectedFleetName =
-    availableTeams?.find((fleet) => fleet.id === selectedFleetId)?.name ??
+  const selectedTeamName =
+    availableTeams?.find((team) => team.id === selectedAutoMDMId)?.name ??
     APP_CONTEXT_NO_TEAM_SUMMARY.name;
 
-  const fleetOptions: CustomOptionType[] = [
+  const automdmOptions: CustomOptionType[] = [
     {
       label: APP_CONTEXT_NO_TEAM_SUMMARY.name,
       value: String(APP_CONTEXT_NO_TEAM_ID),
     },
     ...(availableTeams ?? [])
-      .filter((fleet) => fleet.id > 0)
-      .map((fleet) => ({ label: fleet.name, value: String(fleet.id) })),
+      .filter((team) => team.id > 0)
+      .map((team) => ({ label: team.name, value: String(team.id) })),
   ];
 
-  const onChangeFleet = (option: SingleValue<CustomOptionType>) => {
-    setSelectedFleetId(Number(option?.value ?? APP_CONTEXT_NO_TEAM_ID));
+  const onChangeAutoMDM = (option: SingleValue<CustomOptionType>) => {
+    setSelectedTeamId(Number(option?.value ?? APP_CONTEXT_NO_TEAM_ID));
   };
 
   // `isPremiumTier` is undefined until the config request resolves, and the
@@ -67,14 +67,14 @@ const AndroidZeroTouchPage = () => {
   >(
     // Scoped to the user: the query client is module-scoped and survives SPA
     // logout, and the DPC extras embed a reusable enrollment token.
-    ["android-zero-touch-configuration", currentUser?.id, selectedFleetId],
-    () => mdmAndroidAPI.getZeroTouchConfiguration(selectedFleetId),
+    ["android-zero-touch-configuration", currentUser?.id, selectedAutoMDMId],
+    () => mdmAndroidAPI.getZeroTouchConfiguration(selectedAutoMDMId),
     {
       ...DEFAULT_USE_QUERY_OPTIONS,
       // The picker is locked while fetching, so fail fast instead of retrying.
       retry: false,
       // Keeps the last DPC extras under the loading overlay so the box doesn't
-      // change height while the next fleet's extras load.
+      // change height while the next team's extras load.
       keepPreviousData: true,
       enabled:
         !!isPremiumTier && !!isAndroidMdmEnabledAndConfigured && !!currentUser,
@@ -127,7 +127,7 @@ const AndroidZeroTouchPage = () => {
     if (!isAndroidMdmEnabledAndConfigured) {
       return (
         <p className={`${baseClass}__prerequisite`}>
-          To enable end users to enroll to Fleet via Android zero-touch, first
+          To enable end users to enroll to AutoMDM via Android zero-touch, first
           turn on Android MDM.
         </p>
       );
@@ -136,24 +136,24 @@ const AndroidZeroTouchPage = () => {
     return (
       <>
         <div className={`${baseClass}__description`}>
-          To connect Fleet to Android zero-touch, go to the{" "}
+          To connect AutoMDM to Android zero-touch, go to the{" "}
           <CustomLink
-            url="https://fleetdm.com/learn-more-about/android-zero-touch-portal"
+            url="https://automdm.com/learn-more-about/android-zero-touch-portal"
             text="Android zero-touch portal"
             newTab
           />
         </div>
-        <div className={`${baseClass}__fleet-picker`}>
+        <div className={`${baseClass}__team-picker`}>
           <span>
-            Pick the fleet that Android hosts will automatically enroll into:
+            Pick the team that Android hosts will automatically enroll into:
           </span>
           <DropdownWrapper
-            name="android-zero-touch-fleet"
-            ariaLabel="Pick the fleet that Android hosts will automatically enroll into"
-            wrapperClassname={`${baseClass}__fleet-dropdown`}
-            options={fleetOptions}
-            value={String(selectedFleetId)}
-            onChange={onChangeFleet}
+            name="android-zero-touch-automdm"
+            ariaLabel="Pick the team that Android hosts will automatically enroll into"
+            wrapperClassname={`${baseClass}__team-dropdown`}
+            options={automdmOptions}
+            value={String(selectedAutoMDMId)}
+            onChange={onChangeAutoMDM}
             isDisabled={isFetching}
           />
         </div>
@@ -161,7 +161,7 @@ const AndroidZeroTouchPage = () => {
           <div className={`${baseClass}__field-header`}>
             <span className={`${baseClass}__field-label`}>Name</span>
             <CopyButton
-              copyText={selectedFleetName}
+              copyText={selectedTeamName}
               variant="secondary"
               ariaLabel="Copy name"
               disabled={isFetching}
@@ -169,7 +169,7 @@ const AndroidZeroTouchPage = () => {
           </div>
           <InputField
             name="android-zero-touch-name"
-            value={selectedFleetName}
+            value={selectedTeamName}
             readOnly
             disabled={isFetching}
             inputOptions={{ "aria-label": "Name" }}

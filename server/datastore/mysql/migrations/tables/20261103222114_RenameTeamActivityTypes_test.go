@@ -17,18 +17,18 @@ func TestUp_20261103222114(t *testing.T) {
 	}
 	// Written out, not read from the migration, so a typo in the migration fails the test.
 	renamed := map[string]string{
-		"created_team":           "created_fleet",
-		"deleted_team":           "deleted_fleet",
-		"applied_spec_team":      "applied_spec_fleet",
-		"changed_user_team_role": "changed_user_fleet_role",
-		"deleted_user_team_role": "deleted_user_fleet_role",
+		"created_team":           "created_team",
+		"deleted_team":           "deleted_team",
+		"applied_spec_team":      "applied_spec_team",
+		"changed_user_team_role": "changed_user_team_role",
+		"deleted_user_team_role": "deleted_user_team_role",
 	}
 	want := make(map[int64]string) // row id to expected type
 	for oldType, newType := range renamed {
 		want[insert(oldType)] = newType
 	}
 	// Types that must not change, including one that already has the new name.
-	for _, activityType := range []string{"created_fleet", "edited_policy", "changed_user_global_role"} {
+	for _, activityType := range []string{"created_team", "edited_policy", "changed_user_global_role"} {
 		want[insert(activityType)] = activityType
 	}
 

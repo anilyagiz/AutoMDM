@@ -102,7 +102,7 @@ const ConfigurationProfiles = ({
     ],
     () =>
       mdmAPI.getProfiles({
-        fleet_id: currentTeamId,
+        team_id: currentTeamId,
         page: currentPage,
         per_page: PROFILES_PER_PAGE,
       }),
@@ -120,7 +120,7 @@ const ConfigurationProfiles = ({
     refetch: refetchAssets,
   } = useQuery<IListAssetsResponse, unknown, IMdmAsset[]>(
     [{ scope: "assets", team_id: currentTeamId }],
-    () => mdmAPI.getAssets({ fleet_id: currentTeamId }),
+    () => mdmAPI.getAssets({ team_id: currentTeamId }),
     {
       enabled: assetsEnabled,
       refetchOnWindowFocus: false,
@@ -138,11 +138,11 @@ const ConfigurationProfiles = ({
     setShowConfigProfileStatusModal(false);
   };
 
-  // Add and edit are full pages; keep the fleet so they come back here.
-  const fleetQuery = { fleet_id: isPremiumTier ? currentTeamId : undefined };
+  // Add and edit are full pages; keep the team so they come back here.
+  const automdmQuery = { team_id: isPremiumTier ? currentTeamId : undefined };
   const onClickAdd = () => {
     router.push(
-      getPathWithQueryParams(PATHS.CONTROLS_CUSTOM_SETTINGS_NEW, fleetQuery)
+      getPathWithQueryParams(PATHS.CONTROLS_CUSTOM_SETTINGS_NEW, automdmQuery)
     );
   };
 
@@ -203,7 +203,7 @@ const ConfigurationProfiles = ({
 
   // pagination controls
   const path = PATHS.CONTROLS_CUSTOM_SETTINGS;
-  const queryString = isPremiumTier ? `?fleet_id=${currentTeamId}&` : "?";
+  const queryString = isPremiumTier ? `?team_id=${currentTeamId}&` : "?";
 
   const onPrevPage = useCallback(() => {
     router.push(path.concat(`${queryString}page=${currentPage - 1}`));
@@ -222,7 +222,7 @@ const ConfigurationProfiles = ({
     router.push(
       getPathWithQueryParams(
         PATHS.CONTROLS_CUSTOM_SETTINGS_EDIT(profile.profile_uuid),
-        fleetQuery
+        automdmQuery
       )
     );
   };
@@ -330,7 +330,7 @@ const ConfigurationProfiles = ({
       <CustomLink
         newTab
         text="Learn more"
-        url="https://fleetdm.com/guides/custom-os-settings"
+        url="https://automdm.com/guides/custom-os-settings"
       />
     </>
   );

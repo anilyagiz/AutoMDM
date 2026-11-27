@@ -143,7 +143,7 @@ const QueryEditor = ({
 
   const onCreatePolicy = debounce(async (formData: IPolicyFormData) => {
     if (policyTeamId !== APP_CONTEXT_ALL_TEAMS_ID) {
-      formData.fleet_id = policyTeamId;
+      formData.team_id = policyTeamId;
     }
     setIsUpdatingPolicy(true);
     const payload: IPolicyFormData = {
@@ -166,7 +166,7 @@ const QueryEditor = ({
     if (isPremiumTier) {
       payload.critical = formData.critical;
       payload.hidden = formData.hidden;
-      payload.fleet_id = formData.fleet_id;
+      payload.team_id = formData.team_id;
     }
 
     try {
@@ -176,7 +176,7 @@ const QueryEditor = ({
       notify.success("Policy created.");
       router.push(
         getPathWithQueryParams(PATHS.POLICY_DETAILS(policy.id), {
-          fleet_id: policy.fleet_id,
+          team_id: policy.team_id,
         })
       );
     } catch (createError) {
@@ -246,7 +246,7 @@ const QueryEditor = ({
 
   // Function instead of constant eliminates race condition with filteredPoliciesPath
   const backToPoliciesPath = () => {
-    const queryParams = { fleet_id: teamIdForApi };
+    const queryParams = { team_id: teamIdForApi };
 
     return (
       filteredPoliciesPath ||
@@ -256,7 +256,7 @@ const QueryEditor = ({
 
   const backPath = policyIdForEdit
     ? getPathWithQueryParams(PATHS.POLICY_DETAILS(policyIdForEdit), {
-        fleet_id: teamIdForApi,
+        team_id: teamIdForApi,
       })
     : backToPoliciesPath();
 

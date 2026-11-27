@@ -28,7 +28,7 @@
             <key>PayloadIdentifier</key>
             <string>524230F3-2F13-4A44-8A77-1D12556572CA</string>
             <key>PayloadOrganization</key>
-            <string>Fleet</string>
+            <string>AutoMDM</string>
             <key>PayloadType</key>
             <string>com.apple.ManagedClient.preferences</string>
             <key>PayloadUUID</key>
@@ -60,7 +60,7 @@
             <key>PayloadIdentifier</key>
             <string>448620D8-2839-4942-B51B-E1A5CCBD179E</string>
             <key>PayloadOrganization</key>
-            <string>Fleet</string>
+            <string>AutoMDM</string>
             <key>PayloadType</key>
             <string>com.apple.ManagedClient.preferences</string>
             <key>PayloadUUID</key>
@@ -92,7 +92,7 @@
             <key>PayloadIdentifier</key>
             <string>E461CBEB-D9A5-4887-83B2-3C6B293268C8</string>
             <key>PayloadOrganization</key>
-            <string>Fleet</string>
+            <string>AutoMDM</string>
             <key>PayloadType</key>
             <string>com.apple.ManagedClient.preferences</string>
             <key>PayloadUUID</key>
@@ -110,7 +110,7 @@
     <key>PayloadIdentifier</key>
     <string>com.fleetdm.suppress-iwork-upgrade-prompt</string>
     <key>PayloadOrganization</key>
-    <string>Fleet</string>
+    <string>AutoMDM</string>
     <key>PayloadRemovalDisallowed</key>
     <true/>
     <key>PayloadScope</key>

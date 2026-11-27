@@ -39,8 +39,8 @@ const renderPage = (titleId: number) => {
     routes: [],
     location: {
       pathname: `/software/titles/${titleId}`,
-      search: "?fleet_id=3",
-      query: { fleet_id: "3" },
+      search: "?team_id=3",
+      query: { team_id: "3" },
       hash: "",
     },
   } as unknown) as IPageProps;

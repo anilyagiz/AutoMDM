@@ -9,8 +9,8 @@ import (
 
 func TestDefault(t *testing.T) {
 	d := Default()
-	if !d.FleetServe.Premium || !d.FleetServe.Debug || !d.FleetServe.Logging {
-		t.Errorf("serve flags should default true: %+v", d.FleetServe)
+	if !d.AutoMDMServe.Premium || !d.AutoMDMServe.Debug || !d.AutoMDMServe.Logging {
+		t.Errorf("serve flags should default true: %+v", d.AutoMDMServe)
 	}
 	if d.PythonServer.Port != 8000 {
 		t.Errorf("python port = %d, want 8000", d.PythonServer.Port)
@@ -28,20 +28,20 @@ func TestLoadMissingFileIsDefault(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.PythonServer.Port != 8000 || !got.FleetServe.Premium {
+	if got.PythonServer.Port != 8000 || !got.AutoMDMServe.Premium {
 		t.Errorf("missing file should yield defaults, got %+v", got)
 	}
 }
 
 func TestSaveLoadRoundTrip(t *testing.T) {
 	dir := t.TempDir()
-	rp := "/Users/tester/fleet"
+	rp := "/Users/tester/automdm"
 	in := Default()
 	in.RepoPath = &rp
 	in.FirstRunComplete = true
 	in.Theme = ThemeDark
-	in.FleetServe.Premium = false
-	in.FleetServe.Env = []EnvVar{{Key: "FOO", Value: "bar", Enabled: false}}
+	in.AutoMDMServe.Premium = false
+	in.AutoMDMServe.Env = []EnvVar{{Key: "FOO", Value: "bar", Enabled: false}}
 
 	if err := Save(dir, in); err != nil {
 		t.Fatal(err)
@@ -53,11 +53,11 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 	if got.RepoPath == nil || *got.RepoPath != rp {
 		t.Errorf("repo_path round-trip failed: %v", got.RepoPath)
 	}
-	if got.Theme != ThemeDark || got.FleetServe.Premium != false {
-		t.Errorf("round-trip mismatch: theme=%q premium=%v", got.Theme, got.FleetServe.Premium)
+	if got.Theme != ThemeDark || got.AutoMDMServe.Premium != false {
+		t.Errorf("round-trip mismatch: theme=%q premium=%v", got.Theme, got.AutoMDMServe.Premium)
 	}
-	if len(got.FleetServe.Env) != 1 || got.FleetServe.Env[0].Enabled != false {
-		t.Errorf("env round-trip failed: %+v", got.FleetServe.Env)
+	if len(got.AutoMDMServe.Env) != 1 || got.AutoMDMServe.Env[0].Enabled != false {
+		t.Errorf("env round-trip failed: %+v", got.AutoMDMServe.Env)
 	}
 }
 
@@ -67,7 +67,7 @@ func TestLoadDefaultsForMissingFields(t *testing.T) {
 	dir := t.TempDir()
 	partial := `{
   "repo_path": "/x",
-  "fleet_serve": { "config_path": null, "env": [ { "key": "A", "value": "1" } ] }
+  "automdm_serve": { "config_path": null, "env": [ { "key": "A", "value": "1" } ] }
 }`
 	if err := os.WriteFile(filepath.Join(dir, fileName), []byte(partial), 0o644); err != nil {
 		t.Fatal(err)
@@ -76,8 +76,8 @@ func TestLoadDefaultsForMissingFields(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !got.FleetServe.Premium || !got.FleetServe.Debug || !got.FleetServe.Logging {
-		t.Errorf("missing serve flags should default true, got %+v", got.FleetServe)
+	if !got.AutoMDMServe.Premium || !got.AutoMDMServe.Debug || !got.AutoMDMServe.Logging {
+		t.Errorf("missing serve flags should default true, got %+v", got.AutoMDMServe)
 	}
 	if got.PythonServer.Port != 8000 {
 		t.Errorf("missing python_server should default port 8000, got %d", got.PythonServer.Port)
@@ -85,8 +85,8 @@ func TestLoadDefaultsForMissingFields(t *testing.T) {
 	if got.Theme != ThemeSystem {
 		t.Errorf("missing theme should default system, got %q", got.Theme)
 	}
-	if len(got.FleetServe.Env) != 1 || !got.FleetServe.Env[0].Enabled {
-		t.Errorf("env row missing 'enabled' should default true, got %+v", got.FleetServe.Env)
+	if len(got.AutoMDMServe.Env) != 1 || !got.AutoMDMServe.Env[0].Enabled {
+		t.Errorf("env row missing 'enabled' should default true, got %+v", got.AutoMDMServe.Env)
 	}
 }
 
@@ -114,7 +114,7 @@ func TestLoadEmptyServersArray(t *testing.T) {
 // An explicit false in the file must win over the true default.
 func TestLoadExplicitFalseWins(t *testing.T) {
 	dir := t.TempDir()
-	data := `{ "fleet_serve": { "premium": false, "debug": false, "logging_debug": false } }`
+	data := `{ "automdm_serve": { "premium": false, "debug": false, "logging_debug": false } }`
 	if err := os.WriteFile(filepath.Join(dir, fileName), []byte(data), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -122,8 +122,8 @@ func TestLoadExplicitFalseWins(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.FleetServe.Premium || got.FleetServe.Debug || got.FleetServe.Logging {
-		t.Errorf("explicit false should win, got %+v", got.FleetServe)
+	if got.AutoMDMServe.Premium || got.AutoMDMServe.Debug || got.AutoMDMServe.Logging {
+		t.Errorf("explicit false should win, got %+v", got.AutoMDMServe)
 	}
 }
 
@@ -144,23 +144,23 @@ func TestLoadMissingFileSynthesizesServer(t *testing.T) {
 	if s.Ports != (ServerPorts{Server: 8080, MySQL: 3306, Redis: 6379, S3: 9000, S3Console: 9001, APNsMock: 8378}) {
 		t.Errorf("server 1 should use canonical ports, got %+v", s.Ports)
 	}
-	if s.ComposeProject != "fleet" {
-		t.Errorf("server 1 compose project = %q, want fleet", s.ComposeProject)
+	if s.ComposeProject != "automdm" {
+		t.Errorf("server 1 compose project = %q, want team", s.ComposeProject)
 	}
 	if got.ActiveServerID != "s1" {
 		t.Errorf("active server = %q, want s1", got.ActiveServerID)
 	}
 }
 
-// A legacy single-server file (repo_path + fleet_serve, no servers array) must
+// A legacy single-server file (repo_path + automdm_serve, no servers array) must
 // migrate into one server: repo_path becomes the worktree, and the saved serve
 // config carries over.
 func TestLoadMigratesLegacySingleServer(t *testing.T) {
 	dir := t.TempDir()
 	legacy := `{
-  "repo_path": "/Users/tester/fleet",
+  "repo_path": "/Users/tester/automdm",
   "first_run_complete": true,
-  "fleet_serve": { "premium": false, "debug": true, "logging_debug": true, "env": [ { "key": "A", "value": "1" } ] }
+  "automdm_serve": { "premium": false, "debug": true, "logging_debug": true, "env": [ { "key": "A", "value": "1" } ] }
 }`
 	if err := os.WriteFile(filepath.Join(dir, fileName), []byte(legacy), 0o644); err != nil {
 		t.Fatal(err)
@@ -173,14 +173,14 @@ func TestLoadMigratesLegacySingleServer(t *testing.T) {
 		t.Fatalf("want 1 migrated server, got %d", len(got.Servers))
 	}
 	s := got.Servers[0]
-	if s.WorktreePath == nil || *s.WorktreePath != "/Users/tester/fleet" {
+	if s.WorktreePath == nil || *s.WorktreePath != "/Users/tester/automdm" {
 		t.Errorf("legacy repo_path should become worktree, got %v", s.WorktreePath)
 	}
-	if s.FleetServe.Premium != false {
-		t.Errorf("legacy serve premium=false should carry over, got %+v", s.FleetServe)
+	if s.AutoMDMServe.Premium != false {
+		t.Errorf("legacy serve premium=false should carry over, got %+v", s.AutoMDMServe)
 	}
-	if len(s.FleetServe.Env) != 1 || s.FleetServe.Env[0].Key != "A" {
-		t.Errorf("legacy serve env should carry over, got %+v", s.FleetServe.Env)
+	if len(s.AutoMDMServe.Env) != 1 || s.AutoMDMServe.Env[0].Key != "A" {
+		t.Errorf("legacy serve env should carry over, got %+v", s.AutoMDMServe.Env)
 	}
 	if got.ActiveServerID != "s1" {
 		t.Errorf("active server = %q, want s1", got.ActiveServerID)
@@ -191,12 +191,12 @@ func TestLoadMigratesLegacySingleServer(t *testing.T) {
 // idempotent) and must NOT be clobbered by the legacy fields.
 func TestLoadMultiServerRoundTrip(t *testing.T) {
 	dir := t.TempDir()
-	wp1, wp2 := "/a/fleet", "/a/fleet-n1"
+	wp1, wp2 := "/a/automdm", "/a/automdm-n1"
 	in := Default()
 	migrate(&in) // shape it like a loaded config
 	in.Servers = []ServerProfile{
-		{ID: "s1", Name: "main", Color: "green", WorktreePath: &wp1, Ports: DefaultPortsForIndex(0), ComposeProject: "fleet", FleetServe: FleetServeConfig{Premium: true, Env: []EnvVar{}}, Enabled: true},
-		{ID: "s2", Name: "n-1", Color: "purple", WorktreePath: &wp2, Ports: DefaultPortsForIndex(1), ComposeProject: "fleet-s2", FleetServe: FleetServeConfig{Premium: false, Env: []EnvVar{}}, Enabled: true},
+		{ID: "s1", Name: "main", Color: "green", WorktreePath: &wp1, Ports: DefaultPortsForIndex(0), ComposeProject: "automdm", AutoMDMServe: AutoMDMServeConfig{Premium: true, Env: []EnvVar{}}, Enabled: true},
+		{ID: "s2", Name: "n-1", Color: "purple", WorktreePath: &wp2, Ports: DefaultPortsForIndex(1), ComposeProject: "automdm-s2", AutoMDMServe: AutoMDMServeConfig{Premium: false, Env: []EnvVar{}}, Enabled: true},
 	}
 	in.ActiveServerID = "s2"
 	if err := Save(dir, in); err != nil {
@@ -212,7 +212,7 @@ func TestLoadMultiServerRoundTrip(t *testing.T) {
 	if got.ActiveServerID != "s2" {
 		t.Errorf("active server = %q, want s2", got.ActiveServerID)
 	}
-	if got.Servers[1].Ports.MySQL != 3326 || got.Servers[1].ComposeProject != "fleet-s2" {
+	if got.Servers[1].Ports.MySQL != 3326 || got.Servers[1].ComposeProject != "automdm-s2" {
 		t.Errorf("server 2 ports/project wrong: %+v", got.Servers[1])
 	}
 }
@@ -233,7 +233,7 @@ func TestLoadRepairsDanglingActiveServer(t *testing.T) {
 		t.Errorf("dangling active server should fall back to s1, got %q", got.ActiveServerID)
 	}
 	// A server with only id/name/enabled set must get ports/project/color backfilled.
-	if got.Servers[0].Ports.MySQL != 3306 || got.Servers[0].ComposeProject != "fleet" || got.Servers[0].Color == "" {
+	if got.Servers[0].Ports.MySQL != 3306 || got.Servers[0].ComposeProject != "automdm" || got.Servers[0].Color == "" {
 		t.Errorf("partial server not backfilled: %+v", got.Servers[0])
 	}
 }
@@ -285,7 +285,7 @@ func TestNextServerProfile(t *testing.T) {
 	if !ok {
 		t.Fatal("expected a profile for slot 2")
 	}
-	if p.ID != "s2" || p.Ports.MySQL != 3326 || p.ComposeProject != "fleet-s2" {
+	if p.ID != "s2" || p.Ports.MySQL != 3326 || p.ComposeProject != "automdm-s2" {
 		t.Errorf("next profile wrong: %+v", p)
 	}
 	// At the cap we get false.
@@ -305,8 +305,8 @@ func TestSavedJSONKeys(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, key := range []string{
-		"\"repo_path\"", "\"fleetctl_path\"", "\"gitops_dir\"", "\"first_run_complete\"",
-		"\"python_server\"", "\"fleet_serve\"", "\"logging_debug\"", "\"favorite_crons\"",
+		"\"repo_path\"", "\"automdmctl_path\"", "\"gitops_dir\"", "\"first_run_complete\"",
+		"\"python_server\"", "\"automdm_serve\"", "\"logging_debug\"", "\"favorite_crons\"",
 	} {
 		if !strings.Contains(string(raw), key) {
 			t.Errorf("saved settings missing key %s", key)

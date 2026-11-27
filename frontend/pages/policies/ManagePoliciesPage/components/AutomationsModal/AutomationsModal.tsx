@@ -81,8 +81,8 @@ const AutomationsModal = ({
   const availableIntegrations =
     globalConfig?.integrations ?? automationsConfig?.integrations;
 
-  // Calendar events are a team/fleet-only feature: they're never available for
-  // global ("All fleets") or "No team"/"Unassigned" policies.
+  // Calendar events are a team/automdm-only feature: they're never available for
+  // global ("All teams") or "No team"/"Unassigned" policies.
   const showCalendarEvents =
     !isAllTeamsSelected && teamIdForApi !== API_NO_TEAM_ID;
 

@@ -16,7 +16,7 @@ import { createCustomRenderer, createMockRouter } from "test/test-utils";
 import PolicyForm from "./PolicyForm";
 
 const baseUrl = (path: string) => {
-  return `/api/latest/fleet${path}`;
+  return `/api/latest/automdm${path}`;
 };
 
 const mockPolicy = createMockPolicy();
@@ -159,7 +159,7 @@ describe("PolicyForm - component", () => {
         withBackendMock: true,
         context: {
           policy: {
-            policyTeamId: storedPolicy.fleet_id ?? undefined,
+            policyTeamId: storedPolicy.team_id ?? undefined,
             lastEditedQueryId: storedPolicy.id,
             lastEditedQueryName: storedPolicy.name,
             lastEditedQueryDescription: storedPolicy.description,
@@ -192,7 +192,7 @@ describe("PolicyForm - component", () => {
       return render(
         <PolicyForm
           {...defaultProps}
-          teamIdForApi={storedPolicy.fleet_id ?? undefined}
+          teamIdForApi={storedPolicy.team_id ?? undefined}
           policyIdForEdit={storedPolicy.id}
           storedPolicy={storedPolicy}
           {...extraProps}
@@ -200,8 +200,8 @@ describe("PolicyForm - component", () => {
       );
     };
 
-    it("shows Hide from end user checked for a hidden fleet policy", async () => {
-      renderEditForm(createMockPolicy({ fleet_id: 2, hidden: true }), true);
+    it("shows Hide from end user checked for a hidden team policy", async () => {
+      renderEditForm(createMockPolicy({ team_id: 2, hidden: true }), true);
 
       const hiddenCheckbox = await screen.findByRole("checkbox", {
         name: "hidden-policy",
@@ -213,7 +213,7 @@ describe("PolicyForm - component", () => {
     it("disables Hide from end user when the policy uses conditional access", async () => {
       renderEditForm(
         createMockPolicy({
-          fleet_id: 2,
+          team_id: 2,
           automation_type: "conditional_access",
         }),
         false
@@ -232,7 +232,7 @@ describe("PolicyForm - component", () => {
       // The team response carries `integrations` at the top level, which the
       // ITeam type doesn't declare, so build the mock as a plain object.
       jest.spyOn(teamsAPI, "load").mockResolvedValue({
-        fleet: {
+        team: {
           ...createMockTeam({ id: 2 }),
           integrations: {
             jira: [],
@@ -246,7 +246,7 @@ describe("PolicyForm - component", () => {
 
       const { user } = renderEditForm(
         createMockPolicy({
-          fleet_id: 2,
+          team_id: 2,
           platform: "darwin",
           automation_type: "conditional_access",
         }),
@@ -266,8 +266,8 @@ describe("PolicyForm - component", () => {
       expect(policiesAPI.update).not.toHaveBeenCalled();
     });
 
-    it("offers Hide from end user for an All fleets policy", async () => {
-      renderEditForm(createMockPolicy({ fleet_id: null, hidden: true }), true);
+    it("offers Hide from end user for an All teams policy", async () => {
+      renderEditForm(createMockPolicy({ team_id: null, hidden: true }), true);
 
       const hiddenCheckbox = await screen.findByRole("checkbox", {
         name: "hidden-policy",
@@ -1128,7 +1128,7 @@ describe("PolicyForm - component", () => {
           .mockResolvedValue({} as never);
         const teamPatchPolicy = {
           ...patchPolicy,
-          fleet_id: 1,
+          team_id: 1,
           patch_when_closed: false,
           continuous_automations_enabled: false,
         };
@@ -1171,7 +1171,7 @@ describe("PolicyForm - component", () => {
           .mockResolvedValue({} as never);
         const teamPatchPolicy = {
           ...patchPolicy,
-          fleet_id: 1,
+          team_id: 1,
           automation_type: "script" as const,
           run_script: { id: 1, name: "Rotate keys" },
           patch_when_closed: false,
@@ -1199,14 +1199,14 @@ describe("PolicyForm - component", () => {
 
       it("saves Force patch with Deadline through the loaded automation configuration", async () => {
         jest.spyOn(teamsAPI, "load").mockResolvedValue({
-          fleet: createMockTeam({ id: 1 }),
+          team: createMockTeam({ id: 1 }),
         } as never);
         const updatePolicySpy = jest
           .spyOn(policiesAPI, "update")
           .mockResolvedValue({} as never);
         const teamPatchPolicy = {
           ...patchPolicy,
-          fleet_id: 1,
+          team_id: 1,
           patch_when_closed: false,
           continuous_automations_enabled: false,
         };
@@ -1272,7 +1272,7 @@ describe("PolicyForm - component", () => {
           .mockResolvedValue({} as never);
         const windowsPatchPolicy = {
           ...patchPolicy,
-          fleet_id: 1,
+          team_id: 1,
           platform: "windows" as const,
           patch_when_closed: false,
           notify_before_patching: false,
@@ -1336,7 +1336,7 @@ describe("PolicyForm - component", () => {
 
       it("sends the conditional access disable together with hidden for a patch policy", async () => {
         jest.spyOn(teamsAPI, "load").mockResolvedValue({
-          fleet: {
+          team: {
             ...createMockTeam({ id: 2 }),
             integrations: {
               jira: [],
@@ -1354,7 +1354,7 @@ describe("PolicyForm - component", () => {
             teamIdForApi={2}
             storedPolicy={{
               ...patchPolicy,
-              fleet_id: 2,
+              team_id: 2,
               automation_type: "conditional_access",
             }}
             onUpdate={onUpdate}
@@ -1431,7 +1431,7 @@ describe("PolicyForm - component", () => {
     });
   });
 
-  describe("renderPolicyFleetName", () => {
+  describe("renderPolicyTeamName", () => {
     it("does not render anything on free tier", () => {
       const render = createCustomRenderer({
         withBackendMock: true,
@@ -1521,7 +1521,7 @@ describe("PolicyForm - component", () => {
           {...defaultProps}
           storedPolicy={createMockPolicy({
             name: "Foo",
-            fleet_id: createMockTeamSummary().id,
+            team_id: createMockTeamSummary().id,
           })}
         />
       );
@@ -1532,14 +1532,14 @@ describe("PolicyForm - component", () => {
       ).toBeInTheDocument();
     });
 
-    it("shows 'Editing policy for All fleets' when editing an inherited (global) policy from a team's view", () => {
+    it("shows 'Editing policy for All teams' when editing an inherited (global) policy from a team's view", () => {
       const render = createCustomRenderer({
         withBackendMock: true,
         context: {
           app: {
             currentUser: createMockUser(),
             // currentTeam reflects the URL (the team whose policy list the
-            // user came from), not the policy's true Fleet.
+            // user came from), not the policy's true AutoMDM.
             currentTeam: createMockTeamSummary(),
             isGlobalObserver: false,
             isGlobalAdmin: true,
@@ -1574,17 +1574,17 @@ describe("PolicyForm - component", () => {
         },
       });
 
-      // The stored policy is global (fleet_id === null) — the form must show
-      // "All fleets", not the URL team's name.
+      // The stored policy is global (team_id === null) — the form must show
+      // "All teams", not the URL team's name.
       render(
         <PolicyForm
           {...defaultProps}
-          storedPolicy={createMockPolicy({ name: "Foo", fleet_id: null })}
+          storedPolicy={createMockPolicy({ name: "Foo", team_id: null })}
         />
       );
 
       expect(screen.getByText(/Editing policy for/i)).toBeInTheDocument();
-      expect(screen.getByText("All fleets")).toBeInTheDocument();
+      expect(screen.getByText("All teams")).toBeInTheDocument();
       expect(
         screen.queryByText(createMockTeamSummary().name)
       ).not.toBeInTheDocument();

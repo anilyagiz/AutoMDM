@@ -37,7 +37,7 @@ const ApplePushCertSetup = ({
               Couldn&apos;t add APNs certificate. Please configure a private
               key.{" "}
               <CustomLink
-                url="https://fleetdm.com/learn-more-about/fleet-server-private-key"
+                url="https://automdm.com/learn-more-about/automdm-server-private-key"
                 text="Learn how"
                 newTab
                 variant="flash-message-link"
@@ -65,7 +65,7 @@ const ApplePushCertSetup = ({
         <>
           Couldn&apos;t download. Please configure a private key.{" "}
           <CustomLink
-            url="https://fleetdm.com/learn-more-about/fleet-server-private-key"
+            url="https://automdm.com/learn-more-about/automdm-server-private-key"
             text="Learn how"
             newTab
             variant="flash-message-link"
@@ -85,7 +85,7 @@ const ApplePushCertSetup = ({
       <p className={`${baseClass}__setup-description`}>
         Follow the step-by-step guide to turn on Apple MDM.{" "}
         <CustomLink
-          url="https://fleetdm.com/learn-more-about/turn-on-apple-mdm"
+          url="https://automdm.com/learn-more-about/turn-on-apple-mdm"
           text="Learn how"
           newTab
         />

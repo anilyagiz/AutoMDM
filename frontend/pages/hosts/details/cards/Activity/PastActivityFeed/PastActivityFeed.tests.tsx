@@ -11,8 +11,8 @@ import PastActivityFeed from "./PastActivityFeed";
 
 const installActivity = createMockHostPastActivity({
   type: ActivityType.InstalledSoftware,
-  actor_full_name: "Fleet",
-  fleet_initiated: true,
+  actor_full_name: "AutoMDM",
+  automdm_initiated: true,
   details: {
     software_title: "Firefox",
     software_package: "Firefox.pkg",
@@ -41,7 +41,7 @@ const renderWith = (isPremiumTier: boolean) =>
   );
 
 describe("PastActivityFeed", () => {
-  it("hides Show details on install activities for Fleet Free", () => {
+  it("hides Show details on install activities for AutoMDM Free", () => {
     renderWith(false);
 
     expect(
@@ -49,7 +49,7 @@ describe("PastActivityFeed", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows Show details on install activities for Fleet Premium", () => {
+  it("shows Show details on install activities for AutoMDM Premium", () => {
     renderWith(true);
 
     expect(

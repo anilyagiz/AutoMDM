@@ -9,7 +9,7 @@ describe("getConditionalAccessErrorMessage", () => {
       <>
         {getConditionalAccessErrorMessage(
           "download",
-          "Fleet server private key is not configured. Learn more: https://fleetdm.com/learn-more-about/fleet-server-private-key"
+          "AutoMDM server private key is not configured. Learn more: https://automdm.com/learn-more-about/automdm-server-private-key"
         )}
       </>
     );
@@ -17,7 +17,7 @@ describe("getConditionalAccessErrorMessage", () => {
     expect(screen.getByText(/Couldn't download/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Learn how/ })).toHaveAttribute(
       "href",
-      expect.stringContaining("fleet-server-private-key")
+      expect.stringContaining("automdm-server-private-key")
     );
   });
 

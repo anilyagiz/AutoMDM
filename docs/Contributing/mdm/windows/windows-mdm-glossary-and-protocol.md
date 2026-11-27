@@ -6,13 +6,13 @@ This sequence diagram outlines the manual MDM enrollment process.
 sequenceDiagram
     participant windows as Windows
     participant orbit as Orbit
-    participant server as fleet server
+    participant server as automdm server
 
-    orbit->>+server: POST /api/fleet/orbit/enroll<br/>enroll_secret, hardware_uuid, etc.
+    orbit->>+server: POST /api/automdm/orbit/enroll<br/>enroll_secret, hardware_uuid, etc.
     server-->>-orbit: orbit_node_key
 
     loop every 30 seconds
-        orbit->>+server: POST /api/fleet/orbit/config<br/>orbit_node_key
+        orbit->>+server: POST /api/automdm/orbit/config<br/>orbit_node_key
         server-->>-orbit: pending notifications
     end
 
@@ -43,7 +43,7 @@ sequenceDiagram
 
 [WSTEP](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-wstep/ac55b8cc-9ade-4982-b135-991d574ade74) is the protocol Microsoft uses to automate certificate requesting and singing. It is similar to the SCEP process used by macOS.
 
-Fleet does not yet use the WSTEP certificate to authenticate management sessions ([#48771](https://github.com/fleetdm/fleet/issues/48771)); SyncML sessions use OMA-DM MD5 digest credentials. Certificate renewal is not implemented yet ([#52492](https://github.com/fleetdm/fleet/issues/52492)).
+AutoMDM does not yet use the WSTEP certificate to authenticate management sessions ([#48771](https://github.com/fleetdm/fleet/issues/48771)); SyncML sessions use OMA-DM MD5 digest credentials. Certificate renewal is not implemented yet ([#52492](https://github.com/fleetdm/fleet/issues/52492)).
 
 ## SyncML
 
@@ -112,7 +112,7 @@ https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-dvrd/296ebf70-b
     of the specific registry key, but we are making an assumption that
     it means the same thing.
   - `ProviderID`
-    Set during enrollment. In our case it's the word "Fleet".
+    Set during enrollment. In our case it's the word "AutoMDM".
   - `RenewalPeriod`
     Set during enrollment. Period to renew WSTEP certificate.
   - `RenewErrorCode`

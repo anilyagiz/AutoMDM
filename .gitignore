@@ -3,7 +3,7 @@
 
 # output directories
 /build
-# fleetd packages Fleet Hangar builds when no file server directory is set
+# automdmd packages AutoMDM Hangar builds when no file server directory is set
 /packages
 vendor
 node_modules
@@ -51,20 +51,20 @@ mysqldata/
 
 # test helm charts
 helm-temp
-charts/fleet/charts/*.tgz
+charts/automdm/charts/*.tgz
 
 #editors
 .idea
 .swp
 
-# Fleet local development DB backups
+# AutoMDM local development DB backups
 backup.sql.gz
 
 # Common mistake for new developers to run npm install and then end up
-# committing a package-lock.json. Fleet app uses Yarn with yarn.lock.
+# committing a package-lock.json. AutoMDM app uses Yarn with yarn.lock.
 package-lock.json
 !website/package-lock.json
-!ee/fleet-agent-downloader/package-lock.json
+!ee/automdm-agent-downloader/package-lock.json
 
 # infra
 .terraform
@@ -72,12 +72,12 @@ package-lock.json
 terraform.tfstate*
 
 # generated orbit installers and artifacts
-fleet-osquery*
-fleet-macos*.pkg
-fleet-windows-*.msi
-fleet-linux-*.deb
-fleet-linux-*.rpm
-fleet-linux-*.pkg.tar.zst
+automdm-osquery*
+automdm-macos*.pkg
+automdm-windows-*.msi
+automdm-linux-*.deb
+automdm-linux-*.rpm
+automdm-linux-*.pkg.tar.zst
 desktop.app.tar.gz
 osqueryd.app.tar.gz
 desktop.tar.gz
@@ -100,7 +100,7 @@ msrc_out/
 macoffice_rel_notes/
 
 # Keys and certificates that may be generated in the root of the repo
-# (e.g. with ./build/fleetctl generate ...).
+# (e.g. with ./build/automdmctl generate ...).
 /*.key
 /*.crt
 
@@ -117,8 +117,8 @@ orbit/cmd/orbit/resource_windows.syso
 # Residual files from osqueryd loadtests.
 osquery_worker_*.jpg
 
-# Residual files when building fleetd_tables extension.
-fleetd_tables_*
+# Residual files when building automdmd_tables extension.
+automdmd_tables_*
 
 # Location of test extensions executables
 tools/test_extensions/hello_world/macos
@@ -133,8 +133,8 @@ tools/screencap/screenshots
 # MDM asset manager build output (binary matches the package dir name)
 tools/mdm/assets/assets
 
-# Residual files when building fleet_tables extension.
-fleet_tables_*.ext
+# Residual files when building automdm_tables extension.
+automdm_tables_*.ext
 
 # Local dev files
 .env
@@ -143,12 +143,12 @@ fleet_tables_*.ext
 third_party/vuln-check/go.sum
 cvefeed
 
-# Required to not make `fleet-desktop` macOS executable built with a `dirty` flag (see #35006).
-Fleet\ Desktop.app
+# Required to not make `automdm-desktop` macOS executable built with a `dirty` flag (see #35006).
+AutoMDM\ Desktop.app
 
 # custom golangci-lint executable
 custom-gcl
-/fleet
+/automdm
 /osquery-perf
 
 # dibble (the seed slinger) — binary lives next to source

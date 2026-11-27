@@ -11,7 +11,7 @@ import (
 	_ "image/jpeg"
 	_ "image/png"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
 )
 
 const (
@@ -32,7 +32,7 @@ const (
 //
 // NOTE: The caller is responsible for ensuring the URL is trusted (e.g., set by an admin user or a default value).
 func GetIconSize(url string) (uint, error) {
-	resp, err := fleethttp.NewClient(fleethttp.WithTimeout(10 * time.Second)).Get(url) //nolint:gosec
+	resp, err := automdmhttp.NewClient(automdmhttp.WithTimeout(10 * time.Second)).Get(url) //nolint:gosec
 	if err != nil {
 		return 0, err
 	}

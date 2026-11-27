@@ -12,10 +12,10 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
-// ActivitiesOptions configures the activity seeder. DSN points at a Fleet
+// ActivitiesOptions configures the activity seeder. DSN points at an AutoMDM
 // MySQL instance; the seeder writes directly to activity_past (and
 // activity_host_past for host-scoped rows) without going through the service
 // layer, so no webhooks fire.
@@ -43,9 +43,9 @@ type ActivitiesOptions struct {
 // against this constant.
 const fakePrefix = "*"
 
-// hostIDer matches fleet activities that report associated hosts. The
+// hostIDer matches team activities that report associated hosts. The
 // interface mirrors what NewActivity does internally; defining it here
-// avoids pulling in the fleet-internal activity bounded context.
+// avoids pulling in the automdm-internal activity bounded context.
 type hostIDer interface {
 	HostIDs() []uint
 }
@@ -103,7 +103,7 @@ func stringExample(jsonTag, fieldName, runTag string) string {
 		return "https://example.com/icon.png"
 	case strings.Contains(name, "app_store_id"):
 		return "497799835"
-	case strings.Contains(name, "team_name") || strings.Contains(name, "fleet_name"):
+	case strings.Contains(name, "team_name") || strings.Contains(name, "team_name"):
 		return tag + "Marketing"
 	case strings.Contains(name, "user_full") || strings.Contains(name, "actor_full"):
 		return tag + "Example User"
@@ -246,237 +246,237 @@ var ActivityCategories = []string{
 }
 
 // activityTemplatesByCategory maps each category to its activity templates.
-// Every activity type in server/fleet/activities.go belongs to exactly one
+// Every activity type in server/automdm/activities.go belongs to exactly one
 // category so `dibble activities all` writes one of each.
 //
 // To regenerate the full template list when upstream adds new activities,
 // from the repo root:
 //
-//	grep -E "^func \(a Activity[A-Za-z]+\) ActivityName" server/fleet/activities.go \
-//	  | sed 's/^func (a \(Activity[A-Za-z]*\)) ActivityName.*/\tfleet.\1{},/' \
+//	grep -E "^func \(a Activity[A-Za-z]+\) ActivityName" server/automdm/activities.go \
+//	  | sed 's/^func (a \(Activity[A-Za-z]*\)) ActivityName.*/\tteam.\1{},/' \
 //	  | sort -u
 //
 // then sort the new entries into the right bucket below.
-var activityTemplatesByCategory = map[string][]fleet.ActivityDetails{
+var activityTemplatesByCategory = map[string][]automdm.ActivityDetails{
 	CategorySettings: {
-		fleet.ActivityTypeEnabledActivityAutomations{},
-		fleet.ActivityTypeEditedActivityAutomations{},
-		fleet.ActivityTypeDisabledActivityAutomations{},
-		fleet.ActivityTypeEditedAgentOptions{},
-		fleet.ActivityTypeEditedMacOSMinVersion{},
-		fleet.ActivityTypeEnabledMacosUpdateNewHosts{},
-		fleet.ActivityTypeDisabledMacosUpdateNewHosts{},
-		fleet.ActivityTypeEditedWindowsUpdates{},
-		fleet.ActivityTypeEditedIOSMinVersion{},
-		fleet.ActivityTypeEditedIPadOSMinVersion{},
+		automdm.ActivityTypeEnabledActivityAutomations{},
+		automdm.ActivityTypeEditedActivityAutomations{},
+		automdm.ActivityTypeDisabledActivityAutomations{},
+		automdm.ActivityTypeEditedAgentOptions{},
+		automdm.ActivityTypeEditedMacOSMinVersion{},
+		automdm.ActivityTypeEnabledMacosUpdateNewHosts{},
+		automdm.ActivityTypeDisabledMacosUpdateNewHosts{},
+		automdm.ActivityTypeEditedWindowsUpdates{},
+		automdm.ActivityTypeEditedIOSMinVersion{},
+		automdm.ActivityTypeEditedIPadOSMinVersion{},
 		// one per platform: the activity is emitted per changed platform, so
 		// seeding all three shows what the feed actually looks like
-		fleet.ActivityTypeEditedDiskEncryptionSettings{Platform: "macos"},
-		fleet.ActivityTypeEditedDiskEncryptionSettings{Platform: "windows"},
-		fleet.ActivityTypeEditedDiskEncryptionSettings{Platform: "linux"},
-		fleet.ActivityTypeEnabledRecoveryLockPasswords{},
-		fleet.ActivityTypeDisabledRecoveryLockPasswords{},
-		fleet.ActivityTypeEditedHostNameTemplate{},
-		fleet.ActivityTypeEnabledGitOpsMode{},
-		fleet.ActivityTypeDisabledGitOpsMode{},
-		fleet.ActivityTypeEnabledSSOFleetDesktop{},
-		fleet.ActivityTypeDisabledSSOFleetDesktop{},
-		fleet.ActivityTypeEnabledGitOpsException{},
-		fleet.ActivityTypeDisabledGitOpsException{},
-		fleet.ActivityTypeEnabledHistoricalDataset{},
-		fleet.ActivityTypeDisabledHistoricalDataset{},
-		fleet.ActivityTypeEnabledMacosSetupEndUserAuth{},
-		fleet.ActivityTypeDisabledMacosSetupEndUserAuth{},
-		fleet.ActivityTypeEnabledWindowsMDM{},
-		fleet.ActivityTypeDisabledWindowsMDM{},
-		fleet.ActivityTypeEnabledWindowsMDMMigration{},
-		fleet.ActivityTypeDisabledWindowsMDMMigration{},
-		fleet.ActivityTypeEnabledAndroidMDM{},
-		fleet.ActivityTypeDisabledAndroidMDM{},
-		fleet.ActivityTypeChangedOrgLogo{},
-		fleet.ActivityTypeDeletedOrgLogo{},
-		fleet.ActivityEnabledVPP{},
-		fleet.ActivityDisabledVPP{},
-		fleet.ActivityTypeAddedConditionalAccessIntegrationMicrosoft{},
-		fleet.ActivityTypeDeletedConditionalAccessIntegrationMicrosoft{},
-		fleet.ActivityTypeAddedConditionalAccessIntegrationGoogle{},
-		fleet.ActivityTypeDeletedConditionalAccessIntegrationGoogle{},
-		fleet.ActivityTypeEditedConditionalAccessIntegrationGoogle{},
-		fleet.ActivityTypeAddedConditionalAccessOkta{},
-		fleet.ActivityTypeDeletedConditionalAccessOkta{},
-		fleet.ActivityTypeEnabledConditionalAccessAutomations{},
-		fleet.ActivityTypeDisabledConditionalAccessAutomations{},
-		fleet.ActivityTypeUpdateConditionalAccessBypass{},
-		fleet.ActivityTypeAddedMicrosoftEntraTenant{},
-		fleet.ActivityTypeDeletedMicrosoftEntraTenant{},
-		fleet.ActivityTypeEditedEnrollSecrets{},
-		fleet.ActivityCreatedCustomVariable{},
-		fleet.ActivityDeletedCustomVariable{},
-		fleet.ActivityEditedSetupExperienceSoftware{},
-		fleet.ActivityTypeEnabledAppleBusinessOnlyEnrollment{},
-		fleet.ActivityTypeDisabledAppleBusinessOnlyEnrollment{},
+		automdm.ActivityTypeEditedDiskEncryptionSettings{Platform: "macos"},
+		automdm.ActivityTypeEditedDiskEncryptionSettings{Platform: "windows"},
+		automdm.ActivityTypeEditedDiskEncryptionSettings{Platform: "linux"},
+		automdm.ActivityTypeEnabledRecoveryLockPasswords{},
+		automdm.ActivityTypeDisabledRecoveryLockPasswords{},
+		automdm.ActivityTypeEditedHostNameTemplate{},
+		automdm.ActivityTypeEnabledGitOpsMode{},
+		automdm.ActivityTypeDisabledGitOpsMode{},
+		automdm.ActivityTypeEnabledSSOAutoMDMDesktop{},
+		automdm.ActivityTypeDisabledSSOAutoMDMDesktop{},
+		automdm.ActivityTypeEnabledGitOpsException{},
+		automdm.ActivityTypeDisabledGitOpsException{},
+		automdm.ActivityTypeEnabledHistoricalDataset{},
+		automdm.ActivityTypeDisabledHistoricalDataset{},
+		automdm.ActivityTypeEnabledMacosSetupEndUserAuth{},
+		automdm.ActivityTypeDisabledMacosSetupEndUserAuth{},
+		automdm.ActivityTypeEnabledWindowsMDM{},
+		automdm.ActivityTypeDisabledWindowsMDM{},
+		automdm.ActivityTypeEnabledWindowsMDMMigration{},
+		automdm.ActivityTypeDisabledWindowsMDMMigration{},
+		automdm.ActivityTypeEnabledAndroidMDM{},
+		automdm.ActivityTypeDisabledAndroidMDM{},
+		automdm.ActivityTypeChangedOrgLogo{},
+		automdm.ActivityTypeDeletedOrgLogo{},
+		automdm.ActivityEnabledVPP{},
+		automdm.ActivityDisabledVPP{},
+		automdm.ActivityTypeAddedConditionalAccessIntegrationMicrosoft{},
+		automdm.ActivityTypeDeletedConditionalAccessIntegrationMicrosoft{},
+		automdm.ActivityTypeAddedConditionalAccessIntegrationGoogle{},
+		automdm.ActivityTypeDeletedConditionalAccessIntegrationGoogle{},
+		automdm.ActivityTypeEditedConditionalAccessIntegrationGoogle{},
+		automdm.ActivityTypeAddedConditionalAccessOkta{},
+		automdm.ActivityTypeDeletedConditionalAccessOkta{},
+		automdm.ActivityTypeEnabledConditionalAccessAutomations{},
+		automdm.ActivityTypeDisabledConditionalAccessAutomations{},
+		automdm.ActivityTypeUpdateConditionalAccessBypass{},
+		automdm.ActivityTypeAddedMicrosoftEntraTenant{},
+		automdm.ActivityTypeDeletedMicrosoftEntraTenant{},
+		automdm.ActivityTypeEditedEnrollSecrets{},
+		automdm.ActivityCreatedCustomVariable{},
+		automdm.ActivityDeletedCustomVariable{},
+		automdm.ActivityEditedSetupExperienceSoftware{},
+		automdm.ActivityTypeEnabledAppleBusinessOnlyEnrollment{},
+		automdm.ActivityTypeDisabledAppleBusinessOnlyEnrollment{},
 	},
 	CategoryProfiles: {
-		fleet.ActivityTypeCreatedMacosProfile{},
-		fleet.ActivityTypeDeletedMacosProfile{},
-		fleet.ActivityTypeEditedMacosProfile{},
-		fleet.ActivityTypeCreatedWindowsProfile{},
-		fleet.ActivityTypeDeletedWindowsProfile{},
-		fleet.ActivityTypeEditedWindowsProfile{},
-		fleet.ActivityTypeCreatedDeclarationProfile{},
-		fleet.ActivityTypeDeletedDeclarationProfile{},
-		fleet.ActivityTypeEditedDeclarationProfile{},
-		fleet.ActivityTypeCreatedAndroidProfile{},
-		fleet.ActivityTypeDeletedAndroidProfile{},
-		fleet.ActivityTypeEditedAndroidProfile{},
-		fleet.ActivityTypeResentConfigurationProfile{},
-		fleet.ActivityTypeResentConfigurationProfileBatch{},
-		fleet.ActivityTypeChangedMacosSetupAssistant{},
-		fleet.ActivityTypeDeletedMacosSetupAssistant{},
-		fleet.ActivityTypeAddedBootstrapPackage{},
-		fleet.ActivityTypeDeletedBootstrapPackage{},
-		fleet.ActivityTypeFailedEnrollmentProfileRenewal{},
-		fleet.ActivityTypeInstalledOptInConfigurationProfile{},
-		fleet.ActivityTypeUninstalledOptInConfigurationProfile{},
+		automdm.ActivityTypeCreatedMacosProfile{},
+		automdm.ActivityTypeDeletedMacosProfile{},
+		automdm.ActivityTypeEditedMacosProfile{},
+		automdm.ActivityTypeCreatedWindowsProfile{},
+		automdm.ActivityTypeDeletedWindowsProfile{},
+		automdm.ActivityTypeEditedWindowsProfile{},
+		automdm.ActivityTypeCreatedDeclarationProfile{},
+		automdm.ActivityTypeDeletedDeclarationProfile{},
+		automdm.ActivityTypeEditedDeclarationProfile{},
+		automdm.ActivityTypeCreatedAndroidProfile{},
+		automdm.ActivityTypeDeletedAndroidProfile{},
+		automdm.ActivityTypeEditedAndroidProfile{},
+		automdm.ActivityTypeResentConfigurationProfile{},
+		automdm.ActivityTypeResentConfigurationProfileBatch{},
+		automdm.ActivityTypeChangedMacosSetupAssistant{},
+		automdm.ActivityTypeDeletedMacosSetupAssistant{},
+		automdm.ActivityTypeAddedBootstrapPackage{},
+		automdm.ActivityTypeDeletedBootstrapPackage{},
+		automdm.ActivityTypeFailedEnrollmentProfileRenewal{},
+		automdm.ActivityTypeInstalledOptInConfigurationProfile{},
+		automdm.ActivityTypeUninstalledOptInConfigurationProfile{},
 	},
 	CategoryScripts: {
-		fleet.ActivityTypeRanScript{},
-		fleet.ActivityTypeAddedScript{},
-		fleet.ActivityTypeUpdatedScript{},
-		fleet.ActivityTypeDeletedScript{},
-		fleet.ActivityTypeEditedScript{},
-		fleet.ActivityTypeCanceledRunScript{},
-		fleet.ActivityTypeRanScriptBatch{},
-		fleet.ActivityTypeBatchScriptScheduled{},
-		fleet.ActivityTypeBatchScriptCanceled{},
-		fleet.ActivityCreatedSetupExperienceScript{},
-		fleet.ActivityDeletedSetupExperienceScript{},
+		automdm.ActivityTypeRanScript{},
+		automdm.ActivityTypeAddedScript{},
+		automdm.ActivityTypeUpdatedScript{},
+		automdm.ActivityTypeDeletedScript{},
+		automdm.ActivityTypeEditedScript{},
+		automdm.ActivityTypeCanceledRunScript{},
+		automdm.ActivityTypeRanScriptBatch{},
+		automdm.ActivityTypeBatchScriptScheduled{},
+		automdm.ActivityTypeBatchScriptCanceled{},
+		automdm.ActivityCreatedSetupExperienceScript{},
+		automdm.ActivityDeletedSetupExperienceScript{},
 	},
 	CategorySoftware: {
-		fleet.ActivityTypeInstalledSoftware{},
-		fleet.ActivityTypeUninstalledSoftware{},
-		fleet.ActivityTypeAddedSoftware{},
-		fleet.ActivityTypeEditedSoftware{},
-		fleet.ActivityTypeDeletedSoftware{},
-		fleet.ActivityTypeCanceledInstallSoftware{},
-		fleet.ActivityTypeCanceledUninstallSoftware{},
-		fleet.ActivityAddedAppStoreApp{},
-		fleet.ActivityDeletedAppStoreApp{},
-		fleet.ActivityInstalledAppStoreApp{},
-		fleet.ActivityEditedAppStoreApp{},
-		fleet.ActivityTypeCanceledInstallAppStoreApp{},
-		fleet.ActivityTypeCanceledSetupExperience{},
+		automdm.ActivityTypeInstalledSoftware{},
+		automdm.ActivityTypeUninstalledSoftware{},
+		automdm.ActivityTypeAddedSoftware{},
+		automdm.ActivityTypeEditedSoftware{},
+		automdm.ActivityTypeDeletedSoftware{},
+		automdm.ActivityTypeCanceledInstallSoftware{},
+		automdm.ActivityTypeCanceledUninstallSoftware{},
+		automdm.ActivityAddedAppStoreApp{},
+		automdm.ActivityDeletedAppStoreApp{},
+		automdm.ActivityInstalledAppStoreApp{},
+		automdm.ActivityEditedAppStoreApp{},
+		automdm.ActivityTypeCanceledInstallAppStoreApp{},
+		automdm.ActivityTypeCanceledSetupExperience{},
 	},
 	CategoryHosts: {
-		fleet.ActivityTypeDeletedHost{},
-		fleet.ActivityTypeFleetEnrolled{},
-		fleet.ActivityTypeMDMEnrolled{},
-		fleet.ActivityTypeMDMUnenrolled{},
-		fleet.ActivityTypeLockedHost{},
-		fleet.ActivityTypeUnlockedHost{},
-		fleet.ActivityTypeWipedHost{},
-		fleet.ActivityTypeResetHost{},
-		fleet.ActivityTypeWipeFailedHost{},
-		fleet.ActivityTypeFailedReset{},
-		fleet.ActivityTypeReadHostDiskEncryptionKey{},
-		fleet.ActivityTypeEscrowedDiskEncryptionKey{},
-		fleet.ActivityTypeReadHostRecoveryLockPassword{},
-		fleet.ActivityTypeSetHostRecoveryLockPassword{},
-		fleet.ActivityTypeRotatedHostRecoveryLockPassword{},
-		fleet.ActivityTypeRotatedDiskEncryptionKey{},
-		fleet.ActivityTypeFailedToRotateDiskEncryptionKey{},
-		fleet.ActivityTypeCreatedManagedLocalAccount{},
-		fleet.ActivityTypeViewedManagedLocalAccount{},
-		fleet.ActivityTypeViewedHostUnlockPIN{},
-		fleet.ActivityTypeEnabledManagedLocalAccount{},
-		fleet.ActivityTypeDisabledManagedLocalAccount{},
-		fleet.ActivityTypeRotatedManagedLocalAccountPassword{},
-		fleet.ActivityTypeFailedToRotateManagedLocalAccountPassword{},
-		fleet.ActivityTypeHostBypassedConditionalAccess{},
-		fleet.ActivityTypeBoundHostToIdPAccount{},
-		fleet.ActivityTypeUnboundHostFromIdPAccount{},
-		fleet.ActivityTypeRefusedHostIdPAccountChange{},
-		fleet.ActivityTypeClearedPasscode{},
-		fleet.ActivityTypeEditedHostIdpData{},
+		automdm.ActivityTypeDeletedHost{},
+		automdm.ActivityTypeAutoMDMEnrolled{},
+		automdm.ActivityTypeMDMEnrolled{},
+		automdm.ActivityTypeMDMUnenrolled{},
+		automdm.ActivityTypeLockedHost{},
+		automdm.ActivityTypeUnlockedHost{},
+		automdm.ActivityTypeWipedHost{},
+		automdm.ActivityTypeResetHost{},
+		automdm.ActivityTypeWipeFailedHost{},
+		automdm.ActivityTypeFailedReset{},
+		automdm.ActivityTypeReadHostDiskEncryptionKey{},
+		automdm.ActivityTypeEscrowedDiskEncryptionKey{},
+		automdm.ActivityTypeReadHostRecoveryLockPassword{},
+		automdm.ActivityTypeSetHostRecoveryLockPassword{},
+		automdm.ActivityTypeRotatedHostRecoveryLockPassword{},
+		automdm.ActivityTypeRotatedDiskEncryptionKey{},
+		automdm.ActivityTypeFailedToRotateDiskEncryptionKey{},
+		automdm.ActivityTypeCreatedManagedLocalAccount{},
+		automdm.ActivityTypeViewedManagedLocalAccount{},
+		automdm.ActivityTypeViewedHostUnlockPIN{},
+		automdm.ActivityTypeEnabledManagedLocalAccount{},
+		automdm.ActivityTypeDisabledManagedLocalAccount{},
+		automdm.ActivityTypeRotatedManagedLocalAccountPassword{},
+		automdm.ActivityTypeFailedToRotateManagedLocalAccountPassword{},
+		automdm.ActivityTypeHostBypassedConditionalAccess{},
+		automdm.ActivityTypeBoundHostToIdPAccount{},
+		automdm.ActivityTypeUnboundHostFromIdPAccount{},
+		automdm.ActivityTypeRefusedHostIdPAccountChange{},
+		automdm.ActivityTypeClearedPasscode{},
+		automdm.ActivityTypeEditedHostIdpData{},
 	},
 	CategoryUsers: {
-		fleet.ActivityTypeUserAddedBySSO{},
-		fleet.ActivityTypeUserLoggedIn{},
-		fleet.ActivityTypeUserFailedLogin{},
-		fleet.ActivityTypeCreatedUser{},
-		fleet.ActivityTypeDeletedUser{},
-		fleet.ActivityTypeChangedUserGlobalRole{},
-		fleet.ActivityTypeDeletedUserGlobalRole{},
-		fleet.ActivityTypeChangedUserTeamRole{},
-		fleet.ActivityTypeDeletedUserTeamRole{},
+		automdm.ActivityTypeUserAddedBySSO{},
+		automdm.ActivityTypeUserLoggedIn{},
+		automdm.ActivityTypeUserFailedLogin{},
+		automdm.ActivityTypeCreatedUser{},
+		automdm.ActivityTypeDeletedUser{},
+		automdm.ActivityTypeChangedUserGlobalRole{},
+		automdm.ActivityTypeDeletedUserGlobalRole{},
+		automdm.ActivityTypeChangedUserTeamRole{},
+		automdm.ActivityTypeDeletedUserTeamRole{},
 	},
 	CategoryTeams: {
-		fleet.ActivityTypeCreatedTeam{},
-		fleet.ActivityTypeDeletedTeam{},
-		fleet.ActivityTypeAppliedSpecTeam{},
-		fleet.ActivityTypeTransferredHostsToTeam{},
+		automdm.ActivityTypeCreatedTeam{},
+		automdm.ActivityTypeDeletedTeam{},
+		automdm.ActivityTypeAppliedSpecTeam{},
+		automdm.ActivityTypeTransferredHostsToTeam{},
 	},
 	CategoryPolicies: {
-		fleet.ActivityTypeCreatedPolicy{},
-		fleet.ActivityTypeEditedPolicy{},
-		fleet.ActivityTypeDeletedPolicy{},
-		fleet.ActivityTypeAppliedSpecPolicy{},
+		automdm.ActivityTypeCreatedPolicy{},
+		automdm.ActivityTypeEditedPolicy{},
+		automdm.ActivityTypeDeletedPolicy{},
+		automdm.ActivityTypeAppliedSpecPolicy{},
 	},
 	CategoryQueries: {
-		fleet.ActivityTypeCreatedSavedQuery{},
-		fleet.ActivityTypeEditedSavedQuery{},
-		fleet.ActivityTypeDeletedSavedQuery{},
-		fleet.ActivityTypeDeletedMultipleSavedQuery{},
-		fleet.ActivityTypeAppliedSpecSavedQuery{},
-		fleet.ActivityTypeLiveQuery{},
-		fleet.ActivityTypeCreatedPack{},
-		fleet.ActivityTypeEditedPack{},
-		fleet.ActivityTypeDeletedPack{},
-		fleet.ActivityTypeAppliedSpecPack{},
+		automdm.ActivityTypeCreatedSavedQuery{},
+		automdm.ActivityTypeEditedSavedQuery{},
+		automdm.ActivityTypeDeletedSavedQuery{},
+		automdm.ActivityTypeDeletedMultipleSavedQuery{},
+		automdm.ActivityTypeAppliedSpecSavedQuery{},
+		automdm.ActivityTypeLiveQuery{},
+		automdm.ActivityTypeCreatedPack{},
+		automdm.ActivityTypeEditedPack{},
+		automdm.ActivityTypeDeletedPack{},
+		automdm.ActivityTypeAppliedSpecPack{},
 	},
 	CategoryLabels: {
-		fleet.ActivityTypeCreatedLabel{},
-		fleet.ActivityTypeEditedLabel{},
-		fleet.ActivityTypeDeletedLabel{},
+		automdm.ActivityTypeCreatedLabel{},
+		automdm.ActivityTypeEditedLabel{},
+		automdm.ActivityTypeDeletedLabel{},
 	},
 	CategoryCertificates: {
-		fleet.ActivityAddedNDESSCEPProxy{},
-		fleet.ActivityDeletedNDESSCEPProxy{},
-		fleet.ActivityEditedNDESSCEPProxy{},
-		fleet.ActivityAddedCustomSCEPProxy{},
-		fleet.ActivityDeletedCustomSCEPProxy{},
-		fleet.ActivityEditedCustomSCEPProxy{},
-		fleet.ActivityAddedDigiCert{},
-		fleet.ActivityDeletedDigiCert{},
-		fleet.ActivityEditedDigiCert{},
-		fleet.ActivityAddedHydrant{},
-		fleet.ActivityDeletedHydrant{},
-		fleet.ActivityEditedHydrant{},
-		fleet.ActivityAddedCustomESTProxy{},
-		fleet.ActivityDeletedCustomESTProxy{},
-		fleet.ActivityEditedCustomESTProxy{},
-		fleet.ActivityAddedSmallstep{},
-		fleet.ActivityDeletedSmallstep{},
-		fleet.ActivityEditedSmallstep{},
-		fleet.ActivityAddedEJBCA{},
-		fleet.ActivityDeletedEJBCA{},
-		fleet.ActivityEditedEJBCA{},
-		fleet.ActivityAddedGoogleCAS{},
-		fleet.ActivityDeletedGoogleCAS{},
-		fleet.ActivityEditedGoogleCAS{},
-		fleet.ActivityTypeAddedCertificate{},
-		fleet.ActivityTypeDeletedCertificate{},
-		fleet.ActivityTypeInstalledCertificate{},
-		fleet.ActivityTypeResentCertificate{},
-		fleet.ActivityTypeEditedAndroidCertificate{},
+		automdm.ActivityAddedNDESSCEPProxy{},
+		automdm.ActivityDeletedNDESSCEPProxy{},
+		automdm.ActivityEditedNDESSCEPProxy{},
+		automdm.ActivityAddedCustomSCEPProxy{},
+		automdm.ActivityDeletedCustomSCEPProxy{},
+		automdm.ActivityEditedCustomSCEPProxy{},
+		automdm.ActivityAddedDigiCert{},
+		automdm.ActivityDeletedDigiCert{},
+		automdm.ActivityEditedDigiCert{},
+		automdm.ActivityAddedHydrant{},
+		automdm.ActivityDeletedHydrant{},
+		automdm.ActivityEditedHydrant{},
+		automdm.ActivityAddedCustomESTProxy{},
+		automdm.ActivityDeletedCustomESTProxy{},
+		automdm.ActivityEditedCustomESTProxy{},
+		automdm.ActivityAddedSmallstep{},
+		automdm.ActivityDeletedSmallstep{},
+		automdm.ActivityEditedSmallstep{},
+		automdm.ActivityAddedEJBCA{},
+		automdm.ActivityDeletedEJBCA{},
+		automdm.ActivityEditedEJBCA{},
+		automdm.ActivityAddedGoogleCAS{},
+		automdm.ActivityDeletedGoogleCAS{},
+		automdm.ActivityEditedGoogleCAS{},
+		automdm.ActivityTypeAddedCertificate{},
+		automdm.ActivityTypeDeletedCertificate{},
+		automdm.ActivityTypeInstalledCertificate{},
+		automdm.ActivityTypeResentCertificate{},
+		automdm.ActivityTypeEditedAndroidCertificate{},
 	},
 }
 
 // templatesForCategory returns the templates a single category covers, or
 // every template (in a stable order) when category == "" or "all".
-func templatesForCategory(category string) ([]fleet.ActivityDetails, error) {
+func templatesForCategory(category string) ([]automdm.ActivityDetails, error) {
 	if category == "" || category == CategoryAll {
-		out := make([]fleet.ActivityDetails, 0, 200)
+		out := make([]automdm.ActivityDetails, 0, 200)
 		for _, cat := range ActivityCategories {
 			out = append(out, activityTemplatesByCategory[cat]...)
 		}
@@ -497,7 +497,7 @@ func templatesForCategory(category string) ([]fleet.ActivityDetails, error) {
 func insertActivity(
 	ctx context.Context, db *sql.DB,
 	actorID uint, actorName, actorEmail string,
-	activity fleet.ActivityDetails,
+	activity automdm.ActivityDetails,
 ) (int64, error) {
 	details, err := json.Marshal(activity)
 	if err != nil {
@@ -517,7 +517,7 @@ func insertActivity(
 	}()
 
 	const insert = `INSERT INTO activity_past
-		(user_id, user_name, user_email, activity_type, details, fleet_initiated)
+		(user_id, user_name, user_email, activity_type, details, automdm_initiated)
 		VALUES (?, ?, ?, ?, ?, 0)`
 	res, err := tx.ExecContext(ctx, insert,
 		actorID, actorName, actorEmail, activity.ActivityName(), details)
@@ -616,7 +616,7 @@ func Activities(ctx context.Context, log Logger, opt ActivitiesOptions) Result {
 			ptr := reflect.New(reflect.TypeOf(tmpl))
 			ptr.Elem().Set(reflect.ValueOf(tmpl))
 			setExampleFields(ptr.Interface(), opt.HostID, runTag)
-			filled := ptr.Elem().Interface().(fleet.ActivityDetails)
+			filled := ptr.Elem().Interface().(automdm.ActivityDetails)
 			if _, err := insertActivity(ctx, db,
 				opt.ActorID, opt.ActorName, opt.ActorEmail, filled); err != nil {
 				res.Errors = append(res.Errors, err)

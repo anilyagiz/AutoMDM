@@ -8,8 +8,8 @@ flowchart TD
         n5a --> n5b["Agent installed<br/>with managed config"]
     end
 
-    subgraph Fleet UI/GitOps
-        n1(["IT admin adds certificate to fleet/unassigned"]) --> n2["Cron job runs"]
+    subgraph AutoMDM UI/GitOps
+        n1(["IT admin adds certificate to automdm/unassigned"]) --> n2["Cron job runs"]
         n2 --> n3["Update managed config for each host"]
     end
     n3 --> start
@@ -23,7 +23,7 @@ flowchart TD
 
     l4 --> auth1{"Have orbit_node_key?"}
 
-    subgraph auth["Authenticate with Fleet"]
+    subgraph auth["Authenticate with AutoMDM"]
         auth1 --> auth2(("YES")) & auth3(("NO"))
         auth3 --> n14["App hits enroll endpoint<br/>with enroll_secret to retrieve orbit_node_key"]
         n14 --> n15{"key retrieved?"}
@@ -38,9 +38,9 @@ flowchart TD
     cert1 --> certYes(("YES")) & certNo(("NO"))
     certNo --> certDone(["Done"])
 
-    certYes --> certGet["GET /api/fleetd/certificates/:id"]
+    certYes --> certGet["GET /api/automdmd/certificates/:id"]
     subgraph cert["For each certificate"]
-        certGet --> certServer["Server validates FLEET_VAR_*"]
+        certGet --> certServer["Server validates AUTOMDM_VAR_*"]
         certServer --> certStatus{"Cert status?"}
         certStatus --> certStatusYes(("delivered")) & certStatusNo(("failed or<br/>verified")) & certStatusNull(("otherwise<br/>(try again later)"))
         certStatusNull --> certDone1
@@ -59,10 +59,10 @@ flowchart TD
         certRetry --> certRetryYes(("YES")) & certRetryNo(("NO"))
         certRetryYes --> certRetrySave["Save cert for retry"]
         certRetrySave --> certDone2(["Continue"])
-        certRetryNo --> certInstallStatusFail["PUT /api/fleetd/certificates/:id/status<br/>Failed"]
+        certRetryNo --> certInstallStatusFail["PUT /api/automdmd/certificates/:id/status<br/>Failed"]
         certInstallStatusFail --> certSave3["Save cert as processed"]
         certSave3 --> certDone2(["Continue"])
-        certSuccessYes --> certInstallStatus["PUT /api/fleetd/certificates/:id/status<br/>Verified"]
+        certSuccessYes --> certInstallStatus["PUT /api/automdmd/certificates/:id/status<br/>Verified"]
         certInstallStatus -->certSave2["Save cert as processed"]
         certSave2 --> certDone3(["Continue"])
     end
@@ -79,12 +79,12 @@ Certificate installs have two layers of retry:
 
 When SCEP enrollment fails on the device with an error that may be transient, such as not reaching
 the certificate authority, the Android agent makes up to 3 attempts locally before reporting the
-failure to the Fleet server via `PUT /api/fleetd/certificates/:id/status`. Other errors are reported
+failure to the AutoMDM server via `PUT /api/automdmd/certificates/:id/status`. Other errors are reported
 right away.
 
-### Server-side retry (Fleet server)
+### Server-side retry (AutoMDM server)
 
-When the agent reports a certificate install failure, the Fleet server automatically retries up to
+When the agent reports a certificate install failure, the AutoMDM server automatically retries up to
 7 times by resetting the certificate status to `pending` and incrementing `retry_count`. Retries use
 exponential backoff: a retry waits `2^(retry_count-1) * 30` seconds after the failure is reported,
 doubling from 30 seconds for the first retry to 32 minutes for the seventh. The cron job checks the
@@ -98,7 +98,7 @@ certificate is marked as terminally `failed`.
 
 ### Manual resend
 
-When an IT admin clicks "Resend" in the Fleet UI, the certificate is reset to `pending` with
+When an IT admin clicks "Resend" in the AutoMDM UI, the certificate is reset to `pending` with
 `retry_count` set to `MaxCertificateInstallRetries + 1`. A count past the maximum skips the backoff
 wait, so the next cron run delivers the certificate, and the next failure is terminal. This means
 the resend gets exactly one delivery attempt with no automatic server-side retry on failure.

@@ -6,15 +6,15 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/aws/aws-sdk-go-v2/service/ses"
-	"github.com/fleetdm/fleet/v4/server/fleet"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func Test_getFromSES(t *testing.T) {
 	type args struct {
-		e            fleet.Email
+		e            automdm.Email
 		senderDomain string
 	}
 	tests := []struct {
@@ -25,16 +25,16 @@ func Test_getFromSES(t *testing.T) {
 	}{
 		{
 			name: "should return properly formatted SMTP from for use in SES",
-			args: args{e: fleet.Email{
-				ServerURL: "https://foobar.fleetdm.com",
+			args: args{e: automdm.Email{
+				ServerURL: "https://foobar.automdm.com",
 			}},
-			want:    "From: do-not-reply@foobar.fleetdm.com\r\n",
+			want:    "From: do-not-reply@foobar.automdm.com\r\n",
 			wantErr: assert.NoError,
 		},
 		{
 			name: "should use configured sender domain when provided",
 			args: args{
-				e: fleet.Email{
+				e: automdm.Email{
 					ServerURL: "not-a-url",
 				},
 				senderDomain: "notifications.example.com",
@@ -43,8 +43,8 @@ func Test_getFromSES(t *testing.T) {
 			wantErr: assert.NoError,
 		},
 		{
-			name: "should error when we fail to parse fleet server url",
-			args: args{e: fleet.Email{
+			name: "should error when we fail to parse automdm server url",
+			args: args{e: automdm.Email{
 				ServerURL: "not-a-url",
 			}},
 			want:    "",
@@ -76,10 +76,10 @@ func (m *mockSESSender) SendRawEmail(ctx context.Context, input *ses.SendRawEmai
 }
 
 func Test_sesSender_SendEmail(t *testing.T) {
-	baseEmail := fleet.Email{
-		Subject:   "Hello from Fleet!",
-		To:        []string{"foouser@fleetdm.com"},
-		ServerURL: "https://foobar.fleetdm.com",
+	baseEmail := automdm.Email{
+		Subject:   "Hello from AutoMDM!",
+		To:        []string{"foouser@automdm.com"},
+		ServerURL: "https://foobar.automdm.com",
 		Mailer: &SMTPTestMailer{
 			BaseURL: "https://localhost:8080",
 		},
@@ -111,7 +111,7 @@ func Test_sesSender_SendEmail(t *testing.T) {
 		err := s.SendEmail(context.Background(), baseEmail)
 		require.NoError(t, err)
 		require.NotNil(t, client.input)
-		assert.Contains(t, string(client.input.RawMessage.Data), "From: do-not-reply@foobar.fleetdm.com\r\n")
+		assert.Contains(t, string(client.input.RawMessage.Data), "From: do-not-reply@foobar.automdm.com\r\n")
 	})
 
 	t.Run("should error when server url is invalid and sender domain is not configured", func(t *testing.T) {

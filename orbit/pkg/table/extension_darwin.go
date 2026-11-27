@@ -5,36 +5,36 @@ package table
 import (
 	"context"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/adobe_plugins"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/app_sso_platform"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/apple_hardware_info"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/authdb"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/codesign"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/csrutil_info"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/dataflattentable"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/disk_space"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/diskutil/apfs"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/diskutil/corestorage"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/dscl"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/executable_hashes"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/filevault_prk"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/filevault_status"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/find_cmd"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/firmware_eficheck_integrity_check"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/firmwarepasswd"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/homebrew_outdated"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/ioreg"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/macos_user_profiles"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/nvram_info"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/pmset"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/privaterelay"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/pwd_policy"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/santa"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/software_update"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/sshd_config"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/sudo_info"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/tcc_access"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/user_login_settings"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/adobe_plugins"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/app_sso_platform"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/apple_hardware_info"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/authdb"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/codesign"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/csrutil_info"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/dataflattentable"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/disk_space"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/diskutil/apfs"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/diskutil/corestorage"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/dscl"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/executable_hashes"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/filevault_prk"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/filevault_status"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/find_cmd"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/firmware_eficheck_integrity_check"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/firmwarepasswd"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/homebrew_outdated"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/ioreg"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/macos_user_profiles"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/nvram_info"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/pmset"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/privaterelay"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/pwd_policy"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/santa"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/software_update"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/sshd_config"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/sudo_info"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/tcc_access"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/user_login_settings"
 	"github.com/macadmins/osquery-extension/tables/crowdstrike_falcon"
 	"github.com/macadmins/osquery-extension/tables/filevaultusers"
 	"github.com/macadmins/osquery-extension/tables/localnetworkpermissions"
@@ -57,7 +57,7 @@ import (
 
 func PlatformTables(opts PluginOpts) ([]osquery.OsqueryPlugin, error) {
 	plugins := []osquery.OsqueryPlugin{
-		// Fleet tables
+		// AutoMDM tables
 		adobe_plugins.TablePlugin(log.Logger),
 		table.NewPlugin(
 			"apple_hardware_info",
@@ -108,13 +108,13 @@ func PlatformTables(opts PluginOpts) ([]osquery.OsqueryPlugin, error) {
 		table.NewPlugin(
 			"sofa_security_release_info", sofa.SofaSecurityReleaseInfoColumns(),
 			func(ctx context.Context, queryContext table.QueryContext) ([]map[string]string, error) {
-				return sofa.SofaSecurityReleaseInfoGenerate(ctx, queryContext, opts.Socket, sofa.WithUserAgent("fleetd"))
+				return sofa.SofaSecurityReleaseInfoGenerate(ctx, queryContext, opts.Socket, sofa.WithUserAgent("automdmd"))
 			},
 		),
 		table.NewPlugin(
 			"sofa_unpatched_cves", sofa.SofaUnpatchedCVEsColumns(),
 			func(ctx context.Context, queryContext table.QueryContext) ([]map[string]string, error) {
-				return sofa.SofaUnpatchedCVEsGenerate(ctx, queryContext, opts.Socket, sofa.WithUserAgent("fleetd"))
+				return sofa.SofaUnpatchedCVEsGenerate(ctx, queryContext, opts.Socket, sofa.WithUserAgent("automdmd"))
 			},
 		),
 		table.NewPlugin("local_network_permissions", localnetworkpermissions.LocalNetworkPermissionsColumns(), localnetworkpermissions.LocalNetworkPermissionsGenerate),

@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
 // NopLocker is a no-op Locker implementation that always succeeds.
@@ -31,19 +31,19 @@ func (NopLocker) Unlock(context.Context, string, string) error {
 // NopStatsStore is a no-op CronStatsStore implementation.
 type NopStatsStore struct{}
 
-func (NopStatsStore) GetLatestCronStats(_ context.Context, _ string) ([]fleet.CronStats, error) {
-	return []fleet.CronStats{}, nil
+func (NopStatsStore) GetLatestCronStats(_ context.Context, _ string) ([]automdm.CronStats, error) {
+	return []automdm.CronStats{}, nil
 }
 
-func (NopStatsStore) InsertCronStats(_ context.Context, _ fleet.CronStatsType, _ string, _ string, _ fleet.CronStatsStatus) (int, error) {
+func (NopStatsStore) InsertCronStats(_ context.Context, _ automdm.CronStatsType, _ string, _ string, _ automdm.CronStatsStatus) (int, error) {
 	return 0, nil
 }
 
-func (NopStatsStore) UpdateCronStats(_ context.Context, _ int, _ fleet.CronStatsStatus, _ *fleet.CronScheduleErrors) error {
+func (NopStatsStore) UpdateCronStats(_ context.Context, _ int, _ automdm.CronStatsStatus, _ *automdm.CronScheduleErrors) error {
 	return nil
 }
 
-func (NopStatsStore) ClaimCronStats(_ context.Context, _ int, _ string, _ fleet.CronStatsStatus) error {
+func (NopStatsStore) ClaimCronStats(_ context.Context, _ int, _ string, _ automdm.CronStatsStatus) error {
 	return nil
 }
 
@@ -148,14 +148,14 @@ func (ml *MockLock) AddChannels(t *testing.T, chanNames ...string) error {
 // optionally signal them through channels (see AddChannels).
 type MockStatsStore struct {
 	sync.Mutex
-	stats map[int]fleet.CronStats
+	stats map[int]automdm.CronStats
 
 	GetStatsCalled    chan struct{}
 	InsertStatsCalled chan struct{}
 	UpdateStatsCalled chan struct{}
 }
 
-func (m *MockStatsStore) GetLatestCronStats(_ context.Context, name string) ([]fleet.CronStats, error) {
+func (m *MockStatsStore) GetLatestCronStats(_ context.Context, name string) ([]automdm.CronStats, error) {
 	m.Lock()
 	defer m.Unlock()
 
@@ -163,7 +163,7 @@ func (m *MockStatsStore) GetLatestCronStats(_ context.Context, name string) ([]f
 		m.GetStatsCalled <- struct{}{}
 	}
 
-	latest := make(map[fleet.CronStatsType]fleet.CronStats)
+	latest := make(map[automdm.CronStatsType]automdm.CronStats)
 	for _, s := range m.stats {
 		if s.Name != name {
 			continue
@@ -175,18 +175,18 @@ func (m *MockStatsStore) GetLatestCronStats(_ context.Context, name string) ([]f
 		latest[s.StatsType] = s
 	}
 
-	res := []fleet.CronStats{}
-	if s, ok := latest[fleet.CronStatsTypeScheduled]; ok {
+	res := []automdm.CronStats{}
+	if s, ok := latest[automdm.CronStatsTypeScheduled]; ok {
 		res = append(res, s)
 	}
-	if s, ok := latest[fleet.CronStatsTypeTriggered]; ok {
+	if s, ok := latest[automdm.CronStatsTypeTriggered]; ok {
 		res = append(res, s)
 	}
 
 	return res, nil
 }
 
-func (m *MockStatsStore) InsertCronStats(_ context.Context, statsType fleet.CronStatsType, name string, instance string, status fleet.CronStatsStatus) (int, error) {
+func (m *MockStatsStore) InsertCronStats(_ context.Context, statsType automdm.CronStatsType, name string, instance string, status automdm.CronStatsStatus) (int, error) {
 	m.Lock()
 	defer m.Unlock()
 
@@ -195,12 +195,12 @@ func (m *MockStatsStore) InsertCronStats(_ context.Context, statsType fleet.Cron
 	}
 
 	id := len(m.stats) + 1
-	m.stats[id] = fleet.CronStats{ID: id, StatsType: statsType, Name: name, Instance: instance, Status: status, CreatedAt: time.Now().Truncate(1 * time.Second), UpdatedAt: time.Now().Truncate(time.Second)}
+	m.stats[id] = automdm.CronStats{ID: id, StatsType: statsType, Name: name, Instance: instance, Status: status, CreatedAt: time.Now().Truncate(1 * time.Second), UpdatedAt: time.Now().Truncate(time.Second)}
 
 	return id, nil
 }
 
-func (m *MockStatsStore) UpdateCronStats(_ context.Context, id int, status fleet.CronStatsStatus, _ *fleet.CronScheduleErrors) error {
+func (m *MockStatsStore) UpdateCronStats(_ context.Context, id int, status automdm.CronStatsStatus, _ *automdm.CronScheduleErrors) error {
 	m.Lock()
 	defer m.Unlock()
 
@@ -219,7 +219,7 @@ func (m *MockStatsStore) UpdateCronStats(_ context.Context, id int, status fleet
 	return nil
 }
 
-func (m *MockStatsStore) ClaimCronStats(_ context.Context, id int, instance string, status fleet.CronStatsStatus) error {
+func (m *MockStatsStore) ClaimCronStats(_ context.Context, id int, instance string, status automdm.CronStatsStatus) error {
 	m.Lock()
 	defer m.Unlock()
 
@@ -259,8 +259,8 @@ func (m *MockStatsStore) AddChannels(t *testing.T, chanNames ...string) error {
 
 // SetUpMockStatsStore returns a *MockStatsStore pre-seeded with the given
 // initial stats.
-func SetUpMockStatsStore(_ string, initialStats ...fleet.CronStats) *MockStatsStore {
-	stats := make(map[int]fleet.CronStats)
+func SetUpMockStatsStore(_ string, initialStats ...automdm.CronStats) *MockStatsStore {
+	stats := make(map[int]automdm.CronStats)
 	for _, s := range initialStats {
 		stats[s.ID] = s
 	}

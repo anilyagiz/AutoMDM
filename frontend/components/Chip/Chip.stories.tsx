@@ -24,7 +24,7 @@ type Story = StoryObj<typeof Chip>;
 
 export const Playground: Story = {
   args: {
-    text: "Fleet-maintained",
+    text: "AutoMDM-maintained",
   },
 };
 

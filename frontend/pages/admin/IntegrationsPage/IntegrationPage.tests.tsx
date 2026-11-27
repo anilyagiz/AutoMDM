@@ -37,7 +37,7 @@ describe("Integrations Page", () => {
     });
   });
   describe("Conditional access", () => {
-    it("Does not render the conditional access sidenav for self-hosted Fleet instances", () => {
+    it("Does not render the conditional access sidenav for self-hosted AutoMDM instances", () => {
       const mockConfig = createMockConfig({
         license: { ...DEFAULT_LICENSE_MOCK },
       });
@@ -55,7 +55,7 @@ describe("Integrations Page", () => {
 
       expect(screen.queryByText("Conditional access")).toBeNull();
     });
-    it("renders the Conditional access sidenav for managed cloud Fleet instances", async () => {
+    it("renders the Conditional access sidenav for managed cloud AutoMDM instances", async () => {
       mockServer.use(createGetConfigHandler());
       const mockRouter = createMockRouter();
       const mockConfig = createMockConfig();

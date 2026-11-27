@@ -37,8 +37,8 @@ export default meta;
 
 type Story = StoryObj<typeof SetupSoftwareProcessCell>;
 
-// Fleet-maintained app — renders its real matched brand icon (SVG fallback).
-export const FleetMaintainedApp: Story = {
+// AutoMDM-maintained app — renders its real matched brand icon (SVG fallback).
+export const AutoMDMMaintainedApp: Story = {
   args: { name: "Google Chrome" },
 };
 

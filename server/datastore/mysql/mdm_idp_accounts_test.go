@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -55,7 +55,7 @@ func testAssociateHostMDMIdPAccountTriggersReconciliation(t *testing.T, ds *Data
 	}
 
 	// create IdP account
-	idpAccount := &fleet.MDMIdPAccount{
+	idpAccount := &automdm.MDMIdPAccount{
 		Username: "test.user",
 		Fullname: "Test User",
 		Email:    "test.user@example.com",
@@ -72,7 +72,7 @@ func testAssociateHostMDMIdPAccountTriggersReconciliation(t *testing.T, ds *Data
 	for _, p := range platforms {
 		t.Run(p.name, func(t *testing.T) {
 			// Create host for this platform
-			host := &fleet.Host{
+			host := &automdm.Host{
 				Hostname:      p.name + "-host",
 				UUID:          p.uuid,
 				Platform:      p.platform,
@@ -93,7 +93,7 @@ func testAssociateHostMDMIdPAccountTriggersReconciliation(t *testing.T, ds *Data
 			var emails []string
 			err = ds.writer(ctx).SelectContext(ctx, &emails,
 				`SELECT email FROM host_emails WHERE host_id = ? AND source = ?`,
-				h.ID, fleet.DeviceMappingMDMIdpAccounts)
+				h.ID, automdm.DeviceMappingMDMIdpAccounts)
 			require.NoError(t, err)
 			require.Len(t, emails, 1, "Platform %s should have exactly one IdP email after association", p.name)
 			assert.Equal(t, "test.user@example.com", emails[0])
@@ -105,7 +105,7 @@ func testAssociateHostMDMIdPAccountTriggersReconciliation(t *testing.T, ds *Data
 			emails = nil
 			err = ds.writer(ctx).SelectContext(ctx, &emails,
 				`SELECT email FROM host_emails WHERE host_id = ? AND source = ?`,
-				h.ID, fleet.DeviceMappingMDMIdpAccounts)
+				h.ID, automdm.DeviceMappingMDMIdpAccounts)
 			require.NoError(t, err)
 			require.Len(t, emails, 1, "Platform %s should still have exactly one IdP email after re-association", p.name)
 			assert.Equal(t, "test.user@example.com", emails[0])
@@ -122,7 +122,7 @@ func testAssociateHostMDMIdPAccountTriggersReconciliation(t *testing.T, ds *Data
 func testReconcileSupersedesManuallySetIdPMapping(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
-	idpAccount := &fleet.MDMIdPAccount{
+	idpAccount := &automdm.MDMIdPAccount{
 		Username: "sso.user",
 		Fullname: "SSO User",
 		Email:    "sso.user@example.com",
@@ -135,8 +135,8 @@ func testReconcileSupersedesManuallySetIdPMapping(t *testing.T, ds *Datastore) {
 	require.NotNil(t, insertedAccount)
 	idpAccount.UUID = insertedAccount.UUID
 
-	newDarwinHost := func(t *testing.T, uuid string) *fleet.Host {
-		h, err := ds.NewHost(ctx, &fleet.Host{
+	newDarwinHost := func(t *testing.T, uuid string) *automdm.Host {
+		h, err := ds.NewHost(ctx, &automdm.Host{
 			Hostname:      uuid + "-hostname",
 			UUID:          uuid,
 			Platform:      "darwin",
@@ -152,7 +152,7 @@ func testReconcileSupersedesManuallySetIdPMapping(t *testing.T, ds *Datastore) {
 		var count int
 		err := sqlx.GetContext(ctx, ds.writer(ctx), &count,
 			`SELECT COUNT(*) FROM host_emails WHERE host_id = ? AND source = ?`,
-			hostID, fleet.DeviceMappingIDP)
+			hostID, automdm.DeviceMappingIDP)
 		require.NoError(t, err)
 		return count
 	}
@@ -171,7 +171,7 @@ func testReconcileSupersedesManuallySetIdPMapping(t *testing.T, ds *Datastore) {
 		require.NoError(t, err)
 		require.Len(t, mappings, 1)
 		assert.Equal(t, "sso.user@example.com", mappings[0].Email)
-		assert.Equal(t, fleet.DeviceMappingMDMIdpAccounts, mappings[0].Source)
+		assert.Equal(t, automdm.DeviceMappingMDMIdpAccounts, mappings[0].Source)
 		assert.Zero(t, countRawIdpRows(t, host.ID))
 	})
 
@@ -188,7 +188,7 @@ func testReconcileSupersedesManuallySetIdPMapping(t *testing.T, ds *Datastore) {
 		require.NoError(t, err)
 		require.Len(t, mappings, 1)
 		assert.Equal(t, "sso.user@example.com", mappings[0].Email)
-		assert.Equal(t, fleet.DeviceMappingMDMIdpAccounts, mappings[0].Source)
+		assert.Equal(t, automdm.DeviceMappingMDMIdpAccounts, mappings[0].Source)
 		assert.Zero(t, countRawIdpRows(t, host.ID))
 	})
 
@@ -199,8 +199,8 @@ func testReconcileSupersedesManuallySetIdPMapping(t *testing.T, ds *Datastore) {
 		// with a different email
 		_, err := ds.writer(ctx).ExecContext(ctx,
 			`INSERT INTO host_emails (host_id, email, source) VALUES (?, ?, ?), (?, ?, ?)`,
-			host.ID, "sso.user@example.com", fleet.DeviceMappingMDMIdpAccounts,
-			host.ID, "someone.else@example.com", fleet.DeviceMappingIDP)
+			host.ID, "sso.user@example.com", automdm.DeviceMappingMDMIdpAccounts,
+			host.ID, "someone.else@example.com", automdm.DeviceMappingIDP)
 		require.NoError(t, err)
 
 		_, err = ds.AssociateHostMDMIdPAccount(ctx, host.UUID, idpAccount.UUID)
@@ -210,7 +210,7 @@ func testReconcileSupersedesManuallySetIdPMapping(t *testing.T, ds *Datastore) {
 		require.NoError(t, err)
 		require.Len(t, mappings, 1)
 		assert.Equal(t, "sso.user@example.com", mappings[0].Email)
-		assert.Equal(t, fleet.DeviceMappingMDMIdpAccounts, mappings[0].Source)
+		assert.Equal(t, automdm.DeviceMappingMDMIdpAccounts, mappings[0].Source)
 		assert.Zero(t, countRawIdpRows(t, host.ID))
 	})
 
@@ -221,8 +221,8 @@ func testReconcileSupersedesManuallySetIdPMapping(t *testing.T, ds *Datastore) {
 		// an enrollment "mdm_idp_accounts" row with the same email
 		_, err := ds.writer(ctx).ExecContext(ctx,
 			`INSERT INTO host_emails (host_id, email, source) VALUES (?, ?, ?), (?, ?, ?)`,
-			host.ID, "sso.user@example.com", fleet.DeviceMappingIDP,
-			host.ID, "sso.user@example.com", fleet.DeviceMappingMDMIdpAccounts)
+			host.ID, "sso.user@example.com", automdm.DeviceMappingIDP,
+			host.ID, "sso.user@example.com", automdm.DeviceMappingMDMIdpAccounts)
 		require.NoError(t, err)
 
 		_, err = ds.AssociateHostMDMIdPAccount(ctx, host.UUID, idpAccount.UUID)
@@ -232,7 +232,7 @@ func testReconcileSupersedesManuallySetIdPMapping(t *testing.T, ds *Datastore) {
 		require.NoError(t, err)
 		require.Len(t, mappings, 1)
 		assert.Equal(t, "sso.user@example.com", mappings[0].Email)
-		assert.Equal(t, fleet.DeviceMappingMDMIdpAccounts, mappings[0].Source)
+		assert.Equal(t, automdm.DeviceMappingMDMIdpAccounts, mappings[0].Source)
 		assert.Zero(t, countRawIdpRows(t, host.ID))
 	})
 
@@ -241,7 +241,7 @@ func testReconcileSupersedesManuallySetIdPMapping(t *testing.T, ds *Datastore) {
 
 		// only SCIM-provisioned users are mapped from the device; a username of its
 		// own so creating it cannot link a host left behind by another subtest
-		_, err := ds.CreateScimUser(ctx, &fleet.ScimUser{
+		_, err := ds.CreateScimUser(ctx, &automdm.ScimUser{
 			UserName:   "entra.join@example.com",
 			GivenName:  new("Entra"),
 			FamilyName: new("Join"),
@@ -259,16 +259,16 @@ func testReconcileSupersedesManuallySetIdPMapping(t *testing.T, ds *Datastore) {
 		require.NoError(t, err)
 		require.Len(t, mappings, 1)
 		assert.Equal(t, "sso.user@example.com", mappings[0].Email)
-		assert.Equal(t, fleet.DeviceMappingMDMIdpAccounts, mappings[0].Source)
+		assert.Equal(t, automdm.DeviceMappingMDMIdpAccounts, mappings[0].Source)
 		var entraRows int
 		err = sqlx.GetContext(ctx, ds.writer(ctx), &entraRows,
-			`SELECT COUNT(*) FROM host_emails WHERE host_id = ? AND source = ?`, host.ID, fleet.DeviceMappingEntraJoin)
+			`SELECT COUNT(*) FROM host_emails WHERE host_id = ? AND source = ?`, host.ID, automdm.DeviceMappingEntraJoin)
 		require.NoError(t, err)
 		assert.Zero(t, entraRows)
 		// the SCIM link that came with the device-reported mapping is gone too, so the
 		// authenticated user can be linked instead of the stale one surviving
 		_, err = ds.ScimUserByHostID(ctx, host.ID)
-		require.True(t, fleet.IsNotFound(err))
+		require.True(t, automdm.IsNotFound(err))
 	})
 
 	t.Run("manual mapping survives reconcile without idp account", func(t *testing.T) {
@@ -290,7 +290,7 @@ func testReconcileSupersedesManuallySetIdPMapping(t *testing.T, ds *Datastore) {
 		assert.Equal(t, "someone.else@example.com", mappings[0].Email)
 		// a lone manual mapping is still reported under the translated
 		// "mdm_idp_accounts" source
-		assert.Equal(t, fleet.DeviceMappingMDMIdpAccounts, mappings[0].Source)
+		assert.Equal(t, automdm.DeviceMappingMDMIdpAccounts, mappings[0].Source)
 		assert.Equal(t, 1, countRawIdpRows(t, host.ID))
 	})
 }
@@ -301,7 +301,7 @@ func testAndroidEnrollmentFlowWithIdP(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
 	// create IdP account (during SSO login)
-	idpAccount := &fleet.MDMIdPAccount{
+	idpAccount := &automdm.MDMIdPAccount{
 		Username: "android.user",
 		Fullname: "Android User",
 		Email:    "android.user@example.com",
@@ -316,8 +316,8 @@ func testAndroidEnrollmentFlowWithIdP(t *testing.T, ds *Datastore) {
 
 	// simulate Android device enrollment
 	const enterpriseSpecificID = "android-device-001"
-	androidHost := &fleet.AndroidHost{
-		Host: &fleet.Host{
+	androidHost := &automdm.AndroidHost{
+		Host: &automdm.Host{
 			Hostname:       "Android Device",
 			ComputerName:   "Pixel 8",
 			Platform:       "android",
@@ -346,7 +346,7 @@ func testAndroidEnrollmentFlowWithIdP(t *testing.T, ds *Datastore) {
 	var emails []string
 	err = ds.writer(ctx).SelectContext(ctx, &emails,
 		`SELECT email FROM host_emails WHERE host_id = ? AND source = ?`,
-		result.Host.ID, fleet.DeviceMappingMDMIdpAccounts)
+		result.Host.ID, automdm.DeviceMappingMDMIdpAccounts)
 	require.NoError(t, err)
 	require.Empty(t, emails, "No IdP emails should exist immediately after NewAndroidHost")
 
@@ -357,7 +357,7 @@ func testAndroidEnrollmentFlowWithIdP(t *testing.T, ds *Datastore) {
 	// verify reconciliation happened
 	err = ds.writer(ctx).SelectContext(ctx, &emails,
 		`SELECT email FROM host_emails WHERE host_id = ? AND source = ?`,
-		result.Host.ID, fleet.DeviceMappingMDMIdpAccounts)
+		result.Host.ID, automdm.DeviceMappingMDMIdpAccounts)
 	require.NoError(t, err)
 	require.Len(t, emails, 1)
 	assert.Equal(t, "android.user@example.com", emails[0])

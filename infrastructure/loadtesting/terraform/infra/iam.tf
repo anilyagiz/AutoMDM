@@ -25,7 +25,7 @@ data "aws_iam_policy_document" "enroll" {
 
 resource "aws_iam_policy" "enroll" {
   name        = "${local.customer}-enroll-policy"
-  description = "IAM policy that Fleet application uses to define access to AWS resources"
+  description = "IAM policy that AutoMDM application uses to define access to AWS resources"
   policy      = data.aws_iam_policy_document.enroll.json
 }
 

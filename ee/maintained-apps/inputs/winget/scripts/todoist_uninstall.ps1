@@ -7,7 +7,7 @@
 
 $displayNamePattern = '^Todoist \d'
 $publisher = "Doist"
-$taskName = "fleet-uninstall-todoist-app"
+$taskName = "automdm-uninstall-todoist-app"
 $appDir = "AppData\Local\Programs\todoist"  # in each user's profile
 $taskRunning = 267009  # SCHED_S_TASK_RUNNING
 $timeoutSeconds = 300

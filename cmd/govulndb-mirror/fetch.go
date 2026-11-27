@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
 )
 
 const (
@@ -92,7 +92,7 @@ type moduleIndex []struct {
 // a partial collection is suspect, not something to publish a smaller artifact from.
 func fetchDatabase(ctx context.Context, baseURL string, logger *log.Logger) ([]osvReport, string, error) {
 	// The run's context carries the overall deadline, so the client itself sets none.
-	client := fleethttp.NewClient(fleethttp.WithNoTimeout())
+	client := automdmhttp.NewClient(automdmhttp.WithNoTimeout())
 
 	body, err := get(ctx, client, strings.TrimSuffix(baseURL, "/")+dbArchive, logger)
 	if err != nil {

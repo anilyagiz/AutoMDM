@@ -10,13 +10,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/datastore/cloudstorage"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/smithy-go"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/datastore/cloudstorage"
-	"github.com/fleetdm/fleet/v4/server/fleet"
 	"github.com/stretchr/testify/require"
 )
 
@@ -247,7 +247,7 @@ func TestStoreOperationsMisconfiguredErrors(t *testing.T) {
 				check(t, installers.Delete(t.Context(), "installer"), want)
 			})
 			t.Run("org logo delete", func(t *testing.T) {
-				check(t, logos.Delete(t.Context(), fleet.OrgLogoModeLight), want)
+				check(t, logos.Delete(t.Context(), automdm.OrgLogoModeLight), want)
 			})
 		})
 	}

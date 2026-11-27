@@ -5,18 +5,18 @@ import (
 	"errors"
 	"testing"
 
-	activity_api "github.com/fleetdm/fleet/v4/server/activity/api"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/service/conditional_access_google"
-	"github.com/fleetdm/fleet/v4/server/test"
+	activity_api "github.com/anilyagiz/automdm/v4/server/activity/api"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/service/conditional_access_google"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
 )
 
-// disconnectingGoogleCARelay cancels the request as fleetdm.com answers, as a client
+// disconnectingGoogleCARelay cancels the request as automdm.com answers, as a client
 // that disconnects mid-request does. Like the HTTP relay, it fails on a canceled context.
 type disconnectingGoogleCARelay struct {
 	*mockedGoogleConditionalAccessClient
@@ -39,16 +39,16 @@ func (r *disconnectingGoogleCARelay) Deregister(ctx context.Context, serverURL, 
 	return r.mockedGoogleConditionalAccessClient.Deregister(ctx, serverURL, customerID, secret)
 }
 
-// googleCADisconnectTest is a service whose client disconnects as fleetdm.com answers
+// googleCADisconnectTest is a service whose client disconnects as automdm.com answers
 // and whose datastore, like MySQL, fails writes on a canceled context.
 type googleCADisconnectTest struct {
-	svc   fleet.Service
+	svc   automdm.Service
 	ctx   context.Context
 	ds    *mock.Store
 	relay *disconnectingGoogleCARelay
 
-	settings   *fleet.GoogleConditionalAccessIntegration
-	row        *fleet.ConditionalAccessGoogleIntegration
+	settings   *automdm.GoogleConditionalAccessIntegration
+	row        *automdm.ConditionalAccessGoogleIntegration
 	key        []byte
 	activities []string
 	// saveSecretErr fails saving a row that holds a secret.
@@ -60,16 +60,16 @@ type googleCADisconnectTest struct {
 // newGoogleCADisconnectTest starts from a connected integration when customerID is set.
 func newGoogleCADisconnectTest(t *testing.T, customerID string) *googleCADisconnectTest {
 	g := &googleCADisconnectTest{}
-	appConfig := &fleet.AppConfig{
-		OrgInfo:        fleet.OrgInfo{OrgName: "Test"},
-		ServerSettings: fleet.ServerSettings{ServerURL: "https://fleet.example.com"},
+	appConfig := &automdm.AppConfig{
+		OrgInfo:        automdm.OrgInfo{OrgName: "Test"},
+		ServerSettings: automdm.ServerSettings{ServerURL: "https://automdm.example.com"},
 	}
 	if customerID != "" {
-		appConfig.Integrations.GoogleConditionalAccess = &fleet.GoogleConditionalAccessIntegration{
+		appConfig.Integrations.GoogleConditionalAccess = &automdm.GoogleConditionalAccessIntegration{
 			CustomerID: customerID, AdminEmail: "admin@example.com",
 		}
-		g.row = &fleet.ConditionalAccessGoogleIntegration{
-			ProxyServerSecret: "secret-" + customerID, State: fleet.ConditionalAccessGoogleStateConnected,
+		g.row = &automdm.ConditionalAccessGoogleIntegration{
+			ProxyServerSecret: "secret-" + customerID, State: automdm.ConditionalAccessGoogleStateConnected,
 		}
 		g.key = []byte(`{"client_email":"sa@example.com"}`)
 	}
@@ -77,8 +77,8 @@ func newGoogleCADisconnectTest(t *testing.T, customerID string) *googleCADisconn
 
 	ds := new(mock.Store)
 	g.ds = ds
-	ds.AppConfigFunc = func(context.Context) (*fleet.AppConfig, error) { return appConfig.Copy(), nil }
-	ds.SaveAppConfigFunc = func(ctx context.Context, conf *fleet.AppConfig) error {
+	ds.AppConfigFunc = func(context.Context) (*automdm.AppConfig, error) { return appConfig.Copy(), nil }
+	ds.SaveAppConfigFunc = func(ctx context.Context, conf *automdm.AppConfig) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
@@ -86,14 +86,14 @@ func newGoogleCADisconnectTest(t *testing.T, customerID string) *googleCADisconn
 		g.settings = conf.Integrations.GoogleConditionalAccess
 		return nil
 	}
-	ds.GetGoogleConditionalAccessIntegrationFunc = func(context.Context) (*fleet.ConditionalAccessGoogleIntegration, error) {
+	ds.GetGoogleConditionalAccessIntegrationFunc = func(context.Context) (*automdm.ConditionalAccessGoogleIntegration, error) {
 		if g.row == nil {
 			return nil, &notFoundError{}
 		}
 		row := *g.row
 		return &row, nil
 	}
-	ds.SaveGoogleConditionalAccessIntegrationFunc = func(ctx context.Context, row *fleet.ConditionalAccessGoogleIntegration) error {
+	ds.SaveGoogleConditionalAccessIntegrationFunc = func(ctx context.Context, row *automdm.ConditionalAccessGoogleIntegration) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
@@ -104,28 +104,28 @@ func newGoogleCADisconnectTest(t *testing.T, customerID string) *googleCADisconn
 		g.row = &saved
 		return nil
 	}
-	ds.GetAllMDMConfigAssetsByNameFunc = func(context.Context, []fleet.MDMAssetName, sqlx.QueryerContext) (map[fleet.MDMAssetName]fleet.MDMConfigAsset, error) {
+	ds.GetAllMDMConfigAssetsByNameFunc = func(context.Context, []automdm.MDMAssetName, sqlx.QueryerContext) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
 		if g.key == nil {
 			return nil, &notFoundError{}
 		}
-		return map[fleet.MDMAssetName]fleet.MDMConfigAsset{
-			fleet.MDMAssetGoogleConditionalAccessServiceAccountKey: {Value: g.key},
+		return map[automdm.MDMAssetName]automdm.MDMConfigAsset{
+			automdm.MDMAssetGoogleConditionalAccessServiceAccountKey: {Value: g.key},
 		}, nil
 	}
-	ds.GetAllMDMConfigAssetsHashesFunc = func(context.Context, []fleet.MDMAssetName) (map[fleet.MDMAssetName]string, error) {
+	ds.GetAllMDMConfigAssetsHashesFunc = func(context.Context, []automdm.MDMAssetName) (map[automdm.MDMAssetName]string, error) {
 		if g.key == nil {
 			return nil, &notFoundError{}
 		}
-		return map[fleet.MDMAssetName]string{fleet.MDMAssetGoogleConditionalAccessServiceAccountKey: "hash"}, nil
+		return map[automdm.MDMAssetName]string{automdm.MDMAssetGoogleConditionalAccessServiceAccountKey: "hash"}, nil
 	}
-	ds.ReplaceMDMConfigAssetsFunc = func(ctx context.Context, assets []fleet.MDMConfigAsset, _ sqlx.ExtContext) error {
+	ds.ReplaceMDMConfigAssetsFunc = func(ctx context.Context, assets []automdm.MDMConfigAsset, _ sqlx.ExtContext) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
 		g.key = assets[0].Value
 		return nil
 	}
-	ds.DeleteMDMConfigAssetsByNameFunc = func(ctx context.Context, _ []fleet.MDMAssetName) error {
+	ds.DeleteMDMConfigAssetsByNameFunc = func(ctx context.Context, _ []automdm.MDMAssetName) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
@@ -133,12 +133,12 @@ func newGoogleCADisconnectTest(t *testing.T, customerID string) *googleCADisconn
 		return nil
 	}
 	// Every app config update reads these.
-	ds.ListVPPTokensFunc = func(context.Context) ([]*fleet.VPPTokenDB, error) { return nil, nil }
-	ds.ListABMTokensFunc = func(context.Context) ([]*fleet.ABMToken, error) { return nil, nil }
+	ds.ListVPPTokensFunc = func(context.Context) ([]*automdm.VPPTokenDB, error) { return nil, nil }
+	ds.ListABMTokensFunc = func(context.Context) ([]*automdm.ABMToken, error) { return nil, nil }
 
 	g.relay = &disconnectingGoogleCARelay{mockedGoogleConditionalAccessClient: &mockedGoogleConditionalAccessClient{}}
 	opts := &TestServerOpts{
-		License: &fleet.LicenseInfo{Tier: fleet.TierPremium},
+		License: &automdm.LicenseInfo{Tier: automdm.TierPremium},
 		ConditionalAccessGoogleClient: &GoogleConditionalAccessClient{
 			Relay: g.relay, CloudIdentity: g.relay.cloudIdentity,
 		},
@@ -164,9 +164,9 @@ func newGoogleCADisconnectTest(t *testing.T, customerID string) *googleCADisconn
 
 func TestGoogleConditionalAccessClientDisconnects(t *testing.T) {
 	const key = `{"client_email":"sa2@example.com"}`
-	connected := func(customerID string) *fleet.ConditionalAccessGoogleIntegration {
-		return &fleet.ConditionalAccessGoogleIntegration{
-			ProxyServerSecret: "secret-" + customerID, State: fleet.ConditionalAccessGoogleStateConnected,
+	connected := func(customerID string) *automdm.ConditionalAccessGoogleIntegration {
+		return &automdm.ConditionalAccessGoogleIntegration{
+			ProxyServerSecret: "secret-" + customerID, State: automdm.ConditionalAccessGoogleStateConnected,
 		}
 	}
 
@@ -177,7 +177,7 @@ func TestGoogleConditionalAccessClientDisconnects(t *testing.T) {
 		_, registers, deregisters, _ := g.relay.calls()
 		require.Equal(t, []string{"C02cajzvg"}, registers)
 		require.Empty(t, deregisters)
-		require.Equal(t, []string{fleet.ActivityTypeAddedConditionalAccessIntegrationGoogle{}.ActivityName()}, g.activities)
+		require.Equal(t, []string{automdm.ActivityTypeAddedConditionalAccessIntegrationGoogle{}.ActivityName()}, g.activities)
 	})
 
 	t.Run("a registration that can't be saved is dropped", func(t *testing.T) {
@@ -200,18 +200,18 @@ func TestGoogleConditionalAccessClientDisconnects(t *testing.T) {
 		_, registers, deregisters, _ := g.relay.calls()
 		require.Equal(t, []string{"C03other"}, registers)
 		require.Equal(t, []string{"C02cajzvg"}, deregisters)
-		require.Equal(t, []string{fleet.ActivityTypeEditedConditionalAccessIntegrationGoogle{}.ActivityName()}, g.activities)
+		require.Equal(t, []string{automdm.ActivityTypeEditedConditionalAccessIntegrationGoogle{}.ActivityName()}, g.activities)
 	})
 
 	t.Run("deleting removes the integration", func(t *testing.T) {
 		g := newGoogleCADisconnectTest(t, "C02cajzvg")
 		require.NoError(t, g.svc.DeleteGoogleConditionalAccess(g.ctx))
-		require.Equal(t, &fleet.ConditionalAccessGoogleIntegration{State: fleet.ConditionalAccessGoogleStateDeleted}, g.row)
+		require.Equal(t, &automdm.ConditionalAccessGoogleIntegration{State: automdm.ConditionalAccessGoogleStateDeleted}, g.row)
 		require.Nil(t, g.key)
 		require.Nil(t, g.settings)
 		_, _, deregisters, _ := g.relay.calls()
 		require.Equal(t, []string{"C02cajzvg"}, deregisters)
-		require.Equal(t, []string{fleet.ActivityTypeDeletedConditionalAccessIntegrationGoogle{}.ActivityName()}, g.activities)
+		require.Equal(t, []string{automdm.ActivityTypeDeletedConditionalAccessIntegrationGoogle{}.ActivityName()}, g.activities)
 	})
 
 	// The rest of an app config update runs on the canceled request, so these check the
@@ -221,18 +221,18 @@ func TestGoogleConditionalAccessClientDisconnects(t *testing.T) {
 
 	t.Run("a config update saves the registration", func(t *testing.T) {
 		g := newGoogleCADisconnectTest(t, "")
-		_, _ = g.svc.ModifyAppConfig(g.ctx, []byte(connectConfig), fleet.ApplySpecOptions{})
+		_, _ = g.svc.ModifyAppConfig(g.ctx, []byte(connectConfig), automdm.ApplySpecOptions{})
 		require.Equal(t, connected("C02cajzvg"), g.row)
 		_, registers, deregisters, _ := g.relay.calls()
 		require.Equal(t, []string{"C02cajzvg"}, registers)
 		require.Empty(t, deregisters)
-		require.Equal(t, []string{fleet.ActivityTypeAddedConditionalAccessIntegrationGoogle{}.ActivityName()}, g.activities)
+		require.Equal(t, []string{automdm.ActivityTypeAddedConditionalAccessIntegrationGoogle{}.ActivityName()}, g.activities)
 	})
 
 	t.Run("a config update drops a registration that can't be saved", func(t *testing.T) {
 		g := newGoogleCADisconnectTest(t, "")
 		g.saveSecretErr = errors.New("save failed")
-		_, err := g.svc.ModifyAppConfig(g.ctx, []byte(connectConfig), fleet.ApplySpecOptions{})
+		_, err := g.svc.ModifyAppConfig(g.ctx, []byte(connectConfig), automdm.ApplySpecOptions{})
 		require.ErrorContains(t, err, "save failed")
 		_, _, deregisters, _ := g.relay.calls()
 		require.Equal(t, []string{"C02cajzvg"}, deregisters)
@@ -242,7 +242,7 @@ func TestGoogleConditionalAccessClientDisconnects(t *testing.T) {
 	t.Run("a config update doesn't keep the secret of a customer it left", func(t *testing.T) {
 		g := newGoogleCADisconnectTest(t, "C02cajzvg")
 		_, _ = g.svc.ModifyAppConfig(g.ctx, []byte(`{"integrations": {"google_conditional_access": {"customer_id": "C03other"}}}`),
-			fleet.ApplySpecOptions{})
+			automdm.ApplySpecOptions{})
 		_, _, deregisters, _ := g.relay.calls()
 		require.Equal(t, []string{"C02cajzvg"}, deregisters)
 		require.False(t, g.row.Registered())
@@ -258,7 +258,7 @@ type fakeGoogleCARelay struct {
 
 func (f *fakeGoogleCARelay) Register(_ context.Context, serverURL, customerID string) (*conditional_access_google.Registration, error) {
 	f.registers = append(f.registers, customerID+" "+serverURL)
-	return &conditional_access_google.Registration{FleetServerSecret: "secret-" + customerID}, nil
+	return &conditional_access_google.Registration{AutoMDMServerSecret: "secret-" + customerID}, nil
 }
 
 func (f *fakeGoogleCARelay) Deregister(_ context.Context, serverURL, customerID, _ string) error {
@@ -270,7 +270,7 @@ func (f *fakeGoogleCARelay) Deregister(_ context.Context, serverURL, customerID,
 }
 
 func (f *fakeGoogleCARelay) SignInURL(customerID, hostUUID, token string) (string, error) {
-	return "https://fleetdm.example.com/sign-in?" + customerID + hostUUID + token, nil
+	return "https://automdm.example.com/sign-in?" + customerID + hostUUID + token, nil
 }
 
 type fakeGoogleCACloudIdentity struct {
@@ -280,7 +280,7 @@ type fakeGoogleCACloudIdentity struct {
 
 func (f fakeGoogleCACloudIdentity) CheckDelegation(context.Context) error { return f.delegationErr }
 
-func (f fakeGoogleCACloudIdentity) SetClientState(_ context.Context, name string, state fleet.GoogleConditionalAccessClientState) error {
+func (f fakeGoogleCACloudIdentity) SetClientState(_ context.Context, name string, state automdm.GoogleConditionalAccessClientState) error {
 	if state.Managed != nil && !*state.Managed {
 		*f.unmanaged = append(*f.unmanaged, name)
 	}
@@ -300,14 +300,14 @@ func (f fakeGoogleCACloudIdentity) DeviceExists(context.Context, string) (bool, 
 }
 
 type googleCAAppConfigTest struct {
-	svc       fleet.Service
+	svc       automdm.Service
 	ctx       context.Context
 	ds        *mock.Store
 	relay     *fakeGoogleCARelay
 	unmanaged []string
-	rows      []fleet.ConditionalAccessGoogleIntegration // saved rows, in order
-	config    *fleet.AppConfig                           // the stored app config
-	saveErr   error                                      // returned by SaveAppConfig
+	rows      []automdm.ConditionalAccessGoogleIntegration // saved rows, in order
+	config    *automdm.AppConfig                           // the stored app config
+	saveErr   error                                        // returned by SaveAppConfig
 	// storedKey is the stored service account key, nil when none is stored.
 	storedKey []byte
 	// checkedKeys are the keys the delegation check ran with, in order.
@@ -323,59 +323,59 @@ func newGoogleCAAppConfigTest(t *testing.T) *googleCAAppConfigTest {
 	g := &googleCAAppConfigTest{ds: new(mock.Store), relay: &fakeGoogleCARelay{}, storedKey: []byte(googleCATestKey)}
 	ds := g.ds
 
-	dsAppConfig := &fleet.AppConfig{
-		OrgInfo:        fleet.OrgInfo{OrgName: "Test"},
-		ServerSettings: fleet.ServerSettings{ServerURL: "https://old.example.com"},
+	dsAppConfig := &automdm.AppConfig{
+		OrgInfo:        automdm.OrgInfo{OrgName: "Test"},
+		ServerSettings: automdm.ServerSettings{ServerURL: "https://old.example.com"},
 	}
-	dsAppConfig.Integrations.GoogleConditionalAccess = &fleet.GoogleConditionalAccessIntegration{
+	dsAppConfig.Integrations.GoogleConditionalAccess = &automdm.GoogleConditionalAccessIntegration{
 		CustomerID: "C02cajzvg", AdminEmail: "admin@example.com",
 	}
 	g.config = dsAppConfig
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) { return dsAppConfig.Copy(), nil }
-	ds.SaveAppConfigFunc = func(ctx context.Context, conf *fleet.AppConfig) error {
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) { return dsAppConfig.Copy(), nil }
+	ds.SaveAppConfigFunc = func(ctx context.Context, conf *automdm.AppConfig) error {
 		if g.saveErr != nil {
 			return g.saveErr
 		}
 		*dsAppConfig = *conf
 		return nil
 	}
-	ds.ListVPPTokensFunc = func(ctx context.Context) ([]*fleet.VPPTokenDB, error) { return []*fleet.VPPTokenDB{}, nil }
-	ds.ListABMTokensFunc = func(ctx context.Context) ([]*fleet.ABMToken, error) { return []*fleet.ABMToken{}, nil }
+	ds.ListVPPTokensFunc = func(ctx context.Context) ([]*automdm.VPPTokenDB, error) { return []*automdm.VPPTokenDB{}, nil }
+	ds.ListABMTokensFunc = func(ctx context.Context) ([]*automdm.ABMToken, error) { return []*automdm.ABMToken{}, nil }
 	// A server URL change queues a DEP profile sync.
-	ds.NewJobFunc = func(ctx context.Context, job *fleet.Job) (*fleet.Job, error) { return job, nil }
+	ds.NewJobFunc = func(ctx context.Context, job *automdm.Job) (*automdm.Job, error) { return job, nil }
 
-	ds.GetGoogleConditionalAccessIntegrationFunc = func(ctx context.Context) (*fleet.ConditionalAccessGoogleIntegration, error) {
-		return &fleet.ConditionalAccessGoogleIntegration{
-			ProxyServerSecret: "secret-" + "C02cajzvg", State: fleet.ConditionalAccessGoogleStateConnected,
+	ds.GetGoogleConditionalAccessIntegrationFunc = func(ctx context.Context) (*automdm.ConditionalAccessGoogleIntegration, error) {
+		return &automdm.ConditionalAccessGoogleIntegration{
+			ProxyServerSecret: "secret-" + "C02cajzvg", State: automdm.ConditionalAccessGoogleStateConnected,
 		}, nil
 	}
-	ds.SaveGoogleConditionalAccessIntegrationFunc = func(ctx context.Context, row *fleet.ConditionalAccessGoogleIntegration) error {
+	ds.SaveGoogleConditionalAccessIntegrationFunc = func(ctx context.Context, row *automdm.ConditionalAccessGoogleIntegration) error {
 		g.rows = append(g.rows, *row)
 		return nil
 	}
-	ds.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, names []fleet.MDMAssetName, _ sqlx.QueryerContext) (map[fleet.MDMAssetName]fleet.MDMConfigAsset, error) {
+	ds.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, names []automdm.MDMAssetName, _ sqlx.QueryerContext) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
 		if g.storedKey == nil {
 			return nil, &notFoundError{}
 		}
-		return map[fleet.MDMAssetName]fleet.MDMConfigAsset{
-			fleet.MDMAssetGoogleConditionalAccessServiceAccountKey: {Value: g.storedKey},
+		return map[automdm.MDMAssetName]automdm.MDMConfigAsset{
+			automdm.MDMAssetGoogleConditionalAccessServiceAccountKey: {Value: g.storedKey},
 		}, nil
 	}
-	ds.ReplaceMDMConfigAssetsFunc = func(ctx context.Context, assets []fleet.MDMConfigAsset, _ sqlx.ExtContext) error {
+	ds.ReplaceMDMConfigAssetsFunc = func(ctx context.Context, assets []automdm.MDMConfigAsset, _ sqlx.ExtContext) error {
 		for _, a := range assets {
-			if a.Name == fleet.MDMAssetGoogleConditionalAccessServiceAccountKey {
+			if a.Name == automdm.MDMAssetGoogleConditionalAccessServiceAccountKey {
 				g.storedKey = a.Value
 			}
 		}
 		return nil
 	}
-	ds.DeleteMDMConfigAssetsByNameFunc = func(ctx context.Context, names []fleet.MDMAssetName) error {
+	ds.DeleteMDMConfigAssetsByNameFunc = func(ctx context.Context, names []automdm.MDMAssetName) error {
 		g.storedKey = nil
 		return nil
 	}
 
 	opts := &TestServerOpts{
-		License: &fleet.LicenseInfo{Tier: fleet.TierPremium},
+		License: &automdm.LicenseInfo{Tier: automdm.TierPremium},
 		ConditionalAccessGoogleClient: &GoogleConditionalAccessClient{
 			Relay: g.relay,
 			CloudIdentity: func(_ context.Context, creds conditional_access_google.Credentials) (conditional_access_google.CloudIdentity, error) {
@@ -389,21 +389,21 @@ func newGoogleCAAppConfigTest(t *testing.T) *googleCAAppConfigTest {
 	svc, ctx := newTestServiceWithConfig(t, ds, cfg, nil, nil, opts)
 	opts.ActivityMock.NewActivityFunc = func(context.Context, *activity_api.User, activity_api.ActivityDetails) error { return nil }
 	g.svc = svc
-	g.ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{GlobalRole: new(fleet.RoleAdmin)}})
+	g.ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{GlobalRole: new(automdm.RoleAdmin)}})
 	return g
 }
 
 func TestModifyAppConfigGoogleConditionalAccessUnrelatedUpdate(t *testing.T) {
 	g := newGoogleCAAppConfigTest(t)
 
-	_, err := g.svc.ModifyAppConfig(g.ctx, []byte(`{"org_info": {"org_name": "Test2"}}`), fleet.ApplySpecOptions{})
+	_, err := g.svc.ModifyAppConfig(g.ctx, []byte(`{"org_info": {"org_name": "Test2"}}`), automdm.ApplySpecOptions{})
 	require.NoError(t, err)
 	require.False(t, g.ds.GetGoogleConditionalAccessIntegrationFuncInvoked)
 	require.False(t, g.ds.GetAllMDMConfigAssetsByNameFuncInvoked)
 }
 
 func TestModifyAppConfigGoogleConditionalAccessGitOps(t *testing.T) {
-	gitops := fleet.ApplySpecOptions{Overwrite: true}
+	gitops := automdm.ApplySpecOptions{Overwrite: true}
 
 	t.Run("a null setting deregisters and turns it off", func(t *testing.T) {
 		g := newGoogleCAAppConfigTest(t)
@@ -413,11 +413,11 @@ func TestModifyAppConfigGoogleConditionalAccessGitOps(t *testing.T) {
 		require.Equal(t, []string{"C02cajzvg https://old.example.com"}, g.relay.deregisters)
 		require.Empty(t, g.unmanaged)
 		require.Nil(t, g.storedKey)
-		require.Equal(t, []fleet.ConditionalAccessGoogleIntegration{{State: fleet.ConditionalAccessGoogleStateDeleted}}, g.rows)
+		require.Equal(t, []automdm.ConditionalAccessGoogleIntegration{{State: automdm.ConditionalAccessGoogleStateDeleted}}, g.rows)
 		require.Nil(t, g.config.Integrations.GoogleConditionalAccess)
 	})
 
-	t.Run("a missing setting keeps it, as older fleetctl versions never send it", func(t *testing.T) {
+	t.Run("a missing setting keeps it, as older automdmctl versions never send it", func(t *testing.T) {
 		g := newGoogleCAAppConfigTest(t)
 
 		_, err := g.svc.ModifyAppConfig(g.ctx, []byte(`{"org_info": {"org_name": "Test2"}}`), gitops)
@@ -429,7 +429,7 @@ func TestModifyAppConfigGoogleConditionalAccessGitOps(t *testing.T) {
 	t.Run("a null setting outside GitOps keeps it", func(t *testing.T) {
 		g := newGoogleCAAppConfigTest(t)
 
-		_, err := g.svc.ModifyAppConfig(g.ctx, []byte(`{"integrations": {"google_conditional_access": null}}`), fleet.ApplySpecOptions{})
+		_, err := g.svc.ModifyAppConfig(g.ctx, []byte(`{"integrations": {"google_conditional_access": null}}`), automdm.ApplySpecOptions{})
 		require.NoError(t, err)
 		require.Empty(t, g.relay.deregisters)
 		require.NotNil(t, g.config.Integrations.GoogleConditionalAccess)
@@ -438,27 +438,27 @@ func TestModifyAppConfigGoogleConditionalAccessGitOps(t *testing.T) {
 
 func TestModifyAppConfigGoogleConditionalAccessRemoval(t *testing.T) {
 	const turnOff = `{"integrations": {"google_conditional_access": null}}`
-	gitops := fleet.ApplySpecOptions{Overwrite: true}
+	gitops := automdm.ApplySpecOptions{Overwrite: true}
 
 	t.Run("failed deregistration changes nothing", func(t *testing.T) {
 		g := newGoogleCAAppConfigTest(t)
 		g.relay.deregisterErr = &conditional_access_google.RelayStatusError{Code: 503}
 
 		_, err := g.svc.ModifyAppConfig(g.ctx, []byte(turnOff), gitops)
-		var gwErr *fleet.GatewayError
+		var gwErr *automdm.GatewayError
 		require.ErrorAs(t, err, &gwErr)
 		require.False(t, g.ds.DeleteMDMConfigAssetsByNameFuncInvoked)
 		require.Empty(t, g.rows)
 		require.False(t, g.ds.SaveAppConfigFuncInvoked)
 	})
 
-	t.Run("a missing registration on fleetdm.com doesn't block it", func(t *testing.T) {
+	t.Run("a missing registration on automdm.com doesn't block it", func(t *testing.T) {
 		g := newGoogleCAAppConfigTest(t)
 		g.relay.deregisterErr = &notFoundError{}
 
 		_, err := g.svc.ModifyAppConfig(g.ctx, []byte(turnOff), gitops)
 		require.NoError(t, err)
-		require.Equal(t, []fleet.ConditionalAccessGoogleIntegration{{State: fleet.ConditionalAccessGoogleStateDeleted}}, g.rows)
+		require.Equal(t, []automdm.ConditionalAccessGoogleIntegration{{State: automdm.ConditionalAccessGoogleStateDeleted}}, g.rows)
 		require.Nil(t, g.storedKey)
 		require.Nil(t, g.config.Integrations.GoogleConditionalAccess)
 	})
@@ -471,7 +471,7 @@ func TestModifyAppConfigGoogleConditionalAccessRemoval(t *testing.T) {
 		require.ErrorContains(t, err, "save failed")
 		// The registration is gone, so the row can't keep its secret.
 		require.Equal(t, []string{"C02cajzvg https://old.example.com"}, g.relay.deregisters)
-		require.Equal(t, []fleet.ConditionalAccessGoogleIntegration{{State: fleet.ConditionalAccessGoogleStateDeleted}}, g.rows)
+		require.Equal(t, []automdm.ConditionalAccessGoogleIntegration{{State: automdm.ConditionalAccessGoogleStateDeleted}}, g.rows)
 		require.False(t, g.ds.DeleteMDMConfigAssetsByNameFuncInvoked)
 		require.NotNil(t, g.config.Integrations.GoogleConditionalAccess)
 	})
@@ -482,7 +482,7 @@ func TestModifyAppConfigGoogleConditionalAccessRemoval(t *testing.T) {
 		_, err := g.svc.ModifyAppConfig(g.ctx, []byte(`{
 			"server_settings": {"server_url": "https://new.example.com"},
 			"integrations": {"google_conditional_access": {"customer_id": "C03other"}}
-		}`), fleet.ApplySpecOptions{})
+		}`), automdm.ApplySpecOptions{})
 		require.NoError(t, err)
 		require.Equal(t, []string{"C02cajzvg https://old.example.com"}, g.relay.deregisters)
 		require.Equal(t, []string{"C03other https://new.example.com"}, g.relay.registers)
@@ -491,7 +491,7 @@ func TestModifyAppConfigGoogleConditionalAccessRemoval(t *testing.T) {
 }
 
 func TestModifyAppConfigGoogleConditionalAccessKey(t *testing.T) {
-	gitops := fleet.ApplySpecOptions{Overwrite: true}
+	gitops := automdm.ApplySpecOptions{Overwrite: true}
 	const newKey = `{"client_email":"sa2@example.com","private_key":"pk2"}`
 	withKey := func(key string) []byte {
 		return []byte(`{"integrations": {"google_conditional_access": {
@@ -506,10 +506,10 @@ func TestModifyAppConfigGoogleConditionalAccessKey(t *testing.T) {
 		require.Equal(t, []string{newKey}, g.checkedKeys)
 		require.JSONEq(t, newKey, string(g.storedKey))
 		require.Len(t, g.rows, 1)
-		require.Equal(t, fleet.ConditionalAccessGoogleStateConnected, g.rows[0].State)
+		require.Equal(t, automdm.ConditionalAccessGoogleStateConnected, g.rows[0].State)
 		require.Empty(t, g.relay.registers)
 		require.Empty(t, g.relay.deregisters)
-		require.Equal(t, &fleet.GoogleConditionalAccessIntegration{CustomerID: "C02cajzvg", AdminEmail: "admin@example.com"},
+		require.Equal(t, &automdm.GoogleConditionalAccessIntegration{CustomerID: "C02cajzvg", AdminEmail: "admin@example.com"},
 			g.config.Integrations.GoogleConditionalAccess)
 	})
 
@@ -537,7 +537,7 @@ func TestModifyAppConfigGoogleConditionalAccessKey(t *testing.T) {
 	t.Run("a dry run checks the new key and stores nothing", func(t *testing.T) {
 		g := newGoogleCAAppConfigTest(t)
 
-		_, err := g.svc.ModifyAppConfig(g.ctx, withKey(newKey), fleet.ApplySpecOptions{Overwrite: true, DryRun: true})
+		_, err := g.svc.ModifyAppConfig(g.ctx, withKey(newKey), automdm.ApplySpecOptions{Overwrite: true, DryRun: true})
 		require.NoError(t, err)
 		require.Equal(t, []string{newKey}, g.checkedKeys)
 		require.False(t, g.ds.ReplaceMDMConfigAssetsFuncInvoked)
@@ -550,7 +550,7 @@ func TestModifyAppConfigGoogleConditionalAccessKey(t *testing.T) {
 
 		_, err := g.svc.ModifyAppConfig(g.ctx, withKey(newKey), gitops)
 		require.ErrorContains(t, err, "unauthorized_client")
-		var invalid *fleet.InvalidArgumentError
+		var invalid *automdm.InvalidArgumentError
 		require.ErrorAs(t, err, &invalid)
 		require.False(t, g.ds.ReplaceMDMConfigAssetsFuncInvoked)
 		require.Empty(t, g.rows)
@@ -579,7 +579,7 @@ func TestModifyAppConfigGoogleConditionalAccessKey(t *testing.T) {
 		g := newGoogleCAAppConfigTest(t)
 		g.config.Integrations.GoogleConditionalAccess = nil
 		g.storedKey = nil
-		g.ds.GetGoogleConditionalAccessIntegrationFunc = func(ctx context.Context) (*fleet.ConditionalAccessGoogleIntegration, error) {
+		g.ds.GetGoogleConditionalAccessIntegrationFunc = func(ctx context.Context) (*automdm.ConditionalAccessGoogleIntegration, error) {
 			return nil, &notFoundError{}
 		}
 
@@ -588,23 +588,23 @@ func TestModifyAppConfigGoogleConditionalAccessKey(t *testing.T) {
 		require.Equal(t, []string{newKey}, g.checkedKeys)
 		require.JSONEq(t, newKey, string(g.storedKey))
 		require.Equal(t, []string{"C02cajzvg https://old.example.com"}, g.relay.registers)
-		require.Equal(t, fleet.ConditionalAccessGoogleStateConnected, g.rows[len(g.rows)-1].State)
+		require.Equal(t, automdm.ConditionalAccessGoogleStateConnected, g.rows[len(g.rows)-1].State)
 		require.Empty(t, g.config.Integrations.GoogleConditionalAccess.APIKeyJSON)
 	})
 }
 
 func TestModifyAppConfigGoogleConditionalAccessKeyRequired(t *testing.T) {
 	const settings = `{"integrations": {"google_conditional_access": {"customer_id": "C02cajzvg", "admin_email": "admin@example.com"}}}`
-	for _, opts := range []fleet.ApplySpecOptions{{}, {Overwrite: true}, {Overwrite: true, DryRun: true}} {
+	for _, opts := range []automdm.ApplySpecOptions{{}, {Overwrite: true}, {Overwrite: true, DryRun: true}} {
 		g := newGoogleCAAppConfigTest(t)
 		g.config.Integrations.GoogleConditionalAccess = nil
 		g.storedKey = nil
-		g.ds.GetGoogleConditionalAccessIntegrationFunc = func(ctx context.Context) (*fleet.ConditionalAccessGoogleIntegration, error) {
-			return &fleet.ConditionalAccessGoogleIntegration{State: fleet.ConditionalAccessGoogleStateDeleted}, nil
+		g.ds.GetGoogleConditionalAccessIntegrationFunc = func(ctx context.Context) (*automdm.ConditionalAccessGoogleIntegration, error) {
+			return &automdm.ConditionalAccessGoogleIntegration{State: automdm.ConditionalAccessGoogleStateDeleted}, nil
 		}
 
 		_, err := g.svc.ModifyAppConfig(g.ctx, []byte(settings), opts)
-		var invalid *fleet.InvalidArgumentError
+		var invalid *automdm.InvalidArgumentError
 		require.ErrorAs(t, err, &invalid)
 		require.Equal(t, []map[string]string{{
 			"name":   "integrations.google_conditional_access.api_key_json",

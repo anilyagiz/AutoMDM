@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/tools/hangar/internal/paths"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/paths"
 	"gopkg.in/yaml.v3"
 )
 

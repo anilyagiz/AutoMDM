@@ -1,16 +1,16 @@
 import { render, screen } from "@testing-library/react";
 import React from "react";
 
-import fleetAvatar from "../../../assets/images/fleet-avatar-24x24@2x.png";
+import automdmAvatar from "../../../assets/images/automdm-avatar-24x24@2x.png";
 
 import OrgLogoIcon from "./OrgLogoIcon";
 
 describe("OrgLogoIcon - component", () => {
-  it("renders the Fleet Logo by default", () => {
+  it("renders the AutoMDM Logo by default", () => {
     render(<OrgLogoIcon />);
 
-    // expect(component.state("imageSrc")).toEqual(fleetAvatar);
-    expect(screen.getByRole("img")).toHaveAttribute("src", fleetAvatar);
+    // expect(component.state("imageSrc")).toEqual(automdmAvatar);
+    expect(screen.getByRole("img")).toHaveAttribute("src", automdmAvatar);
   });
 
   it("renders the image source when it is valid", () => {

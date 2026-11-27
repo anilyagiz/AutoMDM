@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -32,8 +32,8 @@ const (
 var queryReportWritesSkipped = mustNewQueryReportWritesSkippedCounter()
 
 func mustNewQueryReportWritesSkippedCounter() metric.Int64Counter {
-	c, err := otel.Meter("fleet").Int64Counter(
-		"fleet.query_reports.result_writes_skipped",
+	c, err := otel.Meter("automdm").Int64Counter(
+		"automdm.query_reports.result_writes_skipped",
 		metric.WithDescription("Count of report results not written to the database, by reason"),
 		metric.WithUnit("{result}"),
 	)
@@ -79,7 +79,7 @@ const (
 )
 
 // acquireQueryReportWriteSlot takes one of the osquery.max_concurrent_query_report_writes slots
-// shared by all Fleet servers. If they can't be reached it falls back to a per-server limit, so
+// shared by all AutoMDM servers. If they can't be reached it falls back to a per-server limit, so
 // a Redis outage neither blocks nor unbounds writes. ok is false if no slot is free; otherwise
 // release must be called once the writes are done.
 func (svc *Service) acquireQueryReportWriteSlot(ctx context.Context) (release func(), ok bool) {
@@ -114,7 +114,7 @@ func (svc *Service) acquireQueryReportWriteSlot(ctx context.Context) (release fu
 // compared, so the slot also bounds the stored rows held in memory and the comparison work; it
 // may be called more than once. On a read error the rows are returned empty, so every result is
 // written.
-func (svc *Service) readStoredQueryResultRows(ctx context.Context, hostID uint, queryIDs []uint) (rows map[uint][]*fleet.StoredQueryResultRow, release func(), busy bool) {
+func (svc *Service) readStoredQueryResultRows(ctx context.Context, hostID uint, queryIDs []uint) (rows map[uint][]*automdm.StoredQueryResultRow, release func(), busy bool) {
 	if !tryAcquireSlot(svc.queryReportReadSem) {
 		return nil, nil, true
 	}
@@ -129,7 +129,7 @@ func (svc *Service) readStoredQueryResultRows(ctx context.Context, hostID uint, 
 }
 
 // queryResultRowsUnchanged reports whether rows hold the same data as stored, in any order.
-func queryResultRowsUnchanged(rows []*fleet.ScheduledQueryResultRow, stored []*fleet.StoredQueryResultRow) bool {
+func queryResultRowsUnchanged(rows []*automdm.ScheduledQueryResultRow, stored []*automdm.StoredQueryResultRow) bool {
 	if len(stored) == 0 || len(rows) != len(stored) {
 		return false
 	}
@@ -161,7 +161,7 @@ const queryResultsLastFetchedRefreshAge = 50 * time.Minute
 
 // queryResultRowsLastFetchedStale reports whether any of the stored rows' last_fetched is older
 // than queryResultsLastFetchedRefreshAge at fetchedAt.
-func queryResultRowsLastFetchedStale(stored []*fleet.StoredQueryResultRow, fetchedAt time.Time) bool {
+func queryResultRowsLastFetchedStale(stored []*automdm.StoredQueryResultRow, fetchedAt time.Time) bool {
 	for _, row := range stored {
 		if fetchedAt.Sub(row.LastFetched) >= queryResultsLastFetchedRefreshAge {
 			return true
@@ -203,7 +203,7 @@ const queryResultsLastFetchedBatchSize = 1000
 // UpdateQueryResultsLastFetched updates last_fetched of the rows recorded by
 // RecordQueryResultsLastFetched for results that arrived unchanged. Run by the
 // query_results_cleanup cron.
-func UpdateQueryResultsLastFetched(ctx context.Context, ds fleet.Datastore, lq fleet.LiveQueryStore) error {
+func UpdateQueryResultsLastFetched(ctx context.Context, ds automdm.Datastore, lq automdm.LiveQueryStore) error {
 	fetched, err := lq.LoadQueryResultsLastFetched()
 	if err != nil {
 		return ctxerr.Wrap(ctx, err, "load query results last fetched")

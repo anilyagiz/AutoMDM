@@ -42,7 +42,7 @@ func (s BranchState) Label() string {
 
 // BranchRow is one deletable local branch in one clone.
 type BranchRow struct {
-	Repo      string      // clone folder base name (e.g. "fleet", "fleet-plan")
+	Repo      string      // clone folder base name (e.g. "team", "automdm-plan")
 	Path      string      // absolute clone path
 	Branch    string      // local branch name
 	State     BranchState // push/merge state
@@ -51,14 +51,14 @@ type BranchRow struct {
 	Protected bool        // current or main/master — never deleted, even in bulk
 }
 
-// ScanFleetBranches finds git repos matching glob under each base dir and lists
+// ScanAutoMDMBranches finds git repos matching glob under each base dir and lists
 // their local branches with push state. When prune is set it runs
 // `git fetch --prune origin` per repo first, so branches whose merged remote was
 // deleted surface as gone rather than looking fully pushed. Best-effort:
 // unreadable or non-git dirs are skipped.
-func ScanFleetBranches(baseDirs []string, glob string, prune bool) []BranchRow {
+func ScanAutoMDMBranches(baseDirs []string, glob string, prune bool) []BranchRow {
 	if glob == "" {
-		glob = "fleet*"
+		glob = "team*"
 	}
 	seen := map[string]bool{}
 	var rows []BranchRow

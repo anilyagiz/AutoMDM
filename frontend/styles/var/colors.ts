@@ -1,26 +1,26 @@
 // Static fallback values (used during SSR or if CSS custom property is missing)
 const STATIC_COLORS = {
   // 2025 branding
-  "core-fleet-black": "#192147",
-  "core-fleet-green": "#009A7D",
-  "core-fleet-white": "#FFFFFF",
-  "ui-fleet-black-75": "#515774",
-  "ui-fleet-black-50": "#8B8FA2",
-  "ui-fleet-black-33": "#B3B6C1",
-  "ui-fleet-black-25": "#C5C7D1",
-  "ui-fleet-black-10": "#E2E4EA",
-  "ui-fleet-black-5": "#F4F4F6",
+  "core-automdm-black": "#192147",
+  "core-automdm-green": "#009A7D",
+  "core-automdm-white": "#FFFFFF",
+  "ui-automdm-black-75": "#515774",
+  "ui-automdm-black-50": "#8B8FA2",
+  "ui-automdm-black-33": "#B3B6C1",
+  "ui-automdm-black-25": "#C5C7D1",
+  "ui-automdm-black-10": "#E2E4EA",
+  "ui-automdm-black-5": "#F4F4F6",
 
   // 2025 secondary colors
-  "ui-fleet-black-75-over": "#454C66",
-  "ui-fleet-black-75-down": "#3A3E59",
-  "core-fleet-green-over": "#00886C",
-  "core-fleet-green-down": "#00775F",
+  "ui-automdm-black-75-over": "#454C66",
+  "ui-automdm-black-75-down": "#3A3E59",
+  "core-automdm-green-over": "#00886C",
+  "core-automdm-green-down": "#00775F",
 
   // core colors
-  "core-fleet-blue": "#3E4771",
-  "core-fleet-red": "#FF5C83",
-  "core-fleet-purple": "#AE6DDF",
+  "core-automdm-blue": "#3E4771",
+  "core-automdm-red": "#FF5C83",
+  "core-automdm-purple": "#AE6DDF",
 
   // ui colors
   "core-vibrant-blue": "#6A67FE",
@@ -36,7 +36,7 @@ const STATIC_COLORS = {
   "ui-success": "#3db67b",
   "ui-error": "#d66c7b",
   "ui-warning": "#ebbc43",
-  "ui-fleet-black-5-down": "#F0F1F4",
+  "ui-automdm-black-5-down": "#F0F1F4",
 
   // Notifications & status
   "status-success": "#3DB67B",

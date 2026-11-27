@@ -39,7 +39,7 @@ The source docs branch is auto-detected from the PR's base branch.
    - `ALL_COMMITS` = all commit SHAs in `commits[].oid`, in order (oldest first)
    - `HEAD_COMMIT` = the last commit SHA in `commits[].oid`
    - `PR_TITLE` = the PR title
-   - `UPSTREAM_REPO` = the org/repo from the PR URL (e.g., `fleetdm/fleet`):
+   - `UPSTREAM_REPO` = the org/repo from the PR URL (e.g., `automdm/automdm`):
      ```
      gh pr view <PR_NUMBER> --json url --jq '.url | split("/")[3:5] | join("/")'
      ```
@@ -88,7 +88,7 @@ Retarget the original PR from the source docs branch to the target docs branch. 
    ```
    If this push is denied by a permission rule, hand the exact command to the user to run in their own terminal — do not abandon the rebase.
 
-5. Retarget the original PR. Always use the REST API — `gh pr edit --base` fails on fleetdm/fleet with a GraphQL "Projects (classic)" deprecation error:
+5. Retarget the original PR. Always use the REST API — `gh pr edit --base` fails on automdm/automdm with a GraphQL "Projects (classic)" deprecation error:
    ```
    gh api repos/<UPSTREAM_REPO>/pulls/<PR_NUMBER> --method PATCH --field base=<TARGET_DOCS_BRANCH> --jq '.base.ref'
    ```

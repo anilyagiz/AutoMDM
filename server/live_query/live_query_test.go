@@ -5,14 +5,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/datastore/redis"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis"
 	redigo "github.com/gomodule/redigo/redis"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-var testFunctions = [...]func(*testing.T, fleet.LiveQueryStore){
+var testFunctions = [...]func(*testing.T, automdm.LiveQueryStore){
 	testLiveQuery,
 	testLiveQueryNoTargets,
 	testLiveQueryStopQuery,
@@ -28,7 +28,7 @@ var testFunctions = [...]func(*testing.T, fleet.LiveQueryStore){
 	testLiveQueryQueryReportWriteSlots,
 }
 
-func testLiveQuery(t *testing.T, store fleet.LiveQueryStore) {
+func testLiveQuery(t *testing.T, store automdm.LiveQueryStore) {
 	queries, err := store.QueriesForHost(1)
 	assert.NoError(t, err)
 	assert.Len(t, queries, 0)
@@ -91,11 +91,11 @@ func testLiveQuery(t *testing.T, store fleet.LiveQueryStore) {
 	)
 }
 
-func testLiveQueryNoTargets(t *testing.T, store fleet.LiveQueryStore) {
+func testLiveQueryNoTargets(t *testing.T, store automdm.LiveQueryStore) {
 	assert.Error(t, store.RunQuery("test", "select 1", []uint{}))
 }
 
-func testLiveQueryStopQuery(t *testing.T, store fleet.LiveQueryStore) {
+func testLiveQueryStopQuery(t *testing.T, store automdm.LiveQueryStore) {
 	require.NoError(t, store.RunQuery("test", "select 1", []uint{1, 3}))
 	require.NoError(t, store.RunQuery("test2", "select 2", []uint{1, 3}))
 	require.NoError(t, store.StopQuery("test"))
@@ -105,7 +105,7 @@ func testLiveQueryStopQuery(t *testing.T, store fleet.LiveQueryStore) {
 	assert.Len(t, queries, 1)
 }
 
-func testLiveQueryExpiredQuery(t *testing.T, store fleet.LiveQueryStore) {
+func testLiveQueryExpiredQuery(t *testing.T, store automdm.LiveQueryStore) {
 	oldModulo := cleanupExpiredQueriesModulo
 	cleanupExpiredQueriesModulo = 1 // run the cleanup each time
 	t.Cleanup(func() { cleanupExpiredQueriesModulo = oldModulo })
@@ -134,7 +134,7 @@ func testLiveQueryExpiredQuery(t *testing.T, store fleet.LiveQueryStore) {
 	}, 5*time.Second, 100*time.Millisecond)
 }
 
-func testLiveQueryOnlyExpired(t *testing.T, store fleet.LiveQueryStore) {
+func testLiveQueryOnlyExpired(t *testing.T, store automdm.LiveQueryStore) {
 	oldModulo := cleanupExpiredQueriesModulo
 	cleanupExpiredQueriesModulo = 1 // run the cleanup each time
 	t.Cleanup(func() { cleanupExpiredQueriesModulo = oldModulo })
@@ -157,7 +157,7 @@ func testLiveQueryOnlyExpired(t *testing.T, store fleet.LiveQueryStore) {
 	}, 5*time.Second, 100*time.Millisecond)
 }
 
-func testLiveQueryCleanupInactive(t *testing.T, store fleet.LiveQueryStore) {
+func testLiveQueryCleanupInactive(t *testing.T, store automdm.LiveQueryStore) {
 	ctx := context.Background()
 
 	// get a raw Redis connection to make direct checks
@@ -233,7 +233,7 @@ func testLiveQueryCleanupInactive(t *testing.T, store fleet.LiveQueryStore) {
 	require.Empty(t, m)
 }
 
-func testLiveQuerySetBitOnlyIfKeyExists(t *testing.T, store fleet.LiveQueryStore) {
+func testLiveQuerySetBitOnlyIfKeyExists(t *testing.T, store automdm.LiveQueryStore) {
 	// Create a live query campaign.
 	err := store.RunQuery("test", "SELECT 1;", []uint{1})
 	require.NoError(t, err)
@@ -277,7 +277,7 @@ func testLiveQuerySetBitOnlyIfKeyExists(t *testing.T, store fleet.LiveQueryStore
 	require.Zero(t, n)
 }
 
-func testLiveQueryResultsCounts(t *testing.T, store fleet.LiveQueryStore) {
+func testLiveQueryResultsCounts(t *testing.T, store automdm.LiveQueryStore) {
 	// Use many query IDs so that, in cluster mode, their keys spread across
 	// multiple hash slots - exercising the split-by-slot pipelining.
 	queryIDs := []uint{1, 2, 3, 4, 5, 10, 42, 100, 250, 999}
@@ -346,7 +346,7 @@ func testLiveQueryResultsCounts(t *testing.T, store fleet.LiveQueryStore) {
 	require.Empty(t, counts)
 }
 
-func testLiveQueryCompletionReportsTarget(t *testing.T, store fleet.LiveQueryStore) {
+func testLiveQueryCompletionReportsTarget(t *testing.T, store automdm.LiveQueryStore) {
 	targeted, err := store.QueryCompletedByHost("test", 1)
 	require.NoError(t, err)
 	assert.False(t, targeted, "unknown campaign")
@@ -380,7 +380,7 @@ func testLiveQueryCompletionReportsTarget(t *testing.T, store fleet.LiveQuerySto
 	assert.True(t, targeted, "other host unaffected")
 }
 
-func testLiveQueryReportsHostCount(t *testing.T, store fleet.LiveQueryStore) {
+func testLiveQueryReportsHostCount(t *testing.T, store automdm.LiveQueryStore) {
 	// The key is not covered by the test cleanup key prefix, so remove it before and after.
 	cleanup := func() {
 		conn := store.(*redisLiveQuery).pool.Get()
@@ -427,7 +427,7 @@ func testLiveQueryReportsHostCount(t *testing.T, store fleet.LiveQueryStore) {
 	require.Equal(t, 4, count)
 }
 
-func testLiveQueryReportClipped(t *testing.T, store fleet.LiveQueryStore) {
+func testLiveQueryReportClipped(t *testing.T, store automdm.LiveQueryStore) {
 	// Keys are not covered by the test cleanup key prefix, so clear them after the test.
 	t.Cleanup(func() {
 		require.NoError(t, store.ClearQueryReportsClipped([]uint{1, 2, 3}))
@@ -461,7 +461,7 @@ func testLiveQueryReportClipped(t *testing.T, store fleet.LiveQueryStore) {
 	}, 5*time.Second, 100*time.Millisecond)
 }
 
-func testLiveQueryQueryResultsLastFetched(t *testing.T, store fleet.LiveQueryStore) {
+func testLiveQueryQueryResultsLastFetched(t *testing.T, store automdm.LiveQueryStore) {
 	drain := func() {
 		_, err := store.LoadQueryResultsLastFetched()
 		require.NoError(t, err)
@@ -505,13 +505,13 @@ func testLiveQueryQueryResultsLastFetched(t *testing.T, store fleet.LiveQuerySto
 	queryResultsLastFetchedMaxPending = 2
 	t.Cleanup(func() { queryResultsLastFetchedMaxPending = oldMax })
 	require.NoError(t, store.RecordQueryResultsLastFetched([]uint{5, 6}, t1))
-	require.ErrorIs(t, store.RecordQueryResultsLastFetched([]uint{7}, t1), fleet.ErrQueryResultsLastFetchedFull)
+	require.ErrorIs(t, store.RecordQueryResultsLastFetched([]uint{7}, t1), automdm.ErrQueryResultsLastFetchedFull)
 	got, err = store.LoadQueryResultsLastFetched()
 	require.NoError(t, err)
 	require.Equal(t, map[uint]time.Time{5: t1, 6: t1}, got)
 }
 
-func testLiveQueryQueryReportWriteSlots(t *testing.T, store fleet.LiveQueryStore) {
+func testLiveQueryQueryReportWriteSlots(t *testing.T, store automdm.LiveQueryStore) {
 	release := func(tokens ...string) {
 		for _, token := range tokens {
 			require.NoError(t, store.ReleaseQueryReportWriteSlot(token))

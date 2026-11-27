@@ -7,7 +7,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/fleetdm/fleet/v4/server/mdm/apple/appmanifest"
+	"github.com/anilyagiz/automdm/v4/server/mdm/apple/appmanifest"
 )
 
 func main() {

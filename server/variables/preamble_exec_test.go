@@ -30,11 +30,11 @@ type execShape struct {
 func execShapes() []execShape {
 	self := func(v string) string { return v }
 	return []execShape{
-		{"double-quoted", "#!/bin/sh\nprintf %s \"$FLEET_VAR_HOST_HARDWARE_SERIAL\" > OUT\n", self},
-		{"braced", "#!/bin/sh\nprintf %s \"${FLEET_VAR_HOST_HARDWARE_SERIAL}\" > OUT\n", self},
-		{"no-shebang", "printf %s \"$FLEET_VAR_HOST_HARDWARE_SERIAL\" > OUT\n", self},
-		{"child-shell", "#!/bin/sh\nsh -c 'printf %s \"$FLEET_VAR_HOST_HARDWARE_SERIAL\"' > OUT\n", self},
-		{"path-concat", "#!/bin/sh\nprintf %s \"/var/tmp/c/$FLEET_VAR_HOST_HARDWARE_SERIAL/x\" > OUT\n",
+		{"double-quoted", "#!/bin/sh\nprintf %s \"$AUTOMDM_VAR_HOST_HARDWARE_SERIAL\" > OUT\n", self},
+		{"braced", "#!/bin/sh\nprintf %s \"${AUTOMDM_VAR_HOST_HARDWARE_SERIAL}\" > OUT\n", self},
+		{"no-shebang", "printf %s \"$AUTOMDM_VAR_HOST_HARDWARE_SERIAL\" > OUT\n", self},
+		{"child-shell", "#!/bin/sh\nsh -c 'printf %s \"$AUTOMDM_VAR_HOST_HARDWARE_SERIAL\"' > OUT\n", self},
+		{"path-concat", "#!/bin/sh\nprintf %s \"/var/tmp/c/$AUTOMDM_VAR_HOST_HARDWARE_SERIAL/x\" > OUT\n",
 			func(v string) string { return "/var/tmp/c/" + v + "/x" }},
 	}
 }
@@ -152,7 +152,7 @@ func TestPythonEscapeNeverExecutesValues(t *testing.T) {
 		t.Skip("python3 not installed")
 	}
 
-	// where a $FLEET_VAR_* token can sit; OUT is the round-trip target
+	// where a $AUTOMDM_VAR_* token can sit; OUT is the round-trip target
 	inString := map[string]string{
 		"double-quoted": `open("OUT","w").write("TOKEN")`,
 		"single-quoted": `open("OUT","w").write('TOKEN')`,
@@ -217,7 +217,7 @@ func TestSubstitutingIntoPythonExecutesValues(t *testing.T) {
 	script := filepath.Join(dir, "s.py")
 
 	payload := "X\")\nimport os\nos.system(\"touch " + marker + "\")\nprint(\""
-	src := "#!/usr/bin/env python3\n" + Replace(`print("v: $FLEET_VAR_HOST_UUID")`, "HOST_UUID", payload) + "\n"
+	src := "#!/usr/bin/env python3\n" + Replace(`print("v: $AUTOMDM_VAR_HOST_UUID")`, "HOST_UUID", payload) + "\n"
 	require.NoError(t, os.WriteFile(script, []byte(src), 0o600))
 	_ = exec.Command(python, script).Run()
 

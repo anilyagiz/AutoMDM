@@ -376,7 +376,7 @@ const ProfileForm = ({
     }
     try {
       const { profiles } = await mdmAPI.getProfiles({
-        fleet_id: teamId,
+        team_id: teamId,
         page: 0,
         per_page: PROFILE_NAMES_PER_PAGE,
       });
@@ -609,7 +609,7 @@ const ProfileForm = ({
         )}
         <ProfileBottomBar
           targetType={formData.targetType}
-          fleetName={teamName}
+          automdmName={teamName}
           onEditTargets={
             isPremiumTier ? () => setShowEditTargetsModal(true) : undefined
           }
@@ -621,7 +621,7 @@ const ProfileForm = ({
           profile. */}
       {showEditTargetsModal && (
         <EditTargetsModal
-          fleetId={teamId}
+          automdmId={teamId}
           targets={{
             targetType: formData.targetType,
             includeMode: formData.includeMode,

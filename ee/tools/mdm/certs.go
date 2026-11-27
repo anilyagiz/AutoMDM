@@ -115,7 +115,7 @@ func main() {
 		log.Fatalf("vendor key passphrase must be set in %s", vendorPassEnvName)
 	}
 	// We accept the CSR via environment variable to mitigate against command injection attacks in
-	// the fleetdm.com website code that will call this with untrusted user input.
+	// the automdm.com website code that will call this with untrusted user input.
 	csrBase64 := os.Getenv(csrEnvName)
 	if csrBase64 == "" {
 		log.Fatalf("CSR must be set in %s", csrEnvName)

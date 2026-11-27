@@ -9,7 +9,7 @@ const CreatedManagedLocalAccountActivityItem = ({
 }: IHostActivityItemComponentProps) => {
   return (
     <ActivityItem activity={activity} hideCancel hideShowDetails>
-      <b>Fleet </b>
+      <b>AutoMDM </b>
       created a managed local account for this host.
     </ActivityItem>
   );

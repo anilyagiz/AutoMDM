@@ -10,12 +10,12 @@ import (
 	"net/http"
 	"testing"
 
-	shared_mdm "github.com/fleetdm/fleet/v4/pkg/mdm"
-	"github.com/fleetdm/fleet/v4/server"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
-	"github.com/fleetdm/fleet/v4/server/platform/endpointer"
+	shared_mdm "github.com/anilyagiz/automdm/v4/pkg/mdm"
+	"github.com/anilyagiz/automdm/v4/server"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
+	"github.com/anilyagiz/automdm/v4/server/platform/endpointer"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/androidmanagement/v1"
@@ -42,7 +42,7 @@ func TestAndroid(t *testing.T) {
 func testHappyPath(t *testing.T, s *Suite) {
 	signupDetails := expectSignupDetails(t, s)
 	var signupURL android.EnterpriseSignupResponse
-	s.DoJSON(t, "GET", "/api/v1/fleet/android_enterprise/signup_url", nil, http.StatusOK, &signupURL)
+	s.DoJSON(t, "GET", "/api/v1/automdm/android_enterprise/signup_url", nil, http.StatusOK, &signupURL)
 	assert.Equal(t, signupURL.Url, signupDetails.Url)
 }
 
@@ -52,11 +52,11 @@ type enrollmentTokenRequest struct {
 }
 
 func testCreateEnrollmentToken(t *testing.T, s *Suite) {
-	appCfg := &fleet.AppConfig{
-		MDM: fleet.MDM{
+	appCfg := &automdm.AppConfig{
+		MDM: automdm.MDM{
 			AndroidEnabledAndConfigured: true,
 		},
-		ServerSettings: fleet.ServerSettings{
+		ServerSettings: automdm.ServerSettings{
 			ServerURL: "http://localhost",
 		},
 	}
@@ -66,18 +66,18 @@ func testCreateEnrollmentToken(t *testing.T, s *Suite) {
 	}
 
 	createTeamAndSecret := func(name, secret string, enableEndUserAuth bool) {
-		team, err := s.DS.NewTeam(t.Context(), &fleet.Team{
+		team, err := s.DS.NewTeam(t.Context(), &automdm.Team{
 			Name: name,
-			Config: fleet.TeamConfig{
-				MDM: fleet.TeamMDM{
-					MacOSSetup: fleet.MacOSSetup{
+			Config: automdm.TeamConfig{
+				MDM: automdm.TeamMDM{
+					MacOSSetup: automdm.MacOSSetup{
 						EnableEndUserAuthentication: enableEndUserAuth,
 					},
 				},
 			},
 		})
 		require.NoError(t, err)
-		err = s.DS.ApplyEnrollSecrets(t.Context(), &team.ID, []*fleet.EnrollSecret{
+		err = s.DS.ApplyEnrollSecrets(t.Context(), &team.ID, []*automdm.EnrollSecret{
 			{
 				Secret: secret,
 				TeamID: &team.ID,
@@ -95,7 +95,7 @@ func testCreateEnrollmentToken(t *testing.T, s *Suite) {
 		signupToken, err := server.GenerateRandomURLSafeText(32)
 		require.NoError(t, err)
 
-		callbackURL := fmt.Sprintf("%s/api/v1/fleet/android_enterprise/connect/%s", appCfg.ServerSettings.ServerURL, signupToken)
+		callbackURL := fmt.Sprintf("%s/api/v1/automdm/android_enterprise/connect/%s", appCfg.ServerSettings.ServerURL, signupToken)
 		signupDetails := android.SignupDetails{
 			Name: "test",
 			Url:  callbackURL,
@@ -126,25 +126,25 @@ func testCreateEnrollmentToken(t *testing.T, s *Suite) {
 
 	t.Run("fails", func(t *testing.T) {
 		t.Run("if enroll_secret query param is missing", func(t *testing.T) {
-			s.Do(t, "GET", "/api/v1/fleet/android_enterprise/enrollment_token", nil, http.StatusBadRequest)
+			s.Do(t, "GET", "/api/v1/automdm/android_enterprise/enrollment_token", nil, http.StatusBadRequest)
 		})
 
 		t.Run("if android MDM is not configured", func(t *testing.T) {
-			err := s.DS.ApplyEnrollSecrets(t.Context(), nil, []*fleet.EnrollSecret{{Secret: "valid-secret"}})
+			err := s.DS.ApplyEnrollSecrets(t.Context(), nil, []*automdm.EnrollSecret{{Secret: "valid-secret"}})
 			require.NoError(t, err)
-			s.Do(t, "GET", "/api/v1/fleet/android_enterprise/enrollment_token", nil, http.StatusConflict, "enroll_secret", "valid-secret")
+			s.Do(t, "GET", "/api/v1/automdm/android_enterprise/enrollment_token", nil, http.StatusConflict, "enroll_secret", "valid-secret")
 		})
 
 		t.Run("if enroll secret is invalid", func(t *testing.T) {
 			enableAndroidMDM()
-			s.Do(t, "GET", "/api/v1/fleet/android_enterprise/enrollment_token", nil, http.StatusUnauthorized, "enroll_secret", "secret")
+			s.Do(t, "GET", "/api/v1/automdm/android_enterprise/enrollment_token", nil, http.StatusUnauthorized, "enroll_secret", "secret")
 		})
 
 		t.Run("if android enterprise is missing", func(t *testing.T) {
 			enableAndroidMDM()
 			secret := "global-enterprise-missing"
 			createTeamAndSecret(secret, secret, false)
-			resp := s.Do(t, "GET", "/api/v1/fleet/android_enterprise/enrollment_token", nil, http.StatusNotFound, "enroll_secret", secret)
+			resp := s.Do(t, "GET", "/api/v1/automdm/android_enterprise/enrollment_token", nil, http.StatusNotFound, "enroll_secret", secret)
 			je := decodeJsonError(t, resp)
 
 			require.Contains(t, "Android enterprise", je.Errors[0]["base"])
@@ -155,7 +155,7 @@ func testCreateEnrollmentToken(t *testing.T, s *Suite) {
 			enableAndroidMDM()
 			secret := "global-no-idp-account" // nolint: gosec
 			createTeamAndSecret(secret, secret, false)
-			resp := s.DoRawWithHeaders(t, "GET", "/api/v1/fleet/android_enterprise/enrollment_token", nil, http.StatusUnprocessableEntity, map[string]string{
+			resp := s.DoRawWithHeaders(t, "GET", "/api/v1/automdm/android_enterprise/enrollment_token", nil, http.StatusUnprocessableEntity, map[string]string{
 				"Cookie": fmt.Sprintf("%s=%s", shared_mdm.BYODIdpCookieName, mustBYODIdPSession(t, s, "test-uuid")),
 			}, "enroll_secret", secret)
 			je := decodeJsonError(t, resp)
@@ -168,7 +168,7 @@ func testCreateEnrollmentToken(t *testing.T, s *Suite) {
 			enableAndroidMDM()
 			secret := "team"
 			createTeamAndSecret("team", secret, true)
-			s.DoRaw(t, "GET", "/api/v1/fleet/android_enterprise/enrollment_token", nil, http.StatusUnauthorized, "enroll_secret", secret)
+			s.DoRaw(t, "GET", "/api/v1/automdm/android_enterprise/enrollment_token", nil, http.StatusUnauthorized, "enroll_secret", secret)
 		})
 
 		t.Cleanup(func() {
@@ -185,7 +185,7 @@ func testCreateEnrollmentToken(t *testing.T, s *Suite) {
 			setupAndroidEnterprise()
 
 			var resp android.EnrollmentTokenResponse
-			s.DoJSON(t, "GET", "/api/v1/fleet/android_enterprise/enrollment_token", nil, http.StatusOK, &resp, "enroll_secret", globalSecret)
+			s.DoJSON(t, "GET", "/api/v1/automdm/android_enterprise/enrollment_token", nil, http.StatusOK, &resp, "enroll_secret", globalSecret)
 
 			decoded, err := base64.StdEncoding.DecodeString(resp.EnrollmentToken.EnrollmentToken)
 			require.NoError(t, err)
@@ -212,7 +212,7 @@ func testCreateEnrollmentToken(t *testing.T, s *Suite) {
 			createTeamAndSecret(globalSecret, globalSecret, true)
 			setupAndroidEnterprise()
 			idpEmail := "test@local.com"
-			err := s.DS.InsertMDMIdPAccount(t.Context(), &fleet.MDMIdPAccount{
+			err := s.DS.InsertMDMIdPAccount(t.Context(), &automdm.MDMIdPAccount{
 				Username: "test",
 				Email:    idpEmail,
 			})
@@ -220,7 +220,7 @@ func testCreateEnrollmentToken(t *testing.T, s *Suite) {
 			idpAccount, err := s.DS.GetMDMIdPAccountByEmail(t.Context(), idpEmail)
 			require.NoError(t, err)
 
-			resp := s.DoRawWithHeaders(t, "GET", "/api/v1/fleet/android_enterprise/enrollment_token", nil, http.StatusOK, map[string]string{
+			resp := s.DoRawWithHeaders(t, "GET", "/api/v1/automdm/android_enterprise/enrollment_token", nil, http.StatusOK, map[string]string{
 				"Cookie": fmt.Sprintf("%s=%s", shared_mdm.BYODIdpCookieName, mustBYODIdPSession(t, s, idpAccount.UUID)),
 			}, "enroll_secret", globalSecret)
 
@@ -256,7 +256,7 @@ func testCreateEnrollmentToken(t *testing.T, s *Suite) {
 			createTeamAndSecret(globalSecret, globalSecret, true)
 			setupAndroidEnterprise()
 			idpEmail := "queryparam@local.com"
-			err := s.DS.InsertMDMIdPAccount(t.Context(), &fleet.MDMIdPAccount{
+			err := s.DS.InsertMDMIdPAccount(t.Context(), &automdm.MDMIdPAccount{
 				Username: "queryparam",
 				Email:    idpEmail,
 			})
@@ -266,7 +266,7 @@ func testCreateEnrollmentToken(t *testing.T, s *Suite) {
 
 			sessionID = mustBYODIdPSession(t, s, idpAccount.UUID)
 			resp := s.DoRawWithHeaders(t, "GET",
-				fmt.Sprintf("/api/v1/fleet/android_enterprise/enrollment_token?enroll_secret=%s&fully_managed=true", globalSecret),
+				fmt.Sprintf("/api/v1/automdm/android_enterprise/enrollment_token?enroll_secret=%s&fully_managed=true", globalSecret),
 				nil, http.StatusOK, map[string]string{
 					"Cookie": fmt.Sprintf("%s=%s", shared_mdm.BYODIdpCookieName, sessionID),
 				},
@@ -305,7 +305,7 @@ func testCreateEnrollmentToken(t *testing.T, s *Suite) {
 
 			// the session is single-use: minting the token burned it
 			_, err = shared_mdm.ValidateBYODIdPSession(t.Context(), s.KeyValueStore, clock.C, sessionID)
-			require.ErrorAs(t, err, new(*fleet.AuthRequiredError))
+			require.ErrorAs(t, err, new(*automdm.AuthRequiredError))
 
 			t.Cleanup(func() {
 				mysqltest.TruncateTables(t, s.DS)
@@ -318,7 +318,7 @@ func testCreateEnrollmentToken(t *testing.T, s *Suite) {
 			setupAndroidEnterprise()
 
 			// Create two IdP accounts
-			err := s.DS.InsertMDMIdPAccount(t.Context(), &fleet.MDMIdPAccount{
+			err := s.DS.InsertMDMIdPAccount(t.Context(), &automdm.MDMIdPAccount{
 				Username: "cookie-user",
 				Email:    "cookie@local.com",
 			})
@@ -326,7 +326,7 @@ func testCreateEnrollmentToken(t *testing.T, s *Suite) {
 			cookieAccount, err := s.DS.GetMDMIdPAccountByEmail(t.Context(), "cookie@local.com")
 			require.NoError(t, err)
 
-			err = s.DS.InsertMDMIdPAccount(t.Context(), &fleet.MDMIdPAccount{
+			err = s.DS.InsertMDMIdPAccount(t.Context(), &automdm.MDMIdPAccount{
 				Username: "param-user",
 				Email:    "param@local.com",
 			})
@@ -336,7 +336,7 @@ func testCreateEnrollmentToken(t *testing.T, s *Suite) {
 
 			// the query parameter is not an input; only the session counts
 			resp := s.DoRawWithHeaders(t, "GET",
-				fmt.Sprintf("/api/v1/fleet/android_enterprise/enrollment_token?enroll_secret=%s&fully_managed=true&idp_uuid=%s", globalSecret, paramAccount.UUID),
+				fmt.Sprintf("/api/v1/automdm/android_enterprise/enrollment_token?enroll_secret=%s&fully_managed=true&idp_uuid=%s", globalSecret, paramAccount.UUID),
 				nil, http.StatusOK, map[string]string{
 					"Cookie": fmt.Sprintf("%s=%s", shared_mdm.BYODIdpCookieName, mustBYODIdPSession(t, s, cookieAccount.UUID)),
 				},
@@ -373,7 +373,7 @@ func testCreateEnrollmentToken(t *testing.T, s *Suite) {
 			setupAndroidEnterprise()
 
 			var resp android.EnrollmentTokenResponse
-			s.DoJSON(t, "GET", "/api/v1/fleet/android_enterprise/enrollment_token?fully_managed=true", nil, http.StatusOK, &resp, "enroll_secret", globalSecret)
+			s.DoJSON(t, "GET", "/api/v1/automdm/android_enterprise/enrollment_token?fully_managed=true", nil, http.StatusOK, &resp, "enroll_secret", globalSecret)
 
 			decoded, err := base64.StdEncoding.DecodeString(resp.EnrollmentToken.EnrollmentToken)
 			require.NoError(t, err)
@@ -401,7 +401,7 @@ func testCreateEnrollmentToken(t *testing.T, s *Suite) {
 			setupAndroidEnterprise()
 
 			var resp android.EnrollmentTokenResponse
-			s.DoJSON(t, "GET", "/api/v1/fleet/android_enterprise/enrollment_token?fully_managed=false", nil, http.StatusOK, &resp, "enroll_secret", globalSecret)
+			s.DoJSON(t, "GET", "/api/v1/automdm/android_enterprise/enrollment_token?fully_managed=false", nil, http.StatusOK, &resp, "enroll_secret", globalSecret)
 
 			decoded, err := base64.StdEncoding.DecodeString(resp.EnrollmentToken.EnrollmentToken)
 			require.NoError(t, err)
@@ -433,7 +433,7 @@ func expectSignupDetails(t *testing.T, s *Suite) *android.SignupDetails {
 	s.AndroidProxy.SignupURLsCreateFunc = func(_ context.Context, serverURL, callbackURL string) (*android.SignupDetails, error) {
 		assert.Equal(t, s.Server.URL, serverURL)
 		// We will need to extract the security token from the callbackURL for further testing
-		assert.Contains(t, callbackURL, "/api/v1/fleet/android_enterprise/connect/")
+		assert.Contains(t, callbackURL, "/api/v1/automdm/android_enterprise/connect/")
 		return signupDetails, nil
 	}
 	return signupDetails

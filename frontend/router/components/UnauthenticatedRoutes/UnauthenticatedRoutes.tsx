@@ -5,8 +5,8 @@ interface IAppProps {
 }
 
 export const UnauthenticatedRoutes = ({ children }: IAppProps): JSX.Element => {
-  if (window.location.hostname.includes(".sandbox.fleetdm.com")) {
-    window.location.href = "https://www.fleetdm.com/try-fleet/login";
+  if (window.location.hostname.includes(".sandbox.automdm.com")) {
+    window.location.href = "https://automdm.com/try-automdm/login";
   }
   return <div>{children}</div>;
 };

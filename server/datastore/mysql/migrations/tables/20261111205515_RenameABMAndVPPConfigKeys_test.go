@@ -21,17 +21,17 @@ func TestUp_20261111205515(t *testing.T) {
 				"volume_purchasing_program": [
 					{"location": "Loc A", "teams": ["Workstations", "BYOD"]}, {"location": "Loc B", "teams": []}]}`,
 			want: `{"apple_business_manager": [
-					{"organization_name": "Org A", "macos_fleet": "Workstations", "ios_fleet": "", "ipados_fleet": "Tablets", "byod_fleet": "BYOD"},
-					{"organization_name": "Org B", "default": true, "macos_fleet": "", "ios_fleet": "", "ipados_fleet": "", "byod_fleet": ""}],
+					{"organization_name": "Org A", "macos_team": "Workstations", "ios_team": "", "ipados_team": "Tablets", "byod_team": "BYOD"},
+					{"organization_name": "Org B", "default": true, "macos_team": "", "ios_team": "", "ipados_team": "", "byod_team": ""}],
 				"volume_purchasing_program": [
-					{"location": "Loc A", "fleets": ["Workstations", "BYOD"]}, {"location": "Loc B", "fleets": []}]}`,
+					{"location": "Loc A", "teams": ["Workstations", "BYOD"]}, {"location": "Loc B", "teams": []}]}`,
 		},
 		{
 			name: "new key wins over old",
-			old: `{"apple_business_manager": [{"organization_name": "Org A", "macos_team": "Old", "macos_fleet": "New"}],
-				"volume_purchasing_program": [{"location": "Loc A", "teams": ["Old"], "fleets": ["New"]}]}`,
-			want: `{"apple_business_manager": [{"organization_name": "Org A", "macos_fleet": "New"}],
-				"volume_purchasing_program": [{"location": "Loc A", "fleets": ["New"]}]}`,
+			old: `{"apple_business_manager": [{"organization_name": "Org A", "macos_team": "Old", "macos_team": "New"}],
+				"volume_purchasing_program": [{"location": "Loc A", "teams": ["Old"], "teams": ["New"]}]}`,
+			want: `{"apple_business_manager": [{"organization_name": "Org A", "macos_team": "New"}],
+				"volume_purchasing_program": [{"location": "Loc A", "teams": ["New"]}]}`,
 		},
 		{
 			name: "null and missing lists",
@@ -40,8 +40,8 @@ func TestUp_20261111205515(t *testing.T) {
 		},
 		{
 			name: "already migrated",
-			old:  `{"apple_business_manager": [{"organization_name": "Org A", "macos_fleet": "Workstations"}]}`,
-			want: `{"apple_business_manager": [{"organization_name": "Org A", "macos_fleet": "Workstations"}]}`,
+			old:  `{"apple_business_manager": [{"organization_name": "Org A", "macos_team": "Workstations"}]}`,
+			want: `{"apple_business_manager": [{"organization_name": "Org A", "macos_team": "Workstations"}]}`,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

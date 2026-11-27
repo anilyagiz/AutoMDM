@@ -1,24 +1,24 @@
-/* Layout: one 1120px column in Fleet's product style. A summary card states the
-   verdict, then sections of bordered cards and Fleet-style tables. Light colors,
-   type, links, and buttons follow fleetdm.com (website/assets/styles); the dark
-   blocks use Fleet's product dark palette, since the website has no dark mode. The viewer stamps
+/* Layout: one 1120px column in AutoMDM's product style. A summary card states the
+   verdict, then sections of bordered cards and AutoMDM-style tables. Light colors,
+   type, links, and buttons follow automdm.com (website/assets/styles); the dark
+   blocks use AutoMDM's product dark palette, since the website has no dark mode. The viewer stamps
    data-theme with its own theme setting, so the page's Light / Dark / System
    choice uses data-dex-theme and wins over it; System follows data-theme, then
    the OS. */
 :root {
-  --core-fleet-black: #192147;
-  --core-fleet-white: #ffffff;
-  --core-fleet-green: #009a7d;
-  --ui-fleet-black-75: #515774;
-  --ui-fleet-black-50: #8b8fa2;
-  --ui-fleet-black-33: #b3b6c1;
-  --ui-fleet-black-25: #c5c7d1;
-  --ui-fleet-black-10: #e2e4ea;
-  --ui-fleet-black-5: #f2f2f5;
+  --core-automdm-black: #192147;
+  --core-automdm-white: #ffffff;
+  --core-automdm-green: #009a7d;
+  --ui-automdm-black-75: #515774;
+  --ui-automdm-black-50: #8b8fa2;
+  --ui-automdm-black-33: #b3b6c1;
+  --ui-automdm-black-25: #c5c7d1;
+  --ui-automdm-black-10: #e2e4ea;
+  --ui-automdm-black-5: #f2f2f5;
   --ui-off-white: #f9fafc;
   --tooltip-bg: #3e4771;
   --tooltip-ink: #ffffff;
-  /* Chart and status marks: Fleet's status colors, with the red and amber
+  /* Chart and status marks: AutoMDM's status colors, with the red and amber
      deepened so every pair stays distinct for color-blind readers. */
   --bad: #c94f63;
   --serious: #ae6ddf;
@@ -31,18 +31,18 @@
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]):not([data-dex-theme="light"]) {
-    --core-fleet-black: #e2e4ea; --core-fleet-white: #1a1c21; --core-fleet-green: #00c28b;
-    --ui-fleet-black-75: #bebebf; --ui-fleet-black-50: #87888b; --ui-fleet-black-33: #5a5e68; --ui-fleet-black-25: #42464f;
-    --ui-fleet-black-10: #32363e; --ui-fleet-black-5: #25272d; --ui-off-white: #1e2128;
+    --core-automdm-black: #e2e4ea; --core-automdm-white: #1a1c21; --core-automdm-green: #00c28b;
+    --ui-automdm-black-75: #bebebf; --ui-automdm-black-50: #87888b; --ui-automdm-black-33: #5a5e68; --ui-automdm-black-25: #42464f;
+    --ui-automdm-black-10: #32363e; --ui-automdm-black-5: #25272d; --ui-off-white: #1e2128;
     --tooltip-bg: #353940; --tooltip-ink: #e2e4ea;
     --bad: #c95e72; --serious: #9c6cd4; --warn: #b8892a; --info: #6d6bea; --good: #2f9c6b; --neutral: #4a4f5a;
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"]:not([data-dex-theme="light"]), :root[data-dex-theme="dark"] {
-  --core-fleet-black: #e2e4ea; --core-fleet-white: #1a1c21; --core-fleet-green: #00c28b;
-  --ui-fleet-black-75: #bebebf; --ui-fleet-black-50: #87888b; --ui-fleet-black-33: #5a5e68; --ui-fleet-black-25: #42464f;
-  --ui-fleet-black-10: #32363e; --ui-fleet-black-5: #25272d; --ui-off-white: #1e2128;
+  --core-automdm-black: #e2e4ea; --core-automdm-white: #1a1c21; --core-automdm-green: #00c28b;
+  --ui-automdm-black-75: #bebebf; --ui-automdm-black-50: #87888b; --ui-automdm-black-33: #5a5e68; --ui-automdm-black-25: #42464f;
+  --ui-automdm-black-10: #32363e; --ui-automdm-black-5: #25272d; --ui-off-white: #1e2128;
   --tooltip-bg: #353940; --tooltip-ink: #e2e4ea;
   --bad: #c95e72; --serious: #9c6cd4; --warn: #b8892a; --info: #6d6bea; --good: #2f9c6b; --neutral: #4a4f5a;
   color-scheme: dark;
@@ -51,14 +51,14 @@
 
 /* Short aliases the pages use. */
 :root {
-  --bg: var(--core-fleet-white);
-  --panel: var(--core-fleet-white);
+  --bg: var(--core-automdm-white);
+  --panel: var(--core-automdm-white);
   --panel-2: var(--ui-off-white);
-  --ink: var(--core-fleet-black);
-  --ink-2: var(--ui-fleet-black-75);
-  --ink-3: var(--ui-fleet-black-75);
-  --line: var(--ui-fleet-black-10);
-  --line-2: var(--ui-fleet-black-25);
+  --ink: var(--core-automdm-black);
+  --ink-2: var(--ui-automdm-black-75);
+  --ink-3: var(--ui-automdm-black-75);
+  --line: var(--ui-automdm-black-10);
+  --line-2: var(--ui-automdm-black-25);
 }
 
 body { background: var(--bg); color: var(--ink-2); font: 400 14px/1.5 var(--font-ui); }
@@ -83,7 +83,7 @@ b, strong { font-weight: 600; color: var(--ink); }
   display: flex; flex-direction: column; gap: 24px;
 }
 
-/* Nav bar across every page, in Fleet's primary tab style (frontend/components/TabNav):
+/* Nav bar across every page, in AutoMDM's primary tab style (frontend/components/TabNav):
    one centered row that slides sideways when it doesn't fit. */
 .dash-nav-wrap { position: relative; }
 .dash-nav {
@@ -99,7 +99,7 @@ b, strong { font-weight: 600; color: var(--ink); }
   padding: 6px 8px; border-radius: 8px; font-size: 14px; line-height: 21px; font-weight: 400; color: var(--ink); white-space: nowrap; text-decoration: none;
 }
 .dash-nav a::before { content: attr(data-text); height: 0; visibility: hidden; overflow: hidden; user-select: none; pointer-events: none; font-weight: 600; }
-.dash-nav a:hover, .dash-nav a[aria-current="page"] { background: var(--ui-fleet-black-5); color: var(--ink); }
+.dash-nav a:hover, .dash-nav a[aria-current="page"] { background: var(--ui-automdm-black-5); color: var(--ink); }
 .dash-nav a[aria-current="page"] { font-weight: 600; }
 .dash-nav a:focus-visible { outline-offset: -1px; }
 .nav-arrow {
@@ -121,23 +121,23 @@ b, strong { font-weight: 600; color: var(--ink); }
   .nav-arrow span { display: none; }
 }
 
-/* Top bar: platform toggle on the left, fleet filter and theme on the right, freshness below */
+/* Top bar: platform toggle on the left, team filter and theme on the right, freshness below */
 .top { display: flex; flex-direction: column; gap: 8px; }
 .top-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 16px; }
 .controls { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .controls .seg-toggle { flex-shrink: 0; }
 .meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; color: var(--ink-2); font-size: 12px; }
-/* Fleet filter: Fleet's DropdownWrapper control and menu (frontend/components/forms/fields/DropdownWrapper). */
+/* Team filter: AutoMDM's DropdownWrapper control and menu (frontend/components/forms/fields/DropdownWrapper). */
 .dd { position: relative; display: inline-flex; min-width: 0; flex: 0 1 auto; }
 .dd-control {
   display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 220px; height: 36px; padding: 0 8px;
   font: 400 14px var(--font-ui); color: var(--ink); background: var(--panel);
   border: 1px solid var(--line); border-radius: 4px; cursor: pointer;
 }
-.dd-control:hover { border-color: var(--ui-fleet-black-50); }
+.dd-control:hover { border-color: var(--ui-automdm-black-50); }
 .dd-control:focus-visible, .dd-control[aria-expanded="true"] { outline: none; border-color: var(--ink); }
 .dd-value { flex: 1; min-width: 0; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dd-control svg { flex: none; width: 16px; height: 16px; stroke: var(--ui-fleet-black-75); transition: transform 0.25s ease; }
+.dd-control svg { flex: none; width: 16px; height: 16px; stroke: var(--ui-automdm-black-75); transition: transform 0.25s ease; }
 .dd-control[aria-expanded="true"] svg { transform: rotate(180deg); }
 .dd-menu {
   position: absolute; top: calc(100% + 3px); right: 0; z-index: 6; box-sizing: border-box;
@@ -147,8 +147,8 @@ b, strong { font-weight: 600; color: var(--ink); }
 }
 @keyframes dd-fade { from { opacity: 0; } to { opacity: 1; } }
 .dd-option { padding: 10px 8px; border-radius: 4px; color: var(--ink); cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dd-option[aria-selected="true"] { font-weight: 600; background: var(--ui-fleet-black-10); }
-.dd-option.active { background: var(--ui-fleet-black-5); }
+.dd-option[aria-selected="true"] { font-weight: 600; background: var(--ui-automdm-black-10); }
+.dd-option.active { background: var(--ui-automdm-black-5); }
 .seg-toggle { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--line-2); border-radius: 4px; overflow: hidden; background: var(--panel); }
 .seg-toggle button {
   font: 400 14px var(--font-ui); color: var(--ink-2); background: transparent; border: 0; border-left: 1px solid var(--line-2);
@@ -156,17 +156,17 @@ b, strong { font-weight: 600; color: var(--ink); }
 }
 .seg-toggle button:first-child { border-left: 0; }
 .seg-toggle button b { font-variant-numeric: tabular-nums; color: var(--ink-2); font-weight: 400; }
-.seg-toggle button:hover:not(:disabled) { color: var(--ink); background: var(--ui-fleet-black-5); }
-.seg-toggle button[aria-pressed="true"] { color: var(--ink); background: var(--ui-fleet-black-5); font-weight: 600; }
+.seg-toggle button:hover:not(:disabled) { color: var(--ink); background: var(--ui-automdm-black-5); }
+.seg-toggle button[aria-pressed="true"] { color: var(--ink); background: var(--ui-automdm-black-5); font-weight: 600; }
 .seg-toggle button[aria-pressed="true"] b { color: var(--ink); font-weight: 600; }
-.seg-toggle button:disabled { color: var(--ui-fleet-black-50); cursor: not-allowed; }
+.seg-toggle button:disabled { color: var(--ui-automdm-black-50); cursor: not-allowed; }
 .seg-toggle.small button { font-size: 12px; height: 34px; padding: 0 10px; }
 
 .title-row { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 8px 24px; }
 h1 { margin: 0; font-size: 24px; line-height: 1.2; font-weight: 800; color: var(--ink); text-wrap: balance; }
 .subtitle { margin: 4px 0 0; color: var(--ink-2); max-width: 75ch; }
 
-/* Summary card, like Fleet's dashboard cards */
+/* Summary card, like AutoMDM's dashboard cards */
 .hero {
   background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
   padding: 24px; display: grid; grid-template-columns: minmax(0, auto) minmax(0, 1fr) minmax(0, 260px); gap: 24px;
@@ -185,7 +185,7 @@ h1 { margin: 0; font-size: 24px; line-height: 1.2; font-weight: 800; color: var(
 .rail-row:last-child { border-bottom: 0; padding-bottom: 0; }
 .rail-row b { font-variant-numeric: tabular-nums; color: var(--ink); font-weight: 600; white-space: nowrap; }
 .hl-bad { color: var(--bad); }
-.hl-good { color: var(--core-fleet-green); }
+.hl-good { color: var(--core-automdm-green); }
 
 /* Stat strip */
 /* Flex, not grid, so a short last row stretches across the full width. */
@@ -220,7 +220,7 @@ h3 a:hover { text-decoration: underline; }
 .bar-row.click:hover, .bar-row.click[aria-pressed="true"] { background: var(--panel-2); box-shadow: 0 0 0 4px var(--panel-2); }
 .bar-row .lbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-2); }
 .bar-row .val { font-variant-numeric: tabular-nums; color: var(--ink); text-align: right; min-width: 3ch; white-space: nowrap; }
-.track { display: flex; gap: 2px; height: 12px; border-radius: 4px; background: var(--ui-fleet-black-5); overflow: hidden; }
+.track { display: flex; gap: 2px; height: 12px; border-radius: 4px; background: var(--ui-automdm-black-5); overflow: hidden; }
 .seg { height: 100%; min-width: 3px; border-radius: 2px; }
 .seg:hover { filter: brightness(1.08); }
 .legend { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 12px; font-size: 12px; color: var(--ink-2); }
@@ -235,18 +235,18 @@ h3 a:hover { text-decoration: underline; }
   border-radius: 4px; padding: 0 12px; height: 32px; cursor: pointer; display: inline-flex; gap: 6px; align-items: center;
 }
 .chip b { font-variant-numeric: tabular-nums; color: var(--ink-2); font-weight: 400; }
-.chip:hover { color: var(--ink); border-color: var(--ui-fleet-black-50); }
-.chip[aria-pressed="true"] { color: var(--ink); background: var(--ui-fleet-black-5); border-color: var(--ui-fleet-black-50); font-weight: 600; }
+.chip:hover { color: var(--ink); border-color: var(--ui-automdm-black-50); }
+.chip[aria-pressed="true"] { color: var(--ink); background: var(--ui-automdm-black-5); border-color: var(--ui-automdm-black-50); font-weight: 600; }
 .chip[aria-pressed="true"] b { color: var(--ink); font-weight: 600; }
 .chip i { width: 8px; height: 8px; border-radius: 50%; background: var(--tone, var(--neutral)); }
-/* fleetdm.com buttons (website/assets/styles/mixins-and-variables/buttons.less): an outline
+/* automdm.com buttons (website/assets/styles/mixins-and-variables/buttons.less): an outline
    secondary, and the normal-size primary with its ring, lift, and cursor-following spotlight
    (base.js sets --spotlight-x/y). The primary keeps the website's green in both themes. */
 .btn {
   font: 700 14px/1.5 var(--font-ui); color: var(--ink); background: var(--panel); border: 1px solid var(--line-2);
   border-radius: 4px; padding: 0 12px; height: 36px; cursor: pointer;
 }
-.btn:hover { border-color: var(--ui-fleet-black-50); }
+.btn:hover { border-color: var(--ui-automdm-black-50); }
 .btn.primary {
   --spotlight-x: 35%; --spotlight-y: 30%;
   position: relative; isolation: isolate; overflow: hidden; border: 0; border-radius: 12px; height: auto; min-height: 36px; padding: 7.5px 16px;
@@ -274,11 +274,11 @@ input.search {
   font: 400 14px var(--font-ui); color: var(--ink); background: var(--panel); border: 1px solid var(--line);
   border-radius: 4px; padding: 0 12px; height: 36px; min-width: 0; width: 220px; max-width: 100%; box-sizing: border-box;
 }
-input.search:hover { border-color: var(--ui-fleet-black-50); }
+input.search:hover { border-color: var(--ui-automdm-black-50); }
 input.search:focus-visible { outline: none; border-color: var(--ink); }
-input.search::placeholder { color: var(--ui-fleet-black-50); }
+input.search::placeholder { color: var(--ui-automdm-black-50); }
 
-/* Tables, like Fleet's data tables */
+/* Tables, like AutoMDM's data tables */
 .tbl-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
 /* Without this, a mouse's always-on scroll bars take the viewer's theme, not the page's, and draw dark tracks on a light page. */
 .tbl-wrap, .dd-menu, pre { scrollbar-width: thin; scrollbar-color: var(--line-2) transparent; }
@@ -304,7 +304,7 @@ table.tbl { width: 100%; border-collapse: collapse; color: var(--ink-2); }
 .cell-main { font-weight: 600; color: var(--ink); text-decoration: none; }
 .cell-main:hover { text-decoration: underline; }
 .cell-sub { color: var(--ink-2); font-size: 12px; }
-.mini { display: inline-block; vertical-align: middle; width: 64px; height: 8px; border-radius: 4px; background: var(--ui-fleet-black-5); overflow: hidden; margin-left: 8px; }
+.mini { display: inline-block; vertical-align: middle; width: 64px; height: 8px; border-radius: 4px; background: var(--ui-automdm-black-5); overflow: hidden; margin-left: 8px; }
 .mini > span { display: block; height: 100%; background: var(--tone, var(--ink-2)); }
 .plat, .tag { font-size: 12px; color: var(--ink-2); border: 1px solid var(--line-2); border-radius: 4px; padding: 0 4px; margin-left: 6px; white-space: nowrap; font-weight: 400; }
 
@@ -313,7 +313,7 @@ details.method summary { cursor: pointer; font-weight: 600; color: var(--ink); }
 details.method .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 4px 32px; }
 details.method p { max-width: 70ch; }
 details.method .term { font-weight: 600; color: var(--ink); }
-details.method code { font-family: var(--font-mono); font-size: 12px; background: var(--ui-fleet-black-5); padding: 1px 4px; border-radius: 4px; }
+details.method code { font-family: var(--font-mono); font-size: 12px; background: var(--ui-automdm-black-5); padding: 1px 4px; border-radius: 4px; }
 .foot { color: var(--ink-2); font-size: 12px; }
 
 .tip { position: fixed; z-index: 10; pointer-events: none; background: var(--tooltip-bg); color: var(--tooltip-ink); font-size: 12px; line-height: 1.5; padding: 8px 12px; border-radius: 4px; max-width: 280px; white-space: pre-line; }

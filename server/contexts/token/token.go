@@ -15,7 +15,7 @@ const (
 	tokenDelimiter     = " "
 )
 
-// Token is the concrete type that represents Fleet session tokens
+// Token is the concrete type that represents AutoMDM session tokens
 type Token string
 
 // FromHTTPRequest extracts an Authorization

@@ -8,19 +8,19 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 )
 
-// maxArchivedRecoveryLockPasswordsPerHost bounds a host that never tells Fleet which
+// maxArchivedRecoveryLockPasswordsPerHost bounds a host that never tells AutoMDM which
 // password it holds: every re-enrollment and every retry adds a candidate that the
 // proof-based prune has nothing to rule out with. This is only a runaway backstop —
 // SetRecoveryLockVerified is what keeps the archive at one row per healthy host.
 const maxArchivedRecoveryLockPasswordsPerHost = 25
 
-// recoveryLockArchiveRow is one password Fleet is about to put on the wire. encryptedPassword
+// recoveryLockArchiveRow is one password AutoMDM is about to put on the wire. encryptedPassword
 // must be the same ciphertext written to host_recovery_key_passwords: the prune identifies
 // the row a device confirmed by matching on it.
 type recoveryLockArchiveRow struct {
@@ -31,7 +31,7 @@ type recoveryLockArchiveRow struct {
 
 // archiveRecoveryLockPasswords records passwords before their command is enqueued, then
 // trims the affected hosts back to the cap. Archiving at generation time rather than on
-// acknowledgment is deliberate: a device can apply a SetRecoveryLock without Fleet ever
+// acknowledgment is deliberate: a device can apply a SetRecoveryLock without AutoMDM ever
 // learning it did (lost result, CheckOut mid-command, queue cleared by a re-enrollment),
 // and each retry generates a fresh password, so an operation can put several on the device.
 func archiveRecoveryLockPasswords(ctx context.Context, tx sqlx.ExtContext, rows []recoveryLockArchiveRow) error {
@@ -108,7 +108,7 @@ func pruneArchivedRecoveryLockPasswords(ctx context.Context, tx sqlx.ExtContext,
 
 // SetHostsRecoveryLockPasswords is only called in the initial setting of a recovery lock password, and therefore inserts needed values, on duplicate it clears out any old values.
 // It sets the password as pending.
-func (ds *Datastore) SetHostsRecoveryLockPasswords(ctx context.Context, passwords []fleet.HostRecoveryLockPasswordPayload) error {
+func (ds *Datastore) SetHostsRecoveryLockPasswords(ctx context.Context, passwords []automdm.HostRecoveryLockPasswordPayload) error {
 	if len(passwords) == 0 {
 		return nil
 	}
@@ -124,7 +124,7 @@ func (ds *Datastore) SetHostsRecoveryLockPasswords(ctx context.Context, password
 		if err != nil {
 			return ctxerr.Wrap(ctx, err, "encrypting recovery lock password")
 		}
-		args = append(args, p.HostUUID, encrypted, fleet.MDMDeliveryPending, fleet.MDMOperationTypeInstall, p.PendingSetCommandUUID)
+		args = append(args, p.HostUUID, encrypted, automdm.MDMDeliveryPending, automdm.MDMOperationTypeInstall, p.PendingSetCommandUUID)
 		archive = append(archive, recoveryLockArchiveRow{
 			hostUUID:          p.HostUUID,
 			encryptedPassword: encrypted,
@@ -166,7 +166,7 @@ func (ds *Datastore) SetHostsRecoveryLockPasswords(ctx context.Context, password
 
 // viewableRecoveryLockPasswordExpr is the password an admin can view, shared by the lookup and the
 // availability flag so they agree. Once the device accepts a Set, its password is shown even before the
-// verify comes back. Otherwise the stored password is shown if Fleet verified it on the current
+// verify comes back. Otherwise the stored password is shown if AutoMDM verified it on the current
 // enrollment: verify_command_uuid is only set by a passing verify and is cleared on re-enrollment.
 // The pending_encrypted_password guard sends the last-known-password verify, which clears it, to the
 // stored password.
@@ -179,17 +179,17 @@ const viewableRecoveryLockPasswordExpr = `
 		WHEN status <=> 'verified' OR verify_command_uuid IS NOT NULL THEN encrypted_password
 	END`
 
-func (ds *Datastore) GetHostRecoveryLockPassword(ctx context.Context, hostUUID string) (*fleet.HostRecoveryLockPassword, error) {
+func (ds *Datastore) GetHostRecoveryLockPassword(ctx context.Context, hostUUID string) (*automdm.HostRecoveryLockPassword, error) {
 	stmt := `
 		SELECT ` + viewableRecoveryLockPasswordExpr + ` AS encrypted_password, status, updated_at, auto_rotate_at
 		FROM host_recovery_key_passwords
 		WHERE host_uuid = ? AND deleted = 0`
 
 	var row struct {
-		EncryptedPassword []byte                   `db:"encrypted_password"`
-		Status            *fleet.MDMDeliveryStatus `db:"status"`
-		UpdatedAt         time.Time                `db:"updated_at"`
-		AutoRotateAt      *time.Time               `db:"auto_rotate_at"`
+		EncryptedPassword []byte                     `db:"encrypted_password"`
+		Status            *automdm.MDMDeliveryStatus `db:"status"`
+		UpdatedAt         time.Time                  `db:"updated_at"`
+		AutoRotateAt      *time.Time                 `db:"auto_rotate_at"`
 	}
 	if err := sqlx.GetContext(ctx, ds.reader(ctx), &row, stmt, hostUUID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -209,7 +209,7 @@ func (ds *Datastore) GetHostRecoveryLockPassword(ctx context.Context, hostUUID s
 		decrypted = &s
 	}
 
-	return &fleet.HostRecoveryLockPassword{
+	return &automdm.HostRecoveryLockPassword{
 		Password:     decrypted,
 		Status:       row.Status,
 		UpdatedAt:    row.UpdatedAt,
@@ -217,7 +217,7 @@ func (ds *Datastore) GetHostRecoveryLockPassword(ctx context.Context, hostUUID s
 	}, nil
 }
 
-func (ds *Datastore) GetHostRecoveryLockPasswordStatus(ctx context.Context, hostUUID string) (*fleet.HostMDMRecoveryLockPassword, error) {
+func (ds *Datastore) GetHostRecoveryLockPasswordStatus(ctx context.Context, hostUUID string) (*automdm.HostMDMRecoveryLockPassword, error) {
 	stmt := `
 		SELECT
 			status,
@@ -228,10 +228,10 @@ func (ds *Datastore) GetHostRecoveryLockPasswordStatus(ctx context.Context, host
 		WHERE host_uuid = ? AND deleted = 0`
 
 	var row struct {
-		Status            *fleet.MDMDeliveryStatus `db:"status"`
-		OperationType     fleet.MDMOperationType   `db:"operation_type"`
-		Detail            string                   `db:"detail"`
-		PasswordAvailable bool                     `db:"password_available"`
+		Status            *automdm.MDMDeliveryStatus `db:"status"`
+		OperationType     automdm.MDMOperationType   `db:"operation_type"`
+		Detail            string                     `db:"detail"`
+		PasswordAvailable bool                       `db:"password_available"`
 	}
 	if err := sqlx.GetContext(ctx, ds.reader(ctx), &row, stmt, hostUUID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -243,10 +243,10 @@ func (ds *Datastore) GetHostRecoveryLockPasswordStatus(ctx context.Context, host
 	// Treat NULL status as pending (retry state after failed command enqueue)
 	status := row.Status
 	if status == nil {
-		status = &fleet.MDMDeliveryPending
+		status = &automdm.MDMDeliveryPending
 	}
 
-	result := &fleet.HostMDMRecoveryLockPassword{
+	result := &automdm.HostMDMRecoveryLockPassword{
 		Detail:            row.Detail,
 		PasswordAvailable: row.PasswordAvailable,
 	}
@@ -343,7 +343,7 @@ func (ds *Datastore) RestoreRecoveryLockForReenabledHosts(ctx context.Context) (
 		      OR
 		      (h.team_id IS NULL AND JSON_EXTRACT(ac.json_value, '$.mdm.macos_recovery_lock_password_enabled') = true)
 		  )
-	`, fleet.MDMOperationTypeInstall, fleet.MDMDeliveryVerified, fleet.MDMOperationTypeRemove, fleet.MDMDeliveryPending)
+	`, automdm.MDMOperationTypeInstall, automdm.MDMDeliveryVerified, automdm.MDMOperationTypeRemove, automdm.MDMDeliveryPending)
 
 	result, err := ds.writer(ctx).ExecContext(ctx, stmt)
 	if err != nil {
@@ -367,7 +367,7 @@ func (ds *Datastore) SetRecoveryLockVerified(ctx context.Context, hostUUID strin
 		WHERE host_uuid = ?
 		  AND pending_verify_command_uuid = ?
 		  AND deleted = 0
-	`, fleet.MDMDeliveryVerified)
+	`, automdm.MDMDeliveryVerified)
 
 	return ds.withRetryTxx(ctx, func(tx sqlx.ExtContext) error {
 		if _, err := tx.ExecContext(ctx, stmt, verifyCommandUUID, hostUUID, verifyCommandUUID); err != nil {
@@ -389,7 +389,7 @@ func (ds *Datastore) SetRecoveryLockVerified(ctx context.Context, hostUUID strin
 			}
 			return ctxerr.Wrap(ctx, err, "get verified recovery lock password")
 		}
-		if row.Status.String != string(fleet.MDMDeliveryVerified) || len(row.EncryptedPassword) == 0 {
+		if row.Status.String != string(automdm.MDMDeliveryVerified) || len(row.EncryptedPassword) == 0 {
 			return nil
 		}
 
@@ -409,7 +409,7 @@ func (ds *Datastore) SetRecoveryLockFailed(ctx context.Context, hostUUID, comman
 		WHERE host_uuid = ?
 		  AND (pending_set_command_uuid = ? OR pending_verify_command_uuid = ?)
 		  AND deleted = 0
-	`, fleet.MDMDeliveryFailed)
+	`, automdm.MDMDeliveryFailed)
 
 	if _, err := ds.writer(ctx).ExecContext(ctx, stmt, errorMsg, hostUUID, commandUUID, commandUUID); err != nil {
 		return ctxerr.Wrap(ctx, err, "set recovery lock failed")
@@ -433,7 +433,7 @@ func (ds *Datastore) ClearRecoveryLockPendingStatus(ctx context.Context, hostUUI
 		WHERE host_uuid IN (?)
 		  AND status = '%s'
 		  AND deleted = 0
-	`, fleet.MDMDeliveryPending)
+	`, automdm.MDMDeliveryPending)
 
 	query, args, err := sqlx.In(stmt, hostUUIDs)
 	if err != nil {
@@ -481,7 +481,7 @@ func (ds *Datastore) ClaimHostsForRecoveryLockClear(ctx context.Context, clearCo
 		  )
 		LIMIT 500
 		FOR UPDATE
-	`, fleet.MDMOperationTypeInstall, fleet.MDMDeliveryVerified, fleet.MDMOperationTypeRemove)
+	`, automdm.MDMOperationTypeInstall, automdm.MDMDeliveryVerified, automdm.MDMOperationTypeRemove)
 
 	// Update all claimed hosts to remove/pending
 	// auto_rotate_at is also nulled: it's meaningful only for install-state
@@ -493,7 +493,7 @@ func (ds *Datastore) ClaimHostsForRecoveryLockClear(ctx context.Context, clearCo
 		SET operation_type = '%s', status = '%s', auto_rotate_at = NULL,
 		    pending_set_command_uuid = ?, pending_verify_command_uuid = NULL
 		WHERE host_uuid IN (?)
-	`, fleet.MDMOperationTypeRemove, fleet.MDMDeliveryPending)
+	`, automdm.MDMOperationTypeRemove, automdm.MDMDeliveryPending)
 
 	var hostUUIDs []string
 	err := ds.withRetryTxx(ctx, func(tx sqlx.ExtContext) error {
@@ -523,7 +523,7 @@ func (ds *Datastore) ClaimHostsForRecoveryLockClear(ctx context.Context, clearCo
 	return hostUUIDs, nil
 }
 
-func (ds *Datastore) ClaimHostsForRecoveryLockVerify(ctx context.Context) ([]fleet.HostRecoveryLockVerifyClaim, error) {
+func (ds *Datastore) ClaimHostsForRecoveryLockVerify(ctx context.Context) ([]automdm.HostRecoveryLockVerifyClaim, error) {
 	// Every result handler that moves a row to verifying also records its verify command, so
 	// only the upgrade repair (migration 20261029055700) leaves one without. Unlike the set and
 	// clear claims there are no enrollment checks: these rows already passed them, and the cron
@@ -536,9 +536,9 @@ func (ds *Datastore) ClaimHostsForRecoveryLockVerify(ctx context.Context) ([]fle
 		  AND pending_verify_command_uuid IS NULL
 		LIMIT 500
 		FOR UPDATE
-	`, fleet.MDMDeliveryVerifying)
+	`, automdm.MDMDeliveryVerifying)
 
-	var claims []fleet.HostRecoveryLockVerifyClaim
+	var claims []automdm.HostRecoveryLockVerifyClaim
 	err := ds.withRetryTxx(ctx, func(tx sqlx.ExtContext) error {
 		claims = nil
 		if err := sqlx.SelectContext(ctx, tx, &claims, selectStmt); err != nil {
@@ -572,7 +572,7 @@ func (ds *Datastore) UnclaimHostForRecoveryLockVerify(ctx context.Context, hostU
 // DeleteHostRecoveryLockPassword hard deletes the host's recovery lock password row from the database.
 func (ds *Datastore) DeleteHostRecoveryLockPassword(ctx context.Context, hostUUID string, verifyCommandUUID string) error {
 	stmt := fmt.Sprintf(`DELETE FROM host_recovery_key_passwords 
-		WHERE host_uuid = ? AND deleted = 0 AND pending_verify_command_uuid = ? AND status = '%s' AND operation_type = '%s'`, fleet.MDMDeliveryVerifying, fleet.MDMOperationTypeRemove)
+		WHERE host_uuid = ? AND deleted = 0 AND pending_verify_command_uuid = ? AND status = '%s' AND operation_type = '%s'`, automdm.MDMDeliveryVerifying, automdm.MDMOperationTypeRemove)
 
 	if _, err := ds.writer(ctx).ExecContext(ctx, stmt, hostUUID, verifyCommandUUID); err != nil {
 		return ctxerr.Wrap(ctx, err, "delete host recovery lock password")
@@ -588,7 +588,7 @@ func (ds *Datastore) DeleteHostRecoveryLockPassword(ctx context.Context, hostUUI
 // calls no-ops. Keeps encrypted_password/status/operation_type/error_message for support
 // diagnostics. Used by MDM lifecycle hooks (re-enroll, explicit unenroll) — Apple wipes
 // the device-side recovery lock whenever the MDM profile is removed, so any of these
-// signals invalidates Fleet's stored copy.
+// signals invalidates AutoMDM's stored copy.
 func softDeleteHostRecoveryLockPassword(ctx context.Context, tx sqlx.ExtContext, hostUUID string) error {
 	_, err := tx.ExecContext(ctx, `
 		UPDATE host_recovery_key_passwords
@@ -603,7 +603,7 @@ func softDeleteHostRecoveryLockPassword(ctx context.Context, tx sqlx.ExtContext,
 }
 
 // SoftDeleteRecoveryLockPasswordsForUnenrolledHosts is the cron-driven complement to the
-// explicit MDM lifecycle hooks. Catches hosts where MDM was disabled without Fleet receiving
+// explicit MDM lifecycle hooks. Catches hosts where MDM was disabled without AutoMDM receiving
 // either a CheckOut (paths handled by MDMTurnOff) or an Authenticate (handled by
 // MDMResetEnrollment) — typically when the device user manually removes the MDM profile
 // and only osquery refetch eventually reports host_mdm.enrolled=0. Runs each recovery-lock
@@ -649,7 +649,7 @@ func (ds *Datastore) InitiateRecoveryLockRotation(ctx context.Context, hostUUID,
 		  AND operation_type = '%s'
 		  AND status IN ('%s', '%s')
 		  AND pending_encrypted_password IS NULL
-`, fleet.MDMDeliveryPending, fleet.MDMOperationTypeInstall, fleet.MDMDeliveryVerified, fleet.MDMDeliveryFailed)
+`, automdm.MDMDeliveryPending, automdm.MDMOperationTypeInstall, automdm.MDMDeliveryVerified, automdm.MDMDeliveryFailed)
 
 	return ds.withRetryTxx(ctx, func(tx sqlx.ExtContext) error {
 		result, err := tx.ExecContext(ctx, stmt, encryptedPassword, setCommandUUID, hostUUID)
@@ -684,10 +684,10 @@ func (ds *Datastore) InitiateRecoveryLockRotation(ctx context.Context, hostUUID,
 			}
 
 			if dest.HasPending {
-				return ctxerr.Wrap(ctx, fleet.ErrRecoveryLockRotationPending, fmt.Sprintf("host %s", hostUUID))
+				return ctxerr.Wrap(ctx, automdm.ErrRecoveryLockRotationPending, fmt.Sprintf("host %s", hostUUID))
 			}
 
-			return ctxerr.Wrap(ctx, fleet.ErrRecoveryLockNotEligible, fmt.Sprintf("host %s (status=%v, operation_type=%v)", hostUUID, dest.Status.String, dest.OperationType.String))
+			return ctxerr.Wrap(ctx, automdm.ErrRecoveryLockNotEligible, fmt.Sprintf("host %s (status=%v, operation_type=%v)", hostUUID, dest.Status.String, dest.OperationType.String))
 		}
 
 		return archiveRecoveryLockPasswords(ctx, tx, []recoveryLockArchiveRow{{
@@ -715,7 +715,7 @@ func (ds *Datastore) ClearRecoveryLockRotation(ctx context.Context, hostUUID str
 		  AND status = '%s'
 		  AND encrypted_password IS NOT NULL
 		  AND pending_encrypted_password IS NOT NULL
-`, fleet.MDMDeliveryFailed, fleet.MDMDeliveryVerified, fleet.MDMDeliveryPending)
+`, automdm.MDMDeliveryFailed, automdm.MDMDeliveryVerified, automdm.MDMDeliveryPending)
 
 	if _, err := ds.writer(ctx).ExecContext(ctx, stmt, hostUUID); err != nil {
 		return ctxerr.Wrap(ctx, err, "clear recovery lock rotation")
@@ -724,7 +724,7 @@ func (ds *Datastore) ClearRecoveryLockRotation(ctx context.Context, hostUUID str
 	return nil
 }
 
-func (ds *Datastore) GetRecoveryLockRotationStatus(ctx context.Context, hostUUID string) (*fleet.HostRecoveryLockRotationStatus, error) {
+func (ds *Datastore) GetRecoveryLockRotationStatus(ctx context.Context, hostUUID string) (*automdm.HostRecoveryLockRotationStatus, error) {
 	const stmt = `
 		SELECT
 			host_uuid,
@@ -753,7 +753,7 @@ func (ds *Datastore) GetRecoveryLockRotationStatus(ctx context.Context, hostUUID
 		return nil, ctxerr.Wrap(ctx, err, "get recovery lock rotation status")
 	}
 
-	return &fleet.HostRecoveryLockRotationStatus{
+	return &automdm.HostRecoveryLockRotationStatus{
 		HostUUID:           row.HostUUID,
 		HasPassword:        row.HasPassword,
 		Status:             row.Status,
@@ -783,7 +783,7 @@ func (ds *Datastore) MarkRecoveryLockPasswordViewed(ctx context.Context, hostUUI
 		WHERE host_uuid = ?
 		  AND deleted = 0
 		  AND operation_type = '%s'
-	`, fleet.MDMOperationTypeInstall)
+	`, automdm.MDMOperationTypeInstall)
 
 	result, err := ds.writer(ctx).ExecContext(ctx, stmt, rotateAt, hostUUID)
 	if err != nil {
@@ -798,7 +798,7 @@ func (ds *Datastore) MarkRecoveryLockPasswordViewed(ctx context.Context, hostUUI
 	return rotateAt, nil
 }
 
-func (ds *Datastore) GetHostsForAutoRotation(ctx context.Context) ([]fleet.HostAutoRotationInfo, error) {
+func (ds *Datastore) GetHostsForAutoRotation(ctx context.Context) ([]automdm.HostAutoRotationInfo, error) {
 	// Return hosts where:
 	// - auto_rotate_at is in the past (due for rotation)
 	// - status is verified (password is confirmed working)
@@ -820,9 +820,9 @@ func (ds *Datastore) GetHostsForAutoRotation(ctx context.Context) ([]fleet.HostA
 		  AND hrkp.operation_type = '%s'
 		  AND hrkp.deleted = 0
 		LIMIT 100
-	`, fleet.MDMDeliveryVerified, fleet.MDMOperationTypeInstall)
+	`, automdm.MDMDeliveryVerified, automdm.MDMOperationTypeInstall)
 
-	var hosts []fleet.HostAutoRotationInfo
+	var hosts []automdm.HostAutoRotationInfo
 	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &hosts, stmt); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "get hosts for auto rotation")
 	}
@@ -830,8 +830,8 @@ func (ds *Datastore) GetHostsForAutoRotation(ctx context.Context) ([]fleet.HostA
 	return hosts, nil
 }
 
-func (ds *Datastore) GetPendingRecoveryLock(ctx context.Context, hostUUID string) (*fleet.HostRecoveryLockPending, error) {
-	var pending fleet.HostRecoveryLockPending
+func (ds *Datastore) GetPendingRecoveryLock(ctx context.Context, hostUUID string) (*automdm.HostRecoveryLockPending, error) {
+	var pending automdm.HostRecoveryLockPending
 
 	err := sqlx.GetContext(ctx, ds.reader(ctx), &pending, `
 		SELECT
@@ -866,7 +866,7 @@ func (ds *Datastore) SetRecoveryLockVerifying(ctx context.Context, hostUUID, set
 		WHERE host_uuid = ?
 		  AND pending_set_command_uuid = ?
 		  AND deleted = 0
-`, fleet.MDMDeliveryVerifying, setCommandUUID, pendingVerifyCommandUUID, hostUUID, setCommandUUID)
+`, automdm.MDMDeliveryVerifying, setCommandUUID, pendingVerifyCommandUUID, hostUUID, setCommandUUID)
 	return ctxerr.Wrap(ctx, err, "set recovery lock verifying")
 }
 
@@ -881,7 +881,7 @@ func (ds *Datastore) SetRecoveryLockVerifyingLastKnownPassword(ctx context.Conte
 		WHERE host_uuid = ?
 		  AND pending_set_command_uuid = ?
 		  AND deleted = 0
-`, fleet.MDMDeliveryVerifying, setCommandUUID, pendingVerifyCommandUUID, hostUUID, setCommandUUID)
+`, automdm.MDMDeliveryVerifying, setCommandUUID, pendingVerifyCommandUUID, hostUUID, setCommandUUID)
 	return ctxerr.Wrap(ctx, err, "set recovery lock verifying with last known password")
 }
 
@@ -908,7 +908,7 @@ func (ds *Datastore) RetryRecoveryLockVerify(ctx context.Context, hostUUID, veri
 		  AND pending_verify_command_uuid = ?
 		  AND status = '%s'
 		  AND deleted = 0
-	`, fleet.MDMDeliveryVerifying)
+	`, automdm.MDMDeliveryVerifying)
 
 	_, err := ds.writer(ctx).ExecContext(ctx, stmt, newVerifyCommandUUID, hostUUID, verifyCommandUUID)
 	return ctxerr.Wrap(ctx, err, "retry recovery lock verify")

@@ -12,18 +12,18 @@ import (
 	"testing"
 	"time"
 
-	authz_ctx "github.com/fleetdm/fleet/v4/server/contexts/authz"
-	hostctx "github.com/fleetdm/fleet/v4/server/contexts/host"
-	"github.com/fleetdm/fleet/v4/server/contexts/logging"
-	"github.com/fleetdm/fleet/v4/server/contexts/token"
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/platform/endpointer"
-	platform_http "github.com/fleetdm/fleet/v4/server/platform/http"
-	"github.com/fleetdm/fleet/v4/server/platform/middleware/authzcheck"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/service/middleware/auth"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	authz_ctx "github.com/anilyagiz/automdm/v4/server/contexts/authz"
+	hostctx "github.com/anilyagiz/automdm/v4/server/contexts/host"
+	"github.com/anilyagiz/automdm/v4/server/contexts/logging"
+	"github.com/anilyagiz/automdm/v4/server/contexts/token"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/platform/endpointer"
+	platform_http "github.com/anilyagiz/automdm/v4/server/platform/http"
+	"github.com/anilyagiz/automdm/v4/server/platform/middleware/authzcheck"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/service/middleware/auth"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -42,7 +42,7 @@ import (
 
 // 	admin1, err := ds.User("admin1")
 // 	assert.Nil(t, err)
-// 	admin1Session, err := ds.NewSession(&fleet.Session{
+// 	admin1Session, err := ds.NewSession(&automdm.Session{
 // 		UserID: admin1.ID,
 // 		Key:    "admin1",
 // 	})
@@ -50,7 +50,7 @@ import (
 
 // 	user1, err := ds.User("user1")
 // 	assert.Nil(t, err)
-// 	user1Session, err := ds.NewSession(&fleet.Session{
+// 	user1Session, err := ds.NewSession(&automdm.Session{
 // 		UserID: user1.ID,
 // 		Key:    "user1",
 // 	})
@@ -58,7 +58,7 @@ import (
 
 // 	user2, err := ds.User("user2")
 // 	assert.Nil(t, err)
-// 	user2Session, err := ds.NewSession(&fleet.Session{
+// 	user2Session, err := ds.NewSession(&automdm.Session{
 // 		UserID: user2.ID,
 // 		Key:    "user2",
 // 	})
@@ -79,11 +79,11 @@ import (
 // 	}{
 // 		{
 // 			endpoint: canReadUser(e),
-// 			wantErr:  fleet.ErrNoContext,
+// 			wantErr:  automdm.ErrNoContext,
 // 		},
 // 		{
 // 			endpoint: canModifyUser(e),
-// 			wantErr:  fleet.ErrNoContext,
+// 			wantErr:  automdm.ErrNoContext,
 // 		},
 // 		{
 // 			endpoint: canModifyUser(e),
@@ -149,13 +149,13 @@ func TestAuthenticatedHost(t *testing.T) {
 	ds := new(mock.Store)
 	svc, ctx := newTestService(t, ds, nil, nil)
 
-	expectedHost := fleet.Host{Hostname: "foo!", HasHostIdentityCert: ptr.Bool(false)}
+	expectedHost := automdm.Host{Hostname: "foo!", HasHostIdentityCert: ptr.Bool(false)}
 	goodNodeKey := "foo bar baz bing bang boom"
 
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
 	}
-	ds.LoadHostByNodeKeyFunc = func(ctx context.Context, nodeKey string) (*fleet.Host, error) {
+	ds.LoadHostByNodeKeyFunc = func(ctx context.Context, nodeKey string) (*automdm.Host, error) {
 		switch nodeKey {
 		case goodNodeKey:
 			return &expectedHost, nil
@@ -212,11 +212,11 @@ func TestAuthenticatedUserMW(t *testing.T) {
 	svc, ctx := newTestService(t, ds, nil, nil)
 
 	authenticatedUserTests := []struct {
-		user      *fleet.User
+		user      *automdm.User
 		shouldErr bool
 	}{
 		{
-			user: &fleet.User{
+			user: &automdm.User{
 				ID:                       32,
 				Name:                     "name",
 				Email:                    "em@il.com",
@@ -226,7 +226,7 @@ func TestAuthenticatedUserMW(t *testing.T) {
 			shouldErr: false,
 		},
 		{
-			user: &fleet.User{
+			user: &automdm.User{
 				ID:                       32,
 				Name:                     "name",
 				Email:                    "em@il.com",
@@ -259,71 +259,71 @@ func TestAuthenticatedUserMW(t *testing.T) {
 
 func TestAuthenticatedUserDatastoreErrors(t *testing.T) {
 	dbErr := &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("connect: connection refused")}
-	user := &fleet.User{ID: 7, Email: "user@example.com"}
+	user := &automdm.User{ID: 7, Email: "user@example.com"}
 
-	validSession := func() *fleet.Session {
-		return &fleet.Session{ID: 1, UserID: user.ID, Key: "key", AccessedAt: time.Now()}
+	validSession := func() *automdm.Session {
+		return &automdm.Session{ID: 1, UserID: user.ID, Key: "key", AccessedAt: time.Now()}
 	}
-	expiredSession := func() *fleet.Session {
-		return &fleet.Session{ID: 1, UserID: user.ID, Key: "key", AccessedAt: time.Now().Add(-365 * 24 * time.Hour)}
+	expiredSession := func() *automdm.Session {
+		return &automdm.Session{ID: 1, UserID: user.ID, Key: "key", AccessedAt: time.Now().Add(-365 * 24 * time.Hour)}
 	}
 
 	cases := []struct {
 		name           string
-		sessionByKey   func() (*fleet.Session, error)
+		sessionByKey   func() (*automdm.Session, error)
 		destroySession error
 		markAccessed   error
-		userByID       func() (*fleet.User, error)
+		userByID       func() (*automdm.User, error)
 		wantStatus     int
 		wantNextCalled bool
 	}{
 		{
 			name:         "session lookup db error",
-			sessionByKey: func() (*fleet.Session, error) { return nil, dbErr },
+			sessionByKey: func() (*automdm.Session, error) { return nil, dbErr },
 			wantStatus:   http.StatusInternalServerError,
 		},
 		{
 			name:         "session not found",
-			sessionByKey: func() (*fleet.Session, error) { return nil, &notFoundError{} },
+			sessionByKey: func() (*automdm.Session, error) { return nil, &notFoundError{} },
 			wantStatus:   http.StatusUnauthorized,
 		},
 		{
 			name:         "client canceled",
-			sessionByKey: func() (*fleet.Session, error) { return nil, context.Canceled },
+			sessionByKey: func() (*automdm.Session, error) { return nil, context.Canceled },
 			wantStatus:   http.StatusUnauthorized,
 		},
 		{
 			name:         "expired session",
-			sessionByKey: func() (*fleet.Session, error) { return expiredSession(), nil },
+			sessionByKey: func() (*automdm.Session, error) { return expiredSession(), nil },
 			wantStatus:   http.StatusUnauthorized,
 		},
 		{
 			name:           "expired session destroy db error",
-			sessionByKey:   func() (*fleet.Session, error) { return expiredSession(), nil },
+			sessionByKey:   func() (*automdm.Session, error) { return expiredSession(), nil },
 			destroySession: dbErr,
 			wantStatus:     http.StatusInternalServerError,
 		},
 		{
 			name:         "mark session accessed db error",
-			sessionByKey: func() (*fleet.Session, error) { return validSession(), nil },
+			sessionByKey: func() (*automdm.Session, error) { return validSession(), nil },
 			markAccessed: dbErr,
 			wantStatus:   http.StatusInternalServerError,
 		},
 		{
 			name:         "user lookup db error",
-			sessionByKey: func() (*fleet.Session, error) { return validSession(), nil },
-			userByID:     func() (*fleet.User, error) { return nil, dbErr },
+			sessionByKey: func() (*automdm.Session, error) { return validSession(), nil },
+			userByID:     func() (*automdm.User, error) { return nil, dbErr },
 			wantStatus:   http.StatusInternalServerError,
 		},
 		{
 			name:         "user not found",
-			sessionByKey: func() (*fleet.Session, error) { return validSession(), nil },
-			userByID:     func() (*fleet.User, error) { return nil, &notFoundError{} },
+			sessionByKey: func() (*automdm.Session, error) { return validSession(), nil },
+			userByID:     func() (*automdm.User, error) { return nil, &notFoundError{} },
 			wantStatus:   http.StatusUnauthorized,
 		},
 		{
 			name:           "valid session and user",
-			sessionByKey:   func() (*fleet.Session, error) { return validSession(), nil },
+			sessionByKey:   func() (*automdm.Session, error) { return validSession(), nil },
 			wantStatus:     http.StatusOK,
 			wantNextCalled: true,
 		},
@@ -333,16 +333,16 @@ func TestAuthenticatedUserDatastoreErrors(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ds := new(mock.Store)
 			svc, ctx := newTestService(t, ds, nil, nil)
-			ds.SessionByKeyFunc = func(ctx context.Context, key string) (*fleet.Session, error) {
+			ds.SessionByKeyFunc = func(ctx context.Context, key string) (*automdm.Session, error) {
 				return tc.sessionByKey()
 			}
-			ds.DestroySessionFunc = func(ctx context.Context, session *fleet.Session) error {
+			ds.DestroySessionFunc = func(ctx context.Context, session *automdm.Session) error {
 				return tc.destroySession
 			}
-			ds.MarkSessionAccessedFunc = func(ctx context.Context, session *fleet.Session) error {
+			ds.MarkSessionAccessedFunc = func(ctx context.Context, session *automdm.Session) error {
 				return tc.markAccessed
 			}
-			ds.UserByIDFunc = func(ctx context.Context, id uint) (*fleet.User, error) {
+			ds.UserByIDFunc = func(ctx context.Context, id uint) (*automdm.User, error) {
 				if tc.userByID != nil {
 					return tc.userByID()
 				}
@@ -391,7 +391,7 @@ func TestAuthenticatedUserDatastoreErrors(t *testing.T) {
 					nextCalled = true
 				}))
 				lc := &logging.LoggingContext{}
-				req := httptest.NewRequestWithContext(logging.NewContext(ctx, lc), http.MethodGet, "/api/v1/fleet/scim/Users", nil)
+				req := httptest.NewRequestWithContext(logging.NewContext(ctx, lc), http.MethodGet, "/api/v1/automdm/scim/Users", nil)
 				rec := httptest.NewRecorder()
 				h.ServeHTTP(rec, req)
 

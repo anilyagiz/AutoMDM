@@ -295,7 +295,7 @@ const AppleOSTargetForm = ({
   const profileBuilderLink = (
     <CustomLink
       url={getPathWithQueryParams(PATHS.CONTROLS_CUSTOM_SETTINGS_NEW, {
-        fleet_id: currentTeamId,
+        team_id: currentTeamId,
         platform: "apple",
       })}
       text="profile builder"
@@ -318,7 +318,7 @@ const AppleOSTargetForm = ({
               <CustomLink
                 text="Learn more"
                 newTab
-                url="https://fleetdm.com/learn-more-about/apple-available-os-updates"
+                url="https://automdm.com/learn-more-about/apple-available-os-updates"
               />
             </>
           ) : undefined
@@ -337,7 +337,7 @@ const AppleOSTargetForm = ({
                 <CustomLink
                   text="available from Apple."
                   newTab
-                  url="https://fleetdm.com/learn-more-about/apple-available-os-updates"
+                  url="https://automdm.com/learn-more-about/apple-available-os-updates"
                 />
               </>
             }

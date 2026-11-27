@@ -8,20 +8,20 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
 // RecentVulns filters vulnerabilities based on whether the vulnerability cve is contained in 'meta'.
 // Returns the filtered vulnerabilities and their meta data.
-func RecentVulns[T fleet.Vulnerability](
+func RecentVulns[T automdm.Vulnerability](
 	vulns []T,
-	meta []fleet.CVEMeta,
-) ([]T, map[string]fleet.CVEMeta) {
+	meta []automdm.CVEMeta,
+) ([]T, map[string]automdm.CVEMeta) {
 	if len(vulns) == 0 {
 		return nil, nil
 	}
 
-	recent := make(map[string]fleet.CVEMeta)
+	recent := make(map[string]automdm.CVEMeta)
 	for _, r := range meta {
 		recent[r.CVE] = r
 	}
@@ -39,7 +39,7 @@ func RecentVulns[T fleet.Vulnerability](
 	return r, recent
 }
 
-func BatchProcess[T fleet.Vulnerability](
+func BatchProcess[T automdm.Vulnerability](
 	values map[string]T,
 	dsFunc func(v []T) error,
 	batchSize int,
@@ -74,7 +74,7 @@ func BatchProcess[T fleet.Vulnerability](
 
 // VulnsDelta compares what vulnerabilities already exists with what new vulnerabilities were found
 // and returns what to insert and what to delete.
-func VulnsDelta[T fleet.Vulnerability](
+func VulnsDelta[T automdm.Vulnerability](
 	found []T,
 	existing []T,
 ) (toInsert []T, toDelete []T) {

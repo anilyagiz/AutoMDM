@@ -32,20 +32,20 @@ import (
 	"text/template"
 	"time"
 
-	fleetclient "github.com/fleetdm/fleet/v4/client"
-	"github.com/fleetdm/fleet/v4/cmd/osquery-perf/hostidentity"
-	"github.com/fleetdm/fleet/v4/cmd/osquery-perf/installer_cache"
-	"github.com/fleetdm/fleet/v4/cmd/osquery-perf/osquery_perf"
-	"github.com/fleetdm/fleet/v4/cmd/osquery-perf/softwaredb"
-	"github.com/fleetdm/fleet/v4/pkg/file"
-	"github.com/fleetdm/fleet/v4/pkg/mdm/apnsmock"
-	"github.com/fleetdm/fleet/v4/pkg/mdm/mdmtest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	apple_mdm "github.com/fleetdm/fleet/v4/server/mdm/apple"
-	"github.com/fleetdm/fleet/v4/server/mdm/microsoft/syncml"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/service"
+	automdmclient "github.com/anilyagiz/automdm/v4/client"
+	"github.com/anilyagiz/automdm/v4/cmd/osquery-perf/hostidentity"
+	"github.com/anilyagiz/automdm/v4/cmd/osquery-perf/installer_cache"
+	"github.com/anilyagiz/automdm/v4/cmd/osquery-perf/osquery_perf"
+	"github.com/anilyagiz/automdm/v4/cmd/osquery-perf/softwaredb"
+	"github.com/anilyagiz/automdm/v4/pkg/file"
+	"github.com/anilyagiz/automdm/v4/pkg/mdm/apnsmock"
+	"github.com/anilyagiz/automdm/v4/pkg/mdm/mdmtest"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	apple_mdm "github.com/anilyagiz/automdm/v4/server/mdm/apple"
+	"github.com/anilyagiz/automdm/v4/server/mdm/microsoft/syncml"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/service"
 	"github.com/google/uuid"
 	micromdm "github.com/micromdm/micromdm/mdm/mdm"
 	"github.com/micromdm/plist"
@@ -78,8 +78,8 @@ var (
 	//go:embed macos_26x-software.json.bz2
 	macOSSoftwareFS embed.FS
 
-	macosVulnerableSoftware            []fleet.Software
-	vsCodeExtensionsVulnerableSoftware []fleet.Software
+	macosVulnerableSoftware            []automdm.Software
+	vsCodeExtensionsVulnerableSoftware []automdm.Software
 	windowsSoftware                    []map[string]string
 	ubuntuSoftware                     []map[string]string
 	macOSSoftware                      []map[string]string
@@ -108,7 +108,7 @@ func loadMacOSVulnerableSoftware() {
 	}
 
 	type vulnerableSoftware struct {
-		Software []fleet.Software `json:"software"`
+		Software []automdm.Software `json:"software"`
 	}
 
 	var vs vulnerableSoftware
@@ -133,7 +133,7 @@ func loadExtraVulnerableSoftware() {
 			log.Println("skipping", string(line))
 			continue
 		}
-		vsCodeExtensionsVulnerableSoftware = append(vsCodeExtensionsVulnerableSoftware, fleet.Software{
+		vsCodeExtensionsVulnerableSoftware = append(vsCodeExtensionsVulnerableSoftware, automdm.Software{
 			Vendor:  strings.TrimSpace(string(parts[0])),
 			Name:    strings.TrimSpace(string(parts[1])),
 			Version: strings.TrimSpace(string(parts[2])),
@@ -394,21 +394,21 @@ type mdmAgent struct {
 }
 
 // defaultMDMAPNSTopic is what simulated Apple devices send as their APNs topic when
-// -mdm_apns_topic isn't set. Fleet loads its one APNs certificate whatever the topic, so a
+// -mdm_apns_topic isn't set. AutoMDM loads its one APNs certificate whatever the topic, so a
 // shared placeholder is enough to keep it at a single push provider, like production.
 const defaultMDMAPNSTopic = "com.apple.mgmt.External.osquery-perf"
 
 // delayCancelableMDMAck holds the fetch→acknowledge window open for
 // cancelable MDM commands (lock, wipe, clear passcode, enable lost mode) so
-// that DELETE /api/v1/fleet/hosts/:id/commands/:command_uuid can be exercised
-// against a command the device has already fetched — Fleet cannot know a
+// that DELETE /api/v1/automdm/hosts/:id/commands/:command_uuid can be exercised
+// against a command the device has already fetched — AutoMDM cannot know a
 // command was delivered, so this window is the only way to test that race.
 // No-op when the delay is 0 or the command is not cancelable.
 func delayCancelableMDMAck(delay time.Duration, deviceDesc string, cmd *mdm.Command) {
 	if delay <= 0 || cmd == nil {
 		return
 	}
-	if _, ok := fleet.CancelableAppleMDMRequestTypes[cmd.Command.RequestType]; !ok {
+	if _, ok := automdm.CancelableAppleMDMRequestTypes[cmd.Command.RequestType]; !ok {
 		return
 	}
 	log.Printf("%s: fetched %s command %s, waiting %s before acknowledging (cancel test window)",
@@ -461,7 +461,7 @@ func (a *mdmAgent) selectSoftwareVersion(softwareName, baseVersion, alternateVer
 }
 
 // adamIDsToSoftware is the set of VPP apps that we support in our mock VPP install flow.
-var adamIDsToSoftware = map[int]*fleet.Software{
+var adamIDsToSoftware = map[int]*automdm.Software{
 	406056744: {
 		Name:             "Evernote",
 		BundleIdentifier: "com.evernote.Evernote",
@@ -511,7 +511,7 @@ type agent struct {
 	nodeKey                       string
 	templates                     *template.Template
 	os                            string
-	// deviceAuthToken holds Fleet Desktop device authentication token.
+	// deviceAuthToken holds AutoMDM Desktop device authentication token.
 	//
 	// Non-nil means the agent is identified as orbit osquery,
 	// nil means the agent is identified as vanilla osquery.
@@ -519,7 +519,7 @@ type agent struct {
 	orbitNodeKey    *string
 
 	// macMDMClient and winMDMClient simulate a device running the MDM protocol
-	// (client side) against Fleet MDM.
+	// (client side) against AutoMDM.
 	macMDMClient *mdmtest.TestAppleMDMClient
 	winMDMClient *mdmtest.TestWindowsMDMClient
 
@@ -528,14 +528,14 @@ type agent struct {
 	mdmAPNSPushURL string
 
 	// winMDMWake signals the Windows MDM loop to start an OMA-DM session on demand (in response to the server's
-	// WindowsMDMSyncRequest notification), mirroring real fleetd waking the device. Buffered with capacity 1, sent
+	// WindowsMDMSyncRequest notification), mirroring real automdmd waking the device. Buffered with capacity 1, sent
 	// non-blocking, so coalesced wakes never block the orbit config loop. Non-nil only for Windows MDM agents.
 	winMDMWake chan struct{}
 
 	// ws simulates orbit's WebSocket notification transport; non-nil only
 	// while the server's orbit-config directive has it enabled (see
 	// syncWSTransport). wsSupported gates which orbit agents follow the
-	// directive (-websocket_prob), simulating older fleetd versions that
+	// directive (-websocket_prob), simulating older automdmd versions that
 	// ignore it.
 	wsMu        sync.Mutex
 	ws          *wsTransport
@@ -573,7 +573,7 @@ type agent struct {
 	pssoDevice *mdmtest.TestApplePSSODevice
 	pssoParams pssoParams
 	// pssoTokenReady is closed (once) by the MDM loop when it extracts the
-	// Fleet-signed registration token from a delivered PSSO profile. The PSSO
+	// AutoMDM-signed registration token from a delivered PSSO profile. The PSSO
 	// loop blocks on it before registering. Non-nil only when pssoDevice is set.
 	pssoTokenReady chan struct{}
 	// pssoTokenCaptured short-circuits token extraction once it has succeeded.
@@ -610,7 +610,7 @@ type agent struct {
 	installedProfiles   map[string]installedMDMProfile
 
 	disableScriptExec   bool
-	disableFleetDesktop bool
+	disableAutoMDMDesktop bool
 	loggerTLSMaxLines   int
 
 	// atomic boolean is set to true when executing scripts, so that only a
@@ -631,7 +631,7 @@ type agent struct {
 	linuxUniqueSoftwareVersion bool
 	linuxUniqueSoftwareTitle   bool
 
-	// Software installed on the host via Fleet. Key is the software name + version + bundle identifier.
+	// Software installed on the host via AutoMDM. Key is the software name + version + bundle identifier.
 	installedSoftware sync.Map
 
 	// Cached software indices (pointers into global softwareDB array for this agent's platform)
@@ -672,7 +672,7 @@ type agent struct {
 	scheduledQueryMapMutex sync.RWMutex
 	scheduledQueryData     *sync.Map
 	// bufferedResults contains result logs that are buffered when
-	// /api/v1/osquery/log requests to the Fleet server fail.
+	// /api/v1/osquery/log requests to the AutoMDM server fail.
 	//
 	// NOTE: We use a map instead of a slice to prevent the data structure to
 	// increase indefinitely (we sacrifice accuracy of logs but that's
@@ -741,7 +741,7 @@ type softwareEntityCount struct {
 }
 type softwareAIToolsCount struct {
 	entityCount
-	// markedApps is the number of the host's apps also reported by ai_tools, which Fleet flags
+	// markedApps is the number of the host's apps also reported by ai_tools, which AutoMDM flags
 	// as AI tools instead of adding new titles.
 	markedApps int
 }
@@ -766,11 +766,11 @@ type softwareInstaller struct {
 type pssoParams struct {
 	// prob is the fraction of macOS MDM agents that also simulate PSSO [0, 1].
 	prob float64
-	// clientID is the IdP/extension client ID. It must match the Fleet server's
+	// clientID is the IdP/extension client ID. It must match the AutoMDM server's
 	// account provisioning config. Empty disables PSSO regardless of prob.
 	clientID string
 	// username and password are the IdP credentials used for logins. They must
-	// be accepted by the IdP the Fleet server proxies to.
+	// be accepted by the IdP the AutoMDM server proxies to.
 	username string
 	password string
 	// interval is the window over which initial registrations are staggered and
@@ -816,7 +816,7 @@ func newAgent(
 	liveQueryFailProb float64,
 	liveQueryNoResultsProb float64,
 	disableScriptExec bool,
-	disableFleetDesktop bool,
+	disableAutoMDMDesktop bool,
 	loggerTLSMaxLines int,
 	linuxUniqueSoftwareVersion bool,
 	linuxUniqueSoftwareTitle bool,
@@ -935,7 +935,7 @@ func newAgent(
 		osqueryConfigNudge:      make(chan struct{}, 1),
 
 		disableScriptExec:        disableScriptExec,
-		disableFleetDesktop:      disableFleetDesktop,
+		disableAutoMDMDesktop:      disableAutoMDMDesktop,
 		loggerTLSMaxLines:        loggerTLSMaxLines,
 		bufferedResults:          make(map[resultLog]int),
 		scheduledQueryData:       new(sync.Map),
@@ -952,7 +952,7 @@ func newAgent(
 		configTLSETag:            configTLSETag,
 	}
 
-	// AI agent sessions come from fleetd tables, so only fleetd hosts report them.
+	// AI agent sessions come from automdmd tables, so only automdmd hosts report them.
 	if deviceAuthToken != nil && rand.Float64() < aiSessions.prob { //nolint:gosec // ignore weak randomizer
 		agent.aiSessions = newAISessionsSim(aiSessions, agentOS, rand.Int63(), time.Now()) //nolint:gosec // ignore weak randomizer
 	}
@@ -1292,14 +1292,14 @@ func (a *agent) runOrbitLoop() {
 		}
 	}
 
-	orbitClient, err := fleetclient.NewOrbitClient(
+	orbitClient, err := automdmclient.NewOrbitClient(
 		"",
 		a.serverAddress,
 		"",
 		true,
 		a.EnrollSecret,
 		nil,
-		fleet.OrbitHostInfo{
+		automdm.OrbitHostInfo{
 			HardwareUUID:   a.UUID,
 			HardwareSerial: a.SerialNumber,
 			Hostname:       a.CachedString("hostname"),
@@ -1315,17 +1315,17 @@ func (a *agent) runOrbitLoop() {
 
 	orbitClient.TestNodeKey = *a.orbitNodeKey
 
-	// Simulated Windows MDM hosts advertise CapabilityWindowsMDMSync, like real Windows fleetd, so the server relaxes
+	// Simulated Windows MDM hosts advertise CapabilityWindowsMDMSync, like real Windows automdmd, so the server relaxes
 	// their DMClient poll schedule (via a Replace on the poll node) and wakes them on demand via WindowsMDMSyncRequest
-	// instead of relying on frequent polling. Real fleetd adds this at construction (GetOrbitClientCapabilities gates it
+	// instead of relying on frequent polling. Real automdmd adds this at construction (GetOrbitClientCapabilities gates it
 	// on GOOS=windows); osquery-perf simulates Windows on a non-Windows GOOS, so we add it here. Mutating the map directly
 	// is safe: GetOrbitClientCapabilities returns a fresh per-client map (not shared), and this runs during setup before
 	// the first request or any concurrent goroutine, so there is no copy needed.
 	if a.winMDMClient != nil {
-		orbitClient.ClientCapabilities[fleet.CapabilityWindowsMDMSync] = struct{}{}
+		orbitClient.ClientCapabilities[automdm.CapabilityWindowsMDMSync] = struct{}{}
 	}
 
-	deviceClient, err := fleetclient.NewDeviceClient(a.serverAddress, true, "", nil, "")
+	deviceClient, err := automdmclient.NewDeviceClient(a.serverAddress, true, "", nil, "")
 	if err != nil {
 		log.Fatal("creating device client: ", err)
 	}
@@ -1338,9 +1338,9 @@ func (a *agent) runOrbitLoop() {
 	}
 
 	tokenRotationEnabled := false
-	if !a.disableFleetDesktop {
-		tokenRotationEnabled = orbitClient.GetServerCapabilities().Has(fleet.CapabilityOrbitEndpoints) &&
-			orbitClient.GetServerCapabilities().Has(fleet.CapabilityTokenRotation)
+	if !a.disableAutoMDMDesktop {
+		tokenRotationEnabled = orbitClient.GetServerCapabilities().Has(automdm.CapabilityOrbitEndpoints) &&
+			orbitClient.GetServerCapabilities().Has(automdm.CapabilityTokenRotation)
 
 		// it also writes and checks the device token
 		if tokenRotationEnabled {
@@ -1356,7 +1356,7 @@ func (a *agent) runOrbitLoop() {
 		}
 	}
 
-	// checkToken is used to simulate Fleet Desktop polling until a token is
+	// checkToken is used to simulate AutoMDM Desktop polling until a token is
 	// valid, we make a random number of requests to properly emulate what
 	// happens in the real world as there are delays that are not accounted by
 	// the way this simulation is arranged.
@@ -1379,8 +1379,8 @@ func (a *agent) runOrbitLoop() {
 		}
 	}
 
-	// Fleet Desktop performs a burst of check token requests when it's initialized
-	if !a.disableFleetDesktop {
+	// AutoMDM Desktop performs a burst of check token requests when it's initialized
+	if !a.disableAutoMDMDesktop {
 		checkToken()
 	}
 
@@ -1399,10 +1399,10 @@ func (a *agent) runOrbitLoop() {
 	// orbit polls the /orbit/ping endpoint every 5 minutes to check if the
 	// server capabilities have changed
 	capabilitiesCheckerTicker := time.Tick(5 * time.Minute)
-	// fleet desktop polls for policy compliance every 5 minutes
-	fleetDesktopPolicyTicker := time.Tick(5 * time.Minute)
-	// fleet desktop pings every 10s for connectivity check.
-	fleetDesktopConnectivityCheck := time.Tick(10 * time.Second)
+	// automdm desktop polls for policy compliance every 5 minutes
+	automdmDesktopPolicyTicker := time.Tick(5 * time.Minute)
+	// automdm desktop pings every 10s for connectivity check.
+	automdmDesktopConnectivityCheck := time.Tick(10 * time.Second)
 
 	var lastEnrollAttempt time.Time
 
@@ -1463,7 +1463,7 @@ func (a *agent) runOrbitLoop() {
 			orbitConfigTimer.Reset(orbitConfigInterval)
 			a.handleOrbitConfig(cfg, orbitClient, &lastEnrollAttempt)
 		case <-orbitTokenRemoteCheckTicker:
-			if !a.disableFleetDesktop && tokenRotationEnabled {
+			if !a.disableAutoMDMDesktop && tokenRotationEnabled {
 				if err := deviceClient.CheckToken(*a.deviceAuthToken); err != nil {
 					a.stats.IncrementOrbitErrors()
 					log.Println("deviceClient.CheckToken: ", err)
@@ -1471,7 +1471,7 @@ func (a *agent) runOrbitLoop() {
 				}
 			}
 		case <-orbitTokenRotationTicker:
-			if !a.disableFleetDesktop && tokenRotationEnabled {
+			if !a.disableAutoMDMDesktop && tokenRotationEnabled {
 				newToken := ptr.String(uuid.NewString())
 				if err := orbitClient.SetOrUpdateDeviceToken(*newToken); err != nil {
 					a.stats.IncrementOrbitErrors()
@@ -1479,7 +1479,7 @@ func (a *agent) runOrbitLoop() {
 					continue
 				}
 				a.deviceAuthToken = newToken
-				// fleet desktop performs a burst of check token requests after a token is rotated
+				// automdm desktop performs a burst of check token requests after a token is rotated
 				checkToken()
 			}
 		case <-capabilitiesCheckerTicker:
@@ -1487,16 +1487,16 @@ func (a *agent) runOrbitLoop() {
 				a.stats.IncrementOrbitErrors()
 				continue
 			}
-		case <-fleetDesktopPolicyTicker:
-			if !a.disableFleetDesktop {
+		case <-automdmDesktopPolicyTicker:
+			if !a.disableAutoMDMDesktop {
 				if _, err := deviceClient.DesktopSummary(*a.deviceAuthToken); err != nil {
 					a.stats.IncrementDesktopErrors()
 					log.Println("deviceClient.NumberOfFailingPolicies: ", err)
 					continue
 				}
 			}
-		case <-fleetDesktopConnectivityCheck:
-			if !a.disableFleetDesktop {
+		case <-automdmDesktopConnectivityCheck:
+			if !a.disableAutoMDMDesktop {
 				if err := deviceClient.Ping(); err != nil {
 					a.stats.IncrementDesktopErrors()
 					log.Println("deviceClient.Ping: ", err)
@@ -1507,11 +1507,11 @@ func (a *agent) runOrbitLoop() {
 	}
 }
 
-// handleOrbitConfig acts on a fetched orbit config, like fleetd's config
+// handleOrbitConfig acts on a fetched orbit config, like automdmd's config
 // receivers.
-func (a *agent) handleOrbitConfig(cfg *fleet.OrbitConfig, orbitClient *fleetclient.OrbitClient, lastEnrollAttempt *time.Time) {
+func (a *agent) handleOrbitConfig(cfg *automdm.OrbitConfig, orbitClient *automdmclient.OrbitClient, lastEnrollAttempt *time.Time) {
 	const windowsMDMEnrollmentAttemptFrequency = time.Hour
-	// Follow the server's WebSocket transport directive, like fleetd.
+	// Follow the server's WebSocket transport directive, like automdmd.
 	a.syncWSTransport(cfg.WebSocketTransport)
 	if len(cfg.Notifications.PendingScriptExecutionIDs) > 0 {
 		// there are pending scripts to execute on this host, start a goroutine
@@ -1651,7 +1651,7 @@ func (a *agent) removeInstalledProfile(channel, identifier string) bool {
 	return true
 }
 
-// seedEnrollmentProfile tracks the Fleet enrollment profile as installed on
+// seedEnrollmentProfile tracks the AutoMDM enrollment profile as installed on
 // the device channel. It is installed during enrollment rather than via an
 // InstallProfile command, and the server sends a RemoveProfile for it when a
 // host is unenrolled, so it must be tracked for that removal to succeed.
@@ -1661,8 +1661,8 @@ func (a *agent) seedEnrollmentProfile() {
 	if a.installedProfiles == nil {
 		a.installedProfiles = make(map[string]installedMDMProfile)
 	}
-	a.installedProfiles["device/"+apple_mdm.FleetPayloadIdentifier] = installedMDMProfile{
-		identifier:  apple_mdm.FleetPayloadIdentifier,
+	a.installedProfiles["device/"+apple_mdm.AutoMDMPayloadIdentifier] = installedMDMProfile{
+		identifier:  apple_mdm.AutoMDMPayloadIdentifier,
 		displayName: "Enrollment Profile",
 		installDate: time.Now(),
 	}
@@ -1757,7 +1757,7 @@ func (a *agent) runMacosMDMLoop() {
 					}
 
 					// The profile installed successfully. If it's the PSSO
-					// profile, capture the Fleet-signed registration token it
+					// profile, capture the AutoMDM-signed registration token it
 					// carries and unblock the PSSO loop — the token only reaches
 					// the device this way, so this is the trigger for device
 					// registration. Done before Acknowledge, which advances
@@ -1835,7 +1835,7 @@ func (a *agent) runMacosMDMLoop() {
 				mdmCommandPayload = nextMdmCommandPayload
 
 			case "InstalledApplicationList":
-				var installedVPPSoftware []fleet.Software
+				var installedVPPSoftware []automdm.Software
 				// Our mock VPP apps start off as "not installed".
 				// The first time we get a verification command, we flip the flag to "installed",
 				// but don't include the software in the response.
@@ -2052,7 +2052,7 @@ func (a *agent) runMacosMDMUserLoop() {
 }
 
 // runMacosPSSOLoop simulates a macOS Platform SSO extension for the subset of
-// MDM agents selected for PSSO. It waits for the Fleet-signed registration token
+// MDM agents selected for PSSO. It waits for the AutoMDM-signed registration token
 // to arrive in an MDM-delivered profile, registers the device once, then mimics
 // real macOS by spreading occasional logins and offline-unlock key operations
 // across a long interval rather than checking in every tick.
@@ -2237,7 +2237,7 @@ func (a *agent) doWindowsMDMCheckIn(onDemand bool) (newPollInterval time.Duratio
 					continue
 				}
 				// Report the issued cert via the certificates detail query so the server observes the
-				// fleet-<profileUUID> renewal-ID marker and marks the SCEP profile verified. The withheld ~5% never
+				// automdm-<profileUUID> renewal-ID marker and marks the SCEP profile verified. The withheld ~5% never
 				// report theirs, so the server's verification backstop fails those profiles.
 				if a.withholdSCEPCert {
 					continue
@@ -2253,13 +2253,13 @@ func (a *agent) doWindowsMDMCheckIn(onDemand bool) (newPollInterval time.Duratio
 		// Skip the server's own <Status> entries. MS-MDM's "Status on a Status" is only for auth-renegotiation edge cases (see
 		// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-mdm/36b1a4d9-fd93-48ce-b865-6a9d396c52a4
 		// "While this case is not usually encountered"); real Windows does not emit Status-on-Status during normal check-ins.
-		if c.Verb == fleet.CmdStatus {
+		if c.Verb == automdm.CmdStatus {
 			continue
 		}
 		// When the server relaxes (or restores) our poll schedule it sends a Replace on the DMClient poll node. Honor it
 		// by adjusting our scheduled poll interval, mirroring how the real Windows DMClient applies the Replace. We still
 		// ACK it below like any other command.
-		if c.Verb == fleet.CmdReplace && c.Cmd.GetTargetURI() == syncml.DMClientPollIntervalLocURI {
+		if c.Verb == automdm.CmdReplace && c.Cmd.GetTargetURI() == syncml.DMClientPollIntervalLocURI {
 			if mins, err := strconv.Atoi(strings.TrimSpace(c.Cmd.GetTargetData())); err == nil && mins > 0 {
 				newPollInterval = time.Duration(mins) * time.Minute
 			}
@@ -2275,14 +2275,14 @@ func (a *agent) doWindowsMDMCheckIn(onDemand bool) (newPollInterval time.Duratio
 		if a.mdmProfileFailureProb > 0.0 && rand.Float64() <= a.mdmProfileFailureProb {
 			status = syncml.CmdStatusBadRequest
 		}
-		a.winMDMClient.AppendResponse(fleet.SyncMLCmd{
-			XMLName: xml.Name{Local: fleet.CmdStatus},
+		a.winMDMClient.AppendResponse(automdm.SyncMLCmd{
+			XMLName: xml.Name{Local: automdm.CmdStatus},
 			MsgRef:  &msgID,
 			CmdRef:  &c.Cmd.CmdID.Value,
 			Cmd:     ptr.String(c.Verb),
 			Data:    &status,
 			Items:   nil,
-			CmdID:   fleet.CmdID{Value: uuid.NewString()},
+			CmdID:   automdm.CmdID{Value: uuid.NewString()},
 		})
 	}
 	if _, err := a.winMDMClient.SendResponse(); err != nil {
@@ -2293,7 +2293,7 @@ func (a *agent) doWindowsMDMCheckIn(onDemand bool) (newPollInterval time.Duratio
 	return newPollInterval
 }
 
-func (a *agent) execScripts(execIDs []string, orbitClient *fleetclient.OrbitClient) {
+func (a *agent) execScripts(execIDs []string, orbitClient *automdmclient.OrbitClient) {
 	if a.scriptExecRunning.Swap(true) {
 		// if Swap returns true, the goroutine was already running, exit
 		return
@@ -2304,7 +2304,7 @@ func (a *agent) execScripts(execIDs []string, orbitClient *fleetclient.OrbitClie
 	for _, execID := range execIDs {
 		if a.disableScriptExec {
 			// send a no-op result without executing if script exec is disabled
-			if err := orbitClient.SaveHostScriptResult(&fleet.HostScriptResultPayload{
+			if err := orbitClient.SaveHostScriptResult(&automdm.HostScriptResultPayload{
 				ExecutionID: execID,
 				Output:      "Scripts are disabled",
 				Runtime:     0,
@@ -2333,7 +2333,7 @@ func (a *agent) execScripts(execIDs []string, orbitClient *fleetclient.OrbitClie
 		runtime := rand.Intn(5)
 		time.Sleep(time.Duration(runtime) * time.Second)
 
-		if err := orbitClient.SaveHostScriptResult(&fleet.HostScriptResultPayload{
+		if err := orbitClient.SaveHostScriptResult(&automdm.HostScriptResultPayload{
 			HostID:      script.HostID,
 			ExecutionID: script.ExecutionID,
 			Output:      base64.StdEncoding.EncodeToString(buf[:n]),
@@ -2348,7 +2348,7 @@ func (a *agent) execScripts(execIDs []string, orbitClient *fleetclient.OrbitClie
 	}
 }
 
-func (a *agent) installSoftware(installerIDs []string, orbitClient *fleetclient.OrbitClient) {
+func (a *agent) installSoftware(installerIDs []string, orbitClient *automdmclient.OrbitClient) {
 	// Only allow one software install to happen at a time.
 	if a.softwareInstaller.mu.TryLock() {
 		defer a.softwareInstaller.mu.Unlock()
@@ -2358,10 +2358,10 @@ func (a *agent) installSoftware(installerIDs []string, orbitClient *fleetclient.
 	}
 }
 
-func (a *agent) installSoftwareItem(installerID string, orbitClient *fleetclient.OrbitClient) {
+func (a *agent) installSoftwareItem(installerID string, orbitClient *automdmclient.OrbitClient) {
 	a.stats.IncrementSoftwareInstalls()
 
-	payload := &fleet.HostSoftwareInstallResultPayload{}
+	payload := &automdm.HostSoftwareInstallResultPayload{}
 	payload.InstallUUID = installerID
 	installer, err := orbitClient.GetInstallerDetails(installerID)
 	if err != nil {
@@ -2487,12 +2487,12 @@ func (a *agent) shouldSignRequest(req *http.Request) bool {
 	}
 
 	// Exclude ping endpoint from signing
-	if strings.HasSuffix(req.URL.Path, "/api/fleet/orbit/ping") {
+	if strings.HasSuffix(req.URL.Path, "/api/automdm/orbit/ping") {
 		return false
 	}
 
 	// Only sign specific API paths
-	return strings.Contains(req.URL.Path, "/api/fleet/orbit/") || strings.Contains(req.URL.Path, "/osquery/")
+	return strings.Contains(req.URL.Path, "/api/automdm/orbit/") || strings.Contains(req.URL.Path, "/osquery/")
 }
 
 // sign applies HTTP message signature to a request if needed
@@ -2541,7 +2541,7 @@ func mdmEnrollWithRetry(deviceLabel string, incrementErrStat func(), enroll func
 // now, we assume that the agent is not already enrolled, if you kill the agent
 // process then those Orbit node keys are gone.
 func (a *agent) orbitEnroll() error {
-	params := fleet.EnrollOrbitRequest{
+	params := automdm.EnrollOrbitRequest{
 		EnrollSecret:   a.EnrollSecret,
 		HardwareUUID:   a.UUID,
 		HardwareSerial: a.SerialNumber,
@@ -2554,7 +2554,7 @@ func (a *agent) orbitEnroll() error {
 	}
 
 	response := a.waitingDo(func() *http.Request {
-		request, err := http.NewRequest("POST", a.serverAddress+"/api/fleet/orbit/enroll", bytes.NewReader(jsonBytes))
+		request, err := http.NewRequest("POST", a.serverAddress+"/api/automdm/orbit/enroll", bytes.NewReader(jsonBytes))
 		if err != nil {
 			panic(err)
 		}
@@ -2563,7 +2563,7 @@ func (a *agent) orbitEnroll() error {
 	})
 	defer response.Body.Close()
 
-	var parsedResp fleet.EnrollOrbitResponse
+	var parsedResp automdm.EnrollOrbitResponse
 	if err := json.NewDecoder(response.Body).Decode(&parsedResp); err != nil {
 		log.Println("orbit json parse:", err)
 		return err
@@ -2656,7 +2656,7 @@ func (a *agent) fetchConfig(fallback bool) error {
 	}
 	request.Header.Add("Content-type", "application/json")
 	if viaOrbit && a.osqueryConfigFallbackChange {
-		request.Header.Set(fleet.OsqueryConfigFallbackChangeHeader, "1")
+		request.Header.Set(automdm.OsqueryConfigFallbackChangeHeader, "1")
 	}
 
 	response, err := http.DefaultClient.Do(a.sign(request))
@@ -2943,10 +2943,10 @@ func (a *agent) softwareMacOS() []map[string]string {
 	}
 
 	// Template software is served identically to every macOS host, mirroring the
-	// Windows and Ubuntu templates. This is what makes a simulated Mac fleet
+	// Windows and Ubuntu templates. This is what makes a simulated Mac team
 	// homogeneous: every host reports the same titles, so concurrent ingest
 	// contends on the software_titles unique index the way a real corporate
-	// Mac fleet does. Unlike the "common" pool, it is never sliced per-host.
+	// Mac team does. Unlike the "common" pool, it is never sliced per-host.
 	templateSoftware := make([]map[string]string, 0, len(macOSSoftware))
 	for _, s := range macOSSoftware {
 		var lastOpenedAt string
@@ -3076,7 +3076,7 @@ func (a *agent) softwareMacOS() []map[string]string {
 		}
 
 		for i := range softwareLimit {
-			var sw fleet.Software
+			var sw automdm.Software
 
 			if a.softwareCount.vulnerable < 0 {
 				sw = macosVulnerableSoftware[i]
@@ -3117,7 +3117,7 @@ func (a *agent) softwareMacOS() []map[string]string {
 	return software
 }
 
-func (a *mdmAgent) softwareIOSandIPadOS(source string) []fleet.Software {
+func (a *mdmAgent) softwareIOSandIPadOS(source string) []automdm.Software {
 	commonSoftware := make([]map[string]string, a.softwareCount.common)
 	for i := 0; i < len(commonSoftware); i++ {
 		name := fmt.Sprintf("Common_%d", i)
@@ -3155,16 +3155,16 @@ func (a *mdmAgent) softwareIOSandIPadOS(source string) []fleet.Software {
 	rand.Shuffle(len(software), func(i, j int) {
 		software[i], software[j] = software[j], software[i]
 	})
-	fleetSoftware := make([]fleet.Software, len(software))
+	automdmSoftware := make([]automdm.Software, len(software))
 	for i, s := range software {
-		fleetSoftware[i] = fleet.Software{
+		automdmSoftware[i] = automdm.Software{
 			Name:             s["name"],
 			Version:          s["version"],
 			BundleIdentifier: s["bundle_identifier"],
 			Source:           s["source"],
 		}
 	}
-	return fleetSoftware
+	return automdmSoftware
 }
 
 // A large keg stands in for a formula like netpbm (~360 tools) or texlive, which install
@@ -3185,7 +3185,7 @@ func stablePercentile(property, name string) int {
 
 // homebrewExecutableHashes simulates the macos_homebrew_executable_sha256 software override
 // query: one row per Mach-O executable a Homebrew formula installs under its keg, hashed by the
-// fleetd executable_hashes table. That fan-out, not the number of formulae, is what sizes a macOS
+// automdmd executable_hashes table. That fan-out, not the number of formulae, is what sizes a macOS
 // host's installed path delta, so it is what the two keg flags control.
 func (a *agent) homebrewExecutableHashes(software []map[string]string) []map[string]string {
 	var results []map[string]string
@@ -3291,13 +3291,13 @@ func (a *agent) adobePlugin(name, dirName, baseVersion, alternateVersion string)
 		"extension_id":      dirName,
 		"extension_for":     "",
 		"source":            "adobe_plugins",
-		"vendor":            "Fleet Test Vendor",
+		"vendor":            "AutoMDM Test Vendor",
 		"last_opened_at":    "",
 		"installed_path":    a.adobePluginsExtensionsDir() + dirName,
 	}
 }
 
-// softwareAdobePlugins generates the Adobe plugins reported by fleetd's adobe_plugins
+// softwareAdobePlugins generates the Adobe plugins reported by automdmd's adobe_plugins
 // table.
 func (a *agent) softwareAdobePlugins() []map[string]string {
 	commonPlugins := make([]map[string]string, a.softwareAdobePluginsCount.common)
@@ -3305,7 +3305,7 @@ func (a *agent) softwareAdobePlugins() []map[string]string {
 		dirName := fmt.Sprintf("com.fleetdm.osquery-perf.adobe_plugin_%d", i)
 		commonPlugins[i] = a.adobePlugin(fmt.Sprintf("Common Adobe Plugin %d", i), dirName, "0.0.1", "0.0.2")
 
-		// Hosts also report plugins whose manifest is missing or unparseable: fleetd falls
+		// Hosts also report plugins whose manifest is missing or unparseable: automdmd falls
 		// back to the extension's directory name and reports no version, vendor or bundle ID.
 		// Report the last common plugin that way so inventory covers those rows too.
 		if len(commonPlugins) > 1 && i == len(commonPlugins)-1 {
@@ -3346,11 +3346,11 @@ func (a *agent) softwareAdobePlugins() []map[string]string {
 func (a *agent) goBinDir() string {
 	switch a.os {
 	case "windows":
-		return `C:\Users\fleet\go\bin\`
+		return `C:\Users\team\go\bin\`
 	case "macos":
-		return "/Users/fleet/go/bin/"
+		return "/Users/automdm/go/bin/"
 	default:
-		return "/home/fleet/go/bin/"
+		return "/home/automdm/go/bin/"
 	}
 }
 
@@ -3368,10 +3368,10 @@ func (a *agent) goBinary(name, modulePath, baseVersion, alternateVersion, goVers
 	}
 }
 
-// softwareGoBinaries generates the Go binaries reported by fleetd's go_binaries table,
+// softwareGoBinaries generates the Go binaries reported by automdmd's go_binaries table,
 // covering the three shapes the real table emits: binaries installed with `go install`, one
 // built with `go build` (version "(devel)" and no module path, because it was built outside
-// module mode), and one name and version built with two toolchains, which Fleet stores as
+// module mode), and one name and version built with two toolchains, which AutoMDM stores as
 // two software rows because release is part of the software checksum.
 func (a *agent) softwareGoBinaries() []map[string]string {
 	if a.softwareGoBinariesCount.common == 0 && a.softwareGoBinariesCount.unique == 0 {
@@ -3406,11 +3406,11 @@ func (a *agent) softwareGoBinaries() []map[string]string {
 func (a *agent) aiHomeDir() string {
 	switch a.os {
 	case "windows":
-		return `C:\Users\fleet\`
+		return `C:\Users\team\`
 	case "macos":
-		return "/Users/fleet/"
+		return "/Users/automdm/"
 	default:
-		return "/home/fleet/"
+		return "/home/automdm/"
 	}
 }
 
@@ -3680,7 +3680,7 @@ func (a *agent) mdmMac() []map[string]string {
 			"enrolled":           "true",
 			"server_url":         a.macMDMClient.EnrollInfo.MDMURL,
 			"installed_from_dep": "false",
-			"payload_identifier": apple_mdm.FleetPayloadIdentifier,
+			"payload_identifier": apple_mdm.AutoMDMPayloadIdentifier,
 		},
 	}
 }
@@ -3752,7 +3752,7 @@ func (a *agent) mdmWindows() []map[string]string {
 		{
 			"aad_resource_id":       "",
 			"discovery_service_url": a.serverAddress,
-			"provider_id":           fleet.WellKnownMDMFleet,
+			"provider_id":           automdm.WellKnownMDMAutoMDM,
 			"installation_type":     "Client",
 		},
 	}
@@ -3860,13 +3860,13 @@ func (a *agent) diskEncryptionWindows() []map[string]string {
 	a.DiskEncryptionEnabled = rand.Intn(2) == 1
 	if a.DiskEncryptionEnabled {
 		return []map[string]string{{
-			"protection_status": strconv.Itoa(fleet.BitLockerProtectionStatusOn),
-			"conversion_status": strconv.Itoa(fleet.BitLockerConversionStatusFullyEncrypted),
+			"protection_status": strconv.Itoa(automdm.BitLockerProtectionStatusOn),
+			"conversion_status": strconv.Itoa(automdm.BitLockerConversionStatusFullyEncrypted),
 		}}
 	}
 	return []map[string]string{{
-		"protection_status": strconv.Itoa(fleet.BitLockerProtectionStatusOff),
-		"conversion_status": strconv.Itoa(fleet.BitLockerConversionStatusFullyDecrypted),
+		"protection_status": strconv.Itoa(automdm.BitLockerProtectionStatusOff),
+		"conversion_status": strconv.Itoa(automdm.BitLockerConversionStatusFullyDecrypted),
 	}}
 }
 
@@ -3889,7 +3889,7 @@ func (a *agent) diskEncryptionLinux() []map[string]string {
 func (a *agent) orbitInfo() []map[string]string {
 	version := "1.22.0"
 	desktopVersion := version
-	if a.disableFleetDesktop {
+	if a.disableAutoMDMDesktop {
 		desktopVersion = ""
 	}
 	deviceAuthToken := ""
@@ -3912,13 +3912,13 @@ func (a *agent) orbitInfo() []map[string]string {
 	}
 }
 
-func (a *agent) runLiveQuery(query string) (results []map[string]string, status *fleet.OsqueryStatus, message *string, stats *fleet.Stats) {
+func (a *agent) runLiveQuery(query string) (results []map[string]string, status *automdm.OsqueryStatus, message *string, stats *automdm.Stats) {
 	if a.liveQueryFailProb > 0.0 && rand.Float64() <= a.liveQueryFailProb {
-		ss := fleet.OsqueryStatus(1)
+		ss := automdm.OsqueryStatus(1)
 		return []map[string]string{}, &ss, ptr.String("live query failed with error foobar"), nil
 	}
 	if a.liveQueryNoResultsProb > 0.0 && rand.Float64() <= a.liveQueryNoResultsProb {
-		ss := fleet.OsqueryStatus(0)
+		ss := automdm.OsqueryStatus(0)
 		return []map[string]string{}, &ss, nil, nil
 	}
 
@@ -3932,7 +3932,7 @@ func (a *agent) runLiveQuery(query string) (results []map[string]string, status 
 	}
 }
 
-func (a *agent) runLiveYaraQuery(query string) (results []map[string]string, status *fleet.OsqueryStatus, message *string, stats *fleet.Stats) {
+func (a *agent) runLiveYaraQuery(query string) (results []map[string]string, status *automdm.OsqueryStatus, message *string, stats *automdm.Stats) {
 	// Get the URL of the YARA rule to request (i.e. the sigurl).
 	urlRegex := regexp.MustCompile(`sigurl=(["'])([^"']*)["']`)
 	matches := urlRegex.FindStringSubmatch(query)
@@ -3940,15 +3940,15 @@ func (a *agent) runLiveYaraQuery(query string) (results []map[string]string, sta
 	if len(matches) > 2 {
 		url = matches[2]
 	} else {
-		ss := fleet.OsqueryStatus(1)
+		ss := automdm.OsqueryStatus(1)
 		return []map[string]string{}, &ss, ptr.String("live yara query failed because a valid sigurl could not be found"), nil
 	}
 
 	// Osquery validates that the sigurl is one of a configured set, so that it's not
 	// sending requests to just anywhere. We'll check that it's at least the same host
-	// as the Fleet server.
+	// as the AutoMDM server.
 	if !strings.HasPrefix(url, a.serverAddress) {
-		ss := fleet.OsqueryStatus(1)
+		ss := automdm.OsqueryStatus(1)
 		return []map[string]string{}, &ss, ptr.String("live yara query failed because sigurl host did not match server address"), nil
 	}
 
@@ -3956,7 +3956,7 @@ func (a *agent) runLiveYaraQuery(query string) (results []map[string]string, sta
 	body := []byte(`{"node_key": "` + a.nodeKey + `"}`)
 	request, err := http.NewRequest("POST", url, bytes.NewReader(body))
 	if err != nil {
-		ss := fleet.OsqueryStatus(1)
+		ss := automdm.OsqueryStatus(1)
 		return []map[string]string{}, &ss, ptr.String("live yara query failed due to error creating request"), nil
 	}
 	request.Header.Add("Content-type", "application/json")
@@ -3964,19 +3964,19 @@ func (a *agent) runLiveYaraQuery(query string) (results []map[string]string, sta
 	// Make the request.
 	response, err := http.DefaultClient.Do(a.sign(request))
 	if err != nil {
-		ss := fleet.OsqueryStatus(1)
+		ss := automdm.OsqueryStatus(1)
 		return []map[string]string{}, &ss, ptr.String(fmt.Sprintf("yara request failed to run: %v", err)), nil
 	}
 	defer response.Body.Close()
 
 	// For load testing purposes we don't actually care about the response, but check that we at least got one.
 	if _, err := io.Copy(io.Discard, response.Body); err != nil {
-		ss := fleet.OsqueryStatus(1)
+		ss := automdm.OsqueryStatus(1)
 		return []map[string]string{}, &ss, ptr.String(fmt.Sprintf("error reading response from yara API: %v", err)), nil
 	}
 
 	// Return a response indicating that the file is clean.
-	ss := fleet.OsqueryStatus(0)
+	ss := automdm.OsqueryStatus(0)
 	return []map[string]string{
 		{
 			"count":     "0",
@@ -3990,7 +3990,7 @@ func (a *agent) runLiveYaraQuery(query string) (results []map[string]string, sta
 			// Could pull this from the query, but not necessary for load testing.
 			"path": "/some/path",
 		},
-	}, &ss, nil, &fleet.Stats{
+	}, &ss, nil, &automdm.Stats{
 		WallTimeMs: uint64(rand.Intn(1000) * 1000), //nolint:gosec // G115: rand.Intn(1000) is bounded, so this cannot overflow.
 		UserTime:   uint64(rand.Intn(1000)),        //nolint:gosec // G115: rand.Intn(1000) is bounded, so this cannot overflow.
 		SystemTime: uint64(rand.Intn(1000)),        //nolint:gosec // G115: rand.Intn(1000) is bounded, so this cannot overflow.
@@ -3998,8 +3998,8 @@ func (a *agent) runLiveYaraQuery(query string) (results []map[string]string, sta
 	}
 }
 
-func (a *agent) runLiveMockQuery(query string) (results []map[string]string, status *fleet.OsqueryStatus, message *string, stats *fleet.Stats) {
-	ss := fleet.OsqueryStatus(0)
+func (a *agent) runLiveMockQuery(query string) (results []map[string]string, status *automdm.OsqueryStatus, message *string, stats *automdm.Stats) {
+	ss := automdm.OsqueryStatus(0)
 	return []map[string]string{
 		{
 			"admindir":   "/var/lib/dpkg",
@@ -4014,7 +4014,7 @@ func (a *agent) runLiveMockQuery(query string) (results []map[string]string, sta
 			"status":     "install ok installed",
 			"version":    "20230224000000",
 		},
-	}, &ss, nil, &fleet.Stats{
+	}, &ss, nil, &automdm.Stats{
 		WallTimeMs: uint64(rand.Intn(1000) * 1000), //nolint:gosec // G115: rand.Intn(1000) is bounded, so this cannot overflow.
 		UserTime:   uint64(rand.Intn(1000)),        //nolint:gosec // G115: rand.Intn(1000) is bounded, so this cannot overflow.
 		SystemTime: uint64(rand.Intn(1000)),        //nolint:gosec // G115: rand.Intn(1000) is bounded, so this cannot overflow.
@@ -4024,16 +4024,16 @@ func (a *agent) runLiveMockQuery(query string) (results []map[string]string, sta
 
 func (a *agent) processQuery(name, query string, cachedResults *cachedResults) (
 	handled bool, results []map[string]string,
-	status *fleet.OsqueryStatus, message *string, stats *fleet.Stats,
+	status *automdm.OsqueryStatus, message *string, stats *automdm.Stats,
 ) {
 	const (
-		hostPolicyQueryPrefix = "fleet_policy_query_"
-		hostDetailQueryPrefix = "fleet_detail_query_"
-		hostLabelQueryPrefix  = "fleet_label_query_"
-		liveQueryPrefix       = "fleet_distributed_query_"
+		hostPolicyQueryPrefix = "automdm_policy_query_"
+		hostDetailQueryPrefix = "team_detail_query_"
+		hostLabelQueryPrefix  = "automdm_label_query_"
+		liveQueryPrefix       = "automdm_distributed_query_"
 	)
-	statusOK := fleet.StatusOK
-	statusNotOK := fleet.OsqueryStatus(1)
+	statusOK := automdm.StatusOK
+	statusNotOK := automdm.OsqueryStatus(1)
 	results = []map[string]string{} // if a query fails, osquery returns empty results array
 
 	switch {
@@ -4059,7 +4059,7 @@ func (a *agent) processQuery(name, query string, cachedResults *cachedResults) (
 		}
 		return true, results, &ss, nil, nil
 	case name == hostDetailQueryPrefix+"mdm_config_profiles_darwin":
-		// Simulated fleetd has the macos_user_profiles table, so this legacy
+		// Simulated automdmd has the macos_user_profiles table, so this legacy
 		// query's discovery fails (it requires the table to NOT exist) and
 		// only mdm_config_profiles_darwin_with_user runs. Report no results
 		// and no status, as osquery does for queries whose discovery fails.
@@ -4096,35 +4096,35 @@ func (a *agent) processQuery(name, query string, cachedResults *cachedResults) (
 		}
 		return true, results, &ss, nil, nil
 	case name == hostDetailQueryPrefix+"munki_info":
-		ss := fleet.OsqueryStatus(rand.Intn(2))
-		if ss == fleet.StatusOK {
+		ss := automdm.OsqueryStatus(rand.Intn(2))
+		if ss == automdm.StatusOK {
 			results = a.munkiInfo()
 		}
 		return true, results, &ss, nil, nil
 	case name == hostDetailQueryPrefix+"google_chrome_profiles":
-		ss := fleet.OsqueryStatus(rand.Intn(2))
-		if ss == fleet.StatusOK {
+		ss := automdm.OsqueryStatus(rand.Intn(2))
+		if ss == automdm.StatusOK {
 			results = a.googleChromeProfiles()
 		}
 		return true, results, &ss, nil, nil
 	case name == hostDetailQueryPrefix+"battery":
-		ss := fleet.OsqueryStatus(rand.Intn(2))
-		if ss == fleet.StatusOK {
+		ss := automdm.OsqueryStatus(rand.Intn(2))
+		if ss == automdm.StatusOK {
 			results = a.batteries()
 		}
 		return true, results, &ss, nil, nil
 	case name == hostDetailQueryPrefix+"users":
-		ss := fleet.OsqueryStatus(rand.Intn(2))
-		if ss == fleet.StatusOK {
+		ss := automdm.OsqueryStatus(rand.Intn(2))
+		if ss == automdm.StatusOK {
 			results = a.hostUsers()
 		}
 		return true, results, &ss, nil, nil
 	case name == hostDetailQueryPrefix+"software_macos":
-		ss := fleet.StatusOK
+		ss := automdm.StatusOK
 		if a.softwareQueryFailureProb > 0.0 && rand.Float64() <= a.softwareQueryFailureProb {
-			ss = fleet.OsqueryStatus(1)
+			ss = automdm.OsqueryStatus(1)
 		}
-		if ss == fleet.StatusOK {
+		if ss == automdm.StatusOK {
 			results = a.softwareMacOS()
 			cachedResults.software = results
 		}
@@ -4132,11 +4132,11 @@ func (a *agent) processQuery(name, query string, cachedResults *cachedResults) (
 	case name == hostDetailQueryPrefix+"software_macos_codesign":
 		// Given queries run in lexicographic order software_macos already run and
 		// cachedResults.software should have its results.
-		ss := fleet.StatusOK
+		ss := automdm.StatusOK
 		if a.softwareQueryFailureProb > 0.0 && rand.Float64() <= a.softwareQueryFailureProb {
-			ss = fleet.OsqueryStatus(1)
+			ss = automdm.OsqueryStatus(1)
 		}
-		if ss == fleet.StatusOK {
+		if ss == automdm.StatusOK {
 			if len(cachedResults.software) > 0 {
 				for _, s := range cachedResults.software {
 					if s["source"] != "apps" {
@@ -4158,11 +4158,11 @@ func (a *agent) processQuery(name, query string, cachedResults *cachedResults) (
 		}
 		return true, results, &ss, nil, nil
 	case name == hostDetailQueryPrefix+"software_macos_executable_sha256":
-		ss := fleet.StatusOK
+		ss := automdm.StatusOK
 		if a.softwareQueryFailureProb > 0.0 && rand.Float64() <= a.softwareQueryFailureProb {
-			ss = fleet.OsqueryStatus(1)
+			ss = automdm.OsqueryStatus(1)
 		}
-		if ss == fleet.StatusOK {
+		if ss == automdm.StatusOK {
 			if len(cachedResults.software) > 0 {
 				for _, s := range cachedResults.software {
 					if s["source"] != "apps" {
@@ -4183,20 +4183,20 @@ func (a *agent) processQuery(name, query string, cachedResults *cachedResults) (
 		}
 		return true, results, &ss, nil, nil
 	case name == hostDetailQueryPrefix+"software_macos_homebrew_executable_sha256":
-		ss := fleet.StatusOK
+		ss := automdm.StatusOK
 		if a.softwareQueryFailureProb > 0.0 && rand.Float64() <= a.softwareQueryFailureProb { // nolint:gosec // load testing, not security-sensitive
-			ss = fleet.OsqueryStatus(1)
+			ss = automdm.OsqueryStatus(1)
 		}
-		if ss == fleet.StatusOK {
+		if ss == automdm.StatusOK {
 			results = a.homebrewExecutableHashes(cachedResults.software)
 		}
 		return true, results, &ss, nil, nil
 	case name == hostDetailQueryPrefix+"software_windows":
-		ss := fleet.StatusOK
+		ss := automdm.StatusOK
 		if a.softwareQueryFailureProb > 0.0 && rand.Float64() <= a.softwareQueryFailureProb {
-			ss = fleet.OsqueryStatus(1)
+			ss = automdm.OsqueryStatus(1)
 		}
-		if ss == fleet.StatusOK {
+		if ss == automdm.StatusOK {
 			// Use database software 80% of the time if available, otherwise use embedded data
 			if softwareDB != nil && len(softwareDB.Windows) > 0 && rand.Float64() < 0.8 { //nolint:gosec // G404: load testing, not security-sensitive
 				// Initialize cached indices on first call, then mutate on subsequent calls
@@ -4237,11 +4237,11 @@ func (a *agent) processQuery(name, query string, cachedResults *cachedResults) (
 	case name == hostDetailQueryPrefix+"software_windows_program_files_scan":
 		// Given queries run in lexicographic order, software_windows already ran and
 		// cachedResults.software should have its results.
-		ss := fleet.StatusOK
+		ss := automdm.StatusOK
 		if a.softwareQueryFailureProb > 0.0 && rand.Float64() <= a.softwareQueryFailureProb {
-			ss = fleet.OsqueryStatus(1)
+			ss = automdm.OsqueryStatus(1)
 		}
-		if ss == fleet.StatusOK {
+		if ss == automdm.StatusOK {
 			// Generate file scan results: some duplicate entries (matching programs installed_paths)
 			// and some unique entries (new software not in programs).
 			if len(cachedResults.software) > 0 {
@@ -4295,11 +4295,11 @@ func (a *agent) processQuery(name, query string, cachedResults *cachedResults) (
 		}
 		return true, results, &ss, nil, nil
 	case name == hostDetailQueryPrefix+"software_linux":
-		ss := fleet.StatusOK
+		ss := automdm.StatusOK
 		if a.softwareQueryFailureProb > 0.0 && rand.Float64() <= a.softwareQueryFailureProb {
-			ss = fleet.OsqueryStatus(1)
+			ss = automdm.OsqueryStatus(1)
 		}
-		if ss == fleet.StatusOK {
+		if ss == automdm.StatusOK {
 			switch a.os {
 			case "ubuntu":
 				// Use database software 80% of the time if available, otherwise use embedded data
@@ -4381,44 +4381,44 @@ func (a *agent) processQuery(name, query string, cachedResults *cachedResults) (
 		}
 		return true, results, &ss, nil, nil
 	case name == hostDetailQueryPrefix+"software_vscode_extensions":
-		ss := fleet.StatusOK
+		ss := automdm.StatusOK
 		if a.softwareVSCodeExtensionsFailProb > 0.0 && rand.Float64() <= a.softwareVSCodeExtensionsFailProb {
-			ss = fleet.OsqueryStatus(1)
+			ss = automdm.OsqueryStatus(1)
 		}
-		if ss == fleet.StatusOK {
+		if ss == automdm.StatusOK {
 			results = a.softwareVSCodeExtensions()
 		}
 		return true, results, &ss, nil, nil
 	case name == hostDetailQueryPrefix+"software_adobe_plugins":
-		ss := fleet.StatusOK
+		ss := automdm.StatusOK
 		if a.softwareAdobePluginsFailProb > 0.0 && rand.Float64() <= a.softwareAdobePluginsFailProb {
-			ss = fleet.OsqueryStatus(1)
+			ss = automdm.OsqueryStatus(1)
 		}
-		if ss == fleet.StatusOK {
+		if ss == automdm.StatusOK {
 			results = a.softwareAdobePlugins()
 		}
 		return true, results, &ss, nil, nil
 	case name == hostDetailQueryPrefix+"software_go_binaries":
-		ss := fleet.StatusOK
+		ss := automdm.StatusOK
 		if a.softwareGoBinariesFailProb > 0.0 && rand.Float64() <= a.softwareGoBinariesFailProb { //nolint:gosec // ignore weak randomizer
-			ss = fleet.OsqueryStatus(1)
+			ss = automdm.OsqueryStatus(1)
 		}
-		if ss == fleet.StatusOK {
+		if ss == automdm.StatusOK {
 			results = a.softwareGoBinaries()
 		}
 		return true, results, &ss, nil, nil
 	case name == hostDetailQueryPrefix+"software_ai_tools":
-		ss := fleet.StatusOK
+		ss := automdm.StatusOK
 		if a.softwareAIToolsFailProb > 0.0 && rand.Float64() <= a.softwareAIToolsFailProb { //nolint:gosec // ignore weak randomizer
-			ss = fleet.OsqueryStatus(1)
+			ss = automdm.OsqueryStatus(1)
 		}
-		if ss == fleet.StatusOK {
+		if ss == automdm.StatusOK {
 			results = a.softwareAITools()
 		}
 		return true, results, &ss, nil, nil
 	case name == hostDetailQueryPrefix+"ai_agent_sessions" || name == hostDetailQueryPrefix+"ai_agent_session_events":
 		if a.deviceAuthToken == nil {
-			// Plain osquery has no fleetd tables, so the query's discovery fails.
+			// Plain osquery has no automdmd tables, so the query's discovery fails.
 			return true, nil, nil, nil, nil
 		}
 		if a.aiSessions != nil {
@@ -4430,27 +4430,27 @@ func (a *agent) processQuery(name, query string, cachedResults *cachedResults) (
 		}
 		return true, results, &statusOK, nil, nil
 	case name == hostDetailQueryPrefix+"disk_space_unix" || name == hostDetailQueryPrefix+"disk_space_windows":
-		ss := fleet.OsqueryStatus(rand.Intn(2))
-		if ss == fleet.StatusOK {
+		ss := automdm.OsqueryStatus(rand.Intn(2))
+		if ss == automdm.StatusOK {
 			results = a.diskSpace()
 		}
 		return true, results, &ss, nil, nil
 
 	case strings.HasPrefix(name, hostDetailQueryPrefix+"disk_encryption_linux"):
-		ss := fleet.OsqueryStatus(rand.Intn(2))
-		if ss == fleet.StatusOK {
+		ss := automdm.OsqueryStatus(rand.Intn(2))
+		if ss == automdm.StatusOK {
 			results = a.diskEncryptionLinux()
 		}
 		return true, results, &ss, nil, nil
 	case name == hostDetailQueryPrefix+"disk_encryption_darwin":
-		ss := fleet.OsqueryStatus(rand.Intn(2))
-		if ss == fleet.StatusOK {
+		ss := automdm.OsqueryStatus(rand.Intn(2))
+		if ss == automdm.StatusOK {
 			results = a.diskEncryption()
 		}
 		return true, results, &ss, nil, nil
 	case name == hostDetailQueryPrefix+"disk_encryption_windows":
-		ss := fleet.OsqueryStatus(rand.Intn(2))
-		if ss == fleet.StatusOK {
+		ss := automdm.OsqueryStatus(rand.Intn(2))
+		if ss == automdm.StatusOK {
 			results = a.diskEncryptionWindows()
 		}
 		return true, results, &ss, nil, nil
@@ -4468,16 +4468,16 @@ func (a *agent) processQuery(name, query string, cachedResults *cachedResults) (
 	case strings.HasPrefix(name, hostDetailQueryPrefix+"certificates_darwin"):
 		// NOTE: feels exaggerated to fail osquery 50% of the time but this is how
 		// most other osquery queries are handled.
-		ss := fleet.OsqueryStatus(rand.Intn(2))
-		if ss == fleet.StatusOK {
+		ss := automdm.OsqueryStatus(rand.Intn(2))
+		if ss == automdm.StatusOK {
 			results = a.certificatesDarwin()
 		}
 		return true, results, &ss, nil, nil
 	case strings.HasPrefix(name, hostDetailQueryPrefix+"certificates_windows"):
 		// NOTE: feels exaggerated to fail osquery 50% of the time but this is how
 		// most other osquery queries are handled.
-		ss := fleet.OsqueryStatus(rand.Intn(2))
-		if ss == fleet.StatusOK {
+		ss := automdm.OsqueryStatus(rand.Intn(2))
+		if ss == automdm.StatusOK {
 			results = a.certificatesWindows()
 		}
 		return true, results, &ss, nil, nil
@@ -4506,10 +4506,10 @@ type cachedResults struct {
 
 func (a *agent) DistributedWrite(queries map[string]string) error {
 	r := service.SubmitDistributedQueryResultsRequest{
-		Results:  make(fleet.OsqueryDistributedQueryResults),
-		Statuses: make(map[string]fleet.OsqueryStatus),
+		Results:  make(automdm.OsqueryDistributedQueryResults),
+		Statuses: make(map[string]automdm.OsqueryStatus),
 		Messages: make(map[string]string),
-		Stats:    make(map[string]*fleet.Stats),
+		Stats:    make(map[string]*automdm.Stats),
 	}
 	r.NodeKey = a.distributedNodeKey()
 
@@ -4531,7 +4531,7 @@ func (a *agent) DistributedWrite(queries map[string]string) error {
 			// If osquery-perf does not handle the incoming query,
 			// always return status OK and the default query result.
 			r.Results[name] = defaultQueryResult
-			r.Statuses[name] = fleet.StatusOK
+			r.Statuses[name] = automdm.StatusOK
 		} else {
 			if results != nil {
 				r.Results[name] = results
@@ -4654,7 +4654,7 @@ func (a *mdmAgent) runAppleIDeviceMDMLoop(mdmSCEPChallenge string) {
 	// device. Seeded with the enrollment profile, which is installed during
 	// enrollment rather than via an InstallProfile command. Only this
 	// goroutine touches it, so it needs no locking.
-	installedProfiles := map[string]struct{}{apple_mdm.FleetPayloadIdentifier: {}}
+	installedProfiles := map[string]struct{}{apple_mdm.AutoMDMPayloadIdentifier: {}}
 
 	hexToken := hex.EncodeToString([]byte(mdmClient.GetToken()))
 	deviceAPNSClient := apnsmock.NewClient(a.apnsPushURL, hexToken, apnsmock.WithInitialJitter(time.Minute), apnsmock.WithLogf(log.Printf))
@@ -4798,7 +4798,7 @@ func main() {
 		// osquery-perf will send log requests with results only if there are scheduled queries configured AND it's their time to run.
 		logInterval         = flag.Duration("logger_tls_period", 10*time.Second, "Interval for scheduled queries log requests")
 		queryInterval       = flag.Duration("query_interval", 10*time.Second, "Interval for distributed query requests")
-		websocketProb       = flag.Float64("websocket_prob", 1.0, "Probability of an orbit agent supporting the WebSocket notification transport when the server's orbit config directive enables it (older fleetd versions ignore the directive)")
+		websocketProb       = flag.Float64("websocket_prob", 1.0, "Probability of an orbit agent supporting the WebSocket notification transport when the server's orbit config directive enables it (older automdmd versions ignore the directive)")
 		mdmCheckInInterval  = flag.Duration("mdm_check_in_interval", 1*time.Minute, "Interval for performing MDM check-ins (applies only to Windows)")
 		onlyAlreadyEnrolled = flag.Bool("only_already_enrolled", false, "Only start agents that are already enrolled")
 		nodeKeyFile         = flag.String("node_key_file", "", "File with node keys to use")
@@ -4814,7 +4814,7 @@ func main() {
 		softwareVSCodeExtensionsQueryFailureProb = flag.Float64("software_vscode_extensions_query_fail_prob", 0.0, "Probability of the software vscode_extensions query failing")
 		softwareAdobePluginsQueryFailureProb     = flag.Float64("software_adobe_plugins_query_fail_prob", 0.0, "Probability of the software adobe_plugins query failing")
 		softwareGoBinariesQueryFailureProb       = flag.Float64("software_go_binaries_query_fail_prob", 0.0, "Probability of the software go_binaries query failing")
-		softwareAIToolsQueryFailureProb          = flag.Float64("software_ai_tools_query_fail_prob", 0.0, "Probability of the software ai_tools query failing (Fleet Premium only sends it)")
+		softwareAIToolsQueryFailureProb          = flag.Float64("software_ai_tools_query_fail_prob", 0.0, "Probability of the software ai_tools query failing (AutoMDM Premium only sends it)")
 
 		softwareInstallerPreInstallFailureProb = flag.Float64("software_installer_pre_install_fail_prob", 0.05,
 			"Probability of the pre-install query failing")
@@ -4823,12 +4823,12 @@ func main() {
 		softwareInstallerPostInstallFailureProb = flag.Float64("software_installer_post_install_fail_prob", 0.05,
 			"Probability of the post-install script failing")
 
-		commonSoftwareCount                          = flag.Int("common_software_count", 10, "Number of common installed applications reported to fleet")
-		commonVSCodeExtensionsSoftwareCount          = flag.Int("common_vscode_extensions_software_count", 5, "Number of common vscode_extensions installed applications reported to fleet")
-		commonAdobePluginsSoftwareCount              = flag.Int("common_adobe_plugins_software_count", 5, "Number of common adobe_plugins installed plugins reported to fleet")
+		commonSoftwareCount                          = flag.Int("common_software_count", 10, "Number of common installed applications reported to team")
+		commonVSCodeExtensionsSoftwareCount          = flag.Int("common_vscode_extensions_software_count", 5, "Number of common vscode_extensions installed applications reported to team")
+		commonAdobePluginsSoftwareCount              = flag.Int("common_adobe_plugins_software_count", 5, "Number of common adobe_plugins installed plugins reported to team")
 		commonAdobePluginsSoftwareUninstallCount     = flag.Int("common_adobe_plugins_software_uninstall_count", 1, "Number of common adobe_plugins plugins to uninstall")
 		commonAdobePluginsSoftwareUninstallProb      = flag.Float64("common_adobe_plugins_software_uninstall_prob", 0.1, "Probability of uninstalling common_adobe_plugins_software_uninstall_count common plugin/s")
-		commonGoBinariesSoftwareCount                = flag.Int("common_go_binaries_software_count", 5, "Number of common go_binaries binaries reported to fleet")
+		commonGoBinariesSoftwareCount                = flag.Int("common_go_binaries_software_count", 5, "Number of common go_binaries binaries reported to team")
 		commonAIToolsCount                           = flag.Int("common_ai_tools_count", 3, "Number of common MCP servers and AI CLIs reported by ai_tools")
 		aiToolsMarkedAppsCount                       = flag.Int("ai_tools_marked_apps_count", 2, "Number of macOS template apps also reported by ai_tools, flagged as AI tools")
 		commonSoftwareUninstallCount                 = flag.Int("common_software_uninstall_count", 1, "Number of common software to uninstall")
@@ -4848,12 +4848,12 @@ func main() {
 		uniqueSoftwareUninstallProb                  = flag.Float64("unique_software_uninstall_prob", 0.1, "Probability of uninstalling unique_software_uninstall_count common software/s")
 		uniqueVSCodeExtensionsSoftwareUninstallProb  = flag.Float64("unique_vscode_extensions_software_uninstall_prob", 0.1, "Probability of uninstalling unique_vscode_extensions_software_uninstall_count common software/s")
 
-		aiSessionsProb          = flag.Float64("ai_sessions_prob", 0.0, "Probability of a fleetd host reporting AI agent sessions (Fleet Premium only asks for them)")
+		aiSessionsProb          = flag.Float64("ai_sessions_prob", 0.0, "Probability of an automdmd host reporting AI agent sessions (AutoMDM Premium only asks for them)")
 		aiSessionsInitialCount  = flag.Int("ai_sessions_initial_count", 100, "Number of AI agent sessions, from the last 7 days, a host reporting them has when it starts")
 		aiSessionsPerDay        = flag.Float64("ai_sessions_per_day", 10, "Number of new AI agent sessions a host reporting them gets each day")
 		aiSessionsLongProb      = flag.Float64("ai_sessions_long_prob", 0.02, "Probability of an AI agent session having thousands of tool calls, which take several detail refreshes to collect")
-		aiSessionsDeletedProb   = flag.Float64("ai_sessions_deleted_prob", 0.02, "Probability of an AI agent session's transcript being deleted from the host after Fleet collected the session")
-		aiSessionsUncountedProb = flag.Float64("ai_sessions_uncounted_prob", 0.02, "Probability of an AI agent session counting tool calls fleetd doesn't return")
+		aiSessionsDeletedProb   = flag.Float64("ai_sessions_deleted_prob", 0.02, "Probability of an AI agent session's transcript being deleted from the host after AutoMDM collected the session")
+		aiSessionsUncountedProb = flag.Float64("ai_sessions_uncounted_prob", 0.02, "Probability of an AI agent session counting tool calls automdmd doesn't return")
 
 		homebrewKegPercent = flag.Int("software_homebrew_keg_percent", 80,
 			"Percentage of a macOS host's Homebrew packages that are kegs reporting executable hashes (0-100); the rest report none, as a cask does")
@@ -4869,21 +4869,21 @@ func main() {
 		// because linux devices report many individual software items, ~1600, compared to Windows around ~100s or macOS around ~500s.
 		//
 		// This flag can be used to load test software ingestion for Linux during enrollment (during enrollment all devices
-		// report software to Fleet, so the initial reads/inserts can be expensive).
+		// report software to AutoMDM, so the initial reads/inserts can be expensive).
 		linuxUniqueSoftwareVersion = flag.Bool("linux_unique_software_version", false, "Make version of software items on linux hosts unique. WARNING: This will generate massive amounts of entries in the software table, because linux devices report many individual software items (compared to Windows/macOS).")
 		// WARNING: This will generate massive amounts of entries in the software and software_titles tables,
 		//
 		// This flag can be used to load test software ingestion for Linux during enrollment (during enrollment all devices
-		// report software to Fleet, so the initial reads/inserts can be expensive).
+		// report software to AutoMDM, so the initial reads/inserts can be expensive).
 		linuxUniqueSoftwareTitle = flag.Bool("linux_unique_software_title", false, "Make name of software items on linux hosts unique. WARNING: This will generate massive amounts of titles which is not realistic but serves to test performance of software ingestion when processing large number of titles.")
 
 		// This flag can be used to set the number of vulnerable software items reported by each host picked randomly from the
 		// list of vulnerable software.  Use -1 to load all vulnerable software.
-		vulnerableSoftwareCount     = flag.Int("vulnerable_software_count", 10, "Number of vulnerable installed applications reported to fleet.  Use -1 to load all vulnerable software.")
-		withLastOpenedSoftwareCount = flag.Int("with_last_opened_software_count", 50, "Number of applications that may report a last opened timestamp to fleet")
+		vulnerableSoftwareCount     = flag.Int("vulnerable_software_count", 10, "Number of vulnerable installed applications reported to team.  Use -1 to load all vulnerable software.")
+		withLastOpenedSoftwareCount = flag.Int("with_last_opened_software_count", 50, "Number of applications that may report a last opened timestamp to team")
 		lastOpenedChangeProb        = flag.Float64("last_opened_change_prob", 0.5, "Probability of last opened timestamp to be reported as changed [0, 1]")
-		commonUserCount             = flag.Int("common_user_count", 10, "Number of common host users reported to fleet")
-		uniqueUserCount             = flag.Int("unique_user_count", 10, "Number of unique host users reported to fleet")
+		commonUserCount             = flag.Int("common_user_count", 10, "Number of common host users reported to team")
+		uniqueUserCount             = flag.Int("unique_user_count", 10, "Number of unique host users reported to team")
 		policyPassProb              = flag.Float64("policy_pass_prob", 1.0, "Probability of policies to pass [0, 1]")
 		orbitProb                   = flag.Float64("orbit_prob", 0.5, "Probability of a host being identified as orbit install [0, 1]")
 		munkiIssueProb              = flag.Float64("munki_issue_prob", 0.5, "Probability of a host having munki issues (note that ~50% of hosts have munki installed) [0, 1]")
@@ -4895,20 +4895,20 @@ func main() {
 		defaultSerialProb = flag.Float64("default_serial_prob", 0.05,
 			"Probability of osquery returning a default (-1) serial number. See: #19789")
 
-		mdmProb                      = flag.Float64("mdm_prob", 0.0, "Probability of a host enrolling via Fleet MDM (applies for macOS and Windows hosts, implies orbit enrollment on Windows) [0, 1]")
-		mdmProbMacOS                 = flag.Float64("mdm_prob_macos", -1, "Probability of a macOS host enrolling via Fleet MDM, overriding mdm_prob for macOS (defaults to mdm_prob) [0, 1]")
-		mdmProbWindows               = flag.Float64("mdm_prob_windows", -1, "Probability of a Windows host enrolling via Fleet MDM, overriding mdm_prob for Windows (defaults to mdm_prob) [0, 1]")
+		mdmProb                      = flag.Float64("mdm_prob", 0.0, "Probability of a host enrolling via AutoMDM (applies for macOS and Windows hosts, implies orbit enrollment on Windows) [0, 1]")
+		mdmProbMacOS                 = flag.Float64("mdm_prob_macos", -1, "Probability of a macOS host enrolling via AutoMDM, overriding mdm_prob for macOS (defaults to mdm_prob) [0, 1]")
+		mdmProbWindows               = flag.Float64("mdm_prob_windows", -1, "Probability of a Windows host enrolling via AutoMDM, overriding mdm_prob for Windows (defaults to mdm_prob) [0, 1]")
 		mdmUserProb                  = flag.Float64("mdm_user_prob", 0.0, "Probability of a host having an MDM user enrollment (compounds on mdm_prob) [0, 1]")
 		mdmAPNSURL                   = flag.String("mdm_apns_url", "", "APNS URL to check for MDM push notifications (e.g., http://localhost:8378) - required for Apple (macOS/iOS/iPadOS) MDM enrollments.")
 		mdmSCEPChallenge             = flag.String("mdm_scep_challenge", "", "SCEP challenge to use when running macOS MDM enroll")
-		mdmAPNSTopic                 = flag.String("mdm_apns_topic", defaultMDMAPNSTopic, "APNs topic simulated Apple MDM devices send at check-in. Set it to the UID of Fleet's APNs certificate (com.apple.mgmt.External.<uuid>) to match real devices. The default is a placeholder shared by all simulated devices; an empty value gives each device its own topic (and Fleet one push provider per device)")
+		mdmAPNSTopic                 = flag.String("mdm_apns_topic", defaultMDMAPNSTopic, "APNs topic simulated Apple MDM devices send at check-in. Set it to the UID of AutoMDM's APNs certificate (com.apple.mgmt.External.<uuid>) to match real devices. The default is a placeholder shared by all simulated devices; an empty value gives each device its own topic (and AutoMDM one push provider per device)")
 		mdmProfileFailureProb        = flag.Float64("mdm_profile_failure_prob", 0.0, "Probability of an MDM profile to fail install [0, 1]")
 		mdmCancelableCommandAckDelay = flag.Duration("mdm_cancelable_command_ack_delay", 0, "Delay between fetching a cancelable MDM command (lock, wipe, clear passcode, enable lost mode) and acknowledging it, opening a window to test command cancellation")
 		mdmIOSBYODProb               = flag.Float64("mdm_ios_byod_prob", 0.0, "Probability of a simulated iOS/iPadOS device (os_templates iphone_14.6/ipad_13.18/iphone_17) reporting as a personal (BYOD) enrollment, which omits the newer device vitals fields from its DeviceInformation ack [0, 1]")
 
-		mdmPSSOProb      = flag.Float64("mdm_psso_prob", 0.0, "Probability of an MDM-enrolled macOS host also simulating Apple Platform SSO [0, 1]. Requires the Fleet server to have account provisioning configured and the PSSO profile assigned to the host")
-		mdmPSSOClientID  = flag.String("mdm_psso_client_id", "", "Apple Platform SSO IdP/extension client ID. Must match the Fleet server's account provisioning config; PSSO is skipped when empty")
-		mdmPSSOUsername  = flag.String("mdm_psso_username", "", "Username used for Platform SSO logins (must be accepted by the IdP the Fleet server proxies to)")
+		mdmPSSOProb      = flag.Float64("mdm_psso_prob", 0.0, "Probability of an MDM-enrolled macOS host also simulating Apple Platform SSO [0, 1]. Requires the AutoMDM server to have account provisioning configured and the PSSO profile assigned to the host")
+		mdmPSSOClientID  = flag.String("mdm_psso_client_id", "", "Apple Platform SSO IdP/extension client ID. Must match the AutoMDM server's account provisioning config; PSSO is skipped when empty")
+		mdmPSSOUsername  = flag.String("mdm_psso_username", "", "Username used for Platform SSO logins (must be accepted by the IdP the AutoMDM server proxies to)")
 		mdmPSSOPassword  = flag.String("mdm_psso_password", "", "Password used for Platform SSO logins")
 		mdmPSSOInterval  = flag.Duration("mdm_psso_interval", 4*time.Hour, "Interval over which Platform SSO device registrations are staggered and, afterwards, logins/key operations recur (spread within each interval)")
 		mdmPSSOLoginProb = flag.Float64("mdm_psso_login_prob", 1.0, "Probability of a Platform SSO login during each interval after the initial registration [0, 1]")
@@ -4919,7 +4919,7 @@ func main() {
 
 		disableScriptExec = flag.Bool("disable_script_exec", false, "Disable script execution support")
 
-		disableFleetDesktop = flag.Bool("disable_fleet_desktop", false, "Disable Fleet Desktop")
+		disableAutoMDMDesktop = flag.Bool("disable_automdm_desktop", false, "Disable AutoMDM Desktop")
 		// logger_tls_max_lines is simulating the osquery setting with the same name.
 		loggerTLSMaxLines = flag.Int("logger_tls_max_lines", 1024,
 			"Maximum number of buffered result log lines to send on every log request")
@@ -4931,10 +4931,10 @@ func main() {
 			"Enable native osquery conditional config requests (sends an \"etag\" field in the request body, treats the {\"etag\":\"ok\"} response as unchanged). Default false — opt in to measure bandwidth savings.")
 
 		// Android load testing flags
-		androidPubSubToken       = flag.String("android_pubsub_token", "", "PubSub token for authenticating fake Android device messages to Fleet")
+		androidPubSubToken       = flag.String("android_pubsub_token", "", "PubSub token for authenticating fake Android device messages to AutoMDM")
 		androidProxyAddress      = flag.String("android_proxy_address", "", "Address of the mock AMAPI proxy (e.g., http://localhost:9999)")
 		androidEnterpriseID      = flag.String("android_enterprise_id", "", "Android enterprise ID (e.g., LC03k6enk8)")
-		androidStatusInterval    = flag.Duration("android_status_interval", 5*time.Minute, "Interval between Android STATUS_REPORT messages (real devices report ~every 24h; lower values stress test Fleet harder)")
+		androidStatusInterval    = flag.Duration("android_status_interval", 5*time.Minute, "Interval between Android STATUS_REPORT messages (real devices report ~every 24h; lower values stress test AutoMDM harder)")
 		androidAppCount          = flag.Int("android_app_count", 50, "Number of installed apps each Android device reports")
 		androidNonComplianceProb = flag.Float64("android_non_compliance_prob", 0.05, "Probability of an Android STATUS_REPORT including non-compliance details [0, 1]")
 		androidVitalsChurnProb   = flag.Float64("android_vitals_churn_prob", defaultVitalsChurnProb, "Probability of an Android STATUS_REPORT reporting changed host vitals; 0 reports identical vitals forever, which MySQL stores without writing a row [0, 1]")
@@ -5268,7 +5268,7 @@ func main() {
 			*liveQueryFailProb,
 			*liveQueryNoResultsProb,
 			*disableScriptExec,
-			*disableFleetDesktop,
+			*disableAutoMDMDesktop,
 			*loggerTLSMaxLines,
 			*linuxUniqueSoftwareVersion,
 			*linuxUniqueSoftwareTitle,

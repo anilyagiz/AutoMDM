@@ -7,8 +7,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/dialog"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/dialog"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -401,7 +401,7 @@ type fakeEscrower struct {
 	responses    []LuksResponse
 	statuses     []string
 	err          error
-	capabilities fleet.CapabilityMap
+	capabilities automdm.CapabilityMap
 }
 
 func (f *fakeEscrower) SendLinuxKeyEscrowResponse(r LuksResponse) error {
@@ -418,9 +418,9 @@ func (f *fakeEscrower) SendLinuxKeyEscrowStatus(status string) error {
 	return f.err
 }
 
-func (f *fakeEscrower) GetServerCapabilities() fleet.CapabilityMap {
+func (f *fakeEscrower) GetServerCapabilities() automdm.CapabilityMap {
 	if f.capabilities == nil {
-		return fleet.CapabilityMap{}
+		return automdm.CapabilityMap{}
 	}
 	return f.capabilities
 }
@@ -430,8 +430,8 @@ func (f *fakeEscrower) GetServerCapabilities() fleet.CapabilityMap {
 // don't have to repeat the setup.
 func newRecoveryKeyEscrower() *fakeEscrower {
 	return &fakeEscrower{
-		capabilities: fleet.CapabilityMap{
-			fleet.CapabilityLUKSRecoveryKeyEscrow: {},
+		capabilities: automdm.CapabilityMap{
+			automdm.CapabilityLUKSRecoveryKeyEscrow: {},
 		},
 	}
 }
@@ -458,7 +458,7 @@ type fakeSnapdFDE struct {
 }
 
 func (f *fakeSnapdFDE) Detect(ctx context.Context) (bool, error) { return true, nil }
-func (f *fakeSnapdFDE) EnsureFleetRecoveryKey(ctx context.Context) (string, error) {
+func (f *fakeSnapdFDE) EnsureAutoMDMRecoveryKey(ctx context.Context) (string, error) {
 	f.ensureCalls++
 	return f.recoveryKey, f.ensureErr
 }
@@ -475,7 +475,7 @@ func TestRunRecoveryKeyEscrow(t *testing.T) {
 		require.NoError(t, lr.runRecoveryKeyEscrow(ctx, snapd))
 		require.Len(t, escrower.responses, 1)
 		resp := escrower.responses[0]
-		assert.Equal(t, fleet.LUKSKeyTypeRecoveryKey, resp.KeyType)
+		assert.Equal(t, automdm.LUKSKeyTypeRecoveryKey, resp.KeyType)
 		assert.Equal(t, recoveryKey, resp.Passphrase)
 		assert.Empty(t, resp.Salt)
 		assert.Nil(t, resp.KeySlot)
@@ -490,7 +490,7 @@ func TestRunRecoveryKeyEscrow(t *testing.T) {
 		require.Error(t, lr.runRecoveryKeyEscrow(ctx, snapd))
 		require.Len(t, escrower.responses, 1)
 		resp := escrower.responses[0]
-		assert.Equal(t, fleet.LUKSKeyTypeRecoveryKey, resp.KeyType)
+		assert.Equal(t, automdm.LUKSKeyTypeRecoveryKey, resp.KeyType)
 		assert.Empty(t, resp.Passphrase)
 		assert.NotEmpty(t, resp.Err)
 	})

@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/mdm/mdmtest"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanodep/godep"
+	"github.com/anilyagiz/automdm/v4/pkg/mdm/mdmtest"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanodep/godep"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
@@ -125,7 +125,7 @@ func (s *integrationMDMTestSuite) TestReleaseWorker() {
 			resp.ProfileUUID = prof.ProfileUUID
 			resp.Devices = make(map[string]string, len(prof.Devices))
 			for _, device := range prof.Devices {
-				resp.Devices[device] = string(fleet.DEPAssignProfileResponseSuccess)
+				resp.Devices[device] = string(automdm.DEPAssignProfileResponseSuccess)
 			}
 			err = encoder.Encode(resp)
 			require.NoError(t, err)
@@ -136,7 +136,7 @@ func (s *integrationMDMTestSuite) TestReleaseWorker() {
 
 	// query all hosts
 	listHostsRes := listHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &listHostsRes)
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &listHostsRes)
 	require.Empty(t, listHostsRes.Hosts) // no hosts yet
 
 	// trigger a profile sync
@@ -144,17 +144,17 @@ func (s *integrationMDMTestSuite) TestReleaseWorker() {
 
 	// all devices should be returned from the hosts endpoint
 	listHostsRes = listHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &listHostsRes)
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &listHostsRes)
 	require.Len(t, listHostsRes.Hosts, 1)
 
 	t.Run("automatic release", func(t *testing.T) {
 		t.Run("waits for config profiles being installed", func(t *testing.T) {
 			// Clean up
 			mysqltest.TruncateTables(t, s.ds, "mdm_apple_configuration_profiles", "host_mdm_apple_profiles", "nano_commands") // Clean tables after use
-			// Simulate profile reconciler running at least once before enrollment, and adds fleet profiles to the team
+			// Simulate profile reconciler running at least once before enrollment, and adds automdm profiles to the team
 			s.awaitTriggerProfileSchedule(t)
 			config := mobileconfigForTest("N1", "I1")
-			s.Do("POST", "/api/v1/fleet/mdm/profiles/batch", appleProfilesBatchRequest([][]byte{config}), http.StatusNoContent)
+			s.Do("POST", "/api/v1/automdm/mdm/profiles/batch", appleProfilesBatchRequest([][]byte{config}), http.StatusNoContent)
 
 			// enroll the host
 			mdmDevice := enrollAppleDevice(t, device)
@@ -195,12 +195,12 @@ func (s *integrationMDMTestSuite) TestReleaseWorker() {
 
 		t.Run("ignores user scoped config profiles", func(t *testing.T) {
 			mysqltest.TruncateTables(t, s.ds, "mdm_apple_configuration_profiles", "host_mdm_apple_profiles", "nano_commands") // Clean tables after use
-			// Simulate profile reconciler running at least once before enrollment, and adds fleet profiles to the team
+			// Simulate profile reconciler running at least once before enrollment, and adds automdm profiles to the team
 			s.awaitTriggerProfileSchedule(t)
 			systemScopedConfig := mobileconfigForTest("N1", "I1")
-			userScope := fleet.PayloadScopeUser
+			userScope := automdm.PayloadScopeUser
 			userScopedConfig := scopedMobileconfigForTest("N-USER-SCOPED", "I-USER-SCOPED", &userScope)
-			s.Do("POST", "/api/v1/fleet/mdm/profiles/batch", appleProfilesBatchRequest([][]byte{systemScopedConfig, userScopedConfig}), http.StatusNoContent)
+			s.Do("POST", "/api/v1/automdm/mdm/profiles/batch", appleProfilesBatchRequest([][]byte{systemScopedConfig, userScopedConfig}), http.StatusNoContent)
 
 			// enroll the host
 			mdmDevice := enrollAppleDevice(t, device)

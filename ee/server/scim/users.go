@@ -12,13 +12,13 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/anilyagiz/automdm/v4/server"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/elimity-com/scim"
 	scimerrors "github.com/elimity-com/scim/errors"
 	"github.com/elimity-com/scim/optional"
-	"github.com/fleetdm/fleet/v4/server"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/ptr"
 	"github.com/scim2/filter-parser/v2"
 )
 
@@ -43,15 +43,15 @@ const (
 )
 
 type UserHandler struct {
-	ds          fleet.Datastore
-	newActivity fleet.NewActivityFunc
+	ds          automdm.Datastore
+	newActivity automdm.NewActivityFunc
 	logger      *slog.Logger
 }
 
 // Compile-time check
 var _ scim.ResourceHandler = &UserHandler{}
 
-func NewUserHandler(ds fleet.Datastore, newActivity fleet.NewActivityFunc, logger *slog.Logger) scim.ResourceHandler {
+func NewUserHandler(ds automdm.Datastore, newActivity automdm.NewActivityFunc, logger *slog.Logger) scim.ResourceHandler {
 	return &UserHandler{ds: ds, newActivity: newActivity, logger: logger}
 }
 
@@ -71,7 +71,7 @@ func (u *UserHandler) Create(r *http.Request, attributes scim.ResourceAttributes
 	}
 	existingUser, err := u.ds.ScimUserByUserName(ctx, userName)
 	switch {
-	case err != nil && !fleet.IsNotFound(err):
+	case err != nil && !automdm.IsNotFound(err):
 		u.logger.ErrorContext(ctx, "failed to check for userName uniqueness", userNameAttr, userName, "err", err)
 		return scim.Resource{}, err
 	case err == nil:
@@ -88,7 +88,7 @@ func (u *UserHandler) Create(r *http.Request, attributes scim.ResourceAttributes
 				return scim.Resource{}, err
 			}
 			user.ID = existingUser.ID
-			u.linkMatchingFleetUser(ctx, existingUser)
+			u.linkMatchingTeamUser(ctx, existingUser)
 			resentCerts, err := u.ds.ReplaceScimUser(ctx, user)
 			if err != nil {
 				u.logger.ErrorContext(ctx, "failed to reactivate user", userNameAttr, userName, "err", err)
@@ -120,15 +120,15 @@ func (u *UserHandler) Create(r *http.Request, attributes scim.ResourceAttributes
 		return scim.Resource{}, err
 	}
 
-	u.linkMatchingFleetUser(ctx, user)
+	u.linkMatchingTeamUser(ctx, user)
 
 	return createUserResource(user), nil
 }
 
 func (u *UserHandler) createUserFromAttributes(
 	ctx context.Context, attributes scim.ResourceAttributes,
-) (*fleet.ScimUser, error) {
-	user := fleet.ScimUser{}
+) (*automdm.ScimUser, error) {
+	user := automdm.ScimUser{}
 	var err error
 	user.UserName, err = getRequiredResource[string](attributes, userNameAttr)
 	if err != nil {
@@ -165,9 +165,9 @@ func (u *UserHandler) createUserFromAttributes(
 	if err != nil {
 		return nil, err
 	}
-	userEmails := make([]fleet.ScimUserEmail, 0, len(emails))
+	userEmails := make([]automdm.ScimUserEmail, 0, len(emails))
 	for _, email := range emails {
-		userEmail := fleet.ScimUserEmail{}
+		userEmail := automdm.ScimUserEmail{}
 		userEmail.Email, err = getRequiredResource[string](email, valueAttr)
 		if err != nil {
 			return nil, err
@@ -304,7 +304,7 @@ func (u *UserHandler) Get(r *http.Request, id string) (scim.Resource, error) {
 
 	user, err := u.ds.ScimUserByID(ctx, idUint)
 	switch {
-	case fleet.IsNotFound(err):
+	case automdm.IsNotFound(err):
 		u.logger.InfoContext(ctx, "failed to find user", "id", id)
 		return scim.Resource{}, scimerrors.ScimErrorResourceNotFound(id)
 	case err != nil:
@@ -315,7 +315,7 @@ func (u *UserHandler) Get(r *http.Request, id string) (scim.Resource, error) {
 	return createUserResource(user), nil
 }
 
-func createUserResource(user *fleet.ScimUser) scim.Resource {
+func createUserResource(user *automdm.ScimUser) scim.Resource {
 	userResource := scim.Resource{}
 	userResource.ID = scimUserID(user.ID)
 	if user.ExternalID != nil {
@@ -400,8 +400,8 @@ func (u *UserHandler) GetAll(r *http.Request, params scim.ListRequestParams) (sc
 		count = maxResults
 	}
 
-	opts := fleet.ScimUsersListOptions{
-		ScimListOptions: fleet.ScimListOptions{
+	opts := automdm.ScimUsersListOptions{
+		ScimListOptions: automdm.ScimListOptions{
 			StartIndex: uint(startIndex), // nolint:gosec // ignore G115
 			PerPage:    uint(count),      // nolint:gosec // ignore G115
 		},
@@ -467,12 +467,12 @@ func (u *UserHandler) Replace(r *http.Request, id string, attributes scim.Resour
 	// Username is unique, so we must check if another user already exists with that username to return a clear error
 	// We also use this to get the previous active state when the username isn't changing.
 	// prePatchUser captures the persisted (pre-replace) record so deactivation
-	// resolves the Fleet user from durable state, not the incoming mutated one.
+	// resolves the AutoMDM user from durable state, not the incoming mutated one.
 	var previousActive *bool
-	var prePatchUser *fleet.ScimUser
+	var prePatchUser *automdm.ScimUser
 	userWithSameUsername, err := u.ds.ScimUserByUserName(ctx, user.UserName)
 	switch {
-	case err != nil && !fleet.IsNotFound(err):
+	case err != nil && !automdm.IsNotFound(err):
 		u.logger.ErrorContext(ctx, "failed to check for userName uniqueness", userNameAttr, user.UserName, "err", err)
 		return scim.Resource{}, err
 	case err == nil && user.ID != userWithSameUsername.ID:
@@ -482,10 +482,10 @@ func (u *UserHandler) Replace(r *http.Request, id string, attributes scim.Resour
 		// Same user, username not changing - use this for previous active state
 		previousActive = userWithSameUsername.Active
 		prePatchUser = userWithSameUsername
-	case fleet.IsNotFound(err):
+	case automdm.IsNotFound(err):
 		// Username is being changed - need to fetch existing user by ID for previous active state
 		existingUser, err := u.ds.ScimUserByID(ctx, idUint)
-		if fleet.IsNotFound(err) {
+		if automdm.IsNotFound(err) {
 			u.logger.InfoContext(ctx, "failed to find scim user by id", "id", id)
 			return scim.Resource{}, scimerrors.ScimErrorResourceNotFound(id)
 		}
@@ -497,11 +497,11 @@ func (u *UserHandler) Replace(r *http.Request, id string, attributes scim.Resour
 		prePatchUser = existingUser
 	}
 
-	u.linkMatchingFleetUser(ctx, prePatchUser)
+	u.linkMatchingTeamUser(ctx, prePatchUser)
 
 	resentCerts, err := u.ds.ReplaceScimUser(ctx, user)
 	switch {
-	case fleet.IsNotFound(err):
+	case automdm.IsNotFound(err):
 		u.logger.InfoContext(ctx, "failed to find user to replace", "id", id)
 		return scim.Resource{}, scimerrors.ScimErrorResourceNotFound(id)
 	case err != nil:
@@ -519,10 +519,10 @@ func (u *UserHandler) Replace(r *http.Request, id string, attributes scim.Resour
 		}
 	}
 
-	// Check if user was deactivated and delete matching Fleet user if so
+	// Check if user was deactivated and delete matching AutoMDM user if so
 	if wasDeactivated(previousActive, user.Active) {
-		if err := u.deleteMatchingFleetUser(ctx, prePatchUser); err != nil {
-			u.logger.ErrorContext(ctx, "failed to delete fleet user on deactivation", "err", err)
+		if err := u.deleteMatchingTeamUser(ctx, prePatchUser); err != nil {
+			u.logger.ErrorContext(ctx, "failed to delete team user on deactivation", "err", err)
 		}
 	}
 
@@ -542,7 +542,7 @@ func (u *UserHandler) Delete(r *http.Request, id string) error {
 	}
 
 	scimUser, err := u.ds.ScimUserByID(ctx, idUint)
-	if fleet.IsNotFound(err) {
+	if automdm.IsNotFound(err) {
 		// proceed with DeleteScimUser call which calls triggerResendProfilesForIDPUserDeleted even before checking if the user exists
 		u.logger.WarnContext(ctx, "scim user not found", "id", id)
 	} else if err != nil {
@@ -551,15 +551,15 @@ func (u *UserHandler) Delete(r *http.Request, id string) error {
 	}
 
 	if scimUser != nil {
-		if err := u.deleteMatchingFleetUser(ctx, scimUser); err != nil {
+		if err := u.deleteMatchingTeamUser(ctx, scimUser); err != nil {
 			// Log but don't fail - SCIM deletion should still proceed
-			u.logger.ErrorContext(ctx, "failed to delete matching fleet user", "err", err)
+			u.logger.ErrorContext(ctx, "failed to delete matching team user", "err", err)
 		}
 	}
 
 	resentCerts, err := u.ds.DeleteScimUser(ctx, idUint)
 	switch {
-	case fleet.IsNotFound(err):
+	case automdm.IsNotFound(err):
 		u.logger.InfoContext(ctx, "failed to find user to delete", "id", id)
 		return scimerrors.ScimErrorResourceNotFound(id)
 	case err != nil:
@@ -586,10 +586,10 @@ func wasDeactivated(previous, current *bool) bool {
 	return previous == nil || *previous
 }
 
-// fleetUserLookupEmails returns the lowercased, de-duplicated emails used to
-// match a SCIM user to a Fleet user by email. userName is added first (it is the
+// teamUserLookupEmails returns the lowercased, de-duplicated emails used to
+// match a SCIM user to an AutoMDM user by email. userName is added first (it is the
 // email in most IdP configs, e.g. Okta).
-func fleetUserLookupEmails(scimUser *fleet.ScimUser) []string {
+func teamUserLookupEmails(scimUser *automdm.ScimUser) []string {
 	emails := make([]string, 0, len(scimUser.Emails)+1)
 	if strings.Contains(scimUser.UserName, "@") {
 		emails = append(emails, strings.ToLower(scimUser.UserName))
@@ -600,130 +600,130 @@ func fleetUserLookupEmails(scimUser *fleet.ScimUser) []string {
 	return server.RemoveDuplicatesFromSlice(emails)
 }
 
-// resolveFleetUser finds the Fleet user to deprovision for a SCIM user.
-func (u *UserHandler) resolveFleetUser(ctx context.Context, scimUser *fleet.ScimUser) (*fleet.User, error) {
-	if scimUser.FleetUserID != nil {
-		user, err := u.ds.UserByID(ctx, *scimUser.FleetUserID)
+// resolveTeamUser finds the AutoMDM user to deprovision for a SCIM user.
+func (u *UserHandler) resolveTeamUser(ctx context.Context, scimUser *automdm.ScimUser) (*automdm.User, error) {
+	if scimUser.TeamUserID != nil {
+		user, err := u.ds.UserByID(ctx, *scimUser.TeamUserID)
 		switch {
 		case err == nil:
 			return user, nil
-		case fleet.IsNotFound(err):
-			// Linked Fleet user already deleted; nothing to deprovision.
+		case automdm.IsNotFound(err):
+			// Linked AutoMDM user already deleted; nothing to deprovision.
 			return nil, nil
 		default:
-			return nil, ctxerr.Wrap(ctx, err, "lookup fleet user by id")
+			return nil, ctxerr.Wrap(ctx, err, "lookup team user by id")
 		}
 	}
 
-	for _, email := range fleetUserLookupEmails(scimUser) {
+	for _, email := range teamUserLookupEmails(scimUser) {
 		user, err := u.ds.UserByEmail(ctx, email)
 		if err == nil {
 			return user, nil
 		}
-		if !fleet.IsNotFound(err) {
-			return nil, ctxerr.Wrap(ctx, err, "lookup fleet user by email")
+		if !automdm.IsNotFound(err) {
+			return nil, ctxerr.Wrap(ctx, err, "lookup team user by email")
 		}
 	}
 	return nil, nil
 }
 
-// linkMatchingFleetUser establishes the durable scim_users.user_id link, set-once,
-// when a SCIM user's identifiers resolve to a Fleet user. The link is never
+// linkMatchingTeamUser establishes the durable scim_users.user_id link, set-once,
+// when a SCIM user's identifiers resolve to an AutoMDM user. The link is never
 // re-pointed or cleared: once linked, later identifier changes cannot move the
-// SCIM user to a different Fleet account.
+// SCIM user to a different AutoMDM account.
 // Callers MUST pass the persisted (pre-mutation) record so the link is derived
 // from trusted identifiers, and MUST call this before persisting any
 // identifier mutation.
-func (u *UserHandler) linkMatchingFleetUser(ctx context.Context, scimUser *fleet.ScimUser) {
-	if scimUser == nil || scimUser.FleetUserID != nil {
+func (u *UserHandler) linkMatchingTeamUser(ctx context.Context, scimUser *automdm.ScimUser) {
+	if scimUser == nil || scimUser.TeamUserID != nil {
 		return // no record, or durable link already established; never re-point
 	}
 
-	var fleetUser *fleet.User
-	for _, email := range fleetUserLookupEmails(scimUser) {
+	var automdmUser *automdm.User
+	for _, email := range teamUserLookupEmails(scimUser) {
 		user, err := u.ds.UserByEmail(ctx, email)
 		if err == nil {
-			fleetUser = user
+			automdmUser = user
 			break
 		}
-		if !fleet.IsNotFound(err) {
-			u.logger.ErrorContext(ctx, "link fleet user: lookup by email", "scim_user_id", scimUser.ID, "err", err)
+		if !automdm.IsNotFound(err) {
+			u.logger.ErrorContext(ctx, "link team user: lookup by email", "scim_user_id", scimUser.ID, "err", err)
 			return
 		}
 	}
-	if fleetUser == nil {
+	if automdmUser == nil {
 		return // no match; leave the record unlinked
 	}
-	if err := u.ds.SetScimUserFleetUserID(ctx, scimUser.ID, fleetUser.ID); err != nil {
-		u.logger.ErrorContext(ctx, "link fleet user: set scim_users.user_id", "scim_user_id", scimUser.ID, "err", err)
+	if err := u.ds.SetScimUserTeamUserID(ctx, scimUser.ID, automdmUser.ID); err != nil {
+		u.logger.ErrorContext(ctx, "link team user: set scim_users.user_id", "scim_user_id", scimUser.ID, "err", err)
 		return
 	}
-	scimUser.FleetUserID = &fleetUser.ID
+	scimUser.TeamUserID = &automdmUser.ID
 }
 
-// deleteMatchingFleetUser deletes the SSO Fleet user linked to (or matching) the
+// deleteMatchingTeamUser deletes the SSO AutoMDM user linked to (or matching) the
 // given SCIM user.
-func (u *UserHandler) deleteMatchingFleetUser(ctx context.Context, scimUser *fleet.ScimUser) error {
+func (u *UserHandler) deleteMatchingTeamUser(ctx context.Context, scimUser *automdm.ScimUser) error {
 	if scimUser == nil {
 		return nil
 	}
-	fleetUser, err := u.resolveFleetUser(ctx, scimUser)
+	automdmUser, err := u.resolveTeamUser(ctx, scimUser)
 	if err != nil {
 		return err
 	}
-	if fleetUser == nil {
-		if scimUser.FleetUserID == nil && len(fleetUserLookupEmails(scimUser)) == 0 {
-			if err := u.newActivity(ctx, nil, fleet.ActivityTypeScimUserDeprovisionSkipped{
+	if automdmUser == nil {
+		if scimUser.TeamUserID == nil && len(teamUserLookupEmails(scimUser)) == 0 {
+			if err := u.newActivity(ctx, nil, automdm.ActivityTypeScimUserDeprovisionSkipped{
 				ScimUserID:   scimUser.ID,
 				ScimUserName: scimUser.UserName,
 			}); err != nil {
 				u.logger.ErrorContext(ctx, "failed to create scim_user_deprovision_skipped activity", "err", err)
 			}
 		}
-		u.logger.DebugContext(ctx, "no matching fleet user found for scim user",
+		u.logger.DebugContext(ctx, "no matching team user found for scim user",
 			"scim_user_id", scimUser.ID, "user_name", scimUser.UserName)
 		return nil
 	}
 
 	// Skip API-only users or non-SSO users
-	if fleetUser.APIOnly || !fleetUser.SSOEnabled {
+	if automdmUser.APIOnly || !automdmUser.SSOEnabled {
 		u.logger.InfoContext(ctx, "skipping deletion of API-only or non-SSO user",
-			"user_id", fleetUser.ID, "email", fleetUser.Email)
+			"user_id", automdmUser.ID, "email", automdmUser.Email)
 		return nil
 	}
 
-	u.logger.InfoContext(ctx, "deleting fleet user via SCIM deletion",
-		"user_id", fleetUser.ID, "email", fleetUser.Email)
+	u.logger.InfoContext(ctx, "deleting team user via SCIM deletion",
+		"user_id", automdmUser.ID, "email", automdmUser.Email)
 
 	// TODO: Ideally this should go through a Users service/module instead of directly accessing
 	// the datastore. We're in the SCIM domain but accessing the Users datastore which belongs
 	// to the Users domain. This would require a larger refactor to introduce a Users module.
 
 	// Use atomic check+delete to prevent TOCTOU race when deleting the last admin.
-	if fleetUser.GlobalRole != nil && *fleetUser.GlobalRole == fleet.RoleAdmin {
-		if err := u.ds.DeleteUserIfNotLastAdmin(ctx, fleetUser.ID); err != nil {
-			if errors.Is(err, fleet.ErrLastGlobalAdmin) {
+	if automdmUser.GlobalRole != nil && *automdmUser.GlobalRole == automdm.RoleAdmin {
+		if err := u.ds.DeleteUserIfNotLastAdmin(ctx, automdmUser.ID); err != nil {
+			if errors.Is(err, automdm.ErrLastGlobalAdmin) {
 				u.logger.WarnContext(ctx, "cannot delete last global admin via SCIM",
-					"user_id", fleetUser.ID, "email", fleetUser.Email)
+					"user_id", automdmUser.ID, "email", automdmUser.Email)
 				return ctxerr.New(ctx, "cannot delete last global admin")
 			}
-			return ctxerr.Wrap(ctx, err, "delete fleet admin user")
+			return ctxerr.Wrap(ctx, err, "delete team admin user")
 		}
-	} else if err := u.ds.DeleteUser(ctx, fleetUser.ID); err != nil {
-		return ctxerr.Wrap(ctx, err, "delete fleet user")
+	} else if err := u.ds.DeleteUser(ctx, automdmUser.ID); err != nil {
+		return ctxerr.Wrap(ctx, err, "delete team user")
 	}
 
 	if err := u.newActivity(
 		ctx,
 		nil,
-		fleet.ActivityTypeDeletedUser{
-			UserID:               fleetUser.ID,
-			UserName:             fleetUser.Name,
-			UserEmail:            fleetUser.Email,
+		automdm.ActivityTypeDeletedUser{
+			UserID:               automdmUser.ID,
+			UserName:             automdmUser.Name,
+			UserEmail:            automdmUser.Email,
 			FromScimUserDeletion: true,
 		},
 	); err != nil {
-		u.logger.ErrorContext(ctx, "failed to create activity for fleet user deletion", "err", err)
+		u.logger.ErrorContext(ctx, "failed to create activity for team user deletion", "err", err)
 	}
 
 	return nil
@@ -740,7 +740,7 @@ func (u *UserHandler) Patch(r *http.Request, id string, operations []scim.PatchO
 	}
 	user, err := u.ds.ScimUserByID(ctx, idUint)
 	switch {
-	case fleet.IsNotFound(err):
+	case automdm.IsNotFound(err):
 		u.logger.InfoContext(ctx, "failed to find user to patch", "id", id)
 		return scim.Resource{}, scimerrors.ScimErrorResourceNotFound(id)
 	case err != nil:
@@ -749,7 +749,7 @@ func (u *UserHandler) Patch(r *http.Request, id string, operations []scim.PatchO
 	}
 
 	// Snapshot the persisted identifiers before the patch loop mutates `user` in
-	// place, so deactivation resolves the Fleet user from pre-patch state. Emails
+	// place, so deactivation resolves the AutoMDM user from pre-patch state. Emails
 	// is cloned because patch operations mutate its elements in place.
 	previousActive := user.Active
 	prePatchUser := *user
@@ -842,11 +842,11 @@ func (u *UserHandler) Patch(r *http.Request, id string, operations []scim.PatchO
 	}
 
 	if !allUnknown {
-		u.linkMatchingFleetUser(ctx, &prePatchUser)
+		u.linkMatchingTeamUser(ctx, &prePatchUser)
 
 		resentCerts, err := u.ds.ReplaceScimUser(ctx, user)
 		switch {
-		case fleet.IsNotFound(err):
+		case automdm.IsNotFound(err):
 			u.logger.InfoContext(ctx, "failed to find user to patch", "id", id)
 			return scim.Resource{}, scimerrors.ScimErrorResourceNotFound(id)
 		case err != nil:
@@ -864,13 +864,13 @@ func (u *UserHandler) Patch(r *http.Request, id string, operations []scim.PatchO
 			}
 		}
 
-		// Check if user was deactivated and delete matching Fleet user if so.
+		// Check if user was deactivated and delete matching AutoMDM user if so.
 		// This sits inside `if !allUnknown` because patchActive only runs when at
 		// least one recognized op was applied; if every op was unrecognized,
 		// user.Active equals previousActive and no deactivation can have occurred.
 		if wasDeactivated(previousActive, user.Active) {
-			if err := u.deleteMatchingFleetUser(ctx, &prePatchUser); err != nil {
-				u.logger.ErrorContext(ctx, "failed to delete fleet user on deactivation", "err", err)
+			if err := u.deleteMatchingTeamUser(ctx, &prePatchUser); err != nil {
+				u.logger.ErrorContext(ctx, "failed to delete team user on deactivation", "err", err)
 			}
 		}
 	}
@@ -879,7 +879,7 @@ func (u *UserHandler) Patch(r *http.Request, id string, operations []scim.PatchO
 }
 
 func (u *UserHandler) patchEmailsWithPathFiltering(
-	ctx context.Context, op scim.PatchOperation, user *fleet.ScimUser,
+	ctx context.Context, op scim.PatchOperation, user *automdm.ScimUser,
 ) error {
 	emailType, err := u.getEmailType(ctx, op)
 	if err != nil {
@@ -943,7 +943,7 @@ func (u *UserHandler) patchEmailsWithPathFiltering(
 				u.logger.InfoContext(ctx, "no emails provided to add", "emails", emailsList)
 				return scimerrors.ScimErrorBadParams([]string{fmt.Sprintf("%v", op)})
 			}
-			var newEmails []fleet.ScimUserEmail
+			var newEmails []automdm.ScimUserEmail
 			for e := range emailsList {
 				userEmail, err := u.extractEmail(ctx, emailsList[e], op)
 				if err != nil {
@@ -964,7 +964,7 @@ func (u *UserHandler) patchEmailsWithPathFiltering(
 		return nil
 	}
 	if op.Op == scim.PatchOperationAdd && !emailFound {
-		user.Emails = append(user.Emails, fleet.ScimUserEmail{
+		user.Emails = append(user.Emails, automdm.ScimUserEmail{
 			Type: ptr.String(emailType),
 		})
 		emailIndex = len(user.Emails) - 1
@@ -1051,7 +1051,7 @@ func getConcreteType[T string | bool](ctx context.Context, u *UserHandler, v any
 	return concreteType, nil
 }
 
-func (u *UserHandler) patchFamilyName(ctx context.Context, op string, v any, user *fleet.ScimUser) error {
+func (u *UserHandler) patchFamilyName(ctx context.Context, op string, v any, user *automdm.ScimUser) error {
 	if op == scim.PatchOperationRemove {
 		u.logger.InfoContext(ctx, "cannot remove required attribute", "attribute", nameAttr+"."+familyNameAttr)
 		return scimerrors.ScimErrorBadParams([]string{fmt.Sprintf("%v", op)})
@@ -1064,7 +1064,7 @@ func (u *UserHandler) patchFamilyName(ctx context.Context, op string, v any, use
 	return nil
 }
 
-func (u *UserHandler) patchGivenName(ctx context.Context, op string, v any, user *fleet.ScimUser) error {
+func (u *UserHandler) patchGivenName(ctx context.Context, op string, v any, user *automdm.ScimUser) error {
 	if op == scim.PatchOperationRemove {
 		u.logger.InfoContext(ctx, "cannot remove required attribute", "attribute", nameAttr+"."+givenNameAttr)
 		return scimerrors.ScimErrorBadParams([]string{fmt.Sprintf("%v", op)})
@@ -1077,7 +1077,7 @@ func (u *UserHandler) patchGivenName(ctx context.Context, op string, v any, user
 	return nil
 }
 
-func (u *UserHandler) patchActive(ctx context.Context, op string, v any, user *fleet.ScimUser) error {
+func (u *UserHandler) patchActive(ctx context.Context, op string, v any, user *automdm.ScimUser) error {
 	if op == scim.PatchOperationRemove || v == nil {
 		user.Active = nil
 		return nil
@@ -1090,7 +1090,7 @@ func (u *UserHandler) patchActive(ctx context.Context, op string, v any, user *f
 	return nil
 }
 
-func (u *UserHandler) patchExternalId(ctx context.Context, op string, v any, user *fleet.ScimUser) error {
+func (u *UserHandler) patchExternalId(ctx context.Context, op string, v any, user *automdm.ScimUser) error {
 	if op == scim.PatchOperationRemove || v == nil {
 		user.ExternalID = nil
 		return nil
@@ -1103,7 +1103,7 @@ func (u *UserHandler) patchExternalId(ctx context.Context, op string, v any, use
 	return nil
 }
 
-func (u *UserHandler) patchUserName(ctx context.Context, op string, v any, user *fleet.ScimUser) error {
+func (u *UserHandler) patchUserName(ctx context.Context, op string, v any, user *automdm.ScimUser) error {
 	if op == scim.PatchOperationRemove {
 		u.logger.InfoContext(ctx, "cannot remove required attribute", "attribute", userNameAttr)
 		return scimerrors.ScimErrorBadParams([]string{fmt.Sprintf("%v", op)})
@@ -1120,7 +1120,7 @@ func (u *UserHandler) patchUserName(ctx context.Context, op string, v any, user 
 	return nil
 }
 
-func (u *UserHandler) patchDepartment(ctx context.Context, op string, v any, user *fleet.ScimUser) error {
+func (u *UserHandler) patchDepartment(ctx context.Context, op string, v any, user *automdm.ScimUser) error {
 	if op == scim.PatchOperationRemove || v == nil {
 		user.Department = nil
 		return nil
@@ -1133,7 +1133,7 @@ func (u *UserHandler) patchDepartment(ctx context.Context, op string, v any, use
 	return nil
 }
 
-func clearPrimaryFlagFromEmails(user *fleet.ScimUser) {
+func clearPrimaryFlagFromEmails(user *automdm.ScimUser) {
 	for i, email := range user.Emails {
 		if email.Primary != nil && *email.Primary {
 			user.Emails[i].Primary = ptr.Bool(false)
@@ -1142,7 +1142,7 @@ func clearPrimaryFlagFromEmails(user *fleet.ScimUser) {
 }
 
 func (u *UserHandler) patchEmails(
-	ctx context.Context, v any, op scim.PatchOperation, user *fleet.ScimUser,
+	ctx context.Context, v any, op scim.PatchOperation, user *automdm.ScimUser,
 ) error {
 	if op.Op == scim.PatchOperationRemove {
 		user.Emails = nil
@@ -1169,7 +1169,7 @@ func (u *UserHandler) patchEmails(
 		return scimerrors.ScimErrorBadParams([]string{fmt.Sprintf("%v", op)})
 	}
 	// Convert the emails to the expected format
-	userEmails := make([]fleet.ScimUserEmail, 0, len(emailsList))
+	userEmails := make([]automdm.ScimUserEmail, 0, len(emailsList))
 	for _, emailIntf := range emailsList {
 		userEmail, err := u.extractEmail(ctx, emailIntf, op)
 		if err != nil {
@@ -1195,7 +1195,7 @@ func (u *UserHandler) patchEmails(
 }
 
 // checkEmailPrimary ensures at most one email is marked as primary
-func (u *UserHandler) checkEmailPrimary(ctx context.Context, userEmails []fleet.ScimUserEmail) (bool, error) {
+func (u *UserHandler) checkEmailPrimary(ctx context.Context, userEmails []automdm.ScimUserEmail) (bool, error) {
 	primaryEmailCount := 0
 	for _, email := range userEmails {
 		if email.Primary != nil && *email.Primary {
@@ -1211,29 +1211,29 @@ func (u *UserHandler) checkEmailPrimary(ctx context.Context, userEmails []fleet.
 
 func (u *UserHandler) extractEmail(
 	ctx context.Context, emailIntf any, op scim.PatchOperation,
-) (fleet.ScimUserEmail, error) {
+) (automdm.ScimUserEmail, error) {
 	emailMap, ok := emailIntf.(map[string]interface{})
 	if !ok {
 		u.logger.InfoContext(ctx, "email is not a map", "email", emailIntf)
-		return fleet.ScimUserEmail{}, scimerrors.ScimErrorBadParams([]string{fmt.Sprintf("%v", op)})
+		return automdm.ScimUserEmail{}, scimerrors.ScimErrorBadParams([]string{fmt.Sprintf("%v", op)})
 	}
 
 	// Extract the email value (required)
 	emailValue, ok := emailMap[valueAttr].(string)
 	if !ok || emailValue == "" {
 		u.logger.InfoContext(ctx, "email value is missing or invalid", "email", emailMap)
-		return fleet.ScimUserEmail{}, scimerrors.ScimErrorBadParams([]string{fmt.Sprintf("%v", op)})
+		return automdm.ScimUserEmail{}, scimerrors.ScimErrorBadParams([]string{fmt.Sprintf("%v", op)})
 	}
 
 	// Normalize the email
 	normalizedEmail, err := normalizeEmail(emailValue)
 	if err != nil {
 		u.logger.InfoContext(ctx, "failed to normalize email", "email", emailValue, "err", err)
-		return fleet.ScimUserEmail{}, scimerrors.ScimErrorBadParams([]string{fmt.Sprintf("%v", op)})
+		return automdm.ScimUserEmail{}, scimerrors.ScimErrorBadParams([]string{fmt.Sprintf("%v", op)})
 	}
 
 	// Create the email object
-	userEmail := fleet.ScimUserEmail{
+	userEmail := automdm.ScimUserEmail{
 		Email:   normalizedEmail,
 		Type:    nil,
 		Primary: nil,
@@ -1251,7 +1251,7 @@ func (u *UserHandler) extractEmail(
 	return userEmail, nil
 }
 
-func (u *UserHandler) patchName(ctx context.Context, v any, op scim.PatchOperation, user *fleet.ScimUser) error {
+func (u *UserHandler) patchName(ctx context.Context, v any, op scim.PatchOperation, user *automdm.ScimUser) error {
 	if op.Op == scim.PatchOperationRemove {
 		u.logger.InfoContext(ctx, "cannot remove required attribute", "attribute", nameAttr)
 		return scimerrors.ScimErrorBadParams([]string{fmt.Sprintf("%v", op)})
@@ -1316,11 +1316,11 @@ func scimUserID(userID uint) string {
 // mapDatastoreErrorToScimError translates known datastore errors into SCIM protocol errors.
 // Returns nil if the error is not a recognized type.
 func mapDatastoreErrorToScimError(err error) error {
-	var existsErr fleet.AlreadyExistsError
+	var existsErr automdm.AlreadyExistsError
 	if errors.As(err, &existsErr) {
 		return scimerrors.ScimErrorUniqueness
 	}
-	var validationErr *fleet.SCIMValidationError
+	var validationErr *automdm.SCIMValidationError
 	if errors.As(err, &validationErr) {
 		return scimerrors.ScimErrorBadParams([]string{validationErr.Field})
 	}

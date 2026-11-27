@@ -10,19 +10,19 @@ Replace `<...>` before sending. Read it once more after.
 
 ## Needs more information
 
-> Thanks for the report. We tried to reproduce this on current `main` and couldn't: <one sentence on what we saw instead>. Could you send the Fleet version you tested, the exact request and response (secrets redacted), and how the user or device in your test was set up? We'll pick this back up as soon as we have that.
+> Thanks for the report. We tried to reproduce this on current `main` and couldn't: <one sentence on what we saw instead>. Could you send the AutoMDM version you tested, the exact request and response (secrets redacted), and how the user or device in your test was set up? We'll pick this back up as soon as we have that.
 
 If no answer in 7 days, one nudge. If no answer 7 days after that, close with the "not applicable" reply and say they can reopen with a working reproduction.
 
 ## Validated
 
-> Thanks again for this report. We've confirmed it and rated it <Severity>: <one sentence on the precondition chain, e.g. "it requires a valid fleet observer account and discloses host IDs in other fleets">. It's tracked internally and assigned for a fix. We'll update you here when the fix merges and again when it ships, naming the release. If you'd like credit on the advisory, tell us the GitHub username to list; we also send swag to reporters at fleetdm.com/swag.
+> Thanks again for this report. We've confirmed it and rated it <Severity>: <one sentence on the precondition chain, e.g. "it requires a valid team observer account and discloses host IDs in other teams">. It's tracked internally and assigned for a fix. We'll update you here when the fix merges and again when it ships, naming the release. If you'd like credit on the advisory, tell us the GitHub username to list; we also send swag to reporters at automdm.com/swag.
 
-If Fleet's severity is lower than the reporter's, add one sentence: "We rated this <lower> rather than <theirs> because <precondition>."
+If AutoMDM's severity is lower than the reporter's, add one sentence: "We rated this <lower> rather than <theirs> because <precondition>."
 
 ## Not applicable
 
-> Thanks for the report. We looked into it and this isn't a vulnerability in Fleet as described: <one or two sentences with the specific reason, e.g. "the endpoint requires a valid API token, and an unauthenticated request receives the same response whether or not the identifier exists"; if it both doesn't reproduce and needs a privilege the attacker already holds, say both>. We're closing this one. If you can show the behavior against a current release, reply with the request and response and we'll take another look.
+> Thanks for the report. We looked into it and this isn't a vulnerability in AutoMDM as described: <one or two sentences with the specific reason, e.g. "the endpoint requires a valid API token, and an unauthenticated request receives the same response whether or not the identifier exists"; if it both doesn't reproduce and needs a privilege the attacker already holds, say both>. We're closing this one. If you can show the behavior against a current release, reply with the request and response and we'll take another look.
 
 ## Duplicate
 
@@ -32,17 +32,17 @@ Across Bugbop programs the duplicate can't be linked. Use the same text, leave t
 
 ## Fixed before the report
 
-> Thanks for the report. This was first reported to us on <date> and fixed in Fleet <version>; the advisory is public at <GHSA URL>. The version you tested, <version>, predates that fix. We credit the first reporter on the advisory, so we're closing this one. If your reproduction works against Fleet <current release> or later, reply with the request and response (secrets redacted) and we'll take another look.
+> Thanks for the report. This was first reported to us on <date> and fixed in AutoMDM <version>; the advisory is public at <GHSA URL>. The version you tested, <version>, predates that fix. We credit the first reporter on the advisory, so we're closing this one. If your reproduction works against AutoMDM <current release> or later, reply with the request and response (secrets redacted) and we'll take another look.
 
 If the advisory isn't published yet, replace the link with "the advisory will be published after the fix has been out for two minor releases."
 
 ## Fix merged (not yet shipped)
 
-> Update: the fix for this has merged and is scheduled for Fleet <version>. We'll confirm here when that release is out.
+> Update: the fix for this has merged and is scheduled for AutoMDM <version>. We'll confirm here when that release is out.
 
 ## Fix shipped
 
-> This is fixed in Fleet <version>, released <date>. Thank you for the report. <If an advisory is planned: "We'll publish an advisory crediting you after our standard delay, and we'll link it here.">
+> This is fixed in AutoMDM <version>, released <date>. Thank you for the report. <If an advisory is planned: "We'll publish an advisory crediting you after our standard delay, and we'll link it here.">
 
 Set the Bugbop status to `fixed` with this reply, not before.
 

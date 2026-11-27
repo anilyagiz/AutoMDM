@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 
 # Teleport Connect ships an NSIS (electron-builder) installer.
 # NSIS installers require /S for silent installation.

@@ -1,5 +1,5 @@
 // Package tuf drives a local TUF test repository for QA: it builds the env for
-// tools/tuf/test/main.sh from a platform selection (which generates fleetd
+// tools/tuf/test/main.sh from a platform selection (which generates automdmd
 // installers pointing at a local/ngrok TUF server), probes whether the TUF
 // server is up, and cleans up the generated assets. The heavy lifting stays in
 // the existing shell scripts — this package just orchestrates them.
@@ -18,16 +18,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/tools/hangar/internal/processes"
-	"github.com/fleetdm/fleet/tools/hangar/internal/settings"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/processes"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/settings"
 )
 
 const (
 	// DefaultPort is where run_server.sh serves the TUF repository.
 	DefaultPort uint16 = 8081
-	// AssetsDir is the TUF repo dir (TUF_PATH), relative to the Fleet repo root.
+	// AssetsDir is the TUF repo dir (TUF_PATH), relative to the AutoMDM repo root.
 	AssetsDir = "test_tuf"
-	// mainScript is the orchestrator, relative to the Fleet repo root.
+	// mainScript is the orchestrator, relative to the AutoMDM repo root.
 	mainScript = "tools/tuf/test/main.sh"
 	// ProcID / LogChannel namespace the build run in the process engine.
 	ProcID     = "tuf:build"
@@ -65,7 +65,7 @@ func platformByKey(key string) (Platform, bool) {
 	return Platform{}, false
 }
 
-// urlTypes are the package-type prefixes whose *_FLEET_URL / *_TUF_URL vars
+// urlTypes are the package-type prefixes whose *_AUTOMDM_URL / *_TUF_URL vars
 // gen_pkgs reads (arm64 variants reuse the base type's URL). We set them all to
 // the same URLs — harmless for types not being generated — mirroring my_tuf.sh.
 var urlTypes = []string{"PKG", "DEB", "RPM", "MSI", "PKG_TAR_ZST"}
@@ -90,13 +90,13 @@ func EnvFor(cfg settings.TufConfig) []processes.EnvPair {
 	env = append(env, generates...)
 	for _, t := range urlTypes {
 		env = append(env,
-			processes.EnvPair{Key: t + "_FLEET_URL", Value: cfg.FleetURL},
+			processes.EnvPair{Key: t + "_AUTOMDM_URL", Value: cfg.AutoMDMURL},
 			processes.EnvPair{Key: t + "_TUF_URL", Value: cfg.TufURL},
 		)
 	}
 	env = append(env, processes.EnvPair{Key: "ENROLL_SECRET", Value: cfg.EnrollSecret})
-	if cfg.FleetDesktop {
-		env = append(env, processes.EnvPair{Key: "FLEET_DESKTOP", Value: "1"})
+	if cfg.AutoMDMDesktop {
+		env = append(env, processes.EnvPair{Key: "AUTOMDM_DESKTOP", Value: "1"})
 	}
 	if cfg.Debug {
 		env = append(env, processes.EnvPair{Key: "DEBUG", Value: "1"})
@@ -109,12 +109,12 @@ func EnvFor(cfg settings.TufConfig) []processes.EnvPair {
 }
 
 // FileServerArgs are the `go` args to serve the generated TUF repo (what
-// run_server.sh would have run). Runs from the Fleet repo root.
+// run_server.sh would have run). Runs from the AutoMDM repo root.
 func FileServerArgs() []string {
 	return []string{"run", "./tools/file-server", strconv.Itoa(int(DefaultPort)), AssetsDir + "/repository"}
 }
 
-// MainScriptPath is the absolute path to main.sh within the Fleet repo.
+// MainScriptPath is the absolute path to main.sh within the AutoMDM repo.
 func MainScriptPath(repoPath string) string {
 	return filepath.Join(repoPath, mainScript)
 }

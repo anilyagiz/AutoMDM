@@ -4,7 +4,7 @@ $ExpectedExitCodes = @(0, 1223)
 try {
 
 # While studio.exe or studio64.exe runs (in any session), the installer waits
-# on a message box asking to close it. Fleet runs it as SYSTEM, where nobody
+# on a message box asking to close it. AutoMDM runs it as SYSTEM, where nobody
 # can dismiss that box, so the install would hang. Stop Android Studio first.
 # Unsaved changes are lost.
 $studioNames = @("studio", "studio64")

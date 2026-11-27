@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/profiles"
-	"github.com/fleetdm/fleet/v4/server/variables"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/mdm/profiles"
+	"github.com/anilyagiz/automdm/v4/server/variables"
 )
 
-// ErrUnresolvableAppConfigVar signals that one of the $FLEET_VAR_* tokens
+// ErrUnresolvableAppConfigVar signals that one of the $AUTOMDM_VAR_* tokens
 // referenced in a host's managed-app-configuration could not be resolved
 // (for example, the host is not linked to an end-user IDP account).
 // Callers should treat this as a non-retryable failure for the host —
@@ -22,16 +22,16 @@ import (
 // so callers can:
 //   - check with errors.Is(err, ErrUnresolvableAppConfigVar), and
 //   - extract the user-facing detail with errors.As(err, &typed) → typed.Detail.
-var ErrUnresolvableAppConfigVar = errors.New("apple_mdm: unresolvable Fleet variable in managed app configuration")
+var ErrUnresolvableAppConfigVar = errors.New("apple_mdm: unresolvable AutoMDM variable in managed app configuration")
 
 // UnresolvableAppConfigVarError carries the unresolved variable name and a
 // user-facing detail message. Detail matches the wording configuration-profile
 // delivery uses for the same variable so admins see consistent copy across
 // surfaces.
 type UnresolvableAppConfigVarError struct {
-	// FleetVar is the variable name without the $FLEET_VAR_ prefix
+	// AutoMDMVar is the variable name without the $AUTOMDM_VAR_ prefix
 	// (e.g. "HOST_END_USER_IDP_DEPARTMENT").
-	FleetVar string
+	AutoMDMVar string
 	// Detail is the user-facing reason. May be empty for variables that don't
 	// have a specific message (the generic sentinel applies).
 	Detail string
@@ -41,7 +41,7 @@ func (e *UnresolvableAppConfigVarError) Error() string {
 	if e.Detail != "" {
 		return e.Detail
 	}
-	return fmt.Sprintf("apple_mdm: unresolvable Fleet variable $FLEET_VAR_%s", e.FleetVar)
+	return fmt.Sprintf("apple_mdm: unresolvable AutoMDM variable $AUTOMDM_VAR_%s", e.AutoMDMVar)
 }
 
 // Is lets `errors.Is(err, ErrUnresolvableAppConfigVar)` keep working for
@@ -51,10 +51,10 @@ func (e *UnresolvableAppConfigVarError) Is(target error) bool {
 }
 
 // AppConfigSubstitutionHost carries the host context needed to substitute the
-// host-scoped $FLEET_VAR_* tokens supported in Apple managed app configuration,
-// and $FLEET_HOST_VITAL_<id> custom host vitals. The validator
-// (fleet.ValidateAppleAppConfiguration) restricts stored bytes to
-// FleetVarsSupportedInAppleAppConfig, so this type only needs to cover that set.
+// host-scoped $AUTOMDM_VAR_* tokens supported in Apple managed app configuration,
+// and $AUTOMDM_HOST_VITAL_<id> custom host vitals. The validator
+// (automdm.ValidateAppleAppConfiguration) restricts stored bytes to
+// AutoMDMVarsSupportedInAppleAppConfig, so this type only needs to cover that set.
 type AppConfigSubstitutionHost struct {
 	HostID         uint
 	UUID           string
@@ -62,16 +62,16 @@ type AppConfigSubstitutionHost struct {
 	Platform       string
 }
 
-// SubstituteFleetVarsInAppConfig replaces every supported $FLEET_VAR_* token and $FLEET_HOST_VITAL_<id>
+// SubstituteAutoMDMVarsInAppConfig replaces every supported $AUTOMDM_VAR_* token and $AUTOMDM_HOST_VITAL_<id>
 // in config with the resolved value for the given host, returning the
 // substituted bytes. End-user IDP fields are looked up via ds; for that
 // reason ds must be non-nil whenever the configuration references an IDP
 // variable or a custom host vital. Returns ErrUnresolvableAppConfigVar (wrapped) if the host can't
 // supply a referenced variable — the caller is responsible for surfacing
 // that to the user (typically by failing the install for that host).
-func SubstituteFleetVarsInAppConfig(
+func SubstituteAutoMDMVarsInAppConfig(
 	ctx context.Context,
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	config []byte,
 	host AppConfigSubstitutionHost,
 ) ([]byte, error) {
@@ -80,7 +80,7 @@ func SubstituteFleetVarsInAppConfig(
 	}
 	contents := string(config)
 	used := variables.Find(contents)
-	hasHostVitals := len(fleet.FindCustomHostVitalIDs(contents)) > 0
+	hasHostVitals := len(automdm.FindCustomHostVitalIDs(contents)) > 0
 	if len(used) == 0 && !hasHostVitals {
 		return config, nil
 	}
@@ -88,23 +88,23 @@ func SubstituteFleetVarsInAppConfig(
 	idpUUIDCache := map[string]uint{}
 
 	for _, name := range used {
-		switch fleet.FleetVarName(name) {
-		case fleet.FleetVarHostUUID:
-			contents = profiles.ReplaceFleetVariableInXML(fleet.FleetVarHostUUIDRegexp, contents, host.UUID)
-		case fleet.FleetVarHostHardwareSerial:
-			contents = profiles.ReplaceFleetVariableInXML(fleet.FleetVarHostHardwareSerialRegexp, contents, host.HardwareSerial)
-		case fleet.FleetVarHostPlatform:
+		switch automdm.AutoMDMVarName(name) {
+		case automdm.AutoMDMVarHostUUID:
+			contents = profiles.ReplaceAutoMDMVariableInXML(automdm.AutoMDMVarHostUUIDRegexp, contents, host.UUID)
+		case automdm.AutoMDMVarHostHardwareSerial:
+			contents = profiles.ReplaceAutoMDMVariableInXML(automdm.AutoMDMVarHostHardwareSerialRegexp, contents, host.HardwareSerial)
+		case automdm.AutoMDMVarHostPlatform:
 			platform := host.Platform
 			if platform == "darwin" {
 				platform = "macos"
 			}
-			contents = profiles.ReplaceFleetVariableInXML(fleet.FleetVarHostPlatformRegexp, contents, platform)
-		case fleet.FleetVarHostEndUserIDPUsername,
-			fleet.FleetVarHostEndUserIDPUsernameLocalPart,
-			fleet.FleetVarHostEndUserIDPGroups,
-			fleet.FleetVarHostEndUserIDPDepartment,
-			fleet.FleetVarHostEndUserIDPFullname,
-			fleet.FleetVarHostEndUserIDPExternalID:
+			contents = profiles.ReplaceAutoMDMVariableInXML(automdm.AutoMDMVarHostPlatformRegexp, contents, platform)
+		case automdm.AutoMDMVarHostEndUserIDPUsername,
+			automdm.AutoMDMVarHostEndUserIDPUsernameLocalPart,
+			automdm.AutoMDMVarHostEndUserIDPGroups,
+			automdm.AutoMDMVarHostEndUserIDPDepartment,
+			automdm.AutoMDMVarHostEndUserIDPFullname,
+			automdm.AutoMDMVarHostEndUserIDPExternalID:
 			// onError in the profile processor writes a per-host failure
 			// record; here we just capture the per-variable detail string so
 			// we can surface it through UnresolvableAppConfigVarError.
@@ -117,20 +117,20 @@ func SubstituteFleetVarsInAppConfig(
 				return nil, ctxerr.Wrap(ctx, err, "substitute host idp variable in app config")
 			}
 			if !ok {
-				return nil, &UnresolvableAppConfigVarError{FleetVar: name, Detail: detail}
+				return nil, &UnresolvableAppConfigVarError{AutoMDMVar: name, Detail: detail}
 			}
 			contents = replaced
 		default:
-			// The validator restricts to FleetVarsSupportedInAppleAppConfig at
-			// write time, so an unknown variable here is either one Fleet 5
+			// The validator restricts to AutoMDMVarsSupportedInAppleAppConfig at
+			// write time, so an unknown variable here is either one AutoMDM 5
 			// removed, saved before the upgrade, or a drift between the
 			// validator and this switch. Treat it as unresolvable rather than
 			// silently leaving the literal token in the device-bound XML.
 			var detail string
-			if err := fleet.FindRemovedFleetVariable(name); err != nil {
+			if err := automdm.FindRemovedAutoMDMVariable(name); err != nil {
 				detail = err.Error()
 			}
-			return nil, &UnresolvableAppConfigVarError{FleetVar: name, Detail: detail}
+			return nil, &UnresolvableAppConfigVarError{AutoMDMVar: name, Detail: detail}
 		}
 	}
 
@@ -139,7 +139,7 @@ func SubstituteFleetVarsInAppConfig(
 		if err != nil {
 			// Callers fail the install on ErrUnresolvableAppConfigVar, which is the
 			// right outcome for a host with no value, so fold the vital error into it.
-			if missing, ok := errors.AsType[*fleet.MissingCustomHostVitalValueError](err); ok {
+			if missing, ok := errors.AsType[*automdm.MissingCustomHostVitalValueError](err); ok {
 				return nil, &UnresolvableAppConfigVarError{Detail: missing.Error()}
 			}
 			return nil, ctxerr.Wrap(ctx, err, "expand custom host vitals in app config")
@@ -195,7 +195,7 @@ type InstallApplicationParams struct {
 // service-layer silent-drop behavior.
 func BuildInstallApplicationCommand(params InstallApplicationParams) []byte {
 	var managementFlags int
-	if fleet.IsAppleMobilePlatform(params.HostPlatform) {
+	if automdm.IsAppleMobilePlatform(params.HostPlatform) {
 		// Mobile: remove the app when MDM is removed.
 		managementFlags = 1
 	}
@@ -233,7 +233,7 @@ func BuildInstallApplicationCommand(params InstallApplicationParams) []byte {
 
 	// Configuration is iOS/iPadOS-only. Strip any outer plist wrapper so we
 	// inline only the bare <dict>...</dict>.
-	if fleet.IsAppleMobilePlatform(params.HostPlatform) && len(params.Configuration) > 0 {
+	if automdm.IsAppleMobilePlatform(params.HostPlatform) && len(params.Configuration) > 0 {
 		b.WriteString("    <key>Configuration</key>\n    ")
 		b.Write(stripPlistWrapper(params.Configuration))
 		b.WriteString("\n")

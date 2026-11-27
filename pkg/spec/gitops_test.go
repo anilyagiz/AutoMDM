@@ -9,11 +9,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/pkg/file"
-	"github.com/fleetdm/fleet/v4/pkg/optjson"
-	"github.com/fleetdm/fleet/v4/pkg/removednames"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/pkg/file"
+	"github.com/anilyagiz/automdm/v4/pkg/optjson"
+	"github.com/anilyagiz/automdm/v4/pkg/removednames"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/ghodss/yaml"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -37,7 +37,7 @@ var topLevelOptions = map[string]string{
 	"org_settings": `
 org_settings:
   server_settings:
-    server_url: https://fleet.example.com
+    server_url: https://automdm.example.com
   org_info:
     contact_url: https://example.com/contact
     org_logo_url_dark_mode: ""
@@ -98,9 +98,9 @@ func gitOpsFromString(t *testing.T, s string) (*GitOps, error) {
 func nopLogf(_ string, _ ...interface{}) {
 }
 
-func premiumAppConfig() *fleet.EnrichedAppConfig {
-	ac := &fleet.EnrichedAppConfig{}
-	ac.License = &fleet.LicenseInfo{Tier: fleet.TierPremium}
+func premiumAppConfig() *automdm.EnrichedAppConfig {
+	ac := &automdm.EnrichedAppConfig{}
+	ac.License = &automdm.LicenseInfo{Tier: automdm.TierPremium}
 	return ac
 }
 
@@ -137,34 +137,34 @@ func TestValidGitOpsYaml(t *testing.T) {
 	}{
 		"global_config_no_paths": {
 			environment: map[string]string{
-				"FLEET_SECRET_FLEET_SECRET_": "fleet_secret",
-				"FLEET_SECRET_NAME":          "secret_name",
-				"FLEET_SECRET_LENGTH":        "10",
-				"FLEET_SECRET_BANANA":        "bread",
+				"AUTOMDM_SECRET_AUTOMDM_SECRET_": "automdm_secret",
+				"AUTOMDM_SECRET_NAME":            "secret_name",
+				"AUTOMDM_SECRET_LENGTH":          "10",
+				"AUTOMDM_SECRET_BANANA":          "bread",
 			},
 			filePath: "testdata/global_config_no_paths.yml",
 		},
 		"global_config_with_paths": {
 			environment: map[string]string{
-				"LINUX_OS":                      "linux",
-				"DISTRIBUTED_DENYLIST_DURATION": "0",
-				"ORG_NAME":                      "Fleet Device Management",
-				"FLEET_SECRET_FLEET_SECRET_":    "fleet_secret",
-				"FLEET_SECRET_NAME":             "secret_name",
-				"FLEET_SECRET_LENGTH":           "10",
-				"FLEET_SECRET_BANANA":           "bread",
+				"LINUX_OS":                       "linux",
+				"DISTRIBUTED_DENYLIST_DURATION":  "0",
+				"ORG_NAME":                       "Fleet Device Management",
+				"AUTOMDM_SECRET_AUTOMDM_SECRET_": "automdm_secret",
+				"AUTOMDM_SECRET_NAME":            "secret_name",
+				"AUTOMDM_SECRET_LENGTH":          "10",
+				"AUTOMDM_SECRET_BANANA":          "bread",
 			},
 			filePath: "testdata/global_config.yml",
 		},
 		"team_config_no_paths": {
 			environment: map[string]string{
-				"FLEET_SECRET_FLEET_SECRET_": "fleet_secret",
-				"FLEET_SECRET_NAME":          "secret_name",
-				"FLEET_SECRET_LENGTH":        "10",
-				"FLEET_SECRET_BANANA":        "bread",
-				"FLEET_SECRET_CLEMENTINE":    "not-an-orange",
-				"FLEET_SECRET_DURIAN":        "fruity", // not used
-				"FLEET_SECRET_EGGPLANT":      "parmesan",
+				"AUTOMDM_SECRET_AUTOMDM_SECRET_": "automdm_secret",
+				"AUTOMDM_SECRET_NAME":            "secret_name",
+				"AUTOMDM_SECRET_LENGTH":          "10",
+				"AUTOMDM_SECRET_BANANA":          "bread",
+				"AUTOMDM_SECRET_CLEMENTINE":      "not-an-orange",
+				"AUTOMDM_SECRET_DURIAN":          "fruity", // not used
+				"AUTOMDM_SECRET_EGGPLANT":        "parmesan",
 			},
 			filePath: "testdata/team_config_no_paths.yml",
 			isTeam:   true,
@@ -175,13 +175,13 @@ func TestValidGitOpsYaml(t *testing.T) {
 				"LINUX_OS":                        "linux",
 				"DISTRIBUTED_DENYLIST_DURATION":   "0",
 				"ENABLE_FAILING_POLICIES_WEBHOOK": "true",
-				"FLEET_SECRET_FLEET_SECRET_":      "fleet_secret",
-				"FLEET_SECRET_NAME":               "secret_name",
-				"FLEET_SECRET_LENGTH":             "10",
-				"FLEET_SECRET_BANANA":             "bread",
-				"FLEET_SECRET_CLEMENTINE":         "not-an-orange",
-				"FLEET_SECRET_DURIAN":             "fruity", // not used
-				"FLEET_SECRET_EGGPLANT":           "parmesan",
+				"AUTOMDM_SECRET_AUTOMDM_SECRET_":  "automdm_secret",
+				"AUTOMDM_SECRET_NAME":             "secret_name",
+				"AUTOMDM_SECRET_LENGTH":           "10",
+				"AUTOMDM_SECRET_BANANA":           "bread",
+				"AUTOMDM_SECRET_CLEMENTINE":       "not-an-orange",
+				"AUTOMDM_SECRET_DURIAN":           "fruity", // not used
+				"AUTOMDM_SECRET_EGGPLANT":         "parmesan",
 			},
 			filePath: "testdata/team_config.yml",
 			isTeam:   true,
@@ -192,13 +192,13 @@ func TestValidGitOpsYaml(t *testing.T) {
 				"LINUX_OS":                        "linux",
 				"DISTRIBUTED_DENYLIST_DURATION":   "0",
 				"ENABLE_FAILING_POLICIES_WEBHOOK": "true",
-				"FLEET_SECRET_FLEET_SECRET_":      "fleet_secret",
-				"FLEET_SECRET_NAME":               "secret_name",
-				"FLEET_SECRET_LENGTH":             "10",
-				"FLEET_SECRET_BANANA":             "bread",
-				"FLEET_SECRET_CLEMENTINE":         "not-an-orange",
-				"FLEET_SECRET_DURIAN":             "fruity", // not used
-				"FLEET_SECRET_EGGPLANT":           "parmesan",
+				"AUTOMDM_SECRET_AUTOMDM_SECRET_":  "automdm_secret",
+				"AUTOMDM_SECRET_NAME":             "secret_name",
+				"AUTOMDM_SECRET_LENGTH":           "10",
+				"AUTOMDM_SECRET_BANANA":           "bread",
+				"AUTOMDM_SECRET_CLEMENTINE":       "not-an-orange",
+				"AUTOMDM_SECRET_DURIAN":           "fruity", // not used
+				"AUTOMDM_SECRET_EGGPLANT":         "parmesan",
 			},
 			filePath: "testdata/team_config_only_sha256.yml",
 			isTeam:   true,
@@ -221,11 +221,11 @@ func TestValidGitOpsYaml(t *testing.T) {
 					})
 				}
 
-				var appConfig *fleet.EnrichedAppConfig
+				var appConfig *automdm.EnrichedAppConfig
 				if test.isTeam {
-					appConfig = &fleet.EnrichedAppConfig{}
-					appConfig.License = &fleet.LicenseInfo{
-						Tier: fleet.TierPremium,
+					appConfig = &automdm.EnrichedAppConfig{}
+					appConfig.License = &automdm.LicenseInfo{
+						Tier: automdm.TierPremium,
 					}
 				}
 
@@ -250,11 +250,11 @@ func TestValidGitOpsYaml(t *testing.T) {
 					assert.Contains(t, gitops.TeamSettings, "secrets")
 					secrets, ok := gitops.TeamSettings["secrets"]
 					assert.True(t, ok, "secrets not found")
-					require.Len(t, secrets.([]*fleet.EnrollSecret), 2)
-					assert.Equal(t, "SampleSecret123", secrets.([]*fleet.EnrollSecret)[0].Secret)
-					assert.Equal(t, "ABC", secrets.([]*fleet.EnrollSecret)[1].Secret)
+					require.Len(t, secrets.([]*automdm.EnrollSecret), 2)
+					assert.Equal(t, "SampleSecret123", secrets.([]*automdm.EnrollSecret)[0].Secret)
+					assert.Equal(t, "ABC", secrets.([]*automdm.EnrollSecret)[1].Secret)
 					require.Len(t, gitops.Software.Packages, 2)
-					require.Len(t, gitops.FleetSecrets, 6)
+					require.Len(t, gitops.AutoMDMSecrets, 6)
 					for _, pkg := range gitops.Software.Packages {
 						if strings.Contains(pkg.URL, "MicrosoftTeams") {
 							assert.Equal(t, "testdata/lib/uninstall.sh", pkg.UninstallScript.Path)
@@ -269,8 +269,8 @@ func TestValidGitOpsYaml(t *testing.T) {
 							assert.Empty(t, pkg.LabelsIncludeAll)
 						}
 					}
-					require.Len(t, gitops.Software.FleetMaintainedApps, 2)
-					for _, fma := range gitops.Software.FleetMaintainedApps {
+					require.Len(t, gitops.Software.AutoMDMMaintainedApps, 2)
+					for _, fma := range gitops.Software.AutoMDMMaintainedApps {
 						switch fma.Slug {
 						case "slack/darwin":
 							require.ElementsMatch(t, fma.Categories.Value, []string{"Productivity", "Communication"})
@@ -294,7 +294,7 @@ func TestValidGitOpsYaml(t *testing.T) {
 					// Check org settings
 					serverSettings, ok := gitops.OrgSettings["server_settings"]
 					assert.True(t, ok, "server_settings not found")
-					assert.Equal(t, "https://fleet.example.com", serverSettings.(map[string]any)["server_url"])
+					assert.Equal(t, "https://automdm.example.com", serverSettings.(map[string]any)["server_url"])
 					assert.EqualValues(t, 2000, serverSettings.(map[string]any)["report_cap"])
 					assert.Contains(t, gitops.OrgSettings, "org_info")
 					orgInfo, ok := gitops.OrgSettings["org_info"].(map[string]any)
@@ -305,7 +305,7 @@ func TestValidGitOpsYaml(t *testing.T) {
 					assert.Contains(t, gitops.OrgSettings, "integrations")
 					assert.Contains(t, gitops.OrgSettings, "mdm")
 					assert.Contains(t, gitops.OrgSettings, "webhook_settings")
-					assert.Contains(t, gitops.OrgSettings, "fleet_desktop")
+					assert.Contains(t, gitops.OrgSettings, "automdm_desktop")
 					assert.Contains(t, gitops.OrgSettings, "host_expiry_settings")
 					assert.Contains(t, gitops.OrgSettings, "activity_expiry_settings")
 					assert.Contains(t, gitops.OrgSettings, "features")
@@ -313,9 +313,9 @@ func TestValidGitOpsYaml(t *testing.T) {
 					assert.Contains(t, gitops.OrgSettings, "secrets")
 					secrets, ok := gitops.OrgSettings["secrets"]
 					assert.True(t, ok, "secrets not found")
-					require.Len(t, secrets.([]*fleet.EnrollSecret), 2)
-					assert.Equal(t, "SampleSecret123", secrets.([]*fleet.EnrollSecret)[0].Secret)
-					assert.Equal(t, "ABC", secrets.([]*fleet.EnrollSecret)[1].Secret)
+					require.Len(t, secrets.([]*automdm.EnrollSecret), 2)
+					assert.Equal(t, "SampleSecret123", secrets.([]*automdm.EnrollSecret)[0].Secret)
+					assert.Equal(t, "ABC", secrets.([]*automdm.EnrollSecret)[1].Secret)
 					activityExpirySettings, ok := gitops.OrgSettings["activity_expiry_settings"].(map[string]interface{})
 					require.True(t, ok)
 					activityExpiryEnabled, ok := activityExpirySettings["activity_expiry_enabled"].(bool)
@@ -324,7 +324,7 @@ func TestValidGitOpsYaml(t *testing.T) {
 					activityExpiryWindow, ok := activityExpirySettings["activity_expiry_window"].(float64)
 					require.True(t, ok)
 					require.Equal(t, 30, int(activityExpiryWindow))
-					require.Len(t, gitops.FleetSecrets, 4)
+					require.Len(t, gitops.AutoMDMSecrets, 4)
 
 					// Check labels
 					require.Len(t, gitops.Labels, 2)
@@ -338,9 +338,9 @@ func TestValidGitOpsYaml(t *testing.T) {
 				}
 
 				// Check controls
-				_, ok := gitops.Controls.MacOSSettings.(fleet.GitOpsMacOSSettings)
+				_, ok := gitops.Controls.MacOSSettings.(automdm.GitOpsMacOSSettings)
 				assert.True(t, ok, "macos_settings not found")
-				_, ok = gitops.Controls.WindowsSettings.(fleet.GitOpsWindowsSettings)
+				_, ok = gitops.Controls.WindowsSettings.(automdm.GitOpsWindowsSettings)
 				assert.True(t, ok, "windows_settings not found")
 				_, ok = gitops.Controls.EnableDiskEncryption.(bool)
 				assert.True(t, ok, "enable_disk_encryption not found")
@@ -371,10 +371,10 @@ func TestValidGitOpsYaml(t *testing.T) {
 				assert.True(t, ok, "apple_require_hardware_attestation not found")
 				_, ok = gitops.Controls.OnlyAllowAppleBusinessEnrollment.(bool)
 				assert.True(t, ok, "only_allow_apple_business_enrollment not found")
-				assert.Equal(t, "fleet_secret", gitops.FleetSecrets["FLEET_SECRET_FLEET_SECRET_"])
-				assert.Equal(t, "secret_name", gitops.FleetSecrets["FLEET_SECRET_NAME"])
-				assert.Equal(t, "10", gitops.FleetSecrets["FLEET_SECRET_LENGTH"])
-				assert.Equal(t, "bread", gitops.FleetSecrets["FLEET_SECRET_BANANA"])
+				assert.Equal(t, "automdm_secret", gitops.AutoMDMSecrets["AUTOMDM_SECRET_AUTOMDM_SECRET_"])
+				assert.Equal(t, "secret_name", gitops.AutoMDMSecrets["AUTOMDM_SECRET_NAME"])
+				assert.Equal(t, "10", gitops.AutoMDMSecrets["AUTOMDM_SECRET_LENGTH"])
+				assert.Equal(t, "bread", gitops.AutoMDMSecrets["AUTOMDM_SECRET_BANANA"])
 
 				// Check agent options
 				assert.NotNil(t, gitops.AgentOptions)
@@ -436,12 +436,12 @@ func TestValidGitOpsYaml(t *testing.T) {
 
 					assert.Equal(t, "Script run policy", gitops.Policies[7].Name)
 					assert.NotNil(t, gitops.Policies[7].RunScript)
-					assert.Equal(t, "./lib/collect-fleetd-logs.sh", gitops.Policies[7].RunScript.Path)
+					assert.Equal(t, "./lib/collect-automdmd-logs.sh", gitops.Policies[7].RunScript.Path)
 
 					assert.Equal(t, "🔥 Failing policy with script", gitops.Policies[8].Name)
 					assert.NotNil(t, gitops.Policies[8].RunScript)
 					// . or .. depending on whether with paths or without
-					assert.Contains(t, gitops.Policies[8].RunScript.Path, "./lib/collect-fleetd-logs.sh")
+					assert.Contains(t, gitops.Policies[8].RunScript.Path, "./lib/collect-automdmd-logs.sh")
 				}
 			},
 		)
@@ -453,12 +453,12 @@ func TestGitOpsHostNameTemplate(t *testing.T) {
 
 	t.Run("valid string parses", func(t *testing.T) {
 		config := getTeamConfig([]string{"controls"})
-		config += "controls:\n  name_template: \"iPad $FLEET_VAR_HOST_HARDWARE_SERIAL\"\n"
+		config += "controls:\n  name_template: \"iPad $AUTOMDM_VAR_HOST_HARDWARE_SERIAL\"\n"
 		gitops, err := gitOpsFromString(t, config)
 		require.NoError(t, err)
 		nameTemplate, ok := gitops.Controls.NameTemplate.(string)
 		require.True(t, ok, "name_template should be a string")
-		require.Equal(t, "iPad $FLEET_VAR_HOST_HARDWARE_SERIAL", nameTemplate)
+		require.Equal(t, "iPad $AUTOMDM_VAR_HOST_HARDWARE_SERIAL", nameTemplate)
 	})
 
 	t.Run("integer value rejected", func(t *testing.T) {
@@ -486,7 +486,7 @@ func TestGitOpsHostNameTemplate(t *testing.T) {
 	})
 
 	t.Run("Set returns true when only name_template present", func(t *testing.T) {
-		c := GitOpsControls{NameTemplate: "iPad $FLEET_VAR_HOST_HARDWARE_SERIAL"}
+		c := GitOpsControls{NameTemplate: "iPad $AUTOMDM_VAR_HOST_HARDWARE_SERIAL"}
 		require.True(t, c.Set())
 	})
 }
@@ -852,7 +852,7 @@ func TestWhitespaceOnlyTeamName(t *testing.T) {
 	config += `name: "     "`
 	_, err := gitOpsFromString(t, config)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "fleet 'name' is required")
+	require.Contains(t, err.Error(), "team 'name' is required")
 }
 
 func TestTeamNameWithoutLetterOrNumber(t *testing.T) {
@@ -861,9 +861,9 @@ func TestTeamNameWithoutLetterOrNumber(t *testing.T) {
 		config := getTeamConfig([]string{"name"})
 		config += fmt.Sprintf("name: %q", name)
 		_, err := gitOpsFromString(t, config)
-		require.ErrorContains(t, err, "fleet 'name' must include at least one letter or number", name)
+		require.ErrorContains(t, err, "team 'name' must include at least one letter or number", name)
 	}
-	for _, name := range []string{"開発", "Ingeniería", "2026", "Fleet 🚀"} {
+	for _, name := range []string{"開発", "Ingeniería", "2026", "AutoMDM 🚀"} {
 		config := getTeamConfig([]string{"name"})
 		config += fmt.Sprintf("name: %q", name)
 		gitops, err := gitOpsFromString(t, config)
@@ -881,7 +881,7 @@ func TestMissingNameErrorMessages(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "No `name` was provided")
 	assert.Contains(t, err.Error(), "add `org_settings:` as a top-level key.")
-	assert.Contains(t, err.Error(), "Otherwise, use `name` to specify the fleet name.")
+	assert.Contains(t, err.Error(), "Otherwise, use `name` to specify the team name.")
 
 	// Empty no-team.yml should report the removed file name.
 	noTeamPath, noTeamBase := createNamedFileOnTempDir(t, "no-team.yml", "")
@@ -901,7 +901,7 @@ func TestMissingNameErrorMessages(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "No `name` was provided")
 	assert.Contains(t, err.Error(), "add `org_settings:` as a top-level key.")
-	assert.Contains(t, err.Error(), "Otherwise, use `name` to specify the fleet name.")
+	assert.Contains(t, err.Error(), "Otherwise, use `name` to specify the team name.")
 }
 
 func TestPaddedTeamNameIsTrimmed(t *testing.T) {
@@ -927,7 +927,7 @@ func TestVarExpansion(t *testing.T) {
 	config += `
 reports:
 - name: orbit_info \$NOT_EXPANDED \\\$ALSO_NOT_EXPANDED
-  query: "SELECT * from orbit_info; -- double quotes are escaped by YAML after Fleet's escaping of backslashes \\\\\$NOT_EXPANDED"
+  query: "SELECT * from orbit_info; -- double quotes are escaped by YAML after AutoMDM's escaping of backslashes \\\\\$NOT_EXPANDED"
   interval: 0
   platform: $MACOS_OS,${LINUX_OS},windows$EMPTY_VAR
   min_osquery_version: all
@@ -942,7 +942,7 @@ reports:
 	require.Equal(t, "darwin,linux,windows", gitOps.Queries[0].Platform)
 	require.Equal(t, `orbit_info $NOT_EXPANDED \$ALSO_NOT_EXPANDED`, gitOps.Queries[0].Name)
 	require.Equal(t, `single quotes are not escaped by YAML \$NOT_EXPANDED`, gitOps.Queries[0].Description)
-	require.Equal(t, `SELECT * from orbit_info; -- double quotes are escaped by YAML after Fleet's escaping of backslashes \$NOT_EXPANDED`, gitOps.Queries[0].Query)
+	require.Equal(t, `SELECT * from orbit_info; -- double quotes are escaped by YAML after AutoMDM's escaping of backslashes \$NOT_EXPANDED`, gitOps.Queries[0].Query)
 
 	config = getGlobalConfig([]string{"reports"})
 	config += `
@@ -1033,7 +1033,7 @@ func TestInvalidGitOpsYaml(t *testing.T) {
 					config = getConfig([]string{"settings"})
 					config += fmt.Sprintf("%s:\n  path: %s\n", "settings", tmpFile.Name())
 					_, err = gitOpsFromString(t, config)
-					assert.ErrorContains(t, err, "expected type fleet.BaseItem but got array")
+					assert.ErrorContains(t, err, "expected type automdm.BaseItem but got array")
 
 					// Invalid secrets 1
 					config = getConfig([]string{"settings"})
@@ -1139,14 +1139,14 @@ func TestInvalidGitOpsYaml(t *testing.T) {
 					_, err = GitOpsFromFile(noTeamPath6, noTeamBasePath6, nil, nopLogf)
 					require.ErrorContains(t, err, removedNoTeamNameMessage(t))
 
-					// The removed file name fails whatever the fleet name is.
+					// The removed file name fails whatever the team name is.
 					config = getConfig([]string{"name", "settings"})
 					config += "name: SomeOtherTeam\nsettings:\n  secrets:\n"
 					noTeamPath7, noTeamBasePath7 := createNamedFileOnTempDir(t, "no-team.yml", config)
 					_, err = GitOpsFromFile(noTeamPath7, noTeamBasePath7, nil, nopLogf)
 					require.ErrorContains(t, err, removedNoTeamFileMessage(t))
 
-					// ... and whether the file defines org settings instead of a fleet.
+					// ... and whether the file defines org settings instead of a team.
 					noTeamPath7Org, noTeamBasePath7Org := createNamedFileOnTempDir(t, "no-team.yml", "org_settings: {}\n")
 					_, err = GitOpsFromFile(noTeamPath7Org, noTeamBasePath7Org, nil, nopLogf)
 					require.ErrorContains(t, err, removedNoTeamFileMessage(t))
@@ -1219,9 +1219,9 @@ func TestInvalidGitOpsYaml(t *testing.T) {
 					config := getConfig(nil)
 					config += "software:\n  packages:\n    - url: https://example.com\n"
 					path1, basePath1 := createTempFile(t, "", config)
-					appConfig := fleet.EnrichedAppConfig{}
-					appConfig.License = &fleet.LicenseInfo{
-						Tier: fleet.TierPremium,
+					appConfig := automdm.EnrichedAppConfig{}
+					appConfig.License = &automdm.LicenseInfo{
+						Tier: automdm.TierPremium,
 					}
 					_, err = GitOpsFromFile(path1, basePath1, &appConfig, nopLogf)
 					assert.ErrorContains(t, err, "'software' cannot be set on global file")
@@ -1240,7 +1240,7 @@ func TestInvalidGitOpsYaml(t *testing.T) {
 					config = getConfig([]string{"org_settings"})
 					config += fmt.Sprintf("%s:\n  path: %s\n", "org_settings", tmpFile.Name())
 					_, err = gitOpsFromString(t, config)
-					assert.ErrorContains(t, err, "expected type fleet.BaseItem but got array")
+					assert.ErrorContains(t, err, "expected type automdm.BaseItem but got array")
 
 					// Invalid secrets 1
 					config = getConfig([]string{"org_settings"})
@@ -1295,7 +1295,7 @@ func TestInvalidGitOpsYaml(t *testing.T) {
 				config = getConfig([]string{"agent_options"})
 				config += fmt.Sprintf("%s:\n  path: %s\n", "agent_options", tmpFile.Name())
 				_, err = gitOpsFromString(t, config)
-				assert.ErrorContains(t, err, "expected type fleet.BaseItem but got array")
+				assert.ErrorContains(t, err, "expected type automdm.BaseItem but got array")
 
 				// Invalid controls
 				config = getConfig([]string{"controls"})
@@ -1459,7 +1459,7 @@ func TestGitOpsOrgLogo(t *testing.T) {
 		config += `
 org_settings:
   server_settings:
-    server_url: https://fleet.example.com
+    server_url: https://automdm.example.com
   org_info:
     contact_url: https://example.com/contact
     org_name: Test Org
@@ -1481,7 +1481,7 @@ org_settings:
 			config += fmt.Sprintf(`
 org_settings:
   server_settings:
-    server_url: https://fleet.example.com
+    server_url: https://automdm.example.com
   org_info:
     contact_url: https://example.com/contact
     org_name: Test Org
@@ -1530,7 +1530,7 @@ func TestGitOpsOrgSettingsNestedPathResolution(t *testing.T) {
 	t.Run("org_logo_path keys resolve relative to nested file", func(t *testing.T) {
 		gitops, tmpDir := setup(t, `
 server_settings:
-  server_url: https://fleet.example.com
+  server_url: https://automdm.example.com
 org_info:
   contact_url: https://example.com/contact
   org_name: Test Org
@@ -1546,7 +1546,7 @@ secrets:
 	t.Run("EULA paths resolve relative to nested file", func(t *testing.T) {
 		gitops, tmpDir := setup(t, `
 server_settings:
-  server_url: https://fleet.example.com
+  server_url: https://automdm.example.com
 org_info:
   contact_url: https://example.com/contact
   org_name: Test Org
@@ -1561,10 +1561,10 @@ secrets:
 	})
 
 	t.Run("absolute paths in nested file are untouched", func(t *testing.T) {
-		abs := "/etc/fleet/logo.png"
+		abs := "/etc/automdm/logo.png"
 		gitops, _ := setup(t, fmt.Sprintf(`
 server_settings:
-  server_url: https://fleet.example.com
+  server_url: https://automdm.example.com
 org_info:
   contact_url: https://example.com/contact
   org_name: Test Org
@@ -1583,7 +1583,7 @@ secrets:
 		config += `
 org_settings:
   server_settings:
-    server_url: https://fleet.example.com
+    server_url: https://automdm.example.com
   org_info:
     contact_url: https://example.com/contact
     org_name: Test Org
@@ -1609,8 +1609,8 @@ func TestGitOpsControlsResolveFilePathsAbs(t *testing.T) {
 
 	t.Run("apply-time paths with ../ become absolute, not double-anchored", func(t *testing.T) {
 		controls := GitOpsControls{
-			MacOSSetup: &fleet.GitOpsMacOSSetup{
-				Software: optjson.SetSlice([]*fleet.MacOSSetupSoftware{
+			MacOSSetup: &automdm.GitOpsMacOSSetup{
+				Software: optjson.SetSlice([]*automdm.MacOSSetupSoftware{
 					{PackagePath: "../lib/no-team/app.pkg"},
 				}),
 				MacOSSetupAssistant: optjson.SetString("../lib/no-team/macos_enrollment.json"),
@@ -1618,8 +1618,8 @@ func TestGitOpsControlsResolveFilePathsAbs(t *testing.T) {
 			},
 		}
 
-		// "fleets" mirrors the issue layout where unassigned.yml lives in fleets/.
-		controls.ResolveFilePathsAbs("fleets")
+		// "teams" mirrors the issue layout where unassigned.yml lives in teams/.
+		controls.ResolveFilePathsAbs("teams")
 
 		for _, got := range []string{
 			controls.MacOSSetup.MacOSSetupAssistant.Value,
@@ -1627,8 +1627,8 @@ func TestGitOpsControlsResolveFilePathsAbs(t *testing.T) {
 			controls.MacOSSetup.Software.Value[0].PackagePath,
 		} {
 			assert.True(t, filepath.IsAbs(got), "expected absolute path, got %q", got)
-			// ../ from fleets/ climbs out of fleets/, so the result must not contain it.
-			assert.NotContains(t, got, "fleets/lib", "path should not retain the fleets/lib segment: %q", got)
+			// ../ from teams/ climbs out of teams/, so the result must not contain it.
+			assert.NotContains(t, got, "teams/lib", "path should not retain the teams/lib segment: %q", got)
 		}
 		assert.True(t, strings.HasSuffix(controls.MacOSSetup.MacOSSetupAssistant.Value, "lib/no-team/macos_enrollment.json"))
 	})
@@ -1638,13 +1638,13 @@ func TestGitOpsControlsResolveFilePathsAbs(t *testing.T) {
 		// is a URL — re-anchoring either here would double-anchor / corrupt them.
 		scriptPath := "../lib/no-team/script.sh"
 		controls := GitOpsControls{
-			MacOSSetup: &fleet.GitOpsMacOSSetup{
+			MacOSSetup: &automdm.GitOpsMacOSSetup{
 				BootstrapPackage: optjson.SetString("https://example.com/bootstrap.pkg"),
 			},
-			Scripts: []fleet.BaseItem{{Path: &scriptPath}},
+			Scripts: []automdm.BaseItem{{Path: &scriptPath}},
 		}
 
-		controls.ResolveFilePathsAbs("fleets")
+		controls.ResolveFilePathsAbs("teams")
 
 		assert.Equal(t, "https://example.com/bootstrap.pkg", controls.MacOSSetup.BootstrapPackage.Value)
 		assert.Equal(t, "../lib/no-team/script.sh", *controls.Scripts[0].Path)
@@ -1655,7 +1655,7 @@ func TestGitOpsControlsResolveFilePathsAbs(t *testing.T) {
 		// path lib/no-team/... — before the fix this double-anchored to
 		// generated/generated/lib/no-team/macos_enrollment.json at apply time.
 		controls := GitOpsControls{
-			MacOSSetup: &fleet.GitOpsMacOSSetup{
+			MacOSSetup: &automdm.GitOpsMacOSSetup{
 				MacOSSetupAssistant: optjson.SetString("lib/no-team/macos_enrollment.json"),
 			},
 		}
@@ -1669,19 +1669,19 @@ func TestGitOpsControlsResolveFilePathsAbs(t *testing.T) {
 
 	t.Run("absolute and empty paths are untouched", func(t *testing.T) {
 		controls := GitOpsControls{
-			MacOSSetup: &fleet.GitOpsMacOSSetup{
-				MacOSSetupAssistant: optjson.SetString("/etc/fleet/macos_enrollment.json"),
+			MacOSSetup: &automdm.GitOpsMacOSSetup{
+				MacOSSetupAssistant: optjson.SetString("/etc/automdm/macos_enrollment.json"),
 				Script:              optjson.SetString(""),
 			},
 		}
-		controls.ResolveFilePathsAbs("fleets")
-		assert.Equal(t, "/etc/fleet/macos_enrollment.json", controls.MacOSSetup.MacOSSetupAssistant.Value)
+		controls.ResolveFilePathsAbs("teams")
+		assert.Equal(t, "/etc/automdm/macos_enrollment.json", controls.MacOSSetup.MacOSSetupAssistant.Value)
 		assert.Empty(t, controls.MacOSSetup.Script.Value)
 	})
 
 	t.Run("nil MacOSSetup is a no-op", func(t *testing.T) {
 		controls := GitOpsControls{}
-		assert.NotPanics(t, func() { controls.ResolveFilePathsAbs("fleets") })
+		assert.NotPanics(t, func() { controls.ResolveFilePathsAbs("teams") })
 	})
 }
 
@@ -1697,7 +1697,7 @@ func TestGitOpsModeYaml(t *testing.T) {
 		config += `
 org_settings:
   server_settings:
-    server_url: https://fleet.example.com
+    server_url: https://automdm.example.com
   org_info:
     contact_url: https://example.com/contact
     org_name: Test Org
@@ -1708,17 +1708,17 @@ org_settings:
 	}
 
 	t.Run("https URL with mode enabled is accepted", func(t *testing.T) {
-		config := withGitops("    gitops_mode_enabled: true\n    repository_url: https://github.com/example/fleet-config\n")
+		config := withGitops("    gitops_mode_enabled: true\n    repository_url: https://github.com/example/automdm-config\n")
 		gitops, err := gitOpsFromString(t, config)
 		require.NoError(t, err)
 		gitopsBlock, _ := gitops.OrgSettings["gitops"].(map[string]any)
 		require.NotNil(t, gitopsBlock)
 		assert.Equal(t, true, gitopsBlock["gitops_mode_enabled"])
-		assert.Equal(t, "https://github.com/example/fleet-config", gitopsBlock["repository_url"])
+		assert.Equal(t, "https://github.com/example/automdm-config", gitopsBlock["repository_url"])
 	})
 
 	t.Run("http URL with mode enabled is accepted", func(t *testing.T) {
-		config := withGitops("    gitops_mode_enabled: true\n    repository_url: http://internal.example.com/fleet-config\n")
+		config := withGitops("    gitops_mode_enabled: true\n    repository_url: http://internal.example.com/automdm-config\n")
 		_, err := gitOpsFromString(t, config)
 		require.NoError(t, err)
 	})
@@ -1738,7 +1738,7 @@ org_settings:
 	})
 
 	t.Run("repository_url missing scheme is rejected", func(t *testing.T) {
-		config := withGitops("    gitops_mode_enabled: true\n    repository_url: github.com/example/fleet-config\n")
+		config := withGitops("    gitops_mode_enabled: true\n    repository_url: github.com/example/automdm-config\n")
 		_, err := gitOpsFromString(t, config)
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "must include protocol")
@@ -1766,7 +1766,7 @@ func TestGitOpsSSOValidation(t *testing.T) {
 		config += `
 org_settings:
   server_settings:
-    server_url: https://fleet.example.com
+    server_url: https://automdm.example.com
   org_info:
     contact_url: https://example.com/contact
     org_name: Test Org
@@ -1837,12 +1837,12 @@ org_settings:
 	})
 
 	// Note: MDM end-user authentication validation lives at the gitops
-	// CLI group level (cmd/fleetctl/fleetctl/gitops.go), not here in the
+	// CLI group level (cmd/automdmctl/automdmctl/gitops.go), not here in the
 	// per-file parser, because the enable flag and the IdP settings can
 	// live in different files (controls in team files, org_settings in
 	// the global file only). See TestValidateGitOpsGroupEUA.
 
-	// Regression guard: the YAML that `fleetctl generate-gitops` produces
+	// Regression guard: the YAML that `automdmctl generate-gitops` produces
 	// renders the metadata fields as `metadata: # TODO: ...` (a YAML key with
 	// a trailing comment, which parses to nil/empty). This is exactly the
 	// state that nearly locked out the reporter in issue #43371 — and is
@@ -1996,7 +1996,7 @@ policies:
     package_path: ./some_path.yml
 `
 	_, err := gitOpsFromString(t, config)
-	assert.ErrorContains(t, err, "install_software can only be set on fleet-level policies")
+	assert.ErrorContains(t, err, "install_software can only be set on team-level policies")
 }
 
 func TestGitOpsGlobalPolicyWithRunScript(t *testing.T) {
@@ -2010,7 +2010,7 @@ policies:
     path: ./some_path.sh
 `
 	_, err := gitOpsFromString(t, config)
-	assert.ErrorContains(t, err, "run_script can only be set on fleet-level policies")
+	assert.ErrorContains(t, err, "run_script can only be set on team-level policies")
 }
 
 func TestGitOpsPolicyAutomationKeys(t *testing.T) {
@@ -2035,7 +2035,7 @@ func TestGitOpsPolicyAutomationKeys(t *testing.T) {
 			"conditional_access_enabled, webhooks_and_tickets_enabled"},
 		{"software and webhook", "  install_software:\n    package_path: ./pkg.yml\n  webhooks_and_tickets_enabled: true\n",
 			"install_software, webhooks_and_tickets_enabled"},
-		{"patch software and webhook", "  type: patch\n  fleet_maintained_app_slug: zoom/darwin\n  install_software: true\n  webhooks_and_tickets_enabled: true\n",
+		{"patch software and webhook", "  type: patch\n  automdm_maintained_app_slug: zoom/darwin\n  install_software: true\n  webhooks_and_tickets_enabled: true\n",
 			"install_software, webhooks_and_tickets_enabled"},
 		{"profile and calendar", "  resend_configuration_profile: Profile\n  calendar_events_enabled: true\n",
 			"resend_configuration_profile, calendar_events_enabled"},
@@ -2073,10 +2073,10 @@ func TestGitOpsPolicyAutomationKeys(t *testing.T) {
 		require.ErrorContains(t, err, `Couldn't apply policy "Two automations" in policies.yml: a policy can only have one automation`)
 	})
 
-	t.Run("All fleets", func(t *testing.T) {
+	t.Run("All teams", func(t *testing.T) {
 		for _, key := range []string{"calendar_events_enabled", "conditional_access_enabled"} {
 			file, err := parse(t, true, "- name: Global\n  query: SELECT 1;\n  "+key+": true\n")
-			require.ErrorContains(t, err, fmt.Sprintf(`Couldn't apply policy "Global" in %s: "All fleets" policies can only have webhooks_and_tickets_enabled, not %s.`,
+			require.ErrorContains(t, err, fmt.Sprintf(`Couldn't apply policy "Global" in %s: "All teams" policies can only have webhooks_and_tickets_enabled, not %s.`,
 				file, key))
 		}
 		_, err := parse(t, true, "- name: Global\n  query: SELECT 1;\n  webhooks_and_tickets_enabled: true\n")
@@ -2106,7 +2106,7 @@ policies:
     package_path:
 `
 	_, err = gitOpsFromString(t, config)
-	assert.ErrorContains(t, err, "install_software must include either a package_path, an app_store_id, a hash_sha256 or a fleet_maintained_app_slug")
+	assert.ErrorContains(t, err, "install_software must include either a package_path, an app_store_id, a hash_sha256 or an automdm_maintained_app_slug")
 
 	config = getTeamConfig([]string{"policies"})
 	config += `
@@ -2118,7 +2118,7 @@ policies:
     app_store_id: "123456"
 `
 	_, err = gitOpsFromString(t, config)
-	require.ErrorContains(t, err, "install_software must have only one of package_path, app_store_id, hash_sha256, or fleet_maintained_app_slug")
+	require.ErrorContains(t, err, "install_software must have only one of package_path, app_store_id, hash_sha256, or automdm_maintained_app_slug")
 
 	// Software has a URL that's too big
 	tooBigURL := fmt.Sprintf("https://ftp.mozilla.org/%s", strings.Repeat("a", 4000-23))
@@ -2128,9 +2128,9 @@ software:
   packages:
     - url: %s
 `, tooBigURL)
-	appConfig := fleet.EnrichedAppConfig{}
-	appConfig.License = &fleet.LicenseInfo{
-		Tier: fleet.TierPremium,
+	appConfig := automdm.EnrichedAppConfig{}
+	appConfig.License = &automdm.LicenseInfo{
+		Tier: automdm.TierPremium,
 	}
 	path, basePath := createTempFile(t, "", config)
 	_, err = GitOpsFromFile(path, basePath, &appConfig, nopLogf)
@@ -2185,7 +2185,7 @@ policies:
     app_store_id: "123456"
 `
 	_, err = gitOpsFromString(t, config)
-	require.ErrorContains(t, err, "not found on fleet")
+	require.ErrorContains(t, err, "not found on team")
 
 	// Policy references a software installer not present in the team.
 	config = getTeamConfig([]string{"policies"})
@@ -2214,7 +2214,7 @@ software:
 	_, err = GitOpsFromFile(path, basePath, &appConfig, nopLogf)
 	require.ErrorContains(
 		t, err,
-		"install_software.package_path URL https://statics.teams.cdn.office.net/production-osx/enterprise/webview2/lkg/MicrosoftTeams.pkg not found on fleet",
+		"install_software.package_path URL https://statics.teams.cdn.office.net/production-osx/enterprise/webview2/lkg/MicrosoftTeams.pkg not found on team",
 	)
 
 	// Policy references a software installer file that has an invalid yaml.
@@ -2240,9 +2240,9 @@ software:
 		0o755,
 	)
 	require.NoError(t, err)
-	appConfig = fleet.EnrichedAppConfig{}
-	appConfig.License = &fleet.LicenseInfo{
-		Tier: fleet.TierPremium,
+	appConfig = automdm.EnrichedAppConfig{}
+	appConfig.License = &automdm.LicenseInfo{
+		Tier: automdm.TierPremium,
 	}
 	_, err = GitOpsFromFile(path, basePath, &appConfig, nopLogf)
 	assert.ErrorContains(t, err, "file \"./microsoft-teams.pkg.software.yml\" does not contain a valid software package definition")
@@ -2269,9 +2269,9 @@ software:
 		0o755,
 	)
 	require.NoError(t, err)
-	appConfig = fleet.EnrichedAppConfig{}
-	appConfig.License = &fleet.LicenseInfo{
-		Tier: fleet.TierPremium,
+	appConfig = automdm.EnrichedAppConfig{}
+	appConfig.License = &automdm.LicenseInfo{
+		Tier: automdm.TierPremium,
 	}
 	_, err = GitOpsFromFile(path, basePath, &appConfig, nopLogf)
 	assert.ErrorContains(t, err, "contains multiple packages; use install_software.hash_sha256 to select one, or split the packages into single-package YAML files")
@@ -2332,14 +2332,14 @@ controls:
 	)
 	require.NoError(t, err)
 	err = file.Copy(
-		filepath.Join("testdata", "lib", "collect-fleetd-logs.sh"),
-		filepath.Join(basePath, "lib", "collect-fleetd-logs.sh"),
+		filepath.Join("testdata", "lib", "collect-automdmd-logs.sh"),
+		filepath.Join(basePath, "lib", "collect-automdmd-logs.sh"),
 		0o755,
 	)
 	require.NoError(t, err)
-	appConfig := fleet.EnrichedAppConfig{}
-	appConfig.License = &fleet.LicenseInfo{
-		Tier: fleet.TierPremium,
+	appConfig := automdm.EnrichedAppConfig{}
+	appConfig.License = &automdm.LicenseInfo{
+		Tier: automdm.TierPremium,
 	}
 	_, err = GitOpsFromFile(path, basePath, &appConfig, nopLogf)
 	assert.ErrorContains(
@@ -2372,18 +2372,18 @@ func TestMultiPackageFieldPlacement(t *testing.T) {
 	const hashA = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	const hashB = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 
-	// writeConfig writes the fleet-level file plus a package YAML file and returns
+	// writeConfig writes the team-level file plus a package YAML file and returns
 	// the parsed result (or error).
-	setup := func(t *testing.T, fleetLevel string, packageFile string) (*GitOps, error) {
+	setup := func(t *testing.T, automdmLevel string, packageFile string) (*GitOps, error) {
 		config := getTeamConfig([]string{"software"})
-		config += "software:\n  packages:\n    - path: software/pkgs.yml\n" + fleetLevel
+		config += "software:\n  packages:\n    - path: software/pkgs.yml\n" + automdmLevel
 		path, basePath := createTempFile(t, "", config)
 		require.NoError(t, os.MkdirAll(filepath.Join(basePath, "software"), 0o755))
 		require.NoError(t, os.WriteFile(filepath.Join(basePath, "software", "pkgs.yml"), []byte(packageFile), 0o644))
 		return GitOpsFromFile(path, basePath, premiumAppConfig(), nopLogf)
 	}
 
-	t.Run("happy path keeps per-package fields and inherits fleet-level setup_experience", func(t *testing.T) {
+	t.Run("happy path keeps per-package fields and inherits team-level setup_experience", func(t *testing.T) {
 		gitops, err := setup(
 			t,
 			"      setup_experience: true\n",
@@ -2410,9 +2410,9 @@ func TestMultiPackageFieldPlacement(t *testing.T) {
 		assert.True(t, second.InstallDuringSetup.Valid && second.InstallDuringSetup.Value)
 	})
 
-	// self_service and categories set once at the fleet level apply to every package
+	// self_service and categories set once at the team level apply to every package
 	// that omits them.
-	t.Run("fleet-level self_service and categories inherit to all packages", func(t *testing.T) {
+	t.Run("team-level self_service and categories inherit to all packages", func(t *testing.T) {
 		gitops, err := setup(
 			t,
 			"      self_service: true\n      categories: [\"Productivity\"]\n",
@@ -2429,73 +2429,73 @@ func TestMultiPackageFieldPlacement(t *testing.T) {
 	})
 
 	for _, tc := range []struct {
-		name        string
-		fleetLevel  string
-		packageFile string
-		wantErr     string
+		name         string
+		automdmLevel string
+		packageFile  string
+		wantErr      string
 	}{
 		{
-			name:       "self_service in both fleet-level and package file",
-			fleetLevel: "      self_service: true\n",
+			name:         "self_service in both team-level and package file",
+			automdmLevel: "      self_service: true\n",
 			packageFile: fmt.Sprintf(`- hash_sha256: %s
   self_service: true
 - hash_sha256: %s
 `, hashA, hashB),
-			wantErr: "self_service and categories can be specified either in the fleet-level file or in the package YAML file",
+			wantErr: "self_service and categories can be specified either in the team-level file or in the package YAML file",
 		},
 		{
-			name:       "setup_experience in a package file",
-			fleetLevel: "",
+			name:         "setup_experience in a package file",
+			automdmLevel: "",
 			packageFile: fmt.Sprintf(`- hash_sha256: %s
   setup_experience: true
 - hash_sha256: %s
 `, hashA, hashB),
-			wantErr: "setup_experience can be specified only in the fleet-level file",
+			wantErr: "setup_experience can be specified only in the team-level file",
 		},
 		{
-			name:       "labels in the fleet-level file",
-			fleetLevel: "      labels_include_all: [macOS]\n",
+			name:         "labels in the team-level file",
+			automdmLevel: "      labels_include_all: [macOS]\n",
 			packageFile: fmt.Sprintf(`- hash_sha256: %s
 - hash_sha256: %s
 `, hashA, hashB),
 			wantErr: "Labels can be specified only in the package-level file when adding multiple packages",
 		},
 		{
-			name:       "categories in both fleet-level and package file",
-			fleetLevel: "      categories: [\"Productivity\"]\n",
+			name:         "categories in both team-level and package file",
+			automdmLevel: "      categories: [\"Productivity\"]\n",
 			packageFile: fmt.Sprintf(`- hash_sha256: %s
   categories: ["Dev tools"]
 - hash_sha256: %s
 `, hashA, hashB),
-			wantErr: "self_service and categories can be specified either in the fleet-level file or in the package YAML file",
+			wantErr: "self_service and categories can be specified either in the team-level file or in the package YAML file",
 		},
 		{
-			name:       "self_service in both, single package",
-			fleetLevel: "      self_service: true\n",
+			name:         "self_service in both, single package",
+			automdmLevel: "      self_service: true\n",
 			packageFile: fmt.Sprintf(`- hash_sha256: %s
   self_service: true
 `, hashA),
-			wantErr: "self_service and categories can be specified either in the fleet-level file or in the package YAML file",
+			wantErr: "self_service and categories can be specified either in the team-level file or in the package YAML file",
 		},
 		{
-			name:       "labels in both fleet-level and package file, single package",
-			fleetLevel: "      labels_include_all: [macOS]\n",
+			name:         "labels in both team-level and package file, single package",
+			automdmLevel: "      labels_include_all: [macOS]\n",
 			packageFile: fmt.Sprintf(`- hash_sha256: %s
   labels_include_all: [Windows]
 `, hashA),
-			wantErr: "Labels can be specified either in the fleet-level file or in the package YAML file",
+			wantErr: "Labels can be specified either in the team-level file or in the package YAML file",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := setup(t, tc.fleetLevel, tc.packageFile)
+			_, err := setup(t, tc.automdmLevel, tc.packageFile)
 			assert.ErrorContains(t, err, tc.wantErr)
 		})
 	}
 
-	// The setup_experience and fleet-level label rules only apply to a file with
+	// The setup_experience and team-level label rules only apply to a file with
 	// multiple packages. A single package can set setup_experience in the file and
-	// inherit labels from the fleet-level entry.
-	t.Run("single package may set setup_experience and inherit fleet-level labels", func(t *testing.T) {
+	// inherit labels from the team-level entry.
+	t.Run("single package may set setup_experience and inherit team-level labels", func(t *testing.T) {
 		gitops, err := setup(
 			t,
 			"      labels_include_all: [macOS]\n",
@@ -2510,19 +2510,19 @@ func TestMultiPackageFieldPlacement(t *testing.T) {
 		assert.Equal(t, []string{"macOS"}, pkg.LabelsIncludeAll)
 	})
 
-	// Write one package as a bare object, parsing should fail with the Fleet 5 error naming the file.
-	t.Run("package file with one package not in a list fails with the Fleet 5 error", func(t *testing.T) {
+	// Write one package as a bare object, parsing should fail with the AutoMDM 5 error naming the file.
+	t.Run("package file with one package not in a list fails with the AutoMDM 5 error", func(t *testing.T) {
 		_, err := setup(t, "", fmt.Sprintf(`hash_sha256: %s
 self_service: true
 `, hashA))
-		expectedErr := `The single package format in "software/pkgs.yml" is not available anymore. What to use instead: https://fleetdm.com/learn-more-about/fleet-5-upgrade`
+		expectedErr := `The single package format in "software/pkgs.yml" is not available anymore. What to use instead: https://automdm.com/learn-more-about/automdm-5-upgrade`
 		require.ErrorContains(t, err, expectedErr)
 	})
 
 	// Write a string as the whole package file, parsing should fail with the list type error.
 	t.Run("package file with a string at the top level fails with the type error", func(t *testing.T) {
 		_, err := setup(t, "", "just-a-string\n")
-		expectedErr := `Couldn't edit "software/pkgs.yml" at "software.packages", expected type []*fleet.SoftwarePackageSpec but got string`
+		expectedErr := `Couldn't edit "software/pkgs.yml" at "software.packages", expected type []*automdm.SoftwarePackageSpec but got string`
 		require.ErrorContains(t, err, expectedErr)
 	})
 
@@ -2556,7 +2556,7 @@ self_service: true
 		assert.NotContains(t, err.Error(), `("")`)
 	})
 
-	// The fleet-level labels rule is file-scope, so it reports once regardless of how
+	// The team-level labels rule is file-scope, so it reports once regardless of how
 	// many packages the file lists.
 	t.Run("labels error is reported once for multiple packages", func(t *testing.T) {
 		_, err := setup(
@@ -2592,12 +2592,12 @@ software:
 	)
 	require.NoError(t, err)
 
-	appConfig := fleet.EnrichedAppConfig{}
-	appConfig.License = &fleet.LicenseInfo{
-		Tier: fleet.TierPremium,
+	appConfig := automdm.EnrichedAppConfig{}
+	appConfig.License = &automdm.LicenseInfo{
+		Tier: automdm.TierPremium,
 	}
 	_, err = GitOpsFromFile(path, basePath, &appConfig, nopLogf)
-	assert.ErrorContains(t, err, "the software package defined in software/single-package.yml must not have icons, scripts, queries, URL, or hash specified at the fleet level")
+	assert.ErrorContains(t, err, "the software package defined in software/single-package.yml must not have icons, scripts, queries, URL, or hash specified at the team level")
 }
 
 func TestScriptOnlyPackagesPathWithInline(t *testing.T) {
@@ -2620,9 +2620,9 @@ software:
 	)
 	require.NoError(t, err)
 
-	appConfig := fleet.EnrichedAppConfig{}
-	appConfig.License = &fleet.LicenseInfo{
-		Tier: fleet.TierPremium,
+	appConfig := automdm.EnrichedAppConfig{}
+	appConfig.License = &automdm.LicenseInfo{
+		Tier: automdm.TierPremium,
 	}
 	gitops, err := GitOpsFromFile(path, basePath, &appConfig, nopLogf)
 	require.NoError(t, err)
@@ -2666,9 +2666,9 @@ software:
 		os.FileMode(0o644),
 	))
 
-	appConfig := fleet.EnrichedAppConfig{}
-	appConfig.License = &fleet.LicenseInfo{
-		Tier: fleet.TierPremium,
+	appConfig := automdm.EnrichedAppConfig{}
+	appConfig.License = &automdm.LicenseInfo{
+		Tier: automdm.TierPremium,
 	}
 	gitops, err := GitOpsFromFile(path, basePath, &appConfig, nopLogf)
 	require.NoError(t, err)
@@ -2717,9 +2717,9 @@ software:
 		os.FileMode(0o644),
 	))
 
-	appConfig := fleet.EnrichedAppConfig{}
-	appConfig.License = &fleet.LicenseInfo{
-		Tier: fleet.TierPremium,
+	appConfig := automdm.EnrichedAppConfig{}
+	appConfig.License = &automdm.LicenseInfo{
+		Tier: automdm.TierPremium,
 	}
 	gitops, err := GitOpsFromFile(path, basePath, &appConfig, nopLogf)
 	require.NoError(t, err)
@@ -2749,20 +2749,20 @@ software:
 		os.FileMode(0o755),
 	))
 
-	appConfig := fleet.EnrichedAppConfig{}
-	appConfig.License = &fleet.LicenseInfo{Tier: fleet.TierPremium}
+	appConfig := automdm.EnrichedAppConfig{}
+	appConfig.License = &automdm.LicenseInfo{Tier: automdm.TierPremium}
 	_, err := GitOpsFromFile(path, basePath, &appConfig, nopLogf)
 	// The message must not claim scripts/queries are forbidden — they're allowed
 	// for script-only packages.
-	require.ErrorContains(t, err, "must not have install_script, URL, or hash specified at the fleet level")
+	require.ErrorContains(t, err, "must not have install_script, URL, or hash specified at the team level")
 }
 
-func TestIllegalFleetSecret(t *testing.T) {
+func TestIllegalAutoMDMSecret(t *testing.T) {
 	t.Parallel()
 	config := getGlobalConfig([]string{"policies"})
 	config += `
 policies:
-  - name: $FLEET_SECRET_POLICY
+  - name: $AUTOMDM_SECRET_POLICY
     platform: linux
     query: SELECT 1 FROM osquery_info WHERE start_time < 0;
   - name: My policy
@@ -2770,13 +2770,13 @@ policies:
     query: SELECT 1;
 `
 	_, err := gitOpsFromString(t, config)
-	assert.ErrorContains(t, err, "variables with \"FLEET_SECRET_\" prefix are only allowed")
+	assert.ErrorContains(t, err, "variables with \"AUTOMDM_SECRET_\" prefix are only allowed")
 }
 
 func TestInvalidSoftwareInstallerHash(t *testing.T) {
-	appConfig := &fleet.EnrichedAppConfig{}
-	appConfig.License = &fleet.LicenseInfo{
-		Tier: fleet.TierPremium,
+	appConfig := &automdm.EnrichedAppConfig{}
+	appConfig.License = &automdm.LicenseInfo{
+		Tier: automdm.TierPremium,
 	}
 	_, err := GitOpsFromFile("testdata/team_config_invalid_sha.yml", "./testdata", appConfig, nopLogf)
 	assert.ErrorContains(t, err, "must be a valid lower-case hex-encoded (64-character) SHA-256 hash value")
@@ -2784,9 +2784,9 @@ func TestInvalidSoftwareInstallerHash(t *testing.T) {
 
 func TestSoftwareDisplayNameValidation(t *testing.T) {
 	t.Parallel()
-	appConfig := &fleet.EnrichedAppConfig{}
-	appConfig.License = &fleet.LicenseInfo{
-		Tier: fleet.TierPremium,
+	appConfig := &automdm.EnrichedAppConfig{}
+	appConfig.License = &automdm.LicenseInfo{
+		Tier: automdm.TierPremium,
 	}
 
 	// Create a string with 256 'a' characters (exceeds 255 limit)
@@ -2819,11 +2819,11 @@ software:
 		assert.ErrorContains(t, err, "display_name is too long (max 255 characters)")
 	})
 
-	t.Run("fleet_maintained_app_display_name_too_long", func(t *testing.T) {
+	t.Run("automdm_maintained_app_display_name_too_long", func(t *testing.T) {
 		config := getTeamConfig([]string{"name", "software"})
 		config += `name: Test Team
 software:
-  fleet_maintained_apps:
+  automdm_maintained_apps:
     - slug: 1password/darwin
       display_name: "` + longDisplayName + `"
 `
@@ -2845,7 +2845,7 @@ software:
   app_store_apps:
     - app_store_id: "12345"
       display_name: "` + multibyteDisplayName + `"
-  fleet_maintained_apps:
+  automdm_maintained_apps:
     - slug: 1password/darwin
       display_name: "` + multibyteDisplayName + `"
 `
@@ -2856,8 +2856,8 @@ software:
 		assert.Equal(t, multibyteDisplayName, result.Software.Packages[0].DisplayName)
 		require.Len(t, result.Software.AppStoreApps, 1)
 		assert.Equal(t, multibyteDisplayName, result.Software.AppStoreApps[0].DisplayName)
-		require.Len(t, result.Software.FleetMaintainedApps, 1)
-		assert.Equal(t, multibyteDisplayName, result.Software.FleetMaintainedApps[0].DisplayName)
+		require.Len(t, result.Software.AutoMDMMaintainedApps, 1)
+		assert.Equal(t, multibyteDisplayName, result.Software.AutoMDMMaintainedApps[0].DisplayName)
 	})
 
 	t.Run("valid_display_name", func(t *testing.T) {
@@ -2871,7 +2871,7 @@ software:
   app_store_apps:
     - app_store_id: "12345"
       display_name: "Custom VPP App Name"
-  fleet_maintained_apps:
+  automdm_maintained_apps:
     - slug: 1password/darwin
       display_name: "Custom FMA Name"
 `
@@ -2882,12 +2882,12 @@ software:
 		assert.Equal(t, "Custom Package Name", result.Software.Packages[0].DisplayName)
 		require.Len(t, result.Software.AppStoreApps, 1)
 		assert.Equal(t, "Custom VPP App Name", result.Software.AppStoreApps[0].DisplayName)
-		require.Len(t, result.Software.FleetMaintainedApps, 1)
-		assert.Equal(t, "Custom FMA Name", result.Software.FleetMaintainedApps[0].DisplayName)
+		require.Len(t, result.Software.AutoMDMMaintainedApps, 1)
+		assert.Equal(t, "Custom FMA Name", result.Software.AutoMDMMaintainedApps[0].DisplayName)
 
 		// the FMA display name must survive the conversion to the package spec used
 		// to build the batch payload
-		packageSpec := result.Software.FleetMaintainedApps[0].ToSoftwarePackageSpec()
+		packageSpec := result.Software.AutoMDMMaintainedApps[0].ToSoftwarePackageSpec()
 		assert.Equal(t, "Custom FMA Name", packageSpec.DisplayName)
 	})
 }
@@ -2895,19 +2895,19 @@ software:
 func TestWebhookPolicyIDsValidation(t *testing.T) {
 	t.Parallel()
 
-	appConfig := &fleet.EnrichedAppConfig{}
-	appConfig.License = &fleet.LicenseInfo{
-		Tier: fleet.TierPremium,
+	appConfig := &automdm.EnrichedAppConfig{}
+	appConfig.License = &automdm.LicenseInfo{
+		Tier: automdm.TierPremium,
 	}
 	removed := func(path string) string {
 		entry, ok := removednames.Find(removednames.KindYAMLKey, path, "")
 		require.True(t, ok, path)
 		return entry.Message()
 	}
-	fleetRemoved := removed("settings.webhook_settings.failing_policies_webhook.policy_ids")
+	automdmRemoved := removed("settings.webhook_settings.failing_policies_webhook.policy_ids")
 	orgRemoved := removed("org_settings.webhook_settings.failing_policies_webhook.policy_ids")
 
-	// policy_ids was removed in Fleet 5, so every value of it is rejected.
+	// policy_ids was removed in AutoMDM 5, so every value of it is rejected.
 	for _, c := range []struct {
 		name      string
 		policyIDs string
@@ -2934,7 +2934,7 @@ policies: []
 `
 			noTeamPath, noTeamBasePath := createNamedFileOnTempDir(t, "unassigned.yml", config)
 			_, err := GitOpsFromFile(noTeamPath, noTeamBasePath, appConfig, nopLogf)
-			assert.ErrorContains(t, err, fleetRemoved)
+			assert.ErrorContains(t, err, automdmRemoved)
 		})
 	}
 
@@ -2952,7 +2952,7 @@ policies: []
       host_batch_size: 0
 `
 			_, err := gitOpsFromString(t, config)
-			assert.ErrorContains(t, err, fleetRemoved)
+			assert.ErrorContains(t, err, automdmRemoved)
 		})
 	}
 
@@ -2966,7 +2966,7 @@ webhook_settings:
     policy_ids: [567]
 `), 0o644))
 		_, err := GitOpsFromFile(path, basePath, appConfig, nopLogf)
-		assert.ErrorContains(t, err, "./settings.yml: "+fleetRemoved)
+		assert.ErrorContains(t, err, "./settings.yml: "+automdmRemoved)
 	})
 
 	t.Run("org_settings", func(t *testing.T) {
@@ -3051,7 +3051,7 @@ func TestExpandBaseItems(t *testing.T) {
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "b.yml"), []byte(""), 0o644))
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "c.txt"), []byte(""), 0o644))
 
-		items := []fleet.BaseItem{{Paths: ptr.String("*.yml")}} //nolint:modernize
+		items := []automdm.BaseItem{{Paths: ptr.String("*.yml")}} //nolint:modernize
 		result, errs := expandBaseItems(items, dir, "test", GlobExpandOptions{})
 		require.Empty(t, errs)
 		require.Len(t, result, 2)
@@ -3069,7 +3069,7 @@ func TestExpandBaseItems(t *testing.T) {
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "top.yml"), []byte(""), 0o644))
 		require.NoError(t, os.WriteFile(filepath.Join(subdir, "nested.yml"), []byte(""), 0o644))
 
-		items := []fleet.BaseItem{{Paths: ptr.String("**/*.yml")}} //nolint:modernize
+		items := []automdm.BaseItem{{Paths: ptr.String("**/*.yml")}} //nolint:modernize
 		result, errs := expandBaseItems(items, dir, "test", GlobExpandOptions{})
 		require.Empty(t, errs)
 		require.Len(t, result, 2)
@@ -3084,7 +3084,7 @@ func TestExpandBaseItems(t *testing.T) {
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "glob1.yaml"), []byte(""), 0o644))
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "glob2.yaml"), []byte(""), 0o644))
 
-		items := []fleet.BaseItem{
+		items := []automdm.BaseItem{
 			{Path: ptr.String("single.yml")}, //nolint:modernize
 			{Paths: ptr.String("*.yaml")},    //nolint:modernize
 		}
@@ -3098,14 +3098,14 @@ func TestExpandBaseItems(t *testing.T) {
 
 	t.Run("paths_without_glob_error", func(t *testing.T) {
 		t.Parallel()
-		items := []fleet.BaseItem{{Paths: ptr.String("foo.yml")}} //nolint:modernize
+		items := []automdm.BaseItem{{Paths: ptr.String("foo.yml")}} //nolint:modernize
 		_, errs := expandBaseItems(items, "/tmp", "test", GlobExpandOptions{})
 		requireErrorContains(t, errs, `does not contain glob characters`)
 	})
 
 	t.Run("path_with_glob_error", func(t *testing.T) {
 		t.Parallel()
-		items := []fleet.BaseItem{{Path: ptr.String("*.yml")}} //nolint:modernize
+		items := []automdm.BaseItem{{Path: ptr.String("*.yml")}} //nolint:modernize
 		_, errs := expandBaseItems(items, "/tmp", "test", GlobExpandOptions{})
 		requireErrorContains(t, errs, `contains glob characters`)
 	})
@@ -3125,9 +3125,9 @@ func TestExpandBaseItems(t *testing.T) {
 			require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(""), 0o644))
 		}
 
-		items := make([]fleet.BaseItem, 0, len(filenames))
+		items := make([]automdm.BaseItem, 0, len(filenames))
 		for _, name := range filenames {
-			items = append(items, fleet.BaseItem{Path: ptr.String(name)}) //nolint:modernize
+			items = append(items, automdm.BaseItem{Path: ptr.String(name)}) //nolint:modernize
 		}
 		result, errs := expandBaseItems(items, dir, "test", GlobExpandOptions{})
 		require.Empty(t, errs)
@@ -3140,21 +3140,21 @@ func TestExpandBaseItems(t *testing.T) {
 	t.Run("path_with_glob_meta_chars_missing_file_error", func(t *testing.T) {
 		t.Parallel()
 		dir := t.TempDir()
-		items := []fleet.BaseItem{{Path: ptr.String("does-not-[exist].xml")}} //nolint:modernize
+		items := []automdm.BaseItem{{Path: ptr.String("does-not-[exist].xml")}} //nolint:modernize
 		_, errs := expandBaseItems(items, dir, "test", GlobExpandOptions{})
 		requireErrorContains(t, errs, `contains glob characters`)
 	})
 
 	t.Run("both_path_and_paths_error", func(t *testing.T) {
 		t.Parallel()
-		items := []fleet.BaseItem{{Path: ptr.String("foo.yml"), Paths: ptr.String("*.yml")}} //nolint:modernize
+		items := []automdm.BaseItem{{Path: ptr.String("foo.yml"), Paths: ptr.String("*.yml")}} //nolint:modernize
 		_, errs := expandBaseItems(items, "/tmp", "test", GlobExpandOptions{})
 		requireErrorContains(t, errs, `cannot have both "path" and "paths"`)
 	})
 
 	t.Run("inline_items_passed_through", func(t *testing.T) {
 		t.Parallel()
-		items := []fleet.BaseItem{{}}
+		items := []automdm.BaseItem{{}}
 		result, errs := expandBaseItems(items, "/tmp", "test", GlobExpandOptions{})
 		require.Empty(t, errs)
 		require.Len(t, result, 1)
@@ -3164,7 +3164,7 @@ func TestExpandBaseItems(t *testing.T) {
 
 	t.Run("require_file_reference_error", func(t *testing.T) {
 		t.Parallel()
-		items := []fleet.BaseItem{{}}
+		items := []automdm.BaseItem{{}}
 		_, errs := expandBaseItems(items, "/tmp", "test", GlobExpandOptions{
 			RequireFileReference: true,
 		})
@@ -3178,7 +3178,7 @@ func TestExpandBaseItems(t *testing.T) {
 		logFn := func(format string, args ...any) {
 			warnings = append(warnings, fmt.Sprintf(format, args...))
 		}
-		items := []fleet.BaseItem{{Paths: ptr.String("*.yml")}} //nolint:modernize
+		items := []automdm.BaseItem{{Paths: ptr.String("*.yml")}} //nolint:modernize
 		result, errs := expandBaseItems(items, dir, "test", GlobExpandOptions{LogFn: logFn})
 		require.Empty(t, errs)
 		assert.Empty(t, result)
@@ -3196,7 +3196,7 @@ func TestExpandBaseItems(t *testing.T) {
 		require.NoError(t, os.WriteFile(filepath.Join(sub1, "dup.yml"), []byte(""), 0o644))
 		require.NoError(t, os.WriteFile(filepath.Join(sub2, "dup.yml"), []byte(""), 0o644))
 
-		items := []fleet.BaseItem{{Paths: ptr.String("**/*.yml")}} //nolint:modernize
+		items := []automdm.BaseItem{{Paths: ptr.String("**/*.yml")}} //nolint:modernize
 		_, errs := expandBaseItems(items, dir, "test", GlobExpandOptions{
 			RequireUniqueBasenames: true,
 		})
@@ -3211,7 +3211,7 @@ func TestExpandBaseItems(t *testing.T) {
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "item.yml"), []byte(""), 0o644))
 		require.NoError(t, os.WriteFile(filepath.Join(sub, "item.yml"), []byte(""), 0o644))
 
-		items := []fleet.BaseItem{
+		items := []automdm.BaseItem{
 			{Path: ptr.String("item.yml")},   //nolint:modernize
 			{Paths: ptr.String("sub/*.yml")}, //nolint:modernize
 		}
@@ -3234,7 +3234,7 @@ func TestExpandBaseItems(t *testing.T) {
 			warnings = append(warnings, fmt.Sprintf(format, args...))
 		}
 
-		items := []fleet.BaseItem{{Paths: ptr.String("*")}} //nolint:modernize
+		items := []automdm.BaseItem{{Paths: ptr.String("*")}} //nolint:modernize
 		result, errs := expandBaseItems(items, dir, "test", GlobExpandOptions{
 			AllowedExtensions: map[string]bool{".sh": true},
 			LogFn:             logFn,
@@ -3252,7 +3252,7 @@ func TestExpandBaseItems(t *testing.T) {
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "a.yml"), []byte(""), 0o644))
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "m.yml"), []byte(""), 0o644))
 
-		items := []fleet.BaseItem{{Paths: ptr.String("*.yml")}} //nolint:modernize
+		items := []automdm.BaseItem{{Paths: ptr.String("*.yml")}} //nolint:modernize
 		result, errs := expandBaseItems(items, dir, "test", GlobExpandOptions{})
 		require.Empty(t, errs)
 		require.Len(t, result, 3)
@@ -3263,7 +3263,7 @@ func TestExpandBaseItems(t *testing.T) {
 
 	t.Run("multiple_errors_collected", func(t *testing.T) {
 		t.Parallel()
-		items := []fleet.BaseItem{{Path: ptr.String("*.yml")}, {Paths: ptr.String("noglob.yml")}} //nolint:modernize
+		items := []automdm.BaseItem{{Path: ptr.String("*.yml")}, {Paths: ptr.String("noglob.yml")}} //nolint:modernize
 		_, errs := expandBaseItems(items, "", "test", GlobExpandOptions{})
 		require.Len(t, errs, 2)
 		assert.Contains(t, errs[0].Error(), `contains glob characters`)
@@ -3279,7 +3279,7 @@ func TestResolveScriptPaths(t *testing.T) {
 		dir := t.TempDir()
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "script.sh"), []byte("#!/bin/bash"), 0o644))
 
-		items := []fleet.BaseItem{{Path: ptr.String("script.sh")}} //nolint:modernize
+		items := []automdm.BaseItem{{Path: ptr.String("script.sh")}} //nolint:modernize
 		result, errs := resolveScriptPaths(items, dir, nopLogf)
 		require.Empty(t, errs)
 		require.Len(t, result, 1)
@@ -3292,7 +3292,7 @@ func TestResolveScriptPaths(t *testing.T) {
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "a.sh"), []byte("#!/bin/bash"), 0o644))
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "b.sh"), []byte("#!/bin/bash"), 0o644))
 
-		items := []fleet.BaseItem{{Paths: ptr.String("*.sh")}} //nolint:modernize
+		items := []automdm.BaseItem{{Paths: ptr.String("*.sh")}} //nolint:modernize
 		result, errs := resolveScriptPaths(items, dir, nopLogf)
 		require.Empty(t, errs)
 		require.Len(t, result, 2)
@@ -3306,7 +3306,7 @@ func TestResolveScriptPaths(t *testing.T) {
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "c.py"), []byte("#!/usr/bin/env python3"), 0o644))
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "d.txt"), []byte("not a script"), 0o644))
 
-		items := []fleet.BaseItem{{Paths: ptr.String("*")}} //nolint:modernize
+		items := []automdm.BaseItem{{Paths: ptr.String("*")}} //nolint:modernize
 		result, errs := resolveScriptPaths(items, dir, nopLogf)
 		require.Empty(t, errs)
 		require.Len(t, result, 3)
@@ -3319,7 +3319,7 @@ func TestResolveScriptPaths(t *testing.T) {
 
 	t.Run("inline_not_allowed", func(t *testing.T) {
 		t.Parallel()
-		items := []fleet.BaseItem{{}}
+		items := []automdm.BaseItem{{}}
 		_, errs := resolveScriptPaths(items, "/tmp", nopLogf)
 		require.NotEmpty(t, errs)
 		assert.Contains(t, errs[0].Error(), `no "path" or "paths" field`)
@@ -3565,7 +3565,7 @@ software:
 	})
 }
 
-func TestParseFleetMaintainedAppsGlob(t *testing.T) {
+func TestParseAutoMDMMaintainedAppsGlob(t *testing.T) {
 	t.Parallel()
 
 	t.Run("inline_and_path", func(t *testing.T) {
@@ -3578,7 +3578,7 @@ func TestParseFleetMaintainedAppsGlob(t *testing.T) {
 
 		top := yamlToRawJSON(t, `
 software:
-  fleet_maintained_apps:
+  automdm_maintained_apps:
     - slug: inline-app/darwin
     - path: software/from-file.yml
 `)
@@ -3586,9 +3586,9 @@ software:
 		result := &GitOps{TeamName: &teamName}
 		multiErr := parseSoftware(top, result, dir, nopLogf, "test.yml", GitOpsOptions{}, nil)
 		require.NoError(t, multiErr.ErrorOrNil())
-		require.Len(t, result.Software.FleetMaintainedApps, 2)
-		assert.Equal(t, "inline-app/darwin", result.Software.FleetMaintainedApps[0].Slug)
-		assert.Equal(t, "file-app/darwin", result.Software.FleetMaintainedApps[1].Slug)
+		require.Len(t, result.Software.AutoMDMMaintainedApps, 2)
+		assert.Equal(t, "inline-app/darwin", result.Software.AutoMDMMaintainedApps[0].Slug)
+		assert.Equal(t, "file-app/darwin", result.Software.AutoMDMMaintainedApps[1].Slug)
 	})
 
 	t.Run("glob_expands", func(t *testing.T) {
@@ -3602,16 +3602,16 @@ software:
 
 		top := yamlToRawJSON(t, `
 software:
-  fleet_maintained_apps:
+  automdm_maintained_apps:
     - paths: "software/*.yml"
 `)
 		teamName := "TestTeam"
 		result := &GitOps{TeamName: &teamName}
 		multiErr := parseSoftware(top, result, dir, nopLogf, "test.yml", GitOpsOptions{}, nil)
 		require.NoError(t, multiErr.ErrorOrNil())
-		require.Len(t, result.Software.FleetMaintainedApps, 2)
-		assert.Equal(t, "app-a/darwin", result.Software.FleetMaintainedApps[0].Slug)
-		assert.Equal(t, "app-b/darwin", result.Software.FleetMaintainedApps[1].Slug)
+		require.Len(t, result.Software.AutoMDMMaintainedApps, 2)
+		assert.Equal(t, "app-a/darwin", result.Software.AutoMDMMaintainedApps[0].Slug)
+		assert.Equal(t, "app-b/darwin", result.Software.AutoMDMMaintainedApps[1].Slug)
 	})
 
 	t.Run("nested_references_rejected", func(t *testing.T) {
@@ -3624,7 +3624,7 @@ software:
 
 		top := yamlToRawJSON(t, `
 software:
-  fleet_maintained_apps:
+  automdm_maintained_apps:
     - path: from-file.yml
 `)
 		teamName := "TestTeam"
@@ -3656,22 +3656,22 @@ software:
 `,
 		},
 		{
-			name:  "fleet_maintained_apps beside path",
+			name:  "automdm_maintained_apps beside path",
 			files: map[string]string{"from-file.yml": "- slug: file-app/darwin\n"},
 			software: `
 software:
-  fleet_maintained_apps:
+  automdm_maintained_apps:
     - path: from-file.yml
       self_service: true
       labels_include_any: ["Eng"]
 `,
 		},
 		{
-			name:  "fleet_maintained_apps beside paths glob",
+			name:  "automdm_maintained_apps beside paths glob",
 			files: map[string]string{"software/a.yml": "- slug: app-a/darwin\n"},
 			software: `
 software:
-  fleet_maintained_apps:
+  automdm_maintained_apps:
     - paths: "software/*.yml"
       self_service: true
 `,
@@ -3682,7 +3682,7 @@ software:
 			files: map[string]string{"from-file.yml": "- slug: file-app/darwin\n  self_service: true\n"},
 			software: `
 software:
-  fleet_maintained_apps:
+  automdm_maintained_apps:
     - path: from-file.yml
       self_service: false
 `,
@@ -3711,18 +3711,18 @@ software:
 
 // TestGitOpsPolicyReferencesPathSourcedSoftware exercises the full GitOpsFromFile
 // pipeline (parseSoftware followed by parsePolicies) to confirm that a policy's
-// install_software.fleet_maintained_app_slug/app_store_id correctly cross-references
-// fleet_maintained_apps/app_store_apps entries that were themselves sourced from a
+// install_software.automdm_maintained_app_slug/app_store_id correctly cross-references
+// automdm_maintained_apps/app_store_apps entries that were themselves sourced from a
 // path: reference, not just inline entries.
 func TestGitOpsPolicyReferencesPathSourcedSoftware(t *testing.T) {
 	t.Parallel()
 
-	t.Run("fleet_maintained_app_slug and app_store_id resolve", func(t *testing.T) {
+	t.Run("automdm_maintained_app_slug and app_store_id resolve", func(t *testing.T) {
 		t.Parallel()
 		config := getTeamConfig([]string{"policies"})
 		config += `
 software:
-  fleet_maintained_apps:
+  automdm_maintained_apps:
     - path: software/zoom.yml
   app_store_apps:
     - path: software/bear.yml
@@ -3730,7 +3730,7 @@ policies:
   - name: Install Zoom
     query: SELECT 1;
     install_software:
-      fleet_maintained_app_slug: zoom/darwin
+      automdm_maintained_app_slug: zoom/darwin
   - name: Install Bear
     query: SELECT 1;
     install_software:
@@ -3744,28 +3744,28 @@ policies:
 		result, err := GitOpsFromFile(path, basePath, premiumAppConfig(), nopLogf)
 		require.NoError(t, err)
 
-		require.Len(t, result.Software.FleetMaintainedApps, 1)
-		assert.Equal(t, "zoom/darwin", result.Software.FleetMaintainedApps[0].Slug)
+		require.Len(t, result.Software.AutoMDMMaintainedApps, 1)
+		assert.Equal(t, "zoom/darwin", result.Software.AutoMDMMaintainedApps[0].Slug)
 		require.Len(t, result.Software.AppStoreApps, 1)
 		assert.Equal(t, "1016366447", result.Software.AppStoreApps[0].AppStoreID)
 
 		require.Len(t, result.Policies, 2)
-		assert.Equal(t, "zoom/darwin", result.Policies[0].InstallSoftware.Other.FleetMaintainedAppSlug)
+		assert.Equal(t, "zoom/darwin", result.Policies[0].InstallSoftware.Other.AutoMDMMaintainedAppSlug)
 		assert.Equal(t, "1016366447", result.Policies[1].InstallSoftware.Other.AppStoreID)
 	})
 
-	t.Run("fleet_maintained_app_slug not found when sourced from path", func(t *testing.T) {
+	t.Run("automdm_maintained_app_slug not found when sourced from path", func(t *testing.T) {
 		t.Parallel()
 		config := getTeamConfig([]string{"policies"})
 		config += `
 software:
-  fleet_maintained_apps:
+  automdm_maintained_apps:
     - path: software/zoom.yml
 policies:
   - name: Install Zoom
     query: SELECT 1;
     install_software:
-      fleet_maintained_app_slug: not-zoom/darwin
+      automdm_maintained_app_slug: not-zoom/darwin
 `
 		path, basePath := createTempFile(t, "", config)
 		require.NoError(t, os.MkdirAll(filepath.Join(basePath, "software"), 0o755))
@@ -3773,7 +3773,7 @@ policies:
 
 		_, err := GitOpsFromFile(path, basePath, premiumAppConfig(), nopLogf)
 		require.Error(t, err)
-		assert.ErrorContains(t, err, `fleet_maintained_app_slug "not-zoom/darwin" not found`)
+		assert.ErrorContains(t, err, `automdm_maintained_app_slug "not-zoom/darwin" not found`)
 	})
 }
 
@@ -3838,7 +3838,7 @@ func TestGitOpsGlobProfiles(t *testing.T) {
 
 		result, err := GitOpsFromFile(yamlPath, dir, nil, nopLogf)
 		require.NoError(t, err)
-		macSettings, ok := result.Controls.MacOSSettings.(fleet.GitOpsMacOSSettings)
+		macSettings, ok := result.Controls.MacOSSettings.(automdm.GitOpsMacOSSettings)
 		require.True(t, ok)
 		require.Len(t, macSettings.CustomSettings, 3)
 
@@ -3871,7 +3871,7 @@ func TestGitOpsGlobProfiles(t *testing.T) {
 
 		result, err := GitOpsFromFile(yamlPath, dir, nil, nopLogf)
 		require.NoError(t, err)
-		winSettings, ok := result.Controls.WindowsSettings.(fleet.GitOpsWindowsSettings)
+		winSettings, ok := result.Controls.WindowsSettings.(automdm.GitOpsWindowsSettings)
 		require.True(t, ok)
 		require.True(t, winSettings.CustomSettings.Valid)
 		require.Len(t, winSettings.CustomSettings.Value, 2)
@@ -3900,7 +3900,7 @@ func TestGitOpsGlobProfiles(t *testing.T) {
 
 		result, err := GitOpsFromFile(yamlPath, dir, nil, nopLogf)
 		require.NoError(t, err)
-		androidSettings, ok := result.Controls.AndroidSettings.(fleet.GitOpsAndroidSettings)
+		androidSettings, ok := result.Controls.AndroidSettings.(automdm.GitOpsAndroidSettings)
 		require.True(t, ok)
 		require.True(t, androidSettings.CustomSettings.Valid)
 		require.Len(t, androidSettings.CustomSettings.Value, 1)
@@ -3956,7 +3956,7 @@ func TestGitOpsGlobProfiles(t *testing.T) {
 
 		result, err := GitOpsFromFile(yamlPath, dir, nil, nopLogf)
 		require.NoError(t, err)
-		macSettings, ok := result.Controls.MacOSSettings.(fleet.GitOpsMacOSSettings)
+		macSettings, ok := result.Controls.MacOSSettings.(automdm.GitOpsMacOSSettings)
 		require.True(t, ok)
 		require.Len(t, macSettings.CustomSettings, 3)
 		for _, p := range macSettings.CustomSettings[:2] {
@@ -3989,7 +3989,7 @@ func TestGitOpsGlobProfiles(t *testing.T) {
 
 		result, err := GitOpsFromFile(yamlPath, dir, nil, nopLogf)
 		require.NoError(t, err)
-		macSettings, ok := result.Controls.MacOSSettings.(fleet.GitOpsMacOSSettings)
+		macSettings, ok := result.Controls.MacOSSettings.(automdm.GitOpsMacOSSettings)
 		require.True(t, ok)
 		require.Len(t, macSettings.CustomSettings, 2)
 		for _, p := range macSettings.CustomSettings {
@@ -4023,7 +4023,7 @@ func TestGitOpsOSUpdatesProfileConflict(t *testing.T) {
 
 		_, err := GitOpsFromFile(yamlPath, dir, nil, nopLogf)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), fleet.OSUpdatesAlreadyConfiguredErrorMessage)
+		assert.Contains(t, err.Error(), automdm.OSUpdatesAlreadyConfiguredErrorMessage)
 	})
 
 	t.Run("windows updates configured with software update profile fails", func(t *testing.T) {
@@ -4045,7 +4045,7 @@ func TestGitOpsOSUpdatesProfileConflict(t *testing.T) {
 
 		_, err := GitOpsFromFile(yamlPath, dir, nil, nopLogf)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), fleet.OSUpdatesAlreadyConfiguredErrorMessage)
+		assert.Contains(t, err.Error(), automdm.OSUpdatesAlreadyConfiguredErrorMessage)
 	})
 
 	t.Run("software update declaration without configured os updates is allowed", func(t *testing.T) {
@@ -4432,21 +4432,21 @@ software:
 
 	t.Run("removed keys fail even when unknown keys are allowed", func(t *testing.T) {
 		t.Parallel()
-		fleetFile := func(controls, settings string) string {
+		automdmFile := func(controls, settings string) string {
 			return "name: TeamName\nsettings:\n  secrets:\n" + settings + "agent_options:\ncontrols:\n" + controls + "reports:\npolicies:\nsoftware:\n"
 		}
 		globalFile := func(mdm string) string {
-			return "org_settings:\n  server_settings:\n    server_url: https://fleet.example.com\n" +
+			return "org_settings:\n  server_settings:\n    server_url: https://automdm.example.com\n" +
 				"  org_info:\n    org_name: Test Org\n  secrets:\n  mdm:\n" + mdm +
 				"controls:\nagent_options:\nreports:\npolicies:\n"
 		}
 		orgInfoFile := func(orgInfo string) string {
-			return "org_settings:\n  server_settings:\n    server_url: https://fleet.example.com\n" +
+			return "org_settings:\n  server_settings:\n    server_url: https://automdm.example.com\n" +
 				"  org_info:\n    org_name: Test Org\n" + orgInfo + "  secrets:\n" +
 				"controls:\nagent_options:\nreports:\npolicies:\n"
 		}
 		scriptsDisabledFile := func(serverSettings string) string {
-			return "org_settings:\n  server_settings:\n    server_url: https://fleet.example.com\n" + serverSettings +
+			return "org_settings:\n  server_settings:\n    server_url: https://automdm.example.com\n" + serverSettings +
 				"  org_info:\n    org_name: Test Org\n  secrets:\n" +
 				"controls:\nagent_options:\nreports:\npolicies:\n"
 		}
@@ -4459,12 +4459,12 @@ software:
 			alsoUnknown bool
 		}{
 			{
-				name: "fleet controls", file: "workstations.yml",
-				config: fleetFile("  enable_recovery_lock_password: true\n"+
+				name: "team controls", file: "workstations.yml",
+				config: automdmFile("  enable_recovery_lock_password: true\n"+
 					"  windows_enabled_and_configured: true\n  windows_migration_enabled: false\n"+
 					"  setup_experience:\n    require_all_software_macos: true\n    require_all_software_windows: false\n", ""),
 				want: []string{
-					`The "controls.enable_recovery_lock_password" key is not available anymore. What to use instead: https://fleetdm.com/learn-more-about/fleet-5-upgrade`,
+					`The "controls.enable_recovery_lock_password" key is not available anymore. What to use instead: https://automdm.com/learn-more-about/automdm-5-upgrade`,
 					// the path names the parent by its current name, not the file's alias
 					`The "controls.setup_experience.require_all_software_macos" key is not available anymore.`,
 					`The "controls.setup_experience.require_all_software_windows" key is not available anymore.`,
@@ -4475,8 +4475,8 @@ software:
 			{
 				// GitOps used to match keys in any letter case, so these once set the setting.
 				// The message names the registered key.
-				name: "fleet controls in another letter case", file: "workstations.yml",
-				config: fleetFile("  Enable_Recovery_Lock_Password: true\n"+
+				name: "team controls in another letter case", file: "workstations.yml",
+				config: automdmFile("  Enable_Recovery_Lock_Password: true\n"+
 					"  Windows_Enabled_And_Configured: true\n  WINDOWS_MIGRATION_ENABLED: true\n"+
 					"  setup_experience:\n    REQUIRE_ALL_SOFTWARE_MACOS: true\n", ""),
 				want: []string{
@@ -4488,8 +4488,8 @@ software:
 			},
 			{
 				// the block under a differently cased parent still decodes, so its old keys must not slip through
-				name: "fleet controls parent in another letter case", file: "workstations.yml",
-				config: fleetFile("  Setup_Experience:\n    require_all_software_macos: true\n    require_all_software_windows: true\n", ""),
+				name: "team controls parent in another letter case", file: "workstations.yml",
+				config: automdmFile("  Setup_Experience:\n    require_all_software_macos: true\n    require_all_software_windows: true\n", ""),
 				want: []string{
 					`The "controls.setup_experience.require_all_software_macos" key is not available anymore.`,
 					`The "controls.setup_experience.require_all_software_windows" key is not available anymore.`,
@@ -4498,7 +4498,7 @@ software:
 			},
 			{
 				name: "controls file parent in another letter case", file: "workstations.yml",
-				config:      fleetFile("  path: ./controls.yml\n", ""),
+				config:      automdmFile("  path: ./controls.yml\n", ""),
 				extra:       map[string]string{"controls.yml": "Setup_Experience:\n  require_all_software_macos: true\n"},
 				want:        []string{`The "controls.setup_experience.require_all_software_macos" key is not available anymore.`},
 				alsoUnknown: true,
@@ -4510,8 +4510,8 @@ software:
 				alsoUnknown: true,
 			},
 			{
-				name: "fleet settings in another letter case", file: "workstations.yml",
-				config: fleetFile("", "  mdm:\n    Enable_Recovery_Lock_Password: true\n"),
+				name: "team settings in another letter case", file: "workstations.yml",
+				config: automdmFile("", "  mdm:\n    Enable_Recovery_Lock_Password: true\n"),
 				want:   []string{`The "settings.mdm.enable_recovery_lock_password" key is not available anymore.`},
 			},
 			{
@@ -4536,7 +4536,7 @@ software:
 				name: "org_settings report server settings", file: "default.yml",
 				config: scriptsDisabledFile("    live_query_disabled: false\n    query_reports_disabled: true\n    Query_Report_Cap: 2000\n"),
 				want: []string{
-					`The "org_settings.server_settings.live_query_disabled" key is not available anymore. What to use instead: https://fleetdm.com/learn-more-about/fleet-5-upgrade`,
+					`The "org_settings.server_settings.live_query_disabled" key is not available anymore. What to use instead: https://automdm.com/learn-more-about/automdm-5-upgrade`,
 					`The "org_settings.server_settings.query_reports_disabled" key is not available anymore.`,
 					`The "org_settings.server_settings.query_report_cap" key is not available anymore.`,
 				},
@@ -4549,7 +4549,7 @@ software:
 			{
 				name: "org_settings file with scripts_disabled set to true", file: "default.yml",
 				config: "org_settings:\n  path: ./org-settings.yml\ncontrols:\nagent_options:\nreports:\npolicies:\n",
-				extra: map[string]string{"org-settings.yml": "server_settings:\n  server_url: https://fleet.example.com\n  scripts_disabled: true\n" +
+				extra: map[string]string{"org-settings.yml": "server_settings:\n  server_url: https://automdm.example.com\n  scripts_disabled: true\n" +
 					"org_info:\n  org_name: Test Org\nsecrets:\n"},
 				want: []string{`in "./org-settings.yml": The "org_settings.server_settings.scripts_disabled" key is not available anymore.`},
 			},
@@ -4557,7 +4557,7 @@ software:
 				name: "org_settings org_info logo URLs", file: "default.yml",
 				config: orgInfoFile("    org_logo_url: https://example.com/dark.png\n    org_logo_url_light_background: https://example.com/light.png\n"),
 				want: []string{
-					`The "org_settings.org_info.org_logo_url" key is not available anymore. What to use instead: https://fleetdm.com/learn-more-about/fleet-5-upgrade`,
+					`The "org_settings.org_info.org_logo_url" key is not available anymore. What to use instead: https://automdm.com/learn-more-about/automdm-5-upgrade`,
 					`The "org_settings.org_info.org_logo_url_light_background" key is not available anymore.`,
 				},
 			},
@@ -4573,7 +4573,7 @@ software:
 			{
 				name: "org_settings file with org_info logo URL", file: "default.yml",
 				config: "org_settings:\n  path: ./org-settings.yml\ncontrols:\nagent_options:\nreports:\npolicies:\n",
-				extra: map[string]string{"org-settings.yml": "server_settings:\n  server_url: https://fleet.example.com\n" +
+				extra: map[string]string{"org-settings.yml": "server_settings:\n  server_url: https://automdm.example.com\n" +
 					"org_info:\n  org_name: Test Org\n  org_logo_url: https://example.com/dark.png\nsecrets:\n"},
 				want: []string{`in "./org-settings.yml": The "org_settings.org_info.org_logo_url" key is not available anymore.`},
 			},
@@ -4586,32 +4586,32 @@ software:
 				},
 			},
 			{
-				name: "fleet controls settings containers", file: "workstations.yml",
-				config: fleetFile("  macos_settings:\n    enable_disk_encryption: true\n"+
+				name: "team controls settings containers", file: "workstations.yml",
+				config: automdmFile("  macos_settings:\n    enable_disk_encryption: true\n"+
 					"  windows_settings:\n    custom_settings:\n      - path: ./a.xml\n"+
 					"  android_settings:\n    Custom_Settings:\n      - path: ./a.json\n", ""),
 				want: []string{
-					`The "controls.macos_settings" key is not available anymore. What to use instead: https://fleetdm.com/learn-more-about/fleet-5-upgrade`,
+					`The "controls.macos_settings" key is not available anymore. What to use instead: https://automdm.com/learn-more-about/automdm-5-upgrade`,
 					`The "controls.windows_settings.custom_settings" key is not available anymore.`,
 					`The "controls.android_settings.custom_settings" key is not available anymore.`,
 				},
 			},
 			{
-				name: "fleet controls apple_settings profiles", file: "workstations.yml",
-				config: fleetFile("  apple_settings:\n    custom_settings:\n      - path: ./a.mobileconfig\n", ""),
+				name: "team controls apple_settings profiles", file: "workstations.yml",
+				config: automdmFile("  apple_settings:\n    custom_settings:\n      - path: ./a.mobileconfig\n", ""),
 				want:   []string{`The "controls.apple_settings.custom_settings" key is not available anymore.`},
 			},
 			{
 				name: "controls file", file: "workstations.yml",
-				config: fleetFile("  path: ./controls.yml\n", ""),
+				config: automdmFile("  path: ./controls.yml\n", ""),
 				extra: map[string]string{
 					"controls.yml": "macos_settings:\n  custom_settings:\n",
 				},
 				want: []string{`The "controls.macos_settings" key is not available anymore.`},
 			},
 			{
-				name: "fleet settings", file: "workstations.yml",
-				config: fleetFile("", "  mdm:\n    macos_settings:\n      enable_disk_encryption: true\n"),
+				name: "team settings", file: "workstations.yml",
+				config: automdmFile("", "  mdm:\n    macos_settings:\n      enable_disk_encryption: true\n"),
 				want:   []string{`The "settings.mdm.macos_settings" key is not available anymore.`},
 			},
 			{
@@ -4645,13 +4645,13 @@ software:
 
 	t.Run("removed scripts_disabled set to false logs a warning", func(t *testing.T) {
 		t.Parallel()
-		orgSettings := "server_settings:\n  server_url: https://fleet.example.com\n  scripts_disabled: false\norg_info:\n  org_name: Test Org\nsecrets:\n"
+		orgSettings := "server_settings:\n  server_url: https://automdm.example.com\n  scripts_disabled: false\norg_info:\n  org_name: Test Org\nsecrets:\n"
 		for _, tc := range []struct {
 			name, config, orgSettingsFile string
 		}{
 			{
 				name: "inline",
-				config: "org_settings:\n  server_settings:\n    server_url: https://fleet.example.com\n    scripts_disabled: false\n" +
+				config: "org_settings:\n  server_settings:\n    server_url: https://automdm.example.com\n    scripts_disabled: false\n" +
 					"  org_info:\n    org_name: Test Org\n  secrets:\ncontrols:\nagent_options:\nreports:\npolicies:\n",
 			},
 			{
@@ -4675,13 +4675,13 @@ software:
 				result, err := GitOpsFromFile(path, basePath, premiumAppConfig(), logFn)
 				require.NoError(t, err)
 				require.Contains(t, logMessages, `[!] in "`+warningFile+`": The "org_settings.server_settings.scripts_disabled" key is not available anymore. `+
-					"What to use instead: https://fleetdm.com/learn-more-about/fleet-5-upgrade\n")
+					"What to use instead: https://automdm.com/learn-more-about/automdm-5-upgrade\n")
 
 				// read the parsed org settings, the removed key should be dropped and the rest kept
 				serverSettings, ok := result.OrgSettings["server_settings"].(map[string]any)
 				require.True(t, ok)
 				require.NotContains(t, serverSettings, "scripts_disabled")
-				require.Equal(t, "https://fleet.example.com", serverSettings["server_url"])
+				require.Equal(t, "https://automdm.example.com", serverSettings["server_url"])
 			})
 		}
 	})
@@ -4725,7 +4725,7 @@ software:
 		config := `
 org_settings:
   server_settings:
-    server_url: https://fleet.example.com
+    server_url: https://automdm.example.com
   org_info:
     contact_url: https://example.com/contact
     org_name: Test Org
@@ -4747,7 +4747,7 @@ policies:
 		config := `
 org_settings:
   server_settings:
-    server_url: https://fleet.example.com
+    server_url: https://automdm.example.com
     unknown_server_field: true
   org_info:
     contact_url: https://example.com/contact
@@ -4769,7 +4769,7 @@ policies:
 		config := `
 org_settings:
   server_settigns:
-    server_url: https://fleet.example.com
+    server_url: https://automdm.example.com
   org_info:
     contact_url: https://example.com/contact
     org_name: Test Org
@@ -4786,13 +4786,13 @@ policies:
 		assert.Contains(t, err.Error(), `did you mean "server_settings"?`)
 	})
 
-	t.Run("unknown key in fleet settings", func(t *testing.T) {
+	t.Run("unknown key in team settings", func(t *testing.T) {
 		t.Parallel()
 		config := `
-name: FleetName
+name: AutoMDMName
 settings:
   secrets:
-  unknown_fleet_field: true
+  unknown_automdm_field: true
 agent_options:
 controls:
 reports:
@@ -4802,13 +4802,13 @@ software:
 		path, basePath := createTempFile(t, "", config)
 		_, err := GitOpsFromFile(path, basePath, premiumAppConfig(), nopLogf)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "unknown_fleet_field")
+		assert.Contains(t, err.Error(), "unknown_automdm_field")
 	})
 
-	t.Run("unknown nested key in fleet settings webhook_settings", func(t *testing.T) {
+	t.Run("unknown nested key in team settings webhook_settings", func(t *testing.T) {
 		t.Parallel()
 		config := `
-name: FleetName
+name: AutoMDMName
 settings:
   secrets:
   webhook_settings:
@@ -4838,7 +4838,7 @@ policies:
 		path, basePath := createTempFile(t, "", config)
 		orgSettingsYAML := `
 server_settings:
-  server_url: https://fleet.example.com
+  server_url: https://automdm.example.com
 org_info:
   contact_url: https://example.com/contact
   org_name: Test Org
@@ -4851,12 +4851,12 @@ secrets:
 		assert.Contains(t, err.Error(), `unknown key "org_settings.unknown_org_path_field" in "org_settings.yml"`)
 	})
 
-	t.Run("unknown key in fleet settings via path", func(t *testing.T) {
+	t.Run("unknown key in team settings via path", func(t *testing.T) {
 		t.Parallel()
 		config := `
-name: FleetName
+name: AutoMDMName
 settings:
-  path: fleet_settings.yml
+  path: automdm_settings.yml
 agent_options:
 controls:
 reports:
@@ -4864,14 +4864,14 @@ policies:
 software:
 `
 		path, basePath := createTempFile(t, "", config)
-		fleetSettingsYAML := `
+		automdmSettingsYAML := `
 secrets:
-unknown_fleet_path_field: true
+unknown_automdm_path_field: true
 `
-		require.NoError(t, os.WriteFile(filepath.Join(basePath, "fleet_settings.yml"), []byte(fleetSettingsYAML), 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join(basePath, "automdm_settings.yml"), []byte(automdmSettingsYAML), 0o644))
 		_, err := GitOpsFromFile(path, basePath, premiumAppConfig(), nopLogf)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), `unknown key "settings.unknown_fleet_path_field" in "fleet_settings.yml"`)
+		assert.Contains(t, err.Error(), `unknown key "settings.unknown_automdm_path_field" in "automdm_settings.yml"`)
 	})
 
 	t.Run("unknown key in policy install_software package_path", func(t *testing.T) {
@@ -4902,16 +4902,16 @@ policies:
 }
 
 // TestControlsAppleSettingsAssets verifies that controls.apple_settings.assets
-// are parsed like profiles: paths are resolved and any Fleet secrets referenced
+// are parsed like profiles: paths are resolved and any AutoMDM secrets referenced
 // in the asset files are collected.
 func TestControlsAppleSettingsAssets(t *testing.T) {
-	t.Setenv("FLEET_SECRET_WALLPAPER", "s3cret")
+	t.Setenv("AUTOMDM_SECRET_WALLPAPER", "s3cret")
 
 	dir := t.TempDir()
 	assetsDir := filepath.Join(dir, "lib", "assets")
 	require.NoError(t, os.MkdirAll(assetsDir, 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(assetsDir, "wallpaper.json"),
-		[]byte(`{"Type":"com.apple.asset.data","Identifier":"com.example.wallpaper","Payload":{"Reference":{"DataURL":"https://example.com/$FLEET_SECRET_WALLPAPER"}}}`), 0o644))
+		[]byte(`{"Type":"com.apple.asset.data","Identifier":"com.example.wallpaper","Payload":{"Reference":{"DataURL":"https://example.com/$AUTOMDM_SECRET_WALLPAPER"}}}`), 0o644))
 
 	config := `
 controls:
@@ -4923,7 +4923,7 @@ policies:
 agent_options:
 org_settings:
   server_settings:
-    server_url: https://fleet.example.com
+    server_url: https://automdm.example.com
   org_info:
     contact_url: https://example.com/contact
     org_logo_url_dark_mode: ""
@@ -4937,11 +4937,11 @@ org_settings:
 	gitops, err := GitOpsFromFile(yamlPath, dir, nil, nopLogf)
 	require.NoError(t, err)
 
-	macSettings, ok := gitops.Controls.MacOSSettings.(fleet.GitOpsMacOSSettings)
+	macSettings, ok := gitops.Controls.MacOSSettings.(automdm.GitOpsMacOSSettings)
 	require.True(t, ok, "apple_settings not parsed")
 	require.Len(t, macSettings.Assets, 1)
 	require.True(t, filepath.IsAbs(macSettings.Assets[0].Path), "asset path should be resolved to absolute")
-	require.Contains(t, gitops.FleetSecrets, "FLEET_SECRET_WALLPAPER")
+	require.Contains(t, gitops.AutoMDMSecrets, "AUTOMDM_SECRET_WALLPAPER")
 }
 
 // TestControlsNewKeyNames verifies that the new multi-platform key names
@@ -4960,7 +4960,7 @@ func TestControlsNewKeyNames(t *testing.T) {
 		require.NoError(t, os.Mkdir(profileDir, 0o755))
 		require.NoError(t, os.WriteFile(filepath.Join(profileDir, "macos-password.mobileconfig"), []byte(emptyMCProfile), 0o644))
 		require.NoError(t, os.WriteFile(filepath.Join(profileDir, "windows-screenlock.xml"), []byte("<xml/>"), 0o644))
-		require.NoError(t, os.WriteFile(filepath.Join(profileDir, "collect-fleetd-logs.sh"), []byte("#!/bin/bash"), 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join(profileDir, "collect-automdmd-logs.sh"), []byte("#!/bin/bash"), 0o644))
 
 		config := `
 controls:
@@ -4971,7 +4971,7 @@ controls:
     configuration_profiles:
       - path: ./lib/windows-screenlock.xml
   scripts:
-    - path: ./lib/collect-fleetd-logs.sh
+    - path: ./lib/collect-automdmd-logs.sh
   enable_disk_encryption: true
   setup_experience:
     macos_bootstrap_package: null
@@ -4988,7 +4988,7 @@ policies:
 agent_options:
 org_settings:
   server_settings:
-    server_url: https://fleet.example.com
+    server_url: https://automdm.example.com
   org_info:
     contact_url: https://example.com/contact
     org_logo_url_dark_mode: ""
@@ -5004,11 +5004,11 @@ org_settings:
 
 		// Verify controls parsed correctly with new key names
 		require.Equal(t, true, gitops.Controls.WindowsEnabledAndConfigured)
-		macSettings, ok := gitops.Controls.MacOSSettings.(fleet.GitOpsMacOSSettings)
+		macSettings, ok := gitops.Controls.MacOSSettings.(automdm.GitOpsMacOSSettings)
 		require.True(t, ok, "macos_settings (via apple_settings) not parsed")
 		require.Len(t, macSettings.CustomSettings, 1)
 
-		winSettings, ok := gitops.Controls.WindowsSettings.(fleet.GitOpsWindowsSettings)
+		winSettings, ok := gitops.Controls.WindowsSettings.(automdm.GitOpsWindowsSettings)
 		require.True(t, ok, "windows_settings not parsed")
 		require.True(t, winSettings.CustomSettings.Valid)
 		require.Len(t, winSettings.CustomSettings.Value, 1)
@@ -5029,7 +5029,7 @@ org_settings:
 		require.NoError(t, os.Mkdir(profileDir, 0o755))
 		require.NoError(t, os.WriteFile(filepath.Join(profileDir, "macos-password.mobileconfig"), []byte(emptyMCProfile), 0o644))
 		require.NoError(t, os.WriteFile(filepath.Join(profileDir, "windows-screenlock.xml"), []byte("<xml/>"), 0o644))
-		require.NoError(t, os.WriteFile(filepath.Join(profileDir, "collect-fleetd-logs.sh"), []byte("#!/bin/bash"), 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join(profileDir, "collect-automdmd-logs.sh"), []byte("#!/bin/bash"), 0o644))
 
 		controlsYAML := `
 apple_settings:
@@ -5039,7 +5039,7 @@ windows_settings:
   configuration_profiles:
     - path: ./lib/windows-screenlock.xml
 scripts:
-  - path: ./lib/collect-fleetd-logs.sh
+  - path: ./lib/collect-automdmd-logs.sh
 enable_disk_encryption: true
 setup_experience:
   macos_bootstrap_package: null
@@ -5063,7 +5063,7 @@ policies:
 agent_options:
 org_settings:
   server_settings:
-    server_url: https://fleet.example.com
+    server_url: https://automdm.example.com
   org_info:
     contact_url: https://example.com/contact
     org_logo_url_dark_mode: ""
@@ -5079,11 +5079,11 @@ org_settings:
 
 		// Verify controls parsed correctly from external file with new key names
 		require.Equal(t, true, gitops.Controls.WindowsEnabledAndConfigured)
-		macSettings, ok := gitops.Controls.MacOSSettings.(fleet.GitOpsMacOSSettings)
+		macSettings, ok := gitops.Controls.MacOSSettings.(automdm.GitOpsMacOSSettings)
 		require.True(t, ok, "macos_settings (via apple_settings in external file) not parsed")
 		require.Len(t, macSettings.CustomSettings, 1)
 
-		winSettings, ok := gitops.Controls.WindowsSettings.(fleet.GitOpsWindowsSettings)
+		winSettings, ok := gitops.Controls.WindowsSettings.(automdm.GitOpsWindowsSettings)
 		require.True(t, ok, "windows_settings not parsed")
 		require.True(t, winSettings.CustomSettings.Valid)
 		require.Len(t, winSettings.CustomSettings.Value, 1)
@@ -5108,7 +5108,7 @@ policies:
 agent_options:
 org_settings:
   server_settings:
-    server_url: https://fleet.example.com
+    server_url: https://automdm.example.com
   org_info:
     contact_url: https://example.com/contact
     org_name: Test Org
@@ -5123,9 +5123,9 @@ org_settings:
 		yaml := baseConfig(`
     apple_business:
       - organization_name: Test Org
-        macos_fleet: "Workstations"
-        ios_fleet: "Phones"
-        ipados_fleet: "Tablets"`)
+        macos_team: "Workstations"
+        ios_team: "Phones"
+        ipados_team: "Tablets"`)
 		yamlPath := filepath.Join(dir, "gitops.yml")
 		require.NoError(t, os.WriteFile(yamlPath, []byte(yaml), 0o644))
 
@@ -5139,7 +5139,7 @@ org_settings:
 		yaml := baseConfig(`
     apple_business_manager:
       - organization_name: Test Org
-        macos_fleet: "Workstations"`)
+        macos_team: "Workstations"`)
 		yamlPath := filepath.Join(dir, "gitops.yml")
 		require.NoError(t, os.WriteFile(yamlPath, []byte(yaml), 0o644))
 
@@ -5149,7 +5149,7 @@ org_settings:
 	})
 }
 
-// TestRemovedTeamKeys checks that the team-related keys removed in Fleet 5 fail with their message and the file name, and that every
+// TestRemovedTeamKeys checks that the team-related keys removed in AutoMDM 5 fail with their message and the file name, and that every
 // removed key in a file is reported in one run.
 func TestRemovedTeamKeys(t *testing.T) {
 	t.Parallel()
@@ -5162,7 +5162,7 @@ policies:
 agent_options:
 org_settings:
   server_settings:
-    server_url: https://fleet.example.com
+    server_url: https://automdm.example.com
   org_info:
     contact_url: https://example.com/contact
     org_name: Test Org
@@ -5202,10 +5202,10 @@ org_settings:
 		{"new keys are accepted", globalConfig(`
     apple_business:
       - organization_name: Test Org
-        macos_fleet: Workstations
+        macos_team: Workstations
     volume_purchasing_program:
       - location: Earth
-        fleets: [Workstations]`), nil},
+        teams: [Workstations]`), nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -5232,7 +5232,7 @@ org_settings:
 		require.NoError(t, os.WriteFile(yamlPath, []byte("controls:\nreports:\npolicies:\nagent_options:\norg_settings:\n  path: org.yml\n"), 0o644))
 		orgFile := `
 server_settings:
-  server_url: https://fleet.example.com
+  server_url: https://automdm.example.com
 org_info:
   contact_url: https://example.com/contact
   org_name: Test Org
@@ -5272,7 +5272,7 @@ agent_options:
 software:
 org_settings:
   server_settings:
-    server_url: https://fleet.example.com
+    server_url: https://automdm.example.com
   org_info:
     contact_url: https://example.com/contact
     org_logo_url_dark_mode: ""
@@ -5310,7 +5310,7 @@ agent_options:
 software:
 org_settings:
   server_settings:
-    server_url: https://fleet.example.com
+    server_url: https://automdm.example.com
   org_info:
     contact_url: https://example.com/contact
     org_logo_url_dark_mode: ""
@@ -5345,7 +5345,7 @@ agent_options:
 software:
 org_settings:
   server_settings:
-    server_url: https://fleet.example.com
+    server_url: https://automdm.example.com
   org_info:
     contact_url: https://example.com/contact
     org_logo_url_dark_mode: ""
@@ -5372,9 +5372,9 @@ controls:
 
 func TestSoftwarePackagesScriptPath(t *testing.T) {
 	t.Parallel()
-	appConfig := &fleet.EnrichedAppConfig{}
-	appConfig.License = &fleet.LicenseInfo{
-		Tier: fleet.TierPremium,
+	appConfig := &automdm.EnrichedAppConfig{}
+	appConfig.License = &automdm.LicenseInfo{
+		Tier: automdm.TierPremium,
 	}
 
 	t.Run("valid_sh_script_path", func(t *testing.T) {
@@ -5553,13 +5553,13 @@ func TestParsePolicyInstallSoftware(t *testing.T) {
 
 		policy := &Policy{
 			GitOpsPolicySpec: GitOpsPolicySpec{
-				PolicySpec:      fleet.PolicySpec{Name: "my policy"},
+				PolicySpec:      automdm.PolicySpec{Name: "my policy"},
 				InstallSoftware: installSoftware, // no package_path, app_store_id, or hash_sha256
 			},
 		}
 		errs := parsePolicyInstallSoftware(".", &teamName, policy, nil, nil, nil)
 		require.Len(t, errs, 1)
-		assert.Equal(t, errs[0].Error(), `failed to parse policy install_software "my policy": install_software must include either a package_path, an app_store_id, a hash_sha256 or a fleet_maintained_app_slug`)
+		assert.Equal(t, errs[0].Error(), `failed to parse policy install_software "my policy": install_software must include either a package_path, an app_store_id, a hash_sha256 or an automdm_maintained_app_slug`)
 	})
 
 	t.Run("unknown key in package_path file", func(t *testing.T) {
@@ -5575,11 +5575,11 @@ func TestParsePolicyInstallSoftware(t *testing.T) {
 
 		policy := &Policy{
 			GitOpsPolicySpec: GitOpsPolicySpec{
-				PolicySpec:      fleet.PolicySpec{Name: "typo policy"},
+				PolicySpec:      automdm.PolicySpec{Name: "typo policy"},
 				InstallSoftware: installSoftware,
 			},
 		}
-		packages := []*fleet.SoftwarePackageSpec{{SHA256: sha}}
+		packages := []*automdm.SoftwarePackageSpec{{SHA256: sha}}
 		errs := parsePolicyInstallSoftware(".", &teamName, policy, packages, nil, nil)
 		require.Len(t, errs, 1)
 		var unknownErr *ParseUnknownKeyError
@@ -5587,9 +5587,9 @@ func TestParsePolicyInstallSoftware(t *testing.T) {
 		assert.Equal(t, "bad_field", unknownErr.Field)
 	})
 
-	// Point package_path at a file with one package not in a list, the Fleet 5 error should
+	// Point package_path at a file with one package not in a list, the AutoMDM 5 error should
 	// name the file after the install_software.package_path key.
-	t.Run("package_path file with one package not in a list fails with the Fleet 5 error", func(t *testing.T) {
+	t.Run("package_path file with one package not in a list fails with the AutoMDM 5 error", func(t *testing.T) {
 		t.Parallel()
 		dir := t.TempDir()
 		sha := "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
@@ -5600,10 +5600,10 @@ func TestParsePolicyInstallSoftware(t *testing.T) {
 		installSoftware.Other = &PolicyInstallSoftware{PackagePath: path}
 
 		policy := &Policy{Name: "bare policy", InstallSoftware: installSoftware}
-		packages := []*fleet.SoftwarePackageSpec{{SHA256: sha}}
+		packages := []*automdm.SoftwarePackageSpec{{SHA256: sha}}
 		errs := parsePolicyInstallSoftware(".", &teamName, policy, packages, nil, nil)
 		require.Len(t, errs, 1)
-		expectedErr := fmt.Sprintf(`install_software.package_path: The single package format in %q is not available anymore. What to use instead: https://fleetdm.com/learn-more-about/fleet-5-upgrade`, path)
+		expectedErr := fmt.Sprintf(`install_software.package_path: The single package format in %q is not available anymore. What to use instead: https://automdm.com/learn-more-about/automdm-5-upgrade`, path)
 		assert.Equal(t, expectedErr, errs[0].Error())
 	})
 
@@ -5620,126 +5620,126 @@ func TestParsePolicyInstallSoftware(t *testing.T) {
 		policy := &Policy{Name: "empty policy", InstallSoftware: installSoftware}
 		errs := parsePolicyInstallSoftware(".", &teamName, policy, nil, nil, nil)
 		require.Len(t, errs, 1)
-		expectedErr := fmt.Sprintf(`failed to parse policy install_software "empty policy": install_software.package_path SHA256  not found on fleet: %s`, path)
+		expectedErr := fmt.Sprintf(`failed to parse policy install_software "empty policy": install_software.package_path SHA256  not found on team: %s`, path)
 		assert.Equal(t, expectedErr, errs[0].Error())
 	})
-	t.Run("fleet_maintained_app_slug valid", func(t *testing.T) {
+	t.Run("automdm_maintained_app_slug valid", func(t *testing.T) {
 		t.Parallel()
 
 		var installSoftware optjson.BoolOr[*PolicyInstallSoftware]
-		installSoftware.Other = &PolicyInstallSoftware{FleetMaintainedAppSlug: "zoom/darwin"}
+		installSoftware.Other = &PolicyInstallSoftware{AutoMDMMaintainedAppSlug: "zoom/darwin"}
 
 		policy := &Policy{
 			GitOpsPolicySpec: GitOpsPolicySpec{
-				PolicySpec:      fleet.PolicySpec{Name: "fma policy"},
+				PolicySpec:      automdm.PolicySpec{Name: "fma policy"},
 				InstallSoftware: installSoftware,
 			},
 		}
-		fmasBySlug := map[string]*fleet.MaintainedAppSpec{"zoom/darwin": {Slug: "zoom/darwin"}}
+		fmasBySlug := map[string]*automdm.MaintainedAppSpec{"zoom/darwin": {Slug: "zoom/darwin"}}
 		errs := parsePolicyInstallSoftware(".", &teamName, policy, nil, nil, fmasBySlug)
 		require.Nil(t, errs)
-		assert.Equal(t, "zoom/darwin", policy.InstallSoftware.Other.FleetMaintainedAppSlug)
+		assert.Equal(t, "zoom/darwin", policy.InstallSoftware.Other.AutoMDMMaintainedAppSlug)
 	})
 
-	t.Run("fleet_maintained_app_slug not in FMAs", func(t *testing.T) {
+	t.Run("automdm_maintained_app_slug not in FMAs", func(t *testing.T) {
 		t.Parallel()
 
 		var installSoftware optjson.BoolOr[*PolicyInstallSoftware]
-		installSoftware.Other = &PolicyInstallSoftware{FleetMaintainedAppSlug: "notreal/darwin"}
+		installSoftware.Other = &PolicyInstallSoftware{AutoMDMMaintainedAppSlug: "notreal/darwin"}
 
 		policy := &Policy{
 			GitOpsPolicySpec: GitOpsPolicySpec{
-				PolicySpec:      fleet.PolicySpec{Name: "bad fma policy"},
+				PolicySpec:      automdm.PolicySpec{Name: "bad fma policy"},
 				InstallSoftware: installSoftware,
 			},
 		}
-		fmasBySlug := map[string]*fleet.MaintainedAppSpec{"zoom/darwin": {Slug: "zoom/darwin"}}
+		fmasBySlug := map[string]*automdm.MaintainedAppSpec{"zoom/darwin": {Slug: "zoom/darwin"}}
 		errs := parsePolicyInstallSoftware(".", &teamName, policy, nil, nil, fmasBySlug)
 		require.Len(t, errs, 1)
-		assert.Contains(t, errs[0].Error(), `fleet_maintained_app_slug "notreal/darwin" not found`)
+		assert.Contains(t, errs[0].Error(), `automdm_maintained_app_slug "notreal/darwin" not found`)
 	})
 
-	t.Run("fleet_maintained_app_slug with other fields errors", func(t *testing.T) {
+	t.Run("automdm_maintained_app_slug with other fields errors", func(t *testing.T) {
 		t.Parallel()
 
 		var installSoftware optjson.BoolOr[*PolicyInstallSoftware]
 		installSoftware.Other = &PolicyInstallSoftware{
-			FleetMaintainedAppSlug: "zoom/darwin",
-			HashSHA256:             "abc123",
+			AutoMDMMaintainedAppSlug: "zoom/darwin",
+			HashSHA256:               "abc123",
 		}
 
 		policy := &Policy{
 			GitOpsPolicySpec: GitOpsPolicySpec{
-				PolicySpec:      fleet.PolicySpec{Name: "conflicting policy"},
+				PolicySpec:      automdm.PolicySpec{Name: "conflicting policy"},
 				InstallSoftware: installSoftware,
 			},
 		}
 		errs := parsePolicyInstallSoftware(".", &teamName, policy, nil, nil, nil)
 		require.Len(t, errs, 1)
-		assert.Contains(t, errs[0].Error(), "install_software must have only one of package_path, app_store_id, hash_sha256, or fleet_maintained_app_slug")
+		assert.Contains(t, errs[0].Error(), "install_software must have only one of package_path, app_store_id, hash_sha256, or automdm_maintained_app_slug")
 	})
 
-	t.Run("fleet_maintained_app_slug on global policy errors", func(t *testing.T) {
+	t.Run("automdm_maintained_app_slug on global policy errors", func(t *testing.T) {
 		t.Parallel()
 
 		var installSoftware optjson.BoolOr[*PolicyInstallSoftware]
-		installSoftware.Other = &PolicyInstallSoftware{FleetMaintainedAppSlug: "zoom/darwin"}
+		installSoftware.Other = &PolicyInstallSoftware{AutoMDMMaintainedAppSlug: "zoom/darwin"}
 
 		policy := &Policy{
 			GitOpsPolicySpec: GitOpsPolicySpec{
-				PolicySpec:      fleet.PolicySpec{Name: "global fma policy"},
+				PolicySpec:      automdm.PolicySpec{Name: "global fma policy"},
 				InstallSoftware: installSoftware,
 			},
 		}
 		errs := parsePolicyInstallSoftware(".", nil, policy, nil, nil, nil)
 		require.Len(t, errs, 1)
-		assert.Contains(t, errs[0].Error(), "install_software can only be set on fleet-level policies")
+		assert.Contains(t, errs[0].Error(), "install_software can only be set on team-level policies")
 	})
 
-	t.Run("patch policy with the same fleet_maintained_app_slug", func(t *testing.T) {
+	t.Run("patch policy with the same automdm_maintained_app_slug", func(t *testing.T) {
 		t.Parallel()
 
 		var installSoftware optjson.BoolOr[*PolicyInstallSoftware]
-		installSoftware.Other = &PolicyInstallSoftware{FleetMaintainedAppSlug: "zoom/darwin"}
+		installSoftware.Other = &PolicyInstallSoftware{AutoMDMMaintainedAppSlug: "zoom/darwin"}
 
 		policy := &Policy{
 			GitOpsPolicySpec: GitOpsPolicySpec{
-				PolicySpec: fleet.PolicySpec{
-					Name:                   "fma policy",
-					Type:                   fleet.PolicyTypePatch,
-					FleetMaintainedAppSlug: "zoom/darwin",
+				PolicySpec: automdm.PolicySpec{
+					Name:                     "fma policy",
+					Type:                     automdm.PolicyTypePatch,
+					AutoMDMMaintainedAppSlug: "zoom/darwin",
 				},
 				InstallSoftware: installSoftware,
 			},
 		}
-		fmasBySlug := map[string]*fleet.MaintainedAppSpec{"zoom/darwin": {Slug: "zoom/darwin"}}
+		fmasBySlug := map[string]*automdm.MaintainedAppSpec{"zoom/darwin": {Slug: "zoom/darwin"}}
 		errs := parsePolicyInstallSoftware(".", &teamName, policy, nil, nil, fmasBySlug)
 		require.Nil(t, errs)
-		assert.Equal(t, "zoom/darwin", policy.FleetMaintainedAppSlug)
-		assert.Equal(t, "zoom/darwin", policy.InstallSoftware.Other.FleetMaintainedAppSlug)
+		assert.Equal(t, "zoom/darwin", policy.AutoMDMMaintainedAppSlug)
+		assert.Equal(t, "zoom/darwin", policy.InstallSoftware.Other.AutoMDMMaintainedAppSlug)
 	})
 
-	t.Run("patch policy with different fleet_maintained_app_slug", func(t *testing.T) {
+	t.Run("patch policy with different automdm_maintained_app_slug", func(t *testing.T) {
 		t.Parallel()
 
 		var installSoftware optjson.BoolOr[*PolicyInstallSoftware]
-		installSoftware.Other = &PolicyInstallSoftware{FleetMaintainedAppSlug: "zoom/darwin"}
+		installSoftware.Other = &PolicyInstallSoftware{AutoMDMMaintainedAppSlug: "zoom/darwin"}
 
 		policy := &Policy{
 			GitOpsPolicySpec: GitOpsPolicySpec{
-				PolicySpec: fleet.PolicySpec{
-					Name:                   "fma policy",
-					Type:                   fleet.PolicyTypePatch,
-					FleetMaintainedAppSlug: "1password/darwin",
+				PolicySpec: automdm.PolicySpec{
+					Name:                     "fma policy",
+					Type:                     automdm.PolicyTypePatch,
+					AutoMDMMaintainedAppSlug: "1password/darwin",
 				},
 				InstallSoftware: installSoftware,
 			},
 		}
-		fmasBySlug := map[string]*fleet.MaintainedAppSpec{"zoom/darwin": {Slug: "zoom/darwin"}, "1password/darwin": {Slug: "1password/darwin"}}
+		fmasBySlug := map[string]*automdm.MaintainedAppSpec{"zoom/darwin": {Slug: "zoom/darwin"}, "1password/darwin": {Slug: "1password/darwin"}}
 		errs := parsePolicyInstallSoftware(".", &teamName, policy, nil, nil, fmasBySlug)
 		require.Nil(t, errs)
-		assert.Equal(t, "1password/darwin", policy.FleetMaintainedAppSlug)
-		assert.Equal(t, "zoom/darwin", policy.InstallSoftware.Other.FleetMaintainedAppSlug)
+		assert.Equal(t, "1password/darwin", policy.AutoMDMMaintainedAppSlug)
+		assert.Equal(t, "zoom/darwin", policy.InstallSoftware.Other.AutoMDMMaintainedAppSlug)
 	})
 
 	// Helpers for the multi-package sub-selector tests.
@@ -5768,11 +5768,11 @@ func TestParsePolicyInstallSoftware(t *testing.T) {
 
 		policy := &Policy{
 			GitOpsPolicySpec: GitOpsPolicySpec{
-				PolicySpec:      fleet.PolicySpec{Name: "multi hash policy"},
+				PolicySpec:      automdm.PolicySpec{Name: "multi hash policy"},
 				InstallSoftware: installSoftware,
 			},
 		}
-		packages := []*fleet.SoftwarePackageSpec{
+		packages := []*automdm.SoftwarePackageSpec{
 			{URL: url1, SHA256: sha1},
 			{URL: url2, SHA256: sha2},
 		}
@@ -5782,7 +5782,7 @@ func TestParsePolicyInstallSoftware(t *testing.T) {
 		assert.Equal(t, sha2, policy.InstallSoftware.Other.HashSHA256)
 	})
 
-	t.Run("bare hash_sha256 not found on fleet errors", func(t *testing.T) {
+	t.Run("bare hash_sha256 not found on automdm errors", func(t *testing.T) {
 		t.Parallel()
 
 		bogusSHA := "cccc999999999999999999999999999999999999999999999999999999999999"
@@ -5792,17 +5792,17 @@ func TestParsePolicyInstallSoftware(t *testing.T) {
 
 		policy := &Policy{
 			GitOpsPolicySpec: GitOpsPolicySpec{
-				PolicySpec:      fleet.PolicySpec{Name: "stale hash policy"},
+				PolicySpec:      automdm.PolicySpec{Name: "stale hash policy"},
 				InstallSoftware: installSoftware,
 			},
 		}
-		packages := []*fleet.SoftwarePackageSpec{{URL: url1, SHA256: sha1}}
+		packages := []*automdm.SoftwarePackageSpec{{URL: url1, SHA256: sha1}}
 		errs := parsePolicyInstallSoftware(".", &teamName, policy, packages, nil, nil)
 		require.Len(t, errs, 1)
-		assert.Contains(t, errs[0].Error(), fmt.Sprintf("install_software.hash_sha256 %s not found on fleet", bogusSHA))
+		assert.Contains(t, errs[0].Error(), fmt.Sprintf("install_software.hash_sha256 %s not found on team", bogusSHA))
 	})
 
-	t.Run("software not found on fleet errors say fleet", func(t *testing.T) {
+	t.Run("software not found on automdm errors say team", func(t *testing.T) {
 		t.Parallel()
 
 		bogusSHA := "dddd999999999999999999999999999999999999999999999999999999999999"
@@ -5815,9 +5815,9 @@ func TestParsePolicyInstallSoftware(t *testing.T) {
 			software *PolicyInstallSoftware
 			wantErr  string
 		}{
-			{"package_path SHA256", &PolicyInstallSoftware{PackagePath: shaOnlyPath}, fmt.Sprintf("install_software.package_path SHA256 %s not found on fleet: %s", bogusSHA, shaOnlyPath)},
-			{"app_store_id", &PolicyInstallSoftware{AppStoreID: "123"}, fmt.Sprintf("install_software.app_store_id 123 not found on fleet %s", teamName)},
-			{"fleet_maintained_app_slug", &PolicyInstallSoftware{FleetMaintainedAppSlug: "1password/darwin"}, fmt.Sprintf(`install_software.fleet_maintained_app_slug "1password/darwin" not found in software.fleet_maintained_apps for fleet %s`, teamName)},
+			{"package_path SHA256", &PolicyInstallSoftware{PackagePath: shaOnlyPath}, fmt.Sprintf("install_software.package_path SHA256 %s not found on team: %s", bogusSHA, shaOnlyPath)},
+			{"app_store_id", &PolicyInstallSoftware{AppStoreID: "123"}, fmt.Sprintf("install_software.app_store_id 123 not found on team %s", teamName)},
+			{"automdm_maintained_app_slug", &PolicyInstallSoftware{AutoMDMMaintainedAppSlug: "1password/darwin"}, fmt.Sprintf(`install_software.automdm_maintained_app_slug "1password/darwin" not found in software.automdm_maintained_apps for team %s`, teamName)},
 		}
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
@@ -5841,7 +5841,7 @@ func TestParsePolicyInstallSoftware(t *testing.T) {
 
 		policy := &Policy{
 			GitOpsPolicySpec: GitOpsPolicySpec{
-				PolicySpec:      fleet.PolicySpec{Name: "multi package_path policy"},
+				PolicySpec:      automdm.PolicySpec{Name: "multi package_path policy"},
 				InstallSoftware: installSoftware,
 			},
 		}
@@ -5861,7 +5861,7 @@ func TestParsePolicyInstallSoftware(t *testing.T) {
 
 		policy := &Policy{
 			GitOpsPolicySpec: GitOpsPolicySpec{
-				PolicySpec:      fleet.PolicySpec{Name: "combo policy"},
+				PolicySpec:      automdm.PolicySpec{Name: "combo policy"},
 				InstallSoftware: installSoftware,
 			},
 		}
@@ -5941,8 +5941,8 @@ org_settings:
 	})
 
 	t.Run("software present on team", func(t *testing.T) {
-		premiumConfig := &fleet.EnrichedAppConfig{}
-		premiumConfig.License = &fleet.LicenseInfo{Tier: fleet.TierPremium}
+		premiumConfig := &automdm.EnrichedAppConfig{}
+		premiumConfig.License = &automdm.LicenseInfo{Tier: automdm.TierPremium}
 
 		path, basePath := createTempFile(t, "", `
 name: TestTeam
@@ -5956,8 +5956,8 @@ software:
 	})
 
 	t.Run("software absent on team", func(t *testing.T) {
-		premiumConfig := &fleet.EnrichedAppConfig{}
-		premiumConfig.License = &fleet.LicenseInfo{Tier: fleet.TierPremium}
+		premiumConfig := &automdm.EnrichedAppConfig{}
+		premiumConfig.License = &automdm.LicenseInfo{Tier: automdm.TierPremium}
 
 		path, basePath := createTempFile(t, "", `
 name: TestTeam
@@ -5980,7 +5980,7 @@ custom_host_vitals:
 `)
 		require.NoError(t, err)
 		assert.True(t, gitops.CustomHostVitalsPresent)
-		assert.ElementsMatch(t, []fleet.CustomHostVital{{Name: "Asset tag"}, {Name: "Department"}}, gitops.CustomHostVitals)
+		assert.ElementsMatch(t, []automdm.CustomHostVital{{Name: "Asset tag"}, {Name: "Department"}}, gitops.CustomHostVitals)
 	})
 
 	t.Run("custom host vitals absent", func(t *testing.T) {
@@ -6019,7 +6019,7 @@ custom_host_vitals:
   - name: Asset tag
 `)
 		_, err := GitOpsFromFile(path, basePath, nil, nopLogf)
-		require.ErrorContains(t, err, "'custom_host_vitals' cannot be set on a fleet file")
+		require.ErrorContains(t, err, "'custom_host_vitals' cannot be set on an automdm file")
 	})
 
 	t.Run("rejects an invalid name", func(t *testing.T) {
@@ -6055,12 +6055,12 @@ func TestGitOpsFMACategoriesPresence(t *testing.T) {
 
 	parse := func(t *testing.T, categoriesYAML string) optjson.Slice[string] {
 		config := getTeamConfig(nil)
-		config += "software:\n  fleet_maintained_apps:\n    - slug: 1password/darwin\n" + categoriesYAML
+		config += "software:\n  automdm_maintained_apps:\n    - slug: 1password/darwin\n" + categoriesYAML
 		path, basePath := createTempFile(t, "", config)
 		gitops, err := GitOpsFromFile(path, basePath, premiumAppConfig(), nopLogf)
 		require.NoError(t, err)
-		require.Len(t, gitops.Software.FleetMaintainedApps, 1)
-		return gitops.Software.FleetMaintainedApps[0].Categories
+		require.Len(t, gitops.Software.AutoMDMMaintainedApps, 1)
+		return gitops.Software.AutoMDMMaintainedApps[0].Categories
 	}
 
 	t.Run("omitted key is unset", func(t *testing.T) {
@@ -6097,10 +6097,10 @@ func TestGitOpsFMACategoriesPresence(t *testing.T) {
 func TestDuplicatePatchPolicySlug(t *testing.T) {
 	t.Parallel()
 
-	// Every slug referenced by a patch policy must be declared under software.fleet_maintained_apps.
+	// Every slug referenced by a patch policy must be declared under software.automdm_maintained_apps.
 	fmaSoftware := `
 software:
-  fleet_maintained_apps:
+  automdm_maintained_apps:
     - slug: google-chrome/darwin
     - slug: 1password/darwin
     - slug: firefox/darwin
@@ -6120,13 +6120,13 @@ policies:
   - name: Chrome up to date
     type: patch
     platform: darwin
-    fleet_maintained_app_slug: google-chrome/darwin
+    automdm_maintained_app_slug: google-chrome/darwin
   - name: Chrome up to date again
     type: patch
     platform: darwin
-    fleet_maintained_app_slug: google-chrome/darwin
+    automdm_maintained_app_slug: google-chrome/darwin
 `,
-			wantErrs: []string{`Couldn't add multiple policies with type "patch" for "fleet_maintained_app_slug": "google-chrome/darwin".`},
+			wantErrs: []string{`Couldn't add multiple policies with type "patch" for "automdm_maintained_app_slug": "google-chrome/darwin".`},
 		},
 		{
 			// Each duplicated slug gets its own error, driven by the slug in the config.
@@ -6136,23 +6136,23 @@ policies:
   - name: Chrome up to date
     type: patch
     platform: darwin
-    fleet_maintained_app_slug: google-chrome/darwin
+    automdm_maintained_app_slug: google-chrome/darwin
   - name: Chrome up to date again
     type: patch
     platform: darwin
-    fleet_maintained_app_slug: google-chrome/darwin
+    automdm_maintained_app_slug: google-chrome/darwin
   - name: 1Password up to date
     type: patch
     platform: darwin
-    fleet_maintained_app_slug: 1password/darwin
+    automdm_maintained_app_slug: 1password/darwin
   - name: 1Password up to date again
     type: patch
     platform: darwin
-    fleet_maintained_app_slug: 1password/darwin
+    automdm_maintained_app_slug: 1password/darwin
 `,
 			wantErrs: []string{
-				`Couldn't add multiple policies with type "patch" for "fleet_maintained_app_slug": "google-chrome/darwin".`,
-				`Couldn't add multiple policies with type "patch" for "fleet_maintained_app_slug": "1password/darwin".`,
+				`Couldn't add multiple policies with type "patch" for "automdm_maintained_app_slug": "google-chrome/darwin".`,
+				`Couldn't add multiple policies with type "patch" for "automdm_maintained_app_slug": "1password/darwin".`,
 			},
 		},
 		{
@@ -6163,17 +6163,17 @@ policies:
   - name: Chrome A
     type: patch
     platform: darwin
-    fleet_maintained_app_slug: google-chrome/darwin
+    automdm_maintained_app_slug: google-chrome/darwin
   - name: Chrome B
     type: patch
     platform: darwin
-    fleet_maintained_app_slug: google-chrome/darwin
+    automdm_maintained_app_slug: google-chrome/darwin
   - name: Chrome C
     type: patch
     platform: darwin
-    fleet_maintained_app_slug: google-chrome/darwin
+    automdm_maintained_app_slug: google-chrome/darwin
 `,
-			wantErrs: []string{`Couldn't add multiple policies with type "patch" for "fleet_maintained_app_slug": "google-chrome/darwin".`},
+			wantErrs: []string{`Couldn't add multiple policies with type "patch" for "automdm_maintained_app_slug": "google-chrome/darwin".`},
 		},
 		{
 			// Duplicate names and duplicate patch slug surface together.
@@ -6183,15 +6183,15 @@ policies:
   - name: Same name
     type: patch
     platform: darwin
-    fleet_maintained_app_slug: google-chrome/darwin
+    automdm_maintained_app_slug: google-chrome/darwin
   - name: Same name
     type: patch
     platform: darwin
-    fleet_maintained_app_slug: google-chrome/darwin
+    automdm_maintained_app_slug: google-chrome/darwin
 `,
 			wantErrs: []string{
 				"duplicate policy names",
-				`Couldn't add multiple policies with type "patch" for "fleet_maintained_app_slug": "google-chrome/darwin".`,
+				`Couldn't add multiple policies with type "patch" for "automdm_maintained_app_slug": "google-chrome/darwin".`,
 			},
 		},
 		{
@@ -6203,11 +6203,11 @@ policies:
     platform: darwin
     query: SELECT 1 FROM apps WHERE bundle_identifier = 'com.google.Chrome';
     install_software:
-      fleet_maintained_app_slug: google-chrome/darwin
+      automdm_maintained_app_slug: google-chrome/darwin
   - name: Chrome up to date
     type: patch
     platform: darwin
-    fleet_maintained_app_slug: google-chrome/darwin
+    automdm_maintained_app_slug: google-chrome/darwin
 `,
 		},
 		{
@@ -6217,25 +6217,25 @@ policies:
   - name: Chrome up to date
     type: patch
     platform: darwin
-    fleet_maintained_app_slug: google-chrome/darwin
+    automdm_maintained_app_slug: google-chrome/darwin
   - name: Firefox up to date
     type: patch
     platform: darwin
-    fleet_maintained_app_slug: firefox/darwin
+    automdm_maintained_app_slug: firefox/darwin
 `,
 		},
 		{
-			name: "dynamic policy with base fleet_maintained_app_slug is rejected",
+			name: "dynamic policy with base automdm_maintained_app_slug is rejected",
 			policies: `
 policies:
   - name: Install Google Chrome
     type: dynamic
     platform: darwin
     query: "SELECT 1;"
-    fleet_maintained_app_slug: google-chrome/darwin
+    automdm_maintained_app_slug: google-chrome/darwin
     install_software: true
 `,
-			wantErrs: []string{`"fleet_maintained_app_slug" is only supported for patch policies`},
+			wantErrs: []string{`"automdm_maintained_app_slug" is only supported for patch policies`},
 		},
 		{
 			name: "dynamic policy with install_software true and no slug is allowed (does nothing)",
@@ -6273,20 +6273,20 @@ func TestGitOpsPatchPolicyOptions(t *testing.T) {
 
 	const fmaSoftware = `
 software:
-  fleet_maintained_apps:
+  automdm_maintained_apps:
     - slug: google-chrome/darwin
 `
 	// An FMA that carries a user-authored pre_install_query, which patch-when-closed rejects.
 	const fmaSoftwareWithPreInstall = `
 software:
-  fleet_maintained_apps:
+  automdm_maintained_apps:
     - slug: google-chrome/darwin
       pre_install_query:
         path: ./preinstall.yml
 `
 	const fmaSoftwareWindows = `
 software:
-  fleet_maintained_apps:
+  automdm_maintained_apps:
     - slug: google-chrome/windows
 `
 
@@ -6315,7 +6315,7 @@ policies:
   - name: Chrome up to date
     type: patch
     platform: darwin
-    fleet_maintained_app_slug: google-chrome/darwin
+    automdm_maintained_app_slug: google-chrome/darwin
     patch_when_closed: true
 `,
 			wantCA: new(true),
@@ -6328,7 +6328,7 @@ policies:
   - name: Chrome up to date
     type: patch
     platform: darwin
-    fleet_maintained_app_slug: google-chrome/darwin
+    automdm_maintained_app_slug: google-chrome/darwin
     continuous_automations_enabled: true
     patch_when_closed: true
 `,
@@ -6342,7 +6342,7 @@ policies:
   - name: Chrome up to date
     type: patch
     platform: darwin
-    fleet_maintained_app_slug: google-chrome/darwin
+    automdm_maintained_app_slug: google-chrome/darwin
     continuous_automations_enabled: false
     patch_when_closed: true
 `,
@@ -6356,10 +6356,10 @@ policies:
   - name: Chrome up to date
     type: patch
     platform: darwin
-    fleet_maintained_app_slug: google-chrome/darwin
+    automdm_maintained_app_slug: google-chrome/darwin
     patch_when_closed: true
 `,
-			wantErrs: []string{`"pre_install_query" can't be set on Fleet-maintained app "google-chrome/darwin"`},
+			wantErrs: []string{`"pre_install_query" can't be set on AutoMDM-maintained app "google-chrome/darwin"`},
 		},
 		{
 			// Backward compat: without the key, continuous automations stay off.
@@ -6370,7 +6370,7 @@ policies:
   - name: Chrome up to date
     type: patch
     platform: darwin
-    fleet_maintained_app_slug: google-chrome/darwin
+    automdm_maintained_app_slug: google-chrome/darwin
 `,
 			wantCA:       new(false),
 			wantDeadline: new(false),
@@ -6383,7 +6383,7 @@ policies:
   - name: Chrome up to date
     type: patch
     platform: darwin
-    fleet_maintained_app_slug: google-chrome/darwin
+    automdm_maintained_app_slug: google-chrome/darwin
     notify_before_patching: true
 `,
 			wantCA: new(true),
@@ -6396,7 +6396,7 @@ policies:
   - name: Chrome up to date
     type: patch
     platform: darwin
-    fleet_maintained_app_slug: google-chrome/darwin
+    automdm_maintained_app_slug: google-chrome/darwin
     continuous_automations_enabled: false
     notify_before_patching: true
 `,
@@ -6410,10 +6410,10 @@ policies:
   - name: Chrome up to date
     type: patch
     platform: darwin
-    fleet_maintained_app_slug: google-chrome/darwin
+    automdm_maintained_app_slug: google-chrome/darwin
     notify_before_patching: true
 `,
-			wantErrs: []string{`"pre_install_query" can't be set on Fleet-maintained app "google-chrome/darwin" when "notify_before_patching" is true`},
+			wantErrs: []string{`"pre_install_query" can't be set on AutoMDM-maintained app "google-chrome/darwin" when "notify_before_patching" is true`},
 		},
 		{
 			// PolicySpec.Verify runs during parsing, so a dry run rejects this too.
@@ -6438,7 +6438,7 @@ policies:
   - name: Chrome up to date
     type: patch
     platform: darwin
-    fleet_maintained_app_slug: google-chrome/darwin
+    automdm_maintained_app_slug: google-chrome/darwin
     patch_when_closed: true
     notify_before_patching: true
 `,
@@ -6446,39 +6446,39 @@ policies:
 		},
 		{
 			// The dry run skips the policy apply, so without this check only a real apply rejects it.
-			name:     "notify_before_patching on a Windows Fleet-maintained app is rejected",
+			name:     "notify_before_patching on a Windows AutoMDM-maintained app is rejected",
 			software: fmaSoftwareWindows,
 			policies: `
 policies:
   - name: Chrome up to date
     type: patch
-    fleet_maintained_app_slug: google-chrome/windows
+    automdm_maintained_app_slug: google-chrome/windows
     notify_before_patching: true
 `,
-			wantErrs: []string{`"notify_before_patching" is only available for macOS Fleet-maintained apps.`},
+			wantErrs: []string{`"notify_before_patching" is only available for macOS AutoMDM-maintained apps.`},
 		},
 		{
-			// The slug names no Fleet-maintained app, so there is no platform to judge and the missing app is the only problem worth reporting.
-			name:     "notify_before_patching on a slug missing from software reports only the missing Fleet-maintained app",
+			// The slug names no AutoMDM-maintained app, so there is no platform to judge and the missing app is the only problem worth reporting.
+			name:     "notify_before_patching on a slug missing from software reports only the missing AutoMDM-maintained app",
 			software: fmaSoftware,
 			policies: `
 policies:
   - name: Chrome up to date
     type: patch
-    fleet_maintained_app_slug: google-chrome/windows
+    automdm_maintained_app_slug: google-chrome/windows
     notify_before_patching: true
 `,
-			wantErrs:     []string{`isn't specified under "software.fleet_maintained_apps."`},
-			unwantedErrs: []string{"only available for macOS Fleet-maintained apps"},
+			wantErrs:     []string{`isn't specified under "software.automdm_maintained_apps."`},
+			unwantedErrs: []string{"only available for macOS AutoMDM-maintained apps"},
 		},
 		{
-			name:     "patch_when_closed on a Windows Fleet-maintained app still applies",
+			name:     "patch_when_closed on a Windows AutoMDM-maintained app still applies",
 			software: fmaSoftwareWindows,
 			policies: `
 policies:
   - name: Chrome up to date
     type: patch
-    fleet_maintained_app_slug: google-chrome/windows
+    automdm_maintained_app_slug: google-chrome/windows
     patch_when_closed: true
 `,
 			wantCA: new(true),
@@ -6491,7 +6491,7 @@ policies:
   - name: Chrome up to date
     type: patch
     platform: darwin
-    fleet_maintained_app_slug: google-chrome/darwin
+    automdm_maintained_app_slug: google-chrome/darwin
     patch_deadline: true
 `,
 			wantCA:       new(true),
@@ -6505,7 +6505,7 @@ policies:
   - name: Chrome up to date
     type: patch
     platform: darwin
-    fleet_maintained_app_slug: google-chrome/darwin
+    automdm_maintained_app_slug: google-chrome/darwin
     continuous_automations_enabled: false
     patch_deadline: true
 `,
@@ -6519,10 +6519,10 @@ policies:
   - name: Chrome up to date
     type: patch
     platform: darwin
-    fleet_maintained_app_slug: google-chrome/darwin
+    automdm_maintained_app_slug: google-chrome/darwin
     patch_deadline: true
 `,
-			wantErrs: []string{`"pre_install_query" can't be set on Fleet-maintained app "google-chrome/darwin" when "patch_deadline" is true`},
+			wantErrs: []string{`"pre_install_query" can't be set on AutoMDM-maintained app "google-chrome/darwin" when "patch_deadline" is true`},
 		},
 		{
 			name:     "patch_deadline on a dynamic policy is rejected",
@@ -6545,7 +6545,7 @@ policies:
   - name: Chrome up to date
     type: patch
     platform: darwin
-    fleet_maintained_app_slug: google-chrome/darwin
+    automdm_maintained_app_slug: google-chrome/darwin
     patch_when_closed: true
     patch_deadline: true
 `,
@@ -6559,23 +6559,23 @@ policies:
   - name: Chrome up to date
     type: patch
     platform: darwin
-    fleet_maintained_app_slug: google-chrome/darwin
+    automdm_maintained_app_slug: google-chrome/darwin
     notify_before_patching: true
     patch_deadline: true
 `,
 			wantErrs: []string{`Only one of "force_patch", "patch_when_closed", "notify_before_patching", or "patch_deadline" can be set to true.`},
 		},
 		{
-			name:     "patch_deadline on a Windows Fleet-maintained app is rejected",
+			name:     "patch_deadline on a Windows AutoMDM-maintained app is rejected",
 			software: fmaSoftwareWindows,
 			policies: `
 policies:
   - name: Chrome up to date
     type: patch
-    fleet_maintained_app_slug: google-chrome/windows
+    automdm_maintained_app_slug: google-chrome/windows
     patch_deadline: true
 `,
-			wantErrs:     []string{`"patch_deadline" is available for macOS Fleet-maintained apps. It's coming soon to Windows.`},
+			wantErrs:     []string{`"patch_deadline" is available for macOS AutoMDM-maintained apps. It's coming soon to Windows.`},
 			unwantedErrs: []string{"notify_before_patching"},
 		},
 		{
@@ -6586,7 +6586,7 @@ policies:
   - name: Chrome up to date
     type: patch
     platform: darwin
-    fleet_maintained_app_slug: google-chrome/darwin
+    automdm_maintained_app_slug: google-chrome/darwin
     patch_deadline: false
 `,
 			wantCA:       new(false),
@@ -6600,7 +6600,7 @@ policies:
   - name: Chrome up to date
     type: patch
     platform: darwin
-    fleet_maintained_app_slug: google-chrome/darwin
+    automdm_maintained_app_slug: google-chrome/darwin
     force_patch: true
 `,
 			wantCA:         new(false),
@@ -6614,7 +6614,7 @@ policies:
   - name: Chrome up to date
     type: patch
     platform: darwin
-    fleet_maintained_app_slug: google-chrome/darwin
+    automdm_maintained_app_slug: google-chrome/darwin
     install_software: true
 `,
 			wantCA:         new(false),
@@ -6629,9 +6629,9 @@ policies:
   - name: Chrome up to date
     type: patch
     platform: darwin
-    fleet_maintained_app_slug: google-chrome/darwin
+    automdm_maintained_app_slug: google-chrome/darwin
     install_software:
-      fleet_maintained_app_slug: google-chrome/darwin
+      automdm_maintained_app_slug: google-chrome/darwin
 `,
 			wantForcePatch: new(true),
 			wantLog:        `[!] The "policies.install_software" key is deprecated. Use "policies.force_patch" instead.`,
@@ -6644,7 +6644,7 @@ policies:
   - name: Chrome up to date
     type: patch
     platform: darwin
-    fleet_maintained_app_slug: google-chrome/darwin
+    automdm_maintained_app_slug: google-chrome/darwin
     install_software: true
     patch_when_closed: true
 `,
@@ -6660,7 +6660,7 @@ policies:
   - name: Chrome up to date
     type: patch
     platform: darwin
-    fleet_maintained_app_slug: google-chrome/darwin
+    automdm_maintained_app_slug: google-chrome/darwin
     install_software: true
     force_patch: true
 `,
@@ -6675,12 +6675,12 @@ policies:
   - name: Chrome up to date
     type: patch
     platform: darwin
-    fleet_maintained_app_slug: google-chrome/darwin
+    automdm_maintained_app_slug: google-chrome/darwin
     install_software: false
     notify_before_patching: true
 `,
 			wantErrs:     []string{`Couldn't apply policy "Chrome up to date": If "notify_before_patching" is true, "install_software" can't be set to false.`},
-			unwantedErrs: []string{"fleet-5-upgrade"},
+			unwantedErrs: []string{"automdm-5-upgrade"},
 		},
 		{
 			name:     "install_software false alone on a patch policy applies as report only and logs the deprecation warning",
@@ -6690,7 +6690,7 @@ policies:
   - name: Chrome up to date
     type: patch
     platform: darwin
-    fleet_maintained_app_slug: google-chrome/darwin
+    automdm_maintained_app_slug: google-chrome/darwin
     install_software: false
 `,
 			wantCA:         new(false),
@@ -6802,7 +6802,7 @@ controls:
 		gitops, err := GitOpsFromFile(yamlPath, dir, nil, nopLogf)
 		require.NoError(t, err)
 
-		macOSSettings, ok := gitops.Controls.MacOSSettings.(fleet.GitOpsMacOSSettings)
+		macOSSettings, ok := gitops.Controls.MacOSSettings.(automdm.GitOpsMacOSSettings)
 		require.True(t, ok, "unexpected type %T", gitops.Controls.MacOSSettings)
 		require.Len(t, macOSSettings.CustomSettings, 1)
 
@@ -6851,7 +6851,7 @@ func TestGitOpsPolicyWithResendConfigurationProfile(t *testing.T) {
 </plist>
 `
 
-	// certProfile substitutes base64 data through an env var and a Fleet secret,
+	// certProfile substitutes base64 data through an env var and an AutoMDM secret,
 	// neither of which is expanded on disk.
 	const certProfile = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -6877,7 +6877,7 @@ func TestGitOpsPolicyWithResendConfigurationProfile(t *testing.T) {
 			<key>PayloadContent</key>
 			<data>$CERT_B64</data>
 			<key>Password</key>
-			<string>$FLEET_SECRET_CERT_PASSWORD</string>
+			<string>$AUTOMDM_SECRET_CERT_PASSWORD</string>
 		</dict>
 	</array>
 </dict>
@@ -6888,7 +6888,7 @@ func TestGitOpsPolicyWithResendConfigurationProfile(t *testing.T) {
 	// then appends the given policies section to a team (or global) config.
 	writeConfig := func(t *testing.T, global bool, policies string) (*GitOps, error) {
 		// t.Setenv restores the previous value on cleanup, but it rules out t.Parallel.
-		for k, v := range map[string]string{"CERT_B64": "aGVsbG8gd29ybGQ=", "FLEET_SECRET_CERT_PASSWORD": "p4ssw0rd"} {
+		for k, v := range map[string]string{"CERT_B64": "aGVsbG8gd29ybGQ=", "AUTOMDM_SECRET_CERT_PASSWORD": "p4ssw0rd"} {
 			t.Setenv(k, v)
 		}
 		dir := t.TempDir()
@@ -6967,7 +6967,7 @@ policies:
   query: SELECT 1;
   resend_configuration_profile: Password policy
 `)
-		require.ErrorContains(t, err, "resend_configuration_profile can only be set on fleet-level policies")
+		require.ErrorContains(t, err, "resend_configuration_profile can only be set on team-level policies")
 	})
 }
 
@@ -6986,9 +6986,9 @@ const emptyMCProfile = `<?xml version="1.0" encoding="UTF-8"?>
 
 func TestAppStoreAppVersions(t *testing.T) {
 	t.Parallel()
-	appConfig := &fleet.EnrichedAppConfig{}
-	appConfig.License = &fleet.LicenseInfo{
-		Tier: fleet.TierPremium,
+	appConfig := &automdm.EnrichedAppConfig{}
+	appConfig.License = &automdm.LicenseInfo{
+		Tier: automdm.TierPremium,
 	}
 
 	t.Run("app_with_two_versions_parses_both_versions_in_order", func(t *testing.T) {

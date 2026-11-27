@@ -20,7 +20,7 @@ const RanCustomMdmCommandActivityItem = ({
       isSoloActivity={isSoloActivity}
       hideCancel
     >
-      <b>{activity.actor_full_name ?? "Fleet"}</b>
+      <b>{activity.actor_full_name ?? "AutoMDM"}</b>
       {" ran "}
       {formatMdmCommandNameForActivityItem(activity.details?.request_type)}
       {" on this host."}

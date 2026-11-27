@@ -3,7 +3,7 @@ provider "aws" {
   default_tags {
     tags = {
       environment = "guardduty-alerts"
-      terraform   = "https://github.com/fleetdm/fleet/tree/main/infrastructure/infrastructure/guardduty-alerts"
+      terraform   = "https://github.com/anilyagiz/automdm/tree/main/infrastructure/infrastructure/guardduty-alerts"
       state       = "local"
     }
   }
@@ -19,7 +19,7 @@ terraform {
     }
   }
   backend "s3" {
-    bucket               = "fleet-terraform-state20220408141538466600000002"
+    bucket               = "automdm-terraform-state20220408141538466600000002"
     key                  = "infrastructure/guardduty-alerts/terraform.tfstate" # This should be set to account_alias/unique_key/terraform.tfstate
     workspace_key_prefix = "infrastructure"                                    # This should be set to the account alias
     region               = "us-east-2"

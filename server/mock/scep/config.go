@@ -6,20 +6,20 @@ import (
 	"context"
 	"sync"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
-var _ fleet.SCEPConfigService = (*SCEPConfigService)(nil)
+var _ automdm.SCEPConfigService = (*SCEPConfigService)(nil)
 
-type ValidateNDESSCEPAdminURLFunc func(ctx context.Context, proxy fleet.NDESSCEPProxyCA) error
+type ValidateNDESSCEPAdminURLFunc func(ctx context.Context, proxy automdm.NDESSCEPProxyCA) error
 
-type GetNDESSCEPChallengeFunc func(ctx context.Context, proxy fleet.NDESSCEPProxyCA) (string, error)
+type GetNDESSCEPChallengeFunc func(ctx context.Context, proxy automdm.NDESSCEPProxyCA) (string, error)
 
 type ValidateSCEPURLFunc func(ctx context.Context, url string) error
 
-type ValidateSmallstepChallengeURLFunc func(ctx context.Context, ca fleet.SmallstepSCEPProxyCA) error
+type ValidateSmallstepChallengeURLFunc func(ctx context.Context, ca automdm.SmallstepSCEPProxyCA) error
 
-type GetSmallstepSCEPChallengeFunc func(ctx context.Context, ca fleet.SmallstepSCEPProxyCA) (string, error)
+type GetSmallstepSCEPChallengeFunc func(ctx context.Context, ca automdm.SmallstepSCEPProxyCA) (string, error)
 
 type SCEPConfigService struct {
 	ValidateNDESSCEPAdminURLFunc        ValidateNDESSCEPAdminURLFunc
@@ -40,14 +40,14 @@ type SCEPConfigService struct {
 	mu sync.Mutex
 }
 
-func (s *SCEPConfigService) ValidateNDESSCEPAdminURL(ctx context.Context, proxy fleet.NDESSCEPProxyCA) error {
+func (s *SCEPConfigService) ValidateNDESSCEPAdminURL(ctx context.Context, proxy automdm.NDESSCEPProxyCA) error {
 	s.mu.Lock()
 	s.ValidateNDESSCEPAdminURLFuncInvoked = true
 	s.mu.Unlock()
 	return s.ValidateNDESSCEPAdminURLFunc(ctx, proxy)
 }
 
-func (s *SCEPConfigService) GetNDESSCEPChallenge(ctx context.Context, proxy fleet.NDESSCEPProxyCA) (string, error) {
+func (s *SCEPConfigService) GetNDESSCEPChallenge(ctx context.Context, proxy automdm.NDESSCEPProxyCA) (string, error) {
 	s.mu.Lock()
 	s.GetNDESSCEPChallengeFuncInvoked = true
 	s.mu.Unlock()
@@ -61,14 +61,14 @@ func (s *SCEPConfigService) ValidateSCEPURL(ctx context.Context, url string) err
 	return s.ValidateSCEPURLFunc(ctx, url)
 }
 
-func (s *SCEPConfigService) ValidateSmallstepChallengeURL(ctx context.Context, ca fleet.SmallstepSCEPProxyCA) error {
+func (s *SCEPConfigService) ValidateSmallstepChallengeURL(ctx context.Context, ca automdm.SmallstepSCEPProxyCA) error {
 	s.mu.Lock()
 	s.ValidateSmallstepChallengeURLFuncInvoked = true
 	s.mu.Unlock()
 	return s.ValidateSmallstepChallengeURLFunc(ctx, ca)
 }
 
-func (s *SCEPConfigService) GetSmallstepSCEPChallenge(ctx context.Context, ca fleet.SmallstepSCEPProxyCA) (string, error) {
+func (s *SCEPConfigService) GetSmallstepSCEPChallenge(ctx context.Context, ca automdm.SmallstepSCEPProxyCA) (string, error) {
 	s.mu.Lock()
 	s.GetSmallstepSCEPChallengeFuncInvoked = true
 	s.mu.Unlock()

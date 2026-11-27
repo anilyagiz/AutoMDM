@@ -6,10 +6,10 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
-	"github.com/fleetdm/fleet/v4/server/mdm/android/service/androidmgmt"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android/service/androidmgmt"
 	"google.golang.org/api/androidmanagement/v1"
 )
 
@@ -33,24 +33,24 @@ const (
 	androidCommandReconcileBatchSize = 500
 
 	// androidCommandReconcileCallsPerMinute is the AMAPI request rate the reconciler paces itself to, to
-	// stay well under the per-project request budget shared with the rest of Fleet's AMAPI traffic.
+	// stay well under the per-project request budget shared with the rest of AutoMDM's AMAPI traffic.
 	androidCommandReconcileCallsPerMinute = 50
 
 	// googleStatusCodeNotFound is google.rpc.Code NOT_FOUND, recorded on rows we fail because AMAPI no
 	// longer has the Operation.
 	googleStatusCodeNotFound = 5
 
-	androidCommandPreviousEnterpriseErrorMessage = "Fleet did not receive a result for this command and can no longer check it, because it was sent under an Android Enterprise that Fleet is no longer connected to."
+	androidCommandPreviousEnterpriseErrorMessage = "AutoMDM did not receive a result for this command and can no longer check it, because it was sent under an Android Enterprise that AutoMDM is no longer connected to."
 )
 
 // ReconcileAndroidCommands recovers Android MDM commands whose Pub/Sub COMMAND notification never
-// arrived (Fleet's push endpoint down longer than GCP's retention, a subscription misconfiguration, a
+// arrived (AutoMDM's push endpoint down longer than GCP's retention, a subscription misconfiguration, a
 // Google Cloud incident). Without this, such a command sits in mdm_android_commands.status='pending'
 // forever, the host reads as perpetually pending lock/wipe/clear-passcode, and the admin cannot
 // re-issue it. AMAPI's operations.get is the authoritative source for a command's outcome and, unlike
 // Apple's and Windows' equivalents, needs neither the device to come back online nor AMAPI to re-send
 // anything.
-func ReconcileAndroidCommands(ctx context.Context, ds fleet.Datastore, logger *slog.Logger, licenseKey string, newActivityFn fleet.NewActivityFunc) error {
+func ReconcileAndroidCommands(ctx context.Context, ds automdm.Datastore, logger *slog.Logger, licenseKey string, newActivityFn automdm.NewActivityFunc) error {
 	appConfig, err := ds.AppConfig(ctx)
 	if err != nil {
 		return ctxerr.Wrap(ctx, err, "get app config")
@@ -64,16 +64,16 @@ func ReconcileAndroidCommands(ctx context.Context, ds fleet.Datastore, logger *s
 	// Set the authentication secret for proxy client usage (a no-op for the Google client, which
 	// authenticates from its own env var and has no such asset). Without it every AMAPI call on the proxy
 	// path is rejected, so say so loudly rather than letting the run burn through the batch on 401s.
-	assets, err := ds.GetAllMDMConfigAssetsByName(ctx, []fleet.MDMAssetName{fleet.MDMAssetAndroidFleetServerSecret}, nil)
+	assets, err := ds.GetAllMDMConfigAssetsByName(ctx, []automdm.MDMAssetName{automdm.MDMAssetAndroidAutoMDMServerSecret}, nil)
 	switch {
 	case err != nil:
-		logger.WarnContext(ctx, "could not read the android fleet server secret; AMAPI calls will fail if this Fleet uses the proxy client", "err", err)
+		logger.WarnContext(ctx, "could not read the android automdm server secret; AMAPI calls will fail if this AutoMDM uses the proxy client", "err", err)
 	default:
-		asset, ok := assets[fleet.MDMAssetAndroidFleetServerSecret]
+		asset, ok := assets[automdm.MDMAssetAndroidAutoMDMServerSecret]
 		if !ok || len(asset.Value) == 0 {
-			logger.WarnContext(ctx, "no android fleet server secret stored; AMAPI calls will fail if this Fleet uses the proxy client")
+			logger.WarnContext(ctx, "no android automdm server secret stored; AMAPI calls will fail if this AutoMDM uses the proxy client")
 		} else if err := client.SetAuthenticationSecret(string(asset.Value)); err != nil {
-			return ctxerr.Wrap(ctx, err, "set android fleet server secret")
+			return ctxerr.Wrap(ctx, err, "set android automdm server secret")
 		}
 	}
 
@@ -93,8 +93,8 @@ func reconcileDeviceGetter(client androidmgmt.Client) amapiDeviceGetter {
 
 // reconcileAndroidCommands is the testable core of ReconcileAndroidCommands. now anchors both the
 // pending-age cutoff and the NotFound grace period; callInterval is the delay between AMAPI calls.
-func reconcileAndroidCommands(ctx context.Context, ds fleet.Datastore, client androidmgmt.Client, logger *slog.Logger,
-	newActivityFn fleet.NewActivityFunc, now time.Time, callInterval time.Duration,
+func reconcileAndroidCommands(ctx context.Context, ds automdm.Datastore, client androidmgmt.Client, logger *slog.Logger,
+	newActivityFn automdm.NewActivityFunc, now time.Time, callInterval time.Duration,
 ) error {
 	enterprise, err := ds.GetEnterprise(ctx)
 	if err != nil {
@@ -102,8 +102,8 @@ func reconcileAndroidCommands(ctx context.Context, ds fleet.Datastore, client an
 	}
 	operationNamePrefix := enterprise.Name() + "/"
 
-	// A command issued under an enterprise Fleet has since been disconnected from can never be read
-	// back: AMAPI rejects it with a 403 that is indistinguishable from Fleet losing access to its
+	// A command issued under an enterprise AutoMDM has since been disconnected from can never be read
+	// back: AMAPI rejects it with a 403 that is indistinguishable from AutoMDM losing access to its
 	// current enterprise. Keep those rows out of the polled batch so they can't stop the run or crowd
 	// out current commands, and once no notification can arrive anymore, fail them to unstick the host.
 	failed, err := ds.FailPendingMDMAndroidCommandsOutsidePrefix(ctx, operationNamePrefix,
@@ -164,7 +164,7 @@ func reconcileAndroidCommands(ctx context.Context, ds fleet.Datastore, client an
 			return ctxerr.Wrap(ctx, err, "android command reconcile exceeded AMAPI quota")
 
 		case androidmgmt.IsAuthenticationError(err):
-			// Bad or missing credentials, or Fleet lost access to the enterprise. Every remaining call
+			// Bad or missing credentials, or AutoMDM lost access to the enterprise. Every remaining call
 			// would be rejected the same way, so stop instead of working through the batch on errors that
 			// say nothing about the individual commands.
 			logger.ErrorContext(ctx, "android command reconcile rejected by AMAPI, stopping run",
@@ -180,7 +180,7 @@ func reconcileAndroidCommands(ctx context.Context, ds fleet.Datastore, client an
 				continue
 			}
 			errCode := googleStatusCode(googleStatusCodeNotFound)
-			errMsg := "Fleet did not receive a result for this command and Google no longer has a record of it."
+			errMsg := "AutoMDM did not receive a result for this command and Google no longer has a record of it."
 			// nil dedup recorder: this path is driven by the cron, not a Pub/Sub notification, so there is
 			// no messageId or publish time to record.
 			if err := setAndroidCommandTerminalState(ctx, ds, newActivityFn, cmd,

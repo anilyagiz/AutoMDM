@@ -76,7 +76,7 @@
     </div>
     <div class="panel" id="fix-panel">
       <h3>Fix sleep settings</h3>
-      <p class="panel-note" style="margin-top:0">Pick timeouts in minutes, then copy a configuration profile or script and add it in Fleet. Test it on one computer before you roll it out.</p>
+      <p class="panel-note" style="margin-top:0">Pick timeouts in minutes, then copy a configuration profile or script and add it in AutoMDM. Test it on one computer before you roll it out.</p>
       <div class="fix-inputs" id="fix-inputs"></div>
       <div class="fix-btns" id="fix-btns"></div>
       <div id="fix-notes"></div>
@@ -107,7 +107,7 @@
     <summary>How this is measured</summary>
     <div class="cols">
       <div>
-        <p><span class="term">Energy (macOS):</span> Apple silicon Macs, laptops and desktops alike, keep a running total of the energy the whole system has used since boot. The <code>DEX - Sustainability - Mac energy</code> report reads it every hour, and each refresh turns the difference since the last reading into kWh, spread over the days it covers. The Mac's own uptime times each reading, so a result Fleet receives late still counts once. A reboot starts the total over. Energy totals start after the second reading. Until then, the page shows each Mac's average power since boot.</p>
+        <p><span class="term">Energy (macOS):</span> Apple silicon Macs, laptops and desktops alike, keep a running total of the energy the whole system has used since boot. The <code>DEX - Sustainability - Mac energy</code> report reads it every hour, and each refresh turns the difference since the last reading into kWh, spread over the days it covers. The Mac's own uptime times each reading, so a result AutoMDM receives late still counts once. A reboot starts the total over. Energy totals start after the second reading. Until then, the page shows each Mac's average power since boot.</p>
         <p><span class="term">Power now (macOS):</span> the <code>PSTR</code> sensor, the same total system power reading Activity Monitor and SAP's Power Monitor app use.</p>
       </div>
       <div>
@@ -115,9 +115,9 @@
         <p><span class="term">Linux:</span> the CPU energy counter (RAPL) wraps around every hour or so, faster than this page refreshes, so it can't give kWh. On AMD APUs, the <code>amdgpu</code> sensor reports package power, and the page averages those readings. NVIDIA GPUs need <code>nvidia-smi</code> from a script.</p>
       </div>
       <div>
-        <p><span class="term">Carbon:</span> kWh times the carbon intensity of electricity in the computer's country, from Fleet's GeoIP lookup. <span id="grid-source"></span> It's an estimate: it uses national averages, not the time of day or the local grid.</p>
+        <p><span class="term">Carbon:</span> kWh times the carbon intensity of electricity in the computer's country, from AutoMDM's GeoIP lookup. <span id="grid-source"></span> It's an estimate: it uses national averages, not the time of day or the local grid.</p>
         <p><span class="term">Hasn't slept:</span> on macOS, up <span class="never-days"></span> or more days with no sleep since boot. On Windows, no sleep event in 30 days. Virtual machines are left out of every count.</p>
-        <p><span class="term">Battery:</span> service when it's under 80% of its design capacity or past 1,000 cycles, worn from 80% to 89%. Capacity comes from the Device health report on Macs. Windows reports Fleet's battery health and cycle count.</p>
+        <p><span class="term">Battery:</span> service when it's under 80% of its design capacity or past 1,000 cycles, worn from 80% to 89%. Capacity comes from the Device health report on Macs. Windows reports AutoMDM's battery health and cycle count.</p>
       </div>
     </div>
   </details>
@@ -138,7 +138,7 @@ const G = [
 let shown = new Set(G.map((g) => g.key));
 
 DATA.rows.forEach((r) => (r._id = r.id));
-const fleets = [...new Set(DATA.rows.map((r) => r.f))].sort();
+const teams = [...new Set(DATA.rows.map((r) => r.f))].sort();
 const platformCounts = {};
 for (const r of DATA.rows) platformCounts[r.p] = (platformCounts[r.p] || 0) + 1;
 const groupOf = (r) => G.find((g) => g.test(r));
@@ -159,7 +159,7 @@ const kindLabel = { laptop: "laptop", desktop: "desktop", server: "server" };
 const STATUS = [["normal", "Normal", "neutral"], ["worn", "Worn (80 to 89%)", "warn"], ["service", "Service", "bad"]];
 
 function render() {
-  const rows = DATA.rows.filter((r) => inFleet(r.f) && inPlatform(r.p));
+  const rows = DATA.rows.filter((r) => inTeam(r.f) && inPlatform(r.p));
   const macs = rows.filter((r) => r.p === "macos");
   const wins = rows.filter((r) => r.p === "windows");
   const lins = rows.filter((r) => r.p === "linux");
@@ -351,7 +351,7 @@ function render() {
     onclick: () => { shown.has(g.key) ? shown.delete(g.key) : shown.add(g.key); render(); } }, h("i"), g.label, h("b", {}, fmt.n(g.rows.length)))));
   const groups = grouped.filter((g) => shown.has(g.key) && g.rows.length).map((g) => ({ label: g.label, hint: g.hint, pill: pill(fmt.n(g.rows.length), g.tone), rows: g.rows }));
   const visible = groups.flatMap((g) => g.rows);
-  mount("act-tools", visible.length ? copyButton("Copy as CSV", () => csv([["host", "fleet", "platform", "model", "group", "kwh_7_days", "avg_watts", "sleep_after_min", "display_after_min", "battery", "uptime_days", "fleet_url"],
+  mount("act-tools", visible.length ? copyButton("Copy as CSV", () => csv([["host", "team", "platform", "model", "group", "kwh_7_days", "avg_watts", "sleep_after_min", "display_after_min", "battery", "uptime_days", "automdm_url"],
     ...visible.map((r) => [r.n, r.f, platformLabel(r.p), r.model, groupOf(r).label, r.kwh7 ?? "", r.avg_boot_w ?? r.spot_w ?? "", r.sleep_ac ?? "", r.display_ac ?? "", r.battery ? r.battery.status : "", r.up ?? "", hostUrl(r.id)])])) : null);
   const columns = [
     { key: "name", label: "Computer", value: (r) => r.n.toLowerCase(), cell: (r) => [hostLink(r.id, r.n), PLATFORM ? null : h("span", { class: "plat" }, platformLabel(r.p))] },
@@ -369,9 +369,9 @@ function render() {
   document.querySelectorAll(".spot-days").forEach((el) => (el.textContent = DATA.spot_days));
   document.querySelectorAll(".never-days").forEach((el) => (el.textContent = DATA.never_slept_days));
   const g = DATA.grid;
-  document.getElementById("grid-source").textContent = `Source: ${g.source}.` + (g.fallback == null ? " No country is known for any computer, so carbon isn't estimated. Turn on GeoIP in Fleet or set DEX_GRID_INTENSITY."
-    : ` Computers with no country use ${fmt.n(Math.round(g.fallback))} g per kWh${g.fallback_from === "DEX_GRID_INTENSITY" ? " from DEX_GRID_INTENSITY" : `, the figure for ${g.fallback_from}, the most common country in the fleet`}.`);
-  document.getElementById("foot").textContent = `Data from ${DATA.fleet_url.replace(/^https?:\/\//, "")} via the Fleet API (List hosts, Get host, Get report data). ${DATA.virtual ? `${fmt.plural(DATA.virtual, "virtual machine")} left out. ` : ""}Rebuilt daily.`;
+  document.getElementById("grid-source").textContent = `Source: ${g.source}.` + (g.fallback == null ? " No country is known for any computer, so carbon isn't estimated. Turn on GeoIP in AutoMDM or set DEX_GRID_INTENSITY."
+    : ` Computers with no country use ${fmt.n(Math.round(g.fallback))} g per kWh${g.fallback_from === "DEX_GRID_INTENSITY" ? " from DEX_GRID_INTENSITY" : `, the figure for ${g.fallback_from}, the most common country in the team`}.`);
+  document.getElementById("foot").textContent = `Data from ${DATA.automdm_url.replace(/^https?:\/\//, "")} via the AutoMDM API (List hosts, Get host, Get report data). ${DATA.virtual ? `${fmt.plural(DATA.virtual, "virtual machine")} left out. ` : ""}Rebuilt daily.`;
 }
 
 function renderBattery(rows) {
@@ -391,7 +391,7 @@ function renderBattery(rows) {
     if (lin.length && !lin.some((r) => r.kind === "laptop")) parts.push(h("p", { class: "panel-note" }, "Linux: --- (no Linux laptops here)."));
   }
   const winNote = withBatt.some((r) => r.p === "windows")
-    ? h("p", { class: "panel-note" }, "Windows can't report capacity to Fleet, so a Windows battery shows as normal until it passes 1,000 cycles or Fleet flags it for service.") : null;
+    ? h("p", { class: "panel-note" }, "Windows can't report capacity to AutoMDM, so a Windows battery shows as normal until it passes 1,000 cycles or AutoMDM flags it for service.") : null;
   mount("battery", parts.length ? [...parts.flat(), winNote] : empty("No laptops", "No computer in this view has a battery."));
   const svc = withBatt.filter((r) => r.battery.status === "service").sort((a, b) => (a.battery.pct ?? 999) - (b.battery.pct ?? 999));
   mount("battery-list", svc.length ? sortTable({
@@ -475,12 +475,12 @@ if [ ! -f "$profile" ]; then
 elif ! grep -q '^system-db:local$' "$profile"; then
   echo 'system-db:local' >> "$profile"
 fi
-cat > /etc/dconf/db/local.d/00-fleet-power <<'CONF'
+cat > /etc/dconf/db/local.d/00-automdm-power <<'CONF'
 [org/gnome/settings-daemon/plugins/power]
 sleep-inactive-ac-type='suspend'
 sleep-inactive-ac-timeout=${FIX.acSleep * 60}
 CONF
-cat > /etc/dconf/db/local.d/locks/fleet-power <<'CONF'
+cat > /etc/dconf/db/local.d/locks/automdm-power <<'CONF'
 /org/gnome/settings-daemon/plugins/power/sleep-inactive-ac-type
 /org/gnome/settings-daemon/plugins/power/sleep-inactive-ac-timeout
 CONF
@@ -499,9 +499,9 @@ function renderFix() {
   mount("fix-notes",
     pm("macos") ? h("p", { class: "script-note" }, "macOS: Apple's Energy Saver payload (com.apple.MCX). Recent macOS versions may ignore some of its keys, so confirm on one Mac with pmset -g custom.") : null,
     pm("windows") ? h("p", { class: "script-note" }, "Windows: the Power policy CSP, which takes seconds. It sets the same Group Policy values this page reads.") : null,
-    pm("linux") ? h("p", { class: "script-note" }, "Linux: a script for Ubuntu and other GNOME desktops. Run it as root from Fleet's script library. The battery timeouts don't apply.") : null);
+    pm("linux") ? h("p", { class: "script-note" }, "Linux: a script for Ubuntu and other GNOME desktops. Run it as root from AutoMDM's script library. The battery timeouts don't apply.") : null);
 }
 
-renderTop(fleets, render, platformCounts);
+renderTop(teams, render, platformCounts);
 render();
 </script>

@@ -12,7 +12,7 @@ Approved
 
 ### The problem
 
-Today, every Fleet agent polls the server on fixed timers. The biggest offender is `distributed/read` (query check-in): every host asks "anything for me?" every 10 seconds, and 99.7% of the time the answer is "no."
+Today, every AutoMDM agent polls the server on fixed timers. The biggest offender is `distributed/read` (query check-in): every host asks "anything for me?" every 10 seconds, and 99.7% of the time the answer is "no."
 
 At 50k hosts this produces ~1.2 billion requests/day. 96.7% carry no useful payload.
 
@@ -124,22 +124,22 @@ Because live queries, policies, labels, and host vitals (e.g. software) ingestio
 Enabled with the server setting `websocket.orbit_config_enabled` (requires `websocket.transport_enabled`). The orbit config's `websocket_transport` directive then carries `orbit_config_poll_interval` (`websocket.orbit_config_poll_interval`, default 5 minutes): a connected agent whose last config asked for nothing (no flag set, no pending script or install) polls at that interval instead of every 30 seconds. With anything pending it keeps polling every 30 seconds, since many orbit features use the poll as their clock while they have work. Hosts in their first hour after enrolling osquery don't get the interval: much of the onboarding state the orbit config depends on is ingested from osquery, which doesn't nudge.
 
 - **Per-host changes** (a script, software install or uninstall activated; Windows MDM commands queued; macOS setup experience; Linux escrow, BitLocker PIN, key rotation; Windows managed account rotation; osquery enrollment) nudge the host after the writing transaction commits, from the MySQL datastore.
-- **Fleet-wide and global changes** (app config, fleet config, fleet deletion, hosts changing fleet) are nudged by a datastore decorator, only when an orbit config input actually changed. Scoped nudges are published once (`scope` = `global` or `team:<id>`), delayed by the per-instance config cache TTL (1 minute), and each instance spreads the resulting fetches over `websocket.orbit_config_spread` (default 30 seconds).
+- **Fleet-wide and global changes** (app config, automdm config, team deletion, hosts changing team) are nudged by a datastore decorator, only when an orbit config input actually changed. Scoped nudges are published once (`scope` = `global` or `team:<id>`), delayed by the per-instance config cache TTL (1 minute), and each instance spreads the resulting fetches over `websocket.orbit_config_spread` (default 30 seconds).
 - Notifications published while an instance's Redis subscription is down are lost; affected agents get the change on their fallback poll. Instances don't nudge all their agents when the subscription recovers: every agent would fetch at once right as Redis recovers.
-- The agent also fetches its orbit config right after each (re)connect, and reports the fields a fallback poll found changed in the `X-Fleet-Orbit-Config-Fallback-Changes` header (counted by the `fleet.agentws.orbit_config.fallback_changes` metric). Raise the fallback interval only once that metric is near zero.
+- The agent also fetches its orbit config right after each (re)connect, and reports the fields a fallback poll found changed in the `X-AutoMDM-Orbit-Config-Fallback-Changes` header (counted by the `automdm.agentws.orbit_config.fallback_changes` metric). Raise the fallback interval only once that metric is near zero.
 
 ### Osquery config nudges (Phase 3)
 
-Enabled with the server setting `websocket.osquery_config_enabled` (requires `websocket.transport_enabled`). The orbit config's `websocket_transport` directive then carries `osquery_config_poll_interval` (`websocket.osquery_config_poll_interval`, default 10 minutes), and orbit registers as osquery's config plugin (`--config_plugin=fleet_orbit_config`; toggling it restarts orbit, like the transport itself).
+Enabled with the server setting `websocket.osquery_config_enabled` (requires `websocket.transport_enabled`). The orbit config's `websocket_transport` directive then carries `osquery_config_poll_interval` (`websocket.osquery_config_poll_interval`, default 10 minutes), and orbit registers as osquery's config plugin (`--config_plugin=automdm_orbit_config`; toggling it restarts orbit, like the transport itself).
 
 - osquery asks orbit for its config every 10 seconds (`--config_refresh=10`, passed after the flagfile; `config_refresh` is a command-line-only osquery flag, so agent options can't change it): a localhost call answered from memory, which bounds how long a fetched config waits to be applied. osquery skips reloading an unchanged config.
 - Orbit fetches the config from `/api/osquery/config` (authenticating with its orbit node key) when nudged, on the fallback interval while connected (never shorter than the disconnected cadence, so connecting never adds load), and at the flagfile's `--config_refresh` (60 seconds by default) while disconnected — the cadence osquery itself used before. After a disconnect, the first fetch is spread over 30 seconds. Each fallback poll interval is randomized by ±50% (same mean, unless the disconnected cadence raises the lower bound), so agents lined up by a server restart or a global nudge spread out by their next poll.
 - Hosts in their first hour after enrolling osquery (or not enrolled yet) keep osquery's TLS config plugin: it retries osquery enrollment on every refresh, while with orbit's plugin osquery enrolls only from its TLS logger plugin at startup, which gives up after about 8 minutes. Orbit restarts once when the host leaves that window. A host whose osquery loses its node key afterwards (e.g. after a re-enrollment) re-enters the window.
-- A host whose osquery flagfile sets `--config_plugin` to something other than `tls` (e.g. through the agent options' `command_line_flags`) keeps that plugin: its config is managed outside Fleet, so orbit neither serves nor fetches it.
+- A host whose osquery flagfile sets `--config_plugin` to something other than `tls` (e.g. through the agent options' `command_line_flags`) keeps that plugin: its config is managed outside AutoMDM, so orbit neither serves nor fetches it.
 - Orbit always sends the `etag` field (see [ADR-0012](0012-osquery-config-conditional-requests.md)); osquery's own ETag flag doesn't apply, since osquery's TLS config plugin is no longer used. The two are complementary: with ETags enabled on the server, nudges reaching hosts whose config didn't change (e.g. another platform's agent options) are answered with `{"etag":"ok"}`.
-- Changes are detected by a datastore decorator covering the writes that invalidate config ETags: agent options (global, fleet), scheduled reports, 2017 packs, label deletion, plus hosts changing fleet. Reports and agent options are compared before and after the write, so GitOps runs that change nothing nudge nobody. Label membership changes are not nudged: they only affect hosts with label-scoped reports, run continuously at scale, and are picked up by the fallback poll.
-- Scoped nudges are delayed by the Redis config ETag write fence (3 minutes), which outlasts the in-memory caches the config is built from (the cached app config, fleet agent options and packs, plus the pack config cache built from them); nudged earlier, every host would do a full config build that can't be stored as an ETag. They are spread over `websocket.orbit_config_spread`. Hosts moved between fleets are nudged after a minute, the TTL of their cached packs.
-- A fallback poll that finds the config changed is reported in the `X-Fleet-Osquery-Config-Fallback-Change` header of the next fetch (counted by the `fleet.agentws.osquery_config.fallback_changes` metric).
+- Changes are detected by a datastore decorator covering the writes that invalidate config ETags: agent options (global, team), scheduled reports, 2017 packs, label deletion, plus hosts changing team. Reports and agent options are compared before and after the write, so GitOps runs that change nothing nudge nobody. Label membership changes are not nudged: they only affect hosts with label-scoped reports, run continuously at scale, and are picked up by the fallback poll.
+- Scoped nudges are delayed by the Redis config ETag write fence (3 minutes), which outlasts the in-memory caches the config is built from (the cached app config, automdm agent options and packs, plus the pack config cache built from them); nudged earlier, every host would do a full config build that can't be stored as an ETag. They are spread over `websocket.orbit_config_spread`. Hosts moved between teams are nudged after a minute, the TTL of their cached packs.
+- A fallback poll that finds the config changed is reported in the `X-AutoMDM-Osquery-Config-Fallback-Change` header of the next fetch (counted by the `automdm.agentws.osquery_config.fallback_changes` metric).
 
 ### Keepalive and agent liveness
 
@@ -149,11 +149,11 @@ The server sends a WebSocket ping every **5 minutes**. This serves two purposes:
 
 ### Feature flag and activation
 
-The WebSocket transport is controlled by a server-side command-line flag (e.g. `--enable_websocket_transport`). It is not exposed in the UI, not documented, and not available through any API or GitOps configuration. The only way to enable it is to start the Fleet server with this flag. When disabled (the default), the directive is absent and all agents poll as usual.
+The WebSocket transport is controlled by a server-side command-line flag (e.g. `--enable_websocket_transport`). It is not exposed in the UI, not documented, and not available through any API or GitOps configuration. The only way to enable it is to start the AutoMDM server with this flag. When disabled (the default), the directive is absent and all agents poll as usual.
 
 If `--enable_websocket_transport=false` then the server will reject any websocket connections (this could be the signal for agents to know if the setting is enabled or not, and at the same time check if a websocket connection can be established, i.e. no network issues).
 
-**Fallback requirement (fleetd):** If the agent cannot establish the WebSocket connection (blocked by a middlebox, repeated upgrade failures, etc.), or an established connection drops and cannot be re-established, fleetd must fall back to the existing polling protocol. WebSocket transport is an optimization; polling remains the guaranteed baseline, so no functionality is ever lost.
+**Fallback requirement (automdmd):** If the agent cannot establish the WebSocket connection (blocked by a middlebox, repeated upgrade failures, etc.), or an established connection drops and cannot be re-established, automdmd must fall back to the existing polling protocol. WebSocket transport is an optimization; polling remains the guaranteed baseline, so no functionality is ever lost.
 
 The agent treats the WebSocket as **stable** (and stops polling) once a connection has stayed up for 1 full minute, and as **unavailable** (and resumes polling, while still retrying with backoff) after 1 minute without a successful connection — e.g. N consecutive failed attempts. Both thresholds are initial guesses to be validated during implementation.
 
@@ -167,7 +167,7 @@ Before downgrading, the agent should check that plain HTTP still works: if both 
 
 **Server-side protection.** Each instance rate-limits new WebSocket upgrades (e.g. 200/second) and enforces a max connection cap. Excess attempts receive `503 Retry-After`, and the agent retries with its backoff logic.
 
-**Nudge pacing (new capability).** With push, the Fleet server gains real thundering herd control that polling never allowed: it decides when agents check in. For example, after several minutes of downtime, instead of sending "check now" to all agents at once, the server can send the nudges progressively (in batches), spreading the resulting HTTP load however it chooses.
+**Nudge pacing (new capability).** With push, the AutoMDM server gains real thundering herd control that polling never allowed: it decides when agents check in. For example, after several minutes of downtime, instead of sending "check now" to all agents at once, the server can send the nudges progressively (in batches), spreading the resulting HTTP load however it chooses.
 
 ### Connection balancing across server instances
 
@@ -185,7 +185,7 @@ Three layers handle this:
 
 osquery core is unaware of this change. Orbit acts as a local proxy using osquery's existing extension plugin system.
 
-Today, osquery talks directly to the Fleet server over HTTP for `distributed/read` and `distributed/write`. With WebSocket transport enabled, orbit registers itself as osquery's `distributed` plugin via the osquery-go extension manager (the same mechanism orbit already uses for custom tables in `orbit/pkg/table/extension.go`). The server configures orbit to flip osquery's `--distributed_plugin` flag so osquery's 10-second poll becomes a localhost thrift call to orbit instead of an HTTP call to the Fleet server.
+Today, osquery talks directly to the AutoMDM server over HTTP for `distributed/read` and `distributed/write`. With WebSocket transport enabled, orbit registers itself as osquery's `distributed` plugin via the osquery-go extension manager (the same mechanism orbit already uses for custom tables in `orbit/pkg/table/extension.go`). The server configures orbit to flip osquery's `--distributed_plugin` flag so osquery's 10-second poll becomes a localhost thrift call to orbit instead of an HTTP call to the AutoMDM server.
 
 osquery does not know the difference. It keeps its 10-second loop, but the call never leaves the machine.
 
@@ -194,8 +194,8 @@ sequenceDiagram
     autonumber
     participant OSQ as osquery
     participant Orbit as orbit (distributed plugin)
-    participant S2 as Fleet server B (holds this agent's WebSocket)
-    participant S1 as Fleet server A (creates campaign)
+    participant S2 as AutoMDM server B (holds this agent's WebSocket)
+    participant S1 as AutoMDM server A (creates campaign)
     participant Redis
 
     Note over OSQ,S1: SETUP
@@ -241,7 +241,7 @@ sequenceDiagram
 
 **Note on wake-up triggers (new mechanisms):** A "check now" nudge has two triggers:
 
-1. **Live query created.** Today, campaign targeting is written to Redis keys and each server instance discovers it independently when a host polls. There is no inter-instance notification. With WebSockets, the server instance holding an agent's connection may not be the one that created the campaign. To solve this, campaign creation adds a Redis `PUBLISH` on a wake-up channel. All server instances subscribe to this channel and nudge the relevant agents they hold. Redis pub/sub already exists in Fleet for streaming query results back; this extends the same pattern for the wake-up signal. The pub/sub nudge is a latency optimization, not the delivery guarantee: it is fire-and-forget, so a campaign created while a host was mid-reconnect, or whose message was lost (pub/sub, send-buffer overflow, failed write), is recovered by the interval check job, which also nudges held hosts targeted by an active campaign they have not answered yet.
+1. **Live query created.** Today, campaign targeting is written to Redis keys and each server instance discovers it independently when a host polls. There is no inter-instance notification. With WebSockets, the server instance holding an agent's connection may not be the one that created the campaign. To solve this, campaign creation adds a Redis `PUBLISH` on a wake-up channel. All server instances subscribe to this channel and nudge the relevant agents they hold. Redis pub/sub already exists in AutoMDM for streaming query results back; this extends the same pattern for the wake-up signal. The pub/sub nudge is a latency optimization, not the delivery guarantee: it is fire-and-forget, so a campaign created while a host was mid-reconnect, or whose message was lost (pub/sub, send-buffer overflow, failed write), is recovered by the interval check job, which also nudges held hosts targeted by an active campaign they have not answered yet.
 2. **Interval-based work due (per-instance check, new).** Policies, labels, and host vitals refresh on server-side intervals. Today the agent's blind 10-second poll is what picks up that work once an interval elapses; with nudge-driven `distributed/read`, a per-instance check job takes over that role — see [The interval check job](#the-interval-check-job) below.
 
 **Phase 1 scope: `distributed/read` and `distributed/write` only.** In this first phase, orbit registers only as osquery's `distributed` plugin. All other osquery traffic is unchanged: osquery keeps sending scheduled query result logs (`/api/osquery/log`) and fetching config (`/api/osquery/config`) directly from the server, exactly as it does today. Phase 3 adds orbit as osquery's `config` plugin (see [Osquery config nudges](#osquery-config-nudges-phase-3)).
@@ -269,7 +269,7 @@ Design notes:
 
 - **Batch scan, not per-connection checks.** The job checks all held connections in one pass with a single chunked MySQL query, rather than querying per connection (10k+ queries per tick) or keeping a per-host next-due schedule (state that goes stale when intervals change or timestamps advance via another instance). Steady state is self-staggering: hosts' timestamps are naturally spread out, so each tick finds only a small slice due (~170 hosts/minute at 10k connections and a 1-hour interval). The one case where everything looks due at once — after downtime — is handled by the progressive pacing step.
 - **The live query check is per-host, against Redis.** Unlike interval due-ness, campaign targeting lives in per-campaign Redis bitfields (and per-host sets for small-target campaigns), so each candidate host costs one pipelined Redis lookup per tick while any campaign is active. This is the same lookup every host's blind 10-second poll performs today, at a third of the frequency — strictly cheaper than the polling baseline it replaces — and it costs nothing when no campaign is active. If the per-tick fan-out ever matters at scale, the lookups can be batched across hosts (one pipeline per chunk instead of per host).
-- **Not a cluster-wide cron.** The job intentionally does not use Fleet's cron/schedule infrastructure (where a single instance takes a lock and runs the job): only the instance holding a WebSocket can deliver the nudge, so each instance checks exactly the agents it holds. The work is naturally sharded across instances and no Redis coordination is needed.
+- **Not a cluster-wide cron.** The job intentionally does not use AutoMDM's cron/schedule infrastructure (where a single instance takes a lock and runs the job): only the instance holding a WebSocket can deliver the nudge, so each instance checks exactly the agents it holds. The work is naturally sharded across instances and no Redis coordination is needed.
 - **Staleness comes from MySQL, not instance memory.** The agent's `distributed/read`/`distributed/write` HTTP calls go through the load balancer and may be served by any instance, so the connection-holding instance cannot know locally when the host last reported. The timestamps in the `hosts` table are the source of truth.
 - **Re-nudge every tick; the agent coalesces.** A due host stays due until its results are ingested and the timestamp advances, so the job nudges it on every tick until then — the MySQL timestamps are the single source of truth, with no server-side grace period suppressing nudges (an earlier design used one, but it delayed *new* work — e.g. a manual refetch requested right after a live query — by the full grace window). The agent bounds the cost instead: orbit runs at most one read → osquery pickup → write iteration at a time and coalesces any nudges (or poll ticks) arriving mid-iteration into a single queued follow-up read. Because ingestion happens synchronously within `distributed/write`, that follow-up read observes the freshly advanced timestamps and returns no work unless something new is genuinely due — expensive queries never run twice for one due-cycle. A pass that dies between query pickup and write (osquery crash; the osquery runner restarts it) is closed by osquery's next local distributed poll, which doubles as the recovery signal, and the per-tick re-nudge re-delivers the work itself.
 
@@ -277,11 +277,11 @@ Design notes:
 
 ### Transport encryption
 
-WebSocket connections use `wss://` (WebSocket Secure), which runs over TLS. The WebSocket upgrade starts as a standard HTTPS request and then upgrades the connection in place. It inherits the same TLS certificate, cipher suites, and certificate validation as all other Fleet HTTPS traffic. No additional encryption configuration is needed. Unencrypted `ws://` connections must be rejected by the server.
+WebSocket connections use `wss://` (WebSocket Secure), which runs over TLS. The WebSocket upgrade starts as a standard HTTPS request and then upgrades the connection in place. It inherits the same TLS certificate, cipher suites, and certificate validation as all other AutoMDM HTTPS traffic. No additional encryption configuration is needed. Unencrypted `ws://` connections must be rejected by the server.
 
 ### Authentication
 
-The WebSocket upgrade request is authenticated using the **orbit node key**, the same credential orbit already uses for all its HTTP calls to the Fleet server. The server validates the node key during the HTTP upgrade handshake, before the connection is promoted to a WebSocket. If the key is invalid or revoked, the upgrade is rejected with a `401` and no WebSocket is established.
+The WebSocket upgrade request is authenticated using the **orbit node key**, the same credential orbit already uses for all its HTTP calls to the AutoMDM server. The server validates the node key during the HTTP upgrade handshake, before the connection is promoted to a WebSocket. If the key is invalid or revoked, the upgrade is rejected with a `401` and no WebSocket is established.
 
 Once connected, no further authentication is needed per message because the WebSocket is a persistent, authenticated session. If the node key is revoked while a connection is open, the server should close that connection on the next keepalive cycle.
 
@@ -314,7 +314,7 @@ The new server-to-agent channel (the nudge) carries no sensitive information. Th
 
 ### Redis pub/sub
 
-Redis pub/sub is used only for live query wake-ups: the campaign is created on whatever instance served the API request, so it must notify the instances holding the targeted agents' connections. (Interval-based nudges never transit Redis; each instance checks and nudges its own connected agents directly.) Redis should be deployed on a private network with authentication enabled (Fleet's existing Redis configuration). The pub/sub message contains only the nudge type, target host identifiers, and the campaign ID — not query content or results.
+Redis pub/sub is used only for live query wake-ups: the campaign is created on whatever instance served the API request, so it must notify the instances holding the targeted agents' connections. (Interval-based nudges never transit Redis; each instance checks and nudges its own connected agents directly.) Redis should be deployed on a private network with authentication enabled (AutoMDM's existing Redis configuration). The pub/sub message contains only the nudge type, target host identifiers, and the campaign ID — not query content or results.
 
 ---
 
@@ -324,7 +324,7 @@ The feature flag gives us full control over when and where WebSocket transport i
 
 ### Load testing (osquery-perf)
 
-`osquery-perf` (`cmd/osquery-perf`), Fleet's host-simulation tool, only speaks the HTTP polling protocol today. Before any rollout stage, it must be extended to simulate the new transport:
+`osquery-perf` (`cmd/osquery-perf`), AutoMDM's host-simulation tool, only speaks the HTTP polling protocol today. Before any rollout stage, it must be extended to simulate the new transport:
 
 - Open and hold a WebSocket per simulated host, including the reconnection behavior (jitter, exponential backoff, fallback to polling).
 - Respond to server pings so keepalive and liveness handling can be exercised.
@@ -335,7 +335,7 @@ This is what lets us validate the numbers in this ADR at scale before Dogfood: c
 
 ### Proposed rollout order
 
-**Stage 1: Dogfood.** Enable the feature flag on Fleet's internal Dogfood server. Validate stability, connection behavior, keepalive, reconnection, and fallback. This is a low-risk environment where we can observe the feature under real (but internal) usage.
+**Stage 1: Dogfood.** Enable the feature flag on AutoMDM's internal Dogfood server. Validate stability, connection behavior, keepalive, reconnection, and fallback. This is a low-risk environment where we can observe the feature under real (but internal) usage.
 
 **Stage 2: Volunteer customer.** Identify a customer willing to opt in early. Coordinate with Customer Success on whether to offer an incentive (e.g. reduced hosting cost) in exchange for being an early adopter. Run with the feature enabled, monitor closely, and gather feedback.
 
@@ -404,21 +404,21 @@ Each agent holds an open HTTP request to the server. The server responds only wh
 The server pushes events to the agent over a long-lived HTTP response using the `text/event-stream` content type. The agent opens one GET request and the server streams events as they occur.
 
 - **Pros:** Simpler than WebSockets. Built on standard HTTP, works through most proxies. Native reconnection with `Last-Event-ID`. One connection can carry multiple event types.
-- **Cons:** Unidirectional (server to agent only). The agent cannot send data back over the same connection, so all agent-to-server communication still requires separate HTTP calls (which is also true of our WebSocket design). More critically, SSE requires HTTP/1.1 chunked transfer or HTTP/2. ALB-to-target communication in Fleet's topology is HTTP/1.1, which limits concurrent SSE streams per browser/client. Enterprise middleboxes (TLS-inspecting proxies) often buffer chunked responses, breaking the real-time delivery that SSE depends on.
-- **Why not chosen:** The middlebox buffering problem is the same class of issue that led Kolide to add an HTTP fallback for gRPC. WebSockets have a cleaner upgrade mechanism that middleboxes handle better in practice. Fleet already runs WebSockets in production (live query results in the UI), so operational experience exists.
+- **Cons:** Unidirectional (server to agent only). The agent cannot send data back over the same connection, so all agent-to-server communication still requires separate HTTP calls (which is also true of our WebSocket design). More critically, SSE requires HTTP/1.1 chunked transfer or HTTP/2. ALB-to-target communication in AutoMDM's topology is HTTP/1.1, which limits concurrent SSE streams per browser/client. Enterprise middleboxes (TLS-inspecting proxies) often buffer chunked responses, breaking the real-time delivery that SSE depends on.
+- **Why not chosen:** The middlebox buffering problem is the same class of issue that led Kolide to add an HTTP fallback for gRPC. WebSockets have a cleaner upgrade mechanism that middleboxes handle better in practice. AutoMDM already runs WebSockets in production (live query results in the UI), so operational experience exists.
 
 Some additional notes on WebSockets vs SSE:
 
-- Fleet already uses SSE in production for the Android enterprise signup flow, where @getvictor solved response buffering with anti-buffering headers. That flow runs from the admin's browser to the server through infrastructure the deployer controls, so it doesn't tell us whether SSE survives the TLS-inspecting middleboxes on end-user networks that agents sit behind — but it does mean SSE is not new surface for Fleet.
-- @lukeheath and @mikermcneil have prior experience deploying WebSockets at scale. We will ship WebSockets first, and treat SSE as the next-best option if WebSockets prove problematic on Fleet's production infrastructure. Because the channel is strictly server→agent notifications, switching to SSE later would not change the design — only the transport. The main capability lost would be pong-based liveness (the server could no longer confirm within seconds that a held connection is alive).
+- AutoMDM already uses SSE in production for the Android enterprise signup flow, where @getvictor solved response buffering with anti-buffering headers. That flow runs from the admin's browser to the server through infrastructure the deployer controls, so it doesn't tell us whether SSE survives the TLS-inspecting middleboxes on end-user networks that agents sit behind — but it does mean SSE is not new surface for AutoMDM.
+- @lukeheath and @mikermcneil have prior experience deploying WebSockets at scale. We will ship WebSockets first, and treat SSE as the next-best option if WebSockets prove problematic on AutoMDM's production infrastructure. Because the channel is strictly server→agent notifications, switching to SSE later would not change the design — only the transport. The main capability lost would be pong-based liveness (the server could no longer confirm within seconds that a held connection is alive).
 
 ### gRPC streaming
 
 Replace the HTTP API with gRPC bidirectional streaming. The agent holds a persistent gRPC stream to the server.
 
 - **Pros:** Strong typing via protobuf. Bidirectional streaming. Efficient binary protocol.
-- **Cons:** Requires HTTP/2 end-to-end. Fleet's ALB terminates TLS and forwards HTTP/1.1 to backend tasks, making gRPC unreachable without infrastructure changes (h2c or network load balancer). Enterprise middleboxes break HTTP/2 far more often than plain HTTPS. Kolide launcher shipped gRPC first and had to add a plain-HTTPS fallback for exactly this reason.
-- **Why not chosen:** Blocked by Fleet's deployed ALB topology and unreliable through enterprise network gear.
+- **Cons:** Requires HTTP/2 end-to-end. AutoMDM's ALB terminates TLS and forwards HTTP/1.1 to backend tasks, making gRPC unreachable without infrastructure changes (h2c or network load balancer). Enterprise middleboxes break HTTP/2 far more often than plain HTTPS. Kolide launcher shipped gRPC first and had to add a plain-HTTPS fallback for exactly this reason.
+- **Why not chosen:** Blocked by AutoMDM's deployed ALB topology and unreliable through enterprise network gear.
 
 ### ETag / conditional requests (ADR-0012)
 

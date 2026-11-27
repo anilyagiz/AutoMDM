@@ -18,8 +18,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
@@ -35,11 +35,11 @@ func (s *integrationTestSuite) TestHostCertificates() {
 
 	// no certificate at the moment
 	var certResp listHostCertificatesResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/certificates", host.ID), nil, http.StatusOK, &certResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/certificates", host.ID), nil, http.StatusOK, &certResp)
 	require.Empty(t, certResp.Certificates)
 
 	certResp = listHostCertificatesResponse{}
-	res := s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token+"/certificates", nil, http.StatusOK)
+	res := s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token+"/certificates", nil, http.StatusOK)
 	err := json.NewDecoder(res.Body).Decode(&certResp)
 	require.NoError(t, err)
 	require.Empty(t, certResp.Certificates)
@@ -53,10 +53,10 @@ func (s *integrationTestSuite) TestHostCertificates() {
 		now.Add(time.Second), now.Add(time.Millisecond),
 		now.Add(2 * time.Second),
 	}
-	certs := make([]*fleet.HostCertificateRecord, 0, len(certNames))
+	certs := make([]*automdm.HostCertificateRecord, 0, len(certNames))
 	for i, name := range certNames {
 		sha1Sum := sha1.Sum([]byte(name)) // nolint:gosec
-		certs = append(certs, &fleet.HostCertificateRecord{
+		certs = append(certs, &automdm.HostCertificateRecord{
 			HostID:         host.ID,
 			CommonName:     name,
 			SHA1Sum:        sha1Sum[:],
@@ -64,14 +64,14 @@ func (s *integrationTestSuite) TestHostCertificates() {
 			IssuerCountry:  "i" + name,
 			NotValidBefore: now.Add(-24 * time.Hour), // 1 day ago
 			NotValidAfter:  notValidAfterTimes[i],
-			Source:         fleet.SystemHostCertificate,
+			Source:         automdm.SystemHostCertificate,
 		})
 	}
-	require.NoError(t, s.ds.UpdateHostCertificates(ctx, host.ID, host.UUID, certs, fleet.HostCertificateOriginOsquery, nil))
+	require.NoError(t, s.ds.UpdateHostCertificates(ctx, host.ID, host.UUID, certs, automdm.HostCertificateOriginOsquery, nil))
 
 	// list all certs
 	certResp = listHostCertificatesResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/certificates", host.ID), nil, http.StatusOK, &certResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/certificates", host.ID), nil, http.StatusOK, &certResp)
 	require.Len(t, certResp.Certificates, len(certNames))
 	for i, cert := range certResp.Certificates {
 		want := certNames[i]
@@ -80,11 +80,11 @@ func (s *integrationTestSuite) TestHostCertificates() {
 		require.Equal(t, "s"+want, cert.Subject.Country)
 		require.NotNil(t, cert.Issuer)
 		require.Equal(t, "i"+want, cert.Issuer.Country)
-		require.Equal(t, fleet.SystemHostCertificate, cert.Source)
+		require.Equal(t, automdm.SystemHostCertificate, cert.Source)
 	}
 
 	certResp = listHostCertificatesResponse{}
-	res = s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token+"/certificates", nil, http.StatusOK)
+	res = s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token+"/certificates", nil, http.StatusOK)
 	err = json.NewDecoder(res.Body).Decode(&certResp)
 	require.NoError(t, err)
 	require.Len(t, certResp.Certificates, len(certNames))
@@ -95,18 +95,18 @@ func (s *integrationTestSuite) TestHostCertificates() {
 		require.Equal(t, "s"+want, cert.Subject.Country)
 		require.NotNil(t, cert.Issuer)
 		require.Equal(t, "i"+want, cert.Issuer.Country)
-		require.Equal(t, fleet.SystemHostCertificate, cert.Source)
+		require.Equal(t, automdm.SystemHostCertificate, cert.Source)
 	}
 
 	// non-existing host
 	certResp = listHostCertificatesResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/certificates", host.ID+1000), nil, http.StatusNotFound, &certResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/certificates", host.ID+1000), nil, http.StatusNotFound, &certResp)
 	// for the device endpoint, the token is the authentication so if it doesn't
 	// exist, the endpoint is unauthorized.
 	certResp = listHostCertificatesResponse{}
-	s.DoRawNoAuth("GET", "/api/latest/fleet/device/NO-SUCH-TOKEN/certificates", nil, http.StatusUnauthorized)
+	s.DoRawNoAuth("GET", "/api/latest/automdm/device/NO-SUCH-TOKEN/certificates", nil, http.StatusUnauthorized)
 
-	pluckCertNames := func(certs []*fleet.HostCertificatePayload) []string {
+	pluckCertNames := func(certs []*automdm.HostCertificatePayload) []string {
 		names := make([]string, 0, len(certs))
 		for _, cert := range certs {
 			names = append(names, cert.CommonName)
@@ -116,37 +116,37 @@ func (s *integrationTestSuite) TestHostCertificates() {
 
 	// fails if order_key  is invalid
 	certResp = listHostCertificatesResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/certificates", host.ID), nil, http.StatusBadRequest, &certResp, "order_key", "no-such-column")
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/certificates", host.ID), nil, http.StatusBadRequest, &certResp, "order_key", "no-such-column")
 
 	certResp = listHostCertificatesResponse{}
-	res = s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token+"/certificates", nil, http.StatusBadRequest, "order_key", "no-such-column")
+	res = s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token+"/certificates", nil, http.StatusBadRequest, "order_key", "no-such-column")
 	require.Contains(t, extractServerErrorText(res.Body), "invalid order key")
 
 	// test the pagination options
 	cases := []struct {
 		queryParams []string
 		wantNames   []string
-		wantMeta    fleet.PaginationMetadata
+		wantMeta    automdm.PaginationMetadata
 	}{
-		{queryParams: []string{"page", "0", "per_page", "2"}, wantNames: []string{"a", "b"}, wantMeta: fleet.PaginationMetadata{HasNextResults: true}},
-		{queryParams: []string{"page", "1", "per_page", "2"}, wantNames: []string{"c", "d"}, wantMeta: fleet.PaginationMetadata{HasNextResults: true, HasPreviousResults: true}},
-		{queryParams: []string{"page", "2", "per_page", "2"}, wantNames: []string{"e"}, wantMeta: fleet.PaginationMetadata{HasNextResults: false, HasPreviousResults: true}},
-		{queryParams: []string{"page", "3", "per_page", "2"}, wantNames: []string{}, wantMeta: fleet.PaginationMetadata{HasNextResults: false, HasPreviousResults: true}},
-		{queryParams: []string{"page", "0", "per_page", "4", "order_direction", "desc"}, wantNames: []string{"e", "d", "c", "b"}, wantMeta: fleet.PaginationMetadata{HasNextResults: true}},
-		{queryParams: []string{"page", "1", "per_page", "4", "order_direction", "desc"}, wantNames: []string{"a"}, wantMeta: fleet.PaginationMetadata{HasNextResults: false, HasPreviousResults: true}},
-		{queryParams: []string{"page", "0", "per_page", "3", "order_key", "not_valid_after"}, wantNames: []string{"d", "c", "e"}, wantMeta: fleet.PaginationMetadata{HasNextResults: true}},
-		{queryParams: []string{"page", "1", "per_page", "3", "order_key", "not_valid_after"}, wantNames: []string{"a", "b"}, wantMeta: fleet.PaginationMetadata{HasNextResults: false, HasPreviousResults: true}},
+		{queryParams: []string{"page", "0", "per_page", "2"}, wantNames: []string{"a", "b"}, wantMeta: automdm.PaginationMetadata{HasNextResults: true}},
+		{queryParams: []string{"page", "1", "per_page", "2"}, wantNames: []string{"c", "d"}, wantMeta: automdm.PaginationMetadata{HasNextResults: true, HasPreviousResults: true}},
+		{queryParams: []string{"page", "2", "per_page", "2"}, wantNames: []string{"e"}, wantMeta: automdm.PaginationMetadata{HasNextResults: false, HasPreviousResults: true}},
+		{queryParams: []string{"page", "3", "per_page", "2"}, wantNames: []string{}, wantMeta: automdm.PaginationMetadata{HasNextResults: false, HasPreviousResults: true}},
+		{queryParams: []string{"page", "0", "per_page", "4", "order_direction", "desc"}, wantNames: []string{"e", "d", "c", "b"}, wantMeta: automdm.PaginationMetadata{HasNextResults: true}},
+		{queryParams: []string{"page", "1", "per_page", "4", "order_direction", "desc"}, wantNames: []string{"a"}, wantMeta: automdm.PaginationMetadata{HasNextResults: false, HasPreviousResults: true}},
+		{queryParams: []string{"page", "0", "per_page", "3", "order_key", "not_valid_after"}, wantNames: []string{"d", "c", "e"}, wantMeta: automdm.PaginationMetadata{HasNextResults: true}},
+		{queryParams: []string{"page", "1", "per_page", "3", "order_key", "not_valid_after"}, wantNames: []string{"a", "b"}, wantMeta: automdm.PaginationMetadata{HasNextResults: false, HasPreviousResults: true}},
 	}
 	for _, c := range cases {
 		t.Run(strings.Join(c.queryParams, "_"), func(t *testing.T) {
 			certResp = listHostCertificatesResponse{}
-			s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/certificates", host.ID), nil, http.StatusOK, &certResp, c.queryParams...)
+			s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/certificates", host.ID), nil, http.StatusOK, &certResp, c.queryParams...)
 			require.Len(t, certResp.Certificates, len(c.wantNames))
 			require.Equal(t, c.wantNames, pluckCertNames(certResp.Certificates))
 			require.Equal(t, c.wantMeta, *certResp.Meta)
 
 			certResp = listHostCertificatesResponse{}
-			res = s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token+"/certificates", nil, http.StatusOK, c.queryParams...)
+			res = s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token+"/certificates", nil, http.StatusOK, c.queryParams...)
 			err = json.NewDecoder(res.Body).Decode(&certResp)
 			require.NoError(t, err)
 			require.Len(t, certResp.Certificates, len(c.wantNames))
@@ -161,13 +161,13 @@ func (s *integrationTestSuite) TestUpdateHostCertificateTemplate() {
 	ctx := context.Background()
 
 	// Create a test team
-	team, err := s.ds.NewTeam(ctx, &fleet.Team{Name: "Test Team"})
+	team, err := s.ds.NewTeam(ctx, &automdm.Team{Name: "Test Team"})
 	require.NoError(t, err)
 	teamID := team.ID
 
 	// Create a test certificate authority
-	ca, err := s.ds.NewCertificateAuthority(ctx, &fleet.CertificateAuthority{
-		Type:      string(fleet.CATypeCustomSCEPProxy),
+	ca, err := s.ds.NewCertificateAuthority(ctx, &automdm.CertificateAuthority{
+		Type:      string(automdm.CATypeCustomSCEPProxy),
 		Name:      new("TestUpdateHostCertificateTemplate SCEP CA"),
 		URL:       new("http://localhost:8080/scep"),
 		Challenge: new("test-challenge"),
@@ -175,7 +175,7 @@ func (s *integrationTestSuite) TestUpdateHostCertificateTemplate() {
 	require.NoError(t, err)
 	caID := ca.ID
 
-	certTemplate := &fleet.CertificateTemplate{
+	certTemplate := &automdm.CertificateTemplate{
 		Name:                   "TestUpdateHostCertificateTemplate-Cert",
 		TeamID:                 teamID,
 		CertificateAuthorityID: caID,
@@ -190,7 +190,7 @@ func (s *integrationTestSuite) TestUpdateHostCertificateTemplate() {
 	hostName := "test-update-host-certificate-template"
 
 	// Create a host
-	host, err := s.ds.NewHost(context.Background(), &fleet.Host{
+	host, err := s.ds.NewHost(context.Background(), &automdm.Host{
 		NodeKey:  &orbitNodeKey,
 		UUID:     uuid,
 		Hostname: hostName,
@@ -217,7 +217,7 @@ INSERT INTO host_certificate_templates (
 	host_uuid,
 	certificate_template_id,
 	status,
-	fleet_challenge,
+	automdm_challenge,
 	operation_type,
 	name
 ) VALUES (?, ?, ?, ?, ?, ?);
@@ -245,14 +245,14 @@ INSERT INTO host_certificate_templates (
 
 	// Verify GetHost returns operation_type for certificate templates
 	var getHostResp getHostResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", host.ID), nil, http.StatusOK, &getHostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", host.ID), nil, http.StatusOK, &getHostResp)
 	require.NotNil(t, getHostResp.Host)
 	require.NotNil(t, getHostResp.Host.MDM.Profiles)
 	require.Len(t, *getHostResp.Host.MDM.Profiles, 1)
 	profile := (*getHostResp.Host.MDM.Profiles)[0]
 	require.Equal(t, savedTemplate.Name, profile.Name)
-	require.Equal(t, fleet.AndroidCertificateTemplateProfileID, profile.ProfileUUID)
-	require.Equal(t, fleet.MDMOperationTypeInstall, profile.OperationType, "operation_type should be populated for certificate templates")
+	require.Equal(t, automdm.AndroidCertificateTemplateProfileID, profile.ProfileUUID)
+	require.Equal(t, automdm.MDMOperationTypeInstall, profile.OperationType, "operation_type should be populated for certificate templates")
 
 	// Test cases
 	cases := []struct {
@@ -364,7 +364,7 @@ INSERT INTO host_certificate_templates (
 			})
 			require.NoError(t, err)
 
-			resp := s.DoRawWithHeaders("PUT", fmt.Sprintf("/api/fleetd/certificates/%d/status", tc.templateID), req, tc.expectedResponseStatus, tc.headers)
+			resp := s.DoRawWithHeaders("PUT", fmt.Sprintf("/api/automdmd/certificates/%d/status", tc.templateID), req, tc.expectedResponseStatus, tc.headers)
 			require.NoError(t, resp.Body.Close())
 		})
 	}
@@ -375,13 +375,13 @@ func (s *integrationTestSuite) TestDeleteCertificateTemplate() {
 	ctx := context.Background()
 
 	// Create a test team
-	team, err := s.ds.NewTeam(ctx, &fleet.Team{Name: "TestDeleteCertificateTemplate Team"})
+	team, err := s.ds.NewTeam(ctx, &automdm.Team{Name: "TestDeleteCertificateTemplate Team"})
 	require.NoError(t, err)
 	teamID := team.ID
 
 	// Create a test certificate authority
-	ca, err := s.ds.NewCertificateAuthority(ctx, &fleet.CertificateAuthority{
-		Type:      string(fleet.CATypeCustomSCEPProxy),
+	ca, err := s.ds.NewCertificateAuthority(ctx, &automdm.CertificateAuthority{
+		Type:      string(automdm.CATypeCustomSCEPProxy),
 		Name:      new("TestDeleteCertificateTemplate SCEP CA"),
 		URL:       new("http://localhost:8080/scep"),
 		Challenge: new("test-challenge"),
@@ -389,7 +389,7 @@ func (s *integrationTestSuite) TestDeleteCertificateTemplate() {
 	require.NoError(t, err)
 	caID := ca.ID
 
-	certTemplate := &fleet.CertificateTemplate{
+	certTemplate := &automdm.CertificateTemplate{
 		Name:                   "TestDeleteCertificateTemplate-Cert",
 		TeamID:                 teamID,
 		CertificateAuthorityID: caID,
@@ -402,7 +402,7 @@ func (s *integrationTestSuite) TestDeleteCertificateTemplate() {
 	certTemplateName := savedTemplate.Name
 
 	// Create hosts with different certificate template statuses
-	hostPending, err := s.ds.NewHost(ctx, &fleet.Host{
+	hostPending, err := s.ds.NewHost(ctx, &automdm.Host{
 		UUID:     uuid.New().String(),
 		Hostname: "test-delete-cert-template-host-pending",
 		Platform: "android",
@@ -410,7 +410,7 @@ func (s *integrationTestSuite) TestDeleteCertificateTemplate() {
 	})
 	require.NoError(t, err)
 
-	hostDelivered, err := s.ds.NewHost(ctx, &fleet.Host{
+	hostDelivered, err := s.ds.NewHost(ctx, &automdm.Host{
 		UUID:     uuid.New().String(),
 		Hostname: "test-delete-cert-template-host-delivered",
 		Platform: "android",
@@ -418,7 +418,7 @@ func (s *integrationTestSuite) TestDeleteCertificateTemplate() {
 	})
 	require.NoError(t, err)
 
-	hostVerified, err := s.ds.NewHost(ctx, &fleet.Host{
+	hostVerified, err := s.ds.NewHost(ctx, &automdm.Host{
 		UUID:     uuid.New().String(),
 		Hostname: "test-delete-cert-template-host-verified",
 		Platform: "android",
@@ -426,7 +426,7 @@ func (s *integrationTestSuite) TestDeleteCertificateTemplate() {
 	})
 	require.NoError(t, err)
 
-	hostFailed, err := s.ds.NewHost(ctx, &fleet.Host{
+	hostFailed, err := s.ds.NewHost(ctx, &automdm.Host{
 		UUID:     uuid.New().String(),
 		Hostname: "test-delete-cert-template-host-failed",
 		Platform: "android",
@@ -436,7 +436,7 @@ func (s *integrationTestSuite) TestDeleteCertificateTemplate() {
 
 	// Insert host_certificate_templates with various statuses
 	insertSQL := `
-		INSERT INTO host_certificate_templates (host_uuid, certificate_template_id, status, operation_type, fleet_challenge, name)
+		INSERT INTO host_certificate_templates (host_uuid, certificate_template_id, status, operation_type, automdm_challenge, name)
 		VALUES (?, ?, ?, ?, ?, ?)
 	`
 	mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
@@ -471,7 +471,7 @@ func (s *integrationTestSuite) TestDeleteCertificateTemplate() {
 	}()
 
 	// Helper to find the certificate template profile by name
-	findProfile := func(profiles *[]fleet.HostMDMProfile, name string) *fleet.HostMDMProfile {
+	findProfile := func(profiles *[]automdm.HostMDMProfile, name string) *automdm.HostMDMProfile {
 		if profiles == nil {
 			return nil
 		}
@@ -486,28 +486,28 @@ func (s *integrationTestSuite) TestDeleteCertificateTemplate() {
 	// Verify the records exist before deletion via GetHost API
 	var getHostResp getHostResponse
 	for _, tc := range []struct {
-		host           *fleet.Host
+		host           *automdm.Host
 		hostName       string
 		expectedStatus string
 	}{
-		{hostPending, "hostPending", string(fleet.CertificateTemplatePending)},
-		{hostDelivered, "hostDelivered", string(fleet.CertificateTemplateDelivered)},
-		{hostVerified, "hostVerified", string(fleet.CertificateTemplateVerified)},
-		{hostFailed, "hostFailed", string(fleet.CertificateTemplateFailed)},
+		{hostPending, "hostPending", string(automdm.CertificateTemplatePending)},
+		{hostDelivered, "hostDelivered", string(automdm.CertificateTemplateDelivered)},
+		{hostVerified, "hostVerified", string(automdm.CertificateTemplateVerified)},
+		{hostFailed, "hostFailed", string(automdm.CertificateTemplateFailed)},
 	} {
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", tc.host.ID), nil, http.StatusOK, &getHostResp)
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", tc.host.ID), nil, http.StatusOK, &getHostResp)
 		require.NotNil(t, getHostResp.Host.MDM.Profiles, "%s should have MDM profiles before deletion", tc.hostName)
 
 		profile := findProfile(getHostResp.Host.MDM.Profiles, certTemplateName)
 		require.NotNil(t, profile, "%s should have certificate template profile %s before deletion", tc.hostName, certTemplateName)
 		require.NotNil(t, profile.Status, "%s profile status should not be nil", tc.hostName)
 		require.Equal(t, tc.expectedStatus, *profile.Status, "%s profile status should be %s before deletion", tc.hostName, tc.expectedStatus)
-		require.Equal(t, fleet.MDMOperationTypeInstall, profile.OperationType, "%s profile operation_type should be install before deletion", tc.hostName)
+		require.Equal(t, automdm.MDMOperationTypeInstall, profile.OperationType, "%s profile operation_type should be install before deletion", tc.hostName)
 	}
 
 	// Delete the certificate template via API
 	var deleteResp deleteCertificateTemplateResponse
-	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/fleet/certificates/%d", certificateTemplateID), nil, http.StatusOK, &deleteResp)
+	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/automdm/certificates/%d", certificateTemplateID), nil, http.StatusOK, &deleteResp)
 
 	// After deletion:
 	// - hostPending (pending/install) should have NO profile (record was deleted - never installed)
@@ -516,29 +516,29 @@ func (s *integrationTestSuite) TestDeleteCertificateTemplate() {
 	//   (kept for cron job to process removal from devices)
 
 	// Verify hostPending has no profile after deletion (was pending/install, never installed)
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", hostPending.ID), nil, http.StatusOK, &getHostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", hostPending.ID), nil, http.StatusOK, &getHostResp)
 	profile := findProfile(getHostResp.Host.MDM.Profiles, certTemplateName)
 	require.Nil(t, profile, "hostPending should not have certificate template profile after deletion")
 
 	// Verify hostFailed has no profile after deletion (was failed/install, never successfully installed)
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", hostFailed.ID), nil, http.StatusOK, &getHostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", hostFailed.ID), nil, http.StatusOK, &getHostResp)
 	profile = findProfile(getHostResp.Host.MDM.Profiles, certTemplateName)
 	require.Nil(t, profile, "hostFailed should not have certificate template profile after deletion")
 
 	// Verify hosts that had delivered/verified status now have pending/remove profiles
 	for _, tc := range []struct {
-		host     *fleet.Host
+		host     *automdm.Host
 		hostName string
 	}{
 		{hostDelivered, "hostDelivered"},
 		{hostVerified, "hostVerified"},
 	} {
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", tc.host.ID), nil, http.StatusOK, &getHostResp)
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", tc.host.ID), nil, http.StatusOK, &getHostResp)
 		profile := findProfile(getHostResp.Host.MDM.Profiles, certTemplateName)
 		require.NotNil(t, profile, "%s should have pending remove profile after deletion", tc.hostName)
 		require.NotNil(t, profile.Status, "%s profile status should not be nil", tc.hostName)
-		require.Equal(t, string(fleet.CertificateTemplatePending), *profile.Status, "%s profile status should be pending after deletion", tc.hostName)
-		require.Equal(t, fleet.MDMOperationTypeRemove, profile.OperationType, "%s profile operation_type should be remove after deletion", tc.hostName)
+		require.Equal(t, string(automdm.CertificateTemplatePending), *profile.Status, "%s profile status should be pending after deletion", tc.hostName)
+		require.Equal(t, automdm.MDMOperationTypeRemove, profile.OperationType, "%s profile operation_type should be remove after deletion", tc.hostName)
 	}
 }
 
@@ -547,13 +547,13 @@ func (s *integrationTestSuite) TestDeleteCertificateTemplateSpec() {
 	ctx := context.Background()
 
 	// Create a test team
-	team, err := s.ds.NewTeam(ctx, &fleet.Team{Name: "TestDeleteCertificateTemplateSpec Team"})
+	team, err := s.ds.NewTeam(ctx, &automdm.Team{Name: "TestDeleteCertificateTemplateSpec Team"})
 	require.NoError(t, err)
 	teamID := team.ID
 
 	// Create a test certificate authority
-	ca, err := s.ds.NewCertificateAuthority(ctx, &fleet.CertificateAuthority{
-		Type:      string(fleet.CATypeCustomSCEPProxy),
+	ca, err := s.ds.NewCertificateAuthority(ctx, &automdm.CertificateAuthority{
+		Type:      string(automdm.CATypeCustomSCEPProxy),
 		Name:      new("TestDeleteCertificateTemplateSpec SCEP CA"),
 		URL:       new("http://localhost:8080/scep"),
 		Challenge: new("test-challenge"),
@@ -562,7 +562,7 @@ func (s *integrationTestSuite) TestDeleteCertificateTemplateSpec() {
 	caID := ca.ID
 
 	// Create two certificate templates
-	certTemplate1 := &fleet.CertificateTemplate{
+	certTemplate1 := &automdm.CertificateTemplate{
 		Name:                   "TestDeleteCertificateTemplateSpec-Cert1",
 		TeamID:                 teamID,
 		CertificateAuthorityID: caID,
@@ -574,7 +574,7 @@ func (s *integrationTestSuite) TestDeleteCertificateTemplateSpec() {
 	certTemplateID1 := savedTemplate1.ID
 	certTemplateName1 := savedTemplate1.Name
 
-	certTemplate2 := &fleet.CertificateTemplate{
+	certTemplate2 := &automdm.CertificateTemplate{
 		Name:                   "TestDeleteCertificateTemplateSpec-Cert2",
 		TeamID:                 teamID,
 		CertificateAuthorityID: caID,
@@ -587,7 +587,7 @@ func (s *integrationTestSuite) TestDeleteCertificateTemplateSpec() {
 	certTemplateName2 := savedTemplate2.Name
 
 	// Create hosts with different certificate template statuses
-	hostPending, err := s.ds.NewHost(ctx, &fleet.Host{
+	hostPending, err := s.ds.NewHost(ctx, &automdm.Host{
 		UUID:     uuid.New().String(),
 		Hostname: "test-delete-cert-spec-host-pending",
 		Platform: "android",
@@ -595,7 +595,7 @@ func (s *integrationTestSuite) TestDeleteCertificateTemplateSpec() {
 	})
 	require.NoError(t, err)
 
-	hostDelivered, err := s.ds.NewHost(ctx, &fleet.Host{
+	hostDelivered, err := s.ds.NewHost(ctx, &automdm.Host{
 		UUID:     uuid.New().String(),
 		Hostname: "test-delete-cert-spec-host-delivered",
 		Platform: "android",
@@ -603,7 +603,7 @@ func (s *integrationTestSuite) TestDeleteCertificateTemplateSpec() {
 	})
 	require.NoError(t, err)
 
-	hostVerified, err := s.ds.NewHost(ctx, &fleet.Host{
+	hostVerified, err := s.ds.NewHost(ctx, &automdm.Host{
 		UUID:     uuid.New().String(),
 		Hostname: "test-delete-cert-spec-host-verified",
 		Platform: "android",
@@ -611,7 +611,7 @@ func (s *integrationTestSuite) TestDeleteCertificateTemplateSpec() {
 	})
 	require.NoError(t, err)
 
-	hostFailed, err := s.ds.NewHost(ctx, &fleet.Host{
+	hostFailed, err := s.ds.NewHost(ctx, &automdm.Host{
 		UUID:     uuid.New().String(),
 		Hostname: "test-delete-cert-spec-host-failed",
 		Platform: "android",
@@ -621,7 +621,7 @@ func (s *integrationTestSuite) TestDeleteCertificateTemplateSpec() {
 
 	// Insert host_certificate_templates with various statuses for both templates
 	insertSQL := `
-		INSERT INTO host_certificate_templates (host_uuid, certificate_template_id, status, operation_type, fleet_challenge, name)
+		INSERT INTO host_certificate_templates (host_uuid, certificate_template_id, status, operation_type, automdm_challenge, name)
 		VALUES (?, ?, ?, ?, ?, ?)
 	`
 	mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
@@ -655,7 +655,7 @@ func (s *integrationTestSuite) TestDeleteCertificateTemplateSpec() {
 	}()
 
 	// Helper to find the certificate template profile by name
-	findProfile := func(profiles *[]fleet.HostMDMProfile, name string) *fleet.HostMDMProfile {
+	findProfile := func(profiles *[]automdm.HostMDMProfile, name string) *automdm.HostMDMProfile {
 		if profiles == nil {
 			return nil
 		}
@@ -670,41 +670,41 @@ func (s *integrationTestSuite) TestDeleteCertificateTemplateSpec() {
 	// Verify the records exist before deletion via GetHost API
 	var getHostResp getHostResponse
 	for _, tc := range []struct {
-		host           *fleet.Host
+		host           *automdm.Host
 		hostName       string
 		expectedStatus string
 		templateName   string
 	}{
-		{hostPending, "hostPending", string(fleet.CertificateTemplatePending), certTemplateName1},
-		{hostDelivered, "hostDelivered", string(fleet.CertificateTemplateDelivered), certTemplateName1},
-		{hostVerified, "hostVerified", string(fleet.CertificateTemplateVerified), certTemplateName2},
-		{hostFailed, "hostFailed", string(fleet.CertificateTemplateFailed), certTemplateName2},
+		{hostPending, "hostPending", string(automdm.CertificateTemplatePending), certTemplateName1},
+		{hostDelivered, "hostDelivered", string(automdm.CertificateTemplateDelivered), certTemplateName1},
+		{hostVerified, "hostVerified", string(automdm.CertificateTemplateVerified), certTemplateName2},
+		{hostFailed, "hostFailed", string(automdm.CertificateTemplateFailed), certTemplateName2},
 	} {
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", tc.host.ID), nil, http.StatusOK, &getHostResp)
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", tc.host.ID), nil, http.StatusOK, &getHostResp)
 		require.NotNil(t, getHostResp.Host.MDM.Profiles, "%s should have MDM profiles before deletion", tc.hostName)
 
 		profile := findProfile(getHostResp.Host.MDM.Profiles, tc.templateName)
 		require.NotNil(t, profile, "%s should have certificate template profile %s before deletion", tc.hostName, tc.templateName)
 		require.NotNil(t, profile.Status, "%s profile status should not be nil", tc.hostName)
 		require.Equal(t, tc.expectedStatus, *profile.Status, "%s profile status should be %s before deletion", tc.hostName, tc.expectedStatus)
-		require.Equal(t, fleet.MDMOperationTypeInstall, profile.OperationType, "%s profile operation_type should be install before deletion", tc.hostName)
+		require.Equal(t, automdm.MDMOperationTypeInstall, profile.OperationType, "%s profile operation_type should be install before deletion", tc.hostName)
 	}
 
 	// Delete both certificate templates via spec endpoint (batch delete)
 	var delBatchResp deleteCertificateTemplateSpecsResponse
-	s.DoJSON("DELETE", "/api/latest/fleet/spec/certificates", map[string]any{
-		"ids":      []uint{certTemplateID1, certTemplateID2},
-		"fleet_id": teamID,
+	s.DoJSON("DELETE", "/api/latest/automdm/spec/certificates", map[string]any{
+		"ids":     []uint{certTemplateID1, certTemplateID2},
+		"team_id": teamID,
 	}, http.StatusOK, &delBatchResp)
 
 	// Verify certificate templates were deleted
 	_, err = s.ds.GetCertificateTemplateById(ctx, certTemplateID1)
 	require.Error(t, err)
-	require.True(t, fleet.IsNotFound(err), "certificate template 1 should be deleted")
+	require.True(t, automdm.IsNotFound(err), "certificate template 1 should be deleted")
 
 	_, err = s.ds.GetCertificateTemplateById(ctx, certTemplateID2)
 	require.Error(t, err)
-	require.True(t, fleet.IsNotFound(err), "certificate template 2 should be deleted")
+	require.True(t, automdm.IsNotFound(err), "certificate template 2 should be deleted")
 
 	// After deletion:
 	// - hostPending (pending/install) should have NO profile (record was deleted - never installed)
@@ -713,29 +713,29 @@ func (s *integrationTestSuite) TestDeleteCertificateTemplateSpec() {
 	//   (kept for cron job to process removal from devices)
 
 	// Verify hostPending has no profile after deletion (was pending/install, never installed)
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", hostPending.ID), nil, http.StatusOK, &getHostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", hostPending.ID), nil, http.StatusOK, &getHostResp)
 	profile := findProfile(getHostResp.Host.MDM.Profiles, certTemplateName1)
 	require.Nil(t, profile, "hostPending should not have certificate template profile after deletion")
 
 	// Verify hostFailed has no profile after deletion (was failed/install, never successfully installed)
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", hostFailed.ID), nil, http.StatusOK, &getHostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", hostFailed.ID), nil, http.StatusOK, &getHostResp)
 	profile = findProfile(getHostResp.Host.MDM.Profiles, certTemplateName2)
 	require.Nil(t, profile, "hostFailed should not have certificate template profile after deletion")
 
 	// Verify hosts that had delivered/verified status now have pending/remove profiles
 	for _, tc := range []struct {
-		host         *fleet.Host
+		host         *automdm.Host
 		hostName     string
 		templateName string
 	}{
 		{hostDelivered, "hostDelivered", certTemplateName1},
 		{hostVerified, "hostVerified", certTemplateName2},
 	} {
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", tc.host.ID), nil, http.StatusOK, &getHostResp)
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", tc.host.ID), nil, http.StatusOK, &getHostResp)
 		profile := findProfile(getHostResp.Host.MDM.Profiles, tc.templateName)
 		require.NotNil(t, profile, "%s should have pending remove profile after deletion", tc.hostName)
 		require.NotNil(t, profile.Status, "%s profile status should not be nil", tc.hostName)
-		require.Equal(t, string(fleet.CertificateTemplatePending), *profile.Status, "%s profile status should be pending after deletion", tc.hostName)
-		require.Equal(t, fleet.MDMOperationTypeRemove, profile.OperationType, "%s profile operation_type should be remove after deletion", tc.hostName)
+		require.Equal(t, string(automdm.CertificateTemplatePending), *profile.Status, "%s profile status should be pending after deletion", tc.hostName)
+		require.Equal(t, automdm.MDMOperationTypeRemove, profile.OperationType, "%s profile operation_type should be remove after deletion", tc.hostName)
 	}
 }

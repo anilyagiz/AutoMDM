@@ -7,7 +7,7 @@ import (
 
 // icontains reports whether needle appears in hay, ASCII case-insensitively,
 // without allocating a lowercased copy (this fires thousands of times a
-// second under fleet serve debug logging).
+// second under automdm serve debug logging).
 func icontains(hay, needle string) bool {
 	if len(needle) > len(hay) {
 		return false

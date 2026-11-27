@@ -1,6 +1,6 @@
 ## Windows MDM load test plan
 
-This document describes how to load test Fleet's Windows MDM at scale, with a target of 100k enrolled Windows devices. It complements the general load test runbook in [readme.md](./readme.md), which covers spinning up the terraform environment, running migrations, and adding `osquery-perf` containers. Read that first. This document focuses on the Windows-MDM-specific scenarios, what to measure, and a known tooling gap.
+This document describes how to load test AutoMDM's Windows MDM at scale, with a target of 100k enrolled Windows devices. It complements the general load test runbook in [readme.md](./readme.md), which covers spinning up the terraform environment, running migrations, and adding `osquery-perf` containers. Read that first. This document focuses on the Windows-MDM-specific scenarios, what to measure, and a known tooling gap.
 
 ### What we are validating
 
@@ -34,16 +34,16 @@ Use the real profiles under `it-and-security/lib/windows/configuration-profiles/
 
 ### Pages to check
 
-The scenarios below drive changes into Fleet, but the slowness a customer would notice shows up on two pages that display profile status. Load each page and record its response time: once after profiles have finished applying to all 100k hosts, and again while profiles are being applied and deleted (scenarios 3 and 5), when the database is busiest.
+The scenarios below drive changes into AutoMDM, but the slowness a customer would notice shows up on two pages that display profile status. Load each page and record its response time: once after profiles have finished applying to all 100k hosts, and again while profiles are being applied and deleted (scenarios 3 and 5), when the database is busiest.
 
-- OS settings summary (Controls > OS settings): `GET /api/latest/fleet/configuration_profiles/summary`. Its response time should stay about the same as the number of hosts grows.
-- Hosts page filtered by an OS settings status such as Pending: `GET /api/latest/fleet/hosts` and `/hosts/count` with `os_settings=pending`. This is the page most likely to slow down as the fleet grows, so watch its response time closely.
+- OS settings summary (Controls > OS settings): `GET /api/latest/automdm/configuration_profiles/summary`. Its response time should stay about the same as the number of hosts grows.
+- Hosts page filtered by an OS settings status such as Pending: `GET /api/latest/automdm/hosts` and `/hosts/count` with `os_settings=pending`. This is the page most likely to slow down as the team grows, so watch its response time closely.
 
 ### Scenarios
 
 Run these in order.
 
-1. (Optional) Enrollment storm. Run this on 20k hosts, not the full fleet, and run it first during bring-up. Deploy the first 20k Windows hosts while Windows MDM is turned off in the UI, so they sit unenrolled. Then enable Windows MDM from the UI (this flips `WindowsEnabledAndConfigured`). Note that this is unlikely to happen in production. If a customer is enrolling all their Windows hosts at once, they would need to scale their deployment to absorb the spike in load.
+1. (Optional) Enrollment storm. Run this on 20k hosts, not the full team, and run it first during bring-up. Deploy the first 20k Windows hosts while Windows MDM is turned off in the UI, so they sit unenrolled. Then enable Windows MDM from the UI (this flips `WindowsEnabledAndConfigured`). Note that this is unlikely to happen in production. If a customer is enrolling all their Windows hosts at once, they would need to scale their deployment to absorb the spike in load.
 
 2. Ramp to 100k and steady-state baseline.
 

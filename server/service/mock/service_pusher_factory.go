@@ -6,7 +6,7 @@ import (
 	"crypto/tls"
 	"sync"
 
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/push"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/push"
 )
 
 var _ push.PushProviderFactory = (*APNSPushProviderFactory)(nil)

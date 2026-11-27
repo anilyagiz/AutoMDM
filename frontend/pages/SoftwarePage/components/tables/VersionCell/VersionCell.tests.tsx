@@ -25,7 +25,7 @@ describe("VersionCell", () => {
     {
       source: "mcp_servers",
       tip:
-        "Fleet doesn't detect MCP server versions yet. Most MCP servers run with npx or uvx, which pick the version at launch unless it's pinned.",
+        "AutoMDM doesn't detect MCP server versions yet. Most MCP servers run with npx or uvx, which pick the version at launch unless it's pinned.",
     },
     {
       source: "ai_skills",

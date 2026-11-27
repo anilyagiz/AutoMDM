@@ -6,7 +6,7 @@ interface ITotalHostsProps {
   color?: Colors;
 }
 
-const TotalHosts = ({ color = "ui-fleet-black-75" }: ITotalHostsProps) => {
+const TotalHosts = ({ color = "ui-automdm-black-75" }: ITotalHostsProps) => {
   return (
     <svg
       width="32"

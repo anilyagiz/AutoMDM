@@ -37,13 +37,13 @@ interface IStatusMessages {
 
 const statusMessages: IStatusMessages = {
   account_disabled:
-    "Single sign-on is not enabled on your account. Please contact your Fleet administrator.",
-  account_invalid: "You do not have a Fleet account.",
+    "Single sign-on is not enabled on your account. Please contact your AutoMDM administrator.",
+  account_invalid: "You do not have an AutoMDM account.",
   org_disabled: "Single sign-on is not enabled for your organization.",
   session_expired:
-    "Your session may have timed out. Please try again. Contact your Fleet administrator if the error persists.",
+    "Your session may have timed out. Please try again. Contact your AutoMDM administrator if the error persists.",
   error:
-    "There was an error with single sign-on. Please contact your Fleet administrator.",
+    "There was an error with single sign-on. Please contact your AutoMDM administrator.",
 };
 
 const baseClass = "login-page";
@@ -126,7 +126,7 @@ const LoginPage = ({ router, location }: ILoginPageProps) => {
 
       try {
         const response = await sessionsAPI.login(formData);
-        const { user, available_fleets, token, token_expires_at } = response;
+        const { user, available_teams, token, token_expires_at } = response;
 
         const expiresAt = token_expires_at
           ? new Date(token_expires_at)
@@ -137,10 +137,10 @@ const LoginPage = ({ router, location }: ILoginPageProps) => {
         queryClient.clear();
 
         setCurrentUser(user);
-        setAvailableTeams(user, available_fleets);
+        setAvailableTeams(user, available_teams);
         setCurrentTeam(undefined);
 
-        if (!user.global_role && user.fleets.length === 0) {
+        if (!user.global_role && user.teams.length === 0) {
           return router.push(NO_ACCESS);
         }
         // Redirect to password reset page if user is forced to reset password.
@@ -214,7 +214,7 @@ const LoginPage = ({ router, location }: ILoginPageProps) => {
   }
 
   return (
-    <AuthenticationFormWrapper header="Welcome to Fleet">
+    <AuthenticationFormWrapper header="Welcome to AutoMDM">
       {location.query.session_expired && (
         <InfoBanner>Your session expired. Log in to continue.</InfoBanner>
       )}

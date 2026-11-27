@@ -5,13 +5,13 @@ package profiles
 import (
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/constant"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/constant"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/windows/registry"
 )
 
 // testEnrollSecretKeyPath mirrors the production key under HKCU so creating it needs no elevation.
-const testEnrollSecretKeyPath = `SOFTWARE\FleetDM\OrbitTest`
+const testEnrollSecretKeyPath = `SOFTWARE\AutoMDM\OrbitTest`
 
 // setEnrollSecretValue prepares the key and writes a delivered secret into it.
 func setEnrollSecretValue(t *testing.T, value string) {

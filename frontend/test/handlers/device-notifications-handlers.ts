@@ -35,8 +35,8 @@ export const createMockNotificationView = (
   overrides?: Partial<INotificationView>
 ): INotificationView => ({
   uuid: "notif-uuid-1",
-  org_logo_url_light_mode: "https://example.com/fleet-logo-light.png",
-  org_logo_url_dark_mode: "https://example.com/fleet-logo-dark.png",
+  org_logo_url_light_mode: "https://example.com/automdm-logo-light.png",
+  org_logo_url_dark_mode: "https://example.com/automdm-logo-dark.png",
   title: "These apps will close and update in **1 hour**",
   description: "Save your work",
   items: [
@@ -135,7 +135,7 @@ export const installingThenSettledDeviceNotificationHandler = () => {
   return { handler, state };
 };
 
-/** Answers the 5 minute reminder with an install_at 65 seconds away for the first two requests, then "Updating..." for every app as Fleet does once it queues the installs at that deadline. Also counts the requests it served. */
+/** Answers the 5 minute reminder with an install_at 65 seconds away for the first two requests, then "Updating..." for every app as AutoMDM does once it queues the installs at that deadline. Also counts the requests it served. */
 export const reminderThenInstallingDeviceNotificationHandler = () => {
   const state = { requestCount: 0 };
   const installAt = new Date(Date.now() + 65000).toISOString();

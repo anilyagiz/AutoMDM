@@ -6,7 +6,7 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-//go:embed fleet-logo.svg
+//go:embed automdm-logo.svg
 var iconDark []byte
 
 func blockWaitForStopEvent(_ string) error {

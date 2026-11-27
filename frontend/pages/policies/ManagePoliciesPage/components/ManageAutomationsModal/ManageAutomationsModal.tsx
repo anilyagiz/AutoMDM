@@ -27,9 +27,9 @@ const ERR_MSG = "Could not update policy automations.";
 
 interface IManageAutomationsModalProps {
   policy: IPolicyStats;
-  fleetName: string;
+  automdmName: string;
   isGlobalPolicy: boolean;
-  /** undefined for "All fleets", 0 for "Unassigned", positive for a fleet. */
+  /** undefined for "All teams", 0 for "Unassigned", positive for a team. */
   teamIdForApi: number | undefined;
   automationsConfig: IConfig | ITeamConfig | undefined;
   globalConfig: IConfig | undefined;
@@ -39,7 +39,7 @@ interface IManageAutomationsModalProps {
 
 const ManageAutomationsModal = ({
   policy,
-  fleetName,
+  automdmName,
   isGlobalPolicy,
   teamIdForApi,
   automationsConfig,
@@ -97,7 +97,7 @@ const ManageAutomationsModal = ({
         <div className={`${baseClass}__body`}>
           <div className={`${baseClass}__header`}>
             Manage automations for the <b>{policy.name}</b> policy on{" "}
-            <b>{fleetName}</b>.
+            <b>{automdmName}</b>.
           </div>
 
           {displayedPlatforms.length > 0 && (
@@ -122,7 +122,7 @@ const ManageAutomationsModal = ({
               teamIdForApi={teamIdForApi}
               automationsConfig={automationsConfig}
               globalConfig={globalConfig}
-              fleetName={fleetName}
+              automdmName={automdmName}
               selectedPlatforms={policyPlatforms}
             />
           </section>

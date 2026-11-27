@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -49,16 +49,16 @@ const (
 	scheduledQueryTotalExecutions = `SELECT coalesce(sum(executions), 0) FROM scheduled_query_stats WHERE scheduled_query_id=?`
 )
 
-func getPercentileQuery(aggregate fleet.AggregatedStatsType, time string, percentile string) string {
+func getPercentileQuery(aggregate automdm.AggregatedStatsType, time string, percentile string) string {
 	switch aggregate { //nolint:gocritic // ignore singleCaseSwitch
-	case fleet.AggregatedStatsTypeScheduledQuery:
+	case automdm.AggregatedStatsTypeScheduledQuery:
 		return fmt.Sprintf(scheduledQueryPercentileQuery, time, percentile)
 	}
 	return ""
 }
 
 func setP50AndP95Map(
-	ctx context.Context, tx sqlx.QueryerContext, aggregate fleet.AggregatedStatsType, time string, id uint, statsMap map[string]interface{},
+	ctx context.Context, tx sqlx.QueryerContext, aggregate automdm.AggregatedStatsType, time string, id uint, statsMap map[string]interface{},
 ) error {
 	var p50, p95 float64
 
@@ -101,7 +101,7 @@ func (ds *Datastore) UpdateQueryAggregatedStats(ctx context.Context) error {
 			return ctxerr.Wrap(ctx, err, "scanning query id")
 		}
 		if err := ds.CalculateAggregatedPerfStatsPercentiles(
-			ctx, fleet.AggregatedStatsTypeScheduledQuery, queryID,
+			ctx, automdm.AggregatedStatsTypeScheduledQuery, queryID,
 		); err != nil {
 			return ctxerr.Wrap(ctx, err, "calculating stats for query")
 		}
@@ -130,7 +130,7 @@ func (ds *Datastore) DeleteOrphanedQueryStats(ctx context.Context) error {
 	}
 	if _, err := ds.writer(ctx).ExecContext(ctx,
 		`DELETE FROM aggregated_stats WHERE type = ? AND id NOT IN (SELECT id FROM queries)`,
-		fleet.AggregatedStatsTypeScheduledQuery); err != nil {
+		automdm.AggregatedStatsTypeScheduledQuery); err != nil {
 		return ctxerr.Wrap(ctx, err, "deleting aggregated stats of deleted queries")
 	}
 	return nil
@@ -154,7 +154,7 @@ func (ds *Datastore) deleteQueryStatsInBatches(ctx context.Context, queryID uint
 }
 
 // CalculateAggregatedPerfStatsPercentiles calculates the aggregated user/system time performance statistics for the given query.
-func (ds *Datastore) CalculateAggregatedPerfStatsPercentiles(ctx context.Context, aggregate fleet.AggregatedStatsType, queryID uint) error {
+func (ds *Datastore) CalculateAggregatedPerfStatsPercentiles(ctx context.Context, aggregate automdm.AggregatedStatsType, queryID uint) error {
 	// Before calling this method to update stats after a live query, we make sure the reader (replica) is up-to-date with the latest stats.
 	// We are using the reader because the below SELECT queries are expensive, and we don't want to impact the performance of the writer.
 	reader := ds.reader(ctx)
@@ -199,9 +199,9 @@ func (ds *Datastore) CalculateAggregatedPerfStatsPercentiles(ctx context.Context
 	return nil
 }
 
-func getTotalExecutionsQuery(aggregate fleet.AggregatedStatsType) string {
+func getTotalExecutionsQuery(aggregate automdm.AggregatedStatsType) string {
 	switch aggregate { //nolint:gocritic // ignore singleCaseSwitch
-	case fleet.AggregatedStatsTypeScheduledQuery:
+	case automdm.AggregatedStatsTypeScheduledQuery:
 		return scheduledQueryTotalExecutions
 	}
 	return ""

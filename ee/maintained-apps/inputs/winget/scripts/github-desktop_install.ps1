@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # GitHub Desktop installs per user and has no machine-wide mode, so this script
 # runs the installer as the signed-in user. Any GitHub Desktop Deployment Tool
@@ -7,7 +7,7 @@
 # install another copy for each user at their next sign-in.
 
 $exeFilePath = "${env:INSTALLER_PATH}"
-$taskName = "fleet-install-github-desktop"
+$taskName = "automdm-install-github-desktop"
 $taskRunning = 267009  # SCHED_S_TASK_RUNNING
 $deploymentToolUpgradeCode = "{00D8E2EE-13EA-5BEB-87F0-70EFC46A7D4A}"
 $exitCode = 0
@@ -26,7 +26,7 @@ try {
         [System.Security.Principal.SecurityIdentifier]).Value
     Write-Host "Installing GitHub Desktop for $userAccount."
 
-    # Fleet's installer directory is not readable by that user, so stage a copy in
+    # AutoMDM's installer directory is not readable by that user, so stage a copy in
     # a new folder only SYSTEM and Administrators can write to.
     $security = New-Object System.Security.AccessControl.DirectorySecurity
     $security.SetAccessRuleProtection($true, $false)
@@ -35,7 +35,7 @@ try {
             (New-Object System.Security.Principal.SecurityIdentifier($grant[0])), $grant[1],
             "ContainerInherit, ObjectInherit", "None", "Allow")))
     }
-    $stageDir = Join-Path $env:ProgramData ("fleet-github-desktop-" + [guid]::NewGuid().ToString("N"))
+    $stageDir = Join-Path $env:ProgramData ("automdm-github-desktop-" + [guid]::NewGuid().ToString("N"))
     [void][System.IO.Directory]::CreateDirectory($stageDir, $security)
     $stagedInstaller = Join-Path $stageDir (Split-Path $exeFilePath -Leaf)
     Copy-Item -LiteralPath $exeFilePath -Destination $stagedInstaller -Force -ErrorAction Stop

@@ -2,392 +2,392 @@ const API_VERSION = "latest";
 
 export default {
   // activities
-  ACTIVITIES: `/${API_VERSION}/fleet/activities`,
+  ACTIVITIES: `/${API_VERSION}/automdm/activities`,
   HOST_PAST_ACTIVITIES: (id: number): string => {
-    return `/${API_VERSION}/fleet/hosts/${id}/activities`;
+    return `/${API_VERSION}/automdm/hosts/${id}/activities`;
   },
   HOST_UPCOMING_ACTIVITIES: (id: number): string => {
-    return `/${API_VERSION}/fleet/hosts/${id}/activities/upcoming`;
+    return `/${API_VERSION}/automdm/hosts/${id}/activities/upcoming`;
   },
   HOST_CANCEL_ACTIVITY: (hostId: number, uuid: string): string => {
-    return `/${API_VERSION}/fleet/hosts/${hostId}/activities/upcoming/${uuid}`;
+    return `/${API_VERSION}/automdm/hosts/${hostId}/activities/upcoming/${uuid}`;
   },
 
-  CHANGE_PASSWORD: `/${API_VERSION}/fleet/change_password`,
+  CHANGE_PASSWORD: `/${API_VERSION}/automdm/change_password`,
 
   // Conditional access
-  CONDITIONAL_ACCESS_MICROSOFT: `/${API_VERSION}/fleet/conditional-access/microsoft`,
-  CONDITIONAL_ACCESS_MICROSOFT_CONFIRM: `/${API_VERSION}/fleet/conditional-access/microsoft/confirm`,
-  CONDITIONAL_ACCESS_GOOGLE: `/${API_VERSION}/fleet/conditional_access/google`,
-  CONDITIONAL_ACCESS_IDP_SIGNING_CERT: `/${API_VERSION}/fleet/conditional_access/idp/signing_cert`,
-  CONDITIONAL_ACCESS_IDP_APPLE_PROFILE: `/${API_VERSION}/fleet/conditional_access/idp/apple/profile`,
-  CONDITIONAL_ACCESS_IDP_WINDOWS_PROFILES: `/${API_VERSION}/fleet/conditional_access/idp/windows/profiles`,
+  CONDITIONAL_ACCESS_MICROSOFT: `/${API_VERSION}/automdm/conditional-access/microsoft`,
+  CONDITIONAL_ACCESS_MICROSOFT_CONFIRM: `/${API_VERSION}/automdm/conditional-access/microsoft/confirm`,
+  CONDITIONAL_ACCESS_GOOGLE: `/${API_VERSION}/automdm/conditional_access/google`,
+  CONDITIONAL_ACCESS_IDP_SIGNING_CERT: `/${API_VERSION}/automdm/conditional_access/idp/signing_cert`,
+  CONDITIONAL_ACCESS_IDP_APPLE_PROFILE: `/${API_VERSION}/automdm/conditional_access/idp/apple/profile`,
+  CONDITIONAL_ACCESS_IDP_WINDOWS_PROFILES: `/${API_VERSION}/automdm/conditional_access/idp/windows/profiles`,
 
-  CONFIG: `/${API_VERSION}/fleet/config`,
+  CONFIG: `/${API_VERSION}/automdm/config`,
   CONFIRM_EMAIL_CHANGE: (token: string): string => {
-    return `/${API_VERSION}/fleet/email/change/${token}`;
+    return `/${API_VERSION}/automdm/email/change/${token}`;
   },
 
-  DOWNLOAD_INSTALLER: `/${API_VERSION}/fleet/download_installer`,
+  DOWNLOAD_INSTALLER: `/${API_VERSION}/automdm/download_installer`,
   ENABLE_USER: (id: number): string => {
-    return `/${API_VERSION}/fleet/users/${id}/enable`;
+    return `/${API_VERSION}/automdm/users/${id}/enable`;
   },
-  FORGOT_PASSWORD: `/${API_VERSION}/fleet/forgot_password`,
-  GLOBAL_ENROLL_SECRETS: `/${API_VERSION}/fleet/spec/enroll_secret`,
-  POLICIES: `/${API_VERSION}/fleet/policies`,
+  FORGOT_PASSWORD: `/${API_VERSION}/automdm/forgot_password`,
+  GLOBAL_ENROLL_SECRETS: `/${API_VERSION}/automdm/spec/enroll_secret`,
+  POLICIES: `/${API_VERSION}/automdm/policies`,
   POLICY_AUTOMATION_ACTIVITIES: (id: number) =>
-    `/${API_VERSION}/fleet/policies/${id}/automation_activities`,
-  POLICY_RESET: (id: number) => `/${API_VERSION}/fleet/policies/${id}/reset`,
+    `/${API_VERSION}/automdm/policies/${id}/automation_activities`,
+  POLICY_RESET: (id: number) => `/${API_VERSION}/automdm/policies/${id}/reset`,
 
   // Device endpoints
-  DEVICE_USER_DETAILS: `/${API_VERSION}/fleet/device`,
+  DEVICE_USER_DETAILS: `/${API_VERSION}/automdm/device`,
   DEVICE_USER_APNS_PING: (token: string): string => {
-    return `/${API_VERSION}/fleet/device/${token}/apns_ping`;
+    return `/${API_VERSION}/automdm/device/${token}/apns_ping`;
   },
   DEVICE_SOFTWARE: (token: string) =>
-    `/${API_VERSION}/fleet/device/${token}/software`,
+    `/${API_VERSION}/automdm/device/${token}/software`,
   DEVICE_SOFTWARE_INSTALL: (token: string, softwareTitleId: number) =>
-    `/${API_VERSION}/fleet/device/${token}/software/install/${softwareTitleId}`,
+    `/${API_VERSION}/automdm/device/${token}/software/install/${softwareTitleId}`,
   DEVICE_SOFTWARE_INSTALL_ALL: (token: string) =>
-    `/${API_VERSION}/fleet/device/${token}/software/install_all`,
+    `/${API_VERSION}/automdm/device/${token}/software/install_all`,
   DEVICE_SOFTWARE_ICON: (token: string, softwareTitleId: number): string => {
-    return `/${API_VERSION}/fleet/device/${token}/software/titles/${softwareTitleId}/icon`;
+    return `/${API_VERSION}/automdm/device/${token}/software/titles/${softwareTitleId}/icon`;
   },
   DEVICE_SOFTWARE_INSTALL_RESULTS: (token: string, uuid: string) =>
-    `/${API_VERSION}/fleet/device/${token}/software/install/${uuid}/results`,
+    `/${API_VERSION}/automdm/device/${token}/software/install/${uuid}/results`,
   DEVICE_SOFTWARE_UNINSTALL: (token: string, softwareTitleId: number) =>
-    `/${API_VERSION}/fleet/device/${token}/software/uninstall/${softwareTitleId}`,
+    `/${API_VERSION}/automdm/device/${token}/software/uninstall/${softwareTitleId}`,
   DEVICE_SOFTWARE_UNINSTALL_RESULTS: (
     token: string,
     scriptExecutionId: string
   ) =>
-    `/${API_VERSION}/fleet/device/${token}/software/uninstall/${scriptExecutionId}/results`,
+    `/${API_VERSION}/automdm/device/${token}/software/uninstall/${scriptExecutionId}/results`,
   DEVICE_VPP_COMMAND_RESULTS: (token: string, uuid: string) =>
-    `/${API_VERSION}/fleet/device/${token}/software/commands/${uuid}/results`,
+    `/${API_VERSION}/automdm/device/${token}/software/commands/${uuid}/results`,
   DEVICE_SELF_SERVICE_CATEGORIES: (token: string) =>
-    `/${API_VERSION}/fleet/device/${token}/software/self_service_categories`,
+    `/${API_VERSION}/automdm/device/${token}/software/self_service_categories`,
   DEVICE_USER_MDM_ENROLLMENT_PROFILE: (token: string): string => {
-    return `/${API_VERSION}/fleet/device/${token}/mdm/apple/manual_enrollment_profile`;
+    return `/${API_VERSION}/automdm/device/${token}/mdm/apple/manual_enrollment_profile`;
   },
   DEVICE_TRIGGER_LINUX_DISK_ENCRYPTION_KEY_ESCROW: (token: string): string => {
-    return `/${API_VERSION}/fleet/device/${token}/mdm/linux/trigger_escrow`;
+    return `/${API_VERSION}/automdm/device/${token}/mdm/linux/trigger_escrow`;
   },
   DEVICE_DISK_ENCRYPTION_PIN: (token: string): string => {
-    return `/${API_VERSION}/fleet/device/${token}/disk_encryption_pin`;
+    return `/${API_VERSION}/automdm/device/${token}/disk_encryption_pin`;
   },
   DEVICE_CERTIFICATES: (token: string): string => {
-    return `/${API_VERSION}/fleet/device/${token}/certificates`;
+    return `/${API_VERSION}/automdm/device/${token}/certificates`;
   },
   DEVICE_SETUP_EXPERIENCE_STATUSES: (token: string): string => {
-    return `/${API_VERSION}/fleet/device/${token}/setup_experience/status`;
+    return `/${API_VERSION}/automdm/device/${token}/setup_experience/status`;
   },
   DEVICE_RESEND_PROFILE: (token: string, profileUUID: string) =>
-    `/${API_VERSION}/fleet/device/${token}/configuration_profiles/${profileUUID}/resend`,
+    `/${API_VERSION}/automdm/device/${token}/configuration_profiles/${profileUUID}/resend`,
   DEVICE_INSTALL_PROFILE: (token: string, profileUUID: string) =>
-    `/${API_VERSION}/fleet/device/${token}/configuration_profiles/${profileUUID}/install`,
+    `/${API_VERSION}/automdm/device/${token}/configuration_profiles/${profileUUID}/install`,
   DEVICE_UNINSTALL_PROFILE: (token: string, profileUUID: string) =>
-    `/${API_VERSION}/fleet/device/${token}/configuration_profiles/${profileUUID}/uninstall`,
+    `/${API_VERSION}/automdm/device/${token}/configuration_profiles/${profileUUID}/uninstall`,
   DEVICE_GOOGLE_CONDITIONAL_ACCESS: (token: string) =>
-    `/${API_VERSION}/fleet/device/${token}/conditional_access/google`,
+    `/${API_VERSION}/automdm/device/${token}/conditional_access/google`,
   DEVICE_BYPASS_CONDITIONAL_ACCESS: (token: string) =>
-    `/${API_VERSION}/fleet/device/${token}/bypass_conditional_access`,
+    `/${API_VERSION}/automdm/device/${token}/bypass_conditional_access`,
   DEVICE_NOTIFICATION: (token: string, notificationUuid: string) =>
-    `/${API_VERSION}/fleet/device/${token}/notifications/${notificationUuid}`,
+    `/${API_VERSION}/automdm/device/${token}/notifications/${notificationUuid}`,
   DEVICE_NOTIFICATION_ACTIONS: (token: string, notificationUuid: string) =>
-    `/${API_VERSION}/fleet/device/${token}/notifications/${notificationUuid}/actions`,
+    `/${API_VERSION}/automdm/device/${token}/notifications/${notificationUuid}/actions`,
 
   // Chart endpoints
-  CHART_DATA: (metric: string) => `/${API_VERSION}/fleet/charts/${metric}`,
+  CHART_DATA: (metric: string) => `/${API_VERSION}/automdm/charts/${metric}`,
 
   // Host endpoints
-  HOST_SUMMARY: `/${API_VERSION}/fleet/host_summary`,
+  HOST_SUMMARY: `/${API_VERSION}/automdm/host_summary`,
   HOST_QUERY_REPORT: (hostId: number, queryId: number) =>
-    `/${API_VERSION}/fleet/hosts/${hostId}/reports/${queryId}`,
+    `/${API_VERSION}/automdm/hosts/${hostId}/reports/${queryId}`,
   HOST_REPORTS: (hostId: number) =>
-    `/${API_VERSION}/fleet/hosts/${hostId}/reports`,
-  HOSTS: `/${API_VERSION}/fleet/hosts`,
-  HOSTS_COUNT: `/${API_VERSION}/fleet/hosts/count`,
-  HOSTS_DELETE: `/${API_VERSION}/fleet/hosts/delete`,
-  HOSTS_REPORT: `/${API_VERSION}/fleet/hosts/report`,
-  HOSTS_TRANSFER: `/${API_VERSION}/fleet/hosts/transfer`,
-  HOSTS_TRANSFER_BY_FILTER: `/${API_VERSION}/fleet/hosts/transfer/filter`,
+    `/${API_VERSION}/automdm/hosts/${hostId}/reports`,
+  HOSTS: `/${API_VERSION}/automdm/hosts`,
+  HOSTS_COUNT: `/${API_VERSION}/automdm/hosts/count`,
+  HOSTS_DELETE: `/${API_VERSION}/automdm/hosts/delete`,
+  HOSTS_REPORT: `/${API_VERSION}/automdm/hosts/report`,
+  HOSTS_TRANSFER: `/${API_VERSION}/automdm/hosts/transfer`,
+  HOSTS_TRANSFER_BY_FILTER: `/${API_VERSION}/automdm/hosts/transfer/filter`,
   HOST_CUSTOM_HOST_VITAL: (hostId: number, vitalId: number) =>
-    `/${API_VERSION}/fleet/hosts/${hostId}/custom_host_vitals/${vitalId}`,
+    `/${API_VERSION}/automdm/hosts/${hostId}/custom_host_vitals/${vitalId}`,
   HOST_CANCEL_MDM_COMMAND: (hostId: number, commandUUID: string) =>
-    `/${API_VERSION}/fleet/hosts/${hostId}/commands/${commandUUID}`,
-  HOST_LOCK: (id: number) => `/${API_VERSION}/fleet/hosts/${id}/lock`,
-  HOST_UNLOCK: (id: number) => `/${API_VERSION}/fleet/hosts/${id}/unlock`,
-  HOST_WIPE: (id: number) => `/${API_VERSION}/fleet/hosts/${id}/wipe`,
-  HOST_RESET: (id: number) => `/${API_VERSION}/fleet/hosts/${id}/reset`,
+    `/${API_VERSION}/automdm/hosts/${hostId}/commands/${commandUUID}`,
+  HOST_LOCK: (id: number) => `/${API_VERSION}/automdm/hosts/${id}/lock`,
+  HOST_UNLOCK: (id: number) => `/${API_VERSION}/automdm/hosts/${id}/unlock`,
+  HOST_WIPE: (id: number) => `/${API_VERSION}/automdm/hosts/${id}/wipe`,
+  HOST_RESET: (id: number) => `/${API_VERSION}/automdm/hosts/${id}/reset`,
   HOST_CLEAR_PASSCODE: (id: number) =>
-    `/${API_VERSION}/fleet/hosts/${id}/clear_passcode`,
+    `/${API_VERSION}/automdm/hosts/${id}/clear_passcode`,
   HOST_RESEND_PROFILE: (hostId: number, profileUUID: string) =>
-    `/${API_VERSION}/fleet/hosts/${hostId}/configuration_profiles/${profileUUID}/resend`,
+    `/${API_VERSION}/automdm/hosts/${hostId}/configuration_profiles/${profileUUID}/resend`,
   HOST_INSTALL_PROFILE: (hostId: number, profileUUID: string) =>
-    `/${API_VERSION}/fleet/hosts/${hostId}/configuration_profiles/${profileUUID}/install`,
+    `/${API_VERSION}/automdm/hosts/${hostId}/configuration_profiles/${profileUUID}/install`,
   HOST_UNINSTALL_PROFILE: (hostId: number, profileUUID: string) =>
-    `/${API_VERSION}/fleet/hosts/${hostId}/configuration_profiles/${profileUUID}/uninstall`,
+    `/${API_VERSION}/automdm/hosts/${hostId}/configuration_profiles/${profileUUID}/uninstall`,
   HOST_RESEND_CERTIFICATE: (hostId: number, certificateTemplateId: number) =>
-    `/${API_VERSION}/fleet/hosts/${hostId}/certificates/${certificateTemplateId}/resend`,
+    `/${API_VERSION}/automdm/hosts/${hostId}/certificates/${certificateTemplateId}/resend`,
   HOST_RESEND_NAME_TEMPLATE: (hostId: number) =>
-    `/${API_VERSION}/fleet/hosts/${hostId}/name_template/resend`,
-  HOST_SOFTWARE: (id: number) => `/${API_VERSION}/fleet/hosts/${id}/software`,
+    `/${API_VERSION}/automdm/hosts/${hostId}/name_template/resend`,
+  HOST_SOFTWARE: (id: number) => `/${API_VERSION}/automdm/hosts/${id}/software`,
   HOST_SOFTWARE_PACKAGE_INSTALL: (hostId: number, softwareId: number) =>
-    `/${API_VERSION}/fleet/hosts/${hostId}/software/${softwareId}/install`,
+    `/${API_VERSION}/automdm/hosts/${hostId}/software/${softwareId}/install`,
   HOST_SOFTWARE_PACKAGE_UNINSTALL: (hostId: number, softwareId: number) =>
-    `/${API_VERSION}/fleet/hosts/${hostId}/software/${softwareId}/uninstall`,
+    `/${API_VERSION}/automdm/hosts/${hostId}/software/${softwareId}/uninstall`,
   HOST_CERTIFICATES: (id: number) =>
-    `/${API_VERSION}/fleet/hosts/${id}/certificates`,
+    `/${API_VERSION}/automdm/hosts/${id}/certificates`,
   HOST_AI_SESSIONS: (id: number) =>
-    `/${API_VERSION}/fleet/hosts/${id}/ai_sessions`,
+    `/${API_VERSION}/automdm/hosts/${id}/ai_sessions`,
   HOST_AI_SESSION_EVENTS: (id: number, aiSessionId: number) =>
-    `/${API_VERSION}/fleet/hosts/${id}/ai_sessions/${aiSessionId}/events`,
+    `/${API_VERSION}/automdm/hosts/${id}/ai_sessions/${aiSessionId}/events`,
   HOST_DEVICE_MAPPING: (id: number) =>
-    `/${API_VERSION}/fleet/hosts/${id}/device_mapping`,
+    `/${API_VERSION}/automdm/hosts/${id}/device_mapping`,
   HOST_DEVICE_MAPPING_IDP: (id: number) =>
-    `/${API_VERSION}/fleet/hosts/${id}/device_mapping/idp`,
+    `/${API_VERSION}/automdm/hosts/${id}/device_mapping/idp`,
   HOST_DEP_ASSIGNMENT: (id: number) =>
-    `/${API_VERSION}/fleet/hosts/${id}/dep_assignment`,
-  HOST_APNS_PING: (id: number) => `/${API_VERSION}/fleet/hosts/${id}/apns_ping`,
+    `/${API_VERSION}/automdm/hosts/${id}/dep_assignment`,
+  HOST_APNS_PING: (id: number) => `/${API_VERSION}/automdm/hosts/${id}/apns_ping`,
 
-  INVITES: `/${API_VERSION}/fleet/invites`,
-  INVITE_VERIFY: (token: string) => `/${API_VERSION}/fleet/invites/${token}`,
+  INVITES: `/${API_VERSION}/automdm/invites`,
+  INVITE_VERIFY: (token: string) => `/${API_VERSION}/automdm/invites/${token}`,
 
   // labels
-  LABEL: (id: number) => `/${API_VERSION}/fleet/labels/${id}`,
-  LABELS: `/${API_VERSION}/fleet/labels`,
-  LABELS_SUMMARY: `/${API_VERSION}/fleet/labels/summary`,
+  LABEL: (id: number) => `/${API_VERSION}/automdm/labels/${id}`,
+  LABELS: `/${API_VERSION}/automdm/labels`,
+  LABELS_SUMMARY: `/${API_VERSION}/automdm/labels/summary`,
 
   // self-service categories
-  SELF_SERVICE_CATEGORIES: `/${API_VERSION}/fleet/software/self_service_categories`,
+  SELF_SERVICE_CATEGORIES: `/${API_VERSION}/automdm/software/self_service_categories`,
   // patch deadline settings
-  PATCH_DEADLINE_SETTINGS: `/${API_VERSION}/fleet/software/patch_deadline_settings`,
+  PATCH_DEADLINE_SETTINGS: `/${API_VERSION}/automdm/software/patch_deadline_settings`,
   SELF_SERVICE_CATEGORY: (id: number) =>
-    `/${API_VERSION}/fleet/software/self_service_categories/${id}`,
+    `/${API_VERSION}/automdm/software/self_service_categories/${id}`,
   LABEL_HOSTS: (id: number): string => {
-    return `/${API_VERSION}/fleet/labels/${id}/hosts`;
+    return `/${API_VERSION}/automdm/labels/${id}/hosts`;
   },
   LABEL_SPEC_BY_NAME: (labelName: string) => {
-    return `/${API_VERSION}/fleet/spec/labels/${labelName}`;
+    return `/${API_VERSION}/automdm/spec/labels/${labelName}`;
   },
 
-  LOGIN: `/${API_VERSION}/fleet/login`,
-  CREATE_SESSION: `/${API_VERSION}/fleet/sessions`,
-  LOGO: `/${API_VERSION}/fleet/logo`,
-  LOGOUT: `/${API_VERSION}/fleet/logout`,
-  MACADMINS: `/${API_VERSION}/fleet/macadmins`,
+  LOGIN: `/${API_VERSION}/automdm/login`,
+  CREATE_SESSION: `/${API_VERSION}/automdm/sessions`,
+  LOGO: `/${API_VERSION}/automdm/logo`,
+  LOGOUT: `/${API_VERSION}/automdm/logout`,
+  MACADMINS: `/${API_VERSION}/automdm/macadmins`,
 
   /**
    * MDM endpoints
    */
 
-  MDM_SUMMARY: `/${API_VERSION}/fleet/hosts/summary/mdm`,
+  MDM_SUMMARY: `/${API_VERSION}/automdm/hosts/summary/mdm`,
 
-  MDM_MICROSOFT_GRAPH_CREDENTIALS: `/${API_VERSION}/fleet/microsoft_graph_credentials`,
+  MDM_MICROSOFT_GRAPH_CREDENTIALS: `/${API_VERSION}/automdm/microsoft_graph_credentials`,
 
-  MDM_ANDROID_ENTERPRISE: `/${API_VERSION}/fleet/android_enterprise`,
-  MDM_ANDROID_SIGNUP_URL: `/${API_VERSION}/fleet/android_enterprise/signup_url`,
-  MDM_ANDROID_SSE_URL: `/api/${API_VERSION}/fleet/android_enterprise/signup_sse`,
-  MDM_ANDROID_ZERO_TOUCH_CONFIGURATION: `/${API_VERSION}/fleet/android_enterprise/zero_touch_configuration`,
+  MDM_ANDROID_ENTERPRISE: `/${API_VERSION}/automdm/android_enterprise`,
+  MDM_ANDROID_SIGNUP_URL: `/${API_VERSION}/automdm/android_enterprise/signup_url`,
+  MDM_ANDROID_SSE_URL: `/api/${API_VERSION}/automdm/android_enterprise/signup_sse`,
+  MDM_ANDROID_ZERO_TOUCH_CONFIGURATION: `/${API_VERSION}/automdm/android_enterprise/zero_touch_configuration`,
 
   // Apple Business (AB) endpoints
-  MDM_AB_TOKENS: `/${API_VERSION}/fleet/ab_tokens`,
-  MDM_AB_TOKEN: (id: number) => `/${API_VERSION}/fleet/ab_tokens/${id}`,
+  MDM_AB_TOKENS: `/${API_VERSION}/automdm/ab_tokens`,
+  MDM_AB_TOKEN: (id: number) => `/${API_VERSION}/automdm/ab_tokens/${id}`,
   MDM_AB_TOKEN_RENEW: (id: number) =>
-    `/${API_VERSION}/fleet/ab_tokens/${id}/renew`,
+    `/${API_VERSION}/automdm/ab_tokens/${id}/renew`,
   MDM_AB_TOKEN_TEAMS: (id: number) =>
-    `/${API_VERSION}/fleet/ab_tokens/${id}/fleets`,
+    `/${API_VERSION}/automdm/ab_tokens/${id}/teams`,
   MDM_AB_TOKEN_DEFAULT: (id: number) =>
-    `/${API_VERSION}/fleet/ab_tokens/${id}/default`,
-  MDM_APPLE_AB_PUBLIC_KEY: `/${API_VERSION}/fleet/mdm/apple/ab_public_key`,
-  MDM_APPLE_APNS_CERTIFICATE: `/${API_VERSION}/fleet/mdm/apple/apns_certificate`,
-  MDM_APPLE_PNS: `/${API_VERSION}/fleet/apns`,
-  MDM_REQUEST_CSR: `/${API_VERSION}/fleet/mdm/apple/request_csr`,
+    `/${API_VERSION}/automdm/ab_tokens/${id}/default`,
+  MDM_APPLE_AB_PUBLIC_KEY: `/${API_VERSION}/automdm/mdm/apple/ab_public_key`,
+  MDM_APPLE_APNS_CERTIFICATE: `/${API_VERSION}/automdm/mdm/apple/apns_certificate`,
+  MDM_APPLE_PNS: `/${API_VERSION}/automdm/apns`,
+  MDM_REQUEST_CSR: `/${API_VERSION}/automdm/mdm/apple/request_csr`,
 
   // Apple VPP endpoints
-  MDM_APPLE_VPP_TOKEN: `/${API_VERSION}/fleet/mdm/apple/vpp_token`, // TODO: Deprecated?
-  MDM_VPP_TOKENS: `/${API_VERSION}/fleet/vpp_tokens`,
-  MDM_VPP_TOKEN: (id: number) => `/${API_VERSION}/fleet/vpp_tokens/${id}`,
+  MDM_APPLE_VPP_TOKEN: `/${API_VERSION}/automdm/mdm/apple/vpp_token`, // TODO: Deprecated?
+  MDM_VPP_TOKENS: `/${API_VERSION}/automdm/vpp_tokens`,
+  MDM_VPP_TOKEN: (id: number) => `/${API_VERSION}/automdm/vpp_tokens/${id}`,
   MDM_VPP_TOKENS_RENEW: (id: number) =>
-    `/${API_VERSION}/fleet/vpp_tokens/${id}/renew`,
+    `/${API_VERSION}/automdm/vpp_tokens/${id}/renew`,
   MDM_VPP_TOKEN_TEAMS: (id: number) =>
-    `/${API_VERSION}/fleet/vpp_tokens/${id}/fleets`,
+    `/${API_VERSION}/automdm/vpp_tokens/${id}/teams`,
 
   // MDM profile endpoints
-  MDM_PROFILES: `/${API_VERSION}/fleet/configuration_profiles`,
+  MDM_PROFILES: `/${API_VERSION}/automdm/configuration_profiles`,
   MDM_PROFILE: (id: string) =>
-    `/${API_VERSION}/fleet/configuration_profiles/${id}`,
+    `/${API_VERSION}/automdm/configuration_profiles/${id}`,
 
   // Apple DDM asset endpoints
-  MDM_ASSETS: `/${API_VERSION}/fleet/assets`,
-  MDM_ASSET: (uuid: string) => `/${API_VERSION}/fleet/assets/${uuid}`,
+  MDM_ASSETS: `/${API_VERSION}/automdm/assets`,
+  MDM_ASSET: (uuid: string) => `/${API_VERSION}/automdm/assets/${uuid}`,
 
-  PROFILES_STATUS_SUMMARY: `/${API_VERSION}/fleet/configuration_profiles/summary`,
-  DISK_ENCRYPTION: `/${API_VERSION}/fleet/disk_encryption`,
-  HOST_NAME_TEMPLATE: `/${API_VERSION}/fleet/host_name_template`,
-  MDM_APPLE_SSO: `/${API_VERSION}/fleet/mdm/sso`,
+  PROFILES_STATUS_SUMMARY: `/${API_VERSION}/automdm/configuration_profiles/summary`,
+  DISK_ENCRYPTION: `/${API_VERSION}/automdm/disk_encryption`,
+  HOST_NAME_TEMPLATE: `/${API_VERSION}/automdm/host_name_template`,
+  MDM_APPLE_SSO: `/${API_VERSION}/automdm/mdm/sso`,
   MDM_APPLE_ENROLLMENT_PROFILE: (token: string, deviceinfo?: string) => {
     const query = new URLSearchParams({ token });
     deviceinfo && query.append("deviceinfo", deviceinfo);
 
     return `/api/mdm/apple/enroll?${query}`;
   },
-  MDM_APPLE_SETUP_ENROLLMENT_PROFILE: `/${API_VERSION}/fleet/enrollment_profiles/automatic`,
-  MDM_APPLE_DEFAULT_SETUP_ENROLLMENT_PROFILE: `/${API_VERSION}/fleet/enrollment_profiles/automatic/default`,
+  MDM_APPLE_SETUP_ENROLLMENT_PROFILE: `/${API_VERSION}/automdm/enrollment_profiles/automatic`,
+  MDM_APPLE_DEFAULT_SETUP_ENROLLMENT_PROFILE: `/${API_VERSION}/automdm/enrollment_profiles/automatic/default`,
   MDM_BOOTSTRAP_PACKAGE_METADATA: (teamId: number) =>
-    `/${API_VERSION}/fleet/bootstrap/${teamId}/metadata`,
-  MDM_BOOTSTRAP_PACKAGE: `/${API_VERSION}/fleet/bootstrap`,
-  MDM_BOOTSTRAP_PACKAGE_SUMMARY: `/${API_VERSION}/fleet/bootstrap/summary`,
+    `/${API_VERSION}/automdm/bootstrap/${teamId}/metadata`,
+  MDM_BOOTSTRAP_PACKAGE: `/${API_VERSION}/automdm/bootstrap`,
+  MDM_BOOTSTRAP_PACKAGE_SUMMARY: `/${API_VERSION}/automdm/bootstrap/summary`,
   MDM_EULA: (token: string) =>
-    `/${API_VERSION}/fleet/setup_experience/eula/${token}`,
-  MDM_EULA_UPLOAD: `/${API_VERSION}/fleet/setup_experience/eula`,
-  MDM_EULA_METADATA: `/${API_VERSION}/fleet/setup_experience/eula/metadata`,
-  HOST_MDM: (id: number) => `/${API_VERSION}/fleet/hosts/${id}/mdm`,
+    `/${API_VERSION}/automdm/setup_experience/eula/${token}`,
+  MDM_EULA_UPLOAD: `/${API_VERSION}/automdm/setup_experience/eula`,
+  MDM_EULA_METADATA: `/${API_VERSION}/automdm/setup_experience/eula/metadata`,
+  HOST_MDM: (id: number) => `/${API_VERSION}/automdm/hosts/${id}/mdm`,
   HOST_ENCRYPTION_KEY: (id: number) =>
-    `/${API_VERSION}/fleet/hosts/${id}/encryption_key`,
+    `/${API_VERSION}/automdm/hosts/${id}/encryption_key`,
   HOST_ENCRYPTION_KEY_ROTATE: (id: number) =>
-    `/${API_VERSION}/fleet/hosts/${id}/encryption_key/rotate`,
+    `/${API_VERSION}/automdm/hosts/${id}/encryption_key/rotate`,
   HOST_RECOVERY_LOCK_PASSWORD: (id: number) =>
-    `/${API_VERSION}/fleet/hosts/${id}/recovery_lock_password`,
+    `/${API_VERSION}/automdm/hosts/${id}/recovery_lock_password`,
   HOST_RECOVERY_LOCK_PASSWORD_ROTATE: (id: number) =>
-    `/${API_VERSION}/fleet/hosts/${id}/recovery_lock_password/rotate`,
+    `/${API_VERSION}/automdm/hosts/${id}/recovery_lock_password/rotate`,
   HOST_DEVICE_URL: (id: number) =>
-    `/${API_VERSION}/fleet/hosts/${id}/device_url`,
+    `/${API_VERSION}/automdm/hosts/${id}/device_url`,
   HOST_MANAGED_ACCOUNT_PASSWORD: (id: number) =>
-    `/${API_VERSION}/fleet/hosts/${id}/managed_account_password`,
+    `/${API_VERSION}/automdm/hosts/${id}/managed_account_password`,
   HOST_MANAGED_LOCAL_ACCOUNT_ROTATE: (id: number) =>
-    `/${API_VERSION}/fleet/hosts/${id}/managed_account_password/rotate`,
+    `/${API_VERSION}/automdm/hosts/${id}/managed_account_password/rotate`,
 
-  ME: `/${API_VERSION}/fleet/me`,
+  ME: `/${API_VERSION}/automdm/me`,
 
   // Disk encryption endpoints
-  UPDATE_DISK_ENCRYPTION: `/${API_VERSION}/fleet/disk_encryption`,
+  UPDATE_DISK_ENCRYPTION: `/${API_VERSION}/automdm/disk_encryption`,
 
   // Setup experiece endpoints
-  MDM_SETUP_EXPERIENCE: `/${API_VERSION}/fleet/setup_experience`,
-  MDM_SETUP_EXPERIENCE_SOFTWARE: `/${API_VERSION}/fleet/setup_experience/software`,
-  MDM_SETUP_EXPERIENCE_SCRIPT: `/${API_VERSION}/fleet/setup_experience/script`,
+  MDM_SETUP_EXPERIENCE: `/${API_VERSION}/automdm/setup_experience`,
+  MDM_SETUP_EXPERIENCE_SOFTWARE: `/${API_VERSION}/automdm/setup_experience/software`,
+  MDM_SETUP_EXPERIENCE_SCRIPT: `/${API_VERSION}/automdm/setup_experience/script`,
 
   // OS Version endpoints
-  OS_VERSIONS: `/${API_VERSION}/fleet/os_versions`,
-  OS_VERSION: (id: number) => `/${API_VERSION}/fleet/os_versions/${id}`,
+  OS_VERSIONS: `/${API_VERSION}/automdm/os_versions`,
+  OS_VERSION: (id: number) => `/${API_VERSION}/automdm/os_versions/${id}`,
 
-  OSQUERY_OPTIONS: `/${API_VERSION}/fleet/spec/osquery_options`,
-  PERFORM_REQUIRED_PASSWORD_RESET: `/${API_VERSION}/fleet/perform_required_password_reset`,
-  QUERIES: `/${API_VERSION}/fleet/reports`,
-  QUERY_REPORT: (id: number) => `/${API_VERSION}/fleet/reports/${id}/report`,
-  RESET_PASSWORD: `/${API_VERSION}/fleet/reset_password`,
-  REST_API_ENDPOINTS: `/${API_VERSION}/fleet/rest_api`,
-  LIVE_QUERY: `/${API_VERSION}/fleet/reports/run`,
+  OSQUERY_OPTIONS: `/${API_VERSION}/automdm/spec/osquery_options`,
+  PERFORM_REQUIRED_PASSWORD_RESET: `/${API_VERSION}/automdm/perform_required_password_reset`,
+  QUERIES: `/${API_VERSION}/automdm/reports`,
+  QUERY_REPORT: (id: number) => `/${API_VERSION}/automdm/reports/${id}/report`,
+  RESET_PASSWORD: `/${API_VERSION}/automdm/reset_password`,
+  REST_API_ENDPOINTS: `/${API_VERSION}/automdm/rest_api`,
+  LIVE_QUERY: `/${API_VERSION}/automdm/reports/run`,
   SETUP: `/v1/setup`, // not a typo - hasn't been updated yet
 
   // Software endpoints
-  SOFTWARE_TITLES: `/${API_VERSION}/fleet/software/titles`, // Powers software/inventory and software/library pages
-  SOFTWARE_TITLE: (id: number) => `/${API_VERSION}/fleet/software/titles/${id}`,
+  SOFTWARE_TITLES: `/${API_VERSION}/automdm/software/titles`, // Powers software/inventory and software/library pages
+  SOFTWARE_TITLE: (id: number) => `/${API_VERSION}/automdm/software/titles/${id}`,
   EDIT_SOFTWARE_PACKAGE: (id: number) =>
-    `/${API_VERSION}/fleet/software/titles/${id}/package`,
-  SOFTWARE_APP_STORE_APPS: `/${API_VERSION}/fleet/software/app_store_apps`, // VPP apps and Google Play apps
+    `/${API_VERSION}/automdm/software/titles/${id}/package`,
+  SOFTWARE_APP_STORE_APPS: `/${API_VERSION}/automdm/software/app_store_apps`, // VPP apps and Google Play apps
   EDIT_SOFTWARE_APP_STORE_APP: (id: number) =>
-    `/${API_VERSION}/fleet/software/titles/${id}/app_store_app`, // VPP apps and Google Play apps
+    `/${API_VERSION}/automdm/software/titles/${id}/app_store_app`, // VPP apps and Google Play apps
   SOFTWARE_ICON: (id: number) =>
-    `/${API_VERSION}/fleet/software/titles/${id}/icon`,
-  SOFTWARE_VERSIONS: `/${API_VERSION}/fleet/software/versions`,
+    `/${API_VERSION}/automdm/software/titles/${id}/icon`,
+  SOFTWARE_VERSIONS: `/${API_VERSION}/automdm/software/versions`,
   SOFTWARE_VERSION: (id: number) =>
-    `/${API_VERSION}/fleet/software/versions/${id}`,
-  SOFTWARE_PACKAGE_ADD: `/${API_VERSION}/fleet/software/package`,
-  STAGED_UPLOAD: `/${API_VERSION}/fleet/staged_upload`,
+    `/${API_VERSION}/automdm/software/versions/${id}`,
+  SOFTWARE_PACKAGE_ADD: `/${API_VERSION}/automdm/software/package`,
+  STAGED_UPLOAD: `/${API_VERSION}/automdm/staged_upload`,
   SOFTWARE_PACKAGE_TOKEN: (id: number) =>
-    `/${API_VERSION}/fleet/software/titles/${id}/package/token`,
+    `/${API_VERSION}/automdm/software/titles/${id}/package/token`,
   SOFTWARE_INSTALL_RESULTS: (uuid: string) =>
-    `/${API_VERSION}/fleet/software/install/${uuid}/results`,
+    `/${API_VERSION}/automdm/software/install/${uuid}/results`,
   SOFTWARE_PACKAGE_INSTALL: (id: number) =>
-    `/${API_VERSION}/fleet/software/packages/${id}`,
+    `/${API_VERSION}/automdm/software/packages/${id}`,
   SOFTWARE_AVAILABLE_FOR_INSTALL: (id: number) =>
-    `/${API_VERSION}/fleet/software/titles/${id}/available_for_install`,
-  SOFTWARE_FLEET_MAINTAINED_APPS: `/${API_VERSION}/fleet/software/fleet_maintained_apps`,
-  SOFTWARE_FLEET_MAINTAINED_APP: (id: number) =>
-    `/${API_VERSION}/fleet/software/fleet_maintained_apps/${id}`,
+    `/${API_VERSION}/automdm/software/titles/${id}/available_for_install`,
+  SOFTWARE_AUTOMDM_MAINTAINED_APPS: `/${API_VERSION}/automdm/software/automdm_maintained_apps`,
+  SOFTWARE_AUTOMDM_MAINTAINED_APP: (id: number) =>
+    `/${API_VERSION}/automdm/software/automdm_maintained_apps/${id}`,
 
   // AI endpoints
-  AUTOFILL_POLICY: `/${API_VERSION}/fleet/autofill/policy`,
-  AUTOFILL_CONFIG_PROFILE_NAME_DESCRIPTION: `/${API_VERSION}/fleet/autofill/configuration_profile/name_description`,
-  AUTOFILL_CONFIG_PROFILE_CONTENT: `/${API_VERSION}/fleet/autofill/configuration_profile/content`,
+  AUTOFILL_POLICY: `/${API_VERSION}/automdm/autofill/policy`,
+  AUTOFILL_CONFIG_PROFILE_NAME_DESCRIPTION: `/${API_VERSION}/automdm/autofill/configuration_profile/name_description`,
+  AUTOFILL_CONFIG_PROFILE_CONTENT: `/${API_VERSION}/automdm/autofill/configuration_profile/content`,
 
-  SSO: `/v1/fleet/sso`,
-  STATUS_LABEL_COUNTS: `/${API_VERSION}/fleet/host_summary`,
-  STATUS_LIVE_QUERY: `/${API_VERSION}/fleet/status/live_query`,
-  STATUS_RESULT_STORE: `/${API_VERSION}/fleet/status/result_store`,
-  TARGETS: `/${API_VERSION}/fleet/targets`,
-  TEAMS: `/${API_VERSION}/fleet/fleets`,
+  SSO: `/v1/automdm/sso`,
+  STATUS_LABEL_COUNTS: `/${API_VERSION}/automdm/host_summary`,
+  STATUS_LIVE_QUERY: `/${API_VERSION}/automdm/status/live_query`,
+  STATUS_RESULT_STORE: `/${API_VERSION}/automdm/status/result_store`,
+  TARGETS: `/${API_VERSION}/automdm/targets`,
+  TEAMS: `/${API_VERSION}/automdm/teams`,
   TEAMS_AGENT_OPTIONS: (teamId: number): string => {
-    return `/${API_VERSION}/fleet/fleets/${teamId}/agent_options`;
+    return `/${API_VERSION}/automdm/teams/${teamId}/agent_options`;
   },
   TEAMS_ENROLL_SECRETS: (teamId: number): string => {
-    return `/${API_VERSION}/fleet/fleets/${teamId}/secrets`;
+    return `/${API_VERSION}/automdm/teams/${teamId}/secrets`;
   },
   TEAM_USERS: (teamId: number): string => {
-    return `/${API_VERSION}/fleet/fleets/${teamId}/users`;
+    return `/${API_VERSION}/automdm/teams/${teamId}/users`;
   },
   TEAMS_TRANSFER_HOSTS: (teamId: number): string => {
-    return `/${API_VERSION}/fleet/fleets/${teamId}/hosts`;
+    return `/${API_VERSION}/automdm/teams/${teamId}/hosts`;
   },
   UPDATE_USER_ADMIN: (id: number): string => {
-    return `/${API_VERSION}/fleet/users/${id}/admin`;
+    return `/${API_VERSION}/automdm/users/${id}/admin`;
   },
   USER_SESSIONS: (id: number): string => {
-    return `/${API_VERSION}/fleet/users/${id}/sessions`;
+    return `/${API_VERSION}/automdm/users/${id}/sessions`;
   },
-  USERS: `/${API_VERSION}/fleet/users`,
-  USERS_ADMIN: `/${API_VERSION}/fleet/users/admin`,
-  USERS_API_ONLY: `/${API_VERSION}/fleet/users/api_only`,
-  VERSION: `/${API_VERSION}/fleet/version`,
+  USERS: `/${API_VERSION}/automdm/users`,
+  USERS_ADMIN: `/${API_VERSION}/automdm/users/admin`,
+  USERS_API_ONLY: `/${API_VERSION}/automdm/users/api_only`,
+  VERSION: `/${API_VERSION}/automdm/version`,
 
   // Vulnerabilities endpoints
-  VULNERABILITIES: `/${API_VERSION}/fleet/vulnerabilities`,
+  VULNERABILITIES: `/${API_VERSION}/automdm/vulnerabilities`,
   VULNERABILITY: (cve: string) =>
-    `/${API_VERSION}/fleet/vulnerabilities/${cve}`,
+    `/${API_VERSION}/automdm/vulnerabilities/${cve}`,
 
   // Script endpoints
-  HOST_SCRIPTS: (id: number) => `/${API_VERSION}/fleet/hosts/${id}/scripts`,
-  SCRIPTS: `/${API_VERSION}/fleet/scripts`,
-  SCRIPT: (id: number) => `/${API_VERSION}/fleet/scripts/${id}`,
+  HOST_SCRIPTS: (id: number) => `/${API_VERSION}/automdm/hosts/${id}/scripts`,
+  SCRIPTS: `/${API_VERSION}/automdm/scripts`,
+  SCRIPT: (id: number) => `/${API_VERSION}/automdm/scripts/${id}`,
   SCRIPT_RESULT: (executionId: string) =>
-    `/${API_VERSION}/fleet/scripts/results/${executionId}`,
-  SCRIPT_RUN: `/${API_VERSION}/fleet/scripts/run`,
-  SCRIPT_RUN_BATCH: `/${API_VERSION}/fleet/scripts/run/batch`,
+    `/${API_VERSION}/automdm/scripts/results/${executionId}`,
+  SCRIPT_RUN: `/${API_VERSION}/automdm/scripts/run`,
+  SCRIPT_RUN_BATCH: `/${API_VERSION}/automdm/scripts/run/batch`,
   SCRIPT_CANCEL_BATCH: (executionId: string) =>
-    `/${API_VERSION}/fleet/scripts/batch/${executionId}/cancel`,
+    `/${API_VERSION}/automdm/scripts/batch/${executionId}/cancel`,
   SCRIPT_RUN_BATCH_SUMMARY_V2: (id: string) =>
-    `/${API_VERSION}/fleet/scripts/batch/${id}`,
-  SCRIPT_RUN_BATCH_SUMMARIES: `/${API_VERSION}/fleet/scripts/batch`,
+    `/${API_VERSION}/automdm/scripts/batch/${id}`,
+  SCRIPT_RUN_BATCH_SUMMARIES: `/${API_VERSION}/automdm/scripts/batch`,
   SCRIPT_BATCH_HOST_RESULTS: (id: string) =>
-    `/${API_VERSION}/fleet/scripts/batch/${id}/host_results`,
+    `/${API_VERSION}/automdm/scripts/batch/${id}/host_results`,
 
   // Command endpoints
-  COMMANDS: `/${API_VERSION}/fleet/commands`,
-  COMMANDS_RESULTS: `/${API_VERSION}/fleet/commands/results`,
+  COMMANDS: `/${API_VERSION}/automdm/commands`,
+  COMMANDS_RESULTS: `/${API_VERSION}/automdm/commands/results`,
 
   // idp endpoints
-  SCIM_DETAILS: `/${API_VERSION}/fleet/scim/details`,
+  SCIM_DETAILS: `/${API_VERSION}/automdm/scim/details`,
 
   // configuration profile endpoints
   CONFIG_PROFILE: (uuid: string) =>
-    `/${API_VERSION}/fleet/configuration_profiles/${uuid}`,
+    `/${API_VERSION}/automdm/configuration_profiles/${uuid}`,
   CONFIG_PROFILE_STATUS: (uuid: string) =>
-    `/${API_VERSION}/fleet/configuration_profiles/${uuid}/status`,
-  CONFIG_PROFILE_BATCH_RESEND: `/${API_VERSION}/fleet/configuration_profiles/resend/batch`,
-  CERTIFICATES: `/${API_VERSION}/fleet/certificates`,
+    `/${API_VERSION}/automdm/configuration_profiles/${uuid}/status`,
+  CONFIG_PROFILE_BATCH_RESEND: `/${API_VERSION}/automdm/configuration_profiles/resend/batch`,
+  CERTIFICATES: `/${API_VERSION}/automdm/certificates`,
 
   // Certificate authority endpoints
-  CERTIFICATE_AUTHORITIES: `/${API_VERSION}/fleet/certificate_authorities`,
+  CERTIFICATE_AUTHORITIES: `/${API_VERSION}/automdm/certificate_authorities`,
   CERTIFICATE_AUTHORITY: (id: number) =>
-    `/${API_VERSION}/fleet/certificate_authorities/${id}`,
+    `/${API_VERSION}/automdm/certificate_authorities/${id}`,
   CERTIFICATE_AUTHORITY_REQUEST_CERT: (id: number) => {
-    return `/${API_VERSION}/fleet/certificate_authorities/${id}/request_certificate`;
+    return `/${API_VERSION}/automdm/certificate_authorities/${id}/request_certificate`;
   },
   // global variables endpoints
-  GLOBAL_VARIABLES: `/${API_VERSION}/fleet/custom_variables`,
+  GLOBAL_VARIABLES: `/${API_VERSION}/automdm/custom_variables`,
   // custom host vitals endpoints
-  CUSTOM_HOST_VITALS: `/${API_VERSION}/fleet/custom_host_vitals`,
-  RELEASE_AB_HOSTS: `/${API_VERSION}/fleet/hosts/release_ab`,
+  CUSTOM_HOST_VITALS: `/${API_VERSION}/automdm/custom_host_vitals`,
+  RELEASE_AB_HOSTS: `/${API_VERSION}/automdm/hosts/release_ab`,
 };

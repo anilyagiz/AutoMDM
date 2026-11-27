@@ -8,14 +8,14 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/constant"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/osquery"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/update"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/update/filestore"
-	"github.com/fleetdm/fleet/v4/pkg/certificate"
-	"github.com/fleetdm/fleet/v4/pkg/file"
-	"github.com/fleetdm/fleet/v4/pkg/secure"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/constant"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/osquery"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/update"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/update/filestore"
+	"github.com/anilyagiz/automdm/v4/pkg/certificate"
+	"github.com/anilyagiz/automdm/v4/pkg/file"
+	"github.com/anilyagiz/automdm/v4/pkg/secure"
 	"github.com/google/uuid"
 	"github.com/oklog/run"
 	"github.com/rs/zerolog"
@@ -40,9 +40,9 @@ var shellCommand = &cli.Command{
 			EnvVars: []string{"ORBIT_DEBUG"},
 		},
 		&cli.StringFlag{
-			Name:    "fleet-certificate",
-			Usage:   "Path to the Fleet server certificate chain",
-			EnvVars: []string{"ORBIT_FLEET_CERTIFICATE"},
+			Name:    "automdm-certificate",
+			Usage:   "Path to the AutoMDM server certificate chain",
+			EnvVars: []string{"ORBIT_AUTOMDM_CERTIFICATE"},
 		},
 	},
 	Action: func(c *cli.Context) error {
@@ -118,7 +118,7 @@ var shellCommand = &cli.Command{
 
 		certPath, err := getCertPath(
 			c.String("root-dir"),
-			c.String("fleet-certificate"),
+			c.String("automdm-certificate"),
 		)
 		if err != nil {
 			return err
@@ -179,10 +179,10 @@ var shellCommand = &cli.Command{
 	},
 }
 
-func getCertPath(rootDir, fleetCertPath string) (string, error) {
+func getCertPath(rootDir, automdmCertPath string) (string, error) {
 	certPath := filepath.Join(rootDir, "certs.pem")
-	if fleetCertPath != "" {
-		certPath = fleetCertPath
+	if automdmCertPath != "" {
+		certPath = automdmCertPath
 	}
 
 	exists, err := file.Exists(certPath)

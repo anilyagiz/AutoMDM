@@ -84,7 +84,7 @@ const createMockPolicy = (overrides?: Partial<IPolicy>): IPolicy => ({
   author_email: "admin@example.com",
   resolution: "",
   platform: "darwin",
-  fleet_id: 1,
+  team_id: 1,
   created_at: "2026-01-01T00:00:00Z",
   updated_at: "2026-01-01T00:00:00Z",
   critical: false,
@@ -248,7 +248,7 @@ const createProps = () => ({
 const baseAppContext = {
   isGlobalAdmin: true,
   isOnGlobalTeam: true,
-  // Free tier short-circuits useTeamIdParam's redirect logic when no fleet_id is
+  // Free tier short-circuits useTeamIdParam's redirect logic when no team_id is
   // set, keeping the test focused on which data source the page renders from.
   isFreeTier: true,
   isPremiumTier: false,
@@ -260,12 +260,12 @@ const baseAppContext = {
 describe("PolicyDetailsPage - renders fresh policy data (regression #43310)", () => {
   it("renders the loaded policy's fields, not stale PolicyContext values", async () => {
     mockServer.use(
-      // fleet_id: null keeps the team query disabled, so no second endpoint to mock.
+      // team_id: null keeps the team query disabled, so no second endpoint to mock.
       http.get(baseUrl(`/policies/${POLICY_ID}`), () =>
         HttpResponse.json({
           policy: createMockPolicy({
             id: POLICY_ID,
-            fleet_id: null,
+            team_id: null,
             name: "Fresh policy name",
             description: "Fresh policy description",
             resolution: "Fresh resolution steps",
@@ -339,7 +339,7 @@ describe("PolicyDetailsPage - host search", () => {
 
   const renderPage = ({
     automationType,
-    query = { fleet_id: "2" },
+    query = { team_id: "2" },
     state,
     isFreeTier = false,
   }: {
@@ -353,7 +353,7 @@ describe("PolicyDetailsPage - host search", () => {
         HttpResponse.json({
           policy: createMockPolicy({
             id: POLICY_ID,
-            fleet_id: null,
+            team_id: null,
             automation_type: automationType,
           }),
         })
@@ -418,7 +418,7 @@ describe("PolicyDetailsPage - host search", () => {
       );
       expect(router.replace).toHaveBeenCalledWith({
         pathname: `/policies/${POLICY_ID}`,
-        query: { fleet_id: "2", query: "Workstation 1" },
+        query: { team_id: "2", query: "Workstation 1" },
       });
     }
   );
@@ -426,7 +426,7 @@ describe("PolicyDetailsPage - host search", () => {
   it("doesn't filter a policy without an automation and drops the host", async () => {
     const { router } = renderPage({
       automationType: null,
-      query: { fleet_id: "2" },
+      query: { team_id: "2" },
       state: { hostSearch: "Workstation 1" },
     });
 
@@ -435,14 +435,14 @@ describe("PolicyDetailsPage - host search", () => {
     );
     expect(router.replace).toHaveBeenCalledWith({
       pathname: `/policies/${POLICY_ID}`,
-      query: { fleet_id: "2" },
+      query: { team_id: "2" },
     });
   });
 
   it("applies a search from the URL to any policy", async () => {
     const { router } = renderPage({
       automationType: null,
-      query: { fleet_id: "2", query: "Workstation 1" },
+      query: { team_id: "2", query: "Workstation 1" },
     });
 
     expect(await screen.findByTestId("activities-table")).toHaveTextContent(
@@ -451,14 +451,14 @@ describe("PolicyDetailsPage - host search", () => {
     expect(router.replace).not.toHaveBeenCalled();
   });
 
-  it("keeps the host filter when Free tier drops the fleet from the URL", async () => {
+  it("keeps the host filter when Free tier drops the team from the URL", async () => {
     const { router, setLocation } = renderPage({
       automationType: "webhook_or_ticket",
       isFreeTier: true,
-      query: { fleet_id: "0" },
+      query: { team_id: "0" },
       state: { hostSearch: "Workstation 1" },
     });
-    // Free tier has no fleets, so the page redirects without fleet_id, and the
+    // Free tier has no teams, so the page redirects without team_id, and the
     // string redirect carries no location state.
     await waitFor(() => expect(router.replace).toHaveBeenCalled());
     setLocation({ query: {} });
@@ -481,36 +481,36 @@ describe("PolicyDetailsPage - host search", () => {
     await waitFor(() =>
       expect(router.replace).toHaveBeenLastCalledWith({
         pathname: `/policies/${POLICY_ID}`,
-        query: { fleet_id: "2", query: "Workstation 1" },
+        query: { team_id: "2", query: "Workstation 1" },
       })
     );
-    setLocation({ query: { fleet_id: "2", query: "Workstation 1" } });
+    setLocation({ query: { team_id: "2", query: "Workstation 1" } });
 
     await user.click(screen.getByText("Clear search"));
-    setLocation({ query: { fleet_id: "2" } });
+    setLocation({ query: { team_id: "2" } });
 
     expect(router.replace).toHaveBeenLastCalledWith({
       pathname: `/policies/${POLICY_ID}`,
-      query: { fleet_id: "2" },
+      query: { team_id: "2" },
     });
   });
 
   it("keeps the URL in sync with the search", async () => {
     const { user, router } = renderPage({
       automationType: "script",
-      query: { fleet_id: "2", query: "Workstation 1" },
+      query: { team_id: "2", query: "Workstation 1" },
     });
 
     await user.click(await screen.findByText("Search other host"));
     expect(router.replace).toHaveBeenLastCalledWith({
       pathname: `/policies/${POLICY_ID}`,
-      query: { fleet_id: "2", query: "Other host" },
+      query: { team_id: "2", query: "Other host" },
     });
 
     await user.click(screen.getByText("Clear search"));
     expect(router.replace).toHaveBeenLastCalledWith({
       pathname: `/policies/${POLICY_ID}`,
-      query: { fleet_id: "2" },
+      query: { team_id: "2" },
     });
   });
 });

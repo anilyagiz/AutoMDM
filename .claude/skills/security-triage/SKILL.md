@@ -1,6 +1,6 @@
 ---
 name: security-triage
-description: Use when a security report arrives or needs a reply - a new Bugbop report (VDP or private bug bounty), a GitHub security advisory submission in the "triage" state on fleetdm/fleet, a disclosure in the security inbox, a reporter asking "any update?", or a fix merging for a tracked report. Also use for the daily security report triage ritual.
+description: Use when a security report arrives or needs a reply - a new Bugbop report (VDP or private bug bounty), a GitHub security advisory submission in the "triage" state on automdm/automdm, a disclosure in the security inbox, a reporter asking "any update?", or a fix merging for a tracked report. Also use for the daily security report triage ritual.
 allowed-tools: Bash(gh *), Bash(python3 *), Bash(git *), Bash(grep *), Bash(find *), Bash(ls *), Bash(base64 *), Read, Grep, Glob, Write
 ---
 
@@ -10,7 +10,7 @@ You are the triage DRI. You receive reports, talk to reporters, and turn valid, 
 
 **Triage is done when** the report is either closed with a reason the reporter has seen, or filed as one `fleetdm/security` issue that has all of: `security` label, priority label, product group label, the group's EM assigned, a card on the group's board, and status **🥚 Ready** on the [:help-security board](https://github.com/orgs/fleetdm/projects/113). Anything short of that is still yours.
 
-Handbook: [Handle a security report](https://fleetdm.com/handbook/engineering#handle-a-security-report). This skill is the how-to for that section; the handbook wins if they disagree.
+Handbook: [Handle a security report](https://automdm.com/handbook/engineering#handle-a-security-report). This skill is the how-to for that section; the handbook wins if they disagree.
 
 **REQUIRED SUB-SKILL:** `bugbop:bugbop` for reading and writing Bugbop reports (plugin from the `bugbop-skills` marketplace). If the plugin isn't installed or the API write is blocked, use the Bugbop web UI; the result is what matters.
 
@@ -23,8 +23,8 @@ Three intake channels. Check all three every business day; reports that only sho
 BUGBOP=$(find ~/.claude/plugins -path '*bugbop/scripts/bugbop.py' | head -1)
 python3 "$BUGBOP" GET "/reports?status=new,open,needs_info" --all --summary
 # 2. GitHub advisory submissions awaiting triage
-gh api '/repos/fleetdm/fleet/security-advisories?state=triage&per_page=100' \
-  -q '.[] | "\(.ghsa_id) \(.severity) \(.cve_id // "-") \(.created_at[:10]) \(.author.login // "fleet") comments=\(.comments) | \(.summary)"'
+gh api '/repos/automdm/automdm/security-advisories?state=triage&per_page=100' \
+  -q '.[] | "\(.ghsa_id) \(.severity) \(.cve_id // "-") \(.created_at[:10]) \(.author.login // "automdm") comments=\(.comments) | \(.summary)"'
 # 3. The security inbox (see the repository security policy for the address)
 ```
 
@@ -33,7 +33,7 @@ Acknowledge every new report within one business day, even if the only content i
 ## Triage one report
 
 1. **Read it skeptically.** Scanner and AI-written reports often describe fixed behavior, a nonexistent endpoint, or a privilege the attacker already holds. The report's own severity is a claim, not a rating.
-2. **Dedup before anything else.** `gh search issues` misses body text, so dump and grep. Run the sweep in `reference.md` against `fleetdm/security` (open and closed), `fleetdm/confidential`, all advisories on `fleetdm/fleet` (triage, draft, published), both Bugbop programs, and the advisory running list. Search exact endpoint paths, parameter names, and function names, not the title.
+2. **Dedup before anything else.** `gh search issues` misses body text, so dump and grep. Run the sweep in `reference.md` against `fleetdm/security` (open and closed), `fleetdm/confidential`, all advisories on `automdm/automdm` (triage, draft, published), both Bugbop programs, and the advisory running list. Search exact endpoint paths, parameter names, and function names, not the title.
 3. **Verify against `main`.** Read the handler, the authz policy, and the datastore query the report names (for UI reports, every render site of the field; checklist in `reference.md`). Note the commit you checked. If the code was fixed, find the fixing PR with `git log -S` and the first release tag that contains it. Write down what you verified and what you did not.
 4. **Classify and rate** with `severity.md`. Decide vulnerability vs. hardening first, then severity, then the matching priority label.
 5. **Route** by outcome:
@@ -55,8 +55,8 @@ digraph route {
 }
 ```
 
-6. **File** with `issue-template.md`, one issue per distinct root cause, title `Report [Severity]: ...`. Labels: `security`, `p0`..`p4`, `#g-<group>`. Assign the group's EM (look them up on the [product groups page](https://fleetdm.com/handbook/company/product-groups)). Add the issue to the group's board and set the :help-security card to **🥚 Ready**. Commands in `reference.md`.
-7. **Reconcile the source.** Bugbop: status `open`, severity set to Fleet's rating, internal note with the issue URL. GitHub advisory: accept as draft, set Fleet's severity, affected range, credits, template description. Post the validated reply from `replies.md`.
+6. **File** with `issue-template.md`, one issue per distinct root cause, title `Report [Severity]: ...`. Labels: `security`, `p0`..`p4`, `#g-<group>`. Assign the group's EM (look them up on the [product groups page](https://automdm.com/handbook/company/product-groups)). Add the issue to the group's board and set the :help-security card to **🥚 Ready**. Commands in `reference.md`.
+7. **Reconcile the source.** Bugbop: status `open`, severity set to AutoMDM's rating, internal note with the issue URL. GitHub advisory: accept as draft, set AutoMDM's severity, affected range, credits, template description. Post the validated reply from `replies.md`.
 8. **Customer identity never enters `fleetdm/security`.** Codenames and `customer-<codename>` labels are fine; real names, domains, and screenshots with identifying data go in `fleetdm/confidential`, linked from the issue.
 
 ## After hand-off, still yours

@@ -10,8 +10,8 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/apple/mobileconfig"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/apple/mobileconfig"
 	"github.com/micromdm/plist"
 )
 
@@ -29,13 +29,13 @@ type profilesOutput[T any] struct {
 	ComputerLevel []profilePayload[T] `plist:"_computerlevel"`
 }
 
-// GetFleetdConfig searches and parses a device level configuration profile
-// with Fleet's payload identifier.
-func GetFleetdConfig() (*fleet.MDMAppleFleetdConfig, error) {
-	pc, err := getProfilePayloadContent[fleet.MDMAppleFleetdConfig](mobileconfig.FleetdConfigPayloadIdentifier)
+// GetAutoMDMdConfig searches and parses a device level configuration profile
+// with AutoMDM's payload identifier.
+func GetAutoMDMdConfig() (*automdm.MDMAppleAutoMDMdConfig, error) {
+	pc, err := getProfilePayloadContent[automdm.MDMAppleAutoMDMdConfig](mobileconfig.AutoMDMdConfigPayloadIdentifier)
 	if err != nil {
 		if err == ErrNotFound {
-			return &fleet.MDMAppleFleetdConfig{}, nil
+			return &automdm.MDMAppleAutoMDMdConfig{}, nil
 		}
 
 		return nil, err
@@ -45,7 +45,7 @@ func GetFleetdConfig() (*fleet.MDMAppleFleetdConfig, error) {
 }
 
 func GetCustomEnrollmentProfileEndUserEmail() (string, error) {
-	pc, err := getProfilePayloadContent[fleet.MDMCustomEnrollmentProfileItem](mobileconfig.FleetEnrollmentPayloadIdentifier)
+	pc, err := getProfilePayloadContent[automdm.MDMCustomEnrollmentProfileItem](mobileconfig.AutoMDMEnrollmentPayloadIdentifier)
 	if err != nil {
 		return "", err
 	}
@@ -229,7 +229,7 @@ func CheckAssignedEnrollmentProfile(expectedURL string) error {
 	for _, line := range lines {
 		// Note the output may contain both ConfigurationURL and ConfigurationWebURL but we check only
 		// the latter for backwards compatibility.
-		// See https://github.com/fleetdm/fleet/blob/963b2438537de14e7e16f1f18857ed8a66d51bfc/server/mdm/apple/apple_mdm.go#L195
+		// See https://github.com/anilyagiz/automdm/blob/963b2438537de14e7e16f1f18857ed8a66d51bfc/server/mdm/apple/apple_mdm.go#L195
 		if v, ok := parseEnrollmentProfileValue(line, "ConfigurationURL"); ok {
 			configURL = v
 			continue

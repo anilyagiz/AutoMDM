@@ -1,4 +1,4 @@
-// charts-collect fetches live data from a Fleet instance via API and writes
+// charts-collect fetches live data from an AutoMDM instance via API and writes
 // chart data into a local database. Designed to run hourly via cron.
 //
 // Uptime: fetches currently online hosts and OR-merges them into the
@@ -12,15 +12,15 @@
 //
 // Usage:
 //
-//	go run ./tools/charts-collect --fleet-url https://dogfood.fleetdm.com --fleet-token <token>
-//	go run ./tools/charts-collect --fleet-url https://dogfood.fleetdm.com --fleet-token <token> --mysql-dsn "fleet:fleet@tcp(localhost:3306)/fleet"
+//	go run ./tools/charts-collect --automdm-url https://dogfood.fleetdm.com --automdm-token <token>
+//	go run ./tools/charts-collect --automdm-url https://dogfood.fleetdm.com --automdm-token <token> --mysql-dsn "automdm:team@tcp(localhost:3306)/automdm"
 //
 // Env vars:
-//   - FLEET_URL / FLEET_TOKEN: API target (same as --fleet-url / --fleet-token).
+//   - AUTOMDM_URL / AUTOMDM_TOKEN: API target (same as --automdm-url / --automdm-token).
 //   - MYSQL_DSN: full DSN (same as --mysql-dsn).
-//   - FLEET_MYSQL_ADDRESS, FLEET_MYSQL_DATABASE, FLEET_MYSQL_USERNAME,
-//     FLEET_MYSQL_PASSWORD: used to assemble a DSN when MYSQL_DSN/--mysql-dsn
-//     is not set. Matches the fleet server's env var names so the same values
+//   - AUTOMDM_MYSQL_ADDRESS, AUTOMDM_MYSQL_DATABASE, AUTOMDM_MYSQL_USERNAME,
+//     AUTOMDM_MYSQL_PASSWORD: used to assemble a DSN when MYSQL_DSN/--mysql-dsn
+//     is not set. Matches the automdm server's env var names so the same values
 //     can be reused (e.g. via Render fromService).
 package main
 
@@ -36,8 +36,8 @@ import (
 	"time"
 
 	"github.com/RoaringBitmap/roaring"
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/chart"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/server/chart"
 	_ "github.com/go-sql-driver/mysql"
 )
 
@@ -54,13 +54,13 @@ const (
 var scdOpenSentinel = time.Date(9999, 12, 31, 0, 0, 0, 0, time.UTC)
 
 func main() {
-	fleetURL := flag.String("fleet-url", os.Getenv("FLEET_URL"), "Fleet server URL (or FLEET_URL env var)")
-	fleetToken := flag.String("fleet-token", os.Getenv("FLEET_TOKEN"), "Fleet API token (or FLEET_TOKEN env var)")
-	dsn := flag.String("mysql-dsn", os.Getenv("MYSQL_DSN"), "MySQL connection string (or MYSQL_DSN env var; falls back to FLEET_MYSQL_* env vars)")
+	automdmURL := flag.String("automdm-url", os.Getenv("AUTOMDM_URL"), "AutoMDM server URL (or AUTOMDM_URL env var)")
+	automdmToken := flag.String("automdm-token", os.Getenv("AUTOMDM_TOKEN"), "AutoMDM API token (or AUTOMDM_TOKEN env var)")
+	dsn := flag.String("mysql-dsn", os.Getenv("MYSQL_DSN"), "MySQL connection string (or MYSQL_DSN env var; falls back to AUTOMDM_MYSQL_* env vars)")
 	flag.Parse()
 
-	if *fleetURL == "" || *fleetToken == "" {
-		log.Fatal("--fleet-url and --fleet-token are required (or set FLEET_URL and FLEET_TOKEN)")
+	if *automdmURL == "" || *automdmToken == "" {
+		log.Fatal("--automdm-url and --automdm-token are required (or set AUTOMDM_URL and AUTOMDM_TOKEN)")
 	}
 
 	if *dsn == "" {
@@ -83,9 +83,9 @@ func main() {
 	defer db.Close()
 
 	api := &apiClient{
-		baseURL: *fleetURL,
-		token:   *fleetToken,
-		http:    fleethttp.NewClient(fleethttp.WithTimeout(30 * time.Second)),
+		baseURL: *automdmURL,
+		token:   *automdmToken,
+		http:    automdmhttp.NewClient(automdmhttp.WithTimeout(30 * time.Second)),
 	}
 
 	if err := collectUptime(api, db); err != nil {
@@ -96,36 +96,36 @@ func main() {
 	}
 }
 
-// dsnFromEnv builds a MySQL DSN from the standard FLEET_MYSQL_* env vars used
-// by the fleet server. Returns an error if any required piece is missing so we
+// dsnFromEnv builds a MySQL DSN from the standard AUTOMDM_MYSQL_* env vars used
+// by the automdm server. Returns an error if any required piece is missing so we
 // don't silently fall back to localhost defaults in a production cron.
 func dsnFromEnv() (string, error) {
-	addr := os.Getenv("FLEET_MYSQL_ADDRESS")
-	user := os.Getenv("FLEET_MYSQL_USERNAME")
-	pass := os.Getenv("FLEET_MYSQL_PASSWORD")
-	db := os.Getenv("FLEET_MYSQL_DATABASE")
+	addr := os.Getenv("AUTOMDM_MYSQL_ADDRESS")
+	user := os.Getenv("AUTOMDM_MYSQL_USERNAME")
+	pass := os.Getenv("AUTOMDM_MYSQL_PASSWORD")
+	db := os.Getenv("AUTOMDM_MYSQL_DATABASE")
 
 	var missing []string
 	if addr == "" {
-		missing = append(missing, "FLEET_MYSQL_ADDRESS")
+		missing = append(missing, "AUTOMDM_MYSQL_ADDRESS")
 	}
 	if user == "" {
-		missing = append(missing, "FLEET_MYSQL_USERNAME")
+		missing = append(missing, "AUTOMDM_MYSQL_USERNAME")
 	}
 	if db == "" {
-		missing = append(missing, "FLEET_MYSQL_DATABASE")
+		missing = append(missing, "AUTOMDM_MYSQL_DATABASE")
 	}
 	if len(missing) > 0 {
 		return "", fmt.Errorf("missing env vars: %s (or set --mysql-dsn / MYSQL_DSN)", strings.Join(missing, ", "))
 	}
 
-	// Raw password — matches how the fleet server formats its DSN
+	// Raw password — matches how the automdm server formats its DSN
 	// (server/platform/mysql/common.go). go-sql-driver does not URL-decode
 	// the password field, so encoding it here would corrupt the value.
 	return fmt.Sprintf("%s:%s@tcp(%s)/%s?parseTime=true", user, pass, addr, db), nil
 }
 
-// apiClient wraps HTTP calls to the Fleet API.
+// apiClient wraps HTTP calls to the AutoMDM API.
 type apiClient struct {
 	baseURL string
 	token   string
@@ -375,7 +375,7 @@ func reconcileSnapshot(db *sql.DB, dataset string, entityBitmaps map[string]*roa
 func fetchHostIDs(api *apiClient, extraParams string) ([]uint, error) {
 	var all []uint
 	for page := 0; ; page++ {
-		path := fmt.Sprintf("/api/v1/fleet/hosts?per_page=%d&page=%d", perPage, page)
+		path := fmt.Sprintf("/api/v1/automdm/hosts?per_page=%d&page=%d", perPage, page)
 		if extraParams != "" {
 			path += "&" + extraParams
 		}
@@ -407,7 +407,7 @@ func fetchHostIDs(api *apiClient, extraParams string) ([]uint, error) {
 func fetchHostCVEs(api *apiClient, hostID uint) ([]string, error) {
 	seen := make(map[string]struct{})
 	for page := 0; ; page++ {
-		path := fmt.Sprintf("/api/v1/fleet/hosts/%d/software?vulnerable=true&per_page=%d&page=%d", hostID, perPage, page)
+		path := fmt.Sprintf("/api/v1/automdm/hosts/%d/software?vulnerable=true&per_page=%d&page=%d", hostID, perPage, page)
 
 		resp, err := api.get(path)
 		if err != nil {

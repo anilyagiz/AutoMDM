@@ -13,7 +13,7 @@ terraform {
   }
 
   backend "s3" {
-    bucket               = "fleet-terraform-state20220408141538466600000002"
+    bucket               = "automdm-terraform-state20220408141538466600000002"
     key                  = "loadtesting/loadtesting/android-amapi-mock/terraform.tfstate"
     workspace_key_prefix = "loadtesting"
     region               = "us-east-2"
@@ -31,7 +31,7 @@ provider "aws" {
   default_tags {
     tags = {
       environment = "loadtest-android-mock"
-      terraform   = "https://github.com/fleetdm/fleet/tree/main/infrastructure/loadtesting/terraform/android_amapi_mock"
+      terraform   = "https://github.com/anilyagiz/automdm/tree/main/infrastructure/loadtesting/terraform/android_amapi_mock"
       workspace   = terraform.workspace
     }
   }
@@ -54,7 +54,7 @@ data "aws_ecr_authorization_token" "token" {}
 data "terraform_remote_state" "shared" {
   backend = "s3"
   config = {
-    bucket               = "fleet-terraform-state20220408141538466600000002"
+    bucket               = "automdm-terraform-state20220408141538466600000002"
     key                  = "loadtesting/loadtesting/shared/terraform.tfstate"
     workspace_key_prefix = "loadtesting"
     region               = "us-east-2"
@@ -72,7 +72,7 @@ data "terraform_remote_state" "infra" {
   backend   = "s3"
   workspace = terraform.workspace
   config = {
-    bucket               = "fleet-terraform-state20220408141538466600000002"
+    bucket               = "automdm-terraform-state20220408141538466600000002"
     key                  = "loadtesting/loadtesting/terraform.tfstate"
     workspace_key_prefix = "loadtesting"
     region               = "us-east-2"
@@ -86,7 +86,7 @@ data "terraform_remote_state" "infra" {
 }
 
 locals {
-  customer = "fleet-${terraform.workspace}"
+  customer = "automdm-${terraform.workspace}"
 }
 
 # ---- ECR + Docker image ----

@@ -50,7 +50,7 @@ describe("platform helpers", () => {
   });
 
   describe("isDiskEncryptionSupportedLinuxPlatform", () => {
-    it("matches the distributions Fleet can escrow LUKS keys for", () => {
+    it("matches the distributions AutoMDM can escrow LUKS keys for", () => {
       expect(isDiskEncryptionSupportedLinuxPlatform("ubuntu", "")).toBe(true);
       expect(isDiskEncryptionSupportedLinuxPlatform("zorin", "")).toBe(true);
       expect(isDiskEncryptionSupportedLinuxPlatform("omarchy", "")).toBe(true);

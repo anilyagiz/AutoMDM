@@ -1,4 +1,4 @@
-// Package db manages the dev-MySQL backup directory inside the Fleet repo
+// Package db manages the dev-MySQL backup directory inside the AutoMDM repo
 // (<repo>/db-backups). Ported from src-tauri/src/db.rs. The directory gets
 // its own .gitignore so dumps stay out of git without touching the repo's
 // main .gitignore. Metadata (branch/note/timestamp) lives in a JSON sidecar
@@ -14,7 +14,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/fleetdm/fleet/tools/hangar/internal/paths"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/paths"
 )
 
 const (
@@ -111,7 +111,7 @@ func ensureDirWithGitignore(dir string) error {
 	}
 	gi := filepath.Join(dir, ".gitignore")
 	if _, err := os.Stat(gi); errors.Is(err, os.ErrNotExist) {
-		body := "# Auto-created by Fleet Hangar.\n# Ignore all backup artifacts here.\n*\n!.gitignore\n"
+		body := "# Auto-created by AutoMDM Hangar.\n# Ignore all backup artifacts here.\n*\n!.gitignore\n"
 		if err := os.WriteFile(gi, []byte(body), 0o644); err != nil {
 			return fmt.Errorf("writing %s: %w", gi, err)
 		}

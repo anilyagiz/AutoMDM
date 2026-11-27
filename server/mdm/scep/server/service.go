@@ -7,8 +7,8 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/cryptoutil"
-	"github.com/fleetdm/fleet/v4/server/mdm/scep/kitlogadapter"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/cryptoutil"
+	"github.com/anilyagiz/automdm/v4/server/mdm/scep/kitlogadapter"
 	"github.com/smallstep/scep"
 )
 
@@ -37,8 +37,8 @@ type Service interface {
 // ServiceWithIdentifier is the interface for all supported SCEP server operations.
 // It extends the core SCEP server with ad hoc, polymorphic "identifier" functionality.
 //
-// FIXME: This seems to have been introduced as workaround to support Fleet-specific features
-// but its usage in practice is non-intuitive. In the context of Fleet's SCEP proxy,
+// FIXME: This seems to have been introduced as workaround to support AutoMDM-specific features
+// but its usage in practice is non-intuitive. In the context of AutoMDM's SCEP proxy,
 // the identifier has been implemented as comma-separated string that corresponds to various
 // values used when processing SCEP requests, which vary based on the specific implementation
 // (e.g., NDES vs. custom SCEP proxy). This functionality has been used to support

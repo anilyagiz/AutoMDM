@@ -30,15 +30,15 @@ $ghost-cell-padding-x: $pad-large; // 24px, matches Figma
   &__ghost-table {
     display: flex;
     // border-box so the 1px border doesn't push the layer 2px past the
-    // container in content-box mode (Fleet has no global box-sizing reset).
+    // container in content-box mode (AutoMDM has no global box-sizing reset).
     box-sizing: border-box;
     // Fill the parent even when it turns `.empty-state` into a flex container;
     // without this, ghost-table becomes a flex item and shrinks to content.
     width: 100%;
     height: 100%;
     // Opaque so non-white parents (mobile self-service) don't show through.
-    background-color: $core-fleet-white;
-    border: 1px solid $ui-fleet-black-10;
+    background-color: $core-automdm-white;
+    border: 1px solid $ui-automdm-black-10;
     border-radius: 8px;
     overflow: hidden;
 
@@ -56,7 +56,7 @@ $ghost-cell-padding-x: $pad-large; // 24px, matches Figma
   &__ghost-col {
     flex: 1 1 0;
     min-width: 0;
-    border-right: 1px solid $ui-fleet-black-10;
+    border-right: 1px solid $ui-automdm-black-10;
 
     &:last-child {
       border-right: none;
@@ -74,7 +74,7 @@ $ghost-cell-padding-x: $pad-large; // 24px, matches Figma
     height: $ghost-row-height;
     padding: 0 $ghost-cell-padding-x;
     background-color: $ui-off-white;
-    border-bottom: 1px solid $ui-fleet-black-10;
+    border-bottom: 1px solid $ui-automdm-black-10;
   }
 
   &__ghost-cell {
@@ -82,14 +82,14 @@ $ghost-cell-padding-x: $pad-large; // 24px, matches Figma
     align-items: center;
     height: $ghost-row-height;
     padding: 0 $ghost-cell-padding-x;
-    border-bottom: 1px solid $ui-fleet-black-10;
+    border-bottom: 1px solid $ui-automdm-black-10;
     gap: 0; // default single-line layout
   }
 
   &__ghost-skeleton {
     height: $ghost-skeleton-height;
     border-radius: $ghost-skeleton-radius;
-    background-color: $ui-fleet-black-10;
+    background-color: $ui-automdm-black-10;
 
     &--secondary {
       height: 8px;
@@ -119,8 +119,8 @@ $ghost-cell-padding-x: $pad-large; // 24px, matches Figma
     // Subtle radial glow behind content for legibility over ghost table
     background: radial-gradient(
       ellipse at center,
-      var(--core-fleet-white) 0%,
-      color-mix(in srgb, var(--core-fleet-white) 0%, transparent) 70%
+      var(--core-automdm-white) 0%,
+      color-mix(in srgb, var(--core-automdm-white) 0%, transparent) 70%
     );
     padding: $pad-xlarge;
 
@@ -128,7 +128,7 @@ $ghost-cell-padding-x: $pad-large; // 24px, matches Figma
       font-size: $small; // 16px per Figma
       font-weight: $bold;
       line-height: $line-height;
-      color: $core-fleet-black;
+      color: $core-automdm-black;
       margin: 0;
     }
   }
@@ -209,7 +209,7 @@ $ghost-cell-padding-x: $pad-large; // 24px, matches Figma
     height: 40px;
     width: 100%;
     border-radius: 4px;
-    background-color: $ui-fleet-black-10 !important;
+    background-color: $ui-automdm-black-10 !important;
   }
 
   &__ghost-button {

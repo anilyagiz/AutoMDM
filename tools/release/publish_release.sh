@@ -77,7 +77,7 @@ usage() {
     echo "  -f, --force                Skip all confirmations"
     echo "  -h, --help                 Display this help message and exit"
     echo "  -g, --tag                  Run the tag step"
-    echo "  -j, --major                Increment to a major version (X.0.0). Follows the minor release flow on an rc-major-fleet-vX.0.0 branch"
+    echo "  -j, --major                Increment to a major version (X.0.0). Follows the minor release flow on an rc-major-automdm-vX.0.0 branch"
     echo "  -k, --skip_dogfood         Skip deploying to dogfood. Necessary if you need to release without interrupting demos"
     echo "  -m, --minor                Increment to a minor version instead of patch (required if including non-bugs)"
     echo "  -M, --manual_cherry_pick   Have the script prompt you for each found related PR to cherry-pick"
@@ -314,11 +314,11 @@ determine_grep_command() {
     fi
 }
 
-# setup helm to include fleet repo
+# setup helm to include automdm repo
 check_and_setup_helm() {
-    out=`helm repo list | grep fleet | awk '{print $2}'`
-    if [[ "$out" != "https://fleetdm.github.io/fleet/charts" ]]; then
-        helm repo add fleet https://fleetdm.github.io/fleet/charts
+    out=`helm repo list | grep automdm | awk '{print $2}'`
+    if [[ "$out" != "https://automdm.github.io/automdm/charts" ]]; then
+        helm repo add automdm https://automdm.github.io/automdm/charts
     fi
 }
 
@@ -341,7 +341,7 @@ build_changelog() {
         if [[ "$target_date" == "" ]]; then
             tartget_date=$(date +"%b %d, %Y")
         fi
-        echo "## Fleet $target_milestone ($tartget_date)" > temp_changelog
+        echo "## AutoMDM $target_milestone ($tartget_date)" > temp_changelog
         echo "" >> temp_changelog
         echo "### Bug fixes" >> temp_changelog
         echo "" >> temp_changelog
@@ -379,12 +379,12 @@ changelog_and_versions() {
         # perl -i edits files in place identically on both Linux and macOS,
         # unlike sed -i which needs an empty backup arg ('') on BSD/macOS.
         echo "$version_files" | xargs perl -i -pe "s/$escaped_start_version/$target_milestone/g"
-        perl -i -pe 's/(version: v[0-9]+\.[0-9]+\.)(\d+)/$1 . ($2+1)/e' charts/fleet/Chart.yaml
+        perl -i -pe 's/(version: v[0-9]+\.[0-9]+\.)(\d+)/$1 . ($2+1)/e' charts/automdm/Chart.yaml
         git add terraform charts infrastructure tools
-        git commit -m "Adding changes for Fleet v$target_milestone"
+        git commit -m "Adding changes for AutoMDM v$target_milestone"
         git push origin $branch_for_changelog -f
         gh pr create -f -B $source_branch
-        gh workflow run goreleaser-snapshot-fleet.yaml --ref $source_branch # Manually trigger workflow run
+        gh workflow run goreleaser-snapshot-automdm.yaml --ref $source_branch # Manually trigger workflow run
     else
         echo "DRYRUN: Would have created Changelog / verison pr from $branch_for_changelog to $source_branch"
     fi
@@ -440,18 +440,18 @@ create_qa_issue() {
 print_announce_info() {
     if [ "$dry_run" = "false" ]; then
         qa_ticket=$(gh issue list --search "Release QA: $target_milestone in:title" --json url | jq -r .[0].url)
-        docker_deploy=$(gh run list --workflow goreleaser-snapshot-fleet.yaml --json event,url,headBranch --limit 100 | jq -r "[.[]|select(.headBranch==\"$target_branch\")][0].url")
+        docker_deploy=$(gh run list --workflow goreleaser-snapshot-automdm.yaml --json event,url,headBranch --limit 100 | jq -r "[.[]|select(.headBranch==\"$target_branch\")][0].url")
         echo
         echo "For announcing in #help-engineering"
         echo "===================================================="
         echo "Release $target_milestone QA ticket and docker publish"
         echo "QA ticket for Release $target_milestone " $qa_ticket
         echo "Docker Deploy status " $docker_deploy
-        echo "List of tickets pulled into release https://github.com/fleetdm/fleet/milestone/$target_milestone_number"
+        echo "List of tickets pulled into release https://github.com/anilyagiz/automdm/milestone/$target_milestone_number"
         echo 
         slack_hook_url=https://hooks.slack.com/services
         app_id=T019PP37ALW
-        announce_text="Release $target_milestone QA ticket and docker publish\nQA ticket for Release $target_milestone $qa_ticket\nDocker Deploy status $docker_deploy\nList of tickets pulled into release https://github.com/fleetdm/fleet/milestone/$target_milestone_number"
+        announce_text="Release $target_milestone QA ticket and docker publish\nQA ticket for Release $target_milestone $qa_ticket\nDocker Deploy status $docker_deploy\nList of tickets pulled into release https://github.com/anilyagiz/automdm/milestone/$target_milestone_number"
         if [ "$quiet" = "false" ]; then
             curl -X POST -H 'Content-type: application/json' \
                 --data "{\"text\":\"$announce_text\"}" \
@@ -464,7 +464,7 @@ print_announce_info() {
 
 general_announce_info() {
     if [[ "$minor" == "true" ]]; then
-        article_url="https://fleetdm.com/releases/fleet-${target_milestone//./-}"
+        article_url="https://automdm.com/releases/automdm-${target_milestone//./-}"
         article_published=$(curl -is "$article_url" | head -n 1 | awk '{print $2}')
         if [[ "$article_published" != "200" ]]; then
             echo "Could't find article at '$article_url'"
@@ -475,14 +475,14 @@ general_announce_info() {
         linkedin_post_url="https://www.linkedin.com/feed/update/urn:li:activity:7274913563989721088"
     fi
     echo "========================================================================="
-    echo "Update osquery Slack Fleet channel topic to say the correct version $next_ver"
+    echo "Update osquery Slack AutoMDM channel topic to say the correct version $next_ver"
     echo "========================================================================="
     # Slack
     slack_hook_url=https://hooks.slack.com/services
     app_id=T019PP37ALW
-    announce_text=":cloud: :rocket: The latest version of Fleet is $target_milestone.\nMore info: https://github.com/fleetdm/fleet/releases/tag/$next_tag"
+    announce_text=":cloud: :rocket: The latest version of AutoMDM is $target_milestone.\nMore info: https://github.com/fleetdm/fleet/releases/tag/$next_tag"
     if [[ "$minor" == "true" ]]; then
-        announce_text=":cloud: :rocket: The latest version of Fleet is $target_milestone.\nMore info: https://github.com/fleetdm/fleet/releases/tag/$next_tag\nRelease article: $article_url\nLinkedIn post: $linkedin_post_url"
+        announce_text=":cloud: :rocket: The latest version of AutoMDM is $target_milestone.\nMore info: https://github.com/fleetdm/fleet/releases/tag/$next_tag\nRelease article: $article_url\nLinkedIn post: $linkedin_post_url"
     fi
 
     echo -e $announce_text
@@ -510,11 +510,11 @@ update_release_notes() {
         echo "" >> release_notes
         echo "### Upgrading" >> release_notes
         echo "" >> release_notes
-        echo "Please visit our [update guide](https://fleetdm.com/docs/deploying/upgrading-fleet) for upgrade instructions." >> release_notes
+        echo "Please visit our [update guide](https://automdm.com/docs/deploying/upgrading-automdm) for upgrade instructions." >> release_notes
         echo "" >> release_notes
         echo "### Documentation" >> release_notes
         echo "" >> release_notes
-        echo "Documentation for Fleet is available at [fleetdm.com/docs](https://fleetdm.com/docs)." >> release_notes
+        echo "Documentation for AutoMDM is available at [automdm.com/docs](https://automdm.com/docs)." >> release_notes
         echo "" >> release_notes
         echo "### Binary Checksum" >> release_notes
         echo "" >> release_notes
@@ -553,13 +553,13 @@ tag() {
         git tag $next_tag
         git push origin $next_tag
 
-        # The v4.XX.YY tag is used for publishing Fleet's Go module (https://go.dev/doc/modules/publishing).
+        # The v4.XX.YY tag is used for publishing AutoMDM's Go module (https://go.dev/doc/modules/publishing).
         git tag $next_ver
         git push origin $next_ver
 
         # This lets us wait for github actions to trigger
         # we are specifically waiting for goreleaser to start
-        # off the `tag` branch ie: fleet-v4.47.2 to watch until it completes
+        # off the `tag` branch ie: automdm-v4.47.2 to watch until it completes
         # The last step of goreleaser is the create the draft release for us to modify later
         show_spinner 200
     else
@@ -567,7 +567,7 @@ tag() {
     fi
 
     if [ "$dry_run" = "false" ]; then
-        releaser_out=$(gh run list --workflow goreleaser-fleet.yaml --json databaseId,event,headBranch,url | jq "[.[]|select(.headBranch==\"$next_tag\")][0]")
+        releaser_out=$(gh run list --workflow goreleaser-automdm.yaml --json databaseId,event,headBranch,url | jq "[.[]|select(.headBranch==\"$next_tag\")][0]")
         echo "Releaser running " $(echo $releaser_out | jq -r ".url")
 
         gh run watch $(echo $releaser_out | jq -r ".databaseId")
@@ -609,12 +609,12 @@ close_milestone_issues() {
 publish() {
     if [ "$dry_run" = "false" ]; then
         if [ "$announce_only" = "false" ]; then
-            helm repo update fleet
-            local_chart_version=`cat charts/fleet/Chart.yaml | grep "^version" | awk '{print $2}'`
-            published_chart_match=`helm search repo fleet/fleet -l | grep fleet | awk '{print $2}' | grep $local_chart_version`
+            helm repo update automdm
+            local_chart_version=`cat charts/automdm/Chart.yaml | grep "^version" | awk '{print $2}'`
+            published_chart_match=`helm search repo automdm/automdm -l | grep automdm | awk '{print $2}' | grep $local_chart_version`
             if [[ "$published_chart_match" != "" ]]; then
                 echo "Chart matches already published version please increment"
-                echo "Check released versions with 'helm repo search fleet/fleet -l'"
+                echo "Check released versions with 'helm repo search automdm/automdm -l'"
                 exit 1
             fi
             # TODO more checks to validate we are ready to publish
@@ -625,7 +625,7 @@ publish() {
                     read -r -p "Are you ABSOLUTELY SURE you want to deploy to Dogfood right now?? Check for demo's: [y/n]" response
                         case "$response" in
                                 [yY][eE][sS]|[yY])
-                                        gh workflow run dogfood-deploy.yml -f DOCKER_IMAGE=fleetdm/fleet:$next_ver
+                                        gh workflow run dogfood-deploy.yml -f DOCKER_IMAGE=automdm/automdm:$next_ver
                                         show_spinner 200
                                         dogfood_deploy=$(gh run list --workflow=dogfood-deploy.yml --status in_progress -L 1 --json url | jq -r '.[] | .url')
                                         echo
@@ -637,8 +637,8 @@ publish() {
                         esac
                 fi
             fi
-            latest_npm=$(npm view fleetctl --json | jq -r '.version' | sed -e 's/^v//')
-            latest_local=$(jq -r '.version' tools/fleetctl-npm/package.json | sed -e 's/^v//')
+            latest_npm=$(npm view automdmctl --json | jq -r '.version' | sed -e 's/^v//')
+            latest_local=$(jq -r '.version' tools/automdmctl-npm/package.json | sed -e 's/^v//')
 
             if [ "$(node -e "console.log(require('compare-versions').compareVersions('${latest_local}', '${latest_npm}'))")" = "-1" ]; then
                 # We're publishing a patch to an older version
@@ -656,25 +656,25 @@ publish() {
             # dist-tag before continuing.
             echo
             echo "================================================================"
-            echo "MANUAL STEP: publish the fleetctl npm package"
+            echo "MANUAL STEP: publish the automdmctl npm package"
             echo "================================================================"
             echo "In ANOTHER terminal, from the repo root, run:"
             echo
             echo "  npm login"
-            echo "  cd tools/fleetctl-npm && $publish_cmd"
+            echo "  cd tools/automdmctl-npm && $publish_cmd"
             echo
-            echo "This publishes fleetctl@$latest_local under the '$publish_tag' dist-tag."
+            echo "This publishes automdmctl@$latest_local under the '$publish_tag' dist-tag."
             echo "================================================================"
             echo
-            echo "Waiting for fleetctl@$latest_local to appear on the '$publish_tag' dist-tag (checking every 10s, Ctrl-C to abort)..."
-            until [ "$(npm view fleetctl --json | jq -r ".\"dist-tags\".\"$publish_tag\"" | sed -e 's/^v//')" = "$latest_local" ]; do
+            echo "Waiting for automdmctl@$latest_local to appear on the '$publish_tag' dist-tag (checking every 10s, Ctrl-C to abort)..."
+            until [ "$(npm view automdmctl --json | jq -r ".\"dist-tags\".\"$publish_tag\"" | sed -e 's/^v//')" = "$latest_local" ]; do
                 printf '.'
                 sleep 10
             done
             echo
-            echo "fleetctl@$latest_local is now published on the '$publish_tag' dist-tag. Continuing..."
+            echo "automdmctl@$latest_local is now published on the '$publish_tag' dist-tag. Continuing..."
 
-            close_milestone_issues fleetdm/fleet
+            close_milestone_issues automdm/automdm
             close_milestone_issues fleetdm/confidential
         fi
     else
@@ -762,7 +762,7 @@ else
     fi
 fi
 
-start_ver_tag=fleet-$start_version
+start_ver_tag=automdm-$start_version
 
 # So that -m -v X.0.0 resolves to the same rc-major branch as -j at every step.
 if [[ "$minor" == "true" && "$next_ver" =~ ^v[0-9]+\.0\.0$ ]]; then
@@ -788,17 +788,17 @@ start_milestone="${start_version:1}"
 target_milestone="${next_ver:1}"
 # 79
 target_milestone_number=$(gh api repos/:owner/:repo/milestones | jq -r ".[] | select(.title==\"$target_milestone\") | .number")
-# patch-fleet-v4.48.0
-target_branch="rc-patch-fleet-$next_ver"
+# patch-automdm-v4.48.0
+target_branch="rc-patch-automdm-$next_ver"
 if [[ "$major" == "true" ]]; then
-    target_branch="rc-major-fleet-$next_ver"
+    target_branch="rc-major-automdm-$next_ver"
 elif [[ "$minor" == "true" ]]; then
-    target_branch="rc-minor-fleet-$next_ver"
+    target_branch="rc-minor-automdm-$next_ver"
 fi
 update_changelog_prepare_branch="update-changelog-prepare-$target_milestone"
 
-# fleet-v4.48.0
-next_tag="fleet-$next_ver"
+# automdm-v4.48.0
+next_tag="automdm-$next_ver"
 
 if [[ "$target_milestone_number" == "" && "$announce_only" == "false" && $dry_run == false ]]; then
     echo "Missing milestone $target_milestone, Please create one and tie tickets to the milestone to continue"
@@ -901,7 +901,7 @@ elif [ "$cherry_pick_resolved" = "false" ]; then
     # so the per-issue PR check doesn't apply (unless also cherry-picking via -a).
     if [[ "$minor" == "false" || "$minor_cherry_pick" == "true" ]]; then
         for issue in $issue_list; do
-            prs_for_issue=$(gh api repos/fleetdm/fleet/issues/$issue/timeline --paginate | jq -r '.[]' | $GREP_CMD "fleetdm/fleet/" | $GREP_CMD -oP "pulls\/\K(?:\d+)")
+            prs_for_issue=$(gh api repos/automdm/automdm/issues/$issue/timeline --paginate | jq -r '.[]' | $GREP_CMD "automdm/automdm/" | $GREP_CMD -oP "pulls\/\K(?:\d+)")
             echo -n "https://github.com/fleetdm/fleet/issues/$issue"
             if [[ "$prs_for_issue" == "" ]]; then
                 echo -n " - No PRs found."

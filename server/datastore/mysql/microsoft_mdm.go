@@ -12,14 +12,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/str"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxdb"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm"
-	microsoft_mdm "github.com/fleetdm/fleet/v4/server/mdm/microsoft"
-	"github.com/fleetdm/fleet/v4/server/mdm/microsoft/syncml"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/pkg/str"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxdb"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/mdm"
+	microsoft_mdm "github.com/anilyagiz/automdm/v4/server/mdm/microsoft"
+	"github.com/anilyagiz/automdm/v4/server/mdm/microsoft/syncml"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 )
@@ -32,7 +32,7 @@ const windowsMDMCommandQueueBatchSize = 10000
 // updateWindowsProfilesStatusRollupDB and per page in ReconcileWindowsProfilesStatus.
 const windowsProfilesStatusRollupBatchSize = 1000
 
-func isWindowsHostConnectedToFleetMDM(ctx context.Context, q sqlx.QueryerContext, h *fleet.Host) (bool, error) {
+func isWindowsHostConnectedToAutoMDMMDM(ctx context.Context, q sqlx.QueryerContext, h *automdm.Host) (bool, error) {
 	var unused string
 
 	// safe to use with interpolation rather than prepared statements because we're using a numeric ID here
@@ -73,7 +73,7 @@ const mdmWindowsEnrolledDeviceColumns = `
 		credentials_hash,
 		credentials_acknowledged,
 		poll_schedule_relaxed,
-		fleetd_sync_capable,
+		automdmd_sync_capable,
 		has_pending_commands,
 		hardware_serial,
 		ztd_registration_id,
@@ -82,7 +82,7 @@ const mdmWindowsEnrolledDeviceColumns = `
 		last_login_status_at,
 		enrolled_activity_at,
 		deleted_host_team_id,
-		fleetd_present_at,
+		automdmd_present_at,
 		created_at,
 		updated_at,
 		host_uuid,
@@ -93,12 +93,12 @@ const mdmWindowsEnrolledDeviceColumns = `
 
 // MDMWindowsGetEnrolledDeviceWithDeviceID receives a Windows MDM device id and
 // returns the device information.
-func (ds *Datastore) MDMWindowsGetEnrolledDeviceWithDeviceID(ctx context.Context, mdmDeviceID string) (*fleet.MDMWindowsEnrolledDevice, error) {
+func (ds *Datastore) MDMWindowsGetEnrolledDeviceWithDeviceID(ctx context.Context, mdmDeviceID string) (*automdm.MDMWindowsEnrolledDevice, error) {
 	// Only fetch the most recently enrolled entry which matches the one we enqueue commands for
 	stmt := `SELECT ` + mdmWindowsEnrolledDeviceColumns + `
 		FROM mdm_windows_enrollments WHERE mdm_device_id = ? ORDER BY created_at DESC, id DESC LIMIT 1`
 
-	var winMDMDevice fleet.MDMWindowsEnrolledDevice
+	var winMDMDevice automdm.MDMWindowsEnrolledDevice
 	if err := sqlx.GetContext(ctx, ds.reader(ctx), &winMDMDevice, stmt, mdmDeviceID); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, ctxerr.Wrap(ctx, notFound("MDMWindowsEnrolledDevice").WithMessage(mdmDeviceID))
@@ -109,11 +109,11 @@ func (ds *Datastore) MDMWindowsGetEnrolledDeviceWithDeviceID(ctx context.Context
 }
 
 // MDMWindowsGetEnrolledDeviceWithHardwareID returns the enrollment held by a Windows MDM hardware ID (HWDevID).
-func (ds *Datastore) MDMWindowsGetEnrolledDeviceWithHardwareID(ctx context.Context, mdmHardwareID string) (*fleet.MDMWindowsEnrolledDevice, error) {
+func (ds *Datastore) MDMWindowsGetEnrolledDeviceWithHardwareID(ctx context.Context, mdmHardwareID string) (*automdm.MDMWindowsEnrolledDevice, error) {
 	stmt := `SELECT ` + mdmWindowsEnrolledDeviceColumns + `
 		FROM mdm_windows_enrollments WHERE mdm_hardware_id = ?`
 
-	var winMDMDevice fleet.MDMWindowsEnrolledDevice
+	var winMDMDevice automdm.MDMWindowsEnrolledDevice
 	if err := sqlx.GetContext(ctx, ds.reader(ctx), &winMDMDevice, stmt, mdmHardwareID); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, ctxerr.Wrap(ctx, notFound("MDMWindowsEnrolledDevice").WithMessage(mdmHardwareID))
@@ -124,7 +124,7 @@ func (ds *Datastore) MDMWindowsGetEnrolledDeviceWithHardwareID(ctx context.Conte
 }
 
 // SetMDMWindowsEnrollmentLoginStatus records the com.microsoft/MDM/LoginStatus value the device reported for this enrollment.
-func (ds *Datastore) SetMDMWindowsEnrollmentLoginStatus(ctx context.Context, enrollmentID uint, status *fleet.WindowsMDMLoginStatus) error {
+func (ds *Datastore) SetMDMWindowsEnrollmentLoginStatus(ctx context.Context, enrollmentID uint, status *automdm.WindowsMDMLoginStatus) error {
 	if status != nil && !status.IsValid() {
 		// Defense in depth: the caller maps unknown values to nil, but an unrecognized value must never be persisted,
 		// or a future Windows build could silently release the user-scoped profile gate.
@@ -141,9 +141,9 @@ func (ds *Datastore) SetMDMWindowsEnrollmentLoginStatus(ctx context.Context, enr
 // GetMDMWindowsUserContextByHostUUID returns, for each of the given hosts, the enrollment facts the user-scoped profile gate
 // needs: the enrolled user identity and the last observed LoginStatus. Hosts with no Windows MDM enrollment are absent from
 // the result. A host can accumulate several enrollment rows. This takes the newest row per host.
-func (ds *Datastore) GetMDMWindowsUserContextByHostUUID(ctx context.Context, hostUUIDs []string) (map[string]fleet.WindowsEnrollmentUserContext, error) {
+func (ds *Datastore) GetMDMWindowsUserContextByHostUUID(ctx context.Context, hostUUIDs []string) (map[string]automdm.WindowsEnrollmentUserContext, error) {
 	if len(hostUUIDs) == 0 {
-		return map[string]fleet.WindowsEnrollmentUserContext{}, nil
+		return map[string]automdm.WindowsEnrollmentUserContext{}, nil
 	}
 
 	stmt, args, err := sqlx.In(`
@@ -162,12 +162,12 @@ func (ds *Datastore) GetMDMWindowsUserContextByHostUUID(ctx context.Context, hos
 		return nil, ctxerr.Wrap(ctx, err, "building windows user context query")
 	}
 
-	var rows []fleet.WindowsEnrollmentUserContext
+	var rows []automdm.WindowsEnrollmentUserContext
 	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &rows, stmt, args...); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "selecting windows enrollment user context")
 	}
 
-	byHost := make(map[string]fleet.WindowsEnrollmentUserContext, len(rows))
+	byHost := make(map[string]automdm.WindowsEnrollmentUserContext, len(rows))
 	for _, r := range rows {
 		byHost[r.HostUUID] = r
 	}
@@ -188,7 +188,7 @@ func (ds *Datastore) setMDMWindowsEnrollmentPollScheduleRelaxedDB(ctx context.Co
 // MDMWindowsEnqueuePollScheduleCommand enqueues the DMClient poll-schedule Replace command and records the intended relaxed state for the
 // enrollment in a single transaction.
 func (ds *Datastore) MDMWindowsEnqueuePollScheduleCommand(
-	ctx context.Context, mdmDeviceID string, enrollmentID uint, cmd *fleet.MDMWindowsCommand, relaxed bool,
+	ctx context.Context, mdmDeviceID string, enrollmentID uint, cmd *automdm.MDMWindowsCommand, relaxed bool,
 ) error {
 	return ds.withRetryTxx(ctx, func(tx sqlx.ExtContext) error {
 		if err := ds.mdmWindowsInsertCommandForHostsDB(ctx, tx, []string{mdmDeviceID}, cmd); err != nil {
@@ -201,25 +201,25 @@ func (ds *Datastore) MDMWindowsEnqueuePollScheduleCommand(
 	})
 }
 
-// SetMDMWindowsEnrollmentFleetdSyncCapable persists the last-observed CapabilityWindowsMDMSync value for the host's most recent Windows MDM
+// SetMDMWindowsEnrollmentAutoMDMdSyncCapable persists the last-observed CapabilityWindowsMDMSync value for the host's most recent Windows MDM
 // enrollment. The orbit-config endpoint calls it on-change (the live capability header is only present on that request), so the OMA-DM
 // management session, which has no such header, can gate poll relaxation on the stored value.
-func (ds *Datastore) SetMDMWindowsEnrollmentFleetdSyncCapable(ctx context.Context, hostUUID string, capable bool) error {
+func (ds *Datastore) SetMDMWindowsEnrollmentAutoMDMdSyncCapable(ctx context.Context, hostUUID string, capable bool) error {
 	if _, err := ds.writer(ctx).ExecContext(ctx,
-		`UPDATE mdm_windows_enrollments SET fleetd_sync_capable = ? WHERE host_uuid = ? ORDER BY created_at DESC, id DESC LIMIT 1`,
+		`UPDATE mdm_windows_enrollments SET automdmd_sync_capable = ? WHERE host_uuid = ? ORDER BY created_at DESC, id DESC LIMIT 1`,
 		capable, hostUUID); err != nil {
-		return ctxerr.Wrap(ctx, err, "set mdm windows enrollment fleetd sync capable")
+		return ctxerr.Wrap(ctx, err, "set mdm windows enrollment automdmd sync capable")
 	}
 	return nil
 }
 
-// SetMDMWindowsEnrollmentFleetdBitLockerPINCapable persists the last-observed CapabilityWindowsBitLockerPIN value for the host's most recent
+// SetMDMWindowsEnrollmentAutoMDMdBitLockerPINCapable persists the last-observed CapabilityWindowsBitLockerPIN value for the host's most recent
 // Windows MDM enrollment.
-func (ds *Datastore) SetMDMWindowsEnrollmentFleetdBitLockerPINCapable(ctx context.Context, hostUUID string, capable bool) error {
+func (ds *Datastore) SetMDMWindowsEnrollmentAutoMDMdBitLockerPINCapable(ctx context.Context, hostUUID string, capable bool) error {
 	if _, err := ds.writer(ctx).ExecContext(ctx,
-		`UPDATE mdm_windows_enrollments SET fleetd_bitlocker_pin_capable = ? WHERE host_uuid = ? ORDER BY created_at DESC, id DESC LIMIT 1`,
+		`UPDATE mdm_windows_enrollments SET automdmd_bitlocker_pin_capable = ? WHERE host_uuid = ? ORDER BY created_at DESC, id DESC LIMIT 1`,
 		capable, hostUUID); err != nil {
-		return ctxerr.Wrap(ctx, err, "set mdm windows enrollment fleetd bitlocker pin capable")
+		return ctxerr.Wrap(ctx, err, "set mdm windows enrollment automdmd bitlocker pin capable")
 	}
 	return nil
 }
@@ -260,7 +260,7 @@ func (ds *Datastore) ClearMDMWindowsManagedLocalAccountRotationRequest(ctx conte
 }
 
 // MDMWindowsGetEnrolledDeviceByID returns the enrollment with the given row id.
-func (ds *Datastore) MDMWindowsGetEnrolledDeviceByID(ctx context.Context, enrollmentID uint) (*fleet.MDMWindowsEnrolledDevice, error) {
+func (ds *Datastore) MDMWindowsGetEnrolledDeviceByID(ctx context.Context, enrollmentID uint) (*automdm.MDMWindowsEnrolledDevice, error) {
 	stmt := `SELECT
 		id,
 		mdm_device_id,
@@ -285,7 +285,7 @@ func (ds *Datastore) MDMWindowsGetEnrolledDeviceByID(ctx context.Context, enroll
 		host_uuid
 		FROM mdm_windows_enrollments WHERE id = ?`
 
-	var winMDMDevice fleet.MDMWindowsEnrolledDevice
+	var winMDMDevice automdm.MDMWindowsEnrolledDevice
 	if err := sqlx.GetContext(ctx, ds.reader(ctx), &winMDMDevice, stmt, enrollmentID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ctxerr.Wrap(ctx, notFound("MDMWindowsEnrolledDevice").WithID(enrollmentID))
@@ -295,7 +295,7 @@ func (ds *Datastore) MDMWindowsGetEnrolledDeviceByID(ctx context.Context, enroll
 	return &winMDMDevice, nil
 }
 
-func (ds *Datastore) MDMWindowsGetEnrolledDeviceWithHostUUID(ctx context.Context, hostUUID string) (*fleet.MDMWindowsEnrolledDevice, error) {
+func (ds *Datastore) MDMWindowsGetEnrolledDeviceWithHostUUID(ctx context.Context, hostUUID string) (*automdm.MDMWindowsEnrolledDevice, error) {
 	// Only fetch the most recently enrolled entry which matches the one we enqueue commands for
 	stmt := `SELECT
 		id,
@@ -321,7 +321,7 @@ func (ds *Datastore) MDMWindowsGetEnrolledDeviceWithHostUUID(ctx context.Context
 		host_uuid
 		FROM mdm_windows_enrollments WHERE host_uuid = ? ORDER BY created_at DESC, id DESC LIMIT 1`
 
-	var winMDMDevice fleet.MDMWindowsEnrolledDevice
+	var winMDMDevice automdm.MDMWindowsEnrolledDevice
 	// use the writer because this is sometimes fetched soon after updating the host UUID
 	if err := sqlx.GetContext(ctx, ds.writer(ctx), &winMDMDevice, stmt, hostUUID); err != nil {
 		if err == sql.ErrNoRows {
@@ -338,7 +338,7 @@ func (ds *Datastore) MDMWindowsGetEnrolledDeviceWithHostUUID(ctx context.Context
 // brief window between orbit/enroll and osquery's directIngestMDMDeviceIDWindows linking host_uuid. Constraining on
 // the empty host_uuid avoids matching rows already linked to a different host that happens to share the same Windows
 // computer name.
-func (ds *Datastore) MDMWindowsGetUnlinkedEnrolledDeviceWithDeviceName(ctx context.Context, deviceName string) (*fleet.MDMWindowsEnrolledDevice, error) {
+func (ds *Datastore) MDMWindowsGetUnlinkedEnrolledDeviceWithDeviceName(ctx context.Context, deviceName string) (*automdm.MDMWindowsEnrolledDevice, error) {
 	if deviceName == "" {
 		return nil, ctxerr.Wrap(ctx, notFound("MDMWindowsEnrolledDevice").WithMessage("empty device name"))
 	}
@@ -368,7 +368,7 @@ func (ds *Datastore) MDMWindowsGetUnlinkedEnrolledDeviceWithDeviceName(ctx conte
 		WHERE device_name = ? AND host_uuid = ''
 		ORDER BY created_at DESC, id DESC LIMIT 1`
 
-	var winMDMDevice fleet.MDMWindowsEnrolledDevice
+	var winMDMDevice automdm.MDMWindowsEnrolledDevice
 	if err := sqlx.GetContext(ctx, ds.reader(ctx), &winMDMDevice, stmt, deviceName); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ctxerr.Wrap(ctx, notFound("MDMWindowsEnrolledDevice").WithMessage(deviceName))
@@ -383,7 +383,7 @@ func (ds *Datastore) MDMWindowsGetUnlinkedEnrolledDeviceWithDeviceName(ctx conte
 //
 // The read honors ctxdb.RequirePrimary: a caller linking a just-enrolled host (whose hosts row may have been inserted
 // seconds ago) must pass a primary-required context, otherwise replica lag can return a false NotFound.
-func (ds *Datastore) WindowsHostLiteByHardwareSerial(ctx context.Context, hardwareSerial string) (*fleet.HostLite, error) {
+func (ds *Datastore) WindowsHostLiteByHardwareSerial(ctx context.Context, hardwareSerial string) (*automdm.HostLite, error) {
 	if hardwareSerial == "" {
 		return nil, ctxerr.Wrap(ctx, notFound("Host").WithMessage("empty hardware serial"))
 	}
@@ -393,7 +393,7 @@ func (ds *Datastore) WindowsHostLiteByHardwareSerial(ctx context.Context, hardwa
 		LEFT JOIN host_seen_times hst ON h.id = hst.host_id
 		WHERE h.hardware_serial = ? AND h.platform = 'windows'
 		LIMIT 2`
-	var hosts []*fleet.HostLite
+	var hosts []*automdm.HostLite
 	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &hosts, stmt, hardwareSerial); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "select windows host by hardware serial")
 	}
@@ -405,14 +405,14 @@ func (ds *Datastore) WindowsHostLiteByHardwareSerial(ctx context.Context, hardwa
 
 // WindowsHostLiteByUUID looks up a Windows host by UUID. Hosts can share a UUID, so it picks the one an enrollment's linked_host_id
 // resolves to, the lowest id.
-func (ds *Datastore) WindowsHostLiteByUUID(ctx context.Context, hostUUID string) (*fleet.HostLite, error) {
+func (ds *Datastore) WindowsHostLiteByUUID(ctx context.Context, hostUUID string) (*automdm.HostLite, error) {
 	const stmt = `
 		SELECT ` + hostLiteColumns + `
 		FROM hosts h
 		LEFT JOIN host_seen_times hst ON h.id = hst.host_id
 		WHERE h.uuid = ? AND h.platform = 'windows'
 		ORDER BY h.id LIMIT 1`
-	var host fleet.HostLite
+	var host automdm.HostLite
 	if err := sqlx.GetContext(ctx, ds.reader(ctx), &host, stmt, hostUUID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ctxerr.Wrap(ctx, notFound("Host").WithName(hostUUID))
@@ -465,16 +465,16 @@ func (ds *Datastore) MDMWindowsReleaseEnrolledActivityClaim(ctx context.Context,
 	return nil
 }
 
-// MDMWindowsSetEnrollmentFleetdPresent records that fleetd was seen present for the enrollment, linked to hostUUID when checked. It is
+// MDMWindowsSetEnrollmentAutoMDMdPresent records that automdmd was seen present for the enrollment, linked to hostUUID when checked. It is
 // cleared when the enrollment is relinked or its host is deleted. Otherwise the management session can skip re-checking.
-func (ds *Datastore) MDMWindowsSetEnrollmentFleetdPresent(ctx context.Context, enrollmentID uint, hostUUID string) error {
+func (ds *Datastore) MDMWindowsSetEnrollmentAutoMDMdPresent(ctx context.Context, enrollmentID uint, hostUUID string) error {
 	if _, err := ds.writer(ctx).ExecContext(ctx,
-		`UPDATE mdm_windows_enrollments SET fleetd_present_at = NOW(6)
-		 WHERE id = ? AND fleetd_present_at IS NULL AND host_uuid = ?
+		`UPDATE mdm_windows_enrollments SET automdmd_present_at = NOW(6)
+		 WHERE id = ? AND automdmd_present_at IS NULL AND host_uuid = ?
 		   AND (host_uuid = '' OR EXISTS (
 		       SELECT 1 FROM hosts h WHERE h.uuid = mdm_windows_enrollments.host_uuid AND h.platform = 'windows'))`,
 		enrollmentID, hostUUID); err != nil {
-		return ctxerr.Wrap(ctx, err, "set mdm windows enrollment fleetd present")
+		return ctxerr.Wrap(ctx, err, "set mdm windows enrollment automdmd present")
 	}
 	return nil
 }
@@ -482,19 +482,19 @@ func (ds *Datastore) MDMWindowsSetEnrollmentFleetdPresent(ctx context.Context, e
 // MDMWindowsGetUnlinkedEnrolledDeviceWithHardwareSerial returns the unlinked (host_uuid = "") Windows MDM enrollment whose
 // device-reported SMBIOS serial matches. If more than one unlinked enrollment shares the serial the caller cannot pick
 // safely, so we return NotFound rather than guess, matching WindowsHostLiteByHardwareSerial.
-func (ds *Datastore) MDMWindowsGetUnlinkedEnrolledDeviceWithHardwareSerial(ctx context.Context, hardwareSerial string) (*fleet.MDMWindowsEnrolledDevice, error) {
+func (ds *Datastore) MDMWindowsGetUnlinkedEnrolledDeviceWithHardwareSerial(ctx context.Context, hardwareSerial string) (*automdm.MDMWindowsEnrolledDevice, error) {
 	return ds.getUnlinkedWindowsEnrolledDeviceBy(ctx, "hardware_serial", hardwareSerial)
 }
 
 // MDMWindowsGetUnlinkedEnrolledDeviceWithZTDRegistrationID is MDMWindowsGetUnlinkedEnrolledDeviceWithHardwareSerial keyed on
 // the Autopilot device ID the device supplied at enrollment.
-func (ds *Datastore) MDMWindowsGetUnlinkedEnrolledDeviceWithZTDRegistrationID(ctx context.Context, ztdRegistrationID string) (*fleet.MDMWindowsEnrolledDevice, error) {
+func (ds *Datastore) MDMWindowsGetUnlinkedEnrolledDeviceWithZTDRegistrationID(ctx context.Context, ztdRegistrationID string) (*automdm.MDMWindowsEnrolledDevice, error) {
 	return ds.getUnlinkedWindowsEnrolledDeviceBy(ctx, "ztd_registration_id", ztdRegistrationID)
 }
 
 // getUnlinkedWindowsEnrolledDeviceBy looks up the single unlinked enrollment whose column equals value. column is always a
 // constant from the callers above, and each is indexed.
-func (ds *Datastore) getUnlinkedWindowsEnrolledDeviceBy(ctx context.Context, column, value string) (*fleet.MDMWindowsEnrolledDevice, error) {
+func (ds *Datastore) getUnlinkedWindowsEnrolledDeviceBy(ctx context.Context, column, value string) (*automdm.MDMWindowsEnrolledDevice, error) {
 	if value == "" {
 		return nil, ctxerr.Wrap(ctx, notFound("MDMWindowsEnrolledDevice").WithMessage("empty "+column))
 	}
@@ -524,7 +524,7 @@ func (ds *Datastore) getUnlinkedWindowsEnrolledDeviceBy(ctx context.Context, col
 		WHERE ` + column + ` = ? AND host_uuid = ''
 		LIMIT 2`
 
-	var devices []fleet.MDMWindowsEnrolledDevice
+	var devices []automdm.MDMWindowsEnrolledDevice
 	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &devices, stmt, value); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "get unlinked windows enrolled device by "+column)
 	}
@@ -564,13 +564,13 @@ func (ds *Datastore) MDMWindowsConflictingEnrollmentHardwareID(ctx context.Conte
 	return true, conflictingHardwareID, nil
 }
 
-// GetWindowsEnrollmentDefaultFleet returns the configured default fleet for new user-driven Windows MDM enrollments.
-// Returns (nil, "") when no default is configured (including when the referenced fleet was deleted, which nulls the FK).
-func (ds *Datastore) GetWindowsEnrollmentDefaultFleet(ctx context.Context) (*uint, string, error) {
-	return getWindowsEnrollmentDefaultFleetDB(ctx, ds.reader(ctx))
+// GetWindowsEnrollmentDefaultTeam returns the configured default team for new user-driven Windows MDM enrollments.
+// Returns (nil, "") when no default is configured (including when the referenced team was deleted, which nulls the FK).
+func (ds *Datastore) GetWindowsEnrollmentDefaultTeam(ctx context.Context) (*uint, string, error) {
+	return getWindowsEnrollmentDefaultAutoMDMDB(ctx, ds.reader(ctx))
 }
 
-func getWindowsEnrollmentDefaultFleetDB(ctx context.Context, q sqlx.QueryerContext) (*uint, string, error) {
+func getWindowsEnrollmentDefaultAutoMDMDB(ctx context.Context, q sqlx.QueryerContext) (*uint, string, error) {
 	var row struct {
 		TeamID   *uint   `db:"default_team_id"`
 		TeamName *string `db:"team_name"`
@@ -585,7 +585,7 @@ func getWindowsEnrollmentDefaultFleetDB(ctx context.Context, q sqlx.QueryerConte
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, "", nil
 		}
-		return nil, "", ctxerr.Wrap(ctx, err, "get windows enrollment default fleet")
+		return nil, "", ctxerr.Wrap(ctx, err, "get windows enrollment default team")
 	}
 	if row.TeamID == nil || row.TeamName == nil {
 		return nil, "", nil
@@ -593,16 +593,16 @@ func getWindowsEnrollmentDefaultFleetDB(ctx context.Context, q sqlx.QueryerConte
 	return row.TeamID, *row.TeamName, nil
 }
 
-// SetWindowsEnrollmentDefaultFleet sets (or clears, with nil) the default fleet for new user-driven Windows MDM enrollments.
-func (ds *Datastore) SetWindowsEnrollmentDefaultFleet(ctx context.Context, fleetID *uint) error {
+// SetWindowsEnrollmentDefaultTeam sets (or clears, with nil) the default team for new user-driven Windows MDM enrollments.
+func (ds *Datastore) SetWindowsEnrollmentDefaultTeam(ctx context.Context, automdmID *uint) error {
 	res, err := ds.writer(ctx).ExecContext(ctx,
-		`UPDATE mdm_windows_enrollment_config SET default_team_id = ? WHERE id = 1`, fleetID)
+		`UPDATE mdm_windows_enrollment_config SET default_team_id = ? WHERE id = 1`, automdmID)
 	if err != nil {
-		return ctxerr.Wrap(ctx, err, "set windows enrollment default fleet")
+		return ctxerr.Wrap(ctx, err, "set windows enrollment default team")
 	}
 	rows, _ := res.RowsAffected()
 	if rows != 1 {
-		return ctxerr.Wrap(ctx, fmt.Errorf("set windows enrollment default fleet: expected 1 row updated, got %d", rows))
+		return ctxerr.Wrap(ctx, fmt.Errorf("set windows enrollment default team: expected 1 row updated, got %d", rows))
 	}
 	return nil
 }
@@ -632,13 +632,13 @@ SELECT EXISTS (
 // non-poll enqueue, recomputed via EXISTS on acknowledgment), so the hot polling path never recomputes an EXISTS across the command queue.
 // Internal poll-schedule Replaces are excluded from the flag, so tuning the poll cadence does not itself request an on-demand wake. Reader-backed;
 // wrap the context with ctxdb.RequirePrimary for primary-routed reads.
-func (ds *Datastore) GetMDMWindowsHostConfigState(ctx context.Context, hostUUID string) (*fleet.MDMWindowsHostConfigState, error) {
+func (ds *Datastore) GetMDMWindowsHostConfigState(ctx context.Context, hostUUID string) (*automdm.MDMWindowsHostConfigState, error) {
 	const stmt = `
 		SELECT
 			awaiting_configuration,
 			has_pending_commands,
-			fleetd_sync_capable,
-			fleetd_bitlocker_pin_capable,
+			automdmd_sync_capable,
+			automdmd_bitlocker_pin_capable,
 			bitlocker_pin_request_pending,
 			managed_local_account_escrowed,
 			managed_local_account_rotation_requested
@@ -647,13 +647,13 @@ func (ds *Datastore) GetMDMWindowsHostConfigState(ctx context.Context, hostUUID 
 		ORDER BY created_at DESC, id DESC
 		LIMIT 1`
 	var row struct {
-		AwaitingConfiguration                fleet.WindowsMDMAwaitingConfiguration `db:"awaiting_configuration"`
-		HasPendingCommands                   bool                                  `db:"has_pending_commands"`
-		FleetdSyncCapable                    bool                                  `db:"fleetd_sync_capable"`
-		FleetdBitLockerPINCapable            bool                                  `db:"fleetd_bitlocker_pin_capable"`
-		BitLockerPINRequestPending           bool                                  `db:"bitlocker_pin_request_pending"`
-		ManagedLocalAccountEscrowed          bool                                  `db:"managed_local_account_escrowed"`
-		ManagedLocalAccountRotationRequested bool                                  `db:"managed_local_account_rotation_requested"`
+		AwaitingConfiguration                automdm.WindowsMDMAwaitingConfiguration `db:"awaiting_configuration"`
+		HasPendingCommands                   bool                                    `db:"has_pending_commands"`
+		AutoMDMdSyncCapable                  bool                                    `db:"automdmd_sync_capable"`
+		AutoMDMdBitLockerPINCapable          bool                                    `db:"automdmd_bitlocker_pin_capable"`
+		BitLockerPINRequestPending           bool                                    `db:"bitlocker_pin_request_pending"`
+		ManagedLocalAccountEscrowed          bool                                    `db:"managed_local_account_escrowed"`
+		ManagedLocalAccountRotationRequested bool                                    `db:"managed_local_account_rotation_requested"`
 	}
 	if err := sqlx.GetContext(ctx, ds.reader(ctx), &row, stmt, hostUUID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -661,11 +661,11 @@ func (ds *Datastore) GetMDMWindowsHostConfigState(ctx context.Context, hostUUID 
 		}
 		return nil, ctxerr.Wrap(ctx, err, "get MDMWindowsHostConfigState")
 	}
-	return &fleet.MDMWindowsHostConfigState{
+	return &automdm.MDMWindowsHostConfigState{
 		AwaitingConfiguration:                row.AwaitingConfiguration,
 		HasPendingCommands:                   row.HasPendingCommands,
-		FleetdSyncCapable:                    row.FleetdSyncCapable,
-		FleetdBitLockerPINCapable:            row.FleetdBitLockerPINCapable,
+		AutoMDMdSyncCapable:                  row.AutoMDMdSyncCapable,
+		AutoMDMdBitLockerPINCapable:          row.AutoMDMdBitLockerPINCapable,
 		BitLockerPINRequestPending:           row.BitLockerPINRequestPending,
 		ManagedLocalAccountEscrowed:          row.ManagedLocalAccountEscrowed,
 		ManagedLocalAccountRotationRequested: row.ManagedLocalAccountRotationRequested,
@@ -749,7 +749,7 @@ func (ds *Datastore) markMDMWindowsHasPendingCommandsByEnrollmentIDs(ctx context
 
 // MDMWindowsInsertEnrolledDevice inserts a new MDMWindowsEnrolledDevice in the
 // database.
-func (ds *Datastore) MDMWindowsInsertEnrolledDevice(ctx context.Context, device *fleet.MDMWindowsEnrolledDevice) error {
+func (ds *Datastore) MDMWindowsInsertEnrolledDevice(ctx context.Context, device *automdm.MDMWindowsEnrolledDevice) error {
 	stmt := `
 		INSERT INTO mdm_windows_enrollments (
 			mdm_device_id,
@@ -789,7 +789,7 @@ func (ds *Datastore) MDMWindowsInsertEnrolledDevice(ctx context.Context, device 
 			-- A re-enrollment may not have ztd id, so don't overwrite.
 			ztd_registration_id   = IF(VALUES(ztd_registration_id) = '', ztd_registration_id, VALUES(ztd_registration_id)),
 			entra_device_id       = VALUES(entra_device_id),
-			fleetd_present_at     = NULL
+			automdmd_present_at     = NULL
 	`
 	_, err := ds.writer(ctx).ExecContext(
 		ctx,
@@ -838,7 +838,7 @@ func forgetEndUserAfterWindowsResetDB(ctx context.Context, tx sqlx.ExtContext, h
 
 // forgetAgentAfterWindowsWipeDB clears the node keys of a host coming back from a wipe or reset it acknowledged, before that
 // status goes, since the device lost its agent. The device can then claim the host again like one no agent has enrolled as, and
-// end user authentication treats fleetd's next enrollment as new. The mysqlredis wrapper of
+// end user authentication treats automdmd's next enrollment as new. The mysqlredis wrapper of
 // MDMWindowsDeleteEnrolledDeviceOnReenrollment invalidates the host cache.
 func forgetAgentAfterWindowsWipeDB(ctx context.Context, tx sqlx.ExtContext, hostUUID string) error {
 	if hostUUID == "" {
@@ -869,8 +869,8 @@ func (ds *Datastore) MDMWindowsDeleteEnrolledDeviceOnReenrollment(ctx context.Co
 		loadStmt        = "SELECT host_uuid FROM mdm_windows_enrollments WHERE mdm_hardware_id = ? LIMIT 1"
 		delActionsStmt  = "DELETE FROM host_mdm_actions WHERE host_id = (SELECT id FROM hosts WHERE uuid = ? LIMIT 1)"
 		delProfilesStmt = "DELETE FROM host_mdm_windows_profiles WHERE host_uuid = ?"
-		// setup_experience_status_results.host_uuid is keyed by fleet.HostUUIDForSetupExperience; for Windows that's the
-		// host's OsqueryHostID, NOT the Fleet host UUID stored on the MDM enrollment. Resolve via JOIN so we delete by
+		// setup_experience_status_results.host_uuid is keyed by automdm.HostUUIDForSetupExperience; for Windows that's the
+		// host's OsqueryHostID, NOT the AutoMDM host UUID stored on the MDM enrollment. Resolve via JOIN so we delete by
 		// whichever identifier matches (works for both shapes).
 		delSetupExpStmt = `DELETE ser FROM setup_experience_status_results ser
 			JOIN hosts h ON ser.host_uuid = h.osquery_host_id OR ser.host_uuid = h.uuid
@@ -995,7 +995,7 @@ func (ds *Datastore) MDMWindowsDeleteEnrolledDeviceWithDeviceID(ctx context.Cont
 // MDMWindowsBulkInsertCommands inserts multiple MDM commands in a single
 // multi-row INSERT. Duplicate commands are silently ignored. Complementary to
 // MDMWindowsEnqueueCommandAndUpsertHostProfiles
-func (ds *Datastore) MDMWindowsBulkInsertCommands(ctx context.Context, cmds []*fleet.MDMWindowsCommand) error {
+func (ds *Datastore) MDMWindowsBulkInsertCommands(ctx context.Context, cmds []*automdm.MDMWindowsCommand) error {
 	if len(cmds) == 0 {
 		return nil
 	}
@@ -1026,7 +1026,7 @@ func (ds *Datastore) MDMWindowsBulkInsertCommands(ctx context.Context, cmds []*f
 // entry insertion. It is done in batches for performance reasons and the command itself is inserted before the batches begin. It need not be one big tranasaction
 // as long as a given host's command queue entry and host profile entry are inserted in the same transaction. Note that unlike the insert command function below
 // this does not work with device IDs, only host UUIDs
-func (ds *Datastore) MDMWindowsInsertCommandAndUpsertHostProfilesForHosts(ctx context.Context, hostUUIDs []string, cmd *fleet.MDMWindowsCommand, payload []*fleet.MDMWindowsBulkUpsertHostProfilePayload) error {
+func (ds *Datastore) MDMWindowsInsertCommandAndUpsertHostProfilesForHosts(ctx context.Context, hostUUIDs []string, cmd *automdm.MDMWindowsCommand, payload []*automdm.MDMWindowsBulkUpsertHostProfilePayload) error {
 	if len(hostUUIDs) == 0 {
 		return nil
 	}
@@ -1063,7 +1063,7 @@ func (ds *Datastore) RefreshMDMWindowsProfilesStatusRollup(ctx context.Context, 
 // windows_mdm_commands (inserted via MDMWindowsBulkInsertCommands or
 // MDMWindowsInsertCommandAndUpsertHostProfilesForHosts). The per-host profile status rollup is not refreshed here: recomputing it
 // per command re-aggregates every profile row of the hosts each time, so the caller refreshes it once per host window instead.
-func (ds *Datastore) MDMWindowsEnqueueCommandAndUpsertHostProfiles(ctx context.Context, hostUUIDs []string, cmd *fleet.MDMWindowsCommand, payload []*fleet.MDMWindowsBulkUpsertHostProfilePayload) error {
+func (ds *Datastore) MDMWindowsEnqueueCommandAndUpsertHostProfiles(ctx context.Context, hostUUIDs []string, cmd *automdm.MDMWindowsCommand, payload []*automdm.MDMWindowsBulkUpsertHostProfilePayload) error {
 	if len(hostUUIDs) == 0 {
 		return nil
 	}
@@ -1075,7 +1075,7 @@ func (ds *Datastore) MDMWindowsEnqueueCommandAndUpsertHostProfiles(ctx context.C
 	}
 
 	// Build a map from host UUID to its corresponding profile payload for quick lookup.
-	payloadByHostUUID := make(map[string]*fleet.MDMWindowsBulkUpsertHostProfilePayload, len(payload))
+	payloadByHostUUID := make(map[string]*automdm.MDMWindowsBulkUpsertHostProfilePayload, len(payload))
 	for _, p := range payload {
 		payloadByHostUUID[p.HostUUID] = p
 	}
@@ -1202,7 +1202,7 @@ func (ds *Datastore) MDMWindowsEnqueueCommandAndUpsertHostProfiles(ctx context.C
 	return nil
 }
 
-func (ds *Datastore) MDMWindowsInsertCommandForHosts(ctx context.Context, hostUUIDsOrDeviceIDs []string, cmd *fleet.MDMWindowsCommand) error {
+func (ds *Datastore) MDMWindowsInsertCommandForHosts(ctx context.Context, hostUUIDsOrDeviceIDs []string, cmd *automdm.MDMWindowsCommand) error {
 	if len(hostUUIDsOrDeviceIDs) == 0 {
 		return nil
 	}
@@ -1215,7 +1215,7 @@ func (ds *Datastore) MDMWindowsInsertCommandForHosts(ctx context.Context, hostUU
 // MDMWindowsInsertCommandForHostUUIDs is the fire-and-forget enqueue used by the profile-manager cron to deliver supplemental
 // <Delete> commands (e.g. LocURIs removed from an edited profile) to a bounded batch of hosts. The command stands alone and is
 // not tracked per host.
-func (ds *Datastore) MDMWindowsInsertCommandForHostUUIDs(ctx context.Context, hostUUIDs []string, cmd *fleet.MDMWindowsCommand) error {
+func (ds *Datastore) MDMWindowsInsertCommandForHostUUIDs(ctx context.Context, hostUUIDs []string, cmd *automdm.MDMWindowsCommand) error {
 	if len(hostUUIDs) == 0 {
 		return nil
 	}
@@ -1234,7 +1234,7 @@ func (ds *Datastore) MDMWindowsInsertCommandForHostUUIDs(ctx context.Context, ho
 // guard, mdmWindowsInsertCommandForEnrollmentIDsDB would still INSERT each row into windows_mdm_commands and
 // return success while leaving the rows targeted at no host -- the ESP finalize would silently drop the
 // retry safety net.
-func (ds *Datastore) MDMWindowsInsertCommandsForHost(ctx context.Context, hostUUIDOrDeviceID string, cmds []*fleet.MDMWindowsCommand) error {
+func (ds *Datastore) MDMWindowsInsertCommandsForHost(ctx context.Context, hostUUIDOrDeviceID string, cmds []*automdm.MDMWindowsCommand) error {
 	if len(cmds) == 0 {
 		return nil
 	}
@@ -1255,7 +1255,7 @@ func (ds *Datastore) MDMWindowsInsertCommandsForHost(ctx context.Context, hostUU
 	})
 }
 
-func (ds *Datastore) mdmWindowsInsertCommandForHostsDB(ctx context.Context, tx sqlx.ExtContext, hostUUIDsOrDeviceIDs []string, cmd *fleet.MDMWindowsCommand) error {
+func (ds *Datastore) mdmWindowsInsertCommandForHostsDB(ctx context.Context, tx sqlx.ExtContext, hostUUIDsOrDeviceIDs []string, cmd *automdm.MDMWindowsCommand) error {
 	// Resolve host UUIDs / device IDs to enrollment IDs using the general-purpose
 	// lookup (supports both host_uuid and mdm_device_id via subquery).
 	enrollmentIDs, err := ds.getEnrollmentIDsByHostUUIDOrDeviceIDDB(ctx, tx, hostUUIDsOrDeviceIDs)
@@ -1268,7 +1268,7 @@ func (ds *Datastore) mdmWindowsInsertCommandForHostsDB(ctx context.Context, tx s
 // mdmWindowsInsertCommandForHostUUIDsDB is the fast path for bulk operations
 // that always have host UUIDs (not device IDs). Uses an indexed batch SELECT
 // instead of per-row subqueries.
-func (ds *Datastore) mdmWindowsInsertCommandForHostUUIDsDB(ctx context.Context, tx sqlx.ExtContext, hostUUIDs []string, cmd *fleet.MDMWindowsCommand) error {
+func (ds *Datastore) mdmWindowsInsertCommandForHostUUIDsDB(ctx context.Context, tx sqlx.ExtContext, hostUUIDs []string, cmd *automdm.MDMWindowsCommand) error {
 	enrollmentIDs, err := ds.getEnrollmentIDsByHostUUIDDB(ctx, tx, hostUUIDs)
 	if err != nil {
 		return ctxerr.Wrap(ctx, err, "fetching enrollment IDs by host UUID")
@@ -1278,7 +1278,7 @@ func (ds *Datastore) mdmWindowsInsertCommandForHostUUIDsDB(ctx context.Context, 
 
 // mdmWindowsInsertCommandForEnrollmentIDsDB inserts the command and queues it
 // for the given enrollment IDs.
-func (ds *Datastore) mdmWindowsInsertCommandForEnrollmentIDsDB(ctx context.Context, tx sqlx.ExtContext, enrollmentIDs []uint, cmd *fleet.MDMWindowsCommand) error {
+func (ds *Datastore) mdmWindowsInsertCommandForEnrollmentIDsDB(ctx context.Context, tx sqlx.ExtContext, enrollmentIDs []uint, cmd *automdm.MDMWindowsCommand) error {
 	// Create the command entry.
 	stmt := `INSERT INTO windows_mdm_commands (command_uuid, raw_command, target_loc_uri) VALUES (?, ?, ?)`
 	if _, err := tx.ExecContext(ctx, stmt, cmd.CommandUUID, cmd.RawCommand, cmd.TargetLocURI); err != nil {
@@ -1389,7 +1389,7 @@ func (ds *Datastore) getEnrollmentIDsByHostUUIDOrDeviceIDDB(ctx context.Context,
 }
 
 // MDMWindowsGetPendingCommands retrieves all commands awaiting execution for the given enrollment.
-func (ds *Datastore) MDMWindowsGetPendingCommands(ctx context.Context, enrollmentID uint) ([]*fleet.MDMWindowsCommand, error) {
+func (ds *Datastore) MDMWindowsGetPendingCommands(ctx context.Context, enrollmentID uint) ([]*automdm.MDMWindowsCommand, error) {
 	// Fast path: probe the queue. An MDM management session runs this query on every check-in, and the overwhelming majority of
 	// devices have nothing queued, so short-circuit before paying for the fetch JOIN. SELECT EXISTS always returns a row, so the idle
 	// path does not go through a sql.ErrNoRows branch. This is an index probe on (enrollment_id, acked_at).
@@ -1427,7 +1427,7 @@ ORDER BY
 	wmc.created_at ASC, wmc.id ASC
 `
 
-	var commands []*fleet.MDMWindowsCommand
+	var commands []*automdm.MDMWindowsCommand
 	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &commands, query, enrollmentID); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "get pending Windows MDM commands by enrollment id")
 	}
@@ -1436,10 +1436,10 @@ ORDER BY
 }
 
 // MDMWindowsGetESPReleaseAckStatus summarizes the delivery state of ESP release commands targeting the given LocURI for
-// the enrollment. Attempts are matched on BOTH the target LocURI and the command_uuid prefix Fleet stamps on its own
+// the enrollment. Attempts are matched on BOTH the target LocURI and the command_uuid prefix AutoMDM stamps on its own
 // release attempts, so an admin-enqueued raw command that happens to target the same LocURI can neither trigger the
 // resend phase nor complete the ESP.
-func (ds *Datastore) MDMWindowsGetESPReleaseAckStatus(ctx context.Context, enrollmentID uint, targetLocURI, cmdUUIDPrefix string) (*fleet.MDMWindowsESPReleaseAckStatus, error) {
+func (ds *Datastore) MDMWindowsGetESPReleaseAckStatus(ctx context.Context, enrollmentID uint, targetLocURI, cmdUUIDPrefix string) (*automdm.MDMWindowsESPReleaseAckStatus, error) {
 	const query = `
 SELECT
 	COUNT(*) > 0 AS attempted,
@@ -1464,7 +1464,7 @@ WHERE
 	if err := sqlx.GetContext(ctx, ds.reader(ctx), &row, query, enrollmentID, targetLocURI, cmdUUIDPrefix); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "get Windows ESP release ack status")
 	}
-	return &fleet.MDMWindowsESPReleaseAckStatus{
+	return &automdm.MDMWindowsESPReleaseAckStatus{
 		Attempted:    row.Attempted,
 		Acked200:     row.Acked200,
 		HasUnacked:   row.HasUnacked,
@@ -1498,7 +1498,7 @@ func decompressWindowsMDMResponse(stored []byte) ([]byte, error) {
 	return io.ReadAll(gr)
 }
 
-func (ds *Datastore) MDMWindowsSaveResponse(ctx context.Context, enrolledDevice *fleet.MDMWindowsEnrolledDevice, enrichedSyncML fleet.EnrichedSyncML, commandIDsBeingResent []string) (*fleet.MDMWindowsSaveResponseResult, error) {
+func (ds *Datastore) MDMWindowsSaveResponse(ctx context.Context, enrolledDevice *automdm.MDMWindowsEnrolledDevice, enrichedSyncML automdm.EnrichedSyncML, commandIDsBeingResent []string) (*automdm.MDMWindowsSaveResponseResult, error) {
 	if len(enrichedSyncML.Raw) == 0 {
 		return nil, ctxerr.New(ctx, "empty raw response")
 	}
@@ -1506,7 +1506,7 @@ func (ds *Datastore) MDMWindowsSaveResponse(ctx context.Context, enrolledDevice 
 		return nil, ctxerr.New(ctx, "enrolled device is nil")
 	}
 
-	var result *fleet.MDMWindowsSaveResponseResult
+	var result *automdm.MDMWindowsSaveResponseResult
 	if err := ds.withRetryTxx(ctx, func(tx sqlx.ExtContext) error {
 		result = nil
 
@@ -1538,20 +1538,20 @@ func (ds *Datastore) MDMWindowsSaveResponse(ctx context.Context, enrolledDevice 
 		if err != nil {
 			return ctxerr.Wrap(ctx, err, "building IN to search matching commands")
 		}
-		var matchingCmds []fleet.MDMWindowsCommand
+		var matchingCmds []automdm.MDMWindowsCommand
 		err = sqlx.SelectContext(ctx, tx, &matchingCmds, stmt, params...)
 		if err != nil {
 			return ctxerr.Wrap(ctx, err, "selecting matching commands")
 		}
 
 		if len(matchingCmds) == 0 {
-			// Suppress the warning when the only CmdRefs in the message are Fleet-internal commands that are
+			// Suppress the warning when the only CmdRefs in the message are AutoMDM-internal commands that are
 			// intentionally absent from windows_mdm_commands (e.g. the DevDetail/SMBIOSSerialNumber Get used for
 			// unlinked-enrollment linkage). Without this filter, an unlinked Windows enrollment with no other pending
 			// commands warns on every session until linkage completes.
 			externalCmdRefs := make([]string, 0, len(enrichedSyncML.CmdRefUUIDs))
 			for _, u := range enrichedSyncML.CmdRefUUIDs {
-				if !fleet.IsFleetInternalCmdID(u) {
+				if !automdm.IsAutoMDMInternalCmdID(u) {
 					externalCmdRefs = append(externalCmdRefs, u)
 				}
 			}
@@ -1568,8 +1568,8 @@ func (ds *Datastore) MDMWindowsSaveResponse(ctx context.Context, enrolledDevice 
 		var (
 			args                     []any
 			sb                       strings.Builder
-			potentialProfilePayloads []*fleet.MDMWindowsProfilePayload
-			scepStatusProbes         []fleet.MDMWindowsCommand
+			potentialProfilePayloads []*automdm.MDMWindowsProfilePayload
+			scepStatusProbes         []automdm.MDMWindowsCommand
 
 			wipeCmdUUID   string
 			wipeCmdStatus string
@@ -1577,7 +1577,7 @@ func (ds *Datastore) MDMWindowsSaveResponse(ctx context.Context, enrolledDevice 
 		)
 
 		// Look up operation types for matching commands so we can pass isRemoveOperation to BuildMDMWindowsProfilePayloadFromMDMResponse.
-		cmdOperationTypes := make(map[string]fleet.MDMOperationType)
+		cmdOperationTypes := make(map[string]automdm.MDMOperationType)
 		matchingCmdUUIDs := make([]string, 0, len(matchingCmds))
 		for _, cmd := range matchingCmds {
 			matchingCmdUUIDs = append(matchingCmdUUIDs, cmd.CommandUUID)
@@ -1588,8 +1588,8 @@ func (ds *Datastore) MDMWindowsSaveResponse(ctx context.Context, enrolledDevice 
 			return ctxerr.Wrap(ctx, opErr, "building IN for operation types")
 		}
 		var opResults []struct {
-			CommandUUID   string                 `db:"command_uuid"`
-			OperationType fleet.MDMOperationType `db:"operation_type"`
+			CommandUUID   string                   `db:"command_uuid"`
+			OperationType automdm.MDMOperationType `db:"operation_type"`
 		}
 		if err := sqlx.SelectContext(ctx, tx, &opResults, opStmt, opArgs...); err != nil {
 			return ctxerr.Wrap(ctx, err, "selecting operation types for matching commands")
@@ -1599,13 +1599,13 @@ func (ds *Datastore) MDMWindowsSaveResponse(ctx context.Context, enrolledDevice 
 		}
 
 		for _, cmd := range matchingCmds {
-			isSCEPStatusProbe := fleet.IsWindowsSCEPStatusProbeCmdUUID(cmd.CommandUUID)
+			isSCEPStatusProbe := automdm.IsWindowsSCEPStatusProbeCmdUUID(cmd.CommandUUID)
 			statusCode := ""
 			if status, ok := enrichedSyncML.CmdRefUUIDToStatus[cmd.CommandUUID]; ok && status.Data != nil {
 				statusCode = *status.Data
 				// A SCEP status probe isn't a profile command; its answer is applied below.
 				if status.Cmd != nil && !isSCEPStatusProbe {
-					// The raw MDM command may contain a $FLEET_SECRET_XXX, which should never be exposed or stored unencrypted.
+					// The raw MDM command may contain a $AUTOMDM_SECRET_XXX, which should never be exposed or stored unencrypted.
 					// Note: As of 2024/12/17, on <Add>, <Replace>, and <Exec> commands are exposed to Windows MDM users, so we should not see any secrets in <Atomic> commands. This code is here for future-proofing.
 					rawCommandStr := string(cmd.RawCommand)
 					rawCommandWithSecret, err := ds.ExpandEmbeddedSecrets(ctx, rawCommandStr)
@@ -1616,8 +1616,8 @@ func (ds *Datastore) MDMWindowsSaveResponse(ctx context.Context, enrolledDevice 
 					// Secret may be found in the command, so we make a new struct with the expanded secret.
 					cmdWithSecret := cmd
 					cmdWithSecret.RawCommand = []byte(rawCommandWithSecret)
-					pp, err := fleet.BuildMDMWindowsProfilePayloadFromMDMResponse(cmdWithSecret, enrichedSyncML.CmdRefUUIDToStatus,
-						enrolledDevice.HostUUID, cmdOperationTypes[cmd.CommandUUID] == fleet.MDMOperationTypeRemove)
+					pp, err := automdm.BuildMDMWindowsProfilePayloadFromMDMResponse(cmdWithSecret, enrichedSyncML.CmdRefUUIDToStatus,
+						enrolledDevice.HostUUID, cmdOperationTypes[cmd.CommandUUID] == automdm.MDMOperationTypeRemove)
 					if err != nil {
 						return ctxerr.Wrap(ctx, err, "building profile payload from MDM response")
 					}
@@ -1637,11 +1637,11 @@ func (ds *Datastore) MDMWindowsSaveResponse(ctx context.Context, enrolledDevice 
 			sb.WriteString("(?, ?, ?, ?, ?),")
 
 			// if the command is a Wipe, keep track of it so we can update host_mdm_actions accordingly.
-			if fleet.LocURITargetsReservedNode(cmd.TargetLocURI, syncml.FleetRemoteWipeTargetLocURI) {
+			if automdm.LocURITargetsReservedNode(cmd.TargetLocURI, syncml.AutoMDMRemoteWipeTargetLocURI) {
 				wipeCmdUUID = cmd.CommandUUID
 				wipeCmdStatus = statusCode
 				wipeCmdReset = cmd.TargetLocURI ==
-					fleet.WindowsRemoteWipeLocURI(fleet.WindowsRemoteWipePersistProvisionedData)
+					automdm.WindowsRemoteWipeLocURI(automdm.WindowsRemoteWipePersistProvisionedData)
 			}
 
 			if isSCEPStatusProbe {
@@ -1657,7 +1657,7 @@ func (ds *Datastore) MDMWindowsSaveResponse(ctx context.Context, enrolledDevice 
 		}
 
 		// A proxied SCEP install the host just ACKed waits in "verifying" until the device reports the certificate, so ask
-		// it. The SCEP CSP enrolls after it ACKs, so the service holds the probe back for fleet.WindowsSCEPStatusProbeDelay.
+		// it. The SCEP CSP enrolls after it ACKs, so the service holds the probe back for automdm.WindowsSCEPStatusProbeDelay.
 		if len(scepVerifying) > 0 {
 			// The host profile row doesn't record the SCEP node's scope; the install command we just matched does, and it is already in memory.
 			installRawCmds := make(map[string][]byte, len(matchingCmds))
@@ -1679,7 +1679,7 @@ func (ds *Datastore) MDMWindowsSaveResponse(ctx context.Context, enrolledDevice 
 			if !ok {
 				continue
 			}
-			var results *fleet.SyncMLCmd
+			var results *automdm.SyncMLCmd
 			if r, ok := enrichedSyncML.CmdRefUUIDToResults[probe.CommandUUID]; ok {
 				results = &r
 			}
@@ -1749,15 +1749,15 @@ ON DUPLICATE KEY UPDATE
 
 			if wipeCmdStatus != "" && rowsAffected > 0 {
 				if wipeSucceeded {
-					result = &fleet.MDMWindowsSaveResponseResult{
-						WipeSucceeded: &fleet.MDMWindowsWipeResult{
+					result = &automdm.MDMWindowsSaveResponseResult{
+						WipeSucceeded: &automdm.MDMWindowsWipeResult{
 							HostUUID: enrolledDevice.HostUUID,
 							Reset:    wipeCmdReset,
 						},
 					}
 				} else {
-					result = &fleet.MDMWindowsSaveResponseResult{
-						WipeFailed: &fleet.MDMWindowsWipeResult{
+					result = &automdm.MDMWindowsSaveResponseResult{
+						WipeFailed: &automdm.MDMWindowsWipeResult{
 							HostUUID: enrolledDevice.HostUUID,
 							Reset:    wipeCmdReset,
 						},
@@ -1794,10 +1794,10 @@ ON DUPLICATE KEY UPDATE
 	return result, nil
 }
 
-// MDMWindowsFailUndeliverableCommand records a failed result, with reason as its response, for a pending command Fleet can't
+// MDMWindowsFailUndeliverableCommand records a failed result, with reason as its response, for a pending command AutoMDM can't
 // deliver to the enrollment, so it leaves the queue instead of staying pending. A profile behind the command is failed or
 // retried as if the device had rejected it. It does nothing if the command is no longer pending.
-func (ds *Datastore) MDMWindowsFailUndeliverableCommand(ctx context.Context, enrolledDevice *fleet.MDMWindowsEnrolledDevice, commandUUID, reason string) error {
+func (ds *Datastore) MDMWindowsFailUndeliverableCommand(ctx context.Context, enrolledDevice *automdm.MDMWindowsEnrolledDevice, commandUUID, reason string) error {
 	if enrolledDevice == nil {
 		return ctxerr.New(ctx, "enrolled device is nil")
 	}
@@ -1846,9 +1846,9 @@ ON DUPLICATE KEY UPDATE
 		if enrolledDevice.HostUUID == "" {
 			return nil
 		}
-		failed := fleet.MDMDeliveryFailed
-		payload := &fleet.MDMWindowsProfilePayload{HostUUID: enrolledDevice.HostUUID, CommandUUID: commandUUID, Status: &failed, Detail: reason}
-		if _, err := updateMDMWindowsHostProfileStatusFromResponseDB(ctx, tx, []*fleet.MDMWindowsProfilePayload{payload},
+		failed := automdm.MDMDeliveryFailed
+		payload := &automdm.MDMWindowsProfilePayload{HostUUID: enrolledDevice.HostUUID, CommandUUID: commandUUID, Status: &failed, Detail: reason}
+		if _, err := updateMDMWindowsHostProfileStatusFromResponseDB(ctx, tx, []*automdm.MDMWindowsProfilePayload{payload},
 			microsoft_mdm.WindowsUserContextStateFromDevice(enrolledDevice), microsoft_mdm.IsValidUPN(enrolledDevice.MDMEnrollUserID)); err != nil {
 			return ctxerr.Wrap(ctx, err, "updating host profile status for undeliverable command")
 		}
@@ -1860,20 +1860,20 @@ ON DUPLICATE KEY UPDATE
 // where the raw response is displayed.
 var xmlTextEscaper = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;")
 
-// fabricateWindowsFailureResponse builds the response Fleet records in the device's place for a command it couldn't deliver: a
+// fabricateWindowsFailureResponse builds the response AutoMDM records in the device's place for a command it couldn't deliver: a
 // failed <Status> carrying the reason, in a SyncML envelope like a device's response.
 func fabricateWindowsFailureResponse(commandUUID, reason string) ([]byte, error) {
-	msg := fleet.SyncML{
+	msg := automdm.SyncML{
 		Xmlns:   syncml.SyncCmdNamespace,
-		SyncHdr: fleet.SyncHdr{VerDTD: syncml.SyncMLSupportedVersion, VerProto: syncml.SyncMLVerProto},
+		SyncHdr: automdm.SyncHdr{VerDTD: syncml.SyncMLSupportedVersion, VerProto: syncml.SyncMLVerProto},
 	}
-	msg.AppendCommand(fleet.MDMRaw, fleet.SyncMLCmd{
-		XMLName: xml.Name{Local: fleet.CmdStatus},
-		CmdID:   fleet.CmdID{Value: "1"},
+	msg.AppendCommand(automdm.MDMRaw, automdm.SyncMLCmd{
+		XMLName: xml.Name{Local: automdm.CmdStatus},
+		CmdID:   automdm.CmdID{Value: "1"},
 		CmdRef:  &commandUUID,
 		Data:    new(syncml.CmdStatusBadRequest),
 		// RawXmlData is inner XML, so the reason is escaped here.
-		Items: []fleet.CmdItem{{Data: &fleet.RawXmlData{Content: xmlTextEscaper.Replace(reason)}}},
+		Items: []automdm.CmdItem{{Data: &automdm.RawXmlData{Content: xmlTextEscaper.Replace(reason)}}},
 	})
 	return xml.Marshal(msg)
 }
@@ -1884,7 +1884,7 @@ func renewalIDManagedCertProfileUUIDsDB(ctx context.Context, tx sqlx.ExtContext,
 	if len(profileUUIDs) == 0 {
 		return nil, nil
 	}
-	caTypes := fleet.ListCATypesWithRenewalIDSupport()
+	caTypes := automdm.ListCATypesWithRenewalIDSupport()
 	caTypeStrs := make([]string, 0, len(caTypes))
 	for _, t := range caTypes {
 		caTypeStrs = append(caTypeStrs, string(t))
@@ -1917,8 +1917,8 @@ func renewalIDManagedCertProfileUUIDsDB(ctx context.Context, tx sqlx.ExtContext,
 func updateMDMWindowsHostProfileStatusFromResponseDB(
 	ctx context.Context,
 	tx sqlx.ExtContext,
-	payloads []*fleet.MDMWindowsProfilePayload,
-	userContextState fleet.WindowsUserContextState,
+	payloads []*automdm.MDMWindowsProfilePayload,
+	userContextState automdm.WindowsUserContextState,
 	// userBoundEnrollment selects the hold detail wording: user-bound (Entra) enrollments wait for their enrolled user,
 	// device-bound ones for any user.
 	userBoundEnrollment bool,
@@ -1953,7 +1953,7 @@ func updateMDMWindowsHostProfileStatusFromResponseDB(
 	// also grab the payloads keyed by the command uuid, so we can easily
 	// grab the corresponding `Detail` and `Status` from the matching
 	// command later on.
-	uuidsToPayloads := make(map[string]*fleet.MDMWindowsProfilePayload, len(payloads))
+	uuidsToPayloads := make(map[string]*automdm.MDMWindowsProfilePayload, len(payloads))
 	hostUUID := payloads[0].HostUUID
 	for _, payload := range payloads {
 		if payload.HostUUID != hostUUID {
@@ -1968,7 +1968,7 @@ func updateMDMWindowsHostProfileStatusFromResponseDB(
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "building sqlx.In query")
 	}
-	var matchingHostProfiles []fleet.MDMWindowsProfilePayload
+	var matchingHostProfiles []automdm.MDMWindowsProfilePayload
 	if err := sqlx.SelectContext(ctx, tx, &matchingHostProfiles, stmt, args...); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "running query to get matching profiles")
 	}
@@ -1984,7 +1984,7 @@ func updateMDMWindowsHostProfileStatusFromResponseDB(
 		if payload == nil {
 			continue
 		}
-		if hp.OperationType == fleet.MDMOperationTypeInstall && payload.Status != nil && *payload.Status == fleet.MDMDeliveryVerified {
+		if hp.OperationType == automdm.MDMOperationTypeInstall && payload.Status != nil && *payload.Status == automdm.MDMDeliveryVerified {
 			verifiedInstallProfileUUIDs = append(verifiedInstallProfileUUIDs, hp.ProfileUUID)
 		}
 	}
@@ -2003,32 +2003,32 @@ func updateMDMWindowsHostProfileStatusFromResponseDB(
 		if payload == nil {
 			continue
 		}
-		if hp.OperationType == fleet.MDMOperationTypeInstall && payload.Status != nil && *payload.Status == fleet.MDMDeliveryVerified {
+		if hp.OperationType == automdm.MDMOperationTypeInstall && payload.Status != nil && *payload.Status == automdm.MDMDeliveryVerified {
 			if _, ok := scepProxyProfileUUIDs[hp.ProfileUUID]; ok {
-				// Only the first ACK of a delivery moves it out of pending. A late or repeated one arrives after Fleet already
+				// Only the first ACK of a delivery moves it out of pending. A late or repeated one arrives after AutoMDM already
 				// resolved the delivery (verified, failed, or reset for a retry) and must leave the row as it is.
-				if hp.Status == nil || *hp.Status != fleet.MDMDeliveryPending {
+				if hp.Status == nil || *hp.Status != automdm.MDMDeliveryPending {
 					continue
 				}
-				verifying := fleet.MDMDeliveryVerifying
+				verifying := automdm.MDMDeliveryVerifying
 				payload.Status = &verifying
 				scepVerifying = append(scepVerifying, windowsSCEPVerifyingInstall{ProfileUUID: hp.ProfileUUID, CommandUUID: hp.CommandUUID})
 			}
 		}
 		// The device rejected a user-channel write while it has no MDM user context yet. That is not a failure of the profile, it is
-		// Fleet having acted too early. A NULL status returns the row to the reconciler, which holds it behind the same user-context gate
+		// AutoMDM having acted too early. A NULL status returns the row to the reconciler, which holds it behind the same user-context gate
 		// instead of re-sending it. This is checked ahead of the failure handling below because it has to cover removals too, and a
 		// rejected removal does not look like a failure. Reaching here at all means the gate deliberately sent the command, so the
 		// rejection is the narrow race where the user signed out in between.
-		if payload.UserChannelRejected && userContextState == fleet.WindowsUserContextCanArrive {
+		if payload.UserChannelRejected && userContextState == automdm.WindowsUserContextCanArrive {
 			payload.Status = nil
-			payload.Detail = fleet.WindowsUserScopeHoldDetailFor(hp.OperationType, userBoundEnrollment)
+			payload.Detail = automdm.WindowsUserScopeHoldDetailFor(hp.OperationType, userBoundEnrollment)
 		}
 
-		if payload.Status != nil && *payload.Status == fleet.MDMDeliveryFailed {
+		if payload.Status != nil && *payload.Status == automdm.MDMDeliveryFailed {
 			// Don't retry remove operations; removal is best-effort. Only retry install operations up to the max retry count.
 			switch {
-			case hp.OperationType == fleet.MDMOperationTypeRemove:
+			case hp.OperationType == automdm.MDMOperationTypeRemove:
 				// best-effort, no retry
 
 			case hp.Retries < mdm.MaxWindowsProfileRetries:
@@ -2040,7 +2040,7 @@ func updateMDMWindowsHostProfileStatusFromResponseDB(
 				payload.Status = nil
 				hp.Retries++
 				// A NULL status reads as "pending" everywhere it surfaces, so the attempt that just failed must not
-				// leave its error behind in the Details column while Fleet is still retrying.
+				// leave its error behind in the Details column while AutoMDM is still retrying.
 				payload.Detail = ""
 			}
 		}
@@ -2049,8 +2049,8 @@ func updateMDMWindowsHostProfileStatusFromResponseDB(
 		// Removes are best-effort; both verified and failed are terminal since
 		// failed removes are non-retryable and should not surface as host-level
 		// failures in profile summaries.
-		if hp.OperationType == fleet.MDMOperationTypeRemove && payload.Status != nil &&
-			(*payload.Status == fleet.MDMDeliveryVerified || *payload.Status == fleet.MDMDeliveryFailed) {
+		if hp.OperationType == automdm.MDMOperationTypeRemove && payload.Status != nil &&
+			(*payload.Status == automdm.MDMDeliveryVerified || *payload.Status == automdm.MDMDeliveryFailed) {
 			deleteCommandUUIDs = append(deleteCommandUUIDs, hp.CommandUUID)
 			continue
 		}
@@ -2091,8 +2091,8 @@ func updateMDMWindowsHostProfileStatusFromResponseDB(
 	return scepVerifying, nil
 }
 
-// SetMDMWindowsHostProfileFailedOrRetry records a failure Fleet observed itself rather than one the host reported, which
-// today means only an error Fleet's SCEP proxy saw from the upstream CA. While the profile has retries left it is put
+// SetMDMWindowsHostProfileFailedOrRetry records a failure AutoMDM observed itself rather than one the host reported, which
+// today means only an error AutoMDM's SCEP proxy saw from the upstream CA. While the profile has retries left it is put
 // back in the pending state so the profile manager redelivers it on its next tick. With onlyIfVerifying, only a
 // delivery the host acknowledged and is still verifying is charged.
 func (ds *Datastore) SetMDMWindowsHostProfileFailedOrRetry(ctx context.Context, hostUUID string, profileUUID string, detail string,
@@ -2132,14 +2132,14 @@ func failOrRetryWindowsHostProfileDB(ctx context.Context, tx sqlx.ExtContext, ho
 		SELECT status, retries, COALESCE(detail, '') AS detail
 		FROM host_mdm_windows_profiles
 		WHERE host_uuid = ? AND profile_uuid = ? AND operation_type = ?`
-	loadArgs := []any{hostUUID, profileUUID, fleet.MDMOperationTypeInstall}
+	loadArgs := []any{hostUUID, profileUUID, automdm.MDMOperationTypeInstall}
 	if verifyingCmdUUID != "" {
 		loadStmt += ` AND command_uuid = ?`
 		loadArgs = append(loadArgs, verifyingCmdUUID)
 	}
 	if verifyingCmdUUID != "" || onlyIfVerifying {
 		loadStmt += ` AND status = ?`
-		loadArgs = append(loadArgs, fleet.MDMDeliveryVerifying)
+		loadArgs = append(loadArgs, automdm.MDMDeliveryVerifying)
 	}
 	loadStmt += ` FOR UPDATE`
 
@@ -2154,9 +2154,9 @@ func failOrRetryWindowsHostProfileDB(ctx context.Context, tx sqlx.ExtContext, ho
 		WHERE host_uuid = ? AND profile_uuid = ? AND operation_type = ?`
 
 	var row struct {
-		Status  *fleet.MDMDeliveryStatus `db:"status"`
-		Retries uint                     `db:"retries"`
-		Detail  string                   `db:"detail"`
+		Status  *automdm.MDMDeliveryStatus `db:"status"`
+		Retries uint                       `db:"retries"`
+		Detail  string                     `db:"detail"`
 	}
 	switch err := sqlx.GetContext(ctx, tx, &row, loadStmt, loadArgs...); {
 	case errors.Is(err, sql.ErrNoRows):
@@ -2169,19 +2169,19 @@ func failOrRetryWindowsHostProfileDB(ctx context.Context, tx sqlx.ExtContext, ho
 	case row.Status == nil:
 		// A delivery is already queued for this profile, so nothing to record.
 		return false, false, nil
-	case *row.Status == fleet.MDMDeliveryVerified:
+	case *row.Status == automdm.MDMDeliveryVerified:
 		return false, false, nil
 	case row.Retries < mdm.MaxWindowsProfileRetries:
-		if _, err := tx.ExecContext(ctx, retryStmt, hostUUID, profileUUID, fleet.MDMOperationTypeInstall); err != nil {
+		if _, err := tx.ExecContext(ctx, retryStmt, hostUUID, profileUUID, automdm.MDMOperationTypeInstall); err != nil {
 			return false, false, ctxerr.Wrap(ctx, err, "retrying windows host profile after failure")
 		}
 		return true, true, nil
-	case *row.Status == fleet.MDMDeliveryFailed && row.Detail == truncateMDMWindowsProfileDetail(detail):
+	case *row.Status == automdm.MDMDeliveryFailed && row.Detail == truncateMDMWindowsProfileDetail(detail):
 		return false, false, nil
 	default:
 		if _, err := tx.ExecContext(
 			ctx, failStmt,
-			fleet.MDMDeliveryFailed, truncateMDMWindowsProfileDetail(detail), hostUUID, profileUUID, fleet.MDMOperationTypeInstall,
+			automdm.MDMDeliveryFailed, truncateMDMWindowsProfileDetail(detail), hostUUID, profileUUID, automdm.MDMOperationTypeInstall,
 		); err != nil {
 			return false, false, ctxerr.Wrap(ctx, err, "set windows host profile failed")
 		}
@@ -2189,9 +2189,9 @@ func failOrRetryWindowsHostProfileDB(ctx context.Context, tx sqlx.ExtContext, ho
 	}
 }
 
-// ResendWindowsHostCertificateProfile queues a Windows certificate profile for redelivery after Fleet turned a SCEP
+// ResendWindowsHostCertificateProfile queues a Windows certificate profile for redelivery after AutoMDM turned a SCEP
 // request away: an NDES challenge that aged past its window before the device got to PKIOperation, or a custom SCEP
-// challenge Fleet would not accept. The host never had a usable profile to install, so this is not one of the failures
+// challenge AutoMDM would not accept. The host never had a usable profile to install, so this is not one of the failures
 // the retry budget exists to bound, and nothing is charged for it.
 //
 // A row that already reached a terminal state ("verified" or "failed") is left alone. An admin-initiated Resend is the
@@ -2204,8 +2204,8 @@ func (ds *Datastore) ResendWindowsHostCertificateProfile(ctx context.Context, ho
 			AND (status IS NULL OR status NOT IN (?, ?))`
 
 	return ds.withRetryTxx(ctx, func(tx sqlx.ExtContext) error {
-		res, err := tx.ExecContext(ctx, stmt, hostUUID, profUUID, fleet.MDMOperationTypeInstall,
-			fleet.MDMDeliveryVerified, fleet.MDMDeliveryFailed)
+		res, err := tx.ExecContext(ctx, stmt, hostUUID, profUUID, automdm.MDMOperationTypeInstall,
+			automdm.MDMDeliveryVerified, automdm.MDMDeliveryFailed)
 		if err != nil {
 			return ctxerr.Wrap(ctx, err, "resending windows host certificate profile")
 		}
@@ -2226,7 +2226,7 @@ func (ds *Datastore) ResendWindowsHostCertificateProfile(ctx context.Context, ho
 	})
 }
 
-func (ds *Datastore) GetMDMWindowsCommandResults(ctx context.Context, commandUUID string, hostUUID string) ([]*fleet.MDMCommandResult, error) {
+func (ds *Datastore) GetMDMWindowsCommandResults(ctx context.Context, commandUUID string, hostUUID string) ([]*automdm.MDMCommandResult, error) {
 	// The enrollments come from the command's results, plus the ones still waiting in its queue (acked_at IS NULL), which report as
 	// pending even when other enrollments already replied. Every join after that is on the full (enrollment_id, command_uuid) key.
 	const hostFilter = ` JOIN mdm_windows_enrollments mwe_filter ON mwe_filter.id = %s.enrollment_id AND mwe_filter.host_uuid = ?`
@@ -2267,7 +2267,7 @@ FROM
 WHERE
     wmc.command_uuid = ?`, queueHostFilter, resultsHostFilter)
 
-	var results []*fleet.MDMCommandResult
+	var results []*automdm.MDMCommandResult
 	err := sqlx.SelectContext(
 		ctx,
 		ds.reader(ctx),
@@ -2295,7 +2295,7 @@ func (ds *Datastore) UpdateMDMWindowsEnrollmentsHostUUID(ctx context.Context, ho
 	// The final clause ensures we only update if the host UUID changes so we can tell the caller as this basically signals a new MDM
 	// enrollment in certain cases, as it is the first time we associate a host with an enrollment. A deleted host's enrollment's
 	// deleted host marker also counts as a new link.
-	stmt := `UPDATE mdm_windows_enrollments SET host_uuid = ?, fleetd_present_at = NULL
+	stmt := `UPDATE mdm_windows_enrollments SET host_uuid = ?, automdmd_present_at = NULL
 		WHERE mdm_device_id = ? AND (host_uuid <> ? OR deleted_host_team_id IS NOT NULL)`
 	res, err := ds.writer(ctx).Exec(stmt, hostUUID, mdmDeviceID, hostUUID)
 	if err != nil {
@@ -2317,7 +2317,7 @@ func (ds *Datastore) MDMWindowsClearDeletedHostTeam(ctx context.Context, mdmDevi
 	return nil
 }
 
-func (ds *Datastore) SetMDMWindowsAwaitingConfiguration(ctx context.Context, mdmDeviceID string, expectFrom, to fleet.WindowsMDMAwaitingConfiguration) (bool, error) {
+func (ds *Datastore) SetMDMWindowsAwaitingConfiguration(ctx context.Context, mdmDeviceID string, expectFrom, to automdm.WindowsMDMAwaitingConfiguration) (bool, error) {
 	stmt := `UPDATE mdm_windows_enrollments SET awaiting_configuration = ? WHERE mdm_device_id = ? AND awaiting_configuration = ?`
 	res, err := ds.writer(ctx).ExecContext(ctx, stmt, to, mdmDeviceID, expectFrom)
 	if err != nil {
@@ -2337,7 +2337,7 @@ func (ds *Datastore) SetMDMWindowsAwaitingConfiguration(ctx context.Context, mdm
 // - host_disk_encryption_keys: hdek
 // - host_mdm: hmdm
 // - host_disks: hd
-func (ds *Datastore) whereBitLockerStatus(ctx context.Context, status fleet.DiskEncryptionStatus, bitLockerPINRequired bool) string {
+func (ds *Datastore) whereBitLockerStatus(ctx context.Context, status automdm.DiskEncryptionStatus, bitLockerPINRequired bool) string {
 	const (
 		whereNotServer        = `(hmdm.is_server IS NOT NULL AND hmdm.is_server = 0)`
 		whereKeyAvailable     = `(hdek.base64_encrypted IS NOT NULL AND hdek.base64_encrypted != '' AND hdek.decryptable IS NOT NULL AND hdek.decryptable = 1)`
@@ -2365,7 +2365,7 @@ func (ds *Datastore) whereBitLockerStatus(ctx context.Context, status fleet.Disk
 	// host_disks if the hdek timestamp is newer? What about SetOrUpdateHostDiskEncryptionKey?
 
 	switch status {
-	case fleet.DiskEncryptionVerified:
+	case automdm.DiskEncryptionVerified:
 		// Verified requires protection to be on (or unknown/NULL for backward compatibility), and requires something
 		// on the volume to be able to unseal at boot.
 		return whereNotServer + `
@@ -2377,7 +2377,7 @@ AND ` + whereProtectionOn + `
 AND ` + whereBootProtectorSet + `
 AND ` + whereBitLockerPINSet
 
-	case fleet.DiskEncryptionVerifying:
+	case automdm.DiskEncryptionVerifying:
 		// Possible verifying scenarios:
 		// - we have the key and host_disks already encrypted before the key but hasn't been updated yet
 		// - we have the key and host_disks reported unencrypted during the 1-hour grace period after key was updated
@@ -2392,16 +2392,16 @@ AND (
 )
 AND ` + whereBitLockerPINSet
 
-	case fleet.DiskEncryptionActionRequired:
+	case automdm.DiskEncryptionActionRequired:
 		// Action required means a person has to do something. Three ways to get here:
 		// 1. We _would_ be in verified/verifying but a PIN is required and not set, which only the end user can fix, OR
 		// 2. The disk is encrypted with protection off AND the agent reported it cannot restore it, either because
 		//    policy forbids a TPM-only protector, or the TPM is not ready, or it is deferring until a staged restart, OR
 		// 3. The disk is encrypted with protection on but nothing can unseal it at boot AND the agent reported it
 		//    cannot add a protector, so the next restart lands on the recovery prompt and only a person can prevent it.
-		// Protection being off on its own is NOT action required: Fleet repairs that itself, so it belongs in enforcing.
+		// Protection being off on its own is NOT action required: AutoMDM repairs that itself, so it belongs in enforcing.
 		// All three need an encrypted volume. A PIN especially cannot be created while one is still encrypting, because
-		// Windows only offers PIN setup on a protected volume, so that host is Fleet's work to finish.
+		// Windows only offers PIN setup on a protected volume, so that host is AutoMDM's work to finish.
 		return whereNotServer + `
 AND NOT ` + whereClientError + `
 AND ` + whereKeyAvailable + `
@@ -2410,13 +2410,13 @@ AND ((NOT ` + whereBitLockerPINSet + ` AND NOT ` + whereBootProtectorMissing + `
      OR (` + whereProtectionOff + ` AND ` + whereProtectionError + `)
      OR (` + whereProtectionOn + ` AND ` + whereBootProtectorMissing + ` AND ` + whereProtectionError + `))`
 
-	case fleet.DiskEncryptionEnforcing:
+	case automdm.DiskEncryptionEnforcing:
 		// Possible enforcing scenarios:
 		// - we don't have the key
 		// - we have the key and host_disks reported unencrypted before the key was updated or outside the 1-hour grace period after key was updated
-		// - the disk is encrypted but protection is off and the agent has not reported a problem, so Fleet is restoring
+		// - the disk is encrypted but protection is off and the agent has not reported a problem, so AutoMDM is restoring
 		//   it and no one needs to be told to act
-		// - the disk is encrypted and protection is on, but nothing can unseal it at boot, so Fleet is adding a protector
+		// - the disk is encrypted and protection is on, but nothing can unseal it at boot, so AutoMDM is adding a protector
 		return whereNotServer + `
 AND NOT ` + whereClientError + `
 AND (
@@ -2441,7 +2441,7 @@ AND (
     )
 )`
 
-	case fleet.DiskEncryptionFailed:
+	case automdm.DiskEncryptionFailed:
 		return whereNotServer + ` AND ` + whereClientError
 
 	default:
@@ -2450,13 +2450,13 @@ AND (
 	}
 }
 
-func (ds *Datastore) GetMDMWindowsBitLockerSummary(ctx context.Context, teamID *uint) (*fleet.MDMWindowsBitLockerSummary, error) {
+func (ds *Datastore) GetMDMWindowsBitLockerSummary(ctx context.Context, teamID *uint) (*automdm.MDMWindowsBitLockerSummary, error) {
 	diskEncryptionConfig, err := ds.GetConfigEnableDiskEncryption(ctx, teamID)
 	if err != nil {
 		return nil, err
 	}
 	if !diskEncryptionConfig.WindowsEnabled {
-		return &fleet.MDMWindowsBitLockerSummary{}, nil
+		return &automdm.MDMWindowsBitLockerSummary{}, nil
 	}
 
 	// Note removing_enforcement is not applicable to Windows hosts
@@ -2488,14 +2488,14 @@ WHERE
 		args = append(args, *teamID)
 	}
 
-	var res fleet.MDMWindowsBitLockerSummary
+	var res automdm.MDMWindowsBitLockerSummary
 	stmt := fmt.Sprintf(
 		sqlFmt,
-		ds.whereBitLockerStatus(ctx, fleet.DiskEncryptionVerified, diskEncryptionConfig.BitLockerPINRequired),
-		ds.whereBitLockerStatus(ctx, fleet.DiskEncryptionVerifying, diskEncryptionConfig.BitLockerPINRequired),
-		ds.whereBitLockerStatus(ctx, fleet.DiskEncryptionActionRequired, diskEncryptionConfig.BitLockerPINRequired),
-		ds.whereBitLockerStatus(ctx, fleet.DiskEncryptionEnforcing, diskEncryptionConfig.BitLockerPINRequired),
-		ds.whereBitLockerStatus(ctx, fleet.DiskEncryptionFailed, diskEncryptionConfig.BitLockerPINRequired),
+		ds.whereBitLockerStatus(ctx, automdm.DiskEncryptionVerified, diskEncryptionConfig.BitLockerPINRequired),
+		ds.whereBitLockerStatus(ctx, automdm.DiskEncryptionVerifying, diskEncryptionConfig.BitLockerPINRequired),
+		ds.whereBitLockerStatus(ctx, automdm.DiskEncryptionActionRequired, diskEncryptionConfig.BitLockerPINRequired),
+		ds.whereBitLockerStatus(ctx, automdm.DiskEncryptionEnforcing, diskEncryptionConfig.BitLockerPINRequired),
+		ds.whereBitLockerStatus(ctx, automdm.DiskEncryptionFailed, diskEncryptionConfig.BitLockerPINRequired),
 		microsoft_mdm.MDMDeviceStateEnrolled,
 		teamFilter,
 	)
@@ -2506,7 +2506,7 @@ WHERE
 	return &res, nil
 }
 
-func (ds *Datastore) GetMDMWindowsBitLockerStatus(ctx context.Context, host *fleet.Host) (*fleet.HostMDMDiskEncryption, error) {
+func (ds *Datastore) GetMDMWindowsBitLockerStatus(ctx context.Context, host *automdm.Host) (*automdm.HostMDMDiskEncryption, error) {
 	if host == nil {
 		return nil, ctxerr.New(ctx, "cannot get bitlocker status for nil host")
 	}
@@ -2540,9 +2540,9 @@ func (ds *Datastore) GetMDMWindowsBitLockerStatus(ctx context.Context, host *fle
 		return nil, nil
 	}
 
-	// Like the summary and the list filters, ignore hosts that are not connected to Fleet MDM (for example, third-party MDM).
-	if !mdmInfo.ConnectedToFleet {
-		ds.logger.DebugContext(ctx, "no bitlocker status for host not connected to fleet mdm", "host_id", host.ID)
+	// Like the summary and the list filters, ignore hosts that are not connected to AutoMDM (for example, third-party MDM).
+	if !mdmInfo.ConnectedToAutoMDM {
+		ds.logger.DebugContext(ctx, "no bitlocker status for host not connected to automdm mdm", "host_id", host.ID)
 		return nil, nil
 	}
 
@@ -2573,95 +2573,95 @@ FROM
 	LEFT JOIN host_disks hd ON hmdm.host_id = hd.host_id
 WHERE
 	hmdm.host_id = ?`,
-		ds.whereBitLockerStatus(ctx, fleet.DiskEncryptionActionRequired, diskEncryptionConfig.BitLockerPINRequired),
-		fleet.DiskEncryptionActionRequired,
-		ds.whereBitLockerStatus(ctx, fleet.DiskEncryptionVerified, diskEncryptionConfig.BitLockerPINRequired),
-		fleet.DiskEncryptionVerified,
-		ds.whereBitLockerStatus(ctx, fleet.DiskEncryptionVerifying, diskEncryptionConfig.BitLockerPINRequired),
-		fleet.DiskEncryptionVerifying,
-		ds.whereBitLockerStatus(ctx, fleet.DiskEncryptionEnforcing, diskEncryptionConfig.BitLockerPINRequired),
-		fleet.DiskEncryptionEnforcing,
-		ds.whereBitLockerStatus(ctx, fleet.DiskEncryptionFailed, diskEncryptionConfig.BitLockerPINRequired),
-		fleet.DiskEncryptionFailed,
+		ds.whereBitLockerStatus(ctx, automdm.DiskEncryptionActionRequired, diskEncryptionConfig.BitLockerPINRequired),
+		automdm.DiskEncryptionActionRequired,
+		ds.whereBitLockerStatus(ctx, automdm.DiskEncryptionVerified, diskEncryptionConfig.BitLockerPINRequired),
+		automdm.DiskEncryptionVerified,
+		ds.whereBitLockerStatus(ctx, automdm.DiskEncryptionVerifying, diskEncryptionConfig.BitLockerPINRequired),
+		automdm.DiskEncryptionVerifying,
+		ds.whereBitLockerStatus(ctx, automdm.DiskEncryptionEnforcing, diskEncryptionConfig.BitLockerPINRequired),
+		automdm.DiskEncryptionEnforcing,
+		ds.whereBitLockerStatus(ctx, automdm.DiskEncryptionFailed, diskEncryptionConfig.BitLockerPINRequired),
+		automdm.DiskEncryptionFailed,
 	)
 
 	var dest struct {
-		Status            fleet.DiskEncryptionStatus `db:"status"`
-		Detail            string                     `db:"detail"`
-		ProtectionStatus  *int                       `db:"bitlocker_protection_status"`
-		TpmPinSet         bool                       `db:"tpm_pin_set"`
-		BootProtectorSet  *bool                      `db:"bitlocker_boot_protector_set"`
-		ProtectionError   string                     `db:"bitlocker_protection_error"`
-		ProtectionOutcome string                     `db:"bitlocker_protection_outcome"`
+		Status            automdm.DiskEncryptionStatus `db:"status"`
+		Detail            string                       `db:"detail"`
+		ProtectionStatus  *int                         `db:"bitlocker_protection_status"`
+		TpmPinSet         bool                         `db:"tpm_pin_set"`
+		BootProtectorSet  *bool                        `db:"bitlocker_boot_protector_set"`
+		ProtectionError   string                       `db:"bitlocker_protection_error"`
+		ProtectionOutcome string                       `db:"bitlocker_protection_outcome"`
 	}
-	if err := sqlx.GetContext(ctx, ds.reader(ctx), &dest, stmt, fleet.BitLockerKeyUndecryptableDetail, host.ID); err != nil {
+	if err := sqlx.GetContext(ctx, ds.reader(ctx), &dest, stmt, automdm.BitLockerKeyUndecryptableDetail, host.ID); err != nil {
 		if err != sql.ErrNoRows {
-			return &fleet.HostMDMDiskEncryption{}, err
+			return &automdm.HostMDMDiskEncryption{}, err
 		}
 		// At this point we know disk encryption is enabled so if there are no rows for the
 		// host then we treat it as enforcing and log for potential debugging
 		ds.logger.DebugContext(ctx, "no bitlocker status found for host", "host_id", host.ID)
-		dest.Status = fleet.DiskEncryptionEnforcing
+		dest.Status = automdm.DiskEncryptionEnforcing
 	}
 
 	if dest.Status == "" {
 		// This is unexpected. We know that disk encryption is enabled so we treat it failed to draw
 		// attention to the issue and log potential debugging
 		ds.logger.DebugContext(ctx, "no bitlocker status found for host", "host_id", host.ID)
-		dest.Status = fleet.DiskEncryptionFailed
+		dest.Status = automdm.DiskEncryptionFailed
 	}
 
-	protectionOff := dest.ProtectionStatus != nil && *dest.ProtectionStatus == fleet.BitLockerProtectionStatusOff
+	protectionOff := dest.ProtectionStatus != nil && *dest.ProtectionStatus == automdm.BitLockerProtectionStatusOff
 	pinMissing := diskEncryptionConfig.BitLockerPINRequired && !dest.TpmPinSet
 	// nil means the host has not reported, which reads as "no problem".
 	bootProtectorMissing := dest.BootProtectorSet != nil && !*dest.BootProtectorSet
 
-	deferred := dest.ProtectionOutcome == string(fleet.DiskEncryptionProtectionDeferred)
+	deferred := dest.ProtectionOutcome == string(automdm.DiskEncryptionProtectionDeferred)
 
-	var actionRequired *fleet.ActionRequiredState
-	if dest.Status == fleet.DiskEncryptionActionRequired {
+	var actionRequired *automdm.ActionRequiredState
+	if dest.Status == automdm.DiskEncryptionActionRequired {
 		switch {
 		// The agent is waiting on a restart it will not perform itself, so restarting is the action, and it takes
 		// precedence: nothing else can proceed until it happens.
 		case deferred:
-			actionRequired = new(fleet.ActionRequiredRestart)
+			actionRequired = new(automdm.ActionRequiredRestart)
 		// Creating a PIN goes through "Change how the drive is unlocked at startup", which Windows only offers on a
 		// protected volume that already has a TPM protector. While protection is off, or while the volume has no
 		// protector able to unseal at boot, the option is simply not there, so there is nothing for the end user to do
-		// and the reason belongs in the detail instead. Fleet adds the missing protector, which puts the option back.
+		// and the reason belongs in the detail instead. AutoMDM adds the missing protector, which puts the option back.
 		case pinMissing && !protectionOff && !bootProtectorMissing:
-			actionRequired = new(fleet.ActionRequiredCreatePIN)
+			actionRequired = new(automdm.ActionRequiredCreatePIN)
 		}
 	}
 
 	// Build a meaningful detail message for action_required when there's no client error.
-	if dest.Status == fleet.DiskEncryptionActionRequired && dest.Detail == "" {
+	if dest.Status == automdm.DiskEncryptionActionRequired && dest.Detail == "" {
 		switch {
 		case protectionOff && deferred:
-			dest.Detail = "BitLocker protection is off. Fleet will turn it back on after this host restarts."
+			dest.Detail = "BitLocker protection is off. AutoMDM will turn it back on after this host restarts."
 		case protectionOff && dest.ProtectionError != "":
-			dest.Detail = fmt.Sprintf("BitLocker protection is off. Fleet could not turn it back on: %s", dest.ProtectionError)
+			dest.Detail = fmt.Sprintf("BitLocker protection is off. AutoMDM could not turn it back on: %s", dest.ProtectionError)
 		case protectionOff && pinMissing:
 			dest.Detail = "BitLocker protection is off and a startup PIN is required. Windows only offers PIN setup while the volume is protected, so the end user cannot create one until protection is restored."
 		case protectionOff:
 			dest.Detail = "BitLocker protection is off. The disk is encrypted but the TPM protector is not active. This may be due to a suspended BitLocker state or a TPM configuration issue."
 		case bootProtectorMissing && dest.ProtectionError != "":
-			dest.Detail = fmt.Sprintf("BitLocker has no protector that can unlock this disk at startup, so the next restart will ask for the recovery key. Fleet could not repair it: %s", dest.ProtectionError)
+			dest.Detail = fmt.Sprintf("BitLocker has no protector that can unlock this disk at startup, so the next restart will ask for the recovery key. AutoMDM could not repair it: %s", dest.ProtectionError)
 		case bootProtectorMissing && pinMissing:
-			dest.Detail = "BitLocker has no protector that can unlock this disk at startup, so the next restart will ask for the recovery key. Windows only offers PIN setup once a TPM protector exists, so the end user cannot create one yet. Fleet is adding a protector."
+			dest.Detail = "BitLocker has no protector that can unlock this disk at startup, so the next restart will ask for the recovery key. Windows only offers PIN setup once a TPM protector exists, so the end user cannot create one yet. AutoMDM is adding a protector."
 		case pinMissing:
 			dest.Detail = "A required BitLocker startup PIN is not set. The disk is encrypted but a PIN must be configured for compliance."
 		}
 	}
 
-	return &fleet.HostMDMDiskEncryption{
+	return &automdm.HostMDMDiskEncryption{
 		Status:         &dest.Status,
 		Detail:         dest.Detail,
 		ActionRequired: actionRequired,
 	}, nil
 }
 
-func (ds *Datastore) GetMDMWindowsConfigProfile(ctx context.Context, profileUUID string) (*fleet.MDMWindowsConfigProfile, error) {
+func (ds *Datastore) GetMDMWindowsConfigProfile(ctx context.Context, profileUUID string) (*automdm.MDMWindowsConfigProfile, error) {
 	stmt := `
 SELECT
 	profile_uuid,
@@ -2677,7 +2677,7 @@ FROM
 WHERE
 	profile_uuid=?`
 
-	var res fleet.MDMWindowsConfigProfile
+	var res automdm.MDMWindowsConfigProfile
 	err := sqlx.GetContext(ctx, ds.reader(ctx), &res, stmt, profileUUID)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -2745,7 +2745,7 @@ func deleteMDMWindowsConfigProfile(ctx context.Context, tx sqlx.ExtContext, prof
 	if err != nil {
 		if isMySQLForeignKey(err) {
 			if strings.Contains(err.Error(), "fk_policies_resend_windows_profile") {
-				return ctxerr.Wrap(ctx, &fleet.ConflictError{Message: "Couldn't delete. Policy automations use this profile. Please disable policy automations for this profile and try again."})
+				return ctxerr.Wrap(ctx, &automdm.ConflictError{Message: "Couldn't delete. Policy automations use this profile. Please disable policy automations for this profile and try again."})
 			}
 		}
 		return ctxerr.Wrap(ctx, err)
@@ -2795,7 +2795,7 @@ func (ds *Datastore) cancelWindowsHostInstallsForDeletedMDMProfiles(
 	DELETE FROM host_mdm_windows_profiles
 	WHERE profile_uuid IN (?)
 		AND ((operation_type = ? AND status = ?) OR (operation_type = ? AND status IS NULL))`,
-		profileUUIDs, fleet.MDMOperationTypeRemove, fleet.MDMDeliveryVerifying, fleet.MDMOperationTypeInstall)
+		profileUUIDs, automdm.MDMOperationTypeRemove, automdm.MDMDeliveryVerifying, automdm.MDMOperationTypeInstall)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "building IN for deleted-profile host-row cleanup")
 	}
@@ -2811,7 +2811,7 @@ const windowsRollupAsyncRefreshTimeout = 15 * time.Minute
 
 // dispatchWindowsProfilesStatusRollupRefresh refreshes the per-host Windows profile status rollup for the given hosts
 // asynchronously. Bulk admin operations (profile deletion, batch set, batch resend) use it so their request latency does not
-// scale with fleet size. If the process dies before or during the refresh, the hourly windows_profiles_status_reconcile cron
+// scale with team size. If the process dies before or during the refresh, the hourly windows_profiles_status_reconcile cron
 // heals the drift.
 func (ds *Datastore) dispatchWindowsProfilesStatusRollupRefresh(ctx context.Context, hostUUIDs []string) {
 	if len(hostUUIDs) == 0 {
@@ -2858,7 +2858,7 @@ func (ds *Datastore) retainWindowsProfilePriorContentDB(ctx context.Context, tx 
 // GetWindowsMDMProfilePriorContents returns the retained syncml for the given (profile_uuid, checksum) version keys.
 // Reader-backed; callers that cannot tolerate a replica-lag miss (the reconcile pass consumes each modify-install once) wrap the
 // context with ctxdb.RequirePrimary.
-func (ds *Datastore) GetWindowsMDMProfilePriorContents(ctx context.Context, keys []fleet.MDMWindowsProfileVersionKey) ([]fleet.MDMWindowsProfilePriorContent, error) {
+func (ds *Datastore) GetWindowsMDMProfilePriorContents(ctx context.Context, keys []automdm.MDMWindowsProfileVersionKey) ([]automdm.MDMWindowsProfilePriorContent, error) {
 	if len(keys) == 0 {
 		return nil, nil
 	}
@@ -2873,15 +2873,15 @@ func (ds *Datastore) GetWindowsMDMProfilePriorContents(ctx context.Context, keys
 		args = append(args, k.ProfileUUID, k.Checksum)
 	}
 
-	var rows []fleet.MDMWindowsProfilePriorContent
+	var rows []automdm.MDMWindowsProfilePriorContent
 	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &rows, stmt, args...); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "selecting windows profile prior content")
 	}
 	return rows, nil
 }
 
-func (ds *Datastore) ListMDMWindowsConfigProfilesByName(ctx context.Context, name string) ([]*fleet.MDMWindowsConfigProfile, error) {
-	var profiles []*fleet.MDMWindowsConfigProfile
+func (ds *Datastore) ListMDMWindowsConfigProfilesByName(ctx context.Context, name string) ([]*automdm.MDMWindowsConfigProfile, error) {
+	var profiles []*automdm.MDMWindowsConfigProfile
 	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &profiles,
 		`SELECT profile_uuid, NULLIF(team_id, 0) AS team_id, name FROM mdm_windows_configuration_profiles WHERE name = ?`,
 		name); err != nil {
@@ -2948,7 +2948,7 @@ func sqlJoinMDMWindowsProfilesStatus() string {
 // profile status priority logic (failed > pending > verifying > verified, reserved profiles excluded, install-only for
 // verifying/verified, NULL treated as pending).
 func windowsHostProfileStatusCaseExpr() (string, []any) {
-	reserved := mdm.ListFleetReservedWindowsProfileNames()
+	reserved := mdm.ListTeamReservedWindowsProfileNames()
 
 	stmt := `CASE
             WHEN SUM(CASE WHEN hmwp.status = ? AND hmwp.profile_name NOT IN (?) THEN 1 ELSE 0 END) > 0
@@ -2963,10 +2963,10 @@ func windowsHostProfileStatusCaseExpr() (string, []any) {
         END`
 
 	args := []any{
-		fleet.MDMDeliveryFailed, reserved,
-		fleet.MDMDeliveryPending, reserved,
-		fleet.MDMOperationTypeInstall, fleet.MDMDeliveryVerifying, reserved,
-		fleet.MDMOperationTypeInstall, fleet.MDMDeliveryVerified, reserved,
+		automdm.MDMDeliveryFailed, reserved,
+		automdm.MDMDeliveryPending, reserved,
+		automdm.MDMOperationTypeInstall, automdm.MDMDeliveryVerifying, reserved,
+		automdm.MDMOperationTypeInstall, automdm.MDMDeliveryVerified, reserved,
 	}
 
 	return stmt, args
@@ -3051,7 +3051,7 @@ func updateWindowsProfilesStatusRollupDB(ctx context.Context, ext sqlx.ExtContex
 	})
 }
 
-func (ds *Datastore) GetMDMWindowsProfilesSummary(ctx context.Context, teamID *uint) (*fleet.MDMProfilesSummary, error) {
+func (ds *Datastore) GetMDMWindowsProfilesSummary(ctx context.Context, teamID *uint) (*automdm.MDMProfilesSummary, error) {
 	diskEncryptionConfig, err := ds.GetConfigEnableDiskEncryption(ctx, teamID)
 	if err != nil {
 		return nil, err
@@ -3067,7 +3067,7 @@ func (ds *Datastore) GetMDMWindowsProfilesSummary(ctx context.Context, teamID *u
 		return nil, err
 	}
 
-	var res fleet.MDMProfilesSummary
+	var res automdm.MDMProfilesSummary
 	// Note that hosts with "BitLocker action required" are counted as pending.
 	for _, c := range counts {
 		switch c.Status {
@@ -3082,7 +3082,7 @@ func (ds *Datastore) GetMDMWindowsProfilesSummary(ctx context.Context, teamID *u
 		case "action_required":
 			res.Pending += c.Count
 		case "":
-			ds.logger.DebugContext(ctx, fmt.Sprintf("counted %d windows hosts on fleet %v with mdm turned on but no profiles or bitlocker status", c.Count, teamID))
+			ds.logger.DebugContext(ctx, fmt.Sprintf("counted %d windows hosts on team %v with mdm turned on but no profiles or bitlocker status", c.Count, teamID))
 		default:
 			return nil, ctxerr.New(ctx, fmt.Sprintf("unexpected mdm windows status count: status=%s, count=%d", c.Status, c.Count))
 		}
@@ -3248,11 +3248,11 @@ func getMDMWindowsStatusCountsProfilesAndBitLockerDB(ctx context.Context, ds *Da
             ELSE
                 ''
             END`,
-		ds.whereBitLockerStatus(ctx, fleet.DiskEncryptionVerified, bitLockerPINRequired),
-		ds.whereBitLockerStatus(ctx, fleet.DiskEncryptionVerifying, bitLockerPINRequired),
-		ds.whereBitLockerStatus(ctx, fleet.DiskEncryptionActionRequired, bitLockerPINRequired),
-		ds.whereBitLockerStatus(ctx, fleet.DiskEncryptionEnforcing, bitLockerPINRequired),
-		ds.whereBitLockerStatus(ctx, fleet.DiskEncryptionFailed, bitLockerPINRequired),
+		ds.whereBitLockerStatus(ctx, automdm.DiskEncryptionVerified, bitLockerPINRequired),
+		ds.whereBitLockerStatus(ctx, automdm.DiskEncryptionVerifying, bitLockerPINRequired),
+		ds.whereBitLockerStatus(ctx, automdm.DiskEncryptionActionRequired, bitLockerPINRequired),
+		ds.whereBitLockerStatus(ctx, automdm.DiskEncryptionEnforcing, bitLockerPINRequired),
+		ds.whereBitLockerStatus(ctx, automdm.DiskEncryptionFailed, bitLockerPINRequired),
 	)
 
 	// The per-host profile status bucket is read from the maintained host_mdm_windows_profiles_status rollup.
@@ -3346,7 +3346,7 @@ func (ds *Datastore) SetMDMWindowsReconcileCursor(_ context.Context, _ string) e
 	return nil
 }
 
-func (ds *Datastore) BulkUpsertMDMWindowsHostProfiles(ctx context.Context, payload []*fleet.MDMWindowsBulkUpsertHostProfilePayload) error {
+func (ds *Datastore) BulkUpsertMDMWindowsHostProfiles(ctx context.Context, payload []*automdm.MDMWindowsBulkUpsertHostProfilePayload) error {
 	if len(payload) == 0 {
 		return nil
 	}
@@ -3462,7 +3462,7 @@ func (ds *Datastore) GetExistingMDMWindowsProfileUUIDs(ctx context.Context, prof
 
 // GetMDMWindowsProfilesContents returns the SyncML (and checksum) for the given profile UUIDs. Live profiles are looked up first; for
 // any UUID not found live it falls back to the most recently retained version in mdm_windows_configuration_profiles_prior_content.
-func (ds *Datastore) GetMDMWindowsProfilesContents(ctx context.Context, uuids []string) (map[string]fleet.MDMWindowsProfileContents, error) {
+func (ds *Datastore) GetMDMWindowsProfilesContents(ctx context.Context, uuids []string) (map[string]automdm.MDMWindowsProfileContents, error) {
 	if len(uuids) == 0 {
 		return nil, nil
 	}
@@ -3485,9 +3485,9 @@ func (ds *Datastore) GetMDMWindowsProfilesContents(ctx context.Context, uuids []
 		return nil, ctxerr.Wrap(ctx, err, "running query")
 	}
 
-	results := make(map[string]fleet.MDMWindowsProfileContents, len(uuids))
+	results := make(map[string]automdm.MDMWindowsProfileContents, len(uuids))
 	for _, p := range profs {
-		results[p.ProfileUUID] = fleet.MDMWindowsProfileContents{
+		results[p.ProfileUUID] = automdm.MDMWindowsProfileContents{
 			SyncML:   p.SyncML,
 			Checksum: p.Checksum,
 		}
@@ -3518,7 +3518,7 @@ func (ds *Datastore) GetMDMWindowsProfilesContents(ctx context.Context, uuids []
 			return nil, ctxerr.Wrap(ctx, err, "running prior-content contents query")
 		}
 		for _, p := range prior {
-			results[p.ProfileUUID] = fleet.MDMWindowsProfileContents{
+			results[p.ProfileUUID] = automdm.MDMWindowsProfileContents{
 				SyncML:   p.SyncML,
 				Checksum: p.Checksum,
 			}
@@ -3528,7 +3528,7 @@ func (ds *Datastore) GetMDMWindowsProfilesContents(ctx context.Context, uuids []
 	return results, nil
 }
 
-func (ds *Datastore) BulkDeleteMDMWindowsHostsConfigProfiles(ctx context.Context, profs []*fleet.MDMWindowsProfilePayload) error {
+func (ds *Datastore) BulkDeleteMDMWindowsHostsConfigProfiles(ctx context.Context, profs []*automdm.MDMWindowsProfilePayload) error {
 	return ds.withTx(ctx, func(tx sqlx.ExtContext) error {
 		return ds.bulkDeleteMDMWindowsHostsConfigProfilesDB(ctx, tx, profs)
 	})
@@ -3537,7 +3537,7 @@ func (ds *Datastore) BulkDeleteMDMWindowsHostsConfigProfiles(ctx context.Context
 func (ds *Datastore) bulkDeleteMDMWindowsHostsConfigProfilesDB(
 	ctx context.Context,
 	tx sqlx.ExtContext,
-	profs []*fleet.MDMWindowsProfilePayload,
+	profs []*automdm.MDMWindowsProfilePayload,
 ) error {
 	if len(profs) == 0 {
 		return nil
@@ -3599,7 +3599,7 @@ func (ds *Datastore) bulkDeleteMDMWindowsHostsConfigProfilesDB(
 	return nil
 }
 
-func (ds *Datastore) NewMDMWindowsConfigProfile(ctx context.Context, cp fleet.MDMWindowsConfigProfile, usesFleetVars []fleet.FleetVarName) (*fleet.MDMWindowsConfigProfile, error) {
+func (ds *Datastore) NewMDMWindowsConfigProfile(ctx context.Context, cp automdm.MDMWindowsConfigProfile, usesAutoMDMVars []automdm.AutoMDMVarName) (*automdm.MDMWindowsConfigProfile, error) {
 	profileUUID := "w" + uuid.New().String()
 	insertProfileStmt := `
 INSERT INTO
@@ -3643,7 +3643,7 @@ INSERT INTO
 			}
 		}
 
-		labels := make([]fleet.ConfigurationProfileLabel, 0, len(cp.LabelsIncludeAll)+len(cp.LabelsIncludeAny)+len(cp.LabelsExcludeAny))
+		labels := make([]automdm.ConfigurationProfileLabel, 0, len(cp.LabelsIncludeAll)+len(cp.LabelsIncludeAny)+len(cp.LabelsExcludeAny))
 		for i := range cp.LabelsIncludeAll {
 			cp.LabelsIncludeAll[i].ProfileUUID = profileUUID
 			cp.LabelsIncludeAll[i].RequireAll = true
@@ -3670,12 +3670,12 @@ INSERT INTO
 			return ctxerr.Wrap(ctx, err, "inserting windows profile label associations")
 		}
 
-		// Save Fleet variables associated with this Windows profile
-		if len(usesFleetVars) > 0 {
-			profilesVarsToUpsert := []fleet.MDMProfileUUIDFleetVariables{
+		// Save AutoMDM variables associated with this Windows profile
+		if len(usesAutoMDMVars) > 0 {
+			profilesVarsToUpsert := []automdm.MDMProfileUUIDAutoMDMVariables{
 				{
-					ProfileUUID:    profileUUID,
-					FleetVariables: usesFleetVars,
+					ProfileUUID:      profileUUID,
+					AutoMDMVariables: usesAutoMDMVars,
 				},
 			}
 			if _, err := batchSetProfileVariableAssociationsDB(ctx, tx, profilesVarsToUpsert, "windows", false); err != nil {
@@ -3685,7 +3685,7 @@ INSERT INTO
 
 		// An OS-update profile is tracked as the team's OS-update profile within
 		// this transaction so it rolls back together on failure.
-		if fleet.ProfileTargetsReservedLocURI(cp.SyncML, syncml.FleetOSUpdateTargetLocURI) {
+		if automdm.ProfileTargetsReservedLocURI(cp.SyncML, syncml.AutoMDMOSUpdateTargetLocURI) {
 			if err := trackWindowsUpdateConfigProfileDB(ctx, tx, teamID, profileUUID); err != nil {
 				return err
 			}
@@ -3697,7 +3697,7 @@ INSERT INTO
 		return nil, err
 	}
 
-	return &fleet.MDMWindowsConfigProfile{
+	return &automdm.MDMWindowsConfigProfile{
 		ProfileUUID: profileUUID,
 		Name:        cp.Name,
 		Description: cp.Description,
@@ -3710,7 +3710,7 @@ INSERT INTO
 // UpdateMDMWindowsConfigProfile updates an existing profile's contents (if
 // cp.SyncML is non-empty), name and/or label targeting in place. The profile is
 // keyed by cp.ProfileUUID, so a rename keeps the same row.
-func (ds *Datastore) UpdateMDMWindowsConfigProfile(ctx context.Context, cp fleet.MDMWindowsConfigProfile, usesFleetVars []fleet.FleetVarName) (*fleet.MDMWindowsConfigProfile, error) {
+func (ds *Datastore) UpdateMDMWindowsConfigProfile(ctx context.Context, cp automdm.MDMWindowsConfigProfile, usesAutoMDMVars []automdm.AutoMDMVarName) (*automdm.MDMWindowsConfigProfile, error) {
 	var teamID uint
 	if cp.TeamID != nil {
 		teamID = *cp.TeamID
@@ -3803,7 +3803,7 @@ WHERE profile_uuid = ?`
 			// so it rolls back with the update. Untracking matters: a profile
 			// edited away from OS-update content must stop blocking the team's
 			// OS updates setting.
-			if bytes.Contains(cp.SyncML, []byte(syncml.FleetOSUpdateTargetLocURI)) {
+			if bytes.Contains(cp.SyncML, []byte(syncml.AutoMDMOSUpdateTargetLocURI)) {
 				if err := trackWindowsUpdateConfigProfileDB(ctx, tx, teamID, cp.ProfileUUID); err != nil {
 					return err
 				}
@@ -3812,11 +3812,11 @@ WHERE profile_uuid = ?`
 			}
 
 			// Reset variable associations only on a content update, but then
-			// unconditionally, so an edit that removes the profile's last Fleet
+			// unconditionally, so an edit that removes the profile's last AutoMDM
 			// variable still clears the stale association. A labels-only update
 			// must leave them alone or variable-driven resends would break.
-			if _, err := batchSetProfileVariableAssociationsDB(ctx, tx, []fleet.MDMProfileUUIDFleetVariables{
-				{ProfileUUID: cp.ProfileUUID, FleetVariables: usesFleetVars},
+			if _, err := batchSetProfileVariableAssociationsDB(ctx, tx, []automdm.MDMProfileUUIDAutoMDMVariables{
+				{ProfileUUID: cp.ProfileUUID, AutoMDMVariables: usesAutoMDMVars},
 			}, "windows", false); err != nil {
 				return ctxerr.Wrap(ctx, err, "updating windows profile variable associations")
 			}
@@ -3856,7 +3856,7 @@ WHERE profile_uuid = ?`
 			}
 		}
 
-		labels := make([]fleet.ConfigurationProfileLabel, 0, len(cp.LabelsIncludeAll)+len(cp.LabelsIncludeAny)+len(cp.LabelsExcludeAny))
+		labels := make([]automdm.ConfigurationProfileLabel, 0, len(cp.LabelsIncludeAll)+len(cp.LabelsIncludeAny)+len(cp.LabelsExcludeAny))
 		for i := range cp.LabelsIncludeAll {
 			cp.LabelsIncludeAll[i].ProfileUUID = cp.ProfileUUID
 			cp.LabelsIncludeAll[i].RequireAll = true
@@ -3896,8 +3896,8 @@ WHERE profile_uuid = ?`
 	return updated, nil
 }
 
-func (ds *Datastore) SetOrUpdateMDMWindowsConfigProfile(ctx context.Context, cp fleet.MDMWindowsConfigProfile) error {
-	profileUUID := fleet.MDMWindowsProfileUUIDPrefix + uuid.New().String()
+func (ds *Datastore) SetOrUpdateMDMWindowsConfigProfile(ctx context.Context, cp automdm.MDMWindowsConfigProfile) error {
+	profileUUID := automdm.MDMWindowsProfileUUIDPrefix + uuid.New().String()
 	stmt := `
 INSERT INTO
 	mdm_windows_configuration_profiles (profile_uuid, team_id, name, syncml, uploaded_at)
@@ -3976,8 +3976,8 @@ func (ds *Datastore) batchSetMDMWindowsProfilesDB(
 	ctx context.Context,
 	tx sqlx.ExtContext,
 	tmID *uint,
-	profiles []*fleet.MDMWindowsConfigProfile,
-	profilesVariablesByIdentifier []fleet.MDMProfileIdentifierFleetVariables,
+	profiles []*automdm.MDMWindowsConfigProfile,
+	profilesVariablesByIdentifier []automdm.MDMProfileIdentifierAutoMDMVariables,
 ) (updatedDB bool, rollupHostUUIDs []string, err error) {
 	const loadExistingProfiles = `
 SELECT
@@ -4033,7 +4033,7 @@ INSERT INTO
   )
 VALUES
   -- see https://stackoverflow.com/a/51393124/1094941
-  ( CONCAT('` + fleet.MDMWindowsProfileUUIDPrefix + `', CONVERT(UUID() USING utf8mb4)), ?, ?, ?, ?, ?, CURRENT_TIMESTAMP() )
+  ( CONCAT('` + automdm.MDMWindowsProfileUUIDPrefix + `', CONVERT(UUID() USING utf8mb4)), ?, ?, ?, ?, ?, CURRENT_TIMESTAMP() )
 ON DUPLICATE KEY UPDATE
   uploaded_at = IF(syncml = VALUES(syncml) AND name = VALUES(name), uploaded_at, CURRENT_TIMESTAMP()),
   name = VALUES(name),
@@ -4053,13 +4053,13 @@ ON DUPLICATE KEY UPDATE
 	incomingNames := make([]string, len(profiles))
 	// at the same time, index the incoming profiles keyed by name for ease
 	// or processing
-	incomingProfs := make(map[string]*fleet.MDMWindowsConfigProfile, len(profiles))
+	incomingProfs := make(map[string]*automdm.MDMWindowsConfigProfile, len(profiles))
 	for i, p := range profiles {
 		incomingNames[i] = p.Name
 		incomingProfs[p.Name] = p
 	}
 
-	var existingProfiles []*fleet.MDMWindowsConfigProfile
+	var existingProfiles []*automdm.MDMWindowsConfigProfile
 
 	if len(incomingNames) > 0 {
 		// load existing profiles that match the incoming profiles by name
@@ -4079,7 +4079,7 @@ ON DUPLICATE KEY UPDATE
 			keepNames = append(keepNames, p.Name)
 		}
 	}
-	for n := range mdm.FleetReservedProfileNames() {
+	for n := range mdm.AutoMDMReservedProfileNames() {
 		if _, ok := incomingProfs[n]; !ok {
 			// always keep reserved profiles even if they're not incoming
 			keepNames = append(keepNames, n)
@@ -4131,7 +4131,7 @@ ON DUPLICATE KEY UPDATE
 	if result, err = tx.ExecContext(ctx, stmt, args...); err != nil {
 		if isMySQLForeignKey(err) {
 			if strings.Contains(err.Error(), "fk_policies_resend_windows_profile") {
-				return false, nil, ctxerr.Wrap(ctx, &fleet.ConflictError{Message: "Couldn't delete. Policy automations use one or more of the profiles being deleted. Please disable policy automations for the profiles being deleted and try again."})
+				return false, nil, ctxerr.Wrap(ctx, &automdm.ConflictError{Message: "Couldn't delete. Policy automations use one or more of the profiles being deleted. Please disable policy automations for the profiles being deleted and try again."})
 			}
 		}
 		return false, nil, ctxerr.Wrap(ctx, err, "delete obsolete profiles")
@@ -4142,7 +4142,7 @@ ON DUPLICATE KEY UPDATE
 	// Step 4: Clean up host-profile rows for deleted profiles (terminal removes + never-sent installs). The actual <Delete>
 	// commands for already-delivered profiles are issued asynchronously by the profile-manager cron from the retained content.
 	// The affected hosts' rollup refresh is returned to the transaction owner for post-commit async dispatch (its size scales
-	// with the fleet).
+	// with the team).
 	if len(deletedProfileUUIDs) > 0 {
 		hosts, err := ds.cancelWindowsHostInstallsForDeletedMDMProfiles(ctx, tx, deletedProfileUUIDs)
 		if err != nil {
@@ -4196,7 +4196,7 @@ ON DUPLICATE KEY UPDATE
 	return updatedDB || updatedLabels, rollupHostUUIDs, nil
 }
 
-func (ds *Datastore) GetHostMDMWindowsProfiles(ctx context.Context, hostUUID string) ([]fleet.HostMDMWindowsProfile, error) {
+func (ds *Datastore) GetHostMDMWindowsProfiles(ctx context.Context, hostUUID string) ([]automdm.HostMDMWindowsProfile, error) {
 	stmt := fmt.Sprintf(
 		`
 SELECT
@@ -4218,24 +4218,24 @@ FROM
 	host_mdm_windows_profiles hmwp
 	LEFT JOIN mdm_windows_configuration_profiles mwcp ON mwcp.profile_uuid = hmwp.profile_uuid
 WHERE
--- the Fleet-reserved filter reads the stored copy, not the resolved name: reserved
--- profiles are Fleet-managed and can't be renamed, so the two always agree, and the
+-- the AutoMDM-reserved filter reads the stored copy, not the resolved name: reserved
+-- profiles are AutoMDM-managed and can't be renamed, so the two always agree, and the
 -- stored copy keeps working once a reserved profile has been deleted.
 hmwp.host_uuid = ? AND hmwp.profile_name NOT IN(?) AND NOT (hmwp.operation_type = '%s' AND COALESCE(hmwp.status, '%s') IN('%s', '%s'))`,
-		fleet.MDMDeliveryPending,
-		fleet.MDMOperationTypeRemove,
-		fleet.MDMDeliveryPending,
-		fleet.MDMDeliveryVerifying,
-		fleet.MDMDeliveryVerified,
+		automdm.MDMDeliveryPending,
+		automdm.MDMOperationTypeRemove,
+		automdm.MDMDeliveryPending,
+		automdm.MDMDeliveryVerifying,
+		automdm.MDMDeliveryVerified,
 	)
 
-	// The Fleetd enroll secret profile stays listed, because resending it from the host is how an admin recovers the host.
-	stmt, args, err := sqlx.In(stmt, hostUUID, []string{mdm.FleetWindowsOSUpdatesProfileName})
+	// The AutoMDMd enroll secret profile stays listed, because resending it from the host is how an admin recovers the host.
+	stmt, args, err := sqlx.In(stmt, hostUUID, []string{mdm.AutoMDMWindowsOSUpdatesProfileName})
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "building in statement")
 	}
 
-	var profiles []fleet.HostMDMWindowsProfile
+	var profiles []automdm.HostMDMWindowsProfile
 	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &profiles, stmt, args...); err != nil {
 		return nil, err
 	}
@@ -4243,8 +4243,8 @@ hmwp.host_uuid = ? AND hmwp.profile_name NOT IN(?) AND NOT (hmwp.operation_type 
 }
 
 // windowsRemoteWipeLocURIPattern matches any RemoteWipe CSP command, including one sent with POST /commands/run, which also
-// accepts the LocURI without a leading "./" (see fleet.LocURITargetsReservedNode).
-var windowsRemoteWipeLocURIPattern = "%" + strings.TrimPrefix(syncml.FleetRemoteWipeTargetLocURI, "/") + "/%"
+// accepts the LocURI without a leading "./" (see automdm.LocURITargetsReservedNode).
+var windowsRemoteWipeLocURIPattern = "%" + strings.TrimPrefix(syncml.AutoMDMRemoteWipeTargetLocURI, "/") + "/%"
 
 // windowsHostsWithPendingRemoteWipeDB returns which of the hosts have a RemoteWipe command their device hasn't acknowledged.
 func windowsHostsWithPendingRemoteWipeDB(ctx context.Context, q sqlx.QueryerContext, hostUUIDs []string) (map[string]struct{}, error) {
@@ -4275,7 +4275,7 @@ func windowsHostsWithPendingRemoteWipeDB(ctx context.Context, q sqlx.QueryerCont
 // WipeHostViaWindowsMDM queues a RemoteWipe command (a wipe or a reset) and points host_mdm_actions.wipe_ref at it. Behind
 // an acknowledged reset a wipe is only queued: wipe_ref stays on the reset, which the re-enrollment check relies on. Windows
 // restarts in a loop when it gets two RemoteWipe commands together, so it refuses one while another is unacknowledged.
-func (ds *Datastore) WipeHostViaWindowsMDM(ctx context.Context, host *fleet.Host, cmd *fleet.MDMWindowsCommand) error {
+func (ds *Datastore) WipeHostViaWindowsMDM(ctx context.Context, host *automdm.Host, cmd *automdm.MDMWindowsCommand) error {
 	return ds.withRetryTxx(ctx, func(tx sqlx.ExtContext) error {
 		var currentRef struct {
 			CommandUUID  string `db:"command_uuid"`
@@ -4292,8 +4292,8 @@ func (ds *Datastore) WipeHostViaWindowsMDM(ctx context.Context, host *fleet.Host
 		}
 
 		keepWipeRef := false
-		isWipe := cmd.TargetLocURI == fleet.WindowsRemoteWipeLocURI(fleet.WindowsRemoteWipeProtected)
-		if isWipe && currentRef.TargetLocURI == fleet.WindowsRemoteWipeLocURI(fleet.WindowsRemoteWipePersistProvisionedData) {
+		isWipe := cmd.TargetLocURI == automdm.WindowsRemoteWipeLocURI(automdm.WindowsRemoteWipeProtected)
+		if isWipe && currentRef.TargetLocURI == automdm.WindowsRemoteWipeLocURI(automdm.WindowsRemoteWipePersistProvisionedData) {
 			res, err := tx.ExecContext(ctx,
 				`DELETE FROM windows_mdm_command_queue WHERE command_uuid = ? AND acked_at IS NULL`, currentRef.CommandUUID)
 			if err != nil {
@@ -4320,7 +4320,7 @@ func (ds *Datastore) WipeHostViaWindowsMDM(ctx context.Context, host *fleet.Host
 			return err
 		}
 		if _, ok := remoteWipePending[host.UUID]; ok {
-			return ctxerr.Wrap(ctx, fleet.NewInvalidArgumentError("host_id",
+			return ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("host_id",
 				"Host has pending wipe request. The host will be wiped when it comes online."))
 		}
 
@@ -4335,13 +4335,13 @@ func (ds *Datastore) WipeHostViaWindowsMDM(ctx context.Context, host *fleet.Host
 			INSERT INTO host_mdm_actions (
 				host_id,
 				wipe_ref,
-				fleet_platform
+				automdm_platform
 			)
 			VALUES (?, ?, ?)
 			ON DUPLICATE KEY UPDATE
 				wipe_ref   = VALUES(wipe_ref)`
 
-		if _, err := tx.ExecContext(ctx, stmt, host.ID, cmd.CommandUUID, host.FleetPlatform()); err != nil {
+		if _, err := tx.ExecContext(ctx, stmt, host.ID, cmd.CommandUUID, host.AutoMDMPlatform()); err != nil {
 			return ctxerr.Wrap(ctx, err, "modifying host_mdm_actions for wipe_ref")
 		}
 
@@ -4361,7 +4361,7 @@ func retrackReplacedWindowsResetDB(ctx context.Context, tx sqlx.ExtContext, host
 		SET hma.wipe_ref = reset.command_uuid
 		WHERE h.uuid = ? AND wipe.target_loc_uri = ? AND wipe.id > reset.id
 			AND NOT EXISTS (SELECT 1 FROM windows_mdm_command_results wmcr WHERE wmcr.command_uuid = wipe.command_uuid)`,
-		resetCmdUUID, hostUUID, fleet.WindowsRemoteWipeLocURI(fleet.WindowsRemoteWipeProtected))
+		resetCmdUUID, hostUUID, automdm.WindowsRemoteWipeLocURI(automdm.WindowsRemoteWipeProtected))
 	if err != nil {
 		return 0, ctxerr.Wrap(ctx, err, "track acknowledged reset again")
 	}
@@ -4384,8 +4384,8 @@ func (ds *Datastore) MDMWindowsFailInterruptedReset(ctx context.Context, enrollm
 		JOIN windows_mdm_command_results wmcr ON wmcr.command_uuid = hma.wipe_ref AND wmcr.enrollment_id = ?
 		WHERE hma.host_id = ? AND wmc.target_loc_uri = ? AND wmcr.status_code LIKE '2%'
 			AND wmcr.created_at <= NOW() - INTERVAL ? SECOND`,
-		enrollmentID, hostID, fleet.WindowsRemoteWipeLocURI(fleet.WindowsRemoteWipePersistProvisionedData),
-		int(fleet.WindowsResetRestartWindow.Seconds()))
+		enrollmentID, hostID, automdm.WindowsRemoteWipeLocURI(automdm.WindowsRemoteWipePersistProvisionedData),
+		int(automdm.WindowsResetRestartWindow.Seconds()))
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
 		return false, nil
@@ -4412,7 +4412,7 @@ func (ds *Datastore) MDMWindowsFailInterruptedReset(ctx context.Context, enrollm
 			SELECT EXISTS (
 				SELECT 1 FROM windows_mdm_command_results
 				WHERE command_uuid = ? AND enrollment_id = ? AND status_code LIKE '2%' AND created_at <= NOW() - INTERVAL ? SECOND
-			)`, resetCmdUUID, enrollmentID, int(fleet.WindowsResetRestartWindow.Seconds())); err != nil {
+			)`, resetCmdUUID, enrollmentID, int(automdm.WindowsResetRestartWindow.Seconds())); err != nil {
 			return ctxerr.Wrap(ctx, err, "recheck acknowledged reset age")
 		}
 		if !interrupted {
@@ -4464,8 +4464,8 @@ func (ds *Datastore) MDMWindowsRemoteWipeInProgress(ctx context.Context, enrollm
 				)
 			)
 		)`,
-		enrollmentID, windowsRemoteWipeLocURIPattern, int(fleet.WindowsResetRestartWindow.Seconds()),
-		fleet.WindowsRemoteWipeLocURI(fleet.WindowsRemoteWipePersistProvisionedData), hostID)
+		enrollmentID, windowsRemoteWipeLocURIPattern, int(automdm.WindowsResetRestartWindow.Seconds()),
+		automdm.WindowsRemoteWipeLocURI(automdm.WindowsRemoteWipePersistProvisionedData), hostID)
 	if err != nil {
 		return false, ctxerr.Wrap(ctx, err, "check for RemoteWipe in progress")
 	}
@@ -4476,7 +4476,7 @@ func (ds *Datastore) MDMWindowsRemoteWipeInProgress(ctx context.Context, enrollm
 // installed are returned.
 func (ds *Datastore) GetWindowsHostMDMCertificateProfile(ctx context.Context, hostUUID string,
 	profileUUID string, caName string,
-) (*fleet.HostMDMCertificateProfile, error) {
+) (*automdm.HostMDMCertificateProfile, error) {
 	stmt := `
 	SELECT
 		hmwp.host_uuid,
@@ -4494,9 +4494,9 @@ func (ds *Datastore) GetWindowsHostMDMCertificateProfile(ctx context.Context, ho
 		ON hmwp.host_uuid = hmmc.host_uuid AND hmwp.profile_uuid = hmmc.profile_uuid
 	WHERE
 		hmmc.host_uuid = ? AND hmmc.profile_uuid = ? AND hmmc.ca_name = ? AND hmwp.operation_type = ?`
-	var profile fleet.HostMDMCertificateProfile
+	var profile automdm.HostMDMCertificateProfile
 	if err := sqlx.GetContext(ctx, ds.reader(ctx), &profile, stmt, hostUUID, profileUUID, caName,
-		fleet.MDMOperationTypeInstall); err != nil {
+		automdm.MDMOperationTypeInstall); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
@@ -4505,9 +4505,9 @@ func (ds *Datastore) GetWindowsHostMDMCertificateProfile(ctx context.Context, ho
 	return &profile, nil
 }
 
-func (ds *Datastore) GetWindowsMDMCommandsForResending(ctx context.Context, deviceID string, failedCommandIds []string) ([]*fleet.MDMWindowsCommand, error) {
+func (ds *Datastore) GetWindowsMDMCommandsForResending(ctx context.Context, deviceID string, failedCommandIds []string) ([]*automdm.MDMWindowsCommand, error) {
 	if len(failedCommandIds) == 0 {
-		return []*fleet.MDMWindowsCommand{}, nil
+		return []*automdm.MDMWindowsCommand{}, nil
 	}
 
 	stmt := `SELECT wmc.command_uuid, wmc.raw_command, wmc.target_loc_uri, wmc.created_at, wmc.updated_at
@@ -4528,12 +4528,12 @@ func (ds *Datastore) GetWindowsMDMCommandsForResending(ctx context.Context, devi
 
 	if len(args) == 1 {
 		// No valid command IDs were provided, return empty result to avoid returning all commands for the device.
-		return []*fleet.MDMWindowsCommand{}, nil
+		return []*automdm.MDMWindowsCommand{}, nil
 	}
 
 	stmt += fmt.Sprintf(" ORDER BY created_at DESC LIMIT %d", len(failedCommandIds))
 
-	var commands []*fleet.MDMWindowsCommand
+	var commands []*automdm.MDMWindowsCommand
 	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &commands, stmt, args...); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "selecting windows mdm commands for resending")
 	}
@@ -4541,7 +4541,7 @@ func (ds *Datastore) GetWindowsMDMCommandsForResending(ctx context.Context, devi
 	return commands, nil
 }
 
-func (ds *Datastore) ResendWindowsMDMCommand(ctx context.Context, mdmDeviceId string, newCmd *fleet.MDMWindowsCommand, oldCmd *fleet.MDMWindowsCommand) error {
+func (ds *Datastore) ResendWindowsMDMCommand(ctx context.Context, mdmDeviceId string, newCmd *automdm.MDMWindowsCommand, oldCmd *automdm.MDMWindowsCommand) error {
 	return ds.withTx(ctx, func(tx sqlx.ExtContext) error {
 		// Resolve the device's latest enrollment once, before any writes.
 		var enrollment struct {
@@ -4581,7 +4581,7 @@ func (ds *Datastore) ResendWindowsMDMCommand(ctx context.Context, mdmDeviceId st
 			status = '%s',
 			retries = retries, -- Keep retries the same to avoid endlessly resending.
 			detail = ''
-			WHERE host_uuid = ? AND command_uuid = ?`, fleet.MDMDeliveryPending)
+			WHERE host_uuid = ? AND command_uuid = ?`, automdm.MDMDeliveryPending)
 		// Keep the profile in pending while we resend with Replace.
 		if _, err := tx.ExecContext(ctx, updateStmt, newCmd.CommandUUID, enrollment.HostUUID, oldCmd.CommandUUID); err != nil {
 			return ctxerr.Wrap(ctx, err, "updating host_mdm_windows_profiles with new command uuid")
@@ -4614,7 +4614,7 @@ func (ds *Datastore) MDMWindowsUpdateEnrolledDeviceCredentials(ctx context.Conte
 		return ctxerr.Wrap(ctx, err, "update windows enrollment credentials")
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
-		conflict := &fleet.ConflictError{Message: "windows enrollment credentials already set"}
+		conflict := &automdm.ConflictError{Message: "windows enrollment credentials already set"}
 		return ctxerr.Wrap(ctx, conflict, "update windows enrollment credentials")
 	}
 	return nil
@@ -4769,7 +4769,7 @@ JOIN (
 // Responses go first (a result never outlives the response that carried it),
 // then commands nothing references, so a command and the result that pinned
 // it go in the same run.
-func (ds *Datastore) CleanupMDMWindowsCommandHistory(ctx context.Context, olderThan time.Time) (fleet.MDMWindowsCommandHistoryCleanupCounts, error) {
+func (ds *Datastore) CleanupMDMWindowsCommandHistory(ctx context.Context, olderThan time.Time) (automdm.MDMWindowsCommandHistoryCleanupCounts, error) {
 	const (
 		batchSize  = 500
 		maxBatches = 200 // 100k responses and 100k commands per tick
@@ -4777,8 +4777,8 @@ func (ds *Datastore) CleanupMDMWindowsCommandHistory(ctx context.Context, olderT
 	return cleanupMDMWindowsCommandHistoryDB(ctx, ds, olderThan, batchSize, maxBatches)
 }
 
-func cleanupMDMWindowsCommandHistoryDB(ctx context.Context, ds *Datastore, olderThan time.Time, batchSize, maxBatches int) (fleet.MDMWindowsCommandHistoryCleanupCounts, error) {
-	var counts fleet.MDMWindowsCommandHistoryCleanupCounts
+func cleanupMDMWindowsCommandHistoryDB(ctx context.Context, ds *Datastore, olderThan time.Time, batchSize, maxBatches int) (automdm.MDMWindowsCommandHistoryCleanupCounts, error) {
+	var counts automdm.MDMWindowsCommandHistoryCleanupCounts
 
 	// Both loops walk the created_at index behind a keyset cursor, so rows the
 	// sweep keeps are passed once per run rather than once per batch. Kept

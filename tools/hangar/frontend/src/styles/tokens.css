@@ -1,16 +1,16 @@
-/* Fleet-hangar mirrors Fleet's themed-token approach: light values live
+/* AutoMDM-hangar mirrors AutoMDM's themed-token approach: light values live
  * on :root, dark overrides on body.dark-mode. Mirror of the token
- * structure in frontend/styles/var/colors.scss — when Fleet changes
+ * structure in frontend/styles/var/colors.scss — when AutoMDM changes
  * those, mirror them here. The theme class is applied by App.tsx based
  * on the user's Settings.theme preference (system | light | dark). */
 
 :root {
   /* Brand (light) */
-  --core-fleet-black: #192147;
-  --core-fleet-green: #009a7d;
-  --core-fleet-green-over: #00886c;
-  --core-fleet-green-down: #00775f;
-  --core-fleet-white: #ffffff;
+  --core-automdm-black: #192147;
+  --core-automdm-green: #009a7d;
+  --core-automdm-green-over: #00886c;
+  --core-automdm-green-down: #00775f;
+  --core-automdm-white: #ffffff;
 
   /* Accent (light) */
   --core-vibrant-blue: #6a67fe;
@@ -19,7 +19,7 @@
   --core-vibrant-red: #ff5c83;
   --core-vibrant-red-over: #e93661;
   --core-vibrant-red-down: #cb3559;
-  --core-fleet-purple: #ae6ddf;
+  --core-automdm-purple: #ae6ddf;
 
   /* Status (light) */
   --ui-success: #3db67b;
@@ -28,7 +28,7 @@
   --ui-info: #6a67fe;
   /* Fixed dark text for yellow backgrounds. The yellow (--ui-warning) is
      yellow in BOTH themes, so its text must stay dark in both — deliberately
-     NOT overridden in the dark-mode block below (unlike --core-fleet-black,
+     NOT overridden in the dark-mode block below (unlike --core-automdm-black,
      which flips to a light color and produced unreadable white-on-yellow). */
   --ui-on-warning: #192147;
   --ui-offline: #8b8fa2;
@@ -94,10 +94,10 @@
 
   /* Soft tints — derived from the parent color via color-mix so they
    * follow the active theme automatically (success tint stays in step
-   * with --core-fleet-green's per-mode value). Used for "selected" /
+   * with --core-automdm-green's per-mode value). Used for "selected" /
    * "active" / "success-of-state" backgrounds. */
-  --tint-success-soft: color-mix(in srgb, var(--core-fleet-green) 10%, transparent);
-  --tint-success-strong: color-mix(in srgb, var(--core-fleet-green) 18%, transparent);
+  --tint-success-soft: color-mix(in srgb, var(--core-automdm-green) 10%, transparent);
+  --tint-success-strong: color-mix(in srgb, var(--core-automdm-green) 18%, transparent);
   --tint-error-soft: color-mix(in srgb, var(--ui-error) 10%, transparent);
   --tint-error-strong: color-mix(in srgb, var(--ui-error) 18%, transparent);
   --tint-error-border: color-mix(in srgb, var(--ui-error) 40%, transparent);
@@ -112,11 +112,11 @@
 
 body.dark-mode {
   /* Brand (dark) */
-  --core-fleet-black: #e2e4ea;
-  --core-fleet-green: #00c28b;
-  --core-fleet-green-over: #01a889;
-  --core-fleet-green-down: #02be9c;
-  --core-fleet-white: #1a1c21;
+  --core-automdm-black: #e2e4ea;
+  --core-automdm-green: #00c28b;
+  --core-automdm-green-over: #01a889;
+  --core-automdm-green-down: #02be9c;
+  --core-automdm-white: #1a1c21;
 
   /* Accent (dark) */
   --core-vibrant-blue: #7b79ff;
@@ -125,7 +125,7 @@ body.dark-mode {
   --core-vibrant-red: #ff7a9a;
   --core-vibrant-red-over: #ff8da5;
   --core-vibrant-red-down: #e07090;
-  --core-fleet-purple: #c08ae8;
+  --core-automdm-purple: #c08ae8;
 
   /* Status (dark) */
   --ui-success: #4dc98b;

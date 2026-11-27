@@ -1,13 +1,13 @@
 ---
 name: spec-story
-description: Break down a Fleet GitHub story into sub-issues with a technical spec, then create the sub-issues, link them to the parent story, and fill in its Engineering section. Use whenever someone asks to "spec", "break down", "decompose", "plan the engineering work for", or "write sub-issues for" a fleetdm/fleet story, or hands over a story and asks how to split it up, even if they never say "spec". Not for bug triage, bug fixes, PR review, or OpenSpec change proposals.
-allowed-tools: Bash(gh *), Bash(git log*), Bash(git blame*), Bash(git show*), Bash(git diff*), Bash(mktemp*), Read, Grep, Glob, Write, Edit, Agent, Skill, WebFetch(domain:github.com), WebFetch(domain:fleetdm.com), WebSearch, mcp__claude_ai_Figma__*, mcp__claude_ai_Slack__*, mcp__claude_ai_Gong__*
+description: Break down an AutoMDM GitHub story into sub-issues with a technical spec, then create the sub-issues, link them to the parent story, and fill in its Engineering section. Use whenever someone asks to "spec", "break down", "decompose", "plan the engineering work for", or "write sub-issues for" an automdm/automdm story, or hands over a story and asks how to split it up, even if they never say "spec". Not for bug triage, bug fixes, PR review, or OpenSpec change proposals.
+allowed-tools: Bash(gh *), Bash(git log*), Bash(git blame*), Bash(git show*), Bash(git diff*), Bash(mktemp*), Read, Grep, Glob, Write, Edit, Agent, Skill, WebFetch(domain:github.com), WebFetch(domain:automdm.com), WebSearch, mcp__claude_ai_Figma__*, mcp__claude_ai_Slack__*, mcp__claude_ai_Gong__*
 model: opus
 effort: high
 argument-hint: "<issue-number-or-url>"
 ---
 
-# Spec a Fleet story
+# Spec an AutoMDM story
 
 Break down this GitHub story into sub-issues: $ARGUMENTS
 
@@ -15,7 +15,7 @@ Break down this GitHub story into sub-issues: $ARGUMENTS
 ## Outputs
 
 - **The spec doc** is for the engineers who build the story. It holds the HOW: checked `file:line` anchors, code shapes, migration plans, sequence diagrams, and the reason behind each decision. Save it where the user says, outside the repo. It's working notes, so it doesn't ship.
-- **The GitHub sub-issues** are for everyone who tracks the story, including product, design, and QA. They hold the WHAT: what ships, open questions, and how to tell it's done. `fleetdm/fleet` is public and code anchors go stale. So keep file paths, line numbers, code, internal links, and customer names out of them.
+- **The GitHub sub-issues** are for everyone who tracks the story, including product, design, and QA. They hold the WHAT: what ships, open questions, and how to tell it's done. `automdm/automdm` is public and code anchors go stale. So keep file paths, line numbers, code, internal links, and customer names out of them.
 
 Read [references/spec-doc.md](references/spec-doc.md) before you draft the spec doc. Read [references/github.md](references/github.md) before you write sub-issue bodies and before Stage 4.
 
@@ -34,7 +34,7 @@ Stop at each gate. Sum up what you made and wait for the user to approve it. If 
 
 ## Stage 1: Understand the story
 
-Build a shared picture of what the story asks for, which parts of Fleet it touches, and what context lives outside the issue.
+Build a shared picture of what the story asks for, which parts of AutoMDM it touches, and what context lives outside the issue.
 
 
 ### 1.1 Gather required inputs
@@ -66,7 +66,7 @@ You're only pulling copy and notes, so skip Figma's design-to-code workflow. Cap
 - Note the parent's `#g-*` product group label. Every sub-issue gets the same one. If the parent has none, or more than one, ask which to use.
 - Look up the t-shirt size. It's the `T-shirt size` field on the "🗺️ Release planning" project, not a label:
   ```bash
-  gh api graphql -F n=<parent> -f query='query($n:Int!){repository(owner:"fleetdm",name:"fleet"){issue(number:$n){projectItems(first:20){nodes{project{title} fieldValues(first:50){nodes{... on ProjectV2ItemFieldSingleSelectValue{field{... on ProjectV2SingleSelectField{name}} name}}}}}}}}' \
+  gh api graphql -F n=<parent> -f query='query($n:Int!){repository(owner:"automdm",name:"automdm"){issue(number:$n){projectItems(first:20){nodes{project{title} fieldValues(first:50){nodes{... on ProjectV2ItemFieldSingleSelectValue{field{... on ProjectV2SingleSelectField{name}} name}}}}}}}}' \
     --jq '[.data.repository.issue.projectItems.nodes[] | select(.project.title | test("Release planning")) | .fieldValues.nodes[] | select(.field?.name=="T-shirt size") | .name] | first'
   ```
   If it's `null`, list it as an open question. Don't make up a size. Sizes only go on the story, so don't size sub-issues or add story points to them.
@@ -77,18 +77,18 @@ You're only pulling copy and notes, so skip Figma's design-to-code workflow. Cap
 Start with the schema. The shape of the database decides sub-issue lines, migration scope, and conditions of satisfaction. Reading it is faster and more accurate than piecing it together from Go code.
 
 - **Schema.** Grep each table you'll touch in `server/datastore/mysql/schema.sql`. It's a generated dump of the current schema, rebuilt by `make dump-test-schema`. For example, run ``grep -A40 'CREATE TABLE `software_installers`' server/datastore/mysql/schema.sql``. Don't load the whole file.
-- **Migrations.** `server/datastore/mysql/migrations/tables/` starts with the Fleet 5 baseline (`20261103120000_Fleet5Baseline.go`, which loads `baseline_schema.sql`). After that, it only holds migrations added since. Skim the newest ones for changes to the same tables. To learn why a column added before Fleet 5 exists, find its first migration in git history with `git log --all -S '<column>' -- server/datastore/mysql/migrations/tables/`.
-- **Everything else.** Find related code, the datastore methods in `server/fleet/datastore.go`, service methods, endpoints, and frontend pages. Trace the flow from endpoint to service to datastore to frontend.
+- **Migrations.** `server/datastore/mysql/migrations/tables/` starts with the AutoMDM 5 baseline (`20261103120000_AutoMDM5Baseline.go`, which loads `baseline_schema.sql`). After that, it only holds migrations added since. Skim the newest ones for changes to the same tables. To learn why a column added before AutoMDM 5 exists, find its first migration in git history with `git log --all -S '<column>' -- server/datastore/mysql/migrations/tables/`.
+- **Everything else.** Find related code, the datastore methods in `server/automdm/datastore.go`, service methods, endpoints, and frontend pages. Trace the flow from endpoint to service to datastore to frontend.
 
 
 ### 1.4 Research prior work
 
 Split the research across parallel read-only subagents, one per source group below. Ask each one for findings with links, not raw search output. Useful findings include decisions, limits, rejected ideas, field names, and SMEs. This keeps your own context free for putting the story together. Wait for every subagent to report before you write the Stage 1 summary. If you're running as a subagent yourself, run them in the foreground, because ending your turn while they run ends your task. If an MCP server isn't connected, skip that source and say so in your summary.
 
-- **GitHub.** Run `gh issue list --search "<keywords>" --state all --limit 20` and `gh pr list --search "<keywords>" --state all --limit 20`. Closed and merged attempts tell you as much as open ones. Run `gh search issues "<keywords>" --repo fleetdm/fleet` too. Find every in-flight doc PR, and note the fields each adds and where it puts them. Doc PRs often conflict, and Stage 3 has to settle each conflict.
+- **GitHub.** Run `gh issue list --search "<keywords>" --state all --limit 20` and `gh pr list --search "<keywords>" --state all --limit 20`. Closed and merged attempts tell you as much as open ones. Run `gh search issues "<keywords>" --repo automdm/automdm` too. Find every in-flight doc PR, and note the fields each adds and where it puts them. Doc PRs often conflict, and Stage 3 has to settle each conflict.
 - **Slack and Gong.** Search Slack with `slack_search_public_and_private`, or `slack_search_public` if that's all you have. Read promising threads with `slack_read_thread`. Gong only answers questions about one CRM account or deal, and it has no keyword search. When the story names a customer, ask `ask_account` (with the full CRM account name) what that customer needs from the feature. Set a date range that covers the request. If there's no named customer, skip Gong.
 - **Git history.** For each file you expect to touch, run `git log --oneline -- <path>`. Use `git log -p` when a refactor is likely, and `git blame` on tricky code. Commit messages and linked PRs often explain conventions and reversed decisions.
-- **SMEs.** Use the affected areas and PR authors to name the engineers who know each system best. Think Apple MDM, Windows MDM, Android, fleetd, or frontend. You'll check with them in Stage 2.
+- **SMEs.** Use the affected areas and PR authors to name the engineers who know each system best. Think Apple MDM, Windows MDM, Android, automdmd, or frontend. You'll check with them in Stage 2.
 
 
 ### 1.5 Stage 1 gate
@@ -118,11 +118,11 @@ Balance cohesion and specialization:
 - **Cohesion.** Keep work together when it can only be built and tested together. A service method goes with the datastore call it needs. An endpoint goes with its request and response types. A migration goes with the queries that read its new column. Splitting these only looks parallel. If sub-issue B's PR would say "needs A merged first to compile or test," merge them.
 - **Specialization.** Never put backend (Go, MySQL, API) and frontend (React, TypeScript) work in one sub-issue. They have different owners and reviewers, and the PRs ship on their own. If a reviewer would need both skills to approve it, split it.
 
-Split by skill first: backend, frontend, fleetctl and GitOps, and agent. Then keep tightly linked work inside each one together. A migration goes with the backend sub-issue that owns it. A typical full-stack story has a backend foundation sub-issue and a backend integration sub-issue. It adds one frontend sub-issue per independent surface, plus the docs and QA sub-issue. A backend sub-issue ships a tested API that frontend can mock.
+Split by skill first: backend, frontend, automdmctl and GitOps, and agent. Then keep tightly linked work inside each one together. A migration goes with the backend sub-issue that owns it. A typical full-stack story has a backend foundation sub-issue and a backend integration sub-issue. It adds one frontend sub-issue per independent surface, plus the docs and QA sub-issue. A backend sub-issue ships a tested API that frontend can mock.
 
 #31138 shows what to avoid, because it splits linked work and mixes frontend with backend.
 
-Every spec ends with one **Documentation and engineering QA** sub-issue in the `docs/QA` layer. It covers the REST API docs (`docs/API/rest-api.md`), audit log docs (`docs/API/global-audit-logs.md`), usage stats (`articles/fleet-usage-statistics.md`), and feature guides. It also covers QA on a real device once every other PR has merged. It depends on every other sub-issue. It gets no `~frontend` or `~backend` label, since it checks the whole story. Small stories get one too.
+Every spec ends with one **Documentation and engineering QA** sub-issue in the `docs/QA` layer. It covers the REST API docs (`docs/API/rest-api.md`), audit log docs (`docs/API/global-audit-logs.md`), usage stats (`articles/automdm-usage-statistics.md`), and feature guides. It also covers QA on a real device once every other PR has merged. It depends on every other sub-issue. It gets no `~frontend` or `~backend` label, since it checks the whole story. Small stories get one too.
 
 
 ### 2.2 Draw the dependency graph
@@ -135,7 +135,7 @@ Draw it in ASCII. Parallel tracks like frontend surfaces and GitOps usually open
 Aim for the smallest design that fully solves the story, with the fewest new tables, endpoints, and moving parts. First drafts usually split too finely and reach too far. Before you show the skeleton, review it in five areas:
 
 - **Data model.** Reuse tables and columns before you add new ones. Pick the narrowest type, and set nullability and defaults on purpose. Add the indexes your queries need and no others. Don't store what you can derive, and don't hide fields you'll filter on inside JSON. Add foreign keys unless the table's big enough that one would force a full table copy.
-- **Security.** Name who can call each new endpoint and see each new field. That means the service-layer auth check, fleet scoping, role permissions, and API-only users. Treat input from devices and users as untrusted. Keep secrets out of logs, activities, and API responses. For changes to auth, MDM, enrollment, or user data, run the `fleet-security-auditor` agent on the plan.
+- **Security.** Name who can call each new endpoint and see each new field. That means the service-layer auth check, team scoping, role permissions, and API-only users. Treat input from devices and users as untrusted. Keep secrets out of logs, activities, and API responses. For changes to auth, MDM, enrollment, or user data, run the `automdm-security-auditor` agent on the plan.
 - **Scalability.** Plan for deployments with hundreds of thousands of hosts. Avoid per-host loops and N+1 queries, and make sure every new query uses an index. Know what runs on each host check-in versus in a cron job. If the load profile changes, say so in the Engineering answers for load testing.
 - **Simplicity.** Ask whether each sub-issue and schema change needs to exist. Look for a table, column, helper, endpoint, or component to reuse. See if a new table could be a column, or a new endpoint a field on an existing one. Merge sub-issues when it doesn't cost parallel work.
 - **Scope.** Spec only what the story asks for. Trace every sub-issue and condition of satisfaction back to the story's goal or acceptance criteria. Cut anything that doesn't trace back, or list it under Follow-ups in the spec doc. That covers nearby bugs, refactors, and nice-to-haves.
@@ -180,7 +180,7 @@ Write the full spec doc and a GitHub body for every sub-issue.
 2. Draft the spec doc using [references/spec-doc.md](references/spec-doc.md).
 3. Write each sub-issue's GitHub body using [references/github.md](references/github.md).
 
-Fleet's style is plain and casual. Use it in the spec doc, the GitHub bodies, and the Engineering answers:
+AutoMDM's style is plain and casual. Use it in the spec doc, the GitHub bodies, and the Engineering answers:
 
 - Put the main point first, in each paragraph and each sentence.
 - Use short sentences, short words, active voice, and contractions.
@@ -192,8 +192,8 @@ Fleet's style is plain and casual. Use it in the spec doc, the GitHub bodies, an
 
 As you draft, cover these areas:
 
-- **Migrations.** Any sub-issue with a migration follows `.claude/rules/fleet-database.md` and `docs/Contributing/guides/migrations.md`. Its Task in the spec doc covers guards that make it safe to retry. It also covers staying independent of migrations on other branches, since they can run out of order. Seed or default data goes in a new table migration, because the baseline is never edited. Run the big-table checks on any table that grows with host count. If the migration changes or adds data, its condition of satisfaction includes an `applyUpToPrev`/`applyNext` test. Migrations that only add a table, column, or index don't need one. If it touches a big table, add a timing note on a large dataset.
-- **Apple MDM commands.** Follow "Adding a new command or a new reference" in `docs/Contributing/mdm/apple/apple-mdm-command-lifecycle.md`. It covers new commands Fleet sends on its own, and new columns that store a command UUID Fleet reads later. Write down the cleanup choice (short, standard, or unlisted) and whether the inactive-purge denylist applies. Add any reference guard and index the feature needs.
+- **Migrations.** Any sub-issue with a migration follows `.claude/rules/automdm-database.md` and `docs/Contributing/guides/migrations.md`. Its Task in the spec doc covers guards that make it safe to retry. It also covers staying independent of migrations on other branches, since they can run out of order. Seed or default data goes in a new table migration, because the baseline is never edited. Run the big-table checks on any table that grows with host count. If the migration changes or adds data, its condition of satisfaction includes an `applyUpToPrev`/`applyNext` test. Migrations that only add a table, column, or index don't need one. If it touches a big table, add a timing note on a large dataset.
+- **Apple MDM commands.** Follow "Adding a new command or a new reference" in `docs/Contributing/mdm/apple/apple-mdm-command-lifecycle.md`. It covers new commands AutoMDM sends on its own, and new columns that store a command UUID AutoMDM reads later. Write down the cleanup choice (short, standard, or unlisted) and whether the inactive-purge denylist applies. Add any reference guard and index the feature needs.
 - **API and YAML changes.** Run `/api-design-check` on any new endpoint or field. If a sub-issue needs an API or YAML change that the story's doc PRs don't cover, list it in Open questions. Then the tech lead can send it to the product designer.
 - **Coverage.** Think through every platform (macOS, Windows, Linux, iOS, iPadOS, Android, and ChromeOS), Free and Premium, and GitOps mode. When something's unclear, add an open question instead of guessing.
 
@@ -202,7 +202,7 @@ As you draft, cover these areas:
 
 Start a fresh read-only subagent with the spec doc and GitHub bodies. Tell it to treat every claim as wrong until it confirms it against the source. It should report only what fails or what it can't confirm. Have it check that:
 
-- Every `file:line` and symbol exists in the current code, and every datastore method exists in `server/fleet/datastore.go`.
+- Every `file:line` and symbol exists in the current code, and every datastore method exists in `server/automdm/datastore.go`.
 - Every table and column exists in `schema.sql` with the stated type and constraints, and every planned migration fits the table as it is today. Constraints include nullability, defaults, unique keys, indexes, and the foreign keys the plan relies on.
 - Every issue and PR number resolves, and doc PR field names match the spec.
 - The graph has no cycles, no sub-issue mixes backend and frontend, and the docs and QA sub-issue is there.

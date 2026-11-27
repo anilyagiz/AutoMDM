@@ -1,5 +1,5 @@
 // Package scripts implements support to execute scripts on the host when
-// requested by the Fleet server.
+// requested by the AutoMDM server.
 package scripts
 
 import (
@@ -12,16 +12,16 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/constant"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/constant"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/rs/zerolog/log"
 )
 
 // Client defines the methods required for the API requests to the server. The
-// fleet.OrbitClient type satisfies this interface.
+// automdm.OrbitClient type satisfies this interface.
 type Client interface {
-	GetHostScript(execID string) (*fleet.HostScriptResult, error)
-	SaveHostScriptResult(result *fleet.HostScriptResultPayload) error
+	GetHostScript(execID string) (*automdm.HostScriptResult, error)
+	SaveHostScriptResult(result *automdm.HostScriptResultPayload) error
 }
 
 // Runner is the type that processes scripts to execute, taking care of
@@ -80,12 +80,12 @@ func (r *Runner) Run(execIDs []string) error {
 	return nil
 }
 
-func (r *Runner) runOne(script *fleet.HostScriptResult) (finalErr error) {
+func (r *Runner) runOne(script *automdm.HostScriptResult) (finalErr error) {
 	const maxOutputRuneLen = 10000
 
 	if script.ExitCode != nil {
 		// already a result stored for this execution, skip, it shouldn't be sent
-		// again by Fleet.
+		// again by AutoMDM.
 		return nil
 	}
 
@@ -94,7 +94,7 @@ func (r *Runner) runOne(script *fleet.HostScriptResult) (finalErr error) {
 		return fmt.Errorf("create run directory: %w", err)
 	}
 	// prevent destruction of dir if this env var is set
-	if os.Getenv("FLEET_PREVENT_SCRIPT_TEMPDIR_DELETION") == "" {
+	if os.Getenv("AUTOMDM_PREVENT_SCRIPT_TEMPDIR_DELETION") == "" {
 		defer func() {
 			fn := os.RemoveAll
 			if r.removeAllFn != nil {
@@ -144,7 +144,7 @@ func (r *Runner) runOne(script *fleet.HostScriptResult) (finalErr error) {
 	}
 
 	log.Info().Msgf("saving script result %v with exit code %d", script.ExecutionID, exitCode)
-	err = r.Client.SaveHostScriptResult(&fleet.HostScriptResultPayload{
+	err = r.Client.SaveHostScriptResult(&automdm.HostScriptResultPayload{
 		ExecutionID: script.ExecutionID,
 		Output:      string(output),
 		Runtime:     int(duration.Seconds()),
@@ -164,14 +164,14 @@ func (r *Runner) createRunDir(execID string) (string, error) {
 	}
 	// MkdirTemp will only allow read/write by current user (root), which is what
 	// we want.
-	return os.MkdirTemp(tempDir, "fleet-"+execID+"-*")
+	return os.MkdirTemp(tempDir, "automdm-"+execID+"-*")
 }
 
 func (r *Runner) runOneDisabled(execID string) error {
-	err := r.Client.SaveHostScriptResult(&fleet.HostScriptResultPayload{
+	err := r.Client.SaveHostScriptResult(&automdm.HostScriptResultPayload{
 		ExecutionID: execID,
 		Output:      "Scripts are disabled",
-		ExitCode:    fleet.ExitCodeScriptsDisabled,
+		ExitCode:    automdm.ExitCodeScriptsDisabled,
 	})
 	if err != nil {
 		return fmt.Errorf("save script result: %w", err)

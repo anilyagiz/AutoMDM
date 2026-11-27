@@ -616,7 +616,7 @@ describe("getSoftwareSubheader", () => {
       isMyDevicePage: false,
     });
     expect(result).toBe(
-      "Software installed by Fleet. Built-in apps (e.g. Calculator) and apps installed by the end user aren't included."
+      "Software installed by AutoMDM. Built-in apps (e.g. Calculator) and apps installed by the end user aren't included."
     );
   });
 
@@ -627,7 +627,7 @@ describe("getSoftwareSubheader", () => {
       isMyDevicePage: true,
     });
     expect(result).toBe(
-      "Software installed by Fleet. Built-in apps (e.g. Calculator) and apps installed by the end user aren't included."
+      "Software installed by AutoMDM. Built-in apps (e.g. Calculator) and apps installed by the end user aren't included."
     );
   });
 
@@ -638,7 +638,7 @@ describe("getSoftwareSubheader", () => {
       isMyDevicePage: false,
     });
     expect(result).toBe(
-      "Software installed by Fleet. Built-in apps (e.g. Calculator) and apps installed by the end user aren't included."
+      "Software installed by AutoMDM. Built-in apps (e.g. Calculator) and apps installed by the end user aren't included."
     );
   });
 
@@ -688,7 +688,7 @@ describe("getHostSoftwareLocationPath", () => {
     page: 0,
   };
   const typesParam = (path: string) =>
-    new URL(path, "http://fleet").searchParams.get("types");
+    new URL(path, "http://automdm").searchParams.get("types");
 
   it("writes a cleared selection on a macOS host as types=none", () => {
     expect(

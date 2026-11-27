@@ -66,7 +66,7 @@ export function GitopsTab({
   const [output, setOutput] = useState<RunOutput | null>(null);
 
   // Active context for `--context <name>`. Same UI pattern as
-  // FleetctlTab — read parsed contexts from ~/.fleet/config and let
+  // AutoMDMctlTab — read parsed contexts from ~/.automdm/config and let
   // the user pick. Default to "default" if no current is set.
   const [ctxInfo, setCtxInfo] = useState<ContextInfo | null>(null);
   const [selectedContext, setSelectedContext] = useState<string>("default");
@@ -74,7 +74,7 @@ export function GitopsTab({
 
   const refreshCtx = useCallback(async () => {
     try {
-      const c = await api.fleetctlReadContext();
+      const c = await api.automdmctlReadContext();
       setCtxInfo(c);
     } catch (e) {
       console.error("read context failed", e);
@@ -83,15 +83,15 @@ export function GitopsTab({
 
   const refreshBinary = useCallback(async () => {
     try {
-      const b = await api.fleetctlResolveBinary(
+      const b = await api.automdmctlResolveBinary(
         repoPath ?? null,
-        settings.fleetctl_path ?? null,
+        settings.automdmctl_path ?? null,
       );
       setBinary(b);
     } catch (e) {
-      console.error("resolve fleetctl binary failed", e);
+      console.error("resolve automdmctl binary failed", e);
     }
-  }, [repoPath, settings.fleetctl_path]);
+  }, [repoPath, settings.automdmctl_path]);
 
   useEffect(() => {
     refreshCtx();
@@ -228,10 +228,10 @@ export function GitopsTab({
   }
 
   const repo = scan.repos.find((r) => r.name === selectedRepo) ?? null;
-  // Unified file list: default.yml leads, team/fleet files follow. The
+  // Unified file list: default.yml leads, team/automdm files follow. The
   // default entry uses an empty `subdir` as a sentinel — applyArgsFor
-  // emits the bare filename for it (since fleetctl runs from the repo
-  // cwd) and "teams/x.yml" / "fleets/x.yml" for the rest.
+  // emits the bare filename for it (since automdmctl runs from the repo
+  // cwd) and "teams/x.yml" / "teams/x.yml" for the rest.
   const allFiles: GitopsFile[] = repo
     ? [
         {
@@ -250,7 +250,7 @@ export function GitopsTab({
   // pushed every team."
   const repoSelection = repo ? selectionByRepo[repo.name] : undefined;
   // Selections are keyed by full file path, not basename: files in different
-  // subdirs (e.g. teams/foo.yml vs fleets/foo.yml) share a name and would
+  // subdirs (e.g. teams/foo.yml vs teams/foo.yml) share a name and would
   // otherwise collide, selecting/applying both at once.
   const selectedFiles = allFiles.filter((f) =>
     repoSelection != null && repoSelection.has(f.path),
@@ -285,7 +285,7 @@ export function GitopsTab({
   async function startApply() {
     if (!repo) return;
     if (!binary?.exists) {
-      alert("fleetctl binary not found. Settings → Paths.");
+      alert("automdmctl binary not found. Settings → Paths.");
       return;
     }
     const args = applyArgsFor(selectedFiles, selectedContext, dryRun);
@@ -324,7 +324,7 @@ export function GitopsTab({
                 {
                   ts_ms: Date.now(),
                   stream: "stderr",
-                  line: `failed to spawn fleetctl: ${e}`,
+                  line: `failed to spawn automdmctl: ${e}`,
                 },
               ],
             }
@@ -335,7 +335,7 @@ export function GitopsTab({
 
   async function startGenerate(name: string, force: boolean) {
     if (!binary?.exists) {
-      alert("fleetctl binary not found. Settings → Paths.");
+      alert("automdmctl binary not found. Settings → Paths.");
       return;
     }
     if (!gitopsDir) return;
@@ -380,7 +380,7 @@ export function GitopsTab({
                 {
                   ts_ms: Date.now(),
                   stream: "stderr",
-                  line: `failed to spawn fleetctl: ${e}`,
+                  line: `failed to spawn automdmctl: ${e}`,
                 },
               ],
             }
@@ -496,7 +496,7 @@ function StatusStrip({
   binary: ResolvedBinary | null;
   onRescan: () => void;
 }) {
-  // Match FleetctlTab's ContextHeader visual: dot+label, separators,
+  // Match AutoMDMctlTab's ContextHeader visual: dot+label, separators,
   // binary chip, context picker. We add a gitops-dir cell on the
   // left and a Reveal button on the right.
   const known = ctx?.contexts ?? [];
@@ -541,9 +541,9 @@ function StatusStrip({
           <span
             style={{
               fontSize: "var(--fs-xxx-small)",
-              color: "var(--core-fleet-purple)",
+              color: "var(--core-automdm-purple)",
               padding: "0 6px",
-              border: "1px solid var(--core-fleet-purple)",
+              border: "1px solid var(--core-automdm-purple)",
               borderRadius: 3,
               textTransform: "uppercase",
               letterSpacing: "0.05em",
@@ -573,7 +573,7 @@ function StatusStrip({
           {binary?.exists
             ? binary.source === "settings"
               ? "settings"
-              : "build/fleetctl"
+              : "build/automdmctl"
             : "missing"}
         </span>
       </div>
@@ -754,7 +754,7 @@ function RepoCard({
         background: selected
           ? "var(--tint-success-soft)"
           : "var(--app-surface-2)",
-        border: `1px solid ${selected ? "var(--core-fleet-green)" : "transparent"}`,
+        border: `1px solid ${selected ? "var(--core-automdm-green)" : "transparent"}`,
         display: "flex",
         flexDirection: "column",
         gap: 4,
@@ -956,12 +956,12 @@ function RepoPanel({
                   type="checkbox"
                   checked={isChecked(f.path)}
                   onChange={() => onToggle(f.path)}
-                  style={{ accentColor: "var(--core-fleet-green)" }}
+                  style={{ accentColor: "var(--core-automdm-green)" }}
                 />
                 <span
                   style={{
                     color: isDefault
-                      ? "var(--core-fleet-green)"
+                      ? "var(--core-automdm-green)"
                       : "var(--app-text-dim)",
                     width: 14,
                     textAlign: "center",
@@ -1052,7 +1052,7 @@ function ApplyBar({
         ) : (
           <>
             applying{" "}
-            <span style={{ color: "var(--core-fleet-green)", fontWeight: 600 }}>
+            <span style={{ color: "var(--core-automdm-green)", fontWeight: 600 }}>
               {selectedCount} {selectedCount === 1 ? "file" : "files"}
             </span>{" "}
             → <span className="mono">{contextName}</span>
@@ -1084,7 +1084,7 @@ function ApplyBar({
           className="primary"
           onClick={onApply}
           disabled={selectedCount === 0}
-          title={`fleetctl gitops -f … on ${repoName}`}
+          title={`automdmctl gitops -f … on ${repoName}`}
           style={{ padding: "6px 14px" }}
         >
           ▶ Apply
@@ -1130,7 +1130,7 @@ function RightColumn({
           singleRepo
             ? "Switch to a multi-repo dir in Settings to enable"
             : !binary?.exists
-              ? "fleetctl binary missing"
+              ? "automdmctl binary missing"
               : null
         }
         contextName={contextName}
@@ -1224,12 +1224,12 @@ function GenerateCard({
           Generate new {disabled && <span style={{ color: "var(--ui-error)" }}>· disabled</span>}
         </div>
         <span className="dim mono" style={{ fontSize: "var(--fs-xxx-small)" }}>
-          fleetctl generate-gitops
+          automdmctl generate-gitops
         </span>
       </div>
       <div className="dim" style={{ fontSize: "var(--fs-xxx-small)" }}>
         Scaffolds a new gitops directory from active context{" "}
-        <span className="mono" style={{ color: "var(--core-fleet-green)" }}>
+        <span className="mono" style={{ color: "var(--core-automdm-green)" }}>
           {contextName}
         </span>
         .
@@ -1289,7 +1289,7 @@ function GenerateCard({
               {check.file_count === 1 ? "" : "s"} · force required to overwrite
             </span>
           ) : (
-            <span style={{ color: "var(--core-fleet-green)" }}>
+            <span style={{ color: "var(--core-automdm-green)" }}>
               ✓ available · directory does not exist yet
             </span>
           )}
@@ -1343,11 +1343,11 @@ function GenerateCard({
         }}
       >
         <span className="dim">$ </span>
-        fleetctl{" "}
+        automdmctl{" "}
         {previewArgs.map((a, i) => (
           <span key={i}>
             {a.startsWith("--") ? (
-              <span style={{ color: "var(--core-fleet-green)" }}>{a}</span>
+              <span style={{ color: "var(--core-automdm-green)" }}>{a}</span>
             ) : (
               a
             )}
@@ -1368,7 +1368,7 @@ function GenerateCard({
               ? {
                   // Destructive-overwrite variant: bright yellow with dark
                   // text. Use --ui-on-warning (a fixed dark that doesn't flip
-                  // between themes); --core-fleet-black flips to a light color
+                  // between themes); --core-automdm-black flips to a light color
                   // in dark mode, which rendered unreadable white-on-yellow.
                   background: "var(--ui-warning)",
                   borderColor: "var(--ui-warning)",
@@ -1450,13 +1450,13 @@ function OutputCard({
             fontSize: "var(--fs-xxx-small)",
             background: pillColor,
             // Yellow ("running") pill needs fixed dark text — --ui-on-warning
-            // doesn't flip between themes (--core-fleet-black does, which made
+            // doesn't flip between themes (--core-automdm-black does, which made
             // it unreadable white-on-yellow in dark mode). Other states
             // (green / blue / red) read fine with white.
             color:
               output.state === "running"
                 ? "var(--ui-on-warning)"
-                : "var(--core-fleet-white)",
+                : "var(--core-automdm-white)",
             padding: "1px 6px",
             borderRadius: 3,
             textTransform: "uppercase",
@@ -1578,10 +1578,10 @@ function applyArgsFor(
   ctx: string,
   dryRun: boolean,
 ): string[] {
-  // `fleetctl gitops -f <path> [-f <path> ...] --context <name>
+  // `automdmctl gitops -f <path> [-f <path> ...] --context <name>
   // [--dry-run]`. Paths are relative to repo cwd (we spawn from the
   // repo dir). default.yml uses the empty-subdir sentinel so it lands
-  // as a bare filename; team/fleet entries get their subdir prefix.
+  // as a bare filename; team/automdm entries get their subdir prefix.
   const args: string[] = ["gitops"];
   for (const f of selected) {
     const rel = f.subdir === "" ? f.name : `${f.subdir}/${f.name}`;
@@ -1595,7 +1595,7 @@ function applyArgsFor(
 function stateColor(s: OutputState): string {
   switch (s) {
     case "applied":
-      return "var(--core-fleet-green)";
+      return "var(--core-automdm-green)";
     case "dry-run":
       return "var(--core-vibrant-blue)";
     case "failed":

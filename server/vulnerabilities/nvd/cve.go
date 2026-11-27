@@ -15,15 +15,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	nvdsync "github.com/fleetdm/fleet/v4/server/vulnerabilities/nvd/sync"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/nvd/tools/cvefeed"
-	feednvd "github.com/fleetdm/fleet/v4/server/vulnerabilities/nvd/tools/cvefeed/nvd"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/nvd/tools/cvefeed/nvd/schema"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/nvd/tools/providers/nvd"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/nvd/tools/wfn"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	nvdsync "github.com/anilyagiz/automdm/v4/server/vulnerabilities/nvd/sync"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/nvd/tools/cvefeed"
+	feednvd "github.com/anilyagiz/automdm/v4/server/vulnerabilities/nvd/tools/cvefeed/nvd"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/nvd/tools/cvefeed/nvd/schema"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/nvd/tools/providers/nvd"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/nvd/tools/wfn"
 	"github.com/google/go-github/v37/github"
 )
 
@@ -75,7 +75,7 @@ func DownloadCVEFeed(vulnPath, cveFeedPrefixURL string, debug bool, logger *slog
 
 const (
 	// cveReleasesPerPage keeps each request small: releases list their assets
-	// inline, and Fleet servers make this request on every vulnerability sync.
+	// inline, and AutoMDM servers make this request on every vulnerability sync.
 	cveReleasesPerPage = 10
 	// maxPublishedReleasesScanned bounds the search. Drafts don't count toward it:
 	// GitHub lists them first (only to callers with push access) and they can
@@ -93,7 +93,7 @@ func GetGitHubCVEAssetPath(ctx context.Context) (string, error) {
 		vulnOwner = owner
 	}
 
-	ghClient := github.NewClient(fleethttp.NewGithubClient())
+	ghClient := github.NewClient(automdmhttp.NewGithubClient())
 	found, err := findLatestCVEReleaseTag(ctx, ghClient, vulnOwner)
 	if err != nil {
 		return "", err
@@ -201,7 +201,7 @@ type itemWithNVDMeta interface {
 }
 
 type softwareCPEWithNVDMeta struct {
-	fleet.SoftwareCPE
+	automdm.SoftwareCPE
 	meta *wfn.Attributes
 }
 
@@ -214,7 +214,7 @@ func (s softwareCPEWithNVDMeta) GetID() uint {
 }
 
 type osCPEWithNVDMeta struct {
-	fleet.OperatingSystem
+	automdm.OperatingSystem
 	meta *wfn.Attributes
 }
 
@@ -227,16 +227,16 @@ func (o osCPEWithNVDMeta) GetID() uint {
 }
 
 // TranslateCPEToCVE maps the CVEs found in NVD archive files in the
-// vulnerabilities database folder to software CPEs in the fleet database.
+// vulnerabilities database folder to software CPEs in the automdm database.
 // If collectVulns is true, returns a list of any new software vulnerabilities found.
 func TranslateCPEToCVE(
 	ctx context.Context,
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	vulnPath string,
 	logger *slog.Logger,
 	collectVulns bool,
 	startTime time.Time,
-) ([]fleet.SoftwareVulnerability, error) {
+) ([]automdm.SoftwareVulnerability, error) {
 	files, err := getNVDCVEFeedFiles(vulnPath)
 	if err != nil {
 		return nil, err
@@ -325,12 +325,12 @@ func TranslateCPEToCVE(
 	// With part of the corpus unread (feedErr), rows not re-matched this run
 	// can't be assumed stale, so skip the deletes entirely.
 	if feedErr == nil && res.softwareErr == nil && !feedProducedNoData {
-		if err = ds.DeleteOutOfDateVulnerabilities(ctx, fleet.NVDSource, startTime); err != nil {
+		if err = ds.DeleteOutOfDateVulnerabilities(ctx, automdm.NVDSource, startTime); err != nil {
 			logger.ErrorContext(ctx, "error deleting out of date vulnerabilities", "err", err)
 		}
 	}
 	if feedErr == nil && res.osErr == nil && !feedProducedNoData {
-		if err = ds.DeleteOutOfDateOSVulnerabilities(ctx, fleet.NVDSource, startTime); err != nil {
+		if err = ds.DeleteOutOfDateOSVulnerabilities(ctx, automdm.NVDSource, startTime); err != nil {
 			logger.ErrorContext(ctx, "error deleting out of date OS vulnerabilities", "err", err)
 		}
 	}
@@ -357,13 +357,13 @@ type vulnSink struct {
 	// This is intentional backpressure so matcher workers block while a
 	// chunk is being written instead of buffering ahead of a slow insert.
 	mu        sync.Mutex
-	ds        fleet.Datastore
+	ds        automdm.Datastore
 	logger    *slog.Logger
 	collect   bool
 	flushSize int
 
-	softwareBuf []fleet.SoftwareVulnerability
-	osBuf       []fleet.OSVulnerability
+	softwareBuf []automdm.SoftwareVulnerability
+	osBuf       []automdm.OSVulnerability
 
 	collectedSeen map[string]struct{}
 	res           vulnSinkResult
@@ -376,14 +376,14 @@ type vulnSinkResult struct {
 	// classified as not-new on the next run, so their automations are never
 	// retried. Same tradeoff as a mid-corpus feed error, just with no error to
 	// react to — accepted as out of scope for this run-scoped sink.
-	collected     []fleet.SoftwareVulnerability
+	collected     []automdm.SoftwareVulnerability
 	totalSoftware int
 	totalOS       int
 	softwareErr   error
 	osErr         error
 }
 
-func newVulnSink(ds fleet.Datastore, logger *slog.Logger, collect bool) *vulnSink {
+func newVulnSink(ds automdm.Datastore, logger *slog.Logger, collect bool) *vulnSink {
 	s := &vulnSink{ds: ds, logger: logger, collect: collect, flushSize: matchFlushSize}
 	if collect {
 		s.collectedSeen = make(map[string]struct{})
@@ -391,7 +391,7 @@ func newVulnSink(ds fleet.Datastore, logger *slog.Logger, collect bool) *vulnSin
 	return s
 }
 
-func (s *vulnSink) addSoftware(ctx context.Context, v fleet.SoftwareVulnerability) {
+func (s *vulnSink) addSoftware(ctx context.Context, v automdm.SoftwareVulnerability) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.softwareBuf = append(s.softwareBuf, v)
@@ -401,7 +401,7 @@ func (s *vulnSink) addSoftware(ctx context.Context, v fleet.SoftwareVulnerabilit
 	}
 }
 
-func (s *vulnSink) addOS(ctx context.Context, v fleet.OSVulnerability) {
+func (s *vulnSink) addOS(ctx context.Context, v automdm.OSVulnerability) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.osBuf = append(s.osBuf, v)
@@ -435,7 +435,7 @@ func (s *vulnSink) flushSoftwareLocked(ctx context.Context) {
 	}
 	s.softwareBuf = s.softwareBuf[:0]
 
-	newVulns, err := s.ds.InsertSoftwareVulnerabilities(ctx, batch, fleet.NVDSource)
+	newVulns, err := s.ds.InsertSoftwareVulnerabilities(ctx, batch, automdm.NVDSource)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "cpe processing error", "err", err)
 		s.res.softwareErr = err
@@ -470,14 +470,14 @@ func (s *vulnSink) flushOSLocked(ctx context.Context) {
 	}
 	s.osBuf = s.osBuf[:0]
 
-	if _, err := s.ds.InsertOSVulnerabilities(ctx, batch, fleet.NVDSource); err != nil {
+	if _, err := s.ds.InsertOSVulnerabilities(ctx, batch, automdm.NVDSource); err != nil {
 		s.logger.ErrorContext(ctx, "cpe processing error", "err", err)
 		s.res.osErr = err
 	}
 }
 
 // GetMacOSCPEs translates all found macOS Operating Systems to CPEs.
-func GetMacOSCPEs(ctx context.Context, ds fleet.Datastore) ([]osCPEWithNVDMeta, error) {
+func GetMacOSCPEs(ctx context.Context, ds automdm.Datastore) ([]osCPEWithNVDMeta, error) {
 	var cpes []osCPEWithNVDMeta
 
 	oses, err := ds.ListOperatingSystemsForPlatform(ctx, "darwin")
@@ -644,13 +644,13 @@ func checkCVEs(
 							}
 
 							if _, ok := CPEItem.(softwareCPEWithNVDMeta); ok {
-								sink.addSoftware(ctx, fleet.SoftwareVulnerability{
+								sink.addSoftware(ctx, automdm.SoftwareVulnerability{
 									SoftwareID:        CPEItem.GetID(),
 									CVE:               matches.CVE.ID(),
 									ResolvedInVersion: &resolvedVersion,
 								})
 							} else if _, ok := CPEItem.(osCPEWithNVDMeta); ok {
-								sink.addOS(ctx, fleet.OSVulnerability{
+								sink.addOS(ctx, automdm.OSVulnerability{
 									OSID:              CPEItem.GetID(),
 									CVE:               matches.CVE.ID(),
 									ResolvedInVersion: &resolvedVersion,
@@ -740,7 +740,7 @@ func expandCPEAliases(cpeItem *wfn.Attributes) []*wfn.Attributes {
 		}
 	}
 
-	// pgAdmin CVEs in NVD use target_sw=postgresql and product=pgadmin_4, but Fleet generates
+	// pgAdmin CVEs in NVD use target_sw=postgresql and product=pgadmin_4, but AutoMDM generates
 	// CPEs with platform-based target_sw (macos, windows) and may use different product
 	// names (pgadmin, pgadmin4). Add aliases with target_sw=postgresql and product name
 	// variations to match NVD's criteria.

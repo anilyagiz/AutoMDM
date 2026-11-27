@@ -15,10 +15,10 @@ import (
 	"time"
 
 	"github.com/WatchBeam/clock"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/platform/mysql/testing_utils"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql"
+	"github.com/anilyagiz/automdm/v4/server/platform/mysql/testing_utils"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -32,7 +32,7 @@ var (
 )
 
 func getTestAddress() string {
-	if port := os.Getenv("FLEET_MYSQL_TEST_PORT"); port != "" {
+	if port := os.Getenv("AUTOMDM_MYSQL_TEST_PORT"); port != "" {
 		return "localhost:" + port
 	}
 	return "localhost:3307"
@@ -87,14 +87,14 @@ func main() {
 
 	// Tests create these built-in labels themselves via test.AddBuiltinLabels.
 	testBuiltinLabels := []string{
-		fleet.BuiltinLabelNameAllHosts,
-		fleet.BuiltinLabelNameMacOS,
-		fleet.BuiltinLabelNameUbuntuLinux,
-		fleet.BuiltinLabelNameCentOSLinux,
-		fleet.BuiltinLabelNameWindows,
-		fleet.BuiltinLabelNameRedHatLinux,
-		fleet.BuiltinLabelNameAllLinux,
-		fleet.BuiltinLabelNameChrome,
+		automdm.BuiltinLabelNameAllHosts,
+		automdm.BuiltinLabelNameMacOS,
+		automdm.BuiltinLabelNameUbuntuLinux,
+		automdm.BuiltinLabelNameCentOSLinux,
+		automdm.BuiltinLabelNameWindows,
+		automdm.BuiltinLabelNameRedHatLinux,
+		automdm.BuiltinLabelNameAllLinux,
+		automdm.BuiltinLabelNameChrome,
 	}
 	stmt, args, err := sqlx.In(`DELETE FROM labels WHERE name IN (?)`, testBuiltinLabels)
 	panicif(err)

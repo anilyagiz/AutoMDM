@@ -2,7 +2,7 @@
 package dataflattentable
 
 import (
-	"github.com/fleetdm/fleet/v4/orbit/pkg/dataflatten"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/dataflatten"
 	"github.com/osquery/osquery-go/plugin/table"
 )
 

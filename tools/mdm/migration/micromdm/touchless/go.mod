@@ -1,14 +1,14 @@
-module github.com/fleetdm/fleet/v4/tools/mdm/migration/micromdm/touchless
+module github.com/anilyagiz/automdm/v4/tools/mdm/migration/micromdm/touchless
 
 go 1.27.4
 
 // Kept as its own module so the MicroMDM platform packages it reads (and their gorilla/mux, buford and boltdb
-// dependencies) stay out of the main fleet module. The parent module is pinned to the local checkout for the SCEP depot.
-replace github.com/fleetdm/fleet/v4 => ../../../../..
+// dependencies) stay out of the main automdm module. The parent module is pinned to the local checkout for the SCEP depot.
+replace github.com/anilyagiz/automdm/v4 => ../../../../..
 
 require (
 	github.com/boltdb/bolt v1.3.1
-	github.com/fleetdm/fleet/v4 v4.0.0-00010101000000-000000000000
+	github.com/anilyagiz/automdm/v4 v4.0.0-00010101000000-000000000000
 	github.com/micromdm/micromdm v1.9.0
 	github.com/micromdm/plist v0.4.0
 	go.etcd.io/bbolt v1.4.0

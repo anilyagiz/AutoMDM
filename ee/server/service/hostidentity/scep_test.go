@@ -19,14 +19,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/ee/pkg/hostidentity/types"
-	"github.com/fleetdm/fleet/v4/pkg/mdm/mdmtest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/cryptoutil"
-	scepdepot "github.com/fleetdm/fleet/v4/server/mdm/scep/depot"
-	scepserver "github.com/fleetdm/fleet/v4/server/mdm/scep/server"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/ee/pkg/hostidentity/types"
+	"github.com/anilyagiz/automdm/v4/pkg/mdm/mdmtest"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/cryptoutil"
+	scepdepot "github.com/anilyagiz/automdm/v4/server/mdm/scep/depot"
+	scepserver "github.com/anilyagiz/automdm/v4/server/mdm/scep/server"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
 	"github.com/jmoiron/sqlx"
 	"github.com/smallstep/scep"
 	"github.com/stretchr/testify/assert"
@@ -228,7 +228,7 @@ func TestRenewalMiddleware_ProofBoundToCSRKey(t *testing.T) {
 			logs, err = renew(t, requireKeyBinding, legacyProof, attackerKey, false)
 			if requireKeyBinding {
 				require.ErrorContains(t, err, "renewal proof is not bound to the CSR key", "legacy proof is rejected when key binding is required")
-				assert.Contains(t, logs, "legacy renewal proof rejected, upgrade fleetd")
+				assert.Contains(t, logs, "legacy renewal proof rejected, upgrade automdmd")
 			} else {
 				require.NoError(t, err, "legacy proof is accepted until key binding is required")
 				assert.Contains(t, logs, "renewal proof is not bound to the CSR key")
@@ -244,10 +244,10 @@ func TestPKIOperationUndecryptableEnvelope(t *testing.T) {
 	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(caKey)})
 
 	ds := new(mock.Store)
-	ds.GetAllMDMConfigAssetsByNameFunc = func(_ context.Context, _ []fleet.MDMAssetName, _ sqlx.QueryerContext) (map[fleet.MDMAssetName]fleet.MDMConfigAsset, error) {
-		return map[fleet.MDMAssetName]fleet.MDMConfigAsset{
-			fleet.MDMAssetHostIdentityCACert: {Name: fleet.MDMAssetHostIdentityCACert, Value: certPEM},
-			fleet.MDMAssetHostIdentityCAKey:  {Name: fleet.MDMAssetHostIdentityCAKey, Value: keyPEM},
+	ds.GetAllMDMConfigAssetsByNameFunc = func(_ context.Context, _ []automdm.MDMAssetName, _ sqlx.QueryerContext) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
+		return map[automdm.MDMAssetName]automdm.MDMConfigAsset{
+			automdm.MDMAssetHostIdentityCACert: {Name: automdm.MDMAssetHostIdentityCACert, Value: certPEM},
+			automdm.MDMAssetHostIdentityCAKey:  {Name: automdm.MDMAssetHostIdentityCAKey, Value: keyPEM},
 		}, nil
 	}
 
@@ -278,7 +278,7 @@ func TestPKIOperationRejectsDeeplyNestedBER(t *testing.T) {
 	deep := bytes.Repeat([]byte{0x30, 0x80}, cryptoutil.MaxBERDepth+1)
 	_, err := svc.PKIOperation(t.Context(), deep)
 
-	var badReq *fleet.BadRequestError
+	var badReq *automdm.BadRequestError
 	require.ErrorAs(t, err, &badReq)
 	require.ErrorIs(t, err, cryptoutil.ErrBERTooDeep)
 }
@@ -288,7 +288,7 @@ func TestPKIOperationRejectsMalformedBody(t *testing.T) {
 
 	_, err := svc.PKIOperation(t.Context(), []byte("hello"))
 
-	var badReq *fleet.BadRequestError
+	var badReq *automdm.BadRequestError
 	require.ErrorAs(t, err, &badReq)
 	require.NotErrorIs(t, err, cryptoutil.ErrBERTooDeep)
 }
@@ -323,8 +323,8 @@ func TestChallengeMiddlewareExistingCert(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			ds := new(mock.Store)
-			ds.VerifyEnrollSecretFunc = func(_ context.Context, secret string) (*fleet.EnrollSecret, error) {
-				return &fleet.EnrollSecret{Secret: secret}, nil
+			ds.VerifyEnrollSecretFunc = func(_ context.Context, secret string) (*automdm.EnrollSecret, error) {
+				return &automdm.EnrollSecret{Secret: secret}, nil
 			}
 			ds.GetHostIdentityCertByNameFunc = func(_ context.Context, _ string) (*types.HostIdentityCertificate, error) {
 				return tc.cert, tc.lookupErr

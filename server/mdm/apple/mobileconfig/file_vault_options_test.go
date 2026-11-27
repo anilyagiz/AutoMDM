@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -30,14 +30,14 @@ func TestContainsFDEVileVaultOptionsPayload(t *testing.T) {
 		{
 			name: "com.apple.MCX payload, no FDE options",
 			in: getFileVaultOptionsPayload(FDEFileVaultOptionsPayload{
-				PayloadType: FleetCustomSettingsPayloadType,
+				PayloadType: AutoMDMCustomSettingsPayloadType,
 			}),
 			contains: false,
 		},
 		{
 			name: "com.apple.MCX payload with DestroyFVKeyOnStandby option",
 			in: getFileVaultOptionsPayload(FDEFileVaultOptionsPayload{
-				PayloadType:           FleetCustomSettingsPayloadType,
+				PayloadType:           AutoMDMCustomSettingsPayloadType,
 				DestroyFVKeyOnStandby: ptr.Bool(true),
 			}),
 			contains: true,

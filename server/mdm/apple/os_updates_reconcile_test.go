@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/dev_mode"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/dev_mode"
+	"github.com/anilyagiz/automdm/v4/server/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -40,7 +40,7 @@ func TestComputeOSUpdatesTarget(t *testing.T) {
 
 	// Two macOS assets for the same device, higher version listed first so the
 	// test proves the reconciler picks the max version, not the last one seen.
-	updateAssets := map[string][]fleet.AppleSoftwareUpdateAsset{
+	updateAssets := map[string][]automdm.AppleSoftwareUpdateAsset{
 		"macos": {
 			{ProductVersion: "15.1", PostingDate: mustParseDate("2024-10-28"), SupportedDevices: []string{macDevice}},
 			{ProductVersion: "14.6.1", PostingDate: mustParseDate("2024-08-07"), SupportedDevices: []string{macDevice}},
@@ -59,12 +59,12 @@ func TestComputeOSUpdatesTarget(t *testing.T) {
 	latest := func(darwin, ios, ipados map[uint]int) map[string]map[uint]int {
 		return map[string]map[uint]int{"darwin": darwin, "ios": ios, "ipados": ipados}
 	}
-	compute := func(host *fleet.AppleSoftwareUpdateHost, teams map[string]map[uint]int) []*fleet.ComputedAppleSoftwareUpdateHost {
-		return computeOSUpdatesTarget(ctx, logger, []*fleet.AppleSoftwareUpdateHost{host}, updateAssets, teams)
+	compute := func(host *automdm.AppleSoftwareUpdateHost, teams map[string]map[uint]int) []*automdm.ComputedAppleSoftwareUpdateHost {
+		return computeOSUpdatesTarget(ctx, logger, []*automdm.AppleSoftwareUpdateHost{host}, updateAssets, teams)
 	}
 
 	t.Run("macOS host in a team with latest gets highest version and posting-date deadline", func(t *testing.T) {
-		host := &fleet.AppleSoftwareUpdateHost{HostUUID: "h1", Platform: "darwin", TeamID: 0, SoftwareUpdateDeviceID: macDevice}
+		host := &automdm.AppleSoftwareUpdateHost{HostUUID: "h1", Platform: "darwin", TeamID: 0, SoftwareUpdateDeviceID: macDevice}
 		got := compute(host, latest(map[uint]int{0: 2}, nil, nil))
 		require.Len(t, got, 1)
 		require.True(t, got[0].Resend)
@@ -75,7 +75,7 @@ func TestComputeOSUpdatesTarget(t *testing.T) {
 	})
 
 	t.Run("iPadOS host resolves against the shared ios asset set", func(t *testing.T) {
-		host := &fleet.AppleSoftwareUpdateHost{HostUUID: "h2", Platform: "ipados", TeamID: 3, SoftwareUpdateDeviceID: iosDevice}
+		host := &automdm.AppleSoftwareUpdateHost{HostUUID: "h2", Platform: "ipados", TeamID: 3, SoftwareUpdateDeviceID: iosDevice}
 		got := compute(host, latest(nil, nil, map[uint]int{3: 2}))
 		require.Len(t, got, 1)
 		require.True(t, got[0].Resend)
@@ -85,18 +85,18 @@ func TestComputeOSUpdatesTarget(t *testing.T) {
 
 	t.Run("first_seen_at after posting date drives the deadline", func(t *testing.T) {
 		firstSeen := time.Date(2024, 11, 5, 12, 0, 0, 0, time.UTC)
-		assets := map[string][]fleet.AppleSoftwareUpdateAsset{
+		assets := map[string][]automdm.AppleSoftwareUpdateAsset{
 			"macos": {{ProductVersion: "15.1", PostingDate: mustParseDate("2024-10-28"), FirstSeenAt: firstSeen, SupportedDevices: []string{macDevice}}},
 		}
-		host := &fleet.AppleSoftwareUpdateHost{HostUUID: "h3", Platform: "darwin", TeamID: 0, SoftwareUpdateDeviceID: macDevice}
-		got := computeOSUpdatesTarget(ctx, logger, []*fleet.AppleSoftwareUpdateHost{host}, assets, latest(map[uint]int{0: 2}, nil, nil))
+		host := &automdm.AppleSoftwareUpdateHost{HostUUID: "h3", Platform: "darwin", TeamID: 0, SoftwareUpdateDeviceID: macDevice}
+		got := computeOSUpdatesTarget(ctx, logger, []*automdm.AppleSoftwareUpdateHost{host}, assets, latest(map[uint]int{0: 2}, nil, nil))
 		require.Len(t, got, 1)
 		require.True(t, firstSeen.Add(2*24*time.Hour).Equal(*got[0].TargetDeadline))
 	})
 
 	t.Run("host whose team no longer has latest is cleared without resend", func(t *testing.T) {
 		deadline := macDeadline
-		host := &fleet.AppleSoftwareUpdateHost{
+		host := &automdm.AppleSoftwareUpdateHost{
 			HostUUID: "h4", Platform: "darwin", TeamID: 5, SoftwareUpdateDeviceID: macDevice,
 			TargetOSVersion: "15.1", TargetDeadline: &deadline, ResolvedAt: &deadline,
 		}
@@ -111,7 +111,7 @@ func TestComputeOSUpdatesTarget(t *testing.T) {
 
 	t.Run("unchanged target and deadline are skipped", func(t *testing.T) {
 		deadline := macDeadline
-		host := &fleet.AppleSoftwareUpdateHost{
+		host := &automdm.AppleSoftwareUpdateHost{
 			HostUUID: "h5", Platform: "darwin", TeamID: 0, SoftwareUpdateDeviceID: macDevice,
 			TargetOSVersion: "15.1", TargetDeadline: &deadline,
 		}
@@ -120,37 +120,37 @@ func TestComputeOSUpdatesTarget(t *testing.T) {
 	})
 
 	t.Run("unsupported platform is skipped", func(t *testing.T) {
-		host := &fleet.AppleSoftwareUpdateHost{HostUUID: "h6", Platform: "tvos", TeamID: 0, SoftwareUpdateDeviceID: macDevice}
+		host := &automdm.AppleSoftwareUpdateHost{HostUUID: "h6", Platform: "tvos", TeamID: 0, SoftwareUpdateDeviceID: macDevice}
 		got := compute(host, latest(map[uint]int{0: 2}, nil, nil))
 		require.Empty(t, got)
 	})
 
 	t.Run("no asset matches the host device id is skipped", func(t *testing.T) {
-		host := &fleet.AppleSoftwareUpdateHost{HostUUID: "h7", Platform: "darwin", TeamID: 0, SoftwareUpdateDeviceID: "Mac99,9"}
+		host := &automdm.AppleSoftwareUpdateHost{HostUUID: "h7", Platform: "darwin", TeamID: 0, SoftwareUpdateDeviceID: "Mac99,9"}
 		got := compute(host, latest(map[uint]int{0: 2}, nil, nil))
 		require.Empty(t, got)
 	})
 
 	t.Run("no assets for the platform is skipped", func(t *testing.T) {
-		host := &fleet.AppleSoftwareUpdateHost{HostUUID: "h8", Platform: "darwin", TeamID: 0, SoftwareUpdateDeviceID: macDevice}
-		got := computeOSUpdatesTarget(ctx, logger, []*fleet.AppleSoftwareUpdateHost{host}, map[string][]fleet.AppleSoftwareUpdateAsset{}, latest(map[uint]int{0: 2}, nil, nil))
+		host := &automdm.AppleSoftwareUpdateHost{HostUUID: "h8", Platform: "darwin", TeamID: 0, SoftwareUpdateDeviceID: macDevice}
+		got := computeOSUpdatesTarget(ctx, logger, []*automdm.AppleSoftwareUpdateHost{host}, map[string][]automdm.AppleSoftwareUpdateAsset{}, latest(map[uint]int{0: 2}, nil, nil))
 		require.Empty(t, got)
 	})
 
 	t.Run("duplicate host UUIDs in a batch are collapsed to the first row", func(t *testing.T) {
 		deadline := macDeadline
-		inTeamWithLatest := &fleet.AppleSoftwareUpdateHost{
+		inTeamWithLatest := &automdm.AppleSoftwareUpdateHost{
 			HostUUID: "dup", Platform: "darwin", TeamID: 0, SoftwareUpdateDeviceID: macDevice,
 		}
 		// same UUID, but this row's team has no "latest" set, so on its own it would clear the
 		// target computed for the row above
-		inTeamWithoutLatest := &fleet.AppleSoftwareUpdateHost{
+		inTeamWithoutLatest := &automdm.AppleSoftwareUpdateHost{
 			HostUUID: "dup", Platform: "darwin", TeamID: 5, SoftwareUpdateDeviceID: macDevice,
 			TargetOSVersion: "15.1", TargetDeadline: &deadline, ResolvedAt: &deadline,
 		}
 
 		got := computeOSUpdatesTarget(ctx, logger,
-			[]*fleet.AppleSoftwareUpdateHost{inTeamWithLatest, inTeamWithoutLatest},
+			[]*automdm.AppleSoftwareUpdateHost{inTeamWithLatest, inTeamWithoutLatest},
 			updateAssets, latest(map[uint]int{0: 2}, nil, nil))
 		require.Len(t, got, 1)
 		require.Equal(t, "dup", got[0].HostUUID)
@@ -160,7 +160,7 @@ func TestComputeOSUpdatesTarget(t *testing.T) {
 
 		// order decides the winner, and either way only one row per UUID comes out
 		got = computeOSUpdatesTarget(ctx, logger,
-			[]*fleet.AppleSoftwareUpdateHost{inTeamWithoutLatest, inTeamWithLatest},
+			[]*automdm.AppleSoftwareUpdateHost{inTeamWithoutLatest, inTeamWithLatest},
 			updateAssets, latest(map[uint]int{0: 2}, nil, nil))
 		require.Len(t, got, 1)
 		require.Equal(t, "dup", got[0].HostUUID)
@@ -169,11 +169,11 @@ func TestComputeOSUpdatesTarget(t *testing.T) {
 	})
 
 	t.Run("duplicate host UUIDs are collapsed even when the first row produces nothing", func(t *testing.T) {
-		unsupported := &fleet.AppleSoftwareUpdateHost{HostUUID: "dup2", Platform: "tvos", TeamID: 0, SoftwareUpdateDeviceID: macDevice}
-		supported := &fleet.AppleSoftwareUpdateHost{HostUUID: "dup2", Platform: "darwin", TeamID: 0, SoftwareUpdateDeviceID: macDevice}
+		unsupported := &automdm.AppleSoftwareUpdateHost{HostUUID: "dup2", Platform: "tvos", TeamID: 0, SoftwareUpdateDeviceID: macDevice}
+		supported := &automdm.AppleSoftwareUpdateHost{HostUUID: "dup2", Platform: "darwin", TeamID: 0, SoftwareUpdateDeviceID: macDevice}
 
 		got := computeOSUpdatesTarget(ctx, logger,
-			[]*fleet.AppleSoftwareUpdateHost{unsupported, supported},
+			[]*automdm.AppleSoftwareUpdateHost{unsupported, supported},
 			updateAssets, latest(map[uint]int{0: 2}, nil, nil))
 		require.Empty(t, got)
 	})
@@ -197,22 +197,22 @@ func TestHandleAppleMDMOSUpdatesAssetRefresh(t *testing.T) {
 		ds.GetLastAppleOSUpdatesUpdateFunc = func(ctx context.Context) (*time.Time, error) {
 			return lastUpdatedAt, nil
 		}
-		ds.UpsertAppleOSUpdatesFunc = func(ctx context.Context, updates map[string][]fleet.OSUpdateAsset) error {
+		ds.UpsertAppleOSUpdatesFunc = func(ctx context.Context, updates map[string][]automdm.OSUpdateAsset) error {
 			return nil
 		}
-		ds.DeleteStaleAppleOSUpdatesFunc = func(ctx context.Context, updates map[string][]fleet.OSUpdateAsset) (int64, error) {
+		ds.DeleteStaleAppleOSUpdatesFunc = func(ctx context.Context, updates map[string][]automdm.OSUpdateAsset) (int64, error) {
 			return 0, nil
 		}
-		ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-			return &fleet.AppConfig{}, nil
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{}, nil
 		}
-		ds.ListTeamsFunc = func(ctx context.Context, filter fleet.TeamFilter, opt fleet.ListOptions) ([]*fleet.Team, error) {
+		ds.ListTeamsFunc = func(ctx context.Context, filter automdm.TeamFilter, opt automdm.ListOptions) ([]*automdm.Team, error) {
 			return nil, nil
 		}
-		ds.ListAppleOSUpdateAssetsFunc = func(ctx context.Context) (map[string][]fleet.AppleSoftwareUpdateAsset, error) {
+		ds.ListAppleOSUpdateAssetsFunc = func(ctx context.Context) (map[string][]automdm.AppleSoftwareUpdateAsset, error) {
 			return nil, nil
 		}
-		ds.ListAppleOSUpdateHostsForReconcileFunc = func(ctx context.Context, cursor string, batchSize int, teamsWithLatest map[string]map[uint]int) ([]*fleet.AppleSoftwareUpdateHost, error) {
+		ds.ListAppleOSUpdateHostsForReconcileFunc = func(ctx context.Context, cursor string, batchSize int, teamsWithLatest map[string]map[uint]int) ([]*automdm.AppleSoftwareUpdateHost, error) {
 			return nil, nil
 		}
 		return ds
@@ -226,19 +226,19 @@ func TestHandleAppleMDMOSUpdatesAssetRefresh(t *testing.T) {
 			}
 		}))
 		t.Cleanup(srv.Close)
-		dev_mode.SetOverride("FLEET_DEV_GDMF_URL", srv.URL, t)
+		dev_mode.SetOverride("AUTOMDM_DEV_GDMF_URL", srv.URL, t)
 	}
 
 	t.Run("stale cache caches the fetched assets and prunes with the same set", func(t *testing.T) {
 		serveGDMF(t, gdmfFixture)
 
 		ds := newDS(nil)
-		var upserted, pruned map[string][]fleet.OSUpdateAsset
-		ds.UpsertAppleOSUpdatesFunc = func(ctx context.Context, updates map[string][]fleet.OSUpdateAsset) error {
+		var upserted, pruned map[string][]automdm.OSUpdateAsset
+		ds.UpsertAppleOSUpdatesFunc = func(ctx context.Context, updates map[string][]automdm.OSUpdateAsset) error {
 			upserted = updates
 			return nil
 		}
-		ds.DeleteStaleAppleOSUpdatesFunc = func(ctx context.Context, updates map[string][]fleet.OSUpdateAsset) (int64, error) {
+		ds.DeleteStaleAppleOSUpdatesFunc = func(ctx context.Context, updates map[string][]automdm.OSUpdateAsset) (int64, error) {
 			pruned = updates
 			return 3, nil
 		}
@@ -278,7 +278,7 @@ func TestHandleAppleMDMOSUpdatesAssetRefresh(t *testing.T) {
 		serveGDMF(t, gdmfFixture)
 
 		ds := newDS(nil)
-		ds.UpsertAppleOSUpdatesFunc = func(ctx context.Context, updates map[string][]fleet.OSUpdateAsset) error {
+		ds.UpsertAppleOSUpdatesFunc = func(ctx context.Context, updates map[string][]automdm.OSUpdateAsset) error {
 			return errors.New("upsert failed")
 		}
 
@@ -291,7 +291,7 @@ func TestHandleAppleMDMOSUpdatesAssetRefresh(t *testing.T) {
 		serveGDMF(t, gdmfFixture)
 
 		ds := newDS(nil)
-		ds.DeleteStaleAppleOSUpdatesFunc = func(ctx context.Context, updates map[string][]fleet.OSUpdateAsset) (int64, error) {
+		ds.DeleteStaleAppleOSUpdatesFunc = func(ctx context.Context, updates map[string][]automdm.OSUpdateAsset) (int64, error) {
 			return 0, errors.New("delete failed")
 		}
 

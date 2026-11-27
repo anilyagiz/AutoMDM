@@ -91,7 +91,7 @@ func Up_20261117195808(tx *sql.Tx) error {
 			return fmt.Errorf("delete duplicate in-house app %d: %w", duplicate.ID, err)
 		}
 		logger.Info.Printf(
-			"Deleted duplicate in-house app from fleet %d title_id=%d filename=%q version=%q\n",
+			"Deleted duplicate in-house app from team %d title_id=%d filename=%q version=%q\n",
 			duplicate.GlobalOrTeamID,
 			duplicate.TitleID,
 			duplicate.Filename,

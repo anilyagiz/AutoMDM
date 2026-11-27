@@ -157,6 +157,6 @@ jobs:
       # warning annotations per job, and eslint's warnings in lint-js use all
       # of them before this could report. No dependency install needed — the
       # check reads PNG headers with only node's fs and path.
-      - name: Check Fleet-maintained app icons
+      - name: Check AutoMDM-maintained app icons
         run: |
           node tools/software/icons/check-icons.js

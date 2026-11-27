@@ -58,7 +58,7 @@ test('includes known former Fleeties from git history', () => {
 
 test('excludes denylisted path segments and the org handle', () => {
   const set = new Set(getHandles());
-  for (const denied of ['fleetdm', 'todo', 'user-attachments', 'orgs', 'issues', 'pull', 'apps']) {
+  for (const denied of ['automdm', 'todo', 'user-attachments', 'orgs', 'issues', 'pull', 'apps']) {
     assert.ok(!set.has(denied), `expected ${denied} to be filtered out`);
   }
 });

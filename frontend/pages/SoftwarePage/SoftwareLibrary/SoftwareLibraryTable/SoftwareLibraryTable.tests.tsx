@@ -151,7 +151,7 @@ describe("Software library table", () => {
 
     await user.click(screen.getByRole("button", { name: /Settings/ }));
     expect(router.push).toHaveBeenCalledWith(
-      "/software/library/settings?fleet_id=4"
+      "/software/library/settings?team_id=4"
     );
   });
 
@@ -191,7 +191,7 @@ describe("Software library table", () => {
     expect(screen.getByText("No software available")).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Software added to this fleet's library will appear here."
+        "Software added to this team's library will appear here."
       )
     ).toBeInTheDocument();
     expect(

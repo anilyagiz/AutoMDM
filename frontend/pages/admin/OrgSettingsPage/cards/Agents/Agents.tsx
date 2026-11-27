@@ -14,7 +14,7 @@ import SettingsSection from "pages/admin/components/SettingsSection";
 import paths from "router/paths";
 import {
   EMPTY_AGENT_OPTIONS,
-  FLEET_GUIDES_BASE_LINK,
+  AUTOMDM_GUIDES_BASE_LINK,
 } from "utilities/constants";
 import { constructErrorString, agentOptionsToYaml } from "utilities/yaml";
 
@@ -38,7 +38,7 @@ const Agents = ({
 }: IAppConfigFormProps): JSX.Element => {
   const gitOpsModeEnabled = appConfig.gitops.gitops_mode_enabled;
 
-  const { ADMIN_FLEETS } = paths;
+  const { ADMIN_TEAMS } = paths;
 
   const [formData, setFormData] = useState<IAgentOptionsFormData>({
     agentOptions: agentOptionsToYaml(appConfig.agent_options),
@@ -97,11 +97,11 @@ const Agents = ({
         variant="right-panel"
         content={
           <p className={`${baseClass}__section-description`}>
-            Agent options configure Fleet&apos;s agent (fleetd). When you update
+            Agent options configure AutoMDM&apos;s agent (automdmd). When you update
             agent options, they will be applied the next time a host checks in
-            to Fleet.{" "}
+            to AutoMDM.{" "}
             <CustomLink
-              url="https://fleetdm.com/docs/configuration/agent-configuration"
+              url="https://automdm.com/docs/configuration/agent-configuration"
               text="Learn more about agent options"
               newTab
               multiline
@@ -113,17 +113,17 @@ const Agents = ({
         {isPremiumTier ? (
           <InfoBanner>
             <div>
-              These options are not applied to hosts in a fleet. To update agent
-              options for hosts in a fleet, head to the&nbsp;
-              <CustomLink url={ADMIN_FLEETS} text="Fleets page" />.
+              These options are not applied to hosts in a team. To update agent
+              options for hosts in a team, head to the&nbsp;
+              <CustomLink url={ADMIN_TEAMS} text="Teams page" />.
             </div>
           </InfoBanner>
         ) : (
           <InfoBanner>
             Want some hosts to have different options?&nbsp;
             <CustomLink
-              url={`${FLEET_GUIDES_BASE_LINK}/fleets`}
-              text="Learn more about fleets"
+              url={`${AUTOMDM_GUIDES_BASE_LINK}/teams`}
+              text="Learn more about teams"
               newTab
               variant="banner-link"
             />

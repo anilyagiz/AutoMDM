@@ -154,7 +154,7 @@ const SelectTargets = ({
     ["teams"],
     () => teamsAPI.loadAll(),
     {
-      select: (data) => data.fleets,
+      select: (data) => data.teams,
       enabled: isPremiumTier,
       staleTime: STALE_TIME, // TODO: confirm
     }
@@ -373,7 +373,7 @@ const SelectTargets = ({
     disabledIds?: Set<number>
   ): JSX.Element => {
     const isTeamsSection = entityType === "teams";
-    const displayType = isTeamsSection ? "fleets" : entityType;
+    const displayType = isTeamsSection ? "teams" : entityType;
     const isSearchEnabled = isTeamsSection || entityType === "labels";
     const searchTerm = (
       (isTeamsSection ? searchTextTeams : searchTextLabels) || ""
@@ -429,7 +429,7 @@ const SelectTargets = ({
         {entityType && <h3>{capitalize(displayType)}</h3>}
         {isTeamsSection && !!disabledIds?.size && (
           <p className={`${baseClass}__team-help-text`}>
-            Results limited to fleets you can access.
+            Results limited to teams you can access.
           </p>
         )}
         {isSearchEnabled && (
@@ -522,7 +522,7 @@ const SelectTargets = ({
         %&nbsp;
         <TooltipWrapper
           tipContent={
-            <>Hosts are online if they have recently checked into Fleet.</>
+            <>Hosts are online if they have recently checked into AutoMDM.</>
           }
         >
           online
@@ -560,7 +560,7 @@ const SelectTargets = ({
 
     if (isGlobalPlainObserver) {
       // Global plain observers have the same restrictions as team-level
-      // observers but applied to ALL teams/fleets (including "Unassigned")
+      // observers but applied to ALL teams/teams (including "Unassigned")
       const allTeamIds = [...(teams?.map((t) => t.id) || []), 0]; // 0 = "Unassigned"
       allTeamIds.forEach((teamId) => {
         if (shouldDisableForObserver(teamId)) {
@@ -570,7 +570,7 @@ const SelectTargets = ({
       return disabled;
     }
 
-    // Team/fleet-level plain observer logic
+    // Team/team-level plain observer logic
     teams?.forEach((team) => {
       const isPlainObserver =
         permissions.isTeamObserver(currentUser, team.id) &&

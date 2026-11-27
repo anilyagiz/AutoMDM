@@ -6,8 +6,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -40,7 +40,7 @@ func (ds *Datastore) ConditionalAccessBypassDevice(ctx context.Context, hostID u
 	}
 
 	if blockCount != 0 {
-		return &fleet.BadRequestError{Message: "host has failing critical policies"}
+		return &automdm.BadRequestError{Message: "host has failing critical policies"}
 	}
 
 	if _, err := ds.writer(ctx).ExecContext(ctx, insertStmt, hostID); err != nil {

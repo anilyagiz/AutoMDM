@@ -10,7 +10,7 @@
     margin: 0;
   }
 
-  &__fleet-picker {
+  &__team-picker {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
@@ -20,7 +20,7 @@
   }
 
   // Fill the rest of the row so the picker ends in line with the fields below.
-  &__fleet-dropdown {
+  &__team-dropdown {
     flex: 1;
     min-width: 200px;
   }
@@ -58,9 +58,9 @@
   }
 
   &__dpc-extras-code {
-    background-color: $core-fleet-white;
-    color: $core-fleet-black;
-    border: 1px solid $ui-fleet-black-10;
+    background-color: $core-automdm-white;
+    color: $core-automdm-black;
+    border: 1px solid $ui-automdm-black-10;
     border-radius: $border-radius;
     padding: $pad-medium;
     overflow-x: auto;

@@ -5,7 +5,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/activity/api"
+	"github.com/anilyagiz/automdm/v4/server/activity/api"
 )
 
 // activityWebhookContextKeyType is the context key type used to indicate that the activity webhook
@@ -19,7 +19,7 @@ var ActivityWebhookContextKey = activityWebhookContextKeyType{}
 // ActivityAutomationAuthor is the name used for the actor when an activity
 // is recorded as a result of an automated action (cron job, webhook, etc.)
 // or policy automation (i.e. triggered by a failing policy).
-const ActivityAutomationAuthor = "Fleet"
+const ActivityAutomationAuthor = "AutoMDM"
 
 // AutomatableActivity indicates the activity was initiated by automation.
 type AutomatableActivity interface {

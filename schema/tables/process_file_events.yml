@@ -1,6 +1,6 @@
 name: process_file_events
 description: A File Integrity Monitor implementation using the audit service.
-notes: This table will only include events for changes and files in directories that existed before the fleetd agent starts.
+notes: This table will only include events for changes and files in directories that existed before the automdmd agent starts.
 columns:
   - name: operation
     description: Operation type

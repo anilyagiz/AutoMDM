@@ -26,13 +26,13 @@ describe("EnrollmentAttemptDetailsModal", () => {
     expect(
       screen.getByText(/one-time enroll secret was already used\. Resend the/i)
     ).toBeInTheDocument();
-    expect(screen.getByText("Fleetd configuration")).toBeInTheDocument();
+    expect(screen.getByText("AutoMDMd configuration")).toBeInTheDocument();
     expect(screen.getByText("Host details > Controls")).toBeInTheDocument();
   });
 
   it.each([
-    { platform: "darwin", profile: "Fleetd configuration" },
-    { platform: "windows", profile: "Fleetd enroll secret" },
+    { platform: "darwin", profile: "AutoMDMd configuration" },
+    { platform: "windows", profile: "AutoMDMd enroll secret" },
   ])(
     "names the $profile profile for a spent secret on $platform",
     ({ platform, profile }) => {
@@ -43,9 +43,9 @@ describe("EnrollmentAttemptDetailsModal", () => {
       });
       expect(screen.getByText(profile)).toBeInTheDocument();
       const otherProfile =
-        profile === "Fleetd configuration"
-          ? "Fleetd enroll secret"
-          : "Fleetd configuration";
+        profile === "AutoMDMd configuration"
+          ? "AutoMDMd enroll secret"
+          : "AutoMDMd configuration";
       expect(screen.queryByText(otherProfile)).not.toBeInTheDocument();
     }
   );
@@ -63,8 +63,8 @@ describe("EnrollmentAttemptDetailsModal", () => {
     expect(screen.getByText("Anna's MacBook Pro's")).toBeInTheDocument();
     expect(screen.getByText(/reach out to/i)).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: /fleet support/i })
-    ).toHaveAttribute("href", "https://fleetdm.com/support");
+      screen.getByRole("link", { name: /automdm support/i })
+    ).toHaveAttribute("href", "https://automdm.com/support");
     expect(
       screen.queryByText(/not valid for this host/i)
     ).not.toBeInTheDocument();
@@ -91,14 +91,14 @@ describe("EnrollmentAttemptDetailsModal", () => {
       reason: "end_user_authentication_required",
     });
     expect(
-      screen.getByText(/Fleet rejected an automatic enrollment for/i)
+      screen.getByText(/AutoMDM rejected an automatic enrollment for/i)
     ).toBeInTheDocument();
     expect(
       screen.getByText(/requires IdP authentication, but the host tried/i)
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /learn more/i })).toHaveAttribute(
       "href",
-      "https://fleetdm.com/learn-more-about/rejected-automatic-enrollment"
+      "https://automdm.com/learn-more-about/rejected-automatic-enrollment"
     );
   });
 
@@ -108,7 +108,7 @@ describe("EnrollmentAttemptDetailsModal", () => {
       reason: "uuid_of_another_mdm_host",
     });
     expect(
-      screen.getByText(/Fleet rejected an enrollment for/i)
+      screen.getByText(/AutoMDM rejected an enrollment for/i)
     ).toBeInTheDocument();
     expect(
       screen.getByText(/presented this host's hardware UUID/i)
@@ -136,7 +136,7 @@ describe("EnrollmentAttemptDetailsModal", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("C02ABC")).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: /fleet support/i })
+      screen.getByRole("link", { name: /automdm support/i })
     ).toBeInTheDocument();
   });
 

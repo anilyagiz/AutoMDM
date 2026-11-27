@@ -6,13 +6,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/authz"
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/service/schedule"
-	"github.com/fleetdm/fleet/v4/server/service/schedule/scheduletest"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/service/schedule"
+	"github.com/anilyagiz/automdm/v4/server/service/schedule/scheduletest"
 	"github.com/stretchr/testify/require"
 )
 
@@ -20,8 +20,8 @@ func TestTriggerCronScheduleAuth(t *testing.T) {
 	ds := new(mock.Store)
 
 	svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{StartCronSchedules: []TestNewScheduleFunc{
-		func(ctx context.Context, ds fleet.Datastore) fleet.NewCronScheduleFunc {
-			return func() (fleet.CronSchedule, error) {
+		func(ctx context.Context, ds automdm.Datastore) automdm.NewCronScheduleFunc {
+			return func() (automdm.CronSchedule, error) {
 				s := schedule.New(
 					ctx, "test_sched", "id", 1*time.Second, scheduletest.NopLocker{}, scheduletest.NopStatsStore{},
 					schedule.WithJob("test_job", func(ctx context.Context) error {
@@ -35,42 +35,42 @@ func TestTriggerCronScheduleAuth(t *testing.T) {
 
 	testCases := []struct {
 		name       string
-		user       *fleet.User
+		user       *automdm.User
 		shouldFail bool
 	}{
 		{
 			"global admin",
-			&fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)},
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)},
 			false,
 		},
 		{
 			"global maintainer",
-			&fleet.User{GlobalRole: ptr.String(fleet.RoleMaintainer)},
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleMaintainer)},
 			true,
 		},
 		{
 			"global observer",
-			&fleet.User{GlobalRole: ptr.String(fleet.RoleObserver)},
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleObserver)},
 			true,
 		},
 		{
 			"team admin",
-			&fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleAdmin}}},
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleAdmin}}},
 			true,
 		},
 		{
 			"team maintainer",
-			&fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleMaintainer}}},
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleMaintainer}}},
 			true,
 		},
 		{
 			"team observer",
-			&fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleObserver}}},
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserver}}},
 			true,
 		},
 		{
 			"user",
-			&fleet.User{ID: 777},
+			&automdm.User{ID: 777},
 			true,
 		},
 	}
@@ -92,21 +92,21 @@ func TestTriggerCronScheduleAuth(t *testing.T) {
 func TestCronSchedulesService(t *testing.T) {
 	ds := new(mock.Store)
 	locker := scheduletest.SetupMockLocker("test_sched", "id", time.Now().Add(-1*time.Hour))
-	statsStore := scheduletest.SetUpMockStatsStore("test_sched", fleet.CronStats{
+	statsStore := scheduletest.SetUpMockStatsStore("test_sched", automdm.CronStats{
 		ID:        1,
-		StatsType: fleet.CronStatsTypeScheduled,
+		StatsType: automdm.CronStatsTypeScheduled,
 		Name:      "test_sched",
 		Instance:  "id",
 		CreatedAt: time.Now().Add(-1 * time.Hour),
 		UpdatedAt: time.Now().Add(-1 * time.Hour),
-		Status:    fleet.CronStatsStatusCompleted,
+		Status:    automdm.CronStatsStatusCompleted,
 	})
 	jobsDone := uint32(0)
 	startCh := make(chan struct{}, 1)
 
 	svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{StartCronSchedules: []TestNewScheduleFunc{
-		func(ctx context.Context, ds fleet.Datastore) fleet.NewCronScheduleFunc {
-			return func() (fleet.CronSchedule, error) {
+		func(ctx context.Context, ds automdm.Datastore) automdm.NewCronScheduleFunc {
+			return func() (automdm.CronSchedule, error) {
 				s := schedule.New(
 					ctx, "test_sched", "id", 3*time.Second, locker, statsStore,
 					schedule.WithJob("test_jobb", func(ctx context.Context) error {
@@ -124,7 +124,7 @@ func TestCronSchedulesService(t *testing.T) {
 	ticker := time.NewTicker(3 * time.Second)
 	defer ticker.Stop()
 
-	ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}})
+	ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}})
 
 	time.Sleep(10 * time.Millisecond)
 	require.NoError(t, svc.TriggerCronSchedule(ctx, "test_sched")) // first trigger sent ok and will run successfully

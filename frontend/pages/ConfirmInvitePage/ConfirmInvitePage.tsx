@@ -107,7 +107,7 @@ const ConfirmInvitePage = ({ router, params }: IConfirmInvitePageProps) => {
 
   return (
     <AuthenticationFormWrapper
-      header={validateInviteError ? "Invalid invite token" : "Welcome to Fleet"}
+      header={validateInviteError ? "Invalid invite token" : "Welcome to AutoMDM"}
       className={baseClass}
     >
       {renderContent()}

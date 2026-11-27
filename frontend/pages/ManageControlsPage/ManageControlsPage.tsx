@@ -2,7 +2,7 @@ import React, { useCallback, useContext, useEffect, useMemo } from "react";
 import { InjectedRouter } from "react-router";
 import { Tab, Tabs, TabList } from "react-tabs";
 
-import FleetsDropdown from "components/FleetsDropdown";
+import AutoMDMsDropdown from "components/AutoMDMsDropdown";
 import MainContent from "components/MainContent";
 import TabNav from "components/TabNav";
 import TabText from "components/TabText";
@@ -56,7 +56,7 @@ interface IManageControlsPageProps {
     search: string;
     hash?: string;
     query: {
-      fleet_id?: string;
+      team_id?: string;
       page?: string;
       order_key?: string;
       order_direction?: "asc" | "desc";
@@ -217,11 +217,11 @@ const ManageControlsPage = ({
     if (isPremiumTier && !config?.partnerships?.enable_primo && userTeams) {
       if (userTeams.length > 1 || isOnGlobalTeam) {
         return (
-          <FleetsDropdown
-            currentUserFleets={userTeams}
-            selectedFleetId={currentTeamId}
+          <AutoMDMsDropdown
+            currentUserTeams={userTeams}
+            selectedAutoMDMId={currentTeamId}
             onChange={handleTeamChange}
-            includeAllFleets={false}
+            includeAllAutoMDMs={false}
             includeUnassigned
           />
         );

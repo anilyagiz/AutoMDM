@@ -7,10 +7,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
-var _ fleet.AdvancedKeyValueStore = (*AdvancedKeyValueStore)(nil)
+var _ automdm.AdvancedKeyValueStore = (*AdvancedKeyValueStore)(nil)
 
 type SetFunc func(ctx context.Context, key string, value string, expireTime time.Duration) error
 

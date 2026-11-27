@@ -51,7 +51,7 @@ const CommandItem = ({
   const { request_type, updated_at, name, status } = command;
 
   const statusText = getStatusText(command);
-  const willRetryText = status === "NotNow" ? " Fleet will try again." : "";
+  const willRetryText = status === "NotNow" ? " AutoMDM will try again." : "";
 
   const onShowCommandDetails = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
@@ -79,7 +79,7 @@ const CommandItem = ({
   return (
     <FeedListItem
       className={baseClass}
-      useFleetAvatar
+      useAutoMDMAvatar
       allowShowDetails
       allowCancel={!!onCancel}
       isSoloItem={isSoloItem}

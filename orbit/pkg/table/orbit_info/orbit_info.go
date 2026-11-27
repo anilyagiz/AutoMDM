@@ -5,10 +5,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/client"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/build"
-	orbit_table "github.com/fleetdm/fleet/v4/orbit/pkg/table"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/token"
+	"github.com/anilyagiz/automdm/v4/client"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/build"
+	orbit_table "github.com/anilyagiz/automdm/v4/orbit/pkg/table"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/token"
 	"github.com/osquery/osquery-go/plugin/table"
 )
 

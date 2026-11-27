@@ -3,7 +3,7 @@ package service
 import (
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet/policytest"
+	"github.com/anilyagiz/automdm/v4/server/automdm/policytest"
 )
 
 func TestMemFailingPolicySet(t *testing.T) {

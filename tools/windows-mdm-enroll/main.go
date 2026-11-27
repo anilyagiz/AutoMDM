@@ -4,7 +4,7 @@ import (
 	"flag"
 	"fmt"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/update"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/update"
 )
 
 func main() {

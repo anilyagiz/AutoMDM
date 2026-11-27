@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// RenewalExtensionOID is the custom OID for the renewal extension. 63991 is Fleet's IANA private enterprise number
+// RenewalExtensionOID is the custom OID for the renewal extension. 63991 is AutoMDM's IANA private enterprise number
 // 1.3.6.1.4.1.63991.1.1
 var RenewalExtensionOID = asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 63991, 1, 1}
 
@@ -21,12 +21,12 @@ type RenewalData struct {
 }
 
 // RenewalKeyBindingCapability is advertised in GetCACaps by servers that verify RenewalChallenge proofs.
-const RenewalKeyBindingCapability = "Fleet-Renewal-Key-Binding"
+const RenewalKeyBindingCapability = "AutoMDM-Renewal-Key-Binding"
 
 // RenewalChallenge returns the message the old certificate's key signs (SHA-256) to renew. It covers the new CSR's public
 // key (PKIX SubjectPublicKeyInfo DER), so a captured proof can't certify a different key.
 func RenewalChallenge(serialNumber string, newPublicKeyDER []byte) []byte {
-	msg := []byte("fleet-host-identity-renewal-v1|" + serialNumber + "|")
+	msg := []byte("automdm-host-identity-renewal-v1|" + serialNumber + "|")
 	return append(msg, newPublicKeyDER...)
 }
 

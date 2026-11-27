@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/stretchr/testify/require"
 )
 
@@ -38,7 +38,7 @@ func TestRunner(t *testing.T) {
 		},
 		{
 			desc:      "one exec id, success",
-			client:    &mockClient{scripts: map[string]*fleet.HostScriptResult{"a": {}}},
+			client:    &mockClient{scripts: map[string]*automdm.HostScriptResult{"a": {}}},
 			execer:    &mockExecCmd{},
 			enabled:   true,
 			execIDs:   []string{"a"},
@@ -46,7 +46,7 @@ func TestRunner(t *testing.T) {
 		},
 		{
 			desc:      "one exec id disabled, success",
-			client:    &mockClient{scripts: map[string]*fleet.HostScriptResult{"a": {}}},
+			client:    &mockClient{scripts: map[string]*automdm.HostScriptResult{"a": {}}},
 			execer:    &mockExecCmd{},
 			enabled:   false,
 			execIDs:   []string{"a"},
@@ -54,7 +54,7 @@ func TestRunner(t *testing.T) {
 		},
 		{
 			desc:        "one ok, one unknown",
-			client:      &mockClient{scripts: map[string]*fleet.HostScriptResult{"a": {}}},
+			client:      &mockClient{scripts: map[string]*automdm.HostScriptResult{"a": {}}},
 			execer:      &mockExecCmd{},
 			enabled:     true,
 			execIDs:     []string{"a", "b"},
@@ -63,7 +63,7 @@ func TestRunner(t *testing.T) {
 		},
 		{
 			desc:        "one ok, one unknown, disabled",
-			client:      &mockClient{scripts: map[string]*fleet.HostScriptResult{"a": {}}},
+			client:      &mockClient{scripts: map[string]*automdm.HostScriptResult{"a": {}}},
 			execer:      &mockExecCmd{},
 			enabled:     false,
 			execIDs:     []string{"a", "b"},
@@ -72,7 +72,7 @@ func TestRunner(t *testing.T) {
 		},
 		{
 			desc:      "multiple, success",
-			client:    &mockClient{scripts: map[string]*fleet.HostScriptResult{"a": {}, "b": {}, "c": {}}},
+			client:    &mockClient{scripts: map[string]*automdm.HostScriptResult{"a": {}, "b": {}, "c": {}}},
 			execer:    &mockExecCmd{},
 			enabled:   true,
 			execIDs:   []string{"a", "b", "c"},
@@ -80,7 +80,7 @@ func TestRunner(t *testing.T) {
 		},
 		{
 			desc:      "multiple, disabled, success",
-			client:    &mockClient{scripts: map[string]*fleet.HostScriptResult{"a": {}, "b": {}, "c": {}}},
+			client:    &mockClient{scripts: map[string]*automdm.HostScriptResult{"a": {}, "b": {}, "c": {}}},
 			execer:    &mockExecCmd{},
 			enabled:   false,
 			execIDs:   []string{"a", "b", "c"},
@@ -88,7 +88,7 @@ func TestRunner(t *testing.T) {
 		},
 		{
 			desc:        "failed to get script",
-			client:      &mockClient{getErr: io.ErrUnexpectedEOF, scripts: map[string]*fleet.HostScriptResult{"a": {}}},
+			client:      &mockClient{getErr: io.ErrUnexpectedEOF, scripts: map[string]*automdm.HostScriptResult{"a": {}}},
 			execer:      &mockExecCmd{},
 			enabled:     true,
 			execIDs:     []string{"a"},
@@ -97,7 +97,7 @@ func TestRunner(t *testing.T) {
 		},
 		{
 			desc:        "failed to save script",
-			client:      &mockClient{saveErr: io.ErrUnexpectedEOF, scripts: map[string]*fleet.HostScriptResult{"a": {}}},
+			client:      &mockClient{saveErr: io.ErrUnexpectedEOF, scripts: map[string]*automdm.HostScriptResult{"a": {}}},
 			execer:      &mockExecCmd{},
 			enabled:     true,
 			execIDs:     []string{"a"},
@@ -106,7 +106,7 @@ func TestRunner(t *testing.T) {
 		},
 		{
 			desc:        "run returns error",
-			client:      &mockClient{scripts: map[string]*fleet.HostScriptResult{"a": {}}},
+			client:      &mockClient{scripts: map[string]*automdm.HostScriptResult{"a": {}}},
 			execer:      &mockExecCmd{err: io.ErrUnexpectedEOF},
 			enabled:     true,
 			execIDs:     []string{"a"},
@@ -115,7 +115,7 @@ func TestRunner(t *testing.T) {
 		},
 		{
 			desc:        "failed to save script, disabled",
-			client:      &mockClient{saveErr: io.ErrUnexpectedEOF, scripts: map[string]*fleet.HostScriptResult{"a": {}}},
+			client:      &mockClient{saveErr: io.ErrUnexpectedEOF, scripts: map[string]*automdm.HostScriptResult{"a": {}}},
 			execer:      &mockExecCmd{},
 			enabled:     false,
 			execIDs:     []string{"a"},
@@ -124,7 +124,7 @@ func TestRunner(t *testing.T) {
 		},
 		{
 			desc:        "script with existing results",
-			client:      &mockClient{scripts: map[string]*fleet.HostScriptResult{"a": {ExitCode: ptr.Int64(0)}}},
+			client:      &mockClient{scripts: map[string]*automdm.HostScriptResult{"a": {ExitCode: ptr.Int64(0)}}},
 			execer:      &mockExecCmd{},
 			enabled:     true,
 			execIDs:     []string{"a"},
@@ -133,7 +133,7 @@ func TestRunner(t *testing.T) {
 		},
 		{
 			desc:        "first script get error",
-			client:      &mockClient{getErr: errFailOnce, scripts: map[string]*fleet.HostScriptResult{"a": {ExitCode: ptr.Int64(0)}}},
+			client:      &mockClient{getErr: errFailOnce, scripts: map[string]*automdm.HostScriptResult{"a": {ExitCode: ptr.Int64(0)}}},
 			execer:      &mockExecCmd{},
 			enabled:     true,
 			execIDs:     []string{"a", "b"},
@@ -142,7 +142,7 @@ func TestRunner(t *testing.T) {
 		},
 		{
 			desc:        "middle script get error",
-			client:      &mockClient{scripts: map[string]*fleet.HostScriptResult{"a": {ExitCode: ptr.Int64(0)}, "b": {}, "c": {}}, erroredScripts: map[string]error{"b": errFailOnce}},
+			client:      &mockClient{scripts: map[string]*automdm.HostScriptResult{"a": {ExitCode: ptr.Int64(0)}, "b": {}, "c": {}}, erroredScripts: map[string]error{"b": errFailOnce}},
 			execer:      &mockExecCmd{},
 			enabled:     true,
 			execIDs:     []string{"a", "b", "c"},
@@ -173,7 +173,7 @@ func TestRunnerTempDir(t *testing.T) {
 	t.Run("deletes temp dir", func(t *testing.T) {
 		tempDir := t.TempDir()
 
-		client := &mockClient{scripts: map[string]*fleet.HostScriptResult{"a": {ScriptContents: "echo 'Hi'", ExecutionID: "a"}}}
+		client := &mockClient{scripts: map[string]*automdm.HostScriptResult{"a": {ScriptContents: "echo 'Hi'", ExecutionID: "a"}}}
 		execer := &mockExecCmd{output: []byte("output"), exitCode: 0, err: nil}
 		runner := &Runner{
 			Client:                 client,
@@ -198,7 +198,7 @@ func TestRunnerTempDir(t *testing.T) {
 
 		// client will fail saving the results, this is the error that should be
 		// returned (i.e. the remove dir error should not override it).
-		client := &mockClient{saveErr: io.ErrUnexpectedEOF, scripts: map[string]*fleet.HostScriptResult{"a": {ScriptContents: "echo 'Hi'"}}}
+		client := &mockClient{saveErr: io.ErrUnexpectedEOF, scripts: map[string]*automdm.HostScriptResult{"a": {ScriptContents: "echo 'Hi'"}}}
 		execer := &mockExecCmd{output: []byte("output"), exitCode: 0, err: nil}
 
 		runner := &Runner{
@@ -217,7 +217,7 @@ func TestRunnerTempDir(t *testing.T) {
 	t.Run("remove fails, returns this error if the rest succeeded", func(t *testing.T) {
 		tempDir := t.TempDir()
 
-		client := &mockClient{scripts: map[string]*fleet.HostScriptResult{"a": {ScriptContents: "echo 'Hi'"}}}
+		client := &mockClient{scripts: map[string]*automdm.HostScriptResult{"a": {ScriptContents: "echo 'Hi'"}}}
 		execer := &mockExecCmd{output: []byte("output"), exitCode: 0, err: nil}
 
 		runner := &Runner{
@@ -235,9 +235,9 @@ func TestRunnerTempDir(t *testing.T) {
 
 	t.Run("keeps temp dir", func(t *testing.T) {
 		tempDir := t.TempDir()
-		t.Setenv("FLEET_PREVENT_SCRIPT_TEMPDIR_DELETION", "1")
+		t.Setenv("AUTOMDM_PREVENT_SCRIPT_TEMPDIR_DELETION", "1")
 
-		client := &mockClient{scripts: map[string]*fleet.HostScriptResult{"a": {ScriptContents: "echo 'Hi'", ExecutionID: "a"}}}
+		client := &mockClient{scripts: map[string]*automdm.HostScriptResult{"a": {ScriptContents: "echo 'Hi'", ExecutionID: "a"}}}
 		execer := &mockExecCmd{output: []byte("output"), exitCode: 0, err: nil}
 		runner := &Runner{
 			Client:                 client,
@@ -257,7 +257,7 @@ func TestRunnerTempDir(t *testing.T) {
 
 		// the entry is the script's execution directory
 		require.True(t, entries[0].IsDir())
-		require.Contains(t, entries[0].Name(), "fleet-a-")
+		require.Contains(t, entries[0].Name(), "automdm-a-")
 
 		runDir := filepath.Join(tempDir, entries[0].Name())
 		runEntries, err := os.ReadDir(runDir)
@@ -324,7 +324,7 @@ func TestRunnerResults(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.desc, func(t *testing.T) {
-			client := &mockClient{scripts: map[string]*fleet.HostScriptResult{"a": {ScriptContents: "echo 'Hi'", ExecutionID: "a"}}}
+			client := &mockClient{scripts: map[string]*automdm.HostScriptResult{"a": {ScriptContents: "echo 'Hi'", ExecutionID: "a"}}}
 			execer := &mockExecCmd{output: []byte(c.output), exitCode: c.exitCode, err: c.runErr}
 			runner := &Runner{
 				Client:                 client,
@@ -360,14 +360,14 @@ func (m *mockExecCmd) run(ctx context.Context, scriptPath string, env []string) 
 var errFailOnce = errors.New("fail once")
 
 type mockClient struct {
-	scripts        map[string]*fleet.HostScriptResult
-	results        map[string]*fleet.HostScriptResultPayload
+	scripts        map[string]*automdm.HostScriptResult
+	results        map[string]*automdm.HostScriptResultPayload
 	getErr         error
 	saveErr        error
 	erroredScripts map[string]error
 }
 
-func (m *mockClient) GetHostScript(execID string) (*fleet.HostScriptResult, error) {
+func (m *mockClient) GetHostScript(execID string) (*automdm.HostScriptResult, error) {
 	if m.getErr != nil {
 		err := m.getErr
 		if err == errFailOnce {
@@ -392,9 +392,9 @@ func (m *mockClient) GetHostScript(execID string) (*fleet.HostScriptResult, erro
 	return script, nil
 }
 
-func (m *mockClient) SaveHostScriptResult(result *fleet.HostScriptResultPayload) error {
+func (m *mockClient) SaveHostScriptResult(result *automdm.HostScriptResultPayload) error {
 	if m.results == nil {
-		m.results = make(map[string]*fleet.HostScriptResultPayload)
+		m.results = make(map[string]*automdm.HostScriptResultPayload)
 	}
 	m.results[result.ExecutionID] = result
 

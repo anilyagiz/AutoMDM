@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/guregu/null.v3"
@@ -37,18 +37,18 @@ func TestInvites(t *testing.T) {
 
 func testInvitesCreate(t *testing.T, ds *Datastore) {
 	for i := 0; i < 3; i++ {
-		_, err := ds.NewTeam(context.Background(), &fleet.Team{Name: fmt.Sprintf("%d", i)})
+		_, err := ds.NewTeam(context.Background(), &automdm.Team{Name: fmt.Sprintf("%d", i)})
 		require.NoError(t, err)
 	}
 
-	invite := &fleet.Invite{
+	invite := &automdm.Invite{
 		Email:      "user@foo.com",
 		Name:       "user",
 		Token:      "some_user",
 		MFAEnabled: true,
-		Teams: []fleet.UserTeam{
-			{Role: fleet.RoleObserver, Team: fleet.Team{ID: 1}},
-			{Role: fleet.RoleMaintainer, Team: fleet.Team{ID: 3}},
+		Teams: []automdm.UserTeam{
+			{Role: automdm.RoleObserver, Team: automdm.Team{ID: 1}},
+			{Role: automdm.RoleMaintainer, Team: automdm.Team{ID: 3}},
 		},
 	}
 
@@ -62,19 +62,19 @@ func testInvitesCreate(t *testing.T, ds *Datastore) {
 	assert.True(t, invite.MFAEnabled)
 	assert.Len(t, invite.Teams, 2)
 
-	_, err = ds.NewInvite(context.Background(), &fleet.Invite{
+	_, err = ds.NewInvite(context.Background(), &automdm.Invite{
 		Email: "anotheruser@foo.com",
 		Name:  "anotheruser",
 		Token: "anothersome_user",
-		Teams: []fleet.UserTeam{
-			{Role: fleet.RoleAdmin, Team: fleet.Team{ID: 3}},
+		Teams: []automdm.UserTeam{
+			{Role: automdm.RoleAdmin, Team: automdm.Team{ID: 3}},
 		},
 	})
 	require.NoError(t, err)
 }
 
-func setupTestInvites(t *testing.T, ds fleet.Datastore) {
-	admin := &fleet.Invite{
+func setupTestInvites(t *testing.T, ds automdm.Datastore) {
+	admin := &automdm.Invite{
 		Email:      "admin@foo.com",
 		Name:       "Xadmin",
 		Token:      "admin",
@@ -85,7 +85,7 @@ func setupTestInvites(t *testing.T, ds fleet.Datastore) {
 	require.NoError(t, err)
 
 	for user := 0; user < 23; user++ {
-		i := fleet.Invite{
+		i := automdm.Invite{
 			InvitedBy:  admin.ID,
 			Email:      fmt.Sprintf("user%d@foo.com", user),
 			Name:       fmt.Sprintf("User%02d", user),
@@ -101,10 +101,10 @@ func setupTestInvites(t *testing.T, ds fleet.Datastore) {
 func testInvitesList(t *testing.T, ds *Datastore) {
 	setupTestInvites(t, ds)
 
-	opt := fleet.ListOptions{
+	opt := automdm.ListOptions{
 		Page:           0,
 		PerPage:        10,
-		OrderDirection: fleet.OrderAscending,
+		OrderDirection: automdm.OrderAscending,
 		OrderKey:       "name",
 	}
 
@@ -117,7 +117,7 @@ func testInvitesList(t *testing.T, ds *Datastore) {
 	assert.Equal(t, null.StringFrom("observer"), result[9].GlobalRole)
 
 	opt.Page = 2
-	opt.OrderDirection = fleet.OrderDescending
+	opt.OrderDirection = automdm.OrderDescending
 	result, err = ds.ListInvites(context.Background(), opt)
 	assert.Nil(t, err)
 	assert.Equal(t, 4, len(result)) // allow for admin we created
@@ -201,7 +201,7 @@ func testInvitesByEmail(t *testing.T, ds *Datastore) {
 }
 
 func testInvitesInvite(t *testing.T, ds *Datastore) {
-	admin := &fleet.Invite{
+	admin := &automdm.Invite{
 		Email:      "admin@foo.com",
 		Name:       "Xadmin",
 		Token:      "admin",
@@ -218,26 +218,26 @@ func testInvitesInvite(t *testing.T, ds *Datastore) {
 
 func testInvitesUpdate(t *testing.T, ds *Datastore) {
 	for i := 0; i < 3; i++ {
-		_, err := ds.NewTeam(context.Background(), &fleet.Team{Name: fmt.Sprintf("%d", i)})
+		_, err := ds.NewTeam(context.Background(), &automdm.Team{Name: fmt.Sprintf("%d", i)})
 		require.NoError(t, err)
 	}
 
-	invite := &fleet.Invite{
+	invite := &automdm.Invite{
 		Email: "user@foo.com",
 		Name:  "user",
 		Token: "some_user",
-		Teams: []fleet.UserTeam{
-			{Role: fleet.RoleObserver, Team: fleet.Team{ID: 1}},
-			{Role: fleet.RoleMaintainer, Team: fleet.Team{ID: 3}},
+		Teams: []automdm.UserTeam{
+			{Role: automdm.RoleObserver, Team: automdm.Team{ID: 1}},
+			{Role: automdm.RoleMaintainer, Team: automdm.Team{ID: 3}},
 		},
 	}
 
-	sentinelInvite := &fleet.Invite{
+	sentinelInvite := &automdm.Invite{
 		Email: "user@sentinel.com",
 		Name:  "sentinel",
 		Token: "some_sentinel",
-		Teams: []fleet.UserTeam{
-			{Role: fleet.RoleAdmin, Team: fleet.Team{ID: 1}},
+		Teams: []automdm.UserTeam{
+			{Role: automdm.RoleAdmin, Team: automdm.Team{ID: 1}},
 		},
 	}
 
@@ -258,9 +258,9 @@ func testInvitesUpdate(t *testing.T, ds *Datastore) {
 	assert.Equal(t, verify.Name, "someothername")
 	assert.Equal(t, verify.MFAEnabled, true)
 
-	invite.Teams = []fleet.UserTeam{
-		{Role: fleet.RoleObserver, Team: fleet.Team{ID: 1}},
-		{Role: fleet.RoleMaintainer, Team: fleet.Team{ID: 2}},
+	invite.Teams = []automdm.UserTeam{
+		{Role: automdm.RoleObserver, Team: automdm.Team{ID: 1}},
+		{Role: automdm.RoleMaintainer, Team: automdm.Team{ID: 2}},
 	}
 	invite.MFAEnabled = false
 
@@ -275,7 +275,7 @@ func testInvitesUpdate(t *testing.T, ds *Datastore) {
 	assert.Equal(t, uint(2), verify.Teams[1].ID)
 	assert.False(t, verify.MFAEnabled)
 
-	invite.GlobalRole = null.StringFrom(fleet.RoleAdmin)
+	invite.GlobalRole = null.StringFrom(automdm.RoleAdmin)
 	invite.Teams = nil
 
 	invite, err = ds.UpdateInvite(context.Background(), invite.ID, invite)
@@ -284,7 +284,7 @@ func testInvitesUpdate(t *testing.T, ds *Datastore) {
 	verify, err = ds.InviteByEmail(context.Background(), invite.Email)
 	require.NoError(t, err)
 	assert.Equal(t, invite.ID, verify.ID)
-	assert.Equal(t, null.StringFrom(fleet.RoleAdmin), verify.GlobalRole)
+	assert.Equal(t, null.StringFrom(automdm.RoleAdmin), verify.GlobalRole)
 	assert.Len(t, verify.Teams, 0)
 
 	// Make sure it only updates the specified invite
@@ -293,5 +293,5 @@ func testInvitesUpdate(t *testing.T, ds *Datastore) {
 	assert.Equal(t, verify.ID, sentinelInvite.ID)
 	assert.Equal(t, verify.Name, sentinelInvite.Name)
 	require.Len(t, verify.Teams, 1)
-	assert.Equal(t, fleet.RoleAdmin, verify.Teams[0].Role)
+	assert.Equal(t, automdm.RoleAdmin, verify.Teams[0].Role)
 }

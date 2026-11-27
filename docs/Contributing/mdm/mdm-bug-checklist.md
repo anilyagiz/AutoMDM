@@ -6,11 +6,11 @@ This checklist provides a list of questions contributors will commonly ask when 
    1. Windows: Name, edition and version, e.g. Windows 11 Professional 25H2. Build number like 10.0.26200.7462 is appreciated if possible  
    2. Apple hosts: Version number including minor version e.g. macOS 26.2  
    3. Android: Major version e.g. Android 16  
-2. Fleetd version  
-   1. Is fleet desktop enabled?  
+2. AutoMDMd version  
+   1. Is automdm desktop enabled?  
    2. Any customizations to installer package?  
 3. Serial numbers or other identifiers(e.g. UUID, host ID) of affected hosts
-   * This should be communicated via a separate, private channel, like Slack or a `fleetdm/confidential` issue and referenced but **never shared in the public `fleetdm/fleet` repository**
+   * This should be communicated via a separate, private channel, like Slack or a `fleetdm/confidential` issue and referenced but **never shared in the public `automdm/automdm` repository**
 4. Hardware level/platform of affected hosts  
    1. E.g. iPad 10th generation, M4 Macbook Pro  
    2. For Windows and Android, Manufacturer and Model is preferred  
@@ -31,8 +31,8 @@ This checklist provides a list of questions contributors will commonly ask when 
 6. Were hosts ever managed by another MDM solution? If yes:  
    1. How were the hosts migrated:  
       1. ABM-based MDM migration (Apple)
-      2. Fleet end-user migration flow?(macOS only)  
-      3. Fleet automated migration flow?(Windows)  
+      2. AutoMDM end-user migration flow?(macOS only)  
+      3. AutoMDM automated migration flow?(Windows)  
       4. Manual migration
       5. Something else
    2. Is the management software from that solution installed?  
@@ -40,18 +40,18 @@ This checklist provides a list of questions contributors will commonly ask when 
 7. Is any sort of application level allowlisting or denylisting installed?(e.g. Santa, Jamf Pro, etc). If yes:  
    1. Are any applications shipped by the OS vendor blocked, modified or restricted?
      1. Examples: Safari, Edge, Powershell
-   2. Are any fleet components blocked, disabled or customized?
-     1. Examples: Self-hosted TUF repo or custom fleetd build, custom osquery build or custom osquery extensions
+   2. Are any team components blocked, disabled or customized?
+     1. Examples: Self-hosted TUF repo or custom automdmd build, custom osquery build or custom osquery extensions
 8. Is there any other configuration management software installed on the host? Are there any MDM profiles that could conflict?  
 9. Do hosts require going through any sort of proxy, VPN or other connectivity to access internet resources?  
-   1. Are fleet’s server URLs and update URLs allowlisted?  
+   1. Are team’s server URLs and update URLs allowlisted?  
    2. Are Apple’s cloud services(including APNS, ABM) allowlisted?  
-10. Is the issue isolated to a single host, a single class of hosts(e.g. Specific fleet, version, or specific region), or all hosts? Does the issue persist after a reboot?  
+10. Is the issue isolated to a single host, a single class of hosts(e.g. Specific team, version, or specific region), or all hosts? Does the issue persist after a reboot?  
    1. If possible: Does the issue persist after a wipe?  
-11. Are any detail queries disabled for the fleet in Fleet?  
+11. Are any detail queries disabled for the team in AutoMDM?  
 12. If the issue is enrollment related:  
-    1. Is IdP authentication enabled on the fleet?  
-    2. Do hosts have fleetd installed before MDM enrollment?  
+    1. Is IdP authentication enabled on the team?  
+    2. Do hosts have automdmd installed before MDM enrollment?  
 13. For Apple related issues:  
     1. Is the APNS certificate valid? Has the APNS certificate been renewed recently?  
     2. Are ABM credentials valid? Have they been renewed lately?

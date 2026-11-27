@@ -14,10 +14,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/constant"
-	"github.com/fleetdm/fleet/v4/pkg/certificate"
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/pkg/secure"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/constant"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/pkg/certificate"
+	"github.com/anilyagiz/automdm/v4/pkg/secure"
 	"github.com/remitly-oss/httpsig-go"
 )
 
@@ -156,7 +156,7 @@ func newProxyHandler(targetURL string, rootCA string, insecure bool, signer *htt
 		return nil, fmt.Errorf("parse target url: %w", err)
 	}
 
-	transport := fleethttp.NewTransport()
+	transport := automdmhttp.NewTransport()
 	switch {
 	case insecure:
 		transport.TLSClientConfig.InsecureSkipVerify = true

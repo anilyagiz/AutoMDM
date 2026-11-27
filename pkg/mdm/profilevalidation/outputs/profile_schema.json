@@ -265,7 +265,7 @@
     "com.1password.1password": {
       "source": "override",
       "open": true,
-      "override": "Vendor preference domain used by Fleet's profiles."
+      "override": "Vendor preference domain used by AutoMDM's profiles."
     },
     "com.apple.ADCertificate.managed": {
       "platforms": {
@@ -419,12 +419,12 @@
     "com.apple.Accessibility": {
       "source": "override",
       "open": true,
-      "override": "Apple preference domain outside Apple's MDM schema; used by Fleet's profiles."
+      "override": "Apple preference domain outside Apple's MDM schema; used by AutoMDM's profiles."
     },
     "com.apple.AdLib": {
       "source": "override",
       "open": true,
-      "override": "Apple preference domain outside Apple's MDM schema; used by Fleet's profiles."
+      "override": "Apple preference domain outside Apple's MDM schema; used by AutoMDM's profiles."
     },
     "com.apple.AssetCache.managed": {
       "platforms": {
@@ -1449,7 +1449,7 @@
     "com.apple.Safari": {
       "source": "override",
       "open": true,
-      "override": "Apple preference domain outside Apple's MDM schema; used by Fleet's profiles."
+      "override": "Apple preference domain outside Apple's MDM schema; used by AutoMDM's profiles."
     },
     "com.apple.SetupAssistant.managed": {
       "platforms": {
@@ -1782,7 +1782,7 @@
     "com.apple.SubmitDiagInfo": {
       "source": "override",
       "open": true,
-      "override": "Apple preference domain outside Apple's MDM schema; used by Fleet's profiles."
+      "override": "Apple preference domain outside Apple's MDM schema; used by AutoMDM's profiles."
     },
     "com.apple.SystemConfiguration": {
       "platforms": {
@@ -3424,12 +3424,12 @@
     "com.apple.Terminal": {
       "source": "override",
       "open": true,
-      "override": "Apple preference domain outside Apple's MDM schema; used by Fleet's profiles."
+      "override": "Apple preference domain outside Apple's MDM schema; used by AutoMDM's profiles."
     },
     "com.apple.TimeMachine": {
       "source": "override",
       "open": true,
-      "override": "Apple preference domain outside Apple's MDM schema; used by Fleet's profiles."
+      "override": "Apple preference domain outside Apple's MDM schema; used by AutoMDM's profiles."
     },
     "com.apple.airplay": {
       "platforms": {
@@ -8728,7 +8728,7 @@
     "com.apple.assistant.support": {
       "source": "override",
       "open": true,
-      "override": "Apple preference domain outside Apple's MDM schema; used by Fleet's profiles."
+      "override": "Apple preference domain outside Apple's MDM schema; used by AutoMDM's profiles."
     },
     "com.apple.associated-domains": {
       "platforms": {
@@ -9245,7 +9245,7 @@
     "com.apple.controlcenter": {
       "source": "override",
       "open": true,
-      "override": "Apple preference domain outside Apple's MDM schema; used by Fleet's profiles."
+      "override": "Apple preference domain outside Apple's MDM schema; used by AutoMDM's profiles."
     },
     "com.apple.dashboard": {
       "platforms": {
@@ -12475,12 +12475,12 @@
     "com.apple.locationd": {
       "source": "override",
       "open": true,
-      "override": "Apple preference domain outside Apple's MDM schema; used by Fleet's profiles."
+      "override": "Apple preference domain outside Apple's MDM schema; used by AutoMDM's profiles."
     },
     "com.apple.locationmenu": {
       "source": "override",
       "open": true,
-      "override": "Apple preference domain outside Apple's MDM schema; used by Fleet's profiles."
+      "override": "Apple preference domain outside Apple's MDM schema; used by AutoMDM's profiles."
     },
     "com.apple.loginitems.managed": {
       "platforms": {
@@ -12724,7 +12724,7 @@
     "com.apple.mDNSResponder": {
       "source": "override",
       "open": true,
-      "override": "Apple preference domain outside Apple's MDM schema; used by Fleet's profiles."
+      "override": "Apple preference domain outside Apple's MDM schema; used by AutoMDM's profiles."
     },
     "com.apple.mail.managed": {
       "platforms": {
@@ -13954,7 +13954,7 @@
     "com.apple.preferences.sharing.SharingPrefsExtension": {
       "source": "override",
       "open": true,
-      "override": "Apple preference domain outside Apple's MDM schema; used by Fleet's profiles."
+      "override": "Apple preference domain outside Apple's MDM schema; used by AutoMDM's profiles."
     },
     "com.apple.profileRemovalPassword": {
       "platforms": {
@@ -14961,7 +14961,7 @@
               "items": {
                 "type": "string"
               },
-              "override": "Extended key usage OIDs for the SCEP certificate; used in it-and-security's fleet-okta-conditional-access profile."
+              "override": "Extended key usage OIDs for the SCEP certificate; used in it-and-security's automdm-okta-conditional-access profile."
             },
             "Key Type": {
               "type": "string"
@@ -15042,7 +15042,7 @@
                     "string",
                     "array"
                   ],
-                  "override": "Apple's schema says string, but it-and-security's fleet-okta-conditional-access profile sends a list of URIs and is deployed."
+                  "override": "Apple's schema says string, but it-and-security's automdm-okta-conditional-access profile sends a list of URIs and is deployed."
                 }
               }
             },
@@ -16538,7 +16538,7 @@
     "com.apple.universalcontrol": {
       "source": "override",
       "open": true,
-      "override": "Apple preference domain outside Apple's MDM schema; used by Fleet's profiles."
+      "override": "Apple preference domain outside Apple's MDM schema; used by AutoMDM's profiles."
     },
     "com.apple.vpn.managed": {
       "platforms": {
@@ -19710,27 +19710,27 @@
     "com.github.macadmins.Nudge": {
       "source": "override",
       "open": true,
-      "override": "Vendor preference domain used by Fleet's profiles."
+      "override": "Vendor preference domain used by AutoMDM's profiles."
     },
     "com.google.Chrome": {
       "source": "override",
       "open": true,
-      "override": "Vendor preference domain used by Fleet's profiles and written by the AI profile generator."
+      "override": "Vendor preference domain used by AutoMDM's profiles and written by the AI profile generator."
     },
     "com.microsoft.autoupdate2": {
       "source": "override",
       "open": true,
-      "override": "Vendor preference domain used by Fleet's profiles."
+      "override": "Vendor preference domain used by AutoMDM's profiles."
     },
     "com.okta.mobile": {
       "source": "override",
       "open": true,
-      "override": "Vendor preference domain used by Fleet's profiles."
+      "override": "Vendor preference domain used by AutoMDM's profiles."
     },
     "com.okta.mobile.auth-service-extension": {
       "source": "override",
       "open": true,
-      "override": "Vendor preference domain used by Fleet's profiles."
+      "override": "Vendor preference domain used by AutoMDM's profiles."
     },
     "loginwindow": {
       "platforms": {
@@ -25982,7 +25982,7 @@
           "System",
           "User"
         ],
-        "override": "Fleet extension; sets the declaration's channel and is stripped before delivery."
+        "override": "AutoMDM extension; sets the declaration's channel and is stripped before delivery."
       },
       "Type": {
         "type": "string",

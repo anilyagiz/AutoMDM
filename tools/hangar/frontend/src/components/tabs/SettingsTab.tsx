@@ -28,8 +28,8 @@ import { noAutocorrect } from "../../lib/noAutocorrect";
 export type SettingsSection =
   | "servers"
   | "paths"
-  | "fleet-server"
-  | "fleetctl"
+  | "automdm-server"
+  | "automdmctl"
   | "gitops"
   | "ngrok"
   | "python"
@@ -79,11 +79,11 @@ export function SettingsTab({
         {section === "paths" && (
           <PathsSection settings={settings} onChange={onChange} />
         )}
-        {section === "fleet-server" && (
-          <FleetServerSection settings={settings} onChange={onChange} />
+        {section === "automdm-server" && (
+          <AutoMDMServerSection settings={settings} onChange={onChange} />
         )}
-        {section === "fleetctl" && (
-          <FleetctlContextsSection settings={settings} />
+        {section === "automdmctl" && (
+          <AutoMDMctlContextsSection settings={settings} />
         )}
         {section === "gitops" && (
           <GitopsSection settings={settings} onChange={onChange} />
@@ -143,10 +143,10 @@ function Sidebar({
           borderRadius: 0,
           padding: "6px 12px",
           fontSize: "var(--fs-x-small)",
-          color: active ? "var(--core-fleet-green)" : "var(--app-text)",
+          color: active ? "var(--core-automdm-green)" : "var(--app-text)",
           background: active ? "var(--tint-success-soft)" : undefined,
           borderLeft: active
-            ? "2px solid var(--core-fleet-green)"
+            ? "2px solid var(--core-automdm-green)"
             : "2px solid transparent",
         }}
       >
@@ -170,8 +170,8 @@ function Sidebar({
         <Group title="Setup">
           <Item id="servers" label="Servers" />
           <Item id="paths" label="Paths" />
-          <Item id="fleet-server" label="Fleet server (active)" />
-          <Item id="fleetctl" label="fleetctl contexts" />
+          <Item id="automdm-server" label="AutoMDM server (active)" />
+          <Item id="automdmctl" label="automdmctl contexts" />
           <Item id="gitops" label="GitOps directory" />
         </Group>
         <Group title="Optional services">
@@ -205,7 +205,7 @@ function BuildStamp() {
 
   if (!info) return null;
 
-  const full = `Fleet Hangar ${info.version} (${info.commit}${
+  const full = `AutoMDM Hangar ${info.version} (${info.commit}${
     info.date && info.date !== "unknown" ? `, built ${info.date}` : ""
   })`;
 
@@ -309,7 +309,7 @@ function ThemeToggle({
                 border: "none",
                 borderRadius: "var(--radius-sm)",
                 background: active ? "var(--tint-success-soft)" : "transparent",
-                color: active ? "var(--core-fleet-green)" : "var(--app-text-dim)",
+                color: active ? "var(--core-automdm-green)" : "var(--app-text-dim)",
                 fontWeight: active ? 600 : 400,
               }}
             >
@@ -345,7 +345,7 @@ function EnableToggle({
         padding: "10px 14px",
         background: checked ? "var(--tint-success-soft)" : "var(--app-surface)",
         border: checked
-          ? "1px solid var(--core-fleet-green)"
+          ? "1px solid var(--core-automdm-green)"
           : "1px solid var(--app-border)",
         borderRadius: "var(--radius-lg)",
         cursor: "pointer",
@@ -355,13 +355,13 @@ function EnableToggle({
         type="checkbox"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
-        style={{ accentColor: "var(--core-fleet-green)", marginTop: 2 }}
+        style={{ accentColor: "var(--core-automdm-green)", marginTop: 2 }}
       />
       <div style={{ minWidth: 0 }}>
         <div
           className="card-title"
           style={{
-            color: checked ? "var(--core-fleet-green)" : "var(--app-text)",
+            color: checked ? "var(--core-automdm-green)" : "var(--app-text)",
           }}
         >
           {label}
@@ -466,7 +466,7 @@ function pathBasename(p: string): string {
 }
 
 const PORT_FIELDS: { key: keyof ServerPorts; label: string }[] = [
-  { key: "server", label: "fleet serve" },
+  { key: "server", label: "automdm serve" },
   { key: "mysql", label: "MySQL" },
   { key: "redis", label: "Redis" },
   { key: "s3", label: "S3" },
@@ -552,7 +552,7 @@ function ServersSection({
       <div>
         <PageHeading>Servers</PageHeading>
         <div className="dim" style={{ fontSize: "var(--fs-xx-small)", lineHeight: 1.5 }}>
-          Run up to {MAX_SERVERS} independent local Fleet servers in parallel — each on its
+          Run up to {MAX_SERVERS} independent local AutoMDM servers in parallel — each on its
           own git worktree (so it can build/run a different branch), ports, and
           docker compose project. Server 1 keeps the canonical dev ports; others
           use offset blocks. Switch the active server from the top bar.
@@ -651,34 +651,34 @@ function ServerCard({
   async function pickExisting() {
     const result = await api.pickFolder();
     if (!result || typeof result !== "string") return;
-    const probed = await api.probeFleetRepo(result);
+    const probed = await api.probeAutoMDMRepo(result);
     if (!probed[0]?.valid) {
-      setError(probed[0]?.reason ?? "not a valid fleet repo");
+      setError(probed[0]?.reason ?? "not a valid automdm repo");
       return;
     }
     setError(null);
-    const detected = await api.detectFleetConfig(probed[0].path);
+    const detected = await api.detectAutoMDMConfig(probed[0].path);
     onUpdate((s) => ({
       ...s,
       worktree_path: probed[0].path,
-      fleet_serve: { ...s.fleet_serve, config_path: detected },
+      automdm_serve: { ...s.automdm_serve, config_path: detected },
     }));
   }
 
   async function createWorktree() {
     if (!primaryRepo || !ref.trim()) return;
-    // Sibling of the main clone, named <clone>-<serverID> (e.g. fleet-s2).
+    // Sibling of the main clone, named <clone>-<serverID> (e.g. automdm-s2).
     const dest = `${pathDirname(primaryRepo)}/${pathBasename(primaryRepo)}-${server.id}`;
     setCreating(true);
     setError(null);
     try {
       await api.gitAddWorktree(primaryRepo, dest, ref.trim());
-      const detected = await api.detectFleetConfig(dest);
+      const detected = await api.detectAutoMDMConfig(dest);
       onUpdate((s) => ({
         ...s,
         worktree_path: dest,
         branch: ref.trim(),
-        fleet_serve: { ...s.fleet_serve, config_path: detected },
+        automdm_serve: { ...s.automdm_serve, config_path: detected },
       }));
       setRef("");
     } catch (e) {
@@ -762,7 +762,7 @@ function ServerCard({
       {/* worktree */}
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         <div style={{ fontSize: "var(--fs-xx-small)", color: "var(--app-text-dim)" }}>
-          {index === 0 ? "Fleet clone (worktree base)" : "Git worktree"}
+          {index === 0 ? "AutoMDM clone (worktree base)" : "Git worktree"}
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <div
@@ -798,7 +798,7 @@ function ServerCard({
             <input
               value={ref}
               onChange={(e) => setRef(e.target.value)}
-              placeholder="branch / tag / commit (e.g. rc-minor-fleet-v4.86.0)"
+              placeholder="branch / tag / commit (e.g. rc-minor-automdm-v4.86.0)"
               {...noAutocorrect}
               className="mono"
               style={{ flex: 1, minWidth: 0, fontSize: "var(--fs-xx-small)" }}
@@ -939,19 +939,19 @@ function PathsSection({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function pickFleetctl() {
-    // No file-type filter — fleetctl is a bare binary with no extension
+  async function pickAutoMDMctl() {
+    // No file-type filter — automdmctl is a bare binary with no extension
     // on Unix. The OS picker only returns existing files anyway, so
-    // we trust the path and let fleetctl tab surface "binary missing"
+    // we trust the path and let automdmctl tab surface "binary missing"
     // if the user later moves it.
     const result = await api.pickFile();
     if (!result || typeof result !== "string") return;
     setError(null);
-    await save({ ...settings, fleetctl_path: result });
+    await save({ ...settings, automdmctl_path: result });
   }
-  async function clearFleetctl() {
+  async function clearAutoMDMctl() {
     setError(null);
-    await save({ ...settings, fleetctl_path: null });
+    await save({ ...settings, automdmctl_path: null });
   }
   async function save(next: Settings) {
     setBusy(true);
@@ -968,25 +968,25 @@ function PathsSection({
     <div style={{ maxWidth: 720 }}>
       <PageHeading>Paths</PageHeading>
       <div className="dim" style={{ fontSize: "var(--fs-xx-small)", marginBottom: "var(--pad-medium)" }}>
-        Fleet repositories / worktrees are configured per server in the{" "}
+        AutoMDM repositories / worktrees are configured per server in the{" "}
         <span style={{ color: "var(--app-text)" }}>Servers</span> section. This
-        is for the shared fleetctl binary.
+        is for the shared automdmctl binary.
       </div>
       <div
         className="card"
         style={{ display: "flex", flexDirection: "column", gap: 16 }}
       >
         <PathField
-          label="fleetctl binary"
-          value={settings.fleetctl_path}
-          placeholder="auto-detect · <repo>/build/fleetctl"
-          onPick={pickFleetctl}
-          onClear={clearFleetctl}
+          label="automdmctl binary"
+          value={settings.automdmctl_path}
+          placeholder="auto-detect · <repo>/build/automdmctl"
+          onPick={pickAutoMDMctl}
+          onClear={clearAutoMDMctl}
           busy={busy}
           hint={
-            settings.fleetctl_path
-              ? "Using the picked binary. Click clear to revert to the active server's build/fleetctl."
-              : "Falls back to the active server's <worktree>/build/fleetctl. Pick a different binary to point at a release build elsewhere."
+            settings.automdmctl_path
+              ? "Using the picked binary. Click clear to revert to the active server's build/automdmctl."
+              : "Falls back to the active server's <worktree>/build/automdmctl. Pick a different binary to point at a release build elsewhere."
           }
         />
         {error && (
@@ -1086,7 +1086,7 @@ function GitopsSection({
               ? scan?.single_repo_mode
                 ? "Detected as a single repo — default.yml lives directly in this folder."
                 : `Detected ${scan?.repos.length ?? 0} repo${(scan?.repos.length ?? 0) === 1 ? "" : "s"}.`
-              : "Pick a folder. Common layouts: ~/repositories/gitops (many repos) or ~/repositories/fleet-gitops (single repo)."
+              : "Pick a folder. Common layouts: ~/repositories/gitops (many repos) or ~/repositories/automdm-gitops (single repo)."
           }
         />
 
@@ -1135,7 +1135,7 @@ function GitopsSection({
             }}
           >
             {scan.single_repo_mode ? (
-              <span style={{ color: "var(--core-fleet-purple)" }}>
+              <span style={{ color: "var(--core-automdm-purple)" }}>
                 single-repo mode · default.yml in root
               </span>
             ) : scan.repos.length === 0 ? (
@@ -1188,9 +1188,9 @@ function GitopsSection({
   );
 }
 
-/* ----- Fleet server section ----- */
+/* ----- AutoMDM server section ----- */
 
-function FleetServerSection({
+function AutoMDMServerSection({
   settings,
   onChange,
 }: {
@@ -1199,7 +1199,7 @@ function FleetServerSection({
 }) {
   // Edits the ACTIVE server's serve config (switch servers from the top bar).
   const server = activeServer(settings);
-  const cfg = server.fleet_serve;
+  const cfg = server.automdm_serve;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -1209,7 +1209,7 @@ function FleetServerSection({
     try {
       const next = updateActiveServer(settings, (s) => ({
         ...s,
-        fleet_serve: { ...s.fleet_serve, ...updates },
+        automdm_serve: { ...s.automdm_serve, ...updates },
       }));
       await api.saveSettings(next);
       onChange(next);
@@ -1265,12 +1265,12 @@ function FleetServerSection({
     >
       <div>
         <PageHeading>
-          Fleet server ·{" "}
+          AutoMDM server ·{" "}
           <span style={{ color: serverColorVar(server.color) }}>{server.name}</span>
         </PageHeading>
         <div className="dim" style={{ fontSize: "var(--fs-xx-small)" }}>
           Controls what flags and env vars{" "}
-          <span className="mono">./build/fleet serve --dev</span> spawns with
+          <span className="mono">./build/automdm serve --dev</span> spawns with
           for the <strong>active</strong> server ({server.name}). Switch servers
           from the top bar. Premium/free lives on the Server tab next to the
           chain row so you can flip it without leaving the run flow.
@@ -1284,14 +1284,14 @@ function FleetServerSection({
         <PathField
           label="Config file (--config)"
           value={cfg.config_path}
-          placeholder="(none — flag omitted, fleet falls back to env / built-in defaults)"
+          placeholder="(none — flag omitted, team falls back to env / built-in defaults)"
           onPick={pickConfig}
           onClear={cfg.config_path ? clearConfig : undefined}
           busy={busy}
           hint={
             cfg.config_path
               ? "Spawn passes --config with this path. Relative paths resolve against the repo."
-              : "Clear → the --config flag is dropped entirely. Useful if you drive fleet via env vars or want to test the defaults."
+              : "Clear → the --config flag is dropped entirely. Useful if you drive team via env vars or want to test the defaults."
           }
         />
 
@@ -1413,7 +1413,7 @@ function CheckboxRow({
         type="checkbox"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
-        style={{ accentColor: "var(--core-fleet-green)", marginTop: 2 }}
+        style={{ accentColor: "var(--core-automdm-green)", marginTop: 2 }}
       />
       <div style={{ minWidth: 0 }}>
         <div className="mono" style={{ color: "var(--app-text)" }}>
@@ -1455,7 +1455,7 @@ function EnvRow({
         checked={row.enabled}
         onChange={(e) => onChange({ enabled: e.target.checked })}
         title={row.enabled ? "Applied on next spawn" : "Skipped"}
-        style={{ accentColor: "var(--core-fleet-green)" }}
+        style={{ accentColor: "var(--core-automdm-green)" }}
       />
       <input
         type="text"
@@ -1490,15 +1490,15 @@ function EnvRow({
   );
 }
 
-/* ----- fleetctl contexts section ----- */
+/* ----- automdmctl contexts section ----- */
 
-function FleetctlContextsSection({
+function AutoMDMctlContextsSection({
   settings: _settings,
 }: {
   settings: Settings;
 }) {
   const [info, setInfo] = useState<ContextInfo | null>(null);
-  const [configPath, setConfigPath] = useState<string>("~/.fleet/config");
+  const [configPath, setConfigPath] = useState<string>("~/.automdm/config");
   const [configExists, setConfigExists] = useState<boolean>(false);
   const [diskContents, setDiskContents] = useState<string>("");
   const [draft, setDraft] = useState<string>("");
@@ -1516,8 +1516,8 @@ function FleetctlContextsSection({
     setError(null);
     try {
       const [ctx, raw] = await Promise.all([
-        api.fleetctlReadContext(),
-        api.fleetctlReadConfigRaw(),
+        api.automdmctlReadContext(),
+        api.automdmctlReadConfigRaw(),
       ]);
       setInfo(ctx);
       setConfigPath(raw.path);
@@ -1552,7 +1552,7 @@ function FleetctlContextsSection({
     if (!ta) return;
     // Find the line starting the matching block. We accept the common
     // shapes: `- name: foo` (sequence) and `foo:` (mapping under
-    // `contexts:`). The latter handles fleetctl's actual file layout;
+    // `contexts:`). The latter handles automdmctl's actual file layout;
     // the former handles the wf-style YAML in the design.
     const lines = draft.split("\n");
     const seqRe = new RegExp(
@@ -1580,7 +1580,7 @@ function FleetctlContextsSection({
     setBusy(true);
     setError(null);
     try {
-      await api.fleetctlSaveConfig(draft);
+      await api.automdmctlSaveConfig(draft);
       await refresh();
       setJustSaved(true);
     } catch (e) {
@@ -1601,7 +1601,7 @@ function FleetctlContextsSection({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <PageHeading>fleetctl contexts</PageHeading>
+      <PageHeading>automdmctl contexts</PageHeading>
       <div
         className="dim"
         style={{ fontSize: "var(--fs-xx-small)", lineHeight: 1.5 }}
@@ -1861,7 +1861,7 @@ function ParsedRow({
         background: selected
           ? "var(--tint-success-soft)"
           : "var(--app-surface-2)",
-        border: `1px solid ${selected ? "var(--core-fleet-green)" : "transparent"}`,
+        border: `1px solid ${selected ? "var(--core-automdm-green)" : "transparent"}`,
         display: "flex",
         flexDirection: "column",
         gap: 2,
@@ -1898,7 +1898,7 @@ function ParsedRow({
           style={{
             fontSize: "var(--fs-xxx-small)",
             color: ctx.has_token
-              ? "var(--core-fleet-green)"
+              ? "var(--core-automdm-green)"
               : "var(--ui-error)",
             flexShrink: 0,
             textTransform: "uppercase",
@@ -1935,7 +1935,7 @@ function StatusPill({
   kind: "unsaved" | "saved";
   children: React.ReactNode;
 }) {
-  // Both pills use fleet-green to feel like one slot that changes
+  // Both pills use automdm-green to feel like one slot that changes
   // label. "unsaved" gets a filled tint to draw the eye toward the
   // pending save action; "saved" is an outline so it reads as a
   // passive ack and doesn't compete with the buttons.
@@ -1944,9 +1944,9 @@ function StatusPill({
     <span
       style={{
         fontSize: "var(--fs-xxx-small)",
-        color: "var(--core-fleet-green)",
+        color: "var(--core-automdm-green)",
         background: filled ? "var(--tint-success-soft)" : "transparent",
-        border: `1px solid ${filled ? "transparent" : "var(--core-fleet-green)"}`,
+        border: `1px solid ${filled ? "transparent" : "var(--core-automdm-green)"}`,
         padding: "1px 6px",
         borderRadius: 999,
         whiteSpace: "nowrap",
@@ -1958,9 +1958,9 @@ function StatusPill({
 }
 
 // Starter shown when the user clicks "insert starter template" on an
-// empty config. Mirrors fleetctl's own writeConfig output: contexts is
+// empty config. Mirrors automdmctl's own writeConfig output: contexts is
 // a mapping keyed by name. The default context is created with just an
-// address; the user fills in email/token via fleetctl login or by
+// address; the user fills in email/token via automdmctl login or by
 // editing here.
 const STARTER_YAML = `contexts:
   default:
@@ -2157,7 +2157,7 @@ function NgrokSection({
             type="checkbox"
             checked={cfg.start_all}
             onChange={(e) => updateDefaults({ start_all: e.target.checked })}
-            style={{ accentColor: "var(--core-fleet-green)" }}
+            style={{ accentColor: "var(--core-automdm-green)" }}
           />
           <span style={{ fontSize: "var(--fs-xx-small)" }}>
             Start all tunnels (uses{" "}
@@ -2248,7 +2248,7 @@ function NgrokSection({
           </div>
           <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
             {savedToast && (
-              <span style={{ color: "var(--core-fleet-green)" }}>
+              <span style={{ color: "var(--core-automdm-green)" }}>
                 ✓ saved
               </span>
             )}
@@ -2300,7 +2300,7 @@ function ValidationLine({
       </span>
     );
   return (
-    <span style={{ color: "var(--core-fleet-green)", fontSize: "var(--fs-xx-small)" }}>
+    <span style={{ color: "var(--core-automdm-green)", fontSize: "var(--fs-xx-small)" }}>
       ✓ valid · {info.tunnels.length} tunnels · authtoken present
     </span>
   );
@@ -2405,7 +2405,7 @@ function PythonSection({
           placeholder="repo root"
           onPick={pickDir}
           busy={busy}
-          hint="Relative paths resolve against the fleet repo. Empty = repo root."
+          hint="Relative paths resolve against the automdm repo. Empty = repo root."
         />
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <div style={{ fontSize: "var(--fs-xx-small)", color: "var(--app-text-dim)" }}>
@@ -2530,7 +2530,7 @@ function TroubleshootSection({ settings }: { settings: Settings }) {
         (<span className="mono">pgrep</span> /{" "}
         <span className="mono">lsof</span> /{" "}
         <span className="mono">docker ps</span>), so what shows up here is
-        what's actually there. fleet serve isn't included; manage it from
+        what's actually there. automdm serve isn't included; manage it from
         the Server tab.
       </div>
 
@@ -2702,7 +2702,7 @@ function DockerCard({ settings }: { settings: Settings }) {
                         {c.service || c.name}
                         <span className="dim">
                           {" · "}
-                          {c.image.startsWith("fleetdm/wix") ? `${c.image} (.msi build from fleetctl package)` : c.image}
+                          {c.image.startsWith("fleetdm/wix") ? `${c.image} (.msi build from automdmctl package)` : c.image}
                           {c.ports.length > 0 &&
                             ` · ${c.ports.map((r) => (r.from === r.to ? `:${r.from}` : `:${r.from}-${r.to}`)).join(" ")}`}
                           {` · ${c.status}`}
@@ -2730,7 +2730,7 @@ function DockerCard({ settings }: { settings: Settings }) {
         </div>
       )}
 
-      {note && <div style={{ marginTop: 8, ...small, color: "var(--core-fleet-green)" }}>{note}</div>}
+      {note && <div style={{ marginTop: 8, ...small, color: "var(--core-automdm-green)" }}>{note}</div>}
       {error && <div style={{ marginTop: 8, ...small, color: "var(--ui-error)" }}>{error}</div>}
     </div>
   );
@@ -2760,7 +2760,7 @@ function TufAssetsCard() {
       <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
         <span style={{ fontWeight: 600, fontSize: "var(--fs-x-small)" }}>TUF assets</span>
         <span className="dim" style={{ fontSize: "var(--fs-xx-small)" }}>
-          delete the generated repo (<span className="mono">test_tuf</span>) in the Fleet repo root
+          delete the generated repo (<span className="mono">test_tuf</span>) in the AutoMDM repo root
         </span>
         {msg && (
           <span className="dim" style={{ fontSize: "var(--fs-xx-small)" }}>{msg}</span>
@@ -2935,7 +2935,7 @@ function TroubleshootCardView({ card }: { card: TroubleshootCard }) {
           style={{
             marginTop: 8,
             fontSize: "var(--fs-xxx-small)",
-            color: "var(--core-fleet-green)",
+            color: "var(--core-automdm-green)",
           }}
         >
           {note}
@@ -2978,7 +2978,7 @@ function CountBadge({
     <span
       style={{
         fontSize: "var(--fs-xxx-small)",
-        color: clean ? "var(--core-fleet-green)" : "var(--ui-error)",
+        color: clean ? "var(--core-automdm-green)" : "var(--ui-error)",
         background: clean
           ? "var(--tint-success-soft)"
           : "var(--tint-error-strong)",

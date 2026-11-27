@@ -10,12 +10,12 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxdb"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 	"github.com/elimity-com/scim"
 	"github.com/elimity-com/scim/errors"
 	"github.com/elimity-com/scim/optional"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxdb"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
 	"github.com/scim2/filter-parser/v2"
 )
 
@@ -26,14 +26,14 @@ const (
 )
 
 type GroupHandler struct {
-	ds     fleet.Datastore
+	ds     automdm.Datastore
 	logger *slog.Logger
 }
 
 // Compile-time check
 var _ scim.ResourceHandler = &GroupHandler{}
 
-func NewGroupHandler(ds fleet.Datastore, logger *slog.Logger) scim.ResourceHandler {
+func NewGroupHandler(ds automdm.Datastore, logger *slog.Logger) scim.ResourceHandler {
 	return &GroupHandler{ds: ds, logger: logger}
 }
 
@@ -51,7 +51,7 @@ func (g *GroupHandler) Create(r *http.Request, attributes scim.ResourceAttribute
 	// SCIM only mandates that each group’s "id" is unique
 	_, err = g.ds.ScimGroupByDisplayName(r.Context(), displayName)
 	switch {
-	case err != nil && !fleet.IsNotFound(err):
+	case err != nil && !automdm.IsNotFound(err):
 		g.logger.ErrorContext(r.Context(), "failed to check for displayName uniqueness", displayNameAttr, displayName, "err", err)
 		return scim.Resource{}, err
 	case err == nil:
@@ -79,8 +79,8 @@ func (g *GroupHandler) Create(r *http.Request, attributes scim.ResourceAttribute
 	return createGroupResource(group), nil
 }
 
-func createGroupFromAttributes(attributes scim.ResourceAttributes) (*fleet.ScimGroup, error) {
-	group := fleet.ScimGroup{}
+func createGroupFromAttributes(attributes scim.ResourceAttributes) (*automdm.ScimGroup, error) {
+	group := automdm.ScimGroup{}
 	var err error
 	group.DisplayName, err = getRequiredResource[string](attributes, displayNameAttr)
 	if err != nil {
@@ -157,7 +157,7 @@ func (g *GroupHandler) Get(r *http.Request, id string) (scim.Resource, error) {
 
 	group, err := g.ds.ScimGroupByID(r.Context(), idUint, areMembersExcluded(r))
 	switch {
-	case fleet.IsNotFound(err):
+	case automdm.IsNotFound(err):
 		g.logger.InfoContext(r.Context(), "failed to find group", "id", id)
 		return scim.Resource{}, errors.ScimErrorResourceNotFound(id)
 	case err != nil:
@@ -168,7 +168,7 @@ func (g *GroupHandler) Get(r *http.Request, id string) (scim.Resource, error) {
 	return createGroupResource(group), nil
 }
 
-func createGroupResource(group *fleet.ScimGroup) scim.Resource {
+func createGroupResource(group *automdm.ScimGroup) scim.Resource {
 	groupResource := scim.Resource{}
 	groupResource.ID = scimGroupID(group.ID)
 	if group.ExternalID != nil {
@@ -213,8 +213,8 @@ func (g *GroupHandler) GetAll(r *http.Request, params scim.ListRequestParams) (s
 		count = maxResults
 	}
 
-	opts := fleet.ScimGroupsListOptions{
-		ScimListOptions: fleet.ScimListOptions{
+	opts := automdm.ScimGroupsListOptions{
+		ScimListOptions: automdm.ScimListOptions{
 			StartIndex: uint(startIndex), // nolint:gosec // ignore G115
 			PerPage:    uint(count),      // nolint:gosec // ignore G115
 		},
@@ -281,7 +281,7 @@ func (g *GroupHandler) Replace(r *http.Request, id string, attributes scim.Resou
 	// so we must check if another group already exists with that display name to return a clear error
 	groupWithSameDisplayName, err := g.ds.ScimGroupByDisplayName(r.Context(), group.DisplayName)
 	switch {
-	case err != nil && !fleet.IsNotFound(err):
+	case err != nil && !automdm.IsNotFound(err):
 		g.logger.ErrorContext(r.Context(), "failed to check for displayName uniqueness", displayNameAttr, group.DisplayName, "err", err)
 		return scim.Resource{}, err
 	case err == nil && group.ID != groupWithSameDisplayName.ID:
@@ -310,7 +310,7 @@ func (g *GroupHandler) Replace(r *http.Request, id string, attributes scim.Resou
 	}
 	err = g.ds.ReplaceScimGroup(r.Context(), group)
 	switch {
-	case fleet.IsNotFound(err):
+	case automdm.IsNotFound(err):
 		g.logger.InfoContext(r.Context(), "failed to find group to replace", "id", id)
 		return scim.Resource{}, errors.ScimErrorResourceNotFound(id)
 	case err != nil:
@@ -329,7 +329,7 @@ func (g *GroupHandler) Delete(r *http.Request, id string) error {
 	}
 	err = g.ds.DeleteScimGroup(r.Context(), idUint)
 	switch {
-	case fleet.IsNotFound(err):
+	case automdm.IsNotFound(err):
 		g.logger.InfoContext(r.Context(), "failed to find group to delete", "id", id)
 		return errors.ScimErrorResourceNotFound(id)
 	case err != nil:
@@ -351,7 +351,7 @@ func (g *GroupHandler) Patch(r *http.Request, id string, operations []scim.Patch
 
 	group, err := g.ds.ScimGroupByID(ctx, idUint, false)
 	switch {
-	case fleet.IsNotFound(err):
+	case automdm.IsNotFound(err):
 		g.logger.InfoContext(ctx, "failed to find group to patch", "id", id)
 		return scim.Resource{}, errors.ScimErrorResourceNotFound(id)
 	case err != nil:
@@ -361,7 +361,7 @@ func (g *GroupHandler) Patch(r *http.Request, id string, operations []scim.Patch
 
 	// A replace or remove-all operation declares a final membership state, which is
 	// destructive by intent; anything else is applied as a targeted delta.
-	deltas := &fleet.ScimGroupMemberDeltas{}
+	deltas := &automdm.ScimGroupMemberDeltas{}
 	replaceAll := false
 	for _, op := range operations {
 		if op.Op != scim.PatchOperationAdd && op.Op != scim.PatchOperationReplace && op.Op != scim.PatchOperationRemove {
@@ -448,7 +448,7 @@ func (g *GroupHandler) Patch(r *http.Request, id string, operations []scim.Patch
 			err = g.ds.ApplyScimGroupPatch(ctx, group, *deltas)
 		}
 		switch {
-		case fleet.IsNotFound(err):
+		case automdm.IsNotFound(err):
 			g.logger.InfoContext(ctx, "failed to find group to patch", "id", id)
 			return scim.Resource{}, errors.ScimErrorResourceNotFound(id)
 		case err != nil:
@@ -469,7 +469,7 @@ const maxLoggedUnknownMembers = 10
 // delta patch that also removes members; the rejection is reported by returning the
 // unknown values, with group left unchanged.
 func (g *GroupHandler) dropUnknownMembers(
-	ctx context.Context, group *fleet.ScimGroup, deltas *fleet.ScimGroupMemberDeltas,
+	ctx context.Context, group *automdm.ScimGroup, deltas *automdm.ScimGroupMemberDeltas,
 ) (rejected []string, err error) {
 	userIDs, childGroupIDs := group.ScimUsers, group.ChildGroups
 	if deltas != nil {
@@ -532,7 +532,7 @@ func splitKnownIDs(ids []uint, found map[uint]struct{}) (known, unknown []uint) 
 	return known, unknown
 }
 
-func (g *GroupHandler) patchExternalId(ctx context.Context, op string, v any, group *fleet.ScimGroup) error {
+func (g *GroupHandler) patchExternalId(ctx context.Context, op string, v any, group *automdm.ScimGroup) error {
 	if op == scim.PatchOperationRemove || v == nil {
 		group.ExternalID = nil
 		return nil
@@ -546,7 +546,7 @@ func (g *GroupHandler) patchExternalId(ctx context.Context, op string, v any, gr
 	return nil
 }
 
-func (g *GroupHandler) patchDisplayName(ctx context.Context, op string, v any, group *fleet.ScimGroup) error {
+func (g *GroupHandler) patchDisplayName(ctx context.Context, op string, v any, group *automdm.ScimGroup) error {
 	if op == scim.PatchOperationRemove {
 		g.logger.InfoContext(ctx, "cannot remove required attribute", "attribute", displayNameAttr)
 		return errors.ScimErrorBadParams([]string{fmt.Sprintf("%v", op)})
@@ -566,7 +566,7 @@ func (g *GroupHandler) patchDisplayName(ctx context.Context, op string, v any, g
 
 // patchMembers handles add/replace/remove operations for the members attribute
 func (g *GroupHandler) patchMembers(
-	ctx context.Context, op string, v any, group *fleet.ScimGroup, deltas *fleet.ScimGroupMemberDeltas,
+	ctx context.Context, op string, v any, group *automdm.ScimGroup, deltas *automdm.ScimGroupMemberDeltas,
 ) error {
 	if op == scim.PatchOperationRemove && v == nil {
 		// Remove all members (both users and nested child groups)
@@ -701,7 +701,7 @@ func appendMissingUint(base, extra []uint) []uint {
 // patchMembersWithPathFiltering handles patch operations with path filtering for members
 // This supports paths like members[value eq "422"] for add/replace/remove operations
 func (g *GroupHandler) patchMembersWithPathFiltering(
-	ctx context.Context, op scim.PatchOperation, group *fleet.ScimGroup, deltas *fleet.ScimGroupMemberDeltas,
+	ctx context.Context, op scim.PatchOperation, group *automdm.ScimGroup, deltas *automdm.ScimGroupMemberDeltas,
 ) error {
 	kind, memberID, err := g.getMemberID(ctx, op)
 	if err != nil {

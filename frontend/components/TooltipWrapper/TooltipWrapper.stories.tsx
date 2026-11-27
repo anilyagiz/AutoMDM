@@ -63,7 +63,7 @@ export const BalancedTwoLines: Story = {
 export const BalancedDensePassage: Story = {
   args: {
     tipContent:
-      "When enabled, allows automatic cleanup of hosts that have not communicated with Fleet in the number of days specified.",
+      "When enabled, allows automatic cleanup of hosts that have not communicated with AutoMDM in the number of days specified.",
     children: "Dense passage",
   },
 };
@@ -74,19 +74,19 @@ export const BalancedVsUnbalanced: Story = {
   render: () => (
     <div style={{ display: "flex", gap: "6rem", alignItems: "flex-start" }}>
       <TooltipWrapper
-        tipContent="When enabled, allows automatic cleanup of hosts that have not communicated with Fleet in the number of days specified."
+        tipContent="When enabled, allows automatic cleanup of hosts that have not communicated with AutoMDM in the number of days specified."
         textBalanced={false}
       >
         textBalanced=false
       </TooltipWrapper>
-      <TooltipWrapper tipContent="When enabled, allows automatic cleanup of hosts that have not communicated with Fleet in the number of days specified.">
+      <TooltipWrapper tipContent="When enabled, allows automatic cleanup of hosts that have not communicated with AutoMDM in the number of days specified.">
         textBalanced=true (default)
       </TooltipWrapper>
     </div>
   ),
 };
 
-/** The Fleet settings convention: main tooltip prose above, a single `<br />`,
+/** The AutoMDM settings convention: main tooltip prose above, a single `<br />`,
  * and the `(Default: X)` annotation on its own line wrapped in `<i>`. Balance
  * runs on the prose above the hard break independently. */
 export const BalancedWithDefaultFootnote: Story = {

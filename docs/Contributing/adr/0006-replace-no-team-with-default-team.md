@@ -25,7 +25,7 @@ Replace the virtual No Team concept with the concept of a _default_ team, which 
 3. If a host is assigned to a team that is deleted, it is reassigned to the default team.
 4. If a host is enrolled using the global enrollment key, it is assigned to the default team.
 
-Existing Fleet instances would have a new default team created for them via migration, while new instances would have one created during the setup process. This will be the case for both premium- and free-tier instances, although free-tier instances will continue to hide any team-related UI (as they do now with No Team).
+Existing AutoMDM instances would have a new default team created for them via migration, while new instances would have one created during the setup process. This will be the case for both premium- and free-tier instances, although free-tier instances will continue to hide any team-related UI (as they do now with No Team).
 
 See the [WIP technical design document](https://docs.google.com/document/d/1tTO0ip1lGJXiL0O5vDet6DFlOzv_ufazuiZ6wqB60vY/edit?usp=sharing) for more details on implementation.
 
@@ -36,7 +36,7 @@ See the [WIP technical design document](https://docs.google.com/document/d/1tTO0
 * Massive reduction in technical debt and associated future bugs.
 * Removal of maintenance burden on devs, freeing up capacity in each sprint.
 * Easier to document and explain to customers.
-* Relies on well-worn and tested concept (Fleet teams) rather than inventing something new; this will be a huge net _reduction_ in code.
+* Relies on well-worn and tested concept (AutoMDM teams) rather than inventing something new; this will be a huge net _reduction_ in code.
 * The "new" features of the default team should be fairly straightforward to implement.
 * Can be done in a way that is invisible to existing customers (especially if we name their new default team "No team"), other than that their "No team" will now have upgraded features (like the ability to add queries).
 
@@ -48,7 +48,7 @@ See the [WIP technical design document](https://docs.google.com/document/d/1tTO0
 
 ## Alternatives considered
 
-### Leaving No Team as-is, and continue to add to [`DefaultTeam` config](https://github.com/fleetdm/fleet/blob/9df8e23f7a84ea2cc1f827f0209958ba3572e6a7/server/fleet/teams.go#L191-L194)
+### Leaving No Team as-is, and continue to add to [`DefaultTeam` config](https://github.com/anilyagiz/automdm/blob/9df8e23f7a84ea2cc1f827f0209958ba3572e6a7/server/automdm/teams.go#L191-L194)
 
 The main benefit to this approach is the short-term risk reduction of not doing the work to migrate off of No Team. In the medium-to-long term, we will continue to accrue technical debt as we try to make our virtual team _look_ more like a regular team, and handle issue arising from the fact that it is not _actually_ a real team. The guiding principle of this ADR is that it is [riskier and costlier](https://docs.google.com/presentation/d/1Q8u5KtgeBmm3g7emt3VJ7nochEV3dKJIm4zUJiiyXd0/edit?slide=id.g3796d19f491_0_59#slide=id.g3796d19f491_0_59) to maintain the current No Team concept than it would be to eliminate it. 
 
@@ -66,4 +66,4 @@ This leans into the fact that most (not all) of the data and config pointing to 
 * [Eng-initiated ticket for this work](https://github.com/fleetdm/fleet/issues/32435)
 * [Example No-Team-related bug ticket that opened in the hour I was writing this ADR](https://github.com/fleetdm/fleet/issues/32876)
 
-[^1]: A quick search for "no team" in Go files in the main Fleet repo has 790 hits in 123 files. Most of those are comments above multiple lines or functions dedicated to No Team logic. 
+[^1]: A quick search for "no team" in Go files in the main AutoMDM repo has 790 hits in 123 files. Most of those are comments above multiple lines or functions dedicated to No Team logic. 

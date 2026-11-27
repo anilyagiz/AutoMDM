@@ -8,8 +8,8 @@ import { notify } from "components/ToastNotification";
 import { AppContext } from "context/app";
 import mdmAppleAPI from "services/entities/mdm_apple";
 
-import VppFleetsSelector from "../VppFleetsSelector";
-import { fleetsForApi, IVppFleetsValue } from "../VppFleetsSelector/helpers";
+import VppTeamsSelector from "../VppTeamsSelector";
+import { teamsForApi, IVppTeamsValue } from "../VppTeamsSelector/helpers";
 
 import { getErrorMessage } from "./helpers";
 
@@ -20,18 +20,18 @@ interface IAddVppModalProps {
   onAdded: () => void;
 }
 
-const LEARN_MORE_URL = "https://fleetdm.com/learn-more-about/add-vpp";
-const FLEETS_LEARN_MORE_URL =
-  "https://fleetdm.com/learn-more-about/vpp-tokens-best-practice";
+const LEARN_MORE_URL = "https://automdm.com/learn-more-about/add-vpp";
+const TEAMS_LEARN_MORE_URL =
+  "https://automdm.com/learn-more-about/vpp-tokens-best-practice";
 
 const AddVppModal = ({ onCancel, onAdded }: IAddVppModalProps) => {
   const { config } = useContext(AppContext);
   const gitOpsModeEnabled = config?.gitops.gitops_mode_enabled;
 
   const [tokenFile, setTokenFile] = useState<File | null>(null);
-  const [fleetsValue, setFleetsValue] = useState<IVppFleetsValue>({
-    allFleets: true,
-    fleetIds: [],
+  const [teamsValue, setTeamsValue] = useState<IVppTeamsValue>({
+    allAutoMDMs: true,
+    automdmIds: [],
   });
   const [isUploading, setIsUploading] = useState(false);
 
@@ -52,17 +52,17 @@ const AddVppModal = ({ onCancel, onAdded }: IAddVppModalProps) => {
 
     try {
       const { token } = await mdmAppleAPI.uploadVppToken(tokenFile);
-      const fleets = fleetsForApi(fleetsValue);
-      // The new token is unassigned, so Custom with no fleets needs no PATCH.
-      if (fleets !== null && !gitOpsModeEnabled) {
+      const teams = teamsForApi(teamsValue);
+      // The new token is unassigned, so Custom with no teams needs no PATCH.
+      if (teams !== null && !gitOpsModeEnabled) {
         try {
           await mdmAppleAPI.editVppTeams({
             tokenId: token.id,
-            teamIds: fleets,
+            teamIds: teams,
           });
         } catch (e) {
           notify.error(
-            "Couldn't assign fleets. The VPP token was added. Try again from Actions > Edit fleets.",
+            "Couldn't assign teams. The VPP token was added. Try again from Actions > Edit teams.",
             { response: e }
           );
           onAdded();
@@ -77,7 +77,7 @@ const AddVppModal = ({ onCancel, onAdded }: IAddVppModalProps) => {
     } finally {
       setIsUploading(false);
     }
-  }, [tokenFile, fleetsValue, gitOpsModeEnabled, onAdded, onCancel]);
+  }, [tokenFile, teamsValue, gitOpsModeEnabled, onAdded, onCancel]);
 
   return (
     <Modal
@@ -104,11 +104,11 @@ const AddVppModal = ({ onCancel, onAdded }: IAddVppModalProps) => {
           onFileUpload={onSelectFile}
         />
         {!gitOpsModeEnabled && (
-          <VppFleetsSelector
-            value={fleetsValue}
-            onChange={setFleetsValue}
+          <VppTeamsSelector
+            value={teamsValue}
+            onChange={setTeamsValue}
             tooltipPosition="bottom-start"
-            tooltipLearnMoreUrl={FLEETS_LEARN_MORE_URL}
+            tooltipLearnMoreUrl={TEAMS_LEARN_MORE_URL}
             disabled={isUploading}
           />
         )}

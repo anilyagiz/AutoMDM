@@ -22,21 +22,21 @@ func TestFind(t *testing.T) {
 		},
 		{
 			name:    "single variable without braces",
-			content: "Device ID: $FLEET_VAR_HOST_UUID",
+			content: "Device ID: $AUTOMDM_VAR_HOST_UUID",
 			expected: []string{
 				"HOST_UUID",
 			},
 		},
 		{
 			name:    "single variable with braces",
-			content: "Device ID: ${FLEET_VAR_HOST_UUID}",
+			content: "Device ID: ${AUTOMDM_VAR_HOST_UUID}",
 			expected: []string{
 				"HOST_UUID",
 			},
 		},
 		{
 			name:    "multiple different variables",
-			content: "Host: $FLEET_VAR_HOST_UUID, Email: ${FLEET_VAR_HOST_EMAIL}, Serial: $FLEET_VAR_HOST_SERIAL",
+			content: "Host: $AUTOMDM_VAR_HOST_UUID, Email: ${AUTOMDM_VAR_HOST_EMAIL}, Serial: $AUTOMDM_VAR_HOST_SERIAL",
 			expected: []string{
 				"HOST_SERIAL",
 				"HOST_EMAIL",
@@ -45,21 +45,21 @@ func TestFind(t *testing.T) {
 		},
 		{
 			name:    "duplicate variables",
-			content: "ID1: $FLEET_VAR_HOST_UUID, ID2: ${FLEET_VAR_HOST_UUID}, ID3: $FLEET_VAR_HOST_UUID",
+			content: "ID1: $AUTOMDM_VAR_HOST_UUID, ID2: ${AUTOMDM_VAR_HOST_UUID}, ID3: $AUTOMDM_VAR_HOST_UUID",
 			expected: []string{
 				"HOST_UUID",
 			},
 		},
 		{
 			name:    "variables in XML content",
-			content: `<Replace><Data>Device: $FLEET_VAR_HOST_UUID</Data></Replace>`,
+			content: `<Replace><Data>Device: $AUTOMDM_VAR_HOST_UUID</Data></Replace>`,
 			expected: []string{
 				"HOST_UUID",
 			},
 		},
 		{
 			name:    "mixed case sensitivity",
-			content: "Valid: $FLEET_VAR_HOST_UUID, Invalid: $fleet_var_host_uuid",
+			content: "Valid: $AUTOMDM_VAR_HOST_UUID, Invalid: $automdm_var_host_uuid",
 			expected: []string{
 				"HOST_UUID",
 			},
@@ -94,22 +94,22 @@ func TestFindKeepDuplicates(t *testing.T) {
 		},
 		{
 			name:     "single occurrence",
-			content:  "ID: $FLEET_VAR_HOST_UUID",
+			content:  "ID: $AUTOMDM_VAR_HOST_UUID",
 			expected: []string{"HOST_UUID"},
 		},
 		{
 			name:     "duplicate occurrences",
-			content:  "ID1: $FLEET_VAR_HOST_UUID, ID2: ${FLEET_VAR_HOST_UUID}, ID3: $FLEET_VAR_HOST_UUID",
+			content:  "ID1: $AUTOMDM_VAR_HOST_UUID, ID2: ${AUTOMDM_VAR_HOST_UUID}, ID3: $AUTOMDM_VAR_HOST_UUID",
 			expected: []string{"HOST_UUID", "HOST_UUID", "HOST_UUID"},
 		},
 		{
 			name:     "mixed variables with duplicates",
-			content:  "$FLEET_VAR_HOST_UUID, $FLEET_VAR_HOST_EMAIL, ${FLEET_VAR_HOST_UUID}",
+			content:  "$AUTOMDM_VAR_HOST_UUID, $AUTOMDM_VAR_HOST_EMAIL, ${AUTOMDM_VAR_HOST_UUID}",
 			expected: []string{"HOST_EMAIL", "HOST_UUID", "HOST_UUID"},
 		},
 		{
 			name:    "sorted by length",
-			content: "$FLEET_VAR_HOST_END_USER_IDP_USERNAME, $FLEET_VAR_HOST_END_USER_IDP_USERNAME_LOCAL_PART, $FLEET_VAR_HOST_UUID",
+			content: "$AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME, $AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME_LOCAL_PART, $AUTOMDM_VAR_HOST_UUID",
 			expected: []string{
 				"HOST_END_USER_IDP_USERNAME_LOCAL_PART",
 				"HOST_END_USER_IDP_USERNAME",
@@ -136,35 +136,35 @@ func TestReplace(t *testing.T) {
 	}{
 		{
 			name:         "replace variable without braces",
-			content:      "Device ID: $FLEET_VAR_HOST_UUID",
+			content:      "Device ID: $AUTOMDM_VAR_HOST_UUID",
 			variableName: "HOST_UUID",
 			value:        "123-456-789",
 			expected:     "Device ID: 123-456-789",
 		},
 		{
 			name:         "replace variable with braces",
-			content:      "Device ID: ${FLEET_VAR_HOST_UUID}",
+			content:      "Device ID: ${AUTOMDM_VAR_HOST_UUID}",
 			variableName: "HOST_UUID",
 			value:        "123-456-789",
 			expected:     "Device ID: 123-456-789",
 		},
 		{
 			name:         "replace both formats",
-			content:      "ID1: $FLEET_VAR_HOST_UUID, ID2: ${FLEET_VAR_HOST_UUID}",
+			content:      "ID1: $AUTOMDM_VAR_HOST_UUID, ID2: ${AUTOMDM_VAR_HOST_UUID}",
 			variableName: "HOST_UUID",
 			value:        "abc-def",
 			expected:     "ID1: abc-def, ID2: abc-def",
 		},
 		{
 			name:         "no replacement when variable not present",
-			content:      "Email: $FLEET_VAR_HOST_EMAIL",
+			content:      "Email: $AUTOMDM_VAR_HOST_EMAIL",
 			variableName: "HOST_UUID",
 			value:        "123",
-			expected:     "Email: $FLEET_VAR_HOST_EMAIL",
+			expected:     "Email: $AUTOMDM_VAR_HOST_EMAIL",
 		},
 		{
 			name:         "replace with empty value",
-			content:      "ID: $FLEET_VAR_HOST_UUID",
+			content:      "ID: $AUTOMDM_VAR_HOST_UUID",
 			variableName: "HOST_UUID",
 			value:        "",
 			expected:     "ID: ",
@@ -212,12 +212,12 @@ func TestSecretRegex(t *testing.T) {
 		in   string
 		want []string
 	}{
-		{in: "$FLEET_SECRET_X", want: []string{"$FLEET_SECRET_X"}},
-		{in: "${FLEET_SECRET_X}", want: []string{"${FLEET_SECRET_X}"}},
-		{in: "pre$FLEET_SECRET_A-${FLEET_SECRET_B}post", want: []string{"$FLEET_SECRET_A", "${FLEET_SECRET_B}"}},
-		{in: "$FLEET_VAR_X"},
-		{in: "${FLEET_SECRET_}"},
-		{in: "FLEET_SECRET_X"},
+		{in: "$AUTOMDM_SECRET_X", want: []string{"$AUTOMDM_SECRET_X"}},
+		{in: "${AUTOMDM_SECRET_X}", want: []string{"${AUTOMDM_SECRET_X}"}},
+		{in: "pre$AUTOMDM_SECRET_A-${AUTOMDM_SECRET_B}post", want: []string{"$AUTOMDM_SECRET_A", "${AUTOMDM_SECRET_B}"}},
+		{in: "$AUTOMDM_VAR_X"},
+		{in: "${AUTOMDM_SECRET_}"},
+		{in: "AUTOMDM_SECRET_X"},
 	}
 	for _, c := range cases {
 		t.Run(c.in, func(t *testing.T) {

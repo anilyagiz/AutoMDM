@@ -1,10 +1,10 @@
 # Vulnerability scanning for inlined dependencies
 
-This directory contains manifest files (`go.mod`, `package.json`) that list the third-party dependencies that have been copied/inlined into Fleet's codebase.
+This directory contains manifest files (`go.mod`, `package.json`) that list the third-party dependencies that have been copied/inlined into AutoMDM's codebase.
 
 ## Purpose
 
-Fleet has several dependencies that were copied directly into the repository rather than imported via Go modules or npm. These inlined dependencies are not automatically scanned by vulnerability detection tools like GitHub Dependabot because they don't appear in the main `go.mod` or `package.json`.
+AutoMDM has several dependencies that were copied directly into the repository rather than imported via Go modules or npm. These inlined dependencies are not automatically scanned by vulnerability detection tools like GitHub Dependabot because they don't appear in the main `go.mod` or `package.json`.
 
 This directory solves that problem by creating "dummy" manifest files that list these dependencies at their copied versions. This allows:
 
@@ -15,7 +15,7 @@ This directory solves that problem by creating "dummy" manifest files that list 
 
 ## Important notes
 
-1. **This code is NOT compiled into Fleet** - These manifest files exist solely for vulnerability scanning
+1. **This code is NOT compiled into AutoMDM** - These manifest files exist solely for vulnerability scanning
 2. **Keep versions in sync** - When updating an inlined dependency, update the version here to match
 3. **No Go code here** - Do not add any `.go` files to this directory
 
@@ -23,7 +23,7 @@ This directory solves that problem by creating "dummy" manifest files that list 
 
 ### Go dependencies (go.mod)
 
-| Dependency                 | Fleet Location                        | Version                            |
+| Dependency                 | AutoMDM Location                        | Version                            |
 |----------------------------|---------------------------------------|------------------------------------|
 | micromdm/nanomdm           | server/mdm/nanomdm/                   | v0.9.0                             |
 | micromdm/nanodep           | server/mdm/nanodep/                   | v0.4.0                             |

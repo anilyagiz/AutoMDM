@@ -5,15 +5,15 @@ import (
 	"database/sql"
 	"encoding/json"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 	"github.com/jmoiron/sqlx"
 )
 
 // GetLatestCronStats returns a slice of no more than two cron stats records, where index 0 (if
 // present) is the most recently created scheduled run, and index 1 (if present) represents a
 // triggered run that is currently pending/queued.
-func (ds *Datastore) GetLatestCronStats(ctx context.Context, name string) ([]fleet.CronStats, error) {
+func (ds *Datastore) GetLatestCronStats(ctx context.Context, name string) ([]automdm.CronStats, error) {
 	stmt := `
 (
 	SELECT
@@ -41,16 +41,16 @@ UNION
 		created_at DESC
 	LIMIT 1)`
 
-	var res []fleet.CronStats
+	var res []automdm.CronStats
 	err := sqlx.SelectContext(ctx, ds.reader(ctx), &res, stmt, name, name)
 	if err != nil {
-		return []fleet.CronStats{}, ctxerr.Wrap(ctx, err, "select cron stats")
+		return []automdm.CronStats{}, ctxerr.Wrap(ctx, err, "select cron stats")
 	}
 
 	return res, nil
 }
 
-func (ds *Datastore) InsertCronStats(ctx context.Context, statsType fleet.CronStatsType, name string, instance string, status fleet.CronStatsStatus) (int, error) {
+func (ds *Datastore) InsertCronStats(ctx context.Context, statsType automdm.CronStatsType, name string, instance string, status automdm.CronStatsStatus) (int, error) {
 	stmt := `INSERT INTO cron_stats (stats_type, name, instance, status) VALUES (?, ?, ?, ?)`
 
 	res, err := ds.writer(ctx).ExecContext(ctx, stmt, statsType, name, instance, status)
@@ -65,7 +65,7 @@ func (ds *Datastore) InsertCronStats(ctx context.Context, statsType fleet.CronSt
 	return int(id), nil
 }
 
-func (ds *Datastore) UpdateCronStats(ctx context.Context, id int, status fleet.CronStatsStatus, cronErrors *fleet.CronScheduleErrors) error {
+func (ds *Datastore) UpdateCronStats(ctx context.Context, id int, status automdm.CronStatsStatus, cronErrors *automdm.CronScheduleErrors) error {
 	stmt := `UPDATE cron_stats SET status = ?, errors = ? WHERE id = ?`
 
 	errorsJSON := sql.NullString{}
@@ -84,7 +84,7 @@ func (ds *Datastore) UpdateCronStats(ctx context.Context, id int, status fleet.C
 	return nil
 }
 
-func (ds *Datastore) ClaimCronStats(ctx context.Context, id int, instance string, status fleet.CronStatsStatus) error {
+func (ds *Datastore) ClaimCronStats(ctx context.Context, id int, instance string, status automdm.CronStatsStatus) error {
 	stmt := `UPDATE cron_stats SET status = ?, instance = ? WHERE id = ?`
 
 	if _, err := ds.writer(ctx).ExecContext(ctx, stmt, status, instance, id); err != nil {
@@ -94,7 +94,7 @@ func (ds *Datastore) ClaimCronStats(ctx context.Context, id int, instance string
 	return nil
 }
 
-func (ds *Datastore) UpdateAllCronStatsForInstance(ctx context.Context, instance string, fromStatus fleet.CronStatsStatus, toStatus fleet.CronStatsStatus) error {
+func (ds *Datastore) UpdateAllCronStatsForInstance(ctx context.Context, instance string, fromStatus automdm.CronStatsStatus, toStatus automdm.CronStatsStatus) error {
 	stmt := `UPDATE cron_stats SET status = ? WHERE instance = ? AND status = ?`
 
 	if _, err := ds.writer(ctx).ExecContext(ctx, stmt, toStatus, instance, fromStatus); err != nil {
@@ -131,7 +131,7 @@ func (ds *Datastore) CleanupCronStats(ctx context.Context) error {
 				))
 				OR cs.created_at < DATE_SUB(NOW(), INTERVAL 12 HOUR)
 			)`
-		if _, err := tx.ExecContext(ctx, updateStmt, fleet.CronStatsStatusExpired, fleet.CronStatsStatusPending, fleet.CronStatsStatusQueued); err != nil {
+		if _, err := tx.ExecContext(ctx, updateStmt, automdm.CronStatsStatusExpired, automdm.CronStatsStatusPending, automdm.CronStatsStatusQueued); err != nil {
 			return ctxerr.Wrap(ctx, err, "updating expired cron stats")
 		}
 

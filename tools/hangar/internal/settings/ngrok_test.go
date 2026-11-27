@@ -21,7 +21,7 @@ tunnels:
   web:
     proto: http
     addr: localhost:8000
-  fleet:
+  team:
     proto: http
     addr: 8080
 `)
@@ -35,8 +35,8 @@ tunnels:
 	if len(got.Tunnels) != 2 {
 		t.Fatalf("got %d tunnels, want 2", len(got.Tunnels))
 	}
-	// Sorted by name: fleet before web.
-	if got.Tunnels[0].Name != "fleet" || got.Tunnels[1].Name != "web" {
+	// Sorted by name: team before web.
+	if got.Tunnels[0].Name != "automdm" || got.Tunnels[1].Name != "web" {
 		t.Errorf("tunnels not sorted by name: %+v", got.Tunnels)
 	}
 	// addr from a bare number and from a host:port string.

@@ -13,15 +13,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/dev_mode"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/server/dev_mode"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func setupFakeServer(t *testing.T, handler http.HandlerFunc) {
 	server := httptest.NewServer(handler)
-	dev_mode.SetOverride("FLEET_DEV_VPP_URL", server.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_VPP_URL", server.URL, t)
 	t.Cleanup(server.Close)
 }
 
@@ -299,7 +299,7 @@ func TestAssociateAssets(t *testing.T) {
 
 func TestGetAssets(t *testing.T) {
 	originalClient := client
-	client = fleethttp.NewClient(fleethttp.WithTimeout(time.Second))
+	client = automdmhttp.NewClient(automdmhttp.WithTimeout(time.Second))
 	t.Cleanup(func() {
 		client = originalClient
 	})
@@ -499,7 +499,7 @@ func TestDoRetryAfter(t *testing.T) {
 			})
 
 			start := time.Now()
-			req, err := http.NewRequest(http.MethodGet, dev_mode.Env("FLEET_DEV_VPP_URL"), nil)
+			req, err := http.NewRequest(http.MethodGet, dev_mode.Env("AUTOMDM_DEV_VPP_URL"), nil)
 			require.NoError(t, err)
 			err = do[any](req, "test-token", nil)
 			require.NoError(t, err)
@@ -626,7 +626,7 @@ func TestRegisterUser(t *testing.T) {
 			assert.Equal(t, "valid_token", got.SToken)
 			assert.Equal(t, "uuid-1", got.ClientUserIDStr)
 			assert.Equal(t, "user1@example.com", got.ManagedAppleIDStr)
-			// Apple keys on email — Fleet sends the Managed Apple ID for both.
+			// Apple keys on email — AutoMDM sends the Managed Apple ID for both.
 			assert.Equal(t, "user1@example.com", got.Email)
 
 			_, _ = w.Write([]byte(`{
@@ -829,7 +829,7 @@ func TestDoVPPAttemptClampsRetryAfter(t *testing.T) {
 		w.WriteHeader(http.StatusInternalServerError)
 	})
 
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, dev_mode.Env("FLEET_DEV_VPP_URL"), nil)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, dev_mode.Env("AUTOMDM_DEV_VPP_URL"), nil)
 	require.NoError(t, err)
 
 	done, retryAfter, err := doVPPAttempt[any](req, nil)
@@ -895,7 +895,7 @@ func TestGetBaseURL(t *testing.T) {
 
 	t.Run("Custom URL", func(t *testing.T) {
 		customURL := "http://localhost:8000"
-		dev_mode.SetOverride("FLEET_DEV_VPP_URL", customURL, t)
+		dev_mode.SetOverride("AUTOMDM_DEV_VPP_URL", customURL, t)
 		require.Equal(t, customURL, getBaseURL())
 	})
 }

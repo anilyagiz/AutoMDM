@@ -159,14 +159,14 @@ const EJBCAForm = ({
         } on ${monthDayYearFormat(
           clientCertExpiresAt
         )}. Upload a new one to replace it.`
-      : "Fleet uses it to authenticate to EJBCA.";
+      : "AutoMDM uses it to authenticate to EJBCA.";
 
   return (
     <form className={baseClass} onSubmit={handleSubmit(submitUnlessReading)}>
       <InputField
         label="Name"
         {...getTextFieldProps("name")}
-        helpText="Letters, numbers, and underscores only. Fleet will create configuration profile variables with the name as suffix (e.g. $FLEET_VAR_EJBCA_DATA_WIFI_CERTIFICATE)."
+        helpText="Letters, numbers, and underscores only. AutoMDM will create configuration profile variables with the name as suffix (e.g. $AUTOMDM_VAR_EJBCA_DATA_WIFI_CERTIFICATE)."
         placeholder="WIFI_CERTIFICATE"
         disabled={isSubmitting}
         inputOptions={{ maxLength: MAX_ENTITY_CHAR_LENGTH }}
@@ -210,7 +210,7 @@ const EJBCAForm = ({
         {...getTextFieldProps("trustCABundle")}
         type="textarea"
         inputClassName={`${baseClass}__trust-ca-bundle`}
-        helpText="PEM-encoded CA certificates that sign the HTTPS certificate of your EJBCA server. If you leave it empty, Fleet trusts public CAs. (optional)"
+        helpText="PEM-encoded CA certificates that sign the HTTPS certificate of your EJBCA server. If you leave it empty, AutoMDM trusts public CAs. (optional)"
         placeholder="-----BEGIN CERTIFICATE-----"
         disabled={isSubmitting}
       />
@@ -242,15 +242,15 @@ const EJBCAForm = ({
         label="Certificate common name (CN)"
         {...getTextFieldProps("commonName")}
         helpText="Certificates delivered to your hosts will have this CN in the subject."
-        placeholder="$FLEET_VAR_HOST_HARDWARE_SERIAL"
+        placeholder="$AUTOMDM_VAR_HOST_HARDWARE_SERIAL"
         disabled={isSubmitting}
         inputOptions={{ maxLength: MAX_ENTITY_CHAR_LENGTH }}
       />
       <InputField
         label="End entity username"
         {...getTextFieldProps("usernameTemplate")}
-        helpText="EJBCA creates an end entity with this username for each host. If you leave it empty, Fleet uses the CN. (optional)"
-        placeholder="$FLEET_VAR_HOST_HARDWARE_SERIAL"
+        helpText="EJBCA creates an end entity with this username for each host. If you leave it empty, AutoMDM uses the CN. (optional)"
+        placeholder="$AUTOMDM_VAR_HOST_HARDWARE_SERIAL"
         disabled={isSubmitting}
         inputOptions={{ maxLength: MAX_ENTITY_CHAR_LENGTH }}
       />
@@ -258,7 +258,7 @@ const EJBCAForm = ({
         label="User principal name (UPN)"
         {...getTextFieldProps("userPrincipalName")}
         helpText="Certificates delivered to your hosts will have this UPN attribute in Subject Alternative Name (SAN). (optional)"
-        placeholder="$FLEET_VAR_HOST_HARDWARE_SERIAL"
+        placeholder="$AUTOMDM_VAR_HOST_HARDWARE_SERIAL"
         disabled={isSubmitting}
         inputOptions={{ maxLength: MAX_ENTITY_CHAR_LENGTH }}
       />

@@ -16,20 +16,20 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/platform/endpointer"
-	"github.com/fleetdm/fleet/v4/server/version"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/platform/endpointer"
+	"github.com/anilyagiz/automdm/v4/server/version"
 )
 
-// ApplyAppConfig sends the application config to be applied to the Fleet instance.
-func (c *Client) ApplyAppConfig(payload interface{}, opts fleet.ApplySpecOptions) error {
-	verb, path := "PATCH", "/api/latest/fleet/config"
+// ApplyAppConfig sends the application config to be applied to the AutoMDM instance.
+func (c *Client) ApplyAppConfig(payload interface{}, opts automdm.ApplySpecOptions) error {
+	verb, path := "PATCH", "/api/latest/automdm/config"
 	var responseBody appConfigResponse
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return err
 	}
-	data, err = endpointer.RewriteOldToNewKeys(data, endpointer.ExtractAliasRules(fleet.AppConfig{}))
+	data, err = endpointer.RewriteOldToNewKeys(data, endpointer.ExtractAliasRules(automdm.AppConfig{}))
 	if err != nil {
 		return err
 	}
@@ -38,8 +38,8 @@ func (c *Client) ApplyAppConfig(payload interface{}, opts fleet.ApplySpecOptions
 
 // ApplyNoTeamProfiles sends the list of profiles to be applied for the hosts
 // in no team.
-func (c *Client) ApplyNoTeamProfiles(profiles []fleet.MDMProfileBatchPayload, opts fleet.ApplySpecOptions, assumptions *fleet.TeamSpecsDryRunAssumptions) error {
-	verb, path := "POST", "/api/latest/fleet/mdm/profiles/batch"
+func (c *Client) ApplyNoTeamProfiles(profiles []automdm.MDMProfileBatchPayload, opts automdm.ApplySpecOptions, assumptions *automdm.TeamSpecsDryRunAssumptions) error {
+	verb, path := "POST", "/api/latest/automdm/mdm/profiles/batch"
 	query, err := url.ParseQuery(opts.RawQuery())
 	if err != nil {
 		return err
@@ -57,44 +57,44 @@ func (c *Client) ApplyNoTeamProfiles(profiles []fleet.MDMProfileBatchPayload, op
 }
 
 // GetAppConfig fetches the application config from the server API
-func (c *Client) GetAppConfig() (*fleet.EnrichedAppConfig, error) {
-	verb, path := "GET", "/api/latest/fleet/config"
-	var responseBody fleet.EnrichedAppConfig
+func (c *Client) GetAppConfig() (*automdm.EnrichedAppConfig, error) {
+	verb, path := "GET", "/api/latest/automdm/config"
+	var responseBody automdm.EnrichedAppConfig
 	err := c.authenticatedRequest(nil, verb, path, &responseBody)
 	return &responseBody, err
 }
 
 // GetEnrollSecretSpec fetches the enroll secrets stored on the server
-func (c *Client) GetEnrollSecretSpec() (*fleet.EnrollSecretSpec, error) {
-	verb, path := "GET", "/api/latest/fleet/spec/enroll_secret"
+func (c *Client) GetEnrollSecretSpec() (*automdm.EnrollSecretSpec, error) {
+	verb, path := "GET", "/api/latest/automdm/spec/enroll_secret"
 	var responseBody getEnrollSecretSpecResponse
 	err := c.authenticatedRequest(nil, verb, path, &responseBody)
 	return responseBody.Spec, err
 }
 
 // ApplyEnrollSecretSpec applies the enroll secrets.
-func (c *Client) ApplyEnrollSecretSpec(spec *fleet.EnrollSecretSpec, opts fleet.ApplySpecOptions) error {
+func (c *Client) ApplyEnrollSecretSpec(spec *automdm.EnrollSecretSpec, opts automdm.ApplySpecOptions) error {
 	req := applyEnrollSecretSpecRequest{Spec: spec}
-	verb, path := "POST", "/api/latest/fleet/spec/enroll_secret"
+	verb, path := "POST", "/api/latest/automdm/spec/enroll_secret"
 	var responseBody applyEnrollSecretSpecResponse
 	return c.authenticatedRequestWithQuery(req, verb, path, &responseBody, opts.RawQuery())
 }
 
 func (c *Client) Version() (*version.Info, error) {
-	verb, path := "GET", "/api/latest/fleet/version"
+	verb, path := "GET", "/api/latest/automdm/version"
 	var responseBody versionResponse
 	err := c.authenticatedRequest(nil, verb, path, &responseBody)
 	return responseBody.Info, err
 }
 
 type orgLogoAction struct {
-	mode       fleet.OrgLogoMode
+	mode       automdm.OrgLogoMode
 	uploadPath string
 }
 
 // planAndStripOrgLogos plans the PUT /logo uploads that run after the
 // AppConfig PATCH and strips the gitops-only `path` keys from the PATCH
-// payload (they have no matching field on fleet.OrgInfo). When a `path`
+// payload (they have no matching field on automdm.OrgInfo). When a `path`
 // is given, the URL keys for that mode are stripped too so the follow-up
 // PUT is the sole writer.
 //
@@ -118,13 +118,13 @@ func (c *Client) planAndStripOrgLogos(
 	}
 
 	type modeSpec struct {
-		mode    fleet.OrgLogoMode
+		mode    automdm.OrgLogoMode
 		pathKey string
 		urlKey  string
 	}
 	specs := []modeSpec{
-		{fleet.OrgLogoModeLight, "org_logo_path_light_mode", "org_logo_url_light_mode"},
-		{fleet.OrgLogoModeDark, "org_logo_path_dark_mode", "org_logo_url_dark_mode"},
+		{automdm.OrgLogoModeLight, "org_logo_path_light_mode", "org_logo_url_light_mode"},
+		{automdm.OrgLogoModeDark, "org_logo_path_dark_mode", "org_logo_url_dark_mode"},
 	}
 
 	var actions []orgLogoAction
@@ -188,7 +188,7 @@ func (c *Client) doGitOpsOrgLogos(
 }
 
 // validateOrgLogoFile reads the file at path and runs the canonical
-// fleet.ValidateOrgLogoBytes check on its contents, so a YAML referencing
+// automdm.ValidateOrgLogoBytes check on its contents, so a YAML referencing
 // an invalid image fails fast at gitops apply time rather than mid-PATCH.
 // The LimitReader caps the read at the file-size cap so a mis-pointed
 // huge file doesn't get slurped into memory before being rejected.
@@ -198,22 +198,22 @@ func validateOrgLogoFile(path string) error {
 		return fmt.Errorf("opening logo file %q: %w", path, err)
 	}
 	defer f.Close()
-	body, err := io.ReadAll(io.LimitReader(f, fleet.OrgLogoMaxFileSize+1))
+	body, err := io.ReadAll(io.LimitReader(f, automdm.OrgLogoMaxFileSize+1))
 	if err != nil {
 		return fmt.Errorf("reading logo file %q: %w", path, err)
 	}
-	if err := fleet.ValidateOrgLogoBytes(body); err != nil {
+	if err := automdm.ValidateOrgLogoBytes(body); err != nil {
 		return fmt.Errorf("logo file at %q: %w", path, err)
 	}
 	return nil
 }
 
 // UploadOrgLogo uploads the file at logoPath as the org logo for the given
-// mode (light or dark) via PUT /api/latest/fleet/logo. The endpoint is
+// mode (light or dark) via PUT /api/latest/automdm/logo. The endpoint is
 // multipart/form-data with a single "logo" field. Server-side validation
 // rejects files larger than 100KB or that aren't PNG/JPEG/WebP.
-func (c *Client) UploadOrgLogo(mode fleet.OrgLogoMode, logoPath string) error {
-	verb, path := "PUT", "/api/latest/fleet/logo"
+func (c *Client) UploadOrgLogo(mode automdm.OrgLogoMode, logoPath string) error {
+	verb, path := "PUT", "/api/latest/automdm/logo"
 
 	var b bytes.Buffer
 	w := multipart.NewWriter(&b)
@@ -253,20 +253,20 @@ func (c *Client) UploadOrgLogo(mode fleet.OrgLogoMode, logoPath string) error {
 }
 
 // DeleteOrgLogo clears the stored org logo for the given mode (light, dark, or
-// all) via DELETE /api/latest/fleet/logo. The endpoint is idempotent — deleting
+// all) via DELETE /api/latest/automdm/logo. The endpoint is idempotent — deleting
 // an absent logo is a no-op server-side.
-func (c *Client) DeleteOrgLogo(mode fleet.OrgLogoMode) error {
-	verb, path := "DELETE", "/api/latest/fleet/logo"
+func (c *Client) DeleteOrgLogo(mode automdm.OrgLogoMode) error {
+	verb, path := "DELETE", "/api/latest/automdm/logo"
 	var responseBody deleteOrgLogoResponse
 	return c.authenticatedRequestWithQuery(nil, verb, path, &responseBody, fmt.Sprintf("mode=%s", mode))
 }
 
 // GetOrgLogoContent fetches the stored org logo bytes for the given mode
-// (light or dark) via GET /api/latest/fleet/logo. Returns the bytes and the
+// (light or dark) via GET /api/latest/automdm/logo. Returns the bytes and the
 // detected Content-Type. The endpoint returns 404 when no logo is stored for
 // the requested mode; callers should treat that as "no logo present".
-func (c *Client) GetOrgLogoContent(mode fleet.OrgLogoMode) (body []byte, contentType string, err error) {
-	verb, path := "GET", "/api/latest/fleet/logo"
+func (c *Client) GetOrgLogoContent(mode automdm.OrgLogoMode) (body []byte, contentType string, err error) {
+	verb, path := "GET", "/api/latest/automdm/logo"
 	resp, err := c.AuthenticatedDo(verb, path, fmt.Sprintf("mode=%s", mode), nil)
 	if err != nil {
 		return nil, "", fmt.Errorf("fetching org logo (%s): %w", mode, err)
@@ -294,7 +294,7 @@ var gitOpsHighRiskOrgSettings = []string{"smtp_settings", "gitops", "server_sett
 // for anything the YAML leaves out. Only sections that the PATCH would
 // otherwise merge onto the stored config are listed here.
 func gitOpsOrgSettingsDefaults() (map[string]any, error) {
-	var cfg fleet.AppConfig
+	var cfg automdm.AppConfig
 	cfg.ApplyDefaultsForNewInstalls()
 
 	raw, err := json.Marshal(map[string]any{
@@ -302,9 +302,9 @@ func gitOpsOrgSettingsDefaults() (map[string]any, error) {
 		"activity_expiry_settings": cfg.ActivityExpirySettings,
 		"smtp_settings":            cfg.SMTPSettings,
 		"server_settings":          cfg.ServerSettings,
-		"fleet_desktop":            cfg.FleetDesktop,
+		"automdm_desktop":          cfg.AutoMDMDesktop,
 		"webhook_settings":         cfg.WebhookSettings,
-		"org_info":                 map[string]any{"contact_url": fleet.DefaultOrgInfoContactURL},
+		"org_info":                 map[string]any{"contact_url": automdm.DefaultOrgInfoContactURL},
 		"gitops":                   map[string]any{"gitops_mode_enabled": false, "repository_url": ""},
 	})
 	if err != nil {
@@ -396,13 +396,13 @@ func lookupPath(m map[string]any, path string) (any, bool) {
 // applyGitOpsOrgSettingsDefaults resets the org_settings the YAML omits and
 // returns, per high-risk section, the omitted keys whose value on the server
 // is not already the default.
-func applyGitOpsOrgSettingsDefaults(orgSettings map[string]any, current *fleet.EnrichedAppConfig) (map[string][]string, error) {
+func applyGitOpsOrgSettingsDefaults(orgSettings map[string]any, current *automdm.EnrichedAppConfig) (map[string][]string, error) {
 	defaults, err := gitOpsOrgSettingsDefaults()
 	if err != nil {
 		return nil, err
 	}
 	aliases := make(map[string]string)
-	for _, rule := range endpointer.ExtractAliasRules(fleet.AppConfig{}) {
+	for _, rule := range endpointer.ExtractAliasRules(automdm.AppConfig{}) {
 		aliases[rule.OldKey] = rule.NewKey
 	}
 	// The API never returns the password, so a repo generated from the server

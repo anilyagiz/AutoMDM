@@ -17,7 +17,7 @@ import (
 func main() {
 	app := cli.NewApp()
 	app.Name = "tuf-status"
-	app.Usage = "CLI to query a Fleet TUF repository"
+	app.Usage = "CLI to query an AutoMDM TUF repository"
 	app.Commands = []*cli.Command{
 		channelVersionCommand(),
 	}
@@ -39,8 +39,8 @@ var componentFileMap = map[string]map[string]string{
 		"linux":         "desktop.tar.gz",
 		"linux-arm64":   "desktop.tar.gz",
 		"macos":         "desktop.app.tar.gz",
-		"windows":       "fleet-desktop.exe",
-		"windows-arm64": "fleet-desktop.exe",
+		"windows":       "automdm-desktop.exe",
+		"windows-arm64": "automdm-desktop.exe",
 	},
 	"osqueryd": {
 		"linux":         "osqueryd",

@@ -13,7 +13,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/app_sso_platform"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/app_sso_platform"
 	"github.com/osquery/osquery-go/plugin/table"
 )
 

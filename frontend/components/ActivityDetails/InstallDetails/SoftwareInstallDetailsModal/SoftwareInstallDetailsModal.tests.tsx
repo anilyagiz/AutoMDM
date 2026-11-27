@@ -33,7 +33,7 @@ describe("SoftwareInstallDetailsModal", () => {
   describe("StatusMessage component", () => {
     afterEach(() => jest.useRealTimers());
 
-    it("renders basic 'is installed' message when not installed by fleet (no installResult provided)", () => {
+    it("renders basic 'is installed' message when not installed by team (no installResult provided)", () => {
       render(<StatusMessage softwareName="CoolApp" isMyDevicePage={false} />);
       expect(screen.getByText(/CoolApp/)).toBeInTheDocument();
       expect(screen.getByText(/is installed/)).toBeInTheDocument();
@@ -160,14 +160,14 @@ describe("SoftwareInstallDetailsModal", () => {
         />
       );
 
-      expect(screen.getByText(/Fleet skipped install of/)).toBeInTheDocument();
+      expect(screen.getByText(/AutoMDM skipped install of/)).toBeInTheDocument();
       expect(screen.getByText(/The app was open/)).toBeInTheDocument();
       expect(
         screen.getByText(/It will update once the user closes it and the/)
       ).toBeInTheDocument();
       // Notify sentence must not leak into the patch_when_closed path.
       expect(
-        screen.queryByText(/Fleet notifies the end user/)
+        screen.queryByText(/AutoMDM notifies the end user/)
       ).not.toBeInTheDocument();
       expect(screen.queryByText(/failed to install/)).not.toBeInTheDocument();
       // Grey "!" (error), not the red failure icon.
@@ -176,7 +176,7 @@ describe("SoftwareInstallDetailsModal", () => {
           .getByTestId("error-icon")
           .querySelector("path")
           ?.getAttribute("fill")
-      ).toContain("ui-fleet-black-50");
+      ).toContain("ui-automdm-black-50");
     });
 
     it("renders the notify-variant trailing sentence when pre-install output carries the notify marker", () => {
@@ -186,17 +186,17 @@ describe("SoftwareInstallDetailsModal", () => {
           installResult={createMockSoftwareInstallResult({
             status: "failed_install",
             pre_install_query_output:
-              "Query didn't return result or failed\nThe app was open. Fleet notifies the end user 1 hour before the patch is forced.",
+              "Query didn't return result or failed\nThe app was open. AutoMDM notifies the end user 1 hour before the patch is forced.",
           })}
           isMyDevicePage={false}
           skippedInstall
         />
       );
 
-      expect(screen.getByText(/Fleet skipped install of/)).toBeInTheDocument();
+      expect(screen.getByText(/AutoMDM skipped install of/)).toBeInTheDocument();
       expect(
         screen.getByText(
-          /Fleet notifies the end user 1 hour before the patch is forced\./
+          /AutoMDM notifies the end user 1 hour before the patch is forced\./
         )
       ).toBeInTheDocument();
       // patch_when_closed copy is misleading here and must not render.
@@ -212,17 +212,17 @@ describe("SoftwareInstallDetailsModal", () => {
           installResult={createMockSoftwareInstallResult({
             status: "failed_install",
             pre_install_query_output:
-              "Query didn't return result or failed\nThe app was open. Fleet notifies the end user 1 hour before the patch deadline.",
+              "Query didn't return result or failed\nThe app was open. AutoMDM notifies the end user 1 hour before the patch deadline.",
           })}
           isMyDevicePage={false}
           skippedInstall
         />
       );
 
-      expect(screen.getByText(/Fleet skipped install of/)).toBeInTheDocument();
+      expect(screen.getByText(/AutoMDM skipped install of/)).toBeInTheDocument();
       expect(
         screen.getByText(
-          /Fleet will notify the end user 1 hour before the patch deadline\./
+          /AutoMDM will notify the end user 1 hour before the patch deadline\./
         )
       ).toBeInTheDocument();
       // Notify-forced copy mentions "patch is forced"; deadline mustn't leak
@@ -247,7 +247,7 @@ describe("SoftwareInstallDetailsModal", () => {
         />
       );
 
-      expect(screen.getByText(/Fleet skipped install of/)).toBeInTheDocument();
+      expect(screen.getByText(/AutoMDM skipped install of/)).toBeInTheDocument();
       expect(
         screen.getByText(
           /The app was open\. It will update once the user closes it and the/
@@ -257,7 +257,7 @@ describe("SoftwareInstallDetailsModal", () => {
       const link = screen.getByRole("link", { name: /policy runs again/ });
       expect(link).toHaveAttribute(
         "href",
-        "https://fleetdm.com/learn-more-about/policy-automations"
+        "https://automdm.com/learn-more-about/policy-automations"
       );
       expect(link).toHaveAttribute("target", "_blank");
       // Self-service tail should be gone.
@@ -271,7 +271,7 @@ describe("SoftwareInstallDetailsModal", () => {
           .getByTestId("error-icon")
           .querySelector("path")
           ?.getAttribute("fill")
-      ).toContain("ui-fleet-black-50");
+      ).toContain("ui-automdm-black-50");
     });
 
     it("renders skipped copy as plain text (no policy-automations link) on the My device page", () => {
@@ -308,7 +308,7 @@ describe("SoftwareInstallDetailsModal", () => {
       );
 
       expect(screen.queryByTestId("success-icon")).toBeInTheDocument();
-      expect(screen.getByText(/Fleet installed/)).toBeInTheDocument();
+      expect(screen.getByText(/AutoMDM installed/)).toBeInTheDocument();
       expect(screen.getByText(/CoolApp/)).toBeInTheDocument();
       expect(screen.getByText(/Test Host/)).toBeInTheDocument();
       expect(screen.getByText(/\(com\.cool\.app\)/)).toBeInTheDocument();
@@ -337,7 +337,7 @@ describe("SoftwareInstallDetailsModal", () => {
         jest.advanceTimersByTime(300);
       });
       expect(
-        screen.queryByText(/Time when Fleet sent install command/)
+        screen.queryByText(/Time when AutoMDM sent install command/)
       ).not.toBeInTheDocument();
     });
 
@@ -363,7 +363,7 @@ describe("SoftwareInstallDetailsModal", () => {
       await user.hover(screen.getByText(/3 days ago/));
       await waitFor(() => {
         expect(
-          screen.getByText(/Time when Fleet sent install command/)
+          screen.getByText(/Time when AutoMDM sent install command/)
         ).toBeInTheDocument();
       });
     });
@@ -537,7 +537,7 @@ describe("SoftwareInstallDetailsModal", () => {
         />
       );
 
-      await screen.findByText(/Fleet skipped install of/);
+      await screen.findByText(/AutoMDM skipped install of/);
       await user.click(screen.getByRole("button", { name: /Details/i }));
 
       expect(screen.getByText("Pre-install query output:")).toBeInTheDocument();
@@ -548,7 +548,7 @@ describe("SoftwareInstallDetailsModal", () => {
       ).toBeInTheDocument();
       // patch_when_closed has no notify sentence.
       expect(
-        screen.queryByText(/Fleet notifies the end user/)
+        screen.queryByText(/AutoMDM notifies the end user/)
       ).not.toBeInTheDocument();
     });
 
@@ -565,13 +565,13 @@ describe("SoftwareInstallDetailsModal", () => {
         />
       );
 
-      await screen.findByText(/Fleet skipped install of/);
+      await screen.findByText(/AutoMDM skipped install of/);
       await user.click(screen.getByRole("button", { name: /Details/i }));
 
       expect(screen.getByText("Pre-install query output:")).toBeInTheDocument();
       expect(
         screen.getByText(
-          /Query didn't return result or failed\s+The app was open\. Fleet notifies the end user 1 hour before the patch is forced\./
+          /Query didn't return result or failed\s+The app was open\. AutoMDM notifies the end user 1 hour before the patch is forced\./
         )
       ).toBeInTheDocument();
     });
@@ -594,7 +594,7 @@ describe("SoftwareInstallDetailsModal", () => {
         />
       );
 
-      await screen.findByText(/Fleet skipped install of/);
+      await screen.findByText(/AutoMDM skipped install of/);
       expect(
         await screen.findByRole("button", { name: /Details/i })
       ).toBeInTheDocument();
@@ -760,7 +760,7 @@ describe("SoftwareInstallDetailsModal", () => {
       );
 
       expect(
-        await screen.findByText(/Fleet skipped install of/)
+        await screen.findByText(/AutoMDM skipped install of/)
       ).toBeInTheDocument();
       expect(screen.queryByText(/is installed\./i)).not.toBeInTheDocument();
     });
@@ -771,7 +771,7 @@ describe("SoftwareInstallDetailsModal", () => {
       mockServer.resetHandlers();
     });
 
-    it("renders the Fleet Premium upsell when the results request returns 402", async () => {
+    it("renders the AutoMDM Premium upsell when the results request returns 402", async () => {
       mockServer.use(getSoftwareInstallResultHandlerPremiumRequired);
       const renderWithServer = createCustomRenderer({ withBackendMock: true });
 
@@ -787,11 +787,11 @@ describe("SoftwareInstallDetailsModal", () => {
         await screen.findByText("Couldn't get install details.")
       ).toBeInTheDocument();
       expect(
-        screen.getByText(/This feature is included in Fleet Premium/i)
+        screen.getByText(/This feature is included in AutoMDM Premium/i)
       ).toBeInTheDocument();
       expect(screen.getByRole("link", { name: /Learn more/i })).toHaveAttribute(
         "href",
-        "https://fleetdm.com/upgrade"
+        "https://automdm.com/upgrade"
       );
     });
   });
@@ -843,7 +843,7 @@ describe("SoftwareInstallDetailsModal", () => {
 
       // Wait for the modal to finish loading (status message is a good
       // anchor — it renders after the useQuery resolves).
-      await screen.findByText(/Fleet installed/);
+      await screen.findByText(/AutoMDM installed/);
       expect(
         screen.queryByText("Package SHA-256 hash:")
       ).not.toBeInTheDocument();

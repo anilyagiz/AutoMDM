@@ -62,7 +62,7 @@ const RunScript = ({ currentTeamId, router }: ISetupExperienceCardProps) => {
   >(["team", currentTeamId], () => teamsAPI.load(currentTeamId), {
     ...DEFAULT_USE_QUERY_OPTIONS,
     enabled: currentTeamId !== API_NO_TEAM_ID,
-    select: (res) => res.fleet,
+    select: (res) => res.team,
   });
 
   const onUpload = () => {
@@ -143,7 +143,7 @@ const RunScript = ({ currentTeamId, router }: ISetupExperienceCardProps) => {
       />
       <PageDescription
         variant="right-panel"
-        content="Upload a script to run on macOS hosts that automatically enroll to Fleet."
+        content="Upload a script to run on macOS hosts that automatically enroll to AutoMDM."
       />
       <SetupExperienceContentContainer>
         {renderContent()}

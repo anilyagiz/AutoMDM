@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/nettest"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/io"
+	"github.com/anilyagiz/automdm/v4/pkg/nettest"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/io"
 	"github.com/stretchr/testify/require"
 )
 

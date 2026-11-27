@@ -83,7 +83,7 @@ export const buildActionOptions = ({
     });
   }
 
-  // Show Deploy only for Fleet-maintained apps.
+  // Show Deploy only for AutoMDM-maintained apps.
   if (canDeploySoftware) {
     options.push({
       label: "Deploy",
@@ -91,7 +91,7 @@ export const buildActionOptions = ({
     });
   }
 
-  // Show versions option only for Fleet-maintained apps on Premium. Stays
+  // Show versions option only for AutoMDM-maintained apps on Premium. Stays
   // clickable in gitops mode — the modal itself disables Save with the gitops
   // tooltip, matching the in-row Latest/Pinned badge behavior.
   if (canManageVersions) {
@@ -138,7 +138,7 @@ interface ISoftwareDetailsSummaryProps {
   /** Displays an edit CTA to edit the software installer
    * Should only be defined for team view of an installable software */
   onClickEditSoftware?: () => void;
-  /** Displays Deploy CTA for Fleet-maintained apps. */
+  /** Displays Deploy CTA for AutoMDM-maintained apps. */
   onClickDeploy?: () => void;
   /** Displays Versions CTA to open the versions / pin modal (Premium FMA only) */
   onClickVersions?: () => void;
@@ -151,15 +151,15 @@ interface ISoftwareDetailsSummaryProps {
   /** timestamp of when icon was last uploaded, used to force refresh of cached icon */
   iconUploadedAt?: string;
   /** Optional pill row rendered between the title and the Actions dropdown
-   * (e.g. Fleet-maintained, Self-service, Auto install). */
+   * (e.g. AutoMDM-maintained, Self-service, Auto install). */
   headerPills?: React.ReactNode;
   /** Custom non-FMA packages collapse the Actions dropdown into a single
    * pencil-icon "Edit" button that opens the Edit Appearance modal directly.
    * Per-installer Edit lives on the Library accordion row. */
   useSingleEditAppearanceButton?: boolean;
-  fleetMaintainedAppSlug?: string;
+  automdmMaintainedAppSlug?: string;
   appStoreId?: string;
-  /** Set when the title response carries a VPP token (fleet view of an Apple
+  /** Set when the title response carries a VPP token (team view of an Apple
    * App Store app). */
   vppToken?: IVppTokenSummary;
   googlePlayId?: string;
@@ -187,7 +187,7 @@ const SoftwareDetailsSummary = ({
   iconUploadedAt,
   headerPills,
   useSingleEditAppearanceButton = false,
-  fleetMaintainedAppSlug,
+  automdmMaintainedAppSlug,
   appStoreId,
   vppToken,
   googlePlayId,
@@ -354,8 +354,8 @@ const SoftwareDetailsSummary = ({
               />
             )}
             {renderGitOpsIdDataSet(
-              "Fleet-maintained app slug",
-              fleetMaintainedAppSlug
+              "AutoMDM-maintained app slug",
+              automdmMaintainedAppSlug
             )}
             {renderGitOpsIdDataSet("App Store ID", appStoreId, appStoreUrl)}
             {vppToken && (

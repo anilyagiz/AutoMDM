@@ -13,7 +13,7 @@
   margin: auto (-$pad-large) 0;
   padding: $pad-medium $pad-large;
   background: $ui-off-white;
-  border: 1px solid $ui-fleet-black-10;
+  border: 1px solid $ui-automdm-black-10;
   border-radius: $border-radius-large;
 
   // Fades the form out above the card on short viewports. Anchored to the
@@ -29,8 +29,8 @@
     height: $pad-large;
     background: linear-gradient(
       to bottom,
-      $core-fleet-white-transparent,
-      $core-fleet-white
+      $core-automdm-white-transparent,
+      $core-automdm-white
     );
     pointer-events: none;
   }
@@ -43,13 +43,13 @@
     right: -1px;
     top: calc(100% + 1px);
     height: $pad-page;
-    background: $core-fleet-white;
+    background: $core-automdm-white;
     pointer-events: none;
   }
 
   &__applies-to {
     font-size: $x-small;
-    color: $ui-fleet-black-75;
+    color: $ui-automdm-black-75;
   }
 
   &__actions {

@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -96,10 +96,10 @@ func TestAggregatedStats(t *testing.T) {
 
 	testcases := []struct {
 		table     string
-		aggregate fleet.AggregatedStatsType
+		aggregate automdm.AggregatedStatsType
 		aggFunc   func(ctx context.Context) error
 	}{
-		{"queries", fleet.AggregatedStatsTypeScheduledQuery, ds.UpdateQueryAggregatedStats},
+		{"queries", automdm.AggregatedStatsTypeScheduledQuery, ds.UpdateQueryAggregatedStats},
 	}
 	for _, tt := range testcases {
 		t.Run(tt.table, func(t *testing.T) {
@@ -110,7 +110,7 @@ func TestAggregatedStats(t *testing.T) {
 			var stats []struct {
 				ID          uint `db:"id"`
 				GlobalStats bool `db:"global_stats"`
-				fleet.AggregatedStats
+				automdm.AggregatedStats
 			}
 			require.NoError(t,
 				ds.writer(context.Background()).Select(&stats,
@@ -170,7 +170,7 @@ func TestAggregatedStatsSkipsDeletedQueries(t *testing.T) {
 
 	var ids []uint
 	require.NoError(t, ds.writer(ctx).SelectContext(ctx, &ids,
-		`SELECT id FROM aggregated_stats WHERE type = ?`, fleet.AggregatedStatsTypeScheduledQuery))
+		`SELECT id FROM aggregated_stats WHERE type = ?`, automdm.AggregatedStatsTypeScheduledQuery))
 	require.Equal(t, []uint{live.ID}, ids)
 }
 
@@ -211,7 +211,7 @@ func TestDeleteOrphanedQueryStats(t *testing.T) {
 	// A deleted report with an aggregated row but no stats rows left.
 	aggOnly := test.NewQuery(t, ds, nil, "aggregated only", "select 3", 0, true)
 	_, err = ds.writer(ctx).ExecContext(ctx, `INSERT INTO aggregated_stats (id, type, global_stats, json_value) VALUES (?, ?, 0, '{}')`,
-		aggOnly.ID, fleet.AggregatedStatsTypeScheduledQuery)
+		aggOnly.ID, automdm.AggregatedStatsTypeScheduledQuery)
 	require.NoError(t, err)
 	// Delete only the report rows, leaving their stats behind like a failed deleteQueryStats.
 	_, err = ds.writer(ctx).ExecContext(ctx, `DELETE FROM queries WHERE id IN (?, ?)`, deleted.ID, aggOnly.ID)
@@ -226,6 +226,6 @@ func TestDeleteOrphanedQueryStats(t *testing.T) {
 	require.NoError(t, ds.writer(ctx).SelectContext(ctx, &aggregated, `SELECT CONCAT(type, ':', id) FROM aggregated_stats ORDER BY type`))
 	require.Equal(t, []string{
 		fmt.Sprintf("%s:%d", aggregatedStatsTypeMunkiVersions, deleted.ID),
-		fmt.Sprintf("%s:%d", fleet.AggregatedStatsTypeScheduledQuery, live.ID),
+		fmt.Sprintf("%s:%d", automdm.AggregatedStatsTypeScheduledQuery, live.ID),
 	}, aggregated)
 }

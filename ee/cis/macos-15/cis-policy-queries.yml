@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: policy
 spec:
-  name: CIS - Ensure Apple-provided Software Updates Are Installed (Fleetd Required)
+  name: CIS - Ensure Apple-provided Software Updates Are Installed (AutoMDMd Required)
   cis_id: "1.1"
   platforms: macOS
   platform: darwin
@@ -200,7 +200,7 @@ spec:
             name='allowCloudDocumentSync' AND 
             (value != 0 AND value != 'false')
         );  
-    /*CIS does not make a hard recommendation for this policy. Fleet has provided two policies (one failing, one succeeding). 
+    /*CIS does not make a hard recommendation for this policy. AutoMDM has provided two policies (one failing, one succeeding). 
       Depending on your organization's decision, you can delete this policy or its counterpart.*/
   purpose: Informational
   tags: compliance, CIS, CIS_Level2, decision-needed
@@ -236,7 +236,7 @@ spec:
             name='allowCloudDocumentSync' AND 
             (value != 1 AND value != 'true')
         );  
-    /*CIS does not make a hard recommendation for this policy. Fleet has provided two policies (one failing, one succeeding). 
+    /*CIS does not make a hard recommendation for this policy. AutoMDM has provided two policies (one failing, one succeeding). 
       Depending on your organization's decision, you can delete this policy or its counterpart.*/
   purpose: Informational
   tags: compliance, CIS, CIS_Level2, decision-needed
@@ -277,7 +277,7 @@ spec:
             name='allowCloudKeychainSync' AND 
             (value != 0 AND value != 'false')
         );  
-    /*CIS does not make a hard recommendation for this policy. Fleet has provided two policies (one failing, one succeeding). 
+    /*CIS does not make a hard recommendation for this policy. AutoMDM has provided two policies (one failing, one succeeding). 
       Depending on your organization's decision, you can delete this policy or its counterpart.*/
   purpose: Informational
   tags: compliance, CIS, CIS_Level2, decision-needed
@@ -318,7 +318,7 @@ spec:
             name='allowCloudKeychainSync' AND 
             (value != 1 AND value != 'true')
         );  
-    /*CIS does not make a hard recommendation for this policy. Fleet has provided two policies (one failing, one succeeding). 
+    /*CIS does not make a hard recommendation for this policy. AutoMDM has provided two policies (one failing, one succeeding). 
       Depending on your organization's decision, you can delete this policy or its counterpart.*/
   purpose: Informational
   tags: compliance, CIS, CIS_Level2, decision-needed
@@ -980,7 +980,7 @@ spec:
       WHERE u.directory LIKE '/Users/%' AND
       p.value IS NULL
     );
-    /*CIS does not make a hard recommendation for this policy. Fleet has provided two policies (one failing, one succeeding). 
+    /*CIS does not make a hard recommendation for this policy. AutoMDM has provided two policies (one failing, one succeeding). 
       Depending on your organization's decision, you can delete this policy or its counterpart.*/
   purpose: Informational
   tags: compliance, CIS, CIS_Level1, decision-needed
@@ -1009,7 +1009,7 @@ spec:
       WHERE u.directory LIKE '/Users/%' AND
       p.value IS NULL
     );
-    /*CIS does not make a hard recommendation for this policy. Fleet has provided two policies (one failing, one succeeding). 
+    /*CIS does not make a hard recommendation for this policy. AutoMDM has provided two policies (one failing, one succeeding). 
       Depending on your organization's decision, you can delete this policy or its counterpart.*/
   purpose: Informational
   tags: compliance, CIS, CIS_Level1, decision-needed
@@ -1038,7 +1038,7 @@ spec:
       WHERE u.directory LIKE '/Users/%' AND
       p.value IS NULL
     );
-    /*CIS does not make a hard recommendation for this policy. Fleet has provided two policies (one failing, one succeeding). 
+    /*CIS does not make a hard recommendation for this policy. AutoMDM has provided two policies (one failing, one succeeding). 
       Depending on your organization's decision, you can delete this policy or its counterpart.*/
   purpose: Informational
   tags: compliance, CIS, CIS_Level1, decision-needed
@@ -1067,7 +1067,7 @@ spec:
       WHERE u.directory LIKE '/Users/%' AND
       p.value IS NULL
     );
-    /*CIS does not make a hard recommendation for this policy. Fleet has provided two policies (one failing, one succeeding). 
+    /*CIS does not make a hard recommendation for this policy. AutoMDM has provided two policies (one failing, one succeeding). 
       Depending on your organization's decision, you can delete this policy or its counterpart.*/
   purpose: Informational
   tags: compliance, CIS, CIS_Level1, decision-needed
@@ -1096,7 +1096,7 @@ spec:
       WHERE u.directory LIKE '/Users/%' AND
       p.value IS NULL
     );
-    /*CIS does not make a hard recommendation for this policy. Fleet has provided two policies (one failing, one succeeding). 
+    /*CIS does not make a hard recommendation for this policy. AutoMDM has provided two policies (one failing, one succeeding). 
       Depending on your organization's decision, you can delete this policy or its counterpart.*/
   purpose: Informational
   tags: compliance, CIS, CIS_Level1, decision-needed
@@ -1125,7 +1125,7 @@ spec:
       WHERE u.directory LIKE '/Users/%' AND
       p.value IS NULL
     );
-    /*CIS does not make a hard recommendation for this policy. Fleet has provided two policies (one failing, one succeeding). 
+    /*CIS does not make a hard recommendation for this policy. AutoMDM has provided two policies (one failing, one succeeding). 
       Depending on your organization's decision, you can delete this policy or its counterpart.*/
   purpose: Informational
   tags: compliance, CIS, CIS_Level1, decision-needed
@@ -1154,7 +1154,7 @@ spec:
       WHERE u.directory LIKE '/Users/%' AND
       p.value IS NULL
     );
-    /*CIS does not make a hard recommendation for this policy. Fleet has provided two policies (one failing, one succeeding). 
+    /*CIS does not make a hard recommendation for this policy. AutoMDM has provided two policies (one failing, one succeeding). 
       Depending on your organization's decision, you can delete this policy or its counterpart.*/
   purpose: Informational
   tags: compliance, CIS, CIS_Level1, decision-needed
@@ -1183,7 +1183,7 @@ spec:
       WHERE u.directory LIKE '/Users/%' AND
       p.value IS NULL
     );
-    /*CIS does not make a hard recommendation for this policy. Fleet has provided two policies (one failing, one succeeding). 
+    /*CIS does not make a hard recommendation for this policy. AutoMDM has provided two policies (one failing, one succeeding). 
       Depending on your organization's decision, you can delete this policy or its counterpart.*/
   purpose: Informational
   tags: compliance, CIS, CIS_Level1, decision-needed
@@ -1356,7 +1356,7 @@ spec:
 apiVersion: v1
 kind: policy
 spec:
-  name: CIS - Ensure an Administrator Password Is Required to Access System-Wide Preferences (Fleetd required)
+  name: CIS - Ensure an Administrator Password Is Required to Access System-Wide Preferences (AutoMDMd required)
   platforms: macOS
   platform: darwin
   description: Checks that an Administrator Password Is Required to Access System-Wide Preferences
@@ -1445,7 +1445,7 @@ spec:
             name='Disable' AND 
             (value != 0 AND value != 'false')
         );  
-    /*CIS does not make a hard recommendation for this policy. Fleet has provided two policies (one failing, one succeeding). 
+    /*CIS does not make a hard recommendation for this policy. AutoMDM has provided two policies (one failing, one succeeding). 
       Depending on your organization's decision, you can delete this policy or its counterpart.*/
   purpose: Informational
   tags: compliance, CIS, CIS_Level1, decision-needed
@@ -1481,7 +1481,7 @@ spec:
             name='Disable' AND 
             (value != 1 AND value != 'true')
         );  
-    /*CIS does not make a hard recommendation for this policy. Fleet has provided two policies (one failing, one succeeding). 
+    /*CIS does not make a hard recommendation for this policy. AutoMDM has provided two policies (one failing, one succeeding). 
       Depending on your organization's decision, you can delete this policy or its counterpart.*/
   purpose: Informational
   tags: compliance, CIS, CIS_Level1, decision-needed
@@ -1490,7 +1490,7 @@ spec:
 apiVersion: v1
 kind: policy
 spec:
-  name: CIS - Ensure Power Nap Is Disabled for Intel Macs (Fleetd Required)
+  name: CIS - Ensure Power Nap Is Disabled for Intel Macs (AutoMDMd Required)
   platforms: macOS
   platform: darwin
   description: |
@@ -1522,7 +1522,7 @@ spec:
 apiVersion: v1
 kind: policy
 spec:
-  name: CIS - Ensure sleep and display sleep is enabled on Apple Silicon devices (Fleetd required)
+  name: CIS - Ensure sleep and display sleep is enabled on Apple Silicon devices (AutoMDMd required)
   platforms: macOS
   platform: darwin
   description: |
@@ -1575,7 +1575,7 @@ spec:
 apiVersion: v1
 kind: policy
 spec:
-  name: CIS - Ensure Wake for Network Access Is Disabled (Fleetd Required)
+  name: CIS - Ensure Wake for Network Access Is Disabled (AutoMDMd Required)
   platforms: macOS
   platform: darwin
   description: |
@@ -1606,7 +1606,7 @@ spec:
 apiVersion: v1
 kind: policy
 spec:
-  name: CIS - Ensure the OS is not Activate When Resuming from Sleep (Fleetd, FDA Required)
+  name: CIS - Ensure the OS is not Activate When Resuming from Sleep (AutoMDMd, FDA Required)
   platforms: macOS
   platform: darwin
   description: |
@@ -1978,7 +1978,7 @@ spec:
 apiVersion: v1
 kind: policy
 spec:
-  name: CIS - Ensure Users' Accounts Do Not Have a Password Hint (Fleetd Required)
+  name: CIS - Ensure Users' Accounts Do Not Have a Password Hint (AutoMDMd Required)
   platforms: macOS
   platform: darwin
   description: |
@@ -2442,7 +2442,7 @@ spec:
 apiVersion: v1
 kind: policy
 spec:
-  name: CIS - Ensure Apple Mobile File Integrity (AMFI) Is Enabled (fleetd required)
+  name: CIS - Ensure Apple Mobile File Integrity (AMFI) Is Enabled (automdmd required)
   platforms: macOS
   platform: darwin
   description: |
@@ -2460,7 +2460,7 @@ spec:
 apiVersion: v1
 kind: policy
 spec:
-  name: CIS - Ensure Sealed System Volume (SSV) Is Enabled (fleetd required)
+  name: CIS - Ensure Sealed System Volume (SSV) Is Enabled (automdmd required)
   platforms: macOS
   platform: darwin
   description: |
@@ -2534,7 +2534,7 @@ spec:
 apiVersion: v1
 kind: policy
 spec:
-  name: CIS - Ensure No World Writable Folders Exist in the Library Folder (Fleetd required)
+  name: CIS - Ensure No World Writable Folders Exist in the Library Folder (AutoMDMd required)
   cis_id: "5.1.7"
   platforms: macOS
   platform: darwin
@@ -2590,7 +2590,7 @@ spec:
 apiVersion: v1
 kind: policy
 spec:
-  name: CIS - Ensure Password Account Lockout Threshold Is Configured (Fleetd required)
+  name: CIS - Ensure Password Account Lockout Threshold Is Configured (AutoMDMd required)
   platforms: macOS
   platform: darwin
   description: |
@@ -2699,7 +2699,7 @@ spec:
 apiVersion: v1
 kind: policy
 spec:
-  name: CIS - Ensure Complex Password Must Contain Uppercase and Lowercase Characters Is Configured (Fleetd required)
+  name: CIS - Ensure Complex Password Must Contain Uppercase and Lowercase Characters Is Configured (AutoMDMd required)
   platforms: macOS
   platform: darwin
   description: |
@@ -2716,7 +2716,7 @@ spec:
 apiVersion: v1
 kind: policy
 spec:
-  name: CIS - Ensure Password Age Is Configured (Fleetd Required)
+  name: CIS - Ensure Password Age Is Configured (AutoMDMd Required)
   platforms: macOS
   platform: darwin
   description: |
@@ -2774,7 +2774,7 @@ spec:
 apiVersion: v1
 kind: policy
 spec:
-  name: CIS - Ensure all internal user storage APFS volumes are encrypted (Fleetd Required)
+  name: CIS - Ensure all internal user storage APFS volumes are encrypted (AutoMDMd Required)
   cis_id: "5.3.1"
   platforms: macOS
   platform: darwin
@@ -2787,7 +2787,7 @@ spec:
     encrypted. "Role" disks include Preboot, Recovery and VM. User disks are labelled with "(No
     specific role)" by default.
 
-    Note: The fleetd `apfs_volumes` table does not distinguish internal from external disks, so
+    Note: The automdmd `apfs_volumes` table does not distinguish internal from external disks, so
     this query evaluates all non-role APFS volumes. External APFS/HFS+ volumes (CIS 5.3.2) are
     not separately covered — see the README limitations.
     Apple's sealed, read-only asset cryptex volumes (names ending in "Cryptex") have no role and
@@ -2818,7 +2818,7 @@ spec:
 apiVersion: v1
 kind: policy
 spec:
-  name: CIS - Ensure the Sudo Timeout Period Is Set to Zero (Fleetd Required)
+  name: CIS - Ensure the Sudo Timeout Period Is Set to Zero (AutoMDMd Required)
   platforms: macOS
   platform: darwin
   description: |
@@ -2846,7 +2846,7 @@ spec:
 apiVersion: v1
 kind: policy
 spec:
-  name: CIS - Ensure a Separate Timestamp Is Enabled for Each User/tty (Fleetd Required)
+  name: CIS - Ensure a Separate Timestamp Is Enabled for Each User/tty (AutoMDMd Required)
   platforms: macOS
   platform: darwin
   description: |
@@ -2873,7 +2873,7 @@ spec:
 apiVersion: v1
 kind: policy
 spec:
-  name: CIS - Ensure the "root" Account Is Disabled (Fleetd Required)
+  name: CIS - Ensure the "root" Account Is Disabled (AutoMDMd Required)
   cis_id: "5.6"
   platforms: macOS
   platform: darwin
@@ -2902,7 +2902,7 @@ spec:
 apiVersion: v1
 kind: policy
 spec:
-  name: CIS - Ensure an Administrator Account Cannot Login to Another User's Active and Locked Session (Fleetd Required)
+  name: CIS - Ensure an Administrator Account Cannot Login to Another User's Active and Locked Session (AutoMDMd Required)
   platforms: macOS
   platform: darwin
   description: |
@@ -3355,7 +3355,7 @@ spec:
 apiVersion: v1
 kind: policy
 spec:
-  name: CIS - Ensure Logging Is Enabled for Sudo (Fleetd Required)
+  name: CIS - Ensure Logging Is Enabled for Sudo (AutoMDMd Required)
   platforms: macOS
   platform: darwin
   description: |

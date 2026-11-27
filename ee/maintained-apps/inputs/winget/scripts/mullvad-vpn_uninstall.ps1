@@ -56,7 +56,7 @@ if ($existingArgs -notmatch '(?i)(^|\s)/S(\s|$)') {
 
 # "_?=" must be the last argument and its path must not be quoted.
 $installDir = (Split-Path -Parent $exePath).TrimEnd('\')
-$tempDir = Join-Path ([System.IO.Path]::GetTempPath()) ("fleet-mullvad-" + [guid]::NewGuid().ToString())
+$tempDir = Join-Path ([System.IO.Path]::GetTempPath()) ("automdm-mullvad-" + [guid]::NewGuid().ToString())
 $tempExe = Join-Path $tempDir "uninstall-mullvad-vpn.exe"
 
 try {

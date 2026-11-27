@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
 
 	"github.com/micromdm/plist"
 )

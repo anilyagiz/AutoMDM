@@ -15,7 +15,7 @@ const testRawGlobalQueries: ISchedulableQuery[] = [
     created_at: "2024-03-22T19:01:20Z",
     updated_at: "2024-03-22T19:01:20Z",
     id: 1,
-    fleet_id: null,
+    team_id: null,
     interval: 0,
     platform: "linux",
     min_osquery_version: "",
@@ -43,7 +43,7 @@ const testRawGlobalQueries: ISchedulableQuery[] = [
     created_at: "2024-03-22T19:01:20Z",
     updated_at: "2024-03-22T19:01:20Z",
     id: 2,
-    fleet_id: null,
+    team_id: null,
     interval: 0,
     platform: "linux",
     min_osquery_version: "",
@@ -74,7 +74,7 @@ const testRawTeamQueries: ISchedulableQuery[] = [
     created_at: "2024-04-25T04:16:09Z",
     updated_at: "2024-04-25T04:16:09Z",
     id: 3,
-    fleet_id: 1,
+    team_id: 1,
     interval: 3600,
     platform: "",
     min_osquery_version: "",
@@ -101,7 +101,7 @@ const testRawTeamQueries: ISchedulableQuery[] = [
     created_at: "2024-04-25T04:16:09Z",
     updated_at: "2024-04-25T04:16:09Z",
     id: 4,
-    fleet_id: 1,
+    team_id: 1,
     interval: 3600,
     platform: "",
     min_osquery_version: "",
@@ -186,7 +186,7 @@ describe("QueriesTable", () => {
     testData.forEach((tableProps) => {
       renderAsPremiumGlobalAdmin(<QueriesTable {...tableProps} />);
       expect(
-        screen.getByText("No reports apply to all fleets")
+        screen.getByText("No reports apply to all teams")
       ).toBeInTheDocument();
       expect(screen.queryByText("Interval")).toBeNull();
       expect(screen.getByPlaceholderText("Search by name")).toBeDisabled();
@@ -209,13 +209,13 @@ describe("QueriesTable", () => {
 
     testData.forEach((tableProps) => {
       renderAsPremiumGlobalAdmin(<QueriesTable {...tableProps} />);
-      expect(screen.getByText("No reports for this fleet")).toBeInTheDocument();
+      expect(screen.getByText("No reports for this team")).toBeInTheDocument();
       expect(screen.queryByText("Interval")).toBeNull();
       expect(screen.getByPlaceholderText("Search by name")).toBeDisabled();
     });
   });
 
-  it("Renders generic empty state header in Primo mode (all fleets)", () => {
+  it("Renders generic empty state header in Primo mode (all teams)", () => {
     const render = createCustomRenderer({
       context: {
         app: {
@@ -242,7 +242,7 @@ describe("QueriesTable", () => {
 
     expect(screen.getByText("No reports yet")).toBeInTheDocument();
     expect(
-      screen.queryByText("No reports apply to all fleets")
+      screen.queryByText("No reports apply to all teams")
     ).not.toBeInTheDocument();
   });
 
@@ -273,7 +273,7 @@ describe("QueriesTable", () => {
 
     expect(screen.getByText("No reports yet")).toBeInTheDocument();
     expect(
-      screen.queryByText("No reports for this fleet")
+      screen.queryByText("No reports for this team")
     ).not.toBeInTheDocument();
   });
 

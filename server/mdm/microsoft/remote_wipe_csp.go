@@ -3,7 +3,7 @@ package microsoft_mdm
 import (
 	"fmt"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/google/uuid"
 )
 
@@ -22,12 +22,12 @@ const remoteWipeCmdTmpl = `
 			</Item>
 		</Exec>`
 
-// RemoteWipeCmd builds an Exec of the given RemoteWipe CSP node, such as fleet.WindowsRemoteWipeProtected.
+// RemoteWipeCmd builds an Exec of the given RemoteWipe CSP node, such as automdm.WindowsRemoteWipeProtected.
 // https://learn.microsoft.com/en-us/windows/client-management/mdm/remotewipe-csp
-func RemoteWipeCmd(node string) *fleet.MDMWindowsCommand {
+func RemoteWipeCmd(node string) *automdm.MDMWindowsCommand {
 	cmdUUID := uuid.NewString()
-	locURI := fleet.WindowsRemoteWipeLocURI(node)
-	return &fleet.MDMWindowsCommand{
+	locURI := automdm.WindowsRemoteWipeLocURI(node)
+	return &automdm.MDMWindowsCommand{
 		CommandUUID:  cmdUUID,
 		RawCommand:   fmt.Appendf(nil, remoteWipeCmdTmpl, cmdUUID, locURI),
 		TargetLocURI: locURI,

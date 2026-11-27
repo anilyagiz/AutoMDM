@@ -23,7 +23,7 @@ controls: # Controls added to "No team"
     configuration_profiles:
       - path: ./lib/windows-screenlock.xml
   scripts:
-    - path: ./lib/collect-fleetd-logs.sh
+    - path: ./lib/collect-automdmd-logs.sh
   enable_disk_encryption: false
   windows_require_bitlocker_pin: false
   macos_migration:
@@ -133,10 +133,10 @@ org_settings:
     live_reporting_disabled: false
     report_cap: 2000
     discard_reports_data: false
-    server_url: $FLEET_SERVER_URL
+    server_url: $AUTOMDM_SERVER_URL
     ai_features_disabled: true
   org_info:
-    contact_url: https://fleetdm.com/company/contact
+    contact_url: https://automdm.com/company/contact
     org_logo_url_dark_mode: ""
     org_logo_url_light_mode: ""
     org_name: $ORG_NAME
@@ -195,8 +195,8 @@ org_settings:
       destination_url: ""
       enable_vulnerabilities_webhook: false
       host_batch_size: 0
-  fleet_desktop: # Applies to Fleet Premium only
-    transparency_url: https://fleetdm.com/transparency
+  automdm_desktop: # Applies to AutoMDM Premium only
+    transparency_url: https://automdm.com/transparency
   host_expiry_settings: # Applies to all teams
     host_expiry_enabled: false
   activity_expiry_settings:
@@ -216,5 +216,5 @@ software:
       version: "1.2.3"
   app_store_apps:
     - app_store_id: "1234567"
-  fleet_maintained_apps:
+  automdm_maintained_apps:
     - slug: firefox/darwin

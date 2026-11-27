@@ -43,7 +43,7 @@ const windowsMetadata = {
 const GITOPS_CONFIG: Partial<IConfig> = {
   gitops: {
     gitops_mode_enabled: true,
-    repository_url: "https://example.com/fleet-gitops",
+    repository_url: "https://example.com/automdm-gitops",
     exceptions: { labels: false, software: false, secrets: true },
   },
 };
@@ -65,7 +65,7 @@ const PLATFORM_CASES = [
     metadata: windowsMetadata,
     file: new File(["# Terms"], "terms.md", { type: "text/markdown" }),
     deleteMessage:
-      "End users won’t be required to agree to these terms on Windows hosts that enroll through Microsoft Entra. Fleet’s default terms will be shown instead.",
+      "End users won’t be required to agree to these terms on Windows hosts that enroll through Microsoft Entra. AutoMDM’s default terms will be shown instead.",
     upload: mdmAPI.uploadWindowsEULA,
     otherUpload: mdmAPI.uploadEULA,
   },
@@ -253,7 +253,7 @@ describe("EulaSection", () => {
 
     expect(open).toHaveBeenCalledTimes(1);
     expect(open).toHaveBeenCalledWith(
-      "/api/latest/fleet/setup_experience/eula/mac-token",
+      "/api/latest/automdm/setup_experience/eula/mac-token",
       "_blank"
     );
     open.mockRestore();

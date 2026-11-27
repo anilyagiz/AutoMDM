@@ -23,7 +23,7 @@ const DeleteUserModal = ({
       <div className={baseClass}>
         <p>
           You are about to delete{" "}
-          <span className={`${baseClass}__name`}>{name}</span> from Fleet.
+          <span className={`${baseClass}__name`}>{name}</span> from AutoMDM.
         </p>
         <p className={`${baseClass}__warning`}>This action cannot be undone.</p>
         <div className="modal-cta-wrap">

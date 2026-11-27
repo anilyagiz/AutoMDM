@@ -88,7 +88,7 @@ describe("HostSoftware", () => {
     });
 
     await waitFor(() => expect(replace).toHaveBeenCalledTimes(1));
-    const url = new URL(replace.mock.calls[0][0], "http://fleet");
+    const url = new URL(replace.mock.calls[0][0], "http://automdm");
     expect(url.pathname).toBe(PATHNAME);
     expect(url.searchParams.get("types")).toBe("macos_app");
     expect(url.searchParams.get("query")).toBe("chrome");
@@ -105,7 +105,7 @@ describe("HostSoftware", () => {
     });
 
     await waitFor(() => expect(replace).toHaveBeenCalledTimes(1));
-    const url = new URL(replace.mock.calls[0][0], "http://fleet");
+    const url = new URL(replace.mock.calls[0][0], "http://automdm");
     expect(url.searchParams.get("types")).toBe("macos_app");
     expect(url.searchParams.get("query")).toBe("chrome");
     expect(getHostSoftware).not.toHaveBeenCalled();
@@ -168,7 +168,7 @@ describe("HostSoftware", () => {
 
     rerender({});
     await waitFor(() => expect(replace).toHaveBeenCalledTimes(1));
-    const url = new URL(replace.mock.calls[0][0], "http://fleet");
+    const url = new URL(replace.mock.calls[0][0], "http://automdm");
     expect(url.searchParams.get("types")).toBe("macos_app");
     expect(getHostSoftware).toHaveBeenCalledTimes(1);
   });
@@ -183,7 +183,7 @@ describe("HostSoftware", () => {
     await user.click(screen.getByRole("checkbox", { name: "App (macOS)" }));
     await user.click(screen.getByRole("button", { name: "Apply" }));
 
-    const url = new URL(replace.mock.calls[0][0], "http://fleet");
+    const url = new URL(replace.mock.calls[0][0], "http://automdm");
     expect(url.searchParams.get("types")).toBe("none");
     expect(url.searchParams.has("macos_applications")).toBe(false);
   });
@@ -232,7 +232,7 @@ describe("HostSoftware", () => {
     );
     await user.click(screen.getByRole("button", { name: "Apply" }));
 
-    const url = new URL(replace.mock.calls[0][0], "http://fleet");
+    const url = new URL(replace.mock.calls[0][0], "http://automdm");
     expect(url.searchParams.get("types")).toBe("chrome_extension");
     expect(url.searchParams.has("macos_applications")).toBe(false);
   });
@@ -272,7 +272,7 @@ describe("HostSoftware", () => {
     });
 
     await waitFor(() => expect(replace).toHaveBeenCalledTimes(1));
-    const url = new URL(replace.mock.calls[0][0], "http://fleet");
+    const url = new URL(replace.mock.calls[0][0], "http://automdm");
     expect(url.searchParams.has("types")).toBe(false);
     expect(url.searchParams.get("query")).toBe("chrome");
     expect(getHostSoftware).not.toHaveBeenCalled();
@@ -285,7 +285,7 @@ describe("HostSoftware", () => {
     });
 
     await waitFor(() => expect(replace).toHaveBeenCalledTimes(1));
-    const url = new URL(replace.mock.calls[0][0], "http://fleet");
+    const url = new URL(replace.mock.calls[0][0], "http://automdm");
     expect(url.searchParams.get("types")).toBe("macos_app");
     expect(getHostSoftware).not.toHaveBeenCalled();
   });
@@ -405,7 +405,7 @@ describe("HostSoftware", () => {
         await user.click(screen.getByRole("switch", { name: "AI tools" }));
         await user.click(screen.getByRole("button", { name: "Apply" }));
 
-        const url = new URL(replace.mock.calls[0][0], "http://fleet");
+        const url = new URL(replace.mock.calls[0][0], "http://automdm");
         expect(url.searchParams.has("ai_tool")).toBe(!query.ai_tool);
         expect(url.searchParams.get("types")).toBe("macos_app");
         expect(url.searchParams.get("query")).toBe("claude");
@@ -488,7 +488,7 @@ describe("HostSoftware", () => {
         });
 
         await waitFor(() => expect(replace).toHaveBeenCalledTimes(1));
-        const url = new URL(replace.mock.calls[0][0], "http://fleet");
+        const url = new URL(replace.mock.calls[0][0], "http://automdm");
         expect(url.searchParams.get("types")).toBe("windows_app");
         expect(url.searchParams.has("ai_tool")).toBe(false);
         expect(spy).not.toHaveBeenCalled();

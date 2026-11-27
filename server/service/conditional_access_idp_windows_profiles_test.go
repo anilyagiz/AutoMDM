@@ -12,33 +12,33 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/authz"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/dev_mode"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/dev_mode"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
 )
 
-const conditionalAccessSCEPInstallPrefix = "./User/Vendor/MSFT/ClientCertificateInstall/SCEP/$FLEET_VAR_SCEP_WINDOWS_CERTIFICATE_ID/Install/"
+const conditionalAccessSCEPInstallPrefix = "./User/Vendor/MSFT/ClientCertificateInstall/SCEP/$AUTOMDM_VAR_SCEP_WINDOWS_CERTIFICATE_ID/Install/"
 
 // newConditionalAccessWindowsProfilesTestService returns a service whose datastore has everything the Windows
 // profiles endpoint needs. Tests override individual mocks to exercise failures.
-func newConditionalAccessWindowsProfilesTestService(t *testing.T, certPEM []byte, serverURL string) (*mock.Store, fleet.Service, context.Context) {
+func newConditionalAccessWindowsProfilesTestService(t *testing.T, certPEM []byte, serverURL string) (*mock.Store, automdm.Service, context.Context) {
 	ds := new(mock.Store)
 	cfg := config.TestConfig()
 	cfg.Server.PrivateKey = "test-private-key"
-	svc, ctx := newTestServiceWithConfig(t, ds, cfg, nil, nil, &TestServerOpts{License: &fleet.LicenseInfo{Tier: fleet.TierPremium}})
+	svc, ctx := newTestServiceWithConfig(t, ds, cfg, nil, nil, &TestServerOpts{License: &automdm.LicenseInfo{Tier: automdm.TierPremium}})
 
-	ds.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []fleet.MDMAssetName, _ sqlx.QueryerContext) (map[fleet.MDMAssetName]fleet.MDMConfigAsset, error) {
-		return map[fleet.MDMAssetName]fleet.MDMConfigAsset{
-			fleet.MDMAssetConditionalAccessCACert: {Name: fleet.MDMAssetConditionalAccessCACert, Value: certPEM},
+	ds.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []automdm.MDMAssetName, _ sqlx.QueryerContext) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
+		return map[automdm.MDMAssetName]automdm.MDMConfigAsset{
+			automdm.MDMAssetConditionalAccessCACert: {Name: automdm.MDMAssetConditionalAccessCACert, Value: certPEM},
 		}, nil
 	}
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{ServerSettings: fleet.ServerSettings{ServerURL: serverURL}}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{ServerSettings: automdm.ServerSettings{ServerURL: serverURL}}, nil
 	}
 	return ds, svc, test.UserContext(ctx, test.UserAdmin)
 }
@@ -54,7 +54,7 @@ func xmlText(t *testing.T, raw string) string {
 // syncMLTargets maps each LocURI of a parsed profile to its decoded <Data>.
 func syncMLTargets(t *testing.T, profile string) map[string]string {
 	t.Helper()
-	cmds, err := fleet.UnmarshallMultiTopLevelXMLProfile([]byte(profile))
+	cmds, err := automdm.UnmarshallMultiTopLevelXMLProfile([]byte(profile))
 	require.NoError(t, err)
 	data := map[string]string{}
 	for _, cmd := range cmds {
@@ -83,11 +83,11 @@ func autoSelectRuleFromPolicyData(t *testing.T, decodedData, elementID string) m
 
 func TestConditionalAccessGetIdPWindowsProfilesAuth(t *testing.T) {
 	t.Parallel()
-	_, svc, ctx := newConditionalAccessWindowsProfilesTestService(t, generateTestCertPEM(t), "https://fleet.example.com")
+	_, svc, ctx := newConditionalAccessWindowsProfilesTestService(t, generateTestCertPEM(t), "https://automdm.example.com")
 
 	testCases := []struct {
 		name       string
-		user       *fleet.User
+		user       *automdm.User
 		shouldFail bool
 	}{
 		{"global admin", test.UserAdmin, false},
@@ -130,49 +130,49 @@ func TestConditionalAccessGetIdPWindowsProfiles(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		t.Parallel()
-		_, svc, ctx := newConditionalAccessWindowsProfilesTestService(t, certPEM, "https://fleet.example.com:8080")
+		_, svc, ctx := newConditionalAccessWindowsProfilesTestService(t, certPEM, "https://automdm.example.com:8080")
 		profiles, err := svc.ConditionalAccessGetIdPWindowsProfiles(ctx)
 		require.NoError(t, err)
 
 		// Both the SCEP URL and the challenge are left to delivery, so the profile uploads as copied.
-		scepProfile := &fleet.MDMWindowsConfigProfile{Name: "Okta SCEP", SyncML: []byte(profiles.SCEPProfile)}
+		scepProfile := &automdm.MDMWindowsConfigProfile{Name: "Okta SCEP", SyncML: []byte(profiles.SCEPProfile)}
 		require.NoError(t, scepProfile.ValidateUserProvided(false))
-		foundVars, err := validateWindowsProfileFleetVariables(profiles.SCEPProfile, &fleet.LicenseInfo{Tier: fleet.TierPremium}, nil)
+		foundVars, err := validateWindowsProfileAutoMDMVariables(profiles.SCEPProfile, &automdm.LicenseInfo{Tier: automdm.TierPremium}, nil)
 		require.NoError(t, err)
 		slices.Sort(foundVars)
 		require.Equal(t, []string{
-			string(fleet.FleetVarCertificateRenewalID),
-			string(fleet.FleetVarConditionalAccessSCEPChallenge),
-			string(fleet.FleetVarConditionalAccessSCEPURL),
-			string(fleet.FleetVarHostUUID),
-			string(fleet.FleetVarSCEPWindowsCertificateID),
+			string(automdm.AutoMDMVarCertificateRenewalID),
+			string(automdm.AutoMDMVarConditionalAccessSCEPChallenge),
+			string(automdm.AutoMDMVarConditionalAccessSCEPURL),
+			string(automdm.AutoMDMVarHostUUID),
+			string(automdm.AutoMDMVarSCEPWindowsCertificateID),
 		}, foundVars)
 		scepData := syncMLTargets(t, profiles.SCEPProfile)
-		require.Equal(t, fleet.FleetVarConditionalAccessSCEPChallenge.WithPrefix(), scepData[conditionalAccessSCEPInstallPrefix+"Challenge"])
+		require.Equal(t, automdm.AutoMDMVarConditionalAccessSCEPChallenge.WithPrefix(), scepData[conditionalAccessSCEPInstallPrefix+"Challenge"])
 		require.Equal(t, strings.ToUpper(hex.EncodeToString(thumbprint[:])), scepData[conditionalAccessSCEPInstallPrefix+"CAThumbprint"])
 
-		// The browser profile uploads with no Fleet variables and sets the same Chromium rule the Apple profile writes.
-		browserProfile := &fleet.MDMWindowsConfigProfile{Name: "Okta browsers", SyncML: []byte(profiles.BrowserProfile)}
+		// The browser profile uploads with no AutoMDM variables and sets the same Chromium rule the Apple profile writes.
+		browserProfile := &automdm.MDMWindowsConfigProfile{Name: "Okta browsers", SyncML: []byte(profiles.BrowserProfile)}
 		require.NoError(t, browserProfile.ValidateUserProvided(false))
-		foundVars, err = validateWindowsProfileFleetVariables(profiles.BrowserProfile, nil, nil)
+		foundVars, err = validateWindowsProfileAutoMDMVariables(profiles.BrowserProfile, nil, nil)
 		require.NoError(t, err)
 		require.Empty(t, foundVars)
 
 		// Windows can only set the policies once the ADMX that declares them is ingested.
 		admxAt := strings.Index(profiles.BrowserProfile, "/ADMXInstall/")
 		require.Positive(t, admxAt)
-		require.Less(t, admxAt, strings.Index(profiles.BrowserProfile, "~Policy~fleetca/"))
+		require.Less(t, admxAt, strings.Index(profiles.BrowserProfile, "~Policy~automdmca/"))
 
 		browserData := syncMLTargets(t, profiles.BrowserProfile)
 		require.Equal(t, conditionalAccessWindowsADMX,
-			browserData["./Device/Vendor/MSFT/Policy/ConfigOperations/ADMXInstall/FleetConditionalAccess/Policy/FleetConditionalAccessAdmx"])
+			browserData["./Device/Vendor/MSFT/Policy/ConfigOperations/ADMXInstall/AutoMDMConditionalAccess/Policy/AutoMDMConditionalAccessAdmx"])
 		wantRule := map[string]any{
-			"pattern": "https://okta.fleet.example.com:8080",
-			"filter":  map[string]any{"SUBJECT": map[string]any{"CN": fleet.ConditionalAccessOktaCertificateCN}},
+			"pattern": "https://okta.automdm.example.com:8080",
+			"filter":  map[string]any{"SUBJECT": map[string]any{"CN": automdm.ConditionalAccessOktaCertificateCN}},
 		}
 		for browser, uri := range map[string]string{
-			"Chrome": "./Device/Vendor/MSFT/Policy/Config/FleetConditionalAccess~Policy~fleetca/ChromeAutoSelectCertificate",
-			"Edge":   "./Device/Vendor/MSFT/Policy/Config/FleetConditionalAccess~Policy~fleetca/EdgeAutoSelectCertificate",
+			"Chrome": "./Device/Vendor/MSFT/Policy/Config/AutoMDMConditionalAccess~Policy~automdmca/ChromeAutoSelectCertificate",
+			"Edge":   "./Device/Vendor/MSFT/Policy/Config/AutoMDMConditionalAccess~Policy~automdmca/EdgeAutoSelectCertificate",
 		} {
 			require.Contains(t, browserData, uri)
 			require.Equal(t, wantRule, autoSelectRuleFromPolicyData(t, browserData[uri], browser+"AutoSelectCertificate_Value"), browser)
@@ -187,7 +187,7 @@ func TestConditionalAccessGetIdPWindowsProfiles(t *testing.T) {
 		cfg.Server.PrivateKey = "test-private-key"
 		svc, ctx := newTestServiceWithConfig(t, ds, cfg, nil, nil)
 		profiles, err := svc.ConditionalAccessGetIdPWindowsProfiles(test.UserContext(ctx, test.UserAdmin))
-		require.ErrorIs(t, err, fleet.ErrMissingLicense)
+		require.ErrorIs(t, err, automdm.ErrMissingLicense)
 		require.Nil(t, profiles)
 	})
 }
@@ -195,16 +195,16 @@ func TestConditionalAccessGetIdPWindowsProfiles(t *testing.T) {
 // Not parallel: it sets a dev mode override.
 func TestConditionalAccessGetIdPWindowsProfilesEscaping(t *testing.T) {
 	const mtlsURL = `https://okta.example.com/?a=<b>&c="d"`
-	dev_mode.SetOverride("FLEET_DEV_OKTA_SSO_SERVER_URL", mtlsURL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_OKTA_SSO_SERVER_URL", mtlsURL, t)
 
-	_, svc, ctx := newConditionalAccessWindowsProfilesTestService(t, generateTestCertPEM(t), "https://fleet.example.com")
+	_, svc, ctx := newConditionalAccessWindowsProfilesTestService(t, generateTestCertPEM(t), "https://automdm.example.com")
 	profiles, err := svc.ConditionalAccessGetIdPWindowsProfiles(ctx)
 	require.NoError(t, err)
 
 	browserData := syncMLTargets(t, profiles.BrowserProfile)
 	rule := autoSelectRuleFromPolicyData(t,
-		browserData["./Device/Vendor/MSFT/Policy/Config/FleetConditionalAccess~Policy~fleetca/ChromeAutoSelectCertificate"],
+		browserData["./Device/Vendor/MSFT/Policy/Config/AutoMDMConditionalAccess~Policy~automdmca/ChromeAutoSelectCertificate"],
 		"ChromeAutoSelectCertificate_Value")
 	require.Equal(t, mtlsURL, rule["pattern"])
-	require.NoError(t, (&fleet.MDMWindowsConfigProfile{Name: "Okta browsers", SyncML: []byte(profiles.BrowserProfile)}).ValidateUserProvided(false))
+	require.NoError(t, (&automdm.MDMWindowsConfigProfile{Name: "Okta browsers", SyncML: []byte(profiles.BrowserProfile)}).ValidateUserProvided(false))
 }

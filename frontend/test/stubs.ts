@@ -26,7 +26,7 @@ export const userStub: IUser = {
   force_password_reset: false,
   gravatar_url: "https://image.com",
   sso_enabled: false,
-  fleets: [{ ...userTeamStub }],
+  teams: [{ ...userTeamStub }],
 };
 
 export default {

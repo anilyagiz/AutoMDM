@@ -10,16 +10,16 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/fleetdm/fleet/tools/hangar/internal/paths"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/paths"
 )
 
-// File is a team/fleet YAML found inside a repo.
+// File is a team/automdm YAML found inside a repo.
 type File struct {
 	Name    string `json:"name"`
 	Path    string `json:"path"`
 	Size    uint64 `json:"size"`
 	MtimeMS uint64 `json:"mtime_ms"`
-	Subdir  string `json:"subdir"` // "teams" or "fleets"
+	Subdir  string `json:"subdir"` // "teams" or "teams"
 }
 
 // Repo is a discovered GitOps repo (one that has default.yml).
@@ -101,14 +101,14 @@ func collectTeamYAMLs(repo, subdir string) []File {
 }
 
 // buildRepo builds a Repo if repoPath contains default.yml, else nil.
-// team_files lists teams first, then fleets (older convention reads first).
+// team_files lists teams first, then teams (older convention reads first).
 func buildRepo(repoPath string) *Repo {
 	defaultYML := filepath.Join(repoPath, "default.yml")
 	if fi, err := os.Stat(defaultYML); err != nil || !fi.Mode().IsRegular() {
 		return nil
 	}
 	teamFiles := collectTeamYAMLs(repoPath, "teams")
-	teamFiles = append(teamFiles, collectTeamYAMLs(repoPath, "fleets")...)
+	teamFiles = append(teamFiles, collectTeamYAMLs(repoPath, "teams")...)
 	return &Repo{
 		Name:           filepath.Base(repoPath),
 		Path:           repoPath,

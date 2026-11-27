@@ -1043,7 +1043,7 @@ kind: built-in
 spec:
   name: Software codesign
   platform: darwin
-  description: A software override query to append codesign information to macOS software entries. Requires fleetd
+  description: A software override query to append codesign information to macOS software entries. Requires automdmd
   query: |
     SELECT c.*
         FROM apps a
@@ -1057,7 +1057,7 @@ kind: built-in
 spec:
   name: Software Firefox
   platform: darwin
-  description: A software override query to differentiate between Firefox and Firefox ESR on macOS. Requires fleetd
+  description: A software override query to differentiate between Firefox and Firefox ESR on macOS. Requires automdmd
   query: |
     WITH app_paths AS (
             SELECT path
@@ -1115,7 +1115,7 @@ kind: built-in
 spec:
   name: Software Python packages including user directory
   platform: darwin, windows, linux
-  description: Retrieves python packages installed on a host. As of osquery version 5.16.0, the python_packages table searches user directories with support from a cross join on users. See <a href="https://fleetdm.com/guides/osquery-consider-joining-against-the-users-table">this guide</a> for more information.
+  description: Retrieves python packages installed on a host. As of osquery version 5.16.0, the python_packages table searches user directories with support from a cross join on users. See <a href="https://automdm.com/guides/osquery-consider-joining-against-the-users-table">this guide</a> for more information.
   query: |
     WITH cached_users AS (WITH cached_groups AS (select * from groups)
      SELECT uid, uuid, username, type, groupname, shell
@@ -1689,7 +1689,7 @@ spec:
 #  ╚██████╔╝╚██████╔╝███████╗██║  ██║██║███████╗███████║
 #   ╚══▀▀═╝  ╚═════╝ ╚══════╝╚═╝  ╚═╝╚═╝╚══════╝╚══════╝
 #                                                       
-# From docs/01-Using-Fleet/standard-query-library/standard-query-library.yml
+# From docs/01-Using-AutoMDM/standard-query-library/standard-query-library.yml
 ---
 apiVersion: v1
 kind: query
@@ -1722,7 +1722,7 @@ spec:
   query: SELECT username, authorized_keys. * FROM users CROSS JOIN authorized_keys USING (uid);
   bash: echo "username,authorized_key" && find /Users -maxdepth 2 -type f -name "authorized_keys" -exec sh -c 'for f in "$@"; do u=$(basename "$(dirname "$f")"); while IFS= read -r line; do echo "$u,$line"; done < "$f"; done' sh {} +
   purpose: Informational
-  remediation: Check out the linked table (https://github.com/fleetdm/fleet/blob/32b4d53e7f1428ce43b0f9fa52838cbe7b413eed/handbook/queries/detect-hosts-with-high-severity-vulnerable-versions-of-openssl.md#table-of-vulnerable-openssl-versions) to determine if the installed version is a high severity vulnerability and view the corresponding CVE(s)
+  remediation: Check out the linked table (https://github.com/anilyagiz/automdm/blob/32b4d53e7f1428ce43b0f9fa52838cbe7b413eed/handbook/queries/detect-hosts-with-high-severity-vulnerable-versions-of-openssl.md#table-of-vulnerable-openssl-versions) to determine if the installed version is a high severity vulnerability and view the corresponding CVE(s)
   tags: built-in, ssh
   contributors: mike-j-thomas
 ---
@@ -2930,7 +2930,7 @@ kind: query
 spec:
   name: Geolocate via ipapi.co
   platform: darwin, linux, windows
-  description: Geolocate a host using the [ipapi.co](https://ipapi.co) in an emergency. Requires the curl table. [Learn more](https://fleetdm.com/guides/locate-assets-with-osquery).
+  description: Geolocate a host using the [ipapi.co](https://ipapi.co) in an emergency. Requires the curl table. [Learn more](https://automdm.com/guides/locate-assets-with-osquery).
   query: >-
     SELECT JSON_EXTRACT(result, '$.ip') AS ip,
     JSON_EXTRACT(result, '$.city') AS city,
@@ -3057,7 +3057,7 @@ spec:
   description: List all table names in the schema of the currently installed version of osquery
   query: SELECT DISTINCT name FROM osquery_registry;
   purpose: Informational
-  tags: fleet, osquery, table, schema
+  tags: automdm, osquery, table, schema
   contributors: nonpunctual
 ---
 apiVersion: v1
@@ -3154,7 +3154,7 @@ spec:
                   json_extract(cf.contents, '$.servers'))
         ) AS je;  
   purpose: Informational
-  tags: fleet, osquery, mcp, ai, agents, llm, inventory
+  tags: automdm, osquery, mcp, ai, agents, llm, inventory
   contributors: zwass
 ---
 apiVersion: v1

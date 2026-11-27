@@ -9,12 +9,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	apple_mdm "github.com/fleetdm/fleet/v4/server/mdm/apple"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	apple_mdm "github.com/anilyagiz/automdm/v4/server/mdm/apple"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 )
@@ -70,7 +70,7 @@ var policyAutomationActivityBranchOrderKeys = map[string]string{
 // number of distinct tables that are task-specific (such as scripts to run,
 // software to install, etc.) and provides a unified view of those upcoming
 // tasks.
-func (ds *Datastore) ListHostUpcomingActivities(ctx context.Context, hostID uint, opt fleet.ListOptions) ([]*fleet.UpcomingActivity, *fleet.PaginationMetadata, error) {
+func (ds *Datastore) ListHostUpcomingActivities(ctx context.Context, hostID uint, opt automdm.ListOptions) ([]*automdm.UpcomingActivity, *automdm.PaginationMetadata, error) {
 	// NOTE: Be sure to update both the count (here) and list statements (below)
 	// if the query condition is modified.
 
@@ -84,7 +84,7 @@ func (ds *Datastore) ListHostUpcomingActivities(ctx context.Context, hostID uint
 		return nil, nil, ctxerr.Wrap(ctx, err, "count upcoming activities")
 	}
 	if count == 0 {
-		return []*fleet.UpcomingActivity{}, &fleet.PaginationMetadata{}, nil
+		return []*automdm.UpcomingActivity{}, &automdm.PaginationMetadata{}, nil
 	}
 
 	// NOTE: Be sure to update both the count (above) and list statements (below)
@@ -94,7 +94,7 @@ func (ds *Datastore) ListHostUpcomingActivities(ctx context.Context, hostID uint
 		// list pending scripts
 		`SELECT
 			ua.execution_id as uuid,
-			IF(ua.fleet_initiated, 'Fleet', COALESCE(u.name, ua.payload->>'$.user.name')) as name,
+			IF(ua.automdm_initiated, 'AutoMDM', COALESCE(u.name, ua.payload->>'$.user.name')) as name,
 			u.id as user_id,
 			u.api_only as api_only,
 			COALESCE(u.gravatar_url, ua.payload->>'$.user.gravatar_url') as gravatar_url,
@@ -113,7 +113,7 @@ func (ds *Datastore) ListHostUpcomingActivities(ctx context.Context, hostID uint
 			) as details,
 			IF(ua.activated_at IS NULL, 0, 1) as topmost,
 			ua.priority as priority,
-			ua.fleet_initiated as fleet_initiated
+			ua.automdm_initiated as automdm_initiated
 		FROM
 			upcoming_activities ua
 		INNER JOIN
@@ -137,7 +137,7 @@ func (ds *Datastore) ListHostUpcomingActivities(ctx context.Context, hostID uint
 		// list pending software installs
 		`SELECT
 			ua.execution_id as uuid,
-			IF(ua.fleet_initiated, 'Fleet', COALESCE(u.name, ua.payload->>'$.user.name')) AS name,
+			IF(ua.automdm_initiated, 'AutoMDM', COALESCE(u.name, ua.payload->>'$.user.name')) AS name,
 			ua.user_id as user_id,
 			u.api_only as api_only,
 			COALESCE(u.gravatar_url, ua.payload->>'$.user.gravatar_url') as gravatar_url,
@@ -159,7 +159,7 @@ func (ds *Datastore) ListHostUpcomingActivities(ctx context.Context, hostID uint
 			) as details,
 			IF(ua.activated_at IS NULL, 0, 1) as topmost,
 			ua.priority as priority,
-			ua.fleet_initiated as fleet_initiated
+			ua.automdm_initiated as automdm_initiated
 		FROM
 			upcoming_activities ua
 		INNER JOIN
@@ -187,7 +187,7 @@ func (ds *Datastore) ListHostUpcomingActivities(ctx context.Context, hostID uint
 		// list pending software uninstalls
 		`SELECT
 			ua.execution_id as uuid,
-			IF(ua.fleet_initiated, 'Fleet', COALESCE(u.name, ua.payload->>'$.user.name')) AS name,
+			IF(ua.automdm_initiated, 'AutoMDM', COALESCE(u.name, ua.payload->>'$.user.name')) AS name,
 			ua.user_id as user_id,
 			u.api_only as api_only,
 			COALESCE(u.gravatar_url, ua.payload->>'$.user.gravatar_url') as gravatar_url,
@@ -208,7 +208,7 @@ func (ds *Datastore) ListHostUpcomingActivities(ctx context.Context, hostID uint
 			) as details,
 			IF(ua.activated_at IS NULL, 0, 1) as topmost,
 			ua.priority as priority,
-			ua.fleet_initiated as fleet_initiated
+			ua.automdm_initiated as automdm_initiated
 		FROM
 			upcoming_activities ua
 		INNER JOIN
@@ -236,7 +236,7 @@ func (ds *Datastore) ListHostUpcomingActivities(ctx context.Context, hostID uint
 		// list pending VPP apps
 		`SELECT
 			ua.execution_id AS uuid,
-			IF(ua.fleet_initiated, 'Fleet', COALESCE(u.name, ua.payload->>'$.user.name')) AS name,
+			IF(ua.automdm_initiated, 'AutoMDM', COALESCE(u.name, ua.payload->>'$.user.name')) AS name,
 			u.id AS user_id,
 			u.api_only as api_only,
 			COALESCE(u.gravatar_url, ua.payload->>'$.user.gravatar_url') as gravatar_url,
@@ -261,7 +261,7 @@ func (ds *Datastore) ListHostUpcomingActivities(ctx context.Context, hostID uint
 			) AS details,
 			IF(ua.activated_at IS NULL, 0, 1) as topmost,
 			ua.priority as priority,
-			ua.fleet_initiated as fleet_initiated
+			ua.automdm_initiated as automdm_initiated
 		FROM
 			upcoming_activities ua
 		INNER JOIN
@@ -289,7 +289,7 @@ func (ds *Datastore) ListHostUpcomingActivities(ctx context.Context, hostID uint
 		// list pending in-house apps
 		`SELECT
 			ua.execution_id AS uuid,
-			IF(ua.fleet_initiated, 'Fleet', COALESCE(u.name, ua.payload->>'$.user.name')) AS name,
+			IF(ua.automdm_initiated, 'AutoMDM', COALESCE(u.name, ua.payload->>'$.user.name')) AS name,
 			u.id AS user_id,
 			u.api_only as api_only,
 			COALESCE(u.gravatar_url, ua.payload->>'$.user.gravatar_url') as gravatar_url,
@@ -307,7 +307,7 @@ func (ds *Datastore) ListHostUpcomingActivities(ctx context.Context, hostID uint
 			) AS details,
 			IF(ua.activated_at IS NULL, 0, 1) as topmost,
 			ua.priority as priority,
-			ua.fleet_initiated as fleet_initiated
+			ua.automdm_initiated as automdm_initiated
 		FROM
 			upcoming_activities ua
 		INNER JOIN
@@ -341,16 +341,16 @@ func (ds *Datastore) ListHostUpcomingActivities(ctx context.Context, hostID uint
 			activity_type,
 			created_at,
 			details,
-			fleet_initiated
+			automdm_initiated
 		FROM ( ` + strings.Join(listStmts, " UNION ALL ") + ` ) AS upcoming
 		ORDER BY topmost DESC, priority DESC, created_at ASC`
 
 	listStmt, args, err := sqlx.Named(listStmt, map[string]any{
 		"host_id":                      hostID,
-		"ran_script_type":              fleet.ActivityTypeRanScript{}.ActivityName(),
-		"installed_software_type":      fleet.ActivityTypeInstalledSoftware{}.ActivityName(),
-		"uninstalled_software_type":    fleet.ActivityTypeUninstalledSoftware{}.ActivityName(),
-		"installed_app_store_app_type": fleet.ActivityInstalledAppStoreApp{}.ActivityName(),
+		"ran_script_type":              automdm.ActivityTypeRanScript{}.ActivityName(),
+		"installed_software_type":      automdm.ActivityTypeInstalledSoftware{}.ActivityName(),
+		"uninstalled_software_type":    automdm.ActivityTypeUninstalledSoftware{}.ActivityName(),
+		"installed_app_store_app_type": automdm.ActivityInstalledAppStoreApp{}.ActivityName(),
 	})
 	if err != nil {
 		return nil, nil, ctxerr.Wrap(ctx, err, "build list query from named args")
@@ -364,12 +364,12 @@ func (ds *Datastore) ListHostUpcomingActivities(ctx context.Context, hostID uint
 		return nil, nil, ctxerr.Wrap(ctx, err, "list upcoming activities")
 	}
 
-	var activities []*fleet.UpcomingActivity
+	var activities []*automdm.UpcomingActivity
 	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &activities, stmt, args...); err != nil {
 		return nil, nil, ctxerr.Wrap(ctx, err, "select upcoming activities")
 	}
 
-	metaData := &fleet.PaginationMetadata{HasPreviousResults: opt.Page > 0, TotalResults: count}
+	metaData := &automdm.PaginationMetadata{HasPreviousResults: opt.Page > 0, TotalResults: count}
 	if len(activities) > int(opt.PerPage) { //nolint:gosec // dismiss G115
 		metaData.HasNextResults = true
 		activities = activities[:len(activities)-1]
@@ -469,8 +469,8 @@ func (ds *Datastore) CleanupExpiredLiveQueries(ctx context.Context, expiredWindo
 	return nil
 }
 
-func (ds *Datastore) CancelHostUpcomingActivity(ctx context.Context, hostID uint, executionID string) (fleet.ActivityDetails, error) {
-	var details fleet.ActivityDetails
+func (ds *Datastore) CancelHostUpcomingActivity(ctx context.Context, hostID uint, executionID string) (automdm.ActivityDetails, error) {
+	var details automdm.ActivityDetails
 	if err := ds.withRetryTxx(ctx, func(tx sqlx.ExtContext) error {
 		activityDetails, err := ds.cancelHostUpcomingActivity(ctx, tx, hostID, executionID, true)
 		details = activityDetails
@@ -487,8 +487,8 @@ func (ds *Datastore) CancelHostUpcomingActivity(ctx context.Context, hostID uint
 // single-cancel API, this bypasses the lock/wipe service-layer guard intentionally -
 // this is called after a Wipe so there's no need for this check. Returns the canceled
 // activities.
-func (ds *Datastore) BatchCancelAllHostUpcomingActivities(ctx context.Context, hostID uint) ([]fleet.ActivityDetails, error) {
-	var canceled []fleet.ActivityDetails
+func (ds *Datastore) BatchCancelAllHostUpcomingActivities(ctx context.Context, hostID uint) ([]automdm.ActivityDetails, error) {
+	var canceled []automdm.ActivityDetails
 	if err := ds.withRetryTxx(ctx, func(tx sqlx.ExtContext) error {
 		var err error
 		canceled, err = ds.batchCancelAllHostUpcomingActivities(ctx, tx, hostID)
@@ -503,14 +503,14 @@ func (ds *Datastore) BatchCancelAllHostUpcomingActivities(ctx context.Context, h
 // batchCancelAllHostUpcomingActivities is the tx-aware variant of
 // BatchCancelAllHostUpcomingActivities. Call this from within a surrounding
 // withTx/withRetryTxx callback to keep cancellations atomic with the caller's other writes.
-func (ds *Datastore) batchCancelAllHostUpcomingActivities(ctx context.Context, tx sqlx.ExtContext, hostID uint) ([]fleet.ActivityDetails, error) {
+func (ds *Datastore) batchCancelAllHostUpcomingActivities(ctx context.Context, tx sqlx.ExtContext, hostID uint) ([]automdm.ActivityDetails, error) {
 	const loadStmt = `SELECT execution_id FROM upcoming_activities WHERE host_id = ? ORDER BY id FOR UPDATE`
 	var execIDs []string
 	if err := sqlx.SelectContext(ctx, tx, &execIDs, loadStmt, hostID); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "load upcoming activity execution ids")
 	}
 
-	canceled := make([]fleet.ActivityDetails, 0, len(execIDs))
+	canceled := make([]automdm.ActivityDetails, 0, len(execIDs))
 	for i, execID := range execIDs {
 		// only the last cancellation triggers activation of the next activity; the others
 		// would activate something that is about to be canceled in the next iteration.
@@ -536,7 +536,7 @@ type activityToCancel struct {
 	Activated           bool    `db:"activated"`
 }
 
-func (ds *Datastore) cancelHostUpcomingActivity(ctx context.Context, tx sqlx.ExtContext, hostID uint, executionID string, activateNext bool) (fleet.ActivityDetails, error) {
+func (ds *Datastore) cancelHostUpcomingActivity(ctx context.Context, tx sqlx.ExtContext, hostID uint, executionID string, activateNext bool) (automdm.ActivityDetails, error) {
 	const (
 		loadScriptActivityStmt = `
 	SELECT
@@ -724,19 +724,19 @@ func (ds *Datastore) cancelHostUpcomingActivity(ctx context.Context, tx sqlx.Ext
 
 	// Must get the host uuid, osquery_host_id, and platform for the setup experience and nano table updates.
 	const getHostUUIDStmt = `SELECT uuid, osquery_host_id, platform FROM hosts WHERE id = ?`
-	var host fleet.Host
+	var host automdm.Host
 	if err := sqlx.GetContext(ctx, tx, &host, getHostUUIDStmt, hostID); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "load host UUID fields")
 	}
 	hostUUID := host.UUID
-	if fleet.IsSetupExperienceSupported(host.Platform) {
-		hostUUID, err = fleet.HostUUIDForSetupExperience(&host)
+	if automdm.IsSetupExperienceSupported(host.Platform) {
+		hostUUID, err = automdm.HostUUIDForSetupExperience(&host)
 		if err != nil {
 			return nil, ctxerr.Wrap(ctx, err, "failed to get host's UUID for the setup experience")
 		}
 	}
 
-	var pastAct fleet.ActivityDetails
+	var pastAct automdm.ActivityDetails
 	switch act.ActivityType {
 	case "script":
 		pastAct, err = cancelHostScriptUpcomingActivity(ctx, tx, act, hostUUID, executionID)
@@ -790,7 +790,7 @@ func (ds *Datastore) cancelHostUpcomingActivity(ctx context.Context, tx sqlx.Ext
 	return pastAct, nil
 }
 
-func cancelHostInHouseAppInstallUpcomingActivity(ctx context.Context, tx sqlx.ExtContext, act activityToCancel, hostID uint, hostUUID, executionID string) (fleet.ActivityDetails, error) {
+func cancelHostInHouseAppInstallUpcomingActivity(ctx context.Context, tx sqlx.ExtContext, act activityToCancel, hostID uint, hostUUID, executionID string) (automdm.ActivityDetails, error) {
 	// in-house apps currently cannot be part of setup experience, so there's no
 	// update for that in this case.
 
@@ -806,7 +806,7 @@ func cancelHostInHouseAppInstallUpcomingActivity(ctx context.Context, tx sqlx.Ex
 		}
 
 		const delHostMDMCommandStmt = `DELETE FROM host_mdm_commands WHERE host_id = ? AND command_type = ?`
-		if _, err := tx.ExecContext(ctx, delHostMDMCommandStmt, hostID, fleet.VerifySoftwareInstallVPPPrefix); err != nil {
+		if _, err := tx.ExecContext(ctx, delHostMDMCommandStmt, hostID, automdm.VerifySoftwareInstallVPPPrefix); err != nil {
 			return nil, ctxerr.Wrap(ctx, err, "delete verify from host_mdm_commands")
 		}
 	}
@@ -815,7 +815,7 @@ func cancelHostInHouseAppInstallUpcomingActivity(ctx context.Context, tx sqlx.Ex
 	if act.CanceledID != nil {
 		titleID = *act.CanceledID
 	}
-	return fleet.ActivityTypeCanceledInstallSoftware{
+	return automdm.ActivityTypeCanceledInstallSoftware{
 		HostID:              act.HostID,
 		HostDisplayName:     act.HostDisplayName,
 		SoftwareTitle:       act.CanceledName,
@@ -824,12 +824,12 @@ func cancelHostInHouseAppInstallUpcomingActivity(ctx context.Context, tx sqlx.Ex
 	}, nil
 }
 
-func cancelHostVPPAppInstallUpcomingActivity(ctx context.Context, tx sqlx.ExtContext, act activityToCancel, hostID uint, hostUUID, executionID string) (fleet.ActivityDetails, error) {
+func cancelHostVPPAppInstallUpcomingActivity(ctx context.Context, tx sqlx.ExtContext, act activityToCancel, hostID uint, hostUUID, executionID string) (automdm.ActivityDetails, error) {
 	// if the VPP install was part of the setup experience, then it must be
 	// marked as "failed" for that setup experience flow (regardless of
 	// whether or not it was activated).
 	const failSetupExpStmt = `UPDATE setup_experience_status_results SET status = ? WHERE host_uuid = ? AND nano_command_uuid = ?`
-	if _, err := tx.ExecContext(ctx, failSetupExpStmt, fleet.SetupExperienceStatusFailure, hostUUID, executionID); err != nil {
+	if _, err := tx.ExecContext(ctx, failSetupExpStmt, automdm.SetupExperienceStatusFailure, hostUUID, executionID); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "update setup_experience_status_results as failed")
 	}
 
@@ -845,7 +845,7 @@ func cancelHostVPPAppInstallUpcomingActivity(ctx context.Context, tx sqlx.ExtCon
 		}
 
 		const delHostMDMCommandStmt = `DELETE FROM host_mdm_commands WHERE host_id = ? AND command_type = ?`
-		if _, err := tx.ExecContext(ctx, delHostMDMCommandStmt, hostID, fleet.VerifySoftwareInstallVPPPrefix); err != nil {
+		if _, err := tx.ExecContext(ctx, delHostMDMCommandStmt, hostID, automdm.VerifySoftwareInstallVPPPrefix); err != nil {
 			return nil, ctxerr.Wrap(ctx, err, "delete verify vpp from host_mdm_commands")
 		}
 	}
@@ -854,7 +854,7 @@ func cancelHostVPPAppInstallUpcomingActivity(ctx context.Context, tx sqlx.ExtCon
 	if act.CanceledID != nil {
 		titleID = *act.CanceledID
 	}
-	return fleet.ActivityTypeCanceledInstallAppStoreApp{
+	return automdm.ActivityTypeCanceledInstallAppStoreApp{
 		HostID:              act.HostID,
 		HostDisplayName:     act.HostDisplayName,
 		SoftwareTitle:       act.CanceledName,
@@ -863,7 +863,7 @@ func cancelHostVPPAppInstallUpcomingActivity(ctx context.Context, tx sqlx.ExtCon
 	}, nil
 }
 
-func cancelHostSoftwareUninstallUpcomingActivity(ctx context.Context, tx sqlx.ExtContext, act activityToCancel, executionID string) (fleet.ActivityDetails, error) {
+func cancelHostSoftwareUninstallUpcomingActivity(ctx context.Context, tx sqlx.ExtContext, act activityToCancel, executionID string) (automdm.ActivityDetails, error) {
 	// uninstall cannot be part of setup experience, so there's no update for
 	// that in this case.
 
@@ -885,7 +885,7 @@ func cancelHostSoftwareUninstallUpcomingActivity(ctx context.Context, tx sqlx.Ex
 	if act.CanceledID != nil {
 		titleID = *act.CanceledID
 	}
-	return fleet.ActivityTypeCanceledUninstallSoftware{
+	return automdm.ActivityTypeCanceledUninstallSoftware{
 		HostID:              act.HostID,
 		HostDisplayName:     act.HostDisplayName,
 		SoftwareTitle:       act.CanceledName,
@@ -894,12 +894,12 @@ func cancelHostSoftwareUninstallUpcomingActivity(ctx context.Context, tx sqlx.Ex
 	}, nil
 }
 
-func cancelHostSoftwareInstallUpcomingActivity(ctx context.Context, tx sqlx.ExtContext, act activityToCancel, hostUUID, executionID string) (fleet.ActivityDetails, error) {
+func cancelHostSoftwareInstallUpcomingActivity(ctx context.Context, tx sqlx.ExtContext, act activityToCancel, hostUUID, executionID string) (automdm.ActivityDetails, error) {
 	// if the install was part of the setup experience, then it must be
 	// marked as "failed" for that setup experience flow (regardless of
 	// whether or not it was activated).
 	const failSetupExpStmt = `UPDATE setup_experience_status_results SET status = ? WHERE host_uuid = ? AND host_software_installs_execution_id = ?`
-	if _, err := tx.ExecContext(ctx, failSetupExpStmt, fleet.SetupExperienceStatusFailure, hostUUID, executionID); err != nil {
+	if _, err := tx.ExecContext(ctx, failSetupExpStmt, automdm.SetupExperienceStatusFailure, hostUUID, executionID); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "update setup_experience_status_results as failed")
 	}
 
@@ -914,7 +914,7 @@ func cancelHostSoftwareInstallUpcomingActivity(ctx context.Context, tx sqlx.ExtC
 	if act.CanceledID != nil {
 		titleID = *act.CanceledID
 	}
-	return fleet.ActivityTypeCanceledInstallSoftware{
+	return automdm.ActivityTypeCanceledInstallSoftware{
 		HostID:              act.HostID,
 		HostDisplayName:     act.HostDisplayName,
 		SoftwareTitle:       act.CanceledName,
@@ -923,12 +923,12 @@ func cancelHostSoftwareInstallUpcomingActivity(ctx context.Context, tx sqlx.ExtC
 	}, nil
 }
 
-func cancelHostScriptUpcomingActivity(ctx context.Context, tx sqlx.ExtContext, act activityToCancel, hostUUID, executionID string) (fleet.ActivityDetails, error) {
+func cancelHostScriptUpcomingActivity(ctx context.Context, tx sqlx.ExtContext, act activityToCancel, hostUUID, executionID string) (automdm.ActivityDetails, error) {
 	// if the script was part of the setup experience, then it must be marked
 	// as "failed" for that setup experience flow (regardless of whether or
 	// not it was activated).
 	const failSetupExpStmt = `UPDATE setup_experience_status_results SET status = ? WHERE host_uuid = ? AND script_execution_id = ?`
-	if _, err := tx.ExecContext(ctx, failSetupExpStmt, fleet.SetupExperienceStatusFailure, hostUUID, executionID); err != nil {
+	if _, err := tx.ExecContext(ctx, failSetupExpStmt, automdm.SetupExperienceStatusFailure, hostUUID, executionID); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "update setup_experience_status_results as failed")
 	}
 
@@ -939,7 +939,7 @@ func cancelHostScriptUpcomingActivity(ctx context.Context, tx sqlx.ExtContext, a
 		}
 	}
 
-	return fleet.ActivityTypeCanceledRunScript{
+	return automdm.ActivityTypeCanceledRunScript{
 		HostID:          act.HostID,
 		HostDisplayName: act.HostDisplayName,
 		ScriptName:      act.CanceledName,
@@ -965,7 +965,7 @@ func clearHostMDMActionsForCanceledLockWipe(ctx context.Context, tx sqlx.ExtCont
 // GetHostUpcomingActivityMeta returns metadata for an upcoming activity,
 // such as whether it is activated or not, if the activity corresponds to a
 // lock/wipe/unlock command, etc.
-func (ds *Datastore) GetHostUpcomingActivityMeta(ctx context.Context, hostID uint, executionID string) (*fleet.UpcomingActivityMeta, error) {
+func (ds *Datastore) GetHostUpcomingActivityMeta(ctx context.Context, hostID uint, executionID string) (*automdm.UpcomingActivityMeta, error) {
 	const getStmt = `
 	SELECT
 		ua.execution_id,
@@ -988,17 +988,17 @@ func (ds *Datastore) GetHostUpcomingActivityMeta(ctx context.Context, hostID uin
 	namedArgs := map[string]any{
 		"host_id":       hostID,
 		"execution_id":  executionID,
-		"lock_action":   fleet.WellKnownActionLock,
-		"unlock_action": fleet.WellKnownActionUnlock,
-		"wipe_action":   fleet.WellKnownActionWipe,
-		"none_action":   fleet.WellKnownActionNone,
+		"lock_action":   automdm.WellKnownActionLock,
+		"unlock_action": automdm.WellKnownActionUnlock,
+		"wipe_action":   automdm.WellKnownActionWipe,
+		"none_action":   automdm.WellKnownActionNone,
 	}
 	stmt, args, err := sqlx.Named(getStmt, namedArgs)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "build named query for upcoming activity meta")
 	}
 
-	var actMeta fleet.UpcomingActivityMeta
+	var actMeta automdm.UpcomingActivityMeta
 	err = sqlx.GetContext(ctx, ds.reader(ctx), &actMeta, stmt, args...)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -1016,12 +1016,12 @@ func (ds *Datastore) GetHostUpcomingActivityMeta(ctx context.Context, hostID uin
 // unblocks up to maxHosts found in this situation (by activating the next
 // activity for each host).
 //
-// When skipFleetInitiated is true (the fleet-initiated release budget is
+// When skipAutoMDMInitiated is true (the automdm-initiated release budget is
 // enabled), a host is only considered blocked if it has an unactivated
-// non-fleet-initiated activity: hosts waiting solely on deferred
-// fleet-initiated activities are the release cron's job, and activating them
+// non-automdm-initiated activity: hosts waiting solely on deferred
+// automdm-initiated activities are the release cron's job, and activating them
 // here would bypass its budget.
-func (ds *Datastore) UnblockHostsUpcomingActivityQueue(ctx context.Context, maxHosts int, skipFleetInitiated bool) (int, error) {
+func (ds *Datastore) UnblockHostsUpcomingActivityQueue(ctx context.Context, maxHosts int, skipAutoMDMInitiated bool) (int, error) {
 	const findBlockedHostsStmt = `
 		SELECT
 			DISTINCT inactive_ua.host_id
@@ -1037,16 +1037,16 @@ func (ds *Datastore) UnblockHostsUpcomingActivityQueue(ctx context.Context, maxH
 			NOT EXISTS (
 				SELECT 1 FROM software_install_upcoming_activities siua
 				JOIN software_installers si ON si.id = siua.software_installer_id
-				WHERE siua.upcoming_activity_id = inactive_ua.id AND si.is_active = 0 AND si.fleet_maintained_app_id IS NULL
+				WHERE siua.upcoming_activity_id = inactive_ua.id AND si.is_active = 0 AND si.automdm_maintained_app_id IS NULL
 			)
 		%s
 		LIMIT ?`
 
-	var fleetInitiatedFilter string
-	if skipFleetInitiated {
-		fleetInitiatedFilter = "AND inactive_ua.fleet_initiated = 0"
+	var automdmInitiatedFilter string
+	if skipAutoMDMInitiated {
+		automdmInitiatedFilter = "AND inactive_ua.automdm_initiated = 0"
 	}
-	stmt := fmt.Sprintf(findBlockedHostsStmt, fleetInitiatedFilter)
+	stmt := fmt.Sprintf(findBlockedHostsStmt, automdmInitiatedFilter)
 
 	var blockedHostIDs []uint
 	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &blockedHostIDs, stmt, maxHosts); err != nil {
@@ -1055,16 +1055,16 @@ func (ds *Datastore) UnblockHostsUpcomingActivityQueue(ctx context.Context, maxH
 	return ds.activateNextUpcomingActivityForBatchOfHosts(ctx, blockedHostIDs)
 }
 
-// ReleaseFleetInitiatedUpcomingActivities activates the upcoming activities
+// ReleaseAutoMDMInitiatedUpcomingActivities activates the upcoming activities
 // queue of up to maxHosts hosts that have no activated activity and at least
-// one fleet-initiated activity waiting (enqueued with deferred activation by
-// the policy-automation paths). Hosts with the oldest waiting fleet-initiated
+// one automdm-initiated activity waiting (enqueued with deferred activation by
+// the policy-automation paths). Hosts with the oldest waiting automdm-initiated
 // activity are released first. It returns the number of hosts released.
 //
-// This is the release valve for the activity.fleet_initiated_release_per_minute
+// This is the release valve for the activity.automdm_initiated_release_per_minute
 // budget: enqueue is unthrottled, but hosts only start executing
-// fleet-initiated work at the pace this method is called with.
-func (ds *Datastore) ReleaseFleetInitiatedUpcomingActivities(ctx context.Context, maxHosts int) (int, error) {
+// automdm-initiated work at the pace this method is called with.
+func (ds *Datastore) ReleaseAutoMDMInitiatedUpcomingActivities(ctx context.Context, maxHosts int) (int, error) {
 	const findGatedHostsStmt = `
 		SELECT
 			gated_ua.host_id
@@ -1076,12 +1076,12 @@ func (ds *Datastore) ReleaseFleetInitiatedUpcomingActivities(ctx context.Context
 		WHERE
 			active_ua.host_id IS NULL AND
 			gated_ua.activated_at IS NULL AND
-			gated_ua.fleet_initiated = 1 AND
+			gated_ua.automdm_initiated = 1 AND
 			-- activation skips installs of a custom package a GitOps apply removed
 			NOT EXISTS (
 				SELECT 1 FROM software_install_upcoming_activities siua
 				JOIN software_installers si ON si.id = siua.software_installer_id
-				WHERE siua.upcoming_activity_id = gated_ua.id AND si.is_active = 0 AND si.fleet_maintained_app_id IS NULL
+				WHERE siua.upcoming_activity_id = gated_ua.id AND si.is_active = 0 AND si.automdm_maintained_app_id IS NULL
 			)
 		GROUP BY
 			gated_ua.host_id
@@ -1098,7 +1098,7 @@ func (ds *Datastore) ReleaseFleetInitiatedUpcomingActivities(ctx context.Context
 
 // mdmApplePushDeliveryGraceDays is how long an activated command has to reach its device before the
 // reaper gives up on it, matching the window in GetEnrollmentIDsWithPendingMDMAppleCommands past
-// which Fleet stops pushing it.
+// which AutoMDM stops pushing it.
 //
 // Measured from activated_at, not from nano_enrollment_queue.created_at even though that is the
 // column the pusher compares. Both enqueue paths copy the queue row's created_at from the activity's
@@ -1108,7 +1108,7 @@ const mdmApplePushDeliveryGraceDays = 7
 
 // reapableActivatedInstallWhere matches an activated MDM-command-backed install that is old enough
 // to reap and can no longer make progress. An answered install is judged on the age of the answer,
-// taken from ncr.updated_at, the column Fleet measures the verification budget from. Only an
+// taken from ncr.updated_at, the column AutoMDM measures the verification budget from. Only an
 // unanswered one is judged on delivery, having either lost its queue row or gone past the delivery
 // grace. Anything else is still in flight, including an unanswered command for a device that is
 // simply switched off. Arguments come from reapableActivatedInstallArgs.
@@ -1121,7 +1121,7 @@ const mdmApplePushDeliveryGraceDays = 7
 // (RetrieveNextCommand joins results with `status != 'NotNow'`), so the install has not run.
 //
 // Microseconds and not seconds: truncating to whole seconds turns any positive sub-second value into
-// INTERVAL 0, which matches every activated install on the fleet and walks past the callers' guards.
+// INTERVAL 0, which matches every activated install on the team and walks past the callers' guards.
 //
 // The nano lookups key on command_uuid alone, its primary key in nano_commands, so there is nothing
 // for an enrollment id to disambiguate.
@@ -1163,7 +1163,7 @@ func reapableActivatedInstallArgs(olderThan time.Duration) []any {
 	return []any{micros, micros, mdmApplePushDeliveryGraceDays}
 }
 
-func (ds *Datastore) ReapStuckActivatedMDMInstalls(ctx context.Context, olderThan time.Duration, maxHosts int) ([]fleet.ReapedMDMInstall, error) {
+func (ds *Datastore) ReapStuckActivatedMDMInstalls(ctx context.Context, olderThan time.Duration, maxHosts int) ([]automdm.ReapedMDMInstall, error) {
 	findHostsStmt := `
 	SELECT DISTINCT
 		ua.host_id,
@@ -1185,7 +1185,7 @@ func (ds *Datastore) ReapStuckActivatedMDMInstalls(ctx context.Context, olderTha
 	}
 
 	var (
-		reaped []fleet.ReapedMDMInstall
+		reaped []automdm.ReapedMDMInstall
 		errs   []error
 	)
 	for _, host := range hosts {
@@ -1207,7 +1207,7 @@ func (ds *Datastore) ReapStuckActivatedMDMInstalls(ctx context.Context, olderTha
 // clears is one row for the whole host.
 func (ds *Datastore) reapStuckActivatedMDMInstallsForHost(ctx context.Context, hostID uint, hostUUID string,
 	olderThan time.Duration,
-) ([]fleet.ReapedMDMInstall, error) {
+) ([]automdm.ReapedMDMInstall, error) {
 	findInstallsStmt := `
 	SELECT
 		ua.execution_id,
@@ -1227,7 +1227,7 @@ func (ds *Datastore) reapStuckActivatedMDMInstallsForHost(ctx context.Context, h
 		FromConfigurationResend bool   `db:"from_configuration_resend"`
 	}
 
-	var reaped []fleet.ReapedMDMInstall
+	var reaped []automdm.ReapedMDMInstall
 	err := ds.withRetryTxx(ctx, func(tx sqlx.ExtContext) error {
 		reaped = nil // a retry re-runs the whole host
 
@@ -1277,7 +1277,7 @@ WHERE command_uuid = ?
 			}
 			failedAny = true
 
-			// Stop the APNs retry cron pushing a command Fleet has now given up on, and
+			// Stop the APNs retry cron pushing a command AutoMDM has now given up on, and
 			// stop a device that comes back from installing an app already reported as
 			// failed, which would leak the verify lock on the way through.
 			const deactivateNanoStmt = `UPDATE nano_enrollment_queue SET active = 0 WHERE id = ? AND command_uuid = ?`
@@ -1285,13 +1285,13 @@ WHERE command_uuid = ?
 				return ctxerr.Wrap(ctx, err, "deactivate nano queue row for reaped MDM install")
 			}
 
-			cmdResults := &mdm.CommandResults{CommandUUID: inst.ExecutionID, Status: fleet.MDMAppleStatusError}
-			entry := fleet.ReapedMDMInstall{HostID: hostID, HostUUID: hostUUID, CommandUUID: inst.ExecutionID}
+			cmdResults := &mdm.CommandResults{CommandUUID: inst.ExecutionID, Status: automdm.MDMAppleStatusError}
+			entry := automdm.ReapedMDMInstall{HostID: hostID, HostUUID: hostUUID, CommandUUID: inst.ExecutionID}
 			switch swType {
 			case softwareTypeVPP:
 				user, act, err := ds.getPastActivityDataForVPPAppInstallDB(ctx, tx, cmdResults)
 				if err != nil {
-					if fleet.IsNotFound(err) {
+					if automdm.IsNotFound(err) {
 						continue // shouldn't happen, but the install is failed either way
 					}
 					return ctxerr.Wrap(ctx, err, "get past activity data for reaped app store app install")
@@ -1308,7 +1308,7 @@ WHERE command_uuid = ?
 			case softwareTypeInHouseApp:
 				user, act, err := ds.getPastActivityDataForInHouseAppInstallDB(ctx, tx, cmdResults)
 				if err != nil {
-					if fleet.IsNotFound(err) {
+					if automdm.IsNotFound(err) {
 						continue
 					}
 					return ctxerr.Wrap(ctx, err, "get past activity data for reaped in-house app install")
@@ -1326,7 +1326,7 @@ WHERE command_uuid = ?
 		// narrower condition instead risks retaining the lock when it does damage.
 		if failedAny {
 			const delHostMDMCommandStmt = `DELETE FROM host_mdm_commands WHERE host_id = ? AND command_type = ?`
-			if _, err := tx.ExecContext(ctx, delHostMDMCommandStmt, hostID, fleet.VerifySoftwareInstallVPPPrefix); err != nil {
+			if _, err := tx.ExecContext(ctx, delHostMDMCommandStmt, hostID, automdm.VerifySoftwareInstallVPPPrefix); err != nil {
 				return ctxerr.Wrap(ctx, err, "delete verify vpp from host_mdm_commands")
 			}
 		}
@@ -1355,7 +1355,7 @@ WHERE command_uuid = ?
 // call site in NewActivity (now in the activity bounded context) also called
 // activateNextUpcomingActivity outside a transaction. See @mna's comment in
 // cab7cc15bef (2025-10-28) explaining that this non-transactional approach is
-// accepted and consistent with how other critical state updates work in Fleet.
+// accepted and consistent with how other critical state updates work in AutoMDM.
 func (ds *Datastore) ActivateNextUpcomingActivityForHost(ctx context.Context, hostID uint, fromCompletedExecID string) error {
 	_, err := ds.activateNextUpcomingActivity(ctx, ds.writer(ctx), hostID, fromCompletedExecID)
 	return err
@@ -1463,7 +1463,7 @@ WHERE
 	(activated_at IS NOT NULL OR NOT EXISTS (
 		SELECT 1 FROM software_install_upcoming_activities siua
 		JOIN software_installers si ON si.id = siua.software_installer_id
-		WHERE siua.upcoming_activity_id = upcoming_activities.id AND si.is_active = 0 AND si.fleet_maintained_app_id IS NULL
+		WHERE siua.upcoming_activity_id = upcoming_activities.id AND si.is_active = 0 AND si.automdm_maintained_app_id IS NULL
 	))
 	%s
 ORDER BY topmost DESC, priority DESC, created_at ASC
@@ -1569,9 +1569,9 @@ WHERE
 
 	switch toActivate[0].ActivityType {
 	case "script", "software_install", "software_uninstall":
-		// fleetd picks these up from its orbit config. MDM command activities
+		// automdmd picks these up from its orbit config. MDM command activities
 		// are delivered by the APNs push instead.
-		ds.notifyOrbitConfig(ctx, tx, fleet.AgentWSReasonActivity, hostID)
+		ds.notifyOrbitConfig(ctx, tx, automdm.AgentWSReasonActivity, hostID)
 	}
 	return activatedExecIDs, nil
 }
@@ -1812,12 +1812,12 @@ ORDER BY
 }
 
 // activateNextInHouseAppInstallActivity is the single fan-in point for every
-// InstallApplication command Fleet sends for an in-house (.ipa) app. All of:
+// InstallApplication command AutoMDM sends for an in-house (.ipa) app. All of:
 //
 //   - manual install from host details > software > library (including admin reinstall)
 //   - self-service install
 //
-// land here. Configuration is fetched and per-host $FLEET_VAR_* substitution
+// land here. Configuration is fetched and per-host $AUTOMDM_VAR_* substitution
 // is performed inside this function so every send path inherits the latest
 // stored config.
 func (ds *Datastore) activateNextInHouseAppInstallActivity(ctx context.Context, tx sqlx.ExtContext, hostID uint, execIDs []string) error {
@@ -1971,7 +1971,7 @@ WHERE
 
 	// Build the InstallApplication plist for each pending activation, then do
 	// one batch INSERT into nano_commands. Per-host, per-app build also drives
-	// $FLEET_VAR_* substitution against host context.
+	// $AUTOMDM_VAR_* substitution against host context.
 	subHost := apple_mdm.AppConfigSubstitutionHost{
 		HostID:         hostID,
 		UUID:           hostData.UUID,
@@ -1988,15 +1988,15 @@ WHERE
 			return ctxerr.Wrap(ctx, err, "mint in-house app install token")
 		}
 		// The device fetches this itself, so it has to be the URL Apple devices
-		// reach Fleet on, which is a separate hostname when apple_server_url is set.
+		// reach AutoMDM on, which is a separate hostname when apple_server_url is set.
 		manifestURL := fmt.Sprintf(
-			"%s/api/latest/fleet/software/titles/%d/in_house_app/manifest/%s",
+			"%s/api/latest/automdm/software/titles/%d/in_house_app/manifest/%s",
 			appConfig.MDMUrl(), p.SoftwareTitle, token)
 		cfg := configsByAppID[p.InHouseAppID]
 		if len(cfg) > 0 {
-			substituted, err := apple_mdm.SubstituteFleetVarsInAppConfig(ctx, ds, cfg, subHost)
+			substituted, err := apple_mdm.SubstituteAutoMDMVarsInAppConfig(ctx, ds, cfg, subHost)
 			if err != nil {
-				return ctxerr.Wrap(ctx, err, "substitute fleet variables in in-house app configuration")
+				return ctxerr.Wrap(ctx, err, "substitute automdm variables in in-house app configuration")
 			}
 			cfg = substituted
 		}
@@ -2052,7 +2052,7 @@ const policyAutomationCols = `
     ap.id,
     ap.created_at,
     ap.activity_type,
-    ap.fleet_initiated,
+    ap.automdm_initiated,
     ap.details,
     ahp.host_id,
     COALESCE(hdn.display_name, '') AS host_display_name`
@@ -2241,7 +2241,7 @@ type policyAutomationBranch struct {
 // buildPolicyAutomationBranches assembles every UNION branch contributing to
 // the policy automation activity feed, filtered by status ("error", "success",
 // or "" for both) and scoped to the hosts visible to the viewer via filter.
-func buildPolicyAutomationBranches(ds *Datastore, policyID uint, filter fleet.TeamFilter, status string) ([]policyAutomationBranch, error) {
+func buildPolicyAutomationBranches(ds *Datastore, policyID uint, filter automdm.TeamFilter, status string) ([]policyAutomationBranch, error) {
 	teamFilterSQL := ds.whereFilterHostsByTeams(filter, "h")
 	// Named automation activities (webhook/ticket/calendar/CA) are selected by
 	// activity_type and linked to the policy through activity_past.policy_id. The
@@ -2292,7 +2292,7 @@ func buildPolicyAutomationBranches(ds *Datastore, policyID uint, filter fleet.Te
 //     host_software_installs.
 //  4. VPP software-install activities (installed_app_store_app), linked via
 //     host_vpp_software_installs.
-func (ds *Datastore) ListPolicyAutomationActivities(ctx context.Context, policyID uint, filter fleet.TeamFilter, opts fleet.ListOptions, status string) ([]*fleet.PolicyAutomationActivity, *fleet.PaginationMetadata, error) {
+func (ds *Datastore) ListPolicyAutomationActivities(ctx context.Context, policyID uint, filter automdm.TeamFilter, opts automdm.ListOptions, status string) ([]*automdm.PolicyAutomationActivity, *automdm.PaginationMetadata, error) {
 	branches, err := buildPolicyAutomationBranches(ds, policyID, filter, status)
 	if err != nil {
 		return nil, nil, ctxerr.Wrap(ctx, err, "build policy automation branches")
@@ -2315,9 +2315,9 @@ func (ds *Datastore) ListPolicyAutomationActivities(ctx context.Context, policyI
 	// index reads in order both ways.
 	if opts.OrderKey == "activity_type" {
 		opts.TestSecondaryOrderKey = "created_at"
-		opts.TestSecondaryOrderDirection = fleet.OrderDescending
-		if opts.OrderDirection == fleet.OrderDescending {
-			opts.TestSecondaryOrderDirection = fleet.OrderAscending
+		opts.TestSecondaryOrderDirection = automdm.OrderDescending
+		if opts.OrderDirection == automdm.OrderDescending {
+			opts.TestSecondaryOrderDirection = automdm.OrderAscending
 		}
 	}
 	// Sort and cut each branch to the rows up to the end of the requested page, so a branch reads only those rows from the
@@ -2327,17 +2327,17 @@ func (ds *Datastore) ListPolicyAutomationActivities(ctx context.Context, policyI
 	if orderKeyAllowed && opts.After == "" {
 		perPage := opts.PerPage
 		if perPage == 0 {
-			perPage = fleet.DefaultPerPage
+			perPage = automdm.DefaultPerPage
 		}
 		direction := "ASC"
-		if opts.OrderDirection == fleet.OrderDescending {
+		if opts.OrderDirection == automdm.OrderDescending {
 			direction = "DESC"
 		}
 		branchOrder := branchOrderColumn + " " + direction
 		secondaryOrderColumn, secondaryOrderKeyAllowed := policyAutomationActivityBranchOrderKeys[opts.TestSecondaryOrderKey]
 		if secondaryOrderKeyAllowed {
 			secondaryDirection := "ASC"
-			if opts.TestSecondaryOrderDirection == fleet.OrderDescending {
+			if opts.TestSecondaryOrderDirection == automdm.OrderDescending {
 				secondaryDirection = "DESC"
 			}
 			branchOrder += ", " + secondaryOrderColumn + " " + secondaryDirection
@@ -2385,18 +2385,18 @@ func (ds *Datastore) ListPolicyAutomationActivities(ctx context.Context, policyI
 		return nil, nil, ctxerr.Wrap(ctx, err, "apply list options")
 	}
 
-	activities := []*fleet.PolicyAutomationActivity{}
+	activities := []*automdm.PolicyAutomationActivity{}
 	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &activities, listSQL, listArgs...); err != nil {
 		return nil, nil, ctxerr.Wrap(ctx, err, "select policy automation activities")
 	}
 
-	var meta *fleet.PaginationMetadata
+	var meta *automdm.PaginationMetadata
 	if opts.IncludeMetadata {
 		var count uint
 		if err := sqlx.GetContext(ctx, ds.reader(ctx), &count, countSQL, countArgs...); err != nil {
 			return nil, nil, ctxerr.Wrap(ctx, err, "count policy automation activities")
 		}
-		meta = &fleet.PaginationMetadata{
+		meta = &automdm.PaginationMetadata{
 			HasPreviousResults: opts.Page > 0,
 			TotalResults:       count,
 		}
@@ -2409,11 +2409,11 @@ func (ds *Datastore) ListPolicyAutomationActivities(ctx context.Context, policyI
 	return activities, meta, nil
 }
 
-func (ds *Datastore) IncrementHostPolicyAutomationRunCount(ctx context.Context, policyID uint, hostID uint, activity fleet.ActivityDetails, succeeded bool) error {
+func (ds *Datastore) IncrementHostPolicyAutomationRunCount(ctx context.Context, policyID uint, hostID uint, activity automdm.ActivityDetails, succeeded bool) error {
 	return incrementHostPolicyAutomationRunCountDB(ctx, ds.writer(ctx), policyID, hostID, activity, succeeded)
 }
 
-func incrementHostPolicyAutomationRunCountDB(ctx context.Context, tx sqlx.ExecerContext, policyID uint, hostID uint, activity fleet.ActivityDetails, succeeded bool) error {
+func incrementHostPolicyAutomationRunCountDB(ctx context.Context, tx sqlx.ExecerContext, policyID uint, hostID uint, activity automdm.ActivityDetails, succeeded bool) error {
 	const stmt = `
 		INSERT INTO host_policy_automation_run_counts (policy_id, activity_type, host_id, success_count, fail_count)
 		VALUES (?, ?, ?, ?, ?)
@@ -2430,7 +2430,7 @@ func incrementHostPolicyAutomationRunCountDB(ctx context.Context, tx sqlx.Execer
 func decrementHostPolicyAutomationRunCountsDB(
 	ctx context.Context,
 	tx sqlx.ExecerContext,
-	activity fleet.ActivityDetails,
+	activity automdm.ActivityDetails,
 	ids []uint,
 	olderThan time.Time,
 ) error {
@@ -2465,9 +2465,9 @@ GROUP BY hsi.policy_id, hsi.host_id`
 
 	var runCountsStmt string
 	switch activity.(type) {
-	case fleet.ActivityTypeRanScript:
+	case automdm.ActivityTypeRanScript:
 		runCountsStmt = scriptRunCountsStmt
-	case fleet.ActivityTypeInstalledSoftware:
+	case automdm.ActivityTypeInstalledSoftware:
 		runCountsStmt = installRunCountsStmt
 	default:
 		return ctxerr.Errorf(ctx, "decrement host policy automation run counts: unsupported activity %s", activity.ActivityName())

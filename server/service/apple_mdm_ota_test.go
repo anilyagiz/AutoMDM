@@ -12,10 +12,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/dev_mode"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	apple_mdm "github.com/fleetdm/fleet/v4/server/mdm/apple"
-	"github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/dev_mode"
+	apple_mdm "github.com/anilyagiz/automdm/v4/server/mdm/apple"
+	"github.com/anilyagiz/automdm/v4/server/mock"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
 )
@@ -27,7 +27,7 @@ func newOTATestSigner(t *testing.T, ca *x509.Certificate, caKey *rsa.PrivateKey,
 	require.NoError(t, err)
 	tmpl := &x509.Certificate{
 		SerialNumber: big.NewInt(time.Now().UnixNano()),
-		Subject:      pkix.Name{CommonName: "Fleet Identity"},
+		Subject:      pkix.Name{CommonName: "AutoMDM Identity"},
 		NotBefore:    time.Now().Add(-time.Hour),
 		NotAfter:     time.Now().Add(time.Hour),
 		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
@@ -55,18 +55,18 @@ func TestMDMAppleProcessOTAEnrollmentSCEPChallenges(t *testing.T) {
 
 	newDS := func() *mock.Store {
 		ds := new(mock.Store)
-		ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-			return &fleet.AppConfig{ServerSettings: fleet.ServerSettings{ServerURL: "https://fleet.example.com"}}, nil
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{ServerSettings: automdm.ServerSettings{ServerURL: "https://automdm.example.com"}}, nil
 		}
-		ds.VerifyEnrollSecretFunc = func(ctx context.Context, s string) (*fleet.EnrollSecret, error) {
-			return &fleet.EnrollSecret{Secret: s}, nil
+		ds.VerifyEnrollSecretFunc = func(ctx context.Context, s string) (*automdm.EnrollSecret, error) {
+			return &automdm.EnrollSecret{Secret: s}, nil
 		}
-		ds.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, names []fleet.MDMAssetName, _ sqlx.QueryerContext) (map[fleet.MDMAssetName]fleet.MDMConfigAsset, error) {
-			return map[fleet.MDMAssetName]fleet.MDMConfigAsset{
-				fleet.MDMAssetCACert: {Name: fleet.MDMAssetCACert, Value: pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: ca.Raw})},
+		ds.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, names []automdm.MDMAssetName, _ sqlx.QueryerContext) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
+			return map[automdm.MDMAssetName]automdm.MDMConfigAsset{
+				automdm.MDMAssetCACert: {Name: automdm.MDMAssetCACert, Value: pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: ca.Raw})},
 			}, nil
 		}
-		ds.NewAppleSCEPChallengeFunc = func(ctx context.Context, info fleet.AppleSCEPChallengeInfo, ttl time.Duration) (string, error) {
+		ds.NewAppleSCEPChallengeFunc = func(ctx context.Context, info automdm.AppleSCEPChallengeInfo, ttl time.Duration) (string, error) {
 			return "minted-challenge", nil
 		}
 		return ds
@@ -74,11 +74,11 @@ func TestMDMAppleProcessOTAEnrollmentSCEPChallenges(t *testing.T) {
 
 	t.Run("phase 1 hands out a challenge bound to the MachineInfo identity", func(t *testing.T) {
 		// treats the test signer as Apple's device CA, which marks phase 1
-		dev_mode.SetOverride("FLEET_DEV_MDM_APPLE_DISABLE_DEVICE_INFO_CERT_VERIFY", "1", t)
+		dev_mode.SetOverride("AUTOMDM_DEV_MDM_APPLE_DISABLE_DEVICE_INFO_CERT_VERIFY", "1", t)
 		ds := newDS()
-		var minted fleet.AppleSCEPChallengeInfo
+		var minted automdm.AppleSCEPChallengeInfo
 		var mintedTTL time.Duration
-		ds.NewAppleSCEPChallengeFunc = func(ctx context.Context, info fleet.AppleSCEPChallengeInfo, ttl time.Duration) (string, error) {
+		ds.NewAppleSCEPChallengeFunc = func(ctx context.Context, info automdm.AppleSCEPChallengeInfo, ttl time.Duration) (string, error) {
 			minted, mintedTTL = info, ttl
 			return "minted-challenge", nil
 		}
@@ -86,23 +86,23 @@ func TestMDMAppleProcessOTAEnrollmentSCEPChallenges(t *testing.T) {
 
 		signer := newOTATestSigner(t, ca, caKey, nil)
 		resp, err := svc.MDMAppleProcessOTAEnrollment(ctx, []*x509.Certificate{signer}, signer, secret, "", false,
-			fleet.MDMAppleMachineInfo{UDID: udid, Serial: serial})
+			automdm.MDMAppleMachineInfo{UDID: udid, Serial: serial})
 		require.NoError(t, err)
 		require.Contains(t, string(resp), "minted-challenge")
-		require.Equal(t, fleet.AppleSCEPChallengeInfo{Purpose: fleet.AppleMDMCertPurposeOTAPhaseOne, UUID: new(udid), Serial: new(serial)}, minted)
-		require.Equal(t, fleet.AppleSCEPEnrollmentChallengeTTL, mintedTTL)
+		require.Equal(t, automdm.AppleSCEPChallengeInfo{Purpose: automdm.AppleMDMCertPurposeOTAPhaseOne, UUID: new(udid), Serial: new(serial)}, minted)
+		require.Equal(t, automdm.AppleSCEPEnrollmentChallengeTTL, mintedTTL)
 	})
 
-	phaseOne := &apple_mdm.AppleMDMCertificateBindingExtension{Purpose: fleet.AppleMDMCertPurposeOTAPhaseOne, UDID: new(udid), Serial: new(serial)}
+	phaseOne := &apple_mdm.AppleMDMCertificateBindingExtension{Purpose: automdm.AppleMDMCertPurposeOTAPhaseOne, UDID: new(udid), Serial: new(serial)}
 	rejected := []struct {
 		name       string
 		binding    *apple_mdm.AppleMDMCertificateBindingExtension
-		deviceInfo fleet.MDMAppleMachineInfo
+		deviceInfo automdm.MDMAppleMachineInfo
 	}{
-		{"signer without a binding", nil, fleet.MDMAppleMachineInfo{UDID: udid, Serial: serial}},
-		{"signer with another purpose", &apple_mdm.AppleMDMCertificateBindingExtension{Purpose: fleet.AppleMDMCertPurposeADE, UDID: new(udid), Serial: new(serial)}, fleet.MDMAppleMachineInfo{UDID: udid, Serial: serial}},
-		{"device info claims another UDID", phaseOne, fleet.MDMAppleMachineInfo{UDID: "other-udid", Serial: serial}},
-		{"device info claims another serial", phaseOne, fleet.MDMAppleMachineInfo{UDID: udid, Serial: "other-serial"}},
+		{"signer without a binding", nil, automdm.MDMAppleMachineInfo{UDID: udid, Serial: serial}},
+		{"signer with another purpose", &apple_mdm.AppleMDMCertificateBindingExtension{Purpose: automdm.AppleMDMCertPurposeADE, UDID: new(udid), Serial: new(serial)}, automdm.MDMAppleMachineInfo{UDID: udid, Serial: serial}},
+		{"device info claims another UDID", phaseOne, automdm.MDMAppleMachineInfo{UDID: "other-udid", Serial: serial}},
+		{"device info claims another serial", phaseOne, automdm.MDMAppleMachineInfo{UDID: udid, Serial: "other-serial"}},
 	}
 	for _, c := range rejected {
 		t.Run("phase 2 rejects "+c.name, func(t *testing.T) {

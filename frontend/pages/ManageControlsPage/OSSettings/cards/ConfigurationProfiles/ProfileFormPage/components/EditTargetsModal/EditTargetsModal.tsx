@@ -42,7 +42,7 @@ const validate = (targets: IProfileTargets): IFormErrors => {
 };
 
 interface IEditTargetsModalProps {
-  fleetId: number;
+  automdmId: number;
   targets: IProfileTargets;
   /** Shows the targets without letting them change. GitOps mode is always
    * read-only. */
@@ -54,7 +54,7 @@ interface IEditTargetsModalProps {
 
 /** Edits a copy of the targets, so Cancel leaves the profile's untouched. */
 const EditTargetsModal = ({
-  fleetId,
+  automdmId,
   targets,
   disabled = false,
   onAddLabel,
@@ -76,8 +76,8 @@ const EditTargetsModal = ({
     isLoading: isLoadingLabels,
     isError: isErrorLabels,
   } = useQuery<ILabelSummary[], Error>(
-    ["custom_labels", fleetId],
-    () => labelsAPI.summary(fleetId).then((res) => getCustomLabels(res.labels)),
+    ["custom_labels", automdmId],
+    () => labelsAPI.summary(automdmId).then((res) => getCustomLabels(res.labels)),
     DEFAULT_USE_QUERY_OPTIONS
   );
 

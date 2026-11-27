@@ -4,7 +4,7 @@ Each content type has its own shape. Identify the type first, then apply the mat
 
 ## Website and UI copy
 
-- Benefit-focused: lead with what the reader can do, not what Fleet is.
+- Benefit-focused: lead with what the reader can do, not what AutoMDM is.
 - Scannable: short sentences, bullet points, clear headers.
 - Concise: remove every unnecessary word. No hype, no filler adjectives.
 - Direct, specific calls to action.
@@ -18,21 +18,21 @@ Each content type has its own shape. Identify the type first, then apply the mat
 - Bold UI elements only (e.g. "Navigate to **Settings > Hosts**"). Never bold for emphasis.
 - Surface the simple, high-level steps first; put advanced details lower down.
 - Requires the article endmatter below with `category` set to `guides`.
-- For the full section-by-section skeleton (prerequisites, inline gotcha callouts, step shapes, verify/troubleshoot, a fill-in template) and an audit checklist for existing guides, use the `fleet-guide-formatting` skill.
+- For the full section-by-section skeleton (prerequisites, inline gotcha callouts, step shapes, verify/troubleshoot, a fill-in template) and an audit checklist for existing guides, use the `automdm-guide-formatting` skill.
 
 ## Articles and blog posts
 
 - Conversational yet professional. Provide context — the "why," not just the "what."
 - Explain jargon for the reader.
 - Use `##` (H2) and `###` (H3) to break up long sections.
-- Stay aligned with Fleet values; no vendor-pitch language.
+- Stay aligned with AutoMDM values; no vendor-pitch language.
 - Requires the article endmatter below.
 
 ## Case studies
 
-- Customer story told in three acts: their problem, why they chose Fleet, what changed — anchored by real, verbatim, attributed quotes.
+- Customer story told in three acts: their problem, why they chose AutoMDM, what changed — anchored by real, verbatim, attributed quotes.
 - Requires the case-study-specific meta tags (`summaryChallenge`, `summarySolution`, `summaryKeyResults`, company/quote tags) in addition to the standard article endmatter; the website build enforces these.
-- For the full structure, the `attribution-quote`/`checklist` custom syntax, the required meta tags, and honesty guardrails around quotes and numbers, use the `fleet-case-study-formatting` skill.
+- For the full structure, the `attribution-quote`/`checklist` custom syntax, the required meta tags, and honesty guardrails around quotes and numbers, use the `automdm-case-study-formatting` skill.
 
 ## Announcements and release notes
 
@@ -49,8 +49,8 @@ Each content type has its own shape. Identify the type first, then apply the mat
 ## Marketing and sales enablement
 
 - Same honesty and anti-hype discipline as everything else — the audience is technical and tunes out spin.
-- Read `references/positioning.md` for the audience pains, the "implicate the pain" narrative, Fleet's differentiators, and messaging do's and don'ts. Lead with pain then desire; keep operational speed as the throughline; never lift unverified stats, quotes, or named claims from the source docs.
-- Follow the competitor and Fleet framing rules in `style-rules.md`: state facts, name specific differentiators, never editorialize.
+- Read `references/positioning.md` for the audience pains, the "implicate the pain" narrative, AutoMDM's differentiators, and messaging do's and don'ts. Lead with pain then desire; keep operational speed as the throughline; never lift unverified stats, quotes, or named claims from the source docs.
+- Follow the competitor and AutoMDM framing rules in `style-rules.md`: state facts, name specific differentiators, never editorialize.
 
 ## Article endmatter template
 

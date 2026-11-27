@@ -33,7 +33,7 @@ interface IPolicyPageProps {
   location: {
     pathname: string;
     search: string;
-    query: { fleet_id: string };
+    query: { team_id: string };
   };
 }
 
@@ -155,7 +155,7 @@ const PolicyPage = ({
       retry: false,
       select: (data: IStoredPolicyResponse) => data.policy,
       onSuccess: (returnedQuery) => {
-        const deNulledReturnedQueryTeamId = returnedQuery.fleet_id ?? undefined;
+        const deNulledReturnedQueryTeamId = returnedQuery.team_id ?? undefined;
 
         setLastEditedQueryId(returnedQuery.id);
         setLastEditedQueryName(returnedQuery.name);
@@ -199,13 +199,13 @@ const PolicyPage = ({
   if (
     !isOnGlobalTeam &&
     !isStoredPolicyLoading &&
-    storedPolicy?.fleet_id !== undefined &&
-    storedPolicy?.fleet_id !== null &&
-    !(storedPolicy?.fleet_id?.toString() === location.query.fleet_id)
+    storedPolicy?.team_id !== undefined &&
+    storedPolicy?.team_id !== null &&
+    !(storedPolicy?.team_id?.toString() === location.query.team_id)
   ) {
     router.push(
       getPathWithQueryParams(location.pathname, {
-        fleet_id: storedPolicy?.fleet_id?.toString(),
+        team_id: storedPolicy?.team_id?.toString(),
       })
     );
   }
@@ -215,19 +215,19 @@ const PolicyPage = ({
     mutateAsync: createPolicy,
   } = useMutation((formData: IPolicyFormData) => policiesAPI.create(formData));
 
-  const detectIsFleetQueryRunnable = () => {
+  const detectIsAutoMDMQueryRunnable = () => {
     statusAPI.live_query().catch(() => {
       setIsLiveQueryRunnable(false);
     });
   };
 
   useEffect(() => {
-    detectIsFleetQueryRunnable();
+    detectIsAutoMDMQueryRunnable();
   }, []);
 
   // Updates title that shows up on browser tabs
   useEffect(() => {
-    // e.g., Antivirus healthy (Linux) | Policies | Fleet
+    // e.g., Antivirus healthy (Linux) | Policies | AutoMDM
     if (storedPolicy?.name) {
       document.title = `${storedPolicy.name} | Policies | ${DOCUMENT_TITLE_SUFFIX}`;
     } else {
@@ -261,7 +261,7 @@ const PolicyPage = ({
 
     return (
       <InfoBanner color="yellow">
-        Fleet is unable to run a live report. Refresh the page or log in again.
+        AutoMDM is unable to run a live report. Refresh the page or log in again.
         If this keeps happening please{" "}
         <CustomLink
           url="https://github.com/fleetdm/fleet/issues/new/choose"
@@ -292,7 +292,7 @@ const PolicyPage = ({
         router.push(
           getPathWithQueryParams(PATHS.LIVE_POLICY(policyId), {
             from: "edit",
-            fleet_id: teamIdForApi,
+            team_id: teamIdForApi,
           })
         ),
       onOpenSchemaSidebar,

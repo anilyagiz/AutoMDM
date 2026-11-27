@@ -11,7 +11,7 @@ import mockServer from "test/mock-server";
 
 import usePolicyLabelTargets from "./usePolicyLabelTargets";
 
-const baseUrl = (path: string) => `/api/latest/fleet${path}`;
+const baseUrl = (path: string) => `/api/latest/automdm${path}`;
 
 const mockLabels: ILabelSummary[] = [
   { id: 1, name: "Fun", description: "", label_type: "regular" },

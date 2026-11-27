@@ -105,12 +105,12 @@ describe("getErrorMessage", () => {
     );
   });
 
-  it("links the guide in a Fleet 5 removed variable error", () => {
+  it("links the guide in an AutoMDM 5 removed variable error", () => {
     render(
       <div>
         {getErrorMessage(
           createErrResponse(
-            'The "$FLEET_VAR_HOST_END_USER_EMAIL_IDP" variable is not available anymore. What to use instead: https://fleetdm.com/learn-more-about/fleet-5-upgrade'
+            'The "$AUTOMDM_VAR_HOST_END_USER_EMAIL_IDP" variable is not available anymore. What to use instead: https://automdm.com/learn-more-about/automdm-5-upgrade'
           ),
           "edit"
         )}
@@ -119,17 +119,17 @@ describe("getErrorMessage", () => {
 
     expect(
       screen.getByText(
-        /Couldn't edit\. The "\$FLEET_VAR_HOST_END_USER_EMAIL_IDP" variable is not available anymore/
+        /Couldn't edit\. The "\$AUTOMDM_VAR_HOST_END_USER_EMAIL_IDP" variable is not available anymore/
       )
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: /fleet-5-upgrade/ })
+      screen.getByRole("link", { name: /automdm-5-upgrade/ })
     ).toBeInTheDocument();
   });
 
   it("returns the api reason verbatim when it isn't specially handled", () => {
     const reason =
-      "profiles managed by Fleet can't be edited using this endpoint.";
+      "profiles managed by AutoMDM can't be edited using this endpoint.";
     expect(getErrorMessage(createErrResponse(reason), "edit")).toEqual(reason);
   });
 
@@ -247,11 +247,11 @@ describe("detectProfileContentType", () => {
     // JSON a secret placeholder keeps from parsing is a declaration
     expect(
       detectProfileContentType(
-        '{"Type": "com.apple.configuration.passcode.settings", "Payload": $FLEET_SECRET_PASSCODE}'
+        '{"Type": "com.apple.configuration.passcode.settings", "Payload": $AUTOMDM_SECRET_PASSCODE}'
       )
     ).toBe("declaration");
     // a lone placeholder says nothing about the type
-    expect(detectProfileContentType("$FLEET_SECRET_PROFILE")).toBeNull();
+    expect(detectProfileContentType("$AUTOMDM_SECRET_PROFILE")).toBeNull();
     // top-level key casing decides, as on the server; nested keys don't count
     expect(
       detectProfileContentType(
@@ -304,7 +304,7 @@ describe("detectProfileContentType", () => {
 
   it("derives an existing profile's type from the API shape", () => {
     const base = {
-      fleet_id: 0,
+      team_id: 0,
       name: "n",
       identifier: null,
       created_at: "",
@@ -398,7 +398,7 @@ describe("getAcceptedExtensions", () => {
     platform: IMdmProfile["platform"]
   ): IMdmProfile => ({
     profile_uuid: profileUUID,
-    fleet_id: 0,
+    team_id: 0,
     name: "n",
     platform,
     identifier: null,

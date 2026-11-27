@@ -57,7 +57,7 @@ func IsTermsNotSigned(err error) bool {
 
 // IsTokenRejected returns true if err is a DEP "token rejected" error. Per
 // Apple this indicates the token itself was revoked or replaced in Apple
-// Business Manager without the new token being uploaded to Fleet. This can
+// Business Manager without the new token being uploaded to AutoMDM. This can
 // arrive as an HTTPError (403, from do()) or an AuthError -- do() only ever
 // constructs AuthError with StatusCode 401, but DoAuth's /session handshake
 // (client/auth.go) constructs AuthError with whatever status Apple actually
@@ -71,7 +71,7 @@ func IsTokenRejected(err error) bool {
 
 // IsSignatureInvalid returns true if err is a DEP "signature invalid" error.
 // Per Apple this indicates the token itself was revoked or replaced in Apple
-// Business Manager without the new token being uploaded to Fleet. This can
+// Business Manager without the new token being uploaded to AutoMDM. This can
 // arrive as an HTTPError (403, from do()) or an AuthError -- do() only ever
 // constructs AuthError with StatusCode 401, but DoAuth's /session handshake
 // (client/auth.go) constructs AuthError with whatever status Apple actually

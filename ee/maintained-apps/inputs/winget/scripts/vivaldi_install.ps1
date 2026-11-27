@@ -1,5 +1,5 @@
 # Install Vivaldi silently, machine-wide (Chromium-based browser).
-# Fleet runs installs as SYSTEM, so --system-level is required to install for
+# AutoMDM runs installs as SYSTEM, so --system-level is required to install for
 # all users under %ProgramFiles% (and register under HKLM). Without it the
 # installer lands in the SYSTEM profile and is invisible to the real user.
 

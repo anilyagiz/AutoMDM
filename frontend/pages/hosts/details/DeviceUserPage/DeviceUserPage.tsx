@@ -173,7 +173,7 @@ const DeviceUserPage = ({
 
   const [showBypassModal, setShowBypassModal] = useState(false);
   const [showBitLockerPINModal, setShowBitLockerPINModal] = useState(false);
-  /** Whether the Create PIN modal is still owed an answer about a PIN it handed to Fleet. */
+  /** Whether the Create PIN modal is still owed an answer about a PIN it handed to AutoMDM. */
   const [isAwaitingPINOutcome, setIsAwaitingPINOutcome] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [showEnrollMdmModal, setShowEnrollMdmModal] = useState(false);
@@ -227,9 +227,9 @@ const DeviceUserPage = ({
     const onThemeChange = (e: Event) => {
       setDarkMode((e as CustomEvent).detail.dark);
     };
-    window.addEventListener("fleet-theme-change", onThemeChange);
+    window.addEventListener("automdm-theme-change", onThemeChange);
     return () =>
-      window.removeEventListener("fleet-theme-change", onThemeChange);
+      window.removeEventListener("automdm-theme-change", onThemeChange);
   }, []);
 
   const { data: deviceMacAdminsData } = useQuery(
@@ -432,7 +432,7 @@ const DeviceUserPage = ({
   const needsBitLockerPIN =
     diskEncryptionSetting?.action_required === "create_pin";
 
-  // The Fleet Desktop toast links here with ?create_pin=1. The parameter is dropped once the page has acted on it.
+  // The AutoMDM Desktop toast links here with ?create_pin=1. The parameter is dropped once the page has acted on it.
   useEffect(() => {
     if (!location.query.create_pin || !host) {
       return;
@@ -458,10 +458,10 @@ const DeviceUserPage = ({
   const isManualAppleEnrollmentBlocked =
     globalConfig?.mdm.only_allow_apple_business_enrollment ?? false;
 
-  const isFleetMdmManualUnenrolledMac =
+  const isAutoMDMMdmManualUnenrolledMac =
     !!globalConfig?.mdm.enabled_and_configured &&
     !!host &&
-    !host.dep_assigned_to_fleet &&
+    !host.dep_assigned_to_automdm &&
     host.platform === "darwin" &&
     (host.mdm.enrollment_status === "Off" ||
       host.mdm.enrollment_status === null);
@@ -497,7 +497,7 @@ const DeviceUserPage = ({
     () => deviceUserAPI.getSetupExperienceStatuses({ token: deviceAuthToken }),
     {
       ...DEFAULT_USE_QUERY_OPTIONS,
-      enabled: checkForSetupExperienceSoftware, // this can only become true once the above `dupResponse` is defined by its associated API call response, ensuring this call only fires once the frontend knows if this is a Fleet Premium instance
+      enabled: checkForSetupExperienceSoftware, // this can only become true once the above `dupResponse` is defined by its associated API call response, ensuring this call only fires once the frontend knows if this is an AutoMDM Premium instance
       refetchInterval: (data) => (hasRemainingSetupSteps(data) ? 5000 : false), // refetch every 5s until finished
       refetchIntervalInBackground: true,
       select: (response) => {
@@ -529,7 +529,7 @@ const DeviceUserPage = ({
     {
       enabled:
         !!deviceAuthToken &&
-        isFleetMdmManualUnenrolledMac &&
+        isAutoMDMMdmManualUnenrolledMac &&
         !isManualAppleEnrollmentBlocked,
       refetchOnMount: false,
       refetchOnReconnect: false,
@@ -583,7 +583,7 @@ const DeviceUserPage = ({
   }, [showEnrollMdmModal, setShowEnrollMdmModal]);
 
   const onClickTurnOnMdm = useCallback(async () => {
-    if (host?.dep_assigned_to_fleet) {
+    if (host?.dep_assigned_to_automdm) {
       // display the modal with auto-enroll instructions
       setShowEnrollMdmModal(true);
       return;
@@ -596,7 +596,7 @@ const DeviceUserPage = ({
     setEnrollUrlError(
       `Failed to get enrollment URL. ${mdmManualEnrollUrlError}`
     );
-  }, [host?.dep_assigned_to_fleet, mdmManualEnrollUrlError]);
+  }, [host?.dep_assigned_to_automdm, mdmManualEnrollUrlError]);
 
   const togglePolicyDetailsModal = useCallback(
     (policy: IHostPolicy) => {
@@ -694,7 +694,7 @@ const DeviceUserPage = ({
         deviceAuthToken
       );
     } catch (e) {
-      // 409: fleetd is already handling an earlier request, so no new pop-up is coming
+      // 409: automdmd is already handling an earlier request, so no new pop-up is coming
       if (hasStatusKey(e) && e.status === 409) {
         setIsEscrowInFlight(true);
         setEscrowRetryAfterSeconds(getRetryAfterSeconds(e));
@@ -833,7 +833,7 @@ const DeviceUserPage = ({
       return <Spinner {...(isMobileView && { variant: "mobile" })} />;
     }
 
-    // isIOSIPadOS: Fleet platform. isMobile: user agent or ?mobile=1.
+    // isIOSIPadOS: AutoMDM platform. isMobile: user agent or ?mobile=1.
     const shouldShowMobileUI = isIOSIPadOS || isMobile;
 
     if (shouldShowMobileUI) {
@@ -883,7 +883,7 @@ const DeviceUserPage = ({
             hostOsVersion={getHostOSDisplayName(host.os_name, host.os_version)}
             mdmEnrollmentStatus={host.mdm.enrollment_status}
             mdmEnabledAndConfigured={!!globalConfig?.mdm.enabled_and_configured}
-            connectedToFleetMdm={!!host.mdm.connected_to_fleet}
+            connectedToAutoMDMMdm={!!host.mdm.connected_to_automdm}
             macDiskEncryptionStatus={
               host.mdm.apple_settings?.disk_encryption ?? null
             }
@@ -899,7 +899,7 @@ const DeviceUserPage = ({
             mdmManualEnrolmentUrl={mdmManualEnrollUrl}
             lastMdmEnrolledAt={host.last_mdm_enrolled_at}
             detailUpdatedAt={host.detail_updated_at}
-            depAssignedToFleet={host.dep_assigned_to_fleet || false}
+            depAssignedToAutoMDM={host.dep_assigned_to_automdm || false}
             onlyAllowAppleBusinessEnrollment={
               !!globalConfig?.mdm.only_allow_apple_business_enrollment
             }
@@ -1007,7 +1007,7 @@ const DeviceUserPage = ({
                     controls={controls}
                     hostDisplayName={host.display_name}
                     isDeviceUser
-                    isConnectedToFleetMdm={!!host.mdm.connected_to_fleet}
+                    isConnectedToAutoMDMMdm={!!host.mdm.connected_to_automdm}
                     canResendProfiles={isAppleHost || isWindows(host.platform)}
                     resendRequest={resendProfile}
                     onProfileResent={refetchDupDetails}
@@ -1033,7 +1033,7 @@ const DeviceUserPage = ({
                     isMyDevicePage
                     isPremiumTier={isPremiumTier}
                     platform={host.platform}
-                    hostTeamId={host.fleet_id || 0}
+                    hostTeamId={host.team_id || 0}
                     isSoftwareEnabled={isSoftwareEnabled}
                     onShowInventoryVersions={setHostSWForInventoryVersions}
                   />
@@ -1064,11 +1064,11 @@ const DeviceUserPage = ({
               )}
             </Tabs>
           </TabNav>
-          {showEnrollMdmModal && host.dep_assigned_to_fleet ? (
+          {showEnrollMdmModal && host.dep_assigned_to_automdm ? (
             <AutoEnrollMdmModal host={host} onCancel={toggleEnrollMdmModal} />
           ) : null}
           {showBitLockerPINModal &&
-            (diskEncryptionSetting?.fleetd_can_set_pin ? (
+            (diskEncryptionSetting?.automdmd_can_set_pin ? (
               <BitLockerPinModal
                 deviceAuthToken={deviceAuthToken}
                 diskEncryption={diskEncryptionSetting}
@@ -1237,7 +1237,7 @@ const DeviceUserPage = ({
             <div className="site-nav-better-link">
               <CustomLink
                 url={PATHS.DEVICE_TRANSPARENCY(deviceAuthToken)}
-                text="About Fleet"
+                text="About AutoMDM"
                 newTab
               />
             </div>

@@ -117,7 +117,7 @@ func TestHugeMetadataIsCapped(t *testing.T) {
 
 func TestSanitizeRepoURL(t *testing.T) {
 	for in, want := range map[string]string{ //nolint:gosec // G101: placeholders stand in for the credentials being stripped
-		"https://github.com/fleetdm/fleet.git":                    "https://github.com/fleetdm/fleet.git",
+		"https://github.com/anilyagiz/automdm.git":                "https://github.com/anilyagiz/automdm.git",
 		"https://x-access-token:ghp_FAKE@github.com/org/repo.git": "https://github.com/org/repo.git",
 		"https://alice@github.com/org/repo.git":                   "https://github.com/org/repo.git",
 		"git@github.com:org/repo.git":                             "git@github.com:org/repo.git",
@@ -167,7 +167,7 @@ func TestDiscoveryIsNotCachedWhenBudgetRunsOut(t *testing.T) {
 			check: func(t *testing.T, rows []map[string]string) { require.NotEmpty(t, rows) }},
 		{agent: agentClaudeCode, write: func(t *testing.T, home string) {
 			writeClaudeFixture(t, home)
-			writeFile(t, filepath.Join(home, ".claude", "projects", "-Users-alice-GitHub-fleet", "agent-a2.jsonl"), lines(
+			writeFile(t, filepath.Join(home, ".claude", "projects", "-Users-alice-GitHub-automdm", "agent-a2.jsonl"), lines(
 				`{"type":"assistant","isSidechain":true,"agentId":"a2","sessionId":"5d1f26db","timestamp":"2026-08-11T13:27:33.000Z","message":{"id":"a2","content":[{"type":"tool_use","id":"t","name":"Glob","input":{"pattern":"*"}}]}}`,
 			))
 		}, check: func(t *testing.T, rows []map[string]string) {

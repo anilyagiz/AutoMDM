@@ -90,8 +90,8 @@ export const MACADMINS_EXTENSION_TABLES: Record<string, QueryablePlatform[]> = {
 // --- Host Platform Groups ---
 
 /**
- * Host Linux OSs as defined by the Fleet server.
- * IMPORTANT: When updating this, also make sure to update fleet.HostLinuxOSs in backend code.
+ * Host Linux OSs as defined by the AutoMDM server.
+ * IMPORTANT: When updating this, also make sure to update team.HostLinuxOSs in backend code.
  */
 export const HOST_LINUX_PLATFORMS = [
   "linux",
@@ -184,7 +184,7 @@ export const isMobilePlatform = (platform: string | HostPlatform) =>
 
 // --- OS Settings and Disk Encryption support by Platform ---
 
-/** Linux platforms whose disk encryption status Fleet displays (host vitals, OS settings card).
+/** Linux platforms whose disk encryption status AutoMDM displays (host vitals, OS settings card).
  * Display only: escrow eligibility is LUKS_ESCROW_SUPPORTED_LINUX_PLATFORMS below. */
 export const DISK_ENCRYPTION_SUPPORTED_LINUX_PLATFORMS = [
   "ubuntu", // covers Kubuntu
@@ -198,7 +198,7 @@ export const DISK_ENCRYPTION_SUPPORTED_LINUX_PLATFORMS = [
   "omarchy", // Omarchy (Arch-based)
 ] as const;
 
-/** Linux distributions Fleet escrows LUKS keys for. Must match LUKSSupportedPlatforms on the
+/** Linux distributions AutoMDM escrows LUKS keys for. Must match LUKSSupportedPlatforms on the
  * server. Fedora reports rhel and is matched on OS version instead. */
 export const LUKS_ESCROW_SUPPORTED_LINUX_PLATFORMS = [
   "ubuntu", // covers Kubuntu

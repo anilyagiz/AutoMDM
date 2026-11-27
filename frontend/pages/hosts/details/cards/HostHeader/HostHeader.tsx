@@ -2,14 +2,14 @@ import classnames from "classnames";
 import React, { useRef } from "react";
 
 import Button from "components/buttons/Button";
-import { HumanTimeDiffWithFleetLaunchCutoff } from "components/HumanTimeDiffWithDateTip";
+import { HumanTimeDiffWithTeamLaunchCutoff } from "components/HumanTimeDiffWithDateTip";
 import TooltipWrapper from "components/TooltipWrapper";
 import { useCheckTruncatedElement } from "hooks/useCheckTruncatedElement";
 import { MdmEnrollmentStatus } from "interfaces/mdm";
 import { isAndroid, isIPadOrIPhone } from "interfaces/platform";
 import {
   DEFAULT_EMPTY_CELL_VALUE,
-  INITIAL_FLEET_DATE,
+  INITIAL_AUTOMDM_DATE,
 } from "utilities/constants";
 import { humanLastSeen, internationalTimeFormat } from "utilities/helpers";
 
@@ -185,7 +185,7 @@ const HostHeader = ({
   }
   // Both timestamps hold a 2000-01-01 placeholder until the host's first
   // refetch, e.g. right after ADE enrollment.
-  const neverFetched = !!lastFetchedAt && lastFetchedAt < INITIAL_FLEET_DATE;
+  const neverFetched = !!lastFetchedAt && lastFetchedAt < INITIAL_AUTOMDM_DATE;
   const showMdmCheckIn = neverFetched && hasMdmCheckIn;
 
   let lastFetchedTip = "unavailable";
@@ -229,7 +229,7 @@ const HostHeader = ({
     lastFetched = humanLastSeen(lastFetchedAt);
   } else if (lastFetchedAt) {
     lastFetched = (
-      <HumanTimeDiffWithFleetLaunchCutoff timeString={lastFetchedAt} />
+      <HumanTimeDiffWithTeamLaunchCutoff timeString={lastFetchedAt} />
     );
   }
 

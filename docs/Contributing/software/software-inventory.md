@@ -1,10 +1,10 @@
 # Software inventory architecture
 
-This document provides an overview of Fleet's Software Inventory architecture.
+This document provides an overview of AutoMDM's Software Inventory architecture.
 
 ## Introduction
 
-Software Inventory in Fleet provides visibility into the software installed on devices across the fleet. This document provides insights into the design decisions, system components, and interactions specific to the Software Inventory functionality.
+Software Inventory in AutoMDM provides visibility into the software installed on devices across the team. This document provides insights into the design decisions, system components, and interactions specific to the Software Inventory functionality.
 
 ## Software identity
 
@@ -19,7 +19,7 @@ A software row in the `software` table is uniquely identified by the combination
 - `application_id` - included if non-empty
 - `upgrade_code` - included if non-empty (Windows MSI)
 
-These fields are combined into a checksum (`ComputeRawChecksum` in `server/fleet/software.go`) stored as a unique index on the `software` table. The same fields (in a different format) produce the `ToUniqueStr()` used for in-memory comparisons during ingestion.
+These fields are combined into a checksum (`ComputeRawChecksum` in `server/automdm/software.go`) stored as a unique index on the `software` table. The same fields (in a different format) produce the `ToUniqueStr()` used for in-memory comparisons during ingestion.
 
 ### The software table is shared across hosts
 
@@ -42,14 +42,14 @@ These are different executables that osquery discovers independently. Without na
 
 ### Name changes and the rename problem
 
-Because name is part of software identity, changing how Fleet computes the name (e.g., modifying the osquery query to use `display_name` instead of the raw filename) creates a mismatch between what's stored in the database and what osquery reports on the next check-in. This triggers the ingestion pipeline to treat the software as "uninstalled" (old name) and "newly installed" (new name), which:
+Because name is part of software identity, changing how AutoMDM computes the name (e.g., modifying the osquery query to use `display_name` instead of the raw filename) creates a mismatch between what's stored in the database and what osquery reports on the next check-in. This triggers the ingestion pipeline to treat the software as "uninstalled" (old name) and "newly installed" (new name), which:
 
 1. Creates a new software row with a new ID
 2. Deletes the old `host_software` link and creates a new one
 3. Orphans the old software row (cleaned up later by `SyncHostsSoftware`)
 4. Loses vulnerability associations until the next vulnerability scan
 
-This is normally a non-issue during regular operation because osquery consistently reports the same name for a given app. It only becomes a problem when Fleet changes how software names are derived -such as modifying the osquery query to prefer `display_name` over the raw filename (see [#28584](https://github.com/fleetdm/fleet/issues/28584)). In those cases, a database migration should also update existing software rows to match the new naming convention.
+This is normally a non-issue during regular operation because osquery consistently reports the same name for a given app. It only becomes a problem when AutoMDM changes how software names are derived -such as modifying the osquery query to prefer `display_name` over the raw filename (see [#28584](https://github.com/fleetdm/fleet/issues/28584)). In those cases, a database migration should also update existing software rows to match the new naming convention.
 
 There is no clean way to distinguish "same software, name changed" from "different software, same bundle_id" in the general case. A 1:1 rename heuristic (match by bundle_id+version when there's exactly one entry on each side) works for most apps but fails for the helper binary case described above.
 

@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -19,7 +19,7 @@ import (
 func TestEnrollOrbitAndroidOneTimeSecret(t *testing.T) {
 	const esid = "esid-1"
 	androidHostID := uint(42)
-	androidInfo := fleet.OrbitHostInfo{HardwareUUID: esid, HardwareSerial: esid, Platform: "android", ComputerName: "Google Pixel"}
+	androidInfo := automdm.OrbitHostInfo{HardwareUUID: esid, HardwareSerial: esid, Platform: "android", ComputerName: "Google Pixel"}
 
 	newFixture := func(t *testing.T, androidOneTimeEnrollSecrets bool) (*oneTimeEnrollFixture, *[]softwareWorkerJobArgs) {
 		f := newOneTimeEnrollFixtureWithMDM(t, func(mdmConfig *config.MDMConfig) {
@@ -27,29 +27,29 @@ func TestEnrollOrbitAndroidOneTimeSecret(t *testing.T) {
 			// Another platform's switch keeps the one-time lookup running when Android's is off.
 			mdmConfig.AppleOneTimeEnrollSecrets = true
 		})
-		f.row = fleet.HostOneTimeEnrollSecret{
+		f.row = automdm.HostOneTimeEnrollSecret{
 			ID: 8, Secret: "android-secret", HostID: &androidHostID, TeamID: new(uint(3)), Platform: "android", HardwareUUID: esid,
 		}
-		f.ds.GetHostOneTimeEnrollSecretFunc = func(ctx context.Context, secret string) (*fleet.HostOneTimeEnrollSecret, error) {
+		f.ds.GetHostOneTimeEnrollSecretFunc = func(ctx context.Context, secret string) (*automdm.HostOneTimeEnrollSecret, error) {
 			if secret == f.row.Secret {
 				r := f.row
 				return &r, nil
 			}
 			return nil, newNotFoundError()
 		}
-		f.ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-			ac := &fleet.AppConfig{}
+		f.ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			ac := &automdm.AppConfig{}
 			ac.MDM.AndroidEnabledAndConfigured = true
 			return ac, nil
 		}
-		f.ds.HostLiteFunc = func(ctx context.Context, id uint) (*fleet.Host, error) {
-			return &fleet.Host{ID: id, UUID: esid, Platform: "android"}, nil
+		f.ds.HostLiteFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
+			return &automdm.Host{ID: id, UUID: esid, Platform: "android"}, nil
 		}
 		f.ds.GetEnterpriseFunc = func(ctx context.Context) (*android.Enterprise, error) {
 			return &android.Enterprise{ID: 1, EnterpriseID: "LC0123"}, nil
 		}
 		var jobs []softwareWorkerJobArgs
-		f.ds.NewJobFunc = func(ctx context.Context, job *fleet.Job) (*fleet.Job, error) {
+		f.ds.NewJobFunc = func(ctx context.Context, job *automdm.Job) (*automdm.Job, error) {
 			require.Equal(t, "software_worker", job.Name)
 			var args softwareWorkerJobArgs
 			require.NoError(t, json.Unmarshal(*job.Args, &args))
@@ -59,18 +59,18 @@ func TestEnrollOrbitAndroidOneTimeSecret(t *testing.T) {
 		return f, &jobs
 	}
 	rejectWith := func(f *oneTimeEnrollFixture, reason string, hostID *uint) {
-		f.ds.EnrollOrbitFunc = func(ctx context.Context, opts ...fleet.DatastoreEnrollOrbitOption) (*fleet.Host, error) {
-			return nil, &fleet.EnrollmentRejectedError{Reason: reason, HostID: hostID}
+		f.ds.EnrollOrbitFunc = func(ctx context.Context, opts ...automdm.DatastoreEnrollOrbitOption) (*automdm.Host, error) {
+			return nil, &automdm.EnrollmentRejectedError{Reason: reason, HostID: hostID}
 		}
 	}
-	wantResend := softwareWorkerJobArgs{Task: "send_android_fleet_agent_config", HostUUID: esid, EnterpriseName: "enterprises/LC0123"}
+	wantResend := softwareWorkerJobArgs{Task: "send_android_automdm_agent_config", HostUUID: esid, EnterpriseName: "enterprises/LC0123"}
 
-	t.Run("the host's secret enrolls into its fleet", func(t *testing.T) {
+	t.Run("the host's secret enrolls into its team", func(t *testing.T) {
 		f, jobs := newFixture(t, true)
-		var received *fleet.DatastoreEnrollOrbitConfig
-		f.ds.EnrollOrbitFunc = func(ctx context.Context, opts ...fleet.DatastoreEnrollOrbitOption) (*fleet.Host, error) {
+		var received *automdm.DatastoreEnrollOrbitConfig
+		f.ds.EnrollOrbitFunc = func(ctx context.Context, opts ...automdm.DatastoreEnrollOrbitOption) (*automdm.Host, error) {
 			received = orbitEnrollConfig(opts)
-			return &fleet.Host{ID: androidHostID, UUID: esid, Platform: "android"}, nil
+			return &automdm.Host{ID: androidHostID, UUID: esid, Platform: "android"}, nil
 		}
 		_, err := f.svc.EnrollOrbit(f.ctx, androidInfo, f.row.Secret, "")
 		require.NoError(t, err)
@@ -86,16 +86,16 @@ func TestEnrollOrbitAndroidOneTimeSecret(t *testing.T) {
 		_, err := f.svc.EnrollOrbit(f.ctx, info, f.row.Secret, "")
 		require.Error(t, err)
 		require.Len(t, *f.rejections, 1)
-		require.Equal(t, fleet.EnrollmentRejectedOneTimeSecretIdentifierMismatch, (*f.rejections)[0].Reason)
+		require.Equal(t, automdm.EnrollmentRejectedOneTimeSecretIdentifierMismatch, (*f.rejections)[0].Reason)
 		require.Empty(t, *jobs)
 	})
 
 	t.Run("a refused shared secret resends the agent configuration once", func(t *testing.T) {
 		f, jobs := newFixture(t, true)
-		rejectWith(f, fleet.EnrollmentRejectedSharedSecretForMDMManagedHost, &androidHostID)
+		rejectWith(f, automdm.EnrollmentRejectedSharedSecretForMDMManagedHost, &androidHostID)
 		for range 3 {
 			_, err := f.svc.EnrollOrbit(f.ctx, androidInfo, "shared-secret", "")
-			var authErr *fleet.AuthFailedError
+			var authErr *automdm.AuthFailedError
 			require.ErrorAs(t, err, &authErr)
 		}
 		require.Equal(t, []softwareWorkerJobArgs{wantResend}, *jobs)
@@ -104,10 +104,10 @@ func TestEnrollOrbitAndroidOneTimeSecret(t *testing.T) {
 
 	t.Run("concurrent refusals queue one resend", func(t *testing.T) {
 		f, jobs := newFixture(t, true)
-		rejectWith(f, fleet.EnrollmentRejectedSharedSecretForMDMManagedHost, &androidHostID)
+		rejectWith(f, automdm.EnrollmentRejectedSharedSecretForMDMManagedHost, &androidHostID)
 		var jobsMu sync.Mutex
 		newJob := f.ds.NewJobFunc
-		f.ds.NewJobFunc = func(ctx context.Context, job *fleet.Job) (*fleet.Job, error) {
+		f.ds.NewJobFunc = func(ctx context.Context, job *automdm.Job) (*automdm.Job, error) {
 			jobsMu.Lock()
 			defer jobsMu.Unlock()
 			return newJob(ctx, job)
@@ -131,7 +131,7 @@ func TestEnrollOrbitAndroidOneTimeSecret(t *testing.T) {
 
 	t.Run("no resend when the rate limit can't be checked", func(t *testing.T) {
 		f, jobs := newFixture(t, true)
-		rejectWith(f, fleet.EnrollmentRejectedSharedSecretForMDMManagedHost, &androidHostID)
+		rejectWith(f, automdm.EnrollmentRejectedSharedSecretForMDMManagedHost, &androidHostID)
 		f.kv.GetFunc = func(ctx context.Context, key string) (*string, error) { return nil, errors.New("redis down") }
 		_, err := f.svc.EnrollOrbit(f.ctx, androidInfo, "shared-secret", "")
 		require.Error(t, err)
@@ -140,8 +140,8 @@ func TestEnrollOrbitAndroidOneTimeSecret(t *testing.T) {
 
 	t.Run("no resend while Android MDM is off", func(t *testing.T) {
 		f, jobs := newFixture(t, true)
-		f.ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) { return &fleet.AppConfig{}, nil }
-		rejectWith(f, fleet.EnrollmentRejectedOneTimeSecretSpent, &androidHostID)
+		f.ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) { return &automdm.AppConfig{}, nil }
+		rejectWith(f, automdm.EnrollmentRejectedOneTimeSecretSpent, &androidHostID)
 		_, err := f.svc.EnrollOrbit(f.ctx, androidInfo, f.row.Secret, "")
 		require.Error(t, err)
 		require.Empty(t, *jobs)
@@ -150,7 +150,7 @@ func TestEnrollOrbitAndroidOneTimeSecret(t *testing.T) {
 
 	t.Run("a failed resend still waits out the window", func(t *testing.T) {
 		f, jobs := newFixture(t, true)
-		rejectWith(f, fleet.EnrollmentRejectedSharedSecretForMDMManagedHost, &androidHostID)
+		rejectWith(f, automdm.EnrollmentRejectedSharedSecretForMDMManagedHost, &androidHostID)
 		var enterpriseLookups int
 		f.ds.GetEnterpriseFunc = func(ctx context.Context) (*android.Enterprise, error) {
 			enterpriseLookups++
@@ -168,7 +168,7 @@ func TestEnrollOrbitAndroidOneTimeSecret(t *testing.T) {
 		// Another platform's switch is on, so the one-time lookup runs and finds the Android secret, but doesn't honor it.
 		f, jobs := newFixture(t, false)
 		_, err := f.svc.EnrollOrbit(f.ctx, androidInfo, f.row.Secret, "")
-		var authErr *fleet.AuthFailedError
+		var authErr *automdm.AuthFailedError
 		require.ErrorAs(t, err, &authErr)
 		require.False(t, f.ds.EnrollOrbitFuncInvoked)
 		require.Empty(t, *jobs)
@@ -176,7 +176,7 @@ func TestEnrollOrbitAndroidOneTimeSecret(t *testing.T) {
 
 	t.Run("a spent secret resends the agent configuration", func(t *testing.T) {
 		f, jobs := newFixture(t, true)
-		rejectWith(f, fleet.EnrollmentRejectedOneTimeSecretSpent, &androidHostID)
+		rejectWith(f, automdm.EnrollmentRejectedOneTimeSecretSpent, &androidHostID)
 		_, err := f.svc.EnrollOrbit(f.ctx, androidInfo, f.row.Secret, "")
 		require.Error(t, err)
 		require.Equal(t, []softwareWorkerJobArgs{wantResend}, *jobs)
@@ -190,15 +190,15 @@ func TestEnrollOrbitAndroidOneTimeSecret(t *testing.T) {
 			hostID                      *uint
 			platform                    string
 		}{
-			{"switch off", false, fleet.EnrollmentRejectedSharedSecretForMDMManagedHost, &androidHostID, "android"},
-			{"not an android host", true, fleet.EnrollmentRejectedSharedSecretForMDMManagedHost, &androidHostID, "windows"},
-			{"no host, as for a deleted one", true, fleet.EnrollmentRejectedSharedSecretForMDMManagedHost, nil, "android"},
-			{"another reason", true, fleet.EnrollmentRejectedHostIdentityCertRequired, &androidHostID, "android"},
+			{"switch off", false, automdm.EnrollmentRejectedSharedSecretForMDMManagedHost, &androidHostID, "android"},
+			{"not an android host", true, automdm.EnrollmentRejectedSharedSecretForMDMManagedHost, &androidHostID, "windows"},
+			{"no host, as for a deleted one", true, automdm.EnrollmentRejectedSharedSecretForMDMManagedHost, nil, "android"},
+			{"another reason", true, automdm.EnrollmentRejectedHostIdentityCertRequired, &androidHostID, "android"},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				f, jobs := newFixture(t, tc.androidOneTimeEnrollSecrets)
-				f.ds.HostLiteFunc = func(ctx context.Context, id uint) (*fleet.Host, error) {
-					return &fleet.Host{ID: id, UUID: esid, Platform: tc.platform}, nil
+				f.ds.HostLiteFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
+					return &automdm.Host{ID: id, UUID: esid, Platform: tc.platform}, nil
 				}
 				rejectWith(f, tc.reason, tc.hostID)
 				_, err := f.svc.EnrollOrbit(f.ctx, androidInfo, "shared-secret", "")

@@ -12,16 +12,16 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/gorilla/websocket"
 )
 
-// HostLister loads hosts by ID, to resolve the fleet of held connections for
-// scoped notifications. It is satisfied by fleet.Datastore.
+// HostLister loads hosts by ID, to resolve the team of held connections for
+// scoped notifications. It is satisfied by automdm.Datastore.
 type HostLister interface {
-	ListHostsLiteByIDs(ctx context.Context, ids []uint) ([]*fleet.Host, error)
+	ListHostsLiteByIDs(ctx context.Context, ids []uint) ([]*automdm.Host, error)
 }
 
 // Hub is the per-instance registry of open agent WebSocket connections, keyed
@@ -45,7 +45,7 @@ type Hub struct {
 	// the /debug/agentws "next sync" countdown; zero until the job first runs.
 	nextCheckNano atomic.Int64
 
-	// InstanceID identifies the Fleet server process owning this hub, so
+	// InstanceID identifies the AutoMDM server process owning this hub, so
 	// /debug/agentws consumers behind a load balancer can tell instances apart.
 	InstanceID string
 
@@ -92,7 +92,7 @@ func NewHub(logger *slog.Logger, pingInterval, pongTimeout time.Duration) *Hub {
 }
 
 // EnableScopedNotifications starts the pacer that spreads scoped
-// notifications (see NotifyScope) over spread, until ctx is done. Fleet
+// notifications (see NotifyScope) over spread, until ctx is done. AutoMDM
 // scopes are resolved by loading the held hosts in batches of batchSize.
 func (h *Hub) EnableScopedNotifications(ctx context.Context, lister HostLister, batchSize int, spread time.Duration) {
 	h.pacer = newPacer(h, spread)
@@ -171,7 +171,7 @@ func (h *Hub) Disconnect(hostIDs []uint) int {
 // skipped: delivery is best-effort by design, with the interval check job and
 // the agent's polling fallback as the safety nets.
 func (h *Hub) Notify(msgType, reason string, hostIDs []uint) int {
-	msg := fleet.AgentWSMessage{Type: msgType, Reason: reason}
+	msg := automdm.AgentWSMessage{Type: msgType, Reason: reason}
 
 	h.mu.RLock()
 	sent := 0
@@ -192,9 +192,9 @@ func (h *Hub) Notify(msgType, reason string, hostIDs []uint) int {
 // NotifyScope queues a notification for each held connection in scope and
 // returns how many were queued. The queued notifications are released by the
 // pacer over the spread window: a change to a whole fleet must not make every
-// agent call back at once. It blocks while loading the held hosts of a fleet
+// agent call back at once. It blocks while loading the held hosts of a team
 // scope.
-func (h *Hub) NotifyScope(ctx context.Context, msgType, reason string, scope fleet.AgentNotificationScope) (int, error) {
+func (h *Hub) NotifyScope(ctx context.Context, msgType, reason string, scope automdm.AgentNotificationScope) (int, error) {
 	return h.notifyScopes(ctx, []ScopedNotification{{MsgType: msgType, Reason: reason, Scope: scope}})
 }
 
@@ -202,12 +202,12 @@ func (h *Hub) NotifyScope(ctx context.Context, msgType, reason string, scope fle
 type ScopedNotification struct {
 	MsgType string
 	Reason  string
-	Scope   fleet.AgentNotificationScope
+	Scope   automdm.AgentNotificationScope
 }
 
 // QueueScope is NotifyScope without blocking: scoped notifications are
 // resolved by a single worker, which loads the held hosts once for all the
-// fleet scopes queued meanwhile (e.g. a GitOps run changing many fleets).
+// team scopes queued meanwhile (e.g. a GitOps run changing many teams).
 // Errors are logged.
 func (h *Hub) QueueScope(n ScopedNotification) {
 	h.scopeMu.Lock()
@@ -244,13 +244,13 @@ func (h *Hub) notifyScopes(ctx context.Context, ns []ScopedNotification) (int, e
 	}
 
 	hostIDs := h.HeldHostIDs()
-	var byTeam map[uint][]uint // fleet ID (0 for "No fleet") → held host IDs, loaded on demand
+	var byTeam map[uint][]uint // team ID (0 for "No team") → held host IDs, loaded on demand
 	queued := 0
 	var errs []error
 	for _, n := range ns {
 		teamID, isTeam := n.Scope.TeamID()
 		switch {
-		case n.Scope == fleet.AgentNotificationScopeGlobal:
+		case n.Scope == automdm.AgentNotificationScopeGlobal:
 			queued += h.pacer.add(n.MsgType, n.Reason, hostIDs)
 			continue
 		case !isTeam:
@@ -305,8 +305,8 @@ func (h *Hub) PacerQueueLen() int {
 
 func (h *Hub) countNotified(msgType, reason string, n int) {
 	// Live query reasons embed the campaign ID; count them together.
-	if strings.HasPrefix(reason, fleet.AgentWSReasonLiveQueryName("")) {
-		reason = fleet.AgentWSReasonLiveQueryName("*")
+	if strings.HasPrefix(reason, automdm.AgentWSReasonLiveQueryName("")) {
+		reason = automdm.AgentWSReasonLiveQueryName("*")
 	}
 	h.notifyCountsMu.Lock()
 	defer h.notifyCountsMu.Unlock()
@@ -359,7 +359,7 @@ type ConnectionInfo struct {
 	ConnectedAt    time.Time  `json:"connected_at"`
 	LastNotifiedAt *time.Time `json:"last_notified_at,omitempty"`
 	// LastNotifyReason is the reason of the last notification enqueued for
-	// this connection (see the fleet.AgentWSReason constants).
+	// this connection (see the automdm.AgentWSReason constants).
 	LastNotifyReason string `json:"last_notify_reason,omitempty"`
 	NotifiedCount    int64  `json:"notified_count"`
 	// NotifiedByType breaks NotifiedCount down by message type.

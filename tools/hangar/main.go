@@ -11,13 +11,13 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
 
-	"github.com/fleetdm/fleet/tools/hangar/internal/applog"
-	"github.com/fleetdm/fleet/tools/hangar/internal/buildinfo"
-	"github.com/fleetdm/fleet/tools/hangar/internal/paths"
-	"github.com/fleetdm/fleet/tools/hangar/internal/processes"
-	"github.com/fleetdm/fleet/tools/hangar/internal/shellpath"
-	"github.com/fleetdm/fleet/tools/hangar/internal/traymenu"
-	"github.com/fleetdm/fleet/tools/hangar/services"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/applog"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/buildinfo"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/paths"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/processes"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/shellpath"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/traymenu"
+	"github.com/anilyagiz/automdm/tools/hangar/services"
 )
 
 //go:embed all:frontend/dist
@@ -29,9 +29,9 @@ var trayIcon []byte
 func main() {
 	// `--version` answers "which build is this?" without launching the GUI —
 	// the only way to check a bundle someone handed you:
-	//   "/Applications/Fleet Hangar.app/Contents/MacOS/fleet-hangar" --version
+	//   "/Applications/AutoMDM Hangar.app/Contents/MacOS/automdm-hangar" --version
 	if len(os.Args) > 1 && (os.Args[1] == "--version" || os.Args[1] == "-v") {
-		fmt.Println("Fleet Hangar", buildinfo.Current().Summary())
+		fmt.Println("AutoMDM Hangar", buildinfo.Current().Summary())
 		return
 	}
 
@@ -53,7 +53,7 @@ func main() {
 	// From here on everything — including whatever the Go runtime prints on
 	// its way out if this process dies unexpectedly — lands in hangar.log.
 	session := applog.Setup(logDir)
-	slog.Info("starting Fleet Hangar", "bundleID", paths.BundleID, "logDir", logDir, "dataDir", dataDir)
+	slog.Info("starting AutoMDM Hangar", "bundleID", paths.BundleID, "logDir", logDir, "dataDir", dataDir)
 
 	// Warm the login-shell PATH (so the first spawn doesn't pay the probe
 	// latency; shellpath.Command then resolves tools against it) and reap any
@@ -70,7 +70,7 @@ func main() {
 
 	// Fold the managed processes into each heartbeat: when Hangar goes away on
 	// its own, this is what says what was running at the time — and whether
-	// the fleet server someone was mid-test against went with it.
+	// the automdm server someone was mid-test against went with it.
 	session.SetStats(func() []any {
 		var running []string
 		for _, p := range pm.ListProcesses() {
@@ -85,8 +85,8 @@ func main() {
 	var tray *trayController
 
 	app = application.New(application.Options{
-		Name:        "Fleet Hangar",
-		Description: "Desktop control panel for Fleet contributors",
+		Name:        "AutoMDM Hangar",
+		Description: "Desktop control panel for AutoMDM contributors",
 		Services: []application.Service{
 			application.NewService(&services.SettingsService{}),
 			application.NewService(services.NewProcessService(pm, func() {
@@ -108,7 +108,7 @@ func main() {
 			application.NewService(&services.GitService{}),
 			application.NewService(&services.DBService{}),
 			application.NewService(&services.GitopsService{}),
-			application.NewService(&services.FleetctlService{}),
+			application.NewService(&services.AutoMDMctlService{}),
 			application.NewService(&services.TroubleshootService{}),
 			application.NewService(&services.PerfService{}),
 			application.NewService(&services.PerfConfigService{}),
@@ -148,7 +148,7 @@ func main() {
 
 	win := app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Name:   mainWindowName,
-		Title:  "Fleet Hangar",
+		Title:  "AutoMDM Hangar",
 		Width:  1280,
 		Height: 860,
 		URL:    "/",

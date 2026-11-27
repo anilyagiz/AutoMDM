@@ -7,7 +7,7 @@ import (
 )
 
 var (
-	meter = otel.Meter("fleet")
+	meter = otel.Meter("automdm")
 
 	// clientErrorsCounter counts client errors (4xx) by type.
 	// These are errors caused by client issues (bad requests, auth failures, etc.)
@@ -23,7 +23,7 @@ func init() {
 	var err error
 
 	clientErrorsCounter, err = meter.Int64Counter(
-		"fleet.http.client_errors",
+		"automdm.http.client_errors",
 		metric.WithDescription("Count of client errors (4xx) by error type"),
 		metric.WithUnit("{error}"),
 	)
@@ -32,7 +32,7 @@ func init() {
 	}
 
 	serverErrorsCounter, err = meter.Int64Counter(
-		"fleet.http.server_errors",
+		"automdm.http.server_errors",
 		metric.WithDescription("Count of server errors (5xx) by error type"),
 		metric.WithUnit("{error}"),
 	)

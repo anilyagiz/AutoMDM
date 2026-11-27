@@ -40,7 +40,7 @@ const LastUpdatedText = ({
 
   const tooltipContent = customTooltipText || (
     <>
-      Fleet periodically queries all hosts <br />
+      AutoMDM periodically queries all hosts <br />
       to retrieve {whatToRetrieve}.
     </>
   );

@@ -25,7 +25,7 @@ const CONTACT_ADMIN = "Try again or contact your IT admin.";
 
 /** The server keeps the request collectable for far longer than the modal waits, so a quiet 90 seconds is not a failure. */
 const STILL_WORKING =
-  "PIN submitted but Fleet is still working on it. You’ll see an update when this device responds.";
+  "PIN submitted but AutoMDM is still working on it. You’ll see an update when this device responds.";
 
 /** Fix inconsistent punctuation. */
 const asSentence = (reason: string) =>
@@ -82,7 +82,7 @@ const BitLockerPinModal = ({
   // The submit button lives in a ModalFooter outside the <form>, so it reaches the form's onSubmit through this id.
   const formId = useId();
 
-  /** When the PIN was handed to Fleet, and the cutoff for data this modal will read. Null once the wait is over. */
+  /** When the PIN was handed to AutoMDM, and the cutoff for data this modal will read. Null once the wait is over. */
   const [submittedAt, setSubmittedAt] = useState<number | null>(null);
   const isWaiting = submittedAt !== null;
 
@@ -115,7 +115,7 @@ const BitLockerPinModal = ({
     try {
       await diskEncryptionAPI.submitBitLockerPIN(deviceAuthToken, pin);
     } catch (e) {
-      // The server's reason is the actionable part for an expected rejection, such as a fleetd too old to be handed a PIN.
+      // The server's reason is the actionable part for an expected rejection, such as an automdmd too old to be handed a PIN.
       notify.error(couldNotSetPIN(getErrorReason(e)), { response: e });
       return;
     }
@@ -177,7 +177,7 @@ const BitLockerPinModal = ({
           enableShowSecret
           blockAutoComplete
           autofocus
-          helpText={`Must be ${PIN_MIN_LENGTH}–${PIN_MAX_LENGTH} characters. Keep it somewhere safe. This PIN isn't kept by Fleet or your IT team.`}
+          helpText={`Must be ${PIN_MIN_LENGTH}–${PIN_MAX_LENGTH} characters. Keep it somewhere safe. This PIN isn't kept by AutoMDM or your IT team.`}
         />
         <InputField
           label="Confirm PIN"

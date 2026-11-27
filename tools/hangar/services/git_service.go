@@ -1,6 +1,6 @@
 package services
 
-import "github.com/fleetdm/fleet/tools/hangar/internal/gitrepo"
+import "github.com/anilyagiz/automdm/tools/hangar/internal/gitrepo"
 
 // GitService exposes branch listing, status, and checkout. Mirrors git.rs.
 type GitService struct{}

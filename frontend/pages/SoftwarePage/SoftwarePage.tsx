@@ -155,7 +155,7 @@ interface ISoftwarePageProps {
     pathname: string;
     search: string;
     query: {
-      fleet_id?: string;
+      team_id?: string;
       available_for_install?: string;
       self_service?: string;
       vulnerable?: string;
@@ -240,7 +240,7 @@ const SoftwarePage = ({ children, router, location }: ISoftwarePageProps) => {
     router,
     includeAllTeams: true,
     includeNoTeam: true,
-    // When switching to "All fleets", remove self_service param (Library-only)
+    // When switching to "All teams", remove self_service param (Library-only)
     overrideParamsOnTeamChange: {
       self_service: (newTeamId: number | undefined) =>
         newTeamId === APP_CONTEXT_ALL_TEAMS_ID,
@@ -269,7 +269,7 @@ const SoftwarePage = ({ children, router, location }: ISoftwarePageProps) => {
     },
     {
       enabled: isRouteOk,
-      select: (data) => ("fleet" in data ? data.fleet : data),
+      select: (data) => ("team" in data ? data.team : data),
     }
   );
 
@@ -281,7 +281,7 @@ const SoftwarePage = ({ children, router, location }: ISoftwarePageProps) => {
   // table's own URL rewrite runs on its first render and drops params it
   // doesn't recognize, so by the time softwareConfig finishes loading
   // the flag is already gone from the URL. Mirror the in-page action's
-  // gate: global-admin only, All fleets (or the single fleet in Primo).
+  // gate: global-admin only, All teams (or the single team in Primo).
   const [pendingDeepLinkAutomations, setPendingDeepLinkAutomations] = useState(
     () => queryParams?.manage_automations === "1"
   );
@@ -353,8 +353,8 @@ const SoftwarePage = ({ children, router, location }: ISoftwarePageProps) => {
       setShowAddSoftwareModal(true);
     } else {
       router.push(
-        getPathWithQueryParams(PATHS.SOFTWARE_ADD_FLEET_MAINTAINED, {
-          fleet_id: currentTeamId,
+        getPathWithQueryParams(PATHS.SOFTWARE_ADD_AUTOMDM_MAINTAINED, {
+          team_id: currentTeamId,
         })
       );
     }
@@ -369,22 +369,22 @@ const SoftwarePage = ({ children, router, location }: ISoftwarePageProps) => {
 
   // Redirect away from Library tab if not allowed:
   // - Free tier doesn't have Library
-  // - "All fleets" can't view Library
+  // - "All teams" can't view Library
   const isOnLibraryTab = location.pathname.startsWith(PATHS.SOFTWARE_LIBRARY);
   useEffect(() => {
     // Wait for config to load before deciding — isPremiumTier is undefined
     // until then, and !undefined would incorrectly bounce premium users.
     if (isPremiumTier === undefined) return;
-    // Until the fleets load, isAllTeamsSelected reads as true and would bounce
-    // a fleet-scoped user off Library.
+    // Until the teams load, isAllTeamsSelected reads as true and would bounce
+    // a team-scoped user off Library.
     if (!isRouteOk) return;
 
     if (isOnLibraryTab && (!isPremiumTier || isAllTeamsSelected)) {
-      // teamIdForApi, not currentTeamId: "All fleets" is -1 in app context but
+      // teamIdForApi, not currentTeamId: "All teams" is -1 in app context but
       // an absent param in a URL.
       router.replace(
         getPathWithQueryParams(PATHS.SOFTWARE_INVENTORY, {
-          fleet_id: teamIdForApi,
+          team_id: teamIdForApi,
         })
       );
     }
@@ -423,14 +423,14 @@ const SoftwarePage = ({ children, router, location }: ISoftwarePageProps) => {
     (i: number): void => {
       // Only query param to persist between tabs is team id
       const teamIdParam = {
-        fleet_id: location?.query.fleet_id,
+        team_id: location?.query.team_id,
         page: 0, // Fixes flakey page reset in API call when switching between tabs
       };
 
       const navPath = getPathWithQueryParams(navItems[i].pathname, teamIdParam);
       router.replace(navPath);
     },
-    [location?.query.fleet_id, navItems, router]
+    [location?.query.team_id, navItems, router]
   );
 
   const renderPageActions = () => {
@@ -448,7 +448,7 @@ const SoftwarePage = ({ children, router, location }: ISoftwarePageProps) => {
             underline={false}
             tipContent={
               <div className={`${baseClass}__header__tooltip`}>
-                Select &ldquo;All fleets&rdquo; to manage automations.
+                Select &ldquo;All teams&rdquo; to manage automations.
               </div>
             }
             disableTooltip={isAllTeamsSelected || isPrimoMode}
@@ -470,8 +470,8 @@ const SoftwarePage = ({ children, router, location }: ISoftwarePageProps) => {
             tipContent={
               <div className={`${baseClass}__header__tooltip`}>
                 {isPremiumTier
-                  ? "Select a fleet to add software."
-                  : "This feature is included in Fleet Premium."}
+                  ? "Select a team to add software."
+                  : "This feature is included in AutoMDM Premium."}
               </div>
             }
             disableTooltip={!isAllTeamsSelected}
@@ -515,7 +515,7 @@ const SoftwarePage = ({ children, router, location }: ISoftwarePageProps) => {
                   return (
                     <Tab key={navItem.name} data-text={navItem.name} disabled>
                       <TooltipWrapper
-                        tipContent="Select a fleet to view its software library."
+                        tipContent="Select a team to view its software library."
                         showArrow
                         position="top"
                         tipOffset={12}

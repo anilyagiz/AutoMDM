@@ -11,15 +11,15 @@ import (
 	"sync"
 	"time"
 
-	abmctx "github.com/fleetdm/fleet/v4/server/contexts/apple_bm"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/assets"
-	nanodep_client "github.com/fleetdm/fleet/v4/server/mdm/nanodep/client"
-	nanodep_mysql "github.com/fleetdm/fleet/v4/server/mdm/nanodep/storage/mysql"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
-	nanomdm_mysql "github.com/fleetdm/fleet/v4/server/mdm/nanomdm/storage/mysql"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	abmctx "github.com/anilyagiz/automdm/v4/server/contexts/apple_bm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/mdm/assets"
+	nanodep_client "github.com/anilyagiz/automdm/v4/server/mdm/nanodep/client"
+	nanodep_mysql "github.com/anilyagiz/automdm/v4/server/mdm/nanodep/storage/mysql"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
+	nanomdm_mysql "github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/storage/mysql"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -57,15 +57,15 @@ type NanoMDMStorage struct {
 
 	db     *sqlx.DB
 	logger *slog.Logger
-	ds     fleet.Datastore
+	ds     automdm.Datastore
 
-	newActivityFn fleet.NewActivityFunc
+	newActivityFn automdm.NewActivityFunc
 }
 
 // SetNewActivityFunc sets the function used to record activities for failures
 // detected while delivering commands. The service is built after the storage,
 // so it can't be passed at construction.
-func (s *NanoMDMStorage) SetNewActivityFunc(fn fleet.NewActivityFunc) {
+func (s *NanoMDMStorage) SetNewActivityFunc(fn automdm.NewActivityFunc) {
 	if s == nil {
 		return
 	}
@@ -189,7 +189,7 @@ func (s *NanoMDMStorage) IsPushCertStale(ctx context.Context, topic, staleToken 
 
 // StorePushCert partially implements nanomdm_storage.PushCertStore.
 func (s *NanoMDMStorage) StorePushCert(ctx context.Context, pemCert, pemKey []byte) error {
-	return errors.New("please use fleet.Datastore to manage MDM assets")
+	return errors.New("please use automdm.Datastore to manage MDM assets")
 }
 
 // GetPendingLockCommand returns the most recent unacknowledged DeviceLock command
@@ -242,11 +242,11 @@ func (s *NanoMDMStorage) GetPendingLockCommand(ctx context.Context, hostUUID str
 // A few implementation details:
 //   - It can only be called for a single hosts, to ensure we don't use the same
 //     pin for multiple hosts.
-//   - The method performs fleet-specific actions after the command is enqueued.
+//   - The method performs automdm-specific actions after the command is enqueued.
 //   - It will fail with a ConflictError if a lock command already exists.
 func (s *NanoMDMStorage) EnqueueDeviceLockCommand(
 	ctx context.Context,
-	host *fleet.Host,
+	host *automdm.Host,
 	cmd *mdm.Command,
 	pin string,
 ) error {
@@ -290,7 +290,7 @@ func (s *NanoMDMStorage) EnqueueDeviceLockCommand(
 				host_id,
 				lock_ref,
 				unlock_pin,
-				fleet_platform
+				automdm_platform
 			)
 			VALUES (?, ?, ?, ?)
 			ON DUPLICATE KEY UPDATE
@@ -299,7 +299,7 @@ func (s *NanoMDMStorage) EnqueueDeviceLockCommand(
 				unlock_pin = VALUES(unlock_pin),
 				lock_ref   = VALUES(lock_ref)`
 
-		if _, err := tx.ExecContext(ctx, stmt, host.ID, cmd.CommandUUID, pin, host.FleetPlatform()); err != nil {
+		if _, err := tx.ExecContext(ctx, stmt, host.ID, cmd.CommandUUID, pin, host.AutoMDMPlatform()); err != nil {
 			return ctxerr.Wrap(ctx, err, "modifying host_mdm_actions for DeviceLock")
 		}
 
@@ -307,7 +307,7 @@ func (s *NanoMDMStorage) EnqueueDeviceLockCommand(
 	}, s.logger)
 }
 
-func (s *NanoMDMStorage) EnqueueDeviceUnlockCommand(ctx context.Context, host *fleet.Host, cmd *mdm.Command) error {
+func (s *NanoMDMStorage) EnqueueDeviceUnlockCommand(ctx context.Context, host *automdm.Host, cmd *mdm.Command) error {
 	return common_mysql.WithRetryTxx(ctx, s.db, func(tx sqlx.ExtContext) error {
 		if err := enqueueCommandDB(ctx, tx, []string{host.UUID}, cmd); err != nil {
 			return err
@@ -317,14 +317,14 @@ func (s *NanoMDMStorage) EnqueueDeviceUnlockCommand(ctx context.Context, host *f
 			INSERT INTO host_mdm_actions (
 				host_id,
 				unlock_ref,
-				fleet_platform
+				automdm_platform
 			)
 			VALUES (?, ?, ?)
 			ON DUPLICATE KEY UPDATE
 				unlock_ref = VALUES(unlock_ref),
 				unlock_pin = NULL`
 
-		if _, err := tx.ExecContext(ctx, stmt, host.ID, cmd.CommandUUID, host.FleetPlatform()); err != nil {
+		if _, err := tx.ExecContext(ctx, stmt, host.ID, cmd.CommandUUID, host.AutoMDMPlatform()); err != nil {
 			return ctxerr.Wrap(ctx, err, "modifying host_mdm_actions for DeviceUnlock")
 		}
 
@@ -333,7 +333,7 @@ func (s *NanoMDMStorage) EnqueueDeviceUnlockCommand(ctx context.Context, host *f
 }
 
 // EnqueueDeviceWipeCommand enqueues a EraseDevice command for the given host.
-func (s *NanoMDMStorage) EnqueueDeviceWipeCommand(ctx context.Context, host *fleet.Host, cmd *mdm.Command) error {
+func (s *NanoMDMStorage) EnqueueDeviceWipeCommand(ctx context.Context, host *automdm.Host, cmd *mdm.Command) error {
 	return common_mysql.WithRetryTxx(ctx, s.db, func(tx sqlx.ExtContext) error {
 		if err := enqueueCommandDB(ctx, tx, []string{host.UUID}, cmd); err != nil {
 			return err
@@ -343,13 +343,13 @@ func (s *NanoMDMStorage) EnqueueDeviceWipeCommand(ctx context.Context, host *fle
 			INSERT INTO host_mdm_actions (
 				host_id,
 				wipe_ref,
-				fleet_platform
+				automdm_platform
 			)
 			VALUES (?, ?, ?)
 			ON DUPLICATE KEY UPDATE
 				wipe_ref   = VALUES(wipe_ref)`
 
-		if _, err := tx.ExecContext(ctx, stmt, host.ID, cmd.CommandUUID, host.FleetPlatform()); err != nil {
+		if _, err := tx.ExecContext(ctx, stmt, host.ID, cmd.CommandUUID, host.AutoMDMPlatform()); err != nil {
 			return ctxerr.Wrap(ctx, err, "modifying host_mdm_actions for DeviceWipe")
 		}
 
@@ -357,13 +357,13 @@ func (s *NanoMDMStorage) EnqueueDeviceWipeCommand(ctx context.Context, host *fle
 	}, s.logger)
 }
 
-func (s *NanoMDMStorage) GetAllMDMConfigAssetsByName(ctx context.Context, assetNames []fleet.MDMAssetName,
+func (s *NanoMDMStorage) GetAllMDMConfigAssetsByName(ctx context.Context, assetNames []automdm.MDMAssetName,
 	queryerContext sqlx.QueryerContext,
-) (map[fleet.MDMAssetName]fleet.MDMConfigAsset, error) {
+) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
 	return s.ds.GetAllMDMConfigAssetsByName(ctx, assetNames, queryerContext)
 }
 
-func (s *NanoMDMStorage) GetABMTokenByOrgName(ctx context.Context, orgName string) (*fleet.ABMToken, error) {
+func (s *NanoMDMStorage) GetABMTokenByOrgName(ctx context.Context, orgName string) (*automdm.ABMToken, error) {
 	return s.ds.GetABMTokenByOrgName(ctx, orgName)
 }
 
@@ -384,7 +384,7 @@ func (s *NanoMDMStorage) SetRecoveryLockFailed(ctx context.Context, hostUUID str
 func (s *NanoMDMStorage) SetDiskEncryptionKeyRotationFailed(ctx context.Context, hostUUID string, commandUUID string, errorMsg string) error {
 	host, err := s.ds.GetHostByDiskEncryptionKeyRotationCommand(ctx, commandUUID)
 	if err != nil {
-		if fleet.IsNotFound(err) {
+		if automdm.IsNotFound(err) {
 			// superseded, cleared, or a RotateFileVaultKey sent as a custom command
 			return nil
 		}
@@ -404,7 +404,7 @@ func (s *NanoMDMStorage) SetDiskEncryptionKeyRotationFailed(ctx context.Context,
 			"host_id", host.ID, "command_uuid", commandUUID)
 		return nil
 	}
-	return s.newActivityFn(ctx, nil, fleet.ActivityTypeFailedToRotateDiskEncryptionKey{
+	return s.newActivityFn(ctx, nil, automdm.ActivityTypeFailedToRotateDiskEncryptionKey{
 		HostID:          host.ID,
 		HostDisplayName: host.DisplayName(),
 		Detail:          errorMsg,
@@ -449,10 +449,10 @@ func (ds *Datastore) NewMDMAppleDEPStorage() (*NanoDEPStorage, error) {
 }
 
 // NanoDEPStorage wraps a *nanodep_mysql.MySQLStorage and overrides functionality to load
-// DEP auth tokens from the tables managed by Fleet.
+// DEP auth tokens from the tables managed by AutoMDM.
 type NanoDEPStorage struct {
 	*nanodep_mysql.MySQLStorage
-	ds fleet.Datastore
+	ds automdm.Datastore
 }
 
 // RetrieveAuthTokens partially implements nanodep.AuthTokensRetriever. NOTE: this method will first
@@ -474,7 +474,7 @@ func (s *NanoDEPStorage) RetrieveAuthTokens(ctx context.Context, name string) (*
 
 // StoreAuthTokens partially implements nanodep.AuthTokensStorer.
 func (s *NanoDEPStorage) StoreAuthTokens(ctx context.Context, name string, tokens *nanodep_client.OAuth1Tokens) error {
-	return errors.New("please use fleet.Datastore to manage MDM assets")
+	return errors.New("please use automdm.Datastore to manage MDM assets")
 }
 
 func enqueueCommandDB(ctx context.Context, tx sqlx.ExtContext, ids []string, cmd *mdm.Command) error {

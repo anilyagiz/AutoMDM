@@ -59,7 +59,7 @@ I used `managedConfiguration` to specify download URLs and `.p12` password for s
 
 ### Generating private key and CSR on the host
 
-We'll need to generate private key and CSR on the host, to hit `POST /api/v1/fleet/certificate_authorities/:id/request_certificate` that should return `.pem`.
+We'll need to generate private key and CSR on the host, to hit `POST /api/v1/automdm/certificate_authorities/:id/request_certificate` that should return `.pem`.
 
 We could use this to install cert without having `.p12` to extract:
 

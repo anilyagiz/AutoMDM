@@ -16,7 +16,7 @@ const activity = createMockHostPastActivity({
 });
 
 describe("HostEnrollmentRejectedActivityItem", () => {
-  it("renders Fleet as the actor with a generic sentence", () => {
+  it("renders AutoMDM as the actor with a generic sentence", () => {
     const render = createCustomRenderer();
     render(
       <HostEnrollmentRejectedActivityItem
@@ -26,7 +26,7 @@ describe("HostEnrollmentRejectedActivityItem", () => {
       />
     );
 
-    expect(screen.getByText("Fleet")).toBeInTheDocument();
+    expect(screen.getByText("AutoMDM")).toBeInTheDocument();
     expect(
       screen.getByText(/rejected an enrollment for this host\./i)
     ).toBeInTheDocument();
@@ -51,7 +51,7 @@ describe("HostEnrollmentRejectedActivityItem", () => {
       />
     );
 
-    expect(screen.getByText("Fleet")).toBeInTheDocument();
+    expect(screen.getByText("AutoMDM")).toBeInTheDocument();
     expect(
       screen.getByText(
         /rejected an automatic enrollment for this host because IdP authentication is required\./i
@@ -60,7 +60,7 @@ describe("HostEnrollmentRejectedActivityItem", () => {
     const link = screen.getByRole("link", { name: /learn more/i });
     expect(link).toHaveAttribute(
       "href",
-      "https://fleetdm.com/learn-more-about/rejected-automatic-enrollment"
+      "https://automdm.com/learn-more-about/rejected-automatic-enrollment"
     );
     expect(link).toHaveAttribute("target", "_blank");
   });

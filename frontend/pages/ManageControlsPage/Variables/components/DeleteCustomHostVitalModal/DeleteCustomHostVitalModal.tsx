@@ -59,7 +59,7 @@ const DeleteCustomHostVitalModal = ({
         </span>
         <br />
         <br />
-        Any references to the <b>{`$FLEET_HOST_VITAL_${vital.id}`}</b> variable
+        Any references to the <b>{`$AUTOMDM_HOST_VITAL_${vital.id}`}</b> variable
         will break.
       </div>
       <div className="modal-cta-wrap">

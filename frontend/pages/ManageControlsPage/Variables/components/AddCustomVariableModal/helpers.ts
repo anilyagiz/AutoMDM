@@ -50,7 +50,7 @@ const FORM_VALIDATIONS: IFormValidations = {
       {
         name: "doesNotIncludePrefix",
         isValid: (formData: IAddCustomVariableFormData) => {
-          return !formData.name.match(/^FLEET_SECRET_/);
+          return !formData.name.match(/^AUTOMDM_SECRET_/);
         },
         message: `Name should not include variable prefix`,
       },

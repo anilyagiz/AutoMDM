@@ -9,8 +9,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 )
 
 const (
@@ -46,7 +46,7 @@ func NewKafkaRESTWriter(p *KafkaRESTParams) (*kafkaRESTProducer, error) {
 	producer := &kafkaRESTProducer{
 		URL:              fmt.Sprintf(krPublishTopicURL, p.KafkaProxyHost, p.KafkaTopic),
 		CheckURL:         fmt.Sprintf(krCheckTopicURL, p.KafkaProxyHost, p.KafkaTopic),
-		client:           fleethttp.NewClient(fleethttp.WithTimeout(time.Duration(p.KafkaTimeout) * time.Second)),
+		client:           automdmhttp.NewClient(automdmhttp.WithTimeout(time.Duration(p.KafkaTimeout) * time.Second)),
 		ContentTypeValue: p.KafkaContentTypeValue,
 	}
 

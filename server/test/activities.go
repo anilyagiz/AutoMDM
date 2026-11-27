@@ -5,18 +5,18 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/storage"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/storage"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
 
 // CreateHostScriptUpcomingActivity creates a host script execution request
 // for the provided host. It returns the upcoming activity's execution ID.
-func CreateHostScriptUpcomingActivity(t *testing.T, ds fleet.Datastore, host *fleet.Host) string {
+func CreateHostScriptUpcomingActivity(t *testing.T, ds automdm.Datastore, host *automdm.Host) string {
 	ctx := context.Background()
-	hsr, err := ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+	hsr, err := ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 		HostID:         host.ID,
 		ScriptContents: "echo 'a'",
 	})
@@ -26,9 +26,9 @@ func CreateHostScriptUpcomingActivity(t *testing.T, ds fleet.Datastore, host *fl
 
 // SetHostScriptResult sets the result of a host script queued via
 // CreateHostScriptUpcomingActivity.
-func SetHostScriptResult(t *testing.T, ds fleet.Datastore, host *fleet.Host, execID string, exitCode int) {
+func SetHostScriptResult(t *testing.T, ds automdm.Datastore, host *automdm.Host, execID string, exitCode int) {
 	ctx := context.Background()
-	_, _, err := ds.SetHostScriptExecutionResult(ctx, &fleet.HostScriptResultPayload{
+	_, _, err := ds.SetHostScriptExecutionResult(ctx, &automdm.HostScriptResultPayload{
 		HostID: host.ID, ExecutionID: execID, Output: "a", ExitCode: exitCode,
 	}, nil) // nil = manual script run, not policy automation
 	require.NoError(t, err)
@@ -37,11 +37,11 @@ func SetHostScriptResult(t *testing.T, ds fleet.Datastore, host *fleet.Host, exe
 // CreateHostSoftwareInstallUpcomingActivity creates a host software install
 // execution request for the provided host. It returns the upcoming activity's
 // execution ID.
-func CreateHostSoftwareInstallUpcomingActivity(t *testing.T, ds fleet.Datastore, host *fleet.Host, user *fleet.User) string {
+func CreateHostSoftwareInstallUpcomingActivity(t *testing.T, ds automdm.Datastore, host *automdm.Host, user *automdm.User) string {
 	ctx := context.Background()
-	installer, err := fleet.NewTempFileReader(strings.NewReader("echo"), t.TempDir)
+	installer, err := automdm.NewTempFileReader(strings.NewReader("echo"), t.TempDir)
 	require.NoError(t, err)
-	installerID, _, err := ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
+	installerID, _, err := ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
 		InstallScript:   "install foo",
 		InstallerFile:   installer,
 		StorageID:       uuid.NewString(),
@@ -51,20 +51,20 @@ func CreateHostSoftwareInstallUpcomingActivity(t *testing.T, ds fleet.Datastore,
 		Version:         "0.0.1",
 		UserID:          user.ID,
 		UninstallScript: "uninstall foo",
-		ValidatedLabels: &fleet.LabelIdentsWithScope{},
+		ValidatedLabels: &automdm.LabelIdentsWithScope{},
 	})
 	require.NoError(t, err)
 
-	execID, err := ds.InsertSoftwareInstallRequest(ctx, host.ID, installerID, fleet.HostSoftwareInstallOptions{})
+	execID, err := ds.InsertSoftwareInstallRequest(ctx, host.ID, installerID, automdm.HostSoftwareInstallOptions{})
 	require.NoError(t, err)
 	return execID
 }
 
 // SetHostSoftwareInstallResult sets the result of a host software install
 // queued via CreateHostSoftwareInstallUpcomingActivity.
-func SetHostSoftwareInstallResult(t *testing.T, ds fleet.Datastore, host *fleet.Host, execID string, exitCode int) {
+func SetHostSoftwareInstallResult(t *testing.T, ds automdm.Datastore, host *automdm.Host, execID string, exitCode int) {
 	ctx := context.Background()
-	_, err := ds.SetHostSoftwareInstallResult(ctx, &fleet.HostSoftwareInstallResultPayload{
+	_, err := ds.SetHostSoftwareInstallResult(ctx, &automdm.HostSoftwareInstallResultPayload{
 		HostID:                host.ID,
 		InstallUUID:           execID,
 		InstallScriptExitCode: &exitCode,
@@ -75,11 +75,11 @@ func SetHostSoftwareInstallResult(t *testing.T, ds fleet.Datastore, host *fleet.
 // CreateHostSoftwareUninstallUpcomingActivity creates a host software uninstall
 // execution request for the provided host. It returns the upcoming activity's
 // execution ID.
-func CreateHostSoftwareUninstallUpcomingActivity(t *testing.T, ds fleet.Datastore, host *fleet.Host, user *fleet.User) string {
+func CreateHostSoftwareUninstallUpcomingActivity(t *testing.T, ds automdm.Datastore, host *automdm.Host, user *automdm.User) string {
 	ctx := context.Background()
-	installer, err := fleet.NewTempFileReader(strings.NewReader("echo"), t.TempDir)
+	installer, err := automdm.NewTempFileReader(strings.NewReader("echo"), t.TempDir)
 	require.NoError(t, err)
-	installerID, _, err := ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
+	installerID, _, err := ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
 		InstallScript:   "install foo",
 		InstallerFile:   installer,
 		StorageID:       uuid.NewString(),
@@ -89,7 +89,7 @@ func CreateHostSoftwareUninstallUpcomingActivity(t *testing.T, ds fleet.Datastor
 		Version:         "0.0.1",
 		UserID:          user.ID,
 		UninstallScript: "uninstall foo",
-		ValidatedLabels: &fleet.LabelIdentsWithScope{},
+		ValidatedLabels: &automdm.LabelIdentsWithScope{},
 	})
 	require.NoError(t, err)
 
@@ -101,9 +101,9 @@ func CreateHostSoftwareUninstallUpcomingActivity(t *testing.T, ds fleet.Datastor
 
 // SetHostSoftwareUninstallResult sets the result of a host software uninstall
 // queued via CreateHostSoftwareUninstallUpcomingActivity.
-func SetHostSoftwareUninstallResult(t *testing.T, ds fleet.Datastore, host *fleet.Host, execID string, exitCode int) {
+func SetHostSoftwareUninstallResult(t *testing.T, ds automdm.Datastore, host *automdm.Host, execID string, exitCode int) {
 	ctx := context.Background()
-	_, _, err := ds.SetHostScriptExecutionResult(ctx, &fleet.HostScriptResultPayload{
+	_, _, err := ds.SetHostScriptExecutionResult(ctx, &automdm.HostScriptResultPayload{
 		HostID:      host.ID,
 		ExecutionID: execID,
 		ExitCode:    exitCode,
@@ -115,18 +115,18 @@ func SetHostSoftwareUninstallResult(t *testing.T, ds fleet.Datastore, host *flee
 // for the provided host. It returns the upcoming activity's execution ID.
 // Note that test.CreateInsertGlobalVPPToken(t, ds) should be used to enable
 // VPP apps (create a VPP token).
-func CreateHostVPPAppInstallUpcomingActivity(t *testing.T, ds fleet.Datastore, host *fleet.Host) (execID, adamID string) {
+func CreateHostVPPAppInstallUpcomingActivity(t *testing.T, ds automdm.Datastore, host *automdm.Host) (execID, adamID string) {
 	ctx := context.Background()
 	// Generate a short adamID that fits within the 16 character limit
 	adamID = uuid.NewString()[:16]
-	vppApp := &fleet.VPPApp{
-		Name: "vpp_1", VPPAppTeam: fleet.VPPAppTeam{VPPAppID: fleet.VPPAppID{AdamID: adamID, Platform: fleet.MacOSPlatform}},
+	vppApp := &automdm.VPPApp{
+		Name: "vpp_1", VPPAppTeam: automdm.VPPAppTeam{VPPAppID: automdm.VPPAppID{AdamID: adamID, Platform: automdm.MacOSPlatform}},
 		BundleIdentifier: adamID,
 	}
 	_, err := ds.InsertVPPAppWithTeam(ctx, vppApp, nil, nil)
 	require.NoError(t, err)
 	execID = uuid.NewString()
-	err = ds.InsertHostVPPSoftwareInstall(ctx, host.ID, vppApp.VPPAppID, execID, "event-id-1", fleet.HostSoftwareInstallOptions{})
+	err = ds.InsertHostVPPSoftwareInstall(ctx, host.ID, vppApp.VPPAppID, execID, "event-id-1", automdm.HostSoftwareInstallOptions{})
 	require.NoError(t, err)
 	return execID, adamID
 }
@@ -136,7 +136,7 @@ func CreateHostVPPAppInstallUpcomingActivity(t *testing.T, ds fleet.Datastore, h
 // The adamID is the one for the VPP app created by that call, and status is
 // one of the Apple MDM status string (Acknowledged, Error, CommandFormatError,
 // etc).
-func SetHostVPPAppInstallResult(t *testing.T, ds fleet.Datastore, nanods storage.CommandAndReportResultsStore, host *fleet.Host, execID, adamID, status string, newActivityFn fleet.NewActivityFunc) {
+func SetHostVPPAppInstallResult(t *testing.T, ds automdm.Datastore, nanods storage.CommandAndReportResultsStore, host *automdm.Host, execID, adamID, status string, newActivityFn automdm.NewActivityFunc) {
 	ctx := context.Background()
 	nanoCtx := &mdm.Request{EnrollID: &mdm.EnrollID{ID: host.UUID}, Context: ctx}
 
@@ -147,7 +147,7 @@ func SetHostVPPAppInstallResult(t *testing.T, ds fleet.Datastore, nanods storage
 	}
 	err := nanods.StoreCommandReport(nanoCtx, cmdRes)
 	require.NoError(t, err)
-	err = newActivityFn(ctx, nil, fleet.ActivityInstalledAppStoreApp{
+	err = newActivityFn(ctx, nil, automdm.ActivityInstalledAppStoreApp{
 		HostID:      host.ID,
 		AppStoreID:  adamID,
 		CommandUUID: execID,
@@ -159,26 +159,26 @@ func SetHostVPPAppInstallResult(t *testing.T, ds fleet.Datastore, nanods storage
 // CreateHostInHouseAppInstallUpcomingActivity creates an in-house app install
 // request for the provided host. It returns the upcoming activity's execution
 // ID.
-func CreateHostInHouseAppInstallUpcomingActivity(t *testing.T, ds fleet.Datastore, host *fleet.Host, user *fleet.User) (execID string) {
+func CreateHostInHouseAppInstallUpcomingActivity(t *testing.T, ds automdm.Datastore, host *automdm.Host, user *automdm.User) (execID string) {
 	ctx := context.Background()
 	rnd := uuid.NewString()
-	ihaID, ihaTitleID, err := ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
+	ihaID, ihaTitleID, err := ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
 		Filename:         rnd + ".ipa",
 		Source:           "ios_apps",
 		Extension:        "ipa",
 		BundleIdentifier: "com.example." + rnd,
 		UserID:           user.ID,
-		ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+		ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 	})
 	require.NoError(t, err)
 
 	execID = uuid.NewString()
-	err = ds.InsertHostInHouseAppInstall(ctx, host.ID, ihaID, ihaTitleID, execID, fleet.HostSoftwareInstallOptions{})
+	err = ds.InsertHostInHouseAppInstall(ctx, host.ID, ihaID, ihaTitleID, execID, automdm.HostSoftwareInstallOptions{})
 	require.NoError(t, err)
 	return execID
 }
 
-func SetHostInHouseAppInstallResult(t *testing.T, ds fleet.Datastore, nanods storage.CommandAndReportResultsStore, host *fleet.Host, execID, status string, newActivityFn fleet.NewActivityFunc) {
+func SetHostInHouseAppInstallResult(t *testing.T, ds automdm.Datastore, nanods storage.CommandAndReportResultsStore, host *automdm.Host, execID, status string, newActivityFn automdm.NewActivityFunc) {
 	ctx := context.Background()
 	nanoCtx := &mdm.Request{EnrollID: &mdm.EnrollID{ID: host.UUID}, Context: ctx}
 
@@ -189,7 +189,7 @@ func SetHostInHouseAppInstallResult(t *testing.T, ds fleet.Datastore, nanods sto
 	}
 	err := nanods.StoreCommandReport(nanoCtx, cmdRes)
 	require.NoError(t, err)
-	err = newActivityFn(ctx, nil, fleet.ActivityTypeInstalledSoftware{
+	err = newActivityFn(ctx, nil, automdm.ActivityTypeInstalledSoftware{
 		HostID:      host.ID,
 		CommandUUID: execID,
 		Status:      status,

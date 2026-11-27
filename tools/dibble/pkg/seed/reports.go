@@ -3,7 +3,7 @@ package seed
 import (
 	"fmt"
 
-	"github.com/fleetdm/fleet/v4/tools/dibble/pkg/themes"
+	"github.com/anilyagiz/automdm/v4/tools/dibble/pkg/themes"
 )
 
 // Reports (formerly "queries") are saved SQL queries with an interval. We seed
@@ -32,7 +32,7 @@ func Reports(c Client, log Logger, theme themes.Theme, teams []Team, count int) 
 			"platform":         seededPlatforms[i%len(seededPlatforms)],
 			"logging":          "snapshot",
 		}
-		err := c.Post("/api/latest/fleet/reports", body, nil)
+		err := c.Post("/api/latest/automdm/reports", body, nil)
 		switch {
 		case err == nil:
 			res.Created++
@@ -53,9 +53,9 @@ func Reports(c Client, log Logger, theme themes.Theme, teams []Team, count int) 
 			"description": n.Desc,
 			"query":       exampleSQL[0],
 			"interval":    0,
-			"fleet_id":    teamID,
+			"team_id":     teamID,
 		}
-		err := c.Post("/api/latest/fleet/reports", body, nil)
+		err := c.Post("/api/latest/automdm/reports", body, nil)
 		switch {
 		case err == nil:
 			res.Created++

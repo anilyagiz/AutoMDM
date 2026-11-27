@@ -26,7 +26,7 @@ import {
 export interface IApiUserFormData {
   name: string;
   global_role: UserRole | null;
-  fleets: ITeam[];
+  teams: ITeam[];
   api_endpoints?: IApiEndpointRef[] | null;
 }
 
@@ -74,8 +74,8 @@ const ApiUserForm = ({
     initialFormData: {
       name: defaultData?.name ?? "",
       global_role: (defaultData?.global_role ?? "gitops") as UserRole,
-      isGlobalUser: !defaultData?.fleets?.length,
-      fleets: defaultData?.fleets ?? [],
+      isGlobalUser: !defaultData?.teams?.length,
+      teams: defaultData?.teams ?? [],
       // null (all endpoints) and undefined (field not set / free tier) both mean
       // "all endpoints"
       isSpecificEndpoints: !!defaultData?.api_endpoints?.length,
@@ -98,9 +98,9 @@ const ApiUserForm = ({
     return onSubmit({
       name: data.name,
       global_role: data.isGlobalUser ? data.global_role : null,
-      fleets: data.isGlobalUser
+      teams: data.isGlobalUser
         ? []
-        : data.fleets.map((f) => ({ ...f, role: f.role || "observer" })),
+        : data.teams.map((f) => ({ ...f, role: f.role || "observer" })),
       api_endpoints: apiEndpoints,
     });
   };
@@ -150,7 +150,7 @@ const ApiUserForm = ({
           disabled={isSubmitting}
         />
         <Radio
-          label="Assign to fleet(s)"
+          label="Assign to team(s)"
           id="assign-teams"
           checked={!formData.isGlobalUser}
           value={UserTeamType.AssignTeams}
@@ -165,14 +165,14 @@ const ApiUserForm = ({
         <>
           <SelectedTeamsForm
             availableTeams={availableTeams}
-            usersCurrentTeams={formData.fleets}
-            onFormChange={(fleets: ITeam[]) => commitFields({ fleets })}
+            usersCurrentTeams={formData.teams}
+            onFormChange={(teams: ITeam[]) => commitFields({ teams })}
             isApiOnly
             disabled={isSubmitting}
           />
-          {getError("fleets") && (
+          {getError("teams") && (
             <div className="form-field__label form-field__label--error">
-              {getError("fleets")}
+              {getError("teams")}
             </div>
           )}
         </>

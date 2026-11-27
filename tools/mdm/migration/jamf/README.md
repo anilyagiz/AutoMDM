@@ -1,6 +1,6 @@
 # Jamf Pro Webhook
 
-A tiny web server you can use as a webhook callback for the MDM migration [end user workflow](https://fleetdm.com/docs/using-fleet/mdm-migration-guide#end-user-workflow)
+A tiny web server you can use as a webhook callback for the MDM migration [end user workflow](https://automdm.com/docs/using-automdm/mdm-migration-guide#end-user-workflow)
 
 This will try to find a device using the serial number and send an API call to unenroll it.
 
@@ -14,7 +14,7 @@ This will try to find a device using the serial number and send an API call to u
 go run tools/mdm/migration/jamf/main.go --url=https://foo.jamfcloud.com --username=$JAMF_USERNAME --password=$JAMF_PASSWORD
 ```
 
-4. Configure Fleet to send a webhook to your web server.
+4. Configure AutoMDM to send a webhook to your web server.
 
 ### TODO
 

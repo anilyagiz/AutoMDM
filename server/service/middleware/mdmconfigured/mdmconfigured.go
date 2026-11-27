@@ -5,17 +5,17 @@ package mdmconfigured
 import (
 	"context"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	hostctx "github.com/fleetdm/fleet/v4/server/contexts/host"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	hostctx "github.com/anilyagiz/automdm/v4/server/contexts/host"
 	"github.com/go-kit/kit/endpoint"
 )
 
 type Middleware struct {
-	svc fleet.Service
+	svc automdm.Service
 }
 
-func NewMDMConfigMiddleware(svc fleet.Service) *Middleware {
+func NewMDMConfigMiddleware(svc automdm.Service) *Middleware {
 	return &Middleware{svc: svc}
 }
 
@@ -38,9 +38,9 @@ func (m *Middleware) VerifyAppleMDMOnMacOSHosts() endpoint.Middleware {
 		return func(ctx context.Context, req any) (any, error) {
 			host, ok := hostctx.FromContext(ctx)
 			if !ok {
-				return nil, ctxerr.Wrap(ctx, fleet.NewAuthRequiredError("internal error: missing host from request context"))
+				return nil, ctxerr.Wrap(ctx, automdm.NewAuthRequiredError("internal error: missing host from request context"))
 			}
-			if fleet.IsApplePlatform(host.Platform) {
+			if automdm.IsApplePlatform(host.Platform) {
 				if err := m.svc.VerifyMDMAppleConfigured(ctx); err != nil {
 					return nil, err
 				}

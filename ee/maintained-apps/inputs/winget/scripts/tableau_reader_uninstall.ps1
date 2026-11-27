@@ -1,6 +1,6 @@
 # Tableau Reader is a per-machine WiX Burn bundle. Each release family
 # (2024.3, 2025.1, ...) has its own upgrade code and installs side by side, and
-# Fleet reports every "Tableau Reader 20*" release as one title. Run each
+# AutoMDM reports every "Tableau Reader 20*" release as one title. Run each
 # bundle's cached copy recorded in its HKLM ARP entry (BundleCachePath) with
 # /uninstall, which removes the product and its ARP registration. The inner
 # MSI's hidden ARP entry has the same DisplayName but no BundleCachePath, so it

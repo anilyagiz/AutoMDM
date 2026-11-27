@@ -3,8 +3,8 @@ package api
 import (
 	"context"
 
-	api_http "github.com/fleetdm/fleet/v4/server/mdm/acme/api/http"
-	"github.com/fleetdm/fleet/v4/server/mdm/acme/internal/types"
+	api_http "github.com/anilyagiz/automdm/v4/server/mdm/acme/api/http"
+	"github.com/anilyagiz/automdm/v4/server/mdm/acme/internal/types"
 	"go.step.sm/crypto/jose"
 )
 

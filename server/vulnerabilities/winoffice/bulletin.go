@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/io"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/io"
 )
 
 // OfficeVersionPrefix is the major.minor version prefix for Microsoft Office products.

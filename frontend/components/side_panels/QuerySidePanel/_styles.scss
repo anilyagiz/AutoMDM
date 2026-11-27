@@ -10,9 +10,9 @@
   &__close-button {
     width: 24px;
     height: 24px;
-    border: 1px solid $ui-fleet-black-25;
+    border: 1px solid $ui-automdm-black-25;
     border-radius: 12px;
-    background-color: $core-fleet-white;
+    background-color: $core-automdm-white;
     position: absolute;
     top: 40px;
     left: -13px;
@@ -57,7 +57,7 @@
 
   &__table-count {
     line-height: normal;
-    background-color: $ui-fleet-black-10;
+    background-color: $ui-automdm-black-10;
     padding: $pad-xsmall $pad-small;
     border-radius: 8px;
     font-size: $x-small;
@@ -111,7 +111,7 @@
 
   &__mdm-required {
     background-color: $core-vibrant-blue;
-    color: $core-fleet-white;
+    color: $core-automdm-white;
     font-size: $x-small;
     font-weight: $bold;
     padding: 2px 4px;

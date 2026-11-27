@@ -6,14 +6,14 @@ import (
 	"errors"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 	"github.com/jmoiron/sqlx"
 )
 
 const PasswordResetRequestDuration = 24 * time.Hour
 
-func (ds *Datastore) NewPasswordResetRequest(ctx context.Context, req *fleet.PasswordResetRequest) (*fleet.PasswordResetRequest, error) {
+func (ds *Datastore) NewPasswordResetRequest(ctx context.Context, req *automdm.PasswordResetRequest) (*automdm.PasswordResetRequest, error) {
 	sqlStatement := `
 		INSERT INTO password_reset_requests
 		( user_id, token, expires_at)
@@ -41,12 +41,12 @@ func (ds *Datastore) DeletePasswordResetRequestsForUser(ctx context.Context, use
 	return nil
 }
 
-func (ds *Datastore) FindPasswordResetByToken(ctx context.Context, token string) (*fleet.PasswordResetRequest, error) {
+func (ds *Datastore) FindPasswordResetByToken(ctx context.Context, token string) (*automdm.PasswordResetRequest, error) {
 	sqlStatement := `
 		SELECT * FROM password_reset_requests
 		WHERE token = ? AND CURRENT_TIMESTAMP < expires_at LIMIT 1
     `
-	passwordResetRequest := &fleet.PasswordResetRequest{}
+	passwordResetRequest := &automdm.PasswordResetRequest{}
 	err := sqlx.GetContext(ctx, ds.reader(ctx), passwordResetRequest, sqlStatement, token)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ctxerr.Wrap(ctx, err, "invalid password reset token")
@@ -57,7 +57,7 @@ func (ds *Datastore) FindPasswordResetByToken(ctx context.Context, token string)
 	return passwordResetRequest, nil
 }
 
-func (ds *Datastore) ResetPassword(ctx context.Context, token string, user *fleet.User) error {
+func (ds *Datastore) ResetPassword(ctx context.Context, token string, user *automdm.User) error {
 	return ds.withTx(ctx, func(tx sqlx.ExtContext) error {
 		res, err := tx.ExecContext(ctx, `
 			DELETE FROM password_reset_requests

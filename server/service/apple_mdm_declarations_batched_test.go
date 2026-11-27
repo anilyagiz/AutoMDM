@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	apple_mdm "github.com/fleetdm/fleet/v4/server/mdm/apple"
-	"github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	apple_mdm "github.com/anilyagiz/automdm/v4/server/mdm/apple"
+	"github.com/anilyagiz/automdm/v4/server/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -22,21 +22,21 @@ func TestResolveUserChannelDeliveries(t *testing.T) {
 
 	// One user-scoped install row per host, so we can observe how its status is
 	// mutated by the delivery decision.
-	newRows := func(hostUUIDs ...string) map[string]*fleet.MDMAppleHostDeclaration {
-		rows := make(map[string]*fleet.MDMAppleHostDeclaration, len(hostUUIDs))
+	newRows := func(hostUUIDs ...string) map[string]*automdm.MDMAppleHostDeclaration {
+		rows := make(map[string]*automdm.MDMAppleHostDeclaration, len(hostUUIDs))
 		for _, h := range hostUUIDs {
-			pending := fleet.MDMDeliveryPending
-			rows[h] = &fleet.MDMAppleHostDeclaration{
+			pending := automdm.MDMDeliveryPending
+			rows[h] = &automdm.MDMAppleHostDeclaration{
 				HostUUID:      h,
-				Scope:         fleet.PayloadScopeUser,
-				OperationType: fleet.MDMOperationTypeInstall,
+				Scope:         automdm.PayloadScopeUser,
+				OperationType: automdm.MDMOperationTypeInstall,
 				Status:        &pending,
 			}
 		}
 		return rows
 	}
-	toSlice := func(m map[string]*fleet.MDMAppleHostDeclaration) []*fleet.MDMAppleHostDeclaration {
-		out := make([]*fleet.MDMAppleHostDeclaration, 0, len(m))
+	toSlice := func(m map[string]*automdm.MDMAppleHostDeclaration) []*automdm.MDMAppleHostDeclaration {
+		out := make([]*automdm.MDMAppleHostDeclaration, 0, len(m))
 		for _, r := range m {
 			out = append(out, r)
 		}
@@ -44,25 +44,25 @@ func TestResolveUserChannelDeliveries(t *testing.T) {
 	}
 
 	t.Run("user channel exists -> deliver, row stays pending", func(t *testing.T) {
-		host := &fleet.AppleHostReconcileInfo{UUID: "h1", Platform: "darwin", DeviceEnrolledAt: &recentlyEnrolled}
+		host := &automdm.AppleHostReconcileInfo{UUID: "h1", Platform: "darwin", DeviceEnrolledAt: &recentlyEnrolled}
 		rows := newRows("h1")
 		resolver := func(hostUUID string) (string, error) { return "h1:user", nil }
 
-		send, failed, toDelete, err := resolveUserChannelDeliveries(ctx, logger, []*fleet.AppleHostReconcileInfo{host}, []string{"h1"}, toSlice(rows), resolver)
+		send, failed, toDelete, err := resolveUserChannelDeliveries(ctx, logger, []*automdm.AppleHostReconcileInfo{host}, []string{"h1"}, toSlice(rows), resolver)
 		require.NoError(t, err)
 		require.Equal(t, []string{"h1:user"}, send)
 		require.Empty(t, failed)
 		require.Empty(t, toDelete)
 		require.NotNil(t, rows["h1"].Status)
-		require.Equal(t, fleet.MDMDeliveryPending, *rows["h1"].Status)
+		require.Equal(t, automdm.MDMDeliveryPending, *rows["h1"].Status)
 	})
 
 	t.Run("no user channel within grace -> hold (nil status), no send", func(t *testing.T) {
-		host := &fleet.AppleHostReconcileInfo{UUID: "h2", Platform: "darwin", DeviceEnrolledAt: &recentlyEnrolled}
+		host := &automdm.AppleHostReconcileInfo{UUID: "h2", Platform: "darwin", DeviceEnrolledAt: &recentlyEnrolled}
 		rows := newRows("h2")
 		resolver := func(hostUUID string) (string, error) { return "", nil }
 
-		send, failed, toDelete, err := resolveUserChannelDeliveries(ctx, logger, []*fleet.AppleHostReconcileInfo{host}, []string{"h2"}, toSlice(rows), resolver)
+		send, failed, toDelete, err := resolveUserChannelDeliveries(ctx, logger, []*automdm.AppleHostReconcileInfo{host}, []string{"h2"}, toSlice(rows), resolver)
 		require.NoError(t, err)
 		require.Empty(t, send)
 		require.Empty(t, failed)
@@ -71,53 +71,53 @@ func TestResolveUserChannelDeliveries(t *testing.T) {
 	})
 
 	t.Run("no user channel past grace -> failed with detail", func(t *testing.T) {
-		host := &fleet.AppleHostReconcileInfo{UUID: "h3", Platform: "darwin", DeviceEnrolledAt: &pastGrace}
+		host := &automdm.AppleHostReconcileInfo{UUID: "h3", Platform: "darwin", DeviceEnrolledAt: &pastGrace}
 		rows := newRows("h3")
 		resolver := func(hostUUID string) (string, error) { return "", nil }
 
-		send, failed, toDelete, err := resolveUserChannelDeliveries(ctx, logger, []*fleet.AppleHostReconcileInfo{host}, []string{"h3"}, toSlice(rows), resolver)
+		send, failed, toDelete, err := resolveUserChannelDeliveries(ctx, logger, []*automdm.AppleHostReconcileInfo{host}, []string{"h3"}, toSlice(rows), resolver)
 		require.NoError(t, err)
 		require.Empty(t, send)
 		require.Empty(t, toDelete)
 		require.Len(t, failed, 1)
 		require.Contains(t, failed[0].detail, "user channel doesn't exist")
 		require.NotNil(t, rows["h3"].Status)
-		require.Equal(t, fleet.MDMDeliveryFailed, *rows["h3"].Status)
+		require.Equal(t, automdm.MDMDeliveryFailed, *rows["h3"].Status)
 	})
 
 	t.Run("iOS/iPadOS -> failed with mobile-specific detail regardless of grace", func(t *testing.T) {
 		for _, platform := range []string{"ios", "ipados"} {
-			host := &fleet.AppleHostReconcileInfo{UUID: "h4", Platform: platform, DeviceEnrolledAt: &recentlyEnrolled}
+			host := &automdm.AppleHostReconcileInfo{UUID: "h4", Platform: platform, DeviceEnrolledAt: &recentlyEnrolled}
 			rows := newRows("h4")
 			resolver := func(hostUUID string) (string, error) { return "", nil }
 
-			send, failed, toDelete, err := resolveUserChannelDeliveries(ctx, logger, []*fleet.AppleHostReconcileInfo{host}, []string{"h4"}, toSlice(rows), resolver)
+			send, failed, toDelete, err := resolveUserChannelDeliveries(ctx, logger, []*automdm.AppleHostReconcileInfo{host}, []string{"h4"}, toSlice(rows), resolver)
 			require.NoError(t, err)
 			require.Empty(t, send)
 			require.Empty(t, toDelete)
 			require.Len(t, failed, 1)
 			require.Contains(t, failed[0].detail, "isn't available on iOS and iPadOS")
-			require.Equal(t, fleet.MDMDeliveryFailed, *rows["h4"].Status)
+			require.Equal(t, automdm.MDMDeliveryFailed, *rows["h4"].Status)
 		}
 	})
 
 	t.Run("no user channel -> user-scoped removes are returned for deletion, not left pending", func(t *testing.T) {
-		host := &fleet.AppleHostReconcileInfo{UUID: "h5", Platform: "ios", DeviceEnrolledAt: &recentlyEnrolled}
-		removeRow := &fleet.MDMAppleHostDeclaration{
+		host := &automdm.AppleHostReconcileInfo{UUID: "h5", Platform: "ios", DeviceEnrolledAt: &recentlyEnrolled}
+		removeRow := &automdm.MDMAppleHostDeclaration{
 			HostUUID:        "h5",
 			DeclarationUUID: "d-remove",
-			Scope:           fleet.PayloadScopeUser,
-			OperationType:   fleet.MDMOperationTypeRemove,
-			Status:          new(fleet.MDMDeliveryPending),
+			Scope:           automdm.PayloadScopeUser,
+			OperationType:   automdm.MDMOperationTypeRemove,
+			Status:          new(automdm.MDMDeliveryPending),
 		}
 		resolver := func(hostUUID string) (string, error) { return "", nil }
 
-		send, failed, toDelete, err := resolveUserChannelDeliveries(ctx, logger, []*fleet.AppleHostReconcileInfo{host}, []string{"h5"},
-			[]*fleet.MDMAppleHostDeclaration{removeRow}, resolver)
+		send, failed, toDelete, err := resolveUserChannelDeliveries(ctx, logger, []*automdm.AppleHostReconcileInfo{host}, []string{"h5"},
+			[]*automdm.MDMAppleHostDeclaration{removeRow}, resolver)
 		require.NoError(t, err)
 		require.Empty(t, send)
 		require.Empty(t, failed)
-		require.Equal(t, []*fleet.MDMAppleHostDeclaration{removeRow}, toDelete)
+		require.Equal(t, []*automdm.MDMAppleHostDeclaration{removeRow}, toDelete)
 	})
 }
 
@@ -139,8 +139,8 @@ func TestReconcileAppleDeclarationsBatchedDrainLoop(t *testing.T) {
 	allHosts := appleHostsNamed("h01", "h02", "h03", "h04", "h05")
 
 	ds := new(mock.Store)
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{MDM: fleet.MDM{EnabledAndConfigured: true}}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{MDM: automdm.MDM{EnabledAndConfigured: true}}, nil
 	}
 	ds.GetMDMAppleDeclarationReconcileCursorFunc = func(ctx context.Context) (string, error) {
 		return "", nil
@@ -148,17 +148,17 @@ func TestReconcileAppleDeclarationsBatchedDrainLoop(t *testing.T) {
 	ds.SetMDMAppleDeclarationReconcileCursorFunc = func(ctx context.Context, cursor string) error {
 		return nil
 	}
-	ds.BulkUpsertMDMAppleHostDeclarationsFunc = func(ctx context.Context, payload []*fleet.MDMAppleHostDeclaration) error {
+	ds.BulkUpsertMDMAppleHostDeclarationsFunc = func(ctx context.Context, payload []*automdm.MDMAppleHostDeclaration) error {
 		return nil
 	}
-	ds.BulkDeleteMDMAppleHostDeclarationsFunc = func(ctx context.Context, payload []*fleet.MDMAppleHostDeclaration) error {
+	ds.BulkDeleteMDMAppleHostDeclarationsFunc = func(ctx context.Context, payload []*automdm.MDMAppleHostDeclaration) error {
 		return nil
 	}
 
 	var windows int
-	ds.GetAppleDeclarationReconcileSnapshotFunc = func(ctx context.Context, afterHostUUID string, batchSize int) ([]*fleet.AppleHostReconcileInfo, []*fleet.AppleDeclarationForReconcile, map[uint]map[uint]struct{}, map[string][]*fleet.MDMAppleHostDeclaration, bool, error) {
+	ds.GetAppleDeclarationReconcileSnapshotFunc = func(ctx context.Context, afterHostUUID string, batchSize int) ([]*automdm.AppleHostReconcileInfo, []*automdm.AppleDeclarationForReconcile, map[uint]map[uint]struct{}, map[string][]*automdm.MDMAppleHostDeclaration, bool, error) {
 		windows++
-		var page []*fleet.AppleHostReconcileInfo
+		var page []*automdm.AppleHostReconcileInfo
 		for _, h := range allHosts {
 			if h.UUID > afterHostUUID {
 				page = append(page, h)
@@ -179,7 +179,7 @@ func TestReconcileAppleDeclarationsBatchedDrainLoop(t *testing.T) {
 	require.NoError(t, ReconcileAppleDeclarationsBatched(ctx, ds, nil, logger))
 
 	// h01+h02, h03+h04 (both full), then h05 (short) => 3 windows in a single tick.
-	require.Equal(t, 3, windows, "the drain loop must sweep the fleet within one tick")
+	require.Equal(t, 3, windows, "the drain loop must sweep the team within one tick")
 	// The claim is fleet-wide and destructive: called per window, the first would clear the flags for the whole fleet and
 	// every later window would re-query for nothing.
 	require.Equal(t, 1, resyncCalls, "resync flags must be claimed exactly once per tick, outside the drain loop")

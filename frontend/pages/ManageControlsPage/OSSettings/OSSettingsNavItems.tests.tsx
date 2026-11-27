@@ -2,7 +2,7 @@ import getOSSettingsNavItems from "./OSSettingsNavItems";
 
 describe("getOSSettingsNavItems", () => {
   it("includes the Host names card, last, for non-technicians", () => {
-    // The card is team-agnostic in the nav — it renders for both fleets and
+    // The card is team-agnostic in the nav — it renders for both teams and
     // "No team"; scope is resolved inside the card, not by the nav filter.
     const titles = getOSSettingsNavItems(false).map((i) => i.title);
     expect(titles).toContain("Host names");

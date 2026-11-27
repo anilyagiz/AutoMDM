@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/datastore/redis"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis"
 	redigo "github.com/gomodule/redigo/redis"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -31,10 +31,10 @@ func waitTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
 
 func TestQueryResultsStoreErrors(t *testing.T) {
 	runTest := func(t *testing.T, store *redisQueryResults) {
-		result := fleet.DistributedQueryResult{
+		result := automdm.DistributedQueryResult{
 			DistributedQueryCampaignID: 9999,
 			Rows:                       []map[string]string{{"bing": "fds"}},
-			Host: fleet.ResultHostData{
+			Host: automdm.ResultHostData{
 				ID: 4,
 			},
 		}
@@ -92,60 +92,60 @@ func TestQueryResultsStoreErrors(t *testing.T) {
 func TestQueryResultsStore(t *testing.T) {
 	runTest := func(t *testing.T, store *redisQueryResults) {
 		// Test handling results for two campaigns in parallel
-		campaign1 := fleet.DistributedQueryCampaign{ID: 1}
+		campaign1 := automdm.DistributedQueryCampaign{ID: 1}
 
 		ctx1, cancel1 := context.WithCancel(context.Background())
 		channel1, err := store.ReadChannel(ctx1, campaign1)
 		require.NoError(t, err)
 
-		expected1 := []fleet.DistributedQueryResult{
+		expected1 := []automdm.DistributedQueryResult{
 			{
 				DistributedQueryCampaignID: 1,
 				Rows:                       []map[string]string{{"foo": "bar"}},
-				Host: fleet.ResultHostData{
+				Host: automdm.ResultHostData{
 					ID: 1,
 				},
 			},
 			{
 				DistributedQueryCampaignID: 1,
 				Rows:                       []map[string]string{{"whoo": "wahh"}},
-				Host: fleet.ResultHostData{
+				Host: automdm.ResultHostData{
 					ID: 3,
 				},
 			},
 			{
 				DistributedQueryCampaignID: 1,
 				Rows:                       []map[string]string{{"bing": "fds"}},
-				Host: fleet.ResultHostData{
+				Host: automdm.ResultHostData{
 					ID: 4,
 				},
 			},
 		}
 
-		campaign2 := fleet.DistributedQueryCampaign{ID: 2}
+		campaign2 := automdm.DistributedQueryCampaign{ID: 2}
 
 		ctx2, cancel2 := context.WithCancel(context.Background())
 		channel2, err := store.ReadChannel(ctx2, campaign2)
 		require.NoError(t, err)
 
-		expected2 := []fleet.DistributedQueryResult{
+		expected2 := []automdm.DistributedQueryResult{
 			{
 				DistributedQueryCampaignID: 2,
 				Rows:                       []map[string]string{{"tim": "tom"}},
-				Host: fleet.ResultHostData{
+				Host: automdm.ResultHostData{
 					ID: 1,
 				},
 			},
 			{
 				DistributedQueryCampaignID: 2,
 				Rows:                       []map[string]string{{"slim": "slam"}},
-				Host: fleet.ResultHostData{
+				Host: automdm.ResultHostData{
 					ID: 3,
 				},
 			},
 		}
 
-		var results1, results2 []fleet.DistributedQueryResult
+		var results1, results2 []automdm.DistributedQueryResult
 
 		var readerWg, writerWg sync.WaitGroup
 
@@ -154,7 +154,7 @@ func TestQueryResultsStore(t *testing.T) {
 			defer readerWg.Done()
 			for res := range channel1 {
 				switch res := res.(type) { //nolint:gocritic // ignore singleCaseSwitch
-				case fleet.DistributedQueryResult:
+				case automdm.DistributedQueryResult:
 					results1 = append(results1, res)
 				}
 			}
@@ -164,7 +164,7 @@ func TestQueryResultsStore(t *testing.T) {
 			defer readerWg.Done()
 			for res := range channel2 {
 				switch res := res.(type) { //nolint:gocritic // ignore singleCaseSwitch
-				case fleet.DistributedQueryResult:
+				case automdm.DistributedQueryResult:
 					results2 = append(results2, res)
 				}
 			}
@@ -244,7 +244,7 @@ func TestQueryResultsStoreReleasesSubscriptionOnCancel(t *testing.T) {
 
 	runTest := func(t *testing.T, store *redisQueryResults) {
 		// pub/sub channels aren't scoped by Redis DB, so avoid IDs a dev server may be using
-		campaign := fleet.DistributedQueryCampaign{ID: 424242}
+		campaign := automdm.DistributedQueryCampaign{ID: 424242}
 		channelName := pubSubForID(campaign.ID)
 
 		ctx, cancel := context.WithCancel(t.Context())

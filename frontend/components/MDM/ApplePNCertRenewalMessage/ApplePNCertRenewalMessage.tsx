@@ -16,7 +16,7 @@ const ApplePNCertRenewalMessage = ({ expired }: IApplePNCertRenewalMessage) => {
       color="yellow"
       cta={
         <CustomLink
-          url="https://fleetdm.com/learn-more-about/renew-apns"
+          url="https://automdm.com/learn-more-about/renew-apns"
           text="Renew APNs"
           className={`${baseClass}__new-tab`}
           newTab

@@ -4,9 +4,9 @@ import (
 	"crypto/sha256"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/chart/api"
-	"github.com/fleetdm/fleet/v4/server/chart/internal/testutils"
-	"github.com/fleetdm/fleet/v4/server/chart/internal/types"
+	"github.com/anilyagiz/automdm/v4/server/chart/api"
+	"github.com/anilyagiz/automdm/v4/server/chart/internal/testutils"
+	"github.com/anilyagiz/automdm/v4/server/chart/internal/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -55,7 +55,7 @@ func seedCVEMeta(t *testing.T, tdb *testutils.TestDB, cve string, cvss, epss flo
 }
 
 // seedCVEMetaNoScore inserts cve_meta with a NULL cvss_score, which is what
-// Fleet stores for a CVE that NVD has no CVSS v3 base score for. Such a CVE is
+// AutoMDM stores for a CVE that NVD has no CVSS v3 base score for. Such a CVE is
 // invisible to any cvss_score comparison, so it only resolves when no severity
 // bound is set at all.
 func seedCVEMetaNoScore(t *testing.T, tdb *testutils.TestDB, cve string, epss float64, knownExploit bool) {

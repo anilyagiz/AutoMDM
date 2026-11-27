@@ -4,29 +4,29 @@ import (
 	"context"
 	"errors"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
-// GitOpsMDMCommandError replaces err, a failed MDM command write authorization, with a Fleet 5 migration message when the
-// viewer has the GitOps role globally or on the fleet of teamID (nil for hosts in no fleet).
+// GitOpsMDMCommandError replaces err, a failed MDM command write authorization, with an AutoMDM 5 migration message when the
+// viewer has the GitOps role globally or on the team of teamID (nil for hosts in no team).
 func GitOpsMDMCommandError(ctx context.Context, teamID *uint, err error) error {
-	return GitOpsFleetError(ctx, teamID, fleet.GitOpsMDMCommandErrorMessage, err)
+	return GitOpsAutoMDMError(ctx, teamID, automdm.GitOpsMDMCommandErrorMessage, err)
 }
 
 // GitOpsHostListError is GitOpsMDMCommandError for the host list check made before an MDM command's target host is looked
 // up, so GitOps users get the message without learning whether the host exists. A user who can't list hosts holds only
 // GitOps roles, if any.
 func GitOpsHostListError(ctx context.Context, err error) error {
-	return GitOpsListError(ctx, fleet.GitOpsMDMCommandErrorMessage, err)
+	return GitOpsListError(ctx, automdm.GitOpsMDMCommandErrorMessage, err)
 }
 
-// GitOpsFleetError replaces err, a failed authorization, with message when the viewer has the GitOps role globally or on
-// the fleet of teamID (nil for hosts in no fleet).
-func GitOpsFleetError(ctx context.Context, teamID *uint, message string, err error) error {
+// GitOpsAutoMDMError replaces err, a failed authorization, with message when the viewer has the GitOps role globally or on
+// the team of teamID (nil for hosts in no team).
+func GitOpsAutoMDMError(ctx context.Context, teamID *uint, message string, err error) error {
 	return gitOpsError(ctx, err, message, func(id uint) bool { return teamID != nil && id == *teamID })
 }
 
-// GitOpsListError is GitOpsFleetError for the host list check made before a host is looked up, so GitOps users get the
+// GitOpsListError is GitOpsAutoMDMError for the host list check made before a host is looked up, so GitOps users get the
 // message without learning whether the host exists. A user who can't list hosts holds only GitOps roles, if any.
 func GitOpsListError(ctx context.Context, message string, err error) error {
 	return gitOpsError(ctx, err, message, func(uint) bool { return true })
@@ -37,9 +37,9 @@ func gitOpsError(ctx context.Context, err error, message string, matchesTeam fun
 	if user == nil {
 		return err
 	}
-	isGitOps := user.GlobalRole != nil && *user.GlobalRole == fleet.RoleGitOps
+	isGitOps := user.GlobalRole != nil && *user.GlobalRole == automdm.RoleGitOps
 	for _, team := range user.Teams {
-		if team.Role == fleet.RoleGitOps && matchesTeam(team.ID) {
+		if team.Role == automdm.RoleGitOps && matchesTeam(team.ID) {
 			isGitOps = true
 		}
 	}

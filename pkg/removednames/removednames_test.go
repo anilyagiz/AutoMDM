@@ -27,34 +27,34 @@ func TestMessage(t *testing.T) {
 		context string
 		want    string
 	}{
-		// The Fleet 5 error spec: one wording for parameters and YAML keys, with the replacement left to the guide.
+		// The AutoMDM 5 error spec: one wording for parameters and YAML keys, with the replacement left to the guide.
 		{KindQueryParam, "team_id", "", `The "team_id" parameter is not available anymore. What to use instead: ` + GuideURL},
 		{KindJSONKey, "team_id", "", `The "team_id" parameter is not available anymore. What to use instead: ` + GuideURL},
 		{KindYAMLKey, "team_settings", "", `The "team_settings" key is not available anymore. What to use instead: ` + GuideURL},
 		{KindSortKey, "team_id", "", `The "team_id" parameter is not available anymore. What to use instead: ` + GuideURL},
 		{KindTargetType, "team", "", `The "team" parameter is not available anymore. What to use instead: ` + GuideURL},
-		{KindCommand, "fleetctl get teams", "", `The "fleetctl get teams" command is not available anymore. What to use instead: ` + GuideURL},
-		{KindEnvVar, "DELETE_OTHER_TEAMS", "fleetctl gitops",
+		{KindCommand, "automdmctl get teams", "", `The "automdmctl get teams" command is not available anymore. What to use instead: ` + GuideURL},
+		{KindEnvVar, "DELETE_OTHER_TEAMS", "automdmctl gitops",
 			`The "DELETE_OTHER_TEAMS" environment variable is not available anymore. What to use instead: ` + GuideURL},
-		{KindFlagValue, "--fleet no-team", "fleetctl generate-gitops",
-			`The "--fleet no-team" value is not available anymore. What to use instead: ` + GuideURL},
+		{KindFlagValue, "--team no-team", "automdmctl generate-gitops",
+			`The "--team no-team" value is not available anymore. What to use instead: ` + GuideURL},
 		// Only flags are displayed differently: they get their leading dashes.
-		{KindFlag, "team", "fleetctl get hosts", `The "--team" flag is not available anymore. What to use instead: ` + GuideURL},
-		{KindSAMLAttribute, "FLEET_JIT_USER_ROLE_TEAM_<ID>", "",
-			`The "FLEET_JIT_USER_ROLE_TEAM_<ID>" SAML attribute is not available anymore. What to use instead: ` + GuideURL},
-		{KindFleetVariable, "$FLEET_VAR_HOST_END_USER_EMAIL_IDP", "",
-			`The "$FLEET_VAR_HOST_END_USER_EMAIL_IDP" variable is not available anymore. What to use instead: ` + GuideURL},
+		{KindFlag, "team", "automdmctl get hosts", `The "--team" flag is not available anymore. What to use instead: ` + GuideURL},
+		{KindSAMLAttribute, "AUTOMDM_JIT_USER_ROLE_TEAM_<ID>", "",
+			`The "AUTOMDM_JIT_USER_ROLE_TEAM_<ID>" SAML attribute is not available anymore. What to use instead: ` + GuideURL},
+		{KindAutoMDMVariable, "$AUTOMDM_VAR_HOST_END_USER_EMAIL_IDP", "",
+			`The "$AUTOMDM_VAR_HOST_END_USER_EMAIL_IDP" variable is not available anymore. What to use instead: ` + GuideURL},
 		// A removed endpoint leaves the replacement to the guide. The request's method is added when a handler answers it.
 		{KindPath, pathPrefix + "/spec/teams", "", `The "/spec/teams" endpoint is not available anymore. What to use instead: ` + GuideURL},
-		{KindFlag, "t", "fleetctl user create", `The "-t" flag is not available anymore. What to use instead: ` + GuideURL},
+		{KindFlag, "t", "automdmctl user create", `The "-t" flag is not available anymore. What to use instead: ` + GuideURL},
 	} {
 		e, ok := Find(c.kind, c.old, c.context)
 		require.True(t, ok)
 		assert.Equal(t, c.want, e.Message())
 	}
 
-	assert.Equal(t, "a was removed in Fleet 5. Use b instead. See "+GuideURL, Message("a", "b"))
-	assert.Equal(t, "a was removed in Fleet 5."+suffix, Message("a", ""))
+	assert.Equal(t, "a was removed in AutoMDM 5. Use b instead. See "+GuideURL, Message("a", "b"))
+	assert.Equal(t, "a was removed in AutoMDM 5."+suffix, Message("a", ""))
 }
 
 func TestEntryMessageFormats(t *testing.T) {
@@ -67,18 +67,18 @@ func TestEntryMessageFormats(t *testing.T) {
 		want  string
 	}{
 		{"nil format is ReplacedFormat for a CSV column", Entry{Kind: KindCSVColumn, Old: "a", New: "b"},
-			"a was removed in Fleet 5. Use b instead." + suffix},
+			"a was removed in AutoMDM 5. Use b instead." + suffix},
 		{"nil format is ParameterFormat for a JSON key", Entry{Kind: KindJSONKey, Old: "a", New: "b"},
 			`The "a" parameter is not available anymore. What to use instead: ` + GuideURL},
 		{"nil format is KeyFormat for a YAML key", Entry{Kind: KindYAMLKey, Old: "a.b", New: "a.c"},
 			`The "a.b" key is not available anymore. What to use instead: ` + GuideURL},
 		{"nil format is EndpointFormat for a path", Entry{Kind: KindPath, Old: pathPrefix + "/a", Context: "GET"},
 			`The "GET /a" endpoint is not available anymore. What to use instead: ` + GuideURL},
-		{"replaced without a replacement", Entry{Kind: KindJSONKey, Old: "a", Format: ReplacedFormat{}}, "a was removed in Fleet 5." + suffix},
+		{"replaced without a replacement", Entry{Kind: KindJSONKey, Old: "a", Format: ReplacedFormat{}}, "a was removed in AutoMDM 5." + suffix},
 		{"a flag with a replacement is not shown with it", Entry{Kind: KindFlag, Old: "abc", New: "def"},
 			`The "--abc" flag is not available anymore. What to use instead: ` + GuideURL},
 		{"replaced flag has dashes and no dangling replacement", Entry{Kind: KindFlag, Old: "a", Format: ReplacedFormat{}},
-			"-a was removed in Fleet 5." + suffix},
+			"-a was removed in AutoMDM 5." + suffix},
 		{
 			"endpoint without a method",
 			Entry{Kind: KindPath, Old: pathPrefix + "/x/{id}", Format: EndpointFormat{}},
@@ -106,14 +106,14 @@ func TestFindAndFilter(t *testing.T) {
 	t.Parallel()
 
 	// A SAML attribute matches on the text before its <ID>.
-	_, ok := FindSAMLAttribute("FLEET_JIT_USER_ROLE_TEAM_12")
+	_, ok := FindSAMLAttribute("AUTOMDM_JIT_USER_ROLE_TEAM_12")
 	assert.True(t, ok)
-	_, ok = FindSAMLAttribute("FLEET_JIT_USER_ROLE_FLEET_12")
+	_, ok = FindSAMLAttribute("AUTOMDM_JIT_USER_ROLE_TEAM_12")
 	assert.False(t, ok)
 	// A flag entry is tied to its command, and an entry without a context matches every context.
-	_, ok = Find(KindFlag, "team", "fleetctl get hosts")
+	_, ok = Find(KindFlag, "team", "automdmctl get hosts")
 	assert.True(t, ok)
-	_, ok = Find(KindFlag, "team", "fleetctl gitops")
+	_, ok = Find(KindFlag, "team", "automdmctl gitops")
 	assert.False(t, ok)
 	_, ok = Find(KindJSONKey, "team_id", "anything")
 	assert.True(t, ok)
@@ -181,7 +181,7 @@ func TestEntriesWellFormed(t *testing.T) {
 		default:
 			assert.Fail(t, "unknown format", e.Old)
 		}
-		// The device download of the removed installer store and the public version endpoint sat outside the Fleet API.
+		// The device download of the removed installer store and the public version endpoint sat outside the AutoMDM API.
 		if e.Kind == KindPath && !slices.Contains([]string{"/api/mdm/apple/installer", "/version"}, e.Old) {
 			assert.True(t, strings.HasPrefix(e.Old, pathPrefix), "path should start with %s: %s", pathPrefix, e.Old)
 		}
@@ -245,7 +245,7 @@ func TestEntriesCoverDeprecatedSources(t *testing.T) {
 						continue
 					}
 					scope := ScopeRequest | ScopeResponse
-					if filepath.ToSlash(rel) == "server/fleet/activities.go" {
+					if filepath.ToSlash(rel) == "server/automdm/activities.go" {
 						scope = ScopeActivityDetails
 					}
 					assert.True(t, has(kind, scope, oldName, renameTo), "%s: %s tag %q renamed to %q is missing from entries", rel, key, oldName, renameTo)
@@ -256,12 +256,12 @@ func TestEntriesCoverDeprecatedSources(t *testing.T) {
 		assert.Positive(t, found)
 	})
 
-	t.Run("fleetctl flag, command, and env var aliases", func(t *testing.T) {
+	t.Run("automdmctl flag, command, and env var aliases", func(t *testing.T) {
 		t.Parallel()
 		endsWithAny := func(context string, names []string) bool {
 			return slices.ContainsFunc(names, func(name string) bool { return strings.HasSuffix(context, " "+name) })
 		}
-		for rel, file := range parseFiles(t, root, []string{filepath.Join("cmd", "fleetctl", "fleetctl")}, "") {
+		for rel, file := range parseFiles(t, root, []string{filepath.Join("cmd", "automdmctl", "automdmctl")}, "") {
 			for _, alias := range collectCLIAliases(file, isTeamRelated) {
 				var match func(Entry) bool
 				switch alias.kind {
@@ -400,7 +400,7 @@ const (
 	cliEnvVar       = "env var"
 )
 
-// cliAlias is a team-named command alias, flag alias, or env var found in a fleetctl command definition.
+// cliAlias is a team-named command alias, flag alias, or env var found in an automdmctl command definition.
 type cliAlias struct {
 	kind string
 	name string

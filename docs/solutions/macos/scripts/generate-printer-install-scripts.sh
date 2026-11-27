@@ -2,7 +2,7 @@
 
 # usage: ./generate-printer-install-scripts.sh <printers.csv>
 # csv columns (header row required): name,location,uri,display_name
-# prints a Fleet-style install script per printer, then a packages.yml block, to stdout
+# prints an AutoMDM-style install script per printer, then a packages.yml block, to stdout
 
 csvpath="$1"
 divider="--------------------------------------------------------------------------------"

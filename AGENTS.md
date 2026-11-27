@@ -2,7 +2,7 @@
 
 Instructions for AI coding agents working in this repository. Claude Code users: see `.claude/CLAUDE.md` for the full project guide; the rules below apply to every agent.
 
-## Orbit (fleetd) startup order
+## Orbit (automdmd) startup order
 
 - In `orbit/cmd/orbit/orbit.go`, add new code or sub-systems **after** the early update check (`updateRunner.UpdateAction()`). Code that runs before it and crashes or hangs stops devices from auto-updating to a fix, so they need a manual reinstall.
 

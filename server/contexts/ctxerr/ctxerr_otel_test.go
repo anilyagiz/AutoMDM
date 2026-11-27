@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/host"
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/host"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/sdk/trace"
@@ -25,7 +25,7 @@ func TestHandleSendsContextToOTEL(t *testing.T) {
 		{
 			name: "with user context",
 			setupContext: func(ctx context.Context) context.Context {
-				testUser := &fleet.User{
+				testUser := &automdm.User{
 					ID:    123,
 					Email: "test@example.com",
 				}
@@ -43,7 +43,7 @@ func TestHandleSendsContextToOTEL(t *testing.T) {
 		{
 			name: "with host context",
 			setupContext: func(ctx context.Context) context.Context {
-				testHost := &fleet.Host{
+				testHost := &automdm.Host{
 					ID:       456,
 					Hostname: "test-host.example.com",
 				}
@@ -123,7 +123,7 @@ func TestHandleSendsContextToOTEL(t *testing.T) {
 
 			// Check for exception message and type
 			assert.Equal(t, tc.errorMessage, attributes["exception.message"])
-			assert.Equal(t, "*ctxerr.FleetError", attributes["exception.type"])
+			assert.Equal(t, "*ctxerr.AutoMDMError", attributes["exception.type"])
 
 			// Check test-specific expected attributes
 			for expectedKey, expectedValue := range tc.expectedAttrs {

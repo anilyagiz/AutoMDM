@@ -8,14 +8,14 @@ import FailedToRotateManagedLocalAccountPasswordActivityItem from "./FailedToRot
 
 const failedActivity = (detail?: string) =>
   createMockHostPastActivity({
-    actor_full_name: "Fleet",
-    fleet_initiated: true,
+    actor_full_name: "AutoMDM",
+    automdm_initiated: true,
     type: ActivityType.FailedToRotateManagedLocalAccountPassword,
     ...(detail === undefined ? {} : { details: { detail } }),
   });
 
 describe("FailedToRotateManagedLocalAccountPasswordActivityItem", () => {
-  it("renders Fleet-initiated failed rotation activity content", () => {
+  it("renders AutoMDM-initiated failed rotation activity content", () => {
     render(
       <FailedToRotateManagedLocalAccountPasswordActivityItem
         activity={failedActivity()}
@@ -24,7 +24,7 @@ describe("FailedToRotateManagedLocalAccountPasswordActivityItem", () => {
       />
     );
 
-    expect(screen.getByText("Fleet")).toBeVisible();
+    expect(screen.getByText("AutoMDM")).toBeVisible();
     expect(
       screen.getByText(
         /failed to rotate the managed local account password for this host/i

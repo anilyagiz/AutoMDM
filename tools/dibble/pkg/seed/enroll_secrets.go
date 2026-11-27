@@ -6,8 +6,8 @@ import (
 	"fmt"
 )
 
-// EnrollSecrets seeds a per-team enroll secret — the credential a fleetd
-// agent presents to join a team. This is distinct from "Fleet secrets" /
+// EnrollSecrets seeds a per-team enroll secret — the credential an automdmd
+// agent presents to join a team. This is distinct from "AutoMDM secrets" /
 // secret variables, which are template variables substituted into profiles
 // and scripts; those are a separate seeder (not yet implemented).
 //
@@ -22,7 +22,7 @@ func EnrollSecrets(c Client, log Logger, teams []Team) Result {
 		}
 		// PATCH replaces the team's enroll-secret list with this one. Find
 		// them in the UI under Settings → [team] → Add hosts → Show enroll secret.
-		err := c.Patch(fmt.Sprintf("/api/latest/fleet/fleets/%d/secrets", t.ID), body, nil)
+		err := c.Patch(fmt.Sprintf("/api/latest/automdm/teams/%d/secrets", t.ID), body, nil)
 		switch {
 		case err == nil:
 			res.Created++

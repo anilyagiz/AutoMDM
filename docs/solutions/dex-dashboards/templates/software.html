@@ -18,7 +18,7 @@
   <div class="title-row">
     <div>
       <h1>Software usage</h1>
-      <p class="subtitle">See which installed apps people open, so you can reclaim unused seats at renewal. Covers third-party apps on macOS, Windows, and Linux, from Fleet's software inventory.</p>
+      <p class="subtitle">See which installed apps people open, so you can reclaim unused seats at renewal. Covers third-party apps on macOS, Windows, and Linux, from AutoMDM's software inventory.</p>
     </div>
   </div>
   <section class="hero" id="hero" aria-label="Summary"></section>
@@ -65,12 +65,12 @@
       </div>
       <div>
         <p><span class="term">macOS:</span> top-level apps in <code>/Applications</code>. Apple's own apps and apps nested inside other apps are left out. The last-opened time comes from macOS.</p>
-        <p><span class="term">Windows:</span> programs with an install folder, since Fleet matches Windows' record of recently run programs (prefetch) to that folder. Windows keeps a limited number of these records, so a program not run in a long time can show no open. A computer with no record for any program (prefetch turned off) is left out. Windows' own apps and components, and Microsoft apps other than its licensed products (Microsoft 365, Teams, Visio, Project, Visual Studio), are left out.</p>
+        <p><span class="term">Windows:</span> programs with an install folder, since AutoMDM matches Windows' record of recently run programs (prefetch) to that folder. Windows keeps a limited number of these records, so a program not run in a long time can show no open. A computer with no record for any program (prefetch turned off) is left out. Windows' own apps and components, and Microsoft apps other than its licensed products (Microsoft 365, Teams, Visio, Project, Visual Studio), are left out.</p>
         <p><span class="term">Linux:</span> most packages are part of the OS, so only common desktop apps count, such as Chrome, Firefox, VS Code, Slack, Zoom, and 1Password. The last-opened time is the last access time of the package's programs, which a <code>noatime</code> mount stops updating.</p>
       </div>
       <div>
         <p><span class="term">Groups:</span> 80% or more idle means remove it or unassign it. 40–79% means right-size at renewal. Under 40% is healthy. Only apps on <span id="min-installs"></span> or more computers are listed. Totals cover every app.</p>
-        <p><span class="term">Not seats:</span> tools IT deploys everywhere (Fleet Desktop, Nudge, Santa, Okta Verify), helpers, installers, uninstallers, updaters, and web shortcuts (such as Google Drive's Docs and Sheets launchers). They're listed separately and left out of the totals.</p>
+        <p><span class="term">Not seats:</span> tools IT deploys everywhere (AutoMDM Desktop, Nudge, Santa, Okta Verify), helpers, installers, uninstallers, updaters, and web shortcuts (such as Google Drive's Docs and Sheets launchers). They're listed separately and left out of the totals.</p>
         <p><span class="term">Vendor:</span> on macOS, from the app's bundle identifier, such as <code>com.adobe</code> for Adobe. On Windows, from the publisher Windows reports.</p>
       </div>
     </div>
@@ -93,7 +93,7 @@ let shown = new Set(["remove", "rightsize", "healthy"]);
 let vendorFilter = "";
 let query = "";
 
-const fleets = [...new Set(Object.values(DATA.hosts).map((x) => x.f))].sort();
+const teams = [...new Set(Object.values(DATA.hosts).map((x) => x.f))].sort();
 const platformCounts = {};
 for (const x of Object.values(DATA.hosts)) platformCounts[x.p] = (platformCounts[x.p] || 0) + 1;
 const nounWord = (plural) => (PLATFORM === "macos" ? (plural ? "Macs" : "Mac") : (plural ? "computers" : "computer"));
@@ -103,7 +103,7 @@ const isIdle = (d) => d == null || d >= DATA.idle_days;
 function appStats() {
   return DATA.apps.map((a) => {
     if (!inPlatform(a.p)) return null;
-    const hs = a.h.filter(([hid]) => DATA.hosts[hid] && inFleet(DATA.hosts[hid].f));
+    const hs = a.h.filter(([hid]) => DATA.hosts[hid] && inTeam(DATA.hosts[hid].f));
     const idle = hs.filter((x) => isIdle(x[2]));
     const opened = hs.map((x) => x[2]).filter((d) => d != null);
     return { ...a, _id: a.key, hosts: hs, installs: hs.length, idle: idle.length, never: hs.filter((x) => x[2] == null).length,
@@ -122,7 +122,7 @@ function render() {
   const idle = seats.reduce((s, a) => s + a.idle, 0);
   const never = seats.reduce((s, a) => s + a.never, 0);
   const listed = apps.filter((a) => a.installs >= DATA.min_installs);
-  const activeMacs = Object.values(DATA.hosts).filter((x) => inFleet(x.f) && inPlatform(x.p)).length;
+  const activeMacs = Object.values(DATA.hosts).filter((x) => inTeam(x.f) && inPlatform(x.p)).length;
   const p = pct(idle, total);
   const top3 = [...seats].sort((a, b) => b.idle - a.idle).slice(0, 4);
   const nGroup = (k) => listed.filter((a) => groupOf(a) === k).length;
@@ -132,7 +132,7 @@ function render() {
       h("div", { class: "big" }, h("b", {}, fmt.n(idle)), h("span", {}, `of ${fmt.n(total)} installed`))),
     h("div", { class: "hero-mid" },
       h("p", { class: "lede" }, total ? [h("span", {}, `${fmt.pct(p)} of installed app seats`),
-        ` haven't been opened in ${DATA.idle_days} days, across ${fmt.plural(seats.filter((a) => a.idle).length, "app")}.`] : "No app usage data in this fleet."),
+        ` haven't been opened in ${DATA.idle_days} days, across ${fmt.plural(seats.filter((a) => a.idle).length, "app")}.`] : "No app usage data in this team."),
       h("p", { class: "support" }, total ? `${fmt.n(never)} of those have no open on record at all. ${fmt.plural(nGroup("remove"), "app")} on ${DATA.min_installs}+ ${nounWord(true)} ${nGroup("remove") === 1 ? "is" : "are"} idle on 80% or more of the ${nounWord(true)} that have ${nGroup("remove") === 1 ? "it" : "them"}.` : "")),
     h("div", { class: "rail" }, h("div", { class: "eyebrow" }, "Most idle apps"),
       top3.length ? top3.map((a) => h("div", { class: "rail-row" }, h("span", {}, a.name), h("b", {}, `${fmt.n(a.idle)} of ${fmt.n(a.installs)}`))) : h("span", { class: "support" }, "---")));
@@ -148,7 +148,7 @@ function render() {
 
   renderTrend(["seats", "idle"], [
     { title: "Share of seats idle", series: [{ label: "Idle", color: "var(--warn)", value: (r) => pct(r.idle, r.seats) }], yFmt: fmt.pct, yMax: 100,
-      note: "Follows the fleet and platform filters. The vendor filter and search apply only to the list below." },
+      note: "Follows the team and platform filters. The vendor filter and search apply only to the list below." },
     { title: "Seats", series: [{ label: "Installed", color: "var(--info)", value: (r) => r.seats }, { label: "Idle", color: "var(--warn)", value: (r) => r.idle }] },
   ]);
 
@@ -210,7 +210,7 @@ function render() {
     const idleRows = rows.filter((x) => isIdle(x[2]));
     return [
       h("div", { class: "detail-head" }, h("span", {}, `${fmt.n(idleRows.length)} of ${fmt.plural(a.installs, a.p === "macos" ? "Mac" : "computer")} idle · versions in use: ${[...new Set(a.hosts.map((x) => x[1]))].length}`),
-        copyButton("Copy idle hosts as CSV", () => csv([["host", "fleet", "version", "days_since_opened", "fleet_url"],
+        copyButton("Copy idle hosts as CSV", () => csv([["host", "team", "version", "days_since_opened", "automdm_url"],
           ...idleRows.map(([hid, v, d]) => [DATA.hosts[hid].n, DATA.hosts[hid].f, v, d ?? "no record", hostUrl(hid)])]))),
       h("div", { class: "host-list" }, rows.map(([hid, v, d]) => {
         const t = `${d == null ? "no open recorded" : `opened ${fmt.ago(d)}`} · ${v}`;
@@ -225,10 +225,10 @@ function render() {
   document.getElementById("idle-days").textContent = DATA.idle_days;
   document.getElementById("stale-days").textContent = DATA.stale_days;
   document.getElementById("min-installs").textContent = DATA.min_installs;
-  document.getElementById("foot").textContent = `Data from ${DATA.fleet_url.replace(/^https?:\/\//, "")} via the Fleet API (List hosts with software). Rebuilt daily.`;
+  document.getElementById("foot").textContent = `Data from ${DATA.automdm_url.replace(/^https?:\/\//, "")} via the AutoMDM API (List hosts with software). Rebuilt daily.`;
 }
 
 document.getElementById("app-search").addEventListener("input", (e) => { query = e.target.value; render(); });
-renderTop(fleets, render, platformCounts);
+renderTop(teams, render, platformCounts);
 render();
 </script>

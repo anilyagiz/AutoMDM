@@ -63,10 +63,10 @@ examples: |-
     AND c.keyword = 'passwordauthentication';
   ```
 notes: |-
-  This table is not a core osquery table. It is included as part of Fleet's agent ([fleetd](https://fleetdm.com/docs/get-started/anatomy#fleetd)).
+  This table is not a core osquery table. It is included as part of AutoMDM's agent ([automdmd](https://automdm.com/docs/get-started/anatomy#automdmd)).
 
   - The table reports configuration, not whether sshd is running. On macOS it returns the configuration Remote Login would use even while Remote Login is off. To check whether sshd is listening, use `listening_ports`, `systemd_units`, or `launchd`.
-  - If sshd isn't installed, the table returns no rows. sshd is run from `/usr/sbin/sshd` on macOS, and from `/usr/sbin`, `/usr/bin`, `/sbin`, `/usr/local/sbin`, or `/run/current-system/sw/bin` on Linux. `$PATH` is never searched. Because fleetd runs sshd as root, a binary is skipped unless root owns it and every directory and symlink leading to it, and none of them can be modified by other users.
+  - If sshd isn't installed, the table returns no rows. sshd is run from `/usr/sbin/sshd` on macOS, and from `/usr/sbin`, `/usr/bin`, `/sbin`, `/usr/local/sbin`, or `/run/current-system/sw/bin` on Linux. `$PATH` is never searched. Because automdmd runs sshd as root, a binary is skipped unless root owns it and every directory and symlink leading to it, and none of them can be modified by other users.
   - Results are reused for up to 5 seconds, so a configuration change can take that long to show up. Errors aren't reused.
   - If sshd rejects its configuration, or a connection spec is invalid, the query fails with sshd's error message. A policy whose query fails has no result for that host, so a broken `sshd_config` shows up as a host with no policy response, not a failing host.
   - `sshd -G` was added in OpenSSH 9.3. On older sshd (Ubuntu 20.04 and 22.04, Debian 12), the table falls back to `sshd -T`, which also requires the host keys to exist. On Debian and Ubuntu, `sshd -T` also requires sshd to be running, because it needs `/run/sshd`. When these checks fail, the query fails with sshd's error.

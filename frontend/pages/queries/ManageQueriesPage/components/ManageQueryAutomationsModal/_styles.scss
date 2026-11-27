@@ -3,7 +3,7 @@
     display: flex;
     flex-direction: column;
     border-radius: $border-radius-large;
-    border: 1px solid $ui-fleet-black-10;
+    border: 1px solid $ui-automdm-black-10;
   }
 
   &__query-item {
@@ -15,7 +15,7 @@
     justify-content: space-between;
 
     &:not(:last-child) {
-      border-bottom: 1px solid $ui-fleet-black-10;
+      border-bottom: 1px solid $ui-automdm-black-10;
     }
 
     .form-field--checkbox {
@@ -24,7 +24,7 @@
   }
 
   &__configure {
-    color: $ui-fleet-black-75;
+    color: $ui-automdm-black-75;
   }
 
   .info-banner {
@@ -38,7 +38,7 @@
     }
   }
 
-  .fleet-checkbox {
+  .automdm-checkbox {
     height: 20px;
     display: flex;
     align-items: center;

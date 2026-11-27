@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
@@ -24,7 +24,7 @@ func TestSoftwareInstaller(t *testing.T) {
 	// get a non-existing installer
 	blob, length, err := store.Get(ctx, "no-such-installer")
 	require.Error(t, err)
-	require.True(t, fleet.IsNotFound(err))
+	require.True(t, automdm.IsNotFound(err))
 	require.Nil(t, blob)
 	require.Zero(t, length)
 

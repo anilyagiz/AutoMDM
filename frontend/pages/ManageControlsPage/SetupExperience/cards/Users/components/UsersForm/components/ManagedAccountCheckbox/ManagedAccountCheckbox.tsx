@@ -28,7 +28,7 @@ const ManagedAccountCheckbox = ({
       helpText="A hidden local admin for remote troubleshooting."
       labelTooltipContent={
         <>
-          Fleet creates a user (_fleetadmin) and unique password for each host,
+          AutoMDM creates a user (_automdmadmin) and unique password for each host,
           accessible in <b>Host details &gt; Show managed account</b>.
         </>
       }

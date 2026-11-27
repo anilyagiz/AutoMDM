@@ -52,7 +52,7 @@ const StatusMessage = ({
     if (softwareStatus === "pending_install") {
       return (
         <>
-          Fleet is updating or will update <b>{softwareName}</b>
+          AutoMDM is updating or will update <b>{softwareName}</b>
           {installerName && ` (${installerName})`} on <b>{hostDisplayName}</b>{" "}
           when it comes online.
         </>
@@ -78,7 +78,7 @@ const StatusMessage = ({
     <IconStatusMessage
       className={`${baseClass}__status-message`}
       iconName={softwareStatus === "pending_install" ? "pending" : "error"}
-      iconColor="ui-fleet-black-50"
+      iconColor="ui-automdm-black-50"
       message={<span>{renderMessage()}</span>}
     />
   );

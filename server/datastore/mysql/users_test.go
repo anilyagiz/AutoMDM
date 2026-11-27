@@ -8,12 +8,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/jmoiron/sqlx"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -52,23 +52,23 @@ func testUsersCreate(t *testing.T, ds *Datastore) {
 		inviteID                         *uint
 		errorMsg                         *string
 	}{
-		{"foobar", "mike@fleet.co", true, false, true, false, false, nil, nil},
-		{"foobar", "jason@fleet.co", true, false, false, true, false, nil, nil},
-		{"foobar", "jason2@fleet.co", true, true, true, false, false, nil, nil},
-		{"foobar", "jason3@fleet.co", true, true, false, false, true, nil, nil},
-		{"foobar", "jason4@fleet.co", true, true, false, false, true, ptr.Uint(1), nil},
+		{"foobar", "mike@automdm.co", true, false, true, false, false, nil, nil},
+		{"foobar", "jason@automdm.co", true, false, false, true, false, nil, nil},
+		{"foobar", "jason2@automdm.co", true, true, true, false, false, nil, nil},
+		{"foobar", "jason3@automdm.co", true, true, false, false, true, nil, nil},
+		{"foobar", "jason4@automdm.co", true, true, false, false, true, ptr.Uint(1), nil},
 		// Simulating a race condition where two users accept the same invite
-		{"foobar", "jason5@fleet.co", true, true, false, false, true, ptr.Uint(1), ptr.String("users.invite_id")},
+		{"foobar", "jason5@automdm.co", true, true, false, false, true, ptr.Uint(1), ptr.String("users.invite_id")},
 	}
 
 	for _, tt := range createTests {
-		u := &fleet.User{
+		u := &automdm.User{
 			Password:                 []byte(tt.password),
 			AdminForcedPasswordReset: tt.passwordReset,
 			Email:                    tt.email,
 			SSOEnabled:               tt.sso,
 			MFAEnabled:               tt.mfa,
-			GlobalRole:               ptr.String(fleet.RoleObserver),
+			GlobalRole:               ptr.String(automdm.RoleObserver),
 			InviteID:                 tt.inviteID,
 		}
 
@@ -118,24 +118,24 @@ func testUsersByID(t *testing.T, ds *Datastore) {
 	assert.NotNil(t, err)
 }
 
-func createTestUsers(t *testing.T, ds fleet.Datastore) []*fleet.User {
+func createTestUsers(t *testing.T, ds automdm.Datastore) []*automdm.User {
 	createTests := []struct {
 		password, email             string
 		isAdmin, passwordReset, mfa bool
 	}{
-		{"foobar", "mike@fleet.co", true, false, true},
-		{"foobar", "jason@fleet.co", false, false, false},
+		{"foobar", "mike@automdm.co", true, false, true},
+		{"foobar", "jason@automdm.co", false, false, false},
 	}
 
-	var users []*fleet.User
+	var users []*automdm.User
 	for _, tt := range createTests {
-		u := &fleet.User{
+		u := &automdm.User{
 			Name:                     tt.email,
 			Password:                 []byte(tt.password),
 			AdminForcedPasswordReset: tt.passwordReset,
 			Email:                    tt.email,
 			MFAEnabled:               tt.mfa,
-			GlobalRole:               ptr.String(fleet.RoleObserver),
+			GlobalRole:               ptr.String(automdm.RoleObserver),
 		}
 
 		user, err := ds.NewUser(context.Background(), u)
@@ -149,7 +149,7 @@ func createTestUsers(t *testing.T, ds fleet.Datastore) []*fleet.User {
 
 func testUsersDelete(t *testing.T, ds *Datastore) {
 	_, err := ds.UserOrDeletedUserByID(context.Background(), 999999)
-	var nfe fleet.NotFoundError
+	var nfe automdm.NotFoundError
 	assert.ErrorAs(t, err, &nfe)
 
 	users := createTestUsers(t, ds)
@@ -157,7 +157,7 @@ func testUsersDelete(t *testing.T, ds *Datastore) {
 		err := ds.DeleteUser(context.Background(), tt.ID)
 		assert.Nil(t, err)
 		_, err = ds.UserByID(context.Background(), tt.ID)
-		var nfe fleet.NotFoundError
+		var nfe automdm.NotFoundError
 		assert.ErrorAs(t, err, &nfe)
 		returned, err := ds.UserOrDeletedUserByID(context.Background(), tt.ID)
 		require.NoError(t, err)
@@ -175,7 +175,7 @@ func testUsersSave(t *testing.T, ds *Datastore) {
 	testSettingsAttribute(t, ds, users)
 }
 
-func testMFAAttribute(t *testing.T, ds fleet.Datastore, users []*fleet.User) {
+func testMFAAttribute(t *testing.T, ds automdm.Datastore, users []*automdm.User) {
 	for _, user := range users {
 		user.MFAEnabled = true
 		err := ds.SaveUser(context.Background(), user)
@@ -195,9 +195,9 @@ func testMFAAttribute(t *testing.T, ds fleet.Datastore, users []*fleet.User) {
 	}
 }
 
-func testSettingsAttribute(t *testing.T, ds fleet.Datastore, users []*fleet.User) {
+func testSettingsAttribute(t *testing.T, ds automdm.Datastore, users []*automdm.User) {
 	for _, user := range users {
-		user.Settings = &fleet.UserSettings{}
+		user.Settings = &automdm.UserSettings{}
 		err := ds.SaveUser(context.Background(), user)
 		assert.Nil(t, err)
 
@@ -217,7 +217,7 @@ func testSettingsAttribute(t *testing.T, ds fleet.Datastore, users []*fleet.User
 	}
 }
 
-func testPasswordAttribute(t *testing.T, ds fleet.Datastore, users []*fleet.User) {
+func testPasswordAttribute(t *testing.T, ds automdm.Datastore, users []*automdm.User) {
 	for _, user := range users {
 		randomText, err := server.GenerateRandomText(8) // GenerateRandomText(8)
 		assert.Nil(t, err)
@@ -231,7 +231,7 @@ func testPasswordAttribute(t *testing.T, ds fleet.Datastore, users []*fleet.User
 	}
 }
 
-func testEmailAttribute(t *testing.T, ds fleet.Datastore, users []*fleet.User) {
+func testEmailAttribute(t *testing.T, ds automdm.Datastore, users []*automdm.User) {
 	for _, user := range users {
 		user.Email = fmt.Sprintf("test.%s", user.Email)
 		err := ds.SaveUser(context.Background(), user)
@@ -243,7 +243,7 @@ func testEmailAttribute(t *testing.T, ds fleet.Datastore, users []*fleet.User) {
 	}
 }
 
-func testUserGlobalRole(t *testing.T, ds fleet.Datastore, users []*fleet.User) {
+func testUserGlobalRole(t *testing.T, ds automdm.Datastore, users []*automdm.User) {
 	for _, user := range users {
 		user.GlobalRole = ptr.String("admin")
 		err := ds.SaveUser(context.Background(), user)
@@ -253,40 +253,40 @@ func testUserGlobalRole(t *testing.T, ds fleet.Datastore, users []*fleet.User) {
 		assert.Nil(t, err)
 		assert.Equal(t, user.GlobalRole, verify.GlobalRole)
 	}
-	err := ds.SaveUser(context.Background(), &fleet.User{
+	err := ds.SaveUser(context.Background(), &automdm.User{
 		Name:       "some@email.asd",
 		Password:   []byte("asdasd"),
 		Email:      "some@email.asd",
-		GlobalRole: ptr.String(fleet.RoleObserver),
-		Teams:      []fleet.UserTeam{{Role: fleet.RoleMaintainer}},
+		GlobalRole: ptr.String(automdm.RoleObserver),
+		Teams:      []automdm.UserTeam{{Role: automdm.RoleMaintainer}},
 	})
-	var ferr *fleet.Error
+	var ferr *automdm.Error
 	require.True(t, errors.As(err, &ferr))
-	assert.Equal(t, "Cannot specify both global and fleet-scoped roles", ferr.Message)
+	assert.Equal(t, "Cannot specify both global and team-scoped roles", ferr.Message)
 }
 
 func testUsersNewInitialUser(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
-	first, err := ds.NewInitialUser(ctx, &fleet.User{
+	first, err := ds.NewInitialUser(ctx, &automdm.User{
 		Name:       "first",
 		Password:   []byte("p4ssw0rd.123"),
 		Email:      "first@example.com",
-		GlobalRole: new(fleet.RoleAdmin),
+		GlobalRole: new(automdm.RoleAdmin),
 	})
 	require.NoError(t, err)
 	require.NotZero(t, first.ID)
 
-	_, err = ds.NewInitialUser(ctx, &fleet.User{
+	_, err = ds.NewInitialUser(ctx, &automdm.User{
 		Name:       "second",
 		Password:   []byte("p4ssw0rd.123"),
 		Email:      "second@example.com",
-		GlobalRole: new(fleet.RoleAdmin),
+		GlobalRole: new(automdm.RoleAdmin),
 	})
 	var existsErr *existsError
 	require.ErrorAs(t, err, &existsErr)
 
-	users, err := ds.ListUsers(ctx, fleet.UserListOptions{})
+	users, err := ds.ListUsers(ctx, automdm.UserListOptions{})
 	require.NoError(t, err)
 	require.Len(t, users, 1)
 	assert.Equal(t, first.ID, users[0].ID)
@@ -308,7 +308,7 @@ func testUsersHas(t *testing.T, ds *Datastore) {
 	})
 
 	// fails right now due to SELECT *
-	_, err = ds.ListUsers(context.Background(), fleet.UserListOptions{})
+	_, err = ds.ListUsers(context.Background(), automdm.UserListOptions{})
 	assert.ErrorContains(t, err, "missing destination name settings2")
 
 	// should succeed since we are being pickier about what we select
@@ -326,24 +326,24 @@ func testUsersHas(t *testing.T, ds *Datastore) {
 func testUsersList(t *testing.T, ds *Datastore) {
 	createTestUsers(t, ds)
 
-	users, err := ds.ListUsers(context.Background(), fleet.UserListOptions{})
+	users, err := ds.ListUsers(context.Background(), automdm.UserListOptions{})
 	assert.NoError(t, err)
 	require.Len(t, users, 2)
 
-	users, err = ds.ListUsers(context.Background(), fleet.UserListOptions{ListOptions: fleet.ListOptions{MatchQuery: "jason"}})
+	users, err = ds.ListUsers(context.Background(), automdm.UserListOptions{ListOptions: automdm.ListOptions{MatchQuery: "jason"}})
 	assert.NoError(t, err)
 	require.Len(t, users, 1)
-	assert.Equal(t, "jason@fleet.co", users[0].Email)
+	assert.Equal(t, "jason@automdm.co", users[0].Email)
 
-	users, err = ds.ListUsers(context.Background(), fleet.UserListOptions{ListOptions: fleet.ListOptions{MatchQuery: "ike"}})
+	users, err = ds.ListUsers(context.Background(), automdm.UserListOptions{ListOptions: automdm.ListOptions{MatchQuery: "ike"}})
 	assert.NoError(t, err)
 	require.Len(t, users, 1)
-	assert.Equal(t, "mike@fleet.co", users[0].Email)
+	assert.Equal(t, "mike@automdm.co", users[0].Email)
 }
 
 func testUsersTeams(t *testing.T, ds *Datastore) {
 	for i := 0; i < 10; i++ {
-		_, err := ds.NewTeam(context.Background(), &fleet.Team{Name: fmt.Sprintf("%d", i)})
+		_, err := ds.NewTeam(context.Background(), &automdm.Team{Name: fmt.Sprintf("%d", i)})
 		require.NoError(t, err)
 	}
 
@@ -353,9 +353,9 @@ func testUsersTeams(t *testing.T, ds *Datastore) {
 	assert.Len(t, users[1].Teams, 0)
 
 	// Add invalid team should fail
-	users[0].Teams = []fleet.UserTeam{
+	users[0].Teams = []automdm.UserTeam{
 		{
-			Team: fleet.Team{ID: 13},
+			Team: automdm.Team{ID: 13},
 			Role: "foobar",
 		},
 	}
@@ -363,10 +363,10 @@ func testUsersTeams(t *testing.T, ds *Datastore) {
 	require.Error(t, err)
 
 	// Add valid team should succeed
-	users[0].Teams = []fleet.UserTeam{
+	users[0].Teams = []automdm.UserTeam{
 		{
-			Team: fleet.Team{ID: 3},
-			Role: fleet.RoleObserver,
+			Team: automdm.Team{ID: 3},
+			Role: automdm.RoleObserver,
 		},
 	}
 	users[0].GlobalRole = nil
@@ -375,8 +375,8 @@ func testUsersTeams(t *testing.T, ds *Datastore) {
 
 	users, err = ds.ListUsers(
 		context.Background(),
-		fleet.UserListOptions{
-			ListOptions: fleet.ListOptions{OrderKey: "name", OrderDirection: fleet.OrderDescending},
+		automdm.UserListOptions{
+			ListOptions: automdm.ListOptions{OrderKey: "name", OrderDirection: automdm.OrderDescending},
 		},
 	)
 	require.NoError(t, err)
@@ -385,18 +385,18 @@ func testUsersTeams(t *testing.T, ds *Datastore) {
 	// For user with a global role, Teams should be empty
 	assert.Len(t, users[1].Teams, 0)
 
-	users[1].Teams = []fleet.UserTeam{
+	users[1].Teams = []automdm.UserTeam{
 		{
-			Team: fleet.Team{ID: 1},
-			Role: fleet.RoleObserver,
+			Team: automdm.Team{ID: 1},
+			Role: automdm.RoleObserver,
 		},
 		{
-			Team: fleet.Team{ID: 2},
-			Role: fleet.RoleObserver,
+			Team: automdm.Team{ID: 2},
+			Role: automdm.RoleObserver,
 		},
 		{
-			Team: fleet.Team{ID: 3},
-			Role: fleet.RoleObserver,
+			Team: automdm.Team{ID: 3},
+			Role: automdm.RoleObserver,
 		},
 	}
 	users[1].GlobalRole = nil
@@ -405,8 +405,8 @@ func testUsersTeams(t *testing.T, ds *Datastore) {
 
 	users, err = ds.ListUsers(
 		context.Background(),
-		fleet.UserListOptions{
-			ListOptions: fleet.ListOptions{OrderKey: "name", OrderDirection: fleet.OrderDescending},
+		automdm.UserListOptions{
+			ListOptions: automdm.ListOptions{OrderKey: "name", OrderDirection: automdm.OrderDescending},
 		},
 	)
 	require.NoError(t, err)
@@ -415,15 +415,15 @@ func testUsersTeams(t *testing.T, ds *Datastore) {
 	assert.Len(t, users[1].Teams, 3)
 
 	// Clear teams
-	users[1].Teams = []fleet.UserTeam{}
-	users[1].GlobalRole = ptr.String(fleet.RoleObserver)
+	users[1].Teams = []automdm.UserTeam{}
+	users[1].GlobalRole = ptr.String(automdm.RoleObserver)
 	err = ds.SaveUser(context.Background(), users[1])
 	require.NoError(t, err)
 
 	users, err = ds.ListUsers(
 		context.Background(),
-		fleet.UserListOptions{
-			ListOptions: fleet.ListOptions{OrderKey: "name", OrderDirection: fleet.OrderDescending},
+		automdm.UserListOptions{
+			ListOptions: automdm.ListOptions{OrderKey: "name", OrderDirection: automdm.OrderDescending},
 		},
 	)
 	require.NoError(t, err)
@@ -434,24 +434,24 @@ func testUsersTeams(t *testing.T, ds *Datastore) {
 
 func testUsersCreateWithTeams(t *testing.T, ds *Datastore) {
 	for i := 0; i < 10; i++ {
-		_, err := ds.NewTeam(context.Background(), &fleet.Team{Name: fmt.Sprintf("%d", i)})
+		_, err := ds.NewTeam(context.Background(), &automdm.Team{Name: fmt.Sprintf("%d", i)})
 		require.NoError(t, err)
 	}
 
-	u := &fleet.User{
+	u := &automdm.User{
 		Password: []byte("foo"),
-		Teams: []fleet.UserTeam{
+		Teams: []automdm.UserTeam{
 			{
-				Team: fleet.Team{ID: 6},
-				Role: fleet.RoleObserver,
+				Team: automdm.Team{ID: 6},
+				Role: automdm.RoleObserver,
 			},
 			{
-				Team: fleet.Team{ID: 3},
-				Role: fleet.RoleObserver,
+				Team: automdm.Team{ID: 3},
+				Role: automdm.RoleObserver,
 			},
 			{
-				Team: fleet.Team{ID: 9},
-				Role: fleet.RoleMaintainer,
+				Team: automdm.Team{ID: 9},
+				Role: automdm.RoleMaintainer,
 			},
 		},
 	}
@@ -472,25 +472,25 @@ func testUsersCreateWithTeams(t *testing.T, ds *Datastore) {
 }
 
 func testUsersSaveMany(t *testing.T, ds *Datastore) {
-	u1 := test.NewUser(t, ds, t.Name()+"Admin1", t.Name()+"admin1@fleet.co", true)
-	u2 := test.NewUser(t, ds, t.Name()+"Admin2", t.Name()+"admin2@fleet.co", true)
-	u3 := test.NewUser(t, ds, t.Name()+"Admin3", t.Name()+"admin3@fleet.co", true)
+	u1 := test.NewUser(t, ds, t.Name()+"Admin1", t.Name()+"admin1@automdm.co", true)
+	u2 := test.NewUser(t, ds, t.Name()+"Admin2", t.Name()+"admin2@automdm.co", true)
+	u3 := test.NewUser(t, ds, t.Name()+"Admin3", t.Name()+"admin3@automdm.co", true)
 
 	u1.Email += "m"
 	u2.Email += "m"
 	u3.Email += "m"
 
-	require.NoError(t, ds.SaveUsers(context.Background(), []*fleet.User{u1, u2, u3}))
+	require.NoError(t, ds.SaveUsers(context.Background(), []*automdm.User{u1, u2, u3}))
 
 	gotU1, err := ds.UserByID(context.Background(), u1.ID)
 	require.NoError(t, err)
-	assert.True(t, strings.HasSuffix(gotU1.Email, "fleet.com"))
+	assert.True(t, strings.HasSuffix(gotU1.Email, "automdm.com"))
 
 	gotU2, err := ds.UserByID(context.Background(), u3.ID)
 	require.NoError(t, err)
-	assert.True(t, strings.HasSuffix(gotU2.Email, "fleet.com"))
+	assert.True(t, strings.HasSuffix(gotU2.Email, "automdm.com"))
 
 	gotU3, err := ds.UserByID(context.Background(), u3.ID)
 	require.NoError(t, err)
-	assert.True(t, strings.HasSuffix(gotU3.Email, "fleet.com"))
+	assert.True(t, strings.HasSuffix(gotU3.Email, "automdm.com"))
 }

@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -56,7 +56,7 @@ func TestIntervalCheckerNotifiesDueHosts(t *testing.T) {
 	ws2 := dial(t, srv, "key-2")
 	waitForConnCount(t, hub, 2)
 
-	lister := &fakeDueLister{due: map[uint]string{1: fleet.AgentWSReasonLabel}}
+	lister := &fakeDueLister{due: map[uint]string{1: automdm.AgentWSReasonLabel}}
 	checker := &IntervalChecker{
 		Hub:       hub,
 		Svc:       lister,
@@ -68,10 +68,10 @@ func TestIntervalCheckerNotifiesDueHosts(t *testing.T) {
 
 	// Host 1 is due and gets the notification, carrying the due reason.
 	require.NoError(t, ws1.SetReadDeadline(time.Now().Add(2*time.Second)))
-	var msg fleet.AgentWSMessage
+	var msg automdm.AgentWSMessage
 	require.NoError(t, ws1.ReadJSON(&msg))
-	assert.Equal(t, fleet.AgentWSMessageTypeDistributedRead, msg.Type)
-	assert.Equal(t, fleet.AgentWSReasonLabel, msg.Reason)
+	assert.Equal(t, automdm.AgentWSMessageTypeDistributedRead, msg.Type)
+	assert.Equal(t, automdm.AgentWSReasonLabel, msg.Reason)
 
 	// Host 2 is not due: nothing arrives.
 	require.NoError(t, ws2.SetReadDeadline(time.Now().Add(300*time.Millisecond)))
@@ -84,7 +84,7 @@ func TestIntervalCheckerNotifiesDueHosts(t *testing.T) {
 	checker.checkOnce(t.Context())
 	require.NoError(t, ws1.SetReadDeadline(time.Now().Add(2*time.Second)))
 	require.NoError(t, ws1.ReadJSON(&msg))
-	assert.Equal(t, fleet.AgentWSReasonLabel, msg.Reason)
+	assert.Equal(t, automdm.AgentWSReasonLabel, msg.Reason)
 
 	// Once ingestion clears the due state, notifications stop.
 	lister.mu.Lock()
@@ -106,8 +106,8 @@ func TestIntervalCheckerDisconnectsDeletedHosts(t *testing.T) {
 
 	// Host 1 was deleted while its agent held a connection; host 2 is due.
 	lister := &fakeDueLister{due: map[uint]string{
-		1: fleet.AgentWSReasonHostNotFound,
-		2: fleet.AgentWSReasonLabel,
+		1: automdm.AgentWSReasonHostNotFound,
+		2: automdm.AgentWSReasonLabel,
 	}}
 	checker := &IntervalChecker{
 		Hub:       hub,
@@ -129,9 +129,9 @@ func TestIntervalCheckerDisconnectsDeletedHosts(t *testing.T) {
 
 	// The due host is notified as usual.
 	require.NoError(t, ws2.SetReadDeadline(time.Now().Add(2*time.Second)))
-	var msg fleet.AgentWSMessage
+	var msg automdm.AgentWSMessage
 	require.NoError(t, ws2.ReadJSON(&msg))
-	assert.Equal(t, fleet.AgentWSReasonLabel, msg.Reason)
+	assert.Equal(t, automdm.AgentWSReasonLabel, msg.Reason)
 }
 
 func TestIntervalCheckerBatching(t *testing.T) {

@@ -21,8 +21,8 @@ func TestPrepareDesktopTLSFiles(t *testing.T) {
 	// Create source cert/key files.
 	certContent := []byte("-----BEGIN CERTIFICATE-----\ntest cert\n-----END CERTIFICATE-----\n")
 	keyContent := []byte("-----BEGIN PRIVATE KEY-----\ntest key\n-----END PRIVATE KEY-----\n")
-	certPath := filepath.Join(rootDir, "fleet_client.crt")
-	keyPath := filepath.Join(rootDir, "fleet_client.key")
+	certPath := filepath.Join(rootDir, "automdm_client.crt")
+	keyPath := filepath.Join(rootDir, "automdm_client.key")
 	require.NoError(t, os.WriteFile(certPath, certContent, 0o600))
 	require.NoError(t, os.WriteFile(keyPath, keyContent, 0o600))
 
@@ -30,17 +30,17 @@ func TestPrepareDesktopTLSFiles(t *testing.T) {
 	require.NoError(t, err)
 
 	d := &desktopRunner{
-		rootDir:             rootDir,
-		fleetClientCertPath: certPath,
-		fleetClientKeyPath:  keyPath,
+		rootDir:               rootDir,
+		automdmClientCertPath: certPath,
+		automdmClientKeyPath:  keyPath,
 	}
 
 	t.Run("creates user-readable copies", func(t *testing.T) {
 		certCopy, keyCopy, err := d.prepareDesktopTLSFiles(currentUser.Username)
 		require.NoError(t, err)
 
-		assert.Equal(t, filepath.Join(rootDir, ".desktop_fleet_client.crt"), certCopy)
-		assert.Equal(t, filepath.Join(rootDir, ".desktop_fleet_client.key"), keyCopy)
+		assert.Equal(t, filepath.Join(rootDir, ".desktop_automdm_client.crt"), certCopy)
+		assert.Equal(t, filepath.Join(rootDir, ".desktop_automdm_client.key"), keyCopy)
 
 		// Verify content matches.
 		gotCert, err := os.ReadFile(certCopy)
@@ -71,9 +71,9 @@ func TestPrepareDesktopTLSFiles(t *testing.T) {
 
 	t.Run("fails when cert source missing", func(t *testing.T) {
 		d2 := &desktopRunner{
-			rootDir:             rootDir,
-			fleetClientCertPath: filepath.Join(rootDir, "nonexistent.crt"),
-			fleetClientKeyPath:  keyPath,
+			rootDir:               rootDir,
+			automdmClientCertPath: filepath.Join(rootDir, "nonexistent.crt"),
+			automdmClientKeyPath:  keyPath,
 		}
 		_, _, err := d2.prepareDesktopTLSFiles(currentUser.Username)
 		require.Error(t, err)
@@ -82,9 +82,9 @@ func TestPrepareDesktopTLSFiles(t *testing.T) {
 
 	t.Run("fails when key source missing", func(t *testing.T) {
 		d2 := &desktopRunner{
-			rootDir:             rootDir,
-			fleetClientCertPath: certPath,
-			fleetClientKeyPath:  filepath.Join(rootDir, "nonexistent.key"),
+			rootDir:               rootDir,
+			automdmClientCertPath: certPath,
+			automdmClientKeyPath:  filepath.Join(rootDir, "nonexistent.key"),
 		}
 		_, _, err := d2.prepareDesktopTLSFiles(currentUser.Username)
 		require.Error(t, err)

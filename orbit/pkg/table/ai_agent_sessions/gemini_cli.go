@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/internal/homes"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/internal/homes"
 )
 
 // Gemini CLI records each session under ~/.gemini/tmp/<project>/chats/ as

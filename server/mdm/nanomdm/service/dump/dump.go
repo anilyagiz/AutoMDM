@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/service"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/service"
 )
 
 // Dumper is a service middleware that dumps MDM requests and responses

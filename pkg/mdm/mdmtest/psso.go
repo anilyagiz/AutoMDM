@@ -17,9 +17,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/mdm/apple/psso/pssocrypto"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/server/mdm/apple/psso/pssocrypto"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
 	jose "github.com/go-jose/go-jose/v4"
 	jwt "github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
@@ -40,8 +40,8 @@ const (
 )
 
 // TestApplePSSODevice simulates the macOS side of Apple Platform SSO against a
-// Fleet server: device registration, password login (against the proxied IdP),
-// the offline-unlock key request and key exchange, plus validating Fleet's
+// AutoMDM server: device registration, password login (against the proxied IdP),
+// the offline-unlock key request and key exchange, plus validating AutoMDM's
 // minted id_token against the published JWKS.
 //
 // It is the device half of the PSSO exchange and shares all wire-format crypto
@@ -56,12 +56,12 @@ type TestApplePSSODevice struct {
 	// host the registration token is bound to.
 	mdm *TestAppleMDMClient
 
-	// serverURL is the Fleet base URL the PSSO endpoints hang off of.
+	// serverURL is the AutoMDM base URL the PSSO endpoints hang off of.
 	serverURL  string
 	httpClient *http.Client
 
 	// clientID is the IdP/extension client ID, sent as the assertion issuer and
-	// echoed by Fleet as the id_token audience.
+	// echoed by AutoMDM as the id_token audience.
 	clientID string
 
 	// The device's Secure Enclave-equivalent keypairs and their kids (base64url
@@ -71,7 +71,7 @@ type TestApplePSSODevice struct {
 	signingKID    string
 	encryptionKID string
 
-	// registrationToken is the Fleet-signed JWT delivered in the PSSO profile;
+	// registrationToken is the AutoMDM-signed JWT delivered in the PSSO profile;
 	// set via RegistrationTokenFromCommand or SetRegistrationToken.
 	registrationToken string
 
@@ -93,7 +93,7 @@ type TestApplePSSODevice struct {
 type PSSOLoginOptions struct {
 	// EncryptOnWire models the extension's loginRequestEncryptionPublicKey
 	// behavior: the password is sealed in an embedded ECDH-ES JWE encrypted to
-	// Fleet's published encryption key instead of riding as a plaintext claim.
+	// AutoMDM's published encryption key instead of riding as a plaintext claim.
 	EncryptOnWire bool
 
 	// SigningKeyOverride signs the outer assertion with this key instead of the
@@ -113,7 +113,7 @@ type PSSOLoginResult struct {
 	RefreshToken string
 	TokenType    string
 	ExpiresIn    int
-	// SessionNonce is the Apple session nonce the device sent; Fleet echoes it as
+	// SessionNonce is the Apple session nonce the device sent; AutoMDM echoes it as
 	// the id_token `nonce` claim.
 	SessionNonce string
 	// RawAssertion is the signed outer JWS the device sent, so a caller can
@@ -124,10 +124,10 @@ type PSSOLoginResult struct {
 }
 
 // NewApplePSSODevice builds a PSSO device on top of an enrolled MDM client. It
-// generates the device's signing and encryption keypairs. fleetServerURL is the
-// Fleet base URL; clientID is the IdP/extension client ID used as the assertion
+// generates the device's signing and encryption keypairs. automdmServerURL is the
+// AutoMDM base URL; clientID is the IdP/extension client ID used as the assertion
 // issuer.
-func NewApplePSSODevice(mdmClient *TestAppleMDMClient, fleetServerURL, clientID string) (*TestApplePSSODevice, error) {
+func NewApplePSSODevice(mdmClient *TestAppleMDMClient, automdmServerURL, clientID string) (*TestApplePSSODevice, error) {
 	signingKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return nil, fmt.Errorf("generate psso signing key: %w", err)
@@ -146,8 +146,8 @@ func NewApplePSSODevice(mdmClient *TestAppleMDMClient, fleetServerURL, clientID 
 	}
 	return &TestApplePSSODevice{
 		mdm:           mdmClient,
-		serverURL:     strings.TrimRight(fleetServerURL, "/"),
-		httpClient:    fleethttp.NewClient(fleethttp.WithNoTimeout()),
+		serverURL:     strings.TrimRight(automdmServerURL, "/"),
+		httpClient:    automdmhttp.NewClient(automdmhttp.WithNoTimeout()),
 		clientID:      clientID,
 		signingKey:    signingKey,
 		encryptionKey: encryptionKey,
@@ -273,7 +273,7 @@ func (c *TestApplePSSODevice) AASA() (int, []byte, error) {
 	return c.get(pssoAASAPath)
 }
 
-// JWKS fetches and parses the published JWKS, returning Fleet's signing
+// JWKS fetches and parses the published JWKS, returning AutoMDM's signing
 // (use:sig) and encryption (use:enc) public keys.
 func (c *TestApplePSSODevice) JWKS() (signing, encryption *ecdsa.PublicKey, err error) {
 	status, body, err := c.get(pssoJWKSPath)
@@ -331,7 +331,7 @@ func (c *TestApplePSSODevice) Login(username, password string, opts PSSOLoginOpt
 		if err != nil {
 			return nil, err
 		}
-		// The embedded assertion is encrypted to Fleet's published key; the apv
+		// The embedded assertion is encrypted to AutoMDM's published key; the apv
 		// party-info is bound to that recipient key, mirroring the response
 		// direction.
 		assertionAPV, err := pssocrypto.BuildAPV(serverEnc, []byte(sessionNonce))
@@ -387,7 +387,7 @@ func (c *TestApplePSSODevice) Login(username, password string, opts PSSOLoginOpt
 }
 
 // ValidateIDToken verifies the login-response id_token's signature against
-// Fleet's published JWKS (the device's trust anchor) and returns its claims. A
+// AutoMDM's published JWKS (the device's trust anchor) and returns its claims. A
 // caller should additionally check iss/aud/nonce/sub against what it expects.
 func (c *TestApplePSSODevice) ValidateIDToken(idToken string) (jwt.MapClaims, error) {
 	signing, _, err := c.JWKS()
@@ -406,7 +406,7 @@ func (c *TestApplePSSODevice) ValidateIDToken(idToken string) (jwt.MapClaims, er
 	return claims, nil
 }
 
-// KeyRequest performs a PSSO key request: Fleet provisions and certifies an
+// KeyRequest performs a PSSO key request: AutoMDM provisions and certifies an
 // unlock keypair and returns the certificate plus an opaque key_context. The
 // certificate's public key and the context are retained for the key exchange.
 // The provisioned certificate DER is returned.
@@ -593,7 +593,7 @@ func (c *TestApplePSSODevice) token(assertion, expectedTyp string) ([]byte, erro
 	return plaintext, nil
 }
 
-// get issues a GET to a Fleet path and returns the status and body.
+// get issues a GET to an AutoMDM path and returns the status and body.
 func (c *TestApplePSSODevice) get(path string) (int, []byte, error) {
 	req, err := http.NewRequest(http.MethodGet, c.serverURL+path, nil)
 	if err != nil {

@@ -14,7 +14,7 @@ import (
 
 // TestNoUnexpectedSharedDarwinIdentifiers fails when two unrelated macOS FMAs share a
 // bundle identifier. Shared identifiers are ambiguous and are only handled by
-// ReconcileMaintainedAppSoftwareNames and fleetMaintainedAppsTeamJoin for variants of
+// ReconcileMaintainedAppSoftwareNames and automdmMaintainedAppsTeamJoin for variants of
 // the same app (see https://github.com/fleetdm/fleet/issues/42445). Variants are
 // expressed with an "@" suffix on the slug's app token (firefox / firefox@esr,
 // druva-insync / druva-insync@govcloud), so apps whose slugs share that base token may
@@ -30,7 +30,7 @@ func TestNoUnexpectedSharedDarwinIdentifiers(t *testing.T) {
 
 	for identifier, slugs := range unrelatedSharedDarwinIdentifiers(appsList.Apps) {
 		require.Failf(t, "shared macOS bundle identifier",
-			"macOS bundle identifier %q is shared by unrelated Fleet-maintained apps %v.\n"+
+			"macOS bundle identifier %q is shared by unrelated AutoMDM-maintained apps %v.\n"+
 				"Only variants of the same app (slugs that differ by an \"@<variant>\" suffix) may share a "+
 				"bundle identifier; otherwise matching installed software to an FMA is ambiguous.",
 			identifier, slugs)

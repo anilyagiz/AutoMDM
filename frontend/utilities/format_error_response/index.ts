@@ -1,8 +1,8 @@
 import { get, join } from "lodash";
 
-import { IFleetApiError } from "interfaces/errors";
+import { IAutoMDMApiError } from "interfaces/errors";
 
-const formatServerErrors = (errors: IFleetApiError[]) => {
+const formatServerErrors = (errors: IAutoMDMApiError[]) => {
   if (!errors || !errors.length) {
     return {};
   }

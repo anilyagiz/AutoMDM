@@ -4,7 +4,7 @@ import { Params } from "react-router/lib/Router";
 
 import BackButton from "components/BackButton";
 import Card from "components/Card";
-import FleetsDropdown from "components/FleetsDropdown";
+import AutoMDMsDropdown from "components/AutoMDMsDropdown";
 import MainContent from "components/MainContent";
 import PageDescription from "components/PageDescription";
 import PremiumFeatureMessage from "components/PremiumFeatureMessage";
@@ -55,7 +55,7 @@ const SoftwareLibrarySettingsPage = ({
     includeNoTeam: true,
   });
 
-  const fleetId = teamIdForApi ?? 0;
+  const automdmId = teamIdForApi ?? 0;
   const canManage =
     !!isGlobalAdmin ||
     !!isGlobalMaintainer ||
@@ -63,7 +63,7 @@ const SoftwareLibrarySettingsPage = ({
     !!isTeamMaintainer;
 
   const backToLibraryPath = getPathWithQueryParams(PATHS.SOFTWARE_LIBRARY, {
-    fleet_id: teamIdForApi,
+    team_id: teamIdForApi,
   });
 
   const navItems = getLibrarySettingsNavItems();
@@ -75,7 +75,7 @@ const SoftwareLibrarySettingsPage = ({
   // Bare /library/settings (and any unknown :section) land here. Normalize the
   // URL to the default section so refreshes, shares, and browser history are
   // stable. router.replace keeps Back usable, and location.search preserves
-  // fleet_id and any deep-link params (e.g. add_category=1 from the palette).
+  // team_id and any deep-link params (e.g. add_category=1 from the palette).
   useEffect(() => {
     if (!isPremiumTier) return;
     if (params.section && currentSection.urlSection === params.section) return;
@@ -98,12 +98,12 @@ const SoftwareLibrarySettingsPage = ({
     <>
       <BackButton text="Back to software library" path={backToLibraryPath} />
       {isPremiumTier && !isPrimoMode ? (
-        <div className={`${baseClass}__fleet-row`}>
-          <FleetsDropdown
-            currentUserFleets={userTeams ?? []}
-            selectedFleetId={currentTeamId}
+        <div className={`${baseClass}__team-row`}>
+          <AutoMDMsDropdown
+            currentUserTeams={userTeams ?? []}
+            selectedAutoMDMId={currentTeamId}
             onChange={handleTeamChange}
-            includeAllFleets={false}
+            includeAllAutoMDMs={false}
             includeUnassigned
           />
         </div>
@@ -132,15 +132,15 @@ const SoftwareLibrarySettingsPage = ({
         className={`${baseClass}__side-nav`}
         navItems={navItems.map((item) => ({
           ...item,
-          path: getPathWithQueryParams(item.path, { fleet_id: teamIdForApi }),
+          path: getPathWithQueryParams(item.path, { team_id: teamIdForApi }),
         }))}
         activeItem={currentSection.urlSection}
         CurrentCard={
           <CurrentCard
-            key={fleetId}
+            key={automdmId}
             router={router}
             location={location}
-            fleetId={fleetId}
+            automdmId={automdmId}
             isRouteOk={isRouteOk}
             canManage={canManage}
             gitOpsModeEnabled={gitOpsModeEnabled}

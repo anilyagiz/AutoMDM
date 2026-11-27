@@ -78,7 +78,7 @@ func TestOvalPlatform(t *testing.T) {
 			osVersion string
 		}{
 			{"amzn_01/../../pwned-a/f", "Amazon Linux 1.0.0"},
-			{"amzn_01/../fleet_goval_dictionary_amzn", "Amazon Linux 2023.0.0"},
+			{"amzn_01/../automdm_goval_dictionary_amzn", "Amazon Linux 2023.0.0"},
 			{"amzn_01/sub/f", "Amazon Linux 1.0.0"},
 			{`amzn_01\..\..\f`, "Amazon Linux 1.0.0"},
 			{"amzn_01.%2e", "Amazon Linux 1.0.0"},
@@ -95,8 +95,8 @@ func TestOvalPlatform(t *testing.T) {
 			date     time.Time
 			expected string
 		}{
-			{time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC), "fleet_oval_ubuntu_2004-2020_01_01.json"},
-			{time.Date(2020, 10, 10, 0, 0, 0, 0, time.UTC), "fleet_oval_ubuntu_2004-2020_10_10.json"},
+			{time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC), "automdm_oval_ubuntu_2004-2020_01_01.json"},
+			{time.Date(2020, 10, 10, 0, 0, 0, 0, time.UTC), "automdm_oval_ubuntu_2004-2020_10_10.json"},
 		}
 		for _, c := range cases {
 			plat := NewPlatform("ubuntu", "Ubuntu 20.4.0")
@@ -109,8 +109,8 @@ func TestOvalPlatform(t *testing.T) {
 			version  string
 			expected string
 		}{
-			{"Amazon Linux 2.0.0", "fleet_goval_dictionary_amzn_02.sqlite3"},
-			{"Amazon Linux 2023.0.0", "fleet_goval_dictionary_amzn_2023.sqlite3"},
+			{"Amazon Linux 2.0.0", "automdm_goval_dictionary_amzn_02.sqlite3"},
+			{"Amazon Linux 2023.0.0", "automdm_goval_dictionary_amzn_2023.sqlite3"},
 		}
 		for _, c := range cases {
 			plat := NewPlatform("amzn", c.version)

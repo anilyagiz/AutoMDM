@@ -25,7 +25,7 @@ eval exec /usr/bin/mdmproxy \
 	${AUTH_TOKEN_ARG} \
 	-existing-hostname "${MDMPROXY_EXISTING_HOSTNAME:?}" \
 	-existing-url "${MDMPROXY_EXISTING_URL:?}" \
-	-fleet-url "${MDMPROXY_FLEET_URL:?}"  \
+	-automdm-url "${MDMPROXY_AUTOMDM_URL:?}"  \
 	${MIGRATE_PERCENTAGE_ARG} \
 	${MIGRATE_UDIDS_ARG} \
 	-server-address "${MDMPROXY_SERVER_ADDRESS:?}"

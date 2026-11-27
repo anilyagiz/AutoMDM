@@ -10,21 +10,21 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	nanodep_client "github.com/fleetdm/fleet/v4/server/mdm/nanodep/client"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanodep/tokenpki"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/cryptoutil"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	nanodep_client "github.com/anilyagiz/automdm/v4/server/mdm/nanodep/client"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanodep/tokenpki"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/cryptoutil"
 )
 
-func CAKeyPair(ctx context.Context, ds fleet.MDMAssetRetriever) (*tls.Certificate, error) {
-	return KeyPair(ctx, ds, fleet.MDMAssetCACert, fleet.MDMAssetCAKey)
+func CAKeyPair(ctx context.Context, ds automdm.MDMAssetRetriever) (*tls.Certificate, error) {
+	return KeyPair(ctx, ds, automdm.MDMAssetCACert, automdm.MDMAssetCAKey)
 }
 
-// CADecryptRetriever is the subset of fleet.Datastore needed to load the Apple
+// CADecryptRetriever is the subset of automdm.Datastore needed to load the Apple
 // MDM CA private key plus every historical CA certificate for CMS decryption.
 type CADecryptRetriever interface {
-	fleet.MDMAssetRetriever
-	GetAllMDMConfigAssetsByNameIncludingDeleted(ctx context.Context, assetNames []fleet.MDMAssetName) ([]fleet.MDMConfigAsset, error)
+	automdm.MDMAssetRetriever
+	GetAllMDMConfigAssetsByNameIncludingDeleted(ctx context.Context, assetNames []automdm.MDMAssetName) ([]automdm.MDMConfigAsset, error)
 }
 
 // CACertsAndKeyForDecryption returns the Apple MDM CA private key together with
@@ -46,7 +46,7 @@ func CACertsAndKeyForDecryption(ctx context.Context, ds CADecryptRetriever) ([]*
 	}
 	pub := signer.Public()
 
-	historical, err := ds.GetAllMDMConfigAssetsByNameIncludingDeleted(ctx, []fleet.MDMAssetName{fleet.MDMAssetCACert})
+	historical, err := ds.GetAllMDMConfigAssetsByNameIncludingDeleted(ctx, []automdm.MDMAssetName{automdm.MDMAssetCACert})
 	if err != nil {
 		return nil, nil, fmt.Errorf("loading historical CA certificates: %w", err)
 	}
@@ -79,12 +79,12 @@ func CACertsAndKeyForDecryption(ctx context.Context, ds CADecryptRetriever) ([]*
 	return certs, keyPair.PrivateKey, nil
 }
 
-func APNSKeyPair(ctx context.Context, ds fleet.MDMAssetRetriever) (*tls.Certificate, string, error) {
-	return KeyPairWithMD5(ctx, ds, fleet.MDMAssetAPNSCert, fleet.MDMAssetAPNSKey)
+func APNSKeyPair(ctx context.Context, ds automdm.MDMAssetRetriever) (*tls.Certificate, string, error) {
+	return KeyPairWithMD5(ctx, ds, automdm.MDMAssetAPNSCert, automdm.MDMAssetAPNSKey)
 }
 
-func KeyPair(ctx context.Context, ds fleet.MDMAssetRetriever, certName, keyName fleet.MDMAssetName) (*tls.Certificate, error) {
-	assets, err := ds.GetAllMDMConfigAssetsByName(ctx, []fleet.MDMAssetName{
+func KeyPair(ctx context.Context, ds automdm.MDMAssetRetriever, certName, keyName automdm.MDMAssetName) (*tls.Certificate, error) {
+	assets, err := ds.GetAllMDMConfigAssetsByName(ctx, []automdm.MDMAssetName{
 		certName,
 		keyName,
 	}, nil)
@@ -106,8 +106,8 @@ func KeyPair(ctx context.Context, ds fleet.MDMAssetRetriever, certName, keyName 
 }
 
 // KeyPairWithMD5 returns the certificate from the keypair, along with the MD5 checksum of the certificate.
-func KeyPairWithMD5(ctx context.Context, ds fleet.MDMAssetRetriever, certName, keyName fleet.MDMAssetName) (*tls.Certificate, string, error) {
-	assets, err := ds.GetAllMDMConfigAssetsByName(ctx, []fleet.MDMAssetName{
+func KeyPairWithMD5(ctx context.Context, ds automdm.MDMAssetRetriever, certName, keyName automdm.MDMAssetName) (*tls.Certificate, string, error) {
+	assets, err := ds.GetAllMDMConfigAssetsByName(ctx, []automdm.MDMAssetName{
 		certName,
 		keyName,
 	}, nil)
@@ -128,8 +128,8 @@ func KeyPairWithMD5(ctx context.Context, ds fleet.MDMAssetRetriever, certName, k
 	return &cert, assets[certName].MD5Checksum, nil
 }
 
-func X509Cert(ctx context.Context, ds fleet.MDMAssetRetriever, certName fleet.MDMAssetName) (*x509.Certificate, error) {
-	assets, err := ds.GetAllMDMConfigAssetsByName(ctx, []fleet.MDMAssetName{certName}, nil)
+func X509Cert(ctx context.Context, ds automdm.MDMAssetRetriever, certName automdm.MDMAssetName) (*x509.Certificate, error) {
+	assets, err := ds.GetAllMDMConfigAssetsByName(ctx, []automdm.MDMAssetName{certName}, nil)
 	if err != nil {
 		return nil, fmt.Errorf("loading certificate %s from the database: %w", certName, err)
 	}
@@ -142,8 +142,8 @@ func X509Cert(ctx context.Context, ds fleet.MDMAssetRetriever, certName fleet.MD
 	return x509.ParseCertificate(block.Bytes)
 }
 
-func APNSTopic(ctx context.Context, ds fleet.MDMAssetRetriever) (string, error) {
-	cert, err := X509Cert(ctx, ds, fleet.MDMAssetAPNSCert)
+func APNSTopic(ctx context.Context, ds automdm.MDMAssetRetriever) (string, error) {
+	cert, err := X509Cert(ctx, ds, automdm.MDMAssetAPNSCert)
 	if err != nil {
 		return "", fmt.Errorf("retrieving APNs cert: %w", err)
 	}
@@ -156,10 +156,10 @@ func APNSTopic(ctx context.Context, ds fleet.MDMAssetRetriever) (string, error) 
 	return mdmPushCertTopic, nil
 }
 
-func ABMToken(ctx context.Context, ds fleet.MDMAssetRetriever, abmOrgName string) (*nanodep_client.OAuth1Tokens, error) {
-	assets, err := ds.GetAllMDMConfigAssetsByName(ctx, []fleet.MDMAssetName{
-		fleet.MDMAssetABMKey,
-		fleet.MDMAssetABMCert,
+func ABMToken(ctx context.Context, ds automdm.MDMAssetRetriever, abmOrgName string) (*nanodep_client.OAuth1Tokens, error) {
+	assets, err := ds.GetAllMDMConfigAssetsByName(ctx, []automdm.MDMAssetName{
+		automdm.MDMAssetABMKey,
+		automdm.MDMAssetABMCert,
 	}, nil)
 	if err != nil {
 		return nil, fmt.Errorf("loading ABM assets from the database: %w", err)
@@ -170,7 +170,7 @@ func ABMToken(ctx context.Context, ds fleet.MDMAssetRetriever, abmOrgName string
 		return nil, fmt.Errorf("get ABM token by name: %w", err)
 	}
 
-	cert, err := tls.X509KeyPair(assets[fleet.MDMAssetABMCert].Value, assets[fleet.MDMAssetABMKey].Value)
+	cert, err := tls.X509KeyPair(assets[automdm.MDMAssetABMCert].Value, assets[automdm.MDMAssetABMKey].Value)
 	if err != nil {
 		return nil, fmt.Errorf("parsing ABM keypair: %w", err)
 	}
@@ -183,7 +183,7 @@ func ABMToken(ctx context.Context, ds fleet.MDMAssetRetriever, abmOrgName string
 	oAuthTok, err := DecryptRawABMToken(
 		abmTok.EncryptedToken,
 		leaf,
-		assets[fleet.MDMAssetABMKey].Value,
+		assets[automdm.MDMAssetABMKey].Value,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("decrypting ABM token: %w", err)

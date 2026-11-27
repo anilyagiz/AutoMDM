@@ -16,7 +16,7 @@ export default function TooltipWrapperArchLinuxRolling({
         <>
           Version follows a rolling release model.{" "}
           <CustomLink
-            url="https://fleetdm.com/learn-more-about/arch-linux-rolling-release"
+            url="https://automdm.com/learn-more-about/arch-linux-rolling-release"
             variant="tooltip-link"
             text="Learn more"
             newTab

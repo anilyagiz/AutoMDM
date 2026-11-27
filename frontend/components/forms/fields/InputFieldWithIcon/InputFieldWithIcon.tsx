@@ -32,7 +32,7 @@ export interface IInputFieldWithIconProps {
   tooltip?: string;
   /**
    * Whether 1Password should skip this field.
-   * Defaults to `true` because most Fleet inputs are not credential fields.
+   * Defaults to `true` because most AutoMDM inputs are not credential fields.
    */
   ignore1Password?: boolean;
   value?: string;

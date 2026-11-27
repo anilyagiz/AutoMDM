@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
-	"github.com/fleetdm/fleet/v4/server/mdm/android/service"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android/service"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
@@ -44,10 +44,10 @@ func (s *osVersionTestSuite) TestAndroidOSVersionSecurityPatchLevel() {
 
 	// Create enterprise.
 	var signupResp android.EnterpriseSignupResponse
-	s.DoJSON("GET", "/api/v1/fleet/android_enterprise/signup_url", nil, http.StatusOK, &signupResp)
+	s.DoJSON("GET", "/api/v1/automdm/android_enterprise/signup_url", nil, http.StatusOK, &signupResp)
 	assert.Equal(t, EnterpriseSignupURL, signupResp.Url)
 
-	s.FleetSvc.On("NewActivity", mock.Anything, mock.Anything, mock.AnythingOfType("fleet.ActivityTypeEnabledAndroidMDM")).Return(nil)
+	s.AutoMDMSvc.On("NewActivity", mock.Anything, mock.Anything, mock.AnythingOfType("automdm.ActivityTypeEnabledAndroidMDM")).Return(nil)
 	const enterpriseToken = "enterpriseToken"
 	s.Do("GET", s.ProxyCallbackURL, nil, http.StatusOK, "enterpriseToken", enterpriseToken)
 
@@ -56,19 +56,19 @@ func (s *osVersionTestSuite) TestAndroidOSVersionSecurityPatchLevel() {
 	}
 
 	resp := android.GetEnterpriseResponse{}
-	s.DoJSON("GET", "/api/v1/fleet/android_enterprise", nil, http.StatusOK, &resp)
+	s.DoJSON("GET", "/api/v1/automdm/android_enterprise", nil, http.StatusOK, &resp)
 	assert.Equal(t, EnterpriseID, resp.EnterpriseID)
 
 	s.AppConfig.MDM.AndroidEnabledAndConfigured = true
 
-	require.NoError(t, s.DS.ApplyEnrollSecrets(ctx, nil, []*fleet.EnrollSecret{{Secret: "enrollsecret"}}))
+	require.NoError(t, s.DS.ApplyEnrollSecrets(ctx, nil, []*automdm.EnrollSecret{{Secret: "enrollsecret"}}))
 	secrets, err := s.DS.Datastore.GetEnrollSecrets(ctx, nil)
 	require.NoError(t, err)
 	require.Len(t, secrets, 1)
 
-	assets, err := s.DS.Datastore.GetAllMDMConfigAssetsByName(ctx, []fleet.MDMAssetName{fleet.MDMAssetAndroidPubSubToken}, nil)
+	assets, err := s.DS.Datastore.GetAllMDMConfigAssetsByName(ctx, []automdm.MDMAssetName{automdm.MDMAssetAndroidPubSubToken}, nil)
 	require.NoError(t, err)
-	pubsubToken := assets[fleet.MDMAssetAndroidPubSubToken]
+	pubsubToken := assets[automdm.MDMAssetAndroidPubSubToken]
 	require.NotEmpty(t, pubsubToken.Value)
 
 	esi := strings.ToUpper(uuid.New().String())
@@ -83,7 +83,7 @@ func (s *osVersionTestSuite) TestAndroidOSVersionSecurityPatchLevel() {
 		},
 		esi,
 	)
-	s.Do("POST", "/api/v1/fleet/android_enterprise/pubsub", &service.PubSubPushRequest{PubSubMessage: *enrollmentMessage}, http.StatusOK, "token", string(pubsubToken.Value))
+	s.Do("POST", "/api/v1/automdm/android_enterprise/pubsub", &service.PubSubPushRequest{PubSubMessage: *enrollmentMessage}, http.StatusOK, "token", string(pubsubToken.Value))
 
 	assertOSVersion := func(wantHostOSVersion, wantOSRowVersion string) {
 		t.Helper()
@@ -109,14 +109,14 @@ func (s *osVersionTestSuite) TestAndroidOSVersionSecurityPatchLevel() {
 	}
 
 	// Status report with a security patch level folds it into the version.
-	s.Do("POST", "/api/v1/fleet/android_enterprise/pubsub",
+	s.Do("POST", "/api/v1/automdm/android_enterprise/pubsub",
 		&service.PubSubPushRequest{PubSubMessage: osVersionStatusReportMessage(t, esi, "16", "2026-05-01")},
 		http.StatusOK, "token", string(pubsubToken.Value))
 	assertOSVersion("Android 16 (2026-05-01)", "16 (2026-05-01)")
 
 	// A newer patch level for the same major version produces a distinct
 	// operating_systems row; the host now points at the new one.
-	s.Do("POST", "/api/v1/fleet/android_enterprise/pubsub",
+	s.Do("POST", "/api/v1/automdm/android_enterprise/pubsub",
 		&service.PubSubPushRequest{PubSubMessage: osVersionStatusReportMessage(t, esi, "16", "2026-06-01")},
 		http.StatusOK, "token", string(pubsubToken.Value))
 	assertOSVersion("Android 16 (2026-06-01)", "16 (2026-06-01)")
@@ -136,7 +136,7 @@ func (s *osVersionTestSuite) TestAndroidOSVersionSecurityPatchLevel() {
 	})
 
 	// A device that does not report a patch level falls back to the bare version.
-	s.Do("POST", "/api/v1/fleet/android_enterprise/pubsub",
+	s.Do("POST", "/api/v1/automdm/android_enterprise/pubsub",
 		&service.PubSubPushRequest{PubSubMessage: osVersionStatusReportMessage(t, esi, "16", "")},
 		http.StatusOK, "token", string(pubsubToken.Value))
 	assertOSVersion("Android 16", "16")

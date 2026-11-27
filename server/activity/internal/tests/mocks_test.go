@@ -5,10 +5,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/activity"
-	authz_ctx "github.com/fleetdm/fleet/v4/server/contexts/authz"
-	platform_authz "github.com/fleetdm/fleet/v4/server/platform/authz"
-	platform_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/activity"
+	authz_ctx "github.com/anilyagiz/automdm/v4/server/contexts/authz"
+	platform_authz "github.com/anilyagiz/automdm/v4/server/platform/authz"
+	platform_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
 )
 
 // Mock implementations for dependencies outside the bounded context

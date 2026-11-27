@@ -45,7 +45,7 @@ const WarningModal = ({
         <b>{scriptName}</b>.<br />
         <br />
         If this script is currently running on a host, it will complete, but
-        results won&apos;t appear in Fleet. <br />
+        results won&apos;t appear in AutoMDM. <br />
         <br />
         You cannot undo this action.
       </p>

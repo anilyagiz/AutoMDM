@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/anilyagiz/automdm/v4/server/aws_common"
 	aws_config "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
 	"github.com/aws/aws-sdk-go-v2/service/lambda/types"
-	"github.com/fleetdm/fleet/v4/server/aws_common"
 )
 
 const (

@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -16,12 +16,12 @@ func TestListSelfServiceSoftwareCategoriesForHost(t *testing.T) {
 
 	t.Run("wraps datastore errors", func(t *testing.T) {
 		ds := new(mock.Store)
-		ds.ListSoftwareCategoriesFunc = func(ctx context.Context, teamID uint) ([]fleet.SoftwareCategory, error) {
+		ds.ListSoftwareCategoriesFunc = func(ctx context.Context, teamID uint) ([]automdm.SoftwareCategory, error) {
 			return nil, errors.New("boom")
 		}
 		svc := newTestService(t, ds)
 
-		_, err := svc.ListSelfServiceSoftwareCategoriesForHost(ctx, &fleet.Host{ID: 1, TeamID: new(uint(7))})
+		_, err := svc.ListSelfServiceSoftwareCategoriesForHost(ctx, &automdm.Host{ID: 1, TeamID: new(uint(7))})
 		require.ErrorContains(t, err, "list self-service software categories for host")
 		assert.True(t, ds.ListSoftwareCategoriesFuncInvoked)
 	})
@@ -29,13 +29,13 @@ func TestListSelfServiceSoftwareCategoriesForHost(t *testing.T) {
 	t.Run("returns the host team's categories", func(t *testing.T) {
 		ds := new(mock.Store)
 		var gotTeamID uint
-		ds.ListSoftwareCategoriesFunc = func(ctx context.Context, teamID uint) ([]fleet.SoftwareCategory, error) {
+		ds.ListSoftwareCategoriesFunc = func(ctx context.Context, teamID uint) ([]automdm.SoftwareCategory, error) {
 			gotTeamID = teamID
-			return []fleet.SoftwareCategory{{ID: 1, Name: "🌎 Browsers", TeamID: teamID}}, nil
+			return []automdm.SoftwareCategory{{ID: 1, Name: "🌎 Browsers", TeamID: teamID}}, nil
 		}
 		svc := newTestService(t, ds)
 
-		got, err := svc.ListSelfServiceSoftwareCategoriesForHost(ctx, &fleet.Host{ID: 1, TeamID: new(uint(7))})
+		got, err := svc.ListSelfServiceSoftwareCategoriesForHost(ctx, &automdm.Host{ID: 1, TeamID: new(uint(7))})
 		require.NoError(t, err)
 		require.Len(t, got, 1)
 		assert.Equal(t, "🌎 Browsers", got[0].Name)
@@ -45,13 +45,13 @@ func TestListSelfServiceSoftwareCategoriesForHost(t *testing.T) {
 	t.Run("no-team host queries team 0", func(t *testing.T) {
 		ds := new(mock.Store)
 		var gotTeamID uint
-		ds.ListSoftwareCategoriesFunc = func(ctx context.Context, teamID uint) ([]fleet.SoftwareCategory, error) {
+		ds.ListSoftwareCategoriesFunc = func(ctx context.Context, teamID uint) ([]automdm.SoftwareCategory, error) {
 			gotTeamID = teamID
 			return nil, nil
 		}
 		svc := newTestService(t, ds)
 
-		_, err := svc.ListSelfServiceSoftwareCategoriesForHost(ctx, &fleet.Host{ID: 1, TeamID: nil})
+		_, err := svc.ListSelfServiceSoftwareCategoriesForHost(ctx, &automdm.Host{ID: 1, TeamID: nil})
 		require.NoError(t, err)
 		assert.True(t, ds.ListSoftwareCategoriesFuncInvoked)
 		assert.Equal(t, uint(0), gotTeamID)

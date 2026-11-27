@@ -32,7 +32,7 @@
 
   &__last-fetched {
     font-size: $xx-small;
-    color: $ui-fleet-black-75;
+    color: $ui-automdm-black-75;
     margin: 0;
   }
 
@@ -43,7 +43,7 @@
       &:hover {
         svg {
           path {
-            fill: $ui-fleet-black-75-over;
+            fill: $ui-automdm-black-75-over;
           }
         }
       }

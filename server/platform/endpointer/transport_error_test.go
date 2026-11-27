@@ -9,10 +9,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/logging"
-	"github.com/fleetdm/fleet/v4/server/contexts/redact"
-	platform_http "github.com/fleetdm/fleet/v4/server/platform/http"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/logging"
+	"github.com/anilyagiz/automdm/v4/server/contexts/redact"
+	platform_http "github.com/anilyagiz/automdm/v4/server/platform/http"
 	"github.com/go-sql-driver/mysql"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -141,7 +141,7 @@ func TestSafeReason(t *testing.T) {
 	fkErr := &mysql.MySQLError{
 		Number: 1452,
 		Message: "Cannot add or update a child row: a foreign key constraint fails " +
-			"(`fleet`.`queries`, CONSTRAINT `queries_ibfk_2` FOREIGN KEY (`team_id`) REFERENCES `teams` (`id`))",
+			"(`team`.`queries`, CONSTRAINT `queries_ibfk_2` FOREIGN KEY (`team_id`) REFERENCES `teams` (`id`))",
 	}
 
 	for _, tc := range []struct {
@@ -180,10 +180,10 @@ func TestSafeReason(t *testing.T) {
 			// the call sites that did this correctly.
 			"curated message wrapping a driver error survives",
 			&platform_http.BadRequestError{
-				Message:     "Couldn't add. Fleet doesn't exist.",
+				Message:     "Couldn't add. AutoMDM doesn't exist.",
 				InternalErr: fkErr,
 			},
-			"Couldn't add. Fleet doesn't exist.",
+			"Couldn't add. AutoMDM doesn't exist.",
 		},
 		{
 			// UserMessageError embeds the error interface, which promotes Error() but
@@ -210,7 +210,7 @@ func TestSafeReason(t *testing.T) {
 			"failed to parse multipart form: multipart: NextPart: EOF",
 		},
 		{
-			// Fleet manages devices; a host named like a database is ordinary and its
+			// AutoMDM manages devices; a host named like a database is ordinary and its
 			// own error text must not be mistaken for storage detail.
 			"host named after a database survives",
 			errors.New(`Host "mysql-01" doesn't exist`),
@@ -255,7 +255,7 @@ func TestEncodeErrorSanitizesBody(t *testing.T) {
 	fkErr := &mysql.MySQLError{
 		Number: 1452,
 		Message: "Cannot add or update a child row: a foreign key constraint fails " +
-			"(`fleet`.`queries`, CONSTRAINT `queries_ibfk_2` FOREIGN KEY (`team_id`) REFERENCES `teams` (`id`))",
+			"(`team`.`queries`, CONSTRAINT `queries_ibfk_2` FOREIGN KEY (`team_id`) REFERENCES `teams` (`id`))",
 	}
 
 	ctx := logging.NewContext(t.Context(), &logging.LoggingContext{})
@@ -266,7 +266,7 @@ func TestEncodeErrorSanitizesBody(t *testing.T) {
 	EncodeError(ctx, fmt.Errorf("creating new Query: %w", fkErr), recorder, nil)
 
 	body := recorder.Body.String()
-	for _, leaked := range []string{"queries_ibfk_2", "REFERENCES", "fleet`.`queries", "1452"} {
+	for _, leaked := range []string{"queries_ibfk_2", "REFERENCES", "team`.`queries", "1452"} {
 		require.NotContains(t, body, leaked)
 	}
 

@@ -13,20 +13,20 @@ import (
 	"time"
 
 	"github.com/WatchBeam/clock"
-	android_mock "github.com/fleetdm/fleet/v4/server/mdm/android/mock"
-	nanodep_storage "github.com/fleetdm/fleet/v4/server/mdm/nanodep/storage"
-	nanomdm_push "github.com/fleetdm/fleet/v4/server/mdm/nanomdm/push"
-	scep_depot "github.com/fleetdm/fleet/v4/server/mdm/scep/depot"
-	fleet_mock "github.com/fleetdm/fleet/v4/server/mock"
-	notifications_api "github.com/fleetdm/fleet/v4/server/notifications/api"
-	"github.com/fleetdm/fleet/v4/server/platform/endpointer"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
+	android_mock "github.com/anilyagiz/automdm/v4/server/mdm/android/mock"
+	nanodep_storage "github.com/anilyagiz/automdm/v4/server/mdm/nanodep/storage"
+	nanomdm_push "github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/push"
+	scep_depot "github.com/anilyagiz/automdm/v4/server/mdm/scep/depot"
+	automdm_mock "github.com/anilyagiz/automdm/v4/server/mock"
+	notifications_api "github.com/anilyagiz/automdm/v4/server/notifications/api"
+	"github.com/anilyagiz/automdm/v4/server/platform/endpointer"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
 
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
-	"github.com/fleetdm/fleet/v4/server/microsoft/msgraph"
-	"github.com/fleetdm/fleet/v4/server/service/async"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
+	"github.com/anilyagiz/automdm/v4/server/microsoft/msgraph"
+	"github.com/anilyagiz/automdm/v4/server/service/async"
 )
 
 // This file holds test-helper types and constants that do NOT import the
@@ -45,7 +45,7 @@ const (
 
 // TestNewScheduleFunc is the signature used by tests that want to start a
 // cron schedule against a real datastore.
-type TestNewScheduleFunc func(ctx context.Context, ds fleet.Datastore) fleet.NewCronScheduleFunc
+type TestNewScheduleFunc func(ctx context.Context, ds automdm.Datastore) automdm.NewCronScheduleFunc
 
 // HostIdentity combines host identity-related test options.
 type HostIdentity struct {
@@ -58,24 +58,24 @@ type ConditionalAccess struct {
 	SCEPStorage scep_depot.Depot
 }
 
-// TestServerOpts configures the test fleet service / server. It is used by
+// TestServerOpts configures the test automdm service / server. It is used by
 // internal tests in this package and by external test packages (see
 // svctest.RunServerForTestsWithDS, svctest.NewTestService).
 type TestServerOpts struct {
 	Logger                          *slog.Logger
-	License                         *fleet.LicenseInfo
+	License                         *automdm.LicenseInfo
 	SkipCreateTestUsers             bool
-	Rs                              fleet.QueryResultStore
-	Lq                              fleet.LiveQueryStore
-	Pool                            fleet.RedisPool
-	InstallAttemptCounter           fleet.SoftwareInstallAttemptCounter
-	FailingPolicySet                fleet.FailingPolicySet
+	Rs                              automdm.QueryResultStore
+	Lq                              automdm.LiveQueryStore
+	Pool                            automdm.RedisPool
+	InstallAttemptCounter           automdm.SoftwareInstallAttemptCounter
+	FailingPolicySet                automdm.FailingPolicySet
 	Clock                           clock.Clock
 	Task                            *async.Task
-	EnrollHostLimiter               fleet.EnrollHostLimiter
-	Is                              fleet.InstallerStore
-	FleetConfig                     *config.FleetConfig
-	MDMStorage                      fleet.MDMAppleStore
+	EnrollHostLimiter               automdm.EnrollHostLimiter
+	Is                              automdm.InstallerStore
+	AutoMDMConfig                   *config.AutoMDMConfig
+	MDMStorage                      automdm.MDMAppleStore
 	DEPStorage                      nanodep_storage.AllDEPStorage
 	SCEPStorage                     scep_depot.Depot
 	MDMPusher                       nanomdm_push.Pusher
@@ -85,20 +85,20 @@ type TestServerOpts struct {
 	APNSTopic                       string
 	EnableCachedDS                  bool
 	NoCacheDatastore                bool
-	SoftwareInstallStore            fleet.SoftwareInstallerStore
-	BootstrapPackageStore           fleet.MDMBootstrapPackageStore
-	SoftwareTitleIconStore          fleet.SoftwareTitleIconStore
-	StagedUploadStore               fleet.StagedUploadStore
-	KeyValueStore                   fleet.KeyValueStore
+	SoftwareInstallStore            automdm.SoftwareInstallerStore
+	BootstrapPackageStore           automdm.MDMBootstrapPackageStore
+	SoftwareTitleIconStore          automdm.SoftwareTitleIconStore
+	StagedUploadStore               automdm.StagedUploadStore
+	KeyValueStore                   automdm.KeyValueStore
 	EnableSCEPProxy                 bool
 	WithDEPWebview                  bool
 	FeatureRoutes                   []endpointer.HandlerRoutesFunc
-	SCEPConfigService               fleet.SCEPConfigService
-	DigiCertService                 fleet.DigiCertService
-	GoogleCASService                fleet.GoogleCASService
+	SCEPConfigService               automdm.SCEPConfigService
+	DigiCertService                 automdm.DigiCertService
+	GoogleCASService                automdm.GoogleCASService
 	EnableSCIM                      bool
 	ConditionalAccessMicrosoftProxy ConditionalAccessMicrosoftProxy
-	// ConditionalAccessGoogleClient replaces fleetdm.com and Google.
+	// ConditionalAccessGoogleClient replaces automdm.com and Google.
 	ConditionalAccessGoogleClient *GoogleConditionalAccessClient
 	HostIdentity                  *HostIdentity
 	AndroidMockClient             *android_mock.Client
@@ -108,7 +108,7 @@ type TestServerOpts struct {
 
 	// ActivityMock is populated automatically when a test service is built.
 	// After setup, tests can use it to intercept or assert on activity creation.
-	ActivityMock *fleet_mock.MockActivityService
+	ActivityMock *automdm_mock.MockActivityService
 
 	// NotificationsSvc is populated automatically when DBConns is set and a
 	// real notifications bounded context is built. Tests can use it to
@@ -121,7 +121,7 @@ type TestServerOpts struct {
 
 	// NotificationsMock is populated automatically when a test service is built,
 	// and is what the service uses unless DBConns replaced it with NotificationsSvc.
-	NotificationsMock *fleet_mock.MockNotificationsService
+	NotificationsMock *automdm_mock.MockNotificationsService
 
 	// MicrosoftGraphClientFactory overrides the Graph client used to verify a credential on config write.
 	MicrosoftGraphClientFactory msgraph.ClientFactory
@@ -130,23 +130,23 @@ type TestServerOpts struct {
 	ACMECertKey *ecdsa.PrivateKey
 }
 
-// memFailingPolicySet is an in-memory fleet.FailingPolicySet used by tests.
+// memFailingPolicySet is an in-memory automdm.FailingPolicySet used by tests.
 type memFailingPolicySet struct {
 	mMu sync.RWMutex
-	m   map[uint][]fleet.PolicySetHost
+	m   map[uint][]automdm.PolicySetHost
 }
 
-var _ fleet.FailingPolicySet = (*memFailingPolicySet)(nil)
+var _ automdm.FailingPolicySet = (*memFailingPolicySet)(nil)
 
 // NewMemFailingPolicySet returns a new in-memory FailingPolicySet.
 func NewMemFailingPolicySet() *memFailingPolicySet {
 	return &memFailingPolicySet{
-		m: make(map[uint][]fleet.PolicySetHost),
+		m: make(map[uint][]automdm.PolicySetHost),
 	}
 }
 
 // AddHost adds the given host to the policy set.
-func (m *memFailingPolicySet) AddHost(policyID uint, host fleet.PolicySetHost) error {
+func (m *memFailingPolicySet) AddHost(policyID uint, host automdm.PolicySetHost) error {
 	m.mMu.Lock()
 	defer m.mMu.Unlock()
 
@@ -155,17 +155,17 @@ func (m *memFailingPolicySet) AddHost(policyID uint, host fleet.PolicySetHost) e
 }
 
 // ListHosts returns the list of hosts present in the policy set.
-func (m *memFailingPolicySet) ListHosts(policyID uint) ([]fleet.PolicySetHost, error) {
+func (m *memFailingPolicySet) ListHosts(policyID uint) ([]automdm.PolicySetHost, error) {
 	m.mMu.RLock()
 	defer m.mMu.RUnlock()
 
-	hosts := make([]fleet.PolicySetHost, len(m.m[policyID]))
+	hosts := make([]automdm.PolicySetHost, len(m.m[policyID]))
 	copy(hosts, m.m[policyID])
 	return hosts, nil
 }
 
 // RemoveHosts removes the hosts from the policy set.
-func (m *memFailingPolicySet) RemoveHosts(policyID uint, hosts []fleet.PolicySetHost) error {
+func (m *memFailingPolicySet) RemoveHosts(policyID uint, hosts []automdm.PolicySetHost) error {
 	m.mMu.Lock()
 	defer m.mMu.Unlock()
 
@@ -208,7 +208,7 @@ func (m *memFailingPolicySet) ListSets() ([]uint, error) {
 	return policyIDs, nil
 }
 
-// memSoftwareInstallAttemptCounter is an in-memory fleet.SoftwareInstallAttemptCounter used by tests.
+// memSoftwareInstallAttemptCounter is an in-memory automdm.SoftwareInstallAttemptCounter used by tests.
 type memSoftwareInstallAttemptCounter struct {
 	mMu sync.RWMutex
 	m   map[string]memInstallAttempt
@@ -221,7 +221,7 @@ type memInstallAttempt struct {
 	expiresAt time.Time
 }
 
-var _ fleet.SoftwareInstallAttemptCounter = (*memSoftwareInstallAttemptCounter)(nil)
+var _ automdm.SoftwareInstallAttemptCounter = (*memSoftwareInstallAttemptCounter)(nil)
 
 // NewMemSoftwareInstallAttemptCounter returns a new in-memory SoftwareInstallAttemptCounter.
 func NewMemSoftwareInstallAttemptCounter() *memSoftwareInstallAttemptCounter {
@@ -287,22 +287,22 @@ func (m *memSoftwareInstallAttemptCounter) ResetInstallerAttempts(ctx context.Co
 // immediatePolicyMembershipCleanup stands in for the policy_membership_cleanup schedule in tests: a trigger runs the
 // cleanup before returning, so a test sees the results of a policy change right after it.
 type immediatePolicyMembershipCleanup struct {
-	ds fleet.Datastore
+	ds automdm.Datastore
 }
 
 // RegisterImmediatePolicyMembershipCleanup makes triggers of the policy_membership_cleanup schedule run the cleanup
 // immediately. A mocked datastore is skipped, since it only implements what a test sets, including one wrapped in the
-// cached datastore, as fleetctl tests do.
-func RegisterImmediatePolicyMembershipCleanup(schedules *fleet.CronSchedules, ds fleet.Datastore) {
+// cached datastore, as automdmctl tests do.
+func RegisterImmediatePolicyMembershipCleanup(schedules *automdm.CronSchedules, ds automdm.Datastore) {
 	switch unwrapDatastore(ds).(type) {
-	case *fleet_mock.Store, *fleet_mock.DataStore:
+	case *automdm_mock.Store, *automdm_mock.DataStore:
 		return
 	}
-	schedules.Schedules[string(fleet.CronPolicyMembershipCleanup)] = immediatePolicyMembershipCleanup{ds: ds}
+	schedules.Schedules[string(automdm.CronPolicyMembershipCleanup)] = immediatePolicyMembershipCleanup{ds: ds}
 }
 
-// unwrapDatastore returns the datastore that ds wraps through an embedded fleet.Datastore, as the cached datastore does.
-func unwrapDatastore(ds fleet.Datastore) fleet.Datastore {
+// unwrapDatastore returns the datastore that ds wraps through an embedded automdm.Datastore, as the cached datastore does.
+func unwrapDatastore(ds automdm.Datastore) automdm.Datastore {
 	for {
 		v := reflect.ValueOf(ds)
 		if v.Kind() != reflect.Pointer || v.Elem().Kind() != reflect.Struct {
@@ -312,7 +312,7 @@ func unwrapDatastore(ds fleet.Datastore) fleet.Datastore {
 		if !ok || !field.Anonymous {
 			return ds
 		}
-		inner, ok := reflect.TypeAssert[fleet.Datastore](v.Elem().FieldByIndex(field.Index))
+		inner, ok := reflect.TypeAssert[automdm.Datastore](v.Elem().FieldByIndex(field.Index))
 		if !ok || inner == nil {
 			return ds
 		}
@@ -320,12 +320,12 @@ func unwrapDatastore(ds fleet.Datastore) fleet.Datastore {
 	}
 }
 
-func (c immediatePolicyMembershipCleanup) Trigger(ctx context.Context) (*fleet.CronStats, bool, error) {
+func (c immediatePolicyMembershipCleanup) Trigger(ctx context.Context) (*automdm.CronStats, bool, error) {
 	return nil, true, c.ds.CleanupPendingPolicyMembership(ctx)
 }
 
 func (c immediatePolicyMembershipCleanup) Name() string {
-	return string(fleet.CronPolicyMembershipCleanup)
+	return string(automdm.CronPolicyMembershipCleanup)
 }
 
 func (c immediatePolicyMembershipCleanup) Start() {}

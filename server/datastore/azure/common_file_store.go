@@ -11,8 +11,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/bloberror"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/sas"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -147,7 +147,7 @@ func (s *commonFileStore) Cleanup(ctx context.Context, usedFileIDs []string, rem
 
 func (s *commonFileStore) Sign(ctx context.Context, fileID string, expiresIn time.Duration) (string, error) {
 	if !s.signedURL {
-		return "", ctxerr.Wrapf(ctx, fleet.ErrNotConfigured, "signing %s URL in Azure Blob store", s.fileLabel)
+		return "", ctxerr.Wrapf(ctx, automdm.ErrNotConfigured, "signing %s URL in Azure Blob store", s.fileLabel)
 	}
 
 	key := s.keyForFile(fileID)

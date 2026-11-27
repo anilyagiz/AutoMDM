@@ -153,7 +153,7 @@ describe("Dashboard software card", () => {
     expect(row).toBeInTheDocument();
     fireEvent.click(row);
     expect(router.push).toHaveBeenCalledWith(
-      "/hosts/manage?software_version_id=784&fleet_id=7"
+      "/hosts/manage?software_version_id=784&team_id=7"
     );
   });
 });

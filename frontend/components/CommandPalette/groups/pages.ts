@@ -17,7 +17,7 @@ const buildPagesItems = (
   const {
     hasTeamOrUnassigned,
     switchesFromUnassigned,
-    switchesFromAllFleets,
+    switchesFromAllTeams,
   } = derived;
 
   return [
@@ -63,7 +63,7 @@ const buildPagesItems = (
             group: "Pages" as const,
             path: withTeamId(paths.CONTROLS),
             keywords: ["mdm", "os settings", "os updates"],
-            teamName: switchesFromAllFleets,
+            teamName: switchesFromAllTeams,
           },
         ]
       : []),

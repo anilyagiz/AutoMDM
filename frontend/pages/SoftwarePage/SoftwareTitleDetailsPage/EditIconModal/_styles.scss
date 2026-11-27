@@ -8,19 +8,19 @@
   }
 
   .self-service-preview__preview-card {
-    height: 230px; // Match height of Fleet UI preview
+    height: 230px; // Match height of AutoMDM UI preview
   }
 
   &__preview-card {
     height: 230px; // Match height of self-service preview
     overflow: hidden;
 
-    &__fleet,
+    &__team,
     &__self-service {
       width: 500px;
     }
 
-    &__fleet {
+    &__team {
       h1 {
         width: 400px;
         overflow: hidden;
@@ -85,17 +85,17 @@
     position: relative;
     width: 550px;
 
-    // Fades to the surface background — color-mix() with --core-fleet-white
+    // Fades to the surface background — color-mix() with --core-automdm-white
     // keeps this dark-mode aware instead of hardcoding the light-mode hex
     // (matches the veil pattern in components/EmptyState/_styles.scss).
     background: linear-gradient(
       180deg,
-      color-mix(in srgb, var(--core-fleet-white) 0%, transparent) 0%,
-      color-mix(in srgb, var(--core-fleet-white) 75%, transparent) 29.33%,
-      var(--core-fleet-white) 83.17%
+      color-mix(in srgb, var(--core-automdm-white) 0%, transparent) 0%,
+      color-mix(in srgb, var(--core-automdm-white) 75%, transparent) 29.33%,
+      var(--core-automdm-white) 83.17%
     );
 
-    &--fleet {
+    &--team {
       bottom: 130px;
       height: 135px;
     }

@@ -11,8 +11,8 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/mdm/scep/depot"
-	scepmock "github.com/fleetdm/fleet/v4/server/mock/scep"
+	"github.com/anilyagiz/automdm/v4/server/mdm/scep/depot"
+	scepmock "github.com/anilyagiz/automdm/v4/server/mock/scep"
 	"github.com/stretchr/testify/require"
 )
 

@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/test/e2e"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/test/e2e"
 	_ "github.com/go-sql-driver/mysql"
 )
 

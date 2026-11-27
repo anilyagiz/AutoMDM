@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/pkg/optjson"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/pkg/optjson"
 	"github.com/stretchr/testify/require"
 )
 
@@ -250,7 +250,7 @@ func TestIngestValidations(t *testing.T) {
 		t.Run(c.inputApp.Token, func(t *testing.T) {
 			i := &brewIngester{
 				logger:           slog.New(slog.DiscardHandler),
-				client:           fleethttp.NewClient(fleethttp.WithTimeout(10 * time.Second)),
+				client:           automdmhttp.NewClient(automdmhttp.WithTimeout(10 * time.Second)),
 				baseURL:          srv.URL + "/",
 				buildhubURL:      buildhubSrv.URL,
 				retryInterval:    time.Millisecond,
@@ -555,7 +555,7 @@ func TestIngestRetriesTransientErrors(t *testing.T) {
 
 		i := &brewIngester{
 			logger:           slog.New(slog.DiscardHandler),
-			client:           fleethttp.NewClient(fleethttp.WithTimeout(10 * time.Second)),
+			client:           automdmhttp.NewClient(automdmhttp.WithTimeout(10 * time.Second)),
 			baseURL:          srv.URL + "/",
 			retryInterval:    time.Millisecond,
 			retryMaxAttempts: 5,
@@ -577,7 +577,7 @@ func TestIngestRetriesTransientErrors(t *testing.T) {
 
 		i := &brewIngester{
 			logger:           slog.New(slog.DiscardHandler),
-			client:           fleethttp.NewClient(fleethttp.WithTimeout(10 * time.Second)),
+			client:           automdmhttp.NewClient(automdmhttp.WithTimeout(10 * time.Second)),
 			baseURL:          srv.URL + "/",
 			retryInterval:    time.Millisecond,
 			retryMaxAttempts: 3,
@@ -598,7 +598,7 @@ func TestIngestRetriesTransientErrors(t *testing.T) {
 
 		i := &brewIngester{
 			logger:           slog.New(slog.DiscardHandler),
-			client:           fleethttp.NewClient(fleethttp.WithTimeout(10 * time.Second)),
+			client:           automdmhttp.NewClient(automdmhttp.WithTimeout(10 * time.Second)),
 			baseURL:          srv.URL + "/",
 			retryInterval:    time.Millisecond,
 			retryMaxAttempts: 5,
@@ -639,7 +639,7 @@ func TestIngestCaskPath(t *testing.T) {
 	ctx := context.Background()
 	i := &brewIngester{
 		logger:  slog.New(slog.DiscardHandler),
-		client:  fleethttp.NewClient(fleethttp.WithTimeout(10 * time.Second)),
+		client:  automdmhttp.NewClient(automdmhttp.WithTimeout(10 * time.Second)),
 		baseURL: srv.URL + "/",
 	}
 
@@ -902,7 +902,7 @@ func TestFirefoxDevEditionBuildhubFallback(t *testing.T) {
 
 			i := &brewIngester{
 				logger:           slog.New(slog.DiscardHandler),
-				client:           fleethttp.NewClient(fleethttp.WithTimeout(10 * time.Second)),
+				client:           automdmhttp.NewClient(automdmhttp.WithTimeout(10 * time.Second)),
 				baseURL:          brewSrv.URL + "/",
 				buildhubURL:      buildhubSrv.URL,
 				retryInterval:    time.Millisecond,

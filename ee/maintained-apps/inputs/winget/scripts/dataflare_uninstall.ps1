@@ -7,7 +7,7 @@
 
 $displayNamePattern = '^Dataflare$'
 $publisher = "dataflare"
-$taskName = "fleet-uninstall-dataflare"
+$taskName = "automdm-uninstall-dataflare"
 $appDir = "AppData\Local\Dataflare"  # in each user's profile
 $taskRunning = 267009  # SCHED_S_TASK_RUNNING
 $timeoutSeconds = 300

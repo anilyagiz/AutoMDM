@@ -1439,7 +1439,7 @@ class CertificateOrchestratorTest {
         // burning the DNS retry window on each subsequent cert.
         //
         // Covers two cases:
-        //  - Direct UnknownHostException from the Fleet API template fetch.
+        //  - Direct UnknownHostException from the AutoMDM API template fetch.
         //  - UnknownHostException wrapped in ScepNetworkException during SCEP enrollment (the
         //    orchestrator must walk the cause chain to detect it).
 

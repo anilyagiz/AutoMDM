@@ -1,16 +1,16 @@
-module github.com/fleetdm/fleet/v4/tools/upgrade
+module github.com/anilyagiz/automdm/v4/tools/upgrade
 
 go 1.27.4
 
-// The parent fleet module is pinned to the local checkout so this
-// standalone upgrade test can import fleethttp and the service client.
+// The parent automdm module is pinned to the local checkout so this
+// standalone upgrade test can import automdmhttp and the service client.
 // Keeping it as its own module keeps the Docker client dependency out of
-// the main fleet module (it is only ever used by this test).
-replace github.com/fleetdm/fleet/v4 => ../..
+// the main automdm module (it is only ever used by this test).
+replace github.com/anilyagiz/automdm/v4 => ../..
 
 require (
 	github.com/cenkalti/backoff v2.2.1+incompatible
-	github.com/fleetdm/fleet/v4 v4.0.0-00010101000000-000000000000
+	github.com/anilyagiz/automdm/v4 v4.0.0-00010101000000-000000000000
 	github.com/go-sql-driver/mysql v1.9.3
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/moby/moby/client v0.5.1

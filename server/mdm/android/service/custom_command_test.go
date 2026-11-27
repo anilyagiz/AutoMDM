@@ -3,7 +3,7 @@ package service
 import (
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/api/androidmanagement/v1"
 )
@@ -39,7 +39,7 @@ func TestAndroidCustomCommandType(t *testing.T) {
 			want: string(android.MDMAndroidCommandTypeWipe),
 		},
 		{
-			// Other param-inferred types have no side effect in Fleet, so they stay CUSTOM.
+			// Other param-inferred types have no side effect in AutoMDM, so they stay CUSTOM.
 			name: "other inferable params stay custom",
 			cmd:  androidmanagement.Command{ClearAppsDataParams: &androidmanagement.ClearAppsDataParams{}},
 			want: "CUSTOM",

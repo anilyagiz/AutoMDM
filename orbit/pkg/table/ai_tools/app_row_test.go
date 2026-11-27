@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/ai_tools/internal/apps"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/ai_tools/internal/apps"
 )
 
 // TestAppRow locks in the apps column semantics: `name` carries the installed

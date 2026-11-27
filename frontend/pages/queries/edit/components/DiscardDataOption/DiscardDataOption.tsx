@@ -33,11 +33,11 @@ const DiscardDataOption = ({
     <>
       {isDisabled ? (
         <>
-          This setting is ignored since report results in Fleet have been{" "}
+          This setting is ignored since report results in AutoMDM have been{" "}
           <TooltipWrapper
             tipContent={
               <>
-                A Fleet administrator can enable report results under
+                An AutoMDM administrator can enable report results under
                 <strong>
                   Organization settings &gt; Advanced options &gt; Store report
                   results
@@ -59,12 +59,12 @@ const DiscardDataOption = ({
           >
             <>
               Edit anyway
-              <Icon name="chevron-right" color="ui-fleet-black-75" />
+              <Icon name="chevron-right" color="ui-automdm-black-75" />
             </>
           </Button>
         </>
       ) : (
-        "When disabled, results will not be available in Fleet."
+        "When disabled, results will not be available in AutoMDM."
       )}
     </>
   );
@@ -74,7 +74,7 @@ const DiscardDataOption = ({
       {isReportsLoggingIgnored && (
         <InfoBanner>
           The <b>Store data</b> setting is ignored when differential logging is
-          enabled. This report&apos;s results will not be saved in Fleet.
+          enabled. This report&apos;s results will not be saved in AutoMDM.
         </InfoBanner>
       )}
       <Checkbox

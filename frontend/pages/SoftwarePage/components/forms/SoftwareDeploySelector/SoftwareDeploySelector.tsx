@@ -72,7 +72,7 @@ const END_USER_EXPERIENCE_OPTIONS: CustomOptionType[] = [
  * would point at a feature the user has no way to reach and gets suppressed.
  */
 const ImmediateBanner = ({ showLink }: { showLink: boolean }) => (
-  <InfoBanner icon="error" iconColor="ui-fleet-black-50">
+  <InfoBanner icon="error" iconColor="ui-automdm-black-50">
     End user is not notified. Patch is forced as soon as policy fails.
     {showLink && (
       <>
@@ -88,9 +88,9 @@ const ImmediateBanner = ({ showLink }: { showLink: boolean }) => (
 );
 
 const NotifyBanner = () => (
-  <InfoBanner icon="error" iconColor="ui-fleet-black-50">
+  <InfoBanner icon="error" iconColor="ui-automdm-black-50">
     End user is notified when the policy fails. Patch is forced <b>1 hour</b>{" "}
-    later. Fleet Desktop is required.{" "}
+    later. AutoMDM Desktop is required.{" "}
     <CustomLink
       url={END_USER_EXPERIENCE_LINK}
       text="End user experience"
@@ -100,31 +100,31 @@ const NotifyBanner = () => (
 );
 
 const WindowsBanner = () => (
-  <InfoBanner icon="error" iconColor="ui-fleet-black-50">
+  <InfoBanner icon="error" iconColor="ui-automdm-black-50">
     End user is not notified. Patch is forced as soon as policy fails.
     Notifications for Windows are coming soon.
   </InfoBanner>
 );
 
-/** Banner for Force patch -> Deadline. Reads the fleet's days + time from the
+/** Banner for Force patch -> Deadline. Reads the team's days + time from the
  * patch_deadline_settings API via the shared hook so the Library settings
  * page and the banner dedupe through the same React Query cache key. The
  * "Edit deadline" action uses browserHistory.push rather than an anchor tag
  * so navigation stays in-SPA — a hard navigation would spin up a fresh
  * QueryClient on the settings page, and the settings page's
- * invalidateQueries(["patchDeadlineSettings", fleetId]) wouldn't reach this
- * banner on Back (the banner would show stale days/time). Without a fleetId
+ * invalidateQueries(["patchDeadlineSettings", automdmId]) wouldn't reach this
+ * banner on Back (the banner would show stale days/time). Without an automdmId
  * it skips the fetch and shows placeholders. */
-const DeadlineBanner = ({ fleetId }: { fleetId?: number }) => {
-  const { data } = usePatchDeadlineSettings(fleetId);
+const DeadlineBanner = ({ automdmId }: { automdmId?: number }) => {
+  const { data } = usePatchDeadlineSettings(automdmId);
   const daysLabel = formatWeekdayList(data?.days ?? []);
   const timeLabel = data?.time ? internationalTimeOnlyFormat(data.time) : "";
   const settingsPath = getPathWithQueryParams(
     PATHS.SOFTWARE_LIBRARY_SETTINGS_PATCH_DEADLINE,
-    { fleet_id: fleetId }
+    { team_id: automdmId }
   );
   return (
-    <InfoBanner icon="error" iconColor="ui-fleet-black-50">
+    <InfoBanner icon="error" iconColor="ui-automdm-black-50">
       Patch is done silently when app is closed or forced on{" "}
       <b>
         {daysLabel || "---"}
@@ -154,10 +154,10 @@ interface ISoftwareDeploySelectorProps {
   platform?: string;
   endUserExperience?: EndUserExperience;
   onSelectEndUserExperience?: (value: EndUserExperience) => void;
-  /** Fleet id used by the Deadline banner to fetch the fleet's days + time
+  /** Team id used by the Deadline banner to fetch the team's days + time
    * and build the "Edit deadline" link. Required to show Deadline details;
    * when absent the dropdown still works but the banner renders placeholders. */
-  fleetId?: number;
+  automdmId?: number;
 }
 
 interface IPatchOptionSelectorProps {
@@ -168,7 +168,7 @@ interface IPatchOptionSelectorProps {
   platform?: string;
   endUserExperience?: EndUserExperience;
   onSelectEndUserExperience?: (value: EndUserExperience) => void;
-  fleetId?: number;
+  automdmId?: number;
 }
 
 export const PatchOptionSelector = ({
@@ -179,7 +179,7 @@ export const PatchOptionSelector = ({
   platform,
   endUserExperience = "deadline",
   onSelectEndUserExperience,
-  fleetId,
+  automdmId,
 }: IPatchOptionSelectorProps) => {
   const onChangePatchOption = (value: string) =>
     onSelectPatchOption(value as PatchOption);
@@ -202,7 +202,7 @@ export const PatchOptionSelector = ({
     // strings, so precedence matters here.
     if (isMacOS(platform)) {
       if (endUserExperience === "deadline") {
-        return <DeadlineBanner fleetId={fleetId} />;
+        return <DeadlineBanner automdmId={automdmId} />;
       }
       if (endUserExperience === "notify") {
         return <NotifyBanner />;
@@ -289,7 +289,7 @@ const SoftwareDeploySelector = ({
   platform,
   endUserExperience,
   onSelectEndUserExperience,
-  fleetId,
+  automdmId,
 }: ISoftwareDeploySelectorProps) => {
   return (
     <div className={`form-field ${baseClass}`}>
@@ -321,7 +321,7 @@ const SoftwareDeploySelector = ({
           platform={platform}
           endUserExperience={endUserExperience}
           onSelectEndUserExperience={onSelectEndUserExperience}
-          fleetId={fleetId}
+          automdmId={automdmId}
         />
       )}
     </div>

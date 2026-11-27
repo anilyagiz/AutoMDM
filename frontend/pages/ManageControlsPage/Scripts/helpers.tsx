@@ -1,6 +1,6 @@
 import React from "react";
 
-import { HumanTimeDiffWithFleetLaunchCutoff } from "components/HumanTimeDiffWithDateTip";
+import { HumanTimeDiffWithTeamLaunchCutoff } from "components/HumanTimeDiffWithDateTip";
 import Icon from "components/Icon";
 import { IScriptBatchSummaryV2 } from "services/entities/scripts";
 import { isDateTimePast } from "utilities/helpers";
@@ -34,9 +34,9 @@ export const getWhen = (summary: IScriptBatchSummaryV2) => {
       }
       return (
         <>
-          <Icon name="pending" color="ui-fleet-black-50" />
+          <Icon name="pending" color="ui-automdm-black-50" />
           Started{" "}
-          <HumanTimeDiffWithFleetLaunchCutoff
+          <HumanTimeDiffWithTeamLaunchCutoff
             timeString={started_at}
             tooltipPosition="right"
           />
@@ -51,9 +51,9 @@ export const getWhen = (summary: IScriptBatchSummaryV2) => {
       }
       return (
         <>
-          <Icon name="clock" color="ui-fleet-black-50" />
+          <Icon name="clock" color="ui-automdm-black-50" />
           Will start{" "}
-          <HumanTimeDiffWithFleetLaunchCutoff
+          <HumanTimeDiffWithTeamLaunchCutoff
             timeString={not_before}
             tooltipPosition="right"
           />
@@ -70,10 +70,10 @@ export const getWhen = (summary: IScriptBatchSummaryV2) => {
         <>
           <Icon
             name={canceled ? "close" : "success"}
-            color="ui-fleet-black-50"
+            color="ui-automdm-black-50"
           />
           {canceled ? "Canceled" : "Completed"}
-          <HumanTimeDiffWithFleetLaunchCutoff
+          <HumanTimeDiffWithTeamLaunchCutoff
             timeString={finished_at}
             tooltipPosition="right"
           />

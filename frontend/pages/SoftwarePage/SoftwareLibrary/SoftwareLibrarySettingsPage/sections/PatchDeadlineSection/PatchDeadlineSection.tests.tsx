@@ -39,7 +39,7 @@ jest.mock("components/ToastNotification", () => ({
 }));
 
 interface IWrapperProps {
-  fleetId?: number;
+  automdmId?: number;
   router?: InjectedRouter;
 }
 
@@ -49,7 +49,7 @@ interface IWrapperProps {
 // even though it doesn't read them, which keeps parity with the sibling
 // categories section tests.
 const SectionWrapper = ({
-  fleetId = 1,
+  automdmId = 1,
   router = createMockRouter(),
 }: IWrapperProps) => {
   const {
@@ -69,11 +69,11 @@ const SectionWrapper = ({
       router={router}
       location={{
         pathname: "/software/library/settings/patch-deadline",
-        search: "?fleet_id=1",
-        query: { fleet_id: "1" },
+        search: "?team_id=1",
+        query: { team_id: "1" },
         hash: "",
       }}
-      fleetId={fleetId}
+      automdmId={automdmId}
       isRouteOk
       canManage={canManage}
       gitOpsModeEnabled={gitOpsModeEnabled}
@@ -108,7 +108,7 @@ const premiumAdminGitOpsContext = {
     config: createMockConfig({
       gitops: {
         gitops_mode_enabled: true,
-        repository_url: "https://github.com/example/fleet-gitops",
+        repository_url: "https://github.com/example/automdm-gitops",
         exceptions: { labels: false, software: false, secrets: true },
       },
     }),
@@ -209,7 +209,7 @@ describe("PatchDeadlineSection", () => {
     expect(await screen.findByText("Enter time as HH:MM")).toBeInTheDocument();
   });
 
-  it("surfaces a 404 for a missing fleet instead of seeding defaults", async () => {
+  it("surfaces a 404 for a missing team instead of seeding defaults", async () => {
     mockServer.use(getPatchDeadlineSettingsNotFoundHandler);
     const render = createCustomRenderer({
       withBackendMock: true,
@@ -299,7 +299,7 @@ describe("PatchDeadlineSection", () => {
       );
     });
     expect(patchBody).toEqual({
-      fleet_id: 1,
+      team_id: 1,
       days: ["tuesday", "thursday"],
       time: "17:00",
     });
@@ -339,7 +339,7 @@ describe("PatchDeadlineSection", () => {
 
     render(<SectionWrapper />);
 
-    // Fleet's Checkbox renders a div with role=checkbox + aria-disabled, so
+    // AutoMDM's Checkbox renders a div with role=checkbox + aria-disabled, so
     // jest-dom's toBeDisabled() doesn't match it. Native inputs still do.
     const tuesday = await screen.findByRole("checkbox", { name: "Tuesday" });
     expect(tuesday).toHaveAttribute("aria-disabled", "true");
@@ -361,7 +361,7 @@ describe("PatchDeadlineSection", () => {
     const tuesday = await screen.findByRole("checkbox", { name: "Tuesday" });
     expect(screen.getByRole("button", { name: /save/i })).toBeDisabled();
     // Fields disable too so a GitOps admin isn't able to edit values they
-    // can never persist. Fleet's custom checkbox div surfaces its disabled
+    // can never persist. AutoMDM's custom checkbox div surfaces its disabled
     // state via aria-disabled; the native time input via disabled.
     expect(tuesday).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByLabelText("Time")).toBeDisabled();
@@ -412,7 +412,7 @@ describe("PatchDeadlineSection", () => {
   });
 
   describe("Apps table", () => {
-    it("hides the Apps section and the 'listed below' pointer when the fleet has no deadline apps", async () => {
+    it("hides the Apps section and the 'listed below' pointer when the team has no deadline apps", async () => {
       const onPoliciesRequest = jest.fn();
       mockServer.use(
         getPatchDeadlineSettingsHandler(),
@@ -457,7 +457,7 @@ describe("PatchDeadlineSection", () => {
       expect(screen.queryByText("Notify app")).not.toBeInTheDocument();
     });
 
-    it("opens the software title in the current fleet when a row is clicked", async () => {
+    it("opens the software title in the current team when a row is clicked", async () => {
       mockServer.use(
         getPatchDeadlineSettingsHandler(),
         getPatchDeadlineAppsHandler(
@@ -471,12 +471,12 @@ describe("PatchDeadlineSection", () => {
         context: premiumAdminContext,
       });
 
-      const { user } = render(<SectionWrapper fleetId={3} router={router} />);
+      const { user } = render(<SectionWrapper automdmId={3} router={router} />);
 
       await user.click(await screen.findByText("Figma"));
 
       expect(router.push).toHaveBeenCalledWith(
-        "/software/titles/42?fleet_id=3"
+        "/software/titles/42?team_id=3"
       );
     });
 
@@ -518,48 +518,48 @@ describe("PatchDeadlineSection", () => {
       expect(screen.queryByText("AAAAA")).not.toBeInTheDocument();
     });
 
-    it("rewinds to page 0 when the fleet switches", async () => {
-      // Two multi-page fleets: user navigates to page 2 of fleet 1, then the
-      // fleet dropdown switches to fleet 2. Pagination must reset so the user
-      // sees fleet 2's PAGE 1 (prefix), not page 2 (suffix).
-      const fleet1Apps = Array.from({ length: 12 }, (_, i) => ({
+    it("rewinds to page 0 when the team switches", async () => {
+      // Two multi-page teams: user navigates to page 2 of team 1, then the
+      // team dropdown switches to team 2. Pagination must reset so the user
+      // sees team 2's PAGE 1 (prefix), not page 2 (suffix).
+      const automdm1Apps = Array.from({ length: 12 }, (_, i) => ({
         id: i + 1,
-        name: `fleet1-${String.fromCharCode(65 + i)}`, // fleet1-A..fleet1-L
+        name: `automdm1-${String.fromCharCode(65 + i)}`, // automdm1-A..automdm1-L
       }));
-      const fleet2Apps = Array.from({ length: 12 }, (_, i) => ({
+      const automdm2Apps = Array.from({ length: 12 }, (_, i) => ({
         id: 100 + i,
-        name: `fleet2-${String.fromCharCode(65 + i)}`, // fleet2-A..fleet2-L
+        name: `automdm2-${String.fromCharCode(65 + i)}`, // automdm2-A..automdm2-L
       }));
       mockServer.use(
         getPatchDeadlineSettingsHandler(),
-        getPatchDeadlineAppsHandler(fleet1Apps)
+        getPatchDeadlineAppsHandler(automdm1Apps)
       );
       const render = createCustomRenderer({
         withBackendMock: true,
         context: premiumAdminContext,
       });
 
-      const { user, rerender } = render(<SectionWrapper fleetId={1} />);
+      const { user, rerender } = render(<SectionWrapper automdmId={1} />);
 
       // Wait past the settings-query spinner before asserting on apps.
       await screen.findByRole("checkbox", { name: "Tuesday" });
-      await screen.findByText("fleet1-A");
+      await screen.findByText("automdm1-A");
       await user.click(screen.getByRole("button", { name: /next/i }));
-      // Confirm page 2 rendered before the fleet switch.
-      await screen.findByText("fleet1-K");
+      // Confirm page 2 rendered before the team switch.
+      await screen.findByText("automdm1-K");
 
-      // Fleet switch: wrapper re-renders with a new fleetId, which should
+      // AutoMDM switch: wrapper re-renders with a new automdmId, which should
       // trigger the page-reset effect and a fresh apps query.
-      mockServer.use(getPatchDeadlineAppsHandler(fleet2Apps, 2));
-      rerender(<SectionWrapper fleetId={2} />);
+      mockServer.use(getPatchDeadlineAppsHandler(automdm2Apps, 2));
+      rerender(<SectionWrapper automdmId={2} />);
 
-      // Fleet 2 page 1: A-J visible, K-L not. The settings query may spin
-      // during the fleet switch, so wait past the spinner before asserting.
+      // AutoMDM 2 page 1: A-J visible, K-L not. The settings query may spin
+      // during the team switch, so wait past the spinner before asserting.
       await waitFor(() =>
-        expect(screen.getByText("fleet2-A")).toBeInTheDocument()
+        expect(screen.getByText("automdm2-A")).toBeInTheDocument()
       );
-      expect(screen.getByText("fleet2-J")).toBeInTheDocument();
-      expect(screen.queryByText("fleet2-K")).not.toBeInTheDocument();
+      expect(screen.getByText("automdm2-J")).toBeInTheDocument();
+      expect(screen.queryByText("automdm2-K")).not.toBeInTheDocument();
     });
 
     it("renders a direct icon_url when the policy carries one", async () => {
@@ -595,7 +595,7 @@ describe("PatchDeadlineSection", () => {
     });
 
     it("shows a DataError in the Apps slot when the policies query fails", async () => {
-      // Hard-fail distinguishes from "fleet has no deadline apps" (which hides
+      // Hard-fail distinguishes from "team has no deadline apps" (which hides
       // the whole subsection). Section header stays so the user knows what
       // broke; the "listed below" pointer stays hidden because we don't know.
       mockServer.use(
@@ -613,7 +613,7 @@ describe("PatchDeadlineSection", () => {
       expect(
         await screen.findByRole("heading", { level: 2, name: "Apps" })
       ).toBeInTheDocument();
-      // Fleet's DataError card copy.
+      // AutoMDM's DataError card copy.
       expect(screen.getByText(/something's gone wrong/i)).toBeInTheDocument();
       // Pointer sentence doesn't appear when we don't know whether apps exist.
       expect(

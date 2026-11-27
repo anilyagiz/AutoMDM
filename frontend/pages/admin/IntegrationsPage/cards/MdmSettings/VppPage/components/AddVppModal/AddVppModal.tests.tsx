@@ -16,7 +16,7 @@ jest.mock("components/ToastNotification", () => ({
 }));
 
 const availableTeams = [
-  createMockTeamSummary({ id: -1, name: "All fleets" }),
+  createMockTeamSummary({ id: -1, name: "All teams" }),
   createMockTeamSummary({ id: 1, name: "Workstations" }),
   createMockTeamSummary({ id: 2, name: "Personal mobile devices" }),
   createMockTeamSummary({ id: 0, name: "Unassigned" }),
@@ -35,7 +35,7 @@ const mockEndpoints = ({ patchStatus = 200 }: IMockOptions = {}) => {
       calls.posts += 1;
       return HttpResponse.json({ token: newToken }, { status: 202 });
     }),
-    http.patch(baseUrl("/vpp_tokens/9/fleets"), async ({ request }) => {
+    http.patch(baseUrl("/vpp_tokens/9/teams"), async ({ request }) => {
       calls.patches.push(await request.json());
       return patchStatus === 200
         ? HttpResponse.json({})
@@ -85,21 +85,21 @@ describe("AddVppModal", () => {
     expect(screen.queryByText("Learn how")).toBeNull();
   });
 
-  it("links to the token best practices from the Fleets tooltip", async () => {
+  it("links to the token best practices from the Teams tooltip", async () => {
     const { user } = renderModal();
 
-    await user.hover(screen.getByText("Fleets"));
+    await user.hover(screen.getByText("Teams"));
 
     const tooltip = await screen.findByRole("tooltip");
     expect(
       within(tooltip).getByRole("link", { name: /Learn more/ })
     ).toHaveAttribute(
       "href",
-      "https://fleetdm.com/learn-more-about/vpp-tokens-best-practice"
+      "https://automdm.com/learn-more-about/vpp-tokens-best-practice"
     );
   });
 
-  it("disables the fleet picker while the upload is in flight", async () => {
+  it("disables the team picker while the upload is in flight", async () => {
     let finishPost!: () => void;
     const postPending = new Promise<void>((resolve) => {
       finishPost = resolve;
@@ -109,33 +109,33 @@ describe("AddVppModal", () => {
         await postPending;
         return HttpResponse.json({ token: newToken }, { status: 202 });
       }),
-      http.patch(baseUrl("/vpp_tokens/9/fleets"), () => HttpResponse.json({}))
+      http.patch(baseUrl("/vpp_tokens/9/teams"), () => HttpResponse.json({}))
     );
     const { user, onAdded } = renderModal();
 
     await upload(user);
 
-    expect(screen.getByRole("radio", { name: "All fleets" })).toBeDisabled();
+    expect(screen.getByRole("radio", { name: "All teams" })).toBeDisabled();
     expect(screen.getByRole("radio", { name: "Custom" })).toBeDisabled();
 
     finishPost();
     await waitFor(() => expect(onAdded).toHaveBeenCalled());
   });
 
-  it("defaults to All fleets and sends POST then PATCH []", async () => {
+  it("defaults to All teams and sends POST then PATCH []", async () => {
     const calls = mockEndpoints();
     const { user, onAdded } = renderModal();
 
-    expect(screen.getByRole("radio", { name: "All fleets" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "All teams" })).toBeChecked();
     await upload(user);
 
     await waitFor(() => expect(onAdded).toHaveBeenCalled());
     expect(calls.posts).toBe(1);
-    expect(calls.patches).toEqual([{ fleets: [] }]);
+    expect(calls.patches).toEqual([{ teams: [] }]);
     expect(notify.success).toHaveBeenCalledWith("Added successfully.");
   });
 
-  it("sends the chosen fleet ids for Custom", async () => {
+  it("sends the chosen team ids for Custom", async () => {
     const calls = mockEndpoints();
     const { user, onAdded } = renderModal();
 
@@ -145,10 +145,10 @@ describe("AddVppModal", () => {
     await upload(user);
 
     await waitFor(() => expect(onAdded).toHaveBeenCalled());
-    expect(calls.patches).toEqual([{ fleets: [1, 0] }]);
+    expect(calls.patches).toEqual([{ teams: [1, 0] }]);
   });
 
-  it("sends only the POST for Custom with no fleets", async () => {
+  it("sends only the POST for Custom with no teams", async () => {
     const calls = mockEndpoints();
     const { user, onAdded } = renderModal();
 
@@ -195,7 +195,7 @@ describe("AddVppModal", () => {
     const calls = mockEndpoints();
     const { user, onAdded } = renderModal(true);
 
-    expect(screen.queryByRole("radio", { name: "All fleets" })).toBeNull();
+    expect(screen.queryByRole("radio", { name: "All teams" })).toBeNull();
     await upload(user);
 
     await waitFor(() => expect(onAdded).toHaveBeenCalled());

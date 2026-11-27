@@ -21,20 +21,20 @@ import (
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 
+	"github.com/anilyagiz/automdm/v4/pkg/removednames"
+	"github.com/anilyagiz/automdm/v4/server/contexts/installersize"
+	nanodep_client "github.com/anilyagiz/automdm/v4/server/mdm/nanodep/client"
+	platform_http "github.com/anilyagiz/automdm/v4/server/platform/http"
 	"github.com/docker/go-units"
-	"github.com/fleetdm/fleet/v4/pkg/removednames"
-	"github.com/fleetdm/fleet/v4/server/contexts/installersize"
-	nanodep_client "github.com/fleetdm/fleet/v4/server/mdm/nanodep/client"
-	platform_http "github.com/fleetdm/fleet/v4/server/platform/http"
 
-	"github.com/fleetdm/fleet/v4/server/mdm/nanodep/tokenpki"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanodep/tokenpki"
 	"github.com/spf13/cast"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
 const (
-	envPrefix = "FLEET"
+	envPrefix = "AUTOMDM"
 )
 
 // MysqlConfig defines configs related to MySQL
@@ -118,10 +118,10 @@ const (
 	EndpointRequestSizeOverridesKey = "server.endpoint_request_size_overrides"
 )
 
-// EndpointRequestSizeOverrides maps a literal registered endpoint path (e.g. "/api/_version_/fleet/...") to its maximum allowed body size.
+// EndpointRequestSizeOverrides maps a literal registered endpoint path (e.g. "/api/_version_/automdm/...") to its maximum allowed body size.
 type EndpointRequestSizeOverrides map[string]int64
 
-// ServerConfig defines configs related to the Fleet server
+// ServerConfig defines configs related to the AutoMDM server
 type ServerConfig struct {
 	Address                          string
 	Cert                             string
@@ -163,7 +163,7 @@ func (s *ServerConfig) DefaultHTTPServer(ctx context.Context, handler http.Handl
 		ReadTimeout: 25 * time.Second,
 		// WriteTimeout is set for security purposes.
 		// If we don't set it, (bugy or malignant) clients making long running
-		// requests could DDOS Fleet.
+		// requests could DDOS AutoMDM.
 		WriteTimeout:      40 * time.Second,
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       5 * time.Minute,
@@ -291,10 +291,10 @@ type OsqueryConfig struct {
 
 	EnableLogRotation bool `yaml:"enable_log_rotation"`
 	MaxJitterPercent  int  `yaml:"max_jitter_percent"`
-	// AISessionMaxToolCalls is how many of an AI agent session's tool calls Fleet stores, its first ones. 0 stores the
+	// AISessionMaxToolCalls is how many of an AI agent session's tool calls AutoMDM stores, its first ones. 0 stores the
 	// sessions without their tool calls.
 	AISessionMaxToolCalls int `yaml:"ai_session_max_tool_calls"`
-	// AISessionMaxToolCallsPerRefresh is how many new tool calls Fleet asks a host for per AI agent session at each
+	// AISessionMaxToolCallsPerRefresh is how many new tool calls AutoMDM asks a host for per AI agent session at each
 	// refresh; 0 leaves it to what fits in the host's result.
 	AISessionMaxToolCallsPerRefresh int `yaml:"ai_session_max_tool_calls_per_refresh"`
 
@@ -328,7 +328,7 @@ type OsqueryConfig struct {
 	// Default is FALSE: the request's etag field is ignored, every response
 	// is the full config with no "etag" key (byte-identical to the
 	// pre-feature behavior for every agent, opted-in or not), and no etag
-	// store I/O happens. Setting FLEET_OSQUERY_CONFIG_ETAGS=true and
+	// store I/O happens. Setting AUTOMDM_OSQUERY_CONFIG_ETAGS=true and
 	// restarting opts a deployment in. This gate is broader than
 	// RedisConfigETags below, which only disables the Redis short circuit
 	// while leaving the conditional request protocol active.
@@ -343,12 +343,12 @@ type OsqueryConfig struct {
 	//
 	// Default is FALSE: every config request takes the always-full-build
 	// path, byte-identical to the behavior without this feature. Setting
-	// FLEET_OSQUERY_REDIS_CONFIG_ETAGS=true and restarting enables the short
+	// AUTOMDM_OSQUERY_REDIS_CONFIG_ETAGS=true and restarting enables the short
 	// circuit, and requires ConfigETags above to be true as well (see
 	// effectiveRedisConfigETags). Toggling it back off is the A/B lever for
 	// ruling the feature out when debugging config delivery.
 	//
-	// See fleet.OsqueryService.GetClientConfigWithETag and the
+	// See automdm.OsqueryService.GetClientConfigWithETag and the
 	// server/service/redis_config_etag package for the full contract.
 	RedisConfigETags bool `yaml:"redis_config_etags"`
 
@@ -361,13 +361,13 @@ type OsqueryConfig struct {
 	//
 	// Default is FALSE: every check-in builds from the database, which is
 	// slower but immune to any staleness in the cache. Setting
-	// FLEET_OSQUERY_CONFIG_IN_MEMORY_CACHE=true and restarting opts a
+	// AUTOMDM_OSQUERY_CONFIG_IN_MEMORY_CACHE=true and restarting opts a
 	// deployment in. Independent of the config ETag options above.
 	ConfigInMemoryCache bool `yaml:"config_in_memory_cache"`
 
-	// MaxConcurrentQueryReportReads bounds, per Fleet server, how many
+	// MaxConcurrentQueryReportReads bounds, per AutoMDM server, how many
 	// /api/osquery/log requests read a host's stored report results from the
-	// replica at once. MaxConcurrentQueryReportWrites bounds, across all Fleet
+	// replica at once. MaxConcurrentQueryReportWrites bounds, across all AutoMDM
 	// servers, how many write changed ones to the primary at once. Requests over
 	// a limit skip storing their report results (the host sends fresh ones on the
 	// report's next run) instead of queueing on the database. A value <= 0
@@ -428,13 +428,13 @@ type ActivityConfig struct {
 	EnableAuditLog bool `yaml:"enable_audit_log"`
 	// AuditLogPlugin sets the plugin to use to log activities.
 	AuditLogPlugin string `yaml:"audit_log_plugin"`
-	// FleetInitiatedReleasePerMinute caps how many hosts get a Fleet-initiated
+	// AutoMDMInitiatedReleasePerMinute caps how many hosts get an AutoMDM-initiated
 	// upcoming activity (policy-automation installs and scripts) activated per
-	// minute. Fleet-initiated activities are enqueued immediately but held
+	// minute. AutoMDM-initiated activities are enqueued immediately but held
 	// unactivated until the release cron activates them within this budget,
 	// pacing the downstream execution and result-ingestion load. 0 disables the
 	// gate and activates inline at enqueue time.
-	FleetInitiatedReleasePerMinute int `yaml:"fleet_initiated_release_per_minute"`
+	AutoMDMInitiatedReleasePerMinute int `yaml:"automdm_initiated_release_per_minute"`
 }
 
 // FirehoseConfig defines configs for the AWS Firehose logging plugin
@@ -539,7 +539,7 @@ type S3Config struct {
 	SoftwareInstallersCloudFrontURLSigningPublicKeyID string        `yaml:"software_installers_cloudfront_url_signing_public_key_id"`
 	SoftwareInstallersCloudFrontURLSigningPrivateKey  string        `yaml:"software_installers_cloudfront_url_signing_private_key"`
 	SoftwareInstallersCloudFrontSigner                crypto.Signer `yaml:"-"`
-	// SoftwareInstallersSignedURL, when true, makes Fleet hand out presigned
+	// SoftwareInstallersSignedURL, when true, makes AutoMDM hand out presigned
 	// URLs (instead of proxying the bytes) for software installer, in-house
 	// app and bootstrap package uploads and downloads, so clients talk directly
 	// to the object store. Only supported against a GCS (storage.googleapis.com)
@@ -604,7 +604,7 @@ func (s S3Config) ValidateSoftwareInstallersSignedURL(initFatal func(err error, 
 		return
 	}
 	// Presigning needs HMAC credentials. Without them it fails at request time and
-	// Fleet silently proxies every download, which is what this check prevents.
+	// AutoMDM silently proxies every download, which is what this check prevents.
 	// IAM auth doesn't use HMAC creds and is rejected at store init, so skip it then.
 	if !s.SoftwareInstallersGCSIAMAuth &&
 		(s.SoftwareInstallersAccessKeyID == "" || s.SoftwareInstallersSecretAccessKey == "") {
@@ -739,7 +739,7 @@ type AzureConfig struct {
 	// https://<account>.blob.core.windows.net endpoint, for Azurite or other
 	// Azure-compatible emulators in tests.
 	SoftwareInstallersContainerURL string `yaml:"files_container_url"`
-	// SoftwareInstallersSignedURL, when true, makes Fleet hand out a SAS-signed
+	// SoftwareInstallersSignedURL, when true, makes AutoMDM hand out a SAS-signed
 	// GET URL (instead of proxying the bytes) for software installer, in-house
 	// app and bootstrap package downloads. This is the Azure counterpart to the
 	// S3 CloudFront/GCS signed URL configs.
@@ -774,7 +774,7 @@ type AzureConfigInternal struct {
 type StorageBackend string
 
 const (
-	// StorageBackendLocal means no object store is configured; Fleet falls back
+	// StorageBackendLocal means no object store is configured; AutoMDM falls back
 	// to the local filesystem/database stores.
 	StorageBackendLocal StorageBackend = ""
 	StorageBackendS3    StorageBackend = "s3"
@@ -792,7 +792,7 @@ type storageBackendCandidate struct {
 // softwareInstallersBackendCandidates is the single place that knows where
 // each backend's selecting config lives. To add a backend (or to move S3 under
 // CloudStorage), only this list needs to change.
-func (f FleetConfig) softwareInstallersBackendCandidates() []storageBackendCandidate {
+func (f AutoMDMConfig) softwareInstallersBackendCandidates() []storageBackendCandidate {
 	return []storageBackendCandidate{
 		{StorageBackendS3, f.S3.SoftwareInstallersBucket != "", "s3_software_installers_bucket"},
 		{StorageBackendAzure, f.CloudStorage.Azure.SoftwareInstallersContainer != "", "cloud_storage.azure.files_container"},
@@ -802,7 +802,7 @@ func (f FleetConfig) softwareInstallersBackendCandidates() []storageBackendCandi
 // SoftwareInstallersBackend returns the object store configured for the
 // software installers group, or an error if more than one is configured since
 // only one backend can be selected.
-func (f FleetConfig) SoftwareInstallersBackend() (StorageBackend, error) {
+func (f AutoMDMConfig) SoftwareInstallersBackend() (StorageBackend, error) {
 	var keys []string
 	backend := StorageBackendLocal
 	for _, cand := range f.softwareInstallersBackendCandidates() {
@@ -822,7 +822,7 @@ func (f FleetConfig) SoftwareInstallersBackend() (StorageBackend, error) {
 
 // ValidateSoftwareInstallersBackend fails initialization if more than one
 // object store is configured for the software installers group.
-func (f FleetConfig) ValidateSoftwareInstallersBackend(initFatal func(err error, msg string)) {
+func (f AutoMDMConfig) ValidateSoftwareInstallersBackend(initFatal func(err error, msg string)) {
 	if _, err := f.SoftwareInstallersBackend(); err != nil {
 		initFatal(err, "software installers storage")
 	}
@@ -830,9 +830,9 @@ func (f FleetConfig) ValidateSoftwareInstallersBackend(initFatal func(err error,
 
 // SoftwareInstallersSignedURLEnabled reports whether downloads of software
 // installers and in-house apps should be handed out as signed URLs (pointing
-// directly at the object store) instead of proxying the bytes through Fleet.
+// directly at the object store) instead of proxying the bytes through AutoMDM.
 // Only the signing settings of the selected storage backend are considered.
-func (f FleetConfig) SoftwareInstallersSignedURLEnabled() bool {
+func (f AutoMDMConfig) SoftwareInstallersSignedURLEnabled() bool {
 	backend, err := f.SoftwareInstallersBackend()
 	if err != nil {
 		return false
@@ -849,7 +849,7 @@ func (f FleetConfig) SoftwareInstallersSignedURLEnabled() bool {
 
 // StagedUploadAvailable reports whether clients can upload packages straight
 // to object storage. Only supported with S3-compatible storage for now.
-func (f FleetConfig) StagedUploadAvailable() bool {
+func (f AutoMDMConfig) StagedUploadAvailable() bool {
 	return f.S3.SoftwareInstallersSignedURL && f.S3.SoftwareInstallersBucket != ""
 }
 
@@ -915,13 +915,13 @@ type NatsConfig struct {
 	Timeout          time.Duration `json:"timeout" yaml:"timeout"`
 }
 
-// LicenseConfig defines configs related to licensing Fleet.
+// LicenseConfig defines configs related to licensing AutoMDM.
 type LicenseConfig struct {
 	Key              string `yaml:"key"`
 	EnforceHostLimit bool   `yaml:"enforce_host_limit"`
 }
 
-// VulnerabilitiesConfig defines configs related to vulnerability processing within Fleet.
+// VulnerabilitiesConfig defines configs related to vulnerability processing within AutoMDM.
 type VulnerabilitiesConfig struct {
 	DatabasesPath               string        `json:"databases_path" yaml:"databases_path"`
 	Periodicity                 time.Duration `json:"periodicity" yaml:"periodicity"`
@@ -945,7 +945,7 @@ func (v VulnerabilitiesConfig) IsDisabledByInstanceCheck() bool {
 	return v.CurrentInstanceChecks == "no" || v.CurrentInstanceChecks == "0"
 }
 
-// UpgradesConfig defines configs related to fleet server upgrades.
+// UpgradesConfig defines configs related to automdm server upgrades.
 type UpgradesConfig struct {
 	AllowMissingMigrations bool `json:"allow_missing_migrations" yaml:"allow_missing_migrations"`
 }
@@ -958,7 +958,7 @@ type GeoIPConfig struct {
 	DatabasePath string `json:"database_path" yaml:"database_path"`
 }
 
-// PrometheusConfig holds the configuration for Fleet's prometheus metrics.
+// PrometheusConfig holds the configuration for AutoMDM's prometheus metrics.
 type PrometheusConfig struct {
 	// BasicAuth is the HTTP Basic BasicAuth configuration.
 	BasicAuth HTTPBasicAuthConfig `json:"basic_auth" yaml:"basic_auth"`
@@ -974,9 +974,9 @@ type HTTPBasicAuthConfig struct {
 	Disable bool `json:"disable" yaml:"disable"`
 }
 
-// PackagingConfig holds configuration to build and retrieve Fleet packages
+// PackagingConfig holds configuration to build and retrieve AutoMDM packages
 //
-// Deprecated: "packaging" fields were used for "Fleet Sandbox" which doesn't exist anymore.
+// Deprecated: "packaging" fields were used for "AutoMDM Sandbox" which doesn't exist anymore.
 type PackagingConfig struct {
 	// GlobalEnrollSecret is the enroll secret that will be used to enroll
 	// hosts in the global scope
@@ -985,11 +985,11 @@ type PackagingConfig struct {
 	S3 S3Config `yaml:"s3"`
 }
 
-// FleetConfig stores the application configuration. Each subcategory is
+// AutoMDMConfig stores the application configuration. Each subcategory is
 // broken up into it's own struct, defined above. When editing any of these
 // structs, Manager.addConfigs and Manager.LoadConfig should be
 // updated to set and retrieve the configurations as appropriate.
-type FleetConfig struct {
+type AutoMDMConfig struct {
 	Mysql                      MysqlConfig
 	MysqlReadReplica           MysqlConfig `yaml:"mysql_read_replica"`
 	Redis                      RedisConfig
@@ -1028,11 +1028,11 @@ type FleetConfig struct {
 	ConditionalAccess          ConditionalAccessConfig          `yaml:"conditional_access"`
 	WebSocket                  WebSocketConfig                  `yaml:"websocket"`
 
-	// Deprecated: "packaging" fields were used for "Fleet Sandbox" which doesn't exist anymore.
+	// Deprecated: "packaging" fields were used for "AutoMDM Sandbox" which doesn't exist anymore.
 	Packaging PackagingConfig
 }
 
-func (f FleetConfig) OTELEnabled() bool {
+func (f AutoMDMConfig) OTELEnabled() bool {
 	return f.Logging.TracingEnabled
 }
 
@@ -1093,7 +1093,7 @@ type WebSocketConfig struct {
 }
 
 // ScopedNotificationsEnabled reports whether any nudge type targeting a whole
-// fleet or every host is enabled.
+// team or every host is enabled.
 func (w WebSocketConfig) ScopedNotificationsEnabled() bool {
 	return w.OrbitConfigEnabled || w.OsqueryConfigEnabled
 }
@@ -1102,7 +1102,7 @@ func (w WebSocketConfig) ScopedNotificationsEnabled() bool {
 // fallback is the point of the setting.
 const minOrbitConfigPollInterval = 30 * time.Second
 
-// minOsqueryConfigPollInterval is osquery's default config refresh with fleetd.
+// minOsqueryConfigPollInterval is osquery's default config refresh with automdmd.
 const minOsqueryConfigPollInterval = time.Minute
 
 // Validate checks that the WebSocketConfig has valid values. The values feed
@@ -1142,22 +1142,22 @@ func (w WebSocketConfig) Validate(initFatal func(err error, msg string)) {
 	}
 }
 
-// DefaultMicrosoftCompliancePartnerClientID is the client ID of Fleet's production
-// Microsoft Compliance Partner app (the one fleetdm.com's proxy uses).
+// DefaultMicrosoftCompliancePartnerClientID is the client ID of AutoMDM's production
+// Microsoft Compliance Partner app (the one automdm.com's proxy uses).
 const DefaultMicrosoftCompliancePartnerClientID = "f505600d-d90e-4bd0-bea4-065e48377bd6"
 
 // MicrosoftCompliancePartnerConfig holds the server configuration for the "Conditional access" feature.
 type MicrosoftCompliancePartnerConfig struct {
 	// ProxyURI is the URI of the Microsoft Compliance Partner proxy (for development/testing).
 	ProxyURI string `yaml:"proxy_uri"`
-	// ClientID is the client ID of Fleet's multi-tenant Entra app, the audience of the
+	// ClientID is the client ID of AutoMDM's multi-tenant Entra app, the audience of the
 	// device ID tokens reported by macOS hosts.
 	ClientID string `yaml:"client_id"`
 }
 
 // GoogleConditionalAccessConfig holds the server configuration for Google conditional access.
 type GoogleConditionalAccessConfig struct {
-	// ProxyURI is the URI of the fleetdm.com relay (for development/testing).
+	// ProxyURI is the URI of the automdm.com relay (for development/testing).
 	ProxyURI string `yaml:"proxy_uri"`
 }
 
@@ -1198,7 +1198,7 @@ type MDMConfig struct {
 	// first time AppleBM is called.
 	appleBMToken *nanodep_client.OAuth1Tokens
 
-	// AppleEnable enables Apple MDM functionality on Fleet.
+	// AppleEnable enables Apple MDM functionality on AutoMDM.
 	AppleEnable bool `yaml:"apple_enable"`
 	// AppleMachineInfoVerify controls whether the CMS/PKCS7 signature on Apple's
 	// x-apple-aspen-deviceinfo (MachineInfo) blob is verified during enrollment.
@@ -1236,7 +1236,7 @@ type MDMConfig struct {
 	// be valid.
 	AppleSCEPSignerValidityDays int `yaml:"apple_scep_signer_validity_days"`
 	// AppleConnectJWT is the Apple Connect JWT used to access VPP app metadata.
-	// If supplied, Fleet will contact the Apple API directly rather than checking the Fleet proxy
+	// If supplied, AutoMDM will contact the Apple API directly rather than checking the AutoMDM proxy
 	AppleConnectJWT string `yaml:"apple_vpp_app_metadata_api_bearer_token"`
 
 	// WindowsWSTEPIdentityCert is the path to the certificate used to sign
@@ -1279,28 +1279,28 @@ type MDMConfig struct {
 	EnableCustomDiskEncryption bool `yaml:"enable_custom_disk_encryption"`
 	AllowAllDeclarations       bool `yaml:"allow_all_declarations"`
 	// AllowCustomActivations opts in to custom DDM activations. Off by default
-	// because a predicate Fleet cannot validate can wedge a host's MDM
+	// because a predicate AutoMDM cannot validate can wedge a host's MDM
 	// subsystem beyond remote recovery -- see Apple FB24193230 and #50764.
 	AllowCustomActivations bool `yaml:"allow_custom_activations"`
 
-	// AllowOrbitEndUserAuthBypass controls whether an Orbit/fleetd host that does
+	// AllowOrbitEndUserAuthBypass controls whether an Orbit/automdmd host that does
 	// not complete end user authentication is allowed to enroll into a team that
 	// requires it. Defaults to true so that agents predating end user
-	// authentication, installers built with `fleetctl package
-	// --bypass-end-user-auth`, and macOS hosts enrolling fleetd before MDM can
+	// authentication, installers built with `automdmctl package
+	// --bypass-end-user-auth`, and macOS hosts enrolling automdmd before MDM can
 	// still enroll. Set to false to strictly enforce end user authentication for
 	// all Orbit enrollments on every platform.
 	AllowOrbitEndUserAuthBypass bool `yaml:"allow_orbit_end_user_auth_bypass"`
 
 	// AppleOneTimeEnrollSecrets delivers one-time, device-scoped enroll secrets
-	// to macOS MDM hosts in the fleetd configuration profile and rejects shared
-	// enroll secrets for hosts enrolled in Fleet MDM or assigned in ABM.
+	// to macOS MDM hosts in the automdmd configuration profile and rejects shared
+	// enroll secrets for hosts enrolled in AutoMDM or assigned in ABM.
 	AppleOneTimeEnrollSecrets bool `yaml:"apple_one_time_enroll_secrets"`
 	// WindowsOneTimeEnrollSecrets is the Windows counterpart of AppleOneTimeEnrollSecrets. The two are separate switches
 	// because the platforms deliver the secret by different mechanisms and can be rolled out independently.
 	WindowsOneTimeEnrollSecrets bool `yaml:"windows_one_time_enroll_secrets"`
-	// AndroidOneTimeEnrollSecrets is the Android counterpart: the Fleet Android agent gets its secret through the AMAPI managed
-	// configuration, and shared enroll secrets are rejected for Android hosts enrolled in Fleet MDM.
+	// AndroidOneTimeEnrollSecrets is the Android counterpart: the AutoMDM Android agent gets its secret through the AMAPI managed
+	// configuration, and shared enroll secrets are rejected for Android hosts enrolled in AutoMDM.
 	AndroidOneTimeEnrollSecrets bool `yaml:"android_one_time_enroll_secrets"`
 
 	AndroidAgent     AndroidAgentConfig `yaml:"android_agent"`
@@ -1389,12 +1389,12 @@ func (m MDMConfig) ValidateAppleCommandCleanup(initFatal func(err error, msg str
 	}
 }
 
-// AndroidAgentConfig holds configuration for the Fleet Android agent.
+// AndroidAgentConfig holds configuration for the AutoMDM Android agent.
 type AndroidAgentConfig struct {
-	// Package is the package name for the Fleet Android agent.
+	// Package is the package name for the AutoMDM Android agent.
 	// Default: com.fleetdm.agent
 	Package string `yaml:"package"`
-	// SigningSHA256 is the signing certificate SHA256 fingerprint for the Fleet Android agent.
+	// SigningSHA256 is the signing certificate SHA256 fingerprint for the AutoMDM Android agent.
 	SigningSHA256 string `yaml:"signing_sha256"`
 }
 
@@ -1430,7 +1430,7 @@ func (c *CalendarConfig) SetAlwaysReloadEvent(value bool) {
 // tenant is expected to have, not tuning knobs:
 //
 //   - Users: Google publishes no per-account cap; 500,000 (1,000 pages of 500) is
-//     far above the largest directory Fleet expects to sync.
+//     far above the largest directory AutoMDM expects to sync.
 //   - Groups: also uncapped by Google. 100,000 also bounds the per-group member
 //     fan-out, since members are fetched one group at a time (it does not bound how
 //     long a pass takes: 100,000 sequential member listings is already a long sync).
@@ -1447,7 +1447,7 @@ const (
 
 // GoogleWorkspaceConfig holds the limits applied to one directory sync pass. These
 // are hidden settings: they exist so an operator with a directory larger than the
-// defaults can be unblocked without waiting for a Fleet release. A value of 0
+// defaults can be unblocked without waiting for an AutoMDM release. A value of 0
 // disables the corresponding limit.
 type GoogleWorkspaceConfig struct {
 	MaxUsers            int `yaml:"max_users"`
@@ -1764,20 +1764,20 @@ func (t *TLS) ToTLSConfig() (*tls.Config, error) {
 }
 
 // addConfigs adds the configuration keys and default values that will be
-// filled into the FleetConfig struct
+// filled into the AutoMDMConfig struct
 func (man Manager) addConfigs() {
 	addMysqlConfig := func(prefix, defaultAddr, usageSuffix string) {
 		man.addConfigString(prefix+".protocol", "tcp",
 			"MySQL server communication protocol (tcp,unix,...)"+usageSuffix)
 		man.addConfigString(prefix+".address", defaultAddr,
 			"MySQL server address (host:port)"+usageSuffix)
-		man.addConfigString(prefix+".username", "fleet",
+		man.addConfigString(prefix+".username", "automdm",
 			"MySQL server username"+usageSuffix)
 		man.addConfigString(prefix+".password", "",
 			"MySQL server password (prefer env variable for security)"+usageSuffix)
 		man.addConfigString(prefix+".password_path", "",
 			"Path to file containg MySQL server password"+usageSuffix)
-		man.addConfigString(prefix+".database", "fleet",
+		man.addConfigString(prefix+".database", "automdm",
 			"MySQL database name"+usageSuffix)
 		man.addConfigString(prefix+".tls_cert", "",
 			"MySQL TLS client certificate path"+usageSuffix)
@@ -1849,11 +1849,11 @@ func (man Manager) addConfigs() {
 
 	// Server
 	man.addConfigString("server.address", "0.0.0.0:8080",
-		"Fleet server address (host:port)")
-	man.addConfigString("server.cert", "./tools/osquery/fleet.crt",
-		"Fleet TLS certificate path")
-	man.addConfigString("server.key", "./tools/osquery/fleet.key",
-		"Fleet TLS key path")
+		"AutoMDM server address (host:port)")
+	man.addConfigString("server.cert", "./tools/osquery/automdm.crt",
+		"AutoMDM TLS certificate path")
+	man.addConfigString("server.key", "./tools/osquery/automdm.key",
+		"AutoMDM TLS key path")
 	man.addConfigBool("server.tls", true,
 		"Enable TLS (required for osqueryd communication)")
 	man.addConfigString(TLSProfileKey, TLSProfileIntermediate,
@@ -1864,10 +1864,10 @@ func (man Manager) addConfigs() {
 	man.addConfigBool("server.keepalive", true,
 		"Controls whether HTTP keep-alives are enabled.")
 	man.addConfigBool("server.sandbox_enabled", false,
-		"When enabled, Fleet limits some features for the Sandbox")
-	man.addConfigBool("server.websockets_allow_unsafe_origin", false, "Disable checking the origin header on websocket connections, this is sometimes necessary when proxies rewrite origin headers between the client and the Fleet webserver")
+		"When enabled, AutoMDM limits some features for the Sandbox")
+	man.addConfigBool("server.websockets_allow_unsafe_origin", false, "Disable checking the origin header on websocket connections, this is sometimes necessary when proxies rewrite origin headers between the client and the AutoMDM webserver")
 	man.addConfigBool("server.frequent_cleanups_enabled", false, "Enable frequent cleanups of expired data (15 minute interval)")
-	man.addConfigBool("server.force_h2c", false, "Force the fleet server to use HTTP2 cleartext aka h2c (ignored if using TLS)")
+	man.addConfigBool("server.force_h2c", false, "Force the automdm server to use HTTP2 cleartext aka h2c (ignored if using TLS)")
 	man.addConfigString("server.private_key", "", "Used for encrypting sensitive data, such as MDM certificates.")
 	man.addConfigString("server.private_key_region", "", "AWS region of the Secrets Manager secret containing server private key")
 	man.addConfigString("server.private_key_arn", "", "ARN of AWS Secrets Manager secret containing server private key")
@@ -1876,17 +1876,17 @@ func (man Manager) addConfigs() {
 	man.addConfigDuration("server.vpp_verify_timeout", 10*time.Minute, "Maximum amount of time to wait for VPP app install verification")
 	man.addConfigDuration("server.vpp_verify_request_delay", 5*time.Second, "Delay in between requests to verify VPP app installs")
 	man.addConfigDuration("server.vpp_install_reap_timeout", 24*time.Hour,
-		"Minimum time a stuck App Store or in-house app install must have been activated before Fleet fails it to release the host's activity queue. Zero or less turns the reaper off, and a value below server.vpp_verify_timeout is raised to it. Android setup experience app installs the device hasn't reported for this long are also failed; for those, zero or less keeps them pending and the vpp_verify_timeout floor doesn't apply")
+		"Minimum time a stuck App Store or in-house app install must have been activated before AutoMDM fails it to release the host's activity queue. Zero or less turns the reaper off, and a value below server.vpp_verify_timeout is raised to it. Android setup experience app installs the device hasn't reported for this long are also failed; for those, zero or less keeps them pending and the vpp_verify_timeout floor doesn't apply")
 	man.addConfigDuration("server.cleanup_dist_targets_age", 24*time.Hour, "Specifies the cleanup age for completed live query distributed targets.")
 	man.addConfigDuration("server.script_results_retention", 30*24*time.Hour, "Minimum time since a script run recorded its result before the hourly cleanup deletes it. Runs still waiting on a host, and those a host lock, wipe, unlock, setup experience, software uninstall or batch run depends on, are kept regardless (0 disables the cleanup)")
 	man.addConfigDuration("server.software_install_results_retention", 30*24*time.Hour, "Minimum time since a software install or uninstall finished before the hourly cleanup deletes its record. Records a host is still working on, those setup experience depends on, and the most recent install and uninstall per host and package, are kept regardless (0 disables the cleanup)")
-	man.addConfigDuration("server.deleted_host_certificates_retention", 30*24*time.Hour, "Minimum time since a certificate was removed from a host before the hourly cleanup permanently deletes Fleet's record of it (0 disables the cleanup)")
+	man.addConfigDuration("server.deleted_host_certificates_retention", 30*24*time.Hour, "Minimum time since a certificate was removed from a host before the hourly cleanup permanently deletes AutoMDM's record of it (0 disables the cleanup)")
 	man.addConfigByteSize("server.max_installer_size", installersize.Human(installersize.MaxSoftwareInstallerSize), "Maximum size in bytes for software installer uploads (e.g. 10GiB, 500MB, 1G)")
 	man.addConfigString("server.trusted_proxies", "",
 		"Trusted proxy configuration for client IP extraction: 'none' (RemoteAddr only), a header name (e.g., 'True-Client-IP'), a hop count (e.g., '2'), or comma-separated IP/CIDR ranges")
 	man.addConfigBool("server.gzip_responses", false, "Enable gzip-compressed responses for supported clients")
 	man.addConfigBool("server.allow_private_network_integrations", false, "Allow integration HTTP requests to private network addresses (RFC 1918). Loopback and cloud metadata addresses are always blocked regardless of this setting.")
-	man.addConfigBool("server.bypass_network_blocking", false, "Disable all outbound network blocking protections for integration HTTP requests (loopback, cloud metadata, and private network addresses). Only intended for environments where egress is already constrained by external infrastructure (e.g. an egress proxy or firewall) that Fleet's own checks would otherwise conflict with. This is an infrastructure-level setting and cannot be changed at runtime.")
+	man.addConfigBool("server.bypass_network_blocking", false, "Disable all outbound network blocking protections for integration HTTP requests (loopback, cloud metadata, and private network addresses). Only intended for environments where egress is already constrained by external infrastructure (e.g. an egress proxy or firewall) that AutoMDM's own checks would otherwise conflict with. This is an infrastructure-level setting and cannot be changed at runtime.")
 	man.addConfigBool("server.allow_request_certificate_any_idp", false,
 		"Disable the request certificate API identity safeguards: accept IdP credentials for any introspection endpoint and do not bind device-authenticated requests to the host's end user")
 	man.addConfigByteSize("server.default_max_request_body_size", installersize.Human(platform_http.MaxRequestBodySize), "Default maximum size in bytes for request bodies, certain endpoints will have higher limits (e.g. 10MiB, 500KB, 1G)")
@@ -1903,11 +1903,11 @@ func (man Manager) addConfigs() {
 	man.addConfigDuration("auth.sso_session_validity_period", 15*time.Minute,
 		"Timeout from SSO start to SSO callback")
 	man.addConfigBool("auth.require_http_message_signature", false,
-		"Require HTTP message signatures for fleetd requests (Premium feature)")
+		"Require HTTP message signatures for automdmd requests (Premium feature)")
 	man.addConfigBool("auth.require_host_identity_renewal_key_binding", false,
-		"Reject host identity certificate renewals from fleetd that doesn't sign over the new key (Premium feature)")
+		"Reject host identity certificate renewals from automdmd that doesn't sign over the new key (Premium feature)")
 	man.addConfigInt("auth.sso_rate_limit_per_minute", 0,
-		"Number of allowed requests per minute to the SSO callback and Fleet Desktop device SSO endpoints (each in its own bucket; defaults to the login rate limit value)")
+		"Number of allowed requests per minute to the SSO callback and AutoMDM Desktop device SSO endpoints (each in its own bucket; defaults to the login rate limit value)")
 
 	// App
 	man.addConfigString("app.token_key", "CHANGEME",
@@ -1963,11 +1963,11 @@ func (man Manager) addConfigs() {
 	man.addConfigBool("osquery.redis_config_etags", false,
 		"Answer osquery config requests whose etag matches with the minimal 'unchanged' body straight from a Redis-backed ETag store, skipping the config build (and its database reads) entirely. Off by default; requires Redis (no effect without it) and requires osquery.config_etags to be enabled as well. While off, every config request takes the always-full-build path.")
 	man.addConfigBool("osquery.config_in_memory_cache", false,
-		"Cache the scheduled-report section of the osquery config (the response's 'packs' key) in memory, keyed by fleet and the discard_reports_data setting, instead of rebuilding it from the database on every config check-in. Off by default; while off, every check-in builds from the database. The rest of the response is never cached, and the cache is bypassed entirely for fleets with label-scoped reports, whose config differs per host.")
+		"Cache the scheduled-report section of the osquery config (the response's 'packs' key) in memory, keyed by team and the discard_reports_data setting, instead of rebuilding it from the database on every config check-in. Off by default; while off, every check-in builds from the database. The rest of the response is never cached, and the cache is bypassed entirely for teams with label-scoped reports, whose config differs per host.")
 	man.addConfigInt("osquery.max_concurrent_query_report_reads", 40,
-		"Maximum number of osquery log requests per Fleet server that read a host's stored report results from the database at once, to skip writing results that haven't changed. Requests over the limit skip storing report results (log destinations are unaffected). 0 disables the limit.")
+		"Maximum number of osquery log requests per AutoMDM server that read a host's stored report results from the database at once, to skip writing results that haven't changed. Requests over the limit skip storing report results (log destinations are unaffected). 0 disables the limit.")
 	man.addConfigInt("osquery.max_concurrent_query_report_writes", 20,
-		"Maximum number of osquery log requests across all Fleet servers that write changed report results to the database at once. Requests over the limit skip storing their changed report results (log destinations are unaffected). 0 disables the limit.")
+		"Maximum number of osquery log requests across all AutoMDM servers that write changed report results to the database at once. Requests over the limit skip storing their changed report results (log destinations are unaffected). 0 disables the limit.")
 	man.addConfigBool("osquery.allow_body_auth_fallback", true,
 		"Selects how host-authenticated osquery requests are authenticated. When true (default), only body-based node_key is used for authentication. When false, the nodey_key header is required for authentication and the body's node_key is ignored; pre-auth rejects absent/invalid headers before the body is read.")
 
@@ -1976,8 +1976,8 @@ func (man Manager) addConfigs() {
 		"Enable audit logs")
 	man.addConfigString("activity.audit_log_plugin", "filesystem",
 		"Log plugin to use for audit logs")
-	man.addConfigInt("activity.fleet_initiated_release_per_minute", 1000,
-		"Maximum number of hosts whose Fleet-initiated activities (policy automation installs/scripts) are released for execution per minute (0 = unlimited)")
+	man.addConfigInt("activity.automdm_initiated_release_per_minute", 1000,
+		"Maximum number of hosts whose AutoMDM-initiated activities (policy automation installs/scripts) are released for execution per minute (0 = unlimited)")
 
 	// Logging
 	man.addConfigBool("logging.debug", false,
@@ -2010,7 +2010,7 @@ func (man Manager) addConfigs() {
 	man.addConfigString("ses.sts_assume_role_arn", "", "ARN of role to assume for AWS")
 	man.addConfigString("ses.sts_external_id", "", "Optional unique identifier that can be used by the principal assuming the role to assert its identity.")
 	man.addConfigString("ses.source_arn", "", "ARN of the identity that is associated with the sending authorization policy that permits you to send for the email address specified in the Source parameter")
-	man.addConfigString("ses.sender_domain", "", "Optional domain to use in the From address for SES emails. If empty, Fleet uses the hostname from the Fleet Web Address (server_settings.server_url)")
+	man.addConfigString("ses.sender_domain", "", "Optional domain to use in the From address for SES emails. If empty, AutoMDM uses the hostname from the AutoMDM Web Address (server_settings.server_url)")
 
 	// Firehose
 	man.addConfigString("firehose.region", "", "AWS Region to use")
@@ -2188,12 +2188,12 @@ func (man Manager) addConfigs() {
 	man.addConfigBool("splunk.insecure_skip_verify", false, "Skip TLS certificate verification for Splunk HEC (for self-signed certs)")
 
 	// License
-	man.addConfigString("license.key", "", "Fleet license key (to enable Fleet Premium features)")
+	man.addConfigString("license.key", "", "AutoMDM license key (to enable AutoMDM Premium features)")
 	man.addConfigBool("license.enforce_host_limit", false, "Enforce license limit of enrolled hosts")
 
 	// Vulnerability processing
 	man.addConfigString("vulnerabilities.databases_path", "/tmp/vulndbs",
-		"Path where Fleet will download the data feeds to check CVEs")
+		"Path where AutoMDM will download the data feeds to check CVEs")
 	man.addConfigDuration("vulnerabilities.periodicity", 1*time.Hour,
 		"How much time to wait between processing software for vulnerabilities.")
 	man.addConfigString("vulnerabilities.cpe_database_url", "",
@@ -2245,7 +2245,7 @@ func (man Manager) addConfigs() {
 
 	// Packaging config
 	//
-	// DEPRECATED: "packaging" fields were used for "Fleet Sandbox" which doesn't exist anymore.
+	// DEPRECATED: "packaging" fields were used for "AutoMDM Sandbox" which doesn't exist anymore.
 	man.addConfigString("packaging.global_enroll_secret", "", "Enroll secret to be used for the global domain (instead of randomly generating one)")
 	man.addConfigString("packaging.s3.bucket", "", "Bucket where to retrieve installers")
 	man.addConfigString("packaging.s3.prefix", "", "Prefix under which installers are stored")
@@ -2295,9 +2295,9 @@ func (man Manager) addConfigs() {
 	man.addConfigDuration("mdm.windows_command_retention", 30*24*time.Hour, "Minimum time since Windows MDM command history (responses, results, commands) was recorded or last updated before the hourly cleanup deletes it (0 disables the cleanup)")
 	man.addConfigInt("mdm.sso_rate_limit_per_minute", 0, "Number of allowed requests per minute to MDM SSO endpoints (default is sharing login rate limit bucket)")
 	man.addConfigInt("mdm.certificate_profiles_limit", 100, "Maximum number of CA certificate profile installations per batch (0 = unlimited)")
-	man.addConfigBool("mdm.enable_custom_os_updates_and_filevault", false, "Allows usage of custom Apple MDM profiles for FileVault (Fleet Premium required)")
-	man.addConfigBool("mdm.enable_custom_filevault", false, "Allows usage of custom Apple MDM profiles for FileVault (Fleet Premium required)")
-	man.addConfigBool("mdm.enable_custom_disk_encryption", false, "Allows usage of custom Apple MDM profiles for FileVault and custom Windows profiles for BitLocker (Fleet Premium required)")
+	man.addConfigBool("mdm.enable_custom_os_updates_and_filevault", false, "Allows usage of custom Apple MDM profiles for FileVault (AutoMDM Premium required)")
+	man.addConfigBool("mdm.enable_custom_filevault", false, "Allows usage of custom Apple MDM profiles for FileVault (AutoMDM Premium required)")
+	man.addConfigBool("mdm.enable_custom_disk_encryption", false, "Allows usage of custom Apple MDM profiles for FileVault and custom Windows profiles for BitLocker (AutoMDM Premium required)")
 	man.addConfigBool("mdm.allow_all_declarations", false, "Allows all MDM declaration types to be sent, bypassing safety checks")
 	man.addConfigBool("mdm.allow_custom_activations", false, "Allows custom activations to be uploaded for Apple declaration (DDM) profiles")
 	man.addConfigBool("mdm.apple_one_time_enroll_secrets", false,
@@ -2305,10 +2305,10 @@ func (man Manager) addConfigs() {
 	man.addConfigBool("mdm.windows_one_time_enroll_secrets", false,
 		"Deliver one-time, device-scoped enroll secrets to Windows MDM hosts instead of shared enroll secrets")
 	man.addConfigBool("mdm.android_one_time_enroll_secrets", false,
-		"Deliver one-time, device-scoped enroll secrets to the Fleet Android agent instead of shared enroll secrets")
-	man.addConfigBool("mdm.allow_orbit_end_user_auth_bypass", true, "Allow Orbit hosts that do not complete end user authentication to enroll into fleets that require it; set to false to strictly enforce end user authentication for Orbit enrollments")
-	man.addConfigString("mdm.android_agent.package", "com.fleetdm.agent", "Package name for the Fleet Android agent")
-	man.addConfigString("mdm.android_agent.signing_sha256", "x+IyvrwVbQEBYV/ojWmLavJE0VIZE1RAT2JmxeI5sFw=", "Signing certificate SHA256 fingerprint for the Fleet Android agent")
+		"Deliver one-time, device-scoped enroll secrets to the AutoMDM Android agent instead of shared enroll secrets")
+	man.addConfigBool("mdm.allow_orbit_end_user_auth_bypass", true, "Allow Orbit hosts that do not complete end user authentication to enroll into teams that require it; set to false to strictly enforce end user authentication for Orbit enrollments")
+	man.addConfigString("mdm.android_agent.package", "com.fleetdm.agent", "Package name for the AutoMDM Android agent")
+	man.addConfigString("mdm.android_agent.signing_sha256", "x+IyvrwVbQEBYV/ojWmLavJE0VIZE1RAT2JmxeI5sFw=", "Signing certificate SHA256 fingerprint for the AutoMDM Android agent")
 	man.hideConfig("mdm.android_agent.package")
 	man.hideConfig("mdm.android_agent.signing_sha256")
 	man.addConfigInt("mdm.android_batch_size", 100, "Maximum number of hosts per batch for Android MDM API operations (100 default; 0 = no limit)")
@@ -2341,11 +2341,11 @@ func (man Manager) addConfigs() {
 	man.addConfigBool("partnerships.enable_secureframe", false, "Point transparency URL at Secureframe landing page")
 
 	// Microsoft Compliance Partner
-	man.addConfigString("microsoft_compliance_partner.proxy_uri", "https://fleetdm.com", "URI of the Microsoft Compliance Partner proxy (for development/testing)")
-	man.addConfigString("microsoft_compliance_partner.client_id", DefaultMicrosoftCompliancePartnerClientID, "Client ID of Fleet's Microsoft Compliance Partner Entra app (for development/testing)")
-	man.addConfigString("google_conditional_access.proxy_uri", "https://fleetdm.com", "URI of the Google conditional access relay (for development/testing)")
+	man.addConfigString("microsoft_compliance_partner.proxy_uri", "https://automdm.com", "URI of the Microsoft Compliance Partner proxy (for development/testing)")
+	man.addConfigString("microsoft_compliance_partner.client_id", DefaultMicrosoftCompliancePartnerClientID, "Client ID of AutoMDM's Microsoft Compliance Partner Entra app (for development/testing)")
+	man.addConfigString("google_conditional_access.proxy_uri", "https://automdm.com", "URI of the Google conditional access relay (for development/testing)")
 
-	man.addConfigBool("partnerships.enable_primo", false, "Disables the ability to manage multiple fleets in an instance, even in premium tier")
+	man.addConfigBool("partnerships.enable_primo", false, "Disables the ability to manage multiple teams in an instance, even in premium tier")
 
 	// Conditional Access
 	man.addConfigString("conditional_access.cert_serial_format", "hex",
@@ -2374,7 +2374,7 @@ func (man Manager) addConfigs() {
 		"Fallback osquery config poll interval of connected agents, when websocket.osquery_config_enabled is set")
 
 	for _, e := range removednames.Filter(removednames.KindConfigKey, 0) {
-		man.addConfigString(e.Old, "", "Removed in Fleet 5") // need to register it to see the --flag format come through and show the Fleet 5 message.
+		man.addConfigString(e.Old, "", "Removed in AutoMDM 5") // need to register it to see the --flag format come through and show the AutoMDM 5 message.
 		man.hideConfig(e.Old)
 	}
 }
@@ -2403,13 +2403,13 @@ func (man Manager) removedConfigMessage(e removednames.Entry) string {
 }
 
 // LoadConfig will load the config variables into a fully initialized
-// FleetConfig struct
-func (man Manager) LoadConfig() (FleetConfig, error) {
+// AutoMDMConfig struct
+func (man Manager) LoadConfig() (AutoMDMConfig, error) {
 	man.loadConfigFile()
 
 	for _, removedKey := range removednames.Filter(removednames.KindConfigKey, 0) {
 		if man.IsSet(removedKey.Old) {
-			return FleetConfig{}, errors.New(man.removedConfigMessage(removedKey))
+			return AutoMDMConfig{}, errors.New(man.removedConfigMessage(removedKey))
 		}
 	}
 
@@ -2436,7 +2436,7 @@ func (man Manager) LoadConfig() (FleetConfig, error) {
 		}
 	}
 
-	cfg := FleetConfig{
+	cfg := AutoMDMConfig{
 		Mysql:            loadMysqlConfig("mysql"),
 		MysqlReadReplica: loadMysqlConfig("mysql_read_replica"),
 		Redis: RedisConfig{
@@ -2548,9 +2548,9 @@ func (man Manager) LoadConfig() (FleetConfig, error) {
 			MaxConcurrentQueryReportWrites:  man.getConfigInt("osquery.max_concurrent_query_report_writes"),
 		},
 		Activity: ActivityConfig{
-			EnableAuditLog:                 man.getConfigBool("activity.enable_audit_log"),
-			AuditLogPlugin:                 man.getConfigString("activity.audit_log_plugin"),
-			FleetInitiatedReleasePerMinute: man.getConfigNonNegativeInt("activity.fleet_initiated_release_per_minute"),
+			EnableAuditLog:                   man.getConfigBool("activity.enable_audit_log"),
+			AuditLogPlugin:                   man.getConfigString("activity.audit_log_plugin"),
+			AutoMDMInitiatedReleasePerMinute: man.getConfigNonNegativeInt("activity.automdm_initiated_release_per_minute"),
 		},
 		Logging: LoggingConfig{
 			Debug:                man.getConfigBool("logging.debug"),
@@ -2859,9 +2859,9 @@ func flagNameFromConfigKey(key string) string {
 	return strings.ReplaceAll(key, ".", "_")
 }
 
-// Manager manages the addition and retrieval of config values for Fleet
+// Manager manages the addition and retrieval of config values for AutoMDM
 // configs. It's only public API method is LoadConfig, which will return the
-// populated FleetConfig struct.
+// populated AutoMDMConfig struct.
 type Manager struct {
 	viper    *viper.Viper
 	command  *cobra.Command
@@ -3131,12 +3131,12 @@ func (man Manager) loadConfigFile() {
 
 // TestConfig returns a barebones configuration suitable for use in tests.
 // Individual tests may want to override some of the values provided.
-func TestConfig() FleetConfig {
+func TestConfig() AutoMDMConfig {
 	testLogFile := "/dev/null"
 	if runtime.GOOS == "windows" {
 		testLogFile = "NUL"
 	}
-	return FleetConfig{
+	return AutoMDMConfig{
 		App: AppConfig{
 			TokenKeySize:              24,
 			InviteTokenValidityPeriod: 5 * 24 * time.Hour,
@@ -3217,9 +3217,9 @@ type TestingT interface {
 // SetTestMDMConfig modifies the provided cfg so that MDM is enabled and
 // configured properly. The provided certificate and private key are used for
 // all required pairs and the Apple BM token is used as-is, instead of
-// decrypting the encrypted value that is usually provided via the fleet
+// decrypting the encrypted value that is usually provided via the team
 // server's flags.
-func SetTestMDMConfig(t TestingT, cfg *FleetConfig, cert, key []byte, wstepCertAndKeyDir string) {
+func SetTestMDMConfig(t TestingT, cfg *AutoMDMConfig, cert, key []byte, wstepCertAndKeyDir string) {
 	cfg.MDM.AppleSCEPSignerValidityDays = 365
 
 	if wstepCertAndKeyDir == "" {

@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/ee/server/service/ejbca/ejbcatest"
+	"github.com/anilyagiz/automdm/v4/ee/server/service/ejbca/ejbcatest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"software.sslmate.com/src/go-pkcs12"
@@ -56,7 +56,7 @@ func TestParseClientP12(t *testing.T) {
 	require.NoError(t, err)
 	leafFor := func(pub any) *x509.Certificate {
 		return ca.Issue(t, &x509.Certificate{
-			Subject:   pkix.Name{CommonName: "Fleet"},
+			Subject:   pkix.Name{CommonName: "AutoMDM"},
 			NotBefore: time.Now().Add(-time.Hour),
 			NotAfter:  time.Now().Add(time.Hour),
 		}, pub)

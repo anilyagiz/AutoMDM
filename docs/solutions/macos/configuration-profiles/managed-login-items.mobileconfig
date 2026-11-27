@@ -21,13 +21,13 @@
                     <key>RuleValue</key>
                     <string>8VBZ3948LU</string>
                     <key>Comment</key>
-                    <string>Fleet Agent</string>
+                    <string>AutoMDM Agent</string>
                 </dict>
             </array>
         </dict>
     </array>
     <key>PayloadDescription</key>
-    <string>Enforces Fleet Desktop login item</string>
+    <string>Enforces AutoMDM Desktop login item</string>
     <key>PayloadDisplayName</key>
     <string>Managed Login Items</string>
     <key>PayloadIdentifier</key>

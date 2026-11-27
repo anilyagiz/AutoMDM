@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -70,7 +70,7 @@ func TestResolveCommit(t *testing.T) {
 			srv := httptest.NewServer(c.handler)
 			defer srv.Close()
 
-			got, err := resolveCommit(t.Context(), slog.New(slog.DiscardHandler), fleethttp.NewClient(), srv.URL, appleRepo, appleBranch)
+			got, err := resolveCommit(t.Context(), slog.New(slog.DiscardHandler), automdmhttp.NewClient(), srv.URL, appleRepo, appleBranch)
 			if c.wantErr != "" {
 				require.ErrorContains(t, err, c.wantErr)
 				return

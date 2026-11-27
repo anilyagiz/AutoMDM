@@ -14,7 +14,7 @@
     display: flex;
     flex-direction: column;
     border-radius: $border-radius-large;
-    border: 1px solid $ui-fleet-black-10;
+    border: 1px solid $ui-automdm-black-10;
     overflow-y: auto;
     // 210px shows about 4.5 rows so the last row is half-visible, hinting
     // there is more to scroll to
@@ -37,7 +37,7 @@
     align-items: center;
 
     &:not(:last-child) {
-      border-bottom: 1px solid $ui-fleet-black-10;
+      border-bottom: 1px solid $ui-automdm-black-10;
     }
 
     .form-field--checkbox {
@@ -58,7 +58,7 @@
   &--disabled {
     .form-field__label,
     .software-options-selector__label-name {
-      color: $ui-fleet-black-50;
+      color: $ui-automdm-black-50;
     }
   }
 

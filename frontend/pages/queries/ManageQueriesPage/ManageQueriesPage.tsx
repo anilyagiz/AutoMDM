@@ -12,7 +12,7 @@ import { InjectedRouter } from "react-router";
 import AutomationsButton from "components/buttons/AutomationsButton";
 import Button from "components/buttons/Button";
 import TableDataError from "components/DataError";
-import FleetsDropdown from "components/FleetsDropdown";
+import AutoMDMsDropdown from "components/AutoMDMsDropdown";
 import MainContent from "components/MainContent";
 import PageDescription from "components/PageDescription";
 import { notify } from "components/ToastNotification";
@@ -60,7 +60,7 @@ interface IManageQueriesPageProps {
       query?: string;
       order_key?: string;
       order_direction?: "asc" | "desc";
-      fleet_id?: string;
+      team_id?: string;
       manage_automations?: string;
     };
     search: string;
@@ -151,7 +151,7 @@ const ManageQueriesPage = ({
         teamId: teamIdForApi,
         page: curPageFromURL,
         perPage: DEFAULT_PAGE_SIZE,
-        // a search match query, not a Fleet Query
+        // a search match query, not an AutoMDM Query
         query: location.query.query,
         orderDirection: location.query.order_direction,
         orderKey: location.query.order_key,
@@ -223,7 +223,7 @@ const ManageQueriesPage = ({
   const onCreateQueryClick = useCallback(() => {
     setLastEditedQueryBody(DEFAULT_QUERY.query);
     router.push(
-      getPathWithQueryParams(PATHS.NEW_REPORT, { fleet_id: currentTeamId })
+      getPathWithQueryParams(PATHS.NEW_REPORT, { team_id: currentTeamId })
     );
   }, [currentTeamId, router, setLastEditedQueryBody]);
 
@@ -280,9 +280,9 @@ const ManageQueriesPage = ({
     if (isPremiumTier && userTeams && !config?.partnerships?.enable_primo) {
       if (userTeams.length > 1 || isOnGlobalTeam) {
         return (
-          <FleetsDropdown
-            currentUserFleets={userTeams}
-            selectedFleetId={currentTeamId}
+          <AutoMDMsDropdown
+            currentUserTeams={userTeams}
+            selectedAutoMDMId={currentTeamId}
             onChange={onTeamChange}
           />
         );
@@ -313,7 +313,7 @@ const ManageQueriesPage = ({
         hasNextResults={!!queriesResponse?.meta.has_next_results}
         curTeamScopeQueriesPresent={
           teamIdForApi !== API_ALL_TEAMS_ID
-            ? enhancedQueries.some((q) => q.fleet_id === currentTeamId)
+            ? enhancedQueries.some((q) => q.team_id === currentTeamId)
             : enhancedQueries.length > 0
         }
         isLoading={isLoadingQueries || isFetchingQueries}
@@ -433,9 +433,9 @@ const ManageQueriesPage = ({
                           {isAnyTeamSelected &&
                           (queriesResponse?.count ?? 0) > 0 ? (
                             <>
-                              To manage automations add a report to this fleet.
+                              To manage automations add a report to this team.
                               For inherited reports select &ldquo;All
-                              fleets&rdquo;.
+                              teams&rdquo;.
                             </>
                           ) : (
                             "To manage automations add a report."

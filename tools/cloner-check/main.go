@@ -1,5 +1,5 @@
 // Command cloner-check is used to verify that each item stored in the
-// cached_mysql in-memory cache properly implements the fleet.Cloner interface.
+// cached_mysql in-memory cache properly implements the automdm.Cloner interface.
 //
 // There are two ways to use this command, the first one is typically used by
 // CI and checks that the cacheable items don't have any changes when compared
@@ -35,22 +35,22 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/pmezard/go-difflib/difflib"
 )
 
 // If you add a new cacheable struct, make sure to add it to this list.
-var cacheableItems = []fleet.Cloner{
-	&fleet.AppConfig{},
-	&fleet.Features{},
-	&fleet.TeamMDM{},
-	&fleet.TeamConfig{},
-	&fleet.Query{},
-	&fleet.MDMProfileSpec{},
-	&fleet.MDMConfigAsset{},
-	&fleet.YaraRule{},
-	&fleet.WindowsEnrollmentDefaultFleet{},
-	&fleet.MDMEULAMetadataLookup{},
+var cacheableItems = []automdm.Cloner{
+	&automdm.AppConfig{},
+	&automdm.Features{},
+	&automdm.TeamMDM{},
+	&automdm.TeamConfig{},
+	&automdm.Query{},
+	&automdm.MDMProfileSpec{},
+	&automdm.MDMConfigAsset{},
+	&automdm.YaraRule{},
+	&automdm.WindowsEnrollmentDefaultTeam{},
+	&automdm.MDMEULAMetadataLookup{},
 	// TeamAgentOptions is not in the list because it is a json.RawMessage, no fields can change.
 	// Same for ResultCountForQuery, it's just an int, and for QueriesPerHost, a []uint.
 }
@@ -153,7 +153,7 @@ func typeToFilename(t reflect.Type) string {
 	return fmt.Sprintf("%s.txt", strings.ToLower(t.Name()))
 }
 
-func generateFieldsList(w io.Writer, item fleet.Cloner) error {
+func generateFieldsList(w io.Writer, item automdm.Cloner) error {
 	// keep a map of already-printed types, to avoid printing the same type multiple times
 	seenTypes := make(map[string]bool)
 	t := reflect.TypeOf(item)

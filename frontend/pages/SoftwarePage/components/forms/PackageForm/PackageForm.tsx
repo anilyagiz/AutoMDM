@@ -86,12 +86,12 @@ const getGraphicName = (ext: string) => {
 };
 
 export const IPA_DUAL_PLATFORM_BANNER_COPY =
-  "Fleet adds this app for both iOS and iPadOS. Edit each platform separately. Changes to one don't apply to the other.";
+  "AutoMDM adds this app for both iOS and iPadOS. Edit each platform separately. Changes to one don't apply to the other.";
 
 const renderIpaDualPlatformBanner = () => (
   <InfoBanner
     icon="info"
-    iconColor="ui-fleet-black-50"
+    iconColor="ui-automdm-black-50"
     className={`${baseClass}__ipa-dual-platform-banner`}
   >
     {IPA_DUAL_PLATFORM_BANNER_COPY}
@@ -111,8 +111,8 @@ const renderSoftwareDeployWarningBanner = () => (
     }
   >
     Installing software over existing installations might cause issues.
-    Fleet&apos;s policy may not detect these existing installations. Please
-    create a test fleet in Fleet to verify a smooth installation.
+    AutoMDM&apos;s policy may not detect these existing installations. Please
+    create a test team in AutoMDM to verify a smooth installation.
   </InfoBanner>
 );
 
@@ -142,7 +142,7 @@ interface IPackageFormProps {
   onClickShowSchema?: () => void;
   onClickPreviewEndUserExperience: (isIosOrIpadosApp: boolean) => void;
   isEditingSoftware?: boolean;
-  isFleetMaintainedApp?: boolean;
+  isAutoMDMMaintainedApp?: boolean;
   /** Installer being edited — seeds the form's target-type / label / category
    * defaults. Only passed on the edit flow (`EditSoftwareModal`); the add flow
    * leaves it undefined. Not a `File` — the user's newly-picked file lands in
@@ -157,7 +157,7 @@ interface IPackageFormProps {
   className?: string;
   /** Indicates that this PackageForm deals with an entity that can be managed by GitOps, and so should be disabled when gitops mode is enabled */
   gitopsCompatible?: boolean;
-  /** When provided, the categories list is fetched dynamically for this fleet. */
+  /** When provided, the categories list is fetched dynamically for this team. */
   teamId?: number;
   /** Set when this form is mounted inside the multi-package add modal.
    * Renders a contextual banner just under the file chooser — GitOps copy
@@ -191,7 +191,7 @@ const PackageForm = ({
   onSubmit,
   onClickPreviewEndUserExperience,
   isEditingSoftware = false,
-  isFleetMaintainedApp = false,
+  isAutoMDMMaintainedApp = false,
   defaultSoftware,
   defaultInstallScript,
   defaultPreInstallQuery,
@@ -490,7 +490,7 @@ const PackageForm = ({
   // We currently don't support replacing a tarball package, and FMAs use the
   // page-level Versions modal to switch versions rather than a file replace.
   const canEditFile =
-    isEditingSoftware && !isTarballPackage && !isFleetMaintainedApp;
+    isEditingSoftware && !isTarballPackage && !isAutoMDMMaintainedApp;
 
   // If a user preselects automatic install and then uploads a:
   // exe, tarball, script, or ipa which automatic install is not supported,
@@ -564,16 +564,16 @@ const PackageForm = ({
 
   const renderTargetLabelSelector = () => (
     <>
-      {/* Fleet-maintained apps and .ipa titles can't have multiple versions. */}
+      {/* AutoMDM-maintained apps and .ipa titles can't have multiple versions. */}
       {(isEditingSoftware || multiPackageContext) &&
         !isIpaPackage &&
-        !isFleetMaintainedApp && (
+        !isAutoMDMMaintainedApp && (
           <InfoBanner
             icon="info"
-            iconColor="ui-fleet-black-50"
+            iconColor="ui-automdm-black-50"
             className={`${baseClass}__multi-package-banner`}
           >
-            If multiple versions target the same host, Fleet will deploy the one
+            If multiple versions target the same host, AutoMDM will deploy the one
             that was added first.
             <br />
             Want to roll out a new version to multiple hosts?{" "}

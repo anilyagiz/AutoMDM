@@ -6,28 +6,28 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/fleetdm/fleet/v4/tools/dibble/pkg/seed"
+	"github.com/anilyagiz/automdm/v4/tools/dibble/pkg/seed"
 )
 
 // newSoftwareCmd wires `dibble software` and its subcommands. The seeder
-// uploads the curated installer fixtures and registers a few Fleet-maintained
+// uploads the curated installer fixtures and registers a few AutoMDM-maintained
 // apps. Both paths target one team — the first existing team by default, or
 // whichever team --team-id / --team-name selects.
 func newSoftwareCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:   "software",
-		Short: "Seed software (custom installers + Fleet-maintained apps)",
-		Long: `Seed real software into Fleet for testing. Pick a subcommand:
+		Short: "Seed software (custom installers + AutoMDM-maintained apps)",
+		Long: `Seed real software into AutoMDM for testing. Pick a subcommand:
 
   dibble software all          — upload custom installers AND add maintained apps
   dibble software custom       — upload curated installers (2-3 per extension)
-  dibble software maintained   — add Fleet-maintained apps from the server's catalog
+  dibble software maintained   — add AutoMDM-maintained apps from the server's catalog
 
 Custom uploads cover .pkg / .deb / .msi / .exe / .rpm / .tar.gz / .ipa fixtures bundled
 into the dibble binary. Maintained-app entries are read from
-/api/latest/fleet/software/fleet_maintained_apps and POSTed in catalog order.
+/api/latest/automdm/software/automdm_maintained_apps and POSTed in catalog order.
 
-All work scopes to a single team. By default dibble picks the first team Fleet
+All work scopes to a single team. By default dibble picks the first team AutoMDM
 returns; override with --team-id or --team-name. Use --team-id 0 for the
 no-team / global scope.`,
 		Args: cobra.NoArgs,
@@ -35,9 +35,9 @@ no-team / global scope.`,
 	}
 
 	addCommonFlags := func(cmd *cobra.Command) {
-		cmd.Flags().Int("team-id", -1, "Team to upload software to. -1 (default) = first team Fleet returns. 0 = no team / global.")
+		cmd.Flags().Int("team-id", -1, "Team to upload software to. -1 (default) = first team AutoMDM returns. 0 = no team / global.")
 		cmd.Flags().String("team-name", "", "Team to upload software to, by name. Overrides --team-id if set.")
-		cmd.Flags().Int("maintained-count", 3, "How many Fleet-maintained apps to add (used by `all` and `maintained`)")
+		cmd.Flags().Int("maintained-count", 3, "How many AutoMDM-maintained apps to add (used by `all` and `maintained`)")
 	}
 
 	mkSub := func(use, short string, runFn func(client *Client, opt seed.SoftwareOptions) error) *cobra.Command {
@@ -74,7 +74,7 @@ no-team / global scope.`,
 			return reportErrors(res.Errors)
 		}))
 
-	root.AddCommand(mkSub("maintained", "Add Fleet-maintained apps from the server's catalog",
+	root.AddCommand(mkSub("maintained", "Add AutoMDM-maintained apps from the server's catalog",
 		func(c *Client, opt seed.SoftwareOptions) error {
 			if opt.MaintainedAppCount <= 0 {
 				opt.MaintainedAppCount = 3
@@ -103,9 +103,9 @@ no-team / global scope.`,
 
 // resolveSoftwareTeamID determines which team uploads land under. Precedence:
 //
-//  1. --team-name (looked up against Fleet)
+//  1. --team-name (looked up against AutoMDM)
 //  2. --team-id (0 means global, -1 means "auto-pick")
-//  3. Auto-pick: first team Fleet returns. If none exist, prompt
+//  3. Auto-pick: first team AutoMDM returns. If none exist, prompt
 //     interactively when a TTY is attached; otherwise default to 0 / global.
 func resolveSoftwareTeamID(cmd *cobra.Command, c *Client) (uint, error) {
 	if name, _ := cmd.Flags().GetString("team-name"); name != "" {
@@ -129,7 +129,7 @@ func resolveSoftwareTeamID(cmd *cobra.Command, c *Client) (uint, error) {
 		return uint(explicit), nil
 	}
 
-	// Auto-pick: first team Fleet returns. The wizard's software step (or
+	// Auto-pick: first team AutoMDM returns. The wizard's software step (or
 	// --team-id / --team-name) is the path for picking a specific team.
 	teams, err := listExistingTeams(c)
 	if err != nil {

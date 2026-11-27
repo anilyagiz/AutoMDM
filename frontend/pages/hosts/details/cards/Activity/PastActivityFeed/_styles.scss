@@ -8,8 +8,8 @@
     vertical-align: bottom;
     padding: 6px;
 
-    .fleeticon-chevronleft,
-    .fleeticon-chevronright {
+    .automdmicon-chevronleft,
+    .automdmicon-chevronright {
       &:before {
         font-size: 0.5rem;
         font-weight: $bold;
@@ -18,11 +18,11 @@
       }
     }
 
-    .fleeticon-chevronleft {
+    .automdmicon-chevronleft {
       margin-right: $pad-small;
     }
 
-    .fleeticon-chevronright {
+    .automdmicon-chevronright {
       margin-left: $pad-small;
     }
 
@@ -32,7 +32,7 @@
 
     &:hover:not(.button--disabled),
     &:focus {
-      background-color: $ui-fleet-black-10;
+      background-color: $ui-automdm-black-10;
     }
   }
 }

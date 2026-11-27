@@ -17,10 +17,10 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	apple_mdm "github.com/fleetdm/fleet/v4/server/mdm/apple"
-	"github.com/fleetdm/fleet/v4/server/mdm/scep/depot"
-	scepmock "github.com/fleetdm/fleet/v4/server/mock/scep"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	apple_mdm "github.com/anilyagiz/automdm/v4/server/mdm/apple"
+	"github.com/anilyagiz/automdm/v4/server/mdm/scep/depot"
+	scepmock "github.com/anilyagiz/automdm/v4/server/mock/scep"
 	"github.com/jmoiron/sqlx"
 	"github.com/smallstep/scep"
 	"github.com/stretchr/testify/require"
@@ -29,13 +29,13 @@ import (
 const testStaticChallenge = "static-challenge"
 
 type fakeAppleSCEPStore struct {
-	consume      func(challenge string) (*fleet.AppleSCEPChallengeInfo, error)
+	consume      func(challenge string) (*automdm.AppleSCEPChallengeInfo, error)
 	consumed     []string
 	setSerialErr error
 	serials      map[string]int64
 }
 
-func (s *fakeAppleSCEPStore) ConsumeAppleSCEPChallenge(_ context.Context, challenge string) (*fleet.AppleSCEPChallengeInfo, error) {
+func (s *fakeAppleSCEPStore) ConsumeAppleSCEPChallenge(_ context.Context, challenge string) (*automdm.AppleSCEPChallengeInfo, error) {
 	s.consumed = append(s.consumed, challenge)
 	return s.consume(challenge)
 }
@@ -51,17 +51,17 @@ func (s *fakeAppleSCEPStore) SetAppleSCEPChallengeIssuedCert(_ context.Context, 
 	return nil
 }
 
-func (s *fakeAppleSCEPStore) GetAllMDMConfigAssetsByName(_ context.Context, _ []fleet.MDMAssetName, _ sqlx.QueryerContext) (map[fleet.MDMAssetName]fleet.MDMConfigAsset, error) {
-	return map[fleet.MDMAssetName]fleet.MDMConfigAsset{
-		fleet.MDMAssetSCEPChallenge: {Name: fleet.MDMAssetSCEPChallenge, Value: []byte(testStaticChallenge)},
+func (s *fakeAppleSCEPStore) GetAllMDMConfigAssetsByName(_ context.Context, _ []automdm.MDMAssetName, _ sqlx.QueryerContext) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
+	return map[automdm.MDMAssetName]automdm.MDMConfigAsset{
+		automdm.MDMAssetSCEPChallenge: {Name: automdm.MDMAssetSCEPChallenge, Value: []byte(testStaticChallenge)},
 	}, nil
 }
 
-func (s *fakeAppleSCEPStore) GetABMTokenByOrgName(context.Context, string) (*fleet.ABMToken, error) {
+func (s *fakeAppleSCEPStore) GetABMTokenByOrgName(context.Context, string) (*automdm.ABMToken, error) {
 	return nil, errors.New("not implemented")
 }
 
-func notFoundConsume(string) (*fleet.AppleSCEPChallengeInfo, error) {
+func notFoundConsume(string) (*automdm.AppleSCEPChallengeInfo, error) {
 	return nil, errors.New("not found")
 }
 
@@ -81,7 +81,7 @@ func newTestSigner(t *testing.T) *depot.Signer {
 	})
 }
 
-// newCraftedCSR returns a CSR asking for everything Fleet must not copy: extra Subject attributes, every SAN
+// newCraftedCSR returns a CSR asking for everything AutoMDM must not copy: extra Subject attributes, every SAN
 // type, and its own copy of the binding extension.
 func newCraftedCSR(t *testing.T, ous ...string) *x509.CertificateRequest {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -90,7 +90,7 @@ func newCraftedCSR(t *testing.T, ous ...string) *x509.CertificateRequest {
 	require.NoError(t, err)
 	der, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{
 		Subject: pkix.Name{
-			CommonName:         "Not Fleet",
+			CommonName:         "Not AutoMDM",
 			Organization:       []string{"Evil Corp"},
 			OrganizationalUnit: ous,
 			Country:            []string{"US"},
@@ -108,14 +108,14 @@ func newCraftedCSR(t *testing.T, ous ...string) *x509.CertificateRequest {
 	return csr
 }
 
-// requireFleetIdentityCert checks that only Fleet-controlled fields made it into the certificate, and returns the
+// requireAutoMDMIdentityCert checks that only AutoMDM-controlled fields made it into the certificate, and returns the
 // decoded binding extension, or nil if there is none.
-func requireFleetIdentityCert(t *testing.T, cert *x509.Certificate, newEnrollment bool) map[string]any {
+func requireAutoMDMIdentityCert(t *testing.T, cert *x509.Certificate, newEnrollment bool) map[string]any {
 	t.Helper()
-	require.Equal(t, "Fleet Identity", cert.Subject.CommonName)
-	require.Equal(t, []string{"Fleet"}, cert.Subject.Organization)
+	require.Equal(t, "AutoMDM Identity", cert.Subject.CommonName)
+	require.Equal(t, []string{"AutoMDM"}, cert.Subject.Organization)
 	if newEnrollment {
-		require.Equal(t, []string{apple_mdm.FleetEnrollmentSubjectOU}, cert.Subject.OrganizationalUnit)
+		require.Equal(t, []string{apple_mdm.AutoMDMEnrollmentSubjectOU}, cert.Subject.OrganizationalUnit)
 	} else {
 		require.Empty(t, cert.Subject.OrganizationalUnit)
 	}
@@ -151,10 +151,10 @@ func TestAppleMDMChallengeMiddlewareStatic(t *testing.T) {
 
 		cert, err := mw(t.Context(), &scep.CSRReqMessage{
 			ChallengePassword: testStaticChallenge,
-			CSR:               newCraftedCSR(t, "extra-ou", apple_mdm.FleetEnrollmentSubjectOU),
+			CSR:               newCraftedCSR(t, "extra-ou", apple_mdm.AutoMDMEnrollmentSubjectOU),
 		})
 		require.NoError(t, err)
-		require.Nil(t, requireFleetIdentityCert(t, cert, true))
+		require.Nil(t, requireAutoMDMIdentityCert(t, cert, true))
 		require.Empty(t, store.consumed)
 	})
 
@@ -179,8 +179,8 @@ func TestAppleMDMChallengeMiddlewareStatic(t *testing.T) {
 
 func TestAppleMDMChallengeMiddlewareDynamic(t *testing.T) {
 	logger := slog.New(slog.DiscardHandler)
-	info := func(purpose fleet.AppleMDMCertPurpose) *fleet.AppleSCEPChallengeInfo {
-		return &fleet.AppleSCEPChallengeInfo{
+	info := func(purpose automdm.AppleMDMCertPurpose) *automdm.AppleSCEPChallengeInfo {
+		return &automdm.AppleSCEPChallengeInfo{
 			Purpose:        purpose,
 			UUID:           new("host-uuid"),
 			Serial:         new("hw-serial"),
@@ -189,36 +189,36 @@ func TestAppleMDMChallengeMiddlewareDynamic(t *testing.T) {
 	}
 
 	cases := []struct {
-		purpose       fleet.AppleMDMCertPurpose
+		purpose       automdm.AppleMDMCertPurpose
 		newEnrollment bool
 		want          map[string]any
 	}{
-		{fleet.AppleMDMCertPurposeADE, true, map[string]any{"v": 1.0, "purpose": "ade", "udid": "host-uuid", "serial": "hw-serial"}},
-		{fleet.AppleMDMCertPurposeOTAPhaseOne, true, map[string]any{"v": 1.0, "purpose": "ota_phase1", "udid": "host-uuid", "serial": "hw-serial"}},
-		{fleet.AppleMDMCertPurposeOTAPhaseTwo, true, map[string]any{"v": 1.0, "purpose": "ota_phase2", "udid": "host-uuid", "serial": "hw-serial"}},
-		{fleet.AppleMDMCertPurposeADUE, true, map[string]any{"v": 1.0, "purpose": "adue", "idp_account_uuid": "idp-uuid"}},
-		{fleet.AppleMDMCertPurposeSCEPRenewal, false, map[string]any{"v": 1.0, "purpose": "renewal", "enrollment_id": "host-uuid"}},
+		{automdm.AppleMDMCertPurposeADE, true, map[string]any{"v": 1.0, "purpose": "ade", "udid": "host-uuid", "serial": "hw-serial"}},
+		{automdm.AppleMDMCertPurposeOTAPhaseOne, true, map[string]any{"v": 1.0, "purpose": "ota_phase1", "udid": "host-uuid", "serial": "hw-serial"}},
+		{automdm.AppleMDMCertPurposeOTAPhaseTwo, true, map[string]any{"v": 1.0, "purpose": "ota_phase2", "udid": "host-uuid", "serial": "hw-serial"}},
+		{automdm.AppleMDMCertPurposeADUE, true, map[string]any{"v": 1.0, "purpose": "adue", "idp_account_uuid": "idp-uuid"}},
+		{automdm.AppleMDMCertPurposeSCEPRenewal, false, map[string]any{"v": 1.0, "purpose": "renewal", "enrollment_id": "host-uuid"}},
 	}
 	for _, c := range cases {
 		t.Run(string(c.purpose), func(t *testing.T) {
-			store := &fakeAppleSCEPStore{consume: func(string) (*fleet.AppleSCEPChallengeInfo, error) { return info(c.purpose), nil }}
+			store := &fakeAppleSCEPStore{consume: func(string) (*automdm.AppleSCEPChallengeInfo, error) { return info(c.purpose), nil }}
 			// static enabled too, to show a dynamic challenge still works alongside it
 			mw := AppleMDMChallengeMiddleware(logger, store, true, newTestSigner(t))
 
 			var ous []string
 			if c.newEnrollment {
-				ous = []string{apple_mdm.FleetEnrollmentSubjectOU}
+				ous = []string{apple_mdm.AutoMDMEnrollmentSubjectOU}
 			}
 			cert, err := mw(t.Context(), &scep.CSRReqMessage{ChallengePassword: "dynamic", CSR: newCraftedCSR(t, ous...)})
 			require.NoError(t, err)
-			require.Equal(t, c.want, requireFleetIdentityCert(t, cert, c.newEnrollment))
+			require.Equal(t, c.want, requireAutoMDMIdentityCert(t, cert, c.newEnrollment))
 			require.Equal(t, map[string]int64{"dynamic": cert.SerialNumber.Int64()}, store.serials)
 		})
 	}
 
 	t.Run("unsupported purpose", func(t *testing.T) {
-		store := &fakeAppleSCEPStore{consume: func(string) (*fleet.AppleSCEPChallengeInfo, error) {
-			return info(fleet.AppleMDMCertPurposeACME), nil
+		store := &fakeAppleSCEPStore{consume: func(string) (*automdm.AppleSCEPChallengeInfo, error) {
+			return info(automdm.AppleMDMCertPurposeACME), nil
 		}}
 		mw := AppleMDMChallengeMiddleware(logger, store, false, newTestSigner(t))
 
@@ -228,7 +228,9 @@ func TestAppleMDMChallengeMiddlewareDynamic(t *testing.T) {
 
 	t.Run("recording the serial fails", func(t *testing.T) {
 		store := &fakeAppleSCEPStore{
-			consume:      func(string) (*fleet.AppleSCEPChallengeInfo, error) { return info(fleet.AppleMDMCertPurposeADE), nil },
+			consume: func(string) (*automdm.AppleSCEPChallengeInfo, error) {
+				return info(automdm.AppleMDMCertPurposeADE), nil
+			},
 			setSerialErr: errors.New("db down"),
 		}
 		mw := AppleMDMChallengeMiddleware(logger, store, false, newTestSigner(t))

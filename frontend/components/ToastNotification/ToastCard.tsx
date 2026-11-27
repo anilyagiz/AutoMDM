@@ -70,7 +70,7 @@ const ToastCard = ({
     toast.dismiss(toastId);
   };
 
-  // Fleet's shared helper stringifies + escapes + wraps tokens in
+  // AutoMDM's shared helper stringifies + escapes + wraps tokens in
   // `<span class="string|number|boolean|null|key">`. The global `pre`
   // rule in `styles/global/_global.scss` then colours each class —
   // identical to the "Manage activity automations" modal's payload.

@@ -5,14 +5,14 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
-	"github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
+	"github.com/anilyagiz/automdm/v4/server/mock"
 	"github.com/stretchr/testify/require"
 )
 
-func nopNewActivity(ctx context.Context, user *fleet.User, details fleet.ActivityDetails) error {
+func nopNewActivity(ctx context.Context, user *automdm.User, details automdm.ActivityDetails) error {
 	return nil
 }
 
@@ -72,18 +72,18 @@ func TestDoParamValidation(t *testing.T) {
 // covering re-enrollment) — reconcile the host's host-name template enforcement,
 // so a host enrolling into a team with a template gets a queued row.
 func TestReconcileHostNameEnforcementOnEnrollment(t *testing.T) {
-	ctx := license.NewContext(context.Background(), &fleet.LicenseInfo{Tier: fleet.TierPremium})
+	ctx := license.NewContext(context.Background(), &automdm.LicenseInfo{Tier: automdm.TierPremium})
 	const hostID = uint(99)
 
 	t.Run("turn-on reconciles with the enrolled host id", func(t *testing.T) {
 		ds := new(mock.Store)
-		ds.GetNanoMDMEnrollmentFunc = func(ctx context.Context, uuid string) (*fleet.NanoEnrollment, error) {
-			return &fleet.NanoEnrollment{Enabled: true, Type: "Device", TokenUpdateTally: 1}, nil
+		ds.GetNanoMDMEnrollmentFunc = func(ctx context.Context, uuid string) (*automdm.NanoEnrollment, error) {
+			return &automdm.NanoEnrollment{Enabled: true, Type: "Device", TokenUpdateTally: 1}, nil
 		}
-		ds.GetHostMDMCheckinInfoFunc = func(ctx context.Context, uuid string) (*fleet.HostMDMCheckinInfo, error) {
-			return &fleet.HostMDMCheckinInfo{HostID: hostID, Platform: "darwin"}, nil
+		ds.GetHostMDMCheckinInfoFunc = func(ctx context.Context, uuid string) (*automdm.HostMDMCheckinInfo, error) {
+			return &automdm.HostMDMCheckinInfo{HostID: hostID, Platform: "darwin"}, nil
 		}
-		ds.NewJobFunc = func(ctx context.Context, job *fleet.Job) (*fleet.Job, error) { return job, nil }
+		ds.NewJobFunc = func(ctx context.Context, job *automdm.Job) (*automdm.Job, error) { return job, nil }
 		var gotIDs []uint
 		ds.ReconcileHostDeviceNamesForHostsFunc = func(ctx context.Context, hostIDs []uint) error {
 			gotIDs = hostIDs
@@ -98,15 +98,15 @@ func TestReconcileHostNameEnforcementOnEnrollment(t *testing.T) {
 
 	t.Run("turn-on reconciles on the DEP branch before its early return", func(t *testing.T) {
 		ds := new(mock.Store)
-		ds.GetNanoMDMEnrollmentFunc = func(ctx context.Context, uuid string) (*fleet.NanoEnrollment, error) {
-			return &fleet.NanoEnrollment{Enabled: true, Type: "Device", TokenUpdateTally: 1}, nil
+		ds.GetNanoMDMEnrollmentFunc = func(ctx context.Context, uuid string) (*automdm.NanoEnrollment, error) {
+			return &automdm.NanoEnrollment{Enabled: true, Type: "Device", TokenUpdateTally: 1}, nil
 		}
-		// DEPAssignedToFleet takes the DEP branch, which queues a job and returns
+		// DEPAssignedToAutoMDM takes the DEP branch, which queues a job and returns
 		// early — the reconcile must run before that branch.
-		ds.GetHostMDMCheckinInfoFunc = func(ctx context.Context, uuid string) (*fleet.HostMDMCheckinInfo, error) {
-			return &fleet.HostMDMCheckinInfo{HostID: hostID, Platform: "darwin", DEPAssignedToFleet: true}, nil
+		ds.GetHostMDMCheckinInfoFunc = func(ctx context.Context, uuid string) (*automdm.HostMDMCheckinInfo, error) {
+			return &automdm.HostMDMCheckinInfo{HostID: hostID, Platform: "darwin", DEPAssignedToAutoMDM: true}, nil
 		}
-		ds.NewJobFunc = func(ctx context.Context, job *fleet.Job) (*fleet.Job, error) { return job, nil }
+		ds.NewJobFunc = func(ctx context.Context, job *automdm.Job) (*automdm.Job, error) { return job, nil }
 		var gotIDs []uint
 		ds.ReconcileHostDeviceNamesForHostsFunc = func(ctx context.Context, hostIDs []uint) error {
 			gotIDs = hostIDs
@@ -123,8 +123,8 @@ func TestReconcileHostNameEnforcementOnEnrollment(t *testing.T) {
 	t.Run("turn-on skips reconcile when the enrollment is not ready", func(t *testing.T) {
 		ds := new(mock.Store)
 		// TokenUpdateTally != 1 makes turnOnApple short-circuit before reconciling.
-		ds.GetNanoMDMEnrollmentFunc = func(ctx context.Context, uuid string) (*fleet.NanoEnrollment, error) {
-			return &fleet.NanoEnrollment{Enabled: true, Type: "Device", TokenUpdateTally: 2}, nil
+		ds.GetNanoMDMEnrollmentFunc = func(ctx context.Context, uuid string) (*automdm.NanoEnrollment, error) {
+			return &automdm.NanoEnrollment{Enabled: true, Type: "Device", TokenUpdateTally: 2}, nil
 		}
 		ds.ReconcileHostDeviceNamesForHostsFunc = func(ctx context.Context, hostIDs []uint) error { return nil }
 
@@ -135,7 +135,7 @@ func TestReconcileHostNameEnforcementOnEnrollment(t *testing.T) {
 
 	t.Run("reset reconciles with the upserted host id", func(t *testing.T) {
 		ds := new(mock.Store)
-		ds.MDMAppleUpsertHostFunc = func(ctx context.Context, mdmHost *fleet.Host, personalType fleet.PersonalEnrollmentType) error {
+		ds.MDMAppleUpsertHostFunc = func(ctx context.Context, mdmHost *automdm.Host, personalType automdm.PersonalEnrollmentType) error {
 			mdmHost.ID = hostID
 			return nil
 		}
@@ -159,31 +159,31 @@ func TestReconcileHostNameEnforcementOnEnrollment(t *testing.T) {
 		for _, tc := range []struct {
 			name string
 			opts HostOptions
-			want fleet.PersonalEnrollmentType
+			want automdm.PersonalEnrollmentType
 		}{
 			{
 				name: "account-driven user enrollment",
 				opts: HostOptions{Platform: "ios", HardwareModel: "iPhone14,2", UserEnrollmentID: "enrollment-id"},
-				want: fleet.PersonalEnrollmentTypeAccountDriven,
+				want: automdm.PersonalEnrollmentTypeAccountDriven,
 			},
 			{
 				name: "manual BYOD",
 				opts: HostOptions{
 					Platform: "ios", UUID: "host-uuid", HardwareSerial: "serial", HardwareModel: "iPhone14,2",
-					PersonalEnrollmentType: fleet.PersonalEnrollmentTypeManualProfile,
+					PersonalEnrollmentType: automdm.PersonalEnrollmentTypeManualProfile,
 				},
-				want: fleet.PersonalEnrollmentTypeManualProfile,
+				want: automdm.PersonalEnrollmentTypeManualProfile,
 			},
 			{
 				name: "company-owned",
 				opts: HostOptions{Platform: "darwin", UUID: "host-uuid", HardwareSerial: "serial", HardwareModel: "MacBookPro"},
-				want: fleet.PersonalEnrollmentTypeNone,
+				want: automdm.PersonalEnrollmentTypeNone,
 			},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				ds := new(mock.Store)
-				var got fleet.PersonalEnrollmentType
-				ds.MDMAppleUpsertHostFunc = func(ctx context.Context, mdmHost *fleet.Host, personalType fleet.PersonalEnrollmentType) error {
+				var got automdm.PersonalEnrollmentType
+				ds.MDMAppleUpsertHostFunc = func(ctx context.Context, mdmHost *automdm.Host, personalType automdm.PersonalEnrollmentType) error {
 					got = personalType
 					mdmHost.ID = hostID
 					return nil
@@ -223,25 +223,25 @@ func TestReconcileHostNameEnforcementOnEnrollment(t *testing.T) {
 // populated host_serial for both device and account-driven user (BYOD)
 // enrollments. Regression coverage for #49777.
 func TestMDMEnrolledActivityHostIDAndSerial(t *testing.T) {
-	ctx := license.NewContext(context.Background(), &fleet.LicenseInfo{Tier: fleet.TierPremium})
+	ctx := license.NewContext(context.Background(), &automdm.LicenseInfo{Tier: automdm.TierPremium})
 	const hostID = uint(99)
 
 	// runTurnOn drives an Apple turn-on enrollment of the given nano enrollment
 	// type and returns the mdm_enrolled activity that was recorded.
-	runTurnOn := func(t *testing.T, enrollType, hardwareSerial string, opts HostOptions) *fleet.ActivityTypeMDMEnrolled {
+	runTurnOn := func(t *testing.T, enrollType, hardwareSerial string, opts HostOptions) *automdm.ActivityTypeMDMEnrolled {
 		ds := new(mock.Store)
-		ds.GetNanoMDMEnrollmentFunc = func(ctx context.Context, uuid string) (*fleet.NanoEnrollment, error) {
-			return &fleet.NanoEnrollment{Enabled: true, Type: enrollType, TokenUpdateTally: 1}, nil
+		ds.GetNanoMDMEnrollmentFunc = func(ctx context.Context, uuid string) (*automdm.NanoEnrollment, error) {
+			return &automdm.NanoEnrollment{Enabled: true, Type: enrollType, TokenUpdateTally: 1}, nil
 		}
-		ds.GetHostMDMCheckinInfoFunc = func(ctx context.Context, uuid string) (*fleet.HostMDMCheckinInfo, error) {
-			return &fleet.HostMDMCheckinInfo{HostID: hostID, Platform: opts.Platform, HardwareSerial: hardwareSerial}, nil
+		ds.GetHostMDMCheckinInfoFunc = func(ctx context.Context, uuid string) (*automdm.HostMDMCheckinInfo, error) {
+			return &automdm.HostMDMCheckinInfo{HostID: hostID, Platform: opts.Platform, HardwareSerial: hardwareSerial}, nil
 		}
-		ds.NewJobFunc = func(ctx context.Context, job *fleet.Job) (*fleet.Job, error) { return job, nil }
+		ds.NewJobFunc = func(ctx context.Context, job *automdm.Job) (*automdm.Job, error) { return job, nil }
 		ds.ReconcileHostDeviceNamesForHostsFunc = func(ctx context.Context, hostIDs []uint) error { return nil }
 
-		var captured *fleet.ActivityTypeMDMEnrolled
-		newAct := func(ctx context.Context, user *fleet.User, details fleet.ActivityDetails) error {
-			if a, ok := details.(*fleet.ActivityTypeMDMEnrolled); ok {
+		var captured *automdm.ActivityTypeMDMEnrolled
+		newAct := func(ctx context.Context, user *automdm.User, details automdm.ActivityDetails) error {
+			if a, ok := details.(*automdm.ActivityTypeMDMEnrolled); ok {
 				captured = a
 			}
 			return nil
@@ -278,21 +278,21 @@ func TestMDMEnrolledActivityHostIDAndSerial(t *testing.T) {
 }
 
 func TestDeleteAppleDuplicateDEPHost(t *testing.T) {
-	ctx := license.NewContext(context.Background(), &fleet.LicenseInfo{Tier: fleet.TierPremium})
+	ctx := license.NewContext(context.Background(), &automdm.LicenseInfo{Tier: automdm.TierPremium})
 
 	const serial = "ABC123XYZ"
-	host := &fleet.Host{ID: 1, HardwareSerial: serial, Platform: "darwin"}
+	host := &automdm.Host{ID: 1, HardwareSerial: serial, Platform: "darwin"}
 
 	newDS := func(dupExists bool) *mock.Store {
 		ds := new(mock.Store)
-		ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-			ac := &fleet.AppConfig{}
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			ac := &automdm.AppConfig{}
 			ac.MDM.AppleBMEnabledAndConfigured = true
 			return ac, nil
 		}
 		abmTokenID := uint(7)
-		ds.GetHostDEPAssignmentFunc = func(ctx context.Context, hostID uint) (*fleet.HostDEPAssignment, error) {
-			return &fleet.HostDEPAssignment{HostID: hostID, ABMTokenID: &abmTokenID}, nil
+		ds.GetHostDEPAssignmentFunc = func(ctx context.Context, hostID uint) (*automdm.HostDEPAssignment, error) {
+			return &automdm.HostDEPAssignment{HostID: hostID, ABMTokenID: &abmTokenID}, nil
 		}
 		ds.ReconcileDuplicateDEPHostOnDeleteFunc = func(ctx context.Context, s, platform string, deletedHostID uint) (bool, error) {
 			require.Equal(t, serial, s)
@@ -300,7 +300,7 @@ func TestDeleteAppleDuplicateDEPHost(t *testing.T) {
 			require.Equal(t, host.ID, deletedHostID)
 			return dupExists, nil
 		}
-		ds.RestoreMDMApplePendingDEPHostFunc = func(ctx context.Context, h *fleet.Host) error {
+		ds.RestoreMDMApplePendingDEPHostFunc = func(ctx context.Context, h *automdm.Host) error {
 			return nil
 		}
 		return ds
@@ -320,10 +320,10 @@ func TestDeleteAppleDuplicateDEPHost(t *testing.T) {
 	t.Run("no duplicate, ghost host restored", func(t *testing.T) {
 		ds := newDS(false)
 		// "No team" default keeps getDefaultTeamForABMToken from needing TeamExists.
-		ds.GetABMTokenByIDFunc = func(ctx context.Context, tokenID uint) (*fleet.ABMToken, error) {
-			return &fleet.ABMToken{ID: tokenID}, nil
+		ds.GetABMTokenByIDFunc = func(ctx context.Context, tokenID uint) (*automdm.ABMToken, error) {
+			return &automdm.ABMToken{ID: tokenID}, nil
 		}
-		ds.NewJobFunc = func(ctx context.Context, job *fleet.Job) (*fleet.Job, error) {
+		ds.NewJobFunc = func(ctx context.Context, job *automdm.Job) (*automdm.Job, error) {
 			return job, nil
 		}
 

@@ -64,12 +64,12 @@ const ConditionalAccessModal = forwardRef<
               // Only global admins can access the Conditional Access settings page.
               <CustomLink
                 url={PATHS.ADMIN_INTEGRATIONS_CONDITIONAL_ACCESS}
-                text={`Connect Fleet to ${providerText}`}
+                text={`Connect AutoMDM to ${providerText}`}
                 emphasized
               />
             ) : (
               <>
-                Admin can connect Fleet to {providerText} via <b>Settings</b>{" "}
+                Admin can connect AutoMDM to {providerText} via <b>Settings</b>{" "}
                 &gt; <b>Integrations</b> &gt; <b>Conditional access</b>
               </>
             )}{" "}

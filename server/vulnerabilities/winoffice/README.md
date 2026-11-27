@@ -47,4 +47,4 @@ cd cmd/winoffice
 go run generate.go
 ```
 
-This creates a bulletin file in `winoffice_out/` with the naming format `fleet_winoffice_bulletin-YYYY_MM_DD.json`.
+This creates a bulletin file in `winoffice_out/` with the naming format `automdm_winoffice_bulletin-YYYY_MM_DD.json`.

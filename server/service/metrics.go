@@ -1,12 +1,12 @@
 package service
 
 import (
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/go-kit/kit/metrics"
 )
 
 type metricsMiddleware struct {
-	fleet.Service
+	automdm.Service
 	requestCount   metrics.Counter
 	requestLatency metrics.Histogram
 }
@@ -14,10 +14,10 @@ type metricsMiddleware struct {
 // NewMetricsService service takes an existing service and wraps it
 // with instrumentation middleware.
 func NewMetricsService(
-	svc fleet.Service,
+	svc automdm.Service,
 	requestCount metrics.Counter,
 	requestLatency metrics.Histogram,
-) fleet.Service {
+) automdm.Service {
 	return metricsMiddleware{
 		Service:        svc,
 		requestCount:   requestCount,

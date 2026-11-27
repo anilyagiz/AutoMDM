@@ -18,8 +18,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -49,7 +49,7 @@ func TestValidateServiceAccountKey(t *testing.T) {
 }
 
 // testServiceAccountKey returns a service account key file with a freshly generated private key.
-func testServiceAccountKey(t *testing.T) fleet.GoogleCASKeyJSON {
+func testServiceAccountKey(t *testing.T) automdm.GoogleCASKeyJSON {
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
 	der, err := x509.MarshalPKCS8PrivateKey(key)
@@ -58,10 +58,10 @@ func testServiceAccountKey(t *testing.T) fleet.GoogleCASKeyJSON {
 		"type":         "service_account",
 		"project_id":   "my-project",
 		"private_key":  string(pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der})),
-		"client_email": "fleet@my-project.iam.gserviceaccount.com",
+		"client_email": "team@my-project.iam.gserviceaccount.com",
 	})
 	require.NoError(t, err)
-	return fleet.GoogleCASKeyJSON(b)
+	return automdm.GoogleCASKeyJSON(b)
 }
 
 func TestVerifyCAPool(t *testing.T) {
@@ -92,8 +92,8 @@ func TestVerifyCAPool(t *testing.T) {
 		t.Cleanup(srv.Close)
 		return srv, &calls
 	}
-	newCA := func(t *testing.T) fleet.GoogleCASCA {
-		return fleet.GoogleCASCA{Name: "WIFI", Project: "my-project", Location: "us-central1", CAPool: "my-pool", APIKeyJSON: testServiceAccountKey(t)}
+	newCA := func(t *testing.T) automdm.GoogleCASCA {
+		return automdm.GoogleCASCA{Name: "WIFI", Project: "my-project", Location: "us-central1", CAPool: "my-pool", APIKeyJSON: testServiceAccountKey(t)}
 	}
 	newSvc := func(srv *httptest.Server) *Service {
 		return NewService(WithEndpoint(srv.URL), WithTokenURL(srv.URL+"/token"))
@@ -115,17 +115,17 @@ func TestVerifyCAPool(t *testing.T) {
 			key[field] = elsewhere.URL + "/token"
 			b, err := json.Marshal(key)
 			require.NoError(t, err)
-			ca.APIKeyJSON = fleet.GoogleCASKeyJSON(b)
+			ca.APIKeyJSON = automdm.GoogleCASKeyJSON(b)
 			require.NoError(t, newSvc(srv).VerifyCAPool(t.Context(), ca), field)
 		}
 		require.Empty(t, *elsewhereCalls)
 		require.Len(t, *calls, 4)
 	})
 
-	t.Run("requests are subject to fleethttp network blocking", func(t *testing.T) {
+	t.Run("requests are subject to automdmhttp network blocking", func(t *testing.T) {
 		srv, calls := newGoogle(t, http.StatusOK, http.StatusOK)
-		fleethttp.SetNetworkBlockingMode(fleethttp.BlockingFull)
-		t.Cleanup(func() { fleethttp.SetNetworkBlockingMode(fleethttp.BlockingDisabled) })
+		automdmhttp.SetNetworkBlockingMode(automdmhttp.BlockingFull)
+		t.Cleanup(func() { automdmhttp.SetNetworkBlockingMode(automdmhttp.BlockingDisabled) })
 		require.Error(t, newSvc(srv).VerifyCAPool(t.Context(), newCA(t)))
 		require.Empty(t, *calls)
 	})
@@ -278,8 +278,8 @@ func TestIssueCertificate(t *testing.T) {
 		t.Cleanup(g.srv.Close)
 		return g
 	}
-	newCA := func(t *testing.T) fleet.GoogleCASCA {
-		return fleet.GoogleCASCA{Name: "WIFI", Project: "my-project", Location: "us-central1", CAPool: "my-pool", APIKeyJSON: testServiceAccountKey(t)}
+	newCA := func(t *testing.T) automdm.GoogleCASCA {
+		return automdm.GoogleCASCA{Name: "WIFI", Project: "my-project", Location: "us-central1", CAPool: "my-pool", APIKeyJSON: testServiceAccountKey(t)}
 	}
 
 	const poolLog = "ca_pool=projects/my-project/locations/us-central1/caPools/my-pool"
@@ -295,7 +295,7 @@ func TestIssueCertificate(t *testing.T) {
 		require.Contains(t, logs.String(), `msg="Google CAS issued a certificate" `+poolLog+" certificate_name=issued serial=42")
 		require.Equal(t, string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrDER})), g.issueBody["pemCsr"])
 		require.Equal(t, "31536000s", g.issueBody["lifetime"])
-		require.Regexp(t, `^fleet-[0-9a-f-]{36}$`, g.issueQuery.Get("certificateId"))
+		require.Regexp(t, `^automdm-[0-9a-f-]{36}$`, g.issueQuery.Get("certificateId"))
 		firstID := g.issueQuery.Get("certificateId")
 
 		_, err = svc.IssueCertificate(t.Context(), ca, csr)
@@ -322,7 +322,7 @@ func TestIssueCertificate(t *testing.T) {
 			_, err := NewService(WithEndpoint(g.srv.URL), WithTokenURL(g.srv.URL+"/token")).IssueCertificate(t.Context(), newCA(t), csr)
 			require.ErrorContains(t, err, tc.wantErr)
 			require.NotContains(t, err.Error(), "from google")
-			transient, ok := errors.AsType[fleet.CertificateAuthorityTransientError](err)
+			transient, ok := errors.AsType[automdm.CertificateAuthorityTransientError](err)
 			require.Equal(t, tc.wantTransient, ok)
 			if ok {
 				require.Equal(t, 30, transient.RetryAfter())
@@ -335,7 +335,7 @@ func TestIssueCertificate(t *testing.T) {
 		ca := newCA(t)
 		g.srv.Close()
 		_, err := NewService(WithEndpoint(g.srv.URL), WithTokenURL(g.srv.URL+"/token")).IssueCertificate(t.Context(), ca, csr)
-		transient, ok := errors.AsType[fleet.CertificateAuthorityTransientError](err)
+		transient, ok := errors.AsType[automdm.CertificateAuthorityTransientError](err)
 		require.True(t, ok, err)
 		require.Equal(t, "Couldn't connect to Google CAS. Try again later.", transient.Message)
 	})
@@ -345,9 +345,9 @@ func TestIssueCertificate(t *testing.T) {
 			w.WriteHeader(http.StatusServiceUnavailable)
 		}))
 		t.Cleanup(srv.Close)
-		ca := fleet.GoogleCASCA{Name: "WIFI", Project: "my-project", Location: "us-central1", CAPool: "my-pool", APIKeyJSON: testServiceAccountKey(t)}
+		ca := automdm.GoogleCASCA{Name: "WIFI", Project: "my-project", Location: "us-central1", CAPool: "my-pool", APIKeyJSON: testServiceAccountKey(t)}
 		_, err := NewService(WithEndpoint(srv.URL), WithTokenURL(srv.URL+"/token")).IssueCertificate(t.Context(), ca, csr)
-		transient, ok := errors.AsType[fleet.CertificateAuthorityTransientError](err)
+		transient, ok := errors.AsType[automdm.CertificateAuthorityTransientError](err)
 		require.True(t, ok, err)
 		require.Equal(t, "Google couldn't issue an access token (HTTP 503). Try again later.", transient.Message)
 	})
@@ -426,7 +426,7 @@ func TestIssueCertificate(t *testing.T) {
 		start := time.Now()
 		_, err := NewService(WithEndpoint(g.srv.URL), WithTokenURL(g.srv.URL+"/token"), WithTimeout(300*time.Millisecond)).IssueCertificate(t.Context(), newCA(t), csr)
 		require.Less(t, time.Since(start), 10*time.Second)
-		_, ok := errors.AsType[fleet.CertificateAuthorityTransientError](err)
+		_, ok := errors.AsType[automdm.CertificateAuthorityTransientError](err)
 		require.True(t, ok, err)
 	})
 

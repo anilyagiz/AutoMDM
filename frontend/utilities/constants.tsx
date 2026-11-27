@@ -19,10 +19,10 @@ export enum PolicyResponse {
 }
 
 export const DEFAULT_GRAVATAR_LINK =
-  "https://fleetdm.com/images/permanent/icon-avatar-default-gray-transparent-64x64@2x.png";
+  "https://automdm.com/images/permanent/icon-avatar-default-gray-transparent-64x64@2x.png";
 
 export const DEFAULT_GRAVATAR_LINK_DARK =
-  "https://fleetdm.com/images/permanent/icon-avatar-default-dark-24x24%402x.png";
+  "https://automdm.com/images/permanent/icon-avatar-default-dark-24x24%402x.png";
 
 export const DEFAULT_GRAVATAR_LINK_FALLBACK =
   "/assets/images/icon-avatar-default-gray-transparent-64x64@2x.png";
@@ -66,17 +66,17 @@ export const GITHUB_NEW_ISSUE_LINK =
   "https://github.com/fleetdm/fleet/issues/new?assignees=&labels=bug%2C%3Areproduce&template=bug-report.md";
 
 /** website links */
-export const FLEET_WEBSITE_URL = "https://fleetdm.com";
-export const TRANSPARENCY_LINK = `${FLEET_WEBSITE_URL}/better`;
-export const SUPPORT_LINK = `${FLEET_WEBSITE_URL}/support`;
-export const CONTACT_FLEET_LINK = `${FLEET_WEBSITE_URL}/contact`;
-export const LEARN_MORE_ABOUT_BASE_LINK = `${FLEET_WEBSITE_URL}/learn-more-about`;
-export const FLEET_GUIDES_BASE_LINK = `${FLEET_WEBSITE_URL}/guides`;
+export const AUTOMDM_WEBSITE_URL = "https://automdm.com";
+export const TRANSPARENCY_LINK = `${AUTOMDM_WEBSITE_URL}/better`;
+export const SUPPORT_LINK = `${AUTOMDM_WEBSITE_URL}/support`;
+export const CONTACT_AUTOMDM_LINK = `${AUTOMDM_WEBSITE_URL}/contact`;
+export const LEARN_MORE_ABOUT_BASE_LINK = `${AUTOMDM_WEBSITE_URL}/learn-more-about`;
+export const AUTOMDM_GUIDES_BASE_LINK = `${AUTOMDM_WEBSITE_URL}/guides`;
 export const ANDROID_PLAY_STORE_URL =
   "https://play.google.com/store/apps/details";
 
-/**  July 28, 2016 is the date of the initial commit to fleet/fleet. */
-export const INITIAL_FLEET_DATE = "2016-07-28T00:00:00Z";
+/**  July 28, 2016 is the date of the initial commit to automdm/automdm. */
+export const INITIAL_AUTOMDM_DATE = "2016-07-28T00:00:00Z";
 
 export const LOGGING_TYPE_OPTIONS = [
   { label: "Snapshot", value: "snapshot" },
@@ -91,7 +91,7 @@ export const MAX_OSQUERY_SCHEDULED_QUERY_INTERVAL = 604800;
 
 // Max character length for most user-supplied free-text fields (name, title,
 // description) — matches the varchar(255) column shared across policies,
-// reports, teams (fleets), labels, software categories, custom variables,
+// reports, teams (teams), labels, software categories, custom variables,
 // certificate authorities, etc. Use on any `InputField` bound to such a
 // column: `inputOptions={{ maxLength: MAX_ENTITY_CHAR_LENGTH }}`.
 export const MAX_ENTITY_CHAR_LENGTH = 255;
@@ -188,7 +188,7 @@ export const DEFAULT_QUERY: ISchedulableQuery = {
   created_at: "",
   saved: false,
   author_id: 0,
-  fleet_id: 0,
+  team_id: 0,
   author_email: "",
   stats: {},
   editingExistingQuery: false,
@@ -411,14 +411,14 @@ export const MDM_STATUS_TOOLTIP: Record<
 export const MDM_STATUS_PENDING_TOOLTIP_BY_PLATFORM = {
   windows: (
     <span>
-      Hosts added to Windows Autopilot. These will automatically enroll to Fleet
+      Hosts added to Windows Autopilot. These will automatically enroll to AutoMDM
       and turn on MDM when they&apos;re unboxed.
     </span>
   ),
   apple: (
     <span>
       Hosts ordered via Apple Business (AB). These will automatically enroll to
-      Fleet and turn on MDM when they&apos;re unboxed.
+      AutoMDM and turn on MDM when they&apos;re unboxed.
     </span>
   ),
 };
@@ -444,7 +444,7 @@ export const BATTERY_TOOLTIP: Record<string, string | React.ReactNode> = {
   ),
 };
 
-export const PRIMO_TOOLTIP = "Fleets are disabled while using Primo";
+export const PRIMO_TOOLTIP = "Teams are disabled while using Primo";
 
 /** Must pass agent options config as empty object */
 export const EMPTY_AGENT_OPTIONS = {
@@ -453,7 +453,7 @@ export const EMPTY_AGENT_OPTIONS = {
 
 export const DEFAULT_EMPTY_CELL_VALUE = "---";
 
-export const DOCUMENT_TITLE_SUFFIX = "Fleet";
+export const DOCUMENT_TITLE_SUFFIX = "AutoMDM";
 
 // Fields the host summary row (top of the Host details page and My device page)
 // renders. Not every field is shown on both pages: display_name, maintenance_window,
@@ -467,7 +467,7 @@ export const HOST_SUMMARY_DATA: (keyof IHost)[] = [
   "platform",
   "detail_updated_at",
   "policy_updated_at",
-  "fleet_name",
+  "team_name",
   "display_name",
   "maintenance_window",
   "os_name",
@@ -500,7 +500,7 @@ export const HOST_VITALS_DATA = [
   "disk_encryption_enabled",
   "osquery_version",
   "orbit_version",
-  "fleet_desktop_version",
+  "automdm_desktop_version",
   "memory",
   "cpu_type",
   "os_name",

@@ -9,15 +9,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/tools/hangar/internal/paths"
-	"github.com/fleetdm/fleet/tools/hangar/internal/processes"
-	"github.com/fleetdm/fleet/tools/hangar/internal/scep"
-	"github.com/fleetdm/fleet/tools/hangar/internal/settings"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/paths"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/processes"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/scep"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/settings"
 )
 
 // ScepService runs local SCEP servers (one shared in-repo binary, many
 // depot-based profiles) for QA. A separate top-level tab drives it; it's
-// independent of the active Fleet server. Thin adapter over internal/scep.
+// independent of the active AutoMDM server. Thin adapter over internal/scep.
 type ScepService struct {
 	pm *processes.Manager
 }

@@ -6,12 +6,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/rs/zerolog/log"
 )
 
 const (
-	// refreshInterval re-reports the token so device ID and user changes reach Fleet.
+	// refreshInterval re-reports the token so device ID and user changes reach AutoMDM.
 	refreshInterval = time.Hour
 	reportTimeout   = time.Minute
 )
@@ -23,7 +23,7 @@ type tokenSender interface {
 	SendEntraDeviceToken(idToken string) error
 }
 
-// Runner is an orbit config receiver that reports the Entra device token Fleet requests.
+// Runner is an orbit config receiver that reports the Entra device token AutoMDM requests.
 type Runner struct {
 	client       tokenSender
 	hardwareUUID string
@@ -35,7 +35,7 @@ type Runner struct {
 
 	mu         sync.Mutex
 	running    bool
-	lastReq    fleet.OrbitEntraDeviceTokenRequest
+	lastReq    automdm.OrbitEntraDeviceTokenRequest
 	nextRun    time.Time
 	failures   int
 	retryTimer *time.Timer
@@ -53,12 +53,12 @@ func NewRunner(client tokenSender, hardwareUUID string) *Runner {
 }
 
 // Run starts a report in the background when the request changed or is due.
-func (r *Runner) Run(cfg *fleet.OrbitConfig) error {
+func (r *Runner) Run(cfg *automdm.OrbitConfig) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	req := cfg.EntraDeviceTokenRequest
 	if req == nil {
-		r.lastReq = fleet.OrbitEntraDeviceTokenRequest{}
+		r.lastReq = automdm.OrbitEntraDeviceTokenRequest{}
 		r.stopRetryLocked()
 		return nil
 	}
@@ -77,7 +77,7 @@ func (r *Runner) Run(cfg *fleet.OrbitConfig) error {
 	return nil
 }
 
-func (r *Runner) startLocked(req fleet.OrbitEntraDeviceTokenRequest) {
+func (r *Runner) startLocked(req automdm.OrbitEntraDeviceTokenRequest) {
 	r.running = true
 	r.lastReq = req
 	go r.report(req)
@@ -90,7 +90,7 @@ func (r *Runner) stopRetryLocked() {
 	}
 }
 
-func (r *Runner) report(req fleet.OrbitEntraDeviceTokenRequest) {
+func (r *Runner) report(req automdm.OrbitEntraDeviceTokenRequest) {
 	err := r.reportOnce(req)
 	switch {
 	case err == nil:
@@ -104,8 +104,8 @@ func (r *Runner) report(req fleet.OrbitEntraDeviceTokenRequest) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.running = false
-	if r.lastReq == (fleet.OrbitEntraDeviceTokenRequest{}) {
-		// Fleet stopped requesting the token while reporting.
+	if r.lastReq == (automdm.OrbitEntraDeviceTokenRequest{}) {
+		// AutoMDM stopped requesting the token while reporting.
 		return
 	}
 	if req != r.lastReq {
@@ -129,7 +129,7 @@ func (r *Runner) report(req fleet.OrbitEntraDeviceTokenRequest) {
 	r.retryTimer = time.AfterFunc(delay, func() { r.retry(req) })
 }
 
-func (r *Runner) retry(req fleet.OrbitEntraDeviceTokenRequest) {
+func (r *Runner) retry(req automdm.OrbitEntraDeviceTokenRequest) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.running || req != r.lastReq {
@@ -138,7 +138,7 @@ func (r *Runner) retry(req fleet.OrbitEntraDeviceTokenRequest) {
 	r.startLocked(req)
 }
 
-func (r *Runner) reportOnce(req fleet.OrbitEntraDeviceTokenRequest) error {
+func (r *Runner) reportOnce(req automdm.OrbitEntraDeviceTokenRequest) error {
 	if !nonceIsForHost(req.Nonce, r.hardwareUUID) {
 		return errNonceForAnotherHost
 	}

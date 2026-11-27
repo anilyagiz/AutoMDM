@@ -2,7 +2,7 @@ package seed
 
 import (
 	"context"
-	"crypto/md5" //nolint:gosec // matches fleet.Software.ComputeRawChecksum
+	"crypto/md5" //nolint:gosec // matches automdm.Software.ComputeRawChecksum
 	"database/sql"
 	"embed"
 	"encoding/csv"
@@ -28,7 +28,7 @@ type VulnsOptions struct {
 
 // Vulns writes plausible-looking software rows directly to MySQL so the
 // background vulnerability scanner has inventory to chew on. Each row gets
-// a fleet-compatible checksum and is inserted with INSERT IGNORE, so
+// an automdm-compatible checksum and is inserted with INSERT IGNORE, so
 // re-runs are idempotent against the unique software-checksum index.
 //
 // Scope (intentional): this seeder only writes the `software` table. It
@@ -36,7 +36,7 @@ type VulnsOptions struct {
 // associations — the legacy tools/software/vulnerabilities/seed_data tool
 // did all of those, but dibble keeps the surface minimal and leaves
 // host/CPE wiring to the real ingest path (or a future, opt-in flag).
-// Vulnerabilities themselves are derived by Fleet's vuln scanner after
+// Vulnerabilities themselves are derived by AutoMDM's vuln scanner after
 // CPE matching, so an empty `software_cpe` means no CVEs will surface
 // from these rows on their own.
 func Vulns(ctx context.Context, log Logger, opt VulnsOptions) Result {
@@ -124,9 +124,9 @@ func readCSV(name string) ([][]string, error) {
 	return all[1:], nil
 }
 
-// softwareChecksum mirrors fleet.Software.ComputeRawChecksum so that rows
+// softwareChecksum mirrors automdm.Software.ComputeRawChecksum so that rows
 // inserted here satisfy the unique idx_software_checksum index. The order
-// of fields here MUST match server/fleet/software.go.
+// of fields here MUST match server/automdm/software.go.
 func softwareChecksum(name, version, source, bundleID, release, arch, vendor, extensionFor, extensionID string) []byte {
 	h := md5.New() //nolint:gosec // DB lookup optimization, not security
 	cols := []string{version, source, bundleID, release, arch, vendor, extensionFor, extensionID, name}
@@ -135,7 +135,7 @@ func softwareChecksum(name, version, source, bundleID, release, arch, vendor, ex
 }
 
 // insertSoftware appends `count` rows to the software table. Each row gets
-// a checksum that matches fleet.Software.ComputeRawChecksum so the unique
+// a checksum that matches automdm.Software.ComputeRawChecksum so the unique
 // idx_software_checksum index is satisfied. Idempotency here is
 // intentionally weak — INSERT IGNORE will drop duplicate-checksum rows on
 // re-runs, which matches the legacy tool's expectations.

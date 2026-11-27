@@ -10,10 +10,10 @@
     flex-wrap: wrap;
     align-content: center;
     z-index: 1;
-    color: $core-fleet-black;
+    color: $core-automdm-black;
 
     &--active {
-      color: $ui-fleet-black-75-down;
+      color: $ui-automdm-black-75-down;
     }
 
     &--error {
@@ -32,8 +32,8 @@
   }
 
   &__input {
-    border: 1px solid $ui-fleet-black-10;
-    background-color: $core-fleet-white;
+    border: 1px solid $ui-automdm-black-10;
+    background-color: $core-automdm-white;
     border-radius: $border-radius;
     padding: 9.5px 12px 9.5px $pad-medium;
     font-size: $x-small;
@@ -41,7 +41,7 @@
     position: relative;
     width: 100%;
     box-sizing: border-box;
-    color: $core-fleet-black;
+    color: $core-automdm-black;
     font-weight: $regular;
     transition: border-color 100ms;
 
@@ -50,7 +50,7 @@
     }
 
     &::placeholder {
-      color: $ui-fleet-black-50;
+      color: $ui-automdm-black-50;
     }
 
     &:focus {
@@ -58,11 +58,11 @@
     }
 
     &:disabled {
-      color: $ui-fleet-black-33;
+      color: $ui-automdm-black-33;
       cursor: not-allowed;
 
       &::placeholder {
-        color: $ui-fleet-black-33;
+        color: $ui-automdm-black-33;
       }
     }
 
@@ -78,7 +78,7 @@
     .input-icon-field__icon {
       svg {
         path {
-          fill: $ui-fleet-black-33;
+          fill: $ui-automdm-black-33;
         }
       }
     }
@@ -86,10 +86,10 @@
 
   &__input-wrapper:not(&__input-wrapper--disabled) {
     .input-icon-field__input:hover {
-      border: 1px solid $ui-fleet-black-50;
+      border: 1px solid $ui-automdm-black-50;
 
       &:focus {
-        border: 1px solid $core-fleet-black;
+        border: 1px solid $core-automdm-black;
       }
     }
 
@@ -97,7 +97,7 @@
     .input-icon-field__icon {
       svg {
         path {
-          fill: $ui-fleet-black-75-over;
+          fill: $ui-automdm-black-75-over;
         }
       }
     }
@@ -105,13 +105,13 @@
 
   &__input-wrapper {
     .input-icon-field__input:focus {
-      border: 1px solid $core-fleet-black;
+      border: 1px solid $core-automdm-black;
 
       // Icon color matches border color on focus
       + .input-icon-field__icon {
         svg {
           path {
-            fill: $core-fleet-black;
+            fill: $core-automdm-black;
           }
         }
       }
@@ -127,7 +127,7 @@
     }
 
     &--disabled {
-      color: $ui-fleet-black-50;
+      color: $ui-automdm-black-50;
     }
   }
 

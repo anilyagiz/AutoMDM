@@ -5,44 +5,44 @@ The `UPSTREAM_COMMIT` file tracks the upstream version that we last synced with.
 
 _Notes:_
 
-- Update `/path/to/fleet` below to your fleet repo location
+- Update `/path/to/automdm` below to your automdm repo location
 
-## Fleet-specific changes
+## AutoMDM-specific changes
 
 No changes have been made yet to the upstream goval-dictionary code.
 
 ## Update process
 
 ```bash
-export FLEET_REPO=/path/to/fleet
+export AUTOMDM_REPO=/path/to/automdm
 
 # Clone upstream
 git clone https://github.com/vulsio/goval-dictionary.git ~/goval-dictionary-merge
 cd ~/goval-dictionary-merge
 
 # Check out the last upstream commit we vendored
-git checkout $(cat "$FLEET_REPO"/third_party/goval-dictionary/UPSTREAM_COMMIT)
+git checkout $(cat "$AUTOMDM_REPO"/third_party/goval-dictionary/UPSTREAM_COMMIT)
 
 # Create a branch for our downstream changes
-git checkout -b fleet-changes
+git checkout -b automdm-changes
 
 # Copy current vendored version into this working repo
-rsync -a --delete "$FLEET_REPO"/third_party/goval-dictionary/ ./ --exclude .git
+rsync -a --delete "$AUTOMDM_REPO"/third_party/goval-dictionary/ ./ --exclude .git
 git add .
-git commit -m "Apply Fleet downstream changes"
+git commit -m "Apply AutoMDM downstream changes"
 
 # Fetch upstream updates and merge them
 git fetch origin
 git checkout master
 git merge origin/master
-git checkout fleet-changes
+git checkout automdm-changes
 git merge master   # resolve conflicts if any
 
 # Copy merged result back into monorepo
-rsync -a --delete ./ "$FLEET_REPO"/third_party/goval-dictionary/ --exclude .git
+rsync -a --delete ./ "$AUTOMDM_REPO"/third_party/goval-dictionary/ --exclude .git
 
 # Record the new upstream commit
-git rev-parse origin/master > "$FLEET_REPO"/third_party/goval-dictionary/UPSTREAM_COMMIT
+git rev-parse origin/master > "$AUTOMDM_REPO"/third_party/goval-dictionary/UPSTREAM_COMMIT
 
 # Restore this file (rsync --delete removes it)
 # Copy UPDATE_INSTRUCTIONS back or use: git checkout HEAD~1 -- UPDATE_INSTRUCTIONS
@@ -57,11 +57,11 @@ rm -rf ~/goval-dictionary-merge
 After updating, verify the changes work correctly:
 
 ```bash
-cd "$FLEET_REPO"/third_party/goval-dictionary
+cd "$AUTOMDM_REPO"/third_party/goval-dictionary
 make test
 ```
 
 ## Removal
 
 Once the arch support changes are merged upstream into vulsio/goval-dictionary,
-this vendored copy can be removed and Fleet can depend on the upstream version directly.
+this vendored copy can be removed and AutoMDM can depend on the upstream version directly.

@@ -133,7 +133,7 @@ func TestRunnerSkipsConflictingTables(t *testing.T) {
 			wantErr:        "osquery gone",
 		},
 		{
-			name:           "conflict on item not owned by fleetd",
+			name:           "conflict on item not owned by automdmd",
 			fake:           &fakeExtensionManager{alwaysConflict: "z"},
 			wantRegistered: [][]string{{"a", "b", "c"}},
 			wantErr:        "Registry item z conflicts",

@@ -5,13 +5,13 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/archtest"
+	"github.com/anilyagiz/automdm/v4/server/archtest"
 )
 
 const m = archtest.ModuleName
 
 var (
-	fleetDeps = regexp.MustCompile(`^github\.com/fleetdm/`)
+	automdmDeps = regexp.MustCompile(`^github\.com/automdm/`)
 
 	// Common allowed dependencies across chart packages.
 	chartPkgs = []string{
@@ -24,7 +24,7 @@ var (
 	platformPkgs = []string{
 		m + "/server/platform/...",
 		m + "/server/contexts/...",
-		m + "/pkg/fleethttp",
+		m + "/pkg/automdmhttp",
 		m + "/pkg/str",
 	}
 )
@@ -47,7 +47,7 @@ func TestChartPackageDependencies(t *testing.T) {
 			ignoreDeps: []string{m + "/server/chart/api"},
 		},
 		{
-			name: "api package has no Fleet dependencies",
+			name: "api package has no AutoMDM dependencies",
 			pkg:  m + "/server/chart/api",
 		},
 		{
@@ -101,7 +101,7 @@ func TestChartPackageDependencies(t *testing.T) {
 			}
 
 			test := archtest.NewPackageTest(t, tc.pkg).
-				OnlyInclude(fleetDeps).
+				OnlyInclude(automdmDeps).
 				ShouldNotDependOn(shouldNotDepend...).
 				WithTests()
 

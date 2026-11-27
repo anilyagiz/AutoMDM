@@ -1,14 +1,14 @@
-resource "aws_route53_zone" "fleetctl_com" {
-  name = "loadtest.fleetctl.com"
+resource "aws_route53_zone" "automdmctl_com" {
+  name = "loadtest.automdmctl.com"
 }
 
-resource "aws_route53_zone" "fleetdm_com" {
+resource "aws_route53_zone" "automdm_com" {
   name = "loadtest.fleetdm.com"
 }
 
-resource "aws_route53_record" "fleetctl_com" {
-  zone_id = aws_route53_zone.fleetctl_com.zone_id
-  name    = aws_route53_zone.fleetctl_com.name
+resource "aws_route53_record" "automdmctl_com" {
+  zone_id = aws_route53_zone.automdmctl_com.zone_id
+  name    = aws_route53_zone.automdmctl_com.name
   type    = "A"
 
   alias {
@@ -18,9 +18,9 @@ resource "aws_route53_record" "fleetctl_com" {
   }
 }
 
-resource "aws_route53_record" "fleetdm_com" {
-  zone_id = aws_route53_zone.fleetdm_com.zone_id
-  name    = aws_route53_zone.fleetdm_com.name
+resource "aws_route53_record" "automdm_com" {
+  zone_id = aws_route53_zone.automdm_com.zone_id
+  name    = aws_route53_zone.automdm_com.name
   type    = "A"
 
   alias {
@@ -31,8 +31,8 @@ resource "aws_route53_record" "fleetdm_com" {
 }
 
 resource "aws_route53_record" "wildcard" {
-  zone_id = aws_route53_zone.fleetdm_com.zone_id
-  name    = "*.${aws_route53_zone.fleetdm_com.name}"
+  zone_id = aws_route53_zone.automdm_com.zone_id
+  name    = "*.${aws_route53_zone.automdm_com.name}"
   type    = "A"
 
   alias {
@@ -44,7 +44,7 @@ resource "aws_route53_record" "wildcard" {
 
 resource "aws_acm_certificate" "wildcard" {
   domain_name               = aws_route53_record.wildcard.name
-  subject_alternative_names = [aws_route53_record.fleetdm_com.name]
+  subject_alternative_names = [aws_route53_record.automdm_com.name]
   validation_method         = "DNS"
 
   lifecycle {
@@ -66,7 +66,7 @@ resource "aws_route53_record" "wildcard_validation" {
   records         = [each.value.record]
   ttl             = 60
   type            = each.value.type
-  zone_id         = aws_route53_zone.fleetdm_com.zone_id
+  zone_id         = aws_route53_zone.automdm_com.zone_id
 }
 
 resource "aws_acm_certificate_validation" "wildcard" {
@@ -74,8 +74,8 @@ resource "aws_acm_certificate_validation" "wildcard" {
   validation_record_fqdns = [for record in aws_route53_record.wildcard_validation : record.fqdn]
 }
 
-resource "aws_acm_certificate" "fleetdm_com" {
-  domain_name       = aws_route53_record.fleetdm_com.name
+resource "aws_acm_certificate" "automdm_com" {
+  domain_name       = aws_route53_record.automdm_com.name
   validation_method = "DNS"
 
   lifecycle {
@@ -83,9 +83,9 @@ resource "aws_acm_certificate" "fleetdm_com" {
   }
 }
 
-resource "aws_route53_record" "fleetdm_com_validation" {
+resource "aws_route53_record" "automdm_com_validation" {
   for_each = {
-    for dvo in aws_acm_certificate.fleetdm_com.domain_validation_options : dvo.domain_name => {
+    for dvo in aws_acm_certificate.automdm_com.domain_validation_options : dvo.domain_name => {
       name   = dvo.resource_record_name
       record = dvo.resource_record_value
       type   = dvo.resource_record_type
@@ -97,10 +97,10 @@ resource "aws_route53_record" "fleetdm_com_validation" {
   records         = [each.value.record]
   ttl             = 60
   type            = each.value.type
-  zone_id         = aws_route53_zone.fleetdm_com.zone_id
+  zone_id         = aws_route53_zone.automdm_com.zone_id
 }
 
-resource "aws_acm_certificate_validation" "fleetdm_com" {
-  certificate_arn         = aws_acm_certificate.fleetdm_com.arn
-  validation_record_fqdns = [for record in aws_route53_record.fleetdm_com_validation : record.fqdn]
+resource "aws_acm_certificate_validation" "automdm_com" {
+  certificate_arn         = aws_acm_certificate.automdm_com.arn
+  validation_record_fqdns = [for record in aws_route53_record.automdm_com_validation : record.fqdn]
 }

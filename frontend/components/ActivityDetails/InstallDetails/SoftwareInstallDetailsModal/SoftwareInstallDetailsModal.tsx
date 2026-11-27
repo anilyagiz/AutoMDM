@@ -101,7 +101,7 @@ export const StatusMessage = ({
   skippedInstall = false,
   activityCreatedAt,
 }: IInstallStatusMessage) => {
-  // the case when software is installed by the user and not by Fleet
+  // the case when software is installed by the user and not by AutoMDM
   if (!installResult) {
     return (
       <IconStatusMessage
@@ -150,7 +150,7 @@ export const StatusMessage = ({
         <span style={{ whiteSpace: "nowrap" }}>
           {"("}
           <TooltipWrapper
-            tipContent="Time when Fleet sent install command. If the host was offline, the install finished after it came online."
+            tipContent="Time when AutoMDM sent install command. If the host was offline, the install finished after it came online."
             position="top"
             showArrow
           >
@@ -196,10 +196,10 @@ export const StatusMessage = ({
 
     const getSkipCopy = () => {
       if (isDeadlineVariant) {
-        return "The app was open. Fleet will notify the end user 1 hour before the patch deadline.";
+        return "The app was open. AutoMDM will notify the end user 1 hour before the patch deadline.";
       }
       if (isNotifyVariant) {
-        return "The app was open. Fleet notifies the end user 1 hour before the patch is forced.";
+        return "The app was open. AutoMDM notifies the end user 1 hour before the patch is forced.";
       }
       return skippedDetails;
     };
@@ -208,10 +208,10 @@ export const StatusMessage = ({
       <IconStatusMessage
         className={`${baseClass}__status-message`}
         iconName={INSTALL_DETAILS_STATUS_ICONS.skipped_install}
-        iconColor="ui-fleet-black-50"
+        iconColor="ui-automdm-black-50"
         message={
           <span>
-            Fleet skipped install of <b>{displayedTitle}</b> ({software_package}
+            AutoMDM skipped install of <b>{displayedTitle}</b> ({software_package}
             ) on {formattedHost}
             {displayTimeStamp}. {getSkipCopy()}
           </span>
@@ -244,7 +244,7 @@ export const StatusMessage = ({
   const renderStatusCopy = () => {
     const prefix = (
       <>
-        Fleet {getInstallDetailsStatusPredicate(status)} <b>{displayedTitle}</b>
+        AutoMDM {getInstallDetailsStatusPredicate(status)} <b>{displayedTitle}</b>
       </>
     );
 
@@ -336,7 +336,7 @@ interface ISoftwareInstallDetailsProps {
   this modal while hostSoftware is not, as in the case of the activity feeds, it is specifically
   necessary in the details prop */
   details: IPackageInstallDetails;
-  hostSoftware?: IHostSoftware; // for inventory versions, and software name when not Fleet installed (not present on activity feeds)
+  hostSoftware?: IHostSoftware; // for inventory versions, and software name when not AutoMDM installed (not present on activity feeds)
   deviceAuthToken?: string; // My Device Page only
   onCancel: () => void;
   onRetry?: (id: number) => void; // My Device Page only
@@ -359,9 +359,9 @@ export const SoftwareInstallDetailsModal = ({
     setShowInstallDetails((prev) => !prev);
   };
 
-  const isInstalledByFleet = hostSoftware
+  const isInstalledByTeam = hostSoftware
     ? !!hostSoftware.package?.last_install
-    : true; // if no hostSoftware passed in, can assume this is the activity feed, meaning this can only refer to a Fleet-handled install
+    : true; // if no hostSoftware passed in, can assume this is the activity feed, meaning this can only refer to an AutoMDM-handled install
 
   const { data: swInstallResult, isLoading, isError, error } = useQuery<
     ISoftwareInstallResults,
@@ -375,7 +375,7 @@ export const SoftwareInstallDetailsModal = ({
         : softwareAPI.getSoftwareInstallResult(installUUID);
     },
     {
-      enabled: !!isInstalledByFleet,
+      enabled: !!isInstalledByTeam,
       ...DEFAULT_USE_QUERY_OPTIONS,
       staleTime: 3000,
       select: (data) => data.results,
@@ -507,7 +507,7 @@ export const SoftwareInstallDetailsModal = ({
     overrideFailedMessageWithInstalledMessage;
 
   const renderContent = () => {
-    if (isInstalledByFleet) {
+    if (isInstalledByTeam) {
       if (isLoading) {
         return <Spinner />;
       }
@@ -606,7 +606,7 @@ export const SoftwareInstallDetailsModal = ({
         )}
 
         {shouldShowInventoryVersions && renderInventoryVersionsSection()}
-        {isInstalledByFleet &&
+        {isInstalledByTeam &&
           !overrideFailedMessageWithInstalledMessage &&
           renderInstallDetailsSection()}
       </div>

@@ -5,7 +5,7 @@ import (
 	"flag"
 	"log"
 
-	"github.com/fleetdm/fleet/v4/server/datastore/redis"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis"
 	redigo "github.com/gomodule/redigo/redis"
 )
 

@@ -29,7 +29,7 @@ const generateWindowsDiskEncryptionMessage = (
   detail: string
 ) => {
   if (status === "failed") {
-    detail += ". Fleet will retry automatically.";
+    detail += ". AutoMDM will retry automatically.";
   }
   return detail;
 };

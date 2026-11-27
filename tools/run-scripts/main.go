@@ -1,10 +1,10 @@
 // Command run-scripts is a tool for testing script execution on hosts exactly
-// as Orbit would do following reception of a Fleet server notification of
+// as Orbit would do following reception of an AutoMDM server notification of
 // pending script(s) to execute.
 //
 // It allows to run such scripts without having to build and deploy orbit on
-// the target host and without having to enroll that host in fleet and have the
-// fleet server send script execution requests to it.
+// the target host and without having to enroll that host in team and have the
+// automdm server send script execution requests to it.
 //
 // The results of script execution, as reported by the host, are printed to the
 // standard output.
@@ -22,8 +22,8 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/scripts"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/scripts"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/google/uuid"
 )
 
@@ -63,15 +63,15 @@ type mockClient struct {
 	content string
 }
 
-func (m mockClient) GetHostScript(execID string) (*fleet.HostScriptResult, error) {
-	return &fleet.HostScriptResult{
+func (m mockClient) GetHostScript(execID string) (*automdm.HostScriptResult, error) {
+	return &automdm.HostScriptResult{
 		HostID:         1,
 		ExecutionID:    execID,
 		ScriptContents: m.content,
 	}, nil
 }
 
-func (m mockClient) SaveHostScriptResult(result *fleet.HostScriptResultPayload) error {
+func (m mockClient) SaveHostScriptResult(result *automdm.HostScriptResultPayload) error {
 	fmt.Printf(`
 Script result for %q:
   Exit code: %d

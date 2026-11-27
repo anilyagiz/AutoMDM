@@ -64,11 +64,11 @@ const ProfileFormPage = ({
       technician: false,
     },
   });
-  // Same coercion as ManageControlsPage: free tier only has "No fleet".
+  // Same coercion as ManageControlsPage: free tier only has "No team".
   const teamId = isPremiumTier === false ? API_NO_TEAM_ID : teamIdForApi;
 
   const listPath = getPathWithQueryParams(PATHS.CONTROLS_CUSTOM_SETTINGS, {
-    fleet_id: isPremiumTier ? teamId : undefined,
+    team_id: isPremiumTier ? teamId : undefined,
   });
 
   // Adding defaults to the AI view, once it's released. The manual view has
@@ -109,39 +109,39 @@ const ProfileFormPage = ({
     { ...DEFAULT_USE_QUERY_OPTIONS, enabled: !!profileUUID, cacheTime: 0 }
   );
 
-  // The edit URL is shareable, so its fleet_id can disagree with the fleet
+  // The edit URL is shareable, so its team_id can disagree with the team
   // the profile belongs to; follow the profile so labels and the footer match.
   const profileTeamId = profile
-    ? profile.fleet_id ?? API_NO_TEAM_ID
+    ? profile.team_id ?? API_NO_TEAM_ID
     : undefined;
-  const isWrongFleet =
+  const isWrongTeam =
     !!isPremiumTier &&
     profileTeamId !== undefined &&
     teamId !== undefined &&
     profileTeamId !== teamId;
-  // useTeamIdParam sends the user back from a fleet they can't manage, so
+  // useTeamIdParam sends the user back from a team they can't manage, so
   // following the profile there would bounce between the two forever.
-  const canManageProfileFleet =
+  const canManageProfileAutoMDM =
     isGlobalAdmin ||
     isGlobalMaintainer ||
     !!userTeams?.some((team) => team.id === profileTeamId);
   useEffect(() => {
-    if (isWrongFleet && canManageProfileFleet) {
+    if (isWrongTeam && canManageProfileAutoMDM) {
       router.replace(
         getPathWithQueryParams(location.pathname, {
-          fleet_id: profileTeamId,
+          team_id: profileTeamId,
         })
       );
     }
   }, [
-    isWrongFleet,
-    canManageProfileFleet,
+    isWrongTeam,
+    canManageProfileAutoMDM,
     location.pathname,
     profileTeamId,
     router,
   ]);
 
-  // The roles useTeamIdParam allows above; anyone else has no fleet to land
+  // The roles useTeamIdParam allows above; anyone else has no team to land
   // on and would otherwise wait on a spinner.
   const canEditProfiles =
     isGlobalAdmin || isGlobalMaintainer || isAnyTeamMaintainerOrTeamAdmin;
@@ -152,10 +152,10 @@ const ProfileFormPage = ({
     !profileUUID &&
     !!config &&
     (gitOpsModeEnabled || !canEditProfiles || !isAnyMDMConfigured(config.mdm));
-  // A user with no fleet to manage has no fleet ID yet, so keep the URL's.
+  // A user with no team to manage has no team ID yet, so keep the URL's.
   const leaveAddPagePath = getPathWithQueryParams(
     PATHS.CONTROLS_CUSTOM_SETTINGS,
-    { fleet_id: isPremiumTier ? teamId ?? location.query.fleet_id : undefined }
+    { team_id: isPremiumTier ? teamId ?? location.query.team_id : undefined }
   );
   useEffect(() => {
     if (shouldLeaveAddPage) {
@@ -175,14 +175,14 @@ const ProfileFormPage = ({
     if (teamId === undefined) {
       return <Spinner />;
     }
-    if (isWrongFleet && !canManageProfileFleet) {
+    if (isWrongTeam && !canManageProfileAutoMDM) {
       return (
         <DataError description="You don't have permission to edit this profile." />
       );
     }
     if (
       profileUUID &&
-      (isLoadingProfile || isLoadingContents || isWrongFleet)
+      (isLoadingProfile || isLoadingContents || isWrongTeam)
     ) {
       return <Spinner />;
     }
@@ -200,7 +200,7 @@ const ProfileFormPage = ({
           listPath={listPath}
           manualLocation={{
             pathname: PATHS.CONTROLS_CUSTOM_SETTINGS_NEW_MANUAL,
-            query: isPremiumTier ? { fleet_id: teamId } : {},
+            query: isPremiumTier ? { team_id: teamId } : {},
           }}
           defaultPlatform={location.query.platform}
         />

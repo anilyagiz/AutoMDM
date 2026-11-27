@@ -1,12 +1,12 @@
 {
-  "title": "Fleet host cache",
+  "title": "AutoMDM host cache",
   "description": "Observability for the Redis-backed host lookup cache fronting LoadHostByNodeKey and LoadHostByOrbitNodeKey. Shows hit rate, lookup volume by result, error volume by operation, and invalidation volume by write-path reason.",
   "tags": ["redis", "cache", "host-cache"],
   "variables": {
     "environment": {
       "id": "environment",
       "name": "environment",
-      "description": "Deployment environment to view, auto-discovered from the deployment.environment resource attribute. Fleet always emits deployment.environment (default value 'default', overridable via OTEL_RESOURCE_ATTRIBUTES) so this key exists in every SigNoz instance Fleet reports to, which is what makes the dynamic lookup safe. Defaults to ALL so all environments show.",
+      "description": "Deployment environment to view, auto-discovered from the deployment.environment resource attribute. AutoMDM always emits deployment.environment (default value 'default', overridable via OTEL_RESOURCE_ATTRIBUTES) so this key exists in every SigNoz instance AutoMDM reports to, which is what makes the dynamic lookup safe. Defaults to ALL so all environments show.",
       "type": "DYNAMIC",
       "dynamicVariablesAttribute": "deployment.environment",
       "dynamicVariablesSource": "Metrics",
@@ -60,13 +60,13 @@
               "stepInterval": 60,
               "aggregations": [
                 {
-                  "metricName": "fleet.host_cache.lookups",
+                  "metricName": "automdm.host_cache.lookups",
                   "temporality": "Cumulative",
                   "timeAggregation": "rate",
                   "spaceAggregation": "sum"
                 }
               ],
-              "filter": { "expression": "service.name = 'fleet' AND result IN ['hit', 'negative_hit'] AND deployment.environment IN $environment" },
+              "filter": { "expression": "service.name = 'automdm' AND result IN ['hit', 'negative_hit'] AND deployment.environment IN $environment" },
               "groupBy": [],
               "orderBy": [],
               "selectColumns": [],
@@ -80,13 +80,13 @@
               "stepInterval": 60,
               "aggregations": [
                 {
-                  "metricName": "fleet.host_cache.lookups",
+                  "metricName": "automdm.host_cache.lookups",
                   "temporality": "Cumulative",
                   "timeAggregation": "rate",
                   "spaceAggregation": "sum"
                 }
               ],
-              "filter": { "expression": "service.name = 'fleet' AND deployment.environment IN $environment" },
+              "filter": { "expression": "service.name = 'automdm' AND deployment.environment IN $environment" },
               "groupBy": [],
               "orderBy": [],
               "selectColumns": [],
@@ -130,13 +130,13 @@
               "stepInterval": 60,
               "aggregations": [
                 {
-                  "metricName": "fleet.host_cache.lookups",
+                  "metricName": "automdm.host_cache.lookups",
                   "temporality": "Cumulative",
                   "timeAggregation": "rate",
                   "spaceAggregation": "sum"
                 }
               ],
-              "filter": { "expression": "service.name = 'fleet' AND deployment.environment IN $environment" },
+              "filter": { "expression": "service.name = 'automdm' AND deployment.environment IN $environment" },
               "groupBy": [
                 { "key": "result", "dataType": "string", "type": "tag" }
               ],
@@ -174,13 +174,13 @@
               "stepInterval": 60,
               "aggregations": [
                 {
-                  "metricName": "fleet.host_cache.errors",
+                  "metricName": "automdm.host_cache.errors",
                   "temporality": "Cumulative",
                   "timeAggregation": "rate",
                   "spaceAggregation": "sum"
                 }
               ],
-              "filter": { "expression": "service.name = 'fleet' AND deployment.environment IN $environment" },
+              "filter": { "expression": "service.name = 'automdm' AND deployment.environment IN $environment" },
               "groupBy": [
                 { "key": "op", "dataType": "string", "type": "tag" }
               ],
@@ -219,13 +219,13 @@
               "stepInterval": 60,
               "aggregations": [
                 {
-                  "metricName": "fleet.host_cache.invalidations",
+                  "metricName": "automdm.host_cache.invalidations",
                   "temporality": "Cumulative",
                   "timeAggregation": "rate",
                   "spaceAggregation": "sum"
                 }
               ],
-              "filter": { "expression": "service.name = 'fleet' AND deployment.environment IN $environment" },
+              "filter": { "expression": "service.name = 'automdm' AND deployment.environment IN $environment" },
               "groupBy": [
                 { "key": "reason", "dataType": "string", "type": "tag" }
               ],

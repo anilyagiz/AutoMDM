@@ -40,7 +40,7 @@ const SelectTargetsMenuWrapper = (
       if (targetType === "all") {
         targetTitle = "all hosts";
       } else if (targetType === "teams") {
-        targetTitle = "fleets";
+        targetTitle = "teams";
       }
 
       targetsOutput.push(

@@ -39,7 +39,7 @@ const renderModal = (
   const onExit = jest.fn();
   const results = render(
     <EditTargetsModal
-      fleetId={1}
+      automdmId={1}
       targets={allHosts}
       onAddLabel={jest.fn()}
       onDone={onDone}

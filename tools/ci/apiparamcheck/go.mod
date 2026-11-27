@@ -1,4 +1,4 @@
-module github.com/fleetdm/fleet/v4/tools/ci/apiparamcheck
+module github.com/anilyagiz/automdm/v4/tools/ci/apiparamcheck
 
 go 1.27.4
 

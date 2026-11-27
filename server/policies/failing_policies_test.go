@@ -7,11 +7,11 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/service"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/service"
 	"github.com/stretchr/testify/require"
 )
 
@@ -46,7 +46,7 @@ func TestTriggerFailingPolicies(t *testing.T) {
 	// Global config uses the webhook, team A a Jira integration, team B a
 	// Zendesk integration, team D a webhook.
 
-	pols := map[uint]*fleet.PolicyData{
+	pols := map[uint]*automdm.PolicyData{
 		1:  {ID: 1, Name: "pol-global-1", WebhooksAndTicketsEnabled: true},
 		2:  {ID: 2, Name: "pol-global-2", WebhooksAndTicketsEnabled: true},
 		3:  {ID: 3, Name: "pol-global-3"},
@@ -64,53 +64,53 @@ func TestTriggerFailingPolicies(t *testing.T) {
 		14: {ID: 14, Name: "pol-teamD-14", TeamID: ptr.Uint(4)},
 		15: {ID: 15, Name: "pol-teamE-15", TeamID: new(uint(5)), WebhooksAndTicketsEnabled: true},
 	}
-	ds.PolicyFunc = func(ctx context.Context, id uint) (*fleet.Policy, error) {
+	ds.PolicyFunc = func(ctx context.Context, id uint) (*automdm.Policy, error) {
 		pd, ok := pols[id]
 		if !ok {
 			return nil, ctxerr.Wrap(ctx, sql.ErrNoRows)
 		}
-		return &fleet.Policy{PolicyData: *pd}, nil
+		return &automdm.Policy{PolicyData: *pd}, nil
 	}
 
-	teams := map[uint]*fleet.TeamLite{
-		1: {ID: 1, Name: "teamA", Config: fleet.TeamConfigLite{
-			Integrations: fleet.TeamIntegrations{
-				Jira: []*fleet.TeamJiraIntegration{
+	teams := map[uint]*automdm.TeamLite{
+		1: {ID: 1, Name: "teamA", Config: automdm.TeamConfigLite{
+			Integrations: automdm.TeamIntegrations{
+				Jira: []*automdm.TeamJiraIntegration{
 					{URL: "http://j.com", ProjectKey: "A", EnableFailingPolicies: true},
 				},
 			},
 		}},
-		2: {ID: 2, Name: "teamB", Config: fleet.TeamConfigLite{
-			Integrations: fleet.TeamIntegrations{
-				Zendesk: []*fleet.TeamZendeskIntegration{
+		2: {ID: 2, Name: "teamB", Config: automdm.TeamConfigLite{
+			Integrations: automdm.TeamIntegrations{
+				Zendesk: []*automdm.TeamZendeskIntegration{
 					{URL: "http://z.com", GroupID: 1, EnableFailingPolicies: true},
 				},
 			},
 		}},
-		4: {ID: 4, Name: "teamD", Config: fleet.TeamConfigLite{
-			WebhookSettings: fleet.TeamWebhookSettings{
-				FailingPoliciesWebhook: fleet.FailingPoliciesWebhookSettings{
+		4: {ID: 4, Name: "teamD", Config: automdm.TeamConfigLite{
+			WebhookSettings: automdm.TeamWebhookSettings{
+				FailingPoliciesWebhook: automdm.FailingPoliciesWebhookSettings{
 					Enable: true,
 				},
 			},
-			Integrations: fleet.TeamIntegrations{
-				Zendesk: []*fleet.TeamZendeskIntegration{
+			Integrations: automdm.TeamIntegrations{
+				Zendesk: []*automdm.TeamZendeskIntegration{
 					{URL: "http://z.com", GroupID: 1, EnableFailingPolicies: false},
 				},
-				Jira: []*fleet.TeamJiraIntegration{
+				Jira: []*automdm.TeamJiraIntegration{
 					{URL: "http://j.com", ProjectKey: "A", EnableFailingPolicies: false},
 				},
 			},
 		}},
-		5: {ID: 5, Name: "teamE", Config: fleet.TeamConfigLite{
-			Integrations: fleet.TeamIntegrations{
-				Zendesk: []*fleet.TeamZendeskIntegration{
+		5: {ID: 5, Name: "teamE", Config: automdm.TeamConfigLite{
+			Integrations: automdm.TeamIntegrations{
+				Zendesk: []*automdm.TeamZendeskIntegration{
 					{URL: "http://notexist", GroupID: 999, EnableFailingPolicies: true},
 				},
 			},
 		}},
 	}
-	ds.TeamLiteFunc = func(ctx context.Context, id uint) (*fleet.TeamLite, error) {
+	ds.TeamLiteFunc = func(ctx context.Context, id uint) (*automdm.TeamLite, error) {
 		tm, ok := teams[id]
 		if !ok {
 			return nil, ctxerr.Wrap(ctx, sql.ErrNoRows)
@@ -119,47 +119,47 @@ func TestTriggerFailingPolicies(t *testing.T) {
 	}
 
 	// globally enable the webhook automation
-	ac := &fleet.AppConfig{
-		WebhookSettings: fleet.WebhookSettings{
-			FailingPoliciesWebhook: fleet.FailingPoliciesWebhookSettings{
+	ac := &automdm.AppConfig{
+		WebhookSettings: automdm.WebhookSettings{
+			FailingPoliciesWebhook: automdm.FailingPoliciesWebhookSettings{
 				Enable: true,
 			},
 		},
-		Integrations: fleet.Integrations{
-			Jira: []*fleet.JiraIntegration{
+		Integrations: automdm.Integrations{
+			Jira: []*automdm.JiraIntegration{
 				{URL: "http://j.com", ProjectKey: "A", Username: "jirauser", APIToken: "secret"},
 			},
-			Zendesk: []*fleet.ZendeskIntegration{
+			Zendesk: []*automdm.ZendeskIntegration{
 				{URL: "http://z.com", GroupID: 1, Email: "zendesk@z.com", APIToken: "secret"},
 			},
 		},
-		ServerSettings: fleet.ServerSettings{
-			ServerURL: "https://fleet.example.com",
+		ServerSettings: automdm.ServerSettings{
+			ServerURL: "https://automdm.example.com",
 		},
 	}
 
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
 		return ac, nil
 	}
 
 	// add a failing policy host for every known policy
 	failingPolicySet := service.NewMemFailingPolicySet()
 	for polID := range pols {
-		err := failingPolicySet.AddHost(polID, fleet.PolicySetHost{
+		err := failingPolicySet.AddHost(polID, automdm.PolicySetHost{
 			ID:       polID, // use policy ID as host ID, does not matter in the test
 			Hostname: fmt.Sprintf("host%d.example", polID),
 		})
 		require.NoError(t, err)
 	}
 	// add a policy failure for a non-existent policy
-	err := failingPolicySet.AddHost(11, fleet.PolicySetHost{
+	err := failingPolicySet.AddHost(11, automdm.PolicySetHost{
 		ID:       11,
 		Hostname: "host11.example",
 	})
 	require.NoError(t, err)
 
 	var triggerCalls []policyAutomation
-	err = TriggerFailingPoliciesAutomation(context.Background(), ds, slog.New(slog.DiscardHandler), failingPolicySet, func(pol *fleet.Policy, cfg FailingPolicyAutomationConfig) error {
+	err = TriggerFailingPoliciesAutomation(context.Background(), ds, slog.New(slog.DiscardHandler), failingPolicySet, func(pol *automdm.Policy, cfg FailingPolicyAutomationConfig) error {
 		triggerCalls = append(triggerCalls, policyAutomation{pol.ID, cfg.AutomationType})
 
 		hosts, err := failingPolicySet.ListHosts(pol.ID)
@@ -205,7 +205,7 @@ func TestTriggerFailingPolicies(t *testing.T) {
 	// policy sets should be empty (no host to process).
 	var countHosts int
 	triggerCalls = triggerCalls[:0]
-	err = TriggerFailingPoliciesAutomation(context.Background(), ds, slog.New(slog.DiscardHandler), failingPolicySet, func(pol *fleet.Policy, cfg FailingPolicyAutomationConfig) error {
+	err = TriggerFailingPoliciesAutomation(context.Background(), ds, slog.New(slog.DiscardHandler), failingPolicySet, func(pol *automdm.Policy, cfg FailingPolicyAutomationConfig) error {
 		hosts, err := failingPolicySet.ListHosts(pol.ID)
 		require.NoError(t, err)
 		countHosts += len(hosts)
@@ -221,14 +221,14 @@ func TestTriggerFailingPolicies(t *testing.T) {
 
 	// test No team policy failure in Primo mode
 	failingPolicySet = service.NewMemFailingPolicySet()
-	err = failingPolicySet.AddHost(1, fleet.PolicySetHost{
+	err = failingPolicySet.AddHost(1, automdm.PolicySetHost{
 		ID:       1, // use policy ID as host ID, does not matter in the test
 		Hostname: fmt.Sprintf("host%d.example", 1),
 	})
 	require.NoError(t, err)
 
 	triggerCalls = triggerCalls[:0]
-	err = TriggerFailingPoliciesAutomation(context.Background(), ds, slog.New(slog.DiscardHandler), failingPolicySet, func(pol *fleet.Policy, cfg FailingPolicyAutomationConfig) error {
+	err = TriggerFailingPoliciesAutomation(context.Background(), ds, slog.New(slog.DiscardHandler), failingPolicySet, func(pol *automdm.Policy, cfg FailingPolicyAutomationConfig) error {
 		triggerCalls = append(triggerCalls, policyAutomation{pol.ID, cfg.AutomationType})
 
 		hosts, err := failingPolicySet.ListHosts(pol.ID)
@@ -249,19 +249,19 @@ func TestTriggerFailingPolicies(t *testing.T) {
 
 func TestTriggerFailingPoliciesGlobalAutomationOff(t *testing.T) {
 	ds := new(mock.Store)
-	ds.PolicyFunc = func(ctx context.Context, id uint) (*fleet.Policy, error) {
-		return &fleet.Policy{ID: id, Name: "global", WebhooksAndTicketsEnabled: true}, nil
+	ds.PolicyFunc = func(ctx context.Context, id uint) (*automdm.Policy, error) {
+		return &automdm.Policy{ID: id, Name: "global", WebhooksAndTicketsEnabled: true}, nil
 	}
 	// The global webhook and integrations are off, so a global policy with the automation on sends nothing.
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
 	}
 
 	failingPolicySet := service.NewMemFailingPolicySet()
-	require.NoError(t, failingPolicySet.AddHost(1, fleet.PolicySetHost{ID: 1, Hostname: "host1.example"}))
+	require.NoError(t, failingPolicySet.AddHost(1, automdm.PolicySetHost{ID: 1, Hostname: "host1.example"}))
 
 	err := TriggerFailingPoliciesAutomation(t.Context(), ds, slog.New(slog.DiscardHandler), failingPolicySet,
-		func(pol *fleet.Policy, cfg FailingPolicyAutomationConfig) error {
+		func(pol *automdm.Policy, cfg FailingPolicyAutomationConfig) error {
 			t.Fatalf("unexpected automation for policy %d", pol.ID)
 			return nil
 		})

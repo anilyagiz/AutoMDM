@@ -20,22 +20,22 @@ describe("isHistoricalDataEnabled", () => {
     vulnerabilities: false,
   };
 
-  it("returns true when both global and fleet are undefined", () => {
+  it("returns true when both global and team are undefined", () => {
     expect(isHistoricalDataEnabled(undefined, undefined, "uptime")).toBe(true);
     expect(
       isHistoricalDataEnabled(undefined, undefined, "vulnerabilities")
     ).toBe(true);
   });
 
-  it("returns true when global is enabled and fleet is undefined", () => {
+  it("returns true when global is enabled and team is undefined", () => {
     expect(isHistoricalDataEnabled(enabled, undefined, "uptime")).toBe(true);
   });
 
-  it("returns true when fleet is enabled and global is undefined", () => {
+  it("returns true when team is enabled and global is undefined", () => {
     expect(isHistoricalDataEnabled(undefined, enabled, "uptime")).toBe(true);
   });
 
-  it("returns true when both global and fleet are explicitly enabled", () => {
+  it("returns true when both global and team are explicitly enabled", () => {
     expect(isHistoricalDataEnabled(enabled, enabled, "uptime")).toBe(true);
     expect(isHistoricalDataEnabled(enabled, enabled, "vulnerabilities")).toBe(
       true
@@ -46,7 +46,7 @@ describe("isHistoricalDataEnabled", () => {
     expect(isHistoricalDataEnabled(uptimeOff, enabled, "uptime")).toBe(false);
   });
 
-  it("returns false when only the fleet side is disabled", () => {
+  it("returns false when only the team side is disabled", () => {
     expect(isHistoricalDataEnabled(enabled, uptimeOff, "uptime")).toBe(false);
   });
 
@@ -54,11 +54,11 @@ describe("isHistoricalDataEnabled", () => {
     expect(isHistoricalDataEnabled(uptimeOff, uptimeOff, "uptime")).toBe(false);
   });
 
-  it("returns false when global is disabled and fleet is undefined", () => {
+  it("returns false when global is disabled and team is undefined", () => {
     expect(isHistoricalDataEnabled(uptimeOff, undefined, "uptime")).toBe(false);
   });
 
-  it("returns false when fleet is disabled and global is undefined", () => {
+  it("returns false when team is disabled and global is undefined", () => {
     expect(isHistoricalDataEnabled(undefined, uptimeOff, "uptime")).toBe(false);
   });
 

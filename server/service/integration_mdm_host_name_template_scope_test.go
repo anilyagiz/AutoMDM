@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/pkg/optjson"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/pkg/optjson"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/google/uuid"
 	"github.com/micromdm/plist"
 	"github.com/stretchr/testify/require"
@@ -15,44 +15,44 @@ import (
 
 // TestHostNameTemplateSecretScope pins the line between reading a custom
 // variable's name (any role) and resolving its value (global roles only): a
-// resolved template puts the plaintext where every role on the fleet can read it.
+// resolved template puts the plaintext where every role on the team can read it.
 func (s *integrationMDMTestSuite) TestHostNameTemplateSecretScope() {
 	t := s.T()
 	ctx := t.Context()
 
 	secretName := "HOST_NAME_SCOPE_" + "VARIABLE"
 	secretValue := "canary-3f9a2b7c-" + "resolved-value"
-	secretRef := "$FLEET_SECRET_" + secretName
+	secretRef := "$AUTOMDM_SECRET_" + secretName
 
 	s.token = s.getTestAdminToken()
-	s.Do("PUT", "/api/latest/fleet/spec/secret_variables", fleet.CreateSecretVariablesRequest{
-		SecretVariables: []fleet.SecretVariable{{Name: secretName, Value: secretValue}},
+	s.Do("PUT", "/api/latest/automdm/spec/secret_variables", automdm.CreateSecretVariablesRequest{
+		SecretVariables: []automdm.SecretVariable{{Name: secretName, Value: secretValue}},
 	}, http.StatusOK)
 
-	team, err := s.ds.NewTeam(ctx, &fleet.Team{Name: t.Name()})
+	team, err := s.ds.NewTeam(ctx, &automdm.Team{Name: t.Name()})
 	require.NoError(t, err)
 
-	mkUser := func(prefix, role string) fleet.User {
-		u := fleet.User{
+	mkUser := func(prefix, role string) automdm.User {
+		u := automdm.User{
 			Name:  prefix,
 			Email: fmt.Sprintf("%s-%s@example.com", prefix, uuid.NewString()[:8]),
-			Teams: []fleet.UserTeam{{Team: *team, Role: role}},
+			Teams: []automdm.UserTeam{{Team: *team, Role: role}},
 		}
 		require.NoError(t, u.SetPassword(test.GoodPassword, 10, 10))
 		_, err := s.ds.NewUser(ctx, &u)
 		require.NoError(t, err)
 		return u
 	}
-	teamAdmin := mkUser("hnt-admin", fleet.RoleAdmin)
-	teamMaintainer := mkUser("hnt-maint", fleet.RoleMaintainer)
-	teamGitOps := mkUser("hnt-gitops", fleet.RoleGitOps)
-	teamObserver := mkUser("hnt-observer", fleet.RoleObserver)
+	teamAdmin := mkUser("hnt-admin", automdm.RoleAdmin)
+	teamMaintainer := mkUser("hnt-maint", automdm.RoleMaintainer)
+	teamGitOps := mkUser("hnt-gitops", automdm.RoleGitOps)
+	teamObserver := mkUser("hnt-observer", automdm.RoleObserver)
 
 	iosHost, iosDevice := s.createAppleMobileHostThenEnrollMDM("ios")
-	require.NoError(t, s.ds.SetOrUpdateMDMData(ctx, iosHost.ID, false, true, s.server.URL, false, fleet.WellKnownMDMFleet, "", fleet.PersonalEnrollmentTypeNone))
-	require.NoError(t, s.ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team.ID, []uint{iosHost.ID})))
+	require.NoError(t, s.ds.SetOrUpdateMDMData(ctx, iosHost.ID, false, true, s.server.URL, false, automdm.WellKnownMDMAutoMDM, "", automdm.PersonalEnrollmentTypeNone))
+	require.NoError(t, s.ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team.ID, []uint{iosHost.ID})))
 
-	asUser := func(u fleet.User) { s.token = s.getCachedUserToken(u.Email, test.GoodPassword) }
+	asUser := func(u automdm.User) { s.token = s.getCachedUserToken(u.Email, test.GoodPassword) }
 
 	storedTemplate := func() string {
 		tm, err := s.ds.TeamWithExtras(ctx, team.ID)
@@ -63,25 +63,25 @@ func (s *integrationMDMTestSuite) TestHostNameTemplateSecretScope() {
 	requireNothingResolved := func() {
 		require.NoError(t, ReconcileHostDeviceNames(ctx, s.ds, s.mdmCommander, s.logger))
 		_, err := s.ds.GetHostDeviceNameEnforcement(ctx, iosHost.UUID)
-		require.True(t, fleet.IsNotFound(err), "no enforcement row should exist")
+		require.True(t, automdm.IsNotFound(err), "no enforcement row should exist")
 
 		asUser(teamObserver)
 		var cmds listMDMCommandsResponse
-		s.DoJSON("GET", "/api/latest/fleet/commands", nil, http.StatusOK, &cmds, "host_identifier", iosHost.UUID)
+		s.DoJSON("GET", "/api/latest/automdm/commands", nil, http.StatusOK, &cmds, "host_identifier", iosHost.UUID)
 		for _, c := range cmds.Results {
-			require.NotContains(t, c.CommandUUID, fleet.DeviceNameCommandUUIDPrefix)
+			require.NotContains(t, c.CommandUUID, automdm.DeviceNameCommandUUIDPrefix)
 		}
 		var hosts listHostsResponse
-		s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &hosts, "fleet_id", fmt.Sprint(team.ID))
+		s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &hosts, "team_id", fmt.Sprint(team.ID))
 		for _, h := range hosts.Hosts {
 			require.NotEqual(t, secretValue, h.DisplayName)
 		}
 	}
 
-	// --- a fleet-scoped role can read the name but not the value ---
+	// --- a team-scoped role can read the name but not the value ---
 	asUser(teamMaintainer)
-	var listResp fleet.ListSecretVariablesResponse
-	s.DoJSON("GET", "/api/latest/fleet/custom_variables", nil, http.StatusOK, &listResp)
+	var listResp automdm.ListSecretVariablesResponse
+	s.DoJSON("GET", "/api/latest/automdm/custom_variables", nil, http.StatusOK, &listResp)
 	var sawName bool
 	for _, sv := range listResp.CustomVariables {
 		if sv.Name == secretName {
@@ -89,52 +89,52 @@ func (s *integrationMDMTestSuite) TestHostNameTemplateSecretScope() {
 		}
 	}
 	require.True(t, sawName)
-	s.Do("PUT", "/api/latest/fleet/spec/secret_variables", fleet.CreateSecretVariablesRequest{
-		SecretVariables: []fleet.SecretVariable{{Name: secretName, Value: "attacker-overwrite"}},
+	s.Do("PUT", "/api/latest/automdm/spec/secret_variables", automdm.CreateSecretVariablesRequest{
+		SecretVariables: []automdm.SecretVariable{{Name: secretName, Value: "attacker-overwrite"}},
 	}, http.StatusForbidden)
 
-	// --- every fleet-scoped write path rejects a secret reference ---
+	// --- every team-scoped write path rejects a secret reference ---
 	for _, tc := range []struct {
 		name string
-		user fleet.User
+		user automdm.User
 		do   func()
 	}{
-		{"host_name_template endpoint, fleet maintainer", teamMaintainer, func() {
-			res := s.Do("POST", "/api/latest/fleet/host_name_template",
-				updateHostNameTemplateRequest{FleetID: &team.ID, HostNameTemplate: secretRef}, http.StatusUnprocessableEntity)
+		{"host_name_template endpoint, team maintainer", teamMaintainer, func() {
+			res := s.Do("POST", "/api/latest/automdm/host_name_template",
+				updateHostNameTemplateRequest{AutoMDMID: &team.ID, HostNameTemplate: secretRef}, http.StatusUnprocessableEntity)
 			require.Contains(t, extractServerErrorText(res.Body), secretRef+" can only be used")
 		}},
-		{"host_name_template endpoint, fleet admin", teamAdmin, func() {
-			s.Do("POST", "/api/latest/fleet/host_name_template",
-				updateHostNameTemplateRequest{FleetID: &team.ID, HostNameTemplate: secretRef}, http.StatusUnprocessableEntity)
+		{"host_name_template endpoint, team admin", teamAdmin, func() {
+			s.Do("POST", "/api/latest/automdm/host_name_template",
+				updateHostNameTemplateRequest{AutoMDMID: &team.ID, HostNameTemplate: secretRef}, http.StatusUnprocessableEntity)
 		}},
-		{"host_name_template endpoint, fleet gitops", teamGitOps, func() {
-			s.Do("POST", "/api/latest/fleet/host_name_template",
-				updateHostNameTemplateRequest{FleetID: &team.ID, HostNameTemplate: secretRef}, http.StatusUnprocessableEntity)
+		{"host_name_template endpoint, automdm gitops", teamGitOps, func() {
+			s.Do("POST", "/api/latest/automdm/host_name_template",
+				updateHostNameTemplateRequest{AutoMDMID: &team.ID, HostNameTemplate: secretRef}, http.StatusUnprocessableEntity)
 		}},
-		{"modify fleet, fleet admin", teamAdmin, func() {
-			s.Do("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d", team.ID), fleet.TeamPayload{
-				MDM: &fleet.TeamPayloadMDM{HostNameTemplate: optjson.SetString(secretRef)},
+		{"modify team, team admin", teamAdmin, func() {
+			s.Do("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d", team.ID), automdm.TeamPayload{
+				MDM: &automdm.TeamPayloadMDM{HostNameTemplate: optjson.SetString(secretRef)},
 			}, http.StatusUnprocessableEntity)
 		}},
-		{"fleet spec, fleet gitops", teamGitOps, func() {
-			s.Do("POST", "/api/latest/fleet/spec/fleets", map[string]any{
+		{"team spec, automdm gitops", teamGitOps, func() {
+			s.Do("POST", "/api/latest/automdm/spec/teams", map[string]any{
 				"specs": []map[string]any{{"name": team.Name, "mdm": map[string]any{"name_template": secretRef}}},
 			}, http.StatusUnprocessableEntity)
 		}},
-		{"fleet spec dry run, fleet gitops", teamGitOps, func() {
-			s.Do("POST", "/api/latest/fleet/spec/fleets", map[string]any{
+		{"team spec dry run, automdm gitops", teamGitOps, func() {
+			s.Do("POST", "/api/latest/automdm/spec/teams", map[string]any{
 				"specs": []map[string]any{{"name": team.Name, "mdm": map[string]any{"name_template": secretRef}}},
 			}, http.StatusUnprocessableEntity, "dry_run", "true")
 		}},
 		{"braced form is not a bypass", teamMaintainer, func() {
-			s.Do("POST", "/api/latest/fleet/host_name_template",
-				updateHostNameTemplateRequest{FleetID: &team.ID, HostNameTemplate: "WS-${FLEET_SECRET_" + secretName + "}"},
+			s.Do("POST", "/api/latest/automdm/host_name_template",
+				updateHostNameTemplateRequest{AutoMDMID: &team.ID, HostNameTemplate: "WS-${AUTOMDM_SECRET_" + secretName + "}"},
 				http.StatusUnprocessableEntity)
 		}},
 		{"an undefined secret gives the same error, not an existence oracle", teamMaintainer, func() {
-			res := s.Do("POST", "/api/latest/fleet/host_name_template",
-				updateHostNameTemplateRequest{FleetID: &team.ID, HostNameTemplate: "$FLEET_SECRET_NOT_DEFINED"},
+			res := s.Do("POST", "/api/latest/automdm/host_name_template",
+				updateHostNameTemplateRequest{AutoMDMID: &team.ID, HostNameTemplate: "$AUTOMDM_SECRET_NOT_DEFINED"},
 				http.StatusUnprocessableEntity)
 			body := extractServerErrorText(res.Body)
 			require.Contains(t, body, "can only be used")
@@ -149,16 +149,16 @@ func (s *integrationMDMTestSuite) TestHostNameTemplateSecretScope() {
 		})
 	}
 
-	// --- a fleet-scoped role can still use the built-in variables ---
+	// --- a team-scoped role can still use the built-in variables ---
 	asUser(teamMaintainer)
-	s.Do("POST", "/api/latest/fleet/host_name_template",
-		updateHostNameTemplateRequest{FleetID: &team.ID, HostNameTemplate: "WS-$FLEET_VAR_HOST_HARDWARE_SERIAL"}, http.StatusNoContent)
-	require.Equal(t, "WS-$FLEET_VAR_HOST_HARDWARE_SERIAL", storedTemplate())
+	s.Do("POST", "/api/latest/automdm/host_name_template",
+		updateHostNameTemplateRequest{AutoMDMID: &team.ID, HostNameTemplate: "WS-$AUTOMDM_VAR_HOST_HARDWARE_SERIAL"}, http.StatusNoContent)
+	require.Equal(t, "WS-$AUTOMDM_VAR_HOST_HARDWARE_SERIAL", storedTemplate())
 
 	// --- a global role may reference a secret ---
 	s.token = s.getTestAdminToken()
-	s.Do("POST", "/api/latest/fleet/host_name_template",
-		updateHostNameTemplateRequest{FleetID: &team.ID, HostNameTemplate: secretRef}, http.StatusNoContent)
+	s.Do("POST", "/api/latest/automdm/host_name_template",
+		updateHostNameTemplateRequest{AutoMDMID: &team.ID, HostNameTemplate: secretRef}, http.StatusNoContent)
 	require.Equal(t, secretRef, storedTemplate())
 
 	require.NoError(t, ReconcileHostDeviceNames(ctx, s.ds, s.mdmCommander, s.logger))
@@ -184,21 +184,21 @@ func (s *integrationMDMTestSuite) TestHostNameTemplateSecretScope() {
 
 	// --- re-saving the global admin's template is a no-op, not a rejection ---
 	asUser(teamAdmin)
-	s.Do("POST", "/api/latest/fleet/host_name_template",
-		updateHostNameTemplateRequest{FleetID: &team.ID, HostNameTemplate: "  " + secretRef + " "}, http.StatusNoContent)
+	s.Do("POST", "/api/latest/automdm/host_name_template",
+		updateHostNameTemplateRequest{AutoMDMID: &team.ID, HostNameTemplate: "  " + secretRef + " "}, http.StatusNoContent)
 	require.Equal(t, secretRef, storedTemplate())
-	s.Do("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d", team.ID), fleet.TeamPayload{
-		MDM: &fleet.TeamPayloadMDM{HostNameTemplate: optjson.SetString(secretRef)},
+	s.Do("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d", team.ID), automdm.TeamPayload{
+		MDM: &automdm.TeamPayloadMDM{HostNameTemplate: optjson.SetString(secretRef)},
 	}, http.StatusOK)
 	require.Equal(t, secretRef, storedTemplate())
 
 	// --- changing it is still rejected ---
-	res := s.Do("POST", "/api/latest/fleet/host_name_template",
-		updateHostNameTemplateRequest{FleetID: &team.ID, HostNameTemplate: "X-" + secretRef}, http.StatusUnprocessableEntity)
+	res := s.Do("POST", "/api/latest/automdm/host_name_template",
+		updateHostNameTemplateRequest{AutoMDMID: &team.ID, HostNameTemplate: "X-" + secretRef}, http.StatusUnprocessableEntity)
 	require.Contains(t, extractServerErrorText(res.Body), "can only be used")
 	require.Equal(t, secretRef, storedTemplate())
 
 	s.token = s.getTestAdminToken()
-	s.Do("POST", "/api/latest/fleet/host_name_template",
-		updateHostNameTemplateRequest{FleetID: &team.ID, HostNameTemplate: ""}, http.StatusNoContent)
+	s.Do("POST", "/api/latest/automdm/host_name_template",
+		updateHostNameTemplateRequest{AutoMDMID: &team.ID, HostNameTemplate: ""}, http.StatusNoContent)
 }

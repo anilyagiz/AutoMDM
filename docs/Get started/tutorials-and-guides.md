@@ -1,62 +1,62 @@
 # Tutorials and guides
 
-A collection of guides to help you with Fleet.
+A collection of guides to help you with AutoMDM.
 
 ## Get set up
 
-<!--Deploying Fleet-->
-[MDM migration](https://fleetdm.com/guides/mdm-migration)
+<!--Deploying AutoMDM-->
+[MDM migration](https://automdm.com/guides/mdm-migration)
 
-[Deploy Fleet](https://fleetdm.com/docs/deploy)
+[Deploy AutoMDM](https://automdm.com/docs/deploy)
 
-[macOS MDM setup](https://fleetdm.com/guides/macos-mdm-setup)
+[macOS MDM setup](https://automdm.com/guides/macos-mdm-setup)
 
-[Windows MDM setup](https://fleetdm.com/guides/windows-mdm-setup)
+[Windows MDM setup](https://automdm.com/guides/windows-mdm-setup)
 
-[Enroll hosts](https://fleetdm.com/guides/enroll-hosts)
+[Enroll hosts](https://automdm.com/guides/enroll-hosts)
 
 ## Further learning
 <!--Highest level organizational unit-->
-[Fleets](https://fleetdm.com/guides/teams)
+[Teams](https://automdm.com/guides/teams)
 
-[Enroll BYOD iOS/iPadOS hosts](https://fleetdm.com/guides/enroll-byod-ios-ipados-hosts)
+[Enroll BYOD iOS/iPadOS hosts](https://automdm.com/guides/enroll-byod-ios-ipados-hosts)
 
-[Queries](https://fleetdm.com/guides/queries)
+[Queries](https://automdm.com/guides/queries)
 
-[Labels](https://fleetdm.com/guides/managing-labels-in-fleet)
+[Labels](https://automdm.com/guides/managing-labels-in-team)
 
-[Policies](https://fleetdm.com/securing/what-are-fleet-policies)
+[Policies](https://automdm.com/securing/what-are-automdm-policies)
 
 <!--Controls-->
 
-[Enforce disk encryption](https://fleetdm.com/guides/enforce-disk-encryption)
+[Enforce disk encryption](https://automdm.com/guides/enforce-disk-encryption)
 
-[Create Windows configuration profiles (CSPs)](https://fleetdm.com/guides/creating-windows-csps)
+[Create Windows configuration profiles (CSPs)](https://automdm.com/guides/creating-windows-csps)
 
-[Build and validate configuration profiles with AI](https://fleetdm.com/guides/build-configuration-profiles-with-ai)
+[Build and validate configuration profiles with AI](https://automdm.com/guides/build-configuration-profiles-with-ai)
 
-[Automatically run scripts](https://fleetdm.com/guides/policy-automation-run-script)
+[Automatically run scripts](https://automdm.com/guides/policy-automation-run-script)
 
 <!--Installing software-->
-[Fleet-maintained apps](https://fleetdm.com/guides/fleet-maintained-apps)
+[AutoMDM-maintained apps](https://automdm.com/guides/automdm-maintained-apps)
 
-[Deploy software](https://fleetdm.com/guides/deploy-software-packages)
+[Deploy software](https://automdm.com/guides/deploy-software-packages)
 
-[Automatically install software](https://fleetdm.com/guides/automatic-software-install-in-fleet)
+[Automatically install software](https://automdm.com/guides/automatic-software-install-in-team)
 
-[Install App store apps](https://fleetdm.com/guides/install-app-store-apps)
+[Install App store apps](https://automdm.com/guides/install-app-store-apps)
 <!--Admin-->
-[Fleetctl](https://fleetdm.com/guides/fleetctl)
+[AutoMDMctl](https://automdm.com/guides/automdmctl)
 
-[Fleetd updates](https://fleetdm.com/guides/fleetd-updates)
+[AutoMDMd updates](https://automdm.com/guides/automdmd-updates)
 
-[How to uninstall Fleet's agent (fleetd)](https://fleetdm.com/guides/how-to-uninstall-fleetd)
+[How to uninstall AutoMDM's agent (automdmd)](https://automdm.com/guides/how-to-uninstall-automdmd)
 
-[How to configure logging destinations](https://fleetdm.com/guides/how-to-configure-logging-destinations)  
+[How to configure logging destinations](https://automdm.com/guides/how-to-configure-logging-destinations)  
 
 
-<a style="text-decoration: none;" href="https://fleetdm.com/guides"><animated-arrow-button>See all guides</animated-arrow-button></a>
+<a style="text-decoration: none;" href="https://automdm.com/guides"><animated-arrow-button>See all guides</animated-arrow-button></a>
 
-<meta name="description" value="Links to deployment tutorials and guides for using Fleet.">
+<meta name="description" value="Links to deployment tutorials and guides for using AutoMDM.">
 <meta name="pageOrderInSection" value="300">
-<meta name="keywordsForDocsearch" value="fleet tutorials, getting started, learning resources, fleet guides, walkthroughs">
+<meta name="keywordsForDocsearch" value="team tutorials, getting started, learning resources, team guides, walkthroughs">

@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
 )
@@ -39,7 +39,7 @@ func testScheduledQueriesSaveHostsStats(t *testing.T, ds *Datastore) {
 	h2 := test.NewHost(t, ds, "foo2.local", "192.168.1.2", "2", "2", time.Now())
 	h3 := test.NewHost(t, ds, "foo3.local", "192.168.1.3", "3", "3", time.Now())
 
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "team1"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
 	teamPackName := fmt.Sprintf("team-%d", team.ID)
 
@@ -48,7 +48,7 @@ func testScheduledQueriesSaveHostsStats(t *testing.T, ds *Datastore) {
 	q3 := test.NewQuery(t, ds, nil, "q3", "select 3", user.ID, true)
 	q4 := test.NewQuery(t, ds, &team.ID, "q4", "select 4", user.ID, true)
 
-	assertStats := func(m map[uint][]fleet.ScheduledQueryStats) {
+	assertStats := func(m map[uint][]automdm.ScheduledQueryStats) {
 		// checks that the stats are as expected (only the Executions field is
 		// checked for the provided host ID/scheduled query ID).
 		for hid, stats := range m {
@@ -73,7 +73,7 @@ func testScheduledQueriesSaveHostsStats(t *testing.T, ds *Datastore) {
 	require.Equal(t, 0, execs)
 
 	// single host, single stat
-	m := map[uint][]fleet.ScheduledQueryStats{
+	m := map[uint][]automdm.ScheduledQueryStats{
 		h1.ID: {
 			{
 				ScheduledQueryID:   q1.ID,
@@ -90,7 +90,7 @@ func testScheduledQueriesSaveHostsStats(t *testing.T, ds *Datastore) {
 	assertStats(m)
 
 	// single host, stats == batch size
-	m = map[uint][]fleet.ScheduledQueryStats{
+	m = map[uint][]automdm.ScheduledQueryStats{
 		h1.ID: {
 			{
 				ScheduledQueryID:   q1.ID,
@@ -114,7 +114,7 @@ func testScheduledQueriesSaveHostsStats(t *testing.T, ds *Datastore) {
 	assertStats(m)
 
 	// single host, stats > batch size
-	m = map[uint][]fleet.ScheduledQueryStats{
+	m = map[uint][]automdm.ScheduledQueryStats{
 		h1.ID: {
 			{
 				ScheduledQueryID:   q1.ID,
@@ -145,7 +145,7 @@ func testScheduledQueriesSaveHostsStats(t *testing.T, ds *Datastore) {
 	assertStats(m)
 
 	// multi host, stats == batch size
-	m = map[uint][]fleet.ScheduledQueryStats{
+	m = map[uint][]automdm.ScheduledQueryStats{
 		h1.ID: {
 			{
 				ScheduledQueryID:   q1.ID,
@@ -171,7 +171,7 @@ func testScheduledQueriesSaveHostsStats(t *testing.T, ds *Datastore) {
 	assertStats(m)
 
 	// multi host, stats > batch size
-	m = map[uint][]fleet.ScheduledQueryStats{
+	m = map[uint][]automdm.ScheduledQueryStats{
 		h1.ID: {
 			{
 				ScheduledQueryID:   q1.ID,
@@ -204,7 +204,7 @@ func testScheduledQueriesSaveHostsStats(t *testing.T, ds *Datastore) {
 	assertStats(m)
 
 	// multi host, stats > (N * batch size)
-	m = map[uint][]fleet.ScheduledQueryStats{
+	m = map[uint][]automdm.ScheduledQueryStats{
 		h1.ID: {
 			{
 				ScheduledQueryID:   q1.ID,
@@ -268,7 +268,7 @@ func testScheduledQueriesSaveHostsStats(t *testing.T, ds *Datastore) {
 
 	// stats with no resolved report ID are skipped, don't count toward the
 	// batch size, and don't write a row with a zero ID
-	h1Stats := []fleet.ScheduledQueryStats{
+	h1Stats := []automdm.ScheduledQueryStats{
 		{
 			ScheduledQueryID:   q1.ID,
 			Executions:         19,
@@ -290,10 +290,10 @@ func testScheduledQueriesSaveHostsStats(t *testing.T, ds *Datastore) {
 			ScheduledQueryName: q2.Name,
 		},
 	}
-	execs, err = saveHostsScheduledQueryStatsDB(ctx, ds.writer(ctx), map[uint][]fleet.ScheduledQueryStats{h1.ID: h1Stats}, batchSize)
+	execs, err = saveHostsScheduledQueryStatsDB(ctx, ds.writer(ctx), map[uint][]automdm.ScheduledQueryStats{h1.ID: h1Stats}, batchSize)
 	require.NoError(t, err)
 	require.Equal(t, 1, execs)
-	assertStats(map[uint][]fleet.ScheduledQueryStats{h1.ID: {h1Stats[0], h1Stats[2]}})
+	assertStats(map[uint][]automdm.ScheduledQueryStats{h1.ID: {h1Stats[0], h1Stats[2]}})
 	ExecAdhocSQL(t, ds, func(tx sqlx.ExtContext) error {
 		var count int
 		err := sqlx.GetContext(ctx, tx, &count, `SELECT COUNT(*) FROM scheduled_query_stats WHERE scheduled_query_id = 0`)

@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/stretchr/testify/require"
 )
 
@@ -15,11 +15,11 @@ func TestGetPaylaod(t *testing.T) {
 	require.NoError(t, err)
 
 	now := time.Now().UTC().Truncate(time.Second)
-	vuln := fleet.SoftwareVulnerability{
+	vuln := automdm.SoftwareVulnerability{
 		CVE:        "cve-1",
 		SoftwareID: 1,
 	}
-	meta := fleet.CVEMeta{
+	meta := automdm.CVEMeta{
 		CVE:              "cve-1",
 		CVSSScore:        ptr.Float64(1),
 		EPSSProbability:  ptr.Float64(0.5),
@@ -38,7 +38,7 @@ func TestGetPaylaod(t *testing.T) {
 	})
 
 	t.Run("host payload only includes valid software paths", func(t *testing.T) {
-		hosts := []fleet.HostVulnerabilitySummary{
+		hosts := []automdm.HostVulnerabilitySummary{
 			{
 				ID:          1,
 				Hostname:    "host1",

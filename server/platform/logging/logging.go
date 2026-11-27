@@ -73,7 +73,7 @@ func NewSlogLogger(opts Options) *slog.Logger {
 
 	// If OTEL logs export is enabled, add otelslog handler for sending logs to collector
 	if opts.OtelLogsEnabled && opts.LoggerProvider != nil {
-		otelHandler := otelslog.NewHandler("fleet", otelslog.WithLoggerProvider(opts.LoggerProvider))
+		otelHandler := otelslog.NewHandler("automdm", otelslog.WithLoggerProvider(opts.LoggerProvider))
 		handler = NewMultiHandler(handler, otelHandler)
 	}
 

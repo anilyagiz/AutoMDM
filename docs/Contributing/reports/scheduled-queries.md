@@ -1,14 +1,14 @@
 # Scheduled queries architecture
 
-This document provides an overview of Fleet's Scheduled Queries architecture.
+This document provides an overview of AutoMDM's Scheduled Queries architecture.
 
 ## Introduction
 
-Scheduled queries in Fleet allow users to configure queries that run on a regular schedule, providing ongoing visibility into device status, configuration, and security posture. This document provides insights into the design decisions, system components, and interactions specific to the Scheduled Queries functionality.
+Scheduled queries in AutoMDM allow users to configure queries that run on a regular schedule, providing ongoing visibility into device status, configuration, and security posture. This document provides insights into the design decisions, system components, and interactions specific to the Scheduled Queries functionality.
 
 ## Architecture overview
 
-The Scheduled Queries architecture enables the configuration, distribution, and execution of queries on a schedule across a fleet of devices. It leverages osquery's scheduled report capabilities to execute SQL queries on devices and return results to the Fleet server.
+The Scheduled Queries architecture enables the configuration, distribution, and execution of queries on a schedule across a fleet of devices. It leverages osquery's scheduled report capabilities to execute SQL queries on devices and return results to the AutoMDM server.
 
 ## Key components
 
@@ -25,13 +25,13 @@ The Scheduled Queries architecture enables the configuration, distribution, and 
 
 ## Report execution flow
 
-### 1 - Fleet user creates a scheduled report
+### 1 - AutoMDM user creates a scheduled report
 
 ```
-Fleet User -> API Client (Frontend or Fleetctl) -> Server -> DB
+AutoMDM User -> API Client (Frontend or AutoMDMctl) -> Server -> DB
 ```
 
-1. Fleet user creates a scheduled report for a fleet or globally through the UI or API.
+1. AutoMDM user creates a scheduled report for a team or globally through the UI or API.
 2. Server stores the report configuration in the database.
 
 ### 2 - Agent gets config file (with the scheduled report)
@@ -41,7 +41,7 @@ osquery agent -> Server -> DB
 ```
 
 1. osquery agent requests the configuration file from the server.
-2. Server merges fleet and global configurations.
+2. Server merges team and global configurations.
 3. Server returns the merged configuration to the agent.
 
 ### 3 - Agent returns results to be (optionally) logged

@@ -8,85 +8,85 @@ import (
 	"time"
 
 	"github.com/WatchBeam/clock"
-	eeservice "github.com/fleetdm/fleet/v4/ee/server/service"
-	"github.com/fleetdm/fleet/v4/ee/server/service/digicert"
-	"github.com/fleetdm/fleet/v4/ee/server/service/ejbca"
-	"github.com/fleetdm/fleet/v4/ee/server/service/est"
-	"github.com/fleetdm/fleet/v4/ee/server/service/googlecas"
-	"github.com/fleetdm/fleet/v4/ee/server/service/scep"
-	activity_api "github.com/fleetdm/fleet/v4/server/activity/api"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/datastore/filesystem"
-	"github.com/fleetdm/fleet/v4/server/errorstore"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/logging"
-	"github.com/fleetdm/fleet/v4/server/mail"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
-	apple_mdm "github.com/fleetdm/fleet/v4/server/mdm/apple"
-	microsoft_mdm "github.com/fleetdm/fleet/v4/server/mdm/microsoft"
-	nanodep_storage "github.com/fleetdm/fleet/v4/server/mdm/nanodep/storage"
-	nanomdm_push "github.com/fleetdm/fleet/v4/server/mdm/nanomdm/push"
-	"github.com/fleetdm/fleet/v4/server/microsoft/msgraph"
-	fleet_mock "github.com/fleetdm/fleet/v4/server/mock"
-	nanodep_mock "github.com/fleetdm/fleet/v4/server/mock/nanodep"
-	"github.com/fleetdm/fleet/v4/server/service"
-	"github.com/fleetdm/fleet/v4/server/service/async"
-	"github.com/fleetdm/fleet/v4/server/service/redis_install_attempts"
-	"github.com/fleetdm/fleet/v4/server/service/redis_key_value"
-	"github.com/fleetdm/fleet/v4/server/service/redis_lock"
-	"github.com/fleetdm/fleet/v4/server/sso"
+	eeservice "github.com/anilyagiz/automdm/v4/ee/server/service"
+	"github.com/anilyagiz/automdm/v4/ee/server/service/digicert"
+	"github.com/anilyagiz/automdm/v4/ee/server/service/ejbca"
+	"github.com/anilyagiz/automdm/v4/ee/server/service/est"
+	"github.com/anilyagiz/automdm/v4/ee/server/service/googlecas"
+	"github.com/anilyagiz/automdm/v4/ee/server/service/scep"
+	activity_api "github.com/anilyagiz/automdm/v4/server/activity/api"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
+	"github.com/anilyagiz/automdm/v4/server/datastore/filesystem"
+	"github.com/anilyagiz/automdm/v4/server/errorstore"
+	"github.com/anilyagiz/automdm/v4/server/logging"
+	"github.com/anilyagiz/automdm/v4/server/mail"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
+	apple_mdm "github.com/anilyagiz/automdm/v4/server/mdm/apple"
+	microsoft_mdm "github.com/anilyagiz/automdm/v4/server/mdm/microsoft"
+	nanodep_storage "github.com/anilyagiz/automdm/v4/server/mdm/nanodep/storage"
+	nanomdm_push "github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/push"
+	"github.com/anilyagiz/automdm/v4/server/microsoft/msgraph"
+	automdm_mock "github.com/anilyagiz/automdm/v4/server/mock"
+	nanodep_mock "github.com/anilyagiz/automdm/v4/server/mock/nanodep"
+	"github.com/anilyagiz/automdm/v4/server/service"
+	"github.com/anilyagiz/automdm/v4/server/service/async"
+	"github.com/anilyagiz/automdm/v4/server/service/redis_install_attempts"
+	"github.com/anilyagiz/automdm/v4/server/service/redis_key_value"
+	"github.com/anilyagiz/automdm/v4/server/service/redis_lock"
+	"github.com/anilyagiz/automdm/v4/server/sso"
 	"github.com/stretchr/testify/require"
 )
 
-// NewTestService builds a fleet.Service backed by ds for use in tests. It
+// NewTestService builds an automdm.Service backed by ds for use in tests. It
 // honors the relevant fields on opts (License, Logger, Pool, etc.).
-func NewTestService(t *testing.T, ds fleet.Datastore, cfg config.FleetConfig, opts ...*service.TestServerOpts) (fleet.Service, context.Context) {
-	var rs fleet.QueryResultStore
+func NewTestService(t *testing.T, ds automdm.Datastore, cfg config.AutoMDMConfig, opts ...*service.TestServerOpts) (automdm.Service, context.Context) {
+	var rs automdm.QueryResultStore
 	if len(opts) > 0 && opts[0].Rs != nil {
 		rs = opts[0].Rs
 	}
-	var lq fleet.LiveQueryStore
+	var lq automdm.LiveQueryStore
 	if len(opts) > 0 && opts[0].Lq != nil {
 		lq = opts[0].Lq
 	}
 	return newTestServiceWithConfig(t, ds, cfg, rs, lq, opts...)
 }
 
-func newTestServiceWithConfig(t *testing.T, ds fleet.Datastore, fleetConfig config.FleetConfig, rs fleet.QueryResultStore, lq fleet.LiveQueryStore, opts ...*service.TestServerOpts) (fleet.Service, context.Context) {
-	lic := &fleet.LicenseInfo{Tier: fleet.TierFree}
+func newTestServiceWithConfig(t *testing.T, ds automdm.Datastore, automdmConfig config.AutoMDMConfig, rs automdm.QueryResultStore, lq automdm.LiveQueryStore, opts ...*service.TestServerOpts) (automdm.Service, context.Context) {
+	lic := &automdm.LicenseInfo{Tier: automdm.TierFree}
 	logger := slog.New(slog.DiscardHandler)
-	writer, err := logging.NewFilesystemLogWriter(t.Context(), fleetConfig.Filesystem.StatusLogFile, logger, fleetConfig.Filesystem.EnableLogRotation,
-		fleetConfig.Filesystem.EnableLogCompression, 500, 28, 3)
+	writer, err := logging.NewFilesystemLogWriter(t.Context(), automdmConfig.Filesystem.StatusLogFile, logger, automdmConfig.Filesystem.EnableLogRotation,
+		automdmConfig.Filesystem.EnableLogCompression, 500, 28, 3)
 	require.NoError(t, err)
 
 	osqlogger := &service.OsqueryLogger{Status: writer, Result: writer}
 
 	var (
-		failingPolicySet                fleet.FailingPolicySet        = service.NewMemFailingPolicySet()
-		enrollHostLimiter               fleet.EnrollHostLimiter       = nopEnrollHostLimiter{}
+		failingPolicySet                automdm.FailingPolicySet      = service.NewMemFailingPolicySet()
+		enrollHostLimiter               automdm.EnrollHostLimiter     = nopEnrollHostLimiter{}
 		depStorage                      nanodep_storage.AllDEPStorage = &nanodep_mock.Storage{}
-		mailer                          fleet.MailService             = &mockMailService{SendEmailFn: func(e fleet.Email) error { return nil }}
+		mailer                          automdm.MailService           = &mockMailService{SendEmailFn: func(e automdm.Email) error { return nil }}
 		c                               clock.Clock                   = clock.C
 		scepConfigService                                             = scep.NewSCEPConfigService(logger, nil)
 		digiCertService                                               = digicert.NewService(digicert.WithLogger(logger))
 		ejbcaService                                                  = ejbca.NewService(ejbca.WithLogger(logger))
 		estCAService                                                  = est.NewService(est.WithLogger(logger))
-		googleCASService                fleet.GoogleCASService        = googlecas.NewService(googlecas.WithLogger(logger))
+		googleCASService                automdm.GoogleCASService      = googlecas.NewService(googlecas.WithLogger(logger))
 		conditionalAccessMicrosoftProxy service.ConditionalAccessMicrosoftProxy
 
-		mdmStorage             fleet.MDMAppleStore
+		mdmStorage             automdm.MDMAppleStore
 		mdmPusher              nanomdm_push.Pusher
 		ssoStore               sso.SessionStore
-		softwareInstallStore   fleet.SoftwareInstallerStore
-		bootstrapPackageStore  fleet.MDMBootstrapPackageStore
-		softwareTitleIconStore fleet.SoftwareTitleIconStore
-		stagedUploadStore      fleet.StagedUploadStore
-		distributedLock        fleet.Lock
-		keyValueStore          fleet.KeyValueStore
+		softwareInstallStore   automdm.SoftwareInstallerStore
+		bootstrapPackageStore  automdm.MDMBootstrapPackageStore
+		softwareTitleIconStore automdm.SoftwareTitleIconStore
+		stagedUploadStore      automdm.StagedUploadStore
+		distributedLock        automdm.Lock
+		keyValueStore          automdm.KeyValueStore
 		androidService         android.Service
-		installAttemptCounter  fleet.SoftwareInstallAttemptCounter = service.NewMemSoftwareInstallAttemptCounter()
+		installAttemptCounter  automdm.SoftwareInstallAttemptCounter = service.NewMemSoftwareInstallAttemptCounter()
 	)
 	if len(opts) > 0 {
 		if opts[0].Clock != nil {
@@ -152,7 +152,7 @@ func newTestServiceWithConfig(t *testing.T, ds fleet.Datastore, fleetConfig conf
 
 	ctx := license.NewContext(context.Background(), lic)
 
-	cronSchedulesService := fleet.NewCronSchedules()
+	cronSchedulesService := automdm.NewCronSchedules()
 	service.RegisterImmediatePolicyMembershipCleanup(cronSchedulesService, ds)
 
 	var eh *errorstore.Handler
@@ -179,7 +179,7 @@ func newTestServiceWithConfig(t *testing.T, ds fleet.Datastore, fleetConfig conf
 	}
 	if len(opts) > 0 && opts[0].ConditionalAccessMicrosoftProxy != nil {
 		conditionalAccessMicrosoftProxy = opts[0].ConditionalAccessMicrosoftProxy
-		// The Conditional Access feature is gated on Fleet Premium; callers that
+		// The Conditional Access feature is gated on AutoMDM Premium; callers that
 		// exercise it must provide a premium license via opts[0].License.
 		require.True(t, lic.IsPremium(), "ConditionalAccessMicrosoftProxy requires a premium license via opts.License")
 	}
@@ -193,10 +193,10 @@ func newTestServiceWithConfig(t *testing.T, ds fleet.Datastore, fleetConfig conf
 	}
 
 	var wstepManager microsoft_mdm.CertManager
-	if fleetConfig.MDM.WindowsWSTEPIdentityCert != "" && fleetConfig.MDM.WindowsWSTEPIdentityKey != "" {
-		rawCert, err := os.ReadFile(fleetConfig.MDM.WindowsWSTEPIdentityCert)
+	if automdmConfig.MDM.WindowsWSTEPIdentityCert != "" && automdmConfig.MDM.WindowsWSTEPIdentityKey != "" {
+		rawCert, err := os.ReadFile(automdmConfig.MDM.WindowsWSTEPIdentityCert)
 		require.NoError(t, err)
-		rawKey, err := os.ReadFile(fleetConfig.MDM.WindowsWSTEPIdentityKey)
+		rawKey, err := os.ReadFile(automdmConfig.MDM.WindowsWSTEPIdentityKey)
 		require.NoError(t, err)
 
 		wstepManager, err = microsoft_mdm.NewCertManager(ds, rawCert, rawKey)
@@ -219,14 +219,14 @@ func newTestServiceWithConfig(t *testing.T, ds fleet.Datastore, fleetConfig conf
 		rs,
 		logger,
 		osqlogger,
-		fleetConfig,
+		automdmConfig,
 		mailer,
 		c,
 		ssoStore,
 		lq,
 		ds,
 		failingPolicySet,
-		&fleet.NoOpGeoIP{},
+		&automdm.NoOpGeoIP{},
 		enrollHostLimiter,
 		depStorage,
 		mdmStorage,
@@ -265,7 +265,7 @@ func newTestServiceWithConfig(t *testing.T, ds fleet.Datastore, fleetConfig conf
 			svc,
 			ds,
 			logger,
-			fleetConfig,
+			automdmConfig,
 			mailer,
 			c,
 			depStorage,
@@ -294,7 +294,7 @@ func newTestServiceWithConfig(t *testing.T, ds fleet.Datastore, fleetConfig conf
 
 	// Set up mock activity service for unit tests. When DBConns is provided,
 	// RunServerForTestsWithServiceWithDS will overwrite this with the real bounded context.
-	activityMock := &fleet_mock.MockActivityService{
+	activityMock := &automdm_mock.MockActivityService{
 		NewActivityFunc: func(_ context.Context, _ *activity_api.User, _ activity_api.ActivityDetails) error {
 			return nil
 		},
@@ -306,11 +306,11 @@ func newTestServiceWithConfig(t *testing.T, ds fleet.Datastore, fleetConfig conf
 
 	// Set up mock ACME service for unit tests. When DBConns is provided,
 	// RunServerForTestsWithServiceWithDS will overwrite this with the real service module.
-	svc.SetACMEService(&fleet_mock.MockACMEService{})
+	svc.SetACMEService(&automdm_mock.MockACMEService{})
 
 	// Set up mock notifications service for unit tests. When DBConns is provided,
 	// RunServerForTestsWithServiceWithDS will overwrite this with the real bounded context.
-	svc.SetNotificationsService(&fleet_mock.MockNotificationsService{})
+	svc.SetNotificationsService(&automdm_mock.MockNotificationsService{})
 
 	return svc, ctx
 }
@@ -326,6 +326,6 @@ func (noopMicrosoftGraphClient) ListWindowsAutopilotDevices(context.Context) ([]
 	return nil, nil
 }
 
-func noopMicrosoftGraphClientFactory(*fleet.MicrosoftGraphCredential) (msgraph.Client, error) {
+func noopMicrosoftGraphClientFactory(*automdm.MicrosoftGraphCredential) (msgraph.Client, error) {
 	return noopMicrosoftGraphClient{}, nil
 }

@@ -28,17 +28,17 @@ Usage modes:
      gm releases sync-estimates
 
   2. Sync issues from a specific milestone:
-     gm releases sync-estimates --milestone "Fleet 4.77.0"
+     gm releases sync-estimates --milestone "AutoMDM 4.77.0"
 
   3. Sync a single issue:
      gm releases sync-estimates --issue 12345
 
   4. Sync a single issue in a milestone (validates milestone membership):
-     gm releases sync-estimates --issue 12345 --milestone "Fleet 4.77.0"
+     gm releases sync-estimates --issue 12345 --milestone "AutoMDM 4.77.0"
 
 By default, issues with existing estimates are skipped. Use --overwrite to update them.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		releasesProjectID := 87 // fleet Releases project
+		releasesProjectID := 87 // automdm Releases project
 
 		issueNum, _ := cmd.Flags().GetInt("issue")
 		overwrite, _ := cmd.Flags().GetBool("overwrite")
@@ -207,9 +207,9 @@ Size mapping (low-high):
   XL:  75-100
 
 Usage:
-  gm releases forecast --milestone "Fleet 4.86.0"`,
+  gm releases forecast --milestone "AutoMDM 4.86.0"`,
 	Run: func(cmd *cobra.Command, args []string) {
-		releasesProjectID := 87 // fleet Releases project
+		releasesProjectID := 87 // automdm Releases project
 		milestoneTitle, _ := cmd.Flags().GetString("milestone")
 
 		if milestoneTitle == "" {
@@ -317,7 +317,7 @@ func init() {
 
 	releasesSyncEstimatesCmd.Flags().IntP("issue", "i", 0, "Only sync for the given issue number; must be on the Releases project")
 	releasesSyncEstimatesCmd.Flags().BoolP("overwrite", "o", false, "Overwrite existing Releases estimates (by default, issues with estimates are skipped)")
-	releasesSyncEstimatesCmd.Flags().StringP("milestone", "m", "", "Only process issues in this milestone, e.g., Fleet 4.77.0")
+	releasesSyncEstimatesCmd.Flags().StringP("milestone", "m", "", "Only process issues in this milestone, e.g., AutoMDM 4.77.0")
 
-	releasesForecastCmd.Flags().StringP("milestone", "m", "", "Milestone to forecast, e.g., Fleet 4.86.0 (required)")
+	releasesForecastCmd.Flags().StringP("milestone", "m", "", "Milestone to forecast, e.g., AutoMDM 4.86.0 (required)")
 }

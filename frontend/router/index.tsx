@@ -30,8 +30,8 @@ import ConfirmInvitePage from "pages/ConfirmInvitePage";
 import ConfirmSSOInvitePage from "pages/ConfirmSSOInvitePage";
 import DeviceNotificationPage from "pages/DeviceNotificationPage";
 import DeviceUserSSOErrorPage from "pages/DeviceUserSSOErrorPage";
-import Fleet403 from "pages/errors/Fleet403";
-import Fleet404 from "pages/errors/Fleet404";
+import AutoMDM403 from "pages/errors/AutoMDM403";
+import AutoMDM404 from "pages/errors/AutoMDM404";
 import ForgotPasswordPage from "pages/ForgotPasswordPage";
 import LoginPage, { LoginPreviewPage } from "pages/LoginPage";
 import LogoutPage from "pages/LogoutPage";
@@ -53,7 +53,7 @@ import ExcludeInSandboxRoutes from "./components/ExcludeInSandboxRoutes";
 import PremiumRoutes from "./components/PremiumRoutes";
 import UnauthenticatedRoutes from "./components/UnauthenticatedRoutes";
 
-const CHUNK_RELOAD_KEY = "fleet:chunk-reload";
+const CHUNK_RELOAD_KEY = "team:chunk-reload";
 
 // sessionStorage throws in some locked-down contexts. A chunk failing to load
 // should not be replaced by a storage error, so treat it as unavailable and
@@ -283,10 +283,10 @@ const LazySoftwareAddPage = lazyPage(
       /* webpackChunkName: "software" */ "pages/SoftwarePage/SoftwareAddPage"
     )
 );
-const LazySoftwareFleetMaintained = lazyPage(
+const LazySoftwareAutoMDMMaintained = lazyPage(
   () =>
     import(
-      /* webpackChunkName: "software" */ "pages/SoftwarePage/SoftwareAddPage/SoftwareFleetMaintained"
+      /* webpackChunkName: "software" */ "pages/SoftwarePage/SoftwareAddPage/SoftwareAutoMDMMaintained"
     )
 );
 const LazySoftwareCustomPackage = lazyPage(
@@ -301,10 +301,10 @@ const LazySoftwareAppStore = lazyPage(
       /* webpackChunkName: "software" */ "pages/SoftwarePage/SoftwareAddPage/SoftwareAppStore"
     )
 );
-const LazyFleetMaintainedAppDetailsPage = lazyPage(
+const LazyAutoMDMMaintainedAppDetailsPage = lazyPage(
   () =>
     import(
-      /* webpackChunkName: "software" */ "pages/SoftwarePage/SoftwareAddPage/SoftwareFleetMaintained/FleetMaintainedAppDetailsPage"
+      /* webpackChunkName: "software" */ "pages/SoftwarePage/SoftwareAddPage/SoftwareAutoMDMMaintained/AutoMDMMaintainedAppDetailsPage"
     )
 );
 const LazyManageQueriesPage = lazyPage(
@@ -350,31 +350,31 @@ const LazyEditUserPage = lazyPage(
       /* webpackChunkName: "admin" */ "pages/admin/ManageUsersPage/EditUserPage"
     )
 );
-const LazyAdminManageFleetsPage = lazyPage(
-  () => import(/* webpackChunkName: "admin" */ "pages/admin/ManageFleetsPage")
+const LazyAdminManageTeamsPage = lazyPage(
+  () => import(/* webpackChunkName: "admin" */ "pages/admin/ManageTeamsPage")
 );
 const LazyTeamDetailsWrapper = lazyPage(
   () =>
     import(
-      /* webpackChunkName: "admin" */ "pages/admin/ManageFleetsPage/TeamDetailsWrapper"
+      /* webpackChunkName: "admin" */ "pages/admin/ManageTeamsPage/TeamDetailsWrapper"
     )
 );
 const LazyTeamSettings = lazyPage(
   () =>
     import(
-      /* webpackChunkName: "admin" */ "pages/admin/ManageFleetsPage/TeamDetailsWrapper/TeamSettings"
+      /* webpackChunkName: "admin" */ "pages/admin/ManageTeamsPage/TeamDetailsWrapper/TeamSettings"
     )
 );
 const LazyUsersPage = lazyPage(
   () =>
     import(
-      /* webpackChunkName: "admin" */ "pages/admin/ManageFleetsPage/TeamDetailsWrapper/UsersPage/UsersPage"
+      /* webpackChunkName: "admin" */ "pages/admin/ManageTeamsPage/TeamDetailsWrapper/UsersPage/UsersPage"
     )
 );
 const LazyAgentOptionsPage = lazyPage(
   () =>
     import(
-      /* webpackChunkName: "admin" */ "pages/admin/ManageFleetsPage/TeamDetailsWrapper/AgentOptionsPage"
+      /* webpackChunkName: "admin" */ "pages/admin/ManageTeamsPage/TeamDetailsWrapper/AgentOptionsPage"
     )
 );
 const LazyWindowsMdmPage = lazyPage(
@@ -541,7 +541,7 @@ const routes = (
                 <Redirect from="integrations/vpp" to="integrations/mdm" />
                 <Redirect
                   from="integrations/sso"
-                  to="integrations/sso/fleet-users"
+                  to="integrations/sso/team-users"
                 />
                 <Route
                   path="integrations/:section"
@@ -555,7 +555,7 @@ const routes = (
                   <Route path="users" component={LazyAdminManageUsersPage} />
                 </Route>
                 <Route component={PremiumRoutes}>
-                  <Route path="fleets" component={LazyAdminManageFleetsPage} />
+                  <Route path="teams" component={LazyAdminManageTeamsPage} />
                 </Route>
               </Route>
             </Route>
@@ -609,7 +609,7 @@ const routes = (
               </Route>
             </Route>
 
-            <Route path="fleets" component={LazyTeamDetailsWrapper}>
+            <Route path="teams" component={LazyTeamDetailsWrapper}>
               <Redirect from="members" to="users" />
               <Route path="users" component={LazyUsersPage} />
               <Route path="options" component={LazyAgentOptionsPage} />
@@ -729,17 +729,17 @@ const routes = (
             {/* Check the add route first so 'software/add' isn't caught by title/version detail routes */}
             <Route component={AuthAnyMaintainerAnyAdminRoutes}>
               <Route path="add" component={LazySoftwareAddPage}>
-                <IndexRedirect to="fleet-maintained" />
+                <IndexRedirect to="automdm-maintained" />
                 <Route
-                  path="fleet-maintained"
-                  component={LazySoftwareFleetMaintained}
+                  path="automdm-maintained"
+                  component={LazySoftwareAutoMDMMaintained}
                 />
                 <Route path="app-store" component={LazySoftwareAppStore} />
                 <Route path="package" component={LazySoftwareCustomPackage} />
               </Route>
               <Route
-                path="add/fleet-maintained/:id"
-                component={LazyFleetMaintainedAppDetailsPage}
+                path="add/automdm-maintained/:id"
+                component={LazyAutoMDMMaintainedAppDetailsPage}
               />
             </Route>
             <Route component={LazySoftwarePage}>
@@ -764,7 +764,7 @@ const routes = (
             />
             {/*
               Static <Redirect to="/path"> strips the query. Use onEnter so
-              fleet_id (and any deep-link params like add_category=1) survive
+              team_id (and any deep-link params like add_category=1) survive
               the hop from the pre-rename URL.
             */}
             <Route
@@ -829,9 +829,9 @@ const routes = (
         </Route>
       </Route>
       <Route path="device">
-        <IndexRedirect to={PATHS.FLEET_404} />
+        <IndexRedirect to={PATHS.AUTOMDM_404} />
         {/* Standalone toast route — kept outside the DeviceUserPage wrapper so
-        the Fleet Desktop notification window doesn't inherit the My device
+        the AutoMDM Desktop notification window doesn't inherit the My device
         header, nav, or chrome. */}
         <Route
           path=":device_auth_token/notifications/:notification_uuid"
@@ -850,9 +850,9 @@ const routes = (
       {/* Inside AppWrapper so these render through App and can read the
       authenticated user from AppContext. The catch-all must stay last. */}
       <Route component={ErrorPageLayout}>
-        <Route path="404" component={Fleet404} />
-        <Route path="403" component={Fleet403} />
-        <Route path="*" component={Fleet404} />
+        <Route path="404" component={AutoMDM404} />
+        <Route path="403" component={AutoMDM403} />
+        <Route path="*" component={AutoMDM404} />
       </Route>
     </Route>
   </Router>

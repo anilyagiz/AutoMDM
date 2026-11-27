@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/optjson"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/datastore/redis/redistest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/pkg/optjson"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis/redistest"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
@@ -28,12 +28,12 @@ func TestHostCacheTransferEscrowFlag(t *testing.T) {
 	d := New(ds, pool, WithHostCache(3*time.Minute))
 	ctx := t.Context()
 
-	newTeam := func(name string, mac, win, linux bool) *fleet.Team {
-		tm, err := ds.NewTeam(ctx, &fleet.Team{Name: name, Config: fleet.TeamConfig{
-			MDM: fleet.TeamMDM{
-				MacOSSettings:   fleet.MacOSSettings{EnableEscrowDiskEncryptionKey: optjson.SetBool(mac)},
-				WindowsSettings: fleet.WindowsSettings{EnableDiskEncryption: optjson.SetBool(win)},
-				LinuxSettings:   fleet.LinuxSettings{EnableEscrowDiskEncryptionKey: optjson.SetBool(linux)},
+	newTeam := func(name string, mac, win, linux bool) *automdm.Team {
+		tm, err := ds.NewTeam(ctx, &automdm.Team{Name: name, Config: automdm.TeamConfig{
+			MDM: automdm.TeamMDM{
+				MacOSSettings:   automdm.MacOSSettings{EnableEscrowDiskEncryptionKey: optjson.SetBool(mac)},
+				WindowsSettings: automdm.WindowsSettings{EnableDiskEncryption: optjson.SetBool(win)},
+				LinuxSettings:   automdm.LinuxSettings{EnableEscrowDiskEncryptionKey: optjson.SetBool(linux)},
 			},
 		}})
 		require.NoError(t, err)
@@ -49,7 +49,7 @@ func TestHostCacheTransferEscrowFlag(t *testing.T) {
 		name     string
 		platform string
 		withKey  bool
-		host     *fleet.Host
+		host     *automdm.Host
 		orbitKey string
 	}
 	hosts := []*testHost{
@@ -62,7 +62,7 @@ func TestHostCacheTransferEscrowFlag(t *testing.T) {
 	hostIDs := make([]uint, 0, len(hosts))
 	for i, th := range hosts {
 		uid := uuid.NewString()
-		h, err := ds.NewHost(ctx, &fleet.Host{
+		h, err := ds.NewHost(ctx, &automdm.Host{
 			OsqueryHostID:   new(uid),
 			NodeKey:         new(fmt.Sprintf("nk-%d-%s", i, uid)),
 			UUID:            uid,
@@ -78,8 +78,8 @@ func TestHostCacheTransferEscrowFlag(t *testing.T) {
 
 		th.orbitKey = fmt.Sprintf("onk-%d-%s", i, uid)
 		_, err = ds.EnrollOrbit(ctx,
-			fleet.WithEnrollOrbitHostInfo(fleet.OrbitHostInfo{HardwareUUID: uid, HardwareSerial: h.HardwareSerial}),
-			fleet.WithEnrollOrbitNodeKey(th.orbitKey),
+			automdm.WithEnrollOrbitHostInfo(automdm.OrbitHostInfo{HardwareUUID: uid, HardwareSerial: h.HardwareSerial}),
+			automdm.WithEnrollOrbitNodeKey(th.orbitKey),
 		)
 		require.NoError(t, err)
 
@@ -114,7 +114,7 @@ func TestHostCacheTransferEscrowFlag(t *testing.T) {
 			require.NotNil(t, key)
 		} else {
 			require.Error(t, err, "%s: escrowed key must be gone", th.name)
-			require.True(t, fleet.IsNotFound(err), "%s: expected NotFound, got %v", th.name, err)
+			require.True(t, automdm.IsNotFound(err), "%s: expected NotFound, got %v", th.name, err)
 		}
 	}
 
@@ -130,7 +130,7 @@ func TestHostCacheTransferEscrowFlag(t *testing.T) {
 
 	t.Run("destination escrows for some platforms but not others", func(t *testing.T) {
 		primeCache(t)
-		require.NoError(t, d.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&macOnly.ID, hostIDs)))
+		require.NoError(t, d.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&macOnly.ID, hostIDs)))
 
 		// macOS is escrowed by the destination, so the key survives and the flag
 		// stays true; Windows and Linux are not, so their keys were deleted and the
@@ -150,7 +150,7 @@ func TestHostCacheTransferEscrowFlag(t *testing.T) {
 		require.Equal(t, hostCacheLookupHit, lookup)
 		require.True(t, reprimed.MDM.EncryptionKeyAvailable, "precondition: macOS key must be escrowed again")
 
-		require.NoError(t, d.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&noEscrow.ID, hostIDs)))
+		require.NoError(t, d.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&noEscrow.ID, hostIDs)))
 
 		for _, th := range hosts {
 			requireConsistent(t, th, &noEscrow.ID, false)
@@ -159,7 +159,7 @@ func TestHostCacheTransferEscrowFlag(t *testing.T) {
 
 	t.Run("transfer to No team", func(t *testing.T) {
 		primeCache(t)
-		require.NoError(t, d.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(nil, hostIDs)))
+		require.NoError(t, d.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(nil, hostIDs)))
 
 		for _, th := range hosts {
 			requireConsistent(t, th, nil, false)

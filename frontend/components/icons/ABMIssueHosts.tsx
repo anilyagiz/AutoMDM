@@ -7,7 +7,7 @@ interface IABMIssueHostsProps {
 }
 
 const ABMIssueHosts = ({
-  color = "ui-fleet-black-75",
+  color = "ui-automdm-black-75",
 }: IABMIssueHostsProps) => {
   return (
     <svg

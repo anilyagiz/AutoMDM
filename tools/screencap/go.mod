@@ -1,4 +1,4 @@
-module github.com/fleetdm/fleet/tools/screencap
+module github.com/anilyagiz/automdm/tools/screencap
 
 go 1.27.4
 

@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -19,14 +19,14 @@ import (
 // fallback changes header.
 type configServer struct {
 	mu      sync.Mutex
-	cfg     fleet.OrbitConfig
+	cfg     automdm.OrbitConfig
 	headers []string
 	count   atomic.Int32
 	// status, when set, is returned instead of the config.
 	status atomic.Int32
 }
 
-func (s *configServer) set(cfg fleet.OrbitConfig) {
+func (s *configServer) set(cfg automdm.OrbitConfig) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.cfg = cfg
@@ -46,16 +46,16 @@ func newNudgeTestClient(t *testing.T, srv *configServer) *OrbitClient {
 			return
 		}
 		srv.mu.Lock()
-		if h := r.Header.Get(fleet.OrbitConfigFallbackChangesHeader); h != "" {
+		if h := r.Header.Get(automdm.OrbitConfigFallbackChangesHeader); h != "" {
 			srv.headers = append(srv.headers, h)
 		}
 		cfg := srv.cfg
 		srv.mu.Unlock()
-		_ = json.NewEncoder(w).Encode(fleet.OrbitGetConfigResponse{OrbitConfig: cfg})
+		_ = json.NewEncoder(w).Encode(automdm.OrbitGetConfigResponse{OrbitConfig: cfg})
 	}))
 	t.Cleanup(ts.Close)
 
-	oc, err := NewOrbitClient(t.TempDir(), ts.URL, "", true, "secret", nil, fleet.OrbitHostInfo{}, nil, nil, "", false)
+	oc, err := NewOrbitClient(t.TempDir(), ts.URL, "", true, "secret", nil, automdm.OrbitHostInfo{}, nil, nil, "", false)
 	require.NoError(t, err)
 	oc.TestNodeKey = "node-key"
 	return oc
@@ -74,8 +74,8 @@ func runConfigReceivers(t *testing.T, oc *OrbitClient) {
 	})
 }
 
-func nudgedConfig(pollInterval int) fleet.OrbitConfig {
-	return fleet.OrbitConfig{WebSocketTransport: &fleet.OrbitWebSocketTransportConfig{
+func nudgedConfig(pollInterval int) automdm.OrbitConfig {
+	return automdm.OrbitConfig{WebSocketTransport: &automdm.OrbitWebSocketTransportConfig{
 		Enabled:                 true,
 		OrbitConfigPollInterval: &pollInterval,
 	}}
@@ -88,7 +88,7 @@ func TestConfigRefreshCoalescesDuringRun(t *testing.T) {
 
 	release := make(chan struct{})
 	var runs atomic.Int32
-	oc.RegisterConfigReceiver(fleet.OrbitConfigReceiverFunc(func(cfg *fleet.OrbitConfig) error {
+	oc.RegisterConfigReceiver(automdm.OrbitConfigReceiverFunc(func(cfg *automdm.OrbitConfig) error {
 		if runs.Add(1) == 1 {
 			<-release
 		}
@@ -120,7 +120,7 @@ func TestNextConfigInterval(t *testing.T) {
 	assert.Equal(t, 5*time.Minute, oc.nextConfigInterval(&quiet))
 
 	// No hint: the server doesn't nudge.
-	assert.Equal(t, 30*time.Second, oc.nextConfigInterval(&fleet.OrbitConfig{}))
+	assert.Equal(t, 30*time.Second, oc.nextConfigInterval(&automdm.OrbitConfig{}))
 	assert.Equal(t, 30*time.Second, oc.nextConfigInterval(nil))
 
 	// Pending work: receivers use the poll as their clock.
@@ -161,13 +161,13 @@ func TestNextConfigInterval(t *testing.T) {
 
 type frequentPoller struct{ needs bool }
 
-func (p *frequentPoller) Run(*fleet.OrbitConfig) error { return nil }
-func (p *frequentPoller) NeedsFrequentPolling() bool   { return p.needs }
+func (p *frequentPoller) Run(*automdm.OrbitConfig) error { return nil }
+func (p *frequentPoller) NeedsFrequentPolling() bool     { return p.needs }
 
 type notificationQuieter struct{ quiet bool }
 
-func (q *notificationQuieter) Run(*fleet.OrbitConfig) error { return nil }
-func (q *notificationQuieter) QuietNotifications(n *fleet.OrbitConfigNotifications) {
+func (q *notificationQuieter) Run(*automdm.OrbitConfig) error { return nil }
+func (q *notificationQuieter) QuietNotifications(n *automdm.OrbitConfigNotifications) {
 	if q.quiet {
 		n.WindowsMDMSyncRequest = false
 	}
@@ -223,7 +223,7 @@ func TestNudgesWhileFailing(t *testing.T) {
 	oc.DefaultConfigPollInterval = time.Hour
 	oc.SetTransportConnectedFunc(func() bool { return true })
 	var receiverRuns atomic.Int32
-	oc.RegisterConfigReceiver(fleet.OrbitConfigReceiverFunc(func(*fleet.OrbitConfig) error {
+	oc.RegisterConfigReceiver(automdm.OrbitConfigReceiverFunc(func(*automdm.OrbitConfig) error {
 		receiverRuns.Add(1)
 		return errors.New("receiver failed")
 	}))

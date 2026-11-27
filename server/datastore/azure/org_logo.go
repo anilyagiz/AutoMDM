@@ -5,9 +5,9 @@ import (
 	"io"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/bloberror"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 )
 
 type OrgLogoStore struct {
@@ -32,19 +32,19 @@ func NewOrgLogoStore(cfg config.AzureConfig) (*OrgLogoStore, error) {
 }
 
 // Put stores the logo bytes for mode under <container>/org-logos/<mode>.
-func (s *OrgLogoStore) Put(ctx context.Context, mode fleet.OrgLogoMode, content io.ReadSeeker) error {
+func (s *OrgLogoStore) Put(ctx context.Context, mode automdm.OrgLogoMode, content io.ReadSeeker) error {
 	return s.commonFileStore.Put(ctx, string(mode), content)
 }
 
-func (s *OrgLogoStore) Get(ctx context.Context, mode fleet.OrgLogoMode) (io.ReadCloser, int64, error) {
+func (s *OrgLogoStore) Get(ctx context.Context, mode automdm.OrgLogoMode) (io.ReadCloser, int64, error) {
 	return s.commonFileStore.Get(ctx, string(mode))
 }
 
-func (s *OrgLogoStore) Exists(ctx context.Context, mode fleet.OrgLogoMode) (bool, error) {
+func (s *OrgLogoStore) Exists(ctx context.Context, mode automdm.OrgLogoMode) (bool, error) {
 	return s.commonFileStore.Exists(ctx, string(mode))
 }
 
-func (s *OrgLogoStore) Delete(ctx context.Context, mode fleet.OrgLogoMode) error {
+func (s *OrgLogoStore) Delete(ctx context.Context, mode automdm.OrgLogoMode) error {
 	key := s.keyForFile(string(mode))
 	_, err := s.client.DeleteBlob(ctx, s.container, key, nil)
 	if err != nil {

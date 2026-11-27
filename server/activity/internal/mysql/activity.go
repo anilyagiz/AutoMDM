@@ -9,16 +9,16 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/activity/api"
-	"github.com/fleetdm/fleet/v4/server/activity/internal/types"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	platform_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/activity/api"
+	"github.com/anilyagiz/automdm/v4/server/activity/internal/types"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	platform_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
 	"github.com/jmoiron/sqlx"
 	"go.opentelemetry.io/otel"
 )
 
 // tracer is an OTEL tracer. It has no-op behavior when OTEL is not enabled.
-var tracer = otel.Tracer("github.com/fleetdm/fleet/v4/server/activity/internal/mysql")
+var tracer = otel.Tracer("github.com/anilyagiz/automdm/v4/server/activity/internal/mysql")
 
 // Datastore is the MySQL implementation of the activity datastore.
 type Datastore struct {
@@ -44,26 +44,26 @@ var _ types.Datastore = (*Datastore)(nil)
 // caller can't sort by an arbitrary column (e.g. the details JSON) and use the
 // cursor as a binary-search oracle to read it.
 var activitiesAllowedOrderKeys = platform_mysql.OrderKeyAllowlist{
-	"id":              "a.id",
-	"created_at":      "a.created_at",
-	"user_id":         "a.user_id",
-	"activity_type":   "a.activity_type",
-	"user_name":       "a.user_name",
-	"user_email":      "a.user_email",
-	"fleet_initiated": "a.fleet_initiated",
-	"streamed":        "a.streamed",
+	"id":                "a.id",
+	"created_at":        "a.created_at",
+	"user_id":           "a.user_id",
+	"activity_type":     "a.activity_type",
+	"user_name":         "a.user_name",
+	"user_email":        "a.user_email",
+	"automdm_initiated": "a.automdm_initiated",
+	"streamed":          "a.streamed",
 }
 
 // hostPastActivitiesAllowedOrderKeys is the equivalent allowlist for
 // ListHostPastActivities, whose id comes from the join table.
 var hostPastActivitiesAllowedOrderKeys = platform_mysql.OrderKeyAllowlist{
-	"id":              "ha.activity_id",
-	"created_at":      "a.created_at",
-	"user_id":         "a.user_id",
-	"activity_type":   "a.activity_type",
-	"user_name":       "a.user_name",
-	"user_email":      "a.user_email",
-	"fleet_initiated": "a.fleet_initiated",
+	"id":                "ha.activity_id",
+	"created_at":        "a.created_at",
+	"user_id":           "a.user_id",
+	"activity_type":     "a.activity_type",
+	"user_name":         "a.user_name",
+	"user_email":        "a.user_email",
+	"automdm_initiated": "a.automdm_initiated",
 }
 
 // ListActivities returns a slice of activities performed across the organization.
@@ -80,7 +80,7 @@ func (ds *Datastore) ListActivities(ctx context.Context, opt types.ListOptions) 
 			a.user_name as name,
 			a.streamed,
 			a.user_email,
-			a.fleet_initiated
+			a.automdm_initiated
 		FROM activity_past a
 		WHERE a.host_only = false`
 
@@ -196,7 +196,7 @@ func (ds *Datastore) ListHostPastActivities(ctx context.Context, hostID uint, op
 		a.details as details,
 		a.created_at as created_at,
 		a.user_id as user_id,
-		a.fleet_initiated as fleet_initiated
+		a.automdm_initiated as automdm_initiated
 	FROM
 		activity_host_past ha
 		JOIN activity_past a

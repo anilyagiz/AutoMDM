@@ -8,7 +8,7 @@
 #   2. Restarts PHP-FPM pools, Apache when mod_php is loaded, and LiteSpeed PHP workers,
 #      because a running worker keeps the old code until it is restarted.
 #   3. Flags PHP runtimes it can't update: containers, FrankenPHP, self-built PHP.
-# Idempotent: safe to re-run. Built for Fleet "Run script" (runs as root). Needs bash.
+# Idempotent: safe to re-run. Built for AutoMDM "Run script" (runs as root). Needs bash.
 # Exit: 0 = updated or nothing to do, 2 = something needs a look (read output), 1 = error.
 # Advisories: https://github.com/php/php-src/security/advisories/GHSA-w8hw-w9fx-j79w
 #             https://github.com/php/php-src/security/advisories/GHSA-6wmf-4rv5-p3rp
@@ -170,7 +170,7 @@ main() {
     log "----- other PHP runtimes -----"
     other_runtimes
     if [ "$EXIT" -eq 0 ]; then
-        log "DONE: the Fleet policy re-checks package versions on its next run."
+        log "DONE: the AutoMDM policy re-checks package versions on its next run."
     else
         log "DONE with warnings (exit 2): read the lines above."
     fi

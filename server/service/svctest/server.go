@@ -12,37 +12,37 @@ import (
 
 	"github.com/WatchBeam/clock"
 
-	"github.com/fleetdm/fleet/v4/ee/server/scim"
-	"github.com/fleetdm/fleet/v4/ee/server/service/condaccess"
-	"github.com/fleetdm/fleet/v4/ee/server/service/hostidentity"
-	"github.com/fleetdm/fleet/v4/ee/server/service/hostidentity/httpsig"
-	"github.com/fleetdm/fleet/v4/ee/server/service/scep"
-	"github.com/fleetdm/fleet/v4/server/acl/acmeacl"
-	"github.com/fleetdm/fleet/v4/server/acl/activityacl"
-	"github.com/fleetdm/fleet/v4/server/acl/chartacl"
-	activity_bootstrap "github.com/fleetdm/fleet/v4/server/activity/bootstrap"
-	apiendpoints "github.com/fleetdm/fleet/v4/server/api_endpoints"
-	"github.com/fleetdm/fleet/v4/server/authz"
-	chart_bootstrap "github.com/fleetdm/fleet/v4/server/chart/bootstrap"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/datastore/cached_mysql"
-	"github.com/fleetdm/fleet/v4/server/datastore/redis"
-	"github.com/fleetdm/fleet/v4/server/datastore/redis/redistest"
-	"github.com/fleetdm/fleet/v4/server/errorstore"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	acme_bootstrap "github.com/fleetdm/fleet/v4/server/mdm/acme/bootstrap"
-	android_service "github.com/fleetdm/fleet/v4/server/mdm/android/service"
-	apple_mdm "github.com/fleetdm/fleet/v4/server/mdm/apple"
-	nanomdm_push "github.com/fleetdm/fleet/v4/server/mdm/nanomdm/push"
-	"github.com/fleetdm/fleet/v4/server/mdm/scep/depot"
-	fleet_mock "github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/platform/endpointer"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
-	"github.com/fleetdm/fleet/v4/server/service"
-	"github.com/fleetdm/fleet/v4/server/service/middleware/auth"
-	"github.com/fleetdm/fleet/v4/server/service/middleware/log"
-	"github.com/fleetdm/fleet/v4/server/service/redis_key_value"
+	"github.com/anilyagiz/automdm/v4/ee/server/scim"
+	"github.com/anilyagiz/automdm/v4/ee/server/service/condaccess"
+	"github.com/anilyagiz/automdm/v4/ee/server/service/hostidentity"
+	"github.com/anilyagiz/automdm/v4/ee/server/service/hostidentity/httpsig"
+	"github.com/anilyagiz/automdm/v4/ee/server/service/scep"
+	"github.com/anilyagiz/automdm/v4/server/acl/acmeacl"
+	"github.com/anilyagiz/automdm/v4/server/acl/activityacl"
+	"github.com/anilyagiz/automdm/v4/server/acl/chartacl"
+	activity_bootstrap "github.com/anilyagiz/automdm/v4/server/activity/bootstrap"
+	apiendpoints "github.com/anilyagiz/automdm/v4/server/api_endpoints"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	chart_bootstrap "github.com/anilyagiz/automdm/v4/server/chart/bootstrap"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/datastore/cached_mysql"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis/redistest"
+	"github.com/anilyagiz/automdm/v4/server/errorstore"
+	acme_bootstrap "github.com/anilyagiz/automdm/v4/server/mdm/acme/bootstrap"
+	android_service "github.com/anilyagiz/automdm/v4/server/mdm/android/service"
+	apple_mdm "github.com/anilyagiz/automdm/v4/server/mdm/apple"
+	nanomdm_push "github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/push"
+	"github.com/anilyagiz/automdm/v4/server/mdm/scep/depot"
+	automdm_mock "github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/platform/endpointer"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/service"
+	"github.com/anilyagiz/automdm/v4/server/service/middleware/auth"
+	"github.com/anilyagiz/automdm/v4/server/service/middleware/log"
+	"github.com/anilyagiz/automdm/v4/server/service/redis_key_value"
 	"github.com/go-kit/kit/endpoint"
 	"github.com/stretchr/testify/require"
 	"github.com/throttled/throttled/v2"
@@ -51,13 +51,13 @@ import (
 
 // RunServerForTestsWithDS spins up a full HTTP test server backed by ds and
 // returns the seeded users plus the server.
-func RunServerForTestsWithDS(t *testing.T, ds fleet.Datastore, opts ...*service.TestServerOpts) (map[string]fleet.User, *httptest.Server) {
+func RunServerForTestsWithDS(t *testing.T, ds automdm.Datastore, opts ...*service.TestServerOpts) (map[string]automdm.User, *httptest.Server) {
 	if len(opts) > 0 && opts[0].EnableCachedDS {
 		ds = cached_mysql.New(ds)
 	}
 	cfg := config.TestConfig()
-	if len(opts) > 0 && opts[0].FleetConfig != nil {
-		cfg = *opts[0].FleetConfig
+	if len(opts) > 0 && opts[0].AutoMDMConfig != nil {
+		cfg = *opts[0].AutoMDMConfig
 	}
 	svc, ctx := NewTestService(t, ds, cfg, opts...)
 	return RunServerForTestsWithServiceWithDS(t, ctx, ds, svc, opts...)
@@ -67,16 +67,16 @@ func RunServerForTestsWithDS(t *testing.T, ds fleet.Datastore, opts ...*service.
 // given service. Use this when callers need to compose the service themselves
 // (e.g., to wire in custom storage or auth modules) before standing up the
 // HTTP layer.
-func RunServerForTestsWithServiceWithDS(t *testing.T, ctx context.Context, ds fleet.Datastore, svc fleet.Service,
+func RunServerForTestsWithServiceWithDS(t *testing.T, ctx context.Context, ds automdm.Datastore, svc automdm.Service,
 	opts ...*service.TestServerOpts,
-) (map[string]fleet.User, *httptest.Server) {
-	var cfg config.FleetConfig
-	if len(opts) > 0 && opts[0].FleetConfig != nil {
-		cfg = *opts[0].FleetConfig
+) (map[string]automdm.User, *httptest.Server) {
+	var cfg config.AutoMDMConfig
+	if len(opts) > 0 && opts[0].AutoMDMConfig != nil {
+		cfg = *opts[0].AutoMDMConfig
 	} else {
 		cfg = config.TestConfig()
 	}
-	users := map[string]fleet.User{}
+	users := map[string]automdm.User{}
 	if len(opts) == 0 || (len(opts) > 0 && !opts[0].SkipCreateTestUsers) {
 		users = createTestUsers(t, ds)
 	}
@@ -103,7 +103,7 @@ func RunServerForTestsWithServiceWithDS(t *testing.T, ctx context.Context, ds fl
 		legacyAuthorizer, err := authz.NewAuthorizer()
 		require.NoError(t, err)
 		activityAuthorizer := authz.NewAuthorizerAdapter(legacyAuthorizer)
-		activityACLAdapter := activityacl.NewFleetServiceAdapter(svc, ds)
+		activityACLAdapter := activityacl.NewAutoMDMServiceAdapter(svc, ds)
 		activitySvc, activityRoutesFn := activity_bootstrap.New(
 			opts[0].DBConns,
 			activityAuthorizer,
@@ -154,7 +154,7 @@ func RunServerForTestsWithServiceWithDS(t *testing.T, ctx context.Context, ds fl
 
 	memLimitStore, _ := memstore.New(0)
 	var limitStore throttled.GCRAStore = memLimitStore
-	var redisPool fleet.RedisPool
+	var redisPool automdm.RedisPool
 	if len(opts) > 0 && opts[0].Pool != nil {
 		redisPool = opts[0].Pool
 		limitStore = &redis.ThrottledStore{
@@ -174,7 +174,7 @@ func RunServerForTestsWithServiceWithDS(t *testing.T, ctx context.Context, ds fl
 			acmeOpts = append(acmeOpts, acme_bootstrap.WithTestAppleRootCAs(rootCAPool))
 		}
 		acmeSigner := &acmeCSRSigner{signer: depot.NewSigner(opts[0].SCEPStorage, depot.WithValidityDays(365))}
-		acmeSvc, acmeRoutes := acme_bootstrap.New(opts[0].DBConns, redisPool, acmeacl.NewFleetDatastoreAdapter(ds, acmeSigner), logger, acmeOpts...)
+		acmeSvc, acmeRoutes := acme_bootstrap.New(opts[0].DBConns, redisPool, acmeacl.NewTeamDatastoreAdapter(ds, acmeSigner), logger, acmeOpts...)
 		svc.SetACMEService(acmeSvc)
 		opts[0].FeatureRoutes = append(opts[0].FeatureRoutes, acmeRoutes(log.Logged))
 	}
@@ -184,13 +184,13 @@ func RunServerForTestsWithServiceWithDS(t *testing.T, ctx context.Context, ds fl
 		scepStorage := opts[0].SCEPStorage
 		commander := apple_mdm.NewMDMAppleCommander(mdmStorage, mdmPusher)
 		if mdmStorage != nil && scepStorage != nil {
-			vppInstaller := svc.(fleet.AppleMDMVPPInstaller)
+			vppInstaller := svc.(automdm.AppleMDMVPPInstaller)
 			checkInAndCommand := service.NewMDMAppleCheckinAndCommandService(ds, commander, vppInstaller, opts[0].License.IsPremium(), logger, redis_key_value.New(redisPool), svc.NewActivity,
-				cfg.Activity.FleetInitiatedReleasePerMinute > 0, &fleet_mock.MockNotificationsService{}, cfg.MDM.AppleCommandCleanupShortRetention)
+				cfg.Activity.AutoMDMInitiatedReleasePerMinute > 0, &automdm_mock.MockNotificationsService{}, cfg.MDM.AppleCommandCleanupShortRetention)
 			checkInAndCommand.RegisterResultsHandler("InstalledApplicationList", service.NewInstalledApplicationListResultsHandler(ds, commander, logger, cfg.Server.VPPVerifyTimeout, cfg.Server.VPPVerifyRequestDelay, svc.NewActivity))
-			checkInAndCommand.RegisterResultsHandler(fleet.DeviceLocationCmdName, service.NewDeviceLocationResultsHandler(ds, commander, logger))
-			checkInAndCommand.RegisterResultsHandler(fleet.SetRecoveryLockCmdName, service.NewSetRecoveryLockResultsHandler(ds, logger, commander))
-			checkInAndCommand.RegisterResultsHandler(fleet.VerifyRecoveryLockCmdName, service.NewVerifyRecoveryLockResultsHandler(ds, logger, commander, svc.NewActivity))
+			checkInAndCommand.RegisterResultsHandler(automdm.DeviceLocationCmdName, service.NewDeviceLocationResultsHandler(ds, commander, logger))
+			checkInAndCommand.RegisterResultsHandler(automdm.SetRecoveryLockCmdName, service.NewSetRecoveryLockResultsHandler(ds, logger, commander))
+			checkInAndCommand.RegisterResultsHandler(automdm.VerifyRecoveryLockCmdName, service.NewVerifyRecoveryLockResultsHandler(ds, logger, commander, svc.NewActivity))
 			err := service.RegisterAppleMDMProtocolServices(
 				rootMux,
 				cfg.MDM,
@@ -253,7 +253,7 @@ func RunServerForTestsWithServiceWithDS(t *testing.T, ctx context.Context, ds fl
 		require.NoError(t, condaccess.RegisterSCEP(ctx, rootMux, opts[0].ConditionalAccess.SCEPStorage, ds, logger, &cfg))
 		require.NoError(t, condaccess.RegisterIdP(rootMux, ds, logger, &cfg, limitStore))
 	}
-	var carveStore fleet.CarveStore = ds // In tests, we use MySQL as storage for carves.
+	var carveStore automdm.CarveStore = ds // In tests, we use MySQL as storage for carves.
 	apiHandler, err := service.MakeHandler(svc, cfg, logger, limitStore, redisPool, carveStore, featureRoutes, extra...)
 	require.NoError(t, err)
 	// SCIM endpoints are served by a prefix-mounted handler (see scim.RegisterSCIM)
@@ -277,15 +277,15 @@ func RunServerForTestsWithServiceWithDS(t *testing.T, ctx context.Context, ds fl
 
 	if len(opts) > 0 && opts[0].EnableSCIM {
 		require.NoError(t, scim.RegisterSCIM(rootMux, ds, svc, logger, &cfg))
-		rootMux.Handle("/api/v1/fleet/scim/details", apiHandler)
-		rootMux.Handle("/api/latest/fleet/scim/details", apiHandler)
+		rootMux.Handle("/api/v1/automdm/scim/details", apiHandler)
+		rootMux.Handle("/api/latest/automdm/scim/details", apiHandler)
 	}
 
 	server := httptest.NewUnstartedServer(rootMux)
 	server.Config = cfg.Server.DefaultHTTPServer(ctx, rootMux)
 	// WriteTimeout is set for security purposes.
 	// If we don't set it, (bugy or malignant) clients making long running
-	// requests could DDOS Fleet.
+	// requests could DDOS AutoMDM.
 	require.NotZero(t, server.Config.WriteTimeout)
 	if len(opts) > 0 && opts[0].HTTPServerConfig != nil {
 		server.Config = opts[0].HTTPServerConfig

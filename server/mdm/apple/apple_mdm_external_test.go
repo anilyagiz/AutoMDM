@@ -12,13 +12,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	apple_mdm "github.com/fleetdm/fleet/v4/server/mdm/apple"
-	nanodep_client "github.com/fleetdm/fleet/v4/server/mdm/nanodep/client"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanodep/godep"
-	"github.com/fleetdm/fleet/v4/server/platform/mysql/testing_utils"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	apple_mdm "github.com/anilyagiz/automdm/v4/server/mdm/apple"
+	nanodep_client "github.com/anilyagiz/automdm/v4/server/mdm/nanodep/client"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanodep/godep"
+	"github.com/anilyagiz/automdm/v4/server/platform/mysql/testing_utils"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -75,7 +75,7 @@ func TestDEPService_RunAssigner(t *testing.T) {
 		require.NoError(t, err)
 
 		// the default profile was created
-		defProf, err := ds.GetMDMAppleEnrollmentProfileByType(ctx, fleet.MDMAppleEnrollmentTypeAutomatic)
+		defProf, err := ds.GetMDMAppleEnrollmentProfileByType(ctx, automdm.MDMAppleEnrollmentTypeAutomatic)
 		require.NoError(t, err)
 		require.NotNil(t, defProf)
 		require.NotEmpty(t, defProf.Token)
@@ -94,7 +94,7 @@ func TestDEPService_RunAssigner(t *testing.T) {
 		require.Nil(t, abmTok.IOSDefaultTeamID)
 
 		// no teams, so no team-specific custom setup assistants
-		teams, err := ds.ListTeams(ctx, fleet.TeamFilter{User: test.UserAdmin}, fleet.ListOptions{})
+		teams, err := ds.ListTeams(ctx, automdm.TeamFilter{User: test.UserAdmin}, automdm.ListOptions{})
 		require.NoError(t, err)
 		require.Empty(t, teams)
 
@@ -103,7 +103,7 @@ func TestDEPService_RunAssigner(t *testing.T) {
 		require.ErrorIs(t, err, sql.ErrNoRows)
 
 		// no host got created
-		hosts, err := ds.ListHosts(ctx, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{})
+		hosts, err := ds.ListHosts(ctx, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{})
 		require.NoError(t, err)
 		require.Empty(t, hosts)
 	})
@@ -150,8 +150,8 @@ func TestDEPService_RunAssigner(t *testing.T) {
 				apiResp := godep.ProfileResponse{
 					ProfileUUID: "profile123",
 					Devices: map[string]string{
-						"a": string(fleet.DEPAssignProfileResponseSuccess),
-						"c": string(fleet.DEPAssignProfileResponseSuccess),
+						"a": string(automdm.DEPAssignProfileResponseSuccess),
+						"c": string(automdm.DEPAssignProfileResponseSuccess),
 					},
 				}
 				respBytes, err := json.Marshal(&apiResp)
@@ -168,7 +168,7 @@ func TestDEPService_RunAssigner(t *testing.T) {
 		require.True(t, assignCalled)
 
 		// the default profile was created
-		defProf, err := ds.GetMDMAppleEnrollmentProfileByType(ctx, fleet.MDMAppleEnrollmentTypeAutomatic)
+		defProf, err := ds.GetMDMAppleEnrollmentProfileByType(ctx, automdm.MDMAppleEnrollmentTypeAutomatic)
 		require.NoError(t, err)
 		require.NotNil(t, defProf)
 		require.NotEmpty(t, defProf.Token)
@@ -180,7 +180,7 @@ func TestDEPService_RunAssigner(t *testing.T) {
 		require.False(t, modTime.Before(start))
 
 		// a couple hosts were created (except the op_type ignored)
-		hosts, err := ds.ListHosts(ctx, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{})
+		hosts, err := ds.ListHosts(ctx, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{})
 		require.NoError(t, err)
 		require.Len(t, hosts, 2)
 		serials := make([]string, len(hosts))
@@ -193,7 +193,7 @@ func TestDEPService_RunAssigner(t *testing.T) {
 		mysqltest.ExecAdhocSQL(t, ds, func(q sqlx.ExtContext) error {
 			stmt := "SELECT COUNT(*) FROM host_dep_assignments WHERE host_id IN (?, ?) AND assign_profile_response = ?"
 			var result int
-			require.NoError(t, sqlx.GetContext(ctx, q, &result, stmt, hosts[0].ID, hosts[1].ID, fleet.DEPAssignProfileResponseSuccess))
+			require.NoError(t, sqlx.GetContext(ctx, q, &result, stmt, hosts[0].ID, hosts[1].ID, automdm.DEPAssignProfileResponseSuccess))
 			require.Equal(t, 2, result, "expected two successful assignments for serials a and c")
 			return nil
 		})
@@ -253,8 +253,8 @@ func TestDEPService_RunAssigner(t *testing.T) {
 				apiResp := godep.ProfileResponse{
 					ProfileUUID: "profile456",
 					Devices: map[string]string{
-						"a": string(fleet.DEPAssignProfileResponseSuccess),
-						"c": string(fleet.DEPAssignProfileResponseSuccess),
+						"a": string(automdm.DEPAssignProfileResponseSuccess),
+						"c": string(automdm.DEPAssignProfileResponseSuccess),
 					},
 				}
 				respBytes, err := json.Marshal(&apiResp)
@@ -268,7 +268,7 @@ func TestDEPService_RunAssigner(t *testing.T) {
 		})
 
 		// create a team
-		tm, err := ds.NewTeam(ctx, &fleet.Team{Name: "test_team"})
+		tm, err := ds.NewTeam(ctx, &automdm.Team{Name: "test_team"})
 		require.NoError(t, err)
 
 		// set that team as default assignment for new macOS devices
@@ -279,7 +279,7 @@ func TestDEPService_RunAssigner(t *testing.T) {
 		require.NoError(t, err)
 
 		// create a custom setup assistant for that team
-		tmAsst, err := ds.SetOrUpdateMDMAppleSetupAssistant(ctx, &fleet.MDMAppleSetupAssistant{
+		tmAsst, err := ds.SetOrUpdateMDMAppleSetupAssistant(ctx, &automdm.MDMAppleSetupAssistant{
 			TeamID:  &tm.ID,
 			Name:    "test",
 			Profile: json.RawMessage(`{"profile_name": "team"}`),
@@ -292,7 +292,7 @@ func TestDEPService_RunAssigner(t *testing.T) {
 		require.True(t, assignCalled)
 
 		// the default profile was created
-		defProf, err := ds.GetMDMAppleEnrollmentProfileByType(ctx, fleet.MDMAppleEnrollmentTypeAutomatic)
+		defProf, err := ds.GetMDMAppleEnrollmentProfileByType(ctx, automdm.MDMAppleEnrollmentTypeAutomatic)
 		require.NoError(t, err)
 		require.NotNil(t, defProf)
 		require.NotEmpty(t, defProf.Token)
@@ -313,7 +313,7 @@ func TestDEPService_RunAssigner(t *testing.T) {
 		require.True(t, tmAsst.UploadedAt.Equal(modTime))
 
 		// a couple hosts were created and assigned to the team (except the op_type ignored)
-		hosts, err := ds.ListHosts(ctx, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{})
+		hosts, err := ds.ListHosts(ctx, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{})
 		require.NoError(t, err)
 		require.Len(t, hosts, 2)
 		serials := make([]string, len(hosts))
@@ -327,7 +327,7 @@ func TestDEPService_RunAssigner(t *testing.T) {
 		mysqltest.ExecAdhocSQL(t, ds, func(q sqlx.ExtContext) error {
 			stmt := "SELECT COUNT(*) FROM host_dep_assignments WHERE host_id IN (?, ?) AND assign_profile_response = ?"
 			var result int
-			require.NoError(t, sqlx.GetContext(ctx, q, &result, stmt, hosts[0].ID, hosts[1].ID, fleet.DEPAssignProfileResponseSuccess))
+			require.NoError(t, sqlx.GetContext(ctx, q, &result, stmt, hosts[0].ID, hosts[1].ID, automdm.DEPAssignProfileResponseSuccess))
 			require.Equal(t, 2, result, "expected two successful assignments for serials a and c")
 			return nil
 		})
@@ -378,8 +378,8 @@ func TestDEPService_RunAssigner(t *testing.T) {
 				apiResp := godep.ProfileResponse{
 					ProfileUUID: "profile123",
 					Devices: map[string]string{
-						"a": string(fleet.DEPAssignProfileResponseSuccess),
-						"c": string(fleet.DEPAssignProfileResponseSuccess),
+						"a": string(automdm.DEPAssignProfileResponseSuccess),
+						"c": string(automdm.DEPAssignProfileResponseSuccess),
 					},
 				}
 				respBytes, err := json.Marshal(&apiResp)
@@ -396,7 +396,7 @@ func TestDEPService_RunAssigner(t *testing.T) {
 		require.True(t, assignCalled)
 
 		// the default profile was created
-		defProf, err := ds.GetMDMAppleEnrollmentProfileByType(ctx, fleet.MDMAppleEnrollmentTypeAutomatic)
+		defProf, err := ds.GetMDMAppleEnrollmentProfileByType(ctx, automdm.MDMAppleEnrollmentTypeAutomatic)
 		require.NoError(t, err)
 		require.NotNil(t, defProf)
 		require.NotEmpty(t, defProf.Token)
@@ -408,7 +408,7 @@ func TestDEPService_RunAssigner(t *testing.T) {
 		require.False(t, modTime.Before(start))
 
 		// a couple hosts were created (except the op_type ignored)
-		hosts, err := ds.ListHosts(ctx, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{})
+		hosts, err := ds.ListHosts(ctx, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{})
 		require.NoError(t, err)
 		require.Len(t, hosts, 2)
 		serials := make([]string, len(hosts))
@@ -422,7 +422,7 @@ func TestDEPService_RunAssigner(t *testing.T) {
 		mysqltest.ExecAdhocSQL(t, ds, func(q sqlx.ExtContext) error {
 			stmt := "SELECT COUNT(*) FROM host_dep_assignments WHERE host_id IN (?, ?) AND assign_profile_response = ?"
 			var result int
-			require.NoError(t, sqlx.GetContext(ctx, q, &result, stmt, hosts[0].ID, hosts[1].ID, fleet.DEPAssignProfileResponseFailed))
+			require.NoError(t, sqlx.GetContext(ctx, q, &result, stmt, hosts[0].ID, hosts[1].ID, automdm.DEPAssignProfileResponseFailed))
 			require.Equal(t, 2, result, "expected two failed assignments for serials a and c")
 			return nil
 		})
@@ -469,8 +469,8 @@ func TestDEPService_RunAssigner(t *testing.T) {
 				apiResp := godep.ProfileResponse{
 					ProfileUUID: "profile123",
 					Devices: map[string]string{
-						"a": string(fleet.DEPAssignProfileResponseSuccess),
-						"c": string(fleet.DEPAssignProfileResponseThrottled),
+						"a": string(automdm.DEPAssignProfileResponseSuccess),
+						"c": string(automdm.DEPAssignProfileResponseThrottled),
 					},
 				}
 				respBytes, err := json.Marshal(&apiResp)
@@ -487,7 +487,7 @@ func TestDEPService_RunAssigner(t *testing.T) {
 		require.True(t, assignCalled)
 
 		// the default profile was created
-		defProf, err := ds.GetMDMAppleEnrollmentProfileByType(ctx, fleet.MDMAppleEnrollmentTypeAutomatic)
+		defProf, err := ds.GetMDMAppleEnrollmentProfileByType(ctx, automdm.MDMAppleEnrollmentTypeAutomatic)
 		require.NoError(t, err)
 		require.NotNil(t, defProf)
 		require.NotEmpty(t, defProf.Token)
@@ -499,7 +499,7 @@ func TestDEPService_RunAssigner(t *testing.T) {
 		require.False(t, modTime.Before(start))
 
 		// a couple hosts were created (except the op_type ignored)
-		hosts, err := ds.ListHosts(ctx, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{})
+		hosts, err := ds.ListHosts(ctx, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{})
 		require.NoError(t, err)
 		require.Len(t, hosts, 2)
 		serials := make([]string, len(hosts))
@@ -513,7 +513,7 @@ func TestDEPService_RunAssigner(t *testing.T) {
 		mysqltest.ExecAdhocSQL(t, ds, func(q sqlx.ExtContext) error {
 			stmt := "SELECT COUNT(*) FROM host_dep_assignments WHERE host_id = ? AND assign_profile_response = ?"
 			var result int
-			require.NoError(t, sqlx.GetContext(ctx, q, &result, stmt, hosts[1].ID, fleet.DEPAssignProfileResponseThrottled))
+			require.NoError(t, sqlx.GetContext(ctx, q, &result, stmt, hosts[1].ID, automdm.DEPAssignProfileResponseThrottled))
 			require.Equal(t, 1, result, "expected one throttled assignment for serial c")
 			return nil
 		})
@@ -522,7 +522,7 @@ func TestDEPService_RunAssigner(t *testing.T) {
 		mysqltest.ExecAdhocSQL(t, ds, func(q sqlx.ExtContext) error {
 			stmt := "SELECT COUNT(*) FROM host_dep_assignments WHERE host_id = ? AND assign_profile_response = ?"
 			var result int
-			require.NoError(t, sqlx.GetContext(ctx, q, &result, stmt, hosts[0].ID, fleet.DEPAssignProfileResponseSuccess))
+			require.NoError(t, sqlx.GetContext(ctx, q, &result, stmt, hosts[0].ID, automdm.DEPAssignProfileResponseSuccess))
 			require.Equal(t, 1, result, "expected one success assignment for serial a")
 			return nil
 		})
@@ -588,7 +588,7 @@ func TestDEPService_RunAssigner_ReplicaLag(t *testing.T) {
 				Devices:     map[string]string{},
 			}
 			for _, s := range assignReq.Devices {
-				apiResp.Devices[s] = string(fleet.DEPAssignProfileResponseSuccess)
+				apiResp.Devices[s] = string(automdm.DEPAssignProfileResponseSuccess)
 			}
 			assert.NoError(t, encoder.Encode(apiResp))
 		default:

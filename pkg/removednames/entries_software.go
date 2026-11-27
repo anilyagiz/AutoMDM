@@ -2,7 +2,7 @@ package removednames
 
 func init() { register(softwareEntries...) }
 
-// softwareEntries are the software version endpoints that Fleet 4 deprecated in favor of /software/versions.
+// softwareEntries are the software version endpoints that AutoMDM 4 deprecated in favor of /software/versions.
 var softwareEntries = []Entry{
 	{
 		Kind: KindPath, Scope: ScopeRequest, Old: pathPrefix + "/software",

@@ -10,7 +10,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// IDPOptions configures the IDP seeder. DSN points at a Fleet MySQL instance;
+// IDPOptions configures the IDP seeder. DSN points at an AutoMDM MySQL instance;
 // like vulns and activities, this seeder writes directly to MySQL because the
 // IDP-linkage tables (mdm_idp_accounts, host_mdm_idp_accounts, scim_users,
 // host_scim_user) are normally populated by the MDM enrollment and SCIM sync
@@ -35,8 +35,8 @@ type idpHost struct {
 	Hostname string `json:"hostname"`
 }
 
-// IDP seeds IDP linkage for the most-recently-created Fleet users so they
-// surface on host detail pages. Users and hosts are fetched via the Fleet
+// IDP seeds IDP linkage for the most-recently-created AutoMDM users so they
+// surface on host detail pages. Users and hosts are fetched via the AutoMDM
 // API (users most-recent first, so dibble-created users come up before the
 // bootstrap admin); the IDP tables are written directly via the supplied
 // MySQL DSN.
@@ -46,7 +46,7 @@ type idpHost struct {
 //     account UUID). Used by the MDM enrollment flow.
 //   - scim_users (numeric id) + host_scim_user (numeric host id → scim user
 //     id). This is what the host details "User" card reads: GetEndUsers in
-//     server/fleet/hosts.go prefers SCIM and only falls back to host_emails
+//     server/automdm/hosts.go prefers SCIM and only falls back to host_emails
 //     for the username field, never populating IdpFullName from the legacy
 //     mdm_idp_accounts table.
 //
@@ -176,21 +176,21 @@ type seededIDPUser struct {
 	scimUserID  uint
 }
 
-// fetchUsersForIDP pulls up to `limit` users from the Fleet API, sorted
+// fetchUsersForIDP pulls up to `limit` users from the AutoMDM API, sorted
 // most-recently-created first so dibble-seeded users surface ahead of the
 // bootstrap admin.
 func fetchUsersForIDP(c Client, limit int) ([]idpUser, error) {
 	var resp struct {
 		Users []idpUser `json:"users"`
 	}
-	path := fmt.Sprintf("/api/latest/fleet/users?order_key=created_at&order_direction=desc&per_page=%d", limit)
+	path := fmt.Sprintf("/api/latest/automdm/users?order_key=created_at&order_direction=desc&per_page=%d", limit)
 	if err := c.Get(path, &resp); err != nil {
 		return nil, err
 	}
 	return resp.Users, nil
 }
 
-// fetchHostsForIDP pulls up to `limit` hosts from the Fleet API. Returns an
+// fetchHostsForIDP pulls up to `limit` hosts from the AutoMDM API. Returns an
 // empty slice (not an error) when limit == 0 so callers can disable host
 // assignment without a separate code path.
 func fetchHostsForIDP(c Client, limit int) ([]idpHost, error) {
@@ -200,7 +200,7 @@ func fetchHostsForIDP(c Client, limit int) ([]idpHost, error) {
 	var resp struct {
 		Hosts []idpHost `json:"hosts"`
 	}
-	path := fmt.Sprintf("/api/latest/fleet/hosts?per_page=%d", limit)
+	path := fmt.Sprintf("/api/latest/automdm/hosts?per_page=%d", limit)
 	if err := c.Get(path, &resp); err != nil {
 		return nil, err
 	}

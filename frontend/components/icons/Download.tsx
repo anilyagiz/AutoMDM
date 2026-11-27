@@ -9,7 +9,7 @@ interface IDownload {
 }
 
 const Download = ({
-  color = "ui-fleet-black-75",
+  color = "ui-automdm-black-75",
   size = "medium",
 }: IDownload) => {
   return (

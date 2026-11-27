@@ -3,7 +3,7 @@ package command
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/fleetdm/fleet/v4/tools/dibble/pkg/seed"
+	"github.com/anilyagiz/automdm/v4/tools/dibble/pkg/seed"
 )
 
 func newPoliciesCmd() *cobra.Command {
@@ -36,7 +36,7 @@ func newPoliciesCmd() *cobra.Command {
 	return cmd
 }
 
-// listExistingTeams asks Fleet for the team list so subcommands invoked on
+// listExistingTeams asks AutoMDM for the team list so subcommands invoked on
 // their own (without prior `dibble teams`) can still scope per-team work.
 func listExistingTeams(c *Client) ([]seed.Team, error) {
 	var resp struct {
@@ -44,19 +44,19 @@ func listExistingTeams(c *Client) ([]seed.Team, error) {
 			ID   uint   `json:"id"`
 			Name string `json:"name"`
 		} `json:"teams"`
-		Fleets []struct {
+		Teams []struct {
 			ID   uint   `json:"id"`
 			Name string `json:"name"`
-		} `json:"fleets"`
+		} `json:"teams"`
 	}
-	if err := c.Get("/api/latest/fleet/fleets?per_page=500", &resp); err != nil {
+	if err := c.Get("/api/latest/automdm/teams?per_page=500", &resp); err != nil {
 		return nil, err
 	}
-	out := make([]seed.Team, 0, len(resp.Teams)+len(resp.Fleets))
+	out := make([]seed.Team, 0, len(resp.Teams)+len(resp.Teams))
 	for _, t := range resp.Teams {
 		out = append(out, seed.Team{ID: t.ID, Name: t.Name})
 	}
-	for _, t := range resp.Fleets {
+	for _, t := range resp.Teams {
 		out = append(out, seed.Team{ID: t.ID, Name: t.Name})
 	}
 	return out, nil

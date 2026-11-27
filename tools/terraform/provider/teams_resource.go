@@ -13,7 +13,7 @@ import (
 	"terraform-provider-fleetdm/fleetdm_client"
 )
 
-// This file implements the "fleetdm_teams" Terraform resource.
+// This file implements the "automdm_teams" Terraform resource.
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
@@ -33,7 +33,7 @@ func NewTeamsResource() resource.Resource {
 
 // teamsResource is the resource implementation.
 type teamsResource struct {
-	client *fleetdm_client.FleetDMClient
+	client *automdm_client.AutoMDMClient
 }
 
 // Configure adds the provider configured client to the resource.
@@ -42,12 +42,12 @@ func (r *teamsResource) Configure(_ context.Context, req resource.ConfigureReque
 		return
 	}
 
-	client, ok := req.ProviderData.(*fleetdm_client.FleetDMClient)
+	client, ok := req.ProviderData.(*automdm_client.AutoMDMClient)
 
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Data Source Configure Type",
-			fmt.Sprintf("Expected *FleetDMClient, got: %T. Please report this issue to the provider developers.", req.ProviderData),
+			fmt.Sprintf("Expected *AutoMDMClient, got: %T. Please report this issue to the provider developers.", req.ProviderData),
 		)
 
 		return
@@ -67,8 +67,8 @@ func (r *teamsResource) Schema(ctx context.Context, _ resource.SchemaRequest, re
 }
 
 // teamModelToTF is a handy function to take the results of the API call
-// to the Fleet API and convert it to the Terraform state.
-func teamModelToTF(ctx context.Context, tm *fleetdm_client.TeamGetResponse, tf *TeamModel) error {
+// to the AutoMDM API and convert it to the Terraform state.
+func teamModelToTF(ctx context.Context, tm *automdm_client.TeamGetResponse, tf *TeamModel) error {
 	tf.Id = types.Int64Value(tm.Team.ID)
 	tf.Name = types.StringValue(tm.Team.Name)
 	tf.Description = types.StringValue(tm.Team.Description)
@@ -129,8 +129,8 @@ func (r *teamsResource) Create(ctx context.Context, req resource.CreateRequest, 
 	err = teamModelToTF(ctx, newTeam, &plan)
 	if err != nil {
 		resp.Diagnostics.Append(diag.NewErrorDiagnostic(
-			"failed to convert fleet api return to TF structs",
-			fmt.Sprintf("failed to convert fleet api return to TF structs: %s", err)))
+			"failed to convert automdm api return to TF structs",
+			fmt.Sprintf("failed to convert automdm api return to TF structs: %s", err)))
 		_ = r.client.DeleteTeam(newTeam.Team.ID) // Problematic. :-/
 		return
 	}
@@ -144,7 +144,7 @@ func (r *teamsResource) Create(ctx context.Context, req resource.CreateRequest, 
 	}
 }
 
-// Read reports (formerly "queries") the Fleet API and sets the TF state to what it finds.
+// Read reports (formerly "queries") the AutoMDM API and sets the TF state to what it finds.
 func (r *teamsResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	var state TeamModel
 	diags := req.State.Get(ctx, &state)
@@ -172,8 +172,8 @@ func (r *teamsResource) Read(ctx context.Context, req resource.ReadRequest, resp
 	err = teamModelToTF(ctx, apiTeam, &state)
 	if err != nil {
 		resp.Diagnostics.Append(diag.NewErrorDiagnostic(
-			"failed to convert fleet api return to TF structs",
-			fmt.Sprintf("failed to convert fleet api return to TF structs: %s", err)))
+			"failed to convert automdm api return to TF structs",
+			fmt.Sprintf("failed to convert automdm api return to TF structs: %s", err)))
 		return
 	}
 
@@ -186,7 +186,7 @@ func (r *teamsResource) Read(ctx context.Context, req resource.ReadRequest, resp
 }
 
 // Update will compare the plan and the current state and see how they
-// differ. It will then update the team in Fleet to match the plan,
+// differ. It will then update the team in AutoMDM to match the plan,
 // and then update the Terraform state to match that plan.
 func (r *teamsResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var state TeamModel
@@ -220,7 +220,7 @@ func (r *teamsResource) Update(ctx context.Context, req resource.UpdateRequest, 
 		return
 	}
 
-	var upTeam *fleetdm_client.TeamGetResponse
+	var upTeam *automdm_client.TeamGetResponse
 	var err error
 
 	// Deal with agent options first because it has a higher chance of failure
@@ -250,8 +250,8 @@ func (r *teamsResource) Update(ctx context.Context, req resource.UpdateRequest, 
 	err = teamModelToTF(ctx, upTeam, &state)
 	if err != nil {
 		resp.Diagnostics.Append(diag.NewErrorDiagnostic(
-			"failed to convert fleet api return to TF structs",
-			fmt.Sprintf("failed to convert fleet api return to TF structs: %s", err)))
+			"failed to convert automdm api return to TF structs",
+			fmt.Sprintf("failed to convert automdm api return to TF structs: %s", err)))
 		return
 	}
 
@@ -265,7 +265,7 @@ func (r *teamsResource) Update(ctx context.Context, req resource.UpdateRequest, 
 }
 
 // ImportState enables import of teams. We accept the name of the team
-// as input, query the Fleet API to get the ID, and then set the ID.
+// as input, query the AutoMDM API to get the ID, and then set the ID.
 // Terraform will turn around and call Read() on that id.
 func (r *teamsResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	id, err := r.client.TeamNameToID(req.ID)

@@ -9,23 +9,23 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/retry"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/pkg/retry"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/rs/zerolog/log"
 )
 
-// DeviceClient is used consume the `device/...` endpoints and meant to be used by Fleet Desktop
+// DeviceClient is used consume the `device/...` endpoints and meant to be used by AutoMDM Desktop
 type DeviceClient struct {
 	*BaseClient
 
-	// fleetAlternativeBrowserHostFromServer serves a similar purpose as fleetAlternativeBrowserHost, but this value is set
-	// on the Fleet server and takes precedence over it.
-	fleetAlternativeBrowserHostFromServer string
+	// automdmAlternativeBrowserHostFromServer serves a similar purpose as automdmAlternativeBrowserHost, but this value is set
+	// on the AutoMDM server and takes precedence over it.
+	automdmAlternativeBrowserHostFromServer string
 
-	// fleetAlternativeBrowserHost is an alternative host to use for the Fleet Desktop URLs generated for the browser.
+	// automdmAlternativeBrowserHost is an alternative host to use for the AutoMDM Desktop URLs generated for the browser.
 	//
 	// This is needed when the host that Orbit will connect to is different from the host that will connect via the browser.
-	fleetAlternativeBrowserHost string
+	automdmAlternativeBrowserHost string
 
 	// if set and a request fails with ErrUnauthenticated, the client will call
 	// this function to get a fresh token and retry if it returns a different,
@@ -34,16 +34,16 @@ type DeviceClient struct {
 }
 
 // NewDeviceClient instantiates a new client to perform requests against device endpoints.
-func NewDeviceClient(addr string, insecureSkipVerify bool, rootCA string, fleetClientCrt *tls.Certificate, fleetAlternativeBrowserHost string) (*DeviceClient, error) {
-	capabilities := fleet.CapabilityMap{}
-	baseClient, err := NewBaseClient(addr, insecureSkipVerify, rootCA, "", fleetClientCrt, capabilities, nil)
+func NewDeviceClient(addr string, insecureSkipVerify bool, rootCA string, automdmClientCrt *tls.Certificate, automdmAlternativeBrowserHost string) (*DeviceClient, error) {
+	capabilities := automdm.CapabilityMap{}
+	baseClient, err := NewBaseClient(addr, insecureSkipVerify, rootCA, "", automdmClientCrt, capabilities, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	return &DeviceClient{
-		BaseClient:                  baseClient,
-		fleetAlternativeBrowserHost: fleetAlternativeBrowserHost,
+		BaseClient:                    baseClient,
+		automdmAlternativeBrowserHost: automdmAlternativeBrowserHost,
 	}, nil
 }
 
@@ -121,18 +121,18 @@ func (dc *DeviceClient) requestAttempt(verb string, path string, query string, p
 }
 
 // getAlternativeBrowserHostSetting overrides portions of the provided URL based on the values of
-// fleetAlternativeBrowserHostFromServer or fleetAlternativeBrowserHost
+// automdmAlternativeBrowserHostFromServer or automdmAlternativeBrowserHost
 func (dc *DeviceClient) getAlternativeBrowserHostSetting() string {
-	if dc.fleetAlternativeBrowserHostFromServer != "" {
-		return dc.fleetAlternativeBrowserHostFromServer
+	if dc.automdmAlternativeBrowserHostFromServer != "" {
+		return dc.automdmAlternativeBrowserHostFromServer
 	}
-	return dc.fleetAlternativeBrowserHost
+	return dc.automdmAlternativeBrowserHost
 }
 
 // BrowserTransparencyURL returns a URL for the browser that the server
 // will use to redirect to the transparency URL configured by the user.
 func (dc *DeviceClient) BrowserTransparencyURL(token string) string {
-	transparencyURL := dc.BaseClient.URL("/api/latest/fleet/device/"+token+"/transparency", "")
+	transparencyURL := dc.BaseClient.URL("/api/latest/automdm/device/"+token+"/transparency", "")
 	if altHost := dc.getAlternativeBrowserHostSetting(); altHost != "" {
 		transparencyURL.Host = altHost
 	}
@@ -168,7 +168,7 @@ func (dc *DeviceClient) BrowserPoliciesURL(token string) string {
 
 // CheckToken checks if a token is valid by making an authenticated request to the server.
 func (dc *DeviceClient) CheckToken(token string) error {
-	verb, path := "HEAD", "/api/latest/fleet/device/%s/ping"
+	verb, path := "HEAD", "/api/latest/automdm/device/%s/ping"
 	err := dc.request(verb, path, token, "", nil, nil)
 
 	if IsNotFoundErr(err) {
@@ -179,7 +179,7 @@ func (dc *DeviceClient) CheckToken(token string) error {
 
 // Ping sends a ping to the server using the device/ping endpoint.
 func (dc *DeviceClient) Ping() error {
-	verb, path := "HEAD", "/api/fleet/device/ping"
+	verb, path := "HEAD", "/api/automdm/device/ping"
 	err := dc.request(verb, path, "-", "", nil, nil)
 
 	if err == nil || IsNotFoundErr(err) {
@@ -192,39 +192,39 @@ func (dc *DeviceClient) Ping() error {
 // listDevicePoliciesResponse is a local response type for deserializing the device policies response.
 // Definition duplicated for now (orbit should not depend server/service).
 type listDevicePoliciesResponse struct {
-	Err      error                 `json:"error,omitempty"`
-	Policies []*fleet.DevicePolicy `json:"policies"`
+	Err      error                   `json:"error,omitempty"`
+	Policies []*automdm.DevicePolicy `json:"policies"`
 }
 
 func (r listDevicePoliciesResponse) Error() error { return r.Err }
 
-func (dc *DeviceClient) getListDevicePolicies(token string) ([]*fleet.DevicePolicy, error) {
-	verb, path := "GET", "/api/latest/fleet/device/%s/policies"
+func (dc *DeviceClient) getListDevicePolicies(token string) ([]*automdm.DevicePolicy, error) {
+	verb, path := "GET", "/api/latest/automdm/device/%s/policies"
 	var responseBody listDevicePoliciesResponse
 	err := dc.request(verb, path, token, "", nil, &responseBody)
 	return responseBody.Policies, err
 }
 
-// fleetDesktopResponse is a local response type for deserializing the desktop summary response.
-type fleetDesktopResponse struct {
+// automdmDesktopResponse is a local response type for deserializing the desktop summary response.
+type automdmDesktopResponse struct {
 	Err error `json:"error,omitempty"`
-	fleet.DesktopSummary
+	automdm.DesktopSummary
 }
 
-func (r fleetDesktopResponse) Error() error { return r.Err }
+func (r automdmDesktopResponse) Error() error { return r.Err }
 
-func (dc *DeviceClient) getMinDesktopPayload(token string) (fleetDesktopResponse, error) {
-	verb, path := "GET", "/api/latest/fleet/device/%s/desktop"
-	var r fleetDesktopResponse
+func (dc *DeviceClient) getMinDesktopPayload(token string) (automdmDesktopResponse, error) {
+	verb, path := "GET", "/api/latest/automdm/device/%s/desktop"
+	var r automdmDesktopResponse
 	err := dc.request(verb, path, token, "", nil, &r)
 	return r, err
 }
 
-func (dc *DeviceClient) DesktopSummary(token string) (*fleetDesktopResponse, error) {
+func (dc *DeviceClient) DesktopSummary(token string) (*automdmDesktopResponse, error) {
 	r, err := dc.getMinDesktopPayload(token)
 	if err == nil {
 		r.FailingPolicies = new(uintValueOrZero(r.FailingPolicies))
-		dc.fleetAlternativeBrowserHostFromServer = r.AlternativeBrowserHost
+		dc.automdmAlternativeBrowserHostFromServer = r.AlternativeBrowserHost
 		return &r, nil
 	}
 
@@ -240,8 +240,8 @@ func (dc *DeviceClient) DesktopSummary(token string) (*fleetDesktopResponse, err
 				failingPolicies++
 			}
 		}
-		return &fleetDesktopResponse{
-			DesktopSummary: fleet.DesktopSummary{
+		return &automdmDesktopResponse{
+			DesktopSummary: automdm.DesktopSummary{
 				FailingPolicies: new(failingPolicies),
 			},
 		}, nil
@@ -251,18 +251,18 @@ func (dc *DeviceClient) DesktopSummary(token string) (*fleetDesktopResponse, err
 }
 
 func (dc *DeviceClient) MigrateMDM(token string) error {
-	verb, path := "POST", "/api/latest/fleet/device/%s/migrate_mdm"
+	verb, path := "POST", "/api/latest/automdm/device/%s/migrate_mdm"
 	return dc.request(verb, path, token, "", nil, nil)
 }
 
-// fleetdErrorRequest is a local request type for the error reporting endpoint.
-type fleetdErrorRequest struct {
-	FleetdError fleet.FleetdError `json:"error"`
+// automdmdErrorRequest is a local request type for the error reporting endpoint.
+type automdmdErrorRequest struct {
+	AutoMDMdError automdm.AutoMDMdError `json:"error"`
 }
 
-func (dc *DeviceClient) ReportError(token string, fleetdErr fleet.FleetdError) error {
-	verb, path := "POST", "/api/latest/fleet/device/%s/debug/errors"
-	req := fleetdErrorRequest{FleetdError: fleetdErr}
+func (dc *DeviceClient) ReportError(token string, automdmdErr automdm.AutoMDMdError) error {
+	verb, path := "POST", "/api/latest/automdm/device/%s/debug/errors"
+	req := automdmdErrorRequest{AutoMDMdError: automdmdErr}
 	return retry.Do(
 		func() error {
 			err := dc.request(verb, path, token, "", req, nil)

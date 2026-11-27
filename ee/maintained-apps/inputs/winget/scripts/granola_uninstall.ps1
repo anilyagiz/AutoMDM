@@ -6,7 +6,7 @@
 
 $displayNamePattern = '^Granola \d'
 $publisher = "Granola"
-$taskName = "fleet-uninstall-granola"
+$taskName = "automdm-uninstall-granola"
 $appDir = "AppData\Local\Programs\@granolaelectron"  # in each user's profile
 $taskRunning = 267009  # SCHED_S_TASK_RUNNING
 $timeoutSeconds = 300

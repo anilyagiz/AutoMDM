@@ -3,8 +3,8 @@ package patch_policy_test
 import (
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/pkg/patch_policy"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/pkg/patch_policy"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/require"
 )
 
@@ -83,7 +83,7 @@ func TestGenerateQueryForManifest(t *testing.T) {
 func TestGenerateFromInstallerEscapesQuotes(t *testing.T) {
 	const payload = "x' UNION SELECT 1 FROM shadow --"
 
-	generated, err := patch_policy.GenerateFromInstaller(patch_policy.PolicyData{}, &fleet.SoftwareInstaller{
+	generated, err := patch_policy.GenerateFromInstaller(patch_policy.PolicyData{}, &automdm.SoftwareInstaller{
 		Platform:         "darwin",
 		SoftwareTitle:    payload,
 		BundleIdentifier: payload,
@@ -94,7 +94,7 @@ func TestGenerateFromInstallerEscapesQuotes(t *testing.T) {
 		"AND version_compare(bundle_short_version, 'x'' UNION SELECT 1 FROM shadow --') < 0);", generated.Query)
 	require.Equal(t, "macOS - "+payload+" up to date", generated.Name)
 
-	generated, err = patch_policy.GenerateFromInstaller(patch_policy.PolicyData{}, &fleet.SoftwareInstaller{
+	generated, err = patch_policy.GenerateFromInstaller(patch_policy.PolicyData{}, &automdm.SoftwareInstaller{
 		Platform:      "windows",
 		SoftwareTitle: payload,
 		Version:       payload,

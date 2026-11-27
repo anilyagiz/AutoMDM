@@ -22,26 +22,26 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/dev_mode"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	cag "github.com/fleetdm/fleet/v4/server/service/conditional_access_google"
-	"github.com/fleetdm/fleet/v4/server/service/conditional_access_google/mockserver"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/dev_mode"
+	cag "github.com/anilyagiz/automdm/v4/server/service/conditional_access_google"
+	"github.com/anilyagiz/automdm/v4/server/service/conditional_access_google/mockserver"
 	"github.com/stretchr/testify/require"
 )
 
 const customer = "C02mock00"
 
-// fakeFleet is the Fleet server's inbound register route.
-type fakeFleet struct {
+// fakeAutoMDM is the AutoMDM server's inbound register route.
+type fakeAutoMDM struct {
 	*httptest.Server
 	mu     sync.Mutex
-	calls  []fleetCall
+	calls  []automdmCall
 	status int
 	result string
 }
 
-type fleetCall struct {
+type automdmCall struct {
 	Auth string
 	Body struct {
 		Token    string   `json:"token"`
@@ -51,14 +51,14 @@ type fleetCall struct {
 	}
 }
 
-func newFakeFleet(t *testing.T) *fakeFleet {
-	f := &fakeFleet{status: http.StatusOK, result: "done"}
+func newFakeAutoMDM(t *testing.T) *fakeAutoMDM {
+	f := &fakeAutoMDM{status: http.StatusOK, result: "done"}
 	f.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost || r.URL.Path != "/api/v1/fleet/google_conditional_access/register" {
+		if r.Method != http.MethodPost || r.URL.Path != "/api/v1/automdm/google_conditional_access/register" {
 			http.NotFound(w, r)
 			return
 		}
-		var c fleetCall
+		var c automdmCall
 		c.Auth = r.Header.Get("Authorization")
 		if err := json.NewDecoder(r.Body).Decode(&c.Body); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -74,13 +74,13 @@ func newFakeFleet(t *testing.T) *fakeFleet {
 	return f
 }
 
-func (f *fakeFleet) answer(status int, result string) {
+func (f *fakeAutoMDM) answer(status int, result string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.status, f.result, f.calls = status, result, nil
 }
 
-func (f *fakeFleet) lastCall(t *testing.T) fleetCall {
+func (f *fakeAutoMDM) lastCall(t *testing.T) automdmCall {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	require.NotEmpty(t, f.calls)
@@ -106,7 +106,7 @@ func newEnv(t *testing.T, cfg mockserver.Config) *env {
 		mock:  m,
 		srv:   srv,
 		relay: cag.NewRelay(srv.URL, cag.AllowHTTP()),
-		http:  fleethttp.NewClient(fleethttp.WithFollowRedir(false)),
+		http:  automdmhttp.NewClient(automdmhttp.WithFollowRedir(false)),
 	}
 }
 
@@ -131,20 +131,20 @@ func TestRelayRegistration(t *testing.T) {
 	e := newEnv(t, mockserver.Config{Relay: true})
 	ctx := t.Context()
 
-	reg, err := e.relay.Register(ctx, "https://fleet-a.example.com", customer)
+	reg, err := e.relay.Register(ctx, "https://automdm-a.example.com", customer)
 	require.NoError(t, err)
-	require.NotEmpty(t, reg.FleetServerSecret)
+	require.NotEmpty(t, reg.AutoMDMServerSecret)
 
-	_, err = e.relay.Register(ctx, "https://fleet-b.example.com", customer)
+	_, err = e.relay.Register(ctx, "https://automdm-b.example.com", customer)
 	require.Equal(t, http.StatusConflict, relayStatus(t, err))
 
-	again, err := e.relay.Register(ctx, "https://fleet-a.example.com", customer)
+	again, err := e.relay.Register(ctx, "https://automdm-a.example.com", customer)
 	require.NoError(t, err)
-	require.NotEqual(t, reg.FleetServerSecret, again.FleetServerSecret)
+	require.NotEqual(t, reg.AutoMDMServerSecret, again.AutoMDMServerSecret)
 
-	err = e.relay.Deregister(ctx, "https://fleet-a.example.com", customer, reg.FleetServerSecret)
-	require.True(t, fleet.IsNotFound(err), "%v", err)
-	require.NoError(t, e.relay.Deregister(ctx, "https://fleet-a.example.com", customer, again.FleetServerSecret))
+	err = e.relay.Deregister(ctx, "https://automdm-a.example.com", customer, reg.AutoMDMServerSecret)
+	require.True(t, automdm.IsNotFound(err), "%v", err)
+	require.NoError(t, e.relay.Deregister(ctx, "https://automdm-a.example.com", customer, again.AutoMDMServerSecret))
 	require.Empty(t, e.mock.State().Registrations)
 }
 
@@ -167,7 +167,7 @@ func (e *env) signIn(t *testing.T, hostUUID, token, code string) string {
 }
 
 func TestIOSSignInFake(t *testing.T) {
-	fl := newFakeFleet(t)
+	fl := newFakeAutoMDM(t)
 	e := newEnv(t, mockserver.Config{Relay: true, Google: true, CustomerIDs: []string{customer}, FakeEmail: "ann@example.com"})
 
 	signInURL, err := e.relay.SignInURL(customer, "host-1", "tok")
@@ -215,7 +215,7 @@ func TestIOSSignInFake(t *testing.T) {
 				return
 			}
 			call := fl.lastCall(t)
-			require.Equal(t, "Bearer "+reg.FleetServerSecret, call.Auth)
+			require.Equal(t, "Bearer "+reg.AutoMDMServerSecret, call.Auth)
 			require.Equal(t, "tok-"+c.name, call.Body.Token)
 			require.Equal(t, customer, call.Body.Customer)
 			require.Equal(t, "ann@example.com", call.Body.Email)
@@ -244,7 +244,7 @@ func TestIOSSignInFake(t *testing.T) {
 }
 
 func TestIOSSignInTwoRecords(t *testing.T) {
-	fl := newFakeFleet(t)
+	fl := newFakeAutoMDM(t)
 	e := newEnv(t, mockserver.Config{Relay: true, Google: true, CustomerIDs: []string{customer}, FakeDeviceRecords: 2})
 	_, err := e.relay.Register(t.Context(), fl.URL, customer)
 	require.NoError(t, err)
@@ -282,7 +282,7 @@ func clientState(t *testing.T, m *mockserver.Server, name string) *mockserver.Cl
 	for _, d := range m.State().Devices {
 		for _, u := range d.Users {
 			if u.Name == name {
-				cs := u.ClientStates[strings.TrimPrefix(customer, "C")+"-fleet"]
+				cs := u.ClientStates[strings.TrimPrefix(customer, "C")+"-automdm"]
 				require.NotNil(t, cs, name)
 				return cs
 			}
@@ -307,17 +307,17 @@ func TestCloudIdentity(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []string{d.Users[0].Name, d.Users[1].Name}, names)
 
-	require.NoError(t, ci.SetClientState(ctx, names[0], fleet.GoogleConditionalAccessClientState{Managed: new(true), CustomID: new("host-uuid")}))
+	require.NoError(t, ci.SetClientState(ctx, names[0], automdm.GoogleConditionalAccessClientState{Managed: new(true), CustomID: new("host-uuid")}))
 	cs := clientState(t, e.mock, names[0])
 	require.Equal(t, "MANAGED", cs.Managed)
 	require.Equal(t, "host-uuid", cs.CustomID)
-	require.NoError(t, ci.SetClientState(ctx, names[0], fleet.GoogleConditionalAccessClientState{Managed: new(false)}))
+	require.NoError(t, ci.SetClientState(ctx, names[0], automdm.GoogleConditionalAccessClientState{Managed: new(false)}))
 	cs = clientState(t, e.mock, names[0])
 	require.Equal(t, "UNMANAGED", cs.Managed)
 	require.Equal(t, "host-uuid", cs.CustomID, "a field outside the mask is kept")
 
 	// A name the mock doesn't know, as real Google returned it to a real relay.
-	require.NoError(t, ci.SetClientState(ctx, "devices/real1/deviceUsers/u1", fleet.GoogleConditionalAccessClientState{Managed: new(true)}))
+	require.NoError(t, ci.SetClientState(ctx, "devices/real1/deviceUsers/u1", automdm.GoogleConditionalAccessClientState{Managed: new(true)}))
 	require.Equal(t, "MANAGED", clientState(t, e.mock, "devices/real1/deviceUsers/u1").Managed)
 
 	ok, err := ci.DeviceExists(ctx, deviceID)
@@ -329,8 +329,8 @@ func TestCloudIdentity(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, ok)
 	_, err = ci.ListDeviceUserNames(ctx, deviceID)
-	require.True(t, fleet.IsNotFound(err), "%v", err)
-	err = ci.SetClientState(ctx, names[0], fleet.GoogleConditionalAccessClientState{Managed: new(true)})
+	require.True(t, automdm.IsNotFound(err), "%v", err)
+	err = ci.SetClientState(ctx, names[0], automdm.GoogleConditionalAccessClientState{Managed: new(true)})
 	require.True(t, cag.IsStale(err), "%v", err)
 
 	require.True(t, e.mock.SetDeviceState(deviceID, mockserver.DeviceLeft))
@@ -348,11 +348,11 @@ func TestSurfaces(t *testing.T) {
 	relayOnly := newEnv(t, mockserver.Config{Relay: true})
 	_, err := relayOnly.cloudIdentity(t, customer).ListDeviceUserNames(t.Context(), "d")
 	require.Error(t, err)
-	_, err = relayOnly.relay.Register(t.Context(), "https://fleet.example.com", customer)
+	_, err = relayOnly.relay.Register(t.Context(), "https://automdm.example.com", customer)
 	require.NoError(t, err)
 
 	googleOnly := newEnv(t, mockserver.Config{Google: true, CustomerIDs: []string{customer}})
-	_, err = googleOnly.relay.Register(t.Context(), "https://fleet.example.com", customer)
+	_, err = googleOnly.relay.Register(t.Context(), "https://automdm.example.com", customer)
 	require.Equal(t, http.StatusNotFound, relayStatus(t, err))
 	require.NoError(t, googleOnly.cloudIdentity(t, customer).CheckDelegation(t.Context()))
 }
@@ -398,7 +398,7 @@ func fakeGoogle(t *testing.T) (*httptest.Server, func() []url.Values) {
 
 func TestForwardingMode(t *testing.T) {
 	g, lookups := fakeGoogle(t)
-	fl := newFakeFleet(t)
+	fl := newFakeAutoMDM(t)
 	e := newEnv(t, mockserver.Config{Relay: true, OAuth: &mockserver.OAuthConfig{
 		ClientID: "web-client", ClientSecret: "shh", PartnerID: "partner-1",
 		AuthURL: "https://accounts.example.com/auth", TokenURL: g.URL + "/token", APIEndpoint: g.URL + "/",
@@ -488,7 +488,7 @@ func TestAdminRoutes(t *testing.T) {
 	deviceID := strings.TrimPrefix(seeded.Name, "devices/")
 	devicePath := "/_mock/google/devices/" + url.PathEscape(deviceID)
 
-	_, err := e.relay.Register(ctx, "https://fleet.example.com", customer)
+	_, err := e.relay.Register(ctx, "https://automdm.example.com", customer)
 	require.NoError(t, err)
 	st := e.httpState(t)
 	require.Len(t, st.Registrations, 1)
@@ -532,7 +532,7 @@ func TestPatchClientStateRefused(t *testing.T) {
 	bare := strings.TrimPrefix(customer, "C")
 	patch := func(name, mask string, body map[string]string) int {
 		q := url.Values{"customer": {"customers/" + bare}, "updateMask": {mask}}
-		status, _ := e.do(t, "PATCH", "/v1/"+name+"/clientStates/"+bare+"-fleet?"+q.Encode(), "",
+		status, _ := e.do(t, "PATCH", "/v1/"+name+"/clientStates/"+bare+"-automdm?"+q.Encode(), "",
 			map[string]string{"Authorization": "Bearer x"}, body)
 		return status
 	}
@@ -650,8 +650,8 @@ func TestSimulatedFailures(t *testing.T) {
 	require.NotEmpty(t, gErr.Error.Status)
 	require.Empty(t, e.mock.State().Calls)
 
-	// The relay fails with fleetdm.com's plain text, not Google's JSON.
-	_, err = e.relay.Register(ctx, "https://fleet.example.com", customer)
+	// The relay fails with automdm.com's plain text, not Google's JSON.
+	_, err = e.relay.Register(ctx, "https://automdm.example.com", customer)
 	se, ok := errors.AsType[*cag.RelayStatusError](err)
 	require.True(t, ok, "%v", err)
 	require.Contains(t, []int{http.StatusTooManyRequests, http.StatusInternalServerError}, se.Code)
@@ -672,7 +672,7 @@ func TestFakeSignInPage(t *testing.T) {
 		{7 * time.Second, `<meta http-equiv="refresh" content="7;url=`},
 	} {
 		e := newEnv(t, mockserver.Config{Relay: true, AutoContinue: c.delay})
-		_, err := e.relay.Register(t.Context(), "https://fleet.example.com", customer)
+		_, err := e.relay.Register(t.Context(), "https://automdm.example.com", customer)
 		require.NoError(t, err)
 		signInURL, err := e.relay.SignInURL(customer, "host-1", "tok")
 		require.NoError(t, err)
@@ -690,7 +690,7 @@ func TestFakeSignInPage(t *testing.T) {
 
 func TestSameNamesWithAndWithoutGoogle(t *testing.T) {
 	signInNames := func(google bool) []string {
-		fl := newFakeFleet(t)
+		fl := newFakeAutoMDM(t)
 		e := newEnv(t, mockserver.Config{Relay: true, Google: google, CustomerIDs: []string{customer}})
 		_, err := e.relay.Register(t.Context(), fl.URL, customer)
 		require.NoError(t, err)

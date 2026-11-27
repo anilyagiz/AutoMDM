@@ -41,7 +41,7 @@ const NoResults = ({
   const collectingResults =
     (queryInterval ?? 0) > 0 && secondsSinceUpdate < (queryInterval || 0) + 60;
 
-  // Fleet's scheduled reports fire on a fixed wall-clock grid (epoch time
+  // AutoMDM's scheduled reports fire on a fixed wall-clock grid (epoch time
   // that's a multiple of the interval), not counted from when the report
   // was saved, so estimate the next checkpoint directly instead of
   // assuming a full interval from save time. Hosts also need up to ~60s
@@ -74,7 +74,7 @@ const NoResults = ({
         Results expected in about {readableCheckbackTime} if hosts are online
         then.{" "}
         <CustomLink
-          url="https://fleetdm.com/guides/reports#schedule-a-report"
+          url="https://automdm.com/guides/reports#schedule-a-report"
           text="Learn more"
           newTab
         />
@@ -128,7 +128,7 @@ const NoResults = ({
         <>
           Results from this report are{" "}
           <TooltipWrapper tipContent={tipContent()}>
-            not stored in Fleet
+            not stored in AutoMDM
           </TooltipWrapper>
           .
         </>,

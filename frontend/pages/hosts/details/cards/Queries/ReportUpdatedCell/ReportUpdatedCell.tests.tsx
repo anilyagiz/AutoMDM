@@ -47,7 +47,7 @@ describe("ReportUpdatedCell component", () => {
 
     waitFor(() => {
       expect(
-        screen.getByText(/Fleet is collecting report results\./)
+        screen.getByText(/AutoMDM is collecting report results\./)
       ).toBeInTheDocument();
       expect(screen.getByText(/Check back later./)).toBeInTheDocument();
     });

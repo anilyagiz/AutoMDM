@@ -207,7 +207,7 @@ const CategoryFilter = ({
     allOptions.find((o) => o.value === selectedValue)?.label ?? "All";
 
   // see https://react-select.com/styles#the-styles-prop
-  // Control + DropdownIndicator are replaced by a real Fleet <Button> above,
+  // Control + DropdownIndicator are replaced by a real AutoMDM <Button> above,
   // and SingleValue is rendered as plain text in that button — so we only
   // need to style the menu/option subtree here.
   const customStyles: StylesConfig<ICategoryOption, false> = {
@@ -226,8 +226,8 @@ const CategoryFilter = ({
     }),
     menu: (baseStyles) => ({
       ...baseStyles,
-      backgroundColor: COLORS["core-fleet-white"],
-      boxShadow: `0 2px 6px rgba(0, 0, 0, 0.1), 0 0 0 1px ${COLORS["ui-fleet-black-10"]}`,
+      backgroundColor: COLORS["core-automdm-white"],
+      boxShadow: `0 2px 6px rgba(0, 0, 0, 0.1), 0 0 0 1px ${COLORS["ui-automdm-black-10"]}`,
       borderRadius: "4px",
       zIndex: 6,
       overflow: "hidden",
@@ -263,7 +263,7 @@ const CategoryFilter = ({
       alignItems: "center",
       justifyContent: "center",
       width: "100%",
-      color: COLORS["ui-fleet-black-75"],
+      color: COLORS["ui-automdm-black-75"],
     }),
     option: (baseStyles, state) => ({
       ...baseStyles,
@@ -271,16 +271,16 @@ const CategoryFilter = ({
       fontSize: "14px",
       borderRadius: "4px",
       backgroundColor: state.isFocused
-        ? COLORS["ui-fleet-black-5"]
+        ? COLORS["ui-automdm-black-5"]
         : "transparent",
       fontWeight: state.isSelected ? 600 : "normal",
-      color: COLORS["core-fleet-black"],
+      color: COLORS["core-automdm-black"],
       cursor: "pointer",
       overflow: "hidden",
       textOverflow: "ellipsis",
       whiteSpace: "nowrap",
       "&:hover": {
-        backgroundColor: COLORS["ui-fleet-black-5"],
+        backgroundColor: COLORS["ui-automdm-black-5"],
       },
     }),
   };
@@ -288,7 +288,7 @@ const CategoryFilter = ({
   return (
     <div className={`${baseClass}-wrapper`} ref={wrapperRef}>
       {/*
-        A real Fleet <Button> renders the visible trigger so it inherits
+        A real AutoMDM <Button> renders the visible trigger so it inherits
         the Button's :focus-visible outline (Button/_styles.scss
         button-variant mixin). react-select's own Control is hidden via
         components.Control: () => null. This mirrors the primary variant
@@ -306,7 +306,7 @@ const CategoryFilter = ({
         <span className={`${baseClass}__button-label`}>{selectedLabel}</span>
         <Icon
           name="chevron-down"
-          color={menuIsOpen ? "core-fleet-black" : "ui-fleet-black-75"}
+          color={menuIsOpen ? "core-automdm-black" : "ui-automdm-black-75"}
           className={`${baseClass}__icon${
             menuIsOpen ? ` ${baseClass}__icon--open` : ""
           }`}

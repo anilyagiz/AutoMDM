@@ -8,7 +8,7 @@ interface ISortProps {
   size?: IconSizes;
 }
 
-const Sort = ({ color = "ui-fleet-black-75", size = "medium" }: ISortProps) => {
+const Sort = ({ color = "ui-automdm-black-75", size = "medium" }: ISortProps) => {
   return (
     <svg
       width={ICON_SIZES[size]}

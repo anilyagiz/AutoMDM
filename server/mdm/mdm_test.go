@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/mdm/nanodep/tokenpki"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanodep/tokenpki"
 	"github.com/smallstep/pkcs7"
 	"github.com/stretchr/testify/require"
 	"github.com/tj/assert"
@@ -380,9 +380,9 @@ func TestDecryptBase64CMSWithKey(t *testing.T) {
 	require.NoError(t, err)
 	otherKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
-	original, err := tokenpki.SelfSignedCertForKey(key, "Fleet WSTEP test", 1)
+	original, err := tokenpki.SelfSignedCertForKey(key, "AutoMDM WSTEP test", 1)
 	require.NoError(t, err)
-	renewed, err := tokenpki.SelfSignedCertForKey(key, "Fleet WSTEP test", 2)
+	renewed, err := tokenpki.SelfSignedCertForKey(key, "AutoMDM WSTEP test", 2)
 	require.NoError(t, err)
 
 	const recoveryKey = "123456-123456-123456-123456-123456-123456-123456-123456"
@@ -435,7 +435,7 @@ func TestDecryptBase64CMSWithKey(t *testing.T) {
 	require.ErrorContains(t, err, "end of ber data reached")
 
 	// A message with two recipients does not identify which one the key belongs to.
-	other, err := tokenpki.SelfSignedCertForKey(otherKey, "Fleet WSTEP test", 3)
+	other, err := tokenpki.SelfSignedCertForKey(otherKey, "AutoMDM WSTEP test", 3)
 	require.NoError(t, err)
 	two, err := pkcs7.Encrypt([]byte(recoveryKey), []*x509.Certificate{original, other})
 	require.NoError(t, err)

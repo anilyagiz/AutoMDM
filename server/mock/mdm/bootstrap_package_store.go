@@ -8,10 +8,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
-var _ fleet.MDMBootstrapPackageStore = (*MDMBootstrapPackageStore)(nil)
+var _ automdm.MDMBootstrapPackageStore = (*MDMBootstrapPackageStore)(nil)
 
 type GetFunc func(ctx context.Context, packageID string) (io.ReadCloser, int64, error)
 

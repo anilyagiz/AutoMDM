@@ -2,40 +2,40 @@ import React from "react";
 
 import TextCell from "components/TableContainer/DataTable/TextCell";
 import TooltipWrapper from "components/TooltipWrapper";
-import { ITokenFleet } from "interfaces/mdm";
-import { getFleetDisplayName } from "interfaces/team";
+import { ITokenAutoMDM } from "interfaces/mdm";
+import { getTeamDisplayName } from "interfaces/team";
 
 const baseClass = "teams-cell";
 
 const NUM_TEAMS_IN_TOOLTIP = 3;
 
-const generateCell = (teams: ITokenFleet[] | null) => {
+const generateCell = (teams: ITokenAutoMDM[] | null) => {
   if (!teams) {
     return <TextCell value="---" grey />;
   }
 
   if (teams.length === 0) {
-    return <TextCell value="All fleets" />;
+    return <TextCell value="All teams" />;
   }
 
   let text = "";
   let italicize = true;
   if (teams.length === 1) {
     italicize = false;
-    text = getFleetDisplayName(teams[0]);
+    text = getTeamDisplayName(teams[0]);
   } else {
-    text = `${teams.length} fleets`;
+    text = `${teams.length} teams`;
   }
 
   return <TextCell value={text} italic={italicize} />;
 };
 
-const condenseTeams = (teams: ITokenFleet[]) => {
+const condenseTeams = (teams: ITokenAutoMDM[]) => {
   const condensed =
     (teams?.length &&
       teams
         .slice(-NUM_TEAMS_IN_TOOLTIP)
-        .map((team) => getFleetDisplayName(team))
+        .map((team) => getTeamDisplayName(team))
         .reverse()) ||
     [];
 
@@ -45,7 +45,7 @@ const condenseTeams = (teams: ITokenFleet[]) => {
 };
 
 interface ITeamsCellProps {
-  teams: ITokenFleet[] | null;
+  teams: ITokenAutoMDM[] | null;
 }
 
 const TeamsCell = ({ teams }: ITeamsCellProps) => {
@@ -54,11 +54,11 @@ const TeamsCell = ({ teams }: ITeamsCellProps) => {
   }
 
   if (teams.length === 0) {
-    return <TextCell value="All fleets" />;
+    return <TextCell value="All teams" />;
   }
 
   if (teams.length === 1) {
-    return <TextCell value={getFleetDisplayName(teams[0])} />;
+    return <TextCell value={getTeamDisplayName(teams[0])} />;
   }
 
   const cell = generateCell(teams);

@@ -2,13 +2,13 @@ package service
 
 // Software inventory and catalog tests for the enterprise (premium) suite.
 //
-// Belongs here: listing software versions and titles (globally, per fleet, per host), software
+// Belongs here: listing software versions and titles (globally, per team, per host), software
 // authorization, software title icons, self-service categories and self-service label/vitals
 // scoping, VPP apps without MDM, and software auto-update settings.
 //
 // Does not belong here: uploading or installing packages (integration_enterprise_software_installers_test.go),
 // batch/GitOps software operations (integration_enterprise_software_batch_test.go), and
-// Fleet-maintained apps (integration_enterprise_software_fma_test.go).
+// AutoMDM-maintained apps (integration_enterprise_software_fma_test.go).
 
 import (
 	"bytes"
@@ -26,9 +26,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
@@ -40,7 +40,7 @@ func (s *integrationEnterpriseTestSuite) TestListSoftware() {
 	now := time.Now().UTC().Truncate(time.Second)
 	ctx := context.Background()
 
-	host, err := s.ds.NewHost(ctx, &fleet.Host{
+	host, err := s.ds.NewHost(ctx, &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -53,7 +53,7 @@ func (s *integrationEnterpriseTestSuite) TestListSoftware() {
 	})
 	require.NoError(t, err)
 
-	software := []fleet.Software{
+	software := []automdm.Software{
 		{Name: "foo", Version: "0.0.1", Source: "chrome_extensions", ExtensionID: "fooextensionid"},
 		{Name: "bar", Version: "0.0.3", Source: "apps"},
 		// A Go binary carries its toolchain version in release and its module path in
@@ -64,7 +64,7 @@ func (s *integrationEnterpriseTestSuite) TestListSoftware() {
 	require.NoError(t, err)
 	require.NoError(t, s.ds.LoadHostSoftware(ctx, host, false))
 
-	var bar fleet.HostSoftwareEntry
+	var bar automdm.HostSoftwareEntry
 	for _, sw := range host.Software {
 		if sw.Name == "bar" {
 			bar = sw
@@ -74,16 +74,16 @@ func (s *integrationEnterpriseTestSuite) TestListSoftware() {
 	require.NotZero(t, bar.ID)
 
 	inserted, err := s.ds.InsertSoftwareVulnerability(
-		ctx, fleet.SoftwareVulnerability{
+		ctx, automdm.SoftwareVulnerability{
 			SoftwareID:        bar.ID,
 			CVE:               "cve-123",
 			ResolvedInVersion: new("1.2.3"),
-		}, fleet.NVDSource,
+		}, automdm.NVDSource,
 	)
 	require.NoError(t, err)
 	require.True(t, inserted)
 
-	require.NoError(t, s.ds.InsertCVEMeta(ctx, []fleet.CVEMeta{{
+	require.NoError(t, s.ds.InsertCVEMeta(ctx, []automdm.CVEMeta{{
 		CVE:              "cve-123",
 		CVSSScore:        new(float64(5.4)),
 		EPSSProbability:  new(float64(0.5)),
@@ -95,10 +95,10 @@ func (s *integrationEnterpriseTestSuite) TestListSoftware() {
 	require.NoError(t, s.ds.SyncHostsSoftware(ctx, time.Now().UTC()))
 
 	var respVersions listSoftwareVersionsResponse
-	s.DoJSON("GET", "/api/latest/fleet/software/versions", nil, http.StatusOK, &respVersions)
+	s.DoJSON("GET", "/api/latest/automdm/software/versions", nil, http.StatusOK, &respVersions)
 	require.NotNil(t, respVersions)
 
-	var fooPayload, barPayload, airPayload fleet.Software
+	var fooPayload, barPayload, airPayload automdm.Software
 	for _, s := range respVersions.Software {
 		switch s.Name {
 		case "foo":
@@ -130,7 +130,7 @@ func (s *integrationEnterpriseTestSuite) TestListSoftware() {
 	// vulnerable param required when using vulnerability filters
 	respVersions = listSoftwareVersionsResponse{}
 	s.DoJSON(
-		"GET", "/api/latest/fleet/software/versions",
+		"GET", "/api/latest/automdm/software/versions",
 		listSoftwareRequest{},
 		http.StatusOK, &respVersions,
 		"without_vulnerability_details", "true",
@@ -147,7 +147,7 @@ func (s *integrationEnterpriseTestSuite) TestListSoftware() {
 	}
 	// without_vulnerability_details with vulnerability filter
 	s.DoJSON(
-		"GET", "/api/latest/fleet/software/versions",
+		"GET", "/api/latest/automdm/software/versions",
 		listSoftwareRequest{},
 		http.StatusOK, &respVersions,
 		"exploit", "true",
@@ -165,19 +165,19 @@ func (s *integrationEnterpriseTestSuite) TestListSoftware() {
 		}
 	}
 	s.DoJSON(
-		"GET", "/api/latest/fleet/software/versions",
+		"GET", "/api/latest/automdm/software/versions",
 		listSoftwareRequest{},
 		http.StatusUnprocessableEntity, &respVersions,
 		"exploit", "true",
 	)
 	s.DoJSON(
-		"GET", "/api/latest/fleet/software/versions",
+		"GET", "/api/latest/automdm/software/versions",
 		listSoftwareRequest{},
 		http.StatusUnprocessableEntity, &respVersions,
 		"min_cvss_score", "1.1",
 	)
 	s.DoJSON(
-		"GET", "/api/latest/fleet/software/versions",
+		"GET", "/api/latest/automdm/software/versions",
 		listSoftwareRequest{},
 		http.StatusUnprocessableEntity, &respVersions,
 		"max_cvss_score", "10.0",
@@ -186,7 +186,7 @@ func (s *integrationEnterpriseTestSuite) TestListSoftware() {
 	// vulnerability filters
 	respVersions = listSoftwareVersionsResponse{}
 	s.DoJSON(
-		"GET", "/api/latest/fleet/software/versions",
+		"GET", "/api/latest/automdm/software/versions",
 		listSoftwareRequest{},
 		http.StatusOK, &respVersions,
 		"exploit", "true",
@@ -197,7 +197,7 @@ func (s *integrationEnterpriseTestSuite) TestListSoftware() {
 
 	respVersions = listSoftwareVersionsResponse{}
 	s.DoJSON(
-		"GET", "/api/latest/fleet/software/versions",
+		"GET", "/api/latest/automdm/software/versions",
 		listSoftwareRequest{},
 		http.StatusOK, &respVersions,
 		"min_cvss_score", "1",
@@ -208,7 +208,7 @@ func (s *integrationEnterpriseTestSuite) TestListSoftware() {
 
 	respVersions = listSoftwareVersionsResponse{}
 	s.DoJSON(
-		"GET", "/api/latest/fleet/software/versions",
+		"GET", "/api/latest/automdm/software/versions",
 		listSoftwareRequest{},
 		http.StatusOK, &respVersions,
 		"min_cvss_score", "10",
@@ -219,7 +219,7 @@ func (s *integrationEnterpriseTestSuite) TestListSoftware() {
 
 	respVersions = listSoftwareVersionsResponse{}
 	s.DoJSON(
-		"GET", "/api/latest/fleet/software/versions",
+		"GET", "/api/latest/automdm/software/versions",
 		listSoftwareRequest{},
 		http.StatusOK, &respVersions,
 		"max_cvss_score", "10",
@@ -230,7 +230,7 @@ func (s *integrationEnterpriseTestSuite) TestListSoftware() {
 
 	respVersions = listSoftwareVersionsResponse{}
 	s.DoJSON(
-		"GET", "/api/latest/fleet/software/versions",
+		"GET", "/api/latest/automdm/software/versions",
 		listSoftwareRequest{},
 		http.StatusOK, &respVersions,
 		"max_cvss_score", "1",
@@ -241,7 +241,7 @@ func (s *integrationEnterpriseTestSuite) TestListSoftware() {
 
 	respVersions = listSoftwareVersionsResponse{}
 	s.DoJSON(
-		"GET", "/api/latest/fleet/software/versions",
+		"GET", "/api/latest/automdm/software/versions",
 		listSoftwareRequest{},
 		http.StatusOK, &respVersions,
 		"min_cvss_score", "1",
@@ -253,7 +253,7 @@ func (s *integrationEnterpriseTestSuite) TestListSoftware() {
 
 	respVersions = listSoftwareVersionsResponse{}
 	s.DoJSON(
-		"GET", "/api/latest/fleet/software/versions",
+		"GET", "/api/latest/automdm/software/versions",
 		listSoftwareRequest{},
 		http.StatusOK, &respVersions,
 		"min_cvss_score", "1",
@@ -269,7 +269,7 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 	t := s.T()
 	ctx := context.Background()
 
-	softwareTitleListResultsMatch := func(want, got []fleet.SoftwareTitleListResult) {
+	softwareTitleListResultsMatch := func(want, got []automdm.SoftwareTitleListResult) {
 		// compare only the fields we care about
 		for i := range got {
 			require.NotZero(t, got[i].ID)
@@ -312,7 +312,7 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 		require.Equal(t, want, got)
 	}
 
-	softwareTitlesMatch := func(want, got []fleet.SoftwareTitle) {
+	softwareTitlesMatch := func(want, got []automdm.SoftwareTitle) {
 		// compare only the fields we care about
 		for i := range got {
 			require.NotZero(t, got[i].ID)
@@ -346,7 +346,7 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 		require.Equal(t, want, got)
 	}
 
-	host, err := s.ds.NewHost(context.Background(), &fleet.Host{
+	host, err := s.ds.NewHost(context.Background(), &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -359,7 +359,7 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 	})
 	require.NoError(t, err)
 
-	tmHost, err := s.ds.NewHost(context.Background(), &fleet.Host{
+	tmHost, err := s.ds.NewHost(context.Background(), &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -373,13 +373,13 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 	require.NoError(t, err)
 
 	// create a couple of teams and add tmHost to one
-	team1, err := s.ds.NewTeam(ctx, &fleet.Team{Name: t.Name() + "team1"})
+	team1, err := s.ds.NewTeam(ctx, &automdm.Team{Name: t.Name() + "team1"})
 	require.NoError(t, err)
-	team2, err := s.ds.NewTeam(ctx, &fleet.Team{Name: t.Name() + "team2"})
+	team2, err := s.ds.NewTeam(ctx, &automdm.Team{Name: t.Name() + "team2"})
 	require.NoError(t, err)
-	require.NoError(t, s.ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team1.ID, []uint{tmHost.ID})))
+	require.NoError(t, s.ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team1.ID, []uint{tmHost.ID})))
 
-	software := []fleet.Software{
+	software := []automdm.Software{
 		{Name: "foo", Version: "0.0.1", Source: "homebrew"},
 		{Name: "foo", Version: "0.0.3", Source: "homebrew"},
 		{Name: "bar", Version: "0.0.4", Source: "apps"},
@@ -396,7 +396,7 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 		}
 	}
 
-	cpes := []fleet.SoftwareCPE{{SoftwareID: soft1.ID, CPE: "somecpe"}}
+	cpes := []automdm.SoftwareCPE{{SoftwareID: soft1.ID, CPE: "somecpe"}}
 	_, err = s.ds.UpsertSoftwareCPEs(context.Background(), cpes)
 	require.NoError(t, err)
 
@@ -411,15 +411,15 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 	}
 
 	inserted, err := s.ds.InsertSoftwareVulnerability(
-		context.Background(), fleet.SoftwareVulnerability{
+		context.Background(), automdm.SoftwareVulnerability{
 			SoftwareID: soft1.ID,
 			CVE:        "cve-123-123-132",
-		}, fleet.NVDSource,
+		}, automdm.NVDSource,
 	)
 	require.NoError(t, err)
 	require.True(t, inserted)
 
-	err = s.ds.InsertCVEMeta(context.Background(), []fleet.CVEMeta{
+	err = s.ds.InsertCVEMeta(context.Background(), []automdm.CVEMeta{
 		{
 			CVE:              "cve-123-123-132",
 			CVSSScore:        new(float64(7.8)),
@@ -435,20 +435,20 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 
 	var resp listSoftwareTitlesResponse
 	// self-service flag is ignored if no team specified see https://github.com/fleetdm/fleet/issues/26375
-	s.DoJSON("GET", "/api/latest/fleet/software/titles", listSoftwareTitlesRequest{}, http.StatusOK, &resp, "self_service", "1")
+	s.DoJSON("GET", "/api/latest/automdm/software/titles", listSoftwareTitlesRequest{}, http.StatusOK, &resp, "self_service", "1")
 	require.Equal(t, 2, resp.Count)
 
-	s.DoJSON("GET", "/api/latest/fleet/software/titles", listSoftwareTitlesRequest{}, http.StatusOK, &resp)
+	s.DoJSON("GET", "/api/latest/automdm/software/titles", listSoftwareTitlesRequest{}, http.StatusOK, &resp)
 	require.Equal(t, 2, resp.Count)
 
 	require.NotEmpty(t, resp.CountsUpdatedAt)
-	softwareTitleListResultsMatch([]fleet.SoftwareTitleListResult{
+	softwareTitleListResultsMatch([]automdm.SoftwareTitleListResult{
 		{
 			Name:          "foo",
 			Source:        "homebrew",
 			VersionsCount: 2,
 			HostsCount:    1,
-			Versions: []fleet.SoftwareVersion{
+			Versions: []automdm.SoftwareVersion{
 				{Version: "0.0.1", Vulnerabilities: nil},
 				{Version: "0.0.3", Vulnerabilities: nil},
 			},
@@ -458,8 +458,8 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 			Source:        "apps",
 			VersionsCount: 1,
 			HostsCount:    1,
-			Versions: []fleet.SoftwareVersion{
-				{Version: "0.0.4", Vulnerabilities: &fleet.SliceString{"cve-123-123-132"}},
+			Versions: []automdm.SoftwareVersion{
+				{Version: "0.0.4", Vulnerabilities: &automdm.SliceString{"cve-123-123-132"}},
 			},
 		},
 	}, resp.SoftwareTitles)
@@ -468,7 +468,7 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 	// still 2
 	resp = listSoftwareTitlesResponse{}
 	s.DoJSON(
-		"GET", "/api/latest/fleet/software/titles",
+		"GET", "/api/latest/automdm/software/titles",
 		listSoftwareTitlesRequest{},
 		http.StatusOK, &resp,
 		"per_page", "1",
@@ -477,13 +477,13 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 	)
 	require.Equal(t, 2, resp.Count)
 	require.NotEmpty(t, resp.CountsUpdatedAt)
-	softwareTitleListResultsMatch([]fleet.SoftwareTitleListResult{
+	softwareTitleListResultsMatch([]automdm.SoftwareTitleListResult{
 		{
 			Name:          "foo",
 			Source:        "homebrew",
 			VersionsCount: 2,
 			HostsCount:    1,
-			Versions: []fleet.SoftwareVersion{
+			Versions: []automdm.SoftwareVersion{
 				{Version: "0.0.1", Vulnerabilities: nil},
 				{Version: "0.0.3", Vulnerabilities: nil},
 			},
@@ -493,7 +493,7 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 	// get the second item
 	resp = listSoftwareTitlesResponse{}
 	s.DoJSON(
-		"GET", "/api/latest/fleet/software/titles",
+		"GET", "/api/latest/automdm/software/titles",
 		listSoftwareTitlesRequest{},
 		http.StatusOK, &resp,
 		"per_page", "1",
@@ -503,14 +503,14 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 	)
 	require.Equal(t, 2, resp.Count)
 	require.NotEmpty(t, resp.CountsUpdatedAt)
-	softwareTitleListResultsMatch([]fleet.SoftwareTitleListResult{
+	softwareTitleListResultsMatch([]automdm.SoftwareTitleListResult{
 		{
 			Name:          "bar",
 			Source:        "apps",
 			VersionsCount: 1,
 			HostsCount:    1,
-			Versions: []fleet.SoftwareVersion{
-				{Version: "0.0.4", Vulnerabilities: &fleet.SliceString{"cve-123-123-132"}},
+			Versions: []automdm.SoftwareVersion{
+				{Version: "0.0.4", Vulnerabilities: &automdm.SliceString{"cve-123-123-132"}},
 			},
 		},
 	}, resp.SoftwareTitles)
@@ -518,7 +518,7 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 	// asking for a non-existent page returns an empty list
 	resp = listSoftwareTitlesResponse{}
 	s.DoJSON(
-		"GET", "/api/latest/fleet/software/titles",
+		"GET", "/api/latest/automdm/software/titles",
 		listSoftwareTitlesRequest{},
 		http.StatusOK, &resp,
 		"per_page", "1",
@@ -528,24 +528,24 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 	)
 	require.Equal(t, 2, resp.Count)
 	require.Empty(t, resp.CountsUpdatedAt)
-	softwareTitleListResultsMatch([]fleet.SoftwareTitleListResult{}, resp.SoftwareTitles)
+	softwareTitleListResultsMatch([]automdm.SoftwareTitleListResult{}, resp.SoftwareTitles)
 
 	// asking for vulnerable only software returns the expected values
-	expectedVulnSoftware := []fleet.SoftwareTitleListResult{
+	expectedVulnSoftware := []automdm.SoftwareTitleListResult{
 		{
 			Name:          "bar",
 			Source:        "apps",
 			VersionsCount: 1,
 			HostsCount:    1,
-			Versions: []fleet.SoftwareVersion{
-				{Version: "0.0.4", Vulnerabilities: &fleet.SliceString{"cve-123-123-132"}},
+			Versions: []automdm.SoftwareVersion{
+				{Version: "0.0.4", Vulnerabilities: &automdm.SliceString{"cve-123-123-132"}},
 			},
 		},
 	}
 
 	resp = listSoftwareTitlesResponse{}
 	s.DoJSON(
-		"GET", "/api/latest/fleet/software/titles",
+		"GET", "/api/latest/automdm/software/titles",
 		listSoftwareTitlesRequest{},
 		http.StatusOK, &resp,
 		"vulnerable", "true",
@@ -557,19 +557,19 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 	// vulnerable param required when using vulnerability filters
 	resp = listSoftwareTitlesResponse{}
 	s.DoJSON(
-		"GET", "/api/latest/fleet/software/titles",
+		"GET", "/api/latest/automdm/software/titles",
 		listSoftwareTitlesRequest{},
 		http.StatusUnprocessableEntity, &resp,
 		"exploit", "true",
 	)
 	s.DoJSON(
-		"GET", "/api/latest/fleet/software/titles",
+		"GET", "/api/latest/automdm/software/titles",
 		listSoftwareTitlesRequest{},
 		http.StatusUnprocessableEntity, &resp,
 		"min_cvss_score", "1",
 	)
 	s.DoJSON(
-		"GET", "/api/latest/fleet/software/titles",
+		"GET", "/api/latest/automdm/software/titles",
 		listSoftwareTitlesRequest{},
 		http.StatusUnprocessableEntity, &resp,
 		"max_cvss_score", "10",
@@ -578,7 +578,7 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 	// vulnerability filters
 	resp = listSoftwareTitlesResponse{}
 	s.DoJSON(
-		"GET", "/api/latest/fleet/software/titles",
+		"GET", "/api/latest/automdm/software/titles",
 		listSoftwareTitlesRequest{},
 		http.StatusOK, &resp,
 		"exploit", "true",
@@ -590,7 +590,7 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 
 	resp = listSoftwareTitlesResponse{}
 	s.DoJSON(
-		"GET", "/api/latest/fleet/software/titles",
+		"GET", "/api/latest/automdm/software/titles",
 		listSoftwareTitlesRequest{},
 		http.StatusOK, &resp,
 		"min_cvss_score", "1",
@@ -602,7 +602,7 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 
 	resp = listSoftwareTitlesResponse{}
 	s.DoJSON(
-		"GET", "/api/latest/fleet/software/titles",
+		"GET", "/api/latest/automdm/software/titles",
 		listSoftwareTitlesRequest{},
 		http.StatusOK, &resp,
 		"min_cvss_score", "10",
@@ -610,11 +610,11 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 	)
 	require.Zero(t, resp.Count)
 	require.Nil(t, resp.CountsUpdatedAt)
-	softwareTitleListResultsMatch([]fleet.SoftwareTitleListResult{}, resp.SoftwareTitles)
+	softwareTitleListResultsMatch([]automdm.SoftwareTitleListResult{}, resp.SoftwareTitles)
 
 	resp = listSoftwareTitlesResponse{}
 	s.DoJSON(
-		"GET", "/api/latest/fleet/software/titles",
+		"GET", "/api/latest/automdm/software/titles",
 		listSoftwareTitlesRequest{},
 		http.StatusOK, &resp,
 		"max_cvss_score", "10",
@@ -626,7 +626,7 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 
 	resp = listSoftwareTitlesResponse{}
 	s.DoJSON(
-		"GET", "/api/latest/fleet/software/titles",
+		"GET", "/api/latest/automdm/software/titles",
 		listSoftwareTitlesRequest{},
 		http.StatusOK, &resp,
 		"max_cvss_score", "1",
@@ -634,11 +634,11 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 	)
 	require.Zero(t, resp.Count)
 	require.Nil(t, resp.CountsUpdatedAt)
-	softwareTitleListResultsMatch([]fleet.SoftwareTitleListResult{}, resp.SoftwareTitles)
+	softwareTitleListResultsMatch([]automdm.SoftwareTitleListResult{}, resp.SoftwareTitles)
 
 	resp = listSoftwareTitlesResponse{}
 	s.DoJSON(
-		"GET", "/api/latest/fleet/software/titles",
+		"GET", "/api/latest/automdm/software/titles",
 		listSoftwareTitlesRequest{},
 		http.StatusOK, &resp,
 		"min_cvss_score", "1",
@@ -651,7 +651,7 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 
 	resp = listSoftwareTitlesResponse{}
 	s.DoJSON(
-		"GET", "/api/latest/fleet/software/titles",
+		"GET", "/api/latest/automdm/software/titles",
 		listSoftwareTitlesRequest{},
 		http.StatusOK, &resp,
 		"min_cvss_score", "1",
@@ -666,17 +666,17 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 	// request titles for team1, nothing there yet
 	resp = listSoftwareTitlesResponse{}
 	s.DoJSON(
-		"GET", "/api/latest/fleet/software/titles",
+		"GET", "/api/latest/automdm/software/titles",
 		listSoftwareTitlesRequest{},
 		http.StatusOK, &resp,
-		"fleet_id", fmt.Sprintf("%d", team1.ID),
+		"team_id", fmt.Sprintf("%d", team1.ID),
 	)
 	require.Equal(t, 0, resp.Count)
 	require.Empty(t, resp.CountsUpdatedAt)
-	softwareTitleListResultsMatch([]fleet.SoftwareTitleListResult{}, resp.SoftwareTitles)
+	softwareTitleListResultsMatch([]automdm.SoftwareTitleListResult{}, resp.SoftwareTitles)
 
 	// add new software for tmHost
-	software = []fleet.Software{
+	software = []automdm.Software{
 		{Name: "foo", Version: "0.0.1", Source: "homebrew"},
 		{Name: "baz", Version: "0.0.5", Source: "deb_packages"},
 	}
@@ -691,22 +691,22 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 	// request software for the team, this time we get results
 	resp = listSoftwareTitlesResponse{}
 	s.DoJSON(
-		"GET", "/api/latest/fleet/software/titles",
+		"GET", "/api/latest/automdm/software/titles",
 		listSoftwareTitlesRequest{},
 		http.StatusOK, &resp,
-		"fleet_id", fmt.Sprintf("%d", team1.ID),
+		"team_id", fmt.Sprintf("%d", team1.ID),
 		"order_key", "name",
 		"order_direction", "desc",
 	)
 	require.Equal(t, 2, resp.Count)
 	require.NotEmpty(t, resp.CountsUpdatedAt)
-	softwareTitleListResultsMatch([]fleet.SoftwareTitleListResult{
+	softwareTitleListResultsMatch([]automdm.SoftwareTitleListResult{
 		{
 			Name:          "baz",
 			Source:        "deb_packages",
 			VersionsCount: 1,
 			HostsCount:    1,
-			Versions: []fleet.SoftwareVersion{
+			Versions: []automdm.SoftwareVersion{
 				{Version: "0.0.5", Vulnerabilities: nil},
 			},
 		},
@@ -715,7 +715,7 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 			Source:        "homebrew",
 			VersionsCount: 1, // NOTE: this value is 1 because the team has only 1 matching host in the team
 			HostsCount:    1, // NOTE: this value is 1 because the team has only 1 matching host in the team
-			Versions: []fleet.SoftwareVersion{
+			Versions: []automdm.SoftwareVersion{
 				{Version: "0.0.1", Vulnerabilities: nil}, // NOTE: this only includes versions present in the team
 			},
 		},
@@ -725,7 +725,7 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 	// `"foo"`
 	resp = listSoftwareTitlesResponse{}
 	s.DoJSON(
-		"GET", "/api/latest/fleet/software/titles",
+		"GET", "/api/latest/automdm/software/titles",
 		listSoftwareTitlesRequest{},
 		http.StatusOK, &resp,
 		"order_key", "name",
@@ -733,13 +733,13 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 	)
 	require.Equal(t, 3, resp.Count)
 	require.NotEmpty(t, resp.CountsUpdatedAt)
-	softwareTitleListResultsMatch([]fleet.SoftwareTitleListResult{
+	softwareTitleListResultsMatch([]automdm.SoftwareTitleListResult{
 		{
 			Name:          "baz",
 			Source:        "deb_packages",
 			VersionsCount: 1,
 			HostsCount:    1,
-			Versions: []fleet.SoftwareVersion{
+			Versions: []automdm.SoftwareVersion{
 				{Version: "0.0.5", Vulnerabilities: nil},
 			},
 		},
@@ -748,7 +748,7 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 			Source:        "homebrew",
 			VersionsCount: 2, // NOTE: this value is 2, important because no team filter was applied
 			HostsCount:    2, // NOTE: this value is 2, important because no team filter was applied
-			Versions: []fleet.SoftwareVersion{
+			Versions: []automdm.SoftwareVersion{
 				{Version: "0.0.1", Vulnerabilities: nil},
 				{Version: "0.0.3", Vulnerabilities: nil},
 			},
@@ -758,8 +758,8 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 			Source:        "apps",
 			VersionsCount: 1,
 			HostsCount:    1,
-			Versions: []fleet.SoftwareVersion{
-				{Version: "0.0.4", Vulnerabilities: &fleet.SliceString{"cve-123-123-132"}},
+			Versions: []automdm.SoftwareVersion{
+				{Version: "0.0.4", Vulnerabilities: &automdm.SliceString{"cve-123-123-132"}},
 			},
 		},
 	}, resp.SoftwareTitles)
@@ -767,20 +767,20 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 	// match cve by name
 	resp = listSoftwareTitlesResponse{}
 	s.DoJSON(
-		"GET", "/api/latest/fleet/software/titles",
+		"GET", "/api/latest/automdm/software/titles",
 		listSoftwareTitlesRequest{},
 		http.StatusOK, &resp,
 		"query", "123",
 	)
 	require.Equal(t, 1, resp.Count)
-	softwareTitleListResultsMatch([]fleet.SoftwareTitleListResult{
+	softwareTitleListResultsMatch([]automdm.SoftwareTitleListResult{
 		{
 			Name:          "bar",
 			Source:        "apps",
 			VersionsCount: 1,
 			HostsCount:    1,
-			Versions: []fleet.SoftwareVersion{
-				{Version: "0.0.4", Vulnerabilities: &fleet.SliceString{"cve-123-123-132"}},
+			Versions: []automdm.SoftwareVersion{
+				{Version: "0.0.4", Vulnerabilities: &automdm.SliceString{"cve-123-123-132"}},
 			},
 		},
 	}, resp.SoftwareTitles)
@@ -788,21 +788,21 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 	// match software title by name
 	resp = listSoftwareTitlesResponse{}
 	s.DoJSON(
-		"GET", "/api/latest/fleet/software/titles",
+		"GET", "/api/latest/automdm/software/titles",
 		listSoftwareTitlesRequest{},
 		http.StatusOK, &resp,
 		"query", "ba",
 	)
 	require.Equal(t, 2, resp.Count)
 	require.NotEmpty(t, resp.CountsUpdatedAt)
-	softwareTitleListResultsMatch([]fleet.SoftwareTitleListResult{
+	softwareTitleListResultsMatch([]automdm.SoftwareTitleListResult{
 		{
 			Name:          "bar",
 			Source:        "apps",
 			VersionsCount: 1,
 			HostsCount:    1,
-			Versions: []fleet.SoftwareVersion{
-				{Version: "0.0.4", Vulnerabilities: &fleet.SliceString{"cve-123-123-132"}},
+			Versions: []automdm.SoftwareVersion{
+				{Version: "0.0.4", Vulnerabilities: &automdm.SliceString{"cve-123-123-132"}},
 			},
 		},
 		{
@@ -810,7 +810,7 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 			Source:        "deb_packages",
 			VersionsCount: 1,
 			HostsCount:    1,
-			Versions: []fleet.SoftwareVersion{
+			Versions: []automdm.SoftwareVersion{
 				{Version: "0.0.5", Vulnerabilities: nil},
 			},
 		},
@@ -819,21 +819,21 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 	// match software title by name with leading whitespace
 	resp = listSoftwareTitlesResponse{}
 	s.DoJSON(
-		"GET", "/api/latest/fleet/software/titles",
+		"GET", "/api/latest/automdm/software/titles",
 		listSoftwareTitlesRequest{},
 		http.StatusOK, &resp,
 		"query", "  ba",
 	)
 	require.Equal(t, 2, resp.Count)
 	require.NotEmpty(t, resp.CountsUpdatedAt)
-	softwareTitleListResultsMatch([]fleet.SoftwareTitleListResult{
+	softwareTitleListResultsMatch([]automdm.SoftwareTitleListResult{
 		{
 			Name:          "bar",
 			Source:        "apps",
 			VersionsCount: 1,
 			HostsCount:    1,
-			Versions: []fleet.SoftwareVersion{
-				{Version: "0.0.4", Vulnerabilities: &fleet.SliceString{"cve-123-123-132"}},
+			Versions: []automdm.SoftwareVersion{
+				{Version: "0.0.4", Vulnerabilities: &automdm.SliceString{"cve-123-123-132"}},
 			},
 		},
 		{
@@ -841,7 +841,7 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 			Source:        "deb_packages",
 			VersionsCount: 1,
 			HostsCount:    1,
-			Versions: []fleet.SoftwareVersion{
+			Versions: []automdm.SoftwareVersion{
 				{Version: "0.0.5", Vulnerabilities: nil},
 			},
 		},
@@ -850,21 +850,21 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 	// match software title by name with trailing whitespace
 	resp = listSoftwareTitlesResponse{}
 	s.DoJSON(
-		"GET", "/api/latest/fleet/software/titles",
+		"GET", "/api/latest/automdm/software/titles",
 		listSoftwareTitlesRequest{},
 		http.StatusOK, &resp,
 		"query", "ba  ",
 	)
 	require.Equal(t, 2, resp.Count)
 	require.NotEmpty(t, resp.CountsUpdatedAt)
-	softwareTitleListResultsMatch([]fleet.SoftwareTitleListResult{
+	softwareTitleListResultsMatch([]automdm.SoftwareTitleListResult{
 		{
 			Name:          "bar",
 			Source:        "apps",
 			VersionsCount: 1,
 			HostsCount:    1,
-			Versions: []fleet.SoftwareVersion{
-				{Version: "0.0.4", Vulnerabilities: &fleet.SliceString{"cve-123-123-132"}},
+			Versions: []automdm.SoftwareVersion{
+				{Version: "0.0.4", Vulnerabilities: &automdm.SliceString{"cve-123-123-132"}},
 			},
 		},
 		{
@@ -872,7 +872,7 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 			Source:        "deb_packages",
 			VersionsCount: 1,
 			HostsCount:    1,
-			Versions: []fleet.SoftwareVersion{
+			Versions: []automdm.SoftwareVersion{
 				{Version: "0.0.5", Vulnerabilities: nil},
 			},
 		},
@@ -881,21 +881,21 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 	// match software title by name with leading and trailing whitespace
 	resp = listSoftwareTitlesResponse{}
 	s.DoJSON(
-		"GET", "/api/latest/fleet/software/titles",
+		"GET", "/api/latest/automdm/software/titles",
 		listSoftwareTitlesRequest{},
 		http.StatusOK, &resp,
 		"query", "  ba  ",
 	)
 	require.Equal(t, 2, resp.Count)
 	require.NotEmpty(t, resp.CountsUpdatedAt)
-	softwareTitleListResultsMatch([]fleet.SoftwareTitleListResult{
+	softwareTitleListResultsMatch([]automdm.SoftwareTitleListResult{
 		{
 			Name:          "bar",
 			Source:        "apps",
 			VersionsCount: 1,
 			HostsCount:    1,
-			Versions: []fleet.SoftwareVersion{
-				{Version: "0.0.4", Vulnerabilities: &fleet.SliceString{"cve-123-123-132"}},
+			Versions: []automdm.SoftwareVersion{
+				{Version: "0.0.4", Vulnerabilities: &automdm.SliceString{"cve-123-123-132"}},
 			},
 		},
 		{
@@ -903,7 +903,7 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 			Source:        "deb_packages",
 			VersionsCount: 1,
 			HostsCount:    1,
-			Versions: []fleet.SoftwareVersion{
+			Versions: []automdm.SoftwareVersion{
 				{Version: "0.0.5", Vulnerabilities: nil},
 			},
 		},
@@ -911,7 +911,7 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 
 	// find the ID of "foo"
 	s.DoJSON(
-		"GET", "/api/latest/fleet/software/titles",
+		"GET", "/api/latest/automdm/software/titles",
 		listSoftwareTitlesRequest{},
 		http.StatusOK, &resp,
 		"query", "foo",
@@ -925,11 +925,11 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 	// find the ID of "baz" (team 1)
 	resp = listSoftwareTitlesResponse{}
 	s.DoJSON(
-		"GET", "/api/latest/fleet/software/titles",
+		"GET", "/api/latest/automdm/software/titles",
 		listSoftwareTitlesRequest{},
 		http.StatusOK, &resp,
 		"query", "baz",
-		"fleet_id", fmt.Sprintf("%d", team1.ID),
+		"team_id", fmt.Sprintf("%d", team1.ID),
 	)
 	require.Equal(t, 1, resp.Count)
 	require.Len(t, resp.SoftwareTitles, 1)
@@ -939,49 +939,49 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 
 	// non-existent id is a 404
 	var stResp getSoftwareTitleResponse
-	s.DoJSON("GET", "/api/latest/fleet/software/titles/999", getSoftwareTitleRequest{}, http.StatusNotFound, &stResp)
+	s.DoJSON("GET", "/api/latest/automdm/software/titles/999", getSoftwareTitleRequest{}, http.StatusNotFound, &stResp)
 
 	// valid title
 	stResp = getSoftwareTitleResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/software/titles/%d", fooTitle.ID), getSoftwareTitleRequest{}, http.StatusOK, &stResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/software/titles/%d", fooTitle.ID), getSoftwareTitleRequest{}, http.StatusOK, &stResp)
 	s.NotZero(*stResp.SoftwareTitle.CountsUpdatedAt)
-	softwareTitlesMatch([]fleet.SoftwareTitle{
+	softwareTitlesMatch([]automdm.SoftwareTitle{
 		{
 			Name:          "foo",
 			Source:        "homebrew",
 			VersionsCount: 2,
 			HostsCount:    2,
-			Versions: []fleet.SoftwareVersion{
+			Versions: []automdm.SoftwareVersion{
 				{Version: "0.0.1", Vulnerabilities: nil, HostsCount: new(uint(2))},
 				{Version: "0.0.3", Vulnerabilities: nil, HostsCount: new(uint(1))},
 			},
 		},
-	}, []fleet.SoftwareTitle{*stResp.SoftwareTitle})
+	}, []automdm.SoftwareTitle{*stResp.SoftwareTitle})
 
 	// valid title for team
 	stResp = getSoftwareTitleResponse{}
 	s.DoJSON(
-		"GET", fmt.Sprintf("/api/latest/fleet/software/titles/%d", fooTitle.ID), getSoftwareTitleRequest{}, http.StatusOK, &stResp,
-		"fleet_id", fmt.Sprintf("%d", team1.ID),
+		"GET", fmt.Sprintf("/api/latest/automdm/software/titles/%d", fooTitle.ID), getSoftwareTitleRequest{}, http.StatusOK, &stResp,
+		"team_id", fmt.Sprintf("%d", team1.ID),
 	)
 	softwareTitlesMatch(
-		[]fleet.SoftwareTitle{
+		[]automdm.SoftwareTitle{
 			{
 				Name:          "foo",
 				Source:        "homebrew",
 				VersionsCount: 1,
 				HostsCount:    1,
-				Versions: []fleet.SoftwareVersion{
+				Versions: []automdm.SoftwareVersion{
 					{Version: "0.0.1", Vulnerabilities: nil, HostsCount: new(uint(1))},
 				},
 			},
-		}, []fleet.SoftwareTitle{*stResp.SoftwareTitle},
+		}, []automdm.SoftwareTitle{*stResp.SoftwareTitle},
 	)
 
 	// find the ID of "bar"
 	resp = listSoftwareTitlesResponse{}
 	s.DoJSON(
-		"GET", "/api/latest/fleet/software/titles",
+		"GET", "/api/latest/automdm/software/titles",
 		listSoftwareTitlesRequest{},
 		http.StatusOK, &resp,
 		"query", "bar",
@@ -992,16 +992,16 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 	require.Equal(t, "bar", barTitle.Name)
 
 	// valid title with vulnerabilities
-	expected := []fleet.SoftwareTitle{
+	expected := []automdm.SoftwareTitle{
 		{
 			Name:          "bar",
 			Source:        "apps",
 			VersionsCount: 1,
 			HostsCount:    1,
-			Versions: []fleet.SoftwareVersion{
+			Versions: []automdm.SoftwareVersion{
 				{
 					Version:         "0.0.4",
-					Vulnerabilities: &fleet.SliceString{"cve-123-123-132"},
+					Vulnerabilities: &automdm.SliceString{"cve-123-123-132"},
 					HostsCount:      new(uint(1)),
 				},
 			},
@@ -1009,30 +1009,30 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 	}
 	// Global
 	stResp = getSoftwareTitleResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/software/titles/%d", barTitle.ID), getSoftwareTitleRequest{}, http.StatusOK, &stResp)
-	softwareTitlesMatch(expected, []fleet.SoftwareTitle{*stResp.SoftwareTitle})
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/software/titles/%d", barTitle.ID), getSoftwareTitleRequest{}, http.StatusOK, &stResp)
+	softwareTitlesMatch(expected, []automdm.SoftwareTitle{*stResp.SoftwareTitle})
 
 	// No Team
 	stResp = getSoftwareTitleResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/software/titles/%d", barTitle.ID), getSoftwareTitleRequest{}, http.StatusOK, &stResp,
-		"fleet_id", "0")
-	softwareTitlesMatch(expected, []fleet.SoftwareTitle{*stResp.SoftwareTitle})
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/software/titles/%d", barTitle.ID), getSoftwareTitleRequest{}, http.StatusOK, &stResp,
+		"team_id", "0")
+	softwareTitlesMatch(expected, []automdm.SoftwareTitle{*stResp.SoftwareTitle})
 
 	// invalid title for team
 	stResp = getSoftwareTitleResponse{}
 	s.DoJSON(
-		"GET", fmt.Sprintf("/api/latest/fleet/software/titles/%d", barTitle.ID), getSoftwareTitleRequest{}, http.StatusNotFound, &stResp,
-		"fleet_id", fmt.Sprintf("%d", team1.ID),
+		"GET", fmt.Sprintf("/api/latest/automdm/software/titles/%d", barTitle.ID), getSoftwareTitleRequest{}, http.StatusNotFound, &stResp,
+		"team_id", fmt.Sprintf("%d", team1.ID),
 	)
 
 	// invalid title for no team
 	stResp = getSoftwareTitleResponse{}
 	s.DoJSON(
-		"GET", fmt.Sprintf("/api/latest/fleet/software/titles/%d", bazTitle.ID), getSoftwareTitleRequest{}, http.StatusNotFound, &stResp,
-		"fleet_id", "0")
+		"GET", fmt.Sprintf("/api/latest/automdm/software/titles/%d", bazTitle.ID), getSoftwareTitleRequest{}, http.StatusNotFound, &stResp,
+		"team_id", "0")
 
 	// add bar tmHost
-	software = []fleet.Software{
+	software = []automdm.Software{
 		{Name: "bar", Version: "0.0.4", Source: "apps"},
 	}
 	_, err = s.ds.UpdateHostSoftware(context.Background(), tmHost.ID, software)
@@ -1046,41 +1046,41 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 	// valid title with vulnerabilities
 	stResp = getSoftwareTitleResponse{}
 	s.DoJSON(
-		"GET", fmt.Sprintf("/api/latest/fleet/software/titles/%d", barTitle.ID), getSoftwareTitleRequest{}, http.StatusOK, &stResp,
-		"fleet_id", fmt.Sprintf("%d", team1.ID),
+		"GET", fmt.Sprintf("/api/latest/automdm/software/titles/%d", barTitle.ID), getSoftwareTitleRequest{}, http.StatusOK, &stResp,
+		"team_id", fmt.Sprintf("%d", team1.ID),
 	)
 	softwareTitlesMatch(
-		[]fleet.SoftwareTitle{
+		[]automdm.SoftwareTitle{
 			{
 				Name:          "bar",
 				Source:        "apps",
 				VersionsCount: 1,
 				HostsCount:    1,
-				Versions: []fleet.SoftwareVersion{
+				Versions: []automdm.SoftwareVersion{
 					{
 						Version:         "0.0.4",
-						Vulnerabilities: &fleet.SliceString{"cve-123-123-132"},
+						Vulnerabilities: &automdm.SliceString{"cve-123-123-132"},
 						HostsCount:      new(uint(1)),
 					},
 				},
 			},
-		}, []fleet.SoftwareTitle{*stResp.SoftwareTitle},
+		}, []automdm.SoftwareTitle{*stResp.SoftwareTitle},
 	)
 
 	// Team without hosts
 	s.DoJSON(
-		"GET", fmt.Sprintf("/api/latest/fleet/software/titles/%d", barTitle.ID), getSoftwareTitleRequest{}, http.StatusNotFound, &stResp,
-		"fleet_id", fmt.Sprintf("%d", team2.ID),
+		"GET", fmt.Sprintf("/api/latest/automdm/software/titles/%d", barTitle.ID), getSoftwareTitleRequest{}, http.StatusNotFound, &stResp,
+		"team_id", fmt.Sprintf("%d", team2.ID),
 	)
 
 	// Non-existent team
 	s.DoJSON(
-		"GET", fmt.Sprintf("/api/latest/fleet/software/titles/%d", barTitle.ID), getSoftwareTitleRequest{}, http.StatusNotFound, &stResp,
-		"fleet_id", "99999",
+		"GET", fmt.Sprintf("/api/latest/automdm/software/titles/%d", barTitle.ID), getSoftwareTitleRequest{}, http.StatusNotFound, &stResp,
+		"team_id", "99999",
 	)
 
 	// verify that software installers contain SoftwarePackage field
-	payloadRubyTm1 := &fleet.UploadSoftwareInstallerPayload{
+	payloadRubyTm1 := &automdm.UploadSoftwareInstallerPayload{
 		InstallScript: "install",
 		Filename:      "ruby.deb",
 		SelfService:   false,
@@ -1089,39 +1089,39 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 	}
 	s.uploadSoftwareInstaller(t, payloadRubyTm1, http.StatusOK, "")
 
-	payloadEmacsMissingSecret := &fleet.UploadSoftwareInstallerPayload{
-		InstallScript:     "install $FLEET_SECRET_INVALID",
+	payloadEmacsMissingSecret := &automdm.UploadSoftwareInstallerPayload{
+		InstallScript:     "install $AUTOMDM_SECRET_INVALID",
 		Filename:          "emacs.deb",
 		PostInstallScript: "d",
 		SelfService:       true,
 		Platform:          "linux",
 	}
-	s.uploadSoftwareInstallerWithErrorNameReason(t, payloadEmacsMissingSecret, http.StatusUnprocessableEntity, "$FLEET_SECRET_INVALID",
+	s.uploadSoftwareInstallerWithErrorNameReason(t, payloadEmacsMissingSecret, http.StatusUnprocessableEntity, "$AUTOMDM_SECRET_INVALID",
 		"install script")
 
-	payloadEmacsMissingPostSecret := &fleet.UploadSoftwareInstallerPayload{
+	payloadEmacsMissingPostSecret := &automdm.UploadSoftwareInstallerPayload{
 		InstallScript:     "install",
 		Filename:          "emacs.deb",
-		PostInstallScript: "d $FLEET_SECRET_INVALID",
+		PostInstallScript: "d $AUTOMDM_SECRET_INVALID",
 		SelfService:       true,
 		Platform:          "linux",
 	}
-	s.uploadSoftwareInstallerWithErrorNameReason(t, payloadEmacsMissingPostSecret, http.StatusUnprocessableEntity, "$FLEET_SECRET_INVALID",
+	s.uploadSoftwareInstallerWithErrorNameReason(t, payloadEmacsMissingPostSecret, http.StatusUnprocessableEntity, "$AUTOMDM_SECRET_INVALID",
 		"post-install script")
 
-	payloadEmacsMissingUnSecret := &fleet.UploadSoftwareInstallerPayload{
+	payloadEmacsMissingUnSecret := &automdm.UploadSoftwareInstallerPayload{
 		InstallScript:     "install",
 		Filename:          "emacs.deb",
 		PostInstallScript: "d",
-		UninstallScript:   "delet $FLEET_SECRET_INVALID",
+		UninstallScript:   "delet $AUTOMDM_SECRET_INVALID",
 		SelfService:       true,
 		Platform:          "linux",
 	}
-	s.uploadSoftwareInstallerWithErrorNameReason(t, payloadEmacsMissingUnSecret, http.StatusUnprocessableEntity, "$FLEET_SECRET_INVALID",
+	s.uploadSoftwareInstallerWithErrorNameReason(t, payloadEmacsMissingUnSecret, http.StatusUnprocessableEntity, "$AUTOMDM_SECRET_INVALID",
 		"uninstall script")
 
 	// not specifiying a team_id translates to "no team" or team_id of 0
-	payloadEmacs := &fleet.UploadSoftwareInstallerPayload{
+	payloadEmacs := &automdm.UploadSoftwareInstallerPayload{
 		InstallScript:    "install",
 		Filename:         "emacs.deb",
 		SelfService:      true,
@@ -1130,7 +1130,7 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 	}
 	s.uploadSoftwareInstaller(t, payloadEmacs, http.StatusOK, "")
 
-	payloadVim := &fleet.UploadSoftwareInstallerPayload{
+	payloadVim := &automdm.UploadSoftwareInstallerPayload{
 		InstallScript:    "install",
 		Filename:         "vim.deb",
 		SelfService:      true,
@@ -1142,11 +1142,11 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 
 	resp = listSoftwareTitlesResponse{}
 	s.DoJSON(
-		"GET", "/api/latest/fleet/software/titles",
+		"GET", "/api/latest/automdm/software/titles",
 		listSoftwareTitlesRequest{},
 		http.StatusOK, &resp,
 		"query", "ruby",
-		"fleet_id", fmt.Sprintf("%d", team1.ID),
+		"team_id", fmt.Sprintf("%d", team1.ID),
 	)
 
 	require.Len(t, resp.SoftwareTitles, 1)
@@ -1155,7 +1155,7 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 	require.Equal(t, "df06d9ce9e2090d9cb2e8cd1f4d7754a803dc452bf93e3204e3acd3b95508628", *resp.SoftwareTitles[0].HashSHA256)
 
 	// Upload an installer for the same software but different arch to a different team
-	payloadRubyTm2 := &fleet.UploadSoftwareInstallerPayload{
+	payloadRubyTm2 := &automdm.UploadSoftwareInstallerPayload{
 		InstallScript: "install",
 		Filename:      "ruby_arm64.deb",
 		TeamID:        &team2.ID,
@@ -1166,19 +1166,19 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 	// We should only see the one we uploaded to team 1
 	resp = listSoftwareTitlesResponse{}
 	s.DoJSON(
-		"GET", "/api/latest/fleet/software/titles",
+		"GET", "/api/latest/automdm/software/titles",
 		listSoftwareTitlesRequest{},
 		http.StatusOK, &resp,
 		"query", "ruby",
-		"fleet_id", fmt.Sprintf("%d", team1.ID),
+		"team_id", fmt.Sprintf("%d", team1.ID),
 	)
 	require.Len(t, resp.SoftwareTitles, 1)
 	require.NotEmpty(t, resp.SoftwareTitles[0].Packages)
 
 	// software installer not returned with self-service only (not marked as such)
 	resp = listSoftwareTitlesResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/software/titles", listSoftwareTitlesRequest{}, http.StatusOK, &resp,
-		"self_service", "1", "query", "ruby", "fleet_id", fmt.Sprint(team1.ID))
+	s.DoJSON("GET", "/api/latest/automdm/software/titles", listSoftwareTitlesRequest{}, http.StatusOK, &resp,
+		"self_service", "1", "query", "ruby", "team_id", fmt.Sprint(team1.ID))
 	require.Empty(t, resp.SoftwareTitles)
 
 	// update it to be self-service, check that it gets returned
@@ -1187,8 +1187,8 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 		return err
 	})
 	resp = listSoftwareTitlesResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/software/titles", listSoftwareTitlesRequest{}, http.StatusOK, &resp,
-		"self_service", "1", "query", "ruby", "fleet_id", fmt.Sprint(team1.ID))
+	s.DoJSON("GET", "/api/latest/automdm/software/titles", listSoftwareTitlesRequest{}, http.StatusOK, &resp,
+		"self_service", "1", "query", "ruby", "team_id", fmt.Sprint(team1.ID))
 	require.Len(t, resp.SoftwareTitles, 1)
 	require.NotEmpty(t, resp.SoftwareTitles[0].Packages)
 	require.NotNil(t, resp.SoftwareTitles[0].Packages[0].SelfService)
@@ -1197,7 +1197,7 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 	// "All teams" returns all software regardless of self_service see https://github.com/fleetdm/fleet/issues/26375
 	resp = listSoftwareTitlesResponse{}
 	s.DoJSON(
-		"GET", "/api/latest/fleet/software/titles",
+		"GET", "/api/latest/automdm/software/titles",
 		listSoftwareTitlesRequest{},
 		http.StatusOK, &resp,
 		"self_service", "true",
@@ -1208,11 +1208,11 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 	// "No team" returns the emacs software
 	resp = listSoftwareTitlesResponse{}
 	s.DoJSON(
-		"GET", "/api/latest/fleet/software/titles",
+		"GET", "/api/latest/automdm/software/titles",
 		listSoftwareTitlesRequest{},
 		http.StatusOK, &resp,
 		"self_service", "true",
-		"fleet_id", "0",
+		"team_id", "0",
 	)
 
 	require.Len(t, resp.SoftwareTitles, 2)
@@ -1223,15 +1223,15 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 	require.NotNil(t, resp.SoftwareTitles[1].Packages[0].SelfService)
 	require.True(t, *resp.SoftwareTitles[1].Packages[0].SelfService)
 
-	emacsPath := fmt.Sprintf("/api/latest/fleet/software/titles/%d", resp.SoftwareTitles[0].ID)
+	emacsPath := fmt.Sprintf("/api/latest/automdm/software/titles/%d", resp.SoftwareTitles[0].ID)
 	respTitle := getSoftwareTitleResponse{}
-	s.DoJSON("GET", emacsPath, listSoftwareTitlesRequest{}, http.StatusOK, &respTitle, "fleet_id", "0")
+	s.DoJSON("GET", emacsPath, listSoftwareTitlesRequest{}, http.StatusOK, &respTitle, "team_id", "0")
 
 	require.NotNil(t, respTitle.SoftwareTitle)
 	require.Equal(t, "emacs.deb", respTitle.SoftwareTitle.Packages[0].Name)
 	require.True(t, respTitle.SoftwareTitle.Packages[0].SelfService)
 
-	darwinSwPayload := &fleet.UploadSoftwareInstallerPayload{
+	darwinSwPayload := &automdm.UploadSoftwareInstallerPayload{
 		InstallScript: "install",
 		Filename:      "dummy_installer.pkg",
 		SelfService:   false,
@@ -1241,22 +1241,22 @@ func (s *integrationEnterpriseTestSuite) TestAllSoftwareTitles() {
 	s.uploadSoftwareInstaller(t, darwinSwPayload, http.StatusOK, "")
 
 	// Filtering by platform without team errors
-	res := s.Do("GET", "/api/latest/fleet/software/titles?platform=darwin", nil, http.StatusUnprocessableEntity)
+	res := s.Do("GET", "/api/latest/automdm/software/titles?platform=darwin", nil, http.StatusUnprocessableEntity)
 	errMsg := extractServerErrorText(res.Body)
-	require.Contains(t, errMsg, fleet.FilterTitlesByPlatformNeedsTeamIdErrMsg)
+	require.Contains(t, errMsg, automdm.FilterTitlesByPlatformNeedsTeamIdErrMsg)
 
 	// Filtering by platform with team ok
 	resp = listSoftwareTitlesResponse{}
 	s.DoJSON(
-		"GET", "/api/latest/fleet/software/titles",
+		"GET", "/api/latest/automdm/software/titles",
 		listSoftwareTitlesRequest{},
 		http.StatusOK, &resp,
 		"platform", "darwin",
-		"fleet_id", fmt.Sprint(team2.ID))
+		"team_id", fmt.Sprint(team2.ID))
 
 	require.Len(t, resp.SoftwareTitles, 1)
 	dummyTitleId := resp.SoftwareTitles[0].ID
-	dummyPath := fmt.Sprintf("/api/latest/fleet/software/titles/%d", dummyTitleId)
+	dummyPath := fmt.Sprintf("/api/latest/automdm/software/titles/%d", dummyTitleId)
 	respTitle = getSoftwareTitleResponse{}
 	s.DoJSON("GET", dummyPath, listSoftwareTitlesRequest{}, http.StatusOK, &respTitle)
 	title := respTitle.SoftwareTitle
@@ -1268,7 +1268,7 @@ func (s *integrationEnterpriseTestSuite) TestSoftwareAuth() {
 	t := s.T()
 	ctx := context.Background()
 	// create two hosts, one belongs to team1 and one has no team
-	host, err := s.ds.NewHost(ctx, &fleet.Host{
+	host, err := s.ds.NewHost(ctx, &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -1281,7 +1281,7 @@ func (s *integrationEnterpriseTestSuite) TestSoftwareAuth() {
 	})
 	require.NoError(t, err)
 
-	tmHost, err := s.ds.NewHost(ctx, &fleet.Host{
+	tmHost, err := s.ds.NewHost(ctx, &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -1295,22 +1295,22 @@ func (s *integrationEnterpriseTestSuite) TestSoftwareAuth() {
 	require.NoError(t, err)
 
 	// Create two teams, team1 and team2.
-	team1, err := s.ds.NewTeam(ctx, &fleet.Team{
+	team1, err := s.ds.NewTeam(ctx, &automdm.Team{
 		ID:          42,
 		Name:        "team1",
 		Description: "desc team1",
 	})
 	require.NoError(t, err)
-	err = s.ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team1.ID, []uint{tmHost.ID}))
+	err = s.ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team1.ID, []uint{tmHost.ID}))
 	require.NoError(t, err)
-	team2, err := s.ds.NewTeam(ctx, &fleet.Team{
+	team2, err := s.ds.NewTeam(ctx, &automdm.Team{
 		ID:          43,
 		Name:        "team2",
 		Description: "desc team2",
 	})
 	require.NoError(t, err)
 
-	allSoftware := []fleet.Software{
+	allSoftware := []automdm.Software{
 		{Name: "foo", Version: "0.0.1", Source: "homebrew"},
 		{Name: "foo", Version: "0.0.3", Source: "homebrew"},
 		{Name: "bar", Version: "0.0.4", Source: "apps"},
@@ -1321,7 +1321,7 @@ func (s *integrationEnterpriseTestSuite) TestSoftwareAuth() {
 	require.NoError(t, s.ds.LoadHostSoftware(ctx, host, false))
 
 	// add only one version of "foo" to the team host
-	_, err = s.ds.UpdateHostSoftware(ctx, tmHost.ID, []fleet.Software{allSoftware[0]})
+	_, err = s.ds.UpdateHostSoftware(ctx, tmHost.ID, []automdm.Software{allSoftware[0]})
 	require.NoError(t, err)
 	require.NoError(t, s.ds.LoadHostSoftware(ctx, tmHost, false))
 
@@ -1331,58 +1331,58 @@ func (s *integrationEnterpriseTestSuite) TestSoftwareAuth() {
 	require.NoError(t, s.ds.SyncHostsSoftwareTitles(ctx, hostsCountTs))
 
 	// add variations of user roles to different teams
-	extraTestUsers := make(map[string]fleet.User)
+	extraTestUsers := make(map[string]automdm.User)
 	for k, u := range map[string]struct {
 		Email      string
 		GlobalRole *string
-		Teams      *[]fleet.UserTeam
+		Teams      *[]automdm.UserTeam
 	}{
 		"team-1-admin": {
 			Email: "team-1-admin@example.com",
-			Teams: &([]fleet.UserTeam{{
+			Teams: &([]automdm.UserTeam{{
 				Team: *team1,
-				Role: fleet.RoleAdmin,
+				Role: automdm.RoleAdmin,
 			}}),
 		},
 		"team-1-maintainer": {
 			Email: "team-1-maintainer@example.com",
-			Teams: &([]fleet.UserTeam{{
+			Teams: &([]automdm.UserTeam{{
 				Team: *team1,
-				Role: fleet.RoleMaintainer,
+				Role: automdm.RoleMaintainer,
 			}}),
 		},
 		"team-1-observer": {
 			Email: "team-1-observer@example.com",
-			Teams: &([]fleet.UserTeam{{
+			Teams: &([]automdm.UserTeam{{
 				Team: *team1,
-				Role: fleet.RoleObserver,
+				Role: automdm.RoleObserver,
 			}}),
 		},
 		"team-2-admin": {
 			Email: "team-2-admin@example.com",
-			Teams: &([]fleet.UserTeam{{
+			Teams: &([]automdm.UserTeam{{
 				Team: *team2,
-				Role: fleet.RoleAdmin,
+				Role: automdm.RoleAdmin,
 			}}),
 		},
 		"team-2-maintainer": {
 			Email: "team-2-maintainer@example.com",
-			Teams: &([]fleet.UserTeam{{
+			Teams: &([]automdm.UserTeam{{
 				Team: *team2,
-				Role: fleet.RoleMaintainer,
+				Role: automdm.RoleMaintainer,
 			}}),
 		},
 		"team-2-observer": {
 			Email: "team-2-observer@example.com",
-			Teams: &([]fleet.UserTeam{{
+			Teams: &([]automdm.UserTeam{{
 				Team: *team2,
-				Role: fleet.RoleObserver,
+				Role: automdm.RoleObserver,
 			}}),
 		},
 	} {
 		uu := u
 		cur := createUserResponse{}
-		s.DoJSON("POST", "/api/latest/fleet/users/admin", createUserRequest{
+		s.DoJSON("POST", "/api/latest/automdm/users/admin", createUserRequest{
 			Email:                    &uu.Email,
 			Password:                 &test.GoodPassword,
 			Name:                     &uu.Email,
@@ -1394,9 +1394,9 @@ func (s *integrationEnterpriseTestSuite) TestSoftwareAuth() {
 
 	// List all software titles with an admin
 	var listSoftwareTitlesResp listSoftwareTitlesResponse
-	s.DoJSON("GET", "/api/latest/fleet/software/titles", listSoftwareTitlesRequest{}, http.StatusOK, &listSoftwareTitlesResp)
+	s.DoJSON("GET", "/api/latest/automdm/software/titles", listSoftwareTitlesRequest{}, http.StatusOK, &listSoftwareTitlesResp)
 
-	var softwareFoo, softwareBar *fleet.SoftwareTitleListResult
+	var softwareFoo, softwareBar *automdm.SoftwareTitleListResult
 	for _, s := range listSoftwareTitlesResp.SoftwareTitles {
 		switch s.Name {
 		case "foo":
@@ -1408,7 +1408,7 @@ func (s *integrationEnterpriseTestSuite) TestSoftwareAuth() {
 	require.NotNil(t, softwareFoo)
 	require.NotNil(t, softwareBar)
 
-	var teamFooVersion *fleet.SoftwareVersion
+	var teamFooVersion *automdm.SoftwareVersion
 	for _, sv := range softwareFoo.Versions {
 		if sv.Version == "0.0.1" {
 			teamFooVersion = &sv
@@ -1423,7 +1423,7 @@ func (s *integrationEnterpriseTestSuite) TestSoftwareAuth() {
 
 	for _, tc := range []struct {
 		name                 string
-		user                 fleet.User
+		user                 automdm.User
 		shouldFailGlobalRead bool
 		shouldFailTeamRead   bool
 	}{
@@ -1489,81 +1489,81 @@ func (s *integrationEnterpriseTestSuite) TestSoftwareAuth() {
 			if tc.shouldFailGlobalRead {
 				// List all software titles
 				var listSoftwareTitlesResp listSoftwareTitlesResponse
-				s.DoJSON("GET", "/api/latest/fleet/software/titles", listSoftwareTitlesRequest{}, http.StatusForbidden, &listSoftwareTitlesResp)
+				s.DoJSON("GET", "/api/latest/automdm/software/titles", listSoftwareTitlesRequest{}, http.StatusForbidden, &listSoftwareTitlesResp)
 
 				// List all software versions
 				var resp listSoftwareVersionsResponse
-				s.DoJSON("GET", "/api/latest/fleet/software/versions", listSoftwareTitlesRequest{}, http.StatusForbidden, &resp)
+				s.DoJSON("GET", "/api/latest/automdm/software/versions", listSoftwareTitlesRequest{}, http.StatusForbidden, &resp)
 
 				// Get a global software title (only on the "no team" host, which
 				// no team-scoped user can see): NotFound, not Forbidden, so its
 				// existence can't be inferred from the response.
 				var getSoftwareTitleResp getSoftwareTitleResponse
-				s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/software/titles/%d", softwareBar.ID), getSoftwareTitleRequest{}, http.StatusNotFound, &getSoftwareTitleResp)
+				s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/software/titles/%d", softwareBar.ID), getSoftwareTitleRequest{}, http.StatusNotFound, &getSoftwareTitleResp)
 
 				// Get a global software version
 				var getSoftwareResp getSoftwareResponse
-				s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/software/versions/%d", softwareBar.Versions[0].ID), getSoftwareRequest{}, http.StatusOK, &getSoftwareResp)
+				s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/software/versions/%d", softwareBar.Versions[0].ID), getSoftwareRequest{}, http.StatusOK, &getSoftwareResp)
 			} else {
 				// List all software titles
 				var listSoftwareTitlesResp listSoftwareTitlesResponse
-				s.DoJSON("GET", "/api/latest/fleet/software/titles", listSoftwareTitlesRequest{}, http.StatusOK, &listSoftwareTitlesResp)
+				s.DoJSON("GET", "/api/latest/automdm/software/titles", listSoftwareTitlesRequest{}, http.StatusOK, &listSoftwareTitlesResp)
 				require.Equal(t, 2, listSoftwareTitlesResp.Count)
 				require.NotEmpty(t, listSoftwareTitlesResp.CountsUpdatedAt)
 
 				// List all software versions
 				var resp listSoftwareVersionsResponse
-				s.DoJSON("GET", "/api/latest/fleet/software/versions", listSoftwareRequest{}, http.StatusOK, &resp)
+				s.DoJSON("GET", "/api/latest/automdm/software/versions", listSoftwareRequest{}, http.StatusOK, &resp)
 				require.Equal(t, 3, resp.Count)
 				require.NotEmpty(t, resp.CountsUpdatedAt)
 
 				// Get a global software title
 				var getSoftwareTitleResp getSoftwareTitleResponse
-				s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/software/titles/%d", softwareBar.ID), getSoftwareTitleRequest{}, http.StatusOK, &getSoftwareTitleResp)
+				s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/software/titles/%d", softwareBar.ID), getSoftwareTitleRequest{}, http.StatusOK, &getSoftwareTitleResp)
 
 				// Get a global software version
 				var getSoftwareResp getSoftwareResponse
-				s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/software/versions/%d", softwareBar.Versions[0].ID), getSoftwareRequest{}, http.StatusOK, &getSoftwareResp)
+				s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/software/versions/%d", softwareBar.Versions[0].ID), getSoftwareRequest{}, http.StatusOK, &getSoftwareResp)
 			}
 
 			if tc.shouldFailTeamRead {
 				// List all software titles for a team
 				var listSoftwareTitlesResp listSoftwareTitlesResponse
-				s.DoJSON("GET", "/api/latest/fleet/software/titles", listSoftwareTitlesRequest{TeamID: &team1.ID}, http.StatusForbidden, &listSoftwareTitlesResp)
+				s.DoJSON("GET", "/api/latest/automdm/software/titles", listSoftwareTitlesRequest{TeamID: &team1.ID}, http.StatusForbidden, &listSoftwareTitlesResp)
 
 				// List software versions for a team.
 				var resp listSoftwareTitlesResponse
-				s.DoJSON("GET", "/api/latest/fleet/software/versions", listSoftwareRequest{TeamID: &team1.ID}, http.StatusForbidden, &resp)
+				s.DoJSON("GET", "/api/latest/automdm/software/versions", listSoftwareRequest{TeamID: &team1.ID}, http.StatusForbidden, &resp)
 
 				// Get a team software title (on team1 and "no team", neither
 				// visible to this team-2 user): NotFound, not Forbidden, so its
 				// existence can't be inferred from the response.
 				var getSoftwareTitleResp getSoftwareTitleResponse
-				s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/software/titles/%d", softwareFoo.ID), getSoftwareTitleRequest{}, http.StatusNotFound, &getSoftwareTitleResp)
+				s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/software/titles/%d", softwareFoo.ID), getSoftwareTitleRequest{}, http.StatusNotFound, &getSoftwareTitleResp)
 
 				// Get a team software version
 				var getSoftwareResp getSoftwareResponse
-				s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/software/versions/%d", teamFooVersion.ID), getSoftwareRequest{}, http.StatusOK, &getSoftwareResp)
+				s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/software/versions/%d", teamFooVersion.ID), getSoftwareRequest{}, http.StatusOK, &getSoftwareResp)
 			} else {
 				// List all software titles for a team
 				var listSoftwareTitlesResp listSoftwareTitlesResponse
-				s.DoJSON("GET", "/api/latest/fleet/software/titles", listSoftwareTitlesRequest{TeamID: &team1.ID}, http.StatusOK, &listSoftwareTitlesResp)
+				s.DoJSON("GET", "/api/latest/automdm/software/titles", listSoftwareTitlesRequest{TeamID: &team1.ID}, http.StatusOK, &listSoftwareTitlesResp)
 				require.Equal(t, 1, listSoftwareTitlesResp.Count)
 				require.NotEmpty(t, listSoftwareTitlesResp.CountsUpdatedAt)
 
 				// List software versions for a team.
 				var resp listSoftwareTitlesResponse
-				s.DoJSON("GET", "/api/latest/fleet/software/versions", listSoftwareRequest{TeamID: &team1.ID}, http.StatusOK, &resp)
+				s.DoJSON("GET", "/api/latest/automdm/software/versions", listSoftwareRequest{TeamID: &team1.ID}, http.StatusOK, &resp)
 				require.Equal(t, 1, resp.Count)
 				require.NotEmpty(t, resp.CountsUpdatedAt)
 
 				// Get a team software title
 				var getSoftwareTitleResp getSoftwareTitleResponse
-				s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/software/titles/%d", softwareFoo.ID), getSoftwareTitleRequest{}, http.StatusOK, &getSoftwareTitleResp)
+				s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/software/titles/%d", softwareFoo.ID), getSoftwareTitleRequest{}, http.StatusOK, &getSoftwareTitleResp)
 
 				// Get a team software version
 				var getSoftwareResp getSoftwareResponse
-				s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/software/versions/%d", teamFooVersion.ID), getSoftwareRequest{}, http.StatusOK, &getSoftwareResp)
+				s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/software/versions/%d", teamFooVersion.ID), getSoftwareRequest{}, http.StatusOK, &getSoftwareResp)
 			}
 		})
 	}
@@ -1583,23 +1583,23 @@ func (s *integrationEnterpriseTestSuite) TestListHostSoftware() {
 
 	// no software yet
 	var getHostSw getHostSoftwareResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/software", host.ID), nil, http.StatusOK, &getHostSw)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/software", host.ID), nil, http.StatusOK, &getHostSw)
 	require.Empty(t, getHostSw.Software)
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/software", host.ID), nil, http.StatusOK, &getHostSw, "self_service", "true")
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/software", host.ID), nil, http.StatusOK, &getHostSw, "self_service", "true")
 	require.Empty(t, getHostSw.Software)
 
 	var getDeviceSw getDeviceSoftwareResponse
-	res := s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token+"/software", nil, http.StatusOK)
+	res := s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token+"/software", nil, http.StatusOK)
 	err := json.NewDecoder(res.Body).Decode(&getDeviceSw)
 	require.NoError(t, err)
 	require.Empty(t, getDeviceSw.Software)
-	res = s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token+"/software?self_service=1", nil, http.StatusOK)
+	res = s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token+"/software?self_service=1", nil, http.StatusOK)
 	err = json.NewDecoder(res.Body).Decode(&getDeviceSw)
 	require.NoError(t, err)
 	require.Empty(t, getDeviceSw.Software)
 
 	// create some software for that host
-	software := []fleet.Software{
+	software := []automdm.Software{
 		{Name: "foo", Version: "0.0.1", Source: "chrome_extensions"},
 		{Name: "foo", Version: "0.0.2", Source: "chrome_extensions"},
 		{Name: "bar", Version: "0.0.1", Source: "deb_packages"},
@@ -1617,7 +1617,7 @@ func (s *integrationEnterpriseTestSuite) TestListHostSoftware() {
 	}
 
 	getHostSw = getHostSoftwareResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/software", host.ID), nil, http.StatusOK, &getHostSw)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/software", host.ID), nil, http.StatusOK, &getHostSw)
 	require.Len(t, getHostSw.Software, 2) // foo and bar
 	require.Equal(t, "bar", getHostSw.Software[0].Name)
 	require.Equal(t, "foo", getHostSw.Software[1].Name)
@@ -1629,21 +1629,21 @@ func (s *integrationEnterpriseTestSuite) TestListHostSoftware() {
 	require.Nil(t, getHostSw.Software[1].AppStoreApp)
 
 	// Add vulnerabilities to software to check query param filtering
-	_, err = s.ds.InsertSoftwareVulnerability(ctx, fleet.SoftwareVulnerability{SoftwareID: barSoftwareID, CVE: "CVE-bar-1234"}, fleet.NVDSource)
+	_, err = s.ds.InsertSoftwareVulnerability(ctx, automdm.SoftwareVulnerability{SoftwareID: barSoftwareID, CVE: "CVE-bar-1234"}, automdm.NVDSource)
 	require.NoError(t, err)
-	_, err = s.ds.InsertSoftwareVulnerability(ctx, fleet.SoftwareVulnerability{SoftwareID: barSoftwareID, CVE: "CVE-bar-5678"}, fleet.NVDSource)
+	_, err = s.ds.InsertSoftwareVulnerability(ctx, automdm.SoftwareVulnerability{SoftwareID: barSoftwareID, CVE: "CVE-bar-5678"}, automdm.NVDSource)
 	require.NoError(t, err)
 
 	// Add CVSS scores and exploit metadata so the severity filters have data to match against.
 	// "bar" has one critical, actively-exploited CVE and one low-severity CVE, so it should match
 	// both a critical filter and a low filter (matches if ANY CVE is in range).
-	require.NoError(t, s.ds.InsertCVEMeta(ctx, []fleet.CVEMeta{
+	require.NoError(t, s.ds.InsertCVEMeta(ctx, []automdm.CVEMeta{
 		{CVE: "CVE-bar-1234", CVSSScore: new(float64(9.5)), CISAKnownExploit: new(true)},
 		{CVE: "CVE-bar-5678", CVSSScore: new(float64(3.0)), CISAKnownExploit: new(false)},
 	}))
 
 	getHostSw = getHostSoftwareResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/software", host.ID), nil, http.StatusOK, &getHostSw, "vulnerable", "true")
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/software", host.ID), nil, http.StatusOK, &getHostSw, "vulnerable", "true")
 	require.Len(t, getHostSw.Software, 1)
 	require.NoError(t, err)
 	require.Equal(t, "bar", getHostSw.Software[0].Name)
@@ -1653,7 +1653,7 @@ func (s *integrationEnterpriseTestSuite) TestListHostSoftware() {
 	require.Len(t, getHostSw.Software[0].InstalledVersions[0].Vulnerabilities, 2)
 	require.Equal(t, []string{"CVE-bar-1234", "CVE-bar-5678"}, getHostSw.Software[0].InstalledVersions[0].Vulnerabilities)
 
-	res = s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token+"/software", nil, http.StatusOK)
+	res = s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token+"/software", nil, http.StatusOK)
 	getDeviceSw = getDeviceSoftwareResponse{}
 	err = json.NewDecoder(res.Body).Decode(&getDeviceSw)
 	require.NoError(t, err)
@@ -1668,7 +1668,7 @@ func (s *integrationEnterpriseTestSuite) TestListHostSoftware() {
 	require.Nil(t, getDeviceSw.Software[1].AppStoreApp)
 
 	// create a software installer, not installed on the host
-	payload := &fleet.UploadSoftwareInstallerPayload{
+	payload := &automdm.UploadSoftwareInstallerPayload{
 		InstallScript: "install",
 		Filename:      "ruby.deb",
 		Version:       "1:2.5.1",
@@ -1684,7 +1684,7 @@ func (s *integrationEnterpriseTestSuite) TestListHostSoftware() {
 
 	// default (no include_available_for_install param) should only return installed software, not library items (#41631)
 	getHostSw = getHostSoftwareResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/software", host.ID), nil, http.StatusOK, &getHostSw)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/software", host.ID), nil, http.StatusOK, &getHostSw)
 	require.Len(t, getHostSw.Software, 2) // foo and bar only — ruby is not installed, just available
 	require.Equal(t, "bar", getHostSw.Software[0].Name)
 	require.Equal(t, "foo", getHostSw.Software[1].Name)
@@ -1692,7 +1692,7 @@ func (s *integrationEnterpriseTestSuite) TestListHostSoftware() {
 
 	// user authenticated endpoint, explicitly request to include available for install software
 	getHostSw = getHostSoftwareResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/software?include_available_for_install=true", host.ID), nil, http.StatusOK, &getHostSw)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/software?include_available_for_install=true", host.ID), nil, http.StatusOK, &getHostSw)
 	require.Len(t, getHostSw.Software, 3) // foo, bar and ruby.deb
 	require.Equal(t, "bar", getHostSw.Software[0].Name)
 	require.Equal(t, "foo", getHostSw.Software[1].Name)
@@ -1708,19 +1708,19 @@ func (s *integrationEnterpriseTestSuite) TestListHostSoftware() {
 
 	// user authenticated endpoint, explicitly request to not include available for install software
 	getHostSw = getHostSoftwareResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/software?include_available_for_install=false", host.ID), nil, http.StatusOK, &getHostSw)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/software?include_available_for_install=false", host.ID), nil, http.StatusOK, &getHostSw)
 	require.Len(t, getHostSw.Software, 2) // foo and bar
 	require.Equal(t, "bar", getHostSw.Software[0].Name)
 	require.Equal(t, "foo", getHostSw.Software[1].Name)
 
 	// only the installer is returned for self-service only
 	getHostSw = getHostSoftwareResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/software", host.ID), nil, http.StatusOK, &getHostSw, "self_service", "true")
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/software", host.ID), nil, http.StatusOK, &getHostSw, "self_service", "true")
 	require.Len(t, getHostSw.Software, 1)
 	require.Equal(t, "ruby", getHostSw.Software[0].Name)
 
 	// available installer is not returned by device-authenticated endpoint
-	res = s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token+"/software", nil, http.StatusOK)
+	res = s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token+"/software", nil, http.StatusOK)
 	getDeviceSw = getDeviceSoftwareResponse{}
 	err = json.NewDecoder(res.Body).Decode(&getDeviceSw)
 	require.NoError(t, err)
@@ -1730,7 +1730,7 @@ func (s *integrationEnterpriseTestSuite) TestListHostSoftware() {
 	require.Len(t, getDeviceSw.Software[1].InstalledVersions, 2)
 
 	// but it gets returned for self-service only
-	res = s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token+"/software?self_service=1", nil, http.StatusOK)
+	res = s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token+"/software?self_service=1", nil, http.StatusOK)
 	getDeviceSw = getDeviceSoftwareResponse{}
 	err = json.NewDecoder(res.Body).Decode(&getDeviceSw)
 	require.NoError(t, err)
@@ -1766,13 +1766,13 @@ func (s *integrationEnterpriseTestSuite) TestListHostSoftware() {
 	require.NotEmpty(t, installerID)
 
 	// create some labels
-	var labelResp fleet.CreateLabelResponse
-	s.DoJSON("POST", "/api/latest/fleet/labels", &fleet.CreateLabelRequest{
+	var labelResp automdm.CreateLabelResponse
+	s.DoJSON("POST", "/api/latest/automdm/labels", &automdm.CreateLabelRequest{
 		Name:  "label1",
 		Hosts: []string{host.UUID}}, http.StatusOK, &labelResp)
 	require.NotZero(t, labelResp.Label.ID)
 
-	s.DoJSON("POST", "/api/latest/fleet/labels", &fleet.CreateLabelRequest{
+	s.DoJSON("POST", "/api/latest/automdm/labels", &automdm.CreateLabelRequest{
 		Name:  "label2",
 		Hosts: []string{host.UUID}}, http.StatusOK, &labelResp)
 	require.NotZero(t, labelResp.Label.ID)
@@ -1781,10 +1781,10 @@ func (s *integrationEnterpriseTestSuite) TestListHostSoftware() {
 	// for self service
 	updateInstallerLabel(installerID, labelResp.Label.ID, true)
 	getHostSw = getHostSoftwareResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/software", host.ID), nil, http.StatusOK, &getHostSw, "self_service", "true")
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/software", host.ID), nil, http.StatusOK, &getHostSw, "self_service", "true")
 	require.Empty(t, getHostSw.Software)
 
-	res = s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token+"/software?self_service=1", nil, http.StatusOK)
+	res = s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token+"/software?self_service=1", nil, http.StatusOK)
 	getDeviceSw = getDeviceSoftwareResponse{}
 	err = json.NewDecoder(res.Body).Decode(&getDeviceSw)
 	require.NoError(t, err)
@@ -1793,11 +1793,11 @@ func (s *integrationEnterpriseTestSuite) TestListHostSoftware() {
 	// Set to "include any". Installer should be in response.
 	updateInstallerLabel(installerID, labelResp.Label.ID, false)
 	getHostSw = getHostSoftwareResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/software", host.ID), nil, http.StatusOK, &getHostSw, "self_service", "true")
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/software", host.ID), nil, http.StatusOK, &getHostSw, "self_service", "true")
 	require.Len(t, getHostSw.Software, 1)
 	require.Equal(t, "ruby", getHostSw.Software[0].Name)
 
-	res = s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token+"/software?self_service=1", nil, http.StatusOK)
+	res = s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token+"/software?self_service=1", nil, http.StatusOK)
 	getDeviceSw = getDeviceSoftwareResponse{}
 	err = json.NewDecoder(res.Body).Decode(&getDeviceSw)
 	require.NoError(t, err)
@@ -1806,19 +1806,19 @@ func (s *integrationEnterpriseTestSuite) TestListHostSoftware() {
 
 	// request installation on the host
 	var installResp installSoftwareResponse
-	s.DoJSON("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/software/%d/install",
+	s.DoJSON("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/software/%d/install",
 		host.ID, titleID), nil, http.StatusAccepted, &installResp)
 
 	// default (no param) should still only return installed software, even after install is requested (#41631)
 	getHostSw = getHostSoftwareResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/software", host.ID), nil, http.StatusOK, &getHostSw)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/software", host.ID), nil, http.StatusOK, &getHostSw)
 	require.Len(t, getHostSw.Software, 2) // foo and bar — ruby has a pending install but is not yet installed
 	require.Equal(t, "bar", getHostSw.Software[0].Name)
 	require.Equal(t, "foo", getHostSw.Software[1].Name)
 
 	// with include_available_for_install=true, the pending install is visible
 	getHostSw = getHostSoftwareResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/software?include_available_for_install=true", host.ID), nil, http.StatusOK, &getHostSw)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/software?include_available_for_install=true", host.ID), nil, http.StatusOK, &getHostSw)
 	require.Len(t, getHostSw.Software, 3) // foo, bar and ruby.deb
 	require.Equal(t, "bar", getHostSw.Software[0].Name)
 	require.Equal(t, "foo", getHostSw.Software[1].Name)
@@ -1827,7 +1827,7 @@ func (s *integrationEnterpriseTestSuite) TestListHostSoftware() {
 	require.NotNil(t, getHostSw.Software[2].SoftwarePackage)
 	require.Equal(t, "ruby.deb", getHostSw.Software[2].SoftwarePackage.Name)
 	require.NotNil(t, getHostSw.Software[2].Status)
-	require.Equal(t, fleet.SoftwareInstallPending, *getHostSw.Software[2].Status)
+	require.Equal(t, automdm.SoftwareInstallPending, *getHostSw.Software[2].Status)
 	require.NotNil(t, getHostSw.Software[2].SoftwarePackage.SelfService)
 	require.True(t, *getHostSw.Software[2].SoftwarePackage.SelfService)
 
@@ -1835,12 +1835,12 @@ func (s *integrationEnterpriseTestSuite) TestListHostSoftware() {
 
 	// still returned with self-service filter
 	getHostSw = getHostSoftwareResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/software", host.ID), nil, http.StatusOK, &getHostSw, "self_service", "true")
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/software", host.ID), nil, http.StatusOK, &getHostSw, "self_service", "true")
 	require.Len(t, getHostSw.Software, 1)
 	require.Equal(t, "ruby", getHostSw.Software[0].Name)
 
 	// now returned by device-authenticated endpoint
-	res = s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token+"/software", nil, http.StatusOK)
+	res = s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token+"/software", nil, http.StatusOK)
 	getDeviceSw = getDeviceSoftwareResponse{}
 	err = json.NewDecoder(res.Body).Decode(&getDeviceSw)
 	require.NoError(t, err)
@@ -1851,18 +1851,18 @@ func (s *integrationEnterpriseTestSuite) TestListHostSoftware() {
 	require.Len(t, getDeviceSw.Software[1].InstalledVersions, 2)
 
 	// confirm device-auth'd install results are visible
-	res = s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token+"/software/install/"+rubyLastInstallInstallUUID+"/results", nil, http.StatusOK)
+	res = s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token+"/software/install/"+rubyLastInstallInstallUUID+"/results", nil, http.StatusOK)
 	getDeviceInstallResult := getSoftwareInstallResultsResponse{}
 	err = json.NewDecoder(res.Body).Decode(&getDeviceInstallResult)
 	require.NoError(t, err)
 	require.Equal(t, "ruby", getDeviceInstallResult.Results.SoftwareTitle)
 	require.Equal(t, host.ID, getDeviceInstallResult.Results.HostID)
-	require.Equal(t, fleet.SoftwareInstallPending, getDeviceInstallResult.Results.Status)
-	s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token+"/software/install/nope/results", nil, http.StatusNotFound)
-	s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+otherToken+"/software/install/"+rubyLastInstallInstallUUID+"/results", nil, http.StatusNotFound)
+	require.Equal(t, automdm.SoftwareInstallPending, getDeviceInstallResult.Results.Status)
+	s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token+"/software/install/nope/results", nil, http.StatusNotFound)
+	s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+otherToken+"/software/install/"+rubyLastInstallInstallUUID+"/results", nil, http.StatusNotFound)
 
 	// still returned for self-service only too
-	res = s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token+"/software?self_service=1", nil, http.StatusOK)
+	res = s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token+"/software?self_service=1", nil, http.StatusOK)
 	getDeviceSw = getDeviceSoftwareResponse{}
 	err = json.NewDecoder(res.Body).Decode(&getDeviceSw)
 	require.NoError(t, err)
@@ -1875,12 +1875,12 @@ func (s *integrationEnterpriseTestSuite) TestListHostSoftware() {
 
 	// test with a query
 	getHostSw = getHostSoftwareResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/software", host.ID), nil, http.StatusOK, &getHostSw, "query", "foo")
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/software", host.ID), nil, http.StatusOK, &getHostSw, "query", "foo")
 	require.Len(t, getHostSw.Software, 1) // foo only
 	require.Equal(t, "foo", getHostSw.Software[0].Name)
 	require.Len(t, getHostSw.Software[0].InstalledVersions, 2)
 
-	res = s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token+"/software?query=bar", nil, http.StatusOK)
+	res = s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token+"/software?query=bar", nil, http.StatusOK)
 	getDeviceSw = getDeviceSoftwareResponse{}
 	err = json.NewDecoder(res.Body).Decode(&getDeviceSw)
 	require.NoError(t, err)
@@ -1890,11 +1890,11 @@ func (s *integrationEnterpriseTestSuite) TestListHostSoftware() {
 
 	// Get software available for install
 	getHostSw = getHostSoftwareResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/software", host.ID), nil, http.StatusOK, &getHostSw, "available_for_install",
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/software", host.ID), nil, http.StatusOK, &getHostSw, "available_for_install",
 		"true", "order_key", "name", "order_direction", "asc")
 	require.Len(t, getHostSw.Software, 1) // ruby.app
 	assert.Equal(t, "ruby", getHostSw.Software[0].Name)
-	assert.Equal(t, fleet.SoftwareInstallPending, *getHostSw.Software[0].Status)
+	assert.Equal(t, automdm.SoftwareInstallPending, *getHostSw.Software[0].Status)
 	assert.NotNil(t, getHostSw.Software[0].SoftwarePackage)
 	assert.Equal(t, "1:2.5.1", getHostSw.Software[0].SoftwarePackage.Version)
 
@@ -1906,7 +1906,7 @@ func (s *integrationEnterpriseTestSuite) TestListHostSoftware() {
 	// "foo" has no vulnerabilities. The host also has the (not installed) "ruby" installer, which
 	// must never appear in the inventory-only device responses below.
 	deviceSoftware := func(t *testing.T, query string) getDeviceSoftwareResponse {
-		res := s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token+"/software?"+query, nil, http.StatusOK)
+		res := s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token+"/software?"+query, nil, http.StatusOK)
 		defer res.Body.Close()
 		var resp getDeviceSoftwareResponse
 		require.NoError(t, json.NewDecoder(res.Body).Decode(&resp))
@@ -1981,7 +1981,7 @@ func (s *integrationEnterpriseTestSuite) TestListHostSoftware() {
 
 	// severity filters require vulnerable=true; otherwise the request is rejected with 422.
 	for _, premiumFilter := range []string{"min_cvss_score=1", "max_cvss_score=10", "exploit=true"} {
-		res = s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token+"/software?"+premiumFilter, nil, http.StatusUnprocessableEntity)
+		res = s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token+"/software?"+premiumFilter, nil, http.StatusUnprocessableEntity)
 		require.NoError(t, res.Body.Close())
 	}
 }
@@ -1993,21 +1993,21 @@ func (s *integrationEnterpriseTestSuite) TestSoftwareTitleIcons() {
 	user, err := s.ds.UserByEmail(context.Background(), "admin1@example.com")
 	require.NoError(t, err)
 	host1 := test.NewHost(t, s.ds, "host1", "", "host1key", "host1uuid", time.Now())
-	tm, err := s.ds.NewTeam(context.Background(), &fleet.Team{
+	tm, err := s.ds.NewTeam(context.Background(), &automdm.Team{
 		Name:        t.Name(),
 		Description: "desc",
 	})
 	require.NoError(t, err)
 
 	// create software installer + software title
-	software1 := []fleet.Software{
+	software1 := []automdm.Software{
 		{Name: "foo", Version: "0.0.3", Source: "apps", BundleIdentifier: "foo.bundle.id"},
 	}
 	_, err = s.ds.UpdateHostSoftware(ctx, host1.ID, software1)
 	require.NoError(t, err)
-	tfr1, err := fleet.NewTempFileReader(strings.NewReader("hello"), t.TempDir)
+	tfr1, err := automdm.NewTempFileReader(strings.NewReader("hello"), t.TempDir)
 	require.NoError(t, err)
-	_, titleID, err := s.ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
+	_, titleID, err := s.ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
 		InstallScript:    "hello",
 		InstallerFile:    tfr1,
 		StorageID:        "storage1",
@@ -2018,7 +2018,7 @@ func (s *integrationEnterpriseTestSuite) TestSoftwareTitleIcons() {
 		TeamID:           &tm.ID,
 		UserID:           user.ID,
 		BundleIdentifier: "foo.bundle.id",
-		ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+		ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 	})
 	require.NoError(t, err)
 
@@ -2057,28 +2057,28 @@ func (s *integrationEnterpriseTestSuite) TestSoftwareTitleIcons() {
 
 	// get activities before the PUT request
 	activitiesBefore := listActivitiesResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/activities", nil, http.StatusOK, &activitiesBefore)
+	s.DoJSON("GET", "/api/latest/automdm/activities", nil, http.StatusOK, &activitiesBefore)
 
 	// PUT: create new software title icon
 	resp := s.DoRawWithHeaders(
 		"PUT",
-		fmt.Sprintf("/api/latest/fleet/software/titles/%d/icon?fleet_id=%d", titleID, tm.ID),
+		fmt.Sprintf("/api/latest/automdm/software/titles/%d/icon?team_id=%d", titleID, tm.ID),
 		buf.Bytes(),
 		http.StatusOK,
 		headers,
 	)
 	result := parsePutResponse(resp)
-	iconUrl := fmt.Sprintf("/api/latest/fleet/software/titles/%d/icon?fleet_id=%d", titleID, tm.ID)
+	iconUrl := fmt.Sprintf("/api/latest/automdm/software/titles/%d/icon?team_id=%d", titleID, tm.ID)
 	require.NoError(t, result.Err)
 	require.Contains(t, result.IconUrl, iconUrl)
 
 	// get activities after the PUT request
 	activitiesAfter := listActivitiesResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/activities", nil, http.StatusOK, &activitiesAfter)
+	s.DoJSON("GET", "/api/latest/automdm/activities", nil, http.StatusOK, &activitiesAfter)
 
 	// verify exactly 1 new edited_software activity was created
-	var editedSoftwareActivitiesBefore []fleet.Activity
-	var editedSoftwareActivitiesAfter []fleet.Activity
+	var editedSoftwareActivitiesBefore []automdm.Activity
+	var editedSoftwareActivitiesAfter []automdm.Activity
 
 	for _, activity := range activitiesBefore.Activities {
 		if activity.Type == "edited_software" {
@@ -2095,7 +2095,7 @@ func (s *integrationEnterpriseTestSuite) TestSoftwareTitleIcons() {
 	require.Len(t, editedSoftwareActivitiesAfter, len(editedSoftwareActivitiesBefore)+1, "Expected exactly 1 new edited_software activity")
 
 	// find the new activity by comparing before and after lists
-	var newActivity *fleet.Activity
+	var newActivity *automdm.Activity
 	for _, afterActivity := range editedSoftwareActivitiesAfter {
 		isNew := true
 		for _, beforeActivity := range editedSoftwareActivitiesBefore {
@@ -2112,7 +2112,7 @@ func (s *integrationEnterpriseTestSuite) TestSoftwareTitleIcons() {
 	require.NotNil(t, newActivity, "Should have found exactly one new activity")
 
 	// verify the new activity has the correct details
-	var details fleet.ActivityTypeEditedSoftware
+	var details automdm.ActivityTypeEditedSoftware
 	err = json.Unmarshal(*newActivity.Details, &details)
 	require.NoError(t, err)
 	require.Equal(t, "foo", details.SoftwareTitle)
@@ -2124,7 +2124,7 @@ func (s *integrationEnterpriseTestSuite) TestSoftwareTitleIcons() {
 	// Create a fake large file (101KB of data)
 	largeData := make([]byte, 101*1024)
 	reader := bytes.NewReader(largeData)
-	iconFile, err := fleet.NewTempFileReader(reader, func() string { return t.TempDir() })
+	iconFile, err := automdm.NewTempFileReader(reader, func() string { return t.TempDir() })
 	require.NoError(t, err)
 
 	var bufInvalid bytes.Buffer
@@ -2141,7 +2141,7 @@ func (s *integrationEnterpriseTestSuite) TestSoftwareTitleIcons() {
 	}
 	resp = s.DoRawWithHeaders(
 		"PUT",
-		fmt.Sprintf("/api/latest/fleet/software/titles/%d/icon?fleet_id=%d", titleID, tm.ID),
+		fmt.Sprintf("/api/latest/automdm/software/titles/%d/icon?team_id=%d", titleID, tm.ID),
 		bufInvalid.Bytes(),
 		http.StatusBadRequest,
 		headers,
@@ -2162,7 +2162,7 @@ func (s *integrationEnterpriseTestSuite) TestSoftwareTitleIcons() {
 	assert.Contains(t, errorResp.Errors[0].Reason, "icon must be less than 100KB")
 
 	// PUT: gitops workflow, passing in sha256 & filename
-	var storedIcons []fleet.SoftwareTitleIcon
+	var storedIcons []automdm.SoftwareTitleIcon
 	mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
 		err := sqlx.SelectContext(ctx, q, &storedIcons, "SELECT storage_id, filename FROM software_title_icons")
 		if err != nil {
@@ -2187,7 +2187,7 @@ func (s *integrationEnterpriseTestSuite) TestSoftwareTitleIcons() {
 	}
 	resp = s.DoRawWithHeaders(
 		"PUT",
-		fmt.Sprintf("/api/latest/fleet/software/titles/%d/icon?fleet_id=%d", titleID, tm.ID),
+		fmt.Sprintf("/api/latest/automdm/software/titles/%d/icon?team_id=%d", titleID, tm.ID),
 		buf2.Bytes(),
 		http.StatusOK,
 		headers,
@@ -2197,7 +2197,7 @@ func (s *integrationEnterpriseTestSuite) TestSoftwareTitleIcons() {
 	require.Contains(t, result.IconUrl, iconUrl)
 
 	// verify no new software title icons were created
-	storedIcons = make([]fleet.SoftwareTitleIcon, 0)
+	storedIcons = make([]automdm.SoftwareTitleIcon, 0)
 	mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
 		err := sqlx.SelectContext(ctx, q, &storedIcons, "SELECT storage_id, filename FROM software_title_icons")
 		if err != nil {
@@ -2211,8 +2211,8 @@ func (s *integrationEnterpriseTestSuite) TestSoftwareTitleIcons() {
 
 	// verify no new activity was created (should still be the same count as before)
 	activitiesAfterGitops := listActivitiesResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/activities", nil, http.StatusOK, &activitiesAfterGitops)
-	var editedSoftwareActivitiesAfterGitops []fleet.Activity
+	s.DoJSON("GET", "/api/latest/automdm/activities", nil, http.StatusOK, &activitiesAfterGitops)
+	var editedSoftwareActivitiesAfterGitops []automdm.Activity
 	for _, activity := range activitiesAfterGitops.Activities {
 		if activity.Type == "edited_software" {
 			editedSoftwareActivitiesAfterGitops = append(editedSoftwareActivitiesAfterGitops, *activity)
@@ -2226,7 +2226,7 @@ func (s *integrationEnterpriseTestSuite) TestSoftwareTitleIcons() {
 	}
 	resp = s.DoRawWithHeaders(
 		"GET",
-		fmt.Sprintf("/api/latest/fleet/software/titles/%d/icon?fleet_id=%d", titleID, tm.ID),
+		fmt.Sprintf("/api/latest/automdm/software/titles/%d/icon?team_id=%d", titleID, tm.ID),
 		nil,
 		http.StatusOK,
 		headers,
@@ -2238,7 +2238,7 @@ func (s *integrationEnterpriseTestSuite) TestSoftwareTitleIcons() {
 	// DELETE software title icon
 	s.DoRawWithHeaders(
 		"DELETE",
-		fmt.Sprintf("/api/latest/fleet/software/titles/%d/icon?fleet_id=%d", titleID, tm.ID),
+		fmt.Sprintf("/api/latest/automdm/software/titles/%d/icon?team_id=%d", titleID, tm.ID),
 		nil,
 		http.StatusOK,
 		headers,
@@ -2247,8 +2247,8 @@ func (s *integrationEnterpriseTestSuite) TestSoftwareTitleIcons() {
 
 	// verify new activity was created (should be one more than before)
 	activitiesAfterDelete := listActivitiesResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/activities", nil, http.StatusOK, &activitiesAfterDelete)
-	var editedSoftwareActivitiesAfterDelete []fleet.Activity
+	s.DoJSON("GET", "/api/latest/automdm/activities", nil, http.StatusOK, &activitiesAfterDelete)
+	var editedSoftwareActivitiesAfterDelete []automdm.Activity
 	for _, activity := range activitiesAfterDelete.Activities {
 		if activity.Type == "edited_software" {
 			editedSoftwareActivitiesAfterDelete = append(editedSoftwareActivitiesAfterDelete, *activity)
@@ -2258,7 +2258,7 @@ func (s *integrationEnterpriseTestSuite) TestSoftwareTitleIcons() {
 
 	// ensure there is an activity where the icon url is set to empty
 	// signifying it's deleted
-	var deleteActivity *fleet.Activity
+	var deleteActivity *automdm.Activity
 	for _, afterActivity := range editedSoftwareActivitiesAfterDelete {
 		isNew := true
 		for _, beforeActivity := range editedSoftwareActivitiesAfter {
@@ -2275,7 +2275,7 @@ func (s *integrationEnterpriseTestSuite) TestSoftwareTitleIcons() {
 	require.NotNil(t, deleteActivity, "Should have found exactly one new activity from delete operation")
 
 	// verify the delete activity has the correct details
-	var deleteDetails fleet.ActivityTypeEditedSoftware
+	var deleteDetails automdm.ActivityTypeEditedSoftware
 	err = json.Unmarshal(*deleteActivity.Details, &deleteDetails)
 	require.NoError(t, err)
 	require.Equal(t, titleID, deleteDetails.SoftwareTitleID)
@@ -2298,21 +2298,21 @@ func (s *integrationEnterpriseTestSuite) TestVPPAppsWithoutMDM() {
 
 	// Create team and add host to team
 	var newTeamResp teamResponse
-	s.DoJSON("POST", "/api/latest/fleet/fleets", &createTeamRequest{Name: new("Team 1")}, http.StatusOK, &newTeamResp)
+	s.DoJSON("POST", "/api/latest/automdm/teams", &createTeamRequest{Name: new("Team 1")}, http.StatusOK, &newTeamResp)
 	team := newTeamResp.Team
 
-	s.Do("POST", "/api/latest/fleet/hosts/transfer", &addHostsToTeamRequest{HostIDs: []uint{orbitHost.ID}, TeamID: &team.ID}, http.StatusOK)
+	s.Do("POST", "/api/latest/automdm/hosts/transfer", &addHostsToTeamRequest{HostIDs: []uint{orbitHost.ID}, TeamID: &team.ID}, http.StatusOK)
 
 	// Add an app so that we don't get a not found error
-	app, err := s.ds.InsertVPPAppWithTeam(ctx, &fleet.VPPApp{
+	app, err := s.ds.InsertVPPAppWithTeam(ctx, &automdm.VPPApp{
 		Name:             "App " + t.Name(),
 		BundleIdentifier: "bid_" + t.Name(),
 		AdamID:           "adam_test_vpp1", // max 16 chars
-		Platform:         fleet.MacOSPlatform,
+		Platform:         automdm.MacOSPlatform,
 	}, &team.ID, nil)
 	require.NoError(t, err)
 
-	pkgPayload := &fleet.UploadSoftwareInstallerPayload{
+	pkgPayload := &automdm.UploadSoftwareInstallerPayload{
 		InstallScript: "some pkg install script",
 		Filename:      "dummy_installer.pkg",
 		TeamID:        &team.ID,
@@ -2321,12 +2321,12 @@ func (s *integrationEnterpriseTestSuite) TestVPPAppsWithoutMDM() {
 
 	// We don't see VPP, but we do still see the installers (need include_available_for_install=true since it's not in osquery inventory)
 	resp := getHostSoftwareResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/software?include_available_for_install=true", orbitHost.ID), getHostSoftwareRequest{}, http.StatusOK, &resp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/software?include_available_for_install=true", orbitHost.ID), getHostSoftwareRequest{}, http.StatusOK, &resp)
 	assert.Len(t, resp.Software, 1)
 	assert.NotNil(t, resp.Software[0].SoftwarePackage)
 	assert.Nil(t, resp.Software[0].AppStoreApp)
 
-	r := s.Do("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/software/%d/install", orbitHost.ID, app.TitleID), &installSoftwareRequest{},
+	r := s.Do("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/software/%d/install", orbitHost.ID, app.TitleID), &installSoftwareRequest{},
 		http.StatusUnprocessableEntity)
 	require.Contains(t, extractServerErrorText(r.Body), "Couldn't install. MDM is turned off. Please make sure that MDM is turned on to install App Store apps.")
 }
@@ -2338,7 +2338,7 @@ func (s *integrationEnterpriseTestSuite) TestListHostSoftwareWithLabelScoping() 
 	host := createOrbitEnrolledHost(t, "linux", "", s.ds)
 
 	// Create software installers and corresponding host install requests.
-	payload := &fleet.UploadSoftwareInstallerPayload{
+	payload := &automdm.UploadSoftwareInstallerPayload{
 		InstallScript:     "install script",
 		PreInstallQuery:   "pre install query",
 		PostInstallScript: "post install script",
@@ -2350,10 +2350,10 @@ func (s *integrationEnterpriseTestSuite) TestListHostSoftwareWithLabelScoping() 
 
 	// create install request for the software and record a successful result
 	resp := installSoftwareResponse{}
-	s.DoJSON("POST", fmt.Sprintf("/api/v1/fleet/hosts/%d/software/%d/install", host.ID, titleID), nil, http.StatusAccepted, &resp)
+	s.DoJSON("POST", fmt.Sprintf("/api/v1/automdm/hosts/%d/software/%d/install", host.ID, titleID), nil, http.StatusAccepted, &resp)
 	installUUID := getLatestSoftwareInstallExecID(t, s.ds, host.ID)
 
-	s.Do("POST", "/api/fleet/orbit/software_install/result",
+	s.Do("POST", "/api/automdm/orbit/software_install/result",
 		json.RawMessage(fmt.Sprintf(`{
 			"orbit_node_key": %q,
 			"install_uuid": %q,
@@ -2366,7 +2366,7 @@ func (s *integrationEnterpriseTestSuite) TestListHostSoftwareWithLabelScoping() 
 	// Software is now installed on the host. We should see it in the host software list
 	// (need include_available_for_install=true since the install was tracked via an installer, not osquery inventory)
 	getHostSw := getHostSoftwareResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/software?include_available_for_install=true", host.ID), nil, http.StatusOK, &getHostSw)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/software?include_available_for_install=true", host.ID), nil, http.StatusOK, &getHostSw)
 	require.Len(t, getHostSw.Software, 1)
 	require.Equal(t, "ruby", getHostSw.Software[0].Name)
 
@@ -2390,14 +2390,14 @@ func (s *integrationEnterpriseTestSuite) TestListHostSoftwareWithLabelScoping() 
 	require.NotEmpty(t, installerID)
 
 	// create some labels and assign them to the host
-	var labelResp fleet.CreateLabelResponse
-	s.DoJSON("POST", "/api/latest/fleet/labels", &fleet.CreateLabelRequest{
+	var labelResp automdm.CreateLabelResponse
+	s.DoJSON("POST", "/api/latest/automdm/labels", &automdm.CreateLabelRequest{
 		Name:  "label1",
 		Hosts: []string{host.UUID}}, http.StatusOK, &labelResp)
 	require.NotZero(t, labelResp.Label.ID)
 	lbl1 := labelResp.Label
 
-	s.DoJSON("POST", "/api/latest/fleet/labels", &fleet.CreateLabelRequest{
+	s.DoJSON("POST", "/api/latest/automdm/labels", &automdm.CreateLabelRequest{
 		Name:  "label2",
 		Query: "SELECT 1"}, http.StatusOK, &labelResp)
 	require.NotZero(t, labelResp.Label.ID)
@@ -2409,7 +2409,7 @@ func (s *integrationEnterpriseTestSuite) TestListHostSoftwareWithLabelScoping() 
 	updateInstallerLabel(installerID, lbl2.ID, true)
 
 	// We should still see the software at this point, because we haven't uninstalled it yet
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/software?include_available_for_install=true", host.ID), nil, http.StatusOK, &getHostSw)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/software?include_available_for_install=true", host.ID), nil, http.StatusOK, &getHostSw)
 	require.Len(t, getHostSw.Software, 1)
 
 	// installer should be out of scope since the label is "exclude any"
@@ -2423,13 +2423,13 @@ func (s *integrationEnterpriseTestSuite) TestListHostSoftwareWithLabelScoping() 
 	require.Contains(t, hostsNotInScope, host.ID)
 
 	// uninstall the software
-	s.DoJSON("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/software/%d/uninstall", host.ID, titleID), nil, http.StatusAccepted, &resp)
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/software?include_available_for_install=true", host.ID), nil, http.StatusOK, &getHostSw)
+	s.DoJSON("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/software/%d/uninstall", host.ID, titleID), nil, http.StatusAccepted, &resp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/software?include_available_for_install=true", host.ID), nil, http.StatusOK, &getHostSw)
 	require.Len(t, getHostSw.Software, 1)
 	// TODO this is a corner case where we have visibility on a descoped uninstall, but this will disappear
 	// once we complete the uninstall because at that point we'll be relying solely on inventory to determine software
 	// status, because we should be treating descoped installers as if they don't exist.
-	assert.Equal(t, fleet.SoftwareUninstallPending, *getHostSw.Software[0].Status)
+	assert.Equal(t, automdm.SoftwareUninstallPending, *getHostSw.Software[0].Status)
 	require.Nil(t, getHostSw.Software[0].SoftwarePackage)
 
 	var uninstallExecutionID string
@@ -2442,8 +2442,8 @@ func (s *integrationEnterpriseTestSuite) TestListHostSoftwareWithLabelScoping() 
 	})
 
 	// Host sends failed uninstall result
-	var orbitPostScriptResp fleet.OrbitPostScriptResultResponse
-	s.DoJSON("POST", "/api/fleet/orbit/scripts/result",
+	var orbitPostScriptResp automdm.OrbitPostScriptResultResponse
+	s.DoJSON("POST", "/api/automdm/orbit/scripts/result",
 		json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q, "execution_id": %q, "exit_code": 0, "output": "uninstall"}`, *host.OrbitNodeKey,
 			uninstallExecutionID)),
 		http.StatusOK, &orbitPostScriptResp)
@@ -2451,7 +2451,7 @@ func (s *integrationEnterpriseTestSuite) TestListHostSoftwareWithLabelScoping() 
 	// Now that the software is uninstalled, we should no longer see it in the host software list,
 	// because it is de-scoped via labels.
 	getHostSw = getHostSoftwareResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/software?available_for_install=true", host.ID), nil, http.StatusOK, &getHostSw)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/software?available_for_install=true", host.ID), nil, http.StatusOK, &getHostSw)
 	require.Empty(t, getHostSw.Software)
 }
 
@@ -2460,38 +2460,38 @@ func (s *integrationEnterpriseTestSuite) TestUpdateSoftwareAutoUpdateConfig() {
 	ctx := context.Background()
 
 	// Create a test team
-	team, err := s.ds.NewTeam(ctx, &fleet.Team{Name: "TestUpdateSoftwareAutoUpdateConfig Team"})
+	team, err := s.ds.NewTeam(ctx, &automdm.Team{Name: "TestUpdateSoftwareAutoUpdateConfig Team"})
 	require.NoError(t, err)
 	teamID := team.ID
 
 	tok := test.CreateInsertGlobalVPPToken(t, s.ds)
 
 	// create two VPP apps
-	vppApp, err := s.ds.InsertVPPAppWithTeam(ctx, &fleet.VPPApp{
+	vppApp, err := s.ds.InsertVPPAppWithTeam(ctx, &automdm.VPPApp{
 		Name: "vpp1", BundleIdentifier: "com.app.vpp1",
-		AdamID: "adam_vpp_app_1", Platform: fleet.IPadOSPlatform,
+		AdamID: "adam_vpp_app_1", Platform: automdm.IPadOSPlatform,
 	}, &teamID, nil)
 	require.NoError(t, err)
 
 	// Get the software title.
 	var titlesResp getSoftwareTitleResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/v1/fleet/software/titles/%d", vppApp.TitleID), nil, http.StatusOK, &titlesResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/v1/automdm/software/titles/%d", vppApp.TitleID), nil, http.StatusOK, &titlesResp)
 	require.Nil(t, titlesResp.SoftwareTitle.AutoUpdateEnabled)
 	require.Nil(t, titlesResp.SoftwareTitle.AutoUpdateStartTime)
 	require.Nil(t, titlesResp.SoftwareTitle.AutoUpdateEndTime)
 
 	// Update the auto-update config
-	s.DoJSON("PATCH", fmt.Sprintf("/api/v1/fleet/software/titles/%d/app_store_app", vppApp.TitleID), updateAppStoreAppRequest{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/v1/automdm/software/titles/%d/app_store_app", vppApp.TitleID), updateAppStoreAppRequest{
 		TeamID:              &teamID,
 		AutoUpdateEnabled:   new(true),
 		AutoUpdateStartTime: new("02:00"),
 		AutoUpdateEndTime:   new("04:00"),
 	}, http.StatusOK, &titlesResp)
 
-	s.lastActivityMatches(fleet.ActivityEditedAppStoreApp{}.ActivityName(), withVPPToken(t, fmt.Sprintf(`{"version_name": "Default version", "app_store_id":"adam_vpp_app_1", "auto_update_enabled":true, "auto_update_window_end":"04:00", "auto_update_window_start":"02:00", "platform":"ipados", "self_service":false, "software_display_name":"", "software_icon_url":null, "software_title":"vpp1", "software_title_id":%d, "fleet_id":%d, "fleet_name":"%s"}`, vppApp.TitleID, team.ID, team.Name), tok), 0)
+	s.lastActivityMatches(automdm.ActivityEditedAppStoreApp{}.ActivityName(), withVPPToken(t, fmt.Sprintf(`{"version_name": "Default version", "app_store_id":"adam_vpp_app_1", "auto_update_enabled":true, "auto_update_window_end":"04:00", "auto_update_window_start":"02:00", "platform":"ipados", "self_service":false, "software_display_name":"", "software_icon_url":null, "software_title":"vpp1", "software_title_id":%d, "team_id":%d, "team_name":"%s"}`, vppApp.TitleID, team.ID, team.Name), tok), 0)
 
 	// Get the software title again.
-	s.DoJSON("GET", fmt.Sprintf("/api/v1/fleet/software/titles/%d", vppApp.TitleID), nil, http.StatusOK, &titlesResp, "fleet_id", fmt.Sprintf("%d", teamID))
+	s.DoJSON("GET", fmt.Sprintf("/api/v1/automdm/software/titles/%d", vppApp.TitleID), nil, http.StatusOK, &titlesResp, "team_id", fmt.Sprintf("%d", teamID))
 	require.NotNil(t, titlesResp.SoftwareTitle.AutoUpdateEnabled)
 	require.True(t, *titlesResp.SoftwareTitle.AutoUpdateEnabled)
 	require.NotNil(t, titlesResp.SoftwareTitle.AutoUpdateStartTime)
@@ -2500,48 +2500,48 @@ func (s *integrationEnterpriseTestSuite) TestUpdateSoftwareAutoUpdateConfig() {
 	require.Equal(t, "04:00", *titlesResp.SoftwareTitle.AutoUpdateEndTime)
 
 	// Do an update without auto-update fields to check that it still includes the auto-update values.
-	s.DoJSON("PATCH", fmt.Sprintf("/api/v1/fleet/software/titles/%d/app_store_app", vppApp.TitleID), updateAppStoreAppRequest{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/v1/automdm/software/titles/%d/app_store_app", vppApp.TitleID), updateAppStoreAppRequest{
 		TeamID:      &teamID,
 		DisplayName: new("New Display Name"),
 	}, http.StatusOK, &titlesResp)
 
-	s.lastActivityMatches(fleet.ActivityEditedAppStoreApp{}.ActivityName(), withVPPToken(t, fmt.Sprintf(`{"version_name": "Default version", "app_store_id":"adam_vpp_app_1",  "auto_update_enabled":true, "auto_update_window_end":"04:00", "auto_update_window_start":"02:00", "platform":"ipados", "self_service":false, "software_display_name":"New Display Name", "software_icon_url":null, "software_title":"vpp1", "software_title_id":%d, "fleet_id":%d, "fleet_name":"%s"}`, vppApp.TitleID, team.ID, team.Name), tok), 0)
+	s.lastActivityMatches(automdm.ActivityEditedAppStoreApp{}.ActivityName(), withVPPToken(t, fmt.Sprintf(`{"version_name": "Default version", "app_store_id":"adam_vpp_app_1",  "auto_update_enabled":true, "auto_update_window_end":"04:00", "auto_update_window_start":"02:00", "platform":"ipados", "self_service":false, "software_display_name":"New Display Name", "software_icon_url":null, "software_title":"vpp1", "software_title_id":%d, "team_id":%d, "team_name":"%s"}`, vppApp.TitleID, team.ID, team.Name), tok), 0)
 
 	// Disable the auto-update config
-	s.DoJSON("PATCH", fmt.Sprintf("/api/v1/fleet/software/titles/%d/app_store_app", vppApp.TitleID), updateAppStoreAppRequest{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/v1/automdm/software/titles/%d/app_store_app", vppApp.TitleID), updateAppStoreAppRequest{
 		TeamID:            &teamID,
 		AutoUpdateEnabled: new(false),
 	}, http.StatusOK, &titlesResp)
 
-	s.lastActivityMatches(fleet.ActivityEditedAppStoreApp{}.ActivityName(), withVPPToken(t, fmt.Sprintf(`{"version_name": "Default version", "app_store_id":"adam_vpp_app_1", "auto_update_enabled":false, "platform":"ipados", "self_service":false, "software_display_name":"New Display Name", "software_icon_url":null, "software_title":"vpp1", "software_title_id":%d, "fleet_id":%d, "fleet_name":"%s"}`, vppApp.TitleID, team.ID, team.Name), tok), 0)
+	s.lastActivityMatches(automdm.ActivityEditedAppStoreApp{}.ActivityName(), withVPPToken(t, fmt.Sprintf(`{"version_name": "Default version", "app_store_id":"adam_vpp_app_1", "auto_update_enabled":false, "platform":"ipados", "self_service":false, "software_display_name":"New Display Name", "software_icon_url":null, "software_title":"vpp1", "software_title_id":%d, "team_id":%d, "team_name":"%s"}`, vppApp.TitleID, team.ID, team.Name), tok), 0)
 
 	// Do an update without auto-update fields to check that it still includes the auto-update values.
-	s.DoJSON("PATCH", fmt.Sprintf("/api/v1/fleet/software/titles/%d/app_store_app", vppApp.TitleID), updateAppStoreAppRequest{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/v1/automdm/software/titles/%d/app_store_app", vppApp.TitleID), updateAppStoreAppRequest{
 		TeamID:      &teamID,
 		DisplayName: new("Updated Display Name"),
 	}, http.StatusOK, &titlesResp)
 
-	s.lastActivityMatches(fleet.ActivityEditedAppStoreApp{}.ActivityName(), withVPPToken(t, fmt.Sprintf(`{"version_name": "Default version", "app_store_id":"adam_vpp_app_1", "auto_update_enabled":false, "platform":"ipados", "self_service":false, "software_display_name":"Updated Display Name", "software_icon_url":null, "software_title":"vpp1", "software_title_id":%d, "fleet_id":%d, "fleet_name":"%s"}`, vppApp.TitleID, team.ID, team.Name), tok), 0)
+	s.lastActivityMatches(automdm.ActivityEditedAppStoreApp{}.ActivityName(), withVPPToken(t, fmt.Sprintf(`{"version_name": "Default version", "app_store_id":"adam_vpp_app_1", "auto_update_enabled":false, "platform":"ipados", "self_service":false, "software_display_name":"Updated Display Name", "software_icon_url":null, "software_title":"vpp1", "software_title_id":%d, "team_id":%d, "team_name":"%s"}`, vppApp.TitleID, team.ID, team.Name), tok), 0)
 }
 
 func (s *integrationEnterpriseTestSuite) TestSelfServiceCategoriesCRUD() {
 	t := s.T()
 	ctx := t.Context()
-	const path = "/api/latest/fleet/software/self_service_categories"
+	const path = "/api/latest/automdm/software/self_service_categories"
 
 	// create — leading/trailing whitespace in the name is trimmed before storage
 	var addResp addSelfServiceCategoriesResponse
-	s.DoJSON("POST", path, map[string]any{"fleet_id": 0, "name": "  💼 Engineering  "}, http.StatusOK, &addResp)
+	s.DoJSON("POST", path, map[string]any{"team_id": 0, "name": "  💼 Engineering  "}, http.StatusOK, &addResp)
 	require.NotZero(t, addResp.SelfServiceCategory.ID)
 	require.Equal(t, "💼 Engineering", addResp.SelfServiceCategory.Name)
 	require.Equal(t, uint(0), addResp.SelfServiceCategory.TeamID)
 	catID := addResp.SelfServiceCategory.ID
-	s.lastActivityMatches(fleet.ActivityTypeAddedSelfServiceCategory{}.ActivityName(),
-		`{"self_service_category_name":"💼 Engineering","fleet_id":0,"fleet_name":null}`, 0)
+	s.lastActivityMatches(automdm.ActivityTypeAddedSelfServiceCategory{}.ActivityName(),
+		`{"self_service_category_name":"💼 Engineering","team_id":0,"team_name":null}`, 0)
 
 	// list includes new category
 	var listResp getSelfServiceCategoriesResponse
-	s.DoJSON("GET", path, nil, http.StatusOK, &listResp, "fleet_id", "0")
+	s.DoJSON("GET", path, nil, http.StatusOK, &listResp, "team_id", "0")
 	names := make([]string, 0, len(listResp.SelfServiceCategories))
 	for _, c := range listResp.SelfServiceCategories {
 		names = append(names, c.Name)
@@ -2553,67 +2553,67 @@ func (s *integrationEnterpriseTestSuite) TestSelfServiceCategoriesCRUD() {
 	s.DoJSON("PATCH", fmt.Sprintf("%s/%d", path, catID), map[string]any{"name": "💼 Engineering tools"}, http.StatusOK, &patchResp)
 	require.Equal(t, catID, patchResp.SelfServiceCategory.ID)
 	require.Equal(t, "💼 Engineering tools", patchResp.SelfServiceCategory.Name)
-	editActID := s.lastActivityMatches(fleet.ActivityTypeEditedSelfServiceCategory{}.ActivityName(),
-		`{"self_service_category_name":"💼 Engineering tools","fleet_id":0,"fleet_name":null}`, 0)
+	editActID := s.lastActivityMatches(automdm.ActivityTypeEditedSelfServiceCategory{}.ActivityName(),
+		`{"self_service_category_name":"💼 Engineering tools","team_id":0,"team_name":null}`, 0)
 
 	// patch with the same name is a no-op — no new activity emitted
 	s.DoJSON("PATCH", fmt.Sprintf("%s/%d", path, catID), map[string]any{"name": "💼 Engineering tools"}, http.StatusOK, &patchResp)
-	require.Equal(t, editActID, s.lastActivityMatches(fleet.ActivityTypeEditedSelfServiceCategory{}.ActivityName(), "", 0),
+	require.Equal(t, editActID, s.lastActivityMatches(automdm.ActivityTypeEditedSelfServiceCategory{}.ActivityName(), "", 0),
 		"no-op PATCH should not emit a new activity")
 
 	// delete + activity
 	s.Do("DELETE", fmt.Sprintf("%s/%d", path, catID), nil, http.StatusNoContent)
-	s.lastActivityMatches(fleet.ActivityTypeDeletedSelfServiceCategory{}.ActivityName(),
-		`{"self_service_category_name":"💼 Engineering tools","fleet_id":0,"fleet_name":null}`, 0)
+	s.lastActivityMatches(automdm.ActivityTypeDeletedSelfServiceCategory{}.ActivityName(),
+		`{"self_service_category_name":"💼 Engineering tools","team_id":0,"team_name":null}`, 0)
 
 	// post without name returns 422
-	s.Do("POST", path, map[string]any{"fleet_id": 0}, http.StatusUnprocessableEntity)
+	s.Do("POST", path, map[string]any{"team_id": 0}, http.StatusUnprocessableEntity)
 
 	// whitespace-only name returns 422
-	s.Do("POST", path, map[string]any{"fleet_id": 0, "name": "   "}, http.StatusUnprocessableEntity)
+	s.Do("POST", path, map[string]any{"team_id": 0, "name": "   "}, http.StatusUnprocessableEntity)
 
-	// post without fleet_id returns 422
-	s.Do("POST", path, map[string]any{"name": "no-fleet"}, http.StatusUnprocessableEntity)
+	// post without team_id returns 422
+	s.Do("POST", path, map[string]any{"name": "no-team"}, http.StatusUnprocessableEntity)
 
-	// get without fleet_id returns 422 — same error as POST for consistency
+	// get without team_id returns 422 — same error as POST for consistency
 	s.Do("GET", path, nil, http.StatusUnprocessableEntity)
 
-	// get unknown fleet_id returns 404
-	s.Do("GET", path, nil, http.StatusNotFound, "fleet_id", "9999999")
+	// get unknown team_id returns 404
+	s.Do("GET", path, nil, http.StatusNotFound, "team_id", "9999999")
 
 	// patch without name returns 422 — use a fixture for this since the no-op
 	// PATCH above leaves catID deleted
 	var fixture addSelfServiceCategoriesResponse
-	s.DoJSON("POST", path, map[string]any{"fleet_id": 0, "name": "patch-target"}, http.StatusOK, &fixture)
+	s.DoJSON("POST", path, map[string]any{"team_id": 0, "name": "patch-target"}, http.StatusOK, &fixture)
 	s.Do("PATCH", fmt.Sprintf("%s/%d", path, fixture.SelfServiceCategory.ID), map[string]any{}, http.StatusUnprocessableEntity)
 
 	// 255-rune name succeeds; 256-rune name returns 422
-	s.Do("POST", path, map[string]any{"fleet_id": 0, "name": strings.Repeat("a", 255)}, http.StatusOK)
-	s.Do("POST", path, map[string]any{"fleet_id": 0, "name": strings.Repeat("a", 256)}, http.StatusUnprocessableEntity)
+	s.Do("POST", path, map[string]any{"team_id": 0, "name": strings.Repeat("a", 255)}, http.StatusOK)
+	s.Do("POST", path, map[string]any{"team_id": 0, "name": strings.Repeat("a", 256)}, http.StatusUnprocessableEntity)
 
-	// duplicate across fleets allowed
+	// duplicate across teams allowed
 	var teamResp teamResponse
-	s.DoJSON("POST", "/api/latest/fleet/fleets", &fleet.Team{Name: "SelfServiceCategoryCrossFleet"}, http.StatusOK, &teamResp)
+	s.DoJSON("POST", "/api/latest/automdm/teams", &automdm.Team{Name: "SelfServiceCategoryCrossTeam"}, http.StatusOK, &teamResp)
 	t.Cleanup(func() { require.NoError(t, s.ds.DeleteTeam(context.Background(), teamResp.Team.ID)) })
 
 	var cf0, cf1 addSelfServiceCategoriesResponse
-	s.DoJSON("POST", path, map[string]any{"fleet_id": 0, "name": "CrossFleet"}, http.StatusOK, &cf0)
-	s.DoJSON("POST", path, map[string]any{"fleet_id": teamResp.Team.ID, "name": "CrossFleet"}, http.StatusOK, &cf1)
+	s.DoJSON("POST", path, map[string]any{"team_id": 0, "name": "CrossTeam"}, http.StatusOK, &cf0)
+	s.DoJSON("POST", path, map[string]any{"team_id": teamResp.Team.ID, "name": "CrossTeam"}, http.StatusOK, &cf1)
 	require.NotEqual(t, cf0.SelfServiceCategory.ID, cf1.SelfServiceCategory.ID)
-	s.lastActivityMatches(fleet.ActivityTypeAddedSelfServiceCategory{}.ActivityName(),
-		fmt.Sprintf(`{"self_service_category_name":"CrossFleet","fleet_id":%d,"fleet_name":%q}`, teamResp.Team.ID, teamResp.Team.Name), 0)
+	s.lastActivityMatches(automdm.ActivityTypeAddedSelfServiceCategory{}.ActivityName(),
+		fmt.Sprintf(`{"self_service_category_name":"CrossTeam","team_id":%d,"team_name":%q}`, teamResp.Team.ID, teamResp.Team.Name), 0)
 
-	// list scoped to the new fleet returns its seeded defaults plus the added category
-	s.DoJSON("GET", path, nil, http.StatusOK, &listResp, "fleet_id", fmt.Sprint(teamResp.Team.ID))
-	require.Len(t, listResp.SelfServiceCategories, len(fleet.DefaultSelfServiceCategoryNames)+1)
-	newFleetNames := make([]string, 0, len(listResp.SelfServiceCategories))
+	// list scoped to the new team returns its seeded defaults plus the added category
+	s.DoJSON("GET", path, nil, http.StatusOK, &listResp, "team_id", fmt.Sprint(teamResp.Team.ID))
+	require.Len(t, listResp.SelfServiceCategories, len(automdm.DefaultSelfServiceCategoryNames)+1)
+	newTeamNames := make([]string, 0, len(listResp.SelfServiceCategories))
 	for _, c := range listResp.SelfServiceCategories {
-		newFleetNames = append(newFleetNames, c.Name)
+		newTeamNames = append(newTeamNames, c.Name)
 	}
-	require.ElementsMatch(t, append(fleet.DefaultSelfServiceCategoryNames, "CrossFleet"), newFleetNames)
+	require.ElementsMatch(t, append(automdm.DefaultSelfServiceCategoryNames, "CrossTeam"), newTeamNames)
 
-	// unknown fleet_id returns 404
-	s.Do("POST", path, map[string]any{"fleet_id": 9999999, "name": "ghost"}, http.StatusNotFound)
+	// unknown team_id returns 404
+	s.Do("POST", path, map[string]any{"team_id": 9999999, "name": "ghost"}, http.StatusNotFound)
 
 	// categories still surface as strings on existing endpoints
 	cat1, err := s.ds.NewSoftwareCategory(ctx, 0, "smoke-test-cat-1")
@@ -2621,38 +2621,38 @@ func (s *integrationEnterpriseTestSuite) TestSelfServiceCategoriesCRUD() {
 	cat2, err := s.ds.NewSoftwareCategory(ctx, 0, "smoke-test-cat-2")
 	require.NoError(t, err)
 
-	s.uploadSoftwareInstaller(t, &fleet.UploadSoftwareInstallerPayload{
+	s.uploadSoftwareInstaller(t, &automdm.UploadSoftwareInstallerPayload{
 		TeamID:        new(uint(0)),
 		Filename:      "dummy_installer.pkg",
 		InstallScript: "echo install",
 	}, http.StatusOK, "")
 
 	titleID := getSoftwareTitleID(t, s.ds, "DummyApp", "apps")
-	titlePath := fmt.Sprintf("/api/latest/fleet/software/titles/%d", titleID)
+	titlePath := fmt.Sprintf("/api/latest/automdm/software/titles/%d", titleID)
 
 	// linking categories happens via PATCH, not upload
-	s.updateSoftwareInstaller(t, &fleet.UpdateSoftwareInstallerPayload{
+	s.updateSoftwareInstaller(t, &automdm.UpdateSoftwareInstallerPayload{
 		TeamID:     new(uint(0)),
 		TitleID:    titleID,
 		Categories: []string{cat1.Name, cat2.Name},
 	}, http.StatusOK, "")
 
 	var titleResp getSoftwareTitleResponse
-	s.DoJSON("GET", titlePath, nil, http.StatusOK, &titleResp, "fleet_id", "0")
+	s.DoJSON("GET", titlePath, nil, http.StatusOK, &titleResp, "team_id", "0")
 	require.ElementsMatch(t, []string{cat1.Name, cat2.Name}, titleResp.SoftwareTitle.Packages[0].Categories)
 
 	// deleting a category cascades the link
 	s.Do("DELETE", fmt.Sprintf("%s/%d", path, cat1.ID), nil, http.StatusNoContent)
 	titleResp = getSoftwareTitleResponse{}
-	s.DoJSON("GET", titlePath, nil, http.StatusOK, &titleResp, "fleet_id", "0")
+	s.DoJSON("GET", titlePath, nil, http.StatusOK, &titleResp, "team_id", "0")
 	require.ElementsMatch(t, []string{cat2.Name}, titleResp.SoftwareTitle.Packages[0].Categories)
 
 	// deleting a team cascades to its categories
 	var deletableResp teamResponse
-	s.DoJSON("POST", "/api/latest/fleet/fleets", &fleet.Team{Name: "SelfServiceCategoryDeleteScope"}, http.StatusOK, &deletableResp)
+	s.DoJSON("POST", "/api/latest/automdm/teams", &automdm.Team{Name: "SelfServiceCategoryDeleteScope"}, http.StatusOK, &deletableResp)
 	seeded, err := s.ds.ListSoftwareCategories(ctx, deletableResp.Team.ID)
 	require.NoError(t, err)
-	require.Len(t, seeded, len(fleet.DefaultSelfServiceCategoryNames))
+	require.Len(t, seeded, len(automdm.DefaultSelfServiceCategoryNames))
 	require.NoError(t, s.ds.DeleteTeam(ctx, deletableResp.Team.ID))
 	leftover, err := s.ds.ListSoftwareCategories(ctx, deletableResp.Team.ID)
 	require.NoError(t, err)
@@ -2662,10 +2662,10 @@ func (s *integrationEnterpriseTestSuite) TestSelfServiceCategoriesCRUD() {
 func (s *integrationEnterpriseTestSuite) TestPatchDeadlineSettings() {
 	t := s.T()
 	ctx := t.Context()
-	const path = "/api/latest/fleet/software/patch_deadline_settings"
+	const path = "/api/latest/automdm/software/patch_deadline_settings"
 	const activityName = "edited_patch_deadline_settings"
 
-	// commonTearDownTest only clears fleet rows, so Unassigned would leak into later tests
+	// commonTearDownTest only clears team rows, so Unassigned would leak into later tests
 	t.Cleanup(func() {
 		mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
 			_, err := q.ExecContext(context.Background(), "DELETE FROM patch_deadline_settings WHERE team_id = 0")
@@ -2679,64 +2679,64 @@ func (s *integrationEnterpriseTestSuite) TestPatchDeadlineSettings() {
 		return n
 	}
 
-	newFleet := func(name string) *fleet.Team {
-		tm, err := s.ds.NewTeam(ctx, &fleet.Team{Name: t.Name() + name})
+	newAutoMDM := func(name string) *automdm.Team {
+		tm, err := s.ds.NewTeam(ctx, &automdm.Team{Name: t.Name() + name})
 		require.NoError(t, err)
 		return tm
 	}
-	tm := newFleet("main")
-	other := newFleet("other")
+	tm := newAutoMDM("main")
+	other := newAutoMDM("other")
 	t.Cleanup(func() { require.NoError(t, s.ds.DeleteTeam(context.Background(), other.ID)) })
 
 	var resp patchDeadlineSettingsResponse
-	get := func(fleetID uint) *fleet.PatchDeadlineSettings {
+	get := func(automdmID uint) *automdm.PatchDeadlineSettings {
 		resp = patchDeadlineSettingsResponse{}
-		s.DoJSON("GET", path, nil, http.StatusOK, &resp, "fleet_id", fmt.Sprint(fleetID))
+		s.DoJSON("GET", path, nil, http.StatusOK, &resp, "team_id", fmt.Sprint(automdmID))
 		return resp.PatchDeadlineSettings
 	}
-	patch := func(fleetID uint, days []string, hhmm string) *fleet.PatchDeadlineSettings {
+	patch := func(automdmID uint, days []string, hhmm string) *automdm.PatchDeadlineSettings {
 		resp = patchDeadlineSettingsResponse{}
-		s.DoJSON("PATCH", path, map[string]any{"fleet_id": fleetID, "days": days, "time": hhmm}, http.StatusOK, &resp)
+		s.DoJSON("PATCH", path, map[string]any{"team_id": automdmID, "days": days, "time": hhmm}, http.StatusOK, &resp)
 		return resp.PatchDeadlineSettings
 	}
 
 	// defaults
 	for _, id := range []uint{tm.ID, 0} {
-		require.Equal(t, &fleet.PatchDeadlineSettings{TeamID: id, Days: []string{"tuesday"}, Time: "17:00"}, get(id))
+		require.Equal(t, &automdm.PatchDeadlineSettings{TeamID: id, Days: []string{"tuesday"}, Time: "17:00"}, get(id))
 	}
 
 	// days are returned in week order and time is normalized, on PATCH and on a later GET
 	for _, id := range []uint{tm.ID, 0} {
-		want := &fleet.PatchDeadlineSettings{TeamID: id, Days: []string{"monday", "friday"}, Time: "09:00"}
+		want := &automdm.PatchDeadlineSettings{TeamID: id, Days: []string{"monday", "friday"}, Time: "09:00"}
 		require.Equal(t, want, patch(id, []string{"friday", "monday"}, "9:00"))
 		require.Equal(t, want, get(id))
 	}
 
-	// activity for a fleet and for Unassigned
+	// activity for a team and for Unassigned
 	activitiesBefore := countActivities()
 	patch(tm.ID, []string{"wednesday"}, "18:30")
 	require.Equal(t, activitiesBefore+1, countActivities())
 	s.lastActivityMatches(activityName,
-		fmt.Sprintf(`{"fleet_id": %d, "fleet_name": %q, "days": ["wednesday"], "time": "18:30"}`, tm.ID, tm.Name), 0)
+		fmt.Sprintf(`{"team_id": %d, "team_name": %q, "days": ["wednesday"], "time": "18:30"}`, tm.ID, tm.Name), 0)
 	patch(0, []string{"sunday", "saturday"}, "06:05")
 	lastActivityID := s.lastActivityMatches(activityName,
-		`{"fleet_id": null, "fleet_name": null, "days": ["saturday", "sunday"], "time": "06:05"}`, 0)
+		`{"team_id": null, "team_name": null, "days": ["saturday", "sunday"], "time": "06:05"}`, 0)
 
 	// no activity for a PATCH with the stored values, even in a different spelling
 	patch(0, []string{"sunday", "saturday"}, "6:05")
 	require.Equal(t, lastActivityID, s.lastActivityMatches("", "", 0))
 
 	// no activity for a PATCH equal to the default when no row exists
-	fresh := newFleet("fresh")
+	fresh := newAutoMDM("fresh")
 	t.Cleanup(func() { require.NoError(t, s.ds.DeleteTeam(context.Background(), fresh.ID)) })
-	require.Equal(t, &fleet.PatchDeadlineSettings{TeamID: fresh.ID, Days: []string{"tuesday"}, Time: "17:00"}, patch(fresh.ID, []string{"tuesday"}, "17:00"))
+	require.Equal(t, &automdm.PatchDeadlineSettings{TeamID: fresh.ID, Days: []string{"tuesday"}, Time: "17:00"}, patch(fresh.ID, []string{"tuesday"}, "17:00"))
 	require.Equal(t, lastActivityID, s.lastActivityMatches("", "", 0))
 
-	// missing fleet_id is 422, unknown fleet is 404
+	// missing team_id is 422, unknown team is 404
 	s.Do("GET", path, nil, http.StatusUnprocessableEntity)
 	s.Do("PATCH", path, map[string]any{"days": []string{"monday"}, "time": "09:00"}, http.StatusUnprocessableEntity)
-	s.Do("GET", path, nil, http.StatusNotFound, "fleet_id", "9999999")
-	s.Do("PATCH", path, map[string]any{"fleet_id": 9999999, "days": []string{"monday"}, "time": "09:00"}, http.StatusNotFound)
+	s.Do("GET", path, nil, http.StatusNotFound, "team_id", "9999999")
+	s.Do("PATCH", path, map[string]any{"team_id": 9999999, "days": []string{"monday"}, "time": "09:00"}, http.StatusNotFound)
 
 	// each validation message comes back as a 400
 	prefix := `Couldn't edit patch deadline settings. `
@@ -2752,35 +2752,35 @@ func (s *integrationEnterpriseTestSuite) TestPatchDeadlineSettings() {
 		{[]string{"monday"}, 1700, `"time" must be wrapped in quotes, for example "17:00".`},
 		{[]string{"monday"}, "24:00", `"time" must be in HH:MM (24-hour) format, for example "17:00".`},
 	} {
-		res := s.Do("PATCH", path, map[string]any{"fleet_id": tm.ID, "days": c.days, "time": c.time}, http.StatusBadRequest)
+		res := s.Do("PATCH", path, map[string]any{"team_id": tm.ID, "days": c.days, "time": c.time}, http.StatusBadRequest)
 		require.Contains(t, extractServerErrorText(res.Body), prefix+c.msg)
 	}
 	// a rejected PATCH leaves the stored settings alone
 	require.Equal(t, []string{"wednesday"}, get(tm.ID).Days)
 
 	// roles
-	mkUser := func(name string, globalRole *string, teams []fleet.UserTeam) *fleet.User {
-		u := &fleet.User{Name: name, Email: name + "@example.com", GlobalRole: globalRole, Teams: teams}
+	mkUser := func(name string, globalRole *string, teams []automdm.UserTeam) *automdm.User {
+		u := &automdm.User{Name: name, Email: name + "@example.com", GlobalRole: globalRole, Teams: teams}
 		require.NoError(t, u.SetPassword(test.GoodPassword, 10, 10))
 		u, err := s.ds.NewUser(ctx, u)
 		require.NoError(t, err)
 		return u
 	}
-	patchStatus := func(fleetID uint, status int) {
-		s.Do("PATCH", path, map[string]any{"fleet_id": fleetID, "days": []string{"monday"}, "time": "09:00"}, status)
+	patchStatus := func(automdmID uint, status int) {
+		s.Do("PATCH", path, map[string]any{"team_id": automdmID, "days": []string{"monday"}, "time": "09:00"}, status)
 	}
-	getStatus := func(fleetID uint, status int) {
-		s.Do("GET", path, nil, status, "fleet_id", fmt.Sprint(fleetID))
+	getStatus := func(automdmID uint, status int) {
+		s.Do("GET", path, nil, status, "team_id", fmt.Sprint(automdmID))
 	}
 	for _, c := range []struct {
 		role     string
 		canWrite bool
 	}{
-		{fleet.RoleObserver, false},
-		{fleet.RoleObserverPlus, false},
-		{fleet.RoleTechnician, false},
-		{fleet.RoleMaintainer, true},
-		{fleet.RoleGitOps, true},
+		{automdm.RoleObserver, false},
+		{automdm.RoleObserverPlus, false},
+		{automdm.RoleTechnician, false},
+		{automdm.RoleMaintainer, true},
+		{automdm.RoleGitOps, true},
 	} {
 		u := mkUser("pd-global-"+c.role, &c.role, nil)
 		s.setTokenForTest(t, u.Email, test.GoodPassword)
@@ -2795,34 +2795,34 @@ func (s *integrationEnterpriseTestSuite) TestPatchDeadlineSettings() {
 		}
 	}
 
-	fleetMaintainer := mkUser("pd-fleet-maintainer", nil, []fleet.UserTeam{{Team: *tm, Role: fleet.RoleMaintainer}})
-	s.setTokenForTest(t, fleetMaintainer.Email, test.GoodPassword)
+	automdmMaintainer := mkUser("pd-team-maintainer", nil, []automdm.UserTeam{{Team: *tm, Role: automdm.RoleMaintainer}})
+	s.setTokenForTest(t, automdmMaintainer.Email, test.GoodPassword)
 	getStatus(tm.ID, http.StatusOK)
 	patchStatus(tm.ID, http.StatusOK)
-	// authz runs before the existence check, so a missing fleet doesn't reveal itself
+	// authz runs before the existence check, so a missing team doesn't reveal itself
 	for _, id := range []uint{other.ID, 0, 9999999} {
 		getStatus(id, http.StatusForbidden)
 		patchStatus(id, http.StatusForbidden)
 	}
 
-	fleetObserver := mkUser("pd-fleet-observer", nil, []fleet.UserTeam{{Team: *tm, Role: fleet.RoleObserver}})
-	s.setTokenForTest(t, fleetObserver.Email, test.GoodPassword)
+	automdmObserver := mkUser("pd-team-observer", nil, []automdm.UserTeam{{Team: *tm, Role: automdm.RoleObserver}})
+	s.setTokenForTest(t, automdmObserver.Email, test.GoodPassword)
 	getStatus(tm.ID, http.StatusOK)
 	patchStatus(tm.ID, http.StatusForbidden)
 
 	s.token = s.getTestAdminToken()
 
-	// deleting the fleet makes its ID unknown
+	// deleting the team makes its ID unknown
 	require.NoError(t, s.ds.DeleteTeam(ctx, tm.ID))
-	s.Do("GET", path, nil, http.StatusNotFound, "fleet_id", fmt.Sprint(tm.ID))
+	s.Do("GET", path, nil, http.StatusNotFound, "team_id", fmt.Sprint(tm.ID))
 }
 
 func (s *integrationEnterpriseTestSuite) TestDeviceSelfServiceCategories() {
 	t := s.T()
 	ctx := context.Background()
 
-	getCats := func(token string, expectedStatus int) []fleet.SoftwareCategory {
-		resp := s.DoRawNoAuth("GET", fmt.Sprintf("/api/latest/fleet/device/%s/software/self_service_categories", token), nil, expectedStatus)
+	getCats := func(token string, expectedStatus int) []automdm.SoftwareCategory {
+		resp := s.DoRawNoAuth("GET", fmt.Sprintf("/api/latest/automdm/device/%s/software/self_service_categories", token), nil, expectedStatus)
 		defer resp.Body.Close()
 		if expectedStatus != http.StatusOK {
 			return nil
@@ -2831,7 +2831,7 @@ func (s *integrationEnterpriseTestSuite) TestDeviceSelfServiceCategories() {
 		require.NoError(t, json.NewDecoder(resp.Body).Decode(&out))
 		return out.SelfServiceCategories
 	}
-	names := func(cats []fleet.SoftwareCategory) []string {
+	names := func(cats []automdm.SoftwareCategory) []string {
 		out := make([]string, 0, len(cats))
 		for _, c := range cats {
 			out = append(out, c.Name)
@@ -2842,9 +2842,9 @@ func (s *integrationEnterpriseTestSuite) TestDeviceSelfServiceCategories() {
 	// bad device token -> 401
 	getCats("not-a-real-token", http.StatusUnauthorized)
 
-	// a team host sees its own fleet's categories, scoped away from another fleet's.
-	// (every fleet also has the default seeded categories, so assert on unique markers.)
-	team, err := s.ds.NewTeam(ctx, &fleet.Team{Name: t.Name() + "-team"})
+	// a team host sees its own team's categories, scoped away from another team's.
+	// (every team also has the default seeded categories, so assert on unique markers.)
+	team, err := s.ds.NewTeam(ctx, &automdm.Team{Name: t.Name() + "-team"})
 	require.NoError(t, err)
 	teamCatName := t.Name() + "-team-cat"
 	_, err = s.ds.NewSoftwareCategory(ctx, team.ID, teamCatName)
@@ -2856,7 +2856,7 @@ func (s *integrationEnterpriseTestSuite) TestDeviceSelfServiceCategories() {
 	teamHost := createOrbitEnrolledHost(t, "ubuntu", "ssc-team", s.ds)
 	teamToken := "ssc-team-tok" //nolint:gosec // G101: test value only
 	createDeviceTokenForHost(t, s.ds, teamHost.ID, teamToken)
-	require.NoError(t, s.ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team.ID, []uint{teamHost.ID})))
+	require.NoError(t, s.ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team.ID, []uint{teamHost.ID})))
 
 	teamCats := names(getCats(teamToken, http.StatusOK))
 	require.Contains(t, teamCats, teamCatName)
@@ -2931,27 +2931,27 @@ func (s *integrationEnterpriseTestSuite) TestSelfServiceHostVitalsExcludeAnyLabe
 	})
 
 	// Create the host vitals label through the API, exactly as the UI/GitOps would.
-	var labelResp fleet.CreateLabelResponse
-	s.DoJSON("POST", "/api/latest/fleet/labels", &fleet.CreateLabelRequest{
+	var labelResp automdm.CreateLabelResponse
+	s.DoJSON("POST", "/api/latest/automdm/labels", &automdm.CreateLabelRequest{
 		Name: "hv-idp-group-" + t.Name(),
-		Criteria: &fleet.HostVitalCriteria{
+		Criteria: &automdm.HostVitalCriteria{
 			Vital: new("end_user_idp_group"),
 			Value: new(groupName),
 		}}, http.StatusOK, &labelResp)
 	require.NotNil(t, labelResp.Label)
-	require.Equal(t, fleet.LabelMembershipTypeHostVitals, labelResp.Label.LabelMembershipType)
+	require.Equal(t, automdm.LabelMembershipTypeHostVitals, labelResp.Label.LabelMembershipType)
 
-	label, _, err := s.ds.Label(ctx, labelResp.Label.Label.ID, fleet.TeamFilter{User: test.UserAdmin})
+	label, _, err := s.ds.Label(ctx, labelResp.Label.Label.ID, automdm.TeamFilter{User: test.UserAdmin})
 	require.NoError(t, err)
 	_, _, err = s.ds.UpdateLabelMembershipByHostCriteria(ctx, label)
 	require.NoError(t, err)
 
-	hostsInLabel, err := s.ds.ListHostsInLabel(ctx, fleet.TeamFilter{User: test.UserAdmin}, label.ID, fleet.HostListOptions{})
+	hostsInLabel, err := s.ds.ListHostsInLabel(ctx, automdm.TeamFilter{User: test.UserAdmin}, label.ID, automdm.HostListOptions{})
 	require.NoError(t, err)
 	require.Len(t, hostsInLabel, 1)
 	require.Equal(t, excludedHost.ID, hostsInLabel[0].ID)
 
-	payload := &fleet.UploadSoftwareInstallerPayload{
+	payload := &automdm.UploadSoftwareInstallerPayload{
 		InstallScript:    "install",
 		Filename:         "ruby.deb",
 		Title:            "ruby",
@@ -2963,7 +2963,7 @@ func (s *integrationEnterpriseTestSuite) TestSelfServiceHostVitalsExcludeAnyLabe
 
 	selfServiceTitles := func(token string) []string {
 		var resp getDeviceSoftwareResponse
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/device/%s/software", token), nil, http.StatusOK,
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/device/%s/software", token), nil, http.StatusOK,
 			&resp, "self_service", "true")
 		names := make([]string, 0, len(resp.Software))
 		for _, sw := range resp.Software {
@@ -2975,13 +2975,13 @@ func (s *integrationEnterpriseTestSuite) TestSelfServiceHostVitalsExcludeAnyLabe
 	// The host that is not in the IdP group sees the software in Self-service and can install it.
 	require.Contains(t, selfServiceTitles(allowedToken), payload.Title)
 	s.DoRawNoAuth("POST",
-		fmt.Sprintf("/api/latest/fleet/device/%s/software/install/%d", allowedToken, titleID),
+		fmt.Sprintf("/api/latest/automdm/device/%s/software/install/%d", allowedToken, titleID),
 		nil, http.StatusAccepted)
 
 	// The host that is in the group sees nothing and is refused the install.
 	require.NotContains(t, selfServiceTitles(excludedToken), payload.Title)
 	res := s.DoRawNoAuth("POST",
-		fmt.Sprintf("/api/latest/fleet/device/%s/software/install/%d", excludedToken, titleID),
+		fmt.Sprintf("/api/latest/automdm/device/%s/software/install/%d", excludedToken, titleID),
 		nil, http.StatusBadRequest)
 	require.Contains(t, extractServerErrorText(res.Body),
 		"Couldn't install. Host isn't member of the labels defined for this software title.")
@@ -2991,10 +2991,10 @@ func (s *integrationEnterpriseTestSuite) TestAIToolFilter() {
 	t := s.T()
 	ctx := t.Context()
 
-	tm, err := s.ds.NewTeam(ctx, &fleet.Team{Name: t.Name()})
+	tm, err := s.ds.NewTeam(ctx, &automdm.Team{Name: t.Name()})
 	require.NoError(t, err)
-	newHost := func(name string) *fleet.Host {
-		h, err := s.ds.NewHost(ctx, &fleet.Host{
+	newHost := func(name string) *automdm.Host {
+		h, err := s.ds.NewHost(ctx, &automdm.Host{
 			DetailUpdatedAt: time.Now(),
 			LabelUpdatedAt:  time.Now(),
 			PolicyUpdatedAt: time.Now(),
@@ -3010,15 +3010,15 @@ func (s *integrationEnterpriseTestSuite) TestAIToolFilter() {
 	}
 	teamHost := newHost("team")
 	noTeamHost := newHost("noteam")
-	require.NoError(t, s.ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&tm.ID, []uint{teamHost.ID})))
+	require.NoError(t, s.ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&tm.ID, []uint{teamHost.ID})))
 
-	_, err = s.ds.UpdateHostSoftware(ctx, teamHost.ID, []fleet.Software{
+	_, err = s.ds.UpdateHostSoftware(ctx, teamHost.ID, []automdm.Software{
 		{Name: "AIToolClaude", Version: "1.0", Source: "apps", BundleIdentifier: "com.example.aitoolclaude", AITool: new(true)},
 		{Name: "AIToolSlack", Version: "1.0", Source: "apps", BundleIdentifier: "com.example.aitoolslack"},
 		{Name: "aitool-codex", Version: "1.0", Source: "ai_clis", AITool: new(true)},
 	})
 	require.NoError(t, err)
-	_, err = s.ds.UpdateHostSoftware(ctx, noTeamHost.ID, []fleet.Software{
+	_, err = s.ds.UpdateHostSoftware(ctx, noTeamHost.ID, []automdm.Software{
 		{Name: "AIToolSlack", Version: "1.0", Source: "apps", BundleIdentifier: "com.example.aitoolslack"},
 		{Name: "aitool-github", Version: "0.1", Source: "mcp_servers", AITool: new(true)},
 	})
@@ -3037,7 +3037,7 @@ func (s *integrationEnterpriseTestSuite) TestAIToolFilter() {
 	// Restrict the cross-host lists to this test's software, which all match "aitool".
 	listTitles := func(params ...string) (map[string]bool, int) {
 		var resp listSoftwareTitlesResponse
-		s.DoJSON("GET", "/api/latest/fleet/software/titles", nil, http.StatusOK, &resp, append(params, "query", "aitool")...)
+		s.DoJSON("GET", "/api/latest/automdm/software/titles", nil, http.StatusOK, &resp, append(params, "query", "aitool")...)
 		got := make(map[string]bool, len(resp.SoftwareTitles))
 		for _, title := range resp.SoftwareTitles {
 			got[title.Name] = flag(title.Name, title.AITool)
@@ -3046,14 +3046,14 @@ func (s *integrationEnterpriseTestSuite) TestAIToolFilter() {
 	}
 	listVersions := func(params ...string) (map[string]bool, int) {
 		var resp listSoftwareVersionsResponse
-		s.DoJSON("GET", "/api/latest/fleet/software/versions", nil, http.StatusOK, &resp, append(params, "query", "aitool")...)
+		s.DoJSON("GET", "/api/latest/automdm/software/versions", nil, http.StatusOK, &resp, append(params, "query", "aitool")...)
 		got := make(map[string]bool, len(resp.Software))
 		for _, sw := range resp.Software {
 			got[sw.Name] = flag(sw.Name, sw.AITool)
 		}
 		return got, resp.Count
 	}
-	hostSoftware := func(sw []*fleet.HostSoftwareWithInstaller) map[string]bool {
+	hostSoftware := func(sw []*automdm.HostSoftwareWithInstaller) map[string]bool {
 		got := make(map[string]bool, len(sw))
 		for _, s := range sw {
 			got[s.Name] = flag(s.Name, s.AITool)
@@ -3062,12 +3062,12 @@ func (s *integrationEnterpriseTestSuite) TestAIToolFilter() {
 	}
 	listHostSoftware := func(params ...string) (map[string]bool, int) {
 		var resp getHostSoftwareResponse
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/software", teamHost.ID), nil, http.StatusOK, &resp, params...)
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/software", teamHost.ID), nil, http.StatusOK, &resp, params...)
 		return hostSoftware(resp.Software), resp.Count
 	}
 	listDeviceSoftware := func(params ...string) (map[string]bool, int) {
 		var resp getDeviceSoftwareResponse
-		res := s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token+"/software", nil, http.StatusOK, params...)
+		res := s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token+"/software", nil, http.StatusOK, params...)
 		require.NoError(t, json.NewDecoder(res.Body).Decode(&resp))
 		require.NoError(t, res.Body.Close())
 		return hostSoftware(resp.Software), resp.Count
@@ -3118,29 +3118,29 @@ func (s *integrationEnterpriseTestSuite) TestAIToolFilter() {
 		}
 	}
 
-	got, count := listTitles("ai_tool", "true", "fleet_id", fmt.Sprint(tm.ID))
+	got, count := listTitles("ai_tool", "true", "team_id", fmt.Sprint(tm.ID))
 	require.Equal(t, map[string]bool{"AIToolClaude": true, "aitool-codex": true}, got)
 	require.Equal(t, 2, count)
-	got, count = listVersions("ai_tool", "true", "fleet_id", fmt.Sprint(tm.ID))
+	got, count = listVersions("ai_tool", "true", "team_id", fmt.Sprint(tm.ID))
 	require.Equal(t, map[string]bool{"AIToolClaude": true, "aitool-codex": true}, got)
 	require.Equal(t, 2, count)
 
-	res := s.Do("GET", "/api/latest/fleet/software/titles", nil, http.StatusUnprocessableEntity, "source", "ai_tool")
-	require.Contains(t, extractServerErrorText(res.Body), fmt.Sprintf(fleet.InvalidSoftwareSourceErrMsg, "ai_tool"))
+	res := s.Do("GET", "/api/latest/automdm/software/titles", nil, http.StatusUnprocessableEntity, "source", "ai_tool")
+	require.Contains(t, extractServerErrorText(res.Body), fmt.Sprintf(automdm.InvalidSoftwareSourceErrMsg, "ai_tool"))
 
 	// By-id endpoints and host details carry the flag too.
 	var titlesResp listSoftwareTitlesResponse
-	s.DoJSON("GET", "/api/latest/fleet/software/titles", nil, http.StatusOK, &titlesResp, "query", "aitool")
+	s.DoJSON("GET", "/api/latest/automdm/software/titles", nil, http.StatusOK, &titlesResp, "query", "aitool")
 	for _, listed := range titlesResp.SoftwareTitles {
 		var titleResp getSoftwareTitleResponse
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/software/titles/%d", listed.ID), nil, http.StatusOK, &titleResp)
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/software/titles/%d", listed.ID), nil, http.StatusOK, &titleResp)
 		require.Equal(t, flag(listed.Name, listed.AITool), flag(listed.Name, titleResp.SoftwareTitle.AITool), listed.Name)
 	}
 	var versionsResp listSoftwareVersionsResponse
-	s.DoJSON("GET", "/api/latest/fleet/software/versions", nil, http.StatusOK, &versionsResp, "query", "aitool")
+	s.DoJSON("GET", "/api/latest/automdm/software/versions", nil, http.StatusOK, &versionsResp, "query", "aitool")
 	for _, listed := range versionsResp.Software {
 		var versionResp getSoftwareResponse
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/software/versions/%d", listed.ID), nil, http.StatusOK, &versionResp)
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/software/versions/%d", listed.ID), nil, http.StatusOK, &versionResp)
 		require.Equal(t, flag(listed.Name, listed.AITool), flag(listed.Name, versionResp.Software.AITool), listed.Name)
 	}
 	teamHostAITool := make(map[string]*bool, len(teamHostFlags))
@@ -3150,12 +3150,12 @@ func (s *integrationEnterpriseTestSuite) TestAIToolFilter() {
 	get := func(path string, params ...string) *http.Response {
 		return s.Do("GET", path, nil, http.StatusOK, params...)
 	}
-	require.Equal(t, teamHostAITool, aiToolByName(t, get(fmt.Sprintf("/api/latest/fleet/hosts/%d", teamHost.ID)), "host", "software"))
-	require.Equal(t, teamHostAITool, aiToolByName(t, get("/api/latest/fleet/hosts/"+teamHost.UUID), "host", "software"))
+	require.Equal(t, teamHostAITool, aiToolByName(t, get(fmt.Sprintf("/api/latest/automdm/hosts/%d", teamHost.ID)), "host", "software"))
+	require.Equal(t, teamHostAITool, aiToolByName(t, get("/api/latest/automdm/hosts/"+teamHost.UUID), "host", "software"))
 	require.Equal(t, teamHostAITool, aiToolByName(t,
-		s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token, nil, http.StatusOK), "host", "software"))
+		s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token, nil, http.StatusOK), "host", "software"))
 	var hostsResp listHostsResponse
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &hostsResp, "populate_software", "true", "query", teamHost.Hostname)
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &hostsResp, "populate_software", "true", "query", teamHost.Hostname)
 	require.Len(t, hostsResp.Hosts, 1)
 	populated := make(map[string]bool, len(hostsResp.Hosts[0].Software))
 	for _, sw := range hostsResp.Hosts[0].Software {

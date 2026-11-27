@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # CrystalDiskMark ships as an Inno Setup installer (AppId "CrystalDiskMark9"),
 # which registers as "CrystalDiskMark <version>" in Add/Remove Programs.

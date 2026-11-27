@@ -13,6 +13,6 @@ module.exports = {
     };
   },
   getCacheKey() {
-    return "fleetFileTransform";
+    return "automdmFileTransform";
   },
 };

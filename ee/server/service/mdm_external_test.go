@@ -10,32 +10,32 @@ import (
 	"testing"
 
 	"github.com/WatchBeam/clock"
-	eeservice "github.com/fleetdm/fleet/v4/ee/server/service"
-	"github.com/fleetdm/fleet/v4/pkg/optjson"
-	"github.com/fleetdm/fleet/v4/server/config"
-	authz_ctx "github.com/fleetdm/fleet/v4/server/contexts/authz"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	nanodep_client "github.com/fleetdm/fleet/v4/server/mdm/nanodep/client"
-	"github.com/fleetdm/fleet/v4/server/microsoft/msgraph"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	nanodep_mock "github.com/fleetdm/fleet/v4/server/mock/nanodep"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/service"
-	"github.com/fleetdm/fleet/v4/server/test"
+	eeservice "github.com/anilyagiz/automdm/v4/ee/server/service"
+	"github.com/anilyagiz/automdm/v4/pkg/optjson"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	authz_ctx "github.com/anilyagiz/automdm/v4/server/contexts/authz"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	nanodep_client "github.com/anilyagiz/automdm/v4/server/mdm/nanodep/client"
+	"github.com/anilyagiz/automdm/v4/server/microsoft/msgraph"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	nanodep_mock "github.com/anilyagiz/automdm/v4/server/mock/nanodep"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/service"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
 
 func setupMockDatastorePremiumService(t testing.TB) (*mock.Store, *eeservice.Service, context.Context) {
 	ds := new(mock.Store)
-	lic := &fleet.LicenseInfo{Tier: fleet.TierPremium}
+	lic := &automdm.LicenseInfo{Tier: automdm.TierPremium}
 	ctx := license.NewContext(context.Background(), lic)
 
 	logger := slog.New(slog.DiscardHandler)
-	fleetConfig := config.FleetConfig{
+	automdmConfig := config.AutoMDMConfig{
 		MDM: config.MDMConfig{
 			AppleSCEPCertBytes: eeservice.TestCert,
 			AppleSCEPKeyBytes:  eeservice.TestKey,
@@ -75,14 +75,14 @@ func setupMockDatastorePremiumService(t testing.TB) (*mock.Store, *eeservice.Ser
 		nil,
 		logger,
 		nil,
-		fleetConfig,
+		automdmConfig,
 		nil,
 		clock.C,
 		nil,
 		nil,
 		ds,
 		nil,
-		&fleet.NoOpGeoIP{},
+		&automdm.NoOpGeoIP{},
 		nil,
 		depStorage,
 		nil,
@@ -109,7 +109,7 @@ func setupMockDatastorePremiumService(t testing.TB) (*mock.Store, *eeservice.Ser
 		freeSvc,
 		ds,
 		logger,
-		fleetConfig,
+		automdmConfig,
 		nil,
 		clock.C,
 		depStorage,
@@ -137,40 +137,40 @@ func setupMockDatastorePremiumService(t testing.TB) (*mock.Store, *eeservice.Ser
 	return ds, svc, ctx
 }
 
-func noopGraphClientFactory(*fleet.MicrosoftGraphCredential) (msgraph.Client, error) {
+func noopGraphClientFactory(*automdm.MicrosoftGraphCredential) (msgraph.Client, error) {
 	return nil, nil
 }
 
 func TestTeamCreationDoesNotApplyMDMDefaults(t *testing.T) {
 	ds, svc, ctx := setupMockDatastorePremiumService(t)
 
-	ssoSettings := fleet.SSOProviderSettings{
+	ssoSettings := automdm.SSOProviderSettings{
 		EntityID:    "foo",
 		MetadataURL: "https://example.com/metadata.xml",
 	}
-	appConfig := &fleet.AppConfig{MDM: fleet.MDM{
+	appConfig := &automdm.AppConfig{MDM: automdm.MDM{
 		EnabledAndConfigured:  true,
-		EndUserAuthentication: fleet.MDMEndUserAuthentication{SSOProviderSettings: ssoSettings},
-		MacOSSetup: fleet.MacOSSetup{
+		EndUserAuthentication: automdm.MDMEndUserAuthentication{SSOProviderSettings: ssoSettings},
+		MacOSSetup: automdm.MacOSSetup{
 			EnableEndUserAuthentication: true,
 			EnableReleaseDeviceManually: optjson.SetBool(true),
 		},
 	}}
-	team1 := &fleet.Team{
+	team1 := &automdm.Team{
 		ID:   1,
 		Name: "one",
 	}
-	team2 := &fleet.Team{
+	team2 := &automdm.Team{
 		ID:   2,
 		Name: "two",
 	}
-	teamStore := map[uint]*fleet.Team{1: team1, 2: team2}
+	teamStore := map[uint]*automdm.Team{1: team1, 2: team2}
 
 	resetInvoked := func() {
 		ds.TeamByNameFuncInvoked = false
 		ds.NewTeamFuncInvoked = false
 		ds.SaveTeamFuncInvoked = false
-		ds.UpsertMDMAppleFleetConfigProfileFuncInvoked = false
+		ds.UpsertMDMAppleAutoMDMConfigProfileFuncInvoked = false
 		ds.AppConfigFuncInvoked = false
 		ds.NewJobFuncInvoked = false
 		ds.LabelIDsByNameFuncInvoked = false
@@ -180,10 +180,10 @@ func TestTeamCreationDoesNotApplyMDMDefaults(t *testing.T) {
 	setupDS := func(t *testing.T) {
 		resetInvoked()
 
-		ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
 			return appConfig, nil
 		}
-		ds.TeamByNameFunc = func(ctx context.Context, name string) (*fleet.Team, error) {
+		ds.TeamByNameFunc = func(ctx context.Context, name string) (*automdm.Team, error) {
 			for _, team := range teamStore {
 				if team.Name == name {
 					return team, nil
@@ -191,7 +191,7 @@ func TestTeamCreationDoesNotApplyMDMDefaults(t *testing.T) {
 			}
 			return nil, ctxerr.Wrap(ctx, &eeservice.NotFoundError{})
 		}
-		ds.TeamConflictsWithNameFunc = func(ctx context.Context, name string, excludeID uint) (*fleet.Team, error) {
+		ds.TeamConflictsWithNameFunc = func(ctx context.Context, name string, excludeID uint) (*automdm.Team, error) {
 			for _, team := range teamStore {
 				if team.ID == excludeID {
 					continue
@@ -202,7 +202,7 @@ func TestTeamCreationDoesNotApplyMDMDefaults(t *testing.T) {
 			}
 			return nil, nil
 		}
-		ds.TeamWithExtrasFunc = func(ctx context.Context, id uint) (*fleet.Team, error) {
+		ds.TeamWithExtrasFunc = func(ctx context.Context, id uint) (*automdm.Team, error) {
 			tm, ok := teamStore[id]
 			if !ok {
 				return nil, errors.New("team id not found")
@@ -213,27 +213,27 @@ func TestTeamCreationDoesNotApplyMDMDefaults(t *testing.T) {
 			}
 			return tm, nil
 		}
-		ds.NewTeamFunc = func(ctx context.Context, team *fleet.Team) (*fleet.Team, error) {
+		ds.NewTeamFunc = func(ctx context.Context, team *automdm.Team) (*automdm.Team, error) {
 			return nil, errors.New("not implemented")
 		}
-		ds.SaveTeamFunc = func(ctx context.Context, team *fleet.Team) (*fleet.Team, error) {
+		ds.SaveTeamFunc = func(ctx context.Context, team *automdm.Team) (*automdm.Team, error) {
 			return nil, errors.New("not implemented")
 		}
 		ds.HasAppleUpdateConfigProfileConfiguredFunc = func(ctx context.Context, teamID uint) (bool, error) {
 			return false, nil
 		}
-		ds.LabelIDsByNameFunc = func(ctx context.Context, names []string, filter fleet.TeamFilter) (map[string]uint, error) {
+		ds.LabelIDsByNameFunc = func(ctx context.Context, names []string, filter automdm.TeamFilter) (map[string]uint, error) {
 			require.Len(t, names, 1)
-			require.ElementsMatch(t, names, []string{fleet.BuiltinLabelMacOS14Plus})
+			require.ElementsMatch(t, names, []string{automdm.BuiltinLabelMacOS14Plus})
 			return map[string]uint{names[0]: 1}, nil
 		}
-		ds.SetOrUpdateMDMAppleDeclarationFunc = func(ctx context.Context, declaration *fleet.MDMAppleDeclaration, usesFleetVars []fleet.FleetVarName, activationAction fleet.MDMAppleActivationAction) (*fleet.MDMAppleDeclaration, error) {
+		ds.SetOrUpdateMDMAppleDeclarationFunc = func(ctx context.Context, declaration *automdm.MDMAppleDeclaration, usesAutoMDMVars []automdm.AutoMDMVarName, activationAction automdm.MDMAppleActivationAction) (*automdm.MDMAppleDeclaration, error) {
 			declaration.DeclarationUUID = uuid.NewString()
 			return declaration, nil
 		}
 		ds.BulkSetPendingMDMHostProfilesFunc = func(ctx context.Context, hostIDs, teamIDs []uint, profileUUIDs, hostUUIDs []string,
-		) (updates fleet.MDMProfilesUpdates, err error) {
-			return fleet.MDMProfilesUpdates{}, nil
+		) (updates automdm.MDMProfilesUpdates, err error) {
+			return automdm.MDMProfilesUpdates{}, nil
 		}
 	}
 
@@ -246,7 +246,7 @@ func TestTeamCreationDoesNotApplyMDMDefaults(t *testing.T) {
 	t.Run("modify team via apply team spec", func(t *testing.T) {
 		setupDS(t)
 
-		ds.SaveTeamFunc = func(ctx context.Context, team *fleet.Team) (*fleet.Team, error) {
+		ds.SaveTeamFunc = func(ctx context.Context, team *automdm.Team) (*automdm.Team, error) {
 			tm, ok := teamStore[team.ID]
 			if !ok {
 				return nil, errors.New("invalid team id")
@@ -259,16 +259,16 @@ func TestTeamCreationDoesNotApplyMDMDefaults(t *testing.T) {
 		}
 
 		// apply team spec does not apply defaults
-		spec := &fleet.TeamSpec{
+		spec := &automdm.TeamSpec{
 			Name: team2.Name,
 		}
-		_, err := svc.ApplyTeamSpecs(ctx, []*fleet.TeamSpec{spec}, fleet.ApplyTeamSpecOptions{})
+		_, err := svc.ApplyTeamSpecs(ctx, []*automdm.TeamSpec{spec}, automdm.ApplyTeamSpecOptions{})
 		require.NoError(t, err)
 		require.True(t, ds.SaveTeamFuncInvoked)
 		require.True(t, ds.AppConfigFuncInvoked)
 		require.True(t, ds.TeamByNameFuncInvoked)
 		require.False(t, ds.NewTeamFuncInvoked)
-		require.False(t, ds.UpsertMDMAppleFleetConfigProfileFuncInvoked)
+		require.False(t, ds.UpsertMDMAppleAutoMDMConfigProfileFuncInvoked)
 		require.False(t, ds.NewJobFuncInvoked)
 		resetInvoked()
 	})
@@ -276,7 +276,7 @@ func TestTeamCreationDoesNotApplyMDMDefaults(t *testing.T) {
 	t.Run("new team", func(t *testing.T) {
 		setupDS(t)
 
-		ds.NewTeamFunc = func(ctx context.Context, team *fleet.Team) (*fleet.Team, error) {
+		ds.NewTeamFunc = func(ctx context.Context, team *automdm.Team) (*automdm.Team, error) {
 			for _, tm := range teamStore {
 				if tm.Name == team.Name {
 					return nil, errors.New("team name already exists")
@@ -295,7 +295,7 @@ func TestTeamCreationDoesNotApplyMDMDefaults(t *testing.T) {
 		}
 
 		// new team does not apply defaults
-		_, err := svc.NewTeam(ctx, fleet.TeamPayload{
+		_, err := svc.NewTeam(ctx, automdm.TeamPayload{
 			Name:        ptr.String("new team"),
 			Description: ptr.String("new description"),
 		})
@@ -304,7 +304,7 @@ func TestTeamCreationDoesNotApplyMDMDefaults(t *testing.T) {
 		require.True(t, ds.AppConfigFuncInvoked)
 		require.False(t, ds.TeamByNameFuncInvoked)
 		require.False(t, ds.SaveTeamFuncInvoked)
-		require.False(t, ds.UpsertMDMAppleFleetConfigProfileFuncInvoked)
+		require.False(t, ds.UpsertMDMAppleAutoMDMConfigProfileFuncInvoked)
 		require.False(t, ds.NewJobFuncInvoked)
 		resetInvoked()
 	})
@@ -312,7 +312,7 @@ func TestTeamCreationDoesNotApplyMDMDefaults(t *testing.T) {
 	t.Run("apply team spec", func(t *testing.T) {
 		setupDS(t)
 
-		ds.NewTeamFunc = func(ctx context.Context, team *fleet.Team) (*fleet.Team, error) {
+		ds.NewTeamFunc = func(ctx context.Context, team *automdm.Team) (*automdm.Team, error) {
 			for _, tm := range teamStore {
 				if tm.Name == team.Name {
 					return nil, errors.New("team name already exists")
@@ -330,7 +330,7 @@ func TestTeamCreationDoesNotApplyMDMDefaults(t *testing.T) {
 			teamStore[id] = team
 			return team, nil
 		}
-		ds.SaveTeamFunc = func(ctx context.Context, team *fleet.Team) (*fleet.Team, error) {
+		ds.SaveTeamFunc = func(ctx context.Context, team *automdm.Team) (*automdm.Team, error) {
 			tm, ok := teamStore[team.ID]
 			if !ok {
 				return nil, errors.New("invalid team id")
@@ -345,10 +345,10 @@ func TestTeamCreationDoesNotApplyMDMDefaults(t *testing.T) {
 			return teamStore[tm.ID], nil
 		}
 
-		spec := &fleet.TeamSpec{
+		spec := &automdm.TeamSpec{
 			Name: "new team spec",
-			MDM: fleet.TeamSpecMDM{
-				MacOSUpdates: fleet.AppleOSUpdateSettings{
+			MDM: automdm.TeamSpecMDM{
+				MacOSUpdates: automdm.AppleOSUpdateSettings{
 					MinimumVersion: optjson.SetString("12.0"),
 					Deadline:       optjson.SetString("2024-01-01"),
 				},
@@ -356,25 +356,25 @@ func TestTeamCreationDoesNotApplyMDMDefaults(t *testing.T) {
 		}
 
 		// apply team spec creates new team without defaults
-		_, err := svc.ApplyTeamSpecs(ctx, []*fleet.TeamSpec{spec}, fleet.ApplyTeamSpecOptions{})
+		_, err := svc.ApplyTeamSpecs(ctx, []*automdm.TeamSpec{spec}, automdm.ApplyTeamSpecOptions{})
 		require.NoError(t, err)
 		require.True(t, ds.NewTeamFuncInvoked)
 		require.True(t, ds.AppConfigFuncInvoked)
 		require.True(t, ds.TeamByNameFuncInvoked)
 		require.False(t, ds.SaveTeamFuncInvoked)
-		require.False(t, ds.UpsertMDMAppleFleetConfigProfileFuncInvoked)
+		require.False(t, ds.UpsertMDMAppleAutoMDMConfigProfileFuncInvoked)
 		require.False(t, ds.NewJobFuncInvoked)
 		resetInvoked()
 
 		// apply team spec edits existing team without applying defaults
 		spec.MDM.MacOSUpdates.Deadline = optjson.SetString("2025-01-01")
-		_, err = svc.ApplyTeamSpecs(ctx, []*fleet.TeamSpec{spec}, fleet.ApplyTeamSpecOptions{})
+		_, err = svc.ApplyTeamSpecs(ctx, []*automdm.TeamSpec{spec}, automdm.ApplyTeamSpecOptions{})
 		require.NoError(t, err)
 		require.True(t, ds.SaveTeamFuncInvoked)
 		require.True(t, ds.AppConfigFuncInvoked)
 		require.True(t, ds.TeamByNameFuncInvoked)
 		require.False(t, ds.NewTeamFuncInvoked)
-		require.False(t, ds.UpsertMDMAppleFleetConfigProfileFuncInvoked)
+		require.False(t, ds.UpsertMDMAppleAutoMDMConfigProfileFuncInvoked)
 		require.False(t, ds.NewJobFuncInvoked)
 		resetInvoked()
 	})

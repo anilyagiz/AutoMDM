@@ -20,20 +20,20 @@ import (
 	"time"
 
 	"github.com/WatchBeam/clock"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm"
-	"github.com/fleetdm/fleet/v4/server/mdm/assets"
-	"github.com/fleetdm/fleet/v4/server/mdm/cryptoutil"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql"
+	"github.com/anilyagiz/automdm/v4/server/mdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/assets"
+	"github.com/anilyagiz/automdm/v4/server/mdm/cryptoutil"
 	"github.com/smallstep/pkcs7"
 )
 
 const (
-	testUsername = "fleet"
+	testUsername = "automdm"
 	testPassword = "insecure"
 	testAddress  = "localhost:3306"
-	testDatabase = "fleet"
+	testDatabase = "automdm"
 )
 
 var (
@@ -53,17 +53,17 @@ var (
 	flagExtendYears  int
 	flagDecryptValue string
 
-	validNames = map[fleet.MDMAssetName]struct{}{
-		fleet.MDMAssetABMCert:                  {},
-		fleet.MDMAssetABMTokenDeprecated:       {},
-		fleet.MDMAssetABMKey:                   {},
-		fleet.MDMAssetAPNSCert:                 {},
-		fleet.MDMAssetAPNSKey:                  {},
-		fleet.MDMAssetCACert:                   {},
-		fleet.MDMAssetCAKey:                    {},
-		fleet.MDMAssetSCEPChallenge:            {},
-		fleet.MDMAssetVPPTokenDeprecated:       {},
-		fleet.MDMAssetAndroidFleetServerSecret: {},
+	validNames = map[automdm.MDMAssetName]struct{}{
+		automdm.MDMAssetABMCert:                    {},
+		automdm.MDMAssetABMTokenDeprecated:         {},
+		automdm.MDMAssetABMKey:                     {},
+		automdm.MDMAssetAPNSCert:                   {},
+		automdm.MDMAssetAPNSKey:                    {},
+		automdm.MDMAssetCACert:                     {},
+		automdm.MDMAssetCAKey:                      {},
+		automdm.MDMAssetSCEPChallenge:              {},
+		automdm.MDMAssetVPPTokenDeprecated:         {},
+		automdm.MDMAssetAndroidAutoMDMServerSecret: {},
 	}
 )
 
@@ -99,7 +99,7 @@ func setupDS(privateKey, userName, password, address, name string) *mysql.Datast
 		mysqlCfg,
 		clock.NewMockClock(),
 		mysql.LimitAttempts(1),
-		mysql.WithFleetConfig(&config.FleetConfig{
+		mysql.WithAutoMDMConfig(&config.AutoMDMConfig{
 			Server: config.ServerConfig{
 				PrivateKey: privateKey,
 			},
@@ -158,12 +158,12 @@ func main() {
 			log.Fatal("-value flag is required")
 		}
 
-		if _, ok := validNames[fleet.MDMAssetName(flagImportName)]; !ok {
+		if _, ok := validNames[automdm.MDMAssetName(flagImportName)]; !ok {
 			log.Fatalf("invalid asset name %s", flagImportName)
 		}
 
 		err := ds.ReplaceMDMConfigAssets(ctx,
-			[]fleet.MDMConfigAsset{{Name: fleet.MDMAssetName(flagImportName), Value: []byte(flagImportValue)}}, nil)
+			[]automdm.MDMConfigAsset{{Name: automdm.MDMAssetName(flagImportName), Value: []byte(flagImportValue)}}, nil)
 		if err != nil {
 			log.Fatal("writing asset to db: ", err)
 		}
@@ -193,24 +193,24 @@ func main() {
 			}
 		}
 
-		names := []fleet.MDMAssetName{
-			fleet.MDMAssetCACert,
-			fleet.MDMAssetCAKey,
-			fleet.MDMAssetAPNSKey,
-			fleet.MDMAssetAPNSCert,
-			fleet.MDMAssetABMCert,
-			fleet.MDMAssetABMKey,
-			fleet.MDMAssetABMTokenDeprecated,
-			fleet.MDMAssetSCEPChallenge,
-			fleet.MDMAssetVPPTokenDeprecated,
+		names := []automdm.MDMAssetName{
+			automdm.MDMAssetCACert,
+			automdm.MDMAssetCAKey,
+			automdm.MDMAssetAPNSKey,
+			automdm.MDMAssetAPNSCert,
+			automdm.MDMAssetABMCert,
+			automdm.MDMAssetABMKey,
+			automdm.MDMAssetABMTokenDeprecated,
+			automdm.MDMAssetSCEPChallenge,
+			automdm.MDMAssetVPPTokenDeprecated,
 		}
 
 		if flagExportName != "" {
-			if _, ok := validNames[fleet.MDMAssetName(flagExportName)]; !ok {
+			if _, ok := validNames[automdm.MDMAssetName(flagExportName)]; !ok {
 				log.Fatalf("invalid asset name %s", flagExportName)
 			}
 
-			names = []fleet.MDMAssetName{fleet.MDMAssetName(flagExportName)}
+			names = []automdm.MDMAssetName{automdm.MDMAssetName(flagExportName)}
 		}
 
 		assets, err := ds.GetAllMDMConfigAssetsByName(ctx, names, nil)
@@ -238,15 +238,15 @@ func main() {
 			log.Fatalf("abs path: %s", err)
 		}
 
-		fmt.Printf(`You can set the following on your Fleet configuration:
-export FLEET_MDM_APPLE_APNS_CERT=%[1]s/apns_cert.crt
-export FLEET_MDM_APPLE_APNS_KEY=%[1]s/apns_key.key
-export FLEET_MDM_APPLE_SCEP_CERT=%[1]s/ca_cert.crt
-export FLEET_MDM_APPLE_SCEP_KEY=%[1]s/ca_key.key
-export FLEET_MDM_APPLE_SCEP_CHALLENGE=$(cat %[1]s/scep_challenge)
-export FLEET_MDM_APPLE_BUSINESS_SERVER_TOKEN=%[1]s/abm_token
-export FLEET_MDM_APPLE_BUSINESS_CERT=%[1]s/abm_cert.crt
-export FLEET_MDM_APPLE_BUSINESS_KEY=%[1]s/abm_key.key
+		fmt.Printf(`You can set the following on your AutoMDM configuration:
+export AUTOMDM_MDM_APPLE_APNS_CERT=%[1]s/apns_cert.crt
+export AUTOMDM_MDM_APPLE_APNS_KEY=%[1]s/apns_key.key
+export AUTOMDM_MDM_APPLE_SCEP_CERT=%[1]s/ca_cert.crt
+export AUTOMDM_MDM_APPLE_SCEP_KEY=%[1]s/ca_key.key
+export AUTOMDM_MDM_APPLE_SCEP_CHALLENGE=$(cat %[1]s/scep_challenge)
+export AUTOMDM_MDM_APPLE_BUSINESS_SERVER_TOKEN=%[1]s/abm_token
+export AUTOMDM_MDM_APPLE_BUSINESS_CERT=%[1]s/abm_cert.crt
+export AUTOMDM_MDM_APPLE_BUSINESS_KEY=%[1]s/abm_key.key
 `, flagDir)
 	case "rollover-ca-cert":
 		if err := rolloverCmd.Parse(os.Args[2:]); err != nil {
@@ -268,19 +268,19 @@ export FLEET_MDM_APPLE_BUSINESS_KEY=%[1]s/abm_key.key
 		ds := setupDS(flagKey, flagDBUser, flagDBPass, flagDBAddress, flagDBName)
 		defer ds.Close()
 
-		assets, err := ds.GetAllMDMConfigAssetsByName(ctx, []fleet.MDMAssetName{
-			fleet.MDMAssetCACert,
-			fleet.MDMAssetCAKey,
+		assets, err := ds.GetAllMDMConfigAssetsByName(ctx, []automdm.MDMAssetName{
+			automdm.MDMAssetCACert,
+			automdm.MDMAssetCAKey,
 		}, nil)
 		if err != nil {
 			log.Fatal("loading existing apple mdm ca cert and key: ", err) //nolint:gocritic // ignore exitAfterDefer
 		}
 
-		caCertAsset, ok := assets[fleet.MDMAssetCACert]
+		caCertAsset, ok := assets[automdm.MDMAssetCACert]
 		if !ok {
 			log.Fatal("Apple MDM CA certificate not found in database")
 		}
-		caKeyAsset, ok := assets[fleet.MDMAssetCAKey]
+		caKeyAsset, ok := assets[automdm.MDMAssetCAKey]
 		if !ok {
 			log.Fatal("Apple MDM CA private key not found in database")
 		}
@@ -379,8 +379,8 @@ export FLEET_MDM_APPLE_BUSINESS_KEY=%[1]s/abm_key.key
 		// ReplaceMDMConfigAssets soft-deletes the existing ca_cert row (sets
 		// deletion_uuid + deleted_at) and inserts the new cert. The CA private
 		// key is untouched so existing chains stay valid.
-		if err := ds.ReplaceMDMConfigAssets(ctx, []fleet.MDMConfigAsset{
-			{Name: fleet.MDMAssetCACert, Value: newCertPEM},
+		if err := ds.ReplaceMDMConfigAssets(ctx, []automdm.MDMConfigAsset{
+			{Name: automdm.MDMAssetCACert, Value: newCertPEM},
 		}, nil); err != nil {
 			log.Fatal("writing renewed apple mdm ca cert to db: ", err)
 		}
@@ -467,7 +467,7 @@ func decrypt(ds *mysql.Datastore, privateKey, value string) error {
 	}
 
 	return fmt.Errorf("could not decrypt the value (%s)."+
-		" Check that -key is the FLEET_SERVER_PRIVATE_KEY of the environment that escrowed this value,"+
+		" Check that -key is the AUTOMDM_SERVER_PRIVATE_KEY of the environment that escrowed this value,"+
 		" and that the value was copied in full."+
 		" A Windows (BitLocker) key needs the WSTEP certificate instead, see ./tools/mdm/decrypt-disk-encryption-key",
 		strings.Join(failures, "; "))
@@ -488,7 +488,7 @@ func decodeCandidates(value string) []candidate {
 	if raw, err := hex.DecodeString(unprefixed); err == nil && len(raw) > 0 {
 		candidates = append(candidates, candidate{encoding: "hex", raw: raw})
 	}
-	// Padded first, since that's how Fleet stores base64 values.
+	// Padded first, since that's how AutoMDM stores base64 values.
 	for _, base64Enc := range []struct {
 		name string
 		enc  *base64.Encoding

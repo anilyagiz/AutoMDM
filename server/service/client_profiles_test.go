@@ -9,15 +9,15 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/pkg/optjson"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/pkg/optjson"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/require"
 )
 
 func TestApplyProfilesBatchErrorNamesProfile(t *testing.T) {
 	t.Parallel()
 
-	// 422 response as returned by POST /api/latest/fleet/mdm/profiles/batch when
+	// 422 response as returned by POST /api/latest/automdm/mdm/profiles/batch when
 	// one profile in the batch fails validation.
 	newClient := func(t *testing.T, body map[string]any) *Client {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -32,7 +32,7 @@ func TestApplyProfilesBatchErrorNamesProfile(t *testing.T) {
 		return client
 	}
 
-	profiles := []fleet.MDMProfileBatchPayload{
+	profiles := []automdm.MDMProfileBatchPayload{
 		{Name: "screen-lock", Contents: []byte("<Replace/>")},
 		{Name: "bitlocker", Contents: []byte("<Replace/>")},
 	}
@@ -43,7 +43,7 @@ func TestApplyProfilesBatchErrorNamesProfile(t *testing.T) {
 
 	t.Run("team profiles name the failing profile", func(t *testing.T) {
 		client := newClient(t, invalidBody)
-		err := client.ApplyTeamProfiles("Workstations", profiles, fleet.ApplyTeamSpecOptions{})
+		err := client.ApplyTeamProfiles("Workstations", profiles, automdm.ApplyTeamSpecOptions{})
 		require.ErrorContains(t, err, `profile "bitlocker"`)
 		require.ErrorContains(t, err, "can't include BitLocker settings")
 		// the original error stays in the chain for status-code checks
@@ -54,7 +54,7 @@ func TestApplyProfilesBatchErrorNamesProfile(t *testing.T) {
 
 	t.Run("no-team profiles name the failing profile", func(t *testing.T) {
 		client := newClient(t, invalidBody)
-		err := client.ApplyNoTeamProfiles(profiles, fleet.ApplySpecOptions{}, nil)
+		err := client.ApplyNoTeamProfiles(profiles, automdm.ApplySpecOptions{}, nil)
 		require.ErrorContains(t, err, `profile "bitlocker"`)
 	})
 
@@ -63,7 +63,7 @@ func TestApplyProfilesBatchErrorNamesProfile(t *testing.T) {
 			"message": "Validation Failed",
 			"errors":  []map[string]string{{"name": "mdm", "reason": "cannot set custom settings: Windows MDM is not configured"}},
 		})
-		err := client.ApplyNoTeamProfiles(profiles, fleet.ApplySpecOptions{}, nil)
+		err := client.ApplyNoTeamProfiles(profiles, automdm.ApplySpecOptions{}, nil)
 		require.Error(t, err)
 		require.NotContains(t, err.Error(), `profile "`)
 		require.ErrorContains(t, err, "Windows MDM is not configured")
@@ -73,7 +73,7 @@ func TestApplyProfilesBatchErrorNamesProfile(t *testing.T) {
 func TestRewrapProfileBatchNameErr(t *testing.T) {
 	t.Parallel()
 
-	profiles := []fleet.MDMProfileBatchPayload{{Name: "screen-lock"}, {Name: "Passcode policy"}}
+	profiles := []automdm.MDMProfileBatchPayload{{Name: "screen-lock"}, {Name: "Passcode policy"}}
 
 	statusErr := func(name string) error {
 		return &StatusCodeErr{Code: http.StatusUnprocessableEntity, Body: "Validation Failed: boom", Name: name}
@@ -127,23 +127,23 @@ func TestApplyProfilesSendsDryRunAssumptions(t *testing.T) {
 		client.SetToken("test-token")
 		return client
 	}
-	profiles := []fleet.MDMProfileBatchPayload{{Name: "p", Contents: []byte("<Replace/>")}}
+	profiles := []automdm.MDMProfileBatchPayload{{Name: "p", Contents: []byte("<Replace/>")}}
 
 	for _, v := range []bool{true, false} {
-		assumptions := &fleet.TeamSpecsDryRunAssumptions{EnableProfileValidation: optjson.SetBool(v)}
+		assumptions := &automdm.TeamSpecsDryRunAssumptions{EnableProfileValidation: optjson.SetBool(v)}
 		want := strconv.FormatBool(v)
 
 		t.Run("team "+want, func(t *testing.T) {
 			var q url.Values
 			err := newClient(t, &q).ApplyTeamProfiles("Workstations", profiles,
-				fleet.ApplyTeamSpecOptions{DryRun: true, DryRunAssumptions: assumptions})
+				automdm.ApplyTeamSpecOptions{DryRun: true, DryRunAssumptions: assumptions})
 			require.NoError(t, err)
 			require.Equal(t, want, q.Get("assume_profile_validation"))
 		})
 
 		t.Run("no team "+want, func(t *testing.T) {
 			var q url.Values
-			err := newClient(t, &q).ApplyNoTeamProfiles(profiles, fleet.ApplySpecOptions{DryRun: true}, assumptions)
+			err := newClient(t, &q).ApplyNoTeamProfiles(profiles, automdm.ApplySpecOptions{DryRun: true}, assumptions)
 			require.NoError(t, err)
 			require.Equal(t, want, q.Get("assume_profile_validation"))
 		})
@@ -151,21 +151,21 @@ func TestApplyProfilesSendsDryRunAssumptions(t *testing.T) {
 
 	t.Run("not sent without assumption", func(t *testing.T) {
 		var q url.Values
-		require.NoError(t, newClient(t, &q).ApplyNoTeamProfiles(profiles, fleet.ApplySpecOptions{}, nil))
+		require.NoError(t, newClient(t, &q).ApplyNoTeamProfiles(profiles, automdm.ApplySpecOptions{}, nil))
 		require.False(t, q.Has("assume_profile_validation"))
-		require.NoError(t, newClient(t, &q).ApplyTeamProfiles("Workstations", profiles, fleet.ApplyTeamSpecOptions{}))
+		require.NoError(t, newClient(t, &q).ApplyTeamProfiles("Workstations", profiles, automdm.ApplyTeamSpecOptions{}))
 		require.False(t, q.Has("assume_profile_validation"))
 	})
 
 	t.Run("no team keeps assume_enabled only when true", func(t *testing.T) {
 		var q url.Values
-		err := newClient(t, &q).ApplyNoTeamProfiles(profiles, fleet.ApplySpecOptions{},
-			&fleet.TeamSpecsDryRunAssumptions{WindowsEnabledAndConfigured: optjson.SetBool(true)})
+		err := newClient(t, &q).ApplyNoTeamProfiles(profiles, automdm.ApplySpecOptions{},
+			&automdm.TeamSpecsDryRunAssumptions{WindowsEnabledAndConfigured: optjson.SetBool(true)})
 		require.NoError(t, err)
 		require.Equal(t, "true", q.Get("assume_enabled"))
 
-		err = newClient(t, &q).ApplyNoTeamProfiles(profiles, fleet.ApplySpecOptions{},
-			&fleet.TeamSpecsDryRunAssumptions{WindowsEnabledAndConfigured: optjson.SetBool(false)})
+		err = newClient(t, &q).ApplyNoTeamProfiles(profiles, automdm.ApplySpecOptions{},
+			&automdm.TeamSpecsDryRunAssumptions{WindowsEnabledAndConfigured: optjson.SetBool(false)})
 		require.NoError(t, err)
 		require.False(t, q.Has("assume_enabled"))
 	})

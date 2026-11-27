@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # Connect Fonts for Windows (Monotype Connect) ships as a zip holding a WiX Burn
 # bundle. This script extracts the zip and runs the bundle silently; the bundle

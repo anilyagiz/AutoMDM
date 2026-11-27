@@ -12,11 +12,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/pkg/retry"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/dev_mode"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/pkg/retry"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/dev_mode"
 )
 
 type Metadata struct {
@@ -102,7 +102,7 @@ func TestConfigWithBaseURLForRegion(baseURLForRegion func(region string) string)
 // be reused instead of created as needed, as the internal Transport typically
 // has internal state (cached connections, etc) and it's safe for concurrent
 // use.
-var client = fleethttp.NewClient(fleethttp.WithTimeout(10 * time.Second))
+var client = automdmhttp.NewClient(automdmhttp.WithTimeout(10 * time.Second))
 
 // GetMetadata fetches App Store metadata for the given adamIDs from the
 // storefront identified by region (lowercase ISO 3166-1 alpha-2 code, e.g.
@@ -164,7 +164,7 @@ func buildMetadataRequest(baseURL string, adamIDs []string, vppToken string) (*h
 	}
 	if strings.HasPrefix(baseURL, appleHostAndScheme) { // Apple requires providing the token as a cookie
 		req.Header.Set("Cookie", fmt.Sprintf("itvt=%s", vppToken))
-	} else { // Fleet proxy requires providing the token as a header
+	} else { // AutoMDM proxy requires providing the token as a header
 		req.Header.Set("vpp-token", vppToken)
 	}
 
@@ -223,15 +223,15 @@ func do(req *http.Request, getBearerToken authenticator, forceRenew bool, dest *
 	return nil
 }
 
-func ToVPPApps(app Metadata) map[fleet.InstallableDevicePlatform]fleet.VPPApp {
+func ToVPPApps(app Metadata) map[automdm.InstallableDevicePlatform]automdm.VPPApp {
 	// length 1 because watchOS/tvOS/visionOS exist and we don't support them, so using the length of the DeviceFamilies
 	// slice would give us extra empty entries
-	platforms := make(map[fleet.InstallableDevicePlatform]fleet.VPPApp, 1)
+	platforms := make(map[automdm.InstallableDevicePlatform]automdm.VPPApp, 1)
 	for _, device := range app.Attributes.DeviceFamilies {
 		var (
 			data     PlatformData
 			ok       bool
-			platform fleet.InstallableDevicePlatform
+			platform automdm.InstallableDevicePlatform
 		)
 
 		// It is rare that a single app supports all platforms, but it is possible.
@@ -243,26 +243,26 @@ func ToVPPApps(app Metadata) map[fleet.InstallableDevicePlatform]fleet.VPPApp {
 			if !ok {
 				continue
 			}
-			platform = fleet.IOSPlatform
+			platform = automdm.IOSPlatform
 		case "ipad":
 			data, ok = app.Attributes.Platforms["ios"]
 			if !ok {
 				continue
 			}
-			platform = fleet.IPadOSPlatform
+			platform = automdm.IPadOSPlatform
 		case "mac":
 			data, ok = app.Attributes.Platforms["osx"]
 			if !ok {
 				continue
 			}
-			platform = fleet.MacOSPlatform
+			platform = automdm.MacOSPlatform
 		default:
 			continue
 		}
 
-		platforms[platform] = fleet.VPPApp{
-			VPPAppTeam: fleet.VPPAppTeam{
-				VPPAppID: fleet.VPPAppID{
+		platforms[platform] = automdm.VPPApp{
+			VPPAppTeam: automdm.VPPAppTeam{
+				VPPAppID: automdm.VPPAppID{
 					AdamID:   app.ID,
 					Platform: platform,
 				},
@@ -279,17 +279,17 @@ func ToVPPApps(app Metadata) map[fleet.InstallableDevicePlatform]fleet.VPPApp {
 }
 
 // getBaseURL returns the VPP app metadata base URL for the given storefront
-// region. The FLEET_DEV_VPP_REGION dev override, when set, takes precedence
+// region. The AUTOMDM_DEV_VPP_REGION dev override, when set, takes precedence
 // over the caller-supplied region. An empty region falls back to "us".
 func getBaseURL(bearerTokenSupplied bool, region string) string {
 	if region == "" {
 		region = "us"
 	}
-	if devRegion := dev_mode.Env("FLEET_DEV_VPP_REGION"); devRegion != "" {
+	if devRegion := dev_mode.Env("AUTOMDM_DEV_VPP_REGION"); devRegion != "" {
 		region = devRegion
 	}
 
-	urlFromEnvVar := dev_mode.Env("FLEET_DEV_STOKEN_AUTHENTICATED_APPS_URL")
+	urlFromEnvVar := dev_mode.Env("AUTOMDM_DEV_STOKEN_AUTHENTICATED_APPS_URL")
 	if urlFromEnvVar != "" && urlFromEnvVar != "apple" {
 		return urlFromEnvVar
 	}
@@ -302,12 +302,12 @@ func getBaseURL(bearerTokenSupplied bool, region string) string {
 }
 
 type authResp struct {
-	Token string `json:"fleetServerSecret"`
+	Token string `json:"automdmServerSecret"`
 }
 
 type DataStore interface {
-	fleet.GetsAppConfig
-	fleet.AccessesMDMConfigAssets
+	automdm.GetsAppConfig
+	automdm.AccessesMDMConfigAssets
 }
 
 func Configure(ctx context.Context, ds DataStore, licenseKey string, token string) Config {
@@ -326,16 +326,16 @@ func Configure(ctx context.Context, ds DataStore, licenseKey string, token strin
 
 func getAuthenticator(ctx context.Context, ds DataStore, licenseKey string) authenticator {
 	return func(forceRenew bool) (string, error) {
-		const key = fleet.MDMAssetVPPProxyBearerToken
+		const key = automdm.MDMAssetVPPProxyBearerToken
 		if !forceRenew {
 			// throwing away the error here as on retrieval errors we'll request a new token
-			fromDB, _ := ds.GetAllMDMConfigAssetsByName(ctx, []fleet.MDMAssetName{key}, nil)
+			fromDB, _ := ds.GetAllMDMConfigAssetsByName(ctx, []automdm.MDMAssetName{key}, nil)
 			if v, ok := fromDB[key]; ok {
 				return string(v.Value), nil
 			}
 		}
 
-		authUrl := dev_mode.Env("FLEET_DEV_VPP_PROXY_AUTH_URL")
+		authUrl := dev_mode.Env("AUTOMDM_DEV_VPP_PROXY_AUTH_URL")
 		if authUrl == "" {
 			authUrl = "https://fleetdm.com/api/vpp/v1/auth"
 		}
@@ -346,8 +346,8 @@ func getAuthenticator(ctx context.Context, ds DataStore, licenseKey string) auth
 		}
 
 		body, err := json.Marshal(struct {
-			ServerURL  string `json:"fleetServerUrl"`
-			LicenseKey string `json:"fleetLicenseKey"`
+			ServerURL  string `json:"automdmServerUrl"`
+			LicenseKey string `json:"automdmLicenseKey"`
 		}{appConfig.ServerSettings.ServerURL, licenseKey})
 		if err != nil {
 			return "", ctxerr.Wrap(ctx, err, "encoding authentication request for VPP metadata service")
@@ -371,7 +371,7 @@ func getAuthenticator(ctx context.Context, ds DataStore, licenseKey string) auth
 		_ = ds.HardDeleteMDMConfigAsset(ctx, key)
 
 		// don't fail if we can't persist the token; we can continue anyway and will try again with the next request
-		_ = ds.InsertOrReplaceMDMConfigAsset(ctx, fleet.MDMConfigAsset{Name: key, Value: []byte(authResponse.Token)})
+		_ = ds.InsertOrReplaceMDMConfigAsset(ctx, automdm.MDMConfigAsset{Name: key, Value: []byte(authResponse.Token)})
 
 		return authResponse.Token, nil
 	}

@@ -11,7 +11,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/ee/orbit/pkg/securehw"
+	"github.com/anilyagiz/automdm/v4/ee/orbit/pkg/securehw"
 	"github.com/rs/zerolog"
 )
 

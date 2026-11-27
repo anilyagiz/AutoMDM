@@ -4,12 +4,12 @@ import (
 	"context"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/require"
 )
 
 func TestNewProductFromOS(t *testing.T) {
-	os := fleet.OperatingSystem{
+	os := automdm.OperatingSystem{
 		Name:          "Microsoft Windows 11 Enterprise Evaluation",
 		Version:       "21H2",
 		Arch:          "64-bit",
@@ -624,13 +624,13 @@ func TestMatchesOperatingSystem(t *testing.T) {
 	ctx := context.Background()
 	tc := []struct {
 		name string
-		os   fleet.OperatingSystem
+		os   automdm.OperatingSystem
 		want string
 		err  error
 	}{
 		{
 			name: "OS with known Display Version Match x64",
-			os: fleet.OperatingSystem{
+			os: automdm.OperatingSystem{
 				Name:           "Windows 11 Pro Version 22H2",
 				Arch:           "x86_64",
 				DisplayVersion: "22H2",
@@ -640,7 +640,7 @@ func TestMatchesOperatingSystem(t *testing.T) {
 		},
 		{
 			name: "OS with known Display Version Match ARM64",
-			os: fleet.OperatingSystem{
+			os: automdm.OperatingSystem{
 				Name:           "Windows 11 Pro Version 22H2",
 				Arch:           "ARM 64-bit Processor",
 				DisplayVersion: "22H2",
@@ -650,7 +650,7 @@ func TestMatchesOperatingSystem(t *testing.T) {
 		},
 		{
 			name: "Win 11 with no Display Version and matching build number",
-			os: fleet.OperatingSystem{
+			os: automdm.OperatingSystem{
 				Name:          "Windows 11 Pro",
 				Arch:          "64-bit",
 				KernelVersion: "10.0.22000.795", // matches on build number for 22000 only
@@ -660,7 +660,7 @@ func TestMatchesOperatingSystem(t *testing.T) {
 		},
 		{
 			name: "Win 11 with no Display Version with wrong build number",
-			os: fleet.OperatingSystem{
+			os: automdm.OperatingSystem{
 				Name:          "Windows 11 Pro",
 				Arch:          "64-bit",
 				KernelVersion: "10.0.22631.795", // matches on build number for 22000 only
@@ -669,7 +669,7 @@ func TestMatchesOperatingSystem(t *testing.T) {
 		},
 		{
 			name: "Win 10 with no Display Version and matching build number",
-			os: fleet.OperatingSystem{
+			os: automdm.OperatingSystem{
 				Name:          "Windows 10 Pro",
 				Arch:          "64-bit",
 				KernelVersion: "10.0.10240.795", // matches on build number for 10240 only
@@ -679,7 +679,7 @@ func TestMatchesOperatingSystem(t *testing.T) {
 		},
 		{
 			name: "Win10 with no Display Version with wrong build number",
-			os: fleet.OperatingSystem{
+			os: automdm.OperatingSystem{
 				Name:          "Windows 10 Pro",
 				Arch:          "64-bit",
 				KernelVersion: "10.0.19045.795", // matches on build number for 10240 only
@@ -689,7 +689,7 @@ func TestMatchesOperatingSystem(t *testing.T) {
 		},
 		{
 			name: "Product contains 'Edition' keyword",
-			os: fleet.OperatingSystem{
+			os: automdm.OperatingSystem{
 				Name:           "Windows Server 2022 Edition 23H2",
 				Arch:           "64-bit",
 				DisplayVersion: "23H2",
@@ -699,7 +699,7 @@ func TestMatchesOperatingSystem(t *testing.T) {
 		},
 		{
 			name: "Windows Server 2025 with display version",
-			os: fleet.OperatingSystem{
+			os: automdm.OperatingSystem{
 				Name:             "Microsoft Windows Server 2025 Datacenter 24H2",
 				Arch:             "64-bit",
 				DisplayVersion:   "24H2",
@@ -710,7 +710,7 @@ func TestMatchesOperatingSystem(t *testing.T) {
 		},
 		{
 			name: "unknown OS",
-			os: fleet.OperatingSystem{
+			os: automdm.OperatingSystem{
 				Name: "Windows Foo Bar",
 				Arch: "arm64",
 			},
@@ -719,7 +719,7 @@ func TestMatchesOperatingSystem(t *testing.T) {
 		},
 		{
 			name: "Windows Server 2022 full desktop with installation type",
-			os: fleet.OperatingSystem{
+			os: automdm.OperatingSystem{
 				Name:             "Microsoft Windows Server 2022 Datacenter 21H2",
 				Arch:             "64-bit",
 				DisplayVersion:   "21H2",
@@ -730,7 +730,7 @@ func TestMatchesOperatingSystem(t *testing.T) {
 		},
 		{
 			name: "Windows Server 2022 Server Core with installation type",
-			os: fleet.OperatingSystem{
+			os: automdm.OperatingSystem{
 				Name:             "Microsoft Windows Server 2022 Datacenter 21H2",
 				Arch:             "64-bit",
 				DisplayVersion:   "21H2",
@@ -741,7 +741,7 @@ func TestMatchesOperatingSystem(t *testing.T) {
 		},
 		{
 			name: "Windows Server 2025 full desktop with installation type",
-			os: fleet.OperatingSystem{
+			os: automdm.OperatingSystem{
 				Name:             "Microsoft Windows Server 2025 Datacenter 24H2",
 				Arch:             "64-bit",
 				DisplayVersion:   "24H2",
@@ -752,7 +752,7 @@ func TestMatchesOperatingSystem(t *testing.T) {
 		},
 		{
 			name: "Windows Server 2025 Server Core with installation type",
-			os: fleet.OperatingSystem{
+			os: automdm.OperatingSystem{
 				Name:             "Microsoft Windows Server 2025 Datacenter 24H2",
 				Arch:             "64-bit",
 				DisplayVersion:   "24H2",
@@ -763,7 +763,7 @@ func TestMatchesOperatingSystem(t *testing.T) {
 		},
 		{
 			name: "Windows Server 2022 without installation type deterministically picks full desktop",
-			os: fleet.OperatingSystem{
+			os: automdm.OperatingSystem{
 				Name:           "Microsoft Windows Server 2022 Datacenter 21H2",
 				Arch:           "64-bit",
 				DisplayVersion: "21H2",
@@ -775,7 +775,7 @@ func TestMatchesOperatingSystem(t *testing.T) {
 		},
 		{
 			name: "Windows Server 2025 without installation type deterministically picks full desktop",
-			os: fleet.OperatingSystem{
+			os: automdm.OperatingSystem{
 				Name:           "Microsoft Windows Server 2025 Datacenter 24H2",
 				Arch:           "64-bit",
 				DisplayVersion: "24H2",
@@ -787,7 +787,7 @@ func TestMatchesOperatingSystem(t *testing.T) {
 		// so they are matched on the kernel build number instead.
 		{
 			name: "Windows Server 2019 Datacenter with no display version",
-			os: fleet.OperatingSystem{
+			os: automdm.OperatingSystem{
 				Name:             "Microsoft Windows Server 2019 Datacenter",
 				Arch:             "64-bit",
 				KernelVersion:    "10.0.17763.5122",
@@ -798,7 +798,7 @@ func TestMatchesOperatingSystem(t *testing.T) {
 		},
 		{
 			name: "Windows Server 2019 Server Core",
-			os: fleet.OperatingSystem{
+			os: automdm.OperatingSystem{
 				Name:             "Microsoft Windows Server 2019 Datacenter (Server Core)",
 				Arch:             "64-bit",
 				KernelVersion:    "10.0.17763.5122",
@@ -809,7 +809,7 @@ func TestMatchesOperatingSystem(t *testing.T) {
 		},
 		{
 			name: "Windows Server 2019 without installation type picks full desktop",
-			os: fleet.OperatingSystem{
+			os: automdm.OperatingSystem{
 				Name:          "Microsoft Windows Server 2019 Datacenter",
 				Arch:          "64-bit",
 				KernelVersion: "10.0.17763.5122",
@@ -819,7 +819,7 @@ func TestMatchesOperatingSystem(t *testing.T) {
 		},
 		{
 			name: "Windows Server 2019 with a build from another release",
-			os: fleet.OperatingSystem{
+			os: automdm.OperatingSystem{
 				Name:             "Microsoft Windows Server 2019 Datacenter",
 				Arch:             "64-bit",
 				KernelVersion:    "10.0.19045.5122",
@@ -830,7 +830,7 @@ func TestMatchesOperatingSystem(t *testing.T) {
 		},
 		{
 			name: "Windows Server 2016 Datacenter with no display version",
-			os: fleet.OperatingSystem{
+			os: automdm.OperatingSystem{
 				Name:             "Microsoft Windows Server 2016 Datacenter",
 				Arch:             "64-bit",
 				KernelVersion:    "10.0.14393.6351",
@@ -841,7 +841,7 @@ func TestMatchesOperatingSystem(t *testing.T) {
 		},
 		{
 			name: "Windows Server 2016 Server Core",
-			os: fleet.OperatingSystem{
+			os: automdm.OperatingSystem{
 				Name:             "Microsoft Windows Server 2016 Standard (Server Core)",
 				Arch:             "64-bit",
 				KernelVersion:    "10.0.14393.6351",
@@ -852,7 +852,7 @@ func TestMatchesOperatingSystem(t *testing.T) {
 		},
 		{
 			name: "Windows Server 2012 R2 Standard with no display version",
-			os: fleet.OperatingSystem{
+			os: automdm.OperatingSystem{
 				Name:             "Microsoft Windows Server 2012 R2 Standard",
 				Arch:             "64-bit",
 				KernelVersion:    "6.3.9600.22371",
@@ -863,7 +863,7 @@ func TestMatchesOperatingSystem(t *testing.T) {
 		},
 		{
 			name: "Windows Server 2012 R2 Server Core",
-			os: fleet.OperatingSystem{
+			os: automdm.OperatingSystem{
 				Name:             "Microsoft Windows Server 2012 R2 Standard (Server Core)",
 				Arch:             "64-bit",
 				KernelVersion:    "6.3.9600.22371",
@@ -874,7 +874,7 @@ func TestMatchesOperatingSystem(t *testing.T) {
 		},
 		{
 			name: "Windows Server 2012 Datacenter with no display version",
-			os: fleet.OperatingSystem{
+			os: automdm.OperatingSystem{
 				Name:             "Microsoft Windows Server 2012 Datacenter",
 				Arch:             "64-bit",
 				KernelVersion:    "6.2.9200.24519",
@@ -887,7 +887,7 @@ func TestMatchesOperatingSystem(t *testing.T) {
 		// 2019, and must keep taking the display version path.
 		{
 			name: "Windows 10 sharing the Server 2016 build number",
-			os: fleet.OperatingSystem{
+			os: automdm.OperatingSystem{
 				Name:             "Microsoft Windows 10 Enterprise",
 				Arch:             "64-bit",
 				KernelVersion:    "10.0.14393.6351",
@@ -898,7 +898,7 @@ func TestMatchesOperatingSystem(t *testing.T) {
 		},
 		{
 			name: "Windows 10 sharing the Server 2019 build number",
-			os: fleet.OperatingSystem{
+			os: automdm.OperatingSystem{
 				Name:             "Microsoft Windows 10 Enterprise",
 				Arch:             "64-bit",
 				KernelVersion:    "10.0.17763.5122",
@@ -910,7 +910,7 @@ func TestMatchesOperatingSystem(t *testing.T) {
 		// Releases before 20H2 report their display version from the ReleaseId registry value.
 		{
 			name: "Windows 10 Enterprise LTSC 2019 with display version from ReleaseId",
-			os: fleet.OperatingSystem{
+			os: automdm.OperatingSystem{
 				Name:             "Microsoft Windows 10 Enterprise LTSC 1809",
 				Arch:             "64-bit",
 				DisplayVersion:   "1809",
@@ -922,7 +922,7 @@ func TestMatchesOperatingSystem(t *testing.T) {
 		},
 		{
 			name: "Windows 10 Enterprise 2016 LTSB with display version from ReleaseId",
-			os: fleet.OperatingSystem{
+			os: automdm.OperatingSystem{
 				Name:             "Microsoft Windows 10 Enterprise 2016 LTSB 1607",
 				Arch:             "64-bit",
 				DisplayVersion:   "1607",
@@ -934,7 +934,7 @@ func TestMatchesOperatingSystem(t *testing.T) {
 		},
 		{
 			name: "Windows Server 2019 Datacenter with display version from ReleaseId",
-			os: fleet.OperatingSystem{
+			os: automdm.OperatingSystem{
 				Name:             "Microsoft Windows Server 2019 Datacenter 1809",
 				Arch:             "64-bit",
 				DisplayVersion:   "1809",
@@ -946,7 +946,7 @@ func TestMatchesOperatingSystem(t *testing.T) {
 		},
 		{
 			name: "Windows Server 2019 Server Core with display version from ReleaseId",
-			os: fleet.OperatingSystem{
+			os: automdm.OperatingSystem{
 				Name:             "Microsoft Windows Server 2019 Datacenter 1809 (Server Core)",
 				Arch:             "64-bit",
 				DisplayVersion:   "1809",
@@ -958,7 +958,7 @@ func TestMatchesOperatingSystem(t *testing.T) {
 		},
 		{
 			name: "Windows Server 2016 Datacenter with display version from ReleaseId",
-			os: fleet.OperatingSystem{
+			os: automdm.OperatingSystem{
 				Name:             "Microsoft Windows Server 2016 Datacenter 1607",
 				Arch:             "64-bit",
 				DisplayVersion:   "1607",
@@ -972,7 +972,7 @@ func TestMatchesOperatingSystem(t *testing.T) {
 		// the fixture's HLK products reduce to the same name as the real ones.
 		{
 			name: "Windows 10 22H2 alongside a Hardware Lab Kit product",
-			os: fleet.OperatingSystem{
+			os: automdm.OperatingSystem{
 				Name:             "Microsoft Windows 10 Enterprise LTSC 22H2",
 				Arch:             "64-bit",
 				DisplayVersion:   "22H2",

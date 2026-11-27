@@ -1,8 +1,8 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # python.org's Windows installer is a WiX "Burn" bundle. "/quiet /norestart"
-# runs it silently. Fleet installs run as SYSTEM (elevated), so InstallAllUsers=1
+# runs it silently. AutoMDM installs run as SYSTEM (elevated), so InstallAllUsers=1
 # yields a per-machine install (under a non-elevated context the bundle falls
 # back to a per-user install). PrependPath=1 adds Python to PATH.
 

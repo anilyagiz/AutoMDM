@@ -15,12 +15,12 @@
     flex-direction: column;
     min-width: 0;
     line-height: 1.25;
-    color: $core-fleet-black;
+    color: $core-automdm-black;
   }
 
   &__session-id {
     font-size: $x-small;
-    color: $ui-fleet-black-75;
+    color: $ui-automdm-black-75;
   }
 
   // The rows carry their own spacing, so the global dl gap is dropped.
@@ -28,7 +28,7 @@
     gap: 0;
     margin: 0;
     padding: $pad-smedium 0;
-    border: 1px solid $ui-fleet-black-10;
+    border: 1px solid $ui-automdm-black-10;
     border-radius: $border-radius-large;
   }
 
@@ -37,7 +37,7 @@
     justify-content: space-between;
     gap: $pad-large;
     padding: $pad-small $pad-large;
-    border-bottom: 1px solid $ui-fleet-black-10;
+    border-bottom: 1px solid $ui-automdm-black-10;
 
     &:last-child {
       border-bottom: none;
@@ -47,14 +47,14 @@
   &__summary-label {
     flex-shrink: 0;
     font-weight: $bold;
-    color: $core-fleet-black;
+    color: $core-automdm-black;
   }
 
   &__summary-value {
     min-width: 0;
     margin: 0;
     text-align: right;
-    color: $ui-fleet-black-75;
+    color: $ui-automdm-black-75;
   }
 
   &__events-section {
@@ -74,7 +74,7 @@
   &__events-count {
     font-size: $xx-small;
     font-weight: $regular;
-    color: $ui-fleet-black-75;
+    color: $ui-automdm-black-75;
   }
 
   &__events {
@@ -87,7 +87,7 @@
   }
 
   &__event {
-    border: 1px solid $ui-fleet-black-10;
+    border: 1px solid $ui-automdm-black-10;
     border-radius: $border-radius-large;
     overflow: hidden;
   }
@@ -102,7 +102,7 @@
     background: none;
     font: inherit;
     font-size: $x-small;
-    color: $ui-fleet-black-75;
+    color: $ui-automdm-black-75;
     text-align: left;
     cursor: pointer;
 
@@ -117,7 +117,7 @@
     width: 120px;
     white-space: nowrap;
     font-size: $xx-small;
-    color: $ui-fleet-black-75;
+    color: $ui-automdm-black-75;
   }
 
   &__event-target {
@@ -130,14 +130,14 @@
     flex-direction: column;
     gap: $pad-small;
     padding: $pad-smedium;
-    border-top: 1px solid $ui-fleet-black-10;
+    border-top: 1px solid $ui-automdm-black-10;
     background-color: $ui-off-white;
   }
 
   &__event-truncated {
     margin: 0;
     font-size: $xx-small;
-    color: $ui-fleet-black-75;
+    color: $ui-automdm-black-75;
   }
 
   // A light code block, unlike the global dark pre, colored like the
@@ -151,9 +151,9 @@
     font-family: "SourceCodePro", monospace;
     font-size: $x-small;
     line-height: 1.25;
-    color: $ui-fleet-black-75;
-    background-color: $core-fleet-white;
-    border: 1px solid $ui-fleet-black-10;
+    color: $ui-automdm-black-75;
+    background-color: $core-automdm-white;
+    border: 1px solid $ui-automdm-black-10;
     border-radius: $border-radius-large;
 
     .key {

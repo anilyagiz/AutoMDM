@@ -102,8 +102,8 @@ type wtsInfo struct {
 	CurrentTime             int64
 }
 
-// currentLoginID identifies the Windows login Fleet Desktop runs in by its session and logon time. Rebooting, or logging off
-// and on again, changes it. Orbit restarting Fleet Desktop, or the user reconnecting to the same session, does not.
+// currentLoginID identifies the Windows login AutoMDM Desktop runs in by its session and logon time. Rebooting, or logging off
+// and on again, changes it. Orbit restarting AutoMDM Desktop, or the user reconnecting to the same session, does not.
 func currentLoginID() (string, error) {
 	const (
 		wtsCurrentServerHandle = 0

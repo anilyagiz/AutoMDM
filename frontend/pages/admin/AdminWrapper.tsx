@@ -48,8 +48,8 @@ const AdminWrapper = ({
       exclude: isSandboxMode,
     },
     {
-      name: "Fleets",
-      pathname: PATHS.ADMIN_FLEETS,
+      name: "Teams",
+      pathname: PATHS.ADMIN_TEAMS,
       exclude: !isPremiumTier,
     },
   ];

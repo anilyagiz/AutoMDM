@@ -10,7 +10,7 @@ import (
 	"math/big"
 	"sync"
 
-	"github.com/fleetdm/fleet/v4/server/mdm/scep/depot"
+	"github.com/anilyagiz/automdm/v4/server/mdm/scep/depot"
 
 	bolt "go.etcd.io/bbolt"
 )

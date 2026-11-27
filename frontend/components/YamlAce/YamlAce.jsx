@@ -75,7 +75,7 @@ class YamlAce extends Component {
           showGutter={!disabled}
           className={baseClass}
           mode="yaml"
-          theme="fleet"
+          theme="automdm"
           width="100%"
           minLines={2}
           maxLines={17}

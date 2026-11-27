@@ -9,9 +9,9 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/anilyagiz/automdm/v4/pkg/optjson"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/beevik/etree"
-	"github.com/fleetdm/fleet/v4/pkg/optjson"
-	"github.com/fleetdm/fleet/v4/server/fleet"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -81,20 +81,20 @@ func TestUploadBootstrapPackageStaged(t *testing.T) {
 		var gotPackage []byte
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch r.URL.Path {
-			case "/api/latest/fleet/config":
+			case "/api/latest/automdm/config":
 				_ = json.NewEncoder(w).Encode(map[string]any{"staged_upload_available": staged})
-			case "/api/latest/fleet/staged_upload":
+			case "/api/latest/automdm/staged_upload":
 				var req createStagedUploadRequest
 				assert.NoError(t, json.NewDecoder(r.Body).Decode(&req))
-				assert.Equal(t, fleet.StagedUploadTargetBootstrapPackage, req.Target)
-				assert.EqualValues(t, 3, req.FleetID)
+				assert.Equal(t, automdm.StagedUploadTargetBootstrapPackage, req.Target)
+				assert.EqualValues(t, 3, req.AutoMDMID)
 				assert.EqualValues(t, 3, req.Size)
 				_ = json.NewEncoder(w).Encode(map[string]any{"upload_id": "up1", "url": "http://" + r.Host + "/object-store"})
 			case "/object-store":
 				assert.Equal(t, http.MethodPut, r.Method)
 				assert.Empty(t, r.Header.Get("Authorization"))
 				putBody, _ = io.ReadAll(r.Body)
-			case "/api/latest/fleet/bootstrap":
+			case "/api/latest/automdm/bootstrap":
 				assert.NoError(t, r.ParseMultipartForm(1<<20)) //nolint:gosec // test server
 				form = r.MultipartForm.Value
 				if f, _, err := r.FormFile("package"); err == nil {
@@ -109,7 +109,7 @@ func TestUploadBootstrapPackageStaged(t *testing.T) {
 		require.NoError(t, err)
 		client.SetToken("test-token")
 
-		require.NoError(t, client.UploadBootstrapPackage(&fleet.MDMAppleBootstrapPackage{Name: "b.pkg", TeamID: 3, Bytes: []byte("pkg")}, false))
+		require.NoError(t, client.UploadBootstrapPackage(&automdm.MDMAppleBootstrapPackage{Name: "b.pkg", TeamID: 3, Bytes: []byte("pkg")}, false))
 		srv.Close()
 
 		if staged {
@@ -122,7 +122,7 @@ func TestUploadBootstrapPackageStaged(t *testing.T) {
 			require.Empty(t, form["upload_id"])
 			require.Equal(t, "pkg", string(gotPackage))
 		}
-		require.Equal(t, []string{"3"}, form["fleet_id"])
+		require.Equal(t, []string{"3"}, form["team_id"])
 	}
 }
 
@@ -132,11 +132,11 @@ func TestUploadBootstrapPackageIfNeededReplacesWithoutDelete(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			calls = append(calls, r.Method+" "+r.URL.Path)
 			switch r.URL.Path {
-			case "/api/latest/fleet/bootstrap/3/metadata":
+			case "/api/latest/automdm/bootstrap/3/metadata":
 				_ = json.NewEncoder(w).Encode(map[string]any{"name": "old.pkg", "sha256": []byte("old")})
-			case "/api/latest/fleet/config":
+			case "/api/latest/automdm/config":
 				_ = json.NewEncoder(w).Encode(map[string]any{"staged_upload_available": true})
-			case "/api/latest/fleet/staged_upload":
+			case "/api/latest/automdm/staged_upload":
 				_ = json.NewEncoder(w).Encode(map[string]any{"upload_id": "up1", "url": "http://" + r.Host + "/object-store"})
 			case "/object-store":
 				w.WriteHeader(putStatus)
@@ -148,21 +148,21 @@ func TestUploadBootstrapPackageIfNeededReplacesWithoutDelete(t *testing.T) {
 		require.NoError(t, err)
 		client.SetToken("test-token")
 
-		err = client.UploadBootstrapPackageIfNeeded(&fleet.MDMAppleBootstrapPackage{Name: "b.pkg", Bytes: []byte("pkg"), Sha256: []byte("new")}, 3, false)
+		err = client.UploadBootstrapPackageIfNeeded(&automdm.MDMAppleBootstrapPackage{Name: "b.pkg", Bytes: []byte("pkg"), Sha256: []byte("new")}, 3, false)
 		srv.Close()
 
 		if putStatus == http.StatusOK {
 			require.NoError(t, err)
 			require.Equal(t, []string{
-				"GET /api/latest/fleet/bootstrap/3/metadata",
-				"GET /api/latest/fleet/config",
-				"POST /api/latest/fleet/staged_upload",
+				"GET /api/latest/automdm/bootstrap/3/metadata",
+				"GET /api/latest/automdm/config",
+				"POST /api/latest/automdm/staged_upload",
 				"PUT /object-store",
-				"POST /api/latest/fleet/bootstrap",
+				"POST /api/latest/automdm/bootstrap",
 			}, calls)
 		} else {
 			require.Error(t, err)
-			require.NotContains(t, calls, "DELETE /api/latest/fleet/bootstrap/3")
+			require.NotContains(t, calls, "DELETE /api/latest/automdm/bootstrap/3")
 		}
 	}
 }
@@ -172,12 +172,12 @@ func TestUploadBootstrapPackageIfNeededFailedRegisterKeepsExisting(t *testing.T)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls = append(calls, r.Method+" "+r.URL.Path)
 		switch r.URL.Path {
-		case "/api/latest/fleet/bootstrap/3/metadata":
+		case "/api/latest/automdm/bootstrap/3/metadata":
 			_ = json.NewEncoder(w).Encode(map[string]any{"name": "old.pkg", "sha256": []byte("old")})
-		case "/api/latest/fleet/config":
+		case "/api/latest/automdm/config":
 			_ = json.NewEncoder(w).Encode(map[string]any{"staged_upload_available": false})
-		case "/api/latest/fleet/bootstrap":
-			// a proxy in front of Fleet rejecting a large upload
+		case "/api/latest/automdm/bootstrap":
+			// a proxy in front of AutoMDM rejecting a large upload
 			w.WriteHeader(http.StatusRequestEntityTooLarge)
 			_, _ = w.Write([]byte("<html><head><title>413 Payload Too Large</title></head></html>"))
 		default:
@@ -189,10 +189,10 @@ func TestUploadBootstrapPackageIfNeededFailedRegisterKeepsExisting(t *testing.T)
 	require.NoError(t, err)
 	client.SetToken("test-token")
 
-	err = client.UploadBootstrapPackageIfNeeded(&fleet.MDMAppleBootstrapPackage{Name: "b.pkg", Bytes: []byte("pkg"), Sha256: []byte("new")}, 3, false)
+	err = client.UploadBootstrapPackageIfNeeded(&automdm.MDMAppleBootstrapPackage{Name: "b.pkg", Bytes: []byte("pkg"), Sha256: []byte("new")}, 3, false)
 	require.Error(t, err)
-	require.Contains(t, calls, "POST /api/latest/fleet/bootstrap")
-	require.NotContains(t, calls, "DELETE /api/latest/fleet/bootstrap/3")
+	require.Contains(t, calls, "POST /api/latest/automdm/bootstrap")
+	require.NotContains(t, calls, "DELETE /api/latest/automdm/bootstrap/3")
 }
 
 func TestGitOpsWindowsEULAWaitsForWindowsMDMToSettle(t *testing.T) {
@@ -217,12 +217,12 @@ func TestGitOpsWindowsEULAWaitsForWindowsMDMToSettle(t *testing.T) {
 			var uploads int
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				switch r.Method + " " + r.URL.Path {
-				case "GET /api/latest/fleet/setup_experience/eula/metadata":
+				case "GET /api/latest/automdm/setup_experience/eula/metadata":
 					assert.Equal(t, "windows", r.URL.Query().Get("platform"))
 					w.WriteHeader(http.StatusNotFound)
 					_, _ = w.Write([]byte(`{"message": "Resource Not Found"}`))
-				case "POST /api/latest/fleet/setup_experience/eula":
-					// fleetctl sends the platform in the form, like the other uploads
+				case "POST /api/latest/automdm/setup_experience/eula":
+					// automdmctl sends the platform in the form, like the other uploads
 					assert.Equal(t, "windows", r.PostFormValue("platform"))
 					assert.Empty(t, r.URL.Query().Get("platform"))
 					uploads++
@@ -236,10 +236,10 @@ func TestGitOpsWindowsEULAWaitsForWindowsMDMToSettle(t *testing.T) {
 			require.NoError(t, err)
 			client.SetToken("test-token")
 
-			appConfig := &fleet.EnrichedAppConfig{}
-			appConfig.License = &fleet.LicenseInfo{Tier: fleet.TierPremium}
+			appConfig := &automdm.EnrichedAppConfig{}
+			appConfig.License = &automdm.LicenseInfo{Tier: automdm.TierPremium}
 			appConfig.MDM.WindowsEnabledAndConfigured = tt.mdmOnBefore
-			assumptions := &fleet.TeamSpecsDryRunAssumptions{WindowsEnabledAndConfigured: optjson.SetBool(true)}
+			assumptions := &automdm.TeamSpecsDryRunAssumptions{WindowsEnabledAndConfigured: optjson.SetBool(true)}
 
 			require.NoError(t, client.doGitOpsWindowsEULA(mdPath, appConfig, assumptions, "", false, func(string, ...any) {}))
 			require.Equal(t, tt.wantWaits, waits)
@@ -248,13 +248,13 @@ func TestGitOpsWindowsEULAWaitsForWindowsMDMToSettle(t *testing.T) {
 	}
 }
 
-// fleetctl and the server are expected to be the same version, but a server older than fleetctl ignores the platform
-// and answers for its macOS EULA. fleetctl must fail then, rather than delete or replace that EULA.
+// automdmctl and the server are expected to be the same version, but a server older than automdmctl ignores the platform
+// and answers for its macOS EULA. automdmctl must fail then, rather than delete or replace that EULA.
 func TestGitOpsWindowsEULARefusesMacOSMetadata(t *testing.T) {
 	var requests []string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requests = append(requests, r.Method+" "+r.URL.RequestURI())
-		if r.Method == http.MethodGet && r.URL.Path == "/api/latest/fleet/setup_experience/eula/metadata" {
+		if r.Method == http.MethodGet && r.URL.Path == "/api/latest/automdm/setup_experience/eula/metadata" {
 			_, _ = w.Write([]byte(`{"name": "eula.pdf", "token": "mac-token", "created_at": "2026-10-01T00:00:00Z"}`))
 			return
 		}
@@ -267,8 +267,8 @@ func TestGitOpsWindowsEULARefusesMacOSMetadata(t *testing.T) {
 
 	mdPath := filepath.Join(t.TempDir(), "terms.md")
 	require.NoError(t, os.WriteFile(mdPath, []byte("# Terms\n"), 0o600))
-	appConfig := &fleet.EnrichedAppConfig{}
-	appConfig.License = &fleet.LicenseInfo{Tier: fleet.TierPremium}
+	appConfig := &automdm.EnrichedAppConfig{}
+	appConfig.License = &automdm.LicenseInfo{Tier: automdm.TierPremium}
 	appConfig.MDM.WindowsEnabledAndConfigured = true
 	for _, path := range []string{mdPath, ""} {
 		err := client.doGitOpsWindowsEULA(path, appConfig, nil, "", false, func(string, ...any) {})
@@ -277,8 +277,8 @@ func TestGitOpsWindowsEULARefusesMacOSMetadata(t *testing.T) {
 
 	// nothing was uploaded or deleted
 	require.Equal(t, []string{
-		"GET /api/latest/fleet/setup_experience/eula/metadata?platform=windows",
-		"GET /api/latest/fleet/setup_experience/eula/metadata?platform=windows",
+		"GET /api/latest/automdm/setup_experience/eula/metadata?platform=windows",
+		"GET /api/latest/automdm/setup_experience/eula/metadata?platform=windows",
 	}, requests)
 }
 
@@ -296,5 +296,5 @@ func TestEULAMacOSRequestsSendNoPlatform(t *testing.T) {
 	meta, err := client.GetEULAMetadata()
 	require.NoError(t, err)
 	require.Equal(t, "mac-token", meta.Token)
-	require.Equal(t, []string{"GET /api/latest/fleet/setup_experience/eula/metadata"}, requests)
+	require.Equal(t, []string{"GET /api/latest/automdm/setup_experience/eula/metadata"}, requests)
 }

@@ -19,7 +19,7 @@ func testSyncMLItem(locURI, data string) string {
 		`<Data>` + data + `</Data></Item></Add>`
 }
 
-// deliverSubjectName runs a profile through the real deployment entry point. $FLEET_VAR_HOST_UUID
+// deliverSubjectName runs a profile through the real deployment entry point. $AUTOMDM_VAR_HOST_UUID
 // resolves straight from the params with no datastore call, so the resolved value is the caller's
 // to choose, and the assertion stays on what a device receives.
 func deliverSubjectName(t *testing.T, profileContents, resolvedValue string) string {
@@ -44,76 +44,76 @@ func TestSCEPSubjectNameQuoting(t *testing.T) {
 			// Quoting is unconditional so it can happen before substitution, when the attribute
 			// boundaries are still knowable. Windows reads a quoted plain value identically.
 			name:          "value with nothing special in it is quoted too",
-			data:          `CN=$FLEET_VAR_HOST_UUID,O=Fleet QA`,
+			data:          `CN=$AUTOMDM_VAR_HOST_UUID,O=AutoMDM QA`,
 			resolvedValue: "host-uuid-1234",
-			wantData:      `CN="host-uuid-1234",O=Fleet QA`,
+			wantData:      `CN="host-uuid-1234",O=AutoMDM QA`,
 		},
 		{
 			name:          "variable mid value quotes the whole value",
-			data:          `CN=$FLEET_VAR_HOST_UUID NDES Device Cert,O=Fleet QA`,
+			data:          `CN=$AUTOMDM_VAR_HOST_UUID NDES Device Cert,O=AutoMDM QA`,
 			resolvedValue: "user+idp@example.com",
-			wantData:      `CN="user+idp@example.com NDES Device Cert",O=Fleet QA`,
+			wantData:      `CN="user+idp@example.com NDES Device Cert",O=AutoMDM QA`,
 		},
 		{
 			name:          "attribute without a variable keeps its own form",
-			data:          `CN=$FLEET_VAR_HOST_UUID,OU=static+ou`,
+			data:          `CN=$AUTOMDM_VAR_HOST_UUID,OU=static+ou`,
 			resolvedValue: "user+idp@example.com",
 			wantData:      `CN="user+idp@example.com",OU=static+ou`,
 		},
 		{
 			name:          "semicolon separated template keeps the trailing attribute separate",
-			data:          `CN=$FLEET_VAR_HOST_UUID;O=Fleet QA`,
+			data:          `CN=$AUTOMDM_VAR_HOST_UUID;O=AutoMDM QA`,
 			resolvedValue: "user+idp@example.com",
-			wantData:      `CN="user+idp@example.com";O=Fleet QA`,
+			wantData:      `CN="user+idp@example.com";O=AutoMDM QA`,
 		},
 		{
 			// Unquoted, this payload parses as two CN attributes on Windows.
 			name:          "value crafted to add an attribute is contained",
-			data:          `CN=$FLEET_VAR_HOST_UUID,O=Fleet QA`,
+			data:          `CN=$AUTOMDM_VAR_HOST_UUID,O=AutoMDM QA`,
 			resolvedValue: `Evil, CN=admin`,
-			wantData:      `CN="Evil, CN=admin",O=Fleet QA`,
+			wantData:      `CN="Evil, CN=admin",O=AutoMDM QA`,
 		},
 		{
 			// Also the only coverage of quote doubling: the value's quote is written twice, so it
 			// stays content instead of ending the attribute and letting the rest become attributes.
-			name:          "crafted value cannot close the quote Fleet added",
-			data:          `CN=$FLEET_VAR_HOST_UUID,O=Fleet QA`,
+			name:          "crafted value cannot close the quote AutoMDM added",
+			data:          `CN=$AUTOMDM_VAR_HOST_UUID,O=AutoMDM QA`,
 			resolvedValue: `Evil", CN=admin`,
-			wantData:      `CN="Evil&#34;&#34;, CN=admin",O=Fleet QA`,
+			wantData:      `CN="Evil&#34;&#34;, CN=admin",O=AutoMDM QA`,
 		},
 		{
 			name:          "crafted value cannot close a quote the admin added",
-			data:          `CN="$FLEET_VAR_HOST_UUID",O=Fleet QA`,
+			data:          `CN="$AUTOMDM_VAR_HOST_UUID",O=AutoMDM QA`,
 			resolvedValue: `Evil", CN=admin`,
-			wantData:      `CN="Evil&#34;&#34;, CN=admin",O=Fleet QA`,
+			wantData:      `CN="Evil&#34;&#34;, CN=admin",O=AutoMDM QA`,
 		},
 		{
 			name:          "multi valued rdn quotes only the substituted half",
-			data:          `CN=$FLEET_VAR_HOST_UUID+OU=static-ou`,
+			data:          `CN=$AUTOMDM_VAR_HOST_UUID+OU=static-ou`,
 			resolvedValue: "user+idp@example.com",
 			wantData:      `CN="user+idp@example.com"+OU=static-ou`,
 		},
 		{
 			name:          "braces variable form is recognized",
-			data:          `CN=${FLEET_VAR_HOST_UUID}`,
+			data:          `CN=${AUTOMDM_VAR_HOST_UUID}`,
 			resolvedValue: "user+idp@example.com",
 			wantData:      `CN="user+idp@example.com"`,
 		},
 		{
 			name:          "template whitespace around the value is dropped",
-			data:          `CN=  $FLEET_VAR_HOST_UUID  ,O=Fleet QA`,
+			data:          `CN=  $AUTOMDM_VAR_HOST_UUID  ,O=AutoMDM QA`,
 			resolvedValue: "user+idp@example.com",
-			wantData:      `CN="user+idp@example.com",O=Fleet QA`,
+			wantData:      `CN="user+idp@example.com",O=AutoMDM QA`,
 		},
 		{
 			name:          "attribute with no value is left alone",
-			data:          `CN=,OU=$FLEET_VAR_HOST_UUID`,
+			data:          `CN=,OU=$AUTOMDM_VAR_HOST_UUID`,
 			resolvedValue: "host-uuid-1234",
 			wantData:      `CN=,OU="host-uuid-1234"`,
 		},
 		{
 			name:          "component without an equals sign is untouched",
-			data:          `$FLEET_VAR_HOST_UUID`,
+			data:          `$AUTOMDM_VAR_HOST_UUID`,
 			resolvedValue: "user+idp@example.com",
 			wantData:      `user+idp@example.com`,
 		},
@@ -121,47 +121,47 @@ func TestSCEPSubjectNameQuoting(t *testing.T) {
 			// The ";" ending a character reference is part of the reference, not an attribute
 			// boundary. Splitting there would cut the value short and leave " Co" as an attribute.
 			name:          "character reference in the value is not a separator",
-			data:          `CN=$FLEET_VAR_HOST_UUID &amp; Co,O=Fleet QA`,
+			data:          `CN=$AUTOMDM_VAR_HOST_UUID &amp; Co,O=AutoMDM QA`,
 			resolvedValue: "host-uuid-1234",
-			wantData:      `CN="host-uuid-1234 &amp; Co",O=Fleet QA`,
+			wantData:      `CN="host-uuid-1234 &amp; Co",O=AutoMDM QA`,
 		},
 		{
 			// Windows sees the decoded document, so a reference spelling a separator is one.
 			name:          "character reference spelling a separator splits the attributes",
-			data:          `CN=$FLEET_VAR_HOST_UUID&#44;O=Fleet QA`,
+			data:          `CN=$AUTOMDM_VAR_HOST_UUID&#44;O=AutoMDM QA`,
 			resolvedValue: "host-uuid-1234",
-			wantData:      `CN="host-uuid-1234"&#44;O=Fleet QA`,
+			wantData:      `CN="host-uuid-1234"&#44;O=AutoMDM QA`,
 		},
 		{
 			name:          "hexadecimal character reference separator is recognized too",
-			data:          `CN=$FLEET_VAR_HOST_UUID&#x2C;O=Fleet QA`,
+			data:          `CN=$AUTOMDM_VAR_HOST_UUID&#x2C;O=AutoMDM QA`,
 			resolvedValue: "host-uuid-1234",
-			wantData:      `CN="host-uuid-1234"&#x2C;O=Fleet QA`,
+			wantData:      `CN="host-uuid-1234"&#x2C;O=AutoMDM QA`,
 		},
 		{
 			// The quote still has to be doubled when the boundary was written as a reference.
 			name:          "crafted value is contained across a character reference separator",
-			data:          `CN=$FLEET_VAR_HOST_UUID&#44;O=Fleet QA`,
+			data:          `CN=$AUTOMDM_VAR_HOST_UUID&#44;O=AutoMDM QA`,
 			resolvedValue: `Evil", CN=admin`,
-			wantData:      `CN="Evil&#34;&#34;, CN=admin"&#44;O=Fleet QA`,
+			wantData:      `CN="Evil&#34;&#34;, CN=admin"&#44;O=AutoMDM QA`,
 		},
 		{
 			// The admin doubled these themselves, so they already say what they mean to Windows.
-			// Only a substituted quote, which arrives as "&#34;", is Fleet's to double.
+			// Only a substituted quote, which arrives as "&#34;", is AutoMDM's to double.
 			name:          "quote entities the admin wrote are left as written",
-			data:          `CN="Jane &quot;&quot;JD&quot;&quot; Doe",OU=$FLEET_VAR_HOST_UUID`,
+			data:          `CN="Jane &quot;&quot;JD&quot;&quot; Doe",OU=$AUTOMDM_VAR_HOST_UUID`,
 			resolvedValue: "host-uuid-1234",
 			wantData:      `CN="Jane &quot;&quot;JD&quot;&quot; Doe",OU="host-uuid-1234"`,
 		},
 		{
 			name:          "cdata wrapped subject name is quoted inside the section",
-			data:          `<![CDATA[CN=$FLEET_VAR_HOST_UUID,O=Fleet QA]]>`,
+			data:          `<![CDATA[CN=$AUTOMDM_VAR_HOST_UUID,O=AutoMDM QA]]>`,
 			resolvedValue: "user+idp@example.com",
-			wantData:      `<![CDATA[CN="user+idp@example.com",O=Fleet QA]]>`,
+			wantData:      `<![CDATA[CN="user+idp@example.com",O=AutoMDM QA]]>`,
 		},
 		{
 			name:          "whitespace around a cdata section is preserved",
-			data:          "\n  <![CDATA[CN=$FLEET_VAR_HOST_UUID]]>\n  ",
+			data:          "\n  <![CDATA[CN=$AUTOMDM_VAR_HOST_UUID]]>\n  ",
 			resolvedValue: "user+idp@example.com",
 			wantData:      "\n  <![CDATA[CN=\"user+idp@example.com\"]]>\n  ",
 		},
@@ -173,15 +173,15 @@ func TestSCEPSubjectNameQuoting(t *testing.T) {
 		},
 		{
 			name:          "cdata opener inside the section is content, not a second section",
-			data:          `<![CDATA[CN=$FLEET_VAR_HOST_UUID<![CDATA[,O=Fleet QA]]>`,
+			data:          `<![CDATA[CN=$AUTOMDM_VAR_HOST_UUID<![CDATA[,O=AutoMDM QA]]>`,
 			resolvedValue: "user+idp@example.com",
-			wantData:      `<![CDATA[CN="user+idp@example.com<![CDATA[",O=Fleet QA]]>`,
+			wantData:      `<![CDATA[CN="user+idp@example.com<![CDATA[",O=AutoMDM QA]]>`,
 		},
 		{
 			name:          "mixed text around a cdata section is quoted as one value",
-			data:          `CN=pre<![CDATA[$FLEET_VAR_HOST_UUID]]>post,O=Fleet QA`,
+			data:          `CN=pre<![CDATA[$AUTOMDM_VAR_HOST_UUID]]>post,O=AutoMDM QA`,
 			resolvedValue: "Doe, Jane",
-			wantData:      `CN="pre<![CDATA[Doe, Jane]]>post",O=Fleet QA`,
+			wantData:      `CN="pre<![CDATA[Doe, Jane]]>post",O=AutoMDM QA`,
 		},
 	}
 
@@ -208,28 +208,28 @@ func TestSCEPSubjectNameNestedElements(t *testing.T) {
 			// The value runs to the end of the outermost <Data>, nested markup and all. Windows
 			// rejects a subject name shaped like this, but that is its own profile's failure.
 			name:    "data nested in the subject name data",
-			profile: `<Add><Item>` + target + `<Data>CN=$FLEET_VAR_HOST_UUID<Data>x</Data></Data></Item></Add>`,
+			profile: `<Add><Item>` + target + `<Data>CN=$AUTOMDM_VAR_HOST_UUID<Data>x</Data></Data></Item></Add>`,
 			want:    `<Add><Item>` + target + `<Data>CN="host-1<Data>x</Data>"</Data></Item></Add>`,
 		},
 		{
 			// A nested item is read as part of no item at all, so the value it holds is left alone
 			// and the item around it still gets the target it wrote.
 			name:    "item nested in the item",
-			profile: `<Add><Item>` + target + `<Data>CN=$FLEET_VAR_HOST_UUID</Data><Item>` + target + `<Data>CN=$FLEET_VAR_HOST_UUID</Data></Item></Item></Add>`,
+			profile: `<Add><Item>` + target + `<Data>CN=$AUTOMDM_VAR_HOST_UUID</Data><Item>` + target + `<Data>CN=$AUTOMDM_VAR_HOST_UUID</Data></Item></Item></Add>`,
 			want:    `<Add><Item>` + target + `<Data>CN="host-1"</Data><Item>` + target + `<Data>CN=host-1</Data></Item></Item></Add>`,
 		},
 		{
 			// The nested item's target used to run onto the end of this one's, leaving a real
 			// subject name looking like something else and going out unquoted.
 			name:    "nested item with another target leaves this one's subject name quoted",
-			profile: `<Add><Item>` + target + `<Data>CN=$FLEET_VAR_HOST_UUID</Data><Item>` + challengeTarget + `<Data>pw=$FLEET_VAR_HOST_UUID</Data></Item></Item></Add>`,
+			profile: `<Add><Item>` + target + `<Data>CN=$AUTOMDM_VAR_HOST_UUID</Data><Item>` + challengeTarget + `<Data>pw=$AUTOMDM_VAR_HOST_UUID</Data></Item></Item></Add>`,
 			want:    `<Add><Item>` + target + `<Data>CN="host-1"</Data><Item>` + challengeTarget + `<Data>pw=host-1</Data></Item></Item></Add>`,
 		},
 		{
 			// The reverse: a nested subject name used to reach back out and quote the challenge
 			// this item carries, which would go to the CA with the quotes in it.
 			name:    "nested subject name item leaves this one's challenge alone",
-			profile: `<Add><Item>` + challengeTarget + `<Data>pw=$FLEET_VAR_HOST_UUID</Data><Item>` + target + `<Data>CN=$FLEET_VAR_HOST_UUID</Data></Item></Item></Add>`,
+			profile: `<Add><Item>` + challengeTarget + `<Data>pw=$AUTOMDM_VAR_HOST_UUID</Data><Item>` + target + `<Data>CN=$AUTOMDM_VAR_HOST_UUID</Data></Item></Item></Add>`,
 			want:    `<Add><Item>` + challengeTarget + `<Data>pw=host-1</Data><Item>` + target + `<Data>CN=host-1</Data></Item></Item></Add>`,
 		},
 	}
@@ -244,9 +244,9 @@ func TestSCEPSubjectNameNestedElements(t *testing.T) {
 }
 
 func TestSCEPSubjectNameQuotingXMLShapes(t *testing.T) {
-	const dn = `CN=$FLEET_VAR_HOST_UUID,O=Fleet QA`
-	const quotedDN = `CN="user+idp@example.com",O=Fleet QA`
-	const bareDN = `CN=user+idp@example.com,O=Fleet QA`
+	const dn = `CN=$AUTOMDM_VAR_HOST_UUID,O=AutoMDM QA`
+	const quotedDN = `CN="user+idp@example.com",O=AutoMDM QA`
+	const bareDN = `CN=user+idp@example.com,O=AutoMDM QA`
 	const target = `<Target><LocURI>` + testDeviceSubjectNameLocURI + `</LocURI></Target>`
 
 	tests := []struct {
@@ -291,9 +291,9 @@ func TestSCEPSubjectNameQuotingXMLShapes(t *testing.T) {
 }
 
 func TestSCEPSubjectNameQuotingTargeting(t *testing.T) {
-	const data = `CN=$FLEET_VAR_HOST_UUID,O=Fleet QA`
-	const quoted = `CN="user+idp@example.com",O=Fleet QA`
-	const bare = `CN=user+idp@example.com,O=Fleet QA`
+	const data = `CN=$AUTOMDM_VAR_HOST_UUID,O=AutoMDM QA`
+	const quoted = `CN="user+idp@example.com",O=AutoMDM QA`
+	const bare = `CN=user+idp@example.com,O=AutoMDM QA`
 
 	tests := []struct {
 		name     string
@@ -400,16 +400,16 @@ func TestHasEntityQuotedSubstitution(t *testing.T) {
 		rawData string
 		want    bool
 	}{
-		{name: "named quote reference", rawData: `CN=&quot;Jane $FLEET_VAR_CERTIFICATE_RENEWAL_ID&quot;`, want: true},
-		{name: "decimal quote reference", rawData: `CN=&#34;Jane $FLEET_VAR_HOST_HARDWARE_SERIAL&#34;`, want: true},
+		{name: "named quote reference", rawData: `CN=&quot;Jane $AUTOMDM_VAR_CERTIFICATE_RENEWAL_ID&quot;`, want: true},
+		{name: "decimal quote reference", rawData: `CN=&#34;Jane $AUTOMDM_VAR_HOST_HARDWARE_SERIAL&#34;`, want: true},
 		// Delivery splits this value at the comma, so neither part gets quoted again.
-		{name: "quoted value with a comma", rawData: `CN=&quot;Doe, Jane $FLEET_VAR_CERTIFICATE_RENEWAL_ID&quot;`, want: false},
-		{name: "quote reference inside the value", rawData: `CN=Jane &quot;J&quot; $FLEET_VAR_HOST_UUID`, want: true},
-		{name: "in a later attribute", rawData: `OU=$FLEET_VAR_CERTIFICATE_RENEWAL_ID,CN=&quot;$FLEET_VAR_HOST_UUID&quot;`, want: true},
-		{name: "literal quotes", rawData: `CN="Doe, Jane $FLEET_VAR_CERTIFICATE_RENEWAL_ID"`, want: false},
-		{name: "no variable in the quoted value", rawData: `O=&quot;Fleet, Inc.&quot;,OU=$FLEET_VAR_CERTIFICATE_RENEWAL_ID`, want: false},
-		{name: "other references", rawData: `CN=AT&amp;T &#65;B $FLEET_VAR_HOST_UUID`, want: false},
-		{name: "CDATA", rawData: `<![CDATA[CN=&quot;Jane $FLEET_VAR_HOST_UUID&quot;]]>`, want: false},
+		{name: "quoted value with a comma", rawData: `CN=&quot;Doe, Jane $AUTOMDM_VAR_CERTIFICATE_RENEWAL_ID&quot;`, want: false},
+		{name: "quote reference inside the value", rawData: `CN=Jane &quot;J&quot; $AUTOMDM_VAR_HOST_UUID`, want: true},
+		{name: "in a later attribute", rawData: `OU=$AUTOMDM_VAR_CERTIFICATE_RENEWAL_ID,CN=&quot;$AUTOMDM_VAR_HOST_UUID&quot;`, want: true},
+		{name: "literal quotes", rawData: `CN="Doe, Jane $AUTOMDM_VAR_CERTIFICATE_RENEWAL_ID"`, want: false},
+		{name: "no variable in the quoted value", rawData: `O=&quot;AutoMDM, Inc.&quot;,OU=$AUTOMDM_VAR_CERTIFICATE_RENEWAL_ID`, want: false},
+		{name: "other references", rawData: `CN=AT&amp;T &#65;B $AUTOMDM_VAR_HOST_UUID`, want: false},
+		{name: "CDATA", rawData: `<![CDATA[CN=&quot;Jane $AUTOMDM_VAR_HOST_UUID&quot;]]>`, want: false},
 	}
 
 	for _, tt := range tests {

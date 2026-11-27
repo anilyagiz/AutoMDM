@@ -3,8 +3,8 @@ package authz
 import (
 	"net/http"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	platform_http "github.com/fleetdm/fleet/v4/server/platform/http"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	platform_http "github.com/anilyagiz/automdm/v4/server/platform/http"
 )
 
 const (
@@ -18,17 +18,17 @@ const (
 type Forbidden struct {
 	message  string
 	internal string
-	subject  *fleet.User
+	subject  *automdm.User
 	object   interface{}
 	action   interface{}
 
-	fleet.ErrorWithUUID
+	automdm.ErrorWithUUID
 }
 
 // ForbiddenWithInternal creates a new error that will return a simple
 // "forbidden" to the client, logging internally the more detailed message
 // provided.
-func ForbiddenWithInternal(internal string, subject *fleet.User, object, action interface{}) *Forbidden {
+func ForbiddenWithInternal(internal string, subject *automdm.User, object, action interface{}) *Forbidden {
 	return &Forbidden{
 		internal: internal,
 		subject:  subject,

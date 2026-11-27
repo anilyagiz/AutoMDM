@@ -56,7 +56,7 @@ const HostNameTemplate = ({
       ...DEFAULT_USE_QUERY_OPTIONS,
       enabled: isPremiumTier && !!mdmEnabled && !isNoTeam,
       onError: (err) => {
-        notify.error("Couldn't load fleet settings. Please try again.", {
+        notify.error("Couldn't load team settings. Please try again.", {
           response: err,
         });
       },
@@ -65,7 +65,7 @@ const HostNameTemplate = ({
 
   // Seed the form once per scope (team) from whichever source owns the
   // template — the global app config for "No team", or the team query for a
-  // fleet. An effect keeps state seeding in one place (react-query deprecates
+  // team. An effect keeps state seeding in one place (react-query deprecates
   // useQuery's onSuccess in newer versions). Guarding on the scope prevents a
   // post-save config refresh (No team) or a background team refetch from
   // clobbering in-progress edits; switching teams re-seeds for the new scope.
@@ -83,7 +83,7 @@ const HostNameTemplate = ({
       setSavedNameTemplate(loaded);
       seededTeamRef.current = currentTeamId;
     } else if (teamData) {
-      const loaded = teamData.fleet?.mdm?.name_template ?? "";
+      const loaded = teamData.team?.mdm?.name_template ?? "";
       setNameTemplate(loaded);
       setSavedNameTemplate(loaded);
       seededTeamRef.current = currentTeamId;
@@ -160,8 +160,8 @@ const HostNameTemplate = ({
           name="name-template"
           value={nameTemplate ?? ""}
           onChange={(value: string) => setNameTemplate(value)}
-          placeholder="iPad $FLEET_VAR_HOST_HARDWARE_SERIAL"
-          helpText="This will be the host's name in Fleet and on the device itself."
+          placeholder="iPad $AUTOMDM_VAR_HOST_HARDWARE_SERIAL"
+          helpText="This will be the host's name in AutoMDM and on the device itself."
           disabled={isFormDisabled || config?.gitops?.gitops_mode_enabled}
           inputOptions={{ maxLength: NAME_TEMPLATE_MAX_LENGTH }}
         />
@@ -188,14 +188,14 @@ const HostNameTemplate = ({
     );
   };
 
-  const scopeSuffix = isNoTeam ? "." : " in this fleet.";
+  const scopeSuffix = isNoTeam ? "." : " in this team.";
   const builtInVariablesUrl = `${LEARN_MORE_ABOUT_BASE_LINK}/built-in-variables`;
   const customVariablesUrl = getPathWithQueryParams(PATHS.CONTROLS_VARIABLES, {
-    fleet_id: currentTeamId,
+    team_id: currentTeamId,
   });
   const customHostVitalsUrl = getPathWithQueryParams(
     PATHS.CONTROLS_VARIABLES_CUSTOM_HOST_VITALS,
-    { fleet_id: currentTeamId }
+    { team_id: currentTeamId }
   );
 
   const description = (

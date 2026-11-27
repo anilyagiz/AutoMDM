@@ -1,5 +1,5 @@
 // This tool allows you to simulate Apple DEP enrollment on a virtual machine
-// for the purposes of testing the macOS setup experience feature in Fleet.
+// for the purposes of testing the macOS setup experience feature in AutoMDM.
 // It connects to a MySQL database, inserts necessary records to simulate
 // MDM enrollment, and enqueues setup experience items for a specified host.
 //
@@ -17,14 +17,14 @@ import (
 	"os"
 
 	"github.com/WatchBeam/clock"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql"
 	"github.com/jmoiron/sqlx"
 )
 
 func main() {
 	mysqlAddr := flag.String("mysql", "localhost:3306", "mysql address")
-	serverPrivateKey := flag.String("server-private-key", "", "fleet server's private key (to decrypt MDM assets)")
+	serverPrivateKey := flag.String("server-private-key", "", "automdm server's private key (to decrypt MDM assets)")
 	hostUUID := flag.String("host-uuid", "", "the host serial # to enqueue setup items for")
 
 	flag.Parse()
@@ -43,8 +43,8 @@ func main() {
 	mysqlConf := config.MysqlConfig{
 		Protocol:        "tcp",
 		Address:         *mysqlAddr,
-		Database:        "fleet",
-		Username:        "fleet",
+		Database:        "automdm",
+		Username:        "automdm",
 		Password:        "insecure",
 		MaxOpenConns:    50,
 		MaxIdleConns:    50,
@@ -52,14 +52,14 @@ func main() {
 	}
 
 	// Connect to MySQL directly using sqlx for the setup steps.
-	// TODO -- use Fleet Datastore methods to do these steps, if possible?
+	// TODO -- use AutoMDM Datastore methods to do these steps, if possible?
 	dsn := fmt.Sprintf("%s:%s@%s(%s)/%s", mysqlConf.Username, mysqlConf.Password, mysqlConf.Protocol, mysqlConf.Address, mysqlConf.Database)
 
 	db, err := sqlx.Open("mysql", dsn) // or your traced driver name
 	if err != nil {
 		log.Fatal("failed to connect to database:", err)
 	}
-	// Pool tuning similar to Fleet
+	// Pool tuning similar to AutoMDM
 	db.SetMaxIdleConns(10)
 	db.SetMaxOpenConns(50)
 	// db.SetConnMaxLifetime(time.Second * time.Duration(conf.ConnMaxLifetime))
@@ -153,7 +153,7 @@ func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	opts := []mysql.DBOption{
 		mysql.Logger(logger),
-		mysql.WithFleetConfig(&config.FleetConfig{
+		mysql.WithAutoMDMConfig(&config.AutoMDMConfig{
 			Server: config.ServerConfig{
 				PrivateKey: *serverPrivateKey,
 			},

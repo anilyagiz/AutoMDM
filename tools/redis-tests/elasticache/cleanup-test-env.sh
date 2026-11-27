@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-STACK_NAME="${STACK_NAME:-fleet-elasticache-iam-test}"
+STACK_NAME="${STACK_NAME:-automdm-elasticache-iam-test}"
 
 echo "🧹 Cleaning up test environment..."
 

@@ -11,10 +11,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/io"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/utils"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/io"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/utils"
 )
 
 // getLatestBulletin returns the most recent Windows Office bulletin (based on the date in the
@@ -79,19 +79,19 @@ func compareBuildSuffix(a, b string) int {
 
 // CheckVersion returns all CVEs affecting the given Office version.
 // This is the main entry point for vulnerability matching.
-func CheckVersion(version string, bulletin *BulletinFile) []fleet.SoftwareVulnerability {
+func CheckVersion(version string, bulletin *BulletinFile) []automdm.SoftwareVulnerability {
 	if bulletin == nil {
 		return nil
 	}
-	software := &fleet.Software{Version: version}
+	software := &automdm.Software{Version: version}
 	return collectVulnerabilities(software, bulletin)
 }
 
 // collectVulnerabilities finds all CVEs that affect the given software based on the bulletin.
 func collectVulnerabilities(
-	software *fleet.Software,
+	software *automdm.Software,
 	bulletin *BulletinFile,
-) []fleet.SoftwareVulnerability {
+) []automdm.SoftwareVulnerability {
 	buildPrefix, buildSuffix, err := parseOfficeVersion(software.Version)
 	if err != nil {
 		// Invalid version format, skip
@@ -112,7 +112,7 @@ func collectVulnerabilities(
 		return nil
 	}
 
-	var vulns []fleet.SoftwareVulnerability
+	var vulns []automdm.SoftwareVulnerability
 	for _, update := range versionBulletin.SecurityUpdates {
 		// Parse the fixed build
 		fixedPrefix, fixedSuffix, err := parseOfficeVersion(update.ResolvedInVersion)
@@ -136,7 +136,7 @@ func collectVulnerabilities(
 			}
 			if fixedPrefixNum > buildPrefixNum {
 				resolvedVersion := update.ResolvedInVersion
-				vulns = append(vulns, fleet.SoftwareVulnerability{
+				vulns = append(vulns, automdm.SoftwareVulnerability{
 					SoftwareID:        software.ID,
 					CVE:               update.CVE,
 					ResolvedInVersion: &resolvedVersion,
@@ -149,7 +149,7 @@ func collectVulnerabilities(
 		// If host build suffix < fixed build suffix, the host is vulnerable
 		if compareBuildSuffix(buildSuffix, fixedSuffix) < 0 {
 			resolvedVersion := update.ResolvedInVersion
-			vulns = append(vulns, fleet.SoftwareVulnerability{
+			vulns = append(vulns, automdm.SoftwareVulnerability{
 				SoftwareID:        software.ID,
 				CVE:               update.CVE,
 				ResolvedInVersion: &resolvedVersion,
@@ -163,17 +163,17 @@ func collectVulnerabilities(
 // getStoredVulnerabilities returns all stored vulnerabilities for 'softwareID'.
 func getStoredVulnerabilities(
 	ctx context.Context,
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	softwareID uint,
-) ([]fleet.SoftwareVulnerability, error) {
+) ([]automdm.SoftwareVulnerability, error) {
 	storedSoftware, err := ds.SoftwareByID(ctx, softwareID, nil, false, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	var result []fleet.SoftwareVulnerability
+	var result []automdm.SoftwareVulnerability
 	for _, v := range storedSoftware.Vulnerabilities {
-		result = append(result, fleet.SoftwareVulnerability{
+		result = append(result, automdm.SoftwareVulnerability{
 			SoftwareID: storedSoftware.ID,
 			CVE:        v.CVE,
 		})
@@ -183,14 +183,14 @@ func getStoredVulnerabilities(
 
 func updateVulnsInDB(
 	ctx context.Context,
-	ds fleet.Datastore,
-	detected []fleet.SoftwareVulnerability,
-	existing []fleet.SoftwareVulnerability,
-) ([]fleet.SoftwareVulnerability, error) {
+	ds automdm.Datastore,
+	detected []automdm.SoftwareVulnerability,
+	existing []automdm.SoftwareVulnerability,
+) ([]automdm.SoftwareVulnerability, error) {
 	toInsert, toDelete := utils.VulnsDelta(detected, existing)
 
 	// Remove any possible dups
-	toInsertSet := make(map[string]fleet.SoftwareVulnerability, len(toInsert))
+	toInsertSet := make(map[string]automdm.SoftwareVulnerability, len(toInsert))
 	for _, i := range toInsert {
 		toInsertSet[i.Key()] = i
 	}
@@ -199,22 +199,22 @@ func updateVulnsInDB(
 		return nil, err
 	}
 
-	allVulns := make([]fleet.SoftwareVulnerability, 0, len(toInsertSet))
+	allVulns := make([]automdm.SoftwareVulnerability, 0, len(toInsertSet))
 	for _, v := range toInsertSet {
 		allVulns = append(allVulns, v)
 	}
 
-	return ds.InsertSoftwareVulnerabilities(ctx, allVulns, fleet.WinOfficeSource)
+	return ds.InsertSoftwareVulnerabilities(ctx, allVulns, automdm.WinOfficeSource)
 }
 
 // Analyze uses the most recent Windows Office bulletin in 'vulnPath' for detecting
 // vulnerabilities on Windows Office apps.
 func Analyze(
 	ctx context.Context,
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	vulnPath string,
 	collectVulns bool,
-) ([]fleet.SoftwareVulnerability, error) {
+) ([]automdm.SoftwareVulnerability, error) {
 	bulletin, err := getLatestBulletin(vulnPath)
 	if err != nil {
 		return nil, err
@@ -240,7 +240,7 @@ func Analyze(
 
 	// Query for Windows Office software from "programs" source.
 	// Use NameMatch/NameExclude to filter at the database level.
-	queryParams := fleet.SoftwareIterQueryOptions{
+	queryParams := automdm.SoftwareIterQueryOptions{
 		IncludedSources: []string{"programs"},
 		NameMatch:       "Microsoft (365|Office)",
 		NameExclude:     "[Cc]ompanion",
@@ -251,7 +251,7 @@ func Analyze(
 	}
 	defer iter.Close()
 
-	var vulnerabilities []fleet.SoftwareVulnerability
+	var vulnerabilities []automdm.SoftwareVulnerability
 	for iter.Next() {
 		software, err := iter.Value()
 		if err != nil {

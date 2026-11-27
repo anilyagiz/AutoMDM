@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Builds a server's fleetd installers for Hangar's Installers tab: one
-# `fleetctl package` per job, all jobs at once, continuing past failures.
+# Builds a server's automdmd installers for Hangar's Installers tab: one
+# `automdmctl package` per job, all jobs at once, continuing past failures.
 # Hangar writes this script to its data dir and runs it through the process
 # engine, passing:
 #
-#   HANGAR_FLEETCTL     the server's own fleetctl binary
+#   HANGAR_AUTOMDMCTL     the server's own automdmctl binary
 #   HANGAR_JOBS         one job per line: key<TAB>type<TAB>arch<TAB>outfile
 #                       (arch "-" = none, for the universal macOS pkg)
-#   HANGAR_COMMON_ARGS  fleetctl package flags shared by every job, one per line
+#   HANGAR_COMMON_ARGS  automdmctl package flags shared by every job, one per line
 #
 # The "==> [key] building|ok|failed" lines are parsed by the tab for per-platform
 # status; keep their format in sync with lib/installers.ts. A job's own output
@@ -23,7 +23,7 @@ out_dir=$(dirname "$(cut -f 4 <<< "$HANGAR_JOBS" | head -n 1)")
 # Left by a build that was killed before it could clean up.
 rm -rf "$out_dir"/.hangar-build.*
 work_root=$(mktemp -d "$out_dir/.hangar-build.XXXXXX") || exit 1
-# Stop sends SIGTERM to the whole group, every job's fleetctl included; exit
+# Stop sends SIGTERM to the whole group, every job's automdmctl included; exit
 # through the EXIT trap so the jobs' work dirs are removed.
 trap 'rm -rf "$work_root"' EXIT
 trap 'exit 143' TERM INT
@@ -42,7 +42,7 @@ tag() {
 
 # build runs one job into its own empty dir and only replaces $out on success,
 # so a failed run never leaves (or is mistaken for) an old file. The dir is also
-# the cwd: some fleetctl versions ignore --outfile for arm64 .msi and write
+# the cwd: some automdmctl versions ignore --outfile for arm64 .msi and write
 # their default name there instead.
 build() {
   local key=$1 type=$2 arch=$3 out=$4 work built rc
@@ -53,7 +53,7 @@ build() {
     echo "==> [$key] failed"
     return 1
   fi
-  (cd "$work" && "$HANGAR_FLEETCTL" package --type="$type" "${arch_flag[@]+"${arch_flag[@]}"}" --outfile="$work/$(basename "$out")" "${common[@]}" </dev/null) 2>&1 | tag "$key"
+  (cd "$work" && "$HANGAR_AUTOMDMCTL" package --type="$type" "${arch_flag[@]+"${arch_flag[@]}"}" --outfile="$work/$(basename "$out")" "${common[@]}" </dev/null) 2>&1 | tag "$key"
   rc=$?
   # Killed by a signal: Stop's SIGTERM can outrun this shell's own, so print
   # no result and let the tab say "stopped" (or "interrupted" without a Stop).
@@ -64,11 +64,11 @@ build() {
   fi
   built=$(find "$work" -maxdepth 1 -type f -name "*.$type" | head -n 1)
   if [ -z "$built" ] || ! mv -f "$built" "$out"; then
-    echo "[$key] fleetctl reported success but wrote no $type file"
+    echo "[$key] automdmctl reported success but wrote no $type file"
     echo "==> [$key] failed"
     return 1
   fi
-  # fleetctl writes 0600; make it readable for sharing.
+  # automdmctl writes 0600; make it readable for sharing.
   chmod 644 "$out"
   echo "==> [$key] ok"
 }

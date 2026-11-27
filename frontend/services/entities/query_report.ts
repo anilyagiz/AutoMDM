@@ -22,7 +22,7 @@ export interface ILoadQueryReportOptions {
 interface ILoadQueryReportQueryParams {
   order_key?: string;
   order_direction?: string;
-  fleet_id?: number;
+  team_id?: number;
   page?: number;
   per_page?: number;
   query?: string;
@@ -61,7 +61,7 @@ const load = ({
     order_direction: sortParams.order_direction,
   };
   if (teamId && teamId > 0) {
-    queryParams.fleet_id = teamId;
+    queryParams.team_id = teamId;
   }
   if (page !== undefined) {
     queryParams.page = page;

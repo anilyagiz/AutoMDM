@@ -1,5 +1,5 @@
 # Learn more about .exe uninstall scripts:
-# http://fleetdm.com/learn-more-about/exe-uninstall-scripts
+# http://automdm.com/learn-more-about/exe-uninstall-scripts
 
 $softwareName = "OpenRefine"
 $publisherMatch = "OpenRefine"

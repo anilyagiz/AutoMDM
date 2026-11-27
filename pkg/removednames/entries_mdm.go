@@ -37,10 +37,10 @@ var mdmEntries = []Entry{
 	removedPath("/mdm/apple/bootstrap"),
 	removedPath("/mdm/bootstrap/summary"),
 	removedPath("/mdm/apple/bootstrap/summary"),
-	removedPath("/mdm/bootstrap/{fleet_id}/metadata"),
-	removedPath("/mdm/apple/bootstrap/{fleet_id}/metadata"),
-	removedPath("/mdm/bootstrap/{fleet_id}"),
-	removedPath("/mdm/apple/bootstrap/{fleet_id}"),
+	removedPath("/mdm/bootstrap/{team_id}/metadata"),
+	removedPath("/mdm/apple/bootstrap/{team_id}/metadata"),
+	removedPath("/mdm/bootstrap/{team_id}"),
+	removedPath("/mdm/apple/bootstrap/{team_id}"),
 
 	removedPath("/mdm/setup/eula"),
 	removedPath("/mdm/apple/setup/eula"),
@@ -55,13 +55,13 @@ var mdmEntries = []Entry{
 	removedEndpoint("POST", "/mdm/apple/request_csr"),
 }
 
-// removedPath is a path removed for every method. The path is relative to /api/_version_/fleet.
+// removedPath is a path removed for every method. The path is relative to /api/_version_/automdm.
 func removedPath(path string) Entry {
 	return Entry{Kind: KindPath, Scope: ScopeRequest, Old: pathPrefix + path, Format: EndpointFormat{}}
 }
 
 // removedEndpoint is a path removed for one method only, because other methods of it are still served. The path is relative to
-// /api/_version_/fleet.
+// /api/_version_/automdm.
 func removedEndpoint(method, path string) Entry {
 	entry := removedPath(path)
 	entry.Context = method

@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
-	android_mock "github.com/fleetdm/fleet/v4/server/mdm/android/mock"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
+	android_mock "github.com/anilyagiz/automdm/v4/server/mdm/android/mock"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/androidmanagement/v1"
 )
@@ -21,46 +21,46 @@ const dedupToken = "value"
 // STATUS_REPORT full-processing paths succeed for a single existing host, and
 // returns that host. Individual tests override GetAndroidPubSubDedupStateFunc and
 // the invocation flags they assert on.
-func wireDedupHost(t *testing.T, mockDS *AndroidMockDS, hostID uint, hostUUID string) *fleet.AndroidHost {
+func wireDedupHost(t *testing.T, mockDS *AndroidMockDS, hostID uint, hostUUID string) *automdm.AndroidHost {
 	t.Helper()
-	host := &fleet.AndroidHost{
-		Host: &fleet.Host{ID: hostID, UUID: hostUUID},
+	host := &automdm.AndroidHost{
+		Host: &automdm.Host{ID: hostID, UUID: hostUUID},
 		Device: &android.Device{
 			HostID:               hostID,
 			DeviceID:             "dedup",
 			EnterpriseSpecificID: &hostUUID,
 		},
 	}
-	mockDS.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{MDM: fleet.MDM{AndroidEnabledAndConfigured: true}}, nil
+	mockDS.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{MDM: automdm.MDM{AndroidEnabledAndConfigured: true}}, nil
 	}
-	mockDS.AndroidHostLiteFunc = func(ctx context.Context, esID string) (*fleet.AndroidHost, error) {
+	mockDS.AndroidHostLiteFunc = func(ctx context.Context, esID string) (*automdm.AndroidHost, error) {
 		return host, nil
 	}
-	mockDS.UpdateAndroidHostFunc = func(ctx context.Context, h *fleet.AndroidHost, fromEnroll, companyOwned bool) error {
+	mockDS.UpdateAndroidHostFunc = func(ctx context.Context, h *automdm.AndroidHost, fromEnroll, companyOwned bool) error {
 		return nil
 	}
-	mockDS.VerifyEnrollSecretFunc = func(ctx context.Context, secret string) (*fleet.EnrollSecret, error) {
-		return &fleet.EnrollSecret{}, nil
+	mockDS.VerifyEnrollSecretFunc = func(ctx context.Context, secret string) (*automdm.EnrollSecret, error) {
+		return &automdm.EnrollSecret{}, nil
 	}
 	mockDS.DeleteAllHostCertificateTemplatesFunc = func(ctx context.Context, hostUUID string) error { return nil }
 	mockDS.ClearHostMDMActionsFunc = func(ctx context.Context, id uint) error { return nil }
-	mockDS.ScimUserByHostIDFunc = func(ctx context.Context, id uint) (*fleet.ScimUser, error) {
+	mockDS.ScimUserByHostIDFunc = func(ctx context.Context, id uint) (*automdm.ScimUser, error) {
 		return nil, common_mysql.NotFound("scim user")
 	}
-	mockDS.ListHostDeviceMappingFunc = func(ctx context.Context, id uint) ([]*fleet.HostDeviceMapping, error) {
+	mockDS.ListHostDeviceMappingFunc = func(ctx context.Context, id uint) ([]*automdm.HostDeviceMapping, error) {
 		return nil, nil
 	}
 	// STATUS_REPORT DELETED path.
 	mockDS.SetAndroidHostUnenrolledFunc = func(ctx context.Context, id uint) (bool, error) { return true, nil }
-	mockDS.GetHostMDMFunc = func(ctx context.Context, id uint) (*fleet.HostMDM, error) {
-		return &fleet.HostMDM{IsPersonalEnrollment: true}, nil
+	mockDS.GetHostMDMFunc = func(ctx context.Context, id uint) (*automdm.HostMDM, error) {
+		return &automdm.HostMDM{IsPersonalEnrollment: true}, nil
 	}
-	mockDS.MarkAllPendingVPPInstallsAsFailedForAndroidHostFunc = func(ctx context.Context, id uint) ([]*fleet.User, []fleet.ActivityDetails, error) {
+	mockDS.MarkAllPendingVPPInstallsAsFailedForAndroidHostFunc = func(ctx context.Context, id uint) ([]*automdm.User, []automdm.ActivityDetails, error) {
 		return nil, nil, nil
 	}
-	mockDS.ListHostsLiteByIDsFunc = func(ctx context.Context, ids []uint) ([]*fleet.Host, error) {
-		return []*fleet.Host{{ID: hostID}}, nil
+	mockDS.ListHostsLiteByIDsFunc = func(ctx context.Context, ids []uint) ([]*automdm.Host, error) {
+		return []*automdm.Host{{ID: hostID}}, nil
 	}
 	return host
 }
@@ -172,19 +172,19 @@ func TestPubSubDedupAndStaleness(t *testing.T) {
 		// no such lookup happens after enrollHost.
 		const newHostID = uint(77)
 		svc, mockDS := createAndroidService(t)
-		mockDS.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-			return &fleet.AppConfig{MDM: fleet.MDM{AndroidEnabledAndConfigured: true}}, nil
+		mockDS.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{MDM: automdm.MDM{AndroidEnabledAndConfigured: true}}, nil
 		}
 		var hostLiteCalls int
-		mockDS.AndroidHostLiteFunc = func(ctx context.Context, esID string) (*fleet.AndroidHost, error) {
+		mockDS.AndroidHostLiteFunc = func(ctx context.Context, esID string) (*automdm.AndroidHost, error) {
 			hostLiteCalls++
 			return nil, common_mysql.NotFound("android host lite")
 		}
-		mockDS.VerifyEnrollSecretFunc = func(ctx context.Context, secret string) (*fleet.EnrollSecret, error) {
-			return &fleet.EnrollSecret{}, nil
+		mockDS.VerifyEnrollSecretFunc = func(ctx context.Context, secret string) (*automdm.EnrollSecret, error) {
+			return &automdm.EnrollSecret{}, nil
 		}
-		mockDS.NewAndroidHostFunc = func(ctx context.Context, h *fleet.AndroidHost, companyOwned bool) (*fleet.AndroidHost, error) {
-			return &fleet.AndroidHost{Host: &fleet.Host{ID: newHostID, UUID: hostUUID}, Device: h.Device}, nil
+		mockDS.NewAndroidHostFunc = func(ctx context.Context, h *automdm.AndroidHost, companyOwned bool) (*automdm.AndroidHost, error) {
+			return &automdm.AndroidHost{Host: &automdm.Host{ID: newHostID, UUID: hostUUID}, Device: h.Device}, nil
 		}
 		var recordedHostID uint
 		var recordedID string
@@ -198,7 +198,7 @@ func TestPubSubDedupAndStaleness(t *testing.T) {
 		require.NoError(t, svc.ProcessPubSubPush(t.Context(), dedupToken, msg))
 
 		require.True(t, mockDS.NewAndroidHostFuncInvoked, "a brand-new device must be inserted")
-		require.False(t, mockDS.GetAndroidPubSubDedupStateFuncInvoked, "a device new to Fleet has no dedup state to check")
+		require.False(t, mockDS.GetAndroidPubSubDedupStateFuncInvoked, "a device new to AutoMDM has no dedup state to check")
 		require.True(t, mockDS.SetAndroidPubSubDedupStateFuncInvoked, "new enrollment must record dedup state")
 		require.Equal(t, newHostID, recordedHostID, "dedup state must be recorded against the newly inserted host")
 		require.Equal(t, "msg-brand-new", recordedID)
@@ -335,8 +335,8 @@ func TestPubSubDedupAndStaleness(t *testing.T) {
 
 	t.Run("WIPE ack records dedup state to block a later stale STATUS_REPORT", func(t *testing.T) {
 		svc, mockDS := createAndroidService(t)
-		mockDS.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-			return &fleet.AppConfig{MDM: fleet.MDM{AndroidEnabledAndConfigured: true}}, nil
+		mockDS.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{MDM: automdm.MDM{AndroidEnabledAndConfigured: true}}, nil
 		}
 		stored := &android.MDMAndroidCommand{
 			CommandUUID:   "cmd-wipe",
@@ -351,16 +351,16 @@ func TestPubSubDedupAndStaleness(t *testing.T) {
 		mockDS.UpdateMDMAndroidCommandStatusFunc = func(ctx context.Context, commandUUID, status string, errorCode, errorMessage, rawResult *string) error {
 			return nil
 		}
-		mockDS.AndroidHostLiteByHostUUIDFunc = func(ctx context.Context, hUUID string) (*fleet.AndroidHost, error) {
-			return &fleet.AndroidHost{Host: &fleet.Host{ID: hostID, UUID: hUUID}, Device: &android.Device{HostID: hostID, DeviceID: "D"}}, nil
+		mockDS.AndroidHostLiteByHostUUIDFunc = func(ctx context.Context, hUUID string) (*automdm.AndroidHost, error) {
+			return &automdm.AndroidHost{Host: &automdm.Host{ID: hostID, UUID: hUUID}, Device: &android.Device{HostID: hostID, DeviceID: "D"}}, nil
 		}
-		mockDS.GetHostMDMFunc = func(ctx context.Context, id uint) (*fleet.HostMDM, error) {
-			return &fleet.HostMDM{IsPersonalEnrollment: false}, nil
+		mockDS.GetHostMDMFunc = func(ctx context.Context, id uint) (*automdm.HostMDM, error) {
+			return &automdm.HostMDM{IsPersonalEnrollment: false}, nil
 		}
 		mockDS.ClearHostMDMActionsFunc = func(ctx context.Context, id uint) error { return nil }
 		mockDS.SetAndroidHostUnenrolledFunc = func(ctx context.Context, id uint) (bool, error) { return true, nil }
-		mockDS.ListHostsLiteByIDsFunc = func(ctx context.Context, ids []uint) ([]*fleet.Host, error) {
-			return []*fleet.Host{{ID: hostID}}, nil
+		mockDS.ListHostsLiteByIDsFunc = func(ctx context.Context, ids []uint) ([]*automdm.Host, error) {
+			return []*automdm.Host{{ID: hostID}}, nil
 		}
 		var recordedID string
 		var recordedTime *time.Time

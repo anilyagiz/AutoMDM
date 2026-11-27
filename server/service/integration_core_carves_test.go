@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -25,21 +25,21 @@ func (s *integrationTestSuite) TestListGetCarves() {
 	ctx := context.Background()
 
 	hosts := s.createHosts(t)
-	c1, err := s.ds.NewCarve(ctx, &fleet.CarveMetadata{
+	c1, err := s.ds.NewCarve(ctx, &automdm.CarveMetadata{
 		CreatedAt: time.Now(),
 		HostId:    hosts[0].ID,
 		Name:      t.Name() + "_1",
 		SessionId: "ssn1",
 	})
 	require.NoError(t, err)
-	c2, err := s.ds.NewCarve(ctx, &fleet.CarveMetadata{
+	c2, err := s.ds.NewCarve(ctx, &automdm.CarveMetadata{
 		CreatedAt: time.Now(),
 		HostId:    hosts[1].ID,
 		Name:      t.Name() + "_2",
 		SessionId: "ssn2",
 	})
 	require.NoError(t, err)
-	c3, err := s.ds.NewCarve(ctx, &fleet.CarveMetadata{
+	c3, err := s.ds.NewCarve(ctx, &automdm.CarveMetadata{
 		CreatedAt: time.Now(),
 		HostId:    hosts[2].ID, // nolint:nilaway // createHosts always returns at least one host
 		Name:      t.Name() + "_3",
@@ -55,52 +55,52 @@ func (s *integrationTestSuite) TestListGetCarves() {
 	c2.MaxBlock = 3
 	require.NoError(t, s.ds.UpdateCarve(ctx, c2))
 
-	var listResp fleet.ListCarvesResponse
-	s.DoJSON("GET", "/api/latest/fleet/carves", nil, http.StatusOK, &listResp, "per_page", "2", "order_key", "id")
+	var listResp automdm.ListCarvesResponse
+	s.DoJSON("GET", "/api/latest/automdm/carves", nil, http.StatusOK, &listResp, "per_page", "2", "order_key", "id")
 	require.Len(t, listResp.Carves, 2)
 	assert.Equal(t, c1.ID, listResp.Carves[0].ID)
 	assert.Equal(t, c3.ID, listResp.Carves[1].ID)
 
 	// with 'after' param
 	s.DoJSON(
-		"GET", "/api/latest/fleet/carves", nil, http.StatusOK, &listResp, "per_page", "2", "order_key", "id", "after",
+		"GET", "/api/latest/automdm/carves", nil, http.StatusOK, &listResp, "per_page", "2", "order_key", "id", "after",
 		strconv.FormatInt(c1.ID, 10),
 	)
 	require.Len(t, listResp.Carves, 1)
 	assert.Equal(t, c3.ID, listResp.Carves[0].ID)
 
 	// include expired
-	s.DoJSON("GET", "/api/latest/fleet/carves", nil, http.StatusOK, &listResp, "per_page", "2", "order_key", "id", "expired", "1")
+	s.DoJSON("GET", "/api/latest/automdm/carves", nil, http.StatusOK, &listResp, "per_page", "2", "order_key", "id", "expired", "1")
 	require.Len(t, listResp.Carves, 2)
 	assert.Equal(t, c1.ID, listResp.Carves[0].ID)
 	assert.Equal(t, c2.ID, listResp.Carves[1].ID)
 
 	// empty page
-	s.DoJSON("GET", "/api/latest/fleet/carves", nil, http.StatusOK, &listResp, "page", "3", "per_page", "2", "order_key", "id", "expired", "1")
+	s.DoJSON("GET", "/api/latest/automdm/carves", nil, http.StatusOK, &listResp, "page", "3", "per_page", "2", "order_key", "id", "expired", "1")
 	require.Empty(t, listResp.Carves)
 
 	// get specific carve
-	var getResp fleet.GetCarveResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/carves/%d", c2.ID), nil, http.StatusOK, &getResp)
+	var getResp automdm.GetCarveResponse
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/carves/%d", c2.ID), nil, http.StatusOK, &getResp)
 	require.Equal(t, c2.ID, getResp.Carve.ID)
 	require.True(t, getResp.Carve.Expired)
 
 	// get non-existing carve
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/carves/%d", c3.ID+1), nil, http.StatusNotFound, &getResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/carves/%d", c3.ID+1), nil, http.StatusNotFound, &getResp)
 
 	// get expired carve block
-	var blkResp fleet.GetCarveBlockResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/carves/%d/block/%d", c2.ID, 1), nil, http.StatusInternalServerError, &blkResp)
+	var blkResp automdm.GetCarveBlockResponse
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/carves/%d/block/%d", c2.ID, 1), nil, http.StatusInternalServerError, &blkResp)
 
 	// get valid carve block, but block not inserted yet
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/carves/%d/block/%d", c1.ID, 1), nil, http.StatusNotFound, &blkResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/carves/%d/block/%d", c1.ID, 1), nil, http.StatusNotFound, &blkResp)
 
 	require.NoError(t, s.ds.NewBlock(ctx, c1, 1, []byte("block1")))
 	require.NoError(t, s.ds.NewBlock(ctx, c1, 2, []byte("block2")))
 	require.NoError(t, s.ds.NewBlock(ctx, c1, 3, []byte("block3")))
 
 	// get valid carve block
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/carves/%d/block/%d", c1.ID, 1), nil, http.StatusOK, &blkResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/carves/%d/block/%d", c1.ID, 1), nil, http.StatusOK, &blkResp)
 	require.Equal(t, "block1", string(blkResp.Data))
 }
 
@@ -110,7 +110,7 @@ func (s *integrationTestSuite) TestCarve() {
 
 	// begin a carve with an invalid node key
 	var errRes map[string]any
-	s.DoJSON("POST", "/api/osquery/carve/begin", fleet.CarveBeginRequest{
+	s.DoJSON("POST", "/api/osquery/carve/begin", automdm.CarveBeginRequest{
 		NodeKey:    *hosts[0].NodeKey + "zzz",
 		BlockCount: 1,
 		BlockSize:  1,
@@ -120,7 +120,7 @@ func (s *integrationTestSuite) TestCarve() {
 	assert.Contains(t, errRes["error"], "invalid node key")
 
 	// invalid carve size
-	s.DoJSON("POST", "/api/osquery/carve/begin", fleet.CarveBeginRequest{
+	s.DoJSON("POST", "/api/osquery/carve/begin", automdm.CarveBeginRequest{
 		NodeKey:    *hosts[0].NodeKey,
 		BlockCount: 3,
 		BlockSize:  3,
@@ -130,7 +130,7 @@ func (s *integrationTestSuite) TestCarve() {
 	assert.Contains(t, errRes["error"], "carve_size must be greater")
 
 	// invalid block size too big
-	s.DoJSON("POST", "/api/osquery/carve/begin", fleet.CarveBeginRequest{
+	s.DoJSON("POST", "/api/osquery/carve/begin", automdm.CarveBeginRequest{
 		NodeKey:    *hosts[0].NodeKey,
 		BlockCount: 3,
 		BlockSize:  maxBlockSize + 1,
@@ -140,7 +140,7 @@ func (s *integrationTestSuite) TestCarve() {
 	assert.Contains(t, errRes["error"], "block_size exceeds max")
 
 	// invalid carve size too big
-	s.DoJSON("POST", "/api/osquery/carve/begin", fleet.CarveBeginRequest{
+	s.DoJSON("POST", "/api/osquery/carve/begin", automdm.CarveBeginRequest{
 		NodeKey:    *hosts[0].NodeKey,
 		BlockCount: 3,
 		BlockSize:  maxBlockSize,
@@ -150,7 +150,7 @@ func (s *integrationTestSuite) TestCarve() {
 	assert.Contains(t, errRes["error"], "carve_size exceeds max")
 
 	// invalid carve size, does not match blocks
-	s.DoJSON("POST", "/api/osquery/carve/begin", fleet.CarveBeginRequest{
+	s.DoJSON("POST", "/api/osquery/carve/begin", automdm.CarveBeginRequest{
 		NodeKey:    *hosts[0].NodeKey,
 		BlockCount: 3,
 		BlockSize:  3,
@@ -160,8 +160,8 @@ func (s *integrationTestSuite) TestCarve() {
 	assert.Contains(t, errRes["error"], "carve_size does not match")
 
 	// valid carve begin
-	var beginResp fleet.CarveBeginResponse
-	s.DoJSON("POST", "/api/osquery/carve/begin", fleet.CarveBeginRequest{
+	var beginResp automdm.CarveBeginResponse
+	s.DoJSON("POST", "/api/osquery/carve/begin", automdm.CarveBeginRequest{
 		NodeKey:    *hosts[0].NodeKey,
 		BlockCount: 3,
 		BlockSize:  3,
@@ -173,8 +173,8 @@ func (s *integrationTestSuite) TestCarve() {
 	sid := beginResp.SessionId
 
 	// sending a block with invalid session id
-	var blockResp fleet.CarveBlockResponse
-	s.DoJSON("POST", "/api/osquery/carve/block", fleet.CarveBlockRequest{
+	var blockResp automdm.CarveBlockResponse
+	s.DoJSON("POST", "/api/osquery/carve/block", automdm.CarveBlockRequest{
 		BlockId:   1,
 		SessionId: sid + "zz",
 		RequestId: "??",
@@ -182,7 +182,7 @@ func (s *integrationTestSuite) TestCarve() {
 	}, http.StatusUnauthorized, &blockResp)
 
 	// sending a block with valid session id but invalid request id
-	s.DoJSON("POST", "/api/osquery/carve/block", fleet.CarveBlockRequest{
+	s.DoJSON("POST", "/api/osquery/carve/block", automdm.CarveBlockRequest{
 		BlockId:   1,
 		SessionId: sid,
 		RequestId: "??",
@@ -190,13 +190,13 @@ func (s *integrationTestSuite) TestCarve() {
 	}, http.StatusUnauthorized, &blockResp)
 
 	checkCarveError := func(id uint, err string) {
-		var getResp fleet.GetCarveResponse
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/carves/%d", id), nil, http.StatusOK, &getResp)
+		var getResp automdm.GetCarveResponse
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/carves/%d", id), nil, http.StatusOK, &getResp)
 		require.Equal(t, err, *getResp.Carve.Error)
 	}
 
 	// sending a block with unexpected block id (expects 0, got 1)
-	s.DoJSON("POST", "/api/osquery/carve/block", fleet.CarveBlockRequest{
+	s.DoJSON("POST", "/api/osquery/carve/block", automdm.CarveBlockRequest{
 		BlockId:   1,
 		SessionId: sid,
 		RequestId: "r1",
@@ -205,7 +205,7 @@ func (s *integrationTestSuite) TestCarve() {
 	checkCarveError(1, "block_id does not match expected block (0): 1")
 
 	// sending a block with valid payload, block 0
-	s.DoJSON("POST", "/api/osquery/carve/block", fleet.CarveBlockRequest{
+	s.DoJSON("POST", "/api/osquery/carve/block", automdm.CarveBlockRequest{
 		BlockId:   0,
 		SessionId: sid,
 		RequestId: "r1",
@@ -214,8 +214,8 @@ func (s *integrationTestSuite) TestCarve() {
 	require.True(t, blockResp.Success)
 
 	// sending next block
-	blockResp = fleet.CarveBlockResponse{}
-	s.DoJSON("POST", "/api/osquery/carve/block", fleet.CarveBlockRequest{
+	blockResp = automdm.CarveBlockResponse{}
+	s.DoJSON("POST", "/api/osquery/carve/block", automdm.CarveBlockRequest{
 		BlockId:   1,
 		SessionId: sid,
 		RequestId: "r1",
@@ -224,8 +224,8 @@ func (s *integrationTestSuite) TestCarve() {
 	require.True(t, blockResp.Success)
 
 	// sending already-sent block again
-	blockResp = fleet.CarveBlockResponse{}
-	s.DoJSON("POST", "/api/osquery/carve/block", fleet.CarveBlockRequest{
+	blockResp = automdm.CarveBlockResponse{}
+	s.DoJSON("POST", "/api/osquery/carve/block", automdm.CarveBlockRequest{
 		BlockId:   1,
 		SessionId: sid,
 		RequestId: "r1",
@@ -234,8 +234,8 @@ func (s *integrationTestSuite) TestCarve() {
 	checkCarveError(1, "block_id does not match expected block (2): 1")
 
 	// sending final block with too many bytes
-	blockResp = fleet.CarveBlockResponse{}
-	s.DoJSON("POST", "/api/osquery/carve/block", fleet.CarveBlockRequest{
+	blockResp = automdm.CarveBlockResponse{}
+	s.DoJSON("POST", "/api/osquery/carve/block", automdm.CarveBlockRequest{
 		BlockId:   2,
 		SessionId: sid,
 		RequestId: "r1",
@@ -244,8 +244,8 @@ func (s *integrationTestSuite) TestCarve() {
 	checkCarveError(1, "exceeded declared block size 3: 7")
 
 	// sending actual final block
-	blockResp = fleet.CarveBlockResponse{}
-	s.DoJSON("POST", "/api/osquery/carve/block", fleet.CarveBlockRequest{
+	blockResp = automdm.CarveBlockResponse{}
+	s.DoJSON("POST", "/api/osquery/carve/block", automdm.CarveBlockRequest{
 		BlockId:   2,
 		SessionId: sid,
 		RequestId: "r1",
@@ -254,8 +254,8 @@ func (s *integrationTestSuite) TestCarve() {
 	require.True(t, blockResp.Success)
 
 	// sending unexpected block
-	blockResp = fleet.CarveBlockResponse{}
-	s.DoJSON("POST", "/api/osquery/carve/block", fleet.CarveBlockRequest{
+	blockResp = automdm.CarveBlockResponse{}
+	s.DoJSON("POST", "/api/osquery/carve/block", automdm.CarveBlockRequest{
 		BlockId:   3,
 		SessionId: sid,
 		RequestId: "r1",

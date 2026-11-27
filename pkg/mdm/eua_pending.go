@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 )
 
 const (
@@ -17,7 +17,7 @@ const (
 	euaPendingTTL = 24 * time.Hour
 )
 
-// A record under this key says Fleet answered an Orbit enroll request for that
+// A record under this key says AutoMDM answered an Orbit enroll request for that
 // hardware UUID with END_USER_AUTH_REQUIRED and is therefore expecting the
 // device's end user to sign in.
 func euaPendingKey(hostUUID string) string {
@@ -35,7 +35,7 @@ func validEUAPendingHostUUID(hostUUID string) bool {
 // future and clearing puts it at now, which is the only difference between the
 // two operations.
 func setEUAPendingExpiry(
-	ctx context.Context, kv fleet.KeyValueStore, hostUUID string, expiresAt time.Time, ttl time.Duration,
+	ctx context.Context, kv automdm.KeyValueStore, hostUUID string, expiresAt time.Time, ttl time.Duration,
 ) error {
 	if kv == nil {
 		return ctxerr.New(ctx, "end user auth prompt store not configured")
@@ -52,18 +52,18 @@ func setEUAPendingExpiry(
 // RecordEndUserAuthPrompt stores the prompt for hostUUID. Callers record on the
 // enroll response path, so a device that is told to authenticate is always the
 // one that can start the SSO flow.
-func RecordEndUserAuthPrompt(ctx context.Context, kv fleet.KeyValueStore, hostUUID string, now time.Time) error {
+func RecordEndUserAuthPrompt(ctx context.Context, kv automdm.KeyValueStore, hostUUID string, now time.Time) error {
 	return setEUAPendingExpiry(ctx, kv, hostUUID, now.Add(euaPendingTTL), euaPendingTTL)
 }
 
 // ClearEndUserAuthPrompt ends the prompt once the host has enrolled.
-func ClearEndUserAuthPrompt(ctx context.Context, kv fleet.KeyValueStore, hostUUID string) error {
+func ClearEndUserAuthPrompt(ctx context.Context, kv automdm.KeyValueStore, hostUUID string) error {
 	return setEUAPendingExpiry(ctx, kv, hostUUID, time.Time{}, time.Second)
 }
 
-// HasEndUserAuthPrompt reports whether Fleet is waiting on this device's end
+// HasEndUserAuthPrompt reports whether AutoMDM is waiting on this device's end
 // user. An error means the store failed and the caller must fail closed.
-func HasEndUserAuthPrompt(ctx context.Context, kv fleet.KeyValueStore, hostUUID string, now time.Time) (bool, error) {
+func HasEndUserAuthPrompt(ctx context.Context, kv automdm.KeyValueStore, hostUUID string, now time.Time) (bool, error) {
 	if kv == nil {
 		return false, ctxerr.New(ctx, "end user auth prompt store not configured")
 	}

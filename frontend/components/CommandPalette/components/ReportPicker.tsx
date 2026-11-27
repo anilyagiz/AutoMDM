@@ -10,7 +10,7 @@ import queriesAPI, { IQueriesResponse } from "services/entities/queries";
 
 import { RESULT_PREFIXES } from "./constants";
 import HighlightedLabel from "./HighlightedLabel";
-import getFleetSuffix from "./pickerCopy";
+import getTeamSuffix from "./pickerCopy";
 import usePickerSearch from "./usePickerSearch";
 
 const baseClass = "command-palette";
@@ -43,7 +43,7 @@ const ReportPicker = ({
       ? currentTeam.id
       : undefined;
 
-  const fleetSuffix = getFleetSuffix(currentTeam);
+  const automdmSuffix = getTeamSuffix(currentTeam);
 
   const { items: reports, isLoading, debouncedQuery } = usePickerSearch<
     IQueriesResponse,
@@ -81,14 +81,14 @@ const ReportPicker = ({
     return (
       <div className={`${baseClass}__empty`}>
         {debouncedQuery
-          ? `No reports match "${debouncedQuery}"${fleetSuffix}.`
-          : `No reports found${fleetSuffix}.`}
+          ? `No reports match "${debouncedQuery}"${automdmSuffix}.`
+          : `No reports found${automdmSuffix}.`}
       </div>
     );
   }
 
   // "Inherited" applies only when viewing a specific team and the report
-  // lives at a different scope (typically global, fleet_id null/different).
+  // lives at a different scope (typically global, team_id null/different).
   const isViewingSpecificTeam =
     !!currentTeam && currentTeam.id !== APP_CONTEXT_ALL_TEAMS_ID;
 
@@ -97,7 +97,7 @@ const ReportPicker = ({
       {reports.map((report) => {
         const showObserverIcon = !isViewerObserver && report.observer_can_run;
         const showInheritedBadge =
-          isViewingSpecificTeam && report.fleet_id !== currentTeam?.id;
+          isViewingSpecificTeam && report.team_id !== currentTeam?.id;
 
         return (
           <Command.Item
@@ -118,7 +118,7 @@ const ReportPicker = ({
                   position="top"
                   delayInMs={300}
                 >
-                  <Icon name="query" color="ui-fleet-black-50" />
+                  <Icon name="query" color="ui-automdm-black-50" />
                 </TooltipWrapper>
               )}
               {showInheritedBadge && (

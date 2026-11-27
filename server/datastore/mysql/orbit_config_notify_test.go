@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	microsoft_mdm "github.com/fleetdm/fleet/v4/server/mdm/microsoft"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	microsoft_mdm "github.com/anilyagiz/automdm/v4/server/mdm/microsoft"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
@@ -22,7 +22,7 @@ type orbitConfigNotification struct {
 }
 
 type captureOrbitConfigNotifier struct {
-	fleet.AgentCheckInNotifier
+	automdm.AgentCheckInNotifier
 	mu    sync.Mutex
 	calls []orbitConfigNotification
 }
@@ -71,27 +71,27 @@ func testOrbitConfigNotifyAfterCommit(t *testing.T, ds *Datastore, notifier *cap
 	ctx := t.Context()
 
 	err := ds.withRetryTxx(ctx, func(tx sqlx.ExtContext) error {
-		ds.notifyOrbitConfig(ctx, tx, fleet.AgentWSReasonActivity, 1, 2)
+		ds.notifyOrbitConfig(ctx, tx, automdm.AgentWSReasonActivity, 1, 2)
 		require.Empty(t, notifier.take(), "notified before commit")
 		return nil
 	})
 	require.NoError(t, err)
-	require.Equal(t, []orbitConfigNotification{{hostIDs: []uint{1, 2}, reason: fleet.AgentWSReasonActivity}}, notifier.take())
+	require.Equal(t, []orbitConfigNotification{{hostIDs: []uint{1, 2}, reason: automdm.AgentWSReasonActivity}}, notifier.take())
 
 	err = ds.withRetryTxx(ctx, func(tx sqlx.ExtContext) error {
-		ds.notifyOrbitConfig(ctx, tx, fleet.AgentWSReasonActivity, 1)
+		ds.notifyOrbitConfig(ctx, tx, automdm.AgentWSReasonActivity, 1)
 		return errors.New("rollback")
 	})
 	require.Error(t, err)
 	require.Empty(t, notifier.take(), "notified a rolled back change")
 
 	// Outside a transaction, the write is already committed.
-	ds.notifyOrbitConfig(ctx, ds.writer(ctx), fleet.AgentWSReasonActivity, 3)
-	require.Equal(t, []orbitConfigNotification{{hostIDs: []uint{3}, reason: fleet.AgentWSReasonActivity}}, notifier.take())
+	ds.notifyOrbitConfig(ctx, ds.writer(ctx), automdm.AgentWSReasonActivity, 3)
+	require.Equal(t, []orbitConfigNotification{{hostIDs: []uint{3}, reason: automdm.AgentWSReasonActivity}}, notifier.take())
 
 	// Without a notifier, nothing happens (and nothing is resolved).
 	ds.WithOrbitConfigNotifier(nil)
-	require.NoError(t, ds.notifyOrbitConfigByHostUUIDs(ctx, ds.writer(ctx), fleet.AgentWSReasonMDM, "uuid"))
+	require.NoError(t, ds.notifyOrbitConfigByHostUUIDs(ctx, ds.writer(ctx), automdm.AgentWSReasonMDM, "uuid"))
 	ds.WithOrbitConfigNotifier(notifier)
 	require.Empty(t, notifier.take())
 }
@@ -103,27 +103,27 @@ func testOrbitConfigNotifyScriptActivation(t *testing.T, ds *Datastore, notifier
 	notifier.take()
 
 	// The first script is activated right away; only its host is notified.
-	exec1, err := ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{HostID: host1.ID, ScriptContents: "echo 1"})
+	exec1, err := ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{HostID: host1.ID, ScriptContents: "echo 1"})
 	require.NoError(t, err)
-	require.Equal(t, []orbitConfigNotification{{hostIDs: []uint{host1.ID}, reason: fleet.AgentWSReasonActivity}}, notifier.take())
+	require.Equal(t, []orbitConfigNotification{{hostIDs: []uint{host1.ID}, reason: automdm.AgentWSReasonActivity}}, notifier.take())
 
 	// A second script waits behind the first: no notification.
-	_, err = ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{HostID: host1.ID, ScriptContents: "echo 2"})
+	_, err = ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{HostID: host1.ID, ScriptContents: "echo 2"})
 	require.NoError(t, err)
 	require.Empty(t, notifier.take())
 
 	// The first script's result activates the second.
-	_, _, err = ds.SetHostScriptExecutionResult(ctx, &fleet.HostScriptResultPayload{
+	_, _, err = ds.SetHostScriptExecutionResult(ctx, &automdm.HostScriptResultPayload{
 		HostID:      host1.ID,
 		ExecutionID: exec1.ExecutionID,
 		Output:      "1",
 	}, nil)
 	require.NoError(t, err)
-	require.Equal(t, []orbitConfigNotification{{hostIDs: []uint{host1.ID}, reason: fleet.AgentWSReasonActivity}}, notifier.take())
+	require.Equal(t, []orbitConfigNotification{{hostIDs: []uint{host1.ID}, reason: automdm.AgentWSReasonActivity}}, notifier.take())
 
-	_, err = ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{HostID: host2.ID, ScriptContents: "echo 3"})
+	_, err = ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{HostID: host2.ID, ScriptContents: "echo 3"})
 	require.NoError(t, err)
-	require.Equal(t, []orbitConfigNotification{{hostIDs: []uint{host2.ID}, reason: fleet.AgentWSReasonActivity}}, notifier.take())
+	require.Equal(t, []orbitConfigNotification{{hostIDs: []uint{host2.ID}, reason: automdm.AgentWSReasonActivity}}, notifier.take())
 }
 
 func testOrbitConfigNotifyDiskEncryption(t *testing.T, ds *Datastore, notifier *captureOrbitConfigNotifier) {
@@ -132,27 +132,27 @@ func testOrbitConfigNotifyDiskEncryption(t *testing.T, ds *Datastore, notifier *
 	notifier.take()
 
 	require.NoError(t, ds.QueueEscrow(ctx, host.ID))
-	require.Equal(t, []orbitConfigNotification{{hostIDs: []uint{host.ID}, reason: fleet.AgentWSReasonDiskEncryption}}, notifier.take())
+	require.Equal(t, []orbitConfigNotification{{hostIDs: []uint{host.ID}, reason: automdm.AgentWSReasonDiskEncryption}}, notifier.take())
 
 	// Only an undecryptable key makes the host rotate it.
 	require.NoError(t, ds.SetHostsDiskEncryptionKeyStatus(ctx, []uint{host.ID}, true, time.Now()))
 	require.Empty(t, notifier.take())
 	require.NoError(t, ds.SetHostsDiskEncryptionKeyStatus(ctx, []uint{host.ID}, false, time.Now()))
-	require.Equal(t, []orbitConfigNotification{{hostIDs: []uint{host.ID}, reason: fleet.AgentWSReasonDiskEncryption}}, notifier.take())
+	require.Equal(t, []orbitConfigNotification{{hostIDs: []uint{host.ID}, reason: automdm.AgentWSReasonDiskEncryption}}, notifier.take())
 }
 
 func testOrbitConfigNotifyWindowsMDMSync(t *testing.T, ds *Datastore, notifier *captureOrbitConfigNotifier) {
 	ctx := t.Context()
 
-	enroll := func(host *fleet.Host, syncCapable bool) uint {
-		device := &fleet.MDMWindowsEnrolledDevice{
+	enroll := func(host *automdm.Host, syncCapable bool) uint {
+		device := &automdm.MDMWindowsEnrolledDevice{
 			MDMDeviceID:    uuid.NewString(),
 			MDMHardwareID:  uuid.NewString(),
 			MDMDeviceState: microsoft_mdm.MDMDeviceStateEnrolled,
 			HostUUID:       host.UUID,
 		}
 		require.NoError(t, ds.MDMWindowsInsertEnrolledDevice(ctx, device))
-		require.NoError(t, ds.SetMDMWindowsEnrollmentFleetdSyncCapable(ctx, host.UUID, syncCapable))
+		require.NoError(t, ds.SetMDMWindowsEnrollmentAutoMDMdSyncCapable(ctx, host.UUID, syncCapable))
 		enrolled, err := ds.MDMWindowsGetEnrolledDeviceWithDeviceID(ctx, device.MDMDeviceID)
 		require.NoError(t, err)
 		return enrolled.ID
@@ -165,15 +165,15 @@ func testOrbitConfigNotifyWindowsMDMSync(t *testing.T, ds *Datastore, notifier *
 	require.NoError(t, ds.withRetryTxx(ctx, func(tx sqlx.ExtContext) error {
 		return ds.markMDMWindowsHasPendingCommandsByEnrollmentIDs(ctx, tx, ids)
 	}))
-	require.Equal(t, []orbitConfigNotification{{hostIDs: []uint{capable.ID}, reason: fleet.AgentWSReasonMDM}}, notifier.take())
+	require.Equal(t, []orbitConfigNotification{{hostIDs: []uint{capable.ID}, reason: automdm.AgentWSReasonMDM}}, notifier.take())
 }
 
 func testOrbitConfigNotifyEnrollOsquery(t *testing.T, ds *Datastore, notifier *captureOrbitConfigNotifier) {
 	ctx := t.Context()
 	host, err := ds.EnrollOsquery(ctx,
-		fleet.WithEnrollOsqueryHostID("osquery-host-id"),
-		fleet.WithEnrollOsqueryNodeKey("node-key"),
+		automdm.WithEnrollOsqueryHostID("osquery-host-id"),
+		automdm.WithEnrollOsqueryNodeKey("node-key"),
 	)
 	require.NoError(t, err)
-	require.Equal(t, []orbitConfigNotification{{hostIDs: []uint{host.ID}, reason: fleet.AgentWSReasonEnroll}}, notifier.take())
+	require.Equal(t, []orbitConfigNotification{{hostIDs: []uint{host.ID}, reason: automdm.AgentWSReasonEnroll}}, notifier.take())
 }

@@ -1,7 +1,7 @@
 // Package http provides HTTP request/response types for the chart bounded context.
 package http
 
-import "github.com/fleetdm/fleet/v4/server/chart/api"
+import "github.com/anilyagiz/automdm/v4/server/chart/api"
 
 // GetChartDataRequest is the HTTP request for the chart data endpoint.
 type GetChartDataRequest struct {
@@ -10,10 +10,10 @@ type GetChartDataRequest struct {
 	Resolution int    `query:"resolution,optional"`
 	TZOffset   int    `query:"tz_offset,optional"`
 	// TeamID is a pointer so we can distinguish "absent" (auto-scope to the
-	// viewer) from fleet_id=0 (no-team hosts, a valid Fleet filter).
-	// Exposed as fleet_id on the wire per the teams→fleets rename; the Go
+	// viewer) from team_id=0 (no-team hosts, a valid Team filter).
+	// Exposed as team_id on the wire per the teams→teams rename; the Go
 	// field name stays TeamID to match the rest of the codebase.
-	TeamID         *uint  `query:"fleet_id,optional"`
+	TeamID         *uint  `query:"team_id,optional"`
 	LabelIDs       string `query:"label_ids,optional"`
 	Platforms      string `query:"platforms,optional"`
 	IncludeHostIDs string `query:"include_host_ids,optional"`

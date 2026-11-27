@@ -7,16 +7,16 @@ import (
 	"io"
 	"sync"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
-var _ fleet.InstallerStore = (*InstallerStore)(nil)
+var _ automdm.InstallerStore = (*InstallerStore)(nil)
 
-type GetFunc func(ctx context.Context, installer fleet.Installer) (io.ReadCloser, int64, error)
+type GetFunc func(ctx context.Context, installer automdm.Installer) (io.ReadCloser, int64, error)
 
-type PutFunc func(ctx context.Context, installer fleet.Installer) (string, error)
+type PutFunc func(ctx context.Context, installer automdm.Installer) (string, error)
 
-type ExistsFunc func(ctx context.Context, installer fleet.Installer) (bool, error)
+type ExistsFunc func(ctx context.Context, installer automdm.Installer) (bool, error)
 
 type InstallerStore struct {
 	GetFunc        GetFunc
@@ -31,21 +31,21 @@ type InstallerStore struct {
 	mu sync.Mutex
 }
 
-func (s *InstallerStore) Get(ctx context.Context, installer fleet.Installer) (io.ReadCloser, int64, error) {
+func (s *InstallerStore) Get(ctx context.Context, installer automdm.Installer) (io.ReadCloser, int64, error) {
 	s.mu.Lock()
 	s.GetFuncInvoked = true
 	s.mu.Unlock()
 	return s.GetFunc(ctx, installer)
 }
 
-func (s *InstallerStore) Put(ctx context.Context, installer fleet.Installer) (string, error) {
+func (s *InstallerStore) Put(ctx context.Context, installer automdm.Installer) (string, error) {
 	s.mu.Lock()
 	s.PutFuncInvoked = true
 	s.mu.Unlock()
 	return s.PutFunc(ctx, installer)
 }
 
-func (s *InstallerStore) Exists(ctx context.Context, installer fleet.Installer) (bool, error) {
+func (s *InstallerStore) Exists(ctx context.Context, installer automdm.Installer) (bool, error) {
 	s.mu.Lock()
 	s.ExistsFuncInvoked = true
 	s.mu.Unlock()

@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/variables"
+	"github.com/anilyagiz/automdm/v4/server/variables"
 )
 
 // windowsItem is one SyncML <Item> with a target. Data is the text of <Data> (CDATA unwrapped,
@@ -26,7 +26,7 @@ type windowsItem struct {
 }
 
 // decodeWindowsProfile returns every targeted <Item> in a SyncML profile, wherever it's nested
-// (Replace, Add, Exec, Atomic). It doesn't import server/fleet's SyncML types: that package will
+// (Replace, Add, Exec, Atomic). It doesn't import server/automdm's SyncML types: that package will
 // call this validator.
 func decodeWindowsProfile(data []byte) ([]windowsItem, error) {
 	dec := xml.NewDecoder(bytes.NewReader(data))
@@ -71,7 +71,7 @@ func decodeWindowsProfile(data []byte) ([]windowsItem, error) {
 // windowsDataAccepts reports whether an item's Data parses as any of the node's formats. dataXML
 // is the raw content when <Data> has child elements. Only int, bool, b64, and xml are checked, and
 // an empty value fails them (Windows rejects it); every other format, including ones the validator
-// doesn't know, accepts anything. Fleet variables need no special case: they expand to text, so
+// doesn't know, accepts anything. AutoMDM variables need no special case: they expand to text, so
 // they already fail int, bool, and b64. A secret can hold any value, so it passes everywhere.
 func windowsDataAccepts(formats WindowsFormats, data, dataXML string) bool {
 	data = strings.TrimSpace(data)

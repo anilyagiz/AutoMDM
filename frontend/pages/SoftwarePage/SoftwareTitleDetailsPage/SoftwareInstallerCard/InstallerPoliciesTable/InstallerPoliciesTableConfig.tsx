@@ -43,7 +43,7 @@ const generateInstallerPoliciesTableConfig = ({
           path={getPathWithQueryParams(
             PATHS.POLICY_DETAILS(cellProps.row.original.id),
             {
-              fleet_id: teamId,
+              team_id: teamId,
             }
           )}
           className="w400"

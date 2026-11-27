@@ -74,7 +74,7 @@ const CertificatesTable = ({
         : "Showing certificates in the system and login (user) keychain. To get all certificates, you can query the certificates table. "}
       <CustomLink
         text="Learn more"
-        url="https://fleetdm.com/learn-more-about/certificates-query"
+        url="https://automdm.com/learn-more-about/certificates-query"
         newTab
       />
     </p>

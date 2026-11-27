@@ -7,19 +7,19 @@
       "pattern": "osquery.io/downloads"
     },
     {
-      "pattern": "fleet.acme.org"
+      "pattern": "automdm.acme.org"
     },
     {
-      "pattern": "fleet.corp.example.com"
+      "pattern": "automdm.corp.example.com"
     },
     {
-      "pattern": "fleet.example.com"
+      "pattern": "automdm.example.com"
     },
     {
       "pattern": "/server/datastore/mysql/migrations/"
     },
     {
-      "pattern": "linkedin.com/company/fleetdm"
+      "pattern": "linkedin.com/company/automdm"
     },
     {
       "pattern": "github.com/fleetdm/confidential"

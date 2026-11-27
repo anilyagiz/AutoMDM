@@ -7,12 +7,12 @@ import (
 	"os"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxdb"
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
-	android_mock "github.com/fleetdm/fleet/v4/server/mdm/android/mock"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxdb"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
+	android_mock "github.com/anilyagiz/automdm/v4/server/mdm/android/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/androidmanagement/v1"
@@ -20,7 +20,7 @@ import (
 
 // TestIssueCustomCommandOwnership covers the pre-flight check that rejects AMAPI command types Google does not
 // support on a personally-owned work profile. AMAPI accepts REBOOT there and reports the operation as done with no
-// error while the device ignores it, so Fleet has to refuse before issuing the command.
+// error while the device ignores it, so AutoMDM has to refuse before issuing the command.
 func TestIssueCustomCommandOwnership(t *testing.T) {
 	const hostID = uint(42)
 
@@ -111,20 +111,20 @@ func TestIssueCustomCommandOwnership(t *testing.T) {
 				return &androidmanagement.Operation{Name: "enterprises/LC01/devices/dev1/operations/1"}, nil
 			}
 
-			fleetDS := InitCommonDSMocks()
-			fleetDS.Store.GetEnterpriseFunc = func(_ context.Context) (*android.Enterprise, error) {
+			automdmDS := InitCommonDSMocks()
+			automdmDS.Store.GetEnterpriseFunc = func(_ context.Context) (*android.Enterprise, error) {
 				return &android.Enterprise{ID: 1, EnterpriseID: "LC01"}, nil
 			}
-			fleetDS.Store.HostLiteFunc = func(_ context.Context, id uint) (*fleet.Host, error) {
-				return &fleet.Host{ID: id, UUID: "host-uuid", Platform: "android"}, nil
+			automdmDS.Store.HostLiteFunc = func(_ context.Context, id uint) (*automdm.Host, error) {
+				return &automdm.Host{ID: id, UUID: "host-uuid", Platform: "android"}, nil
 			}
-			fleetDS.Store.AndroidHostLiteByHostUUIDFunc = func(_ context.Context, uuid string) (*fleet.AndroidHost, error) {
-				return &fleet.AndroidHost{
-					Host:   &fleet.Host{ID: hostID, UUID: uuid, Platform: "android"},
+			automdmDS.Store.AndroidHostLiteByHostUUIDFunc = func(_ context.Context, uuid string) (*automdm.AndroidHost, error) {
+				return &automdm.AndroidHost{
+					Host:   &automdm.Host{ID: hostID, UUID: uuid, Platform: "android"},
 					Device: &android.Device{HostID: hostID, DeviceID: "dev1"},
 				}, nil
 			}
-			fleetDS.Store.GetHostMDMFunc = func(ctx context.Context, _ uint) (*fleet.HostMDM, error) {
+			automdmDS.Store.GetHostMDMFunc = func(ctx context.Context, _ uint) (*automdm.HostMDM, error) {
 				assert.True(t, ctxdb.IsPrimaryRequired(ctx),
 					"ownership must be read from the primary: a lagging replica reports a freshly enrolled BYOD host as company-owned")
 				if tt.hostMDMErr {
@@ -133,22 +133,22 @@ func TestIssueCustomCommandOwnership(t *testing.T) {
 				if tt.hostMDMNotFound {
 					return nil, &notFoundError{}
 				}
-				return &fleet.HostMDM{
+				return &automdm.HostMDM{
 					HostID:               hostID,
 					Enrolled:             true,
 					IsPersonalEnrollment: tt.isPersonalEnrollment,
 				}, nil
 			}
-			fleetDS.Store.InsertMDMAndroidCommandFunc = func(_ context.Context, _ *android.MDMAndroidCommand) error {
+			automdmDS.Store.InsertMDMAndroidCommandFunc = func(_ context.Context, _ *android.MDMAndroidCommand) error {
 				return nil
 			}
 
 			logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-			svc, err := NewServiceWithClient(logger, fleetDS, &androidAPIClient, "test-private-key", &fleetDS.DataStore,
+			svc, err := NewServiceWithClient(logger, automdmDS, &androidAPIClient, "test-private-key", &automdmDS.DataStore,
 				noopNewActivity, config.AndroidAgentConfig{})
 			require.NoError(t, err)
 
-			ctx := viewer.NewContext(t.Context(), viewer.Viewer{User: &fleet.User{GlobalRole: new(fleet.RoleAdmin)}})
+			ctx := viewer.NewContext(t.Context(), viewer.Viewer{User: &automdm.User{GlobalRole: new(automdm.RoleAdmin)}})
 			cmd, err := svc.IssueCustomCommand(ctx, hostID, []byte(tt.rawCommand))
 
 			if tt.wantErrContains != "" {
@@ -157,9 +157,9 @@ func TestIssueCustomCommandOwnership(t *testing.T) {
 				// Either way the command must never reach AMAPI, so no row is written and the caller
 				// gets no command UUID to report as successfully run.
 				assert.False(t, androidAPIClient.EnterprisesDevicesIssueCommandFuncInvoked)
-				assert.False(t, fleetDS.Store.InsertMDMAndroidCommandFuncInvoked)
+				assert.False(t, automdmDS.Store.InsertMDMAndroidCommandFuncInvoked)
 
-				var badRequestErr *fleet.BadRequestError
+				var badRequestErr *automdm.BadRequestError
 				if tt.wantRejected {
 					require.ErrorAs(t, err, &badRequestErr)
 					assert.Contains(t, badRequestErr.Message, tt.wantErrContains)
@@ -174,10 +174,10 @@ func TestIssueCustomCommandOwnership(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, cmd)
 			assert.True(t, androidAPIClient.EnterprisesDevicesIssueCommandFuncInvoked)
-			assert.True(t, fleetDS.Store.InsertMDMAndroidCommandFuncInvoked)
+			assert.True(t, automdmDS.Store.InsertMDMAndroidCommandFuncInvoked)
 			if companyOwnedOnlyCommandType(&androidmanagement.Command{Type: cmd.CommandType}) == "" {
 				// Unrestricted types must not pay for an ownership lookup on every custom command.
-				assert.False(t, fleetDS.Store.GetHostMDMFuncInvoked)
+				assert.False(t, automdmDS.Store.GetHostMDMFuncInvoked)
 			}
 		})
 	}

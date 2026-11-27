@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"testing"
 
-	depclient "github.com/fleetdm/fleet/v4/server/mdm/nanodep/client"
+	depclient "github.com/anilyagiz/automdm/v4/server/mdm/nanodep/client"
 	"github.com/stretchr/testify/assert"
 )
 

@@ -74,8 +74,8 @@ export const CustomDropdownIndicator = (
   const { isFocused, selectProps } = props;
   const color =
     isFocused || selectProps.menuIsOpen
-      ? "ui-fleet-black-75-over"
-      : "ui-fleet-black-75";
+      ? "ui-automdm-black-75-over"
+      : "ui-automdm-black-75";
 
   return (
     <components.DropdownIndicator
@@ -142,8 +142,8 @@ export interface IDropdownWrapper {
 const getOptionBackgroundColor = (
   state: OptionProps<CustomOptionType, false>
 ) => {
-  if (state.isFocused) return COLORS["ui-fleet-black-5"];
-  if (state.isSelected) return COLORS["ui-fleet-black-10"];
+  if (state.isFocused) return COLORS["ui-automdm-black-5"];
+  if (state.isSelected) return COLORS["ui-automdm-black-10"];
   return "transparent";
 };
 
@@ -172,69 +172,69 @@ export const generateCustomDropdownStyles = (
         flexDirection: "row",
         width: "100%",
         minHeight: "36px", // react-select-5 defaults control minHeight to 38px
-        backgroundColor: COLORS["core-fleet-white"],
+        backgroundColor: COLORS["core-automdm-white"],
         paddingLeft: "8px", // TODO: Update to match styleguide of (16px) when updating rest of UI (8px)
         paddingRight: "8px",
         cursor: "pointer",
         boxShadow: "none",
         borderRadius: "4px",
         borderColor: state.isFocused
-          ? COLORS["core-fleet-black"]
-          : COLORS["ui-fleet-black-10"],
+          ? COLORS["core-automdm-black"]
+          : COLORS["ui-automdm-black-10"],
         "&:hover": {
           boxShadow: "none",
-          borderColor: COLORS["ui-fleet-black-50"],
+          borderColor: COLORS["ui-automdm-black-50"],
           ".dropdown-wrapper__single-value": {
-            color: COLORS["ui-fleet-black-75"],
+            color: COLORS["ui-automdm-black-75"],
           },
           ".dropdown-wrapper__indicator path": {
-            fill: COLORS["ui-fleet-black-75"],
+            fill: COLORS["ui-automdm-black-75"],
           },
           ".filter-icon path": {
-            fill: COLORS["ui-fleet-black-75"],
+            fill: COLORS["ui-automdm-black-75"],
           },
         },
         // When tabbing
         // Relies on --is-focused for styling as &:focus-visible cannot be applied
         "&.react-select__control--is-focused": {
           borderColor: state.isFocused
-            ? COLORS["core-fleet-black"]
-            : COLORS["ui-fleet-black-25"],
+            ? COLORS["core-automdm-black"]
+            : COLORS["ui-automdm-black-25"],
           ".dropdown-wrapper__indicator path": {
-            fill: COLORS["ui-fleet-black-75"],
+            fill: COLORS["ui-automdm-black-75"],
           },
           ".filter-icon path": {
-            fill: COLORS["ui-fleet-black-75"],
+            fill: COLORS["ui-automdm-black-75"],
           },
         },
         ...(state.isFocused && {
           ".dropdown-wrapper__placeholder": {
-            color: COLORS["ui-fleet-black-75"],
+            color: COLORS["ui-automdm-black-75"],
           },
           ".dropdown-wrapper__indicator path": {
-            fill: COLORS["ui-fleet-black-75"],
+            fill: COLORS["ui-automdm-black-75"],
           },
         }),
         ...(state.isDisabled && {
           ".dropdown-wrapper__single-value": {
-            color: COLORS["ui-fleet-black-50"],
+            color: COLORS["ui-automdm-black-50"],
           },
           ".dropdown-wrapper__indicator path": {
-            fill: COLORS["ui-fleet-black-50"],
+            fill: COLORS["ui-automdm-black-50"],
           },
           ".filter-icon path": {
-            fill: COLORS["ui-fleet-black-50"],
+            fill: COLORS["ui-automdm-black-50"],
           },
         }),
         "&:active": {
           ".dropdown-wrapper__single-value": {
-            color: COLORS["ui-fleet-black-75"],
+            color: COLORS["ui-automdm-black-75"],
           },
           ".dropdown-wrapper__indicator path": {
-            fill: COLORS["ui-fleet-black-75"],
+            fill: COLORS["ui-automdm-black-75"],
           },
           ".filter-icon path": {
-            fill: COLORS["ui-fleet-black-75"],
+            fill: COLORS["ui-automdm-black-75"],
           },
         },
         ...(state.menuIsOpen && {
@@ -254,7 +254,7 @@ export const generateCustomDropdownStyles = (
     input: (provided) => {
       return {
         ...provided,
-        color: COLORS["core-fleet-black"],
+        color: COLORS["core-automdm-black"],
         fontSize: "13px",
         margin: 0,
         padding: 0,
@@ -263,8 +263,8 @@ export const generateCustomDropdownStyles = (
     singleValue: (provided, state) => ({
       ...provided,
       color: state.isDisabled
-        ? COLORS["ui-fleet-black-50"]
-        : COLORS["core-fleet-black"],
+        ? COLORS["ui-automdm-black-50"]
+        : COLORS["core-automdm-black"],
       fontSize: "13px",
       margin: 0,
       padding: 0,
@@ -280,8 +280,8 @@ export const generateCustomDropdownStyles = (
     }),
     menu: (provided) => ({
       ...provided,
-      backgroundColor: COLORS["core-fleet-white"],
-      boxShadow: `0 2px 6px rgba(0, 0, 0, 0.1), 0 0 0 1px ${COLORS["ui-fleet-black-10"]}`,
+      backgroundColor: COLORS["core-automdm-white"],
+      boxShadow: `0 2px 6px rgba(0, 0, 0, 0.1), 0 0 0 1px ${COLORS["ui-automdm-black-10"]}`,
       borderRadius: "4px",
       zIndex: 6,
       overflow: "hidden",
@@ -324,20 +324,20 @@ export const generateCustomDropdownStyles = (
       borderRadius: "4px",
       backgroundColor: getOptionBackgroundColor(state),
       fontWeight: state.isSelected ? "600" : "normal",
-      color: COLORS["core-fleet-black"],
+      color: COLORS["core-automdm-black"],
       "&:hover": {
         backgroundColor: state.isDisabled
           ? "transparent"
-          : COLORS["ui-fleet-black-5"],
+          : COLORS["ui-automdm-black-5"],
         cursor: state.isDisabled ? "not-allowed" : "pointer",
       },
       "&:active": {
         backgroundColor: state.isDisabled
           ? "transparent"
-          : COLORS["ui-fleet-black-5"],
+          : COLORS["ui-automdm-black-5"],
       },
       ...(state.isDisabled && {
-        color: COLORS["ui-fleet-black-50"],
+        color: COLORS["ui-automdm-black-50"],
         fontStyle: "italic",
         cursor: "not-allowed",
       }),
@@ -354,8 +354,8 @@ export const generateCustomDropdownStyles = (
         width: "100%",
         whiteSpace: nowrapMenu ? "nowrap" : "normal",
         color: state.isDisabled
-          ? COLORS["ui-fleet-black-50"]
-          : COLORS["ui-fleet-black-75"],
+          ? COLORS["ui-automdm-black-50"]
+          : COLORS["ui-automdm-black-75"],
         fontStyle: "italic",
         fontWeight: "normal",
       },

@@ -2,13 +2,13 @@ package removednames
 
 func init() { register(packEntries...) }
 
-// packEntries are the 2017 packs features that Fleet 5 removed.
+// packEntries are the 2017 packs features that AutoMDM 5 removed.
 var packEntries = []Entry{
 	{Kind: KindSpecKind, Scope: ScopeRequest, Old: "pack"},
-	{Kind: KindCommand, Scope: ScopeRequest, Old: "fleetctl get packs"},
-	{Kind: KindCommand, Scope: ScopeRequest, Old: "fleetctl get pack"},
-	{Kind: KindCommand, Scope: ScopeRequest, Old: "fleetctl get p"},
-	{Kind: KindCommand, Scope: ScopeRequest, Old: "fleetctl upgrade-packs"},
+	{Kind: KindCommand, Scope: ScopeRequest, Old: "automdmctl get packs"},
+	{Kind: KindCommand, Scope: ScopeRequest, Old: "automdmctl get pack"},
+	{Kind: KindCommand, Scope: ScopeRequest, Old: "automdmctl get p"},
+	{Kind: KindCommand, Scope: ScopeRequest, Old: "automdmctl upgrade-packs"},
 	{Kind: KindPath, Scope: ScopeRequest, Old: pathPrefix + "/packs", Format: EndpointFormat{}},
 	{Kind: KindPath, Scope: ScopeRequest, Old: pathPrefix + "/packs/schedule", Format: EndpointFormat{}},
 	{Kind: KindPath, Scope: ScopeRequest, Old: pathPrefix + "/packs/schedule/{id}", Format: EndpointFormat{}},

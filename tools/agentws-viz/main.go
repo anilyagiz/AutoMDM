@@ -1,5 +1,5 @@
 // Command agentws-viz is a small development dashboard that visualizes the
-// agent WebSocket connections held by a running Fleet server, live.
+// agent WebSocket connections held by a running AutoMDM server, live.
 //
 // It polls the server's /debug/agentws endpoint (which requires a global admin
 // API token) and serves a self-refreshing dashboard page on localhost, showing
@@ -18,8 +18,8 @@
 //
 // Usage:
 //
-//	go run ./tools/agentws-viz -server https://localhost:8080 -token $(fleetctl config get token) -insecure
-//	go run ./tools/agentws-viz -server https://fleet.example.com -instances 6
+//	go run ./tools/agentws-viz -server https://localhost:8080 -token $(automdmctl config get token) -insecure
+//	go run ./tools/agentws-viz -server https://automdm.example.com -instances 6
 //
 // Then open http://localhost:3001.
 package main
@@ -40,7 +40,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
 )
 
 // An instance that no request landed on for missedTicksStale ticks is shown as
@@ -57,7 +57,7 @@ type snapshotMeta struct {
 	InstanceID string `json:"instance_id"`
 }
 
-// instance is the latest snapshot seen from one Fleet server instance.
+// instance is the latest snapshot seen from one AutoMDM server instance.
 type instance struct {
 	id     string
 	body   []byte
@@ -99,7 +99,7 @@ func (p *poller) fetch(ctx context.Context) {
 	req.Header.Set("Authorization", "Bearer "+p.token)
 	resp, err := p.client.Do(req)
 	if err != nil {
-		p.setErr(fmt.Errorf("fleet server unreachable: %w", err))
+		p.setErr(fmt.Errorf("automdm server unreachable: %w", err))
 		return
 	}
 	defer resp.Body.Close()
@@ -109,7 +109,7 @@ func (p *poller) fetch(ctx context.Context) {
 		return
 	}
 	if resp.StatusCode != http.StatusOK {
-		p.setErr(fmt.Errorf("fleet server returned %d: %s", resp.StatusCode, strings.TrimSpace(string(body))))
+		p.setErr(fmt.Errorf("automdm server returned %d: %s", resp.StatusCode, strings.TrimSpace(string(body))))
 		return
 	}
 	var meta snapshotMeta
@@ -219,17 +219,17 @@ func short(id string) string {
 
 func main() {
 	var (
-		serverURL = flag.String("server", "https://localhost:8080", "Fleet server URL")
-		token     = flag.String("token", os.Getenv("FLEET_API_TOKEN"), "Fleet API token of a global admin (defaults to FLEET_API_TOKEN)")
+		serverURL = flag.String("server", "https://localhost:8080", "AutoMDM server URL")
+		token     = flag.String("token", os.Getenv("AUTOMDM_API_TOKEN"), "AutoMDM API token of a global admin (defaults to AUTOMDM_API_TOKEN)")
 		addr      = flag.String("addr", "127.0.0.1:3001", "address for the dashboard to listen on")
-		insecure  = flag.Bool("insecure", false, "skip TLS certificate verification when talking to the Fleet server")
-		instances = flag.Int("instances", 1, "number of Fleet server instances behind the load balancer; sizes the per-tick request fan-out")
-		interval  = flag.Duration("interval", time.Second, "how often to poll the Fleet server (and refresh the dashboard)")
+		insecure  = flag.Bool("insecure", false, "skip TLS certificate verification when talking to the AutoMDM server")
+		instances = flag.Int("instances", 1, "number of AutoMDM server instances behind the load balancer; sizes the per-tick request fan-out")
+		interval  = flag.Duration("interval", time.Second, "how often to poll the AutoMDM server (and refresh the dashboard)")
 	)
 	flag.Parse()
 
 	if *token == "" {
-		log.Fatal("missing Fleet API token: pass -token or set FLEET_API_TOKEN (get one with `fleetctl config get token` after `fleetctl login`)")
+		log.Fatal("missing AutoMDM API token: pass -token or set AUTOMDM_API_TOKEN (get one with `automdmctl config get token` after `automdmctl login`)")
 	}
 	if *instances < 1 {
 		log.Fatal("-instances must be at least 1")
@@ -239,9 +239,9 @@ func main() {
 	}
 	*serverURL = strings.TrimRight(*serverURL, "/")
 
-	client := fleethttp.NewClient(
-		fleethttp.WithTimeout(10*time.Second),
-		fleethttp.WithTLSClientConfig(&tls.Config{
+	client := automdmhttp.NewClient(
+		automdmhttp.WithTimeout(10*time.Second),
+		automdmhttp.WithTLSClientConfig(&tls.Config{
 			InsecureSkipVerify: *insecure, //nolint:gosec // local development tool, opt-in flag
 		}),
 	)

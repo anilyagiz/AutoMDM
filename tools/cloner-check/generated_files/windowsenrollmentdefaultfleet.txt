@@ -1,2 +1,2 @@
-github.com/fleetdm/fleet/v4/server/fleet/WindowsEnrollmentDefaultFleet	FleetID	*uint
-github.com/fleetdm/fleet/v4/server/fleet/WindowsEnrollmentDefaultFleet	FleetName	string
+github.com/anilyagiz/automdm/v4/server/automdm/WindowsEnrollmentDefaultTeam	TeamID	*uint
+github.com/anilyagiz/automdm/v4/server/automdm/WindowsEnrollmentDefaultTeam	TeamName	string

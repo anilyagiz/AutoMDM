@@ -1,6 +1,6 @@
 ---
 name: project
-description: Load or initialize a Fleet workstream project context. Use when asked to "load project" or "switch project".
+description: Load or initialize an AutoMDM workstream project context. Use when asked to "load project" or "switch project".
 context: fork
 allowed-tools: Read, Write, Glob, Grep, Bash(ls *), Bash(pwd *)
 effort: medium
@@ -13,14 +13,14 @@ effort: medium
 Find the Claude Code auto-memory directory for this project. It's based on the working directory path:
 
 1. Run `pwd` to get the current directory.
-2. Construct the memory path: `~/.claude/projects/` + the cwd with `/` replaced by `-` and leading `-` (e.g., `/Users/alice/Source/github.com/fleetdm/fleet` → `~/.claude/projects/-Users-alice-Source-github-com-fleetdm-fleet/memory/`).
+2. Construct the memory path: `~/.claude/projects/` + the cwd with `/` replaced by `-` and leading `-` (e.g., `/Users/alice/Source/github.com/anilyagiz/automdm` → `~/.claude/projects/-Users-alice-Source-github-com-automdm-automdm/memory/`).
 3. Verify the directory exists. If not, tell the user and stop.
 
 Use this as the base for all reads and writes below.
 
 ## Load the project
 
-Look for a workstream context file named `$ARGUMENTS.md` in the memory directory. This contains background, decisions, and conventions for a specific workstream within Fleet.
+Look for a workstream context file named `$ARGUMENTS.md` in the memory directory. This contains background, decisions, and conventions for a specific workstream within AutoMDM.
 
 If the project context file was found, give a brief summary of what you know and ask what we're working on today.
 

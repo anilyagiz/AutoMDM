@@ -37,8 +37,8 @@ const hostsResponseWith = (
     id: number;
     display_name: string;
     status: string;
-    fleet_id: number | null;
-    fleet_name: string | null;
+    team_id: number | null;
+    team_name: string | null;
   }>
 ): ILoadHostsResponse =>
   (({
@@ -108,15 +108,15 @@ describe("HostPicker", () => {
           id: 42,
           display_name: "results-first-host",
           status: "online",
-          fleet_id: null,
-          fleet_name: null,
+          team_id: null,
+          team_name: null,
         },
         {
           id: 43,
           display_name: "results-second-host",
           status: "offline",
-          fleet_id: null,
-          fleet_name: null,
+          team_id: null,
+          team_name: null,
         }
       )
     );
@@ -157,8 +157,8 @@ describe("HostPicker", () => {
       id: 1,
       display_name: "Rachel's MacBook",
       status: "online",
-      fleet_id: 5,
-      fleet_name: "Engineering",
+      team_id: 5,
+      team_name: "Engineering",
     });
 
     // The shared QueryClient persists React Query's cache across tests
@@ -195,7 +195,7 @@ describe("HostPicker", () => {
       expect(await findByText("Engineering")).toBeInTheDocument();
     });
 
-    it("suppresses the team column by default (Free / Primo / single-fleet)", async () => {
+    it("suppresses the team column by default (Free / Primo / single-team)", async () => {
       mockedHosts.loadHosts.mockResolvedValue(hosts);
 
       const { findByText, queryByText } = renderPicker(

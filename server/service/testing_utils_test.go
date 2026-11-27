@@ -24,69 +24,69 @@ import (
 	"time"
 
 	"github.com/WatchBeam/clock"
-	ma "github.com/fleetdm/fleet/v4/ee/maintained-apps"
-	"github.com/fleetdm/fleet/v4/ee/server/scim"
-	eeservice "github.com/fleetdm/fleet/v4/ee/server/service"
-	"github.com/fleetdm/fleet/v4/ee/server/service/condaccess"
-	"github.com/fleetdm/fleet/v4/ee/server/service/digicert"
-	"github.com/fleetdm/fleet/v4/ee/server/service/ejbca"
-	"github.com/fleetdm/fleet/v4/ee/server/service/est"
-	"github.com/fleetdm/fleet/v4/ee/server/service/googlecas"
-	"github.com/fleetdm/fleet/v4/ee/server/service/hostidentity"
-	"github.com/fleetdm/fleet/v4/ee/server/service/hostidentity/httpsig"
-	"github.com/fleetdm/fleet/v4/ee/server/service/scep"
-	"github.com/fleetdm/fleet/v4/server/acl/acmeacl"
-	"github.com/fleetdm/fleet/v4/server/acl/activityacl"
-	"github.com/fleetdm/fleet/v4/server/acl/chartacl"
-	"github.com/fleetdm/fleet/v4/server/acl/notificationsacl"
-	activity_api "github.com/fleetdm/fleet/v4/server/activity/api"
-	activity_bootstrap "github.com/fleetdm/fleet/v4/server/activity/bootstrap"
-	apiendpoints "github.com/fleetdm/fleet/v4/server/api_endpoints"
-	"github.com/fleetdm/fleet/v4/server/authz"
-	"github.com/fleetdm/fleet/v4/server/chart"
-	chart_bootstrap "github.com/fleetdm/fleet/v4/server/chart/bootstrap"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/datastore/cached_mysql"
-	"github.com/fleetdm/fleet/v4/server/datastore/filesystem"
-	"github.com/fleetdm/fleet/v4/server/datastore/redis"
-	"github.com/fleetdm/fleet/v4/server/datastore/redis/redistest"
-	"github.com/fleetdm/fleet/v4/server/dev_mode"
-	"github.com/fleetdm/fleet/v4/server/errorstore"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/logging"
-	"github.com/fleetdm/fleet/v4/server/mail"
-	acme_bootstrap "github.com/fleetdm/fleet/v4/server/mdm/acme/bootstrap"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
-	android_mock "github.com/fleetdm/fleet/v4/server/mdm/android/mock"
-	android_service "github.com/fleetdm/fleet/v4/server/mdm/android/service"
-	apple_mdm "github.com/fleetdm/fleet/v4/server/mdm/apple"
-	maintained_apps "github.com/fleetdm/fleet/v4/server/mdm/maintainedapps"
-	microsoft_mdm "github.com/fleetdm/fleet/v4/server/mdm/microsoft"
-	nanodep_storage "github.com/fleetdm/fleet/v4/server/mdm/nanodep/storage"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/push"
-	nanomdm_push "github.com/fleetdm/fleet/v4/server/mdm/nanomdm/push"
-	"github.com/fleetdm/fleet/v4/server/mdm/psso"
-	"github.com/fleetdm/fleet/v4/server/mdm/scep/depot"
-	"github.com/fleetdm/fleet/v4/server/microsoft/msgraph"
-	fleet_mock "github.com/fleetdm/fleet/v4/server/mock"
-	nanodep_mock "github.com/fleetdm/fleet/v4/server/mock/nanodep"
-	"github.com/fleetdm/fleet/v4/server/notifications"
-	notifications_bootstrap "github.com/fleetdm/fleet/v4/server/notifications/bootstrap"
-	"github.com/fleetdm/fleet/v4/server/platform/endpointer"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/service/async"
-	"github.com/fleetdm/fleet/v4/server/service/middleware/auth"
-	"github.com/fleetdm/fleet/v4/server/service/middleware/log"
-	"github.com/fleetdm/fleet/v4/server/service/mock"
-	"github.com/fleetdm/fleet/v4/server/service/redis_install_attempts"
-	"github.com/fleetdm/fleet/v4/server/service/redis_key_value"
-	"github.com/fleetdm/fleet/v4/server/service/redis_lock"
-	"github.com/fleetdm/fleet/v4/server/sso"
-	"github.com/fleetdm/fleet/v4/server/test"
+	ma "github.com/anilyagiz/automdm/v4/ee/maintained-apps"
+	"github.com/anilyagiz/automdm/v4/ee/server/scim"
+	eeservice "github.com/anilyagiz/automdm/v4/ee/server/service"
+	"github.com/anilyagiz/automdm/v4/ee/server/service/condaccess"
+	"github.com/anilyagiz/automdm/v4/ee/server/service/digicert"
+	"github.com/anilyagiz/automdm/v4/ee/server/service/ejbca"
+	"github.com/anilyagiz/automdm/v4/ee/server/service/est"
+	"github.com/anilyagiz/automdm/v4/ee/server/service/googlecas"
+	"github.com/anilyagiz/automdm/v4/ee/server/service/hostidentity"
+	"github.com/anilyagiz/automdm/v4/ee/server/service/hostidentity/httpsig"
+	"github.com/anilyagiz/automdm/v4/ee/server/service/scep"
+	"github.com/anilyagiz/automdm/v4/server/acl/acmeacl"
+	"github.com/anilyagiz/automdm/v4/server/acl/activityacl"
+	"github.com/anilyagiz/automdm/v4/server/acl/chartacl"
+	"github.com/anilyagiz/automdm/v4/server/acl/notificationsacl"
+	activity_api "github.com/anilyagiz/automdm/v4/server/activity/api"
+	activity_bootstrap "github.com/anilyagiz/automdm/v4/server/activity/bootstrap"
+	apiendpoints "github.com/anilyagiz/automdm/v4/server/api_endpoints"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/chart"
+	chart_bootstrap "github.com/anilyagiz/automdm/v4/server/chart/bootstrap"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
+	"github.com/anilyagiz/automdm/v4/server/datastore/cached_mysql"
+	"github.com/anilyagiz/automdm/v4/server/datastore/filesystem"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis/redistest"
+	"github.com/anilyagiz/automdm/v4/server/dev_mode"
+	"github.com/anilyagiz/automdm/v4/server/errorstore"
+	"github.com/anilyagiz/automdm/v4/server/logging"
+	"github.com/anilyagiz/automdm/v4/server/mail"
+	acme_bootstrap "github.com/anilyagiz/automdm/v4/server/mdm/acme/bootstrap"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
+	android_mock "github.com/anilyagiz/automdm/v4/server/mdm/android/mock"
+	android_service "github.com/anilyagiz/automdm/v4/server/mdm/android/service"
+	apple_mdm "github.com/anilyagiz/automdm/v4/server/mdm/apple"
+	maintained_apps "github.com/anilyagiz/automdm/v4/server/mdm/maintainedapps"
+	microsoft_mdm "github.com/anilyagiz/automdm/v4/server/mdm/microsoft"
+	nanodep_storage "github.com/anilyagiz/automdm/v4/server/mdm/nanodep/storage"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/push"
+	nanomdm_push "github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/push"
+	"github.com/anilyagiz/automdm/v4/server/mdm/psso"
+	"github.com/anilyagiz/automdm/v4/server/mdm/scep/depot"
+	"github.com/anilyagiz/automdm/v4/server/microsoft/msgraph"
+	automdm_mock "github.com/anilyagiz/automdm/v4/server/mock"
+	nanodep_mock "github.com/anilyagiz/automdm/v4/server/mock/nanodep"
+	"github.com/anilyagiz/automdm/v4/server/notifications"
+	notifications_bootstrap "github.com/anilyagiz/automdm/v4/server/notifications/bootstrap"
+	"github.com/anilyagiz/automdm/v4/server/platform/endpointer"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/service/async"
+	"github.com/anilyagiz/automdm/v4/server/service/middleware/auth"
+	"github.com/anilyagiz/automdm/v4/server/service/middleware/log"
+	"github.com/anilyagiz/automdm/v4/server/service/mock"
+	"github.com/anilyagiz/automdm/v4/server/service/redis_install_attempts"
+	"github.com/anilyagiz/automdm/v4/server/service/redis_key_value"
+	"github.com/anilyagiz/automdm/v4/server/service/redis_lock"
+	"github.com/anilyagiz/automdm/v4/server/sso"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/go-kit/kit/endpoint"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -96,16 +96,16 @@ import (
 	"google.golang.org/api/androidmanagement/v1"
 )
 
-func newTestService(t *testing.T, ds fleet.Datastore, rs fleet.QueryResultStore, lq fleet.LiveQueryStore, opts ...*TestServerOpts) (fleet.Service, context.Context) {
+func newTestService(t *testing.T, ds automdm.Datastore, rs automdm.QueryResultStore, lq automdm.LiveQueryStore, opts ...*TestServerOpts) (automdm.Service, context.Context) {
 	return newTestServiceWithConfig(t, ds, config.TestConfig(), rs, lq, opts...)
 }
 
-func newTestServiceWithConfig(t *testing.T, ds fleet.Datastore, fleetConfig config.FleetConfig, rs fleet.QueryResultStore, lq fleet.LiveQueryStore, opts ...*TestServerOpts) (fleet.Service, context.Context) {
+func newTestServiceWithConfig(t *testing.T, ds automdm.Datastore, automdmConfig config.AutoMDMConfig, rs automdm.QueryResultStore, lq automdm.LiveQueryStore, opts ...*TestServerOpts) (automdm.Service, context.Context) {
 	// Custom host vital reference validation is wired into all script/profile
 	// upload paths. Provide a permissive default so tests that don't reference
-	// $FLEET_HOST_VITAL_<id> don't need to stub it (the real datastore no-ops
+	// $AUTOMDM_HOST_VITAL_<id> don't need to stub it (the real datastore no-ops
 	// when the document has no such tokens). Tests that assert on it can override.
-	if mockDS, ok := ds.(*fleet_mock.Store); ok {
+	if mockDS, ok := ds.(*automdm_mock.Store); ok {
 		if mockDS.ValidateReferencedCustomHostVitalsFunc == nil {
 			mockDS.ValidateReferencedCustomHostVitalsFunc = func(ctx context.Context, documents []string) error { return nil }
 		}
@@ -114,13 +114,13 @@ func newTestServiceWithConfig(t *testing.T, ds fleet.Datastore, fleetConfig conf
 		// integration so premium tests that don't care about it don't panic on a nil
 		// mock. Tests that assert on it can override.
 		if mockDS.ConditionalAccessMicrosoftGetFunc == nil {
-			mockDS.ConditionalAccessMicrosoftGetFunc = func(ctx context.Context) (*fleet.ConditionalAccessMicrosoftIntegration, error) {
-				return &fleet.ConditionalAccessMicrosoftIntegration{}, nil
+			mockDS.ConditionalAccessMicrosoftGetFunc = func(ctx context.Context) (*automdm.ConditionalAccessMicrosoftIntegration, error) {
+				return &automdm.ConditionalAccessMicrosoftIntegration{}, nil
 			}
 		}
-		// Config reads hydrate the Windows enrollment default fleet from its config row.
-		if mockDS.GetWindowsEnrollmentDefaultFleetFunc == nil {
-			mockDS.GetWindowsEnrollmentDefaultFleetFunc = func(ctx context.Context) (*uint, string, error) {
+		// Config reads hydrate the Windows enrollment default team from its config row.
+		if mockDS.GetWindowsEnrollmentDefaultTeamFunc == nil {
+			mockDS.GetWindowsEnrollmentDefaultTeamFunc = func(ctx context.Context) (*uint, string, error) {
 				return nil, "", nil
 			}
 		}
@@ -135,18 +135,18 @@ func newTestServiceWithConfig(t *testing.T, ds fleet.Datastore, fleetConfig conf
 			}
 		}
 		if mockDS.FilterWebhooksAndTicketsPoliciesFunc == nil {
-			mockDS.FilterWebhooksAndTicketsPoliciesFunc = func(ctx context.Context, policyIDs []uint) ([]fleet.PolicyIDAndTeam, error) {
+			mockDS.FilterWebhooksAndTicketsPoliciesFunc = func(ctx context.Context, policyIDs []uint) ([]automdm.PolicyIDAndTeam, error) {
 				return nil, nil
 			}
 		}
 		// Default to none configured so tests that don't care don't panic on a nil mock.
 		if mockDS.ListMicrosoftGraphCredentialsFunc == nil {
-			mockDS.ListMicrosoftGraphCredentialsFunc = func(ctx context.Context) ([]*fleet.MicrosoftGraphCredential, error) {
+			mockDS.ListMicrosoftGraphCredentialsFunc = func(ctx context.Context) ([]*automdm.MicrosoftGraphCredential, error) {
 				return nil, nil
 			}
 		}
 		if mockDS.ListMicrosoftGraphCredentialMetadataFunc == nil {
-			mockDS.ListMicrosoftGraphCredentialMetadataFunc = func(ctx context.Context) ([]*fleet.MicrosoftGraphCredentialMetadata, error) {
+			mockDS.ListMicrosoftGraphCredentialMetadataFunc = func(ctx context.Context) ([]*automdm.MicrosoftGraphCredentialMetadata, error) {
 				return nil, nil
 			}
 		}
@@ -161,38 +161,38 @@ func newTestServiceWithConfig(t *testing.T, ds fleet.Datastore, fleetConfig conf
 		}
 	}
 
-	lic := &fleet.LicenseInfo{Tier: fleet.TierFree}
+	lic := &automdm.LicenseInfo{Tier: automdm.TierFree}
 	logger := slog.New(slog.DiscardHandler)
-	writer, err := logging.NewFilesystemLogWriter(t.Context(), fleetConfig.Filesystem.StatusLogFile, logger, fleetConfig.Filesystem.EnableLogRotation,
-		fleetConfig.Filesystem.EnableLogCompression, 500, 28, 3)
+	writer, err := logging.NewFilesystemLogWriter(t.Context(), automdmConfig.Filesystem.StatusLogFile, logger, automdmConfig.Filesystem.EnableLogRotation,
+		automdmConfig.Filesystem.EnableLogCompression, 500, 28, 3)
 	require.NoError(t, err)
 
 	osqlogger := &OsqueryLogger{Status: writer, Result: writer}
 
 	var (
-		failingPolicySet                fleet.FailingPolicySet        = NewMemFailingPolicySet()
-		enrollHostLimiter               fleet.EnrollHostLimiter       = nopEnrollHostLimiter{}
+		failingPolicySet                automdm.FailingPolicySet      = NewMemFailingPolicySet()
+		enrollHostLimiter               automdm.EnrollHostLimiter     = nopEnrollHostLimiter{}
 		depStorage                      nanodep_storage.AllDEPStorage = &nanodep_mock.Storage{}
-		mailer                          fleet.MailService             = &mockMailService{SendEmailFn: func(e fleet.Email) error { return nil }}
+		mailer                          automdm.MailService           = &mockMailService{SendEmailFn: func(e automdm.Email) error { return nil }}
 		c                               clock.Clock                   = clock.C
 		scepConfigService                                             = scep.NewSCEPConfigService(logger, nil)
 		digiCertService                                               = digicert.NewService(digicert.WithLogger(logger))
 		ejbcaService                                                  = ejbca.NewService(ejbca.WithLogger(logger))
 		estCAService                                                  = est.NewService(est.WithLogger(logger))
-		googleCASService                fleet.GoogleCASService        = googlecas.NewService(googlecas.WithLogger(logger))
+		googleCASService                automdm.GoogleCASService      = googlecas.NewService(googlecas.WithLogger(logger))
 		conditionalAccessMicrosoftProxy ConditionalAccessMicrosoftProxy
 
-		mdmStorage             fleet.MDMAppleStore
+		mdmStorage             automdm.MDMAppleStore
 		mdmPusher              nanomdm_push.Pusher
 		ssoStore               sso.SessionStore
-		softwareInstallStore   fleet.SoftwareInstallerStore
-		bootstrapPackageStore  fleet.MDMBootstrapPackageStore
-		softwareTitleIconStore fleet.SoftwareTitleIconStore
-		stagedUploadStore      fleet.StagedUploadStore
-		distributedLock        fleet.Lock
-		keyValueStore          fleet.KeyValueStore
+		softwareInstallStore   automdm.SoftwareInstallerStore
+		bootstrapPackageStore  automdm.MDMBootstrapPackageStore
+		softwareTitleIconStore automdm.SoftwareTitleIconStore
+		stagedUploadStore      automdm.StagedUploadStore
+		distributedLock        automdm.Lock
+		keyValueStore          automdm.KeyValueStore
 		androidService         android.Service
-		installAttemptCounter  fleet.SoftwareInstallAttemptCounter = NewMemSoftwareInstallAttemptCounter()
+		installAttemptCounter  automdm.SoftwareInstallAttemptCounter = NewMemSoftwareInstallAttemptCounter()
 	)
 	if len(opts) > 0 {
 		if opts[0].Clock != nil {
@@ -206,7 +206,7 @@ func newTestServiceWithConfig(t *testing.T, ds fleet.Datastore, fleetConfig conf
 
 	// pssoNonceStore backs the PSSO single-use nonces; wired from the test Redis
 	// pool when one is provided (integration tests), nil otherwise.
-	var pssoNonceStore fleet.PSSONonceStore
+	var pssoNonceStore automdm.PSSONonceStore
 
 	task := async.NewTask(ds, false)
 	if len(opts) > 0 {
@@ -266,7 +266,7 @@ func newTestServiceWithConfig(t *testing.T, ds fleet.Datastore, fleetConfig conf
 
 	ctx := license.NewContext(context.Background(), lic)
 
-	cronSchedulesService := fleet.NewCronSchedules()
+	cronSchedulesService := automdm.NewCronSchedules()
 	RegisterImmediatePolicyMembershipCleanup(cronSchedulesService, ds)
 
 	var eh *errorstore.Handler
@@ -293,7 +293,7 @@ func newTestServiceWithConfig(t *testing.T, ds fleet.Datastore, fleetConfig conf
 	}
 	if len(opts) > 0 && opts[0].ConditionalAccessMicrosoftProxy != nil {
 		conditionalAccessMicrosoftProxy = opts[0].ConditionalAccessMicrosoftProxy
-		// The Conditional Access feature is gated on Fleet Premium; callers that
+		// The Conditional Access feature is gated on AutoMDM Premium; callers that
 		// exercise it must provide a premium license via opts[0].License.
 		require.True(t, lic.IsPremium(), "ConditionalAccessMicrosoftProxy requires a premium license via opts.License")
 	}
@@ -308,10 +308,10 @@ func newTestServiceWithConfig(t *testing.T, ds fleet.Datastore, fleetConfig conf
 	}
 
 	var wstepManager microsoft_mdm.CertManager
-	if fleetConfig.MDM.WindowsWSTEPIdentityCert != "" && fleetConfig.MDM.WindowsWSTEPIdentityKey != "" {
-		rawCert, err := os.ReadFile(fleetConfig.MDM.WindowsWSTEPIdentityCert)
+	if automdmConfig.MDM.WindowsWSTEPIdentityCert != "" && automdmConfig.MDM.WindowsWSTEPIdentityKey != "" {
+		rawCert, err := os.ReadFile(automdmConfig.MDM.WindowsWSTEPIdentityCert)
 		require.NoError(t, err)
-		rawKey, err := os.ReadFile(fleetConfig.MDM.WindowsWSTEPIdentityKey)
+		rawKey, err := os.ReadFile(automdmConfig.MDM.WindowsWSTEPIdentityKey)
 		require.NoError(t, err)
 
 		wstepManager, err = microsoft_mdm.NewCertManager(ds, rawCert, rawKey)
@@ -335,14 +335,14 @@ func newTestServiceWithConfig(t *testing.T, ds fleet.Datastore, fleetConfig conf
 		rs,
 		logger,
 		osqlogger,
-		fleetConfig,
+		automdmConfig,
 		mailer,
 		c,
 		ssoStore,
 		lq,
 		ds,
 		failingPolicySet,
-		&fleet.NoOpGeoIP{},
+		&automdm.NoOpGeoIP{},
 		enrollHostLimiter,
 		depStorage,
 		mdmStorage,
@@ -381,7 +381,7 @@ func newTestServiceWithConfig(t *testing.T, ds fleet.Datastore, fleetConfig conf
 			svc,
 			ds,
 			logger,
-			fleetConfig,
+			automdmConfig,
 			mailer,
 			c,
 			depStorage,
@@ -411,7 +411,7 @@ func newTestServiceWithConfig(t *testing.T, ds fleet.Datastore, fleetConfig conf
 
 	// Set up mock activity service for unit tests. When DBConns is provided,
 	// RunServerForTestsWithServiceWithDS will overwrite this with the real bounded context.
-	activityMock := &fleet_mock.MockActivityService{
+	activityMock := &automdm_mock.MockActivityService{
 		NewActivityFunc: func(_ context.Context, _ *activity_api.User, _ activity_api.ActivityDetails) error {
 			return nil
 		},
@@ -423,11 +423,11 @@ func newTestServiceWithConfig(t *testing.T, ds fleet.Datastore, fleetConfig conf
 
 	// Set up mock ACME service for unit tests. When DBConns is provided,
 	// RunServerForTestsWithServiceWithDS will overwrite this with the real service module.
-	svc.SetACMEService(&fleet_mock.MockACMEService{})
+	svc.SetACMEService(&automdm_mock.MockACMEService{})
 
 	// Set up mock notifications service for unit tests. When DBConns is provided,
 	// RunServerForTestsWithServiceWithDS will overwrite this with the real bounded context.
-	notificationsMock := &fleet_mock.MockNotificationsService{}
+	notificationsMock := &automdm_mock.MockNotificationsService{}
 	svc.SetNotificationsService(notificationsMock)
 	if len(opts) > 0 {
 		opts[0].NotificationsMock = notificationsMock
@@ -436,15 +436,15 @@ func newTestServiceWithConfig(t *testing.T, ds fleet.Datastore, fleetConfig conf
 	return svc, ctx
 }
 
-func newTestServiceWithClock(t *testing.T, ds fleet.Datastore, rs fleet.QueryResultStore, lq fleet.LiveQueryStore, c clock.Clock) (fleet.Service, context.Context) {
+func newTestServiceWithClock(t *testing.T, ds automdm.Datastore, rs automdm.QueryResultStore, lq automdm.LiveQueryStore, c clock.Clock) (automdm.Service, context.Context) {
 	testConfig := config.TestConfig()
 	return newTestServiceWithConfig(t, ds, testConfig, rs, lq, &TestServerOpts{
 		Clock: c,
 	})
 }
 
-func createTestUsers(t *testing.T, ds fleet.Datastore) map[string]fleet.User {
-	users := make(map[string]fleet.User)
+func createTestUsers(t *testing.T, ds automdm.Datastore) map[string]automdm.User {
+	users := make(map[string]automdm.User)
 	// Map iteration is random so we sort and iterate using the testUsers keys.
 	var keys []string
 	for key := range testUsers {
@@ -454,7 +454,7 @@ func createTestUsers(t *testing.T, ds fleet.Datastore) map[string]fleet.User {
 	userID := uint(1)
 	for _, key := range keys {
 		u := testUsers[key]
-		user := &fleet.User{
+		user := &automdm.User{
 			ID:         userID, // We need to set this in case ds is a mocked Datastore.
 			Name:       "Test Name " + u.Email,
 			Email:      u.Email,
@@ -478,64 +478,64 @@ var testUsers = map[string]struct {
 	"admin1": {
 		PlaintextPassword: test.GoodPassword,
 		Email:             TestAdminUserEmail,
-		GlobalRole:        ptr.String(fleet.RoleAdmin),
+		GlobalRole:        ptr.String(automdm.RoleAdmin),
 	},
 	"user1": {
 		PlaintextPassword: test.GoodPassword,
 		Email:             TestMaintainerUserEmail,
-		GlobalRole:        ptr.String(fleet.RoleMaintainer),
+		GlobalRole:        ptr.String(automdm.RoleMaintainer),
 	},
 	"user2": {
 		PlaintextPassword: test.GoodPassword,
 		Email:             TestObserverUserEmail,
-		GlobalRole:        ptr.String(fleet.RoleObserver),
+		GlobalRole:        ptr.String(automdm.RoleObserver),
 	},
 }
 
-func createEnrollSecrets(t *testing.T, count int) []*fleet.EnrollSecret {
-	secrets := make([]*fleet.EnrollSecret, count)
+func createEnrollSecrets(t *testing.T, count int) []*automdm.EnrollSecret {
+	secrets := make([]*automdm.EnrollSecret, count)
 	for i := 0; i < count; i++ {
-		secrets[i] = &fleet.EnrollSecret{Secret: fmt.Sprintf("testSecret%d", i)}
+		secrets[i] = &automdm.EnrollSecret{Secret: fmt.Sprintf("testSecret%d", i)}
 	}
 	return secrets
 }
 
 type mockMailService struct {
-	SendEmailFn func(e fleet.Email) error
+	SendEmailFn func(e automdm.Email) error
 	Invoked     bool
 }
 
-func (svc *mockMailService) SendEmail(ctx context.Context, e fleet.Email) error {
+func (svc *mockMailService) SendEmail(ctx context.Context, e automdm.Email) error {
 	svc.Invoked = true
 	return svc.SendEmailFn(e)
 }
 
-func (svc *mockMailService) CanSendEmail(smtpSettings fleet.SMTPSettings) bool {
+func (svc *mockMailService) CanSendEmail(smtpSettings automdm.SMTPSettings) bool {
 	return smtpSettings.SMTPConfigured
 }
 
-func RunServerForTestsWithDS(t *testing.T, ds fleet.Datastore, opts ...*TestServerOpts) (map[string]fleet.User, *httptest.Server) {
+func RunServerForTestsWithDS(t *testing.T, ds automdm.Datastore, opts ...*TestServerOpts) (map[string]automdm.User, *httptest.Server) {
 	if len(opts) > 0 && opts[0].EnableCachedDS {
 		ds = cached_mysql.New(ds)
 	}
 	cfg := config.TestConfig()
-	if len(opts) > 0 && opts[0].FleetConfig != nil {
-		cfg = *opts[0].FleetConfig
+	if len(opts) > 0 && opts[0].AutoMDMConfig != nil {
+		cfg = *opts[0].AutoMDMConfig
 	}
 	svc, ctx := NewTestService(t, ds, cfg, opts...)
 	return RunServerForTestsWithServiceWithDS(t, ctx, ds, svc, opts...)
 }
 
-func RunServerForTestsWithServiceWithDS(t *testing.T, ctx context.Context, ds fleet.Datastore, svc fleet.Service,
+func RunServerForTestsWithServiceWithDS(t *testing.T, ctx context.Context, ds automdm.Datastore, svc automdm.Service,
 	opts ...*TestServerOpts,
-) (map[string]fleet.User, *httptest.Server) {
-	var cfg config.FleetConfig
-	if len(opts) > 0 && opts[0].FleetConfig != nil {
-		cfg = *opts[0].FleetConfig
+) (map[string]automdm.User, *httptest.Server) {
+	var cfg config.AutoMDMConfig
+	if len(opts) > 0 && opts[0].AutoMDMConfig != nil {
+		cfg = *opts[0].AutoMDMConfig
 	} else {
 		cfg = config.TestConfig()
 	}
-	users := map[string]fleet.User{}
+	users := map[string]automdm.User{}
 	if len(opts) == 0 || (len(opts) > 0 && !opts[0].SkipCreateTestUsers) {
 		users = createTestUsers(t, ds)
 	}
@@ -562,7 +562,7 @@ func RunServerForTestsWithServiceWithDS(t *testing.T, ctx context.Context, ds fl
 		legacyAuthorizer, err := authz.NewAuthorizer()
 		require.NoError(t, err)
 		activityAuthorizer := authz.NewAuthorizerAdapter(legacyAuthorizer)
-		activityACLAdapter := activityacl.NewFleetServiceAdapter(svc, ds)
+		activityACLAdapter := activityacl.NewAutoMDMServiceAdapter(svc, ds)
 		activitySvc, activityRoutesFn := activity_bootstrap.New(
 			opts[0].DBConns,
 			activityAuthorizer,
@@ -592,16 +592,16 @@ func RunServerForTestsWithServiceWithDS(t *testing.T, ctx context.Context, ds fl
 	// context above, but auth is device-token based rather than user-session
 	// based.
 	if len(opts) > 0 && opts[0].DBConns != nil {
-		notificationsACLAdapter := notificationsacl.NewFleetServiceAdapter(ds)
+		notificationsACLAdapter := notificationsacl.NewAutoMDMServiceAdapter(ds)
 		notificationsSvc, notificationsRoutesFn := notifications_bootstrap.New(
 			opts[0].DBConns,
 			notificationsACLAdapter,
 			logger,
 		)
 		svc.SetNotificationsService(notificationsSvc)
-		patchNotificationKind := NewPatchNotificationKind(fleet.PatchNotificationKind, ds, svc, notificationsSvc, logger)
+		patchNotificationKind := NewPatchNotificationKind(automdm.PatchNotificationKind, ds, svc, notificationsSvc, logger)
 		notificationsSvc.RegisterKind(patchNotificationKind)
-		notificationsSvc.RegisterKind(NewPatchNotificationKind(fleet.PatchDeadlineNotificationKind, ds, svc, notificationsSvc, logger))
+		notificationsSvc.RegisterKind(NewPatchNotificationKind(automdm.PatchDeadlineNotificationKind, ds, svc, notificationsSvc, logger))
 		notificationsAuthMiddleware := DeviceAuthMiddleware(svc, logger, notifications.NewHostContext)
 		opts[0].FeatureRoutes = append(opts[0].FeatureRoutes, notificationsRoutesFn(notificationsAuthMiddleware))
 		opts[0].NotificationsSvc = notificationsSvc
@@ -617,14 +617,14 @@ func RunServerForTestsWithServiceWithDS(t *testing.T, ctx context.Context, ds fl
 	}
 
 	// Chart routes. Same DBConns-gated pattern as the activity bounded context,
-	// mirroring createChartBoundedContext in cmd/fleet/serve.go.
+	// mirroring createChartBoundedContext in cmd/automdm/serve.go.
 	if len(opts) > 0 && opts[0].DBConns != nil {
 		legacyAuthorizer, err := authz.NewAuthorizer()
 		require.NoError(t, err)
 		chartSvc, chartRoutesFn := chart_bootstrap.New(
 			opts[0].DBConns,
 			authz.NewAuthorizerAdapter(legacyAuthorizer),
-			chartacl.NewFleetViewerAdapter(),
+			chartacl.NewTeamViewerAdapter(),
 			chartacl.ExpandPlatform,
 			logger,
 		)
@@ -656,7 +656,7 @@ func RunServerForTestsWithServiceWithDS(t *testing.T, ctx context.Context, ds fl
 
 	memLimitStore, _ := memstore.New(0)
 	var limitStore throttled.GCRAStore = memLimitStore
-	var redisPool fleet.RedisPool
+	var redisPool automdm.RedisPool
 	if len(opts) > 0 && opts[0].Pool != nil {
 		redisPool = opts[0].Pool
 		limitStore = &redis.ThrottledStore{
@@ -676,7 +676,7 @@ func RunServerForTestsWithServiceWithDS(t *testing.T, ctx context.Context, ds fl
 			acmeOpts = append(acmeOpts, acme_bootstrap.WithTestAppleRootCAs(rootCAPool))
 		}
 		acmeSigner := &acmeCSRSigner{signer: depot.NewSigner(opts[0].SCEPStorage, depot.WithValidityDays(365))}
-		acmeSvc, acmeRoutes := acme_bootstrap.New(opts[0].DBConns, redisPool, acmeacl.NewFleetDatastoreAdapter(ds, acmeSigner), logger, acmeOpts...)
+		acmeSvc, acmeRoutes := acme_bootstrap.New(opts[0].DBConns, redisPool, acmeacl.NewTeamDatastoreAdapter(ds, acmeSigner), logger, acmeOpts...)
 		svc.SetACMEService(acmeSvc)
 		opts[0].FeatureRoutes = append(opts[0].FeatureRoutes, acmeRoutes(log.Logged))
 	}
@@ -686,17 +686,17 @@ func RunServerForTestsWithServiceWithDS(t *testing.T, ctx context.Context, ds fl
 		scepStorage := opts[0].SCEPStorage
 		commander := apple_mdm.NewMDMAppleCommander(mdmStorage, mdmPusher)
 		if mdmStorage != nil && scepStorage != nil {
-			vppInstaller := svc.(fleet.AppleMDMVPPInstaller)
-			var notificationsSvc fleet.NotificationsWriteService = opts[0].NotificationsMock
+			vppInstaller := svc.(automdm.AppleMDMVPPInstaller)
+			var notificationsSvc automdm.NotificationsWriteService = opts[0].NotificationsMock
 			if opts[0].NotificationsSvc != nil {
 				notificationsSvc = opts[0].NotificationsSvc
 			}
 			checkInAndCommand := NewMDMAppleCheckinAndCommandService(ds, commander, vppInstaller, opts[0].License.IsPremium(), logger, redis_key_value.New(redisPool), svc.NewActivity,
-				cfg.Activity.FleetInitiatedReleasePerMinute > 0, notificationsSvc, cfg.MDM.AppleCommandCleanupShortRetention)
+				cfg.Activity.AutoMDMInitiatedReleasePerMinute > 0, notificationsSvc, cfg.MDM.AppleCommandCleanupShortRetention)
 			checkInAndCommand.RegisterResultsHandler("InstalledApplicationList", NewInstalledApplicationListResultsHandler(ds, commander, logger, cfg.Server.VPPVerifyTimeout, cfg.Server.VPPVerifyRequestDelay, svc.NewActivity))
-			checkInAndCommand.RegisterResultsHandler(fleet.DeviceLocationCmdName, NewDeviceLocationResultsHandler(ds, commander, logger))
-			checkInAndCommand.RegisterResultsHandler(fleet.SetRecoveryLockCmdName, NewSetRecoveryLockResultsHandler(ds, logger, commander))
-			checkInAndCommand.RegisterResultsHandler(fleet.VerifyRecoveryLockCmdName, NewVerifyRecoveryLockResultsHandler(ds, logger, commander, svc.NewActivity))
+			checkInAndCommand.RegisterResultsHandler(automdm.DeviceLocationCmdName, NewDeviceLocationResultsHandler(ds, commander, logger))
+			checkInAndCommand.RegisterResultsHandler(automdm.SetRecoveryLockCmdName, NewSetRecoveryLockResultsHandler(ds, logger, commander))
+			checkInAndCommand.RegisterResultsHandler(automdm.VerifyRecoveryLockCmdName, NewVerifyRecoveryLockResultsHandler(ds, logger, commander, svc.NewActivity))
 			err := RegisterAppleMDMProtocolServices(
 				rootMux,
 				cfg.MDM,
@@ -770,7 +770,7 @@ func RunServerForTestsWithServiceWithDS(t *testing.T, ctx context.Context, ds fl
 		require.NoError(t, condaccess.RegisterSCEP(ctx, rootMux, opts[0].ConditionalAccess.SCEPStorage, ds, logger, &cfg))
 		require.NoError(t, condaccess.RegisterIdP(rootMux, ds, logger, &cfg, limitStore))
 	}
-	var carveStore fleet.CarveStore = ds // In tests, we use MySQL as storage for carves.
+	var carveStore automdm.CarveStore = ds // In tests, we use MySQL as storage for carves.
 	apiHandler, err := MakeHandler(svc, cfg, logger, limitStore, redisPool, carveStore, featureRoutes, extra...)
 	require.NoError(t, err)
 	// SCIM endpoints are served by a prefix-mounted handler (see scim.RegisterSCIM)
@@ -794,15 +794,15 @@ func RunServerForTestsWithServiceWithDS(t *testing.T, ctx context.Context, ds fl
 
 	if len(opts) > 0 && opts[0].EnableSCIM {
 		require.NoError(t, scim.RegisterSCIM(rootMux, ds, svc, logger, &cfg))
-		rootMux.Handle("/api/v1/fleet/scim/details", apiHandler)
-		rootMux.Handle("/api/latest/fleet/scim/details", apiHandler)
+		rootMux.Handle("/api/v1/automdm/scim/details", apiHandler)
+		rootMux.Handle("/api/latest/automdm/scim/details", apiHandler)
 	}
 
 	server := httptest.NewUnstartedServer(rootMux)
 	server.Config = cfg.Server.DefaultHTTPServer(ctx, rootMux)
 	// WriteTimeout is set for security purposes.
 	// If we don't set it, (bugy or malignant) clients making long running
-	// requests could DDOS Fleet.
+	// requests could DDOS AutoMDM.
 	require.NotZero(t, server.Config.WriteTimeout)
 	if len(opts) > 0 && opts[0].HTTPServerConfig != nil {
 		server.Config = opts[0].HTTPServerConfig
@@ -824,19 +824,19 @@ func RunServerForTestsWithServiceWithDS(t *testing.T, ctx context.Context, ds fl
 // MCP calls the API through, for tests that send requests over it directly.
 var testMCPConns sync.Map
 
-func NewTestService(t *testing.T, ds fleet.Datastore, cfg config.FleetConfig, opts ...*TestServerOpts) (fleet.Service, context.Context) {
-	var rs fleet.QueryResultStore
+func NewTestService(t *testing.T, ds automdm.Datastore, cfg config.AutoMDMConfig, opts ...*TestServerOpts) (automdm.Service, context.Context) {
+	var rs automdm.QueryResultStore
 	if len(opts) > 0 && opts[0].Rs != nil {
 		rs = opts[0].Rs
 	}
-	var lq fleet.LiveQueryStore
+	var lq automdm.LiveQueryStore
 	if len(opts) > 0 && opts[0].Lq != nil {
 		lq = opts[0].Lq
 	}
 	return newTestServiceWithConfig(t, ds, cfg, rs, lq, opts...)
 }
 
-func testSESPluginConfig() config.FleetConfig {
+func testSESPluginConfig() config.AutoMDMConfig {
 	c := config.TestConfig()
 	c.Email = config.EmailConfig{EmailBackend: "ses"}
 	c.SES = config.SESConfig{
@@ -850,7 +850,7 @@ func testSESPluginConfig() config.FleetConfig {
 	return c
 }
 
-func testKinesisPluginConfig() config.FleetConfig {
+func testKinesisPluginConfig() config.AutoMDMConfig {
 	c := config.TestConfig()
 	c.Osquery.ResultLogPlugin = "kinesis"
 	c.Osquery.StatusLogPlugin = "kinesis"
@@ -867,7 +867,7 @@ func testKinesisPluginConfig() config.FleetConfig {
 	return c
 }
 
-func testFirehosePluginConfig() config.FleetConfig {
+func testFirehosePluginConfig() config.AutoMDMConfig {
 	c := config.TestConfig()
 	c.Osquery.ResultLogPlugin = "firehose"
 	c.Osquery.StatusLogPlugin = "firehose"
@@ -884,7 +884,7 @@ func testFirehosePluginConfig() config.FleetConfig {
 	return c
 }
 
-func testLambdaPluginConfig() config.FleetConfig {
+func testLambdaPluginConfig() config.AutoMDMConfig {
 	c := config.TestConfig()
 	c.Osquery.ResultLogPlugin = "lambda"
 	c.Osquery.StatusLogPlugin = "lambda"
@@ -901,7 +901,7 @@ func testLambdaPluginConfig() config.FleetConfig {
 	return c
 }
 
-func testPubSubPluginConfig() config.FleetConfig {
+func testPubSubPluginConfig() config.AutoMDMConfig {
 	c := config.TestConfig()
 	c.Osquery.ResultLogPlugin = "pubsub"
 	c.Osquery.StatusLogPlugin = "pubsub"
@@ -916,7 +916,7 @@ func testPubSubPluginConfig() config.FleetConfig {
 	return c
 }
 
-func testStdoutPluginConfig() config.FleetConfig {
+func testStdoutPluginConfig() config.AutoMDMConfig {
 	c := config.TestConfig()
 	c.Osquery.ResultLogPlugin = "stdout"
 	c.Osquery.StatusLogPlugin = "stdout"
@@ -924,7 +924,7 @@ func testStdoutPluginConfig() config.FleetConfig {
 	return c
 }
 
-func testUnrecognizedPluginConfig() config.FleetConfig {
+func testUnrecognizedPluginConfig() config.AutoMDMConfig {
 	c := config.TestConfig()
 	c.Osquery = config.OsqueryConfig{
 		ResultLogPlugin: "bar",
@@ -946,7 +946,7 @@ func getJSON(r *http.Response, target interface{}) error {
 }
 
 func assertErrorCodeAndMessage(t *testing.T, resp *http.Response, code int, message string) {
-	err := &fleet.Error{}
+	err := &automdm.Error{}
 	require.Nil(t, getJSON(resp, err))
 	assert.Equal(t, code, err.Code)
 	assert.Equal(t, message, err.Message)
@@ -985,11 +985,11 @@ func mockSuccessfulPush(_ context.Context, pushes []*mdm.Push) (map[string]*push
 }
 
 // appleProfilesBatchRequest is a POST /mdm/profiles/batch body for .mobileconfig files, each named after its PayloadDisplayName. The
-// batch replaces every profile of the fleet, not only its Apple profiles.
+// batch replaces every profile of the team, not only its Apple profiles.
 func appleProfilesBatchRequest(profiles [][]byte) batchSetMDMProfilesRequest {
-	payloads := make([]fleet.MDMProfileBatchPayload, 0, len(profiles))
+	payloads := make([]automdm.MDMProfileBatchPayload, 0, len(profiles))
 	for _, p := range profiles {
-		payloads = append(payloads, fleet.MDMProfileBatchPayload{Contents: p})
+		payloads = append(payloads, automdm.MDMProfileBatchPayload{Contents: p})
 	}
 	return batchSetMDMProfilesRequest{Profiles: payloads}
 }
@@ -1004,64 +1004,64 @@ func mdmConfigurationRequiredEndpoints() []struct {
 		deviceAuthenticated bool
 		premiumOnly         bool
 	}{
-		{"DELETE", "/api/latest/fleet/hosts/1/mdm", false, false},
-		{"GET", "/api/latest/fleet/hosts/1/configuration_profiles", false, true},
-		{"GET", "/api/latest/fleet/apns", false, false},
+		{"DELETE", "/api/latest/automdm/hosts/1/mdm", false, false},
+		{"GET", "/api/latest/automdm/hosts/1/configuration_profiles", false, true},
+		{"GET", "/api/latest/automdm/apns", false, false},
 		{"GET", apple_mdm.EnrollPath + "?token=test", false, false},
-		{"GET", "/api/latest/fleet/setup_experience/eula/0982A979-B1C9-4BDF-B584-5A37D32A1172", false, true},
-		{"DELETE", "/api/latest/fleet/setup_experience/eula/token", false, true},
-		{"GET", "/api/latest/fleet/setup_experience/eula/metadata", false, true},
+		{"GET", "/api/latest/automdm/setup_experience/eula/0982A979-B1C9-4BDF-B584-5A37D32A1172", false, true},
+		{"DELETE", "/api/latest/automdm/setup_experience/eula/token", false, true},
+		{"GET", "/api/latest/automdm/setup_experience/eula/metadata", false, true},
 		// The Windows EULA upload is absent for the same reason as the other EULA uploads.
-		{"GET", "/api/latest/fleet/setup_experience/eula/metadata?platform=windows", false, true},
-		{"GET", "/api/latest/fleet/enrollment_profiles/automatic", false, false},
-		{"POST", "/api/latest/fleet/enrollment_profiles/automatic", false, false},
-		{"DELETE", "/api/latest/fleet/enrollment_profiles/automatic", false, false},
-		{"POST", "/api/latest/fleet/device/%s/migrate_mdm", true, true},
-		{"POST", "/api/latest/fleet/device/%s/configuration_profiles/wfoo/resend", true, false},
-		{"POST", "/api/latest/fleet/commands/run", false, false},
-		{"GET", "/api/latest/fleet/commands/results", false, false},
-		{"GET", "/api/latest/fleet/commands?host_identifier=some-host", false, false},
-		{"POST", "/api/fleet/orbit/disk_encryption_key", false, false},
-		{"POST", "/api/fleet/orbit/disk_encryption_protection", false, false},
-		{"GET", "/api/latest/fleet/configuration_profiles/1", false, false},
+		{"GET", "/api/latest/automdm/setup_experience/eula/metadata?platform=windows", false, true},
+		{"GET", "/api/latest/automdm/enrollment_profiles/automatic", false, false},
+		{"POST", "/api/latest/automdm/enrollment_profiles/automatic", false, false},
+		{"DELETE", "/api/latest/automdm/enrollment_profiles/automatic", false, false},
+		{"POST", "/api/latest/automdm/device/%s/migrate_mdm", true, true},
+		{"POST", "/api/latest/automdm/device/%s/configuration_profiles/wfoo/resend", true, false},
+		{"POST", "/api/latest/automdm/commands/run", false, false},
+		{"GET", "/api/latest/automdm/commands/results", false, false},
+		{"GET", "/api/latest/automdm/commands?host_identifier=some-host", false, false},
+		{"POST", "/api/automdm/orbit/disk_encryption_key", false, false},
+		{"POST", "/api/automdm/orbit/disk_encryption_protection", false, false},
+		{"GET", "/api/latest/automdm/configuration_profiles/1", false, false},
 		// TODO: those endpoints accept multipart/form data that gets
 		// parsed before the MDM check, we need to refactor this
 		// function to return more information to the caller, or find a
 		// better way to test these endpoints.
-		// {"POST", "/api/latest/fleet/configuration_profiles", false, false},
-		// {"POST", "/api/latest/fleet/setup_experience/eula"},
-		// {"POST", "/api/latest/fleet/bootstrap", false, true},
-		{"GET", "/api/latest/fleet/configuration_profiles", false, false},
-		{"GET", "/api/latest/fleet/enrollment_profiles/manual", false, true},
-		{"GET", "/api/latest/fleet/bootstrap/1/metadata", false, true},
-		{"DELETE", "/api/latest/fleet/bootstrap/1", false, true},
-		{"GET", "/api/latest/fleet/mdm/bootstrap?token=1", false, true},
-		{"GET", "/api/latest/fleet/bootstrap?token=1", false, true},
-		{"GET", "/api/latest/fleet/bootstrap/summary", false, true},
-		{"PATCH", "/api/latest/fleet/setup_experience", false, true},
-		{"POST", "/api/fleet/orbit/setup_experience/status", false, true},
-		{"POST", "/api/latest/fleet/software/web_apps", false, true},
-		{"POST", "/api/latest/fleet/hosts/1/name_template/resend", false, true},
-		{"GET", "/api/latest/fleet/assets", false, true},
-		{"GET", "/api/latest/fleet/assets/1", false, true},
+		// {"POST", "/api/latest/automdm/configuration_profiles", false, false},
+		// {"POST", "/api/latest/automdm/setup_experience/eula"},
+		// {"POST", "/api/latest/automdm/bootstrap", false, true},
+		{"GET", "/api/latest/automdm/configuration_profiles", false, false},
+		{"GET", "/api/latest/automdm/enrollment_profiles/manual", false, true},
+		{"GET", "/api/latest/automdm/bootstrap/1/metadata", false, true},
+		{"DELETE", "/api/latest/automdm/bootstrap/1", false, true},
+		{"GET", "/api/latest/automdm/mdm/bootstrap?token=1", false, true},
+		{"GET", "/api/latest/automdm/bootstrap?token=1", false, true},
+		{"GET", "/api/latest/automdm/bootstrap/summary", false, true},
+		{"PATCH", "/api/latest/automdm/setup_experience", false, true},
+		{"POST", "/api/automdm/orbit/setup_experience/status", false, true},
+		{"POST", "/api/latest/automdm/software/web_apps", false, true},
+		{"POST", "/api/latest/automdm/hosts/1/name_template/resend", false, true},
+		{"GET", "/api/latest/automdm/assets", false, true},
+		{"GET", "/api/latest/automdm/assets/1", false, true},
 		// TODO: multipart/form data parsing issue, see comment above
-		// {"POST", "/api/latest/fleet/assets", false, true},
-		{"DELETE", "/api/latest/fleet/assets/1", false, true},
-		{"POST", "/api/latest/fleet/assets/batch", false, true},
+		// {"POST", "/api/latest/automdm/assets", false, true},
+		{"DELETE", "/api/latest/automdm/assets/1", false, true},
+		{"POST", "/api/latest/automdm/assets/batch", false, true},
 	}
 }
 
 func windowsMDMConfigurationRequiredEndpoints() []string {
 	return []string{
-		"/api/fleet/orbit/disk_encryption_key",
-		"/api/fleet/orbit/disk_encryption_protection",
-		"/api/latest/fleet/setup_experience/eula/metadata?platform=windows",
+		"/api/automdm/orbit/disk_encryption_key",
+		"/api/automdm/orbit/disk_encryption_protection",
+		"/api/latest/automdm/setup_experience/eula/metadata?platform=windows",
 	}
 }
 
 func androidMDMConfigurationRequiredEndpoints() []string {
 	return []string{
-		"/api/latest/fleet/software/web_apps",
+		"/api/latest/automdm/software/web_apps",
 	}
 }
 
@@ -1443,7 +1443,7 @@ func getURISchemas() []string {
 }
 
 // androidTestEnterpriseID is the enterprise enableAndroidMDM creates. Device names must be under it,
-// as AMAPI's are, because Fleet checks a notification's device against its own enterprise.
+// as AMAPI's are, because AutoMDM checks a notification's device against its own enterprise.
 const androidTestEnterpriseID = "LC02k5wxw7"
 
 func createAndroidDeviceID(name string) string {
@@ -1554,7 +1554,7 @@ func (s *fmaTestState) ComputeSHA(b []byte) {
 // startFMAServers returns a func reporting how many installer downloads have
 // been served for an installerPath, so a test can assert that a re-apply moved
 // no bytes.
-func startFMAServers(t *testing.T, ds fleet.Datastore, states map[string]*fmaTestState) func(installerPath string) int {
+func startFMAServers(t *testing.T, ds automdm.Datastore, states map[string]*fmaTestState) func(installerPath string) int {
 	if len(states) == 0 {
 		states = make(map[string]*fmaTestState, 1)
 		states["/zoom/windows.json"] = &fmaTestState{
@@ -1656,8 +1656,8 @@ func startFMAServers(t *testing.T, ds fleet.Datastore, states map[string]*fmaTes
 		manifestServer.Close()
 		installerServer.Close()
 	})
-	dev_mode.SetOverride("FLEET_DEV_MAINTAINED_APPS_BASE_URL", manifestServer.URL, t)
-	dev_mode.SetOverride("FLEET_DEV_MAINTAINED_APPS_FALLBACK_BASE_URL", manifestServer.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_MAINTAINED_APPS_BASE_URL", manifestServer.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_MAINTAINED_APPS_FALLBACK_BASE_URL", manifestServer.URL, t)
 
 	require.NoError(t, maintained_apps.SyncAppsList(t.Context(), ds))
 
@@ -1712,6 +1712,6 @@ func (noopGraphClient) ListWindowsAutopilotDevices(context.Context) ([]msgraph.W
 	return nil, nil
 }
 
-func noopGraphFactory(*fleet.MicrosoftGraphCredential) (msgraph.Client, error) {
+func noopGraphFactory(*automdm.MicrosoftGraphCredential) (msgraph.Client, error) {
 	return noopGraphClient{}, nil
 }

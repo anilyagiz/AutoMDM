@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
 // Criteria is used to express an arbitrary logic tree.
@@ -27,7 +27,7 @@ type Definition struct {
 // Tests results can come from two sources:
 // - OSTstResults: Test results from making assertions against the installed OS Version
 // - pkTstResults: Tests results from making assertions against the installed software packages.
-func (d Definition) Eval(osTstResults map[int]bool, pkgTstResults map[int][]fleet.Software) bool {
+func (d Definition) Eval(osTstResults map[int]bool, pkgTstResults map[int][]automdm.Software) bool {
 	if d.Criteria == nil || (len(osTstResults) == 0 && len(pkgTstResults) == 0) {
 		return false
 	}
@@ -57,7 +57,7 @@ func (d Definition) CollectTestIds() []int {
 	return results
 }
 
-func evalCriteria(c *Criteria, osTstResults map[int]bool, pkgTstResults map[int][]fleet.Software) (bool, error) {
+func evalCriteria(c *Criteria, osTstResults map[int]bool, pkgTstResults map[int][]automdm.Software) (bool, error) {
 	var vals []bool
 	var result bool
 

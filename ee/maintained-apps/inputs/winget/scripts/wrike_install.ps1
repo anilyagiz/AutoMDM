@@ -1,13 +1,13 @@
 # Learn more about install scripts:
-# http://fleetdm.com/learn-more-about/install-scripts
+# http://automdm.com/learn-more-about/install-scripts
 #
 # Wrike's MSI only installs per machine when run with a UI, so a silent install
-# under Fleet's SYSTEM context lands in the SYSTEM account's profile, where no
+# under AutoMDM's SYSTEM context lands in the SYSTEM account's profile, where no
 # one can open it. Force a per-machine install into Program Files. First remove
 # a copy that an earlier install left in the SYSTEM profile: while it exists,
 # the MSI switches back to a per-user install into that copy's folder.
 
-$logFile = "${env:TEMP}/fleet-install-software.log"
+$logFile = "${env:TEMP}/automdm-install-software.log"
 $upgradeCode = '{FD36F414-EF8A-48CB-8D20-BD321B03D375}'
 
 # 3010 = reboot required, 1641 = reboot initiated
@@ -16,7 +16,7 @@ $successCodes = @(0, 3010, 1641)
 try {
 
 # The MSI fails with 1603 while Wrike is open, because it can't replace the
-# files the app holds. Fleet runs as SYSTEM, outside the user's session, so it
+# files the app holds. AutoMDM runs as SYSTEM, outside the user's session, so it
 # can't ask Wrike to close: stop it first. Unsaved changes are lost.
 $getRunning = { @(Get-Process -Name "Wrike" -ErrorAction SilentlyContinue) }
 $running = & $getRunning

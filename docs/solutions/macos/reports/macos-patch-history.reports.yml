@@ -1,4 +1,4 @@
-# macOS patch history for measuring time-to-patch. See https://fleetdm.com/guides/measure-macos-time-to-patch
+# macOS patch history for measuring time-to-patch. See https://automdm.com/guides/measure-macos-time-to-patch
 - name: Get macOS patch history
   automations_enabled: false
   description: |
@@ -10,7 +10,7 @@
     updates (XProtect, Gatekeeper data, Rosetta) are excluded.
     Use with macos_time_to_patch.py to compare install times with Apple's release dates.
   discard_data: false
-  interval: 21600 # 6 hours of fleetd running time; see the guide
+  interval: 21600 # 6 hours of automdmd running time; see the guide
   logging: snapshot
   observer_can_run: true
   platform: darwin

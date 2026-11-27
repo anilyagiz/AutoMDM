@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/jmoiron/sqlx"
 	"github.com/jmoiron/sqlx/reflectx"
 )
@@ -18,12 +18,12 @@ func init() {
 // path placeholders differently, and rewritten to the exact catalog path because the UI matches grants by exact path.
 func Up_20261119181608(tx *sql.Tx) error {
 	moves := []struct{ method, oldPath, newPath string }{
-		{"GET", "/api/v1/fleet/queries/run", "/api/v1/fleet/reports/run"},
-		{"DELETE", "/api/v1/fleet/reports/id/:id", "/api/v1/fleet/reports/:id"},
+		{"GET", "/api/v1/automdm/queries/run", "/api/v1/automdm/reports/run"},
+		{"DELETE", "/api/v1/automdm/reports/id/:id", "/api/v1/automdm/reports/:id"},
 	}
 	txx := sqlx.Tx{Tx: tx, Mapper: reflectx.NewMapperFunc("db", sqlx.NameMapper)}
 	for _, m := range moves {
-		oldFingerprint := fleet.NewAPIEndpointFromTpl(m.method, m.oldPath).Fingerprint()
+		oldFingerprint := automdm.NewAPIEndpointFromTpl(m.method, m.oldPath).Fingerprint()
 		type grant struct {
 			UserID uint   `db:"user_id"`
 			Path   string `db:"path"`
@@ -33,7 +33,7 @@ func Up_20261119181608(tx *sql.Tx) error {
 			return fmt.Errorf("select %s api endpoint grants: %w", m.method, err)
 		}
 		for _, g := range grants {
-			if fleet.NewAPIEndpointFromTpl(m.method, g.Path).Fingerprint() == oldFingerprint {
+			if automdm.NewAPIEndpointFromTpl(m.method, g.Path).Fingerprint() == oldFingerprint {
 				matches = append(matches, g)
 			}
 		}

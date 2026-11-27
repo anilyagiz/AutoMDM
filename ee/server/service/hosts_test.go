@@ -10,17 +10,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxdb"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
-	apple_mdm "github.com/fleetdm/fleet/v4/server/mdm/apple"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanodep/tokenpki"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	svcmock "github.com/fleetdm/fleet/v4/server/mock/service"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxdb"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
+	apple_mdm "github.com/anilyagiz/automdm/v4/server/mdm/apple"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanodep/tokenpki"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	svcmock "github.com/anilyagiz/automdm/v4/server/mock/service"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/jmoiron/sqlx"
 	"github.com/smallstep/pkcs7"
 	"github.com/stretchr/testify/assert"
@@ -34,87 +34,87 @@ func TestGetHostManagedAccountPasswordAuth(t *testing.T) {
 
 	teamID := uint(1)
 
-	verified := string(fleet.MDMDeliveryVerified)
+	verified := string(automdm.MDMDeliveryVerified)
 
-	ds.HostLiteFunc = func(ctx context.Context, hostID uint) (*fleet.Host, error) {
-		return &fleet.Host{ID: hostID, UUID: "test-uuid", Platform: "darwin", TeamID: &teamID}, nil
+	ds.HostLiteFunc = func(ctx context.Context, hostID uint) (*automdm.Host, error) {
+		return &automdm.Host{ID: hostID, UUID: "test-uuid", Platform: "darwin", TeamID: &teamID}, nil
 	}
-	ds.GetHostManagedLocalAccountStatusFunc = func(ctx context.Context, hostUUID string) (*fleet.HostMDMManagedLocalAccount, error) {
-		return &fleet.HostMDMManagedLocalAccount{Status: &verified, PasswordAvailable: true}, nil
+	ds.GetHostManagedLocalAccountStatusFunc = func(ctx context.Context, hostUUID string) (*automdm.HostMDMManagedLocalAccount, error) {
+		return &automdm.HostMDMManagedLocalAccount{Status: &verified, PasswordAvailable: true}, nil
 	}
-	ds.GetHostManagedLocalAccountPasswordFunc = func(ctx context.Context, hostUUID string) (*fleet.HostManagedLocalAccountPassword, error) {
-		return &fleet.HostManagedLocalAccountPassword{}, nil
+	ds.GetHostManagedLocalAccountPasswordFunc = func(ctx context.Context, hostUUID string) (*automdm.HostManagedLocalAccountPassword, error) {
+		return &automdm.HostManagedLocalAccountPassword{}, nil
 	}
 	ds.MarkManagedLocalAccountPasswordViewedFunc = func(ctx context.Context, hostUUID string) (time.Time, error) {
 		return time.Now(), nil
 	}
-	baseSvc.NewActivityFunc = func(ctx context.Context, user *fleet.User, activity fleet.ActivityDetails) error {
+	baseSvc.NewActivityFunc = func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error {
 		return nil
 	}
 
 	testCases := []struct {
 		name       string
-		user       *fleet.User
+		user       *automdm.User
 		shouldFail bool
 	}{
 		{
 			"global admin",
-			&fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)},
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)},
 			false,
 		},
 		{
 			"global maintainer",
-			&fleet.User{GlobalRole: ptr.String(fleet.RoleMaintainer)},
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleMaintainer)},
 			false,
 		},
 		{
 			"global observer",
-			&fleet.User{GlobalRole: ptr.String(fleet.RoleObserver)},
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleObserver)},
 			false,
 		},
 		{
 			"global observer+",
-			&fleet.User{GlobalRole: ptr.String(fleet.RoleObserverPlus)},
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleObserverPlus)},
 			false,
 		},
 		{
 			"global gitops",
-			&fleet.User{GlobalRole: ptr.String(fleet.RoleGitOps)},
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleGitOps)},
 			true,
 		},
 		{
 			"team admin, belongs to team",
-			&fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleAdmin}}},
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleAdmin}}},
 			false,
 		},
 		{
 			"team maintainer, belongs to team",
-			&fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleMaintainer}}},
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleMaintainer}}},
 			false,
 		},
 		{
 			"team observer, belongs to team",
-			&fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleObserver}}},
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserver}}},
 			false,
 		},
 		{
 			"team observer+, belongs to team",
-			&fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleObserverPlus}}},
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserverPlus}}},
 			false,
 		},
 		{
 			"team gitops, belongs to team",
-			&fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleGitOps}}},
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleGitOps}}},
 			true,
 		},
 		{
 			"team admin, DOES NOT belong to team",
-			&fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 2}, Role: fleet.RoleAdmin}}},
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleAdmin}}},
 			true,
 		},
 		{
 			"team observer, DOES NOT belong to team",
-			&fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 2}, Role: fleet.RoleObserver}}},
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleObserver}}},
 			true,
 		},
 	}
@@ -133,30 +133,30 @@ func TestGetHostManagedAccountPasswordAuth(t *testing.T) {
 func TestRotateWindowsManagedLocalAccountPassword(t *testing.T) {
 	t.Parallel()
 
-	verified := string(fleet.MDMDeliveryVerified)
-	admin := &fleet.User{ID: 42, GlobalRole: new(fleet.RoleAdmin)}
+	verified := string(automdm.MDMDeliveryVerified)
+	admin := &automdm.User{ID: 42, GlobalRole: new(automdm.RoleAdmin)}
 
-	setup := func(t *testing.T, platform string, acct *fleet.HostMDMManagedLocalAccount) (*mock.Store, *Service, *svcmock.Service, context.Context) {
+	setup := func(t *testing.T, platform string, acct *automdm.HostMDMManagedLocalAccount) (*mock.Store, *Service, *svcmock.Service, context.Context) {
 		ds := new(mock.Store)
 		svc, baseSvc := newTestServiceWithMock(t, ds)
-		ds.HostLiteFunc = func(ctx context.Context, hostID uint) (*fleet.Host, error) {
-			return &fleet.Host{ID: hostID, UUID: "test-uuid", Platform: platform}, nil
+		ds.HostLiteFunc = func(ctx context.Context, hostID uint) (*automdm.Host, error) {
+			return &automdm.Host{ID: hostID, UUID: "test-uuid", Platform: platform}, nil
 		}
-		ds.GetHostManagedLocalAccountStatusFunc = func(ctx context.Context, hostUUID string) (*fleet.HostMDMManagedLocalAccount, error) {
+		ds.GetHostManagedLocalAccountStatusFunc = func(ctx context.Context, hostUUID string) (*automdm.HostMDMManagedLocalAccount, error) {
 			return acct, nil
 		}
 		ds.InitiateWindowsManagedLocalAccountRotationFunc = func(ctx context.Context, hostUUID string) error { return nil }
-		baseSvc.NewActivityFunc = func(ctx context.Context, user *fleet.User, activity fleet.ActivityDetails) error { return nil }
+		baseSvc.NewActivityFunc = func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error { return nil }
 		return ds, svc, baseSvc, viewer.NewContext(context.Background(), viewer.Viewer{User: admin})
 	}
 
-	available := &fleet.HostMDMManagedLocalAccount{Status: &verified, PasswordAvailable: true}
+	available := &automdm.HostMDMManagedLocalAccount{Status: &verified, PasswordAvailable: true}
 
 	t.Run("records the request and logs the activity against the requesting user", func(t *testing.T) {
 		ds, svc, baseSvc, ctx := setup(t, "windows", available)
-		var actor *fleet.User
-		var logged fleet.ActivityDetails
-		baseSvc.NewActivityFunc = func(_ context.Context, u *fleet.User, a fleet.ActivityDetails) error {
+		var actor *automdm.User
+		var logged automdm.ActivityDetails
+		baseSvc.NewActivityFunc = func(_ context.Context, u *automdm.User, a automdm.ActivityDetails) error {
 			actor, logged = u, a
 			return nil
 		}
@@ -166,9 +166,9 @@ func TestRotateWindowsManagedLocalAccountPassword(t *testing.T) {
 		require.True(t, ds.InitiateWindowsManagedLocalAccountRotationFuncInvoked)
 		// No MDM command is involved on Windows, so nothing should reach the Apple rotation path.
 		require.False(t, ds.GetManagedLocalAccountUUIDFuncInvoked)
-		rotated, ok := logged.(fleet.ActivityTypeRotatedManagedLocalAccountPassword)
+		rotated, ok := logged.(automdm.ActivityTypeRotatedManagedLocalAccountPassword)
 		require.True(t, ok)
-		assert.False(t, rotated.FleetInitiated, "a manual rotation is the user's, not Fleet's")
+		assert.False(t, rotated.AutoMDMInitiated, "a manual rotation is the user's, not AutoMDM's")
 		require.NotNil(t, actor)
 		assert.Equal(t, admin.ID, actor.ID)
 	})
@@ -181,7 +181,7 @@ func TestRotateWindowsManagedLocalAccountPassword(t *testing.T) {
 		}{
 			{
 				"already outstanding",
-				fleet.ErrManagedLocalAccountRotationPending,
+				automdm.ErrManagedLocalAccountRotationPending,
 				"Cannot rotate managed local account password while an operation is pending.",
 			},
 			{
@@ -191,7 +191,7 @@ func TestRotateWindowsManagedLocalAccountPassword(t *testing.T) {
 			},
 			{
 				"row not eligible",
-				fleet.ErrManagedLocalAccountNotEligible,
+				automdm.ErrManagedLocalAccountNotEligible,
 				"Couldn’t rotate managed local account password. Please try again.",
 			},
 		}
@@ -204,7 +204,7 @@ func TestRotateWindowsManagedLocalAccountPassword(t *testing.T) {
 
 				err := svc.RotateManagedLocalAccountPassword(ctx, 1)
 				require.Error(t, err)
-				var badReq *fleet.BadRequestError
+				var badReq *automdm.BadRequestError
 				require.ErrorAs(t, err, &badReq)
 				assert.Equal(t, c.message, badReq.Message)
 			})
@@ -215,18 +215,18 @@ func TestRotateWindowsManagedLocalAccountPassword(t *testing.T) {
 		_, svc, _, ctx := setup(t, "ubuntu", available)
 		err := svc.RotateManagedLocalAccountPassword(ctx, 1)
 		require.Error(t, err)
-		var badReq *fleet.BadRequestError
+		var badReq *automdm.BadRequestError
 		require.ErrorAs(t, err, &badReq)
 		assert.Equal(t, "Host is not a macOS or Windows device.", badReq.Message)
 	})
 
 	t.Run("rejects while a rotation is already in flight", func(t *testing.T) {
-		ds, svc, _, ctx := setup(t, "windows", &fleet.HostMDMManagedLocalAccount{
+		ds, svc, _, ctx := setup(t, "windows", &automdm.HostMDMManagedLocalAccount{
 			Status: &verified, PasswordAvailable: true, PendingRotation: true,
 		})
 		err := svc.RotateManagedLocalAccountPassword(ctx, 1)
 		require.Error(t, err)
-		var badReq *fleet.BadRequestError
+		var badReq *automdm.BadRequestError
 		require.ErrorAs(t, err, &badReq)
 		assert.Equal(t, "Managed local account password rotation is already in progress for this host.", badReq.Message)
 		assert.False(t, ds.InitiateWindowsManagedLocalAccountRotationFuncInvoked)
@@ -234,7 +234,7 @@ func TestRotateWindowsManagedLocalAccountPassword(t *testing.T) {
 }
 
 type rotateFileVaultKeyCommander struct {
-	fleet.MDMAppleCommandIssuer
+	automdm.MDMAppleCommandIssuer
 	calls []string
 	err   error
 }
@@ -253,32 +253,32 @@ func TestRotateDiskEncryptionKey(t *testing.T) {
 	caKeyPEM := tokenpki.PEMRSAPrivateKey(caKey)
 	encrypted, err := pkcs7.Encrypt([]byte("ABCD-EFGH"), []*x509.Certificate{caCert})
 	require.NoError(t, err)
-	decryptableKey := func() *fleet.HostDiskEncryptionKey {
-		return &fleet.HostDiskEncryptionKey{Base64Encrypted: base64.StdEncoding.EncodeToString(encrypted), Decryptable: new(true)}
+	decryptableKey := func() *automdm.HostDiskEncryptionKey {
+		return &automdm.HostDiskEncryptionKey{Base64Encrypted: base64.StdEncoding.EncodeToString(encrypted), Decryptable: new(true)}
 	}
 
 	teamID := uint(1)
-	admin := &fleet.User{ID: 42, GlobalRole: new(fleet.RoleAdmin)}
+	admin := &automdm.User{ID: 42, GlobalRole: new(automdm.RoleAdmin)}
 
 	type env struct {
 		ds        *mock.Store
 		svc       *Service
 		baseSvc   *svcmock.Service
 		commander *rotateFileVaultKeyCommander
-		host      *fleet.Host
-		key       *fleet.HostDiskEncryptionKey
+		host      *automdm.Host
+		key       *automdm.HostDiskEncryptionKey
 		keyErr    error
 		escrow    bool
 		marker    *string
 		pending   bool
 		stale     bool
-		acts      []fleet.ActivityDetails
+		acts      []automdm.ActivityDetails
 	}
 	setup := func(t *testing.T) *env {
 		e := &env{
 			ds:        new(mock.Store),
 			commander: &rotateFileVaultKeyCommander{},
-			host:      &fleet.Host{ID: 1, UUID: "host-uuid", Platform: "darwin", TeamID: &teamID},
+			host:      &automdm.Host{ID: 1, UUID: "host-uuid", Platform: "darwin", TeamID: &teamID},
 			key:       decryptableKey(),
 			escrow:    true,
 		}
@@ -286,22 +286,22 @@ func TestRotateDiskEncryptionKey(t *testing.T) {
 		e.svc.mdmAppleCommander = e.commander
 		e.svc.logger = slog.New(slog.DiscardHandler)
 		e.baseSvc.VerifyMDMAppleConfiguredFunc = func(ctx context.Context) error { return nil }
-		e.baseSvc.NewActivityFunc = func(ctx context.Context, user *fleet.User, activity fleet.ActivityDetails) error {
+		e.baseSvc.NewActivityFunc = func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error {
 			require.Equal(t, admin.ID, user.ID)
 			e.acts = append(e.acts, activity)
 			return nil
 		}
-		e.ds.HostFunc = func(ctx context.Context, id uint) (*fleet.Host, error) {
+		e.ds.HostFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
 			if id != e.host.ID {
 				return nil, &testNotFoundError{}
 			}
 			return e.host, nil
 		}
-		e.ds.IsHostConnectedToFleetMDMFunc = func(ctx context.Context, h *fleet.Host) (bool, error) { return true, nil }
-		e.ds.GetConfigEnableDiskEncryptionFunc = func(ctx context.Context, teamID *uint) (fleet.DiskEncryptionConfig, error) {
-			return fleet.DiskEncryptionConfig{MacOSEscrowEnabled: e.escrow}, nil
+		e.ds.IsHostConnectedToAutoMDMMDMFunc = func(ctx context.Context, h *automdm.Host) (bool, error) { return true, nil }
+		e.ds.GetConfigEnableDiskEncryptionFunc = func(ctx context.Context, teamID *uint) (automdm.DiskEncryptionConfig, error) {
+			return automdm.DiskEncryptionConfig{MacOSEscrowEnabled: e.escrow}, nil
 		}
-		e.ds.GetHostDiskEncryptionKeyFunc = func(ctx context.Context, hostID uint) (*fleet.HostDiskEncryptionKey, error) {
+		e.ds.GetHostDiskEncryptionKeyFunc = func(ctx context.Context, hostID uint) (*automdm.HostDiskEncryptionKey, error) {
 			if e.keyErr != nil {
 				return nil, e.keyErr
 			}
@@ -334,22 +334,22 @@ func TestRotateDiskEncryptionKey(t *testing.T) {
 			e.marker = &cmdUUID
 			return true, nil
 		}
-		e.ds.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, _ []fleet.MDMAssetName, _ sqlx.QueryerContext,
-		) (map[fleet.MDMAssetName]fleet.MDMConfigAsset, error) {
-			return map[fleet.MDMAssetName]fleet.MDMConfigAsset{
-				fleet.MDMAssetCACert: {Name: fleet.MDMAssetCACert, Value: caCertPEM},
-				fleet.MDMAssetCAKey:  {Name: fleet.MDMAssetCAKey, Value: caKeyPEM},
+		e.ds.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, _ []automdm.MDMAssetName, _ sqlx.QueryerContext,
+		) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
+			return map[automdm.MDMAssetName]automdm.MDMConfigAsset{
+				automdm.MDMAssetCACert: {Name: automdm.MDMAssetCACert, Value: caCertPEM},
+				automdm.MDMAssetCAKey:  {Name: automdm.MDMAssetCAKey, Value: caKeyPEM},
 			}, nil
 		}
-		e.ds.GetAllMDMConfigAssetsByNameIncludingDeletedFunc = func(ctx context.Context, _ []fleet.MDMAssetName) ([]fleet.MDMConfigAsset, error) {
-			return []fleet.MDMConfigAsset{{Name: fleet.MDMAssetCACert, Value: caCertPEM}}, nil
+		e.ds.GetAllMDMConfigAssetsByNameIncludingDeletedFunc = func(ctx context.Context, _ []automdm.MDMAssetName) ([]automdm.MDMConfigAsset, error) {
+			return []automdm.MDMConfigAsset{{Name: automdm.MDMAssetCACert, Value: caCertPEM}}, nil
 		}
 		return e
 	}
 	adminCtx := func() context.Context { return viewer.NewContext(context.Background(), viewer.Viewer{User: admin}) }
 	requireStatus := func(t *testing.T, err error, status int, msg string) {
 		t.Helper()
-		var ume *fleet.UserMessageError
+		var ume *automdm.UserMessageError
 		require.ErrorAs(t, err, &ume)
 		require.Equal(t, status, ume.StatusCode())
 		require.Contains(t, ume.Error(), msg)
@@ -361,7 +361,7 @@ func TestRotateDiskEncryptionKey(t *testing.T) {
 		require.Len(t, e.commander.calls, 1)
 		require.NotNil(t, e.marker)
 		require.Equal(t, e.commander.calls[0], *e.marker)
-		require.Equal(t, []fleet.ActivityDetails{fleet.ActivityTypeRotatedDiskEncryptionKey{
+		require.Equal(t, []automdm.ActivityDetails{automdm.ActivityTypeRotatedDiskEncryptionKey{
 			HostID: 1, HostDisplayName: e.host.DisplayName(),
 		}}, e.acts)
 	})
@@ -370,21 +370,21 @@ func TestRotateDiskEncryptionKey(t *testing.T) {
 		for _, platform := range []string{"windows", "ubuntu", "ios"} {
 			e := setup(t)
 			e.host.Platform = platform
-			var bre *fleet.BadRequestError
+			var bre *automdm.BadRequestError
 			require.ErrorAs(t, e.svc.RotateDiskEncryptionKey(adminCtx(), 1), &bre, platform)
 			require.Contains(t, bre.Message, "only supported on macOS")
 		}
 
 		e := setup(t)
-		e.ds.IsHostConnectedToFleetMDMFunc = func(ctx context.Context, h *fleet.Host) (bool, error) { return false, nil }
-		var bre *fleet.BadRequestError
+		e.ds.IsHostConnectedToAutoMDMMDMFunc = func(ctx context.Context, h *automdm.Host) (bool, error) { return false, nil }
+		var bre *automdm.BadRequestError
 		require.ErrorAs(t, e.svc.RotateDiskEncryptionKey(adminCtx(), 1), &bre)
-		require.Contains(t, bre.Message, "enrolled in Fleet MDM")
+		require.Contains(t, bre.Message, "enrolled in AutoMDM")
 
-		for _, status := range []string{fleet.MDMEnrollmentStatusPersonal, fleet.MDMEnrollmentStatusManualPersonal} {
+		for _, status := range []string{automdm.MDMEnrollmentStatusPersonal, automdm.MDMEnrollmentStatusManualPersonal} {
 			e := setup(t)
 			e.host.MDM.EnrollmentStatus = new(status)
-			var bre *fleet.BadRequestError
+			var bre *automdm.BadRequestError
 			require.ErrorAs(t, e.svc.RotateDiskEncryptionKey(adminCtx(), 1), &bre, status)
 			require.Contains(t, bre.Message, "isn't available for personal hosts")
 			require.Empty(t, e.commander.calls)
@@ -394,8 +394,8 @@ func TestRotateDiskEncryptionKey(t *testing.T) {
 
 	t.Run("MDM not configured", func(t *testing.T) {
 		e := setup(t)
-		e.baseSvc.VerifyMDMAppleConfiguredFunc = func(ctx context.Context) error { return fleet.ErrMDMNotConfigured }
-		require.ErrorIs(t, e.svc.RotateDiskEncryptionKey(adminCtx(), 1), fleet.ErrMDMNotConfigured)
+		e.baseSvc.VerifyMDMAppleConfiguredFunc = func(ctx context.Context) error { return automdm.ErrMDMNotConfigured }
+		require.ErrorIs(t, e.svc.RotateDiskEncryptionKey(adminCtx(), 1), automdm.ErrMDMNotConfigured)
 	})
 
 	t.Run("unprocessable preconditions", func(t *testing.T) {
@@ -425,7 +425,7 @@ func TestRotateDiskEncryptionKey(t *testing.T) {
 	t.Run("pending rotation conflicts", func(t *testing.T) {
 		e := setup(t)
 		e.marker, e.pending = new("in-flight"), true
-		var conflict *fleet.ConflictError
+		var conflict *automdm.ConflictError
 		require.ErrorAs(t, e.svc.RotateDiskEncryptionKey(adminCtx(), 1), &conflict)
 		require.Empty(t, e.commander.calls)
 		require.Equal(t, "in-flight", *e.marker)
@@ -436,7 +436,7 @@ func TestRotateDiskEncryptionKey(t *testing.T) {
 		e.ds.SetHostDiskEncryptionKeyRotationCommandFunc = func(ctx context.Context, hostID uint, cmdUUID string) (bool, error) {
 			return false, nil
 		}
-		var conflict *fleet.ConflictError
+		var conflict *automdm.ConflictError
 		require.ErrorAs(t, e.svc.RotateDiskEncryptionKey(adminCtx(), 1), &conflict)
 		require.Empty(t, e.commander.calls)
 	})
@@ -454,7 +454,7 @@ func TestRotateDiskEncryptionKey(t *testing.T) {
 	t.Run("recent marker without a pending command conflicts", func(t *testing.T) {
 		e := setup(t)
 		e.marker = new("in-flight")
-		var conflict *fleet.ConflictError
+		var conflict *automdm.ConflictError
 		require.ErrorAs(t, e.svc.RotateDiskEncryptionKey(adminCtx(), 1), &conflict)
 		require.Empty(t, e.commander.calls)
 		require.Equal(t, "in-flight", *e.marker)
@@ -466,7 +466,7 @@ func TestRotateDiskEncryptionKey(t *testing.T) {
 		e.ds.ClearStaleHostDiskEncryptionKeyRotationCommandFunc = func(ctx context.Context, hostID uint, cmdUUID string, olderThan time.Duration) (bool, error) {
 			return false, nil
 		}
-		var conflict *fleet.ConflictError
+		var conflict *automdm.ConflictError
 		require.ErrorAs(t, e.svc.RotateDiskEncryptionKey(adminCtx(), 1), &conflict)
 		require.Empty(t, e.commander.calls)
 	})
@@ -484,7 +484,7 @@ func TestRotateDiskEncryptionKey(t *testing.T) {
 		e.commander.err = ctxerr.Wrap(context.Background(), &apple_mdm.NotificationFailedError{}, "sending notifications")
 		require.NoError(t, e.svc.RotateDiskEncryptionKey(adminCtx(), 1), "push notification failures should not fail if we enqueued the command")
 		require.NotNil(t, e.marker)
-		require.Equal(t, []fleet.ActivityDetails{fleet.ActivityTypeRotatedDiskEncryptionKey{
+		require.Equal(t, []automdm.ActivityDetails{automdm.ActivityTypeRotatedDiskEncryptionKey{
 			HostID: 1, HostDisplayName: e.host.DisplayName(),
 		}}, e.acts)
 	})
@@ -492,37 +492,37 @@ func TestRotateDiskEncryptionKey(t *testing.T) {
 	t.Run("authorization", func(t *testing.T) {
 		cases := []struct {
 			name     string
-			user     *fleet.User
+			user     *automdm.User
 			wantErr  bool
 			notFound bool
 		}{
-			{"global admin", &fleet.User{ID: 42, GlobalRole: new(fleet.RoleAdmin)}, false, false},
-			{"global maintainer", &fleet.User{ID: 42, GlobalRole: new(fleet.RoleMaintainer)}, false, false},
-			{"global gitops", &fleet.User{ID: 42, GlobalRole: new(fleet.RoleGitOps)}, true, false},
-			{"global observer", &fleet.User{ID: 42, GlobalRole: new(fleet.RoleObserver)}, true, false},
-			{"global observer+", &fleet.User{ID: 42, GlobalRole: new(fleet.RoleObserverPlus)}, true, false},
-			{"global technician", &fleet.User{ID: 42, GlobalRole: new(fleet.RoleTechnician)}, true, false},
-			{"team admin", &fleet.User{ID: 42, Teams: []fleet.UserTeam{{ID: 1, Role: fleet.RoleAdmin}}}, false, false},
-			{"team maintainer", &fleet.User{ID: 42, Teams: []fleet.UserTeam{{ID: 1, Role: fleet.RoleMaintainer}}}, false, false},
-			{"team observer", &fleet.User{ID: 42, Teams: []fleet.UserTeam{{ID: 1, Role: fleet.RoleObserver}}}, true, false},
-			{"team technician", &fleet.User{ID: 42, Teams: []fleet.UserTeam{{ID: 1, Role: fleet.RoleTechnician}}}, true, false},
-			{"other team admin", &fleet.User{ID: 42, Teams: []fleet.UserTeam{{ID: 2, Role: fleet.RoleAdmin}}}, true, true},
-			{"team gitops", &fleet.User{ID: 42, Teams: []fleet.UserTeam{{ID: 1, Role: fleet.RoleGitOps}}}, true, false},
+			{"global admin", &automdm.User{ID: 42, GlobalRole: new(automdm.RoleAdmin)}, false, false},
+			{"global maintainer", &automdm.User{ID: 42, GlobalRole: new(automdm.RoleMaintainer)}, false, false},
+			{"global gitops", &automdm.User{ID: 42, GlobalRole: new(automdm.RoleGitOps)}, true, false},
+			{"global observer", &automdm.User{ID: 42, GlobalRole: new(automdm.RoleObserver)}, true, false},
+			{"global observer+", &automdm.User{ID: 42, GlobalRole: new(automdm.RoleObserverPlus)}, true, false},
+			{"global technician", &automdm.User{ID: 42, GlobalRole: new(automdm.RoleTechnician)}, true, false},
+			{"team admin", &automdm.User{ID: 42, Teams: []automdm.UserTeam{{ID: 1, Role: automdm.RoleAdmin}}}, false, false},
+			{"team maintainer", &automdm.User{ID: 42, Teams: []automdm.UserTeam{{ID: 1, Role: automdm.RoleMaintainer}}}, false, false},
+			{"team observer", &automdm.User{ID: 42, Teams: []automdm.UserTeam{{ID: 1, Role: automdm.RoleObserver}}}, true, false},
+			{"team technician", &automdm.User{ID: 42, Teams: []automdm.UserTeam{{ID: 1, Role: automdm.RoleTechnician}}}, true, false},
+			{"other team admin", &automdm.User{ID: 42, Teams: []automdm.UserTeam{{ID: 2, Role: automdm.RoleAdmin}}}, true, true},
+			{"team gitops", &automdm.User{ID: 42, Teams: []automdm.UserTeam{{ID: 1, Role: automdm.RoleGitOps}}}, true, false},
 			// can list hosts through the other team, but gitops can't read the host's MDM commands
 			{
 				"team gitops with another team's observer+",
-				&fleet.User{ID: 42, Teams: []fleet.UserTeam{{ID: 1, Role: fleet.RoleGitOps}, {ID: 2, Role: fleet.RoleObserverPlus}}},
+				&automdm.User{ID: 42, Teams: []automdm.UserTeam{{ID: 1, Role: automdm.RoleGitOps}, {ID: 2, Role: automdm.RoleObserverPlus}}},
 				true, true,
 			},
 		}
 		for _, c := range cases {
 			t.Run(c.name, func(t *testing.T) {
 				e := setup(t)
-				e.baseSvc.NewActivityFunc = func(ctx context.Context, user *fleet.User, activity fleet.ActivityDetails) error { return nil }
+				e.baseSvc.NewActivityFunc = func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error { return nil }
 				err := e.svc.RotateDiskEncryptionKey(viewer.NewContext(context.Background(), viewer.Viewer{User: c.user}), 1)
 				switch {
 				case c.notFound:
-					require.True(t, fleet.IsNotFound(err), "%v", err)
+					require.True(t, automdm.IsNotFound(err), "%v", err)
 				case c.wantErr:
 					checkAuthErr(t, true, err)
 				default:
@@ -537,20 +537,20 @@ func TestLockWipeRejectPersonalAppleHosts(t *testing.T) {
 	t.Parallel()
 	ds := new(mock.Store)
 	svc, _ := newTestServiceWithMock(t, ds)
-	ctx := viewer.NewContext(t.Context(), viewer.Viewer{User: &fleet.User{GlobalRole: new(fleet.RoleAdmin)}})
+	ctx := viewer.NewContext(t.Context(), viewer.Viewer{User: &automdm.User{GlobalRole: new(automdm.RoleAdmin)}})
 
 	for _, platform := range []string{"darwin", "ios", "ipados"} {
-		for _, status := range []string{fleet.MDMEnrollmentStatusPersonal, fleet.MDMEnrollmentStatusManualPersonal} {
+		for _, status := range []string{automdm.MDMEnrollmentStatusPersonal, automdm.MDMEnrollmentStatusManualPersonal} {
 			t.Run(platform+" "+status, func(t *testing.T) {
-				ds.HostFunc = func(ctx context.Context, id uint) (*fleet.Host, error) {
-					return &fleet.Host{ID: id, Platform: platform, MDM: fleet.MDMHostData{EnrollmentStatus: new(status)}}, nil
+				ds.HostFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
+					return &automdm.Host{ID: id, Platform: platform, MDM: automdm.MDMHostData{EnrollmentStatus: new(status)}}, nil
 				}
 
 				_, err := svc.LockHost(ctx, 1, false)
-				require.ErrorContains(t, err, fleet.CantLockPersonalHostsMessage)
+				require.ErrorContains(t, err, automdm.CantLockPersonalHostsMessage)
 
 				err = svc.WipeHost(ctx, 1)
-				require.ErrorContains(t, err, fleet.CantWipePersonalHostsMessage)
+				require.ErrorContains(t, err, automdm.CantWipePersonalHostsMessage)
 			})
 		}
 	}
@@ -561,13 +561,13 @@ func TestGetHostRecoveryLockPassword(t *testing.T) {
 		ds := new(mock.Store)
 		svc, _ := newTestServiceWithMock(t, ds)
 
-		windowsHost := &fleet.Host{
+		windowsHost := &automdm.Host{
 			ID:       1,
 			Platform: "windows",
 			UUID:     "windows-uuid",
 			CPUType:  "x86_64",
 		}
-		ds.HostFunc = func(ctx context.Context, id uint) (*fleet.Host, error) {
+		ds.HostFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
 			return windowsHost, nil
 		}
 
@@ -581,13 +581,13 @@ func TestGetHostRecoveryLockPassword(t *testing.T) {
 		ds := new(mock.Store)
 		svc, _ := newTestServiceWithMock(t, ds)
 
-		intelMacHost := &fleet.Host{
+		intelMacHost := &automdm.Host{
 			ID:       2,
 			Platform: "darwin",
 			UUID:     "intel-mac-uuid",
 			CPUType:  "x86_64",
 		}
-		ds.HostFunc = func(ctx context.Context, id uint) (*fleet.Host, error) {
+		ds.HostFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
 			return intelMacHost, nil
 		}
 
@@ -601,32 +601,32 @@ func TestGetHostRecoveryLockPassword(t *testing.T) {
 		ds := new(mock.Store)
 		svc, svcMock := newTestServiceWithMock(t, ds)
 
-		appleSiliconHost := &fleet.Host{
+		appleSiliconHost := &automdm.Host{
 			ID:       3,
 			Platform: "darwin",
 			UUID:     "apple-silicon-uuid",
 			CPUType:  "arm64e",
 		}
-		ds.HostFunc = func(ctx context.Context, id uint) (*fleet.Host, error) {
+		ds.HostFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
 			return appleSiliconHost, nil
 		}
-		ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-			return &fleet.AppConfig{
-				MDM: fleet.MDM{
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{
+				MDM: automdm.MDM{
 					EnabledAndConfigured: true,
 				},
 			}, nil
 		}
-		ds.GetHostRecoveryLockPasswordFunc = func(ctx context.Context, hostUUID string) (*fleet.HostRecoveryLockPassword, error) {
-			return &fleet.HostRecoveryLockPassword{
+		ds.GetHostRecoveryLockPasswordFunc = func(ctx context.Context, hostUUID string) (*automdm.HostRecoveryLockPassword, error) {
+			return &automdm.HostRecoveryLockPassword{
 				Password: new("test-password"),
-				Status:   &fleet.MDMDeliveryVerified,
+				Status:   &automdm.MDMDeliveryVerified,
 			}, nil
 		}
 		ds.MarkRecoveryLockPasswordViewedFunc = func(ctx context.Context, hostUUID string) (time.Time, error) {
 			return time.Now().Add(1 * time.Hour), nil
 		}
-		svcMock.NewActivityFunc = func(ctx context.Context, user *fleet.User, activity fleet.ActivityDetails) error {
+		svcMock.NewActivityFunc = func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error {
 			return nil
 		}
 
@@ -641,29 +641,29 @@ func TestGetHostRecoveryLockPassword(t *testing.T) {
 		ds := new(mock.Store)
 		svc, svcMock := newTestServiceWithMock(t, ds)
 
-		appleSiliconHost := &fleet.Host{
+		appleSiliconHost := &automdm.Host{
 			ID:       4,
 			Platform: "darwin",
 			UUID:     "apple-silicon-uuid-4",
 			CPUType:  "arm64e",
 		}
-		ds.HostFunc = func(ctx context.Context, id uint) (*fleet.Host, error) {
+		ds.HostFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
 			return appleSiliconHost, nil
 		}
-		ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-			return &fleet.AppConfig{
-				MDM: fleet.MDM{
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{
+				MDM: automdm.MDM{
 					EnabledAndConfigured: true,
 				},
 			}, nil
 		}
-		ds.GetHostRecoveryLockPasswordFunc = func(ctx context.Context, hostUUID string) (*fleet.HostRecoveryLockPassword, error) {
-			return &fleet.HostRecoveryLockPassword{
+		ds.GetHostRecoveryLockPasswordFunc = func(ctx context.Context, hostUUID string) (*automdm.HostRecoveryLockPassword, error) {
+			return &automdm.HostRecoveryLockPassword{
 				Password: new("test-password-4"),
-				Status:   &fleet.MDMDeliveryVerified,
+				Status:   &automdm.MDMDeliveryVerified,
 			}, nil
 		}
-		svcMock.NewActivityFunc = func(ctx context.Context, user *fleet.User, activity fleet.ActivityDetails) error {
+		svcMock.NewActivityFunc = func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error {
 			return nil
 		}
 
@@ -689,32 +689,32 @@ func TestGetHostRecoveryLockPassword(t *testing.T) {
 		ds := new(mock.Store)
 		svc, svcMock := newTestServiceWithMock(t, ds)
 
-		appleSiliconHost := &fleet.Host{
+		appleSiliconHost := &automdm.Host{
 			ID:       5,
 			Platform: "darwin",
 			UUID:     "apple-silicon-uuid-5",
 			CPUType:  "arm64e",
 		}
-		ds.HostFunc = func(ctx context.Context, id uint) (*fleet.Host, error) {
+		ds.HostFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
 			return appleSiliconHost, nil
 		}
-		ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-			return &fleet.AppConfig{
-				MDM: fleet.MDM{
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{
+				MDM: automdm.MDM{
 					EnabledAndConfigured: true,
 				},
 			}, nil
 		}
-		ds.GetHostRecoveryLockPasswordFunc = func(ctx context.Context, hostUUID string) (*fleet.HostRecoveryLockPassword, error) {
-			return &fleet.HostRecoveryLockPassword{
+		ds.GetHostRecoveryLockPasswordFunc = func(ctx context.Context, hostUUID string) (*automdm.HostRecoveryLockPassword, error) {
+			return &automdm.HostRecoveryLockPassword{
 				Password: new("test-password-5"),
-				Status:   &fleet.MDMDeliveryVerified,
+				Status:   &automdm.MDMDeliveryVerified,
 			}, nil
 		}
 		ds.MarkRecoveryLockPasswordViewedFunc = func(ctx context.Context, hostUUID string) (time.Time, error) {
 			return time.Time{}, errors.New("database error")
 		}
-		svcMock.NewActivityFunc = func(ctx context.Context, user *fleet.User, activity fleet.ActivityDetails) error {
+		svcMock.NewActivityFunc = func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error {
 			return nil
 		}
 
@@ -731,26 +731,26 @@ func TestGetHostRecoveryLockPassword(t *testing.T) {
 		ds := new(mock.Store)
 		svc, svcMock := newTestServiceWithMock(t, ds)
 
-		appleSiliconHost := &fleet.Host{
+		appleSiliconHost := &automdm.Host{
 			ID:       5,
 			Platform: "darwin",
 			UUID:     "apple-silicon-uuid-5",
 			CPUType:  "arm64e",
 		}
-		ds.HostFunc = func(ctx context.Context, id uint) (*fleet.Host, error) {
+		ds.HostFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
 			return appleSiliconHost, nil
 		}
-		ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-			return &fleet.AppConfig{
-				MDM: fleet.MDM{
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{
+				MDM: automdm.MDM{
 					EnabledAndConfigured: true,
 				},
 			}, nil
 		}
-		ds.GetHostRecoveryLockPasswordFunc = func(ctx context.Context, hostUUID string) (*fleet.HostRecoveryLockPassword, error) {
-			return &fleet.HostRecoveryLockPassword{
+		ds.GetHostRecoveryLockPasswordFunc = func(ctx context.Context, hostUUID string) (*automdm.HostRecoveryLockPassword, error) {
+			return &automdm.HostRecoveryLockPassword{
 				Password: new("test-password-5"),
-				Status:   &fleet.MDMDeliveryVerifying,
+				Status:   &automdm.MDMDeliveryVerifying,
 			}, nil
 		}
 		expectedRotateAt := time.Now().Add(1 * time.Hour)
@@ -759,7 +759,7 @@ func TestGetHostRecoveryLockPassword(t *testing.T) {
 			viewedCalled = true
 			return expectedRotateAt, nil
 		}
-		svcMock.NewActivityFunc = func(ctx context.Context, user *fleet.User, activity fleet.ActivityDetails) error {
+		svcMock.NewActivityFunc = func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error {
 			return nil
 		}
 
@@ -780,30 +780,30 @@ func TestUnlockHostAndroid(t *testing.T) {
 	svc, baseSvc := newTestServiceWithMock(t, ds)
 
 	ackedAt := time.Date(2026, 11, 11, 10, 30, 0, 0, time.UTC)
-	resetPassword := &fleet.MDMCommand{RequestType: string(android.MDMAndroidCommandTypeResetPassword)}
-	acked := &fleet.MDMCommandResult{Status: string(android.MDMAndroidCommandStatusAcknowledged), UpdatedAt: ackedAt}
-	lockedStatus := func() *fleet.HostLockWipeStatus {
-		return &fleet.HostLockWipeStatus{
-			HostFleetPlatform: "android", UnlockPIN: "135792", LockMDMCommand: resetPassword, LockMDMCommandResult: acked,
+	resetPassword := &automdm.MDMCommand{RequestType: string(android.MDMAndroidCommandTypeResetPassword)}
+	acked := &automdm.MDMCommandResult{Status: string(android.MDMAndroidCommandStatusAcknowledged), UpdatedAt: ackedAt}
+	lockedStatus := func() *automdm.HostLockWipeStatus {
+		return &automdm.HostLockWipeStatus{
+			HostAutoMDMPlatform: "android", UnlockPIN: "135792", LockMDMCommand: resetPassword, LockMDMCommandResult: acked,
 		}
 	}
 
 	var hostTeamID *uint
-	ds.HostLiteFunc = func(ctx context.Context, id uint) (*fleet.Host, error) {
-		return &fleet.Host{ID: id, Platform: "android", Hostname: "pixel", TeamID: hostTeamID}, nil
+	ds.HostLiteFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
+		return &automdm.Host{ID: id, Platform: "android", Hostname: "pixel", TeamID: hostTeamID}, nil
 	}
-	// Unlock only reads the stored PIN, so it must not depend on the host still being connected to Fleet MDM.
-	ds.IsHostConnectedToFleetMDMFunc = func(ctx context.Context, host *fleet.Host) (bool, error) {
+	// Unlock only reads the stored PIN, so it must not depend on the host still being connected to AutoMDM.
+	ds.IsHostConnectedToAutoMDMMDMFunc = func(ctx context.Context, host *automdm.Host) (bool, error) {
 		return false, nil
 	}
 	status := lockedStatus()
-	ds.GetHostLockWipeStatusFunc = func(ctx context.Context, host *fleet.Host) (*fleet.HostLockWipeStatus, error) {
+	ds.GetHostLockWipeStatusFunc = func(ctx context.Context, host *automdm.Host) (*automdm.HostLockWipeStatus, error) {
 		return status, nil
 	}
 	baseSvc.VerifyMDMAndroidConfiguredFunc = func(ctx context.Context) error { return nil }
-	var activities []fleet.ActivityDetails
+	var activities []automdm.ActivityDetails
 	var activityErr error
-	baseSvc.NewActivityFunc = func(ctx context.Context, user *fleet.User, activity fleet.ActivityDetails) error {
+	baseSvc.NewActivityFunc = func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error {
 		if activityErr != nil {
 			return activityErr
 		}
@@ -826,11 +826,11 @@ func TestUnlockHostAndroid(t *testing.T) {
 		require.Equal(t, "135792", res.UnlockPIN)
 		require.NotNil(t, res.LockedAt)
 		require.Equal(t, ackedAt, *res.LockedAt)
-		require.Equal(t, fleet.DeviceStatusUnlocked, res.DeviceStatus)
-		require.Equal(t, fleet.PendingActionNone, res.PendingAction)
-		require.False(t, ds.IsHostConnectedToFleetMDMFuncInvoked)
+		require.Equal(t, automdm.DeviceStatusUnlocked, res.DeviceStatus)
+		require.Equal(t, automdm.PendingActionNone, res.PendingAction)
+		require.False(t, ds.IsHostConnectedToAutoMDMMDMFuncInvoked)
 
-		require.Equal(t, []fleet.ActivityDetails{fleet.ActivityTypeViewedHostUnlockPIN{
+		require.Equal(t, []automdm.ActivityDetails{automdm.ActivityTypeViewedHostUnlockPIN{
 			HostID: 1, HostDisplayName: "pixel", HostPlatform: "android",
 		}}, activities)
 	})
@@ -845,21 +845,21 @@ func TestUnlockHostAndroid(t *testing.T) {
 
 	t.Run("lock states", func(t *testing.T) {
 		pendingWipe := lockedStatus()
-		pendingWipe.WipeMDMCommand = &fleet.MDMCommand{RequestType: string(android.MDMAndroidCommandTypeWipe)}
+		pendingWipe.WipeMDMCommand = &automdm.MDMCommand{RequestType: string(android.MDMAndroidCommandTypeWipe)}
 		wiped := lockedStatus()
-		wiped.WipeMDMCommand = &fleet.MDMCommand{RequestType: string(android.MDMAndroidCommandTypeWipe)}
+		wiped.WipeMDMCommand = &automdm.MDMCommand{RequestType: string(android.MDMAndroidCommandTypeWipe)}
 		wiped.WipeMDMCommandResult = acked
 		pendingLock := lockedStatus()
 		pendingLock.LockMDMCommandResult = nil
 		failedLock := lockedStatus()
-		failedLock.LockMDMCommandResult = &fleet.MDMCommandResult{Status: string(android.MDMAndroidCommandStatusError)}
+		failedLock.LockMDMCommandResult = &automdm.MDMCommandResult{Status: string(android.MDMAndroidCommandStatusError)}
 		legacyLock := lockedStatus()
 		legacyLock.UnlockPIN = ""
-		legacyLock.LockMDMCommand = &fleet.MDMCommand{RequestType: string(android.MDMAndroidCommandTypeLock)}
+		legacyLock.LockMDMCommand = &automdm.MDMCommand{RequestType: string(android.MDMAndroidCommandTypeLock)}
 
 		cases := []struct {
 			name       string
-			status     *fleet.HostLockWipeStatus
+			status     *automdm.HostLockWipeStatus
 			wantErr    string
 			wantStatus int
 		}{
@@ -867,8 +867,8 @@ func TestUnlockHostAndroid(t *testing.T) {
 			{"pending wipe", pendingWipe, "Host has pending wipe request. Cannot process unlock requests once host is wiped.", http.StatusUnprocessableEntity},
 			{"wiped", wiped, "Host is wiped. Cannot process unlock requests once host is wiped.", http.StatusUnprocessableEntity},
 			{"failed lock", failedLock, "Host is already unlocked.", http.StatusConflict},
-			{"lock from before Fleet 5", legacyLock, "Host is already unlocked.", http.StatusConflict},
-			{"never locked", &fleet.HostLockWipeStatus{HostFleetPlatform: "android"}, "Host is already unlocked.", http.StatusConflict},
+			{"lock from before AutoMDM 5", legacyLock, "Host is already unlocked.", http.StatusConflict},
+			{"never locked", &automdm.HostLockWipeStatus{HostAutoMDMPlatform: "android"}, "Host is already unlocked.", http.StatusConflict},
 		}
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
@@ -891,9 +891,9 @@ func TestUnlockHostAndroid(t *testing.T) {
 
 	t.Run("Android MDM not configured", func(t *testing.T) {
 		reset()
-		baseSvc.VerifyMDMAndroidConfiguredFunc = func(ctx context.Context) error { return fleet.ErrMDMNotConfigured }
+		baseSvc.VerifyMDMAndroidConfiguredFunc = func(ctx context.Context) error { return automdm.ErrMDMNotConfigured }
 		_, err := svc.UnlockHost(adminCtx, 1)
-		require.ErrorContains(t, err, fleet.AndroidMDMNotConfiguredMessage)
+		require.ErrorContains(t, err, automdm.AndroidMDMNotConfiguredMessage)
 		require.Empty(t, activities)
 	})
 
@@ -901,7 +901,7 @@ func TestUnlockHostAndroid(t *testing.T) {
 		team1 := new(uint(1))
 		cases := []struct {
 			desc       string
-			user       *fleet.User
+			user       *automdm.User
 			hostTeamID *uint
 			wantErr    error
 		}{
@@ -945,20 +945,20 @@ func TestLockHostAndroidAuthorization(t *testing.T) {
 	svc.androidModule = androidModule
 
 	var hostTeamID *uint
-	ds.HostFunc = func(ctx context.Context, id uint) (*fleet.Host, error) {
-		return &fleet.Host{ID: id, Platform: "android", Hostname: "pixel", TeamID: hostTeamID}, nil
+	ds.HostFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
+		return &automdm.Host{ID: id, Platform: "android", Hostname: "pixel", TeamID: hostTeamID}, nil
 	}
-	ds.IsHostConnectedToFleetMDMFunc = func(ctx context.Context, host *fleet.Host) (bool, error) {
+	ds.IsHostConnectedToAutoMDMMDMFunc = func(ctx context.Context, host *automdm.Host) (bool, error) {
 		return true, nil
 	}
 	var statusReadFromPrimary bool
-	ds.GetHostLockWipeStatusFunc = func(ctx context.Context, host *fleet.Host) (*fleet.HostLockWipeStatus, error) {
+	ds.GetHostLockWipeStatusFunc = func(ctx context.Context, host *automdm.Host) (*automdm.HostLockWipeStatus, error) {
 		statusReadFromPrimary = ctxdb.IsPrimaryRequired(ctx)
-		return &fleet.HostLockWipeStatus{HostFleetPlatform: "android"}, nil
+		return &automdm.HostLockWipeStatus{HostAutoMDMPlatform: "android"}, nil
 	}
 	baseSvc.VerifyMDMAndroidConfiguredFunc = func(ctx context.Context) error { return nil }
-	var activities []fleet.ActivityDetails
-	baseSvc.NewActivityFunc = func(ctx context.Context, user *fleet.User, activity fleet.ActivityDetails) error {
+	var activities []automdm.ActivityDetails
+	baseSvc.NewActivityFunc = func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error {
 		activities = append(activities, activity)
 		return nil
 	}
@@ -966,7 +966,7 @@ func TestLockHostAndroidAuthorization(t *testing.T) {
 	team1 := new(uint(1))
 	cases := []struct {
 		desc       string
-		user       *fleet.User
+		user       *automdm.User
 		hostTeamID *uint
 		wantErr    error
 	}{
@@ -1005,21 +1005,21 @@ func TestClearPasscodeAndroidPendingLock(t *testing.T) {
 	ds := new(mock.Store)
 	svc, _ := newTestServiceWithMock(t, ds)
 
-	ds.HostLiteFunc = func(ctx context.Context, id uint) (*fleet.Host, error) {
-		return &fleet.Host{ID: id, Platform: "android"}, nil
+	ds.HostLiteFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
+		return &automdm.Host{ID: id, Platform: "android"}, nil
 	}
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{MDM: fleet.MDM{AndroidEnabledAndConfigured: true}}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{MDM: automdm.MDM{AndroidEnabledAndConfigured: true}}, nil
 	}
-	ds.IsHostConnectedToFleetMDMFunc = func(ctx context.Context, host *fleet.Host) (bool, error) {
+	ds.IsHostConnectedToAutoMDMMDMFunc = func(ctx context.Context, host *automdm.Host) (bool, error) {
 		return true, nil
 	}
 	var statusReadFromPrimary bool
-	ds.GetHostLockWipeStatusFunc = func(ctx context.Context, host *fleet.Host) (*fleet.HostLockWipeStatus, error) {
+	ds.GetHostLockWipeStatusFunc = func(ctx context.Context, host *automdm.Host) (*automdm.HostLockWipeStatus, error) {
 		statusReadFromPrimary = ctxdb.IsPrimaryRequired(ctx)
-		return &fleet.HostLockWipeStatus{
-			HostFleetPlatform: "android",
-			LockMDMCommand:    &fleet.MDMCommand{RequestType: string(android.MDMAndroidCommandTypeResetPassword)},
+		return &automdm.HostLockWipeStatus{
+			HostAutoMDMPlatform: "android",
+			LockMDMCommand:      &automdm.MDMCommand{RequestType: string(android.MDMAndroidCommandTypeResetPassword)},
 		}, nil
 	}
 
@@ -1032,49 +1032,49 @@ func TestResetHostRefusals(t *testing.T) {
 	t.Parallel()
 	ds := new(mock.Store)
 	svc, baseSvc := newTestServiceWithMock(t, ds)
-	ctx := viewer.NewContext(t.Context(), viewer.Viewer{User: &fleet.User{GlobalRole: new(fleet.RoleAdmin)}})
+	ctx := viewer.NewContext(t.Context(), viewer.Viewer{User: &automdm.User{GlobalRole: new(automdm.RoleAdmin)}})
 
-	ds.IsHostConnectedToFleetMDMFunc = func(ctx context.Context, host *fleet.Host) (bool, error) { return true, nil }
-	ds.WipeHostViaWindowsMDMFunc = func(ctx context.Context, host *fleet.Host, cmd *fleet.MDMWindowsCommand) error { return nil }
-	baseSvc.NewActivityFunc = func(context.Context, *fleet.User, fleet.ActivityDetails) error { return nil }
+	ds.IsHostConnectedToAutoMDMMDMFunc = func(ctx context.Context, host *automdm.Host) (bool, error) { return true, nil }
+	ds.WipeHostViaWindowsMDMFunc = func(ctx context.Context, host *automdm.Host, cmd *automdm.MDMWindowsCommand) error { return nil }
+	baseSvc.NewActivityFunc = func(context.Context, *automdm.User, automdm.ActivityDetails) error { return nil }
 
-	locked := &fleet.HostScriptResult{ExitCode: new(int64(0))}
+	locked := &automdm.HostScriptResult{ExitCode: new(int64(0))}
 	for _, tc := range []struct {
 		name     string
 		platform string
 		mdmOff   bool
-		lockWipe fleet.HostLockWipeStatus
+		lockWipe automdm.HostLockWipeStatus
 		wantMsg  string
 	}{
 		{name: "macOS host", platform: "darwin", wantMsg: "Reset is only available for Windows hosts."},
-		{name: "Windows MDM off", platform: "windows", mdmOff: true, wantMsg: fleet.WindowsMDMNotConfiguredMessage},
+		{name: "Windows MDM off", platform: "windows", mdmOff: true, wantMsg: automdm.WindowsMDMNotConfiguredMessage},
 		{
-			name: "pending lock", platform: "windows", lockWipe: fleet.HostLockWipeStatus{LockScript: &fleet.HostScriptResult{}},
+			name: "pending lock", platform: "windows", lockWipe: automdm.HostLockWipeStatus{LockScript: &automdm.HostScriptResult{}},
 			wantMsg: "Host has pending lock request. Host cannot be reset until lock is complete.",
 		},
 		{
 			name: "pending unlock", platform: "windows",
-			lockWipe: fleet.HostLockWipeStatus{LockScript: locked, UnlockScript: &fleet.HostScriptResult{}},
+			lockWipe: automdm.HostLockWipeStatus{LockScript: locked, UnlockScript: &automdm.HostScriptResult{}},
 			wantMsg:  "Host has pending unlock request. Host cannot be reset until unlock is complete.",
 		},
 		{
-			name: "locked", platform: "windows", lockWipe: fleet.HostLockWipeStatus{LockScript: locked},
+			name: "locked", platform: "windows", lockWipe: automdm.HostLockWipeStatus{LockScript: locked},
 			wantMsg: "Host is locked. Host cannot be reset until it is unlocked.",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			ds.HostFunc = func(ctx context.Context, id uint) (*fleet.Host, error) {
-				return &fleet.Host{ID: id, Platform: tc.platform}, nil
+			ds.HostFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
+				return &automdm.Host{ID: id, Platform: tc.platform}, nil
 			}
 			baseSvc.VerifyMDMWindowsConfiguredFunc = func(ctx context.Context) error {
 				if tc.mdmOff {
-					return fleet.ErrWindowsMDMNotConfigured
+					return automdm.ErrWindowsMDMNotConfigured
 				}
 				return nil
 			}
-			ds.GetHostLockWipeStatusFunc = func(ctx context.Context, host *fleet.Host) (*fleet.HostLockWipeStatus, error) {
+			ds.GetHostLockWipeStatusFunc = func(ctx context.Context, host *automdm.Host) (*automdm.HostLockWipeStatus, error) {
 				status := tc.lockWipe
-				status.HostFleetPlatform = host.FleetPlatform()
+				status.HostAutoMDMPlatform = host.AutoMDMPlatform()
 				return &status, nil
 			}
 			ds.WipeHostViaWindowsMDMFuncInvoked = false

@@ -1,18 +1,18 @@
 <resources>
-    <string name="app_name">Fleet</string>
+    <string name="app_name">AutoMDM</string>
 
     <string name="app_description">This app is installed by your IT admin to install the certificates needed to connect to corporate networks.</string>
-    <string name="learn_about_fleet">About Fleet</string>
-    <string name="fleet_logo">Fleet logo</string>
+    <string name="learn_about_automdm">About AutoMDM</string>
+    <string name="automdm_logo">AutoMDM logo</string>
     <string name="certificate_list_title">Certificates</string>
     <string name="certificate_list_no_certificates">No certificates installed</string>
     <string name="app_version_title">App version</string>
 
     <!-- Managed Configuration -->
     <string name="enroll_secret_title">Enroll secret</string>
-    <string name="enroll_secret_description">Secret used to enroll in a fleet instance</string>
-    <string name="server_url_title">Fleet base URL</string>
-    <string name="server_url_description">The base URL of the fleet server</string>
+    <string name="enroll_secret_description">Secret used to enroll in an automdm instance</string>
+    <string name="server_url_title">AutoMDM base URL</string>
+    <string name="server_url_description">The base URL of the automdm server</string>
     <string name="certificate_templates_title">Certificates templates</string>
     <string name="certificate_templates_description">Array of bundles containing certificate template information</string>
     <string name="certificate_template_title">Certificate template</string>
@@ -24,5 +24,5 @@
     <string name="certificate_template_operation_title">Certificate template operation</string>
     <string name="certificate_template_operation_description">Operation to perform (install or remove)</string>
     <string name="host_uuid_title">Host UUID</string>
-    <string name="host_uuid_description">The host UUID to present to Fleet during enrollment</string>
+    <string name="host_uuid_description">The host UUID to present to AutoMDM during enrollment</string>
 </resources>

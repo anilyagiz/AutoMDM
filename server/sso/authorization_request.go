@@ -7,10 +7,10 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/anilyagiz/automdm/v4/server"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 	"github.com/crewjam/saml"
-	"github.com/fleetdm/fleet/v4/server"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
 )
 
 const cacheLifetimeSeconds = uint(300) // in seconds (5 minutes)
@@ -28,7 +28,7 @@ func getDestinationURL(idpMetadata *saml.EntityDescriptor) (string, error) {
 
 // CreateAuthorizationRequest creates a new SAML AuthnRequest and creates a new session in sessionStore.
 // It will generate and return the session identifier.
-// (the IdP will send it again to Fleet in the callback, and that's how Fleet will authenticate the session).
+// (the IdP will send it again to AutoMDM in the callback, and that's how AutoMDM will authenticate the session).
 // If sessionTTLSeconds is 0 then a default of 5 minutes of TTL is used.
 func CreateAuthorizationRequest(
 	ctx context.Context,
@@ -36,7 +36,7 @@ func CreateAuthorizationRequest(
 	sessionStore SessionStore,
 	originalURL string,
 	sessionTTLSeconds uint,
-	relayState fleet.SSORelayState,
+	relayState automdm.SSORelayState,
 	requestData SSORequestData,
 ) (sessionID string, idpURL string, err error) {
 	idpURL, err = getDestinationURL(samlProvider.IDPMetadata)
@@ -53,7 +53,7 @@ func CreateAuthorizationRequest(
 	}
 	// We can modify the samlAuthRequest because it's not signed
 	// (not a requirement when using "HTTPRedirectBinding" binding for the request)
-	samlAuthRequest.ProviderName = "Fleet"
+	samlAuthRequest.ProviderName = "AutoMDM"
 
 	var metadataWriter bytes.Buffer
 	err = xml.NewEncoder(&metadataWriter).Encode(samlProvider.IDPMetadata)

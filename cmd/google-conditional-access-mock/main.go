@@ -1,4 +1,4 @@
-// Command google-conditional-access-mock stands in for fleetdm.com's Google conditional
+// Command google-conditional-access-mock stands in for automdm.com's Google conditional
 // access relay, Google's Cloud Identity API, or both, so the Google conditional access
 // flow can run without a Workspace tenant or an allowlisted OAuth client. See README.md.
 package main
@@ -21,8 +21,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/service/conditional_access_google/mockserver"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/server/service/conditional_access_google/mockserver"
 )
 
 func main() {
@@ -35,12 +35,12 @@ func main() {
 func run() error {
 	listen := flag.String("listen", "localhost:9090", "address to listen on")
 	publicURL := flag.String("public-url", "", "URL devices and Google reach the mock at (default http://<listen>)")
-	mock := flag.String("mock", "fleetdm,google", "surfaces to serve: fleetdm (the fleetdm.com relay), google (Cloud Identity API), or both, comma-separated")
-	fleetURL := flag.String("fleet-url", "", "Fleet server URL to call back (default: the Origin the server registered with)")
-	fleetInsecure := flag.Bool("fleet-insecure", false, "don't verify the Fleet server's TLS certificate on the callback")
-	clientID := flag.String("google-client-id", os.Getenv("GOOGLE_CA_MOCK_CLIENT_ID"), "Fleet's Web OAuth client ID: sign in with real Google instead of the fake sign-in (env GOOGLE_CA_MOCK_CLIENT_ID)")
+	mock := flag.String("mock", "automdm,google", "surfaces to serve: automdm (the automdm.com relay), google (Cloud Identity API), or both, comma-separated")
+	automdmURL := flag.String("automdm-url", "", "AutoMDM server URL to call back (default: the Origin the server registered with)")
+	automdmInsecure := flag.Bool("automdm-insecure", false, "don't verify the AutoMDM server's TLS certificate on the callback")
+	clientID := flag.String("google-client-id", os.Getenv("GOOGLE_CA_MOCK_CLIENT_ID"), "AutoMDM's Web OAuth client ID: sign in with real Google instead of the fake sign-in (env GOOGLE_CA_MOCK_CLIENT_ID)")
 	clientSecret := flag.String("google-client-secret", os.Getenv("GOOGLE_CA_MOCK_CLIENT_SECRET"), "the Web OAuth client's secret (env GOOGLE_CA_MOCK_CLIENT_SECRET)")
-	partnerID := flag.String("partner-id", os.Getenv("GOOGLE_CA_MOCK_PARTNER_ID"), "Fleet's Google partner ID for the iOS lookup (env GOOGLE_CA_MOCK_PARTNER_ID)")
+	partnerID := flag.String("partner-id", os.Getenv("GOOGLE_CA_MOCK_PARTNER_ID"), "AutoMDM's Google partner ID for the iOS lookup (env GOOGLE_CA_MOCK_PARTNER_ID)")
 	customers := flag.String("customer-ids", "C01mock00", "Google customer IDs the Cloud Identity surface knows, comma-separated; any other fails the delegation check")
 	email := flag.String("email", "user@example.com", "signed-in user of the fake sign-in")
 	records := flag.Int("device-records", 1, "device records a fake iOS sign-in finds for the host (2 adds a leftover record)")
@@ -48,7 +48,7 @@ func run() error {
 	latency := flag.Duration("latency", 0, "mean latency added to every API call")
 	errorRate := flag.Float64("error-rate", 0, "share of API calls that fail with a 429 or a 500 (0 to 1)")
 	debug := flag.Bool("debug", false, "log every request")
-	newKey := flag.Bool("new-key", false, "print a new service account key JSON to upload in Fleet, and exit")
+	newKey := flag.Bool("new-key", false, "print a new service account key JSON to upload in AutoMDM, and exit")
 	flag.Parse()
 
 	if *newKey {
@@ -63,7 +63,7 @@ func run() error {
 
 	cfg := mockserver.Config{
 		PublicURL:         *publicURL,
-		FleetURL:          *fleetURL,
+		AutoMDMURL:        *automdmURL,
 		FakeEmail:         *email,
 		FakeDeviceRecords: *records,
 		AutoContinue:      *autoContinue,
@@ -73,13 +73,13 @@ func run() error {
 	}
 	for s := range strings.SplitSeq(*mock, ",") {
 		switch strings.TrimSpace(s) {
-		case "fleetdm":
+		case "automdm":
 			cfg.Relay = true
 		case "google":
 			cfg.Google = true
 		case "":
 		default:
-			return fmt.Errorf("--mock: unknown surface %q, want fleetdm and/or google", s)
+			return fmt.Errorf("--mock: unknown surface %q, want automdm and/or google", s)
 		}
 	}
 	if !cfg.Relay && !cfg.Google {
@@ -100,10 +100,10 @@ func run() error {
 		return errors.New("--google-client-id and --google-client-secret go together")
 	}
 	if !cfg.Relay && (cfg.OAuth != nil || *partnerID != "") {
-		logger.WarnContext(context.Background(), "the Google OAuth client is only used by the fleetdm.com relay, which is off: ignoring it")
+		logger.WarnContext(context.Background(), "the Google OAuth client is only used by the automdm.com relay, which is off: ignoring it")
 	}
 	if cfg.Relay && !cfg.Google && cfg.OAuth == nil {
-		logger.WarnContext(context.Background(), "serving fleetdm.com with fake sign-ins against real Google: the fake DeviceUser names don't exist in Google, so marking them fails. Pass --google-client-id and --google-client-secret, or add google to --mock")
+		logger.WarnContext(context.Background(), "serving automdm.com with fake sign-ins against real Google: the fake DeviceUser names don't exist in Google, so marking them fails. Pass --google-client-id and --google-client-secret, or add google to --mock")
 	}
 	if *errorRate < 0 || *errorRate > 1 {
 		return errors.New("--error-rate must be between 0 and 1")
@@ -117,10 +117,10 @@ func run() error {
 			}
 		}
 	}
-	if *fleetInsecure {
-		cfg.FleetClient = fleethttp.NewClient(
-			fleethttp.WithFollowRedir(false),
-			fleethttp.WithTLSClientConfig(&tls.Config{InsecureSkipVerify: true}), //nolint:gosec // dev mock, opt-in
+	if *automdmInsecure {
+		cfg.AutoMDMClient = automdmhttp.NewClient(
+			automdmhttp.WithFollowRedir(false),
+			automdmhttp.WithTLSClientConfig(&tls.Config{InsecureSkipVerify: true}), //nolint:gosec // dev mock, opt-in
 		)
 	}
 
@@ -129,7 +129,7 @@ func run() error {
 	return srv.ListenAndServe()
 }
 
-// printNewKey prints a service account key the mock accepts: Fleet signs the token
+// printNewKey prints a service account key the mock accepts: AutoMDM signs the token
 // request with it, so it must hold a real RSA key, but the mock doesn't check the signature.
 func printNewKey() error {
 	priv, err := rsa.GenerateKey(rand.Reader, 2048)
@@ -147,7 +147,7 @@ func printNewKey() error {
 		"project_id":     "google-conditional-access-mock",
 		"private_key_id": "mock",
 		"private_key":    string(pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der})),
-		"client_email":   "fleet@google-conditional-access-mock.iam.gserviceaccount.com",
+		"client_email":   "team@google-conditional-access-mock.iam.gserviceaccount.com",
 		"client_id":      "100000000000000000000",
 		"token_uri":      "https://oauth2.googleapis.com/token",
 	})
@@ -160,16 +160,16 @@ func printUsage(cfg mockserver.Config, listen string) {
 	}
 	fmt.Printf("Google conditional access mock listening on %s (public URL %s)\n", listen, cfg.PublicURL)
 	if cfg.Relay {
-		fmt.Printf("  fleetdm.com relay: on, sign-in %s\n", signIn)
-		fmt.Printf("    FLEET_GOOGLE_CONDITIONAL_ACCESS_PROXY_URI=%s fleet serve --dev\n", cfg.PublicURL)
+		fmt.Printf("  automdm.com relay: on, sign-in %s\n", signIn)
+		fmt.Printf("    AUTOMDM_GOOGLE_CONDITIONAL_ACCESS_PROXY_URI=%s automdm serve --dev\n", cfg.PublicURL)
 	} else {
-		fmt.Println("  fleetdm.com relay: off (Fleet uses its configured google_conditional_access.proxy_uri)")
+		fmt.Println("  automdm.com relay: off (AutoMDM uses its configured google_conditional_access.proxy_uri)")
 	}
 	if cfg.Google {
 		fmt.Printf("  Cloud Identity API: on, customers %s\n", strings.Join(cfg.CustomerIDs, ", "))
-		fmt.Printf("    FLEET_DEV_GOOGLE_CLOUD_IDENTITY_ENDPOINT=%s/ fleet serve --dev\n", cfg.PublicURL)
+		fmt.Printf("    AUTOMDM_DEV_GOOGLE_CLOUD_IDENTITY_ENDPOINT=%s/ automdm serve --dev\n", cfg.PublicURL)
 	} else {
-		fmt.Println("  Cloud Identity API: off (Fleet calls real Google)")
+		fmt.Println("  Cloud Identity API: off (AutoMDM calls real Google)")
 	}
 	local := "localhost" + listen
 	if _, port, err := net.SplitHostPort(listen); err == nil {

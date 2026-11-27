@@ -2,7 +2,7 @@ package removednames
 
 func init() {
 	register(platformKeyEntries...)
-	// GitOps validates the same MDM settings under controls, org_settings.mdm, and a fleet's settings.mdm.
+	// GitOps validates the same MDM settings under controls, org_settings.mdm, and a team's settings.mdm.
 	for _, parent := range []string{"controls", "org_settings.mdm", "settings.mdm"} {
 		register(platformYAMLKeyEntries(parent)...)
 	}

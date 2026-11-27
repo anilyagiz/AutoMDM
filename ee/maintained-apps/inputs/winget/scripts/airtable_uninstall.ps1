@@ -5,7 +5,7 @@
 
 $displayName = "Airtable"
 $publisher = "Airtable"
-$taskName = "fleet-uninstall-airtable"
+$taskName = "automdm-uninstall-airtable"
 $taskRunning = 267009  # SCHED_S_TASK_RUNNING
 $timeoutSeconds = 600
 $exitCode = 0
@@ -131,8 +131,8 @@ function Remove-AppDir {
 
 try {
     # Left behind only if an install was interrupted.
-    if (Get-ScheduledTask -TaskName "fleet-install-airtable" -ErrorAction SilentlyContinue) {
-        Unregister-ScheduledTask -TaskName "fleet-install-airtable" -Confirm:$false -ErrorAction SilentlyContinue
+    if (Get-ScheduledTask -TaskName "automdm-install-airtable" -ErrorAction SilentlyContinue) {
+        Unregister-ScheduledTask -TaskName "automdm-install-airtable" -Confirm:$false -ErrorAction SilentlyContinue
     }
 
     foreach ($entry in @(Get-AirtableEntries)) {

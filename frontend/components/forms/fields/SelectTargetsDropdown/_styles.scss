@@ -1,7 +1,7 @@
 .target-select {
   &__label {
     font-size: $x-small;
-    color: $core-fleet-black;
+    color: $core-automdm-black;
     display: block;
     margin: 0;
     text-align: right;
@@ -15,7 +15,7 @@
 
   .Select.is-focused:not(.is-open) > .Select-control {
     box-shadow: none;
-    border-color: $ui-fleet-black-75; // Override blue border on focus
+    border-color: $ui-automdm-black-75; // Override blue border on focus
   }
 
   &__select-targets {
@@ -26,21 +26,21 @@
   &__targets-count {
     font-size: $x-small;
     font-weight: $regular;
-    color: $core-fleet-black;
+    color: $core-automdm-black;
   }
 
   &.Select {
     border-radius: $border-radius;
-    border: 1px solid $ui-fleet-black-10;
+    border: 1px solid $ui-automdm-black-10;
 
     &.is-focused,
     &:hover {
-      border: 1px solid $ui-fleet-black-75;
+      border: 1px solid $ui-automdm-black-75;
     }
 
     .Select-control {
       min-height: 48px;
-      background-color: $core-fleet-white;
+      background-color: $core-automdm-white;
     }
 
     .Select-arrow {
@@ -72,7 +72,7 @@
 
       > input {
         line-height: 53px;
-        color: $core-fleet-black;
+        color: $core-automdm-black;
         font-size: $x-small;
       }
     }
@@ -97,7 +97,7 @@
 
     .Select-placeholder {
       line-height: 53px;
-      color: $ui-fleet-black-75;
+      color: $ui-automdm-black-75;
     }
 
     &.Select--multi {
@@ -106,7 +106,7 @@
 
         &.is-disabled {
           &.is-focused {
-            background-color: $ui-off-white; // Mimics table row hover, where action hover button is darker on hover $ui-fleet-black-5
+            background-color: $ui-off-white; // Mimics table row hover, where action hover button is darker on hover $ui-automdm-black-5
             border-radius: 8px;
           }
         }
@@ -134,7 +134,7 @@
       position: relative;
 
       &::after {
-        @extend %fleeticon;
+        @extend %automdmicon;
         content: "\f03c";
         font-size: 150px;
         position: absolute;
@@ -166,7 +166,7 @@
 
   .Select-value {
     border-radius: $border-radius;
-    background-color: $core-fleet-white;
+    background-color: $core-automdm-white;
 
     .Select-value-icon {
       height: 100%;
@@ -174,7 +174,7 @@
 
     .Select-value-label {
       font-size: $x-small;
-      color: $ui-fleet-black-75;
+      color: $ui-automdm-black-75;
       font-size: $x-small;
       padding: 0 0 0 $pad-medium;
       line-height: 34px;

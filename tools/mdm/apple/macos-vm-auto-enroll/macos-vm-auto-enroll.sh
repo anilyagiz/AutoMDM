@@ -3,8 +3,8 @@
 # Enable job control in shell script
 set -m
 
-# Fleet enroll secret placed in $FLEET_ENROLL_SECRET
-# Fleet URL placed in $FLEET_URL
+# AutoMDM enroll secret placed in $AUTOMDM_ENROLL_SECRET
+# AutoMDM URL placed in $AUTOMDM_URL
 # Optional VM name in $MACOS_ENROLLMENT_VM_NAME
 # Optional VM image in $MACOS_ENROLLMENT_VM_IMAGE
 #  For others see https://tart.run/quick-start/
@@ -41,16 +41,16 @@ cd "$(dirname "$0")"
 cd "$(git rev-parse --show-toplevel)"
 
 
-if [ "$FLEET_URL" = "" ]; then
-    echo "FLEET_URL missing"
+if [ "$AUTOMDM_URL" = "" ]; then
+    echo "AUTOMDM_URL missing"
     exit 1
 fi
 
 # Remove the trailing slash if present
-FLEET_URL=${FLEET_URL%/}
+AUTOMDM_URL=${AUTOMDM_URL%/}
 
-if [ "$FLEET_ENROLL_SECRET" = "" ]; then
-    echo "FLEET_ENROLL_SECRET missing"
+if [ "$AUTOMDM_ENROLL_SECRET" = "" ]; then
+    echo "AUTOMDM_ENROLL_SECRET missing"
     exit 1
 fi
 
@@ -59,13 +59,13 @@ if ! which tart >/dev/null; then
     exit 1
 fi
 
-echo "Deleting old fleet package"
-[ -f fleet-macos.pkg ] && rm fleet-macos.pkg
+echo "Deleting old automdm package"
+[ -f automdm-macos.pkg ] && rm automdm-macos.pkg
 
-echo "Creating fleet package..."
-./build/fleetctl package --type=pkg --enable-scripts --fleet-desktop --disable-open-folder --fleet-url="$FLEET_URL" --enroll-secret="$FLEET_ENROLL_SECRET" --outfile=fleet-macos.pkg
+echo "Creating automdm package..."
+./build/automdmctl package --type=pkg --enable-scripts --automdm-desktop --disable-open-folder --automdm-url="$AUTOMDM_URL" --enroll-secret="$AUTOMDM_ENROLL_SECRET" --outfile=automdm-macos.pkg
 
-if [ ! -f fleet-macos.pkg ]; then
+if [ ! -f automdm-macos.pkg ]; then
     echo "package not generated"
     exit 1
 fi
@@ -89,20 +89,20 @@ echo "Running uname"
 ssh_cmd "uname -a"
 
 echo "Copying package to VM"
-scp_cmd fleet-macos.pkg admin@$(tart ip $vm_name):
+scp_cmd automdm-macos.pkg admin@$(tart ip $vm_name):
 
-echo "Installing fleet in VM"
-ssh_cmd "echo admin | sudo -S installer -pkg fleet-macos.pkg -target /"
+echo "Installing automdm in VM"
+ssh_cmd "echo admin | sudo -S installer -pkg automdm-macos.pkg -target /"
 
 echo "Waiting for identifier to appear"
 ssh_cmd "while true; do echo 'checking for identifier'; [ -f /opt/orbit/identifier ] && echo 'identifier found' && exit; sleep 5; done"
 
 echo "Waiting for registration to be complete"
-ssh_cmd "while true; do echo 'checking server'; curl -f $FLEET_URL/device/\$(cat /opt/orbit/identifier) > /dev/null 2>&1; [ \$? -eq 0 ] && exit; sleep 5; done"
+ssh_cmd "while true; do echo 'checking server'; curl -f $AUTOMDM_URL/device/\$(cat /opt/orbit/identifier) > /dev/null 2>&1; [ \$? -eq 0 ] && exit; sleep 5; done"
 
 echo "Fetching MDM profile"
-ssh_cmd "echo $FLEET_URL/api/latest/fleet/device/\$(cat /opt/orbit/identifier)/mdm/apple/manual_enrollment_profile"
-ssh_cmd "curl -o mdm_profile.mobileconfig $FLEET_URL/api/latest/fleet/device/\$(cat /opt/orbit/identifier)/mdm/apple/manual_enrollment_profile"
+ssh_cmd "echo $AUTOMDM_URL/api/latest/automdm/device/\$(cat /opt/orbit/identifier)/mdm/apple/manual_enrollment_profile"
+ssh_cmd "curl -o mdm_profile.mobileconfig $AUTOMDM_URL/api/latest/automdm/device/\$(cat /opt/orbit/identifier)/mdm/apple/manual_enrollment_profile"
 
 echo "Opening MDM profile"
 ssh_cmd "open mdm_profile.mobileconfig"

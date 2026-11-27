@@ -6,12 +6,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
 	"github.com/stretchr/testify/require"
 )
 
 func TestDownloadNotFoundNoRetries(t *testing.T) {
-	c := fleethttp.NewClient()
+	c := automdmhttp.NewClient()
 	tmpDir := t.TempDir()
 	outputFile := filepath.Join(tmpDir, "not-used")
 	url, err := url.Parse("https://github.com/fleetdm/non-existent")

@@ -3,9 +3,9 @@
 
 The assertion is a JWT signed with the API account's private key. Apple accepts it
 for up to 180 days, so a scheduled sync only needs the assertion, never the key.
-Used by sync_applecare_coverage_to_fleet.py.
+Used by sync_applecare_coverage_to_automdm.py.
 
-Setup guide: https://fleetdm.com/guides/sync-applecare-coverage-from-apple-business
+Setup guide: https://automdm.com/guides/sync-applecare-coverage-from-apple-business
 
 Usage
 -----

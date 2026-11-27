@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -27,7 +27,7 @@ const (
 	campaignTargetsCleanupBatchSleep = 100 * time.Millisecond
 )
 
-func (ds *Datastore) NewDistributedQueryCampaign(ctx context.Context, camp *fleet.DistributedQueryCampaign) (*fleet.DistributedQueryCampaign, error) {
+func (ds *Datastore) NewDistributedQueryCampaign(ctx context.Context, camp *automdm.DistributedQueryCampaign) (*automdm.DistributedQueryCampaign, error) {
 	args := []any{camp.QueryID, camp.Status, camp.UserID}
 
 	// for tests, we sometimes provide specific timestamps for CreatedAt, honor
@@ -58,11 +58,11 @@ func (ds *Datastore) NewDistributedQueryCampaign(ctx context.Context, camp *flee
 	return camp, nil
 }
 
-func (ds *Datastore) DistributedQueryCampaign(ctx context.Context, id uint) (*fleet.DistributedQueryCampaign, error) {
+func (ds *Datastore) DistributedQueryCampaign(ctx context.Context, id uint) (*automdm.DistributedQueryCampaign, error) {
 	sql := `
 		SELECT * FROM distributed_query_campaigns WHERE id = ?
 	`
-	campaign := &fleet.DistributedQueryCampaign{}
+	campaign := &automdm.DistributedQueryCampaign{}
 	if err := sqlx.GetContext(ctx, ds.reader(ctx), campaign, sql, id); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "selecting distributed query campaign")
 	}
@@ -70,7 +70,7 @@ func (ds *Datastore) DistributedQueryCampaign(ctx context.Context, id uint) (*fl
 	return campaign, nil
 }
 
-func (ds *Datastore) SaveDistributedQueryCampaign(ctx context.Context, camp *fleet.DistributedQueryCampaign) error {
+func (ds *Datastore) SaveDistributedQueryCampaign(ctx context.Context, camp *automdm.DistributedQueryCampaign) error {
 	sqlStatement := `
 		UPDATE distributed_query_campaigns SET
 			query_id = ?,
@@ -93,8 +93,8 @@ func (ds *Datastore) SaveDistributedQueryCampaign(ctx context.Context, camp *fle
 	return nil
 }
 
-func (ds *Datastore) DistributedQueryCampaignsForQuery(ctx context.Context, queryID uint) ([]*fleet.DistributedQueryCampaign, error) {
-	var campaigns []*fleet.DistributedQueryCampaign
+func (ds *Datastore) DistributedQueryCampaignsForQuery(ctx context.Context, queryID uint) ([]*automdm.DistributedQueryCampaign, error) {
+	var campaigns []*automdm.DistributedQueryCampaign
 	err := sqlx.SelectContext(ctx, ds.reader(ctx), &campaigns, `SELECT * FROM distributed_query_campaigns WHERE query_id=?`, queryID)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "getting campaigns for query")
@@ -102,11 +102,11 @@ func (ds *Datastore) DistributedQueryCampaignsForQuery(ctx context.Context, quer
 	return campaigns, nil
 }
 
-func (ds *Datastore) DistributedQueryCampaignTargetIDs(ctx context.Context, id uint) (*fleet.HostTargets, error) {
+func (ds *Datastore) DistributedQueryCampaignTargetIDs(ctx context.Context, id uint) (*automdm.HostTargets, error) {
 	sqlStatement := `
 		SELECT * FROM distributed_query_campaign_targets WHERE distributed_query_campaign_id = ?
 	`
-	targets := []fleet.DistributedQueryCampaignTarget{}
+	targets := []automdm.DistributedQueryCampaignTarget{}
 
 	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &targets, sqlStatement, id); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "select distributed campaign target")
@@ -117,21 +117,21 @@ func (ds *Datastore) DistributedQueryCampaignTargetIDs(ctx context.Context, id u
 	teamIDs := []uint{}
 	for _, target := range targets {
 		switch target.Type {
-		case fleet.TargetHost:
+		case automdm.TargetHost:
 			hostIDs = append(hostIDs, target.TargetID)
-		case fleet.TargetLabel:
+		case automdm.TargetLabel:
 			labelIDs = append(labelIDs, target.TargetID)
-		case fleet.TargetTeam:
+		case automdm.TargetTeam:
 			teamIDs = append(teamIDs, target.TargetID)
 		default:
 			return nil, ctxerr.Errorf(ctx, "invalid target type: %d", target.Type)
 		}
 	}
 
-	return &fleet.HostTargets{HostIDs: hostIDs, LabelIDs: labelIDs, TeamIDs: teamIDs}, nil
+	return &automdm.HostTargets{HostIDs: hostIDs, LabelIDs: labelIDs, TeamIDs: teamIDs}, nil
 }
 
-func (ds *Datastore) NewDistributedQueryCampaignTarget(ctx context.Context, target *fleet.DistributedQueryCampaignTarget) (*fleet.DistributedQueryCampaignTarget, error) {
+func (ds *Datastore) NewDistributedQueryCampaignTarget(ctx context.Context, target *automdm.DistributedQueryCampaignTarget) (*automdm.DistributedQueryCampaignTarget, error) {
 	sqlStatement := `
 		INSERT into distributed_query_campaign_targets (
 			type,
@@ -174,7 +174,7 @@ func (ds *Datastore) GetCompletedCampaigns(ctx context.Context, filter []uint) (
 			FROM distributed_query_campaigns
 			WHERE status = ?
 			AND id IN (?)
-		`, fleet.QueryComplete, batch,
+		`, automdm.QueryComplete, batch,
 		)
 		if err != nil {
 			return nil, ctxerr.Wrap(ctx, err, "building query for completed campaigns")
@@ -199,9 +199,9 @@ func (ds *Datastore) CleanupDistributedQueryCampaigns(ctx context.Context, now t
 		WHERE (status = ? AND created_at < ?)
 		OR (status = ? AND created_at < ?)
 	`
-	result, err := ds.writer(ctx).ExecContext(ctx, sqlStatement, fleet.QueryComplete,
-		fleet.QueryWaiting, now.Add(-1*time.Minute),
-		fleet.QueryRunning, now.Add(-24*time.Hour))
+	result, err := ds.writer(ctx).ExecContext(ctx, sqlStatement, automdm.QueryComplete,
+		automdm.QueryWaiting, now.Add(-1*time.Minute),
+		automdm.QueryRunning, now.Add(-24*time.Hour))
 	if err != nil {
 		return 0, ctxerr.Wrap(ctx, err, "updating distributed query campaign")
 	}
@@ -228,7 +228,7 @@ func (ds *Datastore) CleanupCompletedCampaignTargets(ctx context.Context, olderT
 	`
 
 	var totalEligible uint
-	err = sqlx.GetContext(ctx, ds.reader(ctx), &totalEligible, countStmt, fleet.QueryComplete, olderThan)
+	err = sqlx.GetContext(ctx, ds.reader(ctx), &totalEligible, countStmt, automdm.QueryComplete, olderThan)
 	if err != nil {
 		return 0, ctxerr.Wrap(ctx, err, "counting eligible campaign targets for cleanup")
 	}
@@ -274,7 +274,7 @@ func (ds *Datastore) CleanupCompletedCampaignTargets(ctx context.Context, olderT
 
 		var targetIDs []uint
 		err := sqlx.SelectContext(ctx, ds.reader(ctx), &targetIDs, selectTargetsStmt,
-			fleet.QueryComplete, olderThan, batchSize)
+			automdm.QueryComplete, olderThan, batchSize)
 		if err != nil {
 			return totalDeleted, ctxerr.Wrap(ctx, err, "selecting campaign targets for cleanup")
 		}

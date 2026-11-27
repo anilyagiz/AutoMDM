@@ -401,7 +401,7 @@ import Firefox from "./png/Firefox.png";
 import FirefoxDeveloperEdition from "./png/FirefoxDeveloperEdition.png";
 import FirefoxNightly from "./png/FirefoxNightly.png";
 import Fission from "./png/Fission.png";
-import FleetDesktop from "./png/FleetDesktop.png";
+import AutoMDMDesktop from "./png/AutoMDMDesktop.png";
 import Flexoptix from "./png/Flexoptix.png";
 import Flexwhere from "./png/Flexwhere.png";
 import Fluid from "./png/Fluid.png";
@@ -1596,7 +1596,7 @@ export const SOFTWARE_NAME_TO_ICON_MAP = {
   "firefox developer edition": FirefoxDeveloperEdition,
   "firefox nightly": FirefoxNightly,
   fission: Fission,
-  "fleet desktop": FleetDesktop,
+  "automdm desktop": AutoMDMDesktop,
   "flexoptix app": Flexoptix,
   flexwhere: Flexwhere,
   fluid: Fluid,

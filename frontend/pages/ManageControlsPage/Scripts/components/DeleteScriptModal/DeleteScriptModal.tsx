@@ -61,7 +61,7 @@ const DeleteScriptModal = ({
         </p>
         <p>
           If the script is currently running on a host it will still complete,
-          but results won&apos;t appear in Fleet.
+          but results won&apos;t appear in AutoMDM.
         </p>
         <p>You cannot undo this action.</p>
         <div className="modal-cta-wrap">

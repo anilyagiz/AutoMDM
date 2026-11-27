@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
 	"github.com/cenkalti/backoff/v4"
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
 	"github.com/nukosuke/go-zendesk/zendesk"
 )
 
@@ -36,7 +36,7 @@ func NewZendeskClient(opts *ZendeskOptions) (*Zendesk, error) {
 	if os.Getenv("TEST_ZENDESK_CLIENT") == "true" {
 		return NewZendeskTestClient(opts)
 	}
-	client, err := zendesk.NewClient(fleethttp.NewClient(fleethttp.WithNoTimeout()))
+	client, err := zendesk.NewClient(automdmhttp.NewClient(automdmhttp.WithNoTimeout()))
 	if err != nil {
 		return nil, err
 	}
@@ -151,7 +151,7 @@ func doZendeskWithRetry(fn func() (interface{}, error)) error {
 
 // overrides endpoint url with full server url instead of just setting the subdomain
 func NewZendeskTestClient(opts *ZendeskOptions) (*Zendesk, error) {
-	client, err := zendesk.NewClient(fleethttp.NewClient(fleethttp.WithNoTimeout()))
+	client, err := zendesk.NewClient(automdmhttp.NewClient(automdmhttp.WithNoTimeout()))
 	if err != nil {
 		return nil, err
 	}

@@ -6,10 +6,10 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/anilyagiz/automdm/v4/server/contexts/logging"
+	platform_http "github.com/anilyagiz/automdm/v4/server/platform/http"
 	"github.com/elimity-com/scim"
 	scimerrors "github.com/elimity-com/scim/errors"
-	"github.com/fleetdm/fleet/v4/server/contexts/logging"
-	platform_http "github.com/fleetdm/fleet/v4/server/platform/http"
 )
 
 // scimDetailHolder carries the real error detail past the sanitized client

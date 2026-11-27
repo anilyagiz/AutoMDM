@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # digiSeal reader is a secrypt self-extracting installer; -silent runs it
 # unattended and installs machine-wide (ARP written to HKLM).

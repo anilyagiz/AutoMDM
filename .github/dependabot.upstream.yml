@@ -93,9 +93,9 @@ updates:
     assignees:
       - lukeheath
 
-# Maintain dependencies for fleet-slackbot NPM
+# Maintain dependencies for automdm-slackbot NPM
   - package-ecosystem: "npm"
-    directory: "/tools/fleet-slackbot"
+    directory: "/tools/automdm-slackbot"
     schedule:
       interval: "daily"
     # Disable version updates

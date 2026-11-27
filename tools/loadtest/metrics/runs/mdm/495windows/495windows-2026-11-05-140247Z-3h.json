@@ -8,9 +8,9 @@
       "start": "2026-11-05T11:02:47Z",
       "end": "2026-11-05T14:02:47Z"
     },
-    "note": "4.95 RC (75e81b8), 50k Windows MDM, steady state; 13:32-13:44Z two 1-profile adds on a 10k fleet"
+    "note": "4.95 RC (75e81b8), 50k Windows MDM, steady state; 13:32-13:44Z two 1-profile adds on a 10k automdm"
   },
-  "fleet_server": {
+  "automdm_server": {
     "cpu_utilization": {
       "Average": 17.52,
       "Minimum": 17.17,
@@ -399,7 +399,7 @@
       "data_coverage": 1
     }
   },
-  "fleet_server_errors": {
+  "automdm_server_errors": {
     "error_count": 63.0,
     "sample_messages": [
       "{\"ts\":\"2026-11-05T13:12:29Z\",\"level\":\"error\",\"msg\":\"agent notifications subscription failed; resubscribing\",\"component\":\"agent-notifier\",\"err\":\"receive agent notification: read tcp 10.12.1.72:40428->10.12.31.199:6379: i/o timeout\",\"backoff\":\"1s\"}",
@@ -688,7 +688,7 @@
   },
   "container_health": {
     "abnormal_stops": 0,
-    "fleet_abnormal_stops": 0,
+    "automdm_abnormal_stops": 0,
     "running_tasks": 25,
     "failed_health_checks": 0,
     "unable_to_place": 0,

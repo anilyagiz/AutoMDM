@@ -7,11 +7,11 @@ Scripts in this directory aim to ease the testing of Orbit and the [TUF](https:/
 # Setup
 
 1. The script is executed on a macOS host.
-2. Fleet server also running on the same macOS host.
+2. AutoMDM server also running on the same macOS host.
 3. All VMs (and the macOS host itself) are configured to resolve `host.docker.internal` to the macOS host IP (by modifying their `hosts` file).
 4. The hosts are running on the same GOARCH as the macOS host. If not, you can set the `GOARCH` environment variable to compile for the desired architecture. For example: `GOARCH=amd64`
 
-> PS: We use `host.docker.internal` because the testing certificate `./tools/osquery/fleet.crt`
+> PS: We use `host.docker.internal` because the testing certificate `./tools/osquery/automdm.crt`
 > has such hostname (and `localhost`) defined as SANs.
 
 > PPS: Make sure you set the macOSX deployment target to the lowest macOS version you intend to support. See [Troubleshooting](#troubleshooting) for more details.
@@ -21,15 +21,15 @@ Scripts in this directory aim to ease the testing of Orbit and the [TUF](https:/
 The `main.sh` creates and runs the TUF repository and optionally generate the installers (GENERATE_PKGS):
 ```sh
 SYSTEMS="macos windows linux linux-arm64 windows-arm64" \
-PKG_FLEET_URL=https://localhost:8080 \
+PKG_AUTOMDM_URL=https://localhost:8080 \
 PKG_TUF_URL=http://localhost:8081 \
-DEB_FLEET_URL=https://host.docker.internal:8080 \
+DEB_AUTOMDM_URL=https://host.docker.internal:8080 \
 DEB_TUF_URL=http://host.docker.internal:8081 \
-RPM_FLEET_URL=https://host.docker.internal:8080 \
+RPM_AUTOMDM_URL=https://host.docker.internal:8080 \
 RPM_TUF_URL=http://host.docker.internal:8081 \
-MSI_FLEET_URL=https://host.docker.internal:8080 \
+MSI_AUTOMDM_URL=https://host.docker.internal:8080 \
 MSI_TUF_URL=http://host.docker.internal:8081 \
-PKG_TAR_ZST_FLEET_URL=https://host.docker.internal:8080 \
+PKG_TAR_ZST_AUTOMDM_URL=https://host.docker.internal:8080 \
 PKG_TAR_ZST_TUF_URL=http://host.docker.internal:8081 \
 GENERATE_PKG=1 \
 GENERATE_DEB=1 \
@@ -40,22 +40,22 @@ GENERATE_MSI=1 \
 GENERATE_MSI_ARM64=1 \
 GENERATE_PKG_TAR_ZST=1 \
 GENERATE_PKG_TAR_ZST_ARM64=1 \
-PKG_OUTFILE=fleet-macos.pkg \
-DEB_OUTFILE=fleet-linux-amd64.deb \
-DEB_ARM64_OUTFILE=fleet-linux-arm64.deb \
-RPM_OUTFILE=fleet-linux-amd64.rpm \
-RPM_ARM64_OUTFILE=fleet-linux-arm64.rpm \
-MSI_OUTFILE=fleet-windows-amd64.msi \
-MSI_ARM64_OUTFILE=fleet-windows-arm64.msi \
-PKG_TAR_ZST_OUTFILE=fleet-linux-amd64.pkg.tar.zst \
-PKG_TAR_ZST_ARM64_OUTFILE=fleet-linux-arm64.pkg.tar.zst \
+PKG_OUTFILE=automdm-macos.pkg \
+DEB_OUTFILE=automdm-linux-amd64.deb \
+DEB_ARM64_OUTFILE=automdm-linux-arm64.deb \
+RPM_OUTFILE=automdm-linux-amd64.rpm \
+RPM_ARM64_OUTFILE=automdm-linux-arm64.rpm \
+MSI_OUTFILE=automdm-windows-amd64.msi \
+MSI_ARM64_OUTFILE=automdm-windows-arm64.msi \
+PKG_TAR_ZST_OUTFILE=automdm-linux-amd64.pkg.tar.zst \
+PKG_TAR_ZST_ARM64_OUTFILE=automdm-linux-arm64.pkg.tar.zst \
 ENROLL_SECRET=6/EzU/+jPkxfTamWnRv1+IJsO4T9Etju \
-FLEET_DESKTOP=1 \
+AUTOMDM_DESKTOP=1 \
 DEBUG=1 \
 ./tools/tuf/test/main.sh
 ```
 
-> Separate `*_FLEET_URL` and `*_TUF_URL` variables are defined for each package type to support different setups.
+> Separate `*_AUTOMDM_URL` and `*_TUF_URL` variables are defined for each package type to support different setups.
 
 > The `*_OUTFILE` variables set the name and destination of each generated package (the values above are the defaults).
 
@@ -93,7 +93,7 @@ SWIFT_DIALOG=1 \
 ./tools/tuf/test/main.sh
 ```
 
-# Test fleetd with expired signatures on a TUF repository
+# Test automdmd with expired signatures on a TUF repository
 
 To generate a TUF repository with shorter expiration time for roles you can set the following environment variables:
 ```shell
@@ -106,7 +106,7 @@ TIMESTAMP_EXPIRATION_DURATION=5m \
 ./tools/tuf/test/main.sh
 ```
 
-> NOTE: The duration has to be enough time to generate the packages (otherwise the `fleetctl package` command will fail).
+> NOTE: The duration has to be enough time to generate the packages (otherwise the `automdmctl package` command will fail).
 
 > `KEY_EXPIRATION_DURATION` is used to set the expiration of the `root.json` signature.
 
@@ -121,8 +121,8 @@ source ./tools/tuf/test/load_orbit_version_vars.sh
 # Compile a new version of Orbit:
 GOOS=windows GOARCH=amd64 go build \
     -o orbit-windows.exe \
-    -ldflags="-s -w -X github.com/fleetdm/fleet/v4/orbit/pkg/build.Version=$ORBIT_VERSION \
-    -X github.com/fleetdm/fleet/v4/orbit/pkg/build.Commit=$ORBIT_COMMIT" \
+    -ldflags="-s -w -X github.com/anilyagiz/automdm/v4/orbit/pkg/build.Version=$ORBIT_VERSION \
+    -X github.com/anilyagiz/automdm/v4/orbit/pkg/build.Commit=$ORBIT_COMMIT" \
     ./orbit/cmd/orbit
 
 # Push the compiled Orbit as a new version
@@ -153,7 +153,7 @@ make osqueryd-app-tar-gz version=5.5.1 out-path=.
 # Push the osqueryd target as a new version
 ./tools/tuf/test/push_target.sh macos-app osqueryd osqueryd.app.tar.gz 5.5.1
 ```
-NOTE: Contributors on macOS with Apple silicon ran into issues running osqueryd downloaded from GitHub. Until this issue is root caused, the workaround is to download osqueryd from [Fleet's TUF](https://updates.fleetdm.com/).
+NOTE: Contributors on macOS with Apple silicon ran into issues running osqueryd downloaded from GitHub. Until this issue is root caused, the workaround is to download osqueryd from [AutoMDM's TUF](https://updates.fleetdm.com/).
 
 E.g. to add a custom `osqueryd` version from an osquery PR for macOS:
 ```sh
@@ -194,8 +194,8 @@ E.g. to add a new version of `desktop` for macOS:
 ```sh
 source ./tools/tuf/test/load_orbit_version_vars.sh
 
-# Compile a new version of fleet-desktop
-FLEET_DESKTOP_VERSION=$ORBIT_VERSION make desktop-app-tar-gz
+# Compile a new version of automdm-desktop
+AUTOMDM_DESKTOP_VERSION=$ORBIT_VERSION make desktop-app-tar-gz
 
 # Push the desktop target as a new version
 ./tools/tuf/test/push_target.sh macos desktop desktop.app.tar.gz $ORBIT_VERSION
@@ -203,9 +203,9 @@ FLEET_DESKTOP_VERSION=$ORBIT_VERSION make desktop-app-tar-gz
 
 ### Troubleshooting
 
-#### Fleet Desktop Startup Issue on macOS
+#### AutoMDM Desktop Startup Issue on macOS
 
-When running Fleet Desktop on an older macOS version than it was compiled on, Orbit may not launch it due to an error:
+When running AutoMDM Desktop on an older macOS version than it was compiled on, Orbit may not launch it due to an error:
 
 ```
 _LSOpenURLsWithCompletionHandler() failed with error -10825
@@ -219,25 +219,25 @@ export MACOSX_DEPLOYMENT_TARGET=13 # replace '13' with your target macOS version
 
 #### Running without ssl
 
-If you decide that you want to run your local fleet server with the `--server_tls=false` flag you will need to modify a few ENV variables when running the `./tools/tuf/test/main.sh` file.
+If you decide that you want to run your local automdm server with the `--server_tls=false` flag you will need to modify a few ENV variables when running the `./tools/tuf/test/main.sh` file.
 
 ```
 + INSECURE=1 \
 
-+ PKG_FLEET_URL=http://localhost:8080 \
-- PKG_FLEET_URL=https://localhost:8080 \
++ PKG_AUTOMDM_URL=http://localhost:8080 \
+- PKG_AUTOMDM_URL=https://localhost:8080 \
 
-+ DEB_FLEET_URL=http://host.docker.internal:8080 \
-- DEB_FLEET_URL=https://host.docker.internal:8080 \
++ DEB_AUTOMDM_URL=http://host.docker.internal:8080 \
+- DEB_AUTOMDM_URL=https://host.docker.internal:8080 \
 
-+ RPM_FLEET_URL=http://host.docker.internal:8080 \
-- RPM_FLEET_URL=https://host.docker.internal:8080 \
++ RPM_AUTOMDM_URL=http://host.docker.internal:8080 \
+- RPM_AUTOMDM_URL=https://host.docker.internal:8080 \
 
-+ MSI_FLEET_URL=http://host.docker.internal:8080 \
-- MSI_FLEET_URL=https://host.docker.internal:8080 \
++ MSI_AUTOMDM_URL=http://host.docker.internal:8080 \
+- MSI_AUTOMDM_URL=https://host.docker.internal:8080 \
 
-+ PKG_TAR_ZST_FLEET_URL=http://host.docker.internal:8080 \
-- PKG_TAR_ZST_FLEET_URL=https://host.docker.internal:8080 \
++ PKG_TAR_ZST_AUTOMDM_URL=http://host.docker.internal:8080 \
+- PKG_TAR_ZST_AUTOMDM_URL=https://host.docker.internal:8080 \
 ```
 
 These flags change the way `tools/tuf/test/gen_pkgs.sh` builds the binaries to properly support a local server not running ssl.

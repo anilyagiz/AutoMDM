@@ -1,8 +1,8 @@
-// Package mockserver stands in for fleetdm.com's Google conditional access relay and for
+// Package mockserver stands in for automdm.com's Google conditional access relay and for
 // Google's Cloud Identity API, for development and tests. Either surface can be served
-// alone: the Fleet server points its relay at the mock with
+// alone: the AutoMDM server points its relay at the mock with
 // google_conditional_access.proxy_uri and its Cloud Identity calls with
-// FLEET_DEV_GOOGLE_CLOUD_IDENTITY_ENDPOINT, independently.
+// AUTOMDM_DEV_GOOGLE_CLOUD_IDENTITY_ENDPOINT, independently.
 package mockserver
 
 import (
@@ -19,12 +19,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
 )
 
 // Config configures a Server.
 type Config struct {
-	// Relay serves fleetdm.com's routes.
+	// Relay serves automdm.com's routes.
 	Relay bool
 	// Google serves the Cloud Identity API and its token endpoint.
 	Google bool
@@ -32,13 +32,13 @@ type Config struct {
 	// PublicURL is the URL devices and Google reach the mock at. The sign-in page and
 	// Google's redirect URI are built from it.
 	PublicURL string
-	// FleetURL, when set, is called back instead of the Origin the Fleet server
+	// AutoMDMURL, when set, is called back instead of the Origin the AutoMDM server
 	// registered with.
-	FleetURL string
-	// FleetClient calls the Fleet server back. Defaults to a fleethttp client.
-	FleetClient *http.Client
+	AutoMDMURL string
+	// AutoMDMClient calls the AutoMDM server back. Defaults to an automdmhttp client.
+	AutoMDMClient *http.Client
 
-	// OAuth, when set, runs the sign-ins against real Google with Fleet's Web client.
+	// OAuth, when set, runs the sign-ins against real Google with AutoMDM's Web client.
 	// Otherwise the lookups are fake: the iOS sign-in page offers the outcomes and the
 	// DeviceUser names are derived from the host UUID.
 	OAuth *OAuthConfig
@@ -95,8 +95,8 @@ func New(cfg Config) *Server {
 	if cfg.Logger == nil {
 		cfg.Logger = slog.New(slog.DiscardHandler)
 	}
-	if cfg.FleetClient == nil {
-		cfg.FleetClient = fleethttp.NewClient(fleethttp.WithFollowRedir(false))
+	if cfg.AutoMDMClient == nil {
+		cfg.AutoMDMClient = automdmhttp.NewClient(automdmhttp.WithFollowRedir(false))
 	}
 	if cfg.FakeEmail == "" {
 		cfg.FakeEmail = "user@example.com"
@@ -105,7 +105,7 @@ func New(cfg Config) *Server {
 		cfg.FakeDeviceRecords = 1
 	}
 	cfg.PublicURL = strings.TrimRight(cfg.PublicURL, "/")
-	cfg.FleetURL = strings.TrimRight(cfg.FleetURL, "/")
+	cfg.AutoMDMURL = strings.TrimRight(cfg.AutoMDMURL, "/")
 	s := &Server{cfg: cfg, logger: cfg.Logger, mux: http.NewServeMux()}
 	s.resetLocked()
 	s.routes()
@@ -133,7 +133,7 @@ func (s *Server) routes() {
 }
 
 // admin serves a route to local callers only. The state holds the secrets that
-// authenticate the calls to the Fleet server, and the mock may be behind a public tunnel:
+// authenticate the calls to the AutoMDM server, and the mock may be behind a public tunnel:
 // a tunnel's requests come from loopback too, but under the tunnel's host name.
 func (s *Server) admin(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -186,7 +186,7 @@ type State struct {
 	Calls         []string       `json:"calls"`
 }
 
-// Registration is a Fleet server registered with the relay.
+// Registration is an AutoMDM server registered with the relay.
 type Registration struct {
 	CustomerID string `json:"customer_id"`
 	Origin     string `json:"origin"`
@@ -241,7 +241,7 @@ func failGoogleAPI(w http.ResponseWriter, rateLimited bool) {
 	writeGoogleError(w, http.StatusInternalServerError, "INTERNAL", "simulated server error")
 }
 
-// failToken is always a 5xx: the Fleet server reads a 4xx on the token exchange as a
+// failToken is always a 5xx: the AutoMDM server reads a 4xx on the token exchange as a
 // broken delegation, which a simulated outage isn't.
 func failToken(w http.ResponseWriter, _ bool) {
 	writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "temporarily_unavailable", "error_description": "simulated server error"})

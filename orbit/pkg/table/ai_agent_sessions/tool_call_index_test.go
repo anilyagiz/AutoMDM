@@ -81,9 +81,9 @@ func TestToolCallIndex(t *testing.T) {
 	}
 }
 
-// Fleet resumes a session with tool_call_index >= the number of calls it has
+// AutoMDM resumes a session with tool_call_index >= the number of calls it has
 // stored. Once earlier calls of the same query have spent the shared size
-// limit, that call's one admitted row must be the first call Fleet lacks.
+// limit, that call's one admitted row must be the first call AutoMDM lacks.
 func TestToolCallIndexResumesAfterBudgetSpent(t *testing.T) {
 	home := setup(t)
 	clock := setClock(t, time.Now())
@@ -110,7 +110,7 @@ func TestToolCallIndexResumesAfterBudgetSpent(t *testing.T) {
 	}
 }
 
-// Fleet can start collecting a session at its tool_calls count, so that count
+// AutoMDM can start collecting a session at its tool_calls count, so that count
 // must be the index the session's next call will get, for every agent.
 func TestToolCallsCountMatchesToolCallIndex(t *testing.T) {
 	for _, tc := range []struct {
@@ -238,7 +238,7 @@ func rowsByToolUseID(rows []map[string]string) map[string]map[string]string {
 }
 
 // A call the agent recorded without a name or arguments takes an index and
-// counts in tool_calls like any other, so it has a row like any other: Fleet
+// counts in tool_calls like any other, so it has a row like any other: AutoMDM
 // resumes a session at the number of calls it has stored, and a call with no
 // row would make it reread the calls after it forever.
 func TestNamelessToolCallHasARow(t *testing.T) {
@@ -304,7 +304,7 @@ func TestNamelessToolCallHasARow(t *testing.T) {
 	}
 }
 
-// Fleet reads a session it is backfilling 100 calls at a time, with
+// AutoMDM reads a session it is backfilling 100 calls at a time, with
 // tool_call_index >= M AND tool_call_index < N. Both bounds are pushed down:
 // the result is exactly [M, N), and the calls past N aren't read.
 func TestToolCallIndexRangeIsExact(t *testing.T) {

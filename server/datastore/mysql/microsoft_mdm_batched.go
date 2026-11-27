@@ -6,16 +6,16 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
 	"github.com/jmoiron/sqlx"
 )
 
 // windowsReconcileHostPredicate selects the hosts the Windows reconciler manages. The enrollment relationships are EXISTS subqueries
 // rather than JOINs so a host with more than one mdm_windows_enrollments row (the table has no uniqueness on host_uuid) yields one
 // record. A device's enrollment and host_mdm_windows_profiles rows are keyed by UUID, so when hosts rows share a UUID only one eligible
-// row is selected: the one whose osquery_host_id is the UUID (fleetd's default host identifier), else the highest id. The NOT EXISTS
+// row is selected: the one whose osquery_host_id is the UUID (automdmd's default host identifier), else the highest id. The NOT EXISTS
 // must repeat each per-row condition, or a higher-ranked ineligible row would hide it. Its index and join-order hints stop MySQL from
 // reading hosts or host_mdm once per row when their index statistics are stale.
 const windowsReconcileHostPredicate = `
@@ -40,7 +40,7 @@ func (ds *Datastore) listWindowsMDMHostsForReconcileBatchTransaction(
 	tx common_mysql.DBReadTx,
 	afterHostUUID string,
 	batchSize int,
-) ([]*fleet.WindowsHostReconcileInfo, error) {
+) ([]*automdm.WindowsHostReconcileInfo, error) {
 	const stmt = `
 		SELECT
 			h.id               AS id,
@@ -53,7 +53,7 @@ func (ds *Datastore) listWindowsMDMHostsForReconcileBatchTransaction(
 		LIMIT ?
 	`
 
-	var hosts []*fleet.WindowsHostReconcileInfo
+	var hosts []*automdm.WindowsHostReconcileInfo
 	if err := sqlx.SelectContext(ctx, tx, &hosts, stmt, afterHostUUID, batchSize); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "list windows mdm hosts for reconcile batch")
 	}
@@ -62,7 +62,7 @@ func (ds *Datastore) listWindowsMDMHostsForReconcileBatchTransaction(
 
 // GetWindowsMDMHostForReconcile returns reconcile info for an eligible MDM-enrolled Windows host, selecting the same host row as the
 // batched reconciler's listing. Returns (nil, nil) when the host doesn't exist or isn't eligible.
-func (ds *Datastore) GetWindowsMDMHostForReconcile(ctx context.Context, hostUUID string) (*fleet.WindowsHostReconcileInfo, error) {
+func (ds *Datastore) GetWindowsMDMHostForReconcile(ctx context.Context, hostUUID string) (*automdm.WindowsHostReconcileInfo, error) {
 	const stmt = `
 		SELECT
 			h.id               AS id,
@@ -72,7 +72,7 @@ func (ds *Datastore) GetWindowsMDMHostForReconcile(ctx context.Context, hostUUID
 		FROM hosts h
 		WHERE h.uuid = ? AND ` + windowsReconcileHostPredicate
 
-	var host fleet.WindowsHostReconcileInfo
+	var host automdm.WindowsHostReconcileInfo
 	if err := sqlx.GetContext(ctx, ds.reader(ctx), &host, stmt, hostUUID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -84,13 +84,13 @@ func (ds *Datastore) GetWindowsMDMHostForReconcile(ctx context.Context, hostUUID
 
 // ListWindowsProfilesForReconcileByTeam is the per-host variant of the snapshot's profile loader: it loads only profiles for the
 // host's team. team_id=0 is its own team (the "no team" scope); a host with a real team does NOT inherit team_id=0 profiles.
-func (ds *Datastore) ListWindowsProfilesForReconcileByTeam(ctx context.Context, teamID uint) ([]*fleet.WindowsProfileForReconcile, error) {
+func (ds *Datastore) ListWindowsProfilesForReconcileByTeam(ctx context.Context, teamID uint) ([]*automdm.WindowsProfileForReconcile, error) {
 	return ds.listWindowsProfilesForReconcileTransaction(ctx, ds.reader(ctx), &teamID)
 }
 
 // BulkGetHostMDMWindowsProfilesByUUIDs returns the current host_mdm_windows_profiles rows for the given host UUIDs, keyed by each
 // UUID as given, whatever letter case the rows were stored with.
-func (ds *Datastore) BulkGetHostMDMWindowsProfilesByUUIDs(ctx context.Context, hostUUIDs []string) (map[string][]*fleet.MDMWindowsProfilePayload, error) {
+func (ds *Datastore) BulkGetHostMDMWindowsProfilesByUUIDs(ctx context.Context, hostUUIDs []string) (map[string][]*automdm.MDMWindowsProfilePayload, error) {
 	return ds.bulkGetHostMDMWindowsProfilesByUUIDsTransaction(ctx, ds.reader(ctx), hostUUIDs)
 }
 
@@ -103,7 +103,7 @@ func (ds *Datastore) listWindowsProfilesForReconcileTransaction(
 	ctx context.Context,
 	tx common_mysql.DBReadTx,
 	teamID *uint,
-) ([]*fleet.WindowsProfileForReconcile, error) {
+) ([]*automdm.WindowsProfileForReconcile, error) {
 	type profileRow struct {
 		ProfileUUID      string       `db:"profile_uuid"`
 		ProfileName      string       `db:"name"`
@@ -131,11 +131,11 @@ func (ds *Datastore) listWindowsProfilesForReconcileTransaction(
 		return nil, nil
 	}
 
-	byUUID := make(map[string]*fleet.WindowsProfileForReconcile, len(rows))
-	out := make([]*fleet.WindowsProfileForReconcile, 0, len(rows))
+	byUUID := make(map[string]*automdm.WindowsProfileForReconcile, len(rows))
+	out := make([]*automdm.WindowsProfileForReconcile, 0, len(rows))
 	profileUUIDs := make([]string, 0, len(rows))
 	for _, r := range rows {
-		p := &fleet.WindowsProfileForReconcile{
+		p := &automdm.WindowsProfileForReconcile{
 			ProfileUUID: r.ProfileUUID,
 			ProfileName: r.ProfileName,
 			TeamID:      r.TeamID,
@@ -199,7 +199,7 @@ func (ds *Datastore) listWindowsProfilesForReconcileTransaction(
 	// "exclude any" semantic. A profile may carry both an include set and an exclude set.
 	type includeAccum struct {
 		set   bool
-		mode  fleet.MDMProfileIncludeMode
+		mode  automdm.MDMProfileIncludeMode
 		mixed bool
 	}
 	includeModes := make(map[string]*includeAccum, len(byUUID))
@@ -210,7 +210,7 @@ func (ds *Datastore) listWindowsProfilesForReconcileTransaction(
 			continue
 		}
 
-		ref := fleet.MDMProfileLabelRef{
+		ref := automdm.MDMProfileLabelRef{
 			LabelMembershipType: lr.LabelMembershipType,
 		}
 		if lr.LabelID.Valid {
@@ -229,9 +229,9 @@ func (ds *Datastore) listWindowsProfilesForReconcileTransaction(
 		// Include row.
 		p.IncludeLabels = append(p.IncludeLabels, ref)
 
-		rowMode := fleet.MDMProfileIncludeAny
+		rowMode := automdm.MDMProfileIncludeAny
 		if lr.RequireAll {
-			rowMode = fleet.MDMProfileIncludeAll
+			rowMode = automdm.MDMProfileIncludeAll
 		}
 
 		ia := includeModes[lr.ProfileUUID]
@@ -258,9 +258,9 @@ func (ds *Datastore) listWindowsProfilesForReconcileTransaction(
 			// Defensive: include rows disagreed on require_all (should be impossible in production since the upsert path enforces a single mode).
 			// Drop the include set so we don't guess at intent; exclude labels (if any) are preserved.
 			p.IncludeLabels = nil
-			p.IncludeMode = fleet.MDMProfileIncludeNone
+			p.IncludeMode = automdm.MDMProfileIncludeNone
 			errMsg := "windows profile has mixed include label modes; ignoring include labels"
-			ds.logger.ErrorContext(ctx, errMsg, "profile_uuid", uuid, "fleet_id",
+			ds.logger.ErrorContext(ctx, errMsg, "profile_uuid", uuid, "team_id",
 				p.TeamID)
 			ctxerr.Handle(ctx, errors.New(errMsg))
 			continue
@@ -281,8 +281,8 @@ func (ds *Datastore) bulkGetHostMDMWindowsProfilesByUUIDsTransaction(
 	ctx context.Context,
 	tx common_mysql.DBReadTx,
 	hostUUIDs []string,
-) (map[string][]*fleet.MDMWindowsProfilePayload, error) {
-	out := make(map[string][]*fleet.MDMWindowsProfilePayload, len(hostUUIDs))
+) (map[string][]*automdm.MDMWindowsProfilePayload, error) {
+	out := make(map[string][]*automdm.MDMWindowsProfilePayload, len(hostUUIDs))
 	if len(hostUUIDs) == 0 {
 		return out, nil
 	}
@@ -308,7 +308,7 @@ func (ds *Datastore) bulkGetHostMDMWindowsProfilesByUUIDsTransaction(
 		return nil, ctxerr.Wrap(ctx, err, "build host mdm windows profiles query")
 	}
 
-	var rows []*fleet.MDMWindowsProfilePayload
+	var rows []*automdm.MDMWindowsProfilePayload
 	if err := sqlx.SelectContext(ctx, tx, &rows, q, args...); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "select host mdm windows profiles")
 	}
@@ -343,10 +343,10 @@ func (ds *Datastore) bulkGetHostMDMWindowsProfilesByUUIDsTransaction(
 // When the host window is empty the remaining queries are skipped — the caller short-circuits in that case anyway, and there's no
 // point loading profiles or memberships we won't use. Mirrors GetAppleProfileReconcileSnapshot.
 func (ds *Datastore) GetWindowsProfileReconcileSnapshot(ctx context.Context, afterHostUUID string, batchSize int) (
-	hosts []*fleet.WindowsHostReconcileInfo,
-	allProfiles []*fleet.WindowsProfileForReconcile,
+	hosts []*automdm.WindowsHostReconcileInfo,
+	allProfiles []*automdm.WindowsProfileForReconcile,
 	hostLabels map[uint]map[uint]struct{},
-	currentByHost map[string][]*fleet.MDMWindowsProfilePayload,
+	currentByHost map[string][]*automdm.MDMWindowsProfilePayload,
 	err error,
 ) {
 	err = ds.withReadTx(ctx, func(tx common_mysql.DBReadTx) error {

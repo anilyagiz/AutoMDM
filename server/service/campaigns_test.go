@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/pubsub"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/pubsub"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -113,7 +113,7 @@ func (q nopLiveQuery) ReleaseQueryReportWriteSlot(string) error {
 	return nil
 }
 
-func (q nopLiveQuery) LiveQueryStore() fleet.LiveQueryStore {
+func (q nopLiveQuery) LiveQueryStore() automdm.LiveQueryStore {
 	return q
 }
 
@@ -122,15 +122,15 @@ func TestLiveQueryAuth(t *testing.T) {
 	qr := pubsub.NewInmemQueryResults()
 	svc, ctx := newTestService(t, ds, qr, nopLiveQuery{})
 
-	teamMaintainer := &fleet.User{ID: 42, Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleMaintainer}}}
-	query1ObsCanRun := &fleet.Query{
+	teamMaintainer := &automdm.User{ID: 42, Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleMaintainer}}}
+	query1ObsCanRun := &automdm.Query{
 		ID:             1,
 		AuthorID:       ptr.Uint(teamMaintainer.ID),
 		Name:           "q1",
 		Query:          "SELECT 1",
 		ObserverCanRun: true,
 	}
-	query2ObsCannotRun := &fleet.Query{
+	query2ObsCannotRun := &automdm.Query{
 		ID:             2,
 		AuthorID:       ptr.Uint(teamMaintainer.ID),
 		Name:           "q2",
@@ -138,8 +138,8 @@ func TestLiveQueryAuth(t *testing.T) {
 		ObserverCanRun: false,
 	}
 
-	var lastCreatedQuery *fleet.Query
-	ds.NewQueryFunc = func(ctx context.Context, query *fleet.Query, opts ...fleet.OptionalArg) (*fleet.Query, error) {
+	var lastCreatedQuery *automdm.Query
+	ds.NewQueryFunc = func(ctx context.Context, query *automdm.Query, opts ...automdm.OptionalArg) (*automdm.Query, error) {
 		q := *query
 		vw, ok := viewer.FromContext(ctx)
 		q.ID = 123
@@ -149,28 +149,28 @@ func TestLiveQueryAuth(t *testing.T) {
 		lastCreatedQuery = &q
 		return &q, nil
 	}
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{ServerSettings: fleet.ServerSettings{LiveQueryDisabled: false}}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{ServerSettings: automdm.ServerSettings{LiveQueryDisabled: false}}, nil
 	}
-	ds.NewDistributedQueryCampaignFunc = func(ctx context.Context, camp *fleet.DistributedQueryCampaign) (*fleet.DistributedQueryCampaign, error) {
+	ds.NewDistributedQueryCampaignFunc = func(ctx context.Context, camp *automdm.DistributedQueryCampaign) (*automdm.DistributedQueryCampaign, error) {
 		return camp, nil
 	}
-	ds.NewDistributedQueryCampaignTargetFunc = func(ctx context.Context, target *fleet.DistributedQueryCampaignTarget) (*fleet.DistributedQueryCampaignTarget, error) {
+	ds.NewDistributedQueryCampaignTargetFunc = func(ctx context.Context, target *automdm.DistributedQueryCampaignTarget) (*automdm.DistributedQueryCampaignTarget, error) {
 		return target, nil
 	}
-	ds.HostIDsInTargetsFunc = func(ctx context.Context, filters fleet.TeamFilter, targets fleet.HostTargets) ([]uint, error) {
+	ds.HostIDsInTargetsFunc = func(ctx context.Context, filters automdm.TeamFilter, targets automdm.HostTargets) ([]uint, error) {
 		return []uint{1}, nil
 	}
-	ds.HostIDsByIdentifierFunc = func(ctx context.Context, filter fleet.TeamFilter, identifiers []string) ([]uint, error) {
+	ds.HostIDsByIdentifierFunc = func(ctx context.Context, filter automdm.TeamFilter, identifiers []string) ([]uint, error) {
 		return nil, nil
 	}
-	ds.AllLabelIDsByNameFunc = func(ctx context.Context, names []string, filter fleet.TeamFilter) (map[string][]uint, error) {
+	ds.AllLabelIDsByNameFunc = func(ctx context.Context, names []string, filter automdm.TeamFilter) (map[string][]uint, error) {
 		return nil, nil
 	}
-	ds.CountHostsInTargetsFunc = func(ctx context.Context, filters fleet.TeamFilter, targets fleet.HostTargets, now time.Time) (fleet.TargetMetrics, error) {
-		return fleet.TargetMetrics{}, nil
+	ds.CountHostsInTargetsFunc = func(ctx context.Context, filters automdm.TeamFilter, targets automdm.HostTargets, now time.Time) (automdm.TargetMetrics, error) {
+		return automdm.TargetMetrics{}, nil
 	}
-	ds.QueryFunc = func(ctx context.Context, id uint) (*fleet.Query, error) {
+	ds.QueryFunc = func(ctx context.Context, id uint) (*automdm.Query, error) {
 		if id == 1 {
 			return query1ObsCanRun, nil
 		}
@@ -182,12 +182,12 @@ func TestLiveQueryAuth(t *testing.T) {
 			lastCreatedQuery = nil
 			return q, nil
 		}
-		return &fleet.Query{ID: 8888, AuthorID: ptr.Uint(6666)}, nil
+		return &automdm.Query{ID: 8888, AuthorID: ptr.Uint(6666)}, nil
 	}
 
 	testCases := []struct {
 		name                   string
-		user                   *fleet.User
+		user                   *automdm.User
 		teamID                 *uint // to use as host target
 		shouldFailRunNew       bool
 		shouldFailRunObsCan    bool
@@ -195,7 +195,7 @@ func TestLiveQueryAuth(t *testing.T) {
 	}{
 		{
 			name:                   "global admin",
-			user:                   &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)},
+			user:                   &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)},
 			teamID:                 nil,
 			shouldFailRunNew:       false,
 			shouldFailRunObsCan:    false,
@@ -203,7 +203,7 @@ func TestLiveQueryAuth(t *testing.T) {
 		},
 		{
 			name:                   "global maintainer",
-			user:                   &fleet.User{GlobalRole: ptr.String(fleet.RoleMaintainer)},
+			user:                   &automdm.User{GlobalRole: ptr.String(automdm.RoleMaintainer)},
 			teamID:                 nil,
 			shouldFailRunNew:       false,
 			shouldFailRunObsCan:    false,
@@ -211,7 +211,7 @@ func TestLiveQueryAuth(t *testing.T) {
 		},
 		{
 			name:                   "global observer",
-			user:                   &fleet.User{GlobalRole: ptr.String(fleet.RoleObserver)},
+			user:                   &automdm.User{GlobalRole: ptr.String(automdm.RoleObserver)},
 			teamID:                 nil,
 			shouldFailRunNew:       true,
 			shouldFailRunObsCan:    false,
@@ -227,7 +227,7 @@ func TestLiveQueryAuth(t *testing.T) {
 		},
 		{
 			name:                   "team admin, no team target",
-			user:                   &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleAdmin}}},
+			user:                   &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleAdmin}}},
 			teamID:                 nil,
 			shouldFailRunNew:       false,
 			shouldFailRunObsCan:    false,
@@ -235,7 +235,7 @@ func TestLiveQueryAuth(t *testing.T) {
 		},
 		{
 			name:                   "team admin, target not set to own team",
-			user:                   &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleAdmin}}},
+			user:                   &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleAdmin}}},
 			teamID:                 ptr.Uint(2),
 			shouldFailRunNew:       false,
 			shouldFailRunObsCan:    true, // fails observer can run, as they are not part of that team, even as observer
@@ -243,7 +243,7 @@ func TestLiveQueryAuth(t *testing.T) {
 		},
 		{
 			name:                   "team admin, target set to own team",
-			user:                   &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleAdmin}}},
+			user:                   &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleAdmin}}},
 			teamID:                 ptr.Uint(1),
 			shouldFailRunNew:       false,
 			shouldFailRunObsCan:    false,
@@ -251,7 +251,7 @@ func TestLiveQueryAuth(t *testing.T) {
 		},
 		{
 			name:                   "team observer, no team target",
-			user:                   &fleet.User{ID: 48, Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleObserver}}},
+			user:                   &automdm.User{ID: 48, Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserver}}},
 			teamID:                 nil,
 			shouldFailRunNew:       true,
 			shouldFailRunObsCan:    false,
@@ -259,7 +259,7 @@ func TestLiveQueryAuth(t *testing.T) {
 		},
 		{
 			name:                   "team observer, target not set to own team",
-			user:                   &fleet.User{ID: 48, Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleObserver}}},
+			user:                   &automdm.User{ID: 48, Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserver}}},
 			teamID:                 ptr.Uint(2),
 			shouldFailRunNew:       true,
 			shouldFailRunObsCan:    true,
@@ -267,7 +267,7 @@ func TestLiveQueryAuth(t *testing.T) {
 		},
 		{
 			name:                   "team observer, target set to own team",
-			user:                   &fleet.User{ID: 48, Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleObserver}}},
+			user:                   &automdm.User{ID: 48, Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserver}}},
 			teamID:                 ptr.Uint(1),
 			shouldFailRunNew:       true,
 			shouldFailRunObsCan:    false,
@@ -289,16 +289,16 @@ func TestLiveQueryAuth(t *testing.T) {
 			if len(tt.user.Teams) > 0 {
 				tms = []uint{tt.user.Teams[0].ID}
 			}
-			_, err := svc.NewDistributedQueryCampaign(ctx, query1ObsCanRun.Query, nil, fleet.HostTargets{TeamIDs: tms})
+			_, err := svc.NewDistributedQueryCampaign(ctx, query1ObsCanRun.Query, nil, automdm.HostTargets{TeamIDs: tms})
 			checkAuthErr(t, tt.shouldFailRunNew, err)
 
 			if tt.teamID != nil {
 				tms = []uint{*tt.teamID}
 			}
-			_, err = svc.NewDistributedQueryCampaign(ctx, query1ObsCanRun.Query, ptr.Uint(query1ObsCanRun.ID), fleet.HostTargets{TeamIDs: tms})
+			_, err = svc.NewDistributedQueryCampaign(ctx, query1ObsCanRun.Query, ptr.Uint(query1ObsCanRun.ID), automdm.HostTargets{TeamIDs: tms})
 			checkAuthErr(t, tt.shouldFailRunObsCan, err)
 
-			_, err = svc.NewDistributedQueryCampaign(ctx, query2ObsCannotRun.Query, ptr.Uint(query2ObsCannotRun.ID), fleet.HostTargets{TeamIDs: tms})
+			_, err = svc.NewDistributedQueryCampaign(ctx, query2ObsCannotRun.Query, ptr.Uint(query2ObsCannotRun.ID), automdm.HostTargets{TeamIDs: tms})
 			checkAuthErr(t, tt.shouldFailRunObsCannot, err)
 
 			// tests with a team target cannot run the "ByNames" calls, as there's no way
@@ -322,40 +322,40 @@ func TestLiveQueryLabelValidation(t *testing.T) {
 	qr := pubsub.NewInmemQueryResults()
 	svc, ctx := newTestService(t, ds, qr, nopLiveQuery{})
 
-	user := &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}
-	query := &fleet.Query{
+	user := &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}
+	query := &automdm.Query{
 		ID:             1,
 		Name:           "q1",
 		Query:          "SELECT 1",
 		ObserverCanRun: true,
 	}
-	ds.NewQueryFunc = func(ctx context.Context, query *fleet.Query, opts ...fleet.OptionalArg) (*fleet.Query, error) {
+	ds.NewQueryFunc = func(ctx context.Context, query *automdm.Query, opts ...automdm.OptionalArg) (*automdm.Query, error) {
 		query.ID = 123
 		return query, nil
 	}
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{ServerSettings: fleet.ServerSettings{LiveQueryDisabled: false}}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{ServerSettings: automdm.ServerSettings{LiveQueryDisabled: false}}, nil
 	}
-	ds.NewDistributedQueryCampaignFunc = func(ctx context.Context, camp *fleet.DistributedQueryCampaign) (*fleet.DistributedQueryCampaign, error) {
+	ds.NewDistributedQueryCampaignFunc = func(ctx context.Context, camp *automdm.DistributedQueryCampaign) (*automdm.DistributedQueryCampaign, error) {
 		return camp, nil
 	}
-	ds.NewDistributedQueryCampaignTargetFunc = func(ctx context.Context, target *fleet.DistributedQueryCampaignTarget) (*fleet.DistributedQueryCampaignTarget, error) {
+	ds.NewDistributedQueryCampaignTargetFunc = func(ctx context.Context, target *automdm.DistributedQueryCampaignTarget) (*automdm.DistributedQueryCampaignTarget, error) {
 		return target, nil
 	}
-	ds.HostIDsInTargetsFunc = func(ctx context.Context, filters fleet.TeamFilter, targets fleet.HostTargets) ([]uint, error) {
+	ds.HostIDsInTargetsFunc = func(ctx context.Context, filters automdm.TeamFilter, targets automdm.HostTargets) ([]uint, error) {
 		return []uint{1}, nil
 	}
-	ds.HostIDsByIdentifierFunc = func(ctx context.Context, filter fleet.TeamFilter, identifiers []string) ([]uint, error) {
+	ds.HostIDsByIdentifierFunc = func(ctx context.Context, filter automdm.TeamFilter, identifiers []string) ([]uint, error) {
 		return nil, nil
 	}
-	ds.CountHostsInTargetsFunc = func(ctx context.Context, filters fleet.TeamFilter, targets fleet.HostTargets, now time.Time) (fleet.TargetMetrics, error) {
-		return fleet.TargetMetrics{}, nil
+	ds.CountHostsInTargetsFunc = func(ctx context.Context, filters automdm.TeamFilter, targets automdm.HostTargets, now time.Time) (automdm.TargetMetrics, error) {
+		return automdm.TargetMetrics{}, nil
 	}
-	ds.QueryFunc = func(ctx context.Context, id uint) (*fleet.Query, error) {
+	ds.QueryFunc = func(ctx context.Context, id uint) (*automdm.Query, error) {
 		return query, nil
 	}
 
-	ds.AllLabelIDsByNameFunc = func(ctx context.Context, names []string, filter fleet.TeamFilter) (map[string][]uint, error) {
+	ds.AllLabelIDsByNameFunc = func(ctx context.Context, names []string, filter automdm.TeamFilter) (map[string][]uint, error) {
 		return map[string][]uint{"label1": {1}}, nil
 	}
 
@@ -408,21 +408,21 @@ func TestLiveQueryLabelBypassPrevented(t *testing.T) {
 	qr := pubsub.NewInmemQueryResults()
 	svc, ctx := newTestService(t, ds, qr, nopLiveQuery{})
 
-	user := &fleet.User{
+	user := &automdm.User{
 		ID: 99,
-		Teams: []fleet.UserTeam{
-			{Team: fleet.Team{ID: 1}, Role: fleet.RoleObserver},
-			{Team: fleet.Team{ID: 2}, Role: fleet.RoleMaintainer},
+		Teams: []automdm.UserTeam{
+			{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserver},
+			{Team: automdm.Team{ID: 2}, Role: automdm.RoleMaintainer},
 		},
 	}
 
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{ServerSettings: fleet.ServerSettings{LiveQueryDisabled: false}}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{ServerSettings: automdm.ServerSettings{LiveQueryDisabled: false}}, nil
 	}
-	ds.NewDistributedQueryCampaignFunc = func(ctx context.Context, camp *fleet.DistributedQueryCampaign) (*fleet.DistributedQueryCampaign, error) {
+	ds.NewDistributedQueryCampaignFunc = func(ctx context.Context, camp *automdm.DistributedQueryCampaign) (*automdm.DistributedQueryCampaign, error) {
 		return camp, nil
 	}
-	ds.NewDistributedQueryCampaignTargetFunc = func(ctx context.Context, target *fleet.DistributedQueryCampaignTarget) (*fleet.DistributedQueryCampaignTarget, error) {
+	ds.NewDistributedQueryCampaignTargetFunc = func(ctx context.Context, target *automdm.DistributedQueryCampaignTarget) (*automdm.DistributedQueryCampaignTarget, error) {
 		return target, nil
 	}
 
@@ -448,7 +448,7 @@ func TestLiveQueryLabelBypassPrevented(t *testing.T) {
 
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
-			query := &fleet.Query{
+			query := &automdm.Query{
 				ID:             10,
 				AuthorID:       ptr.Uint(user.ID),
 				Name:           "q",
@@ -456,21 +456,21 @@ func TestLiveQueryLabelBypassPrevented(t *testing.T) {
 				ObserverCanRun: tt.observerCanRun,
 				TeamID:         ptr.Uint(2),
 			}
-			ds.QueryFunc = func(_ context.Context, _ uint) (*fleet.Query, error) {
+			ds.QueryFunc = func(_ context.Context, _ uint) (*automdm.Query, error) {
 				return query, nil
 			}
 
-			var capturedFilter fleet.TeamFilter
-			ds.HostIDsInTargetsFunc = func(_ context.Context, filter fleet.TeamFilter, _ fleet.HostTargets) ([]uint, error) {
+			var capturedFilter automdm.TeamFilter
+			ds.HostIDsInTargetsFunc = func(_ context.Context, filter automdm.TeamFilter, _ automdm.HostTargets) ([]uint, error) {
 				capturedFilter = filter
 				return []uint{20}, nil
 			}
-			ds.CountHostsInTargetsFunc = func(_ context.Context, _ fleet.TeamFilter, _ fleet.HostTargets, _ time.Time) (fleet.TargetMetrics, error) {
-				return fleet.TargetMetrics{TotalHosts: 1}, nil
+			ds.CountHostsInTargetsFunc = func(_ context.Context, _ automdm.TeamFilter, _ automdm.HostTargets, _ time.Time) (automdm.TargetMetrics, error) {
+				return automdm.TargetMetrics{TotalHosts: 1}, nil
 			}
 
 			userCtx := viewer.NewContext(ctx, viewer.Viewer{User: user})
-			_, err := svc.NewDistributedQueryCampaign(userCtx, query.Query, ptr.Uint(query.ID), fleet.HostTargets{LabelIDs: []uint{5}})
+			_, err := svc.NewDistributedQueryCampaign(userCtx, query.Query, ptr.Uint(query.ID), automdm.HostTargets{LabelIDs: []uint{5}})
 			require.NoError(t, err)
 			assert.Equal(t, tt.expectIncludeObs, capturedFilter.IncludeObserver, "IncludeObserver mismatch for observer_can_run=%v", tt.observerCanRun)
 			assert.Equal(t, tt.expectObserverTeamID, capturedFilter.ObserverTeamID, "ObserverTeamID mismatch for observer_can_run=%v", tt.observerCanRun)
@@ -497,7 +497,7 @@ func (c *captureAgentNotifier) NotifyOrbitConfigHosts(ctx context.Context, hostI
 	return nil
 }
 
-func (c *captureAgentNotifier) NotifyOrbitConfigScope(ctx context.Context, scope fleet.AgentNotificationScope, reason string) error {
+func (c *captureAgentNotifier) NotifyOrbitConfigScope(ctx context.Context, scope automdm.AgentNotificationScope, reason string) error {
 	return nil
 }
 
@@ -505,36 +505,36 @@ func (c *captureAgentNotifier) NotifyOsqueryConfigHosts(ctx context.Context, hos
 	return nil
 }
 
-func (c *captureAgentNotifier) NotifyOsqueryConfigScope(ctx context.Context, scope fleet.AgentNotificationScope, reason string) error {
+func (c *captureAgentNotifier) NotifyOsqueryConfigScope(ctx context.Context, scope automdm.AgentNotificationScope, reason string) error {
 	return nil
 }
 
 func TestNewDistributedQueryCampaignNotifiesAgents(t *testing.T) {
-	setup := func(t *testing.T) (fleet.Service, context.Context) {
+	setup := func(t *testing.T) (automdm.Service, context.Context) {
 		ds := new(mock.Store)
 		svc, ctx := newTestService(t, ds, pubsub.NewInmemQueryResults(), nopLiveQuery{})
 
-		ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-			return &fleet.AppConfig{}, nil
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{}, nil
 		}
-		ds.QueryFunc = func(ctx context.Context, id uint) (*fleet.Query, error) {
-			return &fleet.Query{ID: id, Query: "SELECT 1", ObserverCanRun: true, Logging: fleet.LoggingSnapshot}, nil
+		ds.QueryFunc = func(ctx context.Context, id uint) (*automdm.Query, error) {
+			return &automdm.Query{ID: id, Query: "SELECT 1", ObserverCanRun: true, Logging: automdm.LoggingSnapshot}, nil
 		}
-		ds.NewDistributedQueryCampaignFunc = func(ctx context.Context, camp *fleet.DistributedQueryCampaign) (*fleet.DistributedQueryCampaign, error) {
+		ds.NewDistributedQueryCampaignFunc = func(ctx context.Context, camp *automdm.DistributedQueryCampaign) (*automdm.DistributedQueryCampaign, error) {
 			camp.ID = 99
 			return camp, nil
 		}
-		ds.NewDistributedQueryCampaignTargetFunc = func(ctx context.Context, target *fleet.DistributedQueryCampaignTarget) (*fleet.DistributedQueryCampaignTarget, error) {
+		ds.NewDistributedQueryCampaignTargetFunc = func(ctx context.Context, target *automdm.DistributedQueryCampaignTarget) (*automdm.DistributedQueryCampaignTarget, error) {
 			return target, nil
 		}
-		ds.HostIDsInTargetsFunc = func(ctx context.Context, filter fleet.TeamFilter, targets fleet.HostTargets) ([]uint, error) {
+		ds.HostIDsInTargetsFunc = func(ctx context.Context, filter automdm.TeamFilter, targets automdm.HostTargets) ([]uint, error) {
 			return []uint{10, 20}, nil
 		}
-		ds.CountHostsInTargetsFunc = func(ctx context.Context, filter fleet.TeamFilter, targets fleet.HostTargets, now time.Time) (fleet.TargetMetrics, error) {
-			return fleet.TargetMetrics{TotalHosts: 2}, nil
+		ds.CountHostsInTargetsFunc = func(ctx context.Context, filter automdm.TeamFilter, targets automdm.HostTargets, now time.Time) (automdm.TargetMetrics, error) {
+			return automdm.TargetMetrics{TotalHosts: 2}, nil
 		}
 
-		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{ID: 1, GlobalRole: new(fleet.RoleAdmin)}})
+		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{ID: 1, GlobalRole: new(automdm.RoleAdmin)}})
 		return svc, ctx
 	}
 
@@ -543,7 +543,7 @@ func TestNewDistributedQueryCampaignNotifiesAgents(t *testing.T) {
 		notifier := &captureAgentNotifier{}
 		svc.SetAgentCheckInNotifier(notifier)
 
-		campaign, err := svc.NewDistributedQueryCampaign(ctx, "", new(uint(1)), fleet.HostTargets{HostIDs: []uint{10, 20}})
+		campaign, err := svc.NewDistributedQueryCampaign(ctx, "", new(uint(1)), automdm.HostTargets{HostIDs: []uint{10, 20}})
 		require.NoError(t, err)
 		require.True(t, notifier.invoked)
 		assert.Equal(t, []uint{10, 20}, notifier.hostIDs)
@@ -555,14 +555,14 @@ func TestNewDistributedQueryCampaignNotifiesAgents(t *testing.T) {
 		notifier := &captureAgentNotifier{err: errors.New("redis down")}
 		svc.SetAgentCheckInNotifier(notifier)
 
-		_, err := svc.NewDistributedQueryCampaign(ctx, "", new(uint(1)), fleet.HostTargets{HostIDs: []uint{10, 20}})
+		_, err := svc.NewDistributedQueryCampaign(ctx, "", new(uint(1)), automdm.HostTargets{HostIDs: []uint{10, 20}})
 		require.NoError(t, err)
 		require.True(t, notifier.invoked)
 	})
 
 	t.Run("no notifier set", func(t *testing.T) {
 		svc, ctx := setup(t)
-		_, err := svc.NewDistributedQueryCampaign(ctx, "", new(uint(1)), fleet.HostTargets{HostIDs: []uint{10, 20}})
+		_, err := svc.NewDistributedQueryCampaign(ctx, "", new(uint(1)), automdm.HostTargets{HostIDs: []uint{10, 20}})
 		require.NoError(t, err)
 	})
 }

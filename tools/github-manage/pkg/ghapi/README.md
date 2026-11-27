@@ -65,7 +65,7 @@ Some tests are skipped in the unit test suite because they require:
 
 To run integration tests, you need to:
 1. Install and authenticate GitHub CLI
-2. Have access to the Fleet repository
+2. Have access to the AutoMDM repository
 3. Run tests with appropriate environment setup
 
 ### Mocking

@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: policy
 spec:
-  name: CIS - Ensure Apple-provided Software Updates Are Installed (Fleetd Required)
+  name: CIS - Ensure Apple-provided Software Updates Are Installed (AutoMDMd Required)
   cis_id: "1.1"
   platforms: macOS
   platform: darwin
@@ -1286,7 +1286,7 @@ spec:
 apiVersion: v1
 kind: policy
 spec:
-  name: CIS - Ensure an Administrator Password Is Required to Access System-Wide Preferences (Fleetd Required)
+  name: CIS - Ensure an Administrator Password Is Required to Access System-Wide Preferences (AutoMDMd Required)
   cis_id: "2.6.8"
   platforms: macOS
   platform: darwin
@@ -1618,7 +1618,7 @@ spec:
 apiVersion: v1
 kind: policy
 spec:
-  name: CIS - Ensure Sleep and Display Sleep Is Enabled on Apple Silicon Devices (Fleetd Required)
+  name: CIS - Ensure Sleep and Display Sleep Is Enabled on Apple Silicon Devices (AutoMDMd Required)
   cis_id: "2.10.1.2"
   platforms: macOS
   platform: darwin
@@ -1662,7 +1662,7 @@ spec:
 apiVersion: v1
 kind: policy
 spec:
-  name: CIS - Ensure Power Nap Is Disabled for Intel Macs (Fleetd Required)
+  name: CIS - Ensure Power Nap Is Disabled for Intel Macs (AutoMDMd Required)
   cis_id: "2.10.2"
   platforms: macOS
   platform: darwin
@@ -1687,7 +1687,7 @@ spec:
 apiVersion: v1
 kind: policy
 spec:
-  name: CIS - Ensure Wake for Network Access Is Disabled (Fleetd Required)
+  name: CIS - Ensure Wake for Network Access Is Disabled (AutoMDMd Required)
   cis_id: "2.10.3"
   platforms: macOS
   platform: darwin
@@ -1712,7 +1712,7 @@ spec:
 apiVersion: v1
 kind: policy
 spec:
-  name: CIS - Ensure Users' Accounts Do Not Have a Password Hint (Fleetd Required)
+  name: CIS - Ensure Users' Accounts Do Not Have a Password Hint (AutoMDMd Required)
   cis_id: "2.12.1"
   platforms: macOS
   platform: darwin
@@ -2151,7 +2151,7 @@ spec:
 apiVersion: v1
 kind: policy
 spec:
-  name: CIS - Ensure Apple Mobile File Integrity (AMFI) Is Enabled (Fleetd Required)
+  name: CIS - Ensure Apple Mobile File Integrity (AMFI) Is Enabled (AutoMDMd Required)
   cis_id: "5.1.3"
   platforms: macOS
   platform: darwin
@@ -2169,7 +2169,7 @@ spec:
 apiVersion: v1
 kind: policy
 spec:
-  name: CIS - Ensure Signed System Volume (SSV) Is Enabled (Fleetd Required)
+  name: CIS - Ensure Signed System Volume (SSV) Is Enabled (AutoMDMd Required)
   cis_id: "5.1.4"
   platforms: macOS
   platform: darwin
@@ -2208,7 +2208,7 @@ spec:
 apiVersion: v1
 kind: policy
 spec:
-  name: CIS - Ensure No World Writable Folders Exist in the System Folder (Fleetd Required)
+  name: CIS - Ensure No World Writable Folders Exist in the System Folder (AutoMDMd Required)
   cis_id: "5.1.6"
   platforms: macOS
   platform: darwin
@@ -2266,7 +2266,7 @@ spec:
 apiVersion: v1
 kind: policy
 spec:
-  name: CIS - Ensure Password Account Lockout Threshold Is Configured (Fleetd Required)
+  name: CIS - Ensure Password Account Lockout Threshold Is Configured (AutoMDMd Required)
   cis_id: "5.2.1"
   platforms: macOS
   platform: darwin
@@ -2285,7 +2285,7 @@ spec:
 apiVersion: v1
 kind: policy
 spec:
-  name: CIS - Ensure Password Minimum Length Is Configured (Fleetd Required)
+  name: CIS - Ensure Password Minimum Length Is Configured (AutoMDMd Required)
   cis_id: "5.2.2"
   platforms: macOS
   platform: darwin
@@ -2310,7 +2310,7 @@ spec:
 apiVersion: v1
 kind: policy
 spec:
-  name: CIS - Ensure Password Age Is Configured (Fleetd Required)
+  name: CIS - Ensure Password Age Is Configured (AutoMDMd Required)
   cis_id: "5.2.7"
   platforms: macOS
   platform: darwin
@@ -2332,7 +2332,7 @@ spec:
 apiVersion: v1
 kind: policy
 spec:
-  name: CIS - Ensure Password History Is Set to at Least 24 (Fleetd Required)
+  name: CIS - Ensure Password History Is Set to at Least 24 (AutoMDMd Required)
   cis_id: "5.2.8"
   platforms: macOS
   platform: darwin
@@ -2351,7 +2351,7 @@ spec:
 apiVersion: v1
 kind: policy
 spec:
-  name: CIS - Ensure all internal user storage APFS volumes are encrypted (Fleetd Required)
+  name: CIS - Ensure all internal user storage APFS volumes are encrypted (AutoMDMd Required)
   cis_id: "5.3.1"
   platforms: macOS
   platform: darwin
@@ -2364,7 +2364,7 @@ spec:
     encrypted. "Role" disks include Preboot, Recovery and VM. User disks are labelled with "(No
     specific role)" by default.
 
-    Note: The fleetd `apfs_volumes` table does not distinguish internal from external disks, so
+    Note: The automdmd `apfs_volumes` table does not distinguish internal from external disks, so
     this query evaluates all non-role APFS volumes. External APFS/HFS+ volumes (CIS 5.3.2) are
     not separately covered — see the README limitations.
     Apple's sealed, read-only asset cryptex volumes (names ending in "Cryptex") have no role and
@@ -2394,7 +2394,7 @@ spec:
 apiVersion: v1
 kind: policy
 spec:
-  name: CIS - Ensure the Sudo Timeout Period Is Set to Zero (Fleetd Required)
+  name: CIS - Ensure the Sudo Timeout Period Is Set to Zero (AutoMDMd Required)
   cis_id: "5.4"
   platforms: macOS
   platform: darwin
@@ -2419,7 +2419,7 @@ spec:
 apiVersion: v1
 kind: policy
 spec:
-  name: CIS - Ensure a Separate Timestamp Is Enabled for Each User/tty Combo (Fleetd Required)
+  name: CIS - Ensure a Separate Timestamp Is Enabled for Each User/tty Combo (AutoMDMd Required)
   cis_id: "5.5"
   platforms: macOS
   platform: darwin
@@ -2441,7 +2441,7 @@ spec:
 apiVersion: v1
 kind: policy
 spec:
-  name: CIS - Ensure the "root" Account Is Disabled (Fleetd Required)
+  name: CIS - Ensure the "root" Account Is Disabled (AutoMDMd Required)
   cis_id: "5.6"
   platforms: macOS
   platform: darwin
@@ -2460,7 +2460,7 @@ spec:
 apiVersion: v1
 kind: policy
 spec:
-  name: CIS - Ensure an Administrator Account Cannot Login to Another User's Active and Locked Session (Fleetd Required)
+  name: CIS - Ensure an Administrator Account Cannot Login to Another User's Active and Locked Session (AutoMDMd Required)
   cis_id: "5.7"
   platforms: macOS
   platform: darwin
@@ -2548,7 +2548,7 @@ spec:
 apiVersion: v1
 kind: policy
 spec:
-  name: CIS - Ensure Logging Is Enabled for Sudo (Fleetd Required)
+  name: CIS - Ensure Logging Is Enabled for Sudo (AutoMDMd Required)
   cis_id: "5.11"
   platforms: macOS
   platform: darwin

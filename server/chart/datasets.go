@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/RoaringBitmap/roaring"
-	"github.com/fleetdm/fleet/v4/server/chart/api"
+	"github.com/anilyagiz/automdm/v4/server/chart/api"
 )
 
 // UptimeDataset implements api.Dataset for host uptime tracking.
@@ -16,8 +16,8 @@ func (u *UptimeDataset) DefaultResolutionHours() int        { return 3 }
 func (u *UptimeDataset) SampleStrategy() api.SampleStrategy { return api.SampleStrategyAccumulate }
 func (u *UptimeDataset) DefaultVisualization() string       { return "checkerboard" }
 
-func (u *UptimeDataset) Collect(ctx context.Context, store api.DatasetStore, now time.Time, disabledFleetIDs []uint) error {
-	hostIDs, err := store.FindOnlineHostIDs(ctx, now, disabledFleetIDs)
+func (u *UptimeDataset) Collect(ctx context.Context, store api.DatasetStore, now time.Time, disabledTeamIDs []uint) error {
+	hostIDs, err := store.FindOnlineHostIDs(ctx, now, disabledTeamIDs)
 	if err != nil {
 		return err
 	}
@@ -39,7 +39,7 @@ func (c *CVEDataset) DefaultResolutionHours() int        { return 3 }
 func (c *CVEDataset) SampleStrategy() api.SampleStrategy { return api.SampleStrategySnapshot }
 func (c *CVEDataset) DefaultVisualization() string       { return "line" }
 
-func (c *CVEDataset) Collect(ctx context.Context, store api.DatasetStore, now time.Time, disabledFleetIDs []uint) error {
+func (c *CVEDataset) Collect(ctx context.Context, store api.DatasetStore, now time.Time, disabledTeamIDs []uint) error {
 	// Collect CVEs at all severities on the curated set of tracked software and
 	// OS vulnerabilities. Display-time narrowing (critical-only this round,
 	// plus user filters) happens at read time via ResolveCVEChartEntities.
@@ -50,7 +50,7 @@ func (c *CVEDataset) Collect(ctx context.Context, store api.DatasetStore, now ti
 
 	// The store sets bits while streaming the vulnerability joins, so peak
 	// memory here is one bitmap per CVE — never the raw (CVE, host) pairs.
-	bitmaps, err := store.AffectedHostIDsByCVE(ctx, disabledFleetIDs, tracked)
+	bitmaps, err := store.AffectedHostIDsByCVE(ctx, disabledTeamIDs, tracked)
 	if err != nil {
 		return err
 	}

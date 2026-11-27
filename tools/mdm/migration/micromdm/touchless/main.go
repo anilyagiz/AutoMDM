@@ -13,8 +13,8 @@ import (
 	"os"
 	"strings"
 
+	scepdepot "github.com/anilyagiz/automdm/v4/server/mdm/scep/depot/bolt"
 	"github.com/boltdb/bolt"
-	scepdepot "github.com/fleetdm/fleet/v4/server/mdm/scep/depot/bolt"
 	apnsbuiltin "github.com/micromdm/micromdm/platform/apns/builtin"
 	"github.com/micromdm/micromdm/platform/device"
 	devicebuiltin "github.com/micromdm/micromdm/platform/device/builtin"

@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # 3DxWare 10 is a self-extractor that runs a WiX Burn bundle. The self-extractor
 # doesn't pass the bundle's exit code through, so the result is read from the

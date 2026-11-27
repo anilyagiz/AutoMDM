@@ -11,12 +11,12 @@ import UpcomingActivityFeed from "./UpcomingActivityFeed";
 const installActivity: IHostUpcomingActivity = {
   uuid: "upcoming-1",
   created_at: "2026-01-01T00:00:00Z",
-  actor_full_name: "Fleet",
+  actor_full_name: "AutoMDM",
   actor_id: 0,
   actor_gravatar: "",
   actor_email: "",
   actor_api_only: false,
-  fleet_initiated: true,
+  automdm_initiated: true,
   type: ActivityType.InstalledSoftware,
   details: {
     software_title: "Firefox",
@@ -49,7 +49,7 @@ const renderWith = (isPremiumTier: boolean) =>
   );
 
 describe("UpcomingActivityFeed", () => {
-  it("hides Show details on install activities for Fleet Free", () => {
+  it("hides Show details on install activities for AutoMDM Free", () => {
     renderWith(false);
 
     expect(
@@ -57,7 +57,7 @@ describe("UpcomingActivityFeed", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows Show details on install activities for Fleet Premium", () => {
+  it("shows Show details on install activities for AutoMDM Premium", () => {
     renderWith(true);
 
     expect(

@@ -1,4 +1,4 @@
-# Fleet runs this uninstall script as SYSTEM (machine scope).
+# AutoMDM runs this uninstall script as SYSTEM (machine scope).
 # Match against the registry DisplayName for Proxifier.
 $softwareName = "Proxifier"
 

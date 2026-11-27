@@ -1,8 +1,8 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # KeePass uses an Inno Setup installer: /ALLUSERS forces a machine-wide install
-# (the default is per-user, which would land in the SYSTEM profile when Fleet
+# (the default is per-user, which would land in the SYSTEM profile when AutoMDM
 # runs as SYSTEM). Setup refuses to run while KeePass is open, so a running
 # instance is asked to close first and force-stopped only if it refuses --
 # which discards unsaved database changes.

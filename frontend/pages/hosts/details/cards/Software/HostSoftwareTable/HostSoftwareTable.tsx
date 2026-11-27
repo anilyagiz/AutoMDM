@@ -133,7 +133,7 @@ const HostSoftwareTable = ({
         orderKey: newTableQuery.sortHeader,
         orderDirection: newTableQuery.sortDirection,
         page: changedParam === "pageIndex" ? newTableQuery.pageIndex : 0,
-        fleetId: teamId,
+        automdmId: teamId,
         macosApplications,
         filters,
       }),

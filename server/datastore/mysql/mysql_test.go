@@ -20,12 +20,12 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/VividCortex/mysqlerr"
 	"github.com/WatchBeam/clock"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxdb"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
-	"github.com/fleetdm/fleet/v4/server/platform/mysql/testing_utils"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxdb"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/platform/mysql/testing_utils"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
@@ -51,7 +51,7 @@ func TestDatastoreReplica(t *testing.T) {
 		require.NotEqual(t, ds.reader(ctx), ds.writer(ctx))
 
 		// create a new host
-		host, err := ds.NewHost(ctx, &fleet.Host{
+		host, err := ds.NewHost(ctx, &automdm.Host{
 			DetailUpdatedAt: time.Now(),
 			LabelUpdatedAt:  time.Now(),
 			PolicyUpdatedAt: time.Now(),
@@ -366,7 +366,7 @@ func TestAppendListOptionsToSQLSecure(t *testing.T) {
 	}
 
 	sql := "SELECT * FROM my_table"
-	opts := fleet.ListOptions{
+	opts := automdm.ListOptions{
 		OrderKey: "name",
 	}
 
@@ -376,13 +376,13 @@ func TestAppendListOptionsToSQLSecure(t *testing.T) {
 	assert.Equal(t, expected, actual)
 
 	sql = "SELECT * FROM my_table"
-	opts.OrderDirection = fleet.OrderDescending
+	opts.OrderDirection = automdm.OrderDescending
 	actual, _, err = appendListOptionsToSQLSecure(sql, &opts, testAllowlist)
 	require.NoError(t, err)
 	expected = "SELECT * FROM my_table ORDER BY name DESC LIMIT 1000000"
 	assert.Equal(t, expected, actual)
 
-	opts = fleet.ListOptions{
+	opts = automdm.ListOptions{
 		PerPage: 10,
 	}
 
@@ -399,7 +399,7 @@ func TestAppendListOptionsToSQLSecure(t *testing.T) {
 	expected = "SELECT * FROM my_table LIMIT 10 OFFSET 20"
 	assert.Equal(t, expected, actual)
 
-	opts = fleet.ListOptions{}
+	opts = automdm.ListOptions{}
 	sql = "SELECT * FROM my_table"
 	actual, _, err = appendListOptionsToSQLSecure(sql, &opts, testAllowlist)
 	require.NoError(t, err)
@@ -407,7 +407,7 @@ func TestAppendListOptionsToSQLSecure(t *testing.T) {
 	assert.Equal(t, expected, actual)
 
 	// Test that invalid order key returns an error
-	opts = fleet.ListOptions{OrderKey: "invalid_column"}
+	opts = automdm.ListOptions{OrderKey: "invalid_column"}
 	sql = "SELECT * FROM my_table"
 	_, _, err = appendListOptionsToSQLSecure(sql, &opts, testAllowlist)
 	require.Error(t, err)
@@ -420,45 +420,45 @@ func TestWhereFilterHostsByTeams(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		filter   fleet.TeamFilter
+		filter   automdm.TeamFilter
 		expected string
 	}{
 		// No teams or global role
 		{
-			filter: fleet.TeamFilter{
-				User: &fleet.User{},
+			filter: automdm.TeamFilter{
+				User: &automdm.User{},
 			},
 			expected: "FALSE",
 		},
 		{
-			filter: fleet.TeamFilter{
-				User: &fleet.User{Teams: []fleet.UserTeam{}},
+			filter: automdm.TeamFilter{
+				User: &automdm.User{Teams: []automdm.UserTeam{}},
 			},
 			expected: "FALSE",
 		},
 
 		// Global role
 		{
-			filter: fleet.TeamFilter{
-				User: &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)},
+			filter: automdm.TeamFilter{
+				User: &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)},
 			},
 			expected: "TRUE",
 		},
 		{
-			filter: fleet.TeamFilter{
-				User: &fleet.User{GlobalRole: ptr.String(fleet.RoleMaintainer)},
+			filter: automdm.TeamFilter{
+				User: &automdm.User{GlobalRole: ptr.String(automdm.RoleMaintainer)},
 			},
 			expected: "TRUE",
 		},
 		{
-			filter: fleet.TeamFilter{
-				User: &fleet.User{GlobalRole: ptr.String(fleet.RoleObserver)},
+			filter: automdm.TeamFilter{
+				User: &automdm.User{GlobalRole: ptr.String(automdm.RoleObserver)},
 			},
 			expected: "FALSE",
 		},
 		{
-			filter: fleet.TeamFilter{
-				User:            &fleet.User{GlobalRole: ptr.String(fleet.RoleObserver)},
+			filter: automdm.TeamFilter{
+				User:            &automdm.User{GlobalRole: ptr.String(automdm.RoleObserver)},
 				IncludeObserver: true,
 			},
 			expected: "TRUE",
@@ -466,20 +466,20 @@ func TestWhereFilterHostsByTeams(t *testing.T) {
 
 		// Team roles
 		{
-			filter: fleet.TeamFilter{
-				User: &fleet.User{
-					Teams: []fleet.UserTeam{
-						{Role: fleet.RoleObserver, Team: fleet.Team{ID: 1}},
+			filter: automdm.TeamFilter{
+				User: &automdm.User{
+					Teams: []automdm.UserTeam{
+						{Role: automdm.RoleObserver, Team: automdm.Team{ID: 1}},
 					},
 				},
 			},
 			expected: "FALSE",
 		},
 		{
-			filter: fleet.TeamFilter{
-				User: &fleet.User{
-					Teams: []fleet.UserTeam{
-						{Role: fleet.RoleObserver, Team: fleet.Team{ID: 1}},
+			filter: automdm.TeamFilter{
+				User: &automdm.User{
+					Teams: []automdm.UserTeam{
+						{Role: automdm.RoleObserver, Team: automdm.Team{ID: 1}},
 					},
 				},
 				IncludeObserver: true,
@@ -487,33 +487,33 @@ func TestWhereFilterHostsByTeams(t *testing.T) {
 			expected: "hosts.team_id IN (1)",
 		},
 		{
-			filter: fleet.TeamFilter{
-				User: &fleet.User{
-					Teams: []fleet.UserTeam{
-						{Role: fleet.RoleObserver, Team: fleet.Team{ID: 1}},
-						{Role: fleet.RoleObserver, Team: fleet.Team{ID: 2}},
+			filter: automdm.TeamFilter{
+				User: &automdm.User{
+					Teams: []automdm.UserTeam{
+						{Role: automdm.RoleObserver, Team: automdm.Team{ID: 1}},
+						{Role: automdm.RoleObserver, Team: automdm.Team{ID: 2}},
 					},
 				},
 			},
 			expected: "FALSE",
 		},
 		{
-			filter: fleet.TeamFilter{
-				User: &fleet.User{
-					Teams: []fleet.UserTeam{
-						{Role: fleet.RoleObserver, Team: fleet.Team{ID: 1}},
-						{Role: fleet.RoleMaintainer, Team: fleet.Team{ID: 2}},
+			filter: automdm.TeamFilter{
+				User: &automdm.User{
+					Teams: []automdm.UserTeam{
+						{Role: automdm.RoleObserver, Team: automdm.Team{ID: 1}},
+						{Role: automdm.RoleMaintainer, Team: automdm.Team{ID: 2}},
 					},
 				},
 			},
 			expected: "hosts.team_id IN (2)",
 		},
 		{
-			filter: fleet.TeamFilter{
-				User: &fleet.User{
-					Teams: []fleet.UserTeam{
-						{Role: fleet.RoleObserver, Team: fleet.Team{ID: 1}},
-						{Role: fleet.RoleMaintainer, Team: fleet.Team{ID: 2}},
+			filter: automdm.TeamFilter{
+				User: &automdm.User{
+					Teams: []automdm.UserTeam{
+						{Role: automdm.RoleObserver, Team: automdm.Team{ID: 1}},
+						{Role: automdm.RoleMaintainer, Team: automdm.Team{ID: 2}},
 					},
 				},
 				IncludeObserver: true,
@@ -521,25 +521,25 @@ func TestWhereFilterHostsByTeams(t *testing.T) {
 			expected: "hosts.team_id IN (1,2)",
 		},
 		{
-			filter: fleet.TeamFilter{
-				User: &fleet.User{
-					Teams: []fleet.UserTeam{
-						{Role: fleet.RoleObserver, Team: fleet.Team{ID: 1}},
-						{Role: fleet.RoleMaintainer, Team: fleet.Team{ID: 2}},
+			filter: automdm.TeamFilter{
+				User: &automdm.User{
+					Teams: []automdm.UserTeam{
+						{Role: automdm.RoleObserver, Team: automdm.Team{ID: 1}},
+						{Role: automdm.RoleMaintainer, Team: automdm.Team{ID: 2}},
 						// Invalid role should be ignored
-						{Role: "bad", Team: fleet.Team{ID: 37}},
+						{Role: "bad", Team: automdm.Team{ID: 37}},
 					},
 				},
 			},
 			expected: "hosts.team_id IN (2)",
 		},
 		{
-			filter: fleet.TeamFilter{
-				User: &fleet.User{
-					Teams: []fleet.UserTeam{
-						{Role: fleet.RoleObserver, Team: fleet.Team{ID: 1}},
-						{Role: fleet.RoleMaintainer, Team: fleet.Team{ID: 2}},
-						{Role: fleet.RoleAdmin, Team: fleet.Team{ID: 3}},
+			filter: automdm.TeamFilter{
+				User: &automdm.User{
+					Teams: []automdm.UserTeam{
+						{Role: automdm.RoleObserver, Team: automdm.Team{ID: 1}},
+						{Role: automdm.RoleMaintainer, Team: automdm.Team{ID: 2}},
+						{Role: automdm.RoleAdmin, Team: automdm.Team{ID: 3}},
 						// Invalid role should be ignored
 					},
 				},
@@ -547,41 +547,41 @@ func TestWhereFilterHostsByTeams(t *testing.T) {
 			expected: "hosts.team_id IN (2,3)",
 		},
 		{
-			filter: fleet.TeamFilter{
+			filter: automdm.TeamFilter{
 				TeamID: ptr.Uint(1),
 			},
 			expected: "FALSE",
 		},
 		{
-			filter: fleet.TeamFilter{
-				User:            &fleet.User{GlobalRole: ptr.String(fleet.RoleObserver)},
+			filter: automdm.TeamFilter{
+				User:            &automdm.User{GlobalRole: ptr.String(automdm.RoleObserver)},
 				IncludeObserver: true,
 				TeamID:          ptr.Uint(1),
 			},
 			expected: "hosts.team_id = 1",
 		},
 		{
-			filter: fleet.TeamFilter{
-				User:            &fleet.User{GlobalRole: ptr.String(fleet.RoleObserver)},
+			filter: automdm.TeamFilter{
+				User:            &automdm.User{GlobalRole: ptr.String(automdm.RoleObserver)},
 				IncludeObserver: false,
 				TeamID:          ptr.Uint(1),
 			},
 			expected: "FALSE",
 		},
 		{
-			filter: fleet.TeamFilter{
-				User:            &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)},
+			filter: automdm.TeamFilter{
+				User:            &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)},
 				IncludeObserver: false,
 				TeamID:          ptr.Uint(1),
 			},
 			expected: "hosts.team_id = 1",
 		},
 		{
-			filter: fleet.TeamFilter{
-				User: &fleet.User{
-					Teams: []fleet.UserTeam{
-						{Role: fleet.RoleObserver, Team: fleet.Team{ID: 1}},
-						{Role: fleet.RoleMaintainer, Team: fleet.Team{ID: 2}},
+			filter: automdm.TeamFilter{
+				User: &automdm.User{
+					Teams: []automdm.UserTeam{
+						{Role: automdm.RoleObserver, Team: automdm.Team{ID: 1}},
+						{Role: automdm.RoleMaintainer, Team: automdm.Team{ID: 2}},
 					},
 				},
 				TeamID: ptr.Uint(3),
@@ -589,11 +589,11 @@ func TestWhereFilterHostsByTeams(t *testing.T) {
 			expected: "FALSE",
 		},
 		{
-			filter: fleet.TeamFilter{
-				User: &fleet.User{
-					Teams: []fleet.UserTeam{
-						{Role: fleet.RoleObserver, Team: fleet.Team{ID: 1}},
-						{Role: fleet.RoleMaintainer, Team: fleet.Team{ID: 2}},
+			filter: automdm.TeamFilter{
+				User: &automdm.User{
+					Teams: []automdm.UserTeam{
+						{Role: automdm.RoleObserver, Team: automdm.Team{ID: 1}},
+						{Role: automdm.RoleMaintainer, Team: automdm.Team{ID: 2}},
 					},
 				},
 				TeamID: ptr.Uint(2),
@@ -604,8 +604,8 @@ func TestWhereFilterHostsByTeams(t *testing.T) {
 		// ObserverTeamID: restricts observer access to a specific team (e.g. the live query's own team)
 		{
 			// Global observer with ObserverTeamID set: only that team's hosts
-			filter: fleet.TeamFilter{
-				User:            &fleet.User{GlobalRole: ptr.String(fleet.RoleObserver)},
+			filter: automdm.TeamFilter{
+				User:            &automdm.User{GlobalRole: ptr.String(automdm.RoleObserver)},
 				IncludeObserver: true,
 				ObserverTeamID:  ptr.Uint(1),
 			},
@@ -613,11 +613,11 @@ func TestWhereFilterHostsByTeams(t *testing.T) {
 		},
 		{
 			// Observer on two teams with ObserverTeamID set: only the specified team
-			filter: fleet.TeamFilter{
-				User: &fleet.User{
-					Teams: []fleet.UserTeam{
-						{Role: fleet.RoleObserver, Team: fleet.Team{ID: 1}},
-						{Role: fleet.RoleObserver, Team: fleet.Team{ID: 2}},
+			filter: automdm.TeamFilter{
+				User: &automdm.User{
+					Teams: []automdm.UserTeam{
+						{Role: automdm.RoleObserver, Team: automdm.Team{ID: 1}},
+						{Role: automdm.RoleObserver, Team: automdm.Team{ID: 2}},
 					},
 				},
 				IncludeObserver: true,
@@ -628,12 +628,12 @@ func TestWhereFilterHostsByTeams(t *testing.T) {
 		{
 			// Admin on team 3 + observer on teams 1 and 2 with ObserverTeamID=1:
 			// admin access to team 3 is unaffected; observer access limited to team 1 only
-			filter: fleet.TeamFilter{
-				User: &fleet.User{
-					Teams: []fleet.UserTeam{
-						{Role: fleet.RoleObserver, Team: fleet.Team{ID: 1}},
-						{Role: fleet.RoleObserver, Team: fleet.Team{ID: 2}},
-						{Role: fleet.RoleAdmin, Team: fleet.Team{ID: 3}},
+			filter: automdm.TeamFilter{
+				User: &automdm.User{
+					Teams: []automdm.UserTeam{
+						{Role: automdm.RoleObserver, Team: automdm.Team{ID: 1}},
+						{Role: automdm.RoleObserver, Team: automdm.Team{ID: 2}},
+						{Role: automdm.RoleAdmin, Team: automdm.Team{ID: 3}},
 					},
 				},
 				IncludeObserver: true,
@@ -645,11 +645,11 @@ func TestWhereFilterHostsByTeams(t *testing.T) {
 			// Observer on team 1, maintainer on team 2, running a team-2 query (ObserverTeamID=2):
 			// team-1 observer access is excluded because ObserverTeamID=2 != team 1;
 			// maintainer access on team 2 is unaffected — only team-2 hosts are returned.
-			filter: fleet.TeamFilter{
-				User: &fleet.User{
-					Teams: []fleet.UserTeam{
-						{Role: fleet.RoleObserver, Team: fleet.Team{ID: 1}},
-						{Role: fleet.RoleMaintainer, Team: fleet.Team{ID: 2}},
+			filter: automdm.TeamFilter{
+				User: &automdm.User{
+					Teams: []automdm.UserTeam{
+						{Role: automdm.RoleObserver, Team: automdm.Team{ID: 1}},
+						{Role: automdm.RoleMaintainer, Team: automdm.Team{ID: 2}},
 					},
 				},
 				IncludeObserver: true,
@@ -933,49 +933,49 @@ func TestWhereFilterTeams(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		filter   fleet.TeamFilter
+		filter   automdm.TeamFilter
 		expected string
 	}{
 		// No teams or global role
 		{
-			filter:   fleet.TeamFilter{User: nil},
+			filter:   automdm.TeamFilter{User: nil},
 			expected: "FALSE",
 		},
 		{
-			filter: fleet.TeamFilter{
-				User: &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)},
+			filter: automdm.TeamFilter{
+				User: &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)},
 			},
 			expected: "TRUE",
 		},
 		{
-			filter: fleet.TeamFilter{
-				User:            &fleet.User{GlobalRole: ptr.String(fleet.RoleObserver)},
+			filter: automdm.TeamFilter{
+				User:            &automdm.User{GlobalRole: ptr.String(automdm.RoleObserver)},
 				IncludeObserver: false,
 			},
 			expected: "FALSE",
 		},
 		{
-			filter: fleet.TeamFilter{
-				User:            &fleet.User{GlobalRole: ptr.String(fleet.RoleObserver)},
+			filter: automdm.TeamFilter{
+				User:            &automdm.User{GlobalRole: ptr.String(automdm.RoleObserver)},
 				IncludeObserver: true,
 			},
 			expected: "TRUE",
 		},
 		{
-			filter:   fleet.TeamFilter{User: &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleAdmin}}}},
+			filter:   automdm.TeamFilter{User: &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleAdmin}}}},
 			expected: "t.id IN (1)",
 		},
 		{
-			filter:   fleet.TeamFilter{User: &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleMaintainer}}}},
+			filter:   automdm.TeamFilter{User: &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleMaintainer}}}},
 			expected: "t.id IN (1)",
 		},
 		{
-			filter:   fleet.TeamFilter{User: &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleObserver}}}},
+			filter:   automdm.TeamFilter{User: &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserver}}}},
 			expected: "FALSE",
 		},
 		{
-			filter: fleet.TeamFilter{
-				User:            &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleMaintainer}}},
+			filter: automdm.TeamFilter{
+				User:            &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleMaintainer}}},
 				IncludeObserver: true,
 			},
 			expected: "t.id IN (1)",
@@ -1166,21 +1166,21 @@ func TestWhereFilterTeamWithGlobalStats(t *testing.T) {
 
 	testCases := []struct {
 		name     string
-		filter   fleet.TeamFilter
+		filter   automdm.TeamFilter
 		expected string
 	}{
 		// No teams or global role
 		{
 			name: "empty user",
-			filter: fleet.TeamFilter{
-				User: &fleet.User{},
+			filter: automdm.TeamFilter{
+				User: &automdm.User{},
 			},
 			expected: "FALSE",
 		},
 		{
 			name: "empty user teams",
-			filter: fleet.TeamFilter{
-				User: &fleet.User{Teams: []fleet.UserTeam{}},
+			filter: automdm.TeamFilter{
+				User: &automdm.User{Teams: []automdm.UserTeam{}},
 			},
 			expected: "FALSE",
 		},
@@ -1188,29 +1188,29 @@ func TestWhereFilterTeamWithGlobalStats(t *testing.T) {
 		// Global role
 		{
 			name: "global admin",
-			filter: fleet.TeamFilter{
-				User: &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)},
+			filter: automdm.TeamFilter{
+				User: &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)},
 			},
 			expected: "hosts.team_id = 0 AND hosts.global_stats = 1",
 		},
 		{
 			name: "global maintainer",
-			filter: fleet.TeamFilter{
-				User: &fleet.User{GlobalRole: ptr.String(fleet.RoleMaintainer)},
+			filter: automdm.TeamFilter{
+				User: &automdm.User{GlobalRole: ptr.String(automdm.RoleMaintainer)},
 			},
 			expected: "hosts.team_id = 0 AND hosts.global_stats = 1",
 		},
 		{
 			name: "global observer",
-			filter: fleet.TeamFilter{
-				User: &fleet.User{GlobalRole: ptr.String(fleet.RoleObserver)},
+			filter: automdm.TeamFilter{
+				User: &automdm.User{GlobalRole: ptr.String(automdm.RoleObserver)},
 			},
 			expected: "FALSE",
 		},
 		{
 			name: "global observer include",
-			filter: fleet.TeamFilter{
-				User:            &fleet.User{GlobalRole: ptr.String(fleet.RoleObserver)},
+			filter: automdm.TeamFilter{
+				User:            &automdm.User{GlobalRole: ptr.String(automdm.RoleObserver)},
 				IncludeObserver: true,
 			},
 			expected: "hosts.team_id = 0 AND hosts.global_stats = 1",
@@ -1219,10 +1219,10 @@ func TestWhereFilterTeamWithGlobalStats(t *testing.T) {
 		// Team roles
 		{
 			name: "team observer",
-			filter: fleet.TeamFilter{
-				User: &fleet.User{
-					Teams: []fleet.UserTeam{
-						{Role: fleet.RoleObserver, Team: fleet.Team{ID: 1}},
+			filter: automdm.TeamFilter{
+				User: &automdm.User{
+					Teams: []automdm.UserTeam{
+						{Role: automdm.RoleObserver, Team: automdm.Team{ID: 1}},
 					},
 				},
 			},
@@ -1230,10 +1230,10 @@ func TestWhereFilterTeamWithGlobalStats(t *testing.T) {
 		},
 		{
 			name: "team observer include",
-			filter: fleet.TeamFilter{
-				User: &fleet.User{
-					Teams: []fleet.UserTeam{
-						{Role: fleet.RoleObserver, Team: fleet.Team{ID: 1}},
+			filter: automdm.TeamFilter{
+				User: &automdm.User{
+					Teams: []automdm.UserTeam{
+						{Role: automdm.RoleObserver, Team: automdm.Team{ID: 1}},
 					},
 				},
 				IncludeObserver: true,
@@ -1242,11 +1242,11 @@ func TestWhereFilterTeamWithGlobalStats(t *testing.T) {
 		},
 		{
 			name: "multi team observer",
-			filter: fleet.TeamFilter{
-				User: &fleet.User{
-					Teams: []fleet.UserTeam{
-						{Role: fleet.RoleObserver, Team: fleet.Team{ID: 1}},
-						{Role: fleet.RoleObserver, Team: fleet.Team{ID: 2}},
+			filter: automdm.TeamFilter{
+				User: &automdm.User{
+					Teams: []automdm.UserTeam{
+						{Role: automdm.RoleObserver, Team: automdm.Team{ID: 1}},
+						{Role: automdm.RoleObserver, Team: automdm.Team{ID: 2}},
 					},
 				},
 			},
@@ -1254,11 +1254,11 @@ func TestWhereFilterTeamWithGlobalStats(t *testing.T) {
 		},
 		{
 			name: "multi team maintainer and observer",
-			filter: fleet.TeamFilter{
-				User: &fleet.User{
-					Teams: []fleet.UserTeam{
-						{Role: fleet.RoleObserver, Team: fleet.Team{ID: 1}},
-						{Role: fleet.RoleMaintainer, Team: fleet.Team{ID: 2}},
+			filter: automdm.TeamFilter{
+				User: &automdm.User{
+					Teams: []automdm.UserTeam{
+						{Role: automdm.RoleObserver, Team: automdm.Team{ID: 1}},
+						{Role: automdm.RoleMaintainer, Team: automdm.Team{ID: 2}},
 					},
 				},
 			},
@@ -1266,11 +1266,11 @@ func TestWhereFilterTeamWithGlobalStats(t *testing.T) {
 		},
 		{
 			name: "multi team maintainer and observer include",
-			filter: fleet.TeamFilter{
-				User: &fleet.User{
-					Teams: []fleet.UserTeam{
-						{Role: fleet.RoleObserver, Team: fleet.Team{ID: 1}},
-						{Role: fleet.RoleMaintainer, Team: fleet.Team{ID: 2}},
+			filter: automdm.TeamFilter{
+				User: &automdm.User{
+					Teams: []automdm.UserTeam{
+						{Role: automdm.RoleObserver, Team: automdm.Team{ID: 1}},
+						{Role: automdm.RoleMaintainer, Team: automdm.Team{ID: 2}},
 					},
 				},
 				IncludeObserver: true,
@@ -1279,13 +1279,13 @@ func TestWhereFilterTeamWithGlobalStats(t *testing.T) {
 		},
 		{
 			name: "multi team maintainer and observer with invalid role",
-			filter: fleet.TeamFilter{
-				User: &fleet.User{
-					Teams: []fleet.UserTeam{
-						{Role: fleet.RoleObserver, Team: fleet.Team{ID: 1}},
-						{Role: fleet.RoleMaintainer, Team: fleet.Team{ID: 2}},
+			filter: automdm.TeamFilter{
+				User: &automdm.User{
+					Teams: []automdm.UserTeam{
+						{Role: automdm.RoleObserver, Team: automdm.Team{ID: 1}},
+						{Role: automdm.RoleMaintainer, Team: automdm.Team{ID: 2}},
 						// Invalid role should be ignored
-						{Role: "bad", Team: fleet.Team{ID: 37}},
+						{Role: "bad", Team: automdm.Team{ID: 37}},
 					},
 				},
 			},
@@ -1293,12 +1293,12 @@ func TestWhereFilterTeamWithGlobalStats(t *testing.T) {
 		},
 		{
 			name: "multi team maintainer and observer and admin",
-			filter: fleet.TeamFilter{
-				User: &fleet.User{
-					Teams: []fleet.UserTeam{
-						{Role: fleet.RoleObserver, Team: fleet.Team{ID: 1}},
-						{Role: fleet.RoleMaintainer, Team: fleet.Team{ID: 2}},
-						{Role: fleet.RoleAdmin, Team: fleet.Team{ID: 3}},
+			filter: automdm.TeamFilter{
+				User: &automdm.User{
+					Teams: []automdm.UserTeam{
+						{Role: automdm.RoleObserver, Team: automdm.Team{ID: 1}},
+						{Role: automdm.RoleMaintainer, Team: automdm.Team{ID: 2}},
+						{Role: automdm.RoleAdmin, Team: automdm.Team{ID: 3}},
 						// Invalid role should be ignored
 					},
 				},
@@ -1307,15 +1307,15 @@ func TestWhereFilterTeamWithGlobalStats(t *testing.T) {
 		},
 		{
 			name: "team id only",
-			filter: fleet.TeamFilter{
+			filter: automdm.TeamFilter{
 				TeamID: ptr.Uint(1),
 			},
 			expected: "FALSE",
 		},
 		{
 			name: "team id with observer include",
-			filter: fleet.TeamFilter{
-				User:            &fleet.User{GlobalRole: ptr.String(fleet.RoleObserver)},
+			filter: automdm.TeamFilter{
+				User:            &automdm.User{GlobalRole: ptr.String(automdm.RoleObserver)},
 				IncludeObserver: true,
 				TeamID:          ptr.Uint(1),
 			},
@@ -1323,8 +1323,8 @@ func TestWhereFilterTeamWithGlobalStats(t *testing.T) {
 		},
 		{
 			name: "team id with observer exclude",
-			filter: fleet.TeamFilter{
-				User:            &fleet.User{GlobalRole: ptr.String(fleet.RoleObserver)},
+			filter: automdm.TeamFilter{
+				User:            &automdm.User{GlobalRole: ptr.String(automdm.RoleObserver)},
 				IncludeObserver: false,
 				TeamID:          ptr.Uint(1),
 			},
@@ -1332,8 +1332,8 @@ func TestWhereFilterTeamWithGlobalStats(t *testing.T) {
 		},
 		{
 			name: "team id with admin exclude observer",
-			filter: fleet.TeamFilter{
-				User:            &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)},
+			filter: automdm.TeamFilter{
+				User:            &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)},
 				IncludeObserver: false,
 				TeamID:          ptr.Uint(1),
 			},
@@ -1341,11 +1341,11 @@ func TestWhereFilterTeamWithGlobalStats(t *testing.T) {
 		},
 		{
 			name: "team id not in multiple team roles",
-			filter: fleet.TeamFilter{
-				User: &fleet.User{
-					Teams: []fleet.UserTeam{
-						{Role: fleet.RoleObserver, Team: fleet.Team{ID: 1}},
-						{Role: fleet.RoleMaintainer, Team: fleet.Team{ID: 2}},
+			filter: automdm.TeamFilter{
+				User: &automdm.User{
+					Teams: []automdm.UserTeam{
+						{Role: automdm.RoleObserver, Team: automdm.Team{ID: 1}},
+						{Role: automdm.RoleMaintainer, Team: automdm.Team{ID: 2}},
 					},
 				},
 				TeamID: ptr.Uint(3),
@@ -1354,11 +1354,11 @@ func TestWhereFilterTeamWithGlobalStats(t *testing.T) {
 		},
 		{
 			name: "team id in multiple team roles",
-			filter: fleet.TeamFilter{
-				User: &fleet.User{
-					Teams: []fleet.UserTeam{
-						{Role: fleet.RoleObserver, Team: fleet.Team{ID: 1}},
-						{Role: fleet.RoleMaintainer, Team: fleet.Team{ID: 2}},
+			filter: automdm.TeamFilter{
+				User: &automdm.User{
+					Teams: []automdm.UserTeam{
+						{Role: automdm.RoleObserver, Team: automdm.Team{ID: 1}},
+						{Role: automdm.RoleMaintainer, Team: automdm.Team{ID: 2}},
 					},
 				},
 				TeamID: ptr.Uint(2),

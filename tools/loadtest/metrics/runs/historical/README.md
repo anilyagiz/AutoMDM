@@ -1,7 +1,7 @@
 # Historical runs (spreadsheet backfill)
 
 These runs were backfilled from the manual-logging era of the
-"Fleet release load testing results" Google Sheet (releases 4.63.0 → 4.85.0,
+"AutoMDM release load testing results" Google Sheet (releases 4.63.0 → 4.85.0,
 Feb 2025 – May 2026), one JSON per sheet row, so the whole history is usable by
 the tooling in this directory (`compare-metrics.sh` and the metrics dashboard).
 From 4.83 onward, runs collected with

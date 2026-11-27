@@ -15,20 +15,20 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/cabundle"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/constant"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/update"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/update/filestore"
-	"github.com/fleetdm/fleet/v4/pkg/file"
-	"github.com/fleetdm/fleet/v4/pkg/secure"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/cabundle"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/constant"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/update"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/update/filestore"
+	"github.com/anilyagiz/automdm/v4/pkg/file"
+	"github.com/anilyagiz/automdm/v4/pkg/secure"
 	"github.com/rs/zerolog/log"
 )
 
 // Options are the configurable options provided for the package.
 type Options struct {
-	// FleetURL is the URL to the Fleet server.
-	FleetURL string
-	// EnrollSecret is the enroll secret used to authenticate to the Fleet
+	// AutoMDMURL is the URL to the AutoMDM server.
+	AutoMDMURL string
+	// EnrollSecret is the enroll secret used to authenticate to the AutoMDM
 	// server.
 	EnrollSecret string
 	// Version is the version number for this package.
@@ -44,38 +44,38 @@ type Options struct {
 	SignIdentity string
 	// Notarize sets whether macOS packages should be Notarized.
 	Notarize bool
-	// FleetCertificate is a file path to a Fleet server certificate to include in the package.
-	FleetCertificate string
-	// FleetTLSClientCertificate is a file path to a client certificate to use when
-	// connecting to the Fleet server.
+	// AutoMDMCertificate is a file path to an AutoMDM server certificate to include in the package.
+	AutoMDMCertificate string
+	// AutoMDMTLSClientCertificate is a file path to a client certificate to use when
+	// connecting to the AutoMDM server.
 	//
-	// If set, then FleetTLSClientKey must be set too.
-	FleetTLSClientCertificate string
-	// FleetTLSClientKey is a file path to a client private key to use when
-	// connecting to the Fleet server.
+	// If set, then AutoMDMTLSClientKey must be set too.
+	AutoMDMTLSClientCertificate string
+	// AutoMDMTLSClientKey is a file path to a client private key to use when
+	// connecting to the AutoMDM server.
 	//
-	// If set, then FleetTLSClientCertificate must be set too.
-	FleetTLSClientKey string
-	// FleetDesktopAlternativeBrowserHost is an alternative host:port to use for Fleet Desktop in the browser.
+	// If set, then AutoMDMTLSClientCertificate must be set too.
+	AutoMDMTLSClientKey string
+	// AutoMDMDesktopAlternativeBrowserHost is an alternative host:port to use for AutoMDM Desktop in the browser.
 	//
-	// This may be required when using TLS client authentication for connecting to Fleet via a proxy.
+	// This may be required when using TLS client authentication for connecting to AutoMDM via a proxy.
 	// Otherwise users would need to configure client certificates on their browsers.
 	//
-	// If not set, then FleetURL is used instead.
-	FleetDesktopAlternativeBrowserHost string
+	// If not set, then AutoMDMURL is used instead.
+	AutoMDMDesktopAlternativeBrowserHost string
 	// DisableUpdates disables auto updates on the generated package.
 	DisableUpdates bool
 	// DisableSetupExperience disables setup experience for Linux hosts
 	DisableSetupExperience bool
-	// BypassEndUserAuth configures fleetd to skip end-user authentication during enrollment by not
-	// advertising the end-user auth capability to the Fleet server. On Windows it sets the default of the
+	// BypassEndUserAuth configures automdmd to skip end-user authentication during enrollment by not
+	// advertising the end-user auth capability to the AutoMDM server. On Windows it sets the default of the
 	// BYPASS_END_USER_AUTH MSI property, which can be overridden at install time.
 	BypassEndUserAuth bool
 	// OrbitChannel is the update channel to use for Orbit.
 	OrbitChannel string
 	// OsquerydChannel is the update channel to use for Osquery (osqueryd).
 	OsquerydChannel string
-	// DesktopChannel is the update channel to use for the Fleet Desktop application.
+	// DesktopChannel is the update channel to use for the AutoMDM Desktop application.
 	DesktopChannel string
 	// UpdateURL is the base URL of the update server (TUF repository).
 	UpdateURL string
@@ -97,7 +97,7 @@ type Options struct {
 	OsqueryFlagfile string
 	// Debug determines whether to enable debug logging for the agent.
 	Debug bool
-	// Desktop determines whether to package the Fleet Desktop application.
+	// Desktop determines whether to package the AutoMDM Desktop application.
 	Desktop bool
 	// OrbitUpdateInterval is the interval that Orbit will use to check for updates.
 	OrbitUpdateInterval time.Duration
@@ -116,14 +116,14 @@ type Options struct {
 	AppStoreConnectAPIKeyIssuer string
 	// AppStoreConnectAPIKeyContent is the content of the App Store API Key
 	AppStoreConnectAPIKeyContent string
-	// UseSystemConfiguration tells fleetd to try to read FleetURL and
+	// UseSystemConfiguration tells automdmd to try to read AutoMDMURL and
 	// EnrollSecret from a system configuration that's present on the host.
 	// Currently only macOS profiles are supported.
 	UseSystemConfiguration bool
 	// EnableScripts enables script execution on the agent.
 	EnableScripts bool
 	// LocalWixDir uses a Windows machine's local WiX installation instead of a containerized
-	// emulation to build an MSI fleetd installer
+	// emulation to build an MSI automdmd installer
 	LocalWixDir string
 	// HostIdentifier is the host identifier to use in osquery.
 	HostIdentifier string
@@ -148,15 +148,15 @@ type Options struct {
 	NativePlatform string
 	// CustomOutfile is the custom output file name for the package.
 	CustomOutfile string
-	// FleetName is the name of the fleet the enroll secret belongs to, if known. It is added to the default output
+	// AutoMDMName is the name of the team the enroll secret belongs to, if known. It is added to the default output
 	// file name, cleaned up so it is safe in a file name.
-	FleetName string
-	// FleetID is that fleet's ID. It is added to the file name only when another fleet's name could give the same one.
-	FleetID uint
-	// OtherFleets are the other fleets the user can see.
-	OtherFleets []Fleet
-	// FleetManagedHostIdentityCertificate configures fleetd to use TPM-backed key to sign HTTP requests.
-	FleetManagedHostIdentityCertificate bool
+	AutoMDMName string
+	// AutoMDMID is that team's ID. It is added to the file name only when another team's name could give the same one.
+	AutoMDMID uint
+	// OtherTeams are the other teams the user can see.
+	OtherTeams []AutoMDM
+	// AutoMDMManagedHostIdentityCertificate configures automdmd to use TPM-backed key to sign HTTP requests.
+	AutoMDMManagedHostIdentityCertificate bool
 }
 
 const (
@@ -273,7 +273,7 @@ func InitializeUpdates(updateOpt update.Options) (*UpdatesData, error) {
 		}
 
 		// Save hash and remove the tar.gz file to prevent it from being included in the package
-		// (fixes duplicate fleet-desktop in .deb and .pkg packages)
+		// (fixes duplicate automdm-desktop in .deb and .pkg packages)
 		if strings.HasSuffix(desktopLocalTarget.Path, ".tar.gz") {
 			if err := saveHashAndRemoveTarGz(desktopLocalTarget.Path); err != nil {
 				log.Error().Err(err).Str("path", desktopLocalTarget.Path).Msg("failed to save hash and remove desktop tar.gz")
@@ -315,7 +315,7 @@ func saveHashAndRemoveTarGz(tarGzPath string) error {
 	}
 	defer f.Close()
 
-	// Calculate SHA512 (currently the only hash algorithm used by Fleet TUF)
+	// Calculate SHA512 (currently the only hash algorithm used by AutoMDM TUF)
 	sha512Hash := sha512.New()
 	if _, err := io.Copy(sha512Hash, f); err != nil {
 		return fmt.Errorf("hash tar.gz: %w", err)

@@ -9,12 +9,12 @@ import (
 	"time"
 
 	"github.com/RoaringBitmap/roaring"
-	"github.com/fleetdm/fleet/v4/server/chart"
-	"github.com/fleetdm/fleet/v4/server/chart/api"
-	"github.com/fleetdm/fleet/v4/server/chart/internal/types"
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	platform_authz "github.com/fleetdm/fleet/v4/server/platform/authz"
-	platform_http "github.com/fleetdm/fleet/v4/server/platform/http"
+	"github.com/anilyagiz/automdm/v4/server/chart"
+	"github.com/anilyagiz/automdm/v4/server/chart/api"
+	"github.com/anilyagiz/automdm/v4/server/chart/internal/types"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
+	platform_authz "github.com/anilyagiz/automdm/v4/server/platform/authz"
+	platform_http "github.com/anilyagiz/automdm/v4/server/platform/http"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -60,8 +60,8 @@ func (m *mockViewerProvider) ViewerScope(_ context.Context) (bool, []uint, error
 func globalViewer() *mockViewerProvider { return &mockViewerProvider{isGlobal: true} }
 
 // stubLicense implements license.LicenseChecker. The chart context can't import
-// server/fleet (arch_test forbids it, tests included), so tests can't build a
-// real fleet.LicenseInfo and stub the interface instead.
+// server/automdm (arch_test forbids it, tests included), so tests can't build a
+// real automdm.LicenseInfo and stub the interface instead.
 type stubLicense struct{ premium bool }
 
 func (s stubLicense) IsPremium() bool               { return s.premium }
@@ -80,7 +80,7 @@ func requirePremiumRequired(t *testing.T, err error) {
 	var msgErr *platform_http.UserMessageError
 	require.ErrorAs(t, err, &msgErr)
 	require.Equal(t, http.StatusPaymentRequired, msgErr.StatusCode())
-	require.Contains(t, err.Error(), "Fleet Premium")
+	require.Contains(t, err.Error(), "AutoMDM Premium")
 }
 
 func premiumCtx(t *testing.T) context.Context {
@@ -96,27 +96,27 @@ func freeCtx(t *testing.T) context.Context {
 type mockDatastore struct {
 	getSCDDataFunc          func(ctx context.Context, dataset string, startDate, endDate time.Time, bucketSize time.Duration, strategy api.SampleStrategy, filterMask *roaring.Bitmap, entityIDs []string) ([]api.DataPoint, error)
 	getHostIDsForFilterFunc func(ctx context.Context, hostFilter *types.HostFilter) ([]uint, error)
-	findOnlineHostIDsFn     func(ctx context.Context, now time.Time, disabledFleetIDs []uint) ([]uint, error)
-	affectedHostIDsByCVEFn  func(ctx context.Context, disabledFleetIDs []uint, cves []string) (map[string]*roaring.Bitmap, error)
+	findOnlineHostIDsFn     func(ctx context.Context, now time.Time, disabledTeamIDs []uint) ([]uint, error)
+	affectedHostIDsByCVEFn  func(ctx context.Context, disabledTeamIDs []uint, cves []string) (map[string]*roaring.Bitmap, error)
 	collectibleCVEsFn       func(ctx context.Context) ([]string, error)
 	resolveCVEEntitiesFn    func(ctx context.Context, filter types.CVEChartFilter) ([]string, error)
 	recordBucketDataFn      func(ctx context.Context, dataset string, bucketStart time.Time, bucketSize time.Duration, strategy api.SampleStrategy, entityBitmaps map[string]*roaring.Bitmap) error
 	recordBucketDataInvoked bool
 	deleteAllForDatasetFn   func(ctx context.Context, dataset string, batchSize int) error
-	hostIDsInFleetsFn       func(ctx context.Context, fleetIDs []uint) ([]uint, error)
+	hostIDsInTeamsFn        func(ctx context.Context, automdmIDs []uint) ([]uint, error)
 	applyScrubMaskFn        func(ctx context.Context, dataset string, mask *roaring.Bitmap, batchSize int) error
 }
 
-func (m *mockDatastore) FindOnlineHostIDs(ctx context.Context, now time.Time, disabledFleetIDs []uint) ([]uint, error) {
+func (m *mockDatastore) FindOnlineHostIDs(ctx context.Context, now time.Time, disabledTeamIDs []uint) ([]uint, error) {
 	if m.findOnlineHostIDsFn != nil {
-		return m.findOnlineHostIDsFn(ctx, now, disabledFleetIDs)
+		return m.findOnlineHostIDsFn(ctx, now, disabledTeamIDs)
 	}
 	return nil, nil
 }
 
-func (m *mockDatastore) AffectedHostIDsByCVE(ctx context.Context, disabledFleetIDs []uint, cves []string) (map[string]*roaring.Bitmap, error) {
+func (m *mockDatastore) AffectedHostIDsByCVE(ctx context.Context, disabledTeamIDs []uint, cves []string) (map[string]*roaring.Bitmap, error) {
 	if m.affectedHostIDsByCVEFn != nil {
-		return m.affectedHostIDsByCVEFn(ctx, disabledFleetIDs, cves)
+		return m.affectedHostIDsByCVEFn(ctx, disabledTeamIDs, cves)
 	}
 	return nil, nil
 }
@@ -171,9 +171,9 @@ func (m *mockDatastore) DeleteAllForDataset(ctx context.Context, dataset string,
 	return nil
 }
 
-func (m *mockDatastore) HostIDsInFleets(ctx context.Context, fleetIDs []uint) ([]uint, error) {
-	if m.hostIDsInFleetsFn != nil {
-		return m.hostIDsInFleetsFn(ctx, fleetIDs)
+func (m *mockDatastore) HostIDsInTeams(ctx context.Context, automdmIDs []uint) ([]uint, error) {
+	if m.hostIDsInTeamsFn != nil {
+		return m.hostIDsInTeamsFn(ctx, automdmIDs)
 	}
 	return nil, nil
 }
@@ -711,7 +711,7 @@ func TestGetChartDataExpandsPlatforms(t *testing.T) {
 }
 
 func TestGetChartDataAuthzScope(t *testing.T) {
-	t.Run("no fleet_id → ActionList with Host{} (rego allows team users)", func(t *testing.T) {
+	t.Run("no team_id → ActionList with Host{} (rego allows team users)", func(t *testing.T) {
 		auth := &recordingAuthorizer{allow: true}
 		svc := NewService(auth, &mockDatastore{}, globalViewer(), nil, nil)
 		svc.RegisterDataset(&chart.UptimeDataset{})
@@ -721,12 +721,12 @@ func TestGetChartDataAuthzScope(t *testing.T) {
 
 		host, ok := auth.gotSubject.(*api.Host)
 		require.True(t, ok, "authz subject should be *api.Host")
-		assert.Nil(t, host.TeamID, "without an explicit fleet_id, the subject's TeamID stays nil")
+		assert.Nil(t, host.TeamID, "without an explicit team_id, the subject's TeamID stays nil")
 		assert.Equal(t, platform_authz.ActionList, auth.gotAction,
-			"no fleet_id uses ActionList so rego's team-list rule can pass team users")
+			"no team_id uses ActionList so rego's team-list rule can pass team users")
 	})
 
-	t.Run("explicit fleet_id=5 → ActionRead with Host{TeamID:5} (rego enforces exact team)", func(t *testing.T) {
+	t.Run("explicit team_id=5 → ActionRead with Host{TeamID:5} (rego enforces exact team)", func(t *testing.T) {
 		auth := &recordingAuthorizer{allow: true}
 		svc := NewService(auth, &mockDatastore{}, globalViewer(), nil, nil)
 		svc.RegisterDataset(&chart.UptimeDataset{})
@@ -740,7 +740,7 @@ func TestGetChartDataAuthzScope(t *testing.T) {
 		require.NotNil(t, host.TeamID)
 		assert.Equal(t, uint(5), *host.TeamID)
 		assert.Equal(t, platform_authz.ActionRead, auth.gotAction,
-			"explicit fleet_id uses ActionRead so rego's team-read rule can enforce exact-team access")
+			"explicit team_id uses ActionRead so rego's team-read rule can enforce exact-team access")
 	})
 
 	t.Run("authz denial propagates", func(t *testing.T) {
@@ -767,7 +767,7 @@ func TestGetChartDataAuthzScope(t *testing.T) {
 }
 
 func TestGetChartDataScopesDataByViewer(t *testing.T) {
-	t.Run("global user, no fleet_id → nil TeamIDs (no team filter)", func(t *testing.T) {
+	t.Run("global user, no team_id → nil TeamIDs (no team filter)", func(t *testing.T) {
 		ds := &mockDatastore{}
 		var gotFilter *types.HostFilter
 		ds.getHostIDsForFilterFunc = func(_ context.Context, f *types.HostFilter) ([]uint, error) {
@@ -780,10 +780,10 @@ func TestGetChartDataScopesDataByViewer(t *testing.T) {
 		_, err := svc.GetChartData(t.Context(), "uptime", api.RequestOpts{Days: 7})
 		require.NoError(t, err)
 		require.NotNil(t, gotFilter)
-		assert.Nil(t, gotFilter.TeamIDs, "global user with no fleet_id gets no team filter")
+		assert.Nil(t, gotFilter.TeamIDs, "global user with no team_id gets no team filter")
 	})
 
-	t.Run("team user, no fleet_id → their accessible teams", func(t *testing.T) {
+	t.Run("team user, no team_id → their accessible teams", func(t *testing.T) {
 		ds := &mockDatastore{}
 		var gotFilter *types.HostFilter
 		ds.getHostIDsForFilterFunc = func(_ context.Context, f *types.HostFilter) ([]uint, error) {
@@ -798,7 +798,7 @@ func TestGetChartDataScopesDataByViewer(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, gotFilter)
 		assert.Equal(t, []uint{3, 7}, gotFilter.TeamIDs,
-			"team user without explicit fleet_id is scoped to the union of their teams")
+			"team user without explicit team_id is scoped to the union of their teams")
 	})
 
 	t.Run("team user with zero accessible teams → empty non-nil TeamIDs (SQL no-match)", func(t *testing.T) {
@@ -820,7 +820,7 @@ func TestGetChartDataScopesDataByViewer(t *testing.T) {
 		assert.Equal(t, 0, resp.TotalHosts, "no accessible teams means no hosts and no data")
 	})
 
-	t.Run("explicit fleet_id overrides viewer scope", func(t *testing.T) {
+	t.Run("explicit team_id overrides viewer scope", func(t *testing.T) {
 		ds := &mockDatastore{}
 		var gotFilter *types.HostFilter
 		ds.getHostIDsForFilterFunc = func(_ context.Context, f *types.HostFilter) ([]uint, error) {
@@ -837,7 +837,7 @@ func TestGetChartDataScopesDataByViewer(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, gotFilter)
 		assert.Equal(t, []uint{3}, gotFilter.TeamIDs,
-			"explicit fleet_id narrows to that team; authz (not the filter) enforced access above")
+			"explicit team_id narrows to that team; authz (not the filter) enforced access above")
 	})
 }
 
@@ -967,7 +967,7 @@ func TestCollectDatasetsCVEEmptyTracked(t *testing.T) {
 
 // TestCollectDatasetsForwardsScope verifies the scope resolver wiring:
 //   - skip=true → Collect not invoked
-//   - skip=false → disabledFleetIDs forwarded to the store query
+//   - skip=false → disabledTeamIDs forwarded to the store query
 //   - nil scope → equivalent to (false, nil) for every dataset
 func TestCollectDatasetsForwardsScope(t *testing.T) {
 	now := time.Date(2026, 4, 8, 14, 37, 0, 0, time.UTC)
@@ -988,7 +988,7 @@ func TestCollectDatasetsForwardsScope(t *testing.T) {
 		assert.False(t, ds.recordBucketDataInvoked)
 	})
 
-	t.Run("disabledFleetIDs forwarded to FindOnlineHostIDs", func(t *testing.T) {
+	t.Run("disabledTeamIDs forwarded to FindOnlineHostIDs", func(t *testing.T) {
 		ds := &mockDatastore{}
 		svc := NewService(&mockAuthorizer{}, ds, globalViewer(), nil, nil)
 		svc.RegisterDataset(&chart.UptimeDataset{})
@@ -1008,7 +1008,7 @@ func TestCollectDatasetsForwardsScope(t *testing.T) {
 		assert.Equal(t, []uint{5, 7}, gotDisabled)
 	})
 
-	t.Run("disabledFleetIDs forwarded to AffectedHostIDsByCVE", func(t *testing.T) {
+	t.Run("disabledTeamIDs forwarded to AffectedHostIDsByCVE", func(t *testing.T) {
 		ds := &mockDatastore{}
 		svc := NewService(&mockAuthorizer{}, ds, globalViewer(), nil, nil)
 		svc.RegisterDataset(&chart.CVEDataset{})
@@ -1067,14 +1067,14 @@ func TestScrubDatasetGlobal(t *testing.T) {
 	assert.Equal(t, scrubBatchSize, gotBatchSize)
 }
 
-func TestScrubDatasetFleet(t *testing.T) {
-	t.Run("forwards mask built from fleet hosts", func(t *testing.T) {
+func TestScrubDatasetAutoMDM(t *testing.T) {
+	t.Run("forwards mask built from team hosts", func(t *testing.T) {
 		ds := &mockDatastore{}
 		svc := NewService(&mockAuthorizer{}, ds, globalViewer(), nil, nil)
 
-		var gotFleets []uint
-		ds.hostIDsInFleetsFn = func(_ context.Context, fleetIDs []uint) ([]uint, error) {
-			gotFleets = fleetIDs
+		var gotTeams []uint
+		ds.hostIDsInTeamsFn = func(_ context.Context, automdmIDs []uint) ([]uint, error) {
+			gotTeams = automdmIDs
 			return []uint{3, 7, 12}, nil
 		}
 
@@ -1088,40 +1088,40 @@ func TestScrubDatasetFleet(t *testing.T) {
 			return nil
 		}
 
-		require.NoError(t, svc.ScrubDatasetFleet(t.Context(), "cve", []uint{5, 7}))
-		assert.Equal(t, []uint{5, 7}, gotFleets)
+		require.NoError(t, svc.ScrubDatasetAutoMDM(t.Context(), "cve", []uint{5, 7}))
+		assert.Equal(t, []uint{5, 7}, gotTeams)
 		assert.Equal(t, "cve", gotDataset)
 		assert.Equal(t, scrubBatchSize, gotBatchSize)
 		// Mask must have bits set at positions 3, 7, 12.
 		assert.Equal(t, uint64(3), chart.BlobPopcount(gotMask))
 	})
 
-	t.Run("empty fleet IDs is no-op", func(t *testing.T) {
+	t.Run("empty team IDs is no-op", func(t *testing.T) {
 		ds := &mockDatastore{}
 		svc := NewService(&mockAuthorizer{}, ds, globalViewer(), nil, nil)
-		ds.hostIDsInFleetsFn = func(_ context.Context, _ []uint) ([]uint, error) {
-			t.Fatal("HostIDsInFleets should not have been called for empty input")
+		ds.hostIDsInTeamsFn = func(_ context.Context, _ []uint) ([]uint, error) {
+			t.Fatal("HostIDsInTeams should not have been called for empty input")
 			return nil, nil
 		}
 		ds.applyScrubMaskFn = func(_ context.Context, _ string, _ *roaring.Bitmap, _ int) error {
 			t.Fatal("ApplyScrubMaskToDataset should not have been called for empty input")
 			return nil
 		}
-		require.NoError(t, svc.ScrubDatasetFleet(t.Context(), "uptime", nil))
-		require.NoError(t, svc.ScrubDatasetFleet(t.Context(), "uptime", []uint{}))
+		require.NoError(t, svc.ScrubDatasetAutoMDM(t.Context(), "uptime", nil))
+		require.NoError(t, svc.ScrubDatasetAutoMDM(t.Context(), "uptime", []uint{}))
 	})
 
 	t.Run("no hosts resolved is no-op", func(t *testing.T) {
 		ds := &mockDatastore{}
 		svc := NewService(&mockAuthorizer{}, ds, globalViewer(), nil, nil)
-		ds.hostIDsInFleetsFn = func(_ context.Context, _ []uint) ([]uint, error) {
+		ds.hostIDsInTeamsFn = func(_ context.Context, _ []uint) ([]uint, error) {
 			return nil, nil
 		}
 		ds.applyScrubMaskFn = func(_ context.Context, _ string, _ *roaring.Bitmap, _ int) error {
 			t.Fatal("ApplyScrubMaskToDataset should not be called when no hosts resolved")
 			return nil
 		}
-		require.NoError(t, svc.ScrubDatasetFleet(t.Context(), "cve", []uint{5}))
+		require.NoError(t, svc.ScrubDatasetAutoMDM(t.Context(), "cve", []uint{5}))
 	})
 }
 

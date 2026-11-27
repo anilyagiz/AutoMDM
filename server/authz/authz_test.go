@@ -4,19 +4,19 @@ import (
 	"errors"
 	"testing"
 
-	authz_ctx "github.com/fleetdm/fleet/v4/server/contexts/authz"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	authz_ctx "github.com/anilyagiz/automdm/v4/server/contexts/authz"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/stretchr/testify/require"
 )
 
 func TestAuthorizeOrNotFound(t *testing.T) {
 	notFoundErr := errors.New("not found sentinel")
-	teamHost := &fleet.Host{TeamID: new(uint(1))}
+	teamHost := &automdm.Host{TeamID: new(uint(1))}
 
 	t.Run("write allowed", func(t *testing.T) {
-		ctx := test.UserContext(t.Context(), &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleAdmin}}})
-		err := auth.AuthorizeOrNotFound(ctx, teamHost, fleet.ActionWrite, notFoundErr)
+		ctx := test.UserContext(t.Context(), &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleAdmin}}})
+		err := auth.AuthorizeOrNotFound(ctx, teamHost, automdm.ActionWrite, notFoundErr)
 		require.NoError(t, err)
 	})
 
@@ -24,8 +24,8 @@ func TestAuthorizeOrNotFound(t *testing.T) {
 		// A team observer can read the host but can't write it: this is not
 		// an existence oracle (the caller already knows the host exists), so
 		// the real Forbidden should surface, not notFoundErr.
-		ctx := test.UserContext(t.Context(), &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleObserver}}})
-		err := auth.AuthorizeOrNotFound(ctx, teamHost, fleet.ActionWrite, notFoundErr)
+		ctx := test.UserContext(t.Context(), &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserver}}})
+		err := auth.AuthorizeOrNotFound(ctx, teamHost, automdm.ActionWrite, notFoundErr)
 		require.Error(t, err)
 		require.NotErrorIs(t, err, notFoundErr)
 		var forbidden *Forbidden
@@ -36,8 +36,8 @@ func TestAuthorizeOrNotFound(t *testing.T) {
 		// A caller with no relationship to the host's team can't read or
 		// write it: masking as notFoundErr prevents them from learning the
 		// host exists on some other team via a distinguishable Forbidden.
-		ctx := test.UserContext(t.Context(), &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 2}, Role: fleet.RoleObserver}}})
-		err := auth.AuthorizeOrNotFound(ctx, teamHost, fleet.ActionWrite, notFoundErr)
+		ctx := test.UserContext(t.Context(), &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleObserver}}})
+		err := auth.AuthorizeOrNotFound(ctx, teamHost, automdm.ActionWrite, notFoundErr)
 		require.Error(t, err)
 		require.ErrorIs(t, err, notFoundErr)
 	})
@@ -46,8 +46,8 @@ func TestAuthorizeOrNotFound(t *testing.T) {
 		// A caller misusing this helper by passing a nil notFoundErr must
 		// never get nil (success) back for a caller who can neither read nor
 		// write the resource: that would silently bypass authorization.
-		ctx := test.UserContext(t.Context(), &fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 2}, Role: fleet.RoleObserver}}})
-		err := auth.AuthorizeOrNotFound(ctx, teamHost, fleet.ActionWrite, nil)
+		ctx := test.UserContext(t.Context(), &automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleObserver}}})
+		err := auth.AuthorizeOrNotFound(ctx, teamHost, automdm.ActionWrite, nil)
 		require.Error(t, err)
 		var forbidden *Forbidden
 		require.ErrorAs(t, err, &forbidden)
@@ -55,25 +55,25 @@ func TestAuthorizeOrNotFound(t *testing.T) {
 }
 
 func TestCanWriteSecretVariables(t *testing.T) {
-	teamUser := func(role string) *fleet.User {
-		ut := fleet.UserTeam{Role: role}
+	teamUser := func(role string) *automdm.User {
+		ut := automdm.UserTeam{Role: role}
 		ut.Team.ID = 1
-		return &fleet.User{Teams: []fleet.UserTeam{ut}}
+		return &automdm.User{Teams: []automdm.UserTeam{ut}}
 	}
 
 	for _, c := range []struct {
 		name string
-		user *fleet.User
+		user *automdm.User
 		want bool
 	}{
-		{"global admin", &fleet.User{GlobalRole: new(fleet.RoleAdmin)}, true},
-		{"global maintainer", &fleet.User{GlobalRole: new(fleet.RoleMaintainer)}, true},
-		{"global gitops", &fleet.User{GlobalRole: new(fleet.RoleGitOps)}, true},
-		{"global observer", &fleet.User{GlobalRole: new(fleet.RoleObserver)}, false},
-		{"team admin", teamUser(fleet.RoleAdmin), false},
-		{"team maintainer", teamUser(fleet.RoleMaintainer), false},
-		{"team gitops", teamUser(fleet.RoleGitOps), false},
-		{"team observer", teamUser(fleet.RoleObserver), false},
+		{"global admin", &automdm.User{GlobalRole: new(automdm.RoleAdmin)}, true},
+		{"global maintainer", &automdm.User{GlobalRole: new(automdm.RoleMaintainer)}, true},
+		{"global gitops", &automdm.User{GlobalRole: new(automdm.RoleGitOps)}, true},
+		{"global observer", &automdm.User{GlobalRole: new(automdm.RoleObserver)}, false},
+		{"team admin", teamUser(automdm.RoleAdmin), false},
+		{"team maintainer", teamUser(automdm.RoleMaintainer), false},
+		{"team gitops", teamUser(automdm.RoleGitOps), false},
+		{"team observer", teamUser(automdm.RoleObserver), false},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			ctx := test.UserContext(t.Context(), c.user)
@@ -85,7 +85,7 @@ func TestCanWriteSecretVariables(t *testing.T) {
 		// The probe goes through Authorize, which sets the checked flag, so
 		// callers must run it after their own Authorize call.
 		ctx := authz_ctx.NewContext(t.Context(), &authz_ctx.AuthorizationContext{})
-		ctx = test.UserContext(ctx, teamUser(fleet.RoleMaintainer))
+		ctx = test.UserContext(ctx, teamUser(automdm.RoleMaintainer))
 		authctx, ok := authz_ctx.FromContext(ctx)
 		require.True(t, ok)
 		require.False(t, authctx.Checked())

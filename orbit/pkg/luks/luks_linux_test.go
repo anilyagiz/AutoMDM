@@ -7,8 +7,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/dialog"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/dialog"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/siderolabs/go-blockdevice/v2/encryption"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -124,7 +124,7 @@ func TestPromptAndValidatePassphraseValidatesAgainstAnySlot(t *testing.T) {
 	// User was only prompted once, no retry.
 	assert.Equal(t, []string{entryDialogText}, dlg.shownText)
 	// The server learns the slow key slot work is starting.
-	assert.Equal(t, []string{fleet.LinuxEscrowStatusEscrowing}, escrower.sentStatuses())
+	assert.Equal(t, []string{automdm.LinuxEscrowStatusEscrowing}, escrower.sentStatuses())
 }
 
 // TestPromptAndValidatePassphraseRetries verifies that an incorrect passphrase
@@ -155,7 +155,7 @@ func TestPromptAndValidatePassphraseRetries(t *testing.T) {
 	// First prompt used the initial copy, second used the retry copy.
 	assert.Equal(t, []string{entryDialogText, retryEntryDialogText}, dlg.shownText)
 	// The re-prompt and the acceptance each keep the server's in-flight state alive.
-	assert.Equal(t, []string{fleet.LinuxEscrowStatusPrompting, fleet.LinuxEscrowStatusEscrowing}, escrower.sentStatuses())
+	assert.Equal(t, []string{automdm.LinuxEscrowStatusPrompting, automdm.LinuxEscrowStatusEscrowing}, escrower.sentStatuses())
 }
 
 // TestPromptAndValidatePassphraseCanceled verifies that an empty entry (user
@@ -220,10 +220,10 @@ func TestRunPassphraseEscrowReportsClosedPrompt(t *testing.T) {
 		expected     string
 		expectedInfo []string
 	}{
-		{"canceled", scriptedEntry{err: dialog.ErrCanceled}, fleet.LinuxEscrowStatusCanceled, nil},
-		{"empty entry", scriptedEntry{value: nil}, fleet.LinuxEscrowStatusCanceled, nil},
+		{"canceled", scriptedEntry{err: dialog.ErrCanceled}, automdm.LinuxEscrowStatusCanceled, nil},
+		{"empty entry", scriptedEntry{value: nil}, automdm.LinuxEscrowStatusCanceled, nil},
 		// a timeout also tells the end user how to start over
-		{"timed out", scriptedEntry{err: dialog.ErrTimeout}, fleet.LinuxEscrowStatusTimedOut, []string{timeoutMessage}},
+		{"timed out", scriptedEntry{err: dialog.ErrTimeout}, automdm.LinuxEscrowStatusTimedOut, []string{timeoutMessage}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -332,5 +332,5 @@ func (f *fakeEscrower) sentStatuses() []string {
 
 // newStatusEscrower returns a fake escrower whose server accepts escrow status reports.
 func newStatusEscrower() *fakeEscrower {
-	return &fakeEscrower{capabilities: fleet.CapabilityMap{fleet.CapabilityLinuxEscrowStatus: {}}}
+	return &fakeEscrower{capabilities: automdm.CapabilityMap{automdm.CapabilityLinuxEscrowStatus: {}}}
 }

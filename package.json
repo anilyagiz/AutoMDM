@@ -1,7 +1,7 @@
 {
-  "name": "@fleetdm/fleet",
+  "name": "@automdm/automdm",
   "version": "0.99.99",
-  "description": "The premier osquery fleet manager.",
+  "description": "The premier osquery automdm manager.",
   "engines": {
     "node": "^24.10.0",
     "yarn": ">=1.22.21"

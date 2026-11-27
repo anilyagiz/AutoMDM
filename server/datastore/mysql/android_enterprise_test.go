@@ -3,9 +3,9 @@ package mysql
 import (
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
-	"github.com/fleetdm/fleet/v4/server/platform/mysql/testing_utils"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
+	"github.com/anilyagiz/automdm/v4/server/platform/mysql/testing_utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -33,7 +33,7 @@ func TestAndroidEnterprises(t *testing.T) {
 
 func testCreateGetEnterprise(t *testing.T, ds *Datastore) {
 	_, err := ds.GetEnterpriseByID(testCtx(), 9999)
-	assert.True(t, fleet.IsNotFound(err))
+	assert.True(t, automdm.IsNotFound(err))
 
 	const userID = uint(10)
 	id, err := ds.CreateEnterprise(testCtx(), userID)
@@ -114,17 +114,17 @@ func testDeleteEnterprises(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 	assert.Equal(t, enterprise, result)
 	_, err = ds.GetEnterpriseByID(testCtx(), tempEnterprise.ID)
-	assert.True(t, fleet.IsNotFound(err))
+	assert.True(t, automdm.IsNotFound(err))
 
 	err = ds.DeleteAllEnterprises(testCtx())
 	require.NoError(t, err)
 	_, err = ds.GetEnterpriseByID(testCtx(), enterprise.ID)
-	assert.True(t, fleet.IsNotFound(err))
+	assert.True(t, automdm.IsNotFound(err))
 }
 
 func testGetEnterpriseBySignupToken(t *testing.T, ds *Datastore) {
 	_, err := ds.GetEnterpriseBySignupToken(testCtx(), "nonexistent")
-	assert.True(t, fleet.IsNotFound(err))
+	assert.True(t, automdm.IsNotFound(err))
 
 	enterprise := createEnterprise(t, ds)
 

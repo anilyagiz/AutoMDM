@@ -6,16 +6,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxdb"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
-	"github.com/fleetdm/fleet/v4/server/mdm/android/service/androidmgmt"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxdb"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android/service/androidmgmt"
 	"google.golang.org/api/androidmanagement/v1"
 )
 
 // A notification that would reset, unenroll or rebind a host, or finish a command, is checked
-// against AMAPI's current record of the device or operation before Fleet acts on it, so a delayed,
+// against AMAPI's current record of the device or operation before AutoMDM acts on it, so a delayed,
 // redelivered or out-of-order notification cannot act on state that has since changed. One that
 // does not match is acked (HTTP 200) and dropped, and the reason is only logged.
 //
@@ -24,7 +24,7 @@ import (
 // a current AMAPI notification cannot look like.
 
 func errUnverifiedPubSub() error {
-	return fleet.NewInvalidArgumentError("message", "Android PubSub notification was not processed").
+	return automdm.NewInvalidArgumentError("message", "Android PubSub notification was not processed").
 		WithStatus(http.StatusOK)
 }
 
@@ -37,7 +37,7 @@ func (svc *Service) setAMAPIClientSecret(ctx context.Context) error {
 	return nil
 }
 
-// enterpriseDevicesPrefix returns the resource-name prefix of this Fleet's enterprise devices.
+// enterpriseDevicesPrefix returns the resource-name prefix of this AutoMDM's enterprise devices.
 // Device names from a notification must be checked against it: the proxy answers 404 for an
 // enterprise it does not know, which would otherwise read as "device gone".
 func (svc *Service) enterpriseDevicesPrefix(ctx context.Context) (string, error) {
@@ -66,7 +66,7 @@ func (svc *Service) getAMAPIDevice(ctx context.Context, deviceName string) (*and
 	return device, nil
 }
 
-// verifyAMAPIDevice checks that the notification's device is a live device of this Fleet's
+// verifyAMAPIDevice checks that the notification's device is a live device of this AutoMDM's
 // enterprise with the same hardware identity. With checkEnrollmentTime, the enrollment time
 // must also match, tying the notification to the device's current enrollment.
 func (svc *Service) verifyAMAPIDevice(ctx context.Context, device *androidmanagement.Device, checkEnrollmentTime bool) error {
@@ -109,16 +109,16 @@ func sameTimestamp(a, b string) bool {
 	return errA == nil && errB == nil && ta.Equal(tb)
 }
 
-// verifyReenrollment checks an ENROLLMENT notification for a host Fleet already knows about,
+// verifyReenrollment checks an ENROLLMENT notification for a host AutoMDM already knows about,
 // since processing it clears the host's pending commands, including a queued wipe.
 func (svc *Service) verifyReenrollment(ctx context.Context, device *androidmanagement.Device) error {
 	return svc.verifyAMAPIDevice(ctx, device, true)
 }
 
 // verifyDeviceChange checks a STATUS_REPORT that names a different AMAPI device than the one
-// Fleet has for the host. Processing it stores the new device ID, so it is only accepted for a
+// AutoMDM has for the host. Processing it stores the new device ID, so it is only accepted for a
 // device AMAPI has with the same hardware identity.
-func (svc *Service) verifyDeviceChange(ctx context.Context, host *fleet.AndroidHost, device *androidmanagement.Device) error {
+func (svc *Service) verifyDeviceChange(ctx context.Context, host *automdm.AndroidHost, device *androidmanagement.Device) error {
 	deviceID, err := svc.getDeviceID(ctx, device)
 	if err != nil {
 		return svc.rejectPubSub(ctx, device, "invalid device name")
@@ -129,7 +129,7 @@ func (svc *Service) verifyDeviceChange(ctx context.Context, host *fleet.AndroidH
 	return svc.verifyAMAPIDevice(ctx, device, false)
 }
 
-// verifyNewHostDevice checks an enrollment that would create a host for a device ID Fleet already
+// verifyNewHostDevice checks an enrollment that would create a host for a device ID AutoMDM already
 // has, since creating the host moves that device record, and with it the device's commands and
 // policy, to the new host.
 func (svc *Service) verifyNewHostDevice(ctx context.Context, device *androidmanagement.Device) error {
@@ -137,7 +137,7 @@ func (svc *Service) verifyNewHostDevice(ctx context.Context, device *androidmana
 	if err != nil {
 		return svc.rejectPubSub(ctx, device, "invalid device name")
 	}
-	exists, err := svc.fleetDS.AndroidDeviceExistsByDeviceID(ctxdb.RequirePrimary(ctx, true), deviceID)
+	exists, err := svc.automdmDS.AndroidDeviceExistsByDeviceID(ctxdb.RequirePrimary(ctx, true), deviceID)
 	if err != nil {
 		return ctxerr.Wrap(ctx, err, "checking for an existing android device")
 	}
@@ -149,7 +149,7 @@ func (svc *Service) verifyNewHostDevice(ctx context.Context, device *androidmana
 
 // verifyDeviceDeleted checks a DELETED notification before the host is unenrolled. It must be for
 // the host's current AMAPI device, and AMAPI must no longer have that device as an active one.
-func (svc *Service) verifyDeviceDeleted(ctx context.Context, host *fleet.AndroidHost, device *androidmanagement.Device) error {
+func (svc *Service) verifyDeviceDeleted(ctx context.Context, host *automdm.AndroidHost, device *androidmanagement.Device) error {
 	if host.Device == nil || host.Device.DeviceID == "" {
 		return svc.rejectPubSub(ctx, device, "host has no current device")
 	}
@@ -187,12 +187,12 @@ type amapiDeviceGetter func(ctx context.Context, deviceName string) (*androidman
 // isCommandForCurrentDevice reports whether a command was issued to the host's current AMAPI
 // device. Acknowledged commands survive a re-enrollment, so a redelivered notification for one
 // issued to an earlier enrollment must not act on the re-enrolled host.
-func isCommandForCurrentDevice(ctx context.Context, ds fleet.Datastore, cmd *android.MDMAndroidCommand) (bool, error) {
+func isCommandForCurrentDevice(ctx context.Context, ds automdm.Datastore, cmd *android.MDMAndroidCommand) (bool, error) {
 	// Read from the primary: a replica that hasn't caught up with a re-enrollment would still
 	// return the previous device ID.
 	host, err := ds.AndroidHostLiteByHostUUID(ctxdb.RequirePrimary(ctx, true), cmd.HostUUID)
 	switch {
-	case fleet.IsNotFound(err):
+	case automdm.IsNotFound(err):
 		return false, nil
 	case err != nil:
 		return false, ctxerr.Wrap(ctx, err, "get android host for command")
@@ -216,7 +216,7 @@ func isCommandDeviceGone(ctx context.Context, getDevice amapiDeviceGetter, cmd *
 // longer has that device. It is what shows a wipe finished: AMAPI never marks a WIPE operation done,
 // because the device is erased before it can report back. A wipe of an earlier device doesn't count,
 // so it can't unenroll the host from the device it has moved to.
-func isWipeOfGoneCurrentDevice(ctx context.Context, ds fleet.Datastore, getDevice amapiDeviceGetter, cmd *android.MDMAndroidCommand) (bool, error) {
+func isWipeOfGoneCurrentDevice(ctx context.Context, ds automdm.Datastore, getDevice amapiDeviceGetter, cmd *android.MDMAndroidCommand) (bool, error) {
 	if cmd.CommandType != string(android.MDMAndroidCommandTypeWipe) {
 		return false, nil
 	}
@@ -250,7 +250,7 @@ func (svc *Service) verifiedOperation(ctx context.Context, cmd *android.MDMAndro
 			return nil, err
 		}
 		if gone {
-			current, err := isCommandForCurrentDevice(ctx, svc.fleetDS, cmd)
+			current, err := isCommandForCurrentDevice(ctx, svc.automdmDS, cmd)
 			if err != nil {
 				return nil, err
 			}
@@ -268,7 +268,7 @@ func (svc *Service) verifiedOperation(ctx context.Context, cmd *android.MDMAndro
 	case err != nil:
 		return nil, ctxerr.Wrap(ctx, err, "get android command operation from AMAPI")
 	case !amapiOp.Done:
-		wiped, err := isWipeOfGoneCurrentDevice(ctx, svc.fleetDS, svc.getAMAPIDevice, cmd)
+		wiped, err := isWipeOfGoneCurrentDevice(ctx, svc.automdmDS, svc.getAMAPIDevice, cmd)
 		if err != nil {
 			return nil, err
 		}

@@ -258,9 +258,9 @@ export const ExpandableErrorLargePayload: Story = {
         severity: i % 2 === 0 ? "error" : "warning",
         suggestion: {
           replace: "osquery_info",
-          with: "fleet_info",
+          with: "automdm_info",
           docs:
-            "https://fleetdm.com/docs/using-fleet/example-queries#fleet-info",
+            "https://automdm.com/docs/using-automdm/example-queries#automdm-info",
         },
       })),
       metadata: {

@@ -7,7 +7,7 @@ import (
 
 // maxResultBytes is roughly how much ai_agent_session_messages returns per
 // query, counting every column as it goes over the wire. It keeps a result
-// well under what Fleet ingests from a host in one report (5 MiB for live
+// well under what AutoMDM ingests from a host in one report (5 MiB for live
 // queries in body-auth mode, and the server's per-message buffers).
 const maxResultBytes = 1 << 20
 

@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/pkg/removednames"
-	"github.com/fleetdm/fleet/v4/pkg/testutils"
+	"github.com/anilyagiz/automdm/v4/pkg/removednames"
+	"github.com/anilyagiz/automdm/v4/pkg/testutils"
 	"github.com/hashicorp/go-multierror"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -48,7 +48,7 @@ func loadSpec(t *testing.T, relativePaths ...string) []byte {
 
 func TestGroupFromBytesWithStdLib(t *testing.T) {
 	stdQueryLib := loadSpec(t,
-		"docs", "01-Using-Fleet", "standard-query-library", "standard-query-library.yml",
+		"docs", "01-Using-AutoMDM", "standard-query-library", "standard-query-library.yml",
 	)
 	g, err := GroupFromBytes(stdQueryLib)
 	require.NoError(t, err)
@@ -159,7 +159,7 @@ func TestExpandEnv(t *testing.T) {
 		checkErr    func(error)
 	}{
 		{map[string]string{"foo": "1"}, `$foo`, `1`, nil},
-		{map[string]string{"foo": "1"}, `$foo $FLEET_VAR_BAR ${FLEET_VAR_BAR}x ${foo}`, `1 $FLEET_VAR_BAR ${FLEET_VAR_BAR}x 1`, nil},
+		{map[string]string{"foo": "1"}, `$foo $AUTOMDM_VAR_BAR ${AUTOMDM_VAR_BAR}x ${foo}`, `1 $AUTOMDM_VAR_BAR ${AUTOMDM_VAR_BAR}x 1`, nil},
 		{map[string]string{"foo": ""}, `$foo`, ``, nil},
 		{map[string]string{"foo": "", "bar": "", "zoo": ""}, `$foo${bar}$zoo`, ``, nil},
 		{map[string]string{}, `$foo`, ``, checkMultiErrors(t, `environment variable "foo" not set; if you intended the literal string $foo then please escape it as \$foo.`)},
@@ -188,16 +188,16 @@ func TestExpandEnv(t *testing.T) {
 		{map[string]string{"foo": ""}, `${foo}var`, `var`, nil},
 		{map[string]string{"foo": "", "$": "2"}, `${$}${foo}var`, `2var`, nil},
 		{map[string]string{}, `${foo}var`, ``, checkMultiErrors(t, `environment variable "foo" not set; if you intended the literal string ${foo} then please escape it as \${foo}.`)},
-		{map[string]string{}, `foo PREVENT_ESCAPING_bar $ FLEET_VAR_`, `foo PREVENT_ESCAPING_bar $ FLEET_VAR_`, nil}, // nothing to replace
+		{map[string]string{}, `foo PREVENT_ESCAPING_bar $ AUTOMDM_VAR_`, `foo PREVENT_ESCAPING_bar $ AUTOMDM_VAR_`, nil}, // nothing to replace
 		{
 			map[string]string{"foo": "BAR"},
-			`\$FLEET_VAR_$foo \${FLEET_VAR_$foo} \${FLEET_VAR_${foo}2}`,
-			`$FLEET_VAR_BAR ${FLEET_VAR_BAR} ${FLEET_VAR_BAR2}`, nil,
+			`\$AUTOMDM_VAR_$foo \${AUTOMDM_VAR_$foo} \${AUTOMDM_VAR_${foo}2}`,
+			`$AUTOMDM_VAR_BAR ${AUTOMDM_VAR_BAR} ${AUTOMDM_VAR_BAR2}`, nil,
 		}, // nested variables
 		{
 			map[string]string{},
-			"$fleet_var_test", // Somehow, variables can be lowercased when coming in from time to time
-			"$fleet_var_test", // Should not be replaced
+			"$automdm_var_test", // Somehow, variables can be lowercased when coming in from time to time
+			"$automdm_var_test", // Should not be replaced
 			nil,
 		},
 		{
@@ -231,14 +231,14 @@ func TestLookupEnvSecrets(t *testing.T) {
 		checkErr    func(error)
 	}{
 		{map[string]string{"foo": "1"}, `$foo`, map[string]string{}, nil},
-		{map[string]string{"FLEET_SECRET_foo": "1"}, `$FLEET_SECRET_foo`, map[string]string{"FLEET_SECRET_foo": "1"}, nil},
+		{map[string]string{"AUTOMDM_SECRET_foo": "1"}, `$AUTOMDM_SECRET_foo`, map[string]string{"AUTOMDM_SECRET_foo": "1"}, nil},
 		{
 			map[string]string{"foo": "1"},
-			`$FLEET_SECRET_foo`,
+			`$AUTOMDM_SECRET_foo`,
 			map[string]string{},
-			checkMultiErrors(t, "environment variable \"FLEET_SECRET_foo\" not set"),
+			checkMultiErrors(t, "environment variable \"AUTOMDM_SECRET_foo\" not set"),
 		},
-		{map[string]string{"FLEET_SECRET_foo": "test&123"}, `<Add>$FLEET_SECRET_foo</Add>`, map[string]string{"FLEET_SECRET_foo": "test&123"}, nil},
+		{map[string]string{"AUTOMDM_SECRET_foo": "test&123"}, `<Add>$AUTOMDM_SECRET_foo</Add>`, map[string]string{"AUTOMDM_SECRET_foo": "test&123"}, nil},
 	} {
 		// save the current env before clearing it.
 		testutils.SaveEnv(t)
@@ -257,37 +257,37 @@ func TestLookupEnvSecrets(t *testing.T) {
 	}
 }
 
-// TestExpandEnvBytesIncludingSecrets tests that FLEET_SECRET_ variables are expanded when using ExpandEnvBytesIncludingSecrets
+// TestExpandEnvBytesIncludingSecrets tests that AUTOMDM_SECRET_ variables are expanded when using ExpandEnvBytesIncludingSecrets
 func TestExpandEnvBytesIncludingSecrets(t *testing.T) {
-	t.Setenv("FLEET_SECRET_API_KEY", "secret123")
+	t.Setenv("AUTOMDM_SECRET_API_KEY", "secret123")
 	t.Setenv("NORMAL_VAR", "normalvalue")
-	t.Setenv("FLEET_VAR_HOST", "hostname")
-	t.Setenv("FLEET_SECRET_XML", "secret&123")
+	t.Setenv("AUTOMDM_VAR_HOST", "hostname")
+	t.Setenv("AUTOMDM_SECRET_XML", "secret&123")
 
-	input := []byte(`API Key: $FLEET_SECRET_API_KEY
+	input := []byte(`API Key: $AUTOMDM_SECRET_API_KEY
 Normal: $NORMAL_VAR  
-Fleet Var: $FLEET_VAR_HOST
-Missing: $FLEET_SECRET_MISSING`)
+AutoMDM Var: $AUTOMDM_VAR_HOST
+Missing: $AUTOMDM_SECRET_MISSING`)
 
 	result, err := ExpandEnvBytesIncludingSecrets(input)
 	require.NoError(t, err)
 
 	expected := `API Key: secret123
 Normal: normalvalue  
-Fleet Var: $FLEET_VAR_HOST
-Missing: $FLEET_SECRET_MISSING`
+AutoMDM Var: $AUTOMDM_VAR_HOST
+Missing: $AUTOMDM_SECRET_MISSING`
 
 	assert.Equal(t, expected, string(result))
 
-	// Verify that FLEET_VAR_ is not expanded (reserved for server)
-	assert.Contains(t, string(result), "$FLEET_VAR_HOST")
-	// Verify that FLEET_SECRET_ is expanded
+	// Verify that AUTOMDM_VAR_ is not expanded (reserved for server)
+	assert.Contains(t, string(result), "$AUTOMDM_VAR_HOST")
+	// Verify that AUTOMDM_SECRET_ is expanded
 	assert.Contains(t, string(result), "secret123")
-	assert.NotContains(t, string(result), "$FLEET_SECRET_API_KEY")
+	assert.NotContains(t, string(result), "$AUTOMDM_SECRET_API_KEY")
 	// Verify that missing secrets are left as-is
-	assert.Contains(t, string(result), "$FLEET_SECRET_MISSING")
+	assert.Contains(t, string(result), "$AUTOMDM_SECRET_MISSING")
 
-	xmlInput := []byte(`<Add>$FLEET_SECRET_XML</Add>`)
+	xmlInput := []byte(`<Add>$AUTOMDM_SECRET_XML</Add>`)
 	xmlResult, err := ExpandEnvBytesIncludingSecrets(xmlInput)
 	require.NoError(t, err)
 
@@ -295,7 +295,7 @@ Missing: $FLEET_SECRET_MISSING`
 	assert.Equal(t, expectedXML, string(xmlResult))
 }
 
-// TestExpandEnvJSONDocument verifies that env vars and FLEET_SECRET_ vars
+// TestExpandEnvJSONDocument verifies that env vars and AUTOMDM_SECRET_ vars
 // expanded inside JSON documents are JSON-string-escaped, not XML-escaped.
 func TestExpandEnvJSONDocument(t *testing.T) {
 	testutils.SaveEnv(t)
@@ -312,10 +312,10 @@ func TestExpandEnvJSONDocument(t *testing.T) {
 		assert.Equal(t, `a"b\c`, parsed["key"])
 	})
 
-	t.Run("FLEET_SECRET_ JSON-escaped when expanded", func(t *testing.T) {
+	t.Run("AUTOMDM_SECRET_ JSON-escaped when expanded", func(t *testing.T) {
 		os.Clearenv()
-		t.Setenv("FLEET_SECRET_PWD", `p"<&'d`)
-		input := []byte(`{"pwd":"$FLEET_SECRET_PWD"}`)
+		t.Setenv("AUTOMDM_SECRET_PWD", `p"<&'d`)
+		input := []byte(`{"pwd":"$AUTOMDM_SECRET_PWD"}`)
 		got, err := ExpandEnvBytesIncludingSecrets(input)
 		require.NoError(t, err)
 
@@ -324,21 +324,21 @@ func TestExpandEnvJSONDocument(t *testing.T) {
 		assert.Equal(t, `p"<&'d`, parsed["pwd"])
 	})
 
-	t.Run("FLEET_SECRET_ left as placeholder when ignored", func(t *testing.T) {
+	t.Run("AUTOMDM_SECRET_ left as placeholder when ignored", func(t *testing.T) {
 		os.Clearenv()
-		t.Setenv("FLEET_SECRET_PWD", `whatever`)
-		input := []byte(`{"pwd":"$FLEET_SECRET_PWD"}`)
+		t.Setenv("AUTOMDM_SECRET_PWD", `whatever`)
+		input := []byte(`{"pwd":"$AUTOMDM_SECRET_PWD"}`)
 		got, err := ExpandEnvBytesIgnoreSecrets(input)
 		require.NoError(t, err)
-		assert.JSONEq(t, `{"pwd":"$FLEET_SECRET_PWD"}`, string(got))
+		assert.JSONEq(t, `{"pwd":"$AUTOMDM_SECRET_PWD"}`, string(got))
 	})
 
-	t.Run("FLEET_VAR_ left for server regardless of format", func(t *testing.T) {
+	t.Run("AUTOMDM_VAR_ left for server regardless of format", func(t *testing.T) {
 		os.Clearenv()
-		input := []byte(`{"v":"$FLEET_VAR_HOST_HARDWARE_SERIAL"}`)
+		input := []byte(`{"v":"$AUTOMDM_VAR_HOST_HARDWARE_SERIAL"}`)
 		got, err := ExpandEnvBytesIgnoreSecrets(input)
 		require.NoError(t, err)
-		assert.JSONEq(t, `{"v":"$FLEET_VAR_HOST_HARDWARE_SERIAL"}`, string(got))
+		assert.JSONEq(t, `{"v":"$AUTOMDM_VAR_HOST_HARDWARE_SERIAL"}`, string(got))
 	})
 
 	t.Run("leading whitespace still detected as JSON", func(t *testing.T) {
@@ -453,47 +453,47 @@ spec:
 			removedMessage(removednames.KindSpecKind, "team"),
 		},
 		{
-			"kind: fleet with fleet: key",
+			"kind: team with team: key",
 			[]byte(`
 apiVersion: v1
-kind: fleet
+kind: team
 spec:
-  fleet:
+  team:
     name: macOS
 `),
 			"",
 		},
 		{
-			"kind: fleet with team: key",
-			[]byte(`
-apiVersion: v1
-kind: fleet
-spec:
-  team:
-    name: macOS
-`),
-			removedMessage(removednames.KindYAMLKey, "spec.team"),
-		},
-		{
-			"kind: fleet with both fleet: and team: keys, as older get fleets exports have",
-			[]byte(`
-apiVersion: v1
-kind: fleet
-spec:
-  fleet:
-    name: macOS
-  team:
-    name: macOS
-`),
-			removedMessage(removednames.KindYAMLKey, "spec.team"),
-		},
-		{
-			"kind: team with fleet: key",
+			"kind: team with team: key",
 			[]byte(`
 apiVersion: v1
 kind: team
 spec:
-  fleet:
+  team:
+    name: macOS
+`),
+			removedMessage(removednames.KindYAMLKey, "spec.team"),
+		},
+		{
+			"kind: team with both team: and team: keys, as older get teams exports have",
+			[]byte(`
+apiVersion: v1
+kind: team
+spec:
+  team:
+    name: macOS
+  team:
+    name: macOS
+`),
+			removedMessage(removednames.KindYAMLKey, "spec.team"),
+		},
+		{
+			"kind: team with team: key",
+			[]byte(`
+apiVersion: v1
+kind: team
+spec:
+  team:
     name: macOS
 `),
 			removedMessage(removednames.KindSpecKind, "team"),

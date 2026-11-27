@@ -111,8 +111,8 @@ export const OktaConfigured: Story = {
             microsoft_entra_connection_configured: false,
             okta_idp_id: "okta-idp-123456",
             okta_assertion_consumer_service_url:
-              "https://fleet.example.com/api/v1/saml/acs",
-            okta_audience_uri: "https://fleet.example.com",
+              "https://automdm.example.com/api/v1/saml/acs",
+            okta_audience_uri: "https://automdm.example.com",
             okta_certificate:
               "-----BEGIN CERTIFICATE-----\nMIIC...\n-----END CERTIFICATE-----",
           },
@@ -145,8 +145,8 @@ export const BothConfigured: Story = {
             microsoft_entra_connection_configured: true,
             okta_idp_id: "okta-idp-123456",
             okta_assertion_consumer_service_url:
-              "https://fleet.example.com/api/v1/saml/acs",
-            okta_audience_uri: "https://fleet.example.com",
+              "https://automdm.example.com/api/v1/saml/acs",
+            okta_audience_uri: "https://automdm.example.com",
             okta_certificate:
               "-----BEGIN CERTIFICATE-----\nMIIC...\n-----END CERTIFICATE-----",
           },

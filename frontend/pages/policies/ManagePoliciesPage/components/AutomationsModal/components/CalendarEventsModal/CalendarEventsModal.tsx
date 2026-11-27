@@ -138,7 +138,7 @@ const CalendarEventsModal = forwardRef<
             <p className={`${baseClass}__description`}>
               Schedule maintenance windows for end users failing policies.{" "}
               <CustomLink
-                url="https://www.fleetdm.com/learn-more-about/calendar-events"
+                url="https://automdm.com/learn-more-about/calendar-events"
                 text="Learn more"
                 newTab
               />
@@ -150,12 +150,12 @@ const CalendarEventsModal = forwardRef<
                 // Only global admins can access the Calendar settings page.
                 <CustomLink
                   url={paths.ADMIN_INTEGRATIONS_CALENDARS}
-                  text="Connect Fleet to Google Workspace"
+                  text="Connect AutoMDM to Google Workspace"
                   emphasized
                 />
               ) : (
                 <>
-                  Admin can connect Fleet to Google Workspace via{" "}
+                  Admin can connect AutoMDM to Google Workspace via{" "}
                   <b>Settings</b> &gt; <b>Integrations</b> &gt; <b>Calendars</b>
                 </>
               )}{" "}

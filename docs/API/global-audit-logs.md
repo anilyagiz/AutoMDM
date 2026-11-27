@@ -1,18 +1,18 @@
 # Global audit logs
 
-Use audit logs to automate based on what happens in Fleet. For example, send every activity to your [SIEM](https://en.wikipedia.org/wiki/Security_information_and_event_management), or trigger a workflow when a user runs a script.
+Use audit logs to automate based on what happens in AutoMDM. For example, send every activity to your [SIEM](https://en.wikipedia.org/wiki/Security_information_and_event_management), or trigger a workflow when a user runs a script.
 
-This page includes a list of activity types and their fields. To learn how to see activities and send them to a webhook or log destination, see the [Automations guide](https://fleetdm.com/guides/automations#activity-automations). To receive activities from hosts, see [Host audit logs](https://fleetdm.com/docs/api/host-audit-logs).
+This page includes a list of activity types and their fields. To learn how to see activities and send them to a webhook or log destination, see the [Automations guide](https://automdm.com/guides/automations#activity-automations). To receive activities from hosts, see [Host audit logs](https://automdm.com/docs/api/host-audit-logs).
 
 Each webhook request is a JSON object with the following fields:
 - "timestamp": When the activity happened.
-- "actor_full_name": Name of the user who performed the activity. "Fleet" if Fleet performed it automatically. Null if there's no user.
+- "actor_full_name": Name of the user who performed the activity. "AutoMDM" if AutoMDM performed it automatically. Null if there's no user.
 - "actor_id": ID of the user who performed the activity. Null if there's no user or the user was deleted.
 - "actor_email": Email of the user who performed the activity. Null if there's no user.
 - "type": The activity type. See the list below.
 - "details": Fields for the activity type. See the list below.
 
-Activities sent to a [log destination](https://fleetdm.com/docs/configuration/fleet-server-configuration#external-activity-audit-logging) use the same format as the [List activities](https://fleetdm.com/docs/api/rest-api#list-activities) API response instead of the above webhook payload.
+Activities sent to a [log destination](https://automdm.com/docs/configuration/automdm-server-configuration#external-activity-audit-logging) use the same format as the [List activities](https://automdm.com/docs/api/rest-api#list-activities) API response instead of the above webhook payload.
 
 ## Authentication
 
@@ -29,7 +29,7 @@ This activity does not contain any detail fields.
 
 ### user_logged_in
 
-Generated when users successfully log in to Fleet.
+Generated when users successfully log in to AutoMDM.
 
 This activity contains the following fields:
 - "public_ip": Public IP of the login request.
@@ -44,7 +44,7 @@ This activity contains the following fields:
 
 ### user_failed_login
 
-Generated when users try to log in to Fleet and fail.
+Generated when users try to log in to AutoMDM and fail.
 
 This activity contains the following fields:
 - "email": The email used in the login request.
@@ -61,7 +61,7 @@ This activity contains the following fields:
 
 ### user_mfa_requested
 
-Generated when a user with multi-factor authentication (MFA) enabled submits valid credentials and Fleet sends a verification email.
+Generated when a user with multi-factor authentication (MFA) enabled submits valid credentials and AutoMDM sends a verification email.
 
 This activity contains the following fields:
 - "email": The email used in the login request.
@@ -152,11 +152,11 @@ This activity does not contain any detail fields.
 
 ### edited_android_certificate
 
-Generated when a user adds or removes Android certificate templates of a fleet (or no fleet) via the fleetctl CLI.
+Generated when a user adds or removes Android certificate templates of a team (or no team) via the automdmctl CLI.
 
 This activity contains the following fields:
-- "fleet_id": The ID of the fleet that the certificate templates apply to, `null` if they apply to devices that are not in a fleet ("Unassigned").
-- "fleet_name": The name of the fleet that the certificate templates apply to, `null` if they apply to devices that are not in a fleet ("Unassigned").
+- "team_id": The ID of the team that the certificate templates apply to, `null` if they apply to devices that are not in a team ("Unassigned").
+- "team_name": The name of the team that the certificate templates apply to, `null` if they apply to devices that are not in a team ("Unassigned").
 
 #### Example
 
@@ -164,8 +164,8 @@ This activity contains the following fields:
 {
   "team_id": 123,
   "team_name": "Workstations",
-  "fleet_id": 123,
-  "fleet_name": "Workstations"
+  "team_id": 123,
+  "team_name": "Workstations"
 }
 ```
 
@@ -208,25 +208,25 @@ This activity contains the following fields:
 
 ### added_ndes_scep_proxy
 
-Generated when NDES SCEP proxy is configured in Fleet.
+Generated when NDES SCEP proxy is configured in AutoMDM.
 
 This activity does not contain any detail fields.
 
 ### deleted_ndes_scep_proxy
 
-Generated when NDES SCEP proxy configuration is deleted in Fleet.
+Generated when NDES SCEP proxy configuration is deleted in AutoMDM.
 
 This activity does not contain any detail fields.
 
 ### edited_ndes_scep_proxy
 
-Generated when NDES SCEP proxy configuration is edited in Fleet.
+Generated when NDES SCEP proxy configuration is edited in AutoMDM.
 
 This activity does not contain any detail fields.
 
 ### added_custom_scep_proxy
 
-Generated when SCEP certificate authority configuration is added in Fleet.
+Generated when SCEP certificate authority configuration is added in AutoMDM.
 
 This activity contains the following fields:
 - "name": Name of the certificate authority.
@@ -241,7 +241,7 @@ This activity contains the following fields:
 
 ### deleted_custom_scep_proxy
 
-Generated when SCEP certificate authority configuration is deleted in Fleet.
+Generated when SCEP certificate authority configuration is deleted in AutoMDM.
 
 This activity contains the following fields:
 - "name": Name of the certificate authority.
@@ -256,7 +256,7 @@ This activity contains the following fields:
 
 ### edited_custom_scep_proxy
 
-Generated when SCEP certificate authority configuration is edited in Fleet.
+Generated when SCEP certificate authority configuration is edited in AutoMDM.
 
 This activity contains the following fields:
 - "name": Name of the certificate authority.
@@ -271,7 +271,7 @@ This activity contains the following fields:
 
 ### added_digicert
 
-Generated when DigiCert certificate authority configuration is added in Fleet.
+Generated when DigiCert certificate authority configuration is added in AutoMDM.
 
 This activity contains the following fields:
 - "name": Name of the certificate authority.
@@ -286,7 +286,7 @@ This activity contains the following fields:
 
 ### deleted_digicert
 
-Generated when DigiCert certificate authority configuration is deleted in Fleet.
+Generated when DigiCert certificate authority configuration is deleted in AutoMDM.
 
 This activity contains the following fields:
 - "name": Name of the certificate authority.
@@ -301,7 +301,7 @@ This activity contains the following fields:
 
 ### edited_digicert
 
-Generated when DigiCert certificate authority configuration is edited in Fleet.
+Generated when DigiCert certificate authority configuration is edited in AutoMDM.
 
 This activity contains the following fields:
 - "name": Name of the certificate authority.
@@ -316,7 +316,7 @@ This activity contains the following fields:
 
 ### added_hydrant
 
-Generated when Hydrant certificate authority configuration is added in Fleet.
+Generated when Hydrant certificate authority configuration is added in AutoMDM.
 
 This activity contains the following fields:
 - "name": Name of the certificate authority.
@@ -331,7 +331,7 @@ This activity contains the following fields:
 
 ### deleted_hydrant
 
-Generated when Hydrant certificate authority configuration is deleted in Fleet.
+Generated when Hydrant certificate authority configuration is deleted in AutoMDM.
 
 This activity contains the following fields:
 - "name": Name of the certificate authority.
@@ -346,7 +346,7 @@ This activity contains the following fields:
 
 ### edited_hydrant
 
-Generated when Hydrant certificate authority configuration is edited in Fleet.
+Generated when Hydrant certificate authority configuration is edited in AutoMDM.
 
 This activity contains the following fields:
 - "name": Name of the certificate authority.
@@ -361,7 +361,7 @@ This activity contains the following fields:
 
 ### added_custom_est_proxy
 
-Generated when a custom EST certificate authority configuration is added in Fleet.
+Generated when a custom EST certificate authority configuration is added in AutoMDM.
 
 This activity contains the following fields:
 - "name": Name of the certificate authority.
@@ -376,7 +376,7 @@ This activity contains the following fields:
 
 ### deleted_custom_est_proxy
 
-Generated when a custom EST certificate authority configuration is deleted in Fleet.
+Generated when a custom EST certificate authority configuration is deleted in AutoMDM.
 
 This activity contains the following fields:
 - "name": Name of the certificate authority.
@@ -391,7 +391,7 @@ This activity contains the following fields:
 
 ### edited_custom_est_proxy
 
-Generated when a custom EST certificate authority configuration is edited in Fleet.
+Generated when a custom EST certificate authority configuration is edited in AutoMDM.
 
 This activity contains the following fields:
 - "name": Name of the certificate authority.
@@ -406,7 +406,7 @@ This activity contains the following fields:
 
 ### added_smallstep
 
-Generated when Smallstep certificate authority configuration is added in Fleet.
+Generated when Smallstep certificate authority configuration is added in AutoMDM.
 
 This activity contains the following fields:
 - "name": Name of the certificate authority.
@@ -421,7 +421,7 @@ This activity contains the following fields:
 
 ### deleted_smallstep
 
-Generated when Smallstep certificate authority configuration is deleted in Fleet.
+Generated when Smallstep certificate authority configuration is deleted in AutoMDM.
 
 This activity contains the following fields:
 - "name": Name of the certificate authority.
@@ -436,7 +436,7 @@ This activity contains the following fields:
 
 ### edited_smallstep
 
-Generated when Smallstep certificate authority configuration is edited in Fleet.
+Generated when Smallstep certificate authority configuration is edited in AutoMDM.
 
 This activity contains the following fields:
 - "name": Name of the certificate authority.
@@ -451,7 +451,7 @@ This activity contains the following fields:
 
 ### added_google_cas
 
-Generated when Google CAS certificate authority configuration is added in Fleet.
+Generated when Google CAS certificate authority configuration is added in AutoMDM.
 
 This activity contains the following fields:
 - "name": Name of the certificate authority.
@@ -466,7 +466,7 @@ This activity contains the following fields:
 
 ### edited_google_cas
 
-Generated when Google CAS certificate authority configuration is edited in Fleet.
+Generated when Google CAS certificate authority configuration is edited in AutoMDM.
 
 This activity contains the following fields:
 - "name": Name of the certificate authority.
@@ -481,7 +481,7 @@ This activity contains the following fields:
 
 ### deleted_google_cas
 
-Generated when Google CAS certificate authority configuration is deleted in Fleet.
+Generated when Google CAS certificate authority configuration is deleted in AutoMDM.
 
 This activity contains the following fields:
 - "name": Name of the certificate authority.
@@ -496,7 +496,7 @@ This activity contains the following fields:
 
 ### added_ejbca
 
-Generated when EJBCA certificate authority configuration is added in Fleet.
+Generated when EJBCA certificate authority configuration is added in AutoMDM.
 
 This activity contains the following fields:
 - "name": Name of the certificate authority.
@@ -511,7 +511,7 @@ This activity contains the following fields:
 
 ### edited_ejbca
 
-Generated when EJBCA certificate authority configuration is edited in Fleet.
+Generated when EJBCA certificate authority configuration is edited in AutoMDM.
 
 This activity contains the following fields:
 - "name": Name of the certificate authority.
@@ -526,7 +526,7 @@ This activity contains the following fields:
 
 ### deleted_ejbca
 
-Generated when EJBCA certificate authority configuration is deleted in Fleet.
+Generated when EJBCA certificate authority configuration is deleted in AutoMDM.
 
 This activity contains the following fields:
 - "name": Name of the certificate authority.
@@ -566,16 +566,16 @@ Generated when a user adds a certificate template for Android hosts.
 
 This activity contains the following fields:
 - "name": Name of the certificate template.
-- "fleet_id": The ID of the fleet that the certificate template applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
-- "fleet_name": The name of the fleet that the certificate template applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
+- "team_id": The ID of the team that the certificate template applies to, `null` if it applies to devices that are not in a team ("Unassigned").
+- "team_name": The name of the team that the certificate template applies to, `null` if it applies to devices that are not in a team ("Unassigned").
 
 #### Example
 
 ```json
 {
   "name": "WiFi cert",
-  "fleet_id": 123,
-  "fleet_name": "Workstations"
+  "team_id": 123,
+  "team_name": "Workstations"
 }
 ```
 
@@ -585,16 +585,16 @@ Generated when a user deletes a certificate template for Android hosts.
 
 This activity contains the following fields:
 - "name": Name of the certificate template.
-- "fleet_id": The ID of the fleet that the certificate template applied to, `null` if it applied to devices that are not in a fleet ("Unassigned").
-- "fleet_name": The name of the fleet that the certificate template applied to, `null` if it applied to devices that are not in a fleet ("Unassigned").
+- "team_id": The ID of the team that the certificate template applied to, `null` if it applied to devices that are not in a team ("Unassigned").
+- "team_name": The name of the team that the certificate template applied to, `null` if it applied to devices that are not in a team ("Unassigned").
 
 #### Example
 
 ```json
 {
   "name": "WiFi cert",
-  "fleet_id": 123,
-  "fleet_name": "Workstations"
+  "team_id": 123,
+  "team_name": "Workstations"
 }
 ```
 
@@ -605,39 +605,39 @@ This activity contains the following fields:
 
 ### enabled_historical_dataset
 
-Generated when collection of a chart historical dataset is enabled, either globally or for a specific fleet.
+Generated when collection of a chart historical dataset is enabled, either globally or for a specific team.
 
 This activity contains the following fields:
 - "dataset": The public config sub-key of the dataset. One of `"uptime"`, `"vulnerabilities"`. 
-- "fleet_id": The ID of the fleet the toggle applies to, `null` if applied globally.
-- "fleet_name": The name of the fleet the toggle applies to, `null` if applied globally.
+- "team_id": The ID of the team the toggle applies to, `null` if applied globally.
+- "team_name": The name of the team the toggle applies to, `null` if applied globally.
 
 #### Example
 
 ```json
 {
   "dataset": "uptime",
-  "fleet_id": 2,
-  "fleet_name": "EMEA"
+  "team_id": 2,
+  "team_name": "EMEA"
 }
 ```
 
 ### disabled_historical_dataset
 
-Generated when collection of a chart historical dataset is disabled, either globally or for a specific fleet.
+Generated when collection of a chart historical dataset is disabled, either globally or for a specific team.
 
 This activity contains the following fields:
 - "dataset": The public config sub-key of the dataset. One of `"uptime"`, `"vulnerabilities"`.
-- "fleet_id": The ID of the fleet the toggle applies to, `null` if applied globally.
-- "fleet_name": The name of the fleet the toggle applies to, `null` if applied globally.
+- "team_id": The ID of the team the toggle applies to, `null` if applied globally.
+- "team_name": The name of the team the toggle applies to, `null` if applied globally.
 
 #### Example
 
 ```json
 {
   "dataset": "vulnerabilities",
-  "fleet_id": 2,
-  "fleet_name": "EMEA"
+  "team_id": 2,
+  "team_name": "EMEA"
 }
 ```
 
@@ -695,17 +695,17 @@ This activity does not contain any detail fields.
 
 Generated when Google conditional access is removed. Hosts stay marked as managed in Google.
 
-Also generated when a change of Google customer ID disconnects Fleet from the previous customer and Fleet can't connect to the new one. The next successful connection generates `added_conditional_access_integration_google`.
+Also generated when a change of Google customer ID disconnects AutoMDM from the previous customer and AutoMDM can't connect to the new one. The next successful connection generates `added_conditional_access_integration_google`.
 
 This activity does not contain any detail fields.
 
 ### enabled_conditional_access_automations
 
-Generated when conditional access automations are enabled for a fleet.
+Generated when conditional access automations are enabled for a team.
 
 This activity contains the following field:
-- "fleet_id": The ID of the fleet (`null` for no fleet).
-- "fleet_name": The name of the fleet (empty for no fleet).
+- "team_id": The ID of the team (`null` for no team).
+- "team_name": The name of the team (empty for no team).
 
 #### Example
 
@@ -713,18 +713,18 @@ This activity contains the following field:
 {
   "team_id": 5,
   "team_name": "Workstations",
-  "fleet_id": 5,
-  "fleet_name": "Workstations"
+  "team_id": 5,
+  "team_name": "Workstations"
 }
 ```
 
 ### disabled_conditional_access_automations
 
-Generated when conditional access automations are disabled for a fleet.
+Generated when conditional access automations are disabled for a team.
 
 This activity contains the following field:
-- "fleet_id": The ID of the fleet (`null` for no fleet).
-- "fleet_name": The name of the fleet (empty for no fleet).
+- "team_id": The ID of the team (`null` for no team).
+- "team_name": The name of the team (empty for no team).
 
 #### Example
 
@@ -732,8 +732,8 @@ This activity contains the following field:
 {
   "team_id": 5,
   "team_name": "Workstations",
-  "fleet_id": 5,
-  "fleet_name": "Workstations"
+  "team_id": 5,
+  "team_name": "Workstations"
 }
 ```
 
@@ -759,7 +759,7 @@ Generated when a host bypasses conditional access.
 This activity contains the following fields:
 - "host_id": ID of the host.
 - "host_display_name": Display name of the host.
-- "idp_full_name": The end user's full name from the identity provider. "An end user" if Fleet doesn't have a name.
+- "idp_full_name": The end user's full name from the identity provider. "An end user" if AutoMDM doesn't have a name.
 
 #### Example
 
@@ -771,15 +771,15 @@ This activity contains the following fields:
 }
 ```
 
-## Fleet configuration
+## AutoMDM configuration
 
 - [edited_agent_options](#edited-agent-options)
 - [enabled_gitops_mode](#enabled-gitops-mode)
 - [disabled_gitops_mode](#disabled-gitops-mode)
 - [enabled_gitops_exception](#enabled-gitops-exception)
 - [disabled_gitops_exception](#disabled-gitops-exception)
-- [enabled_sso_fleet_desktop](#enabled-sso-fleet-desktop)
-- [disabled_sso_fleet_desktop](#disabled-sso-fleet-desktop)
+- [enabled_sso_automdm_desktop](#enabled-sso-automdm-desktop)
+- [disabled_sso_automdm_desktop](#disabled-sso-automdm-desktop)
 - [enabled_windows_mdm](#enabled-windows-mdm)
 - [disabled_windows_mdm](#disabled-windows-mdm)
 - [enabled_android_mdm](#enabled-android-mdm)
@@ -787,7 +787,7 @@ This activity contains the following fields:
 - [enabled_windows_mdm_migration](#enabled-windows-mdm-migration)
 - [disabled_windows_mdm_migration](#disabled-windows-mdm-migration)
 - [edited_enroll_secrets](#edited-enroll-secrets)
-- [edited_windows_enrollment_default_fleet](#edited-windows-enrollment-default-fleet)
+- [edited_windows_enrollment_default_team](#edited-windows-enrollment-default-team)
 - [added_microsoft_entra_tenant](#added-microsoft-entra-tenant)
 - [deleted_microsoft_entra_tenant](#deleted-microsoft-entra-tenant)
 - [added_microsoft_entra_client_id](#added-microsoft-entra-client-id)
@@ -797,12 +797,12 @@ This activity contains the following fields:
 
 ### edited_agent_options
 
-Generated when agent options are edited (either globally or for a fleet).
+Generated when agent options are edited (either globally or for a team).
 
 This activity contains the following fields:
-- "global": "true" if the user updated the global agent options, "false" if the agent options of a fleet were updated.
-- "fleet_id": unique ID of the fleet for which the agent options were updated (`null` if global is true).
-- "fleet_name": the name of the fleet for which the agent options were updated (`null` if global is true).
+- "global": "true" if the user updated the global agent options, "false" if the agent options of a team were updated.
+- "team_id": unique ID of the team for which the agent options were updated (`null` if global is true).
+- "team_name": the name of the team for which the agent options were updated (`null` if global is true).
 
 #### Example
 
@@ -810,8 +810,8 @@ This activity contains the following fields:
 {
   "team_id": 123,
   "team_name": "Workstations",
-  "fleet_id": 123,
-  "fleet_name": "Workstations",
+  "team_id": 123,
+  "team_name": "Workstations",
   "global": false
 }
 ```
@@ -858,15 +858,15 @@ This activity contains the following fields:
 }
 ```
 
-### enabled_sso_fleet_desktop
+### enabled_sso_automdm_desktop
 
-Generated when a user enables SSO in front of Fleet Desktop.
+Generated when a user enables SSO in front of AutoMDM Desktop.
 
 This activity does not contain any detail fields.
 
-### disabled_sso_fleet_desktop
+### disabled_sso_automdm_desktop
 
-Generated when a user disables SSO in front of Fleet Desktop.
+Generated when a user disables SSO in front of AutoMDM Desktop.
 
 This activity does not contain any detail fields.
 
@@ -908,11 +908,11 @@ This activity does not contain any detail fields.
 
 ### edited_enroll_secrets
 
-Generated when global or fleet enroll secrets are edited.
+Generated when global or automdm enroll secrets are edited.
 
 This activity contains the following fields:
-- "fleet_id": The ID of the fleet that the enroll secret applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
-- "fleet_name": The name of the fleet that the enroll secret applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
+- "team_id": The ID of the team that the enroll secret applies to, `null` if it applies to devices that are not in a team ("Unassigned").
+- "team_name": The name of the team that the enroll secret applies to, `null` if it applies to devices that are not in a team ("Unassigned").
 
 #### Example
 
@@ -920,31 +920,31 @@ This activity contains the following fields:
 {
   "team_id": 123,
   "team_name": "Workstations",
-  "fleet_id": 123,
-  "fleet_name": "Workstations"
+  "team_id": 123,
+  "team_name": "Workstations"
 }
 ```
 
-### edited_windows_enrollment_default_fleet
+### edited_windows_enrollment_default_team
 
-Generated when the default fleet for new MDM enrolled Windows hosts is edited.
+Generated when the default team for new MDM enrolled Windows hosts is edited.
 
 This activity contains the following fields:
-- "fleet_id": The ID of the default fleet for new MDM enrolled Windows hosts, `null` if set to no fleet.
-- "fleet_name": The name of the default fleet for new MDM enrolled Windows hosts, `null` if set to no fleet.
+- "team_id": The ID of the default team for new MDM enrolled Windows hosts, `null` if set to no team.
+- "team_name": The name of the default team for new MDM enrolled Windows hosts, `null` if set to no team.
 
 #### Example
 
 ```json
 {
-  "fleet_id": 123,
-  "fleet_name": "Workstations"
+  "team_id": 123,
+  "team_name": "Workstations"
 }
 ```
 
 ### added_microsoft_entra_tenant
 
-Generated when a Microsoft Entra tenant is added. Fleet generates one activity for each tenant added.
+Generated when a Microsoft Entra tenant is added. AutoMDM generates one activity for each tenant added.
 
 This activity contains the following field:
 - "tenant_id": The ID of the Entra tenant.
@@ -959,7 +959,7 @@ This activity contains the following field:
 
 ### deleted_microsoft_entra_tenant
 
-Generated when a Microsoft Entra tenant is deleted. Fleet generates one activity for each tenant deleted.
+Generated when a Microsoft Entra tenant is deleted. AutoMDM generates one activity for each tenant deleted.
 
 This activity contains the following field:
 - "tenant_id": The ID of the Entra tenant.
@@ -974,7 +974,7 @@ This activity contains the following field:
 
 ### added_microsoft_entra_client_id
 
-Generated when a Microsoft Entra client ID is added. Fleet generates one activity for each client ID added.
+Generated when a Microsoft Entra client ID is added. AutoMDM generates one activity for each client ID added.
 
 This activity contains the following field:
 - "client_id": The Entra client ID.
@@ -989,7 +989,7 @@ This activity contains the following field:
 
 ### deleted_microsoft_entra_client_id
 
-Generated when a Microsoft Entra client ID is deleted. Fleet generates one activity for each client ID deleted.
+Generated when a Microsoft Entra client ID is deleted. AutoMDM generates one activity for each client ID deleted.
 
 This activity contains the following field:
 - "client_id": The Entra client ID.
@@ -1019,7 +1019,7 @@ This activity contains the following field:
 
 ### deleted_org_logo
 
-Generated when the organization logo is deleted. Also generated when changing the logo URL in the organization settings removes a logo that Fleet hosted.
+Generated when the organization logo is deleted. Also generated when changing the logo URL in the organization settings removes a logo that AutoMDM hosted.
 
 This activity contains the following field:
 - "mode": The logo that was deleted. Options are "light", "dark", or "all".
@@ -1036,7 +1036,7 @@ This activity contains the following field:
 
 - [transferred_hosts](#transferred-hosts)
 - [deleted_host](#deleted-host)
-- [fleet_enrolled](#fleet-enrolled)
+- [automdm_enrolled](#automdm-enrolled)
 - [host_enrollment_rejected](#host-enrollment-rejected)
 - [mdm_enrolled](#mdm-enrolled)
 - [mdm_unenrolled](#mdm-unenrolled)
@@ -1071,11 +1071,11 @@ This activity contains the following field:
 
 ### transferred_hosts
 
-Generated when a user transfers a host (or multiple hosts) to a fleet (or no fleet).
+Generated when a user transfers a host (or multiple hosts) to a team (or no team).
 
 This activity contains the following fields:
-- "fleet_id": The ID of the fleet that the hosts were transferred to, `null` if transferred to no fleet.
-- "fleet_name": The name of the fleet that the hosts were transferred to, `null` if transferred to no fleet.
+- "team_id": The ID of the team that the hosts were transferred to, `null` if transferred to no team.
+- "team_name": The name of the team that the hosts were transferred to, `null` if transferred to no team.
 - "host_ids": The list of identifiers of the hosts that were transferred.
 - "host_display_names": The list of display names of the hosts that were transferred (in the same order as the "host_ids").
 
@@ -1085,8 +1085,8 @@ This activity contains the following fields:
 {
   "team_id": 123,
   "team_name": "Workstations",
-  "fleet_id": 123,
-  "fleet_name": "Workstations",
+  "team_id": 123,
+  "team_name": "Workstations",
   "host_ids": [1, 2, 3],
   "host_display_names": ["alice-macbook-air", "bob-macbook-pro", "linux-server"]
 }
@@ -1097,7 +1097,7 @@ This activity contains the following fields:
 Generated when a host is deleted.
 
 This activity contains the following fields:
-- "host_id": Unique ID of the deleted host in Fleet.
+- "host_id": Unique ID of the deleted host in AutoMDM.
 - "host_display_name": Display name of the deleted host.
 - "host_serial": Hardware serial number of the deleted host.
 - "triggered_by": How the deletion was triggered. Can be "manual" for manual deletions or "expiration" for automatic deletions due to host expiry settings.
@@ -1115,9 +1115,9 @@ This activity contains the following fields:
 }
 ```
 
-### fleet_enrolled
+### automdm_enrolled
 
-Generated when a host is enrolled to Fleet (Fleet's agent fleetd is installed).
+Generated when a host is enrolled to AutoMDM (AutoMDM's agent automdmd is installed).
 
 This activity contains the following fields:
 - "host_id": ID of the host.
@@ -1136,12 +1136,12 @@ This activity contains the following fields:
 
 ### host_enrollment_rejected
 
-Generated when Fleet refuses an enrollment in any of these cases:
-- An Orbit or osquery enrollment is refused under the one-time enroll secret rules. See the [`mdm.apple_one_time_enroll_secrets`](https://fleetdm.com/docs/configuration/fleet-server-configuration#mdm-apple-one-time-enroll-secrets) server configuration for macOS, and [`auth_mdm_windows_one_time_enroll_secrets`](https://fleetdm.com/docs/configuration/fleet-server-configuration#auth-mdm-windows-one-time-enroll-secrets) for Windows.
+Generated when AutoMDM refuses an enrollment in any of these cases:
+- An Orbit or osquery enrollment is refused under the one-time enroll secret rules. See the [`mdm.apple_one_time_enroll_secrets`](https://automdm.com/docs/configuration/automdm-server-configuration#mdm-apple-one-time-enroll-secrets) server configuration for macOS, and [`auth_mdm_windows_one_time_enroll_secrets`](https://automdm.com/docs/configuration/automdm-server-configuration#auth-mdm-windows-one-time-enroll-secrets) for Windows.
 - An Orbit or osquery enrollment is refused because it presented the hardware UUID of another host that has MDM turned on.
-- An automatic enrollment (ADE) is refused because the host is in a fleet that requires end user authentication and the device didn't complete it.
+- An automatic enrollment (ADE) is refused because the host is in a team that requires end user authentication and the device didn't complete it.
 
-Fleet records at most one of these per host and reason per 12 hours, so a host that keeps retrying doesn't flood the activity feed.
+AutoMDM records at most one of these per host and reason per 12 hours, so a host that keeps retrying doesn't flood the activity feed.
 
 This activity contains the following fields:
 - "host_id": ID of the host the attempt targeted, or null if the host is unknown.
@@ -1150,14 +1150,14 @@ This activity contains the following fields:
 - "host_uuid": Hardware UUID the enrolling device presented. For "apple_mdm", this is the device's UDID.
 - "platform": Platform of the enrolling device.
 - "enrollment_plane": What attempted to enroll. One of:
-  - "orbit" or "osquery": a fleetd component.
+  - "orbit" or "osquery": an automdmd component.
   - "apple_mdm": an Apple device during automatic enrollment (ADE).
 - "reason": Why the attempt was refused. One of:
-  - "one_time_secret_spent": the host's one-time enroll secret was already used. Resend the "Fleetd configuration" profile (macOS) or the "Fleetd enroll secret" profile (Windows) to issue a new one.
+  - "one_time_secret_spent": the host's one-time enroll secret was already used. Resend the "AutoMDMd configuration" profile (macOS) or the "AutoMDMd enroll secret" profile (Windows) to issue a new one.
   - "one_time_secret_identifier_mismatch": a one-time enroll secret was presented with a different serial number or hardware UUID than it was issued for.
-  - "shared_secret_for_mdm_managed_host": a global or fleet-level enroll secret was used for a host that is enrolled in Fleet MDM, assigned to Fleet in Apple Business, or registered in Windows Autopilot. On Windows, this also covers a deleted host whose device checked in with Fleet MDM after it was deleted.
-  - "uuid_of_another_mdm_host": an enrollment tried to add a host with the hardware UUID of another host that is enrolled in Fleet MDM. "host_id" is that other host.
-  - "end_user_authentication_required": the host is in a fleet that requires end user authentication, but the device tried to enroll without completing it. This happens when the device got its automatic enrollment configuration before its fleet required end user authentication, or before it moved to that fleet. Erase and reactivate the device so it goes through end user authentication. Fleet only records this reason when every other enrollment check passed.
+  - "shared_secret_for_mdm_managed_host": a global or team-level enroll secret was used for a host that is enrolled in AutoMDM, assigned to AutoMDM in Apple Business, or registered in Windows Autopilot. On Windows, this also covers a deleted host whose device checked in with AutoMDM after it was deleted.
+  - "uuid_of_another_mdm_host": an enrollment tried to add a host with the hardware UUID of another host that is enrolled in AutoMDM. "host_id" is that other host.
+  - "end_user_authentication_required": the host is in a team that requires end user authentication, but the device tried to enroll without completing it. This happens when the device got its automatic enrollment configuration before its team required end user authentication, or before it moved to that team. Erase and reactivate the device so it goes through end user authentication. AutoMDM only records this reason when every other enrollment check passed.
 
 #### Example
 
@@ -1190,10 +1190,10 @@ This activity contains the following fields:
 
 ### mdm_enrolled
 
-Generated when a host is enrolled in Fleet's MDM.
+Generated when a host is enrolled in AutoMDM's MDM.
 
 This activity contains the following fields:
-- "host_id": ID of the host. Omitted from activities generated before Fleet added this field.
+- "host_id": ID of the host. Omitted from activities generated before AutoMDM added this field.
 - "host_serial": Serial number of the host. For Apple BYOD (account-driven user) enrollments, which have no serial number, this is the enrollment ID instead. `null` if the serial number is unknown.
 - "host_display_name": Display name of the host.
 - "installed_from_dep": Whether the host was enrolled automatically. `true` for Apple hosts enrolled via DEP, and for Windows hosts enrolled through Microsoft Entra ID during the out-of-box experience (OOBE), such as Windows Autopilot.
@@ -1201,7 +1201,7 @@ This activity contains the following fields:
 - "enrollment_id": The unique identifier for MDM BYOD enrollments; null for other enrollments.
 - "platform": The enrolled host's platform
 
-Windows hosts that enroll automatically through Microsoft Entra ID get this activity once it matches the enrollment to a host. This is usually within a minute of the device enrolling, but can be later if the host has not run Fleet's agent (fleetd) yet.
+Windows hosts that enroll automatically through Microsoft Entra ID get this activity once it matches the enrollment to a host. This is usually within a minute of the device enrolling, but can be later if the host has not run AutoMDM's agent (automdmd) yet.
 
 #### Example
 
@@ -1219,7 +1219,7 @@ Windows hosts that enroll automatically through Microsoft Entra ID get this acti
 
 ### mdm_unenrolled
 
-Generated when a host is unenrolled from Fleet's MDM.
+Generated when a host is unenrolled from AutoMDM's MDM.
 
 This activity contains the following fields:
 - "host_id": ID of the host. `0` when the host record was already deleted at unenroll time.
@@ -1261,7 +1261,7 @@ This activity contains the following fields:
 
 ### retrieved_host_my_device_url
 
-Generated when a global admin retrieves a host's "My device" page URL (a credential-bearing link that opens the end user's device page). Fleet logs this for every retrieval, including reuse of an existing token.
+Generated when a global admin retrieves a host's "My device" page URL (a credential-bearing link that opens the end user's device page). AutoMDM logs this for every retrieval, including reuse of an existing token.
 
 This activity contains the following fields:
 - "host_id": ID of the host.
@@ -1384,12 +1384,12 @@ This activity contains the following fields:
 
 ### failed_to_rotate_disk_encryption_key
 
-Generated when Fleet can't rotate a host's disk encryption key after a rotation was triggered. Fleet then prompts the end user for their password at their next login to escrow a new key.
+Generated when AutoMDM can't rotate a host's disk encryption key after a rotation was triggered. AutoMDM then prompts the end user for their password at their next login to escrow a new key.
 
 This activity contains the following fields:
 - "host_id": ID of the host.
 - "host_display_name": Display name of the host.
-- "detail": Why the rotation failed, as reported by the host or by Fleet.
+- "detail": Why the rotation failed, as reported by the host or by AutoMDM.
 
 #### Example
 
@@ -1403,10 +1403,10 @@ This activity contains the following fields:
 
 ### bound_host_to_idp_account
 
-Generated when an end user signs in with the identity provider (IdP) during the Linux or Windows setup experience and Fleet links the host to that IdP account. Fleet records this activity, so it does not include a user.
+Generated when an end user signs in with the identity provider (IdP) during the Linux or Windows setup experience and AutoMDM links the host to that IdP account. AutoMDM records this activity, so it does not include a user.
 
 This activity contains the following fields:
-- "host_uuid": Hardware UUID of the host. The host may not exist in Fleet yet, because the link is made before enrollment completes.
+- "host_uuid": Hardware UUID of the host. The host may not exist in AutoMDM yet, because the link is made before enrollment completes.
 - "idp_email": Email of the IdP account the host is now linked to.
 - "replaced_idp_email": Email of the IdP account the host was linked to before. Only present when the host was already linked to a different account, for example when the end user signed in again with another account before the host finished enrolling; omitted otherwise.
 
@@ -1422,7 +1422,7 @@ This activity contains the following fields:
 
 ### unbound_host_from_idp_account
 
-Generated when a host's link to an identity provider (IdP) account is removed, for example when the host re-enrolls without end user authentication. Fleet records this activity, so it does not include a user.
+Generated when a host's link to an identity provider (IdP) account is removed, for example when the host re-enrolls without end user authentication. AutoMDM records this activity, so it does not include a user.
 
 This activity contains the following fields:
 - "host_uuid": Hardware UUID of the host.
@@ -1439,7 +1439,7 @@ This activity contains the following fields:
 
 ### refused_host_idp_account_change
 
-Generated when an IdP sign-in from the Linux or Windows setup experience completes after the host has already enrolled and would have replaced the IdP account the host is linked to. Fleet keeps the existing link and records this activity, so it does not include a user.
+Generated when an IdP sign-in from the Linux or Windows setup experience completes after the host has already enrolled and would have replaced the IdP account the host is linked to. AutoMDM keeps the existing link and records this activity, so it does not include a user.
 
 This activity contains the following fields:
 - "host_uuid": Hardware UUID of the host.
@@ -1460,7 +1460,7 @@ This activity contains the following fields:
 
 Generated when a host is marked as company-owned in Google by saving its Google device ID. Not generated when the same ID is set again.
 
-The activity has no Fleet user when the end user's Google sign-in registered the host (iOS and iPadOS) or when Fleet registered it automatically (Android).
+The activity has no AutoMDM user when the end user's Google sign-in registered the host (iOS and iPadOS) or when AutoMDM registered it automatically (Android).
 
 This activity contains the following fields:
 - "host_id": ID of the host.
@@ -1481,7 +1481,7 @@ This activity contains the following fields:
 
 ### deleted_host_google_device_id
 
-Generated when a user removes a host's Google device ID. Fleet unmarks the host in Google within 5 minutes. Not generated when the host has no Google device ID, or when Fleet unmarks a host because it was deleted or unenrolled.
+Generated when a user removes a host's Google device ID. AutoMDM unmarks the host in Google within 5 minutes. Not generated when the host has no Google device ID, or when AutoMDM unmarks a host because it was deleted or unenrolled.
 
 This activity contains the following fields:
 - "host_id": ID of the host.
@@ -1536,7 +1536,7 @@ This activity contains the following fields:
 
 ### set_host_recovery_lock_password
 
-Generated when Fleet sets the Recovery Lock password on a host.
+Generated when AutoMDM sets the Recovery Lock password on a host.
 
 This activity contains the following fields:
 - "host_id": ID of the host.
@@ -1553,7 +1553,7 @@ This activity contains the following fields:
 
 ### rotated_host_recovery_lock_password
 
-Generated when the Recovery Lock password for a host is rotated, either by a user or automatically by Fleet after the password is viewed.
+Generated when the Recovery Lock password for a host is rotated, either by a user or automatically by AutoMDM after the password is viewed.
 
 This activity contains the following fields:
 - "host_id": ID of the host.
@@ -1573,21 +1573,21 @@ This activity contains the following fields:
 Generated when a managed local account password is rotated.
 
 This activity contains the following fields:
-- "fleet_id": The ID of the fleet that create managed local account applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
-- "fleet_name": The name of the fleet that create managed local account applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
+- "team_id": The ID of the team that create managed local account applies to, `null` if it applies to devices that are not in a team ("Unassigned").
+- "team_name": The name of the team that create managed local account applies to, `null` if it applies to devices that are not in a team ("Unassigned").
 
 #### Example
 
 ```json
 {
-  "fleet_id": 123,
-  "fleet_name": "Workstations"
+  "team_id": 123,
+  "team_name": "Workstations"
 }
 ```
 
 ### failed_to_rotate_managed_local_account_password
 
-Generated when a host reports that it could not rotate its managed local account password. Attributed to Fleet, because the failure arrives from the device outside any user's request.
+Generated when a host reports that it could not rotate its managed local account password. Attributed to AutoMDM, because the failure arrives from the device outside any user's request.
 
 This activity contains the following fields:
 - "host_id": ID of the host.
@@ -1600,7 +1600,7 @@ This activity contains the following fields:
 {
   "host_id": 123,
   "host_display_name": "DESKTOP-ABC123",
-  "detail": "Resetting password for _fleetadmin failed: The password does not meet the password policy requirements."
+  "detail": "Resetting password for _automdmadmin failed: The password does not meet the password policy requirements."
 }
 ```
 
@@ -1765,8 +1765,8 @@ Generated when creating labels.
 This activity contains the following fields:
 - "label_id": the ID of the new label.
 - "label_name": the name of the new label.
-- "fleet_id": the ID of the fleet the label belongs to.
-- "fleet_name": the name of the fleet the label belongs to.
+- "team_id": the ID of the team the label belongs to.
+- "team_name": the name of the team the label belongs to.
 
 #### Example
 
@@ -1774,8 +1774,8 @@ This activity contains the following fields:
 {
   "label_id": 123,
   "label_name": "foo",
-  "fleet_id": 1,
-  "fleet_name": "💻 Workstations"
+  "team_id": 1,
+  "team_name": "💻 Workstations"
 }
 ```
 
@@ -1786,8 +1786,8 @@ Generated when editing labels.
 This activity contains the following fields:
 - "label_id": the ID of the edited label.
 - "label_name": the name of the edited label.
-- "fleet_id": the ID of the fleet the label belongs to.
-- "fleet_name": the name of the fleet the label belongs to.
+- "team_id": the ID of the team the label belongs to.
+- "team_name": the name of the team the label belongs to.
 
 #### Example
 
@@ -1795,8 +1795,8 @@ This activity contains the following fields:
 {
   "label_id": 123,
   "label_name": "foo",
-  "fleet_id": 1,
-  "fleet_name": "💻 Workstations"
+  "team_id": 1,
+  "team_name": "💻 Workstations"
 }
 ```
 
@@ -1807,8 +1807,8 @@ Generated when deleting labels.
 This activity contains the following fields:
 - "label_id": the ID of the deleted label.
 - "label_name": the name of the deleted label.
-- "fleet_id": the ID of the fleet the label belonged to.
-- "fleet_name": the name of the fleet the label belonged to.
+- "team_id": the ID of the team the label belonged to.
+- "team_name": the name of the team the label belonged to.
 
 #### Example
 
@@ -1816,8 +1816,8 @@ This activity contains the following fields:
 {
   "label_id": 123,
   "label_name": "foo",
-  "fleet_id": 1,
-  "fleet_name": "💻 Workstations"
+  "team_id": 1,
+  "team_name": "💻 Workstations"
 }
 ```
 
@@ -1860,8 +1860,8 @@ This activity contains the following fields:
 Generated when the minimum required macOS version or deadline is modified.
 
 This activity contains the following fields:
-- "fleet_id": The ID of the fleet that the minimum macOS version applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
-- "fleet_name": The name of the fleet that the minimum macOS version applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
+- "team_id": The ID of the team that the minimum macOS version applies to, `null` if it applies to devices that are not in a team ("Unassigned").
+- "team_name": The name of the team that the minimum macOS version applies to, `null` if it applies to devices that are not in a team ("Unassigned").
 - "minimum_version": The minimum macOS version required, empty if the requirement was removed.
 - "deadline": The deadline by which the minimum version requirement must be applied, empty if the requirement was removed.
 
@@ -1871,8 +1871,8 @@ This activity contains the following fields:
 {
   "team_id": 3,
   "team_name": "Workstations",
-  "fleet_id": 3,
-  "fleet_name": "Workstations",
+  "team_id": 3,
+  "team_name": "Workstations",
   "minimum_version": "13.0.1",
   "deadline": "2023-06-01"
 }
@@ -1883,8 +1883,8 @@ This activity contains the following fields:
 Generated when the minimum required iOS version or deadline is modified.
 
 This activity contains the following fields:
-- "fleet_id": The ID of the fleet that the minimum iOS version applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
-- "fleet_name": The name of the fleet that the minimum iOS version applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
+- "team_id": The ID of the team that the minimum iOS version applies to, `null` if it applies to devices that are not in a team ("Unassigned").
+- "team_name": The name of the team that the minimum iOS version applies to, `null` if it applies to devices that are not in a team ("Unassigned").
 - "minimum_version": The minimum iOS version required, empty if the requirement was removed.
 - "deadline": The deadline by which the minimum version requirement must be applied, empty if the requirement was removed.
 
@@ -1894,8 +1894,8 @@ This activity contains the following fields:
 {
   "team_id": 3,
   "team_name": "iPhones",
-  "fleet_id": 3,
-  "fleet_name": "iPhones",
+  "team_id": 3,
+  "team_name": "iPhones",
   "minimum_version": "17.5.1",
   "deadline": "2023-06-01"
 }
@@ -1906,8 +1906,8 @@ This activity contains the following fields:
 Generated when the minimum required iPadOS version or deadline is modified.
 
 This activity contains the following fields:
-- "fleet_id": The ID of the fleet that the minimum iPadOS version applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
-- "fleet_name": The name of the fleet that the minimum iPadOS version applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
+- "team_id": The ID of the team that the minimum iPadOS version applies to, `null` if it applies to devices that are not in a team ("Unassigned").
+- "team_name": The name of the team that the minimum iPadOS version applies to, `null` if it applies to devices that are not in a team ("Unassigned").
 - "minimum_version": The minimum iPadOS version required, empty if the requirement was removed.
 - "deadline": The deadline by which the minimum version requirement must be applied, empty if the requirement was removed.
 
@@ -1917,8 +1917,8 @@ This activity contains the following fields:
 {
   "team_id": 3,
   "team_name": "iPads",
-  "fleet_id": 3,
-  "fleet_name": "iPads",
+  "team_id": 3,
+  "team_name": "iPads",
   "minimum_version": "17.5.1",
   "deadline": "2023-06-01"
 }
@@ -1929,8 +1929,8 @@ This activity contains the following fields:
 Generated when the Windows OS updates deadline or grace period is modified.
 
 This activity contains the following fields:
-- "fleet_id": The ID of the fleet that the Windows OS updates settings applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
-- "fleet_name": The name of the fleet that the Windows OS updates settings applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
+- "team_id": The ID of the team that the Windows OS updates settings applies to, `null` if it applies to devices that are not in a team ("Unassigned").
+- "team_name": The name of the team that the Windows OS updates settings applies to, `null` if it applies to devices that are not in a team ("Unassigned").
 - "deadline_days": The number of days before updates are installed, `null` if the requirement was removed.
 - "grace_period_days": The number of days after the deadline before the host is forced to restart, `null` if the requirement was removed.
 
@@ -1940,8 +1940,8 @@ This activity contains the following fields:
 {
   "team_id": 3,
   "team_name": "Workstations",
-  "fleet_id": 3,
-  "fleet_name": "Workstations",
+  "team_id": 3,
+  "team_name": "Workstations",
   "deadline_days": 5,
   "grace_period_days": 2
 }
@@ -1952,8 +1952,8 @@ This activity contains the following fields:
 Generated when a user turns on updates during macOS Setup Assistant for hosts that automatically enroll (ADE).
 
 This activity contains the following fields:
-- "fleet_id": The ID of the fleet that the setting applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
-- "fleet_name": The name of the fleet that the setting applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
+- "team_id": The ID of the team that the setting applies to, `null` if it applies to devices that are not in a team ("Unassigned").
+- "team_name": The name of the team that the setting applies to, `null` if it applies to devices that are not in a team ("Unassigned").
 
 #### Example
 
@@ -1961,8 +1961,8 @@ This activity contains the following fields:
 {
   "team_id": 123,
   "team_name": "Workstations",
-  "fleet_id": 123,
-  "fleet_name": "Workstations"
+  "team_id": 123,
+  "team_name": "Workstations"
 }
 ```
 
@@ -1971,8 +1971,8 @@ This activity contains the following fields:
 Generated when a user turns off updates during macOS Setup Assistant for hosts that automatically enroll (ADE).
 
 This activity contains the following fields:
-- "fleet_id": The ID of the fleet that the setting applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
-- "fleet_name": The name of the fleet that the setting applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
+- "team_id": The ID of the team that the setting applies to, `null` if it applies to devices that are not in a team ("Unassigned").
+- "team_name": The name of the team that the setting applies to, `null` if it applies to devices that are not in a team ("Unassigned").
 
 #### Example
 
@@ -1980,20 +1980,20 @@ This activity contains the following fields:
 {
   "team_id": 123,
   "team_name": "Workstations",
-  "fleet_id": 123,
-  "fleet_name": "Workstations"
+  "team_id": 123,
+  "team_name": "Workstations"
 }
 ```
 
 ### created_macos_profile
 
-Generated when a user adds a new macOS profile to a fleet (or no fleet).
+Generated when a user adds a new macOS profile to a team (or no team).
 
 This activity contains the following fields:
 - "profile_name": Name of the profile.
 - "profile_identifier": Identifier of the profile.
-- "fleet_id": The ID of the fleet that the profile applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
-- "fleet_name": The name of the fleet that the profile applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
+- "team_id": The ID of the team that the profile applies to, `null` if it applies to devices that are not in a team ("Unassigned").
+- "team_name": The name of the team that the profile applies to, `null` if it applies to devices that are not in a team ("Unassigned").
 
 #### Example
 
@@ -2003,20 +2003,20 @@ This activity contains the following fields:
   "profile_identifier": "com.my.profile",
   "team_id": 123,
   "team_name": "Workstations",
-  "fleet_id": 123,
-  "fleet_name": "Workstations"
+  "team_id": 123,
+  "team_name": "Workstations"
 }
 ```
 
 ### deleted_macos_profile
 
-Generated when a user deletes a macOS profile from a fleet (or no fleet).
+Generated when a user deletes a macOS profile from a team (or no team).
 
 This activity contains the following fields:
 - "profile_name": Name of the deleted profile.
 - "profile_identifier": Identifier of deleted the profile.
-- "fleet_id": The ID of the fleet that the profile applied to, `null` if it applied to devices that are not in a fleet ("Unassigned").
-- "fleet_name": The name of the fleet that the profile applied to, `null` if it applied to devices that are not in a fleet ("Unassigned").
+- "team_id": The ID of the team that the profile applied to, `null` if it applied to devices that are not in a team ("Unassigned").
+- "team_name": The name of the team that the profile applied to, `null` if it applied to devices that are not in a team ("Unassigned").
 
 #### Example
 
@@ -2026,20 +2026,20 @@ This activity contains the following fields:
   "profile_identifier": "com.my.profile",
   "team_id": 123,
   "team_name": "Workstations",
-  "fleet_id": 123,
-  "fleet_name": "Workstations"
+  "team_id": 123,
+  "team_name": "Workstations"
 }
 ```
 
 ### edited_macos_profile
 
-Generated when a user edits the macOS profiles of a fleet (or no fleet) via the fleetctl CLI, or edits a single macOS profile via the edit profile endpoint.
+Generated when a user edits the macOS profiles of a team (or no team) via the automdmctl CLI, or edits a single macOS profile via the edit profile endpoint.
 
 This activity contains the following fields:
-- "profile_name": Name of the edited profile. Only present when a single profile was edited; omitted for fleetctl/GitOps batch edits.
-- "profile_identifier": Identifier of the edited profile. Only present when a single profile was edited; omitted for fleetctl/GitOps batch edits.
-- "fleet_id": The ID of the fleet that the profiles apply to, `null` if they apply to devices that are not in a fleet ("Unassigned").
-- "fleet_name": The name of the fleet that the profiles apply to, `null` if they apply to devices that are not in a fleet ("Unassigned").
+- "profile_name": Name of the edited profile. Only present when a single profile was edited; omitted for automdmctl/GitOps batch edits.
+- "profile_identifier": Identifier of the edited profile. Only present when a single profile was edited; omitted for automdmctl/GitOps batch edits.
+- "team_id": The ID of the team that the profiles apply to, `null` if they apply to devices that are not in a team ("Unassigned").
+- "team_name": The name of the team that the profiles apply to, `null` if they apply to devices that are not in a team ("Unassigned").
 
 #### Example
 
@@ -2049,19 +2049,19 @@ This activity contains the following fields:
   "profile_identifier": "com.my.profile",
   "team_id": 123,
   "team_name": "Workstations",
-  "fleet_id": 123,
-  "fleet_name": "Workstations"
+  "team_id": 123,
+  "team_name": "Workstations"
 }
 ```
 
 ### enabled_macos_disk_encryption
 > **Deprecated:** Use `edited_disk_encryption_settings` instead.
 
-Generated when a user turns on disk encryption for a fleet (or no fleet).
+Generated when a user turns on disk encryption for a team (or no team).
 
 This activity contains the following fields:
-- "fleet_id": The ID of the fleet that disk encryption applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
-- "fleet_name": The name of the fleet that disk encryption applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
+- "team_id": The ID of the team that disk encryption applies to, `null` if it applies to devices that are not in a team ("Unassigned").
+- "team_name": The name of the team that disk encryption applies to, `null` if it applies to devices that are not in a team ("Unassigned").
 
 #### Example
 
@@ -2069,19 +2069,19 @@ This activity contains the following fields:
 {
   "team_id": 123,
   "team_name": "Workstations",
-  "fleet_id": 123,
-  "fleet_name": "Workstations"
+  "team_id": 123,
+  "team_name": "Workstations"
 }
 ```
 
 ### disabled_macos_disk_encryption
 > **Deprecated:** Use `edited_disk_encryption_settings` instead.
 
-Generated when a user turns off disk encryption for a fleet (or no fleet).
+Generated when a user turns off disk encryption for a team (or no team).
 
 This activity contains the following fields:
-- "fleet_id": The ID of the fleet that disk encryption applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
-- "fleet_name": The name of the fleet that disk encryption applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
+- "team_id": The ID of the team that disk encryption applies to, `null` if it applies to devices that are not in a team ("Unassigned").
+- "team_name": The name of the team that disk encryption applies to, `null` if it applies to devices that are not in a team ("Unassigned").
 
 #### Example
 
@@ -2089,19 +2089,19 @@ This activity contains the following fields:
 {
   "team_id": 123,
   "team_name": "Workstations",
-  "fleet_id": 123,
-  "fleet_name": "Workstations"
+  "team_id": 123,
+  "team_name": "Workstations"
 }
 ```
 
 ### created_windows_profile
 
-Generated when a user adds a new Windows profile to a fleet (or no fleet).
+Generated when a user adds a new Windows profile to a team (or no team).
 
 This activity contains the following fields:
 - "profile_name": Name of the profile.
-- "fleet_id": The ID of the fleet that the profile applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
-- "fleet_name": The name of the fleet that the profile applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
+- "team_id": The ID of the team that the profile applies to, `null` if it applies to devices that are not in a team ("Unassigned").
+- "team_name": The name of the team that the profile applies to, `null` if it applies to devices that are not in a team ("Unassigned").
 
 #### Example
 
@@ -2110,19 +2110,19 @@ This activity contains the following fields:
   "profile_name": "Custom settings 1",
   "team_id": 123,
   "team_name": "Workstations",
-  "fleet_id": 123,
-  "fleet_name": "Workstations"
+  "team_id": 123,
+  "team_name": "Workstations"
 }
 ```
 
 ### deleted_windows_profile
 
-Generated when a user deletes a Windows profile from a fleet (or no fleet).
+Generated when a user deletes a Windows profile from a team (or no team).
 
 This activity contains the following fields:
 - "profile_name": Name of the deleted profile.
-- "fleet_id": The ID of the fleet that the profile applied to, `null` if it applied to devices that are not in a fleet ("Unassigned").
-- "fleet_name": The name of the fleet that the profile applied to, `null` if it applied to devices that are not in a fleet ("Unassigned").
+- "team_id": The ID of the team that the profile applied to, `null` if it applied to devices that are not in a team ("Unassigned").
+- "team_name": The name of the team that the profile applied to, `null` if it applied to devices that are not in a team ("Unassigned").
 
 #### Example
 
@@ -2131,19 +2131,19 @@ This activity contains the following fields:
   "profile_name": "Custom settings 1",
   "team_id": 123,
   "team_name": "Workstations",
-  "fleet_id": 123,
-  "fleet_name": "Workstations"
+  "team_id": 123,
+  "team_name": "Workstations"
 }
 ```
 
 ### edited_windows_profile
 
-Generated when a user edits the Windows profiles of a fleet (or no fleet) via the fleetctl CLI, or edits a single Windows profile via the edit profile endpoint.
+Generated when a user edits the Windows profiles of a team (or no team) via the automdmctl CLI, or edits a single Windows profile via the edit profile endpoint.
 
 This activity contains the following fields:
-- "profile_name": Name of the edited profile. Only present when a single profile was edited; omitted for fleetctl/GitOps batch edits.
-- "fleet_id": The ID of the fleet that the profiles apply to, `null` if they apply to devices that are not in a fleet ("Unassigned").
-- "fleet_name": The name of the fleet that the profiles apply to, `null` if they apply to devices that are not in a fleet ("Unassigned").
+- "profile_name": Name of the edited profile. Only present when a single profile was edited; omitted for automdmctl/GitOps batch edits.
+- "team_id": The ID of the team that the profiles apply to, `null` if they apply to devices that are not in a team ("Unassigned").
+- "team_name": The name of the team that the profiles apply to, `null` if they apply to devices that are not in a team ("Unassigned").
 
 #### Example
 
@@ -2152,20 +2152,20 @@ This activity contains the following fields:
   "profile_name": "Custom settings 1",
   "team_id": 123,
   "team_name": "Workstations",
-  "fleet_id": 123,
-  "fleet_name": "Workstations"
+  "team_id": 123,
+  "team_name": "Workstations"
 }
 ```
 
 ### created_declaration_profile
 
-Generated when a user adds a new macOS declaration to a fleet (or no fleet).
+Generated when a user adds a new macOS declaration to a team (or no team).
 
 This activity contains the following fields:
 - "profile_name": Name of the declaration.
 - "identifier": Identifier of the declaration.
-- "fleet_id": The ID of the fleet that the declaration applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
-- "fleet_name": The name of the fleet that the declaration applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
+- "team_id": The ID of the team that the declaration applies to, `null` if it applies to devices that are not in a team ("Unassigned").
+- "team_name": The name of the team that the declaration applies to, `null` if it applies to devices that are not in a team ("Unassigned").
 
 #### Example
 
@@ -2175,20 +2175,20 @@ This activity contains the following fields:
   "profile_identifier": "com.my.declaration",
   "team_id": 123,
   "team_name": "Workstations",
-  "fleet_id": 123,
-  "fleet_name": "Workstations"
+  "team_id": 123,
+  "team_name": "Workstations"
 }
 ```
 
 ### deleted_declaration_profile
 
-Generated when a user removes a macOS declaration from a fleet (or no fleet).
+Generated when a user removes a macOS declaration from a team (or no team).
 
 This activity contains the following fields:
 - "profile_name": Name of the declaration.
 - "identifier": Identifier of the declaration.
-- "fleet_id": The ID of the fleet that the declaration applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
-- "fleet_name": The name of the fleet that the declaration applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
+- "team_id": The ID of the team that the declaration applies to, `null` if it applies to devices that are not in a team ("Unassigned").
+- "team_name": The name of the team that the declaration applies to, `null` if it applies to devices that are not in a team ("Unassigned").
 
 #### Example
 
@@ -2198,20 +2198,20 @@ This activity contains the following fields:
   "profile_identifier": "com.my.declaration",
   "team_id": 123,
   "team_name": "Workstations",
-  "fleet_id": 123,
-  "fleet_name": "Workstations"
+  "team_id": 123,
+  "team_name": "Workstations"
 }
 ```
 
 ### edited_declaration_profile
 
-Generated when a user edits the macOS declarations of a fleet (or no fleet) via the fleetctl CLI, or edits a single declaration via the edit profile endpoint.
+Generated when a user edits the macOS declarations of a team (or no team) via the automdmctl CLI, or edits a single declaration via the edit profile endpoint.
 
 This activity contains the following fields:
-- "profile_name": Name of the edited declaration. Only present when a single declaration was edited; omitted for fleetctl/GitOps batch edits.
-- "profile_identifier": Identifier of the edited declaration. Only present when a single declaration was edited; omitted for fleetctl/GitOps batch edits.
-- "fleet_id": The ID of the fleet that the declarations apply to, `null` if they apply to devices that are not in a fleet ("Unassigned").
-- "fleet_name": The name of the fleet that the declarations apply to, `null` if they apply to devices that are not in a fleet ("Unassigned").
+- "profile_name": Name of the edited declaration. Only present when a single declaration was edited; omitted for automdmctl/GitOps batch edits.
+- "profile_identifier": Identifier of the edited declaration. Only present when a single declaration was edited; omitted for automdmctl/GitOps batch edits.
+- "team_id": The ID of the team that the declarations apply to, `null` if they apply to devices that are not in a team ("Unassigned").
+- "team_name": The name of the team that the declarations apply to, `null` if they apply to devices that are not in a team ("Unassigned").
 
 #### Example
 
@@ -2221,19 +2221,19 @@ This activity contains the following fields:
   "profile_identifier": "com.my.declaration",
   "team_id": 123,
   "team_name": "Workstations",
-  "fleet_id": 123,
-  "fleet_name": "Workstations"
+  "team_id": 123,
+  "team_name": "Workstations"
 }
 ```
 
 ### created_android_profile
 
-Generated when a user adds a new Android profile to a fleet (or no fleet).
+Generated when a user adds a new Android profile to a team (or no team).
 
 This activity contains the following fields:
 - "profile_name": Name of the profile.
-- "fleet_id": The ID of the fleet that the profile applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
-- "fleet_name": The name of the fleet that the profile applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
+- "team_id": The ID of the team that the profile applies to, `null` if it applies to devices that are not in a team ("Unassigned").
+- "team_name": The name of the team that the profile applies to, `null` if it applies to devices that are not in a team ("Unassigned").
 
 #### Example
 
@@ -2242,19 +2242,19 @@ This activity contains the following fields:
   "profile_name": "Custom settings 1",
   "team_id": 123,
   "team_name": "Workstations",
-  "fleet_id": 123,
-  "fleet_name": "Workstations"
+  "team_id": 123,
+  "team_name": "Workstations"
 }
 ```
 
 ### deleted_android_profile
 
-Generated when a user deletes an Android profile from a fleet (or no fleet).
+Generated when a user deletes an Android profile from a team (or no team).
 
 This activity contains the following fields:
 - "profile_name": Name of the deleted profile.
-- "fleet_id": The ID of the fleet that the profile applied to, `null` if it applied to devices that are not in a fleet ("Unassigned").
-- "fleet_name": The name of the fleet that the profile applied to, `null` if it applied to devices that are not in a fleet ("Unassigned").
+- "team_id": The ID of the team that the profile applied to, `null` if it applied to devices that are not in a team ("Unassigned").
+- "team_name": The name of the team that the profile applied to, `null` if it applied to devices that are not in a team ("Unassigned").
 
 #### Example
 
@@ -2263,19 +2263,19 @@ This activity contains the following fields:
   "profile_name": "Custom settings 1",
   "team_id": 123,
   "team_name": "Workstations",
-  "fleet_id": 123,
-  "fleet_name": "Workstations"
+  "team_id": 123,
+  "team_name": "Workstations"
 }
 ```
 
 ### edited_android_profile
 
-Generated when a user edits the Android profiles of a fleet (or no fleet) via the fleetctl CLI, or edits a single Android profile via the edit profile endpoint.
+Generated when a user edits the Android profiles of a team (or no team) via the automdmctl CLI, or edits a single Android profile via the edit profile endpoint.
 
 This activity contains the following fields:
-- "profile_name": Name of the edited profile. Only present when a single profile was edited; omitted for fleetctl/GitOps batch edits.
-- "fleet_id": The ID of the fleet that the profiles apply to, `null` if they apply to devices that are not in a fleet ("Unassigned").
-- "fleet_name": The name of the fleet that the profiles apply to, `null` if they apply to devices that are not in a fleet ("Unassigned").
+- "profile_name": Name of the edited profile. Only present when a single profile was edited; omitted for automdmctl/GitOps batch edits.
+- "team_id": The ID of the team that the profiles apply to, `null` if they apply to devices that are not in a team ("Unassigned").
+- "team_name": The name of the team that the profiles apply to, `null` if they apply to devices that are not in a team ("Unassigned").
 
 #### Example
 
@@ -2284,8 +2284,8 @@ This activity contains the following fields:
   "profile_name": "Custom settings 1",
   "team_id": 123,
   "team_name": "Workstations",
-  "fleet_id": 123,
-  "fleet_name": "Workstations"
+  "team_id": 123,
+  "team_name": "Workstations"
 }
 ```
 
@@ -2377,11 +2377,11 @@ This activity contains the following fields:
 
 ### enabled_recovery_lock_passwords
 
-Generated when a user turns on Recovery Lock password for a fleet (or no fleet).
+Generated when a user turns on Recovery Lock password for a team (or no team).
 
 This activity contains the following fields:
-- "fleet_id": The ID of the fleet that Recovery Lock password applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
-- "fleet_name": The name of the fleet that Recovery Lock password applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
+- "team_id": The ID of the team that Recovery Lock password applies to, `null` if it applies to devices that are not in a team ("Unassigned").
+- "team_name": The name of the team that Recovery Lock password applies to, `null` if it applies to devices that are not in a team ("Unassigned").
 
 #### Example
 
@@ -2389,18 +2389,18 @@ This activity contains the following fields:
 {
   "team_id": 123,
   "team_name": "Workstations",
-  "fleet_id": 123,
-  "fleet_name": "Workstations"
+  "team_id": 123,
+  "team_name": "Workstations"
 }
 ```
 
 ### disabled_recovery_lock_passwords
 
-Generated when a user turns off Recovery Lock password for a fleet (or no fleet).
+Generated when a user turns off Recovery Lock password for a team (or no team).
 
 This activity contains the following fields:
-- "fleet_id": The ID of the fleet that Recovery Lock password applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
-- "fleet_name": The name of the fleet that Recovery Lock password applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
+- "team_id": The ID of the team that Recovery Lock password applies to, `null` if it applies to devices that are not in a team ("Unassigned").
+- "team_name": The name of the team that Recovery Lock password applies to, `null` if it applies to devices that are not in a team ("Unassigned").
 
 #### Example
 
@@ -2408,27 +2408,27 @@ This activity contains the following fields:
 {
   "team_id": 123,
   "team_name": "Workstations",
-  "fleet_id": 123,
-  "fleet_name": "Workstations"
+  "team_id": 123,
+  "team_name": "Workstations"
 }
 ```
 
 ### edited_host_name_template
 
-Generated when a user edits the host name template for a fleet (or no fleet).
+Generated when a user edits the host name template for a team (or no team).
 
 This activity contains the following fields:
-- "fleet_id": The ID of the fleet that the host name template applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
-- "fleet_name": The name of the fleet that the host name template applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
+- "team_id": The ID of the team that the host name template applies to, `null` if it applies to devices that are not in a team ("Unassigned").
+- "team_name": The name of the team that the host name template applies to, `null` if it applies to devices that are not in a team ("Unassigned").
 - "name_template": The host name template, `null` if the template was cleared.
 
 #### Example
 
 ```json
 {
-  "fleet_id": 123,
-  "fleet_name": "Workstations",
-  "name_template": "WS-$FLEET_VAR_HOST_HARDWARE_SERIAL"
+  "team_id": 123,
+  "team_name": "Workstations",
+  "name_template": "WS-$AUTOMDM_VAR_HOST_HARDWARE_SERIAL"
 }
 ```
 
@@ -2437,35 +2437,35 @@ This activity contains the following fields:
 Generated when creating an Apple asset declaration.
 
 This activity contains the following fields:
-- "fleet_id": the ID of the fleet the asset belongs to.
-- "fleet_name": the name of the fleet the asset belongs to.
+- "team_id": the ID of the team the asset belongs to.
+- "team_name": the name of the team the asset belongs to.
 - "asset_name": the name of the asset.
 
 #### Example
 
 ```json
 {
-  "fleet_id": 1,
-  "fleet_name": "💻 Workstations",
+  "team_id": 1,
+  "team_name": "💻 Workstations",
   "asset_name": "My Asset"
 }
 ```
 
 ### edited_disk_encryption_settings
 
-Generated when a user edits disk encryption settings for hosts on a fleet (or unassigned hosts).
+Generated when a user edits disk encryption settings for hosts on a team (or unassigned hosts).
 
 This activity contains the following fields:
-- "fleet_id": The ID of the fleet, `null` if it applies to hosts that are not in a fleet ("Unassigned").
-- "fleet_name": The name of the fleet, `null` if it applies to devices that are not in a fleet ("Unassigned").
+- "team_id": The ID of the team, `null` if it applies to hosts that are not in a team ("Unassigned").
+- "team_name": The name of the team, `null` if it applies to devices that are not in a team ("Unassigned").
 - "platform": The platform that disk encryption settings were updated for. Options are "macos", "windows", or "linux".
 
 #### Example
 
 ```json
 {
-  "fleet_id": 123,
-  "fleet_name": "Workstations",
+  "team_id": 123,
+  "team_name": "Workstations",
   "platform": "windows"
 }
 ```
@@ -2475,16 +2475,16 @@ This activity contains the following fields:
 Generated when an Apple asset declaration is edited.
 
 This activity contains the following fields:
-- "fleet_id": the ID of the fleet the asset belongs to.
-- "fleet_name": the name of the fleet the asset belongs to.
+- "team_id": the ID of the team the asset belongs to.
+- "team_name": the name of the team the asset belongs to.
 - "asset_name": the name of the asset.
 
 #### Example
 
 ```json
 {
-  "fleet_id": 1,
-  "fleet_name": "💻 Workstations",
+  "team_id": 1,
+  "team_name": "💻 Workstations",
   "asset_name": "My Asset"
 }
 ```
@@ -2494,16 +2494,16 @@ This activity contains the following fields:
 Generated when an Apple asset declaration is deleted.
 
 This activity contains the following fields:
-- "fleet_id": the ID of the fleet the asset belongs to.
-- "fleet_name": the name of the fleet the asset belongs to.
+- "team_id": the ID of the team the asset belongs to.
+- "team_name": the name of the team the asset belongs to.
 - "asset_name": the name of the asset.
 
 #### Example
 
 ```json
 {
-  "fleet_id": 1,
-  "fleet_name": "💻 Workstations",
+  "team_id": 1,
+  "team_name": "💻 Workstations",
   "asset_name": "My Asset"
 }
 ```
@@ -2530,12 +2530,12 @@ This activity contains the following fields:
 
 ### changed_macos_setup_assistant
 
-Generated when a user sets the macOS setup assistant for a fleet (or no fleet).
+Generated when a user sets the macOS setup assistant for a team (or no team).
 
 This activity contains the following fields:
 - "name": Name of the macOS setup assistant file.
-- "fleet_id": The ID of the fleet that the setup assistant applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
-- "fleet_name": The name of the fleet that the setup assistant applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
+- "team_id": The ID of the team that the setup assistant applies to, `null` if it applies to devices that are not in a team ("Unassigned").
+- "team_name": The name of the team that the setup assistant applies to, `null` if it applies to devices that are not in a team ("Unassigned").
 
 #### Example
 
@@ -2544,19 +2544,19 @@ This activity contains the following fields:
   "name": "dep_profile.json",
   "team_id": 123,
   "team_name": "Workstations",
-  "fleet_id": 123,
-  "fleet_name": "Workstations"
+  "team_id": 123,
+  "team_name": "Workstations"
 }
 ```
 
 ### deleted_macos_setup_assistant
 
-Generated when a user deletes the macOS setup assistant for a fleet (or no fleet).
+Generated when a user deletes the macOS setup assistant for a team (or no team).
 
 This activity contains the following fields:
 - "name": Name of the deleted macOS setup assistant file.
-- "fleet_id": The ID of the fleet that the setup assistant applied to, `null` if it applied to devices that are not in a fleet ("Unassigned").
-- "fleet_name": The name of the fleet that the setup assistant applied to, `null` if it applied to devices that are not in a fleet ("Unassigned").
+- "team_id": The ID of the team that the setup assistant applied to, `null` if it applied to devices that are not in a team ("Unassigned").
+- "team_name": The name of the team that the setup assistant applied to, `null` if it applied to devices that are not in a team ("Unassigned").
 
 #### Example
 
@@ -2565,19 +2565,19 @@ This activity contains the following fields:
   "name": "dep_profile.json",
   "team_id": 123,
   "team_name": "Workstations",
-  "fleet_id": 123,
-  "fleet_name": "Workstations"
+  "team_id": 123,
+  "team_name": "Workstations"
 }
 ```
 
 ### added_bootstrap_package
 
-Generated when a user adds a new bootstrap package to a fleet (or no fleet).
+Generated when a user adds a new bootstrap package to a team (or no team).
 
 This activity contains the following fields:
 - "package_name": Name of the package.
-- "fleet_id": The ID of the fleet that the package applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
-- "fleet_name": The name of the fleet that the package applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
+- "team_id": The ID of the team that the package applies to, `null` if it applies to devices that are not in a team ("Unassigned").
+- "team_name": The name of the team that the package applies to, `null` if it applies to devices that are not in a team ("Unassigned").
 
 #### Example
 
@@ -2586,19 +2586,19 @@ This activity contains the following fields:
   "bootstrap_package_name": "bootstrap-package.pkg",
   "team_id": 123,
   "team_name": "Workstations",
-  "fleet_id": 123,
-  "fleet_name": "Workstations"
+  "team_id": 123,
+  "team_name": "Workstations"
 }
 ```
 
 ### deleted_bootstrap_package
 
-Generated when a user deletes a bootstrap package from a fleet (or no fleet).
+Generated when a user deletes a bootstrap package from a team (or no team).
 
 This activity contains the following fields:
 - "package_name": Name of the package.
-- "fleet_id": The ID of the fleet that the package applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
-- "fleet_name": The name of the fleet that the package applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
+- "team_id": The ID of the team that the package applies to, `null` if it applies to devices that are not in a team ("Unassigned").
+- "team_name": The name of the team that the package applies to, `null` if it applies to devices that are not in a team ("Unassigned").
 
 #### Example
 
@@ -2607,8 +2607,8 @@ This activity contains the following fields:
   "package_name": "bootstrap-package.pkg",
   "team_id": 123,
   "team_name": "Workstations",
-  "fleet_id": 123,
-  "fleet_name": "Workstations"
+  "team_id": 123,
+  "team_name": "Workstations"
 }
 ```
 
@@ -2644,11 +2644,11 @@ This activity contains the following fields:
 
 ### enabled_macos_setup_end_user_auth
 
-Generated when a user turns on IdP authentication for macOS hosts that automatically enroll to a fleet (or no fleet).
+Generated when a user turns on IdP authentication for macOS hosts that automatically enroll to a team (or no team).
 
 This activity contains the following fields:
-- "fleet_id": The ID of the fleet that IdP authentication applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
-- "fleet_name": The name of the fleet that IdP authentication applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
+- "team_id": The ID of the team that IdP authentication applies to, `null` if it applies to devices that are not in a team ("Unassigned").
+- "team_name": The name of the team that IdP authentication applies to, `null` if it applies to devices that are not in a team ("Unassigned").
 
 #### Example
 
@@ -2656,18 +2656,18 @@ This activity contains the following fields:
 {
   "team_id": 123,
   "team_name": "Workstations",
-  "fleet_id": 123,
-  "fleet_name": "Workstations"
+  "team_id": 123,
+  "team_name": "Workstations"
 }
 ```
 
 ### disabled_macos_setup_end_user_auth
 
-Generated when a user turns off IdP authentication for macOS hosts that automatically enroll to a fleet (or no fleet).
+Generated when a user turns off IdP authentication for macOS hosts that automatically enroll to a team (or no team).
 
 This activity contains the following fields:
-- "fleet_id": The ID of the fleet that IdP authentication applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
-- "fleet_name": The name of the fleet that IdP authentication applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
+- "team_id": The ID of the team that IdP authentication applies to, `null` if it applies to devices that are not in a team ("Unassigned").
+- "team_name": The name of the team that IdP authentication applies to, `null` if it applies to devices that are not in a team ("Unassigned").
 
 #### Example
 
@@ -2675,20 +2675,20 @@ This activity contains the following fields:
 {
   "team_id": 123,
   "team_name": "Workstations",
-  "fleet_id": 123,
-  "fleet_name": "Workstations"
+  "team_id": 123,
+  "team_name": "Workstations"
 }
 ```
 
 ### enabled_apple_business_only_enrollment
 
-Generated when a user enables the setting that allows only Apple hosts assigned to Fleet in Apple Business (AB) to turn on MDM.
+Generated when a user enables the setting that allows only Apple hosts assigned to AutoMDM in Apple Business (AB) to turn on MDM.
 
 This activity does not contain any detail fields.
 
 ### disabled_apple_business_only_enrollment
 
-Generated when a user disables the setting that allows only Apple hosts assigned to Fleet in Apple Business (AB) to turn on MDM.
+Generated when a user disables the setting that allows only Apple hosts assigned to AutoMDM in Apple Business (AB) to turn on MDM.
 
 This activity does not contain any detail fields.
 
@@ -2698,8 +2698,8 @@ Generated when a user edits setup experience software.
 
 This activity contains the following fields:
 - "platform": the platform of the host ("darwin", "android", "windows", or "linux").
-- "fleet_id": the ID of the fleet associated with the setup experience (0 for no fleet).
-- "fleet_name": the name of the fleet associated with the setup experience (empty for no fleet).
+- "team_id": the ID of the team associated with the setup experience (0 for no team).
+- "team_name": the name of the team associated with the setup experience (empty for no team).
 
 #### Example
 
@@ -2708,8 +2708,8 @@ This activity contains the following fields:
   "platform": "darwin",
   "team_id": 1,
   "team_name": "Workstations",
-  "fleet_id": 1,
-  "fleet_name": "Workstations"
+  "team_id": 1,
+  "team_name": "Workstations"
 }
 ```
 
@@ -2718,16 +2718,16 @@ This activity contains the following fields:
 Generated when a script is added to (or replaced in) setup experience.
 
 This activity contains the following fields:
-- "fleet_id": the ID of the fleet that the script applies to (`null` for hosts that aren't assigned to a fleet).
-- "fleet_name": the name of the fleet that the script applies to (`null` for hosts that aren't assigned to a fleet).
+- "team_id": the ID of the team that the script applies to (`null` for hosts that aren't assigned to a team).
+- "team_name": the name of the team that the script applies to (`null` for hosts that aren't assigned to a team).
 - "script_name": the name of the script that was added.
 
 #### Example
 
 ```json
 {
-  "fleet_id": 123,
-  "fleet_name": "Workstations",
+  "team_id": 123,
+  "team_name": "Workstations",
   "script_name": "set-timezones.sh"
 }
 ```
@@ -2737,54 +2737,54 @@ This activity contains the following fields:
 Generated when a script is removed from setup experience.
 
 This activity contains the following fields:
-- "fleet_id": the ID of the fleet that the script applied to (`null` for hosts that aren't assigned to a fleet).
-- "fleet_name": the name of the fleet that the script applied to (`null` for hosts that aren't assigned to a fleet).
+- "team_id": the ID of the team that the script applied to (`null` for hosts that aren't assigned to a team).
+- "team_name": the name of the team that the script applied to (`null` for hosts that aren't assigned to a team).
 - "script_name": the name of the script that was removed.
 
 #### Example
 
 ```json
 {
-  "fleet_id": 123,
-  "fleet_name": "Workstations",
+  "team_id": 123,
+  "team_name": "Workstations",
   "script_name": "set-timezones.sh"
 }
 ```
 
 ### enabled_managed_local_account
 
-Generated when a user turns on create managed local account for a fleet (or unassigned hosts).
+Generated when a user turns on create managed local account for a team (or unassigned hosts).
 
 This activity contains the following fields:
-- "fleet_id": The ID of the fleet that create managed local account applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
-- "fleet_name": The name of the fleet that create managed local account applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
-- "platform": The platform of the fleet that create managed local account applies to.
+- "team_id": The ID of the team that create managed local account applies to, `null` if it applies to devices that are not in a team ("Unassigned").
+- "team_name": The name of the team that create managed local account applies to, `null` if it applies to devices that are not in a team ("Unassigned").
+- "platform": The platform of the team that create managed local account applies to.
 
 #### Example
 
 ```json
 {
-  "fleet_id": 123,
-  "fleet_name": "Workstations",
+  "team_id": 123,
+  "team_name": "Workstations",
   "platform": "windows"
 }
 ```
 
 ### disabled_managed_local_account
 
-Generated when a user turns off create managed local account for a fleet (or unassigned hosts).
+Generated when a user turns off create managed local account for a team (or unassigned hosts).
 
 This activity contains the following fields:
-- "fleet_id": The ID of the fleet that create managed local account applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
-- "fleet_name": The name of the fleet that create managed local account applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
-- "platform": The platform of the fleet that create managed local account applies to.
+- "team_id": The ID of the team that create managed local account applies to, `null` if it applies to devices that are not in a team ("Unassigned").
+- "team_name": The name of the team that create managed local account applies to, `null` if it applies to devices that are not in a team ("Unassigned").
+- "platform": The platform of the team that create managed local account applies to.
 
 #### Example
 
 ```json
 {
-  "fleet_id": 123,
-  "fleet_name": "Workstations",
+  "team_id": 123,
+  "team_name": "Workstations",
   "platform": "windows"
 }
 ```
@@ -2817,15 +2817,15 @@ This activity contains the following fields:
 Generated when settings for account provisioning are edited.
 
 This activity contains the following fields:
-- "fleet_id": the ID of the fleet the label belonged to.
-- "fleet_name": the name of the fleet the label belonged to.
+- "team_id": the ID of the team the label belonged to.
+- "team_name": the name of the team the label belonged to.
 
 #### Example
 
 ```json
 {
-  "fleet_id": 123,
-  "fleet_name": "Workstations"
+  "team_id": 123,
+  "team_name": "Workstations"
 }
 ```
 
@@ -2836,7 +2836,7 @@ This activity contains the following fields:
 
 ### ran_custom_mdm_command
 
-Generated when a user runs a custom MDM command via API or the fleetctl CLI.
+Generated when a user runs a custom MDM command via API or the automdmctl CLI.
 
 This activity contains the following fields:
 - "host_id": ID of the host.
@@ -2904,10 +2904,10 @@ This activity contains the following fields:
 
 ### enabled_vpp
 
-Generated when VPP features are enabled in Fleet.
+Generated when VPP features are enabled in AutoMDM.
 
 This activity contains the following fields:
-- "location": Organization unit associated with the VPP content token for the enabled VPP features. Apple previously called this "location." Fleet will rename it to "organization unit" in the next major version.
+- "location": Organization unit associated with the VPP content token for the enabled VPP features. Apple previously called this "location." AutoMDM will rename it to "organization unit" in the next major version.
 
 #### Example
 
@@ -2919,10 +2919,10 @@ This activity contains the following fields:
 
 ### disabled_vpp
 
-Generated when VPP features are disabled in Fleet.
+Generated when VPP features are disabled in AutoMDM.
 
 This activity contains the following fields:
-- "location": Organization unit associated with the VPP content token for the disabled VPP features. Apple previously called this "location." Fleet will rename it to "organization unit" in the next major version.
+- "location": Organization unit associated with the VPP content token for the disabled VPP features. Apple previously called this "location." AutoMDM will rename it to "organization unit" in the next major version.
 
 #### Example
 
@@ -3025,10 +3025,10 @@ This activity contains the following fields:
 
 ### scim_user_deprovision_skipped
 
-Generated when a SCIM user is deactivated or deleted but Fleet cannot determine which Fleet user to deprovision. This can indicate the SCIM user's identifiers were modified before deactivation; verify that no corresponding Fleet account remains active.
+Generated when a SCIM user is deactivated or deleted but AutoMDM cannot determine which AutoMDM user to deprovision. This can indicate the SCIM user's identifiers were modified before deactivation; verify that no corresponding AutoMDM account remains active.
 
 This activity contains the following fields:
-- "scim_user_id": Unique ID of the SCIM user in Fleet.
+- "scim_user_id": Unique ID of the SCIM user in AutoMDM.
 - "scim_user_name": The SCIM user's userName at the time of deprovisioning.
 
 #### Example
@@ -3063,8 +3063,8 @@ Generated when creating policies.
 This activity contains the following fields:
 - "policy_id": the ID of the created policy.
 - "policy_name": the name of the created policy.
-- "fleet_id": the ID of the fleet the policy belongs to. Use -1 for global policies, 0 for "no fleet" policies.
-- "fleet_name": the name of the fleet the policy belongs to. null for global policies and "no fleet" policies.
+- "team_id": the ID of the team the policy belongs to. Use -1 for global policies, 0 for "no team" policies.
+- "team_name": the name of the team the policy belongs to. null for global policies and "no team" policies.
 
 #### Example
 
@@ -3074,8 +3074,8 @@ This activity contains the following fields:
   "policy_name": "foo",
   "team_id": 1,
   "team_name": "Workstations",
-  "fleet_id": 1,
-  "fleet_name": "Workstations"
+  "team_id": 1,
+  "team_name": "Workstations"
 }
 ```
 
@@ -3086,8 +3086,8 @@ Generated when editing policies.
 This activity contains the following fields:
 - "policy_id": the ID of the edited policy.
 - "policy_name": the name of the edited policy.
-- "fleet_id": the ID of the fleet the policy belongs to. Use -1 for global policies, 0 for "no fleet" policies.
-- "fleet_name": the name of the fleet the policy belongs to. null for global policies and "no fleet" policies.
+- "team_id": the ID of the team the policy belongs to. Use -1 for global policies, 0 for "no team" policies.
+- "team_name": the name of the team the policy belongs to. null for global policies and "no team" policies.
 
 #### Example
 
@@ -3097,8 +3097,8 @@ This activity contains the following fields:
   "policy_name": "foo",
   "team_id": 1,
   "team_name": "Workstations",
-  "fleet_id": 1,
-  "fleet_name": "Workstations"
+  "team_id": 1,
+  "team_name": "Workstations"
 }
 ```
 
@@ -3109,8 +3109,8 @@ Generated when deleting policies.
 This activity contains the following fields:
 - "policy_id": the ID of the deleted policy.
 - "policy_name": the name of the deleted policy.
-- "fleet_id": the ID of the fleet the policy belonged to. Use -1 for global policies, 0 for "no fleet" policies.
-- "fleet_name": the name of the fleet the policy belonged to. null for global policies and "no fleet" policies.
+- "team_id": the ID of the team the policy belonged to. Use -1 for global policies, 0 for "no team" policies.
+- "team_name": the name of the team the policy belonged to. null for global policies and "no team" policies.
 
 #### Example
 
@@ -3120,8 +3120,8 @@ This activity contains the following fields:
   "policy_name": "foo",
   "team_id": 1,
   "team_name": "Workstations",
-  "fleet_id": 1,
-  "fleet_name": "Workstations"
+  "team_id": 1,
+  "team_name": "Workstations"
 }
 ```
 
@@ -3132,8 +3132,8 @@ Generated when resetting a policy's results, either for all hosts or for a singl
 This activity contains the following fields:
 - "policy_id": the ID of the reset policy.
 - "policy_name": the name of the reset policy.
-- "fleet_id": the ID of the fleet the policy belongs to. Use -1 for global policies, 0 for "no fleet" policies.
-- "fleet_name": the name of the fleet the policy belongs to. null for global policies and "no fleet" policies.
+- "team_id": the ID of the team the policy belongs to. Use -1 for global policies, 0 for "no team" policies.
+- "team_name": the name of the team the policy belongs to. null for global policies and "no team" policies.
 - "host_id": the ID of the host whose result was reset. Only present when the reset was scoped to a single host.
 - "host_display_name": the display name of the host whose result was reset. Only present when the reset was scoped to a single host.
 
@@ -3145,8 +3145,8 @@ This activity contains the following fields:
   "policy_name": "foo",
   "team_id": 1,
   "team_name": "Workstations",
-  "fleet_id": 1,
-  "fleet_name": "Workstations",
+  "team_id": 1,
+  "team_name": "Workstations",
   "host_id": 42,
   "host_display_name": "Anna's MacBook Pro"
 }
@@ -3162,7 +3162,7 @@ This activity contains a field "policies" where each item is a policy spec with 
 - "description": Description of the policy.
 - "critical": Marks the policy as high impact.
 - "resolution": Describes how to solve a failing policy.
-- "fleet": Name of the fleet this policy belongs to.
+- "team": Name of the team this policy belongs to.
 - "platform": Comma-separated string to indicate the target platforms.
 
 
@@ -3197,7 +3197,7 @@ Generated when a failing-policy webhook automation batch is accepted by the dest
 
 This activity contains the following fields:
 - "policy_id": ID of the failing policy.
-- "host_ids": IDs of the hosts in the batch. Included in [host activities webhook](https://fleetdm.com/docs/rest-api/rest-api#webhook-settings-host-activities-webhook) payloads only; not stored in the activity, so it's not returned by the activities API.
+- "host_ids": IDs of the hosts in the batch. Included in [host activities webhook](https://automdm.com/docs/rest-api/rest-api#webhook-settings-host-activities-webhook) payloads only; not stored in the activity, so it's not returned by the activities API.
 - "status_code": (Optional) HTTP status code returned by the destination.
 
 #### Example
@@ -3216,7 +3216,7 @@ Generated when a failing-policy webhook automation batch is rejected by the dest
 
 This activity contains the following fields:
 - "policy_id": ID of the failing policy.
-- "host_ids": IDs of the hosts in the batch. Included in [host activities webhook](https://fleetdm.com/docs/rest-api/rest-api#webhook-settings-host-activities-webhook) payloads only; not stored in the activity, so it's not returned by the activities API.
+- "host_ids": IDs of the hosts in the batch. Included in [host activities webhook](https://automdm.com/docs/rest-api/rest-api#webhook-settings-host-activities-webhook) payloads only; not stored in the activity, so it's not returned by the activities API.
 - "status_code": (Optional) HTTP status code returned by the destination.
 - "error_response": Error returned by the destination.
 
@@ -3237,7 +3237,7 @@ Generated when a failing-policy ticket automation (Jira or Zendesk) creates a ti
 
 This activity contains the following fields:
 - "policy_id": ID of the failing policy.
-- "host_ids": IDs of the hosts in the batch. Included in [host activities webhook](https://fleetdm.com/docs/rest-api/rest-api#webhook-settings-host-activities-webhook) payloads only; not stored in the activity, so it's not returned by the activities API.
+- "host_ids": IDs of the hosts in the batch. Included in [host activities webhook](https://automdm.com/docs/rest-api/rest-api#webhook-settings-host-activities-webhook) payloads only; not stored in the activity, so it's not returned by the activities API.
 - "type": Ticket destination ("jira" or "zendesk").
 - "ticket_key": (Optional) Key of the created ticket.
 - "ticket_id": (Optional) ID of the created ticket.
@@ -3259,7 +3259,7 @@ Generated when a failing-policy ticket automation (Jira or Zendesk) fails to cre
 
 This activity contains the following fields:
 - "policy_id": ID of the failing policy.
-- "host_ids": IDs of the hosts in the batch. Included in [host activities webhook](https://fleetdm.com/docs/rest-api/rest-api#webhook-settings-host-activities-webhook) payloads only; not stored in the activity, so it's not returned by the activities API.
+- "host_ids": IDs of the hosts in the batch. Included in [host activities webhook](https://automdm.com/docs/rest-api/rest-api#webhook-settings-host-activities-webhook) payloads only; not stored in the activity, so it's not returned by the activities API.
 - "type": Ticket destination ("jira" or "zendesk").
 - "error_response": Error returned by the destination.
 
@@ -3280,7 +3280,7 @@ Generated when a failing calendar policy results in a calendar event. The activi
 
 This activity contains the following fields:
 - "policy_id": ID of the failing policy.
-- "host_ids": IDs of the affected hosts. Included in [host activities webhook](https://fleetdm.com/docs/rest-api/rest-api#webhook-settings-host-activities-webhook) payloads only; not stored in the activity, so it's not returned by the activities API.
+- "host_ids": IDs of the affected hosts. Included in [host activities webhook](https://automdm.com/docs/rest-api/rest-api#webhook-settings-host-activities-webhook) payloads only; not stored in the activity, so it's not returned by the activities API.
 
 #### Example
 
@@ -3297,7 +3297,7 @@ Generated when a failing-calendar-policy automation fails. The activity is assoc
 
 This activity contains the following fields:
 - "policy_id": ID of the failing policy.
-- "host_ids": IDs of the affected hosts. Included in [host activities webhook](https://fleetdm.com/docs/rest-api/rest-api#webhook-settings-host-activities-webhook) payloads only; not stored in the activity, so it's not returned by the activities API.
+- "host_ids": IDs of the affected hosts. Included in [host activities webhook](https://automdm.com/docs/rest-api/rest-api#webhook-settings-host-activities-webhook) payloads only; not stored in the activity, so it's not returned by the activities API.
 - "status_code": (Optional) HTTP status code returned by the calendar provider.
 - "error_response": Error details.
 
@@ -3317,7 +3317,7 @@ Generated when a failing-policy conditional access automation pushes a host's co
 
 This activity contains the following fields:
 - "policy_id": ID of the failing policy.
-- "host_ids": IDs of the affected hosts. Included in [host activities webhook](https://fleetdm.com/docs/rest-api/rest-api#webhook-settings-host-activities-webhook) payloads only; not stored in the activity, so it's not returned by the activities API.
+- "host_ids": IDs of the affected hosts. Included in [host activities webhook](https://automdm.com/docs/rest-api/rest-api#webhook-settings-host-activities-webhook) payloads only; not stored in the activity, so it's not returned by the activities API.
 
 #### Example
 
@@ -3334,7 +3334,7 @@ Generated when a failing-policy conditional access automation fails to push a ho
 
 This activity contains the following fields:
 - "policy_id": ID of the failing policy.
-- "host_ids": IDs of the affected hosts. Included in [host activities webhook](https://fleetdm.com/docs/rest-api/rest-api#webhook-settings-host-activities-webhook) payloads only; not stored in the activity, so it's not returned by the activities API.
+- "host_ids": IDs of the affected hosts. Included in [host activities webhook](https://automdm.com/docs/rest-api/rest-api#webhook-settings-host-activities-webhook) payloads only; not stored in the activity, so it's not returned by the activities API.
 - "status_code": (Optional) HTTP status code returned by the provider.
 - "error_response": Error returned by the provider.
 
@@ -3365,8 +3365,8 @@ Generated when creating a new report.
 This activity contains the following fields:
 - "report_id": the ID of the created report.
 - "report_name": the name of the created report.
-- "fleet_id": the ID of the fleet the report belongs to.
-- "fleet_name": the name of the fleet the report belongs to.
+- "team_id": the ID of the team the report belongs to.
+- "team_name": the name of the team the report belongs to.
 
 #### Example
 
@@ -3378,8 +3378,8 @@ This activity contains the following fields:
   "team_name": "Workstations",
   "report_id": 123,
   "report_name": "foo",
-  "fleet_id": 1,
-  "fleet_name": "Workstations"
+  "team_id": 1,
+  "team_name": "Workstations"
 }
 ```
 
@@ -3390,8 +3390,8 @@ Generated when editing a saved report.
 This activity contains the following fields:
 - "report_id": the ID of the report being edited.
 - "report_name": the name of the report being edited.
-- "fleet_id": the ID of the fleet the report belongs to.
-- "fleet_name": the name of the fleet the report belongs to.
+- "team_id": the ID of the team the report belongs to.
+- "team_name": the name of the team the report belongs to.
 
 #### Example
 
@@ -3403,8 +3403,8 @@ This activity contains the following fields:
   "team_name": "Workstations",
   "report_id": 123,
   "report_name": "foo",
-  "fleet_id": 1,
-  "fleet_name": "Workstations"
+  "team_id": 1,
+  "team_name": "Workstations"
 }
 ```
 
@@ -3414,8 +3414,8 @@ Generated when deleting a saved report.
 
 This activity contains the following fields:
 - "report_name": the name of the report being deleted.
-- "fleet_id": the ID of the fleet the report belongs to.
-- "fleet_name": the name of the fleet the report belongs to.
+- "team_id": the ID of the team the report belongs to.
+- "team_name": the name of the team the report belongs to.
 
 #### Example
 
@@ -3425,8 +3425,8 @@ This activity contains the following fields:
   "team_id": 1,
   "team_name": "Workstations",
   "report_name": "foo",
-  "fleet_id": 1,
-  "fleet_name": "Workstations"
+  "team_id": 1,
+  "team_name": "Workstations"
 }
 ```
 
@@ -3436,8 +3436,8 @@ Generated when deleting multiple saved reports.
 
 This activity contains the following fields:
 - "report_ids": list of IDs of the deleted saved reports.
-- "fleet_id": the ID of the fleet the reports belonged to. -1 for global reports, null for no fleet.
-- "fleet_name": the name of the fleet the reports belonged to. null for global or no fleet reports.
+- "team_id": the ID of the team the reports belonged to. -1 for global reports, null for no team.
+- "team_name": the name of the team the reports belonged to. null for global or no team reports.
 
 #### Example
 
@@ -3447,8 +3447,8 @@ This activity contains the following fields:
   "team_id": 123,
   "team_name": "Workstations",
   "report_ids": [1, 42, 100],
-  "fleet_id": 123,
-  "fleet_name": "Workstations"
+  "team_id": 123,
+  "team_name": "Workstations"
 }
 ```
 
@@ -3540,12 +3540,12 @@ This activity contains the following fields:
 
 ### added_script
 
-Generated when a script is added to a fleet (or no fleet).
+Generated when a script is added to a team (or no team).
 
 This activity contains the following fields:
 - "script_name": Name of the script.
-- "fleet_id": The ID of the fleet that the script applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
-- "fleet_name": The name of the fleet that the script applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
+- "team_id": The ID of the team that the script applies to, `null` if it applies to devices that are not in a team ("Unassigned").
+- "team_name": The name of the team that the script applies to, `null` if it applies to devices that are not in a team ("Unassigned").
 
 #### Example
 
@@ -3554,19 +3554,19 @@ This activity contains the following fields:
   "script_name": "set-timezones.sh",
   "team_id": 123,
   "team_name": "Workstations",
-  "fleet_id": 123,
-  "fleet_name": "Workstations"
+  "team_id": 123,
+  "team_name": "Workstations"
 }
 ```
 
 ### deleted_script
 
-Generated when a script is deleted from a fleet (or no fleet).
+Generated when a script is deleted from a team (or no team).
 
 This activity contains the following fields:
 - "script_name": Name of the script.
-- "fleet_id": The ID of the fleet that the script applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
-- "fleet_name": The name of the fleet that the script applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
+- "team_id": The ID of the team that the script applies to, `null` if it applies to devices that are not in a team ("Unassigned").
+- "team_name": The name of the team that the script applies to, `null` if it applies to devices that are not in a team ("Unassigned").
 
 #### Example
 
@@ -3575,18 +3575,18 @@ This activity contains the following fields:
   "script_name": "set-timezones.sh",
   "team_id": 123,
   "team_name": "Workstations",
-  "fleet_id": 123,
-  "fleet_name": "Workstations"
+  "team_id": 123,
+  "team_name": "Workstations"
 }
 ```
 
 ### edited_script
 
-Generated when a user edits the scripts of a fleet (or no fleet) via the fleetctl CLI.
+Generated when a user edits the scripts of a team (or no team) via the automdmctl CLI.
 
 This activity contains the following fields:
-- "fleet_id": The ID of the fleet that the scripts apply to, `null` if they apply to devices that are not in a fleet ("Unassigned").
-- "fleet_name": The name of the fleet that the scripts apply to, `null` if they apply to devices that are not in a fleet ("Unassigned").
+- "team_id": The ID of the team that the scripts apply to, `null` if they apply to devices that are not in a team ("Unassigned").
+- "team_name": The name of the team that the scripts apply to, `null` if they apply to devices that are not in a team ("Unassigned").
 
 #### Example
 
@@ -3594,8 +3594,8 @@ This activity contains the following fields:
 {
   "team_id": 123,
   "team_name": "Workstations",
-  "fleet_id": 123,
-  "fleet_name": "Workstations"
+  "team_id": 123,
+  "team_name": "Workstations"
 }
 ```
 
@@ -3605,8 +3605,8 @@ Generated when a script is updated.
 
 This activity contains the following fields:
 - "script_name": Name of the script.
-- "fleet_id": The ID of the fleet that the script applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
-- "fleet_name": The name of the fleet that the script applies to, `null` if it applies to devices that are not in a fleet ("Unassigned").
+- "team_id": The ID of the team that the script applies to, `null` if it applies to devices that are not in a team ("Unassigned").
+- "team_name": The name of the team that the script applies to, `null` if it applies to devices that are not in a team ("Unassigned").
 
 #### Example
 
@@ -3615,8 +3615,8 @@ This activity contains the following fields:
   "script_name": "set-timezones.sh",
   "team_id": 123,
   "team_name": "Workstations",
-  "fleet_id": 123,
-  "fleet_name": "Workstations"
+  "team_id": 123,
+  "team_name": "Workstations"
 }
 ```
 
@@ -3720,7 +3720,7 @@ This activity contains the following fields:
 
 ### installed_software
 
-Generated when a Fleet-maintained app or custom package is installed on a host.
+Generated when an AutoMDM-maintained app or custom package is installed on a host.
 
 This activity contains the following fields:
 - "host_id": ID of the host.
@@ -3736,8 +3736,8 @@ This activity contains the following fields:
 - "policy_name": Name of the policy whose failure triggered installation. Null if no associated policy.
 - "command_uuid": ID of the in-house app installation.
 - "from_setup_experience": Whether the installation was triggered as part of the setup experience.
-- "failure_reason": Reason the installation failed before reaching the device (e.g. an unresolvable Fleet variable in the managed app configuration). Only present when "status" is "failed_install" and Fleet failed the install pre-flight; omitted otherwise.
-- "skipped_install": Whether the install was skipped because the app was open. This is `true` when the Fleet-maintained app is installed by the patch policy's automation, when the policy had `patch_when_closed`, `notify_before_patching`, or `patch_deadline` enabled at the time of the install. Only present when "status" is "failed_install" and the install was skipped for this reason, omitted otherwise.
+- "failure_reason": Reason the installation failed before reaching the device (e.g. an unresolvable AutoMDM variable in the managed app configuration). Only present when "status" is "failed_install" and AutoMDM failed the install pre-flight; omitted otherwise.
+- "skipped_install": Whether the install was skipped because the app was open. This is `true` when the AutoMDM-maintained app is installed by the patch policy's automation, when the policy had `patch_when_closed`, `notify_before_patching`, or `patch_deadline` enabled at the time of the install. Only present when "status" is "failed_install" and the install was skipped for this reason, omitted otherwise.
 - "patch_when_closed": Whether the policy that triggered this install had `patch_when_closed` enabled at the time of the install.
 - "notify_before_patching": Whether the policy that triggered this install had `notify_before_patching` enabled at the time of the install. Only present when `true`.
 - "patch_deadline": Whether the policy that triggered this install had `patch_deadline` enabled at the time of the install. Only present when `true`.
@@ -3787,7 +3787,7 @@ This activity contains the following fields:
 
 ### notified_end_user_before_patching
 
-Generated when Fleet shows an end user a notification before patching, for patch policies with `notify_before_patching` or `patch_deadline` set to `true`.
+Generated when AutoMDM shows an end user a notification before patching, for patch policies with `notify_before_patching` or `patch_deadline` set to `true`.
 
 This activity contains the following fields:
 - "host_id": ID of the host.
@@ -3823,11 +3823,11 @@ This activity contains the following fields:
 
 ### edited_patch_deadline_settings
 
-Generated when the patch deadline days or time are modified for a fleet.
+Generated when the patch deadline days or time are modified for a team.
 
 This activity contains the following fields:
-- "fleet_id": The ID of the fleet that the patch deadline settings apply to, `null` if they apply to devices that are not in a fleet ("Unassigned").
-- "fleet_name": The name of the fleet that the patch deadline settings apply to, `null` if they apply to devices that are not in a fleet ("Unassigned").
+- "team_id": The ID of the team that the patch deadline settings apply to, `null` if they apply to devices that are not in a team ("Unassigned").
+- "team_name": The name of the team that the patch deadline settings apply to, `null` if they apply to devices that are not in a team ("Unassigned").
 - "days": Days of the week when the deadline applies.
 - "time": The deadline, formatted as `HH:MM` in the host's local time.
 
@@ -3837,8 +3837,8 @@ This activity contains the following fields:
 {
   "team_id": 3,
   "team_name": "Workstations",
-  "fleet_id": 3,
-  "fleet_name": "Workstations",
+  "team_id": 3,
+  "team_name": "Workstations",
   "days": ["monday", "wednesday", "friday"],
   "time": "11:00"
 }
@@ -3846,7 +3846,7 @@ This activity contains the following fields:
 
 ### uninstalled_software
 
-Generated when a Fleet-maintained app or custom package is uninstalled on a host.
+Generated when an AutoMDM-maintained app or custom package is uninstalled on a host.
 
 This activity contains the following fields:
 - "host_id": ID of the host.
@@ -3875,13 +3875,13 @@ This activity contains the following fields:
 
 ### added_software
 
-Generated when a Fleet-maintained app or custom package is added to Fleet.
+Generated when an AutoMDM-maintained app or custom package is added to AutoMDM.
 
 This activity contains the following fields:
 - "software_title": Name of the software.
 - "software_package": Filename of the installer.
-- "fleet_name": Name of the fleet to which this software was added. `null` if it was added to no fleet.
-- "fleet_id": The ID of the fleet to which this software was added. `null` if it was added to no fleet.
+- "team_name": Name of the team to which this software was added. `null` if it was added to no team.
+- "team_id": The ID of the team to which this software was added. `null` if it was added to no team.
 - "self_service": Whether the software is available for installation by the end user.
 - "software_title_id": ID of the added software title.
 - "labels_include_any": Target hosts that have any label in the array.
@@ -3895,8 +3895,8 @@ This activity contains the following fields:
   "software_package": "FalconSensor-6.44.pkg",
   "team_name": "Workstations",
   "team_id": 123,
-  "fleet_name": "Workstations",
-  "fleet_id": 123,
+  "team_name": "Workstations",
+  "team_id": 123,
   "self_service": true,
   "software_title_id": 2234,
   "labels_include_any": [
@@ -3914,19 +3914,19 @@ This activity contains the following fields:
 
 ### edited_software
 
-Generated when a Fleet-maintained app or custom package is edited in Fleet.
+Generated when an AutoMDM-maintained app or custom package is edited in AutoMDM.
 
 This activity contains the following fields:
 - "software_title": Name of the software.
 - "software_package": Filename of the installer as of this update (including if unchanged).
-- "fleet_name": Name of the fleet on which this software was updated. `null` if it was updated on no fleet.
-- "fleet_id": The ID of the fleet on which this software was updated. `null` if it was updated on no fleet.
+- "team_name": Name of the team on which this software was updated. `null` if it was updated on no team.
+- "team_id": The ID of the team on which this software was updated. `null` if it was updated on no team.
 - "self_service": Whether the software is available for installation by the end user.
 - "software_title_id": ID of the added software title.
 - "labels_include_any": Target hosts that have any label in the array.
 - "labels_exclude_any": Target hosts that don't have any label in the array.
 - "software_display_name": Display name of the software title.
-- "pinned_version": The version a Fleet-maintained app is pinned to — a specific version (e.g. `"149.0.7827.54"`) or a caret major-version constraint (e.g. `"^147"`). `null` when the app automatically updates to the latest version, or when the version wasn't changed.
+- "pinned_version": The version an AutoMDM-maintained app is pinned to — a specific version (e.g. `"149.0.7827.54"`) or a caret major-version constraint (e.g. `"^147"`). `null` when the app automatically updates to the latest version, or when the version wasn't changed.
 
 #### Example
 
@@ -3936,11 +3936,11 @@ This activity contains the following fields:
   "software_package": "FalconSensor-6.44.pkg",
   "team_name": "Workstations",
   "team_id": 123,
-  "fleet_name": "Workstations",
-  "fleet_id": 123,
+  "team_name": "Workstations",
+  "team_id": 123,
   "self_service": true,
   "software_title_id": 2234,
-  "software_icon_url": "/api/latest/fleet/software/titles/2234/icon?team_id=123",
+  "software_icon_url": "/api/latest/automdm/software/titles/2234/icon?team_id=123",
   "software_display_name": "Crowdstrike Falcon",
   "pinned_version": "149.0.7827.54",
   "labels_include_any": [
@@ -3958,13 +3958,13 @@ This activity contains the following fields:
 
 ### deleted_software
 
-Generated when a Fleet maintained app or custom package is deleted from Fleet.
+Generated when an AutoMDM maintained app or custom package is deleted from AutoMDM.
 
 This activity contains the following fields:
 - "software_title": Name of the software.
 - "software_package": Filename of the installer.
-- "fleet_name": Name of the fleet to which this software was added. `null` if it was added to no fleet.
-- "fleet_id": The ID of the fleet to which this software was added. `null` if it was added to no fleet.
+- "team_name": Name of the team to which this software was added. `null` if it was added to no team.
+- "team_id": The ID of the team to which this software was added. `null` if it was added to no team.
 - "self_service": Whether the software was available for installation by the end user.
 - "labels_include_any": Target hosts that have any label in the array.
 - "labels_exclude_any": Target hosts that don't have any label in the array.
@@ -3977,8 +3977,8 @@ This activity contains the following fields:
   "software_package": "FalconSensor-6.44.pkg",
   "team_name": "Workstations",
   "team_id": 123,
-  "fleet_name": "Workstations",
-  "fleet_id": 123,
+  "team_name": "Workstations",
+  "team_id": 123,
   "self_service": true,
   "software_icon_url": "",
   "labels_include_any": [
@@ -3996,7 +3996,7 @@ This activity contains the following fields:
 
 ### added_app_store_app
 
-Generated when an App Store app is added to Fleet.
+Generated when an App Store app is added to AutoMDM.
 
 This activity contains the following fields:
 - "software_title": Name of the App Store app.
@@ -4008,8 +4008,8 @@ This activity contains the following fields:
   - "location": Name of the organization unit in Apple Business for the VPP token.
   - "country_code": Country code of the VPP token (e.g. `us`).
 - "self_service": App installation can be initiated by device owner.
-- "fleet_name": Name of the fleet to which this App Store app was added, or `null` if it was added to no fleet.
-- "fleet_id": ID of the fleet to which this App Store app was added, or `null` if it was added to no fleet.
+- "team_name": Name of the team to which this App Store app was added, or `null` if it was added to no team.
+- "team_id": ID of the team to which this App Store app was added, or `null` if it was added to no team.
 - "labels_include_any": Target hosts that have any label in the array.
 - "labels_exclude_any": Target hosts that don't have any label in the array.
 - "version_name": Name of the admin-created App Store app version. Defaults to "Default version" when the admin didn't set one.
@@ -4034,8 +4034,8 @@ This activity contains the following fields:
   "self_service": false,
   "team_name": "Workstations",
   "team_id": 1,
-  "fleet_name": "Workstations",
-  "fleet_id": 1,
+  "team_name": "Workstations",
+  "team_id": 1,
   "labels_include_any": [
     {
       "name": "Engineering",
@@ -4053,15 +4053,15 @@ This activity contains the following fields:
 
 ### deleted_app_store_app
 
-Generated when an App Store app is deleted from Fleet.
+Generated when an App Store app is deleted from AutoMDM.
 
 This activity contains the following fields:
 - "software_title": Name of the App Store app.
 - "software_display_name": Custom name that's displayed in the UI. Empty ("") when not set.
 - "app_store_id": ID of the app on the Apple App Store or Google Play.
 - "platform": Platform of the app (`android`, `darwin`, `ios`, or `ipados`).
-- "fleet_name": Name of the fleet from which this App Store app was deleted, or `null` if it was deleted from no fleet.
-- "fleet_id": ID of the fleet from which this App Store app was deleted, or `null` if it was deleted from no fleet.
+- "team_name": Name of the team from which this App Store app was deleted, or `null` if it was deleted from no team.
+- "team_id": ID of the team from which this App Store app was deleted, or `null` if it was deleted from no team.
 - "labels_include_any": Target hosts that have any label in the array.
 - "labels_exclude_any": Target hosts that don't have any label in the array.
 - "version_name": Name of the admin-created App Store app version that was deleted. Defaults to "Default version" when the admin didn't set one.
@@ -4077,8 +4077,8 @@ This activity contains the following fields:
   "platform": "ios",
   "team_name": "Workstations",
   "team_id": 1,
-  "fleet_name": "Workstations",
-  "fleet_id": 1,
+  "team_name": "Workstations",
+  "team_id": 1,
   "software_icon_url": "",
   "labels_include_any": [
     {
@@ -4116,10 +4116,10 @@ This activity contains the following fields:
 - "policy_name": Name of the policy whose failure triggered the install. Null if no associated policy.
 - "host_platform": Platform of the host (e.g., "darwin", "ios", "ipados", "android").
 - "from_setup_experience": Whether the app was installed as part of the setup experience.
-- "from_configuration_resend": Whether Fleet re-installed the app to deliver an updated managed app configuration or a label change.
+- "from_configuration_resend": Whether AutoMDM re-installed the app to deliver an updated managed app configuration or a label change.
 - "from_auto_update": Whether the app was installed by an automatic update.
-- "failure_reason": Reason the installation failed before reaching the device (e.g. an unresolvable Fleet variable in the managed app configuration). Only present when "status" is "failed_install" and Fleet failed the install pre-flight; omitted otherwise.
-- "version_name": Name of the app version that was installed. An app can have more than one version on the same fleet, each with its own settings and managed app configuration.
+- "failure_reason": Reason the installation failed before reaching the device (e.g. an unresolvable AutoMDM variable in the managed app configuration). Only present when "status" is "failed_install" and AutoMDM failed the install pre-flight; omitted otherwise.
+- "version_name": Name of the app version that was installed. An app can have more than one version on the same team, each with its own settings and managed app configuration.
 - "configuration": The managed app configuration that was applied, in XML format for iOS and iPadOS apps and JSON format for Android apps. Null if the version has no managed app configuration.
 
 #### Example
@@ -4171,7 +4171,7 @@ This activity contains the following fields:
 
 ### edited_app_store_app
 
-Generated when an App Store app is updated in Fleet.
+Generated when an App Store app is updated in AutoMDM.
 
 This activity contains the following fields:
 - "software_title": Name of the App Store app.
@@ -4183,8 +4183,8 @@ This activity contains the following fields:
   - "location": Name of the organization unit in Apple Business for the VPP token.
   - "country_code": Country code of the VPP token (e.g. `us`).
 - "self_service": App installation can be initiated by device owner.
-- "fleet_name": Name of the fleet on which this App Store app was updated, or `null` if it was updated on no fleet.
-- "fleet_id": ID of the fleet on which this App Store app was updated, or `null` if it was updated on no fleet.
+- "team_name": Name of the team on which this App Store app was updated, or `null` if it was updated on no team.
+- "team_id": ID of the team on which this App Store app was updated, or `null` if it was updated on no team.
 - "labels_include_any": Target hosts that have any label in the array.
 - "labels_exclude_any": Target hosts that don't have any label in the array.
 - "software_display_name": Display name of the software title.
@@ -4211,9 +4211,9 @@ This activity contains the following fields:
   "self_service": true,
   "team_name": "Workstations",
   "team_id": 1,
-  "fleet_name": "Workstations",
-  "fleet_id": 1,
-  "software_icon_url": "/api/latest/fleet/software/titles/123/icon?team_id=1",
+  "team_name": "Workstations",
+  "team_id": 1,
+  "software_icon_url": "/api/latest/automdm/software/titles/123/icon?team_id=1",
   "labels_include_any": [
     {
       "name": "Engineering",
@@ -4312,62 +4312,62 @@ This activity contains the following fields:
 
 ### added_self_service_category
 
-Generated when a self-service category is added to a fleet.
+Generated when a self-service category is added to a team.
 
 This activity contains the following fields:
 - "self_service_category_name": Name of the self-service category that was added.
-- "fleet_name": Name of the fleet the category was added to.
-- "fleet_id": ID of the fleet the category was added to.
+- "team_name": Name of the team the category was added to.
+- "team_id": ID of the team the category was added to.
 
 #### Example
 
 ```json
 {
   "self_service_category_name": "🛟 Support",
-  "fleet_name": "💻 Workstations",
-  "fleet_id": 123
+  "team_name": "💻 Workstations",
+  "team_id": 123
 }
 ```
 
 ### edited_self_service_category
 
-Generated when a self-service category is renamed on a fleet.
+Generated when a self-service category is renamed on a team.
 
 This activity contains the following fields:
 - "self_service_category_name": New name of the self-service category.
-- "fleet_name": Name of the fleet the category belongs to.
-- "fleet_id": ID of the fleet the category belongs to.
+- "team_name": Name of the team the category belongs to.
+- "team_id": ID of the team the category belongs to.
 
 #### Example
 
 ```json
 {
   "self_service_category_name": "🛟 Support utilities",
-  "fleet_name": "💻 Workstations",
-  "fleet_id": 123
+  "team_name": "💻 Workstations",
+  "team_id": 123
 }
 ```
 
 ### deleted_self_service_category
 
-Generated when a self-service category is deleted from a fleet.
+Generated when a self-service category is deleted from a team.
 
 This activity contains the following fields:
 - "self_service_category_name": Name of the self-service category that was deleted.
-- "fleet_name": Name of the fleet the category was deleted from.
-- "fleet_id": ID of the fleet the category was deleted from.
+- "team_name": Name of the team the category was deleted from.
+- "team_id": ID of the team the category was deleted from.
 
 #### Example
 
 ```json
 {
   "self_service_category_name": "🛟 Support",
-  "fleet_name": "💻 Workstations",
-  "fleet_id": 123
+  "team_name": "💻 Workstations",
+  "team_id": 123
 }
 ```
 
-## Fleets
+## Teams
 
 - [created_team](#created-team)
 - [deleted_team](#deleted-team)
@@ -4375,11 +4375,11 @@ This activity contains the following fields:
 
 ### created_team
 
-Generated when creating fleets.
+Generated when creating teams.
 
 This activity contains the following fields:
-- "fleet_id": unique ID of the created fleet.
-- "fleet_name": the name of the created fleet.
+- "team_id": unique ID of the created team.
+- "team_name": the name of the created team.
 
 #### Example
 
@@ -4387,18 +4387,18 @@ This activity contains the following fields:
 {
   "team_id": 123,
   "team_name": "Workstations",
-  "fleet_id": 123,
-  "fleet_name": "Workstations"
+  "team_id": 123,
+  "team_name": "Workstations"
 }
 ```
 
 ### deleted_team
 
-Generated when deleting fleets.
+Generated when deleting teams.
 
 This activity contains the following fields:
-- "fleet_id": unique ID of the deleted fleet.
-- "fleet_name": the name of the deleted fleet.
+- "team_id": unique ID of the deleted team.
+- "team_name": the name of the deleted team.
 
 #### Example
 
@@ -4406,18 +4406,18 @@ This activity contains the following fields:
 {
   "team_id": 123,
   "team_name": "Workstations",
-  "fleet_id": 123,
-  "fleet_name": "Workstations"
+  "team_id": 123,
+  "team_name": "Workstations"
 }
 ```
 
 ### applied_spec_team
 
-Generated when applying fleet specs.
+Generated when applying team specs.
 
-This activity contains a field "teams" where each item contains the fleet details with the following fields:
-- "id": Unique ID of the fleet.
-- "name": Name of the fleet.
+This activity contains a field "teams" where each item contains the team details with the following fields:
+- "id": Unique ID of the team.
+- "name": Name of the team.
 
 #### Example
 
@@ -4446,7 +4446,7 @@ This activity contains a field "teams" where each item contains the fleet detail
 Generated when a user is created.
 
 This activity contains the following fields:
-- "user_id": Unique ID of the created user in Fleet.
+- "user_id": Unique ID of the created user in AutoMDM.
 - "user_name": Name of the created user.
 - "user_email": E-mail of the created user.
 
@@ -4462,10 +4462,10 @@ This activity contains the following fields:
 
 ### deleted_user
 
-Generated when a user is deleted. An admin can delete the user, or SCIM can deprovision one that was deleted or deactivated in the IdP. For a SCIM deprovisioning, Fleet is the author of the activity rather than a Fleet user.
+Generated when a user is deleted. An admin can delete the user, or SCIM can deprovision one that was deleted or deactivated in the IdP. For a SCIM deprovisioning, AutoMDM is the author of the activity rather than an AutoMDM user.
 
 This activity contains the following fields:
-- "user_id": Unique ID of the deleted user in Fleet.
+- "user_id": Unique ID of the deleted user in AutoMDM.
 - "user_name": Name of the deleted user.
 - "user_email": E-mail of the deleted user.
 
@@ -4484,7 +4484,7 @@ This activity contains the following fields:
 Generated when user global roles are changed.
 
 This activity contains the following fields:
-- "user_id": Unique ID of the edited user in Fleet.
+- "user_id": Unique ID of the edited user in AutoMDM.
 - "user_name": Name of the edited user.
 - "user_email": E-mail of the edited user.
 - "role": New global role of the edited user.
@@ -4506,7 +4506,7 @@ This activity contains the following fields:
 Generated when user global roles are deleted.
 
 This activity contains the following fields:
-- "user_id": Unique ID of the edited user in Fleet.
+- "user_id": Unique ID of the edited user in AutoMDM.
 - "user_name": Name of the edited user.
 - "user_email": E-mail of the edited user.
 - "role": Deleted global role of the edited user.
@@ -4525,15 +4525,15 @@ This activity contains the following fields:
 
 ### changed_user_team_role
 
-Generated when user fleet roles are changed.
+Generated when user team roles are changed.
 
 This activity contains the following fields:
-- "user_id": Unique ID of the edited user in Fleet.
+- "user_id": Unique ID of the edited user in AutoMDM.
 - "user_name": Name of the edited user.
 - "user_email": E-mail of the edited user.
-- "role": Fleet role set to the edited user.
-- "fleet_id": Unique ID of the fleet of the changed role.
-- "fleet_name": Name of the fleet of the changed role.
+- "role": AutoMDM role set to the edited user.
+- "team_id": Unique ID of the team of the changed role.
+- "team_name": Name of the team of the changed role.
 - "jit": Whether the role was assigned via just-in-time (JIT) user provisioning (omitted when false).
 
 #### Example
@@ -4546,22 +4546,22 @@ This activity contains the following fields:
   "role": "Maintainer",
   "team_id": 5,
   "team_name": "Bar",
-  "fleet_id": 5,
-  "fleet_name": "Bar"
+  "team_id": 5,
+  "team_name": "Bar"
 }
 ```
 
 ### deleted_user_team_role
 
-Generated when user fleet roles are deleted.
+Generated when user team roles are deleted.
 
 This activity contains the following fields:
-- "user_id": Unique ID of the edited user in Fleet.
+- "user_id": Unique ID of the edited user in AutoMDM.
 - "user_name": Name of the edited user.
 - "user_email": E-mail of the edited user.
-- "role": Fleet role deleted from the edited user.
-- "fleet_id": Unique ID of the fleet of the deleted role.
-- "fleet_name": Name of the fleet of the deleted role.
+- "role": AutoMDM role deleted from the edited user.
+- "team_id": Unique ID of the team of the deleted role.
+- "team_name": Name of the team of the deleted role.
 - "jit": Whether the role was removed via just-in-time (JIT) user provisioning (omitted when false).
 
 #### Example
@@ -4574,8 +4574,8 @@ This activity contains the following fields:
   "role": "Observer",
   "team_id": 2,
   "team_name": "Zoo",
-  "fleet_id": 2,
-  "fleet_name": "Zoo"
+  "team_id": 2,
+  "team_name": "Zoo"
 }
 ```
 
@@ -4693,4 +4693,4 @@ This activity contains the following fields:
 
 <meta name="title" value="Global audit logs">
 <meta name="pageOrderInSection" value="60">
-<meta name="description" value="Learn how Fleet logs administrative actions in JSON format."> 
+<meta name="description" value="Learn how AutoMDM logs administrative actions in JSON format."> 

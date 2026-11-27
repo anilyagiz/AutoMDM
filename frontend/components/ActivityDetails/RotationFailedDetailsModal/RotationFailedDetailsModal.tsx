@@ -15,7 +15,7 @@ export type RotationFailedSubject =
   | "disk encryption key";
 
 interface IRotationFailedDetailsModalProps {
-  /** The reason Fleet recorded for the failure. */
+  /** The reason AutoMDM recorded for the failure. */
   detail: string;
   hostDisplayName: string;
   /** @default "managed local account password" */
@@ -50,7 +50,7 @@ const RotationFailedDetailsModal = ({
           iconName="error"
           message={
             <span>
-              Fleet failed to rotate the {subject} {preposition} {formattedHost}
+              AutoMDM failed to rotate the {subject} {preposition} {formattedHost}
               {createdAt && ` (${dateAgo(createdAt)})`}.
               {subject === "disk encryption key" &&
                 " Ask the end user to log out of their device or restart it. They'll see instructions on their My device page."}

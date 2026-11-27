@@ -21,11 +21,11 @@ describe("RegistrationForm - component", () => {
     ).toEqual(1);
   });
 
-  it("renders FleetDetails on the third page", () => {
+  it("renders TeamDetails on the third page", () => {
     const { container } = render(<RegistrationForm page={3} />);
 
     expect(
-      container.querySelectorAll(".user-registration__container--fleet").length
+      container.querySelectorAll(".user-registration__container--automdm").length
     ).toEqual(1);
   });
 

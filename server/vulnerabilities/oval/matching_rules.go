@@ -5,15 +5,15 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/nvd/tools/cvefeed/nvd"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/nvd/tools/cvefeed/nvd"
 )
 
 type SoftwareMatchingRule struct {
 	Name            string
 	VersionResolved string
 	CVEs            map[string]struct{}
-	MatchIf         func(software fleet.Software) bool
+	MatchIf         func(software automdm.Software) bool
 }
 
 type SoftwareMatchingRules []SoftwareMatchingRule
@@ -32,7 +32,7 @@ func GetKnownOVALBugRules() (SoftwareMatchingRules, error) {
 				"CVE-2022-21216": {},
 				"CVE-2022-33196": {},
 			},
-			MatchIf: func(s fleet.Software) bool {
+			MatchIf: func(s automdm.Software) bool {
 				return nvd.SmartVerCmp(s.Release, "53.1.fc37") >= 0
 			},
 		},
@@ -42,7 +42,7 @@ func GetKnownOVALBugRules() (SoftwareMatchingRules, error) {
 			CVEs: map[string]struct{}{
 				"CVE-2022-41804": {},
 			},
-			MatchIf: func(s fleet.Software) bool {
+			MatchIf: func(s automdm.Software) bool {
 				return nvd.SmartVerCmp(s.Release, "55.1.fc38") >= 0
 			},
 		},
@@ -72,7 +72,7 @@ func GetKnownOVALBugRules() (SoftwareMatchingRules, error) {
 				"CVE-2025-20623": {},
 				"CVE-2025-24495": {},
 			},
-			MatchIf: func(s fleet.Software) bool {
+			MatchIf: func(s automdm.Software) bool {
 				return nvd.SmartVerCmp(s.Release, "70.fc42") >= 0
 			},
 		},
@@ -100,7 +100,7 @@ func GetKnownOVALBugRules() (SoftwareMatchingRules, error) {
 }
 
 // Returns true if the software, cve pair have a matching ignore rule
-func (rules SoftwareMatchingRules) MatchesAny(s fleet.Software, cve string) bool {
+func (rules SoftwareMatchingRules) MatchesAny(s automdm.Software, cve string) bool {
 	if strings.TrimSpace(s.Name) == "" {
 		return false
 	}

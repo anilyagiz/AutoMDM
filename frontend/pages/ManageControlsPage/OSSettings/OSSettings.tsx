@@ -17,9 +17,9 @@ interface IOSSettingsProps {
   params: Params;
   router: InjectedRouter;
   currentPage: number;
-  // Undefined until the URL's fleet id resolves to an available fleet.
+  // Undefined until the URL's team id resolves to an available team.
   // Gate team-scoped queries on this being defined — anything fired during
-  // that window targets the wrong fleet.
+  // that window targets the wrong team.
   teamIdForApi?: number;
   location: {
     search: string;
@@ -85,7 +85,7 @@ const OSSettings = ({
 
   const CurrentCard = currentFormSection.Card;
 
-  // Wait for the fleet id to resolve before mounting children — they fire
+  // Wait for the team id to resolve before mounting children — they fire
   // team-scoped queries eagerly.
   if (teamIdForApi === undefined) {
     return <Spinner />;
@@ -95,7 +95,7 @@ const OSSettings = ({
     <div className={baseClass}>
       <PageDescription
         variant="tab-panel"
-        content="Remotely enforce OS settings on hosts assigned to this fleet."
+        content="Remotely enforce OS settings on hosts assigned to this team."
       />
       <ProfileStatusAggregate
         isLoading={isLoadingAggregateProfileStatus}

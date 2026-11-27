@@ -10,7 +10,7 @@ Cherry-pick a merged PR into the current RC branch. Arguments: $ARGUMENTS
 Usage: `/cherry-pick <PR_NUMBER> [RC_BRANCH]`
 
 - `PR_NUMBER` (required): The PR number to cherry-pick (e.g. `43078`). If not provided, ask the user.
-- `RC_BRANCH` (optional): The target RC branch name (e.g. `rc-minor-fleet-v4.83.0`). If not provided, auto-detect the most recent one.
+- `RC_BRANCH` (optional): The target RC branch name (e.g. `rc-minor-automdm-v4.83.0`). If not provided, auto-detect the most recent one.
 
 ## Step 1: Ensure main is up to date
 
@@ -25,10 +25,10 @@ If an RC branch was provided as the second argument, use it (but still confirm w
 Otherwise, auto-detect by listing major, minor, and patch RC branches:
 
 ```
-git for-each-ref 'refs/remotes/origin/rc-major-fleet-v*' 'refs/remotes/origin/rc-minor-fleet-v*' 'refs/remotes/origin/rc-patch-fleet-v*' --format='%(refname:strip=3)' | grep -E '^rc-(major|minor|patch)-fleet-v[0-9]+\.[0-9]+\.[0-9]+$' | sort -t v -k 2 -V
+git for-each-ref 'refs/remotes/origin/rc-major-automdm-v*' 'refs/remotes/origin/rc-minor-automdm-v*' 'refs/remotes/origin/rc-patch-automdm-v*' --format='%(refname:strip=3)' | grep -E '^rc-(major|minor|patch)-automdm-v[0-9]+\.[0-9]+\.[0-9]+$' | sort -t v -k 2 -V
 ```
 
-From the results, suggest the most recent `rc-major-fleet-v*` or `rc-minor-fleet-v*` branch as the default. If patch branches also exist, mention them as alternatives. **Always ask the user to confirm the target RC branch before proceeding.**
+From the results, suggest the most recent `rc-major-automdm-v*` or `rc-minor-automdm-v*` branch as the default. If patch branches also exist, mention them as alternatives. **Always ask the user to confirm the target RC branch before proceeding.**
 
 ## Step 3: Get the merge commit and GitHub username
 

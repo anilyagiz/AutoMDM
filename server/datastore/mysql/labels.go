@@ -12,11 +12,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	microsoft_mdm "github.com/fleetdm/fleet/v4/server/mdm/microsoft"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	microsoft_mdm "github.com/anilyagiz/automdm/v4/server/mdm/microsoft"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -32,38 +32,38 @@ var labelsAllowedOrderKeys = common_mysql.OrderKeyAllowlist{
 	"label_membership_type": "l.label_membership_type",
 	"author_id":             "l.author_id",
 	"criteria":              "l.criteria",
-	"fleet_id":              "l.team_id",
+	"team_id":               "l.team_id",
 
 	// dependent on include_host_counts being set on request
 	// (checked on transport layer).
 	"host_count": "host_count",
 }
 
-func (ds *Datastore) ApplyLabelSpecs(ctx context.Context, specs []*fleet.LabelSpec) (err error) {
+func (ds *Datastore) ApplyLabelSpecs(ctx context.Context, specs []*automdm.LabelSpec) (err error) {
 	return ds.ApplyLabelSpecsWithAuthor(ctx, specs, nil)
 }
 
-func (ds *Datastore) SetAsideLabels(ctx context.Context, notOnTeamID *uint, labelsToMove []fleet.LabelToMove, user fleet.User) error {
+func (ds *Datastore) SetAsideLabels(ctx context.Context, notOnTeamID *uint, labelsToMove []automdm.LabelToMove, user automdm.User) error {
 	if len(labelsToMove) == 0 {
 		return nil
 	}
 	names := make([]string, 0, len(labelsToMove))
-	fromFleetIDs := make(map[string][]uint, len(labelsToMove))
+	fromTeamIDs := make(map[string][]uint, len(labelsToMove))
 	for _, l := range labelsToMove {
-		if _, ok := fromFleetIDs[l.Name]; !ok {
+		if _, ok := fromTeamIDs[l.Name]; !ok {
 			names = append(names, l.Name)
 		}
-		fromFleetIDs[l.Name] = append(fromFleetIDs[l.Name], ptr.ValOrZero(l.FromFleetID))
+		fromTeamIDs[l.Name] = append(fromTeamIDs[l.Name], ptr.ValOrZero(l.FromAutoMDMID))
 	}
 
 	// Helper function to check if user has a write role on a specific team
 	hasWriteRoleOnTeam := func(teamID uint) bool {
 		for _, team := range user.Teams {
 			if team.ID == teamID &&
-				(team.Role == fleet.RoleAdmin ||
-					team.Role == fleet.RoleMaintainer ||
-					team.Role == fleet.RoleTechnician ||
-					team.Role == fleet.RoleGitOps) {
+				(team.Role == automdm.RoleAdmin ||
+					team.Role == automdm.RoleMaintainer ||
+					team.Role == automdm.RoleTechnician ||
+					team.Role == automdm.RoleGitOps) {
 				return true
 			}
 		}
@@ -75,14 +75,14 @@ func (ds *Datastore) SetAsideLabels(ctx context.Context, notOnTeamID *uint, labe
 		if user.GlobalRole == nil {
 			return false
 		}
-		return *user.GlobalRole == fleet.RoleAdmin ||
-			*user.GlobalRole == fleet.RoleMaintainer ||
-			*user.GlobalRole == fleet.RoleTechnician ||
-			*user.GlobalRole == fleet.RoleGitOps
+		return *user.GlobalRole == automdm.RoleAdmin ||
+			*user.GlobalRole == automdm.RoleMaintainer ||
+			*user.GlobalRole == automdm.RoleTechnician ||
+			*user.GlobalRole == automdm.RoleGitOps
 	}
 
 	if !hasGlobalWriteRole() && (notOnTeamID == nil || !hasWriteRoleOnTeam(*notOnTeamID)) {
-		return ctxerr.New(ctx, "you cannot edit labels on the specified fleet")
+		return ctxerr.New(ctx, "you cannot edit labels on the specified team")
 	}
 
 	type existingLabel struct {
@@ -92,13 +92,13 @@ func (ds *Datastore) SetAsideLabels(ctx context.Context, notOnTeamID *uint, labe
 		TeamID   *uint  `db:"team_id"`
 	}
 
-	// Fleets can share names, so only labels on the other side of the global/fleet boundary block the apply. A
-	// fleet's own labels and other fleets' labels are left alone.
+	// Teams can share names, so only labels on the other side of the global/automdm boundary block the apply. A
+	// team's own labels and other teams' labels are left alone.
 	stmt := `SELECT id, name, author_id, team_id FROM labels WHERE name IN (?) AND label_type != ? AND team_id IS NOT NULL`
 	if notOnTeamID != nil {
 		stmt = `SELECT id, name, author_id, team_id FROM labels WHERE name IN (?) AND label_type != ? AND team_id IS NULL`
 	}
-	stmt, args, err := sqlx.In(stmt, names, uint(fleet.LabelTypeBuiltIn))
+	stmt, args, err := sqlx.In(stmt, names, uint(automdm.LabelTypeBuiltIn))
 	if err != nil {
 		return ctxerr.Wrap(ctx, err, "build labels query")
 	}
@@ -113,9 +113,9 @@ func (ds *Datastore) SetAsideLabels(ctx context.Context, notOnTeamID *uint, labe
 
 	if notOnTeamID == nil {
 		for _, label := range labels {
-			// A fleet that isn't moving the name keeps its label, and a global label can't share its name.
-			if !slices.Contains(fromFleetIDs[label.Name], ptr.ValOrZero(label.TeamID)) {
-				return ctxerr.Wrap(ctx, &fleet.ConflictError{Message: fleet.LabelNameInUseByFleetsErrMsg})
+			// A team that isn't moving the name keeps its label, and a global label can't share its name.
+			if !slices.Contains(fromTeamIDs[label.Name], ptr.ValOrZero(label.TeamID)) {
+				return ctxerr.Wrap(ctx, &automdm.ConflictError{Message: automdm.LabelNameInUseByTeamsErrMsg})
 			}
 		}
 	}
@@ -125,10 +125,10 @@ func (ds *Datastore) SetAsideLabels(ctx context.Context, notOnTeamID *uint, labe
 	// Helper function to check if user has a write role on any team
 	hasWriteRoleAnywhere := func() bool {
 		for _, team := range user.Teams {
-			if team.Role == fleet.RoleAdmin ||
-				team.Role == fleet.RoleMaintainer ||
-				team.Role == fleet.RoleTechnician ||
-				team.Role == fleet.RoleGitOps {
+			if team.Role == automdm.RoleAdmin ||
+				team.Role == automdm.RoleMaintainer ||
+				team.Role == automdm.RoleTechnician ||
+				team.Role == automdm.RoleGitOps {
 				return true
 			}
 		}
@@ -159,7 +159,7 @@ func (ds *Datastore) SetAsideLabels(ctx context.Context, notOnTeamID *uint, labe
 
 	return ds.withRetryTxx(ctx, func(tx sqlx.ExtContext) error {
 		for _, label := range labels {
-			setAsideName := fleet.SetAsideLabelName(label.Name, label.TeamID)
+			setAsideName := automdm.SetAsideLabelName(label.Name, label.TeamID)
 			// The unique index only covers the label's own scope.
 			if err := checkLabelNameAcrossScopesTx(ctx, tx, setAsideName, label.TeamID); err != nil {
 				return ctxerr.Wrap(ctx, err, "set aside label")
@@ -172,7 +172,7 @@ func (ds *Datastore) SetAsideLabels(ctx context.Context, notOnTeamID *uint, labe
 	})
 }
 
-func (ds *Datastore) ApplyLabelSpecsWithAuthor(ctx context.Context, specs []*fleet.LabelSpec, authorID *uint) (err error) {
+func (ds *Datastore) ApplyLabelSpecsWithAuthor(ctx context.Context, specs []*automdm.LabelSpec, authorID *uint) (err error) {
 	// First, get existing labels to detect platform changes
 	labelNames := make([]string, 0, len(specs))
 	for _, s := range specs {
@@ -182,15 +182,15 @@ func (ds *Datastore) ApplyLabelSpecsWithAuthor(ctx context.Context, specs []*fle
 	}
 
 	type existingLabel struct {
-		ID        uint            `db:"id"`
-		Name      string          `db:"name"`
-		Platform  string          `db:"platform"`
-		TeamID    *uint           `db:"team_id"`
-		LabelType fleet.LabelType `db:"label_type"`
+		ID        uint              `db:"id"`
+		Name      string            `db:"name"`
+		Platform  string            `db:"platform"`
+		TeamID    *uint             `db:"team_id"`
+		LabelType automdm.LabelType `db:"label_type"`
 	}
 	// NOTE: Thie assumes the caller has verified that label specs are all writable by the user, either for authorship
 	// or team affiliation. We'll catch cases where a user is attempting to move a label's name between the global level
-	// and a fleet (which should've been cleaned up by SetAsideLabels).
+	// and a team (which should've been cleaned up by SetAsideLabels).
 
 	err = ds.withRetryTxx(ctx, func(tx sqlx.ExtContext) error {
 		// Built per attempt, so a retry doesn't reuse rows read by the failed one.
@@ -218,14 +218,14 @@ func (ds *Datastore) ApplyLabelSpecsWithAuthor(ctx context.Context, specs []*fle
 			}
 
 			for _, spec := range specs {
-				if spec.LabelType == fleet.LabelTypeBuiltIn {
+				if spec.LabelType == automdm.LabelTypeBuiltIn {
 					return ctxerr.Errorf(ctx, "cannot modify or add built-in label '%s'", spec.Name)
 				}
 				globalLabel, hasGlobal := existingLabels[newLabelScopeKey(spec.Name, nil)]
 				// The lookup above and the unique index the upsert keys on both inherit
 				// the case-insensitive collation of labels.name, so even a spec merely
 				// named as a case variant of a built-in resolves to that built-in row.
-				if hasGlobal && globalLabel.LabelType == fleet.LabelTypeBuiltIn {
+				if hasGlobal && globalLabel.LabelType == automdm.LabelTypeBuiltIn {
 					return ctxerr.Errorf(ctx, "cannot modify built-in label '%s'", globalLabel.Name)
 				}
 				// Checked in SQL rather than against the rows above: the column's collation also ignores trailing
@@ -281,7 +281,7 @@ func (ds *Datastore) ApplyLabelSpecsWithAuthor(ctx context.Context, specs []*fle
 			if existing, ok := existingLabels[newLabelScopeKey(s.Name, s.TeamID)]; ok && existing.Platform != s.Platform {
 				// When a label's platform changes, we delete all existing memberships.
 				// This ensures a clean slate - the label's query will be re-evaluated
-				// by Fleet's label execution system, and only hosts matching the new
+				// by AutoMDM's label execution system, and only hosts matching the new
 				// platform will be added back. This is simpler than trying to selectively
 				// remove hosts and handles all edge cases consistently.
 				cleanupSQL := `DELETE FROM label_membership WHERE label_id = ?`
@@ -291,8 +291,8 @@ func (ds *Datastore) ApplyLabelSpecsWithAuthor(ctx context.Context, specs []*fle
 				}
 			}
 
-			if s.LabelType == fleet.LabelTypeBuiltIn ||
-				s.LabelMembershipType != fleet.LabelMembershipTypeManual {
+			if s.LabelType == automdm.LabelTypeBuiltIn ||
+				s.LabelMembershipType != automdm.LabelMembershipTypeManual {
 				// No need to update membership
 				continue
 			}
@@ -388,7 +388,7 @@ DELETE FROM label_membership WHERE label_id = ?
 	return ctxerr.Wrap(ctx, err, "ApplyLabelSpecs transaction")
 }
 
-var errLabelMismatchHostTeam = errors.New("supplied hosts are on a different fleet than the label")
+var errLabelMismatchHostTeam = errors.New("supplied hosts are on a different team than the label")
 
 func checkHostIdentifiersInTeam(
 	ctx context.Context,
@@ -434,7 +434,7 @@ func batchHostnames(hostnames []string) [][]string {
 	return batches
 }
 
-func (ds *Datastore) UpdateLabelMembershipByHostIDs(ctx context.Context, label fleet.Label, hostIds []uint, teamFilter fleet.TeamFilter) (*fleet.Label, []uint, error) {
+func (ds *Datastore) UpdateLabelMembershipByHostIDs(ctx context.Context, label automdm.Label, hostIds []uint, teamFilter automdm.TeamFilter) (*automdm.Label, []uint, error) {
 	err := ds.withRetryTxx(ctx, func(tx sqlx.ExtContext) error {
 		return replaceLabelMembershipTx(ctx, tx, label, hostIds)
 	})
@@ -452,7 +452,7 @@ func (ds *Datastore) UpdateLabelMembershipByHostIDs(ctx context.Context, label f
 
 // replaceLabelMembershipTx replaces the manual membership of the given label
 // with exactly hostIDs.
-func replaceLabelMembershipTx(ctx context.Context, tx sqlx.ExtContext, label fleet.Label, hostIDs []uint) error {
+func replaceLabelMembershipTx(ctx context.Context, tx sqlx.ExtContext, label automdm.Label, hostIDs []uint) error {
 	// delete all label membership
 	if _, err := tx.ExecContext(ctx, `DELETE FROM label_membership WHERE label_id = ?`, label.ID); err != nil {
 		return ctxerr.Wrap(ctx, err, "clear membership for ID")
@@ -501,12 +501,12 @@ VALUES ` + strings.Join(placeholders, ", ")
 }
 
 // Update label membership for a host vitals label.
-func (ds *Datastore) UpdateLabelMembershipByHostCriteria(ctx context.Context, hvl fleet.HostVitalsLabel) (*fleet.Label, []uint, error) {
+func (ds *Datastore) UpdateLabelMembershipByHostCriteria(ctx context.Context, hvl automdm.HostVitalsLabel) (*automdm.Label, []uint, error) {
 	// Get the label data.
 	label := hvl.GetLabel()
 
 	// If the label isn't a host vitals label, bail out.
-	if label.LabelMembershipType != fleet.LabelMembershipTypeHostVitals {
+	if label.LabelMembershipType != automdm.LabelMembershipTypeHostVitals {
 		return nil, nil, ctxerr.New(ctx, "label is not a host vitals label")
 	}
 
@@ -594,8 +594,8 @@ func batchHostIds(hostIds []uint) [][]uint {
 	return batches
 }
 
-func (ds *Datastore) GetLabelSpecs(ctx context.Context, filter fleet.TeamFilter) ([]*fleet.LabelSpec, error) {
-	var specs []*fleet.LabelSpec
+func (ds *Datastore) GetLabelSpecs(ctx context.Context, filter automdm.TeamFilter) ([]*automdm.LabelSpec, error) {
+	var specs []*automdm.LabelSpec
 	// Get basic specs
 	query, params, err := applyLabelTeamFilter(`SELECT id, name, description, query, platform,
        label_type, label_membership_type, criteria, team_id
@@ -615,8 +615,8 @@ func (ds *Datastore) GetLabelSpecs(ctx context.Context, filter fleet.TeamFilter)
 	}
 
 	for _, spec := range specs {
-		if spec.LabelType != fleet.LabelTypeBuiltIn &&
-			spec.LabelMembershipType == fleet.LabelMembershipTypeManual {
+		if spec.LabelType != automdm.LabelTypeBuiltIn &&
+			spec.LabelMembershipType == automdm.LabelMembershipTypeManual {
 			if err := ds.getLabelHostIDs(ctx, spec, filter); err != nil {
 				return nil, err
 			}
@@ -626,8 +626,8 @@ func (ds *Datastore) GetLabelSpecs(ctx context.Context, filter fleet.TeamFilter)
 	return specs, nil
 }
 
-func (ds *Datastore) GetLabelSpec(ctx context.Context, filter fleet.TeamFilter, name string) (*fleet.LabelSpec, error) {
-	var specs []*fleet.LabelSpec
+func (ds *Datastore) GetLabelSpec(ctx context.Context, filter automdm.TeamFilter, name string) (*automdm.LabelSpec, error) {
+	var specs []*automdm.LabelSpec
 	query, params, err := applyLabelTeamFilter(`
 SELECT l.id, l.name, l.description, l.query, l.platform, l.label_type, l.label_membership_type, l.criteria, l.team_id
 FROM labels l
@@ -643,12 +643,12 @@ WHERE l.name = ?`, filter, name)
 		return nil, ctxerr.Wrap(ctx, notFound("Label").WithName(name))
 	}
 	if len(specs) > 1 {
-		return nil, ctxerr.Wrap(ctx, fleet.NewAmbiguousLabelNameError(name))
+		return nil, ctxerr.Wrap(ctx, automdm.NewAmbiguousLabelNameError(name))
 	}
 
 	spec := specs[0]
-	if spec.LabelType != fleet.LabelTypeBuiltIn &&
-		spec.LabelMembershipType == fleet.LabelMembershipTypeManual {
+	if spec.LabelType != automdm.LabelTypeBuiltIn &&
+		spec.LabelMembershipType == automdm.LabelMembershipTypeManual {
 		err := ds.getLabelHostIDs(ctx, spec, filter)
 		if err != nil {
 			return nil, err
@@ -658,7 +658,7 @@ WHERE l.name = ?`, filter, name)
 	return spec, nil
 }
 
-func (ds *Datastore) getLabelHostIDs(ctx context.Context, label *fleet.LabelSpec, filter fleet.TeamFilter) error {
+func (ds *Datastore) getLabelHostIDs(ctx context.Context, label *automdm.LabelSpec, filter automdm.TeamFilter) error {
 	// Global roles (including gitops, which needs the full list to round-trip
 	// specs) see every member; team-scoped users must not learn about host IDs
 	// outside their teams. filter.TeamID scopes which labels are returned, not
@@ -666,7 +666,7 @@ func (ds *Datastore) getLabelHostIDs(ctx context.Context, label *fleet.LabelSpec
 	hostFilter := "TRUE"
 	if filter.User == nil || !filter.User.HasAnyGlobalRole() {
 		hostFilter = ds.whereFilterHostsByTeams(
-			fleet.TeamFilter{User: filter.User, IncludeObserver: filter.IncludeObserver}, "h",
+			automdm.TeamFilter{User: filter.User, IncludeObserver: filter.IncludeObserver}, "h",
 		)
 	}
 	sql := fmt.Sprintf(`
@@ -682,8 +682,8 @@ func (ds *Datastore) getLabelHostIDs(ctx context.Context, label *fleet.LabelSpec
 	return nil
 }
 
-// NewLabel creates a new fleet.Label
-func (ds *Datastore) NewLabel(ctx context.Context, label *fleet.Label, opts ...fleet.OptionalArg) (*fleet.Label, error) {
+// NewLabel creates a new automdm.Label
+func (ds *Datastore) NewLabel(ctx context.Context, label *automdm.Label, opts ...automdm.OptionalArg) (*automdm.Label, error) {
 	query := `
 	INSERT INTO labels (
 		name,
@@ -731,19 +731,19 @@ func (ds *Datastore) NewLabel(ctx context.Context, label *fleet.Label, opts ...f
 	return label, nil
 }
 
-func (ds *Datastore) SaveLabel(ctx context.Context, label *fleet.Label, hostIDs []uint, teamFilter fleet.TeamFilter) (*fleet.LabelWithTeamName, []uint, error) {
+func (ds *Datastore) SaveLabel(ctx context.Context, label *automdm.Label, hostIDs []uint, teamFilter automdm.TeamFilter) (*automdm.LabelWithTeamName, []uint, error) {
 	var (
-		saved        *fleet.LabelWithTeamName
+		saved        *automdm.LabelWithTeamName
 		savedHostIDs []uint
 	)
 	err := ds.withRetryTxx(ctx, func(tx sqlx.ExtContext) error {
-		// The fleet is read from the row, not the argument, so a partial label can't make the check match itself.
+		// The team is read from the row, not the argument, so a partial label can't make the check match itself.
 		var teamID *uint
 		if err := sqlx.GetContext(ctx, tx, &teamID, `SELECT team_id FROM labels WHERE id = ?`, label.ID); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return ctxerr.Wrap(ctx, notFound("Label").WithID(label.ID))
 			}
-			return ctxerr.Wrap(ctx, err, "get label fleet")
+			return ctxerr.Wrap(ctx, err, "get label team")
 		}
 		if err := checkLabelNameAcrossScopesTx(ctx, tx, label.Name, teamID); err != nil {
 			return err
@@ -779,7 +779,7 @@ func (ds *Datastore) SaveLabel(ctx context.Context, label *fleet.Label, hostIDs 
 	return saved, savedHostIDs, nil
 }
 
-// DeleteLabel deletes a fleet.Label
+// DeleteLabel deletes an automdm.Label
 func (ds *Datastore) DeleteLabel(ctx context.Context, labelID uint) error {
 	err := ds.withRetryTxx(ctx, func(tx sqlx.ExtContext) error {
 		var name string
@@ -902,8 +902,8 @@ func (ds *Datastore) CleanupOrphanedLabelMembership(ctx context.Context) error {
 	return ds.deleteLabelMembershipInBatches(ctx, labelIDs)
 }
 
-// Label returns a fleet.LabelWithTeamName identified by lid if one exists and is accessible to the specified user.
-func (ds *Datastore) Label(ctx context.Context, lid uint, teamFilter fleet.TeamFilter) (*fleet.LabelWithTeamName, []uint, error) {
+// Label returns an automdm.LabelWithTeamName identified by lid if one exists and is accessible to the specified user.
+func (ds *Datastore) Label(ctx context.Context, lid uint, teamFilter automdm.TeamFilter) (*automdm.LabelWithTeamName, []uint, error) {
 	return ds.labelDB(ctx, lid, teamFilter, ds.reader(ctx))
 }
 
@@ -919,7 +919,7 @@ func (ds *Datastore) LabelMembershipHostIDs(ctx context.Context, labelID uint) (
 	return hostIDs, nil
 }
 
-func (ds *Datastore) labelDB(ctx context.Context, lid uint, teamFilter fleet.TeamFilter, q sqlx.QueryerContext) (*fleet.LabelWithTeamName, []uint, error) {
+func (ds *Datastore) labelDB(ctx context.Context, lid uint, teamFilter automdm.TeamFilter, q sqlx.QueryerContext) (*automdm.LabelWithTeamName, []uint, error) {
 	stmt := fmt.Sprintf(`
 		SELECT
 		       l.*, teams.name team_name,
@@ -933,7 +933,7 @@ func (ds *Datastore) labelDB(ctx context.Context, lid uint, teamFilter fleet.Tea
 		return nil, nil, ctxerr.Wrap(ctx, err, "building label select query")
 	}
 
-	var label fleet.LabelWithTeamName
+	var label automdm.LabelWithTeamName
 	if err := sqlx.GetContext(ctx, q, &label, stmt, params...); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil, ctxerr.Wrap(ctx, notFound("Label").WithID(lid))
@@ -942,7 +942,7 @@ func (ds *Datastore) labelDB(ctx context.Context, lid uint, teamFilter fleet.Tea
 	}
 
 	var hostIDs []uint
-	if label.LabelMembershipType == fleet.LabelMembershipTypeManual && label.HostCount > 0 {
+	if label.LabelMembershipType == automdm.LabelMembershipTypeManual && label.HostCount > 0 {
 		if err := sqlx.SelectContext(ctx, q, &hostIDs, `SELECT host_id FROM label_membership WHERE label_id = ?`, lid); err != nil {
 			return nil, nil, ctxerr.Wrap(ctx, err, "selecting label host IDs")
 		}
@@ -951,14 +951,14 @@ func (ds *Datastore) labelDB(ctx context.Context, lid uint, teamFilter fleet.Tea
 	return &label, hostIDs, nil
 }
 
-// ListLabels returns all labels limited or sorted by fleet.ListOptions.
+// ListLabels returns all labels limited or sorted by automdm.ListOptions.
 // MatchQuery not supported
-func (ds *Datastore) ListLabels(ctx context.Context, filter fleet.TeamFilter, opt fleet.ListOptions, includeHostCounts bool) ([]*fleet.Label, error) {
+func (ds *Datastore) ListLabels(ctx context.Context, filter automdm.TeamFilter, opt automdm.ListOptions, includeHostCounts bool) ([]*automdm.Label, error) {
 	if opt.After != "" {
-		return nil, &fleet.BadRequestError{Message: "parameter 'after' is not supported"}
+		return nil, &automdm.BadRequestError{Message: "parameter 'after' is not supported"}
 	}
 	if opt.MatchQuery != "" {
-		return nil, &fleet.BadRequestError{Message: "parameter 'query' is not supported"}
+		return nil, &automdm.BadRequestError{Message: "parameter 'query' is not supported"}
 	}
 
 	query := "SELECT l.* FROM labels l "
@@ -995,7 +995,7 @@ func (ds *Datastore) ListLabels(ctx context.Context, filter fleet.TeamFilter, op
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "list labels")
 	}
-	var labels []*fleet.Label
+	var labels []*automdm.Label
 
 	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &labels, query, params...); err != nil {
 		// it's ok if no labels exist
@@ -1009,10 +1009,10 @@ func (ds *Datastore) ListLabels(ctx context.Context, filter fleet.TeamFilter, op
 	return labels, nil
 }
 
-var errInaccessibleTeam = errors.New("The fleet ID you provided refers to a fleet that either does not exist or you do not have permission to access.")
+var errInaccessibleTeam = errors.New("The team ID you provided refers to a team that either does not exist or you do not have permission to access.")
 
-// labelScopeKey mirrors the labels unique index: names compare case-insensitively within one fleet, or among
-// global labels (fleet 0).
+// labelScopeKey mirrors the labels unique index: names compare case-insensitively within one team, or among
+// global labels (team 0).
 type labelScopeKey struct {
 	name   string
 	teamID uint
@@ -1022,38 +1022,38 @@ func newLabelScopeKey(name string, teamID *uint) labelScopeKey {
 	return labelScopeKey{name: strings.ToLower(name), teamID: ptr.ValOrZero(teamID)}
 }
 
-// The unique index can't stop a name from being used by both a global label and a fleet label, so this is checked
+// The unique index can't stop a name from being used by both a global label and a team label, so this is checked
 // here, locking the name so that a concurrent create on the other side of the boundary waits for this one.
 func checkLabelNameAcrossScopesTx(ctx context.Context, tx sqlx.ExtContext, name string, teamID *uint) error {
 	stmt := `SELECT 1 FROM labels WHERE name = ? AND team_id IS NOT NULL LIMIT 1 FOR UPDATE`
-	msg := fleet.LabelNameInUseByFleetsErrMsg
+	msg := automdm.LabelNameInUseByTeamsErrMsg
 	if teamID != nil {
 		stmt = `SELECT 1 FROM labels WHERE name = ? AND team_id IS NULL LIMIT 1 FOR UPDATE`
-		msg = fleet.LabelNameInUseGloballyErrMsg
+		msg = automdm.LabelNameInUseGloballyErrMsg
 	}
 	var found []int
 	if err := sqlx.SelectContext(ctx, tx, &found, stmt, name); err != nil {
-		return ctxerr.Wrap(ctx, err, "check label name across global and fleet labels")
+		return ctxerr.Wrap(ctx, err, "check label name across global and team labels")
 	}
 	if len(found) > 0 {
-		return ctxerr.Wrap(ctx, &fleet.ConflictError{Message: msg})
+		return ctxerr.Wrap(ctx, &automdm.ConflictError{Message: msg})
 	}
 	return nil
 }
 
-// resolveLabelNamesTx resolves each name to the one label an entity can see under it: global labels plus the fleet's
-// labels, or every label for a global entity (nil fleetID). Names are matched in MySQL, so they compare with the
+// resolveLabelNamesTx resolves each name to the one label an entity can see under it: global labels plus the team's
+// labels, or every label for a global entity (nil automdmID). Names are matched in MySQL, so they compare with the
 // column's collation, which also ignores case, accents, and trailing spaces.
-func resolveLabelNamesTx(ctx context.Context, q sqlx.QueryerContext, names []string, fleetID *uint) (map[string]uint, error) {
+func resolveLabelNamesTx(ctx context.Context, q sqlx.QueryerContext, names []string, automdmID *uint) (map[string]uint, error) {
 	ids := make(map[string]uint, len(names))
 	for _, name := range names {
 		if _, ok := ids[name]; ok {
 			continue
 		}
 		stmt, args := `SELECT id FROM labels WHERE name = ?`, []any{name}
-		if fleetID != nil {
+		if automdmID != nil {
 			stmt += ` AND (team_id IS NULL OR team_id = ?)`
-			args = append(args, *fleetID)
+			args = append(args, *automdmID)
 		}
 		var matches []uint
 		if err := sqlx.SelectContext(ctx, q, &matches, stmt, args...); err != nil {
@@ -1065,14 +1065,14 @@ func resolveLabelNamesTx(ctx context.Context, q sqlx.QueryerContext, names []str
 		case 1:
 			ids[name] = matches[0]
 		default:
-			return nil, ctxerr.Wrap(ctx, fleet.NewAmbiguousLabelNameError(name))
+			return nil, ctxerr.Wrap(ctx, automdm.NewAmbiguousLabelNameError(name))
 		}
 	}
 	return ids, nil
 }
 
 // applyLabelTeamFilter requires the labels table to be aliased as "l" to work
-func applyLabelTeamFilter(query string, filter fleet.TeamFilter, initialParams ...any) (string, []any, error) {
+func applyLabelTeamFilter(query string, filter automdm.TeamFilter, initialParams ...any) (string, []any, error) {
 	// using this rather than a "contains a WHERE" check because some queries have subqueries
 	// but don't have any parameters for those subqueries
 	whereOrAnd := " WHERE "
@@ -1096,7 +1096,7 @@ func applyLabelTeamFilter(query string, filter fleet.TeamFilter, initialParams .
 		if *filter.TeamID == 0 { // global labels only; any user can see them
 			return maybeIn(query + whereOrAnd + "l.team_id IS NULL")
 		} else if !filter.UserCanAccessSelectedTeam() {
-			return "", nil, fleet.NewUserMessageError(errInaccessibleTeam, 403)
+			return "", nil, automdm.NewUserMessageError(errInaccessibleTeam, 403)
 		} // else user can see the team labels they're asking for; return global labels plus that team's labels
 
 		return sqlx.In(query+whereOrAnd+"(l.team_id IS NULL OR l.team_id = ?)", append(initialParams, *filter.TeamID)...)
@@ -1112,18 +1112,18 @@ func applyLabelTeamFilter(query string, filter fleet.TeamFilter, initialParams .
 // labelPlatformForHost returns the label platform value that matches a host platform. Linux
 // hosts match the generic "linux" platform regardless of distribution.
 func labelPlatformForHost(hostPlatform string) string {
-	if fleet.IsLinux(hostPlatform) {
+	if automdm.IsLinux(hostPlatform) {
 		return "linux"
 	}
 	return hostPlatform
 }
 
-func (ds *Datastore) LabelQueriesForHost(ctx context.Context, host *fleet.Host) (map[string]string, error) {
+func (ds *Datastore) LabelQueriesForHost(ctx context.Context, host *automdm.Host) (map[string]string, error) {
 	query := `SELECT id, query FROM labels WHERE
 		(platform = ? OR platform = '') AND
 		label_membership_type = ? AND
 		(team_id IS NULL OR team_id = ?)`
-	rows, err := ds.reader(ctx).QueryContext(ctx, query, labelPlatformForHost(host.Platform), fleet.LabelMembershipTypeDynamic, host.TeamID)
+	rows, err := ds.reader(ctx).QueryContext(ctx, query, labelPlatformForHost(host.Platform), automdm.LabelMembershipTypeDynamic, host.TeamID)
 	if err != nil && err != sql.ErrNoRows {
 		return nil, ctxerr.Wrap(ctx, err, "selecting label queries for host")
 	}
@@ -1144,7 +1144,7 @@ func (ds *Datastore) LabelQueriesForHost(ctx context.Context, host *fleet.Host) 
 	return results, nil
 }
 
-func (ds *Datastore) RecordLabelQueryExecutions(ctx context.Context, host *fleet.Host, results map[uint]*bool, updated time.Time, deferredSaveHost bool) error {
+func (ds *Datastore) RecordLabelQueryExecutions(ctx context.Context, host *automdm.Host, results map[uint]*bool, updated time.Time, deferredSaveHost bool) error {
 	// Sort the results to have generated SQL queries ordered to minimize
 	// deadlocks. See https://github.com/fleetdm/fleet/issues/1146.
 	orderedIDs := make([]uint, 0, len(results))
@@ -1238,15 +1238,15 @@ func (ds *Datastore) RecordLabelQueryExecutions(ctx context.Context, host *fleet
 	return nil
 }
 
-// ListLabelsForHost returns a list of fleet.Label for a given host id.
-func (ds *Datastore) ListLabelsForHost(ctx context.Context, hid uint) ([]*fleet.Label, error) {
+// ListLabelsForHost returns a list of automdm.Label for a given host id.
+func (ds *Datastore) ListLabelsForHost(ctx context.Context, hid uint) ([]*automdm.Label, error) {
 	sqlStatement := `
 		SELECT labels.* from labels JOIN label_membership lm
 		WHERE lm.host_id = ?
 		AND lm.label_id = labels.id
 	`
 
-	labels := []*fleet.Label{}
+	labels := []*automdm.Label{}
 	err := sqlx.SelectContext(ctx, ds.reader(ctx), &labels, sqlStatement, hid)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "selecting host labels")
@@ -1295,7 +1295,7 @@ var hostsInLabelAllowedOrderKeys = common_mysql.OrderKeyAllowlist{
 	"last_enrolled_at":               "h.last_enrolled_at",
 	"refetch_requested":              "h.refetch_requested",
 	"refetch_critical_queries_until": "h.refetch_critical_queries_until",
-	"fleet_id":                       "h.team_id",
+	"team_id":                        "h.team_id",
 	"policy_updated_at":              "h.policy_updated_at",
 	"public_ip":                      "h.public_ip",
 
@@ -1314,7 +1314,7 @@ var hostsInLabelAllowedOrderKeys = common_mysql.OrderKeyAllowlist{
 	"timezone":          "h.timezone",
 	// must match SELECT clause subquery so cursor pagination (WHERE) and
 	// ORDER BY are consistent — MySQL disallows SELECT aliases in WHERE.
-	"fleet_name": "(SELECT name FROM teams t WHERE t.id = h.team_id)",
+	"team_name": "(SELECT name FROM teams t WHERE t.id = h.team_id)",
 
 	// COALESCE required on the following:
 	// must match SELECT clause so cursor pagination (WHERE) and ORDER BY are consistent
@@ -1330,9 +1330,9 @@ var hostsInLabelAllowedOrderKeys = common_mysql.OrderKeyAllowlist{
 	// Note: 'h.node_key', 'h.orbit_node_key' intentionally EXCLUDED
 }
 
-// ListHostsInLabel returns a list of fleet.Host that are associated
-// with fleet.Label referenced by Label ID
-func (ds *Datastore) ListHostsInLabel(ctx context.Context, filter fleet.TeamFilter, lid uint, opt fleet.HostListOptions) ([]*fleet.Host, error) {
+// ListHostsInLabel returns a list of automdm.Host that are associated
+// with automdm.Label referenced by Label ID
+func (ds *Datastore) ListHostsInLabel(ctx context.Context, filter automdm.TeamFilter, lid uint, opt automdm.HostListOptions) ([]*automdm.Host, error) {
 	labelCheckSql, labelCheckParams, err := applyLabelTeamFilter(`SELECT l.id FROM labels l WHERE id = ?`, filter, lid)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "building query to confirm label existence")
@@ -1396,7 +1396,7 @@ func (ds *Datastore) ListHostsInLabel(ctx context.Context, filter fleet.TeamFilt
       h.last_restarted_at,
       h.timezone,
       hoi.version AS orbit_version,
-      hoi.desktop_version AS fleet_desktop_version,
+      hoi.desktop_version AS automdm_desktop_version,
       (SELECT name FROM teams t WHERE t.id = h.team_id) AS team_name,` + hostOSSelect + `
       %s
       %s
@@ -1450,7 +1450,7 @@ func (ds *Datastore) ListHostsInLabel(ctx context.Context, filter fleet.TeamFilt
 		return nil, ctxerr.Wrap(ctx, err, "applying label query filters")
 	}
 
-	hosts := []*fleet.Host{}
+	hosts := []*automdm.Host{}
 	err = sqlx.SelectContext(ctx, ds.reader(ctx), &hosts, query, params...)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "selecting label query executions")
@@ -1462,7 +1462,7 @@ func (ds *Datastore) ListHostsInLabel(ctx context.Context, filter fleet.TeamFilt
 }
 
 // NOTE: the hosts table must be aliased to `h` in the query passed to this function.
-func (ds *Datastore) applyHostLabelFilters(ctx context.Context, filter fleet.TeamFilter, lid uint, query string, opt fleet.HostListOptions) (string, []interface{}, error) {
+func (ds *Datastore) applyHostLabelFilters(ctx context.Context, filter automdm.TeamFilter, lid uint, query string, opt automdm.HostListOptions) (string, []interface{}, error) {
 	// prior to returning, params will be appended in the following order: joinParams, whereParams
 	var whereParams, joinParams []interface{}
 
@@ -1522,7 +1522,7 @@ func (ds *Datastore) applyHostLabelFilters(ctx context.Context, filter fleet.Tea
 		query += softwareStatusJoin
 	}
 
-	if opt.ConnectedToFleetFilter != nil && *opt.ConnectedToFleetFilter ||
+	if opt.ConnectedToTeamFilter != nil && *opt.ConnectedToTeamFilter ||
 		opt.OSSettingsFilter.IsValid() ||
 		opt.MacOSSettingsFilter.IsValid() ||
 		opt.MacOSSettingsDiskEncryptionFilter.IsValid() ||
@@ -1587,7 +1587,7 @@ func (ds *Datastore) applyHostLabelFilters(ctx context.Context, filter fleet.Tea
 	return query, append(joinParams, whereParams...), nil
 }
 
-func (ds *Datastore) CountHostsInLabel(ctx context.Context, filter fleet.TeamFilter, lid uint, opt fleet.HostListOptions) (int, error) {
+func (ds *Datastore) CountHostsInLabel(ctx context.Context, filter automdm.TeamFilter, lid uint, opt automdm.HostListOptions) (int, error) {
 	query := `SELECT count(*) FROM label_membership lm
     JOIN hosts h ON (lm.host_id = h.id)
 	LEFT JOIN host_seen_times hst ON (h.id=hst.host_id)` + hostMobileMDMSeenTimeJoin + `
@@ -1610,7 +1610,7 @@ func (ds *Datastore) CountHostsInLabel(ctx context.Context, filter fleet.TeamFil
 	return count, nil
 }
 
-func (ds *Datastore) searchLabelsWithOmits(ctx context.Context, filter fleet.TeamFilter, query string, omit ...uint) ([]*fleet.Label, error) {
+func (ds *Datastore) searchLabelsWithOmits(ctx context.Context, filter automdm.TeamFilter, query string, omit ...uint) ([]*automdm.Label, error) {
 	sqlStatement := fmt.Sprintf(`
 			SELECT l.*,
 				(SELECT COUNT(1)
@@ -1634,7 +1634,7 @@ func (ds *Datastore) searchLabelsWithOmits(ctx context.Context, filter fleet.Tea
 
 	sql = ds.reader(ctx).Rebind(sql)
 
-	matches := []*fleet.Label{}
+	matches := []*automdm.Label{}
 	err = sqlx.SelectContext(ctx, ds.reader(ctx), &matches, sql, args...)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "selecting labels with omits")
@@ -1651,7 +1651,7 @@ func (ds *Datastore) searchLabelsWithOmits(ctx context.Context, filter fleet.Tea
 // When we search labels, we always want to make sure that the All Hosts label
 // is included in the results set. Sometimes it already is and we don't need to
 // add it, sometimes it's not so we explicitly add it.
-func (ds *Datastore) addAllHostsLabelToList(ctx context.Context, filter fleet.TeamFilter, labels []*fleet.Label, omit ...uint) ([]*fleet.Label, error) {
+func (ds *Datastore) addAllHostsLabelToList(ctx context.Context, filter automdm.TeamFilter, labels []*automdm.Label, omit ...uint) ([]*automdm.Label, error) {
 	sql := fmt.Sprintf(`
 			SELECT *,
 				(SELECT COUNT(1)
@@ -1666,8 +1666,8 @@ func (ds *Datastore) addAllHostsLabelToList(ctx context.Context, filter fleet.Te
 		`, ds.whereFilterHostsByTeams(filter, "h"),
 	)
 
-	var allHosts fleet.Label
-	if err := sqlx.GetContext(ctx, ds.reader(ctx), &allHosts, sql, fleet.LabelTypeBuiltIn); err != nil {
+	var allHosts automdm.Label
+	if err := sqlx.GetContext(ctx, ds.reader(ctx), &allHosts, sql, automdm.LabelTypeBuiltIn); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "get all hosts label")
 	}
 
@@ -1686,7 +1686,7 @@ func (ds *Datastore) addAllHostsLabelToList(ctx context.Context, filter fleet.Te
 	return append(labels, &allHosts), nil
 }
 
-func (ds *Datastore) searchLabelsDefault(ctx context.Context, filter fleet.TeamFilter, omit ...uint) ([]*fleet.Label, error) {
+func (ds *Datastore) searchLabelsDefault(ctx context.Context, filter automdm.TeamFilter, omit ...uint) ([]*automdm.Label, error) {
 	sql := fmt.Sprintf(`
 			SELECT l.*,
 				(SELECT COUNT(1)
@@ -1708,7 +1708,7 @@ func (ds *Datastore) searchLabelsDefault(ctx context.Context, filter fleet.TeamF
 		}
 	}
 
-	var labels []*fleet.Label
+	var labels []*automdm.Label
 	sql, args, err := applyLabelTeamFilter(sql, filter, in)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "searching default labels")
@@ -1728,8 +1728,8 @@ func (ds *Datastore) searchLabelsDefault(ctx context.Context, filter fleet.TeamF
 	return labels, nil
 }
 
-// SearchLabels performs wildcard searches on fleet.Label name
-func (ds *Datastore) SearchLabels(ctx context.Context, filter fleet.TeamFilter, query string, omit ...uint) ([]*fleet.Label, error) {
+// SearchLabels performs wildcard searches on automdm.Label name
+func (ds *Datastore) SearchLabels(ctx context.Context, filter automdm.TeamFilter, query string, omit ...uint) ([]*automdm.Label, error) {
 	transformedQuery := transformQuery(query)
 	if !queryMinLength(transformedQuery) {
 		return ds.searchLabelsDefault(ctx, filter, omit...)
@@ -1762,7 +1762,7 @@ func (ds *Datastore) SearchLabels(ctx context.Context, filter fleet.TeamFilter, 
 
 	sql += ` ORDER BY label_type DESC, id ASC`
 
-	matches := []*fleet.Label{}
+	matches := []*automdm.Label{}
 	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &matches, sql, args...); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "selecting labels for search")
 	}
@@ -1775,7 +1775,7 @@ func (ds *Datastore) SearchLabels(ctx context.Context, filter fleet.TeamFilter, 
 	return matches, nil
 }
 
-func (ds *Datastore) LabelIDsByName(ctx context.Context, names []string, filter fleet.TeamFilter) (map[string]uint, error) {
+func (ds *Datastore) LabelIDsByName(ctx context.Context, names []string, filter automdm.TeamFilter) (map[string]uint, error) {
 	labels, err := ds.labelIDsAndNames(ctx, names, filter)
 	if err != nil {
 		return nil, err
@@ -1784,7 +1784,7 @@ func (ds *Datastore) LabelIDsByName(ctx context.Context, names []string, filter 
 	result := make(map[string]uint, len(labels))
 	for _, label := range labels {
 		if _, ok := result[label.Name]; ok {
-			return nil, ctxerr.Wrap(ctx, fleet.NewAmbiguousLabelNameError(label.Name))
+			return nil, ctxerr.Wrap(ctx, automdm.NewAmbiguousLabelNameError(label.Name))
 		}
 		result[label.Name] = label.ID
 	}
@@ -1792,7 +1792,7 @@ func (ds *Datastore) LabelIDsByName(ctx context.Context, names []string, filter 
 	return result, nil
 }
 
-func (ds *Datastore) AllLabelIDsByName(ctx context.Context, names []string, filter fleet.TeamFilter) (map[string][]uint, error) {
+func (ds *Datastore) AllLabelIDsByName(ctx context.Context, names []string, filter automdm.TeamFilter) (map[string][]uint, error) {
 	labels, err := ds.labelIDsAndNames(ctx, names, filter)
 	if err != nil {
 		return nil, err
@@ -1810,7 +1810,7 @@ type labelIDAndName struct {
 	Name string `db:"name"`
 }
 
-func (ds *Datastore) labelIDsAndNames(ctx context.Context, names []string, filter fleet.TeamFilter) ([]labelIDAndName, error) {
+func (ds *Datastore) labelIDsAndNames(ctx context.Context, names []string, filter automdm.TeamFilter) ([]labelIDAndName, error) {
 	if len(names) == 0 {
 		return nil, nil
 	}
@@ -1827,9 +1827,9 @@ func (ds *Datastore) labelIDsAndNames(ctx context.Context, names []string, filte
 	return labels, nil
 }
 
-func (ds *Datastore) LabelsByName(ctx context.Context, names []string, filter fleet.TeamFilter) (map[string]*fleet.Label, error) {
+func (ds *Datastore) LabelsByName(ctx context.Context, names []string, filter automdm.TeamFilter) (map[string]*automdm.Label, error) {
 	if len(names) == 0 {
-		return map[string]*fleet.Label{}, nil
+		return map[string]*automdm.Label{}, nil
 	}
 
 	sqlStatement, args, err := applyLabelTeamFilter(`SELECT l.* FROM labels l WHERE l.name IN (?)`, filter, names)
@@ -1837,12 +1837,12 @@ func (ds *Datastore) LabelsByName(ctx context.Context, names []string, filter fl
 		return nil, ctxerr.Wrap(ctx, err, "building query to get label ids by name")
 	}
 
-	var labels []*fleet.Label
+	var labels []*automdm.Label
 	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &labels, sqlStatement, args...); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "get labels by name")
 	}
 
-	result := make(map[string]*fleet.Label, len(labels))
+	result := make(map[string]*automdm.Label, len(labels))
 	for _, label := range labels {
 		result[label.Name] = label
 	}
@@ -1859,8 +1859,8 @@ func amountLabelsDB(ctx context.Context, db sqlx.QueryerContext) (int, error) {
 	return amount, nil
 }
 
-func (ds *Datastore) LabelsSummary(ctx context.Context, filter fleet.TeamFilter) ([]*fleet.LabelSummary, error) {
-	var labelsSummary []*fleet.LabelSummary
+func (ds *Datastore) LabelsSummary(ctx context.Context, filter automdm.TeamFilter) ([]*automdm.LabelSummary, error) {
+	var labelsSummary []*automdm.LabelSummary
 
 	query := "SELECT id, name, description, label_type, team_id FROM labels l"
 	query, params, err := applyLabelTeamFilter(query, filter)

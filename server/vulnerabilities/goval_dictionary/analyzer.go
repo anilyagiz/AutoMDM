@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/oval"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/utils"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/oval"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/utils"
 )
 
 const (
@@ -24,14 +24,14 @@ var ErrUnsupportedPlatform = errors.New("unsupported platform")
 // Returns nil, nil when the platform isn't supported.
 func Analyze(
 	ctx context.Context,
-	ds fleet.Datastore,
-	ver fleet.OSVersion,
+	ds automdm.Datastore,
+	ver automdm.OSVersion,
 	vulnPath string,
 	collectVulns bool,
 	logger *slog.Logger,
-) ([]fleet.SoftwareVulnerability, error) {
+) ([]automdm.SoftwareVulnerability, error) {
 	platform := oval.NewPlatform(ver.Platform, ver.Name)
-	source := fleet.GovalDictionarySource
+	source := automdm.GovalDictionarySource
 	if !platform.IsGovalDictionarySupported() {
 		return nil, ErrUnsupportedPlatform
 	}
@@ -53,8 +53,8 @@ func Analyze(
 	// Since hosts and software have a M:N relationship, the following sets are used to
 	// avoid doing duplicated inserts/delete operations (a vulnerable software might be
 	// present in many hosts).
-	toInsertSet := make(map[string]fleet.SoftwareVulnerability)
-	toDeleteSet := make(map[string]fleet.SoftwareVulnerability)
+	toInsertSet := make(map[string]automdm.SoftwareVulnerability)
+	toDeleteSet := make(map[string]automdm.SoftwareVulnerability)
 
 	var offset int
 	for {
@@ -68,10 +68,10 @@ func Analyze(
 		}
 		offset += hostsBatchSize
 
-		foundInBatch := make(map[uint][]fleet.SoftwareVulnerability)
+		foundInBatch := make(map[uint][]automdm.SoftwareVulnerability)
 		for _, hostID := range hostIDs {
 			hostID := hostID
-			software, err := ds.ListSoftwareForVulnDetection(ctx, fleet.VulnSoftwareFilter{
+			software, err := ds.ListSoftwareForVulnDetection(ctx, automdm.VulnSoftwareFilter{
 				HostID:      &hostID,
 				Sources:     oval.SupportedSoftwareSources,
 				KernelsOnly: kernelsOnly,
@@ -100,14 +100,14 @@ func Analyze(
 		}
 	}
 
-	err = utils.BatchProcess(toDeleteSet, func(v []fleet.SoftwareVulnerability) error {
+	err = utils.BatchProcess(toDeleteSet, func(v []automdm.SoftwareVulnerability) error {
 		return ds.DeleteSoftwareVulnerabilities(ctx, v)
 	}, vulnBatchSize)
 	if err != nil {
 		return nil, err
 	}
 
-	allVulns := make([]fleet.SoftwareVulnerability, 0, len(toInsertSet))
+	allVulns := make([]automdm.SoftwareVulnerability, 0, len(toInsertSet))
 	for _, v := range toInsertSet {
 		allVulns = append(allVulns, v)
 	}

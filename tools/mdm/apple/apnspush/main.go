@@ -1,14 +1,14 @@
-// Command apnspush takes a mysql database connection information and the fleet
+// Command apnspush takes a mysql database connection information and the team
 // server private key (to decrypt MDM assets) and sends a push notification to
-// a host identified by UUID (the host doesn't have to exist in Fleet, but for
-// the notification to do anything it should have been enrolled in Fleet MDM,
-// even if the host itself is now deleted from Fleet).
+// a host identified by UUID (the host doesn't have to exist in AutoMDM, but for
+// the notification to do anything it should have been enrolled in AutoMDM,
+// even if the host itself is now deleted from AutoMDM).
 //
 // Was implemented to force deleted iDevices to check-in sooner for
 // https://github.com/fleetdm/fleet/issues/22941
 // and can still be useful for debugging purposes.
 //
-// Usage (through the full Fleet push stack — nanomdm push service + nanopush):
+// Usage (through the full AutoMDM push stack — nanomdm push service + nanopush):
 //
 //	go run ./tools/mdm/apple/apnspush/main.go -mysql localhost:3306 -server-private-key <key> HOST_UUID1 HOST_UUID2 ...
 //
@@ -43,18 +43,18 @@ import (
 	"time"
 
 	"github.com/WatchBeam/clock"
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/push/nanopush"
-	nanomdm_pushsvc "github.com/fleetdm/fleet/v4/server/mdm/nanomdm/push/service"
-	"github.com/fleetdm/fleet/v4/server/service"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/push/nanopush"
+	nanomdm_pushsvc "github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/push/service"
+	"github.com/anilyagiz/automdm/v4/server/service"
 )
 
 func main() {
 	mysqlAddr := flag.String("mysql", "localhost:3306", "mysql address")
-	serverPrivateKey := flag.String("server-private-key", "", "fleet server's private key (to decrypt MDM assets)")
+	serverPrivateKey := flag.String("server-private-key", "", "automdm server's private key (to decrypt MDM assets)")
 	direct := flag.Bool("direct", false, "send raw requests directly to APNS, bypassing the nanomdm push service and provider, and dump the raw responses")
 	apnsURL := flag.String("url", "https://api.push.apple.com", "APNS base URL for -direct mode (e.g. https://api.development.push.apple.com for the sandbox, or a mock server)")
 	expiration := flag.Int64("expiration", -1, "apns-expiration header value (unix seconds) for -direct mode; -1 omits the header, 0 means deliver-now-or-discard")
@@ -78,12 +78,12 @@ func main() {
 		serverPrivateKey = &truncatedServerPrivateKey
 	}
 
-	// this matches the development config in /cmd/fleet/main.go
+	// this matches the development config in /cmd/automdm/main.go
 	cfg := config.MysqlConfig{
 		Protocol:        "tcp",
 		Address:         *mysqlAddr,
-		Database:        "fleet",
-		Username:        "fleet",
+		Database:        "automdm",
+		Username:        "automdm",
 		Password:        "insecure",
 		MaxOpenConns:    50,
 		MaxIdleConns:    50,
@@ -93,7 +93,7 @@ func main() {
 
 	opts := []mysql.DBOption{
 		mysql.Logger(logger),
-		mysql.WithFleetConfig(&config.FleetConfig{
+		mysql.WithAutoMDMConfig(&config.AutoMDMConfig{
 			Server: config.ServerConfig{PrivateKey: *serverPrivateKey},
 		}),
 	}
@@ -116,12 +116,12 @@ func main() {
 
 	pushProviderFactory := nanopush.NewFactory(
 		nanopush.WithNewClient(func(cert *tls.Certificate) (*http.Client, error) {
-			return fleethttp.NewClient(fleethttp.WithTLSClientConfig(&tls.Config{
+			return automdmhttp.NewClient(automdmhttp.WithTLSClientConfig(&tls.Config{
 				Certificates: []tls.Certificate{*cert},
 				MinVersion:   tls.VersionTLS12, // Apple APNs requires TLS 1.2+
 			})), nil
 		}),
-		// same default expiration the Fleet server uses (mdm.apple_apns_push_expiration)
+		// same default expiration the AutoMDM server uses (mdm.apple_apns_push_expiration)
 		nanopush.WithExpiration(30*24*time.Hour),
 	)
 
@@ -140,7 +140,7 @@ func main() {
 }
 
 // pushDirect resolves each host UUID to its device token and push magic via
-// nano_enrollments, then sends the same request Fleet sends today —
+// nano_enrollments, then sends the same request AutoMDM sends today —
 // POST /3/device/<token> with body {"mdm":"<magic>"} — with the APNS
 // certificate from mdm_config_assets as the TLS client certificate, and
 // prints the raw response.
@@ -156,10 +156,10 @@ func pushDirect(ctx context.Context, mdmStorage *mysql.NanoMDMStorage, baseURL s
 	}
 
 	// Same client the full-stack path above builds, so -direct exercises the
-	// transport Fleet actually uses. HTTP/2 comes from ALPN (fleethttp's
+	// transport AutoMDM actually uses. HTTP/2 comes from ALPN (automdmhttp's
 	// transport inherits ForceAttemptHTTP2 from http.DefaultTransport); the
 	// response's Proto is printed below, so a downgrade is visible.
-	client := fleethttp.NewClient(fleethttp.WithTLSClientConfig(&tls.Config{
+	client := automdmhttp.NewClient(automdmhttp.WithTLSClientConfig(&tls.Config{
 		Certificates: []tls.Certificate{*cert},
 		MinVersion:   tls.VersionTLS12, // Apple APNs requires TLS 1.2+
 	}))

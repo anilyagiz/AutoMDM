@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
 	"github.com/rs/zerolog/log"
 )
 
@@ -46,11 +46,11 @@ type snapdClient struct {
 }
 
 func newSnapdClient() *snapdClient {
-	client := fleethttp.NewClient(fleethttp.WithTimeout(60 * time.Second))
-	// Override fleethttp's transport with one that dials the snapd unix socket.
+	client := automdmhttp.NewClient(automdmhttp.WithTimeout(60 * time.Second))
+	// Override automdmhttp's transport with one that dials the snapd unix socket.
 	// The socket is local, so we intentionally skip the otelhttp/HTTP telemetry
-	// layer that fleethttp installs by default; this mirrors the pattern used
-	// by fleethttp's own tests when a bespoke transport is required.
+	// layer that automdmhttp installs by default; this mirrors the pattern used
+	// by automdmhttp's own tests when a bespoke transport is required.
 	client.Transport = &http.Transport{ //nolint:gocritic // unix socket transport override
 		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 			var d net.Dialer

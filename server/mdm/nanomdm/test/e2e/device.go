@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/test"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/test/enrollment"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/test"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/test/enrollment"
 	"github.com/micromdm/plist"
 )
 

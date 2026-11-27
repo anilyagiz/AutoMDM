@@ -134,7 +134,7 @@ const ActivityDataRetentionSection = ({
               !disableChildren && (
                 <>
                   Disabling stored results will decrease database usage, but
-                  will prevent you from accessing report results in Fleet and
+                  will prevent you from accessing report results in AutoMDM and
                   will delete existing results. This can also be disabled on a
                   per-report basis.
                   <br />
@@ -144,7 +144,7 @@ const ActivityDataRetentionSection = ({
                 </>
               )
             }
-            helpText="Disabling this setting will delete all existing report results in Fleet."
+            helpText="Disabling this setting will delete all existing report results in AutoMDM."
           >
             Store report results
           </Checkbox>
@@ -167,7 +167,7 @@ const ActivityDataRetentionSection = ({
               labelTooltipContent={
                 !disableChildren && (
                   <>
-                    When disabled, Fleet stops collecting host AI session data.
+                    When disabled, AutoMDM stops collecting host AI session data.
                     <br />
                     <i>
                       (Default: <strong>On</strong>)
@@ -197,7 +197,7 @@ const ActivityDataRetentionSection = ({
             labelTooltipContent={
               !disableChildren && (
                 <>
-                  When disabled, Fleet stops collecting hourly hosts online data
+                  When disabled, AutoMDM stops collecting hourly hosts online data
                   used by the dashboard chart.
                   <br />
                   <i>
@@ -228,7 +228,7 @@ const ActivityDataRetentionSection = ({
               labelTooltipContent={
                 !disableChildren && (
                   <>
-                    When disabled, Fleet stops collecting historical
+                    When disabled, AutoMDM stops collecting historical
                     vulnerability exposure data used by the dashboard chart.
                     <br />
                     <i>

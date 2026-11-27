@@ -6,15 +6,15 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 )
 
 const orgLogosPrefix = "org-logos"
 
 type orgLogoNotFoundError struct{}
 
-var _ fleet.NotFoundError = (*orgLogoNotFoundError)(nil)
+var _ automdm.NotFoundError = (*orgLogoNotFoundError)(nil)
 
 func (orgLogoNotFoundError) Error() string    { return "org logo not found" }
 func (orgLogoNotFoundError) IsNotFound() bool { return true }
@@ -31,11 +31,11 @@ func NewOrgLogoStore(rootDir string) (*OrgLogoStore, error) {
 	return &OrgLogoStore{rootDir: rootDir}, nil
 }
 
-func (s *OrgLogoStore) pathFor(mode fleet.OrgLogoMode) string {
+func (s *OrgLogoStore) pathFor(mode automdm.OrgLogoMode) string {
 	return filepath.Join(s.rootDir, orgLogosPrefix, string(mode))
 }
 
-func (s *OrgLogoStore) Get(ctx context.Context, mode fleet.OrgLogoMode) (io.ReadCloser, int64, error) {
+func (s *OrgLogoStore) Get(ctx context.Context, mode automdm.OrgLogoMode) (io.ReadCloser, int64, error) {
 	p := s.pathFor(mode)
 	f, err := os.Open(p)
 	if err != nil {
@@ -52,7 +52,7 @@ func (s *OrgLogoStore) Get(ctx context.Context, mode fleet.OrgLogoMode) (io.Read
 	return f, st.Size(), nil
 }
 
-func (s *OrgLogoStore) Put(ctx context.Context, mode fleet.OrgLogoMode, content io.ReadSeeker) error {
+func (s *OrgLogoStore) Put(ctx context.Context, mode automdm.OrgLogoMode, content io.ReadSeeker) error {
 	p := s.pathFor(mode)
 	f, err := os.Create(p)
 	if err != nil {
@@ -68,7 +68,7 @@ func (s *OrgLogoStore) Put(ctx context.Context, mode fleet.OrgLogoMode, content 
 	return nil
 }
 
-func (s *OrgLogoStore) Delete(ctx context.Context, mode fleet.OrgLogoMode) error {
+func (s *OrgLogoStore) Delete(ctx context.Context, mode automdm.OrgLogoMode) error {
 	p := s.pathFor(mode)
 	if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
 		return ctxerr.Wrap(ctx, err, "remove org logo file")
@@ -76,7 +76,7 @@ func (s *OrgLogoStore) Delete(ctx context.Context, mode fleet.OrgLogoMode) error
 	return nil
 }
 
-func (s *OrgLogoStore) Exists(ctx context.Context, mode fleet.OrgLogoMode) (bool, error) {
+func (s *OrgLogoStore) Exists(ctx context.Context, mode automdm.OrgLogoMode) (bool, error) {
 	p := s.pathFor(mode)
 	if _, err := os.Stat(p); err != nil {
 		if os.IsNotExist(err) {

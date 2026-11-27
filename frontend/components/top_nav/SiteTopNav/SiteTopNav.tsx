@@ -143,9 +143,9 @@ const SiteTopNav = ({
     const onThemeChange = (e: Event) => {
       setDarkMode((e as CustomEvent).detail.dark);
     };
-    window.addEventListener("fleet-theme-change", onThemeChange);
+    window.addEventListener("automdm-theme-change", onThemeChange);
     return () =>
-      window.removeEventListener("fleet-theme-change", onThemeChange);
+      window.removeEventListener("automdm-theme-change", onThemeChange);
   }, []);
 
   const isActiveDetailPage = isDetailPage(currentPath);
@@ -154,9 +154,9 @@ const SiteTopNav = ({
   const currentQueryParams = { ...query };
   if (isActiveGlobalPage || isActiveDetailPage) {
     // detail pages (e.g., host details) and some manage pages (e.g., queries) aren't guaranteed to
-    // have a fleet_id in the URL that we can simply append to the top nav links so instead we need grab the team
+    // have a team_id in the URL that we can simply append to the top nav links so instead we need grab the team
     // id from context
-    currentQueryParams.fleet_id =
+    currentQueryParams.team_id =
       currentTeam?.id === APP_CONTEXT_ALL_TEAMS_ID
         ? API_ALL_TEAMS_ID
         : currentTeam?.id;
@@ -195,9 +195,9 @@ const SiteTopNav = ({
         ? navItem.location.pathname
         : currentPath;
 
-      if (currentQueryParams.fleet_id !== API_ALL_TEAMS_ID) {
+      if (currentQueryParams.team_id !== API_ALL_TEAMS_ID) {
         path = getPathWithQueryParams(path, {
-          fleet_id: currentQueryParams.fleet_id,
+          team_id: currentQueryParams.team_id,
         });
       }
 
@@ -225,7 +225,7 @@ const SiteTopNav = ({
           <LinkWithContext
             className={`${navItemBaseClass}__link`}
             withParams={withParams}
-            currentQueryParams={{ fleet_id: currentQueryParams.fleet_id }}
+            currentQueryParams={{ team_id: currentQueryParams.team_id }}
             to={navItem.location.pathname}
           >
             <span

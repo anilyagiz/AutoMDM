@@ -5,7 +5,7 @@ import logoUrl from "../assets/logo.png";
 import { DepCheckSection } from "./DepCheck";
 import { copyText } from "../lib/clipboard";
 
-const FLEET_CLONE_CMD = "git clone https://github.com/fleetdm/fleet.git";
+const AUTOMDM_CLONE_CMD = "git clone https://github.com/anilyagiz/automdm.git";
 
 export function FirstRunGate({
   onComplete,
@@ -25,7 +25,7 @@ export function FirstRunGate({
   const scanRepos = useCallback(async () => {
     setScanning(true);
     try {
-      const p = await api.probeFleetRepo();
+      const p = await api.probeAutoMDMRepo();
       setProbes(p);
       setSelected((cur) =>
         cur && p.some((x) => x.path === cur && x.valid)
@@ -48,13 +48,13 @@ export function FirstRunGate({
     if (!result) return;
     const path = typeof result === "string" ? result : null;
     if (!path) return;
-    const probed = await api.probeFleetRepo(path);
+    const probed = await api.probeAutoMDMRepo(path);
     if (probed[0]?.valid) {
       setProbes([probed[0], ...probes.filter((p) => p.path !== probed[0].path)]);
       setSelected(probed[0].path);
       setError(null);
     } else {
-      setError(probed[0]?.reason ?? "not a valid fleet repo");
+      setError(probed[0]?.reason ?? "not a valid automdm repo");
     }
   }
 
@@ -62,17 +62,17 @@ export function FirstRunGate({
     setBusy(true);
     try {
       const baseline = await api.getSettings();
-      // Auto-detect a fleet.yml in the repo root so serve points at it
+      // Auto-detect an automdm.yml in the repo root so serve points at it
       // when present; absent → leave config unset (env / dev defaults).
       const detectedConfig =
-        !skip && selected ? await api.detectFleetConfig(selected) : null;
+        !skip && selected ? await api.detectAutoMDMConfig(selected) : null;
       // Seed the first server's worktree + config (baseline is already
       // migrated, so servers[0] exists).
       const firstId = baseline.servers[0]?.id ?? baseline.active_server_id;
       const seeded = updateServer(baseline, firstId, (srv) => ({
         ...srv,
         worktree_path: skip ? null : selected,
-        fleet_serve: { ...srv.fleet_serve, config_path: detectedConfig },
+        automdm_serve: { ...srv.automdm_serve, config_path: detectedConfig },
       }));
       const s: Settings = { ...seeded, first_run_complete: true };
       await api.saveSettings(s);
@@ -133,7 +133,7 @@ export function FirstRunGate({
               marginBottom: 4,
             }}
           >
-            Welcome to Fleet Hangar
+            Welcome to AutoMDM Hangar
           </div>
           <div className="dim" style={{ fontSize: "var(--fs-xx-small)" }}>
             Quick setup · all paths are editable later in Settings
@@ -152,12 +152,12 @@ export function FirstRunGate({
             }}
           >
             <div className="section-title" style={{ margin: 0 }}>
-              Fleet repository
+              AutoMDM repository
             </div>
             <button
               onClick={scanRepos}
               disabled={scanning}
-              title="Re-scan common dev folders and ~/fleet for clones"
+              title="Re-scan common dev folders and ~/automdm for clones"
               style={{ fontSize: "var(--fs-xxx-small)" }}
             >
               <span
@@ -178,7 +178,7 @@ export function FirstRunGate({
                   padding: "var(--pad-medium) 0",
                 }}
               >
-                Scanning common dev folders for Fleet clones…
+                Scanning common dev folders for AutoMDM clones…
               </div>
             )}
             {!scanning &&
@@ -254,7 +254,7 @@ function NoRepoFound() {
   const [copied, setCopied] = useState(false);
   async function copy() {
     try {
-      await copyText(FLEET_CLONE_CMD);
+      await copyText(AUTOMDM_CLONE_CMD);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch (e) {
@@ -279,7 +279,7 @@ function NoRepoFound() {
           color: "var(--app-text-dim)",
         }}
       >
-        No Fleet clones found in common dev folders. Clone it with:
+        No AutoMDM clones found in common dev folders. Clone it with:
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
         <code
@@ -297,7 +297,7 @@ function NoRepoFound() {
             scrollbarGutter: "stable",
           }}
         >
-          {FLEET_CLONE_CMD}
+          {AUTOMDM_CLONE_CMD}
         </code>
         <button
           onClick={copy}
@@ -336,7 +336,7 @@ function ProbeRow({
         padding: "10px 12px",
         background: selected ? "var(--tint-success-soft)" : "var(--app-surface-2)",
         border: selected
-          ? "1px solid var(--core-fleet-green)"
+          ? "1px solid var(--core-automdm-green)"
           : "1px solid var(--app-border)",
         borderRadius: "var(--radius-md)",
         textAlign: "left",
@@ -371,7 +371,7 @@ function ProbeRow({
           textTransform: "uppercase",
           letterSpacing: "0.06em",
           color: probe.valid
-            ? "var(--core-fleet-green)"
+            ? "var(--core-automdm-green)"
             : "var(--ui-error)",
         }}
       >

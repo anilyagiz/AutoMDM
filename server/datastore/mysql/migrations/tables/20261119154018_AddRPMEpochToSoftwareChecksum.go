@@ -83,7 +83,7 @@ func selectSoftwareWithEpoch20261119154018(tx *sql.Tx, afterID uint64) ([]softwa
 	return batch, nil
 }
 
-// softwareChecksumWithEpoch20261119154018 is how fleet.Software.ComputeRawChecksum adds the epoch
+// softwareChecksumWithEpoch20261119154018 is how automdm.Software.ComputeRawChecksum adds the epoch
 // to the checksum of the software's other fields as of this migration.
 func softwareChecksumWithEpoch20261119154018(checksum []byte, epoch uint32) []byte {
 	sum := md5.Sum([]byte(hex.EncodeToString(checksum) + "epoch:" + strconv.FormatUint(uint64(epoch), 10))) //nolint:gosec // see import

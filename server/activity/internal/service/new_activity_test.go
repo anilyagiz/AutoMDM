@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/activity"
-	"github.com/fleetdm/fleet/v4/server/activity/api"
-	"github.com/fleetdm/fleet/v4/server/activity/internal/types"
+	"github.com/anilyagiz/automdm/v4/server/activity"
+	"github.com/anilyagiz/automdm/v4/server/activity/api"
+	"github.com/anilyagiz/automdm/v4/server/activity/internal/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -101,7 +101,7 @@ type hostActivityMalformedIDs struct {
 }
 
 type aliasedActivity struct {
-	TeamID uint `json:"team_id" renameto:"fleet_id"`
+	TeamID uint `json:"team_id"`
 }
 
 func (a aliasedActivity) ActivityName() string { return "aliased_test" }
@@ -175,11 +175,11 @@ func TestNewActivityDuplicatesAliasedJSONKeys(t *testing.T) {
 
 	require.True(t, ds.newActivityCalled)
 
-	// Details should contain both team_id and fleet_id
+	// Details should contain both team_id and team_id
 	var details map[string]any
 	require.NoError(t, json.Unmarshal(ds.lastDetails, &details))
 	assert.Equal(t, float64(42), details["team_id"])
-	assert.Equal(t, float64(42), details["fleet_id"])
+	assert.Equal(t, float64(42), details["team_id"])
 }
 
 func TestNewActivityCallsActivator(t *testing.T) {
@@ -436,7 +436,7 @@ func TestNewActivityWebhookDisabled(t *testing.T) {
 func TestNewActivityHostWebhook(t *testing.T) {
 	t.Parallel()
 
-	// One channel-fed server so payloads can be asserted; each fleet webhook
+	// One channel-fed server so payloads can be asserted; each team webhook
 	// destination is a distinct path on it.
 	type receivedPayload struct {
 		path string
@@ -456,15 +456,15 @@ func TestNewActivityHostWebhook(t *testing.T) {
 
 	user := &api.User{ID: 1, Name: "testUser", Email: "testUser@example.com"}
 
-	t.Run("fires one webhook per fleet destination", func(t *testing.T) {
+	t.Run("fires one webhook per team destination", func(t *testing.T) {
 		ds := &newActivityMockDatastore{}
 		providers := &newActivityMockProviders{
 			mockDataProviders: mockDataProviders{
 				mockUserProvider: &mockUserProvider{},
 				mockHostProvider: &mockHostProvider{},
 				hostWebhooks: []activity.HostActivitiesWebhook{
-					{DestinationURL: srv.URL + "/fleet-a", HostIDs: []uint{42}},
-					{DestinationURL: srv.URL + "/fleet-b", HostIDs: []uint{43}},
+					{DestinationURL: srv.URL + "/automdm-a", HostIDs: []uint{42}},
+					{DestinationURL: srv.URL + "/automdm-b", HostIDs: []uint{43}},
 				},
 			},
 		}
@@ -487,12 +487,12 @@ func TestNewActivityHostWebhook(t *testing.T) {
 			}
 		}
 		require.Len(t, paths, 2)
-		// Each destination's payload carries only its own fleet's host IDs.
+		// Each destination's payload carries only its own team's host IDs.
 		wantHostIDs := map[string][]any{
-			"/fleet-a": {float64(42)},
-			"/fleet-b": {float64(43)},
+			"/automdm-a": {float64(42)},
+			"/automdm-b": {float64(43)},
 		}
-		for _, path := range []string{"/fleet-a", "/fleet-b"} {
+		for _, path := range []string{"/automdm-a", "/automdm-b"} {
 			body, ok := paths[path]
 			require.True(t, ok, "expected a webhook POST to %s", path)
 			// Same format as the global activities webhook.
@@ -644,7 +644,7 @@ func TestNewActivityHostWebhook(t *testing.T) {
 		}
 	})
 
-	t.Run("global activity does not look up fleet webhooks", func(t *testing.T) {
+	t.Run("global activity does not look up team webhooks", func(t *testing.T) {
 		ds := &newActivityMockDatastore{}
 		providers := &newActivityMockProviders{
 			mockDataProviders: mockDataProviders{
@@ -665,7 +665,7 @@ func TestNewActivityHostWebhook(t *testing.T) {
 
 	// e.g. mdm_enrolled/mdm_unenrolled return nil HostIDs when the host record
 	// is unknown (Azure automatic enrollments) or already deleted.
-	t.Run("host activity with no host IDs does not look up fleet webhooks", func(t *testing.T) {
+	t.Run("host activity with no host IDs does not look up team webhooks", func(t *testing.T) {
 		ds := &newActivityMockDatastore{}
 		providers := &newActivityMockProviders{
 			mockDataProviders: mockDataProviders{
@@ -681,7 +681,7 @@ func TestNewActivityHostWebhook(t *testing.T) {
 		assert.False(t, providers.hostWebhooksCalled)
 	})
 
-	t.Run("no enabled fleet webhooks fires nothing and stores the activity", func(t *testing.T) {
+	t.Run("no enabled team webhooks fires nothing and stores the activity", func(t *testing.T) {
 		ds := &newActivityMockDatastore{}
 		providers := &newActivityMockProviders{
 			mockDataProviders: mockDataProviders{
@@ -730,7 +730,7 @@ func TestNewActivityHostWebhook(t *testing.T) {
 		}
 	})
 
-	t.Run("global and fleet webhooks both fire for a host activity", func(t *testing.T) {
+	t.Run("global and team webhooks both fire for a host activity", func(t *testing.T) {
 		ds := &newActivityMockDatastore{}
 		providers := &newActivityMockProviders{
 			mockDataProviders: mockDataProviders{
@@ -741,7 +741,7 @@ func TestNewActivityHostWebhook(t *testing.T) {
 					DestinationURL: srv.URL + "/global",
 				},
 				hostWebhooks: []activity.HostActivitiesWebhook{
-					{DestinationURL: srv.URL + "/fleet-c", HostIDs: []uint{9}},
+					{DestinationURL: srv.URL + "/automdm-c", HostIDs: []uint{9}},
 				},
 			},
 		}
@@ -755,25 +755,25 @@ func TestNewActivityHostWebhook(t *testing.T) {
 		for range 2 {
 			select {
 			case <-time.After(3 * time.Second):
-				t.Fatal("timeout waiting for global + fleet webhooks")
+				t.Fatal("timeout waiting for global + team webhooks")
 			case p := <-received:
 				paths[p.path] = p.body
 			}
 		}
 		require.Len(t, paths, 2)
 		assert.Contains(t, paths, "/global")
-		assert.Contains(t, paths, "/fleet-c")
+		assert.Contains(t, paths, "/automdm-c")
 		// Same envelope on both destinations, but host_ids is injected into
-		// the per-fleet payload only — the global payload keeps its
+		// the per-team payload only — the global payload keeps its
 		// pre-existing format (stored details, no host_ids).
-		var globalDetails, fleetDetails map[string]any
+		var globalDetails, teamDetails map[string]any
 		require.NoError(t, json.Unmarshal(*paths["/global"].Details, &globalDetails))
-		require.NoError(t, json.Unmarshal(*paths["/fleet-c"].Details, &fleetDetails))
+		require.NoError(t, json.Unmarshal(*paths["/automdm-c"].Details, &teamDetails))
 		assert.Equal(t, "both", globalDetails["name"])
-		assert.Equal(t, "both", fleetDetails["name"])
+		assert.Equal(t, "both", teamDetails["name"])
 		_, globalHasHostIDs := globalDetails["host_ids"]
 		assert.False(t, globalHasHostIDs, "global payload must not carry injected host_ids")
-		assert.Equal(t, []any{float64(9)}, fleetDetails["host_ids"])
+		assert.Equal(t, []any{float64(9)}, teamDetails["host_ids"])
 	})
 }
 
@@ -879,7 +879,7 @@ func TestNewActivities(t *testing.T) {
 		assert.LessOrEqual(t, int(maxInFlight.Load()), maxConcurrentWebhookDeliveries)
 	})
 
-	t.Run("each fleet destination only receives its own hosts' activities", func(t *testing.T) {
+	t.Run("each team destination only receives its own hosts' activities", func(t *testing.T) {
 		type received struct {
 			path         string
 			activityType string
@@ -903,8 +903,8 @@ func TestNewActivities(t *testing.T) {
 			mockUserProvider: &mockUserProvider{},
 			mockHostProvider: &mockHostProvider{},
 			hostWebhooks: []activity.HostActivitiesWebhook{
-				{DestinationURL: srv.URL + "/fleet-a", HostIDs: []uint{1}},
-				{DestinationURL: srv.URL + "/fleet-b", HostIDs: []uint{2}},
+				{DestinationURL: srv.URL + "/automdm-a", HostIDs: []uint{1}},
+				{DestinationURL: srv.URL + "/automdm-b", HostIDs: []uint{2}},
 			},
 		}
 		svc := newTestServiceWithWebhook(ds, providers)
@@ -916,8 +916,8 @@ func TestNewActivities(t *testing.T) {
 		}
 		require.NoError(t, svc.NewActivities(t.Context(), user, activities))
 
-		want := map[string]any{"/fleet-a": []any{float64(1)}, "/fleet-b": []any{float64(2)}}
-		wantType := map[string]string{"/fleet-a": "a", "/fleet-b": "b"}
+		want := map[string]any{"/automdm-a": []any{float64(1)}, "/automdm-b": []any{float64(2)}}
+		wantType := map[string]string{"/automdm-a": "a", "/automdm-b": "b"}
 		for range len(want) {
 			select {
 			case <-time.After(3 * time.Second):
@@ -929,7 +929,7 @@ func TestNewActivities(t *testing.T) {
 			}
 		}
 		assert.Empty(t, want)
-		// a host outside every fleet's webhook gets no delivery
+		// a host outside every team's webhook gets no delivery
 		select {
 		case r := <-got:
 			t.Fatalf("unexpected extra delivery to %s", r.path)

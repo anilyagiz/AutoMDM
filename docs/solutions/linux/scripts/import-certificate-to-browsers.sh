@@ -1,5 +1,5 @@
 #!/bin/bash
-# Script template used in this guide: https://fleetdm.com/guides/pingfederate-conditional-access-integration
+# Script template used in this guide: https://automdm.com/guides/pingfederate-conditional-access-integration
 # Imports a device certificate into each user's Chrome and Firefox certificate stores (NSS) so browsers can present it.
 # Needs openssl and certutil/pk12util (libnss3-tools on Debian/Ubuntu, nss-tools on RHEL). Run as root.
 set -euo pipefail
@@ -7,7 +7,7 @@ set -euo pipefail
 CERT_PATH="/opt/company/certificate.pem"
 KEY_PATH="/opt/company/CustomerUserNetworkAccess.key"
 KEY_PASSWORD="${PASSWORD:-}" # Set by the Hydrant/EST script. Leave empty if the key isn't encrypted.
-NICKNAME="Fleet device certificate"
+NICKNAME="AutoMDM device certificate"
 
 # Imports the certificate into one store. Returns nonzero if the store is locked or the import fails.
 import_into() {
@@ -63,5 +63,5 @@ for home in /home/*; do
   rm -rf "$dir"
 done
 
-# Exit nonzero so Fleet shows the script as failed when any store was skipped.
+# Exit nonzero so AutoMDM shows the script as failed when any store was skipped.
 exit "$failed"

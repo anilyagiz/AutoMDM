@@ -1,11 +1,11 @@
-# This workflow tests generation of fleetd packages with the
-# `fleetdm/fleetctl` Docker image.
+# This workflow tests generation of automdmd packages with the
+# `automdm/automdmctl` Docker image.
 name: Test native tooling packaging
 
 on:
   pull_request:
     paths:
-      - 'tools/fleetctl-docker/**'
+      - 'tools/automdmctl-docker/**'
       - 'tools/wix-docker/**'
       - '.github/workflows/test-native-tooling-packaging.yml'
   workflow_dispatch: # Manual
@@ -32,11 +32,11 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-22.04]
-        # build_type == 'remote' means this job will test the fleetdm/fleetctl:latest from Docker Hub.
+        # build_type == 'remote' means this job will test the automdm/automdmctl:latest from Docker Hub.
         # build_type == 'local' means this job will build the the image locally.
         #
         # On pull_request we only run 'local' (the PR's Dockerfile changes aren't
-        # in fleetdm/fleetctl:latest, so 'remote' has no signal). Schedule and
+        # in automdm/automdmctl:latest, so 'remote' has no signal). Schedule and
         # workflow_dispatch run both.
         build_type: ${{ fromJSON(github.event_name == 'pull_request' && '["local"]' || '["remote","local"]') }}
     runs-on: ${{ matrix.os }}
@@ -63,33 +63,33 @@ jobs:
       if: ${{ matrix.build_type ==  'local' }}
       run: make wix-docker
 
-    - name: Build fleetdm/fleetctl
+    - name: Build automdm/automdmctl
       if: ${{ matrix.build_type ==  'local' }}
-      run: make fleetctl-docker
+      run: make automdmctl-docker
 
     - name: Build DEB
-      run: docker run -v "$(pwd):/build" fleetdm/fleetctl package --type deb --enroll-secret=foo --fleet-url=https://localhost:8080
+      run: docker run -v "$(pwd):/build" automdm/automdmctl package --type deb --enroll-secret=foo --automdm-url=https://localhost:8080
 
-    - name: Build DEB with Fleet Desktop
-      run: docker run -v "$(pwd):/build" fleetdm/fleetctl package --type deb --enroll-secret=foo --fleet-url=https://localhost:8080 --fleet-desktop
+    - name: Build DEB with AutoMDM Desktop
+      run: docker run -v "$(pwd):/build" automdm/automdmctl package --type deb --enroll-secret=foo --automdm-url=https://localhost:8080 --automdm-desktop
 
     - name: Build RPM
-      run: docker run -v "$(pwd):/build" fleetdm/fleetctl package --type rpm --enroll-secret=foo --fleet-url=https://localhost:8080
+      run: docker run -v "$(pwd):/build" automdm/automdmctl package --type rpm --enroll-secret=foo --automdm-url=https://localhost:8080
 
-    - name: Build RPM with Fleet Desktop
-      run: docker run -v "$(pwd):/build" fleetdm/fleetctl package --type rpm --enroll-secret=foo --fleet-url=https://localhost:8080 --fleet-desktop
+    - name: Build RPM with AutoMDM Desktop
+      run: docker run -v "$(pwd):/build" automdm/automdmctl package --type rpm --enroll-secret=foo --automdm-url=https://localhost:8080 --automdm-desktop
 
     - name: Build MSI
-      run: docker run -v "$(pwd):/build" fleetdm/fleetctl package --type msi --enroll-secret=foo --fleet-url=https://localhost:8080
+      run: docker run -v "$(pwd):/build" automdm/automdmctl package --type msi --enroll-secret=foo --automdm-url=https://localhost:8080
 
-    - name: Build MSI with Fleet Desktop
-      run: docker run -v "$(pwd):/build" fleetdm/fleetctl package --type msi --enroll-secret=foo --fleet-url=https://localhost:8080 --fleet-desktop
+    - name: Build MSI with AutoMDM Desktop
+      run: docker run -v "$(pwd):/build" automdm/automdmctl package --type msi --enroll-secret=foo --automdm-url=https://localhost:8080 --automdm-desktop
 
     - name: Build PKG
-      run: docker run -v "$(pwd):/build" fleetdm/fleetctl package --type pkg --enroll-secret=foo --fleet-url=https://localhost:8080
+      run: docker run -v "$(pwd):/build" automdm/automdmctl package --type pkg --enroll-secret=foo --automdm-url=https://localhost:8080
 
-    - name: Build PKG with Fleet Desktop
-      run: docker run -v "$(pwd):/build" fleetdm/fleetctl package --type pkg --enroll-secret=foo --fleet-url=https://localhost:8080 --fleet-desktop
+    - name: Build PKG with AutoMDM Desktop
+      run: docker run -v "$(pwd):/build" automdm/automdmctl package --type pkg --enroll-secret=foo --automdm-url=https://localhost:8080 --automdm-desktop
 
     - name: Slack Notification
       if: github.event.schedule == '0 5 * * *' && failure()
@@ -103,7 +103,7 @@ jobs:
                 "type": "section",
                 "text": {
                   "type": "mrkdwn",
-                  "text": "⚠️  Tests on fleetdm/fleetctl docker image failed.\nhttps://github.com/fleetdm/fleet/actions/runs/${{  github.run_id }}"
+                  "text": "⚠️  Tests on automdm/automdmctl docker image failed.\nhttps://github.com/anilyagiz/automdm/actions/runs/${{  github.run_id }}"
                 }
               }
             ]

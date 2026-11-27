@@ -24,11 +24,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/constant"
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/nvd/tools/cvefeed/nvd/schema"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/constant"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/nvd/tools/cvefeed/nvd/schema"
 	"github.com/pandatix/nvdapi/common"
 	"github.com/pandatix/nvdapi/v2"
 )
@@ -37,7 +37,7 @@ import (
 // to the directory specified in the dbDir field in the form of JSON files.
 // It stores the CVE information using the legacy feed format.
 // The reason we decided to store in the legacy format is because
-// the github.com/fleetdm/fleet/v4/server/vulnerabilities/nvd/tools doesn't yet support parsing
+// the github.com/anilyagiz/automdm/v4/server/vulnerabilities/nvd/tools doesn't yet support parsing
 // the new API 2.0 JSON format.
 type CVE struct {
 	client           *http.Client
@@ -94,7 +94,7 @@ func NewCVE(dbDir string, opts ...CVEOption) (*CVE, error) {
 		return nil, errors.New("directory not set")
 	}
 	s := CVE{
-		client:           fleethttp.NewClient(fleethttp.WithNoTimeout()),
+		client:           automdmhttp.NewClient(automdmhttp.WithNoTimeout()),
 		dbDir:            dbDir,
 		logger:           slog.New(slog.DiscardHandler),
 		MaxTryAttempts:   maxRetryAttempts,
@@ -126,7 +126,7 @@ func (s *CVE) Do(ctx context.Context) error {
 
 // initSync performs the initial synchronization (full download) of all CVEs.
 func (s *CVE) initSync(ctx context.Context) error {
-	// Remove any legacy feeds from previous versions of Fleet.
+	// Remove any legacy feeds from previous versions of AutoMDM.
 	if err := s.removeLegacyFeeds(ctx); err != nil {
 		return err
 	}
@@ -145,7 +145,7 @@ func (s *CVE) initSync(ctx context.Context) error {
 	return nil
 }
 
-// removeLegacyFeeds removes all the legacy feed files downloaded by previous versions of Fleet.
+// removeLegacyFeeds removes all the legacy feed files downloaded by previous versions of AutoMDM.
 func (s *CVE) removeLegacyFeeds(ctx context.Context) error {
 	// Using * to remove new unfinished syncs (uncompressed)
 	jsonGzs, err := filepath.Glob(filepath.Join(s.dbDir, "nvdcve-1.1-*.json*"))
@@ -210,7 +210,7 @@ func (s *CVE) update(ctx context.Context) error {
 
 func (s *CVE) updateYearFile(ctx context.Context, year int, cves []nvdapi.CVEItem) error {
 	// The NVD legacy feed files start at year 2002.
-	// This is assumed by the github.com/fleetdm/fleet/v4/server/vulnerabilities/nvd/tools package.
+	// This is assumed by the github.com/anilyagiz/automdm/v4/server/vulnerabilities/nvd/tools package.
 	if year < 2002 {
 		year = 2002
 	}
@@ -523,7 +523,7 @@ var (
 )
 
 // cleans up vulnerability feed entries that are incorrect from NVD, allowing fixing bugged NVD rules without needing
-// to update Fleet server
+// to update AutoMDM server
 func transformVuln(year int, item nvdapi.CVEItem) nvdapi.CVEItem {
 	if item.CVE.ID != nil && *item.CVE.ID == "CVE-2024-54559" {
 		item.CVE.Configurations[0].Nodes[0].CPEMatch = item.CVE.Configurations[0].Nodes[0].CPEMatch[0:1]
@@ -565,7 +565,7 @@ func transformVuln(year int, item nvdapi.CVEItem) nvdapi.CVEItem {
 
 	// NVD lists ollama as vulnerable through (and including) v0.12.3 via versionEndIncluding with no
 	// versionEndExcluding, so resolved_in_version comes back empty. The fix shipped in the next
-	// release, v0.12.4. Supply versionEndExcluding here so Fleet reports the resolved version.
+	// release, v0.12.4. Supply versionEndExcluding here so AutoMDM reports the resolved version.
 	// See https://github.com/fleetdm/fleet/issues/44800.
 	if item.CVE.ID != nil && *item.CVE.ID == "CVE-2025-63389" {
 		for configID := range item.CVE.Configurations {
@@ -915,7 +915,7 @@ func convertAPI20CVEToLegacy(ctx context.Context, cve nvdapi.CVE, logger *slog.L
 	}
 
 	if len(descriptions) == 0 {
-		// Populate a blank description to prevent Fleet cron job from crashing: https://github.com/fleetdm/fleet/issues/21239
+		// Populate a blank description to prevent AutoMDM cron job from crashing: https://github.com/fleetdm/fleet/issues/21239
 		descriptions = append(descriptions, &schema.CVEJSON40LangString{
 			Lang:  "en",
 			Value: "",

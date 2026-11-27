@@ -2,7 +2,7 @@
  * HostInstallerActionCell is only used on Host details > Software Library card.
  * Displays install/uninstall buttons for host installers.
  * HostInstallerActionButton is reused for install/uninstall buttons
- * in Fleet Desktop > Self-service but with different disabled states and tooltips.
+ * in AutoMDM Desktop > Self-service but with different disabled states and tooltips.
  */
 
 import React, { useState, useEffect, ReactNode } from "react";
@@ -70,7 +70,7 @@ interface IHostInstallerActionCellProps {
   baseClass: string;
   hostScriptsEnabled?: boolean;
   hostMDMEnrolled?: boolean;
-  /** Different disabled states and tooltips compared to host details > library and fleet desktop > self-service */
+  /** Different disabled states and tooltips compared to host details > library and automdm desktop > self-service */
   isMyDevicePage?: boolean;
 }
 
@@ -115,7 +115,7 @@ export const getActionButtonState = ({
    * disabled states than My Device > Self-service page */
 
   /** If scripts are not enabled, software actions disabled with tooltip on
-   * Host details > Software > Library but doesn't show to Fleet Desktop > Self-service. */
+   * Host details > Software > Library but doesn't show to AutoMDM Desktop > Self-service. */
   const requiresScripts = !isIpaOrAppStore;
   if (requiresScripts && !hostScriptsEnabled) {
     return {
@@ -128,7 +128,7 @@ export const getActionButtonState = ({
   }
 
   /** If MDM is not enrolled, software actions disabled with tooltip on
-   * Host details > Software > Library but doesn't show Fleet Desktop > Self-service */
+   * Host details > Software > Library but doesn't show AutoMDM Desktop > Self-service */
   if (isIpaOrAppStore) {
     return {
       installDisabled: !hostMDMEnrolled,
@@ -200,7 +200,7 @@ export const HostInstallerActionButton = ({
         disabled={disabled}
         size="small"
       >
-        <Icon name={icon} color="ui-fleet-black-75" />
+        <Icon name={icon} color="ui-automdm-black-75" />
         <span data-testid={testId}>{text}</span>
       </Button>
     </TooltipWrapper>
@@ -209,7 +209,7 @@ export const HostInstallerActionButton = ({
 
 /** HostInstallerActionCell component has different disabled states
  * and tooltips for Host details > Library HostInstallerActionCell than
- * Fleet Desktop > Self-service HostInstallerActionCell */
+ * AutoMDM Desktop > Self-service HostInstallerActionCell */
 export const HostInstallerActionCell = ({
   software,
   onClickInstallAction,

@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/constant"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/constant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -74,21 +74,21 @@ func TestLocalTargetPaths(t *testing.T) {
 	}{
 		{
 			DesktopWindowsTarget,
-			"root/bin/target/windows/stable/fleet-desktop.exe",
-			"root/bin/target/windows/stable/fleet-desktop.exe",
+			"root/bin/target/windows/stable/automdm-desktop.exe",
+			"root/bin/target/windows/stable/automdm-desktop.exe",
 			"",
 		},
 		{
 			DesktopLinuxTarget,
 			"root/bin/target/linux/stable/desktop.tar.gz",
-			"root/bin/target/linux/stable/fleet-desktop/fleet-desktop",
-			"root/bin/target/linux/stable/fleet-desktop",
+			"root/bin/target/linux/stable/automdm-desktop/automdm-desktop",
+			"root/bin/target/linux/stable/automdm-desktop",
 		},
 		{
 			DesktopLinuxArm64Target,
 			"root/bin/target/linux-arm64/stable/desktop.tar.gz",
-			"root/bin/target/linux-arm64/stable/fleet-desktop/fleet-desktop",
-			"root/bin/target/linux-arm64/stable/fleet-desktop",
+			"root/bin/target/linux-arm64/stable/automdm-desktop/automdm-desktop",
+			"root/bin/target/linux-arm64/stable/automdm-desktop",
 		},
 		{
 			SwiftDialogMacOSTarget,

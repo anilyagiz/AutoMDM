@@ -32,7 +32,7 @@ func TestUp_20261117042116(t *testing.T) {
 		{name: "script, profile and webhook", teamID: 1, scriptID: 31, appleProfile: "a-1", webhookOrTicket: true, wantAutomations: "script"},
 		{name: "profile and calendar", teamID: 1, windowsProfile: "w-1", calendar: true, wantAutomations: "configuration_profile"},
 		{name: "calendar and webhook", teamID: 1, calendar: true, webhookOrTicket: true, wantAutomations: "calendar"},
-		{name: "All fleets calendar and webhook", teamID: nil, calendar: true, webhookOrTicket: true, wantAutomations: "webhook_or_ticket"},
+		{name: "All teams calendar and webhook", teamID: nil, calendar: true, webhookOrTicket: true, wantAutomations: "webhook_or_ticket"},
 		{name: "Unassigned calendar and webhook", teamID: 0, calendar: true, webhookOrTicket: true, wantAutomations: "webhook_or_ticket"},
 		{name: "Unassigned calendar", teamID: 0, calendar: true, wantAutomations: ""},
 		{name: "script only", teamID: 1, scriptID: 32, wantAutomations: "script"},

@@ -14,7 +14,7 @@ import (
 	"strings"
 	"syscall"
 
-	userpkg "github.com/fleetdm/fleet/v4/orbit/pkg/user"
+	userpkg "github.com/anilyagiz/automdm/v4/orbit/pkg/user"
 	"github.com/rs/zerolog/log"
 )
 
@@ -287,8 +287,8 @@ func getConfigForCommand(user string, path string, xdgSessionEnv bool) (args []s
 	// user's shell as a login shell and passes the rest of the command via
 	// `bash --login -c`, which sources /etc/profile and /etc/profile.d/* and
 	// shell-escapes the inline command. On Leap 16 that environment indirection
-	// causes our `env KEY=val ... fleet-desktop` invocation to lose env vars, so
-	// fleet-desktop exits with "missing URL environment ..." and Orbit respawns it
+	// causes our `env KEY=val ... automdm-desktop` invocation to lose env vars, so
+	// automdm-desktop exits with "missing URL environment ..." and Orbit respawns it
 	// in a tight loop. -H sets HOME to the target user; sudo's default env_reset
 	// already sets USER/LOGNAME/SHELL.
 	//

@@ -2,8 +2,8 @@
 set -euo pipefail
 
 # Configuration - use environment variables or defaults
-STACK_NAME="${STACK_NAME:-fleet-mysql-iam-test}"
-KEY_NAME="${KEY_NAME:-fleet-mysql-test-key-$(date +%s)}"
+STACK_NAME="${STACK_NAME:-automdm-mysql-iam-test}"
+KEY_NAME="${KEY_NAME:-automdm-mysql-test-key-$(date +%s)}"
 INSTANCE_TYPE="${INSTANCE_TYPE:-t3.micro}"
 DB_PASSWORD="${DB_PASSWORD:-hunter2pass}"
 
@@ -99,7 +99,7 @@ echo "🔐 Creating IAM database users..."
 create_iam_user() {
     local endpoint=$1
     local engine=$2
-    local user_name="fleet_iam_user"
+    local user_name="automdm_iam_user"
     
     echo "  Creating IAM user on $endpoint..."
     
@@ -107,7 +107,7 @@ create_iam_user() {
     ssh -o StrictHostKeyChecking=no -i "${KEY_NAME}.pem" ec2-user@$EC2_IP << EOF
         mysql -h"$endpoint" -u"$DB_USERNAME" -p"$DB_PASSWORD" -e "
             CREATE USER IF NOT EXISTS '$user_name'@'%' IDENTIFIED WITH AWSAuthenticationPlugin AS 'RDS';
-            GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, INDEX, ALTER ON fleet.* TO '$user_name'@'%';
+            GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, INDEX, ALTER ON automdm.* TO '$user_name'@'%';
             FLUSH PRIVILEGES;
         " 2>/dev/null || echo "    Warning: Could not create IAM user on $endpoint"
 EOF
@@ -136,13 +136,13 @@ echo "   ssh -i ${KEY_NAME}.pem ec2-user@$EC2_IP"
 echo ""
 echo "4. Run the tests:"
 echo "   # Test Aurora Serverless v2"
-echo "   ./iam_auth -endpoint=$AURORA_SERVERLESS_ENDPOINT -user=fleet_iam_user"
+echo "   ./iam_auth -endpoint=$AURORA_SERVERLESS_ENDPOINT -user=automdm_iam_user"
 echo ""
 echo "   # Test Aurora Standard"
-echo "   ./iam_auth -endpoint=$AURORA_STANDARD_ENDPOINT -user=fleet_iam_user"
+echo "   ./iam_auth -endpoint=$AURORA_STANDARD_ENDPOINT -user=automdm_iam_user"
 echo ""
 echo "   # Test RDS MariaDB"
-echo "   ./iam_auth -endpoint=$RDS_MARIADB_ENDPOINT -user=fleet_iam_user"
+echo "   ./iam_auth -endpoint=$RDS_MARIADB_ENDPOINT -user=automdm_iam_user"
 echo ""
 echo "To clean up when done:"
 echo "   ./cleanup-test-env.sh"

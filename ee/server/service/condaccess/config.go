@@ -4,38 +4,38 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/fleetdm/fleet/v4/pkg/certificate"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/scep/depot"
+	"github.com/anilyagiz/automdm/v4/pkg/certificate"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql"
+	"github.com/anilyagiz/automdm/v4/server/mdm/scep/depot"
 )
 
-func initAssets(ctx context.Context, ds fleet.Datastore) error {
+func initAssets(ctx context.Context, ds automdm.Datastore) error {
 	// Check if we have existing assets for both SCEP CA and IdP
-	expectedAssets := []fleet.MDMAssetName{
-		fleet.MDMAssetConditionalAccessCACert,
-		fleet.MDMAssetConditionalAccessCAKey,
-		fleet.MDMAssetConditionalAccessIDPCert,
-		fleet.MDMAssetConditionalAccessIDPKey,
+	expectedAssets := []automdm.MDMAssetName{
+		automdm.MDMAssetConditionalAccessCACert,
+		automdm.MDMAssetConditionalAccessCAKey,
+		automdm.MDMAssetConditionalAccessIDPCert,
+		automdm.MDMAssetConditionalAccessIDPKey,
 	}
 	savedAssets, err := ds.GetAllMDMConfigAssetsByName(ctx, expectedAssets, nil)
 	if err != nil {
 		// Allow not found errors or partial results (some assets exist, some don't).
 		// If we got some assets back, continue to create the missing ones.
-		if !fleet.IsNotFound(err) && len(savedAssets) == 0 {
+		if !automdm.IsNotFound(err) && len(savedAssets) == 0 {
 			return fmt.Errorf("loading existing conditional access assets from the database: %w", err)
 		}
 	}
 
 	// Check if CA assets need to be created
-	_, hasCACert := savedAssets[fleet.MDMAssetConditionalAccessCACert]
-	_, hasCAKey := savedAssets[fleet.MDMAssetConditionalAccessCAKey]
+	_, hasCACert := savedAssets[automdm.MDMAssetConditionalAccessCACert]
+	_, hasCAKey := savedAssets[automdm.MDMAssetConditionalAccessCAKey]
 	if !hasCACert || !hasCAKey {
 		// Create CA cert and key for SCEP
 		caCert := depot.NewCACert(
 			depot.WithYears(10),
-			depot.WithCommonName("Fleet conditional access CA"),
-			// Signal that the CA is local to the deployment and not necessarily managed by Fleet or another external vendor
+			depot.WithCommonName("AutoMDM conditional access CA"),
+			// Signal that the CA is local to the deployment and not necessarily managed by AutoMDM or another external vendor
 			depot.WithOrganization("Local certificate authority"),
 			depot.WithCountry("US"),
 		)
@@ -45,12 +45,12 @@ func initAssets(ctx context.Context, ds fleet.Datastore) error {
 		}
 
 		// Store CA assets encrypted
-		var assets []fleet.MDMConfigAsset
-		for k, v := range map[fleet.MDMAssetName][]byte{
-			fleet.MDMAssetConditionalAccessCACert: certificate.EncodeCertPEM(scepCert),
-			fleet.MDMAssetConditionalAccessCAKey:  certificate.EncodePrivateKeyPEM(scepKey),
+		var assets []automdm.MDMConfigAsset
+		for k, v := range map[automdm.MDMAssetName][]byte{
+			automdm.MDMAssetConditionalAccessCACert: certificate.EncodeCertPEM(scepCert),
+			automdm.MDMAssetConditionalAccessCAKey:  certificate.EncodePrivateKeyPEM(scepKey),
 		} {
-			assets = append(assets, fleet.MDMConfigAsset{
+			assets = append(assets, automdm.MDMConfigAsset{
 				Name:  k,
 				Value: v,
 			})
@@ -62,13 +62,13 @@ func initAssets(ctx context.Context, ds fleet.Datastore) error {
 	}
 
 	// Check if IdP assets need to be created
-	_, hasIdPCert := savedAssets[fleet.MDMAssetConditionalAccessIDPCert]
-	_, hasIdPKey := savedAssets[fleet.MDMAssetConditionalAccessIDPKey]
+	_, hasIdPCert := savedAssets[automdm.MDMAssetConditionalAccessIDPCert]
+	_, hasIdPKey := savedAssets[automdm.MDMAssetConditionalAccessIDPKey]
 	if !hasIdPCert || !hasIdPKey {
 		// Create IdP cert and key for SAML signing
 		idpCert := depot.NewCACert(
 			depot.WithYears(10),
-			depot.WithCommonName("Fleet conditional access IdP"),
+			depot.WithCommonName("AutoMDM conditional access IdP"),
 			depot.WithOrganization("Local certificate authority"),
 			depot.WithCountry("US"),
 		)
@@ -78,12 +78,12 @@ func initAssets(ctx context.Context, ds fleet.Datastore) error {
 		}
 
 		// Store IdP assets encrypted
-		var assets []fleet.MDMConfigAsset
-		for k, v := range map[fleet.MDMAssetName][]byte{
-			fleet.MDMAssetConditionalAccessIDPCert: certificate.EncodeCertPEM(idpCertX509),
-			fleet.MDMAssetConditionalAccessIDPKey:  certificate.EncodePrivateKeyPEM(idpKey),
+		var assets []automdm.MDMConfigAsset
+		for k, v := range map[automdm.MDMAssetName][]byte{
+			automdm.MDMAssetConditionalAccessIDPCert: certificate.EncodeCertPEM(idpCertX509),
+			automdm.MDMAssetConditionalAccessIDPKey:  certificate.EncodePrivateKeyPEM(idpKey),
 		} {
-			assets = append(assets, fleet.MDMConfigAsset{
+			assets = append(assets, automdm.MDMConfigAsset{
 				Name:  k,
 				Value: v,
 			})

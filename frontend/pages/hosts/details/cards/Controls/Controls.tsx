@@ -34,18 +34,18 @@ interface IControlsProps {
   /** My device: second person, and no Controls page to link to. */
   isDeviceUser?: boolean;
   isPremiumTier?: boolean;
-  /** Fleet setting for macOS: disk encryption enforced without key escrow. */
+  /** AutoMDM setting for macOS: disk encryption enforced without key escrow. */
   isMacOSDiskEncryptionEnforceOnly?: boolean;
   canResendProfiles: boolean;
   canRotateRecoveryLockPassword?: boolean;
   canResendHostNameTemplate?: boolean;
   /** Whether the user can reach the Controls page the empty state links to. */
   canAddControls?: boolean;
-  /** Whether the host has an active MDM connection with *this* Fleet. A host
+  /** Whether the host has an active MDM connection with *this* AutoMDM. A host
    * managed by a third-party MDM reads as enrolled but still can't receive
-   * Fleet controls, so the empty state keys off this, not enrollment status. */
-  isConnectedToFleetMdm?: boolean;
-  /** Fleet the host belongs to, preserved on the "Add controls" link. */
+   * AutoMDM controls, so the empty state keys off this, not enrollment status. */
+  isConnectedToAutoMDMMdm?: boolean;
+  /** AutoMDM the host belongs to, preserved on the "Add controls" link. */
   teamId?: number | null;
   resendRequest: (profileUUID: string) => Promise<void>;
   resendCertificateRequest?: (certificateTemplateId: number) => Promise<void>;
@@ -70,7 +70,7 @@ const Controls = ({
   canRotateRecoveryLockPassword = false,
   canResendHostNameTemplate = false,
   canAddControls = false,
-  isConnectedToFleetMdm = false,
+  isConnectedToAutoMDMMdm = false,
   teamId,
   resendRequest,
   resendCertificateRequest,
@@ -107,7 +107,7 @@ const Controls = ({
   // Admin-only. The device page never populates AppContext.config and the
   // server refuses the device-token resend of this profile anyway; the
   // isDeviceUser check just keeps that explicit here.
-  const canResendFleetdWhileVerifying =
+  const canResendAutoMDMdWhileVerifying =
     !isDeviceUser && !!config?.auth?.mdm_apple_one_time_enroll_secrets;
 
   const markRequested = useCallback(
@@ -152,7 +152,7 @@ const Controls = ({
         rotateRecoveryLockPassword,
         canResendHostNameTemplate,
         resendHostNameTemplate,
-        canResendFleetdWhileVerifying,
+        canResendAutoMDMdWhileVerifying,
         canManageSelfServiceProfiles,
         onInstall,
         onClickUninstall,
@@ -168,7 +168,7 @@ const Controls = ({
       rotateRecoveryLockPassword,
       canResendHostNameTemplate,
       resendHostNameTemplate,
-      canResendFleetdWhileVerifying,
+      canResendAutoMDMdWhileVerifying,
       canManageSelfServiceProfiles,
       onInstall,
       onClickUninstall,
@@ -192,10 +192,10 @@ const Controls = ({
   }, [onProfileResent]);
 
   const emptyStateInfo = () => {
-    if (!isConnectedToFleetMdm) {
+    if (!isConnectedToAutoMDMMdm) {
       return isDeviceUser
-        ? "No controls available. Your device isn't talking to Fleet for MDM features."
-        : "No controls available. This host isn't talking to Fleet for MDM features.";
+        ? "No controls available. Your device isn't talking to AutoMDM for MDM features."
+        : "No controls available. This host isn't talking to AutoMDM for MDM features.";
     }
     return isDeviceUser
       ? "No controls have been added for your device."
@@ -203,11 +203,11 @@ const Controls = ({
   };
 
   const onAddControls = useCallback(() => {
-    // A no-team host reports `fleet_id: null`, but the Controls page reads "No
-    // team" as fleet_id=0 — an absent param means "keep whatever fleet you were
+    // A no-team host reports `team_id: null`, but the Controls page reads "No
+    // team" as team_id=0 — an absent param means "keep whatever team you were
     // on", which lands the user somewhere else entirely.
     router.push(
-      getPathWithQueryParams(PATHS.CONTROLS, { fleet_id: teamId ?? 0 })
+      getPathWithQueryParams(PATHS.CONTROLS, { team_id: teamId ?? 0 })
     );
   }, [router, teamId]);
 
@@ -273,7 +273,7 @@ const Controls = ({
               helpText: (
                 <span>
                   Profiles that end users can opt-in to from{" "}
-                  <strong>Fleet Desktop &gt; Controls</strong>.
+                  <strong>AutoMDM Desktop &gt; Controls</strong>.
                 </span>
               ),
             },
@@ -307,7 +307,7 @@ const Controls = ({
             info={emptyStateInfo()}
             primaryButton={
               // Adding controls doesn't help a host that can't receive them.
-              !isDeviceUser && canAddControls && isConnectedToFleetMdm ? (
+              !isDeviceUser && canAddControls && isConnectedToAutoMDMMdm ? (
                 <Button onClick={onAddControls} type="button">
                   Add controls
                 </Button>
@@ -344,7 +344,7 @@ const Controls = ({
           isDeviceUser={isDeviceUser}
           isMacOSDiskEncryptionEnforceOnly={isMacOSDiskEncryptionEnforceOnly}
           canResendProfiles={canResendProfiles}
-          canResendFleetdWhileVerifying={canResendFleetdWhileVerifying}
+          canResendAutoMDMdWhileVerifying={canResendAutoMDMdWhileVerifying}
           canRotateRecoveryLockPassword={canRotateRecoveryLockPassword}
           canResendHostNameTemplate={canResendHostNameTemplate}
           resendRequest={resendRequest}

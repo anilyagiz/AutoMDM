@@ -4,7 +4,7 @@ import (
 	"log/slog"
 	"time"
 
-	scepserver "github.com/fleetdm/fleet/v4/server/mdm/scep/server"
+	scepserver "github.com/anilyagiz/automdm/v4/server/mdm/scep/server"
 )
 
 // Client is a SCEP Client

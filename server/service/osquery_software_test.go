@@ -7,9 +7,9 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/service/osquery_utils"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/service/osquery_utils"
 	"github.com/stretchr/testify/require"
 )
 
@@ -20,14 +20,14 @@ func TestPreservedSoftwareSources(t *testing.T) {
 	}}
 	notSent := &hostDetailQueryConfig{detailQueries: map[string]osquery_utils.DetailQuery{}}
 	sentToLinux := &hostDetailQueryConfig{detailQueries: map[string]osquery_utils.DetailQuery{
-		"software_linux_fleetd_pacman": {Platforms: []string{"arch", "nixos"}},
-		"software_go_binaries":         {Platforms: []string{"arch", "nixos"}},
-		"software_adobe_plugins":       {Platforms: []string{"darwin", "windows"}},
-		"software_ai_tools":            {Platforms: []string{"arch", "nixos"}},
-		"software_linux_fleetd_nix":    {Platforms: []string{"nixos"}},
+		"software_linux_automdmd_pacman": {Platforms: []string{"arch", "nixos"}},
+		"software_go_binaries":           {Platforms: []string{"arch", "nixos"}},
+		"software_adobe_plugins":         {Platforms: []string{"darwin", "windows"}},
+		"software_ai_tools":              {Platforms: []string{"arch", "nixos"}},
+		"software_linux_automdmd_nix":    {Platforms: []string{"nixos"}},
 	}}
 	allOrbitQueries := []string{
-		"software_linux_fleetd_pacman", "software_go_binaries", "software_adobe_plugins", "software_ai_tools", "software_linux_fleetd_nix",
+		"software_linux_automdmd_pacman", "software_go_binaries", "software_adobe_plugins", "software_ai_tools", "software_linux_automdmd_nix",
 	}
 
 	for _, tc := range []struct {
@@ -35,7 +35,7 @@ func TestPreservedSoftwareSources(t *testing.T) {
 		cfg           *hostDetailQueryConfig
 		platform      string
 		skipped       []string
-		orbitInfo     *fleet.HostOrbitInfo
+		orbitInfo     *automdm.HostOrbitInfo
 		orbitInfoErr  error
 		expected      []string
 		expectLookup  bool
@@ -48,7 +48,7 @@ func TestPreservedSoftwareSources(t *testing.T) {
 			skipped:  nil,
 		},
 		{
-			name:     "a skipped query no fleetd table backs",
+			name:     "a skipped query no automdmd table backs",
 			cfg:      sentToMacOS,
 			platform: "darwin",
 			skipped:  []string{"software_vscode_extensions"},
@@ -66,7 +66,7 @@ func TestPreservedSoftwareSources(t *testing.T) {
 			skipped:  []string{"software_ai_tools"},
 		},
 		{
-			name:         "host without fleetd",
+			name:         "host without automdmd",
 			cfg:          sentToMacOS,
 			platform:     "darwin",
 			skipped:      []string{"software_ai_tools"},
@@ -84,57 +84,57 @@ func TestPreservedSoftwareSources(t *testing.T) {
 			expectLogging: true,
 		},
 		{
-			name:         "fleetd version cannot be parsed",
+			name:         "automdmd version cannot be parsed",
 			cfg:          sentToMacOS,
 			platform:     "darwin",
 			skipped:      []string{"software_ai_tools"},
-			orbitInfo:    &fleet.HostOrbitInfo{Version: "dev"},
+			orbitInfo:    &automdm.HostOrbitInfo{Version: "dev"},
 			expectLookup: true,
 		},
 		{
-			name:         "fleetd older than the table",
+			name:         "automdmd older than the table",
 			cfg:          sentToMacOS,
 			platform:     "darwin",
 			skipped:      []string{"software_ai_tools"},
-			orbitInfo:    &fleet.HostOrbitInfo{Version: "1.58.2"},
+			orbitInfo:    &automdm.HostOrbitInfo{Version: "1.58.2"},
 			expectLookup: true,
 		},
 		{
-			name:          "fleetd that shipped the table",
+			name:          "automdmd that shipped the table",
 			cfg:           sentToMacOS,
 			platform:      "darwin",
 			skipped:       []string{"software_vscode_extensions", "software_ai_tools"},
-			orbitInfo:     &fleet.HostOrbitInfo{Version: "1.59.0"},
+			orbitInfo:     &automdm.HostOrbitInfo{Version: "1.59.0"},
 			expected:      aiSources,
 			expectLookup:  true,
 			expectLogging: true,
 		},
 		{
-			name:          "newer fleetd",
+			name:          "newer automdmd",
 			cfg:           sentToMacOS,
 			platform:      "darwin",
 			skipped:       []string{"software_ai_tools"},
-			orbitInfo:     &fleet.HostOrbitInfo{Version: "1.62.1"},
+			orbitInfo:     &automdm.HostOrbitInfo{Version: "1.62.1"},
 			expected:      aiSources,
 			expectLookup:  true,
 			expectLogging: true,
 		},
 		{
-			name:          "every orbit query skipped: each is gated by its own platform and fleetd version",
+			name:          "every orbit query skipped: each is gated by its own platform and automdmd version",
 			cfg:           sentToLinux,
 			platform:      "arch",
 			skipped:       allOrbitQueries,
-			orbitInfo:     &fleet.HostOrbitInfo{Version: "1.56.2"},
+			orbitInfo:     &automdm.HostOrbitInfo{Version: "1.56.2"},
 			expected:      []string{"pacman_packages", "go_binaries"},
 			expectLookup:  true,
 			expectLogging: true,
 		},
 		{
-			name:          "every orbit query skipped on a NixOS host with the newest fleetd",
+			name:          "every orbit query skipped on a NixOS host with the newest automdmd",
 			cfg:           sentToLinux,
 			platform:      "nixos",
 			skipped:       allOrbitQueries,
-			orbitInfo:     &fleet.HostOrbitInfo{Version: "1.63.0"},
+			orbitInfo:     &automdm.HostOrbitInfo{Version: "1.63.0"},
 			expected:      []string{"pacman_packages", "go_binaries", "ai_clis", "mcp_servers", "ai_skills", "nix_packages"},
 			expectLookup:  true,
 			expectLogging: true,
@@ -142,12 +142,12 @@ func TestPreservedSoftwareSources(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ds := new(mock.Store)
-			ds.GetHostOrbitInfoFunc = func(ctx context.Context, hostID uint) (*fleet.HostOrbitInfo, error) {
+			ds.GetHostOrbitInfoFunc = func(ctx context.Context, hostID uint) (*automdm.HostOrbitInfo, error) {
 				return tc.orbitInfo, tc.orbitInfoErr
 			}
 			var logs bytes.Buffer
 			svc := &Service{ds: ds, logger: slog.New(slog.NewTextHandler(&logs, nil))}
-			host := &fleet.Host{ID: 1, Platform: tc.platform}
+			host := &automdm.Host{ID: 1, Platform: tc.platform}
 
 			got := svc.preservedSoftwareSources(t.Context(), host, tc.cfg, tc.skipped)
 			require.Equal(t, tc.expected, got)

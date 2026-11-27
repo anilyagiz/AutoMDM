@@ -4,15 +4,15 @@ import (
 	"context"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mock"
 	"github.com/stretchr/testify/require"
 )
 
 // mockDuplicateStringGroupsExactMatch stands in for the MySQL collation with exact string equality, which is enough for mocked
 // tests; integration tests cover the collation itself.
 func mockDuplicateStringGroupsExactMatch(ds *mock.Store) {
-	ds.GetDuplicateStringGroupsUnderCollationFunc = func(ctx context.Context, values []string) ([]fleet.DuplicateStringGroup, error) {
+	ds.GetDuplicateStringGroupsUnderCollationFunc = func(ctx context.Context, values []string) ([]automdm.DuplicateStringGroup, error) {
 		indicesByValue := make(map[string][]int, len(values))
 		var order []string
 		for i, value := range values {
@@ -21,10 +21,10 @@ func mockDuplicateStringGroupsExactMatch(ds *mock.Store) {
 			}
 			indicesByValue[value] = append(indicesByValue[value], i)
 		}
-		var groups []fleet.DuplicateStringGroup
+		var groups []automdm.DuplicateStringGroup
 		for _, value := range order {
 			if len(indicesByValue[value]) > 1 {
-				groups = append(groups, fleet.DuplicateStringGroup{Indices: indicesByValue[value]})
+				groups = append(groups, automdm.DuplicateStringGroup{Indices: indicesByValue[value]})
 			}
 		}
 		return groups, nil

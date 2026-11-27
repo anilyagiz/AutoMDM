@@ -13,8 +13,8 @@ import (
 	"path"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
 	"golang.org/x/crypto/pbkdf2"
 	"howett.net/plist"
 )
@@ -171,7 +171,7 @@ func IsAppAlreadyInstalledError(chain []mdm.ErrorChain) bool {
 }
 
 // FmtDDMError formats a DDM error message
-func FmtDDMError(reasons []fleet.MDMAppleDDMStatusErrorReason) string {
+func FmtDDMError(reasons []automdm.MDMAppleDDMStatusErrorReason) string {
 	var errMsg strings.Builder
 	for _, r := range reasons {
 		errMsg.WriteString(fmt.Sprintf("%s: %s %+v\n", r.Code, r.Description, r.Details))
@@ -179,7 +179,7 @@ func FmtDDMError(reasons []fleet.MDMAppleDDMStatusErrorReason) string {
 	return errMsg.String()
 }
 
-func EnrollURL(token string, appConfig *fleet.AppConfig) (string, error) {
+func EnrollURL(token string, appConfig *automdm.AppConfig) (string, error) {
 	enrollURL, err := url.Parse(appConfig.MDMUrl())
 	if err != nil {
 		return "", err
@@ -194,11 +194,11 @@ func EnrollURL(token string, appConfig *fleet.AppConfig) (string, error) {
 // IsLessThanVersion returns true if the current version is less than the target version.
 // If either version is invalid, an error is returned.
 func IsLessThanVersion(current string, target string) (bool, error) {
-	cv, err := fleet.VersionToSemverVersion(current)
+	cv, err := automdm.VersionToSemverVersion(current)
 	if err != nil {
 		return false, fmt.Errorf("invalid current version: %w", err)
 	}
-	tv, err := fleet.VersionToSemverVersion(target)
+	tv, err := automdm.VersionToSemverVersion(target)
 	if err != nil {
 		return false, fmt.Errorf("invalid target version: %w", err)
 	}

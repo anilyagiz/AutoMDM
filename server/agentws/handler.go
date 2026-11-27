@@ -6,14 +6,14 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/gorilla/websocket"
 )
 
 // HostAuthenticator authenticates the WebSocket upgrade request. It is
-// satisfied by fleet.Service.
+// satisfied by automdm.Service.
 type HostAuthenticator interface {
-	AuthenticateOrbitHost(ctx context.Context, nodeKey string) (*fleet.Host, bool, error)
+	AuthenticateOrbitHost(ctx context.Context, nodeKey string) (*automdm.Host, bool, error)
 }
 
 // nodeKeyAuthScheme is the Authorization scheme used by orbit-authenticated

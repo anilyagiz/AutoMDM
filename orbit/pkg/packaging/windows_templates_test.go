@@ -39,7 +39,7 @@ func (n wixNode) find(local string, pred func(wixNode) bool) *wixNode {
 	return nil
 }
 
-// windowsServiceEnvironment renders the MSI template and returns the NAME=value entries of the "Fleet osquery"
+// windowsServiceEnvironment renders the MSI template and returns the NAME=value entries of the "AutoMDM osquery"
 // service's per-service Environment registry value, failing if the output isn't well-formed XML.
 func windowsServiceEnvironment(t *testing.T, opt Options) []string {
 	t.Helper()
@@ -52,7 +52,7 @@ func windowsServiceEnvironment(t *testing.T, opt Options) []string {
 	require.NoError(t, xml.Unmarshal(buf.Bytes(), &root), "rendered .wxs is not well-formed XML")
 
 	env := root.find("RegistryValue", func(n wixNode) bool {
-		return n.attr("Name") == "Environment" && strings.HasSuffix(n.attr("Key"), `\Services\Fleet osquery`)
+		return n.attr("Name") == "Environment" && strings.HasSuffix(n.attr("Key"), `\Services\AutoMDM osquery`)
 	})
 	require.NotNil(t, env, "service Environment RegistryValue not found")
 	assert.Equal(t, "multiString", env.attr("Type"))
@@ -67,7 +67,7 @@ func windowsServiceEnvironment(t *testing.T, opt Options) []string {
 
 func TestWindowsWixTemplateServiceEnvironment(t *testing.T) {
 	baseOpt := Options{
-		FleetURL:            "https://fleet.example.com",
+		AutoMDMURL:          "https://automdm.example.com",
 		EnrollSecret:        "secret",
 		OrbitChannel:        "stable",
 		OsquerydChannel:     "stable",
@@ -81,11 +81,11 @@ func TestWindowsWixTemplateServiceEnvironment(t *testing.T) {
 		entries := windowsServiceEnvironment(t, baseOpt)
 		assert.Equal(t, []string{
 			"ORBIT_ROOT_DIR=[ORBITROOT].",
-			`ORBIT_LOG_FILE=[System64Folder]config\systemprofile\AppData\Local\FleetDM\Orbit\Logs\orbit-osquery.log`,
-			"ORBIT_FLEET_URL=[FLEET_URL]",
+			`ORBIT_LOG_FILE=[System64Folder]config\systemprofile\AppData\Local\AutoMDM\Orbit\Logs\orbit-osquery.log`,
+			"ORBIT_AUTOMDM_URL=[AUTOMDM_URL]",
 			"ORBIT_ENROLL_SECRET_PATH=[ORBITROOT]secret.txt",
 			"ORBIT_UPDATE_INTERVAL=15m0s",
-			"ORBIT_FLEET_DESKTOP=[FLEET_DESKTOP]",
+			"ORBIT_AUTOMDM_DESKTOP=[AUTOMDM_DESKTOP]",
 			"ORBIT_DESKTOP_CHANNEL=stable",
 			"ORBIT_ORBIT_CHANNEL=stable",
 			"ORBIT_OSQUERYD_CHANNEL=stable",
@@ -96,13 +96,13 @@ func TestWindowsWixTemplateServiceEnvironment(t *testing.T) {
 
 	t.Run("all options", func(t *testing.T) {
 		opt := baseOpt
-		opt.FleetCertificate = "fleet.pem"
+		opt.AutoMDMCertificate = "automdm.pem"
 		opt.Insecure = true
 		opt.Debug = true
 		opt.UpdateURL = "https://tuf.example.com"
 		opt.UpdateTLSServerCertificate = "update.pem"
 		opt.DisableUpdates = true
-		opt.FleetDesktopAlternativeBrowserHost = "localhost:8080"
+		opt.AutoMDMDesktopAlternativeBrowserHost = "localhost:8080"
 		opt.HostIdentifier = "instance"
 		opt.EnableEndUserEmailProperty = true
 		opt.EnableEUATokenProperty = true
@@ -112,13 +112,13 @@ func TestWindowsWixTemplateServiceEnvironment(t *testing.T) {
 
 		entries := windowsServiceEnvironment(t, opt)
 		for _, want := range []string{
-			"ORBIT_FLEET_CERTIFICATE=[ORBITROOT]fleet.pem",
+			"ORBIT_AUTOMDM_CERTIFICATE=[ORBITROOT]automdm.pem",
 			"ORBIT_INSECURE=true",
 			"ORBIT_DEBUG=true",
 			"ORBIT_UPDATE_URL=https://tuf.example.com",
 			"ORBIT_UPDATE_TLS_CERTIFICATE=[ORBITROOT]update.pem",
 			"ORBIT_DISABLE_UPDATES=true",
-			"ORBIT_FLEET_DESKTOP_ALTERNATIVE_BROWSER_HOST=localhost:8080",
+			"ORBIT_AUTOMDM_DESKTOP_ALTERNATIVE_BROWSER_HOST=localhost:8080",
 			"ORBIT_HOST_IDENTIFIER=instance",
 			"ORBIT_END_USER_EMAIL=[END_USER_EMAIL]",
 			"ORBIT_EUA_TOKEN=[EUA_TOKEN]",

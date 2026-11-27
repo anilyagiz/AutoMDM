@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -63,7 +63,7 @@ func newGraphServer(t *testing.T, handler http.HandlerFunc) *graphServer {
 
 func (gs *graphServer) client(t *testing.T) Client {
 	t.Helper()
-	c, err := newClientWithHosts(&fleet.MicrosoftGraphCredential{
+	c, err := newClientWithHosts(&automdm.MicrosoftGraphCredential{
 		TenantID: testTenantID, ClientID: testClientID, ClientSecret: testSecret,
 	}, gs.URL, gs.URL)
 	require.NoError(t, err)
@@ -87,7 +87,7 @@ func newSingleHostClient(t *testing.T, handler http.HandlerFunc) Client {
 	srv := httptest.NewServer(handler)
 	t.Cleanup(srv.Close)
 
-	c, err := newClientWithHosts(&fleet.MicrosoftGraphCredential{
+	c, err := newClientWithHosts(&automdm.MicrosoftGraphCredential{
 		TenantID: testTenantID, ClientID: testClientID, ClientSecret: testSecret,
 	}, srv.URL, srv.URL)
 	require.NoError(t, err)
@@ -127,12 +127,12 @@ func TestNewClientRequiresFullCredential(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name string
-		cred *fleet.MicrosoftGraphCredential
+		cred *automdm.MicrosoftGraphCredential
 	}{
 		{"nil", nil},
-		{"missing secret", &fleet.MicrosoftGraphCredential{TenantID: "t", ClientID: "c"}},
-		{"missing client", &fleet.MicrosoftGraphCredential{TenantID: "t", ClientSecret: "s"}},
-		{"missing tenant", &fleet.MicrosoftGraphCredential{ClientID: "c", ClientSecret: "s"}},
+		{"missing secret", &automdm.MicrosoftGraphCredential{TenantID: "t", ClientID: "c"}},
+		{"missing client", &automdm.MicrosoftGraphCredential{TenantID: "t", ClientSecret: "s"}},
+		{"missing tenant", &automdm.MicrosoftGraphCredential{ClientID: "c", ClientSecret: "s"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			c, err := NewClient(tc.cred)

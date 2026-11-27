@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
 )
@@ -14,8 +14,8 @@ func TestAPNsSweep(t *testing.T) {
 	ds := CreateMySQLDS(t)
 	ctx := t.Context()
 
-	newHost := func(i int, platform string) *fleet.Host {
-		h, err := ds.NewHost(ctx, &fleet.Host{
+	newHost := func(i int, platform string) *automdm.Host {
+		h, err := ds.NewHost(ctx, &automdm.Host{
 			Hostname:        fmt.Sprintf("sweep-host-%02d", i),
 			OsqueryHostID:   new(fmt.Sprintf("sweep-osq-%02d", i)),
 			NodeKey:         new(fmt.Sprintf("sweep-node-%02d", i)),
@@ -29,8 +29,8 @@ func TestAPNsSweep(t *testing.T) {
 		require.NoError(t, err)
 		return h
 	}
-	setHostMDMOn := func(h *fleet.Host) {
-		err := ds.SetOrUpdateMDMData(ctx, h.ID, false, true, "https://example.com", true, fleet.WellKnownMDMFleet, "", fleet.PersonalEnrollmentTypeNone)
+	setHostMDMOn := func(h *automdm.Host) {
+		err := ds.SetOrUpdateMDMData(ctx, h.ID, false, true, "https://example.com", true, automdm.WellKnownMDMAutoMDM, "", automdm.PersonalEnrollmentTypeNone)
 		require.NoError(t, err)
 	}
 	setLastSeen := func(enrollmentID string, silentFor time.Duration) {
@@ -157,6 +157,6 @@ func TestAPNsSweep(t *testing.T) {
 		state, err := ds.GetMDMAppleAPNsSweepState(ctx)
 		require.NoError(t, err)
 		require.Nil(t, state)
-		require.NoError(t, ds.SetMDMAppleAPNsSweepState(ctx, &fleet.MDMAppleAPNsSweepState{Cursor: "x", BatchSize: 1}))
+		require.NoError(t, ds.SetMDMAppleAPNsSweepState(ctx, &automdm.MDMAppleAPNsSweepState{Cursor: "x", BatchSize: 1}))
 	})
 }

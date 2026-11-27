@@ -7,13 +7,13 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
 )
 
 // ddmMethods is a helper struct to abstract method calls into their respective user/device methods.
 type ddmMethods struct {
-	DeclarativeManagement func(endpoint string, data ...fleet.MDMAppleDDMStatusReport) (*http.Response, error)
+	DeclarativeManagement func(endpoint string, data ...automdm.MDMAppleDDMStatusReport) (*http.Response, error)
 
 	IncrementTokensErrors            func()
 	IncrementTokensSuccess           func()
@@ -52,7 +52,7 @@ func (a *agent) doDeclarativeManagement(cmd *mdm.Command, methods ddmMethods) {
 	// again (mimicking the real device behavior, see
 	// https://github.com/fleetdm/fleet/issues/43050#issuecomment-4252241277).
 	prevToken := methods.getGlobalToken()
-	var items *fleet.MDMAppleDDMDeclarationItemsResponse
+	var items *automdm.MDMAppleDDMDeclarationItemsResponse
 	var currentTokens map[string]string
 	changed := false
 
@@ -158,7 +158,7 @@ func (a *agent) ddmFetchTokens(methods ddmMethods) (string, error) {
 		methods.IncrementTokensErrors()
 		return "", err
 	}
-	var resp fleet.MDMAppleDDMTokensResponse
+	var resp automdm.MDMAppleDDMTokensResponse
 	if err := json.Unmarshal(body, &resp); err != nil {
 		log.Printf("DDM tokens unmarshal failed: %s", err)
 		methods.IncrementTokensErrors()
@@ -168,7 +168,7 @@ func (a *agent) ddmFetchTokens(methods ddmMethods) (string, error) {
 	return resp.SyncTokens.DeclarationsToken, nil
 }
 
-func (a *agent) ddmFetchDeclarationItems(methods ddmMethods) (*fleet.MDMAppleDDMDeclarationItemsResponse, error) {
+func (a *agent) ddmFetchDeclarationItems(methods ddmMethods) (*automdm.MDMAppleDDMDeclarationItemsResponse, error) {
 	r, err := methods.DeclarativeManagement("declaration-items")
 	if err != nil {
 		log.Printf("DDM declaration-items request failed: %s", err)
@@ -182,7 +182,7 @@ func (a *agent) ddmFetchDeclarationItems(methods ddmMethods) (*fleet.MDMAppleDDM
 		methods.IncrementDeclarationItemsErrors()
 		return nil, err
 	}
-	var items fleet.MDMAppleDDMDeclarationItemsResponse
+	var items automdm.MDMAppleDDMDeclarationItemsResponse
 	if err := json.Unmarshal(body, &items); err != nil {
 		log.Printf("DDM declaration-items unmarshal failed: %s", err)
 		methods.IncrementDeclarationItemsErrors()
@@ -209,7 +209,7 @@ func (a *agent) ddmFetchDeclaration(kind, identifier string, methods ddmMethods)
 	}
 	switch kind {
 	case "activation":
-		var act fleet.MDMAppleDDMActivation
+		var act automdm.MDMAppleDDMActivation
 		if err := json.Unmarshal(body, &act); err != nil {
 			log.Printf("DDM %s unmarshal failed: %s", path, err)
 			a.ddmIncrementDeclError(kind, methods)
@@ -217,7 +217,7 @@ func (a *agent) ddmFetchDeclaration(kind, identifier string, methods ddmMethods)
 		}
 		methods.IncrementActivationSuccess()
 	case "configuration":
-		var decl fleet.MDMAppleDeclaration
+		var decl automdm.MDMAppleDeclaration
 		if err := json.Unmarshal(body, &decl); err != nil {
 			log.Printf("DDM %s unmarshal failed: %s", path, err)
 			a.ddmIncrementDeclError(kind, methods)
@@ -225,7 +225,7 @@ func (a *agent) ddmFetchDeclaration(kind, identifier string, methods ddmMethods)
 		}
 		methods.IncrementConfigurationSuccess()
 	case "asset":
-		var asset fleet.RawDDMAsset
+		var asset automdm.RawDDMAsset
 		if err := json.Unmarshal(body, &asset); err != nil {
 			log.Printf("DDM %s unmarshal failed: %s", path, err)
 			a.ddmIncrementDeclError(kind, methods)
@@ -233,7 +233,7 @@ func (a *agent) ddmFetchDeclaration(kind, identifier string, methods ddmMethods)
 		}
 		methods.IncrementAssetSuccess()
 	case "management":
-		var decl fleet.MDMAppleDeclaration
+		var decl automdm.MDMAppleDeclaration
 		if err := json.Unmarshal(body, &decl); err != nil {
 			log.Printf("DDM %s unmarshal failed: %s", path, err)
 			a.ddmIncrementDeclError(kind, methods)
@@ -257,13 +257,13 @@ func (a *agent) ddmIncrementDeclError(kind string, methods ddmMethods) {
 	}
 }
 
-func (a *agent) ddmSendStatus(items *fleet.MDMAppleDDMDeclarationItemsResponse, methods ddmMethods) error {
-	report := fleet.MDMAppleDDMStatusReport{}
+func (a *agent) ddmSendStatus(items *automdm.MDMAppleDDMDeclarationItemsResponse, methods ddmMethods) error {
+	report := automdm.MDMAppleDDMStatusReport{}
 	for _, d := range items.Declarations.Activations {
 		report.StatusItems.Management.Declarations.Activations = append(
 			report.StatusItems.Management.Declarations.Activations,
-			fleet.MDMAppleDDMStatusDeclaration{
-				Active: true, Valid: fleet.MDMAppleDeclarationValid,
+			automdm.MDMAppleDDMStatusDeclaration{
+				Active: true, Valid: automdm.MDMAppleDeclarationValid,
 				Identifier: d.Identifier, ServerToken: d.ServerToken,
 			},
 		)
@@ -271,8 +271,8 @@ func (a *agent) ddmSendStatus(items *fleet.MDMAppleDDMDeclarationItemsResponse, 
 	for _, d := range items.Declarations.Assets {
 		report.StatusItems.Management.Declarations.Assets = append(
 			report.StatusItems.Management.Declarations.Assets,
-			fleet.MDMAppleDDMStatusDeclaration{
-				Active: true, Valid: fleet.MDMAppleDeclarationValid,
+			automdm.MDMAppleDDMStatusDeclaration{
+				Active: true, Valid: automdm.MDMAppleDeclarationValid,
 				Identifier: d.Identifier, ServerToken: d.ServerToken,
 			},
 		)
@@ -280,8 +280,8 @@ func (a *agent) ddmSendStatus(items *fleet.MDMAppleDDMDeclarationItemsResponse, 
 	for _, d := range items.Declarations.Configurations {
 		report.StatusItems.Management.Declarations.Configurations = append(
 			report.StatusItems.Management.Declarations.Configurations,
-			fleet.MDMAppleDDMStatusDeclaration{
-				Active: true, Valid: fleet.MDMAppleDeclarationValid,
+			automdm.MDMAppleDDMStatusDeclaration{
+				Active: true, Valid: automdm.MDMAppleDeclarationValid,
 				Identifier: d.Identifier, ServerToken: d.ServerToken,
 			},
 		)
@@ -290,8 +290,8 @@ func (a *agent) ddmSendStatus(items *fleet.MDMAppleDDMDeclarationItemsResponse, 
 	for _, d := range items.Declarations.Management {
 		report.StatusItems.Management.Declarations.Management = append(
 			report.StatusItems.Management.Declarations.Management,
-			fleet.MDMAppleDDMStatusDeclaration{
-				Active: true, Valid: fleet.MDMAppleDeclarationValid,
+			automdm.MDMAppleDDMStatusDeclaration{
+				Active: true, Valid: automdm.MDMAppleDeclarationValid,
 				Identifier: d.Identifier, ServerToken: d.ServerToken,
 			},
 		)

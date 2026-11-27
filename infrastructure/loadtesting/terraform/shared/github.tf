@@ -50,7 +50,7 @@ data "aws_iam_policy_document" "gha_assume_role" {
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:fleetdm/fleet:*"]
+      values   = ["repo:automdm/automdm:*"]
     }
 
     condition {

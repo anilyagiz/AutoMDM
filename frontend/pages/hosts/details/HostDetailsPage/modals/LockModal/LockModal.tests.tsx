@@ -28,7 +28,7 @@ describe("LockModal", () => {
       )
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/Fleet will generate a six-digit unlock PIN./i)
+      screen.getByText(/AutoMDM will generate a six-digit unlock PIN./i)
     ).toBeInTheDocument();
     expect(screen.getByText(/I wish to lock/i)).toBeInTheDocument();
     expect(screen.getByText(/macos-host-1/i)).toBeInTheDocument();
@@ -45,7 +45,7 @@ describe("LockModal", () => {
     ).toBeInTheDocument();
     expect(screen.queryByText(/Lost Mode/i)).not.toBeInTheDocument();
     expect(
-      screen.queryByText(/It can only be unlocked through Fleet./i)
+      screen.queryByText(/It can only be unlocked through AutoMDM./i)
     ).not.toBeInTheDocument();
     expect(screen.getByText(/End user experience/i)).toBeInTheDocument();
     expect(
@@ -84,7 +84,7 @@ describe("LockModal", () => {
       screen.getByText("Lock the end user out of the work profile.")
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/Fleet will generate an unlock PIN. To view it, select/)
+      screen.getByText(/AutoMDM will generate an unlock PIN. To view it, select/)
     ).toBeInTheDocument();
     expect(screen.getByText("Actions > View unlock PIN")).toBeInTheDocument();
     expect(screen.queryByText(/During offboarding/)).not.toBeInTheDocument();
@@ -107,7 +107,7 @@ describe("LockModal", () => {
       )
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/Fleet will generate an unlock PIN. To view it, select/)
+      screen.getByText(/AutoMDM will generate an unlock PIN. To view it, select/)
     ).toBeInTheDocument();
     expect(screen.getByText("Actions > View unlock PIN")).toBeInTheDocument();
     expect(

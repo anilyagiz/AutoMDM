@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # HWMonitor uses an Inno Setup installer; these switches run it silently.
 # (It installs a kernel driver for sensor access, removed by its uninstaller.)
@@ -8,7 +8,7 @@ $exeFilePath = "${env:INSTALLER_PATH}"
 
 try {
 
-# Setup fails with exit code 5 when HWMonitor's files are in use. Fleet runs as
+# Setup fails with exit code 5 when HWMonitor's files are in use. AutoMDM runs as
 # SYSTEM, outside the user's session, so it can't ask the app to close: stop it
 # first. Unsaved changes are lost.
 $running = Get-Process -ErrorAction SilentlyContinue |

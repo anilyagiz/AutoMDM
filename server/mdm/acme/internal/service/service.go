@@ -8,16 +8,16 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/mdm/acme"
-	"github.com/fleetdm/fleet/v4/server/mdm/acme/api"
-	"github.com/fleetdm/fleet/v4/server/mdm/acme/internal/redis_nonces_store"
-	"github.com/fleetdm/fleet/v4/server/mdm/acme/internal/types"
-	"github.com/fleetdm/fleet/v4/server/mdm/internal/commonmdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/acme"
+	"github.com/anilyagiz/automdm/v4/server/mdm/acme/api"
+	"github.com/anilyagiz/automdm/v4/server/mdm/acme/internal/redis_nonces_store"
+	"github.com/anilyagiz/automdm/v4/server/mdm/acme/internal/types"
+	"github.com/anilyagiz/automdm/v4/server/mdm/internal/commonmdm"
 	"go.opentelemetry.io/otel"
 )
 
 // tracer is an OTEL tracer. It has no-op behavior when OTEL is not enabled.
-var tracer = otel.Tracer("github.com/fleetdm/fleet/v4/server/mdm/acme/internal/service")
+var tracer = otel.Tracer("github.com/anilyagiz/automdm/v4/server/mdm/acme/internal/service")
 
 // Service is the ACME bounded context service implementation.
 type Service struct {

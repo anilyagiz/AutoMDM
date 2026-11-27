@@ -27,7 +27,7 @@ func decodeAction(t *testing.T, r *http.Request) recoveryKeyActionRequest {
 	return req
 }
 
-func TestEnsureFleetRecoveryKeyViaSocket(t *testing.T) {
+func TestEnsureAutoMDMRecoveryKeyViaSocket(t *testing.T) {
 	const wantKey = "55055-39320-64491-48436-47667-15525-36879-32875"
 	var sawGenerate, sawAdd, sawCheck bool
 
@@ -51,7 +51,7 @@ func TestEnsureFleetRecoveryKeyViaSocket(t *testing.T) {
 			sawAdd = true
 			assert.Equal(t, "kid-1", req.KeyID)
 			if assert.Len(t, req.Keyslots, 1) {
-				assert.Equal(t, FleetRecoveryKeyName, req.Keyslots[0].Name)
+				assert.Equal(t, AutoMDMRecoveryKeyName, req.Keyslots[0].Name)
 				assert.Empty(t, req.Keyslots[0].ContainerRole, "name-only keyslot targets all system containers")
 			}
 			_, _ = w.Write([]byte(`{"type":"async","status-code":202,"change":"9"}`))
@@ -66,7 +66,7 @@ func TestEnsureFleetRecoveryKeyViaSocket(t *testing.T) {
 	defer srv.Close()
 
 	fde := &snapdSocketFDE{client: newTestSnapdClient(srv)}
-	key, err := fde.ensureFleetRecoveryKey(context.Background())
+	key, err := fde.ensureAutoMDMRecoveryKey(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, wantKey, key)
 	assert.True(t, sawGenerate, "generate-recovery-key was called")
@@ -74,7 +74,7 @@ func TestEnsureFleetRecoveryKeyViaSocket(t *testing.T) {
 	assert.True(t, sawCheck, "check-recovery-key was called")
 }
 
-func TestEnsureFleetRecoveryKeyViaSocketFallsBackToReplace(t *testing.T) {
+func TestEnsureAutoMDMRecoveryKeyViaSocketFallsBackToReplace(t *testing.T) {
 	var sawReplace bool
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -103,7 +103,7 @@ func TestEnsureFleetRecoveryKeyViaSocketFallsBackToReplace(t *testing.T) {
 	defer srv.Close()
 
 	fde := &snapdSocketFDE{client: newTestSnapdClient(srv)}
-	key, err := fde.ensureFleetRecoveryKey(context.Background())
+	key, err := fde.ensureAutoMDMRecoveryKey(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, "11111-22222", key)
 	assert.True(t, sawReplace, "fell back to replace-recovery-key when add reported a conflict")

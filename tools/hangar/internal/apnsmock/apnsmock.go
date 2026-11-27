@@ -1,5 +1,5 @@
 // Package apnsmock reads the status of a local mock APNs server
-// (cmd/apple-apns-mock), which Hangar runs per Fleet server so osquery-perf's
+// (cmd/apple-apns-mock), which Hangar runs per AutoMDM server so osquery-perf's
 // simulated Apple devices can receive MDM pushes.
 package apnsmock
 
@@ -16,12 +16,12 @@ type Status struct {
 	Up  bool   `json:"up"`
 	URL string `json:"url"`
 	// ActiveConnections is the number of simulated devices holding a push
-	// stream; TotalPushes counts pushes Fleet has sent since the mock started.
+	// stream; TotalPushes counts pushes AutoMDM has sent since the mock started.
 	ActiveConnections int64 `json:"active_connections"`
 	TotalPushes       int64 `json:"total_pushes"`
 }
 
-// URL is the base URL Fleet pushes to and osquery-perf listens on for a mock on
+// URL is the base URL AutoMDM pushes to and osquery-perf listens on for a mock on
 // port. 127.0.0.1 rather than localhost because the mock listens on IPv4 only.
 func URL(port uint16) string {
 	return fmt.Sprintf("http://127.0.0.1:%d", port)

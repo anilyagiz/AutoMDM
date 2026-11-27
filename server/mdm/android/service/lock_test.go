@@ -9,11 +9,11 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
-	android_mock "github.com/fleetdm/fleet/v4/server/mdm/android/mock"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
+	android_mock "github.com/anilyagiz/automdm/v4/server/mdm/android/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/androidmanagement/v1"
@@ -25,7 +25,7 @@ func TestLockAndroidHost(t *testing.T) {
 	type lockSetup struct {
 		svc        *Service
 		apiClient  *android_mock.Client
-		fleetDS    *AndroidMockDS
+		automdmDS  *AndroidMockDS
 		issued     []*androidmanagement.Command
 		storedCmds []*android.MDMAndroidCommand
 		storedPINs []string
@@ -43,34 +43,34 @@ func TestLockAndroidHost(t *testing.T) {
 			return &androidmanagement.Operation{Name: "enterprises/LC01/devices/dev1/operations/1"}, nil
 		}
 
-		s.fleetDS = InitCommonDSMocks()
-		s.fleetDS.Store.GetEnterpriseFunc = func(_ context.Context) (*android.Enterprise, error) {
+		s.automdmDS = InitCommonDSMocks()
+		s.automdmDS.Store.GetEnterpriseFunc = func(_ context.Context) (*android.Enterprise, error) {
 			return &android.Enterprise{ID: 1, EnterpriseID: "LC01"}, nil
 		}
-		s.fleetDS.Store.HostLiteFunc = func(_ context.Context, id uint) (*fleet.Host, error) {
-			return &fleet.Host{ID: id, UUID: "host-uuid", Platform: "android"}, nil
+		s.automdmDS.Store.HostLiteFunc = func(_ context.Context, id uint) (*automdm.Host, error) {
+			return &automdm.Host{ID: id, UUID: "host-uuid", Platform: "android"}, nil
 		}
-		s.fleetDS.Store.AndroidHostLiteByHostUUIDFunc = func(_ context.Context, uuid string) (*fleet.AndroidHost, error) {
-			return &fleet.AndroidHost{
-				Host:   &fleet.Host{ID: hostID, UUID: uuid, Platform: "android"},
+		s.automdmDS.Store.AndroidHostLiteByHostUUIDFunc = func(_ context.Context, uuid string) (*automdm.AndroidHost, error) {
+			return &automdm.AndroidHost{
+				Host:   &automdm.Host{ID: hostID, UUID: uuid, Platform: "android"},
 				Device: &android.Device{HostID: hostID, DeviceID: "dev1"},
 			}, nil
 		}
-		s.fleetDS.Store.LockHostViaAndroidMDMFunc = func(_ context.Context, _ *fleet.Host, cmd *android.MDMAndroidCommand, unlockPIN string) error {
+		s.automdmDS.Store.LockHostViaAndroidMDMFunc = func(_ context.Context, _ *automdm.Host, cmd *android.MDMAndroidCommand, unlockPIN string) error {
 			s.storedCmds = append(s.storedCmds, cmd)
 			s.storedPINs = append(s.storedPINs, unlockPIN)
 			return nil
 		}
 
 		logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-		svc, err := NewServiceWithClient(logger, s.fleetDS, s.apiClient, "test-private-key", &s.fleetDS.DataStore,
+		svc, err := NewServiceWithClient(logger, s.automdmDS, s.apiClient, "test-private-key", &s.automdmDS.DataStore,
 			noopNewActivity, config.AndroidAgentConfig{})
 		require.NoError(t, err)
 		s.svc = svc.(*Service)
 		return s
 	}
 	adminCtx := func(t *testing.T) context.Context {
-		return viewer.NewContext(t.Context(), viewer.Viewer{User: &fleet.User{GlobalRole: new(fleet.RoleAdmin)}})
+		return viewer.NewContext(t.Context(), viewer.Viewer{User: &automdm.User{GlobalRole: new(automdm.RoleAdmin)}})
 	}
 	sixDigitPIN := regexp.MustCompile(`^[0-9]{6}$`)
 
@@ -144,10 +144,10 @@ func TestLockAndroidHost(t *testing.T) {
 		}, nil)
 
 		_, err := s.svc.LockAndroidHost(adminCtx(t), hostID)
-		var badRequest *fleet.BadRequestError
+		var badRequest *automdm.BadRequestError
 		require.ErrorAs(t, err, &badRequest)
 		assert.Empty(t, s.issued)
-		assert.False(t, s.fleetDS.Store.LockHostViaAndroidMDMFuncInvoked)
+		assert.False(t, s.automdmDS.Store.LockHostViaAndroidMDMFuncInvoked)
 	})
 
 	t.Run("an AMAPI rejection stores nothing", func(t *testing.T) {
@@ -159,6 +159,6 @@ func TestLockAndroidHost(t *testing.T) {
 		pin, err := s.svc.LockAndroidHost(adminCtx(t), hostID)
 		require.Error(t, err)
 		assert.Empty(t, pin)
-		assert.False(t, s.fleetDS.Store.LockHostViaAndroidMDMFuncInvoked)
+		assert.False(t, s.automdmDS.Store.LockHostViaAndroidMDMFuncInvoked)
 	})
 }

@@ -9,12 +9,12 @@ import (
 	"os"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/datastore/redis/redistest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/service"
-	"github.com/fleetdm/fleet/v4/server/service/integrationtest"
-	"github.com/fleetdm/fleet/v4/server/service/svctest"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis/redistest"
+	"github.com/anilyagiz/automdm/v4/server/service"
+	"github.com/anilyagiz/automdm/v4/server/service/integrationtest"
+	"github.com/anilyagiz/automdm/v4/server/service/svctest"
 	"github.com/stretchr/testify/require"
 )
 
@@ -42,28 +42,28 @@ func SetUpSuite(t *testing.T, uniqueTestName string, requireSignature bool) *Sui
 	return SetUpSuiteWithConfig(t, uniqueTestName, requireSignature, nil)
 }
 
-func SetUpSuiteWithConfig(t *testing.T, uniqueTestName string, requireSignature bool, configModifier func(cfg *config.FleetConfig)) *Suite {
+func SetUpSuiteWithConfig(t *testing.T, uniqueTestName string, requireSignature bool, configModifier func(cfg *config.AutoMDMConfig)) *Suite {
 	// Note: t.Parallel() is called when MySQL datastore options are processed
-	license := &fleet.LicenseInfo{
-		Tier: fleet.TierPremium,
+	license := &automdm.LicenseInfo{
+		Tier: automdm.TierPremium,
 	}
-	ds, fleetCfg, fleetSvc, ctx := integrationtest.SetUpMySQLAndService(t, uniqueTestName, &service.TestServerOpts{
+	ds, automdmCfg, automdmSvc, ctx := integrationtest.SetUpMySQLAndService(t, uniqueTestName, &service.TestServerOpts{
 		License: license,
 		Pool:    redistest.SetupRedis(t, t.Name(), false, false, false),
 	})
 
 	// Apply config modifications
 	if configModifier != nil {
-		configModifier(&fleetCfg)
+		configModifier(&automdmCfg)
 	}
 
 	slogLogger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	hostIdentitySCEPDepot, err := ds.NewHostIdentitySCEPDepot(slogLogger.With("component", "host-id-scep-depot"), &fleetCfg)
+	hostIdentitySCEPDepot, err := ds.NewHostIdentitySCEPDepot(slogLogger.With("component", "host-id-scep-depot"), &automdmCfg)
 	require.NoError(t, err)
-	users, server := svctest.RunServerForTestsWithServiceWithDS(t, ctx, ds, fleetSvc, &service.TestServerOpts{
-		License:     license,
-		FleetConfig: &fleetCfg,
-		Logger:      slogLogger,
+	users, server := svctest.RunServerForTestsWithServiceWithDS(t, ctx, ds, automdmSvc, &service.TestServerOpts{
+		License:       license,
+		AutoMDMConfig: &automdmCfg,
+		Logger:        slogLogger,
 		HostIdentity: &service.HostIdentity{
 			SCEPStorage:                 hostIdentitySCEPDepot,
 			RequireHTTPMessageSignature: requireSignature,
@@ -72,11 +72,11 @@ func SetUpSuiteWithConfig(t *testing.T, uniqueTestName string, requireSignature 
 
 	s := &Suite{
 		BaseSuite: integrationtest.BaseSuite{
-			Logger:   slogLogger,
-			DS:       ds,
-			FleetCfg: fleetCfg,
-			Users:    users,
-			Server:   server,
+			Logger:     slogLogger,
+			DS:         ds,
+			AutoMDMCfg: automdmCfg,
+			Users:      users,
+			Server:     server,
 		},
 	}
 

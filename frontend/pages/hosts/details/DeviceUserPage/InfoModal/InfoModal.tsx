@@ -18,16 +18,16 @@ const InfoModal = ({
 }: IInfoModalProps): JSX.Element => {
   return (
     <Modal
-      title="Welcome to Fleet"
+      title="Welcome to AutoMDM"
       onExit={onCancel}
       className={`${baseClass}__modal`}
     >
       <div>
         <p>
-          Your organization uses Fleet to check if all devices meet its security
+          Your organization uses AutoMDM to check if all devices meet its security
           policies.
         </p>
-        <p>With Fleet, you and your team can secure your device, together.</p>
+        <p>With AutoMDM, you and your team can secure your device, together.</p>
         <p>
           Want to know what your organization can see?&nbsp;
           <CustomLink

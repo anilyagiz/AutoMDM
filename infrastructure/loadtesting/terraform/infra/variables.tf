@@ -3,25 +3,25 @@ variable "tag" {
   default     = "v4.76.1"
 }
 
-variable "fleet_task_count" {
-  description = "The total number (max) that ECS can scale Fleet containers up to"
+variable "automdm_task_count" {
+  description = "The total number (max) that ECS can scale AutoMDM containers up to"
   type        = number
   default     = 5
 
   validation {
-    condition     = var.fleet_task_count >= 0
-    error_message = "var.fleet_task_count must be greater than or equal to 0."
+    condition     = var.automdm_task_count >= 0
+    error_message = "var.automdm_task_count must be greater than or equal to 0."
   }
 }
 
-variable "fleet_task_memory" {
-  description = "The memory configuration for Fleet containers"
+variable "automdm_task_memory" {
+  description = "The memory configuration for AutoMDM containers"
   type        = number
   default     = 4096
 }
 
-variable "fleet_task_cpu" {
-  description = "The CPU configuration for Fleet containers"
+variable "automdm_task_cpu" {
+  description = "The CPU configuration for AutoMDM containers"
   type        = number
   default     = 512
 }
@@ -44,7 +44,7 @@ variable "database_instance_count" {
 }
 
 variable "mysql_max_open_conns" {
-  description = "Max open MySQL connections per Fleet container, applied to both the writer and read-replica pools. A single Aurora instance sees roughly fleet_task_count * mysql_max_open_conns, up to 2x that on one instance during a failover or with no read replicas (when reader traffic falls back to the writer)."
+  description = "Max open MySQL connections per AutoMDM container, applied to both the writer and read-replica pools. A single Aurora instance sees roughly automdm_task_count * mysql_max_open_conns, up to 2x that on one instance during a failover or with no read replicas (when reader traffic falls back to the writer)."
   type        = number
   default     = 10
 
@@ -72,7 +72,7 @@ variable "redis_instance_count" {
 }
 
 variable "redis_max_open_conns" {
-  description = "Max open Redis connections per Fleet container, also used as max idle. With no conn wait timeout, requests fail with \"connection pool exhausted\" once the pool is full."
+  description = "Max open Redis connections per AutoMDM container, also used as max idle. With no conn wait timeout, requests fail with \"connection pool exhausted\" once the pool is full."
   type        = number
   default     = 500
 
@@ -157,16 +157,16 @@ variable "apple_apns_mock_redis_instance_count" {
 }
 
 variable "apple_apns_mock_instance_count" {
-  description = "Number of mock APNs instances. They share state through Redis, so Fleet can push to any of them. Plan on 75k-100k SSE connections per instance."
+  description = "Number of mock APNs instances. They share state through Redis, so AutoMDM can push to any of them. Plan on 75k-100k SSE connections per instance."
   type        = number
   default     = 1
 }
 
 variable "enable_apple_mdm" {
   description = <<-EOT
-    Spin up the mock Apple APNs push server and point the Fleet server's
+    Spin up the mock Apple APNs push server and point the AutoMDM server's
     pushes at it. When false, pushes are disabled outright
-    (FLEET_DEV_MDM_APPLE_DISABLE_PUSH) so that a loadtest never sends traffic
+    (AUTOMDM_DEV_MDM_APPLE_DISABLE_PUSH) so that a loadtest never sends traffic
     to real Apple infrastructure.
   EOT
   type        = bool

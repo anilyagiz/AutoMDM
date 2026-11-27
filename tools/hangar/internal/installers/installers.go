@@ -1,10 +1,10 @@
-// Package installers builds fleetd installers (fleetctl package) for a
-// fleetctl context's Fleet server, or for a typed-in URL and enroll secret,
+// Package installers builds automdmd installers (automdmctl package) for a
+// automdmctl context's AutoMDM server, or for a typed-in URL and enroll secret,
 // named so they can be told apart at a glance and shared with test machines.
 // It covers the pure parts — platform list, output folder and file naming, the
-// fleetctl arguments, matching a context to a Hangar server, reading channels
-// from a TUF repo, the manifest — plus a small Fleet API client (fleetapi.go)
-// for scanning a server's fleets and enroll secrets.
+// automdmctl arguments, matching a context to a Hangar server, reading channels
+// from a TUF repo, the manifest — plus a small AutoMDM API client (automdmapi.go)
+// for scanning a server's teams and enroll secrets.
 //
 // A build runs build.sh (embedded) through the process engine, so output
 // streams to a log channel like the TUF tab. One build runs at a time; its
@@ -26,8 +26,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/fleetdm/fleet/tools/hangar/internal/paths"
-	"github.com/fleetdm/fleet/tools/hangar/internal/settings"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/paths"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/settings"
 )
 
 const (
@@ -48,8 +48,8 @@ var BuildScript string
 type Platform struct {
 	Key  string `json:"key"`
 	OS   string `json:"os"`   // macos | windows | linux — the name's OS part
-	Type string `json:"type"` // fleetctl package --type
-	Arch string `json:"arch"` // fleetctl package --arch; "" for the universal pkg
+	Type string `json:"type"` // automdmctl package --type
+	Arch string `json:"arch"` // automdmctl package --arch; "" for the universal pkg
 }
 
 // Platforms is every installer the tab offers (matches lib/installers.ts).
@@ -99,20 +99,20 @@ func Slug(name string) string {
 	return strings.Trim(nonSlug.ReplaceAllString(strings.ToLower(name), "-"), "-")
 }
 
-// ManualFleet names the files of a build whose enroll secret was typed in.
-const ManualFleet = "manual"
+// ManualAutoMDM names the files of a build whose enroll secret was typed in.
+const ManualAutoMDM = "manual"
 
-// FleetSlug is the fleet part of the file names: the picked fleet's name
-// ("unassigned" for the global secret), or ManualFleet for a typed-in secret.
-// A fleet whose name has nothing usable (all emoji) goes by its id.
-func FleetSlug(t settings.InstallerTarget) string {
+// TeamSlug is the team part of the file names: the picked team's name
+// ("unassigned" for the global secret), or ManualAutoMDM for a typed-in secret.
+// A team whose name has nothing usable (all emoji) goes by its id.
+func TeamSlug(t settings.InstallerTarget) string {
 	if s := Slug(t.TeamName); s != "" {
 		return s
 	}
 	if t.TeamName != "" && t.TeamID != nil {
-		return fmt.Sprintf("fleet-%d", *t.TeamID)
+		return fmt.Sprintf("automdm-%d", *t.TeamID)
 	}
-	return ManualFleet
+	return ManualAutoMDM
 }
 
 var nonContextSafe = regexp.MustCompile(`[^a-z0-9._-]+`)
@@ -144,7 +144,7 @@ func OutputDir(fileServerDir, repo, context string) (string, error) {
 		base = strings.TrimSpace(repo)
 	}
 	if base == "" {
-		return "", errors.New("set the Fleet repo (or the file server's directory) in Settings first")
+		return "", errors.New("set the AutoMDM repo (or the file server's directory) in Settings first")
 	}
 	base = paths.Expand(base)
 	if !filepath.IsAbs(base) {
@@ -192,14 +192,14 @@ var nonSlugKeepDots = regexp.MustCompile(`[^a-z0-9.]+`)
 
 // FileName is the installer's file name:
 //
-//	fleetd-<fleet>-<os>[-<arch>][-tuf][-<channels>][-nodesktop][-noscripts].<ext>
+//	automdmd-<team>-<os>[-<arch>][-tuf][-<channels>][-nodesktop][-noscripts].<ext>
 //
-// e.g. fleetd-workstations-linux-arm64.deb. Only settings that differ from the
+// e.g. automdmd-workstations-linux-arm64.deb. Only settings that differ from the
 // defaults add a part, so a default rebuild overwrites the same file (and its
 // share link keeps working).
-func FileName(fleetSlug string, p Platform, opts settings.InstallerOptions) string {
+func FileName(teamSlug string, p Platform, opts settings.InstallerOptions) string {
 	var b strings.Builder
-	b.WriteString("fleetd-" + fleetSlug + "-" + p.OS)
+	b.WriteString("automdmd-" + teamSlug + "-" + p.OS)
 	if p.Arch != "" {
 		b.WriteString("-" + p.Arch)
 	}
@@ -207,7 +207,7 @@ func FileName(fleetSlug string, p Platform, opts settings.InstallerOptions) stri
 		b.WriteString("-tuf")
 	}
 	b.WriteString(channelSuffix(opts))
-	if !opts.FleetDesktop {
+	if !opts.AutoMDMDesktop {
 		b.WriteString("-nodesktop")
 	}
 	if !opts.EnableScripts {
@@ -217,7 +217,7 @@ func FileName(fleetSlug string, p Platform, opts settings.InstallerOptions) stri
 	return b.String()
 }
 
-// Job is one fleetctl package run of a build.
+// Job is one automdmctl package run of a build.
 type Job struct {
 	Key     string
 	Type    string
@@ -227,7 +227,7 @@ type Job struct {
 
 // Jobs lists the runs for opts' selected platforms, in Platforms order,
 // writing into outDir. Unknown keys are ignored.
-func Jobs(fleetSlug, outDir string, opts settings.InstallerOptions) []Job {
+func Jobs(teamSlug, outDir string, opts settings.InstallerOptions) []Job {
 	selected := map[string]bool{}
 	for _, k := range opts.Platforms {
 		selected[k] = true
@@ -237,7 +237,7 @@ func Jobs(fleetSlug, outDir string, opts settings.InstallerOptions) []Job {
 		if !selected[p.Key] {
 			continue
 		}
-		jobs = append(jobs, Job{Key: p.Key, Type: p.Type, Arch: p.Arch, OutFile: filepath.Join(outDir, FileName(fleetSlug, p, opts))})
+		jobs = append(jobs, Job{Key: p.Key, Type: p.Type, Arch: p.Arch, OutFile: filepath.Join(outDir, FileName(teamSlug, p, opts))})
 	}
 	return jobs
 }
@@ -260,7 +260,7 @@ func EncodeJobs(jobs []Job) string {
 // BuildInputs is everything resolved at build time that isn't in the saved
 // options.
 type BuildInputs struct {
-	FleetURL     string
+	AutoMDMURL   string
 	EnrollSecret string
 	// UpdateURL / UpdateRoots are set only for a local TUF build.
 	UpdateURL   string
@@ -269,16 +269,16 @@ type BuildInputs struct {
 	ExtraFlags []string
 }
 
-// CommonArgs are the fleetctl package flags shared by every job of a build
+// CommonArgs are the automdmctl package flags shared by every job of a build
 // (build.sh adds --type, --arch and --outfile per job).
 func CommonArgs(cfg settings.InstallerOptions, in BuildInputs) []string {
 	args := []string{
-		"--fleet-url=" + in.FleetURL,
+		"--automdm-url=" + in.AutoMDMURL,
 		"--enroll-secret=" + in.EnrollSecret,
 		"--disable-open-folder",
 	}
-	if cfg.FleetDesktop {
-		args = append(args, "--fleet-desktop")
+	if cfg.AutoMDMDesktop {
+		args = append(args, "--automdm-desktop")
 	}
 	if cfg.EnableScripts {
 		args = append(args, "--enable-scripts")
@@ -301,16 +301,16 @@ func CommonArgs(cfg settings.InstallerOptions, in BuildInputs) []string {
 	return append(args, in.ExtraFlags...)
 }
 
-// managedFlags are the fleetctl package flags Hangar sets itself; extra flags
+// managedFlags are the automdmctl package flags Hangar sets itself; extra flags
 // may not repeat them.
 var managedFlags = map[string]bool{
-	"--type": true, "--arch": true, "--outfile": true, "--fleet-url": true, "--enroll-secret": true,
-	"--fleet-desktop": true, "--enable-scripts": true, "--debug": true, "--disable-open-folder": true,
+	"--type": true, "--arch": true, "--outfile": true, "--automdm-url": true, "--enroll-secret": true,
+	"--automdm-desktop": true, "--enable-scripts": true, "--debug": true, "--disable-open-folder": true,
 	"--orbit-channel": true, "--desktop-channel": true, "--osqueryd-channel": true,
 	"--update-url": true, "--update-roots": true,
 }
 
-// ParseExtraFlags splits extra `fleetctl package` flags like a shell would
+// ParseExtraFlags splits extra `automdmctl package` flags like a shell would
 // (whitespace-separated, with '…' and "…" quoting) and rejects flags Hangar
 // already sets. Values may be attached (--flag=value) or follow the flag.
 func ParseExtraFlags(s string) ([]string, error) {
@@ -347,7 +347,7 @@ func ParseExtraFlags(s string) ([]string, error) {
 	}
 	for _, a := range out {
 		name, _, _ := strings.Cut(a, "=")
-		// fleetctl reads -flag like --flag, and the last one given wins.
+		// automdmctl reads -flag like --flag, and the last one given wins.
 		if strings.HasPrefix(name, "-") {
 			name = "--" + strings.TrimLeft(name, "-")
 		}
@@ -358,8 +358,8 @@ func ParseExtraFlags(s string) ([]string, error) {
 	return out, nil
 }
 
-// ServerForAddress is the Hangar server a fleetctl context's address points
-// at (a loopback host on that server's port), or nil. Its fleetctl is the one
+// ServerForAddress is the Hangar server an automdmctl context's address points
+// at (a loopback host on that server's port), or nil. Its automdmctl is the one
 // to build with, so packages match the server's version.
 func ServerForAddress(servers []settings.ServerProfile, address string) *settings.ServerProfile {
 	u, err := url.Parse(strings.TrimSpace(address))
@@ -462,20 +462,20 @@ func versionLess(a, b string) bool {
 
 // ManifestEntry records how one installer was built.
 type ManifestEntry struct {
-	Platform        string `json:"platform"`
-	BuiltAt         string `json:"built_at"`
-	Context         string `json:"context,omitempty"`
-	FleetURL        string `json:"fleet_url"`
-	Team            string `json:"team"`
-	FleetDesktop    bool   `json:"fleet_desktop"`
-	EnableScripts   bool   `json:"enable_scripts"`
-	Debug           bool   `json:"debug"`
-	UpdateURL       string `json:"update_url"`
-	OrbitChannel    string `json:"orbit_channel"`
-	DesktopChannel  string `json:"desktop_channel"`
-	OsquerydChannel string `json:"osqueryd_channel"`
-	FleetctlVersion string `json:"fleetctl_version"`
-	ExtraFlags      string `json:"extra_flags,omitempty"`
+	Platform          string `json:"platform"`
+	BuiltAt           string `json:"built_at"`
+	Context           string `json:"context,omitempty"`
+	AutoMDMURL        string `json:"automdm_url"`
+	Team              string `json:"team"`
+	AutoMDMDesktop    bool   `json:"automdm_desktop"`
+	EnableScripts     bool   `json:"enable_scripts"`
+	Debug             bool   `json:"debug"`
+	UpdateURL         string `json:"update_url"`
+	OrbitChannel      string `json:"orbit_channel"`
+	DesktopChannel    string `json:"desktop_channel"`
+	OsquerydChannel   string `json:"osqueryd_channel"`
+	AutoMDMctlVersion string `json:"automdmctl_version"`
+	ExtraFlags        string `json:"extra_flags,omitempty"`
 }
 
 // Manifest is a packages folder's manifest.json: one entry per file name.
@@ -562,7 +562,7 @@ func WriteFileAtomic(path string, b []byte, perm os.FileMode) error {
 	return os.Rename(tmp.Name(), path)
 }
 
-// ValidateArgs rejects resolved fleetctl arguments that build.sh would split:
+// ValidateArgs rejects resolved automdmctl arguments that build.sh would split:
 // it reads them newline-separated, and values like the enroll secret or the
 // scanned server_url come from the server rather than the user.
 func ValidateArgs(args []string) error {
@@ -579,7 +579,7 @@ func ValidateArgs(args []string) error {
 // args travel newline-separated, so a newline would inject an extra flag.
 func ValidateConfig(cfg settings.InstallerOptions, target settings.InstallerTarget) error {
 	for name, v := range map[string]string{
-		"Fleet URL":       target.FleetURL,
+		"AutoMDM URL":     target.AutoMDMURL,
 		"orbit channel":   cfg.OrbitChannel,
 		"desktop channel": cfg.DesktopChannel,
 		"osquery channel": cfg.OsquerydChannel,

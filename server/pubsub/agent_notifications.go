@@ -9,9 +9,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/datastore/redis"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis"
 	redigo "github.com/gomodule/redigo/redis"
 )
 
@@ -39,20 +39,20 @@ type AgentNotification struct {
 	HostIDs []uint `json:"host_ids"`
 	Reason  string `json:"reason,omitempty"`
 	// Scope, when set, targets every host in scope instead of HostIDs (see
-	// fleet.AgentNotificationScope).
-	Scope fleet.AgentNotificationScope `json:"scope,omitempty"`
+	// automdm.AgentNotificationScope).
+	Scope automdm.AgentNotificationScope `json:"scope,omitempty"`
 }
 
 // RedisAgentNotifier publishes and subscribes to agent check-in wake-ups over
-// Redis pub/sub. It implements fleet.AgentCheckInNotifier.
+// Redis pub/sub. It implements automdm.AgentCheckInNotifier.
 type RedisAgentNotifier struct {
-	pool   fleet.RedisPool
+	pool   automdm.RedisPool
 	logger *slog.Logger
 }
 
-var _ fleet.AgentCheckInNotifier = (*RedisAgentNotifier)(nil)
+var _ automdm.AgentCheckInNotifier = (*RedisAgentNotifier)(nil)
 
-func NewRedisAgentNotifier(pool fleet.RedisPool, logger *slog.Logger) *RedisAgentNotifier {
+func NewRedisAgentNotifier(pool automdm.RedisPool, logger *slog.Logger) *RedisAgentNotifier {
 	return &RedisAgentNotifier{
 		pool:   pool,
 		logger: logger,
@@ -62,20 +62,20 @@ func NewRedisAgentNotifier(pool fleet.RedisPool, logger *slog.Logger) *RedisAgen
 // NotifyAgentsForLiveQuery publishes a distributed/read wake-up for the hosts
 // targeted by a newly created live query campaign.
 func (n *RedisAgentNotifier) NotifyAgentsForLiveQuery(ctx context.Context, hostIDs []uint, campaignID uint) error {
-	return n.publishHosts(ctx, fleet.AgentWSMessageTypeDistributedRead, fleet.AgentWSReasonLiveQuery(campaignID), hostIDs)
+	return n.publishHosts(ctx, automdm.AgentWSMessageTypeDistributedRead, automdm.AgentWSReasonLiveQuery(campaignID), hostIDs)
 }
 
 // NotifyOrbitConfigHosts publishes an orbit/config wake-up for hostIDs.
 func (n *RedisAgentNotifier) NotifyOrbitConfigHosts(ctx context.Context, hostIDs []uint, reason string) error {
-	return n.publishHosts(ctx, fleet.AgentWSMessageTypeOrbitConfig, reason, hostIDs)
+	return n.publishHosts(ctx, automdm.AgentWSMessageTypeOrbitConfig, reason, hostIDs)
 }
 
 // NotifyOrbitConfigScope publishes a single orbit/config wake-up for every
 // host in scope; each instance resolves the scope against the connections it
 // holds.
-func (n *RedisAgentNotifier) NotifyOrbitConfigScope(ctx context.Context, scope fleet.AgentNotificationScope, reason string) error {
+func (n *RedisAgentNotifier) NotifyOrbitConfigScope(ctx context.Context, scope automdm.AgentNotificationScope, reason string) error {
 	return n.publish(ctx, AgentNotification{
-		Type:   fleet.AgentWSMessageTypeOrbitConfig,
+		Type:   automdm.AgentWSMessageTypeOrbitConfig,
 		Reason: reason,
 		Scope:  scope,
 	})
@@ -83,14 +83,14 @@ func (n *RedisAgentNotifier) NotifyOrbitConfigScope(ctx context.Context, scope f
 
 // NotifyOsqueryConfigHosts publishes an osquery/config wake-up for hostIDs.
 func (n *RedisAgentNotifier) NotifyOsqueryConfigHosts(ctx context.Context, hostIDs []uint, reason string) error {
-	return n.publishHosts(ctx, fleet.AgentWSMessageTypeOsqueryConfig, reason, hostIDs)
+	return n.publishHosts(ctx, automdm.AgentWSMessageTypeOsqueryConfig, reason, hostIDs)
 }
 
 // NotifyOsqueryConfigScope is NotifyOrbitConfigScope's osquery/config
 // counterpart.
-func (n *RedisAgentNotifier) NotifyOsqueryConfigScope(ctx context.Context, scope fleet.AgentNotificationScope, reason string) error {
+func (n *RedisAgentNotifier) NotifyOsqueryConfigScope(ctx context.Context, scope automdm.AgentNotificationScope, reason string) error {
 	return n.publish(ctx, AgentNotification{
-		Type:   fleet.AgentWSMessageTypeOsqueryConfig,
+		Type:   automdm.AgentWSMessageTypeOsqueryConfig,
 		Reason: reason,
 		Scope:  scope,
 	})
@@ -222,7 +222,7 @@ func (n *RedisAgentNotifier) subscribeOnce(ctx context.Context, deliver func(Age
 //   - Live queries: the live query store's in-memory active-queries cache
 //     (see live_query.NewRedisLiveQuery); a read served from a snapshot
 //     predating the campaign misses it.
-//   - Scoped orbit config: the per-instance fleet agent options and MDM config
+//   - Scoped orbit config: the per-instance automdm agent options and MDM config
 //     caches (see cached_mysql) that GetOrbitConfig reads.
 //   - Osquery config: the cached_mysql caches the config is built from, and the
 //     service's pack config cache.
@@ -237,7 +237,7 @@ func (n *RedisAgentNotifier) subscribeOnce(ctx context.Context, deliver func(Age
 // exits before publishing them are lost, and agents pick the change up on
 // their next poll instead.
 type DelayedAgentNotifier struct {
-	inner  fleet.AgentCheckInNotifier
+	inner  automdm.AgentCheckInNotifier
 	delays AgentNotifierDelays
 	logger *slog.Logger
 
@@ -263,21 +263,21 @@ type AgentNotifierDelays struct {
 	// notifications. Their changes are read uncached, so it doesn't need to
 	// outlast any cache.
 	OrbitConfigHosts time.Duration
-	// OrbitConfigScope delays fleet and global orbit config notifications until
-	// the cached fleet agent options and MDM config that GetOrbitConfig reads
+	// OrbitConfigScope delays team and global orbit config notifications until
+	// the cached automdm agent options and MDM config that GetOrbitConfig reads
 	// expire.
 	OrbitConfigScope time.Duration
 	// OsqueryConfigHosts delays per-host osquery config notifications (hosts
-	// moved to another fleet) until the host's cached packs expire. It is also
+	// moved to another team) until the host's cached packs expire. It is also
 	// their batching window.
 	OsqueryConfigHosts time.Duration
-	// OsqueryConfigScope delays fleet and global osquery config notifications
+	// OsqueryConfigScope delays team and global osquery config notifications
 	// until the caches the osquery config is built from expire, including the
 	// service's pack config cache.
 	OsqueryConfigScope time.Duration
 }
 
-func NewDelayedAgentNotifier(inner fleet.AgentCheckInNotifier, delays AgentNotifierDelays, logger *slog.Logger) *DelayedAgentNotifier {
+func NewDelayedAgentNotifier(inner automdm.AgentCheckInNotifier, delays AgentNotifierDelays, logger *slog.Logger) *DelayedAgentNotifier {
 	return &DelayedAgentNotifier{
 		inner:        inner,
 		delays:       delays,
@@ -286,7 +286,7 @@ func NewDelayedAgentNotifier(inner fleet.AgentCheckInNotifier, delays AgentNotif
 	}
 }
 
-var _ fleet.AgentCheckInNotifier = (*DelayedAgentNotifier)(nil)
+var _ automdm.AgentCheckInNotifier = (*DelayedAgentNotifier)(nil)
 
 // NotifyAgentsForLiveQuery schedules the notification to be published after
 // the configured delay and returns immediately; publish errors are logged
@@ -301,14 +301,14 @@ func (n *DelayedAgentNotifier) NotifyAgentsForLiveQuery(ctx context.Context, hos
 // NotifyOrbitConfigHosts queues the notification, merging it with the others
 // of the same reason until the batching window ends, and returns immediately.
 func (n *DelayedAgentNotifier) NotifyOrbitConfigHosts(ctx context.Context, hostIDs []uint, reason string) error {
-	n.batchHosts(ctx, fleet.AgentWSMessageTypeOrbitConfig, reason, hostIDs, n.delays.OrbitConfigHosts, n.inner.NotifyOrbitConfigHosts)
+	n.batchHosts(ctx, automdm.AgentWSMessageTypeOrbitConfig, reason, hostIDs, n.delays.OrbitConfigHosts, n.inner.NotifyOrbitConfigHosts)
 	return nil
 }
 
 // NotifyOsqueryConfigHosts is NotifyOrbitConfigHosts's osquery/config
 // counterpart.
 func (n *DelayedAgentNotifier) NotifyOsqueryConfigHosts(ctx context.Context, hostIDs []uint, reason string) error {
-	n.batchHosts(ctx, fleet.AgentWSMessageTypeOsqueryConfig, reason, hostIDs, n.delays.OsqueryConfigHosts, n.inner.NotifyOsqueryConfigHosts)
+	n.batchHosts(ctx, automdm.AgentWSMessageTypeOsqueryConfig, reason, hostIDs, n.delays.OsqueryConfigHosts, n.inner.NotifyOsqueryConfigHosts)
 	return nil
 }
 
@@ -337,7 +337,7 @@ func (n *DelayedAgentNotifier) batchHosts(ctx context.Context, msgType, reason s
 
 // NotifyOrbitConfigScope is NotifyAgentsForLiveQuery's orbit/config
 // counterpart for a scope.
-func (n *DelayedAgentNotifier) NotifyOrbitConfigScope(ctx context.Context, scope fleet.AgentNotificationScope, reason string) error {
+func (n *DelayedAgentNotifier) NotifyOrbitConfigScope(ctx context.Context, scope automdm.AgentNotificationScope, reason string) error {
 	n.after(ctx, n.delays.OrbitConfigScope, func(ctx context.Context) error {
 		return n.inner.NotifyOrbitConfigScope(ctx, scope, reason)
 	}, "delayed notify orbit config scope", "scope", scope, "reason", reason)
@@ -346,7 +346,7 @@ func (n *DelayedAgentNotifier) NotifyOrbitConfigScope(ctx context.Context, scope
 
 // NotifyOsqueryConfigScope is NotifyOrbitConfigScope's osquery/config
 // counterpart.
-func (n *DelayedAgentNotifier) NotifyOsqueryConfigScope(ctx context.Context, scope fleet.AgentNotificationScope, reason string) error {
+func (n *DelayedAgentNotifier) NotifyOsqueryConfigScope(ctx context.Context, scope automdm.AgentNotificationScope, reason string) error {
 	n.after(ctx, n.delays.OsqueryConfigScope, func(ctx context.Context) error {
 		return n.inner.NotifyOsqueryConfigScope(ctx, scope, reason)
 	}, "delayed notify osquery config scope", "scope", scope, "reason", reason)

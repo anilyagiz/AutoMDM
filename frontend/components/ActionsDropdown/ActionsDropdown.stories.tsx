@@ -28,7 +28,7 @@ const RICH_OPTIONS: IDropdownOption[] = [
     label: "Transfer",
     value: "transfer",
     disabled: true,
-    tooltipContent: "You need admin on both fleets to move this host.",
+    tooltipContent: "You need admin on both teams to move this host.",
   },
 ];
 

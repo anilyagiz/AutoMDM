@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/cryptoutil"
-	mdmhttp "github.com/fleetdm/fleet/v4/server/mdm/nanomdm/http"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/storage"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/cryptoutil"
+	mdmhttp "github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/http"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/storage"
 
 	"github.com/micromdm/nanolib/log"
 	"github.com/micromdm/nanolib/log/ctxlog"

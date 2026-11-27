@@ -1,10 +1,10 @@
-# Fleet contributor documentation
+# AutoMDM contributor documentation
 
-Welcome to the Fleet contributor documentation! This documentation is designed to help you contribute to the Fleet project.
+Welcome to the AutoMDM contributor documentation! This documentation is designed to help you contribute to the AutoMDM project.
 
 ## Getting started
 
-- [Getting started](getting-started/README.md) - Setup, building, and testing Fleet
+- [Getting started](getting-started/README.md) - Setup, building, and testing AutoMDM
 - [Guides](guides/README.md) - How-to guides for common tasks
 - [Workflows](workflows/README.md) - Development workflows
 - [Reference](reference/README.md) - API reference, configuration, etc.
@@ -26,11 +26,11 @@ Docs are organized by feature. Each feature directory holds all of that feature'
 - [Automations](automations/README.md) - Policy and software automations, webhooks, calendar
 - [Reports](reports/README.md) - Live and scheduled queries, query packs
 - [Host vitals](host-vitals/README.md) - Host detail queries
-- [Fleets and access control](fleets/README.md) - Fleets (formerly "teams") and RBAC
+- [Teams and access control](teams/README.md) - Teams (formerly "teams") and RBAC
 
 ## Contributing
 
-If you're new to Fleet, we recommend starting with the [Getting started](getting-started/README.md) section to set up your development environment.
+If you're new to AutoMDM, we recommend starting with the [Getting started](getting-started/README.md) section to set up your development environment.
 
 Once you're set up, you can explore the [Guides](guides/README.md) section to learn how to contribute to specific areas of the project.
 

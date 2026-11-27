@@ -10,7 +10,7 @@
 				<key>AllowAllAppsAccess</key>
 				<true/>
 				<key>Challenge</key>
-				<string>$FLEET_VAR_NDES_SCEP_CHALLENGE</string>
+				<string>$AUTOMDM_VAR_NDES_SCEP_CHALLENGE</string>
 				<key>Key Type</key>
 				<string>RSA</string>
 				<key>Key Usage</key>
@@ -22,12 +22,12 @@
 					<array>
 						<array>
 							<string>CN</string>
-							<string>managementAttestation %HardwareUUID% $FLEET_VAR_CERTIFICATE_RENEWAL_ID</string>
+							<string>managementAttestation %HardwareUUID% $AUTOMDM_VAR_CERTIFICATE_RENEWAL_ID</string>
 						</array>
 					</array>
 				</array>
 				<key>URL</key>
-				<string>$FLEET_VAR_NDES_SCEP_PROXY_URL</string>
+				<string>$AUTOMDM_VAR_NDES_SCEP_PROXY_URL</string>
 			</dict>
 			<key>PayloadDisplayName</key>
 			<string>SCEP</string>

@@ -5,7 +5,7 @@
 ```bash
 git checkout main
 git pull origin main
-git checkout -b rc-minor-fleetd-android-v1.X.X
+git checkout -b rc-minor-automdmd-android-v1.X.X
 ```
 
 ## 2. Update version numbers
@@ -40,15 +40,15 @@ Review the generated changelog and manually add any additional entries that are 
 ```bash
 git add android/app/build.gradle.kts android/CHANGELOG.md android/changes/
 git commit -m "Prepare release v1.X.X"
-git push origin rc-minor-fleetd-android-v1.X.X
+git push origin rc-minor-automdmd-android-v1.X.X
 ```
 
 ## 5. Test the RC by releasing to the staging environment (com.fleetdm.agent.stage)
 
 Prerequisites:
-- Fleet server running with:
-  - `export FLEET_MDM_ANDROID_AGENT_PACKAGE=com.fleetdm.agent.stage`
-  - `export FLEET_MDM_ANDROID_AGENT_SIGNING_SHA256=uxe8ynMUe36j7avGtA2F4wHeA+gnQn6UbPP+7D3AbQQ=`
+- AutoMDM server running with:
+  - `export AUTOMDM_MDM_ANDROID_AGENT_PACKAGE=com.fleetdm.agent.stage`
+  - `export AUTOMDM_MDM_ANDROID_AGENT_SIGNING_SHA256=uxe8ynMUe36j7avGtA2F4wHeA+gnQn6UbPP+7D3AbQQ=`
 - In [Google Play Console](https://play.google.com/console) (using the "Google Play Admin" 1pass creds), add your Android MDM org ID to "Test and Release" --> "Advanced Settings" --> "Managed Google Play".
 - Get the staging signing key from a previous releaser
 
@@ -67,7 +67,7 @@ Ensure `keystore.properties` is configured with the staging signing key:
 ```
 storeFile=./qa-keystore.jks
 storePassword=<get-this-from-a-previous-releaser>
-keyAlias=fleet-android
+keyAlias=automdm-android
 keyPassword=<get-this-from-a-previous-releaser>
 ```
 
@@ -80,7 +80,7 @@ Output: `app/build/outputs/bundle/release/app-release.aab`
 ### Upload to Google Play
 
 1. Go to [Google Play Console](https://play.google.com/console).
-2. Select the Fleet staging app (`com.fleetdm.agent.stage`).
+2. Select the AutoMDM staging app (`com.fleetdm.agent.stage`).
 3. Navigate to "Test and release" > Production.
 4. Select "Create new release"
 5. Upload the signed .aab file.
@@ -110,7 +110,7 @@ Output: `app/build/outputs/bundle/release/app-release.aab`
 ### Upload to Google Play
 
 1. Go to [Google Play Console](https://play.google.com/console).
-2. Select the Fleet app (`com.fleetdm.agent`).
+2. Select the AutoMDM app (`com.fleetdm.agent`).
 3. Navigate to Release > Production.
 4. Upload the signed .aab file.
 5. Add release notes at the bottom of the page.
@@ -123,9 +123,9 @@ Output: `app/build/outputs/bundle/release/app-release.aab`
 After the release is uploaded, tag the RC branch:
 
 ```bash
-git checkout rc-minor-fleetd-android-v1.X.X
-git tag fleetd-android-v1.X.X
-git push origin rc-minor-fleetd-android-v1.X.X
+git checkout rc-minor-automdmd-android-v1.X.X
+git tag automdmd-android-v1.X.X
+git push origin rc-minor-automdmd-android-v1.X.X
 ```
 
 ## 8. Bring version bump and CHANGELOG to main
@@ -133,27 +133,27 @@ git push origin rc-minor-fleetd-android-v1.X.X
 ```bash
 git checkout main
 git pull origin main
-git checkout -b bring-fleetd-android-v1.X.X-to-main
-git checkout rc-minor-fleetd-android-v1.X.X -- android/app/build.gradle.kts android/CHANGELOG.md
-git diff --name-only --diff-filter=D main...rc-minor-fleetd-android-v1.X.X -- android/changes/ | xargs git rm --ignore-unmatch
-git commit -m "Update version and CHANGELOG for fleetd-android-v1.X.X"
-git push origin bring-fleetd-android-v1.X.X-to-main
+git checkout -b bring-automdmd-android-v1.X.X-to-main
+git checkout rc-minor-automdmd-android-v1.X.X -- android/app/build.gradle.kts android/CHANGELOG.md
+git diff --name-only --diff-filter=D main...rc-minor-automdmd-android-v1.X.X -- android/changes/ | xargs git rm --ignore-unmatch
+git commit -m "Update version and CHANGELOG for automdmd-android-v1.X.X"
+git push origin bring-automdmd-android-v1.X.X-to-main
 ```
 
-Then open a PR to merge `bring-fleetd-android-v1.X.X-to-main` into `main`.
+Then open a PR to merge `bring-automdmd-android-v1.X.X-to-main` into `main`.
 
 This brings the version bump and CHANGELOG updates to main and removes only the changelog entries that were processed in the RC, preserving any new entries added to main after the RC branch was cut.
 
 ## 9. Conclude the milestone
 
-After the release is published, close out the associated GitHub issues and milestone. For the canonical checklist, see [Conclude current milestone](https://fleetdm.com/handbook/engineering/releases#conclude-current-milestone):
+After the release is published, close out the associated GitHub issues and milestone. For the canonical checklist, see [Conclude current milestone](https://automdm.com/handbook/engineering/releases#conclude-current-milestone):
 
-1. **Move associated stories to the intake & outtake board**: Stories may not be on the [🦢📨🎉 Product design intake & outtake](https://github.com/orgs/fleetdm/projects/67) board (project 67) yet. For each `story`-labeled issue in the `fleetd-android-v1.X.X` milestone, apply the `:product` label and remove the `:release` label so it moves onto the board.
+1. **Move associated stories to the intake & outtake board**: Stories may not be on the [🦢📨🎉 Product design intake & outtake](https://github.com/orgs/fleetdm/projects/67) board (project 67) yet. For each `story`-labeled issue in the `automdmd-android-v1.X.X` milestone, apply the `:product` label and remove the `:release` label so it moves onto the board.
 
-2. **Move associated stories to "Confirm and celebrate"**: On the [🦢📨🎉 Product design intake & outtake](https://github.com/orgs/fleetdm/projects/67) board, filter by the `fleetd-android-v1.X.X` milestone, and move all stories to the "Confirm and celebrate" column. Product will close these issues during their [confirm and celebrate ritual](https://fleetdm.com/handbook/product#rituals). [Engineering-initiated stories](https://fleetdm.com/handbook/engineering#create-an-engineering-initiated-story) (`~engineering-initiated` label) can be closed without confirm and celebrate.
+2. **Move associated stories to "Confirm and celebrate"**: On the [🦢📨🎉 Product design intake & outtake](https://github.com/orgs/fleetdm/projects/67) board, filter by the `automdmd-android-v1.X.X` milestone, and move all stories to the "Confirm and celebrate" column. Product will close these issues during their [confirm and celebrate ritual](https://automdm.com/handbook/product#rituals). [Engineering-initiated stories](https://automdm.com/handbook/engineering#create-an-engineering-initiated-story) (`~engineering-initiated` label) can be closed without confirm and celebrate.
 
-3. **Close associated bugs**: Close the remaining (non-story) issues in the `fleetd-android-v1.X.X` milestone.
+3. **Close associated bugs**: Close the remaining (non-story) issues in the `automdmd-android-v1.X.X` milestone.
 
-4. **Close the GitHub milestone**: Visit [GitHub's milestone page](https://github.com/fleetdm/fleet/milestones) and close the `fleetd-android-v1.X.X` milestone.
+4. **Close the GitHub milestone**: Visit [GitHub's milestone page](https://github.com/anilyagiz/automdm/milestones) and close the `automdmd-android-v1.X.X` milestone.
 
 5. **Announce**: Announce that the release milestone has been closed in #help-engineering.

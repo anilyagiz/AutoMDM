@@ -15,9 +15,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/apple/psso/pssocrypto"
-	"github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/apple/psso/pssocrypto"
+	"github.com/anilyagiz/automdm/v4/server/mock"
 	jwt "github.com/golang-jwt/jwt/v4"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
@@ -27,7 +27,7 @@ import (
 // The symmetric wire-format crypto these flows build on (party-info JWE, kid
 // canonicalization, EC parsing, the inbound claim types) is tested in
 // server/mdm/apple/psso/pssocrypto. The tests here cover the server-only logic
-// that wraps it: key_context sealing under Fleet's signing key, resolving a
+// that wraps it: key_context sealing under AutoMDM's signing key, resolving a
 // device key from the datastore, and the password/JWT login plumbing.
 
 // TestPSSO_SymmetricRoundTrip exercises the AES-256-GCM envelope used to seal
@@ -142,8 +142,8 @@ func TestPSSO_InboundJWTAlgorithmPinned(t *testing.T) {
 	const kid = "device-signing-kid"
 	ds := new(mock.DataStore)
 	svc := &Service{ds: ds, logger: slog.New(slog.NewTextHandler(io.Discard, nil))}
-	ds.GetPSSOKeyFunc = func(_ context.Context, _ string) (*fleet.PSSOKey, error) {
-		return &fleet.PSSOKey{KID: kid, HostUUID: "host", KeyType: fleet.PSSOKeyTypeSigning, PEM: string(pubPEM)}, nil
+	ds.GetPSSOKeyFunc = func(_ context.Context, _ string) (*automdm.PSSOKey, error) {
+		return &automdm.PSSOKey{KID: kid, HostUUID: "host", KeyType: automdm.PSSOKeyTypeSigning, PEM: string(pubPEM)}, nil
 	}
 
 	signed := func(method jwt.SigningMethod, key any) string {
@@ -158,7 +158,7 @@ func TestPSSO_InboundJWTAlgorithmPinned(t *testing.T) {
 	claims, gotKey, err := svc.parsePSSOInboundJWT(t.Context(), []byte(signed(jwt.SigningMethodES256, deviceKey)))
 	require.NoError(t, err)
 	assert.Equal(t, pssocrypto.RequestKey, claims.RequestType)
-	assert.Equal(t, fleet.PSSOKeyTypeSigning, gotKey.KeyType)
+	assert.Equal(t, automdm.PSSOKeyTypeSigning, gotKey.KeyType)
 
 	// An HS256 token sharing the same kid is rejected (alg confusion).
 	_, _, err = svc.parsePSSOInboundJWT(t.Context(), []byte(signed(jwt.SigningMethodHS256, []byte("attacker-secret"))))
@@ -199,16 +199,16 @@ func TestPSSO_ResolveEncryptionKey(t *testing.T) {
 		svc := &Service{ds: ds, logger: slog.New(slog.NewTextHandler(io.Discard, nil))}
 		return svc, ds
 	}
-	registeredKey := &fleet.PSSOKey{
+	registeredKey := &automdm.PSSOKey{
 		KID:      kid,
 		HostUUID: hostUUID,
-		KeyType:  fleet.PSSOKeyTypeEncryption,
+		KeyType:  automdm.PSSOKeyTypeEncryption,
 		PEM:      string(pemBytes),
 	}
 
 	t.Run("resolves by kid computed from apv", func(t *testing.T) {
 		svc, ds := newSvc()
-		ds.GetPSSOKeyFunc = func(ctx context.Context, gotKID string) (*fleet.PSSOKey, error) {
+		ds.GetPSSOKeyFunc = func(ctx context.Context, gotKID string) (*automdm.PSSOKey, error) {
 			require.Equal(t, kid, gotKID)
 			return registeredKey, nil
 		}
@@ -219,7 +219,7 @@ func TestPSSO_ResolveEncryptionKey(t *testing.T) {
 
 	t.Run("rejects a key registered to a different host", func(t *testing.T) {
 		svc, ds := newSvc()
-		ds.GetPSSOKeyFunc = func(ctx context.Context, _ string) (*fleet.PSSOKey, error) {
+		ds.GetPSSOKeyFunc = func(ctx context.Context, _ string) (*automdm.PSSOKey, error) {
 			other := *registeredKey
 			other.HostUUID = "some-other-host"
 			return &other, nil
@@ -230,9 +230,9 @@ func TestPSSO_ResolveEncryptionKey(t *testing.T) {
 
 	t.Run("rejects a signing key", func(t *testing.T) {
 		svc, ds := newSvc()
-		ds.GetPSSOKeyFunc = func(ctx context.Context, _ string) (*fleet.PSSOKey, error) {
+		ds.GetPSSOKeyFunc = func(ctx context.Context, _ string) (*automdm.PSSOKey, error) {
 			other := *registeredKey
-			other.KeyType = fleet.PSSOKeyTypeSigning
+			other.KeyType = automdm.PSSOKeyTypeSigning
 			return &other, nil
 		}
 		_, err := svc.resolvePSSOEncryptionKey(t.Context(), hostUUID, apv)
@@ -241,12 +241,12 @@ func TestPSSO_ResolveEncryptionKey(t *testing.T) {
 
 	t.Run("falls back to comparing the host's registered keys", func(t *testing.T) {
 		svc, ds := newSvc()
-		ds.GetPSSOKeyFunc = func(ctx context.Context, _ string) (*fleet.PSSOKey, error) {
+		ds.GetPSSOKeyFunc = func(ctx context.Context, _ string) (*automdm.PSSOKey, error) {
 			return nil, &testNotFoundError{}
 		}
-		ds.ListPSSOKeysFunc = func(ctx context.Context, gotUUID string) ([]*fleet.PSSOKey, error) {
+		ds.ListPSSOKeysFunc = func(ctx context.Context, gotUUID string) ([]*automdm.PSSOKey, error) {
 			require.Equal(t, hostUUID, gotUUID)
-			return []*fleet.PSSOKey{registeredKey}, nil
+			return []*automdm.PSSOKey{registeredKey}, nil
 		}
 		pub, err := svc.resolvePSSOEncryptionKey(t.Context(), hostUUID, apv)
 		require.NoError(t, err)
@@ -256,10 +256,10 @@ func TestPSSO_ResolveEncryptionKey(t *testing.T) {
 
 	t.Run("rejects when no registered key matches", func(t *testing.T) {
 		svc, ds := newSvc()
-		ds.GetPSSOKeyFunc = func(ctx context.Context, _ string) (*fleet.PSSOKey, error) {
+		ds.GetPSSOKeyFunc = func(ctx context.Context, _ string) (*automdm.PSSOKey, error) {
 			return nil, &testNotFoundError{}
 		}
-		ds.ListPSSOKeysFunc = func(ctx context.Context, _ string) ([]*fleet.PSSOKey, error) {
+		ds.ListPSSOKeysFunc = func(ctx context.Context, _ string) ([]*automdm.PSSOKey, error) {
 			return nil, nil
 		}
 		_, err := svc.resolvePSSOEncryptionKey(t.Context(), hostUUID, apv)
@@ -276,7 +276,7 @@ func TestPSSO_ResolveEncryptionKey(t *testing.T) {
 
 // TestPSSO_ResolveLoginPassword confirms the password is taken from the
 // plaintext claim when present, and decrypted out of the embedded assertion
-// (using Fleet's stored encryption key) when password encryption is enabled.
+// (using AutoMDM's stored encryption key) when password encryption is enabled.
 func TestPSSO_ResolveLoginPassword(t *testing.T) {
 	encKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
@@ -286,11 +286,11 @@ func TestPSSO_ResolveLoginPassword(t *testing.T) {
 
 	newSvc := func() *Service {
 		ds := new(mock.DataStore)
-		ds.GetAllMDMConfigAssetsByNameFunc = func(_ context.Context, names []fleet.MDMAssetName, _ sqlx.QueryerContext) (map[fleet.MDMAssetName]fleet.MDMConfigAsset, error) {
-			out := map[fleet.MDMAssetName]fleet.MDMConfigAsset{}
+		ds.GetAllMDMConfigAssetsByNameFunc = func(_ context.Context, names []automdm.MDMAssetName, _ sqlx.QueryerContext) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
+			out := map[automdm.MDMAssetName]automdm.MDMConfigAsset{}
 			for _, n := range names {
-				if n == fleet.MDMAssetPSSOEncryptionKey {
-					out[n] = fleet.MDMConfigAsset{Name: n, Value: encPEM}
+				if n == automdm.MDMAssetPSSOEncryptionKey {
+					out[n] = automdm.MDMConfigAsset{Name: n, Value: encPEM}
 				}
 			}
 			return out, nil
@@ -330,15 +330,15 @@ func TestPSSO_ResolveLoginPasswordTiedToRequest(t *testing.T) {
 
 	newSvc := func() *Service {
 		ds := new(mock.DataStore)
-		ds.GetAllMDMConfigAssetsByNameFunc = func(_ context.Context, names []fleet.MDMAssetName, _ sqlx.QueryerContext) (map[fleet.MDMAssetName]fleet.MDMConfigAsset, error) {
-			return map[fleet.MDMAssetName]fleet.MDMConfigAsset{
-				fleet.MDMAssetPSSOEncryptionKey: {Name: fleet.MDMAssetPSSOEncryptionKey, Value: encPEM},
+		ds.GetAllMDMConfigAssetsByNameFunc = func(_ context.Context, names []automdm.MDMAssetName, _ sqlx.QueryerContext) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
+			return map[automdm.MDMAssetName]automdm.MDMConfigAsset{
+				automdm.MDMAssetPSSOEncryptionKey: {Name: automdm.MDMAssetPSSOEncryptionKey, Value: encPEM},
 			}, nil
 		}
 		return &Service{ds: ds, pssoNonceStore: &memNonceStore{}, logger: slog.New(slog.DiscardHandler)}
 	}
-	// macOS sends the assertion's apv as "Apple" || Fleet's key || session nonce, or with an empty label and the
-	// request_nonce. Fleet's extension sends "Apple" with the request_nonce.
+	// macOS sends the assertion's apv as "Apple" || AutoMDM's key || session nonce, or with an empty label and the
+	// request_nonce. AutoMDM's extension sends "Apple" with the request_nonce.
 	assertion := func(t *testing.T, label string, recipient *ecdsa.PublicKey, nonce string) string {
 		t.Helper()
 		raw, err := pssocrypto.RawECPoint(recipient)
@@ -350,7 +350,7 @@ func TestPSSO_ResolveLoginPasswordTiedToRequest(t *testing.T) {
 		require.NoError(t, err)
 		return string(jwe)
 	}
-	var badRequest *fleet.BadRequestError
+	var badRequest *automdm.BadRequestError
 
 	for _, tc := range []struct {
 		name   string
@@ -363,7 +363,7 @@ func TestPSSO_ResolveLoginPasswordTiedToRequest(t *testing.T) {
 		{"request_nonce", "", func(a string) *pssocrypto.TokenClaims {
 			return &pssocrypto.TokenClaims{Assertion: a, Nonce: "other-session-nonce", RequestNonce: "session-nonce"}
 		}},
-		{"request_nonce from Fleet's extension", "Apple", func(a string) *pssocrypto.TokenClaims {
+		{"request_nonce from AutoMDM's extension", "Apple", func(a string) *pssocrypto.TokenClaims {
 			return &pssocrypto.TokenClaims{Assertion: a, Nonce: "other-session-nonce", RequestNonce: "session-nonce"}
 		}},
 	} {

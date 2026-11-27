@@ -2,7 +2,7 @@ package service
 
 // Live query target tests for the core (no-license) suite.
 //
-// Belongs here: searching and counting the hosts, labels and fleets that can be
+// Belongs here: searching and counting the hosts, labels and teams that can be
 // targeted by a live query.
 //
 // Does not belong here: the report definitions themselves
@@ -13,7 +13,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -23,16 +23,16 @@ func (s *integrationTestSuite) TestSearchTargets() {
 	hosts := s.createHosts(t)
 
 	var builtinNames []string
-	for name := range fleet.ReservedLabelNames() {
+	for name := range automdm.ReservedLabelNames() {
 		builtinNames = append(builtinNames, name)
 	}
-	lblMap, err := s.ds.LabelIDsByName(context.Background(), builtinNames, fleet.TeamFilter{})
+	lblMap, err := s.ds.LabelIDsByName(context.Background(), builtinNames, automdm.TeamFilter{})
 	require.NoError(t, err)
 	require.Len(t, lblMap, len(builtinNames))
 
 	// no search criteria
-	var searchResp fleet.SearchTargetsResponse
-	s.DoJSON("POST", "/api/latest/fleet/targets", fleet.SearchTargetsRequest{}, http.StatusOK, &searchResp)
+	var searchResp automdm.SearchTargetsResponse
+	s.DoJSON("POST", "/api/latest/automdm/targets", automdm.SearchTargetsRequest{}, http.StatusOK, &searchResp)
 	require.Equal(t, uint(0), searchResp.TargetsCount)
 	require.Len(t, searchResp.Targets.Hosts, len(hosts)) // the HostTargets.HostIDs are actually host IDs to *omit* from the search
 	require.Len(t, searchResp.Targets.Labels, len(lblMap))
@@ -43,22 +43,22 @@ func (s *integrationTestSuite) TestSearchTargets() {
 		lblIDs = append(lblIDs, labelID)
 	}
 
-	searchResp = fleet.SearchTargetsResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/targets", fleet.SearchTargetsRequest{Selected: fleet.HostTargets{LabelIDs: lblIDs}}, http.StatusOK, &searchResp)
+	searchResp = automdm.SearchTargetsResponse{}
+	s.DoJSON("POST", "/api/latest/automdm/targets", automdm.SearchTargetsRequest{Selected: automdm.HostTargets{LabelIDs: lblIDs}}, http.StatusOK, &searchResp)
 	require.Equal(t, uint(0), searchResp.TargetsCount)
 	require.Len(t, searchResp.Targets.Hosts, len(hosts)) // no omitted host id
 	require.Empty(t, searchResp.Targets.Labels)          // All built-in labels have been omitted (pre-selected)
 	require.Empty(t, searchResp.Targets.Teams)
 
-	searchResp = fleet.SearchTargetsResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/targets", fleet.SearchTargetsRequest{Selected: fleet.HostTargets{HostIDs: []uint{hosts[1].ID}}}, http.StatusOK, &searchResp)
+	searchResp = automdm.SearchTargetsResponse{}
+	s.DoJSON("POST", "/api/latest/automdm/targets", automdm.SearchTargetsRequest{Selected: automdm.HostTargets{HostIDs: []uint{hosts[1].ID}}}, http.StatusOK, &searchResp)
 	require.Equal(t, uint(1), searchResp.TargetsCount)
 	require.Len(t, searchResp.Targets.Hosts, len(hosts)-1) // one omitted host id
 	require.Len(t, searchResp.Targets.Labels, len(lblMap)) // labels have not been omitted
 	require.Empty(t, searchResp.Targets.Teams)
 
-	searchResp = fleet.SearchTargetsResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/targets", fleet.SearchTargetsRequest{MatchQuery: "foo.local1"}, http.StatusOK, &searchResp)
+	searchResp = automdm.SearchTargetsResponse{}
+	s.DoJSON("POST", "/api/latest/automdm/targets", automdm.SearchTargetsRequest{MatchQuery: "foo.local1"}, http.StatusOK, &searchResp)
 	require.Equal(t, uint(0), searchResp.TargetsCount)
 	require.Len(t, searchResp.Targets.Hosts, 1)
 	require.Len(t, searchResp.Targets.Labels, 1) // with a match query, only matching label names and "All Hosts" can be returned (here, only all hosts)
@@ -69,13 +69,13 @@ func (s *integrationTestSuite) TestSearchTargets() {
 func (s *integrationTestSuite) TestCountTargets() {
 	t := s.T()
 
-	team, err := s.ds.NewTeam(context.Background(), &fleet.Team{Name: "TestTeam"})
+	team, err := s.ds.NewTeam(context.Background(), &automdm.Team{Name: "TestTeam"})
 	require.NoError(t, err)
 	require.Equal(t, "TestTeam", team.Name)
 
 	hosts := s.createHosts(t)
 
-	lblMap, err := s.ds.LabelIDsByName(context.Background(), []string{"All Hosts"}, fleet.TeamFilter{})
+	lblMap, err := s.ds.LabelIDsByName(context.Background(), []string{"All Hosts"}, automdm.TeamFilter{})
 	require.NoError(t, err)
 	require.Len(t, lblMap, 1)
 
@@ -89,15 +89,15 @@ func (s *integrationTestSuite) TestCountTargets() {
 		hostIDs = append(hostIDs, h.ID)
 	}
 
-	err = s.ds.AddHostsToTeam(context.Background(), fleet.NewAddHostsToTeamParams(new(team.ID), []uint{hostIDs[0]})) // nolint:nilaway // createHosts always returns at least one host
+	err = s.ds.AddHostsToTeam(context.Background(), automdm.NewAddHostsToTeamParams(new(team.ID), []uint{hostIDs[0]})) // nolint:nilaway // createHosts always returns at least one host
 	require.NoError(t, err)
 
-	var countResp fleet.CountTargetsResponse
+	var countResp automdm.CountTargetsResponse
 	// sleep to reduce flake in last seen time so that online/offline counts can be tested
 	time.Sleep(1 * time.Second)
 
 	// none selected
-	s.DoJSON("POST", "/api/latest/fleet/targets/count", fleet.CountTargetsRequest{}, http.StatusOK, &countResp)
+	s.DoJSON("POST", "/api/latest/automdm/targets/count", automdm.CountTargetsRequest{}, http.StatusOK, &countResp)
 	require.Equal(t, uint(0), countResp.TargetsCount)
 	require.Equal(t, uint(0), countResp.TargetsOnline)
 	require.Equal(t, uint(0), countResp.TargetsOffline)
@@ -107,23 +107,23 @@ func (s *integrationTestSuite) TestCountTargets() {
 		lblIDs = append(lblIDs, labelID)
 	}
 	// all hosts label selected
-	countResp = fleet.CountTargetsResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/targets/count", fleet.CountTargetsRequest{Selected: fleet.HostTargets{LabelIDs: lblIDs}}, http.StatusOK, &countResp)
+	countResp = automdm.CountTargetsResponse{}
+	s.DoJSON("POST", "/api/latest/automdm/targets/count", automdm.CountTargetsRequest{Selected: automdm.HostTargets{LabelIDs: lblIDs}}, http.StatusOK, &countResp)
 	require.Equal(t, uint(3), countResp.TargetsCount)
 	require.Equal(t, uint(1), countResp.TargetsOnline)
 	require.Equal(t, uint(2), countResp.TargetsOffline)
 
 	// team selected
-	countResp = fleet.CountTargetsResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/targets/count", fleet.CountTargetsRequest{Selected: fleet.HostTargets{TeamIDs: []uint{team.ID}}}, http.StatusOK, &countResp)
+	countResp = automdm.CountTargetsResponse{}
+	s.DoJSON("POST", "/api/latest/automdm/targets/count", automdm.CountTargetsRequest{Selected: automdm.HostTargets{TeamIDs: []uint{team.ID}}}, http.StatusOK, &countResp)
 	require.Equal(t, uint(1), countResp.TargetsCount)
 	require.Equal(t, uint(1), countResp.TargetsOnline)
 	require.Equal(t, uint(0), countResp.TargetsOffline)
 
 	// 'No team' selected
-	countResp = fleet.CountTargetsResponse{}
+	countResp = automdm.CountTargetsResponse{}
 	s.DoJSON(
-		"POST", "/api/latest/fleet/targets/count", fleet.CountTargetsRequest{Selected: fleet.HostTargets{TeamIDs: []uint{0}}},
+		"POST", "/api/latest/automdm/targets/count", automdm.CountTargetsRequest{Selected: automdm.HostTargets{TeamIDs: []uint{0}}},
 		http.StatusOK, &countResp,
 	)
 	assert.Equal(t, uint(2), countResp.TargetsCount)
@@ -131,8 +131,8 @@ func (s *integrationTestSuite) TestCountTargets() {
 	assert.Equal(t, uint(2), countResp.TargetsOffline)
 
 	// host id selected
-	countResp = fleet.CountTargetsResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/targets/count", fleet.CountTargetsRequest{Selected: fleet.HostTargets{HostIDs: []uint{hosts[1].ID}}}, http.StatusOK, &countResp)
+	countResp = automdm.CountTargetsResponse{}
+	s.DoJSON("POST", "/api/latest/automdm/targets/count", automdm.CountTargetsRequest{Selected: automdm.HostTargets{HostIDs: []uint{hosts[1].ID}}}, http.StatusOK, &countResp)
 	require.Equal(t, uint(1), countResp.TargetsCount)
 	require.Equal(t, uint(0), countResp.TargetsOnline)
 	require.Equal(t, uint(1), countResp.TargetsOffline)

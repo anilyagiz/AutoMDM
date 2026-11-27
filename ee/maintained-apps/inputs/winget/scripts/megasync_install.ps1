@@ -1,8 +1,8 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # This application ships as an NSIS installer. Without /MULTIUSER, a silent
-# install targets the current user's profile, which under Fleet's SYSTEM
+# install targets the current user's profile, which under AutoMDM's SYSTEM
 # context is the SYSTEM profile, and fails there with exit code 2.
 # /MULTIUSER installs MEGAsync for all users into C:\ProgramData\MEGAsync and
 # registers it under HKLM.

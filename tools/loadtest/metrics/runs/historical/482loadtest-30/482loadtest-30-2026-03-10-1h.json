@@ -8,7 +8,7 @@
     "source": "spreadsheet-backfill",
     "sheet_row": 60
   },
-  "fleet_server": {
+  "automdm_server": {
     "cpu_utilization": {
       "Average": 48.8
     },
@@ -80,20 +80,20 @@
       }
     }
   ],
-  "fleet_server_errors": {
+  "automdm_server_errors": {
     "error_count": 0
   },
   "backfill": {
-    "source": "Fleet release load testing results (Google Sheet), manual-logging era",
-    "purpose": "Baseline test with 30 fleet containers",
+    "source": "AutoMDM release load testing results (Google Sheet), manual-logging era",
+    "purpose": "Baseline test with 30 automdm containers",
     "one_click": "yes",
     "notes": "This instance was used to establish a baseline values for 30\u2026",
     "raw": {
       "full_day": "yes",
-      "fleet_containers": "30",
+      "automdm_containers": "30",
       "loadtest_containers": "200",
-      "fleet_cpu": "~48.80%",
-      "fleet_mem": "~4.0%",
+      "automdm_cpu": "~48.80%",
+      "automdm_mem": "~4.0%",
       "errors": "No errors",
       "writer_top_sql": "COMMIT",
       "writer_cpu": "~18%",

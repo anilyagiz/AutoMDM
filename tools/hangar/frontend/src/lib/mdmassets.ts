@@ -24,15 +24,15 @@ export function genId(): string {
 }
 
 // newMdmAssetsConfig seeds a fresh config with the exporter's own defaults
-// (fleet / insecure / localhost:3306 / fleet) and the given output dir.
+// (team / insecure / localhost:3306 / team) and the given output dir.
 export function newMdmAssetsConfig(defaultDir: string): MdmAssetsConfig {
   return {
     id: genId(),
     name: "local",
-    db_user: "fleet",
+    db_user: "automdm",
     db_password: "insecure",
     db_address: "localhost:3306",
-    db_name: "fleet",
+    db_name: "automdm",
     key: "",
     dir: defaultDir,
     asset_name: "",

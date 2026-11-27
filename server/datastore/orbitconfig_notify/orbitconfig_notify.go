@@ -1,11 +1,11 @@
-// Package orbitconfig_notify provides a fleet.Datastore decorator that tells
+// Package orbitconfig_notify provides an automdm.Datastore decorator that tells
 // connected agents to fetch their orbit config after a successful write that
-// changes it for a whole fleet, for every host, or for hosts changing fleet.
+// changes it for a whole fleet, for every host, or for hosts changing team.
 //
 // Per-host inputs of the orbit config (pending scripts and installs, MDM and
 // disk encryption state) are notified by the MySQL datastore itself, after
 // the writing transaction commits (see Datastore.WithOrbitConfigNotifier).
-// The decorator covers what lives on the app config and fleet records, which
+// The decorator covers what lives on the app config and team records, which
 // GetOrbitConfig reads through per-instance caches: those notifications are
 // scoped (each instance resolves the hosts it holds) and are delayed by the
 // cache TTL by the notifier (see pubsub.DelayedAgentNotifier).
@@ -19,11 +19,11 @@ import (
 	"encoding/json"
 	"log/slog"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxdb"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxdb"
 )
 
-// Datastore decorates a fleet.Datastore so that every successful write
+// Datastore decorates an automdm.Datastore so that every successful write
 // changing an orbit config input shared by many hosts notifies them.
 //
 // ADDING A DATASTORE METHOD: declare it here if it can change what
@@ -31,12 +31,12 @@ import (
 // rows for, notify after the inner call succeeds, and add a case to the hook
 // cases in the tests (TestEveryWrappedMethodHasAHookCase requires one).
 type Datastore struct {
-	fleet.Datastore
-	notifier fleet.AgentCheckInNotifier
+	automdm.Datastore
+	notifier automdm.AgentCheckInNotifier
 	logger   *slog.Logger
 }
 
-func New(ds fleet.Datastore, notifier fleet.AgentCheckInNotifier, logger *slog.Logger) *Datastore {
+func New(ds automdm.Datastore, notifier automdm.AgentCheckInNotifier, logger *slog.Logger) *Datastore {
 	return &Datastore{
 		Datastore: ds,
 		notifier:  notifier,
@@ -44,8 +44,8 @@ func New(ds fleet.Datastore, notifier fleet.AgentCheckInNotifier, logger *slog.L
 	}
 }
 
-func (d *Datastore) publishScope(ctx context.Context, scope fleet.AgentNotificationScope, source string) {
-	if err := d.notifier.NotifyOrbitConfigScope(ctx, scope, fleet.AgentWSReasonSettings); err != nil {
+func (d *Datastore) publishScope(ctx context.Context, scope automdm.AgentNotificationScope, source string) {
+	if err := d.notifier.NotifyOrbitConfigScope(ctx, scope, automdm.AgentWSReasonSettings); err != nil {
 		d.logger.ErrorContext(ctx, "notify orbit config change", "scope", scope, "source", source, "err", err)
 	}
 }
@@ -54,7 +54,7 @@ func (d *Datastore) publishHosts(ctx context.Context, hostIDs []uint, source str
 	if len(hostIDs) == 0 {
 		return
 	}
-	if err := d.notifier.NotifyOrbitConfigHosts(ctx, hostIDs, fleet.AgentWSReasonSettings); err != nil {
+	if err := d.notifier.NotifyOrbitConfigHosts(ctx, hostIDs, automdm.AgentWSReasonSettings); err != nil {
 		d.logger.ErrorContext(ctx, "notify orbit config change", "source", source, "err", err)
 	}
 }
@@ -85,22 +85,22 @@ type appConfigGlobalInputs struct {
 	EnableTurnOnWindowsMDMManually bool
 	WindowsMigrationEnabled        bool
 	ServerURL                      string
-	// Hosts in a fleet fall back to the global script timeout.
+	// Hosts in a team fall back to the global script timeout.
 	ScriptExecutionTimeout int
 }
 
 // appConfigNoTeamInputs are the app config fields GetOrbitConfig reads only
-// for "No fleet" hosts.
+// for "No team" hosts.
 type appConfigNoTeamInputs struct {
 	AgentOptions   *json.RawMessage
-	DiskEncryption fleet.DiskEncryptionConfig
+	DiskEncryption automdm.DiskEncryptionConfig
 }
 
-func appConfigOrbitInputs(cfg *fleet.AppConfig) (*appConfigGlobalInputs, *appConfigNoTeamInputs) {
+func appConfigOrbitInputs(cfg *automdm.AppConfig) (*appConfigGlobalInputs, *appConfigNoTeamInputs) {
 	if cfg == nil {
 		return nil, nil
 	}
-	var opts fleet.AgentOptions
+	var opts automdm.AgentOptions
 	if cfg.AgentOptions != nil {
 		// An unparsable value leaves the timeout at 0; AgentOptions still
 		// compares raw below.
@@ -122,22 +122,22 @@ func appConfigOrbitInputs(cfg *fleet.AppConfig) (*appConfigGlobalInputs, *appCon
 	return global, noTeam
 }
 
-// teamConfigInputs are the fleet config fields GetOrbitConfig reads. The
+// teamConfigInputs are the automdm config fields GetOrbitConfig reads. The
 // macOS updates settings are left out: they only feed Nudge, for macOS
 // versions orbit config nudges don't support.
 type teamConfigInputs struct {
 	AgentOptions   *json.RawMessage
-	DiskEncryption fleet.DiskEncryptionConfig
+	DiskEncryption automdm.DiskEncryptionConfig
 }
 
-func teamConfigOrbitInputs(agentOptions *json.RawMessage, mdm *fleet.TeamMDM) *teamConfigInputs {
+func teamConfigOrbitInputs(agentOptions *json.RawMessage, mdm *automdm.TeamMDM) *teamConfigInputs {
 	return &teamConfigInputs{AgentOptions: agentOptions, DiskEncryption: mdm.DiskEncryptionConfig()}
 }
 
-func (d *Datastore) SaveAppConfig(ctx context.Context, info *fleet.AppConfig) error {
+func (d *Datastore) SaveAppConfig(ctx context.Context, info *automdm.AppConfig) error {
 	// GitOps saves the app config on every run, mostly unchanged: only notify
 	// on an actual change.
-	// "No fleet" settings live on the app config too: notify every host only
+	// "No team" settings live on the app config too: notify every host only
 	// for the fields read for every host.
 	var beforeGlobal *appConfigGlobalInputs
 	var beforeNoTeam *appConfigNoTeamInputs
@@ -150,14 +150,14 @@ func (d *Datastore) SaveAppConfig(ctx context.Context, info *fleet.AppConfig) er
 	afterGlobal, afterNoTeam := appConfigOrbitInputs(info)
 	switch {
 	case changed(beforeGlobal, afterGlobal):
-		d.publishScope(ctx, fleet.AgentNotificationScopeGlobal, "SaveAppConfig")
+		d.publishScope(ctx, automdm.AgentNotificationScopeGlobal, "SaveAppConfig")
 	case changed(beforeNoTeam, afterNoTeam):
-		d.publishScope(ctx, fleet.AgentNotificationScopeTeam(0), "SaveAppConfig")
+		d.publishScope(ctx, automdm.AgentNotificationScopeTeam(0), "SaveAppConfig")
 	}
 	return nil
 }
 
-func (d *Datastore) SaveTeam(ctx context.Context, team *fleet.Team) (*fleet.Team, error) {
+func (d *Datastore) SaveTeam(ctx context.Context, team *automdm.Team) (*automdm.Team, error) {
 	var before *teamConfigInputs
 	if t, err := d.Datastore.TeamLite(freshCtx(ctx), team.ID); err == nil {
 		before = teamConfigOrbitInputs(t.Config.AgentOptions, &t.Config.MDM)
@@ -167,7 +167,7 @@ func (d *Datastore) SaveTeam(ctx context.Context, team *fleet.Team) (*fleet.Team
 		return nil, err
 	}
 	if changed(before, teamConfigOrbitInputs(team.Config.AgentOptions, &team.Config.MDM)) {
-		d.publishScope(ctx, fleet.AgentNotificationScopeTeam(team.ID), "SaveTeam")
+		d.publishScope(ctx, automdm.AgentNotificationScopeTeam(team.ID), "SaveTeam")
 	}
 	return saved, nil
 }
@@ -176,12 +176,12 @@ func (d *Datastore) DeleteTeam(ctx context.Context, tid uint) error {
 	if err := d.Datastore.DeleteTeam(ctx, tid); err != nil {
 		return err
 	}
-	// The fleet's hosts moved to "No fleet"; they are no longer in its scope.
-	d.publishScope(ctx, fleet.AgentNotificationScopeTeam(0), "DeleteTeam")
+	// The team's hosts moved to "No team"; they are no longer in its scope.
+	d.publishScope(ctx, automdm.AgentNotificationScopeTeam(0), "DeleteTeam")
 	return nil
 }
 
-func (d *Datastore) AddHostsToTeam(ctx context.Context, params *fleet.AddHostsToTeamParams) error {
+func (d *Datastore) AddHostsToTeam(ctx context.Context, params *automdm.AddHostsToTeamParams) error {
 	err := d.Datastore.AddHostsToTeam(ctx, params)
 	// Notify even on error: batches commit independently, so earlier ones may
 	// have moved hosts. Hosts that didn't move just fetch an unchanged config.

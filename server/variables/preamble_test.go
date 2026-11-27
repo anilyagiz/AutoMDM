@@ -13,31 +13,31 @@ import (
 // under plain substitution or exercises a quoting edge.
 func payloadCorpus() map[string]string {
 	return map[string]string{ //nolint:gosec // G101: injection payloads, not credentials
-		"plain":         "Engineering",
-		"backtick":      "Eng`id`",
-		"cmd-subst":     "Eng$(id)",
-		"semicolon":     "Eng; id",
-		"pipe":          "Eng | id",
-		"embedded-sq":   "Eng'; id; echo '",
-		"lone-sq":       "'",
-		"only-sq":       "''''",
-		"backslash":     `Eng\'; id; #`,
-		"trailing-bs":   `Eng\`,
-		"quote-soup":    "Eng'\"`id`\"'",
-		"newline":       "Eng\nid",
-		"crlf":          "Eng\r\nid",
-		"tab-space":     "  Eng\tOps  ",
-		"dollar-var":    "$HOME and ${PATH}",
-		"fleet-secret":  "$FLEET_SECRET_FOO",
-		"nested-var":    "$FLEET_VAR_HOST_UUID",
-		"glob":          "*",
-		"ifs":           "a${IFS}b",
-		"non-ascii":     "Ops — Zürich 🙂",
-		"smart-quotes":  "Ann’s ‘Team’",
-		"cjk-lead-byte": "情報システム部",
-		"hangul":        "정보시스템부",
-		"empty":         "",
-		"long":          strings.Repeat("A", 4096),
+		"plain":          "Engineering",
+		"backtick":       "Eng`id`",
+		"cmd-subst":      "Eng$(id)",
+		"semicolon":      "Eng; id",
+		"pipe":           "Eng | id",
+		"embedded-sq":    "Eng'; id; echo '",
+		"lone-sq":        "'",
+		"only-sq":        "''''",
+		"backslash":      `Eng\'; id; #`,
+		"trailing-bs":    `Eng\`,
+		"quote-soup":     "Eng'\"`id`\"'",
+		"newline":        "Eng\nid",
+		"crlf":           "Eng\r\nid",
+		"tab-space":      "  Eng\tOps  ",
+		"dollar-var":     "$HOME and ${PATH}",
+		"automdm-secret": "$AUTOMDM_SECRET_FOO",
+		"nested-var":     "$AUTOMDM_VAR_HOST_UUID",
+		"glob":           "*",
+		"ifs":            "a${IFS}b",
+		"non-ascii":      "Ops — Zürich 🙂",
+		"smart-quotes":   "Ann’s ‘Team’",
+		"cjk-lead-byte":  "情報システム部",
+		"hangul":         "정보시스템부",
+		"empty":          "",
+		"long":           strings.Repeat("A", 4096),
 	}
 }
 
@@ -96,9 +96,9 @@ func TestPreamble(t *testing.T) {
 	t.Run("posix is sorted and locale-guarded", func(t *testing.T) {
 		got := Preamble(map[string]string{"HOST_UUID": "u", "HOST_HARDWARE_SERIAL": "s"}, DialectPOSIX)
 		require.Equal(t,
-			"__fleet_lc=${LC_ALL-}; __fleet_lg=${LANG-}; LC_ALL=C; LANG=C\n"+
-				"export FLEET_VAR_HOST_HARDWARE_SERIAL='s' FLEET_VAR_HOST_UUID='u'\n"+
-				"LC_ALL=${__fleet_lc}; LANG=${__fleet_lg}; unset __fleet_lc __fleet_lg\n", got)
+			"__automdm_lc=${LC_ALL-}; __automdm_lg=${LANG-}; LC_ALL=C; LANG=C\n"+
+				"export AUTOMDM_VAR_HOST_HARDWARE_SERIAL='s' AUTOMDM_VAR_HOST_UUID='u'\n"+
+				"LC_ALL=${__automdm_lc}; LANG=${__automdm_lg}; unset __automdm_lc __automdm_lg\n", got)
 	})
 
 	// a missing guard is invisible on a UTF-8-only machine
@@ -106,15 +106,15 @@ func TestPreamble(t *testing.T) {
 		for name, value := range payloadCorpus() {
 			got := Preamble(map[string]string{"HOST_UUID": value}, DialectPOSIX)
 			require.Contains(t, got, "LC_ALL=C; LANG=C", name)
-			require.Contains(t, got, "LC_ALL=${__fleet_lc}", name)
+			require.Contains(t, got, "LC_ALL=${__automdm_lc}", name)
 		}
 	})
 
 	t.Run("powershell is one CRLF line per variable", func(t *testing.T) {
 		got := Preamble(map[string]string{"HOST_UUID": "AB", "HOST_PLATFORM": "w"}, DialectPowerShell)
 		require.Equal(t,
-			"$FLEET_VAR_HOST_PLATFORM = ([char[]](119) -join '')\r\n"+
-				"$FLEET_VAR_HOST_UUID = ([char[]](65,66) -join '')\r\n", got)
+			"$AUTOMDM_VAR_HOST_PLATFORM = ([char[]](119) -join '')\r\n"+
+				"$AUTOMDM_VAR_HOST_UUID = ([char[]](65,66) -join '')\r\n", got)
 	})
 }
 
@@ -187,7 +187,7 @@ func TestInsertPreamblePowerShellPlacement(t *testing.T) {
 		{"param with block comment", "param(<# note #>$Foo)\r\n", "param(<# note #>$Foo)\r\n" + pre},
 
 		// a default can't reference a variable the preamble defines below it
-		{"param default uses a variable", "param($Foo = $FLEET_VAR_HOST_UUID)\r\n", ""},
+		{"param default uses a variable", "param($Foo = $AUTOMDM_VAR_HOST_UUID)\r\n", ""},
 		{"unterminated param", "param($Foo\r\nWrite-Output hi\r\n", ""},
 
 		{"ordinary script", "Write-Output hi\r\n", pre + "Write-Output hi\r\n"},
@@ -235,7 +235,7 @@ func TestInsertPreamblePowerShellPlacement(t *testing.T) {
 	}
 
 	t.Run("check is powershell only", func(t *testing.T) {
-		require.NoError(t, CheckPreamble("param($Foo = $FLEET_VAR_HOST_UUID)\n", DialectPOSIX))
-		require.NoError(t, CheckPreamble("param($Foo = $FLEET_VAR_HOST_UUID)\n", DialectPython))
+		require.NoError(t, CheckPreamble("param($Foo = $AUTOMDM_VAR_HOST_UUID)\n", DialectPOSIX))
+		require.NoError(t, CheckPreamble("param($Foo = $AUTOMDM_VAR_HOST_UUID)\n", DialectPython))
 	})
 }

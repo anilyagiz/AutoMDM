@@ -22,9 +22,9 @@ const ResetSessionsModal = ({
     >
       <div className={baseClass}>
         <p>
-          This user will be logged out of Fleet.
+          This user will be logged out of AutoMDM.
           <br />
-          This will revoke all active Fleet API tokens for this user.
+          This will revoke all active AutoMDM API tokens for this user.
         </p>
         <div className="modal-cta-wrap">
           <Button type="button" onClick={onResetConfirm}>

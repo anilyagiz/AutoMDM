@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
 	"github.com/cenkalti/backoff/v4"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/fleet"
 	"github.com/gomodule/redigo/redis"
 	"github.com/mna/redisc"
 )
@@ -45,8 +45,8 @@ func (p *standalonePool) Stats() map[string]redis.PoolStats {
 	}
 }
 
-func (p *standalonePool) Mode() fleet.RedisMode {
-	return fleet.RedisStandalone
+func (p *standalonePool) Mode() automdm.RedisMode {
+	return automdm.RedisStandalone
 }
 
 type clusterPool struct {
@@ -55,8 +55,8 @@ type clusterPool struct {
 	readReplica  bool
 }
 
-func (p *clusterPool) Mode() fleet.RedisMode {
-	return fleet.RedisCluster
+func (p *clusterPool) Mode() automdm.RedisMode {
+	return automdm.RedisCluster
 }
 
 // PoolConfig holds the redis pool configuration options.
@@ -95,7 +95,7 @@ type PoolConfig struct {
 
 // NewPool creates a Redis connection pool using the provided server
 // address, username, password and database.
-func NewPool(config PoolConfig) (fleet.RedisPool, error) {
+func NewPool(config PoolConfig) (automdm.RedisPool, error) {
 	cluster, err := newCluster(config)
 	if err != nil {
 		return nil, err
@@ -123,7 +123,7 @@ func NewPool(config PoolConfig) (fleet.RedisPool, error) {
 // a primary, etc.), and it will only try to do so if pool is a Redis Cluster
 // pool. The returned connection should only be used to run read-only
 // commands.
-func ReadOnlyConn(pool fleet.RedisPool, conn redis.Conn) redis.Conn {
+func ReadOnlyConn(pool automdm.RedisPool, conn redis.Conn) redis.Conn {
 	if p, isCluster := pool.(*clusterPool); isCluster && p.readReplica {
 		// it only fails if the connection is not a redisc connection or the
 		// connection is already bound, in which case we just return the connection
@@ -160,7 +160,7 @@ func ConfigureDoer(pool getPool, conn redis.Conn) redis.Conn {
 // multi-key command in a Redis Cluster setup. When using standalone Redis, it
 // simply returns all keys in the same group (i.e. the top-level slice has a
 // length of 1).
-func SplitKeysBySlot(pool fleet.RedisPool, keys ...string) [][]string {
+func SplitKeysBySlot(pool automdm.RedisPool, keys ...string) [][]string {
 	if _, isCluster := pool.(*clusterPool); isCluster {
 		return redisc.SplitBySlot(keys...)
 	}
@@ -182,7 +182,7 @@ func SplitKeysBySlot(pool fleet.RedisPool, keys ...string) [][]string {
 // should be prepared to handle this scenario. The connection provided to fn is
 // not a ReadOnly connection (conn.ReadOnly hasn't been called on it), it is up
 // to fn to execute the READONLY redis command if required.
-func EachNode(pool fleet.RedisPool, replicas bool, fn func(conn redis.Conn) error) error {
+func EachNode(pool automdm.RedisPool, replicas bool, fn func(conn redis.Conn) error) error {
 	if cluster, isCluster := pool.(*clusterPool); isCluster {
 		return cluster.EachNode(replicas, func(_ string, conn redis.Conn) error {
 			return fn(conn)
@@ -205,7 +205,7 @@ func IsRedirect(err error) bool {
 // an error is returned. In a Redis Standalone setup, it is a no-op and never
 // fails. On successful return, the connection is ready to be used with those
 // keys.
-func BindConn(pool fleet.RedisPool, conn redis.Conn, keys ...string) error {
+func BindConn(pool automdm.RedisPool, conn redis.Conn, keys ...string) error {
 	if _, isCluster := pool.(*clusterPool); isCluster {
 		return redisc.BindConn(conn, keys...)
 	}
@@ -223,7 +223,7 @@ func BindConn(pool fleet.RedisPool, conn redis.Conn, keys ...string) error {
 // turned into a boolean), and in Cluster mode, if the count returned by
 // PUBLISH is 0, it gets the number of subscribers on each node in the cluster
 // to get the accurate count.
-func PublishHasListeners(pool fleet.RedisPool, conn redis.Conn, channel, message string) (bool, error) {
+func PublishHasListeners(pool automdm.RedisPool, conn redis.Conn, channel, message string) (bool, error) {
 	n, err := redis.Int(conn.Do("PUBLISH", channel, message))
 	if n > 0 || err != nil {
 		return n > 0, err
@@ -417,7 +417,7 @@ func isClusterCommandUnknown(err error) bool {
 		strings.Contains(err.Error(), `ERR command is not allowed`)
 }
 
-func ScanKeys(pool fleet.RedisPool, pattern string, count int) ([]string, error) {
+func ScanKeys(pool automdm.RedisPool, pattern string, count int) ([]string, error) {
 	var keys []string
 
 	err := EachNode(pool, false, func(conn redis.Conn) error {

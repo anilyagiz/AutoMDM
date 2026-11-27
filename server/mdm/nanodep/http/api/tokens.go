@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/fleetdm/fleet/v4/server/mdm/nanodep/client"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanodep/log"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanodep/log/ctxlog"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanodep/client"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanodep/log"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanodep/log/ctxlog"
 )
 
 type AuthTokensStorer interface {

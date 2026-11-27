@@ -1,4 +1,4 @@
-# Fleet extracts name from installer (EXE) and saves it to PACKAGE_ID
+# AutoMDM extracts name from installer (EXE) and saves it to PACKAGE_ID
 # variable
 # Directory Opus is an Inno Setup app registering DisplayName "Directory Opus";
 # its unins000.exe takes /VERYSILENT for a silent uninstall.

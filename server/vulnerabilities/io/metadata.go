@@ -8,9 +8,9 @@ import (
 )
 
 const (
-	mSRCFilePrefix              = "fleet_msrc_"
-	winOfficePrefix             = "fleet_winoffice_"
-	macOfficeReleaseNotesPrefix = "fleet_macoffice_release_notes_"
+	mSRCFilePrefix              = "automdm_msrc_"
+	winOfficePrefix             = "automdm_winoffice_"
+	macOfficeReleaseNotesPrefix = "automdm_macoffice_release_notes_"
 	fileExt                     = "json"
 	dateLayout                  = "2006_01_02"
 )

@@ -5,12 +5,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/govulndb"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/govulndb"
 )
 
 // The artifact's shape is govulndb.Artifact, imported from the package that reads it so the two
 // sides cannot drift apart. The analyzer rejects an unexpected govulndb.SchemaVersion outright,
-// so a format change needs a new version and a Fleet release that reads it before anything here
+// so a format change needs a new version and an AutoMDM release that reads it before anything here
 // changes.
 const (
 	// goEcosystem is the only OSV ecosystem the Go database publishes. Anything else is a
@@ -21,17 +21,17 @@ const (
 	// versions by rules this publisher does not implement.
 	semverRangeType = "SEMVER"
 
-	// cvePrefix identifies the aliases Fleet can represent. software_cve and every CVE metadata
+	// cvePrefix identifies the aliases AutoMDM can represent. software_cve and every CVE metadata
 	// join are keyed on a CVE ID.
 	cvePrefix = "CVE-"
 )
 
-// transform turns the collected reports into the artifact Fleet reads.
+// transform turns the collected reports into the artifact AutoMDM reads.
 //
 // Reports are dropped when they are withdrawn or carry no CVE alias. Everything else is a
 // straight re-shape: a report affecting several modules lands under each of their keys with only
-// that entry's ranges. Module paths are kept exactly as upstream reports them, because Fleet
-// matches them by exact string against the path fleetd read out of the binary's build info.
+// that entry's ranges. Module paths are kept exactly as upstream reports them, because AutoMDM
+// matches them by exact string against the path automdmd read out of the binary's build info.
 func transform(reports []osvReport, generated time.Time) (*govulndb.Artifact, error) {
 	modules := make(map[string][]govulndb.Advisory)
 
@@ -165,7 +165,7 @@ func pairEvents(reportID, module string, events []osvEvent) ([]govulndb.VersionR
 }
 
 // cveAliases returns the report's CVE aliases. GHSA aliases are dropped, and a report left with
-// none is not mirrored at all: Fleet keys software_cve and every CVE metadata join on a CVE ID,
+// none is not mirrored at all: AutoMDM keys software_cve and every CVE metadata join on a CVE ID,
 // so a GHSA-only report is unrepresentable there.
 func cveAliases(aliases []string) []string {
 	var cves []string

@@ -3,7 +3,7 @@
 # Enables privateClickMeasurement for each non-system user account.
 # The original script had literal <username> placeholders that were
 # never substituted.
-# Note: This policy requires Full Disk Access on the fleetd agent
+# Note: This policy requires Full Disk Access on the automdmd agent
 # to read the Safari container. Without FDA the query can't see
 # the plist regardless of its value.
 

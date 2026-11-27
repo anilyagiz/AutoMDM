@@ -12,7 +12,7 @@ export type DeviceSSOErrorReason =
   | "session_expired"
   /** The IdP posted back, but the callback couldn't mint a session. */
   | "callback_failed"
-  /** Fleet couldn't start the flow, or the round trip finished and still left
+  /** AutoMDM couldn't start the flow, or the round trip finished and still left
    * no session behind. The end user acts on both the same way. */
   | "sign_in_failed"
   /** The device has an IDP mapping, and the logged in user does not match the IDP mapped user. */
@@ -24,11 +24,11 @@ const SSO_ERROR_COPY: Record<
 > = {
   session_expired: {
     header: "Your sign-in session expired.",
-    description: "Open Fleet Desktop and click “My device” to try again.",
+    description: "Open AutoMDM Desktop and click “My device” to try again.",
   },
   callback_failed: {
     header: "Couldn't finish signing in.",
-    description: "Open Fleet Desktop and click “My device” to try again.",
+    description: "Open AutoMDM Desktop and click “My device” to try again.",
   },
   sign_in_failed: {
     header: "Couldn't sign in.",
@@ -116,7 +116,7 @@ const DeviceUserError = ({
     ) : (
       <>
         To access your device information, please click “My Device” from the
-        Fleet Desktop menu icon.
+        AutoMDM Desktop menu icon.
       </>
     );
   }

@@ -5,7 +5,7 @@ import CustomLink from "components/CustomLink";
 import PageDescription from "components/PageDescription";
 import Spinner from "components/Spinner";
 import SideNav from "pages/admin/components/SideNav";
-import { FLEET_WEBSITE_URL } from "utilities/constants";
+import { AUTOMDM_WEBSITE_URL } from "utilities/constants";
 
 import useScriptNavItems from "./ScriptsNavItems";
 
@@ -15,7 +15,7 @@ export interface ScriptsLocation {
   search: string;
   pathname: string;
   query: {
-    fleet_id?: string;
+    team_id?: string;
     status?: string;
     page?: string;
     add_script?: string;
@@ -25,9 +25,9 @@ interface IScriptsProps {
   params: Params;
   router: InjectedRouter;
   location: ScriptsLocation;
-  // Undefined until the URL's fleet id resolves to an available fleet.
+  // Undefined until the URL's team id resolves to an available team.
   // Gate team-scoped queries on this being defined — anything fired during
-  // that window targets the wrong fleet.
+  // that window targets the wrong team.
   teamIdForApi?: number;
 }
 
@@ -54,7 +54,7 @@ const Scripts = ({ router, location, params, teamIdForApi }: IScriptsProps) => {
 
   const CurrentCard = currentFormSection.Card;
 
-  // Wait for the fleet id to resolve before mounting children — they fire
+  // Wait for the team id to resolve before mounting children — they fire
   // team-scoped queries eagerly.
   if (teamIdForApi === undefined) {
     return <Spinner />;
@@ -70,7 +70,7 @@ const Scripts = ({ router, location, params, teamIdForApi }: IScriptsProps) => {
             Linux hosts.{" "}
             <CustomLink
               text="Learn more"
-              url={`${FLEET_WEBSITE_URL}/docs/using-fleet/scripts`}
+              url={`${AUTOMDM_WEBSITE_URL}/docs/using-automdm/scripts`}
               newTab
             />
           </>

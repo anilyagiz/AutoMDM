@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	fleetclient "github.com/fleetdm/fleet/v4/client"
-	setupexperience "github.com/fleetdm/fleet/v4/orbit/pkg/setup_experience"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	automdmclient "github.com/anilyagiz/automdm/v4/client"
+	setupexperience "github.com/anilyagiz/automdm/v4/orbit/pkg/setup_experience"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -249,15 +249,15 @@ func TestCfgsDiffer(t *testing.T) {
 	for _, tc := range []struct {
 		name           string
 		overrideCfg    *serverOverridesConfig
-		orbitConfig    *fleet.OrbitConfig
+		orbitConfig    *automdm.OrbitConfig
 		desktopEnabled bool
 		expected       bool
 	}{
 		{
 			name:        "initial set of remote configuration",
 			overrideCfg: &serverOverridesConfig{},
-			orbitConfig: &fleet.OrbitConfig{
-				UpdateChannels: &fleet.OrbitUpdateChannels{
+			orbitConfig: &automdm.OrbitConfig{
+				UpdateChannels: &automdm.OrbitUpdateChannels{
 					Orbit:    "stable",
 					Osqueryd: "stable",
 					Desktop:  "stable",
@@ -269,8 +269,8 @@ func TestCfgsDiffer(t *testing.T) {
 		{
 			name:        "initial set of remote configuration, omit some channels",
 			overrideCfg: &serverOverridesConfig{},
-			orbitConfig: &fleet.OrbitConfig{
-				UpdateChannels: &fleet.OrbitUpdateChannels{
+			orbitConfig: &automdm.OrbitConfig{
+				UpdateChannels: &automdm.OrbitUpdateChannels{
 					Orbit: "stable",
 				},
 			},
@@ -280,8 +280,8 @@ func TestCfgsDiffer(t *testing.T) {
 		{
 			name:        "initial set of remote configuration, change orbit and omit some channels",
 			overrideCfg: &serverOverridesConfig{},
-			orbitConfig: &fleet.OrbitConfig{
-				UpdateChannels: &fleet.OrbitUpdateChannels{
+			orbitConfig: &automdm.OrbitConfig{
+				UpdateChannels: &automdm.OrbitUpdateChannels{
 					Orbit: "edge",
 				},
 			},
@@ -289,10 +289,10 @@ func TestCfgsDiffer(t *testing.T) {
 			expected:       true,
 		},
 		{
-			name:        "initial set of remote configuration, set desktop when Fleet Desktop disabled",
+			name:        "initial set of remote configuration, set desktop when AutoMDM Desktop disabled",
 			overrideCfg: &serverOverridesConfig{},
-			orbitConfig: &fleet.OrbitConfig{
-				UpdateChannels: &fleet.OrbitUpdateChannels{
+			orbitConfig: &automdm.OrbitConfig{
+				UpdateChannels: &automdm.OrbitUpdateChannels{
 					Desktop: "foobar",
 				},
 			},
@@ -300,10 +300,10 @@ func TestCfgsDiffer(t *testing.T) {
 			expected:       false,
 		},
 		{
-			name:        "initial set of remote configuration, set desktop with Fleet Desktop enabled",
+			name:        "initial set of remote configuration, set desktop with AutoMDM Desktop enabled",
 			overrideCfg: &serverOverridesConfig{},
-			orbitConfig: &fleet.OrbitConfig{
-				UpdateChannels: &fleet.OrbitUpdateChannels{
+			orbitConfig: &automdm.OrbitConfig{
+				UpdateChannels: &automdm.OrbitUpdateChannels{
 					Desktop: "foobar",
 				},
 			},
@@ -311,12 +311,12 @@ func TestCfgsDiffer(t *testing.T) {
 			expected:       true,
 		},
 		{
-			name: "overrides update, set desktop with Fleet Desktop enabled",
+			name: "overrides update, set desktop with AutoMDM Desktop enabled",
 			overrideCfg: &serverOverridesConfig{
 				DesktopChannel: "other",
 			},
-			orbitConfig: &fleet.OrbitConfig{
-				UpdateChannels: &fleet.OrbitUpdateChannels{
+			orbitConfig: &automdm.OrbitConfig{
+				UpdateChannels: &automdm.OrbitUpdateChannels{
 					Desktop: "foobar",
 				},
 			},
@@ -328,8 +328,8 @@ func TestCfgsDiffer(t *testing.T) {
 			overrideCfg: &serverOverridesConfig{
 				OrbitChannel: "first",
 			},
-			orbitConfig: &fleet.OrbitConfig{
-				UpdateChannels: &fleet.OrbitUpdateChannels{
+			orbitConfig: &automdm.OrbitConfig{
+				UpdateChannels: &automdm.OrbitUpdateChannels{
 					Orbit: "second",
 				},
 			},
@@ -341,8 +341,8 @@ func TestCfgsDiffer(t *testing.T) {
 			overrideCfg: &serverOverridesConfig{
 				OsquerydChannel: "first",
 			},
-			orbitConfig: &fleet.OrbitConfig{
-				UpdateChannels: &fleet.OrbitUpdateChannels{
+			orbitConfig: &automdm.OrbitConfig{
+				UpdateChannels: &automdm.OrbitUpdateChannels{
 					Osqueryd: "second",
 				},
 			},
@@ -356,8 +356,8 @@ func TestCfgsDiffer(t *testing.T) {
 				OsquerydChannel: "stable",
 				DesktopChannel:  "stable",
 			},
-			orbitConfig: &fleet.OrbitConfig{
-				UpdateChannels: &fleet.OrbitUpdateChannels{},
+			orbitConfig: &automdm.OrbitConfig{
+				UpdateChannels: &automdm.OrbitUpdateChannels{},
 			},
 			desktopEnabled: true,
 			expected:       false,
@@ -402,27 +402,27 @@ func TestProcessLog(t *testing.T) {
 }
 
 type fakeSetupExperienceClient struct {
-	initResult  fleet.SetupExperienceInitResult
+	initResult  automdm.SetupExperienceInitResult
 	initErr     error
-	status      *fleet.SetupExperienceStatusPayload
+	status      *automdm.SetupExperienceStatusPayload
 	statusErr   error
 	statusCalls int
-	receivers   []fleet.OrbitConfigReceiver
+	receivers   []automdm.OrbitConfigReceiver
 }
 
-func (f *fakeSetupExperienceClient) GetServerCapabilities() fleet.CapabilityMap {
-	return fleet.CapabilityMap{fleet.CapabilityWebSetupExperience: {}}
+func (f *fakeSetupExperienceClient) GetServerCapabilities() automdm.CapabilityMap {
+	return automdm.CapabilityMap{automdm.CapabilityWebSetupExperience: {}}
 }
 
-func (f *fakeSetupExperienceClient) InitiateSetupExperience() (fleet.SetupExperienceInitResult, error) {
+func (f *fakeSetupExperienceClient) InitiateSetupExperience() (automdm.SetupExperienceInitResult, error) {
 	return f.initResult, f.initErr
 }
 
-func (f *fakeSetupExperienceClient) RegisterConfigReceiver(cr fleet.OrbitConfigReceiver) {
+func (f *fakeSetupExperienceClient) RegisterConfigReceiver(cr automdm.OrbitConfigReceiver) {
 	f.receivers = append(f.receivers, cr)
 }
 
-func (f *fakeSetupExperienceClient) GetSetupExperienceStatus(bool) (*fleet.SetupExperienceStatusPayload, error) {
+func (f *fakeSetupExperienceClient) GetSetupExperienceStatus(bool) (*automdm.SetupExperienceStatusPayload, error) {
 	f.statusCalls++
 	return f.status, f.statusErr
 }
@@ -430,7 +430,7 @@ func (f *fakeSetupExperienceClient) GetSetupExperienceStatus(bool) (*fleet.Setup
 func (f *fakeSetupExperienceClient) poll() []error {
 	var errs []error
 	for _, r := range f.receivers {
-		if err := r.Run(&fleet.OrbitConfig{}); err != nil {
+		if err := r.Run(&automdm.OrbitConfig{}); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -438,8 +438,8 @@ func (f *fakeSetupExperienceClient) poll() []error {
 }
 
 func TestProcessSetupExperience(t *testing.T) {
-	pending := &fleet.SetupExperienceStatusPayload{
-		Software: []*fleet.SetupExperienceStatusResult{{Name: "Firefox", Status: fleet.SetupExperienceStatusPending}},
+	pending := &automdm.SetupExperienceStatusPayload{
+		Software: []*automdm.SetupExperienceStatusResult{{Name: "Firefox", Status: automdm.SetupExperienceStatusPending}},
 	}
 	cases := []struct {
 		name            string
@@ -448,23 +448,23 @@ func TestProcessSetupExperience(t *testing.T) {
 		wantStatusCalls int
 	}{
 		{
-			name: "Fleet Free",
+			name: "AutoMDM Free",
 			client: &fakeSetupExperienceClient{
-				initErr:   fleetclient.ErrMissingLicense,
-				statusErr: fleetclient.ErrMissingLicense,
+				initErr:   automdmclient.ErrMissingLicense,
+				statusErr: automdmclient.ErrMissingLicense,
 			},
 		},
 		{
 			name: "setup experience not enabled for the host",
 			client: &fakeSetupExperienceClient{
-				initResult: fleet.SetupExperienceInitResult{Enabled: false},
-				status:     &fleet.SetupExperienceStatusPayload{},
+				initResult: automdm.SetupExperienceInitResult{Enabled: false},
+				status:     &automdm.SetupExperienceStatusPayload{},
 			},
 		},
 		{
 			name: "setup experience enabled",
 			client: &fakeSetupExperienceClient{
-				initResult: fleet.SetupExperienceInitResult{Enabled: true},
+				initResult: automdm.SetupExperienceInitResult{Enabled: true},
 				status:     pending,
 			},
 			wantEnabled:     true,

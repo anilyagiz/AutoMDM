@@ -6,12 +6,12 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
 	"google.golang.org/api/androidmanagement/v1"
 	"google.golang.org/api/googleapi"
 )
 
-// amapiRecords stands in for Google's record of devices and command operations. Fleet
+// amapiRecords stands in for Google's record of devices and command operations. AutoMDM
 // checks Pub/Sub notifications that reset, unenroll or finish commands against AMAPI, so
 // test helpers that build those notifications register what they report here, and the
 // lookups set up by InitDeviceLookupMocks answer from it.
@@ -24,7 +24,7 @@ var amapiRecords = struct {
 	operations: map[string]*androidmanagement.Operation{},
 }
 
-// RegisterDevice records the device a test reports to Fleet in a Pub/Sub notification as
+// RegisterDevice records the device a test reports to AutoMDM in a Pub/Sub notification as
 // AMAPI's current state of that device. A DELETED device is reported as not found.
 func RegisterDevice(device androidmanagement.Device) {
 	if device.Name == "" {
@@ -35,7 +35,7 @@ func RegisterDevice(device androidmanagement.Device) {
 	amapiRecords.devices[device.Name] = &device
 }
 
-// RegisterOperation records a command operation a test reports to Fleet in a COMMAND
+// RegisterOperation records a command operation a test reports to AutoMDM in a COMMAND
 // notification as AMAPI's current state of that operation.
 func RegisterOperation(op androidmanagement.Operation) {
 	if op.Name == "" {

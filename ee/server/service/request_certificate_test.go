@@ -28,22 +28,22 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/ee/pkg/hostidentity/types"
-	"github.com/fleetdm/fleet/v4/ee/server/service/est"
-	"github.com/fleetdm/fleet/v4/ee/server/service/hostidentity/httpsig"
-	"github.com/fleetdm/fleet/v4/ee/server/service/scep"
-	"github.com/fleetdm/fleet/v4/ee/server/service/scep/sceptest"
-	"github.com/fleetdm/fleet/v4/pkg/optjson"
-	"github.com/fleetdm/fleet/v4/server/authz"
-	"github.com/fleetdm/fleet/v4/server/config"
-	authz_ctx "github.com/fleetdm/fleet/v4/server/contexts/authz"
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	scepx509util "github.com/fleetdm/fleet/v4/server/mdm/scep/x509util"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	googlecas_mock "github.com/fleetdm/fleet/v4/server/mock/googlecas"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/ee/pkg/hostidentity/types"
+	"github.com/anilyagiz/automdm/v4/ee/server/service/est"
+	"github.com/anilyagiz/automdm/v4/ee/server/service/hostidentity/httpsig"
+	"github.com/anilyagiz/automdm/v4/ee/server/service/scep"
+	"github.com/anilyagiz/automdm/v4/ee/server/service/scep/sceptest"
+	"github.com/anilyagiz/automdm/v4/pkg/optjson"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	authz_ctx "github.com/anilyagiz/automdm/v4/server/contexts/authz"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	scepx509util "github.com/anilyagiz/automdm/v4/server/mdm/scep/x509util"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	googlecas_mock "github.com/anilyagiz/automdm/v4/server/mock/googlecas"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/smallstep/pkcs7"
 	"github.com/stretchr/testify/require"
 )
@@ -61,7 +61,7 @@ const (
 		openssl genpkey -algorithm RSA -out test.key -pkeyopt rsa_keygen_bits:2048 -aes256 -pass pass:$UUID
 
 		# generate CSR signed with that private key
-		openssl req -new -sha256 -key test.key -out test.csr -subj /CN=Test -addext "subjectAltName=DNS:example.com, email:$USERNAME, URI:ID:FleetDM:GUID:$UUID, otherName:msUPN;UTF8:$UPN" -passin pass:$UUID
+		openssl req -new -sha256 -key test.key -out test.csr -subj /CN=Test -addext "subjectAltName=DNS:example.com, email:$USERNAME, URI:ID:AutoMDM:GUID:$UUID, otherName:msUPN;UTF8:$UPN" -passin pass:$UUID
 
 		# modify CSR to be one-line with \n string literal characters to address API limitations
 		sed 's/$/\\n/' test.csr | tr -d '\n' > test-escaped.csr
@@ -81,7 +81,7 @@ const (
 	twoUPNCSR = "-----BEGIN CERTIFICATE REQUEST-----\nMIIDGDCCAgACAQAwDzENMAsGA1UEAwwEVGVzdDCCASIwDQYJKoZIhvcNAQEBBQAD\nggEPADCCAQoCggEBAI3FzYmSIbCVAcfjG+LjpP/m14DYrzQmglgZCy5TIcGmUuXI\ngBhCpufBGrO/5RSCkRlp9bNwc/69J9zJ0BsNYoSBhSDWxg5OchHoM4nz8eRAfw9Z\nxx0cVjzTxr9O0Nc42IOTJLGfJqKvK65W3DOJzw0rmPEIygqN1Kx6hRFsq2Yy6lyq\niGIbScxSUdN5q8OjDhKnwvXvJqRUuFm+Bxnu6iX3ZIym4cGAt/ihfhiRUE5aZOjf\nfj1QYaFMd93iaA6eCZTStbT87UFUl5iHCKiBC9KnURxuaY1wB1iUVQLt5q9uNJlo\n8q9NdnSyNMtff27ntPURfPzGljZNyAiBre+M3B0CAwEAAaCBwzCBwAYJKoZIhvcN\nAQkOMYGyMIGvMIGsBgNVHREEgaQwgaGCC2V4YW1wbGUuY29tgRNmbGVldGllQGV4\nYW1wbGUuY29thjRJRDpGbGVldERNOkdVSUQ6ODU3MDAwMzYtMTFlZi0xMWUxLWJi\nZGEtMzg5MjM5Y2MyYzQxoCMGCisGAQQBgjcUAgOgFQwTZmxlZXRpZUBleGFtcGxl\nLmNvbaAiBgorBgEEAYI3FAIDoBQMEnZpY3RpbUBleGFtcGxlLmNvbTANBgkqhkiG\n9w0BAQsFAAOCAQEAWoW3XwwDV2X+RzQZSY5MOXzR5/ZgU3IBlEkTvP6IsnZWtBW/\n6qUNyUyVB4JxxxOo+a3Si82SSQSuMBRHUf3QkFxSe1LPiGhkR63hVZuBWDaLQp4T\nr+MdY6zah4f8RscTDRETaAfeU5RAokgO/F4Kcq4YwPI0eQEIMSyPmfjnoDg1I9Z3\n1kqrvqRzChlfqr5dcm3bOlDVcT8XA8FOfFRUpZeQPeS4cIXyK8Xd+bY/tLgILSlH\nMFdm3Cui7rEoTRf1B2OGglNYqyoQf8aRrh1wOOlendnebuy7NsVv09vB3vlqtg4s\nXp69ZBoqobX3x8DkGiCtnSHT/6XUVXPq+Xup+g==\n-----END CERTIFICATE REQUEST-----\n"
 	// emptyUPNCSR carries email=fleetie@example.com with a zero-length UPN othername.
 	emptyUPNCSR = "-----BEGIN CERTIFICATE REQUEST-----\nMIIC3DCCAcQCAQAwDzENMAsGA1UEAwwEVGVzdDCCASIwDQYJKoZIhvcNAQEBBQAD\nggEPADCCAQoCggEBAI3FzYmSIbCVAcfjG+LjpP/m14DYrzQmglgZCy5TIcGmUuXI\ngBhCpufBGrO/5RSCkRlp9bNwc/69J9zJ0BsNYoSBhSDWxg5OchHoM4nz8eRAfw9Z\nxx0cVjzTxr9O0Nc42IOTJLGfJqKvK65W3DOJzw0rmPEIygqN1Kx6hRFsq2Yy6lyq\niGIbScxSUdN5q8OjDhKnwvXvJqRUuFm+Bxnu6iX3ZIym4cGAt/ihfhiRUE5aZOjf\nfj1QYaFMd93iaA6eCZTStbT87UFUl5iHCKiBC9KnURxuaY1wB1iUVQLt5q9uNJlo\n8q9NdnSyNMtff27ntPURfPzGljZNyAiBre+M3B0CAwEAAaCBhzCBhAYJKoZIhvcN\nAQkOMXcwdTBzBgNVHREEbDBqggtleGFtcGxlLmNvbYETZmxlZXRpZUBleGFtcGxl\nLmNvbYY0SUQ6RmxlZXRETTpHVUlEOjg1NzAwMDM2LTExZWYtMTFlMS1iYmRhLTM4\nOTIzOWNjMmM0MaAQBgorBgEEAYI3FAIDoAIMADANBgkqhkiG9w0BAQsFAAOCAQEA\ndNXPg7BZQiiRMiD/VrTBDOnKS5AYO0/GgLHC/b/98kSIUY6sOIwyuXOWshwZmm3y\npcNW/i6/yODXui0k8tWn7I14ibNKI63bKPPJzC1WpAFOU2DHQUiUBEB3WBssmjwJ\nV8Q8wZMFADNFOthBCB36n41BDF4aLgH7YFkyVXaXrGOuuyBcVyqH3yIu0WF7ch7N\nqCaf488ffl+tOMqvTtVnnuPcE17sVcya7w4g4MGuLm1kxbL9JsWxSGeCJPSdV5HV\nvPHvwQ1AcmFUWIMoxIKUMcBMzNwI9ZEzndCUOuSyRwJ4shjseATgjjdE6RqHe+pM\nfCKYWXHo0iSFNaCyOPYkng==\n-----END CERTIFICATE REQUEST-----\n"
-	// partialUPNCSR carries email=fleetie@example.com with UPN=fleet, a prefix of the local part
+	// partialUPNCSR carries email=fleetie@example.com with UPN=team, a prefix of the local part
 	// that names no complete identity.
 	partialUPNCSR = "-----BEGIN CERTIFICATE REQUEST-----\nMIIC4TCCAckCAQAwDzENMAsGA1UEAwwEVGVzdDCCASIwDQYJKoZIhvcNAQEBBQAD\nggEPADCCAQoCggEBAI3FzYmSIbCVAcfjG+LjpP/m14DYrzQmglgZCy5TIcGmUuXI\ngBhCpufBGrO/5RSCkRlp9bNwc/69J9zJ0BsNYoSBhSDWxg5OchHoM4nz8eRAfw9Z\nxx0cVjzTxr9O0Nc42IOTJLGfJqKvK65W3DOJzw0rmPEIygqN1Kx6hRFsq2Yy6lyq\niGIbScxSUdN5q8OjDhKnwvXvJqRUuFm+Bxnu6iX3ZIym4cGAt/ihfhiRUE5aZOjf\nfj1QYaFMd93iaA6eCZTStbT87UFUl5iHCKiBC9KnURxuaY1wB1iUVQLt5q9uNJlo\n8q9NdnSyNMtff27ntPURfPzGljZNyAiBre+M3B0CAwEAAaCBjDCBiQYJKoZIhvcN\nAQkOMXwwejB4BgNVHREEcTBvggtleGFtcGxlLmNvbYETZmxlZXRpZUBleGFtcGxl\nLmNvbYY0SUQ6RmxlZXRETTpHVUlEOjg1NzAwMDM2LTExZWYtMTFlMS1iYmRhLTM4\nOTIzOWNjMmM0MaAVBgorBgEEAYI3FAIDoAcMBWZsZWV0MA0GCSqGSIb3DQEBCwUA\nA4IBAQALpbHyxS9FOKJdqeqZEqI5wCphP0s+7XPGOHlSUt7xPqn9VIFTUdYK8Ttw\nW3sn1xPt28BvFcIcGFjttfsx5vVQq0qP78oGsh2ToZsLokw+csqKMWagVnka6FXN\nUveDhx0eBwmoTBlgZIirakglz7drmHmhKSpmJvqt/KAocqUTDlTl2CKsVGp+yGzf\nxw5ruStZ89sM+iEgeNlunwANDZ41YVykMBQev84RXf7lshvsiQb3897usAiQswWa\nqmYf8hNSgOFDZy2AgKTmT5Rd/d4u95LjGHn5yBPum78aUvq+Z59df/MT5DCDadKM\nIBvcSqXpFNc1/wtIffRMf2yF1+rm\n-----END CERTIFICATE REQUEST-----\n"
 )
@@ -219,38 +219,38 @@ func TestRequestCertificate(t *testing.T) {
 	}))
 	defer mockHydrantServer.Close()
 
-	hydrantCA := &fleet.CertificateAuthority{
+	hydrantCA := &automdm.CertificateAuthority{
 		ID:           1,
 		Name:         ptr.String("TestHydrantCA"),
-		Type:         string(fleet.CATypeHydrant),
+		Type:         string(automdm.CATypeHydrant),
 		URL:          &mockHydrantServer.URL,
 		ClientID:     ptr.String("test-client-id"),
 		ClientSecret: ptr.String("test-client-secret"),
 	}
-	digicertCA := &fleet.CertificateAuthority{
+	digicertCA := &automdm.CertificateAuthority{
 		ID:        2,
 		Name:      ptr.String("TestDigiCertCA"),
-		Type:      string(fleet.CATypeDigiCert),
+		Type:      string(automdm.CATypeDigiCert),
 		URL:       ptr.String("https://api.digicert.com"),
 		APIToken:  ptr.String("test-api-token"),
 		ProfileID: ptr.String("test-profile-id"),
 	}
-	customESTCA := &fleet.CertificateAuthority{
+	customESTCA := &automdm.CertificateAuthority{
 		ID:       3,
 		Name:     ptr.String("TestCustomESTCA"),
-		Type:     string(fleet.CATypeCustomESTProxy),
+		Type:     string(automdm.CATypeCustomESTProxy),
 		URL:      &mockHydrantServer.URL,
 		Username: ptr.String("test-username"),
 		Password: ptr.String("test-password"),
 	}
 
 	const ndesChallenge = "8CE317021F690069"
-	var ndesCAs []*fleet.CertificateAuthority
-	newNDESCA := func(scepURL *string) *fleet.CertificateAuthority {
-		ca := &fleet.CertificateAuthority{
+	var ndesCAs []*automdm.CertificateAuthority
+	newNDESCA := func(scepURL *string) *automdm.CertificateAuthority {
+		ca := &automdm.CertificateAuthority{
 			ID:       uint(100 + len(ndesCAs)),
 			Name:     new("NDES"),
-			Type:     string(fleet.CATypeNDESSCEPProxy),
+			Type:     string(automdm.CATypeNDESSCEPProxy),
 			URL:      scepURL,
 			AdminURL: new("https://ndes.example.com/certsrv/mscep_admin/"),
 			Username: new("ndes-user"),
@@ -266,18 +266,18 @@ func TestRequestCertificate(t *testing.T) {
 	unreachableNDESCA := newNDESCA(new(unreachableSCEPServer.URL + "/scep"))
 	noURLNDESCA := newNDESCA(nil)
 
-	googleCASCA := &fleet.CertificateAuthority{
+	googleCASCA := &automdm.CertificateAuthority{
 		ID:                  200,
 		Name:                new("GOOGLE_WIFI"),
-		Type:                string(fleet.CATypeGoogleCAS),
+		Type:                string(automdm.CATypeGoogleCAS),
 		URL:                 new(""),
 		GoogleCASProject:    new("my-project"),
 		GoogleCASLocation:   new("us-central1"),
 		GoogleCASCAPool:     new("my-pool"),
 		GoogleCASAPIKeyJSON: new(`{"type":"service_account"}`),
 	}
-	googleCASNoKeyCA := &fleet.CertificateAuthority{
-		ID: 201, Name: new("GOOGLE_NO_KEY"), Type: string(fleet.CATypeGoogleCAS), URL: new(""),
+	googleCASNoKeyCA := &automdm.CertificateAuthority{
+		ID: 201, Name: new("GOOGLE_NO_KEY"), Type: string(automdm.CATypeGoogleCAS), URL: new(""),
 		GoogleCASProject: new("my-project"), GoogleCASLocation: new("us-central1"), GoogleCASCAPool: new("my-pool"),
 	}
 	googleCASIssuerKey, err := rsa.GenerateKey(rand.Reader, 2048)
@@ -304,28 +304,28 @@ func TestRequestCertificate(t *testing.T) {
 	useDefaultAuthContext := true
 
 	// Reset by baseSetupForTests; mutated by the allowlist and host-binding subtests.
-	var appConfig *fleet.AppConfig
+	var appConfig *automdm.AppConfig
 	baseSetupForTests := func() (*Service, *mock.Store, context.Context) {
 		ds := new(mock.Store)
 
 		// Setup DS mocks
-		ds.GetCertificateAuthorityByIDFunc = func(ctx context.Context, id uint, includeSecrets bool) (*fleet.CertificateAuthority, error) {
+		ds.GetCertificateAuthorityByIDFunc = func(ctx context.Context, id uint, includeSecrets bool) (*automdm.CertificateAuthority, error) {
 			require.True(t, includeSecrets, "RequestCertificate should always fetch secrets")
-			for _, ca := range append([]*fleet.CertificateAuthority{hydrantCA, digicertCA, customESTCA, googleCASCA, googleCASNoKeyCA}, ndesCAs...) {
+			for _, ca := range append([]*automdm.CertificateAuthority{hydrantCA, digicertCA, customESTCA, googleCASCA, googleCASNoKeyCA}, ndesCAs...) {
 				if ca.ID == id {
 					return ca, nil
 				}
 			}
 			return nil, common_mysql.NotFound("certificate authority")
 		}
-		appConfig = &fleet.AppConfig{}
-		ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
+		appConfig = &automdm.AppConfig{}
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
 			return appConfig, nil
 		}
-		ds.ScimUserByHostIDFunc = func(ctx context.Context, hostID uint) (*fleet.ScimUser, error) {
+		ds.ScimUserByHostIDFunc = func(ctx context.Context, hostID uint) (*automdm.ScimUser, error) {
 			return nil, common_mysql.NotFound("scim user")
 		}
-		ds.ListHostDeviceMappingFunc = func(ctx context.Context, hostID uint) ([]*fleet.HostDeviceMapping, error) {
+		ds.ListHostDeviceMappingFunc = func(ctx context.Context, hostID uint) ([]*automdm.HostDeviceMapping, error) {
 			return nil, nil
 		}
 
@@ -345,7 +345,7 @@ func TestRequestCertificate(t *testing.T) {
 			scepEnrollmentClient: scep.NewEnrollmentClient(logger),
 			googleCASService:     googleCAS,
 		}
-		googleCAS.IssueCertificateFunc = func(ctx context.Context, ca fleet.GoogleCASCA, csr *x509.CertificateRequest) (*x509.Certificate, error) {
+		googleCAS.IssueCertificateFunc = func(ctx context.Context, ca automdm.GoogleCASCA, csr *x509.CertificateRequest) (*x509.Certificate, error) {
 			return googleCASIssue(csr)
 		}
 		googleCAS.IssueCertificateFuncInvoked = false
@@ -354,7 +354,7 @@ func TestRequestCertificate(t *testing.T) {
 		ctx := authz_ctx.NewContext(context.Background(), authCtx)
 		if useDefaultAuthContext {
 			authCtx.SetAuthnMethod(authz_ctx.AuthnUserToken)
-			ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}})
+			ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}})
 		}
 
 		oauthIntrospectResponse = defaultOauthIntrospectResponse
@@ -406,7 +406,7 @@ func TestRequestCertificate(t *testing.T) {
 		svc, _, ctx := baseSetupForTests()
 		setAllowlist(t, introspectURL, "test-client-id")
 
-		cert, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{
+		cert, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{
 			ID:          hydrantCA.ID,
 			CSR:         goodCSR,
 			IDPOauthURL: ptr.String(mockOauthServer.URL + "/oauth2/v1/introspect"),
@@ -421,7 +421,7 @@ func TestRequestCertificate(t *testing.T) {
 	t.Run("Request a certificate - Happy path, no IDP", func(t *testing.T) {
 		svc, _, ctx := baseSetupForTests()
 
-		cert, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{
+		cert, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{
 			ID:  hydrantCA.ID,
 			CSR: goodCSR,
 		})
@@ -434,7 +434,7 @@ func TestRequestCertificate(t *testing.T) {
 		svc, _, ctx := deviceSetup(t, new(uint(1)))
 		appConfig.Integrations.CertificatesDisableHostEndUserBinding = optjson.SetBool(true)
 
-		cert, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{
+		cert, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{
 			ID:  hydrantCA.ID,
 			CSR: goodCSR,
 		})
@@ -446,7 +446,7 @@ func TestRequestCertificate(t *testing.T) {
 	t.Run("Request a certificate - Happy path, no IDP, UPN does not match IDP info(should pass)", func(t *testing.T) {
 		svc, _, ctx := baseSetupForTests()
 
-		cert, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{
+		cert, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{
 			ID:  hydrantCA.ID,
 			CSR: badCSR,
 		})
@@ -460,7 +460,7 @@ func TestRequestCertificate(t *testing.T) {
 		setAllowlist(t, introspectURL, "test-client-id")
 		hydrantSimpleEnrollResponse = "Oh no! Something bad happened"
 		hydrantSimpleEnrollStatus = http.StatusInternalServerError
-		cert, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{
+		cert, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{
 			ID:          hydrantCA.ID,
 			CSR:         goodCSR,
 			IDPOauthURL: ptr.String(mockOauthServer.URL + "/oauth2/v1/introspect"),
@@ -479,7 +479,7 @@ func TestRequestCertificate(t *testing.T) {
 		}
 		// The token is checked before the CSR's email and UPN are compared, so a bad token is reported as such either way.
 		for _, csr := range []string{goodCSR, badCSR} {
-			cert, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{
+			cert, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{
 				ID:          hydrantCA.ID,
 				CSR:         csr,
 				IDPOauthURL: new(mockOauthServer.URL + "/oauth2/v1/introspect"),
@@ -497,7 +497,7 @@ func TestRequestCertificate(t *testing.T) {
 		oauthIntrospectResponse = map[string]interface{}{
 			"active": true,
 		}
-		cert, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{
+		cert, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{
 			ID:          hydrantCA.ID,
 			CSR:         goodCSR,
 			IDPOauthURL: ptr.String(mockOauthServer.URL + "/oauth2/v1/introspect"),
@@ -515,7 +515,7 @@ func TestRequestCertificate(t *testing.T) {
 			"error": "something bad happened",
 		}
 		oauthIntrospectStatus = http.StatusInternalServerError
-		cert, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{
+		cert, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{
 			ID:          hydrantCA.ID,
 			CSR:         goodCSR,
 			IDPOauthURL: ptr.String(mockOauthServer.URL + "/oauth2/v1/introspect"),
@@ -528,7 +528,7 @@ func TestRequestCertificate(t *testing.T) {
 
 	t.Run("Request a certificate - Custom EST CA", func(t *testing.T) {
 		svc, _, ctx := baseSetupForTests()
-		cert, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{
+		cert, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{
 			ID:  customESTCA.ID,
 			CSR: goodCSR,
 		})
@@ -540,14 +540,14 @@ func TestRequestCertificate(t *testing.T) {
 	t.Run("Request certificate - unsupported CA type", func(t *testing.T) {
 		svc, _, ctx := baseSetupForTests()
 		setAllowlist(t, introspectURL, "test-client-id")
-		_, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{
+		_, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{
 			ID:          digicertCA.ID,
 			CSR:         goodCSR,
 			IDPOauthURL: ptr.String(mockOauthServer.URL + "/oauth2/v1/introspect"),
 			IDPToken:    ptr.String("test-idp-token"),
 			IDPClientID: ptr.String("test-idp-client-id"),
 		})
-		var badRequest *fleet.BadRequestError
+		var badRequest *automdm.BadRequestError
 		require.ErrorAs(t, err, &badRequest)
 		require.Equal(t, "This API currently only supports Hydrant, EST, NDES, and Google CAS Certificate Authorities.", badRequest.Message)
 	})
@@ -555,7 +555,7 @@ func TestRequestCertificate(t *testing.T) {
 	t.Run("Request certificate - nonexistent CA", func(t *testing.T) {
 		svc, _, ctx := baseSetupForTests()
 		setAllowlist(t, introspectURL, "test-client-id")
-		_, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{
+		_, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{
 			ID:          999,
 			CSR:         goodCSR,
 			IDPOauthURL: ptr.String(mockOauthServer.URL + "/oauth2/v1/introspect"),
@@ -568,7 +568,7 @@ func TestRequestCertificate(t *testing.T) {
 	t.Run("Request certificate - missing IDP client ID", func(t *testing.T) {
 		svc, _, ctx := baseSetupForTests()
 		setAllowlist(t, introspectURL, "test-client-id")
-		_, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{
+		_, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{
 			ID:          hydrantCA.ID,
 			CSR:         goodCSR,
 			IDPOauthURL: ptr.String(mockOauthServer.URL + "/oauth2/v1/introspect"),
@@ -581,7 +581,7 @@ func TestRequestCertificate(t *testing.T) {
 	t.Run("Request certificate - missing IDP token", func(t *testing.T) {
 		svc, _, ctx := baseSetupForTests()
 		setAllowlist(t, introspectURL, "test-client-id")
-		_, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{
+		_, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{
 			ID:          hydrantCA.ID,
 			CSR:         goodCSR,
 			IDPOauthURL: ptr.String(mockOauthServer.URL + "/oauth2/v1/introspect"),
@@ -594,7 +594,7 @@ func TestRequestCertificate(t *testing.T) {
 	t.Run("Request certificate - missing IDP oauth URL", func(t *testing.T) {
 		svc, _, ctx := baseSetupForTests()
 		setAllowlist(t, introspectURL, "test-client-id")
-		_, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{
+		_, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{
 			ID:          hydrantCA.ID,
 			CSR:         goodCSR,
 			IDPOauthURL: nil,
@@ -607,7 +607,7 @@ func TestRequestCertificate(t *testing.T) {
 	t.Run("Request certificate - CSR email and UPN do not match", func(t *testing.T) {
 		svc, _, ctx := baseSetupForTests()
 		setAllowlist(t, introspectURL, "test-client-id")
-		_, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{
+		_, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{
 			ID:          hydrantCA.ID,
 			CSR:         badCSR,
 			IDPOauthURL: ptr.String(mockOauthServer.URL + "/oauth2/v1/introspect"),
@@ -622,7 +622,7 @@ func TestRequestCertificate(t *testing.T) {
 	t.Run("Request certificate - CSR UPN is a partial prefix of the email, IDP provided", func(t *testing.T) {
 		svc, _, ctx := baseSetupForTests()
 		setAllowlist(t, introspectURL, "test-client-id")
-		_, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{
+		_, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{
 			ID:          hydrantCA.ID,
 			CSR:         partialUPNCSR,
 			IDPOauthURL: new(mockOauthServer.URL + "/oauth2/v1/introspect"),
@@ -637,7 +637,7 @@ func TestRequestCertificate(t *testing.T) {
 	t.Run("Request certificate - CSR with multiple UPNs is rejected, IDP provided", func(t *testing.T) {
 		svc, _, ctx := baseSetupForTests()
 		setAllowlist(t, introspectURL, "test-client-id")
-		_, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{
+		_, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{
 			ID:          hydrantCA.ID,
 			CSR:         twoUPNCSR,
 			IDPOauthURL: new(mockOauthServer.URL + "/oauth2/v1/introspect"),
@@ -652,7 +652,7 @@ func TestRequestCertificate(t *testing.T) {
 	t.Run("Request certificate - CSR is not a CSR, IDP provided", func(t *testing.T) {
 		svc, _, ctx := baseSetupForTests()
 		setAllowlist(t, introspectURL, "test-client-id")
-		_, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{
+		_, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{
 			ID:          hydrantCA.ID,
 			CSR:         "I'm not a CSR at all",
 			IDPOauthURL: ptr.String(mockOauthServer.URL + "/oauth2/v1/introspect"),
@@ -666,7 +666,7 @@ func TestRequestCertificate(t *testing.T) {
 		svc, _, ctx := baseSetupForTests()
 
 		csr := strings.ReplaceAll(goodCSR, "CERTIFICATE REQUEST-----", "NEW CERTIFICATE REQUEST-----")
-		cert, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{ID: hydrantCA.ID, CSR: csr})
+		cert, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{ID: hydrantCA.ID, CSR: csr})
 		require.NoError(t, err)
 		require.Equal(t, "-----BEGIN PKCS7-----\n"+hydrantSimpleEnrollResponse+"\n-----END PKCS7-----\n", *cert)
 
@@ -678,7 +678,7 @@ func TestRequestCertificate(t *testing.T) {
 	t.Run("Request a certificate - CSR is not a CSR, no IDP provided, rejected before any datastore call", func(t *testing.T) {
 		svc, ds, ctx := baseSetupForTests()
 
-		_, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{
+		_, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{
 			ID:  hydrantCA.ID,
 			CSR: "I am not a CSR",
 		})
@@ -695,7 +695,7 @@ func TestRequestCertificate(t *testing.T) {
 		require.NoError(t, err)
 		hydrantSimpleEnrollResponse = base64.StdEncoding.EncodeToString(envelope)
 
-		cert, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{
+		cert, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{
 			ID:                   hydrantCA.ID,
 			CSR:                  goodCSR,
 			ReturnPEMCertificate: true,
@@ -730,7 +730,7 @@ func TestRequestCertificate(t *testing.T) {
 		}
 		hydrantSimpleEnrollResponse = withNewlines.String()
 
-		cert, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{
+		cert, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{
 			ID:                   hydrantCA.ID,
 			CSR:                  goodCSR,
 			ReturnPEMCertificate: true,
@@ -752,7 +752,7 @@ func TestRequestCertificate(t *testing.T) {
 		svc, _, ctx := baseSetupForTests()
 		// hydrantSimpleEnrollResponse defaults to "abc123" which is not a valid PKCS7 envelope.
 
-		cert, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{
+		cert, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{
 			ID:                   hydrantCA.ID,
 			CSR:                  goodCSR,
 			ReturnPEMCertificate: true,
@@ -774,7 +774,7 @@ func TestRequestCertificate(t *testing.T) {
 		require.NoError(t, err)
 		hydrantSimpleEnrollResponse = base64.StdEncoding.EncodeToString(envelope)
 
-		cert, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{
+		cert, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{
 			ID:                   hydrantCA.ID,
 			CSR:                  goodCSR,
 			ReturnPEMCertificate: true,
@@ -789,7 +789,7 @@ func TestRequestCertificate(t *testing.T) {
 	t.Run("Request a certificate - default config, device-signed request with no IDP fields is rejected", func(t *testing.T) {
 		svc, _, ctx := deviceSetup(t, new(uint(1)))
 
-		cert, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{ID: hydrantCA.ID, CSR: goodCSR})
+		cert, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{ID: hydrantCA.ID, CSR: goodCSR})
 		require.ErrorContains(t, err, "does not match the end user identity recorded for this host")
 		require.Nil(t, cert)
 		require.Zero(t, hydrantSimpleEnrollCalls.Load())
@@ -799,7 +799,7 @@ func TestRequestCertificate(t *testing.T) {
 	t.Run("Request a certificate - default config, IDP credentials with no allowlist are rejected", func(t *testing.T) {
 		svc, _, ctx := baseSetupForTests()
 
-		cert, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{
+		cert, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{
 			ID:          hydrantCA.ID,
 			CSR:         goodCSR,
 			IDPOauthURL: new(introspectURL),
@@ -813,13 +813,13 @@ func TestRequestCertificate(t *testing.T) {
 
 	// server.allow_request_certificate_any_idp restores the legacy behavior. Two subtests because
 	// deviceSetup flips the shared auth-context flag for the rest of its subtest.
-	legacy := config.FleetConfig{Server: config.ServerConfig{AllowRequestCertificateAnyIdP: true}}
+	legacy := config.AutoMDMConfig{Server: config.ServerConfig{AllowRequestCertificateAnyIdP: true}}
 
 	t.Run("Request a certificate - allow any IdP, device-signed request with no IDP fields is unbound", func(t *testing.T) {
 		svc, _, ctx := deviceSetup(t, new(uint(1)))
 		svc.config = legacy
 
-		cert, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{ID: hydrantCA.ID, CSR: goodCSR})
+		cert, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{ID: hydrantCA.ID, CSR: goodCSR})
 		require.NoError(t, err)
 		require.NotNil(t, cert)
 	})
@@ -828,7 +828,7 @@ func TestRequestCertificate(t *testing.T) {
 		svc, _, ctx := baseSetupForTests()
 		svc.config = legacy
 
-		cert, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{
+		cert, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{
 			ID:          hydrantCA.ID,
 			CSR:         goodCSR,
 			IDPOauthURL: new(introspectURL),
@@ -840,7 +840,7 @@ func TestRequestCertificate(t *testing.T) {
 		require.EqualValues(t, 1, oauthIntrospectCalls.Load())
 
 		// The partial-credentials rule predates the safeguards and is not part of the escape hatch.
-		_, err = svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{
+		_, err = svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{
 			ID: hydrantCA.ID, CSR: goodCSR, IDPOauthURL: new(introspectURL), IDPClientID: new("test-client-id"),
 		})
 		require.ErrorContains(t, err, "all must be provided")
@@ -850,11 +850,11 @@ func TestRequestCertificate(t *testing.T) {
 		svc, _, ctx := deviceSetup(t, new(uint(1)))
 		setAllowlist(t, introspectURL, "test-client-id")
 
-		cert, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{
+		cert, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{
 			ID:  hydrantCA.ID,
 			CSR: goodCSR,
 		})
-		require.ErrorContains(t, err, "IdP verification is required by this Fleet server.")
+		require.ErrorContains(t, err, "IdP verification is required by this AutoMDM server.")
 		require.Nil(t, cert)
 		require.Zero(t, oauthIntrospectCalls.Load())
 	})
@@ -865,7 +865,7 @@ func TestRequestCertificate(t *testing.T) {
 		svc, _, ctx := baseSetupForTests()
 		setAllowlist(t, introspectURL, "test-client-id")
 
-		cert, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{
+		cert, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{
 			ID:          hydrantCA.ID,
 			CSR:         goodCSR,
 			IDPOauthURL: new(introspectURL),
@@ -883,7 +883,7 @@ func TestRequestCertificate(t *testing.T) {
 		svc, _, ctx := baseSetupForTests()
 		setAllowlist(t, introspectURL, "test-client-id")
 
-		cert, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{
+		cert, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{
 			ID:          hydrantCA.ID,
 			CSR:         goodCSR,
 			IDPOauthURL: new(introspectURL),
@@ -898,7 +898,7 @@ func TestRequestCertificate(t *testing.T) {
 	t.Run("Request a certificate - device request with nil host ID is rejected by the service", func(t *testing.T) {
 		svc, ds, ctx := deviceSetup(t, nil)
 
-		cert, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{
+		cert, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{
 			ID:  hydrantCA.ID,
 			CSR: goodCSR,
 		})
@@ -911,7 +911,7 @@ func TestRequestCertificate(t *testing.T) {
 	t.Run("Request a certificate - device request with no host identity certificate is rejected", func(t *testing.T) {
 		svc, _, ctx := signatureAuthSetup(t, nil)
 
-		cert, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{
+		cert, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{
 			ID:  hydrantCA.ID,
 			CSR: goodCSR,
 		})
@@ -921,11 +921,11 @@ func TestRequestCertificate(t *testing.T) {
 
 	t.Run("Request a certificate - host binding on, matching IdP username succeeds regardless of case", func(t *testing.T) {
 		svc, ds, ctx := deviceSetup(t, new(uint(1)))
-		ds.ListHostDeviceMappingFunc = func(ctx context.Context, hostID uint) ([]*fleet.HostDeviceMapping, error) {
-			return []*fleet.HostDeviceMapping{{HostID: hostID, Email: "Fleetie@Example.com", Source: fleet.DeviceMappingIDP}}, nil
+		ds.ListHostDeviceMappingFunc = func(ctx context.Context, hostID uint) ([]*automdm.HostDeviceMapping, error) {
+			return []*automdm.HostDeviceMapping{{HostID: hostID, Email: "Fleetie@Example.com", Source: automdm.DeviceMappingIDP}}, nil
 		}
 
-		cert, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{
+		cert, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{
 			ID:  hydrantCA.ID,
 			CSR: goodCSR,
 		})
@@ -937,11 +937,11 @@ func TestRequestCertificate(t *testing.T) {
 
 	t.Run("Request a certificate - host binding on, mismatched IdP username is rejected", func(t *testing.T) {
 		svc, ds, ctx := deviceSetup(t, new(uint(1)))
-		ds.ListHostDeviceMappingFunc = func(ctx context.Context, hostID uint) ([]*fleet.HostDeviceMapping, error) {
-			return []*fleet.HostDeviceMapping{{HostID: hostID, Email: "someone-else@example.com", Source: fleet.DeviceMappingIDP}}, nil
+		ds.ListHostDeviceMappingFunc = func(ctx context.Context, hostID uint) ([]*automdm.HostDeviceMapping, error) {
+			return []*automdm.HostDeviceMapping{{HostID: hostID, Email: "someone-else@example.com", Source: automdm.DeviceMappingIDP}}, nil
 		}
 
-		cert, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{
+		cert, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{
 			ID:  hydrantCA.ID,
 			CSR: goodCSR,
 		})
@@ -955,11 +955,11 @@ func TestRequestCertificate(t *testing.T) {
 	t.Run("Request a certificate - host binding on, UPN naming another user is rejected", func(t *testing.T) {
 		svc, ds, ctx := deviceSetup(t, new(uint(1)))
 		// badCSR: email=badactor@example.com, UPN=fleetie@example.com.
-		ds.ListHostDeviceMappingFunc = func(ctx context.Context, hostID uint) ([]*fleet.HostDeviceMapping, error) {
-			return []*fleet.HostDeviceMapping{{HostID: hostID, Email: "badactor@example.com", Source: fleet.DeviceMappingIDP}}, nil
+		ds.ListHostDeviceMappingFunc = func(ctx context.Context, hostID uint) ([]*automdm.HostDeviceMapping, error) {
+			return []*automdm.HostDeviceMapping{{HostID: hostID, Email: "badactor@example.com", Source: automdm.DeviceMappingIDP}}, nil
 		}
 
-		cert, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{
+		cert, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{
 			ID:  hydrantCA.ID,
 			CSR: badCSR,
 		})
@@ -970,11 +970,11 @@ func TestRequestCertificate(t *testing.T) {
 	// The documented shorthand: an IdP username of bob@example.com may appear as UPN bob.
 	t.Run("Request a certificate - host binding on, UPN that is the local part of the email succeeds", func(t *testing.T) {
 		svc, ds, ctx := deviceSetup(t, new(uint(1)))
-		ds.ListHostDeviceMappingFunc = func(ctx context.Context, hostID uint) ([]*fleet.HostDeviceMapping, error) {
-			return []*fleet.HostDeviceMapping{{HostID: hostID, Email: "fleetie@example.com", Source: fleet.DeviceMappingIDP}}, nil
+		ds.ListHostDeviceMappingFunc = func(ctx context.Context, hostID uint) ([]*automdm.HostDeviceMapping, error) {
+			return []*automdm.HostDeviceMapping{{HostID: hostID, Email: "fleetie@example.com", Source: automdm.DeviceMappingIDP}}, nil
 		}
 
-		cert, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{
+		cert, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{
 			ID:  hydrantCA.ID,
 			CSR: localPartUPNCSR,
 		})
@@ -983,15 +983,15 @@ func TestRequestCertificate(t *testing.T) {
 	})
 
 	// Only the full email or its complete local part name the bound identity. A shorter prefix
-	// such as "fleet", or "fleetie@example.co" for another domain, would let the host put a
+	// such as "team", or "fleetie@example.co" for another domain, would let the host put a
 	// different name in the field 802.1X authenticates on.
 	t.Run("Request a certificate - host binding on, UPN that is a partial prefix of the email is rejected", func(t *testing.T) {
 		svc, ds, ctx := deviceSetup(t, new(uint(1)))
-		ds.ListHostDeviceMappingFunc = func(ctx context.Context, hostID uint) ([]*fleet.HostDeviceMapping, error) {
-			return []*fleet.HostDeviceMapping{{HostID: hostID, Email: "fleetie@example.com", Source: fleet.DeviceMappingIDP}}, nil
+		ds.ListHostDeviceMappingFunc = func(ctx context.Context, hostID uint) ([]*automdm.HostDeviceMapping, error) {
+			return []*automdm.HostDeviceMapping{{HostID: hostID, Email: "fleetie@example.com", Source: automdm.DeviceMappingIDP}}, nil
 		}
 
-		cert, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{
+		cert, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{
 			ID:  hydrantCA.ID,
 			CSR: partialUPNCSR,
 		})
@@ -1004,11 +1004,11 @@ func TestRequestCertificate(t *testing.T) {
 	// invalid CSR before any identity comparison.
 	t.Run("Request a certificate - host binding on, CSR with an empty UPN is rejected", func(t *testing.T) {
 		svc, ds, ctx := deviceSetup(t, new(uint(1)))
-		ds.ListHostDeviceMappingFunc = func(ctx context.Context, hostID uint) ([]*fleet.HostDeviceMapping, error) {
-			return []*fleet.HostDeviceMapping{{HostID: hostID, Email: "fleetie@example.com", Source: fleet.DeviceMappingIDP}}, nil
+		ds.ListHostDeviceMappingFunc = func(ctx context.Context, hostID uint) ([]*automdm.HostDeviceMapping, error) {
+			return []*automdm.HostDeviceMapping{{HostID: hostID, Email: "fleetie@example.com", Source: automdm.DeviceMappingIDP}}, nil
 		}
 
-		cert, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{
+		cert, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{
 			ID:  hydrantCA.ID,
 			CSR: emptyUPNCSR,
 		})
@@ -1021,11 +1021,11 @@ func TestRequestCertificate(t *testing.T) {
 	// forwarded to the CA unchanged, so it must be refused rather than partly checked.
 	t.Run("Request a certificate - host binding on, CSR with multiple UPNs is rejected", func(t *testing.T) {
 		svc, ds, ctx := deviceSetup(t, new(uint(1)))
-		ds.ListHostDeviceMappingFunc = func(ctx context.Context, hostID uint) ([]*fleet.HostDeviceMapping, error) {
-			return []*fleet.HostDeviceMapping{{HostID: hostID, Email: "fleetie@example.com", Source: fleet.DeviceMappingIDP}}, nil
+		ds.ListHostDeviceMappingFunc = func(ctx context.Context, hostID uint) ([]*automdm.HostDeviceMapping, error) {
+			return []*automdm.HostDeviceMapping{{HostID: hostID, Email: "fleetie@example.com", Source: automdm.DeviceMappingIDP}}, nil
 		}
 
-		cert, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{
+		cert, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{
 			ID:  hydrantCA.ID,
 			CSR: twoUPNCSR,
 		})
@@ -1038,11 +1038,11 @@ func TestRequestCertificate(t *testing.T) {
 	// the binding is opt-in, so a CSR without one cannot be bound and is refused.
 	t.Run("Request a certificate - host binding on, CSR without a UPN is rejected", func(t *testing.T) {
 		svc, ds, ctx := deviceSetup(t, new(uint(1)))
-		ds.ListHostDeviceMappingFunc = func(ctx context.Context, hostID uint) ([]*fleet.HostDeviceMapping, error) {
-			return []*fleet.HostDeviceMapping{{HostID: hostID, Email: "fleetie@example.com", Source: fleet.DeviceMappingIDP}}, nil
+		ds.ListHostDeviceMappingFunc = func(ctx context.Context, hostID uint) ([]*automdm.HostDeviceMapping, error) {
+			return []*automdm.HostDeviceMapping{{HostID: hostID, Email: "fleetie@example.com", Source: automdm.DeviceMappingIDP}}, nil
 		}
 
-		cert, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{
+		cert, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{
 			ID:  hydrantCA.ID,
 			CSR: noUPNCSR,
 		})
@@ -1055,7 +1055,7 @@ func TestRequestCertificate(t *testing.T) {
 		svc, _, ctx := deviceSetup(t, new(uint(1)))
 		setAllowlist(t, introspectURL, "test-client-id")
 
-		cert, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{
+		cert, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{
 			ID:          hydrantCA.ID,
 			CSR:         goodCSR,
 			IDPOauthURL: new(introspectURL),
@@ -1071,13 +1071,13 @@ func TestRequestCertificate(t *testing.T) {
 	// identity to bind to, so it is refused like a host with no record at all.
 	t.Run("Request a certificate - host binding on, host with only non-IdP emails is rejected", func(t *testing.T) {
 		svc, ds, ctx := deviceSetup(t, new(uint(1)))
-		ds.ListHostDeviceMappingFunc = func(ctx context.Context, hostID uint) ([]*fleet.HostDeviceMapping, error) {
-			return []*fleet.HostDeviceMapping{
-				{HostID: hostID, Email: "fleetie@example.com", Source: fleet.DeviceMappingCustomOverride},
+		ds.ListHostDeviceMappingFunc = func(ctx context.Context, hostID uint) ([]*automdm.HostDeviceMapping, error) {
+			return []*automdm.HostDeviceMapping{
+				{HostID: hostID, Email: "fleetie@example.com", Source: automdm.DeviceMappingCustomOverride},
 			}, nil
 		}
 
-		cert, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{
+		cert, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{
 			ID:  hydrantCA.ID,
 			CSR: goodCSR,
 		})
@@ -1088,11 +1088,11 @@ func TestRequestCertificate(t *testing.T) {
 	t.Run("Request a certificate - host binding on, CSR without an email address is rejected", func(t *testing.T) {
 		svc, ds, ctx := deviceSetup(t, new(uint(1)))
 		// The recorded identity matches the CSR's UPN, so only the missing SAN email can fail this.
-		ds.ListHostDeviceMappingFunc = func(ctx context.Context, hostID uint) ([]*fleet.HostDeviceMapping, error) {
-			return []*fleet.HostDeviceMapping{{HostID: hostID, Email: "fleetie@example.com", Source: fleet.DeviceMappingIDP}}, nil
+		ds.ListHostDeviceMappingFunc = func(ctx context.Context, hostID uint) ([]*automdm.HostDeviceMapping, error) {
+			return []*automdm.HostDeviceMapping{{HostID: hostID, Email: "fleetie@example.com", Source: automdm.DeviceMappingIDP}}, nil
 		}
 
-		cert, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{
+		cert, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{
 			ID:  hydrantCA.ID,
 			CSR: noEmailCSR,
 		})
@@ -1104,14 +1104,14 @@ func TestRequestCertificate(t *testing.T) {
 	// username is the only candidate once one exists.
 	t.Run("Request a certificate - host binding on, a SCIM record supersedes device mapping", func(t *testing.T) {
 		svc, ds, ctx := deviceSetup(t, new(uint(1)))
-		ds.ScimUserByHostIDFunc = func(ctx context.Context, hostID uint) (*fleet.ScimUser, error) {
-			return &fleet.ScimUser{UserName: "someone-else@example.com"}, nil
+		ds.ScimUserByHostIDFunc = func(ctx context.Context, hostID uint) (*automdm.ScimUser, error) {
+			return &automdm.ScimUser{UserName: "someone-else@example.com"}, nil
 		}
-		ds.ListHostDeviceMappingFunc = func(ctx context.Context, hostID uint) ([]*fleet.HostDeviceMapping, error) {
-			return []*fleet.HostDeviceMapping{{HostID: hostID, Email: "fleetie@example.com", Source: fleet.DeviceMappingIDP}}, nil
+		ds.ListHostDeviceMappingFunc = func(ctx context.Context, hostID uint) ([]*automdm.HostDeviceMapping, error) {
+			return []*automdm.HostDeviceMapping{{HostID: hostID, Email: "fleetie@example.com", Source: automdm.DeviceMappingIDP}}, nil
 		}
 
-		cert, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{
+		cert, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{
 			ID:  hydrantCA.ID,
 			CSR: goodCSR,
 		})
@@ -1122,11 +1122,11 @@ func TestRequestCertificate(t *testing.T) {
 	t.Run("Request a certificate - host binding on, both controls apply", func(t *testing.T) {
 		svc, ds, ctx := deviceSetup(t, new(uint(1)))
 		setAllowlist(t, introspectURL, "test-client-id")
-		ds.ScimUserByHostIDFunc = func(ctx context.Context, hostID uint) (*fleet.ScimUser, error) {
-			return &fleet.ScimUser{UserName: "fleetie@example.com"}, nil
+		ds.ScimUserByHostIDFunc = func(ctx context.Context, hostID uint) (*automdm.ScimUser, error) {
+			return &automdm.ScimUser{UserName: "fleetie@example.com"}, nil
 		}
 
-		cert, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{
+		cert, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{
 			ID:          hydrantCA.ID,
 			CSR:         goodCSR,
 			IDPOauthURL: new(introspectURL),
@@ -1142,7 +1142,7 @@ func TestRequestCertificate(t *testing.T) {
 		svc, _, ctx := baseSetupForTests()
 		setAllowlist(t, introspectURL, "test-client-id")
 
-		cert, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{
+		cert, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{
 			ID:          hydrantCA.ID,
 			CSR:         goodCSR,
 			IDPOauthURL: new(introspectURL),
@@ -1155,7 +1155,7 @@ func TestRequestCertificate(t *testing.T) {
 
 	t.Run("Request a certificate - NDES", func(t *testing.T) {
 		for name, tc := range map[string]struct {
-			ca            *fleet.CertificateAuthority
+			ca            *automdm.CertificateAuthority
 			csr           string
 			returnPEM     bool
 			wantBlockType string
@@ -1169,7 +1169,7 @@ func TestRequestCertificate(t *testing.T) {
 			t.Run(name, func(t *testing.T) {
 				svc, _, ctx := baseSetupForTests()
 
-				cert, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{ID: tc.ca.ID, CSR: tc.csr, ReturnPEMCertificate: tc.returnPEM})
+				cert, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{ID: tc.ca.ID, CSR: tc.csr, ReturnPEMCertificate: tc.returnPEM})
 				require.NoError(t, err)
 				require.NotNil(t, cert)
 
@@ -1194,8 +1194,8 @@ func TestRequestCertificate(t *testing.T) {
 	t.Run("Request a certificate - NDES, unreachable SCEP URL is a 503 with Retry-After", func(t *testing.T) {
 		svc, _, ctx := baseSetupForTests()
 
-		cert, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{ID: unreachableNDESCA.ID, CSR: newNDESTestCSR(t, ndesChallenge)})
-		transient, ok := errors.AsType[fleet.CertificateAuthorityTransientError](err)
+		cert, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{ID: unreachableNDESCA.ID, CSR: newNDESTestCSR(t, ndesChallenge)})
+		transient, ok := errors.AsType[automdm.CertificateAuthorityTransientError](err)
 		require.True(t, ok, "got %v", err)
 		require.Equal(t, http.StatusServiceUnavailable, transient.StatusCode())
 		require.Equal(t, 30, transient.RetryAfter())
@@ -1209,7 +1209,7 @@ func TestRequestCertificate(t *testing.T) {
 	t.Run("Request a certificate - NDES failures are bad requests", func(t *testing.T) {
 		// A missing challenge and a wrong one are the same rejection from the CA's side.
 		for name, tc := range map[string]struct {
-			ca          *fleet.CertificateAuthority
+			ca          *automdm.CertificateAuthority
 			challenge   string
 			wantMessage string
 		}{
@@ -1222,8 +1222,8 @@ func TestRequestCertificate(t *testing.T) {
 			t.Run(name, func(t *testing.T) {
 				svc, _, ctx := baseSetupForTests()
 
-				cert, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{ID: tc.ca.ID, CSR: newNDESTestCSR(t, tc.challenge)})
-				var badRequest *fleet.BadRequestError
+				cert, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{ID: tc.ca.ID, CSR: newNDESTestCSR(t, tc.challenge)})
+				var badRequest *automdm.BadRequestError
 				require.ErrorAs(t, err, &badRequest)
 				require.Contains(t, badRequest.Message, tc.wantMessage)
 				require.Nil(t, cert)
@@ -1233,9 +1233,9 @@ func TestRequestCertificate(t *testing.T) {
 	t.Run("Request a certificate - Google CAS", func(t *testing.T) {
 		svc, _, ctx := baseSetupForTests()
 		csr := newGoogleCASTestCSR(t, upnSAN("fleetie@example.com"))
-		var gotCA fleet.GoogleCASCA
+		var gotCA automdm.GoogleCASCA
 		var gotCSR, issuedDER []byte
-		googleCAS.IssueCertificateFunc = func(ctx context.Context, ca fleet.GoogleCASCA, req *x509.CertificateRequest) (*x509.Certificate, error) {
+		googleCAS.IssueCertificateFunc = func(ctx context.Context, ca automdm.GoogleCASCA, req *x509.CertificateRequest) (*x509.Certificate, error) {
 			gotCA, gotCSR = ca, req.Raw
 			issued, err := googleCASIssue(req)
 			if err == nil {
@@ -1245,7 +1245,7 @@ func TestRequestCertificate(t *testing.T) {
 		}
 
 		// By default the certificate comes back as a PKCS7 envelope, like every other CA's.
-		cert, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{ID: googleCASCA.ID, CSR: csr})
+		cert, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{ID: googleCASCA.ID, CSR: csr})
 		require.NoError(t, err)
 		block, _ := pem.Decode([]byte(*cert))
 		require.Equal(t, "PKCS7", block.Type)
@@ -1258,7 +1258,7 @@ func TestRequestCertificate(t *testing.T) {
 		csrBlock, _ := pem.Decode([]byte(csr))
 		require.Equal(t, csrBlock.Bytes, gotCSR)
 
-		cert, err = svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{ID: googleCASCA.ID, CSR: csr, ReturnPEMCertificate: true})
+		cert, err = svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{ID: googleCASCA.ID, CSR: csr, ReturnPEMCertificate: true})
 		require.NoError(t, err)
 		require.Equal(t, string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: issuedDER})), *cert)
 	})
@@ -1364,7 +1364,7 @@ func TestRequestCertificate(t *testing.T) {
 			"prefix with an @":                                    subject(pkix.Name{CommonName: "other@example.com:fleetie@example.com"}),
 			"prefix with a control character":                     subject(pkix.Name{CommonName: "Wifi\n:fleetie@example.com"}),
 			"prefix with a non-ASCII character":                   subject(pkix.Name{CommonName: "Wifi\uff20:fleetie@example.com"}),
-			"subject with more than a common name (organization)": subject(pkix.Name{CommonName: "fleetie@example.com", Organization: []string{"Fleet"}}),
+			"subject with more than a common name (organization)": subject(pkix.Name{CommonName: "fleetie@example.com", Organization: []string{"AutoMDM"}}),
 			"subject with more than a common name (email address)": subject(pkix.Name{CommonName: "fleetie@example.com", ExtraNames: []pkix.AttributeTypeAndValue{
 				{Type: asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 9, 1}, Value: "other@example.com"},
 			}}),
@@ -1374,7 +1374,7 @@ func TestRequestCertificate(t *testing.T) {
 		} {
 			t.Run(name, func(t *testing.T) {
 				svc, _, ctx := baseSetupForTests()
-				cert, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{ID: googleCASCA.ID, CSR: csr})
+				cert, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{ID: googleCASCA.ID, CSR: csr})
 				require.ErrorIs(t, err, invalidCSR)
 				require.Nil(t, cert)
 				require.False(t, googleCAS.IssueCertificateFuncInvoked)
@@ -1386,7 +1386,7 @@ func TestRequestCertificate(t *testing.T) {
 		svc, _, ctx := baseSetupForTests()
 		setAllowlist(t, introspectURL, "test-client-id")
 
-		cert, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{
+		cert, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{
 			ID:          googleCASCA.ID,
 			CSR:         newGoogleCASTestCSR(t, upnSAN("Fleetie@Example.com")),
 			IDPOauthURL: new(introspectURL),
@@ -1406,7 +1406,7 @@ func TestRequestCertificate(t *testing.T) {
 		} {
 			t.Run(name, func(t *testing.T) {
 				svc, _, ctx := baseSetupForTests()
-				cert, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{
+				cert, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{
 					ID: googleCASCA.ID, CSR: newGoogleCASTestCSRWith(t, subject, nil, upnSAN("fleetie@example.com")),
 				})
 				require.NoError(t, err)
@@ -1424,7 +1424,7 @@ func TestRequestCertificate(t *testing.T) {
 				setAllowlist(t, introspectURL, "test-client-id")
 				oauthIntrospectResponse = map[string]any{"active": true, "username": tc.idpUsername}
 
-				cert, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{
+				cert, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{
 					ID:          googleCASCA.ID,
 					CSR:         googleCASTestCSRFor(t, tc.upn),
 					IDPOauthURL: new(introspectURL),
@@ -1450,10 +1450,10 @@ func TestRequestCertificate(t *testing.T) {
 		} {
 			t.Run(name, func(t *testing.T) {
 				svc, ds, ctx := deviceSetup(t, new(uint(1)))
-				ds.ListHostDeviceMappingFunc = func(ctx context.Context, hostID uint) ([]*fleet.HostDeviceMapping, error) {
-					return []*fleet.HostDeviceMapping{{HostID: hostID, Email: tc.endUser, Source: fleet.DeviceMappingIDP}}, nil
+				ds.ListHostDeviceMappingFunc = func(ctx context.Context, hostID uint) ([]*automdm.HostDeviceMapping, error) {
+					return []*automdm.HostDeviceMapping{{HostID: hostID, Email: tc.endUser, Source: automdm.DeviceMappingIDP}}, nil
 				}
-				cert, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{ID: googleCASCA.ID, CSR: googleCASTestCSRFor(t, tc.upn)})
+				cert, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{ID: googleCASCA.ID, CSR: googleCASTestCSRFor(t, tc.upn)})
 				if tc.wantErr == "" {
 					require.NoError(t, err)
 					require.NotNil(t, cert)
@@ -1471,22 +1471,22 @@ func TestRequestCertificate(t *testing.T) {
 
 		t.Run("transient failure is a 503 with Retry-After", func(t *testing.T) {
 			svc, _, ctx := baseSetupForTests()
-			googleCAS.IssueCertificateFunc = func(ctx context.Context, ca fleet.GoogleCASCA, req *x509.CertificateRequest) (*x509.Certificate, error) {
-				return nil, fleet.CertificateAuthorityTransientError{Message: "Google CAS couldn't issue the certificate (HTTP 503). Try again later.", RetryAfterSeconds: 30}
+			googleCAS.IssueCertificateFunc = func(ctx context.Context, ca automdm.GoogleCASCA, req *x509.CertificateRequest) (*x509.Certificate, error) {
+				return nil, automdm.CertificateAuthorityTransientError{Message: "Google CAS couldn't issue the certificate (HTTP 503). Try again later.", RetryAfterSeconds: 30}
 			}
-			_, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{ID: googleCASCA.ID, CSR: csr})
-			transient, ok := errors.AsType[fleet.CertificateAuthorityTransientError](err)
+			_, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{ID: googleCASCA.ID, CSR: csr})
+			transient, ok := errors.AsType[automdm.CertificateAuthorityTransientError](err)
 			require.True(t, ok, err)
 			require.Equal(t, http.StatusServiceUnavailable, transient.StatusCode())
 		})
 
 		t.Run("rejection is a bad request with the reason", func(t *testing.T) {
 			svc, _, ctx := baseSetupForTests()
-			googleCAS.IssueCertificateFunc = func(ctx context.Context, ca fleet.GoogleCASCA, req *x509.CertificateRequest) (*x509.Certificate, error) {
+			googleCAS.IssueCertificateFunc = func(ctx context.Context, ca automdm.GoogleCASCA, req *x509.CertificateRequest) (*x509.Certificate, error) {
 				return nil, errors.New("Google CAS rejected the certificate request.")
 			}
-			_, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{ID: googleCASCA.ID, CSR: csr})
-			var badRequest *fleet.BadRequestError
+			_, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{ID: googleCASCA.ID, CSR: csr})
+			var badRequest *automdm.BadRequestError
 			require.ErrorAs(t, err, &badRequest)
 			require.Contains(t, badRequest.Message, "Google CAS rejected the certificate request.")
 		})
@@ -1505,11 +1505,11 @@ func TestRequestCertificate(t *testing.T) {
 			} {
 				t.Run(name, func(t *testing.T) {
 					svc, _, ctx := baseSetupForTests()
-					googleCAS.IssueCertificateFunc = func(ctx context.Context, ca fleet.GoogleCASCA, req *x509.CertificateRequest) (*x509.Certificate, error) {
+					googleCAS.IssueCertificateFunc = func(ctx context.Context, ca automdm.GoogleCASCA, req *x509.CertificateRequest) (*x509.Certificate, error) {
 						return googleCASIssueWith(req, exts)
 					}
-					cert, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{ID: googleCASCA.ID, CSR: csr})
-					var badRequest *fleet.BadRequestError
+					cert, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{ID: googleCASCA.ID, CSR: csr})
+					var badRequest *automdm.BadRequestError
 					require.ErrorAs(t, err, &badRequest)
 					require.Contains(t, badRequest.Message, "Check the CA pool's issuance policy.")
 					require.Nil(t, cert)
@@ -1519,8 +1519,8 @@ func TestRequestCertificate(t *testing.T) {
 
 		t.Run("CA without a key", func(t *testing.T) {
 			svc, _, ctx := baseSetupForTests()
-			_, err := svc.RequestCertificate(ctx, fleet.RequestCertificatePayload{ID: googleCASNoKeyCA.ID, CSR: csr})
-			var badRequest *fleet.BadRequestError
+			_, err := svc.RequestCertificate(ctx, automdm.RequestCertificatePayload{ID: googleCASNoKeyCA.ID, CSR: csr})
+			var badRequest *automdm.BadRequestError
 			require.ErrorAs(t, err, &badRequest)
 			require.Equal(t, "Certificate authority does not have a service account key configured.", badRequest.Message)
 			require.False(t, googleCAS.IssueCertificateFuncInvoked)

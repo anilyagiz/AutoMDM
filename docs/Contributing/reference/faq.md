@@ -5,12 +5,12 @@
   - [`undefined: Asset`](#undefined-asset)
 - [How do I connect to the MailHog simulated mail server?](#how-do-i-connect-to-the-mailhog-simulated-mail-server)
 - [Adding hosts for testing](#adding-hosts-for-testing)
-- [Why am I getting an error about self-signed certificates when running `fleetctl preview`?](#why-am-i-getting-an-error-about-self-signed-certificates-when-running-fleetctl-preview)
-- [Will updating fleetctl lead to loss of data in fleetctl preview?](#will-updating-fleetctl-lead-to-loss-of-data-in-fleetctl-preview?)
+- [Why am I getting an error about self-signed certificates when running `automdmctl preview`?](#why-am-i-getting-an-error-about-self-signed-certificates-when-running-automdmctl-preview)
+- [Will updating automdmctl lead to loss of data in automdmctl preview?](#will-updating-automdmctl-lead-to-loss-of-data-in-automdmctl-preview?)
 
 
-## Enrolling in multiple Fleet servers
-Enrolling your device with more than one Fleet server is not currently possible.  Multiple install roots are useful for the development of Fleet itself but complex to maintain.  While this has some value for Fleet contributors, there is currently no active effort to add and maintain support for multiple enrollments from the same device.
+## Enrolling in multiple AutoMDM servers
+Enrolling your device with more than one AutoMDM server is not currently possible.  Multiple install roots are useful for the development of AutoMDM itself but complex to maintain.  While this has some value for AutoMDM contributors, there is currently no active effort to add and maintain support for multiple enrollments from the same device.
 
 ## Make errors
 
@@ -27,11 +27,11 @@ See the Go language documentation for [workspaces](https://golang.org/doc/code.h
 ### `undefined: Asset`
 
 ```sh
-server/fleet/emails.go:90:23: undefined: Asset
-make: *** [fleet] Error 2
+server/automdm/emails.go:90:23: undefined: Asset
+make: *** [automdm] Error 2
 ```
 
-If you get an `undefined: Asset` error, it is likely because you did not run `make generate` before `make build`. See [Building Fleet](https://fleetdm.com/docs/contributing/building-fleet) for additional documentation on compiling the `fleet` binary.
+If you get an `undefined: Asset` error, it is likely because you did not run `make generate` before `make build`. See [Building AutoMDM](https://automdm.com/docs/contributing/building-automdm) for additional documentation on compiling the `automdm` binary.
 
 ### `Module build failed` or `Cannot find module` when running `make generate`
 
@@ -56,43 +56,43 @@ and then running the failed `make generate` or `make generate-dev` again.
 
 The `osquery` directory contains a docker-compose.yml and additional configuration files to start containerized osquery agents.
 
-To start osquery, first retrieve the "Enroll secret" from Fleet (by clicking the "Add New Host") button in the Fleet dashboard, or with `fleetctl get enroll-secret`).
+To start osquery, first retrieve the "Enroll secret" from AutoMDM (by clicking the "Add New Host") button in the AutoMDM dashboard, or with `automdmctl get enroll-secret`).
 
 ```sh
 cd tools/osquery
-ENROLL_SECRET=<copy from fleet> docker-compose up
+ENROLL_SECRET=<copy from automdm> docker-compose up
 ```
 
-## Why am I getting an error about self-signed certificates when running `fleetctl preview`?
+## Why am I getting an error about self-signed certificates when running `automdmctl preview`?
 
-If you are trying to run `fleetctl preview` and seeing errors about self-signed certificates, the
+If you are trying to run `automdmctl preview` and seeing errors about self-signed certificates, the
 most likely culprit is that you're behind a corporate proxy server and need to [add the proxy
 settings to Docker](https://docs.docker.com/network/proxy/) so that the container created by
-`fleetctl preview` is able to connect properly.
+`automdmctl preview` is able to connect properly.
 
-## Will updating fleetctl lead to loss of data in fleetctl preview?
+## Will updating automdmctl lead to loss of data in automdmctl preview?
 
-No, you won't experience data loss when you update fleetctl. Note that you can run `fleetctl preview --tag v#.#.#` if you want to run Preview on a previous version. Just replace # with the version numbers of interest.
+No, you won't experience data loss when you update automdmctl. Note that you can run `automdmctl preview --tag v#.#.#` if you want to run Preview on a previous version. Just replace # with the version numbers of interest.
 
 ## Can I disable usage statistics via the config file or a CLI flag?
-Apart from an admin [disabling usage](https://fleetdm.com/docs/using-fleet/usage-statistics#disable-usage-statistics) statistics on the Fleet UI, you can edit your `fleet.yml` config file to disable usage statistics. Look for the `server_settings` in your `fleet.yml` and set `enable_analytics: false`. Do note there is no CLI flag option to disable usage statistics at this time.
+Apart from an admin [disabling usage](https://automdm.com/docs/using-automdm/usage-statistics#disable-usage-statistics) statistics on the AutoMDM UI, you can edit your `automdm.yml` config file to disable usage statistics. Look for the `server_settings` in your `automdm.yml` and set `enable_analytics: false`. Do note there is no CLI flag option to disable usage statistics at this time.
 
-## Fleet preview fails with Invalid interpolation. What should I do?
+## AutoMDM preview fails with Invalid interpolation. What should I do?
 
-If you tried running `fleetctl preview` and you get the following error:
+If you tried running `automdmctl preview` and you get the following error:
 
 ```sh
-fleetctl preview
-Downloading dependencies into /root/.fleet/preview...
+automdmctl preview
+Downloading dependencies into /root/.automdm/preview...
 Pulling Docker dependencies...
-Invalid interpolation format for "fleet01" option in service "services": "fleetdm/fleet:${FLEET_VERSION:-latest}"
+Invalid interpolation format for "automdm01" option in service "services": "automdm/automdm:${AUTOMDM_VERSION:-latest}"
 
 Failed to run docker-compose
 ```
 
 You're probably running an old version of Docker. Download the installer for your platform from the [Docker Documentation](https://docs.docker.com/compose/install/).
 
-## What API endpoints do osquery and Fleetd need access to?
+## What API endpoints do osquery and AutoMDMd need access to?
 
 Based on the configuration, osquery running on hosts will need access to these API endpoints:
 
@@ -104,23 +104,23 @@ Based on the configuration, osquery running on hosts will need access to these A
 * `/api/v1/osquery/carve/block`
 * `/api/v1/osquery/log`
 
-If you also have Fleetd running on hosts, it will need access to these API endpoints:
+If you also have AutoMDMd running on hosts, it will need access to these API endpoints:
 
-* `/api/fleet/orbit/enroll`
-* `/api/fleet/orbit/config`
-* `/api/fleet/orbit/device_token`
-* `/api/fleet/orbit/ping`
-* `/api/fleet/orbit/scripts/request`
-* `/api/fleet/orbit/scripts/result`
-* `/api/fleet/orbit/disk_encryption_key`
-* `/api/fleet/orbit/device_mapping`
+* `/api/automdm/orbit/enroll`
+* `/api/automdm/orbit/config`
+* `/api/automdm/orbit/device_token`
+* `/api/automdm/orbit/ping`
+* `/api/automdm/orbit/scripts/request`
+* `/api/automdm/orbit/scripts/result`
+* `/api/automdm/orbit/disk_encryption_key`
+* `/api/automdm/orbit/device_mapping`
 * `/api/osquery/log`
 
-Hosts running Fleet Desktop will need access to these API endpoints:
+Hosts running AutoMDM Desktop will need access to these API endpoints:
 
-* `/api/latest/fleet/device/.+/desktop`
-* `/api/latest/fleet/device/.+/ping`
+* `/api/latest/automdm/device/.+/desktop`
+* `/api/latest/automdm/device/.+/ping`
 
-For a full list of endpoints, open [Fleet's routes file](https://github.com/fleetdm/fleet/blob/main/server/service/handler.go), then look for endpoint declarations prefixed with `de.`, `demdm.`, `he.`, `oe.`, `oeAppleMDM.`, or `oeWindowsMDM.`.
+For a full list of endpoints, open [AutoMDM's routes file](https://github.com/anilyagiz/automdm/blob/main/server/service/handler.go), then look for endpoint declarations prefixed with `de.`, `demdm.`, `he.`, `oe.`, `oeAppleMDM.`, or `oeWindowsMDM.`.
 
-<meta name="description" value="Find commonly asked questions and answers about contributing to Fleet as part of our community.">
+<meta name="description" value="Find commonly asked questions and answers about contributing to AutoMDM as part of our community.">

@@ -60,7 +60,7 @@ const SelectRoleForm = ({
 
   return (
     <DropdownWrapper
-      name="Fleet role"
+      name="AutoMDM role"
       label="Role"
       options={roleOptions({ isPremiumTier, isApiOnly })}
       value={selectedRole}

@@ -1,10 +1,10 @@
-# Fleet CLI Development Guides
+# AutoMDM CLI Development Guides
 
-This directory contains guides for CLI development in Fleet.
+This directory contains guides for CLI development in AutoMDM.
 
 ## CLI Development
 
-- [Fleetctl Apply](cli/fleetctl-apply.md) - Guide for using fleetctl apply
+- [AutoMDMctl Apply](cli/automdmctl-apply.md) - Guide for using automdmctl apply
 
 ## Related Resources
 

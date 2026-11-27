@@ -14,7 +14,7 @@ import { SingleValue } from "react-select-5";
 import Card from "components/Card";
 import CustomLink from "components/CustomLink";
 import DataError from "components/DataError";
-import FleetsDropdown from "components/FleetsDropdown";
+import AutoMDMsDropdown from "components/AutoMDMsDropdown";
 import DropdownWrapper from "components/forms/fields/DropdownWrapper";
 import { CustomOptionType } from "components/forms/fields/DropdownWrapper/DropdownWrapper";
 import LastUpdatedText from "components/LastUpdatedText";
@@ -65,7 +65,7 @@ import {
   HostsEnrolledCard,
   IHostPlatformCounts,
 } from "./cards/HostsEnrolledCard";
-import LearnFleet from "./cards/LearnFleet";
+import LearnAutoMDM from "./cards/LearnAutoMDM";
 import Mdm from "./cards/MDM";
 import Munki from "./cards/Munki";
 import OperatingSystems from "./cards/OperatingSystems";
@@ -91,7 +91,7 @@ interface IDashboardProps {
     search: string;
     hash?: string;
     query: {
-      fleet_id?: string;
+      team_id?: string;
       manage_automations?: string;
     };
   };
@@ -217,7 +217,7 @@ const DashboardPage = ({ router, location }: IDashboardProps): JSX.Element => {
   >(["teams"], () => teamsAPI.loadAll(), {
     enabled: !!isPremiumTier,
     select: (data: ILoadTeamsResponse) =>
-      data.fleets.sort((a, b) => sortUtils.caseInsensitiveAsc(a.name, b.name)),
+      data.teams.sort((a, b) => sortUtils.caseInsensitiveAsc(a.name, b.name)),
   });
 
   const {
@@ -383,7 +383,7 @@ const DashboardPage = ({ router, location }: IDashboardProps): JSX.Element => {
       setSoftwareTitleDetail(
         <LastUpdatedText
           lastUpdatedAt={software.counts_updated_at}
-          customTooltipText="Fleet periodically queries all hosts to retrieve software. Click to view hosts for the most up-to-date lists."
+          customTooltipText="AutoMDM periodically queries all hosts to retrieve software. Click to view hosts for the most up-to-date lists."
         />
       );
     } else if (!isViewingVulnerableSoftware) {
@@ -612,7 +612,7 @@ const DashboardPage = ({ router, location }: IDashboardProps): JSX.Element => {
   );
 
   const WelcomeHostCard = useInfoCard({
-    title: "Welcome to Fleet",
+    title: "Welcome to AutoMDM",
     showTitle: true,
     children: (
       <WelcomeHost
@@ -624,10 +624,10 @@ const DashboardPage = ({ router, location }: IDashboardProps): JSX.Element => {
     ),
   });
 
-  const LearnFleetCard = useInfoCard({
-    title: "Learn how to use Fleet",
+  const LearnTeamCard = useInfoCard({
+    title: "Learn how to use AutoMDM",
     showTitle: true,
-    children: <LearnFleet />,
+    children: <LearnAutoMDM />,
   });
 
   const ActivityFeedCard = useInfoCard({
@@ -656,7 +656,7 @@ const DashboardPage = ({ router, location }: IDashboardProps): JSX.Element => {
       type: "link",
       text: "View all software",
       to: getPathWithQueryParams(paths.SOFTWARE_INVENTORY, {
-        fleet_id: teamIdForApi,
+        team_id: teamIdForApi,
         vulnerable: isViewingVulnerableSoftware || undefined,
       }),
     },
@@ -757,7 +757,7 @@ const DashboardPage = ({ router, location }: IDashboardProps): JSX.Element => {
           hostSummaryData?.totals_hosts_count < 2 && (
             <>
               {WelcomeHostCard}
-              {LearnFleetCard}
+              {LearnTeamCard}
             </>
           )}
         {(isSoftwareFetching || showSoftwareCard) && SoftwareCard}
@@ -880,9 +880,9 @@ const DashboardPage = ({ router, location }: IDashboardProps): JSX.Element => {
       if (userTeams) {
         if (userTeams.length > 1 || isOnGlobalTeam) {
           return (
-            <FleetsDropdown
-              selectedFleetId={currentTeamId}
-              currentUserFleets={userTeams}
+            <AutoMDMsDropdown
+              selectedAutoMDMId={currentTeamId}
+              currentUserTeams={userTeams}
               onChange={handleTeamChange}
             />
           );

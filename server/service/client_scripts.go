@@ -15,13 +15,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
 const pollWaitTime = 5 * time.Second
 
-func (c *Client) RunHostScriptSync(hostID uint, scriptContents []byte, scriptName string, teamID uint) (*fleet.HostScriptResult, error) {
-	verb, path := "POST", "/api/latest/fleet/scripts/run"
+func (c *Client) RunHostScriptSync(hostID uint, scriptContents []byte, scriptName string, teamID uint) (*automdm.HostScriptResult, error) {
+	verb, path := "POST", "/api/latest/automdm/scripts/run"
 	res, err := c.runHostScript(verb, path, hostID, scriptContents, scriptName, teamID, http.StatusAccepted)
 	if err != nil {
 		return nil, err
@@ -34,13 +34,13 @@ func (c *Client) RunHostScriptSync(hostID uint, scriptContents []byte, scriptNam
 	return c.pollForResult(res.ExecutionID)
 }
 
-func (c *Client) RunHostScriptAsync(hostID uint, scriptContents []byte, scriptName string, teamID uint) (*fleet.HostScriptResult, error) {
-	verb, path := "POST", "/api/latest/fleet/scripts/run"
+func (c *Client) RunHostScriptAsync(hostID uint, scriptContents []byte, scriptName string, teamID uint) (*automdm.HostScriptResult, error) {
+	verb, path := "POST", "/api/latest/automdm/scripts/run"
 	return c.runHostScript(verb, path, hostID, scriptContents, scriptName, teamID, http.StatusAccepted)
 }
 
-func (c *Client) runHostScript(verb, path string, hostID uint, scriptContents []byte, scriptName string, teamID uint, successStatusCode int) (*fleet.HostScriptResult, error) {
-	req := fleet.HostScriptRequestPayload{
+func (c *Client) runHostScript(verb, path string, hostID uint, scriptContents []byte, scriptName string, teamID uint, successStatusCode int) (*automdm.HostScriptResult, error) {
+	req := automdm.HostScriptRequestPayload{
 		HostID:     hostID,
 		ScriptName: scriptName,
 		TeamID:     teamID,
@@ -49,7 +49,7 @@ func (c *Client) runHostScript(verb, path string, hostID uint, scriptContents []
 		req.ScriptContents = string(scriptContents)
 	}
 
-	var result fleet.HostScriptResult
+	var result automdm.HostScriptResult
 
 	res, err := c.AuthenticatedDo(verb, path, "", &req)
 	if err != nil {
@@ -67,15 +67,15 @@ func (c *Client) runHostScript(verb, path string, hostID uint, scriptContents []
 			return nil, fmt.Errorf("decoding %s %s response: %w, body: %s", verb, path, err, b)
 		}
 	case http.StatusForbidden:
-		return nil, errors.New(fleet.RunScriptForbiddenErrMsg)
+		return nil, errors.New(automdm.RunScriptForbiddenErrMsg)
 	// It's possible we get a GatewayTimeout error message from nginx or another
 	// proxy server, so we want to return a more helpful error message in that
 	// case.
 	case http.StatusGatewayTimeout:
-		return nil, errors.New(fleet.RunScriptGatewayTimeoutErrMsg)
+		return nil, errors.New(automdm.RunScriptGatewayTimeoutErrMsg)
 	case http.StatusPaymentRequired:
 		if teamID > 0 {
-			return nil, errors.New("The --fleet flag requires Fleet Premium.")
+			return nil, errors.New("The --team flag requires AutoMDM Premium.")
 		}
 		fallthrough // if no team id, fall through to default error message
 	default:
@@ -92,9 +92,9 @@ func (c *Client) runHostScript(verb, path string, hostID uint, scriptContents []
 	return &result, nil
 }
 
-func (c *Client) pollForResult(id string) (*fleet.HostScriptResult, error) {
-	verb, path := "GET", "/api/latest/fleet/scripts/results/"+url.PathEscape(id)
-	var result *fleet.HostScriptResult
+func (c *Client) pollForResult(id string) (*automdm.HostScriptResult, error) {
+	verb, path := "GET", "/api/latest/automdm/scripts/results/"+url.PathEscape(id)
+	var result *automdm.HostScriptResult
 	for {
 		res, err := c.AuthenticatedDo(verb, path, "", nil)
 		if err != nil {
@@ -131,9 +131,9 @@ func (c *Client) pollForResult(id string) (*fleet.HostScriptResult, error) {
 
 // ApplyNoTeamScripts sends the list of scripts to be applied for the hosts in
 // no team.
-func (c *Client) ApplyNoTeamScripts(scripts []fleet.ScriptPayload, opts fleet.ApplySpecOptions) ([]fleet.ScriptResponse, error) {
-	verb, path := "POST", "/api/latest/fleet/scripts/batch"
-	var resp fleet.BatchSetScriptsResponse
+func (c *Client) ApplyNoTeamScripts(scripts []automdm.ScriptPayload, opts automdm.ApplySpecOptions) ([]automdm.ScriptResponse, error) {
+	verb, path := "POST", "/api/latest/automdm/scripts/batch"
+	var resp automdm.BatchSetScriptsResponse
 	err := c.authenticatedRequestWithQuery(map[string]interface{}{"scripts": scripts}, verb, path, &resp, opts.RawQuery())
 
 	return resp.Scripts, rewrapScriptBatchIndexErr(err, scripts)
@@ -141,10 +141,10 @@ func (c *Client) ApplyNoTeamScripts(scripts []fleet.ScriptPayload, opts fleet.Ap
 
 // rewrapScriptBatchIndexErr surfaces the offending script's filename when the
 // batch-set scripts endpoint rejects one of them. The server identifies the
-// script only by its position ("scripts[N]"), which is meaningless in fleetctl
+// script only by its position ("scripts[N]"), which is meaningless in automdmctl
 // output; the payload name is the filename, unique within a batch (the server
 // rejects duplicates), so naming it identifies the script unambiguously.
-func rewrapScriptBatchIndexErr(err error, scripts []fleet.ScriptPayload) error {
+func rewrapScriptBatchIndexErr(err error, scripts []automdm.ScriptPayload) error {
 	var scErr *StatusCodeErr
 	if !errors.As(err, &scErr) {
 		return err
@@ -179,16 +179,16 @@ func (c *Client) validateMacOSSetupScript(fileName string) ([]byte, error) {
 func (c *Client) deleteMacOSSetupScript(teamID *uint) error {
 	var query string
 	if teamID != nil {
-		query = fmt.Sprintf("fleet_id=%d", *teamID)
+		query = fmt.Sprintf("team_id=%d", *teamID)
 	}
 
-	verb, path := "DELETE", "/api/latest/fleet/setup_experience/script"
+	verb, path := "DELETE", "/api/latest/automdm/setup_experience/script"
 	var delResp deleteSetupExperienceScriptResponse
 	return c.authenticatedRequestWithQuery(nil, verb, path, &delResp, query)
 }
 
 func (c *Client) uploadMacOSSetupScript(filename string, data []byte, teamID *uint) error {
-	verb, path := "POST", "/api/latest/fleet/setup_experience/script"
+	verb, path := "POST", "/api/latest/automdm/setup_experience/script"
 
 	var b bytes.Buffer
 	w := multipart.NewWriter(&b)
@@ -201,9 +201,9 @@ func (c *Client) uploadMacOSSetupScript(filename string, data []byte, teamID *ui
 		return err
 	}
 
-	// add the fleet_id field
+	// add the team_id field
 	if teamID != nil {
-		if err := w.WriteField("fleet_id", fmt.Sprint(*teamID)); err != nil {
+		if err := w.WriteField("team_id", fmt.Sprint(*teamID)); err != nil {
 			return err
 		}
 	}
@@ -231,9 +231,9 @@ func (c *Client) uploadMacOSSetupScript(filename string, data []byte, teamID *ui
 }
 
 // ListScripts retrieves the saved scripts.
-func (c *Client) ListScripts(query string) ([]*fleet.Script, error) {
-	verb, path := "GET", "/api/latest/fleet/scripts"
-	var responseBody fleet.ListScriptsResponse
+func (c *Client) ListScripts(query string) ([]*automdm.Script, error) {
+	verb, path := "GET", "/api/latest/automdm/scripts"
+	var responseBody automdm.ListScriptsResponse
 	err := c.authenticatedRequestWithQuery(nil, verb, path, &responseBody, query)
 	if err != nil {
 		return nil, err
@@ -243,7 +243,7 @@ func (c *Client) ListScripts(query string) ([]*fleet.Script, error) {
 
 // Get the contents of a saved script.
 func (c *Client) GetScriptContents(scriptID uint) ([]byte, error) {
-	verb, path := "GET", "/api/latest/fleet/scripts/"+fmt.Sprint(scriptID)
+	verb, path := "GET", "/api/latest/automdm/scripts/"+fmt.Sprint(scriptID)
 	response, err := c.AuthenticatedDo(verb, path, "alt=media", nil)
 	if err != nil {
 		return nil, fmt.Errorf("%s %s: %w", verb, path, err)
@@ -264,11 +264,11 @@ func (c *Client) GetScriptContents(scriptID uint) ([]byte, error) {
 }
 
 // GetSetupExperienceScript retrieves the setup script for the given team, if any.
-func (c *Client) GetSetupExperienceScript(teamID uint) (*fleet.Script, error) {
-	verb, path := "GET", "/api/latest/fleet/setup_experience/script"
+func (c *Client) GetSetupExperienceScript(teamID uint) (*automdm.Script, error) {
+	verb, path := "GET", "/api/latest/automdm/setup_experience/script"
 	var query string
 	if teamID != 0 {
-		query = fmt.Sprintf("fleet_id=%d", teamID)
+		query = fmt.Sprintf("team_id=%d", teamID)
 	}
 	var responseBody getSetupExperienceScriptResponse
 	err := c.authenticatedRequestWithQuery(nil, verb, path, &responseBody, query)

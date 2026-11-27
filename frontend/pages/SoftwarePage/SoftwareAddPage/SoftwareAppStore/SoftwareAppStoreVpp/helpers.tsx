@@ -11,16 +11,16 @@ import {
   formatAlreadyAvailableInstallMessage,
 } from "../../helpers";
 
-/** Tokens assigned to the fleet, directly or through All fleets, first added first. */
-export const getFleetVppTokens = (
+/** Tokens assigned to the team, directly or through All teams, first added first. */
+export const getTeamVppTokens = (
   teamId: number,
   tokens: IMdmVppToken[] = []
 ) =>
   tokens
     .filter(
-      // A non-null, empty `teams` means the token is assigned to All fleets.
+      // A non-null, empty `teams` means the token is assigned to All teams.
       (t) =>
-        t.fleets?.length === 0 || t.fleets?.some((tm) => tm.fleet_id === teamId)
+        t.teams?.length === 0 || t.teams?.some((tm) => tm.team_id === teamId)
     )
     .sort((a, b) => a.id - b.id);
 
@@ -40,7 +40,7 @@ export const getErrorMessage = (e: unknown): string | ReactElement => {
     }
 
     if (reason.includes("VPPApp")) {
-      return `${ADD_SOFTWARE_ERROR_PREFIX} The software is already available to install in this fleet.`;
+      return `${ADD_SOFTWARE_ERROR_PREFIX} The software is already available to install in this team.`;
     }
   }
 

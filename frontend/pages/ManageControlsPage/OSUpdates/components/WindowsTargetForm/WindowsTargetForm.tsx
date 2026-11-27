@@ -202,7 +202,7 @@ const WindowsTargetForm = ({
           settings empty, and instead use the{" "}
           <CustomLink
             url={getPathWithQueryParams(PATHS.CONTROLS_CUSTOM_SETTINGS_NEW, {
-              fleet_id: currentTeamId,
+              team_id: currentTeamId,
               platform: "windows",
             })}
             text="profile builder"

@@ -11,14 +11,14 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/mdm/scep/enrollment"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	"github.com/anilyagiz/automdm/v4/server/mdm/scep/enrollment"
 	"github.com/stretchr/testify/require"
 )
 
 func TestHostIdentityRenewalKeyBindingEnforced(t *testing.T) {
-	s := SetUpSuiteWithConfig(t, "integrationtest.HostIdentityRenewalKeyBindingEnforced", false, func(cfg *config.FleetConfig) {
+	s := SetUpSuiteWithConfig(t, "integrationtest.HostIdentityRenewalKeyBindingEnforced", false, func(cfg *config.AutoMDMConfig) {
 		cfg.Osquery.EnrollCooldown = 0
 		cfg.Auth.RequireHostIdentityRenewalKeyBinding = true
 	})

@@ -8,7 +8,7 @@ func register(newEntries ...Entry) {
 	entries = append(entries, newEntries...)
 }
 
-// pathEntry is a renamed URL path. Both arguments are relative to /api/_version_/fleet.
+// pathEntry is a renamed URL path. Both arguments are relative to /api/_version_/automdm.
 func pathEntry(oldSuffix, newSuffix string) Entry {
 	return Entry{Kind: KindPath, Scope: ScopeRequest, Old: pathPrefix + oldSuffix, New: pathPrefix + newSuffix}
 }

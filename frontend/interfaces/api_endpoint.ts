@@ -19,7 +19,7 @@ export const endpointKey = (ep: IApiEndpointRef) => `${ep.method} ${ep.path}`;
 export const endpointFingerprint = (ep: IApiEndpointRef) => {
   let placeholders = 0;
   const path = ep.path
-    .replace(/\/\{fleetversion:[^}]+\}\//g, "/v1/")
+    .replace(/\/\{automdmversion:[^}]+\}\//g, "/v1/")
     .replace(/\/_version_\//g, "/v1/")
     .split("/")
     .map((segment) => {

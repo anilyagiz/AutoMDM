@@ -24,7 +24,7 @@ export type ColumnType =
   | "STRING"
   | "string"; // TODO: Why do we have type string, STRING, and text in schema.json?
 
-// TODO: Replace with one or the other once osquery_fleet_schema.json follows one type or other
+// TODO: Replace with one or the other once osquery_automdm_schema.json follows one type or other
 export type TableSchemaPlatform = QueryableDisplayPlatform | QueryablePlatform;
 export interface IQueryTableColumn {
   name: string;

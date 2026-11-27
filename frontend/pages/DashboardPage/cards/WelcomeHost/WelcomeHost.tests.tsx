@@ -30,7 +30,7 @@ const PASSING_POLICY: IHostPolicy = {
   author_email: "test@example.com",
   resolution: "",
   platform: "darwin",
-  fleet_id: null,
+  team_id: null,
   created_at: "2024-01-01T00:00:00Z",
   updated_at: "2024-01-01T00:00:00Z",
   critical: false,

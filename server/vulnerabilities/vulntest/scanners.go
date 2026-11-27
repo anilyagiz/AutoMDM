@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	goval_dictionary "github.com/fleetdm/fleet/v4/server/vulnerabilities/goval_dictionary"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/oval"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	goval_dictionary "github.com/anilyagiz/automdm/v4/server/vulnerabilities/goval_dictionary"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/oval"
 	"github.com/stretchr/testify/require"
 )
 
@@ -21,14 +21,14 @@ import (
 func OVALScanner(defDir string) Scanner {
 	return Scanner{
 		Name:   "oval",
-		Source: fleet.RHELOVALSource,
-		Setup: func(t *testing.T, vulnPath string, ver fleet.OSVersion) {
+		Source: automdm.RHELOVALSource,
+		Setup: func(t *testing.T, vulnPath string, ver automdm.OSVersion) {
 			p := oval.NewPlatform(ver.Platform, ver.Name)
 			src := filepath.Join(TestdataRoot, defDir, fmt.Sprintf("%s-oval_def.json.bz2", p))
 			dst := filepath.Join(vulnPath, p.ToFilename(time.Now(), "json"))
 			ExtractBzip2(src, dst, t)
 		},
-		Analyze: func(ctx context.Context, ds fleet.Datastore, ver fleet.OSVersion, vulnPath string) ([]fleet.SoftwareVulnerability, error) {
+		Analyze: func(ctx context.Context, ds automdm.Datastore, ver automdm.OSVersion, vulnPath string) ([]automdm.SoftwareVulnerability, error) {
 			return oval.Analyze(ctx, ds, ver, vulnPath, true)
 		},
 	}
@@ -50,8 +50,8 @@ func OVALScanner(defDir string) Scanner {
 func GovalDictionaryScanner(kernelEntries map[string][]string) Scanner {
 	return Scanner{
 		Name:   "goval-dictionary",
-		Source: fleet.GovalDictionarySource,
-		Setup: func(t *testing.T, vulnPath string, ver fleet.OSVersion) {
+		Source: automdm.GovalDictionarySource,
+		Setup: func(t *testing.T, vulnPath string, ver automdm.OSVersion) {
 			platform := oval.NewPlatform(ver.Platform, ver.Name)
 			dbPath := filepath.Join(vulnPath, platform.ToGovalDictionaryFilename())
 
@@ -84,7 +84,7 @@ func GovalDictionaryScanner(kernelEntries map[string][]string) Scanner {
 				defID++
 			}
 		},
-		Analyze: func(ctx context.Context, ds fleet.Datastore, ver fleet.OSVersion, vulnPath string) ([]fleet.SoftwareVulnerability, error) {
+		Analyze: func(ctx context.Context, ds automdm.Datastore, ver automdm.OSVersion, vulnPath string) ([]automdm.SoftwareVulnerability, error) {
 			logger := slog.New(slog.DiscardHandler)
 			return goval_dictionary.Analyze(ctx, ds, ver, vulnPath, true, logger)
 		},

@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	notifications_api "github.com/fleetdm/fleet/v4/server/notifications/api"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	notifications_api "github.com/anilyagiz/automdm/v4/server/notifications/api"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -33,14 +33,14 @@ WHERE neu.host_id IN (?)
 `, hostIDs, notifications_api.EndUserNotificationPending, notifications_api.EndUserNotificationDispatched,
 		notifications_api.EndUserNotificationActed, ptr.ValOrZero(teamID))
 	if err != nil {
-		return ctxerr.Wrap(ctx, err, "build select patch notification apps outside fleet statement")
+		return ctxerr.Wrap(ctx, err, "build select patch notification apps outside team statement")
 	}
 	var apps []struct {
 		NotificationUUID string `db:"notification_uuid"`
 		SoftwareTitleID  uint   `db:"software_title_id"`
 	}
 	if err := sqlx.SelectContext(ctx, tx, &apps, selectStmt, args...); err != nil {
-		return ctxerr.Wrap(ctx, err, "select patch notification apps outside fleet")
+		return ctxerr.Wrap(ctx, err, "select patch notification apps outside team")
 	}
 	if len(apps) == 0 {
 		return nil
@@ -60,7 +60,7 @@ WHERE neu.host_id IN (?)
 		deleteStmt := `DELETE FROM patch_notification_apps WHERE (notification_uuid, software_title_id) IN (` +
 			strings.TrimSuffix(strings.Repeat("(?, ?),", len(batch)), ",") + `)`
 		if _, err := tx.ExecContext(ctx, deleteStmt, deleteArgs...); err != nil {
-			return ctxerr.Wrap(ctx, err, "delete patch notification apps outside fleet")
+			return ctxerr.Wrap(ctx, err, "delete patch notification apps outside team")
 		}
 	}
 
@@ -103,7 +103,7 @@ LIMIT 1
 	var exists bool
 	if err := sqlx.GetContext(ctx, ds.reader(ctx), &exists, selectStmt,
 		hostID, notifications_api.EndUserNotificationPending, notifications_api.EndUserNotificationDispatched,
-		softwareTitleID, fleet.PatchDeadlineNotificationKind,
+		softwareTitleID, automdm.PatchDeadlineNotificationKind,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return false, nil
@@ -134,7 +134,7 @@ LIMIT 1
 `
 
 	var at *time.Time
-	if err := sqlx.GetContext(ctx, ds.reader(ctx), &at, selectStmt, hostID, fleet.PatchDeadlineNotificationKind,
+	if err := sqlx.GetContext(ctx, ds.reader(ctx), &at, selectStmt, hostID, automdm.PatchDeadlineNotificationKind,
 		notifications_api.EndUserNotificationPending, notifications_api.EndUserNotificationDispatched,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -163,7 +163,7 @@ LIMIT 1
 
 	var exists bool
 	if err := sqlx.GetContext(ctx, ds.reader(ctx), &exists, selectStmt,
-		hostID, notifications_api.EndUserNotificationDispatched, softwareTitleID, fleet.PatchDeadlineNotificationKind,
+		hostID, notifications_api.EndUserNotificationDispatched, softwareTitleID, automdm.PatchDeadlineNotificationKind,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return false, nil
@@ -182,7 +182,7 @@ func (ds *Datastore) NewPatchNotification(ctx context.Context, notificationUUID 
 	return nil
 }
 
-func (ds *Datastore) AddPatchNotificationApp(ctx context.Context, notificationUUID string, app fleet.PatchNotificationApp) error {
+func (ds *Datastore) AddPatchNotificationApp(ctx context.Context, notificationUUID string, app automdm.PatchNotificationApp) error {
 	// Two skips for the same app can pass PatchNotificationExistsForApp before either has inserted,
 	// so a duplicate is a no-op rather than an error. Not INSERT IGNORE, which would also swallow
 	// a bad notification_uuid or a deleted software title.
@@ -258,10 +258,10 @@ WHERE notification_uuid = ? AND software_title_id IN (?)
 	return nil
 }
 
-func (ds *Datastore) GetPatchNotification(ctx context.Context, notificationUUID string) (*fleet.PatchNotification, error) {
+func (ds *Datastore) GetPatchNotification(ctx context.Context, notificationUUID string) (*automdm.PatchNotification, error) {
 	const selectStmt = `SELECT notification_uuid, install_at FROM patch_notifications WHERE notification_uuid = ?`
 
-	var patchNotification fleet.PatchNotification
+	var patchNotification automdm.PatchNotification
 	// reads the primary because the display that sets the deadline can be seconds old
 	err := sqlx.GetContext(ctx, ds.writer(ctx), &patchNotification, selectStmt, notificationUUID)
 	if err != nil {
@@ -302,7 +302,7 @@ ON DUPLICATE KEY UPDATE install_at = GREATEST(COALESCE(install_at, VALUES(instal
 	return *stored, nil
 }
 
-func (ds *Datastore) ListPatchNotificationsDue(ctx context.Context, cutoff time.Time, limit int) ([]fleet.PatchNotificationDue, error) {
+func (ds *Datastore) ListPatchNotificationsDue(ctx context.Context, cutoff time.Time, limit int) ([]automdm.PatchNotificationDue, error) {
 	// host_online matches the online status on the host list: the shorter check-in interval, plus a grace period for a late check-in
 	selectStmt := fmt.Sprintf(`
 SELECT
@@ -342,9 +342,9 @@ WHERE
 	AND neu.displayed_at IS NOT NULL
 ORDER BY pn.install_at
 LIMIT ?
-`, fleet.OnlineIntervalBuffer)
+`, automdm.OnlineIntervalBuffer)
 
-	var due []fleet.PatchNotificationDue
+	var due []automdm.PatchNotificationDue
 	// reads the primary because the display that sets the deadline can be seconds old
 	if err := sqlx.SelectContext(ctx, ds.writer(ctx), &due, selectStmt,
 		cutoff, notifications_api.EndUserNotificationPending, notifications_api.EndUserNotificationDispatched,
@@ -355,7 +355,7 @@ LIMIT ?
 	return due, nil
 }
 
-func (ds *Datastore) ListPatchNotificationApps(ctx context.Context, notificationUUID string) ([]fleet.PatchNotificationAppDetail, error) {
+func (ds *Datastore) ListPatchNotificationApps(ctx context.Context, notificationUUID string) ([]automdm.PatchNotificationAppDetail, error) {
 	const selectStmt = `
 SELECT
 	pna.policy_id,
@@ -384,14 +384,14 @@ WHERE pna.notification_uuid = ?
 ORDER BY display_name, pna.software_title_id
 `
 
-	var apps []fleet.PatchNotificationAppDetail
-	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &apps, selectStmt, fleet.PatchDeadlineNotificationKind, notificationUUID); err != nil {
+	var apps []automdm.PatchNotificationAppDetail
+	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &apps, selectStmt, automdm.PatchDeadlineNotificationKind, notificationUUID); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "list patch notification apps")
 	}
 	return apps, nil
 }
 
-func (ds *Datastore) ListPatchNotificationAppInstallStatuses(ctx context.Context, notificationUUID string) (map[uint]fleet.SoftwareInstallerStatus, error) {
+func (ds *Datastore) ListPatchNotificationAppInstallStatuses(ctx context.Context, notificationUUID string) (map[uint]automdm.SoftwareInstallerStatus, error) {
 	// Match every installer the title has, not the nullable host_software_installs.software_title_id,
 	// so an install recorded against a different installer id for the title still reports. Skip installs
 	// older than the app's row, which patched an earlier version. Read execution_status rather than
@@ -415,15 +415,15 @@ ORDER BY hsi.id
 `
 
 	var rows []struct {
-		SoftwareTitleID uint                          `db:"software_title_id"`
-		Status          fleet.SoftwareInstallerStatus `db:"status"`
+		SoftwareTitleID uint                            `db:"software_title_id"`
+		Status          automdm.SoftwareInstallerStatus `db:"status"`
 	}
-	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &rows, selectStmt, fleet.SoftwareInstalled, notificationUUID); err != nil {
+	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &rows, selectStmt, automdm.SoftwareInstalled, notificationUUID); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "list patch notification app install statuses")
 	}
 
 	// Keep the newest install for each title, which the oldest-first ordering leaves last in the map.
-	statuses := make(map[uint]fleet.SoftwareInstallerStatus, len(rows))
+	statuses := make(map[uint]automdm.SoftwareInstallerStatus, len(rows))
 	for _, row := range rows {
 		statuses[row.SoftwareTitleID] = row.Status
 	}
@@ -432,7 +432,7 @@ ORDER BY hsi.id
 
 // ListPatchNotificationAppsForNotifications leaves out the names and icons the toast is built from,
 // because RemindAndInstallDuePatches matches versions and queues installs without displaying anything.
-func (ds *Datastore) ListPatchNotificationAppsForNotifications(ctx context.Context, notificationUUIDs []string) (map[string][]fleet.PatchNotificationAppDetail, error) {
+func (ds *Datastore) ListPatchNotificationAppsForNotifications(ctx context.Context, notificationUUIDs []string) (map[string][]automdm.PatchNotificationAppDetail, error) {
 	if len(notificationUUIDs) == 0 {
 		return nil, nil
 	}
@@ -453,17 +453,17 @@ FROM patch_notification_apps pna
 	LEFT JOIN software_installers si ON si.id = pna.software_installer_id
 	LEFT JOIN policies p ON p.id = pna.policy_id
 WHERE pna.notification_uuid IN (?)
-`, fleet.PatchDeadlineNotificationKind, notificationUUIDs)
+`, automdm.PatchDeadlineNotificationKind, notificationUUIDs)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "build list patch notification apps for notifications statement")
 	}
 
-	var apps []fleet.PatchNotificationAppDetail
+	var apps []automdm.PatchNotificationAppDetail
 	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &apps, stmt, args...); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "list patch notification apps for notifications")
 	}
 
-	byNotification := make(map[string][]fleet.PatchNotificationAppDetail, len(notificationUUIDs))
+	byNotification := make(map[string][]automdm.PatchNotificationAppDetail, len(notificationUUIDs))
 	for _, app := range apps {
 		byNotification[app.NotificationUUID] = append(byNotification[app.NotificationUUID], app)
 	}

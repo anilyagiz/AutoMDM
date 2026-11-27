@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/anilyagiz/automdm/v4/server/aws_common"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
-	"github.com/fleetdm/fleet/v4/server/aws_common"
 )
 
 const (

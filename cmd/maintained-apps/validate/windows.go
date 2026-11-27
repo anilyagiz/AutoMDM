@@ -14,9 +14,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/constant"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	queries "github.com/fleetdm/fleet/v4/server/service/osquery_utils"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/constant"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	queries "github.com/anilyagiz/automdm/v4/server/service/osquery_utils"
 	"golang.org/x/sys/windows/registry"
 )
 
@@ -122,7 +122,7 @@ func appExists(ctx context.Context, logger *slog.Logger, appName, uniqueIdentifi
 	}
 	// Some DisplayNames contain neither the catalog name nor the
 	// unique_identifier (e.g. QGIS LTR installs as "QGIS 3.44.14 'Solothurn'"),
-	// so also match the manifest's exists query, which is how Fleet detects the
+	// so also match the manifest's exists query, which is how AutoMDM detects the
 	// app. It comes from the manifest, so it isn't run through validateSqlInput.
 	if clause := programsExistsWhereClause(existsQuery); clause != "" {
 		query += ` OR (` + clause + `)`
@@ -156,7 +156,7 @@ func appExists(ctx context.Context, logger *slog.Logger, appName, uniqueIdentifi
 			// Vendor is populated so name/version sanitizers that key off the
 			// publisher (e.g. JetBrains build-number normalization in
 			// MutateSoftwareOnIngestion) behave as they do in production.
-			software := &fleet.Software{
+			software := &automdm.Software{
 				Name:    result.Name,
 				Version: result.Version,
 				Source:  "programs",

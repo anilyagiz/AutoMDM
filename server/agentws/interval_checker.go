@@ -5,13 +5,13 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
 // DueLister lists which of the given hosts are due for a distributed read —
 // interval work or an unanswered live query campaign — keyed by host ID with
-// the reason it is due (see the fleet.AgentWSReason constants and
-// fleet.AgentWSReasonLiveQuery). It is satisfied by fleet.Service.
+// the reason it is due (see the automdm.AgentWSReason constants and
+// automdm.AgentWSReasonLiveQuery). It is satisfied by automdm.Service.
 type DueLister interface {
 	ListHostIDsDueForDistributedRead(ctx context.Context, hostIDs []uint) (map[uint]string, error)
 }
@@ -84,14 +84,14 @@ func (c *IntervalChecker) checkOnce(ctx context.Context) {
 			byReason[reason] = append(byReason[reason], id)
 		}
 		for reason, ids := range byReason {
-			if reason == fleet.AgentWSReasonHostNotFound {
+			if reason == automdm.AgentWSReasonHostNotFound {
 				// The host was deleted while its agent held a connection.
 				// Nothing else closes it, so it would linger under the stale
 				// host ID (and keep marking it seen) indefinitely.
 				disconnected += c.Hub.Disconnect(ids)
 				continue
 			}
-			notified += c.Hub.Notify(fleet.AgentWSMessageTypeDistributedRead, reason, ids)
+			notified += c.Hub.Notify(automdm.AgentWSMessageTypeDistributedRead, reason, ids)
 		}
 	}
 

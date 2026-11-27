@@ -151,7 +151,7 @@ describe("ConfigurationProfiles header", () => {
 describe("ConfigurationProfiles add and edit", () => {
   const profile = {
     profile_uuid: "w-123",
-    fleet_id: 2,
+    team_id: 2,
     name: "Firewall",
     platform: "windows",
     identifier: null,
@@ -178,7 +178,7 @@ describe("ConfigurationProfiles add and edit", () => {
     return { ...results, router };
   };
 
-  it("opens the add page for the current fleet", async () => {
+  it("opens the add page for the current team", async () => {
     mockServer.use(emptyProfilesHandler, emptyAssetsHandler);
     const { user, router } = renderList();
 
@@ -188,11 +188,11 @@ describe("ConfigurationProfiles add and edit", () => {
 
     expect(router.push).toHaveBeenCalledTimes(1);
     expect(router.push).toHaveBeenCalledWith(
-      "/controls/os-settings/configuration-profiles/new?fleet_id=2"
+      "/controls/os-settings/configuration-profiles/new?team_id=2"
     );
   });
 
-  it("opens a profile's edit page for the current fleet", async () => {
+  it("opens a profile's edit page for the current team", async () => {
     mockServer.use(
       http.get(baseUrl("/configuration_profiles"), () =>
         HttpResponse.json({
@@ -208,7 +208,7 @@ describe("ConfigurationProfiles add and edit", () => {
 
     expect(router.push).toHaveBeenCalledTimes(1);
     expect(router.push).toHaveBeenCalledWith(
-      "/controls/os-settings/configuration-profiles/w-123?fleet_id=2"
+      "/controls/os-settings/configuration-profiles/w-123?team_id=2"
     );
   });
 });
@@ -236,7 +236,7 @@ describe("ConfigurationProfiles assets", () => {
           profiles: [
             {
               profile_uuid: "p-1",
-              fleet_id: 0,
+              team_id: 0,
               name: "Firewall",
               platform: "windows",
               identifier: null,
@@ -271,7 +271,7 @@ describe("ConfigurationProfiles assets", () => {
     ).toBeInTheDocument();
   });
 
-  it("hides the Advanced button on Fleet Free", async () => {
+  it("hides the Advanced button on AutoMDM Free", async () => {
     mockServer.use(emptyProfilesHandler);
 
     renderPremium({ isPremiumTier: false });

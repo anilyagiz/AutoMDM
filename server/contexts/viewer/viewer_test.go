@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -13,7 +13,7 @@ var (
 	// Weird states
 	nilViewer       = Viewer{}
 	noSessionViewer = Viewer{
-		User: &fleet.User{
+		User: &automdm.User{
 			ID:   41,
 			Name: "No Session",
 		},
@@ -21,23 +21,23 @@ var (
 
 	// Regular users
 	userViewer = Viewer{
-		User: &fleet.User{
+		User: &automdm.User{
 			ID:   45,
 			Name: "Regular User",
 		},
-		Session: &fleet.Session{
+		Session: &automdm.Session{
 			ID:     4,
 			UserID: 45,
 		},
 	}
 
 	needsPasswordResetUserViewer = Viewer{
-		User: &fleet.User{
+		User: &automdm.User{
 			ID:                       47,
 			Name:                     "Regular User Needs Password Reset",
 			AdminForcedPasswordReset: true,
 		},
-		Session: &fleet.Session{
+		Session: &automdm.Session{
 			ID:     6,
 			UserID: 47,
 		},
@@ -45,22 +45,22 @@ var (
 
 	// Admin users
 	adminViewer = Viewer{
-		User: &fleet.User{
+		User: &automdm.User{
 			ID:   42,
 			Name: "The Admin",
 		},
-		Session: &fleet.Session{
+		Session: &automdm.Session{
 			ID:     1,
 			UserID: 42,
 		},
 	}
 	needsPasswordResetAdminViewer = Viewer{
-		User: &fleet.User{
+		User: &automdm.User{
 			ID:                       44,
 			Name:                     "The Admin Requires Password Reset",
 			AdminForcedPasswordReset: true,
 		},
-		Session: &fleet.Session{
+		Session: &automdm.Session{
 			ID:     3,
 			UserID: 44,
 		},
@@ -188,5 +188,5 @@ func TestNewSystemContext(t *testing.T) {
 	// Verify the system user has the expected properties
 	assert.Equal(t, systemUserName, v.User.Name, "system user name should match ActivityAutomationAuthor")
 	require.NotNil(t, v.User.GlobalRole, "system user should have a global role")
-	assert.Equal(t, fleet.RoleAdmin, *v.User.GlobalRole, "system user should have admin role")
+	assert.Equal(t, automdm.RoleAdmin, *v.User.GlobalRole, "system user should have admin role")
 }

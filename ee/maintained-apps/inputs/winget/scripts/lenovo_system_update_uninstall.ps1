@@ -1,4 +1,4 @@
-# Fleet substitutes the winget ProductCode, which for this Inno installer is the
+# AutoMDM substitutes the winget ProductCode, which for this Inno installer is the
 # uninstall registry key name rather than a GUID.
 $packageId = $PACKAGE_ID
 $uninstallArgs = "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART"

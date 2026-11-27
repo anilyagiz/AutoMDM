@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/platform/endpointer"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/platform/endpointer"
 	"github.com/ghodss/yaml"
 	kithttp "github.com/go-kit/kit/transport/http"
 )
@@ -18,7 +18,7 @@ type FeatureRouteFunc func(r *endpointer.Router, opts []kithttp.ServerOption)
 //go:embed api_endpoints.yml
 var apiEndpointsYAML []byte
 
-var apiEndpoints []fleet.APIEndpoint
+var apiEndpoints []automdm.APIEndpoint
 
 var apiEndpointsSet map[string]struct{}
 
@@ -36,8 +36,8 @@ func init() {
 }
 
 // GetAPIEndpoints returns a copy of the embedded API endpoints slice.
-func GetAPIEndpoints() []fleet.APIEndpoint {
-	result := make([]fleet.APIEndpoint, len(apiEndpoints))
+func GetAPIEndpoints() []automdm.APIEndpoint {
+	result := make([]automdm.APIEndpoint, len(apiEndpoints))
 	copy(result, apiEndpoints)
 	return result
 }
@@ -61,7 +61,7 @@ func Validate(h http.Handler, featureRoutes ...FeatureRouteFunc) error {
 	collect := func(rt *endpointer.Router) {
 		for _, route := range rt.Routes() {
 			for _, m := range route.Methods {
-				registered[fleet.NewAPIEndpointFromTpl(m, route.Path).Fingerprint()] = struct{}{}
+				registered[automdm.NewAPIEndpointFromTpl(m, route.Path).Fingerprint()] = struct{}{}
 			}
 		}
 	}
@@ -91,8 +91,8 @@ func Validate(h http.Handler, featureRoutes ...FeatureRouteFunc) error {
 	return nil
 }
 
-func loadAPIEndpoints() ([]fleet.APIEndpoint, error) {
-	endpoints := make([]fleet.APIEndpoint, 0)
+func loadAPIEndpoints() ([]automdm.APIEndpoint, error) {
+	endpoints := make([]automdm.APIEndpoint, 0)
 
 	if err := yaml.Unmarshal(apiEndpointsYAML, &endpoints); err != nil {
 		return nil, err

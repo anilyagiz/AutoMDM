@@ -232,13 +232,13 @@ describe("SoftwareDetailsSummary IDs", () => {
     render(
       <SoftwareDetailsSummary
         displayName="My software"
-        fleetMaintainedAppSlug="zoom/darwin"
+        automdmMaintainedAppSlug="zoom/darwin"
         appStoreId="1016366447"
         googlePlayId="com.android.chrome"
       />
     );
 
-    expect(screen.getByText("Fleet-maintained app slug")).toBeInTheDocument();
+    expect(screen.getByText("AutoMDM-maintained app slug")).toBeInTheDocument();
     expect(screen.getByText("zoom/darwin")).toBeInTheDocument();
     expect(screen.getByText("App Store ID")).toBeInTheDocument();
     expect(screen.getByText("1016366447")).toBeInTheDocument();
@@ -250,7 +250,7 @@ describe("SoftwareDetailsSummary IDs", () => {
     render(<SoftwareDetailsSummary displayName="My software" />);
 
     expect(
-      screen.queryByText("Fleet-maintained app slug")
+      screen.queryByText("AutoMDM-maintained app slug")
     ).not.toBeInTheDocument();
     expect(screen.queryByText("App Store ID")).not.toBeInTheDocument();
     expect(screen.queryByText("Google Play ID")).not.toBeInTheDocument();

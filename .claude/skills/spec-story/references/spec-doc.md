@@ -9,7 +9,7 @@ Follow the style rules in SKILL.md 3.1.
 
 Include every section unless it's marked "if needed." Write "None." in an empty section instead of dropping it.
 
-1. **Story.** Quote the user story (`As a... I want... so that...`). Then explain it in 2 to 4 short paragraphs. Lead with the scope calls as bold callouts, each with its reason, like `**ADE only.** <why>` or `**Fleet Premium only.** <why>`.
+1. **Story.** Quote the user story (`As a... I want... so that...`). Then explain it in 2 to 4 short paragraphs. Lead with the scope calls as bold callouts, each with its reason, like `**ADE only.** <why>` or `**AutoMDM Premium only.** <why>`.
 2. **Feature design.** Include the Mermaid sequence diagram from Stage 1, updated. Give every real actor a lane, like `Admin`, `UI`, `API`, `EE`, `DB`, `Worker`, or `Device`. Put real function and endpoint names on the arrows. Mark phases with `note over X,Y: <n>. <phase>`.
 3. **Figma copy and dev notes** (if needed). Add one `Element | Text` table per surface, like a page, modal, dropdown, or activity feed. Copy every string word for word, punctuation included. That means titles, labels, tooltips, descriptions, flash messages, errors, and disabled-state tooltips. List the dev notes under each table, such as who sees what, platform limits, GitOps mode, defaults, and caps.
 4. **Expert review notes.** List SME feedback as numbered notes, with the SME's name on the heading line. Keep the notes even after you've used them. If you skip SME review, give the reason in one line.
@@ -26,7 +26,7 @@ Include every section unless it's marked "if needed." Write "None." in an empty 
 15. **Follow-ups.** List related work you kept out of scope, like nearby bugs, refactors, and nice-to-haves. Write "None." if there aren't any.
 16. **Open questions.** For each one, say who decides and what they need to decide.
 17. **Resolved questions.** List each decision made during review, with its reason. Add a note on future changes when it helps.
-18. **Testing tips** (if needed). Write numbered CLI steps for checking the feature on a real device, like `fleetctl api ...`, `dscl ...`, or `gh issue view ...`.
+18. **Testing tips** (if needed). Write numbered CLI steps for checking the feature on a real device, like `automdmctl api ...`, `dscl ...`, or `gh issue view ...`.
 
 
 ## Sub-issue format
@@ -74,7 +74,7 @@ Write a checklist grouped by surface or scenario, under bold labels like "**Enro
 
 - Test commands with env vars, like `MYSQL_TEST=1 go test ./server/datastore/mysql/...`, `MYSQL_TEST=1 REDIS_TEST=1 go test ./server/service/...`, or `yarn test`.
 - Checks with real inputs and outputs.
-- Negative cases, like the wrong platform, Fleet Free, hosts that enrolled before the feature, and GitOps mode.
+- Negative cases, like the wrong platform, AutoMDM Free, hosts that enrolled before the feature, and GitOps mode.
 - An end-to-end test when the flow spans systems.
 - Exact-match checks where output has to stay the same, like an MDM payload that mustn't change when the feature's off.
 

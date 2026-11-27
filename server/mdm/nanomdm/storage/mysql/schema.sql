@@ -103,7 +103,7 @@ topic      VARCHAR(255) NOT NULL,
     enabled            BOOLEAN NOT NULL DEFAULT 1,
     token_update_tally INTEGER NOT NULL DEFAULT 1,
 
-    -- Fleet: last_seen_at was moved to the nano_seen_times table (below) to avoid lock
+    -- AutoMDM: last_seen_at was moved to the nano_seen_times table (below) to avoid lock
     -- contention on this table; see fleetdm/fleet#48655.
 
     hardware_attested BOOLEAN NOT NULL DEFAULT 0,
@@ -274,8 +274,8 @@ CREATE TABLE nano_cert_auth_associations (
     CHECK (sha256 != '')
 );
 
--- Fleet: check-in seen times live here instead of on nano_enrollments to avoid lock
--- contention. No FK on purpose. In production this table is created by Fleet's migrations.
+-- AutoMDM: check-in seen times live here instead of on nano_enrollments to avoid lock
+-- contention. No FK on purpose. In production this table is created by AutoMDM's migrations.
 CREATE TABLE nano_seen_times (
     id        VARCHAR(255) NOT NULL,
     seen_time TIMESTAMP NOT NULL,

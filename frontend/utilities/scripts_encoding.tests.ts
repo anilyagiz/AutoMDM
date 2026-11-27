@@ -3,7 +3,7 @@ import { encodeScriptBase64, SCRIPTS_ENCODED_HEADER } from "./scripts_encoding";
 describe("scripts_encoding", () => {
   describe("SCRIPTS_ENCODED_HEADER", () => {
     it("should have the expected value", () => {
-      expect(SCRIPTS_ENCODED_HEADER).toBe("X-Fleet-Scripts-Encoded");
+      expect(SCRIPTS_ENCODED_HEADER).toBe("X-AutoMDM-Scripts-Encoded");
     });
   });
 
@@ -39,7 +39,7 @@ describe("scripts_encoding", () => {
     it("should encode multiline PowerShell scripts", () => {
       const script =
         // eslint-disable-next-line no-template-curly-in-string
-        '$logFile = "${env:TEMP}/fleet-install.log"\nStart-Process msiexec.exe';
+        '$logFile = "${env:TEMP}/automdm-install.log"\nStart-Process msiexec.exe';
       const encoded = encodeScriptBase64(script);
       // Verify it's valid base64 and decodes back correctly
       expect(atob(encoded!)).toBe(script);
@@ -60,7 +60,7 @@ describe("scripts_encoding", () => {
       // eslint-disable-next-line no-template-curly-in-string
       const envInstallerPath = "${env:INSTALLER_PATH}";
       // eslint-disable-next-line no-template-curly-in-string
-      const logFileScript = '$logFile = "${env:TEMP}/fleet-install.log"';
+      const logFileScript = '$logFile = "${env:TEMP}/automdm-install.log"';
       const testCases = [
         envTemp,
         envInstallerPath,

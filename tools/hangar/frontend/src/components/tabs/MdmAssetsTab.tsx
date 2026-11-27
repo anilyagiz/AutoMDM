@@ -193,12 +193,12 @@ export function MdmAssetsTab() {
           </div>
 
           <Field label="Encryption key (server private key)" hint={keyMissing ? "Required for export." : undefined} warn={keyMissing}>
-            <input value={current.key} placeholder="FLEET_SERVER_PRIVATE_KEY" onChange={(e) => set("key", e.target.value)} style={{ width: "100%" }} />
+            <input value={current.key} placeholder="AUTOMDM_SERVER_PRIVATE_KEY" onChange={(e) => set("key", e.target.value)} style={{ width: "100%" }} />
           </Field>
 
-          <Field label="Output directory" hint="Where files are written; defaults to the Fleet repo root.">
+          <Field label="Output directory" hint="Where files are written; defaults to the AutoMDM repo root.">
             <div style={{ display: "flex", gap: "var(--pad-small)" }}>
-              <input value={current.dir} placeholder={defaultDir || "(Fleet repo root)"} onChange={(e) => set("dir", e.target.value)} style={{ flex: 1 }} />
+              <input value={current.dir} placeholder={defaultDir || "(AutoMDM repo root)"} onChange={(e) => set("dir", e.target.value)} style={{ flex: 1 }} />
               <button onClick={pickDir}>Browse…</button>
             </div>
           </Field>
@@ -258,7 +258,7 @@ function ResultView({
     <div className="card" style={{ display: "flex", flexDirection: "column", gap: "var(--pad-small)" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "var(--pad-small)" }}>
         <span className={`dot ${ok ? "ok" : "fail"}`} />
-        <span style={{ fontWeight: 600, color: ok ? "var(--core-fleet-green)" : "var(--ui-error)" }}>
+        <span style={{ fontWeight: 600, color: ok ? "var(--core-automdm-green)" : "var(--ui-error)" }}>
           {ok ? "Export succeeded" : `Export failed${result.exit_code != null ? ` (exit ${result.exit_code})` : ""}`}
         </span>
         <span className="dim" style={{ fontSize: "var(--fs-xx-small)" }}>{result.files.length} file(s)</span>
@@ -285,7 +285,7 @@ function ResultView({
       {env && (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <div style={{ display: "flex", alignItems: "center", gap: "var(--pad-small)" }}>
-            <div className="section-title" style={{ margin: 0 }}>Fleet config</div>
+            <div className="section-title" style={{ margin: 0 }}>AutoMDM config</div>
             <button className="link-btn" onClick={() => onCopy(env, "config")}>copy</button>
           </div>
           <pre style={preStyle}>{env}</pre>

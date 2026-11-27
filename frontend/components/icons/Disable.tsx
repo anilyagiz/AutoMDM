@@ -9,7 +9,7 @@ interface IDisable {
 }
 
 const Disable = ({
-  color = "ui-fleet-black-75",
+  color = "ui-automdm-black-75",
   size = "medium",
 }: IDisable) => {
   return (

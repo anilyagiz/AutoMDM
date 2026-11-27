@@ -211,7 +211,7 @@ type InitialStateType = {
   ejbcaExpiry?: string;
   sandboxExpiry?: string;
   noSandboxHosts?: boolean;
-  /** Total hosts across all fleets. Only loaded for global users on Fleet Premium. */
+  /** Total hosts across all teams. Only loaded for global users on AutoMDM Premium. */
   hostCount?: number;
   filteredHostsPath?: string;
   filteredSoftwarePath?: string;
@@ -371,10 +371,10 @@ const setPermissions = (
 };
 
 export const sortAvailableTeams = (
-  availableFleets: ITeamSummary[],
+  availableAutoMDMs: ITeamSummary[],
   user: IUser | null
 ): ITeamSummary[] => {
-  const sortedFleets = [...availableFleets]
+  const sortedTeams = [...availableAutoMDMs]
     .sort((a, b) => sort.caseInsensitiveAsc(a.name, b.name))
     .filter(
       (t) =>
@@ -382,10 +382,10 @@ export const sortAvailableTeams = (
         t.name !== APP_CONTEXT_NO_TEAM_SUMMARY.name
     );
   if (user && permissions.isOnGlobalTeam(user)) {
-    sortedFleets.unshift(APP_CONTEXT_ALL_TEAMS_SUMMARY);
-    sortedFleets.push(APP_CONTEXT_NO_TEAM_SUMMARY);
+    sortedTeams.unshift(APP_CONTEXT_ALL_TEAMS_SUMMARY);
+    sortedTeams.push(APP_CONTEXT_NO_TEAM_SUMMARY);
   }
-  return sortedFleets;
+  return sortedTeams;
 };
 
 const reducer = (state: InitialStateType, action: IAction) => {

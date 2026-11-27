@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -17,9 +17,9 @@ func TestSendManagedLocalAccountRotationRequests(t *testing.T) {
 
 	logger := slog.New(slog.DiscardHandler)
 
-	setup := func(rows []fleet.HostManagedLocalAccountWindowsRotationInfo) *mock.Store {
+	setup := func(rows []automdm.HostManagedLocalAccountWindowsRotationInfo) *mock.Store {
 		ds := new(mock.Store)
-		ds.GetWindowsManagedLocalAccountsForAutoRotationFunc = func(ctx context.Context) ([]fleet.HostManagedLocalAccountWindowsRotationInfo, error) {
+		ds.GetWindowsManagedLocalAccountsForAutoRotationFunc = func(ctx context.Context) ([]automdm.HostManagedLocalAccountWindowsRotationInfo, error) {
 			return rows, nil
 		}
 		ds.InitiateWindowsManagedLocalAccountAutoRotationFunc = func(ctx context.Context, hostUUID string) error {
@@ -35,10 +35,10 @@ func TestSendManagedLocalAccountRotationRequests(t *testing.T) {
 	})
 
 	t.Run("requests a rotation per row and logs only view-driven ones", func(t *testing.T) {
-		ds := setup([]fleet.HostManagedLocalAccountWindowsRotationInfo{
-			{HostUUID: "uuid-1", HostID: 1, DisplayName: "WIN-1", InitiatedByFleet: true},
+		ds := setup([]automdm.HostManagedLocalAccountWindowsRotationInfo{
+			{HostUUID: "uuid-1", HostID: 1, DisplayName: "WIN-1", InitiatedByTeam: true},
 			// A deferred manual request: the EE service already logged this one with the user as actor.
-			{HostUUID: "uuid-2", HostID: 2, DisplayName: "WIN-2", InitiatedByFleet: false},
+			{HostUUID: "uuid-2", HostID: 2, DisplayName: "WIN-2", InitiatedByTeam: false},
 		})
 
 		var asked []string
@@ -47,10 +47,10 @@ func TestSendManagedLocalAccountRotationRequests(t *testing.T) {
 			return nil
 		}
 		var logged []uint
-		newActivity := func(ctx context.Context, user *fleet.User, act fleet.ActivityDetails) error {
-			rotated, ok := act.(fleet.ActivityTypeRotatedManagedLocalAccountPassword)
+		newActivity := func(ctx context.Context, user *automdm.User, act automdm.ActivityDetails) error {
+			rotated, ok := act.(automdm.ActivityTypeRotatedManagedLocalAccountPassword)
 			require.True(t, ok)
-			assert.True(t, rotated.FleetInitiated, "the cron acts as Fleet, not as a user")
+			assert.True(t, rotated.AutoMDMInitiated, "the cron acts as AutoMDM, not as a user")
 			assert.Nil(t, user)
 			logged = append(logged, rotated.HostID)
 			return nil
@@ -63,20 +63,20 @@ func TestSendManagedLocalAccountRotationRequests(t *testing.T) {
 	})
 
 	t.Run("a row that lost eligibility is skipped, not failed", func(t *testing.T) {
-		ds := setup([]fleet.HostManagedLocalAccountWindowsRotationInfo{
-			{HostUUID: "uuid-pending", HostID: 1, DisplayName: "WIN-1", InitiatedByFleet: true},
-			{HostUUID: "uuid-ok", HostID: 2, DisplayName: "WIN-2", InitiatedByFleet: true},
+		ds := setup([]automdm.HostManagedLocalAccountWindowsRotationInfo{
+			{HostUUID: "uuid-pending", HostID: 1, DisplayName: "WIN-1", InitiatedByTeam: true},
+			{HostUUID: "uuid-ok", HostID: 2, DisplayName: "WIN-2", InitiatedByTeam: true},
 		})
 		ds.InitiateWindowsManagedLocalAccountAutoRotationFunc = func(ctx context.Context, hostUUID string) error {
 			if hostUUID == "uuid-pending" {
 				// Raced with a manual request between the SELECT and here.
-				return fleet.ErrManagedLocalAccountRotationPending
+				return automdm.ErrManagedLocalAccountRotationPending
 			}
 			return nil
 		}
 		var logged []uint
-		newActivity := func(ctx context.Context, user *fleet.User, act fleet.ActivityDetails) error {
-			logged = append(logged, act.(fleet.ActivityTypeRotatedManagedLocalAccountPassword).HostID)
+		newActivity := func(ctx context.Context, user *automdm.User, act automdm.ActivityDetails) error {
+			logged = append(logged, act.(automdm.ActivityTypeRotatedManagedLocalAccountPassword).HostID)
 			return nil
 		}
 
@@ -86,9 +86,9 @@ func TestSendManagedLocalAccountRotationRequests(t *testing.T) {
 	})
 
 	t.Run("an unexpected error is reported but does not stop the run", func(t *testing.T) {
-		ds := setup([]fleet.HostManagedLocalAccountWindowsRotationInfo{
-			{HostUUID: "uuid-broken", HostID: 1, DisplayName: "WIN-1", InitiatedByFleet: true},
-			{HostUUID: "uuid-ok", HostID: 2, DisplayName: "WIN-2", InitiatedByFleet: true},
+		ds := setup([]automdm.HostManagedLocalAccountWindowsRotationInfo{
+			{HostUUID: "uuid-broken", HostID: 1, DisplayName: "WIN-1", InitiatedByTeam: true},
+			{HostUUID: "uuid-ok", HostID: 2, DisplayName: "WIN-2", InitiatedByTeam: true},
 		})
 		boom := errors.New("boom")
 		ds.InitiateWindowsManagedLocalAccountAutoRotationFunc = func(ctx context.Context, hostUUID string) error {
@@ -98,8 +98,8 @@ func TestSendManagedLocalAccountRotationRequests(t *testing.T) {
 			return nil
 		}
 		var logged []uint
-		newActivity := func(ctx context.Context, user *fleet.User, act fleet.ActivityDetails) error {
-			logged = append(logged, act.(fleet.ActivityTypeRotatedManagedLocalAccountPassword).HostID)
+		newActivity := func(ctx context.Context, user *automdm.User, act automdm.ActivityDetails) error {
+			logged = append(logged, act.(automdm.ActivityTypeRotatedManagedLocalAccountPassword).HostID)
 			return nil
 		}
 
@@ -110,10 +110,10 @@ func TestSendManagedLocalAccountRotationRequests(t *testing.T) {
 	})
 
 	t.Run("a failing activity does not fail the rotation", func(t *testing.T) {
-		ds := setup([]fleet.HostManagedLocalAccountWindowsRotationInfo{
-			{HostUUID: "uuid-1", HostID: 1, DisplayName: "WIN-1", InitiatedByFleet: true},
+		ds := setup([]automdm.HostManagedLocalAccountWindowsRotationInfo{
+			{HostUUID: "uuid-1", HostID: 1, DisplayName: "WIN-1", InitiatedByTeam: true},
 		})
-		newActivity := func(ctx context.Context, user *fleet.User, act fleet.ActivityDetails) error {
+		newActivity := func(ctx context.Context, user *automdm.User, act automdm.ActivityDetails) error {
 			return errors.New("activity store down")
 		}
 

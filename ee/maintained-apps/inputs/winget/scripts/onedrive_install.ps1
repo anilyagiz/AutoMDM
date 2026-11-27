@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 
 $exeFilePath = "${env:INSTALLER_PATH}"
 
@@ -15,7 +15,7 @@ try {
 # The ARP entry is the completion signal — not files on disk. The installer
 # drops OneDrive.exe under Program Files well before it registers the
 # uninstall key, and the uninstall key (DisplayName/DisplayVersion) is what
-# osquery's programs table — and therefore Fleet's detection — reads. Waiting
+# osquery's programs table — and therefore AutoMDM's detection — reads. Waiting
 # on the binary races detection. Modern x64 OneDrive registers in the native
 # hive; older builds used WOW6432Node, so check both. Registration is done by
 # child processes, so keep polling to the deadline even after the top-level

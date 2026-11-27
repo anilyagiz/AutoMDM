@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 )
@@ -275,7 +275,7 @@ WHERE
 }
 
 // BulkDeleteHostUserCommandsWithoutResults deletes all commands without results for the given host/user IDs.
-// This is used to clean up the queue when a profile is deleted from Fleet.
+// This is used to clean up the queue when a profile is deleted from AutoMDM.
 func (m *MySQLStorage) BulkDeleteHostUserCommandsWithoutResults(ctx context.Context, commandToIDs map[string][]string) error {
 	if len(commandToIDs) == 0 {
 		return nil

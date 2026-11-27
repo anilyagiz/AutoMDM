@@ -12,7 +12,7 @@ import (
 	"net/url"
 	"os"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
 	"google.golang.org/api/calendar/v3"
 	"google.golang.org/api/googleapi"
 )
@@ -37,7 +37,7 @@ func (lowLevelAPI *GoogleCalendarLoadAPI) Configure(ctx context.Context, _ strin
 	lowLevelAPI.userToImpersonate = userToImpersonate
 	lowLevelAPI.ctx = ctx
 	if lowLevelAPI.client == nil {
-		lowLevelAPI.client = fleethttp.NewClient(fleethttp.WithNoTimeout())
+		lowLevelAPI.client = automdmhttp.NewClient(automdmhttp.WithNoTimeout())
 	}
 	lowLevelAPI.serverURL = serverURL
 	return nil

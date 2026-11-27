@@ -22,9 +22,9 @@ import (
 // What it deliberately does NOT do is detect a method that *should* have been
 // wrapped and wasn't. That was tried: reflection cannot help, because Go
 // synthesises wrapper methods in this package for everything promoted from the
-// embedded fleet.Datastore, so a promoted method is indistinguishable from a
+// embedded automdm.Datastore, so a promoted method is indistinguishable from a
 // declared one at runtime. Snapshotting the whole interface instead was
-// rejected as well — fleet.Datastore gained 376 methods across 186 commits in
+// rejected as well — automdm.Datastore gained 376 methods across 186 commits in
 // the six months before this was written, so a snapshot would fail roughly
 // daily in unrelated PRs, and the one-keystroke fix defaults to "not
 // config-affecting". A guard that cries wolf every day cannot be trusted on the

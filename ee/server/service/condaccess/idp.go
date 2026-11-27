@@ -18,29 +18,29 @@ import (
 	"sync"
 	"time"
 
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/dev_mode"
+	"github.com/anilyagiz/automdm/v4/server/platform/endpointer"
+	"github.com/anilyagiz/automdm/v4/server/platform/middleware/ratelimit"
+	"github.com/anilyagiz/automdm/v4/server/service/middleware/log"
+	"github.com/anilyagiz/automdm/v4/server/service/middleware/otel"
 	"github.com/crewjam/saml"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/dev_mode"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/platform/endpointer"
-	"github.com/fleetdm/fleet/v4/server/platform/middleware/ratelimit"
-	"github.com/fleetdm/fleet/v4/server/service/middleware/log"
-	"github.com/fleetdm/fleet/v4/server/service/middleware/otel"
 	"github.com/google/uuid"
 	dsig "github.com/russellhaering/goxmldsig"
 	"github.com/throttled/throttled/v2"
 )
 
 const (
-	idpMetadataPath = "/api/fleet/conditional_access/idp/metadata"
-	idpSSOPath      = "/api/fleet/conditional_access/idp/sso"
+	idpMetadataPath = "/api/automdm/conditional_access/idp/metadata"
+	idpSSOPath      = "/api/automdm/conditional_access/idp/sso"
 	idpSSOPrefix    = "okta."
 
 	// URL to redirect users when they have failing conditional access policies and need to remediate their device
-	remediateURL = "https://fleetdm.com/remediate"
+	remediateURL = "https://automdm.com/remediate"
 	// URL to redirect users when there's a certificate error during Okta conditional access authentication
-	certificateErrorURL = "https://fleetdm.com/okta-conditional-access-error"
+	certificateErrorURL = "https://automdm.com/okta-conditional-access-error"
 
 	// SAML constants
 	samlBindingHTTPPost = "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
@@ -54,7 +54,7 @@ const (
 	metadataCacheTTL = 1 * time.Minute
 )
 
-// notFoundError implements fleet.NotFoundError interface for conditional access IdP errors.
+// notFoundError implements automdm.NotFoundError interface for conditional access IdP errors.
 type notFoundError struct {
 	msg string
 }
@@ -99,7 +99,7 @@ func (c *metadataCache) set(data []byte, headers http.Header, ttl time.Duration)
 
 // idpService implements the Okta conditional access IdP functionality.
 type idpService struct {
-	ds               fleet.Datastore
+	ds               automdm.Datastore
 	logger           *slog.Logger
 	certSerialFormat string
 	mdCache          *metadataCache
@@ -108,25 +108,25 @@ type idpService struct {
 // RegisterIdP registers the HTTP handlers for Okta conditional access IdP endpoints.
 func RegisterIdP(
 	mux *http.ServeMux,
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	logger *slog.Logger,
-	fleetConfig *config.FleetConfig,
+	automdmConfig *config.AutoMDMConfig,
 	limitStore throttled.GCRAStore,
 ) error {
-	if fleetConfig == nil {
-		return errors.New("fleet config is nil")
+	if automdmConfig == nil {
+		return errors.New("automdm config is nil")
 	}
 
 	svc := &idpService{
 		ds:               ds,
 		logger:           logger.With("component", "conditional-access-idp"),
-		certSerialFormat: fleetConfig.ConditionalAccess.CertSerialFormat,
+		certSerialFormat: automdmConfig.ConditionalAccess.CertSerialFormat,
 		mdCache:          &metadataCache{},
 	}
 
 	// Create IP extraction strategy for real client IP behind load balancers.
 	// This reuses the same trusted_proxies configuration as the main API handler.
-	ipStrategy, err := endpointer.NewClientIPStrategy(fleetConfig.Server.TrustedProxies)
+	ipStrategy, err := endpointer.NewClientIPStrategy(automdmConfig.Server.TrustedProxies)
 	if err != nil {
 		return fmt.Errorf("create ip strategy: %w", err)
 	}
@@ -147,11 +147,11 @@ func RegisterIdP(
 	// Logging wraps rate limiting so that 429 responses are also logged.
 	metadataHandler := rateLimiter.RateLimit(http.HandlerFunc(svc.serveMetadata))
 	metadataHandler = loggingMiddleware(metadataHandler)
-	metadataHandler = otel.WrapHandler(metadataHandler, idpMetadataPath, *fleetConfig)
+	metadataHandler = otel.WrapHandler(metadataHandler, idpMetadataPath, *automdmConfig)
 
 	ssoHandler := rateLimiter.RateLimit(http.HandlerFunc(svc.serveSSO))
 	ssoHandler = loggingMiddleware(ssoHandler)
-	ssoHandler = otel.WrapHandler(ssoHandler, idpSSOPath, *fleetConfig)
+	ssoHandler = otel.WrapHandler(ssoHandler, idpSSOPath, *automdmConfig)
 
 	mux.Handle(idpMetadataPath, metadataHandler)
 	mux.Handle(idpSSOPath, ssoHandler)
@@ -170,7 +170,7 @@ func handleInternalServerError(ctx context.Context, w http.ResponseWriter, logge
 	http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 }
 
-// serveMetadata handles GET /api/fleet/conditional_access/idp/metadata
+// serveMetadata handles GET /api/automdm/conditional_access/idp/metadata
 // Returns SAML IdP metadata for Okta to consume.
 // Responses are cached in memory to avoid repeated database queries.
 func (s *idpService) serveMetadata(w http.ResponseWriter, r *http.Request) {
@@ -191,7 +191,7 @@ func (s *idpService) serveMetadata(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get Fleet server URL from config
+	// Get AutoMDM server URL from config
 	serverURL := appConfig.ServerSettings.ServerURL
 	if serverURL == "" {
 		s.logger.ErrorContext(ctx, "server URL not configured")
@@ -202,7 +202,7 @@ func (s *idpService) serveMetadata(w http.ResponseWriter, r *http.Request) {
 	// Build IdP
 	idp, err := s.buildIdentityProvider(ctx, serverURL)
 	if err != nil {
-		if fleet.IsNotFound(err) {
+		if automdm.IsNotFound(err) {
 			s.logger.ErrorContext(ctx, "IdP certificate or key not found", "err", err)
 			http.Error(w, "IdP not configured", http.StatusNotFound)
 			return
@@ -248,7 +248,7 @@ func (r *responseRecorder) WriteHeader(statusCode int) {
 	r.statusCode = statusCode
 }
 
-// serveSSO handles POST /api/fleet/conditional_access/idp/sso
+// serveSSO handles POST /api/automdm/conditional_access/idp/sso
 // Handles SAML AuthnRequest from Okta, verifies device certificate and health.
 func (s *idpService) serveSSO(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -279,7 +279,7 @@ func (s *idpService) serveSSO(w http.ResponseWriter, r *http.Request) {
 	// Look up host by certificate serial number
 	hostID, err := s.ds.GetConditionalAccessCertHostIDBySerialNumber(ctx, serial)
 	if err != nil {
-		if fleet.IsNotFound(err) {
+		if automdm.IsNotFound(err) {
 			s.logger.ErrorContext(ctx, "certificate not recognized", "serial", serial, "err", err)
 			http.Redirect(w, r, certificateErrorURL, http.StatusSeeOther)
 			return
@@ -297,7 +297,7 @@ func (s *idpService) serveSSO(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get Fleet server URL from config
+	// Get AutoMDM server URL from config
 	serverURL := appConfig.ServerSettings.ServerURL
 	if serverURL == "" {
 		handleInternalServerError(ctx, w, s.logger, "server URL not configured", errors.New("server URL not configured"))
@@ -307,7 +307,7 @@ func (s *idpService) serveSSO(w http.ResponseWriter, r *http.Request) {
 	// Build IdP
 	idp, err := s.buildIdentityProvider(ctx, serverURL)
 	if err != nil {
-		if fleet.IsNotFound(err) {
+		if automdm.IsNotFound(err) {
 			s.logger.ErrorContext(ctx, "IdP certificate or key not found", "err", err)
 			http.Redirect(w, r, certificateErrorURL, http.StatusSeeOther)
 			return
@@ -366,7 +366,7 @@ func (w *statusInterceptingWriter) WriteHeader(statusCode int) {
 //
 // SECURITY NOTE: This function only supports certificate serial numbers up to uint64 max
 // (18,446,744,073,709,551,615). While X.509 allows serial numbers up to 160 bits, this
-// limitation is acceptable because Fleet controls the Certificate Authority and generates
+// limitation is acceptable because AutoMDM controls the Certificate Authority and generates
 // all certificates via SCEP
 func parseSerialNumber(serialStr string, format string) (uint64, error) {
 	// Remove any colons or spaces that might be in the serial number (common in hex format)
@@ -399,7 +399,7 @@ func extractNameID(req *saml.IdpAuthnRequest) string {
 // deviceHealthSessionProvider implements saml.SessionProvider interface to handle
 // device health verification during SAML SSO flow.
 type deviceHealthSessionProvider struct {
-	ds     fleet.Datastore
+	ds     automdm.Datastore
 	logger *slog.Logger
 	hostID uint
 }
@@ -418,7 +418,7 @@ func (p *deviceHealthSessionProvider) GetSession(w http.ResponseWriter, r *http.
 	// Load host to get team ID
 	hostLite, err := p.ds.HostLite(ctx, p.hostID)
 	if err != nil {
-		if fleet.IsNotFound(err) {
+		if automdm.IsNotFound(err) {
 			p.logger.ErrorContext(ctx, "host not found", "host_id", p.hostID, "err", err)
 			http.Redirect(w, r, certificateErrorURL, http.StatusSeeOther)
 			return nil
@@ -446,7 +446,7 @@ func (p *deviceHealthSessionProvider) GetSession(w http.ResponseWriter, r *http.
 
 	// Create a minimal Host for ListPoliciesForHost
 	// Platform is required for policy filtering
-	host := &fleet.Host{
+	host := &automdm.Host{
 		ID:       p.hostID,
 		Platform: hostLite.Platform,
 	}
@@ -492,7 +492,7 @@ func (p *deviceHealthSessionProvider) GetSession(w http.ResponseWriter, r *http.
 			// the old token remains valid after rotation.
 			const deviceAuthTokenTTL = time.Hour
 			if _, loadErr := p.ds.LoadHostByDeviceAuthToken(ctx, authToken, deviceAuthTokenTTL); loadErr != nil {
-				if fleet.IsNotFound(loadErr) {
+				if automdm.IsNotFound(loadErr) {
 					needNewToken = true // Case 1: token exists but is expired
 				} else {
 					p.logger.ErrorContext(ctx, "failed to validate device auth token", "err", loadErr, "host_id", p.hostID)
@@ -501,8 +501,8 @@ func (p *deviceHealthSessionProvider) GetSession(w http.ResponseWriter, r *http.
 					return nil
 				}
 			}
-		case fleet.IsNotFound(getErr):
-			needNewToken = true // Case 2: no token exists (e.g. fresh install without Fleet Desktop)
+		case automdm.IsNotFound(getErr):
+			needNewToken = true // Case 2: no token exists (e.g. fresh install without AutoMDM Desktop)
 		default:
 			// Unexpected error. Log and redirect to generic remediation page.
 			p.logger.ErrorContext(ctx, "failed to get device auth token",
@@ -516,7 +516,7 @@ func (p *deviceHealthSessionProvider) GetSession(w http.ResponseWriter, r *http.
 
 		if needNewToken {
 			// Create a server-side token so the redirect URL works.
-			// If Fleet Desktop is running, Orbit will overwrite this with a client-generated
+			// If AutoMDM Desktop is running, Orbit will overwrite this with a client-generated
 			// token on its next rotation, but this token will remain valid as
 			// previous_token for one rotation cycle.
 			authToken = uuid.NewString()
@@ -582,7 +582,7 @@ func (p *deviceHealthSessionProvider) GetSession(w http.ResponseWriter, r *http.
 // oktaServiceProviderProvider implements saml.ServiceProviderProvider to provide
 // Okta service provider metadata to the IdP.
 type oktaServiceProviderProvider struct {
-	ds     fleet.Datastore
+	ds     automdm.Datastore
 	logger *slog.Logger
 }
 
@@ -659,19 +659,19 @@ func (p *oktaServiceProviderProvider) GetServiceProvider(r *http.Request, servic
 	return entityDescriptor, nil
 }
 
-// buildIdentityProvider creates a SAML IdentityProvider using the Fleet server URL.
+// buildIdentityProvider creates a SAML IdentityProvider using the AutoMDM server URL.
 func (s *idpService) buildIdentityProvider(ctx context.Context, serverURL string) (*saml.IdentityProvider, error) {
-	// Load Fleet's IdP certificate and key from mdm_config_assets
-	assets, err := s.ds.GetAllMDMConfigAssetsByName(ctx, []fleet.MDMAssetName{
-		fleet.MDMAssetConditionalAccessIDPCert,
-		fleet.MDMAssetConditionalAccessIDPKey,
+	// Load AutoMDM's IdP certificate and key from mdm_config_assets
+	assets, err := s.ds.GetAllMDMConfigAssetsByName(ctx, []automdm.MDMAssetName{
+		automdm.MDMAssetConditionalAccessIDPCert,
+		automdm.MDMAssetConditionalAccessIDPKey,
 	}, nil)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "load conditional access idp assets")
 	}
 
-	certAsset, certOK := assets[fleet.MDMAssetConditionalAccessIDPCert]
-	keyAsset, keyOK := assets[fleet.MDMAssetConditionalAccessIDPKey]
+	certAsset, certOK := assets[automdm.MDMAssetConditionalAccessIDPCert]
+	keyAsset, keyOK := assets[automdm.MDMAssetConditionalAccessIDPKey]
 	if !certOK || !keyOK {
 		// Return NotFoundError so it can be properly handled as a configuration issue
 		// (redirect to error page) rather than an infrastructure error (500)

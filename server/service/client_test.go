@@ -13,9 +13,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/pkg/optjson"
-	"github.com/fleetdm/fleet/v4/pkg/spec"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/pkg/optjson"
+	"github.com/anilyagiz/automdm/v4/pkg/spec"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -24,7 +24,7 @@ func TestExtractAppConfigMacOSCustomSettings(t *testing.T) {
 	cases := []struct {
 		desc string
 		yaml string
-		want []fleet.MDMProfileSpec
+		want []automdm.MDMProfileSpec
 	}{
 		{
 			"no settings",
@@ -42,7 +42,7 @@ apiVersion: v1
 kind: config
 spec:
   org_info:
-    org_name: "Fleet"
+    org_name: "AutoMDM"
   mdm:
     apple_settings:
 `,
@@ -55,12 +55,12 @@ apiVersion: v1
 kind: config
 spec:
   org_info:
-    org_name: "Fleet"
+    org_name: "AutoMDM"
   mdm:
     apple_settings:
       configuration_profiles:
 `,
-			[]fleet.MDMProfileSpec{},
+			[]automdm.MDMProfileSpec{},
 		},
 		{
 			"custom settings specified",
@@ -69,7 +69,7 @@ apiVersion: v1
 kind: config
 spec:
   org_info:
-    org_name: "Fleet"
+    org_name: "AutoMDM"
   mdm:
     apple_settings:
       configuration_profiles:
@@ -79,7 +79,7 @@ spec:
             - bar
         - path: "b"
 `,
-			[]fleet.MDMProfileSpec{{Path: "a", Labels: []string{"foo", "bar"}}, {Path: "b"}},
+			[]automdm.MDMProfileSpec{{Path: "a", Labels: []string{"foo", "bar"}}, {Path: "b"}},
 		},
 		{
 			"empty paths are skipped",
@@ -88,7 +88,7 @@ apiVersion: v1
 kind: config
 spec:
   org_info:
-    org_name: "Fleet"
+    org_name: "AutoMDM"
   mdm:
     apple_settings:
       configuration_profiles:
@@ -101,7 +101,7 @@ spec:
           labels:
             - baz
 `,
-			[]fleet.MDMProfileSpec{{Path: "a"}, {Path: "c", Labels: []string{"baz"}}},
+			[]automdm.MDMProfileSpec{{Path: "a"}, {Path: "c", Labels: []string{"baz"}}},
 		},
 		{
 			"old custom settings specified",
@@ -110,14 +110,14 @@ apiVersion: v1
 kind: config
 spec:
   org_info:
-    org_name: "Fleet"
+    org_name: "AutoMDM"
   mdm:
     apple_settings:
       configuration_profiles:
         - "a"
         - "b"
 `,
-			[]fleet.MDMProfileSpec{{Path: "a"}, {Path: "b"}},
+			[]automdm.MDMProfileSpec{{Path: "a"}, {Path: "b"}},
 		},
 		{
 			"name and description on the legacy apply path",
@@ -126,7 +126,7 @@ apiVersion: v1
 kind: config
 spec:
   org_info:
-    org_name: "Fleet"
+    org_name: "AutoMDM"
   mdm:
     apple_settings:
       configuration_profiles:
@@ -135,7 +135,7 @@ spec:
           description: "Joins the office network"
         - path: "b"
 `,
-			[]fleet.MDMProfileSpec{{Path: "a", Name: "Wi-Fi", Description: "Joins the office network"}, {Path: "b"}},
+			[]automdm.MDMProfileSpec{{Path: "a", Name: "Wi-Fi", Description: "Joins the office network"}, {Path: "b"}},
 		},
 		{
 			"old empty paths are skipped",
@@ -144,7 +144,7 @@ apiVersion: v1
 kind: config
 spec:
   org_info:
-    org_name: "Fleet"
+    org_name: "AutoMDM"
   mdm:
     apple_settings:
       configuration_profiles:
@@ -152,7 +152,7 @@ spec:
         - ""
         - "c"
 `,
-			[]fleet.MDMProfileSpec{{Path: "a"}, {Path: "c"}},
+			[]automdm.MDMProfileSpec{{Path: "a"}, {Path: "c"}},
 		},
 	}
 	for _, c := range cases {
@@ -160,7 +160,7 @@ spec:
 			specs, err := spec.GroupFromBytes([]byte(c.yaml))
 			require.NoError(t, err)
 			if specs.AppConfig != nil {
-				// Legacy fleetctl apply
+				// Legacy automdmctl apply
 				got, err := extractAppCfgMacOSCustomSettings(specs.AppConfig)
 				require.NoError(t, err)
 				assert.Equal(t, c.want, got)
@@ -168,8 +168,8 @@ spec:
 				// GitOps
 				mdm, ok := specs.AppConfig.(map[string]interface{})["mdm"].(map[string]interface{})
 				require.True(t, ok)
-				typed := []fleet.MDMProfileSpec{{Path: "typed"}}
-				mdm["apple_settings"] = fleet.GitOpsMacOSSettings{CustomSettings: typed}
+				typed := []automdm.MDMProfileSpec{{Path: "typed"}}
+				mdm["apple_settings"] = automdm.GitOpsMacOSSettings{CustomSettings: typed}
 				got, err = extractAppCfgMacOSCustomSettings(specs.AppConfig)
 				require.NoError(t, err)
 				assert.Equal(t, typed, got)
@@ -179,23 +179,23 @@ spec:
 }
 
 func TestExtractMacOSAssetSpecs(t *testing.T) {
-	// GitOps decodes apple_settings into a fleet.GitOpsMacOSSettings struct. Whenever
+	// GitOps decodes apple_settings into an automdm.GitOpsMacOSSettings struct. Whenever
 	// the struct is present, assets must be reconciled (a nil/empty asset set
 	// clears existing assets), so the extractor returns a non-nil slice.
 	t.Run("gitops struct, no assets => non-nil empty (reconcile to empty)", func(t *testing.T) {
-		got := extractMacOSAssetSpecs(fleet.GitOpsMacOSSettings{CustomSettings: []fleet.MDMProfileSpec{{Path: "a"}}})
+		got := extractMacOSAssetSpecs(automdm.GitOpsMacOSSettings{CustomSettings: []automdm.MDMProfileSpec{{Path: "a"}}})
 		require.NotNil(t, got)
 		assert.Empty(t, got)
 	})
 	t.Run("gitops struct with assets", func(t *testing.T) {
-		got := extractMacOSAssetSpecs(fleet.GitOpsMacOSSettings{Assets: []fleet.MDMProfileSpec{{Path: "x"}}})
-		assert.Equal(t, []fleet.MDMProfileSpec{{Path: "x"}}, got)
+		got := extractMacOSAssetSpecs(automdm.GitOpsMacOSSettings{Assets: []automdm.MDMProfileSpec{{Path: "x"}}})
+		assert.Equal(t, []automdm.MDMProfileSpec{{Path: "x"}}, got)
 	})
 	t.Run("gitops struct pointer with assets", func(t *testing.T) {
-		got := extractMacOSAssetSpecs(&fleet.GitOpsMacOSSettings{Assets: []fleet.MDMProfileSpec{{Path: "x"}}})
-		assert.Equal(t, []fleet.MDMProfileSpec{{Path: "x"}}, got)
+		got := extractMacOSAssetSpecs(&automdm.GitOpsMacOSSettings{Assets: []automdm.MDMProfileSpec{{Path: "x"}}})
+		assert.Equal(t, []automdm.MDMProfileSpec{{Path: "x"}}, got)
 	})
-	// Legacy fleetctl apply passes a raw map; there the assets key drives
+	// Legacy automdmctl apply passes a raw map; there the assets key drives
 	// behavior: absent means "leave untouched" (nil), present means reconcile.
 	t.Run("legacy map, no assets key => nil (leave untouched)", func(t *testing.T) {
 		got := extractMacOSAssetSpecs(map[string]any{"configuration_profiles": []any{}})
@@ -208,7 +208,7 @@ func TestExtractMacOSAssetSpecs(t *testing.T) {
 	})
 	t.Run("legacy map with assets", func(t *testing.T) {
 		got := extractMacOSAssetSpecs(map[string]any{"assets": []any{map[string]any{"path": "x"}}})
-		assert.Equal(t, []fleet.MDMProfileSpec{{Path: "x"}}, got)
+		assert.Equal(t, []automdm.MDMProfileSpec{{Path: "x"}}, got)
 	})
 	t.Run("unrelated type => nil", func(t *testing.T) {
 		assert.Nil(t, extractMacOSAssetSpecs("nope"))
@@ -221,7 +221,7 @@ func TestExtractTmSpecsMDMAssets(t *testing.T) {
 		spec string
 		// want is the expected value keyed by team name; nil means the team must
 		// be absent from the result map (assets left untouched).
-		want map[string][]fleet.MDMProfileSpec
+		want map[string][]automdm.MDMProfileSpec
 	}{
 		{
 			"apple_settings absent => untouched",
@@ -231,17 +231,17 @@ func TestExtractTmSpecsMDMAssets(t *testing.T) {
 		{
 			"apple_settings present, no assets => reconcile to empty (clear)",
 			`{"name":"T1","mdm":{"apple_settings":{"configuration_profiles":[]}}}`,
-			map[string][]fleet.MDMProfileSpec{"T1": {}},
+			map[string][]automdm.MDMProfileSpec{"T1": {}},
 		},
 		{
 			"apple_settings present, empty assets => reconcile to empty (clear)",
 			`{"name":"T1","mdm":{"apple_settings":{"assets":[]}}}`,
-			map[string][]fleet.MDMProfileSpec{"T1": {}},
+			map[string][]automdm.MDMProfileSpec{"T1": {}},
 		},
 		{
 			"apple_settings present with assets",
 			`{"name":"T1","mdm":{"apple_settings":{"assets":[{"path":"x"}]}}}`,
-			map[string][]fleet.MDMProfileSpec{"T1": {{Path: "x"}}},
+			map[string][]automdm.MDMProfileSpec{"T1": {{Path: "x"}}},
 		},
 		{
 			"empty team name => skipped",
@@ -261,7 +261,7 @@ func TestExtractAppConfigWindowsCustomSettings(t *testing.T) {
 	cases := []struct {
 		desc string
 		yaml string
-		want []fleet.MDMProfileSpec
+		want []automdm.MDMProfileSpec
 	}{
 		{
 			"no settings",
@@ -279,7 +279,7 @@ apiVersion: v1
 kind: config
 spec:
   org_info:
-    org_name: "Fleet"
+    org_name: "AutoMDM"
   mdm:
     windows_settings:
 `,
@@ -292,12 +292,12 @@ apiVersion: v1
 kind: config
 spec:
   org_info:
-    org_name: "Fleet"
+    org_name: "AutoMDM"
   mdm:
     windows_settings:
       configuration_profiles:
 `,
-			[]fleet.MDMProfileSpec{},
+			[]automdm.MDMProfileSpec{},
 		},
 		{
 			"custom settings specified",
@@ -306,7 +306,7 @@ apiVersion: v1
 kind: config
 spec:
   org_info:
-    org_name: "Fleet"
+    org_name: "AutoMDM"
   mdm:
     windows_settings:
       configuration_profiles:
@@ -316,7 +316,7 @@ spec:
             - bar
         - path: "b"
 `,
-			[]fleet.MDMProfileSpec{{Path: "a", Labels: []string{"foo", "bar"}}, {Path: "b"}},
+			[]automdm.MDMProfileSpec{{Path: "a", Labels: []string{"foo", "bar"}}, {Path: "b"}},
 		},
 		{
 			"empty paths are skipped",
@@ -325,7 +325,7 @@ apiVersion: v1
 kind: config
 spec:
   org_info:
-    org_name: "Fleet"
+    org_name: "AutoMDM"
   mdm:
     windows_settings:
       configuration_profiles:
@@ -338,7 +338,7 @@ spec:
           labels:
             - baz
 `,
-			[]fleet.MDMProfileSpec{{Path: "a"}, {Path: "c", Labels: []string{"baz"}}},
+			[]automdm.MDMProfileSpec{{Path: "a"}, {Path: "c", Labels: []string{"baz"}}},
 		},
 		{
 			"old custom settings specified",
@@ -347,14 +347,14 @@ apiVersion: v1
 kind: config
 spec:
   org_info:
-    org_name: "Fleet"
+    org_name: "AutoMDM"
   mdm:
     windows_settings:
       configuration_profiles:
         - "a"
         - "b"
 `,
-			[]fleet.MDMProfileSpec{{Path: "a"}, {Path: "b"}},
+			[]automdm.MDMProfileSpec{{Path: "a"}, {Path: "b"}},
 		},
 		{
 			"old empty paths are skipped",
@@ -363,7 +363,7 @@ apiVersion: v1
 kind: config
 spec:
   org_info:
-    org_name: "Fleet"
+    org_name: "AutoMDM"
   mdm:
     windows_settings:
       configuration_profiles:
@@ -371,7 +371,7 @@ spec:
         - ""
         - "c"
 `,
-			[]fleet.MDMProfileSpec{{Path: "a"}, {Path: "c"}},
+			[]automdm.MDMProfileSpec{{Path: "a"}, {Path: "c"}},
 		},
 	}
 	for _, c := range cases {
@@ -379,7 +379,7 @@ spec:
 			specs, err := spec.GroupFromBytes([]byte(c.yaml))
 			require.NoError(t, err)
 			if specs.AppConfig != nil {
-				// Legacy fleetctl apply
+				// Legacy automdmctl apply
 				got, err := extractAppCfgWindowsCustomSettings(specs.AppConfig)
 				require.NoError(t, err)
 				assert.Equal(t, c.want, got)
@@ -387,7 +387,7 @@ spec:
 				// GitOps
 				mdm, ok := specs.AppConfig.(map[string]interface{})["mdm"].(map[string]interface{})
 				require.True(t, ok)
-				windowsSettings := fleet.GitOpsWindowsSettings{}
+				windowsSettings := automdm.GitOpsWindowsSettings{}
 				windowsSettings.CustomSettings = optjson.SetSlice(c.want)
 				mdm["windows_settings"] = windowsSettings
 				got, err = extractAppCfgWindowsCustomSettings(specs.AppConfig)
@@ -409,9 +409,9 @@ func TestExtractTeamSpecsMDMCustomSettings(t *testing.T) {
 			"no settings",
 			`
 apiVersion: v1
-kind: fleet
+kind: team
 spec:
-  fleet:
+  team:
 `,
 			nil,
 			"",
@@ -420,19 +420,19 @@ spec:
 			"no custom settings",
 			`
 apiVersion: v1
-kind: fleet
+kind: team
 spec:
-  fleet:
-    name: Fleet
+  team:
+    name: AutoMDM
     mdm:
       apple_settings:
       windows_settings:
 ---
 apiVersion: v1
-kind: fleet
+kind: team
 spec:
-  fleet:
-    name: Fleet2
+  team:
+    name: AutoMDM2
     mdm:
       apple_settings:
       windows_settings:
@@ -444,10 +444,10 @@ spec:
 			"empty custom settings",
 			`
 apiVersion: v1
-kind: fleet
+kind: team
 spec:
-  fleet:
-    name: "Fleet"
+  team:
+    name: "AutoMDM"
     mdm:
       apple_settings:
         configuration_profiles:
@@ -457,10 +457,10 @@ spec:
         configuration_profiles:
 ---
 apiVersion: v1
-kind: fleet
+kind: team
 spec:
-  fleet:
-    name: "Fleet2"
+  team:
+    name: "AutoMDM2"
     mdm:
       apple_settings:
         configuration_profiles:
@@ -469,17 +469,17 @@ spec:
       android_settings:
         configuration_profiles:
 `,
-			map[string]profileSpecsByPlatform{"Fleet": {windows: []fleet.MDMProfileSpec{}, macos: []fleet.MDMProfileSpec{}, android: []fleet.MDMProfileSpec{}}, "Fleet2": {windows: []fleet.MDMProfileSpec{}, macos: []fleet.MDMProfileSpec{}, android: []fleet.MDMProfileSpec{}}},
+			map[string]profileSpecsByPlatform{"AutoMDM": {windows: []automdm.MDMProfileSpec{}, macos: []automdm.MDMProfileSpec{}, android: []automdm.MDMProfileSpec{}}, "AutoMDM2": {windows: []automdm.MDMProfileSpec{}, macos: []automdm.MDMProfileSpec{}, android: []automdm.MDMProfileSpec{}}},
 			"",
 		},
 		{
 			"custom settings specified",
 			`
 apiVersion: v1
-kind: fleet
+kind: team
 spec:
-  fleet:
-    name: "Fleet"
+  team:
+    name: "AutoMDM"
     mdm:
       android_settings:
         configuration_profiles:
@@ -502,16 +502,16 @@ spec:
                - "foo"
                - baz
 `,
-			map[string]profileSpecsByPlatform{"Fleet": {
-				macos: []fleet.MDMProfileSpec{
+			map[string]profileSpecsByPlatform{"AutoMDM": {
+				macos: []automdm.MDMProfileSpec{
 					{Path: "a", Labels: []string{"foo", "bar"}},
 					{Path: "b"},
 				},
-				windows: []fleet.MDMProfileSpec{
+				windows: []automdm.MDMProfileSpec{
 					{Path: "c"},
 					{Path: "d", Labels: []string{"foo", "baz"}},
 				},
-				android: []fleet.MDMProfileSpec{
+				android: []automdm.MDMProfileSpec{
 					{Path: "e", Labels: []string{"foo"}},
 					{Path: "f"},
 				},
@@ -522,10 +522,10 @@ spec:
 			"old custom settings specified",
 			`
 apiVersion: v1
-kind: fleet
+kind: team
 spec:
-  fleet:
-    name: "Fleet"
+  team:
+    name: "AutoMDM"
     mdm:
       apple_settings:
         configuration_profiles:
@@ -536,9 +536,9 @@ spec:
           - "c"
           - "d"
 `,
-			map[string]profileSpecsByPlatform{"Fleet": {
-				macos: []fleet.MDMProfileSpec{{Path: "a"}, {Path: "b"}},
-				windows: []fleet.MDMProfileSpec{
+			map[string]profileSpecsByPlatform{"AutoMDM": {
+				macos: []automdm.MDMProfileSpec{{Path: "a"}, {Path: "b"}},
+				windows: []automdm.MDMProfileSpec{
 					{Path: "c"},
 					{Path: "d"},
 				},
@@ -549,10 +549,10 @@ spec:
 			"invalid custom settings",
 			`
 apiVersion: v1
-kind: fleet
+kind: team
 spec:
-  fleet:
-    name: "Fleet"
+  team:
+    name: "AutoMDM"
     mdm:
       android_settings:
         configuration_profiles:
@@ -580,16 +580,16 @@ spec:
           - path: "y"
 `,
 			nil,
-			`fleet "Fleet": apple_settings.configuration_profiles: invalid value type`,
+			`team "AutoMDM": apple_settings.configuration_profiles: invalid value type`,
 		},
 		{
 			"old invalid custom settings",
 			`
 apiVersion: v1
-kind: fleet
+kind: team
 spec:
-  fleet:
-    name: "Fleet"
+  team:
+    name: "AutoMDM"
     mdm:
       apple_settings:
         configuration_profiles:
@@ -605,7 +605,7 @@ spec:
           - "y"
 `,
 			nil,
-			`fleet "Fleet": apple_settings.configuration_profiles: invalid value type`,
+			`team "AutoMDM": apple_settings.configuration_profiles: invalid value type`,
 		},
 	}
 	for _, c := range cases {
@@ -690,7 +690,7 @@ func TestGetProfilesContents(t *testing.T) {
 		environment       map[string]string
 		expandEnv         bool
 		expectError       bool
-		want              []fleet.MDMProfileBatchPayload
+		want              []automdm.MDMProfileBatchPayload
 		wantErr           string
 	}{
 		{
@@ -700,7 +700,7 @@ func TestGetProfilesContents(t *testing.T) {
 				{"foo.mobileconfig", `<?xml version="1.0" encoding="UTF-8"?>`},
 			},
 			expectError: true,
-			want:        []fleet.MDMProfileBatchPayload{{Name: "foo"}},
+			want:        []automdm.MDMProfileBatchPayload{{Name: "foo"}},
 		},
 		{
 			name:    "windows, darwin and android files",
@@ -715,7 +715,7 @@ func TestGetProfilesContents(t *testing.T) {
 				{"android.json", string(androidProfile)},
 			},
 			expectError: false,
-			want: []fleet.MDMProfileBatchPayload{
+			want: []automdm.MDMProfileBatchPayload{
 				{Name: "foo", Contents: windowsProfile},
 				{Name: "bar", Contents: darwinProfile},
 				{Name: "android", Contents: androidProfile},
@@ -735,7 +735,7 @@ func TestGetProfilesContents(t *testing.T) {
 			},
 			labels:      []string{"foo", "bar"},
 			expectError: false,
-			want: []fleet.MDMProfileBatchPayload{
+			want: []automdm.MDMProfileBatchPayload{
 				{Name: "foo", Contents: windowsProfile, Labels: []string{"foo", "bar"}},
 				{Name: "bar", Contents: darwinProfile, Labels: []string{"foo", "bar"}},
 				{Name: "android", Contents: androidProfile, Labels: []string{"foo", "bar"}},
@@ -751,7 +751,7 @@ func TestGetProfilesContents(t *testing.T) {
 				{"foo.xml", string(windowsProfile)},
 			},
 			expectError: false,
-			want: []fleet.MDMProfileBatchPayload{
+			want: []automdm.MDMProfileBatchPayload{
 				{Name: "foo", Contents: windowsProfile},
 				{Name: "bar", Contents: darwinProfile},
 			},
@@ -800,7 +800,7 @@ func TestGetProfilesContents(t *testing.T) {
 			environment: map[string]string{"FOO": "42", "BAR": "24"},
 			expandEnv:   true,
 			expectError: false,
-			want: []fleet.MDMProfileBatchPayload{
+			want: []automdm.MDMProfileBatchPayload{
 				{
 					Name: "bar",
 					Contents: []byte(`<?xml version="1.0" encoding="UTF-8"?>
@@ -884,7 +884,7 @@ func TestGetProfilesContents(t *testing.T) {
 			wantErr:     "Couldn't edit apple_settings.configuration_profiles (bar.cfg): macOS configuration profiles must be .mobileconfig or .json files",
 		},
 		{
-			name:    "with FLEET_SECRET in data tag",
+			name:    "with AUTOMDM_SECRET in data tag",
 			baseDir: tempDir,
 			macSetupFiles: [][2]string{
 				{"cert.mobileconfig", `<?xml version="1.0" encoding="UTF-8"?>
@@ -905,7 +905,7 @@ func TestGetProfilesContents(t *testing.T) {
 			<key>PayloadDisplayName</key>
 			<string>Test Certificate</string>
 			<key>PayloadContent</key>
-			<data>$FLEET_SECRET_CERT_DATA</data>
+			<data>$AUTOMDM_SECRET_CERT_DATA</data>
 		</dict>
 	</array>
 	<key>PayloadType</key>
@@ -922,11 +922,11 @@ func TestGetProfilesContents(t *testing.T) {
 </plist>`},
 			},
 			environment: map[string]string{
-				"FLEET_SECRET_CERT_DATA": "VGVzdENlcnREYXRhQmFzZTY0", // "TestCertDataBase64" in base64
+				"AUTOMDM_SECRET_CERT_DATA": "VGVzdENlcnREYXRhQmFzZTY0", // "TestCertDataBase64" in base64
 			},
 			expandEnv:   true,
 			expectError: false,
-			want: []fleet.MDMProfileBatchPayload{
+			want: []automdm.MDMProfileBatchPayload{
 				{
 					Name: "Certificate Profile",
 					Contents: []byte(`<?xml version="1.0" encoding="UTF-8"?>
@@ -947,7 +947,7 @@ func TestGetProfilesContents(t *testing.T) {
 			<key>PayloadDisplayName</key>
 			<string>Test Certificate</string>
 			<key>PayloadContent</key>
-			<data>$FLEET_SECRET_CERT_DATA</data>
+			<data>$AUTOMDM_SECRET_CERT_DATA</data>
 		</dict>
 	</array>
 	<key>PayloadType</key>
@@ -966,7 +966,7 @@ func TestGetProfilesContents(t *testing.T) {
 			},
 		},
 		{
-			name:    "with FLEET_SECRET in PayloadDisplayName - should reject",
+			name:    "with AUTOMDM_SECRET in PayloadDisplayName - should reject",
 			baseDir: tempDir,
 			macSetupFiles: [][2]string{
 				{"secret_name.mobileconfig", `<?xml version="1.0" encoding="UTF-8"?>
@@ -982,22 +982,22 @@ func TestGetProfilesContents(t *testing.T) {
 	<key>PayloadUUID</key>
 	<string>aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee</string>
 	<key>PayloadDisplayName</key>
-	<string>Profile $FLEET_SECRET_NAME</string>
+	<string>Profile $AUTOMDM_SECRET_NAME</string>
 </dict>
 </plist>`},
 			},
 			environment: map[string]string{
-				"FLEET_SECRET_NAME": "SecretProfileName",
+				"AUTOMDM_SECRET_NAME": "SecretProfileName",
 			},
 			expandEnv:   true,
 			expectError: true,
-			wantErr:     "PayloadDisplayName cannot contain FLEET_SECRET variables",
+			wantErr:     "PayloadDisplayName cannot contain AUTOMDM_SECRET variables",
 		},
 		{
-			name:    "with FLEET_VAR in profile - should not expand",
+			name:    "with AUTOMDM_VAR in profile - should not expand",
 			baseDir: tempDir,
 			macSetupFiles: [][2]string{
-				{"fleet_var.mobileconfig", `<?xml version="1.0" encoding="UTF-8"?>
+				{"automdm_var.mobileconfig", `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
@@ -1010,17 +1010,17 @@ func TestGetProfilesContents(t *testing.T) {
 	<key>PayloadUUID</key>
 	<string>aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee</string>
 	<key>PayloadDisplayName</key>
-	<string>Profile with FLEET_VAR</string>
+	<string>Profile with AUTOMDM_VAR</string>
 	<key>SomeValue</key>
-	<string>$FLEET_VAR_HOST_END_USER_IDP_USERNAME</string>
+	<string>$AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME</string>
 </dict>
 </plist>`},
 			},
 			expandEnv:   true,
 			expectError: false,
-			want: []fleet.MDMProfileBatchPayload{
+			want: []automdm.MDMProfileBatchPayload{
 				{
-					Name: "Profile with FLEET_VAR",
+					Name: "Profile with AUTOMDM_VAR",
 					Contents: []byte(`<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -1034,9 +1034,9 @@ func TestGetProfilesContents(t *testing.T) {
 	<key>PayloadUUID</key>
 	<string>aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee</string>
 	<key>PayloadDisplayName</key>
-	<string>Profile with FLEET_VAR</string>
+	<string>Profile with AUTOMDM_VAR</string>
 	<key>SomeValue</key>
-	<string>$FLEET_VAR_HOST_END_USER_IDP_USERNAME</string>
+	<string>$AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME</string>
 </dict>
 </plist>`),
 				},
@@ -1052,7 +1052,7 @@ func TestGetProfilesContents(t *testing.T) {
 				"FOO": "testValue",
 			},
 			expandEnv: true,
-			want: []fleet.MDMProfileBatchPayload{
+			want: []automdm.MDMProfileBatchPayload{
 				{
 					Name:     "env_secrets",
 					Contents: []byte(`{"name": "env secrets", "testKey": "testValue"}`),
@@ -1075,25 +1075,25 @@ func TestGetProfilesContents(t *testing.T) {
 					})
 				}
 			}
-			macPaths := []fleet.MDMProfileSpec{}
+			macPaths := []automdm.MDMProfileSpec{}
 			for _, fileSpec := range tt.macSetupFiles {
 				filePath := filepath.Join(tempDir, fileSpec[0])
 				require.NoError(t, os.WriteFile(filePath, []byte(fileSpec[1]), 0o644))
-				macPaths = append(macPaths, fleet.MDMProfileSpec{Path: filePath, Labels: tt.labels})
+				macPaths = append(macPaths, automdm.MDMProfileSpec{Path: filePath, Labels: tt.labels})
 			}
 
-			winPaths := []fleet.MDMProfileSpec{}
+			winPaths := []automdm.MDMProfileSpec{}
 			for _, fileSpec := range tt.winSetupFiles {
 				filePath := filepath.Join(tempDir, fileSpec[0])
 				require.NoError(t, os.WriteFile(filePath, []byte(fileSpec[1]), 0o644))
-				winPaths = append(winPaths, fleet.MDMProfileSpec{Path: filePath, Labels: tt.labels})
+				winPaths = append(winPaths, automdm.MDMProfileSpec{Path: filePath, Labels: tt.labels})
 			}
 
-			androidPaths := []fleet.MDMProfileSpec{}
+			androidPaths := []automdm.MDMProfileSpec{}
 			for _, fileSpec := range tt.androidSetupFiles {
 				filePath := filepath.Join(tempDir, fileSpec[0])
 				require.NoError(t, os.WriteFile(filePath, []byte(fileSpec[1]), 0o644))
-				androidPaths = append(androidPaths, fleet.MDMProfileSpec{Path: filePath, Labels: tt.labels})
+				androidPaths = append(androidPaths, automdm.MDMProfileSpec{Path: filePath, Labels: tt.labels})
 			}
 
 			profileContents, err := getProfilesContents(tt.baseDir, macPaths, winPaths, androidPaths, tt.expandEnv)
@@ -1129,7 +1129,7 @@ func TestGetProfilesContentsActivation(t *testing.T) {
 
 	t.Run("declaration carries the activation contents", func(t *testing.T) {
 		got, err := getProfilesContents(tempDir,
-			[]fleet.MDMProfileSpec{{Path: declPath, Activation: activationPath}}, nil, nil, false)
+			[]automdm.MDMProfileSpec{{Path: declPath, Activation: activationPath}}, nil, nil, false)
 		require.NoError(t, err)
 		require.Len(t, got, 1)
 		require.Equal(t, activation, got[0].Activation)
@@ -1137,7 +1137,7 @@ func TestGetProfilesContentsActivation(t *testing.T) {
 
 	t.Run("no activation leaves the payload field empty", func(t *testing.T) {
 		got, err := getProfilesContents(tempDir,
-			[]fleet.MDMProfileSpec{{Path: declPath}}, nil, nil, false)
+			[]automdm.MDMProfileSpec{{Path: declPath}}, nil, nil, false)
 		require.NoError(t, err)
 		require.Len(t, got, 1)
 		require.Empty(t, got[0].Activation)
@@ -1145,14 +1145,14 @@ func TestGetProfilesContentsActivation(t *testing.T) {
 
 	t.Run("mobileconfig with an activation is rejected", func(t *testing.T) {
 		_, err := getProfilesContents(tempDir,
-			[]fleet.MDMProfileSpec{{Path: mobileconfigPath, Activation: activationPath}}, nil, nil, false)
+			[]automdm.MDMProfileSpec{{Path: mobileconfigPath, Activation: activationPath}}, nil, nil, false)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "activation is only supported for declaration (DDM) profiles")
 	})
 
 	t.Run("unreadable activation file reports the path", func(t *testing.T) {
 		_, err := getProfilesContents(tempDir,
-			[]fleet.MDMProfileSpec{{Path: declPath, Activation: filepath.Join(tempDir, "missing.json")}}, nil, nil, false)
+			[]automdm.MDMProfileSpec{{Path: declPath, Activation: filepath.Join(tempDir, "missing.json")}}, nil, nil, false)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "reading activation")
 	})
@@ -1193,11 +1193,11 @@ func TestGitOpsErrors(t *testing.T) {
 			config.OrgSettings = make(map[string]interface{})
 			// Signal that we don't want to send any labels.
 			// This avoids this test attempting to make a request to the GetLabels endpoint.
-			config.Labels = make([]*fleet.LabelSpec, 0)
+			config.Labels = make([]*automdm.LabelSpec, 0)
 			err = json.Unmarshal([]byte(tt.rawJSON), &config.OrgSettings)
 			require.NoError(t, err)
-			config.OrgSettings["secrets"] = []*fleet.EnrollSecret{}
-			settings := fleet.IconGitOpsSettings{ConcurrentUpdates: 1, ConcurrentUploads: 1}
+			config.OrgSettings["secrets"] = []*automdm.EnrollSecret{}
+			settings := automdm.IconGitOpsSettings{ConcurrentUpdates: 1, ConcurrentUploads: 1}
 			_, err = client.DoGitOps(ctx, config, "/filename", nil, false, nil, nil, nil, nil, nil, &settings)
 			assert.ErrorContains(t, err, tt.wantErr)
 		})
@@ -1330,7 +1330,7 @@ func TestResolvePolicySoftwareTitleID(t *testing.T) {
 				InstallSoftware: optjson.BoolOr[*spec.PolicyInstallSoftware]{
 					IsOther: true,
 					Other: &spec.PolicyInstallSoftware{
-						FleetMaintainedAppSlug: "some-fma-slug",
+						AutoMDMMaintainedAppSlug: "some-fma-slug",
 					},
 				},
 			},
@@ -1436,10 +1436,10 @@ func TestEnsureHistoricalDataDefaults(t *testing.T) {
 }
 
 func TestApplySoftwareInstallersProgress(t *testing.T) {
-	pkg := func(name string, status fleet.SoftwarePackageDownloadStatus) fleet.SoftwarePackageDownloadProgress {
-		return fleet.SoftwarePackageDownloadProgress{Name: name, Status: status}
+	pkg := func(name string, status automdm.SoftwarePackageDownloadStatus) automdm.SoftwarePackageDownloadProgress {
+		return automdm.SoftwarePackageDownloadProgress{Name: name, Status: status}
 	}
-	poll := func(status string, progress ...fleet.SoftwarePackageDownloadProgress) batchSetSoftwareInstallersResultResponse {
+	poll := func(status string, progress ...automdm.SoftwarePackageDownloadProgress) batchSetSoftwareInstallersResultResponse {
 		return batchSetSoftwareInstallersResultResponse{Status: status, DownloadProgress: progress}
 	}
 	// Fakes the batch endpoints, handing out one scripted response per poll.
@@ -1464,8 +1464,8 @@ func TestApplySoftwareInstallersProgress(t *testing.T) {
 		return client
 	}
 
-	processing, completed := fleet.BatchSetSoftwareInstallersStatusProcessing, fleet.BatchSetSoftwareInstallersStatusCompleted
-	downloading, downloaded := fleet.SoftwarePackageDownloadStarted, fleet.SoftwarePackageDownloadFinished
+	processing, completed := automdm.BatchSetSoftwareInstallersStatusProcessing, automdm.BatchSetSoftwareInstallersStatusCompleted
+	downloading, downloaded := automdm.SoftwarePackageDownloadStarted, automdm.SoftwarePackageDownloadFinished
 
 	testCases := []struct {
 		name      string
@@ -1489,9 +1489,9 @@ func TestApplySoftwareInstallersProgress(t *testing.T) {
 			},
 		},
 		{
-			// Fleet already has the bytes, so there is no download to report.
+			// AutoMDM already has the bytes, so there is no download to report.
 			name:  "a package already in storage reports the skip and no download",
-			polls: []batchSetSoftwareInstallersResultResponse{poll(completed, pkg("zoom.pkg", fleet.SoftwarePackageDownloadSkipped))},
+			polls: []batchSetSoftwareInstallersResultResponse{poll(completed, pkg("zoom.pkg", automdm.SoftwarePackageDownloadSkipped))},
 			wantLines: []string{
 				"[+] skipped downloading the software package (already in storage) - zoom.pkg",
 			},
@@ -1512,7 +1512,7 @@ func TestApplySoftwareInstallersProgress(t *testing.T) {
 		},
 		{
 			name:  "packages the batch never downloads stay silent",
-			polls: []batchSetSoftwareInstallersResultResponse{poll(completed, fleet.SoftwarePackageDownloadProgress{}, pkg("zoom.pkg", downloaded), fleet.SoftwarePackageDownloadProgress{})},
+			polls: []batchSetSoftwareInstallersResultResponse{poll(completed, automdm.SoftwarePackageDownloadProgress{}, pkg("zoom.pkg", downloaded), automdm.SoftwarePackageDownloadProgress{})},
 			wantLines: []string{
 				"[+] downloading software package - zoom.pkg ...",
 				"[+] downloaded software package - zoom.pkg",
@@ -1548,7 +1548,7 @@ func TestGetProfilesContentsDeployFlags(t *testing.T) {
 	androidPath := write("android.json", []byte(`{"cameraDisabled": true}`))
 
 	t.Run("mobileconfig carries self_service", func(t *testing.T) {
-		got, err := getProfilesContents(tempDir, []fleet.MDMProfileSpec{{Path: mobileconfigPath, SelfService: true}}, nil, nil, false)
+		got, err := getProfilesContents(tempDir, []automdm.MDMProfileSpec{{Path: mobileconfigPath, SelfService: true}}, nil, nil, false)
 		require.NoError(t, err)
 		require.Len(t, got, 1)
 		require.True(t, got[0].SelfService)
@@ -1557,9 +1557,9 @@ func TestGetProfilesContentsDeployFlags(t *testing.T) {
 
 	t.Run("hidden is carried for every platform", func(t *testing.T) {
 		got, err := getProfilesContents(tempDir,
-			[]fleet.MDMProfileSpec{{Path: mobileconfigPath, Hidden: true}, {Path: declPath, Hidden: true}},
-			[]fleet.MDMProfileSpec{{Path: winPath, Hidden: true}},
-			[]fleet.MDMProfileSpec{{Path: androidPath, Hidden: true}}, false)
+			[]automdm.MDMProfileSpec{{Path: mobileconfigPath, Hidden: true}, {Path: declPath, Hidden: true}},
+			[]automdm.MDMProfileSpec{{Path: winPath, Hidden: true}},
+			[]automdm.MDMProfileSpec{{Path: androidPath, Hidden: true}}, false)
 		require.NoError(t, err)
 		require.Len(t, got, 4)
 		for _, p := range got {
@@ -1568,7 +1568,7 @@ func TestGetProfilesContentsDeployFlags(t *testing.T) {
 		}
 	})
 
-	for name, specs := range map[string][3][]fleet.MDMProfileSpec{
+	for name, specs := range map[string][3][]automdm.MDMProfileSpec{
 		"decl.json":    {{{Path: declPath, SelfService: true}}, nil, nil},
 		"win.xml":      {nil, {{Path: winPath, SelfService: true}}, nil},
 		"android.json": {nil, nil, {{Path: androidPath, SelfService: true}}},
@@ -1581,7 +1581,7 @@ func TestGetProfilesContentsDeployFlags(t *testing.T) {
 	}
 
 	t.Run("hidden with self_service is rejected", func(t *testing.T) {
-		_, err := getProfilesContents(tempDir, []fleet.MDMProfileSpec{{Path: mobileconfigPath, SelfService: true, Hidden: true}}, nil, nil, false)
+		_, err := getProfilesContents(tempDir, []automdm.MDMProfileSpec{{Path: mobileconfigPath, SelfService: true, Hidden: true}}, nil, nil, false)
 		require.ErrorContains(t, err, "hidden requires self_service to be false")
 	})
 }
@@ -1596,13 +1596,13 @@ func TestGetProfilesContentsNameAndDescription(t *testing.T) {
 	require.NoError(t, os.WriteFile(androidPath, []byte(`{"name": "android"}`), 0o644))
 
 	got, err := getProfilesContents(tempDir,
-		[]fleet.MDMProfileSpec{{Path: macPath, Name: "Custom Apple", Description: "apple desc"}},
-		[]fleet.MDMProfileSpec{{Path: winPath, Description: "windows desc"}},
-		[]fleet.MDMProfileSpec{{Path: androidPath, Name: "Custom Android"}},
+		[]automdm.MDMProfileSpec{{Path: macPath, Name: "Custom Apple", Description: "apple desc"}},
+		[]automdm.MDMProfileSpec{{Path: winPath, Description: "windows desc"}},
+		[]automdm.MDMProfileSpec{{Path: androidPath, Name: "Custom Android"}},
 		false)
 	require.NoError(t, err)
 
-	byName := make(map[string]fleet.MDMProfileBatchPayload, len(got))
+	byName := make(map[string]automdm.MDMProfileBatchPayload, len(got))
 	for _, p := range got {
 		byName[p.Name] = p
 	}
@@ -1616,24 +1616,24 @@ func TestGetProfilesContentsNameAndDescription(t *testing.T) {
 
 	// a YAML name colliding with another profile's name is still a duplicate
 	_, err = getProfilesContents(tempDir,
-		[]fleet.MDMProfileSpec{{Path: macPath, Name: "firewall"}},
-		[]fleet.MDMProfileSpec{{Path: winPath}},
+		[]automdm.MDMProfileSpec{{Path: macPath, Name: "firewall"}},
+		[]automdm.MDMProfileSpec{{Path: winPath}},
 		nil, false)
 	require.ErrorContains(t, err, "firewall")
 
 	// a name of only spaces is refused, as the batch endpoint does, rather
 	// than silently falling back to the derived name
 	_, err = getProfilesContents(tempDir, nil,
-		[]fleet.MDMProfileSpec{{Path: winPath, Name: "   "}}, nil, false)
+		[]automdm.MDMProfileSpec{{Path: winPath, Name: "   "}}, nil, false)
 	require.ErrorContains(t, err, "Profile name can't be empty.")
 }
 
 func TestCheckMDMRequirements(t *testing.T) {
-	appConfig := func(premium, appleMDM, windowsMDM bool) *fleet.EnrichedAppConfig {
-		ac := &fleet.EnrichedAppConfig{}
-		ac.License = &fleet.LicenseInfo{Tier: fleet.TierFree}
+	appConfig := func(premium, appleMDM, windowsMDM bool) *automdm.EnrichedAppConfig {
+		ac := &automdm.EnrichedAppConfig{}
+		ac.License = &automdm.LicenseInfo{Tier: automdm.TierFree}
 		if premium {
-			ac.License.Tier = fleet.TierPremium
+			ac.License.Tier = automdm.TierPremium
 		}
 		ac.MDM.EnabledAndConfigured = appleMDM
 		ac.MDM.WindowsEnabledAndConfigured = windowsMDM
@@ -1648,7 +1648,7 @@ func TestCheckMDMRequirements(t *testing.T) {
 	cases := []struct {
 		name    string
 		yml     string
-		config  *fleet.EnrichedAppConfig
+		config  *automdm.EnrichedAppConfig
 		wantErr string
 	}{
 		{
@@ -1658,7 +1658,7 @@ apiVersion: v1
 kind: config
 spec:
   org_info:
-    org_name: Fleet
+    org_name: AutoMDM
 `,
 		},
 		{
@@ -1701,34 +1701,34 @@ spec:
 			config: appConfig(true, true, false),
 		},
 		{
-			name: "fleet setup assistant needs premium",
+			name: "team setup assistant needs premium",
 			yml: `
 apiVersion: v1
-kind: fleet
+kind: team
 spec:
-  fleet:
+  team:
     name: Workstations
     mdm:
       setup_experience:
         apple_setup_assistant: assistant.json
 `,
 			config:  appConfig(false, true, true),
-			wantErr: `fleet "Workstations": setup_experience.apple_setup_assistant`,
+			wantErr: `team "Workstations": setup_experience.apple_setup_assistant`,
 		},
 		{
-			name: "fleet bootstrap package needs apple mdm",
+			name: "team bootstrap package needs apple mdm",
 			yml: `
 apiVersion: v1
-kind: fleet
+kind: team
 spec:
-  fleet:
+  team:
     name: Workstations
     mdm:
       setup_experience:
         macos_bootstrap_package: https://example.com/bootstrap.pkg
 `,
 			config:  appConfig(true, false, true),
-			wantErr: `fleet "Workstations": setup_experience.macos_bootstrap_package: macOS MDM isn't turned on`,
+			wantErr: `team "Workstations": setup_experience.macos_bootstrap_package: macOS MDM isn't turned on`,
 		},
 		{
 			name: "allowed",
@@ -1749,7 +1749,7 @@ spec:
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			var fetched bool
-			err := checkMDMRequirements(parse(t, c.yml), func() (*fleet.EnrichedAppConfig, error) {
+			err := checkMDMRequirements(parse(t, c.yml), func() (*automdm.EnrichedAppConfig, error) {
 				fetched = true
 				return c.config, nil
 			})

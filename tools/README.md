@@ -1,6 +1,6 @@
-# Fleet Tools Directory
+# AutoMDM Tools Directory
 
-This directory contains development, testing, and operational tools for Fleet. The tools span a wide range of purposes including API testing, load testing, MDM functionality, database management, release automation, and more. Each tool is designed to help with specific aspects of Fleet development, testing, or operations.
+This directory contains development, testing, and operational tools for AutoMDM. The tools span a wide range of purposes including API testing, load testing, MDM functionality, database management, release automation, and more. Each tool is designed to help with specific aspects of AutoMDM development, testing, or operations.
 
 **If you add a new tool to this directory, please update this README with the tool's purpose and usage.**
 
@@ -17,8 +17,8 @@ Tools are organized into functional categories:
 
 ## Common Requirements
 
-- Many tools require Fleet server running locally (default: `https://localhost:8080`)
-- Database tools assume MySQL running (default: `localhost:3306`, user: `fleet`, password: `insecure`)
+- Many tools require AutoMDM server running locally (default: `https://localhost:8080`)
+- Database tools assume MySQL running (default: `localhost:3306`, user: `automdm`, password: `insecure`)
 - Docker is required for many packaging and testing tools
 - See individual tool READMEs for detailed documentation and requirements
 - Tools in subdirectories (like `mdm/`, `tuf/`, `loadtest/`) often have their own READMEs
@@ -72,7 +72,7 @@ go run ./tools/webhook 8082
 ./tools/oncall/oncall.sh issues
 
 # Test rate limiting
-go run ./tools/desktop-rate-limit -fleet_url https://localhost:8080
+go run ./tools/desktop-rate-limit -automdm_url https://localhost:8080
 ```
 
 ### MDM Testing
@@ -101,7 +101,7 @@ go run ./tools/mdm/migration/jamf -username admin -password secret -url https://
 
 ### Android Management
 ```bash
-# Android management API operations (requires FLEET_DEV_ANDROID_GOOGLE_SERVICE_CREDENTIALS env var)
+# Android management API operations (requires AUTOMDM_DEV_ANDROID_GOOGLE_SERVICE_CREDENTIALS env var)
 go run ./tools/android -command list-devices -enterprise_id <id>
 go run ./tools/android -command get-device -enterprise_id <id> -device_id <id>
 ```
@@ -124,12 +124,12 @@ go run tools/tuf/status/tuf-status.go channel-version -channel stable
 ### API Testing
 ```bash
 # Set up environment
-export FLEET_ENV_PATH=./tools/api/env
+export AUTOMDM_ENV_PATH=./tools/api/env
 
 # Test API endpoints
-./tools/api/fleet/me
-./tools/api/fleet/reports/list
-./tools/api/fleet/reports/create 'my_report' 'SELECT * FROM processes;'
+./tools/api/automdm/me
+./tools/api/automdm/reports/list
+./tools/api/automdm/reports/create 'my_report' 'SELECT * FROM processes;'
 ```
 
 ### Integration Testing
@@ -138,7 +138,7 @@ export FLEET_ENV_PATH=./tools/api/env
 go run ./tools/jira-integration \
   -jira-url https://example.atlassian.net \
   -jira-username admin@example.com \
-  -jira-project-key FLEET \
+  -jira-project-key AUTOMDM \
   -cve CVE-2024-1234 \
   -hosts-count 5
 
@@ -173,8 +173,8 @@ go run ./tools/bump-migration -source-migration 20240101120000_MyMigration.go -r
 
 ### GitOps Migration
 ```bash
-# Migrate software YAML files to Fleet 4.74.0+ format
-./tools/gitops-migrate/migrate.sh it-and-security/fleets/
+# Migrate software YAML files to AutoMDM 4.74.0+ format
+./tools/gitops-migrate/migrate.sh it-and-security/teams/
 ```
 
 ### Software & Vulnerability Testing
@@ -216,7 +216,7 @@ go run ./tools/run-scripts -scripts-disabled -content 'echo "Test"'
 | Tool | Purpose | Usage |
 |------|---------|-------|
 | **API & Integration** | | |
-| `api/` | Fleet API testing scripts using curl + jq | `export FLEET_ENV_PATH=./env && ./tools/api/fleet/me` |
+| `api/` | AutoMDM API testing scripts using curl + jq | `export AUTOMDM_ENV_PATH=./env && ./tools/api/automdm/me` |
 | `jira-integration/` | Test Jira ticket creation | `JIRA_PASSWORD=<pwd> go run ./tools/jira-integration -jira-url <url> -jira-username <user> -jira-project-key <key> -cve CVE-2024-1234` |
 | `webhook/` | Test webhook integrations | `go run ./tools/webhook 8082` |
 | `zendesk-integration/` | Test Zendesk ticket creation | `ZENDESK_TOKEN=<token> go run ./tools/zendesk-integration -zendesk-url <url> -zendesk-email <email> -zendesk-group-id <id> -cve CVE-2024-1234` |
@@ -231,18 +231,18 @@ go run ./tools/run-scripts -scripts-disabled -content 'echo "Test"'
 | `snapshot/` | Database snapshot/restore tool | `go run ./tools/snapshot s` or `go run ./tools/snapshot r` |
 | **Development Tools** | | |
 | `ci/` | CI helper tools (golangci-lint rules) | `rules.go` - ruleguard custom linting rules |
-| `desktop/` | Fleet Desktop development tool | `go run ./tools/desktop` - builds Desktop app |
+| `desktop/` | AutoMDM Desktop development tool | `go run ./tools/desktop` - builds Desktop app |
 | `dialog/` | Test zenity/kdialog dialogs on Linux | `go run ./tools/dialog -dialog zenity` |
 | `file-server/` | Serve local directory via HTTP | `go run ./tools/file-server 8081 /path/to/dir` |
-| `hangar/` | Desktop control panel for the Fleet dev environment (Go + Wails, macOS) — run `fleet serve`, manage branches / DB / fleetctl / GitOps / osquery-perf from one window | `cd tools/hangar && task dev` - See [hangar/README.md](hangar/README.md) |
+| `hangar/` | Desktop control panel for the AutoMDM dev environment (Go + Wails, macOS) — run `automdm serve`, manage branches / DB / automdmctl / GitOps / osquery-perf from one window | `cd tools/hangar && task dev` - See [hangar/README.md](hangar/README.md) |
 | `oncall/` | Find community issues/PRs | `./tools/oncall/oncall.sh issues` or `./tools/oncall/oncall.sh prs` |
 | **Infrastructure** | | |
 | `calendar/` | Calendar integration tools | See [calendar/README.md](calendar/README.md) |
-| `fdm/` | FleetDM developer tools | `fdm <command>` - Wrapper for Fleet make targets |
-| `fleet-docker/` | Fleet Docker configs | Docker configuration for Fleet |
+| `fdm/` | AutoMDM developer tools | `fdm <command>` - Wrapper for AutoMDM make targets |
+| `automdm-docker/` | AutoMDM Docker configs | Docker configuration for AutoMDM |
 | `github-manage/` | GitHub management automation | `./gm issues --search "is:open"` or `./gm project 58` - See [README](github-manage/README.md) |
 | `github-releases/` | GitHub release tools | `go run ./tools/github-releases --last-minor-releases <n>` or `--all-cpes` |
-| `gitops-migrate/` | GitOps YAML migration | `./tools/gitops-migrate/migrate.sh <fleets_dir>` - See [README](gitops-migrate/README.md) |
+| `gitops-migrate/` | GitOps YAML migration | `./tools/gitops-migrate/migrate.sh <teams_dir>` - See [README](gitops-migrate/README.md) |
 | `mailpit/` | Local email testing | Mailpit SMTP server for local dev (uses `auth.txt` config) |
 | `open/` | Test "open" package | `go run ./tools/open -url <url>` - Opens URL in default browser |
 | `percona/` | Percona testing | Percona MySQL testing configs - See [percona/test/README.md](percona/test/README.md) |
@@ -250,7 +250,7 @@ go run ./tools/run-scripts -scripts-disabled -content 'echo "Test"'
 | `smtp4dev/` | Local SMTP testing | SMTP4Dev server with TLS certs for email testing |
 | `signoz/` | SigNoz for traces, metrics, and logs | See [signoz/README.md](signoz/README.md) |
 | `telemetry/` | Jaeger + Prometheus for tracing | `docker compose up` - See [telemetry/README.md](telemetry/README.md) |
-| `terraform/` | Terraform provider for fleet | `make install && make apply` - See [terraform/README.md](terraform/README.md) |
+| `terraform/` | Terraform provider for team | `make install && make apply` - See [terraform/README.md](terraform/README.md) |
 | **MDM Tools** | | |
 | `android/` | Android management API tool | `go run ./tools/android -command <cmd> -enterprise_id <id> -device_id <id>` |
 | `mdm/apple/applebmapi/` | Query Apple Business API | `go run ./tools/mdm/apple/applebmapi -mysql localhost:3306 -server-private-key <key> -org-name <org>` |
@@ -262,7 +262,7 @@ go run ./tools/run-scripts -scripts-disabled -content 'echo "Test"'
 | `mdm/decrypt-disk-encryption-key/` | Decrypt FileVault/BitLocker keys | `go run ./tools/mdm/decrypt-disk-encryption-key -cert file.crt -key file.key -value-to-decrypt <base64>` |
 | `mdm/make_cfg_profiles.sh` | Generate configuration profiles | `./tools/mdm/make_cfg_profiles.sh` |
 | `mdm/migration/echo/` | Echo MDM migration tools | `go run ./tools/mdm/migration/echo` |
-| `mdm/migration/jamf/` | Jamf to Fleet migration webhook | `go run ./tools/mdm/migration/jamf -username <user> -password <pwd> -url <jamf_url>` |
+| `mdm/migration/jamf/` | Jamf to AutoMDM migration webhook | `go run ./tools/mdm/migration/jamf -username <user> -password <pwd> -url <jamf_url>` |
 | `mdm/migration/kandji/` | Kandji migration tools | `go run ./tools/mdm/migration/kandji` |
 | `mdm/migration/mdmproxy/` | MDM proxy for migration testing | `./tools/mdm/migration/mdmproxy/entrypoint.sh` |
 | `mdm/migration/micromdm/` | MicroMDM migration tools | See [mdm/migration/micromdm/README.md](mdm/migration/micromdm/README.md) |
@@ -273,22 +273,22 @@ go run ./tools/run-scripts -scripts-disabled -content 'echo "Test"'
 | **Other Utilities** | | |
 | `bump-migration/` | Bump migration timestamp | `go run ./tools/bump-migration -source-migration <file> [-regen-schema]` |
 | `cis/` | CIS benchmark tools | `python tools/cis/CIS-Benchmark-diff.py` |
-| `cloner-check/` | Verify fleet.Cloner implementations | `go run ./tools/cloner-check --check` or `--update` |
+| `cloner-check/` | Verify automdm.Cloner implementations | `go run ./tools/cloner-check --check` or `--update` |
 | `luks/luks/` | LUKS key escrow tool (Linux only) | `go run ./tools/luks/luks` - Adds escrow key to LUKS partition |
 | `luks/lvm/` | Find root disk for LVM (Linux only) | `go run ./tools/luks/lvm` - Detects root partition path |
 | `makefile-support/` | Makefile helper utilities | `./tools/makefile-support/makehelp.sh` - Generate help text |
 | `osquery-agent-options/` | Generate osquery agent options struct | `go run ./tools/osquery-agent-options <output-file>` - macOS only |
 | `run-scripts/` | Test Orbit script execution | `go run ./tools/run-scripts -exec-id <id> -content 'echo "Hello"'` |
 | **Packaging & Installers** | | |
-| `team-builder/` | Bulk fleet (formerly "team") creation + installer generation (deprecated for plain seeding — see [dibble](dibble/README.md)) | `./build_teams.sh -s teams.txt -u fleet.example.com` |
+| `team-builder/` | Bulk team (formerly "team") creation + installer generation (deprecated for plain seeding — see [dibble](dibble/README.md)) | `./build_teams.sh -s teams.txt -u automdm.example.com` |
 | `wix-docker/` | Docker image for WiX (Windows MSI) | Docker build for WiX toolset |
 | **Release & Distribution** | | |
-| `fleetctl-docker/` | Docker image for fleetctl packaging | `docker run fleetdm/fleetctl package --type=pkg` |
-| `fleetctl-npm/` | NPM package for fleetctl | See [fleetctl-npm/README.md](fleetctl-npm/README.md) |
-| `fleetd-linux/` | Linux fleetd packaging | Packaging scripts for Linux fleetd |
-| `release/` | Fleet release automation | `./tools/release/publish_release.sh -m` - See [release/README.md](release/README.md) |
-| `sign-fleetctl/` | Code signing for fleetctl | Signing utilities for fleetctl binaries |
-| `tuf/` | TUF repository management for fleetd updates | `./tools/tuf/releaser.sh` - See [tuf/README.md](tuf/README.md) |
+| `automdmctl-docker/` | Docker image for automdmctl packaging | `docker run automdm/automdmctl package --type=pkg` |
+| `automdmctl-npm/` | NPM package for automdmctl | See [automdmctl-npm/README.md](automdmctl-npm/README.md) |
+| `automdmd-linux/` | Linux automdmd packaging | Packaging scripts for Linux automdmd |
+| `release/` | AutoMDM release automation | `./tools/release/publish_release.sh -m` - See [release/README.md](release/README.md) |
+| `sign-automdmctl/` | Code signing for automdmctl | Signing utilities for automdmctl binaries |
+| `tuf/` | TUF repository management for automdmd updates | `./tools/tuf/releaser.sh` - See [tuf/README.md](tuf/README.md) |
 | `tuf/migrate/` | TUF migration tools | Migration scripts for TUF updates |
 | `tuf/status/` | Query TUF repository status | `go run tools/tuf/status/tuf-status.go channel-version -channel stable` |
 | `tuf/test/` | TUF testing scripts | `./tools/tuf/test/main.sh` - See [tuf/test/README.md](tuf/test/README.md) |
@@ -306,10 +306,10 @@ go run ./tools/run-scripts -scripts-disabled -content 'echo "Test"'
 | `software/vulnerabilities/performance_test/` | Vuln performance testing (`seeder/` deprecated — use [dibble](dibble/README.md) `vulns`) | See [software/vulnerabilities/performance_test/README.md](software/vulnerabilities/performance_test/README.md) |
 | `vex-parser/` | Parse OpenVEX documents | `go run ./tools/vex-parser <vex-file>` |
 | **Testing & Load Testing** | | |
-| `desktop-rate-limit/` | Test Fleet Desktop rate limiting | `go run ./tools/desktop-rate-limit -fleet_url https://localhost:8080` |
-| `kubequery/` | Kubequery + Fleet config | `kubectl apply -f kubequery-fleet.yml` |
+| `desktop-rate-limit/` | Test AutoMDM Desktop rate limiting | `go run ./tools/desktop-rate-limit -automdm_url https://localhost:8080` |
+| `kubequery/` | Kubequery + AutoMDM config | `kubectl apply -f kubequery-automdm.yml` |
 | `dibble/` | One-stop seeder: users, teams, policies, reports, labels, scripts, profiles, software, enroll-secrets, vulns | `make dibble && ./tools/dibble/dibble` |
-| `loadtest/fleetd_labels/` | Apply manual labels for load testing (deprecated — use [dibble](dibble/README.md) `labels`) | `go run ./tools/loadtest/fleetd_labels` |
+| `loadtest/automdmd_labels/` | Apply manual labels for load testing (deprecated — use [dibble](dibble/README.md) `labels`) | `go run ./tools/loadtest/automdmd_labels` |
 | `loadtest/metrics/` | Collect & compare AWS CloudWatch metrics for load test environments | `./tools/loadtest/metrics/collect-metrics.sh --workspace <ws>` — see [loadtest/metrics/README.md](loadtest/metrics/README.md) |
 | `loadtest/osquery/` | Load test osquery on macOS/Windows/Linux | See [loadtest/osquery/README.md](loadtest/osquery/README.md) |
 | `loadtest/scripts_and_profiles/` | Load test scripts and profiles (deprecated — use [dibble](dibble/README.md) `scripts` + `profiles`) | `go run ./tools/loadtest/scripts_and_profiles` |

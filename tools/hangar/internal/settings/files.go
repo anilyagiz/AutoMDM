@@ -6,7 +6,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/fleetdm/fleet/tools/hangar/internal/paths"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/paths"
 )
 
 // yamlExts gate the generic text read/write commands; openExts gate which

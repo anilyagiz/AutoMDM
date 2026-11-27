@@ -1,7 +1,7 @@
 locals {
-  customer            = "fleet-${terraform.workspace}"
+  customer            = "automdm-${terraform.workspace}"
   loadtest_containers = var.loadtest_containers
 
-  # fleet_image  = var.tag
+  # automdm_image  = var.tag
   loadtest_tag = var.git_tag_branch
 }

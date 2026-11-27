@@ -21,8 +21,8 @@ import (
 	"sync/atomic"
 	"unsafe"
 
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/nvd/tools/wfn"
 	"github.com/facebookincubator/flog"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/nvd/tools/wfn"
 )
 
 const cacheEvictPercentage = 0.1 // every eviction cycle invalidates this part of cache size at once

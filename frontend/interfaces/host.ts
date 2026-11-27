@@ -33,7 +33,7 @@ export default PropTypes.shape({
   platform: PropTypes.string,
   osquery_version: PropTypes.string,
   orbit_version: PropTypes.string,
-  fleet_desktop_version: PropTypes.string,
+  automdm_desktop_version: PropTypes.string,
   os_name: PropTypes.string,
   os_version: PropTypes.string,
   build: PropTypes.string,
@@ -56,7 +56,7 @@ export default PropTypes.shape({
   distributed_interval: PropTypes.number,
   config_tls_refresh: PropTypes.number,
   logger_tls_period: PropTypes.number,
-  fleet_id: PropTypes.number,
+  team_id: PropTypes.number,
   pack_stats: PropTypes.arrayOf(
     PropTypes.shape({
       pack_id: PropTypes.number,
@@ -64,7 +64,7 @@ export default PropTypes.shape({
       report_stats: PropTypes.arrayOf(queryStatsInterface),
     })
   ),
-  fleet_name: PropTypes.string,
+  team_name: PropTypes.string,
   additional: PropTypes.object, // eslint-disable-line react/forbid-prop-types
   percent_disk_space_available: PropTypes.number,
   gigs_disk_space_available: PropTypes.number,
@@ -162,8 +162,8 @@ export interface IHostDiskEncryptionSetting {
 /** What the device endpoint adds for the My device page. */
 export interface IDeviceDiskEncryptionSetting
   extends IHostDiskEncryptionSetting {
-  /** Only for a Windows host that needs a PIN. False means the host's fleetd is too old to be handed one. */
-  fleetd_can_set_pin?: boolean;
+  /** Only for a Windows host that needs a PIN. False means the host's automdmd is too old to be handed one. */
+  automdmd_can_set_pin?: boolean;
   /** The end user's most recent PIN submission. */
   pin_request?: IBitLockerPINRequest;
 }
@@ -224,17 +224,17 @@ export interface IHostMdmData {
    */
   encryption_key_archived?: boolean;
   /**
-   * bootstrap_token_escrowed indicates whether Fleet has escrowed a bootstrap token for
+   * bootstrap_token_escrowed indicates whether AutoMDM has escrowed a bootstrap token for
    * the macOS host. Only applicable to macOS hosts. It is only populated for
    * the GET /hosts/:id endpoint.
    */
   bootstrap_token_escrowed?: boolean;
   enrollment_status: MdmEnrollmentStatus | null;
   /**
-   * is_personal_enrollment reports whether the last MDM enrollment Fleet recorded
+   * is_personal_enrollment reports whether the last MDM enrollment AutoMDM recorded
    * for the host was personal (BYOD). Unlike enrollment_status it is not cleared
    * on unenrollment, so BYOD-only UI doesn't flip back once the host unenrolls.
-   * That holds for Android and Apple mobile hosts; on macOS and Windows the fleetd
+   * That holds for Android and Apple mobile hosts; on macOS and Windows the automdmd
    * detail queries re-ingest MDM state and can reset it once the profile is gone.
    */
   is_personal_enrollment?: boolean;
@@ -248,7 +248,7 @@ export interface IHostMdmData {
   setup_experience?: IMdmMacOsSetup;
   device_status: HostMdmDeviceStatus;
   pending_action: HostMdmPendingAction;
-  connected_to_fleet?: boolean;
+  connected_to_automdm?: boolean;
   /**
    * wipe/lock/clear_passcode_allowed indicate whether the corresponding MDM
    * commands are permitted for this host based on the AccessRights delivered
@@ -259,7 +259,7 @@ export interface IHostMdmData {
   lock_allowed?: boolean;
   clear_passcode_allowed?: boolean;
   /**
-   * Android only; only populated by host details. True when Fleet has a stored
+   * Android only; only populated by host details. True when AutoMDM has a stored
    * unlock PIN the host acknowledged and no lock/unenroll/wipe/clear passcode is pending.
    */
   unlock_pin_available?: boolean;
@@ -391,8 +391,8 @@ export interface IHostEndUser {
 
 /** Cellular radio technology an iOS/iPadOS device supports. Apple reports an
  * integer code, which the API maps to these labels — `"unknown"` covers a code
- * Apple has added that Fleet doesn't recognize yet (see
- * fleet.MDMAppleCellularTechnology).
+ * Apple has added that AutoMDM doesn't recognize yet (see
+ * team.MDMAppleCellularTechnology).
  * https://developer.apple.com/documentation/devicemanagement/deviceinformationresponse/queryresponses-data.dictionary */
 export type HostMdmAppleCellularTechnology =
   | "None"
@@ -513,7 +513,7 @@ export interface IHost {
   platform: HostPlatform;
   osquery_version: string;
   orbit_version: string | null;
-  fleet_desktop_version: string | null;
+  automdm_desktop_version: string | null;
   /** e.g. "macOS" or "Windows 11 Pro 24H2"; use getHostOSDisplayName to show it */
   os_name: string;
   /** The version without the name, e.g. "15.2" */
@@ -541,9 +541,9 @@ export interface IHost {
   distributed_interval: number;
   config_tls_refresh: number;
   logger_tls_period: number;
-  fleet_id: number | null;
+  team_id: number | null;
   pack_stats: IPackStats[] | null;
-  fleet_name: string | null;
+  team_name: string | null;
   additional?: object; // eslint-disable-line @typescript-eslint/ban-types
   percent_disk_space_available: number;
   gigs_disk_space_available: number;
@@ -578,15 +578,15 @@ export interface IHost {
    * Android hosts, and "" until it's set. */
   google_device_id?: string;
   mdm_enrollment_hardware_attested?: boolean;
-  dep_assigned_to_fleet: boolean;
+  dep_assigned_to_automdm: boolean;
   /** The OS version this host is required to reach. Null when OS updates
-   * aren't configured for the host's fleet, and "Pending" while Fleet is still
+   * aren't configured for the host's team, and "Pending" while AutoMDM is still
    * resolving the target for a "latest" requirement. */
   os_update_minimum_version?: string | null;
   /** The date by which os_update_minimum_version must be installed, in
    * YYYY-MM-DD. Null and "Pending" follow os_update_minimum_version. */
   os_update_deadline?: string | null;
-  /** When Fleet next forces a patch deadline install on this host (ISO 8601).
+  /** When AutoMDM next forces a patch deadline install on this host (ISO 8601).
    * Only loaded for macOS hosts, and null when no patch policy has `deadline`
    * enabled or the host has nothing scheduled. */
   patch_deadline_at?: string | null;
@@ -646,7 +646,7 @@ export interface IHost {
 
 /*
  * IHostDevice is an extension of IHost that is returned by the /devices endpoint. It includes the
- * dep_assigned_to_fleet field, which is not returned by the /hosts endpoint.
+ * dep_assigned_to_automdm field, which is not returned by the /hosts endpoint.
  */
 export interface IDeviceHostMdmData extends Omit<IHostMdmData, "os_settings"> {
   os_settings?: IDeviceOSSettings;
@@ -654,5 +654,5 @@ export interface IDeviceHostMdmData extends Omit<IHostMdmData, "os_settings"> {
 
 export interface IHostDevice extends Omit<IHost, "mdm"> {
   mdm: IDeviceHostMdmData;
-  dep_assigned_to_fleet: boolean;
+  dep_assigned_to_automdm: boolean;
 }

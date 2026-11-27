@@ -3,7 +3,7 @@
 # Podman Desktop is an electron-builder NSIS app. Its ARP DisplayName carries
 # the version ("Podman Desktop 1.28.3"), so match on the "Podman Desktop *"
 # prefix. Run the uninstaller with "/S /ALLUSERS" to mirror the machine-scope
-# install and remove the HKLM entry (Fleet runs uninstalls as SYSTEM).
+# install and remove the HKLM entry (AutoMDM runs uninstalls as SYSTEM).
 
 $displayNameLike = "Podman Desktop*"
 $publisher = "Podman Desktop"

@@ -7,10 +7,10 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/anilyagiz/automdm/v4/server/aws_common"
 	aws_config "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager/types"
-	"github.com/fleetdm/fleet/v4/server/aws_common"
 )
 
 // SecretsManagerClient interface for dependency injection and testing

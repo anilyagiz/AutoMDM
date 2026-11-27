@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/pkg/str"
+	"github.com/anilyagiz/automdm/v4/pkg/str"
 )
 
 // maxTargetBytes caps the `target` column.

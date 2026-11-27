@@ -6,14 +6,14 @@ import (
 	"context"
 	"sync"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
-var _ fleet.DigiCertService = (*Service)(nil)
+var _ automdm.DigiCertService = (*Service)(nil)
 
-type VerifyProfileIDFunc func(ctx context.Context, config fleet.DigiCertCA) error
+type VerifyProfileIDFunc func(ctx context.Context, config automdm.DigiCertCA) error
 
-type GetCertificateFunc func(ctx context.Context, config fleet.DigiCertCA) (*fleet.DigiCertCertificate, error)
+type GetCertificateFunc func(ctx context.Context, config automdm.DigiCertCA) (*automdm.DigiCertCertificate, error)
 
 type Service struct {
 	VerifyProfileIDFunc        VerifyProfileIDFunc
@@ -25,14 +25,14 @@ type Service struct {
 	mu sync.Mutex
 }
 
-func (s *Service) VerifyProfileID(ctx context.Context, config fleet.DigiCertCA) error {
+func (s *Service) VerifyProfileID(ctx context.Context, config automdm.DigiCertCA) error {
 	s.mu.Lock()
 	s.VerifyProfileIDFuncInvoked = true
 	s.mu.Unlock()
 	return s.VerifyProfileIDFunc(ctx, config)
 }
 
-func (s *Service) GetCertificate(ctx context.Context, config fleet.DigiCertCA) (*fleet.DigiCertCertificate, error) {
+func (s *Service) GetCertificate(ctx context.Context, config automdm.DigiCertCA) (*automdm.DigiCertCertificate, error) {
 	s.mu.Lock()
 	s.GetCertificateFuncInvoked = true
 	s.mu.Unlock()

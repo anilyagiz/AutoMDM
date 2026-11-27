@@ -9,7 +9,7 @@ import { IDropdownOption } from "interfaces/dropdownOption";
 import { getErrorReason, hasStatusKey } from "interfaces/errors";
 import { IAddCertAuthorityFormData } from "services/entities/certificates";
 import { LEARN_MORE_ABOUT_BASE_LINK } from "utilities/constants";
-import { formatFleet5RemovalMessage } from "utilities/helpers";
+import { formatAutoMDM5RemovalMessage } from "utilities/helpers";
 
 import { ICertFormData } from "../AddCertAuthorityModal/AddCertAuthorityModal";
 import { ICustomESTFormData } from "../CustomESTForm/CustomESTForm";
@@ -224,7 +224,7 @@ const PRIVATE_KEY_NOT_CONFIGURED_ERROR = (
     Private key must be configured.{" "}
     <CustomLink
       text="Learn more"
-      url={`${LEARN_MORE_ABOUT_BASE_LINK}/fleet-server-private-key`}
+      url={`${LEARN_MORE_ABOUT_BASE_LINK}/automdm-server-private-key`}
       newTab
       variant="flash-message-link"
     />
@@ -247,7 +247,7 @@ const INVALID_CHALLENGE_ERROR =
 const INVALID_CHALLENGE_URL_OR_CREDENTIALS_ERROR =
   "Invalid challenge URL or credentials. Please correct and try again.";
 const CA_NOT_FOUND_ERROR =
-  "Fleet couldn't find the CA at the specified URL. Please correct and try again.";
+  "AutoMDM couldn't find the CA at the specified URL. Please correct and try again.";
 
 /**
  * Matches the server's URL errors, which name the CA type inside the message (e.g. "Invalid
@@ -270,7 +270,7 @@ export const getDisplayErrMessage = (
   const reason = rawReason.toLowerCase();
   const invalidUrlMatch = rawReason.match(INVALID_URL_PATTERN);
   const unprefixedReason = rawReason.replace(SERVER_ERROR_PREFIX, "");
-  const fleet5Removal = formatFleet5RemovalMessage(unprefixedReason);
+  const automdm5Removal = formatAutoMDM5RemovalMessage(unprefixedReason);
 
   // Google CAS errors name the field or Google setting to fix, and the server
   // writes its 4xx reasons for admins, so they're shown as is.
@@ -282,8 +282,8 @@ export const getDisplayErrMessage = (
     err.status < 500
   ) {
     message = unprefixedReason;
-  } else if (fleet5Removal) {
-    message = fleet5Removal;
+  } else if (automdm5Removal) {
+    message = automdm5Removal;
   } else if (reason.includes("invalid api token")) {
     message = INVALID_API_TOKEN_ERROR;
   } else if (reason.includes("invalid profile guid")) {

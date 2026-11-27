@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/client"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/client"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -82,8 +82,8 @@ func TestDistributedPluginWriteResults(t *testing.T) {
 	req := fc.writeReq
 	assert.Equal(t, []map[string]string{{"col": "val"}}, req.Results["q1"])
 	assert.Equal(t, []map[string]string{}, req.Results["q2"])
-	assert.Equal(t, fleet.OsqueryStatus(0), req.Statuses["q1"])
-	assert.Equal(t, fleet.OsqueryStatus(1), req.Statuses["q2"])
+	assert.Equal(t, automdm.OsqueryStatus(0), req.Statuses["q1"])
+	assert.Equal(t, automdm.OsqueryStatus(1), req.Statuses["q2"])
 	assert.Equal(t, "query failed", req.Messages["q2"])
 	require.NotNil(t, req.Stats["q1"])
 	assert.Equal(t, uint64(5), req.Stats["q1"].WallTimeMs)

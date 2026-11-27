@@ -9,10 +9,10 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/notifications/api"
-	"github.com/fleetdm/fleet/v4/server/notifications/internal/types"
-	platform_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/notifications/api"
+	"github.com/anilyagiz/automdm/v4/server/notifications/internal/types"
+	platform_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 )
@@ -174,7 +174,7 @@ func (ds *Datastore) GetEndUserNotificationByExecutionID(ctx context.Context, ex
 	const getStmt = `SELECT ` + endUserNotificationColumns + ` FROM notifications_end_user eun WHERE eun.execution_id = ?`
 
 	var notification api.EndUserNotification
-	// primary, not the replica: fleetd can report a result before the write that
+	// primary, not the replica: automdmd can report a result before the write that
 	// recorded this execution has replicated
 	if err := sqlx.GetContext(ctx, ds.primary, &notification, getStmt, executionID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -189,7 +189,7 @@ func (ds *Datastore) GetEndUserNotificationByExecutionID(ctx context.Context, ex
 // host. limit caps how many rows are read, which is not the same as how many
 // notifications come back.
 func (ds *Datastore) ListEndUserNotificationsToDispatch(ctx context.Context, limit int) ([]*api.EndUserNotification, error) {
-	// The host_orbit_info join is what requires fleetd. Whether Fleet Desktop is
+	// The host_orbit_info join is what requires automdmd. Whether AutoMDM Desktop is
 	// installed and new enough is left to the script, which reports it as exit
 	// 100 or 101.
 	const listStmt = `
@@ -203,7 +203,7 @@ WHERE eun.status = ?
 	AND h.platform = 'darwin'
 	AND NOT EXISTS (
 		-- Exclude hosts with a dispatched notification that hasn't displayed yet.
-		-- Fleet Desktop doesn't return an exit code when a notification is already displaying, so also exclude hosts whose displayed notification hasn't been automatically hidden yet.
+		-- AutoMDM Desktop doesn't return an exit code when a notification is already displaying, so also exclude hosts whose displayed notification hasn't been automatically hidden yet.
 		SELECT 1 FROM notifications_end_user neu
 		WHERE neu.host_id = eun.host_id AND neu.uuid != eun.uuid
 			AND (

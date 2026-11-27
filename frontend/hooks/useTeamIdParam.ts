@@ -76,10 +76,10 @@ export const rebuildQueryStringWithTeamId = (
     parts.splice(pageIndex, 1, "page=0");
   }
 
-  const teamIndex = parts.findIndex((p) => p.startsWith("fleet_id="));
-  // URLs for the app represent "All teams" by the absence of the fleet id param
+  const teamIndex = parts.findIndex((p) => p.startsWith("team_id="));
+  // URLs for the app represent "All teams" by the absence of the team id param
   const newTeamPart =
-    newTeamId > APP_CONTEXT_ALL_TEAMS_ID ? `fleet_id=${newTeamId}` : "";
+    newTeamId > APP_CONTEXT_ALL_TEAMS_ID ? `team_id=${newTeamId}` : "";
 
   if (teamIndex === -1) {
     // nothing to remove/replace so add the new part (if any) and rejoin
@@ -88,9 +88,9 @@ export const rebuildQueryStringWithTeamId = (
     );
   }
 
-  if (teamIndex !== findLastIndex(parts, (p) => p.startsWith("fleet_id="))) {
+  if (teamIndex !== findLastIndex(parts, (p) => p.startsWith("team_id="))) {
     console.warn(
-      `URL contains more than one fleet_id parameter: ${queryString}`
+      `URL contains more than one team_id parameter: ${queryString}`
     );
   }
 
@@ -171,18 +171,18 @@ const getUserTeams = ({
 
   return permissions.isOnGlobalTeam(currentUser)
     ? availableTeams
-    : filterUserTeamsByRole(currentUser.fleets, permittedAccessByTeamRole);
+    : filterUserTeamsByRole(currentUser.teams, permittedAccessByTeamRole);
 };
 
-// Prefer a fleet named "Workstations" (with or without emoji prefix),
-// otherwise fall back to the fleet with the lowest ID.
-export const preferredOrLowestIdFleet = (fleets: ITeamSummary[]) => {
+// Prefer a team named "Workstations" (with or without emoji prefix),
+// otherwise fall back to the team with the lowest ID.
+export const preferredOrLowestIdAutoMDM = (teams: ITeamSummary[]) => {
   const name = "workstations";
-  const workstations = fleets.find((t) => {
+  const workstations = teams.find((t) => {
     const lower = t.name.toLowerCase();
     return lower === name || lower === `\u{1F4BB} ${name}`;
   });
-  return workstations ?? sortBy(fleets, (t) => t.id)[0];
+  return workstations ?? sortBy(teams, (t) => t.id)[0];
 };
 
 export const getDefaultTeam = ({
@@ -201,7 +201,7 @@ export const getDefaultTeam = ({
   if (!currentUser || !userTeams?.length) {
     return undefined;
   }
-  const realFleets = userTeams.filter((t) => t.id > APP_CONTEXT_NO_TEAM_ID);
+  const realTeams = userTeams.filter((t) => t.id > APP_CONTEXT_NO_TEAM_ID);
 
   if (permissions.isOnGlobalTeam(currentUser)) {
     let defaultTeam: ITeamSummary | undefined;
@@ -222,26 +222,26 @@ export const getDefaultTeam = ({
         defaultTeam = userTeams.find((t) => t.id === APP_CONTEXT_ALL_TEAMS_ID);
       }
       if (!defaultTeam && includeNoTeam) {
-        // prefer a real fleet over "Unassigned"
-        if (realFleets.length > 0) {
-          defaultTeam = preferredOrLowestIdFleet(realFleets);
+        // prefer a real team over "Unassigned"
+        if (realTeams.length > 0) {
+          defaultTeam = preferredOrLowestIdAutoMDM(realTeams);
         } else {
           defaultTeam = userTeams.find((t) => t.id === APP_CONTEXT_NO_TEAM_ID);
         }
       }
     }
 
-    return defaultTeam || preferredOrLowestIdFleet(realFleets);
+    return defaultTeam || preferredOrLowestIdAutoMDM(realTeams);
   }
 
   return (
-    preferredOrLowestIdFleet(
-      realFleets.filter((t) => permissions.isTeamAdmin(currentUser, t.id))
+    preferredOrLowestIdAutoMDM(
+      realTeams.filter((t) => permissions.isTeamAdmin(currentUser, t.id))
     ) ||
-    preferredOrLowestIdFleet(
-      realFleets.filter((t) => permissions.isTeamMaintainer(currentUser, t.id))
+    preferredOrLowestIdAutoMDM(
+      realTeams.filter((t) => permissions.isTeamMaintainer(currentUser, t.id))
     ) ||
-    preferredOrLowestIdFleet(realFleets)
+    preferredOrLowestIdAutoMDM(realTeams)
   );
 };
 
@@ -322,13 +322,13 @@ const shouldRedirectToDefaultTeam = ({
   userTeams: ITeamSummary[];
   includeAllTeams: boolean;
   includeNoTeam: boolean;
-  query: { fleet_id?: string };
+  query: { team_id?: string };
   isPrimoMode: boolean;
 }) => {
-  const teamIdString = query?.fleet_id || "";
+  const teamIdString = query?.team_id || "";
   const parsedTeamId = parseInt(teamIdString, 10);
 
-  // redirect non-numeric strings and negative numbers to default (e.g., `/hosts?fleet_id=-1` should
+  // redirect non-numeric strings and negative numbers to default (e.g., `/hosts?team_id=-1` should
   // be redirected to `/hosts`)
   if (teamIdString.length && (isNaN(parsedTeamId) || parsedTeamId < 0)) {
     return true;
@@ -358,7 +358,7 @@ export const useTeamIdParam = ({
   location?: {
     pathname: string;
     search: string;
-    query: { fleet_id?: string };
+    query: { team_id?: string };
     hash?: string;
     [key: string]: any; // for other location properties that may be passed in
   };
@@ -404,8 +404,8 @@ export const useTeamIdParam = ({
 
   const currentTeam = useMemo(
     () =>
-      userTeams?.find((t) => t.id === coerceAllTeamsId(query?.fleet_id || "")),
-    [query?.fleet_id, userTeams]
+      userTeams?.find((t) => t.id === coerceAllTeamsId(query?.team_id || "")),
+    [query?.team_id, userTeams]
   );
 
   const handleTeamChange = useCallback(
@@ -447,8 +447,8 @@ export const useTeamIdParam = ({
   // reconcile router location and redirect to default team as applicable
   let isRouteOk = false;
   if (isFreeTier) {
-    // free tier should never have fleet_id param, so change to "All teams"
-    if (query.fleet_id) {
+    // free tier should never have team_id param, so change to "All teams"
+    if (query.team_id) {
       handleTeamChange(-1); // -1 because all pages on Free actually function as if on "All teams", even when not supported e.g. Controls
     } else {
       isRouteOk = true;
@@ -506,7 +506,7 @@ export const useTeamIdParam = ({
       currentTeam?.id !== undefined &&
       !!currentUser &&
       permissions.isObserverPlus(currentUser, currentTeam.id),
-    teamIdForApi: getTeamIdForApi({ currentTeam, includeNoTeam }), // for everywhere except AppContext: fleet_id=0 for No team (same as currentTeamId), undefined for All teams
+    teamIdForApi: getTeamIdForApi({ currentTeam, includeNoTeam }), // for everywhere except AppContext: team_id=0 for No team (same as currentTeamId), undefined for All teams
     userTeams,
     handleTeamChange,
   };

@@ -5,7 +5,7 @@
   gap: $pad-large; // Between text and CTA
   font-size: $x-small;
   font-weight: $regular;
-  color: $core-fleet-black;
+  color: $core-automdm-black;
   line-height: $line-height;
 
   &__page-banner {
@@ -60,7 +60,7 @@
   &__cta {
     display: flex;
     align-items: center;
-    color: $core-fleet-black;
+    color: $core-automdm-black;
     text-align: right;
     gap: $pad-small;
     min-width: max-content;

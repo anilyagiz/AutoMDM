@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -41,7 +41,7 @@ func TestSplunkIntegration(t *testing.T) {
 	ctx := t.Context()
 
 	// 1. Create writer with insecureSkipVerify for the self-signed cert
-	writer := NewSplunkLogWriter(splunkURL, splunkToken, "main", "fleet-integration-test", "fleet:json", true, slog.Default())
+	writer := NewSplunkLogWriter(splunkURL, splunkToken, "main", "automdm-integration-test", "automdm:json", true, slog.Default())
 
 	// 2. Send test events
 	marker := fmt.Sprintf("integration-test-%d", time.Now().UnixNano())
@@ -79,7 +79,7 @@ func TestSplunkIntegrationBatch(t *testing.T) {
 
 	ctx := t.Context()
 
-	writer := NewSplunkLogWriter(splunkURL, splunkToken, "main", "fleet-batch-test", "fleet:json", true, slog.Default())
+	writer := NewSplunkLogWriter(splunkURL, splunkToken, "main", "automdm-batch-test", "automdm:json", true, slog.Default())
 
 	// Send 100 events to verify batching works
 	marker := fmt.Sprintf("batch-test-%d", time.Now().UnixNano())
@@ -107,7 +107,7 @@ func TestSplunkIntegrationBadToken(t *testing.T) {
 	splunkURL := "https://localhost:8088"
 	ctx := t.Context()
 
-	writer := NewSplunkLogWriter(splunkURL, "bad-token-12345", "main", "fleet", "fleet:json", true, slog.Default())
+	writer := NewSplunkLogWriter(splunkURL, "bad-token-12345", "main", "automdm", "automdm:json", true, slog.Default())
 
 	err := writer.Write(ctx, []json.RawMessage{json.RawMessage(`{"test":"bad-token"}`)})
 	require.Error(t, err, "Write should fail with an invalid token")
@@ -119,7 +119,7 @@ func searchSplunk(t *testing.T, marker string) []string {
 	t.Helper()
 
 	searchQuery := fmt.Sprintf(`search index=main "%s" | fields _raw`, marker)
-	client := fleethttp.NewClient(fleethttp.WithTLSClientConfig(&tls.Config{
+	client := automdmhttp.NewClient(automdmhttp.WithTLSClientConfig(&tls.Config{
 		InsecureSkipVerify: true, //nolint:gosec // test-only, local Docker Splunk
 	}))
 

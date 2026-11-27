@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	notifications_api "github.com/fleetdm/fleet/v4/server/notifications/api"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	notifications_api "github.com/anilyagiz/automdm/v4/server/notifications/api"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
@@ -26,7 +26,7 @@ const endUserNotificationColumns = `
 
 // newTestNotification inserts a notification row directly, bypassing the
 // notifications bounded context's HTTP API: there's no public endpoint for
-// creating one, since Fleet itself is always the one queueing them.
+// creating one, since AutoMDM itself is always the one queueing them.
 func newTestNotification(t *testing.T, ds *mysql.Datastore, hostID uint, kind string, payload string) string {
 	t.Helper()
 	notificationUUID := uuid.NewString()
@@ -42,7 +42,7 @@ func newTestNotification(t *testing.T, ds *mysql.Datastore, hostID uint, kind st
 
 func newRenderableTestNotification(t *testing.T, ds *mysql.Datastore, hostID uint, payload string) string {
 	t.Helper()
-	notificationUUID := newTestNotification(t, ds, hostID, fleet.PatchNotificationKind, payload)
+	notificationUUID := newTestNotification(t, ds, hostID, automdm.PatchNotificationKind, payload)
 	require.NoError(t, ds.NewPatchNotification(context.Background(), notificationUUID))
 
 	titleName := uuid.NewString()
@@ -56,10 +56,10 @@ func newRenderableTestNotification(t *testing.T, ds *mysql.Datastore, hostID uin
 			`SELECT id FROM software_titles WHERE name = ? AND source = 'apps'`, titleName)
 	})
 	require.NoError(t, ds.AddPatchNotificationApp(context.Background(), notificationUUID,
-		fleet.PatchNotificationApp{SoftwareTitleID: titleID}))
+		automdm.PatchNotificationApp{SoftwareTitleID: titleID}))
 
 	// so the view has an icon URL to assert on
-	_, err := ds.CreateOrUpdateSoftwareTitleIcon(context.Background(), &fleet.UploadSoftwareTitleIconPayload{
+	_, err := ds.CreateOrUpdateSoftwareTitleIcon(context.Background(), &automdm.UploadSoftwareTitleIconPayload{
 		TitleID: titleID, TeamID: 0, StorageID: uuid.NewString(), Filename: "icon.png",
 	})
 	require.NoError(t, err)
@@ -124,7 +124,7 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 	// createOrbitEnrolledHost leaves the host without a device auth token.
 	// Orbit sends one on check-in, and the notification URL can't be built
 	// without it, so stand in for orbit here.
-	newNotifiableHost := func(t *testing.T, suffix string) *fleet.Host {
+	newNotifiableHost := func(t *testing.T, suffix string) *automdm.Host {
 		host := createOrbitEnrolledHost(t, "darwin", suffix, s.ds)
 		require.NoError(t, s.ds.SetOrUpdateDeviceAuthToken(ctx, host.ID, "token-"+suffix))
 		return host
@@ -132,9 +132,9 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 
 	// fetches the notification's script as orbit would, returning the substituted
 	// script contents and the host's device token
-	fetchScript := func(t *testing.T, host *fleet.Host, executionID string) (string, string) {
-		var resp fleet.OrbitGetScriptResponse
-		s.DoJSON("POST", "/api/fleet/orbit/scripts/request",
+	fetchScript := func(t *testing.T, host *automdm.Host, executionID string) (string, string) {
+		var resp automdm.OrbitGetScriptResponse
+		s.DoJSON("POST", "/api/automdm/orbit/scripts/request",
 			json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q, "execution_id": %q}`, *host.OrbitNodeKey, executionID)),
 			http.StatusOK, &resp)
 
@@ -143,14 +143,14 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 		return resp.ScriptContents, token
 	}
 
-	postScriptResult := func(host *fleet.Host, executionID string, exitCode int) {
-		s.Do("POST", "/api/fleet/orbit/scripts/result",
+	postScriptResult := func(host *automdm.Host, executionID string, exitCode int) {
+		s.Do("POST", "/api/automdm/orbit/scripts/result",
 			json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q, "execution_id": %q, "exit_code": %d, "output": "test", "runtime": 1}`,
 				*host.OrbitNodeKey, executionID, exitCode)),
 			http.StatusOK)
 	}
 
-	// stands in for Fleet Desktop closing the toast, which it does ten minutes after displaying it
+	// stands in for AutoMDM Desktop closing the toast, which it does ten minutes after displaying it
 	expireTestToast := func(t *testing.T, notificationUUID string) {
 		t.Helper()
 		mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
@@ -172,7 +172,7 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 		scriptContents, token := fetchScript(t, host, *dispatched.ExecutionID)
 		require.NotEmpty(t, token)
 		require.Contains(t, scriptContents, fmt.Sprintf("/device/%s/notifications/%s", token, notificationUUID))
-		require.NotContains(t, scriptContents, "FLEET_VAR")
+		require.NotContains(t, scriptContents, "AUTOMDM_VAR")
 	})
 
 	t.Run("a notify script that exits 0 marks the notification displayed", func(t *testing.T) {
@@ -234,7 +234,7 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 		// the notification's own script is held back from the feed, so this host's
 		// only past activity is the one the outcome emitted
 		var hostFeed listActivitiesResponse
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/activities", host.ID), nil, http.StatusOK, &hostFeed)
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/activities", host.ID), nil, http.StatusOK, &hostFeed)
 		require.Len(t, hostFeed.Activities, 1)
 		require.Equal(t, "notified_end_user_before_patching", hostFeed.Activities[0].Type)
 		require.NotNil(t, hostFeed.Activities[0].Details)
@@ -242,7 +242,7 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 
 		// and nothing else has happened since, so it is the newest one globally
 		var globalFeed listActivitiesResponse
-		s.DoJSON("GET", "/api/latest/fleet/activities", nil, http.StatusOK, &globalFeed,
+		s.DoJSON("GET", "/api/latest/automdm/activities", nil, http.StatusOK, &globalFeed,
 			"order_key", "id", "order_direction", "desc", "per_page", "1")
 		require.Len(t, globalFeed.Activities, 1)
 		require.Equal(t, "notified_end_user_before_patching", globalFeed.Activities[0].Type)
@@ -253,7 +253,7 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 	t.Run("GET returns the view the notification's kind builds", func(t *testing.T) {
 		// the logos are restored afterwards
 		setOrgLogos := func(light, dark string) {
-			s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(fmt.Sprintf(`{
+			s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(fmt.Sprintf(`{
 				"org_info": {
 					"org_logo_url_dark_mode": %q,
 					"org_logo_url_light_mode": %q
@@ -262,7 +262,7 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 		}
 
 		var before appConfigResponse
-		s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &before)
+		s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &before)
 		defer setOrgLogos(before.AppConfig.OrgInfo.OrgLogoURLLightMode, before.AppConfig.OrgInfo.OrgLogoURLDarkMode)
 
 		setOrgLogos("https://example.com/light.png", "https://example.com/dark.png")
@@ -275,7 +275,7 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 		_, token := fetchScript(t, host, *dispatched.ExecutionID)
 
 		var resp notifications_api.NotificationView
-		s.DoJSONWithoutAuth("GET", fmt.Sprintf("/api/latest/fleet/device/%s/notifications/%s", token, notificationUUID),
+		s.DoJSONWithoutAuth("GET", fmt.Sprintf("/api/latest/automdm/device/%s/notifications/%s", token, notificationUUID),
 			nil, http.StatusOK, &resp)
 		require.Equal(t, notificationUUID, resp.UUID)
 		require.Equal(t, "Save your work", resp.Title)
@@ -311,7 +311,7 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 					`SELECT id FROM software_titles WHERE name = ? AND source = 'apps'`, name)
 			})
 			require.NoError(t, s.ds.AddPatchNotificationApp(ctx, notificationUUID,
-				fleet.PatchNotificationApp{SoftwareTitleID: titleID}))
+				automdm.PatchNotificationApp{SoftwareTitleID: titleID}))
 		}
 
 		dispatch(t)
@@ -320,7 +320,7 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 		_, token := fetchScript(t, host, *dispatched.ExecutionID)
 
 		var resp notifications_api.NotificationView
-		s.DoJSONWithoutAuth("GET", fmt.Sprintf("/api/latest/fleet/device/%s/notifications/%s", token, notificationUUID),
+		s.DoJSONWithoutAuth("GET", fmt.Sprintf("/api/latest/automdm/device/%s/notifications/%s", token, notificationUUID),
 			nil, http.StatusOK, &resp)
 		require.Equal(t, "These apps will close and update in **1 hour**.", resp.Description)
 		require.Len(t, resp.Items, 2)
@@ -338,11 +338,11 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 		require.NotNil(t, dispatchedB.ExecutionID)
 		_, tokenB := fetchScript(t, hostB, *dispatchedB.ExecutionID)
 
-		s.DoRawNoAuth("GET", fmt.Sprintf("/api/latest/fleet/device/%s/notifications/%s", tokenB, notificationUUID),
+		s.DoRawNoAuth("GET", fmt.Sprintf("/api/latest/automdm/device/%s/notifications/%s", tokenB, notificationUUID),
 			nil, http.StatusNotFound)
 
 		// acting on it is scoped the same way, and leaves hostA's notification alone
-		s.DoRawNoAuth("POST", fmt.Sprintf("/api/latest/fleet/device/%s/notifications/%s/actions", tokenB, notificationUUID),
+		s.DoRawNoAuth("POST", fmt.Sprintf("/api/latest/automdm/device/%s/notifications/%s/actions", tokenB, notificationUUID),
 			[]byte(`{"action": "delay"}`), http.StatusNotFound)
 
 		untouched := getTestNotification(t, s.ds, notificationUUID)
@@ -358,7 +358,7 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 		require.NotNil(t, dispatched.ExecutionID)
 		_, token := fetchScript(t, host, *dispatched.ExecutionID)
 
-		s.DoRawNoAuth("GET", fmt.Sprintf("/api/latest/fleet/device/%s/notifications/no-such-uuid", token),
+		s.DoRawNoAuth("GET", fmt.Sprintf("/api/latest/automdm/device/%s/notifications/no-such-uuid", token),
 			nil, http.StatusNotFound)
 	})
 
@@ -372,7 +372,7 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 		require.NotNil(t, dispatched.ExecutionID)
 		_, token := fetchScript(t, host, *dispatched.ExecutionID)
 
-		s.DoRawNoAuth("POST", fmt.Sprintf("/api/latest/fleet/device/%s/notifications/%s/actions", token, notificationUUID),
+		s.DoRawNoAuth("POST", fmt.Sprintf("/api/latest/automdm/device/%s/notifications/%s/actions", token, notificationUUID),
 			[]byte(`{"action": "verify"}`), http.StatusOK)
 	})
 
@@ -384,7 +384,7 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 		require.NotNil(t, dispatched.ExecutionID)
 		_, token := fetchScript(t, host, *dispatched.ExecutionID)
 
-		s.DoRawNoAuth("POST", fmt.Sprintf("/api/latest/fleet/device/%s/notifications/%s/actions", token, notificationUUID),
+		s.DoRawNoAuth("POST", fmt.Sprintf("/api/latest/automdm/device/%s/notifications/%s/actions", token, notificationUUID),
 			[]byte(`{"action": "delay"}`), http.StatusNotFound)
 
 		got := getTestNotification(t, s.ds, notificationUUID)
@@ -400,7 +400,7 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 		require.NotNil(t, dispatched.ExecutionID)
 		_, token := fetchScript(t, host, *dispatched.ExecutionID)
 
-		s.DoRawNoAuth("GET", fmt.Sprintf("/api/latest/fleet/device/%s/notifications/%s", token, notificationUUID),
+		s.DoRawNoAuth("GET", fmt.Sprintf("/api/latest/automdm/device/%s/notifications/%s", token, notificationUUID),
 			nil, http.StatusNotFound)
 	})
 
@@ -412,7 +412,7 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 		require.NotNil(t, dispatched.ExecutionID)
 		_, token := fetchScript(t, host, *dispatched.ExecutionID)
 
-		s.DoRawNoAuth("POST", fmt.Sprintf("/api/latest/fleet/device/%s/notifications/%s/actions", token, notificationUUID),
+		s.DoRawNoAuth("POST", fmt.Sprintf("/api/latest/automdm/device/%s/notifications/%s/actions", token, notificationUUID),
 			[]byte(`{"action": "dance"}`), http.StatusUnprocessableEntity)
 	})
 
@@ -424,7 +424,7 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 		require.NotNil(t, dispatched.ExecutionID)
 		_, token := fetchScript(t, host, *dispatched.ExecutionID)
 
-		s.DoRawNoAuth("POST", fmt.Sprintf("/api/latest/fleet/device/%s/notifications/%s/actions", token, notificationUUID),
+		s.DoRawNoAuth("POST", fmt.Sprintf("/api/latest/automdm/device/%s/notifications/%s/actions", token, notificationUUID),
 			[]byte(`{}`), http.StatusUnprocessableEntity)
 	})
 
@@ -455,7 +455,7 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 
 	t.Run("canceling the notify script frees both the host and the software title for a new notification", func(t *testing.T) {
 		host := newNotifiableHost(t, "notif-cancel")
-		notificationUUID := newTestNotification(t, s.ds, host.ID, fleet.PatchNotificationKind, `{"reminder": false}`)
+		notificationUUID := newTestNotification(t, s.ds, host.ID, automdm.PatchNotificationKind, `{"reminder": false}`)
 		require.NoError(t, s.ds.NewPatchNotification(ctx, notificationUUID))
 
 		var titleID uint
@@ -468,14 +468,14 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 				`SELECT id FROM software_titles WHERE name = 'Cancel App' AND source = 'apps'`)
 		})
 		require.NoError(t, s.ds.AddPatchNotificationApp(ctx, notificationUUID,
-			fleet.PatchNotificationApp{SoftwareTitleID: titleID}))
+			automdm.PatchNotificationApp{SoftwareTitleID: titleID}))
 
 		dispatch(t)
 		dispatched := getTestNotification(t, s.ds, notificationUUID)
 		require.NotNil(t, dispatched.ExecutionID)
 
 		// an admin cancels the notify script from the host's upcoming queue
-		s.Do("DELETE", fmt.Sprintf("/api/latest/fleet/hosts/%d/activities/upcoming/%s", host.ID, *dispatched.ExecutionID),
+		s.Do("DELETE", fmt.Sprintf("/api/latest/automdm/hosts/%d/activities/upcoming/%s", host.ID, *dispatched.ExecutionID),
 			nil, http.StatusNoContent)
 
 		canceled := getTestNotification(t, s.ds, notificationUUID)
@@ -489,7 +489,7 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 		require.False(t, exists)
 
 		// and the host is no longer held behind a dispatch that never arrives
-		nextUUID := newTestNotification(t, s.ds, host.ID, fleet.PatchNotificationKind, `{"reminder": false}`)
+		nextUUID := newTestNotification(t, s.ds, host.ID, automdm.PatchNotificationKind, `{"reminder": false}`)
 		dispatch(t)
 		next := getTestNotification(t, s.ds, nextUUID)
 		require.NotNil(t, next.ExecutionID, "a canceled notification should not hold up the host's queue")
@@ -497,8 +497,8 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 		// the canceled notify script stays out of the activity feed, the same as a reported one.
 		// The host has no other script in its queue, so any canceled_run_script here is this one.
 		var past listActivitiesResponse
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/activities", host.ID), nil, http.StatusOK, &past)
-		canceledScriptActivity := (fleet.ActivityTypeCanceledRunScript{}).ActivityName()
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/activities", host.ID), nil, http.StatusOK, &past)
+		canceledScriptActivity := (automdm.ActivityTypeCanceledRunScript{}).ActivityName()
 		for _, act := range past.Activities {
 			require.NotEqual(t, canceledScriptActivity, act.Type,
 				"canceling a notification's script is not a canceled script run")
@@ -512,28 +512,28 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 		dispatched := getTestNotification(t, s.ds, notificationUUID)
 		require.NotNil(t, dispatched.ExecutionID)
 
-		// while it's queued, an admin can see it coming, attributed to Fleet
+		// while it's queued, an admin can see it coming, attributed to AutoMDM
 		// rather than to a person
 		var upcoming listHostUpcomingActivitiesResponse
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/activities/upcoming", host.ID), nil, http.StatusOK, &upcoming)
-		var found *fleet.UpcomingActivity
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/activities/upcoming", host.ID), nil, http.StatusOK, &upcoming)
+		var found *automdm.UpcomingActivity
 		for _, act := range upcoming.Activities {
 			if act.Details != nil && strings.Contains(string(*act.Details), *dispatched.ExecutionID) {
 				found = act
 			}
 		}
 		require.NotNil(t, found, "the notification's script should be in the host's upcoming queue")
-		require.Equal(t, fleet.ActivityTypeRanScript{}.ActivityName(), found.Type)
-		require.True(t, found.FleetInitiated)
+		require.Equal(t, automdm.ActivityTypeRanScript{}.ActivityName(), found.Type)
+		require.True(t, found.AutoMDMInitiated)
 		require.NotNil(t, found.ActorFullName)
-		require.Equal(t, "Fleet", *found.ActorFullName)
+		require.Equal(t, "AutoMDM", *found.ActorFullName)
 
 		postScriptResult(host, *dispatched.ExecutionID, 0)
 
 		var past listActivitiesResponse
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/activities", host.ID), nil, http.StatusOK, &past)
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/activities", host.ID), nil, http.StatusOK, &past)
 		for _, act := range past.Activities {
-			if act.Type == (fleet.ActivityTypeRanScript{}).ActivityName() && act.Details != nil {
+			if act.Type == (automdm.ActivityTypeRanScript{}).ActivityName() && act.Details != nil {
 				require.NotContains(t, string(*act.Details), *dispatched.ExecutionID,
 					"the notification's script should not appear as a script run")
 			}
@@ -541,7 +541,7 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 
 		// and it's out of the upcoming queue now that it's done
 		upcoming = listHostUpcomingActivitiesResponse{}
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/activities/upcoming", host.ID), nil, http.StatusOK, &upcoming)
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/activities/upcoming", host.ID), nil, http.StatusOK, &upcoming)
 		for _, act := range upcoming.Activities {
 			if act.Details != nil {
 				require.NotContains(t, string(*act.Details), *dispatched.ExecutionID)
@@ -567,7 +567,7 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 		postScriptResult(host, *dispatched.ExecutionID, 0)
 
 		var past listActivitiesResponse
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/activities", host.ID), nil, http.StatusOK, &past)
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/activities", host.ID), nil, http.StatusOK, &past)
 		for _, act := range past.Activities {
 			if act.Details != nil {
 				require.NotContains(t, string(*act.Details), *dispatched.ExecutionID,
@@ -583,11 +583,11 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 		dispatched := getTestNotification(t, s.ds, notificationUUID)
 		require.NotNil(t, dispatched.ExecutionID)
 
-		// Fleet queues internal scripts for other reasons too, and their results
+		// AutoMDM queues internal scripts for other reasons too, and their results
 		// run through the same outcome recording. This one is on its own host so
 		// nothing is ahead of it in the queue.
 		otherHost := newNotifiableHost(t, "notif-other-internal-host")
-		other, err := s.ds.NewInternalHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+		other, err := s.ds.NewInternalHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 			HostID:         otherHost.ID,
 			ScriptContents: "echo not a notification",
 		})
@@ -602,9 +602,9 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 		// and it keeps the past activity a notification doesn't get, so only
 		// notifications are held back from the feed
 		var pastResp listActivitiesResponse
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/activities", otherHost.ID), nil, http.StatusOK, &pastResp)
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/activities", otherHost.ID), nil, http.StatusOK, &pastResp)
 		require.Len(t, pastResp.Activities, 1)
-		require.Equal(t, (fleet.ActivityTypeRanScript{}).ActivityName(), pastResp.Activities[0].Type)
+		require.Equal(t, (automdm.ActivityTypeRanScript{}).ActivityName(), pastResp.Activities[0].Type)
 		require.Contains(t, string(*pastResp.Activities[0].Details), other.ExecutionID)
 	})
 
@@ -616,14 +616,14 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 		dispatched := getTestNotification(t, s.ds, notificationUUID)
 		require.NotNil(t, dispatched.ExecutionID)
 
-		// Fleet won't mint a token on the fetch path, so the script fails to
+		// AutoMDM won't mint a token on the fetch path, so the script fails to
 		// resolve rather than going out with an unusable URL.
-		var resp fleet.OrbitGetScriptResponse
-		s.DoJSON("POST", "/api/fleet/orbit/scripts/request",
+		var resp automdm.OrbitGetScriptResponse
+		s.DoJSON("POST", "/api/automdm/orbit/scripts/request",
 			json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q, "execution_id": %q}`, *host.OrbitNodeKey, *dispatched.ExecutionID)),
 			http.StatusOK, &resp)
 		require.NotNil(t, resp.ExitCode)
-		require.EqualValues(t, fleet.ExitCodeFleetVarResolutionFailed, *resp.ExitCode)
+		require.EqualValues(t, automdm.ExitCodeAutoMDMVarResolutionFailed, *resp.ExitCode)
 		require.NotContains(t, resp.ScriptContents, "/notifications/")
 
 		// the notification is queued up to try again rather than stuck
@@ -633,10 +633,10 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 		require.Nil(t, got.DisplayedAt)
 	})
 
-	// Fleet substitutes the host's device token into the script's URL when orbit
-	// fetches the script. The script Fleet stores keeps the fleet variable, so
+	// AutoMDM substitutes the host's device token into the script's URL when orbit
+	// fetches the script. The script AutoMDM stores keeps the automdm variable, so
 	// reading the script result never hands out the host's device token.
-	t.Run("a script result shows the fleet variable, not the host's device token", func(t *testing.T) {
+	t.Run("a script result shows the automdm variable, not the host's device token", func(t *testing.T) {
 		host := newNotifiableHost(t, "notif-script-result")
 		notificationUUID := newRenderableTestNotification(t, s.ds, host.ID, `{"reminder": false}`)
 		dispatch(t)
@@ -646,35 +646,35 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 		// orbit fetches the script, which is where the token is substituted
 		_, token := fetchScript(t, host, *dispatched.ExecutionID)
 
-		// exit code 50 is Fleet Desktop reporting that another notification is already displayed
-		s.Do("POST", "/api/fleet/orbit/scripts/result",
+		// exit code 50 is AutoMDM Desktop reporting that another notification is already displayed
+		s.Do("POST", "/api/automdm/orbit/scripts/result",
 			json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q, "execution_id": %q, "exit_code": 50, "output": "Another notification was displayed.", "runtime": 1}`,
 				*host.OrbitNodeKey, *dispatched.ExecutionID)),
 			http.StatusOK)
 
-		var resp fleet.GetScriptResultResponse
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/scripts/results/%s", *dispatched.ExecutionID),
+		var resp automdm.GetScriptResultResponse
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/scripts/results/%s", *dispatched.ExecutionID),
 			nil, http.StatusOK, &resp)
 		require.NotNil(t, resp.ExitCode)
 		require.EqualValues(t, 50, *resp.ExitCode)
 		require.Equal(t, "Another notification was displayed.", resp.Output)
 
-		require.Contains(t, resp.ScriptContents, string(fleet.FleetVarPatchNotificationURL))
+		require.Contains(t, resp.ScriptContents, string(automdm.AutoMDMVarPatchNotificationURL))
 		require.NotContains(t, resp.ScriptContents, token)
 	})
 
 	// the install keeps its policy but not the app open query, both while upcoming and once activated
 	t.Run("update now queues an install that runs with the app open", func(t *testing.T) {
 		host := newNotifiableHost(t, "notif-update-now")
-		team, err := s.ds.NewTeam(ctx, &fleet.Team{Name: "update-now-team"})
+		team, err := s.ds.NewTeam(ctx, &automdm.Team{Name: "update-now-team"})
 		require.NoError(t, err)
-		require.NoError(t, s.ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team.ID, []uint{host.ID})))
+		require.NoError(t, s.ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team.ID, []uint{host.ID})))
 
-		installerID, _, err := s.ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
+		installerID, _, err := s.ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
 			InstallScript: "echo", Filename: "update-now.pkg", StorageID: uuid.NewString(),
 			Title: "Update Now App", Version: "1.0.0", Source: "apps", Platform: "darwin",
 			UserID: s.users["admin1@example.com"].ID,
-			TeamID: &team.ID, ValidatedLabels: &fleet.LabelIdentsWithScope{},
+			TeamID: &team.ID, ValidatedLabels: &automdm.LabelIdentsWithScope{},
 			AppOpenQuery: "SELECT 1 FROM processes WHERE name = 'app'",
 		})
 		require.NoError(t, err)
@@ -685,7 +685,7 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 				`SELECT title_id FROM software_installers WHERE id = ?`, installerID)
 		})
 
-		policy, err := s.ds.NewTeamPolicy(ctx, team.ID, nil, fleet.PolicyPayload{
+		policy, err := s.ds.NewTeamPolicy(ctx, team.ID, nil, automdm.PolicyPayload{
 			Name: "Update Now App up to date", Query: "SELECT 1;",
 		})
 		require.NoError(t, err)
@@ -696,7 +696,7 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 
 		notificationUUID := newTestNotification(t, s.ds, host.ID, "patch", `{"reminder": false}`)
 		require.NoError(t, s.ds.NewPatchNotification(ctx, notificationUUID))
-		require.NoError(t, s.ds.AddPatchNotificationApp(ctx, notificationUUID, fleet.PatchNotificationApp{
+		require.NoError(t, s.ds.AddPatchNotificationApp(ctx, notificationUUID, automdm.PatchNotificationApp{
 			PolicyID: &policy.ID, SoftwareTitleID: titleID, SoftwareInstallerID: &installerID,
 		}))
 
@@ -706,7 +706,7 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 		_, token := fetchScript(t, host, *dispatched.ExecutionID)
 
 		var view notifications_api.NotificationView
-		s.DoJSONWithoutAuth("POST", fmt.Sprintf("/api/latest/fleet/device/%s/notifications/%s/actions", token, notificationUUID),
+		s.DoJSONWithoutAuth("POST", fmt.Sprintf("/api/latest/automdm/device/%s/notifications/%s/actions", token, notificationUUID),
 			json.RawMessage(`{"action": "update_now"}`), http.StatusOK, &view)
 		require.Len(t, view.Items, 1)
 		require.Equal(t, "Updating...", view.Items[0].Status)
@@ -761,17 +761,17 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 	// so each pass handles a batch of two with separate install_at values.
 	t.Run("a displayed notification is reminded and then installed at install_at", func(t *testing.T) {
 		host := newNotifiableHost(t, "notif-deadline")
-		team, err := s.ds.NewTeam(ctx, &fleet.Team{Name: "deadline-team"})
+		team, err := s.ds.NewTeam(ctx, &automdm.Team{Name: "deadline-team"})
 		require.NoError(t, err)
-		require.NoError(t, s.ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team.ID, []uint{host.ID})))
+		require.NoError(t, s.ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team.ID, []uint{host.ID})))
 
 		// a real installer and policy, so the install queued at install_at is a real one with an app
 		// open query it has to ignore
-		installerID, _, err := s.ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
+		installerID, _, err := s.ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
 			InstallScript: "echo", Filename: "deadline.pkg", StorageID: uuid.NewString(),
 			Title: "Deadline App", Version: "2.0.0", Source: "apps", Platform: "darwin",
 			UserID: s.users["admin1@example.com"].ID,
-			TeamID: &team.ID, ValidatedLabels: &fleet.LabelIdentsWithScope{},
+			TeamID: &team.ID, ValidatedLabels: &automdm.LabelIdentsWithScope{},
 			BundleIdentifier: "com.example.deadline",
 			AppOpenQuery:     "SELECT 1 FROM processes WHERE name = 'app'",
 		})
@@ -783,7 +783,7 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 				`SELECT title_id FROM software_installers WHERE id = ?`, installerID)
 		})
 
-		policy, err := s.ds.NewTeamPolicy(ctx, team.ID, nil, fleet.PolicyPayload{
+		policy, err := s.ds.NewTeamPolicy(ctx, team.ID, nil, automdm.PolicyPayload{
 			Name: "Deadline App up to date", Query: "SELECT 1;",
 		})
 		require.NoError(t, err)
@@ -792,9 +792,9 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 			return err
 		})
 
-		notificationUUID := newTestNotification(t, s.ds, host.ID, fleet.PatchNotificationKind, `{"reminder": false}`)
+		notificationUUID := newTestNotification(t, s.ds, host.ID, automdm.PatchNotificationKind, `{"reminder": false}`)
 		require.NoError(t, s.ds.NewPatchNotification(ctx, notificationUUID))
-		require.NoError(t, s.ds.AddPatchNotificationApp(ctx, notificationUUID, fleet.PatchNotificationApp{
+		require.NoError(t, s.ds.AddPatchNotificationApp(ctx, notificationUUID, automdm.PatchNotificationApp{
 			PolicyID: &policy.ID, SoftwareTitleID: titleID, SoftwareInstallerID: &installerID,
 		}))
 
@@ -847,7 +847,7 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 		require.WithinDuration(t, otherDisplayed.DisplayedAt.Add(time.Hour), *otherDeadline, time.Minute)
 
 		// the end user closes the toast, which leaves the install_at just set above alone
-		s.DoRawNoAuth("POST", fmt.Sprintf("/api/latest/fleet/device/%s/notifications/%s/actions", token, notificationUUID),
+		s.DoRawNoAuth("POST", fmt.Sprintf("/api/latest/automdm/device/%s/notifications/%s/actions", token, notificationUUID),
 			[]byte(`{"action": "delay"}`), http.StatusOK)
 
 		delayed := getTestNotification(t, s.ds, notificationUUID)
@@ -889,7 +889,7 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 		_, reminderToken := fetchScript(t, host, *delayedAndDispatched.ExecutionID)
 
 		var view notifications_api.NotificationView
-		s.DoJSONWithoutAuth("GET", fmt.Sprintf("/api/latest/fleet/device/%s/notifications/%s", reminderToken, notificationUUID),
+		s.DoJSONWithoutAuth("GET", fmt.Sprintf("/api/latest/automdm/device/%s/notifications/%s", reminderToken, notificationUUID),
 			nil, http.StatusOK, &view)
 		require.Contains(t, view.Description, "**5 minutes**")
 		require.Equal(t, []notifications_api.NotificationAction{
@@ -944,18 +944,18 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 		require.Len(t, queuedInstalls(host.ID), 1)
 	})
 
-	t.Run("apps Fleet installs or the inventory shows updated while the reminder is on screen show as updated after the deadline", func(t *testing.T) {
+	t.Run("apps AutoMDM installs or the inventory shows updated while the reminder is on screen show as updated after the deadline", func(t *testing.T) {
 		host := newNotifiableHost(t, "notif-updated-during-reminder")
-		team, err := s.ds.NewTeam(ctx, &fleet.Team{Name: "updated-during-reminder-team"})
+		team, err := s.ds.NewTeam(ctx, &automdm.Team{Name: "updated-during-reminder-team"})
 		require.NoError(t, err)
-		require.NoError(t, s.ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team.ID, []uint{host.ID})))
+		require.NoError(t, s.ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team.ID, []uint{host.ID})))
 
-		// add two installers on version 2.0.0 to the host's fleet, Fleet installs the first app and the second is updated outside Fleet
-		installerID, _, err := s.ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
+		// add two installers on version 2.0.0 to the host's team, AutoMDM installs the first app and the second is updated outside AutoMDM
+		installerID, _, err := s.ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
 			InstallScript: "echo", Filename: "updated-during-reminder.pkg", StorageID: uuid.NewString(),
 			Title: "Updated During Reminder App", Version: "2.0.0", Source: "apps", Platform: "darwin",
 			UserID: s.users["admin1@example.com"].ID,
-			TeamID: &team.ID, ValidatedLabels: &fleet.LabelIdentsWithScope{},
+			TeamID: &team.ID, ValidatedLabels: &automdm.LabelIdentsWithScope{},
 		})
 		require.NoError(t, err)
 
@@ -965,11 +965,11 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 				`SELECT title_id FROM software_installers WHERE id = ?`, installerID)
 		})
 
-		inventoryInstallerID, _, err := s.ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
+		inventoryInstallerID, _, err := s.ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
 			InstallScript: "echo", Filename: "updated-in-inventory.pkg", StorageID: uuid.NewString(),
 			Title: "Updated In Inventory App", Version: "2.0.0", Source: "apps", Platform: "darwin",
 			UserID: s.users["admin1@example.com"].ID,
-			TeamID: &team.ID, ValidatedLabels: &fleet.LabelIdentsWithScope{},
+			TeamID: &team.ID, ValidatedLabels: &automdm.LabelIdentsWithScope{},
 		})
 		require.NoError(t, err)
 
@@ -980,12 +980,12 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 		})
 
 		// create a patch notification for the host that lists both apps
-		notificationUUID := newTestNotification(t, s.ds, host.ID, fleet.PatchNotificationKind, `{"reminder": false}`)
+		notificationUUID := newTestNotification(t, s.ds, host.ID, automdm.PatchNotificationKind, `{"reminder": false}`)
 		require.NoError(t, s.ds.NewPatchNotification(ctx, notificationUUID))
-		require.NoError(t, s.ds.AddPatchNotificationApp(ctx, notificationUUID, fleet.PatchNotificationApp{
+		require.NoError(t, s.ds.AddPatchNotificationApp(ctx, notificationUUID, automdm.PatchNotificationApp{
 			SoftwareTitleID: titleID, SoftwareInstallerID: &installerID,
 		}))
-		require.NoError(t, s.ds.AddPatchNotificationApp(ctx, notificationUUID, fleet.PatchNotificationApp{
+		require.NoError(t, s.ds.AddPatchNotificationApp(ctx, notificationUUID, automdm.PatchNotificationApp{
 			SoftwareTitleID: inventoryTitleID, SoftwareInstallerID: &inventoryInstallerID,
 		}))
 
@@ -999,18 +999,18 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 		reminderDisplayed := getTestNotification(t, s.ds, notificationUUID)
 		require.JSONEq(t, `{"reminder": true}`, string(reminderDisplayed.Payload))
 
-		// install the app from Fleet while the reminder is on screen
-		executionID, err := s.ds.InsertSoftwareInstallRequest(ctx, host.ID, installerID, fleet.HostSoftwareInstallOptions{})
+		// install the app from AutoMDM while the reminder is on screen
+		executionID, err := s.ds.InsertSoftwareInstallRequest(ctx, host.ID, installerID, automdm.HostSoftwareInstallOptions{})
 		require.NoError(t, err)
-		s.Do("POST", "/api/fleet/orbit/software_install/result", fleet.OrbitPostSoftwareInstallResultRequest{
+		s.Do("POST", "/api/automdm/orbit/software_install/result", automdm.OrbitPostSoftwareInstallResultRequest{
 			OrbitNodeKey: *host.OrbitNodeKey,
-			HostSoftwareInstallResultPayload: &fleet.HostSoftwareInstallResultPayload{
+			HostSoftwareInstallResultPayload: &automdm.HostSoftwareInstallResultPayload{
 				HostID: host.ID, InstallUUID: executionID, InstallScriptExitCode: new(0), InstallScriptOutput: new("ok"),
 			},
 		}, http.StatusNoContent)
 
-		// update the second app outside Fleet while the reminder is on screen, so only the host's software inventory shows the installer's version
-		_, err = s.ds.UpdateHostSoftware(ctx, host.ID, []fleet.Software{
+		// update the second app outside AutoMDM while the reminder is on screen, so only the host's software inventory shows the installer's version
+		_, err = s.ds.UpdateHostSoftware(ctx, host.ID, []automdm.Software{
 			{Name: "Updated In Inventory App", Version: "2.0.0", Source: "apps"},
 		})
 		require.NoError(t, err)
@@ -1032,7 +1032,7 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 
 		apps, err := s.ds.ListPatchNotificationApps(ctx, notificationUUID)
 		require.NoError(t, err)
-		// apps are listed by display name, so the Fleet installed app comes first
+		// apps are listed by display name, so the AutoMDM installed app comes first
 		require.Len(t, apps, 2)
 		require.Equal(t, titleID, apps[0].SoftwareTitleID)
 		require.True(t, apps[0].InstallQueued)
@@ -1043,14 +1043,14 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 
 		// refetch the reminder as the open toast does, both apps should show as updated
 		var view notifications_api.NotificationView
-		s.DoJSONWithoutAuth("GET", fmt.Sprintf("/api/latest/fleet/device/%s/notifications/%s", token, notificationUUID),
+		s.DoJSONWithoutAuth("GET", fmt.Sprintf("/api/latest/automdm/device/%s/notifications/%s", token, notificationUUID),
 			nil, http.StatusOK, &view)
 		require.Len(t, view.Items, 2)
 		require.Equal(t, titleID, view.Items[0].SoftwareTitleID)
-		require.Equal(t, string(fleet.SoftwareInstalled), view.Items[0].InstallStatus)
+		require.Equal(t, string(automdm.SoftwareInstalled), view.Items[0].InstallStatus)
 		require.Equal(t, "Updated", view.Items[0].Status)
 		require.Equal(t, inventoryTitleID, view.Items[1].SoftwareTitleID)
-		require.Equal(t, string(fleet.SoftwareInstalled), view.Items[1].InstallStatus)
+		require.Equal(t, string(automdm.SoftwareInstalled), view.Items[1].InstallStatus)
 		require.Equal(t, "Updated", view.Items[1].Status)
 		require.Equal(t, []notifications_api.NotificationAction{{ID: "dismiss", Label: "Hide"}}, view.Actions)
 	})
@@ -1059,21 +1059,21 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 	// app installs and asks for a refetch, and that refetch's policy run used to open a second notification.
 	t.Run("a refetch during a patch notification does not open a second notification", func(t *testing.T) {
 		host := newNotifiableHost(t, "notif-refetch")
-		team, err := s.ds.NewTeam(ctx, &fleet.Team{Name: "refetch-team"})
+		team, err := s.ds.NewTeam(ctx, &automdm.Team{Name: "refetch-team"})
 		require.NoError(t, err)
-		require.NoError(t, s.ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team.ID, []uint{host.ID})))
+		require.NoError(t, s.ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team.ID, []uint{host.ID})))
 
-		// two patch policies, each with its own installer, the way a fleet with two out of date apps looks
+		// two patch policies, each with its own installer, the way a team with two out of date apps looks
 		newPatchPolicy := func(t *testing.T, name string) (uint, uint) {
-			installerID, _, err := s.ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
+			installerID, _, err := s.ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
 				InstallScript: "echo", Filename: name + ".pkg", StorageID: uuid.NewString(),
 				Title: name, Version: "2.0.0", Source: "apps", Platform: "darwin",
 				UserID: s.users["admin1@example.com"].ID,
-				TeamID: &team.ID, ValidatedLabels: &fleet.LabelIdentsWithScope{},
+				TeamID: &team.ID, ValidatedLabels: &automdm.LabelIdentsWithScope{},
 				AppOpenQuery: "SELECT 1 FROM processes WHERE name = 'app'",
 			})
 			require.NoError(t, err)
-			policy, err := s.ds.NewTeamPolicy(ctx, team.ID, nil, fleet.PolicyPayload{
+			policy, err := s.ds.NewTeamPolicy(ctx, team.ID, nil, automdm.PolicyPayload{
 				Name: name + " up to date", Query: "SELECT 1;",
 			})
 			require.NoError(t, err)
@@ -1110,7 +1110,7 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 
 		// an empty pre install condition output is the app open skip orbit reports
 		postInstallResult := func(t *testing.T, executionID string, appWasOpen bool) {
-			payload := &fleet.HostSoftwareInstallResultPayload{HostID: host.ID, InstallUUID: executionID}
+			payload := &automdm.HostSoftwareInstallResultPayload{HostID: host.ID, InstallUUID: executionID}
 			if appWasOpen {
 				payload.PreInstallConditionOutput = new("")
 			} else {
@@ -1118,7 +1118,7 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 				payload.InstallScriptExitCode = new(0)
 				payload.InstallScriptOutput = new("ok")
 			}
-			s.Do("POST", "/api/fleet/orbit/software_install/result", fleet.OrbitPostSoftwareInstallResultRequest{
+			s.Do("POST", "/api/automdm/orbit/software_install/result", automdm.OrbitPostSoftwareInstallResultRequest{
 				OrbitNodeKey: *host.OrbitNodeKey, HostSoftwareInstallResultPayload: payload,
 			}, http.StatusNoContent)
 		}
@@ -1147,7 +1147,7 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 			mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
 				return sqlx.SelectContext(ctx, q, &uuids, `
 					SELECT uuid FROM notifications_end_user WHERE host_id = ? AND kind = ? ORDER BY id`,
-					host.ID, fleet.PatchNotificationKind)
+					host.ID, automdm.PatchNotificationKind)
 			})
 			return uuids
 		}
@@ -1196,7 +1196,7 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 		require.NotNil(t, displayed.DisplayedAt)
 
 		var view notifications_api.NotificationView
-		s.DoJSONWithoutAuth("POST", fmt.Sprintf("/api/latest/fleet/device/%s/notifications/%s/actions", token, notificationUUIDs[0]),
+		s.DoJSONWithoutAuth("POST", fmt.Sprintf("/api/latest/automdm/device/%s/notifications/%s/actions", token, notificationUUIDs[0]),
 			json.RawMessage(`{"action": "update_now"}`), http.StatusOK, &view)
 		require.Equal(t, notifications_api.EndUserNotificationActed, getTestNotification(t, s.ds, notificationUUIDs[0]).Status)
 		require.Equal(t, 3, countInstalls(t, openAppInstallerID), "Update now queues the install the end user asked for")
@@ -1210,27 +1210,27 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 			"a skip from the second policy run's install must not open a second notification")
 	})
 
-	// Fleet Desktop closes a toast ten minutes after displaying it, so a notification is on the end user's screen for the ten minutes after its displayed_at, whatever the end user pressed.
+	// AutoMDM Desktop closes a toast ten minutes after displaying it, so a notification is on the end user's screen for the ten minutes after its displayed_at, whatever the end user pressed.
 
-	notifyTeamAndHost := func(t *testing.T, suffix string) (*fleet.Host, uint) {
+	notifyTeamAndHost := func(t *testing.T, suffix string) (*automdm.Host, uint) {
 		host := newNotifiableHost(t, suffix)
-		team, err := s.ds.NewTeam(ctx, &fleet.Team{Name: suffix + "-team"})
+		team, err := s.ds.NewTeam(ctx, &automdm.Team{Name: suffix + "-team"})
 		require.NoError(t, err)
-		require.NoError(t, s.ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team.ID, []uint{host.ID})))
+		require.NoError(t, s.ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team.ID, []uint{host.ID})))
 		return host, team.ID
 	}
 
 	// a patch policy with its own installer, carrying the app open query that makes the install skip
 	newNotifyPatchPolicy := func(t *testing.T, teamID uint, name string) (uint, uint) {
-		installerID, _, err := s.ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
+		installerID, _, err := s.ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
 			InstallScript: "echo", Filename: name + ".pkg", StorageID: uuid.NewString(),
 			Title: name, Version: "2.0.0", Source: "apps", Platform: "darwin",
 			UserID: s.users["admin1@example.com"].ID,
-			TeamID: &teamID, ValidatedLabels: &fleet.LabelIdentsWithScope{},
+			TeamID: &teamID, ValidatedLabels: &automdm.LabelIdentsWithScope{},
 			AppOpenQuery: "SELECT 1 FROM processes WHERE name = 'app'",
 		})
 		require.NoError(t, err)
-		policy, err := s.ds.NewTeamPolicy(ctx, teamID, nil, fleet.PolicyPayload{
+		policy, err := s.ds.NewTeamPolicy(ctx, teamID, nil, automdm.PolicyPayload{
 			Name: name + " up to date", Query: "SELECT 1;",
 		})
 		require.NoError(t, err)
@@ -1262,10 +1262,10 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 	}
 
 	// orbit reports an empty pre install condition output when it skips an install because the app is open
-	postSkippedInstall := func(t *testing.T, host *fleet.Host, executionID string) {
-		s.Do("POST", "/api/fleet/orbit/software_install/result", fleet.OrbitPostSoftwareInstallResultRequest{
+	postSkippedInstall := func(t *testing.T, host *automdm.Host, executionID string) {
+		s.Do("POST", "/api/automdm/orbit/software_install/result", automdm.OrbitPostSoftwareInstallResultRequest{
 			OrbitNodeKey: *host.OrbitNodeKey,
-			HostSoftwareInstallResultPayload: &fleet.HostSoftwareInstallResultPayload{
+			HostSoftwareInstallResultPayload: &automdm.HostSoftwareInstallResultPayload{
 				HostID: host.ID, InstallUUID: executionID, PreInstallConditionOutput: new(""),
 			},
 		}, http.StatusNoContent)
@@ -1276,13 +1276,13 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 		mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
 			return sqlx.SelectContext(ctx, q, &uuids, `
 				SELECT uuid FROM notifications_end_user WHERE host_id = ? AND kind = ? ORDER BY id`,
-				hostID, fleet.PatchNotificationKind)
+				hostID, automdm.PatchNotificationKind)
 		})
 		return uuids
 	}
 
 	// runs a policy pass, lets the install skip because the app is open, and displays the notification that opens
-	skipAndDisplay := func(t *testing.T, host *fleet.Host, results map[uint]*bool, wantInstallerID uint) string {
+	skipAndDisplay := func(t *testing.T, host *automdm.Host, results map[uint]*bool, wantInstallerID uint) string {
 		var distributedResp submitDistributedQueryResultsResponse
 		s.DoJSON("POST", "/api/osquery/distributed/write",
 			genDistributedReqWithPolicyResults(host, results), http.StatusOK, &distributedResp)
@@ -1422,7 +1422,7 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 		// the end user presses Update now. The page keeps the toast open on the Installing view, since
 		// only a dismiss action posts `dismiss` over the bridge.
 		var view notifications_api.NotificationView
-		s.DoJSONWithoutAuth("POST", fmt.Sprintf("/api/latest/fleet/device/%s/notifications/%s/actions", token, firstUUID),
+		s.DoJSONWithoutAuth("POST", fmt.Sprintf("/api/latest/automdm/device/%s/notifications/%s/actions", token, firstUUID),
 			json.RawMessage(`{"action": "update_now"}`), http.StatusOK, &view)
 		acted := getTestNotification(t, s.ds, firstUUID)
 		require.Equal(t, notifications_api.EndUserNotificationActed, acted.Status)
@@ -1431,9 +1431,9 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 		// the install Update now queued runs and clears the queue, since the host activates a single install at a time
 		updateNowExecutionID, updateNowInstallerID := activatedInstallFor(t, host.ID)
 		require.Equal(t, firstInstallerID, updateNowInstallerID)
-		s.Do("POST", "/api/fleet/orbit/software_install/result", fleet.OrbitPostSoftwareInstallResultRequest{
+		s.Do("POST", "/api/automdm/orbit/software_install/result", automdm.OrbitPostSoftwareInstallResultRequest{
 			OrbitNodeKey: *host.OrbitNodeKey,
-			HostSoftwareInstallResultPayload: &fleet.HostSoftwareInstallResultPayload{
+			HostSoftwareInstallResultPayload: &automdm.HostSoftwareInstallResultPayload{
 				HostID: host.ID, InstallUUID: updateNowExecutionID, PreInstallConditionOutput: new("1"),
 				InstallScriptExitCode: new(0), InstallScriptOutput: new("ok"),
 			},
@@ -1593,7 +1593,7 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 
 		_, firstReturnToken := fetchScript(t, host, *firstReturn.ExecutionID)
 		var firstReturnView notifications_api.NotificationView
-		s.DoJSONWithoutAuth("GET", fmt.Sprintf("/api/latest/fleet/device/%s/notifications/%s", firstReturnToken, notificationUUID),
+		s.DoJSONWithoutAuth("GET", fmt.Sprintf("/api/latest/automdm/device/%s/notifications/%s", firstReturnToken, notificationUUID),
 			nil, http.StatusOK, &firstReturnView)
 		postScriptResult(host, *firstReturn.ExecutionID, 0)
 
@@ -1612,7 +1612,7 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 
 		_, reminderToken := fetchScript(t, host, *reminder.ExecutionID)
 		var reminderView notifications_api.NotificationView
-		s.DoJSONWithoutAuth("GET", fmt.Sprintf("/api/latest/fleet/device/%s/notifications/%s", reminderToken, notificationUUID),
+		s.DoJSONWithoutAuth("GET", fmt.Sprintf("/api/latest/automdm/device/%s/notifications/%s", reminderToken, notificationUUID),
 			nil, http.StatusOK, &reminderView)
 		postScriptResult(host, *reminder.ExecutionID, 0)
 
@@ -1649,7 +1649,7 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 
 		_, secondReturnToken := fetchScript(t, host, *secondReturn.ExecutionID)
 		var secondReturnView notifications_api.NotificationView
-		s.DoJSONWithoutAuth("GET", fmt.Sprintf("/api/latest/fleet/device/%s/notifications/%s", secondReturnToken, notificationUUID),
+		s.DoJSONWithoutAuth("GET", fmt.Sprintf("/api/latest/automdm/device/%s/notifications/%s", secondReturnToken, notificationUUID),
 			nil, http.StatusOK, &secondReturnView)
 		postScriptResult(host, *secondReturn.ExecutionID, 0)
 
@@ -1668,7 +1668,7 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 
 		_, onlineReminderToken := fetchScript(t, host, *onlineReminder.ExecutionID)
 		var onlineReminderView notifications_api.NotificationView
-		s.DoJSONWithoutAuth("GET", fmt.Sprintf("/api/latest/fleet/device/%s/notifications/%s", onlineReminderToken, notificationUUID),
+		s.DoJSONWithoutAuth("GET", fmt.Sprintf("/api/latest/automdm/device/%s/notifications/%s", onlineReminderToken, notificationUUID),
 			nil, http.StatusOK, &onlineReminderView)
 		postScriptResult(host, *onlineReminder.ExecutionID, 0)
 
@@ -1691,13 +1691,13 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 		require.Equal(t, 1, queued, "the install is queued once the host is online at the reminder's deadline")
 	})
 
-	// A deadline policy on a host whose fleet has a deadline every day at 09:30, local time
-	newDeadlinePolicy := func(t *testing.T, host *fleet.Host, teamID uint, timezone, name string) (uint, uint) {
+	// A deadline policy on a host whose team has a deadline every day at 09:30, local time
+	newDeadlinePolicy := func(t *testing.T, host *automdm.Host, teamID uint, timezone, name string) (uint, uint) {
 		mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
 			_, err := q.ExecContext(ctx, `UPDATE hosts SET timezone = ? WHERE id = ?`, timezone, host.ID)
 			return err
 		})
-		require.NoError(t, s.ds.SetPatchDeadlineSettings(ctx, fleet.PatchDeadlineSettings{
+		require.NoError(t, s.ds.SetPatchDeadlineSettings(ctx, automdm.PatchDeadlineSettings{
 			TeamID: teamID,
 			Days:   []string{"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"},
 			Time:   "09:30",
@@ -1722,7 +1722,7 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 
 	hostPatchDeadlineAt := func(t *testing.T, hostID uint) *time.Time {
 		var resp getHostResponse
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", hostID), nil, http.StatusOK, &resp)
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", hostID), nil, http.StatusOK, &resp)
 		return resp.Host.PatchDeadlineAt
 	}
 
@@ -1762,12 +1762,12 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 		require.Zero(t, *result.AttemptNumber)
 		result.EnhanceOutputDetails()
 		require.NotNil(t, result.PreInstallQueryOutput)
-		require.Equal(t, fleet.SoftwareInstallerAppOpenDeadlineCopy, *result.PreInstallQueryOutput)
+		require.Equal(t, automdm.SoftwareInstallerAppOpenDeadlineCopy, *result.PreInstallQueryOutput)
 
 		rows := notificationsForHost(t, host.ID)
 		require.Len(t, rows, 1)
 		notification := rows[0]
-		require.Equal(t, fleet.PatchDeadlineNotificationKind, notification.Kind)
+		require.Equal(t, automdm.PatchDeadlineNotificationKind, notification.Kind)
 		require.Equal(t, notifications_api.EndUserNotificationPending, notification.Status)
 		require.NotNil(t, notification.NextAttemptAt)
 		require.WithinDuration(t, firstNotice, *notification.NextAttemptAt, time.Second)
@@ -1804,7 +1804,7 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 		require.WithinDuration(t, displayed.DisplayedAt.Add(time.Hour), *installAt, time.Minute)
 
 		var hostFeed listActivitiesResponse
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/activities", host.ID), nil, http.StatusOK, &hostFeed)
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/activities", host.ID), nil, http.StatusOK, &hostFeed)
 		var notified bool
 		for _, activity := range hostFeed.Activities {
 			notified = notified || activity.Type == "notified_end_user_before_patching"
@@ -1867,7 +1867,7 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 
 		rows := notificationsForHost(t, host.ID)
 		require.Len(t, rows, 1)
-		require.Equal(t, fleet.PatchDeadlineNotificationKind, rows[0].Kind)
+		require.Equal(t, automdm.PatchDeadlineNotificationKind, rows[0].Kind)
 
 		var apps int
 		mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
@@ -1887,9 +1887,9 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 		require.Equal(t, installerID, activatedInstallerID)
 
 		// a non-empty pre install condition output means the app was closed
-		s.Do("POST", "/api/fleet/orbit/software_install/result", fleet.OrbitPostSoftwareInstallResultRequest{
+		s.Do("POST", "/api/automdm/orbit/software_install/result", automdm.OrbitPostSoftwareInstallResultRequest{
 			OrbitNodeKey: *host.OrbitNodeKey,
-			HostSoftwareInstallResultPayload: &fleet.HostSoftwareInstallResultPayload{
+			HostSoftwareInstallResultPayload: &automdm.HostSoftwareInstallResultPayload{
 				HostID: host.ID, InstallUUID: executionID, PreInstallConditionOutput: new("1"),
 				InstallScriptExitCode: new(0), InstallScriptOutput: new("ok"),
 			},
@@ -1897,16 +1897,16 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 
 		result, err := s.ds.GetSoftwareInstallResults(ctx, executionID)
 		require.NoError(t, err)
-		require.Equal(t, fleet.SoftwareInstalled, result.Status)
+		require.Equal(t, automdm.SoftwareInstalled, result.Status)
 		require.Empty(t, notificationsForHost(t, host.ID))
 		require.Nil(t, hostPatchDeadlineAt(t, host.ID))
 	})
 
-	t.Run("a host moved to another fleet", func(t *testing.T) {
-		moveToFleet := func(host *fleet.Host, teamID uint) {
-			s.Do("POST", "/api/latest/fleet/hosts/transfer", addHostsToTeamRequest{TeamID: &teamID, HostIDs: []uint{host.ID}}, http.StatusOK)
+	t.Run("a host moved to another team", func(t *testing.T) {
+		moveToAutoMDM := func(host *automdm.Host, teamID uint) {
+			s.Do("POST", "/api/latest/automdm/hosts/transfer", addHostsToTeamRequest{TeamID: &teamID, HostIDs: []uint{host.ID}}, http.StatusOK)
 		}
-		appsOn := func(t *testing.T, notificationUUID string) []fleet.PatchNotificationAppDetail {
+		appsOn := func(t *testing.T, notificationUUID string) []automdm.PatchNotificationAppDetail {
 			apps, err := s.ds.ListPatchNotificationApps(ctx, notificationUUID)
 			require.NoError(t, err)
 			return apps
@@ -1920,7 +1920,7 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 			}
 			return open
 		}
-		failPolicyAndSkipInstall := func(t *testing.T, host *fleet.Host, policyID, wantInstallerID uint) {
+		failPolicyAndSkipInstall := func(t *testing.T, host *automdm.Host, policyID, wantInstallerID uint) {
 			var distributedResp submitDistributedQueryResultsResponse
 			s.DoJSON("POST", "/api/osquery/distributed/write",
 				genDistributedReqWithPolicyResults(host, map[uint]*bool{policyID: new(false)}), http.StatusOK, &distributedResp)
@@ -1941,19 +1941,19 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 		}
 		const timezone = "America/New_York"
 
-		t.Run("before the notice leaves the old fleet's apps behind and the new fleet's skip adds its own", func(t *testing.T) {
-			host, oldFleetID := notifyTeamAndHost(t, "notif-move-before-notice")
-			newFleet, err := s.ds.NewTeam(ctx, &fleet.Team{Name: "notif-move-before-notice-new"})
+		t.Run("before the notice leaves the old team's apps behind and the new team's skip adds its own", func(t *testing.T) {
+			host, oldTeamID := notifyTeamAndHost(t, "notif-move-before-notice")
+			newAutoMDM, err := s.ds.NewTeam(ctx, &automdm.Team{Name: "notif-move-before-notice-new"})
 			require.NoError(t, err)
 
-			oldPolicyID, oldInstallerID := newDeadlinePolicy(t, host, oldFleetID, timezone, "Move Shared App")
-			oldOnlyPolicyID, oldOnlyInstallerID := newDeadlinePolicy(t, host, oldFleetID, timezone, "Move Old Fleet App")
-			newPolicyID, newInstallerID := newDeadlinePolicy(t, host, newFleet.ID, timezone, "Move Shared App")
+			oldPolicyID, oldInstallerID := newDeadlinePolicy(t, host, oldTeamID, timezone, "Move Shared App")
+			oldOnlyPolicyID, oldOnlyInstallerID := newDeadlinePolicy(t, host, oldTeamID, timezone, "Move Old AutoMDM App")
+			newPolicyID, newInstallerID := newDeadlinePolicy(t, host, newAutoMDM.ID, timezone, "Move Shared App")
 			failPolicyAndSkipInstall(t, host, oldPolicyID, oldInstallerID)
 			failPolicyAndSkipInstall(t, host, oldOnlyPolicyID, oldOnlyInstallerID)
 			require.Len(t, openNotifications(t, host.ID), 1)
 
-			moveToFleet(host, newFleet.ID)
+			moveToAutoMDM(host, newAutoMDM.ID)
 
 			require.Empty(t, openNotifications(t, host.ID))
 			require.Nil(t, hostPatchDeadlineAt(t, host.ID))
@@ -1968,11 +1968,11 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 			require.Equal(t, newInstallerID, *apps[0].SoftwareInstallerID)
 		})
 
-		t.Run("with the toast on screen installs nothing of the old fleet's at the deadline", func(t *testing.T) {
-			host, oldFleetID := notifyTeamAndHost(t, "notif-move-on-screen")
-			newFleet, err := s.ds.NewTeam(ctx, &fleet.Team{Name: "notif-move-on-screen-new"})
+		t.Run("with the toast on screen installs nothing of the old team's at the deadline", func(t *testing.T) {
+			host, oldTeamID := notifyTeamAndHost(t, "notif-move-on-screen")
+			newAutoMDM, err := s.ds.NewTeam(ctx, &automdm.Team{Name: "notif-move-on-screen-new"})
 			require.NoError(t, err)
-			policyID, installerID := newDeadlinePolicy(t, host, oldFleetID, timezone, "Move On Screen App")
+			policyID, installerID := newDeadlinePolicy(t, host, oldTeamID, timezone, "Move On Screen App")
 			failPolicyAndSkipInstall(t, host, policyID, installerID)
 			require.Empty(t, installsQueuedFor(t, host.ID))
 
@@ -1999,7 +1999,7 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 			require.NoError(t, s.patchNotificationKind.RemindAndInstallDuePatches(ctx))
 			displayToast()
 
-			moveToFleet(host, newFleet.ID)
+			moveToAutoMDM(host, newAutoMDM.ID)
 
 			markTestHostSeen(t, s.ds, host.ID)
 			setTestInstallAt(t, s.ds, notificationUUID, "NOW(6) - INTERVAL 1 MINUTE")
@@ -2008,10 +2008,10 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 		})
 
 		t.Run("with the toast on screen queues nothing when the end user presses Update now", func(t *testing.T) {
-			host, oldFleetID := notifyTeamAndHost(t, "notif-move-update-now")
-			newFleet, err := s.ds.NewTeam(ctx, &fleet.Team{Name: "notif-move-update-now-new"})
+			host, oldTeamID := notifyTeamAndHost(t, "notif-move-update-now")
+			newAutoMDM, err := s.ds.NewTeam(ctx, &automdm.Team{Name: "notif-move-update-now-new"})
 			require.NoError(t, err)
-			policyID, installerID := newDeadlinePolicy(t, host, oldFleetID, timezone, "Move Update Now App")
+			policyID, installerID := newDeadlinePolicy(t, host, oldTeamID, timezone, "Move Update Now App")
 			failPolicyAndSkipInstall(t, host, policyID, installerID)
 
 			open := openNotifications(t, host.ID)
@@ -2028,18 +2028,18 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 			_, token := fetchScript(t, host, *dispatched.ExecutionID)
 			postScriptResult(host, *dispatched.ExecutionID, 0)
 
-			moveToFleet(host, newFleet.ID)
+			moveToAutoMDM(host, newAutoMDM.ID)
 
-			s.Do("POST", fmt.Sprintf("/api/latest/fleet/device/%s/notifications/%s/actions", token, notificationUUID),
+			s.Do("POST", fmt.Sprintf("/api/latest/automdm/device/%s/notifications/%s/actions", token, notificationUUID),
 				json.RawMessage(`{"action":"update_now"}`), http.StatusInternalServerError)
 			require.Empty(t, installsQueuedFor(t, host.ID))
 		})
 
 		t.Run("with the script already queued stays failed when the script reports back", func(t *testing.T) {
-			host, oldFleetID := notifyTeamAndHost(t, "notif-move-queued-script")
-			newFleet, err := s.ds.NewTeam(ctx, &fleet.Team{Name: "notif-move-queued-script-new"})
+			host, oldTeamID := notifyTeamAndHost(t, "notif-move-queued-script")
+			newAutoMDM, err := s.ds.NewTeam(ctx, &automdm.Team{Name: "notif-move-queued-script-new"})
 			require.NoError(t, err)
-			policyID, installerID := newDeadlinePolicy(t, host, oldFleetID, timezone, "Move Queued Script App")
+			policyID, installerID := newDeadlinePolicy(t, host, oldTeamID, timezone, "Move Queued Script App")
 			failPolicyAndSkipInstall(t, host, policyID, installerID)
 
 			open := openNotifications(t, host.ID)
@@ -2054,10 +2054,10 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 			dispatched := getTestNotification(t, s.ds, notificationUUID)
 			require.NotNil(t, dispatched.ExecutionID)
 
-			moveToFleet(host, newFleet.ID)
+			moveToAutoMDM(host, newAutoMDM.ID)
 			require.Equal(t, notifications_api.EndUserNotificationFailed, getTestNotification(t, s.ds, notificationUUID).Status)
 
-			// Fleet Desktop exits 31 when the page gets an error, and that exit code retries a notification still out
+			// AutoMDM Desktop exits 31 when the page gets an error, and that exit code retries a notification still out
 			fetchScript(t, host, *dispatched.ExecutionID)
 			postScriptResult(host, *dispatched.ExecutionID, 31)
 
@@ -2065,11 +2065,11 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 			require.Empty(t, installsQueuedFor(t, host.ID))
 
 			var hostFeed listActivitiesResponse
-			s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/activities", host.ID), nil, http.StatusOK, &hostFeed)
-			var notified []fleet.ActivityTypeNotifiedEndUserBeforePatching
+			s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/activities", host.ID), nil, http.StatusOK, &hostFeed)
+			var notified []automdm.ActivityTypeNotifiedEndUserBeforePatching
 			for _, activity := range hostFeed.Activities {
 				if activity.Type == "notified_end_user_before_patching" {
-					var details fleet.ActivityTypeNotifiedEndUserBeforePatching
+					var details automdm.ActivityTypeNotifiedEndUserBeforePatching
 					require.NoError(t, json.Unmarshal(*activity.Details, &details))
 					notified = append(notified, details)
 				}
@@ -2079,11 +2079,11 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 			require.Empty(t, notified[0].SoftwareTitles)
 		})
 
-		t.Run("ignores a skip from an install the old fleet queued before the move", func(t *testing.T) {
-			host, oldFleetID := notifyTeamAndHost(t, "notif-move-late-skip")
-			newFleet, err := s.ds.NewTeam(ctx, &fleet.Team{Name: "notif-move-late-skip-new"})
+		t.Run("ignores a skip from an install the old team queued before the move", func(t *testing.T) {
+			host, oldTeamID := notifyTeamAndHost(t, "notif-move-late-skip")
+			newAutoMDM, err := s.ds.NewTeam(ctx, &automdm.Team{Name: "notif-move-late-skip-new"})
 			require.NoError(t, err)
-			policyID, installerID := newDeadlinePolicy(t, host, oldFleetID, timezone, "Move Late Skip App")
+			policyID, installerID := newDeadlinePolicy(t, host, oldTeamID, timezone, "Move Late Skip App")
 
 			var distributedResp submitDistributedQueryResultsResponse
 			s.DoJSON("POST", "/api/osquery/distributed/write",
@@ -2091,7 +2091,7 @@ func (s *integrationTestSuite) TestEndUserNotifications() {
 			executionID, activatedInstallerID := activatedInstallFor(t, host.ID)
 			require.Equal(t, installerID, activatedInstallerID)
 
-			moveToFleet(host, newFleet.ID)
+			moveToAutoMDM(host, newAutoMDM.ID)
 			postSkippedInstall(t, host, executionID)
 
 			require.Empty(t, notificationsForHost(t, host.ID))

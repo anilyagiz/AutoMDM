@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-fleet_url="https://fleet.yourdomain.com"
+automdm_url="https://automdm.yourdomain.com"
 identifier_file="/opt/orbit/identifier"
 
 if [[ ! -r "$identifier_file" ]]; then
@@ -18,7 +18,7 @@ fi
 echo "Triggering refetch..."
 
 if curl -sf --connect-timeout 5 --max-time 20 -X POST \
-  "$fleet_url/api/v1/fleet/device/$orbit_identifier/refetch" > /dev/null; then
+  "$automdm_url/api/v1/automdm/device/$orbit_identifier/refetch" > /dev/null; then
     echo "Refetch triggered successfully!"
 else
     rc=$?

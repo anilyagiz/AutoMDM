@@ -10,7 +10,7 @@
 				<key>CertificateRenewalTimeInterval</key>
 				<integer>14</integer>
 				<key>Challenge</key>
-				<string>$FLEET_VAR_NDES_SCEP_CHALLENGE</string>
+				<string>$AUTOMDM_VAR_NDES_SCEP_CHALLENGE</string>
 				<key>Key Type</key>
 				<string>RSA</string>
 				<key>Key Usage</key>
@@ -22,19 +22,19 @@
 					<array>
 						<array>
 							<string>CN</string>
-							<string>Fleet Mock NDES %HardwareUUID%</string>
+							<string>AutoMDM Mock NDES %HardwareUUID%</string>
 						</array>
 						<array>
 							<string>OU</string>
-							<string>$FLEET_VAR_CERTIFICATE_RENEWAL_ID</string>
+							<string>$AUTOMDM_VAR_CERTIFICATE_RENEWAL_ID</string>
 						</array>
 					</array>
 				</array>
 				<key>URL</key>
-				<string>$FLEET_VAR_NDES_SCEP_PROXY_URL</string>
+				<string>$AUTOMDM_VAR_NDES_SCEP_PROXY_URL</string>
 			</dict>
 			<key>PayloadDisplayName</key>
-			<string>SCEP (NDES via Fleet proxy)</string>
+			<string>SCEP (NDES via AutoMDM proxy)</string>
 			<key>PayloadIdentifier</key>
 			<string>com.apple.security.scep.E2FEBAE5-2460-4AA8-9B46-A2E14F9AED16</string>
 			<key>PayloadType</key>

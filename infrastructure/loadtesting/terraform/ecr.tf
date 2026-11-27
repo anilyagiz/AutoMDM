@@ -8,7 +8,7 @@ resource "aws_kms_key" "main" {
   enable_key_rotation     = true
 }
 
-resource "aws_ecr_repository" "fleet" {
+resource "aws_ecr_repository" "automdm" {
   name                 = local.prefix
   image_tag_mutability = "IMMUTABLE"
 
@@ -26,8 +26,8 @@ resource "aws_ecr_repository" "fleet" {
 
 data "aws_ecr_authorization_token" "token" {}
 
-resource "docker_registry_image" "fleet" {
-  name          = "${aws_ecr_repository.fleet.repository_url}:${var.tag}-${split(":", data.docker_registry_image.dockerhub.sha256_digest)[1]}"
+resource "docker_registry_image" "automdm" {
+  name          = "${aws_ecr_repository.automdm.repository_url}:${var.tag}-${split(":", data.docker_registry_image.dockerhub.sha256_digest)[1]}"
   keep_remotely = true
 
   build {
@@ -40,11 +40,11 @@ resource "docker_registry_image" "fleet" {
 }
 
 data "docker_registry_image" "dockerhub" {
-  name = "fleetdm/fleet:${var.tag}"
+  name = "automdm/automdm:${var.tag}"
 }
 
 resource "docker_registry_image" "loadtest" {
-  name          = "${aws_ecr_repository.fleet.repository_url}:loadtest-${local.loadtest_tag}-${split(":", data.docker_registry_image.dockerhub.sha256_digest)[1]}"
+  name          = "${aws_ecr_repository.automdm.repository_url}:loadtest-${local.loadtest_tag}-${split(":", data.docker_registry_image.dockerhub.sha256_digest)[1]}"
   keep_remotely = true
 
   build {

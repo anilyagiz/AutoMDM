@@ -4,16 +4,16 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
 )
 
 type zeroTouchConfigurationRequest struct {
-	TeamID *uint `query:"fleet_id,optional"`
+	TeamID *uint `query:"team_id,optional"`
 }
 
-func zeroTouchConfigurationEndpoint(ctx context.Context, request any, svc android.Service) fleet.Errorer {
+func zeroTouchConfigurationEndpoint(ctx context.Context, request any, svc android.Service) automdm.Errorer {
 	req := request.(*zeroTouchConfigurationRequest)
 	resp, err := svc.GetZeroTouchConfiguration(ctx, req.TeamID)
 	if err != nil {
@@ -26,35 +26,35 @@ func zeroTouchConfigurationEndpoint(ctx context.Context, request any, svc androi
 // The real implementation lives in ee/server/mdm/android/.
 func (svc *Service) GetZeroTouchConfiguration(ctx context.Context, _ *uint) (*android.ZeroTouchConfigurationResponse, error) {
 	svc.authz.SkipAuthorization(ctx)
-	return nil, fleet.ErrMissingLicense
+	return nil, automdm.ErrMissingLicense
 }
 
 // teamEnrollmentRequest is the payload embedded in AMAPI enrollment token additionalData.
 type teamEnrollmentRequest struct {
-	TeamID *uint `json:"fleet_id"`
+	TeamID *uint `json:"team_id"`
 }
 
 // Supports two formats:
-//   - {"fleet_id": <uint|null>} — zero-touch and new QR tokens
+//   - {"team_id": <uint|null>} — zero-touch and new QR tokens
 //   - {"EnrollSecret":"...", "IdpUUID":"..."} — legacy QR tokens
 //
 // If the team no longer exists, falls back to unassigned (nil).
 func (svc *Service) resolveTeamFromEnrollmentData(ctx context.Context, enrollmentTokenData string) (teamID *uint, idpUUID string, err error) {
 	var raw map[string]json.RawMessage
 	if jsonErr := json.Unmarshal([]byte(enrollmentTokenData), &raw); jsonErr == nil {
-		if _, hasTeamID := raw["fleet_id"]; hasTeamID {
+		if _, hasTeamID := raw["team_id"]; hasTeamID {
 			var data teamEnrollmentRequest
 			if err := json.Unmarshal([]byte(enrollmentTokenData), &data); err != nil {
 				return nil, "", ctxerr.Wrap(ctx, err, "unmarshalling zero-touch additional data")
 			}
 			if data.TeamID != nil {
-				exists, err := svc.fleetDS.TeamExists(ctx, *data.TeamID)
+				exists, err := svc.automdmDS.TeamExists(ctx, *data.TeamID)
 				if err != nil {
 					return nil, "", ctxerr.Wrap(ctx, err, "checking if team exists")
 				}
 				if !exists {
-					svc.logger.WarnContext(ctx, "enrollment token fleet does not exist, assigning to unassigned",
-						"fleet_id", *data.TeamID)
+					svc.logger.WarnContext(ctx, "enrollment token team does not exist, assigning to unassigned",
+						"team_id", *data.TeamID)
 					return nil, "", nil
 				}
 			}

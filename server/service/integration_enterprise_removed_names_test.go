@@ -8,21 +8,21 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/pkg/removednames"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/pkg/removednames"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/require"
 )
 
-// TestRemovedFleetNames checks that the old team names are rejected, not silently ignored, on the endpoints whose request types
-// already use the fleet names. A request that still sends one would otherwise apply to No team or to every fleet.
-func (s *integrationEnterpriseTestSuite) TestRemovedFleetNames() {
+// TestRemovedTeamNames checks that the old team names are rejected, not silently ignored, on the endpoints whose request types
+// already use the team names. A request that still sends one would otherwise apply to No team or to every team.
+func (s *integrationEnterpriseTestSuite) TestRemovedTeamNames() {
 	t := s.T()
 	reportsBefore := len(s.listReports())
 
 	// rejectNamed expects the error to name the field param, which differs from key only when key is a removed value.
 	rejectNamed := func(method, path, body, param, key string, query ...string) {
 		t.Run(method+" "+path+" "+key, func(t *testing.T) {
-			resp := s.DoRaw(method, "/api/latest/fleet"+path, []byte(body), http.StatusUnprocessableEntity, query...)
+			resp := s.DoRaw(method, "/api/latest/automdm"+path, []byte(body), http.StatusUnprocessableEntity, query...)
 			var got struct {
 				Message string              `json:"message"`
 				Errors  []map[string]string `json:"errors"`
@@ -38,7 +38,7 @@ func (s *integrationEnterpriseTestSuite) TestRemovedFleetNames() {
 		rejectNamed(method, path, body, key, key, query...)
 	}
 
-	// Request body keys: fleet roles, selected fleets and the fleet of a created or targeted entity.
+	// Request body keys: team roles, selected teams and the team of a created or targeted entity.
 	for _, tc := range [][]string{
 		{"POST", "/invites", `{"email": "a@example.com", "name": "a", "teams": []}`, "teams"},
 		{"PATCH", "/invites/1", `{"teams": []}`, "teams"},
@@ -60,8 +60,8 @@ func (s *integrationEnterpriseTestSuite) TestRemovedFleetNames() {
 		{"DELETE", "/spec/certificates", `{"team_id": 1, "names": ["a"]}`, "team_id"},
 		{"POST", "/software/app_store_apps", `{"app_store_id": "a", "team_id": 1}`, "team_id"},
 		{"PATCH", "/software/titles/1/app_store_app", `{"team_id": 1}`, "team_id"},
-		{"PATCH", "/fleets/1/secrets", `{"secrets": [{"secret": "a", "team_id": 1}]}`, "team_id"},
-		{"POST", "/software/fleet_maintained_apps", `{"fleet_maintained_app_id": 1, "team_id": 1}`, "team_id"},
+		{"PATCH", "/teams/1/secrets", `{"secrets": [{"secret": "a", "team_id": 1}]}`, "team_id"},
+		{"POST", "/software/automdm_maintained_apps", `{"automdm_maintained_app_id": 1, "team_id": 1}`, "team_id"},
 	} {
 		reject(tc[0], tc[1], tc[2], tc[3])
 	}
@@ -69,7 +69,7 @@ func (s *integrationEnterpriseTestSuite) TestRemovedFleetNames() {
 	// Keys inside the free-form host filters and the AB and VPP token arrays of the config, with force too, which skips strict
 	// decoding.
 	for _, tc := range [][]string{
-		{"POST", "/hosts/transfer/filter", `{"fleet_id": null, "filters": {"team_id": 1}}`, "team_id"},
+		{"POST", "/hosts/transfer/filter", `{"team_id": null, "filters": {"team_id": 1}}`, "team_id"},
 		{"POST", "/hosts/delete", `{"filters": {"team_id": 1}}`, "team_id"},
 		{"PATCH", "/config", `{"mdm": {"apple_business": [{"organization_name": "a", "macos_team": "a"}]}}`, "macos_team"},
 		{"PATCH", "/config?force=true", `{"mdm": {"apple_business": [{"organization_name": "a", "byod_team": "a"}]}}`, "byod_team"},
@@ -77,14 +77,14 @@ func (s *integrationEnterpriseTestSuite) TestRemovedFleetNames() {
 	} {
 		reject(tc[0], tc[1], tc[2], tc[3])
 	}
-	// The old names of Unassigned and All fleets, used as fleet names, in any letter case.
+	// The old names of Unassigned and All teams, used as team names, in any letter case.
 	for _, tc := range [][]string{
-		{"PATCH", "/config", `{"mdm": {"apple_business": [{"organization_name": "a", "macos_fleet": "No team"}]}}`, "mdm.apple_business", "No team", "Unassigned"},
-		{"PATCH", "/config", `{"mdm": {"volume_purchasing_program": [{"location": "a", "fleets": ["All teams"]}]}}`, "mdm.volume_purchasing_program", "All teams", "All fleets"},
-		{"POST", "/spec/policies", `{"specs": [{"name": "a", "query": "SELECT 1", "fleet": "no team"}]}`, "specs.fleet", "No team", "Unassigned"},
+		{"PATCH", "/config", `{"mdm": {"apple_business": [{"organization_name": "a", "macos_team": "No team"}]}}`, "mdm.apple_business", "No team", "Unassigned"},
+		{"PATCH", "/config", `{"mdm": {"volume_purchasing_program": [{"location": "a", "teams": ["All teams"]}]}}`, "mdm.volume_purchasing_program", "All teams", "All teams"},
+		{"POST", "/spec/policies", `{"specs": [{"name": "a", "query": "SELECT 1", "team": "no team"}]}`, "specs.team", "No team", "Unassigned"},
 	} {
 		t.Run(tc[0]+" "+tc[1]+" "+tc[4], func(t *testing.T) {
-			resp := s.DoRaw(tc[0], "/api/latest/fleet"+tc[1], []byte(tc[2]), http.StatusUnprocessableEntity)
+			resp := s.DoRaw(tc[0], "/api/latest/automdm"+tc[1], []byte(tc[2]), http.StatusUnprocessableEntity)
 			var got struct {
 				Errors []map[string]string `json:"errors"`
 			}
@@ -92,21 +92,21 @@ func (s *integrationEnterpriseTestSuite) TestRemovedFleetNames() {
 			require.Equal(t, []map[string]string{{"name": tc[3], "reason": removednames.Message(`"`+tc[4]+`"`, `"`+tc[5]+`"`)}}, got.Errors)
 		})
 	}
-	// Policies never took "All fleets" as a fleet name, so "All teams" stays an unknown fleet.
-	s.DoRaw("POST", "/api/latest/fleet/spec/policies", []byte(`{"specs": [{"name": "a", "query": "SELECT 1", "fleet": "All teams"}]}`),
+	// Policies never took "All teams" as a team name, so "All teams" stays an unknown team.
+	s.DoRaw("POST", "/api/latest/automdm/spec/policies", []byte(`{"specs": [{"name": "a", "query": "SELECT 1", "team": "All teams"}]}`),
 		http.StatusNotFound)
 	// Filters never took other old names, so those stay unknown keys.
-	s.DoRaw("POST", "/api/latest/fleet/hosts/delete", []byte(`{"filters": {"teams": 1}}`), http.StatusBadRequest)
+	s.DoRaw("POST", "/api/latest/automdm/hosts/delete", []byte(`{"filters": {"teams": 1}}`), http.StatusBadRequest)
 
-	// Multipart uploads: the old field is rejected whether or not fleet_id is also sent, and in the query string too.
+	// Multipart uploads: the old field is rejected whether or not team_id is also sent, and in the query string too.
 	for _, path := range []string{"/software/package", "/scripts", "/configuration_profiles", "/setup_experience/script", "/bootstrap"} {
 		for _, tc := range []struct {
 			query  string
 			fields map[string]string
 		}{
 			{fields: map[string]string{"team_id": "0"}},
-			{fields: map[string]string{"fleet_id": "0", "team_id": "0"}},
-			{query: "?team_id=0", fields: map[string]string{"fleet_id": "0"}},
+			{fields: map[string]string{"team_id": "0", "team_id": "0"}},
+			{query: "?team_id=0", fields: map[string]string{"team_id": "0"}},
 		} {
 			t.Run("POST "+path+tc.query+" form field team_id", func(t *testing.T) {
 				var body bytes.Buffer
@@ -115,7 +115,7 @@ func (s *integrationEnterpriseTestSuite) TestRemovedFleetNames() {
 					require.NoError(t, w.WriteField(name, value))
 				}
 				require.NoError(t, w.Close())
-				resp := s.DoRawWithHeaders("POST", "/api/latest/fleet"+path+tc.query, body.Bytes(), http.StatusUnprocessableEntity,
+				resp := s.DoRawWithHeaders("POST", "/api/latest/automdm"+path+tc.query, body.Bytes(), http.StatusUnprocessableEntity,
 					map[string]string{"Content-Type": w.FormDataContentType(), "Authorization": "Bearer " + s.token})
 				var got struct {
 					Errors []map[string]string `json:"errors"`
@@ -137,10 +137,10 @@ func (s *integrationEnterpriseTestSuite) TestRemovedFleetNames() {
 		{"GET", "/certificates"},
 		{"GET", "/hosts"}, {"GET", "/hosts/count"}, {"GET", "/hosts/report"}, {"GET", "/users"},
 		{"GET", "/vulnerabilities"}, {"GET", "/vulnerabilities/CVE-2021-1234"},
-		{"GET", "/software/fleet_maintained_apps"}, {"GET", "/software/fleet_maintained_apps/1"}, {"GET", "/software/app_store_apps"},
+		{"GET", "/software/automdm_maintained_apps"}, {"GET", "/software/automdm_maintained_apps/1"}, {"GET", "/software/app_store_apps"},
 		{"GET", "/software/titles/1/icon"}, {"PUT", "/software/titles/1/icon"}, {"DELETE", "/software/titles/1/icon"},
 	} {
-		reject(tc[0], tc[1], "", "team_id", "fleet_id", "0", "team_id", "1")
+		reject(tc[0], tc[1], "", "team_id", "team_id", "0", "team_id", "1")
 	}
 	reject("POST", "/scripts/batch", "", "team_name", "team_name", "a")
 	reject("POST", "/software/app_store_apps/batch", "", "team_name", "team_name", "a")
@@ -158,25 +158,25 @@ func (s *integrationEnterpriseTestSuite) TestRemovedFleetNames() {
 	require.Len(t, s.listReports(), reportsBefore)
 
 	// A report's result column can be called team_id, so sorting its results by it is allowed.
-	var created fleet.CreateQueryResponse
-	s.DoJSON("POST", "/api/latest/fleet/reports", &fleet.QueryPayload{Name: new(t.Name()), Query: new("SELECT 1 AS team_id")}, http.StatusOK,
+	var created automdm.CreateQueryResponse
+	s.DoJSON("POST", "/api/latest/automdm/reports", &automdm.QueryPayload{Name: new(t.Name()), Query: new("SELECT 1 AS team_id")}, http.StatusOK,
 		&created)
-	s.Do("GET", fmt.Sprintf("/api/latest/fleet/reports/%d/report", created.Report.ID), nil, http.StatusOK, "order_key", "team_id")
+	s.Do("GET", fmt.Sprintf("/api/latest/automdm/reports/%d/report", created.Report.ID), nil, http.StatusOK, "order_key", "team_id")
 
-	// Uploads take fleet_id from the query string, like they took team_id there.
-	team, err := s.ds.NewTeam(t.Context(), &fleet.Team{Name: t.Name()})
+	// Uploads take team_id from the query string, like they took team_id there.
+	team, err := s.ds.NewTeam(t.Context(), &automdm.Team{Name: t.Name()})
 	require.NoError(t, err)
-	body, headers := generateNewScriptMultipartRequest(t, "query_fleet_id.sh", []byte("echo"), s.token, nil)
-	resp := s.DoRawWithHeaders("POST", fmt.Sprintf("/api/latest/fleet/scripts?fleet_id=%d", team.ID), body.Bytes(), http.StatusOK, headers)
-	var createScriptResp fleet.CreateScriptResponse
+	body, headers := generateNewScriptMultipartRequest(t, "query_team_id.sh", []byte("echo"), s.token, nil)
+	resp := s.DoRawWithHeaders("POST", fmt.Sprintf("/api/latest/automdm/scripts?team_id=%d", team.ID), body.Bytes(), http.StatusOK, headers)
+	var createScriptResp automdm.CreateScriptResponse
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&createScriptResp))
 	script, err := s.ds.Script(t.Context(), createScriptResp.ScriptID)
 	require.NoError(t, err)
 	require.Equal(t, &team.ID, script.TeamID)
 }
 
-func (s *integrationEnterpriseTestSuite) listReports() []fleet.Query {
-	var listResp fleet.ListQueriesResponse
-	s.DoJSON("GET", "/api/latest/fleet/reports", nil, http.StatusOK, &listResp, "per_page", "1000", "fleet_id", "0")
+func (s *integrationEnterpriseTestSuite) listReports() []automdm.Query {
+	var listResp automdm.ListQueriesResponse
+	s.DoJSON("GET", "/api/latest/automdm/reports", nil, http.StatusOK, &listResp, "per_page", "1000", "team_id", "0")
 	return listResp.Queries
 }

@@ -21,7 +21,7 @@ func TestNotificationXML(t *testing.T) {
 		Title:        `Set <your> "PIN"`,
 		Body:         "Files & folders aren't safe",
 		ButtonLabel:  "Create PIN",
-		URL:          `https://fleet.example.com/device/token?create_pin=1&x="<y>"`,
+		URL:          `https://automdm.example.com/device/token?create_pin=1&x="<y>"`,
 		StayOnScreen: true,
 	}
 	payload, err := n.xml()
@@ -44,11 +44,11 @@ func TestNotificationXML(t *testing.T) {
 // validNotification is a notification Windows accepts, for tests that change one thing about it.
 var validNotification = Notification{
 	Tag:         "bitlocker-pin",
-	Group:       "fleet",
+	Group:       "automdm",
 	Title:       "Title",
 	Body:        "Body",
 	ButtonLabel: "Create PIN",
-	URL:         "https://fleet.example.com/device/token?create_pin=1",
+	URL:         "https://automdm.example.com/device/token?create_pin=1",
 }
 
 // with returns a copy of the notification with set applied.
@@ -87,12 +87,12 @@ func TestShowScriptEnv(t *testing.T) {
 			wantXML, err := tc.n.xml()
 			require.NoError(t, err)
 			require.Equal(t, map[string]string{
-				"FLEET_TOAST_XML":             wantXML,
-				"FLEET_TOAST_TAG":             tc.n.Tag,
-				"FLEET_TOAST_GROUP":           tc.n.Group,
-				"FLEET_TOAST_EXPIRES_SECONDS": tc.wantExpires,
-				"FLEET_TOAST_SUPPRESS_POPUP":  tc.wantSuppressed,
-				"FLEET_TOAST_APP_ID":          FleetDesktopAppID,
+				"AUTOMDM_TOAST_XML":             wantXML,
+				"AUTOMDM_TOAST_TAG":             tc.n.Tag,
+				"AUTOMDM_TOAST_GROUP":           tc.n.Group,
+				"AUTOMDM_TOAST_EXPIRES_SECONDS": tc.wantExpires,
+				"AUTOMDM_TOAST_SUPPRESS_POPUP":  tc.wantSuppressed,
+				"AUTOMDM_TOAST_APP_ID":          AutoMDMDesktopAppID,
 			}, vars)
 			requireScriptReadsEnv(t, showScript, vars)
 		})
@@ -102,11 +102,11 @@ func TestShowScriptEnv(t *testing.T) {
 func TestRemoveScriptEnv(t *testing.T) {
 	t.Parallel()
 
-	vars := envMap(t, removeScriptEnv("bitlocker-pin", "fleet"))
+	vars := envMap(t, removeScriptEnv("bitlocker-pin", "automdm"))
 	require.Equal(t, map[string]string{
-		"FLEET_TOAST_TAG":    "bitlocker-pin",
-		"FLEET_TOAST_GROUP":  "fleet",
-		"FLEET_TOAST_APP_ID": FleetDesktopAppID,
+		"AUTOMDM_TOAST_TAG":    "bitlocker-pin",
+		"AUTOMDM_TOAST_GROUP":  "automdm",
+		"AUTOMDM_TOAST_APP_ID": AutoMDMDesktopAppID,
 	}, vars)
 	requireScriptReadsEnv(t, removeScript, vars)
 }
@@ -181,12 +181,12 @@ func TestNotificationValidate(t *testing.T) {
 func TestChildEnv(t *testing.T) {
 	t.Parallel()
 
-	// Fleet Desktop's own variables carry the Fleet client TLS key and the device URL, and PowerShell has no use for them.
+	// AutoMDM Desktop's own variables carry the AutoMDM client TLS key and the device URL, and PowerShell has no use for them.
 	env := childEnv([]string{
 		"PATH=C:\\Windows",
-		"FLEET_DESKTOP_FLEET_TLS_CLIENT_KEY=-----BEGIN PRIVATE KEY-----",
-		"fleet_desktop_device_url=https://fleet.example.com/device/token",
-	}, []string{"FLEET_TOAST_TAG=bitlocker-pin"})
+		"AUTOMDM_DESKTOP_AUTOMDM_TLS_CLIENT_KEY=-----BEGIN PRIVATE KEY-----",
+		"automdm_desktop_device_url=https://automdm.example.com/device/token",
+	}, []string{"AUTOMDM_TOAST_TAG=bitlocker-pin"})
 
-	require.Equal(t, []string{"PATH=C:\\Windows", "FLEET_TOAST_TAG=bitlocker-pin"}, env)
+	require.Equal(t, []string{"PATH=C:\\Windows", "AUTOMDM_TOAST_TAG=bitlocker-pin"}, env)
 }

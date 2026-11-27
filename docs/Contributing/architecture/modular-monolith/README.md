@@ -1,10 +1,10 @@
 # Modular monolith architecture
 
-This is the central documentation for Fleet's transition to a modular monolith architecture. It provides an overview of the approach and the current status.
+This is the central documentation for AutoMDM's transition to a modular monolith architecture. It provides an overview of the approach and the current status.
 
 ## Overview
 
-Fleet's Go codebase has grown to over 600,000 lines of code across 2,300+ Go files. To improve maintainability, team scalability, and code quality, we are transitioning from a traditional layered architecture to a **modular monolith** with well-defined **bounded contexts**.
+AutoMDM's Go codebase has grown to over 600,000 lines of code across 2,300+ Go files. To improve maintainability, team scalability, and code quality, we are transitioning from a traditional layered architecture to a **modular monolith** with well-defined **bounded contexts**.
 
 ### What is a modular monolith?
 
@@ -40,7 +40,7 @@ The Activity bounded context pilot validated the modular monolith approach and s
   guarantee than convention-based rules alone. It prevents accidental imports of implementation details
   without relying solely on code review or architecture tests.
 - **Anti-corruption layers (ACLs) bridge legacy code**: The `server/acl/activityacl/` adapter translates
-  between legacy Fleet types and bounded context domain types, keeping the context decoupled from the
+  between legacy AutoMDM types and bounded context domain types, keeping the context decoupled from the
   monolith. ACLs are expected to be temporary; they can be removed once upstream code exposes clean
   public APIs.
 - **Bootstrap pattern simplifies wiring**: A single `bootstrap.New()` function is the only public entry
@@ -91,7 +91,7 @@ Each bounded context owns its **complete vertical slice**.
 
 We enforce boundaries using architecture tests (`arch_test.go`) that validate import restrictions
 for every package in the bounded context. These tests use the `server/archtest` package and define
-an allowlist of Fleet dependencies per package. For example, the `internal/service` can import the context's own
+an allowlist of AutoMDM dependencies per package. For example, the `internal/service` can import the context's own
 public packages and shared platform packages. The `internal` directory provides an additional layer
 of enforcement at the Go compiler level, preventing any code outside the bounded context from
 importing implementation details.
@@ -125,22 +125,22 @@ The `bootstrap` package implements the **composition root** pattern. It is the s
 
 ### Anti-corruption layer (ACL)
 
-When a bounded context needs data from another context (or legacy Fleet code), you may use an ACL to translate between domains. This isolates the bounded context from external types and provides a single integration point.
+When a bounded context needs data from another context (or legacy AutoMDM code), you may use an ACL to translate between domains. This isolates the bounded context from external types and provides a single integration point.
 
 ACLs are temporary by design. Once the dependency exposes a clean public API that does not bring in large coupling or transitive dependencies, the ACL can be removed and replaced with a direct import.
 
 Location: `/server/acl/{context}acl/`
 
 ```go
-// FleetServiceAdapter is an anti-corruption layer that translates between
-// the legacy Fleet user types and the activity bounded context's domain types.
-type FleetServiceAdapter struct {
-    svc fleet.UserLookupService  // External dependency
+// AutoMDMServiceAdapter is an anti-corruption layer that translates between
+// the legacy AutoMDM user types and the activity bounded context's domain types.
+type AutoMDMServiceAdapter struct {
+    svc automdm.UserLookupService  // External dependency
 }
 
-func (a *FleetServiceAdapter) UsersByIDs(ctx context.Context, ids []uint) ([]*activity.User, error) {
+func (an *AutoMDMServiceAdapter) UsersByIDs(ctx context.Context, ids []uint) ([]*activity.User, error) {
     users, err := a.svc.UsersByIDs(ctx, ids)  // Call external service
-    // ... translate fleet.User to activity.User ...
+    // ... translate automdm.User to activity.User ...
     return result, nil
 }
 ```
@@ -209,7 +209,7 @@ their own file paths.
 
 | Term | Definition |
 |------|------------|
-| **Bounded context** | A DDD concept representing a cohesive domain with clear boundaries. In Fleet, a group of Go packages under a common directory. |
+| **Bounded context** | A DDD concept representing a cohesive domain with clear boundaries. In AutoMDM, a group of Go packages under a common directory. |
 | **Cross-cutting concern** | Functionality that affects multiple parts of the system (e.g., activity logging, authentication). |
 | **Ubiquitous language** | Using the same terminology consistently across code and business domains. |
 | **Vertical slice** | The complete implementation stack for a feature: handlers → service → datastore → database. |

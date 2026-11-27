@@ -79,7 +79,7 @@ if ($msiEntry) {
 
 # Step 2: delete the leftover Burn bundle registry key, if any. osquery reads
 # the programs table from these uninstall keys, so leaving it behind makes
-# Add-Remove (and Fleet) still see the app.
+# Add-Remove (and AutoMDM) still see the app.
 if ($bundleEntry) {
     Write-Host "Removing Burn bundle registry key: $($bundleEntry.KeyPath)"
     Remove-Item -Path $bundleEntry.KeyPath -Recurse -Force -ErrorAction Stop

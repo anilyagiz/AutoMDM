@@ -70,18 +70,18 @@ func TestNotFoundErrorMessage(t *testing.T) {
 			want: "CertificateTemplate 4 was not found in the datastore",
 		},
 		{
-			name: "fleet id only",
-			err:  NotFound("BootstrapPackage").WithFleetID(2),
-			want: "BootstrapPackage for fleet 2 was not found in the datastore",
+			name: "team id only",
+			err:  NotFound("BootstrapPackage").WithAutoMDMID(2),
+			want: "BootstrapPackage for team 2 was not found in the datastore",
 		},
 		{
-			name: "id and fleet id",
-			err:  NotFound("CertificateTemplate").WithID(4).WithFleetID(2),
-			want: "CertificateTemplate 4 for fleet 2 was not found in the datastore",
+			name: "id and team id",
+			err:  NotFound("CertificateTemplate").WithID(4).WithAutoMDMID(2),
+			want: "CertificateTemplate 4 for team 2 was not found in the datastore",
 		},
 		{
-			name: "id and no team fleet id",
-			err:  NotFound("CertificateTemplate").WithID(4).WithFleetID(0),
+			name: "id and no team team id",
+			err:  NotFound("CertificateTemplate").WithID(4).WithAutoMDMID(0),
 			want: "CertificateTemplate 4 was not found in the datastore",
 		},
 		{

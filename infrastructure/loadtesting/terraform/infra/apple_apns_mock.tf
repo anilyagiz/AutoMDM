@@ -6,9 +6,9 @@
 # whichever matches var.enable_apple_mdm.
 #
 # This lives in the infra module rather than in its own root module so a single
-# terraform apply brings it up alongside the Fleet server it serves. A separate
+# terraform apply brings it up alongside the AutoMDM server it serves. A separate
 # root module would mean a second apply, a second state file, and a window
-# where Fleet is configured to push at a hostname that does not exist yet.
+# where AutoMDM is configured to push at a hostname that does not exist yet.
 
 # ---- ECR + Docker image ----
 
@@ -88,9 +88,9 @@ resource "aws_security_group" "apple_apns_mock" {
 
 # ---- Redis ----
 #
-# Dedicated rather than shared with Fleet's: the instances put a full-fleet
+# Dedicated rather than shared with AutoMDM's: the instances put a full-automdm
 # push wave (~900k commands at 300k devices) through this, and running that
-# over Fleet's cache would perturb the very system the load test measures.
+# over AutoMDM's cache would perturb the very system the load test measures.
 
 resource "aws_security_group" "apple_apns_mock_redis" {
   count       = var.enable_apple_mdm ? 1 : 0
@@ -117,7 +117,7 @@ resource "aws_elasticache_parameter_group" "apple_apns_mock" {
   family = "redis7"
 
   # Every push is fanned out to every instance, so a subscriber that falls
-  # behind must not be disconnected for it. Unlimited, as Fleet's cache does.
+  # behind must not be disconnected for it. Unlimited, as AutoMDM's cache does.
   parameter {
     name  = "client-output-buffer-limit-pubsub-hard-limit"
     value = "0"
@@ -190,7 +190,7 @@ resource "aws_ecs_task_definition" "apple_apns_mock" {
         }
       ]
 
-      # Instances coordinate through Redis so Fleet can push to any of them and
+      # Instances coordinate through Redis so AutoMDM can push to any of them and
       # it reaches whichever holds the device's SSE stream.
       command = [
         "--listen", ":${local.apple_apns_mock_port}",
@@ -275,7 +275,7 @@ resource "aws_lb_target_group" "apple_apns_mock" {
 }
 
 # The zone is public but the ALB is internal, so this resolves to VPC-private
-# addresses; only callers inside the VPC (Fleet, osquery-perf) can reach it.
+# addresses; only callers inside the VPC (AutoMDM, osquery-perf) can reach it.
 resource "aws_route53_record" "apple_apns_mock" {
   count   = var.enable_apple_mdm ? 1 : 0
   zone_id = data.aws_route53_zone.main.id
@@ -290,9 +290,9 @@ resource "aws_route53_record" "apple_apns_mock" {
 }
 
 # Host-based rather than path-based routing: the mock's paths (/healthz,
-# /stats, /events, /3/device/*) would otherwise collide with Fleet's own routes
+# /stats, /events, /3/device/*) would otherwise collide with AutoMDM's own routes
 # on this shared internal ALB -- /healthz in particular is the health check
-# path for the Fleet target group in internal_alb.tf. Matching on Host means
+# path for the AutoMDM target group in internal_alb.tf. Matching on Host means
 # every path on this hostname reaches the mock and nothing else is affected.
 resource "aws_lb_listener_rule" "apple_apns_mock" {
   count        = var.enable_apple_mdm ? 1 : 0

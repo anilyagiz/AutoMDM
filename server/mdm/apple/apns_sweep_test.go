@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/push/nanopush"
-	"github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/push/nanopush"
+	"github.com/anilyagiz/automdm/v4/server/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -29,10 +29,10 @@ func (f *fakeAPNsNotifier) SendNotifications(_ context.Context, ids []string) er
 // methods stubbed to a one-page pass; individual tests override pieces.
 func sweepTestDS() *mock.Store {
 	ds := new(mock.Store)
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{MDM: fleet.MDM{EnabledAndConfigured: true}}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{MDM: automdm.MDM{EnabledAndConfigured: true}}, nil
 	}
-	ds.GetMDMAppleAPNsSweepStateFunc = func(ctx context.Context) (*fleet.MDMAppleAPNsSweepState, error) {
+	ds.GetMDMAppleAPNsSweepStateFunc = func(ctx context.Context) (*automdm.MDMAppleAPNsSweepState, error) {
 		return nil, nil
 	}
 	ds.CountEnabledNanoEnrollmentsFunc = func(ctx context.Context) (int, error) {
@@ -41,7 +41,7 @@ func sweepTestDS() *mock.Store {
 	ds.ListNanoEnrollmentIDsForAPNsSweepFunc = func(ctx context.Context, afterID string, batchSize int, silentFor time.Duration) ([]string, string, bool, error) {
 		return nil, "", false, nil
 	}
-	ds.SetMDMAppleAPNsSweepStateFunc = func(ctx context.Context, state *fleet.MDMAppleAPNsSweepState) error {
+	ds.SetMDMAppleAPNsSweepStateFunc = func(ctx context.Context, state *automdm.MDMAppleAPNsSweepState) error {
 		return nil
 	}
 	return ds
@@ -53,8 +53,8 @@ func TestSweepAPNsPushes(t *testing.T) {
 
 	t.Run("no-op when MDM not enabled and configured", func(t *testing.T) {
 		ds := sweepTestDS()
-		ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-			return &fleet.AppConfig{}, nil
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{}, nil
 		}
 		notifier := &fakeAPNsNotifier{}
 		require.NoError(t, sweepAPNsPushes(ctx, ds, notifier, logger, time.Minute))
@@ -112,8 +112,8 @@ func TestSweepAPNsPushes(t *testing.T) {
 
 	t.Run("poisoned batch size self-heals to a fresh pass", func(t *testing.T) {
 		ds := sweepTestDS()
-		ds.GetMDMAppleAPNsSweepStateFunc = func(ctx context.Context) (*fleet.MDMAppleAPNsSweepState, error) {
-			return &fleet.MDMAppleAPNsSweepState{Cursor: "enrollment-42", BatchSize: -5}, nil
+		ds.GetMDMAppleAPNsSweepStateFunc = func(ctx context.Context) (*automdm.MDMAppleAPNsSweepState, error) {
+			return &automdm.MDMAppleAPNsSweepState{Cursor: "enrollment-42", BatchSize: -5}, nil
 		}
 		var gotAfterID string
 		var gotBatch int
@@ -130,8 +130,8 @@ func TestSweepAPNsPushes(t *testing.T) {
 
 	t.Run("mid-pass state is reused without recounting", func(t *testing.T) {
 		ds := sweepTestDS()
-		ds.GetMDMAppleAPNsSweepStateFunc = func(ctx context.Context) (*fleet.MDMAppleAPNsSweepState, error) {
-			return &fleet.MDMAppleAPNsSweepState{Cursor: "enrollment-42", BatchSize: 7}, nil
+		ds.GetMDMAppleAPNsSweepStateFunc = func(ctx context.Context) (*automdm.MDMAppleAPNsSweepState, error) {
+			return &automdm.MDMAppleAPNsSweepState{Cursor: "enrollment-42", BatchSize: 7}, nil
 		}
 		ds.ListNanoEnrollmentIDsForAPNsSweepFunc = func(ctx context.Context, afterID string, batchSize int, silentFor time.Duration) ([]string, string, bool, error) {
 			require.Equal(t, "enrollment-42", afterID)
@@ -147,8 +147,8 @@ func TestSweepAPNsPushes(t *testing.T) {
 		ds.ListNanoEnrollmentIDsForAPNsSweepFunc = func(ctx context.Context, afterID string, batchSize int, silentFor time.Duration) ([]string, string, bool, error) {
 			return []string{"e1", "e2"}, "e9", true, nil
 		}
-		var gotState *fleet.MDMAppleAPNsSweepState
-		ds.SetMDMAppleAPNsSweepStateFunc = func(ctx context.Context, state *fleet.MDMAppleAPNsSweepState) error {
+		var gotState *automdm.MDMAppleAPNsSweepState
+		ds.SetMDMAppleAPNsSweepStateFunc = func(ctx context.Context, state *automdm.MDMAppleAPNsSweepState) error {
 			gotState = state
 			return nil
 		}
@@ -166,8 +166,8 @@ func TestSweepAPNsPushes(t *testing.T) {
 			return []string{"e1"}, "e1", false, nil
 		}
 		var setInvoked bool
-		var gotState *fleet.MDMAppleAPNsSweepState
-		ds.SetMDMAppleAPNsSweepStateFunc = func(ctx context.Context, state *fleet.MDMAppleAPNsSweepState) error {
+		var gotState *automdm.MDMAppleAPNsSweepState
+		ds.SetMDMAppleAPNsSweepStateFunc = func(ctx context.Context, state *automdm.MDMAppleAPNsSweepState) error {
 			setInvoked = true
 			gotState = state
 			return nil
@@ -183,7 +183,7 @@ func TestSweepAPNsPushes(t *testing.T) {
 			return []string{"e1", "e2"}, "e9", true, nil
 		}
 		var setInvoked bool
-		ds.SetMDMAppleAPNsSweepStateFunc = func(ctx context.Context, state *fleet.MDMAppleAPNsSweepState) error {
+		ds.SetMDMAppleAPNsSweepStateFunc = func(ctx context.Context, state *automdm.MDMAppleAPNsSweepState) error {
 			setInvoked = true
 			return nil
 		}

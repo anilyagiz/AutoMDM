@@ -96,7 +96,7 @@ describe("EditIconModal", () => {
     expect(screen.getByText(/edit appearance/i)).toBeInTheDocument();
     expect(screen.getByText("Choose file")).toBeInTheDocument();
     expect(screen.getByText("Preview")).toBeInTheDocument();
-    expect(screen.getByText("Fleet")).toBeInTheDocument();
+    expect(screen.getByText("AutoMDM")).toBeInTheDocument();
     expect(screen.getByText("Self service")).toBeInTheDocument();
     const save = screen.getByRole("button", { name: "Save" });
     expect(save).toBeInTheDocument();
@@ -114,12 +114,12 @@ describe("EditIconModal", () => {
     render(<EditIconModal {...ANDROID_PROPS} />);
 
     expect(screen.getByText("Preview")).toBeInTheDocument();
-    expect(screen.queryByText("Fleet")).not.toBeInTheDocument();
+    expect(screen.queryByText("AutoMDM")).not.toBeInTheDocument();
     expect(screen.queryByText("Self-service")).not.toBeInTheDocument();
     expect(screen.getByText("Version")).toBeInTheDocument();
   });
 
-  it("shows the correct software name and preview info in Fleet card", () => {
+  it("shows the correct software name and preview info in AutoMDM card", () => {
     const render = createCustomRenderer({ withBackendMock: true });
     render(<EditIconModal {...MOCK_PROPS} />);
     expect(screen.getAllByText(software.name).length).toBeGreaterThan(0);
@@ -165,7 +165,7 @@ describe("EditIconModal", () => {
       expect(displayNameInput).toBeInTheDocument();
       expect(displayNameInput).toHaveValue("New Custom Name");
       const helpText = screen.getByText(
-        /Optional. If left blank, Fleet will use/
+        /Optional. If left blank, AutoMDM will use/
       );
 
       expect(helpText).toHaveTextContent(MODIFIED_PROPS.previewInfo.titleName);

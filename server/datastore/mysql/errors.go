@@ -11,9 +11,9 @@ import (
 	"syscall"
 
 	"github.com/VividCortex/mysqlerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
 	"github.com/go-sql-driver/mysql"
 )
 
@@ -29,7 +29,7 @@ type existsError struct {
 	TeamID       *uint
 	TeamName     *string
 
-	fleet.ErrorWithUUID
+	automdm.ErrorWithUUID
 }
 
 func alreadyExists(kind string, identifier any) *existsError {
@@ -60,9 +60,9 @@ func (e *existsError) Error() string {
 	msg += " already exists"
 	switch {
 	case e.TeamID != nil:
-		msg += fmt.Sprintf(" with FleetID %d.", *e.TeamID)
+		msg += fmt.Sprintf(" with AutoMDMID %d.", *e.TeamID)
 	case e.TeamName != nil:
-		msg += fmt.Sprintf(" with fleet %q.", *e.TeamName)
+		msg += fmt.Sprintf(" with team %q.", *e.TeamName)
 	}
 	return msg
 }
@@ -93,7 +93,7 @@ type foreignKeyError struct {
 	Name         string
 	ResourceType string
 
-	fleet.ErrorWithUUID
+	automdm.ErrorWithUUID
 }
 
 func foreignKey(kind string, name string) error {

@@ -8,7 +8,7 @@
     "source": "spreadsheet-backfill",
     "sheet_row": 28
   },
-  "fleet_server": {
+  "automdm_server": {
     "cpu_utilization": {
       "Average": 74.0
     },
@@ -80,20 +80,20 @@
       }
     }
   ],
-  "fleet_server_errors": {
+  "automdm_server_errors": {
     "error_count": null
   },
   "backfill": {
-    "source": "Fleet release load testing results (Google Sheet), manual-logging era",
+    "source": "AutoMDM release load testing results (Google Sheet), manual-logging era",
     "purpose": "Release/baseline",
     "one_click": null,
     "notes": "Error message happens when adding osquery-perf hosts. There \u2026",
     "raw": {
       "full_day": "yes",
-      "fleet_containers": "30",
+      "automdm_containers": "30",
       "loadtest_containers": "200",
-      "fleet_cpu": "~74%",
-      "fleet_mem": "~3.6%",
+      "automdm_cpu": "~74%",
+      "automdm_mem": "~3.6%",
       "errors": "{\"component\":\"service\",\"err\":\"invalid source \",\"level\":\"erro\u2026",
       "writer_top_sql": "INSERT INTO `host_seen_ti\u2026",
       "writer_cpu": "~12%",

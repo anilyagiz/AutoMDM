@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 )
 
 const (
@@ -36,18 +36,18 @@ type apnsNotifier interface {
 // gaps, and a spurious nudge costs one empty Idle check-in.
 //
 // The batch size is computed at pass start so one lap completes in roughly a
-// day at the given tick interval, and rides along with the cursor. Fleets
+// day at the given tick interval, and rides along with the cursor. Teams
 // smaller than a day's worth of ticks lap faster than a day at one
 // enrollment per tick; the resulting extra pushes only reach devices that
 // are still silent and offline, where re-arming a fresh stored push is
 // harmless (APNs coalesces them) and extends the expiration hedge.
-func SweepAPNsPushes(ctx context.Context, ds fleet.Datastore, commander *MDMAppleCommander,
+func SweepAPNsPushes(ctx context.Context, ds automdm.Datastore, commander *MDMAppleCommander,
 	logger *slog.Logger, interval time.Duration,
 ) error {
 	return sweepAPNsPushes(ctx, ds, commander, logger, interval)
 }
 
-func sweepAPNsPushes(ctx context.Context, ds fleet.Datastore, notifier apnsNotifier,
+func sweepAPNsPushes(ctx context.Context, ds automdm.Datastore, notifier apnsNotifier,
 	logger *slog.Logger, interval time.Duration,
 ) error {
 	if interval <= 0 {
@@ -89,7 +89,7 @@ func sweepAPNsPushes(ctx context.Context, ds fleet.Datastore, notifier apnsNotif
 			batch = apnsSweepMaxBatch
 		}
 		batch = max(batch, apnsSweepMinBatch)
-		state = &fleet.MDMAppleAPNsSweepState{BatchSize: batch}
+		state = &automdm.MDMAppleAPNsSweepState{BatchSize: batch}
 	}
 
 	eligible, next, pageFull, err := ds.ListNanoEnrollmentIDsForAPNsSweep(ctx, state.Cursor, state.BatchSize, apnsSweepSilence)

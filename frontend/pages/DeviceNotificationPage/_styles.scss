@@ -7,8 +7,8 @@
   padding: 0;
 
   &__card {
-    background-color: $core-fleet-white;
-    color: $core-fleet-black;
+    background-color: $core-automdm-white;
+    color: $core-automdm-black;
     border-radius: $border-radius-large;
     padding: $pad-large;
     @include flex-column-24px-gap;
@@ -29,7 +29,7 @@
     max-height: 28px;
     padding: 0;
 
-    &.default-fleet-logo {
+    &.default-automdm-logo {
       transform: none;
     }
   }
@@ -43,7 +43,7 @@
   &__description {
     font-size: $x-small;
     margin: 0;
-    color: $ui-fleet-black-75;
+    color: $ui-automdm-black-75;
   }
 
   // Cap at 4.5 rows for a "more below" affordance; suppress hover (rows aren't clickable).
@@ -58,7 +58,7 @@
     height: 32px;
 
     &:hover {
-      background: $core-fleet-white;
+      background: $core-automdm-white;
     }
 
     .software-icon {
@@ -93,7 +93,7 @@
     align-items: center;
     gap: $pad-small;
     font-size: $x-small;
-    color: $ui-fleet-black-75;
+    color: $ui-automdm-black-75;
     flex-shrink: 0;
   }
 
@@ -124,7 +124,7 @@
         rgba(214, 108, 123, 0.05) 6.69%,
         rgba(0, 0, 0, 0) 93.68%
       ),
-      $core-fleet-white;
+      $core-automdm-white;
   }
 
 }

@@ -38,7 +38,7 @@ const NoAccessPage = ({ router }: INoAccessPageProps) => {
     <AuthenticationFormWrapper header="Access denied" className={baseClass}>
       <div className={`${baseClass}__description`}>
         <p>
-          This account does not currently have access to Fleet.
+          This account does not currently have access to AutoMDM.
           <br />
           To get access, contact your administrator.
         </p>

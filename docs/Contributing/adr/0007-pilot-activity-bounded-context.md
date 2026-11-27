@@ -10,7 +10,7 @@ Completed
 
 ## Context
 
-Fleet's Go codebase has grown to over 680,000 lines of code across over 2,300 Go files (across ee/, orbit/, server/, cmd/, and pkg/ directories). We are continuing the transition to a modular monolith architecture by extracting bounded contexts, taking learnings from [ADR-0001 (Android service layer pilot)](0001-pilot-service-layer-packages.md) and evolving the approach.
+AutoMDM's Go codebase has grown to over 680,000 lines of code across over 2,300 Go files (across ee/, orbit/, server/, cmd/, and pkg/ directories). We are continuing the transition to a modular monolith architecture by extracting bounded contexts, taking learnings from [ADR-0001 (Android service layer pilot)](0001-pilot-service-layer-packages.md) and evolving the approach.
 
 ### Industry examples of modular monolith architecture
 
@@ -20,19 +20,19 @@ Fleet's Go codebase has grown to over 680,000 lines of code across over 2,300 Go
 
 ### Pain points
 
-The pain points of Fleet's current layered architecture are largely the same as for GitLab's monolith and touched upon in [ADR-0001](0001-pilot-service-layer-packages.md).
+The pain points of AutoMDM's current layered architecture are largely the same as for GitLab's monolith and touched upon in [ADR-0001](0001-pilot-service-layer-packages.md).
 
 In Sprint 49, overlapping changes from multiple product groups led to a conflict in the same database tables. The Security and Compliance product group introduced an `upgrade_code` field, while the Software product group simultaneously added custom titles to the same schema. This cross-team collision went unnoticed during review, resulting in a broken pull request after the merge. Resolving the issue required approximately 1.5 engineer-days, slowing sprint velocity and reducing capacity for other planned work.
 
 This incident highlights the lack of clear ownership and bounded contexts within the codebase. With well-defined domain boundaries and team ownership of database tables, the sequencing of changes would have been clearer and the conflict likely avoided.
 
-### Fleet's activities
+### AutoMDM's activities
 
-The activity system is a cross-cutting concern that records all significant user and system actions across the Fleet platform, and manages the queue of activities to be executed (unified queue). Currently, this functionality is scattered across the service layer with no clear boundaries.
+The activity system is a cross-cutting concern that records all significant user and system actions across the AutoMDM platform, and manages the queue of activities to be executed (unified queue). Currently, this functionality is scattered across the service layer with no clear boundaries.
 
 **Important: This pilot extracts ONLY the audit portion** (past activities/audit log, webhooks, streaming, cleanup), not the complete activity system. This is intentionally a small, focused extraction designed to gather learnings about the modularization approach and identify architectural issues before tackling larger contexts. This limited scope comes with a recognized trade-off: audit activities alone may be too small to justify a separate bounded context and could introduce more overhead than benefit to business and engineering velocity. We accept this risk in exchange for validating the extraction process itself and establishing patterns for future, larger bounded context extractions.
 
-**Bounded context naming:** We chose `activity` following **Domain-Driven Design principles** and the **ubiquitous language** used in the business domain. In Fleet's domain language, both past activities (audit log) and upcoming activities (unified queue) are referred to as "activities", just at different points in their lifecycle. This naming allows the bounded context to naturally own both concerns, with this pilot focusing on past activities first, and future expansion to include the unified queue.
+**Bounded context naming:** We chose `activity` following **Domain-Driven Design principles** and the **ubiquitous language** used in the business domain. In AutoMDM's domain language, both past activities (audit log) and upcoming activities (unified queue) are referred to as "activities", just at different points in their lifecycle. This naming allows the bounded context to naturally own both concerns, with this pilot focusing on past activities first, and future expansion to include the unified queue.
 
 **Key learnings from ADR-0001:** The Android MDM pilot (ADR-0001) kept the datastore layer shared, which limited the benefits of bounded context isolation. This pilot evolves that approach by extracting the **full vertical stack** including data access, following GitLab's proven pattern where each bounded context owns its complete implementation from handlers to database queries. Additionally, we're addressing the lack of clear ownership and architectural enforcement that ADR-0001 didn't fully establish.
 
@@ -73,11 +73,11 @@ To avoid confusion, we define key terms used throughout this document:
 
 ## Decision
 
-We will extract an **Activity** bounded context as a pilot for Fleet's modular monolith transition. This context will be responsible for:
+We will extract an **Activity** bounded context as a pilot for AutoMDM's modular monolith transition. This context will be responsible for:
 
 **API endpoints:**
-- `GET /api/_version_/fleet/activities` - List all activities (organization-wide audit log)
-- `GET /api/_version_/fleet/hosts/{id}/activities` - List past activities for a specific host
+- `GET /api/_version_/automdm/activities` - List all activities (organization-wide audit log)
+- `GET /api/_version_/automdm/hosts/{id}/activities` - List past activities for a specific host
 
 **Database tables:**
 - `activity_past` (renamed from `activities`) - Past activities (audit log)
@@ -105,7 +105,7 @@ We will extract an **Activity** bounded context as a pilot for Fleet's modular m
 - Storage and retrieval of all past activities
 
 **Activity type definitions (pragmatic approach for this pilot):**
-- **Current state**: All ~100 activity type definitions remain in `server/fleet/activities.go` as a shared package
+- **Current state**: All ~100 activity type definitions remain in `server/automdm/activities.go` as a shared package
 - **Future direction**: As we extract new bounded contexts (Software, Policies, etc.), those contexts should define their own activity types following GitLab's pattern (e.g., `server/software/activities.go` owns `ActivityTypeInstalledSoftware`)
 
 ### Folder structure
@@ -117,7 +117,7 @@ server/
 └── activity/
     ├── activity.go             # Types
     ├── datastore.go            # Activity datastore interface (only consumed by this context)
-    ├── service/                # Activity service interface defined by consumers in `fleet` package
+    ├── service/                # Activity service interface defined by consumers in `automdm` package
     │   ├── service.go          # Business logic implementation
     │   ├── handler.go          # HTTP handlers
     │   └── service_test.go     # Unit tests
@@ -177,7 +177,7 @@ We will implement architectural boundary enforcement using Go tooling:
 **Architecture tests** (`server/activity/arch_test.go` - recommended for pilot)
 - Uses `server/archtest` package, following the same pattern as Android MDM (`server/mdm/android/arch_test.go`)
 - Validates import restrictions:
-  - Root `activity` package should not depend on other Fleet packages (only types and interfaces)
+  - Root `activity` package should not depend on other AutoMDM packages (only types and interfaces)
   - `activity/service` can import other bounded contexts' public interfaces (e.g., `users`, `hosts`), but not their implementation packages (e.g., `users/service`, `hosts/mysql`)
   - `activity/mysql` cannot import other bounded contexts
   - Other contexts cannot import `activity/service` or `activity/mysql` (only public `activity` package)
@@ -319,14 +319,14 @@ graph TD
 - **Technical debt accumulates:** Problem gets harder to solve as codebase grows
 - **Misses opportunity to validate modularization approach:** No learning for future bounded context extractions
 
-**Reason not chosen:** While the status quo has short-term benefits (no migration cost, no risk), Fleet's codebase has grown to over 680,000 lines of Go code and continuing without modularization will make the codebase increasingly difficult to maintain, test, and understand. This pilot provides low-risk validation of the bounded context approach with a small, well-defined scope. The learnings will inform future, larger bounded context extractions.
+**Reason not chosen:** While the status quo has short-term benefits (no migration cost, no risk), AutoMDM's codebase has grown to over 680,000 lines of Go code and continuing without modularization will make the codebase increasingly difficult to maintain, test, and understand. This pilot provides low-risk validation of the bounded context approach with a small, well-defined scope. The learnings will inform future, larger bounded context extractions.
 
 ### Alternative 2: Extract a different bounded context (e.g., vulnerabilities)
 
 **Description:** Extract a different, larger bounded context such as vulnerabilities instead of activity as the pilot.
 
 **Pros:**
-- **Higher business value:** Vulnerabilities is a core Fleet feature with significant customer impact
+- **Higher business value:** Vulnerabilities is a core AutoMDM feature with significant customer impact
 - **Larger engineering benefits:** More code organization, clearer ownership, better testability for a complex domain
 - **More thorough validation:** Would test bounded context approach with a larger, more complex domain than Activity
 - **Proven business domain:** Vulnerabilities is well-understood with clear boundaries
@@ -360,7 +360,7 @@ graph TD
 
 ## References
 
-**Fleet ADRs:**
+**AutoMDM ADRs:**
 - [ADR-0001: Pilot service layer packages](0001-pilot-service-layer-packages.md) - Established folder pattern (`server/mdm/android/`), but kept shared datastore layer (this ADR goes further)
 
 **GitLab (Ruby on Rails - modular monolith transition):**

@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # Docker Desktop refuses "install --user" when it is run by the SYSTEM account,
 # because that would install it into the SYSTEM profile. Run the all-users

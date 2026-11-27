@@ -45,7 +45,7 @@ const DeleteVppModal = ({
     >
       <p>
         Apps purchased for the <b>{orgName}</b> organization unit won&apos;t
-        appear in Fleet, and policies that trigger automatic install of these
+        appear in AutoMDM, and policies that trigger automatic install of these
         apps will be deleted. Apps won&apos;t be uninstalled from hosts.
       </p>
       <p>

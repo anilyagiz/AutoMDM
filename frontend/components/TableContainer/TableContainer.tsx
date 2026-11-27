@@ -378,14 +378,14 @@ const TableContainer = <T,>({
             {actionButton.iconPosition === "left" && actionButton.iconSvg && (
               <Icon
                 name={actionButton.iconSvg}
-                color={actionButton.iconColor || "ui-fleet-black-75"}
+                color={actionButton.iconColor || "ui-automdm-black-75"}
               />
             )}
             {resolvedButtonText}
             {actionButton.iconPosition !== "left" && actionButton.iconSvg && (
               <Icon
                 name={actionButton.iconSvg}
-                color={actionButton.iconColor || "ui-fleet-black-75"}
+                color={actionButton.iconColor || "ui-automdm-black-75"}
               />
             )}
           </>

@@ -49,14 +49,14 @@ const RevealButton = ({
         {caretPosition === "before" && (
           <Icon
             name={isShowing ? "chevron-down" : "chevron-right"}
-            color="ui-fleet-black-75"
+            color="ui-automdm-black-75"
           />
         )}
         {buttonText}
         {caretPosition === "after" && (
           <Icon
             name="chevron-down"
-            color="ui-fleet-black-75"
+            color="ui-automdm-black-75"
             className={`reveal-button__caret ${
               isShowing ? "reveal-button__caret--open" : ""
             }`}

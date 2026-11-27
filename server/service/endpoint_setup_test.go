@@ -11,10 +11,10 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxdb"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/platform/mysql/testing_utils"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxdb"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	"github.com/anilyagiz/automdm/v4/server/platform/mysql/testing_utils"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,7 +25,7 @@ type setupStarterLibraryCall struct {
 	token     string
 }
 
-func newSetupTestServer(t *testing.T, ds fleet.Datastore) (*httptest.Server, func() []setupStarterLibraryCall) {
+func newSetupTestServer(t *testing.T, ds automdm.Datastore) (*httptest.Server, func() []setupStarterLibraryCall) {
 	svc, baseCtx := newTestService(t, ds, nil, nil)
 
 	var mu sync.Mutex
@@ -69,13 +69,13 @@ func doSetupRequest(srvURL, email, orgName, serverURL string) (*http.Response, e
 	return http.Post(srvURL+"/api/v1/setup", "application/json", bytes.NewReader(body))
 }
 
-func postSetup(t *testing.T, srv *httptest.Server, email, orgName, serverURL string) (int, *fleet.User) {
+func postSetup(t *testing.T, srv *httptest.Server, email, orgName, serverURL string) (int, *automdm.User) {
 	resp, err := doSetupRequest(srv.URL, email, orgName, serverURL)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
 	var out struct {
-		Admin *fleet.User `json:"admin"`
+		Admin *automdm.User `json:"admin"`
 	}
 	if resp.StatusCode == http.StatusOK {
 		require.NoError(t, json.NewDecoder(resp.Body).Decode(&out))
@@ -93,7 +93,7 @@ func TestSetupNotRearmedByStaleReplica(t *testing.T) {
 	// Sync the replica once before setup, the replica should then miss everything setup writes
 	opts.RunReplication()
 
-	code, admin := postSetup(t, srv, "admin@example.com", "Legit Org", "https://fleet.example.com")
+	code, admin := postSetup(t, srv, "admin@example.com", "Legit Org", "https://automdm.example.com")
 	require.Equal(t, http.StatusOK, code)
 	require.NotNil(t, admin)
 
@@ -107,7 +107,7 @@ func TestSetupNotRearmedByStaleReplica(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, code)
 	assert.Nil(t, admin)
 
-	users, err := ds.ListUsers(ctx, fleet.UserListOptions{})
+	users, err := ds.ListUsers(ctx, automdm.UserListOptions{})
 	require.NoError(t, err)
 	require.Len(t, users, 1)
 	assert.Equal(t, "admin@example.com", users[0].Email)
@@ -115,7 +115,7 @@ func TestSetupNotRearmedByStaleReplica(t *testing.T) {
 	appCfg, err := ds.AppConfig(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, "Legit Org", appCfg.OrgInfo.OrgName)
-	assert.Equal(t, "https://fleet.example.com", appCfg.ServerSettings.ServerURL)
+	assert.Equal(t, "https://automdm.example.com", appCfg.ServerSettings.ServerURL)
 
 	secrets, err := ds.GetEnrollSecrets(ctx, nil)
 	require.NoError(t, err)
@@ -139,7 +139,7 @@ func TestSetupConcurrentRequestsCreateSingleAdmin(t *testing.T) {
 	errs := make([]error, n)
 	for i := range n {
 		wg.Go(func() {
-			resp, err := doSetupRequest(srv.URL, fmt.Sprintf("admin%d@example.com", i), fmt.Sprintf("Org %d", i), "https://fleet.example.com")
+			resp, err := doSetupRequest(srv.URL, fmt.Sprintf("admin%d@example.com", i), fmt.Sprintf("Org %d", i), "https://automdm.example.com")
 			if err != nil {
 				errs[i] = err
 				return
@@ -164,7 +164,7 @@ func TestSetupConcurrentRequestsCreateSingleAdmin(t *testing.T) {
 	}
 	assert.Equal(t, 1, succeeded)
 
-	users, err := ds.ListUsers(ctx, fleet.UserListOptions{})
+	users, err := ds.ListUsers(ctx, automdm.UserListOptions{})
 	require.NoError(t, err)
 	require.Len(t, users, 1)
 
@@ -186,11 +186,11 @@ func TestSetupNotRearmedAfterUsersRemoved(t *testing.T) {
 
 	srv, _ := newSetupTestServer(t, ds)
 
-	code, _ := postSetup(t, srv, "admin@example.com", "Legit Org", "https://fleet.example.com")
+	code, _ := postSetup(t, srv, "admin@example.com", "Legit Org", "https://automdm.example.com")
 	require.Equal(t, http.StatusOK, code)
 
 	// Any request after setup completes latches the setup router closed.
-	resp, err := http.Get(srv.URL + "/api/latest/fleet/version")
+	resp, err := http.Get(srv.URL + "/api/latest/automdm/version")
 	require.NoError(t, err)
 	resp.Body.Close()
 
@@ -217,11 +217,11 @@ func TestSetupInvalidServerURLKeepsSetupOpen(t *testing.T) {
 	assert.Equal(t, http.StatusUnprocessableEntity, code)
 	assert.Nil(t, admin)
 
-	users, err := ds.ListUsers(ctx, fleet.UserListOptions{})
+	users, err := ds.ListUsers(ctx, automdm.UserListOptions{})
 	require.NoError(t, err)
 	require.Empty(t, users)
 
-	code, admin = postSetup(t, srv, "admin@example.com", "Legit Org", "https://fleet.example.com")
+	code, admin = postSetup(t, srv, "admin@example.com", "Legit Org", "https://automdm.example.com")
 	require.Equal(t, http.StatusOK, code)
 	require.NotNil(t, admin)
 }

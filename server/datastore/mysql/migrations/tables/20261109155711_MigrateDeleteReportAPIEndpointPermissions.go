@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/jmoiron/sqlx"
 	"github.com/jmoiron/sqlx/reflectx"
 )
@@ -15,12 +15,12 @@ func init() {
 
 func Up_20261109155711(tx *sql.Tx) error {
 	const (
-		oldByNamePath = "/api/v1/fleet/reports/:name"
-		oldByIDPath   = "/api/v1/fleet/reports/id/:id"
-		newByIDPath   = "/api/v1/fleet/reports/:id"
+		oldByNamePath = "/api/v1/automdm/reports/:name"
+		oldByIDPath   = "/api/v1/automdm/reports/id/:id"
+		newByIDPath   = "/api/v1/automdm/reports/:id"
 	)
 	fingerprint := func(path string) string {
-		return fleet.NewAPIEndpointFromTpl("DELETE", path).Fingerprint()
+		return automdm.NewAPIEndpointFromTpl("DELETE", path).Fingerprint()
 	}
 	// Delete by name has no replacement but delete by ID. Dropping the grant instead could leave a user with no
 	// grants, which means full access. Grants are rewritten to the exact catalog paths because the UI matches them

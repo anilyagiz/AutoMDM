@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
 	"github.com/go-kit/kit/endpoint"
 	httptransport "github.com/go-kit/kit/transport/http"
 )
@@ -162,11 +162,11 @@ func MakeClientEndpoints(instance string, opts ...ClientOption) (*Endpoints, err
 		return nil, err
 	}
 
-	var fleetOpts []fleethttp.ClientOpt
+	var automdmOpts []automdmhttp.ClientOpt
 	if co.timeout != nil {
-		fleetOpts = append(fleetOpts, fleethttp.WithTimeout(*co.timeout))
+		automdmOpts = append(automdmOpts, automdmhttp.WithTimeout(*co.timeout))
 	} else {
-		fleetOpts = append(fleetOpts, fleethttp.WithNoTimeout())
+		automdmOpts = append(automdmOpts, automdmhttp.WithNoTimeout())
 	}
 
 	if co.rootCA != "" || co.insecure {
@@ -188,10 +188,10 @@ func MakeClientEndpoints(instance string, opts ...ClientOption) (*Endpoints, err
 			// Ignoring "G402: TLS InsecureSkipVerify set true", needed for development/testing.
 			tlsConfig.InsecureSkipVerify = true //nolint:gosec
 		}
-		fleetOpts = append(fleetOpts, fleethttp.WithTLSClientConfig(tlsConfig))
+		automdmOpts = append(automdmOpts, automdmhttp.WithTLSClientConfig(tlsConfig))
 	}
 
-	options := []httptransport.ClientOption{httptransport.SetClient(fleethttp.NewClient(fleetOpts...))}
+	options := []httptransport.ClientOption{httptransport.SetClient(automdmhttp.NewClient(automdmOpts...))}
 
 	return &Endpoints{
 		GetEndpoint: httptransport.NewClient(

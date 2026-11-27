@@ -12,9 +12,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/ee/server/calendar"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/ee/server/calendar"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
 )
 
 const (
@@ -26,7 +26,7 @@ const (
 
 	// DistributedLockExpireMs is the time Redis will hold the lock before automatically releasing it.
 	// Our current max retry time for calendar API is 10 minutes, and multiple API calls (with their own retry timing) can be made during event processing.
-	// If a Fleet server gets the lock and is then shut down before releasing the lock, the next server may need to wait this long
+	// If an AutoMDM server gets the lock and is then shut down before releasing the lock, the next server may need to wait this long
 	// before getting the lock.
 	DistributedLockExpireMs = 20 * 60 * 1000
 	// ReserveLockExpireMs is used by cron job to guarantee that it gets the next lock.
@@ -45,25 +45,25 @@ var RecentCalendarUpdateDuration = 10 * time.Second
 
 type Config struct {
 	config.CalendarConfig
-	fleet.GoogleCalendarIntegration
+	automdm.GoogleCalendarIntegration
 	ServerURL string
 }
 
-// PolicyLiteWithMeta is a wrapper around fleet.PolicyLite that includes a tag for policy's description/resolution.
+// PolicyLiteWithMeta is a wrapper around automdm.PolicyLite that includes a tag for policy's description/resolution.
 type PolicyLiteWithMeta struct {
-	fleet.PolicyLite
+	automdm.PolicyLite
 	Tag string
 	mu  sync.Mutex
 }
 
 // ClassifyRemoteError reports whether err is a failure returned by the remote
-// calendar provider (rather than an internal Fleet error), along with the HTTP
+// calendar provider (rather than an internal AutoMDM error), along with the HTTP
 // status code (0 if none) and the response body or message to surface.
 func ClassifyRemoteError(err error) (isRemote bool, statusCode int, body string) {
 	return calendar.RemoteError(err)
 }
 
-func CreateUserCalendarFromConfig(ctx context.Context, config *Config, logger *slog.Logger) fleet.UserCalendar {
+func CreateUserCalendarFromConfig(ctx context.Context, config *Config, logger *slog.Logger) automdm.UserCalendar {
 	googleCalendarConfig := calendar.GoogleCalendarConfig{
 		Context:           ctx,
 		IntegrationConfig: &config.GoogleCalendarIntegration,
@@ -73,14 +73,14 @@ func CreateUserCalendarFromConfig(ctx context.Context, config *Config, logger *s
 	return calendar.NewGoogleCalendar(&googleCalendarConfig)
 }
 
-func GenerateCalendarEventBody(ctx context.Context, ds fleet.Datastore, orgName string, host fleet.HostPolicyMembershipData,
+func GenerateCalendarEventBody(ctx context.Context, ds automdm.Datastore, orgName string, host automdm.HostPolicyMembershipData,
 	policyIDtoPolicy *sync.Map, conflict bool, logger *slog.Logger,
 ) (body string, tag string) {
 	description, resolution, tag := getCalendarEventDescriptionAndResolution(ctx, ds, orgName, host, policyIDtoPolicy, logger)
 
 	conflictStr := ""
 	if conflict {
-		conflictStr = fleet.CalendarEventConflictText
+		conflictStr = automdm.CalendarEventConflictText
 	}
 	return fmt.Sprintf(`%s %s %s(%s).
 
@@ -91,14 +91,14 @@ Please leave your device on and connected to power.
 
 <b>Maintenance required</b>
 %s
-`, orgName, fleet.CalendarBodyStaticHeader, conflictStr, host.HostDisplayName, description, resolution), tag
+`, orgName, automdm.CalendarBodyStaticHeader, conflictStr, host.HostDisplayName, description, resolution), tag
 }
 
-func getCalendarEventDescriptionAndResolution(ctx context.Context, ds fleet.Datastore, orgName string, host fleet.HostPolicyMembershipData,
+func getCalendarEventDescriptionAndResolution(ctx context.Context, ds automdm.Datastore, orgName string, host automdm.HostPolicyMembershipData,
 	policyIDtoPolicy *sync.Map, logger *slog.Logger,
 ) (description string, resolution string, tag string) {
 	getDefaultDescription := func() string {
-		return fmt.Sprintf(`%s %s`, orgName, fleet.CalendarDefaultDescription)
+		return fmt.Sprintf(`%s %s`, orgName, automdm.CalendarDefaultDescription)
 	}
 
 	policyIDs := strings.Split(host.FailingPolicyIDs, ",")
@@ -109,12 +109,12 @@ func getCalendarEventDescriptionAndResolution(ctx context.Context, ds fleet.Data
 			id, err := strconv.ParseUint(policyIDs[0], 10, 64)
 			if err != nil {
 				logger.ErrorContext(ctx, "parse policy id", "err", err)
-				return getDefaultDescription(), fleet.CalendarDefaultResolution, DefaultEventBodyTag
+				return getDefaultDescription(), automdm.CalendarDefaultResolution, DefaultEventBodyTag
 			}
 			policyLite, err := ds.PolicyLite(ctx, uint(id))
 			if err != nil {
 				logger.ErrorContext(ctx, "get policy", "err", err)
-				return getDefaultDescription(), fleet.CalendarDefaultResolution, DefaultEventBodyTag
+				return getDefaultDescription(), automdm.CalendarDefaultResolution, DefaultEventBodyTag
 			}
 			policy = new(PolicyLiteWithMeta)
 			policy.PolicyLite = *policyLite
@@ -125,7 +125,7 @@ func getCalendarEventDescriptionAndResolution(ctx context.Context, ds fleet.Data
 		policyDescription := strings.TrimSpace(policy.Description)
 		if policyDescription == "" || policy.Resolution == nil || strings.TrimSpace(*policy.Resolution) == "" {
 			description = getDefaultDescription()
-			resolution = fleet.CalendarDefaultResolution
+			resolution = automdm.CalendarDefaultResolution
 			tag = DefaultEventBodyTag
 		} else {
 			description = policyDescription
@@ -140,7 +140,7 @@ func getCalendarEventDescriptionAndResolution(ctx context.Context, ds fleet.Data
 		}
 	} else {
 		description = getDefaultDescription()
-		resolution = fleet.CalendarDefaultResolution
+		resolution = automdm.CalendarDefaultResolution
 		tag = DefaultEventBodyTag
 	}
 	return description, resolution, tag

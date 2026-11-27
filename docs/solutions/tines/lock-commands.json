@@ -15,11 +15,11 @@
       "guid": "bd6d7c97063ca1e582016d2d141af6f6",
       "origin_story_identifier": "cloud:41eec5f387cedb446ca2f51e189c5094:7afccce6b470436f218ae523e21f3f2d",
       "options": {
-        "url": "https://<<RESOURCE.fleet_domain>>/api/v1/fleet/hosts/<<get_host_by_identifier.body.host.id>>/lock?view_pin=true",
+        "url": "https://<<RESOURCE.automdm_domain>>/api/v1/automdm/hosts/<<get_host_by_identifier.body.host.id>>/lock?view_pin=true",
         "content_type": "application_json",
         "method": "post",
         "headers": {
-          "Authorization": "Bearer <<CREDENTIAL.fleet_api_key>>"
+          "Authorization": "Bearer <<CREDENTIAL.automdm_api_key>>"
         }
       },
       "reporting": {
@@ -47,11 +47,11 @@
       "guid": "ebe41e1c7c619f144b9952f9b94a0b7b",
       "origin_story_identifier": "cloud:41eec5f387cedb446ca2f51e189c5094:7afccce6b470436f218ae523e21f3f2d",
       "options": {
-        "url": "https://<<RESOURCE.fleet_domain>>/api/v1/fleet/hosts/identifier/<<RESOURCE.host_serial_number>>?exclude_software=true&exclude_fleet_maintained_policies=true",
+        "url": "https://<<RESOURCE.automdm_domain>>/api/v1/automdm/hosts/identifier/<<RESOURCE.host_serial_number>>?exclude_software=true&exclude_automdm_maintained_policies=true",
         "content_type": "application_json",
         "method": "get",
         "headers": {
-          "Authorization": "Bearer <<CREDENTIAL.fleet_api_key>>"
+          "Authorization": "Bearer <<CREDENTIAL.automdm_api_key>>"
         }
       },
       "reporting": {
@@ -79,11 +79,11 @@
       "guid": "456e882b81905d3b4793fffe202cb2ac",
       "origin_story_identifier": "cloud:41eec5f387cedb446ca2f51e189c5094:7afccce6b470436f218ae523e21f3f2d",
       "options": {
-        "url": "https://<<RESOURCE.fleet_domain>>/api/v1/fleet/hosts/<<get_host_by_identifier.body.host.id>>/unlock",
+        "url": "https://<<RESOURCE.automdm_domain>>/api/v1/automdm/hosts/<<get_host_by_identifier.body.host.id>>/unlock",
         "content_type": "application_json",
         "method": "post",
         "headers": {
-          "Authorization": "Bearer <<CREDENTIAL.fleet_api_key>>"
+          "Authorization": "Bearer <<CREDENTIAL.automdm_api_key>>"
         }
       },
       "reporting": {
@@ -111,11 +111,11 @@
       "guid": "f3b58825c1c3f0135fc7db34526e43e2",
       "origin_story_identifier": "cloud:41eec5f387cedb446ca2f51e189c5094:7afccce6b470436f218ae523e21f3f2d",
       "options": {
-        "url": "https://<<RESOURCE.fleet_domain>>/api/v1/fleet/hosts/identifier/<<RESOURCE.host_serial_number>>?exclude_software=true&exclude_fleet_maintained_policies=true",
+        "url": "https://<<RESOURCE.automdm_domain>>/api/v1/automdm/hosts/identifier/<<RESOURCE.host_serial_number>>?exclude_software=true&exclude_automdm_maintained_policies=true",
         "content_type": "application_json",
         "method": "get",
         "headers": {
-          "Authorization": "Bearer <<CREDENTIAL.fleet_api_key>>"
+          "Authorization": "Bearer <<CREDENTIAL.automdm_api_key>>"
         }
       },
       "reporting": {
@@ -138,7 +138,7 @@
   ],
   "diagram_notes": [
     {
-      "content": "# Edit before running\n\n- Fleet API key (credential)\n  - Set the \"URLs and Domains.\"\n- Fleet domain (resource)\n  - Example:\n     `acme.cloud.fleetdm.com`\n- Host serial number (resource)",
+      "content": "# Edit before running\n\n- AutoMDM API key (credential)\n  - Set the \"URLs and Domains.\"\n- AutoMDM domain (resource)\n  - Example:\n     `acme.cloud.fleetdm.com`\n- Host serial number (resource)",
       "position": [
         -225,
         30

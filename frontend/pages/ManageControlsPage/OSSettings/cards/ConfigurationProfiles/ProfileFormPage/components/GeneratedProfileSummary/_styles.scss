@@ -18,7 +18,7 @@
     margin: 0;
     max-width: 640px;
     font-size: $x-small;
-    color: $ui-fleet-black-75;
+    color: $ui-automdm-black-75;
     overflow-wrap: anywhere;
     // keeps the line breaks the admin typed
     white-space: pre-wrap;
@@ -29,7 +29,7 @@
     font-family: "SourceCodePro", $monospace;
     font-size: $xx-small;
     background-color: $ui-off-white;
-    border: 1px solid $ui-fleet-black-10;
+    border: 1px solid $ui-automdm-black-10;
     border-radius: $border-radius;
   }
 
@@ -39,14 +39,14 @@
     padding: $pad-small $pad-medium;
     font-family: inherit;
     font-size: $x-small;
-    color: $core-fleet-black;
-    border: 1px solid $ui-fleet-black-10;
+    color: $core-automdm-black;
+    border: 1px solid $ui-automdm-black-10;
     border-radius: $border-radius;
     resize: vertical;
 
     &:focus {
       outline: none;
-      border-color: $ui-fleet-black-75-down;
+      border-color: $ui-automdm-black-75-down;
     }
   }
 
@@ -60,7 +60,7 @@
     height: 12px;
     max-width: 640px;
     border-radius: $border-radius;
-    background-color: $ui-fleet-black-10;
+    background-color: $ui-automdm-black-10;
 
     &--title {
       height: 20px;

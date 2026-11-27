@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/rs/zerolog/log"
 )
 
@@ -44,7 +44,7 @@ type Item interface {
 	ClickedCh() <-chan struct{}
 }
 
-// Items holds all the menu items for the Fleet Desktop systray
+// Items holds all the menu items for the AutoMDM Desktop systray
 type Items struct {
 	Version      Item
 	MigrateMDM   Item
@@ -54,7 +54,7 @@ type Items struct {
 	Transparency Item
 }
 
-// Manager handles the state and behavior of the Fleet Desktop menu
+// Manager handles the state and behavior of the AutoMDM Desktop menu
 type Manager struct {
 	Items *Items
 	// Track the current state of the MDM Migrate item so that on, e.g. token refreshes we can
@@ -69,12 +69,12 @@ func NewManager(version string, factory Factory) *Manager {
 	items := &Items{}
 
 	// Add version item (always disabled)
-	items.Version = factory.AddMenuItem(fmt.Sprintf("Fleet Desktop v%s", version), "")
+	items.Version = factory.AddMenuItem(fmt.Sprintf("AutoMDM Desktop v%s", version), "")
 	items.Version.Disable()
 	factory.AddSeparator()
 
 	// Add MDM migration item
-	items.MigrateMDM = factory.AddMenuItem("Migrate to Fleet", "")
+	items.MigrateMDM = factory.AddMenuItem("Migrate to AutoMDM", "")
 	items.MigrateMDM.Disable()
 	items.MigrateMDM.Hide()
 
@@ -84,7 +84,7 @@ func NewManager(version string, factory Factory) *Manager {
 	items.MyDevice.Hide()
 
 	// Add offline warning item
-	items.HostOffline = factory.AddMenuItem("🛜🚫 Your computer is not connected to Fleet.", "")
+	items.HostOffline = factory.AddMenuItem("🛜🚫 Your computer is not connected to AutoMDM.", "")
 	items.HostOffline.Disable()
 
 	// Add self-service item
@@ -94,7 +94,7 @@ func NewManager(version string, factory Factory) *Manager {
 	factory.AddSeparator()
 
 	// Add transparency item
-	items.Transparency = factory.AddMenuItem("About Fleet", "")
+	items.Transparency = factory.AddMenuItem("About AutoMDM", "")
 	items.Transparency.Disable()
 	items.Transparency.Hide()
 
@@ -129,7 +129,7 @@ func (m *Manager) SetConnecting() {
 }
 
 // SetConnected sets the menu to the connected state
-func (m *Manager) SetConnected(summary *fleet.DesktopSummary, isFreeTier bool) {
+func (m *Manager) SetConnected(summary *automdm.DesktopSummary, isFreeTier bool) {
 	m.Items.MyDevice.SetTitle("My device")
 	m.Items.MyDevice.Show()
 	m.Items.MyDevice.Enable()
@@ -140,7 +140,7 @@ func (m *Manager) SetConnected(summary *fleet.DesktopSummary, isFreeTier bool) {
 	m.hideOfflineWarning()
 	m.offlineIndicatorDisplayed.Store(false)
 
-	// Handle self-service visibility. Check for null for backward compatibility with an old Fleet server
+	// Handle self-service visibility. Check for null for backward compatibility with an old AutoMDM server
 	if isFreeTier || (summary.SelfService != nil && !*summary.SelfService) {
 		m.Items.SelfService.Disable()
 		m.Items.SelfService.Hide()

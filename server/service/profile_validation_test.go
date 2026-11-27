@@ -3,7 +3,7 @@ package service
 import (
 	"testing"
 
-	pv "github.com/fleetdm/fleet/v4/pkg/mdm/profilevalidation"
+	pv "github.com/anilyagiz/automdm/v4/pkg/mdm/profilevalidation"
 	"github.com/stretchr/testify/require"
 )
 

@@ -1,10 +1,10 @@
 #!/bin/bash
-# NOTE: This doesn't work yet. Fleet's "Request certificate" API endpoint doesn't
+# NOTE: This doesn't work yet. AutoMDM's "Request certificate" API endpoint doesn't
 # support Okta's CA until https://github.com/fleetdm/fleet/issues/52993 ships.
-# Learn more: https://fleetdm.com/guides/deploy-okta-fastpass-for-linux
+# Learn more: https://automdm.com/guides/deploy-okta-fastpass-for-linux
 set -e
 
-FLEET_URL="<Fleet-server-URL>"
+AUTOMDM_URL="<AutoMDM-server-URL>"
 CA_ID="<Okta-CA-ID>"
 CERT_DIR="/etc/okta"
 KEY_PATH="$CERT_DIR/device.key"
@@ -16,7 +16,7 @@ mkdir -p "$CERT_DIR"
 openssl genpkey -algorithm RSA -out "$KEY_PATH" -pkeyopt rsa_keygen_bits:2048
 chmod 600 "$KEY_PATH"
 
-# Fleet replaces $FLEET_VAR_NDES_SCEP_CHALLENGE with a one-time challenge from Okta.
+# AutoMDM replaces $AUTOMDM_VAR_NDES_SCEP_CHALLENGE with a one-time challenge from Okta.
 # string_mask = pkix encodes the challenge as a PrintableString, which Microsoft NDES
 # requires (OpenSSL's default UTF8String is rejected with badRequest).
 openssl req -new -sha256 -key "$KEY_PATH" -out /tmp/okta-verify.csr -config <(cat <<EOF
@@ -27,10 +27,10 @@ distinguished_name = dn
 attributes = attrs
 
 [dn]
-CN = $FLEET_VAR_HOST_END_USER_IDP_USERNAME Okta FastPass
+CN = $AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME Okta FastPass
 
 [attrs]
-challengePassword = $FLEET_VAR_NDES_SCEP_CHALLENGE
+challengePassword = $AUTOMDM_VAR_NDES_SCEP_CHALLENGE
 EOF
 )
 
@@ -38,11 +38,11 @@ EOF
 CSR=$(sed 's/$/\\n/' /tmp/okta-verify.csr | tr -d '\n')
 REQUEST='{ "csr": "'"${CSR}"'", "return_pem_certificate": true }'
 
-curl "${FLEET_URL}/api/latest/fleet/certificate_authorities/${CA_ID}/request_certificate" \
+curl "${AUTOMDM_URL}/api/latest/automdm/certificate_authorities/${CA_ID}/request_certificate" \
   --fail --silent --show-error \
   -X 'POST' \
   -H 'accept: application/json, text/plain, */*' \
-  -H 'authorization: Bearer '"$FLEET_SECRET_REQUEST_CERTIFICATE_API_TOKEN" \
+  -H 'authorization: Bearer '"$AUTOMDM_SECRET_REQUEST_CERTIFICATE_API_TOKEN" \
   -H 'content-type: application/json' \
   --data-raw "${REQUEST}" -o /tmp/okta-verify-response.json
 

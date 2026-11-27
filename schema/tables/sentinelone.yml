@@ -47,7 +47,7 @@ examples: |-
      OR service_framework NOT IN ('', 'ready');
   ```
 notes: |-
-  This table is not a core osquery table. It is included as part of Fleet's agent ([fleetd](https://fleetdm.com/docs/get-started/anatomy#fleetd)).
+  This table is not a core osquery table. It is included as part of AutoMDM's agent ([automdmd](https://automdm.com/docs/get-started/anatomy#automdmd)).
 
   Values are the status strings `sentinelctl` reports, passed through unchanged. A column is an empty string when the installed agent doesn't report that field, so an empty value means "not reported," not "off."
 
@@ -55,7 +55,7 @@ notes: |-
 
   Windows doesn't report `protection` or `management_connected`, so use `ready` in policies that need to work on all platforms. For anti-tamper state on Windows, use `tamper_protection`.
 
-  Because `sentinelctl` needs root to report full status, this table depends on osquery running as root (macOS and Linux) or LocalSystem (Windows), which is how fleetd runs it.
+  Because `sentinelctl` needs root to report full status, this table depends on osquery running as root (macOS and Linux) or LocalSystem (Windows), which is how automdmd runs it.
 columns:
   - name: agent_version
     description: Version of the installed SentinelOne agent. On Windows, taken from the monitor build ID.

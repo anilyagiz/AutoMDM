@@ -8,7 +8,7 @@ const (
 	acmeErrorsURN = "urn:ietf:params:acme:error:"
 	// NOTE: ideally this would be a valid, dereferenceable link to human-readable documentation,
 	// but it's ok if it's not too. See https://datatracker.ietf.org/doc/html/rfc8555/#section-6.7
-	fleetCustomErrorsURI = "https://fleetdm.com/acme/error/"
+	automdmCustomErrorsURI = "https://automdm.com/acme/error/"
 )
 
 // ACMEError represents an error related to the ACME protocol,
@@ -47,7 +47,7 @@ func (e *ACMEError) ShouldReturnNonce() bool {
 
 func EnrollmentNotFoundError(detail string) *ACMEError {
 	return &ACMEError{
-		Type:       fleetCustomErrorsURI + "enrollmentNotFound",
+		Type:       automdmCustomErrorsURI + "enrollmentNotFound",
 		Title:      "The specified enrollment does not exist",
 		Detail:     detail,
 		StatusCode: http.StatusNotFound,
@@ -65,7 +65,7 @@ func AccountDoesNotExistError(detail string) *ACMEError {
 
 func AccountRevokedError(detail string) *ACMEError {
 	return &ACMEError{
-		Type:       fleetCustomErrorsURI + "accountRevoked",
+		Type:       automdmCustomErrorsURI + "accountRevoked",
 		Title:      "The request specified an account that is revoked",
 		Detail:     detail,
 		StatusCode: http.StatusBadRequest,
@@ -74,7 +74,7 @@ func AccountRevokedError(detail string) *ACMEError {
 
 func TooManyAccountsError(detail string) *ACMEError {
 	return &ACMEError{
-		Type:       fleetCustomErrorsURI + "tooManyAccounts",
+		Type:       automdmCustomErrorsURI + "tooManyAccounts",
 		Title:      "Too many accounts already exist for this enrollment",
 		Detail:     detail,
 		StatusCode: http.StatusBadRequest,
@@ -83,7 +83,7 @@ func TooManyAccountsError(detail string) *ACMEError {
 
 func TooManyOrdersError(detail string) *ACMEError {
 	return &ACMEError{
-		Type:       fleetCustomErrorsURI + "tooManyOrders",
+		Type:       automdmCustomErrorsURI + "tooManyOrders",
 		Title:      "Too many orders already exist for this account",
 		Detail:     detail,
 		StatusCode: http.StatusBadRequest,
@@ -92,10 +92,10 @@ func TooManyOrdersError(detail string) *ACMEError {
 
 // NOTE: surprisingly, the RFC does not document an error and status code for
 // a POST-as-GET to an order URL with an ID that does not exist, so this is a
-// Fleet custom error code.
+// AutoMDM custom error code.
 func OrderDoesNotExistError(detail string) *ACMEError {
 	return &ACMEError{
-		Type:       fleetCustomErrorsURI + "orderDoesNotExist",
+		Type:       automdmCustomErrorsURI + "orderDoesNotExist",
 		Title:      "The request specified an order that does not exist",
 		Detail:     detail,
 		StatusCode: http.StatusNotFound,
@@ -104,7 +104,7 @@ func OrderDoesNotExistError(detail string) *ACMEError {
 
 func OrderNotFinalizedError(detail string) *ACMEError {
 	return &ACMEError{
-		Type:       fleetCustomErrorsURI + "orderNotFinalized",
+		Type:       automdmCustomErrorsURI + "orderNotFinalized",
 		Title:      "The request attempted to download a certificate for an order that is not finalized",
 		Detail:     detail,
 		StatusCode: http.StatusBadRequest,
@@ -192,20 +192,20 @@ func MalformedError(detail string) *ACMEError {
 	}
 }
 
-// Custom Fleet error code, as RFC does not document what to return.
+// Custom AutoMDM error code, as RFC does not document what to return.
 func AuthorizationDoesNotExistError(detail string) *ACMEError {
 	return &ACMEError{
-		Type:       fleetCustomErrorsURI + "authorizationDoesNotExist",
+		Type:       automdmCustomErrorsURI + "authorizationDoesNotExist",
 		Title:      "The specified authorization does not exist for the account",
 		Detail:     detail,
 		StatusCode: http.StatusNotFound,
 	}
 }
 
-// Custom Fleet error code, as RFC does not document what to return.
+// Custom AutoMDM error code, as RFC does not document what to return.
 func ChallengeDoesNotExistError(detail string) *ACMEError {
 	return &ACMEError{
-		Type:       fleetCustomErrorsURI + "challengeDoesNotExist",
+		Type:       automdmCustomErrorsURI + "challengeDoesNotExist",
 		Title:      "The specified challenge does not exist for the authorization",
 		Detail:     detail,
 		StatusCode: http.StatusNotFound,
@@ -214,7 +214,7 @@ func ChallengeDoesNotExistError(detail string) *ACMEError {
 
 func CertificateDoesNotExistError(detail string) *ACMEError {
 	return &ACMEError{
-		Type:       fleetCustomErrorsURI + "certificateDoesNotExist",
+		Type:       automdmCustomErrorsURI + "certificateDoesNotExist",
 		Title:      "The order is finalized but the certificate does not exist for the order",
 		Detail:     detail,
 		StatusCode: http.StatusNotFound,
@@ -232,7 +232,7 @@ func OrderNotReadyError(detail string) *ACMEError {
 
 func InvalidChallengeStatusError(detail string) *ACMEError {
 	return &ACMEError{
-		Type:       fleetCustomErrorsURI + "invalidChallengeStatus",
+		Type:       automdmCustomErrorsURI + "invalidChallengeStatus",
 		Title:      "The challenge is not in a valid status for the attempted operation",
 		Detail:     detail,
 		StatusCode: http.StatusBadRequest,

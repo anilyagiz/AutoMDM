@@ -10,19 +10,19 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/ai_agent_sessions"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/ai_tools"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/cryptoinfotable"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/dataflattentable"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/filecontents"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/firefox_preferences"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/fleetd_logs"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/go_binaries"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/mcp_listening_servers"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/netskope"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/sentinelone"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/sntp_request"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/yaml_to_json"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/ai_agent_sessions"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/ai_tools"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/automdmd_logs"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/cryptoinfotable"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/dataflattentable"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/filecontents"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/firefox_preferences"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/go_binaries"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/mcp_listening_servers"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/netskope"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/sentinelone"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/sntp_request"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/yaml_to_json"
 	"github.com/macadmins/osquery-extension/tables/chromeuserprofiles"
 	"github.com/macadmins/osquery-extension/tables/fileline"
 	"github.com/macadmins/osquery-extension/tables/puppet"
@@ -166,7 +166,7 @@ func (r *Runner) run(ctx context.Context, plugins []osquery.OsqueryPlugin, newSe
 			return err
 		}
 		plugins = remaining
-		log.Warn().Str("table", name).Msg("skipping fleetd table: another osquery extension already registered an item with the same name")
+		log.Warn().Str("table", name).Msg("skipping automdmd table: another osquery extension already registered an item with the same name")
 	}
 }
 
@@ -215,7 +215,7 @@ func OrbitDefaultTables(opts PluginOpts) []osquery.OsqueryPlugin {
 
 		// Orbit extensions.
 		table.NewPlugin("sntp_request", sntp_request.Columns(), sntp_request.GenerateFunc),
-		fleetd_logs.TablePlugin(),
+		automdmd_logs.TablePlugin(),
 		table.NewPlugin("go_binaries", go_binaries.GoBinariesColumns(), go_binaries.GenerateGoBinaries),
 
 		// Note: the logger passed here and to all other tables is the global logger from zerolog.
@@ -249,7 +249,7 @@ func OrbitDefaultTables(opts PluginOpts) []osquery.OsqueryPlugin {
 		// ai_agent_sessions / ai_agent_session_messages: sessions of AI coding
 		// agents (Claude Code, Copilot CLI, Cursor CLI, Codex CLI, Gemini CLI)
 		// and their content, from every user's transcripts. Ported from
-		// github.com/allenhouchins/fleet-extensions.
+		// github.com/allenhouchins/automdm-extensions.
 		table.NewPlugin("ai_agent_sessions", ai_agent_sessions.SessionsColumns(), ai_agent_sessions.GenerateSessions),
 		table.NewPlugin("ai_agent_session_messages", ai_agent_sessions.MessagesColumns(), ai_agent_sessions.GenerateMessages),
 

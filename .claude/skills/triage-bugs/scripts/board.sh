@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Fleet project board helper over the REST API (gh project's GraphQL calls hit secondary rate limits
+# AutoMDM project board helper over the REST API (gh project's GraphQL calls hit secondary rate limits
 # when several agents share a token). Status names match without their emoji, case-insensitive.
 #   board.sh bugs <project> [status]          TSV of bug items: number, status, assignees, labels, title
 #   board.sh statuses <project>               Status column names

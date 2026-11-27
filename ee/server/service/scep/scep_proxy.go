@@ -17,14 +17,14 @@ import (
 	"time"
 
 	"github.com/Azure/go-ntlmssp"
+	"github.com/anilyagiz/automdm/v4/ee/server/service/certissue"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	scepclient "github.com/anilyagiz/automdm/v4/server/mdm/scep/client"
+	scepserver "github.com/anilyagiz/automdm/v4/server/mdm/scep/server"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/docker/go-units"
-	"github.com/fleetdm/fleet/v4/ee/server/service/certissue"
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	scepclient "github.com/fleetdm/fleet/v4/server/mdm/scep/client"
-	scepserver "github.com/fleetdm/fleet/v4/server/mdm/scep/server"
-	"github.com/fleetdm/fleet/v4/server/ptr"
 	"github.com/google/uuid"
 	"golang.org/x/net/html/charset"
 	"golang.org/x/text/encoding/unicode"
@@ -131,11 +131,11 @@ func looksLikeUTF16LE(body []byte) bool {
 type scepCertificateRequest interface {
 	// GetStatus returns the delivery status of the certificate request.
 	// Returns empty string if status is not set.
-	GetStatus() fleet.MDMDeliveryStatus
+	GetStatus() automdm.MDMDeliveryStatus
 	// GetChallengeRetrievedAt returns when the challenge was retrieved (for expiration checks).
 	GetChallengeRetrievedAt() *time.Time
 	// GetCAType returns the certificate authority type (NDES, Smallstep, CustomSCEPProxy).
-	GetCAType() fleet.CAConfigAssetType
+	GetCAType() automdm.CAConfigAssetType
 	// GetCAName returns the name of the certificate authority.
 	GetCAName() string
 	// GetProfileUUID returns the profile/template UUID.
@@ -144,10 +144,10 @@ type scepCertificateRequest interface {
 
 // hostMDMCertificateProfileAdapter adapts HostMDMCertificateProfile to scepCertificateRequest.
 type hostMDMCertificateProfileAdapter struct {
-	profile *fleet.HostMDMCertificateProfile
+	profile *automdm.HostMDMCertificateProfile
 }
 
-func (a *hostMDMCertificateProfileAdapter) GetStatus() fleet.MDMDeliveryStatus {
+func (a *hostMDMCertificateProfileAdapter) GetStatus() automdm.MDMDeliveryStatus {
 	if a.profile.Status == nil {
 		return ""
 	}
@@ -158,7 +158,7 @@ func (a *hostMDMCertificateProfileAdapter) GetChallengeRetrievedAt() *time.Time 
 	return a.profile.ChallengeRetrievedAt
 }
 
-func (a *hostMDMCertificateProfileAdapter) GetCAType() fleet.CAConfigAssetType {
+func (a *hostMDMCertificateProfileAdapter) GetCAType() automdm.CAConfigAssetType {
 	return a.profile.Type
 }
 
@@ -172,24 +172,24 @@ func (a *hostMDMCertificateProfileAdapter) GetProfileUUID() string {
 
 // certificateTemplateForHostAdapter adapts CertificateTemplateForHost to scepCertificateRequest.
 type certificateTemplateForHostAdapter struct {
-	template    *fleet.CertificateTemplateForHost
+	template    *automdm.CertificateTemplateForHost
 	profileUUID string
 }
 
-func (a *certificateTemplateForHostAdapter) GetStatus() fleet.MDMDeliveryStatus {
+func (a *certificateTemplateForHostAdapter) GetStatus() automdm.MDMDeliveryStatus {
 	if a.template.Status == nil {
 		return ""
 	}
-	return fleet.CertificateTemplateStatusToMDMDeliveryStatus(*a.template.Status)
+	return automdm.CertificateTemplateStatusToMDMDeliveryStatus(*a.template.Status)
 }
 
 func (a *certificateTemplateForHostAdapter) GetChallengeRetrievedAt() *time.Time {
 	// Android certificate templates don't track challenge retrieval time;
-	// they use one-time fleet challenges validated via ConsumeChallenge.
+	// they use one-time team challenges validated via ConsumeChallenge.
 	return nil
 }
 
-func (a *certificateTemplateForHostAdapter) GetCAType() fleet.CAConfigAssetType {
+func (a *certificateTemplateForHostAdapter) GetCAType() automdm.CAConfigAssetType {
 	return a.template.CAType
 }
 
@@ -202,14 +202,14 @@ func (a *certificateTemplateForHostAdapter) GetProfileUUID() string {
 }
 
 type scepProxyService struct {
-	ds fleet.Datastore
+	ds automdm.Datastore
 	// info logging is implemented in the service middleware layer.
 	debugLogger *slog.Logger
 	Timeout     *time.Duration
 }
 
 // NewSCEPProxyService creates a new scep proxy service
-func NewSCEPProxyService(ds fleet.Datastore, logger *slog.Logger, timeout *time.Duration) scepserver.ServiceWithIdentifier {
+func NewSCEPProxyService(ds automdm.Datastore, logger *slog.Logger, timeout *time.Duration) scepserver.ServiceWithIdentifier {
 	if timeout == nil {
 		timeout = ptr.Duration(30 * time.Second)
 	}
@@ -261,7 +261,7 @@ func (svc *scepProxyService) GetCACert(ctx context.Context, message string, iden
 	// Windows hard-codes message=default, which CAs that pick the CA by name (e.g. EJBCA) reject. Without it the CA answers
 	// with its default CA, the same request ValidateSCEPURL makes when the CA is added.
 	if _, profileUUID, ok := parseHostAndProfileFromSCEPIdentifier(identifier); ok &&
-		strings.HasPrefix(profileUUID, fleet.MDMWindowsProfileUUIDPrefix) {
+		strings.HasPrefix(profileUUID, automdm.MDMWindowsProfileUUIDPrefix) {
 		message = ""
 	}
 
@@ -271,7 +271,7 @@ func (svc *scepProxyService) GetCACert(ctx context.Context, message string, iden
 	}
 	res, num, err := client.GetCACert(ctx, message)
 	if err != nil {
-		// GetCACert doesn't check the Fleet challenge, so it can't be told apart from the SCEP CSP replaying a superseded
+		// GetCACert doesn't check the AutoMDM challenge, so it can't be told apart from the SCEP CSP replaying a superseded
 		// delivery. Only the delivery the host acknowledged is charged.
 		svc.recordWindowsSCEPProxyFailure(ctx, identifier, "GetCACert", true, err)
 		svc.debugLogger.ErrorContext(ctx, "SCEP proxy GetCACert failed", "scep_url", scepURL, "err", err)
@@ -314,7 +314,7 @@ func (svc *scepProxyService) recordWindowsSCEPProxyFailure(ctx context.Context, 
 		return
 	}
 	hostUUID, profileUUID, ok := parseHostAndProfileFromSCEPIdentifier(identifier)
-	if !ok || !strings.HasPrefix(profileUUID, fleet.MDMWindowsProfileUUIDPrefix) {
+	if !ok || !strings.HasPrefix(profileUUID, automdm.MDMWindowsProfileUUIDPrefix) {
 		return
 	}
 	detail := fmt.Sprintf("SCEP %s failed: %s", operation, classifySCEPProxyError(upstreamErr))
@@ -404,24 +404,24 @@ func (svc *scepProxyService) validateIdentifier(ctx context.Context, identifier 
 	if len(parsedIDs) > 2 {
 		caName = parsedIDs[2]
 	}
-	var fleetChallenge string
+	var automdmChallenge string
 	if len(parsedIDs) > 3 {
-		fleetChallenge = parsedIDs[3]
+		automdmChallenge = parsedIDs[3]
 	}
 
-	if !strings.HasPrefix(profileUUID, fleet.MDMAppleProfileUUIDPrefix) &&
-		!strings.HasPrefix(profileUUID, fleet.MDMWindowsProfileUUIDPrefix) &&
-		!strings.HasPrefix(profileUUID, fleet.MDMAndroidProfileUUIDPrefix) {
+	if !strings.HasPrefix(profileUUID, automdm.MDMAppleProfileUUIDPrefix) &&
+		!strings.HasPrefix(profileUUID, automdm.MDMWindowsProfileUUIDPrefix) &&
+		!strings.HasPrefix(profileUUID, automdm.MDMAndroidProfileUUIDPrefix) {
 		return "", &scepserver.BadRequestError{Message: fmt.Sprintf("invalid profile UUID (only Apple, Windows, and Android config profiles are supported): %s",
 			profileUUID)}
 	}
 
-	challengeScope := fleet.ChallengeScope{HostUUID: hostUUID, ProfileUUID: profileUUID, CAName: caName}
+	challengeScope := automdm.ChallengeScope{HostUUID: hostUUID, ProfileUUID: profileUUID, CAName: caName}
 
 	var certReq scepCertificateRequest
 
 	switch {
-	case strings.HasPrefix(profileUUID, fleet.MDMAppleProfileUUIDPrefix):
+	case strings.HasPrefix(profileUUID, automdm.MDMAppleProfileUUIDPrefix):
 		profile, err := svc.ds.GetAppleHostMDMCertificateProfile(ctx, hostUUID, profileUUID, caName)
 		if err != nil {
 			return "", ctxerr.Wrap(ctx, err, "getting host MDM profile")
@@ -430,7 +430,7 @@ func (svc *scepProxyService) validateIdentifier(ctx context.Context, identifier 
 			certReq = &hostMDMCertificateProfileAdapter{profile: profile}
 		}
 
-	case strings.HasPrefix(profileUUID, fleet.MDMWindowsProfileUUIDPrefix):
+	case strings.HasPrefix(profileUUID, automdm.MDMWindowsProfileUUIDPrefix):
 		profile, err := svc.ds.GetWindowsHostMDMCertificateProfile(ctx, hostUUID, profileUUID, caName)
 		if err != nil {
 			return "", ctxerr.Wrap(ctx, err, "getting host MDM profile")
@@ -439,10 +439,10 @@ func (svc *scepProxyService) validateIdentifier(ctx context.Context, identifier 
 			certReq = &hostMDMCertificateProfileAdapter{profile: profile}
 		}
 
-	case strings.HasPrefix(profileUUID, fleet.MDMAndroidProfileUUIDPrefix):
+	case strings.HasPrefix(profileUUID, automdm.MDMAndroidProfileUUIDPrefix):
 		// Android identifier format: {hostUUID},g{certificateTemplateID},{caType},{challenge}
 		// Parse the certificate template ID from the profileUUID (e.g., "g123" -> 123)
-		certTemplateIDStr := strings.TrimPrefix(profileUUID, fleet.MDMAndroidProfileUUIDPrefix)
+		certTemplateIDStr := strings.TrimPrefix(profileUUID, automdm.MDMAndroidProfileUUIDPrefix)
 		certTemplateID, err := strconv.ParseUint(certTemplateIDStr, 10, 32)
 		if err != nil {
 			return "", &scepserver.BadRequestError{Message: fmt.Sprintf("invalid Android certificate template ID: %s", certTemplateIDStr)}
@@ -465,8 +465,8 @@ func (svc *scepProxyService) validateIdentifier(ctx context.Context, identifier 
 		return "", &scepserver.BadRequestError{Message: "unknown identifier in URL path"}
 	}
 	// We skip windows profiles for this check here as they instantly go to verifying when sent out, might change for windows renewal.
-	if certReq.GetStatus() != fleet.MDMDeliveryPending && !strings.HasPrefix(profileUUID, fleet.MDMWindowsProfileUUIDPrefix) {
-		// This could happen if Fleet DB was updated before the profile was updated on the host.
+	if certReq.GetStatus() != automdm.MDMDeliveryPending && !strings.HasPrefix(profileUUID, automdm.MDMWindowsProfileUUIDPrefix) {
+		// This could happen if AutoMDM DB was updated before the profile was updated on the host.
 		// We expect another certificate request from the host once the profile is updated.
 		status := certReq.GetStatus()
 		if status == "" {
@@ -480,7 +480,7 @@ func (svc *scepProxyService) validateIdentifier(ctx context.Context, identifier 
 	var scepURL string
 
 	switch certReq.GetCAType() {
-	case fleet.CAConfigNDES:
+	case automdm.CAConfigNDES:
 		if groupedCAs.NDESSCEP == nil {
 			// Return error that implements kithttp.StatusCoder interface
 			return "", &scepserver.BadRequestError{Message: MessageSCEPProxyNotConfigured}
@@ -497,7 +497,7 @@ func (svc *scepProxyService) validateIdentifier(ctx context.Context, identifier 
 		}
 		scepURL = groupedCAs.NDESSCEP.URL
 
-	case fleet.CAConfigSmallstep:
+	case automdm.CAConfigSmallstep:
 		if len(groupedCAs.Smallstep) < 1 {
 			return "", &scepserver.BadRequestError{Message: MessageSCEPProxyNotConfigured}
 		}
@@ -520,7 +520,7 @@ func (svc *scepProxyService) validateIdentifier(ctx context.Context, identifier 
 			return "", &scepserver.BadRequestError{Message: "challenge password has expired"}
 		}
 
-	case fleet.CAConfigCustomSCEPProxy:
+	case automdm.CAConfigCustomSCEPProxy:
 		if len(groupedCAs.CustomScepProxy) < 1 {
 			return "", &scepserver.BadRequestError{Message: MessageSCEPProxyNotConfigured}
 		}
@@ -532,11 +532,11 @@ func (svc *scepProxyService) validateIdentifier(ctx context.Context, identifier 
 		}
 
 		if checkChallenge {
-			if err := svc.handleFleetChallenge(ctx, fleetChallenge, challengeScope); err != nil {
+			if err := svc.handleAutoMDMChallenge(ctx, automdmChallenge, challengeScope); err != nil {
 				// FIXME: The layered logging implementation of the scepProxyService not
-				// intuitive. Can we make it so that we return fleet.ErrWithInternal to
+				// intuitive. Can we make it so that we return automdm.ErrWithInternal to
 				// better capture/log the context errors here?
-				svc.debugLogger.ErrorContext(ctx, "custom scep proxy: failed to handle fleet challenge",
+				svc.debugLogger.ErrorContext(ctx, "custom scep proxy: failed to handle automdm challenge",
 					"host_uuid", hostUUID,
 					"profile_uuid", profileUUID,
 					"err", err,
@@ -556,27 +556,27 @@ func (svc *scepProxyService) validateIdentifier(ctx context.Context, identifier 
 // resendProfileForExpiredChallenge resends a SCEP profile whose challenge has expired so the
 // reconcile cron regenerates it with a fresh challenge.
 //
-// A challenge Fleet turns away is a timing condition, not a host install failure: the device never got the chance to
+// A challenge AutoMDM turns away is a timing condition, not a host install failure: the device never got the chance to
 // install anything, so the attempt must not consume the host's limited profile retries. The platform tables are
 // separate, so the platform is picked off the profile UUID prefix; Android falls back to the generic resend.
 //
 // Two different challenges reach this code:
-//   - Fleet's one-time challenge, used only by custom SCEP proxy CAs.
+//   - AutoMDM's one-time challenge, used only by custom SCEP proxy CAs.
 //   - The SCEP challenge password for NDES which has expired.
 //
 // The two platforms deliberately differ in what they do to the retry counter, so do not "align" them:
 //   - Apple RESETS it to zero, and additionally clears the stale in-flight command so a late failure ACK for the
 //     superseded command cannot strand the profile as "failed".
 //   - Windows PRESERVES it, because of a loop the custom SCEP proxy path produces. A delivery whose PKIOperation
-//     genuinely fails at the CA has already spent its Fleet challenge getting there, and burns a retry. Fleet queues a
-//     redelivery carrying a fresh Fleet challenge, but before it reaches the device the SCEP CSP re-drives the exchange
-//     on its own, replaying the profile it still holds and therefore the Fleet challenge that was just consumed. That
+//     genuinely fails at the CA has already spent its AutoMDM challenge getting there, and burns a retry. AutoMDM queues a
+//     redelivery carrying a fresh AutoMDM challenge, but before it reaches the device the SCEP CSP re-drives the exchange
+//     on its own, replaying the profile it still holds and therefore the AutoMDM challenge that was just consumed. That
 //     replay is rejected and lands here. Resetting it on a genuine CA failure is not correct.
 func (svc *scepProxyService) resendProfileForExpiredChallenge(ctx context.Context, hostUUID, profileUUID string) error {
 	switch {
-	case strings.HasPrefix(profileUUID, fleet.MDMAppleProfileUUIDPrefix):
+	case strings.HasPrefix(profileUUID, automdm.MDMAppleProfileUUIDPrefix):
 		return svc.ds.ResendHostCertificateProfile(ctx, hostUUID, profileUUID)
-	case strings.HasPrefix(profileUUID, fleet.MDMWindowsProfileUUIDPrefix):
+	case strings.HasPrefix(profileUUID, automdm.MDMWindowsProfileUUIDPrefix):
 		return svc.ds.ResendWindowsHostCertificateProfile(ctx, hostUUID, profileUUID)
 	}
 	return svc.ds.ResendHostMDMProfile(ctx, hostUUID, profileUUID)
@@ -587,22 +587,22 @@ func (svc *scepProxyService) GetNextCACert(_ context.Context) ([]byte, error) {
 	return nil, errors.New("GetNextCACert is not implemented for SCEP proxy")
 }
 
-// handleFleetChallenge handles the validation of the fleet challenge for custom SCEP profiles as
+// handleAutoMDMChallenge handles the validation of the automdm challenge for custom SCEP profiles as
 // well as resending the profile if the challenge cannot be validated. If it is valid, it returns
 // nil. If it cannot be validated or if any errors occur while validating or resending the profile,
 // it returns a concatenated error.
 //
 // TODO: Consider refactoring to differentiate between invalid challenge and other errors. As it
 // stands, we're resending the profile in both cases.
-func (svc *scepProxyService) handleFleetChallenge(ctx context.Context, fleetChallenge string, scope fleet.ChallengeScope) error {
+func (svc *scepProxyService) handleAutoMDMChallenge(ctx context.Context, automdmChallenge string, scope automdm.ChallengeScope) error {
 	var errs []error
 
 	resendProfile := svc.ds.ResendHostCertificateProfile
-	if strings.HasPrefix(scope.ProfileUUID, fleet.MDMWindowsProfileUUIDPrefix) {
+	if strings.HasPrefix(scope.ProfileUUID, automdm.MDMWindowsProfileUUIDPrefix) {
 		resendProfile = svc.ds.ResendWindowsHostCertificateProfile
 	}
 
-	if err := svc.ds.ConsumeChallenge(ctx, fleetChallenge, scope); err != nil {
+	if err := svc.ds.ConsumeChallenge(ctx, automdmChallenge, scope); err != nil {
 		errs = append(errs, ctxerr.Wrap(ctx, err, "custom scep proxy: validating challenge"))
 		// FIXME: See comment in datastore method regarding how we resend profiles with dynamic content
 		if err := resendProfile(ctx, scope.HostUUID, scope.ProfileUUID); err != nil {
@@ -611,7 +611,7 @@ func (svc *scepProxyService) handleFleetChallenge(ctx context.Context, fleetChal
 	}
 
 	if len(errs) > 0 {
-		return ctxerr.Wrap(ctx, errors.Join(errs...), "custom scep proxy: failed to handle fleet challenge")
+		return ctxerr.Wrap(ctx, errors.Join(errs...), "custom scep proxy: failed to handle automdm challenge")
 	}
 
 	return nil
@@ -623,7 +623,7 @@ type SCEPConfigService struct {
 	Timeout *time.Duration
 }
 
-func NewSCEPConfigService(logger *slog.Logger, timeout *time.Duration) fleet.SCEPConfigService {
+func NewSCEPConfigService(logger *slog.Logger, timeout *time.Duration) automdm.SCEPConfigService {
 	if timeout == nil {
 		timeout = ptr.Duration(30 * time.Second)
 	}
@@ -634,21 +634,21 @@ func NewSCEPConfigService(logger *slog.Logger, timeout *time.Duration) fleet.SCE
 }
 
 // Compile check that SCEPConfigService implements the interface.
-var _ fleet.SCEPConfigService = (*SCEPConfigService)(nil)
+var _ automdm.SCEPConfigService = (*SCEPConfigService)(nil)
 
-func (s *SCEPConfigService) ValidateNDESSCEPAdminURL(ctx context.Context, proxy fleet.NDESSCEPProxyCA) error {
+func (s *SCEPConfigService) ValidateNDESSCEPAdminURL(ctx context.Context, proxy automdm.NDESSCEPProxyCA) error {
 	_, err := s.GetNDESSCEPChallenge(ctx, proxy)
 	return err
 }
 
-func (s *SCEPConfigService) GetNDESSCEPChallenge(ctx context.Context, proxy fleet.NDESSCEPProxyCA) (string, error) {
+func (s *SCEPConfigService) GetNDESSCEPChallenge(ctx context.Context, proxy automdm.NDESSCEPProxyCA) (string, error) {
 	adminURL, username, password := proxy.AdminURL, proxy.Username, proxy.Password
 	// Get the challenge from NDES. AllowBasicAuth: true opts into the
 	// upstream Negotiator's Basic-auth fallback, which is currently
 	// opt-in.
-	client := fleethttp.NewClient(fleethttp.WithTimeout(*s.Timeout))
+	client := automdmhttp.NewClient(automdmhttp.WithTimeout(*s.Timeout))
 	client.Transport = ntlmssp.Negotiator{
-		RoundTripper:   fleethttp.NewTransport(),
+		RoundTripper:   automdmhttp.NewTransport(),
 		AllowBasicAuth: true,
 	}
 	req, err := http.NewRequest(http.MethodGet, adminURL, http.NoBody)
@@ -665,7 +665,7 @@ func (s *SCEPConfigService) GetNDESSCEPChallenge(ctx context.Context, proxy flee
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		s.logger.WarnContext(ctx, "NDES admin URL returned non-200",
-			"ca_type", fleet.CATypeNDESSCEPProxy,
+			"ca_type", automdm.CATypeNDESSCEPProxy,
 			"status_code", resp.StatusCode,
 			"request_duration", endRequestTime.Sub(startRequestTime).Seconds(),
 		)
@@ -705,7 +705,7 @@ func (s *SCEPConfigService) GetNDESSCEPChallenge(ctx context.Context, proxy flee
 		}
 
 		s.logger.WarnContext(ctx, "failed to parse NDES challenge from admin URL response",
-			"ca_type", fleet.CATypeNDESSCEPProxy,
+			"ca_type", automdm.CATypeNDESSCEPProxy,
 			"status_code", http.StatusOK,
 			"raw_response_length", len(htmlString),
 			"request_duration", endRequestTime.Sub(startRequestTime).Seconds(),
@@ -732,23 +732,23 @@ func (s *SCEPConfigService) ValidateSCEPURL(ctx context.Context, url string) err
 	return nil
 }
 
-func (s *SCEPConfigService) ValidateSmallstepChallengeURL(ctx context.Context, ca fleet.SmallstepSCEPProxyCA) error {
+func (s *SCEPConfigService) ValidateSmallstepChallengeURL(ctx context.Context, ca automdm.SmallstepSCEPProxyCA) error {
 	_, err := s.GetSmallstepSCEPChallenge(ctx, ca)
 	return err
 }
 
-func (s *SCEPConfigService) GetSmallstepSCEPChallenge(ctx context.Context, ca fleet.SmallstepSCEPProxyCA) (string, error) {
+func (s *SCEPConfigService) GetSmallstepSCEPChallenge(ctx context.Context, ca automdm.SmallstepSCEPProxyCA) (string, error) {
 	// Get the challenge from Smallstep
-	client := fleethttp.NewClient(fleethttp.WithTimeout(30 * time.Second))
+	client := automdmhttp.NewClient(automdmhttp.WithTimeout(30 * time.Second))
 	var reqBody bytes.Buffer
-	if err := json.NewEncoder(&reqBody).Encode(fleet.SmallstepChallengeRequestBody{
-		Webhook: fleet.SmallstepChallengeWebhook{
+	if err := json.NewEncoder(&reqBody).Encode(automdm.SmallstepChallengeRequestBody{
+		Webhook: automdm.SmallstepChallengeWebhook{
 			ID:             1,
 			WebhookEvent:   "SCEPChallenge",
 			EventTimestamp: time.Now().Unix(),
 			Name:           "SCEPChallenge",
 		},
-		Event: fleet.SmallstepChallengeEvent{
+		Event: automdm.SmallstepChallengeEvent{
 			SCEPServerURL:     ca.URL,
 			PayloadIdentifier: uuid.New().String(),
 			PayloadTypes:      []string{"com.apple.security.scep"},
@@ -772,11 +772,11 @@ func (s *SCEPConfigService) GetSmallstepSCEPChallenge(ctx context.Context, ca fl
 		reader := io.LimitReader(resp.Body, units.MiB*2)
 		if b, err := io.ReadAll(reader); err == nil {
 			s.logger.DebugContext(ctx, "failed to get Smallstep SCEP challenge",
-				"status_code", resp.StatusCode, "status", resp.Status, "ca_type", fleet.CATypeSmallstep,
+				"status_code", resp.StatusCode, "status", resp.Status, "ca_type", automdm.CATypeSmallstep,
 				"raw_response", string(b), "request_duration", endRequestTime.Sub(startRequestTime).Seconds())
 		} else {
 			s.logger.DebugContext(ctx, "failed to get Smallstep SCEP challenge and failed to read response body",
-				"status_code", resp.StatusCode, "status", resp.Status, "ca_type", fleet.CATypeSmallstep,
+				"status_code", resp.StatusCode, "status", resp.Status, "ca_type", automdm.CATypeSmallstep,
 				"read_error", err.Error(), "request_duration", endRequestTime.Sub(startRequestTime).Seconds())
 		}
 		return "", ctxerr.Wrap(ctx, fmt.Errorf("status code %d", resp.StatusCode), "getting Smallstep SCEP challenge")
@@ -841,7 +841,7 @@ func NewNDESInsufficientPermissionsError(msg string) NDESInsufficientPermissions
 	return NDESInsufficientPermissionsError{msg: msg}
 }
 
-// IsTerminalNDESChallengeError reports whether a challenge-fetch failure needs someone to act before Fleet could
+// IsTerminalNDESChallengeError reports whether a challenge-fetch failure needs someone to act before AutoMDM could
 // possibly succeed. The three classified failures all do: bad admin credentials, an exhausted password cache (which
 // only clears when an admin raises the cache size or cached passwords age out after an hour), and an account without
 // SCEP enroll permission.
@@ -868,24 +868,24 @@ func NDESChallengeErrorToScriptDetail(err error) string {
 }
 
 func ndesChallengeErrorToDetail(err error, willRetry bool) string {
-	varName := fleet.FleetVarNDESSCEPChallenge.WithPrefix()
+	varName := automdm.AutoMDMVarNDESSCEPChallenge.WithPrefix()
 	switch {
 	case errors.As(err, &NDESInvalidError{}):
-		return fmt.Sprintf("Invalid NDES admin credentials. Fleet couldn't populate %s. "+
+		return fmt.Sprintf("Invalid NDES admin credentials. AutoMDM couldn't populate %s. "+
 			"Please update credentials in Settings > Integrations > Certificate authorities.", varName)
 	case errors.As(err, &NDESPasswordCacheFullError{}):
-		return fmt.Sprintf("The NDES password cache is full. Fleet couldn't populate %s. "+
+		return fmt.Sprintf("The NDES password cache is full. AutoMDM couldn't populate %s. "+
 			"Please increase the number of cached passwords in NDES and try again.", varName)
 	case errors.As(err, &NDESInsufficientPermissionsError{}):
-		return fmt.Sprintf("This account does not have sufficient permissions to enroll with SCEP. Fleet couldn't populate %s. "+
+		return fmt.Sprintf("This account does not have sufficient permissions to enroll with SCEP. AutoMDM couldn't populate %s. "+
 			"Please update the account with NDES SCEP enroll permissions and try again.", varName)
 	case errors.As(err, &NDESTransientError{}):
 		var retry string
 		if willRetry {
 			retry = " and will try again"
 		}
-		return fmt.Sprintf("Fleet couldn't reach NDES to populate %s%s. %s", varName, retry, err.Error())
+		return fmt.Sprintf("AutoMDM couldn't reach NDES to populate %s%s. %s", varName, retry, err.Error())
 	default:
-		return fmt.Sprintf("Fleet couldn't populate %s. %s", varName, err.Error())
+		return fmt.Sprintf("AutoMDM couldn't populate %s. %s", varName, err.Error())
 	}
 }

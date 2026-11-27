@@ -7,7 +7,7 @@
 
 $displayNamePattern = '^balenaEtcher$'
 $publisher = "Balena Ltd. <hello@balena.io>"
-$taskName = "fleet-uninstall-balenaetcher"
+$taskName = "automdm-uninstall-balenaetcher"
 $appDir = "AppData\Local\balena_etcher"  # in each user's profile
 $taskRunning = 267009  # SCHED_S_TASK_RUNNING
 $timeoutSeconds = 300

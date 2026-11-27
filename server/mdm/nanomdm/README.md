@@ -60,8 +60,8 @@ You can read more about the architecture in the blog post [Introducing NanoMDM](
 ## Running unit tests locally
 
 1. Start up MySQL `docker compose up`
-2. Load schema: `mysql --user=fleet -pinsecure --host=127.0.0.1 --port=3800 --protocol=TCP fleet < ./storage/mysql/schema.sql`
-3. `export NANOMDM_MYSQL_STORAGE_TEST_DSN=fleet:insecure@tcp(127.0.0.1:3800)/fleet`
+2. Load schema: `mysql --user=automdm -pinsecure --host=127.0.0.1 --port=3800 --protocol=TCP automdm < ./storage/mysql/schema.sql`
+3. `export NANOMDM_MYSQL_STORAGE_TEST_DSN=automdm:insecure@tcp(127.0.0.1:3800)/automdm`
 4. `go test -v -parallel 8 -race=true ./...`
 
 ### Clean up MySQL after running tests

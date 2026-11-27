@@ -7,7 +7,7 @@
 
 $displayNamePattern = '^Proxyman \d'
 $publisher = "Proxyman LLC"
-$taskName = "fleet-uninstall-proxyman"
+$taskName = "automdm-uninstall-proxyman"
 $appDir = "AppData\Local\Programs\Proxyman"  # in each user's profile
 $taskRunning = 267009  # SCHED_S_TASK_RUNNING
 $timeoutSeconds = 300

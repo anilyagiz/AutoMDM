@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/fleetdm/fleet/v4/tools/dibble/pkg/seed"
+	"github.com/anilyagiz/automdm/v4/tools/dibble/pkg/seed"
 )
 
 // newIDPCmd wires `dibble idp` — populates mdm_idp_accounts for the most
@@ -19,8 +19,8 @@ func newIDPCmd() *cobra.Command {
 		Long: `Plants rows in mdm_idp_accounts (one per seeded user, matched by email)
 and host_mdm_idp_accounts (round-robin assignment to existing hosts).
 
-Users are fetched via the Fleet API sorted by created_at DESC so dibble-seeded
-users surface ahead of the bootstrap admin. Hosts are fetched via the Fleet
+Users are fetched via the AutoMDM API sorted by created_at DESC so dibble-seeded
+users surface ahead of the bootstrap admin. Hosts are fetched via the AutoMDM
 API — enroll some first with osquery-perf (try ` + "`dibble hosts`" + `).
 
 Requires direct MySQL access; the default DSN matches the local docker-compose
@@ -45,7 +45,7 @@ dev environment.`,
 			return reportErrors(res.Errors)
 		},
 	}
-	cmd.Flags().String("dsn", "fleet:insecure@tcp(localhost:3306)/fleet", "MySQL DSN")
+	cmd.Flags().String("dsn", "automdm:insecure@tcp(localhost:3306)/automdm", "MySQL DSN")
 	cmd.Flags().Int("user-count", 3, "How many seeded users to give an IDP account")
 	cmd.Flags().Int("host-count", 5, "How many hosts to assign IDP accounts to (round-robin)")
 	return cmd

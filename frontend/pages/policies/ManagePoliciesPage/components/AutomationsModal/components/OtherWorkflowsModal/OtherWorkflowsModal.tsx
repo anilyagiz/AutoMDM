@@ -260,7 +260,7 @@ const OtherWorkflowsModal = forwardRef<
           onChange={onChangeUrl}
           onBlur={onBlurUrl}
           error={errors.url}
-          helpText="For configured policies, Fleet will send a JSON payload to this URL with a list of hosts whose statuses changed from pass to fail."
+          helpText="For configured policies, AutoMDM will send a JSON payload to this URL with a list of hosts whose statuses changed from pass to fail."
           placeholder="https://server.com/example"
           tooltip="Provide a URL to deliver a webhook request to."
           disabled={!isPolicyAutomationsEnabled || gitOpsModeEnabled}
@@ -283,7 +283,7 @@ const OtherWorkflowsModal = forwardRef<
               label="Integration"
               error={errors.integration}
               wrapperClassName={`${baseClass}__form-field ${baseClass}__form-field--frequency`}
-              hint="For each policy, Fleet will create a ticket with a list of the failing hosts."
+              hint="For each policy, AutoMDM will create a ticket with a list of the failing hosts."
             />
           </div>
           <RevealButton
@@ -322,7 +322,7 @@ const OtherWorkflowsModal = forwardRef<
         <p className={`${baseClass}__description`}>
           Create tickets or fire webhooks when hosts fail policies.{" "}
           <CustomLink
-            url="https://www.fleetdm.com/learn-more-about/policy-automations"
+            url="https://automdm.com/learn-more-about/policy-automations"
             text="Learn more"
             newTab
           />

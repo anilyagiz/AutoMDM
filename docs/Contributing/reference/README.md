@@ -1,6 +1,6 @@
-# Fleet reference documentation
+# AutoMDM reference documentation
 
-This directory contains reference documentation for Fleet.
+This directory contains reference documentation for AutoMDM.
 
 ## API reference
 

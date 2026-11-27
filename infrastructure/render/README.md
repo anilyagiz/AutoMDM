@@ -1,31 +1,31 @@
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/fleetdm/fleet)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/anilyagiz/automdm)
 
-# Fleet deployment guide
+# AutoMDM deployment guide
 
-This guide outlines the services configured in the Render blueprint for deploying the Fleet system, which includes a web service, a MySQL database, and a Redis server.
+This guide outlines the services configured in the Render blueprint for deploying the AutoMDM system, which includes a web service, a MySQL database, and a Redis server.
 
 ## Services overview
 
-### 1. Fleet web service
+### 1. AutoMDM web service
 - **Type:** Web
 - **Runtime:** Image
-- **Image:** `fleetdm/fleet:latest` 
-- **Description:** Main web service running the Fleet application, which is deployed using the latest Fleet Docker image. Configured to prepare the database before deployment.
+- **Image:** `automdm/automdm:latest` 
+- **Description:** Main web service running the AutoMDM application, which is deployed using the latest AutoMDM Docker image. Configured to prepare the database before deployment.
 - **Health check path:** `/healthz`
 - **Environment variables:** Connects to MySQL and Redis using service-bound environment variables.
 
-### 2. Fleet MySQL database
+### 2. AutoMDM MySQL database
 - **Type:** Private service (pserv)
 - **Runtime:** Image
 - **Image:** [`docker.io/library/mysql:8.0.44`](https://hub.docker.com/_/mysql)
 - **Disk:** 10 GB mounted at `/var/lib/mysql`
-- **Description:** MySQL database used by the Fleet web service. Environment variables for database credentials are managed within the service and some are automatically generated.
+- **Description:** MySQL database used by the AutoMDM web service. Environment variables for database credentials are managed within the service and some are automatically generated.
 
-### 3. Fleet Redis service
+### 3. AutoMDM Redis service
 - **Type:** Private service (pserv)
 - **Runtime:** Image
 - **Repository:** [Redis Docker image](https://hub.docker.com/_/redis)
-- **Description:** Redis service for caching and other in-memory data storage needs of the Fleet web service.
+- **Description:** Redis service for caching and other in-memory data storage needs of the AutoMDM web service.
 
 ## Deployment guide
 
@@ -40,4 +40,4 @@ Click the deploy on render button or import the blueprint from the Render servic
 ### Post-deployment
 
 Navigate to the generated URL and run through the initial setup. If you have a license key you can add it post-deploy as
-an environment variable `FLEET_LICENSE_KEY=value` in the Fleet service configuration.
+an environment variable `AUTOMDM_LICENSE_KEY=value` in the AutoMDM service configuration.

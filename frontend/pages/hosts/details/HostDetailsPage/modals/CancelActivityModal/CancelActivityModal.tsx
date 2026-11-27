@@ -54,7 +54,7 @@ const CancelActivityModal = ({
       <div className={`${baseClass}__content`}>
         <p>
           If the activity is happening on the host it will still complete.
-          Results won&apos;t appear in Fleet.
+          Results won&apos;t appear in AutoMDM.
         </p>
         <ActivityItemComponent
           tab="upcoming"

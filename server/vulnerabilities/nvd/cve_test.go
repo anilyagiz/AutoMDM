@@ -18,12 +18,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/nettest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/nvd/tools/cvefeed"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/nvd/tools/cvefeed/nvd/schema"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/nvd/tools/wfn"
+	"github.com/anilyagiz/automdm/v4/pkg/nettest"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/nvd/tools/cvefeed"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/nvd/tools/cvefeed/nvd/schema"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/nvd/tools/wfn"
 	"github.com/google/go-github/v37/github"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -125,19 +125,19 @@ type threadSafeDSMock struct {
 	*mock.Store
 }
 
-func (d *threadSafeDSMock) ListSoftwareCPEs(ctx context.Context) ([]fleet.SoftwareCPE, error) {
+func (d *threadSafeDSMock) ListSoftwareCPEs(ctx context.Context) ([]automdm.SoftwareCPE, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	return d.Store.ListSoftwareCPEs(ctx)
 }
 
-func (d *threadSafeDSMock) InsertSoftwareVulnerability(ctx context.Context, vuln fleet.SoftwareVulnerability, src fleet.VulnerabilitySource) (bool, error) {
+func (d *threadSafeDSMock) InsertSoftwareVulnerability(ctx context.Context, vuln automdm.SoftwareVulnerability, src automdm.VulnerabilitySource) (bool, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	return d.Store.InsertSoftwareVulnerability(ctx, vuln, src)
 }
 
-func (d *threadSafeDSMock) InsertSoftwareVulnerabilities(ctx context.Context, vulns []fleet.SoftwareVulnerability, src fleet.VulnerabilitySource) ([]fleet.SoftwareVulnerability, error) {
+func (d *threadSafeDSMock) InsertSoftwareVulnerabilities(ctx context.Context, vulns []automdm.SoftwareVulnerability, src automdm.VulnerabilitySource) ([]automdm.SoftwareVulnerability, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	return d.Store.InsertSoftwareVulnerabilities(ctx, vulns, src)
@@ -862,11 +862,11 @@ func TestTranslateCPEToCVE(t *testing.T) {
 		ds := new(mock.Store)
 
 		softwareIDToCPEs := make(map[uint]string)
-		ds.ListSoftwareCPEsFunc = func(ctx context.Context) ([]fleet.SoftwareCPE, error) {
-			var softwareCPEs []fleet.SoftwareCPE
+		ds.ListSoftwareCPEsFunc = func(ctx context.Context) ([]automdm.SoftwareCPE, error) {
+			var softwareCPEs []automdm.SoftwareCPE
 			i := uint(0)
 			for cpe := range cveTests {
-				softwareCPEs = append(softwareCPEs, fleet.SoftwareCPE{CPE: cpe, SoftwareID: i})
+				softwareCPEs = append(softwareCPEs, automdm.SoftwareCPE{CPE: cpe, SoftwareID: i})
 				softwareIDToCPEs[i] = cpe
 				i++
 			}
@@ -874,10 +874,10 @@ func TestTranslateCPEToCVE(t *testing.T) {
 		}
 
 		var osIDs []uint
-		ds.ListOperatingSystemsForPlatformFunc = func(ctx context.Context, p string) ([]fleet.OperatingSystem, error) {
-			var oss []fleet.OperatingSystem
+		ds.ListOperatingSystemsForPlatformFunc = func(ctx context.Context, p string) ([]automdm.OperatingSystem, error) {
+			var oss []automdm.OperatingSystem
 			for _, os := range cveOSTests {
-				oss = append(oss, fleet.OperatingSystem{
+				oss = append(oss, automdm.OperatingSystem{
 					ID:       os.osID,
 					Platform: os.platform,
 					Version:  os.version,
@@ -889,7 +889,7 @@ func TestTranslateCPEToCVE(t *testing.T) {
 
 		cveLock := &sync.Mutex{}
 		cvesFound := make(map[string][]cve)
-		ds.InsertSoftwareVulnerabilitiesFunc = func(ctx context.Context, vulns []fleet.SoftwareVulnerability, src fleet.VulnerabilitySource) ([]fleet.SoftwareVulnerability, error) {
+		ds.InsertSoftwareVulnerabilitiesFunc = func(ctx context.Context, vulns []automdm.SoftwareVulnerability, src automdm.VulnerabilitySource) ([]automdm.SoftwareVulnerability, error) {
 			cveLock.Lock()
 			defer cveLock.Unlock()
 
@@ -908,7 +908,7 @@ func TestTranslateCPEToCVE(t *testing.T) {
 		}
 
 		osCVEsFound := make(map[uint][]string)
-		ds.InsertOSVulnerabilitiesFunc = func(ctx context.Context, vulns []fleet.OSVulnerability, src fleet.VulnerabilitySource) (int64, error) {
+		ds.InsertOSVulnerabilitiesFunc = func(ctx context.Context, vulns []automdm.OSVulnerability, src automdm.VulnerabilitySource) (int64, error) {
 			cveLock.Lock()
 			defer cveLock.Unlock()
 
@@ -918,10 +918,10 @@ func TestTranslateCPEToCVE(t *testing.T) {
 			return int64(len(vulns)), nil
 		}
 
-		ds.DeleteOutOfDateVulnerabilitiesFunc = func(ctx context.Context, source fleet.VulnerabilitySource, olderThan time.Time) error {
+		ds.DeleteOutOfDateVulnerabilitiesFunc = func(ctx context.Context, source automdm.VulnerabilitySource, olderThan time.Time) error {
 			return nil
 		}
-		ds.DeleteOutOfDateOSVulnerabilitiesFunc = func(ctx context.Context, source fleet.VulnerabilitySource, olderThan time.Time) error {
+		ds.DeleteOutOfDateOSVulnerabilitiesFunc = func(ctx context.Context, source automdm.VulnerabilitySource, olderThan time.Time) error {
 			return nil
 		}
 
@@ -967,28 +967,28 @@ func TestTranslateCPEToCVE(t *testing.T) {
 		ds := new(mock.Store)
 		safeDS := &threadSafeDSMock{Store: ds}
 
-		softwareCPEs := []fleet.SoftwareCPE{
+		softwareCPEs := []automdm.SoftwareCPE{
 			{CPE: "cpe:2.3:a:google:chrome:*:*:*:*:*:*:*:*", ID: 1, SoftwareID: 1},
 			{CPE: "cpe:2.3:a:mozilla:firefox:*:*:*:*:*:*:*:*", ID: 2, SoftwareID: 2},
 			{CPE: "cpe:2.3:a:haxx:curl:*:*:*:*:*:*:*:*", ID: 3, SoftwareID: 3},
 		}
-		ds.DeleteOutOfDateVulnerabilitiesFunc = func(ctx context.Context, source fleet.VulnerabilitySource, olderThan time.Time) error {
+		ds.DeleteOutOfDateVulnerabilitiesFunc = func(ctx context.Context, source automdm.VulnerabilitySource, olderThan time.Time) error {
 			return nil
 		}
-		ds.ListSoftwareCPEsFunc = func(ctx context.Context) ([]fleet.SoftwareCPE, error) {
+		ds.ListSoftwareCPEsFunc = func(ctx context.Context) ([]automdm.SoftwareCPE, error) {
 			return softwareCPEs, nil
 		}
 		// First call: all vulns are new, return whatever was inserted.
-		ds.InsertSoftwareVulnerabilitiesFunc = func(ctx context.Context, vulns []fleet.SoftwareVulnerability, src fleet.VulnerabilitySource) ([]fleet.SoftwareVulnerability, error) {
+		ds.InsertSoftwareVulnerabilitiesFunc = func(ctx context.Context, vulns []automdm.SoftwareVulnerability, src automdm.VulnerabilitySource) ([]automdm.SoftwareVulnerability, error) {
 			return vulns, nil
 		}
-		ds.ListOperatingSystemsForPlatformFunc = func(ctx context.Context, p string) ([]fleet.OperatingSystem, error) {
+		ds.ListOperatingSystemsForPlatformFunc = func(ctx context.Context, p string) ([]automdm.OperatingSystem, error) {
 			return nil, nil
 		}
-		ds.DeleteOutOfDateOSVulnerabilitiesFunc = func(ctx context.Context, source fleet.VulnerabilitySource, olderThan time.Time) error {
+		ds.DeleteOutOfDateOSVulnerabilitiesFunc = func(ctx context.Context, source automdm.VulnerabilitySource, olderThan time.Time) error {
 			return nil
 		}
-		ds.InsertOSVulnerabilitiesFunc = func(ctx context.Context, vulns []fleet.OSVulnerability, src fleet.VulnerabilitySource) (int64, error) {
+		ds.InsertOSVulnerabilitiesFunc = func(ctx context.Context, vulns []automdm.OSVulnerability, src automdm.VulnerabilitySource) (int64, error) {
 			return 0, nil
 		}
 
@@ -1008,7 +1008,7 @@ func TestTranslateCPEToCVE(t *testing.T) {
 		assert.Greater(t, byCPE[softwareCPEs[2].SoftwareID], 10, "curl CVEs")
 
 		// Call it again but now return no new vulns (all already existed in the DB).
-		ds.InsertSoftwareVulnerabilitiesFunc = func(ctx context.Context, vulns []fleet.SoftwareVulnerability, src fleet.VulnerabilitySource) ([]fleet.SoftwareVulnerability, error) {
+		ds.InsertSoftwareVulnerabilitiesFunc = func(ctx context.Context, vulns []automdm.SoftwareVulnerability, src automdm.VulnerabilitySource) ([]automdm.SoftwareVulnerability, error) {
 			return nil, nil
 		}
 		recent, err = TranslateCPEToCVE(ctx, safeDS, tempDir, slog.New(slog.DiscardHandler), true, time.Now().UTC().Add(-time.Hour))
@@ -1192,7 +1192,7 @@ func TestCheckVersionTrailingZeros(t *testing.T) {
 func TestGetMacOSCPEs(t *testing.T) {
 	ctx := context.Background()
 	ds := new(mock.Store)
-	os := fleet.OperatingSystem{
+	os := automdm.OperatingSystem{
 		ID:            1,
 		Name:          "macOS",
 		Version:       "11.6.2",
@@ -1201,8 +1201,8 @@ func TestGetMacOSCPEs(t *testing.T) {
 		Platform:      "darwin",
 	}
 
-	ds.ListOperatingSystemsForPlatformFunc = func(ctx context.Context, p string) ([]fleet.OperatingSystem, error) {
-		return []fleet.OperatingSystem{os}, nil
+	ds.ListOperatingSystemsForPlatformFunc = func(ctx context.Context, p string) ([]automdm.OperatingSystem, error) {
+		return []automdm.OperatingSystem{os}, nil
 	}
 
 	CVEs, err := GetMacOSCPEs(ctx, ds)
@@ -1514,29 +1514,29 @@ func TestTranslateCPEToCVEFlushesMatchesInChunks(t *testing.T) {
 	writeTestNVDFeedFile(t, vulnPath, "nvdcve-1.1-2024.json.gz", "CVE-2024-6666")
 
 	ds := new(mock.Store)
-	ds.ListSoftwareCPEsFunc = func(ctx context.Context) ([]fleet.SoftwareCPE, error) {
-		return []fleet.SoftwareCPE{
+	ds.ListSoftwareCPEsFunc = func(ctx context.Context) ([]automdm.SoftwareCPE, error) {
+		return []automdm.SoftwareCPE{
 			{ID: 1, SoftwareID: 10, CPE: "cpe:2.3:a:testvendor:testprod:1.0:*:*:*:*:*:*:*"},
 		}, nil
 	}
-	ds.ListOperatingSystemsForPlatformFunc = func(ctx context.Context, platform string) ([]fleet.OperatingSystem, error) {
+	ds.ListOperatingSystemsForPlatformFunc = func(ctx context.Context, platform string) ([]automdm.OperatingSystem, error) {
 		return nil, nil
 	}
 
 	var insertCalls int
-	var inserted []fleet.SoftwareVulnerability
-	ds.InsertSoftwareVulnerabilitiesFunc = func(ctx context.Context, vulns []fleet.SoftwareVulnerability, src fleet.VulnerabilitySource) ([]fleet.SoftwareVulnerability, error) {
+	var inserted []automdm.SoftwareVulnerability
+	ds.InsertSoftwareVulnerabilitiesFunc = func(ctx context.Context, vulns []automdm.SoftwareVulnerability, src automdm.VulnerabilitySource) ([]automdm.SoftwareVulnerability, error) {
 		insertCalls++
 		inserted = append(inserted, vulns...)
 		return vulns, nil
 	}
-	ds.InsertOSVulnerabilitiesFunc = func(ctx context.Context, vulns []fleet.OSVulnerability, src fleet.VulnerabilitySource) (int64, error) {
+	ds.InsertOSVulnerabilitiesFunc = func(ctx context.Context, vulns []automdm.OSVulnerability, src automdm.VulnerabilitySource) (int64, error) {
 		return int64(len(vulns)), nil
 	}
-	ds.DeleteOutOfDateVulnerabilitiesFunc = func(ctx context.Context, source fleet.VulnerabilitySource, olderThan time.Time) error {
+	ds.DeleteOutOfDateVulnerabilitiesFunc = func(ctx context.Context, source automdm.VulnerabilitySource, olderThan time.Time) error {
 		return nil
 	}
-	ds.DeleteOutOfDateOSVulnerabilitiesFunc = func(ctx context.Context, source fleet.VulnerabilitySource, olderThan time.Time) error {
+	ds.DeleteOutOfDateOSVulnerabilitiesFunc = func(ctx context.Context, source automdm.VulnerabilitySource, olderThan time.Time) error {
 		return nil
 	}
 
@@ -1644,30 +1644,30 @@ func TestTranslateCPEToCVESkipsStaleDeletesOnError(t *testing.T) {
 			tc.setupFeed(t, vulnPath)
 
 			ds := new(mock.Store)
-			ds.ListSoftwareCPEsFunc = func(ctx context.Context) ([]fleet.SoftwareCPE, error) {
-				return []fleet.SoftwareCPE{
+			ds.ListSoftwareCPEsFunc = func(ctx context.Context) ([]automdm.SoftwareCPE, error) {
+				return []automdm.SoftwareCPE{
 					{ID: 1, SoftwareID: 10, CPE: "cpe:2.3:a:testvendor:testprod:1.0:*:*:*:*:*:*:*"},
 				}, nil
 			}
-			ds.ListOperatingSystemsForPlatformFunc = func(ctx context.Context, platform string) ([]fleet.OperatingSystem, error) {
-				return []fleet.OperatingSystem{{ID: 20, Platform: "darwin", Version: "15.1"}}, nil
+			ds.ListOperatingSystemsForPlatformFunc = func(ctx context.Context, platform string) ([]automdm.OperatingSystem, error) {
+				return []automdm.OperatingSystem{{ID: 20, Platform: "darwin", Version: "15.1"}}, nil
 			}
-			ds.InsertSoftwareVulnerabilitiesFunc = func(ctx context.Context, vulns []fleet.SoftwareVulnerability, src fleet.VulnerabilitySource) ([]fleet.SoftwareVulnerability, error) {
+			ds.InsertSoftwareVulnerabilitiesFunc = func(ctx context.Context, vulns []automdm.SoftwareVulnerability, src automdm.VulnerabilitySource) ([]automdm.SoftwareVulnerability, error) {
 				if tc.softwareInsertErr != nil {
 					return nil, tc.softwareInsertErr
 				}
 				return vulns, nil
 			}
-			ds.InsertOSVulnerabilitiesFunc = func(ctx context.Context, vulns []fleet.OSVulnerability, src fleet.VulnerabilitySource) (int64, error) {
+			ds.InsertOSVulnerabilitiesFunc = func(ctx context.Context, vulns []automdm.OSVulnerability, src automdm.VulnerabilitySource) (int64, error) {
 				if tc.osInsertErr != nil {
 					return 0, tc.osInsertErr
 				}
 				return int64(len(vulns)), nil
 			}
-			ds.DeleteOutOfDateVulnerabilitiesFunc = func(ctx context.Context, source fleet.VulnerabilitySource, olderThan time.Time) error {
+			ds.DeleteOutOfDateVulnerabilitiesFunc = func(ctx context.Context, source automdm.VulnerabilitySource, olderThan time.Time) error {
 				return nil
 			}
-			ds.DeleteOutOfDateOSVulnerabilitiesFunc = func(ctx context.Context, source fleet.VulnerabilitySource, olderThan time.Time) error {
+			ds.DeleteOutOfDateOSVulnerabilitiesFunc = func(ctx context.Context, source automdm.VulnerabilitySource, olderThan time.Time) error {
 				return nil
 			}
 
@@ -1760,11 +1760,11 @@ func TestFindLatestCVEReleaseTag(t *testing.T) {
 	find := func(t *testing.T, releases []release) (string, []url.Values, error) {
 		var queries []url.Values
 		gh := newTestGitHubClient(t, releasesServer(releases, &queries))
-		tag, err := findLatestCVEReleaseTag(t.Context(), gh, "fleetdm")
+		tag, err := findLatestCVEReleaseTag(t.Context(), gh, "automdm")
 		return tag, queries, err
 	}
 	// requireRequests asserts the number of requests, all using the small page size
-	// that Fleet servers use.
+	// that AutoMDM servers use.
 	requireRequests := func(t *testing.T, queries []url.Values, n int) {
 		t.Helper()
 		require.Len(t, queries, n)
@@ -1778,7 +1778,7 @@ func TestFindLatestCVEReleaseTag(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, latest.tag, tag)
 		require.Len(t, queries, 1)
-		// Fleet servers make this request on every vulnerability sync, so it must not change.
+		// AutoMDM servers make this request on every vulnerability sync, so it must not change.
 		require.Equal(t, url.Values{"per_page": {"10"}}, queries[0])
 	})
 
@@ -1816,7 +1816,7 @@ func TestFindLatestCVEReleaseTag(t *testing.T) {
 			w.WriteHeader(http.StatusForbidden)
 			_, _ = w.Write([]byte(`{"message":"API rate limit exceeded for 20.184.150.249. (But here's the good news: Authenticated requests get a higher rate limit. Check out the documentation for more details.)","documentation_url":"https://docs.github.com/rest/overview/resources-in-the-rest-api#rate-limiting"}`))
 		})
-		_, err := findLatestCVEReleaseTag(t.Context(), gh, "fleetdm")
+		_, err := findLatestCVEReleaseTag(t.Context(), gh, "automdm")
 		rlErr, ok := errors.AsType[*github.RateLimitError](err)
 		require.True(t, ok, "expected *github.RateLimitError, got %T: %v", err, err)
 		require.True(t, reset.Equal(rlErr.Rate.Reset.Time), "reset %s, want %s", rlErr.Rate.Reset.Time, reset)

@@ -42,9 +42,9 @@ const renderPage = createCustomRenderer({
       isOnGlobalTeam: true,
       isPremiumTier: true,
       availableTeams: [
-        { id: -1, name: "All fleets" },
+        { id: -1, name: "All teams" },
         { id: 0, name: "Unassigned" },
-        { id: 2, name: "Fleet 2" },
+        { id: 2, name: "AutoMDM 2" },
       ],
       setCurrentTeam: jest.fn(),
     },
@@ -62,7 +62,7 @@ beforeEach(() => {
     http.get(baseUrl("/hosts/42"), () =>
       HttpResponse.json({ host: createMockHost({ id: 42 }) })
     ),
-    http.get(baseUrl("/fleets"), () => HttpResponse.json({ fleets: [] })),
+    http.get(baseUrl("/teams"), () => HttpResponse.json({ teams: [] })),
     http.get(baseUrl("/labels/summary"), () =>
       HttpResponse.json({
         labels: [{ id: 1, name: "All Hosts", label_type: "builtin" }],
@@ -97,7 +97,7 @@ describe.each([
     "returns to the originating page (from=%s, id=%s)",
     async (from, id, destination) => {
       const router = createMockRouter();
-      const query = { fleet_id: "2", from };
+      const query = { team_id: "2", from };
       const { user } = renderPage(
         <Page
           router={router}
@@ -105,13 +105,13 @@ describe.each([
           location={{
             pathname: `/${kind}/${id || "new"}/live`,
             query,
-            search: "?fleet_id=2",
+            search: "?team_id=2",
           }}
         />
       );
       await user.click(await screen.findByRole("button", { name: "Cancel" }));
       expect(router.push).toHaveBeenLastCalledWith(
-        `/${kind}/${destination}?fleet_id=2`
+        `/${kind}/${destination}?team_id=2`
       );
 
       await user.click(screen.getByRole("button", { name: /All hosts/ }));
@@ -121,25 +121,25 @@ describe.each([
       await user.click(screen.getByRole("button", { name: "Run" }));
       await user.click(screen.getByRole("button", { name: "Close" }));
       expect(router.push).toHaveBeenLastCalledWith(
-        `/${kind}/${destination}?fleet_id=2`
+        `/${kind}/${destination}?team_id=2`
       );
     }
   );
 
-  it("keeps the origin and fleet when consuming a preselected host", async () => {
+  it("keeps the origin and team when consuming a preselected host", async () => {
     const router = createMockRouter();
-    const query = { fleet_id: "2", from: "edit", [hostParam]: "42" };
+    const query = { team_id: "2", from: "edit", [hostParam]: "42" };
     const pathname = `/${kind}/1/live`;
     const { user, rerender } = renderPage(
       <Page
         router={router}
         params={{ id: "1" }}
-        location={{ pathname, query, search: "?fleet_id=2" }}
+        location={{ pathname, query, search: "?team_id=2" }}
       />
     );
     await waitFor(() =>
       expect(router.replace).toHaveBeenCalledWith(
-        getPathWithQueryParams(pathname, { fleet_id: "2", from: "edit" })
+        getPathWithQueryParams(pathname, { team_id: "2", from: "edit" })
       )
     );
     rerender(
@@ -148,16 +148,16 @@ describe.each([
         params={{ id: "1" }}
         location={{
           pathname,
-          query: { fleet_id: "2", from: "edit" },
-          search: "?fleet_id=2&from=edit",
+          query: { team_id: "2", from: "edit" },
+          search: "?team_id=2&from=edit",
         }}
       />
     );
     await user.click(await screen.findByRole("button", { name: "Cancel" }));
-    expect(router.push).toHaveBeenLastCalledWith(`/${kind}/1/edit?fleet_id=2`);
+    expect(router.push).toHaveBeenLastCalledWith(`/${kind}/1/edit?team_id=2`);
   });
 
-  it("omits the fleet parameter for All fleets", async () => {
+  it("omits the team parameter for All teams", async () => {
     const router = createMockRouter();
     const { user } = renderPage(
       <Page

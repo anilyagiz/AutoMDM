@@ -71,7 +71,7 @@ const buildSoftwareItems = (
         "cves",
       ],
     },
-    // Library is available for any team including unassigned, but not "All fleets"
+    // Library is available for any team including unassigned, but not "All teams"
     ...(isPremiumTier && hasTeamOrUnassigned
       ? [
           {

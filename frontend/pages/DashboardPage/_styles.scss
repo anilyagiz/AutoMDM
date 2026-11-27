@@ -18,16 +18,16 @@
   }
 
   &__title {
-    .fleeticon {
-      color: $core-fleet-blue;
+    .automdmicon {
+      color: $core-automdm-blue;
       margin-right: 15px;
     }
 
-    .fleeticon-success-check {
+    .automdmicon-success-check {
       color: $ui-success;
     }
 
-    .fleeticon-offline {
+    .automdmicon-offline {
       color: $ui-error;
     }
   }
@@ -46,7 +46,7 @@
     }
     .Select-control,
     .Select-value {
-      background-color: $core-fleet-white !important;
+      background-color: $core-automdm-white !important;
     }
   }
 

@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/dialog"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/execuser"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/user"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/dialog"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/execuser"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/user"
 	"github.com/rs/zerolog/log"
 )
 

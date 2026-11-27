@@ -11,10 +11,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	api_http "github.com/fleetdm/fleet/v4/server/mdm/acme/api/http"
-	"github.com/fleetdm/fleet/v4/server/mdm/acme/internal/types"
-	"github.com/fleetdm/fleet/v4/server/mdm/internal/commonmdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	api_http "github.com/anilyagiz/automdm/v4/server/mdm/acme/api/http"
+	"github.com/anilyagiz/automdm/v4/server/mdm/acme/internal/types"
+	"github.com/anilyagiz/automdm/v4/server/mdm/internal/commonmdm"
 	"go.step.sm/crypto/jose"
 )
 

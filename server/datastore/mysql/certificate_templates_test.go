@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
 )
@@ -55,13 +55,13 @@ func testCreateCertificateTemplate(t *testing.T, ds *Datastore) {
 			"Create certificate template",
 			func(ds *Datastore) {
 				// Create a test team
-				team, err := ds.NewTeam(ctx, &fleet.Team{Name: "Test Team"})
+				team, err := ds.NewTeam(ctx, &automdm.Team{Name: "Test Team"})
 				require.NoError(t, err)
 				teamID = team.ID
 
 				// Create a test certificate authority
-				ca, err := ds.NewCertificateAuthority(ctx, &fleet.CertificateAuthority{
-					Type:      string(fleet.CATypeCustomSCEPProxy),
+				ca, err := ds.NewCertificateAuthority(ctx, &automdm.CertificateAuthority{
+					Type:      string(automdm.CATypeCustomSCEPProxy),
 					Name:      ptr.String("Test SCEP CA"),
 					URL:       ptr.String("http://localhost:8080/scep"),
 					Challenge: ptr.String("test-challenge"),
@@ -70,7 +70,7 @@ func testCreateCertificateTemplate(t *testing.T, ds *Datastore) {
 				caID = ca.ID
 			},
 			func(t *testing.T, ds *Datastore) {
-				certTemplate := &fleet.CertificateTemplate{
+				certTemplate := &automdm.CertificateTemplate{
 					Name:                   "Cert1",
 					TeamID:                 teamID,
 					CertificateAuthorityID: caID,
@@ -90,13 +90,13 @@ func testCreateCertificateTemplate(t *testing.T, ds *Datastore) {
 			"Certificate template exists, fails to create",
 			func(ds *Datastore) {
 				// Create a test team
-				team, err := ds.NewTeam(ctx, &fleet.Team{Name: "Test Team"})
+				team, err := ds.NewTeam(ctx, &automdm.Team{Name: "Test Team"})
 				require.NoError(t, err)
 				teamID = team.ID
 
 				// Create a test certificate authority
-				ca, err := ds.NewCertificateAuthority(ctx, &fleet.CertificateAuthority{
-					Type:      string(fleet.CATypeCustomSCEPProxy),
+				ca, err := ds.NewCertificateAuthority(ctx, &automdm.CertificateAuthority{
+					Type:      string(automdm.CATypeCustomSCEPProxy),
 					Name:      ptr.String("Test SCEP CA"),
 					URL:       ptr.String("http://localhost:8080/scep"),
 					Challenge: ptr.String("test-challenge"),
@@ -105,7 +105,7 @@ func testCreateCertificateTemplate(t *testing.T, ds *Datastore) {
 				caID = ca.ID
 
 				// Insert initial certificate
-				certificateTemplate := fleet.CertificateTemplate{
+				certificateTemplate := automdm.CertificateTemplate{
 					Name:                   "Cert1",
 					TeamID:                 teamID,
 					CertificateAuthorityID: caID,
@@ -121,7 +121,7 @@ func testCreateCertificateTemplate(t *testing.T, ds *Datastore) {
 				require.NoError(t, err)
 			},
 			func(t *testing.T, ds *Datastore) {
-				certTemplate := &fleet.CertificateTemplate{
+				certTemplate := &automdm.CertificateTemplate{
 					Name:                   "Cert1",
 					TeamID:                 teamID,
 					CertificateAuthorityID: caID,
@@ -168,13 +168,13 @@ func testGetCertificateTemplateByID(t *testing.T, ds *Datastore) {
 			"Get existing certificate template",
 			func(ds *Datastore) {
 				// Create a test team
-				team, err := ds.NewTeam(ctx, &fleet.Team{Name: "Test Team"})
+				team, err := ds.NewTeam(ctx, &automdm.Team{Name: "Test Team"})
 				require.NoError(t, err)
 				teamID = team.ID
 
 				// Create a test certificate authority
-				ca, err := ds.NewCertificateAuthority(ctx, &fleet.CertificateAuthority{
-					Type:      string(fleet.CATypeCustomSCEPProxy),
+				ca, err := ds.NewCertificateAuthority(ctx, &automdm.CertificateAuthority{
+					Type:      string(automdm.CATypeCustomSCEPProxy),
 					Name:      ptr.String("Test SCEP CA"),
 					URL:       ptr.String("http://localhost:8080/scep"),
 					Challenge: ptr.String("test-challenge"),
@@ -183,7 +183,7 @@ func testGetCertificateTemplateByID(t *testing.T, ds *Datastore) {
 				caID = ca.ID
 
 				// Insert initial certificates
-				certificateTemplate := fleet.CertificateTemplate{
+				certificateTemplate := automdm.CertificateTemplate{
 					Name:                   "Cert1",
 					TeamID:                 teamID,
 					CertificateAuthorityID: caID,
@@ -211,13 +211,13 @@ func testGetCertificateTemplateByID(t *testing.T, ds *Datastore) {
 			"Template with pending host certificate template",
 			func(ds *Datastore) {
 				// Create a test team
-				team, err := ds.NewTeam(ctx, &fleet.Team{Name: "Test Team"})
+				team, err := ds.NewTeam(ctx, &automdm.Team{Name: "Test Team"})
 				require.NoError(t, err)
 				teamID = team.ID
 
 				// Create a test certificate authority
-				ca, err := ds.NewCertificateAuthority(ctx, &fleet.CertificateAuthority{
-					Type:      string(fleet.CATypeCustomSCEPProxy),
+				ca, err := ds.NewCertificateAuthority(ctx, &automdm.CertificateAuthority{
+					Type:      string(automdm.CATypeCustomSCEPProxy),
 					Name:      ptr.String("Test SCEP CA"),
 					URL:       ptr.String("http://localhost:8080/scep"),
 					Challenge: ptr.String("test-challenge"),
@@ -226,7 +226,7 @@ func testGetCertificateTemplateByID(t *testing.T, ds *Datastore) {
 				caID = ca.ID
 
 				// Create a test host
-				host := &fleet.Host{
+				host := &automdm.Host{
 					UUID:     "test-host-uuid-2",
 					TeamID:   &teamID,
 					Platform: "android",
@@ -236,7 +236,7 @@ func testGetCertificateTemplateByID(t *testing.T, ds *Datastore) {
 				hostUUID = host.UUID
 
 				// Insert initial certificates
-				certificateTemplate := fleet.CertificateTemplate{
+				certificateTemplate := automdm.CertificateTemplate{
 					Name:                   "Cert1",
 					TeamID:                 teamID,
 					CertificateAuthorityID: caID,
@@ -255,11 +255,11 @@ func testGetCertificateTemplateByID(t *testing.T, ds *Datastore) {
 				certificateTemplateID = uint(lastID) //nolint:gosec
 
 				_, err = ds.writer(ctx).ExecContext(ctx,
-					"INSERT INTO host_certificate_templates (host_uuid, certificate_template_id, fleet_challenge, status, name) VALUES (?, ?, ?, ?, ?)",
+					"INSERT INTO host_certificate_templates (host_uuid, certificate_template_id, automdm_challenge, status, name) VALUES (?, ?, ?, ?, ?)",
 					host.UUID,
 					certificateTemplateID,
-					"fleet-challenge",
-					fleet.CertificateTemplateDelivered,
+					"automdm-challenge",
+					automdm.CertificateTemplateDelivered,
 					certificateTemplate.Name,
 				)
 				require.NoError(t, err)
@@ -274,27 +274,27 @@ func testGetCertificateTemplateByID(t *testing.T, ds *Datastore) {
 				templateForHost, err := ds.GetCertificateTemplateByIdForHost(ctx, certificateTemplateID, hostUUID)
 				require.NoError(t, err)
 				require.Equal(t, certificateTemplateID, templateForHost.ID)
-				require.Equal(t, fleet.CertificateTemplateDelivered, templateForHost.Status)
-				require.Equal(t, "fleet-challenge", *templateForHost.FleetChallenge)
+				require.Equal(t, automdm.CertificateTemplateDelivered, templateForHost.Status)
+				require.Equal(t, "automdm-challenge", *templateForHost.AutoMDMChallenge)
 				require.Equal(t, "test-challenge", *templateForHost.SCEPChallenge)
 
 				// GetCertificateTemplateByIdForHost should return notFound for a host without a host_certificate_template record
 				_, err = ds.GetCertificateTemplateByIdForHost(ctx, certificateTemplateID, "non-existent-host-uuid")
 				require.Error(t, err)
-				require.True(t, fleet.IsNotFound(err), "expected notFound error, got: %v", err)
+				require.True(t, automdm.IsNotFound(err), "expected notFound error, got: %v", err)
 			},
 		},
 		{
 			"Template with verified host certificate template",
 			func(ds *Datastore) {
 				// Create a test team
-				team, err := ds.NewTeam(ctx, &fleet.Team{Name: "Test Team"})
+				team, err := ds.NewTeam(ctx, &automdm.Team{Name: "Test Team"})
 				require.NoError(t, err)
 				teamID = team.ID
 
 				// Create a test certificate authority
-				ca, err := ds.NewCertificateAuthority(ctx, &fleet.CertificateAuthority{
-					Type:      string(fleet.CATypeCustomSCEPProxy),
+				ca, err := ds.NewCertificateAuthority(ctx, &automdm.CertificateAuthority{
+					Type:      string(automdm.CATypeCustomSCEPProxy),
 					Name:      ptr.String("Test SCEP CA"),
 					URL:       ptr.String("http://localhost:8080/scep"),
 					Challenge: ptr.String("test-challenge"),
@@ -303,7 +303,7 @@ func testGetCertificateTemplateByID(t *testing.T, ds *Datastore) {
 				caID = ca.ID
 
 				// Create a test host
-				host := &fleet.Host{
+				host := &automdm.Host{
 					UUID:     "test-host-uuid-2",
 					TeamID:   &teamID,
 					Platform: "android",
@@ -313,7 +313,7 @@ func testGetCertificateTemplateByID(t *testing.T, ds *Datastore) {
 				hostUUID = host.UUID
 
 				// Insert initial certificates
-				certificateTemplate := fleet.CertificateTemplate{
+				certificateTemplate := automdm.CertificateTemplate{
 					Name:                   "Cert1",
 					TeamID:                 teamID,
 					CertificateAuthorityID: caID,
@@ -332,11 +332,11 @@ func testGetCertificateTemplateByID(t *testing.T, ds *Datastore) {
 				certificateTemplateID = uint(lastID) //nolint:gosec
 
 				_, err = ds.writer(ctx).ExecContext(ctx,
-					"INSERT INTO host_certificate_templates (host_uuid, certificate_template_id, fleet_challenge, status, name) VALUES (?, ?, ?, ?, ?)",
+					"INSERT INTO host_certificate_templates (host_uuid, certificate_template_id, automdm_challenge, status, name) VALUES (?, ?, ?, ?, ?)",
 					host.UUID,
 					certificateTemplateID,
 					"challenge",
-					fleet.CertificateTemplateVerified,
+					automdm.CertificateTemplateVerified,
 					certificateTemplate.Name,
 				)
 				require.NoError(t, err)
@@ -351,8 +351,8 @@ func testGetCertificateTemplateByID(t *testing.T, ds *Datastore) {
 				templateForHost, err := ds.GetCertificateTemplateByIdForHost(ctx, certificateTemplateID, hostUUID)
 				require.NoError(t, err)
 				require.Equal(t, certificateTemplateID, templateForHost.ID)
-				require.Equal(t, fleet.CertificateTemplateVerified, templateForHost.Status)
-				require.Nil(t, templateForHost.FleetChallenge)
+				require.Equal(t, automdm.CertificateTemplateVerified, templateForHost.Status)
+				require.Nil(t, templateForHost.AutoMDMChallenge)
 				require.Nil(t, templateForHost.SCEPChallenge)
 			},
 		},
@@ -394,17 +394,17 @@ func testGetCertificateTemplatesByIdsAndTeam(t *testing.T, ds *Datastore) {
 			"Get existing certificate template",
 			func(ds *Datastore) {
 				// Create test team 1
-				team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "Test Team 1"})
+				team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "Test Team 1"})
 				require.NoError(t, err)
 				teamID = team1.ID
 
 				// Create test team 2
-				team2, err := ds.NewTeam(ctx, &fleet.Team{Name: "Test Team 2"})
+				team2, err := ds.NewTeam(ctx, &automdm.Team{Name: "Test Team 2"})
 				require.NoError(t, err)
 
 				// Create a test certificate authority
-				ca, err := ds.NewCertificateAuthority(ctx, &fleet.CertificateAuthority{
-					Type:      string(fleet.CATypeCustomSCEPProxy),
+				ca, err := ds.NewCertificateAuthority(ctx, &automdm.CertificateAuthority{
+					Type:      string(automdm.CATypeCustomSCEPProxy),
 					Name:      ptr.String("Test SCEP CA"),
 					URL:       ptr.String("http://localhost:8080/scep"),
 					Challenge: ptr.String("test-challenge"),
@@ -413,7 +413,7 @@ func testGetCertificateTemplatesByIdsAndTeam(t *testing.T, ds *Datastore) {
 				caID := ca.ID
 
 				// team 1 certificate
-				certificateTemplate := fleet.CertificateTemplate{
+				certificateTemplate := automdm.CertificateTemplate{
 					Name:                   "Cert1",
 					TeamID:                 teamID,
 					CertificateAuthorityID: caID,
@@ -433,7 +433,7 @@ func testGetCertificateTemplatesByIdsAndTeam(t *testing.T, ds *Datastore) {
 				IDs = append(IDs, certificateTemplateID)
 
 				// team 2 certificates
-				certificateTemplate = fleet.CertificateTemplate{
+				certificateTemplate = automdm.CertificateTemplate{
 					Name:                   "Cert2",
 					TeamID:                 team2.ID,
 					CertificateAuthorityID: caID,
@@ -486,7 +486,7 @@ func testGetCertificateTemplatesByTeamID(t *testing.T, ds *Datastore) {
 			"No existing certificate templates for team",
 			func(ds *Datastore) {},
 			func(t *testing.T, ds *Datastore) {
-				templates, _, err := ds.GetCertificateTemplatesByTeamID(ctx, 1, fleet.ListOptions{Page: 0, PerPage: 10})
+				templates, _, err := ds.GetCertificateTemplatesByTeamID(ctx, 1, automdm.ListOptions{Page: 0, PerPage: 10})
 				require.NoError(t, err)
 				require.NotNil(t, templates, "expected empty slice, not nil (nil marshals to JSON null)")
 				require.Len(t, templates, 0)
@@ -496,13 +496,13 @@ func testGetCertificateTemplatesByTeamID(t *testing.T, ds *Datastore) {
 			"Get existing certificate templates for team",
 			func(ds *Datastore) {
 				// Create a test team
-				team, err := ds.NewTeam(ctx, &fleet.Team{Name: "Test Team"})
+				team, err := ds.NewTeam(ctx, &automdm.Team{Name: "Test Team"})
 				require.NoError(t, err)
 				teamID = team.ID
 
 				// Create a test certificate authority
-				ca, err := ds.NewCertificateAuthority(ctx, &fleet.CertificateAuthority{
-					Type:      string(fleet.CATypeCustomSCEPProxy),
+				ca, err := ds.NewCertificateAuthority(ctx, &automdm.CertificateAuthority{
+					Type:      string(automdm.CATypeCustomSCEPProxy),
 					Name:      ptr.String("Test SCEP CA"),
 					URL:       ptr.String("http://localhost:8080/scep"),
 					Challenge: ptr.String("test-challenge"),
@@ -511,7 +511,7 @@ func testGetCertificateTemplatesByTeamID(t *testing.T, ds *Datastore) {
 				caID = ca.ID
 
 				// Insert initial certificates
-				certificateTemplate1 := fleet.CertificateTemplate{
+				certificateTemplate1 := automdm.CertificateTemplate{
 					Name:                   "Cert1",
 					TeamID:                 teamID,
 					CertificateAuthorityID: caID,
@@ -526,7 +526,7 @@ func testGetCertificateTemplatesByTeamID(t *testing.T, ds *Datastore) {
 				)
 				require.NoError(t, err)
 
-				certificateTemplate2 := fleet.CertificateTemplate{
+				certificateTemplate2 := automdm.CertificateTemplate{
 					Name:                   "Cert2",
 					TeamID:                 teamID,
 					CertificateAuthorityID: caID,
@@ -542,7 +542,7 @@ func testGetCertificateTemplatesByTeamID(t *testing.T, ds *Datastore) {
 				require.NoError(t, err)
 			},
 			func(t *testing.T, ds *Datastore) {
-				templates, _, err := ds.GetCertificateTemplatesByTeamID(ctx, teamID, fleet.ListOptions{Page: 0, PerPage: 10})
+				templates, _, err := ds.GetCertificateTemplatesByTeamID(ctx, teamID, automdm.ListOptions{Page: 0, PerPage: 10})
 				require.NoError(t, err)
 				require.Len(t, templates, 2)
 			},
@@ -551,13 +551,13 @@ func testGetCertificateTemplatesByTeamID(t *testing.T, ds *Datastore) {
 			"Pagination works",
 			func(ds *Datastore) {
 				// Create a test team
-				team, err := ds.NewTeam(ctx, &fleet.Team{Name: "Test Team"})
+				team, err := ds.NewTeam(ctx, &automdm.Team{Name: "Test Team"})
 				require.NoError(t, err)
 				teamID = team.ID
 
 				// Create a test certificate authority
-				ca, err := ds.NewCertificateAuthority(ctx, &fleet.CertificateAuthority{
-					Type:      string(fleet.CATypeCustomSCEPProxy),
+				ca, err := ds.NewCertificateAuthority(ctx, &automdm.CertificateAuthority{
+					Type:      string(automdm.CATypeCustomSCEPProxy),
 					Name:      ptr.String("Test SCEP CA"),
 					URL:       ptr.String("http://localhost:8080/scep"),
 					Challenge: ptr.String("test-challenge"),
@@ -567,7 +567,7 @@ func testGetCertificateTemplatesByTeamID(t *testing.T, ds *Datastore) {
 
 				// Insert initial certificates
 				for i := 1; i <= 5; i++ {
-					certificateTemplate := fleet.CertificateTemplate{
+					certificateTemplate := automdm.CertificateTemplate{
 						Name:                   fmt.Sprintf("Cert%d", i),
 						TeamID:                 teamID,
 						CertificateAuthorityID: caID,
@@ -585,21 +585,21 @@ func testGetCertificateTemplatesByTeamID(t *testing.T, ds *Datastore) {
 			},
 			func(t *testing.T, ds *Datastore) {
 				// First page
-				templates, meta, err := ds.GetCertificateTemplatesByTeamID(ctx, teamID, fleet.ListOptions{Page: 0, PerPage: 2, IncludeMetadata: true})
+				templates, meta, err := ds.GetCertificateTemplatesByTeamID(ctx, teamID, automdm.ListOptions{Page: 0, PerPage: 2, IncludeMetadata: true})
 				require.NoError(t, err)
 				require.Len(t, templates, 2)
 				require.False(t, meta.HasPreviousResults)
 				require.True(t, meta.HasNextResults)
 
 				// Second page
-				templates, meta, err = ds.GetCertificateTemplatesByTeamID(ctx, teamID, fleet.ListOptions{Page: 1, PerPage: 2, IncludeMetadata: true})
+				templates, meta, err = ds.GetCertificateTemplatesByTeamID(ctx, teamID, automdm.ListOptions{Page: 1, PerPage: 2, IncludeMetadata: true})
 				require.NoError(t, err)
 				require.Len(t, templates, 2)
 				require.True(t, meta.HasPreviousResults)
 				require.True(t, meta.HasNextResults)
 
 				// Third page
-				templates, meta, err = ds.GetCertificateTemplatesByTeamID(ctx, teamID, fleet.ListOptions{Page: 2, PerPage: 2, IncludeMetadata: true})
+				templates, meta, err = ds.GetCertificateTemplatesByTeamID(ctx, teamID, automdm.ListOptions{Page: 2, PerPage: 2, IncludeMetadata: true})
 				require.NoError(t, err)
 				require.Len(t, templates, 1)
 				require.True(t, meta.HasPreviousResults)
@@ -610,8 +610,8 @@ func testGetCertificateTemplatesByTeamID(t *testing.T, ds *Datastore) {
 			"Get certificate templates for No team (team_id = 0)",
 			func(ds *Datastore) {
 				// Create a test certificate authority
-				ca, err := ds.NewCertificateAuthority(ctx, &fleet.CertificateAuthority{
-					Type:      string(fleet.CATypeCustomSCEPProxy),
+				ca, err := ds.NewCertificateAuthority(ctx, &automdm.CertificateAuthority{
+					Type:      string(automdm.CATypeCustomSCEPProxy),
 					Name:      ptr.String("Test SCEP CA"),
 					URL:       ptr.String("http://localhost:8080/scep"),
 					Challenge: ptr.String("test-challenge"),
@@ -621,7 +621,7 @@ func testGetCertificateTemplatesByTeamID(t *testing.T, ds *Datastore) {
 
 				// Insert initial certificates
 				for i := 0; i < 2; i++ {
-					certificateTemplate1 := fleet.CertificateTemplate{
+					certificateTemplate1 := automdm.CertificateTemplate{
 						Name:                   fmt.Sprintf("No Team Cert%d", i),
 						TeamID:                 0,
 						CertificateAuthorityID: caID,
@@ -638,7 +638,7 @@ func testGetCertificateTemplatesByTeamID(t *testing.T, ds *Datastore) {
 				}
 			},
 			func(t *testing.T, ds *Datastore) {
-				templates, meta, err := ds.GetCertificateTemplatesByTeamID(ctx, 0, fleet.ListOptions{Page: 0, PerPage: 10, IncludeMetadata: true})
+				templates, meta, err := ds.GetCertificateTemplatesByTeamID(ctx, 0, automdm.ListOptions{Page: 0, PerPage: 10, IncludeMetadata: true})
 				require.NoError(t, err)
 				require.Len(t, templates, 2)
 				require.Equal(t, uint(2), meta.TotalResults)
@@ -675,13 +675,13 @@ func testDeleteCertificateTemplate(t *testing.T, ds *Datastore) {
 			"Delete existing certificate template",
 			func(ds *Datastore) {
 				// Create a test team
-				team, err := ds.NewTeam(ctx, &fleet.Team{Name: "Test Team"})
+				team, err := ds.NewTeam(ctx, &automdm.Team{Name: "Test Team"})
 				require.NoError(t, err)
 				teamID = team.ID
 
 				// Create a test certificate authority
-				ca, err := ds.NewCertificateAuthority(ctx, &fleet.CertificateAuthority{
-					Type:      string(fleet.CATypeCustomSCEPProxy),
+				ca, err := ds.NewCertificateAuthority(ctx, &automdm.CertificateAuthority{
+					Type:      string(automdm.CATypeCustomSCEPProxy),
 					Name:      ptr.String("Test SCEP CA"),
 					URL:       ptr.String("http://localhost:8080/scep"),
 					Challenge: ptr.String("test-challenge"),
@@ -690,7 +690,7 @@ func testDeleteCertificateTemplate(t *testing.T, ds *Datastore) {
 				caID = ca.ID
 
 				// Insert initial certificate
-				certificateTemplate := fleet.CertificateTemplate{
+				certificateTemplate := automdm.CertificateTemplate{
 					Name:                   "Cert1",
 					TeamID:                 teamID,
 					CertificateAuthorityID: caID,
@@ -744,7 +744,7 @@ func testBatchUpsertCertificates(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
 	var teamID, caID uint
-	var certificates []*fleet.CertificateTemplate
+	var certificates []*automdm.CertificateTemplate
 
 	testCases := []struct {
 		name     string
@@ -756,7 +756,7 @@ func testBatchUpsertCertificates(t *testing.T, ds *Datastore) {
 			func(ds *Datastore) {},
 			func(t *testing.T, ds *Datastore) {
 				// Test with empty slice
-				teamsModified, err := ds.BatchUpsertCertificateTemplates(ctx, []*fleet.CertificateTemplate{})
+				teamsModified, err := ds.BatchUpsertCertificateTemplates(ctx, []*automdm.CertificateTemplate{})
 				require.NoError(t, err)
 
 				require.Empty(t, teamsModified)
@@ -766,13 +766,13 @@ func testBatchUpsertCertificates(t *testing.T, ds *Datastore) {
 			"Create certificates",
 			func(ds *Datastore) {
 				// Create a test team
-				team, err := ds.NewTeam(ctx, &fleet.Team{Name: "Test Team"})
+				team, err := ds.NewTeam(ctx, &automdm.Team{Name: "Test Team"})
 				require.NoError(t, err)
 				teamID = team.ID
 
 				// Create a test certificate authority
-				ca, err := ds.NewCertificateAuthority(ctx, &fleet.CertificateAuthority{
-					Type:      string(fleet.CATypeCustomSCEPProxy),
+				ca, err := ds.NewCertificateAuthority(ctx, &automdm.CertificateAuthority{
+					Type:      string(automdm.CATypeCustomSCEPProxy),
 					Name:      ptr.String("Test SCEP CA"),
 					URL:       ptr.String("http://localhost:8080/scep"),
 					Challenge: ptr.String("test-challenge"),
@@ -781,7 +781,7 @@ func testBatchUpsertCertificates(t *testing.T, ds *Datastore) {
 				caID = ca.ID
 			},
 			func(t *testing.T, ds *Datastore) {
-				certificates := []*fleet.CertificateTemplate{
+				certificates := []*automdm.CertificateTemplate{
 					{
 						Name:                   "Cert1",
 						TeamID:                 teamID,
@@ -812,13 +812,13 @@ func testBatchUpsertCertificates(t *testing.T, ds *Datastore) {
 			"Upsert existing certificates",
 			func(ds *Datastore) {
 				// Create a test team
-				team, err := ds.NewTeam(ctx, &fleet.Team{Name: "Test Team"})
+				team, err := ds.NewTeam(ctx, &automdm.Team{Name: "Test Team"})
 				require.NoError(t, err)
 				teamID = team.ID
 
 				// Create a test certificate authority
-				ca, err := ds.NewCertificateAuthority(ctx, &fleet.CertificateAuthority{
-					Type:      string(fleet.CATypeCustomSCEPProxy),
+				ca, err := ds.NewCertificateAuthority(ctx, &automdm.CertificateAuthority{
+					Type:      string(automdm.CATypeCustomSCEPProxy),
 					Name:      ptr.String("Test SCEP CA"),
 					URL:       ptr.String("http://localhost:8080/scep"),
 					Challenge: ptr.String("test-challenge"),
@@ -827,7 +827,7 @@ func testBatchUpsertCertificates(t *testing.T, ds *Datastore) {
 				caID = ca.ID
 
 				// Insert initial certificates
-				certificate := fleet.CertificateTemplate{
+				certificate := automdm.CertificateTemplate{
 					Name:                   "Cert1",
 					TeamID:                 teamID,
 					CertificateAuthorityID: caID,
@@ -841,7 +841,7 @@ func testBatchUpsertCertificates(t *testing.T, ds *Datastore) {
 					certificate.SubjectName,
 				)
 				require.NoError(t, err)
-				certificates = []*fleet.CertificateTemplate{&certificate}
+				certificates = []*automdm.CertificateTemplate{&certificate}
 			},
 			func(t *testing.T, ds *Datastore) {
 				var count int
@@ -904,13 +904,13 @@ func testBatchDeleteCertificateTemplates(t *testing.T, ds *Datastore) {
 			"Delete existing certificates",
 			func(ds *Datastore) {
 				// Create a test team
-				team, err := ds.NewTeam(ctx, &fleet.Team{Name: "Test Team"})
+				team, err := ds.NewTeam(ctx, &automdm.Team{Name: "Test Team"})
 				require.NoError(t, err)
 				teamID = team.ID
 
 				// Create a test certificate authority
-				ca, err := ds.NewCertificateAuthority(ctx, &fleet.CertificateAuthority{
-					Type:      string(fleet.CATypeCustomSCEPProxy),
+				ca, err := ds.NewCertificateAuthority(ctx, &automdm.CertificateAuthority{
+					Type:      string(automdm.CATypeCustomSCEPProxy),
 					Name:      ptr.String("Test SCEP CA"),
 					URL:       ptr.String("http://localhost:8080/scep"),
 					Challenge: ptr.String("test-challenge"),
@@ -919,7 +919,7 @@ func testBatchDeleteCertificateTemplates(t *testing.T, ds *Datastore) {
 				caID = ca.ID
 
 				// Insert initial certificates
-				certificate1 := fleet.CertificateTemplate{
+				certificate1 := automdm.CertificateTemplate{
 					Name:                   "Cert1",
 					TeamID:                 teamID,
 					CertificateAuthorityID: caID,
@@ -937,7 +937,7 @@ func testBatchDeleteCertificateTemplates(t *testing.T, ds *Datastore) {
 				require.NoError(t, err)
 				certificateTemplateIDs = append(certificateTemplateIDs, uint(lastID1)) //nolint:gosec
 
-				certificate2 := fleet.CertificateTemplate{
+				certificate2 := automdm.CertificateTemplate{
 					Name:                   "Cert2",
 					TeamID:                 teamID,
 					CertificateAuthorityID: caID,
@@ -992,15 +992,15 @@ func testGetHostCertificateTemplates(t *testing.T, ds *Datastore) {
 	h1 := test.NewHost(t, ds, "host_1", "127.0.0.1", "1", "1", time.Now())
 	h2 := test.NewHost(t, ds, "host_2", "127.0.0.2", "2", "2", time.Now())
 
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "Test Team"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "Test Team"})
 	require.NoError(t, err)
 
-	require.NoError(t, ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team.ID, []uint{h2.ID})))
+	require.NoError(t, ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team.ID, []uint{h2.ID})))
 	h2.TeamID = &team.ID
 
 	// Create a test certificate authority
-	ca, err := ds.NewCertificateAuthority(ctx, &fleet.CertificateAuthority{
-		Type:      string(fleet.CATypeCustomSCEPProxy),
+	ca, err := ds.NewCertificateAuthority(ctx, &automdm.CertificateAuthority{
+		Type:      string(automdm.CATypeCustomSCEPProxy),
 		Name:      ptr.String("Test SCEP CA"),
 		URL:       ptr.String("http://localhost:8080/scep"),
 		Challenge: ptr.String("test-challenge"),
@@ -1008,7 +1008,7 @@ func testGetHostCertificateTemplates(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// Create some certificate templates
-	ct1, err := ds.CreateCertificateTemplate(ctx, &fleet.CertificateTemplate{
+	ct1, err := ds.CreateCertificateTemplate(ctx, &automdm.CertificateTemplate{
 		Name:                   "AAA",
 		TeamID:                 team.ID,
 		CertificateAuthorityID: ca.ID,
@@ -1016,7 +1016,7 @@ func testGetHostCertificateTemplates(t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 
-	ct2, err := ds.CreateCertificateTemplate(ctx, &fleet.CertificateTemplate{
+	ct2, err := ds.CreateCertificateTemplate(ctx, &automdm.CertificateTemplate{
 		Name:                   "BBB",
 		TeamID:                 team.ID,
 		CertificateAuthorityID: ca.ID,
@@ -1024,7 +1024,7 @@ func testGetHostCertificateTemplates(t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 
-	ct3, err := ds.CreateCertificateTemplate(ctx, &fleet.CertificateTemplate{
+	ct3, err := ds.CreateCertificateTemplate(ctx, &automdm.CertificateTemplate{
 		Name:                   "CCC",
 		TeamID:                 team.ID,
 		CertificateAuthorityID: ca.ID,
@@ -1034,23 +1034,23 @@ func testGetHostCertificateTemplates(t *testing.T, ds *Datastore) {
 
 	// Set the installation status on the certificate templates
 	_, err = ds.writer(ctx).ExecContext(ctx,
-		"INSERT INTO host_certificate_templates (host_uuid, certificate_template_id, fleet_challenge, status, operation_type, name) VALUES (?, ?, ?, ?, ?, ?)",
-		h2.UUID, ct1.ID, "test-challenge", fleet.OSSettingsVerified, fleet.MDMOperationTypeInstall, ct1.Name,
+		"INSERT INTO host_certificate_templates (host_uuid, certificate_template_id, automdm_challenge, status, operation_type, name) VALUES (?, ?, ?, ?, ?, ?)",
+		h2.UUID, ct1.ID, "test-challenge", automdm.OSSettingsVerified, automdm.MDMOperationTypeInstall, ct1.Name,
 	)
 
 	require.NoError(t, err)
 	_, err = ds.writer(ctx).ExecContext(ctx,
-		"INSERT INTO host_certificate_templates (host_uuid, certificate_template_id, fleet_challenge, status, detail, operation_type, name) VALUES (?, ?, ?, ?, ?, ?, ?)",
-		h2.UUID, ct2.ID, "test-challenge", fleet.OSSettingsFailed, "some error yooo", fleet.MDMOperationTypeInstall, ct2.Name,
+		"INSERT INTO host_certificate_templates (host_uuid, certificate_template_id, automdm_challenge, status, detail, operation_type, name) VALUES (?, ?, ?, ?, ?, ?, ?)",
+		h2.UUID, ct2.ID, "test-challenge", automdm.OSSettingsFailed, "some error yooo", automdm.MDMOperationTypeInstall, ct2.Name,
 	)
 	require.NoError(t, err)
 
-	// A template Fleet is retrying after a failure. Going through RetryHostCertificateTemplate
+	// A template AutoMDM is retrying after a failure. Going through RetryHostCertificateTemplate
 	// rather than writing the row directly keeps this honest about what a retry actually leaves
 	// behind: an in-progress status carrying the failure detail and an incremented retry count.
 	_, err = ds.writer(ctx).ExecContext(ctx,
-		"INSERT INTO host_certificate_templates (host_uuid, certificate_template_id, fleet_challenge, status, operation_type, name) VALUES (?, ?, ?, ?, ?, ?)",
-		h2.UUID, ct3.ID, "test-challenge", fleet.CertificateTemplateDelivered, fleet.MDMOperationTypeInstall, ct3.Name,
+		"INSERT INTO host_certificate_templates (host_uuid, certificate_template_id, automdm_challenge, status, operation_type, name) VALUES (?, ?, ?, ?, ?, ?)",
+		h2.UUID, ct3.ID, "test-challenge", automdm.CertificateTemplateDelivered, automdm.MDMOperationTypeInstall, ct3.Name,
 	)
 	require.NoError(t, err)
 	require.NoError(t, ds.RetryHostCertificateTemplate(ctx, h2.UUID, ct3.ID, "Network error during SCEP enrollment"))
@@ -1086,17 +1086,17 @@ func testGetHostCertificateTemplates(t *testing.T, ds *Datastore) {
 				sort.Slice(templates, func(i, j int) bool { return templates[i].Name < templates[j].Name })
 
 				require.Equal(t, ct1.Name, templates[0].Name)
-				require.Equal(t, fleet.CertificateTemplateVerified, templates[0].Status)
-				require.Equal(t, fleet.MDMOperationTypeInstall, templates[0].OperationType)
+				require.Equal(t, automdm.CertificateTemplateVerified, templates[0].Status)
+				require.Equal(t, automdm.MDMOperationTypeInstall, templates[0].OperationType)
 				require.EqualValues(t, 0, templates[0].RetryCount)
 
 				require.Equal(t, ct2.Name, templates[1].Name)
-				require.Equal(t, fleet.CertificateTemplateFailed, templates[1].Status)
+				require.Equal(t, automdm.CertificateTemplateFailed, templates[1].Status)
 				require.Equal(t, "some error yooo", *templates[1].Detail)
-				require.Equal(t, fleet.MDMOperationTypeInstall, templates[1].OperationType)
+				require.Equal(t, automdm.MDMOperationTypeInstall, templates[1].OperationType)
 
 				require.Equal(t, ct3.Name, templates[2].Name)
-				require.Equal(t, fleet.CertificateTemplatePending, templates[2].Status)
+				require.Equal(t, automdm.CertificateTemplatePending, templates[2].Status)
 				require.Equal(t, "Network error during SCEP enrollment", *templates[2].Detail)
 				require.EqualValues(t, 1, templates[2].RetryCount)
 			},
@@ -1116,24 +1116,24 @@ func testGetCertificateTemplateForHost(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
 	// Create teams
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "Team 1"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "Team 1"})
 	require.NoError(t, err)
 
-	team2, err := ds.NewTeam(ctx, &fleet.Team{Name: "Team 2"})
+	team2, err := ds.NewTeam(ctx, &automdm.Team{Name: "Team 2"})
 	require.NoError(t, err)
 
 	// Create hosts
 	h1 := test.NewHost(t, ds, "host_1", "127.0.0.1", "1", "1", time.Now())
-	require.NoError(t, ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team1.ID, []uint{h1.ID})))
+	require.NoError(t, ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team1.ID, []uint{h1.ID})))
 	h1.TeamID = &team1.ID
 
 	h2 := test.NewHost(t, ds, "host_2", "127.0.0.2", "2", "2", time.Now())
-	require.NoError(t, ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team2.ID, []uint{h2.ID})))
+	require.NoError(t, ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team2.ID, []uint{h2.ID})))
 	h2.TeamID = &team2.ID
 
 	// Create certificate authority
-	ca, err := ds.NewCertificateAuthority(ctx, &fleet.CertificateAuthority{
-		Type:      string(fleet.CATypeCustomSCEPProxy),
+	ca, err := ds.NewCertificateAuthority(ctx, &automdm.CertificateAuthority{
+		Type:      string(automdm.CATypeCustomSCEPProxy),
 		Name:      ptr.String("Test SCEP CA"),
 		URL:       ptr.String("http://localhost:8080/scep"),
 		Challenge: ptr.String("test-challenge"),
@@ -1141,7 +1141,7 @@ func testGetCertificateTemplateForHost(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// Create certificate templates
-	ct1, err := ds.CreateCertificateTemplate(ctx, &fleet.CertificateTemplate{
+	ct1, err := ds.CreateCertificateTemplate(ctx, &automdm.CertificateTemplate{
 		Name:                   "Template1",
 		TeamID:                 team1.ID,
 		CertificateAuthorityID: ca.ID,
@@ -1149,7 +1149,7 @@ func testGetCertificateTemplateForHost(t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 
-	ct2, err := ds.CreateCertificateTemplate(ctx, &fleet.CertificateTemplate{
+	ct2, err := ds.CreateCertificateTemplate(ctx, &automdm.CertificateTemplate{
 		Name:                   "Template2",
 		TeamID:                 team2.ID,
 		CertificateAuthorityID: ca.ID,
@@ -1158,13 +1158,13 @@ func testGetCertificateTemplateForHost(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// Create host_certificate_template record for h1 with ct1
-	err = ds.BulkInsertHostCertificateTemplates(ctx, []fleet.HostCertificateTemplate{
+	err = ds.BulkInsertHostCertificateTemplates(ctx, []automdm.HostCertificateTemplate{
 		{
 			HostUUID:              h1.UUID,
 			CertificateTemplateID: ct1.ID,
-			FleetChallenge:        ptr.String("challenge-123"),
-			Status:                fleet.CertificateTemplateDelivered,
-			OperationType:         fleet.MDMOperationTypeInstall,
+			AutoMDMChallenge:      ptr.String("challenge-123"),
+			Status:                automdm.CertificateTemplateDelivered,
+			OperationType:         automdm.MDMOperationTypeInstall,
 		},
 	})
 	require.NoError(t, err)
@@ -1182,11 +1182,11 @@ func testGetCertificateTemplateForHost(t *testing.T, ds *Datastore) {
 
 				require.Equal(t, h1.UUID, result.HostUUID)
 				require.Equal(t, ct1.ID, result.CertificateTemplateID)
-				require.NotNil(t, result.FleetChallenge)
-				require.Equal(t, "challenge-123", *result.FleetChallenge)
+				require.NotNil(t, result.AutoMDMChallenge)
+				require.Equal(t, "challenge-123", *result.AutoMDMChallenge)
 				require.NotNil(t, result.Status)
-				require.Equal(t, fleet.CertificateTemplateDelivered, *result.Status)
-				require.Equal(t, fleet.CAConfigAssetType(fleet.CATypeCustomSCEPProxy), result.CAType)
+				require.Equal(t, automdm.CertificateTemplateDelivered, *result.Status)
+				require.Equal(t, automdm.CAConfigAssetType(automdm.CATypeCustomSCEPProxy), result.CAType)
 				require.Equal(t, "Test SCEP CA", result.CAName)
 			},
 		},
@@ -1200,9 +1200,9 @@ func testGetCertificateTemplateForHost(t *testing.T, ds *Datastore) {
 
 				require.Equal(t, h2.UUID, result.HostUUID)
 				require.Equal(t, ct2.ID, result.CertificateTemplateID)
-				require.Nil(t, result.FleetChallenge)
+				require.Nil(t, result.AutoMDMChallenge)
 				require.Nil(t, result.Status)
-				require.Equal(t, fleet.CAConfigAssetType(fleet.CATypeCustomSCEPProxy), result.CAType)
+				require.Equal(t, automdm.CAConfigAssetType(automdm.CATypeCustomSCEPProxy), result.CAType)
 				require.Equal(t, "Test SCEP CA", result.CAName)
 			},
 		},
@@ -1243,17 +1243,17 @@ func testGetHostCertificateTemplateRecord(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
 	// Create team
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "Team 1"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "Team 1"})
 	require.NoError(t, err)
 
 	// Create host
 	h1 := test.NewHost(t, ds, "host_1", "127.0.0.1", "1", "1", time.Now())
-	require.NoError(t, ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team1.ID, []uint{h1.ID})))
+	require.NoError(t, ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team1.ID, []uint{h1.ID})))
 	h1.TeamID = &team1.ID
 
 	// Create certificate authority
-	ca, err := ds.NewCertificateAuthority(ctx, &fleet.CertificateAuthority{
-		Type:      string(fleet.CATypeCustomSCEPProxy),
+	ca, err := ds.NewCertificateAuthority(ctx, &automdm.CertificateAuthority{
+		Type:      string(automdm.CATypeCustomSCEPProxy),
 		Name:      ptr.String("Test SCEP CA"),
 		URL:       ptr.String("http://localhost:8080/scep"),
 		Challenge: ptr.String("test-challenge"),
@@ -1261,7 +1261,7 @@ func testGetHostCertificateTemplateRecord(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// Create certificate template
-	ct1, err := ds.CreateCertificateTemplate(ctx, &fleet.CertificateTemplate{
+	ct1, err := ds.CreateCertificateTemplate(ctx, &automdm.CertificateTemplate{
 		Name:                   "Template1",
 		TeamID:                 team1.ID,
 		CertificateAuthorityID: ca.ID,
@@ -1270,13 +1270,13 @@ func testGetHostCertificateTemplateRecord(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// Create host_certificate_template record
-	err = ds.BulkInsertHostCertificateTemplates(ctx, []fleet.HostCertificateTemplate{
+	err = ds.BulkInsertHostCertificateTemplates(ctx, []automdm.HostCertificateTemplate{
 		{
 			HostUUID:              h1.UUID,
 			CertificateTemplateID: ct1.ID,
-			FleetChallenge:        ptr.String("challenge-123"),
-			Status:                fleet.CertificateTemplateDelivered,
-			OperationType:         fleet.MDMOperationTypeInstall,
+			AutoMDMChallenge:      ptr.String("challenge-123"),
+			Status:                automdm.CertificateTemplateDelivered,
+			OperationType:         automdm.MDMOperationTypeInstall,
 			Name:                  "Template1",
 		},
 	})
@@ -1289,27 +1289,27 @@ func testGetHostCertificateTemplateRecord(t *testing.T, ds *Datastore) {
 
 		require.Equal(t, h1.UUID, result.HostUUID)
 		require.Equal(t, ct1.ID, result.CertificateTemplateID)
-		require.NotNil(t, result.FleetChallenge)
-		require.Equal(t, "challenge-123", *result.FleetChallenge)
-		require.Equal(t, fleet.CertificateTemplateDelivered, result.Status)
-		require.Equal(t, fleet.MDMOperationTypeInstall, result.OperationType)
+		require.NotNil(t, result.AutoMDMChallenge)
+		require.Equal(t, "challenge-123", *result.AutoMDMChallenge)
+		require.Equal(t, automdm.CertificateTemplateDelivered, result.Status)
+		require.Equal(t, automdm.MDMOperationTypeInstall, result.OperationType)
 	})
 
 	t.Run("Returns NotFound for non-existent host", func(t *testing.T) {
 		_, err := ds.GetHostCertificateTemplateRecord(ctx, "non-existent-uuid", ct1.ID)
 		require.Error(t, err)
-		require.True(t, fleet.IsNotFound(err))
+		require.True(t, automdm.IsNotFound(err))
 	})
 
 	t.Run("Returns NotFound for non-existent template", func(t *testing.T) {
 		_, err := ds.GetHostCertificateTemplateRecord(ctx, h1.UUID, 99999)
 		require.Error(t, err)
-		require.True(t, fleet.IsNotFound(err))
+		require.True(t, automdm.IsNotFound(err))
 	})
 
 	t.Run("Returns record even after parent certificate_template is deleted", func(t *testing.T) {
 		// Create a new template and record
-		ct2, err := ds.CreateCertificateTemplate(ctx, &fleet.CertificateTemplate{
+		ct2, err := ds.CreateCertificateTemplate(ctx, &automdm.CertificateTemplate{
 			Name:                   "Template2",
 			TeamID:                 team1.ID,
 			CertificateAuthorityID: ca.ID,
@@ -1317,13 +1317,13 @@ func testGetHostCertificateTemplateRecord(t *testing.T, ds *Datastore) {
 		})
 		require.NoError(t, err)
 
-		err = ds.BulkInsertHostCertificateTemplates(ctx, []fleet.HostCertificateTemplate{
+		err = ds.BulkInsertHostCertificateTemplates(ctx, []automdm.HostCertificateTemplate{
 			{
 				HostUUID:              h1.UUID,
 				CertificateTemplateID: ct2.ID,
-				FleetChallenge:        ptr.String("challenge-456"),
-				Status:                fleet.CertificateTemplateDelivered,
-				OperationType:         fleet.MDMOperationTypeInstall,
+				AutoMDMChallenge:      ptr.String("challenge-456"),
+				Status:                automdm.CertificateTemplateDelivered,
+				OperationType:         automdm.MDMOperationTypeInstall,
 				Name:                  "Template2",
 			},
 		})
@@ -1332,7 +1332,7 @@ func testGetHostCertificateTemplateRecord(t *testing.T, ds *Datastore) {
 		// Verify record exists
 		result, err := ds.GetHostCertificateTemplateRecord(ctx, h1.UUID, ct2.ID)
 		require.NoError(t, err)
-		require.Equal(t, "challenge-456", *result.FleetChallenge)
+		require.Equal(t, "challenge-456", *result.AutoMDMChallenge)
 
 		// Delete the parent certificate_template
 		err = ds.DeleteCertificateTemplate(ctx, ct2.ID)
@@ -1344,8 +1344,8 @@ func testGetHostCertificateTemplateRecord(t *testing.T, ds *Datastore) {
 		require.NotNil(t, result)
 		require.Equal(t, h1.UUID, result.HostUUID)
 		require.Equal(t, ct2.ID, result.CertificateTemplateID)
-		require.Equal(t, "challenge-456", *result.FleetChallenge)
-		require.Equal(t, fleet.CertificateTemplateDelivered, result.Status)
+		require.Equal(t, "challenge-456", *result.AutoMDMChallenge)
+		require.Equal(t, automdm.CertificateTemplateDelivered, result.Status)
 	})
 }
 
@@ -1354,22 +1354,22 @@ func testResendHostCertificateTemplate(t *testing.T, ds *Datastore) {
 
 	ctx := context.Background()
 
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "Team 1"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "Team 1"})
 	require.NoError(t, err)
 
 	h1 := test.NewHost(t, ds, "host_1", "127.0.0.1", "1", "1", time.Now())
-	require.NoError(t, ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team1.ID, []uint{h1.ID})))
+	require.NoError(t, ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team1.ID, []uint{h1.ID})))
 	h1.TeamID = &team1.ID
 
-	ca, err := ds.NewCertificateAuthority(ctx, &fleet.CertificateAuthority{
-		Type:      string(fleet.CATypeCustomSCEPProxy),
+	ca, err := ds.NewCertificateAuthority(ctx, &automdm.CertificateAuthority{
+		Type:      string(automdm.CATypeCustomSCEPProxy),
 		Name:      ptr.String("Test SCEP CA"),
 		URL:       ptr.String("http://localhost:8080/scep"),
 		Challenge: ptr.String("test-challenge"),
 	})
 	require.NoError(t, err)
 
-	ct1, err := ds.CreateCertificateTemplate(ctx, &fleet.CertificateTemplate{
+	ct1, err := ds.CreateCertificateTemplate(ctx, &automdm.CertificateTemplate{
 		Name:                   "Template1",
 		TeamID:                 team1.ID,
 		CertificateAuthorityID: ca.ID,
@@ -1379,21 +1379,21 @@ func testResendHostCertificateTemplate(t *testing.T, ds *Datastore) {
 
 	testCases := []struct {
 		name          string
-		initialStatus fleet.CertificateTemplateStatus
+		initialStatus automdm.CertificateTemplateStatus
 	}{
-		{"from verified", fleet.CertificateTemplateVerified},
-		{"from delivered", fleet.CertificateTemplateDelivered},
-		{"from failed", fleet.CertificateTemplateFailed},
+		{"from verified", automdm.CertificateTemplateVerified},
+		{"from delivered", automdm.CertificateTemplateDelivered},
+		{"from failed", automdm.CertificateTemplateFailed},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			err = ds.BulkInsertHostCertificateTemplates(ctx, []fleet.HostCertificateTemplate{
+			err = ds.BulkInsertHostCertificateTemplates(ctx, []automdm.HostCertificateTemplate{
 				{
 					HostUUID:              h1.UUID,
 					CertificateTemplateID: ct1.ID,
 					Status:                tc.initialStatus,
-					OperationType:         fleet.MDMOperationTypeInstall,
+					OperationType:         automdm.MDMOperationTypeInstall,
 					Name:                  "Template1",
 				},
 			})
@@ -1408,7 +1408,7 @@ func testResendHostCertificateTemplate(t *testing.T, ds *Datastore) {
 
 			updated, err := ds.GetHostCertificateTemplateRecord(ctx, h1.UUID, ct1.ID)
 			require.NoError(t, err)
-			require.Equal(t, fleet.CertificateTemplatePending, updated.Status)
+			require.Equal(t, automdm.CertificateTemplatePending, updated.Status)
 			require.NotEqual(t, originalUUID, updated.UUID, "UUID should change after resend")
 			require.NotEmpty(t, updated.UUID)
 
@@ -1420,19 +1420,19 @@ func testResendHostCertificateTemplate(t *testing.T, ds *Datastore) {
 
 	t.Run("clears validity fields and deletes challenge", func(t *testing.T) {
 		// Insert a delivered record
-		err = ds.BulkInsertHostCertificateTemplates(ctx, []fleet.HostCertificateTemplate{
+		err = ds.BulkInsertHostCertificateTemplates(ctx, []automdm.HostCertificateTemplate{
 			{
 				HostUUID:              h1.UUID,
 				CertificateTemplateID: ct1.ID,
-				Status:                fleet.CertificateTemplateDelivered,
-				OperationType:         fleet.MDMOperationTypeInstall,
+				Status:                automdm.CertificateTemplateDelivered,
+				OperationType:         automdm.MDMOperationTypeInstall,
 				Name:                  "Template1",
 			},
 		})
 		require.NoError(t, err)
 
-		// Create a fleet challenge via the on-demand mechanism
-		challenge, err := ds.GetOrCreateFleetChallengeForCertificateTemplate(ctx, h1.UUID, ct1.ID)
+		// Create an automdm challenge via the on-demand mechanism
+		challenge, err := ds.GetOrCreateAutoMDMChallengeForCertificateTemplate(ctx, h1.UUID, ct1.ID)
 		require.NoError(t, err)
 		require.NotEmpty(t, challenge)
 
@@ -1441,22 +1441,22 @@ func testResendHostCertificateTemplate(t *testing.T, ds *Datastore) {
 		certNotAfter := certNotBefore.Add(365 * 24 * time.Hour)
 		certSerial := "AA:BB:CC:DD:EE"
 		certDetail := "enrollment succeeded"
-		err = ds.UpsertCertificateStatus(ctx, &fleet.CertificateStatusUpdate{
+		err = ds.UpsertCertificateStatus(ctx, &automdm.CertificateStatusUpdate{
 			HostUUID:              h1.UUID,
 			CertificateTemplateID: ct1.ID,
-			Status:                fleet.MDMDeliveryVerified,
+			Status:                automdm.MDMDeliveryVerified,
 			NotValidBefore:        &certNotBefore,
 			NotValidAfter:         &certNotAfter,
 			Serial:                &certSerial,
 			Detail:                &certDetail,
-			OperationType:         fleet.MDMOperationTypeInstall,
+			OperationType:         automdm.MDMOperationTypeInstall,
 		})
 		require.NoError(t, err)
 
 		// Verify fields are populated before resend
 		record, err := ds.GetHostCertificateTemplateRecord(ctx, h1.UUID, ct1.ID)
 		require.NoError(t, err)
-		require.NotNil(t, record.FleetChallenge)
+		require.NotNil(t, record.AutoMDMChallenge)
 		require.NotNil(t, record.NotValidBefore)
 		require.NotNil(t, record.NotValidAfter)
 		require.NotNil(t, record.Serial)
@@ -1477,9 +1477,9 @@ func testResendHostCertificateTemplate(t *testing.T, ds *Datastore) {
 		// Verify all fields are cleared
 		updated, err := ds.GetHostCertificateTemplateRecord(ctx, h1.UUID, ct1.ID)
 		require.NoError(t, err)
-		require.Equal(t, fleet.CertificateTemplatePending, updated.Status)
+		require.Equal(t, automdm.CertificateTemplatePending, updated.Status)
 		require.NotEqual(t, originalUUID, updated.UUID, "UUID should change after resend")
-		require.Nil(t, updated.FleetChallenge, "fleet_challenge should be cleared")
+		require.Nil(t, updated.AutoMDMChallenge, "automdm_challenge should be cleared")
 		require.Nil(t, updated.NotValidBefore, "not_valid_before should be cleared")
 		require.Nil(t, updated.NotValidAfter, "not_valid_after should be cleared")
 		require.Nil(t, updated.Serial, "serial should be cleared")
@@ -1503,12 +1503,12 @@ func testResendHostCertificateTemplate(t *testing.T, ds *Datastore) {
 
 	t.Run("returns error for non-existent template", func(t *testing.T) {
 		// Insert a record first so the host exists with some template
-		err = ds.BulkInsertHostCertificateTemplates(ctx, []fleet.HostCertificateTemplate{
+		err = ds.BulkInsertHostCertificateTemplates(ctx, []automdm.HostCertificateTemplate{
 			{
 				HostUUID:              h1.UUID,
 				CertificateTemplateID: ct1.ID,
-				Status:                fleet.CertificateTemplateVerified,
-				OperationType:         fleet.MDMOperationTypeInstall,
+				Status:                automdm.CertificateTemplateVerified,
+				OperationType:         automdm.MDMOperationTypeInstall,
 				Name:                  "Template1",
 			},
 		})

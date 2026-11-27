@@ -6,13 +6,13 @@ import (
 	"os"
 	"strings"
 
-	"github.com/fleetdm/fleet/tools/hangar/internal/processes"
-	"github.com/fleetdm/fleet/tools/hangar/internal/settings"
-	"github.com/fleetdm/fleet/tools/hangar/internal/troubleshoot"
-	"github.com/fleetdm/fleet/tools/hangar/internal/tuf"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/processes"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/settings"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/troubleshoot"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/tuf"
 )
 
-// TufService drives a local TUF test repo + fleetd installer generation by
+// TufService drives a local TUF test repo + automdmd installer generation by
 // running tools/tuf/test/main.sh (via the process engine, so its output streams
 // to the Logs ring), and offers server-status / kill / delete-assets helpers.
 // A separate top-level tab drives it; it's independent of the active server.
@@ -72,7 +72,7 @@ func (s *TufService) TufStartBuild(cfg settings.TufConfig) error {
 	// `rm -rf test_tuf` from the manual workflow, i.e. auto-answering "yes".
 	_ = tuf.DeleteAssets(repo)
 
-	// The file-server must be up DURING the build: fleetctl package (gen_pkgs)
+	// The file-server must be up DURING the build: automdmctl package (gen_pkgs)
 	// reaches the TUF --update-url to walk the root chain. Start it before the
 	// build (idempotent); it serves files as create_repository writes them.
 	if err := s.ensureFileServer(repo); err != nil {

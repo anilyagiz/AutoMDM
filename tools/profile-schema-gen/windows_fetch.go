@@ -12,8 +12,8 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/anilyagiz/automdm/v4/pkg/mdm/profilevalidation"
 	"github.com/docker/go-units"
-	"github.com/fleetdm/fleet/v4/pkg/mdm/profilevalidation"
 )
 
 // ddfPageURL lists Microsoft's DDF v2 drops. There's no API or public source repo for it, so the

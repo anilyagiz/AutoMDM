@@ -9,12 +9,12 @@ import (
 	"io"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
 var (
 	ErrUnauthenticated       = errors.New("unauthenticated, or invalid token")
-	ErrPasswordResetRequired = errors.New("Password reset required. Please sign into the Fleet UI to update your password, then log in again with: fleetctl login.")
+	ErrPasswordResetRequired = errors.New("Password reset required. Please sign into the AutoMDM UI to update your password, then log in again with: automdmctl login.")
 	ErrMissingLicense        = errors.New("missing or invalid license")
 	// ErrEndUserAuthRequired is returned when an action (such as enrolling a device)
 	// requires end user authentication
@@ -29,7 +29,7 @@ type SetupAlreadyErr interface {
 type SetupAlreadyError struct{}
 
 func (e SetupAlreadyError) Error() string {
-	return "Fleet has already been setup"
+	return "AutoMDM has already been setup"
 }
 
 func (e SetupAlreadyError) SetupAlready() bool {
@@ -44,7 +44,7 @@ type NotSetupErr interface {
 type NotSetupError struct{}
 
 func (e NotSetupError) Error() string {
-	return "The Fleet instance is not set up yet"
+	return "The AutoMDM instance is not set up yet"
 }
 
 func (e NotSetupError) NotSetup() bool {
@@ -52,8 +52,8 @@ func (e NotSetupError) NotSetup() bool {
 }
 
 // NotFoundErrIface is the interface for not-found errors.
-// TODO: we have a similar but different interface in the fleet package,
-// fleet.NotFoundError - at the very least, the NotFound method should be the
+// TODO: we have a similar but different interface in the automdm package,
+// automdm.NotFoundError - at the very least, the NotFound method should be the
 // same in both (the other is currently IsNotFound), and ideally we'd just have
 // one of those interfaces.
 type NotFoundErrIface interface {
@@ -64,7 +64,7 @@ type NotFoundErrIface interface {
 type NotFoundErr struct {
 	Msg string
 
-	fleet.ErrorWithUUID
+	automdm.ErrorWithUUID
 }
 
 func (e *NotFoundErr) Error() string {

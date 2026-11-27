@@ -36,7 +36,7 @@ const normalizePath = (s: string) =>
   s.toLowerCase().replace(/:[a-z0-9_]+/g, ":_");
 
 /** Split on path separators, whitespace, and word-boundary punctuation so
- * both names ("List hosts") and paths ("/api/v1/fleet/hosts") can be
+ * both names ("List hosts") and paths ("/api/v1/automdm/hosts") can be
  * compared word-by-word. */
 const WORD_SPLIT_RE = /[\s/_-]+/;
 
@@ -260,7 +260,7 @@ const ApiEndpointSelectorTable = ({
         <CustomLinkSizeContext.Provider value="small">
           You can find this information in the{" "}
           <CustomLink
-            url="https://fleetdm.com/docs/rest-api/rest-api"
+            url="https://automdm.com/docs/rest-api/rest-api"
             text="REST API docs"
             newTab
           />

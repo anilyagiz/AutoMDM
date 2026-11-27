@@ -8,7 +8,7 @@ import (
 )
 
 func TestChannelWriterFormatAndScrub(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "fleet-serve.log")
+	path := filepath.Join(t.TempDir(), "automdm-serve.log")
 	cw, err := openChannelWriter(path, logFileMaxBytes)
 	if err != nil {
 		t.Fatal(err)

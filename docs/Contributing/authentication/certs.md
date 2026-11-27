@@ -1,9 +1,9 @@
 # MDM Cert responsibilities
 
-## FleetDM CSR Cert
+## AutoMDM CSR Cert
 
 - Responsible Member: @georgekarrv
-- [Renewal Steps](https://fleetdm.com/handbook/engineering#renew-mdm-certificate-signing-request-csr)
+- [Renewal Steps](https://automdm.com/handbook/engineering#renew-mdm-certificate-signing-request-csr)
 - Next Renewal: Aug 24, 2025
 - Expires: Sep 24, 2025
 - Issues if missed: Customers won't be able to configure or renew APNs

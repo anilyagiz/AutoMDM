@@ -38,7 +38,7 @@ const failedSoftwareActivity: IPolicyAutomationActivity = {
   id: 1,
   created_at: "2026-06-12T15:04:05Z",
   type: ActivityType.InstalledSoftware,
-  fleet_initiated: true,
+  automdm_initiated: true,
   details: { policy_id: 123, software_title: "1Password" },
   host_id: 42,
   host_display_name: "Rachael's MacBook Pro",
@@ -196,7 +196,7 @@ describe("PolicyAutomationActivityDetailsModal", () => {
       id: 2,
       created_at: "2026-06-12T15:04:05Z",
       type: ActivityType.NotifiedEndUserBeforePatching,
-      fleet_initiated: true,
+      automdm_initiated: true,
       details: {
         policy_id: 123,
         software_title: "1Password",
@@ -272,12 +272,12 @@ describe("PolicyAutomationActivityDetailsModal", () => {
         name: /End user experience/i,
       })) as HTMLAnchorElement;
       expect(link.href).toBe(
-        "https://fleetdm.com/learn-more-about/patching-end-user-experience"
+        "https://automdm.com/learn-more-about/patching-end-user-experience"
       );
       expect(link.target).toBe("_blank");
       unmount();
 
-      // Non-Fleet-Desktop failures don't get the link.
+      // Non-AutoMDM-Desktop failures don't get the link.
       stubScriptResult({ exit_code: 41 });
       render(
         <PolicyAutomationActivityDetailsModal
@@ -341,7 +341,7 @@ describe("PolicyAutomationActivityDetailsModal", () => {
         id: 5,
         created_at: "2026-06-12T15:04:05Z",
         type: ActivityType.InstalledSoftware,
-        fleet_initiated: true,
+        automdm_initiated: true,
         details: {
           policy_id: 123,
           software_title: "1Password",
@@ -366,7 +366,7 @@ describe("PolicyAutomationActivityDetailsModal", () => {
 
       expect(
         screen.getByText(
-          "The app was open. Fleet will notify the end user 1 hour before the patch deadline."
+          "The app was open. AutoMDM will notify the end user 1 hour before the patch deadline."
         )
       ).toBeInTheDocument();
       expect(
@@ -377,7 +377,7 @@ describe("PolicyAutomationActivityDetailsModal", () => {
       expect(screen.getByText("Pre-install query output:")).toBeInTheDocument();
       expect(
         screen.getByText(
-          /Fleet notifies the end user 1 hour before the patch deadline/
+          /AutoMDM notifies the end user 1 hour before the patch deadline/
         )
       ).toBeInTheDocument();
     });
@@ -389,7 +389,7 @@ describe("PolicyAutomationActivityDetailsModal", () => {
         id: 3,
         created_at: "2026-06-12T15:04:05Z",
         type: ActivityType.InstalledSoftware,
-        fleet_initiated: true,
+        automdm_initiated: true,
         details: {
           policy_id: 123,
           software_title: "1Password",
@@ -424,7 +424,7 @@ describe("PolicyAutomationActivityDetailsModal", () => {
       await userEvent.click(screen.getByRole("button", { name: /Details/ }));
       expect(screen.getByText("Pre-install query output:")).toBeInTheDocument();
       expect(
-        screen.getByText(/Fleet notifies the end user 1 hour/)
+        screen.getByText(/AutoMDM notifies the end user 1 hour/)
       ).toBeInTheDocument();
     });
 
@@ -433,7 +433,7 @@ describe("PolicyAutomationActivityDetailsModal", () => {
         id: 4,
         created_at: "2026-06-12T15:04:05Z",
         type: ActivityType.InstalledSoftware,
-        fleet_initiated: true,
+        automdm_initiated: true,
         details: {
           policy_id: 123,
           software_title: "1Password",
@@ -463,7 +463,7 @@ describe("PolicyAutomationActivityDetailsModal", () => {
       expect(screen.getByText("Pre-install query output")).toBeInTheDocument();
       expect(screen.getByText(/The app was open/)).toBeInTheDocument();
       expect(
-        screen.queryByText(/Fleet notifies the end user/)
+        screen.queryByText(/AutoMDM notifies the end user/)
       ).not.toBeInTheDocument();
     });
   });

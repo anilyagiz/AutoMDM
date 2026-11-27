@@ -8,16 +8,16 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/pkg/removednames"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/platform/endpointer"
-	platform_http "github.com/fleetdm/fleet/v4/server/platform/http"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/pkg/removednames"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/platform/endpointer"
+	platform_http "github.com/anilyagiz/automdm/v4/server/platform/http"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 )
 
 func encodeResponse(ctx context.Context, w http.ResponseWriter, response interface{}) error {
-	return endpointer.EncodeCommonResponse(ctx, w, response, jsonMarshal, FleetErrorEncoder)
+	return endpointer.EncodeCommonResponse(ctx, w, response, jsonMarshal, AutoMDMErrorEncoder)
 }
 
 func jsonMarshal(w http.ResponseWriter, response interface{}) error {
@@ -42,7 +42,7 @@ func uint32FromRequest(r *http.Request, name string) (uint32, error) {
 const defaultPerPage = 20
 
 // listOptionsFromRequest parses the list options from the request parameters
-func listOptionsFromRequest(r *http.Request) (fleet.ListOptions, error) {
+func listOptionsFromRequest(r *http.Request) (automdm.ListOptions, error) {
 	var err error
 
 	pageString := r.URL.Query().Get("page")
@@ -55,10 +55,10 @@ func listOptionsFromRequest(r *http.Request) (fleet.ListOptions, error) {
 	if pageString != "" {
 		page, err = strconv.Atoi(pageString)
 		if err != nil {
-			return fleet.ListOptions{}, ctxerr.Wrap(r.Context(), badRequest("non-int page value"))
+			return automdm.ListOptions{}, ctxerr.Wrap(r.Context(), badRequest("non-int page value"))
 		}
 		if page < 0 {
-			return fleet.ListOptions{}, ctxerr.Wrap(r.Context(), badRequest("negative page value"))
+			return automdm.ListOptions{}, ctxerr.Wrap(r.Context(), badRequest("negative page value"))
 		}
 	}
 
@@ -68,10 +68,10 @@ func listOptionsFromRequest(r *http.Request) (fleet.ListOptions, error) {
 	if perPageString != "" {
 		perPage, err = strconv.Atoi(perPageString)
 		if err != nil {
-			return fleet.ListOptions{}, ctxerr.Wrap(r.Context(), badRequest("non-int per_page value"))
+			return automdm.ListOptions{}, ctxerr.Wrap(r.Context(), badRequest("non-int per_page value"))
 		}
 		if perPage <= 0 {
-			return fleet.ListOptions{}, ctxerr.Wrap(r.Context(), badRequest("invalid per_page value"))
+			return automdm.ListOptions{}, ctxerr.Wrap(r.Context(), badRequest("invalid per_page value"))
 		}
 	}
 
@@ -83,30 +83,30 @@ func listOptionsFromRequest(r *http.Request) (fleet.ListOptions, error) {
 	}
 
 	if orderKey == "" && orderDirectionString != "" {
-		return fleet.ListOptions{}, ctxerr.Wrap(r.Context(), badRequest("order_key must be specified with order_direction"))
+		return automdm.ListOptions{}, ctxerr.Wrap(r.Context(), badRequest("order_key must be specified with order_direction"))
 	}
 
 	if orderKey == "" && afterString != "" {
-		return fleet.ListOptions{}, ctxerr.Wrap(r.Context(), badRequest("order_key must be specified with after"))
+		return automdm.ListOptions{}, ctxerr.Wrap(r.Context(), badRequest("order_key must be specified with after"))
 	}
 
-	var orderDirection fleet.OrderDirection
+	var orderDirection automdm.OrderDirection
 	switch orderDirectionString {
 	case "desc":
-		orderDirection = fleet.OrderDescending
+		orderDirection = automdm.OrderDescending
 	case "asc":
-		orderDirection = fleet.OrderAscending
+		orderDirection = automdm.OrderAscending
 	case "":
-		orderDirection = fleet.OrderAscending
+		orderDirection = automdm.OrderAscending
 	default:
-		return fleet.ListOptions{},
+		return automdm.ListOptions{},
 			ctxerr.Wrap(r.Context(), badRequest("unknown order_direction: "+orderDirectionString))
 
 	}
 
 	query := r.URL.Query().Get("query")
 
-	return fleet.ListOptions{
+	return automdm.ListOptions{
 		Page:           uint(page),    //nolint:gosec // dismiss G115
 		PerPage:        uint(perPage), //nolint:gosec // dismiss G115
 		OrderKey:       orderKey,
@@ -116,18 +116,18 @@ func listOptionsFromRequest(r *http.Request) (fleet.ListOptions, error) {
 	}, nil
 }
 
-func hostListOptionsFromRequest(r *http.Request) (fleet.HostListOptions, error) {
+func hostListOptionsFromRequest(r *http.Request) (automdm.HostListOptions, error) {
 	opt, err := listOptionsFromRequest(r)
 	if err != nil {
-		return fleet.HostListOptions{}, err
+		return automdm.HostListOptions{}, err
 	}
 
-	hopt := fleet.HostListOptions{ListOptions: opt}
+	hopt := automdm.HostListOptions{ListOptions: opt}
 
 	status := r.URL.Query().Get("status")
-	switch fleet.HostStatus(status) {
-	case fleet.StatusNew, fleet.StatusOnline, fleet.StatusOffline, fleet.StatusMIA, fleet.StatusMissing, fleet.StatusEnrolled:
-		hopt.StatusFilter = fleet.HostStatus(status)
+	switch automdm.HostStatus(status) {
+	case automdm.StatusNew, automdm.StatusOnline, automdm.StatusOffline, automdm.StatusMIA, automdm.StatusMissing, automdm.StatusEnrolled:
+		hopt.StatusFilter = automdm.HostStatus(status)
 	case "":
 		// No error when unset
 	default:
@@ -140,10 +140,10 @@ func hostListOptionsFromRequest(r *http.Request) (fleet.HostListOptions, error) 
 		hopt.AdditionalFilters = strings.Split(additionalInfoFiltersString, ",")
 	}
 
-	if teamID := r.URL.Query().Get("fleet_id"); teamID != "" {
+	if teamID := r.URL.Query().Get("team_id"); teamID != "" {
 		id, err := strconv.ParseUint(teamID, 10, 32)
 		if err != nil {
-			return hopt, ctxerr.Wrap(r.Context(), badRequest(fmt.Sprintf("Invalid fleet_id: %s", teamID)))
+			return hopt, ctxerr.Wrap(r.Context(), badRequest(fmt.Sprintf("Invalid team_id: %s", teamID)))
 		}
 		tid := uint(id)
 		hopt.TeamFilter = &tid
@@ -190,7 +190,7 @@ func hostListOptionsFromRequest(r *http.Request) (fleet.HostListOptions, error) 
 
 	if r.URL.Query().Has("software_id") {
 		if removedEntry, ok := removednames.Find(removednames.KindQueryParam, "software_id", ""); ok {
-			return hopt, ctxerr.Wrap(r.Context(), fleet.NewInvalidArgumentError("software_id", removedEntry.Message()))
+			return hopt, ctxerr.Wrap(r.Context(), automdm.NewInvalidArgumentError("software_id", removedEntry.Message()))
 		}
 	}
 
@@ -246,7 +246,7 @@ func hostListOptionsFromRequest(r *http.Request) (fleet.HostListOptions, error) 
 		hopt.AppStoreAppVersionIDFilter = &sid
 	}
 
-	softwareStatus := fleet.SoftwareInstallerStatus(strings.ToLower(r.URL.Query().Get("software_status")))
+	softwareStatus := automdm.SoftwareInstallerStatus(strings.ToLower(r.URL.Query().Get("software_status")))
 	if softwareStatus != "" {
 		if !softwareStatus.IsValid() {
 			return hopt, ctxerr.Wrap(
@@ -263,7 +263,7 @@ func hostListOptionsFromRequest(r *http.Request) (fleet.HostListOptions, error) 
 		if hopt.TeamFilter == nil {
 			return hopt, ctxerr.Wrap(
 				r.Context(), badRequest(
-					"Missing fleet_id (it must be present when software_status is specified)",
+					"Missing team_id (it must be present when software_status is specified)",
 				),
 			)
 		}
@@ -412,11 +412,11 @@ func hostListOptionsFromRequest(r *http.Request) (fleet.HostListOptions, error) 
 	}
 
 	enrollmentStatus := r.URL.Query().Get("mdm_enrollment_status")
-	switch fleet.MDMEnrollStatus(enrollmentStatus) {
-	case fleet.MDMEnrollStatusManual, fleet.MDMEnrollStatusAutomatic, fleet.MDMEnrollStatusPersonal,
-		fleet.MDMEnrollStatusManualPersonal, fleet.MDMEnrollStatusPending, fleet.MDMEnrollStatusUnenrolled,
-		fleet.MDMEnrollStatusEnrolled:
-		hopt.MDMEnrollmentStatusFilter = fleet.MDMEnrollStatus(enrollmentStatus)
+	switch automdm.MDMEnrollStatus(enrollmentStatus) {
+	case automdm.MDMEnrollStatusManual, automdm.MDMEnrollStatusAutomatic, automdm.MDMEnrollStatusPersonal,
+		automdm.MDMEnrollStatusManualPersonal, automdm.MDMEnrollStatusPending, automdm.MDMEnrollStatusUnenrolled,
+		automdm.MDMEnrollStatusEnrolled:
+		hopt.MDMEnrollmentStatusFilter = automdm.MDMEnrollStatus(enrollmentStatus)
 	case "":
 		// No error when unset
 	default:
@@ -425,20 +425,20 @@ func hostListOptionsFromRequest(r *http.Request) (fleet.HostListOptions, error) 
 		)
 	}
 
-	connectedToFleet := r.URL.Query().Has("connected_to_fleet")
-	if connectedToFleet {
-		hopt.ConnectedToFleetFilter = ptr.Bool(true)
+	connectedToAutoMDM := r.URL.Query().Has("connected_to_automdm")
+	if connectedToAutoMDM {
+		hopt.ConnectedToTeamFilter = ptr.Bool(true)
 	}
 
 	if r.URL.Query().Has("macos_settings") {
 		if removedEntry, ok := removednames.Find(removednames.KindQueryParam, "macos_settings", ""); ok {
-			return hopt, ctxerr.Wrap(r.Context(), fleet.NewInvalidArgumentError("macos_settings", removedEntry.Message()))
+			return hopt, ctxerr.Wrap(r.Context(), automdm.NewInvalidArgumentError("macos_settings", removedEntry.Message()))
 		}
 	}
 	macOSSettingsStatus := r.URL.Query().Get("apple_settings")
-	switch fleet.OSSettingsStatus(macOSSettingsStatus) {
-	case fleet.OSSettingsFailed, fleet.OSSettingsPending, fleet.OSSettingsVerifying, fleet.OSSettingsVerified:
-		hopt.MacOSSettingsFilter = fleet.OSSettingsStatus(macOSSettingsStatus)
+	switch automdm.OSSettingsStatus(macOSSettingsStatus) {
+	case automdm.OSSettingsFailed, automdm.OSSettingsPending, automdm.OSSettingsVerifying, automdm.OSSettingsVerified:
+		hopt.MacOSSettingsFilter = automdm.OSSettingsStatus(macOSSettingsStatus)
 	case "":
 		// No error when unset
 	default:
@@ -448,15 +448,15 @@ func hostListOptionsFromRequest(r *http.Request) (fleet.HostListOptions, error) 
 	}
 
 	macOSSettingsDiskEncryptionStatus := r.URL.Query().Get("macos_settings_disk_encryption")
-	switch fleet.DiskEncryptionStatus(macOSSettingsDiskEncryptionStatus) {
+	switch automdm.DiskEncryptionStatus(macOSSettingsDiskEncryptionStatus) {
 	case
-		fleet.DiskEncryptionVerifying,
-		fleet.DiskEncryptionVerified,
-		fleet.DiskEncryptionActionRequired,
-		fleet.DiskEncryptionEnforcing,
-		fleet.DiskEncryptionFailed,
-		fleet.DiskEncryptionRemovingEnforcement:
-		hopt.MacOSSettingsDiskEncryptionFilter = fleet.DiskEncryptionStatus(macOSSettingsDiskEncryptionStatus)
+		automdm.DiskEncryptionVerifying,
+		automdm.DiskEncryptionVerified,
+		automdm.DiskEncryptionActionRequired,
+		automdm.DiskEncryptionEnforcing,
+		automdm.DiskEncryptionFailed,
+		automdm.DiskEncryptionRemovingEnforcement:
+		hopt.MacOSSettingsDiskEncryptionFilter = automdm.DiskEncryptionStatus(macOSSettingsDiskEncryptionStatus)
 	case "":
 		// No error when unset
 	default:
@@ -467,9 +467,9 @@ func hostListOptionsFromRequest(r *http.Request) (fleet.HostListOptions, error) 
 	}
 
 	osSettingsStatus := r.URL.Query().Get("os_settings")
-	switch fleet.OSSettingsStatus(osSettingsStatus) {
-	case fleet.OSSettingsFailed, fleet.OSSettingsPending, fleet.OSSettingsVerifying, fleet.OSSettingsVerified:
-		hopt.OSSettingsFilter = fleet.OSSettingsStatus(osSettingsStatus)
+	switch automdm.OSSettingsStatus(osSettingsStatus) {
+	case automdm.OSSettingsFailed, automdm.OSSettingsPending, automdm.OSSettingsVerifying, automdm.OSSettingsVerified:
+		hopt.OSSettingsFilter = automdm.OSSettingsStatus(osSettingsStatus)
 	case "":
 		// No error when unset
 	default:
@@ -479,15 +479,15 @@ func hostListOptionsFromRequest(r *http.Request) (fleet.HostListOptions, error) 
 	}
 
 	osSettingsDiskEncryptionStatus := r.URL.Query().Get("os_settings_disk_encryption")
-	switch fleet.DiskEncryptionStatus(osSettingsDiskEncryptionStatus) {
+	switch automdm.DiskEncryptionStatus(osSettingsDiskEncryptionStatus) {
 	case
-		fleet.DiskEncryptionVerifying,
-		fleet.DiskEncryptionVerified,
-		fleet.DiskEncryptionActionRequired,
-		fleet.DiskEncryptionEnforcing,
-		fleet.DiskEncryptionFailed,
-		fleet.DiskEncryptionRemovingEnforcement:
-		hopt.OSSettingsDiskEncryptionFilter = fleet.DiskEncryptionStatus(osSettingsDiskEncryptionStatus)
+		automdm.DiskEncryptionVerifying,
+		automdm.DiskEncryptionVerified,
+		automdm.DiskEncryptionActionRequired,
+		automdm.DiskEncryptionEnforcing,
+		automdm.DiskEncryptionFailed,
+		automdm.DiskEncryptionRemovingEnforcement:
+		hopt.OSSettingsDiskEncryptionFilter = automdm.DiskEncryptionStatus(osSettingsDiskEncryptionStatus)
 	case "":
 		// No error when unset
 	default:
@@ -499,13 +499,13 @@ func hostListOptionsFromRequest(r *http.Request) (fleet.HostListOptions, error) 
 
 	if r.URL.Query().Has("bootstrap_package") {
 		if removedEntry, ok := removednames.Find(removednames.KindQueryParam, "bootstrap_package", ""); ok {
-			return hopt, ctxerr.Wrap(r.Context(), fleet.NewInvalidArgumentError("bootstrap_package", removedEntry.Message()))
+			return hopt, ctxerr.Wrap(r.Context(), automdm.NewInvalidArgumentError("bootstrap_package", removedEntry.Message()))
 		}
 	}
 	mdmBootstrapPackageStatus := r.URL.Query().Get("macos_bootstrap_package")
-	switch fleet.MDMBootstrapPackageStatus(mdmBootstrapPackageStatus) {
-	case fleet.MDMBootstrapPackageFailed, fleet.MDMBootstrapPackagePending, fleet.MDMBootstrapPackageInstalled:
-		bpf := fleet.MDMBootstrapPackageStatus(mdmBootstrapPackageStatus)
+	switch automdm.MDMBootstrapPackageStatus(mdmBootstrapPackageStatus) {
+	case automdm.MDMBootstrapPackageFailed, automdm.MDMBootstrapPackagePending, automdm.MDMBootstrapPackageInstalled:
+		bpf := automdm.MDMBootstrapPackageStatus(mdmBootstrapPackageStatus)
 		hopt.MDMBootstrapPackageFilter = &bpf
 	case "":
 		// No error when unset
@@ -520,8 +520,8 @@ func hostListOptionsFromRequest(r *http.Request) (fleet.HostListOptions, error) 
 	switch {
 	case profileUUID != "" && profileStatus != "":
 		hopt.ProfileUUIDFilter = &profileUUID
-		if fleet.OSSettingsStatus(profileStatus).IsValid() {
-			psf := fleet.OSSettingsStatus(profileStatus)
+		if automdm.OSSettingsStatus(profileStatus).IsValid() {
+			psf := automdm.OSSettingsStatus(profileStatus)
 			hopt.ProfileStatusFilter = &psf
 		} else {
 			return hopt, ctxerr.Wrap(r.Context(), badRequest(fmt.Sprintf("Invalid profile_status: %s", profileStatus)))
@@ -565,8 +565,8 @@ func hostListOptionsFromRequest(r *http.Request) (fleet.HostListOptions, error) 
 		hopt.BatchScriptExecutionIDFilter = &batchScriptExecutionID
 		batchScriptExecutionStatus := r.URL.Query().Get("script_batch_execution_status")
 		if batchScriptExecutionStatus != "" {
-			if fleet.BatchScriptExecutionStatus(batchScriptExecutionStatus).IsValid() {
-				bsef := fleet.BatchScriptExecutionStatus(batchScriptExecutionStatus)
+			if automdm.BatchScriptExecutionStatus(batchScriptExecutionStatus).IsValid() {
+				bsef := automdm.BatchScriptExecutionStatus(batchScriptExecutionStatus)
 				hopt.BatchScriptExecutionStatusFilter = bsef
 			} else {
 				return hopt, ctxerr.Wrap(r.Context(), badRequest(fmt.Sprintf("Invalid script_batch_execution_status: %s", batchScriptExecutionStatus)))
@@ -664,12 +664,12 @@ func hostListOptionsFromRequest(r *http.Request) (fleet.HostListOptions, error) 
 
 	depAssignProfileResponse := r.URL.Query().Get("dep_assign_profile_response")
 	if depAssignProfileResponse != "" {
-		switch fleet.DEPAssignProfileResponseStatus(depAssignProfileResponse) {
-		case fleet.DEPAssignProfileResponseSuccess,
-			fleet.DEPAssignProfileResponseFailed,
-			fleet.DEPAssignProfileResponseThrottled,
-			fleet.DEPAssignProfileResponseNotAccessible:
-			resp := fleet.DEPAssignProfileResponseStatus(depAssignProfileResponse)
+		switch automdm.DEPAssignProfileResponseStatus(depAssignProfileResponse) {
+		case automdm.DEPAssignProfileResponseSuccess,
+			automdm.DEPAssignProfileResponseFailed,
+			automdm.DEPAssignProfileResponseThrottled,
+			automdm.DEPAssignProfileResponseNotAccessible:
+			resp := automdm.DEPAssignProfileResponseStatus(depAssignProfileResponse)
 			hopt.DEPAssignProfileResponseFilter = &resp
 		default:
 			return hopt, ctxerr.Wrap(
@@ -677,10 +677,10 @@ func hostListOptionsFromRequest(r *http.Request) (fleet.HostListOptions, error) 
 					fmt.Sprintf(
 						"Invalid dep_assign_profile_response: %s. Valid options are '%s', '%s', '%s', or '%s'.",
 						depAssignProfileResponse,
-						fleet.DEPAssignProfileResponseSuccess,
-						fleet.DEPAssignProfileResponseFailed,
-						fleet.DEPAssignProfileResponseThrottled,
-						fleet.DEPAssignProfileResponseNotAccessible,
+						automdm.DEPAssignProfileResponseSuccess,
+						automdm.DEPAssignProfileResponseFailed,
+						automdm.DEPAssignProfileResponseThrottled,
+						automdm.DEPAssignProfileResponseNotAccessible,
 					),
 				),
 			)
@@ -690,17 +690,17 @@ func hostListOptionsFromRequest(r *http.Request) (fleet.HostListOptions, error) 
 	return hopt, nil
 }
 
-func labelListOptionsFromRequest(r *http.Request) (fleet.ListOptions, error) {
+func labelListOptionsFromRequest(r *http.Request) (automdm.ListOptions, error) {
 	opt, err := listOptionsFromRequest(r)
 	if err != nil {
-		return fleet.ListOptions{}, err
+		return automdm.ListOptions{}, err
 	}
 
 	includeHostCountsStr := r.URL.Query().Get("include_host_counts")
 	if includeHostCountsStr != "" && opt.OrderKey == "host_count" {
 		includeHostCounts, parseErr := strconv.ParseBool(includeHostCountsStr)
 		if parseErr == nil && !includeHostCounts {
-			return fleet.ListOptions{}, ctxerr.Wrap(
+			return automdm.ListOptions{}, ctxerr.Wrap(
 				r.Context(), badRequest(
 					"Invalid order_key (host_count cannot be ordered when they are disabled)",
 				),
@@ -711,13 +711,13 @@ func labelListOptionsFromRequest(r *http.Request) (fleet.ListOptions, error) {
 	return opt, nil
 }
 
-func carveListOptionsFromRequest(r *http.Request) (fleet.CarveListOptions, error) {
+func carveListOptionsFromRequest(r *http.Request) (automdm.CarveListOptions, error) {
 	opt, err := listOptionsFromRequest(r)
 	if err != nil {
-		return fleet.CarveListOptions{}, err
+		return automdm.CarveListOptions{}, err
 	}
 
-	carveOpts := fleet.CarveListOptions{ListOptions: opt}
+	carveOpts := automdm.CarveListOptions{ListOptions: opt}
 
 	expired := r.URL.Query().Get("expired")
 	if expired == "" {
@@ -736,17 +736,17 @@ func carveListOptionsFromRequest(r *http.Request) (fleet.CarveListOptions, error
 	return carveOpts, nil
 }
 
-func userListOptionsFromRequest(r *http.Request) (fleet.UserListOptions, error) {
+func userListOptionsFromRequest(r *http.Request) (automdm.UserListOptions, error) {
 	opt, err := listOptionsFromRequest(r)
 	if err != nil {
-		return fleet.UserListOptions{}, err
+		return automdm.UserListOptions{}, err
 	}
 
-	userOpts := fleet.UserListOptions{ListOptions: opt}
-	if tid := r.URL.Query().Get("fleet_id"); tid != "" {
+	userOpts := automdm.UserListOptions{ListOptions: opt}
+	if tid := r.URL.Query().Get("team_id"); tid != "" {
 		teamID, err := strconv.ParseUint(tid, 10, 64)
 		if err != nil {
-			return userOpts, ctxerr.Wrap(r.Context(), badRequest(fmt.Sprintf("Invalid fleet_id: %s", tid)))
+			return userOpts, ctxerr.Wrap(r.Context(), badRequest(fmt.Sprintf("Invalid team_id: %s", tid)))
 		}
 		// GitHub CodeQL flags this as: Incorrect conversion between integer types. Previously waived: https://github.com/fleetdm/fleet/security/code-scanning/516
 		userOpts.TeamID = uint(teamID)

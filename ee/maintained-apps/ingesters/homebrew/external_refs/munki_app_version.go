@@ -12,7 +12,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
 )
 
 // xarHeaderSize is the fixed size, in bytes, of a XAR archive's header:
@@ -35,7 +35,7 @@ const maxDecompressedLen = 10 << 20 // 10MiB
 // its receipt version tells consecutive releases apart.
 const munkiCorePackageID = "com.googlecode.munki.core"
 
-// munkiAppBundleID is Managed Software Center.app, the bundle Fleet inventories.
+// munkiAppBundleID is Managed Software Center.app, the bundle AutoMDM inventories.
 // It isn't rebuilt on every release, so its version can repeat across releases.
 const munkiAppBundleID = "com.googlecode.munki.ManagedSoftwareCenter"
 
@@ -75,7 +75,7 @@ type distributionPkgRefs struct {
 type MunkiVersions struct {
 	// Core is the munkitools_core receipt version, which package_receipts reports.
 	Core string
-	// App is Managed Software Center.app's version as the apps table (and Fleet's
+	// App is Managed Software Center.app's version as the apps table (and AutoMDM's
 	// software inventory) reports it: CFBundleShortVersionString, else CFBundleVersion.
 	App string
 }
@@ -184,9 +184,9 @@ func readXarTopLevelFile(fetch func(start, end int64) ([]byte, error), name stri
 // this means something (a redirect target that ignored Range, a bad proxy)
 // went wrong rather than Munki's installer growing an enormous Distribution
 // file.
-var munkiRangeClient = fleethttp.NewClient(
-	fleethttp.WithTimeout(30*time.Second),
-	fleethttp.WithMaxResponseSize(10<<20),
+var munkiRangeClient = automdmhttp.NewClient(
+	automdmhttp.WithTimeout(30*time.Second),
+	automdmhttp.WithMaxResponseSize(10<<20),
 )
 
 func rangeGet(ctx context.Context, url string, start, end int64) ([]byte, error) {

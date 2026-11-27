@@ -5,8 +5,8 @@
 
 If some of the following don't apply, delete the relevant line.
 
-- [ ] Changes file added for user-visible changes in `changes/`, `orbit/changes/` or `ee/fleetd-chrome/changes`.
-  See [Changes files](https://github.com/fleetdm/fleet/blob/main/docs/Contributing/guides/committing-changes.md#changes-files) for more information.
+- [ ] Changes file added for user-visible changes in `changes/`, `orbit/changes/` or `ee/automdmd-chrome/changes`.
+  See [Changes files](https://github.com/anilyagiz/automdm/blob/main/docs/Contributing/guides/committing-changes.md#changes-files) for more information.
 
 - [ ] Input data is properly validated, `SELECT *` is avoided, SQL injection is prevented (using placeholders for values in statements), JS inline code is prevented especially for url redirects, and untrusted data interpolated into shell scripts/commands is validated against shell metacharacters.
 - [ ] Timeouts are implemented and retries are limited to avoid infinite loops
@@ -15,7 +15,7 @@ If some of the following don't apply, delete the relevant line.
 ## Testing
 
 - [ ] Added/updated automated tests
-- [ ] Where appropriate, [automated tests simulate multiple hosts and test for host isolation](https://github.com/fleetdm/fleet/blob/main/docs/Contributing/reference/patterns-backend.md#unit-testing) (updates to one hosts's records do not affect another)
+- [ ] Where appropriate, [automated tests simulate multiple hosts and test for host isolation](https://github.com/anilyagiz/automdm/blob/main/docs/Contributing/reference/patterns-backend.md#unit-testing) (updates to one hosts's records do not affect another)
 
 - [ ] QA'd all new/changed functionality manually
 
@@ -53,23 +53,23 @@ For unreleased bug fixes in a release candidate, one of:
 
 ## Apple MDM commands
 
-- [ ] For new Apple MDM commands Fleet enqueues automatically (new request type or `CommandUUID` prefix), added the command to a cleanup retention class or confirmed it should be kept indefinitely. See [Apple MDM command lifecycle and cleanup](https://github.com/fleetdm/fleet/blob/main/docs/Contributing/mdm/apple/apple-mdm-command-lifecycle.md#adding-a-new-command-or-a-new-reference).
-- [ ] For new columns that store an Apple MDM command UUID Fleet reads later, added a reference guard to the cleanup and an index on the column in a migration.
+- [ ] For new Apple MDM commands AutoMDM enqueues automatically (new request type or `CommandUUID` prefix), added the command to a cleanup retention class or confirmed it should be kept indefinitely. See [Apple MDM command lifecycle and cleanup](https://github.com/anilyagiz/automdm/blob/main/docs/Contributing/mdm/apple/apple-mdm-command-lifecycle.md#adding-a-new-command-or-a-new-reference).
+- [ ] For new columns that store an Apple MDM command UUID AutoMDM reads later, added a reference guard to the cleanup and an index on the column in a migration.
 
-## New Fleet configuration settings
+## New AutoMDM configuration settings
 
 - [ ] Setting(s) is/are explicitly excluded from GitOps
 
 If you didn't check the box above, follow this checklist for GitOps-enabled settings:
 
-- [ ] Verified that the setting is exported via `fleetctl generate-gitops`
-- [ ] Verified the setting is documented in a separate PR to [the GitOps documentation](https://github.com/fleetdm/fleet/blob/main/docs/Configuration/yaml-files.md#L485)
+- [ ] Verified that the setting is exported via `automdmctl generate-gitops`
+- [ ] Verified the setting is documented in a separate PR to [the GitOps documentation](https://github.com/anilyagiz/automdm/blob/main/docs/Configuration/yaml-files.md#L485)
 - [ ] Verified that the setting is cleared on the server if it is not supplied in a YAML file (or that it is documented as being optional)
 - [ ] Verified that any relevant UI is disabled when GitOps mode is enabled
 
-## fleetd/orbit/Fleet Desktop
+## automdmd/orbit/AutoMDM Desktop
 
-- [ ] Verified compatibility with the latest released version of Fleet (see [Must rule](https://github.com/fleetdm/fleet/blob/main/docs/Contributing/workflows/fleetd-development-and-release-strategy.md))
+- [ ] Verified compatibility with the latest released version of AutoMDM (see [Must rule](https://github.com/anilyagiz/automdm/blob/main/docs/Contributing/workflows/automdmd-development-and-release-strategy.md))
 - [ ] If the change applies to only one platform, confirmed that `runtime.GOOS` is used as needed to isolate changes
-- [ ] Verified that fleetd runs on macOS, Linux and Windows
+- [ ] Verified that automdmd runs on macOS, Linux and Windows
 - [ ] Verified auto-update works from the released version of component to the new version (see [tools/tuf/test](../tools/tuf/test/README.md))

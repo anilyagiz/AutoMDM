@@ -28,5 +28,5 @@ columns:
     required: false
     description: |-
           This parameter indicates the minimum number of mixed characters in a password.
-notes: This table is not a core osquery table. It is included as part of Fleet's agent ([fleetd](https://fleetdm.com/docs/get-started/anatomy#fleetd)).
+notes: This table is not a core osquery table. It is included as part of AutoMDM's agent ([automdmd](https://automdm.com/docs/get-started/anatomy#automdmd)).
 evented: false

@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
-	"github.com/fleetdm/fleet/v4/server/mdm/android/service/androidmgmt"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android/service/androidmgmt"
 	"google.golang.org/api/androidmanagement/v1"
 	"google.golang.org/api/googleapi"
 )
@@ -67,9 +67,9 @@ func newAndroidPolicyRemoveApplicationsRequest(policyID, policyName string, pack
 
 func newAndroidPolicyRequest(policyID, policyName string, policy *androidmanagement.Policy, metadata map[string]string) (*android.MDMAndroidPolicyRequest, error) {
 	// save the payload with metadata about what setting comes from what profile
-	m := fleet.AndroidPolicyRequestPayload{
+	m := automdm.AndroidPolicyRequestPayload{
 		Policy: policy,
-		Metadata: fleet.AndroidPolicyRequestPayloadMetadata{
+		Metadata: automdm.AndroidPolicyRequestPayloadMetadata{
 			SettingsOrigin: metadata,
 		},
 	}
@@ -88,7 +88,7 @@ func newAndroidPolicyRequest(policyID, policyName string, policy *androidmanagem
 // (via newAndroidXxxRequest) requestObject with data from the result (success or
 // error). Only one of policyResult or deviceResult should be non-nil, depending
 // on the type of request made.
-func recordAndroidRequestResult(ctx context.Context, ds fleet.Datastore, requestObject *android.MDMAndroidPolicyRequest,
+func recordAndroidRequestResult(ctx context.Context, ds automdm.Datastore, requestObject *android.MDMAndroidPolicyRequest,
 	policyResult *androidmanagement.Policy, deviceResult *androidmanagement.Device, apiErr error) (skip bool, err error) {
 	if apiErr != nil {
 		var gerr *googleapi.Error
@@ -125,7 +125,7 @@ func recordAndroidRequestResult(ctx context.Context, ds fleet.Datastore, request
 	return skip, nil
 }
 
-func applyFleetEnforcedSettings(policy *androidmanagement.Policy) {
+func applyTeamEnforcedSettings(policy *androidmanagement.Policy) {
 	policy.StatusReportingSettings = &androidmanagement.StatusReportingSettings{
 		DeviceSettingsEnabled:        true,
 		MemoryInfoEnabled:            true,

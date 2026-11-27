@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	maintained_apps "github.com/fleetdm/fleet/v4/ee/maintained-apps"
+	maintained_apps "github.com/anilyagiz/automdm/v4/ee/maintained-apps"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

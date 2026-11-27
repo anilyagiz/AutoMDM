@@ -108,7 +108,7 @@ const CertificateAuthorities = () => {
             certificate authority.{" "}
             <CustomLink
               text="Learn more"
-              url="https://fleetdm.com/learn-more-about/certificate-authorities"
+              url="https://automdm.com/learn-more-about/certificate-authorities"
               newTab
             />
           </>

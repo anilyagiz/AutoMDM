@@ -8,14 +8,14 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/pkg/mdm/profilevalidation"
+	"github.com/anilyagiz/automdm/v4/pkg/mdm/profilevalidation"
 	"gopkg.in/yaml.v3"
 )
 
 // appleAnyKey is Apple's subkey name for "any key name"; its definition applies to every value.
 const appleAnyKey = "ANY"
 
-// appleRawKey is one entry of payloadkeys or subkeys. Fields Fleet doesn't use (title, content,
+// appleRawKey is one entry of payloadkeys or subkeys. Fields AutoMDM doesn't use (title, content,
 // default, combinetype, subkeytype, assettypes, ...) are dropped by not declaring them.
 type appleRawKey struct {
 	Key        string      `yaml:"key"`

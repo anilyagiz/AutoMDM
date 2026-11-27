@@ -1,6 +1,6 @@
 # Backend patterns
 
-The backend software patterns that we follow in Fleet.
+The backend software patterns that we follow in AutoMDM.
 
 > NOTE: There are always exceptions to the rules, but we try to follow these patterns as much as possible unless a specific use case calls
 > for something else. These should be discussed within the team and documented before merging.
@@ -25,9 +25,9 @@ Table of Contents
 
 Validate API inputs and return a 4XX status code if invalid. If you did not do authorization checking before failing validation, skip the authorization check with `svc.authz.SkipAuthorization(ctx)`.
 
-Inputs corresponding to sortable or indexed DB fields should be preprocessed (trim spaces, normalize Unicode, etc.). Use utility method `fleet.Preprocess(input string) string`. [Backend sync where discussed](https://us-65885.app.gong.io/call?id=4055688254267958899).
+Inputs corresponding to sortable or indexed DB fields should be preprocessed (trim spaces, normalize Unicode, etc.). Use utility method `automdm.Preprocess(input string) string`. [Backend sync where discussed](https://us-65885.app.gong.io/call?id=4055688254267958899).
 
-Invalid inputs should NOT log a server error. Server errors should be reserved for unexpected/serious issues. [`InvalidArgumentError` implements `IsClientError`](https://github.com/fleetdm/fleet/blob/529f4ed725117d99d668318aad23c9e1575fa7ee/server/fleet/errors.go#L134) method to indicate that it is a client error. [Backend sync where discussed](https://us-65885.app.gong.io/call?id=6515110653090875786&highlights=%5B%7B%22type%22%3A%22SHARE%22%2C%22from%22%3A340%2C%22to%22%3A1578%7D%5D).
+Invalid inputs should NOT log a server error. Server errors should be reserved for unexpected/serious issues. [`InvalidArgumentError` implements `IsClientError`](https://github.com/anilyagiz/automdm/blob/529f4ed725117d99d668318aad23c9e1575fa7ee/server/automdm/errors.go#L134) method to indicate that it is a client error. [Backend sync where discussed](https://us-65885.app.gong.io/call?id=6515110653090875786&highlights=%5B%7B%22type%22%3A%22SHARE%22%2C%22from%22%3A340%2C%22to%22%3A1578%7D%5D).
 
 ### JSON unmarshalling
 
@@ -55,16 +55,16 @@ Exceptions:
 
 #### Multiple hosts
 
-Use multiple hosts in automated tests and manual QA. For example, use a Windows VM and a Windows bare metal host when testing Windows profiles. Since our customers run Fleet on many hosts, we must be vigilant regarding multi-host use cases. [Backend sync where discussed](https://us-65885.app.gong.io/call?id=8290454302335084423).
+Use multiple hosts in automated tests and manual QA. For example, use a Windows VM and a Windows bare metal host when testing Windows profiles. Since our customers run AutoMDM on many hosts, we must be vigilant regarding multi-host use cases. [Backend sync where discussed](https://us-65885.app.gong.io/call?id=8290454302335084423).
 
 See [the migration test in PR #28601](https://github.com/fleetdm/fleet/pull/28601/files#diff-53ce88f00ff80a0f7c0a1a2e23b14f6cb7ed5d7a7d91146236f499a756935869)
 and [the test added in PR #30578](https://github.com/fleetdm/fleet/pull/30578/files#diff-124b43a1afae8960d4eb3765b2a5d5525c5ffba57c9b59ff78eb6cd222532e1c)
 for examples of multi-host automated testing added to validate P0 bugfixes.
 
-#### Multiple fleets
+#### Multiple teams
 
-Use multiple fleets in your automated tests and manual QA. Make sure your code works as expected for the "Unassigned" fleet, as well as for "All fleets" (when relevant).
-For example, aggregate counts/stats should factor in fleets when being calculated.
+Use multiple teams in your automated tests and manual QA. Make sure your code works as expected for the "Unassigned" team, as well as for "All teams" (when relevant).
+For example, aggregate counts/stats should factor in teams when being calculated.
 
 #### Assert vs require
 
@@ -188,17 +188,17 @@ for an example of this pattern.
 
 ### Replica lag
 
-Replication lag of up to 50ms could potentially happen (based on some historical data from AWS Aurora). Use `ctxdb.RequirePrimary(ctx, true)` when reading a value after writing to it in the same request, or for a read-then-write of something critical like the app config (see [`SetAndroidEnabledAndConfigured`](https://github.com/fleetdm/fleet/blob/c1ccc202b46aa66205b4c13723ef7c62374d6411/server/datastore/mysql/app_configs.go#L130)).
+Replication lag of up to 50ms could potentially happen (based on some historical data from AWS Aurora). Use `ctxdb.RequirePrimary(ctx, true)` when reading a value after writing to it in the same request, or for a read-then-write of something critical like the app config (see [`SetAndroidEnabledAndConfigured`](https://github.com/anilyagiz/automdm/blob/c1ccc202b46aa66205b4c13723ef7c62374d6411/server/datastore/mysql/app_configs.go#L130)).
 
-Avoid reading from the primary db when not necessary. For example, a GET request after a PATCH for the same resource, or two concurrent requests from different admins that change the same resource (e.g. one admin edits an App Store app while another deletes it), might not need to handle replica lag issues. Some host endpoints might have to deal with back to back requests, so they may need to handle replica lag. For examples, see [`isDuplicateOrStalePubSub`](https://github.com/fleetdm/fleet/blob/c1ccc202b46aa66205b4c13723ef7c62374d6411/server/mdm/android/service/pubsub.go#L463) and [`tryLinkUnlinkedEnrollmentFromDevDetail`](https://github.com/fleetdm/fleet/blob/c1ccc202b46aa66205b4c13723ef7c62374d6411/server/service/microsoft_mdm.go#L1889).
+Avoid reading from the primary db when not necessary. For example, a GET request after a PATCH for the same resource, or two concurrent requests from different admins that change the same resource (e.g. one admin edits an App Store app while another deletes it), might not need to handle replica lag issues. Some host endpoints might have to deal with back to back requests, so they may need to handle replica lag. For examples, see [`isDuplicateOrStalePubSub`](https://github.com/anilyagiz/automdm/blob/c1ccc202b46aa66205b4c13723ef7c62374d6411/server/mdm/android/service/pubsub.go#L463) and [`tryLinkUnlinkedEnrollmentFromDevDetail`](https://github.com/anilyagiz/automdm/blob/c1ccc202b46aa66205b4c13723ef7c62374d6411/server/service/microsoft_mdm.go#L1889).
 
 ## Specific features
 
 ### GitOps
 
-[GitOps documentation](https://fleetdm.com/docs/configuration/yaml-files)
+[GitOps documentation](https://automdm.com/docs/configuration/yaml-files)
 
-`fleetctl gitops` was implemented on top of the existing `fleetctl apply` command. Now that `apply` no longer supports the newest features,
+`automdmctl gitops` was implemented on top of the existing `automdmctl apply` command. Now that `apply` no longer supports the newest features,
 we need to separate the code for the two commands.
 
 Common issues and gotchas:
@@ -208,7 +208,7 @@ Common issues and gotchas:
 - Few integration tests. GitOps is a complex feature with an extensive state space because many settings interact. At the same time, setting
   up a test environment for GitOps is difficult. As we work on GitOps, we need to add more integration tests and develop testing utilities
   to make adding future integration tests easier.
-- GitOps admin can define settings in `default.yml`, `fleets/fleet-name.yml`, or `fleets/unassigned.yml`. Create unit tests for all these cases
+- GitOps admin can define settings in `default.yml`, `teams/team-name.yml`, or `teams/unassigned.yml`. Create unit tests for all these cases
   for features that support them.
 
 #### Database work in batch operations
@@ -217,5 +217,5 @@ GitOps endpoints receive a whole payload of profiles, software packages, reports
 
 - **Split the work into chunks, each in its own transaction.** Process items in fixed-size batches (for example, 500 IDs per `INSERT`, `UPDATE`, or `DELETE`) instead of one statement or transaction covering the whole payload.
 - **Keep each transaction short.** Do validation, file hashing, network calls, and other slow work before opening the transaction. Inside it, run only the SQL statements that must be atomic together.
-- **Don't rely on context cancellation to stop a query.** When the request context is canceled (for example, `fleetctl gitops` times out or the client disconnects), the MySQL driver closes the connection but does not kill the query on the server. A large `DELETE` or `UPDATE` keeps running to completion, holding its locks, and inside a transaction it is then rolled back, which can take as long again. Bounding each statement's size is a reliable way to bound its cost.
+- **Don't rely on context cancellation to stop a query.** When the request context is canceled (for example, `automdmctl gitops` times out or the client disconnects), the MySQL driver closes the connection but does not kill the query on the server. A large `DELETE` or `UPDATE` keeps running to completion, holding its locks, and inside a transaction it is then rolled back, which can take as long again. Bounding each statement's size is a reliable way to bound its cost.
 - **Plan for partial failure.** Chunking gives up all-or-nothing atomicity, so a failed run can leave partial changes. Re-running GitOps only redoes work it can derive from the config. Work triggered by a change detected in an earlier, committed chunk (such as cleaning up host rows after a policy's query changes) won't run again, because the next run sees no change. Either derive that work from the desired state on every run, or record it in the same transaction as the change and have a cron job do it. For example, `ApplyPolicySpecs` flags each changed policy for result cleanup, and the `policy_membership_cleanup` schedule removes the outdated results.

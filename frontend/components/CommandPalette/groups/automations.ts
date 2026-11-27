@@ -22,8 +22,8 @@ const buildAutomationsItems = (
   const { isUnassigned, switchesFromUnassigned } = derived;
 
   return [
-    // Manage automations — software. Normally All-fleets-only, but in
-    // Primo Mode the single fleet acts as "all fleets" so the destination
+    // Manage automations — software. Normally All-teams-only, but in
+    // Primo Mode the single team acts as "all teams" so the destination
     // page (SoftwarePage) accepts it too.
     ...(canManageSoftwareAutomations &&
     ((!hasTeamSelected && !isUnassigned) || isPrimoMode)
@@ -62,9 +62,9 @@ const buildAutomationsItems = (
         ]
       : []),
 
-    // Manage automations — host activities (per-fleet setting on the Hosts
-    // page; Premium, admins). Only surfaced when a specific fleet or "No
-    // fleet" is selected: withTeamId adds no fleet_id on "All fleets", where
+    // Manage automations — host activities (per-team setting on the Hosts
+    // page; Premium, admins). Only surfaced when a specific team or "No
+    // team" is selected: withTeamId adds no team_id on "All teams", where
     // the destination shows the option disabled.
     ...(canManageHostActivityAutomations &&
     isPremiumTier &&
@@ -115,12 +115,12 @@ const buildAutomationsItems = (
     // hasPoliciesToAutomate before opening, then strips the param.
     //
     // Keywords match the sections AutomationsModal actually renders for
-    // the current fleet scope (see AutomationsModal.tsx:230, 244, 281):
-    //   - All fleets:  Webhooks/tickets only
+    // the current team scope (see AutomationsModal.tsx:230, 244, 281):
+    //   - All teams:  Webhooks/tickets only
     //   - Unassigned:  Webhooks/tickets + Conditional access
     //   - Team:        Webhooks/tickets + Calendar + Conditional access
     // Hiding the inapplicable keywords keeps the palette from matching
-    // (e.g.) "calendar" to a fleet where the section isn't rendered.
+    // (e.g.) "calendar" to a team where the section isn't rendered.
     ...(canManagePolicyAutomations
       ? [
           {

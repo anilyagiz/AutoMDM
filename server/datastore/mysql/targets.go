@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -14,19 +14,19 @@ import (
 // can't be targeted by live reports.
 const mobilePlatformsSQLList = "('ios','ipados','android')"
 
-func (ds *Datastore) CountHostsInTargets(ctx context.Context, filter fleet.TeamFilter, targets fleet.HostTargets, now time.Time) (fleet.TargetMetrics, error) {
+func (ds *Datastore) CountHostsInTargets(ctx context.Context, filter automdm.TeamFilter, targets automdm.HostTargets, now time.Time) (automdm.TargetMetrics, error) {
 	// The logic in this function should remain synchronized with
 	// host.Status and GenerateHostStatusStatistics - that is, the intervals associated
 	// with each status must be the same.
 
 	if len(targets.HostIDs) == 0 && len(targets.LabelIDs) == 0 && len(targets.TeamIDs) == 0 {
 		// No need to query if no targets selected
-		return fleet.TargetMetrics{}, nil
+		return automdm.TargetMetrics{}, nil
 	}
 
 	queryTargetLogicCondition, queryTargetArgs := targetSQLCondAndArgs(targets, "h")
 
-	// As of Fleet 4.15, mia hosts are also included in the total for offline hosts.
+	// As of AutoMDM 4.15, mia hosts are also included in the total for offline hosts.
 	// Mobile hosts are excluded because they don't run osquery and can't respond
 	// to a live report; kept in lockstep with HostIDsInTargets.
 	sql := fmt.Sprintf(`
@@ -39,19 +39,19 @@ func (ds *Datastore) CountHostsInTargets(ctx context.Context, filter fleet.TeamF
 		FROM hosts h
 		LEFT JOIN host_seen_times hst ON (h.id=hst.host_id)`+hostMDMSeenTimeJoin+`
 		WHERE h.platform NOT IN `+mobilePlatformsSQLList+` AND %s AND %s`,
-		fleet.OnlineIntervalBuffer, fleet.OnlineIntervalBuffer,
+		automdm.OnlineIntervalBuffer, automdm.OnlineIntervalBuffer,
 		queryTargetLogicCondition, ds.whereFilterHostsByTeams(filter, "h"),
 	)
 
 	query, args, err := sqlx.In(sql, append([]any{now, now, now, now}, queryTargetArgs...)...)
 	if err != nil {
-		return fleet.TargetMetrics{}, ctxerr.Wrap(ctx, err, "sqlx.In CountHostsInTargets")
+		return automdm.TargetMetrics{}, ctxerr.Wrap(ctx, err, "sqlx.In CountHostsInTargets")
 	}
 
-	res := fleet.TargetMetrics{}
+	res := automdm.TargetMetrics{}
 	err = sqlx.GetContext(ctx, ds.reader(ctx), &res, query, args...)
 	if err != nil {
-		return fleet.TargetMetrics{}, ctxerr.Wrap(ctx, err, "sqlx.Get CountHostsInTargets")
+		return automdm.TargetMetrics{}, ctxerr.Wrap(ctx, err, "sqlx.Get CountHostsInTargets")
 	}
 
 	return res, nil
@@ -59,7 +59,7 @@ func (ds *Datastore) CountHostsInTargets(ctx context.Context, filter fleet.TeamF
 
 // targetSQLCondAndArgs returns the SQL condition and the arguments for matching whether
 // a host ID is a target of a live query.
-func targetSQLCondAndArgs(targets fleet.HostTargets, hostKey string) (sql string, args []any) {
+func targetSQLCondAndArgs(targets automdm.HostTargets, hostKey string) (sql string, args []any) {
 	const queryTargetLogicCondition = `(
 	/* The host was selected explicitly. */
 	%[1]s.id IN (? /* queryHostIDs */)
@@ -130,7 +130,7 @@ func targetSQLCondAndArgs(targets fleet.HostTargets, hostKey string) (sql string
 	}
 }
 
-func (ds *Datastore) HostIDsInTargets(ctx context.Context, filter fleet.TeamFilter, targets fleet.HostTargets) ([]uint, error) {
+func (ds *Datastore) HostIDsInTargets(ctx context.Context, filter automdm.TeamFilter, targets automdm.HostTargets) ([]uint, error) {
 	if len(targets.HostIDs) == 0 && len(targets.LabelIDs) == 0 && len(targets.TeamIDs) == 0 {
 		// No need to query if no targets selected
 		return []uint{}, nil

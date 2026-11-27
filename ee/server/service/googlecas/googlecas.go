@@ -1,5 +1,5 @@
 // Package googlecas talks to Google Cloud Certificate Authority Service (CAS) on behalf of a Google CAS certificate authority configured
-// in Fleet, authenticating with the service account key stored on the CA.
+// in AutoMDM, authenticating with the service account key stored on the CA.
 package googlecas
 
 import (
@@ -25,9 +25,9 @@ import (
 	"cloud.google.com/go/auth"
 	"cloud.google.com/go/auth/credentials"
 	"cloud.google.com/go/auth/httptransport"
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
@@ -36,7 +36,7 @@ import (
 
 const (
 	defaultTimeout = 20 * time.Second
-	// certificateLifetime is the lifetime Fleet requests. The CA pool's issuance policy and the issuing CA's own expiry can shorten it.
+	// certificateLifetime is the lifetime AutoMDM requests. The CA pool's issuance policy and the issuing CA's own expiry can shorten it.
 	certificateLifetime = 365 * 24 * time.Hour
 	// issueRetryAfterSeconds is the Retry-After for a certificate request Google CAS couldn't serve for a reason expected to clear.
 	issueRetryAfterSeconds = 30
@@ -59,12 +59,12 @@ type Service struct {
 }
 
 type issueClient struct {
-	key    fleet.GoogleCASKeyJSON
+	key    automdm.GoogleCASKeyJSON
 	client *privateca.Service
 }
 
-// Compile-time check to ensure that Service implements fleet.GoogleCASService.
-var _ fleet.GoogleCASService = (*Service)(nil)
+// Compile-time check to ensure that Service implements automdm.GoogleCASService.
+var _ automdm.GoogleCASService = (*Service)(nil)
 
 type Opt func(*Service)
 
@@ -103,8 +103,8 @@ func NewService(opts ...Opt) *Service {
 	if s.logger == nil {
 		s.logger = slog.New(slog.NewTextHandler(os.Stdout, nil))
 	}
-	s.transport = fleethttp.NewTransport()
-	s.tokenClient = fleethttp.NewClient(fleethttp.WithFollowRedir(false))
+	s.transport = automdmhttp.NewTransport()
+	s.tokenClient = automdmhttp.NewClient(automdmhttp.WithFollowRedir(false))
 	return s
 }
 
@@ -131,7 +131,7 @@ func ValidateServiceAccountKey(keyJSON string) error {
 	return nil
 }
 
-func (s *Service) VerifyCAPool(ctx context.Context, ca fleet.GoogleCASCA) error {
+func (s *Service) VerifyCAPool(ctx context.Context, ca automdm.GoogleCASCA) error {
 	ctx, cancel := context.WithTimeout(ctx, s.timeout)
 	defer cancel()
 
@@ -145,7 +145,7 @@ func (s *Service) VerifyCAPool(ctx context.Context, ca fleet.GoogleCASCA) error 
 	return nil
 }
 
-func (s *Service) IssueCertificate(ctx context.Context, ca fleet.GoogleCASCA, csr *x509.CertificateRequest) (*x509.Certificate, error) {
+func (s *Service) IssueCertificate(ctx context.Context, ca automdm.GoogleCASCA, csr *x509.CertificateRequest) (*x509.Certificate, error) {
 	ctx, cancel := context.WithTimeout(ctx, s.timeout)
 	defer cancel()
 
@@ -159,11 +159,11 @@ func (s *Service) IssueCertificate(ctx context.Context, ca fleet.GoogleCASCA, cs
 	}
 	// Enterprise-tier pools require a certificate ID that is unique in the location; DevOps-tier pools ignore it.
 	issued, err := client.Projects.Locations.CaPools.Certificates.Create(ca.CAPoolResourceName(), request).
-		CertificateId("fleet-" + uuid.New().String()).Context(ctx).Do()
+		CertificateId("automdm-" + uuid.New().String()).Context(ctx).Do()
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, s.describeIssueError(ctx, err, ca), "issuing Google CAS certificate")
 	}
-	// A certificate Google issued but Fleet doesn't return stays valid, so it's logged for revocation. DevOps-tier pools keep no
+	// A certificate Google issued but AutoMDM doesn't return stays valid, so it's logged for revocation. DevOps-tier pools keep no
 	// record of their certificates and return no name, so the serial identifies it there.
 	var serial string
 	refuse := func(err error) (*x509.Certificate, error) {
@@ -184,7 +184,7 @@ func (s *Service) IssueCertificate(ctx context.Context, ca fleet.GoogleCASCA, cs
 	if issuedKey, ok := cert.PublicKey.(interface{ Equal(crypto.PublicKey) bool }); !ok || !issuedKey.Equal(csr.PublicKey) {
 		return refuse(ctxerr.New(ctx, "Google CAS issued a certificate for a different public key than the CSR's"))
 	}
-	// Fleet only asks for client certificates, so one that can sign certificates, CRLs or OCSP responses means the pool added it.
+	// AutoMDM only asks for client certificates, so one that can sign certificates, CRLs or OCSP responses means the pool added it.
 	if cert.IsCA || cert.KeyUsage&(x509.KeyUsageCertSign|x509.KeyUsageCRLSign) != 0 || slices.Contains(cert.ExtKeyUsage, x509.ExtKeyUsageOCSPSigning) {
 		return refuse(ctxerr.New(ctx, "Google CAS issued a certificate that can sign other certificates. Check the CA pool's issuance policy."))
 	}
@@ -194,7 +194,7 @@ func (s *Service) IssueCertificate(ctx context.Context, ca fleet.GoogleCASCA, cs
 }
 
 // issueClient returns the CA's cached client, creating it on first use and again when the CA's key changes.
-func (s *Service) issueClient(ca fleet.GoogleCASCA) (*privateca.Service, error) {
+func (s *Service) issueClient(ca automdm.GoogleCASCA) (*privateca.Service, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if cached, ok := s.issueClients[ca.ID]; ok && cached.key == ca.APIKeyJSON {
@@ -210,7 +210,7 @@ func (s *Service) issueClient(ca fleet.GoogleCASCA) (*privateca.Service, error) 
 	return client, nil
 }
 
-func (s *Service) newClient(ctx context.Context, ca fleet.GoogleCASCA) (*privateca.Service, error) {
+func (s *Service) newClient(ctx context.Context, ca automdm.GoogleCASCA) (*privateca.Service, error) {
 	if err := ValidateServiceAccountKey(string(ca.APIKeyJSON)); err != nil {
 		return nil, err
 	}
@@ -218,7 +218,7 @@ func (s *Service) newClient(ctx context.Context, ca fleet.GoogleCASCA) (*private
 	if err != nil {
 		return nil, err
 	}
-	// The token exchange and API calls both use fleethttp, so they get the same outbound restrictions as other integrations.
+	// The token exchange and API calls both use automdmhttp, so they get the same outbound restrictions as other integrations.
 	creds, err := credentials.NewCredentialsFromJSON(credentials.ServiceAccount, keyJSON, &credentials.DetectOptions{
 		Scopes: []string{privateca.CloudPlatformScope},
 		Client: s.tokenClient,
@@ -249,7 +249,7 @@ func (s *Service) newClient(ctx context.Context, ca fleet.GoogleCASCA) (*private
 // withTokenURL returns the key with its token_uri set to s.tokenURL, Google's token endpoint outside tests. The auth library sends the
 // signed assertion to the key's token_uri, and every genuine key names Google's, so the field is not trusted. Case variants go too, since
 // encoding/json matches field names case-insensitively.
-func (s *Service) withTokenURL(keyJSON fleet.GoogleCASKeyJSON) ([]byte, error) {
+func (s *Service) withTokenURL(keyJSON automdm.GoogleCASKeyJSON) ([]byte, error) {
 	var fields map[string]json.RawMessage
 	if err := json.Unmarshal([]byte(keyJSON), &fields); err != nil {
 		return nil, errors.New("The service account key must be a JSON object.")
@@ -269,7 +269,7 @@ func (s *Service) withTokenURL(keyJSON fleet.GoogleCASKeyJSON) ([]byte, error) {
 
 // describeError turns a Google API failure into a message that tells the user which of their settings to check. The underlying error
 // is logged because the Google message can include the request details.
-func (s *Service) describeError(ctx context.Context, err error, ca fleet.GoogleCASCA) error {
+func (s *Service) describeError(ctx context.Context, err error, ca automdm.GoogleCASCA) error {
 	s.logger.ErrorContext(ctx, "Google CAS request failed", "ca_pool", ca.CAPoolResourceName(), "err", err)
 	if apiErr, ok := errors.AsType[*googleapi.Error](err); ok {
 		switch apiErr.Code {
@@ -317,7 +317,7 @@ func isConnectionError(err error) bool {
 
 // describeIssueError is describeError for a certificate request, where a failure that should clear on its own is transient, so the
 // caller gets a 503 with Retry-After and can try again.
-func (s *Service) describeIssueError(ctx context.Context, err error, ca fleet.GoogleCASCA) error {
+func (s *Service) describeIssueError(ctx context.Context, err error, ca automdm.GoogleCASCA) error {
 	s.logger.ErrorContext(ctx, "Google CAS certificate request failed", "ca_pool", ca.CAPoolResourceName(), "err", err)
 	if apiErr, ok := errors.AsType[*googleapi.Error](err); ok {
 		switch {
@@ -345,5 +345,5 @@ func (s *Service) describeIssueError(ctx context.Context, err error, ca fleet.Go
 
 // transientError carries only a message, not the cause: wrapping a *net.OpError makes the HTTP encoder answer 408 instead of 503.
 func transientError(message string) error {
-	return fleet.CertificateAuthorityTransientError{Message: message, RetryAfterSeconds: issueRetryAfterSeconds}
+	return automdm.CertificateAuthorityTransientError{Message: message, RetryAfterSeconds: issueRetryAfterSeconds}
 }

@@ -8,9 +8,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/nvd/tools/cpedict"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/nvd/tools/wfn"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/nvd/tools/cpedict"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/nvd/tools/wfn"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -39,7 +39,7 @@ func sqliteDBReadOnly(ctx context.Context, dbPath string, logger *slog.Logger) (
 
 func applyCPEDatabaseSchema(db *sqlx.DB) error {
 	// Use a new table cpe_2 containing new columns vendor, product. view cpe used for backwards compatibility
-	// with old fleet versions that use "select * from cpe ...". When creating the view, we need to
+	// with old team versions that use "select * from cpe ...". When creating the view, we need to
 	// select rowid because it is used for joins between the cpe and cpe_search tables
 	_, err := db.Exec(`
 CREATE TABLE IF NOT EXISTS cpe_2 (

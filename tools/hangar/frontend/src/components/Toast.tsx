@@ -9,7 +9,7 @@ export function Toast({ kind, msg }: { kind: "ok" | "err"; msg: string }) {
         left: "50%",
         transform: "translateX(-50%)",
         background: kind === "err" ? "var(--core-vibrant-red)" : "var(--app-surface)",
-        color: kind === "err" ? "var(--core-fleet-white)" : "var(--app-text)",
+        color: kind === "err" ? "var(--core-automdm-white)" : "var(--app-text)",
         border: "1px solid var(--app-border)",
         borderRadius: "var(--radius-md)",
         padding: "var(--pad-small) var(--pad-medium)",

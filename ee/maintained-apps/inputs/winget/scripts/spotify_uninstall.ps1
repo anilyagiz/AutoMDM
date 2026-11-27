@@ -6,7 +6,7 @@
 
 $displayName = "Spotify"
 $publisher = "Spotify AB"
-$taskName = "fleet-uninstall-spotify"
+$taskName = "automdm-uninstall-spotify"
 $appDir = "AppData\Roaming\Spotify"  # in each user's profile
 $taskRunning = 267009  # SCHED_S_TASK_RUNNING
 $timeoutSeconds = 300

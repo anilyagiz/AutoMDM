@@ -20,9 +20,9 @@ examples: |-
   ```
   
 notes: |-
-  Querying this table requires joining against the `users` table. [Learn more](https://fleetdm.com/guides/osquery-consider-joining-against-the-users-table)
+  Querying this table requires joining against the `users` table. [Learn more](https://automdm.com/guides/osquery-consider-joining-against-the-users-table)
 
-  On ChromeOS, this table requires the [fleetd Chrome extension](https://fleetdm.com/docs/using-fleet/chromeos).
+  On ChromeOS, this table requires the [automdmd Chrome extension](https://automdm.com/docs/using-automdm/chromeos).
 
   Examples of [malicious Chrome extensions](https://palant.info/2023/06/08/another-cluster-of-potentially-malicious-chrome-extensions/)
 

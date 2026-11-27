@@ -7,7 +7,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/fleetdm/fleet/v4/server/goose"
+	"github.com/anilyagiz/automdm/v4/server/goose"
 
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"

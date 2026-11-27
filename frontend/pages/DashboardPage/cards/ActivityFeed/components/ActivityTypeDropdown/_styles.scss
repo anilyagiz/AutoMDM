@@ -3,7 +3,7 @@
     position: sticky;
     top: 0;
     padding-top: $pad-small;
-    background-color: $core-fleet-white;
+    background-color: $core-automdm-white;
 
     .icon {
       position: absolute;
@@ -16,7 +16,7 @@
     @include menu-search-input;
 
     &--disabled {
-      color: $ui-fleet-black-50;
+      color: $ui-automdm-black-50;
     }
 
     &--error {
@@ -27,8 +27,8 @@
 
       &:focus {
         border-color: $ui-error;
-        background-color: $core-fleet-white;
-        color: $core-fleet-black;
+        background-color: $core-automdm-white;
+        color: $core-automdm-black;
       }
     }
   }

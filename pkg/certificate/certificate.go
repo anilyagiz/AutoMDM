@@ -13,7 +13,7 @@ import (
 	"net/url"
 	"os"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 )
 
 // LoadPEM loads certificates from a PEM file and returns a cert pool containing
@@ -37,8 +37,8 @@ func LoadPEM(path string) (*x509.CertPool, error) {
 // to the server URL using the cert pool provided. The validation performed is
 // not sufficient to verify authenticity of the server, but it can help to catch
 // certificate errors and provide more detailed messages to users.
-func ValidateConnection(pool *x509.CertPool, fleetURL string) error {
-	return ValidateConnectionContext(context.Background(), pool, fleetURL)
+func ValidateConnection(pool *x509.CertPool, automdmURL string) error {
+	return ValidateConnectionContext(context.Background(), pool, automdmURL)
 }
 
 // ValidateConnectionContext is like ValidateConnection, but it accepts a

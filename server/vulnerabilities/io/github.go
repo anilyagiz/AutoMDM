@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/download"
+	"github.com/anilyagiz/automdm/v4/pkg/download"
 	"github.com/google/go-github/v37/github"
 )
 
@@ -123,7 +123,7 @@ func (gh GitHubClient) list(ctx context.Context, prefix string, ctor func(fileNa
 
 	releases, r, err := gh.releases.ListReleases(
 		ctx,
-		"fleetdm",
+		"automdm",
 		"nvd",
 		&github.ListOptions{Page: 0, PerPage: 10},
 	)

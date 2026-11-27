@@ -17,21 +17,21 @@ const buildWrapper = () => {
 };
 
 describe("usePatchDeadlineSettings", () => {
-  it("fetches the new fleet's settings when fleetId changes", async () => {
+  it("fetches the new team's settings when automdmId changes", async () => {
     mockServer.use(getPatchDeadlineSettingsHandler());
     const { result, rerender } = renderHook(
-      ({ fleetId }: { fleetId: number }) => usePatchDeadlineSettings(fleetId),
-      { wrapper: buildWrapper(), initialProps: { fleetId: 1 } }
+      ({ automdmId }: { automdmId: number }) => usePatchDeadlineSettings(automdmId),
+      { wrapper: buildWrapper(), initialProps: { automdmId: 1 } }
     );
 
-    await waitFor(() => expect(result.current.data?.fleet_id).toBe(1));
+    await waitFor(() => expect(result.current.data?.team_id).toBe(1));
 
-    rerender({ fleetId: 2 });
+    rerender({ automdmId: 2 });
 
-    await waitFor(() => expect(result.current.data?.fleet_id).toBe(2));
+    await waitFor(() => expect(result.current.data?.team_id).toBe(2));
   });
 
-  it("stays idle without a fleetId", () => {
+  it("stays idle without an automdmId", () => {
     const { result } = renderHook(() => usePatchDeadlineSettings(undefined), {
       wrapper: buildWrapper(),
     });

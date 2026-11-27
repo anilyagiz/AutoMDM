@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -38,7 +38,7 @@ type androidDeviceVitalsRow struct {
 	TelephonyInfos         []byte `db:"telephony_infos"`
 }
 
-func newAndroidDeviceVitalsRow(ctx context.Context, hostUUID string, vitals fleet.MDMAndroidDeviceVitals) (*androidDeviceVitalsRow, error) {
+func newAndroidDeviceVitalsRow(ctx context.Context, hostUUID string, vitals automdm.MDMAndroidDeviceVitals) (*androidDeviceVitalsRow, error) {
 	row := &androidDeviceVitalsRow{
 		HostUUID: hostUUID,
 
@@ -85,7 +85,7 @@ func newAndroidDeviceVitalsRow(ctx context.Context, hostUUID string, vitals flee
 // that violates the primary key. Two concurrent first reports for the same
 // host can still race into a duplicate-key error on the insert; Pub/Sub
 // redelivery makes that self-healing.
-func (ds *Datastore) SetOrUpdateHostMDMAndroidDeviceVitals(ctx context.Context, hostUUID string, vitals fleet.MDMAndroidDeviceVitals) error {
+func (ds *Datastore) SetOrUpdateHostMDMAndroidDeviceVitals(ctx context.Context, hostUUID string, vitals automdm.MDMAndroidDeviceVitals) error {
 	const updateStmt = `
 		UPDATE host_mdm_android_device_vitals SET
 			adb_enabled = :adb_enabled,
@@ -146,7 +146,7 @@ const androidDeviceVitalsSelectStmt = `
 	FROM host_mdm_android_device_vitals
 	WHERE host_uuid = ?`
 
-func (ds *Datastore) LoadHostMDMAndroidDeviceVitals(ctx context.Context, host *fleet.Host) error {
+func (ds *Datastore) LoadHostMDMAndroidDeviceVitals(ctx context.Context, host *automdm.Host) error {
 	var row androidDeviceVitalsRow
 	err := sqlx.GetContext(ctx, ds.reader(ctx), &row, androidDeviceVitalsSelectStmt, host.UUID)
 	switch {

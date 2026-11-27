@@ -1,8 +1,8 @@
-resource "random_password" "fleet-db-user-pw" {
+resource "random_password" "automdm-db-user-pw" {
   length = 12
 }
 
-module "fleet-mysql" {
+module "automdm-mysql" {
   source               = "GoogleCloudPlatform/sql-db/google//modules/mysql"
   version              = "9.0.0"
   name                 = "${var.prefix}-mysql"
@@ -14,7 +14,7 @@ module "fleet-mysql" {
   additional_users = [
     {
       name     = var.db_user
-      password = random_password.fleet-db-user-pw.result
+      password = random_password.automdm-db-user-pw.result
       host     = "% (any host)"
       type     = "BUILT_IN"
     }

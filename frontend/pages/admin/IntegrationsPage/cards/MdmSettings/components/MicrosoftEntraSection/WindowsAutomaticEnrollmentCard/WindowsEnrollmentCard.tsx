@@ -12,7 +12,7 @@ interface IWindowsAutomaticEnrollmentCardProps {
 
 const WindowsMdmDisabledCard = (
   <SectionCard header="Windows enrollment">
-    To enable end users to enroll to Fleet via Microsoft Entra (e.g. Autopilot),
+    To enable end users to enroll to AutoMDM via Microsoft Entra (e.g. Autopilot),
     first turn on Windows MDM.
   </SectionCard>
 );
@@ -47,7 +47,7 @@ const WindowsTenantNotAddedCard = ({
     header="Windows enrollment"
     cta={<Button onClick={addTenant}>Connect</Button>}
   >
-    To enable end users to enroll to Fleet via Microsoft Entra (e.g. Autopilot),
+    To enable end users to enroll to AutoMDM via Microsoft Entra (e.g. Autopilot),
     you need to add Entra tenant ID first.
   </SectionCard>
 );

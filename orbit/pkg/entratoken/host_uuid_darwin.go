@@ -6,7 +6,7 @@ package entratoken
 #include <unistd.h>
 #include <uuid/uuid.h>
 
-static int fleetHostUUID(char *out) {
+static int automdmHostUUID(char *out) {
 	uuid_t u;
 	struct timespec wait = {5, 0};
 	if (gethostuuid(u, &wait) != 0) {
@@ -26,7 +26,7 @@ import (
 // hostUUID returns the hardware UUID (IOPlatformUUID), which osquery reports as the host UUID.
 func hostUUID() (string, error) {
 	var buf [37]C.char
-	if C.fleetHostUUID(&buf[0]) != 0 {
+	if C.automdmHostUUID(&buf[0]) != 0 {
 		return "", errors.New("get host UUID")
 	}
 	return C.GoString((*C.char)(unsafe.Pointer(&buf[0]))), nil

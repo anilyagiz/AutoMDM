@@ -1,6 +1,6 @@
 # Vulnerability Performance Testing Tools
 
-This directory contains tools for testing the performance of Fleet's vulnerability-related datastore methods.
+This directory contains tools for testing the performance of AutoMDM's vulnerability-related datastore methods.
 
 ## Tools
 
@@ -31,7 +31,7 @@ go run seeder/volume_vuln_seeder.go -hosts=1000 -teams=10 -cves=2000 -software=4
 
 ### Performance Tester (`tester/performance_tester.go`)
 
-Benchmarks any Fleet datastore method with statistical analysis.
+Benchmarks any AutoMDM datastore method with statistical analysis.
 
 **Usage:**
 
@@ -62,14 +62,14 @@ var testFunctions = map[string]TestFunction{
 
     // Add new function
     "CountHosts": func(ctx context.Context, ds *mysql.Datastore) error {
-        _, err := ds.CountHosts(ctx, fleet.TeamFilter{User: &fleet.User{}}, fleet.HostListOptions{})
+        _, err := ds.CountHosts(ctx, automdm.TeamFilter{User: &automdm.User{}}, automdm.HostListOptions{})
         return err
     },
 
     // Add function with parameters
     "ListHosts:100": func(ctx context.Context, ds *mysql.Datastore) error {
-        _, err := ds.ListHosts(ctx, fleet.TeamFilter{User: &fleet.User{}}, fleet.HostListOptions{
-            ListOptions: fleet.ListOptions{Page: 0, PerPage: 100},
+        _, err := ds.ListHosts(ctx, automdm.TeamFilter{User: &automdm.User{}}, automdm.HostListOptions{
+            ListOptions: automdm.ListOptions{Page: 0, PerPage: 100},
         })
         return err
     },

@@ -65,8 +65,8 @@ examples: |-
   ```
   
 notes: |-
-  This table is not a core osquery table. It is included as part of Fleet's agent
-  ([fleetd](https://fleetdm.com/docs/get-started/anatomy#fleetd)).
+  This table is not a core osquery table. It is included as part of AutoMDM's agent
+  ([automdmd](https://automdm.com/docs/get-started/anatomy#automdmd)).
   
   The `containerd_mounts` table is available on Linux systems with containerd installed. It provides
   information about the mounts configured for containers managed by containerd.

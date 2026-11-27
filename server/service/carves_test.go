@@ -12,12 +12,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/authz"
-	carvestorectx "github.com/fleetdm/fleet/v4/server/contexts/carvestore"
-	hostctx "github.com/fleetdm/fleet/v4/server/contexts/host"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	carvestorectx "github.com/anilyagiz/automdm/v4/server/contexts/carvestore"
+	hostctx "github.com/anilyagiz/automdm/v4/server/contexts/host"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -26,25 +26,25 @@ func TestListCarves(t *testing.T) {
 	ds := new(mock.Store)
 	svc, ctx := newTestService(t, ds, nil, nil)
 
-	ds.ListCarvesFunc = func(ctx context.Context, opts fleet.CarveListOptions) ([]*fleet.CarveMetadata, error) {
-		return []*fleet.CarveMetadata{
+	ds.ListCarvesFunc = func(ctx context.Context, opts automdm.CarveListOptions) ([]*automdm.CarveMetadata, error) {
+		return []*automdm.CarveMetadata{
 			{ID: 1},
 			{ID: 2},
 		}, nil
 	}
 
 	// admin user
-	carves, err := svc.ListCarves(test.UserContext(ctx, test.UserAdmin), fleet.CarveListOptions{})
+	carves, err := svc.ListCarves(test.UserContext(ctx, test.UserAdmin), automdm.CarveListOptions{})
 	require.NoError(t, err)
 	require.Len(t, carves, 2)
 
 	// only global admin can read carves
-	_, err = svc.ListCarves(test.UserContext(ctx, test.UserNoRoles), fleet.CarveListOptions{})
+	_, err = svc.ListCarves(test.UserContext(ctx, test.UserNoRoles), automdm.CarveListOptions{})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), authz.ForbiddenErrorMessage)
 
 	// no user in context
-	_, err = svc.ListCarves(ctx, fleet.CarveListOptions{})
+	_, err = svc.ListCarves(ctx, automdm.CarveListOptions{})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), authz.ForbiddenErrorMessage)
 }
@@ -53,8 +53,8 @@ func TestGetCarve(t *testing.T) {
 	ds := new(mock.Store)
 	svc, ctx := newTestService(t, ds, nil, nil)
 
-	ds.CarveFunc = func(ctx context.Context, id int64) (*fleet.CarveMetadata, error) {
-		return &fleet.CarveMetadata{
+	ds.CarveFunc = func(ctx context.Context, id int64) (*automdm.CarveMetadata, error) {
+		return &automdm.CarveMetadata{
 			ID: id,
 		}, nil
 	}
@@ -79,7 +79,7 @@ func TestCarveGetBlock(t *testing.T) {
 	ds := new(mock.Store)
 	svc := &Service{carveStore: ds, authz: authz.Must()}
 
-	metadata := &fleet.CarveMetadata{
+	metadata := &automdm.CarveMetadata{
 		ID:         2,
 		HostId:     3,
 		BlockCount: 23,
@@ -90,11 +90,11 @@ func TestCarveGetBlock(t *testing.T) {
 		MaxBlock:   3,
 	}
 
-	ds.CarveFunc = func(ctx context.Context, carveId int64) (*fleet.CarveMetadata, error) {
+	ds.CarveFunc = func(ctx context.Context, carveId int64) (*automdm.CarveMetadata, error) {
 		assert.Equal(t, metadata.ID, carveId)
 		return metadata, nil
 	}
-	ds.GetBlockFunc = func(ctx context.Context, carve *fleet.CarveMetadata, blockId int64) ([]byte, error) {
+	ds.GetBlockFunc = func(ctx context.Context, carve *automdm.CarveMetadata, blockId int64) ([]byte, error) {
 		assert.Equal(t, metadata.ID, carve.ID)
 		assert.Equal(t, int64(3), blockId)
 		return []byte("foobar"), nil
@@ -114,7 +114,7 @@ func TestCarveGetBlockNotAvailableError(t *testing.T) {
 	ds := new(mock.Store)
 	svc := &Service{carveStore: ds, authz: authz.Must()}
 
-	metadata := &fleet.CarveMetadata{
+	metadata := &automdm.CarveMetadata{
 		ID:         2,
 		HostId:     3,
 		BlockCount: 23,
@@ -125,7 +125,7 @@ func TestCarveGetBlockNotAvailableError(t *testing.T) {
 		MaxBlock:   3,
 	}
 
-	ds.CarveFunc = func(ctx context.Context, carveId int64) (*fleet.CarveMetadata, error) {
+	ds.CarveFunc = func(ctx context.Context, carveId int64) (*automdm.CarveMetadata, error) {
 		assert.Equal(t, metadata.ID, carveId)
 		return metadata, nil
 	}
@@ -140,7 +140,7 @@ func TestCarveGetBlockGetBlockError(t *testing.T) {
 	ds := new(mock.Store)
 	svc := &Service{carveStore: ds, authz: authz.Must()}
 
-	metadata := &fleet.CarveMetadata{
+	metadata := &automdm.CarveMetadata{
 		ID:         2,
 		HostId:     3,
 		BlockCount: 23,
@@ -151,11 +151,11 @@ func TestCarveGetBlockGetBlockError(t *testing.T) {
 		MaxBlock:   3,
 	}
 
-	ds.CarveFunc = func(ctx context.Context, carveId int64) (*fleet.CarveMetadata, error) {
+	ds.CarveFunc = func(ctx context.Context, carveId int64) (*automdm.CarveMetadata, error) {
 		assert.Equal(t, metadata.ID, carveId)
 		return metadata, nil
 	}
-	ds.GetBlockFunc = func(ctx context.Context, carve *fleet.CarveMetadata, blockId int64) ([]byte, error) {
+	ds.GetBlockFunc = func(ctx context.Context, carve *automdm.CarveMetadata, blockId int64) ([]byte, error) {
 		assert.Equal(t, metadata.ID, carve.ID)
 		assert.Equal(t, int64(3), blockId)
 		return nil, errors.New("yow!!")
@@ -171,7 +171,7 @@ func TestCarveGetBlockExpired(t *testing.T) {
 	ds := new(mock.Store)
 	svc := &Service{carveStore: ds, authz: authz.Must()}
 
-	metadata := &fleet.CarveMetadata{
+	metadata := &automdm.CarveMetadata{
 		ID:         2,
 		HostId:     3,
 		BlockCount: 23,
@@ -183,7 +183,7 @@ func TestCarveGetBlockExpired(t *testing.T) {
 		Expired:    true,
 	}
 
-	ds.CarveFunc = func(ctx context.Context, carveId int64) (*fleet.CarveMetadata, error) {
+	ds.CarveFunc = func(ctx context.Context, carveId int64) (*automdm.CarveMetadata, error) {
 		assert.Equal(t, metadata.ID, carveId)
 		return metadata, nil
 	}
@@ -195,8 +195,8 @@ func TestCarveGetBlockExpired(t *testing.T) {
 }
 
 func TestCarveBegin(t *testing.T) {
-	host := fleet.Host{ID: 3}
-	payload := fleet.CarveBeginPayload{
+	host := automdm.Host{ID: 3}
+	payload := automdm.CarveBeginPayload{
 		BlockCount: 23,
 		BlockSize:  64,
 		CarveSize:  23 * 64,
@@ -208,7 +208,7 @@ func TestCarveBegin(t *testing.T) {
 		carveStore: ms,
 		ds:         ds,
 	}
-	expectedMetadata := fleet.CarveMetadata{
+	expectedMetadata := automdm.CarveMetadata{
 		ID:         7,
 		HostId:     host.ID,
 		BlockCount: 23,
@@ -216,15 +216,15 @@ func TestCarveBegin(t *testing.T) {
 		CarveSize:  23 * 64,
 		RequestId:  "carve_request",
 	}
-	ms.NewCarveFunc = func(ctx context.Context, metadata *fleet.CarveMetadata) (*fleet.CarveMetadata, error) {
+	ms.NewCarveFunc = func(ctx context.Context, metadata *automdm.CarveMetadata) (*automdm.CarveMetadata, error) {
 		metadata.ID = 7
 		return metadata, nil
 	}
-	ds.HostLiteFunc = func(ctx context.Context, id uint) (*fleet.Host, error) {
+	ds.HostLiteFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
 		if host.ID != id {
 			return nil, errors.New("not found")
 		}
-		return &fleet.Host{
+		return &automdm.Host{
 			Hostname: host.Hostname,
 		}, nil
 	}
@@ -241,8 +241,8 @@ func TestCarveBegin(t *testing.T) {
 }
 
 func TestCarveBeginNewCarveError(t *testing.T) {
-	host := fleet.Host{ID: 3}
-	payload := fleet.CarveBeginPayload{
+	host := automdm.Host{ID: 3}
+	payload := automdm.CarveBeginPayload{
 		BlockCount: 23,
 		BlockSize:  64,
 		CarveSize:  23 * 64,
@@ -254,14 +254,14 @@ func TestCarveBeginNewCarveError(t *testing.T) {
 		carveStore: ms,
 		ds:         ds,
 	}
-	ms.NewCarveFunc = func(ctx context.Context, metadata *fleet.CarveMetadata) (*fleet.CarveMetadata, error) {
+	ms.NewCarveFunc = func(ctx context.Context, metadata *automdm.CarveMetadata) (*automdm.CarveMetadata, error) {
 		return nil, errors.New("ouch!")
 	}
-	ds.HostLiteFunc = func(ctx context.Context, id uint) (*fleet.Host, error) {
+	ds.HostLiteFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
 		if host.ID != id {
 			return nil, errors.New("not found")
 		}
-		return &fleet.Host{
+		return &automdm.Host{
 			Hostname: host.Hostname,
 		}, nil
 	}
@@ -280,16 +280,16 @@ func TestCarveBeginEmptyError(t *testing.T) {
 		carveStore: ms,
 		ds:         ds,
 	}
-	ctx := hostctx.NewContext(context.Background(), &fleet.Host{ID: 1})
+	ctx := hostctx.NewContext(context.Background(), &automdm.Host{ID: 1})
 
-	ds.HostLiteFunc = func(ctx context.Context, id uint) (*fleet.Host, error) {
+	ds.HostLiteFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
 		if id != 1 {
 			return nil, errors.New("not found")
 		}
-		return &fleet.Host{}, nil
+		return &automdm.Host{}, nil
 	}
 
-	_, err := svc.CarveBegin(ctx, fleet.CarveBeginPayload{})
+	_, err := svc.CarveBegin(ctx, automdm.CarveBeginPayload{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "carve_size must be greater than 0")
 }
@@ -298,14 +298,14 @@ func TestCarveBeginMissingHostError(t *testing.T) {
 	ms := new(mock.Store)
 	svc := &Service{carveStore: ms}
 
-	_, err := svc.CarveBegin(context.Background(), fleet.CarveBeginPayload{})
+	_, err := svc.CarveBegin(context.Background(), automdm.CarveBeginPayload{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "missing host")
 }
 
 func TestCarveBeginBlockSizeMaxError(t *testing.T) {
-	host := fleet.Host{ID: 3}
-	payload := fleet.CarveBeginPayload{
+	host := automdm.Host{ID: 3}
+	payload := automdm.CarveBeginPayload{
 		BlockCount: 10,
 		BlockSize:  1024 * 1024 * 1024 * 1024,      // 1TB
 		CarveSize:  10 * 1024 * 1024 * 1024 * 1024, // 10TB
@@ -318,11 +318,11 @@ func TestCarveBeginBlockSizeMaxError(t *testing.T) {
 		ds:         ds,
 	}
 
-	ds.HostLiteFunc = func(ctx context.Context, id uint) (*fleet.Host, error) {
+	ds.HostLiteFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
 		if host.ID != id {
 			return nil, errors.New("not found")
 		}
-		return &fleet.Host{
+		return &automdm.Host{
 			Hostname: host.Hostname,
 		}, nil
 	}
@@ -335,8 +335,8 @@ func TestCarveBeginBlockSizeMaxError(t *testing.T) {
 }
 
 func TestCarveBeginCarveSizeMaxError(t *testing.T) {
-	host := fleet.Host{ID: 3}
-	payload := fleet.CarveBeginPayload{
+	host := automdm.Host{ID: 3}
+	payload := automdm.CarveBeginPayload{
 		BlockCount: 1024 * 1024,
 		BlockSize:  10 * 1024 * 1024,               // 1TB
 		CarveSize:  10 * 1024 * 1024 * 1024 * 1024, // 10TB
@@ -349,11 +349,11 @@ func TestCarveBeginCarveSizeMaxError(t *testing.T) {
 		ds:         ds,
 	}
 
-	ds.HostLiteFunc = func(ctx context.Context, id uint) (*fleet.Host, error) {
+	ds.HostLiteFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
 		if host.ID != id {
 			return nil, errors.New("not found")
 		}
-		return &fleet.Host{
+		return &automdm.Host{
 			Hostname: host.Hostname,
 		}, nil
 	}
@@ -366,8 +366,8 @@ func TestCarveBeginCarveSizeMaxError(t *testing.T) {
 }
 
 func TestCarveBeginCarveSizeError(t *testing.T) {
-	host := fleet.Host{ID: 3}
-	payload := fleet.CarveBeginPayload{
+	host := automdm.Host{ID: 3}
+	payload := automdm.CarveBeginPayload{
 		BlockCount: 7,
 		BlockSize:  13,
 		CarveSize:  7*13 + 1,
@@ -381,11 +381,11 @@ func TestCarveBeginCarveSizeError(t *testing.T) {
 	}
 	ctx := hostctx.NewContext(context.Background(), &host)
 
-	ds.HostLiteFunc = func(ctx context.Context, id uint) (*fleet.Host, error) {
+	ds.HostLiteFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
 		if host.ID != id {
 			return nil, errors.New("not found")
 		}
-		return &fleet.Host{
+		return &automdm.Host{
 			Hostname: host.Hostname,
 		}, nil
 	}
@@ -406,11 +406,11 @@ func TestCarveCarveBlockGetCarveError(t *testing.T) {
 	sessionId := "foobar"
 	ms := new(mock.Store)
 	svc := &Service{carveStore: ms}
-	ms.CarveBySessionIdFunc = func(ctx context.Context, sessionId string) (*fleet.CarveMetadata, error) {
+	ms.CarveBySessionIdFunc = func(ctx context.Context, sessionId string) (*automdm.CarveMetadata, error) {
 		return nil, errors.New("ouch!")
 	}
 
-	payload := fleet.CarveBlockPayload{
+	payload := automdm.CarveBlockPayload{
 		Data:      []byte("this is the carve data :)"),
 		SessionId: sessionId,
 	}
@@ -425,7 +425,7 @@ func TestCarveCarveBlockGetCarveError(t *testing.T) {
 // if the carve's HostId doesn't match.
 func TestCarveBlockHostOwnershipMismatch(t *testing.T) {
 	sessionId := "sess"
-	metadata := &fleet.CarveMetadata{
+	metadata := &automdm.CarveMetadata{
 		ID:         2,
 		HostId:     3,
 		BlockCount: 23,
@@ -436,7 +436,7 @@ func TestCarveBlockHostOwnershipMismatch(t *testing.T) {
 		MaxBlock:   3,
 	}
 	ms := new(mock.Store)
-	ms.CarveBySessionIdFunc = func(ctx context.Context, sessionId string) (*fleet.CarveMetadata, error) {
+	ms.CarveBySessionIdFunc = func(ctx context.Context, sessionId string) (*automdm.CarveMetadata, error) {
 		return metadata, nil
 	}
 
@@ -444,7 +444,7 @@ func TestCarveBlockHostOwnershipMismatch(t *testing.T) {
 	require.NoError(t, err)
 	svc := &Service{carveStore: ms, authz: svcAuthz}
 
-	payload := fleet.CarveBlockPayload{
+	payload := automdm.CarveBlockPayload{
 		Data:      []byte("data"),
 		RequestId: "req",
 		SessionId: sessionId,
@@ -452,18 +452,18 @@ func TestCarveBlockHostOwnershipMismatch(t *testing.T) {
 	}
 
 	// Host 999 is NOT the carve owner (carve.HostId == 3).
-	attackerHost := &fleet.Host{ID: 999}
+	attackerHost := &automdm.Host{ID: 999}
 	ctx := hostctx.NewContext(context.Background(), attackerHost)
 
 	err = svc.CarveBlock(ctx, payload)
 	require.Error(t, err)
 	// Ownership failure must surface as a top-level *OsqueryError with
 	// 401 status — top-level (no ctxerr.Wrap) is required because
-	// FleetErrorEncoder uses a type switch on err that does not unwrap.
+	// AutoMDMErrorEncoder uses a type switch on err that does not unwrap.
 	// Wrapping would cause the encoder to fall through to the generic
 	// JSON error shape instead of the osquery-style response.
 	ose, ok := err.(*OsqueryError)
-	require.True(t, ok, "ownership-failure must be returned as *OsqueryError directly, not wrapped via ctxerr.Wrap (else FleetErrorEncoder type switch can't see it)")
+	require.True(t, ok, "ownership-failure must be returned as *OsqueryError directly, not wrapped via ctxerr.Wrap (else AutoMDMErrorEncoder type switch can't see it)")
 	assert.Equal(t, http.StatusUnauthorized, ose.Status())
 	assert.False(t, ose.NodeInvalid(), "node_invalid must be false on ownership failure — the node_key is valid")
 	// The response body uses a generic message to avoid disclosing carve
@@ -478,7 +478,7 @@ func TestCarveBlockHostOwnershipMismatch(t *testing.T) {
 // pre-authed host in ctx matches the carve's HostId.
 func TestCarveBlockHostOwnershipMatch(t *testing.T) {
 	sessionId := "sess"
-	metadata := &fleet.CarveMetadata{
+	metadata := &automdm.CarveMetadata{
 		ID:         2,
 		HostId:     7,
 		BlockCount: 10,
@@ -489,10 +489,10 @@ func TestCarveBlockHostOwnershipMatch(t *testing.T) {
 		MaxBlock:   3,
 	}
 	ms := new(mock.Store)
-	ms.CarveBySessionIdFunc = func(ctx context.Context, sessionId string) (*fleet.CarveMetadata, error) {
+	ms.CarveBySessionIdFunc = func(ctx context.Context, sessionId string) (*automdm.CarveMetadata, error) {
 		return metadata, nil
 	}
-	ms.NewBlockFunc = func(ctx context.Context, c *fleet.CarveMetadata, blockId int64, data []byte) error {
+	ms.NewBlockFunc = func(ctx context.Context, c *automdm.CarveMetadata, blockId int64, data []byte) error {
 		return nil
 	}
 
@@ -500,14 +500,14 @@ func TestCarveBlockHostOwnershipMatch(t *testing.T) {
 	require.NoError(t, err)
 	svc := &Service{carveStore: ms, authz: svcAuthz}
 
-	payload := fleet.CarveBlockPayload{
+	payload := automdm.CarveBlockPayload{
 		Data:      []byte("data"),
 		RequestId: "req",
 		SessionId: sessionId,
 		BlockId:   4,
 	}
 
-	ownerHost := &fleet.Host{ID: 7}
+	ownerHost := &automdm.Host{ID: 7}
 	ctx := hostctx.NewContext(context.Background(), ownerHost)
 
 	err = svc.CarveBlock(ctx, payload)
@@ -520,7 +520,7 @@ func TestCarveBlockHostOwnershipMatch(t *testing.T) {
 // check — session_id + request_id alone is the auth.
 func TestCarveBlockNoHostInCtxSkipsOwnershipCheck(t *testing.T) {
 	sessionId := "sess"
-	metadata := &fleet.CarveMetadata{
+	metadata := &automdm.CarveMetadata{
 		ID:         2,
 		HostId:     7,
 		BlockCount: 10,
@@ -531,10 +531,10 @@ func TestCarveBlockNoHostInCtxSkipsOwnershipCheck(t *testing.T) {
 		MaxBlock:   3,
 	}
 	ms := new(mock.Store)
-	ms.CarveBySessionIdFunc = func(ctx context.Context, sessionId string) (*fleet.CarveMetadata, error) {
+	ms.CarveBySessionIdFunc = func(ctx context.Context, sessionId string) (*automdm.CarveMetadata, error) {
 		return metadata, nil
 	}
-	ms.NewBlockFunc = func(ctx context.Context, c *fleet.CarveMetadata, blockId int64, data []byte) error {
+	ms.NewBlockFunc = func(ctx context.Context, c *automdm.CarveMetadata, blockId int64, data []byte) error {
 		return nil
 	}
 
@@ -542,7 +542,7 @@ func TestCarveBlockNoHostInCtxSkipsOwnershipCheck(t *testing.T) {
 	require.NoError(t, err)
 	svc := &Service{carveStore: ms, authz: svcAuthz}
 
-	err = svc.CarveBlock(context.Background(), fleet.CarveBlockPayload{
+	err = svc.CarveBlock(context.Background(), automdm.CarveBlockPayload{
 		Data:      []byte("data"),
 		RequestId: "req",
 		SessionId: sessionId,
@@ -554,7 +554,7 @@ func TestCarveBlockNoHostInCtxSkipsOwnershipCheck(t *testing.T) {
 
 func TestCarveCarveBlockRequestIdError(t *testing.T) {
 	sessionId := "foobar"
-	metadata := &fleet.CarveMetadata{
+	metadata := &automdm.CarveMetadata{
 		ID:         2,
 		HostId:     3,
 		BlockCount: 23,
@@ -565,12 +565,12 @@ func TestCarveCarveBlockRequestIdError(t *testing.T) {
 	}
 	ms := new(mock.Store)
 	svc := &Service{carveStore: ms}
-	ms.CarveBySessionIdFunc = func(ctx context.Context, sessionId string) (*fleet.CarveMetadata, error) {
+	ms.CarveBySessionIdFunc = func(ctx context.Context, sessionId string) (*automdm.CarveMetadata, error) {
 		assert.Equal(t, metadata.SessionId, sessionId)
 		return metadata, nil
 	}
 
-	payload := fleet.CarveBlockPayload{
+	payload := automdm.CarveBlockPayload{
 		Data:      []byte("this is the carve data :)"),
 		RequestId: "not_matching",
 		SessionId: sessionId,
@@ -583,7 +583,7 @@ func TestCarveCarveBlockRequestIdError(t *testing.T) {
 
 func TestCarveCarveBlockBlockCountExceedError(t *testing.T) {
 	sessionId := "foobar"
-	metadata := &fleet.CarveMetadata{
+	metadata := &automdm.CarveMetadata{
 		ID:         2,
 		HostId:     3,
 		BlockCount: 23,
@@ -594,17 +594,17 @@ func TestCarveCarveBlockBlockCountExceedError(t *testing.T) {
 	}
 	ms := new(mock.Store)
 	svc := &Service{carveStore: ms}
-	ms.CarveBySessionIdFunc = func(ctx context.Context, sessionId string) (*fleet.CarveMetadata, error) {
+	ms.CarveBySessionIdFunc = func(ctx context.Context, sessionId string) (*automdm.CarveMetadata, error) {
 		assert.Equal(t, metadata.SessionId, sessionId)
 		return metadata, nil
 	}
-	ms.UpdateCarveFunc = func(ctx context.Context, carve *fleet.CarveMetadata) error {
+	ms.UpdateCarveFunc = func(ctx context.Context, carve *automdm.CarveMetadata) error {
 		assert.NotNil(t, carve.Error)
 		assert.Equal(t, *carve.Error, "block_id exceeds expected max (22): 23")
 		return nil
 	}
 
-	payload := fleet.CarveBlockPayload{
+	payload := automdm.CarveBlockPayload{
 		Data:      []byte("this is the carve data :)"),
 		RequestId: "carve_request",
 		SessionId: sessionId,
@@ -618,7 +618,7 @@ func TestCarveCarveBlockBlockCountExceedError(t *testing.T) {
 
 func TestCarveBlockCountMatchError(t *testing.T) {
 	sessionId := "foobar"
-	metadata := &fleet.CarveMetadata{
+	metadata := &automdm.CarveMetadata{
 		ID:         2,
 		HostId:     3,
 		BlockCount: 23,
@@ -630,17 +630,17 @@ func TestCarveBlockCountMatchError(t *testing.T) {
 	}
 	ms := new(mock.Store)
 	svc := &Service{carveStore: ms}
-	ms.CarveBySessionIdFunc = func(ctx context.Context, sessionId string) (*fleet.CarveMetadata, error) {
+	ms.CarveBySessionIdFunc = func(ctx context.Context, sessionId string) (*automdm.CarveMetadata, error) {
 		assert.Equal(t, metadata.SessionId, sessionId)
 		return metadata, nil
 	}
-	ms.UpdateCarveFunc = func(ctx context.Context, carve *fleet.CarveMetadata) error {
+	ms.UpdateCarveFunc = func(ctx context.Context, carve *automdm.CarveMetadata) error {
 		assert.NotNil(t, carve.Error)
 		assert.Equal(t, *carve.Error, "block_id does not match expected block (4): 7")
 		return nil
 	}
 
-	payload := fleet.CarveBlockPayload{
+	payload := automdm.CarveBlockPayload{
 		Data:      []byte("this is the carve data :)"),
 		RequestId: "carve_request",
 		SessionId: sessionId,
@@ -648,14 +648,14 @@ func TestCarveBlockCountMatchError(t *testing.T) {
 	}
 
 	err := svc.CarveBlock(context.Background(), payload)
-	var be *fleet.BadRequestError
+	var be *automdm.BadRequestError
 	require.ErrorAs(t, err, &be)
 	assert.Contains(t, err.Error(), "block_id does not match")
 }
 
 func TestCarveCarveBlockBlockSizeError(t *testing.T) {
 	sessionId := "foobar"
-	metadata := &fleet.CarveMetadata{
+	metadata := &automdm.CarveMetadata{
 		ID:         2,
 		HostId:     3,
 		BlockCount: 23,
@@ -667,17 +667,17 @@ func TestCarveCarveBlockBlockSizeError(t *testing.T) {
 	}
 	ms := new(mock.Store)
 	svc := &Service{carveStore: ms}
-	ms.CarveBySessionIdFunc = func(ctx context.Context, sessionId string) (*fleet.CarveMetadata, error) {
+	ms.CarveBySessionIdFunc = func(ctx context.Context, sessionId string) (*automdm.CarveMetadata, error) {
 		assert.Equal(t, metadata.SessionId, sessionId)
 		return metadata, nil
 	}
-	ms.UpdateCarveFunc = func(ctx context.Context, carve *fleet.CarveMetadata) error {
+	ms.UpdateCarveFunc = func(ctx context.Context, carve *automdm.CarveMetadata) error {
 		assert.NotNil(t, carve.Error)
 		assert.Equal(t, *carve.Error, "exceeded declared block size 16: 37")
 		return nil
 	}
 
-	payload := fleet.CarveBlockPayload{
+	payload := automdm.CarveBlockPayload{
 		Data:      []byte("this is the carve data :) TOO LONG!!!"),
 		RequestId: "carve_request",
 		SessionId: sessionId,
@@ -691,7 +691,7 @@ func TestCarveCarveBlockBlockSizeError(t *testing.T) {
 
 func TestCarveCarveBlockNewBlockError(t *testing.T) {
 	sessionId := "foobar"
-	metadata := &fleet.CarveMetadata{
+	metadata := &automdm.CarveMetadata{
 		ID:         2,
 		HostId:     3,
 		BlockCount: 23,
@@ -703,20 +703,20 @@ func TestCarveCarveBlockNewBlockError(t *testing.T) {
 	}
 	ms := new(mock.Store)
 	svc := &Service{carveStore: ms}
-	ms.CarveBySessionIdFunc = func(ctx context.Context, sessionId string) (*fleet.CarveMetadata, error) {
+	ms.CarveBySessionIdFunc = func(ctx context.Context, sessionId string) (*automdm.CarveMetadata, error) {
 		assert.Equal(t, metadata.SessionId, sessionId)
 		return metadata, nil
 	}
-	ms.NewBlockFunc = func(ctx context.Context, carve *fleet.CarveMetadata, blockId int64, data []byte) error {
+	ms.NewBlockFunc = func(ctx context.Context, carve *automdm.CarveMetadata, blockId int64, data []byte) error {
 		return errors.New("kaboom!")
 	}
-	ms.UpdateCarveFunc = func(ctx context.Context, carve *fleet.CarveMetadata) error {
+	ms.UpdateCarveFunc = func(ctx context.Context, carve *automdm.CarveMetadata) error {
 		assert.NotNil(t, carve.Error)
 		assert.Equal(t, *carve.Error, "kaboom!")
 		return nil
 	}
 
-	payload := fleet.CarveBlockPayload{
+	payload := automdm.CarveBlockPayload{
 		Data:      []byte("this is the carve data :)"),
 		RequestId: "carve_request",
 		SessionId: sessionId,
@@ -730,7 +730,7 @@ func TestCarveCarveBlockNewBlockError(t *testing.T) {
 
 func TestCarveCarveBlock(t *testing.T) {
 	sessionId := "foobar"
-	metadata := &fleet.CarveMetadata{
+	metadata := &automdm.CarveMetadata{
 		ID:         2,
 		HostId:     3,
 		BlockCount: 23,
@@ -740,7 +740,7 @@ func TestCarveCarveBlock(t *testing.T) {
 		SessionId:  sessionId,
 		MaxBlock:   3,
 	}
-	payload := fleet.CarveBlockPayload{
+	payload := automdm.CarveBlockPayload{
 		Data:      []byte("this is the carve data :)"),
 		RequestId: "carve_request",
 		SessionId: sessionId,
@@ -748,11 +748,11 @@ func TestCarveCarveBlock(t *testing.T) {
 	}
 	ms := new(mock.Store)
 	svc := &Service{carveStore: ms}
-	ms.CarveBySessionIdFunc = func(ctx context.Context, sessionId string) (*fleet.CarveMetadata, error) {
+	ms.CarveBySessionIdFunc = func(ctx context.Context, sessionId string) (*automdm.CarveMetadata, error) {
 		assert.Equal(t, metadata.SessionId, sessionId)
 		return metadata, nil
 	}
-	ms.NewBlockFunc = func(ctx context.Context, carve *fleet.CarveMetadata, blockId int64, data []byte) error {
+	ms.NewBlockFunc = func(ctx context.Context, carve *automdm.CarveMetadata, blockId int64, data []byte) error {
 		assert.Equal(t, metadata, carve)
 		assert.Equal(t, int64(4), blockId)
 		assert.Equal(t, payload.Data, data)
@@ -766,11 +766,11 @@ func TestCarveCarveBlock(t *testing.T) {
 
 // MockCarveStore for testing
 type mockCarveStore struct {
-	carves map[string]*fleet.CarveMetadata
+	carves map[string]*automdm.CarveMetadata
 	err    error
 }
 
-func (m *mockCarveStore) CarveBySessionId(ctx context.Context, sessionID string) (*fleet.CarveMetadata, error) {
+func (m *mockCarveStore) CarveBySessionId(ctx context.Context, sessionID string) (*automdm.CarveMetadata, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
@@ -789,21 +789,21 @@ func TestCarveBlockDecodeRequest(t *testing.T) {
 		wantErr        bool
 		wantErrType    string // e.g., "AuthFailedError", "ctxerr", ""
 		wantErrMessage string
-		wantResult     *fleet.CarveBlockRequest
+		wantResult     *automdm.CarveBlockRequest
 	}{
 		{
 			name: "valid request MySQL session IDs",
 			body: `{"block_id":123,"session_id":"23bbbcf6-6b8a-4f3a-9924-bdd084f31097","request_id":"req123","data":"ZGF0YWJhc2U2NA=="}`,
 			ctxSetup: func(ctx context.Context) context.Context {
 				store := &mockCarveStore{
-					carves: map[string]*fleet.CarveMetadata{
+					carves: map[string]*automdm.CarveMetadata{
 						"23bbbcf6-6b8a-4f3a-9924-bdd084f31097": {RequestId: "req123"},
 					},
 				}
 				return carvestorectx.NewContext(ctx, store)
 			},
 			wantErr: false,
-			wantResult: &fleet.CarveBlockRequest{
+			wantResult: &automdm.CarveBlockRequest{
 				BlockId:   123,
 				SessionId: "23bbbcf6-6b8a-4f3a-9924-bdd084f31097",
 				RequestId: "req123",
@@ -815,14 +815,14 @@ func TestCarveBlockDecodeRequest(t *testing.T) {
 			body: `{"block_id":123,"session_id":"JUMHLnWZ.A7y5ns2jUODzG8eTr5m9lvFKDD3nBN.hJ8mwr2szW0iUSNrusaE41__.wrtsNokzejFLQyNJTTqY_QN1grwAT0yXGi8A77Kf9ZJlvSiWggmncDAhVev4QXxx2PyN_GtTRPC71WGKPN2YxBFfWBjZlCZBXmPCtc4zrQ","request_id":"req123","data":"ZGF0YWJhc2U2NA=="}`,
 			ctxSetup: func(ctx context.Context) context.Context {
 				store := &mockCarveStore{
-					carves: map[string]*fleet.CarveMetadata{
+					carves: map[string]*automdm.CarveMetadata{
 						"JUMHLnWZ.A7y5ns2jUODzG8eTr5m9lvFKDD3nBN.hJ8mwr2szW0iUSNrusaE41__.wrtsNokzejFLQyNJTTqY_QN1grwAT0yXGi8A77Kf9ZJlvSiWggmncDAhVev4QXxx2PyN_GtTRPC71WGKPN2YxBFfWBjZlCZBXmPCtc4zrQ": {RequestId: "req123"},
 					},
 				}
 				return carvestorectx.NewContext(ctx, store)
 			},
 			wantErr: false,
-			wantResult: &fleet.CarveBlockRequest{
+			wantResult: &automdm.CarveBlockRequest{
 				BlockId:   123,
 				SessionId: "JUMHLnWZ.A7y5ns2jUODzG8eTr5m9lvFKDD3nBN.hJ8mwr2szW0iUSNrusaE41__.wrtsNokzejFLQyNJTTqY_QN1grwAT0yXGi8A77Kf9ZJlvSiWggmncDAhVev4QXxx2PyN_GtTRPC71WGKPN2YxBFfWBjZlCZBXmPCtc4zrQ",
 				RequestId: "req123",
@@ -834,14 +834,14 @@ func TestCarveBlockDecodeRequest(t *testing.T) {
 			body: `{"block_id":123,"session_id":"ZGVhZDYwYTctZTVlOC00MzE1LWFhOWMtZDIzMzc5MTI4NGUyLjUzM2MxZjhhLTFiODktNDQ1YS04NTE0LTBjMWE0NDVlNjkwMXgxNzcwMTQ1Njc5NDgyNDg3NzE3","request_id":"req123","data":"ZGF0YWJhc2U2NA=="}`,
 			ctxSetup: func(ctx context.Context) context.Context {
 				store := &mockCarveStore{
-					carves: map[string]*fleet.CarveMetadata{
+					carves: map[string]*automdm.CarveMetadata{
 						"ZGVhZDYwYTctZTVlOC00MzE1LWFhOWMtZDIzMzc5MTI4NGUyLjUzM2MxZjhhLTFiODktNDQ1YS04NTE0LTBjMWE0NDVlNjkwMXgxNzcwMTQ1Njc5NDgyNDg3NzE3": {RequestId: "req123"},
 					},
 				}
 				return carvestorectx.NewContext(ctx, store)
 			},
 			wantErr: false,
-			wantResult: &fleet.CarveBlockRequest{
+			wantResult: &automdm.CarveBlockRequest{
 				BlockId:   123,
 				SessionId: "ZGVhZDYwYTctZTVlOC00MzE1LWFhOWMtZDIzMzc5MTI4NGUyLjUzM2MxZjhhLTFiODktNDQ1YS04NTE0LTBjMWE0NDVlNjkwMXgxNzcwMTQ1Njc5NDgyNDg3NzE3",
 				RequestId: "req123",
@@ -853,14 +853,14 @@ func TestCarveBlockDecodeRequest(t *testing.T) {
 			body: fmt.Sprintf(`{"block_id":123,"session_id":"%s","request_id":"req123","data":"ZGF0YWJhc2U2NA=="}`, strings.Repeat("F", 255)),
 			ctxSetup: func(ctx context.Context) context.Context {
 				store := &mockCarveStore{
-					carves: map[string]*fleet.CarveMetadata{
+					carves: map[string]*automdm.CarveMetadata{
 						strings.Repeat("F", 255): {RequestId: "req123"},
 					},
 				}
 				return carvestorectx.NewContext(ctx, store)
 			},
 			wantErr: false,
-			wantResult: &fleet.CarveBlockRequest{
+			wantResult: &automdm.CarveBlockRequest{
 				BlockId:   123,
 				SessionId: strings.Repeat("F", 255),
 				RequestId: "req123",
@@ -1059,14 +1059,14 @@ func TestCarveBlockDecodeRequest(t *testing.T) {
 			body: fmt.Sprintf(`{"block_id":123,"session_id":"sess123","request_id":"%s","data":"ZGF0YWJhc2U2NA=="}`, strings.Repeat("F", 64)),
 			ctxSetup: func(ctx context.Context) context.Context {
 				store := &mockCarveStore{
-					carves: map[string]*fleet.CarveMetadata{
+					carves: map[string]*automdm.CarveMetadata{
 						"sess123": {RequestId: strings.Repeat("F", 64)},
 					},
 				}
 				return carvestorectx.NewContext(ctx, store)
 			},
 			wantErr: false,
-			wantResult: &fleet.CarveBlockRequest{
+			wantResult: &automdm.CarveBlockRequest{
 				BlockId:   123,
 				SessionId: "sess123",
 				RequestId: strings.Repeat("F", 64),
@@ -1078,7 +1078,7 @@ func TestCarveBlockDecodeRequest(t *testing.T) {
 			body: `{"block_id":123,"session_id":"sess123","request_id":"req123","data":"ZGF0YWJhc2U2NA=="}`,
 			ctxSetup: func(ctx context.Context) context.Context {
 				store := &mockCarveStore{
-					carves: map[string]*fleet.CarveMetadata{},
+					carves: map[string]*automdm.CarveMetadata{},
 				}
 				return carvestorectx.NewContext(ctx, store)
 			},
@@ -1091,7 +1091,7 @@ func TestCarveBlockDecodeRequest(t *testing.T) {
 			body: `{"block_id":123,"session_id":"sess123","request_id":"req123","data":"ZGF0YWJhc2U2NA=="}`,
 			ctxSetup: func(ctx context.Context) context.Context {
 				store := &mockCarveStore{
-					carves: map[string]*fleet.CarveMetadata{
+					carves: map[string]*automdm.CarveMetadata{
 						"sess123": {RequestId: "wrongreq"},
 					},
 				}
@@ -1119,7 +1119,7 @@ func TestCarveBlockDecodeRequest(t *testing.T) {
 			body: `{"block_id":123,"session_id":"sess123","request_id":"req123","datum":"ZGF0YWJhc2U2NA=="}`,
 			ctxSetup: func(ctx context.Context) context.Context {
 				store := &mockCarveStore{
-					carves: map[string]*fleet.CarveMetadata{
+					carves: map[string]*automdm.CarveMetadata{
 						"sess123": {RequestId: "req123"},
 					},
 				}
@@ -1133,7 +1133,7 @@ func TestCarveBlockDecodeRequest(t *testing.T) {
 			body: `{"block_id":123,"session_id":"sess123","request_id":"req123"}`,
 			ctxSetup: func(ctx context.Context) context.Context {
 				store := &mockCarveStore{
-					carves: map[string]*fleet.CarveMetadata{
+					carves: map[string]*automdm.CarveMetadata{
 						"sess123": {RequestId: "req123"},
 					},
 				}
@@ -1147,7 +1147,7 @@ func TestCarveBlockDecodeRequest(t *testing.T) {
 			body: `{"block_id":123,"session_id":"sess123","request_id":"req123"`,
 			ctxSetup: func(ctx context.Context) context.Context {
 				store := &mockCarveStore{
-					carves: map[string]*fleet.CarveMetadata{
+					carves: map[string]*automdm.CarveMetadata{
 						"sess123": {RequestId: "req123"},
 					},
 				}
@@ -1161,7 +1161,7 @@ func TestCarveBlockDecodeRequest(t *testing.T) {
 			body: `{"block_id":123,"session_id":"sess123","request_id":"req123","data":"`,
 			ctxSetup: func(ctx context.Context) context.Context {
 				store := &mockCarveStore{
-					carves: map[string]*fleet.CarveMetadata{
+					carves: map[string]*automdm.CarveMetadata{
 						"sess123": {RequestId: "req123"},
 					},
 				}
@@ -1175,7 +1175,7 @@ func TestCarveBlockDecodeRequest(t *testing.T) {
 			body: `{"block_id":123,"session_id":"sess123","request_id":"req123","data":"a`,
 			ctxSetup: func(ctx context.Context) context.Context {
 				store := &mockCarveStore{
-					carves: map[string]*fleet.CarveMetadata{
+					carves: map[string]*automdm.CarveMetadata{
 						"sess123": {RequestId: "req123"},
 					},
 				}
@@ -1189,7 +1189,7 @@ func TestCarveBlockDecodeRequest(t *testing.T) {
 			body: `{"block_id":123,"session_id":"sess123","request_id":"req123","data":""}`,
 			ctxSetup: func(ctx context.Context) context.Context {
 				store := &mockCarveStore{
-					carves: map[string]*fleet.CarveMetadata{
+					carves: map[string]*automdm.CarveMetadata{
 						"sess123": {RequestId: "req123"},
 					},
 				}
@@ -1202,7 +1202,7 @@ func TestCarveBlockDecodeRequest(t *testing.T) {
 			body: `{"block_id":123,"session_id":"sess123","request_id":"req123","data":"notbase64!!"}`,
 			ctxSetup: func(ctx context.Context) context.Context {
 				store := &mockCarveStore{
-					carves: map[string]*fleet.CarveMetadata{
+					carves: map[string]*automdm.CarveMetadata{
 						"sess123": {RequestId: "req123"},
 					},
 				}
@@ -1216,7 +1216,7 @@ func TestCarveBlockDecodeRequest(t *testing.T) {
 			body: `{"block_id":123,"session_id":"sess123","request_id":"req123","data":"ZGF0YWJhc2U2NA=="`,
 			ctxSetup: func(ctx context.Context) context.Context {
 				store := &mockCarveStore{
-					carves: map[string]*fleet.CarveMetadata{
+					carves: map[string]*automdm.CarveMetadata{
 						"sess123": {RequestId: "req123"},
 					},
 				}
@@ -1230,7 +1230,7 @@ func TestCarveBlockDecodeRequest(t *testing.T) {
 			body: `{"block_id":123,"session_id":"sess123","request_id":"req123"`,
 			ctxSetup: func(ctx context.Context) context.Context {
 				store := &mockCarveStore{
-					carves: map[string]*fleet.CarveMetadata{
+					carves: map[string]*automdm.CarveMetadata{
 						"sess123": {RequestId: "req123"},
 					},
 				}
@@ -1284,14 +1284,14 @@ func TestCarveBlockDecodeRequest(t *testing.T) {
 			body: `{"block_id":` + strconv.FormatInt(1<<63-1, 10) + `,"session_id":"sess123","request_id":"req123","data":"ZGF0YWJhc2U2NA=="}`,
 			ctxSetup: func(ctx context.Context) context.Context {
 				store := &mockCarveStore{
-					carves: map[string]*fleet.CarveMetadata{
+					carves: map[string]*automdm.CarveMetadata{
 						"sess123": {RequestId: "req123"},
 					},
 				}
 				return carvestorectx.NewContext(ctx, store)
 			},
 			wantErr: false,
-			wantResult: &fleet.CarveBlockRequest{
+			wantResult: &automdm.CarveBlockRequest{
 				BlockId:   1<<63 - 1,
 				SessionId: "sess123",
 				RequestId: "req123",
@@ -1328,16 +1328,16 @@ func TestCarveBlockDecodeRequest(t *testing.T) {
 			if err != nil {
 				// Check error type and message
 				if tt.wantErrType == "AuthFailedError" {
-					var afe *fleet.AuthFailedError
+					var afe *automdm.AuthFailedError
 					require.ErrorAs(t, err, &afe)
 				} else if tt.wantErrMessage != "" && !strings.Contains(err.Error(), tt.wantErrMessage) {
 					t.Errorf("error message = %v, want containing %s", err, tt.wantErrMessage)
 				}
 				return
 			}
-			got, ok := result.(*fleet.CarveBlockRequest)
+			got, ok := result.(*automdm.CarveBlockRequest)
 			if !ok {
-				t.Errorf("result not *fleet.CarveBlockRequest")
+				t.Errorf("result not *automdm.CarveBlockRequest")
 				return
 			}
 			if tt.wantResult != nil {

@@ -68,13 +68,13 @@ describe("renderNotifyTitleList", () => {
 });
 
 describe("skip discriminators", () => {
-  // Deadline marker: "patch deadline". Notify marker: "Fleet notifies the end
+  // Deadline marker: "patch deadline". Notify marker: "AutoMDM notifies the end
   // user". Both substrings co-occur on the deadline copy, so the deadline
   // check must win.
   const deadlineOutput =
-    "Query didn't return result or failed\nThe app was open. Fleet notifies the end user 1 hour before the patch deadline.";
+    "Query didn't return result or failed\nThe app was open. AutoMDM notifies the end user 1 hour before the patch deadline.";
   const notifyOutput =
-    "Query didn't return result or failed\nThe app was open. Fleet notifies the end user 1 hour before the patch is forced.";
+    "Query didn't return result or failed\nThe app was open. AutoMDM notifies the end user 1 hour before the patch is forced.";
   const closedOutput = "Query didn't return result or failed\nThe app was open";
 
   it("isPatchDeadlineSkip matches the deadline output only", () => {
@@ -86,7 +86,7 @@ describe("skip discriminators", () => {
 
   it("isNotifyBeforePatchingSkip excludes the deadline variant", () => {
     expect(isNotifyBeforePatchingSkip(notifyOutput)).toBe(true);
-    // Guard: deadline output contains "Fleet notifies the end user" too, but
+    // Guard: deadline output contains "AutoMDM notifies the end user" too, but
     // callers rely on this to distinguish the two — so it must return false.
     expect(isNotifyBeforePatchingSkip(deadlineOutput)).toBe(false);
     expect(isNotifyBeforePatchingSkip(closedOutput)).toBe(false);

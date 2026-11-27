@@ -1,4 +1,4 @@
-# Fleet extracts name from installer (EXE) and saves it to PACKAGE_ID
+# AutoMDM extracts name from installer (EXE) and saves it to PACKAGE_ID
 # variable
 # Bulk Crap Uninstaller registers a versioned DisplayName
 # (e.g. "BCUninstaller 6.2.0.0"), so we match on the stable prefix. Inno

@@ -211,7 +211,7 @@ export function GitTab({
           color: "var(--app-text-dim)",
         }}
       >
-        No Fleet repo configured · open Settings to pick one
+        No AutoMDM repo configured · open Settings to pick one
       </div>
     );
   }
@@ -542,9 +542,9 @@ function FilterPill({
         borderRadius: 999,
         background: active ? "var(--tint-success-strong)" : undefined,
         borderColor: active
-          ? "var(--core-fleet-green)"
+          ? "var(--core-automdm-green)"
           : "var(--app-border)",
-        color: active ? "var(--core-fleet-green)" : "var(--app-text-dim)",
+        color: active ? "var(--core-automdm-green)" : "var(--app-text-dim)",
       }}
     >
       {label}

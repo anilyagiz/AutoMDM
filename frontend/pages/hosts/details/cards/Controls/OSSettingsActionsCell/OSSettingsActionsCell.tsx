@@ -7,7 +7,7 @@ import { IconNames } from "components/icons";
 import { notify } from "components/ToastNotification";
 import TooltipWrapper from "components/TooltipWrapper";
 import { getErrorReason } from "interfaces/errors";
-import { FLEET_ANDROID_CERTIFICATE_TEMPLATE_PROFILE_ID } from "interfaces/mdm";
+import { AUTOMDM_ANDROID_CERTIFICATE_TEMPLATE_PROFILE_ID } from "interfaces/mdm";
 import { getResendProfileErrorMessage } from "pages/hosts/details/cards/Controls/helpers";
 import {
   HOST_NAME_SYNTHETIC_PROFILE_UUID,
@@ -20,15 +20,15 @@ const baseClass = "os-settings-actions-cell";
 
 // Android config profiles (unlike certificates) are synced by the host
 // checking in with Google periodically, similarly to Apple declaration (DDM)
-// profiles, rather than Fleet pushing them — so they can't be resent on demand.
+// profiles, rather than AutoMDM pushing them — so they can't be resent on demand.
 const ANDROID_PROFILE_NO_RESEND_TOOLTIP_MESSAGE =
-  "Fleet can't resend this configuration profile. Android hosts check in for profiles periodically, rather than Fleet pushing them.";
+  "AutoMDM can't resend this configuration profile. Android hosts check in for profiles periodically, rather than AutoMDM pushing them.";
 
 const NO_RESEND_PERMISSION_TOOLTIP_MESSAGE =
   "You don't have permission to resend this profile.";
 
 const PROFILE_NO_RESEND_TOOLTIP_MESSAGE =
-  "Fleet can't resend this configuration profile until it's verified or failed.";
+  "AutoMDM can't resend this configuration profile until it's verified or failed.";
 
 interface IActionButtonProps {
   className: string;
@@ -81,7 +81,7 @@ const ActionButton = ({
 
 interface IOSSettingsActionsCellProps {
   canResendProfiles: boolean;
-  /** Also offer Resend while the profile is "verifying" (Fleetd configuration
+  /** Also offer Resend while the profile is "verifying" (AutoMDMd configuration
    * profile with one-time enroll secrets). */
   canResendWhileVerifying?: boolean;
   canRotateRecoveryLockPassword?: boolean;
@@ -134,7 +134,7 @@ const OSSettingsActionsCell = ({
   const [isInstalling, setIsInstalling] = useState(false);
 
   const isAndroidCertificate =
-    profile.profile_uuid === FLEET_ANDROID_CERTIFICATE_TEMPLATE_PROFILE_ID;
+    profile.profile_uuid === AUTOMDM_ANDROID_CERTIFICATE_TEMPLATE_PROFILE_ID;
 
   const onResendProfile = async () => {
     setIsResending(true);

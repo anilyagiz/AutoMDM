@@ -5,7 +5,7 @@ import { renderWithSetup } from "test/test-utils";
 
 import {
   HumanTimeDiffWithDateTip,
-  HumanTimeDiffWithFleetLaunchCutoff,
+  HumanTimeDiffWithTeamLaunchCutoff,
 } from "./HumanTimeDiffWithDateTip";
 
 const EMPTY_STRING = "Unavailable";
@@ -39,9 +39,9 @@ describe("HumanTimeDiffWithDateTip - component", () => {
     expect(invalidStringText).toBeInTheDocument();
   });
 
-  it("returns never if configured to cutoff dates before Fleet was created", async () => {
+  it("returns never if configured to cutoff dates before AutoMDM was created", async () => {
     render(
-      <HumanTimeDiffWithFleetLaunchCutoff timeString="1970-01-02T00:00:00Z" />
+      <HumanTimeDiffWithTeamLaunchCutoff timeString="1970-01-02T00:00:00Z" />
     );
 
     expect(screen.getByText(/never/i)).toBeInTheDocument();
@@ -49,7 +49,7 @@ describe("HumanTimeDiffWithDateTip - component", () => {
 
   it("explains 'Never' on hover when given a never tooltip", async () => {
     const { user } = renderWithSetup(
-      <HumanTimeDiffWithFleetLaunchCutoff
+      <HumanTimeDiffWithTeamLaunchCutoff
         timeString="1970-01-02T00:00:00Z"
         neverTooltip={NEVER_TOOLTIP}
       />
@@ -62,9 +62,9 @@ describe("HumanTimeDiffWithDateTip - component", () => {
     expect(await screen.findByText(NEVER_TOOLTIP)).toBeInTheDocument();
   });
 
-  it("ignores the never tooltip when the date is after Fleet was created", async () => {
+  it("ignores the never tooltip when the date is after AutoMDM was created", async () => {
     const { user } = renderWithSetup(
-      <HumanTimeDiffWithFleetLaunchCutoff
+      <HumanTimeDiffWithTeamLaunchCutoff
         timeString="2024-04-27T12:00:00Z"
         neverTooltip={NEVER_TOOLTIP}
       />

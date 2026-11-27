@@ -8,7 +8,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/platform"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/platform"
 	"github.com/rs/zerolog/log"
 	gopsutil_process "github.com/shirou/gopsutil/v4/process"
 )
@@ -28,8 +28,8 @@ var envVarsToCopy = []string{
 	// xdg-open requires XAUTHORITY set when running on a Wayland session (compatibility mode).
 	// We get XAUTHORITY from the Xwayland process environment.
 	//
-	// We have to do this here instead of when executing fleet-desktop because the Xwayland process
-	// may not be running yet when orbit is executing fleet-desktop.
+	// We have to do this here instead of when executing automdm-desktop because the Xwayland process
+	// may not be running yet when orbit is executing automdm-desktop.
 	"XAUTHORITY",
 }
 

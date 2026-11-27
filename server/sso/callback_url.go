@@ -19,7 +19,7 @@ func CallbackURL(base *url.URL, urlPrefix, callbackPath string) *url.URL {
 
 // URLWithPrefix joins path onto base, inserting urlPrefix first when base does
 // not already carry it. server_url may or may not include the configured
-// url_prefix, so anything building an absolute Fleet URL has to go through here
+// url_prefix, so anything building an absolute AutoMDM URL has to go through here
 // or it emits the prefix zero times or twice.
 func URLWithPrefix(base *url.URL, urlPrefix, path string) *url.URL {
 	prefix := strings.TrimSuffix(urlPrefix, "/")

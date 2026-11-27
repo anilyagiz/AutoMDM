@@ -1,12 +1,12 @@
 # Learn more about install scripts:
-# http://fleetdm.com/learn-more-about/install-scripts
+# http://automdm.com/learn-more-about/install-scripts
 #
 # CrisisGo is an InstallShield Basic MSI whose InstallExecuteSequence contains
 # a "must run setup.exe" guard conditioned on NOT ISSETUPDRIVEN. The vendor
 # ships this bare MSI for network deployment and winget's sandbox installs it
 # silently, but we pass ISSETUPDRIVEN=1 explicitly so the guard can never fire.
 
-$logFile = "${env:TEMP}/fleet-install-software.log"
+$logFile = "${env:TEMP}/automdm-install-software.log"
 
 try {
 

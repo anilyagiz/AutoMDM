@@ -5,12 +5,12 @@ import (
 	"log/slog"
 	"net/http"
 
-	apiendpoints "github.com/fleetdm/fleet/v4/server/api_endpoints"
-	"github.com/fleetdm/fleet/v4/server/contexts/authz"
-	"github.com/fleetdm/fleet/v4/server/contexts/logging"
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	eu "github.com/fleetdm/fleet/v4/server/platform/endpointer"
+	apiendpoints "github.com/anilyagiz/automdm/v4/server/api_endpoints"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/authz"
+	"github.com/anilyagiz/automdm/v4/server/contexts/logging"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	eu "github.com/anilyagiz/automdm/v4/server/platform/endpointer"
 	"github.com/go-kit/kit/endpoint"
 	kithttp "github.com/go-kit/kit/transport/http"
 )
@@ -63,7 +63,7 @@ func apiOnlyEndpointCheck(isInCatalog func(string) bool, next endpoint.Endpoint)
 			// The GET route serves HEAD, and the catalog lists only the GET.
 			requestMethod = http.MethodGet
 		}
-		fp := fleet.NewAPIEndpointFromTpl(requestMethod, routeTemplate).Fingerprint()
+		fp := automdm.NewAPIEndpointFromTpl(requestMethod, routeTemplate).Fingerprint()
 
 		if !isInCatalog(fp) {
 			return nil, endpointRestrictionDenied(ctx, routeTemplate, "endpoint not in API endpoint catalog")
@@ -71,7 +71,7 @@ func apiOnlyEndpointCheck(isInCatalog func(string) bool, next endpoint.Endpoint)
 
 		// Check whether the requested endpoint matches any of the user's allowed endpoints.
 		for _, ep := range v.User.APIEndpoints {
-			if fleet.NewAPIEndpointFromTpl(ep.Method, ep.Path).Fingerprint() == fp {
+			if automdm.NewAPIEndpointFromTpl(ep.Method, ep.Path).Fingerprint() == fp {
 				return next(ctx, request)
 			}
 		}
@@ -102,8 +102,8 @@ func endpointRestrictionDenied(ctx context.Context, routeTemplate, reason string
 	// and renders a generic "Permission Denied" body. Wrapping it in a
 	// UserMessageError routes it through the encoder branch that includes the
 	// message in the response.
-	return fleet.NewUserMessageError(
-		fleet.NewPermissionError(EndpointRestrictionDeniedMessage),
+	return automdm.NewUserMessageError(
+		automdm.NewPermissionError(EndpointRestrictionDeniedMessage),
 		http.StatusForbidden,
 	)
 }

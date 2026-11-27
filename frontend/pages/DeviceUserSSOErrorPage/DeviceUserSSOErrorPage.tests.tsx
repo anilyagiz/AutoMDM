@@ -33,7 +33,7 @@ describe("DeviceUserSSOErrorPage", () => {
       screen.getByText("Your sign-in session expired.")
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/Open Fleet Desktop and click/)
+      screen.getByText(/Open AutoMDM Desktop and click/)
     ).toBeInTheDocument();
   });
 

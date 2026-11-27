@@ -2,7 +2,7 @@ package service
 
 // Label tests for the enterprise (premium) suite.
 //
-// Belongs here: fleet labels (CRUD, specs, host counts, team filtering, deletion) and fleet label
+// Belongs here: team labels (CRUD, specs, host counts, team filtering, deletion) and team label
 // membership through osquery distributed reads and writes.
 //
 // Does not belong here: label scoping of policies (integration_enterprise_policies_test.go),
@@ -19,8 +19,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -30,25 +30,25 @@ func (s *integrationEnterpriseTestSuite) TestTeamLabelsShareNames() {
 	t := s.T()
 	ctx := t.Context()
 
-	team1, err := s.ds.NewTeam(ctx, &fleet.Team{Name: t.Name() + "_team1"})
+	team1, err := s.ds.NewTeam(ctx, &automdm.Team{Name: t.Name() + "_team1"})
 	require.NoError(t, err)
-	team2, err := s.ds.NewTeam(ctx, &fleet.Team{Name: t.Name() + "_team2"})
+	team2, err := s.ds.NewTeam(ctx, &automdm.Team{Name: t.Name() + "_team2"})
 	require.NoError(t, err)
 
 	shared := strings.ReplaceAll(t.Name(), "/", "_") + "_engineering"
 	globalName := strings.ReplaceAll(t.Name(), "/", "_") + "_ops"
 	applyTeamSpec := func(teamID uint, name string, wantStatus int) *http.Response {
-		return s.Do("POST", "/api/latest/fleet/spec/labels", fleet.ApplyLabelSpecsRequest{
-			Specs: []*fleet.LabelSpec{{Name: name, Query: "select 1", LabelMembershipType: fleet.LabelMembershipTypeDynamic}},
-		}, wantStatus, "fleet_id", fmt.Sprint(teamID))
+		return s.Do("POST", "/api/latest/automdm/spec/labels", automdm.ApplyLabelSpecsRequest{
+			Specs: []*automdm.LabelSpec{{Name: name, Query: "select 1", LabelMembershipType: automdm.LabelMembershipTypeDynamic}},
+		}, wantStatus, "team_id", fmt.Sprint(teamID))
 	}
 
 	applyTeamSpec(team1.ID, shared, http.StatusOK)
 	applyTeamSpec(team2.ID, shared, http.StatusOK)
 
-	teamLabel := func(teamID uint) *fleet.LabelSpec {
-		var specsResp fleet.GetLabelSpecsResponse
-		s.DoJSON("GET", "/api/latest/fleet/spec/labels", nil, http.StatusOK, &specsResp, "fleet_id", fmt.Sprint(teamID))
+	teamLabel := func(teamID uint) *automdm.LabelSpec {
+		var specsResp automdm.GetLabelSpecsResponse
+		s.DoJSON("GET", "/api/latest/automdm/spec/labels", nil, http.StatusOK, &specsResp, "team_id", fmt.Sprint(teamID))
 		for _, spec := range specsResp.Specs {
 			if spec.Name == shared {
 				return spec
@@ -61,27 +61,27 @@ func (s *integrationEnterpriseTestSuite) TestTeamLabelsShareNames() {
 	require.NotNil(t, team2Label)
 	require.NotEqual(t, team1Label.ID, team2Label.ID)
 
-	// A global label can't take a name a fleet uses, through the UI's endpoint or specs.
-	res := s.Do("POST", "/api/latest/fleet/labels", &fleet.LabelPayload{Name: shared, Query: "select 1"}, http.StatusConflict)
-	require.Contains(t, extractServerErrorText(res.Body), fleet.LabelNameInUseByFleetsErrMsg)
-	res = s.Do("POST", "/api/latest/fleet/spec/labels", fleet.ApplyLabelSpecsRequest{
-		Specs: []*fleet.LabelSpec{{Name: shared, Query: "select 1", LabelMembershipType: fleet.LabelMembershipTypeDynamic}},
+	// A global label can't take a name a team uses, through the UI's endpoint or specs.
+	res := s.Do("POST", "/api/latest/automdm/labels", &automdm.LabelPayload{Name: shared, Query: "select 1"}, http.StatusConflict)
+	require.Contains(t, extractServerErrorText(res.Body), automdm.LabelNameInUseByTeamsErrMsg)
+	res = s.Do("POST", "/api/latest/automdm/spec/labels", automdm.ApplyLabelSpecsRequest{
+		Specs: []*automdm.LabelSpec{{Name: shared, Query: "select 1", LabelMembershipType: automdm.LabelMembershipTypeDynamic}},
 	}, http.StatusConflict)
-	require.Contains(t, extractServerErrorText(res.Body), fleet.LabelNameInUseByFleetsErrMsg)
+	require.Contains(t, extractServerErrorText(res.Body), automdm.LabelNameInUseByTeamsErrMsg)
 
-	// A fleet label can't take a global label's name, by spec or by rename.
-	var createResp fleet.CreateLabelResponse
-	s.DoJSON("POST", "/api/latest/fleet/labels", &fleet.LabelPayload{Name: globalName, Query: "select 1"}, http.StatusOK, &createResp)
+	// A team label can't take a global label's name, by spec or by rename.
+	var createResp automdm.CreateLabelResponse
+	s.DoJSON("POST", "/api/latest/automdm/labels", &automdm.LabelPayload{Name: globalName, Query: "select 1"}, http.StatusOK, &createResp)
 	res = applyTeamSpec(team1.ID, globalName, http.StatusConflict)
-	require.Contains(t, extractServerErrorText(res.Body), fleet.LabelNameInUseGloballyErrMsg)
-	res = s.Do("PATCH", fmt.Sprintf("/api/latest/fleet/labels/%d", team1Label.ID), &fleet.ModifyLabelPayload{Name: &globalName}, http.StatusConflict)
-	require.Contains(t, extractServerErrorText(res.Body), fleet.LabelNameInUseGloballyErrMsg)
-	res = s.Do("PATCH", fmt.Sprintf("/api/latest/fleet/labels/%d", createResp.Label.ID), &fleet.ModifyLabelPayload{Name: &shared}, http.StatusConflict)
-	require.Contains(t, extractServerErrorText(res.Body), fleet.LabelNameInUseByFleetsErrMsg)
+	require.Contains(t, extractServerErrorText(res.Body), automdm.LabelNameInUseGloballyErrMsg)
+	res = s.Do("PATCH", fmt.Sprintf("/api/latest/automdm/labels/%d", team1Label.ID), &automdm.ModifyLabelPayload{Name: &globalName}, http.StatusConflict)
+	require.Contains(t, extractServerErrorText(res.Body), automdm.LabelNameInUseGloballyErrMsg)
+	res = s.Do("PATCH", fmt.Sprintf("/api/latest/automdm/labels/%d", createResp.Label.ID), &automdm.ModifyLabelPayload{Name: &shared}, http.StatusConflict)
+	require.Contains(t, extractServerErrorText(res.Body), automdm.LabelNameInUseByTeamsErrMsg)
 
-	// A fleet's resources resolve the shared name to that fleet's label.
-	var tpResp fleet.CreatePolicyResponse
-	s.DoJSON("POST", "/api/latest/fleet/policies", fleet.CreatePolicyRequest{
+	// A team's resources resolve the shared name to that team's label.
+	var tpResp automdm.CreatePolicyResponse
+	s.DoJSON("POST", "/api/latest/automdm/policies", automdm.CreatePolicyRequest{
 		TeamID: &team2.ID, Name: t.Name() + "_policy", Query: "select 1", LabelsIncludeAny: []string{shared, globalName},
 	}, http.StatusOK, &tpResp)
 	require.Len(t, tpResp.Policy.LabelsIncludeAny, 2)
@@ -89,18 +89,18 @@ func (s *integrationEnterpriseTestSuite) TestTeamLabelsShareNames() {
 	require.ElementsMatch(t, []uint{team2Label.ID, createResp.Label.ID}, gotIDs)
 
 	// The name alone no longer identifies one label.
-	res = s.Do("GET", fmt.Sprintf("/api/latest/fleet/spec/labels/%s", url.PathEscape(shared)), nil, http.StatusConflict)
-	require.Contains(t, extractServerErrorText(res.Body), "More than one fleet has a label named")
-	res = s.Do("POST", "/api/latest/fleet/spec/policies", fleet.ApplyPolicySpecsRequest{
-		Specs: []*fleet.PolicySpec{{Name: t.Name() + "_global_policy", Query: "select 1", LabelsIncludeAny: []string{shared}}},
+	res = s.Do("GET", fmt.Sprintf("/api/latest/automdm/spec/labels/%s", url.PathEscape(shared)), nil, http.StatusConflict)
+	require.Contains(t, extractServerErrorText(res.Body), "More than one team has a label named")
+	res = s.Do("POST", "/api/latest/automdm/spec/policies", automdm.ApplyPolicySpecsRequest{
+		Specs: []*automdm.PolicySpec{{Name: t.Name() + "_global_policy", Query: "select 1", LabelsIncludeAny: []string{shared}}},
 	}, http.StatusConflict)
-	require.Contains(t, extractServerErrorText(res.Body), "More than one fleet has a label named")
+	require.Contains(t, extractServerErrorText(res.Body), "More than one team has a label named")
 
-	// A fleet ID narrows the name to the global labels and that fleet's labels.
-	specPath := func(name string) string { return "/api/latest/fleet/spec/labels/" + url.PathEscape(name) }
+	// A team ID narrows the name to the global labels and that team's labels.
+	specPath := func(name string) string { return "/api/latest/automdm/spec/labels/" + url.PathEscape(name) }
 	for _, tc := range []struct {
 		name        string
-		fleetID     uint
+		automdmID   uint
 		wantLabelID uint
 	}{
 		{shared, team1.ID, team1Label.ID},
@@ -108,68 +108,68 @@ func (s *integrationEnterpriseTestSuite) TestTeamLabelsShareNames() {
 		{globalName, team2.ID, createResp.Label.ID},
 		{globalName, 0, createResp.Label.ID},
 	} {
-		var specResp fleet.GetLabelSpecResponse
-		s.DoJSON("GET", specPath(tc.name), nil, http.StatusOK, &specResp, "fleet_id", fmt.Sprint(tc.fleetID))
-		require.Equal(t, tc.wantLabelID, specResp.Spec.ID, "%s on fleet %d", tc.name, tc.fleetID)
+		var specResp automdm.GetLabelSpecResponse
+		s.DoJSON("GET", specPath(tc.name), nil, http.StatusOK, &specResp, "team_id", fmt.Sprint(tc.automdmID))
+		require.Equal(t, tc.wantLabelID, specResp.Spec.ID, "%s on team %d", tc.name, tc.automdmID)
 	}
-	s.Do("GET", specPath(shared), nil, http.StatusNotFound, "fleet_id", "0")
+	s.Do("GET", specPath(shared), nil, http.StatusNotFound, "team_id", "0")
 
 	func() {
-		fleetAdmin := &fleet.User{
-			Name:  t.Name() + "_fleet_admin",
+		automdmAdmin := &automdm.User{
+			Name:  t.Name() + "_team_admin",
 			Email: uuid.NewString() + "@example.com",
-			Teams: []fleet.UserTeam{{Team: *team1, Role: fleet.RoleAdmin}},
+			Teams: []automdm.UserTeam{{Team: *team1, Role: automdm.RoleAdmin}},
 		}
-		require.NoError(t, fleetAdmin.SetPassword(test.GoodPassword, 10, 10))
-		fleetAdmin, err = s.ds.NewUser(ctx, fleetAdmin)
+		require.NoError(t, automdmAdmin.SetPassword(test.GoodPassword, 10, 10))
+		automdmAdmin, err = s.ds.NewUser(ctx, automdmAdmin)
 		require.NoError(t, err)
-		s.token = s.getTestToken(fleetAdmin.Email, test.GoodPassword)
+		s.token = s.getTestToken(automdmAdmin.Email, test.GoodPassword)
 		defer func() { s.token = s.getTestAdminToken() }()
-		var fleetAdminSpecResp fleet.GetLabelSpecResponse
-		s.DoJSON("GET", specPath(shared), nil, http.StatusOK, &fleetAdminSpecResp, "fleet_id", fmt.Sprint(team1.ID))
-		require.Equal(t, team1Label.ID, fleetAdminSpecResp.Spec.ID)
-		s.Do("GET", specPath(shared), nil, http.StatusForbidden, "fleet_id", fmt.Sprint(team2.ID))
+		var teamAdminSpecResp automdm.GetLabelSpecResponse
+		s.DoJSON("GET", specPath(shared), nil, http.StatusOK, &teamAdminSpecResp, "team_id", fmt.Sprint(team1.ID))
+		require.Equal(t, team1Label.ID, teamAdminSpecResp.Spec.ID)
+		s.Do("GET", specPath(shared), nil, http.StatusForbidden, "team_id", fmt.Sprint(team2.ID))
 	}()
 
-	// Moving the name to global from one fleet doesn't set aside another fleet's label.
-	res = s.Do("POST", "/api/latest/fleet/spec/labels", fleet.ApplyLabelSpecsRequest{
-		Specs:        []*fleet.LabelSpec{{Name: shared, Query: "select 1", LabelMembershipType: fleet.LabelMembershipTypeDynamic}},
-		LabelsToMove: []fleet.LabelToMove{{Name: shared, FromFleetID: &team1.ID}},
+	// Moving the name to global from one team doesn't set aside another team's label.
+	res = s.Do("POST", "/api/latest/automdm/spec/labels", automdm.ApplyLabelSpecsRequest{
+		Specs:        []*automdm.LabelSpec{{Name: shared, Query: "select 1", LabelMembershipType: automdm.LabelMembershipTypeDynamic}},
+		LabelsToMove: []automdm.LabelToMove{{Name: shared, FromAutoMDMID: &team1.ID}},
 	}, http.StatusConflict)
-	require.Contains(t, extractServerErrorText(res.Body), fleet.LabelNameInUseByFleetsErrMsg)
+	require.Contains(t, extractServerErrorText(res.Body), automdm.LabelNameInUseByTeamsErrMsg)
 	require.Equal(t, team1Label.ID, teamLabel(team1.ID).ID)
 	require.Equal(t, team2Label.ID, teamLabel(team2.ID).ID)
 
-	// Labels are deleted by ID, so deleting one fleet's label leaves the other fleet's label with the same name.
-	s.Do("DELETE", fmt.Sprintf("/api/latest/fleet/labels/%s", url.PathEscape(shared)), nil, http.StatusGone)
-	var delResp fleet.DeleteLabelByIDResponse
-	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/fleet/labels/id/%d", team1Label.ID), nil, http.StatusOK, &delResp)
+	// Labels are deleted by ID, so deleting one team's label leaves the other team's label with the same name.
+	s.Do("DELETE", fmt.Sprintf("/api/latest/automdm/labels/%s", url.PathEscape(shared)), nil, http.StatusGone)
+	var delResp automdm.DeleteLabelByIDResponse
+	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/automdm/labels/id/%d", team1Label.ID), nil, http.StatusOK, &delResp)
 
-	var getResp fleet.GetLabelResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/labels/%d", team1Label.ID), nil, http.StatusNotFound, &getResp)
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/labels/%d", team2Label.ID), nil, http.StatusOK, &getResp)
-	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/fleet/labels/id/%d", createResp.Label.ID), nil, http.StatusOK, &delResp)
+	var getResp automdm.GetLabelResponse
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/labels/%d", team1Label.ID), nil, http.StatusNotFound, &getResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/labels/%d", team2Label.ID), nil, http.StatusOK, &getResp)
+	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/automdm/labels/id/%d", createResp.Label.ID), nil, http.StatusOK, &delResp)
 }
 
 func (s *integrationEnterpriseTestSuite) TestTeamLabelsShareNamesLiveReport() {
 	t := s.T()
 	ctx := t.Context()
 
-	team1, err := s.ds.NewTeam(ctx, &fleet.Team{Name: t.Name() + "_team1"})
+	team1, err := s.ds.NewTeam(ctx, &automdm.Team{Name: t.Name() + "_team1"})
 	require.NoError(t, err)
-	team2, err := s.ds.NewTeam(ctx, &fleet.Team{Name: t.Name() + "_team2"})
+	team2, err := s.ds.NewTeam(ctx, &automdm.Team{Name: t.Name() + "_team2"})
 	require.NoError(t, err)
 	hosts := s.createHosts(t, "darwin", "darwin")
-	require.NoError(t, s.ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team1.ID, []uint{hosts[0].ID})))
-	require.NoError(t, s.ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team2.ID, []uint{hosts[1].ID})))
+	require.NoError(t, s.ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team1.ID, []uint{hosts[0].ID})))
+	require.NoError(t, s.ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team2.ID, []uint{hosts[1].ID})))
 
 	shared := strings.ReplaceAll(t.Name(), "/", "_") + "_engineering"
 	labelIDs := make([]uint, 2)
-	for i, team := range []*fleet.Team{team1, team2} {
-		s.Do("POST", "/api/latest/fleet/spec/labels", fleet.ApplyLabelSpecsRequest{
-			Specs: []*fleet.LabelSpec{{Name: shared, LabelMembershipType: fleet.LabelMembershipTypeManual, Hosts: []string{hosts[i].UUID}}},
-		}, http.StatusOK, "fleet_id", fmt.Sprint(team.ID))
-		ids, err := s.ds.LabelIDsByName(ctx, []string{shared}, fleet.TeamFilter{User: test.UserAdmin, TeamID: &team.ID})
+	for i, team := range []*automdm.Team{team1, team2} {
+		s.Do("POST", "/api/latest/automdm/spec/labels", automdm.ApplyLabelSpecsRequest{
+			Specs: []*automdm.LabelSpec{{Name: shared, LabelMembershipType: automdm.LabelMembershipTypeManual, Hosts: []string{hosts[i].UUID}}},
+		}, http.StatusOK, "team_id", fmt.Sprint(team.ID))
+		ids, err := s.ds.LabelIDsByName(ctx, []string{shared}, automdm.TeamFilter{User: test.UserAdmin, TeamID: &team.ID})
 		require.NoError(t, err)
 		labelIDs[i] = ids[shared]
 	}
@@ -182,7 +182,7 @@ func (s *integrationEnterpriseTestSuite) TestTeamLabelsShareNamesLiveReport() {
 			ranOn = args.Get(2).([]uint)
 		})
 		var resp createDistributedQueryCampaignResponse
-		s.DoJSON("POST", "/api/latest/fleet/reports/run_by_identifiers", createDistributedQueryCampaignByIdentifierRequest{
+		s.DoJSON("POST", "/api/latest/automdm/reports/run_by_identifiers", createDistributedQueryCampaignByIdentifierRequest{
 			QuerySQL: "SELECT 1",
 			Selected: distributedQueryCampaignTargetsByIdentifiers{Labels: []string{shared}},
 		}, http.StatusOK, &resp)
@@ -195,11 +195,11 @@ func (s *integrationEnterpriseTestSuite) TestTeamLabelsShareNamesLiveReport() {
 	// The name targets every label with that name the user can see.
 	runByName(labelIDs, []uint{hosts[0].ID, hosts[1].ID})
 
-	// A user on one fleet only sees that fleet's label.
-	maintainer := &fleet.User{
+	// A user on one team only sees that team's label.
+	maintainer := &automdm.User{
 		Name:  "maintainer",
 		Email: strings.ReplaceAll(t.Name(), "/", "_") + "_maintainer@example.com",
-		Teams: []fleet.UserTeam{{Team: *team1, Role: fleet.RoleMaintainer}},
+		Teams: []automdm.UserTeam{{Team: *team1, Role: automdm.RoleMaintainer}},
 	}
 	require.NoError(t, maintainer.SetPassword(test.GoodPassword, 10, 10))
 	maintainer, err = s.ds.NewUser(ctx, maintainer)
@@ -213,48 +213,48 @@ func (s *integrationEnterpriseTestSuite) TestTeamLabels() {
 	t := s.T()
 
 	// Create teams for testing team labels
-	team1, err := s.ds.NewTeam(context.Background(), &fleet.Team{Name: t.Name() + "_team1"})
+	team1, err := s.ds.NewTeam(context.Background(), &automdm.Team{Name: t.Name() + "_team1"})
 	require.NoError(t, err)
-	team2, err := s.ds.NewTeam(context.Background(), &fleet.Team{Name: t.Name() + "_team2"})
+	team2, err := s.ds.NewTeam(context.Background(), &automdm.Team{Name: t.Name() + "_team2"})
 	require.NoError(t, err)
 
 	// Create hosts on different teams
 	teamHosts := s.createHosts(t, "darwin", "darwin")
-	require.NoError(t, s.ds.AddHostsToTeam(context.Background(), fleet.NewAddHostsToTeamParams(&team1.ID, []uint{teamHosts[0].ID})))
-	require.NoError(t, s.ds.AddHostsToTeam(context.Background(), fleet.NewAddHostsToTeamParams(&team2.ID, []uint{teamHosts[1].ID})))
+	require.NoError(t, s.ds.AddHostsToTeam(context.Background(), automdm.NewAddHostsToTeamParams(&team1.ID, []uint{teamHosts[0].ID})))
+	require.NoError(t, s.ds.AddHostsToTeam(context.Background(), automdm.NewAddHostsToTeamParams(&team2.ID, []uint{teamHosts[1].ID})))
 
 	// Create team labels using datastore directly (LabelPayload doesn't support TeamID)
-	team1Label, err := s.ds.NewLabel(context.Background(), &fleet.Label{
+	team1Label, err := s.ds.NewLabel(context.Background(), &automdm.Label{
 		Name:                t.Name() + "_team1_label",
 		Query:               "SELECT 1",
 		TeamID:              &team1.ID,
-		LabelType:           fleet.LabelTypeRegular,
-		LabelMembershipType: fleet.LabelMembershipTypeDynamic,
+		LabelType:           automdm.LabelTypeRegular,
+		LabelMembershipType: automdm.LabelMembershipTypeDynamic,
 	})
 	require.NoError(t, err)
 	team1LabelID := team1Label.ID
 
 	// Create a team2 label using datastore
-	team2Label, err := s.ds.NewLabel(context.Background(), &fleet.Label{
+	team2Label, err := s.ds.NewLabel(context.Background(), &automdm.Label{
 		Name:                "__team2_label",
 		Query:               "SELECT 2",
 		TeamID:              &team2.ID,
-		LabelType:           fleet.LabelTypeRegular,
-		LabelMembershipType: fleet.LabelMembershipTypeDynamic,
+		LabelType:           automdm.LabelTypeRegular,
+		LabelMembershipType: automdm.LabelMembershipTypeDynamic,
 	})
 	require.NoError(t, err)
 	team2LabelID := team2Label.ID
 
 	// Get the team label via API
-	var getResp fleet.GetLabelResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/labels/%d", team1LabelID), nil, http.StatusOK, &getResp)
+	var getResp automdm.GetLabelResponse
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/labels/%d", team1LabelID), nil, http.StatusOK, &getResp)
 	require.Equal(t, team1LabelID, getResp.Label.ID)
 	require.NotNil(t, getResp.Label.TeamID)
 	require.Equal(t, team1.ID, *getResp.Label.TeamID)
 
 	// List labels should include team labels for admin
-	var listResp fleet.ListLabelsResponse
-	s.DoJSON("GET", "/api/latest/fleet/labels", nil, http.StatusOK, &listResp)
+	var listResp automdm.ListLabelsResponse
+	s.DoJSON("GET", "/api/latest/automdm/labels", nil, http.StatusOK, &listResp)
 	foundTeamLabel := false
 	foundTeam2Label := false
 	for _, lbl := range listResp.Labels {
@@ -273,8 +273,8 @@ func (s *integrationEnterpriseTestSuite) TestTeamLabels() {
 	require.True(t, foundTeam2Label, "team 2 label should be in list")
 
 	// Filter to specific team
-	listResp = fleet.ListLabelsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/labels", nil, http.StatusOK, &listResp, "fleet_id", fmt.Sprint(team1.ID))
+	listResp = automdm.ListLabelsResponse{}
+	s.DoJSON("GET", "/api/latest/automdm/labels", nil, http.StatusOK, &listResp, "team_id", fmt.Sprint(team1.ID))
 	foundTeamLabel = false
 	for _, lbl := range listResp.Labels {
 		if lbl.ID == team1LabelID {
@@ -288,64 +288,64 @@ func (s *integrationEnterpriseTestSuite) TestTeamLabels() {
 	require.True(t, foundTeamLabel, "team1 label should be in filtered list")
 
 	// Filter to global only (team_id=0) should not include team labels
-	listResp = fleet.ListLabelsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/labels", nil, http.StatusOK, &listResp, "fleet_id", "0")
+	listResp = automdm.ListLabelsResponse{}
+	s.DoJSON("GET", "/api/latest/automdm/labels", nil, http.StatusOK, &listResp, "team_id", "0")
 	for _, lbl := range listResp.Labels {
 		require.Nil(t, lbl.TeamID, "global-only filter should not return team labels")
 	}
 
 	// Modify team label
-	var modResp fleet.ModifyLabelResponse
+	var modResp automdm.ModifyLabelResponse
 	newName := t.Name() + "_team1_label_modified"
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/labels/%d", team1LabelID), &fleet.ModifyLabelPayload{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/labels/%d", team1LabelID), &automdm.ModifyLabelPayload{
 		Name: &newName,
 	}, http.StatusOK, &modResp)
 	require.Equal(t, newName, modResp.Label.Name)
 
 	// Delete team labels
-	var delResp fleet.DeleteLabelByIDResponse
-	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/fleet/labels/id/%d", team1LabelID), nil, http.StatusOK, &delResp)
+	var delResp automdm.DeleteLabelByIDResponse
+	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/automdm/labels/id/%d", team1LabelID), nil, http.StatusOK, &delResp)
 
 	// Verify it's deleted
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/labels/%d", team1LabelID), nil, http.StatusNotFound, &getResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/labels/%d", team1LabelID), nil, http.StatusNotFound, &getResp)
 
-	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/fleet/labels/id/%d", team2LabelID), nil, http.StatusOK, &delResp)
+	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/automdm/labels/id/%d", team2LabelID), nil, http.StatusOK, &delResp)
 
 	// Verify it's deleted
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/labels/%d", team2LabelID), nil, http.StatusNotFound, &getResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/labels/%d", team2LabelID), nil, http.StatusNotFound, &getResp)
 
 	/////// LABEL SPECS
 
 	// Apply a team label spec
 	teamLabelName := strings.ReplaceAll(t.Name(), "/", "_") + "_team1_label"
-	var applyResp fleet.ApplyLabelSpecsResponse
+	var applyResp automdm.ApplyLabelSpecsResponse
 	// make sure we fail loudly when we spec the request wrong
-	s.DoJSON("POST", "/api/latest/fleet/spec/labels", fleet.ApplyLabelSpecsRequest{
-		Specs: []*fleet.LabelSpec{
+	s.DoJSON("POST", "/api/latest/automdm/spec/labels", automdm.ApplyLabelSpecsRequest{
+		Specs: []*automdm.LabelSpec{
 			{
 				Name:                teamLabelName,
 				Query:               "select 1",
 				Platform:            "darwin",
-				LabelMembershipType: fleet.LabelMembershipTypeDynamic,
+				LabelMembershipType: automdm.LabelMembershipTypeDynamic,
 				TeamID:              &team1.ID,
 			},
 		},
 	}, http.StatusUnprocessableEntity, &applyResp)
 
-	s.DoJSON("POST", fmt.Sprintf("/api/latest/fleet/spec/labels?fleet_id=%d", team1.ID), fleet.ApplyLabelSpecsRequest{
-		Specs: []*fleet.LabelSpec{
+	s.DoJSON("POST", fmt.Sprintf("/api/latest/automdm/spec/labels?team_id=%d", team1.ID), automdm.ApplyLabelSpecsRequest{
+		Specs: []*automdm.LabelSpec{
 			{
 				Name:                teamLabelName,
 				Query:               "select 1",
 				Platform:            "darwin",
-				LabelMembershipType: fleet.LabelMembershipTypeDynamic,
+				LabelMembershipType: automdm.LabelMembershipTypeDynamic,
 			},
 		},
 	}, http.StatusOK, &applyResp)
 
 	// List label specs should include team label for admin
-	var specsResp fleet.GetLabelSpecsResponse
-	s.DoJSON("GET", "/api/latest/fleet/spec/labels", nil, http.StatusOK, &specsResp)
+	var specsResp automdm.GetLabelSpecsResponse
+	s.DoJSON("GET", "/api/latest/automdm/spec/labels", nil, http.StatusOK, &specsResp)
 	foundTeamLabel = false
 
 	for _, spec := range specsResp.Specs {
@@ -358,14 +358,14 @@ func (s *integrationEnterpriseTestSuite) TestTeamLabels() {
 	require.True(t, foundTeamLabel, "team label spec should be in list")
 
 	// Get the specific team label spec
-	var getSpecResp fleet.GetLabelSpecResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/spec/labels/%s", url.PathEscape(teamLabelName)), nil, http.StatusOK, &getSpecResp)
+	var getSpecResp automdm.GetLabelSpecResponse
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/spec/labels/%s", url.PathEscape(teamLabelName)), nil, http.StatusOK, &getSpecResp)
 	require.Equal(t, teamLabelName, getSpecResp.Spec.Name)
 	require.NotNil(t, getSpecResp.Spec.TeamID)
 	require.Equal(t, team1.ID, *getSpecResp.Spec.TeamID)
 
 	// Filter specs to specific team
-	s.DoJSON("GET", "/api/latest/fleet/spec/labels", nil, http.StatusOK, &specsResp, "fleet_id", fmt.Sprint(team1.ID))
+	s.DoJSON("GET", "/api/latest/automdm/spec/labels", nil, http.StatusOK, &specsResp, "team_id", fmt.Sprint(team1.ID))
 	foundTeamLabel = false
 	for _, spec := range specsResp.Specs {
 		if spec.Name == teamLabelName {
@@ -379,7 +379,7 @@ func (s *integrationEnterpriseTestSuite) TestTeamLabels() {
 	require.True(t, foundTeamLabel, "team1 label spec should be in filtered list")
 
 	// Filter specs to global only (team_id=0)
-	s.DoJSON("GET", "/api/latest/fleet/spec/labels", nil, http.StatusOK, &specsResp, "fleet_id", "0")
+	s.DoJSON("GET", "/api/latest/automdm/spec/labels", nil, http.StatusOK, &specsResp, "team_id", "0")
 	for _, spec := range specsResp.Specs {
 		require.Nil(t, spec.TeamID, "global-only filter should not return team labels")
 	}
@@ -389,7 +389,7 @@ func (s *integrationEnterpriseTestSuite) TestTeamLabels() {
 	ctx := context.Background()
 
 	// Create a global host for testing restrictions
-	globalHost, err := s.ds.NewHost(ctx, &fleet.Host{
+	globalHost, err := s.ds.NewHost(ctx, &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -404,13 +404,13 @@ func (s *integrationEnterpriseTestSuite) TestTeamLabels() {
 
 	// Create a team admin user for team1
 	teamAdminEmail := t.Name() + "_team_admin@example.com"
-	teamAdmin := &fleet.User{
+	teamAdmin := &automdm.User{
 		Name:  teamAdminEmail,
 		Email: teamAdminEmail,
-		Teams: []fleet.UserTeam{
+		Teams: []automdm.UserTeam{
 			{
 				Team: *team1,
-				Role: fleet.RoleAdmin,
+				Role: automdm.RoleAdmin,
 			},
 		},
 	}
@@ -419,17 +419,17 @@ func (s *integrationEnterpriseTestSuite) TestTeamLabels() {
 	require.NoError(t, err)
 
 	// Create a team label (manual) on team1
-	teamManualLabel, err := s.ds.NewLabel(ctx, &fleet.Label{
+	teamManualLabel, err := s.ds.NewLabel(ctx, &automdm.Label{
 		Name:                t.Name() + "_teamManualLabel1",
-		LabelMembershipType: fleet.LabelMembershipTypeManual,
+		LabelMembershipType: automdm.LabelMembershipTypeManual,
 		TeamID:              &team1.ID,
 	})
 	require.NoError(t, err)
 
 	// Helper function to get host label names
-	getHostLabels := func(host *fleet.Host) []string {
+	getHostLabels := func(host *automdm.Host) []string {
 		var hostResp getHostResponse
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", host.ID), nil, http.StatusOK, &hostResp)
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", host.ID), nil, http.StatusOK, &hostResp)
 		labels := make([]string, 0, len(hostResp.Host.Labels))
 		for _, lbl := range hostResp.Host.Labels {
 			labels = append(labels, lbl.Name)
@@ -439,38 +439,38 @@ func (s *integrationEnterpriseTestSuite) TestTeamLabels() {
 
 	// Admin can add team label to team host (teamHosts[0] is on team1)
 	var addLabelsToHostResp addLabelsToHostResponse
-	s.DoJSON("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/labels", teamHosts[0].ID), addLabelsToHostRequest{
+	s.DoJSON("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/labels", teamHosts[0].ID), addLabelsToHostRequest{
 		Labels: []string{teamManualLabel.Name},
 	}, http.StatusOK, &addLabelsToHostResp)
 	team1HostLabels := getHostLabels(teamHosts[0])
 	require.Contains(t, team1HostLabels, teamManualLabel.Name)
 
 	// Cannot add team1 label to team2 host (teamHosts[1] is on team2)
-	s.DoJSON("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/labels", teamHosts[1].ID), addLabelsToHostRequest{
+	s.DoJSON("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/labels", teamHosts[1].ID), addLabelsToHostRequest{
 		Labels: []string{teamManualLabel.Name},
 	}, http.StatusBadRequest, &addLabelsToHostResp)
 
 	// Cannot add team1 label to global host
-	s.DoJSON("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/labels", globalHost.ID), addLabelsToHostRequest{
+	s.DoJSON("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/labels", globalHost.ID), addLabelsToHostRequest{
 		Labels: []string{teamManualLabel.Name},
 	}, http.StatusBadRequest, &addLabelsToHostResp)
 
 	// Team admin can add their team's label to their team's host
 	// First remove the label added by admin
-	var removeLabelsFromHostResp fleet.RemoveLabelsFromHostResponse
-	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/fleet/hosts/%d/labels", teamHosts[0].ID), fleet.RemoveLabelsFromHostRequest{
+	var removeLabelsFromHostResp automdm.RemoveLabelsFromHostResponse
+	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/automdm/hosts/%d/labels", teamHosts[0].ID), automdm.RemoveLabelsFromHostRequest{
 		Labels: []string{teamManualLabel.Name},
 	}, http.StatusOK, &removeLabelsFromHostResp)
 
 	s.token = s.getTestToken(teamAdmin.Email, test.GoodPassword)
-	s.DoJSON("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/labels", teamHosts[0].ID), addLabelsToHostRequest{
+	s.DoJSON("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/labels", teamHosts[0].ID), addLabelsToHostRequest{
 		Labels: []string{teamManualLabel.Name},
 	}, http.StatusOK, &addLabelsToHostResp)
 	team1HostLabels = getHostLabels(teamHosts[0])
 	require.Contains(t, team1HostLabels, teamManualLabel.Name)
 
 	// Team admin can remove their team's label from their team's host
-	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/fleet/hosts/%d/labels", teamHosts[0].ID), fleet.RemoveLabelsFromHostRequest{
+	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/automdm/hosts/%d/labels", teamHosts[0].ID), automdm.RemoveLabelsFromHostRequest{
 		Labels: []string{teamManualLabel.Name},
 	}, http.StatusOK, &removeLabelsFromHostResp)
 	team1HostLabels = getHostLabels(teamHosts[0])
@@ -492,26 +492,26 @@ func (s *integrationEnterpriseTestSuite) TestLabelsHostsCounts() {
 	ctx := context.Background()
 
 	hosts := s.createHosts(t, "debian", "linux", "fedora", "darwin", "darwin")
-	tm1, err := s.ds.NewTeam(ctx, &fleet.Team{Name: "team1"})
+	tm1, err := s.ds.NewTeam(ctx, &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
-	tm2, err := s.ds.NewTeam(ctx, &fleet.Team{Name: "team2"})
+	tm2, err := s.ds.NewTeam(ctx, &automdm.Team{Name: "team2"})
 	require.NoError(t, err)
 
 	// move a couple hosts to tm1, one to tm2
-	err = s.ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&tm1.ID, []uint{hosts[0].ID, hosts[1].ID}))
+	err = s.ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&tm1.ID, []uint{hosts[0].ID, hosts[1].ID}))
 	require.NoError(t, err)
-	err = s.ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&tm2.ID, []uint{hosts[2].ID}))
+	err = s.ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&tm2.ID, []uint{hosts[2].ID}))
 	require.NoError(t, err)
 
 	// create new users for tm1, tm2 and one with both tm1 and tm2
-	users := []fleet.UserPayload{
+	users := []automdm.UserPayload{
 		{
 			Name:                     new("team1 user"),
 			Email:                    new("tm1user@example.com"),
 			Password:                 new(test.GoodPassword),
 			AdminForcedPasswordReset: new(false),
-			Teams: &[]fleet.UserTeam{
-				{ID: tm1.ID, Role: fleet.RoleMaintainer},
+			Teams: &[]automdm.UserTeam{
+				{ID: tm1.ID, Role: automdm.RoleMaintainer},
 			},
 		},
 		{
@@ -519,8 +519,8 @@ func (s *integrationEnterpriseTestSuite) TestLabelsHostsCounts() {
 			Email:                    new("tm2user@example.com"),
 			Password:                 new(test.GoodPassword),
 			AdminForcedPasswordReset: new(false),
-			Teams: &[]fleet.UserTeam{
-				{ID: tm2.ID, Role: fleet.RoleAdmin},
+			Teams: &[]automdm.UserTeam{
+				{ID: tm2.ID, Role: automdm.RoleAdmin},
 			},
 		},
 		{
@@ -528,20 +528,20 @@ func (s *integrationEnterpriseTestSuite) TestLabelsHostsCounts() {
 			Email:                    new("tm1and2user@example.com"),
 			Password:                 new(test.GoodPassword),
 			AdminForcedPasswordReset: new(false),
-			Teams: &[]fleet.UserTeam{
-				{ID: tm1.ID, Role: fleet.RoleObserver},
-				{ID: tm2.ID, Role: fleet.RoleObserverPlus},
+			Teams: &[]automdm.UserTeam{
+				{ID: tm1.ID, Role: automdm.RoleObserver},
+				{ID: tm2.ID, Role: automdm.RoleObserverPlus},
 			},
 		},
 	}
 	for _, u := range users {
 		var createResp createUserResponse
-		s.DoJSON("POST", "/api/latest/fleet/users/admin", u, http.StatusOK, &createResp)
+		s.DoJSON("POST", "/api/latest/automdm/users/admin", u, http.StatusOK, &createResp)
 	}
 
 	// create a manual label with hosts across no team, team1 and team2
-	var createLbl fleet.CreateLabelResponse
-	s.DoJSON("POST", "/api/latest/fleet/labels", fleet.CreateLabelRequest{
+	var createLbl automdm.CreateLabelResponse
+	s.DoJSON("POST", "/api/latest/automdm/labels", automdm.CreateLabelRequest{
 		Name:  "manual1",
 		Hosts: []string{hosts[0].UUID, hosts[1].UUID, hosts[2].UUID, hosts[3].UUID},
 	}, http.StatusOK, &createLbl)
@@ -551,7 +551,7 @@ func (s *integrationEnterpriseTestSuite) TestLabelsHostsCounts() {
 	require.NotZero(t, lblM1)
 
 	// create a dynamic label always returns a count of 0 (no members yet)
-	s.DoJSON("POST", "/api/latest/fleet/labels", fleet.CreateLabelRequest{
+	s.DoJSON("POST", "/api/latest/automdm/labels", automdm.CreateLabelRequest{
 		Name:  "dynamic1",
 		Query: "select 1",
 	}, http.StatusOK, &createLbl)
@@ -570,7 +570,7 @@ func (s *integrationEnterpriseTestSuite) TestLabelsHostsCounts() {
 	require.NoError(t, err)
 
 	// create another dynamic label which will stay empty
-	s.DoJSON("POST", "/api/latest/fleet/labels", fleet.CreateLabelRequest{
+	s.DoJSON("POST", "/api/latest/automdm/labels", automdm.CreateLabelRequest{
 		Name:  "dynamic2",
 		Query: "select 2",
 	}, http.StatusOK, &createLbl)
@@ -579,14 +579,14 @@ func (s *integrationEnterpriseTestSuite) TestLabelsHostsCounts() {
 	require.NotZero(t, lblD2)
 
 	// test access with each team user
-	adminUserPayload := fleet.UserPayload{
+	adminUserPayload := automdm.UserPayload{
 		Name:     new("admin1"),
 		Email:    new(testUsers["admin1"].Email),
 		Password: new(testUsers["admin1"].PlaintextPassword),
 	}
 	cases := []struct {
 		desc  string
-		u     fleet.UserPayload
+		u     automdm.UserPayload
 		lblID uint
 		want  int
 	}{
@@ -607,12 +607,12 @@ func (s *integrationEnterpriseTestSuite) TestLabelsHostsCounts() {
 		t.Run(c.desc, func(t *testing.T) {
 			s.setTokenForTest(t, *c.u.Email, *c.u.Password)
 
-			var getLbl fleet.GetLabelResponse
-			s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/labels/%d", c.lblID), nil, http.StatusOK, &getLbl)
+			var getLbl automdm.GetLabelResponse
+			s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/labels/%d", c.lblID), nil, http.StatusOK, &getLbl)
 			require.Equal(t, c.want, getLbl.Label.Count)
 
-			var listLbls fleet.ListLabelsResponse
-			s.DoJSON("GET", "/api/latest/fleet/labels", nil, http.StatusOK, &listLbls)
+			var listLbls automdm.ListLabelsResponse
+			s.DoJSON("GET", "/api/latest/automdm/labels", nil, http.StatusOK, &listLbls)
 			var found bool
 			for _, lbl := range listLbls.Labels {
 				if lbl.ID == c.lblID {
@@ -624,15 +624,15 @@ func (s *integrationEnterpriseTestSuite) TestLabelsHostsCounts() {
 			require.True(t, found)
 
 			// create and update label and just not possible for non-global users
-			if c.u != adminUserPayload && (*c.u.Teams)[0].Role != fleet.RoleMaintainer && (*c.u.Teams)[0].Role != fleet.RoleAdmin {
-				s.DoJSON("POST", "/api/latest/fleet/labels", fleet.CreateLabelRequest{
+			if c.u != adminUserPayload && (*c.u.Teams)[0].Role != automdm.RoleMaintainer && (*c.u.Teams)[0].Role != automdm.RoleAdmin {
+				s.DoJSON("POST", "/api/latest/automdm/labels", automdm.CreateLabelRequest{
 					Name:  "will fail",
 					Query: "select 3",
 				}, http.StatusForbidden, &createLbl)
 
-				s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/labels/%d", c.lblID), fleet.ModifyLabelRequest{
+				s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/labels/%d", c.lblID), automdm.ModifyLabelRequest{
 					Name: new("will fail"),
-				}, http.StatusForbidden, &fleet.ModifyLabelResponse{})
+				}, http.StatusForbidden, &automdm.ModifyLabelResponse{})
 			}
 		})
 	}
@@ -645,33 +645,33 @@ func (s *integrationEnterpriseTestSuite) TestLabelSpecHostsAreTeamFiltered() {
 	ctx := t.Context()
 
 	hosts := s.createHosts(t, "debian", "darwin", "windows")
-	tm1, err := s.ds.NewTeam(ctx, &fleet.Team{Name: "label spec team1"})
+	tm1, err := s.ds.NewTeam(ctx, &automdm.Team{Name: "label spec team1"})
 	require.NoError(t, err)
-	tm2, err := s.ds.NewTeam(ctx, &fleet.Team{Name: "label spec team2"})
+	tm2, err := s.ds.NewTeam(ctx, &automdm.Team{Name: "label spec team2"})
 	require.NoError(t, err)
 
-	require.NoError(t, s.ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&tm1.ID, []uint{hosts[0].ID})))
-	require.NoError(t, s.ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&tm2.ID, []uint{hosts[1].ID})))
+	require.NoError(t, s.ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&tm1.ID, []uint{hosts[0].ID})))
+	require.NoError(t, s.ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&tm2.ID, []uint{hosts[1].ID})))
 
-	observer := fleet.UserPayload{
+	observer := automdm.UserPayload{
 		Name:                     new("label spec team1 observer"),
 		Email:                    new("labelspec-tm1observer@example.com"),
 		Password:                 new(test.GoodPassword),
 		AdminForcedPasswordReset: new(false),
-		Teams:                    &[]fleet.UserTeam{{ID: tm1.ID, Role: fleet.RoleObserver}},
+		Teams:                    &[]automdm.UserTeam{{ID: tm1.ID, Role: automdm.RoleObserver}},
 	}
 	var createUser createUserResponse
-	s.DoJSON("POST", "/api/latest/fleet/users/admin", observer, http.StatusOK, &createUser)
+	s.DoJSON("POST", "/api/latest/automdm/users/admin", observer, http.StatusOK, &createUser)
 
 	labelName := "labelspec-global-manual"
-	var createLbl fleet.CreateLabelResponse
-	s.DoJSON("POST", "/api/latest/fleet/labels", fleet.CreateLabelRequest{
+	var createLbl automdm.CreateLabelResponse
+	s.DoJSON("POST", "/api/latest/automdm/labels", automdm.CreateLabelRequest{
 		Name:  labelName,
 		Hosts: []string{hosts[0].UUID, hosts[1].UUID, hosts[2].UUID},
 	}, http.StatusOK, &createLbl)
 
-	var getSpec fleet.GetLabelSpecResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/spec/labels/%s", url.PathEscape(labelName)), nil, http.StatusOK, &getSpec)
+	var getSpec automdm.GetLabelSpecResponse
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/spec/labels/%s", url.PathEscape(labelName)), nil, http.StatusOK, &getSpec)
 	require.ElementsMatch(t,
 		[]string{fmt.Sprint(hosts[0].ID), fmt.Sprint(hosts[1].ID), fmt.Sprint(hosts[2].ID)},
 		[]string(getSpec.Spec.Hosts),
@@ -680,12 +680,12 @@ func (s *integrationEnterpriseTestSuite) TestLabelSpecHostsAreTeamFiltered() {
 	// the team observer must not learn about hosts outside their team
 	s.setTokenForTest(t, *observer.Email, *observer.Password)
 
-	getSpec = fleet.GetLabelSpecResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/spec/labels/%s", url.PathEscape(labelName)), nil, http.StatusOK, &getSpec)
+	getSpec = automdm.GetLabelSpecResponse{}
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/spec/labels/%s", url.PathEscape(labelName)), nil, http.StatusOK, &getSpec)
 	require.Equal(t, []string{fmt.Sprint(hosts[0].ID)}, []string(getSpec.Spec.Hosts))
 
-	var listSpecs fleet.GetLabelSpecsResponse
-	s.DoJSON("GET", "/api/latest/fleet/spec/labels", nil, http.StatusOK, &listSpecs)
+	var listSpecs automdm.GetLabelSpecsResponse
+	s.DoJSON("GET", "/api/latest/automdm/spec/labels", nil, http.StatusOK, &listSpecs)
 	var found bool
 	for _, spec := range listSpecs.Specs {
 		if spec.Name == labelName {
@@ -696,8 +696,8 @@ func (s *integrationEnterpriseTestSuite) TestLabelSpecHostsAreTeamFiltered() {
 	require.True(t, found, "global manual label spec should be listed for the team observer")
 
 	// the members left out of the spec are the ones the observer can't reach directly
-	for _, h := range []*fleet.Host{hosts[1], hosts[2]} {
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", h.ID), nil, http.StatusForbidden, &getHostResponse{})
+	for _, h := range []*automdm.Host{hosts[1], hosts[2]} {
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", h.ID), nil, http.StatusForbidden, &getHostResponse{})
 	}
 }
 
@@ -705,14 +705,14 @@ func (s *integrationEnterpriseTestSuite) TestDeleteLabels() {
 	t := s.T()
 
 	// create a couple labels
-	var newLabelResp fleet.CreateLabelResponse
-	s.DoJSON("POST", "/api/v1/fleet/labels", fleet.LabelPayload{
+	var newLabelResp automdm.CreateLabelResponse
+	s.DoJSON("POST", "/api/v1/automdm/labels", automdm.LabelPayload{
 		Name:     "TestDeleteLabels1",
 		Platform: "darwin",
 		Query:    "SELECT 1",
 	}, http.StatusOK, &newLabelResp)
 	lbl1 := newLabelResp.Label.ID
-	s.DoJSON("POST", "/api/v1/fleet/labels", fleet.LabelPayload{
+	s.DoJSON("POST", "/api/v1/automdm/labels", automdm.LabelPayload{
 		Name:     "TestDeleteLabels2",
 		Platform: "darwin",
 		Query:    "SELECT 2",
@@ -720,7 +720,7 @@ func (s *integrationEnterpriseTestSuite) TestDeleteLabels() {
 	lbl2 := newLabelResp.Label.ID
 
 	// create a software installer associated with the label
-	installer := &fleet.UploadSoftwareInstallerPayload{
+	installer := &automdm.UploadSoftwareInstallerPayload{
 		InstallScript:    "install",
 		Filename:         "ruby.deb",
 		SelfService:      false,
@@ -730,32 +730,32 @@ func (s *integrationEnterpriseTestSuite) TestDeleteLabels() {
 	s.uploadSoftwareInstaller(t, installer, http.StatusOK, "")
 
 	// try to delete the label associated with the installer
-	res := s.Do("DELETE", "/api/v1/fleet/labels/id/"+fmt.Sprint(lbl1), nil, http.StatusUnprocessableEntity)
+	res := s.Do("DELETE", "/api/v1/automdm/labels/id/"+fmt.Sprint(lbl1), nil, http.StatusUnprocessableEntity)
 	errMsg := extractServerErrorText(res.Body)
 	require.Contains(t, errMsg, "foreign key constraint on labels: TestDeleteLabels1")
 
 	// try to delete a label that does not exist
-	var delLabelResp fleet.DeleteLabelByIDResponse
-	s.DoJSON("DELETE", "/api/v1/fleet/labels/id/"+fmt.Sprint(lbl1+1000), nil, http.StatusNotFound, &delLabelResp)
+	var delLabelResp automdm.DeleteLabelByIDResponse
+	s.DoJSON("DELETE", "/api/v1/automdm/labels/id/"+fmt.Sprint(lbl1+1000), nil, http.StatusNotFound, &delLabelResp)
 
 	// delete the unused label2
-	s.DoJSON("DELETE", "/api/v1/fleet/labels/id/"+fmt.Sprint(lbl2), nil, http.StatusOK, &delLabelResp)
+	s.DoJSON("DELETE", "/api/v1/automdm/labels/id/"+fmt.Sprint(lbl2), nil, http.StatusOK, &delLabelResp)
 }
 
 func (s *integrationEnterpriseTestSuite) TestTeamLabelsDistributedReadWrite() {
 	t := s.T()
 
-	t1, err := s.ds.NewTeam(context.Background(), &fleet.Team{
+	t1, err := s.ds.NewTeam(context.Background(), &automdm.Team{
 		Name: "t1",
 	})
 	require.NoError(t, err)
-	t2, err := s.ds.NewTeam(context.Background(), &fleet.Team{
+	t2, err := s.ds.NewTeam(context.Background(), &automdm.Team{
 		Name: "t2",
 	})
 	require.NoError(t, err)
 
-	newHost := func(name string, platform string, teamID *uint) *fleet.Host {
-		h, err := s.ds.NewHost(t.Context(), &fleet.Host{
+	newHost := func(name string, platform string, teamID *uint) *automdm.Host {
+		h, err := s.ds.NewHost(t.Context(), &automdm.Host{
 			OsqueryHostID: new(t.Name() + name),
 			NodeKey:       new(t.Name() + name),
 			UUID:          uuid.New().String(),
@@ -781,53 +781,53 @@ func (s *integrationEnterpriseTestSuite) TestTeamLabelsDistributedReadWrite() {
 	s.lq.On("QueriesForHost", ubuntuHostNoTeam.ID).Return(map[string]string{}, nil)
 
 	// Create label on team t1.
-	l1t1, err := s.ds.NewLabel(t.Context(), &fleet.Label{
+	l1t1, err := s.ds.NewLabel(t.Context(), &automdm.Label{
 		Name:                "l1t1",
 		Query:               "SELECT t1;",
 		TeamID:              &t1.ID,
-		LabelType:           fleet.LabelTypeRegular,
-		LabelMembershipType: fleet.LabelMembershipTypeDynamic,
+		LabelType:           automdm.LabelTypeRegular,
+		LabelMembershipType: automdm.LabelMembershipTypeDynamic,
 	})
 	require.NoError(t, err)
 	// Create two dynamic labels on team t2.
-	l2t2, err := s.ds.NewLabel(t.Context(), &fleet.Label{
+	l2t2, err := s.ds.NewLabel(t.Context(), &automdm.Label{
 		Name:                "l2t2",
 		Query:               "SELECT t2;",
 		TeamID:              &t2.ID,
-		LabelType:           fleet.LabelTypeRegular,
-		LabelMembershipType: fleet.LabelMembershipTypeDynamic,
+		LabelType:           automdm.LabelTypeRegular,
+		LabelMembershipType: automdm.LabelMembershipTypeDynamic,
 	})
 	require.NoError(t, err)
-	l3t2, err := s.ds.NewLabel(t.Context(), &fleet.Label{
+	l3t2, err := s.ds.NewLabel(t.Context(), &automdm.Label{
 		Name:                "l3t2",
 		Query:               "SELECT l3t2;",
 		TeamID:              &t2.ID,
-		LabelType:           fleet.LabelTypeRegular,
-		LabelMembershipType: fleet.LabelMembershipTypeDynamic,
+		LabelType:           automdm.LabelTypeRegular,
+		LabelMembershipType: automdm.LabelMembershipTypeDynamic,
 	})
 	require.NoError(t, err)
 	// Create a manual label on team t2.
-	l4t2, err := s.ds.NewLabel(t.Context(), &fleet.Label{
+	l4t2, err := s.ds.NewLabel(t.Context(), &automdm.Label{
 		Name:                "l4t2",
 		TeamID:              &t2.ID,
-		LabelType:           fleet.LabelTypeRegular,
-		LabelMembershipType: fleet.LabelMembershipTypeManual,
+		LabelType:           automdm.LabelTypeRegular,
+		LabelMembershipType: automdm.LabelMembershipTypeManual,
 	})
 	require.NoError(t, err)
 	// Create global label.
-	globalLabel, err := s.ds.NewLabel(t.Context(), &fleet.Label{
+	globalLabel, err := s.ds.NewLabel(t.Context(), &automdm.Label{
 		Name:                "global",
 		Query:               "SELECT global;",
 		TeamID:              nil,
-		LabelType:           fleet.LabelTypeRegular,
-		LabelMembershipType: fleet.LabelMembershipTypeDynamic,
+		LabelType:           automdm.LabelTypeRegular,
+		LabelMembershipType: automdm.LabelMembershipTypeDynamic,
 	})
 	require.NoError(t, err)
 
-	user := &fleet.User{
+	user := &automdm.User{
 		Name:       "global admin",
 		Email:      "global_admin@example.com",
-		GlobalRole: new(fleet.RoleAdmin),
+		GlobalRole: new(automdm.RoleAdmin),
 	}
 	err = user.SetPassword(test.GoodPassword, 10, 10)
 	require.NoError(t, err)
@@ -840,13 +840,13 @@ func (s *integrationEnterpriseTestSuite) TestTeamLabelsDistributedReadWrite() {
 
 	// filterLabelQueries filters out non-label queries and builtin label queries.
 	filterLabelQueries := func(queries map[string]string) map[string]string {
-		allLabels, err := s.ds.ListLabels(t.Context(), fleet.TeamFilter{
+		allLabels, err := s.ds.ListLabels(t.Context(), automdm.TeamFilter{
 			User: user,
-		}, fleet.ListOptions{}, false)
+		}, automdm.ListOptions{}, false)
 		require.NoError(t, err)
 		builtinLabels := make(map[string]struct{})
 		for _, label := range allLabels {
-			if label.LabelType == fleet.LabelTypeBuiltIn {
+			if label.LabelType == automdm.LabelTypeBuiltIn {
 				builtinLabels[labelQueryName(label.ID)] = struct{}{}
 			}
 		}
@@ -905,7 +905,7 @@ func (s *integrationEnterpriseTestSuite) TestTeamLabelsDistributedReadWrite() {
 	}), http.StatusOK, &distributedResp)
 
 	getHostResp := getHostResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", macOST1.ID), nil, http.StatusOK, &getHostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", macOST1.ID), nil, http.StatusOK, &getHostResp)
 	require.Len(t, getHostResp.Host.Labels, 2)
 	sort.Slice(getHostResp.Host.Labels, func(i, j int) bool {
 		return getHostResp.Host.Labels[i].ID < getHostResp.Host.Labels[j].ID
@@ -923,12 +923,12 @@ func (s *integrationEnterpriseTestSuite) TestTeamLabelsDistributedReadWrite() {
 
 	// Add manual label on macOST2.
 	var addLabelsToHostResp addLabelsToHostResponse
-	s.DoJSON("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/labels", macOST2.ID), addLabelsToHostRequest{
+	s.DoJSON("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/labels", macOST2.ID), addLabelsToHostRequest{
 		Labels: []string{l4t2.Name},
 	}, http.StatusOK, &addLabelsToHostResp)
 
 	getHostResp = getHostResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", macOST2.ID), nil, http.StatusOK, &getHostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", macOST2.ID), nil, http.StatusOK, &getHostResp)
 	require.Len(t, getHostResp.Host.Labels, 3)
 	sort.Slice(getHostResp.Host.Labels, func(i, j int) bool {
 		return getHostResp.Host.Labels[i].ID < getHostResp.Host.Labels[j].ID
@@ -938,32 +938,32 @@ func (s *integrationEnterpriseTestSuite) TestTeamLabelsDistributedReadWrite() {
 	require.Equal(t, getHostResp.Host.Labels[2].ID, globalLabel.ID)
 
 	// Transferring hosts should clear team labels.
-	s.DoJSON("POST", "/api/latest/fleet/hosts/transfer", addHostsToTeamRequest{
+	s.DoJSON("POST", "/api/latest/automdm/hosts/transfer", addHostsToTeamRequest{
 		TeamID:  &t1.ID,
 		HostIDs: []uint{macOST2.ID},
 	}, http.StatusOK, &addHostsToTeamResponse{})
 	getHostResp = getHostResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", macOST2.ID), nil, http.StatusOK, &getHostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", macOST2.ID), nil, http.StatusOK, &getHostResp)
 	require.Len(t, getHostResp.Host.Labels, 1)
 	require.Equal(t, getHostResp.Host.Labels[0].ID, globalLabel.ID)
 
 	// Delete team should delete the labels and their membership.
 	var delResp deleteTeamResponse
-	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/fleet/fleets/%d", t1.ID), nil, http.StatusOK, &delResp)
+	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/automdm/teams/%d", t1.ID), nil, http.StatusOK, &delResp)
 
 	// Membership is cleared.
 	getHostResp = getHostResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", macOST1.ID), nil, http.StatusOK, &getHostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", macOST1.ID), nil, http.StatusOK, &getHostResp)
 	require.Len(t, getHostResp.Host.Labels, 1)
 	require.Equal(t, getHostResp.Host.Labels[0].ID, globalLabel.ID)
 	// l1t1 doesn't exist anymore.
-	_, _, err = s.ds.Label(t.Context(), l1t1.ID, fleet.TeamFilter{
+	_, _, err = s.ds.Label(t.Context(), l1t1.ID, automdm.TeamFilter{
 		User: user,
 	})
 	require.Error(t, err)
-	require.True(t, fleet.IsNotFound(err))
+	require.True(t, automdm.IsNotFound(err))
 	// l2t2 is still around.
-	_, _, err = s.ds.Label(t.Context(), l2t2.ID, fleet.TeamFilter{
+	_, _, err = s.ds.Label(t.Context(), l2t2.ID, automdm.TeamFilter{
 		User: user,
 	})
 	require.NoError(t, err)

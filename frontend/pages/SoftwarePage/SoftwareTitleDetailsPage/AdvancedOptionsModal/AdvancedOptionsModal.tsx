@@ -34,7 +34,7 @@ const AdvancedOptionsModal = ({
           maxLines={10}
           name="install-script"
           value={installScript}
-          helpText="Fleet will run this command on hosts to install software."
+          helpText="AutoMDM will run this command on hosts to install software."
           label="Install script"
           labelTooltip="For security agents, add the script provided by the vendor."
         />
@@ -53,7 +53,7 @@ const AdvancedOptionsModal = ({
                   <CustomLink
                     className={`${baseClass}__table-link`}
                     text="query returns results"
-                    url="https://fleetdm.com/tables"
+                    url="https://automdm.com/tables"
                     newTab
                   />
                 </>

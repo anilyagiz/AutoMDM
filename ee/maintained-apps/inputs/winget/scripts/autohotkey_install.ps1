@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # AutoHotkey's setup is AutoHotkey running its own install script, so it only
 # accepts its own switches: /silent, /elevate, /user, and /installto "<dir>".

@@ -5,8 +5,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/mdm/android/service/androidmgmt"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android/service/androidmgmt"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/googleapi"
@@ -14,7 +14,7 @@ import (
 
 // TestAMAPIErrorHTTPStatus pins the HTTP status every AMAPI error encodes to.
 //
-// Asserting the mapped error type (or fleet.IsNotFound) is not enough: encodeError
+// Asserting the mapped error type (or automdm.IsNotFound) is not enough: encodeError
 // type-switches on ctxerr.Cause, so an error that satisfies IsNotFound can still encode
 // as a 500 if it defines a single-error Unwrap. Each case is checked both bare (as
 // UnenrollAndroidHost returns it) and ctxerr-wrapped (as ee/server/service/hosts.go
@@ -52,9 +52,9 @@ func TestAMAPIErrorHTTPStatus(t *testing.T) {
 			t.Parallel()
 			ctx := ctxerr.NewContext(t.Context(), ctxerr.MockHandler{StoreImpl: func(error) {}})
 
-			mapped := androidmgmt.FleetErrFromAMAPI(c.amapiErr)
+			mapped := androidmgmt.AutoMDMErrFromAMAPI(c.amapiErr)
 			if !c.wantMapped {
-				require.NoError(t, mapped, "status must not be mapped to a Fleet error type")
+				require.NoError(t, mapped, "status must not be mapped to an AutoMDM error type")
 				// Production never encodes the AMAPI error bare: the caller wraps it. Assert
 				// only the shape that actually reaches the HTTP layer.
 				wrapped := httptest.NewRecorder()
@@ -96,11 +96,11 @@ func TestAMAPIMappedErrorsSurviveCtxerrCause(t *testing.T) {
 	}{
 		{http.StatusNotFound, true},
 		{http.StatusBadRequest, true},
-		{http.StatusConflict, false}, // fleet.ConflictError has no field for the cause
+		{http.StatusConflict, false}, // automdm.ConflictError has no field for the cause
 	} {
 		amapiErr := &googleapi.Error{Code: c.code, Message: "amapi failure"}
-		mapped := androidmgmt.FleetErrFromAMAPI(amapiErr)
-		require.Error(t, mapped, "status %d must map to a Fleet error", c.code)
+		mapped := androidmgmt.AutoMDMErrFromAMAPI(amapiErr)
+		require.Error(t, mapped, "status %d must map to an AutoMDM error", c.code)
 
 		_, causeIsAMAPI := ctxerr.Cause(mapped).(*googleapi.Error)
 		assert.False(t, causeIsAMAPI,

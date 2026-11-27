@@ -12,7 +12,7 @@ import (
 	"sync/atomic"
 )
 
-// The removed names scan rejects a request that sends a name Fleet 5 removed or renamed, such as team_id. It is driven by one
+// The removed names scan rejects a request that sends a name AutoMDM 5 removed or renamed, such as team_id. It is driven by one
 // list of names (SetRemovedNames) and by the Go type the request decodes into: a name is only rejected where that type has no
 // field of that name. That gives the scan three properties without any per-field tags:
 //   - a type that still declares the old name (a surface not renamed yet) keeps accepting it, so surfaces switch over one by one;

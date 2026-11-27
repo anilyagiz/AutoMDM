@@ -1,4 +1,4 @@
-// Package conditional_access_microsoft_proxy is the client HTTP package to operate on Entra through Fleet's MS proxy.
+// Package conditional_access_microsoft_proxy is the client HTTP package to operate on Entra through AutoMDM's MS proxy.
 package conditional_access_microsoft_proxy
 
 import (
@@ -11,11 +11,11 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/pkg/str"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/pkg/str"
 )
 
-// Proxy holds functionality to send requests to Entra via Fleet's MS proxy.
+// Proxy holds functionality to send requests to Entra via AutoMDM's MS proxy.
 type Proxy struct {
 	uri          string
 	originGetter func() (string, error)
@@ -33,7 +33,7 @@ func New(uri string, originGetter func() (string, error)) (*Proxy, error) {
 
 		originGetter: originGetter,
 
-		c: fleethttp.NewClient(fleethttp.WithNoTimeout()),
+		c: automdmhttp.NewClient(automdmhttp.WithNoTimeout()),
 	}, nil
 }
 
@@ -45,7 +45,7 @@ type createRequest struct {
 // Such credentials are used to authenticate all requests.
 type CreateResponse struct {
 	TenantID string `json:"entra_tenant_id"`
-	Secret   string `json:"fleet_server_secret"`
+	Secret   string `json:"automdm_server_secret"`
 }
 
 // Create creates the integration on the MS proxy and returns the consent URL.
@@ -74,7 +74,7 @@ func (p *Proxy) Get(ctx context.Context, tenantID string, secret string) (*GetRe
 	var getResponse GetResponse
 	if err := p.get(
 		"/api/v1/microsoft-compliance-partner/settings",
-		url.Values{"entraTenantId": {tenantID}, "fleetServerSecret": {secret}},
+		url.Values{"entraTenantId": {tenantID}, "automdmServerSecret": {secret}},
 		&getResponse,
 	); err != nil {
 		return nil, fmt.Errorf("get integration settings failed: %w", err)
@@ -88,12 +88,12 @@ type DeleteResponse struct {
 }
 
 // Delete deprovisions the tenant on Microsoft and deletes the integration in the proxy service.
-// Returns a fleet.IsNotFound error if the integration doesn't exist.
+// Returns an automdm.IsNotFound error if the integration doesn't exist.
 func (p *Proxy) Delete(ctx context.Context, tenantID string, secret string) (*DeleteResponse, error) {
 	var deleteResponse DeleteResponse
 	if err := p.delete(
 		"/api/v1/microsoft-compliance-partner",
-		url.Values{"entraTenantId": {tenantID}, "fleetServerSecret": {secret}},
+		url.Values{"entraTenantId": {tenantID}, "automdmServerSecret": {secret}},
 		&deleteResponse,
 	); err != nil {
 		return nil, fmt.Errorf("delete integration failed: %w", err)
@@ -103,7 +103,7 @@ func (p *Proxy) Delete(ctx context.Context, tenantID string, secret string) (*De
 
 type setComplianceStatusRequest struct {
 	TenantID string `json:"entraTenantId"`
-	Secret   string `json:"fleetServerSecret"`
+	Secret   string `json:"automdmServerSecret"`
 
 	DeviceID          string `json:"deviceId"`
 	UserPrincipalName string `json:"userPrincipalName"`
@@ -180,7 +180,7 @@ func (p *Proxy) GetMessageStatus(
 	var getMessageStatusResponse GetMessageStatusResponse
 	if err := p.get(
 		"/api/v1/microsoft-compliance-partner/device/message",
-		url.Values{"entraTenantId": {tenantID}, "fleetServerSecret": {secret}, "messageId": {messageID}},
+		url.Values{"entraTenantId": {tenantID}, "automdmServerSecret": {secret}, "messageId": {messageID}},
 		&getMessageStatusResponse,
 	); err != nil {
 		return nil, fmt.Errorf("get message status response failed: %w", err)

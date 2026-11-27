@@ -13,7 +13,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/pkg/mdm/profilevalidation"
+	"github.com/anilyagiz/automdm/v4/pkg/mdm/profilevalidation"
 	"gopkg.in/yaml.v3"
 )
 

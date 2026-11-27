@@ -24,13 +24,13 @@ import (
 // Example: go run stop-channel.go --users john@example.com --channel-id 55ebefd7-4271-4295-a80a-97f4dcb01d93 --resource-id Io5ygBoEZ-FmQus7ziNrS_Jjcz4
 
 var (
-	serviceEmail = os.Getenv("FLEET_TEST_GOOGLE_CALENDAR_SERVICE_EMAIL")
-	privateKey   = os.Getenv("FLEET_TEST_GOOGLE_CALENDAR_PRIVATE_KEY")
+	serviceEmail = os.Getenv("AUTOMDM_TEST_GOOGLE_CALENDAR_SERVICE_EMAIL")
+	privateKey   = os.Getenv("AUTOMDM_TEST_GOOGLE_CALENDAR_PRIVATE_KEY")
 )
 
 func main() {
 	if serviceEmail == "" || privateKey == "" {
-		log.Fatal("FLEET_TEST_GOOGLE_CALENDAR_SERVICE_EMAIL and FLEET_TEST_GOOGLE_CALENDAR_PRIVATE_KEY must be set")
+		log.Fatal("AUTOMDM_TEST_GOOGLE_CALENDAR_SERVICE_EMAIL and AUTOMDM_TEST_GOOGLE_CALENDAR_PRIVATE_KEY must be set")
 	}
 	// Strip newlines from private key
 	privateKey = strings.ReplaceAll(privateKey, "\\n", "\n")

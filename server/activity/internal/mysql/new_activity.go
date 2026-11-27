@@ -7,10 +7,10 @@ import (
 	"time"
 	"uuid"
 
-	"github.com/fleetdm/fleet/v4/server/activity/api"
-	"github.com/fleetdm/fleet/v4/server/activity/internal/types"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	platform_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/activity/api"
+	"github.com/anilyagiz/automdm/v4/server/activity/internal/types"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	platform_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -26,7 +26,7 @@ func (ds *Datastore) NewActivity(
 	processed, _ := ctx.Value(types.ActivityWebhookContextKey).(bool)
 	if !processed {
 		return ctxerr.New(
-			ctx, "activity webhook not processed. Please use svc.NewActivity instead of ds.NewActivity. This is a Fleet server bug.",
+			ctx, "activity webhook not processed. Please use svc.NewActivity instead of ds.NewActivity. This is an AutoMDM server bug.",
 		)
 	}
 
@@ -58,7 +58,7 @@ func (ds *Datastore) NewActivities(
 	processed, _ := ctx.Value(types.ActivityWebhookContextKey).(bool)
 	if !processed {
 		return ctxerr.New(
-			ctx, "activity webhook not processed. Please use svc.NewActivities instead of ds.NewActivities. This is a Fleet server bug.",
+			ctx, "activity webhook not processed. Please use svc.NewActivities instead of ds.NewActivities. This is an AutoMDM server bug.",
 		)
 	}
 	if len(activities) != len(details) {
@@ -151,7 +151,7 @@ func activityRow(user *api.User, activity api.ActivityDetails, details []byte, c
 	var userID *uint
 	var userName *string
 	var userEmail *string
-	var fleetInitiated bool
+	var automdmInitiated bool
 	var hostOnly bool
 
 	if user != nil {
@@ -168,16 +168,16 @@ func activityRow(user *api.User, activity api.ActivityDetails, details []byte, c
 	if automatableActivity, ok := activity.(types.AutomatableActivity); ok && automatableActivity.WasFromAutomation() {
 		automationAuthor := types.ActivityAutomationAuthor
 		userName = &automationAuthor
-		fleetInitiated = true
+		automdmInitiated = true
 	}
 
 	if hostOnlyActivity, ok := activity.(types.ActivityHostOnly); ok && hostOnlyActivity.HostOnly() {
 		hostOnly = true
 	}
 
-	cols := []string{"fleet_initiated", "user_id", "user_name", "activity_type", "details", "created_at", "host_only"}
+	cols := []string{"automdm_initiated", "user_id", "user_name", "activity_type", "details", "created_at", "host_only"}
 	args := []any{
-		fleetInitiated,
+		automdmInitiated,
 		userID,
 		userName,
 		activity.ActivityName(),

@@ -65,7 +65,7 @@ interface CertificateApiClient {
 }
 
 object ApiClient : CertificateApiClient {
-    private const val TAG = "fleet-ApiClient"
+    private const val TAG = "automdm-ApiClient"
 
     // Retry DNS resolution failures that occur when Android wakes from Doze mode.
     // The active network may be reported as connected before its DNS servers are fully operational.
@@ -115,7 +115,7 @@ object ApiClient : CertificateApiClient {
         return try {
             KeystoreManager.decrypt(encrypted)
         } catch (e: Exception) {
-            FleetLog.e(TAG, "Failed to decrypt API key", e)
+            AutoMDMLog.e(TAG, "Failed to decrypt API key", e)
             null
         }
     }
@@ -270,7 +270,7 @@ object ApiClient : CertificateApiClient {
         val credentials = getEnrollmentCredentials()
         credentials ?: return Result.failure(Exception("Credentials not set"))
         val resp = makeRequest(
-            endpoint = "/api/fleet/orbit/enroll",
+            endpoint = "/api/automdm/orbit/enroll",
             method = "POST",
             body = EnrollRequest(
                 enrollSecret = credentials.enrollSecret,
@@ -300,7 +300,7 @@ object ApiClient : CertificateApiClient {
         }
 
         makeRequest(
-            endpoint = "/api/fleet/orbit/config",
+            endpoint = "/api/automdm/orbit/config",
             method = "POST",
             body = GetConfigRequest(orbitNodeKey = orbitNodeKey),
             bodySerializer = GetConfigRequest.serializer(),
@@ -323,7 +323,7 @@ object ApiClient : CertificateApiClient {
             ?: return@withReenrollOnUnauthorized Result.failure(Exception("enroll credentials not set"))
 
         makeRequest<Unit, GetCertificateTemplateResponseWrapper>(
-            endpoint = "/api/fleetd/certificates/$certificateId",
+            endpoint = "/api/automdmd/certificates/$certificateId",
             method = "GET",
             responseSerializer = GetCertificateTemplateResponseWrapper.serializer(),
         ).fold(
@@ -337,7 +337,7 @@ object ApiClient : CertificateApiClient {
                 Result.success(CertificateTemplateResult(template, scepUrl))
             },
             onFailure = { throwable ->
-                FleetLog.e(TAG, "failed to get certificate template $certificateId")
+                AutoMDMLog.e(TAG, "failed to get certificate template $certificateId")
                 Result.failure(throwable)
             },
         )
@@ -353,7 +353,7 @@ object ApiClient : CertificateApiClient {
         serialNumber: BigInteger?,
     ): Result<Unit> = withReenrollOnUnauthorized {
         makeRequest(
-            endpoint = "/api/fleetd/certificates/$certificateId/status",
+            endpoint = "/api/automdmd/certificates/$certificateId/status",
             method = "PUT",
             body = UpdateCertificateStatusRequest(
                 status = status,
@@ -369,7 +369,7 @@ object ApiClient : CertificateApiClient {
         ).fold(
             onSuccess = { response ->
                 if (response.error != null) {
-                    FleetLog.e(TAG, "failed to update certificate status $certificateId: ${response.error}")
+                    AutoMDMLog.e(TAG, "failed to update certificate status $certificateId: ${response.error}")
                     Result.failure(Exception(response.error))
                 } else {
                     Log.i(TAG, "successfully updated certificate status for $certificateId to $status")
@@ -382,7 +382,7 @@ object ApiClient : CertificateApiClient {
                     Log.i(TAG, "certificate template $certificateId no longer exists on server, nothing to report")
                     Result.success(Unit)
                 } else {
-                    FleetLog.e(TAG, "failed to update certificate status $certificateId: ${throwable.message}")
+                    AutoMDMLog.e(TAG, "failed to update certificate status $certificateId: ${throwable.message}")
                     Result.failure(throwable)
                 }
             },
@@ -428,7 +428,7 @@ object ApiClient : CertificateApiClient {
                     Result.success(response.orbitNodeKey)
                 },
                 onFailure = { error ->
-                    FleetLog.e(TAG, "Auto-enrollment failed: ${error.message}")
+                    AutoMDMLog.e(TAG, "Auto-enrollment failed: ${error.message}")
                     Result.failure(error)
                 },
             )
@@ -622,8 +622,8 @@ data class GetCertificateTemplateResponse(
     @SerialName("scep_challenge")
     val scepChallenge: String? = null,
 
-    @SerialName("fleet_challenge")
-    val fleetChallenge: String? = null,
+    @SerialName("automdm_challenge")
+    val automdmChallenge: String? = null,
 
     @Transient
     val keyLength: Int = 2048,
@@ -632,14 +632,14 @@ data class GetCertificateTemplateResponse(
     val signatureAlgorithm: String = "SHA256withRSA",
 ) {
     // Both challenges are enrollment secrets: scepChallenge is the CA's challenge password and
-    // fleetChallenge authenticates a single request to Fleet's SCEP proxy. The generated data class
+    // automdmChallenge authenticates a single request to AutoMDM's SCEP proxy. The generated data class
     // toString() prints them, so any log line interpolating a template hands them to logcat.
     override fun toString(): String = "GetCertificateTemplateResponse(" +
         "id=$id, name=$name, certificateAuthorityId=$certificateAuthorityId, " +
         "certificateAuthorityName=$certificateAuthorityName, createdAt=$createdAt, " +
         "subjectName=$subjectName, subjectAlternativeName=$subjectAlternativeName, " +
         "certificateAuthorityType=$certificateAuthorityType, status=$status, " +
-        "scepChallenge=${scepChallenge.redacted()}, fleetChallenge=${fleetChallenge.redacted()}, " +
+        "scepChallenge=${scepChallenge.redacted()}, automdmChallenge=${automdmChallenge.redacted()}, " +
         "keyLength=$keyLength, signatureAlgorithm=$signatureAlgorithm)"
 }
 
@@ -647,4 +647,4 @@ data class GetCertificateTemplateResponse(
  * Builds the SCEP proxy URL for this certificate template.
  */
 fun GetCertificateTemplateResponse.buildScepUrl(serverUrl: String, hostUUID: String): String =
-    "$serverUrl$SCEP_PROXY_PATH$hostUUID,g$id,$certificateAuthorityType,${fleetChallenge ?: ""}"
+    "$serverUrl$SCEP_PROXY_PATH$hostUUID,g$id,$certificateAuthorityType,${automdmChallenge ?: ""}"

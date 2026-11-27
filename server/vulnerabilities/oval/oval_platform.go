@@ -7,15 +7,15 @@ import (
 	"strings"
 	"time"
 
-	oval_parsed "github.com/fleetdm/fleet/v4/server/vulnerabilities/oval/parsed"
+	oval_parsed "github.com/anilyagiz/automdm/v4/server/vulnerabilities/oval/parsed"
 )
 
 type Platform string
 
 // OvalFilePrefix is the file prefix used when saving an OVAL artifact.
 const (
-	OvalFilePrefix            = "fleet_oval"
-	GovalDictionaryFilePrefix = "fleet_goval_dictionary"
+	OvalFilePrefix            = "automdm_oval"
+	GovalDictionaryFilePrefix = "automdm_goval_dictionary"
 )
 
 // SupportedSoftwareSources are the software sources for which we are using OVAL or goval-dictionary for vulnerability detection.

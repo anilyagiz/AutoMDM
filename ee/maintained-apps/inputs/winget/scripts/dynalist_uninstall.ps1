@@ -7,7 +7,7 @@
 
 $displayNamePattern = '^Dynalist \d'
 $publisher = "Dynalist Inc."
-$taskName = "fleet-uninstall-dynalist"
+$taskName = "automdm-uninstall-dynalist"
 $appDir = "AppData\Local\Dynalist"  # in each user's profile
 $taskRunning = 267009  # SCHED_S_TASK_RUNNING
 $timeoutSeconds = 300

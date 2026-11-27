@@ -1,9 +1,9 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # Podman Desktop ships as an electron-builder NSIS ("nullsoft") installer.
 # "/S" runs it silently; "/ALLUSERS" forces the per-machine install so the ARP
-# entry lands under HKLM (Fleet installs run as SYSTEM).
+# entry lands under HKLM (AutoMDM installs run as SYSTEM).
 
 $exeFilePath = "${env:INSTALLER_PATH}"
 

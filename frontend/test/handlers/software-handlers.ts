@@ -65,12 +65,12 @@ export const getSoftwareInstallResultHandler = http.get(
   }
 );
 
-// Requires Fleet Premium license (server returns 402)
+// Requires AutoMDM Premium license (server returns 402)
 export const getSoftwareInstallResultHandlerPremiumRequired = http.get(
   baseUrl("/software/install/:install_uuid/results"),
   () => {
     return HttpResponse.json(
-      { message: "Requires Fleet Premium license" },
+      { message: "Requires AutoMDM Premium license" },
       { status: 402 }
     );
   }
@@ -140,7 +140,7 @@ export const getSoftwareInstallHandlerNotifyBeforePatchingSkip = http.get(
         output: "",
         post_install_script_output: "",
         pre_install_query_output:
-          "Query didn't return result or failed\nThe app was open. Fleet notifies the end user 1 hour before the patch is forced.",
+          "Query didn't return result or failed\nThe app was open. AutoMDM notifies the end user 1 hour before the patch is forced.",
       }),
     });
   }

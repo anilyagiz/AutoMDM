@@ -15,9 +15,9 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
 
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql"
 )
 
 func retryOnDeadlock(operation func() error, maxRetries int) error {
@@ -61,9 +61,9 @@ func timeStep(name string, verbose bool, fn func() error) error {
 var (
 	// MySQL config
 	mysqlAddr = "localhost:3306"
-	mysqlUser = "fleet"
+	mysqlUser = "automdm"
 	mysqlPass = "insecure"
-	mysqlDB   = "fleet"
+	mysqlDB   = "automdm"
 )
 
 // Common CVE patterns for realistic data
@@ -72,9 +72,9 @@ var cvePatterns = []string{
 }
 
 // batchCreateHosts creates multiple hosts in batches for better performance
-func batchCreateHosts(ctx context.Context, ds *mysql.Datastore, hostCount int, teams []*fleet.Team, verbose bool) ([]*fleet.Host, error) {
+func batchCreateHosts(ctx context.Context, ds *mysql.Datastore, hostCount int, teams []*automdm.Team, verbose bool) ([]*automdm.Host, error) {
 	batchSize := 100 // Insert 100 hosts per transaction
-	var allHosts []*fleet.Host
+	var allHosts []*automdm.Host
 	now := time.Now()
 
 	db, err := getDB(ds)
@@ -143,7 +143,7 @@ func batchCreateHosts(ctx context.Context, ds *mysql.Datastore, hostCount int, t
 		}
 
 		// Fetch the created hosts to get their IDs
-		var batchHosts []fleet.Host
+		var batchHosts []automdm.Host
 		var uuids []string
 		for i := batchStart; i < batchEnd; i++ {
 			uuids = append(uuids, fmt.Sprintf("'test-host-%d'", i))
@@ -189,7 +189,7 @@ func batchCreateHosts(ctx context.Context, ds *mysql.Datastore, hostCount int, t
 }
 
 // batchUpdateHostOS updates operating system info for multiple hosts efficiently
-func batchUpdateHostOS(ctx context.Context, ds *mysql.Datastore, hosts []*fleet.Host, verbose bool) error {
+func batchUpdateHostOS(ctx context.Context, ds *mysql.Datastore, hosts []*automdm.Host, verbose bool) error {
 	batchSize := 100
 
 	for batchStart := 0; batchStart < len(hosts); batchStart += batchSize {
@@ -201,7 +201,7 @@ func batchUpdateHostOS(ctx context.Context, ds *mysql.Datastore, hosts []*fleet.
 		for i := batchStart; i < batchEnd; i++ {
 			host := hosts[i]
 			err := retryOnDeadlock(func() error {
-				return ds.UpdateHostOperatingSystem(ctx, host.ID, fleet.OperatingSystem{
+				return ds.UpdateHostOperatingSystem(ctx, host.ID, automdm.OperatingSystem{
 					Name:           "Ubuntu",
 					Version:        fmt.Sprintf("20.04.%d", i%10), // Vary the version slightly
 					Platform:       "ubuntu",
@@ -224,7 +224,7 @@ func batchUpdateHostOS(ctx context.Context, ds *mysql.Datastore, hosts []*fleet.
 }
 
 // batchInstallSoftware installs software on hosts in batches for better performance
-func batchInstallSoftware(ctx context.Context, ds *mysql.Datastore, hosts []*fleet.Host, vulnerableSoftware []fleet.Software, verbose bool) error {
+func batchInstallSoftware(ctx context.Context, ds *mysql.Datastore, hosts []*automdm.Host, vulnerableSoftware []automdm.Software, verbose bool) error {
 	db, err := getDB(ds)
 	if err != nil {
 		return fmt.Errorf("get DB connection: %w", err)
@@ -312,7 +312,7 @@ func batchInstallSoftware(ctx context.Context, ds *mysql.Datastore, hosts []*fle
 			hostSoftwareCount := int(float64(len(vulnerableSoftware)) * pct)
 
 			// Randomly select which software this host has
-			hostVulnSoftware := make([]fleet.Software, len(vulnerableSoftware))
+			hostVulnSoftware := make([]automdm.Software, len(vulnerableSoftware))
 			copy(hostVulnSoftware, vulnerableSoftware)
 			rand.Shuffle(len(hostVulnSoftware), func(i, j int) {
 				hostVulnSoftware[i], hostVulnSoftware[j] = hostVulnSoftware[j], hostVulnSoftware[i]
@@ -363,19 +363,19 @@ func batchInstallSoftware(ctx context.Context, ds *mysql.Datastore, hosts []*fle
 	return nil
 }
 
-func createTestTeam(ctx context.Context, ds *mysql.Datastore, name string) (*fleet.Team, error) {
-	team := &fleet.Team{
+func createTestTeam(ctx context.Context, ds *mysql.Datastore, name string) (*automdm.Team, error) {
+	team := &automdm.Team{
 		Name: name,
 	}
 	return ds.NewTeam(ctx, team)
 }
 
-func generateVulnerableSoftware(softwareCount int) []fleet.Software {
-	var software []fleet.Software
+func generateVulnerableSoftware(softwareCount int) []automdm.Software {
+	var software []automdm.Software
 
 	for i := range softwareCount {
 		// Create vulnerable software
-		software = append(software, fleet.Software{
+		software = append(software, automdm.Software{
 			Name: fmt.Sprintf("vulnerable-package-%d", i),
 			// #nosec G404 - weak random is acceptable for test data generation
 			Version: fmt.Sprintf("1.%d.0", rand.Intn(100)),
@@ -519,7 +519,7 @@ func seedOSVulnerabilities(ctx context.Context, ds *mysql.Datastore, cves []stri
 }
 
 func seedVulnerabilities(ctx context.Context, ds *mysql.Datastore, hostCount, teamCount, cveCount, softwareCount int, verbose bool) error {
-	var teams []*fleet.Team
+	var teams []*automdm.Team
 	err := timeStep(fmt.Sprintf("Creating %d teams", teamCount), verbose, func() error {
 		for i := 0; i < teamCount; i++ {
 			team, err := createTestTeam(ctx, ds, fmt.Sprintf("test-team-%d", i))
@@ -534,7 +534,7 @@ func seedVulnerabilities(ctx context.Context, ds *mysql.Datastore, hostCount, te
 		return err
 	}
 
-	var hosts []*fleet.Host
+	var hosts []*automdm.Host
 	err = timeStep(fmt.Sprintf("Creating %d hosts", hostCount), verbose, func() error {
 		var err error
 		hosts, err = batchCreateHosts(ctx, ds, hostCount, teams, verbose)
@@ -552,7 +552,7 @@ func seedVulnerabilities(ctx context.Context, ds *mysql.Datastore, hostCount, te
 	}
 
 	var cves []string
-	var vulnerableSoftware []fleet.Software
+	var vulnerableSoftware []automdm.Software
 	err = timeStep(fmt.Sprintf("Generating %d CVEs and %d software packages", cveCount, softwareCount), verbose, func() error {
 		cves = generateCVEs(cveCount)
 		vulnerableSoftware = generateVulnerableSoftware(softwareCount)
@@ -606,8 +606,8 @@ func main() {
 	flag.Parse()
 
 	if *help {
-		fmt.Printf("Fleet Test Data Seeder\n\n")
-		fmt.Printf("This tool creates test data for Fleet performance testing.\n\n")
+		fmt.Printf("AutoMDM Test Data Seeder\n\n")
+		fmt.Printf("This tool creates test data for AutoMDM performance testing.\n\n")
 		fmt.Printf("Data model:\n")
 		fmt.Printf("- Creates %d total unique software packages\n", *softwareCount)
 		fmt.Printf("- Each host gets 20-80%% of software packages randomly assigned\n")

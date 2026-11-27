@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"testing"
 
-	authz_ctx "github.com/fleetdm/fleet/v4/server/contexts/authz"
+	authz_ctx "github.com/anilyagiz/automdm/v4/server/contexts/authz"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/throttled/throttled/v2"

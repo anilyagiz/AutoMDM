@@ -9,7 +9,7 @@ interface IAppleProps {
 }
 
 const Apple = ({
-  color = "ui-fleet-black-75",
+  color = "ui-automdm-black-75",
   size = "medium",
 }: IAppleProps) => {
   return (

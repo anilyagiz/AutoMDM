@@ -16,48 +16,48 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/certificate"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/pkg/certificate"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestUrlGeneration(t *testing.T) {
 	t.Run("without prefix", func(t *testing.T) {
-		bc, err := NewBaseClient("https://test.com", true, "", "", nil, fleet.CapabilityMap{}, nil)
+		bc, err := NewBaseClient("https://test.com", true, "", "", nil, automdm.CapabilityMap{}, nil)
 		require.NoError(t, err)
 		require.Equal(t, "https://test.com/test/path", bc.URL("test/path", "").String())
 		require.Equal(t, "https://test.com/test/path?raw=query", bc.URL("test/path", "raw=query").String())
 	})
 
 	t.Run("with prefix", func(t *testing.T) {
-		bc, err := NewBaseClient("https://test.com", true, "", "prefix/", nil, fleet.CapabilityMap{}, nil)
+		bc, err := NewBaseClient("https://test.com", true, "", "prefix/", nil, automdm.CapabilityMap{}, nil)
 		require.NoError(t, err)
 		require.Equal(t, "https://test.com/prefix/test/path", bc.URL("test/path", "").String())
 		require.Equal(t, "https://test.com/prefix/test/path?raw=query", bc.URL("test/path", "raw=query").String())
 	})
 
 	t.Run("with subpath in base URL", func(t *testing.T) {
-		bc, err := NewBaseClient("https://test.com/subpath", true, "", "", nil, fleet.CapabilityMap{}, nil)
+		bc, err := NewBaseClient("https://test.com/subpath", true, "", "", nil, automdm.CapabilityMap{}, nil)
 		require.NoError(t, err)
-		require.Equal(t, "https://test.com/subpath/api/fleet/orbit/enroll", bc.URL("/api/fleet/orbit/enroll", "").String())
-		require.Equal(t, "https://test.com/subpath/api/fleet/orbit/enroll?raw=query", bc.URL("/api/fleet/orbit/enroll", "raw=query").String())
+		require.Equal(t, "https://test.com/subpath/api/automdm/orbit/enroll", bc.URL("/api/automdm/orbit/enroll", "").String())
+		require.Equal(t, "https://test.com/subpath/api/automdm/orbit/enroll?raw=query", bc.URL("/api/automdm/orbit/enroll", "raw=query").String())
 	})
 
 	t.Run("with subpath and trailing slash in base URL", func(t *testing.T) {
-		bc, err := NewBaseClient("https://test.com/subpath/", true, "", "", nil, fleet.CapabilityMap{}, nil)
+		bc, err := NewBaseClient("https://test.com/subpath/", true, "", "", nil, automdm.CapabilityMap{}, nil)
 		require.NoError(t, err)
-		require.Equal(t, "https://test.com/subpath/api/fleet/orbit/enroll", bc.URL("/api/fleet/orbit/enroll", "").String())
+		require.Equal(t, "https://test.com/subpath/api/automdm/orbit/enroll", bc.URL("/api/automdm/orbit/enroll", "").String())
 	})
 
 	t.Run("with subpath and path without leading slash", func(t *testing.T) {
-		bc, err := NewBaseClient("https://test.com/subpath", true, "", "", nil, fleet.CapabilityMap{}, nil)
+		bc, err := NewBaseClient("https://test.com/subpath", true, "", "", nil, automdm.CapabilityMap{}, nil)
 		require.NoError(t, err)
 		require.Equal(t, "https://test.com/subpath/test/path", bc.URL("test/path", "").String())
 	})
 
 	t.Run("with subpath in base URL and a prefix", func(t *testing.T) {
-		bc, err := NewBaseClient("https://test.com/subpath", true, "", "prefix/", nil, fleet.CapabilityMap{}, nil)
+		bc, err := NewBaseClient("https://test.com/subpath", true, "", "prefix/", nil, automdm.CapabilityMap{}, nil)
 		require.NoError(t, err)
 		require.Equal(t, "https://test.com/subpath/prefix/test/path", bc.URL("test/path", "").String())
 		require.Equal(t, "https://test.com/subpath/prefix/test/path?raw=query", bc.URL("test/path", "raw=query").String())
@@ -76,11 +76,11 @@ func TestUrlGeneration(t *testing.T) {
 			{"percent in prefix", "/100%", "test/path", "https://test.com/a%20b/100%25/test/path"},
 			{"escape sequence in prefix", "/abc%2Fdef/", "test/path", "https://test.com/a%20b/abc%252Fdef/test/path"},
 			{"space in prefix", "my prefix/", "test/path", "https://test.com/a%20b/my%20prefix/test/path"},
-			{"trailing slash in path", "prefix/", "/api/v1/fleet/scripts/", "https://test.com/a%20b/prefix/api/v1/fleet/scripts"},
+			{"trailing slash in path", "prefix/", "/api/v1/automdm/scripts/", "https://test.com/a%20b/prefix/api/v1/automdm/scripts"},
 		}
 		for _, c := range cases {
 			t.Run(c.name, func(t *testing.T) {
-				bc, err := NewBaseClient("https://test.com/a%20b", true, "", c.prefix, nil, fleet.CapabilityMap{}, nil)
+				bc, err := NewBaseClient("https://test.com/a%20b", true, "", c.prefix, nil, automdm.CapabilityMap{}, nil)
 				require.NoError(t, err)
 				require.Equal(t, c.expected, bc.URL(c.reqPath, "").String())
 				requestURL, err := bc.RequestURL(c.reqPath, "raw=query")
@@ -91,7 +91,7 @@ func TestUrlGeneration(t *testing.T) {
 	})
 
 	t.Run("request URL with invalid escape", func(t *testing.T) {
-		bc, err := NewBaseClient("https://test.com", true, "", "", nil, fleet.CapabilityMap{}, nil)
+		bc, err := NewBaseClient("https://test.com", true, "", "", nil, automdm.CapabilityMap{}, nil)
 		require.NoError(t, err)
 		_, err = bc.RequestURL("/hosts/100%", "")
 		require.ErrorContains(t, err, "invalid request path")
@@ -111,7 +111,7 @@ func TestParseResponseKnownErrors(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.message, func(t *testing.T) {
-			bc, err := NewBaseClient("https://test.com", true, "", "", nil, fleet.CapabilityMap{}, nil)
+			bc, err := NewBaseClient("https://test.com", true, "", "", nil, automdm.CapabilityMap{}, nil)
 			require.NoError(t, err)
 			response := &http.Response{
 				StatusCode: c.code,
@@ -124,7 +124,7 @@ func TestParseResponseKnownErrors(t *testing.T) {
 }
 
 func TestParseResponseOK(t *testing.T) {
-	bc, err := NewBaseClient("https://test.com", true, "", "", nil, fleet.CapabilityMap{}, nil)
+	bc, err := NewBaseClient("https://test.com", true, "", "", nil, automdm.CapabilityMap{}, nil)
 	require.NoError(t, err)
 	response := &http.Response{
 		StatusCode: http.StatusOK,
@@ -138,7 +138,7 @@ func TestParseResponseOK(t *testing.T) {
 }
 
 func TestParseResponseOKNoContent(t *testing.T) {
-	bc, err := NewBaseClient("https://test.com", true, "", "", nil, fleet.CapabilityMap{}, nil)
+	bc, err := NewBaseClient("https://test.com", true, "", "", nil, automdm.CapabilityMap{}, nil)
 	require.NoError(t, err)
 	response := &http.Response{
 		StatusCode: http.StatusNoContent,
@@ -153,7 +153,7 @@ func TestParseResponseOKNoContent(t *testing.T) {
 
 func TestParseResponseGeneralErrors(t *testing.T) {
 	t.Run("general HTTP errors", func(t *testing.T) {
-		bc, err := NewBaseClient("https://test.com", true, "", "", nil, fleet.CapabilityMap{}, nil)
+		bc, err := NewBaseClient("https://test.com", true, "", "", nil, automdm.CapabilityMap{}, nil)
 		require.NoError(t, err)
 		response := &http.Response{
 			StatusCode: http.StatusBadRequest,
@@ -164,7 +164,7 @@ func TestParseResponseGeneralErrors(t *testing.T) {
 	})
 
 	t.Run("parse errors", func(t *testing.T) {
-		bc, err := NewBaseClient("https://test.com", true, "", "", nil, fleet.CapabilityMap{}, nil)
+		bc, err := NewBaseClient("https://test.com", true, "", "", nil, automdm.CapabilityMap{}, nil)
 		require.NoError(t, err)
 		response := &http.Response{
 			StatusCode: http.StatusBadRequest,
@@ -175,13 +175,13 @@ func TestParseResponseGeneralErrors(t *testing.T) {
 	})
 
 	t.Run("server-provided error name is kept", func(t *testing.T) {
-		bc, err := NewBaseClient("https://test.com", true, "", "", nil, fleet.CapabilityMap{}, nil)
+		bc, err := NewBaseClient("https://test.com", true, "", "", nil, automdm.CapabilityMap{}, nil)
 		require.NoError(t, err)
 		response := &http.Response{
 			StatusCode: http.StatusUnprocessableEntity,
 			Body:       io.NopCloser(bytes.NewBufferString(`{"message": "Validation Failed", "errors": [{"name": "scripts[1]", "reason": "boom"}]}`)),
 		}
-		err = bc.ParseResponse("POST", "/api/latest/fleet/scripts/batch", response, &struct{}{})
+		err = bc.ParseResponse("POST", "/api/latest/automdm/scripts/batch", response, &struct{}{})
 		var scErr *StatusCodeErr
 		require.ErrorAs(t, err, &scErr)
 		require.Equal(t, "scripts[1]", scErr.Name)
@@ -194,7 +194,7 @@ func TestParseResponseGeneralErrors(t *testing.T) {
 
 func TestNewBaseClient(t *testing.T) {
 	t.Run("invalid addresses are an error", func(t *testing.T) {
-		_, err := NewBaseClient("http://foo\x7f.com/", true, "", "", nil, fleet.CapabilityMap{}, nil)
+		_, err := NewBaseClient("http://foo\x7f.com/", true, "", "", nil, automdm.CapabilityMap{}, nil)
 		require.Error(t, err)
 	})
 
@@ -215,7 +215,7 @@ func TestNewBaseClient(t *testing.T) {
 		}
 
 		for _, c := range cases {
-			_, err := NewBaseClient(c.address, c.insecureSkipVerify, "", "", nil, fleet.CapabilityMap{}, nil)
+			_, err := NewBaseClient(c.address, c.insecureSkipVerify, "", "", nil, automdm.CapabilityMap{}, nil)
 			require.Equal(t, c.expectedErr, err, c.name)
 		}
 	})
@@ -224,16 +224,16 @@ func TestNewBaseClient(t *testing.T) {
 func TestClientCapabilities(t *testing.T) {
 	cases := []struct {
 		name         string
-		capabilities fleet.CapabilityMap
+		capabilities automdm.CapabilityMap
 		expected     string
 	}{
-		{"no capabilities", fleet.CapabilityMap{}, ""},
-		{"one capability", fleet.CapabilityMap{fleet.Capability("test_capability"): {}}, "test_capability"},
+		{"no capabilities", automdm.CapabilityMap{}, ""},
+		{"one capability", automdm.CapabilityMap{automdm.Capability("test_capability"): {}}, "test_capability"},
 		{
 			"multiple capabilities",
-			fleet.CapabilityMap{
-				fleet.Capability("test_capability"):   {},
-				fleet.Capability("test_capability_2"): {},
+			automdm.CapabilityMap{
+				automdm.Capability("test_capability"):   {},
+				automdm.Capability("test_capability_2"): {},
 			},
 			"test_capability,test_capability_2",
 		},
@@ -246,7 +246,7 @@ func TestClientCapabilities(t *testing.T) {
 
 			var req http.Request
 			bc.SetClientCapabilitiesHeader(&req)
-			require.ElementsMatch(t, strings.Split(c.expected, ","), strings.Split(req.Header.Get(fleet.CapabilitiesHeader), ","))
+			require.ElementsMatch(t, strings.Split(c.expected, ","), strings.Split(req.Header.Get(automdm.CapabilitiesHeader), ","))
 		})
 	}
 }
@@ -256,11 +256,11 @@ func TestServerCapabilities(t *testing.T) {
 	response := &http.Response{
 		StatusCode: http.StatusOK,
 		Body:       io.NopCloser(bytes.NewBufferString(`{}`)),
-		Header:     http.Header{fleet.CapabilitiesHeader: []string{"test_capability"}},
+		Header:     http.Header{automdm.CapabilitiesHeader: []string{"test_capability"}},
 	}
-	bc, err := NewBaseClient("https://test.com", true, "", "", nil, fleet.CapabilityMap{}, nil)
+	bc, err := NewBaseClient("https://test.com", true, "", "", nil, automdm.CapabilityMap{}, nil)
 	require.NoError(t, err)
-	testCapability := fleet.Capability("test_capability")
+	testCapability := automdm.Capability("test_capability")
 
 	err = bc.ParseResponse("", "", response, &struct{}{})
 	require.NoError(t, err)
@@ -274,23 +274,23 @@ func TestServerCapabilities(t *testing.T) {
 	}
 	err = bc.ParseResponse("", "", response, &struct{}{})
 	require.NoError(t, err)
-	require.Equal(t, fleet.CapabilityMap{}, bc.ServerCapabilities)
+	require.Equal(t, automdm.CapabilityMap{}, bc.ServerCapabilities)
 	require.False(t, bc.GetServerCapabilities().Has(testCapability))
 
 	// after an upgrade, the server has many capabilities
 	response = &http.Response{
 		StatusCode: http.StatusOK,
 		Body:       io.NopCloser(bytes.NewBufferString(`{}`)),
-		Header:     http.Header{fleet.CapabilitiesHeader: []string{"test_capability,test_capability_2"}},
+		Header:     http.Header{automdm.CapabilitiesHeader: []string{"test_capability,test_capability_2"}},
 	}
 	err = bc.ParseResponse("", "", response, &struct{}{})
 	require.NoError(t, err)
-	require.Equal(t, fleet.CapabilityMap{
-		testCapability:                        {},
-		fleet.Capability("test_capability_2"): {},
+	require.Equal(t, automdm.CapabilityMap{
+		testCapability:                          {},
+		automdm.Capability("test_capability_2"): {},
 	}, bc.ServerCapabilities)
 	require.True(t, bc.GetServerCapabilities().Has(testCapability))
-	require.True(t, bc.GetServerCapabilities().Has(fleet.Capability("test_capability")))
+	require.True(t, bc.GetServerCapabilities().Has(automdm.Capability("test_capability")))
 }
 
 func TestFileResponseHandlePathTraversal(t *testing.T) {
@@ -438,7 +438,7 @@ func TestClientCertificateAuth(t *testing.T) {
 	})
 
 	// Try connecting without setting TLS client certificates.
-	bc, err := NewBaseClient(ts.URL, true, "", "", nil, fleet.CapabilityMap{}, nil)
+	bc, err := NewBaseClient(ts.URL, true, "", "", nil, automdm.CapabilityMap{}, nil)
 	require.NoError(t, err)
 	request, err := http.NewRequest("GET", ts.URL, nil)
 	require.NoError(t, err)
@@ -450,7 +450,7 @@ func TestClientCertificateAuth(t *testing.T) {
 	clientCrt, err := certificate.LoadClientCertificateFromFiles(filepath.Join("testdata", "client.crt"), filepath.Join("testdata", "client.key"))
 	require.NoError(t, err)
 	require.NotNil(t, clientCrt)
-	bc, err = NewBaseClient(ts.URL, true, "", "", &clientCrt.Crt, fleet.CapabilityMap{}, nil)
+	bc, err = NewBaseClient(ts.URL, true, "", "", &clientCrt.Crt, automdm.CapabilityMap{}, nil)
 	require.NoError(t, err)
 	request, err = http.NewRequest("GET", ts.URL, nil)
 	require.NoError(t, err)
@@ -481,7 +481,7 @@ func TestBaseClientCloseIdleConnections(t *testing.T) {
 		c.Transport = roundTripperFunc(func(r *http.Request) (*http.Response, error) { return inner.RoundTrip(r) })
 		return c
 	}
-	bc, err := NewBaseClient(srv.URL, true, "", "", nil, fleet.CapabilityMap{}, signerWrapper)
+	bc, err := NewBaseClient(srv.URL, true, "", "", nil, automdm.CapabilityMap{}, signerWrapper)
 	require.NoError(t, err)
 
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL, nil)

@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/logging"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/logging"
 )
 
 // This file holds the mysqlredis overrides for write-path methods that mutate
@@ -23,7 +23,7 @@ import (
 // UpdateHost wraps the inner UpdateHost to invalidate the cache entry for the
 // host's current node_key after a successful write. The old node_key entry (if
 // re-enrollment changed it) becomes unreachable and expires via TTL.
-func (d *Datastore) UpdateHost(ctx context.Context, host *fleet.Host) error {
+func (d *Datastore) UpdateHost(ctx context.Context, host *automdm.Host) error {
 	if err := d.Datastore.UpdateHost(ctx, host); err != nil {
 		return err
 	}
@@ -36,7 +36,7 @@ func (d *Datastore) UpdateHost(ctx context.Context, host *fleet.Host) error {
 // return the UPDATE has already hit MySQL and we can safely invalidate. This
 // wrap is essential because the writeCh loop in mysql.go invokes the inner
 // UpdateHost directly and bypasses any wrapper on that method.
-func (d *Datastore) SerialUpdateHost(ctx context.Context, host *fleet.Host) error {
+func (d *Datastore) SerialUpdateHost(ctx context.Context, host *automdm.Host) error {
 	if err := d.Datastore.SerialUpdateHost(ctx, host); err != nil {
 		return err
 	}
@@ -46,7 +46,7 @@ func (d *Datastore) SerialUpdateHost(ctx context.Context, host *fleet.Host) erro
 
 // UpdateHostOsqueryIntervals invalidates by host ID after the inner write.
 // Affected fields: distributed_interval, config_tls_refresh, logger_tls_period.
-func (d *Datastore) UpdateHostOsqueryIntervals(ctx context.Context, hostID uint, intervals fleet.HostOsqueryIntervals) error {
+func (d *Datastore) UpdateHostOsqueryIntervals(ctx context.Context, hostID uint, intervals automdm.HostOsqueryIntervals) error {
 	if err := d.Datastore.UpdateHostOsqueryIntervals(ctx, hostID, intervals); err != nil {
 		return err
 	}
@@ -99,7 +99,7 @@ func (d *Datastore) SetOrUpdateHostDiskBitLockerProtectors(ctx context.Context, 
 // hosts row or update an existing one's orbit_node_key + team_id; in either case the cached snapshot is stale.
 //
 // Asymmetry with EnrollOsquery: mysql.EnrollOsquery does a final SELECT that hydrates host.NodeKey and
-// host.OrbitNodeKey on the returned struct, but mysql.EnrollOrbit does NOT, the *fleet.Host it returns has
+// host.OrbitNodeKey on the returned struct, but mysql.EnrollOrbit does NOT, the *automdm.Host it returns has
 // only ID/ComputerName/Hostname/HardwareModel/HardwareSerial/Platform/PlatformLike populated.
 //
 // Replay opts to recover the just-issued orbit_node_key so the negative-cache plug fires for orbit, matching
@@ -107,12 +107,12 @@ func (d *Datastore) SetOrUpdateHostDiskBitLockerProtectors(ctx context.Context, 
 // window before EnrollOrbit committed leaves an onk_miss:<K> entry that survives the wrapper, and the
 // freshly-enrolled host returns NotFound from the negative cache for up to hostCacheNegativeTTL on its
 // first /orbit/* requests.
-func (d *Datastore) EnrollOrbit(ctx context.Context, opts ...fleet.DatastoreEnrollOrbitOption) (*fleet.Host, error) {
+func (d *Datastore) EnrollOrbit(ctx context.Context, opts ...automdm.DatastoreEnrollOrbitOption) (*automdm.Host, error) {
 	host, err := d.Datastore.EnrollOrbit(ctx, opts...)
 	if err != nil {
 		return nil, err
 	}
-	cfg := &fleet.DatastoreEnrollOrbitConfig{}
+	cfg := &automdm.DatastoreEnrollOrbitConfig{}
 	for _, opt := range opts {
 		opt(cfg)
 	}
@@ -126,7 +126,7 @@ func (d *Datastore) EnrollOrbit(ctx context.Context, opts ...fleet.DatastoreEnro
 // AddHostsToTeam patches team_id on every cached host in the batch after a
 // successful team reassignment, keeping each entry's existing expiry (see
 // rewriteTeamOnHostIDs for why patching beats invalidating here).
-func (d *Datastore) AddHostsToTeam(ctx context.Context, params *fleet.AddHostsToTeamParams) error {
+func (d *Datastore) AddHostsToTeam(ctx context.Context, params *automdm.AddHostsToTeamParams) error {
 	if err := d.Datastore.AddHostsToTeam(ctx, params); err != nil {
 		return err
 	}
@@ -177,7 +177,7 @@ func (d *Datastore) UpdateHostIdentityCertHostIDBySerial(ctx context.Context, se
 // This path does NOT clear by direct keys to cover the pre-enrollment-negative-cache race that motivates
 // invalidateAfterHostEnroll's direct-keys clear: that race cannot apply to UpdateHost callers (you cannot
 // UPDATE a host that doesn't exist yet), so no negative entry from a probe-before-row can survive here.
-func (d *Datastore) invalidateAfterHostUpdate(ctx context.Context, host *fleet.Host, reason string) {
+func (d *Datastore) invalidateAfterHostUpdate(ctx context.Context, host *automdm.Host, reason string) {
 	if host == nil || host.ID == 0 || !d.hostCacheEnabled {
 		return
 	}
@@ -221,7 +221,7 @@ func (d *Datastore) MDMWindowsDeleteEnrolledDeviceOnReenrollment(ctx context.Con
 	}
 	host, err := d.Datastore.HostLiteByIdentifier(ctx, hostUUID)
 	switch {
-	case fleet.IsNotFound(err):
+	case automdm.IsNotFound(err):
 	case err != nil:
 		// The enrollment is already gone, so the entry is left to expire with its TTL.
 		logging.WithErr(ctx, err)
@@ -234,7 +234,7 @@ func (d *Datastore) MDMWindowsDeleteEnrolledDeviceOnReenrollment(ctx context.Con
 // invalidateAfterHostEnroll is the common tail for write paths that may CREATE a host or rotate its
 // node_key (NewHost, EnrollOsquery, EnrollOrbit). Does the by-ID invalidation that
 // invalidateAfterHostUpdate does, plus a direct-keys clear using the caller-supplied NodeKey and
-// OrbitNodeKey on the returned *fleet.Host.
+// OrbitNodeKey on the returned *automdm.Host.
 //
 // The direct-keys clear plugs the pre-enrollment-negative-cache race: if a poll arrived with the
 // new node_key BEFORE the host row existed, LoadHostByNodeKey returned NotFound and wrote
@@ -244,7 +244,7 @@ func (d *Datastore) MDMWindowsDeleteEnrolledDeviceOnReenrollment(ctx context.Con
 // auth attempts return NotFound from the negative cache.
 //
 // Does NOT record a second invalidation; hostCacheDeleteByID already bumped the counter.
-func (d *Datastore) invalidateAfterHostEnroll(ctx context.Context, host *fleet.Host, reason string) {
+func (d *Datastore) invalidateAfterHostEnroll(ctx context.Context, host *automdm.Host, reason string) {
 	if host == nil || host.ID == 0 {
 		return
 	}

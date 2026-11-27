@@ -8,15 +8,15 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/apple/mobileconfig"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	"github.com/anilyagiz/automdm/v4/server/mdm/apple/mobileconfig"
 )
 
 const inHouseAppInstallTokenLength = 36 // UUID
 
-func (svc *Service) updateInHouseAppInstaller(ctx context.Context, payload *fleet.UpdateSoftwareInstallerPayload, vc viewer.Viewer, teamName *string, software *fleet.SoftwareTitle) (*fleet.SoftwareInstaller, error) {
+func (svc *Service) updateInHouseAppInstaller(ctx context.Context, payload *automdm.UpdateSoftwareInstallerPayload, vc viewer.Viewer, teamName *string, software *automdm.SoftwareTitle) (*automdm.SoftwareInstaller, error) {
 	existingInstaller, err := svc.ds.GetInHouseAppMetadataByTeamAndTitleID(ctx, payload.TeamID, payload.TitleID)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "getting existing installer")
@@ -29,7 +29,7 @@ func (svc *Service) updateInHouseAppInstaller(ctx context.Context, payload *flee
 	if payload.DisplayName != nil && *payload.DisplayName != software.DisplayName {
 		trimmed := strings.TrimSpace(*payload.DisplayName)
 		if trimmed == "" && *payload.DisplayName != "" {
-			return nil, fleet.NewInvalidArgumentError("display_name", "Cannot have a display name that is all whitespace.")
+			return nil, automdm.NewInvalidArgumentError("display_name", "Cannot have a display name that is all whitespace.")
 		}
 
 		*payload.DisplayName = trimmed
@@ -59,7 +59,7 @@ func (svc *Service) updateInHouseAppInstaller(ctx context.Context, payload *flee
 	if payload.DisplayName != nil {
 		displayName = *payload.DisplayName
 	}
-	activity := fleet.ActivityTypeEditedSoftware{
+	activity := automdm.ActivityTypeEditedSoftware{
 		SoftwareTitle:       existingInstaller.SoftwareTitle,
 		TeamName:            teamName,
 		TeamID:              actTeamID,
@@ -70,9 +70,9 @@ func (svc *Service) updateInHouseAppInstaller(ctx context.Context, payload *flee
 		SoftwareDisplayName: displayName,
 	}
 
-	var payloadForNewInstallerFile *fleet.UploadSoftwareInstallerPayload
+	var payloadForNewInstallerFile *automdm.UploadSoftwareInstallerPayload
 	if payload.InstallerFile != nil {
-		payloadForNewInstallerFile = &fleet.UploadSoftwareInstallerPayload{
+		payloadForNewInstallerFile = &automdm.UploadSoftwareInstallerPayload{
 			InstallerFile: payload.InstallerFile,
 			Filename:      payload.Filename,
 		}
@@ -83,14 +83,14 @@ func (svc *Service) updateInHouseAppInstaller(ctx context.Context, payload *flee
 		}
 
 		if newInstallerExtension != existingInstaller.Extension {
-			return nil, &fleet.BadRequestError{
+			return nil, &automdm.BadRequestError{
 				Message:     "The selected package is for a different file type.",
 				InternalErr: ctxerr.Wrap(ctx, err, "installer extension mismatch"),
 			}
 		}
 
 		if payloadForNewInstallerFile.Title != software.Name {
-			return nil, &fleet.BadRequestError{
+			return nil, &automdm.BadRequestError{
 				Message:     "The selected package is for different software.",
 				InternalErr: ctxerr.Wrap(ctx, err, "installer software title mismatch"),
 			}
@@ -119,7 +119,7 @@ func (svc *Service) updateInHouseAppInstaller(ctx context.Context, payload *flee
 	}
 
 	if len(payload.Configuration) > 0 {
-		if err := fleet.ValidateAppleAppConfiguration(payload.Configuration); err != nil {
+		if err := automdm.ValidateAppleAppConfiguration(payload.Configuration); err != nil {
 			return nil, err
 		}
 		if err := svc.validateAppConfigCustomHostVitals(ctx, payload.Configuration); err != nil {
@@ -183,7 +183,7 @@ func (svc *Service) updateInHouseAppInstaller(ctx context.Context, payload *flee
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "getting updated installer statuses")
 	}
-	updatedInstaller.Status = &fleet.SoftwareInstallerStatusSummary{Installed: st.Installed, PendingInstall: st.Pending, FailedInstall: st.Failed}
+	updatedInstaller.Status = &automdm.SoftwareInstallerStatusSummary{Installed: st.Installed, PendingInstall: st.Pending, FailedInstall: st.Failed}
 
 	// Wrap iOS / iPadOS plist as a JSON string for the response.
 	if len(updatedInstaller.Configuration) > 0 {
@@ -217,16 +217,16 @@ func (svc *Service) GetInHouseAppManifest(ctx context.Context, titleID uint, tok
 	}
 
 	// The device downloads the .ipa named here itself, so like the manifest URL that
-	// pointed it at this plist, it has to be the URL Apple devices reach Fleet on.
+	// pointed it at this plist, it has to be the URL Apple devices reach AutoMDM on.
 	downloadURL := fmt.Sprintf(
-		"%s/api/latest/fleet/software/titles/%d/in_house_app/%s",
+		"%s/api/latest/automdm/software/titles/%d/in_house_app/%s",
 		appConfig.MDMUrl(), titleID, token,
 	)
 
 	if svc.config.SoftwareInstallersSignedURLEnabled() {
-		signedURL, err := svc.softwareInstallStore.Sign(ctx, meta.StorageID, fleet.InHouseAppSignedURLExpiry)
+		signedURL, err := svc.softwareInstallStore.Sign(ctx, meta.StorageID, automdm.InHouseAppSignedURLExpiry)
 		if err != nil {
-			// We log the error and continue to send the Fleet server URL for the in-house app
+			// We log the error and continue to send the AutoMDM server URL for the in-house app
 			svc.logger.ErrorContext(ctx, "error signing in-house app URL; check signed URL configuration", "err", err)
 		} else {
 			downloadURL = signedURL
@@ -292,7 +292,7 @@ func (svc *Service) GetInHouseAppManifest(ctx context.Context, titleID uint, tok
 	return buf.Bytes(), nil
 }
 
-func (svc *Service) GetInHouseAppPackage(ctx context.Context, titleID uint, token string) (*fleet.DownloadSoftwareInstallerPayload, error) {
+func (svc *Service) GetInHouseAppPackage(ctx context.Context, titleID uint, token string) (*automdm.DownloadSoftwareInstallerPayload, error) {
 	svc.authz.SkipAuthorization(ctx) // gated on validateInHouseAppInstallToken below
 
 	tokenMeta, err := svc.validateInHouseAppInstallToken(ctx, titleID, token)
@@ -315,19 +315,19 @@ func (svc *Service) validateInHouseAppInstallToken(
 	ctx context.Context,
 	urlTitleID uint,
 	token string,
-) (*fleet.InHouseAppInstallTokenMetadata, error) {
+) (*automdm.InHouseAppInstallTokenMetadata, error) {
 	// Reject obviously malformed lengths before hitting the DB; the column is
 	// VARCHAR(36) (UUID), so anything else can't match a row.
 	if len(token) != inHouseAppInstallTokenLength {
-		return nil, fleet.NewPermissionError("invalid token")
+		return nil, automdm.NewPermissionError("invalid token")
 	}
 
 	meta, err := svc.ds.GetInHouseAppInstallTokenMetadata(ctx, token)
 	if err != nil {
-		if fleet.IsNotFound(err) {
+		if automdm.IsNotFound(err) {
 			svc.logger.WarnContext(ctx, "in-house app install token not found or expired",
 				"title_id", urlTitleID)
-			return nil, fleet.NewPermissionError("invalid token")
+			return nil, automdm.NewPermissionError("invalid token")
 		}
 		return nil, ctxerr.Wrap(ctx, err, "lookup in-house app install token")
 	}
@@ -336,7 +336,7 @@ func (svc *Service) validateInHouseAppInstallToken(
 			"url_title_id", urlTitleID,
 			"token_title_id", meta.SoftwareTitleID,
 			"host_id", meta.HostID)
-		return nil, fleet.NewPermissionError("invalid token")
+		return nil, automdm.NewPermissionError("invalid token")
 	}
 	return meta, nil
 }

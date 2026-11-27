@@ -10,7 +10,7 @@ import (
 
 func TestWindowsWixTemplateEUAToken(t *testing.T) {
 	baseOpt := Options{
-		FleetURL:        "https://fleet.example.com",
+		AutoMDMURL:      "https://automdm.example.com",
 		EnrollSecret:    "secret",
 		OrbitChannel:    "stable",
 		OsquerydChannel: "stable",

@@ -10,11 +10,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/apple/mobileconfig"
-	"github.com/fleetdm/fleet/v4/server/mdm/reconcile"
-	"github.com/fleetdm/fleet/v4/server/variables"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/mdm/apple/mobileconfig"
+	"github.com/anilyagiz/automdm/v4/server/mdm/reconcile"
+	"github.com/anilyagiz/automdm/v4/server/variables"
 	"github.com/google/uuid"
 )
 
@@ -39,8 +39,8 @@ const HoursToWaitForUserEnrollmentAfterDeviceEnrollment = 2
 // to this host" so label / team semantics cannot drift across paths or
 // platforms.
 func EntityAppliesToHost(
-	e fleet.AppleLabeledEntity,
-	host *fleet.AppleHostReconcileInfo,
+	e automdm.AppleLabeledEntity,
+	host *automdm.AppleHostReconcileInfo,
 	hostLabels map[uint]struct{},
 	entityOnHost bool,
 ) bool {
@@ -63,10 +63,10 @@ func IsEligiblePlatform(platform string) bool {
 type profileChannelKey struct {
 	hostUUID   string
 	identifier string
-	scope      fleet.PayloadScope
+	scope      automdm.PayloadScope
 }
 
-func channelKey(p *fleet.MDMAppleProfilePayload) profileChannelKey {
+func channelKey(p *automdm.MDMAppleProfilePayload) profileChannelKey {
 	return profileChannelKey{hostUUID: p.HostUUID, identifier: p.ProfileIdentifier, scope: p.Scope}
 }
 
@@ -79,25 +79,25 @@ type hostCommandKey struct {
 // the input set using the SHARED dispatcher, then diffs against current
 // host_mdm_apple_profiles rows to produce install and remove sets.
 func ComputeReconcileDeltas(
-	hosts []*fleet.AppleHostReconcileInfo,
+	hosts []*automdm.AppleHostReconcileInfo,
 	hostLabels map[uint]map[uint]struct{},
-	currentByHost map[string][]*fleet.MDMAppleProfilePayload,
-	profilesByTeam map[uint][]*fleet.AppleProfileForReconcile,
+	currentByHost map[string][]*automdm.MDMAppleProfilePayload,
+	profilesByTeam map[uint][]*automdm.AppleProfileForReconcile,
 	profilesWithBrokenLabels map[string]struct{},
 	optInsByHost map[string]map[string]struct{},
-) (toInstall, toRemove []*fleet.MDMAppleProfilePayload, optInChanges *fleet.MDMProfileOptInChanges) {
-	optInChanges = &fleet.MDMProfileOptInChanges{
-		Add:   make([]fleet.HostProfileUUID, 0),
-		Purge: make([]fleet.HostProfileUUID, 0),
+) (toInstall, toRemove []*automdm.MDMAppleProfilePayload, optInChanges *automdm.MDMProfileOptInChanges) {
+	optInChanges = &automdm.MDMProfileOptInChanges{
+		Add:   make([]automdm.HostProfileUUID, 0),
+		Purge: make([]automdm.HostProfileUUID, 0),
 	}
 	for _, host := range hosts {
 		teamProfiles := profilesByTeam[host.EffectiveTeamID()]
-		desired := make(map[string]*fleet.AppleProfileForReconcile, len(teamProfiles))
+		desired := make(map[string]*automdm.AppleProfileForReconcile, len(teamProfiles))
 
 		labelsForHost := hostLabels[host.HostID]
 
 		current := currentByHost[host.UUID]
-		currentByProfile := make(map[string]*fleet.MDMAppleProfilePayload, len(current))
+		currentByProfile := make(map[string]*automdm.MDMAppleProfilePayload, len(current))
 		for _, c := range current {
 			currentByProfile[c.ProfileUUID] = c
 		}
@@ -108,13 +108,13 @@ func ComputeReconcileDeltas(
 		unknownMembershipOptIns := make(map[string]struct{})
 		for _, p := range teamProfiles {
 			c, present := currentByProfile[p.ProfileUUID]
-			onHost := present && c.OperationType == fleet.MDMOperationTypeInstall // nolint:nilaway // the present check is what gates on existence therefore c can not be nil.
+			onHost := present && c.OperationType == automdm.MDMOperationTypeInstall // nolint:nilaway // the present check is what gates on existence therefore c can not be nil.
 
 			adoptedFromOtherTeam := false
 			if p.SelfService {
 				// Self-service is macOS-only: never install or adopt it elsewhere. Any stray
 				// opt-in is purged below since the profile is never desired.
-				if !fleet.IsMacOSPlatform(host.Platform) {
+				if !automdm.IsMacOSPlatform(host.Platform) {
 					continue
 				}
 				if _, optedIn := optIns[p.ProfileUUID]; !optedIn {
@@ -137,7 +137,7 @@ func ComputeReconcileDeltas(
 			}
 			desired[p.ProfileUUID] = p
 			if adoptedFromOtherTeam {
-				optInChanges.Add = append(optInChanges.Add, fleet.HostProfileUUID{HostUUID: host.UUID, ProfileUUID: p.ProfileUUID})
+				optInChanges.Add = append(optInChanges.Add, automdm.HostProfileUUID{HostUUID: host.UUID, ProfileUUID: p.ProfileUUID})
 			}
 		}
 
@@ -146,7 +146,7 @@ func ComputeReconcileDeltas(
 			if prof, ok := desired[profUUID]; ok {
 				// check if the profile is no longer self-service, then purge
 				if !prof.SelfService {
-					optInChanges.Purge = append(optInChanges.Purge, fleet.HostProfileUUID{HostUUID: host.UUID, ProfileUUID: profUUID})
+					optInChanges.Purge = append(optInChanges.Purge, automdm.HostProfileUUID{HostUUID: host.UUID, ProfileUUID: profUUID})
 				}
 				continue
 			}
@@ -156,7 +156,7 @@ func ComputeReconcileDeltas(
 			if _, unknown := unknownMembershipOptIns[profUUID]; unknown {
 				continue
 			}
-			optInChanges.Purge = append(optInChanges.Purge, fleet.HostProfileUUID{HostUUID: host.UUID, ProfileUUID: profUUID})
+			optInChanges.Purge = append(optInChanges.Purge, automdm.HostProfileUUID{HostUUID: host.UUID, ProfileUUID: profUUID})
 		}
 
 		for profUUID, p := range desired {
@@ -169,9 +169,9 @@ func ComputeReconcileDeltas(
 				needsInstall = true
 			case p.SecretsUpdatedAt != nil && (c.SecretsUpdatedAt == nil || c.SecretsUpdatedAt.Before(*p.SecretsUpdatedAt)):
 				needsInstall = true
-			case c.OperationType == "" || c.OperationType == fleet.MDMOperationTypeRemove:
+			case c.OperationType == "" || c.OperationType == automdm.MDMOperationTypeRemove:
 				needsInstall = true
-			case c.OperationType == fleet.MDMOperationTypeInstall && c.Status == nil:
+			case c.OperationType == automdm.MDMOperationTypeInstall && c.Status == nil:
 				needsInstall = true
 			}
 			if !needsInstall {
@@ -190,7 +190,7 @@ func ComputeReconcileDeltas(
 
 			installingChannels[profileChannelKey{hostUUID: host.UUID, identifier: p.ProfileIdentifier, scope: p.Scope}] = struct{}{}
 
-			toInstall = append(toInstall, &fleet.MDMAppleProfilePayload{
+			toInstall = append(toInstall, &automdm.MDMAppleProfilePayload{
 				ProfileUUID:       p.ProfileUUID,
 				ProfileIdentifier: p.ProfileIdentifier,
 				ProfileName:       p.ProfileName,
@@ -215,7 +215,7 @@ func ComputeReconcileDeltas(
 			// RemoveProfile would strip the profile the admin just asked for. Carry it
 			// through marked cancel-only.
 			var cancelOnly bool
-			if c.OperationType == fleet.MDMOperationTypeRemove && c.Status != nil {
+			if c.OperationType == automdm.MDMOperationTypeRemove && c.Status != nil {
 				key := profileChannelKey{hostUUID: host.UUID, identifier: c.ProfileIdentifier, scope: c.Scope}
 				if _, reinstalling := installingChannels[key]; !reinstalling {
 					continue
@@ -226,7 +226,7 @@ func ComputeReconcileDeltas(
 				continue
 			}
 
-			toRemove = append(toRemove, &fleet.MDMAppleProfilePayload{
+			toRemove = append(toRemove, &automdm.MDMAppleProfilePayload{
 				ProfileUUID:        c.ProfileUUID,
 				ProfileIdentifier:  c.ProfileIdentifier,
 				ProfileName:        c.ProfileName,
@@ -265,9 +265,9 @@ func IsBrokenDeclaration(declUUID string, declsWithBrokenLabel map[string]struct
 
 // scopeOrDefaultDDM normalizes an empty scope to System (device channel) so
 // pre-scope rows and callers that leave scope unset behave as device-scoped.
-func scopeOrDefaultDDM(s fleet.PayloadScope) fleet.PayloadScope {
+func scopeOrDefaultDDM(s automdm.PayloadScope) automdm.PayloadScope {
 	if s == "" {
-		return fleet.PayloadScopeSystem
+		return automdm.PayloadScopeSystem
 	}
 	return s
 }
@@ -275,11 +275,11 @@ func scopeOrDefaultDDM(s fleet.PayloadScope) fleet.PayloadScope {
 // adoptableFromAlreadyInstalled reports whether the host carries an identical same-identifier
 // profile under a different profile UUID (a team transfer), in which case the
 // self-service profile is adopted instead of the old one being removed.
-func adoptableFromAlreadyInstalled(current []*fleet.MDMAppleProfilePayload, p *fleet.AppleProfileForReconcile) bool {
+func adoptableFromAlreadyInstalled(current []*automdm.MDMAppleProfilePayload, p *automdm.AppleProfileForReconcile) bool {
 	for _, r := range current {
 		if r.ProfileUUID == p.ProfileUUID ||
-			r.OperationType != fleet.MDMOperationTypeInstall ||
-			r.Status == nil || *r.Status == fleet.MDMDeliveryFailed ||
+			r.OperationType != automdm.MDMOperationTypeInstall ||
+			r.Status == nil || *r.Status == automdm.MDMDeliveryFailed ||
 			r.ProfileIdentifier != p.ProfileIdentifier ||
 			r.Scope != p.Scope ||
 			!bytes.Equal(r.Checksum, p.Checksum) {
@@ -293,23 +293,23 @@ func adoptableFromAlreadyInstalled(current []*fleet.MDMAppleProfilePayload, p *f
 // canTakeOverState reports whether install p can take over the state of pp, the same-identifier row
 // it replaces on the host, instead of being sent again: pp is delivered or on its way, with
 // identical content.
-func canTakeOverState(p, pp *fleet.MDMAppleProfilePayload) bool {
+func canTakeOverState(p, pp *automdm.MDMAppleProfilePayload) bool {
 	// Never preserve the state of a cancel-only removal: it would stamp this
 	// install as "removing" and point it at the command we are about to delete.
-	return !pp.CancelOnly && pp.Status != nil && *pp.Status != fleet.MDMDeliveryFailed && bytes.Equal(pp.Checksum, p.Checksum)
+	return !pp.CancelOnly && pp.Status != nil && *pp.Status != automdm.MDMDeliveryFailed && bytes.Equal(pp.Checksum, p.Checksum)
 }
 
-// profileUUIDBoundVariables reports whether the profile's Fleet variables render its own UUID into
+// profileUUIDBoundVariables reports whether the profile's AutoMDM variables render its own UUID into
 // what the device installs: the SCEP proxy URL the device requests its certificate from, or the
 // renewal ID in the certificate's subject.
-func profileUUIDBoundVariables(fleetVars []string) (proxyURL, renewalID bool) {
-	for _, v := range fleetVars {
+func profileUUIDBoundVariables(automdmVars []string) (proxyURL, renewalID bool) {
+	for _, v := range automdmVars {
 		switch {
-		case v == string(fleet.FleetVarNDESSCEPProxyURL),
-			strings.HasPrefix(v, string(fleet.FleetVarCustomSCEPProxyURLPrefix)),
-			strings.HasPrefix(v, string(fleet.FleetVarSmallstepSCEPProxyURLPrefix)):
+		case v == string(automdm.AutoMDMVarNDESSCEPProxyURL),
+			strings.HasPrefix(v, string(automdm.AutoMDMVarCustomSCEPProxyURLPrefix)),
+			strings.HasPrefix(v, string(automdm.AutoMDMVarSmallstepSCEPProxyURLPrefix)):
 			proxyURL = true
-		case v == string(fleet.FleetVarSCEPRenewalID), v == string(fleet.FleetVarCertificateRenewalID):
+		case v == string(automdm.AutoMDMVarSCEPRenewalID), v == string(automdm.AutoMDMVarCertificateRenewalID):
 			renewalID = true
 		}
 	}
@@ -319,16 +319,18 @@ func profileUUIDBoundVariables(fleetVars []string) (proxyURL, renewalID bool) {
 // adoptionsToReinstall returns the installs that must be sent again even though they could take
 // over the state of the identical profile they replace. The device holds that profile as rendered
 // for the old profile UUID, so a pending install would request its certificate from a proxy URL
-// that no longer resolves, and a certificate Fleet hasn't recorded yet carries a renewal ID that
+// that no longer resolves, and a certificate AutoMDM hasn't recorded yet carries a renewal ID that
 // can never be matched to the new profile, so it would never be renewed.
 func adoptionsToReinstall(
 	ctx context.Context,
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	profileIntersection *ProfileBimap,
-	toInstall []*fleet.MDMAppleProfilePayload,
+	toInstall []*automdm.MDMAppleProfilePayload,
 	prefetchedContents map[string]mobileconfig.Mobileconfig,
-) (map[*fleet.MDMAppleProfilePayload]struct{}, error) {
-	type adoption struct{ install, replaced *fleet.MDMAppleProfilePayload }
+) (map[*automdm.MDMAppleProfilePayload]struct{}, error) {
+	type adoption struct {
+		install, replaced *automdm.MDMAppleProfilePayload
+	}
 	var adoptions []adoption
 	missingContents := make(map[string]struct{})
 	for _, p := range toInstall {
@@ -351,7 +353,7 @@ func adoptionsToReinstall(
 	if len(missingContents) > 0 {
 		fetched, err := ds.GetMDMAppleProfilesContents(ctx, slices.Collect(maps.Keys(missingContents)))
 		if err != nil {
-			return nil, ctxerr.Wrap(ctx, err, "getting contents of profiles adopted from another fleet")
+			return nil, ctxerr.Wrap(ctx, err, "getting contents of profiles adopted from another team")
 		}
 		contents = make(map[string]mobileconfig.Mobileconfig, len(prefetchedContents)+len(fetched))
 		maps.Copy(contents, prefetchedContents)
@@ -360,7 +362,7 @@ func adoptionsToReinstall(
 
 	type boundVariables struct{ proxyURL, renewalID bool }
 	boundByProfile := make(map[string]boundVariables)
-	reinstalls := make(map[*fleet.MDMAppleProfilePayload]struct{})
+	reinstalls := make(map[*automdm.MDMAppleProfilePayload]struct{})
 	var needsCertificate []adoption
 	for _, a := range adoptions {
 		bound, ok := boundByProfile[a.install.ProfileUUID]
@@ -370,7 +372,7 @@ func adoptionsToReinstall(
 		}
 		switch {
 		case !bound.proxyURL && !bound.renewalID:
-		case a.replaced.Status != nil && *a.replaced.Status == fleet.MDMDeliveryPending:
+		case a.replaced.Status != nil && *a.replaced.Status == automdm.MDMDeliveryPending:
 			reinstalls[a.install] = struct{}{}
 		case bound.renewalID:
 			// Only a renewal ID lets ingestion match the certificate to its profile and record its
@@ -382,25 +384,25 @@ func adoptionsToReinstall(
 		return reinstalls, nil
 	}
 
-	hostProfiles := make([]fleet.HostProfileUUID, 0, len(needsCertificate))
+	hostProfiles := make([]automdm.HostProfileUUID, 0, len(needsCertificate))
 	for _, a := range needsCertificate {
-		hostProfiles = append(hostProfiles, fleet.HostProfileUUID{HostUUID: a.replaced.HostUUID, ProfileUUID: a.replaced.ProfileUUID})
+		hostProfiles = append(hostProfiles, automdm.HostProfileUUID{HostUUID: a.replaced.HostUUID, ProfileUUID: a.replaced.ProfileUUID})
 	}
 	certs, err := ds.ListMDMManagedCertificatesForHostProfiles(ctx, hostProfiles)
 	if err != nil {
-		return nil, ctxerr.Wrap(ctx, err, "listing certificates of profiles adopted from another fleet")
+		return nil, ctxerr.Wrap(ctx, err, "listing certificates of profiles adopted from another team")
 	}
 	// A profile can reference several CAs: it is recorded only when every one of its certificates
 	// has dates.
-	recorded := make(map[fleet.HostProfileUUID]bool, len(certs))
+	recorded := make(map[automdm.HostProfileUUID]bool, len(certs))
 	for _, c := range certs {
-		key := fleet.HostProfileUUID{HostUUID: c.HostUUID, ProfileUUID: c.ProfileUUID}
+		key := automdm.HostProfileUUID{HostUUID: c.HostUUID, ProfileUUID: c.ProfileUUID}
 		if prev, seen := recorded[key]; !seen || prev {
 			recorded[key] = c.NotValidAfter != nil
 		}
 	}
 	for _, a := range needsCertificate {
-		if !recorded[fleet.HostProfileUUID{HostUUID: a.replaced.HostUUID, ProfileUUID: a.replaced.ProfileUUID}] {
+		if !recorded[automdm.HostProfileUUID{HostUUID: a.replaced.HostUUID, ProfileUUID: a.replaced.ProfileUUID}] {
 			reinstalls[a.install] = struct{}{}
 		}
 	}
@@ -420,18 +422,18 @@ func adoptionsToReinstall(
 // installs it and the old channel drops it because its scoped declaration set
 // no longer includes it.
 func ComputeDeclarationDeltas(
-	hosts []*fleet.AppleHostReconcileInfo,
+	hosts []*automdm.AppleHostReconcileInfo,
 	hostLabels map[uint]map[uint]struct{},
-	currentByHost map[string][]*fleet.MDMAppleHostDeclaration,
-	declsByTeam map[uint][]*fleet.AppleDeclarationForReconcile,
+	currentByHost map[string][]*automdm.MDMAppleHostDeclaration,
+	declsByTeam map[uint][]*automdm.AppleDeclarationForReconcile,
 	declsWithBrokenLabel map[string]struct{},
-) (changedDeviceHostUUIDs, changedUserHostUUIDs []string, declRowsToWrite []*fleet.MDMAppleHostDeclaration) {
-	pendingStatus := fleet.MDMDeliveryPending
+) (changedDeviceHostUUIDs, changedUserHostUUIDs []string, declRowsToWrite []*automdm.MDMAppleHostDeclaration) {
+	pendingStatus := automdm.MDMDeliveryPending
 	deviceChanged := make(map[string]struct{})
 	userChanged := make(map[string]struct{})
 
-	markChanged := func(hostUUID string, scope fleet.PayloadScope) {
-		if scopeOrDefaultDDM(scope) == fleet.PayloadScopeUser {
+	markChanged := func(hostUUID string, scope automdm.PayloadScope) {
+		if scopeOrDefaultDDM(scope) == automdm.PayloadScopeUser {
 			userChanged[hostUUID] = struct{}{}
 		} else {
 			deviceChanged[hostUUID] = struct{}{}
@@ -440,12 +442,12 @@ func ComputeDeclarationDeltas(
 
 	for _, host := range hosts {
 		teamDecls := declsByTeam[host.EffectiveTeamID()]
-		desired := make(map[string]*fleet.AppleDeclarationForReconcile, len(teamDecls))
+		desired := make(map[string]*automdm.AppleDeclarationForReconcile, len(teamDecls))
 
 		labelsForHost := hostLabels[host.HostID]
 
 		current := currentByHost[host.UUID]
-		currentByDecl := make(map[string]*fleet.MDMAppleHostDeclaration, len(current))
+		currentByDecl := make(map[string]*automdm.MDMAppleHostDeclaration, len(current))
 		for _, c := range current {
 			currentByDecl[c.DeclarationUUID] = c
 		}
@@ -453,7 +455,7 @@ func ComputeDeclarationDeltas(
 		for _, d := range teamDecls {
 			onHost := false
 			if c, ok := currentByDecl[d.DeclarationUUID]; ok {
-				onHost = c.OperationType == fleet.MDMOperationTypeInstall
+				onHost = c.OperationType == automdm.MDMOperationTypeInstall
 			}
 			if !EntityAppliesToHost(d, host, labelsForHost, onHost) {
 				continue
@@ -492,33 +494,33 @@ func ComputeDeclarationDeltas(
 				// nothing else here would notice; without this the host keeps the old
 				// activation and its predicate forever.
 				needsInstall = true
-			case c.OperationType == "" || c.OperationType == fleet.MDMOperationTypeRemove:
+			case c.OperationType == "" || c.OperationType == automdm.MDMOperationTypeRemove:
 				needsInstall = true
-			case c.OperationType == fleet.MDMOperationTypeInstall && c.Status == nil:
+			case c.OperationType == automdm.MDMOperationTypeInstall && c.Status == nil:
 				needsInstall = true
 			}
 			if !needsInstall {
 				continue
 			}
 
-			row := &fleet.MDMAppleHostDeclaration{
+			row := &automdm.MDMAppleHostDeclaration{
 				HostUUID:         host.UUID,
 				DeclarationUUID:  d.DeclarationUUID,
 				Name:             d.DeclarationName,
 				Identifier:       d.DeclarationIdentifier,
 				Status:           &pendingStatus,
-				OperationType:    fleet.MDMOperationTypeInstall,
+				OperationType:    automdm.MDMOperationTypeInstall,
 				Token:            string(d.Token),
 				SecretsUpdatedAt: d.SecretsUpdatedAt,
 				Scope:            desiredScope,
 			}
 
-			if d.HasFleetVariables {
+			if d.HasAutoMDMVariables {
 				now := time.Now().UTC()
 				row.VariablesUpdatedAt = &now
 			}
 			// Stamp the referenced assets' latest uploaded_at so the per-host
-			// effective token folds it in (see fleet.EffectiveDDMToken) and stays
+			// effective token folds it in (see automdm.EffectiveDDMToken) and stays
 			// idempotent: on the next reconcile c.AssetsUpdatedAt equals this value
 			// and no needless re-delivery is triggered.
 			if d.AssetsUpdatedAt != nil {
@@ -540,7 +542,7 @@ func ComputeDeclarationDeltas(
 			if _, stillDesired := desired[declUUID]; stillDesired {
 				continue
 			}
-			if c.OperationType == fleet.MDMOperationTypeRemove && c.Status != nil {
+			if c.OperationType == automdm.MDMOperationTypeRemove && c.Status != nil {
 				continue
 			}
 			if IsBrokenDeclaration(declUUID, declsWithBrokenLabel) {
@@ -548,13 +550,13 @@ func ComputeDeclarationDeltas(
 			}
 
 			removeScope := scopeOrDefaultDDM(c.Scope)
-			declRowsToWrite = append(declRowsToWrite, &fleet.MDMAppleHostDeclaration{
+			declRowsToWrite = append(declRowsToWrite, &automdm.MDMAppleHostDeclaration{
 				HostUUID:         host.UUID,
 				DeclarationUUID:  c.DeclarationUUID,
 				Name:             c.Name,
 				Identifier:       c.Identifier,
 				Status:           &pendingStatus,
-				OperationType:    fleet.MDMOperationTypeRemove,
+				OperationType:    automdm.MDMOperationTypeRemove,
 				Token:            c.Token,
 				SecretsUpdatedAt: c.SecretsUpdatedAt,
 				Scope:            removeScope,
@@ -592,13 +594,13 @@ func ComputeDeclarationDeltas(
 // against the customer's CA by the number of windows drained.
 func ExecuteReconcileBatch(
 	ctx context.Context,
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	commander *MDMAppleCommander,
-	redisKeyValue fleet.AdvancedKeyValueStore,
+	redisKeyValue automdm.AdvancedKeyValueStore,
 	logger *slog.Logger,
-	appConfig *fleet.AppConfig,
+	appConfig *automdm.AppConfig,
 	caInstallBudget *int,
-	toInstall, toRemove []*fleet.MDMAppleProfilePayload,
+	toInstall, toRemove []*automdm.MDMAppleProfilePayload,
 ) ([]string, error) {
 	userEnrollmentMap := make(map[string]string)
 	userEnrollmentsToHostUUIDsMap := make(map[string]string)
@@ -621,8 +623,8 @@ func ExecuteReconcileBatch(
 		return userEnrollmentID, nil
 	}
 
-	isAwaitingUserEnrollment := func(prof *fleet.MDMAppleProfilePayload) (bool, error) {
-		if prof.Scope != fleet.PayloadScopeUser {
+	isAwaitingUserEnrollment := func(prof *automdm.MDMAppleProfilePayload) (bool, error) {
+		if prof.Scope != automdm.PayloadScopeUser {
 			return false, nil
 		}
 		userEnrollmentID, err := getHostUserEnrollmentID(prof.HostUUID)
@@ -635,14 +637,14 @@ func ExecuteReconcileBatch(
 		return false, nil
 	}
 
-	hostProfiles := make([]*fleet.MDMAppleBulkUpsertHostProfilePayload, 0, len(toInstall)+len(toRemove))
+	hostProfiles := make([]*automdm.MDMAppleBulkUpsertHostProfilePayload, 0, len(toInstall)+len(toRemove))
 
 	profileIntersection := NewProfileBimap()
 	profileIntersection.IntersectByIdentifierAndHostUUID(toInstall, toRemove)
 
-	hostProfilesToCleanup := []*fleet.MDMAppleProfilePayload{}
-	installsToCancel := []*fleet.MDMAppleProfilePayload{}
-	hostProfilesToInstallMap := make(map[fleet.HostProfileUUID]*fleet.MDMAppleBulkUpsertHostProfilePayload, len(toInstall))
+	hostProfilesToCleanup := []*automdm.MDMAppleProfilePayload{}
+	installsToCancel := []*automdm.MDMAppleProfilePayload{}
+	hostProfilesToInstallMap := make(map[automdm.HostProfileUUID]*automdm.MDMAppleBulkUpsertHostProfilePayload, len(toInstall))
 
 	var caProfileUUIDs map[string]struct{}
 	var prefetchedContents map[string]mobileconfig.Mobileconfig
@@ -662,8 +664,8 @@ func ExecuteReconcileBatch(
 		}
 		caProfileUUIDs = make(map[string]struct{}, len(prefetchedContents))
 		for pUUID, content := range prefetchedContents {
-			fleetVars := variables.Find(string(content))
-			if fleet.HasCAVariables(fleetVars) {
+			automdmVars := variables.Find(string(content))
+			if automdm.HasCAVariables(automdmVars) {
 				caProfileUUIDs[pUUID] = struct{}{}
 			}
 		}
@@ -676,7 +678,7 @@ func ExecuteReconcileBatch(
 		caBudgetAtEntry = *caInstallBudget
 	}
 	throttledHostsByProfile := make(map[string][]string)
-	installTargets, removeTargets := make(map[string]*fleet.CmdTarget), make(map[string]*fleet.CmdTarget)
+	installTargets, removeTargets := make(map[string]*automdm.CmdTarget), make(map[string]*automdm.CmdTarget)
 	supersededCmdToEnrollmentIDs := make(map[string][]string)
 	// Commands an install took over from the same-identifier profile it
 	// replaces. The replaced row is cleaned up below, but its command must stay
@@ -690,7 +692,7 @@ func ExecuteReconcileBatch(
 	for _, p := range toInstall {
 		if pp, ok := profileIntersection.GetMatchingProfileInCurrentState(p); ok && pp != nil && canTakeOverState(p, pp) {
 			if _, reinstall := reinstalls[p]; !reinstall {
-				hp := &fleet.MDMAppleBulkUpsertHostProfilePayload{
+				hp := &automdm.MDMAppleBulkUpsertHostProfilePayload{
 					ProfileUUID:        p.ProfileUUID,
 					HostUUID:           p.HostUUID,
 					ProfileIdentifier:  p.ProfileIdentifier,
@@ -705,7 +707,7 @@ func ExecuteReconcileBatch(
 					VariablesUpdatedAt: pp.VariablesUpdatedAt,
 				}
 				hostProfiles = append(hostProfiles, hp)
-				hostProfilesToInstallMap[fleet.HostProfileUUID{HostUUID: p.HostUUID, ProfileUUID: p.ProfileUUID}] = hp
+				hostProfilesToInstallMap[automdm.HostProfileUUID{HostUUID: p.HostUUID, ProfileUUID: p.ProfileUUID}] = hp
 				pp.AdoptedByProfileUUID = p.ProfileUUID
 				if pp.CommandUUID != "" {
 					adoptedCmds[hostCommandKey{hostUUID: p.HostUUID, commandUUID: pp.CommandUUID}] = struct{}{}
@@ -719,19 +721,19 @@ func ExecuteReconcileBatch(
 			return nil, err
 		}
 		if wait {
-			hp := &fleet.MDMAppleBulkUpsertHostProfilePayload{
+			hp := &automdm.MDMAppleBulkUpsertHostProfilePayload{
 				ProfileUUID:       p.ProfileUUID,
 				HostUUID:          p.HostUUID,
 				ProfileIdentifier: p.ProfileIdentifier,
 				ProfileName:       p.ProfileName,
 				Checksum:          p.Checksum,
 				SecretsUpdatedAt:  p.SecretsUpdatedAt,
-				OperationType:     fleet.MDMOperationTypeInstall,
+				OperationType:     automdm.MDMOperationTypeInstall,
 				Status:            nil,
 				Scope:             p.Scope,
 			}
 			hostProfiles = append(hostProfiles, hp)
-			hostProfilesToInstallMap[fleet.HostProfileUUID{HostUUID: p.HostUUID, ProfileUUID: p.ProfileUUID}] = hp
+			hostProfilesToInstallMap[automdm.HostProfileUUID{HostUUID: p.HostUUID, ProfileUUID: p.ProfileUUID}] = hp
 			continue
 		}
 
@@ -745,7 +747,7 @@ func ExecuteReconcileBatch(
 
 		target := installTargets[p.ProfileUUID]
 		if target == nil {
-			target = &fleet.CmdTarget{
+			target = &automdm.CmdTarget{
 				CmdUUID:           uuid.New().String(),
 				ProfileIdentifier: p.ProfileIdentifier,
 				ProfileName:       p.ProfileName,
@@ -754,26 +756,26 @@ func ExecuteReconcileBatch(
 		}
 
 		var enrollmentID string
-		if p.Scope == fleet.PayloadScopeUser {
+		if p.Scope == automdm.PayloadScopeUser {
 			enrollmentID, err = getHostUserEnrollmentID(p.HostUUID)
 			if err != nil {
 				return nil, err
 			}
 			if enrollmentID == "" {
 				var errorDetail string
-				if fleet.IsAppleMobilePlatform(p.HostPlatform) {
+				if automdm.IsAppleMobilePlatform(p.HostPlatform) {
 					errorDetail = "This setting couldn't be enforced because the user channel isn't available on iOS and iPadOS hosts."
 				} else {
-					errorDetail = "This setting couldn't be enforced because the user channel doesn't exist for this host. Currently, Fleet creates the user channel for hosts that automatically enroll."
+					errorDetail = "This setting couldn't be enforced because the user channel doesn't exist for this host. Currently, AutoMDM creates the user channel for hosts that automatically enroll."
 					logger.WarnContext(ctx, "host does not have a user enrollment, failing profile installation",
 						"host_uuid", p.HostUUID, "profile_uuid", p.ProfileUUID, "profile_identifier", p.ProfileIdentifier)
 				}
 
-				hp := &fleet.MDMAppleBulkUpsertHostProfilePayload{
+				hp := &automdm.MDMAppleBulkUpsertHostProfilePayload{
 					ProfileUUID:       p.ProfileUUID,
 					HostUUID:          p.HostUUID,
-					OperationType:     fleet.MDMOperationTypeInstall,
-					Status:            &fleet.MDMDeliveryFailed,
+					OperationType:     automdm.MDMOperationTypeInstall,
+					Status:            &automdm.MDMDeliveryFailed,
 					Detail:            errorDetail,
 					CommandUUID:       "",
 					ProfileIdentifier: p.ProfileIdentifier,
@@ -800,11 +802,11 @@ func ExecuteReconcileBatch(
 			*caInstallBudget--
 		}
 
-		hp := &fleet.MDMAppleBulkUpsertHostProfilePayload{
+		hp := &automdm.MDMAppleBulkUpsertHostProfilePayload{
 			ProfileUUID:       p.ProfileUUID,
 			HostUUID:          p.HostUUID,
-			OperationType:     fleet.MDMOperationTypeInstall,
-			Status:            &fleet.MDMDeliveryPending,
+			OperationType:     automdm.MDMOperationTypeInstall,
+			Status:            &automdm.MDMDeliveryPending,
 			CommandUUID:       target.CmdUUID,
 			ProfileIdentifier: p.ProfileIdentifier,
 			ProfileName:       p.ProfileName,
@@ -813,7 +815,7 @@ func ExecuteReconcileBatch(
 			Scope:             p.Scope,
 		}
 		hostProfiles = append(hostProfiles, hp)
-		hostProfilesToInstallMap[fleet.HostProfileUUID{HostUUID: p.HostUUID, ProfileUUID: p.ProfileUUID}] = hp
+		hostProfilesToInstallMap[automdm.HostProfileUUID{HostUUID: p.HostUUID, ProfileUUID: p.ProfileUUID}] = hp
 	}
 
 	const throttleLogBatchSize = 1000
@@ -868,7 +870,7 @@ func ExecuteReconcileBatch(
 			installsToCancel = append(installsToCancel, p)
 			p.IgnoreError = true
 		}
-		if p.Status == nil && p.OperationType == fleet.MDMOperationTypeInstall {
+		if p.Status == nil && p.OperationType == automdm.MDMOperationTypeInstall {
 			// a resend resets the row to NULL while the profile may still be on the
 			// host, so always send the remove and tolerate "profile not found"
 			p.IgnoreError = true
@@ -876,7 +878,7 @@ func ExecuteReconcileBatch(
 
 		target := removeTargets[p.ProfileUUID]
 		if target == nil {
-			target = &fleet.CmdTarget{
+			target = &automdm.CmdTarget{
 				CmdUUID:           uuid.New().String(),
 				ProfileIdentifier: p.ProfileIdentifier,
 				ProfileName:       p.ProfileName,
@@ -884,7 +886,7 @@ func ExecuteReconcileBatch(
 			removeTargets[p.ProfileUUID] = target
 		}
 
-		if p.Scope == fleet.PayloadScopeUser {
+		if p.Scope == automdm.PayloadScopeUser {
 			userEnrollmentID, err := getHostUserEnrollmentID(p.HostUUID)
 			if err != nil {
 				return nil, err
@@ -900,11 +902,11 @@ func ExecuteReconcileBatch(
 			target.EnrollmentIDs = append(target.EnrollmentIDs, p.HostUUID)
 		}
 
-		hostProfiles = append(hostProfiles, &fleet.MDMAppleBulkUpsertHostProfilePayload{
+		hostProfiles = append(hostProfiles, &automdm.MDMAppleBulkUpsertHostProfilePayload{
 			ProfileUUID:       p.ProfileUUID,
 			HostUUID:          p.HostUUID,
-			OperationType:     fleet.MDMOperationTypeRemove,
-			Status:            &fleet.MDMDeliveryPending,
+			OperationType:     automdm.MDMOperationTypeRemove,
+			Status:            &automdm.MDMDeliveryPending,
 			CommandUUID:       target.CmdUUID,
 			ProfileIdentifier: p.ProfileIdentifier,
 			ProfileName:       p.ProfileName,
@@ -920,9 +922,9 @@ func ExecuteReconcileBatch(
 		end := min(i+isBeingSetupBatchSize, len(hostProfiles))
 		batch := hostProfiles[i:end]
 		keyedHostUUIDs := make([]string, len(batch))
-		hostUUIDToHostProfiles := make(map[string][]*fleet.MDMAppleBulkUpsertHostProfilePayload, len(batch))
+		hostUUIDToHostProfiles := make(map[string][]*automdm.MDMAppleBulkUpsertHostProfilePayload, len(batch))
 		for j, hp := range batch {
-			keyedHostUUIDs[j] = fleet.MDMProfileProcessingKeyPrefix + ":" + hp.HostUUID
+			keyedHostUUIDs[j] = automdm.MDMProfileProcessingKeyPrefix + ":" + hp.HostUUID
 			hostUUIDToHostProfiles[hp.HostUUID] = append(hostUUIDToHostProfiles[hp.HostUUID], hp)
 		}
 
@@ -932,7 +934,7 @@ func ExecuteReconcileBatch(
 		}
 		for keyedHostUUID, exists := range setupHostUUIDs {
 			if exists != nil {
-				hostUUID := strings.TrimPrefix(keyedHostUUID, fleet.MDMProfileProcessingKeyPrefix+":")
+				hostUUID := strings.TrimPrefix(keyedHostUUID, automdm.MDMProfileProcessingKeyPrefix+":")
 				logger.DebugContext(ctx, "skipping profile reconciliation for host being set up", "host_uuid", hostUUID)
 				hps, ok := hostUUIDToHostProfiles[hostUUID]
 				if !ok {
@@ -944,12 +946,12 @@ func ExecuteReconcileBatch(
 					delete(adoptedCmds, hostCommandKey{hostUUID: hp.HostUUID, commandUUID: hp.CommandUUID})
 					hp.Status = nil
 					hp.CommandUUID = ""
-					hostProfilesToInstallMap[fleet.HostProfileUUID{HostUUID: hp.HostUUID, ProfileUUID: hp.ProfileUUID}] = hp
+					hostProfilesToInstallMap[automdm.HostProfileUUID{HostUUID: hp.HostUUID, ProfileUUID: hp.ProfileUUID}] = hp
 
 					// Also remove this host from installTargets to prevent sending MDM commands for this host.
 					// Note: user-scoped profiles use user enrollment IDs (not host UUIDs) in EnrollmentIDs, so
 					// the removal below is a no-op for those profiles, which is acceptable, since they are not enqueued via the worker.
-					if hp.OperationType == fleet.MDMOperationTypeInstall {
+					if hp.OperationType == automdm.MDMOperationTypeInstall {
 						if target, ok := installTargets[hp.ProfileUUID]; ok {
 							var newEnrollmentIDs []string
 							for _, id := range target.EnrollmentIDs {
@@ -975,7 +977,7 @@ func ExecuteReconcileBatch(
 			continue
 		}
 		if hp.CommandUUID != "" {
-			if hp.Scope == fleet.PayloadScopeUser {
+			if hp.Scope == automdm.PayloadScopeUser {
 				// use the correct enrollment ID for user-scoped profiles.
 				userEnrollmentID, err := getHostUserEnrollmentID(hp.HostUUID)
 				if err != nil {
@@ -1057,7 +1059,7 @@ func ExecuteReconcileBatch(
 			if _, adopted := adoptedCmds[hostCommandKey{hostUUID: hp.HostUUID, commandUUID: hp.CommandUUID}]; adopted {
 				continue
 			}
-			if hp.Status != nil && *hp.Status == fleet.MDMDeliveryPending {
+			if hp.Status != nil && *hp.Status == automdm.MDMDeliveryPending {
 				hp.Status = nil
 				hp.CommandUUID = ""
 			}
@@ -1078,14 +1080,14 @@ func ExecuteReconcileBatch(
 		}
 	}
 
-	hostProfsByCmdUUID := make(map[string][]*fleet.MDMAppleBulkUpsertHostProfilePayload, len(hostProfiles))
+	hostProfsByCmdUUID := make(map[string][]*automdm.MDMAppleBulkUpsertHostProfilePayload, len(hostProfiles))
 	for _, hp := range hostProfiles {
 		if hp.CommandUUID != "" {
 			hostProfsByCmdUUID[hp.CommandUUID] = append(hostProfsByCmdUUID[hp.CommandUUID], hp)
 		}
 	}
 
-	var failed []*fleet.MDMAppleBulkUpsertHostProfilePayload
+	var failed []*automdm.MDMAppleBulkUpsertHostProfilePayload
 	for cmdUUID := range enqueueResult.FailedCmdUUIDs {
 		for _, hp := range hostProfsByCmdUUID[cmdUUID] {
 			hp.CommandUUID = ""
@@ -1148,7 +1150,7 @@ func dedupeEnrollmentIDs(ids []string) ([]string, int) {
 // isn't enrolled, or there is no work to do.
 func ReconcileProfilesForEnrollingHost(
 	ctx context.Context,
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	commander *MDMAppleCommander,
 	logger *slog.Logger,
 	hostUUID string,
@@ -1182,7 +1184,7 @@ func ReconcileProfilesForEnrollingHost(
 	}
 
 	profilesWithBrokenLabel := make(map[string]struct{})
-	profilesByTeam := make(map[uint][]*fleet.AppleProfileForReconcile, 2)
+	profilesByTeam := make(map[uint][]*automdm.AppleProfileForReconcile, 2)
 	labelIDSet := make(map[uint]struct{})
 	for _, p := range teamProfiles {
 		profilesByTeam[p.TeamID] = append(profilesByTeam[p.TeamID], p)
@@ -1223,12 +1225,12 @@ func ReconcileProfilesForEnrollingHost(
 	}
 
 	toInstall, toRemove, optInChanges := ComputeReconcileDeltas(
-		[]*fleet.AppleHostReconcileInfo{host}, hostLabels, currentByHost, profilesByTeam, profilesWithBrokenLabel, optIns,
+		[]*automdm.AppleHostReconcileInfo{host}, hostLabels, currentByHost, profilesByTeam, profilesWithBrokenLabel, optIns,
 	)
-	toInstall = fleet.FilterMacOSOnlyProfilesFromIOSIPadOS(toInstall)
+	toInstall = automdm.FilterMacOSOnlyProfilesFromIOSIPadOS(toInstall)
 
 	// Defer user-scoped profile delivery to the cron — see function comment.
-	toInstall = fleet.FilterOutUserScopedProfiles(toInstall)
+	toInstall = automdm.FilterOutUserScopedProfiles(toInstall)
 
 	if len(optInChanges.Add) > 0 || len(optInChanges.Purge) > 0 {
 		if err := ds.ApplyHostMDMProfileOptInChanges(ctx, optInChanges); err != nil {
@@ -1257,9 +1259,9 @@ func ReconcileProfilesForEnrollingHost(
 // single host, including user-scoped profiles.
 func PendingProfilesForHost(
 	ctx context.Context,
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	hostUUID string,
-) (toInstall, toRemove []*fleet.MDMAppleProfilePayload, err error) {
+) (toInstall, toRemove []*automdm.MDMAppleProfilePayload, err error) {
 	host, err := ds.GetAppleMDMHostForReconcile(ctx, hostUUID)
 	if err != nil || host == nil {
 		return nil, nil, err
@@ -1271,7 +1273,7 @@ func PendingProfilesForHost(
 	}
 
 	profilesWithBrokenLabel := make(map[string]struct{})
-	profilesByTeam := make(map[uint][]*fleet.AppleProfileForReconcile, 2)
+	profilesByTeam := make(map[uint][]*automdm.AppleProfileForReconcile, 2)
 	labelIDSet := make(map[uint]struct{})
 	for _, p := range profs {
 		profilesByTeam[p.TeamID] = append(profilesByTeam[p.TeamID], p)
@@ -1314,10 +1316,10 @@ func PendingProfilesForHost(
 	// While this can technically return optInChanges we refrain from updating here, and delegate it to the
 	// cron reconciler, or the initial one-time ReconcileProfilesForEnrollingHost
 	toInstall, toRemove, _ = ComputeReconcileDeltas(
-		[]*fleet.AppleHostReconcileInfo{host}, hostLabels, currentByHost, profilesByTeam, profilesWithBrokenLabel,
+		[]*automdm.AppleHostReconcileInfo{host}, hostLabels, currentByHost, profilesByTeam, profilesWithBrokenLabel,
 		optIns,
 	)
-	toInstall = fleet.FilterMacOSOnlyProfilesFromIOSIPadOS(toInstall)
+	toInstall = automdm.FilterMacOSOnlyProfilesFromIOSIPadOS(toInstall)
 
 	return toInstall, toRemove, nil
 }

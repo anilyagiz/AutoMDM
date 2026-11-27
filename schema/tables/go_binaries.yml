@@ -56,8 +56,8 @@ examples: |-
   ```
 
 notes: |-
-  This table is not a core osquery table. It is included as part of Fleet's agent
-  ([fleetd](https://fleetdm.com/docs/get-started/anatomy#fleetd)).
+  This table is not a core osquery table. It is included as part of AutoMDM's agent
+  ([automdmd](https://automdm.com/docs/get-started/anatomy#automdmd)).
 
   Go binaries compiled with Go 1.18+ embed build information that this table extracts
   using Go's debug/buildinfo package. Binaries built with `go build` will show "(devel)"

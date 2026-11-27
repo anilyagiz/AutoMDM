@@ -69,7 +69,7 @@ linters:
         settings:
           # Settings must be a "map from string to string" to mimic command line flags: the keys are
           # flag names and the values are the values to the particular flags.
-          include-pkgs: "github.com/fleetdm/fleet/v4"
+          include-pkgs: "github.com/anilyagiz/automdm/v4"
       setboolcheck:
         type: module
         description: Flags map[T]bool used as sets; suggests map[T]struct{} instead.

@@ -12,7 +12,7 @@ import { baseUrl, createCustomRenderer } from "test/test-utils";
 import NotifyBeforePatchingDetailsModal from "./NotifyBeforePatchingDetailsModal";
 
 // Stub body so the Details reveal has something to render.
-const DEFAULT_SCRIPT_CONTENTS = "#!/bin/bash\nfleet-desktop notify ...";
+const DEFAULT_SCRIPT_CONTENTS = "#!/bin/bash\nautomdm-desktop notify ...";
 
 const scriptResult = (
   overrides: Partial<IScriptResultResponse> = {}
@@ -91,13 +91,13 @@ describe("NotifyBeforePatchingDetailsModal", () => {
     expect(screen.queryByText(/failed to notify/)).not.toBeInTheDocument();
   });
 
-  it("renders the Fleet Desktop required sentence and the EUE link for exit code 100", async () => {
+  it("renders the AutoMDM Desktop required sentence and the EUE link for exit code 100", async () => {
     useScriptResultHandler({ exit_code: 100 });
     renderModal({ status: "failed" });
 
     expect(
       await screen.findByText(
-        /The Fleet Desktop app is required to notify end users\./
+        /The AutoMDM Desktop app is required to notify end users\./
       )
     ).toBeInTheDocument();
     expect(
@@ -105,12 +105,12 @@ describe("NotifyBeforePatchingDetailsModal", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders the Fleet Desktop v1.5.0 sentence and the EUE link for exit code 101", async () => {
+  it("renders the AutoMDM Desktop v1.5.0 sentence and the EUE link for exit code 101", async () => {
     useScriptResultHandler({ exit_code: 101 });
     renderModal({ status: "failed" });
 
     expect(
-      await screen.findByText(/The Fleet Desktop app v1\.5\.0 is required/)
+      await screen.findByText(/The AutoMDM Desktop app v1\.5\.0 is required/)
     ).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: /End user experience/ })
@@ -148,7 +148,7 @@ describe("NotifyBeforePatchingDetailsModal", () => {
     ).toBeInTheDocument();
     // None of the enumerated failure sentences should appear.
     expect(
-      screen.queryByText(/The Fleet Desktop app is required/)
+      screen.queryByText(/The AutoMDM Desktop app is required/)
     ).not.toBeInTheDocument();
     expect(
       screen.queryByText(/The notification couldn't load/)
@@ -172,16 +172,16 @@ describe("NotifyBeforePatchingDetailsModal", () => {
       await screen.findByText(/The end user wasn't logged in\./)
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/Fleet will try again on the next policy run\./)
+      screen.getByText(/AutoMDM will try again on the next policy run\./)
     ).toBeInTheDocument();
   });
 
-  it("renders the Fleet Desktop internal-error sentence for exit code 70", async () => {
+  it("renders the AutoMDM Desktop internal-error sentence for exit code 70", async () => {
     useScriptResultHandler({ exit_code: 70 });
     renderModal({ status: "failed" });
 
     expect(
-      await screen.findByText(/Fleet Desktop had an internal error\./)
+      await screen.findByText(/AutoMDM Desktop had an internal error\./)
     ).toBeInTheDocument();
     // Distinguishes 70 from the generic unknown-code fallback.
     expect(
@@ -196,7 +196,7 @@ describe("NotifyBeforePatchingDetailsModal", () => {
     expect(
       await screen.findByText(/The notification command was invalid\./)
     ).toBeInTheDocument();
-    expect(screen.getByText(/Fleet won't try again\./)).toBeInTheDocument();
+    expect(screen.getByText(/AutoMDM won't try again\./)).toBeInTheDocument();
     // Distinguishes 2 (usage error, no retry) from the internal-error / retry copy.
     expect(
       screen.queryByText(/notification failed unexpectedly/i)
@@ -214,7 +214,7 @@ describe("NotifyBeforePatchingDetailsModal", () => {
       await screen.findByText(/Scripts are disabled on the host\./)
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/Fleet will try again later\./)
+      screen.getByText(/AutoMDM will try again later\./)
     ).toBeInTheDocument();
   });
 
@@ -232,7 +232,7 @@ describe("NotifyBeforePatchingDetailsModal", () => {
 
     expect(
       await screen.findByText(
-        /Another notification was displayed\. Fleet will try again on the next policy run\./
+        /Another notification was displayed\. AutoMDM will try again on the next policy run\./
       )
     ).toBeInTheDocument();
     expect(shouldNotFireHandler).not.toHaveBeenCalled();

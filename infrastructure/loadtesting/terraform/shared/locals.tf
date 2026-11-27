@@ -1,3 +1,3 @@
 locals {
-  prefix = "fleet"
+  prefix = "automdm"
 }

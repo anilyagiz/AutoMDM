@@ -1,2 +1,2 @@
-github.com/fleetdm/fleet/v4/server/fleet/YaraRule	Name	string
-github.com/fleetdm/fleet/v4/server/fleet/YaraRule	Contents	string
+github.com/anilyagiz/automdm/v4/server/automdm/YaraRule	Name	string
+github.com/anilyagiz/automdm/v4/server/automdm/YaraRule	Contents	string

@@ -9,13 +9,13 @@ import mdmApi, {
 const PROFILES_PAGE_SIZE = 1000;
 
 interface IUseProfilesArgs {
-  fleetId: number;
+  automdmId: number;
   enabled: boolean;
 }
 
 type IUseProfilesQueryKey = IGetProfilesApiParams & { scope: "profiles" };
 
-const useProfiles = ({ fleetId, enabled }: IUseProfilesArgs) =>
+const useProfiles = ({ automdmId, enabled }: IUseProfilesArgs) =>
   useQuery<
     IMdmProfilesResponse,
     Error,
@@ -27,7 +27,7 @@ const useProfiles = ({ fleetId, enabled }: IUseProfilesArgs) =>
         scope: "profiles",
         page: 0,
         per_page: PROFILES_PAGE_SIZE,
-        fleet_id: fleetId,
+        team_id: automdmId,
       },
     ],
     ({ queryKey: [key] }) => mdmApi.getProfiles(omit(key, "scope")),

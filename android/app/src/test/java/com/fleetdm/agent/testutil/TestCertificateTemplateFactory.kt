@@ -16,12 +16,12 @@ object TestCertificateTemplateFactory {
         certificateAuthorityId: Int = 123,
         certificateAuthorityName: String = "Test CA",
         createdAt: String = "2024-01-01T00:00:00Z",
-        subjectName: String = "CN=Test,O=FleetDM",
+        subjectName: String = "CN=Test,O=AutoMDM",
         subjectAlternativeName: String? = null,
         certificateAuthorityType: String = "SCEP",
         status: String = "active",
         scepChallenge: String = "test-challenge",
-        fleetChallenge: String = "fleet-secret",
+        automdmChallenge: String = "automdm-secret",
         keyLength: Int = 2048,
         signatureAlgorithm: String = "SHA256withRSA",
     ): GetCertificateTemplateResponse = GetCertificateTemplateResponse(
@@ -35,7 +35,7 @@ object TestCertificateTemplateFactory {
         certificateAuthorityType = certificateAuthorityType,
         status = status,
         scepChallenge = scepChallenge,
-        fleetChallenge = fleetChallenge,
+        automdmChallenge = automdmChallenge,
         keyLength = keyLength,
         signatureAlgorithm = signatureAlgorithm,
     )

@@ -8,14 +8,14 @@ import (
 	"net/http"
 	"reflect"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	maintained_apps "github.com/fleetdm/fleet/v4/server/mdm/maintainedapps"
-	"github.com/fleetdm/fleet/v4/server/platform/endpointer"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	maintained_apps "github.com/anilyagiz/automdm/v4/server/mdm/maintainedapps"
+	"github.com/anilyagiz/automdm/v4/server/platform/endpointer"
 )
 
-type addFleetMaintainedAppRequest struct {
-	TeamID            *uint    `json:"fleet_id"`
-	AppID             uint     `json:"fleet_maintained_app_id"`
+type addAutoMDMMaintainedAppRequest struct {
+	TeamID            *uint    `json:"team_id"`
+	AppID             uint     `json:"automdm_maintained_app_id"`
 	InstallScript     string   `json:"install_script"`
 	PreInstallQuery   string   `json:"pre_install_query"` //nolint:apiparamcheck
 	PostInstallScript string   `json:"post_install_script"`
@@ -30,22 +30,22 @@ type addFleetMaintainedAppRequest struct {
 
 // DecodeRequest implements the RequestDecoder interface to support base64-encoded
 // script fields. This allows bypassing WAF rules that may block requests containing
-// shell/PowerShell script patterns. When the X-Fleet-Scripts-Encoded header is set
+// shell/PowerShell script patterns. When the X-AutoMDM-Scripts-Encoded header is set
 // to "base64", the script fields are decoded from base64.
-func (addFleetMaintainedAppRequest) DecodeRequest(ctx context.Context, r *http.Request) (any, error) {
-	var req addFleetMaintainedAppRequest
+func (addAutoMDMMaintainedAppRequest) DecodeRequest(ctx context.Context, r *http.Request) (any, error) {
+	var req addAutoMDMMaintainedAppRequest
 
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		return nil, &fleet.BadRequestError{Message: "failed to read request body", InternalErr: err}
+		return nil, &automdm.BadRequestError{Message: "failed to read request body", InternalErr: err}
 	}
 	if !endpointer.SkipsRemovedNamesScan(r.URL.Path) {
-		if err := endpointer.RejectRemovedJSONKeys(body, reflect.TypeFor[addFleetMaintainedAppRequest]()); err != nil {
+		if err := endpointer.RejectRemovedJSONKeys(body, reflect.TypeFor[addAutoMDMMaintainedAppRequest]()); err != nil {
 			return nil, err
 		}
 	}
 	if err := json.Unmarshal(body, &req); err != nil {
-		return nil, &fleet.BadRequestError{
+		return nil, &automdm.BadRequestError{
 			Message:     "failed to decode request body",
 			InternalErr: err,
 		}
@@ -55,34 +55,34 @@ func (addFleetMaintainedAppRequest) DecodeRequest(ctx context.Context, r *http.R
 	if isScriptsEncoded(r) {
 		var err error
 		if req.InstallScript, err = decodeBase64Script(req.InstallScript); err != nil {
-			return nil, fleet.NewInvalidArgumentError("install_script", "invalid base64 encoding")
+			return nil, automdm.NewInvalidArgumentError("install_script", "invalid base64 encoding")
 		}
 		if req.UninstallScript, err = decodeBase64Script(req.UninstallScript); err != nil {
-			return nil, fleet.NewInvalidArgumentError("uninstall_script", "invalid base64 encoding")
+			return nil, automdm.NewInvalidArgumentError("uninstall_script", "invalid base64 encoding")
 		}
 		if req.PostInstallScript, err = decodeBase64Script(req.PostInstallScript); err != nil {
-			return nil, fleet.NewInvalidArgumentError("post_install_script", "invalid base64 encoding")
+			return nil, automdm.NewInvalidArgumentError("post_install_script", "invalid base64 encoding")
 		}
 		if req.PreInstallQuery, err = decodeBase64Script(req.PreInstallQuery); err != nil {
-			return nil, fleet.NewInvalidArgumentError("pre_install_query", "invalid base64 encoding")
+			return nil, automdm.NewInvalidArgumentError("pre_install_query", "invalid base64 encoding")
 		}
 	}
 
 	return &req, nil
 }
 
-type addFleetMaintainedAppResponse struct {
+type addAutoMDMMaintainedAppResponse struct {
 	SoftwareTitleID uint  `json:"software_title_id,omitempty"`
 	Err             error `json:"error,omitempty"`
 }
 
-func (r addFleetMaintainedAppResponse) Error() error { return r.Err }
+func (r addAutoMDMMaintainedAppResponse) Error() error { return r.Err }
 
-func addFleetMaintainedAppEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*addFleetMaintainedAppRequest)
+func addAutoMDMMaintainedAppEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*addAutoMDMMaintainedAppRequest)
 	ctx, cancel := context.WithTimeout(ctx, maintained_apps.InstallerTimeout)
 	defer cancel()
-	titleId, err := svc.AddFleetMaintainedApp(
+	titleId, err := svc.AddAutoMDMMaintainedApp(
 		ctx,
 		req.TeamID,
 		req.AppID,
@@ -99,26 +99,26 @@ func addFleetMaintainedAppEndpoint(ctx context.Context, request interface{}, svc
 	if err != nil {
 		switch {
 		case errors.Is(err, context.DeadlineExceeded):
-			err = fleet.NewGatewayTimeoutError(fleet.AddMaintainedAppTimeoutErrMsg, err)
+			err = automdm.NewGatewayTimeoutError(automdm.AddMaintainedAppTimeoutErrMsg, err)
 		case errors.Is(err, context.Canceled):
-			err = fleet.NewGatewayTimeoutError(fleet.AddMaintainedAppCanceledErrMsg, err)
+			err = automdm.NewGatewayTimeoutError(automdm.AddMaintainedAppCanceledErrMsg, err)
 		}
-		return &addFleetMaintainedAppResponse{Err: err}, nil
+		return &addAutoMDMMaintainedAppResponse{Err: err}, nil
 	}
-	return &addFleetMaintainedAppResponse{SoftwareTitleID: titleId}, nil
+	return &addAutoMDMMaintainedAppResponse{SoftwareTitleID: titleId}, nil
 }
 
-func (svc *Service) AddFleetMaintainedApp(ctx context.Context, _ *uint, _ uint, _, _, _, _ string, _ bool, _ bool, _, _, _ []string) (uint, error) {
+func (svc *Service) AddAutoMDMMaintainedApp(ctx context.Context, _ *uint, _ uint, _, _, _, _ string, _ bool, _ bool, _, _, _ []string) (uint, error) {
 	// skipauth: No authorization check needed due to implementation returning
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return 0, fleet.ErrMissingLicense
+	return 0, automdm.ErrMissingLicense
 }
 
-type listFleetMaintainedAppsRequest struct {
-	fleet.ListOptions
-	TeamID *uint `query:"fleet_id,optional"`
+type listAutoMDMMaintainedAppsRequest struct {
+	automdm.ListOptions
+	TeamID *uint `query:"team_id,optional"`
 	// Platform optionally filters to apps available on the given platform
 	// ("darwin" or "windows").
 	Platform string `query:"platform,optional"`
@@ -127,32 +127,32 @@ type listFleetMaintainedAppsRequest struct {
 	AvailableOnly bool `query:"available,optional"`
 }
 
-type listFleetMaintainedAppsResponse struct {
-	FleetMaintainedApps []fleet.MaintainedApp     `json:"fleet_maintained_apps"`
-	Count               int                       `json:"count"`
-	Meta                *fleet.PaginationMetadata `json:"meta"`
-	Err                 error                     `json:"error,omitempty"`
+type listAutoMDMMaintainedAppsResponse struct {
+	AutoMDMMaintainedApps []automdm.MaintainedApp     `json:"automdm_maintained_apps"`
+	Count                 int                         `json:"count"`
+	Meta                  *automdm.PaginationMetadata `json:"meta"`
+	Err                   error                       `json:"error,omitempty"`
 }
 
-func (r listFleetMaintainedAppsResponse) Error() error { return r.Err }
+func (r listAutoMDMMaintainedAppsResponse) Error() error { return r.Err }
 
-func listFleetMaintainedAppsEndpoint(ctx context.Context, request any, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*listFleetMaintainedAppsRequest)
+func listAutoMDMMaintainedAppsEndpoint(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*listAutoMDMMaintainedAppsRequest)
 
-	opts := fleet.MaintainedAppListOptions{
+	opts := automdm.MaintainedAppListOptions{
 		ListOptions:   req.ListOptions,
 		Platform:      req.Platform,
 		AvailableOnly: req.AvailableOnly,
 	}
 
-	apps, meta, err := svc.ListFleetMaintainedApps(ctx, req.TeamID, opts)
+	apps, meta, err := svc.ListAutoMDMMaintainedApps(ctx, req.TeamID, opts)
 	if err != nil {
-		return listFleetMaintainedAppsResponse{Err: err}, nil
+		return listAutoMDMMaintainedAppsResponse{Err: err}, nil
 	}
 
-	listResp := listFleetMaintainedAppsResponse{
-		FleetMaintainedApps: apps,
-		Meta:                meta,
+	listResp := listAutoMDMMaintainedAppsResponse{
+		AutoMDMMaintainedApps: apps,
+		Meta:                  meta,
 	}
 	if meta != nil {
 		listResp.Count = int(meta.TotalResults) //nolint:gosec // dismiss G115
@@ -161,41 +161,41 @@ func listFleetMaintainedAppsEndpoint(ctx context.Context, request any, svc fleet
 	return listResp, nil
 }
 
-func (svc *Service) ListFleetMaintainedApps(ctx context.Context, teamID *uint, opts fleet.MaintainedAppListOptions) ([]fleet.MaintainedApp, *fleet.PaginationMetadata, error) {
+func (svc *Service) ListAutoMDMMaintainedApps(ctx context.Context, teamID *uint, opts automdm.MaintainedAppListOptions) ([]automdm.MaintainedApp, *automdm.PaginationMetadata, error) {
 	// skipauth: No authorization check needed due to implementation returning
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return nil, nil, fleet.ErrMissingLicense
+	return nil, nil, automdm.ErrMissingLicense
 }
 
-type getFleetMaintainedAppRequest struct {
+type getAutoMDMMaintainedAppRequest struct {
 	AppID  uint  `url:"app_id"`
-	TeamID *uint `query:"fleet_id,optional"`
+	TeamID *uint `query:"team_id,optional"`
 }
 
-type getFleetMaintainedAppResponse struct {
-	FleetMaintainedApp *fleet.MaintainedApp `json:"fleet_maintained_app"`
-	Err                error                `json:"error,omitempty"`
+type getAutoMDMMaintainedAppResponse struct {
+	AutoMDMMaintainedApp *automdm.MaintainedApp `json:"automdm_maintained_app"`
+	Err                  error                  `json:"error,omitempty"`
 }
 
-func (r getFleetMaintainedAppResponse) Error() error { return r.Err }
+func (r getAutoMDMMaintainedAppResponse) Error() error { return r.Err }
 
-func getFleetMaintainedApp(ctx context.Context, request any, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*getFleetMaintainedAppRequest)
+func getAutoMDMMaintainedApp(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*getAutoMDMMaintainedAppRequest)
 
-	app, err := svc.GetFleetMaintainedApp(ctx, req.AppID, req.TeamID)
+	app, err := svc.GetAutoMDMMaintainedApp(ctx, req.AppID, req.TeamID)
 	if err != nil {
-		return getFleetMaintainedAppResponse{Err: err}, nil
+		return getAutoMDMMaintainedAppResponse{Err: err}, nil
 	}
 
-	return getFleetMaintainedAppResponse{FleetMaintainedApp: app}, nil
+	return getAutoMDMMaintainedAppResponse{AutoMDMMaintainedApp: app}, nil
 }
 
-func (svc *Service) GetFleetMaintainedApp(ctx context.Context, appID uint, teamID *uint) (*fleet.MaintainedApp, error) {
+func (svc *Service) GetAutoMDMMaintainedApp(ctx context.Context, appID uint, teamID *uint) (*automdm.MaintainedApp, error) {
 	// skipauth: No authorization check needed due to implementation returning
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return nil, fleet.ErrMissingLicense
+	return nil, automdm.ErrMissingLicense
 }

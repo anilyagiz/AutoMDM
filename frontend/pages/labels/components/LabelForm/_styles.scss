@@ -8,14 +8,14 @@
   &__help-text {
     font-size: $x-small;
     font-weight: $regular;
-    color: $ui-fleet-black-75;
+    color: $ui-automdm-black-75;
     line-height: $line-height;
   }
 
   &__label-platform {
     font-size: $x-small;
     font-weight: $regular;
-    color: $core-fleet-black;
+    color: $core-automdm-black;
     padding-bottom: $pad-large;
 
     p {
@@ -29,7 +29,7 @@
     }
 
     .help-text {
-      color: $core-fleet-blue;
+      color: $core-automdm-blue;
       padding-top: $pad-small;
     }
   }

@@ -47,7 +47,7 @@ describe("Release from AB modal", () => {
     });
 
     expect(
-      screen.getByText("This will also remove the host from Fleet.")
+      screen.getByText("This will also remove the host from AutoMDM.")
     ).toBeInTheDocument();
   });
 });

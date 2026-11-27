@@ -11,7 +11,7 @@ go run ./tools/charts-backfill --dataset uptime --days 30
 go run ./tools/charts-backfill --dataset uptime --days 7 --host-ids 1,2,3
 go run ./tools/charts-backfill --dataset cve --days 30 --use-tracked-cves
 go run ./tools/charts-backfill --dataset cve --days 30 --entity-ids CVE-2024-1,CVE-2024-2
-go run ./tools/charts-backfill --mysql-dsn "fleet:fleet@tcp(localhost:3306)/fleet"
+go run ./tools/charts-backfill --mysql-dsn "automdm:automdm@tcp(localhost:3306)/automdm"
 ```
 
 ## Flags

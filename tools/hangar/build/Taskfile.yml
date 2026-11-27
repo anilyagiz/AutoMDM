@@ -144,7 +144,7 @@ tasks:
       - wails3 generate bindings -f '{{.BUILD_FLAGS}}' -clean=true{{if eq .OBFUSCATED "true"}} -obfuscated{{end}} -ts
 
   generate:icons:
-    summary: Generates the Mac `.icns` from appicon.png (the Fleet Hangar island). macOS-only (Hangar is macOS-only; the Windows .ico target was removed with the windows build dir). We deliberately do NOT use the Icon Composer (`.icon`/`Assets.car`) path — the island is a full-bleed illustration, not a glyph that suits the layered gradient treatment, so a plain `.icns` (as the Rust app shipped) is correct.
+    summary: Generates the Mac `.icns` from appicon.png (the AutoMDM Hangar island). macOS-only (Hangar is macOS-only; the Windows .ico target was removed with the windows build dir). We deliberately do NOT use the Icon Composer (`.icon`/`Assets.car`) path — the island is a full-bleed illustration, not a glyph that suits the layered gradient treatment, so a plain `.icns` (as the Rust app shipped) is correct.
     dir: build
     sources:
       - "appicon.png"

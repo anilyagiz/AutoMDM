@@ -110,7 +110,7 @@ const Policies = (props: IPoliciesProps): JSX.Element => {
         <InfoBanner>
           <IconStatusMessage
             iconName="clock"
-            iconColor="ui-fleet-black-50"
+            iconColor="ui-automdm-black-50"
             message={
               <span>
                 <strong>Access restored for next Okta login</strong>

@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/mdm/profilevalidation"
+	"github.com/anilyagiz/automdm/v4/pkg/mdm/profilevalidation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

@@ -5,7 +5,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
 func (c *Client) getRawBody(endpoint string) ([]byte, error) {
@@ -36,8 +36,8 @@ func (c *Client) DebugPprof(name string) ([]byte, error) {
 	return c.getRawBody("/debug/pprof/" + name)
 }
 
-func (c *Client) DebugMigrations() (*fleet.MigrationStatus, error) {
-	var migrationStatus fleet.MigrationStatus
+func (c *Client) DebugMigrations() (*automdm.MigrationStatus, error) {
+	var migrationStatus automdm.MigrationStatus
 	err := c.authenticatedRequest(nil, "GET", "/debug/migrations", &migrationStatus)
 	if err != nil {
 		return nil, err

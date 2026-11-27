@@ -69,14 +69,14 @@ interface IGetStatusMessageProps {
   /** Used to show warning to close an app if failed to install with
    * detected installed version on host */
   hasInstalledVersionsOnHost?: boolean;
-  /** Set when Fleet failed the install before reaching the device. */
+  /** Set when AutoMDM failed the install before reaching the device. */
   failureReason?: string;
   /** Display name of the user who triggered the install; empty for
-   *  Fleet-initiated paths. */
+   *  AutoMDM-initiated paths. */
   actorFullName?: string;
   /** True when no user triggered the install (policy / auto-update / setup
-   *  experience). Renders the actor as "Fleet". */
-  fleetInitiated?: boolean;
+   *  experience). Renders the actor as "AutoMDM". */
+  automdmInitiated?: boolean;
   /** True when the install was a self-service request. Renders the actor as
    *  "End user". */
   selfService?: boolean;
@@ -99,7 +99,7 @@ export const getStatusMessage = ({
   hasInstalledVersionsOnHost = false,
   failureReason,
   actorFullName,
-  fleetInitiated,
+  automdmInitiated,
   selfService,
   isUserAlreadyPromptedError = false,
 }: IGetStatusMessageProps) => {
@@ -133,7 +133,7 @@ export const getStatusMessage = ({
     );
   }
 
-  // Handles the case where software is installed manually by the user and not through Fleet
+  // Handles the case where software is installed manually by the user and not through AutoMDM
   // This app_store_app modal matches software_packages installed manually shown with SoftwareInstallDetailsModal
   if (displayStatus === "installed" && !commandUpdatedAt) {
     return (
@@ -147,7 +147,7 @@ export const getStatusMessage = ({
   if (isMDMStatusNotNow) {
     return (
       <>
-        Fleet tried to install <b>{appName}</b>
+        AutoMDM tried to install <b>{appName}</b>
         {!isMyDevicePage && (
           <>
             {" "}
@@ -155,7 +155,7 @@ export const getStatusMessage = ({
             was running on battery power while in Power Nap
           </>
         )}
-        {displayTimestamp && <> {displayTimestamp}</>}. Fleet will try again.
+        {displayTimestamp && <> {displayTimestamp}</>}. AutoMDM will try again.
       </>
     );
   }
@@ -172,15 +172,15 @@ export const getStatusMessage = ({
     );
   }
 
-  let actor = "Fleet";
+  let actor = "AutoMDM";
   if (selfService) {
     actor = "End user";
-  } else if (!fleetInitiated && actorFullName) {
+  } else if (!automdmInitiated && actorFullName) {
     actor = actorFullName;
   }
 
-  // Fleet failed the install BEFORE sending it to the device (e.g. the
-  // managed app configuration references a Fleet variable that can't be
+  // AutoMDM failed the install BEFORE sending it to the device (e.g. the
+  // managed app configuration references an AutoMDM variable that can't be
   // resolved for this host). The backend records this with a failure reason
   // on the activity — no MDM command was ever enqueued, so there is no
   // command result to show. Render the actor-driven status sentence per Figma
@@ -204,7 +204,7 @@ export const getStatusMessage = ({
           <div>
             The host acknowledged the MDM command to install <b>{appName}</b>
             {!isMyDevicePage && <> on {formattedHost}</>}, but the install took
-            longer than {formattedVerifyTimeout}, so Fleet marked it as failed.
+            longer than {formattedVerifyTimeout}, so AutoMDM marked it as failed.
           </div>
           {platform && isMacOS(platform) && hasInstalledVersionsOnHost && (
             <div className="vpp-install-details-modal__update-tip">
@@ -257,7 +257,7 @@ export const getStatusMessage = ({
     if (isMyDevicePage) {
       return (
         <>
-          Fleet failed to install <b>{appName}</b>
+          AutoMDM failed to install <b>{appName}</b>
           {displayTimestamp && <> {displayTimestamp}</>}. Retry via the Google
           Play Store in your work profile, or select <b>Retry</b> below.
         </>
@@ -265,7 +265,7 @@ export const getStatusMessage = ({
     }
     return (
       <>
-        Fleet failed to install <b>{appName}</b> on {formattedHost}
+        AutoMDM failed to install <b>{appName}</b> on {formattedHost}
         {displayTimestamp && <> {displayTimestamp}</>}. The end user can retry
         via the Google Play Store in their work profile.
       </>
@@ -288,7 +288,7 @@ export const getStatusMessage = ({
   // Create predicate and subordinate for other statuses
   return (
     <>
-      Fleet {getInstallDetailsStatusPredicate(displayStatus)} <b>{appName}</b>
+      AutoMDM {getInstallDetailsStatusPredicate(displayStatus)} <b>{appName}</b>
       {renderSuffix()}.
     </>
   );
@@ -341,30 +341,30 @@ export const ModalButtons = ({
 const baseClass = "vpp-install-details-modal";
 
 export type IVppInstallDetails = {
-  /** Status: null when a host manually installed not using Fleet */
-  fleetInstallStatus: SoftwareInstallUninstallStatus | null;
+  /** Status: null when a host manually installed not using AutoMDM */
+  automdmInstallStatus: SoftwareInstallUninstallStatus | null;
   hostDisplayName: string;
   appName: string;
   commandUuid?: string;
   activityCreatedAt?: string;
   platform?: string;
   /**
-   * Set when Fleet failed the install before reaching the device (e.g. an
-   * unresolvable Fleet variable in the managed app configuration). Available
+   * Set when AutoMDM failed the install before reaching the device (e.g. an
+   * unresolvable AutoMDM variable in the managed app configuration). Available
    * only on activity-feed entry points (the activity details carry it); the
    * Host > Software entry points open from inventory and don't have it.
    */
   failureReason?: string;
   /**
    * Display name of the user who triggered the install. Empty / undefined for
-   * Fleet-initiated installs (policy, auto-update, setup experience). Used to
+   * AutoMDM-initiated installs (policy, auto-update, setup experience). Used to
    * render the actor-driven failure copy in the modal status line per Figma:
    * "<Actor> failed to install <App> on <Host>".
    */
   actorFullName?: string;
   /** True when no user triggered the install (policy, auto-update, setup
-   *  experience). Renders the actor as "Fleet". */
-  fleetInitiated?: boolean;
+   *  experience). Renders the actor as "AutoMDM". */
+  automdmInitiated?: boolean;
   /** Whether the install was triggered as a self-service action by the end
    *  user. Renders the actor as "End user". */
   selfService?: boolean;
@@ -392,14 +392,14 @@ export const VppInstallDetailsModal = ({
   onRetry,
 }: IVPPInstallDetailsModalProps) => {
   const {
-    fleetInstallStatus,
+    automdmInstallStatus,
     commandUuid = "",
     hostDisplayName = "",
     appName = "",
     platform: detailsPlatform,
     failureReason,
     actorFullName,
-    fleetInitiated,
+    automdmInitiated,
     selfService,
     vppTokenLocation,
     activityCreatedAt,
@@ -446,7 +446,7 @@ export const VppInstallDetailsModal = ({
       // result doesn't exist yet — a definitive answer, so don't retry it.
       ...DEFAULT_USE_QUERY_OPTIONS,
       staleTime: 3000,
-      // Pre-flight Fleet failures (e.g. unresolvable managed-config var) never
+      // Pre-flight AutoMDM failures (e.g. unresolvable managed-config var) never
       // enqueue an MDM command, so there's no command result to fetch — the
       // reason is carried by the activity itself via failureReason. Skipping
       // the query avoids the 404 short-circuit to "no longer available" and
@@ -496,7 +496,7 @@ export const VppInstallDetailsModal = ({
     commandReportsInstalled || inventoryReportsInstalled;
 
   // Fallback to "installed" if no status is provided
-  const displayStatus = fleetInstallStatus ?? "installed";
+  const displayStatus = automdmInstallStatus ?? "installed";
 
   // Treat failed_install / failed_uninstall with installed versions as installed
   const overrideFailedMessageWithInstalledMessage =
@@ -505,7 +505,7 @@ export const VppInstallDetailsModal = ({
 
   const commandUpdatedAt = vppCommandResult?.updated_at;
 
-  // Handles the case where software is installed manually by the user and not through Fleet
+  // Handles the case where software is installed manually by the user and not through AutoMDM
   const isManuallyInstalled =
     displayStatus === "installed" && !commandUpdatedAt; // using same condition as in getStatusMessage
 
@@ -531,7 +531,7 @@ export const VppInstallDetailsModal = ({
   );
 
   // Note: We need to reconcile status values from two different sources. From props, we
-  // get the status of the Fleet install operation (which can be "failed", "pending", or
+  // get the status of the AutoMDM install operation (which can be "failed", "pending", or
   // "installed"). From the command results API response, we also receive the raw status
   // from the MDM protocol, e.g., "NotNow" or "Acknowledged". We need to display some special
   // messaging for the "NotNow" status, which otherwise would be treated as "pending".
@@ -557,9 +557,9 @@ export const VppInstallDetailsModal = ({
       ].includes(displayStatus)) ||
     overrideFailedMessageWithInstalledMessage;
 
-  const isInstalledByFleet = hostSoftware
+  const isInstalledByTeam = hostSoftware
     ? !!hostSoftware.app_store_app?.last_install
-    : true; // if no hostSoftware passed in, can assume this is the activity feed, meaning this can only refer to a Fleet-handled install
+    : true; // if no hostSoftware passed in, can assume this is the activity feed, meaning this can only refer to an AutoMDM-handled install
 
   const statusMessage = getStatusMessage({
     isMyDevicePage: !!deviceAuthToken,
@@ -578,7 +578,7 @@ export const VppInstallDetailsModal = ({
     hasInstalledVersionsOnHost,
     failureReason,
     actorFullName,
-    fleetInitiated,
+    automdmInitiated,
     selfService,
     isUserAlreadyPromptedError,
   });
@@ -616,11 +616,11 @@ export const VppInstallDetailsModal = ({
     );
   };
 
-  // For Fleet-side pre-flight failures (e.g. unresolvable managed-config
+  // For AutoMDM-side pre-flight failures (e.g. unresolvable managed-config
   // variable) there's no MDM command result to show. Render a parallel
   // collapsible "Details" section that surfaces the activity's failureReason
   // in a monospace block, matching the Figma spec for failed-install copy.
-  const renderFleetSideFailureDetails = () => {
+  const renderAutoMDMSideFailureDetails = () => {
     if (!failureReason) return null;
     return (
       <>
@@ -704,7 +704,7 @@ export const VppInstallDetailsModal = ({
               {showLicenseSentence && (
                 <>
                   {" "}
-                  Fleet assigned license from <b>{vppTokenLocation}</b> VPP
+                  AutoMDM assigned license from <b>{vppTokenLocation}</b> VPP
                   token.
                 </>
               )}
@@ -713,7 +713,7 @@ export const VppInstallDetailsModal = ({
         />
         {showConfigUpdateNote && (
           <p>
-            When the app&apos;s configuration is updated Fleet also updates the
+            When the app&apos;s configuration is updated AutoMDM also updates the
             app.
           </p>
         )}
@@ -725,7 +725,7 @@ export const VppInstallDetailsModal = ({
         )}
         {isVerificationTimedOut && (
           <p>
-            If the install finishes later, Fleet will update the status when the
+            If the install finishes later, AutoMDM will update the status when the
             host is refetched.
           </p>
         )}
@@ -734,9 +734,9 @@ export const VppInstallDetailsModal = ({
           <InventoryVersions hostSoftware={hostSoftware} />
         ) : null}
         {failureReason
-          ? renderFleetSideFailureDetails()
+          ? renderAutoMDMSideFailureDetails()
           : !isPendingInstall &&
-            isInstalledByFleet &&
+            isInstalledByTeam &&
             !excludeInstallDetails &&
             renderInstallDetailsSection()}
       </div>

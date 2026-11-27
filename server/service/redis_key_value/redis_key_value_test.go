@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/datastore/redis/redistest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis/redistest"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -62,7 +62,7 @@ type testName interface {
 	Name() string
 }
 
-func newRedisKeyValueForTest(t testName, pool fleet.RedisPool) *RedisKeyValue {
+func newRedisKeyValueForTest(t testName, pool automdm.RedisPool) *RedisKeyValue {
 	return &RedisKeyValue{
 		pool:       pool,
 		testPrefix: t.Name() + ":",

@@ -1,4 +1,4 @@
-# Fleet extracts name from installer (EXE) and saves it to PACKAGE_ID
+# AutoMDM extracts name from installer (EXE) and saves it to PACKAGE_ID
 # variable
 # 3DF Zephyr Free registers a versioned DisplayName in the registry
 # (e.g. "3DF Zephyr Free version 8.038"), so we match on the stable prefix.

@@ -7,7 +7,7 @@ import { createCustomRenderer, createMockRouter } from "test/test-utils";
 
 import SoftwareAppStoreAndroid from "./SoftwareAppStoreAndroid";
 
-const baseUrl = (path: string) => `/api/latest/fleet${path}`;
+const baseUrl = (path: string) => `/api/latest/automdm${path}`;
 
 const router = createMockRouter();
 
@@ -64,11 +64,11 @@ describe("SoftwareAppStoreAndroid", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows the Android form with the fleet's custom labels as targets when Android MDM is enabled", async () => {
-    let requestedFleetId: string | null = null;
+  it("shows the Android form with the team's custom labels as targets when Android MDM is enabled", async () => {
+    let requestedTeamId: string | null = null;
     mockServer.use(
       http.get(baseUrl("/labels/summary"), ({ request }) => {
-        requestedFleetId = new URL(request.url).searchParams.get("fleet_id");
+        requestedTeamId = new URL(request.url).searchParams.get("team_id");
         return HttpResponse.json({
           labels: [
             { id: 1, name: "All Hosts", label_type: "builtin" },
@@ -100,17 +100,17 @@ describe("SoftwareAppStoreAndroid", () => {
     expect(
       screen.queryByRole("checkbox", { name: "All Hosts" })
     ).not.toBeInTheDocument();
-    expect(requestedFleetId).toBe("1");
+    expect(requestedTeamId).toBe("1");
     expect(
       screen.queryByText("Android MDM isn't enabled")
     ).not.toBeInTheDocument();
   });
 
-  it("requests global labels for the Unassigned fleet", async () => {
-    let requestedFleetId: string | null = null;
+  it("requests global labels for the Unassigned team", async () => {
+    let requestedTeamId: string | null = null;
     mockServer.use(
       http.get(baseUrl("/labels/summary"), ({ request }) => {
-        requestedFleetId = new URL(request.url).searchParams.get("fleet_id");
+        requestedTeamId = new URL(request.url).searchParams.get("team_id");
         return HttpResponse.json({
           labels: [{ id: 2, name: "Android pilot", label_type: "regular" }],
         });
@@ -136,7 +136,7 @@ describe("SoftwareAppStoreAndroid", () => {
     expect(
       await screen.findByRole("checkbox", { name: "Android pilot" })
     ).toBeInTheDocument();
-    expect(requestedFleetId).toBe("global");
+    expect(requestedTeamId).toBe("global");
   });
 
   it("shows the form while custom labels load, with a spinner in place of the label list", async () => {

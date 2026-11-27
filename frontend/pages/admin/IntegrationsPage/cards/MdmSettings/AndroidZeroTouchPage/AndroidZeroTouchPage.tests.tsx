@@ -13,7 +13,7 @@ import AndroidZeroTouchPage from "./AndroidZeroTouchPage";
 const CONFIGURED_APP_CONTEXT = {
   currentUser: createMockUser(),
   availableTeams: [
-    { id: -1, name: "All fleets" },
+    { id: -1, name: "All teams" },
     { id: 1, name: "Workstations" },
     { id: 0, name: "Unassigned" },
   ],
@@ -22,16 +22,16 @@ const CONFIGURED_APP_CONTEXT = {
 };
 
 const getNameField = () => screen.getByRole("textbox", { name: "Name" });
-const getFleetPicker = () =>
+const getTeamPicker = () =>
   screen.getByRole("combobox", {
-    name: "Pick the fleet that Android hosts will automatically enroll into",
+    name: "Pick the team that Android hosts will automatically enroll into",
   });
-const getFleetOptions = () => screen.getAllByTestId("dropdown-option");
-const selectFleet = async (name: string) => {
-  await userEvent.click(getFleetPicker());
-  const option = getFleetOptions().find((el) => el.textContent === name);
+const getTeamOptions = () => screen.getAllByTestId("dropdown-option");
+const selectTeam = async (name: string) => {
+  await userEvent.click(getTeamPicker());
+  const option = getTeamOptions().find((el) => el.textContent === name);
   if (!option) {
-    throw new Error(`No fleet option named "${name}"`);
+    throw new Error(`No team option named "${name}"`);
   }
   await userEvent.click(option);
 };
@@ -55,7 +55,7 @@ describe("AndroidZeroTouchPage", () => {
 
     render(<AndroidZeroTouchPage />);
 
-    expect(screen.queryByText(/Fleet Premium/i)).toBeNull();
+    expect(screen.queryByText(/AutoMDM Premium/i)).toBeNull();
     expect(getConfig).not.toHaveBeenCalled();
     expect(await screen.findByTestId("spinner")).toBeVisible();
   });
@@ -76,7 +76,7 @@ describe("AndroidZeroTouchPage", () => {
     render(<AndroidZeroTouchPage />);
 
     expect(screen.getByText("Android zero-touch")).toBeVisible();
-    expect(screen.getByText(/Fleet Premium/i)).toBeVisible();
+    expect(screen.getByText(/AutoMDM Premium/i)).toBeVisible();
     expect(getConfig).not.toHaveBeenCalled();
   });
 
@@ -120,7 +120,7 @@ describe("AndroidZeroTouchPage", () => {
 
     expect(screen.getByText("Android zero-touch")).toBeVisible();
     expect(screen.getByText(/Android zero-touch portal/)).toBeVisible();
-    expect(getFleetPicker()).toBeEnabled();
+    expect(getTeamPicker()).toBeEnabled();
     expect(getNameField()).toHaveValue("Unassigned");
     expect(screen.getByText(/use this name and pick/)).toBeVisible();
     expect(screen.queryByText(/coming soon/i)).toBeNull();
@@ -155,14 +155,14 @@ describe("AndroidZeroTouchPage", () => {
       screen.getByRole("button", { name: "Copy DPC extras" })
     ).toBeDisabled();
     expect(getNameField()).toHaveValue("Unassigned");
-    expect(getFleetPicker()).toBeEnabled();
+    expect(getTeamPicker()).toBeEnabled();
   });
 
-  test("switching fleets requests that fleet's DPC extras and updates the name", async () => {
+  test("switching teams requests that team's DPC extras and updates the name", async () => {
     const getConfig = jest
       .spyOn(mdmAndroidAPI, "getZeroTouchConfiguration")
-      .mockImplementation((fleetId) =>
-        Promise.resolve({ token: `token-for-fleet-${fleetId}` })
+      .mockImplementation((automdmId) =>
+        Promise.resolve({ token: `token-for-team-${automdmId}` })
       );
 
     const render = createCustomRenderer({
@@ -174,21 +174,21 @@ describe("AndroidZeroTouchPage", () => {
 
     render(<AndroidZeroTouchPage />);
 
-    await screen.findByText(/token-for-fleet-0/);
+    await screen.findByText(/token-for-team-0/);
 
-    await userEvent.click(getFleetPicker());
-    expect(getFleetOptions().map((el) => el.textContent)).toEqual([
+    await userEvent.click(getTeamPicker());
+    expect(getTeamOptions().map((el) => el.textContent)).toEqual([
       "Unassigned",
       "Workstations",
     ]);
     await userEvent.keyboard("{Escape}");
 
-    await selectFleet("Workstations");
+    await selectTeam("Workstations");
 
-    await screen.findByText(/token-for-fleet-1/);
+    await screen.findByText(/token-for-team-1/);
     expect(getConfig).toHaveBeenLastCalledWith(1);
     expect(getNameField()).toHaveValue("Workstations");
-    expect(screen.queryByText(/token-for-fleet-0/)).toBeNull();
+    expect(screen.queryByText(/token-for-team-0/)).toBeNull();
   });
 
   test("keeps the previous DPC extras under the spinner while refetching", async () => {
@@ -206,7 +206,7 @@ describe("AndroidZeroTouchPage", () => {
       );
 
     // The shared renderer's client uses cacheTime: 0, which drops the
-    // previously viewed fleet's data and hides the case under test.
+    // previously viewed team's data and hides the case under test.
     const cachingClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     });
@@ -223,14 +223,14 @@ describe("AndroidZeroTouchPage", () => {
     );
 
     await screen.findByText(/unassigned-1/);
-    await selectFleet("Workstations");
+    await selectTeam("Workstations");
     await screen.findByText(/workstations/);
 
-    await selectFleet("Unassigned");
+    await selectTeam("Unassigned");
 
     expect(await screen.findByTestId("spinner")).toBeVisible();
     expect(screen.getByText(/unassigned-1/)).toBeInTheDocument();
-    expect(getFleetPicker()).toBeDisabled();
+    expect(getTeamPicker()).toBeDisabled();
     expect(
       screen.getByRole("button", { name: "Copy DPC extras" })
     ).toBeDisabled();
@@ -238,7 +238,7 @@ describe("AndroidZeroTouchPage", () => {
 
     resolveRefetch({ token: "unassigned-2" });
     await screen.findByText(/unassigned-2/);
-    expect(getFleetPicker()).toBeEnabled();
+    expect(getTeamPicker()).toBeEnabled();
   });
 
   test("shows the error without retrying when the server fails", async () => {
@@ -257,10 +257,10 @@ describe("AndroidZeroTouchPage", () => {
 
     expect(await screen.findByText(/gone wrong/i)).toBeVisible();
     expect(getConfig).toHaveBeenCalledTimes(1);
-    expect(getFleetPicker()).toBeEnabled();
+    expect(getTeamPicker()).toBeEnabled();
   });
 
-  test("disables the fleet picker and copy buttons while the request is pending", async () => {
+  test("disables the team picker and copy buttons while the request is pending", async () => {
     jest
       .spyOn(mdmAndroidAPI, "getZeroTouchConfiguration")
       .mockReturnValue(new Promise(() => undefined));
@@ -275,7 +275,7 @@ describe("AndroidZeroTouchPage", () => {
     render(<AndroidZeroTouchPage />);
 
     expect(await screen.findByTestId("spinner")).toBeVisible();
-    expect(getFleetPicker()).toBeDisabled();
+    expect(getTeamPicker()).toBeDisabled();
     expect(screen.getByRole("button", { name: "Copy name" })).toBeDisabled();
     expect(getNameField().closest(".input-field")).toHaveClass(
       "input-field--disabled"

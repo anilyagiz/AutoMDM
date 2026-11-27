@@ -35,9 +35,9 @@ const Chip = ({
 
   const content = (
     <>
-      {icon && <Icon name={icon} color="ui-fleet-black-75" />}
+      {icon && <Icon name={icon} color="ui-automdm-black-75" />}
       <span className={`${baseClass}__text`}>{text}</span>
-      {trailingIcon && <Icon name={trailingIcon} color="ui-fleet-black-75" />}
+      {trailingIcon && <Icon name={trailingIcon} color="ui-automdm-black-75" />}
     </>
   );
 

@@ -14,16 +14,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	scepclient "github.com/fleetdm/fleet/v4/server/mdm/scep/client"
-	"github.com/fleetdm/fleet/v4/server/mdm/scep/enrollment"
-	"github.com/fleetdm/fleet/v4/server/mdm/scep/x509util"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/service/contract"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	scepclient "github.com/anilyagiz/automdm/v4/server/mdm/scep/client"
+	"github.com/anilyagiz/automdm/v4/server/mdm/scep/enrollment"
+	"github.com/anilyagiz/automdm/v4/server/mdm/scep/x509util"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/service/contract"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/jmoiron/sqlx"
 	"github.com/smallstep/scep"
 	"github.com/stretchr/testify/assert"
@@ -33,7 +33,7 @@ import (
 const testEnrollmentSecret = "test_secret"
 
 func TestConditionalAccessSCEP(t *testing.T) {
-	s := SetUpSuiteWithConfig(t, "integrationtest.ConditionalAccessSCEP", func(cfg *config.FleetConfig) {
+	s := SetUpSuiteWithConfig(t, "integrationtest.ConditionalAccessSCEP", func(cfg *config.AutoMDMConfig) {
 		cfg.Osquery.EnrollCooldown = 0 // Disable rate limiting for most tests
 	})
 
@@ -67,11 +67,11 @@ func testGetCACaps(t *testing.T, s *Suite) {
 	ctx := t.Context()
 
 	// Create enrollment secret
-	err := s.DS.ApplyEnrollSecrets(ctx, nil, []*fleet.EnrollSecret{{Secret: testEnrollmentSecret}})
+	err := s.DS.ApplyEnrollSecrets(ctx, nil, []*automdm.EnrollSecret{{Secret: testEnrollmentSecret}})
 	require.NoError(t, err)
 
 	// Request CA capabilities
-	resp, err := http.Get(s.Server.URL + "/api/fleet/conditional_access/scep?operation=GetCACaps")
+	resp, err := http.Get(s.Server.URL + "/api/automdm/conditional_access/scep?operation=GetCACaps")
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
@@ -90,7 +90,7 @@ func testGetCACaps(t *testing.T, s *Suite) {
 
 func testGetCACert(t *testing.T, s *Suite) {
 	// Request CA certificate
-	resp, err := http.Get(s.Server.URL + "/api/fleet/conditional_access/scep?operation=GetCACert")
+	resp, err := http.Get(s.Server.URL + "/api/automdm/conditional_access/scep?operation=GetCACert")
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
@@ -104,7 +104,7 @@ func testGetCACert(t *testing.T, s *Suite) {
 	require.NoError(t, err)
 
 	// Verify CA certificate attributes
-	assert.Equal(t, "Fleet conditional access CA", cert.Subject.CommonName)
+	assert.Equal(t, "AutoMDM conditional access CA", cert.Subject.CommonName)
 	assert.Contains(t, cert.Subject.Organization, "Local certificate authority")
 	assert.True(t, cert.IsCA)
 
@@ -118,7 +118,7 @@ func testSCEPEnrollment(t *testing.T, s *Suite) {
 	ctx := t.Context()
 
 	// Create enrollment secret
-	err := s.DS.ApplyEnrollSecrets(ctx, nil, []*fleet.EnrollSecret{{Secret: testEnrollmentSecret}})
+	err := s.DS.ApplyEnrollSecrets(ctx, nil, []*automdm.EnrollSecret{{Secret: testEnrollmentSecret}})
 	require.NoError(t, err)
 
 	// macOS profiles use the Apple prefix, Windows profiles the platform-neutral one.
@@ -128,12 +128,12 @@ func testSCEPEnrollment(t *testing.T, s *Suite) {
 		enroll   func(t *testing.T, s *Suite, hostUUID string)
 	}{
 		{"urn:device:apple:uuid:", "darwin", enrollInAppleMDM},
-		{"urn:device:fleet:uuid:", "windows", enrollInWindowsMDM},
+		{"urn:device:automdm:uuid:", "windows", enrollInWindowsMDM},
 	} {
 		prefix := c.prefix
 		t.Run(prefix, func(t *testing.T) {
 			// Create a test host
-			host, err := s.DS.NewHost(ctx, &fleet.Host{
+			host, err := s.DS.NewHost(ctx, &automdm.Host{
 				OsqueryHostID:   new(fmt.Sprintf("test-host-scep-%d", i+1)),
 				NodeKey:         new(fmt.Sprintf("test-node-key-scep-%d", i+1)),
 				UUID:            fmt.Sprintf("test-uuid-scep-%d", i+1),
@@ -179,11 +179,11 @@ func testInvalidChallenge(t *testing.T, s *Suite) {
 	ctx := t.Context()
 
 	// Create enrollment secret
-	err := s.DS.ApplyEnrollSecrets(ctx, nil, []*fleet.EnrollSecret{{Secret: testEnrollmentSecret}})
+	err := s.DS.ApplyEnrollSecrets(ctx, nil, []*automdm.EnrollSecret{{Secret: testEnrollmentSecret}})
 	require.NoError(t, err)
 
 	// Create a test host
-	host, err := s.DS.NewHost(ctx, &fleet.Host{
+	host, err := s.DS.NewHost(ctx, &automdm.Host{
 		OsqueryHostID:   ptr.String("test-host-invalid-1"),
 		NodeKey:         ptr.String("test-node-key-invalid-1"),
 		UUID:            "test-uuid-invalid-1",
@@ -204,7 +204,7 @@ func testOneTimeChallenge(t *testing.T, s *Suite) {
 	host := test.NewHost(t, s.DS, "one-time-1", "", "one-time-key-1", "one-time-uuid-1", time.Now(), test.WithPlatform("windows"))
 	otherHost := test.NewHost(t, s.DS, "one-time-2", "", "one-time-key-2", "one-time-uuid-2", time.Now(), test.WithPlatform("windows"))
 
-	require.NoError(t, s.DS.MDMWindowsInsertEnrolledDevice(ctx, &fleet.MDMWindowsEnrolledDevice{
+	require.NoError(t, s.DS.MDMWindowsInsertEnrolledDevice(ctx, &automdm.MDMWindowsEnrolledDevice{
 		MDMDeviceID:    "device-one-time-1",
 		MDMHardwareID:  "hardware-one-time-1",
 		MDMDeviceState: "ENROLLED",
@@ -242,10 +242,10 @@ func testOneTimeChallenge(t *testing.T, s *Suite) {
 }
 
 // testGlobalSecretRefusedWithoutMDMEnrollment checks that a host enrolled in osquery with the global enroll secret, but not
-// in Fleet MDM, can't use the secret for a certificate.
+// in AutoMDM, can't use the secret for a certificate.
 func testGlobalSecretRefusedWithoutMDMEnrollment(t *testing.T, s *Suite) {
 	ctx := t.Context()
-	require.NoError(t, s.DS.ApplyEnrollSecrets(ctx, nil, []*fleet.EnrollSecret{{Secret: testEnrollmentSecret}}))
+	require.NoError(t, s.DS.ApplyEnrollSecrets(ctx, nil, []*automdm.EnrollSecret{{Secret: testEnrollmentSecret}}))
 
 	const hostUUID = "no-mdm-uuid"
 	var resp contract.EnrollOsqueryAgentResponse
@@ -260,7 +260,7 @@ func testGlobalSecretRefusedWithoutMDMEnrollment(t *testing.T, s *Suite) {
 	require.NotEmpty(t, resp.NodeKey)
 
 	cert, err := requestSCEPCertificateWithChallenge(t, s, hostUUID, testEnrollmentSecret)
-	requireSCEPFailure(t, err, "a host not enrolled in Fleet MDM must not get a certificate with the global enroll secret")
+	requireSCEPFailure(t, err, "a host not enrolled in AutoMDM must not get a certificate with the global enroll secret")
 	require.Nil(t, cert)
 }
 
@@ -280,7 +280,7 @@ func enrollInAppleMDM(t *testing.T, s *Suite, hostUUID string) {
 // enrollInWindowsMDM records a Windows MDM enrollment for the host, which a request with the global enroll secret needs.
 func enrollInWindowsMDM(t *testing.T, s *Suite, hostUUID string) {
 	t.Helper()
-	require.NoError(t, s.DS.MDMWindowsInsertEnrolledDevice(t.Context(), &fleet.MDMWindowsEnrolledDevice{
+	require.NoError(t, s.DS.MDMWindowsInsertEnrolledDevice(t.Context(), &automdm.MDMWindowsEnrolledDevice{
 		MDMDeviceID:    "device-" + hostUUID,
 		MDMHardwareID:  "hardware-" + hostUUID,
 		MDMDeviceState: "ENROLLED",
@@ -294,7 +294,7 @@ func testMissingUUID(t *testing.T, s *Suite) {
 	ctx := t.Context()
 
 	// Create enrollment secret
-	err := s.DS.ApplyEnrollSecrets(ctx, nil, []*fleet.EnrollSecret{{Secret: testEnrollmentSecret}})
+	err := s.DS.ApplyEnrollSecrets(ctx, nil, []*automdm.EnrollSecret{{Secret: testEnrollmentSecret}})
 	require.NoError(t, err)
 
 	// Try to enroll without UUID in SAN URI
@@ -305,18 +305,18 @@ func testMissingUUID(t *testing.T, s *Suite) {
 	// Verify no certificate was stored
 	_, err = s.DS.GetConditionalAccessCertHostIDBySerialNumber(ctx, 1)
 	require.Error(t, err)
-	assert.True(t, fleet.IsNotFound(err))
+	assert.True(t, automdm.IsNotFound(err))
 }
 
 func testNonExistentHost(t *testing.T, s *Suite) {
 	ctx := t.Context()
 
 	// Create enrollment secret
-	err := s.DS.ApplyEnrollSecrets(ctx, nil, []*fleet.EnrollSecret{{Secret: testEnrollmentSecret}})
+	err := s.DS.ApplyEnrollSecrets(ctx, nil, []*automdm.EnrollSecret{{Secret: testEnrollmentSecret}})
 	require.NoError(t, err)
 
 	// The SAN URI is matched against host UUIDs only, so a host's other identifiers don't resolve to it.
-	host, err := s.DS.NewHost(ctx, &fleet.Host{
+	host, err := s.DS.NewHost(ctx, &automdm.Host{
 		OsqueryHostID:   new("test-osquery-id-non-existent"),
 		NodeKey:         new("test-node-key-non-existent"),
 		UUID:            "test-uuid-non-existent",
@@ -380,7 +380,7 @@ func requestSCEPCertificateWithOptions(t *testing.T, s *Suite, uris []*url.URL, 
 	csr, err := x509.ParseCertificateRequest(csrDerBytes)
 	require.NoError(t, err)
 
-	scepClient, err := scepclient.New(s.Server.URL+"/api/fleet/conditional_access/scep", s.Logger)
+	scepClient, err := scepclient.New(s.Server.URL+"/api/automdm/conditional_access/scep", s.Logger)
 	require.NoError(t, err)
 	caCerts, err := enrollment.FetchCACerts(ctx, scepClient)
 	require.NoError(t, err)
@@ -409,11 +409,11 @@ func testCertificateRotation(t *testing.T, s *Suite) {
 	ctx := t.Context()
 
 	// Create enrollment secret
-	err := s.DS.ApplyEnrollSecrets(ctx, nil, []*fleet.EnrollSecret{{Secret: testEnrollmentSecret}})
+	err := s.DS.ApplyEnrollSecrets(ctx, nil, []*automdm.EnrollSecret{{Secret: testEnrollmentSecret}})
 	require.NoError(t, err)
 
 	// Create a test host
-	host, err := s.DS.NewHost(ctx, &fleet.Host{
+	host, err := s.DS.NewHost(ctx, &automdm.Host{
 		OsqueryHostID:   ptr.String("test-host-rotation"),
 		NodeKey:         ptr.String("test-node-key-rotation"),
 		UUID:            "test-uuid-rotation",
@@ -430,12 +430,12 @@ func testCertificateRotation(t *testing.T, s *Suite) {
 
 	// Make HTTP request to IdP SSO endpoint with old cert serial to verify authentication
 	oldSerialHex := fmt.Sprintf("%X", oldCert.SerialNumber)
-	req, err := http.NewRequestWithContext(ctx, "POST", s.Server.URL+"/api/fleet/conditional_access/idp/sso", nil)
+	req, err := http.NewRequestWithContext(ctx, "POST", s.Server.URL+"/api/automdm/conditional_access/idp/sso", nil)
 	require.NoError(t, err)
 	req.Header.Set("X-Client-Cert-Serial", oldSerialHex)
 
 	// Use client that doesn't follow redirects to verify redirect behavior
-	noRedirectClient := fleethttp.NewClient(fleethttp.WithFollowRedir(false))
+	noRedirectClient := automdmhttp.NewClient(automdmhttp.WithFollowRedir(false))
 	resp, err := noRedirectClient.Do(req)
 	require.NoError(t, err)
 	resp.Body.Close()
@@ -449,7 +449,7 @@ func testCertificateRotation(t *testing.T, s *Suite) {
 
 	// CRITICAL TEST: Both old and new certs should work via actual HTTP endpoint (grace period behavior)
 	// This validates that old cert is NOT immediately revoked, allowing grace period for rotation
-	req, err = http.NewRequestWithContext(ctx, "POST", s.Server.URL+"/api/fleet/conditional_access/idp/sso", nil)
+	req, err = http.NewRequestWithContext(ctx, "POST", s.Server.URL+"/api/automdm/conditional_access/idp/sso", nil)
 	require.NoError(t, err)
 	req.Header.Set("X-Client-Cert-Serial", oldSerialHex)
 
@@ -459,7 +459,7 @@ func testCertificateRotation(t *testing.T, s *Suite) {
 	require.Equal(t, http.StatusSeeOther, resp.StatusCode, "old cert should still work after new cert issued (grace period)")
 
 	newSerialHex := fmt.Sprintf("%X", newCert.SerialNumber)
-	req, err = http.NewRequestWithContext(ctx, "POST", s.Server.URL+"/api/fleet/conditional_access/idp/sso", nil)
+	req, err = http.NewRequestWithContext(ctx, "POST", s.Server.URL+"/api/automdm/conditional_access/idp/sso", nil)
 	require.NoError(t, err)
 	req.Header.Set("X-Client-Cert-Serial", newSerialHex)
 
@@ -474,7 +474,7 @@ func testGetIDPSigningCert(t *testing.T, s *Suite) {
 	ctx := t.Context()
 
 	// Make HTTP request to get IdP signing certificate
-	req, err := http.NewRequestWithContext(ctx, "GET", s.Server.URL+"/api/latest/fleet/conditional_access/idp/signing_cert", nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", s.Server.URL+"/api/latest/automdm/conditional_access/idp/signing_cert", nil)
 	require.NoError(t, err)
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", s.Token))
 
@@ -485,7 +485,7 @@ func testGetIDPSigningCert(t *testing.T, s *Suite) {
 
 	// Verify content type
 	require.Equal(t, "application/x-pem-file", resp.Header.Get("Content-Type"))
-	require.Equal(t, "attachment; filename=\"fleet-idp-signing-cert.pem\"", resp.Header.Get("Content-Disposition"))
+	require.Equal(t, "attachment; filename=\"automdm-idp-signing-cert.pem\"", resp.Header.Get("Content-Disposition"))
 
 	// Read certificate content
 	certPEM, err := io.ReadAll(resp.Body)

@@ -10,7 +10,7 @@
     },
     "note": "qa-54047 pre-seed baseline: 4.92.1, Ducks enrolled, before seeding host_script_results/host_software_installs"
   },
-  "fleet_server": {
+  "automdm_server": {
     "cpu_utilization": {
       "Average": 22.25,
       "Minimum": 12.47,
@@ -386,7 +386,7 @@
       "data_coverage": 1
     }
   },
-  "fleet_server_errors": {
+  "automdm_server_errors": {
     "error_count": 0.0,
     "sample_messages": []
   },

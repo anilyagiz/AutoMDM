@@ -7,9 +7,9 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/oval"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/utils"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/oval"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/utils"
 )
 
 func NewDB(db *sql.DB, platform oval.Platform) *Database {
@@ -43,9 +43,9 @@ func (db Database) Verfiy() error {
 
 // Eval evaluates the current goval_dictionary database against an OS version and a list of installed software,
 // returns all software vulnerabilities found. Logs on any errors so we return as many vulnerabilities as we can.
-func (db Database) Eval(ctx context.Context, software []fleet.Software, logger *slog.Logger) []fleet.SoftwareVulnerability {
+func (db Database) Eval(ctx context.Context, software []automdm.Software, logger *slog.Logger) []automdm.SoftwareVulnerability {
 	searchStmt := fmt.Sprintf("%s WHERE packages.name = ? AND packages.arch = ? ORDER BY cve_id, version", baseSearchStmt)
-	vulnerabilities := make([]fleet.SoftwareVulnerability, 0)
+	vulnerabilities := make([]automdm.SoftwareVulnerability, 0)
 
 	for _, swItem := range software {
 		err := func() error {
@@ -75,7 +75,7 @@ func (db Database) Eval(ctx context.Context, software []fleet.Software, logger *
 				fixedVersion := strings.Split(fixedVersionWithEpochPrefix, ":")[1]
 
 				if utils.Rpmvercmp(currentVersion, fixedVersion) < 0 {
-					vulnerabilities = append(vulnerabilities, fleet.SoftwareVulnerability{
+					vulnerabilities = append(vulnerabilities, automdm.SoftwareVulnerability{
 						SoftwareID:        swItem.ID,
 						CVE:               cve,
 						ResolvedInVersion: &fixedVersion,

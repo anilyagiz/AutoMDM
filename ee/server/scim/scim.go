@@ -12,16 +12,16 @@ import (
 	"os"
 	"strings"
 
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/service/middleware/auth"
+	"github.com/anilyagiz/automdm/v4/server/service/middleware/log"
+	automdmotel "github.com/anilyagiz/automdm/v4/server/service/middleware/otel"
 	"github.com/elimity-com/scim"
 	scimerrors "github.com/elimity-com/scim/errors"
 	"github.com/elimity-com/scim/optional"
 	"github.com/elimity-com/scim/schema"
-	"github.com/fleetdm/fleet/v4/server/authz"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/service/middleware/auth"
-	"github.com/fleetdm/fleet/v4/server/service/middleware/log"
-	fleetotel "github.com/fleetdm/fleet/v4/server/service/middleware/otel"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
@@ -31,16 +31,16 @@ const (
 
 func RegisterSCIM(
 	mux *http.ServeMux,
-	ds fleet.Datastore,
-	svc fleet.Service,
+	ds automdm.Datastore,
+	svc automdm.Service,
 	logger *slog.Logger,
-	fleetConfig *config.FleetConfig,
+	automdmConfig *config.AutoMDMConfig,
 ) error {
-	if fleetConfig == nil {
-		return errors.New("fleet config is nil")
+	if automdmConfig == nil {
+		return errors.New("automdm config is nil")
 	}
 	config := scim.ServiceProviderConfig{
-		DocumentationURI: optional.NewString("https://fleetdm.com/docs/get-started/why-fleet"),
+		DocumentationURI: optional.NewString("https://automdm.com/docs/get-started/why-automdm"),
 		MaxResults:       maxResults,
 		SupportFiltering: true,
 		SupportPatch:     true,
@@ -171,7 +171,7 @@ func RegisterSCIM(
 			SchemaExtensions: []scim.SchemaExtension{
 				{
 					Schema: schema.Schema{
-						// Fleet stores only `department`, but we declare the full RFC 7643
+						// AutoMDM stores only `department`, but we declare the full RFC 7643
 						// §4.3 enterprise attribute set so the elimity SCIM library accepts
 						// (rather than 400s) PATCH payloads from IdPs that bundle these
 						// alongside `department`. The handler reads only what it needs and
@@ -281,14 +281,14 @@ func RegisterSCIM(
 	// We cannot use Go URL path pattern like {version} because the http.StripPrefix method
 	// that gets us to the root SCIM path does not support wildcards: https://github.com/golang/go/issues/64909
 	// Apply OTEL instrumentation at the mux level (outermost)
-	mux.Handle("/api/v1/fleet/scim/", scimOTELMiddleware(applyMiddleware("/api/v1/fleet/scim", server), "/api/v1/fleet/scim", *fleetConfig))
-	mux.Handle("/api/latest/fleet/scim/", scimOTELMiddleware(applyMiddleware("/api/latest/fleet/scim", server), "/api/latest/fleet/scim", *fleetConfig))
+	mux.Handle("/api/v1/automdm/scim/", scimOTELMiddleware(applyMiddleware("/api/v1/automdm/scim", server), "/api/v1/automdm/scim", *automdmConfig))
+	mux.Handle("/api/latest/automdm/scim/", scimOTELMiddleware(applyMiddleware("/api/latest/automdm/scim", server), "/api/latest/automdm/scim", *automdmConfig))
 	return nil
 }
 
 // scimOTELMiddleware provides OpenTelemetry instrumentation for SCIM endpoints
 // It creates proper span names without exposing sensitive IDs
-func scimOTELMiddleware(next http.Handler, prefix string, cfg config.FleetConfig) http.Handler {
+func scimOTELMiddleware(next http.Handler, prefix string, cfg config.AutoMDMConfig) http.Handler {
 	if !cfg.OTELEnabled() {
 		return next
 	}
@@ -346,7 +346,7 @@ func scimOTELMiddleware(next http.Handler, prefix string, cfg config.FleetConfig
 
 		// Create the instrumented handler with the proper route
 		instrumentedHandler := otelhttp.NewHandler(
-			fleetotel.WithRouteTag(route, next),
+			automdmotel.WithRouteTag(route, next),
 			"", // Empty operation name - will be set by span name formatter
 			otelhttp.WithSpanNameFormatter(func(operation string, req *http.Request) string {
 				return req.Method + " " + route
@@ -356,10 +356,10 @@ func scimOTELMiddleware(next http.Handler, prefix string, cfg config.FleetConfig
 	})
 }
 
-// debugSCIMPayloadsEnabled reports whether the FLEET_DEBUG_SCIM_PAYLOADS environment
+// debugSCIMPayloadsEnabled reports whether the AUTOMDM_DEBUG_SCIM_PAYLOADS environment
 // variable is set to a truthy value.
 func debugSCIMPayloadsEnabled() bool {
-	switch strings.ToLower(strings.TrimSpace(os.Getenv("FLEET_DEBUG_SCIM_PAYLOADS"))) {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("AUTOMDM_DEBUG_SCIM_PAYLOADS"))) {
 	case "1", "true", "yes", "on":
 		return true
 	}
@@ -405,10 +405,10 @@ func debugPayloadDumpMiddleware(logger *slog.Logger, enabled bool, next http.Han
 // GoogleWorkspaceExclusionMiddleware short-circuits SCIM requests when a Google
 // Workspace integration is configured. Google Workspace and SCIM are mutually
 // exclusive sources for IdP host vitals: while Google Workspace is configured,
-// Fleet pulls the directory itself and must ignore SCIM pushes so they cannot
+// AutoMDM pulls the directory itself and must ignore SCIM pushes so they cannot
 // clobber the synced data. It is placed before LastRequestMiddleware so ignored
 // requests don't overwrite the last-sync status.
-func GoogleWorkspaceExclusionMiddleware(ds fleet.Datastore, logger *slog.Logger, next http.Handler) http.Handler {
+func GoogleWorkspaceExclusionMiddleware(ds automdm.Datastore, logger *slog.Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		appConfig, err := ds.AppConfig(ctx)
@@ -430,15 +430,15 @@ func GoogleWorkspaceExclusionMiddleware(ds fleet.Datastore, logger *slog.Logger,
 		w.WriteHeader(http.StatusConflict)
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"schemas": []string{"urn:ietf:params:scim:api:messages:2.0:Error"},
-			"detail":  "SCIM provisioning is disabled because a Google Workspace integration is configured in Fleet.",
+			"detail":  "SCIM provisioning is disabled because a Google Workspace integration is configured in AutoMDM.",
 			"status":  fmt.Sprintf("%d", http.StatusConflict),
 		})
 	})
 }
 
 // LastRequestMiddleware saves the details of the last request to SCIM endpoints in the datastore.
-// These details can be used as a debug tool by the Fleet admin to see if SCIM integration is working.
-func LastRequestMiddleware(ds fleet.Datastore, logger *slog.Logger, next http.Handler) http.Handler {
+// These details can be used as a debug tool by the AutoMDM admin to see if SCIM integration is working.
+func LastRequestMiddleware(ds automdm.Datastore, logger *slog.Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx, detailHolder := withScimDetail(r.Context())
 		r = r.WithContext(ctx)
@@ -485,17 +485,17 @@ func LastRequestMiddleware(ds fleet.Datastore, logger *slog.Logger, next http.Ha
 			if multi.statusCode == scimerrors.ScimErrorInvalidValue.Status && details == scimerrors.ScimErrorInvalidValue.Detail &&
 				strings.Contains(r.URL.Path, "/Users") {
 				// We customize the error message here since we can't do it inside the 3rd party SCIM library.
-				details = `Missing required attributes. "userName", "givenName", and "familyName" are required. Please configure your identity provider to send required attributes to Fleet.`
+				details = `Missing required attributes. "userName", "givenName", and "familyName" are required. Please configure your identity provider to send required attributes to AutoMDM.`
 			}
 		default:
 			status = "error"
 			details = fmt.Sprintf("Unhandled status code: %d", multi.statusCode)
 			logger.ErrorContext(r.Context(), "unhandled status code", "status", multi.statusCode, "body", multi.body.String())
 		}
-		if len(details) > fleet.SCIMMaxFieldLength {
-			details = details[:fleet.SCIMMaxFieldLength]
+		if len(details) > automdm.SCIMMaxFieldLength {
+			details = details[:automdm.SCIMMaxFieldLength]
 		}
-		err := ds.UpdateScimLastRequest(r.Context(), &fleet.ScimLastRequest{
+		err := ds.UpdateScimLastRequest(r.Context(), &automdm.ScimLastRequest{
 			Status:  status,
 			Details: details,
 		})
@@ -507,7 +507,7 @@ func LastRequestMiddleware(ds fleet.Datastore, logger *slog.Logger, next http.Ha
 
 func AuthorizationMiddleware(authorizer *authz.Authorizer, logger *slog.Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		err := authorizer.Authorize(r.Context(), &fleet.ScimUser{}, fleet.ActionWrite)
+		err := authorizer.Authorize(r.Context(), &automdm.ScimUser{}, automdm.ActionWrite)
 		if err != nil {
 			errorHandler(w, logger, err.Error(), http.StatusForbidden)
 			return

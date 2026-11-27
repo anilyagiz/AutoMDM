@@ -26,7 +26,7 @@ const tooltipFormatter = ({ value }: { value: number }): string =>
 
 interface IHostOnlineHistoryModalProps {
   hostId: number;
-  fleetId?: number;
+  automdmId?: number;
   // undefined = still resolving (parent hasn't yet loaded the team-level
   // setting for a teamed host). Modal shows a spinner and defers the chart
   // query until the effective value is known.
@@ -39,7 +39,7 @@ interface IHostOnlineHistoryModalProps {
 
 const HostOnlineHistoryModal = ({
   hostId,
-  fleetId,
+  automdmId,
   uptimeCollectionEnabled,
   uptimeGloballyEnabled,
   onExit,
@@ -49,10 +49,10 @@ const HostOnlineHistoryModal = ({
       // Extra day so the trailing 30 local days are always full regardless of TZ.
       days: CHART_DAYS + 1,
       tz_offset: new Date().getTimezoneOffset(),
-      fleet_id: fleetId,
+      team_id: automdmId,
       include_host_ids: String(hostId),
     }),
-    [hostId, fleetId]
+    [hostId, automdmId]
   );
 
   const { data: chartData, isLoading, error } = useQuery<
@@ -93,7 +93,7 @@ const HostOnlineHistoryModal = ({
         <DataCollectionDisabledState
           datasetLabel={DATASET_LABEL.uptime}
           globallyEnabled={uptimeGloballyEnabled}
-          currentTeamId={fleetId}
+          currentTeamId={automdmId}
         />
       );
     }

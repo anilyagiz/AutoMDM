@@ -13,16 +13,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/push"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/push"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/http2"
 )
 
 // TestPushStalledErrorBody covers an APNs response whose headers arrive but
 // whose error body then stalls: transport-level timeouts don't bound the body
-// read, so only an overall client timeout (production sets one via fleethttp's
+// read, so only an overall client timeout (production sets one via automdmhttp's
 // default) keeps Push from blocking its caller forever.
 func TestPushStalledErrorBody(t *testing.T) {
 	stall := make(chan struct{})
@@ -39,7 +39,7 @@ func TestPushStalledErrorBody(t *testing.T) {
 
 	prov := &Provider{
 		baseURL: server.URL,
-		client:  fleethttp.NewClient(fleethttp.WithTimeout(500 * time.Millisecond)),
+		client:  automdmhttp.NewClient(automdmhttp.WithTimeout(500 * time.Millisecond)),
 		workers: 1,
 	}
 

@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/govulndb"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/govulndb"
 	"github.com/stretchr/testify/require"
 )
 
@@ -68,7 +68,7 @@ func TestTransformPairsEventsIntoRanges(t *testing.T) {
 	require.Equal(t, want, artifact.Modules[govulndb.StdlibModule])
 }
 
-// A report with no fix yet ends on an open range, which Fleet reads as "every version from here
+// A report with no fix yet ends on an open range, which AutoMDM reads as "every version from here
 // on". The bound must not be invented.
 func TestTransformKeepsUnfixedRangeOpen(t *testing.T) {
 	artifact := mustTransform(t, osvReport{
@@ -89,7 +89,7 @@ func TestTransformKeepsUnfixedRangeOpen(t *testing.T) {
 }
 
 // software_cve and every CVE metadata join are keyed on a CVE ID, so a report that carries no
-// CVE alias cannot be represented in Fleet at all.
+// CVE alias cannot be represented in AutoMDM at all.
 func TestTransformDropsReportsWithoutCVEAlias(t *testing.T) {
 	artifact := mustTransform(t,
 		osvReport{
@@ -144,7 +144,7 @@ func TestTransformReportAffectingMultipleModules(t *testing.T) {
 			CVEs:   []string{"CVE-2024-5000"},
 			Ranges: []govulndb.VersionRange{{Introduced: "0", Fixed: "1.4.0"}},
 		}},
-		// The /v2 suffix is part of the module path Fleet matches on, so it is kept verbatim.
+		// The /v2 suffix is part of the module path AutoMDM matches on, so it is kept verbatim.
 		"github.com/example/client/v2": {{
 			ID:     "GO-2024-5000",
 			CVEs:   []string{"CVE-2024-5000"},

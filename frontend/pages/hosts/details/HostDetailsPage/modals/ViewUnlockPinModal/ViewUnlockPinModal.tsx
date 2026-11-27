@@ -54,7 +54,7 @@ const ViewUnlockPinModal = ({
       <>
         {data.locked_at && (
           <p>
-            Fleet locked this host{" "}
+            AutoMDM locked this host{" "}
             <HumanTimeDiffWithDateTip timeString={data.locked_at} />.
           </p>
         )}

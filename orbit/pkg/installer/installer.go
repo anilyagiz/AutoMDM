@@ -15,16 +15,16 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/anilyagiz/automdm/v4/client"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/constant"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/scripts"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/update"
+	"github.com/anilyagiz/automdm/v4/pkg/file"
+	"github.com/anilyagiz/automdm/v4/pkg/retry"
+	pkgscripts "github.com/anilyagiz/automdm/v4/pkg/scripts"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/docker/go-units"
-	"github.com/fleetdm/fleet/v4/client"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/constant"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/scripts"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/update"
-	"github.com/fleetdm/fleet/v4/pkg/file"
-	"github.com/fleetdm/fleet/v4/pkg/retry"
-	pkgscripts "github.com/fleetdm/fleet/v4/pkg/scripts"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/ptr"
 	"github.com/osquery/osquery-go"
 	osquery_gen "github.com/osquery/osquery-go/gen/osquery"
 	"github.com/rs/zerolog"
@@ -37,12 +37,12 @@ type (
 )
 
 // Client defines the methods required for the API requests to the server. The
-// fleet.OrbitClient type satisfies this interface.
+// automdm.OrbitClient type satisfies this interface.
 type Client interface {
-	GetInstallerDetails(installID string) (*fleet.SoftwareInstallDetails, error)
+	GetInstallerDetails(installID string) (*automdm.SoftwareInstallDetails, error)
 	DownloadSoftwareInstaller(installerID uint, downloadDir string, progressFunc func(int)) (string, error)
 	DownloadSoftwareInstallerFromURL(url string, filename string, downloadDir string, progressFunc func(int)) (string, error)
-	SaveInstallerResult(payload *fleet.HostSoftwareInstallResultPayload) error
+	SaveInstallerResult(payload *automdm.HostSoftwareInstallResultPayload) error
 }
 
 type QueryClient interface {
@@ -121,7 +121,7 @@ func NewRunner(client Client, socketPath string, scriptsEnabled func() bool, roo
 	return r
 }
 
-func (r *Runner) Run(config *fleet.OrbitConfig) error {
+func (r *Runner) Run(config *automdm.OrbitConfig) error {
 	if runtime.GOOS == "darwin" {
 		if config.Notifications.RunSetupExperience && !update.CanRun(r.rootDirPath, "swiftDialog", update.SwiftDialogMacOSTarget) {
 			log.Info().Msg("exiting software installer config runner early during setup experience: swiftDialog is not installed")
@@ -157,7 +157,7 @@ func connectOsquery(r *Runner) error {
 	return nil
 }
 
-func (r *Runner) run(ctx context.Context, config *fleet.OrbitConfig) error {
+func (r *Runner) run(ctx context.Context, config *automdm.OrbitConfig) error {
 	if len(config.Notifications.PendingSoftwareInstallerIDs) > 0 {
 		r.logger.Info().Msgf("received notification for software installers: %v", config.Notifications.PendingSoftwareInstallerIDs)
 	} else {
@@ -204,7 +204,7 @@ func (r *Runner) run(ctx context.Context, config *fleet.OrbitConfig) error {
 
 // handleInstallerNotFound returns a synthetic failure payload once
 // installerNotFoundRetryWindow has elapsed for execID, nil otherwise (#44084).
-func (r *Runner) handleInstallerNotFound(execID string, logger zerolog.Logger) *fleet.HostSoftwareInstallResultPayload {
+func (r *Runner) handleInstallerNotFound(execID string, logger zerolog.Logger) *automdm.HostSoftwareInstallResultPayload {
 	r.installerNotFoundMu.Lock()
 	defer r.installerNotFoundMu.Unlock()
 
@@ -231,9 +231,9 @@ func (r *Runner) handleInstallerNotFound(execID string, logger zerolog.Logger) *
 		Msg("installer not found for longer than retry window; reporting failure to server")
 
 	delete(r.installerNotFoundFirstSeen, execID)
-	return &fleet.HostSoftwareInstallResultPayload{
+	return &automdm.HostSoftwareInstallResultPayload{
 		InstallUUID:           execID,
-		InstallScriptExitCode: ptr.Int(fleet.ExitCodeInstallerNotFound),
+		InstallScriptExitCode: ptr.Int(automdm.ExitCodeInstallerNotFound),
 		InstallScriptOutput:   ptr.String("Installer no longer exists on the server. Abandoning install after retry window."),
 	}
 }
@@ -274,7 +274,7 @@ func (r *Runner) preConditionCheck(ctx context.Context, query string) (bool, str
 	return true, string(response), nil
 }
 
-func (r *Runner) installSoftware(ctx context.Context, installID string, logger zerolog.Logger) (*fleet.HostSoftwareInstallResultPayload, error) {
+func (r *Runner) installSoftware(ctx context.Context, installID string, logger zerolog.Logger) (*automdm.HostSoftwareInstallResultPayload, error) {
 	logger.Info().Msg("fetching installer details")
 	installer, err := r.OrbitClient.GetInstallerDetails(installID)
 	if err != nil {
@@ -293,7 +293,7 @@ func (r *Runner) installSoftware(ctx context.Context, installID string, logger z
 
 	r.clearInstallerNotFound(installID)
 
-	payload := &fleet.HostSoftwareInstallResultPayload{}
+	payload := &automdm.HostSoftwareInstallResultPayload{}
 	payload.InstallUUID = installID
 
 	if installer.PreInstallCondition != "" {
@@ -312,9 +312,9 @@ func (r *Runner) installSoftware(ctx context.Context, installID string, logger z
 	}
 
 	if !r.scriptsEnabled() {
-		// Fleet knows that -2 means script was disabled on host
+		// AutoMDM knows that -2 means script was disabled on host
 		logger.Info().Msg("scripts are disabled for this host, stopping installation")
-		payload.InstallScriptExitCode = ptr.Int(fleet.ExitCodeScriptsDisabled)
+		payload.InstallScriptExitCode = ptr.Int(automdm.ExitCodeScriptsDisabled)
 		payload.InstallScriptOutput = ptr.String("Scripts are disabled")
 		return payload, nil
 	}
@@ -330,7 +330,7 @@ func (r *Runner) installSoftware(ctx context.Context, installID string, logger z
 }
 
 // installWithRetry attempts installation with retry logic for setup experience
-func (r *Runner) installWithRetry(ctx context.Context, installer *fleet.SoftwareInstallDetails, payload *fleet.HostSoftwareInstallResultPayload, logger zerolog.Logger) (*fleet.HostSoftwareInstallResultPayload, error) {
+func (r *Runner) installWithRetry(ctx context.Context, installer *automdm.SoftwareInstallDetails, payload *automdm.HostSoftwareInstallResultPayload, logger zerolog.Logger) (*automdm.HostSoftwareInstallResultPayload, error) {
 	// MaxRetries is the number of retry attempts (0 means no retries, just one attempt)
 	// maxAttempts is the total number of attempts (initial + retries)
 	maxAttempts := installer.MaxRetries + 1
@@ -343,7 +343,7 @@ func (r *Runner) installWithRetry(ctx context.Context, installer *fleet.Software
 		// Attempt installation
 		resultPayload, err := r.attemptInstall(ctx, installer, payload, logger)
 
-		if err == nil && resultPayload.Status() == fleet.SoftwareInstalled {
+		if err == nil && resultPayload.Status() == automdm.SoftwareInstalled {
 			// Success
 			logger.Debug().Msgf("Installation succeeded on attempt %d", attempt)
 			return resultPayload, nil
@@ -397,7 +397,7 @@ func (r *Runner) installWithRetry(ctx context.Context, installer *fleet.Software
 }
 
 // attemptInstall performs a single installation attempt (download + install)
-func (r *Runner) attemptInstall(ctx context.Context, installer *fleet.SoftwareInstallDetails, payload *fleet.HostSoftwareInstallResultPayload, logger zerolog.Logger) (*fleet.HostSoftwareInstallResultPayload, error) {
+func (r *Runner) attemptInstall(ctx context.Context, installer *automdm.SoftwareInstallDetails, payload *automdm.HostSoftwareInstallResultPayload, logger zerolog.Logger) (*automdm.HostSoftwareInstallResultPayload, error) {
 	tmpDirFn := r.tempDirFn
 	if tmpDirFn == nil {
 		tmpDirFn = os.MkdirTemp
@@ -446,13 +446,13 @@ func (r *Runner) attemptInstall(ctx context.Context, installer *fleet.SoftwareIn
 		)
 		if err != nil {
 			logger.Err(err).Msg("downloading software installer from URL")
-			// If download fails, we will fall back to downloading the installer directly from Fleet server
+			// If download fails, we will fall back to downloading the installer directly from AutoMDM server
 			installerPath = ""
 		}
 	}
 
 	if installerPath == "" {
-		logger.Info().Msg("about to download software installer from Fleet")
+		logger.Info().Msg("about to download software installer from AutoMDM")
 		installerPath, err = r.OrbitClient.DownloadSoftwareInstaller(
 			installer.InstallerID,
 			tmpDir,
@@ -460,9 +460,9 @@ func (r *Runner) attemptInstall(ctx context.Context, installer *fleet.SoftwareIn
 		)
 		if err != nil {
 			logger.Err(err).Msg("failed to download software installer")
-			// Set a special exit code to indicate that the installer download failed, so that Fleet
+			// Set a special exit code to indicate that the installer download failed, so that AutoMDM
 			// will mark this installation as failed.
-			payload.InstallScriptExitCode = ptr.Int(fleet.ExitCodeInstallerDownloadFailed)
+			payload.InstallScriptExitCode = ptr.Int(automdm.ExitCodeInstallerDownloadFailed)
 			payload.InstallScriptOutput = ptr.String("Installer download failed")
 			return payload, err
 		}
@@ -476,7 +476,7 @@ func (r *Runner) attemptInstall(ctx context.Context, installer *fleet.SoftwareIn
 		if err != nil {
 			logger.Err(err).Msg("failed to create directory for .tar.gz extraction")
 			// Using download failed exit code here to indicate that installer extraction failed
-			payload.InstallScriptExitCode = ptr.Int(fleet.ExitCodeInstallerDownloadFailed)
+			payload.InstallScriptExitCode = ptr.Int(automdm.ExitCodeInstallerDownloadFailed)
 			payload.InstallScriptOutput = ptr.String("Installer extraction failed")
 			return payload, err
 		}
@@ -490,7 +490,7 @@ func (r *Runner) attemptInstall(ctx context.Context, installer *fleet.SoftwareIn
 
 		if err = extractFn(installerPath, extractDestination); err != nil {
 			logger.Err(err).Msg("failed extract .tar.gz archive")
-			payload.InstallScriptExitCode = ptr.Int(fleet.ExitCodeInstallerDownloadFailed)
+			payload.InstallScriptExitCode = ptr.Int(automdm.ExitCodeInstallerDownloadFailed)
 			payload.InstallScriptOutput = ptr.String("Installer extraction failed")
 			return payload, err
 		}
@@ -529,7 +529,7 @@ func (r *Runner) attemptInstall(ctx context.Context, installer *fleet.SoftwareIn
 			builder.WriteString(*payload.PostInstallScriptOutput)
 			builder.WriteString("\nAttempting rollback by running uninstall script...\n")
 			if uninstallScript == "" {
-				// The Fleet server is < v4.57.0, so we need to use the old method.
+				// The AutoMDM server is < v4.57.0, so we need to use the old method.
 				// If all customers have updated to v4.57.0 or later, we can remove this method.
 				uninstallScript = file.GetRemoveScript(ext)
 			}
@@ -644,7 +644,7 @@ func scriptFileExtension(contents, goos string) string {
 	if goos == "windows" {
 		return ".ps1"
 	}
-	if kind, _, err := fleet.ShebangInfo(contents); err == nil && kind == fleet.ShebangPython {
+	if kind, _, err := automdm.ShebangInfo(contents); err == nil && kind == automdm.ShebangPython {
 		return ".py"
 	}
 	return ".sh"

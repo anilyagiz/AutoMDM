@@ -12,7 +12,7 @@ import (
 //   - OrbitReads: requests on /api/osquery/distributed/read — orbit's client,
 //     used when the WebSocket transport drives check-ins.
 //   - LegacyReads: requests on the /api/v1/... alias — osqueryd's built-in tls
-//     plugin (FleetFlags points it at the v1 path). With the transport active
+//     plugin (AutoMDMFlags points it at the v1 path). With the transport active
 //     these should stay flat; growth means a host's osquery is still polling.
 //
 // Counting is by request path, independent of whether the host currently

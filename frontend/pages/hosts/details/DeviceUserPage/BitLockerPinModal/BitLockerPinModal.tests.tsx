@@ -95,7 +95,7 @@ const successCases: [string, IDeviceDiskEncryptionSetting][] = [
     "the agent reports the PIN is set",
     diskEncryption({ status: "set", error: "" }),
   ],
-  // osquery can see the PIN before the agent's own report reaches Fleet.
+  // osquery can see the PIN before the agent's own report reaches AutoMDM.
   [
     "the disk reads as verified",
     diskEncryption({ status: "delivered", error: "" }, "verified", undefined),
@@ -241,7 +241,7 @@ describe("BitLockerPinModal", () => {
 
     // The server keeps the request collectable for far longer, so the PIN may still land.
     expect(notify.error).toHaveBeenCalledWith(
-      "PIN submitted but Fleet is still working on it. You’ll see an update when this device responds."
+      "PIN submitted but AutoMDM is still working on it. You’ll see an update when this device responds."
     );
     expect(notify.success).not.toHaveBeenCalled();
     expect(onExit).toHaveBeenCalled();
@@ -275,7 +275,7 @@ describe("BitLockerPinModal", () => {
 
   it("reports the server's reason for a rejected submission without waiting", async () => {
     const reason =
-      "Fleet's agent on this host is too old to set a BitLocker PIN. Update fleetd and try again.";
+      "AutoMDM's agent on this host is too old to set a BitLocker PIN. Update automdmd and try again.";
     submitBitLockerPIN.mockRejectedValue({
       response: { data: { errors: [{ name: "base", reason }] } },
     });

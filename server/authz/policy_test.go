@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/activity"
-	activity_api "github.com/fleetdm/fleet/v4/server/activity/api"
-	chartapi "github.com/fleetdm/fleet/v4/server/chart/api"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	platform_authz "github.com/fleetdm/fleet/v4/server/platform/authz"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/activity"
+	activity_api "github.com/anilyagiz/automdm/v4/server/activity/api"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	chartapi "github.com/anilyagiz/automdm/v4/server/chart/api"
+	platform_authz "github.com/anilyagiz/automdm/v4/server/platform/authz"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -19,23 +19,23 @@ import (
 const (
 	readAction = platform_authz.ActionRead
 
-	// Existing legacy code continues to use fleet package constants
-	read               = fleet.ActionRead
-	list               = fleet.ActionList
-	write              = fleet.ActionWrite
-	writeRole          = fleet.ActionWriteRole
-	run                = fleet.ActionRun
-	runNew             = fleet.ActionRunNew
-	changePwd          = fleet.ActionChangePassword
-	selectiveList      = fleet.ActionSelectiveList
-	cancelHostActivity = fleet.ActionCancelHostActivity
-	transferHost       = fleet.ActionTransferHost
-	deleteHost         = fleet.ActionDeleteHost
-	clearPasscode      = fleet.ActionClearPasscode
-	rotateDiskKey      = fleet.ActionRotateDiskEncryptionKey
-	create             = fleet.ActionCreate
-	readSecrets        = fleet.ActionReadSecrets
-	writeMembers       = fleet.ActionWriteMembers
+	// Existing legacy code continues to use automdm package constants
+	read               = automdm.ActionRead
+	list               = automdm.ActionList
+	write              = automdm.ActionWrite
+	writeRole          = automdm.ActionWriteRole
+	run                = automdm.ActionRun
+	runNew             = automdm.ActionRunNew
+	changePwd          = automdm.ActionChangePassword
+	selectiveList      = automdm.ActionSelectiveList
+	cancelHostActivity = automdm.ActionCancelHostActivity
+	transferHost       = automdm.ActionTransferHost
+	deleteHost         = automdm.ActionDeleteHost
+	clearPasscode      = automdm.ActionClearPasscode
+	rotateDiskKey      = automdm.ActionRotateDiskEncryptionKey
+	create             = automdm.ActionCreate
+	readSecrets        = automdm.ActionReadSecrets
+	writeMembers       = automdm.ActionWriteMembers
 )
 
 var auth *Authorizer
@@ -49,7 +49,7 @@ func init() {
 }
 
 type authTestCase struct {
-	user   *fleet.User
+	user   *automdm.User
 	object any
 	action any
 	allow  bool
@@ -58,7 +58,7 @@ type authTestCase struct {
 func TestAuthorizeAppConfig(t *testing.T) {
 	t.Parallel()
 
-	config := &fleet.AppConfig{}
+	config := &automdm.AppConfig{}
 	runTestCases(t, []authTestCase{
 		{user: nil, object: config, action: read, allow: false},
 		{user: nil, object: config, action: write, allow: false},
@@ -107,9 +107,9 @@ func TestAuthorizeAppConfig(t *testing.T) {
 func TestAuthorizeConditionalAccessGoogle(t *testing.T) {
 	t.Parallel()
 
-	integration := &fleet.ConditionalAccessGoogleIntegration{}
+	integration := &automdm.ConditionalAccessGoogleIntegration{}
 	var cases []authTestCase
-	for _, user := range []*fleet.User{
+	for _, user := range []*automdm.User{
 		nil, test.UserNoRoles, test.UserAdmin, test.UserMaintainer, test.UserObserver, test.UserObserverPlus,
 		test.UserTechnician, test.UserGitOps, test.UserTeamAdminTeam1, test.UserTeamMaintainerTeam1,
 		test.UserTeamObserverTeam1, test.UserTeamObserverPlusTeam1, test.UserTeamGitOpsTeam1, test.UserTeamTechnicianTeam1,
@@ -122,7 +122,7 @@ func TestAuthorizeConditionalAccessGoogle(t *testing.T) {
 func TestAuthorizeSession(t *testing.T) {
 	t.Parallel()
 
-	session := &fleet.Session{UserID: 42}
+	session := &automdm.Session{UserID: 42}
 	runTestCases(t, []authTestCase{
 		{user: nil, object: session, action: read, allow: false},
 		{user: nil, object: session, action: write, allow: false},
@@ -134,35 +134,35 @@ func TestAuthorizeSession(t *testing.T) {
 		// Regular users can read self
 		{user: test.UserMaintainer, object: session, action: read, allow: false},
 		{user: test.UserMaintainer, object: session, action: write, allow: false},
-		{user: test.UserMaintainer, object: &fleet.Session{UserID: test.UserMaintainer.ID}, action: read, allow: true},
-		{user: test.UserMaintainer, object: &fleet.Session{UserID: test.UserMaintainer.ID}, action: write, allow: true},
+		{user: test.UserMaintainer, object: &automdm.Session{UserID: test.UserMaintainer.ID}, action: read, allow: true},
+		{user: test.UserMaintainer, object: &automdm.Session{UserID: test.UserMaintainer.ID}, action: write, allow: true},
 
 		{user: test.UserNoRoles, object: session, action: read, allow: false},
 		{user: test.UserNoRoles, object: session, action: write, allow: false},
-		{user: test.UserNoRoles, object: &fleet.Session{UserID: test.UserNoRoles.ID}, action: read, allow: true},
-		{user: test.UserNoRoles, object: &fleet.Session{UserID: test.UserNoRoles.ID}, action: write, allow: true},
+		{user: test.UserNoRoles, object: &automdm.Session{UserID: test.UserNoRoles.ID}, action: read, allow: true},
+		{user: test.UserNoRoles, object: &automdm.Session{UserID: test.UserNoRoles.ID}, action: write, allow: true},
 
 		{user: test.UserObserver, object: session, action: read, allow: false},
 		{user: test.UserObserver, object: session, action: write, allow: false},
-		{user: test.UserObserver, object: &fleet.Session{UserID: test.UserObserver.ID}, action: read, allow: true},
-		{user: test.UserObserver, object: &fleet.Session{UserID: test.UserObserver.ID}, action: write, allow: true},
+		{user: test.UserObserver, object: &automdm.Session{UserID: test.UserObserver.ID}, action: read, allow: true},
+		{user: test.UserObserver, object: &automdm.Session{UserID: test.UserObserver.ID}, action: write, allow: true},
 
 		{user: test.UserObserverPlus, object: session, action: read, allow: false},
 		{user: test.UserObserverPlus, object: session, action: write, allow: false},
-		{user: test.UserObserverPlus, object: &fleet.Session{UserID: test.UserObserverPlus.ID}, action: read, allow: true},
-		{user: test.UserObserverPlus, object: &fleet.Session{UserID: test.UserObserverPlus.ID}, action: write, allow: true},
+		{user: test.UserObserverPlus, object: &automdm.Session{UserID: test.UserObserverPlus.ID}, action: read, allow: true},
+		{user: test.UserObserverPlus, object: &automdm.Session{UserID: test.UserObserverPlus.ID}, action: write, allow: true},
 
 		{user: test.UserTechnician, object: session, action: read, allow: false},
 		{user: test.UserTechnician, object: session, action: write, allow: false},
-		{user: test.UserTechnician, object: &fleet.Session{UserID: test.UserTechnician.ID}, action: read, allow: true},
-		{user: test.UserTechnician, object: &fleet.Session{UserID: test.UserTechnician.ID}, action: write, allow: true},
+		{user: test.UserTechnician, object: &automdm.Session{UserID: test.UserTechnician.ID}, action: read, allow: true},
+		{user: test.UserTechnician, object: &automdm.Session{UserID: test.UserTechnician.ID}, action: write, allow: true},
 	})
 }
 
 func TestAuthorizeActivity(t *testing.T) {
 	t.Parallel()
 
-	activity := &fleet.Activity{}
+	activity := &automdm.Activity{}
 	bcActivity := &activity_api.Activity{}
 
 	runTestCases(t, []authTestCase{
@@ -204,48 +204,48 @@ func TestAuthorizeActivity(t *testing.T) {
 func TestAuthorizeUser(t *testing.T) {
 	t.Parallel()
 
-	newUser := &fleet.User{}
-	user := &fleet.User{ID: 42}
-	newTeamUser := &fleet.User{
-		Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleObserver}},
+	newUser := &automdm.User{}
+	user := &automdm.User{ID: 42}
+	newTeamUser := &automdm.User{
+		Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserver}},
 	}
-	teamAdmin := &fleet.User{
+	teamAdmin := &automdm.User{
 		ID:    101,
-		Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleAdmin}},
+		Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleAdmin}},
 	}
-	teamObserver := &fleet.User{
+	teamObserver := &automdm.User{
 		ID:    102,
-		Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleObserver}},
+		Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserver}},
 	}
 	// A team admin of both team 1 and team 2.
-	twoTeamsAdmin := &fleet.User{
+	twoTeamsAdmin := &automdm.User{
 		ID: 103,
-		Teams: []fleet.UserTeam{
-			{Team: fleet.Team{ID: 1}, Role: fleet.RoleAdmin},
-			{Team: fleet.Team{ID: 2}, Role: fleet.RoleAdmin},
+		Teams: []automdm.UserTeam{
+			{Team: automdm.Team{ID: 1}, Role: automdm.RoleAdmin},
+			{Team: automdm.Team{ID: 2}, Role: automdm.RoleAdmin},
 		},
 	}
 	// An admin of team 1 but only an observer of team 2.
-	team1AdminTeam2Observer := &fleet.User{
+	team1AdminTeam2Observer := &automdm.User{
 		ID: 105,
-		Teams: []fleet.UserTeam{
-			{Team: fleet.Team{ID: 1}, Role: fleet.RoleAdmin},
-			{Team: fleet.Team{ID: 2}, Role: fleet.RoleObserver},
+		Teams: []automdm.UserTeam{
+			{Team: automdm.Team{ID: 1}, Role: automdm.RoleAdmin},
+			{Team: automdm.Team{ID: 2}, Role: automdm.RoleObserver},
 		},
 	}
 	// A user (object) that belongs to both team 1 and team 2.
-	teamUserTeam1AndTeam2 := &fleet.User{
+	teamUserTeam1AndTeam2 := &automdm.User{
 		ID: 104,
-		Teams: []fleet.UserTeam{
-			{Team: fleet.Team{ID: 1}, Role: fleet.RoleObserver},
-			{Team: fleet.Team{ID: 2}, Role: fleet.RoleObserver},
+		Teams: []automdm.UserTeam{
+			{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserver},
+			{Team: automdm.Team{ID: 2}, Role: automdm.RoleObserver},
 		},
 	}
 	// A new user (object) being created in both team 1 and team 2.
-	newUserTeam1AndTeam2 := &fleet.User{
-		Teams: []fleet.UserTeam{
-			{Team: fleet.Team{ID: 1}, Role: fleet.RoleAdmin},
-			{Team: fleet.Team{ID: 2}, Role: fleet.RoleAdmin},
+	newUserTeam1AndTeam2 := &automdm.User{
+		Teams: []automdm.UserTeam{
+			{Team: automdm.Team{ID: 1}, Role: automdm.RoleAdmin},
+			{Team: automdm.Team{ID: 2}, Role: automdm.RoleAdmin},
 		},
 	}
 
@@ -382,7 +382,7 @@ func TestAuthorizeUser(t *testing.T) {
 func TestAuthorizeInvite(t *testing.T) {
 	t.Parallel()
 
-	invite := &fleet.Invite{}
+	invite := &automdm.Invite{}
 	runTestCases(t, []authTestCase{
 		{user: nil, object: invite, action: read, allow: false},
 		{user: nil, object: invite, action: write, allow: false},
@@ -410,38 +410,38 @@ func TestAuthorizeInvite(t *testing.T) {
 func TestAuthorizeEnrollSecret(t *testing.T) {
 	t.Parallel()
 
-	teamAdmin := &fleet.User{
-		Teams: []fleet.UserTeam{
-			{Team: fleet.Team{ID: 1}, Role: fleet.RoleAdmin},
+	teamAdmin := &automdm.User{
+		Teams: []automdm.UserTeam{
+			{Team: automdm.Team{ID: 1}, Role: automdm.RoleAdmin},
 		},
 	}
-	teamMaintainer := &fleet.User{
-		Teams: []fleet.UserTeam{
-			{Team: fleet.Team{ID: 1}, Role: fleet.RoleMaintainer},
+	teamMaintainer := &automdm.User{
+		Teams: []automdm.UserTeam{
+			{Team: automdm.Team{ID: 1}, Role: automdm.RoleMaintainer},
 		},
 	}
-	teamObserver := &fleet.User{
-		Teams: []fleet.UserTeam{
-			{Team: fleet.Team{ID: 1}, Role: fleet.RoleObserver},
+	teamObserver := &automdm.User{
+		Teams: []automdm.UserTeam{
+			{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserver},
 		},
 	}
-	teamObserverPlus := &fleet.User{
-		Teams: []fleet.UserTeam{
-			{Team: fleet.Team{ID: 1}, Role: fleet.RoleObserverPlus},
+	teamObserverPlus := &automdm.User{
+		Teams: []automdm.UserTeam{
+			{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserverPlus},
 		},
 	}
-	teamGitOps := &fleet.User{
-		Teams: []fleet.UserTeam{
-			{Team: fleet.Team{ID: 1}, Role: fleet.RoleGitOps},
+	teamGitOps := &automdm.User{
+		Teams: []automdm.UserTeam{
+			{Team: automdm.Team{ID: 1}, Role: automdm.RoleGitOps},
 		},
 	}
-	teamTechnician := &fleet.User{
-		Teams: []fleet.UserTeam{
-			{Team: fleet.Team{ID: 1}, Role: fleet.RoleTechnician},
+	teamTechnician := &automdm.User{
+		Teams: []automdm.UserTeam{
+			{Team: automdm.Team{ID: 1}, Role: automdm.RoleTechnician},
 		},
 	}
-	globalSecret := &fleet.EnrollSecret{TeamID: nil}
-	teamSecret := &fleet.EnrollSecret{TeamID: new(uint(1))}
+	globalSecret := &automdm.EnrollSecret{TeamID: nil}
+	teamSecret := &automdm.EnrollSecret{TeamID: new(uint(1))}
 	runTestCases(t, []authTestCase{
 		// No access
 		{user: nil, object: globalSecret, action: read, allow: false},
@@ -519,9 +519,9 @@ func TestAuthorizeEnrollSecret(t *testing.T) {
 func TestAuthorizeTeam(t *testing.T) {
 	t.Parallel()
 
-	team := &fleet.Team{} // Empty team is used to "list teams"
-	team1 := &fleet.Team{ID: 1}
-	team2 := &fleet.Team{ID: 2}
+	team := &automdm.Team{} // Empty team is used to "list teams"
+	team1 := &automdm.Team{ID: 1}
+	team2 := &automdm.Team{ID: 2}
 	runTestCases(t, []authTestCase{
 		{user: nil, object: team, action: read, allow: false},
 		{user: nil, object: team, action: write, allow: false},
@@ -652,15 +652,15 @@ func TestAuthorizeTeam(t *testing.T) {
 func TestAuthorizeLabel(t *testing.T) {
 	t.Parallel()
 
-	label := &fleet.Label{}
-	authoredLabel := func(user *fleet.User) fleet.Label {
-		return fleet.Label{AuthorID: &user.ID}
+	label := &automdm.Label{}
+	authoredLabel := func(user *automdm.User) automdm.Label {
+		return automdm.Label{AuthorID: &user.ID}
 	}
-	sameTeamLabel := func(user *fleet.User) fleet.Label {
-		return fleet.Label{TeamID: &user.Teams[0].ID}
+	sameTeamLabel := func(user *automdm.User) automdm.Label {
+		return automdm.Label{TeamID: &user.Teams[0].ID}
 	}
-	differentTeamLabel := func(_ *fleet.User) fleet.Label {
-		return fleet.Label{TeamID: new(uint(999))}
+	differentTeamLabel := func(_ *automdm.User) automdm.Label {
+		return automdm.Label{TeamID: new(uint(999))}
 	}
 
 	runTestCases(t, []authTestCase{
@@ -761,9 +761,9 @@ func TestAuthorizeLabel(t *testing.T) {
 func TestAuthorizeSoftwareInventory(t *testing.T) {
 	t.Parallel()
 
-	softwareInventory := &fleet.AuthzSoftwareInventory{}
-	team1SoftwareInventory := &fleet.AuthzSoftwareInventory{TeamID: new(uint(1))}
-	team2SoftwareInventory := &fleet.AuthzSoftwareInventory{TeamID: new(uint(2))}
+	softwareInventory := &automdm.AuthzSoftwareInventory{}
+	team1SoftwareInventory := &automdm.AuthzSoftwareInventory{TeamID: new(uint(1))}
+	team2SoftwareInventory := &automdm.AuthzSoftwareInventory{TeamID: new(uint(2))}
 	runTestCases(t, []authTestCase{
 		{user: nil, object: softwareInventory, action: read, allow: false},
 		{user: test.UserNoRoles, object: softwareInventory, action: read, allow: false},
@@ -784,12 +784,12 @@ func TestAuthorizeSoftwareInventory(t *testing.T) {
 func TestAuthorizeSoftwareInstaller(t *testing.T) {
 	t.Parallel()
 
-	noTeamInstaller := &fleet.SoftwareInstaller{}
-	team1Installer := &fleet.SoftwareInstaller{TeamID: new(uint(1))}
-	team2Installer := &fleet.SoftwareInstaller{TeamID: new(uint(2))}
+	noTeamInstaller := &automdm.SoftwareInstaller{}
+	team1Installer := &automdm.SoftwareInstaller{TeamID: new(uint(1))}
+	team2Installer := &automdm.SoftwareInstaller{TeamID: new(uint(2))}
 	// VPP apps and title icons are authorized as the same rego type (installable_entity).
-	team1VPPApp := &fleet.VPPApp{TeamID: new(uint(1))}
-	team1Icon := &fleet.SoftwareTitleIcon{TeamID: 1}
+	team1VPPApp := &automdm.VPPApp{TeamID: new(uint(1))}
+	team1Icon := &automdm.SoftwareTitleIcon{TeamID: 1}
 	runTestCases(t, []authTestCase{
 		{user: test.UserTeamAdminTeam1, object: team1VPPApp, action: write, allow: true},
 		{user: test.UserTeamAdminTeam2, object: team1VPPApp, action: write, allow: false},
@@ -899,7 +899,7 @@ func TestAuthorizeSoftwareInstaller(t *testing.T) {
 func TestAuthorizeMaintainedApp(t *testing.T) {
 	t.Parallel()
 
-	maintainedApp := &fleet.MaintainedApp{}
+	maintainedApp := &automdm.MaintainedApp{}
 	runTestCases(t, []authTestCase{
 		{user: nil, object: maintainedApp, action: read, allow: false},
 		{user: test.UserNoRoles, object: maintainedApp, action: read, allow: false},
@@ -923,9 +923,9 @@ func TestAuthorizeMaintainedApp(t *testing.T) {
 func TestAuthorizeHostSoftwareInstallerResult(t *testing.T) {
 	t.Parallel()
 
-	noTeamInstallResult := &fleet.HostSoftwareInstallerResultAuthz{}
-	team1InstallResult := &fleet.HostSoftwareInstallerResultAuthz{HostTeamID: new(uint(1))}
-	team2InstallResult := &fleet.HostSoftwareInstallerResultAuthz{HostTeamID: new(uint(2))}
+	noTeamInstallResult := &automdm.HostSoftwareInstallerResultAuthz{}
+	team1InstallResult := &automdm.HostSoftwareInstallerResultAuthz{HostTeamID: new(uint(1))}
+	team2InstallResult := &automdm.HostSoftwareInstallerResultAuthz{HostTeamID: new(uint(2))}
 	runTestCases(t, []authTestCase{
 		// Write permissions
 		{user: nil, object: noTeamInstallResult, action: write, allow: false},
@@ -1046,39 +1046,39 @@ func TestAuthorizeHostSoftwareInstallerResult(t *testing.T) {
 func TestAuthorizeHost(t *testing.T) {
 	t.Parallel()
 
-	teamAdmin := &fleet.User{
-		Teams: []fleet.UserTeam{
-			{Team: fleet.Team{ID: 1}, Role: fleet.RoleAdmin},
+	teamAdmin := &automdm.User{
+		Teams: []automdm.UserTeam{
+			{Team: automdm.Team{ID: 1}, Role: automdm.RoleAdmin},
 		},
 	}
-	teamMaintainer := &fleet.User{
-		Teams: []fleet.UserTeam{
-			{Team: fleet.Team{ID: 1}, Role: fleet.RoleMaintainer},
+	teamMaintainer := &automdm.User{
+		Teams: []automdm.UserTeam{
+			{Team: automdm.Team{ID: 1}, Role: automdm.RoleMaintainer},
 		},
 	}
-	teamObserver := &fleet.User{
-		Teams: []fleet.UserTeam{
-			{Team: fleet.Team{ID: 1}, Role: fleet.RoleObserver},
+	teamObserver := &automdm.User{
+		Teams: []automdm.UserTeam{
+			{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserver},
 		},
 	}
-	teamObserverPlus := &fleet.User{
-		Teams: []fleet.UserTeam{
-			{Team: fleet.Team{ID: 1}, Role: fleet.RoleObserverPlus},
+	teamObserverPlus := &automdm.User{
+		Teams: []automdm.UserTeam{
+			{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserverPlus},
 		},
 	}
-	teamGitOps := &fleet.User{
-		Teams: []fleet.UserTeam{
-			{Team: fleet.Team{ID: 1}, Role: fleet.RoleGitOps},
+	teamGitOps := &automdm.User{
+		Teams: []automdm.UserTeam{
+			{Team: automdm.Team{ID: 1}, Role: automdm.RoleGitOps},
 		},
 	}
-	teamTechnician := &fleet.User{
-		Teams: []fleet.UserTeam{
-			{Team: fleet.Team{ID: 1}, Role: fleet.RoleTechnician},
+	teamTechnician := &automdm.User{
+		Teams: []automdm.UserTeam{
+			{Team: automdm.Team{ID: 1}, Role: automdm.RoleTechnician},
 		},
 	}
-	host := &fleet.Host{}
-	hostTeam1 := &fleet.Host{TeamID: new(uint(1))}
-	hostTeam2 := &fleet.Host{TeamID: new(uint(2))}
+	host := &automdm.Host{}
+	hostTeam1 := &automdm.Host{TeamID: new(uint(1))}
+	hostTeam2 := &automdm.Host{TeamID: new(uint(2))}
 	runTestCases(t, []authTestCase{
 		// No access
 		{user: nil, object: host, action: read, allow: false},
@@ -1350,34 +1350,34 @@ func TestAuthorizeHost(t *testing.T) {
 
 // TestAuthorizeActivityHost verifies that the bounded-context activity.Host
 // type is serialized with the json field names the OPA policy expects
-// (object.fleet_id, object.id). Without those tags, team-scoped users get a
+// (object.team_id, object.id). Without those tags, team-scoped users get a
 // 403 when listing host past activities (issue #46009).
 func TestAuthorizeActivityHost(t *testing.T) {
 	t.Parallel()
 
-	teamAdmin := &fleet.User{
-		Teams: []fleet.UserTeam{
-			{Team: fleet.Team{ID: 1}, Role: fleet.RoleAdmin},
+	teamAdmin := &automdm.User{
+		Teams: []automdm.UserTeam{
+			{Team: automdm.Team{ID: 1}, Role: automdm.RoleAdmin},
 		},
 	}
-	teamMaintainer := &fleet.User{
-		Teams: []fleet.UserTeam{
-			{Team: fleet.Team{ID: 1}, Role: fleet.RoleMaintainer},
+	teamMaintainer := &automdm.User{
+		Teams: []automdm.UserTeam{
+			{Team: automdm.Team{ID: 1}, Role: automdm.RoleMaintainer},
 		},
 	}
-	teamObserver := &fleet.User{
-		Teams: []fleet.UserTeam{
-			{Team: fleet.Team{ID: 1}, Role: fleet.RoleObserver},
+	teamObserver := &automdm.User{
+		Teams: []automdm.UserTeam{
+			{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserver},
 		},
 	}
-	teamTechnician := &fleet.User{
-		Teams: []fleet.UserTeam{
-			{Team: fleet.Team{ID: 1}, Role: fleet.RoleTechnician},
+	teamTechnician := &automdm.User{
+		Teams: []automdm.UserTeam{
+			{Team: automdm.Team{ID: 1}, Role: automdm.RoleTechnician},
 		},
 	}
-	teamGitOps := &fleet.User{
-		Teams: []fleet.UserTeam{
-			{Team: fleet.Team{ID: 1}, Role: fleet.RoleGitOps},
+	teamGitOps := &automdm.User{
+		Teams: []automdm.UserTeam{
+			{Team: automdm.Team{ID: 1}, Role: automdm.RoleGitOps},
 		},
 	}
 
@@ -1426,122 +1426,122 @@ func TestAuthorizeActivityHost(t *testing.T) {
 func TestAuthorizeQuery(t *testing.T) {
 	t.Parallel()
 
-	teamMaintainer := &fleet.User{
+	teamMaintainer := &automdm.User{
 		ID: 100,
-		Teams: []fleet.UserTeam{
-			{Team: fleet.Team{ID: 1}, Role: fleet.RoleMaintainer},
+		Teams: []automdm.UserTeam{
+			{Team: automdm.Team{ID: 1}, Role: automdm.RoleMaintainer},
 		},
 	}
-	teamAdmin := &fleet.User{
+	teamAdmin := &automdm.User{
 		ID: 101,
-		Teams: []fleet.UserTeam{
-			{Team: fleet.Team{ID: 1}, Role: fleet.RoleAdmin},
+		Teams: []automdm.UserTeam{
+			{Team: automdm.Team{ID: 1}, Role: automdm.RoleAdmin},
 		},
 	}
-	teamObserver := &fleet.User{
+	teamObserver := &automdm.User{
 		ID: 102,
-		Teams: []fleet.UserTeam{
-			{Team: fleet.Team{ID: 1}, Role: fleet.RoleObserver},
+		Teams: []automdm.UserTeam{
+			{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserver},
 		},
 	}
-	twoTeamsAdminObs := &fleet.User{
+	twoTeamsAdminObs := &automdm.User{
 		ID: 103,
-		Teams: []fleet.UserTeam{
-			{Team: fleet.Team{ID: 1}, Role: fleet.RoleAdmin},
-			{Team: fleet.Team{ID: 2}, Role: fleet.RoleObserver},
+		Teams: []automdm.UserTeam{
+			{Team: automdm.Team{ID: 1}, Role: automdm.RoleAdmin},
+			{Team: automdm.Team{ID: 2}, Role: automdm.RoleObserver},
 		},
 	}
-	twoTeamsObsObs := &fleet.User{
+	twoTeamsObsObs := &automdm.User{
 		ID: 107,
-		Teams: []fleet.UserTeam{
-			{Team: fleet.Team{ID: 1}, Role: fleet.RoleObserver},
-			{Team: fleet.Team{ID: 2}, Role: fleet.RoleObserver},
+		Teams: []automdm.UserTeam{
+			{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserver},
+			{Team: automdm.Team{ID: 2}, Role: automdm.RoleObserver},
 		},
 	}
-	teamObserverPlus := &fleet.User{
+	teamObserverPlus := &automdm.User{
 		ID: 104,
-		Teams: []fleet.UserTeam{
-			{Team: fleet.Team{ID: 1}, Role: fleet.RoleObserverPlus},
+		Teams: []automdm.UserTeam{
+			{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserverPlus},
 		},
 	}
-	teamGitOps := &fleet.User{
+	teamGitOps := &automdm.User{
 		ID: 105,
-		Teams: []fleet.UserTeam{
-			{Team: fleet.Team{ID: 1}, Role: fleet.RoleGitOps},
+		Teams: []automdm.UserTeam{
+			{Team: automdm.Team{ID: 1}, Role: automdm.RoleGitOps},
 		},
 	}
-	teamTechnician := &fleet.User{
+	teamTechnician := &automdm.User{
 		ID: 106,
-		Teams: []fleet.UserTeam{
-			{Team: fleet.Team{ID: 1}, Role: fleet.RoleTechnician},
+		Teams: []automdm.UserTeam{
+			{Team: automdm.Team{ID: 1}, Role: automdm.RoleTechnician},
 		},
 	}
 
-	globalQuery := &fleet.Query{
+	globalQuery := &automdm.Query{
 		ObserverCanRun: false,
 	}
-	globalQueryNoTargets := &fleet.TargetedQuery{
+	globalQueryNoTargets := &automdm.TargetedQuery{
 		Query: globalQuery,
 	}
 
-	globalQueryTargetedToTeam1 := &fleet.TargetedQuery{
-		HostTargets: fleet.HostTargets{TeamIDs: []uint{1}},
+	globalQueryTargetedToTeam1 := &automdm.TargetedQuery{
+		HostTargets: automdm.HostTargets{TeamIDs: []uint{1}},
 		Query:       globalQuery,
 	}
-	globalQueryTargetedToTeam1AndTeam2 := &fleet.TargetedQuery{
-		HostTargets: fleet.HostTargets{TeamIDs: []uint{1, 2}},
+	globalQueryTargetedToTeam1AndTeam2 := &automdm.TargetedQuery{
+		HostTargets: automdm.HostTargets{TeamIDs: []uint{1, 2}},
 		Query:       globalQuery,
 	}
-	globalQueryTargetedToTeam2 := &fleet.TargetedQuery{
-		HostTargets: fleet.HostTargets{TeamIDs: []uint{2}},
+	globalQueryTargetedToTeam2 := &automdm.TargetedQuery{
+		HostTargets: automdm.HostTargets{TeamIDs: []uint{2}},
 		Query:       globalQuery,
 	}
-	globalQueryTargetedToTeam1AndTeam2AndTeam3 := &fleet.TargetedQuery{
-		HostTargets: fleet.HostTargets{TeamIDs: []uint{1, 2, 3}},
+	globalQueryTargetedToTeam1AndTeam2AndTeam3 := &automdm.TargetedQuery{
+		HostTargets: automdm.HostTargets{TeamIDs: []uint{1, 2, 3}},
 		Query:       globalQuery,
 	}
 	// An explicitly empty team list means the same thing as omitting it: no
 	// teams were selected. It must therefore behave exactly like the "no
 	// targets" fixtures above, rather than passing the target check vacuously.
-	globalQueryEmptyTeamTargets := &fleet.TargetedQuery{
-		HostTargets: fleet.HostTargets{TeamIDs: []uint{}},
+	globalQueryEmptyTeamTargets := &automdm.TargetedQuery{
+		HostTargets: automdm.HostTargets{TeamIDs: []uint{}},
 		Query:       globalQuery,
 	}
 
-	globalObserverQuery := &fleet.Query{
+	globalObserverQuery := &automdm.Query{
 		ObserverCanRun: true,
 	}
-	globalObserverQueryEmptyTargets := &fleet.TargetedQuery{
+	globalObserverQueryEmptyTargets := &automdm.TargetedQuery{
 		Query: globalObserverQuery,
 	}
-	globalObserverQueryEmptyTeamTargets := &fleet.TargetedQuery{
-		HostTargets: fleet.HostTargets{TeamIDs: []uint{}},
+	globalObserverQueryEmptyTeamTargets := &automdm.TargetedQuery{
+		HostTargets: automdm.HostTargets{TeamIDs: []uint{}},
 		Query:       globalObserverQuery,
 	}
-	globalObserverQueryTargetedToTeam1 := &fleet.TargetedQuery{
-		HostTargets: fleet.HostTargets{TeamIDs: []uint{1}},
+	globalObserverQueryTargetedToTeam1 := &automdm.TargetedQuery{
+		HostTargets: automdm.HostTargets{TeamIDs: []uint{1}},
 		Query:       globalObserverQuery,
 	}
-	globalObserverQueryTargetedToTeam1AndTeam2 := &fleet.TargetedQuery{
-		HostTargets: fleet.HostTargets{TeamIDs: []uint{1, 2}},
+	globalObserverQueryTargetedToTeam1AndTeam2 := &automdm.TargetedQuery{
+		HostTargets: automdm.HostTargets{TeamIDs: []uint{1, 2}},
 		Query:       globalObserverQuery,
 	}
-	globalObserverQueryTargetedToTeam2 := &fleet.TargetedQuery{
-		HostTargets: fleet.HostTargets{TeamIDs: []uint{2}},
+	globalObserverQueryTargetedToTeam2 := &automdm.TargetedQuery{
+		HostTargets: automdm.HostTargets{TeamIDs: []uint{2}},
 		Query:       globalObserverQuery,
 	}
-	globalObserverQueryTargetedToTeam1AndTeam2AndTeam3 := &fleet.TargetedQuery{
-		HostTargets: fleet.HostTargets{TeamIDs: []uint{1, 2, 3}},
+	globalObserverQueryTargetedToTeam1AndTeam2AndTeam3 := &automdm.TargetedQuery{
+		HostTargets: automdm.HostTargets{TeamIDs: []uint{1, 2, 3}},
 		Query:       globalObserverQuery,
 	}
 
-	teamAdminQuery := &fleet.Query{
+	teamAdminQuery := &automdm.Query{
 		ID:             1,
 		AuthorID:       new(teamAdmin.ID),
 		ObserverCanRun: false,
 		TeamID:         new(uint(1)),
 	}
-	teamMaintQuery := &fleet.Query{
+	teamMaintQuery := &automdm.Query{
 		ID:             2,
 		AuthorID:       new(teamMaintainer.ID),
 		ObserverCanRun: false,
@@ -1551,62 +1551,62 @@ func TestAuthorizeQuery(t *testing.T) {
 	// Team-scoped, non-observers-can-run report with an explicitly empty team
 	// selection. Running it is gated on holding a qualifying role on the
 	// report's own team, whether the selection is empty or omitted.
-	teamMaintQueryEmptyTeamTargets := &fleet.TargetedQuery{
-		HostTargets: fleet.HostTargets{TeamIDs: []uint{}},
+	teamMaintQueryEmptyTeamTargets := &automdm.TargetedQuery{
+		HostTargets: automdm.HostTargets{TeamIDs: []uint{}},
 		Query:       teamMaintQuery,
 	}
-	globalAdminQuery := &fleet.Query{ID: 3, AuthorID: new(test.UserAdmin.ID), ObserverCanRun: false}
-	globalGitOpsQuery := &fleet.Query{ID: 4, AuthorID: new(test.UserGitOps.ID), ObserverCanRun: false}
-	teamGitOpsQuery := &fleet.Query{
+	globalAdminQuery := &automdm.Query{ID: 3, AuthorID: new(test.UserAdmin.ID), ObserverCanRun: false}
+	globalGitOpsQuery := &automdm.Query{ID: 4, AuthorID: new(test.UserGitOps.ID), ObserverCanRun: false}
+	teamGitOpsQuery := &automdm.Query{
 		ID: 5, AuthorID: new(teamGitOps.ID),
 		ObserverCanRun: false,
 		TeamID:         new(uint(1)),
 	}
-	observerQueryOnTeam3 := &fleet.Query{
+	observerQueryOnTeam3 := &automdm.Query{
 		ID:             6,
 		ObserverCanRun: true,
 		TeamID:         new(uint(3)),
 	}
-	observerQueryOnTeam3TargetedToTeam3 := &fleet.TargetedQuery{
-		HostTargets: fleet.HostTargets{TeamIDs: []uint{3}},
+	observerQueryOnTeam3TargetedToTeam3 := &automdm.TargetedQuery{
+		HostTargets: automdm.HostTargets{TeamIDs: []uint{3}},
 		Query:       observerQueryOnTeam3,
 	}
-	observerQueryOnTeam3TargetedToTeam2 := &fleet.TargetedQuery{
-		HostTargets: fleet.HostTargets{TeamIDs: []uint{2}},
+	observerQueryOnTeam3TargetedToTeam2 := &automdm.TargetedQuery{
+		HostTargets: automdm.HostTargets{TeamIDs: []uint{2}},
 		Query:       observerQueryOnTeam3,
 	}
-	observerQueryOnTeam3TargetedToTeam1 := &fleet.TargetedQuery{
-		HostTargets: fleet.HostTargets{TeamIDs: []uint{1}},
+	observerQueryOnTeam3TargetedToTeam1 := &automdm.TargetedQuery{
+		HostTargets: automdm.HostTargets{TeamIDs: []uint{1}},
 		Query:       observerQueryOnTeam3,
 	}
-	observerQueryOnTeam1 := &fleet.Query{
+	observerQueryOnTeam1 := &automdm.Query{
 		ID:             7,
 		ObserverCanRun: true,
 		TeamID:         new(uint(1)),
 	}
-	observerQueryOnTeam1TargetedToTeam1 := &fleet.TargetedQuery{
-		HostTargets: fleet.HostTargets{TeamIDs: []uint{1}},
+	observerQueryOnTeam1TargetedToTeam1 := &automdm.TargetedQuery{
+		HostTargets: automdm.HostTargets{TeamIDs: []uint{1}},
 		Query:       observerQueryOnTeam1,
 	}
-	observerQueryOnTeam1TargetedToTeam2 := &fleet.TargetedQuery{
-		HostTargets: fleet.HostTargets{TeamIDs: []uint{2}},
+	observerQueryOnTeam1TargetedToTeam2 := &automdm.TargetedQuery{
+		HostTargets: automdm.HostTargets{TeamIDs: []uint{2}},
 		Query:       observerQueryOnTeam1,
 	}
-	observerQueryOnTeam1TargetedToTeam1AndTeam2 := &fleet.TargetedQuery{
-		HostTargets: fleet.HostTargets{TeamIDs: []uint{1, 2}},
+	observerQueryOnTeam1TargetedToTeam1AndTeam2 := &automdm.TargetedQuery{
+		HostTargets: automdm.HostTargets{TeamIDs: []uint{1, 2}},
 		Query:       observerQueryOnTeam1,
 	}
-	observerQueryOnTeam2 := &fleet.Query{
+	observerQueryOnTeam2 := &automdm.Query{
 		ID:             8,
 		ObserverCanRun: true,
 		TeamID:         new(uint(2)),
 	}
-	observerQueryOnTeam2TargetedToTeam2 := &fleet.TargetedQuery{
-		HostTargets: fleet.HostTargets{TeamIDs: []uint{2}},
+	observerQueryOnTeam2TargetedToTeam2 := &automdm.TargetedQuery{
+		HostTargets: automdm.HostTargets{TeamIDs: []uint{2}},
 		Query:       observerQueryOnTeam2,
 	}
-	observerQueryOnTeam1EmptyTeams := &fleet.TargetedQuery{
-		HostTargets: fleet.HostTargets{TeamIDs: []uint{}},
+	observerQueryOnTeam1EmptyTeams := &automdm.TargetedQuery{
+		HostTargets: automdm.HostTargets{TeamIDs: []uint{}},
 		Query:       observerQueryOnTeam1,
 	}
 
@@ -2016,7 +2016,7 @@ func TestAuthorizeQuery(t *testing.T) {
 func TestAuthorizeTarget(t *testing.T) {
 	t.Parallel()
 
-	target := &fleet.Target{}
+	target := &automdm.Target{}
 	runTestCases(t, []authTestCase{
 		{user: nil, object: target, action: read, allow: false},
 
@@ -2040,7 +2040,7 @@ func TestAuthorizeTarget(t *testing.T) {
 func TestAuthorizeCarve(t *testing.T) {
 	t.Parallel()
 
-	carve := &fleet.CarveMetadata{}
+	carve := &automdm.CarveMetadata{}
 	runTestCases(t, []authTestCase{
 		{user: nil, object: carve, action: read, allow: false},
 		{user: nil, object: carve, action: write, allow: false},
@@ -2066,7 +2066,7 @@ func TestAuthorizeCarve(t *testing.T) {
 func TestAuthorizeGlobalPolicy(t *testing.T) {
 	t.Parallel()
 
-	globalPolicy := &fleet.Policy{}
+	globalPolicy := &automdm.Policy{}
 	runTestCases(t, []authTestCase{
 		{user: nil, object: globalPolicy, action: write, allow: false},
 		{user: nil, object: globalPolicy, action: read, allow: false},
@@ -2115,13 +2115,13 @@ func TestAuthorizeGlobalPolicy(t *testing.T) {
 func TestAuthorizeTeamPolicy(t *testing.T) {
 	t.Parallel()
 
-	team1Policy := &fleet.Policy{
-		PolicyData: fleet.PolicyData{
+	team1Policy := &automdm.Policy{
+		PolicyData: automdm.PolicyData{
 			TeamID: new(uint(1)),
 		},
 	}
-	team2Policy := &fleet.Policy{
-		PolicyData: fleet.PolicyData{
+	team2Policy := &automdm.Policy{
+		PolicyData: automdm.PolicyData{
 			TeamID: new(uint(2)),
 		},
 	}
@@ -2191,8 +2191,8 @@ func TestAuthorizeTeamPolicy(t *testing.T) {
 func TestAuthorizeMDMConfigProfile(t *testing.T) {
 	t.Parallel()
 
-	globalProfile := &fleet.MDMConfigProfileAuthz{}
-	team1Profile := &fleet.MDMConfigProfileAuthz{
+	globalProfile := &automdm.MDMConfigProfileAuthz{}
+	team1Profile := &automdm.MDMConfigProfileAuthz{
 		TeamID: new(uint(1)),
 	}
 	runTestCases(t, []authTestCase{
@@ -2296,8 +2296,8 @@ func TestAuthorizeMDMConfigProfile(t *testing.T) {
 func TestAuthorizeDDMAssets(t *testing.T) {
 	t.Parallel()
 
-	globalAsset := &fleet.DDMAssetAuthz{}
-	team1Asset := &fleet.DDMAssetAuthz{
+	globalAsset := &automdm.DDMAssetAuthz{}
+	team1Asset := &automdm.DDMAssetAuthz{
 		TeamID: new(uint(1)),
 	}
 	runTestCases(t, []authTestCase{
@@ -2401,9 +2401,9 @@ func TestAuthorizeDDMAssets(t *testing.T) {
 func TestAuthorizeMDMAppleSettings(t *testing.T) {
 	t.Parallel()
 
-	globalSettings := &fleet.MDMAppleSettingsPayload{}
-	team1SetupSettings := &fleet.MDMAppleSetupPayload{TeamID: new(uint(1))}
-	team1Settings := &fleet.MDMAppleSettingsPayload{
+	globalSettings := &automdm.MDMAppleSettingsPayload{}
+	team1SetupSettings := &automdm.MDMAppleSetupPayload{TeamID: new(uint(1))}
+	team1Settings := &automdm.MDMAppleSettingsPayload{
 		TeamID: new(uint(1)),
 	}
 	runTestCases(t, []authTestCase{
@@ -2506,8 +2506,8 @@ func TestAuthorizeABReleaseDevice(t *testing.T) {
 	t.Parallel()
 
 	// team_id 0 represents "No team" hosts; only global admins may release those.
-	noTeam := &fleet.ABReleaseDeviceAuthz{TeamID: new(uint(0))}
-	team1 := &fleet.ABReleaseDeviceAuthz{TeamID: new(uint(1))}
+	noTeam := &automdm.ABReleaseDeviceAuthz{TeamID: new(uint(0))}
+	team1 := &automdm.ABReleaseDeviceAuthz{TeamID: new(uint(1))}
 	runTestCases(t, []authTestCase{
 		{user: test.UserNoRoles, object: noTeam, action: write, allow: false},
 		{user: test.UserNoRoles, object: team1, action: write, allow: false},
@@ -2541,8 +2541,8 @@ func TestAuthorizeABReleaseDevice(t *testing.T) {
 func TestAuthorizeHostAISession(t *testing.T) {
 	t.Parallel()
 
-	noTeam := &fleet.HostAISessionAuthz{}
-	team1 := &fleet.HostAISessionAuthz{TeamID: new(uint(1))}
+	noTeam := &automdm.HostAISessionAuthz{}
+	team1 := &automdm.HostAISessionAuthz{TeamID: new(uint(1))}
 	runTestCases(t, []authTestCase{
 		{user: test.UserNoRoles, object: noTeam, action: read, allow: false},
 		{user: test.UserNoRoles, object: team1, action: read, allow: false},
@@ -2579,8 +2579,8 @@ func TestAuthorizeHostAISession(t *testing.T) {
 func TestAuthorizeMDMAppleSetupAssistant(t *testing.T) {
 	t.Parallel()
 
-	globalSettings := &fleet.MDMAppleSetupAssistant{}
-	team1Settings := &fleet.MDMAppleSetupAssistant{
+	globalSettings := &automdm.MDMAppleSetupAssistant{}
+	team1Settings := &automdm.MDMAppleSetupAssistant{
 		TeamID: new(uint(1)),
 	}
 	runTestCases(t, []authTestCase{
@@ -2679,7 +2679,7 @@ func TestAuthorizeMDMAppleSetupAssistant(t *testing.T) {
 func TestAuthorizeMDMAppleManualEnrollmentProfile(t *testing.T) {
 	t.Parallel()
 
-	profile := &fleet.MDMAppleManualEnrollmentProfile{}
+	profile := &automdm.MDMAppleManualEnrollmentProfile{}
 	runTestCases(t, []authTestCase{
 		{user: nil, object: profile, action: read, allow: false},
 		{user: test.UserNoRoles, object: profile, action: read, allow: false},
@@ -2703,7 +2703,7 @@ func TestAuthorizeMDMAppleManualEnrollmentProfile(t *testing.T) {
 func TestAuthorizeAppleBM(t *testing.T) {
 	t.Parallel()
 
-	abm := &fleet.ABMToken{}
+	abm := &automdm.ABMToken{}
 	runTestCases(t, []authTestCase{
 		{user: nil, object: abm, action: list, allow: false},
 		{user: test.UserNoRoles, object: abm, action: list, allow: false},
@@ -2732,8 +2732,8 @@ func TestAuthorizeAppleBM(t *testing.T) {
 func TestAuthorizeMDMAppleBootstrapPackage(t *testing.T) {
 	t.Parallel()
 
-	globalSettings := &fleet.MDMAppleBootstrapPackage{}
-	team1Settings := &fleet.MDMAppleBootstrapPackage{
+	globalSettings := &automdm.MDMAppleBootstrapPackage{}
+	team1Settings := &automdm.MDMAppleBootstrapPackage{
 		TeamID: 1,
 	}
 	runTestCases(t, []authTestCase{
@@ -2829,14 +2829,14 @@ func TestAuthorizeMDMAppleBootstrapPackage(t *testing.T) {
 	})
 }
 
-func assertAuthorized(t *testing.T, user *fleet.User, object, action interface{}) {
+func assertAuthorized(t *testing.T, user *automdm.User, object, action interface{}) {
 	t.Helper()
 
 	b, _ := json.MarshalIndent(map[string]interface{}{"subject": user, "object": object, "action": action}, "", "  ")
 	assert.NoError(t, auth.Authorize(test.UserContext(context.Background(), user), object, action), "should be authorized\n%s", string(b))
 }
 
-func assertUnauthorized(t *testing.T, user *fleet.User, object, action interface{}) {
+func assertUnauthorized(t *testing.T, user *automdm.User, object, action interface{}) {
 	t.Helper()
 
 	b, _ := json.MarshalIndent(map[string]interface{}{"subject": user, "object": object, "action": action}, "", "  ")
@@ -2909,24 +2909,24 @@ func runTestCasesGroups(t *testing.T, testCaseGroups []tcGroup) {
 func TestAuthorizeMDMCommand(t *testing.T) {
 	t.Parallel()
 
-	globalCommand := &fleet.MDMCommandAuthz{}
-	team1Command := &fleet.MDMCommandAuthz{
+	globalCommand := &automdm.MDMCommandAuthz{}
+	team1Command := &automdm.MDMCommandAuthz{
 		TeamID: new(uint(1)),
 	}
 	// Clearing a passcode is only granted to technicians on iOS/iPadOS hosts, so
 	// those rules are exercised against both an Apple mobile host and one that
 	// isn't (Android).
-	globalIOSCommand := &fleet.MDMCommandAuthz{
+	globalIOSCommand := &automdm.MDMCommandAuthz{
 		Platform: "ios",
 	}
-	team1IOSCommand := &fleet.MDMCommandAuthz{
+	team1IOSCommand := &automdm.MDMCommandAuthz{
 		TeamID:   new(uint(1)),
 		Platform: "ipados",
 	}
-	globalAndroidCommand := &fleet.MDMCommandAuthz{
+	globalAndroidCommand := &automdm.MDMCommandAuthz{
 		Platform: "android",
 	}
-	team1AndroidCommand := &fleet.MDMCommandAuthz{
+	team1AndroidCommand := &automdm.MDMCommandAuthz{
 		TeamID:   new(uint(1)),
 		Platform: "android",
 	}
@@ -3106,10 +3106,10 @@ func TestAuthorizeMDMCommand(t *testing.T) {
 func TestAuthorizeHostScriptResult(t *testing.T) {
 	t.Parallel()
 
-	globalScript := &fleet.HostScriptResult{}
-	globalSavedScript := &fleet.HostScriptResult{ScriptID: new(uint(1))}
-	team1Script := &fleet.HostScriptResult{TeamID: new(uint(1))}
-	team1SavedScript := &fleet.HostScriptResult{TeamID: new(uint(1)), ScriptID: new(uint(1))}
+	globalScript := &automdm.HostScriptResult{}
+	globalSavedScript := &automdm.HostScriptResult{ScriptID: new(uint(1))}
+	team1Script := &automdm.HostScriptResult{TeamID: new(uint(1))}
+	team1SavedScript := &automdm.HostScriptResult{TeamID: new(uint(1)), ScriptID: new(uint(1))}
 
 	runTestCases(t, []authTestCase{
 		{user: test.UserNoRoles, object: globalScript, action: write, allow: false},
@@ -3288,8 +3288,8 @@ func TestAuthorizeHostScriptResult(t *testing.T) {
 func TestAuthorizeScript(t *testing.T) {
 	t.Parallel()
 
-	globalScript := &fleet.Script{}
-	team1Script := &fleet.Script{
+	globalScript := &automdm.Script{}
+	team1Script := &automdm.Script{
 		TeamID: new(uint(1)),
 	}
 	runTestCases(t, []authTestCase{
@@ -3393,36 +3393,36 @@ func TestAuthorizeScript(t *testing.T) {
 func TestJSONToInterfaceUser(t *testing.T) {
 	t.Parallel()
 
-	subject, err := jsonToInterface(&fleet.User{GlobalRole: new(fleet.RoleAdmin)})
+	subject, err := jsonToInterface(&automdm.User{GlobalRole: new(automdm.RoleAdmin)})
 	require.NoError(t, err)
 	{
 		subject := subject.(map[string]interface{})
-		assert.Equal(t, fleet.RoleAdmin, subject["global_role"])
-		assert.Nil(t, subject["fleets"])
+		assert.Equal(t, automdm.RoleAdmin, subject["global_role"])
+		assert.Nil(t, subject["teams"])
 	}
 
-	subject, err = jsonToInterface(&fleet.User{
-		Teams: []fleet.UserTeam{
-			{Team: fleet.Team{ID: 3}, Role: fleet.RoleObserver},
-			{Team: fleet.Team{ID: 42}, Role: fleet.RoleMaintainer},
+	subject, err = jsonToInterface(&automdm.User{
+		Teams: []automdm.UserTeam{
+			{Team: automdm.Team{ID: 3}, Role: automdm.RoleObserver},
+			{Team: automdm.Team{ID: 42}, Role: automdm.RoleMaintainer},
 		},
 	})
 	require.NoError(t, err)
 	{
 		subject := subject.(map[string]interface{})
 		assert.Equal(t, nil, subject["global_role"])
-		assert.Len(t, subject["fleets"], 2)
-		assert.Equal(t, fleet.RoleObserver, subject["fleets"].([]any)[0].(map[string]any)["role"])
-		assert.Equal(t, json.Number("3"), subject["fleets"].([]any)[0].(map[string]any)["id"])
-		assert.Equal(t, fleet.RoleMaintainer, subject["fleets"].([]any)[1].(map[string]any)["role"])
-		assert.Equal(t, json.Number("42"), subject["fleets"].([]any)[1].(map[string]any)["id"])
+		assert.Len(t, subject["teams"], 2)
+		assert.Equal(t, automdm.RoleObserver, subject["teams"].([]any)[0].(map[string]any)["role"])
+		assert.Equal(t, json.Number("3"), subject["teams"].([]any)[0].(map[string]any)["id"])
+		assert.Equal(t, automdm.RoleMaintainer, subject["teams"].([]any)[1].(map[string]any)["role"])
+		assert.Equal(t, json.Number("42"), subject["teams"].([]any)[1].(map[string]any)["id"])
 	}
 }
 
 func TestHostHealth(t *testing.T) {
 	t.Parallel()
 
-	hostHealth := &fleet.HostHealth{TeamID: new(uint(1))}
+	hostHealth := &automdm.HostHealth{TeamID: new(uint(1))}
 	runTestCases(t, []authTestCase{
 		{user: nil, object: hostHealth, action: read, allow: false},
 		{user: test.UserGitOps, object: hostHealth, action: read, allow: false},
@@ -3445,15 +3445,15 @@ func TestHostHealth(t *testing.T) {
 
 func TestMDMAppleEULA(t *testing.T) {
 	t.Parallel()
-	testMDMEULA(t, &fleet.MDMEULA{Platform: fleet.MDMEULAPlatformDarwin})
+	testMDMEULA(t, &automdm.MDMEULA{Platform: automdm.MDMEULAPlatformDarwin})
 }
 
 func TestMDMWindowsEULA(t *testing.T) {
 	t.Parallel()
-	testMDMEULA(t, &fleet.MDMEULA{Platform: fleet.MDMEULAPlatformWindows})
+	testMDMEULA(t, &automdm.MDMEULA{Platform: automdm.MDMEULAPlatformWindows})
 }
 
-func testMDMEULA(t *testing.T, eula *fleet.MDMEULA) {
+func testMDMEULA(t *testing.T, eula *automdm.MDMEULA) {
 	runTestCases(t, []authTestCase{
 		{user: nil, object: eula, action: read, allow: false},
 		{user: test.UserGitOps, object: eula, action: read, allow: true},
@@ -3495,7 +3495,7 @@ func testMDMEULA(t *testing.T, eula *fleet.MDMEULA) {
 
 func TestCertificateAuthorities(t *testing.T) {
 	t.Parallel()
-	certificateAuthority := &fleet.CertificateAuthority{}
+	certificateAuthority := &automdm.CertificateAuthority{}
 
 	runTestCases(t, []authTestCase{
 		{user: nil, object: certificateAuthority, action: read, allow: false},
@@ -3568,7 +3568,7 @@ func TestCertificateAuthorities(t *testing.T) {
 func TestAuthorizeSecretVariables(t *testing.T) {
 	t.Parallel()
 
-	secretVariable := &fleet.SecretVariable{}
+	secretVariable := &automdm.SecretVariable{}
 	runTestCases(t, []authTestCase{
 		{user: nil, object: secretVariable, action: read, allow: false},
 
@@ -3611,9 +3611,9 @@ func TestAuthorizeSecretVariables(t *testing.T) {
 func TestAuthorizeCustomHostVitals(t *testing.T) {
 	t.Parallel()
 
-	customHostVital := &fleet.CustomHostVital{}
-	hostVitalValueTeam1 := &fleet.HostCustomHostVitalValue{TeamID: new(uint(1))}
-	hostVitalValueNoTeam := &fleet.HostCustomHostVitalValue{}
+	customHostVital := &automdm.CustomHostVital{}
+	hostVitalValueTeam1 := &automdm.HostCustomHostVitalValue{TeamID: new(uint(1))}
+	hostVitalValueNoTeam := &automdm.HostCustomHostVitalValue{}
 	runTestCases(t, []authTestCase{
 		{user: nil, object: customHostVital, action: read, allow: false},
 
@@ -3651,7 +3651,7 @@ func TestAuthorizeCustomHostVitals(t *testing.T) {
 		{user: test.UserTeamTechnicianTeam1, object: customHostVital, action: read, allow: true},
 		{user: test.UserTeamTechnicianTeam1, object: customHostVital, action: write, allow: false},
 
-		// Setting a host's value is scoped by the host's fleet.
+		// Setting a host's value is scoped by the host's team.
 		{user: test.UserAdmin, object: hostVitalValueTeam1, action: write, allow: true},
 		{user: test.UserTeamAdminTeam1, object: hostVitalValueTeam1, action: write, allow: true},
 		{user: test.UserTeamMaintainerTeam1, object: hostVitalValueTeam1, action: write, allow: true},
@@ -3664,7 +3664,7 @@ func TestAuthorizeCustomHostVitals(t *testing.T) {
 func TestAuthorizeAPIEndpoint(t *testing.T) {
 	t.Parallel()
 
-	endpoint := &fleet.APIEndpoint{}
+	endpoint := &automdm.APIEndpoint{}
 	runTestCases(t, []authTestCase{
 		// Unauthenticated always denied.
 		{user: nil, object: endpoint, action: read, allow: false},
@@ -3692,95 +3692,95 @@ func TestAuthorizeAPIEndpoint(t *testing.T) {
 func TestAuthorizeSoftwareCategory(t *testing.T) {
 	t.Parallel()
 
-	unassigned := &fleet.SoftwareCategory{TeamID: 0}
-	fleet1 := &fleet.SoftwareCategory{TeamID: 1}
-	fleet2 := &fleet.SoftwareCategory{TeamID: 2}
+	unassigned := &automdm.SoftwareCategory{TeamID: 0}
+	automdm1 := &automdm.SoftwareCategory{TeamID: 1}
+	automdm2 := &automdm.SoftwareCategory{TeamID: 2}
 
 	runTestCases(t, []authTestCase{
 		// Anonymous and role-less users are denied.
-		{user: nil, object: fleet1, action: read, allow: false},
-		{user: nil, object: fleet1, action: write, allow: false},
-		{user: test.UserNoRoles, object: fleet1, action: read, allow: false},
+		{user: nil, object: automdm1, action: read, allow: false},
+		{user: nil, object: automdm1, action: write, allow: false},
+		{user: test.UserNoRoles, object: automdm1, action: read, allow: false},
 
-		// Global roles: fleet_id is irrelevant, behavior is uniform across fleets.
-		{user: test.UserAdmin, object: fleet1, action: read, allow: true},
-		{user: test.UserAdmin, object: fleet1, action: write, allow: true},
-		{user: test.UserMaintainer, object: fleet1, action: read, allow: true},
-		{user: test.UserMaintainer, object: fleet1, action: write, allow: true},
-		{user: test.UserGitOps, object: fleet1, action: read, allow: true},
-		{user: test.UserGitOps, object: fleet1, action: write, allow: true},
-		{user: test.UserObserver, object: fleet1, action: read, allow: true},
-		{user: test.UserObserver, object: fleet1, action: write, allow: false},
-		{user: test.UserObserverPlus, object: fleet1, action: read, allow: true},
-		{user: test.UserTechnician, object: fleet1, action: read, allow: true},
+		// Global roles: team_id is irrelevant, behavior is uniform across teams.
+		{user: test.UserAdmin, object: automdm1, action: read, allow: true},
+		{user: test.UserAdmin, object: automdm1, action: write, allow: true},
+		{user: test.UserMaintainer, object: automdm1, action: read, allow: true},
+		{user: test.UserMaintainer, object: automdm1, action: write, allow: true},
+		{user: test.UserGitOps, object: automdm1, action: read, allow: true},
+		{user: test.UserGitOps, object: automdm1, action: write, allow: true},
+		{user: test.UserObserver, object: automdm1, action: read, allow: true},
+		{user: test.UserObserver, object: automdm1, action: write, allow: false},
+		{user: test.UserObserverPlus, object: automdm1, action: read, allow: true},
+		{user: test.UserTechnician, object: automdm1, action: read, allow: true},
 
-		// Unassigned (fleet_id=0): global roles still apply, team roles do not.
+		// Unassigned (team_id=0): global roles still apply, team roles do not.
 		{user: test.UserAdmin, object: unassigned, action: write, allow: true},
 		{user: test.UserTeamAdminTeam1, object: unassigned, action: read, allow: false},
 		{user: test.UserTeamAdminTeam1, object: unassigned, action: write, allow: false},
 
-		// Team admin (team1): full access on own fleet, denied on other.
-		{user: test.UserTeamAdminTeam1, object: fleet1, action: read, allow: true},
-		{user: test.UserTeamAdminTeam1, object: fleet1, action: write, allow: true},
-		{user: test.UserTeamAdminTeam1, object: fleet2, action: read, allow: false},
-		{user: test.UserTeamAdminTeam1, object: fleet2, action: write, allow: false},
+		// Team admin (team1): full access on own team, denied on other.
+		{user: test.UserTeamAdminTeam1, object: automdm1, action: read, allow: true},
+		{user: test.UserTeamAdminTeam1, object: automdm1, action: write, allow: true},
+		{user: test.UserTeamAdminTeam1, object: automdm2, action: read, allow: false},
+		{user: test.UserTeamAdminTeam1, object: automdm2, action: write, allow: false},
 
-		// Team maintainer (team1): read+write on own fleet, denied elsewhere.
-		{user: test.UserTeamMaintainerTeam1, object: fleet1, action: write, allow: true},
-		{user: test.UserTeamMaintainerTeam1, object: fleet2, action: write, allow: false},
+		// Team maintainer (team1): read+write on own team, denied elsewhere.
+		{user: test.UserTeamMaintainerTeam1, object: automdm1, action: write, allow: true},
+		{user: test.UserTeamMaintainerTeam1, object: automdm2, action: write, allow: false},
 
-		// Team gitops (team1): read+write on own fleet, denied elsewhere.
-		{user: test.UserTeamGitOpsTeam1, object: fleet1, action: read, allow: true},
-		{user: test.UserTeamGitOpsTeam1, object: fleet1, action: write, allow: true},
-		{user: test.UserTeamGitOpsTeam1, object: fleet2, action: read, allow: false},
-		{user: test.UserTeamGitOpsTeam1, object: fleet2, action: write, allow: false},
+		// Team gitops (team1): read+write on own team, denied elsewhere.
+		{user: test.UserTeamGitOpsTeam1, object: automdm1, action: read, allow: true},
+		{user: test.UserTeamGitOpsTeam1, object: automdm1, action: write, allow: true},
+		{user: test.UserTeamGitOpsTeam1, object: automdm2, action: read, allow: false},
+		{user: test.UserTeamGitOpsTeam1, object: automdm2, action: write, allow: false},
 
-		// Team read-only roles (observer/observer_plus/technician): read own fleet, not other.
-		{user: test.UserTeamObserverTeam1, object: fleet1, action: read, allow: true},
-		{user: test.UserTeamObserverTeam1, object: fleet1, action: write, allow: false},
-		{user: test.UserTeamObserverTeam1, object: fleet2, action: read, allow: false},
-		{user: test.UserTeamObserverPlusTeam1, object: fleet1, action: read, allow: true},
-		{user: test.UserTeamTechnicianTeam1, object: fleet1, action: read, allow: true},
+		// Team read-only roles (observer/observer_plus/technician): read own team, not other.
+		{user: test.UserTeamObserverTeam1, object: automdm1, action: read, allow: true},
+		{user: test.UserTeamObserverTeam1, object: automdm1, action: write, allow: false},
+		{user: test.UserTeamObserverTeam1, object: automdm2, action: read, allow: false},
+		{user: test.UserTeamObserverPlusTeam1, object: automdm1, action: read, allow: true},
+		{user: test.UserTeamTechnicianTeam1, object: automdm1, action: read, allow: true},
 	})
 }
 
 func TestAuthorizePatchDeadlineSettings(t *testing.T) {
 	t.Parallel()
 
-	unassigned := &fleet.PatchDeadlineSettings{TeamID: 0}
-	fleet1 := &fleet.PatchDeadlineSettings{TeamID: 1}
-	fleet2 := &fleet.PatchDeadlineSettings{TeamID: 2}
+	unassigned := &automdm.PatchDeadlineSettings{TeamID: 0}
+	automdm1 := &automdm.PatchDeadlineSettings{TeamID: 1}
+	automdm2 := &automdm.PatchDeadlineSettings{TeamID: 2}
 
 	runTestCases(t, []authTestCase{
 		// Anonymous and role-less users are denied.
-		{user: nil, object: fleet1, action: read, allow: false},
-		{user: nil, object: fleet1, action: write, allow: false},
-		{user: test.UserNoRoles, object: fleet1, action: read, allow: false},
-		{user: test.UserNoRoles, object: fleet1, action: write, allow: false},
+		{user: nil, object: automdm1, action: read, allow: false},
+		{user: nil, object: automdm1, action: write, allow: false},
+		{user: test.UserNoRoles, object: automdm1, action: read, allow: false},
+		{user: test.UserNoRoles, object: automdm1, action: write, allow: false},
 		{user: test.UserNoRoles, object: unassigned, action: read, allow: false},
 
-		// Global roles apply to any fleet and to Unassigned.
-		{user: test.UserAdmin, object: fleet1, action: read, allow: true},
-		{user: test.UserAdmin, object: fleet1, action: write, allow: true},
+		// Global roles apply to any team and to Unassigned.
+		{user: test.UserAdmin, object: automdm1, action: read, allow: true},
+		{user: test.UserAdmin, object: automdm1, action: write, allow: true},
 		{user: test.UserAdmin, object: unassigned, action: read, allow: true},
 		{user: test.UserAdmin, object: unassigned, action: write, allow: true},
-		{user: test.UserMaintainer, object: fleet1, action: read, allow: true},
-		{user: test.UserMaintainer, object: fleet1, action: write, allow: true},
+		{user: test.UserMaintainer, object: automdm1, action: read, allow: true},
+		{user: test.UserMaintainer, object: automdm1, action: write, allow: true},
 		{user: test.UserMaintainer, object: unassigned, action: write, allow: true},
-		{user: test.UserGitOps, object: fleet1, action: read, allow: true},
-		{user: test.UserGitOps, object: fleet1, action: write, allow: true},
+		{user: test.UserGitOps, object: automdm1, action: read, allow: true},
+		{user: test.UserGitOps, object: automdm1, action: write, allow: true},
 		{user: test.UserGitOps, object: unassigned, action: write, allow: true},
-		{user: test.UserObserver, object: fleet1, action: read, allow: true},
-		{user: test.UserObserver, object: fleet1, action: write, allow: false},
+		{user: test.UserObserver, object: automdm1, action: read, allow: true},
+		{user: test.UserObserver, object: automdm1, action: write, allow: false},
 		{user: test.UserObserver, object: unassigned, action: read, allow: true},
-		{user: test.UserObserverPlus, object: fleet1, action: read, allow: true},
-		{user: test.UserObserverPlus, object: fleet1, action: write, allow: false},
+		{user: test.UserObserverPlus, object: automdm1, action: read, allow: true},
+		{user: test.UserObserverPlus, object: automdm1, action: write, allow: false},
 		{user: test.UserObserverPlus, object: unassigned, action: read, allow: true},
-		{user: test.UserTechnician, object: fleet1, action: read, allow: true},
-		{user: test.UserTechnician, object: fleet1, action: write, allow: false},
+		{user: test.UserTechnician, object: automdm1, action: read, allow: true},
+		{user: test.UserTechnician, object: automdm1, action: write, allow: false},
 		{user: test.UserTechnician, object: unassigned, action: read, allow: true},
 
-		// Fleet roles never reach Unassigned (fleet_id=0).
+		// AutoMDM roles never reach Unassigned (team_id=0).
 		{user: test.UserTeamAdminTeam1, object: unassigned, action: read, allow: false},
 		{user: test.UserTeamAdminTeam1, object: unassigned, action: write, allow: false},
 		{user: test.UserTeamMaintainerTeam1, object: unassigned, action: read, allow: false},
@@ -3791,105 +3791,105 @@ func TestAuthorizePatchDeadlineSettings(t *testing.T) {
 		{user: test.UserTeamObserverPlusTeam1, object: unassigned, action: read, allow: false},
 		{user: test.UserTeamTechnicianTeam1, object: unassigned, action: read, allow: false},
 
-		// Fleet admin (fleet1): read+write on own fleet, denied on other.
-		{user: test.UserTeamAdminTeam1, object: fleet1, action: read, allow: true},
-		{user: test.UserTeamAdminTeam1, object: fleet1, action: write, allow: true},
-		{user: test.UserTeamAdminTeam1, object: fleet2, action: read, allow: false},
-		{user: test.UserTeamAdminTeam1, object: fleet2, action: write, allow: false},
+		// AutoMDM admin (automdm1): read+write on own team, denied on other.
+		{user: test.UserTeamAdminTeam1, object: automdm1, action: read, allow: true},
+		{user: test.UserTeamAdminTeam1, object: automdm1, action: write, allow: true},
+		{user: test.UserTeamAdminTeam1, object: automdm2, action: read, allow: false},
+		{user: test.UserTeamAdminTeam1, object: automdm2, action: write, allow: false},
 
-		// Fleet maintainer (fleet1): read+write on own fleet, denied on other.
-		{user: test.UserTeamMaintainerTeam1, object: fleet1, action: read, allow: true},
-		{user: test.UserTeamMaintainerTeam1, object: fleet1, action: write, allow: true},
-		{user: test.UserTeamMaintainerTeam1, object: fleet2, action: read, allow: false},
-		{user: test.UserTeamMaintainerTeam1, object: fleet2, action: write, allow: false},
+		// AutoMDM maintainer (automdm1): read+write on own team, denied on other.
+		{user: test.UserTeamMaintainerTeam1, object: automdm1, action: read, allow: true},
+		{user: test.UserTeamMaintainerTeam1, object: automdm1, action: write, allow: true},
+		{user: test.UserTeamMaintainerTeam1, object: automdm2, action: read, allow: false},
+		{user: test.UserTeamMaintainerTeam1, object: automdm2, action: write, allow: false},
 
-		// Fleet gitops (fleet1): read+write on own fleet, denied on other.
-		{user: test.UserTeamGitOpsTeam1, object: fleet1, action: read, allow: true},
-		{user: test.UserTeamGitOpsTeam1, object: fleet1, action: write, allow: true},
-		{user: test.UserTeamGitOpsTeam1, object: fleet2, action: read, allow: false},
-		{user: test.UserTeamGitOpsTeam1, object: fleet2, action: write, allow: false},
+		// AutoMDM gitops (automdm1): read+write on own team, denied on other.
+		{user: test.UserTeamGitOpsTeam1, object: automdm1, action: read, allow: true},
+		{user: test.UserTeamGitOpsTeam1, object: automdm1, action: write, allow: true},
+		{user: test.UserTeamGitOpsTeam1, object: automdm2, action: read, allow: false},
+		{user: test.UserTeamGitOpsTeam1, object: automdm2, action: write, allow: false},
 
-		// Fleet read-only roles: read own fleet, no write, denied on other.
-		{user: test.UserTeamObserverTeam1, object: fleet1, action: read, allow: true},
-		{user: test.UserTeamObserverTeam1, object: fleet1, action: write, allow: false},
-		{user: test.UserTeamObserverTeam1, object: fleet2, action: read, allow: false},
-		{user: test.UserTeamObserverPlusTeam1, object: fleet1, action: read, allow: true},
-		{user: test.UserTeamObserverPlusTeam1, object: fleet1, action: write, allow: false},
-		{user: test.UserTeamObserverPlusTeam1, object: fleet2, action: read, allow: false},
-		{user: test.UserTeamTechnicianTeam1, object: fleet1, action: read, allow: true},
-		{user: test.UserTeamTechnicianTeam1, object: fleet1, action: write, allow: false},
-		{user: test.UserTeamTechnicianTeam1, object: fleet2, action: read, allow: false},
+		// AutoMDM read-only roles: read own team, no write, denied on other.
+		{user: test.UserTeamObserverTeam1, object: automdm1, action: read, allow: true},
+		{user: test.UserTeamObserverTeam1, object: automdm1, action: write, allow: false},
+		{user: test.UserTeamObserverTeam1, object: automdm2, action: read, allow: false},
+		{user: test.UserTeamObserverPlusTeam1, object: automdm1, action: read, allow: true},
+		{user: test.UserTeamObserverPlusTeam1, object: automdm1, action: write, allow: false},
+		{user: test.UserTeamObserverPlusTeam1, object: automdm2, action: read, allow: false},
+		{user: test.UserTeamTechnicianTeam1, object: automdm1, action: read, allow: true},
+		{user: test.UserTeamTechnicianTeam1, object: automdm1, action: write, allow: false},
+		{user: test.UserTeamTechnicianTeam1, object: automdm2, action: read, allow: false},
 	})
 }
 
 func TestAuthorizeCertificateTemplate(t *testing.T) {
 	t.Parallel()
 
-	noTeam := &fleet.CertificateTemplate{TeamID: 0}
-	fleet1 := &fleet.CertificateTemplate{TeamID: 1}
-	fleet2 := &fleet.CertificateTemplate{TeamID: 2}
+	noTeam := &automdm.CertificateTemplate{TeamID: 0}
+	automdm1 := &automdm.CertificateTemplate{TeamID: 1}
+	automdm2 := &automdm.CertificateTemplate{TeamID: 2}
 
 	runTestCases(t, []authTestCase{
 		// Anonymous and role-less users are denied.
-		{user: nil, object: fleet1, action: read, allow: false},
-		{user: nil, object: fleet1, action: write, allow: false},
-		{user: nil, object: fleet1, action: list, allow: false},
-		{user: test.UserNoRoles, object: fleet1, action: read, allow: false},
-		{user: test.UserNoRoles, object: fleet1, action: write, allow: false},
-		{user: test.UserNoRoles, object: fleet1, action: list, allow: false},
+		{user: nil, object: automdm1, action: read, allow: false},
+		{user: nil, object: automdm1, action: write, allow: false},
+		{user: nil, object: automdm1, action: list, allow: false},
+		{user: test.UserNoRoles, object: automdm1, action: read, allow: false},
+		{user: test.UserNoRoles, object: automdm1, action: write, allow: false},
+		{user: test.UserNoRoles, object: automdm1, action: list, allow: false},
 
-		// Global admin, maintainer and gitops: full access on any fleet.
+		// Global admin, maintainer and gitops: full access on any team.
 		{user: test.UserAdmin, object: noTeam, action: read, allow: true},
 		{user: test.UserAdmin, object: noTeam, action: write, allow: true},
-		{user: test.UserAdmin, object: fleet1, action: read, allow: true},
-		{user: test.UserAdmin, object: fleet1, action: write, allow: true},
-		{user: test.UserAdmin, object: fleet1, action: list, allow: true},
+		{user: test.UserAdmin, object: automdm1, action: read, allow: true},
+		{user: test.UserAdmin, object: automdm1, action: write, allow: true},
+		{user: test.UserAdmin, object: automdm1, action: list, allow: true},
 		{user: test.UserMaintainer, object: noTeam, action: write, allow: true},
-		{user: test.UserMaintainer, object: fleet1, action: write, allow: true},
-		{user: test.UserMaintainer, object: fleet1, action: list, allow: true},
+		{user: test.UserMaintainer, object: automdm1, action: write, allow: true},
+		{user: test.UserMaintainer, object: automdm1, action: list, allow: true},
 		{user: test.UserGitOps, object: noTeam, action: write, allow: true},
-		{user: test.UserGitOps, object: fleet1, action: write, allow: true},
-		{user: test.UserGitOps, object: fleet1, action: list, allow: true},
+		{user: test.UserGitOps, object: automdm1, action: write, allow: true},
+		{user: test.UserGitOps, object: automdm1, action: list, allow: true},
 
 		// Global read-only roles have no access to certificate templates at all.
-		{user: test.UserObserver, object: fleet1, action: read, allow: false},
-		{user: test.UserObserver, object: fleet1, action: write, allow: false},
-		{user: test.UserObserver, object: fleet1, action: list, allow: false},
-		{user: test.UserObserverPlus, object: fleet1, action: read, allow: false},
-		{user: test.UserObserverPlus, object: fleet1, action: list, allow: false},
-		{user: test.UserTechnician, object: fleet1, action: read, allow: false},
-		{user: test.UserTechnician, object: fleet1, action: list, allow: false},
+		{user: test.UserObserver, object: automdm1, action: read, allow: false},
+		{user: test.UserObserver, object: automdm1, action: write, allow: false},
+		{user: test.UserObserver, object: automdm1, action: list, allow: false},
+		{user: test.UserObserverPlus, object: automdm1, action: read, allow: false},
+		{user: test.UserObserverPlus, object: automdm1, action: list, allow: false},
+		{user: test.UserTechnician, object: automdm1, action: read, allow: false},
+		{user: test.UserTechnician, object: automdm1, action: list, allow: false},
 
-		// Team roles never reach "No team" (fleet_id=0) templates.
+		// Team roles never reach "No team" (team_id=0) templates.
 		{user: test.UserTeamAdminTeam1, object: noTeam, action: read, allow: false},
 		{user: test.UserTeamAdminTeam1, object: noTeam, action: write, allow: false},
 		{user: test.UserTeamGitOpsTeam1, object: noTeam, action: write, allow: false},
 
-		// Team admin, maintainer and gitops: full access on own fleet, denied on other.
-		{user: test.UserTeamAdminTeam1, object: fleet1, action: read, allow: true},
-		{user: test.UserTeamAdminTeam1, object: fleet1, action: write, allow: true},
-		{user: test.UserTeamAdminTeam1, object: fleet2, action: read, allow: false},
-		{user: test.UserTeamAdminTeam1, object: fleet2, action: write, allow: false},
-		{user: test.UserTeamMaintainerTeam1, object: fleet1, action: write, allow: true},
-		{user: test.UserTeamMaintainerTeam1, object: fleet2, action: write, allow: false},
-		{user: test.UserTeamGitOpsTeam1, object: fleet1, action: write, allow: true},
-		{user: test.UserTeamGitOpsTeam1, object: fleet2, action: write, allow: false},
+		// Team admin, maintainer and gitops: full access on own team, denied on other.
+		{user: test.UserTeamAdminTeam1, object: automdm1, action: read, allow: true},
+		{user: test.UserTeamAdminTeam1, object: automdm1, action: write, allow: true},
+		{user: test.UserTeamAdminTeam1, object: automdm2, action: read, allow: false},
+		{user: test.UserTeamAdminTeam1, object: automdm2, action: write, allow: false},
+		{user: test.UserTeamMaintainerTeam1, object: automdm1, action: write, allow: true},
+		{user: test.UserTeamMaintainerTeam1, object: automdm2, action: write, allow: false},
+		{user: test.UserTeamGitOpsTeam1, object: automdm1, action: write, allow: true},
+		{user: test.UserTeamGitOpsTeam1, object: automdm2, action: write, allow: false},
 
 		// "list" is deliberately team-agnostic: it only establishes that the
-		// caller manages certificate templates on some fleet, so that a lookup
+		// caller manages certificate templates on some team, so that a lookup
 		// can run before the team-scoped check on the loaded template. It must
 		// hold for every role allowed to read or write above, including for a
-		// fleet the caller has no access to.
-		{user: test.UserTeamAdminTeam1, object: fleet2, action: list, allow: true},
+		// team the caller has no access to.
+		{user: test.UserTeamAdminTeam1, object: automdm2, action: list, allow: true},
 		{user: test.UserTeamAdminTeam1, object: noTeam, action: list, allow: true},
-		{user: test.UserTeamMaintainerTeam1, object: fleet2, action: list, allow: true},
-		{user: test.UserTeamGitOpsTeam1, object: fleet2, action: list, allow: true},
+		{user: test.UserTeamMaintainerTeam1, object: automdm2, action: list, allow: true},
+		{user: test.UserTeamGitOpsTeam1, object: automdm2, action: list, allow: true},
 
 		// Team read-only roles have no access, including "list".
-		{user: test.UserTeamObserverTeam1, object: fleet1, action: read, allow: false},
-		{user: test.UserTeamObserverTeam1, object: fleet1, action: write, allow: false},
-		{user: test.UserTeamObserverTeam1, object: fleet1, action: list, allow: false},
-		{user: test.UserTeamObserverPlusTeam1, object: fleet1, action: list, allow: false},
-		{user: test.UserTeamTechnicianTeam1, object: fleet1, action: list, allow: false},
+		{user: test.UserTeamObserverTeam1, object: automdm1, action: read, allow: false},
+		{user: test.UserTeamObserverTeam1, object: automdm1, action: write, allow: false},
+		{user: test.UserTeamObserverTeam1, object: automdm1, action: list, allow: false},
+		{user: test.UserTeamObserverPlusTeam1, object: automdm1, action: list, allow: false},
+		{user: test.UserTeamTechnicianTeam1, object: automdm1, action: list, allow: false},
 	})
 }

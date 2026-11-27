@@ -26,20 +26,20 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/ee/orbit/pkg/hostidentity"
-	orbitscep "github.com/fleetdm/fleet/v4/ee/orbit/pkg/scep"
-	"github.com/fleetdm/fleet/v4/ee/orbit/pkg/securehw"
-	"github.com/fleetdm/fleet/v4/ee/pkg/hostidentity/types"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/constant"
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/pkg/fleethttpsig"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	scepclient "github.com/fleetdm/fleet/v4/server/mdm/scep/client"
-	"github.com/fleetdm/fleet/v4/server/mdm/scep/enrollment"
-	"github.com/fleetdm/fleet/v4/server/mdm/scep/x509util"
-	"github.com/fleetdm/fleet/v4/server/service/contract"
+	"github.com/anilyagiz/automdm/v4/ee/orbit/pkg/hostidentity"
+	orbitscep "github.com/anilyagiz/automdm/v4/ee/orbit/pkg/scep"
+	"github.com/anilyagiz/automdm/v4/ee/orbit/pkg/securehw"
+	"github.com/anilyagiz/automdm/v4/ee/pkg/hostidentity/types"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/constant"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttpsig"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	scepclient "github.com/anilyagiz/automdm/v4/server/mdm/scep/client"
+	"github.com/anilyagiz/automdm/v4/server/mdm/scep/enrollment"
+	"github.com/anilyagiz/automdm/v4/server/mdm/scep/x509util"
+	"github.com/anilyagiz/automdm/v4/server/service/contract"
 	"github.com/google/go-tpm/tpm2/transport/simulator"
 	"github.com/jmoiron/sqlx"
 	"github.com/remitly-oss/httpsig-go"
@@ -52,7 +52,7 @@ import (
 const testEnrollmentSecret = "test_secret"
 
 func TestHostIdentity(t *testing.T) {
-	s := SetUpSuiteWithConfig(t, "integrationtest.HostIdentity", false, func(cfg *config.FleetConfig) {
+	s := SetUpSuiteWithConfig(t, "integrationtest.HostIdentity", false, func(cfg *config.AutoMDMConfig) {
 		cfg.Osquery.EnrollCooldown = 0 // Disable rate limiting for tests
 	})
 
@@ -114,7 +114,7 @@ func generateRandomString(length int) string {
 func testGetCertWithCurve(t *testing.T, s *Suite, curve elliptic.Curve) (cert *x509.Certificate, eccPrivateKey *ecdsa.PrivateKey) {
 	ctx := t.Context()
 	// Create an enrollment secret
-	err := s.DS.ApplyEnrollSecrets(ctx, nil, []*fleet.EnrollSecret{
+	err := s.DS.ApplyEnrollSecrets(ctx, nil, []*automdm.EnrollSecret{
 		{
 			Secret: testEnrollmentSecret,
 		},
@@ -187,7 +187,7 @@ func createHTTPSigner(t *testing.T, eccPrivateKey *ecdsa.PrivateKey, cert *x509.
 	}
 
 	// Create signer
-	signer, err := fleethttpsig.Signer(
+	signer, err := automdmhttpsig.Signer(
 		fmt.Sprintf("%d", cert.SerialNumber.Uint64()),
 		eccPrivateKey,
 		algo,
@@ -199,7 +199,7 @@ func createHTTPSigner(t *testing.T, eccPrivateKey *ecdsa.PrivateKey, cert *x509.
 func testOrbitEnrollment(t *testing.T, s *Suite, cert *x509.Certificate, eccPrivateKey *ecdsa.PrivateKey) string {
 	ctx := t.Context()
 	// Test orbit enrollment with the certificate
-	enrollRequest := fleet.EnrollOrbitRequest{
+	enrollRequest := automdm.EnrollOrbitRequest{
 		EnrollSecret:      testEnrollmentSecret,
 		HardwareUUID:      "test-uuid-" + cert.Subject.CommonName,
 		HardwareSerial:    "test-serial-" + cert.Subject.CommonName,
@@ -209,13 +209,13 @@ func testOrbitEnrollment(t *testing.T, s *Suite, cert *x509.Certificate, eccPriv
 
 	// This request is sent without an HTTP signature, so it should fail.
 	var enrollResp enrollOrbitResponse
-	s.DoJSON(t, "POST", "/api/fleet/orbit/enroll", enrollRequest, http.StatusUnauthorized, &enrollResp)
+	s.DoJSON(t, "POST", "/api/automdm/orbit/enroll", enrollRequest, http.StatusUnauthorized, &enrollResp)
 
 	// Now send the same request with an HTTP signature
 	reqBody, err := json.Marshal(enrollRequest)
 	require.NoError(t, err)
 
-	req, err := http.NewRequest("POST", s.Server.URL+"/api/fleet/orbit/enroll", bytes.NewReader(reqBody))
+	req, err := http.NewRequest("POST", s.Server.URL+"/api/automdm/orbit/enroll", bytes.NewReader(reqBody))
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
 
@@ -231,7 +231,7 @@ func testOrbitEnrollment(t *testing.T, s *Suite, cert *x509.Certificate, eccPriv
 	clonedRequest.Body = io.NopCloser(bytes.NewReader(reqBody))
 
 	// Send the signed request
-	client := fleethttp.NewClient()
+	client := automdmhttp.NewClient()
 	httpResp, err := client.Do(req)
 	require.NoError(t, err)
 	defer httpResp.Body.Close()
@@ -259,7 +259,7 @@ func testOrbitEnrollment(t *testing.T, s *Suite, cert *x509.Certificate, eccPriv
 	require.NotEmpty(t, signedEnrollResp.OrbitNodeKey, "Should receive orbit node key")
 	require.NoError(t, signedEnrollResp.Err)
 
-	// Test /api/fleet/orbit/config endpoint with different signature scenarios
+	// Test /api/automdm/orbit/config endpoint with different signature scenarios
 	t.Run("config endpoint signature tests", func(t *testing.T) {
 		testCases := []struct {
 			name           string
@@ -274,7 +274,7 @@ func testOrbitEnrollment(t *testing.T, s *Suite, cert *x509.Certificate, eccPriv
 					if err != nil {
 						return nil, err
 					}
-					req, err := http.NewRequest("POST", s.Server.URL+"/api/fleet/orbit/config", bytes.NewReader(reqBody))
+					req, err := http.NewRequest("POST", s.Server.URL+"/api/automdm/orbit/config", bytes.NewReader(reqBody))
 					if err != nil {
 						return nil, err
 					}
@@ -291,7 +291,7 @@ func testOrbitEnrollment(t *testing.T, s *Suite, cert *x509.Certificate, eccPriv
 					if err != nil {
 						return nil, err
 					}
-					req, err := http.NewRequest("POST", s.Server.URL+"/api/fleet/orbit/config", bytes.NewReader(reqBody))
+					req, err := http.NewRequest("POST", s.Server.URL+"/api/automdm/orbit/config", bytes.NewReader(reqBody))
 					if err != nil {
 						return nil, err
 					}
@@ -313,7 +313,7 @@ func testOrbitEnrollment(t *testing.T, s *Suite, cert *x509.Certificate, eccPriv
 					if err != nil {
 						return nil, err
 					}
-					req, err := http.NewRequest("POST", s.Server.URL+"/api/fleet/orbit/config", bytes.NewReader(reqBody))
+					req, err := http.NewRequest("POST", s.Server.URL+"/api/automdm/orbit/config", bytes.NewReader(reqBody))
 					if err != nil {
 						return nil, err
 					}
@@ -387,7 +387,7 @@ func testOsqueryEnrollment(t *testing.T, s *Suite, cert *x509.Certificate, eccPr
 	require.NoError(t, err)
 
 	// Send the signed request
-	client := fleethttp.NewClient()
+	client := automdmhttp.NewClient()
 	httpResp, err := client.Do(req)
 	require.NoError(t, err)
 	defer httpResp.Body.Close()
@@ -499,7 +499,7 @@ func testOsqueryEnrollment(t *testing.T, s *Suite, cert *x509.Certificate, eccPr
 }
 
 // renewalCSR builds a renewal request for existingCert, proving possession of existingKey and requesting a cert for newKey.
-// legacy signs the proof format of fleetd that predates key-bound proofs.
+// legacy signs the proof format of automdmd that predates key-bound proofs.
 func renewalCSR(
 	t *testing.T, existingCert *x509.Certificate, existingKey, newKey *ecdsa.PrivateKey, legacy bool,
 ) *x509.CertificateRequest {
@@ -600,7 +600,7 @@ func testCertificateRenewal(t *testing.T, s *Suite, existingCert *x509.Certifica
 			configURL = s.Server.URL + "/api/osquery/config"
 		} else {
 			configReq = orbitConfigRequest{OrbitNodeKey: nodeKey}
-			configURL = s.Server.URL + "/api/fleet/orbit/config"
+			configURL = s.Server.URL + "/api/automdm/orbit/config"
 		}
 
 		configReqBody, err := json.Marshal(configReq)
@@ -615,7 +615,7 @@ func testCertificateRenewal(t *testing.T, s *Suite, existingCert *x509.Certifica
 		err = signer.Sign(req)
 		require.NoError(t, err)
 
-		client := fleethttp.NewClient()
+		client := automdmhttp.NewClient()
 		httpResp, err := client.Do(req)
 		require.NoError(t, err)
 		defer httpResp.Body.Close()
@@ -634,7 +634,7 @@ func testCertificateRenewal(t *testing.T, s *Suite, existingCert *x509.Certifica
 			configURL = s.Server.URL + "/api/osquery/config"
 		} else {
 			configReq = orbitConfigRequest{OrbitNodeKey: nodeKey}
-			configURL = s.Server.URL + "/api/fleet/orbit/config"
+			configURL = s.Server.URL + "/api/automdm/orbit/config"
 		}
 
 		configReqBody, err := json.Marshal(configReq)
@@ -649,7 +649,7 @@ func testCertificateRenewal(t *testing.T, s *Suite, existingCert *x509.Certifica
 		err = signer.Sign(req)
 		require.NoError(t, err)
 
-		client := fleethttp.NewClient()
+		client := automdmhttp.NewClient()
 		httpResp, err := client.Do(req)
 		require.NoError(t, err)
 		defer httpResp.Body.Close()
@@ -674,7 +674,7 @@ func testCertificateRenewal(t *testing.T, s *Suite, existingCert *x509.Certifica
 		require.Equal(t, scep.FAILURE, rejected.Status)
 	})
 
-	t.Run("legacy renewal proof from older fleetd is accepted", func(t *testing.T) {
+	t.Run("legacy renewal proof from older automdmd is accepted", func(t *testing.T) {
 		legacyNewKey, err := ecdsa.GenerateKey(eccPrivateKey.Curve, rand.Reader)
 		require.NoError(t, err)
 		legacyCSR := renewalCSR(t, renewedCert, newEccPrivateKey, legacyNewKey, true)
@@ -695,10 +695,10 @@ func testDeleteHostAndReenroll(t *testing.T, s *Suite, cert *x509.Certificate, e
 	require.NotNil(t, hostToDelete, "Should find the enrolled host")
 
 	// Delete the host using the API endpoint
-	s.Do(t, "DELETE", fmt.Sprintf("/api/latest/fleet/hosts/%d", hostToDelete.ID), nil, http.StatusOK)
+	s.Do(t, "DELETE", fmt.Sprintf("/api/latest/automdm/hosts/%d", hostToDelete.ID), nil, http.StatusOK)
 
 	// Try to enroll the same host with the same certificate - this should fail
-	enrollRequest := fleet.EnrollOrbitRequest{
+	enrollRequest := automdm.EnrollOrbitRequest{
 		EnrollSecret:      testEnrollmentSecret,
 		HardwareUUID:      "test-uuid-" + cert.Subject.CommonName,
 		HardwareSerial:    "test-serial-" + cert.Subject.CommonName,
@@ -709,7 +709,7 @@ func testDeleteHostAndReenroll(t *testing.T, s *Suite, cert *x509.Certificate, e
 	reqBody, err := json.Marshal(enrollRequest)
 	require.NoError(t, err)
 
-	req, err := http.NewRequest("POST", s.Server.URL+"/api/fleet/orbit/enroll", bytes.NewReader(reqBody))
+	req, err := http.NewRequest("POST", s.Server.URL+"/api/automdm/orbit/enroll", bytes.NewReader(reqBody))
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
 
@@ -717,7 +717,7 @@ func testDeleteHostAndReenroll(t *testing.T, s *Suite, cert *x509.Certificate, e
 	err = signer.Sign(req)
 	require.NoError(t, err)
 
-	client := fleethttp.NewClient()
+	client := automdmhttp.NewClient()
 	httpResp, err := client.Do(req)
 	require.NoError(t, err)
 	defer httpResp.Body.Close()
@@ -735,7 +735,7 @@ func testDeleteHostAndReenrollOsquery(t *testing.T, s *Suite, cert *x509.Certifi
 	require.NotNil(t, hostToDelete, "Should find the enrolled host")
 
 	// Delete the host using the API endpoint
-	s.Do(t, "DELETE", fmt.Sprintf("/api/latest/fleet/hosts/%d", hostToDelete.ID), nil, http.StatusOK)
+	s.Do(t, "DELETE", fmt.Sprintf("/api/latest/automdm/hosts/%d", hostToDelete.ID), nil, http.StatusOK)
 
 	// Try to enroll the same host with the same certificate - this should fail
 	enrollRequest := contract.EnrollOsqueryAgentRequest{
@@ -759,7 +759,7 @@ func testDeleteHostAndReenrollOsquery(t *testing.T, s *Suite, cert *x509.Certifi
 	err = signer.Sign(req)
 	require.NoError(t, err)
 
-	client := fleethttp.NewClient()
+	client := automdmhttp.NewClient()
 	httpResp, err := client.Do(req)
 	require.NoError(t, err)
 	defer httpResp.Body.Close()
@@ -768,10 +768,10 @@ func testDeleteHostAndReenrollOsquery(t *testing.T, s *Suite, cert *x509.Certifi
 	require.Equal(t, http.StatusUnauthorized, httpResp.StatusCode, "Enrollment with deleted host certificate should fail")
 }
 
-// enrollHostIdentityCSR sends csr to Fleet's host identity SCEP server.
+// enrollHostIdentityCSR sends csr to AutoMDM's host identity SCEP server.
 func enrollHostIdentityCSR(t *testing.T, s *Suite, csr *x509.CertificateRequest) (*x509.Certificate, error) {
 	t.Helper()
-	scepClient, err := scepclient.New(s.Server.URL+"/api/fleet/orbit/host_identity/scep", s.Logger)
+	scepClient, err := scepclient.New(s.Server.URL+"/api/automdm/orbit/host_identity/scep", s.Logger)
 	require.NoError(t, err)
 	caCerts, err := enrollment.FetchCACerts(t.Context(), scepClient)
 	require.NoError(t, err)
@@ -882,7 +882,7 @@ func testSCEPFailure(t *testing.T, s *Suite, config SCEPFailureConfig) {
 	ctx := t.Context()
 
 	// Create an enrollment secret
-	err := s.DS.ApplyEnrollSecrets(ctx, nil, []*fleet.EnrollSecret{
+	err := s.DS.ApplyEnrollSecrets(ctx, nil, []*automdm.EnrollSecret{
 		{
 			Secret: testEnrollmentSecret,
 		},
@@ -939,19 +939,19 @@ func testWrongCertAuthentication(t *testing.T, s *Suite) {
 	signerHost1 := createHTTPSigner(t, eccPrivateKeyHost1, certHost1)
 	signerHost2 := createHTTPSigner(t, eccPrivateKeyHost2, certHost2)
 
-	// Generate a local ECC P384 private key (not from Fleet SCEP)
+	// Generate a local ECC P384 private key (not from AutoMDM SCEP)
 	localPrivateKey, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
 	require.NoError(t, err)
 
 	// Create a signer using the local private key with a fake certificate serial
-	localSigner, err := fleethttpsig.Signer(
+	localSigner, err := automdmhttpsig.Signer(
 		"999999", // Fake certificate serial number
 		localPrivateKey,
 		httpsig.Algo_ECDSA_P384_SHA384,
 	)
 	require.NoError(t, err)
 
-	enrollRequest := fleet.EnrollOrbitRequest{
+	enrollRequest := automdm.EnrollOrbitRequest{
 		EnrollSecret:      testEnrollmentSecret,
 		HardwareUUID:      "test-uuid-" + certHost1.Subject.CommonName,
 		HardwareSerial:    "test-serial-" + certHost1.Subject.CommonName,
@@ -964,7 +964,7 @@ func testWrongCertAuthentication(t *testing.T, s *Suite) {
 		reqBody, err := json.Marshal(enrollRequest)
 		require.NoError(t, err)
 
-		req, err := http.NewRequest("POST", s.Server.URL+"/api/fleet/orbit/enroll", bytes.NewReader(reqBody))
+		req, err := http.NewRequest("POST", s.Server.URL+"/api/automdm/orbit/enroll", bytes.NewReader(reqBody))
 		require.NoError(t, err)
 		req.Header.Set("Content-Type", "application/json")
 
@@ -972,7 +972,7 @@ func testWrongCertAuthentication(t *testing.T, s *Suite) {
 		err = signerHost2.Sign(req)
 		require.NoError(t, err)
 
-		client := fleethttp.NewClient()
+		client := automdmhttp.NewClient()
 		httpResp, err := client.Do(req)
 		require.NoError(t, err)
 		defer httpResp.Body.Close()
@@ -987,20 +987,20 @@ func testWrongCertAuthentication(t *testing.T, s *Suite) {
 		reqBody, err := json.Marshal(enrollRequest)
 		require.NoError(t, err)
 
-		req, err := http.NewRequest("POST", s.Server.URL+"/api/fleet/orbit/enroll", bytes.NewReader(reqBody))
+		req, err := http.NewRequest("POST", s.Server.URL+"/api/automdm/orbit/enroll", bytes.NewReader(reqBody))
 		require.NoError(t, err)
 		req.Header.Set("Content-Type", "application/json")
 
-		// Sign with local private key (not managed by Fleet)
+		// Sign with local private key (not managed by AutoMDM)
 		err = localSigner.Sign(req)
 		require.NoError(t, err)
 
-		client := fleethttp.NewClient()
+		client := automdmhttp.NewClient()
 		httpResp, err := client.Do(req)
 		require.NoError(t, err)
 		defer httpResp.Body.Close()
 
-		// Should fail because the certificate is not managed by Fleet
+		// Should fail because the certificate is not managed by AutoMDM
 		require.Equal(t, http.StatusUnauthorized, httpResp.StatusCode, "Enrollment with local private key should fail")
 	}
 	t.Run("enroll host1 with local private key should fail", enrollHostWithLocalPrivateKeyShouldFail)
@@ -1009,7 +1009,7 @@ func testWrongCertAuthentication(t *testing.T, s *Suite) {
 	reqBody, err := json.Marshal(enrollRequest)
 	require.NoError(t, err)
 
-	req, err := http.NewRequest("POST", s.Server.URL+"/api/fleet/orbit/enroll", bytes.NewReader(reqBody))
+	req, err := http.NewRequest("POST", s.Server.URL+"/api/automdm/orbit/enroll", bytes.NewReader(reqBody))
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
 
@@ -1017,7 +1017,7 @@ func testWrongCertAuthentication(t *testing.T, s *Suite) {
 	err = signerHost1.Sign(req)
 	require.NoError(t, err)
 
-	client := fleethttp.NewClient()
+	client := automdmhttp.NewClient()
 	httpResp, err := client.Do(req)
 	require.NoError(t, err)
 	defer httpResp.Body.Close()
@@ -1046,7 +1046,7 @@ func testWrongCertAuthentication(t *testing.T, s *Suite) {
 		reqBody, err := json.Marshal(configRequest)
 		require.NoError(t, err)
 
-		req, err := http.NewRequest("POST", s.Server.URL+"/api/fleet/orbit/config", bytes.NewReader(reqBody))
+		req, err := http.NewRequest("POST", s.Server.URL+"/api/automdm/orbit/config", bytes.NewReader(reqBody))
 		require.NoError(t, err)
 		req.Header.Set("Content-Type", "application/json")
 
@@ -1054,7 +1054,7 @@ func testWrongCertAuthentication(t *testing.T, s *Suite) {
 		err = signerHost2.Sign(req)
 		require.NoError(t, err)
 
-		client := fleethttp.NewClient()
+		client := automdmhttp.NewClient()
 		httpResp, err := client.Do(req)
 		require.NoError(t, err)
 		defer httpResp.Body.Close()
@@ -1063,7 +1063,7 @@ func testWrongCertAuthentication(t *testing.T, s *Suite) {
 	})
 
 	// Successfully enroll host2 with correct certificate
-	enrollRequest2 := fleet.EnrollOrbitRequest{
+	enrollRequest2 := automdm.EnrollOrbitRequest{
 		EnrollSecret:      testEnrollmentSecret,
 		HardwareUUID:      "test-uuid-" + certHost2.Subject.CommonName,
 		HardwareSerial:    "test-serial-" + certHost2.Subject.CommonName,
@@ -1074,7 +1074,7 @@ func testWrongCertAuthentication(t *testing.T, s *Suite) {
 	reqBody, err = json.Marshal(enrollRequest2)
 	require.NoError(t, err)
 
-	req, err = http.NewRequest("POST", s.Server.URL+"/api/fleet/orbit/enroll", bytes.NewReader(reqBody))
+	req, err = http.NewRequest("POST", s.Server.URL+"/api/automdm/orbit/enroll", bytes.NewReader(reqBody))
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
 
@@ -1105,7 +1105,7 @@ func testWrongCertAuthentication(t *testing.T, s *Suite) {
 		reqBody, err := json.Marshal(configRequest)
 		require.NoError(t, err)
 
-		req, err := http.NewRequest("POST", s.Server.URL+"/api/fleet/orbit/config", bytes.NewReader(reqBody))
+		req, err := http.NewRequest("POST", s.Server.URL+"/api/automdm/orbit/config", bytes.NewReader(reqBody))
 		require.NoError(t, err)
 		req.Header.Set("Content-Type", "application/json")
 
@@ -1113,7 +1113,7 @@ func testWrongCertAuthentication(t *testing.T, s *Suite) {
 		err = signerHost1.Sign(req)
 		require.NoError(t, err)
 
-		client := fleethttp.NewClient()
+		client := automdmhttp.NewClient()
 		httpResp, err := client.Do(req)
 		require.NoError(t, err)
 		defer httpResp.Body.Close()
@@ -1130,26 +1130,26 @@ func testWrongCertAuthentication(t *testing.T, s *Suite) {
 		reqBody, err := json.Marshal(configRequest)
 		require.NoError(t, err)
 
-		req, err := http.NewRequest("POST", s.Server.URL+"/api/fleet/orbit/config", bytes.NewReader(reqBody))
+		req, err := http.NewRequest("POST", s.Server.URL+"/api/automdm/orbit/config", bytes.NewReader(reqBody))
 		require.NoError(t, err)
 		req.Header.Set("Content-Type", "application/json")
 
-		// Sign with local private key (not managed by Fleet)
+		// Sign with local private key (not managed by AutoMDM)
 		err = localSigner.Sign(req)
 		require.NoError(t, err)
 
-		client := fleethttp.NewClient()
+		client := automdmhttp.NewClient()
 		httpResp, err := client.Do(req)
 		require.NoError(t, err)
 		defer httpResp.Body.Close()
 
-		// Should fail because the certificate is not managed by Fleet
+		// Should fail because the certificate is not managed by AutoMDM
 		require.Equal(t, http.StatusUnauthorized, httpResp.StatusCode, "Config request with local private key should fail")
 	})
 
 	// Test enrollment failures after host is enrolled - use different host identifiers to avoid re-enrollment
 	t.Run("enroll new host with host1 cert should fail after enrollment", func(t *testing.T) {
-		newHostEnrollRequest := fleet.EnrollOrbitRequest{
+		newHostEnrollRequest := automdm.EnrollOrbitRequest{
 			EnrollSecret:      testEnrollmentSecret,
 			HardwareUUID:      "test-uuid-new-host-wrong-cert",
 			HardwareSerial:    "test-serial-new-host-wrong-cert",
@@ -1160,7 +1160,7 @@ func testWrongCertAuthentication(t *testing.T, s *Suite) {
 		reqBody, err := json.Marshal(newHostEnrollRequest)
 		require.NoError(t, err)
 
-		req, err := http.NewRequest("POST", s.Server.URL+"/api/fleet/orbit/enroll", bytes.NewReader(reqBody))
+		req, err := http.NewRequest("POST", s.Server.URL+"/api/automdm/orbit/enroll", bytes.NewReader(reqBody))
 		require.NoError(t, err)
 		req.Header.Set("Content-Type", "application/json")
 
@@ -1168,7 +1168,7 @@ func testWrongCertAuthentication(t *testing.T, s *Suite) {
 		err = signerHost1.Sign(req)
 		require.NoError(t, err)
 
-		client := fleethttp.NewClient()
+		client := automdmhttp.NewClient()
 		httpResp, err := client.Do(req)
 		require.NoError(t, err)
 		defer httpResp.Body.Close()
@@ -1216,7 +1216,7 @@ func testRealSecureHWAndSCEP(t *testing.T, s *Suite) {
 	require.True(t, ok, "Expected ECC public key")
 
 	// Create enrollment secret
-	err = s.DS.ApplyEnrollSecrets(ctx, nil, []*fleet.EnrollSecret{
+	err = s.DS.ApplyEnrollSecrets(ctx, nil, []*automdm.EnrollSecret{
 		{
 			Secret: testEnrollmentSecret,
 		},
@@ -1229,7 +1229,7 @@ func testRealSecureHWAndSCEP(t *testing.T, s *Suite) {
 	// Create SCEP client with the TPM key
 	scepClient, err := orbitscep.NewClient(
 		orbitscep.WithSigningKey(tpmKey),
-		orbitscep.WithURL(fmt.Sprintf("%s/api/fleet/orbit/host_identity/scep", s.Server.URL)),
+		orbitscep.WithURL(fmt.Sprintf("%s/api/automdm/orbit/host_identity/scep", s.Server.URL)),
 		orbitscep.WithCommonName(commonName),
 		orbitscep.WithChallenge(testEnrollmentSecret),
 		orbitscep.WithLogger(zerologLogger),
@@ -1251,7 +1251,7 @@ func testRealSecureHWAndSCEP(t *testing.T, s *Suite) {
 	assert.True(t, eccPubKey.Equal(certPubKey), "Certificate public key should match TPM key")
 
 	// Test enrollment with HTTP signature using TPM key
-	enrollRequest := fleet.EnrollOrbitRequest{
+	enrollRequest := automdm.EnrollOrbitRequest{
 		EnrollSecret:      testEnrollmentSecret,
 		HardwareUUID:      "test-uuid-" + commonName,
 		HardwareSerial:    "test-serial-" + commonName,
@@ -1262,7 +1262,7 @@ func testRealSecureHWAndSCEP(t *testing.T, s *Suite) {
 	reqBody, err := json.Marshal(enrollRequest)
 	require.NoError(t, err)
 
-	req, err := http.NewRequest("POST", s.Server.URL+"/api/fleet/orbit/enroll", bytes.NewReader(reqBody))
+	req, err := http.NewRequest("POST", s.Server.URL+"/api/automdm/orbit/enroll", bytes.NewReader(reqBody))
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
 
@@ -1282,7 +1282,7 @@ func testRealSecureHWAndSCEP(t *testing.T, s *Suite) {
 	}
 
 	// Create HTTP signature signer
-	signer, err := fleethttpsig.Signer(
+	signer, err := automdmhttpsig.Signer(
 		fmt.Sprintf("%d", cert.SerialNumber.Uint64()),
 		httpSigner,
 		algo,
@@ -1294,7 +1294,7 @@ func testRealSecureHWAndSCEP(t *testing.T, s *Suite) {
 	require.NoError(t, err)
 
 	// Send the signed request
-	client := fleethttp.NewClient()
+	client := automdmhttp.NewClient()
 	httpResp, err := client.Do(req)
 	require.NoError(t, err)
 	defer httpResp.Body.Close()
@@ -1330,7 +1330,7 @@ func testRealSecureHWAndSCEP(t *testing.T, s *Suite) {
 	configReqBody, err := json.Marshal(configRequest)
 	require.NoError(t, err)
 
-	configReq, err := http.NewRequest("POST", s.Server.URL+"/api/fleet/orbit/config", bytes.NewReader(configReqBody))
+	configReq, err := http.NewRequest("POST", s.Server.URL+"/api/automdm/orbit/config", bytes.NewReader(configReqBody))
 	require.NoError(t, err)
 	configReq.Header.Set("Content-Type", "application/json")
 
@@ -1338,7 +1338,7 @@ func testRealSecureHWAndSCEP(t *testing.T, s *Suite) {
 	loadedHTTPSigner, err := loadedKey.HTTPSigner()
 	require.NoError(t, err)
 
-	loadedSigner, err := fleethttpsig.Signer(
+	loadedSigner, err := automdmhttpsig.Signer(
 		fmt.Sprintf("%d", cert.SerialNumber.Uint64()),
 		loadedHTTPSigner,
 		algo,
@@ -1362,7 +1362,7 @@ func testRealSecureHWAndSCEP(t *testing.T, s *Suite) {
 		require.NotNil(t, originalStoredCert.HostID, "Original certificate should have host_id")
 		originalHostID := *originalStoredCert.HostID
 		// Save the current certificate to the expected location
-		certPath := filepath.Join(tempDir, constant.FleetHTTPSignatureCertificateFileName)
+		certPath := filepath.Join(tempDir, constant.AutoMDMHTTPSignatureCertificateFileName)
 		certFile, err := os.OpenFile(certPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o600)
 		require.NoError(t, err)
 		err = pem.Encode(certFile, &pem.Block{
@@ -1386,7 +1386,7 @@ func testRealSecureHWAndSCEP(t *testing.T, s *Suite) {
 			ctx,
 			tempDir,
 			credentials,
-			fmt.Sprintf("%s/api/fleet/orbit/host_identity/scep", s.Server.URL),
+			fmt.Sprintf("%s/api/automdm/orbit/host_identity/scep", s.Server.URL),
 			"",   // rootCA - empty for insecure
 			true, // insecure
 			zerologLogger,
@@ -1430,7 +1430,7 @@ func testRealSecureHWAndSCEP(t *testing.T, s *Suite) {
 		renewedConfigReqBody, err := json.Marshal(renewedConfigRequest)
 		require.NoError(t, err)
 
-		renewedConfigReq, err := http.NewRequest("POST", s.Server.URL+"/api/fleet/orbit/config", bytes.NewReader(renewedConfigReqBody))
+		renewedConfigReq, err := http.NewRequest("POST", s.Server.URL+"/api/automdm/orbit/config", bytes.NewReader(renewedConfigReqBody))
 		require.NoError(t, err)
 		renewedConfigReq.Header.Set("Content-Type", "application/json")
 
@@ -1449,7 +1449,7 @@ func testRealSecureHWAndSCEP(t *testing.T, s *Suite) {
 			t.Fatalf("Unsupported ECC algorithm from renewed TPM key")
 		}
 
-		renewedSigner, err := fleethttpsig.Signer(
+		renewedSigner, err := automdmhttpsig.Signer(
 			fmt.Sprintf("%d", renewedCert.SerialNumber.Uint64()),
 			renewedHTTPSigner,
 			renewedAlgo,
@@ -1467,12 +1467,12 @@ func testRealSecureHWAndSCEP(t *testing.T, s *Suite) {
 
 		// Test that old certificate no longer works
 		// Since the old key was closed and replaced, we need to recreate the signer with the old serial
-		oldConfigReq, err := http.NewRequest("POST", s.Server.URL+"/api/fleet/orbit/config", bytes.NewReader(renewedConfigReqBody))
+		oldConfigReq, err := http.NewRequest("POST", s.Server.URL+"/api/automdm/orbit/config", bytes.NewReader(renewedConfigReqBody))
 		require.NoError(t, err)
 		oldConfigReq.Header.Set("Content-Type", "application/json")
 
 		// Create a signer with the old certificate serial but it should fail since the cert was replaced
-		oldSerialSigner, err := fleethttpsig.Signer(
+		oldSerialSigner, err := automdmhttpsig.Signer(
 			fmt.Sprintf("%d", cert.SerialNumber.Uint64()),
 			renewedHTTPSigner, // Using new key with old serial
 			renewedAlgo,
@@ -1489,7 +1489,7 @@ func testRealSecureHWAndSCEP(t *testing.T, s *Suite) {
 		require.Equal(t, http.StatusUnauthorized, httpResp.StatusCode, "Config request with old certificate serial should fail after renewal")
 
 		// Verify the old key backup was cleaned up by RenewCertificate
-		oldKeyPath := filepath.Join(tempDir, constant.FleetHTTPSignatureTPMKeyBackupFileName)
+		oldKeyPath := filepath.Join(tempDir, constant.AutoMDMHTTPSignatureTPMKeyBackupFileName)
 		_, err = os.Stat(oldKeyPath)
 		require.True(t, os.IsNotExist(err), "Old key backup should have been removed by RenewCertificate")
 

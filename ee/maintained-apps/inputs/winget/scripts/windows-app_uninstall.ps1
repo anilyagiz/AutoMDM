@@ -1,6 +1,6 @@
 # Uninstall Windows App (MSIX, PackageFamilyName MicrosoftCorporationII.Windows365_8wekyb3d8bbwe).
 #
-# The Fleet agent runs as Local System. Removing this provisioned MSIX the naive way
+# The AutoMDM agent runs as Local System. Removing this provisioned MSIX the naive way
 # (Remove-AppxProvisionedPackage / Remove-AppxPackage with -ErrorAction Stop) fails with
 # exit 1603 / "Removal failed. Please contact your software vendor." because a single
 # non-fatal cmdlet error aborts the whole script even when the package does end up removed.

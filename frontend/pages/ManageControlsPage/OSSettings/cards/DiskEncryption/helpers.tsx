@@ -4,7 +4,7 @@ import CustomLink from "components/CustomLink";
 import { getErrorReason } from "interfaces/errors";
 
 const PRIVATE_KEY_LEARN_MORE_LINK =
-  "https://fleetdm.com/learn-more-about/fleet-server-private-key";
+  "https://automdm.com/learn-more-about/automdm-server-private-key";
 
 export const getErrorMessage = (err: unknown) => {
   const reason = getErrorReason(err);
@@ -41,8 +41,8 @@ interface IAppleDiskEncryptionSettings {
   enable_escrow_disk_encryption_key?: boolean;
 }
 
-/** The disk encryption fields shared by the global config, single-fleet, and
- * fleet-list mdm responses. */
+/** The disk encryption fields shared by the global config, single-team, and
+ * team-list mdm responses. */
 export interface IMdmDiskEncryptionSource {
   /** @deprecated Virtual key: true only when all four settings are on. */
   enable_disk_encryption?: boolean;
@@ -85,7 +85,7 @@ export const getDiskEncryptionSettings = (
   };
 };
 
-/** macOS enforce on, escrow off — hosts never send Fleet a key. */
+/** macOS enforce on, escrow off — hosts never send AutoMDM a key. */
 export const isMacOSDiskEncryptionEnforceOnly = ({
   macOSEnabled,
   macOSEscrowEnabled,

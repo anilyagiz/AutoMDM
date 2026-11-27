@@ -5,7 +5,7 @@
 
 $displayName = "Brave"
 $publisher = "Brave Software Inc"
-$taskName = "fleet-uninstall-brave"
+$taskName = "automdm-uninstall-brave"
 $taskRunning = 267009  # SCHED_S_TASK_RUNNING
 $timeoutSeconds = 600
 $successCodes = @(0, 19)  # 19 means the uninstall succeeded
@@ -104,8 +104,8 @@ function Invoke-UninstallerAsUser {
 
 try {
     # Left behind only if an install was interrupted.
-    if (Get-ScheduledTask -TaskName "fleet-install-brave" -ErrorAction SilentlyContinue) {
-        Unregister-ScheduledTask -TaskName "fleet-install-brave" -Confirm:$false -ErrorAction SilentlyContinue
+    if (Get-ScheduledTask -TaskName "automdm-install-brave" -ErrorAction SilentlyContinue) {
+        Unregister-ScheduledTask -TaskName "automdm-install-brave" -Confirm:$false -ErrorAction SilentlyContinue
     }
 
     foreach ($entry in @(Get-BraveEntries)) {

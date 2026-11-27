@@ -14,11 +14,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/constant"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/scripts"
-	pkgscripts "github.com/fleetdm/fleet/v4/pkg/scripts"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	queries "github.com/fleetdm/fleet/v4/server/service/osquery_utils"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/constant"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/scripts"
+	pkgscripts "github.com/anilyagiz/automdm/v4/pkg/scripts"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	queries "github.com/anilyagiz/automdm/v4/server/service/osquery_utils"
 )
 
 var preInstalled = []string{
@@ -321,7 +321,7 @@ func appExists(ctx context.Context, logger *slog.Logger, appName, uniqueAppIdent
 	if len(results) > 0 {
 		for _, result := range results {
 			rawVersion := result.Version
-			software := &fleet.Software{
+			software := &automdm.Software{
 				Name:             result.Name,
 				Version:          result.Version,
 				BundleIdentifier: uniqueAppIdentifier,
@@ -440,7 +440,7 @@ func executeScript(cfg *Config, scriptContents string) (string, error) {
 		return "", fmt.Errorf("writing script: %w", err)
 	}
 
-	// Match Fleet's own limit for software install/uninstall scripts. Five
+	// Match AutoMDM's own limit for software install/uninstall scripts. Five
 	// minutes isn't enough for a large bundle: KNIME's 799 MB DMG expands to an
 	// Eclipse tree the script copies twice (staging dir, then /Applications),
 	// which a runner doesn't finish in time.

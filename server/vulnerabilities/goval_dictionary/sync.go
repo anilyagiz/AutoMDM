@@ -8,16 +8,16 @@ import (
 	"net/url"
 	"path/filepath"
 
-	"github.com/fleetdm/fleet/v4/pkg/download"
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/nvd"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/oval"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/pkg/download"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/nvd"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/oval"
 )
 
 func Refresh(
 	ctx context.Context,
-	versions *fleet.OSVersions,
+	versions *automdm.OSVersions,
 	vulnPath string,
 	logger *slog.Logger,
 ) ([]oval.Platform, error) {
@@ -34,7 +34,7 @@ func Refresh(
 }
 
 func Sync(dstDir string, platforms []oval.Platform) error {
-	client := fleethttp.NewClient(fleethttp.WithNoTimeout())
+	client := automdmhttp.NewClient(automdmhttp.WithNoTimeout())
 	dwn := downloadDecompressed(client)
 	basePath, err := nvd.GetGitHubCVEAssetPath(context.Background())
 	if err != nil {
@@ -78,7 +78,7 @@ func downloadDecompressed(client *http.Client) func(string, string) error {
 	}
 }
 
-func whatToDownload(osVers *fleet.OSVersions) []oval.Platform {
+func whatToDownload(osVers *automdm.OSVersions) []oval.Platform {
 	var r []oval.Platform
 	for _, os := range osVers.OSVersions {
 		platform := oval.NewPlatform(os.Platform, os.Name)

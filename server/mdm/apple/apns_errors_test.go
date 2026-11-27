@@ -7,9 +7,9 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/push/nanopush"
-	"github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/push/nanopush"
+	"github.com/anilyagiz/automdm/v4/server/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -82,7 +82,7 @@ func TestIsPermanentAPNSRejection(t *testing.T) {
 
 func TestTurnOffMDMIfAPNSFailed(t *testing.T) {
 	ctx := t.Context()
-	noActivity := func(ctx context.Context, user *fleet.User, activity fleet.ActivityDetails) error { return nil }
+	noActivity := func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error { return nil }
 
 	apnsErr := func(err error) *APNSDeliveryError {
 		return &APNSDeliveryError{errorsByUUID: map[string]error{"host-uuid-1": err}}
@@ -134,7 +134,7 @@ func TestTurnOffMDMIfAPNSFailed(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			ds := new(mock.Store)
-			ds.MDMTurnOffFunc = func(ctx context.Context, uuid string) ([]*fleet.User, []fleet.ActivityDetails, error) {
+			ds.MDMTurnOffFunc = func(ctx context.Context, uuid string) ([]*automdm.User, []automdm.ActivityDetails, error) {
 				return nil, nil, nil
 			}
 

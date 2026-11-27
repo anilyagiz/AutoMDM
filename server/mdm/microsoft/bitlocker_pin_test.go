@@ -17,7 +17,7 @@ func TestValidateBitLockerPIN(t *testing.T) {
 		{name: "minimum length", pin: "123456"},
 		{name: "maximum length", pin: "12345678901234567890"},
 		{name: "leading zeros are fine", pin: "000000"},
-		// Fleet enables enhanced PINs, so letters, spaces, and symbols are accepted.
+		// AutoMDM enables enhanced PINs, so letters, spaces, and symbols are accepted.
 		{name: "letters", pin: "abcDEF"},
 		{name: "spaces", pin: "123 456"},
 		{name: "symbols", pin: "!\"#$%&'()*+,-./:;<=>"},

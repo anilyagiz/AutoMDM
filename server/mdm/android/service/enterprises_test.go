@@ -9,14 +9,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/authz"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
-	android_mock "github.com/fleetdm/fleet/v4/server/mdm/android/mock"
-	ds_mock "github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
+	android_mock "github.com/anilyagiz/automdm/v4/server/mdm/android/mock"
+	ds_mock "github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,68 +28,68 @@ func TestEnterprisesAuth(t *testing.T) {
 	androidAPIClient := android_mock.Client{}
 	androidAPIClient.InitCommonMocks()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	fleetDS := InitCommonDSMocks()
+	automdmDS := InitCommonDSMocks()
 	newActivity := noopNewActivity // This test does not verify activity creation.
-	svc, err := NewServiceWithClient(logger, fleetDS, &androidAPIClient, "test-private-key", &fleetDS.DataStore, newActivity, config.AndroidAgentConfig{})
+	svc, err := NewServiceWithClient(logger, automdmDS, &androidAPIClient, "test-private-key", &automdmDS.DataStore, newActivity, config.AndroidAgentConfig{})
 	require.NoError(t, err)
 
 	testCases := []struct {
 		name            string
-		user            *fleet.User
+		user            *automdm.User
 		shouldFailWrite bool
 		shouldFailRead  bool
 	}{
 		{
 			"global admin",
-			&fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)},
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)},
 			false,
 			false,
 		},
 		{
 			"global maintainer",
-			&fleet.User{GlobalRole: ptr.String(fleet.RoleMaintainer)},
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleMaintainer)},
 			true,
 			true,
 		},
 		{
 			"global gitops",
-			&fleet.User{GlobalRole: ptr.String(fleet.RoleGitOps)},
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleGitOps)},
 			true,
 			true,
 		},
 		{
 			"global observer",
-			&fleet.User{GlobalRole: ptr.String(fleet.RoleObserver)},
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleObserver)},
 			true,
 			true,
 		},
 		{
 			"global observer+",
-			&fleet.User{GlobalRole: ptr.String(fleet.RoleObserverPlus)},
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleObserverPlus)},
 			true,
 			true,
 		},
 		{
 			"team admin",
-			&fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleAdmin}}},
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleAdmin}}},
 			true,
 			true,
 		},
 		{
 			"team maintainer",
-			&fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleMaintainer}}},
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleMaintainer}}},
 			true,
 			true,
 		},
 		{
 			"team observer",
-			&fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleObserver}}},
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserver}}},
 			true,
 			true,
 		},
 		{
 			"team observer+",
-			&fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleObserverPlus}}},
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserverPlus}}},
 			true,
 			true,
 		},
@@ -126,13 +126,13 @@ func TestEnterpriseSignupMissingPrivateKey(t *testing.T) {
 	androidAPIClient := android_mock.Client{}
 	androidAPIClient.InitCommonMocks()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	fleetDS := InitCommonDSMocks()
+	automdmDS := InitCommonDSMocks()
 	newActivity := noopNewActivity // This test does not verify activity creation.
 
-	svc, err := NewServiceWithClient(logger, fleetDS, &androidAPIClient, "test-private-key", &fleetDS.DataStore, newActivity, config.AndroidAgentConfig{})
+	svc, err := NewServiceWithClient(logger, automdmDS, &androidAPIClient, "test-private-key", &automdmDS.DataStore, newActivity, config.AndroidAgentConfig{})
 	require.NoError(t, err)
 
-	user := &fleet.User{ID: 1, GlobalRole: ptr.String(fleet.RoleAdmin)}
+	user := &automdm.User{ID: 1, GlobalRole: ptr.String(automdm.RoleAdmin)}
 	ctx := viewer.NewContext(context.Background(), viewer.Viewer{User: user})
 
 	testSetEmptyPrivateKey = true
@@ -142,7 +142,7 @@ func TestEnterpriseSignupMissingPrivateKey(t *testing.T) {
 	require.Error(t, err)
 
 	require.Contains(t, err.Error(), "missing required private key")
-	require.Contains(t, err.Error(), "https://fleetdm.com/learn-more-about/fleet-server-private-key")
+	require.Contains(t, err.Error(), "https://automdm.com/learn-more-about/automdm-server-private-key")
 }
 
 func checkAuthErr(t *testing.T, shouldFail bool, err error) {
@@ -158,7 +158,7 @@ func checkAuthErr(t *testing.T, shouldFail bool, err error) {
 
 func InitCommonDSMocks() *AndroidMockDS {
 	ds := AndroidMockDS{}
-	// Set up basic Android datastore mocks directly on the Fleet datastore mock
+	// Set up basic Android datastore mocks directly on the AutoMDM datastore mock
 	ds.Store.CreateEnterpriseFunc = func(ctx context.Context, _ uint) (uint, error) {
 		return 1, nil
 	}
@@ -189,7 +189,7 @@ func InitCommonDSMocks() *AndroidMockDS {
 	ds.DataStore.SetHostAndroidSoftwareInstallsVerifiedFunc = func(ctx context.Context, hostID uint, appliedPolicyVersion int64) error {
 		return nil
 	}
-	ds.DataStore.ReplaceHostAndroidSoftwareInstallsFunc = func(ctx context.Context, hostID uint, installs []fleet.HostAndroidSoftwareInstall) error {
+	ds.DataStore.ReplaceHostAndroidSoftwareInstallsFunc = func(ctx context.Context, hostID uint, installs []automdm.HostAndroidSoftwareInstall) error {
 		return nil
 	}
 	ds.DataStore.NewAndroidPolicyRequestFunc = func(ctx context.Context, req *android.MDMAndroidPolicyRequest) error {
@@ -199,38 +199,38 @@ func InitCommonDSMocks() *AndroidMockDS {
 		return false, nil
 	}
 
-	ds.Store.AppConfigFunc = func(_ context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil
+	ds.Store.AppConfigFunc = func(_ context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
 	}
-	ds.Store.ListHostMDMAndroidVPPAppsLatestFailedInstallFunc = func(ctx context.Context, hostID uint) ([]*fleet.HostAndroidVPPSoftwareInstall, error) {
+	ds.Store.ListHostMDMAndroidVPPAppsLatestFailedInstallFunc = func(ctx context.Context, hostID uint) ([]*automdm.HostAndroidVPPSoftwareInstall, error) {
 		return nil, nil
 	}
 	ds.Store.SetAndroidEnabledAndConfiguredFunc = func(_ context.Context, configured bool) error {
 		return nil
 	}
-	ds.Store.UserOrDeletedUserByIDFunc = func(ctx context.Context, id uint) (*fleet.User, error) {
-		return &fleet.User{ID: id}, nil
+	ds.Store.UserOrDeletedUserByIDFunc = func(ctx context.Context, id uint) (*automdm.User, error) {
+		return &automdm.User{ID: id}, nil
 	}
-	ds.Store.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []fleet.MDMAssetName,
+	ds.Store.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []automdm.MDMAssetName,
 		queryerContext sqlx.QueryerContext,
-	) (map[fleet.MDMAssetName]fleet.MDMConfigAsset, error) {
-		result := make(map[fleet.MDMAssetName]fleet.MDMConfigAsset, len(assetNames))
+	) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
+		result := make(map[automdm.MDMAssetName]automdm.MDMConfigAsset, len(assetNames))
 		for _, name := range assetNames {
-			result[name] = fleet.MDMConfigAsset{Value: []byte("value")}
+			result[name] = automdm.MDMConfigAsset{Value: []byte("value")}
 		}
 		return result, nil
 	}
-	ds.Store.InsertOrReplaceMDMConfigAssetFunc = func(ctx context.Context, asset fleet.MDMConfigAsset) error {
+	ds.Store.InsertOrReplaceMDMConfigAssetFunc = func(ctx context.Context, asset automdm.MDMConfigAsset) error {
 		return nil
 	}
-	ds.Store.DeleteMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []fleet.MDMAssetName) error {
+	ds.Store.DeleteMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []automdm.MDMAssetName) error {
 		return nil
 	}
 	ds.Store.BulkSetAndroidHostsUnenrolledFunc = func(ctx context.Context) error {
 		return nil
 	}
-	ds.Store.NewJobFunc = func(ctx context.Context, job *fleet.Job) (*fleet.Job, error) {
-		return &fleet.Job{}, nil
+	ds.Store.NewJobFunc = func(ctx context.Context, job *automdm.Job) (*automdm.Job, error) {
+		return &automdm.Job{}, nil
 	}
 	ds.Store.MarkAllPendingAndroidVPPInstallsAsFailedFunc = func(ctx context.Context) error {
 		return nil
@@ -241,16 +241,16 @@ func InitCommonDSMocks() *AndroidMockDS {
 	ds.Store.GetAndroidDeviceLastTeamIDFunc = func(ctx context.Context, enterpriseSpecificID string) (*uint, bool, error) {
 		return nil, false, nil
 	}
-	ds.Store.UpdateHostOperatingSystemFunc = func(ctx context.Context, hostID uint, hostOS fleet.OperatingSystem) error {
+	ds.Store.UpdateHostOperatingSystemFunc = func(ctx context.Context, hostID uint, hostOS automdm.OperatingSystem) error {
 		return nil
 	}
-	ds.Store.GetMDMIdPAccountByUUIDFunc = func(ctx context.Context, uuid string) (*fleet.MDMIdPAccount, error) {
+	ds.Store.GetMDMIdPAccountByUUIDFunc = func(ctx context.Context, uuid string) (*automdm.MDMIdPAccount, error) {
 		return nil, &notFoundError{}
 	}
-	ds.Store.GetMDMIdPAccountByHostUUIDFunc = func(ctx context.Context, hostUUID string) (*fleet.MDMIdPAccount, error) {
+	ds.Store.GetMDMIdPAccountByHostUUIDFunc = func(ctx context.Context, hostUUID string) (*automdm.MDMIdPAccount, error) {
 		return nil, &notFoundError{}
 	}
-	ds.Store.AddHostsToTeamFunc = func(ctx context.Context, params *fleet.AddHostsToTeamParams) error {
+	ds.Store.AddHostsToTeamFunc = func(ctx context.Context, params *automdm.AddHostsToTeamParams) error {
 		return nil
 	}
 	ds.Store.UpdateTeamIDOnAndroidDevicesFunc = func(ctx context.Context, hostUUIDs []string, teamID *uint) error {
@@ -265,10 +265,10 @@ func InitCommonDSMocks() *AndroidMockDS {
 	ds.Store.SetAndroidHostEnrolledFunc = func(ctx context.Context, hostID uint) (bool, error) {
 		return false, nil
 	}
-	ds.Store.AndroidResetOnReenrollmentFunc = func(ctx context.Context, hostID uint, hostUUID string, preserveHostActivities bool) ([]*fleet.User, []fleet.ActivityDetails, error) {
+	ds.Store.AndroidResetOnReenrollmentFunc = func(ctx context.Context, hostID uint, hostUUID string, preserveHostActivities bool) ([]*automdm.User, []automdm.ActivityDetails, error) {
 		return nil, nil, nil
 	}
-	ds.Store.SetOrUpdateHostMDMAndroidDeviceVitalsFunc = func(ctx context.Context, hostUUID string, vitals fleet.MDMAndroidDeviceVitals) error {
+	ds.Store.SetOrUpdateHostMDMAndroidDeviceVitalsFunc = func(ctx context.Context, hostUUID string, vitals automdm.MDMAndroidDeviceVitals) error {
 		return nil
 	}
 	return &ds
@@ -284,22 +284,22 @@ func (e *notFoundError) Error() string    { return "not found" }
 func (e *notFoundError) IsNotFound() bool { return true }
 
 // noopNewActivity is a no-op activity creation function for tests that don't verify activity creation.
-func noopNewActivity(_ context.Context, _ *fleet.User, _ fleet.ActivityDetails) error {
+func noopNewActivity(_ context.Context, _ *automdm.User, _ automdm.ActivityDetails) error {
 	return nil
 }
 
 func TestGetEnterprise(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	user := &fleet.User{ID: 1, GlobalRole: ptr.String(fleet.RoleAdmin)}
+	user := &automdm.User{ID: 1, GlobalRole: ptr.String(automdm.RoleAdmin)}
 	ctx := viewer.NewContext(context.Background(), viewer.Viewer{User: user})
 
 	t.Run("normal enterprise retrieval works", func(t *testing.T) {
 		androidAPIClient := android_mock.Client{}
 		androidAPIClient.InitCommonMocks()
 
-		fleetDS := InitCommonDSMocks()
+		automdmDS := InitCommonDSMocks()
 		newActivity := noopNewActivity // This test does not verify activity creation.
-		svc, err := NewServiceWithClient(logger, fleetDS, &androidAPIClient, "test-private-key", &fleetDS.DataStore, newActivity, config.AndroidAgentConfig{})
+		svc, err := NewServiceWithClient(logger, automdmDS, &androidAPIClient, "test-private-key", &automdmDS.DataStore, newActivity, config.AndroidAgentConfig{})
 		require.NoError(t, err)
 
 		enterprise, err := svc.GetEnterprise(ctx)
@@ -313,13 +313,13 @@ func TestGetEnterprise(t *testing.T) {
 		androidAPIClient.InitCommonMocks()
 
 		// Override GetEnterpriseFunc to return not found
-		fleetDS := InitCommonDSMocks()
-		fleetDS.Store.GetEnterpriseFunc = func(ctx context.Context) (*android.Enterprise, error) {
+		automdmDS := InitCommonDSMocks()
+		automdmDS.Store.GetEnterpriseFunc = func(ctx context.Context) (*android.Enterprise, error) {
 			return nil, &notFoundError{}
 		}
 
 		newActivity := noopNewActivity // This test does not verify activity creation.
-		svc, err := NewServiceWithClient(logger, fleetDS, &androidAPIClient, "test-private-key", &fleetDS.DataStore, newActivity, config.AndroidAgentConfig{})
+		svc, err := NewServiceWithClient(logger, automdmDS, &androidAPIClient, "test-private-key", &automdmDS.DataStore, newActivity, config.AndroidAgentConfig{})
 		require.NoError(t, err)
 
 		enterprise, err := svc.GetEnterprise(ctx)
@@ -334,7 +334,7 @@ func TestGetEnterprise(t *testing.T) {
 
 func TestVerifyExistingEnterpriseIfAny(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	user := &fleet.User{ID: 1, GlobalRole: ptr.String(fleet.RoleAdmin)}
+	user := &automdm.User{ID: 1, GlobalRole: ptr.String(automdm.RoleAdmin)}
 	ctx := viewer.NewContext(context.Background(), viewer.Viewer{User: user})
 
 	t.Run("enterprise actually deleted - enterprise NOT in LIST", func(t *testing.T) {
@@ -342,8 +342,8 @@ func TestVerifyExistingEnterpriseIfAny(t *testing.T) {
 		androidAPIClient.InitCommonMocks()
 
 		// Override GetEnterpriseFunc to return an enterprise that will be checked
-		fleetDS := InitCommonDSMocks()
-		fleetDS.Store.GetEnterpriseFunc = func(ctx context.Context) (*android.Enterprise, error) {
+		automdmDS := InitCommonDSMocks()
+		automdmDS.Store.GetEnterpriseFunc = func(ctx context.Context) (*android.Enterprise, error) {
 			return &android.Enterprise{
 				EnterpriseID: "enterprises/deleted-enterprise-id",
 			}, nil
@@ -351,7 +351,7 @@ func TestVerifyExistingEnterpriseIfAny(t *testing.T) {
 
 		// Track calls to SetAndroidEnabledAndConfigured
 		setAndroidCalled := false
-		fleetDS.Store.SetAndroidEnabledAndConfiguredFunc = func(_ context.Context, configured bool) error {
+		automdmDS.Store.SetAndroidEnabledAndConfiguredFunc = func(_ context.Context, configured bool) error {
 			setAndroidCalled = true
 			assert.False(t, configured, "Should turn off Android configuration when enterprise is deleted")
 			return nil
@@ -365,7 +365,7 @@ func TestVerifyExistingEnterpriseIfAny(t *testing.T) {
 		}
 
 		newActivity := noopNewActivity // This test does not verify activity creation.
-		svc, err := NewServiceWithClient(logger, fleetDS, &androidAPIClient, "test-private-key", &fleetDS.DataStore, newActivity, config.AndroidAgentConfig{})
+		svc, err := NewServiceWithClient(logger, automdmDS, &androidAPIClient, "test-private-key", &automdmDS.DataStore, newActivity, config.AndroidAgentConfig{})
 		require.NoError(t, err)
 
 		err = svc.VerifyExistingEnterpriseIfAny(ctx)
@@ -377,7 +377,7 @@ func TestVerifyExistingEnterpriseIfAny(t *testing.T) {
 		// Verify SetAndroidEnabledAndConfigured was called with false
 		assert.True(t, setAndroidCalled)
 
-		// Check that it's a Fleet error with proper message and 404 status
+		// Check that it's an AutoMDM error with proper message and 404 status
 		assert.Contains(t, err.Error(), "Android Enterprise has been deleted")
 		if statusErr, ok := err.(interface{ StatusCode() int }); ok {
 			assert.Equal(t, http.StatusNotFound, statusErr.StatusCode())
@@ -391,8 +391,8 @@ func TestVerifyExistingEnterpriseIfAny(t *testing.T) {
 		androidAPIClient.InitCommonMocks()
 
 		// Override GetEnterpriseFunc to return an enterprise that will be checked
-		fleetDS := InitCommonDSMocks()
-		fleetDS.Store.GetEnterpriseFunc = func(ctx context.Context) (*android.Enterprise, error) {
+		automdmDS := InitCommonDSMocks()
+		automdmDS.Store.GetEnterpriseFunc = func(ctx context.Context) (*android.Enterprise, error) {
 			return &android.Enterprise{
 				EnterpriseID: "enterprises/existing-enterprise-id",
 			}, nil
@@ -400,7 +400,7 @@ func TestVerifyExistingEnterpriseIfAny(t *testing.T) {
 
 		// Track calls to SetAndroidEnabledAndConfigured - should NOT be called
 		setAndroidCalled := false
-		fleetDS.Store.SetAndroidEnabledAndConfiguredFunc = func(_ context.Context, configured bool) error {
+		automdmDS.Store.SetAndroidEnabledAndConfiguredFunc = func(_ context.Context, configured bool) error {
 			setAndroidCalled = true
 			return nil
 		}
@@ -414,7 +414,7 @@ func TestVerifyExistingEnterpriseIfAny(t *testing.T) {
 		}
 
 		newActivity := noopNewActivity // This test does not verify activity creation.
-		svc, err := NewServiceWithClient(logger, fleetDS, &androidAPIClient, "test-private-key", &fleetDS.DataStore, newActivity, config.AndroidAgentConfig{})
+		svc, err := NewServiceWithClient(logger, automdmDS, &androidAPIClient, "test-private-key", &automdmDS.DataStore, newActivity, config.AndroidAgentConfig{})
 		require.NoError(t, err)
 
 		err = svc.VerifyExistingEnterpriseIfAny(ctx)
@@ -432,8 +432,8 @@ func TestVerifyExistingEnterpriseIfAny(t *testing.T) {
 		androidAPIClient.InitCommonMocks()
 
 		// Override GetEnterpriseFunc to return an enterprise
-		fleetDS := InitCommonDSMocks()
-		fleetDS.Store.GetEnterpriseFunc = func(ctx context.Context) (*android.Enterprise, error) {
+		automdmDS := InitCommonDSMocks()
+		automdmDS.Store.GetEnterpriseFunc = func(ctx context.Context) (*android.Enterprise, error) {
 			return &android.Enterprise{
 				EnterpriseID: "enterprises/test-enterprise-id",
 			}, nil
@@ -441,7 +441,7 @@ func TestVerifyExistingEnterpriseIfAny(t *testing.T) {
 
 		// Track calls to SetAndroidEnabledAndConfigured - should NOT be called
 		setAndroidCalled := false
-		fleetDS.Store.SetAndroidEnabledAndConfiguredFunc = func(_ context.Context, configured bool) error {
+		automdmDS.Store.SetAndroidEnabledAndConfiguredFunc = func(_ context.Context, configured bool) error {
 			setAndroidCalled = true
 			return nil
 		}
@@ -455,7 +455,7 @@ func TestVerifyExistingEnterpriseIfAny(t *testing.T) {
 		}
 
 		newActivity := noopNewActivity // This test does not verify activity creation.
-		svc, err := NewServiceWithClient(logger, fleetDS, &androidAPIClient, "test-private-key", &fleetDS.DataStore, newActivity, config.AndroidAgentConfig{})
+		svc, err := NewServiceWithClient(logger, automdmDS, &androidAPIClient, "test-private-key", &automdmDS.DataStore, newActivity, config.AndroidAgentConfig{})
 		require.NoError(t, err)
 
 		err = svc.VerifyExistingEnterpriseIfAny(ctx)
@@ -477,15 +477,15 @@ func TestVerifyExistingEnterpriseIfAny(t *testing.T) {
 		androidAPIClient.InitCommonMocks()
 
 		// Override GetEnterpriseFunc to return an enterprise that will be checked
-		fleetDS := InitCommonDSMocks()
-		fleetDS.Store.GetEnterpriseFunc = func(ctx context.Context) (*android.Enterprise, error) {
+		automdmDS := InitCommonDSMocks()
+		automdmDS.Store.GetEnterpriseFunc = func(ctx context.Context) (*android.Enterprise, error) {
 			return &android.Enterprise{
 				EnterpriseID: "enterprises/deleted-enterprise-id",
 			}, nil
 		}
 
 		// Override SetAndroidEnabledAndConfigured to fail
-		fleetDS.Store.SetAndroidEnabledAndConfiguredFunc = func(_ context.Context, configured bool) error {
+		automdmDS.Store.SetAndroidEnabledAndConfiguredFunc = func(_ context.Context, configured bool) error {
 			assert.False(t, configured, "Should try to turn off Android configuration")
 			return errors.New("database error")
 		}
@@ -496,7 +496,7 @@ func TestVerifyExistingEnterpriseIfAny(t *testing.T) {
 		}
 
 		newActivity := noopNewActivity // This test does not verify activity creation.
-		svc, err := NewServiceWithClient(logger, fleetDS, &androidAPIClient, "test-private-key", &fleetDS.DataStore, newActivity, config.AndroidAgentConfig{})
+		svc, err := NewServiceWithClient(logger, automdmDS, &androidAPIClient, "test-private-key", &automdmDS.DataStore, newActivity, config.AndroidAgentConfig{})
 		require.NoError(t, err)
 
 		err = svc.VerifyExistingEnterpriseIfAny(ctx)
@@ -543,15 +543,15 @@ func TestVerifyExistingEnterpriseIfAny(t *testing.T) {
 				androidAPIClient := android_mock.Client{}
 				androidAPIClient.InitCommonMocks()
 
-				fleetDS := InitCommonDSMocks()
-				fleetDS.Store.GetEnterpriseFunc = func(ctx context.Context) (*android.Enterprise, error) {
+				automdmDS := InitCommonDSMocks()
+				automdmDS.Store.GetEnterpriseFunc = func(ctx context.Context) (*android.Enterprise, error) {
 					return &android.Enterprise{
 						EnterpriseID: tc.enterpriseIDInDB,
 					}, nil
 				}
 
 				setAndroidCalled := false
-				fleetDS.Store.SetAndroidEnabledAndConfiguredFunc = func(_ context.Context, configured bool) error {
+				automdmDS.Store.SetAndroidEnabledAndConfiguredFunc = func(_ context.Context, configured bool) error {
 					setAndroidCalled = true
 					return nil
 				}
@@ -563,7 +563,7 @@ func TestVerifyExistingEnterpriseIfAny(t *testing.T) {
 				}
 
 				newActivity := noopNewActivity // This test does not verify activity creation.
-				svc, err := NewServiceWithClient(logger, fleetDS, &androidAPIClient, "test-private-key", &fleetDS.DataStore, newActivity, config.AndroidAgentConfig{})
+				svc, err := NewServiceWithClient(logger, automdmDS, &androidAPIClient, "test-private-key", &automdmDS.DataStore, newActivity, config.AndroidAgentConfig{})
 				require.NoError(t, err)
 
 				err = svc.VerifyExistingEnterpriseIfAny(ctx)
@@ -587,13 +587,13 @@ func TestVerifyExistingEnterpriseIfAny(t *testing.T) {
 		androidAPIClient.InitCommonMocks()
 
 		// Override GetEnterpriseFunc to return not found
-		fleetDS := InitCommonDSMocks()
-		fleetDS.Store.GetEnterpriseFunc = func(ctx context.Context) (*android.Enterprise, error) {
+		automdmDS := InitCommonDSMocks()
+		automdmDS.Store.GetEnterpriseFunc = func(ctx context.Context) (*android.Enterprise, error) {
 			return nil, &notFoundError{}
 		}
 
 		newActivity := noopNewActivity // This test does not verify activity creation.
-		svc, err := NewServiceWithClient(logger, fleetDS, &androidAPIClient, "test-private-key", &fleetDS.DataStore, newActivity, config.AndroidAgentConfig{})
+		svc, err := NewServiceWithClient(logger, automdmDS, &androidAPIClient, "test-private-key", &automdmDS.DataStore, newActivity, config.AndroidAgentConfig{})
 		require.NoError(t, err)
 
 		err = svc.VerifyExistingEnterpriseIfAny(ctx)

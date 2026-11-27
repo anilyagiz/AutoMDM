@@ -1,8 +1,8 @@
 # Agent configuration
 
-Agent configuration (agent options) updates the settings of the [Fleet agent (fleetd)](https://fleetdm.com/docs/get-started/anatomy#fleetd) installed on all your hosts.
+Agent configuration (agent options) updates the settings of the [AutoMDM agent (automdmd)](https://automdm.com/docs/get-started/anatomy#automdmd) installed on all your hosts.
 
-You can modify agent options in **Settings > Organization settings > Agent options** or via Fleet's [API](https://fleetdm.com/docs/rest-api/rest-api#modify-configuration) or [YAML files](https://fleetdm.com/docs/configuration/yaml-files).
+You can modify agent options in **Settings > Organization settings > Agent options** or via AutoMDM's [API](https://automdm.com/docs/rest-api/rest-api#modify-configuration) or [YAML files](https://automdm.com/docs/configuration/yaml-files).
 
 ## config 
 
@@ -47,32 +47,32 @@ command_line_flags:
 
 ### options and command_line_flags
 
-- `options` include the agent settings listed under `osqueryOptions` in [`agent_options_generated.go`](https://github.com/fleetdm/fleet/blob/main/server/fleet/agent_options_generated.go). These can be updated without a fleetd restart.
-- `command_line_flags` include the agent settings listed under osqueryCommandLineFlags in [`agent_options_generated.go`](https://github.com/fleetdm/fleet/blob/main/server/fleet/agent_options_generated.go). These are only updated when fleetd restarts. 
+- `options` include the agent settings listed under `osqueryOptions` in [`agent_options_generated.go`](https://github.com/anilyagiz/automdm/blob/main/server/automdm/agent_options_generated.go). These can be updated without an automdmd restart.
+- `command_line_flags` include the agent settings listed under osqueryCommandLineFlags in [`agent_options_generated.go`](https://github.com/anilyagiz/automdm/blob/main/server/automdm/agent_options_generated.go). These are only updated when automdmd restarts. 
 
 Setting `command_line_flags` to an empty value (`{}` or `null`) is not the same as leaving the key out:
 
-- If `command_line_flags` isn't present in your agent options, Fleet leaves each host's osquery flags as they are. Flags that shipped with the fleetd installer, or were set locally on the host, are preserved.
-- If `command_line_flags` is set to `{}` or `null`, Fleet clears all local osquery flags on your hosts. On each host, fleetd empties the `osquery.flags` file and restarts osquery without those flags.
+- If `command_line_flags` isn't present in your agent options, AutoMDM leaves each host's osquery flags as they are. Flags that shipped with the automdmd installer, or were set locally on the host, are preserved.
+- If `command_line_flags` is set to `{}` or `null`, AutoMDM clears all local osquery flags on your hosts. On each host, automdmd empties the `osquery.flags` file and restarts osquery without those flags.
 
-The `host_identifier` and `database_path` flags can't be set in `command_line_flags` because fleetd manages them. The `extensions_autoload` flag can be set, but not together with the [`extensions`](#extensions) key, because fleetd uses that flag to load the extensions it manages.
+The `host_identifier` and `database_path` flags can't be set in `command_line_flags` because automdmd manages them. The `extensions_autoload` flag can be set, but not together with the [`extensions`](#extensions) key, because automdmd uses that flag to load the extensions it manages.
 
-To see a description for all available settings, first [enroll your host](https://fleetdm.com/guides/enroll-hosts) to Fleet. Then, open your **Terminal** app and run `sudo orbit shell` to open an interactive osquery shell. Then run the following osquery query:
+To see a description for all available settings, first [enroll your host](https://automdm.com/guides/enroll-hosts) to AutoMDM. Then, open your **Terminal** app and run `sudo orbit shell` to open an interactive osquery shell. Then run the following osquery query:
 
 ```
 osquery > SELECT name, default_value, value, description FROM osquery_flags; 
 ```
 
-Running the interactive osquery shell loads a standalone instance of osquery, with a default configuration rather than the one set in agent options. If you'd like to verify that your hosts are running with the latest settings set in `options`, run the report as a live report in Fleet.
+Running the interactive osquery shell loads a standalone instance of osquery, with a default configuration rather than the one set in agent options. If you'd like to verify that your hosts are running with the latest settings set in `options`, run the report as a live report in AutoMDM.
 
-> If you revoke an old enroll secret, the `command_line_flags` won't update for hosts that enrolled to Fleet using this old enroll secret. This is because fleetd uses the enroll secret to receive new flags from Fleet. For these hosts, all existing features will work as expected.
+> If you revoke an old enroll secret, the `command_line_flags` won't update for hosts that enrolled to AutoMDM using this old enroll secret. This is because automdmd uses the enroll secret to receive new flags from AutoMDM. For these hosts, all existing features will work as expected.
 
 #### Advanced
 
-`options` and `command_line_flags` are validated using the latest version of osquery. If you are not using the latest version of osquery, you can create a YAML file and apply it with `fleetctl apply --force` command to override the validation:
+`options` and `command_line_flags` are validated using the latest version of osquery. If you are not using the latest version of osquery, you can create a YAML file and apply it with `automdmctl apply --force` command to override the validation:
 
 ```sh
-fleetctl apply --force -f config.yaml
+automdmctl apply --force -f config.yaml
 ```
 
 ### decorators
@@ -85,19 +85,19 @@ In the `decorators` key, you can specify queries to include additional informati
 
 ### yara
 
-You can use Fleet to configure the `yara` and `yara_events` osquery tables, used to administer [YARA rules](https://fleetdm.com/guides/remote-yara-rules) for continuous monitoring.
+You can use AutoMDM to configure the `yara` and `yara_events` osquery tables, used to administer [YARA rules](https://automdm.com/guides/remote-yara-rules) for continuous monitoring.
 
 ## extensions
 
-> This feature requires a custom TUF [auto-update server](https://fleetdm.com/guides/fleetd-updates) (available in Fleet Premium).
+> This feature requires a custom TUF [auto-update server](https://automdm.com/guides/automdmd-updates) (available in AutoMDM Premium).
 
-The `extensions` key inside of `agent_options` allows you to remotely manage and deploy osquery extensions. Just like other `agent_options` the `extensions` key can be applied either to a specific fleet specific or global across all fleets.
+The `extensions` key inside of `agent_options` allows you to remotely manage and deploy osquery extensions. Just like other `agent_options` the `extensions` key can be applied either to a specific team specific or global across all teams.
 
 #### Example
 
 ```yaml
 agent_options:
-  extensions: # requires Fleet's agent (fleetd)
+  extensions: # requires AutoMDM's agent (automdmd)
     hello_world_macos:
       channel: 'stable'
       platform: 'macos'
@@ -123,37 +123,37 @@ In the above case, the filename for macOS should be `hello_world_macos.ext`, for
 * The target name for the TUF server must be named as `extensions/<extension_name>`. For the above example, this would be `extensions/hello_world_{macos|linux|linux_arm64|windows|windows_arm64}`
 * The `platform` field is one of `macos`, `linux`, `linux-arm64`, `windows`, or `windows-arm64`.
 
-If you are using `fleetctl` to manage your TUF server, these same conventions apply. You can run the following command to add a new target:
+If you are using `automdmctl` to manage your TUF server, these same conventions apply. You can run the following command to add a new target:
 ```bash
-fleetctl updates add \
+automdmctl updates add \
   --path /path/to/local/TUF/repo \
   --target /path/to/extensions/binary/hello_world_macos.ext \
   --name extensions/hello_world_macos \
   --platform macos \
   --version 0.1
 
-fleetctl updates add \
+automdmctl updates add \
   --path /path/to/local/TUF/repo
   --target /path/to/extensions/binary/hello_world_linux.ext \
   --name extensions/hello_world_linux \
   --platform linux \
   --version 0.1
 
-fleetctl updates add \
+automdmctl updates add \
   --path /path/to/local/TUF/repo
   --target /path/to/extensions/binary/hello_world_linux_arm64.ext \
   --name extensions/hello_world_linux_arm64 \
   --platform linux-arm64 \
   --version 0.1
 
-fleetctl updates add \
+automdmctl updates add \
   --path /path/to/local/TUF/repo \
   --target /path/to/extensions/binary/hello_world_windows.ext.exe \
   --name extensions/hello_world_windows \
   --platform windows \
   --version 0.1
 
-fleetctl updates add \
+automdmctl updates add \
   --path /path/to/local/TUF/repo \
   --target /path/to/extensions/binary/hello_world_windows_arm64.ext.exe \
   --name extensions/hello_world_windows_arm64 \
@@ -161,19 +161,19 @@ fleetctl updates add \
   --version 0.1
 ```
 
-After successfully configuring the agent options, and pushing the extension as a target on your TUF server, Fleetd will periodically check with the TUF server for updates to these extensions.
+After successfully configuring the agent options, and pushing the extension as a target on your TUF server, AutoMDMd will periodically check with the TUF server for updates to these extensions.
 
-If you are using a self-hosted TUF server, you must also manage all of Fleetd's versions, including osquery, Fleet Desktop and osquery extensions.
+If you are using a self-hosted TUF server, you must also manage all of AutoMDMd's versions, including osquery, AutoMDM Desktop and osquery extensions.
 
-Fleet recommends deploying extensions created with osquery-go or natively with C++, instead of Python. Extensions written in Python require the user to compile it into a single packaged binary along with all the dependencies.
+AutoMDM recommends deploying extensions created with osquery-go or natively with C++, instead of Python. Extensions written in Python require the user to compile it into a single packaged binary along with all the dependencies.
 
 ### Targeting extensions with labels
 
-_Available in Fleet Premium_
+_Available in AutoMDM Premium_
 
-Fleet allows you to target extensions to hosts that belong to specific labels. To set these labels, you'll need to define a `labels` list under the extension name.
+AutoMDM allows you to target extensions to hosts that belong to specific labels. To set these labels, you'll need to define a `labels` list under the extension name.
 The label names in the list:
-- must already exist (otherwise the `/api/latest/fleet/config` request will fail).
+- must already exist (otherwise the `/api/latest/automdm/config` request will fail).
 - are case insensitive.
 - must **all** apply to a host in order to deploy the extension to that host.
 
@@ -181,7 +181,7 @@ The label names in the list:
 
 ```yaml
 agent_options:
-  extensions: # requires Fleet's agent (fleetd)
+  extensions: # requires AutoMDM's agent (automdmd)
     hello_world_macos:
       channel: 'stable'
       platform: 'macos'
@@ -204,19 +204,19 @@ In the above example:
 
 ## update_channels
 
-_Available in Fleet Premium_
+_Available in AutoMDM Premium_
 
-Users can configure fleetd component TUF [auto-update channels](https://fleetdm.com/docs/using-fleet/enroll-hosts#specifying-update-channels) from Fleet's agent options. The components that can be configured are `orbit`, `osqueryd` and `desktop` (Fleet Desktop). When one of these components is omitted in `update_channels` then `stable` is assumed as the value for such component.
+Users can configure automdmd component TUF [auto-update channels](https://automdm.com/docs/using-automdm/enroll-hosts#specifying-update-channels) from AutoMDM's agent options. The components that can be configured are `orbit`, `osqueryd` and `desktop` (AutoMDM Desktop). When one of these components is omitted in `update_channels` then `stable` is assumed as the value for such component.
 
-New agents default to the latest versions unless specific versions are set in the `fleetctl package` command. If `update_channels` specifies versions, agents will use those instead, even if it means downgrading (e.g., generating at 1.53.1 but enrolling with `update_channels.orbit` set to 1.50.0).
+New agents default to the latest versions unless specific versions are set in the `automdmctl package` command. If `update_channels` specifies versions, agents will use those instead, even if it means downgrading (e.g., generating at 1.53.1 but enrolling with `update_channels.orbit` set to 1.50.0).
 
-> Because Fleet moved the update server from tuf.fleetctl.com to updates.fleetdm.com, Orbit versions below 1.38.1 can’t upgrade directly to newer versions. You’ll see this error in Orbit logs: `update failed error="lookup failed: lookup orbit: tuf: file not found`. To upgrade from a version below 1.38.1 (e.g., 1.29.1) to a newer version (e.g., 1.50.2), first upgrade to 1.38.1, wait for agents to update, then upgrade to the newer version.
+> Because AutoMDM moved the update server from tuf.fleetctl.com to updates.fleetdm.com, Orbit versions below 1.38.1 can’t upgrade directly to newer versions. You’ll see this error in Orbit logs: `update failed error="lookup failed: lookup orbit: tuf: file not found`. To upgrade from a version below 1.38.1 (e.g., 1.29.1) to a newer version (e.g., 1.50.2), first upgrade to 1.38.1, wait for agents to update, then upgrade to the newer version.
 
 #### Examples
 
 ```yaml
 agent_options:
-  update_channels: # requires Fleet's agent (fleetd)
+  update_channels: # requires AutoMDM's agent (automdmd)
     orbit: stable
     osqueryd: '5.10.2'
     desktop: edge
@@ -224,15 +224,15 @@ agent_options:
 
 ```yaml
 agent_options:
-  update_channels: # requires Fleet's agent (fleetd)
+  update_channels: # requires AutoMDM's agent (automdmd)
     orbit: edge
     osqueryd: '5.10.2'
     # in this configuration `desktop` is assumed to be "stable"
 ```
 
-- If a configured channel doesn't exist in the TUF repository, then fleetd will log errors on the hosts and will not auto-update the component/s until the channel is changed to a valid value in Fleet's `update_channels` configuration or until the user pushes the component to the channel (which effectively creates the channel).
+- If a configured channel doesn't exist in the TUF repository, then automdmd will log errors on the hosts and will not auto-update the component/s until the channel is changed to a valid value in AutoMDM's `update_channels` configuration or until the user pushes the component to the channel (which effectively creates the channel).
 - If the `update_channels` setting is removed from the agent settings, the devices will continue to use the last configured channels.
-- If Fleet Desktop is disabled in fleetd, then the `desktop` channel setting is ignored by the host.
+- If AutoMDM Desktop is disabled in automdmd, then the `desktop` channel setting is ignored by the host.
 
 #### Auto update startup loop
 
@@ -241,9 +241,9 @@ Following we document an edge case scenario that could happen when using this fe
 After upgrading `orbit` on your devices to `1.20.0` using this feature, beware of downgrading `orbit` by changing it to a channel that's older than `1.20.0`. The auto-update system in orbit could end up in an update startup loop (where orbit starts, changes its channel and restarts over and over).
 
 Following are the conditions (to avoid) that lead to the auto-update loop:
-1. fleetd with `orbit` < `1.20.0` was packaged/configured to run with orbit channel `A`.
+1. automdmd with `orbit` < `1.20.0` was packaged/configured to run with orbit channel `A`.
 2. `orbit`'s channel `A` is updated to >= `1.20.0`.
-3. `orbit`'s channel in the Fleet agent settings is configured to `B`, where channel `B` has orbit version < `1.20.0`.
+3. `orbit`'s channel in the AutoMDM agent settings is configured to `B`, where channel `B` has orbit version < `1.20.0`.
 
 This update startup loop can be fixed by any one of these actions:
 A. Downgrading channel `A` to < `1.20.0`.
@@ -289,7 +289,7 @@ agent_options:
             # This query and its columns are restricted for compatibility. Open TCC.db with sqlite on
             # your endpoints to expand this out.
             query: "SELECT service, client, last_modified FROM access"
-            # Note that TCC.db requires fleetd to have full-disk access, ensure that endpoints have 
+            # Note that TCC.db requires automdmd to have full-disk access, ensure that endpoints have 
             # this enabled.
             path: "/Library/Application Support/com.apple.TCC/TCC.db"
             columns:
@@ -300,7 +300,7 @@ agent_options:
 
 ### auto_table_construction
 
-You can use Fleet to query local SQLite databases as tables. For more information on creating ATC configuration from a SQLite database, check out the [Automatic Table Construction section](https://osquery.readthedocs.io/en/stable/deployment/configuration/#automatic-table-construction) of the osquery documentation.
+You can use AutoMDM to query local SQLite databases as tables. For more information on creating ATC configuration from a SQLite database, check out the [Automatic Table Construction section](https://osquery.readthedocs.io/en/stable/deployment/configuration/#automatic-table-construction) of the osquery documentation.
 
 ## script_execution_timeout
 
@@ -317,13 +317,13 @@ agent_options:
 
 The `orbit` block configures the orbit agent itself (as opposed to osquery). It's kept separate from `command_line_flags` so orbit-specific settings don't need to satisfy the osquery flag schema.
 
-To learn where to find fleetd logs on each platform, see [Finding fleetd logs](https://fleetdm.com/guides/fleet-troubleshooting-for-it-admins#finding-fleetd-logs).
+To learn where to find automdmd logs on each platform, see [Finding automdmd logs](https://automdm.com/guides/automdm-troubleshooting-for-it-admins#finding-automdmd-logs).
 
 ### debug_logging (_Coming soon_)
 
 When `true`, orbit runs at debug log level and passes `--verbose` and `--tls_dump` to osqueryd on every host in the team (or globally, if set on no-team agent options). Unlike `command_line_flags`, toggling this does **not** require an orbit restart: the change is applied on each host's next config poll (up to 30 seconds). Default: `false`.
 
-Individual hosts can additionally be put into debug mode temporarily via the [`POST /api/v1/fleet/hosts/:id/debug-logging`](https://fleetdm.com/docs/rest-api/rest-api#set-host-orbit-debug-logging) endpoint or the **Enable debug logging** action on the host details page. Host-level overrides can only force debug on (they can't silence a host whose team default is on) and auto-expire after a configurable duration (default 24h, max 7d).
+Individual hosts can additionally be put into debug mode temporarily via the [`POST /api/v1/automdm/hosts/:id/debug-logging`](https://automdm.com/docs/rest-api/rest-api#set-host-orbit-debug-logging) endpoint or the **Enable debug logging** action on the host details page. Host-level overrides can only force debug on (they can't silence a host whose team default is on) and auto-expire after a configurable duration (default 24h, max 7d).
 
 #### Example
 
@@ -350,5 +350,5 @@ agent_options:
 ```
 
 <meta name="pageOrderInSection" value="300">
-<meta name="description" value="Learn how to use configuration files and the fleetctl command line tool to configure agent options.">
+<meta name="description" value="Learn how to use configuration files and the automdmctl command line tool to configure agent options.">
 <meta name="keywordsForDocsearch" value="command line flags, agent config file">

@@ -13,11 +13,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/platform/endpointer"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/platform/endpointer"
 	kithttp "github.com/go-kit/kit/transport/http"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -251,10 +251,10 @@ func routeTestRequest(rt endpointer.Route) (verb, path string, err error) {
 
 	path = reSimpleVar.ReplaceAllString(rt.Template(), "$1")
 	// for now at least, the only times we use regexp-constrained vars is
-	// for numeric arguments or the fleetversion specifier.
+	// for numeric arguments or the automdmversion specifier.
 	path = reNumVar.ReplaceAllStringFunc(path, func(s string) string {
-		if strings.Contains(s, "fleetversion") {
-			parts := strings.Split(strings.TrimPrefix(s, "{fleetversion:(?:"), "|")
+		if strings.Contains(s, "automdmversion") {
+			parts := strings.Split(strings.TrimPrefix(s, "{automdmversion:(?:"), "|")
 			// test with "latest" if not deprecated, or last supported version for that route
 			// (for either case, this will be in the last part)
 			return strings.TrimSuffix(parts[len(parts)-1], ")}")
@@ -267,8 +267,8 @@ func routeTestRequest(rt endpointer.Route) (verb, path string, err error) {
 
 func TestGzipResponses(t *testing.T) {
 	ds := new(mock.Store)
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
 	}
 
 	gzipTestHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -292,7 +292,7 @@ func TestGzipResponses(t *testing.T) {
 		cfg.Server.GzipResponses = true
 
 		_, server := RunServerForTestsWithDS(t, ds, &TestServerOpts{
-			FleetConfig:         &cfg,
+			AutoMDMConfig:       &cfg,
 			FeatureRoutes:       []endpointer.HandlerRoutesFunc{testRoute},
 			SkipCreateTestUsers: true,
 		})
@@ -303,7 +303,7 @@ func TestGzipResponses(t *testing.T) {
 				req, err := http.NewRequest("GET", server.URL+path, nil)
 				require.NoError(t, err)
 				req.Header.Set("Accept-Encoding", "gzip")
-				resp, err := fleethttp.NewClient().Do(req)
+				resp, err := automdmhttp.NewClient().Do(req)
 				require.NoError(t, err)
 				defer resp.Body.Close()
 
@@ -315,9 +315,9 @@ func TestGzipResponses(t *testing.T) {
 			req, err := http.NewRequest("GET", server.URL+"/api/test-gzip", nil)
 			require.NoError(t, err)
 			// Do NOT set Accept-Encoding header
-			transport := fleethttp.NewTransport()
+			transport := automdmhttp.NewTransport()
 			transport.DisableCompression = true // Prevents automatic addition of Accept-Encoding: gzip
-			client := fleethttp.NewClient()
+			client := automdmhttp.NewClient()
 			client.Transport = transport
 			resp, err := client.Do(req)
 			require.NoError(t, err)
@@ -332,7 +332,7 @@ func TestGzipResponses(t *testing.T) {
 		cfg := config.TestConfig()
 		cfg.Server.GzipResponses = false
 		_, server := RunServerForTestsWithDS(t, ds, &TestServerOpts{
-			FleetConfig:         &cfg,
+			AutoMDMConfig:       &cfg,
 			FeatureRoutes:       []endpointer.HandlerRoutesFunc{testRoute},
 			SkipCreateTestUsers: true,
 		})
@@ -341,7 +341,7 @@ func TestGzipResponses(t *testing.T) {
 		req, err := http.NewRequest("GET", server.URL+"/api/test-gzip", nil)
 		require.NoError(t, err)
 		req.Header.Set("Accept-Encoding", "gzip")
-		resp, err := fleethttp.NewClient().Do(req)
+		resp, err := automdmhttp.NewClient().Do(req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
@@ -349,19 +349,19 @@ func TestGzipResponses(t *testing.T) {
 	})
 }
 
-func TestFleetctl4VersionCheck(t *testing.T) {
+func TestAutoMDMctl4VersionCheck(t *testing.T) {
 	ds := new(mock.Store)
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
 	}
-	ds.SessionByKeyFunc = func(ctx context.Context, key string) (*fleet.Session, error) {
+	ds.SessionByKeyFunc = func(ctx context.Context, key string) (*automdm.Session, error) {
 		return nil, &notFoundError{}
 	}
 	_, server := RunServerForTestsWithDS(t, ds, &TestServerOpts{SkipCreateTestUsers: true})
 	defer server.Close()
 
-	// What fleetctl 4 sends on every request, captured from released 4.80.0 and 4.95.0 binaries.
-	fleetctl4 := map[string]string{"User-Agent": "Go-http-client/1.1", "Content-Type": "application/json", "Accept": "application/json"}
+	// What automdmctl 4 sends on every request, captured from released 4.80.0 and 4.95.0 binaries.
+	automdmctl4 := map[string]string{"User-Agent": "Go-http-client/1.1", "Content-Type": "application/json", "Accept": "application/json"}
 	withUserAgent := func(userAgent string) map[string]string {
 		return map[string]string{"User-Agent": userAgent, "Content-Type": "application/json", "Accept": "application/json"}
 	}
@@ -372,18 +372,18 @@ func TestFleetctl4VersionCheck(t *testing.T) {
 		headers    map[string]string
 		wantStatus int
 	}{
-		{"fleetctl 4, v1", "/api/v1/fleet/version", fleetctl4, http.StatusUpgradeRequired},
-		{"fleetctl 4, latest", "/api/latest/fleet/version", fleetctl4, http.StatusUpgradeRequired},
-		{"fleetctl 4 over HTTP/2", "/api/latest/fleet/version", withUserAgent("Go-http-client/2.0"), http.StatusUpgradeRequired},
-		{"fleetctl 4, other endpoint", "/api/latest/fleet/config", fleetctl4, http.StatusUnauthorized},
-		{"fleetctl 5", "/api/latest/fleet/version", withUserAgent("fleetctl/5.0.0"), http.StatusUnauthorized},
-		{"fleetctl 5 built without a version", "/api/latest/fleet/version", withUserAgent("fleetctl/unknown"), http.StatusUnauthorized},
-		{"fleetctl 5 with Go's User-Agent in its custom headers", "/api/latest/fleet/version",
+		{"automdmctl 4, v1", "/api/v1/automdm/version", automdmctl4, http.StatusUpgradeRequired},
+		{"automdmctl 4, latest", "/api/latest/automdm/version", automdmctl4, http.StatusUpgradeRequired},
+		{"automdmctl 4 over HTTP/2", "/api/latest/automdm/version", withUserAgent("Go-http-client/2.0"), http.StatusUpgradeRequired},
+		{"automdmctl 4, other endpoint", "/api/latest/automdm/config", automdmctl4, http.StatusUnauthorized},
+		{"automdmctl 5", "/api/latest/automdm/version", withUserAgent("automdmctl/5.0.0"), http.StatusUnauthorized},
+		{"automdmctl 5 built without a version", "/api/latest/automdm/version", withUserAgent("automdmctl/unknown"), http.StatusUnauthorized},
+		{"automdmctl 5 with Go's User-Agent in its custom headers", "/api/latest/automdm/version",
 			map[string]string{"User-Agent": "Go-http-client/1.1", "Content-Type": "application/json", "Accept": "application/json",
-				fleet.HeaderClientVersion: "5.0.0"}, http.StatusUnauthorized},
-		{"curl", "/api/latest/fleet/version", withUserAgent("curl/8.7.1"), http.StatusUnauthorized},
-		{"Go client without JSON headers", "/api/latest/fleet/version", map[string]string{"User-Agent": "Go-http-client/1.1"}, http.StatusUnauthorized},
-		{"Go client with only Accept", "/api/latest/fleet/version", map[string]string{"User-Agent": "Go-http-client/1.1", "Accept": "application/json"}, http.StatusUnauthorized},
+				automdm.HeaderClientVersion: "5.0.0"}, http.StatusUnauthorized},
+		{"curl", "/api/latest/automdm/version", withUserAgent("curl/8.7.1"), http.StatusUnauthorized},
+		{"Go client without JSON headers", "/api/latest/automdm/version", map[string]string{"User-Agent": "Go-http-client/1.1"}, http.StatusUnauthorized},
+		{"Go client with only Accept", "/api/latest/automdm/version", map[string]string{"User-Agent": "Go-http-client/1.1", "Accept": "application/json"}, http.StatusUnauthorized},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -393,7 +393,7 @@ func TestFleetctl4VersionCheck(t *testing.T) {
 			for k, v := range tc.headers {
 				req.Header.Set(k, v)
 			}
-			resp, err := fleethttp.NewClient().Do(req)
+			resp, err := automdmhttp.NewClient().Do(req)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			require.Equal(t, tc.wantStatus, resp.StatusCode)
@@ -402,7 +402,7 @@ func TestFleetctl4VersionCheck(t *testing.T) {
 			}
 			var body map[string]any
 			require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
-			require.Equal(t, map[string]any{"message": fleetctl4NotSupportedMessage}, body)
+			require.Equal(t, map[string]any{"message": automdmctl4NotSupportedMessage}, body)
 		})
 	}
 }

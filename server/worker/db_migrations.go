@@ -8,15 +8,15 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 )
 
 // Name of the DB migration job as registered in the worker. Note that although
 // it is a single job, it can process a number of different-but-related tasks,
 // identified by the Task field in the job's payload. This is deliberately
 // general so other one-off migration tasks that can't be done during the
-// "fleet prepare db" command can reuse this job.
+// "automdm prepare db" command can reuse this job.
 const dbMigrationJobName = "db_migration"
 
 type DBMigrationTask string
@@ -28,7 +28,7 @@ const (
 
 // DBMigration is the job processor for the db_migration job.
 type DBMigration struct {
-	Datastore fleet.Datastore
+	Datastore automdm.Datastore
 	Log       *slog.Logger
 }
 
@@ -66,7 +66,7 @@ func (m *DBMigration) migrateVPPToken(ctx context.Context) error {
 	// get the VPP token with an empty location, this is the one to migrate
 	tok, err := m.Datastore.GetVPPTokenByLocation(ctx, "")
 	if err != nil {
-		if fleet.IsNotFound(err) {
+		if automdm.IsNotFound(err) {
 			// nothing to migrate, exit successfully
 			return nil
 		}
@@ -92,8 +92,8 @@ func (m *DBMigration) migrateVPPToken(ctx context.Context) error {
 	return ctxerr.Wrap(ctx, err, "update VPP token teams")
 }
 
-func extractVPPTokenFromMigration(migratedToken *fleet.VPPTokenDB) (tokData *fleet.VPPTokenData, didUpdateMetadata bool, err error) {
-	var vppTokenData fleet.VPPTokenData
+func extractVPPTokenFromMigration(migratedToken *automdm.VPPTokenDB) (tokData *automdm.VPPTokenData, didUpdateMetadata bool, err error) {
+	var vppTokenData automdm.VPPTokenData
 	if err := json.Unmarshal([]byte(migratedToken.Token), &vppTokenData); err != nil {
 		return nil, false, fmt.Errorf("unmarshaling VPP token data: %w", err)
 	}
@@ -103,7 +103,7 @@ func extractVPPTokenFromMigration(migratedToken *fleet.VPPTokenDB) (tokData *fle
 		return nil, false, fmt.Errorf("decoding raw vpp token data: %w", err)
 	}
 
-	var vppTokenRaw fleet.VPPTokenRaw
+	var vppTokenRaw automdm.VPPTokenRaw
 	if err := json.Unmarshal(vppTokenRawBytes, &vppTokenRaw); err != nil {
 		return nil, false, fmt.Errorf("unmarshaling raw vpp token data: %w", err)
 	}

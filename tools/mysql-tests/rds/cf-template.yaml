@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'Fleet RDS IAM Authentication Test Environment with Aurora Serverless v2, Aurora, and RDS MariaDB'
+Description: 'AutoMDM RDS IAM Authentication Test Environment with Aurora Serverless v2, Aurora, and RDS MariaDB'
 
 Parameters:
   KeyName:
@@ -29,7 +29,7 @@ Resources:
       EnableDnsSupport: true
       Tags:
         - Key: Name
-          Value: fleet-mysql-iam-test-vpc
+          Value: automdm-mysql-iam-test-vpc
 
   # Internet Gateway
   InternetGateway:
@@ -37,7 +37,7 @@ Resources:
     Properties:
       Tags:
         - Key: Name
-          Value: fleet-mysql-iam-test-igw
+          Value: automdm-mysql-iam-test-igw
 
   AttachGateway:
     Type: AWS::EC2::VPCGatewayAttachment
@@ -55,7 +55,7 @@ Resources:
       MapPublicIpOnLaunch: true
       Tags:
         - Key: Name
-          Value: fleet-mysql-iam-test-subnet-1
+          Value: automdm-mysql-iam-test-subnet-1
 
   PublicSubnet2:
     Type: AWS::EC2::Subnet
@@ -66,7 +66,7 @@ Resources:
       MapPublicIpOnLaunch: true
       Tags:
         - Key: Name
-          Value: fleet-mysql-iam-test-subnet-2
+          Value: automdm-mysql-iam-test-subnet-2
 
   # Route Table
   RouteTable:
@@ -75,7 +75,7 @@ Resources:
       VpcId: !Ref VPC
       Tags:
         - Key: Name
-          Value: fleet-mysql-iam-test-rt
+          Value: automdm-mysql-iam-test-rt
 
   PublicRoute:
     Type: AWS::EC2::Route
@@ -116,7 +116,7 @@ Resources:
           SourceSecurityGroupId: !Ref ProxySecurityGroup
       Tags:
         - Key: Name
-          Value: fleet-mysql-iam-test-rds-sg
+          Value: automdm-mysql-iam-test-rds-sg
 
   ProxySecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -130,7 +130,7 @@ Resources:
           SourceSecurityGroupId: !Ref EC2SecurityGroup
       Tags:
         - Key: Name
-          Value: fleet-mysql-iam-test-proxy-sg
+          Value: automdm-mysql-iam-test-proxy-sg
 
   EC2SecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -144,7 +144,7 @@ Resources:
           CidrIp: 0.0.0.0/0
       Tags:
         - Key: Name
-          Value: fleet-mysql-iam-test-ec2-sg
+          Value: automdm-mysql-iam-test-ec2-sg
 
   # Secrets for RDS Proxy
   RDSMasterSecret:
@@ -158,7 +158,7 @@ Resources:
           "password": "${DBMasterPassword}",
           "host": "${AuroraCluster.Endpoint.Address}",
           "port": "3306",
-          "dbname": "fleet"
+          "dbname": "automdm"
         }
 
   # IAM Role for RDS Proxy
@@ -212,13 +212,13 @@ Resources:
                   - rds-db:connect
                 Resource: 
                   - !Sub 
-                    - 'arn:aws:rds-db:${AWS::Region}:${AWS::AccountId}:dbuser:${DbClusterResourceId}/fleet_iam_user'
+                    - 'arn:aws:rds-db:${AWS::Region}:${AWS::AccountId}:dbuser:${DbClusterResourceId}/automdm_iam_user'
                     - DbClusterResourceId: !GetAtt AuroraServerlessCluster.DBClusterResourceId
                   - !Sub 
-                    - 'arn:aws:rds-db:${AWS::Region}:${AWS::AccountId}:dbuser:${DbClusterResourceId}/fleet_iam_user'
+                    - 'arn:aws:rds-db:${AWS::Region}:${AWS::AccountId}:dbuser:${DbClusterResourceId}/automdm_iam_user'
                     - DbClusterResourceId: !GetAtt AuroraCluster.DBClusterResourceId
                   - !Sub 
-                    - 'arn:aws:rds-db:${AWS::Region}:${AWS::AccountId}:dbuser:${DbiResourceId}/fleet_iam_user'
+                    - 'arn:aws:rds-db:${AWS::Region}:${AWS::AccountId}:dbuser:${DbiResourceId}/automdm_iam_user'
                     - DbiResourceId: !GetAtt RDSMariaDBInstance.DbiResourceId
                   - !Sub 
                     - 'arn:aws:rds-db:${AWS::Region}:${AWS::AccountId}:dbuser:${ProxyResourceId}/admin'
@@ -226,7 +226,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - sts:AssumeRole
-                Resource: !Sub 'arn:aws:iam::${AWS::AccountId}:role/fleet-mysql-iam-test-assume-role'
+                Resource: !Sub 'arn:aws:iam::${AWS::AccountId}:role/automdm-mysql-iam-test-assume-role'
 
   EC2InstanceProfile:
     Type: AWS::IAM::InstanceProfile
@@ -238,7 +238,7 @@ Resources:
   TestAssumeRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: fleet-mysql-iam-test-assume-role
+      RoleName: automdm-mysql-iam-test-assume-role
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -282,7 +282,7 @@ Resources:
         - !Ref PublicSubnet2
       Tags:
         - Key: Name
-          Value: fleet-mysql-iam-test-db-subnet-group
+          Value: automdm-mysql-iam-test-db-subnet-group
 
   # Aurora Serverless v2 Cluster
   AuroraServerlessCluster:
@@ -291,10 +291,10 @@ Resources:
       Engine: aurora-mysql
       EngineMode: provisioned
       EngineVersion: '8.0.mysql_aurora.3.09.0'
-      DBClusterIdentifier: fleet-aurora-serverless-v2
+      DBClusterIdentifier: automdm-aurora-serverless-v2
       MasterUsername: !Ref DBMasterUsername
       MasterUserPassword: !Ref DBMasterPassword
-      DatabaseName: fleet
+      DatabaseName: automdm
       DBSubnetGroupName: !Ref DBSubnetGroup
       VpcSecurityGroupIds:
         - !Ref RDSSecurityGroup
@@ -304,7 +304,7 @@ Resources:
         MaxCapacity: 1
       Tags:
         - Key: Name
-          Value: fleet-aurora-serverless-v2
+          Value: automdm-aurora-serverless-v2
 
   # Aurora Serverless v2 Instance
   AuroraServerlessInstance:
@@ -315,7 +315,7 @@ Resources:
       Engine: aurora-mysql
       Tags:
         - Key: Name
-          Value: fleet-aurora-serverless-v2-instance
+          Value: automdm-aurora-serverless-v2-instance
 
   # Standard Aurora Cluster
   AuroraCluster:
@@ -323,17 +323,17 @@ Resources:
     Properties:
       Engine: aurora-mysql
       EngineVersion: '8.0.mysql_aurora.3.09.0'
-      DBClusterIdentifier: fleet-aurora-standard
+      DBClusterIdentifier: automdm-aurora-standard
       MasterUsername: !Ref DBMasterUsername
       MasterUserPassword: !Ref DBMasterPassword
-      DatabaseName: fleet
+      DatabaseName: automdm
       DBSubnetGroupName: !Ref DBSubnetGroup
       VpcSecurityGroupIds:
         - !Ref RDSSecurityGroup
       EnableIAMDatabaseAuthentication: true
       Tags:
         - Key: Name
-          Value: fleet-aurora-standard
+          Value: automdm-aurora-standard
 
   # Aurora Instance
   AuroraInstance:
@@ -344,13 +344,13 @@ Resources:
       Engine: aurora-mysql
       Tags:
         - Key: Name
-          Value: fleet-aurora-standard-instance
+          Value: automdm-aurora-standard-instance
 
   # Vanilla RDS MariaDB Instance
   RDSMariaDBInstance:
     Type: AWS::RDS::DBInstance
     Properties:
-      DBInstanceIdentifier: fleet-rds-mariadb
+      DBInstanceIdentifier: automdm-rds-mariadb
       Engine: mariadb
       EngineVersion: '10.11.13'
       DBInstanceClass: db.t3.micro
@@ -358,7 +358,7 @@ Resources:
       StorageType: gp3
       MasterUsername: !Ref DBMasterUsername
       MasterUserPassword: !Ref DBMasterPassword
-      DBName: fleet
+      DBName: automdm
       DBSubnetGroupName: !Ref DBSubnetGroup
       VPCSecurityGroups:
         - !Ref RDSSecurityGroup
@@ -367,7 +367,7 @@ Resources:
       MultiAZ: false
       Tags:
         - Key: Name
-          Value: fleet-rds-mariadb
+          Value: automdm-rds-mariadb
 
   # RDS Proxy for Aurora Standard cluster
   AuroraProxy:
@@ -376,7 +376,7 @@ Resources:
       - AuroraCluster
       - AuroraInstance
     Properties:
-      DBProxyName: fleet-aurora-proxy
+      DBProxyName: automdm-aurora-proxy
       EngineFamily: MYSQL
       Auth:
         - AuthScheme: SECRETS
@@ -392,7 +392,7 @@ Resources:
       DebugLogging: true
       Tags:
         - Key: Name
-          Value: fleet-aurora-proxy
+          Value: automdm-aurora-proxy
 
   # RDS Proxy Target Group
   AuroraProxyTargetGroup:
@@ -421,7 +421,7 @@ Resources:
           dnf install -y mariadb105
       Tags:
         - Key: Name
-          Value: fleet-mysql-iam-test-instance
+          Value: automdm-mysql-iam-test-instance
 
 Outputs:
   AuroraServerlessEndpoint:

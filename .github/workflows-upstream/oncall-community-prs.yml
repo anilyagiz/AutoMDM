@@ -23,7 +23,7 @@ jobs:
   post-community-prs:
     permissions:
       contents: read
-    if: github.repository == 'fleetdm/fleet'
+    if: github.repository == 'automdm/automdm'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -41,10 +41,10 @@ jobs:
         env:
           # The script filters out org members. GITHUB_TOKEN can only see public
           # members, so private members would be reported as outside contributors.
-          GH_TOKEN: ${{ secrets.FLEET_GITHUB_TOKEN_MEMBERS_READ }}
+          GH_TOKEN: ${{ secrets.AUTOMDM_GITHUB_TOKEN_MEMBERS_READ }}
         run: |
           if [ -z "$GH_TOKEN" ]; then
-            echo "::error::FLEET_GITHUB_TOKEN_MEMBERS_READ secret is not set or is empty."
+            echo "::error::AUTOMDM_GITHUB_TOKEN_MEMBERS_READ secret is not set or is empty."
             exit 1
           fi
           ./tools/oncall/oncall.sh prs --slack > "$RUNNER_TEMP/prs.txt"
@@ -73,13 +73,13 @@ jobs:
         with:
           payload: |
             {
-              "text": "${{ job.status }}\nhttps://github.com/fleetdm/fleet/actions/runs/${{ github.run_id }}",
+              "text": "${{ job.status }}\nhttps://github.com/anilyagiz/automdm/actions/runs/${{ github.run_id }}",
               "blocks": [
                 {
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "❌ The post open community PRs workflow failed\nhttps://github.com/fleetdm/fleet/actions/runs/${{ github.run_id }}"
+                    "text": "❌ The post open community PRs workflow failed\nhttps://github.com/anilyagiz/automdm/actions/runs/${{ github.run_id }}"
                   }
                 }
               ]

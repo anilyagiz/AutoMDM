@@ -19,9 +19,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/constant"
-	"github.com/fleetdm/fleet/v4/pkg/secure"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/constant"
+	"github.com/anilyagiz/automdm/v4/pkg/secure"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/rs/zerolog"
 )
 
@@ -45,7 +45,7 @@ type InstallerMetadata struct {
 // ExtractInstallerMetadata extracts the software name and version from the
 // installer file and returns them along with the sha256 hash of the bytes. The
 // format of the installer is determined based on the magic bytes of the content.
-func ExtractInstallerMetadata(tfr *fleet.TempFileReader) (*InstallerMetadata, error) {
+func ExtractInstallerMetadata(tfr *automdm.TempFileReader) (*InstallerMetadata, error) {
 	br := bufio.NewReader(tfr)
 	extension, err := typeFromBytes(br)
 	if err != nil {
@@ -215,8 +215,8 @@ func ExtractFilenameFromURLPath(p string, defaultExtension string) string {
 
 // ExtractTarGz extracts the contents of the provided tar.gz file.
 // This implementation uses os.* calls without permission checks, as we're
-// running this operation in the context of fleetd running as root on a host
-// (e.g. for installs), so we have different constraints than fleetctl building
+// running this operation in the context of automdmd running as root on a host
+// (e.g. for installs), so we have different constraints than automdmctl building
 // a package. destDir should be provided by the code rather than user input to
 // avoid directory traversal attacks. maxFileSize indicates how large we want
 // to allow the max file size to be when decompressing, as a zip bomb mitigation.
@@ -302,7 +302,7 @@ func ExtractTarGz(path string, destDir string, maxFileSize int64, logger zerolog
 	}
 }
 
-func SHA256FromTempFileReader(tfr *fleet.TempFileReader) (string, error) {
+func SHA256FromTempFileReader(tfr *automdm.TempFileReader) (string, error) {
 	h := sha256.New()
 	if _, err := io.Copy(h, tfr); err != nil {
 		return "", err

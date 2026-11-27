@@ -7,7 +7,7 @@
 
 $displayNamePattern = '^GitKraken$'
 $publisher = "GitKraken"
-$taskName = "fleet-uninstall-gitkraken"
+$taskName = "automdm-uninstall-gitkraken"
 $appDir = "AppData\Local\gitkraken"  # in each user's profile
 $taskRunning = 267009  # SCHED_S_TASK_RUNNING
 $timeoutSeconds = 300

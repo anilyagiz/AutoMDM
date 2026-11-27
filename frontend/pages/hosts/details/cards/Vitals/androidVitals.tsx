@@ -18,7 +18,7 @@ import { readableDate } from "utilities/helpers";
 
 import type { VitalForSort } from "./Vitals";
 
-/** Display labels for the AMAPI enums Fleet stores verbatim. Values Google
+/** Display labels for the AMAPI enums AutoMDM stores verbatim. Values Google
  * adds later fall through to the raw enum string rather than disappearing,
  * so a new member still shows the admin something. */
 const ENCRYPTION_STATUS_LABELS: Record<string, string> = {

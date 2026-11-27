@@ -81,7 +81,7 @@ describe("SoftwareDeploySelector", () => {
       platform: "darwin",
       endUserExperience: "deadline",
       onSelectEndUserExperience: jest.fn(),
-      fleetId: 1,
+      automdmId: 1,
     });
 
     // Wait for the useQuery result to flow into the banner — the initial
@@ -117,7 +117,7 @@ describe("SoftwareDeploySelector", () => {
       platform: "darwin",
       endUserExperience: "deadline",
       onSelectEndUserExperience: jest.fn(),
-      fleetId: 1,
+      automdmId: 1,
     });
 
     await user.click(
@@ -125,7 +125,7 @@ describe("SoftwareDeploySelector", () => {
     );
     expect(mockPush).toHaveBeenCalledWith(
       expect.stringContaining(
-        "/software/library/settings/patch-deadline?fleet_id=1"
+        "/software/library/settings/patch-deadline?team_id=1"
       )
     );
   });
@@ -147,7 +147,7 @@ describe("SoftwareDeploySelector", () => {
       platform: "darwin",
       endUserExperience: "deadline",
       onSelectEndUserExperience: jest.fn(),
-      fleetId: 1,
+      automdmId: 1,
     });
 
     // The loading render shows the same placeholder, so wait for the failed
@@ -164,7 +164,7 @@ describe("SoftwareDeploySelector", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders Deadline banner placeholders without a fleetId", () => {
+  it("renders Deadline banner placeholders without an automdmId", () => {
     renderSelector({
       patch: true,
       patchOption: "force",
@@ -217,7 +217,7 @@ describe("SoftwareDeploySelector", () => {
       screen.getByRole("link", { name: /End user experience/i })
     ).toHaveAttribute(
       "href",
-      "https://fleetdm.com/learn-more-about/patching-end-user-experience"
+      "https://automdm.com/learn-more-about/patching-end-user-experience"
     );
   });
 

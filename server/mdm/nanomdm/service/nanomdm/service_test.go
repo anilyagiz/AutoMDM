@@ -6,10 +6,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxdb"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
-	mock "github.com/fleetdm/fleet/v4/server/mock/mdm"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxdb"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
+	mock "github.com/anilyagiz/automdm/v4/server/mock/mdm"
 	"github.com/micromdm/nanolib/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -62,7 +62,7 @@ func TestCommandAndReportResultsPrimaryDBUse(t *testing.T) {
 
 func TestCommandAndReportResultsRotateFileVaultKeyExpansion(t *testing.T) {
 	const hostUUID = "host-uuid-1"
-	placeholder := fleet.HostSecretPlaceholder(fleet.HostSecretFileVaultKey)
+	placeholder := automdm.HostSecretPlaceholder(automdm.HostSecretFileVaultKey)
 	raw := `<plist><dict><key>Password</key><string>` + placeholder + `</string></dict></plist>`
 
 	newService := func(ds *mock.MDMAppleStore) *Service {
@@ -70,7 +70,7 @@ func TestCommandAndReportResultsRotateFileVaultKeyExpansion(t *testing.T) {
 		ds.ExpandEmbeddedSecretsFunc = func(ctx context.Context, document string) (string, error) { return document, nil }
 		ds.RetrieveNextCommandFunc = func(r *mdm.Request, skipNotNow bool) (*mdm.CommandWithSubtype, error) {
 			cmd := &mdm.CommandWithSubtype{CommandUUID: "cmd-1", Raw: []byte(raw)}
-			cmd.Command.Command.RequestType = fleet.RotateFileVaultKeyCmdName
+			cmd.Command.Command.RequestType = automdm.RotateFileVaultKeyCmdName
 			return cmd, nil
 		}
 		enrollID := &mdm.EnrollID{ID: hostUUID, Type: mdm.Device}
@@ -144,7 +144,7 @@ func TestCommandAndReportResultsHostSecretExpansionFailure(t *testing.T) {
 	ds.ExpandEmbeddedSecretsFunc = func(ctx context.Context, document string) (string, error) { return document, nil }
 	ds.RetrieveNextCommandFunc = func(r *mdm.Request, skipNotNow bool) (*mdm.CommandWithSubtype, error) {
 		cmd := &mdm.CommandWithSubtype{CommandUUID: "cmd-1", Raw: []byte("<plist/>")}
-		cmd.Command.Command.RequestType = fleet.SetRecoveryLockCmdName
+		cmd.Command.Command.RequestType = automdm.SetRecoveryLockCmdName
 		return cmd, nil
 	}
 	ds.ExpandHostSecretsFunc = func(ctx context.Context, document string, enrollmentID string) (string, error) {
@@ -166,7 +166,7 @@ func TestCommandAndReportResultsHostSecretExpansionFailure(t *testing.T) {
 	require.Nil(t, cmd)
 	require.True(t, ds.SetRecoveryLockFailedFuncInvoked)
 
-	// The first report is the device's Idle; the second is the failure Fleet records.
+	// The first report is the device's Idle; the second is the failure AutoMDM records.
 	require.Len(t, stored, 2)
 	// nano_command_results.result is NOT NULL, so an empty body fails the insert
 	// and the command is served again on every check-in.

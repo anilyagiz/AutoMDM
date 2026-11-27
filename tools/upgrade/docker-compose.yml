@@ -1,38 +1,38 @@
 services:
   mysql:
-    platform: ${FLEET_MYSQL_PLATFORM:-}
+    platform: ${AUTOMDM_MYSQL_PLATFORM:-}
     image: mysql:8.0.44
     environment:
       MYSQL_ROOT_PASSWORD: toor
-      MYSQL_DATABASE: fleet
-      MYSQL_USER: fleet
-      MYSQL_PASSWORD: fleet
+      MYSQL_DATABASE: automdm
+      MYSQL_USER: automdm
+      MYSQL_PASSWORD: automdm
     ports:
       - "3306"
 
   redis:
     image: redis:6
 
-  fleet:
-    image: fleetdm/fleet:${FLEET_VERSION:-latest}
+  automdm:
+    image: automdm/automdm:${AUTOMDM_VERSION:-latest}
     environment:
-      FLEET_MYSQL_ADDRESS: mysql:3306
-      FLEET_MYSQL_DATABASE: fleet
-      FLEET_MYSQL_USERNAME: fleet
-      FLEET_MYSQL_PASSWORD: fleet
-      FLEET_REDIS_ADDRESS: redis:6379
-      FLEET_SERVER_ADDRESS: 0.0.0.0:8080
-      FLEET_SERVER_CERT: /fleet.crt
-      FLEET_SERVER_KEY: /fleet.key
-      FLEET_LOGGING_JSON: "true"
-      FLEET_OSQUERY_LABEL_UPDATE_INTERVAL: 1m
-      FLEET_VULNERABILITIES_CURRENT_INSTANCE_CHECKS: "yes"
-      FLEET_VULNERABILITIES_DATABASES_PATH: /fleet/vulndb
-      FLEET_VULNERABILITIES_PERIODICITY: 5m
-      FLEET_LOGGING_DEBUG: "true"
+      AUTOMDM_MYSQL_ADDRESS: mysql:3306
+      AUTOMDM_MYSQL_DATABASE: automdm
+      AUTOMDM_MYSQL_USERNAME: automdm
+      AUTOMDM_MYSQL_PASSWORD: automdm
+      AUTOMDM_REDIS_ADDRESS: redis:6379
+      AUTOMDM_SERVER_ADDRESS: 0.0.0.0:8080
+      AUTOMDM_SERVER_CERT: /automdm.crt
+      AUTOMDM_SERVER_KEY: /automdm.key
+      AUTOMDM_LOGGING_JSON: "true"
+      AUTOMDM_OSQUERY_LABEL_UPDATE_INTERVAL: 1m
+      AUTOMDM_VULNERABILITIES_CURRENT_INSTANCE_CHECKS: "yes"
+      AUTOMDM_VULNERABILITIES_DATABASES_PATH: /automdm/vulndb
+      AUTOMDM_VULNERABILITIES_PERIODICITY: 5m
+      AUTOMDM_LOGGING_DEBUG: "true"
     volumes:
-      - ./fleet.crt:/fleet.crt
-      - ./fleet.key:/fleet.key
+      - ./automdm.crt:/automdm.crt
+      - ./automdm.key:/automdm.key
     ports:
       - "8080"
     depends_on:
@@ -42,7 +42,7 @@ services:
   osquery:
     image: "osquery/osquery:4.7.0-ubuntu20.04"
     volumes:
-      - ./fleet.crt:/etc/osquery/fleet.crt
+      - ./automdm.crt:/etc/osquery/automdm.crt
       - ./osquery.flags:/etc/osquery/osquery.flags
     environment:
       ENROLL_SECRET: "${ENROLL_SECRET:-foobar}"

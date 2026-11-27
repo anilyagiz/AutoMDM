@@ -1,4 +1,4 @@
-// Package azure implements fleet.SoftwareInstallerStore and friends backed by
+// Package azure implements automdm.SoftwareInstallerStore and friends backed by
 // Azure Blob Storage. Azure Blob Storage has no S3-compatible API, so this is
 // a separate implementation rather than another branch of the s3 package (see
 // the s3 package's isGCS for how S3-compatible backends are handled instead).
@@ -11,21 +11,21 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/bloberror"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
 )
 
 type azureBlobStore struct {
 	client    *azblob.Client
 	container string
 	// signedURL, when true, makes Sign() return a SAS-signed GET URL instead of
-	// erroring out with fleet.ErrNotConfigured.
+	// erroring out with automdm.ErrNotConfigured.
 	signedURL bool
 }
 
 type fileNotFoundError struct{}
 
-var _ fleet.NotFoundError = (*fileNotFoundError)(nil)
+var _ automdm.NotFoundError = (*fileNotFoundError)(nil)
 
 func (fileNotFoundError) Error() string {
 	return "file not found"

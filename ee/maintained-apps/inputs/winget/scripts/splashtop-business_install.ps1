@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # Splashtop's installer unpacks a per-machine MSI and runs the command it is
 # given from the unpacked folder. It exits 0 whatever msiexec returns, so the
@@ -51,7 +51,7 @@ function Get-InstallerProductCode {
 # The log path is passed through the installer unquoted, so it can't contain spaces.
 $logDir = [System.IO.Path]::GetTempPath()
 if ($logDir -match '\s') { $logDir = Join-Path $env:SystemRoot 'Temp' }
-$logFile = Join-Path $logDir ("fleet-splashtop-business-" + [guid]::NewGuid().ToString('N') + ".log")
+$logFile = Join-Path $logDir ("automdm-splashtop-business-" + [guid]::NewGuid().ToString('N') + ".log")
 
 try {
 

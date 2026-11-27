@@ -22,23 +22,23 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/anilyagiz/automdm/v4/ee/server/service/hostidentity/httpsig"
+	"github.com/anilyagiz/automdm/v4/server"
+	activity_api "github.com/anilyagiz/automdm/v4/server/activity/api"
+	"github.com/anilyagiz/automdm/v4/server/agentws"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxdb"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	hostctx "github.com/anilyagiz/automdm/v4/server/contexts/host"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
+	"github.com/anilyagiz/automdm/v4/server/contexts/logging"
+	"github.com/anilyagiz/automdm/v4/server/contexts/preservedsources"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/pubsub"
+	"github.com/anilyagiz/automdm/v4/server/service/conditional_access_microsoft_proxy"
+	"github.com/anilyagiz/automdm/v4/server/service/contract"
+	"github.com/anilyagiz/automdm/v4/server/service/osquery_utils"
 	"github.com/cenkalti/backoff/v4"
-	"github.com/fleetdm/fleet/v4/ee/server/service/hostidentity/httpsig"
-	"github.com/fleetdm/fleet/v4/server"
-	activity_api "github.com/fleetdm/fleet/v4/server/activity/api"
-	"github.com/fleetdm/fleet/v4/server/agentws"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxdb"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	hostctx "github.com/fleetdm/fleet/v4/server/contexts/host"
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/contexts/logging"
-	"github.com/fleetdm/fleet/v4/server/contexts/preservedsources"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/pubsub"
-	"github.com/fleetdm/fleet/v4/server/service/conditional_access_microsoft_proxy"
-	"github.com/fleetdm/fleet/v4/server/service/contract"
-	"github.com/fleetdm/fleet/v4/server/service/osquery_utils"
 	kithttp "github.com/go-kit/kit/transport/http"
 	"github.com/spf13/cast"
 	"golang.org/x/exp/slices"
@@ -71,7 +71,7 @@ func enrollError(ctx context.Context, err error, msg string) error {
 	return ctxerr.New(ctx, msg)
 }
 
-func (svc *Service) AuthenticateHost(ctx context.Context, nodeKey string) (*fleet.Host, bool, error) {
+func (svc *Service) AuthenticateHost(ctx context.Context, nodeKey string) (*automdm.Host, bool, error) {
 	// skipauth: Authorization is currently for user endpoints only.
 	svc.authz.SkipAuthorization(ctx)
 
@@ -83,7 +83,7 @@ func (svc *Service) AuthenticateHost(ctx context.Context, nodeKey string) (*flee
 	switch {
 	case err == nil:
 		// OK
-	case fleet.IsNotFound(err):
+	case automdm.IsNotFound(err):
 		// Fall back to the orbit node key: with the WebSocket transport active,
 		// orbit calls the distributed (and, with osquery/config nudges, config)
 		// endpoints on behalf of osquery and only has its own node key. Both keys resolve to the same host row, so
@@ -97,7 +97,7 @@ func (svc *Service) AuthenticateHost(ctx context.Context, nodeKey string) (*flee
 		switch {
 		case err == nil:
 			// OK
-		case fleet.IsNotFound(err):
+		case automdm.IsNotFound(err):
 			return nil, false, newOsqueryErrorWithInvalidNode("authentication error: invalid node key")
 		case errors.Is(err, context.Canceled):
 			return nil, false, err
@@ -142,7 +142,7 @@ func (svc *Service) AuthenticateHost(ctx context.Context, nodeKey string) (*flee
 // Enroll Agent
 ////////////////////////////////////////////////////////////////////////////////
 
-func enrollAgentEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func enrollAgentEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*contract.EnrollOsqueryAgentRequest)
 	nodeKey, err := svc.EnrollOsquery(ctx, req.EnrollSecret, req.HostIdentifier, req.HostDetails)
 	if err != nil {
@@ -168,7 +168,7 @@ func (svc *Service) EnrollOsquery(ctx context.Context, enrollSecret, hostIdentif
 		hostPlatform = r["platform"]
 	}
 	attempt := enrollmentAttempt{
-		plane:          fleet.EnrollmentPlaneOsquery,
+		plane:          automdm.EnrollmentPlaneOsquery,
 		platform:       hostPlatform,
 		hardwareUUID:   hardwareUUID,
 		hardwareSerial: hardwareSerial,
@@ -176,9 +176,9 @@ func (svc *Service) EnrollOsquery(ctx context.Context, enrollSecret, hostIdentif
 
 	var (
 		enrollTeamID *uint
-		secretOpts   []fleet.DatastoreEnrollOsqueryOption
+		secretOpts   []automdm.DatastoreEnrollOsqueryOption
 	)
-	var oneTime *fleet.HostOneTimeEnrollSecret
+	var oneTime *automdm.HostOneTimeEnrollSecret
 	if svc.config.MDM.OneTimeEnrollSecretsEnabled() {
 		var err error
 		oneTime, err = svc.lookupOneTimeEnrollSecret(ctx, enrollSecret)
@@ -189,11 +189,11 @@ func (svc *Service) EnrollOsquery(ctx context.Context, enrollSecret, hostIdentif
 	}
 	if oneTime != nil {
 		if !oneTime.MatchesHost(hostPlatform, hardwareUUID, hardwareSerial) {
-			svc.recordEnrollmentRejected(ctx, fleet.EnrollmentRejectedOneTimeSecretIdentifierMismatch, oneTime.HostID, attempt)
+			svc.recordEnrollmentRejected(ctx, automdm.EnrollmentRejectedOneTimeSecretIdentifierMismatch, oneTime.HostID, attempt)
 			return "", newOsqueryErrorWithInvalidNode("enroll failed")
 		}
 		enrollTeamID = oneTime.TeamID
-		secretOpts = append(secretOpts, fleet.WithEnrollOsqueryOneTimeEnrollSecret(oneTime.ID))
+		secretOpts = append(secretOpts, automdm.WithEnrollOsqueryOneTimeEnrollSecret(oneTime.ID))
 	} else {
 		secret, err := svc.ds.VerifyEnrollSecret(ctx, enrollSecret)
 		if err != nil {
@@ -201,13 +201,13 @@ func (svc *Service) EnrollOsquery(ctx context.Context, enrollSecret, hostIdentif
 			return "", newOsqueryErrorWithInvalidNode("enroll failed")
 		}
 		enrollTeamID = secret.TeamID
-		secretOpts = append(secretOpts, fleet.WithEnrollOsqueryRejectSharedSecretForAppleMDMHosts(svc.config.MDM.AppleOneTimeEnrollSecrets))
+		secretOpts = append(secretOpts, automdm.WithEnrollOsqueryRejectSharedSecretForAppleMDMHosts(svc.config.MDM.AppleOneTimeEnrollSecrets))
 	}
 
 	// The identity cert's name is the derived identifier the host enrolls under, not the raw provided one.
 	hostIdentifier = getHostIdentifier(ctx, svc.logger, svc.config.Osquery.HostIdentifier, hostIdentifier, hostDetails)
 	identityCert, err := svc.ds.GetHostIdentityCertByName(ctx, hostIdentifier)
-	if err != nil && !fleet.IsNotFound(err) {
+	if err != nil && !automdm.IsNotFound(err) {
 		recordErrorDetail(ctx, err)
 		return "", newOsqueryErrorWithInvalidNode("loading certificate")
 	}
@@ -216,15 +216,15 @@ func (svc *Service) EnrollOsquery(ctx context.Context, enrollSecret, hostIdentif
 	hostIdentityCert, httpSigPresent := httpsig.FromContext(ctx)
 	if identityCert != nil {
 		if !httpSigPresent {
-			svc.recordEnrollmentRejected(ctx, fleet.EnrollmentRejectedHostIdentityCertRequired, identityCert.HostID, attempt)
-			return "", fleet.NewAuthFailedError("authentication error: missing HTTP signature")
+			svc.recordEnrollmentRejected(ctx, automdm.EnrollmentRejectedHostIdentityCertRequired, identityCert.HostID, attempt)
+			return "", automdm.NewAuthFailedError("authentication error: missing HTTP signature")
 		}
 		if identityCert.SerialNumber != hostIdentityCert.SerialNumber {
-			svc.recordEnrollmentRejected(ctx, fleet.EnrollmentRejectedHostIdentityCertRequired, identityCert.HostID, attempt)
-			return "", fleet.NewAuthFailedError("authentication error: certificate serial number mismatch")
+			svc.recordEnrollmentRejected(ctx, automdm.EnrollmentRejectedHostIdentityCertRequired, identityCert.HostID, attempt)
+			return "", automdm.NewAuthFailedError("authentication error: certificate serial number mismatch")
 		}
 	} else if httpSigPresent { // but we couldn't find cert in DB
-		return "", fleet.NewAuthFailedError("authentication error: certificate matching HTTP message signature not found")
+		return "", automdm.NewAuthFailedError("authentication error: certificate matching HTTP message signature not found")
 	}
 
 	nodeKey, err := server.GenerateRandomText(svc.config.Osquery.NodeKeySize)
@@ -253,22 +253,22 @@ func (svc *Service) EnrollOsquery(ctx context.Context, enrollSecret, hostIdentif
 	}
 
 	var hostCreated bool
-	enrollOpts := append([]fleet.DatastoreEnrollOsqueryOption{
-		fleet.WithEnrollOsqueryMDMEnabled(appConfig.MDM.EnabledAndConfigured),
-		fleet.WithEnrollOsqueryHostID(hostIdentifier),
-		fleet.WithEnrollOsqueryHardwareUUID(hardwareUUID),
-		fleet.WithEnrollOsqueryHardwareSerial(hardwareSerial),
-		fleet.WithEnrollOsqueryNodeKey(nodeKey),
-		fleet.WithEnrollOsqueryTeamID(enrollTeamID),
-		fleet.WithEnrollOsqueryCooldown(svc.config.Osquery.EnrollCooldown),
-		fleet.WithEnrollOsqueryIdentityCert(identityCert),
-		fleet.WithEnrollOsqueryCreated(&hostCreated),
-		fleet.WithEnrollOsqueryRejectSharedSecretForWindowsMDMHosts(rejectSharedSecretForWindowsMDMHosts(svc.config.MDM, appConfig)),
-		fleet.WithEnrollOsqueryRejectSharedSecretForAndroidMDMHosts(rejectSharedSecretForAndroidMDMHosts(svc.config.MDM, appConfig)),
+	enrollOpts := append([]automdm.DatastoreEnrollOsqueryOption{
+		automdm.WithEnrollOsqueryMDMEnabled(appConfig.MDM.EnabledAndConfigured),
+		automdm.WithEnrollOsqueryHostID(hostIdentifier),
+		automdm.WithEnrollOsqueryHardwareUUID(hardwareUUID),
+		automdm.WithEnrollOsqueryHardwareSerial(hardwareSerial),
+		automdm.WithEnrollOsqueryNodeKey(nodeKey),
+		automdm.WithEnrollOsqueryTeamID(enrollTeamID),
+		automdm.WithEnrollOsqueryCooldown(svc.config.Osquery.EnrollCooldown),
+		automdm.WithEnrollOsqueryIdentityCert(identityCert),
+		automdm.WithEnrollOsqueryCreated(&hostCreated),
+		automdm.WithEnrollOsqueryRejectSharedSecretForWindowsMDMHosts(rejectSharedSecretForWindowsMDMHosts(svc.config.MDM, appConfig)),
+		automdm.WithEnrollOsqueryRejectSharedSecretForAndroidMDMHosts(rejectSharedSecretForAndroidMDMHosts(svc.config.MDM, appConfig)),
 	}, secretOpts...)
 	host, err := svc.ds.EnrollOsquery(ctx, enrollOpts...)
 	if err != nil {
-		if rejected, ok := errors.AsType[*fleet.EnrollmentRejectedError](err); ok {
+		if rejected, ok := errors.AsType[*automdm.EnrollmentRejectedError](err); ok {
 			svc.recordEnrollmentRejected(ctx, rejected.Reason, rejectedHostID(rejected, oneTime), attempt)
 			return "", newOsqueryErrorWithInvalidNode("enroll failed")
 		}
@@ -338,7 +338,7 @@ func (svc *Service) EnrollOsquery(ctx context.Context, enrollSecret, hostIdentif
 
 var counter = int64(0)
 
-func (svc *Service) serialUpdateHost(ctx context.Context, host *fleet.Host) error {
+func (svc *Service) serialUpdateHost(ctx context.Context, host *automdm.Host) error {
 	newVal := atomic.AddInt64(&counter, 1)
 	defer func() {
 		atomic.AddInt64(&counter, -1)
@@ -451,7 +451,7 @@ type getClientConfigRequest struct {
 	// ignored.
 	ETag *string `json:"etag"`
 
-	// fallbackChange is set from fleet.OsqueryConfigFallbackChangeHeader.
+	// fallbackChange is set from automdm.OsqueryConfigFallbackChangeHeader.
 	fallbackChange bool
 }
 
@@ -467,7 +467,7 @@ func (getClientConfigRequest) DecodeRequest(
 	if err := json.NewDecoder(r.Body).Decode(req); err != nil {
 		return nil, err
 	}
-	req.fallbackChange = r.Header.Get(fleet.OsqueryConfigFallbackChangeHeader) != ""
+	req.fallbackChange = r.Header.Get(automdm.OsqueryConfigFallbackChangeHeader) != ""
 	return req, nil
 }
 
@@ -564,21 +564,21 @@ func clientConfigETagMatches(clientETag *string, etag string) bool {
 	return clientETag != nil && *clientETag != "" && *clientETag == etag
 }
 
-func getClientConfigEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func getClientConfigEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*getClientConfigRequest)
 	if req.fallbackChange {
 		recordOsqueryConfigFallbackChange(ctx)
 	}
 
 	// GetClientConfigWithETag may answer without building the config at all;
-	// see its interface docs in server/fleet/service.go for the contract.
+	// see its interface docs in server/automdm/service.go for the contract.
 	result, err := svc.GetClientConfigWithETag(ctx, req.ETag)
 	if err != nil {
 		return getClientConfigResponse{Err: err}, nil
 	}
 
 	// Per-request diagnostics are debug-only because this endpoint is the
-	// highest-volume route in Fleet; the Prometheus counters in
+	// highest-volume route in AutoMDM; the Prometheus counters in
 	// server/service/redis_config_etag carry the aggregate view.
 	logging.WithLevel(ctx, slog.LevelDebug)
 	logging.WithExtras(ctx, "etag_result", result.CacheStatus, "etag_mode", result.Mode)
@@ -589,7 +589,7 @@ func getClientConfigEndpoint(ctx context.Context, request interface{}, svc fleet
 	}, nil
 }
 
-func (svc *Service) getScheduledQueries(ctx context.Context, teamID *uint) (fleet.Queries, error) {
+func (svc *Service) getScheduledQueries(ctx context.Context, teamID *uint) (automdm.Queries, error) {
 	appConfig, err := svc.ds.AppConfig(ctx)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "load app config")
@@ -609,7 +609,7 @@ func (svc *Service) getScheduledQueries(ctx context.Context, teamID *uint) (flee
 		return nil, nil
 	}
 
-	config := make(fleet.Queries, len(queries))
+	config := make(automdm.Queries, len(queries))
 	for _, query := range queries {
 		config[query.Name] = query.ToQueryContent()
 	}
@@ -645,7 +645,7 @@ func packConfigCacheKey(teamID *uint, queryReportsDisabled bool) string {
 // construction, invisible to every invalidation mechanism. This bypass
 // prevents systematic cross-host wrongness; it is not defense against a rare
 // race.
-func (svc *Service) getPackConfig(ctx context.Context, host *fleet.Host, bypassTeamPackCache bool) (raw json.RawMessage, err error) {
+func (svc *Service) getPackConfig(ctx context.Context, host *automdm.Host, bypassTeamPackCache bool) (raw json.RawMessage, err error) {
 	appConfig, err := svc.ds.AppConfig(ctx)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "fetch app config")
@@ -694,14 +694,14 @@ func (svc *Service) getPackConfig(ctx context.Context, host *fleet.Host, bypassT
 	}
 
 	// Cache miss or label-scoped queries present: build pack config from DB.
-	packConfig := fleet.Packs{}
+	packConfig := automdm.Packs{}
 
 	globalQueries, err := svc.getScheduledQueries(ctx, nil)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "get global scheduled queries")
 	}
 	if len(globalQueries) > 0 {
-		packConfig["Global"] = fleet.PackContent{
+		packConfig["Global"] = automdm.PackContent{
 			Queries: globalQueries,
 		}
 	}
@@ -713,7 +713,7 @@ func (svc *Service) getPackConfig(ctx context.Context, host *fleet.Host, bypassT
 		}
 		if len(teamQueries) > 0 {
 			packName := fmt.Sprintf("team-%d", *host.TeamID)
-			packConfig[packName] = fleet.PackContent{
+			packConfig[packName] = automdm.PackContent{
 				Queries: teamQueries,
 			}
 		}
@@ -792,11 +792,11 @@ func (svc *Service) buildClientConfig(ctx context.Context, bypassTeamPackCache b
 	}
 
 	// With the WebSocket transport enabled, orbit points osquery at its own
-	// distributed plugin on the command line. Fleet's default agent options
+	// distributed plugin on the command line. AutoMDM's default agent options
 	// include `distributed_plugin: tls` as a config option, which osquery
 	// applies at runtime and which would silently flip the host back to TLS
 	// polling on its first config refresh — strip it. Agents get their
-	// distributed plugin from the fleetd-managed command line either way.
+	// distributed plugin from the automdmd-managed command line either way.
 	if svc.config.WebSocket.TransportEnabled {
 		if opts, ok := config["options"].(map[string]any); ok {
 			delete(opts, "distributed_plugin")
@@ -813,7 +813,7 @@ func (svc *Service) buildClientConfig(ctx context.Context, bypassTeamPackCache b
 
 	// Save interval values if they have been updated.
 	intervalsModified := false
-	intervals := fleet.HostOsqueryIntervals{
+	intervals := automdm.HostOsqueryIntervals{
 		DistributedInterval: host.DistributedInterval,
 		ConfigTLSRefresh:    host.ConfigTLSRefresh,
 		LoggerTLSPeriod:     host.LoggerTLSPeriod,
@@ -856,11 +856,11 @@ func (svc *Service) buildClientConfig(ctx context.Context, bypassTeamPackCache b
 }
 
 // clientConfigETagScope returns the Redis ETag scope for a host: "global" for
-// hosts with no team (fleet), "team:<id>" otherwise. Together with the host's
+// hosts with no team (team), "team:<id>" otherwise. Together with the host's
 // platform this identifies the config representation — the rendered config is
 // identical for every host in the same (team, platform) pair, which is the
 // same fact the packConfigCache relies on.
-func clientConfigETagScope(host *fleet.Host) string {
+func clientConfigETagScope(host *automdm.Host) string {
 	if host.TeamID != nil {
 		return fmt.Sprintf("team:%d", *host.TeamID)
 	}
@@ -868,7 +868,7 @@ func clientConfigETagScope(host *fleet.Host) string {
 }
 
 // GetClientConfigWithETag implements the ETag-aware config path; the contract
-// is on fleet.OsqueryService and the design in server/service/redis_config_etag.
+// is on automdm.OsqueryService and the design in server/service/redis_config_etag.
 //
 // The part to keep in mind while editing: on a short-circuit hit this returns
 // before buildClientConfig runs, so nothing below is guaranteed to execute on a
@@ -877,7 +877,7 @@ func clientConfigETagScope(host *fleet.Host) string {
 // Every failure mode degrades to a full build. Gate state that cannot be read
 // is treated as bypass rather than guessed, because guessing "shared" would
 // publish one host's config under a key its teammates read.
-func (svc *Service) GetClientConfigWithETag(ctx context.Context, clientETag *string) (*fleet.ClientConfigResult, error) {
+func (svc *Service) GetClientConfigWithETag(ctx context.Context, clientETag *string) (*automdm.ClientConfigResult, error) {
 	// skipauth: Authorization is currently for user endpoints only.
 	svc.authz.SkipAuthorization(ctx)
 
@@ -912,12 +912,12 @@ func (svc *Service) GetClientConfigWithETag(ctx context.Context, clientETag *str
 	// team cache: that cache does its own label-scoped check, and skipping it
 	// would send every config request to the database for the whole outage.
 	labelScopesUnknown := false
-	mode := fleet.ConfigETagModeOff
+	mode := automdm.ConfigETagModeOff
 	if store != nil {
-		mode = fleet.ConfigETagModeBypass
+		mode = automdm.ConfigETagModeBypass
 		scopes, err := store.LabelScopes(ctx, svc.labelScopedReportScopes)
 		switch {
-		case errors.Is(err, fleet.ErrConfigETagGateLoading):
+		case errors.Is(err, automdm.ErrConfigETagGateLoading):
 			// Another request on this instance is loading the gate state:
 			// normal contention, not a fault. Bypass for this request without
 			// waiting and without error logging (see the store's
@@ -928,11 +928,11 @@ func (svc *Service) GetClientConfigWithETag(ctx context.Context, clientETag *str
 			// costing performance, never correctness.
 			svc.logConfigETagError(ctx, "config etag: label scope state unavailable; bypassing short circuit", err)
 		case scopes.PerHostMode(host.TeamID):
-			mode = fleet.ConfigETagModeHost
+			mode = automdm.ConfigETagModeHost
 		default:
-			mode = fleet.ConfigETagModeShared
+			mode = automdm.ConfigETagModeShared
 		}
-		// Bounded state log: once per Fleet container, on first observation.
+		// Bounded state log: once per AutoMDM container, on first observation.
 		svc.configETagStateOnce.Do(func() {
 			svc.logger.InfoContext(ctx, "config etag optimization state first observed",
 				"component", "config-etag", "mode", mode, "scope", scope)
@@ -948,21 +948,21 @@ func (svc *Service) GetClientConfigWithETag(ctx context.Context, clientETag *str
 	// who later reorders the mode selection.
 	if store != nil && clientETag != nil && *clientETag != "" {
 		switch mode {
-		case fleet.ConfigETagModeShared:
+		case automdm.ConfigETagModeShared:
 			storedETag, valid, err := store.GetETagIfCurrent(ctx, scope, host.Platform)
 			switch {
 			case err != nil:
 				// FAIL OPEN: fall through to the full build.
 				svc.logConfigETagError(ctx, "config etag: redis read failed; falling back to full config build", err)
 			case valid && clientConfigETagMatches(clientETag, storedETag):
-				return &fleet.ClientConfigResult{
+				return &automdm.ClientConfigResult{
 					ETag:        storedETag,
 					NotModified: true,
-					CacheStatus: fleet.ConfigETagStatusRedisNotModified,
+					CacheStatus: automdm.ConfigETagStatusRedisNotModified,
 					Mode:        mode,
 				}, nil
 			}
-		case fleet.ConfigETagModeHost:
+		case automdm.ConfigETagModeHost:
 			// GetHostETagIfCurrent validates generation, stored scope, and stored
 			// platform against the authenticated host context — a team
 			// transfer or platform change reads as a miss.
@@ -971,10 +971,10 @@ func (svc *Service) GetClientConfigWithETag(ctx context.Context, clientETag *str
 			case err != nil:
 				svc.logConfigETagError(ctx, "config etag: redis host read failed; falling back to full config build", err)
 			case valid && clientConfigETagMatches(clientETag, storedETag):
-				return &fleet.ClientConfigResult{
+				return &automdm.ClientConfigResult{
 					ETag:        storedETag,
 					NotModified: true,
-					CacheStatus: fleet.ConfigETagStatusRedisHostNotModified,
+					CacheStatus: automdm.ConfigETagStatusRedisHostNotModified,
 					Mode:        mode,
 				}, nil
 			}
@@ -990,7 +990,7 @@ func (svc *Service) GetClientConfigWithETag(ctx context.Context, clientETag *str
 	// the deployment may have label-scoped reports, so the cached render may
 	// be host-incorrect for this host. Shared mode and plain bypass keep the
 	// pre-existing build path, in-memory caches and all.
-	config, err := svc.buildClientConfig(ctx, mode == fleet.ConfigETagModeHost || labelScopesUnknown)
+	config, err := svc.buildClientConfig(ctx, mode == automdm.ConfigETagModeHost || labelScopesUnknown)
 	if err != nil {
 		return nil, err
 	}
@@ -1004,10 +1004,10 @@ func (svc *Service) GetClientConfigWithETag(ctx context.Context, clientETag *str
 		// Only shared/host modes publish; bypass and off never touch Redis, so
 		// the absence of a case is the "nothing to publish" path.
 		switch mode {
-		case fleet.ConfigETagModeShared:
+		case automdm.ConfigETagModeShared:
 			stored, publishErr := store.SetIfNoFence(ctx, scope, host.Platform, etag)
 			svc.recordETagPublish(ctx, stored, publishErr)
-		case fleet.ConfigETagModeHost:
+		case automdm.ConfigETagModeHost:
 			stored, publishErr := store.SetHostIfNoFence(ctx, host.ID, scope, host.Platform, etag)
 			svc.recordETagPublish(ctx, stored, publishErr)
 		}
@@ -1018,14 +1018,14 @@ func (svc *Service) GetClientConfigWithETag(ctx context.Context, clientETag *str
 	// naive-not-modified path: the config was built, but the response body
 	// shrinks to the constant "unchanged" form).
 	notModified := clientConfigETagMatches(clientETag, etag)
-	cacheStatus := fleet.ConfigETagStatusFullMismatch
+	cacheStatus := automdm.ConfigETagStatusFullMismatch
 	switch {
 	case notModified:
-		cacheStatus = fleet.ConfigETagStatusNotModified
+		cacheStatus = automdm.ConfigETagStatusNotModified
 	case clientETag == nil || *clientETag == "":
-		cacheStatus = fleet.ConfigETagStatusFullNoValidator
+		cacheStatus = automdm.ConfigETagStatusFullNoValidator
 	}
-	result := &fleet.ClientConfigResult{
+	result := &automdm.ClientConfigResult{
 		ETag:        etag,
 		NotModified: notModified,
 		CacheStatus: cacheStatus,
@@ -1056,10 +1056,10 @@ func (svc *Service) GetClientConfigWithETag(ctx context.Context, clientETag *str
 // ListScheduledQueriesForAgents filter per host, so configs in those scopes
 // are NOT identical across a (team, platform) pair and drift with label
 // membership — hence per-host mode there.
-func (svc *Service) labelScopedReportScopes(ctx context.Context) (fleet.ConfigETagLabelScopes, error) {
+func (svc *Service) labelScopedReportScopes(ctx context.Context) (automdm.ConfigETagLabelScopes, error) {
 	scopes, err := svc.ds.LabelScopedScheduledQueryScopes(ctx)
 	if err != nil {
-		return fleet.ConfigETagLabelScopes{}, ctxerr.Wrap(ctx, err, "list label scoped report scopes for config etag mode")
+		return automdm.ConfigETagLabelScopes{}, ctxerr.Wrap(ctx, err, "list label scoped report scopes for config etag mode")
 	}
 	return scopes, nil
 }
@@ -1081,7 +1081,7 @@ func (svc *Service) recordETagPublish(ctx context.Context, stored bool, err erro
 }
 
 // logConfigETagError logs config-ETag Redis/gate errors at most once per 30
-// seconds per Fleet instance. The fast path fails open, so during a Redis
+// seconds per AutoMDM instance. The fast path fails open, so during a Redis
 // outage every config request would otherwise emit an error line at check-in
 // volume.
 func (svc *Service) logConfigETagError(ctx context.Context, msg string, err error) {
@@ -1108,7 +1108,7 @@ func (svc *Service) AgentOptionsForHost(ctx context.Context, hostTeamID *uint, h
 		}
 
 		if teamAgentOptions != nil && len(*teamAgentOptions) > 0 {
-			var options fleet.AgentOptions
+			var options automdm.AgentOptions
 			if err := json.Unmarshal(*teamAgentOptions, &options); err != nil {
 				return nil, ctxerr.Wrap(ctx, err, "unmarshal team agent options")
 			}
@@ -1120,7 +1120,7 @@ func (svc *Service) AgentOptionsForHost(ctx context.Context, hostTeamID *uint, h
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "load app config")
 	}
-	var options fleet.AgentOptions
+	var options automdm.AgentOptions
 	if appConfig.AgentOptions != nil {
 		if err := json.Unmarshal(*appConfig.AgentOptions, &options); err != nil {
 			return nil, ctxerr.Wrap(ctx, err, "unmarshal global agent options")
@@ -1157,9 +1157,9 @@ func (r getDistributedQueriesResponse) Error() error { return r.Err }
 // are still polling visible on /debug/agentws.
 func recordDistributedReadStats(
 	hub *agentws.Hub,
-	next func(ctx context.Context, request any, svc fleet.Service) (fleet.Errorer, error),
-) func(ctx context.Context, request any, svc fleet.Service) (fleet.Errorer, error) {
-	return func(ctx context.Context, request any, svc fleet.Service) (fleet.Errorer, error) {
+	next func(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error),
+) func(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
+	return func(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
 		if host, ok := hostctx.FromContext(ctx); ok {
 			path, _ := ctx.Value(kithttp.ContextKeyRequestPath).(string)
 			hub.RecordDistributedRead(host.ID, strings.HasPrefix(path, "/api/v1/"))
@@ -1168,7 +1168,7 @@ func recordDistributedReadStats(
 	}
 }
 
-func getDistributedQueriesEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func getDistributedQueriesEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	queries, discovery, accelerate, err := svc.GetDistributedQueries(ctx)
 	if err != nil {
 		return getDistributedQueriesResponse{Err: err}, nil
@@ -1250,7 +1250,7 @@ func (svc *Service) GetDistributedQueries(ctx context.Context) (queries map[stri
 	// Thus, we set the alwaysTrueQuery for all queries, except for those where we set
 	// an explicit discovery query (e.g. orbit_info, google_chrome_profiles).
 	for name, query := range queries {
-		// there's a bug somewhere (Fleet, osquery or both?)
+		// there's a bug somewhere (AutoMDM, osquery or both?)
 		// that causes hosts to check-in in a loop if you send
 		// an empty query string.
 		//
@@ -1286,12 +1286,12 @@ var criticalDetailQueries = map[string]bool{
 // (AppConfig, HostFeatures, TeamMDMConfig, conditional access) on every detail query result,
 // and also caches the resolved detail query map so it is built only once per request.
 type hostDetailQueryConfig struct {
-	appConfig     *fleet.AppConfig
-	features      *fleet.Features
+	appConfig     *automdm.AppConfig
+	features      *automdm.Features
 	detailQueries map[string]osquery_utils.DetailQuery
 }
 
-func (svc *Service) loadHostDetailQueryConfig(ctx context.Context, host *fleet.Host) (*hostDetailQueryConfig, error) {
+func (svc *Service) loadHostDetailQueryConfig(ctx context.Context, host *automdm.Host) (*hostDetailQueryConfig, error) {
 	appConfig, err := svc.ds.AppConfig(ctx)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "read app config")
@@ -1302,11 +1302,11 @@ func (svc *Service) loadHostDetailQueryConfig(ctx context.Context, host *fleet.H
 		return nil, ctxerr.Wrap(ctx, err, "read host features")
 	}
 
-	var mdmTeamConfig *fleet.TeamMDM
-	// LUKS key escrow needs no MDM, so Linux hosts need their fleet's config
+	var mdmTeamConfig *automdm.TeamMDM
+	// LUKS key escrow needs no MDM, so Linux hosts need their team's config
 	// even when no MDM platform is configured
 	if appConfig != nil && host.TeamID != nil &&
-		(appConfig.MDM.EnabledAndConfigured || appConfig.MDM.WindowsEnabledAndConfigured || host.FleetPlatform() == "linux") {
+		(appConfig.MDM.EnabledAndConfigured || appConfig.MDM.WindowsEnabledAndConfigured || host.AutoMDMPlatform() == "linux") {
 		mdmTeamConfig, err = svc.ds.TeamMDMConfig(ctx, *host.TeamID)
 		if err != nil {
 			return nil, ctxerr.Wrap(ctx, err, "reading MDM Team Config")
@@ -1333,7 +1333,7 @@ func (svc *Service) loadHostDetailQueryConfig(ctx context.Context, host *fleet.H
 
 // detailQueriesForHost returns the map of detail+additional queries that should be executed by
 // osqueryd to fill in the host details.
-func (svc *Service) detailQueriesForHost(ctx context.Context, host *fleet.Host) (queries map[string]string, discovery map[string]string, err error) {
+func (svc *Service) detailQueriesForHost(ctx context.Context, host *automdm.Host) (queries map[string]string, discovery map[string]string, err error) {
 	var criticalQueriesOnly bool
 	send := host.RefetchRequested || svc.shouldUpdate(host.DetailUpdatedAt, svc.config.Osquery.DetailUpdateInterval, host.ID)
 	if send && !host.RefetchRequested && !svc.newlyEnrolled(host) {
@@ -1407,7 +1407,7 @@ func (svc *Service) detailQueriesForHost(ctx context.Context, host *fleet.Host) 
 	return queries, discovery, nil
 }
 
-func (svc *Service) hostRequiresConditionalAccessMicrosoftIngestion(ctx context.Context, host *fleet.Host) bool {
+func (svc *Service) hostRequiresConditionalAccessMicrosoftIngestion(ctx context.Context, host *automdm.Host) bool {
 	if host.Platform != "darwin" && host.Platform != "windows" {
 		return false
 	}
@@ -1453,7 +1453,7 @@ const unsavedResendTTL = 5 * time.Minute
 
 // newlyEnrolled reports whether the host enrolled in the last 15 minutes. Callers skip hasUnsavedSend and recordSend
 // for such hosts, so failed writes in their first minutes don't hold back their detail and policy queries.
-func (svc *Service) newlyEnrolled(host *fleet.Host) bool {
+func (svc *Service) newlyEnrolled(host *automdm.Host) bool {
 	return svc.clock.Now().Sub(host.LastEnrolledAt) < 15*time.Minute
 }
 
@@ -1486,7 +1486,7 @@ func sendMarker(kind string, hostID uint, updatedAt time.Time) (key, value strin
 	return fmt.Sprintf("distributed_resend:%s:%d", kind, hostID), strconv.FormatInt(updatedAt.UnixMicro(), 10)
 }
 
-func (svc *Service) labelQueriesForHost(ctx context.Context, host *fleet.Host) (map[string]string, error) {
+func (svc *Service) labelQueriesForHost(ctx context.Context, host *automdm.Host) (map[string]string, error) {
 	if !svc.shouldUpdate(host.LabelUpdatedAt, svc.config.Osquery.LabelUpdateInterval, host.ID) && !host.RefetchRequested {
 		return nil, nil
 	}
@@ -1539,7 +1539,7 @@ func (svc *Service) ListHostIDsDueForDistributedRead(ctx context.Context, hostID
 		}
 		for _, id := range hostIDs[start:end] {
 			if _, ok := found[id]; !ok {
-				due[id] = fleet.AgentWSReasonHostNotFound
+				due[id] = automdm.AgentWSReasonHostNotFound
 			}
 		}
 		for _, host := range hosts {
@@ -1576,7 +1576,7 @@ func (svc *Service) hostDueForLiveQuery(ctx context.Context, hostID uint) string
 	// The reason is informational only, so when several campaigns target the
 	// host any one of them will do.
 	for name := range queries {
-		return fleet.AgentWSReasonLiveQueryName(name)
+		return automdm.AgentWSReasonLiveQueryName(name)
 	}
 	return ""
 }
@@ -1587,32 +1587,32 @@ func (svc *Service) hostDueForLiveQuery(ctx context.Context, hostID uint) string
 // due gate's reason ("" when none); the reason is informational only, so ties
 // are not enumerated. It doesn't check hasUnsavedSend, so a host held back
 // there is still notified and reads nothing.
-func (svc *Service) hostDueForDistributedRead(host *fleet.Host) string {
+func (svc *Service) hostDueForDistributedRead(host *automdm.Host) string {
 	switch {
 	case host.RefetchRequested:
-		return fleet.AgentWSReasonRefetch
+		return automdm.AgentWSReasonRefetch
 	case host.RefetchCriticalQueriesUntil != nil && host.RefetchCriticalQueriesUntil.After(svc.clock.Now()):
-		return fleet.AgentWSReasonRefetch
+		return automdm.AgentWSReasonRefetch
 	case svc.shouldUpdate(host.DetailUpdatedAt, svc.config.Osquery.DetailUpdateInterval, host.ID):
-		return fleet.AgentWSReasonDetail
+		return automdm.AgentWSReasonDetail
 	case svc.shouldUpdate(host.LabelUpdatedAt, svc.config.Osquery.LabelUpdateInterval, host.ID):
-		return fleet.AgentWSReasonLabel
+		return automdm.AgentWSReasonLabel
 	case svc.shouldUpdate(host.PolicyUpdatedAt, svc.config.Osquery.PolicyUpdateInterval, host.ID):
-		return fleet.AgentWSReasonPolicy
+		return automdm.AgentWSReasonPolicy
 	default:
 		return ""
 	}
 }
 
-func (svc *Service) hostIsInSetupExperience(ctx context.Context, host *fleet.Host) (bool, error) {
-	return fleet.HostIsInSetupExperience(ctx, svc.ds, host)
+func (svc *Service) hostIsInSetupExperience(ctx context.Context, host *automdm.Host) (bool, error) {
+	return automdm.HostIsInSetupExperience(ctx, svc.ds, host)
 }
 
 // discardOutOfScopePolicyResults removes, in place, the results for policies that are not in scope for the host.
 //
-// A host authenticates with its node key and fully controls the fleet_policy_query_<id> keys it submits, so a result is
+// A host authenticates with its node key and fully controls the automdm_policy_query_<id> keys it submits, so a result is
 // only trustworthy for a policy the host is actually assigned (by team, platform and label). Without this, any enrolled
-// host could forge membership for policies it was never sent, including policies belonging to another fleet.
+// host could forge membership for policies it was never sent, including policies belonging to another team.
 //
 // The lookup is restricted to the reported IDs rather than loading the host's whole in-scope set, since every
 // policy-reporting check-in pays for it.
@@ -1640,7 +1640,7 @@ func summarizePolicyResults(policyResults map[uint]*bool) (failing, passing, not
 	return failing, passing, notExecuted
 }
 
-func (svc *Service) discardOutOfScopePolicyResults(ctx context.Context, host *fleet.Host, policyResults map[uint]*bool) error {
+func (svc *Service) discardOutOfScopePolicyResults(ctx context.Context, host *automdm.Host, policyResults map[uint]*bool) error {
 	candidateIDs := make([]uint, 0, len(policyResults))
 	for policyID := range policyResults {
 		candidateIDs = append(candidateIDs, policyID)
@@ -1662,19 +1662,19 @@ func (svc *Service) discardOutOfScopePolicyResults(ctx context.Context, host *fl
 // cleanupOutOfScopePolicyMembership deletes the host's policy_membership rows
 // for the given stale policies: policies with a stored row but no result in the
 // host's incoming distributed write (as returned by RecordPolicyQueryExecutions).
-// Fleet sends all in-scope policy queries together at the policy update interval
+// AutoMDM sends all in-scope policy queries together at the policy update interval
 // and osquery reports a result (or an error) for each, so a stale policy is no
 // longer in scope for the host (e.g. it changed teams, or fell out of the
 // policy's platform or label scope). Such rows otherwise linger forever,
 // inflating the failing policies counts computed from raw policy_membership
-// (Fleet Desktop badge, host issues) even though the host's policy listing
+// (AutoMDM Desktop badge, host issues) even though the host's policy listing
 // filters those policies out.
 //
 // The deletion is skipped for hosts in setup experience: they are sent a
 // filtered subset of policy queries (see policyQueriesForHost), so their stale
 // set is not meaningful. Errors are logged and swallowed: this cleanup is
 // best-effort and self-heals on the host's next policy reporting cycle.
-func (svc *Service) cleanupOutOfScopePolicyMembership(ctx context.Context, host *fleet.Host, stalePolicyIDs []uint) {
+func (svc *Service) cleanupOutOfScopePolicyMembership(ctx context.Context, host *automdm.Host, stalePolicyIDs []uint) {
 	if len(stalePolicyIDs) == 0 {
 		return
 	}
@@ -1700,7 +1700,7 @@ func (svc *Service) cleanupOutOfScopePolicyMembership(ctx context.Context, host 
 // policyQueriesForHost returns policy queries if it's the time to re-run policies on the given host.
 // It returns (nil, true, nil) if the interval is so that policies should be executed on the host, but there are no policies
 // assigned to such host.
-func (svc *Service) policyQueriesForHost(ctx context.Context, host *fleet.Host) (policyQueries map[string]string, noPoliciesForHost bool, err error) {
+func (svc *Service) policyQueriesForHost(ctx context.Context, host *automdm.Host) (policyQueries map[string]string, noPoliciesForHost bool, err error) {
 	if !svc.shouldUpdate(host.PolicyUpdatedAt, svc.config.Osquery.PolicyUpdateInterval, host.ID) && !host.RefetchRequested {
 		return nil, false, nil
 	}
@@ -1715,7 +1715,7 @@ func (svc *Service) policyQueriesForHost(ctx context.Context, host *fleet.Host) 
 		// host's whole (possibly large) team policy set. All other policies stay skipped so unrelated automations do not fire
 		// mid-setup. The install itself is performed by setup experience, not by the policy automation (which is suppressed for
 		// in-setup hosts in processSoftwareForNewlyFailingPolicies).
-		hostUUID, err := fleet.HostUUIDForSetupExperience(host)
+		hostUUID, err := automdm.HostUUIDForSetupExperience(host)
 		if err != nil {
 			return nil, false, ctxerr.Wrap(ctx, err, "get host uuid for setup experience policy queries")
 		}
@@ -1777,7 +1777,7 @@ type submitDistributedQueryResultsRequestShim struct {
 	Results  map[string]json.RawMessage `json:"queries"`
 	Statuses map[string]interface{}     `json:"statuses"`
 	Messages map[string]string          `json:"messages"`
-	Stats    map[string]*fleet.Stats    `json:"stats"`
+	Stats    map[string]*automdm.Stats  `json:"stats"`
 }
 
 func (shim *submitDistributedQueryResultsRequestShim) hostNodeKey() string {
@@ -1801,7 +1801,7 @@ func (shim *submitDistributedQueryResultsRequestShim) DecodeBody(_ context.Conte
 }
 
 func (shim *submitDistributedQueryResultsRequestShim) toRequest(ctx context.Context) (*SubmitDistributedQueryResultsRequest, error) {
-	results := fleet.OsqueryDistributedQueryResults{}
+	results := automdm.OsqueryDistributedQueryResults{}
 	for query, raw := range shim.Results {
 		queryResults := []map[string]string{}
 		// No need to handle error because the empty array is what we
@@ -1814,7 +1814,7 @@ func (shim *submitDistributedQueryResultsRequestShim) toRequest(ctx context.Cont
 	// Statuses were represented by strings in osquery < 3.0 and now
 	// integers in osquery > 3.0. Massage to string for compatibility with
 	// the service definition.
-	statuses := map[string]fleet.OsqueryStatus{}
+	statuses := map[string]automdm.OsqueryStatus{}
 	for query, status := range shim.Statuses {
 		switch s := status.(type) {
 		case string:
@@ -1822,9 +1822,9 @@ func (shim *submitDistributedQueryResultsRequestShim) toRequest(ctx context.Cont
 			if err != nil {
 				return nil, ctxerr.Wrap(ctx, err, "parse status to int")
 			}
-			statuses[query] = fleet.OsqueryStatus(sint)
+			statuses[query] = automdm.OsqueryStatus(sint)
 		case float64:
-			statuses[query] = fleet.OsqueryStatus(s)
+			statuses[query] = automdm.OsqueryStatus(s)
 		default:
 			return nil, ctxerr.Errorf(ctx, "query status should be string or number, got %T", s)
 		}
@@ -1840,11 +1840,11 @@ func (shim *submitDistributedQueryResultsRequestShim) toRequest(ctx context.Cont
 }
 
 type SubmitDistributedQueryResultsRequest struct {
-	NodeKey  string                               `json:"node_key"`
-	Results  fleet.OsqueryDistributedQueryResults `json:"queries"`
-	Statuses map[string]fleet.OsqueryStatus       `json:"statuses"`
-	Messages map[string]string                    `json:"messages"`
-	Stats    map[string]*fleet.Stats              `json:"stats"`
+	NodeKey  string                                 `json:"node_key"`
+	Results  automdm.OsqueryDistributedQueryResults `json:"queries"`
+	Statuses map[string]automdm.OsqueryStatus       `json:"statuses"`
+	Messages map[string]string                      `json:"messages"`
+	Stats    map[string]*automdm.Stats              `json:"stats"`
 }
 
 type submitDistributedQueryResultsResponse struct {
@@ -1853,7 +1853,7 @@ type submitDistributedQueryResultsResponse struct {
 
 func (r submitDistributedQueryResultsResponse) Error() error { return r.Err }
 
-func submitDistributedQueryResultsEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func submitDistributedQueryResultsEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	shim := request.(*submitDistributedQueryResultsRequestShim)
 	req, err := shim.toRequest(ctx)
 	if err != nil {
@@ -1871,41 +1871,41 @@ const (
 	// hostLabelQueryPrefix is appended before the query name when a query is
 	// provided as a label query. This allows the results to be retrieved when
 	// osqueryd writes the distributed query results.
-	hostLabelQueryPrefix = "fleet_label_query_"
+	hostLabelQueryPrefix = "automdm_label_query_"
 
 	// hostDetailQueryPrefix is appended before the query name when a query is
 	// provided as a detail query.
-	hostDetailQueryPrefix = "fleet_detail_query_"
+	hostDetailQueryPrefix = "team_detail_query_"
 
 	// hostAdditionalQueryPrefix is appended before the query name when a query is
 	// provided as an additional query (additional info for hosts to retrieve).
-	hostAdditionalQueryPrefix = "fleet_additional_query_"
+	hostAdditionalQueryPrefix = "automdm_additional_query_"
 
 	// hostPolicyQueryPrefix is appended before the query name when a query is
 	// provided as a policy query. This allows the results to be retrieved when
 	// osqueryd writes the distributed query results.
-	hostPolicyQueryPrefix = "fleet_policy_query_"
+	hostPolicyQueryPrefix = "automdm_policy_query_"
 
 	// hostNoPoliciesWildcard is a query sent to hosts when it's time to run policy
 	// queries on a host, but such host does not have any policies assigned.
-	// When Fleet receives results from such query then it will update the host's
+	// When AutoMDM receives results from such query then it will update the host's
 	// policy_updated_at column.
 	//
 	// This is used to prevent hosts without policies assigned to continuously
 	// perform lookups in the policies table on every check in.
-	hostNoPoliciesWildcard = "fleet_no_policies_wildcard"
+	hostNoPoliciesWildcard = "automdm_no_policies_wildcard"
 
 	// hostDistributedQueryPrefix is appended before the query name when a query is
 	// run from a distributed query campaign
-	hostDistributedQueryPrefix = "fleet_distributed_query_"
+	hostDistributedQueryPrefix = "automdm_distributed_query_"
 )
 
 func (svc *Service) SubmitDistributedQueryResults(
 	ctx context.Context,
-	results fleet.OsqueryDistributedQueryResults,
-	statuses map[string]fleet.OsqueryStatus,
+	results automdm.OsqueryDistributedQueryResults,
+	statuses map[string]automdm.OsqueryStatus,
 	messages map[string]string,
-	stats map[string]*fleet.Stats,
+	stats map[string]*automdm.Stats,
 ) error {
 	// skipauth: Authorization is currently for user endpoints only.
 	svc.authz.SkipAuthorization(ctx)
@@ -1916,7 +1916,7 @@ func (svc *Service) SubmitDistributedQueryResults(
 	}
 
 	detailUpdated := false
-	additionalResults := make(fleet.OsqueryDistributedQueryResults)
+	additionalResults := make(automdm.OsqueryDistributedQueryResults)
 	additionalUpdated := false
 	labelResults := map[uint]*bool{}
 	policyResults := map[uint]*bool{}
@@ -1956,7 +1956,7 @@ func (svc *Service) SubmitDistributedQueryResults(
 
 		// osquery docs say any nonzero (string) value for status indicates a query error
 		status, ok := statuses[query]
-		failed := ok && status != fleet.StatusOK
+		failed := ok && status != automdm.StatusOK
 		if failed && messages[query] != "" && !noSuchTableRegexp.MatchString(messages[query]) {
 			logLevel := slog.LevelDebug
 			// We'd like to log these as warning for troubleshooting and improving of distributed queries.
@@ -2012,7 +2012,7 @@ func (svc *Service) SubmitDistributedQueryResults(
 		// This also covers a timing bug where:
 		// 1. Host receives a "team label" query to run (distributed/read).
 		// 2. Host is transferred to another team (all its label/policy membership are cleared).
-		// 3. Fleet receives distributed/write corresponding to (1) which includes the result for
+		// 3. AutoMDM receives distributed/write corresponding to (1) which includes the result for
 		//    the label of the old team.
 		hostLabelQueries, err := svc.ds.LabelQueriesForHost(ctx, host)
 		if err != nil {
@@ -2042,7 +2042,7 @@ func (svc *Service) SubmitDistributedQueryResults(
 			ctx, "received policy results",
 			"host_id", host.ID,
 			"host_platform", host.Platform,
-			"fleet_id", ptr.ValOrZero(host.TeamID),
+			"team_id", ptr.ValOrZero(host.TeamID),
 			"failing", failing,
 			"passing", passing,
 			"not_executed", notExecuted,
@@ -2111,7 +2111,7 @@ func (svc *Service) SubmitDistributedQueryResults(
 
 		// setupExperienceHostUUID keys setup-experience rows (OsqueryHostID on Windows/Linux); on error it is empty, which
 		// disables setup-experience automation suppression (matches no host).
-		setupExperienceHostUUID, seuErr := fleet.HostUUIDForSetupExperience(host)
+		setupExperienceHostUUID, seuErr := automdm.HostUUIDForSetupExperience(host)
 		if seuErr != nil {
 			svc.logger.ErrorContext(ctx, "could not derive setup experience host UUID; setup-experience suppression disabled for this host",
 				"err", seuErr, "host_id", host.ID, "platform", host.Platform)
@@ -2216,13 +2216,13 @@ func (svc *Service) SubmitDistributedQueryResults(
 		if err := svc.NewActivity(
 			ctx,
 			nil,
-			fleet.ActivityTypeEscrowedDiskEncryptionKey{
+			automdm.ActivityTypeEscrowedDiskEncryptionKey{
 				HostID:          host.ID,
 				HostDisplayName: host.DisplayName(),
 			},
 		); err != nil {
 			svc.logger.ErrorContext(
-				ctx, "record fleet disk encryption key escrowed activity",
+				ctx, "record team disk encryption key escrowed activity",
 				"err", err,
 			)
 		}
@@ -2233,9 +2233,9 @@ func (svc *Service) SubmitDistributedQueryResults(
 
 func processCalendarPolicies(
 	ctx context.Context,
-	ds fleet.Datastore,
-	appConfig *fleet.AppConfig,
-	host *fleet.Host,
+	ds automdm.Datastore,
+	appConfig *automdm.AppConfig,
+	host *automdm.Host,
 	policyResults map[uint]*bool,
 	logger *slog.Logger,
 ) error {
@@ -2255,10 +2255,10 @@ func processCalendarPolicies(
 	hostCalendarEvent, calendarEvent, err := ds.GetHostCalendarEvent(ctx, host.ID)
 	switch {
 	case err == nil:
-		if hostCalendarEvent.WebhookStatus != fleet.CalendarWebhookStatusPending {
+		if hostCalendarEvent.WebhookStatus != automdm.CalendarWebhookStatusPending {
 			return nil
 		}
-	case fleet.IsNotFound(err):
+	case automdm.IsNotFound(err):
 		return nil
 	default:
 		return ctxerr.Wrap(ctx, err, "get host calendar event")
@@ -2267,7 +2267,7 @@ func processCalendarPolicies(
 	now := time.Now()
 	if now.Before(calendarEvent.StartTime) {
 		logger.WarnContext(ctx, "results came too early", "now", now, "start_time", calendarEvent.StartTime)
-		if err = ds.UpdateHostCalendarWebhookStatus(context.Background(), host.ID, fleet.CalendarWebhookStatusError); err != nil {
+		if err = ds.UpdateHostCalendarWebhookStatus(context.Background(), host.ID, automdm.CalendarWebhookStatusError); err != nil {
 			logger.ErrorContext(ctx, "mark webhook as errored early", "err", err)
 		}
 		return nil
@@ -2280,7 +2280,7 @@ func processCalendarPolicies(
 
 	if now.After(calendarEvent.EndTime.Add(allowedTimeRelativeToEndTime)) {
 		logger.WarnContext(ctx, "results came too late", "now", now, "end_time", calendarEvent.EndTime)
-		if err = ds.UpdateHostCalendarWebhookStatus(context.Background(), host.ID, fleet.CalendarWebhookStatusError); err != nil {
+		if err = ds.UpdateHostCalendarWebhookStatus(context.Background(), host.ID, automdm.CalendarWebhookStatusError); err != nil {
 			logger.ErrorContext(ctx, "mark webhook as errored late", "err", err)
 		}
 		return nil
@@ -2304,7 +2304,7 @@ func processCalendarPolicies(
 		retryStrategy.MaxElapsedTime = 30 * time.Minute
 		err := backoff.Retry(
 			func() error {
-				if err := fleet.FireCalendarWebhook(
+				if err := automdm.FireCalendarWebhook(
 					team.Config.Integrations.GoogleCalendar.WebhookURL,
 					host.ID, host.HardwareSerial, host.DisplayName(), failingCalendarPolicies, "",
 					logger,
@@ -2313,7 +2313,7 @@ func processCalendarPolicies(
 					if errors.As(err, &statusCoder) && statusCoder.StatusCode() == http.StatusTooManyRequests {
 						logger.DebugContext(ctx, "fire webhook", "err", err)
 						if err := ds.UpdateHostCalendarWebhookStatus(
-							context.Background(), host.ID, fleet.CalendarWebhookStatusRetry,
+							context.Background(), host.ID, automdm.CalendarWebhookStatusRetry,
 						); err != nil {
 							logger.ErrorContext(ctx, "mark fired webhook as retry", "err", err)
 						}
@@ -2324,10 +2324,10 @@ func processCalendarPolicies(
 				return nil
 			}, retryStrategy,
 		)
-		nextStatus := fleet.CalendarWebhookStatusSent
+		nextStatus := automdm.CalendarWebhookStatusSent
 		if err != nil {
 			logger.ErrorContext(ctx, "fire webhook", "err", err)
-			nextStatus = fleet.CalendarWebhookStatusError
+			nextStatus = automdm.CalendarWebhookStatusError
 		}
 		if err := ds.UpdateHostCalendarWebhookStatus(context.Background(), host.ID, nextStatus); err != nil {
 			logger.ErrorContext(ctx, fmt.Sprintf("mark fired webhook as %v", nextStatus), "err", err)
@@ -2337,8 +2337,8 @@ func processCalendarPolicies(
 	return nil
 }
 
-func getFailingCalendarPolicies(policyResults map[uint]*bool, calendarPolicies []fleet.PolicyCalendarData) []fleet.PolicyCalendarData {
-	var failingPolicies []fleet.PolicyCalendarData
+func getFailingCalendarPolicies(policyResults map[uint]*bool, calendarPolicies []automdm.PolicyCalendarData) []automdm.PolicyCalendarData {
+	var failingPolicies []automdm.PolicyCalendarData
 	for _, calendarPolicy := range calendarPolicies {
 		result, ok := policyResults[calendarPolicy.ID]
 		if !ok || // ignore result of a policy that's not configured for calendar.
@@ -2361,9 +2361,9 @@ func getFailingCalendarPolicies(policyResults map[uint]*bool, calendarPolicies [
 // It returns the extra queries that did not run or failed.
 func preProcessSoftwareResults(
 	ctx context.Context,
-	host *fleet.Host,
-	results fleet.OsqueryDistributedQueryResults,
-	statuses map[string]fleet.OsqueryStatus,
+	host *automdm.Host,
+	results automdm.OsqueryDistributedQueryResults,
+	statuses map[string]automdm.OsqueryStatus,
 	messages map[string]string,
 	overrides map[string]osquery_utils.DetailQuery,
 	logger *slog.Logger,
@@ -2377,8 +2377,8 @@ func preProcessSoftwareResults(
 	merge("software_vscode_extensions", osquery_utils.DetailQuery{})
 	merge("software_python_packages", osquery_utils.DetailQuery{})
 	merge("software_python_packages_with_users_dir", osquery_utils.DetailQuery{})
-	merge("software_linux_fleetd_pacman", osquery_utils.DetailQuery{})
-	merge("software_linux_fleetd_nix", osquery_utils.DetailQuery{})
+	merge("software_linux_automdmd_pacman", osquery_utils.DetailQuery{})
+	merge("software_linux_automdmd_nix", osquery_utils.DetailQuery{})
 	merge("software_jetbrains_plugins", osquery_utils.DetailQuery{})
 	merge("software_adobe_plugins", osquery_utils.DetailQuery{})
 	merge("software_go_binaries", osquery_utils.DetailQuery{})
@@ -2410,15 +2410,15 @@ func preProcessSoftwareResults(
 	// Filter out python packages that are also deb packages on ubuntu/debian
 	pythonPackageFilter(host.Platform, results, statuses)
 
-	updateFleetdVersion(host.Platform, results)
+	updateAutoMDMdVersion(host.Platform, results)
 	return skipped
 }
 
-// updateFleetdVersion updates the version of the fleetd package using the orbit version from the orbit_info table for Linux hosts.
+// updateAutoMDMdVersion updates the version of the automdmd package using the orbit version from the orbit_info table for Linux hosts.
 // We do this because orbit uses an auto-update mechanism which does not update the host's package manager database.
-func updateFleetdVersion(hostPlatform string, results fleet.OsqueryDistributedQueryResults) {
+func updateAutoMDMdVersion(hostPlatform string, results automdm.OsqueryDistributedQueryResults) {
 	// Just update the versions for Linux.
-	if !fleet.IsLinux(hostPlatform) {
+	if !automdm.IsLinux(hostPlatform) {
 		return
 	}
 
@@ -2432,7 +2432,7 @@ func updateFleetdVersion(hostPlatform string, results fleet.OsqueryDistributedQu
 	}
 
 	for _, row := range results[hostDetailQueryPrefix+"software_linux"] {
-		if row["name"] != "fleet-osquery" {
+		if row["name"] != "automdm-osquery" {
 			continue
 		}
 		row["version"] = orbitVersion
@@ -2442,7 +2442,7 @@ func updateFleetdVersion(hostPlatform string, results fleet.OsqueryDistributedQu
 
 // pythonPackageFilter filters out duplicate python_packages that are installed under deb_packages on Ubuntu and Debian.
 // python_packages not matching a Debian package names are updated to "python3-packagename" to match OVAL definitions.
-func pythonPackageFilter(platform string, results fleet.OsqueryDistributedQueryResults, statuses map[string]fleet.OsqueryStatus) {
+func pythonPackageFilter(platform string, results automdm.OsqueryDistributedQueryResults, statuses map[string]automdm.OsqueryStatus) {
 	const pythonPrefix = "python3-"
 	const pythonSource = "python_packages"
 	const debSource = "deb_packages"
@@ -2460,7 +2460,7 @@ func pythonPackageFilter(platform string, results fleet.OsqueryDistributedQueryR
 	if !ok {
 		return
 	}
-	if status, ok := statuses[linuxSoftware]; !ok || status != fleet.StatusOK {
+	if status, ok := statuses[linuxSoftware]; !ok || status != automdm.StatusOK {
 		return
 	}
 
@@ -2534,8 +2534,8 @@ func preProcessSoftwareExtraResults(
 	ctx context.Context,
 	softwareExtraQuery string,
 	hostID uint,
-	results fleet.OsqueryDistributedQueryResults,
-	statuses map[string]fleet.OsqueryStatus,
+	results automdm.OsqueryDistributedQueryResults,
+	statuses map[string]automdm.OsqueryStatus,
 	messages map[string]string,
 	override osquery_utils.DetailQuery,
 	logger *slog.Logger,
@@ -2548,7 +2548,7 @@ func preProcessSoftwareExtraResults(
 	if !ok {
 		return false // query did not execute, e.g. the table does not exist.
 	}
-	failed := status != fleet.StatusOK
+	failed := status != automdm.StatusOK
 	if failed {
 		// extra query executed but with errors, so we return without changing anything.
 		logger.ErrorContext(
@@ -2571,7 +2571,7 @@ func preProcessSoftwareExtraResults(
 		if _, ok := results[query]; !ok {
 			continue
 		}
-		if status, ok := statuses[query]; ok && status != fleet.StatusOK {
+		if status, ok := statuses[query]; ok && status != automdm.StatusOK {
 			// Do not append results if the main query failed to run.
 			continue
 		}
@@ -2600,7 +2600,7 @@ func removeOverrides(rows []map[string]string, override osquery_utils.DetailQuer
 // globalPolicyAutomationsEnabled and teamPolicyAutomationsEnabled are effectively identical.
 // We could not use Go generics because Go generics does not support accessing common struct fields right now.
 // The umbrella Go issue tracking this: https://github.com/golang/go/issues/63940
-func globalPolicyAutomationsEnabled(webhookSettings fleet.WebhookSettings, integrations fleet.Integrations) bool {
+func globalPolicyAutomationsEnabled(webhookSettings automdm.WebhookSettings, integrations automdm.Integrations) bool {
 	if webhookSettings.FailingPoliciesWebhook.Enable {
 		return true
 	}
@@ -2617,7 +2617,7 @@ func globalPolicyAutomationsEnabled(webhookSettings fleet.WebhookSettings, integ
 	return false
 }
 
-func teamPolicyAutomationsEnabled(webhookSettings fleet.TeamWebhookSettings, integrations fleet.TeamIntegrations) bool {
+func teamPolicyAutomationsEnabled(webhookSettings automdm.TeamWebhookSettings, integrations automdm.TeamIntegrations) bool {
 	if webhookSettings.FailingPoliciesWebhook.Enable {
 		return true
 	}
@@ -2637,14 +2637,14 @@ func teamPolicyAutomationsEnabled(webhookSettings fleet.TeamWebhookSettings, int
 func (svc *Service) ingestQueryResults(
 	ctx context.Context,
 	query string,
-	host *fleet.Host,
+	host *automdm.Host,
 	rows []map[string]string,
 	failed bool,
 	messages map[string]string,
 	policyResults map[uint]*bool,
 	labelResults map[uint]*bool,
-	additionalResults fleet.OsqueryDistributedQueryResults,
-	stats *fleet.Stats,
+	additionalResults automdm.OsqueryDistributedQueryResults,
+	stats *automdm.Stats,
 	detailConfig *hostDetailQueryConfig,
 ) (bool, bool, error) {
 	var detailUpdated, additionalUpdated bool
@@ -2694,7 +2694,7 @@ func (svc *Service) ingestQueryResults(
 
 var noSuchTableRegexp = regexp.MustCompile(`^no such table: \S+$`)
 
-func (svc *Service) directIngestDetailQuery(ctx context.Context, host *fleet.Host, name string, rows []map[string]string, cfg *hostDetailQueryConfig) (ingested bool, err error) {
+func (svc *Service) directIngestDetailQuery(ctx context.Context, host *automdm.Host, name string, rows []map[string]string, cfg *hostDetailQueryConfig) (ingested bool, err error) {
 	query, ok := cfg.detailQueries[name]
 	if !ok {
 		return false, newOsqueryError("unknown detail query " + name)
@@ -2710,9 +2710,9 @@ func (svc *Service) directIngestDetailQuery(ctx context.Context, host *fleet.Hos
 }
 
 // ingestDistributedQuery takes the results of a distributed query and modifies the
-// provided fleet.Host appropriately.
+// provided automdm.Host appropriately.
 func (svc *Service) ingestDistributedQuery(
-	ctx context.Context, host fleet.Host, name string, rows []map[string]string, errMsg string, stats *fleet.Stats,
+	ctx context.Context, host automdm.Host, name string, rows []map[string]string, errMsg string, stats *automdm.Stats,
 ) error {
 	trimmedQuery := strings.TrimPrefix(name, hostDistributedQueryPrefix)
 
@@ -2723,7 +2723,7 @@ func (svc *Service) ingestDistributedQuery(
 
 	// The host controls the campaign ID in the query name and IDs are sequential,
 	// so without this any enrolled host could stream forged rows into every
-	// running campaign server-wide, including other fleets' campaigns. Marking
+	// running campaign server-wide, including other teams' campaigns. Marking
 	// the host complete before publishing makes the check free: the same Redis
 	// commands report whether the host was still a target. The cost is that an
 	// undelivered result below must re-target the host so it retries, and that a
@@ -2742,9 +2742,9 @@ func (svc *Service) ingestDistributedQuery(
 	}
 
 	// Write the results to the pubsub store
-	res := fleet.DistributedQueryResult{
+	res := automdm.DistributedQueryResult{
 		DistributedQueryCampaignID: uint(campaignID), //nolint:gosec // dismiss G115
-		Host: fleet.ResultHostData{
+		Host: automdm.ResultHostData{
 			ID:          host.ID,
 			Hostname:    host.Hostname,
 			DisplayName: host.DisplayName(),
@@ -2783,7 +2783,7 @@ func (svc *Service) ingestDistributedQuery(
 			// Live queries work in two stages (asynchronous):
 			// 	1. The campaign is created by a client. So the target devices checking in
 			// 	will start receiving the query corresponding to the campaign.
-			//	2. The client (UI/fleetctl) starts listenting for query results.
+			//	2. The client (UI/automdmctl) starts listenting for query results.
 			//
 			// This expected error can happen if:
 			//	A. A device checked in and sent results back in between steps (1) and (2).
@@ -2792,8 +2792,8 @@ func (svc *Service) ingestDistributedQuery(
 			return newOsqueryError(fmt.Sprintf("campaignID=%d waiting for listener", campaignID))
 		}
 
-		if campaign.Status != fleet.QueryComplete {
-			campaign.Status = fleet.QueryComplete
+		if campaign.Status != automdm.QueryComplete {
+			campaign.Status = automdm.QueryComplete
 			if err := svc.ds.SaveDistributedQueryCampaign(ctx, campaign); err != nil {
 				return newOsqueryError("closing orphaned campaign: " + err.Error())
 			}
@@ -2840,8 +2840,8 @@ func ingestMembershipQuery(
 }
 
 // ingestDetailQuery takes the results of a detail query and modifies the
-// provided fleet.Host appropriately.
-func (svc *Service) ingestDetailQuery(ctx context.Context, host *fleet.Host, name string, rows []map[string]string, cfg *hostDetailQueryConfig) error {
+// provided automdm.Host appropriately.
+func (svc *Service) ingestDetailQuery(ctx context.Context, host *automdm.Host, name string, rows []map[string]string, cfg *hostDetailQueryConfig) error {
 	query, ok := cfg.detailQueries[name]
 	if !ok {
 		return newOsqueryError("unknown detail query " + name)
@@ -2861,7 +2861,7 @@ func (svc *Service) ingestDetailQuery(ctx context.Context, host *fleet.Host, nam
 	return nil
 }
 
-func (svc *Service) unsetUUIDOwnedByAnotherMDMHost(ctx context.Context, host *fleet.Host) {
+func (svc *Service) unsetUUIDOwnedByAnotherMDMHost(ctx context.Context, host *automdm.Host) {
 	mdmHostID, err := svc.ds.OtherMDMHostIDWithUUID(ctxdb.RequirePrimary(ctx, true), host.UUID, host.ID)
 	if err != nil {
 		svc.logger.ErrorContext(ctx, "checking reported host UUID against MDM hosts", "err", err, "host_id", host.ID)
@@ -2879,7 +2879,7 @@ func (svc *Service) unsetUUIDOwnedByAnotherMDMHost(ctx context.Context, host *fl
 // webhookAndTicketPolicyResults returns the results of the flipped policies that have the webhook or ticket
 // automation on and whose scope has a destination turned on. Only flipped policies can trigger it, so most
 // check-ins skip the lookup.
-func (svc *Service) webhookAndTicketPolicyResults(ctx context.Context, ac *fleet.AppConfig,
+func (svc *Service) webhookAndTicketPolicyResults(ctx context.Context, ac *automdm.AppConfig,
 	results map[uint]*bool, newFailing, newPassing []uint,
 ) map[uint]*bool {
 	flipped := append(append(make([]uint, 0, len(newFailing)+len(newPassing)), newFailing...), newPassing...)
@@ -2900,7 +2900,7 @@ func (svc *Service) webhookAndTicketPolicyResults(ctx context.Context, ac *fleet
 				continue
 			}
 		} else {
-			// A host only reports global policies and policies of its own fleet, so there's one fleet to load.
+			// A host only reports global policies and policies of its own team, so there's one team to load.
 			if !teamChecked {
 				teamChecked = true
 				team, err := svc.ds.TeamLite(ctx, *p.TeamID)
@@ -2932,7 +2932,7 @@ func filterByPolicyIDs(ids []uint, allowedResults map[uint]*bool) []uint {
 }
 
 func (svc *Service) registerFlippedPolicies(ctx context.Context, hostID uint, hostname, displayName string, newFailing, newPassing []uint) error {
-	host := fleet.PolicySetHost{
+	host := automdm.PolicySetHost{
 		ID:          hostID,
 		Hostname:    hostname,
 		DisplayName: displayName,
@@ -2943,7 +2943,7 @@ func (svc *Service) registerFlippedPolicies(ctx context.Context, hostID uint, ho
 		}
 	}
 	for _, policyID := range newPassing {
-		if err := svc.failingPolicySet.RemoveHosts(policyID, []fleet.PolicySetHost{host}); err != nil {
+		if err := svc.failingPolicySet.RemoveHosts(policyID, []automdm.PolicySetHost{host}); err != nil {
 			return err
 		}
 	}
@@ -2967,12 +2967,12 @@ func (svc *Service) continuousAutomationOnCooldown(lastFiredAt time.Time) bool {
 	return svc.clock.Now().Sub(lastFiredAt) < svc.config.Osquery.PolicyUpdateInterval
 }
 
-// deferFleetInitiatedActivation reports whether fleet-initiated activities
+// deferAutoMDMInitiatedActivation reports whether automdm-initiated activities
 // (policy-automation installs and scripts) should be enqueued without inline
-// activation, leaving them to the fleet-initiated release cron to activate
-// within the activity.fleet_initiated_release_per_minute budget.
-func (svc *Service) deferFleetInitiatedActivation() bool {
-	return svc.config.Activity.FleetInitiatedReleasePerMinute > 0
+// activation, leaving them to the automdm-initiated release cron to activate
+// within the activity.automdm_initiated_release_per_minute budget.
+func (svc *Service) deferAutoMDMInitiatedActivation() bool {
+	return svc.config.Activity.AutoMDMInitiatedReleasePerMinute > 0
 }
 
 func (svc *Service) processSoftwareForNewlyFailingPolicies(
@@ -2992,7 +2992,7 @@ func (svc *Service) processSoftwareForNewlyFailingPolicies(
 
 	var policyTeamID uint
 	if hostTeamID == nil {
-		policyTeamID = fleet.PolicyNoTeamID
+		policyTeamID = automdm.PolicyNoTeamID
 	} else {
 		policyTeamID = *hostTeamID
 	}
@@ -3021,7 +3021,7 @@ func (svc *Service) processSoftwareForNewlyFailingPolicies(
 	// Filter to policies with installers that are newly failing, or that have
 	// continuous_automations_enabled set (in which case every failing result
 	// triggers an install, not just pass→fail transitions).
-	var failingPoliciesWithInstaller []fleet.PolicySoftwareInstallerData
+	var failingPoliciesWithInstaller []automdm.PolicySoftwareInstallerData
 	for _, policyWithInstaller := range policiesWithInstaller {
 		if _, ok := newFailingSet[policyWithInstaller.ID]; ok || policyWithInstaller.ContinuousAutomationsEnabled {
 			failingPoliciesWithInstaller = append(failingPoliciesWithInstaller, policyWithInstaller)
@@ -3063,7 +3063,7 @@ func (svc *Service) processSoftwareForNewlyFailingPolicies(
 		policyID := failingPolicyWithInstaller.ID
 		_, newlyFailing := newFailingSet[policyID]
 		installerMetadata, err := svc.ds.GetSoftwareInstallerMetadataByID(ctx, failingPolicyWithInstaller.InstallerID)
-		if fleet.IsNotFound(err) {
+		if automdm.IsNotFound(err) {
 			// A GitOps run deleted the installer after the policy was read. Keep going with the host's other policies.
 			svc.logger.DebugContext(ctx, "policy automation installer was deleted", "host_id", hostID, "policy_id", policyID)
 			continue
@@ -3083,7 +3083,7 @@ func (svc *Service) processSoftwareForNewlyFailingPolicies(
 			"software_title_id", softwareInstallerTitleID_,
 			"software_installer_platform", installerMetadata.Platform,
 		)
-		if fleet.PlatformFromHost(hostPlatform) != installerMetadata.Platform {
+		if automdm.PlatformFromHost(hostPlatform) != installerMetadata.Platform {
 			logger.DebugContext(ctx, "installer platform does not match host platform")
 			continue
 		}
@@ -3102,9 +3102,9 @@ func (svc *Service) processSoftwareForNewlyFailingPolicies(
 		if err != nil {
 			return ctxerr.Wrap(ctx, err, "get host last install data")
 		}
-		// hostLastInstall.Status == nil can happen when a software is installed by Fleet and later removed.
+		// hostLastInstall.Status == nil can happen when a software is installed by AutoMDM and later removed.
 		if hostLastInstall != nil && hostLastInstall.Status != nil &&
-			*hostLastInstall.Status == fleet.SoftwareInstallPending {
+			*hostLastInstall.Status == automdm.SoftwareInstallPending {
 			// There's a pending install for this host and installer,
 			// thus we do not queue another install request.
 			logger.DebugContext(
@@ -3139,7 +3139,7 @@ func (svc *Service) processSoftwareForNewlyFailingPolicies(
 		// shouldRetryPolicyAutomationSoftwareInstall). See continuousAutomationOnCooldown.
 		if !newlyFailing && failingPolicyWithInstaller.ContinuousAutomationsEnabled &&
 			hostLastInstall != nil && hostLastInstall.Status != nil &&
-			*hostLastInstall.Status == fleet.SoftwareInstalled &&
+			*hostLastInstall.Status == automdm.SoftwareInstalled &&
 			svc.continuousAutomationOnCooldown(hostLastInstall.UpdatedAt) {
 			logger.InfoContext(
 				ctx, "skipping continuous policy automation install; within policy update interval cooldown",
@@ -3167,18 +3167,18 @@ func (svc *Service) processSoftwareForNewlyFailingPolicies(
 
 		// NOTE(lucas): The user_id set in this software install will be NULL
 		// so this means that when generating the activity for this action
-		// (in SaveHostSoftwareInstallResult) the author will be set to Fleet.
+		// (in SaveHostSoftwareInstallResult) the author will be set to AutoMDM.
 		installUUID, err := svc.ds.InsertSoftwareInstallRequest(
 			ctx, hostID,
 			installerMetadata.InstallerID,
-			fleet.HostSoftwareInstallOptions{
+			automdm.HostSoftwareInstallOptions{
 				SelfService:             false,
 				PolicyID:                &policyID,
 				OverridePreInstallQuery: failingPolicyWithInstaller.OverridePreInstallQuery,
-				DeferActivation:         svc.deferFleetInitiatedActivation(),
+				DeferActivation:         svc.deferAutoMDMInitiatedActivation(),
 			},
 		)
-		if fleet.IsNotFound(err) {
+		if automdm.IsNotFound(err) {
 			logger.DebugContext(ctx, "policy automation installer was deleted before the install was queued")
 			continue
 		}
@@ -3207,7 +3207,7 @@ func (svc *Service) processVPPForNewlyFailingPolicies(
 ) error {
 	var policyTeamID uint
 	if hostTeamID == nil {
-		policyTeamID = fleet.PolicyNoTeamID
+		policyTeamID = automdm.PolicyNoTeamID
 	} else {
 		policyTeamID = *hostTeamID
 	}
@@ -3241,12 +3241,12 @@ func (svc *Service) processVPPForNewlyFailingPolicies(
 	// the app's platform nor the host's, so a policy bound to the iOS build can arrive here for a
 	// macOS host. Dropping those now rather than in the install loop lets the return below skip the
 	// host, the token and three lookups. processSoftwareForNewlyFailingPolicies makes the same check.
-	var failingPoliciesWithVPP []fleet.PolicyVPPData
+	var failingPoliciesWithVPP []automdm.PolicyVPPData
 	for _, policyWithVPP := range policiesWithVPP {
 		if _, ok := newFailingSet[policyWithVPP.ID]; !ok && !policyWithVPP.ContinuousAutomationsEnabled {
 			continue
 		}
-		if fleet.PlatformFromHost(hostPlatform) != string(policyWithVPP.Platform) {
+		if automdm.PlatformFromHost(hostPlatform) != string(policyWithVPP.Platform) {
 			svc.logger.DebugContext(
 				ctx, "app platform does not match host platform",
 				"host_id", hostID,
@@ -3297,7 +3297,7 @@ func (svc *Service) processVPPForNewlyFailingPolicies(
 	// When two policies are bound to one app only the first queues an install, so sort to make that
 	// choice stable. Sorted here rather than in GetPoliciesWithAssociatedVPP so it stays verifiable
 	// without a live database.
-	slices.SortFunc(failingPoliciesWithVPP, func(a, b fleet.PolicyVPPData) int {
+	slices.SortFunc(failingPoliciesWithVPP, func(a, b automdm.PolicyVPPData) int {
 		return cmp.Compare(a.ID, b.ID)
 	})
 
@@ -3364,10 +3364,10 @@ func (svc *Service) processVPPForNewlyFailingPolicies(
 			continue
 		}
 
-		commandUUID, err := svc.EnterpriseOverrides.InstallVPPAppPostValidation(ctx, host, vppApp, fleet.HostSoftwareInstallOptions{
+		commandUUID, err := svc.EnterpriseOverrides.InstallVPPAppPostValidation(ctx, host, vppApp, automdm.HostSoftwareInstallOptions{
 			SelfService:     false,
 			PolicyID:        &policyID,
-			DeferActivation: svc.deferFleetInitiatedActivation(),
+			DeferActivation: svc.deferAutoMDMInitiatedActivation(),
 		})
 		if err != nil {
 			logger.ErrorContext(
@@ -3386,7 +3386,7 @@ func (svc *Service) processVPPForNewlyFailingPolicies(
 
 func (svc *Service) processProfileResendsForNewlyFailingPolicies(
 	ctx context.Context,
-	host *fleet.Host,
+	host *automdm.Host,
 	incomingPolicyResults map[uint]*bool,
 	newFailingSet map[uint]struct{},
 ) error {
@@ -3397,7 +3397,7 @@ func (svc *Service) processProfileResendsForNewlyFailingPolicies(
 
 	var policyTeamID uint
 	if host.TeamID == nil {
-		policyTeamID = fleet.PolicyNoTeamID
+		policyTeamID = automdm.PolicyNoTeamID
 	} else {
 		policyTeamID = *host.TeamID
 	}
@@ -3424,7 +3424,7 @@ func (svc *Service) processProfileResendsForNewlyFailingPolicies(
 	svc.logger.DebugContext(
 		ctx, "looked up profiles to resend for newly failing policies",
 		"host_id", host.ID,
-		"fleet_id", policyTeamID,
+		"team_id", policyTeamID,
 		"newly_failing", newlyFailingPolicyIDs,
 		"with_profile", len(policiesWithProfile),
 	)
@@ -3504,7 +3504,7 @@ func (svc *Service) processScriptsForNewlyFailingPolicies(
 
 	var policyTeamID uint
 	if hostTeamID == nil {
-		policyTeamID = fleet.PolicyNoTeamID
+		policyTeamID = automdm.PolicyNoTeamID
 	} else {
 		policyTeamID = *hostTeamID
 	}
@@ -3533,7 +3533,7 @@ func (svc *Service) processScriptsForNewlyFailingPolicies(
 	// Filter to policies with scripts that are newly failing, or that have
 	// continuous_automations_enabled set (in which case every failing result
 	// triggers a script run, not just pass→fail transitions).
-	var failingPoliciesWithScript []fleet.PolicyScriptData
+	var failingPoliciesWithScript []automdm.PolicyScriptData
 	for _, policyWithScript := range policiesWithScript {
 		if _, ok := newFailingSet[policyWithScript.ID]; ok || policyWithScript.ContinuousAutomationsEnabled {
 			failingPoliciesWithScript = append(failingPoliciesWithScript, policyWithScript)
@@ -3568,7 +3568,7 @@ func (svc *Service) processScriptsForNewlyFailingPolicies(
 		}
 
 		// skip incompatible scripts
-		hostPlatform := fleet.PlatformFromHost(hostPlatform)
+		hostPlatform := automdm.PlatformFromHost(hostPlatform)
 		if (hostPlatform == "windows" && strings.HasSuffix(scriptMetadata.Name, ".sh")) ||
 			(hostPlatform != "windows" && strings.HasSuffix(scriptMetadata.Name, ".ps1")) {
 			logger.InfoContext(ctx, "script type does not match host platform")
@@ -3581,7 +3581,7 @@ func (svc *Service) processScriptsForNewlyFailingPolicies(
 			scriptTeamID = *scriptMetadata.TeamID
 		}
 		if policyTeamID != scriptTeamID { // this should not happen
-			logger.ErrorContext(ctx, "script fleet does not match host fleet")
+			logger.ErrorContext(ctx, "script team does not match host team")
 			continue
 		}
 
@@ -3609,15 +3609,15 @@ func (svc *Service) processScriptsForNewlyFailingPolicies(
 		if err != nil {
 			return ctxerr.Wrap(ctx, err, "get script contents")
 		}
-		runScriptRequest := fleet.HostScriptRequestPayload{
+		runScriptRequest := automdm.HostScriptRequestPayload{
 			HostID:          hostID,
 			ScriptContents:  string(contents),
 			ScriptContentID: scriptMetadata.ScriptContentID,
 			ScriptID:        &scriptMetadata.ID,
 			TeamID:          policyTeamID,
 			PolicyID:        &policyID,
-			DeferActivation: svc.deferFleetInitiatedActivation(),
-			// no user ID as scripts are executed by Fleet
+			DeferActivation: svc.deferAutoMDMInitiatedActivation(),
+			// no user ID as scripts are executed by AutoMDM
 		}
 
 		scriptResult, err := svc.ds.NewHostScriptExecutionRequest(ctx, &runScriptRequest)
@@ -3639,7 +3639,7 @@ func (svc *Service) processScriptsForNewlyFailingPolicies(
 }
 
 func (svc *Service) conditionalAccessConfiguredAndEnabledForTeam(ctx context.Context, hostTeamID *uint) (configured bool, enabledForTeam bool, err error) {
-	// Conditional access is a Fleet Premium feature. Gate on the current license
+	// Conditional access is an AutoMDM Premium feature. Gate on the current license
 	// tier so that an integration left over from a previous Premium license
 	// (e.g. after a downgrade or expiry) doesn't keep the feature active.
 	if !license.IsPremium(ctx) {
@@ -3649,7 +3649,7 @@ func (svc *Service) conditionalAccessConfiguredAndEnabledForTeam(ctx context.Con
 	// Check if the integration is fully configured.
 	integration, err := svc.ds.ConditionalAccessMicrosoftGet(ctx)
 	if err != nil {
-		if fleet.IsNotFound(err) {
+		if automdm.IsNotFound(err) {
 			return false, false, nil
 		}
 		return false, false, ctxerr.Wrap(ctx, err, "failed to load the integration")
@@ -3708,8 +3708,8 @@ func (svc *Service) processConditionalAccessForNewlyFailingPolicies(
 
 	hostConditionalAccessStatus, err := svc.ds.LoadHostConditionalAccessStatus(ctx, hostID)
 	if err != nil {
-		if fleet.IsNotFound(err) {
-			// Nothing to do because Fleet hasn't ingested the Entra's "Device ID" or
+		if automdm.IsNotFound(err) {
+			// Nothing to do because AutoMDM hasn't ingested the Entra's "Device ID" or
 			// "User Principal Name" from the device yet (we cannot perform any actions
 			// for the host on Entra without it).
 			return nil
@@ -3719,7 +3719,7 @@ func (svc *Service) processConditionalAccessForNewlyFailingPolicies(
 
 	var policyTeamID uint
 	if hostTeamID == nil {
-		policyTeamID = fleet.PolicyNoTeamID
+		policyTeamID = automdm.PolicyNoTeamID
 	} else {
 		policyTeamID = *hostTeamID
 	}
@@ -3729,7 +3729,7 @@ func (svc *Service) processConditionalAccessForNewlyFailingPolicies(
 	if err != nil {
 		// If GetHostMDM returns not found then it means that
 		// the host may not be MDM enrolled yet.
-		if !fleet.IsNotFound(err) {
+		if !automdm.IsNotFound(err) {
 			return ctxerr.Wrap(ctx, err, "failed to get host mdm")
 		}
 	} else {
@@ -3742,7 +3742,7 @@ func (svc *Service) processConditionalAccessForNewlyFailingPolicies(
 		return ctxerr.Wrap(ctx, err, "failed to get policies with conditional access")
 	}
 
-	hostIsCompliantInFleet := true
+	hostIsCompliantInTeam := true
 	conditionalAccessPolicyIDsSet := make(map[uint]struct{}, len(conditionalAccessPolicyIDs))
 	for _, policyID := range conditionalAccessPolicyIDs {
 		conditionalAccessPolicyIDsSet[policyID] = struct{}{}
@@ -3755,17 +3755,17 @@ func (svc *Service) processConditionalAccessForNewlyFailingPolicies(
 		}
 		if incomingPolicyResult != nil && !*incomingPolicyResult {
 			failingCAIDs = append(failingCAIDs, incomingPolicyID)
-			hostIsCompliantInFleet = false
+			hostIsCompliantInTeam = false
 		}
 	}
 
 	if hostConditionalAccessStatus.Managed != nil && mdmEnrolled == *hostConditionalAccessStatus.Managed &&
-		hostConditionalAccessStatus.Compliant != nil && hostIsCompliantInFleet == *hostConditionalAccessStatus.Compliant {
+		hostConditionalAccessStatus.Compliant != nil && hostIsCompliantInTeam == *hostConditionalAccessStatus.Compliant {
 		// Nothing to do, nothing has changed.
 		return nil
 	}
 
-	svc.setHostConditionalAccessAsync(hostID, hostPlatform, hostConditionalAccessStatus, mdmEnrolled, hostIsCompliantInFleet, failingCAIDs)
+	svc.setHostConditionalAccessAsync(hostID, hostPlatform, hostConditionalAccessStatus, mdmEnrolled, hostIsCompliantInTeam, failingCAIDs)
 
 	return nil
 }
@@ -3773,7 +3773,7 @@ func (svc *Service) processConditionalAccessForNewlyFailingPolicies(
 func (svc *Service) setHostConditionalAccessAsync(
 	hostID uint,
 	hostPlatform string,
-	hostConditionalAccessStatus *fleet.HostConditionalAccessStatus,
+	hostConditionalAccessStatus *automdm.HostConditionalAccessStatus,
 	managed bool,
 	compliant bool,
 	failingPolicyIDs []uint,
@@ -3800,7 +3800,7 @@ var conditionalAccessSetWaitTime = 10 * time.Second
 func (svc *Service) setHostConditionalAccess(
 	hostID uint,
 	hostPlatform string,
-	hostConditionalAccessStatus *fleet.HostConditionalAccessStatus,
+	hostConditionalAccessStatus *automdm.HostConditionalAccessStatus,
 	managed bool,
 	compliant bool,
 	failingPolicyIDs []uint,
@@ -3948,7 +3948,7 @@ func recordConditionalAccessFailureActivity(
 		errResponse = err.Error()
 	}
 	for _, policyID := range policyIDs {
-		if actErr := newActivitySvc.NewActivity(ctx, nil, fleet.ActivityTypeFailedAutomationConditionalAccess{
+		if actErr := newActivitySvc.NewActivity(ctx, nil, automdm.ActivityTypeFailedAutomationConditionalAccess{
 			PolicyID:      policyID,
 			HostIDList:    []uint{hostID},
 			StatusCode:    statusCode,
@@ -3977,7 +3977,7 @@ func recordSingleSignOnBlockedActivity(
 		return
 	}
 	for _, policyID := range policyIDs {
-		if actErr := newActivitySvc.NewActivity(ctx, nil, fleet.ActivityTypeRanAutomationConditionalAccess{
+		if actErr := newActivitySvc.NewActivity(ctx, nil, automdm.ActivityTypeRanAutomationConditionalAccess{
 			PolicyID:   policyID,
 			HostIDList: []uint{hostID},
 		}); actErr != nil {
@@ -3989,11 +3989,11 @@ func recordSingleSignOnBlockedActivity(
 
 func (svc *Service) maybeDebugHost(
 	ctx context.Context,
-	host *fleet.Host,
-	results fleet.OsqueryDistributedQueryResults,
-	statuses map[string]fleet.OsqueryStatus,
+	host *automdm.Host,
+	results automdm.OsqueryDistributedQueryResults,
+	statuses map[string]automdm.OsqueryStatus,
 	messages map[string]string,
-	stats map[string]*fleet.Stats,
+	stats map[string]*automdm.Stats,
 ) {
 	if svc.debugEnabledForHost(ctx, host.ID) {
 		hlogger := svc.logger.With("host-id", host.ID)
@@ -4026,7 +4026,7 @@ type submitLogsResponse struct {
 
 func (r submitLogsResponse) Error() error { return r.Err }
 
-func submitLogsEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func submitLogsEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*submitLogsRequest)
 
 	var err error
@@ -4054,7 +4054,7 @@ func submitLogsEndpoint(ctx context.Context, request interface{}, svc fleet.Serv
 }
 
 // preProcessOsqueryResults will attempt to unmarshal `osqueryResults` and will return:
-//   - `unmarshaledResults` with each result unmarshaled to `fleet.ScheduledQueryResult`s, where if an item is `nil` it means the corresponding
+//   - `unmarshaledResults` with each result unmarshaled to `automdm.ScheduledQueryResult`s, where if an item is `nil` it means the corresponding
 //     `osqueryResults` item could not be unmarshaled.
 //   - queriesDBData has the corresponding DB query to each unmarshalled result in `osqueryResults`.
 //
@@ -4073,7 +4073,7 @@ func (svc *Service) preProcessOsqueryResults(
 	ctx context.Context,
 	osqueryResults []json.RawMessage,
 	queryReportsDisabled bool,
-) (unmarshaledResults []*fleet.ScheduledQueryResult, queriesDBData map[string]*fleet.Query) {
+) (unmarshaledResults []*automdm.ScheduledQueryResult, queriesDBData map[string]*automdm.Query) {
 	// skipauth: Authorization is currently for user endpoints only.
 	svc.authz.SkipAuthorization(ctx)
 
@@ -4086,7 +4086,7 @@ func (svc *Service) preProcessOsqueryResults(
 	}
 
 	for _, raw := range osqueryResults {
-		var result *fleet.ScheduledQueryResult
+		var result *automdm.ScheduledQueryResult
 		if err := json.Unmarshal(raw, &result); err != nil {
 			svc.logger.DebugContext(ctx, "unmarshalling result", "err", err, "result", lograw(raw))
 			// Note that if err != nil we have two scenarios:
@@ -4103,23 +4103,23 @@ func (svc *Service) preProcessOsqueryResults(
 		unmarshaledResults = append(unmarshaledResults, result)
 	}
 
-	queriesDBData = make(map[string]*fleet.Query)
+	queriesDBData = make(map[string]*automdm.Query)
 
 	// A host controls the result names it sends, and each name needs its query
 	// looked up. Parse every distinct name once and resolve them all in a single
 	// batch lookup, so a submission carrying many (or many repeated non-existent)
 	// names costs one query instead of one round-trip per result entry.
 	type parsedName struct {
-		scope fleet.TeamScopedQueryName
+		scope automdm.TeamScopedQueryName
 		ok    bool
-		// capped marks a name Fleet declined to resolve (too long, or past the
-		// submission's distinct-name cap), as opposed to one Fleet does not know.
+		// capped marks a name AutoMDM declined to resolve (too long, or past the
+		// submission's distinct-name cap), as opposed to one AutoMDM does not know.
 		// The two must stay distinguishable: unknown names pass through, capped
 		// ones drop.
 		capped bool
 	}
 	parsedByRaw := make(map[string]parsedName)
-	var toResolve []fleet.TeamScopedQueryName
+	var toResolve []automdm.TeamScopedQueryName
 	seenScope := make(map[string]struct{})
 	var cappedNames int
 	for _, queryResult := range unmarshaledResults {
@@ -4134,18 +4134,18 @@ func (svc *Service) preProcessOsqueryResults(
 			parsedByRaw[queryResult.QueryName] = parsedName{capped: true}
 			continue
 		}
-		if errors.Is(err, fleet.ErrLegacyQueryPack) {
+		if errors.Is(err, automdm.ErrLegacyQueryPack) {
 			// Legacy query. Cannot be stored and cannot infer team ID, but still
 			// used by some customers.
 			parsedByRaw[queryResult.QueryName] = parsedName{}
 			continue
 		}
 		if err != nil {
-			svc.logger.DebugContext(ctx, "querying name and fleet ID from result", "err", err)
+			svc.logger.DebugContext(ctx, "querying name and team ID from result", "err", err)
 			parsedByRaw[queryResult.QueryName] = parsedName{}
 			continue
 		}
-		scope := fleet.TeamScopedQueryName{TeamID: teamID, Name: queryName}
+		scope := automdm.TeamScopedQueryName{TeamID: teamID, Name: queryName}
 		parsedByRaw[queryResult.QueryName] = parsedName{scope: scope, ok: true}
 		if _, dup := seenScope[scope.Key()]; !dup {
 			// Bound the number of distinct names resolved per submission,
@@ -4178,11 +4178,11 @@ func (svc *Service) preProcessOsqueryResults(
 	if err != nil {
 		// Keep whatever resolved before the failure, so one failing chunk doesn't
 		// leave the whole submission unresolved. Names still unresolved here are
-		// treated as unknown to Fleet, which passes their results through to the
+		// treated as unknown to AutoMDM, which passes their results through to the
 		// log destination without a schedule check.
 		svc.logger.ErrorContext(ctx, "batch loading queries by name", "err", err)
 		if resolved == nil {
-			resolved = map[string]*fleet.Query{}
+			resolved = map[string]*automdm.Query{}
 		}
 	}
 
@@ -4193,8 +4193,8 @@ func (svc *Service) preProcessOsqueryResults(
 		}
 		parsed := parsedByRaw[queryResult.QueryName]
 		if parsed.capped {
-			// Fail closed. A name Fleet declined to resolve must not inherit the
-			// pass-through that names Fleet genuinely doesn't know get below,
+			// Fail closed. A name AutoMDM declined to resolve must not inherit the
+			// pass-through that names AutoMDM genuinely doesn't know get below,
 			// otherwise filling the cap with junk would launder results for a
 			// real query past the host's schedule check.
 			unmarshaledResults[i] = nil
@@ -4286,7 +4286,7 @@ func (svc *Service) SubmitResultLogs(ctx context.Context, logs []json.RawMessage
 
 	unmarshaledResults, queriesDBData := svc.preProcessOsqueryResults(ctx, logs, queryReportsDisabled)
 
-	// A host is the only source of its own results, so Fleet cannot tell truthful rows
+	// A host is the only source of its own results, so AutoMDM cannot tell truthful rows
 	// from forged ones. What it can require is that it asked this host for them, which
 	// happens here so that results for queries missing from the host's schedule reach
 	// neither a report nor a log destination. Query reports being disabled removes the
@@ -4311,20 +4311,20 @@ func (svc *Service) SubmitResultLogs(ctx context.Context, logs []json.RawMessage
 			//
 			// If a query was recently configured with automations_enabled = 0 we may still write
 			// the results for it here. Eventually the query will be removed from the host schedule
-			// and thus Fleet won't receive any further results anymore.
+			// and thus AutoMDM won't receive any further results anymore.
 			filteredLogs = append(filteredLogs, logs[i])
 			continue
 		}
 
 		dbQuery, ok := queriesDBData[unmarshaledResult.QueryName]
 		if !ok {
-			// If Fleet doesn't know of the query we write the logs to the logging destination
+			// If AutoMDM doesn't know of the query we write the logs to the logging destination
 			// without any extra processing. This is to support osquery nodes that load their
 			// config from elsewhere (e.g. using `--config_plugin=filesystem`).
 			//
-			// If a query was configured from Fleet but was recently removed, we may still write
+			// If a query was configured from AutoMDM but was recently removed, we may still write
 			// the results for it here. Eventually the query will be removed from the host schedule
-			// and thus Fleet won't receive any further results anymore.
+			// and thus AutoMDM won't receive any further results anymore.
 			filteredLogs = append(filteredLogs, logs[i])
 			continue
 		}
@@ -4354,20 +4354,20 @@ func (svc *Service) SubmitResultLogs(ctx context.Context, logs []json.RawMessage
 	return nil
 }
 
-// dropResultsNotScheduledForHost sets to nil the results whose query Fleet knows but did
+// dropResultsNotScheduledForHost sets to nil the results whose query AutoMDM knows but did
 // not put on the submitting host's schedule. Entries are nilled in place rather than
 // removed because the caller pairs them positionally with the raw logs.
 func (svc *Service) dropResultsNotScheduledForHost(
 	ctx context.Context,
-	unmarshaledResults []*fleet.ScheduledQueryResult,
-	queriesDBData map[string]*fleet.Query,
+	unmarshaledResults []*automdm.ScheduledQueryResult,
+	queriesDBData map[string]*automdm.Query,
 ) {
 	if len(queriesDBData) == 0 {
 		return
 	}
 
 	// Neither failure below stops the loop: they leave the schedule empty, which makes it
-	// drop every result that resolved to a Fleet query. With no host or no schedule, no
+	// drop every result that resolved to an AutoMDM query. With no host or no schedule, no
 	// result can be shown to have been asked for.
 	var hostID uint
 	var scheduledQueryIDs []uint
@@ -4393,8 +4393,8 @@ func (svc *Service) dropResultsNotScheduledForHost(
 		}
 		dbQuery, ok := queriesDBData[result.QueryName]
 		if !ok {
-			// Fleet doesn't know this query, so it has no schedule to check it against. Those
-			// results are passed through to support osquery nodes configured outside of Fleet.
+			// AutoMDM doesn't know this query, so it has no schedule to check it against. Those
+			// results are passed through to support osquery nodes configured outside of AutoMDM.
 			continue
 		}
 		if _, ok := scheduled[dbQuery.ID]; !ok {
@@ -4414,8 +4414,8 @@ func (svc *Service) dropResultsNotScheduledForHost(
 
 func (svc *Service) saveResultLogsToQueryReports(
 	ctx context.Context,
-	unmarshaledResults []*fleet.ScheduledQueryResult,
-	queriesDBData map[string]*fleet.Query,
+	unmarshaledResults []*automdm.ScheduledQueryResult,
+	queriesDBData map[string]*automdm.Query,
 	maxQueryReportRows int,
 ) {
 	// skipauth: Authorization is currently for user endpoints only.
@@ -4438,8 +4438,8 @@ func (svc *Service) saveResultLogsToQueryReports(
 	// Pick the results to store before touching the database, so requests with nothing to store
 	// don't take a slot.
 	type resultToStore struct {
-		result *fleet.ScheduledQueryResult
-		query  *fleet.Query
+		result *automdm.ScheduledQueryResult
+		query  *automdm.Query
 	}
 	hostTeamID := uint(0)
 	if host.TeamID != nil {
@@ -4453,7 +4453,7 @@ func (svc *Service) saveResultLogsToQueryReports(
 			continue
 		}
 
-		if dbQuery.DiscardData || dbQuery.Logging != fleet.LoggingSnapshot {
+		if dbQuery.DiscardData || dbQuery.Logging != automdm.LoggingSnapshot {
 			// Ignore result if query is marked as discard data or if logging is not snapshot
 			continue
 		}
@@ -4471,7 +4471,7 @@ func (svc *Service) saveResultLogsToQueryReports(
 
 	// Read the host's stored rows from the replica so unchanged results skip the write
 	// transaction. Without a live query store the rows can't be recorded, so nothing is read.
-	var storedRows map[uint][]*fleet.StoredQueryResultRow
+	var storedRows map[uint][]*automdm.StoredQueryResultRow
 	releaseRead := func() {}
 	if svc.liveQueryStore != nil {
 		queryIDs := make([]uint, 0, len(toStore))
@@ -4491,8 +4491,8 @@ func (svc *Service) saveResultLogsToQueryReports(
 	// Unchanged results only need last_fetched updated, which the query_results_cleanup cron
 	// does in batches; the rest are written below.
 	type resultToWrite struct {
-		query *fleet.Query
-		rows  []*fleet.ScheduledQueryResultRow
+		query *automdm.Query
+		rows  []*automdm.ScheduledQueryResultRow
 	}
 	var toWrite []resultToWrite
 	for _, r := range toStore {
@@ -4686,12 +4686,12 @@ func (svc *Service) saveResultLogsToQueryReports(
 //			"action":"snapshot"
 //		}
 //	]
-func transformEventFormatToSnapshotFormat(results []*fleet.ScheduledQueryResult) []*fleet.ScheduledQueryResult {
-	isEventFormat := func(result *fleet.ScheduledQueryResult) bool {
+func transformEventFormatToSnapshotFormat(results []*automdm.ScheduledQueryResult) []*automdm.ScheduledQueryResult {
+	isEventFormat := func(result *automdm.ScheduledQueryResult) bool {
 		return result != nil && result.Action == "snapshot" && len(result.Snapshot) == 0 && len(result.Columns) > 0
 	}
 
-	resultsInEventFormat := make(map[string]*fleet.ScheduledQueryResult)
+	resultsInEventFormat := make(map[string]*automdm.ScheduledQueryResult)
 	for _, result := range results {
 		if !isEventFormat(result) {
 			continue
@@ -4699,7 +4699,7 @@ func transformEventFormatToSnapshotFormat(results []*fleet.ScheduledQueryResult)
 		allResults, ok := resultsInEventFormat[result.QueryName]
 		if !ok {
 			// All snapshot results in "event format" for the same query have the same `hostIdentifier` and `unixTime`.
-			resultsInEventFormat[result.QueryName] = &fleet.ScheduledQueryResult{
+			resultsInEventFormat[result.QueryName] = &automdm.ScheduledQueryResult{
 				QueryName:     result.QueryName,
 				OsqueryHostID: result.OsqueryHostID,
 				Snapshot:      []*json.RawMessage{&result.Columns},
@@ -4715,7 +4715,7 @@ func transformEventFormatToSnapshotFormat(results []*fleet.ScheduledQueryResult)
 	}
 
 	replaced := make(map[string]struct{})
-	var filteredResults []*fleet.ScheduledQueryResult
+	var filteredResults []*automdm.ScheduledQueryResult
 	for _, result := range results {
 		if isEventFormat(result) {
 			if _, ok := replaced[result.QueryName]; !ok {
@@ -4734,7 +4734,7 @@ func transformEventFormatToSnapshotFormat(results []*fleet.ScheduledQueryResult)
 // The "snapshot" array in a ScheduledQueryResult can contain multiple rows.
 // Each row is saved as a separate ScheduledQueryResultRow, i.e. a result could contain
 // many USB Devices or a result could contain all user accounts on a host.
-func (svc *Service) queryResultRows(ctx context.Context, result *fleet.ScheduledQueryResult, queryID, hostID uint) []*fleet.ScheduledQueryResultRow {
+func (svc *Service) queryResultRows(ctx context.Context, result *automdm.ScheduledQueryResult, queryID, hostID uint) []*automdm.ScheduledQueryResultRow {
 	fetchTime := time.Now()
 
 	snapshot := result.Snapshot
@@ -4743,12 +4743,12 @@ func (svc *Service) queryResultRows(ctx context.Context, result *fleet.Scheduled
 		snapshot = nil
 	}
 
-	rows := make([]*fleet.ScheduledQueryResultRow, 0, len(snapshot))
+	rows := make([]*automdm.ScheduledQueryResultRow, 0, len(snapshot))
 
 	// If the snapshot is empty, we still want to save a row with a null value
 	// to capture LastFetched.
 	if len(snapshot) == 0 {
-		rows = append(rows, &fleet.ScheduledQueryResultRow{
+		rows = append(rows, &automdm.ScheduledQueryResultRow{
 			QueryID:     queryID,
 			HostID:      hostID,
 			Data:        nil,
@@ -4757,7 +4757,7 @@ func (svc *Service) queryResultRows(ctx context.Context, result *fleet.Scheduled
 	}
 
 	for _, snapshotItem := range snapshot {
-		row := &fleet.ScheduledQueryResultRow{
+		row := &automdm.ScheduledQueryResultRow{
 			QueryID:     queryID,
 			HostID:      hostID,
 			Data:        snapshotItem,
@@ -4772,7 +4772,7 @@ func (svc *Service) queryResultRows(ctx context.Context, result *fleet.Scheduled
 // update their last_fetched if rows hold the same data and their last_fetched is older than
 // queryResultsLastFetchedRefreshAge. It reports whether that handled the result; if not, the rows
 // must be written.
-func (svc *Service) recordUnchangedQueryResultRows(ctx context.Context, rows []*fleet.ScheduledQueryResultRow, stored []*fleet.StoredQueryResultRow) bool {
+func (svc *Service) recordUnchangedQueryResultRows(ctx context.Context, rows []*automdm.ScheduledQueryResultRow, stored []*automdm.StoredQueryResultRow) bool {
 	if !queryResultRowsUnchanged(rows, stored) {
 		return false
 	}
@@ -4789,7 +4789,7 @@ func (svc *Service) recordUnchangedQueryResultRows(ctx context.Context, rows []*
 	case err == nil:
 		queryReportWritesSkipped.Add(ctx, 1, queryReportSkipReason(queryReportSkipUnchanged))
 		return true
-	case errors.Is(err, fleet.ErrQueryResultsLastFetchedFull):
+	case errors.Is(err, automdm.ErrQueryResultsLastFetchedFull):
 		// Rewriting would add load while the cron is behind; last_fetched just stays stale.
 		queryReportWritesSkipped.Add(ctx, 1, queryReportSkipReason(queryReportSkipLastFetchedDropped))
 		return true
@@ -4804,7 +4804,7 @@ func (svc *Service) recordUnchangedQueryResultRows(ctx context.Context, rows []*
 // floor only covers reports with short or unset intervals.
 const minQueryReportClippedTTL = time.Hour
 
-func queryReportClippedTTL(query *fleet.Query) time.Duration {
+func queryReportClippedTTL(query *automdm.Query) time.Duration {
 	if ttl := 2 * time.Duration(query.Interval) * time.Second; ttl > minQueryReportClippedTTL { //nolint:gosec // dismiss G115
 		return ttl
 	}
@@ -4829,9 +4829,9 @@ func snapshotSize(snapshot []*json.RawMessage) int {
 // Osquery can send multiple results for the same query (ie. if an agent loses
 // network connectivity it will cache multiple results).  Query Reports only
 // save the most recent result for a given query.
-func getMostRecentResults(results []*fleet.ScheduledQueryResult) []*fleet.ScheduledQueryResult {
+func getMostRecentResults(results []*automdm.ScheduledQueryResult) []*automdm.ScheduledQueryResult {
 	// Use a map to track the most recent entry for each unique QueryName
-	latestResults := make(map[string]*fleet.ScheduledQueryResult)
+	latestResults := make(map[string]*automdm.ScheduledQueryResult)
 
 	for _, result := range results {
 		if result == nil {
@@ -4849,7 +4849,7 @@ func getMostRecentResults(results []*fleet.ScheduledQueryResult) []*fleet.Schedu
 	}
 
 	// Convert the map back to a slice
-	var filteredResults []*fleet.ScheduledQueryResult
+	var filteredResults []*automdm.ScheduledQueryResult
 	for _, v := range latestResults {
 		filteredResults = append(filteredResults, v)
 	}
@@ -4914,7 +4914,7 @@ func findPackDelimiterString(scheduledQueryName string) string {
 	return ""
 }
 
-// Fleet query names are at most 255 characters (up to 1020 bytes), which leaves ample room for
+// AutoMDM query names are at most 255 characters (up to 1020 bytes), which leaves ample room for
 // the "pack" prefix, team ID and delimiters.
 const maxScheduledQueryNameLen = 4096
 
@@ -4922,7 +4922,7 @@ var errScheduledQueryNameTooLong = errors.New("scheduled query name too long")
 
 // getQueryNameAndTeamIDFromResult attempts to parse the scheduled query name reported by osquery.
 //
-// The expected format of query names managed by Fleet is:
+// The expected format of query names managed by AutoMDM is:
 // "pack<pack_delimiter>{Global|team-<team_id>}<pack_delimiter><query_name>"
 func getQueryNameAndTeamIDFromResult(path string) (*uint, string, error) {
 	if !strings.HasPrefix(path, "pack") || len(path) <= 4 {
@@ -4942,7 +4942,7 @@ func getQueryNameAndTeamIDFromResult(path string) (*uint, string, error) {
 
 		// We can't infer the team from this and it can't be stored, but it's still valid
 		if strings.HasPrefix(path, "pack/") && strings.Count(path, "/") == 2 {
-			return nil, "", fleet.ErrLegacyQueryPack
+			return nil, "", automdm.ErrLegacyQueryPack
 		}
 
 		// Truly unknown
@@ -4984,7 +4984,7 @@ func getQueryNameAndTeamIDFromResult(path string) (*uint, string, error) {
 
 // Yara rules
 
-func (svc *Service) YaraRuleByName(ctx context.Context, name string) (*fleet.YaraRule, error) {
+func (svc *Service) YaraRuleByName(ctx context.Context, name string) (*automdm.YaraRule, error) {
 	return svc.ds.YaraRuleByName(ctx, name)
 }
 
@@ -5009,7 +5009,7 @@ func (r getYaraResponse) HijackRender(ctx context.Context, w http.ResponseWriter
 	_, _ = w.Write([]byte(r.Content))
 }
 
-func getYaraEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func getYaraEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	r := request.(*getYaraRequest)
 	rule, err := svc.YaraRuleByName(ctx, r.Name)
 	if err != nil {

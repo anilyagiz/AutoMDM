@@ -13,7 +13,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/fleetdm/fleet/tools/hangar/internal/shellpath"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/shellpath"
 )
 
 // unitSep separates fields in our git --format strings (an ASCII Unit
@@ -185,12 +185,12 @@ func parseWorktrees(raw string) []Worktree {
 }
 
 // parseRCMinorKey extracts the minor-line key from an RC branch name:
-// "rc-minor-fleet-v4.86.0" / "rc-patch-fleet-v4.86.3" -> "4.86",
-// "rc-major-fleet-v5.0.0" -> "5.0".
+// "rc-minor-automdm-v4.86.0" / "rc-patch-automdm-v4.86.3" -> "4.86",
+// "rc-major-automdm-v5.0.0" -> "5.0".
 func parseRCMinorKey(name string) (string, bool) {
 	var s string
 	var ok bool
-	for _, prefix := range []string{"rc-major-fleet-v", "rc-minor-fleet-v", "rc-patch-fleet-v"} {
+	for _, prefix := range []string{"rc-major-automdm-v", "rc-minor-automdm-v", "rc-patch-automdm-v"} {
 		if s, ok = strings.CutPrefix(name, prefix); ok {
 			break
 		}
@@ -371,8 +371,8 @@ func ListBranches(repo, filter, query string, limit *uint32) ([]Branch, error) {
 	switch filter {
 	case "rc":
 		patterns = []string{
-			"refs/heads/rc-patch-fleet-v*", "refs/heads/rc-minor-fleet-v*", "refs/heads/rc-major-fleet-v*",
-			"refs/remotes/origin/rc-patch-fleet-v*", "refs/remotes/origin/rc-minor-fleet-v*", "refs/remotes/origin/rc-major-fleet-v*",
+			"refs/heads/rc-patch-automdm-v*", "refs/heads/rc-minor-automdm-v*", "refs/heads/rc-major-automdm-v*",
+			"refs/remotes/origin/rc-patch-automdm-v*", "refs/remotes/origin/rc-minor-automdm-v*", "refs/remotes/origin/rc-major-automdm-v*",
 		}
 	case "main":
 		patterns = []string{
@@ -415,7 +415,7 @@ func Checkout(repo, branch string) (string, error) { return runGit(repo, "checko
 
 // StashAndCheckout stashes (including untracked) then checks out branch.
 func StashAndCheckout(repo, branch string) (string, error) {
-	if _, err := runGit(repo, "stash", "push", "-u", "-m", "fleet-hangar auto-stash"); err != nil {
+	if _, err := runGit(repo, "stash", "push", "-u", "-m", "automdm-hangar auto-stash"); err != nil {
 		return "", err
 	}
 	return runGit(repo, "checkout", branch)

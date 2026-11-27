@@ -1,5 +1,5 @@
 // Package redis_install_attempts counts failed software install attempts per host
-// and installer, so Fleet can stop retrying an install that never succeeds.
+// and installer, so AutoMDM can stop retrying an install that never succeeds.
 package redis_install_attempts
 
 import (
@@ -9,22 +9,22 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/datastore/redis"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis"
 	redigo "github.com/gomodule/redigo/redis"
 )
 
 type redisInstallAttemptCounter struct {
-	pool       fleet.RedisPool
+	pool       automdm.RedisPool
 	prefix     string
 	testPrefix string // for tests, the key prefix to use to avoid conflicts
 }
 
-var _ fleet.SoftwareInstallAttemptCounter = (*redisInstallAttemptCounter)(nil)
+var _ automdm.SoftwareInstallAttemptCounter = (*redisInstallAttemptCounter)(nil)
 
 // New creates a new install attempt counter whose keys start with prefix.
-func New(pool fleet.RedisPool, prefix string) *redisInstallAttemptCounter {
+func New(pool automdm.RedisPool, prefix string) *redisInstallAttemptCounter {
 	return &redisInstallAttemptCounter{pool: pool, prefix: prefix}
 }
 
@@ -33,7 +33,7 @@ type TestNamer interface {
 }
 
 // NewTest creates an install attempt counter to be used only in tests.
-func NewTest(t TestNamer, pool fleet.RedisPool, prefix string) *redisInstallAttemptCounter {
+func NewTest(t TestNamer, pool automdm.RedisPool, prefix string) *redisInstallAttemptCounter {
 	return &redisInstallAttemptCounter{
 		pool:       pool,
 		prefix:     prefix,

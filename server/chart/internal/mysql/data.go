@@ -7,10 +7,10 @@ import (
 	"time"
 
 	"github.com/RoaringBitmap/roaring"
-	"github.com/fleetdm/fleet/v4/server/chart"
-	"github.com/fleetdm/fleet/v4/server/chart/api"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxdb"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/chart"
+	"github.com/anilyagiz/automdm/v4/server/chart/api"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxdb"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -503,21 +503,21 @@ func (ds *Datastore) DeleteAllForDataset(ctx context.Context, dataset string, ba
 	}
 }
 
-// HostIDsInFleets returns host IDs whose team_id is one of the given fleet IDs.
-// Used by the per-fleet scrub worker to build a bitmap of hosts to clear from
+// HostIDsInTeams returns host IDs whose team_id is one of the given team IDs.
+// Used by the per-team scrub worker to build a bitmap of hosts to clear from
 // existing host_scd_data rows.
 //
 // Reads from the primary: the result drives an immediately-following UPDATE
 // (ApplyScrubMaskToDataset). Replica lag could yield a stale membership set
 // — scrubbing the wrong hosts, or missing hosts that just moved into the
-// fleet — within the same job invocation.
-func (ds *Datastore) HostIDsInFleets(ctx context.Context, fleetIDs []uint) ([]uint, error) {
-	if len(fleetIDs) == 0 {
+// team — within the same job invocation.
+func (ds *Datastore) HostIDsInTeams(ctx context.Context, automdmIDs []uint) ([]uint, error) {
+	if len(automdmIDs) == 0 {
 		return nil, nil
 	}
-	query, args, err := sqlx.In(`SELECT id FROM hosts WHERE team_id IN (?)`, fleetIDs)
+	query, args, err := sqlx.In(`SELECT id FROM hosts WHERE team_id IN (?)`, automdmIDs)
 	if err != nil {
-		return nil, ctxerr.Wrap(ctx, err, "expand host-IDs-in-fleets args")
+		return nil, ctxerr.Wrap(ctx, err, "expand host-IDs-in-teams args")
 	}
 	query = ds.rebind(query)
 
@@ -525,7 +525,7 @@ func (ds *Datastore) HostIDsInFleets(ctx context.Context, fleetIDs []uint) ([]ui
 	var ids []uint
 	// reader(ctx) honors RequirePrimary set above and returns the writer connection.
 	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &ids, query, args...); err != nil {
-		return nil, ctxerr.Wrap(ctx, err, "select host IDs in fleets")
+		return nil, ctxerr.Wrap(ctx, err, "select host IDs in teams")
 	}
 	return ids, nil
 }
@@ -536,12 +536,12 @@ func (ds *Datastore) HostIDsInFleets(ctx context.Context, fleetIDs []uint) ([]ui
 // no-op for already-scrubbed rows.
 //
 // An empty mask is a no-op (ANDNOT with empty leaves the bitmap unchanged).
-// The walk happens once for the dataset regardless of how many fleets the
+// The walk happens once for the dataset regardless of how many teams the
 // mask was built from.
 //
 // Two efficiency mechanics keep this cheap on large datasets:
 //   - Rows the mask doesn't touch (BlobANDNOT returns the same bytes) are
-//     skipped — for sparse fleet-scoped masks, most rows generate no UPDATE.
+//     skipped — for sparse team-scoped masks, most rows generate no UPDATE.
 //   - Surviving updates are flushed in chunked CASE/WHEN UPDATE statements
 //     so a read-page of N rows costs O(N / writeBatch) round trips instead
 //     of O(N).

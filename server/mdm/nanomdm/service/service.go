@@ -4,7 +4,7 @@ package service
 import (
 	"context"
 
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
 )
 
 // DeclarativeManagement is the interface for handling the Apple
@@ -49,7 +49,7 @@ type CheckinAndCommandService interface {
 	CommandAndReportResults
 }
 
-// ProfileService represents the interface to call specific functions from Fleet's main services.
+// ProfileService represents the interface to call specific functions from AutoMDM's main services.
 type ProfileService interface {
 	SignAndEncodeInstallProfile(ctx context.Context, profile []byte, commandUUID string) (string, error)
 }

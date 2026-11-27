@@ -17,17 +17,17 @@ import (
 	"testing"
 	"time"
 
-	eeservice "github.com/fleetdm/fleet/v4/ee/server/service"
-	"github.com/fleetdm/fleet/v4/pkg/optjson"
-	authz_ctx "github.com/fleetdm/fleet/v4/server/contexts/authz"
-	"github.com/fleetdm/fleet/v4/server/contexts/installersize"
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/datastore/filesystem"
-	"github.com/fleetdm/fleet/v4/server/dev_mode"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/test"
+	eeservice "github.com/anilyagiz/automdm/v4/ee/server/service"
+	"github.com/anilyagiz/automdm/v4/pkg/optjson"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	authz_ctx "github.com/anilyagiz/automdm/v4/server/contexts/authz"
+	"github.com/anilyagiz/automdm/v4/server/contexts/installersize"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	"github.com/anilyagiz/automdm/v4/server/datastore/filesystem"
+	"github.com/anilyagiz/automdm/v4/server/dev_mode"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
 )
@@ -57,7 +57,7 @@ func TestUploadSoftwareInstallerDecodeTitleID(t *testing.T) {
 			}
 			require.NoError(t, writer.Close())
 
-			request := httptest.NewRequest(http.MethodPost, "/api/latest/fleet/software/package", &body)
+			request := httptest.NewRequest(http.MethodPost, "/api/latest/automdm/software/package", &body)
 			request.Header.Set("Content-Type", writer.FormDataContentType())
 			ctx := installersize.NewContext(t.Context(), int64(body.Len()))
 			decoded, err := (uploadSoftwareInstallerRequest{}).DecodeRequest(ctx, request)
@@ -74,13 +74,13 @@ func TestUploadSoftwareInstallerDecodeTitleID(t *testing.T) {
 func TestSoftwareInstallersAuth(t *testing.T) {
 	ds := new(mock.Store)
 
-	license := &fleet.LicenseInfo{Tier: fleet.TierPremium, Expiration: time.Now().Add(24 * time.Hour)}
+	license := &automdm.LicenseInfo{Tier: automdm.TierPremium, Expiration: time.Now().Add(24 * time.Hour)}
 
 	svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: license})
 
 	testCases := []struct {
 		name            string
-		user            *fleet.User
+		user            *automdm.User
 		teamID          *uint
 		shouldFailRead  bool
 		shouldFailWrite bool
@@ -129,23 +129,23 @@ func TestSoftwareInstallersAuth(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := viewer.NewContext(ctx, viewer.Viewer{User: tt.user})
 
-			ds.GetSoftwareInstallerMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint, withScripts bool) (*fleet.SoftwareInstaller, error) {
-				return &fleet.SoftwareInstaller{TeamID: tt.teamID}, nil
+			ds.GetSoftwareInstallerMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint, withScripts bool) (*automdm.SoftwareInstaller, error) {
+				return &automdm.SoftwareInstaller{TeamID: tt.teamID}, nil
 			}
-			ds.GetVPPAppMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint) (*fleet.VPPAppStoreApp, error) {
+			ds.GetVPPAppMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint) (*automdm.VPPAppStoreApp, error) {
 				if tt.teamID == nil {
-					return &fleet.VPPAppStoreApp{VPPAppsTeamsID: 0}, nil
+					return &automdm.VPPAppStoreApp{VPPAppsTeamsID: 0}, nil
 				}
-				return &fleet.VPPAppStoreApp{VPPAppsTeamsID: *tt.teamID}, nil
+				return &automdm.VPPAppStoreApp{VPPAppsTeamsID: *tt.teamID}, nil
 			}
-			ds.GetAppStoreAppVersionsByTeamAndTitleIDFunc = func(ctx context.Context, teamID uint, titleID uint) ([]*fleet.VPPAppStoreApp, error) {
-				return []*fleet.VPPAppStoreApp{{VPPAppsTeamsID: teamID}}, nil
+			ds.GetAppStoreAppVersionsByTeamAndTitleIDFunc = func(ctx context.Context, teamID uint, titleID uint) ([]*automdm.VPPAppStoreApp, error) {
+				return []*automdm.VPPAppStoreApp{{VPPAppsTeamsID: teamID}}, nil
 			}
-			ds.GetInHouseAppMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint) (*fleet.SoftwareInstaller, error) {
-				return &fleet.SoftwareInstaller{TeamID: tt.teamID}, nil
+			ds.GetInHouseAppMetadataByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint) (*automdm.SoftwareInstaller, error) {
+				return &automdm.SoftwareInstaller{TeamID: tt.teamID}, nil
 			}
-			ds.GetSoftwarePackagesByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint) ([]*fleet.SoftwareInstaller, error) {
-				return []*fleet.SoftwareInstaller{{TeamID: tt.teamID, InstallerID: 1}}, nil
+			ds.GetSoftwarePackagesByTeamAndTitleIDFunc = func(ctx context.Context, teamID *uint, titleID uint) ([]*automdm.SoftwareInstaller, error) {
+				return []*automdm.SoftwareInstaller{{TeamID: tt.teamID, InstallerID: 1}}, nil
 			}
 
 			ds.DeleteSoftwareInstallerFunc = func(ctx context.Context, installerID uint) error {
@@ -153,12 +153,12 @@ func TestSoftwareInstallersAuth(t *testing.T) {
 			}
 
 			tokenExpiration := time.Now().Add(24 * time.Hour)
-			token, err := test.CreateVPPTokenEncoded(tokenExpiration, "fleet", "ca")
+			token, err := test.CreateVPPTokenEncoded(tokenExpiration, "automdm", "ca")
 			require.NoError(t, err)
-			ds.GetVPPTokenByTeamIDFunc = func(ctx context.Context, teamID *uint) (*fleet.VPPTokenDB, error) {
-				return &fleet.VPPTokenDB{
+			ds.GetVPPTokenByTeamIDFunc = func(ctx context.Context, teamID *uint) (*automdm.VPPTokenDB, error) {
+				return &automdm.VPPTokenDB{
 					ID:        1,
-					OrgName:   "Fleet",
+					OrgName:   "AutoMDM",
 					Location:  "Earth",
 					RenewDate: tokenExpiration,
 					Token:     string(token),
@@ -166,12 +166,12 @@ func TestSoftwareInstallersAuth(t *testing.T) {
 				}, nil
 			}
 
-			ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-				return &fleet.AppConfig{}, nil
+			ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+				return &automdm.AppConfig{}, nil
 			}
-			ds.TeamLiteFunc = func(ctx context.Context, tid uint) (*fleet.TeamLite, error) {
+			ds.TeamLiteFunc = func(ctx context.Context, tid uint) (*automdm.TeamLite, error) {
 				if tt.teamID != nil {
-					return &fleet.TeamLite{ID: *tt.teamID}, nil
+					return &automdm.TeamLite{ID: *tt.teamID}, nil
 				}
 
 				return nil, nil
@@ -181,10 +181,10 @@ func TestSoftwareInstallersAuth(t *testing.T) {
 				return false, nil
 			}
 
-			ds.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []fleet.MDMAssetName,
+			ds.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []automdm.MDMAssetName,
 				_ sqlx.QueryerContext,
-			) (map[fleet.MDMAssetName]fleet.MDMConfigAsset, error) {
-				return map[fleet.MDMAssetName]fleet.MDMConfigAsset{}, nil
+			) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
+				return map[automdm.MDMAssetName]automdm.MDMConfigAsset{}, nil
 			}
 
 			_, err = svc.DownloadSoftwareInstaller(ctx, false, "media", 1, tt.teamID, nil)
@@ -210,7 +210,7 @@ func TestSoftwareInstallersAuth(t *testing.T) {
 				checkAuthErr(t, true, err)
 			}
 
-			_, err = svc.AddAppStoreApp(ctx, tt.teamID, fleet.VPPAppTeam{AdamID: "123", Platform: fleet.IOSPlatform})
+			_, err = svc.AddAppStoreApp(ctx, tt.teamID, automdm.VPPAppTeam{AdamID: "123", Platform: automdm.IOSPlatform})
 			if tt.teamID == nil {
 				require.Error(t, err)
 			} else if tt.shouldFailWrite {
@@ -224,13 +224,13 @@ func TestSoftwareInstallersAuth(t *testing.T) {
 
 func TestUpgradeCodeMigration(t *testing.T) {
 	ds := new(mock.Store)
-	license := &fleet.LicenseInfo{Tier: fleet.TierPremium, Expiration: time.Now().Add(24 * time.Hour)}
+	license := &automdm.LicenseInfo{Tier: automdm.TierPremium, Expiration: time.Now().Add(24 * time.Hour)}
 	_, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: license})
 
 	dir := t.TempDir()
 	softwareInstallStore, err := filesystem.NewSoftwareInstallerStore(dir)
 	require.NoError(t, err)
-	tfr, err := fleet.NewKeepFileReader(filepath.Join("testdata", "software-installers", "fleet-osquery.msi"))
+	tfr, err := automdm.NewKeepFileReader(filepath.Join("testdata", "software-installers", "automdm-osquery.msi"))
 	require.NoError(t, err)
 	defer tfr.Close()
 	require.NoError(t, softwareInstallStore.Put(ctx, "deadbeef", tfr))
@@ -256,7 +256,7 @@ func TestUpgradeCodeMigration(t *testing.T) {
 func TestValidateSoftwareLabels(t *testing.T) {
 	ds := new(mock.Store)
 
-	license := &fleet.LicenseInfo{Tier: fleet.TierPremium, Expiration: time.Now().Add(24 * time.Hour)}
+	license := &automdm.LicenseInfo{Tier: automdm.TierPremium, Expiration: time.Now().Add(24 * time.Hour)}
 
 	svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: license})
 
@@ -277,7 +277,7 @@ func TestValidateSoftwareLabels(t *testing.T) {
 		// validator requires that an authz check has been performed upstream so we'll set it now for
 		// the rest of the tests
 		authCtx.SetChecked()
-		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}})
+		ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}})
 
 		mockLabels := map[string]uint{
 			"foo": 1,
@@ -285,7 +285,7 @@ func TestValidateSoftwareLabels(t *testing.T) {
 			"baz": 3,
 		}
 
-		ds.LabelIDsByNameFunc = func(ctx context.Context, names []string, filter fleet.TeamFilter) (map[string]uint, error) {
+		ds.LabelIDsByNameFunc = func(ctx context.Context, names []string, filter automdm.TeamFilter) (map[string]uint, error) {
 			res := make(map[string]uint)
 			if names == nil {
 				return res, nil
@@ -297,14 +297,14 @@ func TestValidateSoftwareLabels(t *testing.T) {
 			}
 			return res, nil
 		}
-		ds.LabelsByNameFunc = func(ctx context.Context, names []string, filter fleet.TeamFilter) (map[string]*fleet.Label, error) {
-			res := make(map[string]*fleet.Label)
+		ds.LabelsByNameFunc = func(ctx context.Context, names []string, filter automdm.TeamFilter) (map[string]*automdm.Label, error) {
+			res := make(map[string]*automdm.Label)
 			if names == nil {
 				return res, nil
 			}
 			for _, name := range names {
 				if id, ok := mockLabels[name]; ok {
-					res[name] = &fleet.Label{
+					res[name] = &automdm.Label{
 						ID:   id,
 						Name: name,
 					}
@@ -318,8 +318,8 @@ func TestValidateSoftwareLabels(t *testing.T) {
 			payloadIncludeAny []string
 			payloadExcludeAny []string
 			payloadIncludeAll []string
-			expectLabels      map[string]fleet.LabelIdent
-			expectScope       fleet.LabelScope
+			expectLabels      map[string]automdm.LabelIdent
+			expectScope       automdm.LabelScope
 			expectError       string
 		}{
 			{
@@ -336,11 +336,11 @@ func TestValidateSoftwareLabels(t *testing.T) {
 				[]string{"foo", "bar"},
 				nil,
 				nil,
-				map[string]fleet.LabelIdent{
+				map[string]automdm.LabelIdent{
 					"foo": {LabelID: 1, LabelName: "foo"},
 					"bar": {LabelID: 2, LabelName: "bar"},
 				},
-				fleet.LabelScopeIncludeAny,
+				automdm.LabelScopeIncludeAny,
 				"",
 			},
 			{
@@ -348,11 +348,11 @@ func TestValidateSoftwareLabels(t *testing.T) {
 				nil,
 				[]string{"bar", "baz"},
 				nil,
-				map[string]fleet.LabelIdent{
+				map[string]automdm.LabelIdent{
 					"bar": {LabelID: 2, LabelName: "bar"},
 					"baz": {LabelID: 3, LabelName: "baz"},
 				},
-				fleet.LabelScopeExcludeAny,
+				automdm.LabelScopeExcludeAny,
 				"",
 			},
 			{
@@ -378,10 +378,10 @@ func TestValidateSoftwareLabels(t *testing.T) {
 				[]string{"foo", "foo"},
 				nil,
 				nil,
-				map[string]fleet.LabelIdent{
+				map[string]automdm.LabelIdent{
 					"foo": {LabelID: 1, LabelName: "foo"},
 				},
-				fleet.LabelScopeIncludeAny,
+				automdm.LabelScopeIncludeAny,
 				"",
 			},
 			{
@@ -443,7 +443,7 @@ func TestValidateSoftwareLabels(t *testing.T) {
 			"baz": 3,
 		}
 
-		ds.LabelIDsByNameFunc = func(ctx context.Context, names []string, filter fleet.TeamFilter) (map[string]uint, error) {
+		ds.LabelIDsByNameFunc = func(ctx context.Context, names []string, filter automdm.TeamFilter) (map[string]uint, error) {
 			res := make(map[string]uint)
 			if names == nil {
 				return res, nil
@@ -458,13 +458,13 @@ func TestValidateSoftwareLabels(t *testing.T) {
 
 		testCases := []struct {
 			name              string
-			existingInstaller *fleet.SoftwareInstaller
+			existingInstaller *automdm.SoftwareInstaller
 			payloadIncludeAny []string
 			payloadExcludeAny []string
 			payloadIncludeAll []string
 			shouldUpdate      bool
-			expectLabels      map[string]fleet.LabelIdent
-			expectScope       fleet.LabelScope
+			expectLabels      map[string]automdm.LabelIdent
+			expectScope       automdm.LabelScope
 			expectError       string
 		}{
 			{
@@ -480,7 +480,7 @@ func TestValidateSoftwareLabels(t *testing.T) {
 			},
 			{
 				"no labels",
-				&fleet.SoftwareInstaller{},
+				&automdm.SoftwareInstaller{},
 				nil,
 				nil,
 				nil,
@@ -491,42 +491,42 @@ func TestValidateSoftwareLabels(t *testing.T) {
 			},
 			{
 				"add label",
-				&fleet.SoftwareInstaller{
-					LabelsIncludeAny: []fleet.SoftwareScopeLabel{{LabelID: 1, LabelName: "foo"}},
-					LabelsExcludeAny: []fleet.SoftwareScopeLabel{},
+				&automdm.SoftwareInstaller{
+					LabelsIncludeAny: []automdm.SoftwareScopeLabel{{LabelID: 1, LabelName: "foo"}},
+					LabelsExcludeAny: []automdm.SoftwareScopeLabel{},
 				},
 				[]string{"foo", "bar"},
 				nil,
 				nil,
 				true,
-				map[string]fleet.LabelIdent{
+				map[string]automdm.LabelIdent{
 					"foo": {LabelID: 1, LabelName: "foo"},
 					"bar": {LabelID: 2, LabelName: "bar"},
 				},
-				fleet.LabelScopeIncludeAny,
+				automdm.LabelScopeIncludeAny,
 				"",
 			},
 			{
 				"change scope",
-				&fleet.SoftwareInstaller{
-					LabelsIncludeAny: []fleet.SoftwareScopeLabel{{LabelID: 1, LabelName: "foo"}},
-					LabelsExcludeAny: []fleet.SoftwareScopeLabel{},
+				&automdm.SoftwareInstaller{
+					LabelsIncludeAny: []automdm.SoftwareScopeLabel{{LabelID: 1, LabelName: "foo"}},
+					LabelsExcludeAny: []automdm.SoftwareScopeLabel{},
 				},
 				nil,
 				[]string{"foo"},
 				nil,
 				true,
-				map[string]fleet.LabelIdent{
+				map[string]automdm.LabelIdent{
 					"foo": {LabelID: 1, LabelName: "foo"},
 				},
-				fleet.LabelScopeExcludeAny,
+				automdm.LabelScopeExcludeAny,
 				"",
 			},
 			{
 				"remove label",
-				&fleet.SoftwareInstaller{
-					LabelsIncludeAny: []fleet.SoftwareScopeLabel{{LabelID: 1, LabelName: "foo"}},
-					LabelsExcludeAny: []fleet.SoftwareScopeLabel{},
+				&automdm.SoftwareInstaller{
+					LabelsIncludeAny: []automdm.SoftwareScopeLabel{{LabelID: 1, LabelName: "foo"}},
+					LabelsExcludeAny: []automdm.SoftwareScopeLabel{},
 				},
 				[]string{},
 				nil,
@@ -538,9 +538,9 @@ func TestValidateSoftwareLabels(t *testing.T) {
 			},
 			{
 				"no change",
-				&fleet.SoftwareInstaller{
-					LabelsIncludeAny: []fleet.SoftwareScopeLabel{{LabelID: 1, LabelName: "foo"}},
-					LabelsExcludeAny: []fleet.SoftwareScopeLabel{},
+				&automdm.SoftwareInstaller{
+					LabelsIncludeAny: []automdm.SoftwareScopeLabel{{LabelID: 1, LabelName: "foo"}},
+					LabelsExcludeAny: []automdm.SoftwareScopeLabel{},
 				},
 				[]string{"foo"},
 				nil,
@@ -595,7 +595,7 @@ func (m *mockInstallerStore) Get(ctx context.Context, iconID string) (io.ReadClo
 
 func (m *mockInstallerStore) Put(ctx context.Context, iconID string, content io.ReadSeeker) error {
 	m.putCount.Add(1)
-	if m.putCount.Load() == fleet.BatchUploadMaxRetries {
+	if m.putCount.Load() == automdm.BatchUploadMaxRetries {
 		m.onPut()
 	}
 
@@ -615,18 +615,18 @@ func (m *mockInstallerStore) Sign(_ context.Context, _ string, _ time.Duration) 
 }
 
 func TestSoftwareInstallerUploadRetries(t *testing.T) {
-	dev_mode.SetOverride("FLEET_DEV_BATCH_RETRY_INTERVAL", "1s")
-	defer dev_mode.ClearOverride("FLEET_DEV_BATCH_RETRY_INTERVAL")
+	dev_mode.SetOverride("AUTOMDM_DEV_BATCH_RETRY_INTERVAL", "1s")
+	defer dev_mode.ClearOverride("AUTOMDM_DEV_BATCH_RETRY_INTERVAL")
 
 	ds := new(mock.Store)
-	lic := &fleet.LicenseInfo{Tier: fleet.TierPremium, Expiration: time.Now().Add(24 * time.Hour)}
+	lic := &automdm.LicenseInfo{Tier: automdm.TierPremium, Expiration: time.Now().Add(24 * time.Hour)}
 
 	kvStore := &mock.KVStore{}
 	kvStore.SetFunc = func(ctx context.Context, key string, value string, expireTime time.Duration) error {
 		return nil
 	}
 	var statusMu sync.Mutex
-	status := fleet.BatchSetSoftwareInstallersStatusProcessing
+	status := automdm.BatchSetSoftwareInstallersStatusProcessing
 	kvStore.GetFunc = func(ctx context.Context, key string) (*string, error) {
 		statusMu.Lock()
 		defer statusMu.Unlock()
@@ -642,7 +642,7 @@ func TestSoftwareInstallerUploadRetries(t *testing.T) {
 	installerStore.onPut = func() {
 		statusMu.Lock()
 		defer statusMu.Unlock()
-		status = fleet.BatchSetSoftwareInstallersStatusFailed + ":"
+		status = automdm.BatchSetSoftwareInstallersStatusFailed + ":"
 	}
 
 	svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: lic, SoftwareInstallStore: installerStore, KeyValueStore: kvStore})
@@ -654,23 +654,23 @@ func TestSoftwareInstallerUploadRetries(t *testing.T) {
 	actx, _ := authz_ctx.FromContext(ctx)
 	actx.SetChecked()
 
-	ds.TeamByNameFunc = func(ctx context.Context, name string) (*fleet.Team, error) {
-		return &fleet.Team{ID: 1, Name: "foo"}, nil
+	ds.TeamByNameFunc = func(ctx context.Context, name string) (*automdm.Team, error) {
+		return &automdm.Team{ID: 1, Name: "foo"}, nil
 	}
 
 	ds.ValidateEmbeddedSecretsFunc = func(ctx context.Context, documents []string) error {
 		return nil
 	}
 
-	ds.TeamLiteFunc = func(ctx context.Context, tid uint) (*fleet.TeamLite, error) {
-		return &fleet.TeamLite{ID: 1, Name: "foo"}, nil
+	ds.TeamLiteFunc = func(ctx context.Context, tid uint) (*automdm.TeamLite, error) {
+		return &automdm.TeamLite{ID: 1, Name: "foo"}, nil
 	}
 
-	ds.BatchSetSoftwareInstallersFunc = func(ctx context.Context, tmID *uint, installers []*fleet.UploadSoftwareInstallerPayload) ([]uint, error) {
+	ds.BatchSetSoftwareInstallersFunc = func(ctx context.Context, tmID *uint, installers []*automdm.UploadSoftwareInstallerPayload) ([]uint, error) {
 		return nil, nil
 	}
 
-	ds.BatchSetInHouseAppsInstallersFunc = func(ctx context.Context, tmID *uint, installers []*fleet.UploadSoftwareInstallerPayload) error {
+	ds.BatchSetInHouseAppsInstallersFunc = func(ctx context.Context, tmID *uint, installers []*automdm.UploadSoftwareInstallerPayload) error {
 		return nil
 	}
 
@@ -678,19 +678,19 @@ func TestSoftwareInstallerUploadRetries(t *testing.T) {
 		return map[string]uint{}, nil
 	}
 
-	ds.GetTeamsWithInstallerByHashFunc = func(ctx context.Context, sha256 string, url string) (map[uint][]*fleet.ExistingSoftwareInstaller, error) {
-		return map[uint][]*fleet.ExistingSoftwareInstaller{}, nil
+	ds.GetTeamsWithInstallerByHashFunc = func(ctx context.Context, sha256 string, url string) (map[uint][]*automdm.ExistingSoftwareInstaller, error) {
+		return map[uint][]*automdm.ExistingSoftwareInstaller{}, nil
 	}
 
-	ds.GetInstallerByTeamAndURLFunc = func(ctx context.Context, teamID *uint, url string) (*fleet.ExistingSoftwareInstaller, error) {
+	ds.GetInstallerByTeamAndURLFunc = func(ctx context.Context, teamID *uint, url string) (*automdm.ExistingSoftwareInstaller, error) {
 		return nil, nil
 	}
 
-	ds.GetSoftwareInstallersFunc = func(ctx context.Context, tmID uint) ([]fleet.SoftwarePackageResponse, error) {
-		return []fleet.SoftwarePackageResponse{}, nil
+	ds.GetSoftwareInstallersFunc = func(ctx context.Context, tmID uint) ([]automdm.SoftwarePackageResponse, error) {
+		return []automdm.SoftwarePackageResponse{}, nil
 	}
 
-	ds.GetSoftwareInstallersPendingDeletionFunc = func(ctx context.Context, tmID *uint, incoming []fleet.SoftwareTitleIdentifier) ([]fleet.DeletedSoftwarePackage, error) {
+	ds.GetSoftwareInstallersPendingDeletionFunc = func(ctx context.Context, tmID *uint, incoming []automdm.SoftwareTitleIdentifier) ([]automdm.DeletedSoftwarePackage, error) {
 		return nil, nil
 	}
 
@@ -707,16 +707,16 @@ func TestSoftwareInstallerUploadRetries(t *testing.T) {
 	)
 	t.Cleanup(srv.Close)
 
-	_, err := svc.BatchSetSoftwareInstallers(ctx, "foo", []*fleet.SoftwareInstallerPayload{{
-		URL:             srv.URL + "/dummy_installer.pkg",
-		InstallScript:   "install",
-		UninstallScript: "uninstall",
-		SelfService:     false,
-		FleetMaintained: false,
-		Filename:        "foo",
-		ValidatedLabels: &fleet.LabelIdentsWithScope{},
-		Categories:      optjson.SetSlice([]string{}),
-		DisplayName:     "foo",
+	_, err := svc.BatchSetSoftwareInstallers(ctx, "foo", []*automdm.SoftwareInstallerPayload{{
+		URL:               srv.URL + "/dummy_installer.pkg",
+		InstallScript:     "install",
+		UninstallScript:   "uninstall",
+		SelfService:       false,
+		AutoMDMMaintained: false,
+		Filename:          "foo",
+		ValidatedLabels:   &automdm.LabelIdentsWithScope{},
+		Categories:        optjson.SetSlice([]string{}),
+		DisplayName:       "foo",
 	}}, false)
 	require.NoError(t, err)
 
@@ -725,8 +725,8 @@ func TestSoftwareInstallerUploadRetries(t *testing.T) {
 		result, err := svc.GetBatchSetSoftwareInstallersResult(ctx, "foo", "requestuuid", false)
 		require.NoError(t, err)
 		// The status will be failed IFF
-		// the mock installer store's Put method was called fleet.BatchUploadMaxRetries times.
-		if result.Status == fleet.BatchSetSoftwareInstallersStatusFailed {
+		// the mock installer store's Put method was called automdm.BatchUploadMaxRetries times.
+		if result.Status == automdm.BatchSetSoftwareInstallersStatusFailed {
 			require.Empty(t, result.Packages)
 			break
 		}
@@ -743,31 +743,31 @@ func TestSoftwareInstallerUploadRetries(t *testing.T) {
 
 func TestGetBatchSetSoftwareInstallersResultAuth(t *testing.T) {
 	ds := new(mock.Store)
-	license := &fleet.LicenseInfo{Tier: fleet.TierPremium, Expiration: time.Now().Add(24 * time.Hour)}
+	license := &automdm.LicenseInfo{Tier: automdm.TierPremium, Expiration: time.Now().Add(24 * time.Hour)}
 
 	kvStore := &mock.KVStore{}
 	kvStore.GetFunc = func(ctx context.Context, key string) (*string, error) {
-		// Completed is the only status that authorizes against the fleet.
+		// Completed is the only status that authorizes against the team.
 		if strings.Contains(key, ":") {
 			return nil, nil
 		}
-		return new(fleet.BatchSetSoftwareInstallersStatusCompleted), nil
+		return new(automdm.BatchSetSoftwareInstallersStatusCompleted), nil
 	}
 
 	svc, ctx := newTestService(t, ds, nil, nil, &TestServerOpts{License: license, KeyValueStore: kvStore})
 
-	ds.TeamByNameFunc = func(ctx context.Context, name string) (*fleet.Team, error) {
-		return &fleet.Team{ID: 1, Name: name}, nil
+	ds.TeamByNameFunc = func(ctx context.Context, name string) (*automdm.Team, error) {
+		return &automdm.Team{ID: 1, Name: name}, nil
 	}
-	ds.GetSoftwareInstallersFunc = func(ctx context.Context, teamID uint) ([]fleet.SoftwarePackageResponse, error) {
+	ds.GetSoftwareInstallersFunc = func(ctx context.Context, teamID uint) ([]automdm.SoftwarePackageResponse, error) {
 		return nil, nil
 	}
 
-	// Reading a batch result takes the same read as the fleet's installers, so observers are
-	// out even though they can read the fleet's software titles.
+	// Reading a batch result takes the same read as the team's installers, so observers are
+	// out even though they can read the team's software titles.
 	testCases := []struct {
 		name       string
-		user       *fleet.User
+		user       *automdm.User
 		teamName   string
 		shouldFail bool
 	}{
@@ -783,8 +783,8 @@ func TestGetBatchSetSoftwareInstallersResultAuth(t *testing.T) {
 		{"team gitops", test.UserTeamGitOpsTeam1, "team1", false},
 		{"team observer", test.UserTeamObserverTeam1, "team1", true},
 		{"team observer+", test.UserTeamObserverPlusTeam1, "team1", true},
-		{"team admin other fleet", test.UserTeamAdminTeam2, "team1", true},
-		{"team technician other fleet", test.UserTeamTechnicianTeam2, "team1", true},
+		{"team admin other team", test.UserTeamAdminTeam2, "team1", true},
+		{"team technician other team", test.UserTeamTechnicianTeam2, "team1", true},
 		{"global admin unassigned", test.UserAdmin, "", false},
 		{"global observer unassigned", test.UserObserver, "", true},
 		{"team admin unassigned", test.UserTeamAdminTeam1, "", true},
@@ -807,14 +807,14 @@ func TestGetBatchSetSoftwareInstallersResultAuth(t *testing.T) {
 			if strings.Contains(key, ":") {
 				return nil, nil
 			}
-			return new(fleet.BatchSetSoftwareInstallersStatusProcessing), nil
+			return new(automdm.BatchSetSoftwareInstallersStatusProcessing), nil
 		}
 		processingSvc, processingCtx := newTestService(t, ds, nil, nil, &TestServerOpts{License: license, KeyValueStore: processingKVStore})
 
 		ctx := viewer.NewContext(processingCtx, viewer.Viewer{User: test.UserTeamObserverTeam1})
 		result, err := processingSvc.GetBatchSetSoftwareInstallersResult(ctx, "team1", "request-uuid", false)
 		require.NoError(t, err)
-		require.Equal(t, fleet.BatchSetSoftwareInstallersStatusProcessing, result.Status)
+		require.Equal(t, automdm.BatchSetSoftwareInstallersStatusProcessing, result.Status)
 	})
 }
 
@@ -822,10 +822,10 @@ func TestSoftwareBatchProgressWriteFailure(t *testing.T) {
 	// Progress is only ever printed for the user, so losing it must not turn a batch that
 	// would have succeeded into a failed one.
 	ds := new(mock.Store)
-	lic := &fleet.LicenseInfo{Tier: fleet.TierPremium, Expiration: time.Now().Add(24 * time.Hour)}
+	lic := &automdm.LicenseInfo{Tier: automdm.TierPremium, Expiration: time.Now().Add(24 * time.Hour)}
 
 	var kvMu sync.Mutex
-	batchStatus := fleet.BatchSetSoftwareInstallersStatusProcessing
+	batchStatus := automdm.BatchSetSoftwareInstallersStatusProcessing
 
 	kvStore := &mock.KVStore{}
 	kvStore.SetFunc = func(ctx context.Context, key string, value string, expireTime time.Duration) error {
@@ -863,11 +863,11 @@ func TestSoftwareBatchProgressWriteFailure(t *testing.T) {
 	actx, _ := authz_ctx.FromContext(ctx)
 	actx.SetChecked()
 
-	ds.TeamByNameFunc = func(ctx context.Context, name string) (*fleet.Team, error) {
-		return &fleet.Team{ID: 1, Name: "foo"}, nil
+	ds.TeamByNameFunc = func(ctx context.Context, name string) (*automdm.Team, error) {
+		return &automdm.Team{ID: 1, Name: "foo"}, nil
 	}
-	ds.TeamLiteFunc = func(ctx context.Context, tid uint) (*fleet.TeamLite, error) {
-		return &fleet.TeamLite{ID: 1, Name: "foo"}, nil
+	ds.TeamLiteFunc = func(ctx context.Context, tid uint) (*automdm.TeamLite, error) {
+		return &automdm.TeamLite{ID: 1, Name: "foo"}, nil
 	}
 	ds.ValidateEmbeddedSecretsFunc = func(ctx context.Context, documents []string) error {
 		return nil
@@ -878,23 +878,23 @@ func TestSoftwareBatchProgressWriteFailure(t *testing.T) {
 	ds.GetSoftwareCategoryNameToIDMapFunc = func(ctx context.Context, teamID uint, names []string) (map[string]uint, error) {
 		return map[string]uint{}, nil
 	}
-	ds.GetTeamsWithInstallerByHashFunc = func(ctx context.Context, sha256 string, url string) (map[uint][]*fleet.ExistingSoftwareInstaller, error) {
-		return map[uint][]*fleet.ExistingSoftwareInstaller{}, nil
+	ds.GetTeamsWithInstallerByHashFunc = func(ctx context.Context, sha256 string, url string) (map[uint][]*automdm.ExistingSoftwareInstaller, error) {
+		return map[uint][]*automdm.ExistingSoftwareInstaller{}, nil
 	}
-	ds.GetInstallerByTeamAndURLFunc = func(ctx context.Context, teamID *uint, url string) (*fleet.ExistingSoftwareInstaller, error) {
+	ds.GetInstallerByTeamAndURLFunc = func(ctx context.Context, teamID *uint, url string) (*automdm.ExistingSoftwareInstaller, error) {
 		return nil, nil
 	}
-	ds.BatchSetSoftwareInstallersFunc = func(ctx context.Context, tmID *uint, installers []*fleet.UploadSoftwareInstallerPayload) ([]uint, error) {
+	ds.BatchSetSoftwareInstallersFunc = func(ctx context.Context, tmID *uint, installers []*automdm.UploadSoftwareInstallerPayload) ([]uint, error) {
 		return nil, nil
 	}
-	ds.BatchSetInHouseAppsInstallersFunc = func(ctx context.Context, tmID *uint, installers []*fleet.UploadSoftwareInstallerPayload) error {
+	ds.BatchSetInHouseAppsInstallersFunc = func(ctx context.Context, tmID *uint, installers []*automdm.UploadSoftwareInstallerPayload) error {
 		return nil
 	}
-	ds.GetSoftwareInstallersPendingDeletionFunc = func(ctx context.Context, tmID *uint, incoming []fleet.SoftwareTitleIdentifier) ([]fleet.DeletedSoftwarePackage, error) {
+	ds.GetSoftwareInstallersPendingDeletionFunc = func(ctx context.Context, tmID *uint, incoming []automdm.SoftwareTitleIdentifier) ([]automdm.DeletedSoftwarePackage, error) {
 		return nil, nil
 	}
-	ds.GetSoftwareInstallersFunc = func(ctx context.Context, tmID uint) ([]fleet.SoftwarePackageResponse, error) {
-		return []fleet.SoftwarePackageResponse{}, nil
+	ds.GetSoftwareInstallersFunc = func(ctx context.Context, tmID uint) ([]automdm.SoftwarePackageResponse, error) {
+		return []automdm.SoftwarePackageResponse{}, nil
 	}
 
 	baseDir := getPathRelative("./testdata/software-installers/")
@@ -903,11 +903,11 @@ func TestSoftwareBatchProgressWriteFailure(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	requestUUID, err := svc.BatchSetSoftwareInstallers(ctx, "foo", []*fleet.SoftwareInstallerPayload{{
+	requestUUID, err := svc.BatchSetSoftwareInstallers(ctx, "foo", []*automdm.SoftwareInstallerPayload{{
 		URL:             srv.URL + "/dummy_installer.pkg",
 		InstallScript:   "install",
 		UninstallScript: "uninstall",
-		ValidatedLabels: &fleet.LabelIdentsWithScope{},
+		ValidatedLabels: &automdm.LabelIdentsWithScope{},
 		Categories:      optjson.SetSlice([]string{}),
 	}}, false)
 	require.NoError(t, err)
@@ -916,10 +916,10 @@ func TestSoftwareBatchProgressWriteFailure(t *testing.T) {
 	for {
 		result, err := svc.GetBatchSetSoftwareInstallersResult(ctx, "foo", requestUUID, false)
 		require.NoError(t, err)
-		if result.Status == fleet.BatchSetSoftwareInstallersStatusCompleted {
+		if result.Status == automdm.BatchSetSoftwareInstallersStatusCompleted {
 			break
 		}
-		require.NotEqual(t, fleet.BatchSetSoftwareInstallersStatusFailed, result.Status, result.Message)
+		require.NotEqual(t, automdm.BatchSetSoftwareInstallersStatusFailed, result.Status, result.Message)
 		select {
 		case <-timeout:
 			t.Fatal("batch never completed")

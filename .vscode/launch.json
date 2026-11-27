@@ -33,13 +33,13 @@
             "program": "${file}"
         },
         {
-            "name": "Fleet serve",
+            "name": "AutoMDM serve",
             "type": "go",
             "request": "launch",
             "mode": "auto",
             "buildFlags": "-tags='full,fts5'",
             "cwd": "${workspaceFolder}",
-            "program": "${workspaceFolder}/cmd/fleet",
+            "program": "${workspaceFolder}/cmd/automdm",
             "args": [
                 "serve",
                 "--dev",
@@ -47,13 +47,13 @@
             ]
         },
         {
-            "name": "Fleet serve (licensed)",
+            "name": "AutoMDM serve (licensed)",
             "type": "go",
             "request": "launch",
             "mode": "auto",
             "buildFlags": "-tags='full,fts5'",
             "cwd": "${workspaceFolder}",
-            "program": "${workspaceFolder}/cmd/fleet",
+            "program": "${workspaceFolder}/cmd/automdm",
             "args": [
                 "serve",
                 "--dev",
@@ -62,13 +62,13 @@
             ]
         },
         {
-            "name": "Fleet vuln_processing (licensed)",
+            "name": "AutoMDM vuln_processing (licensed)",
             "type": "go",
             "request": "launch",
             "mode": "auto",
             "buildFlags": "-tags='full,fts5'",
             "cwd": "${workspaceFolder}",
-            "program": "${workspaceFolder}/cmd/fleet",
+            "program": "${workspaceFolder}/cmd/automdm",
             "args": [
                 "vuln_processing",
                 "--dev",
@@ -77,7 +77,7 @@
             ]
         },
         {
-            "name": "Attach to a running Fleet server",
+            "name": "Attach to a running AutoMDM server",
             "type": "go",
             "request": "attach",
             "mode": "remote",
@@ -86,13 +86,13 @@
         },
         {
             "type": "pwa-chrome",
-            "name": "Fleet UI (Chrome)",
+            "name": "AutoMDM UI (Chrome)",
             "request": "launch",
             "url": "https://localhost:8080"
         },
         {
             "type": "firefox",
-            "name": "Fleet UI (Firefox)",
+            "name": "AutoMDM UI (Firefox)",
             "request": "launch",
             "url": "https://localhost:8080",
             "pathMappings": [

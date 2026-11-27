@@ -56,7 +56,7 @@ const BootstrapAdvancedOptions = ({
     setIsSaving(true);
     try {
       await mdmAPI.updateSetupExperienceSettings({
-        fleet_id: currentTeamId,
+        team_id: currentTeamId,
         ...formData,
       });
       notify.success("Successfully updated.");
@@ -71,8 +71,8 @@ const BootstrapAdvancedOptions = ({
 
   const manualAgentInstallTooltip = (
     <>
-      Use this option if you&apos;re deploying a custom fleetd via bootstrap
-      package. If enabled, Fleet won&apos;t install fleetd automatically. To use
+      Use this option if you&apos;re deploying a custom automdmd via bootstrap
+      package. If enabled, AutoMDM won&apos;t install automdmd automatically. To use
       this option upload a bootstrap package first.
     </>
   );
@@ -100,7 +100,7 @@ const BootstrapAdvancedOptions = ({
           variant="tooltip-link"
           url={getPathWithQueryParams(paths.MANAGE_HOSTS, {
             manage_enroll_secrets: 1,
-            fleet_id: currentTeamId,
+            team_id: currentTeamId,
           })}
         />
         .

@@ -1,5 +1,5 @@
 # Learn more about .exe uninstall scripts:
-# http://fleetdm.com/learn-more-about/exe-uninstall-scripts
+# http://automdm.com/learn-more-about/exe-uninstall-scripts
 #
 # Removes the machine-wide install and any copy that earlier versions of the
 # install script left in the SYSTEM account's profile. If the uninstaller is

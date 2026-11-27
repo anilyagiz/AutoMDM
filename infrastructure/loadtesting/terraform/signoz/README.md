@@ -1,6 +1,6 @@
-# SigNoz for Fleet Loadtesting
+# SigNoz for AutoMDM Loadtesting
 
-SigNoz provides OpenTelemetry tracing for Fleet loadtest environments. It's deployed as a standalone Terraform root module to ensure it's available before Fleet starts up.
+SigNoz provides OpenTelemetry tracing for AutoMDM loadtest environments. It's deployed as a standalone Terraform root module to ensure it's available before AutoMDM starts up.
 
 ## Architecture
 
@@ -14,11 +14,11 @@ SigNoz provides OpenTelemetry tracing for Fleet loadtest environments. It's depl
 
 ## Deployment order
 
-**IMPORTANT**: SigNoz must be deployed BEFORE the main Fleet infrastructure to capture telemetry from Fleet's initial bootup.
+**IMPORTANT**: SigNoz must be deployed BEFORE the main AutoMDM infrastructure to capture telemetry from AutoMDM's initial bootup.
 
 1. Deploy shared EKS VPC (one time, shared across workspaces, should already be deployed)
 2. Deploy SigNoz (this directory)
-3. Deploy Fleet infrastructure (../infra)
+3. Deploy AutoMDM infrastructure (../infra)
 
 ## Usage
 
@@ -34,7 +34,7 @@ terraform apply
 # 3. Wait for deployment to complete (~10-15 minutes)
 # The OTLP collector endpoint will be shown in outputs
 
-# 4. Now deploy Fleet infrastructure
+# 4. Now deploy AutoMDM infrastructure
 cd ../infra
 terraform apply
 ```
@@ -72,13 +72,13 @@ kubectl get svc -n signoz signoz -o jsonpath='http://{.status.loadBalancer.ingre
     - ClickHouse will reject new writes
     - **New traces will NOT be captured**
     - OTEL collector will log errors about failed writes
-    - Fleet will continue running but traces will be lost
+    - AutoMDM will continue running but traces will be lost
 
 ## Outputs
 
-The main Fleet infrastructure reads these outputs via remote state:
+The main AutoMDM infrastructure reads these outputs via remote state:
 - `cluster_name`: EKS cluster name
-- `otel_collector_endpoint`: Internal OTLP endpoint for Fleet to send traces
+- `otel_collector_endpoint`: Internal OTLP endpoint for AutoMDM to send traces
 - `configure_kubectl`: Command to configure kubectl access
 
 ## Destroying

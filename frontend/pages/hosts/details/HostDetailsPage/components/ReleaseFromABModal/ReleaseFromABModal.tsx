@@ -106,9 +106,9 @@ const ReleaseFromABModal = ({
           />
         </p>
         {host.enrollment_status === "Pending" ? (
-          <p>This will also remove the host from Fleet.</p>
+          <p>This will also remove the host from AutoMDM.</p>
         ) : (
-          <p>This won&apos;t unenroll the host from Fleet.</p>
+          <p>This won&apos;t unenroll the host from AutoMDM.</p>
         )}
 
         <div>

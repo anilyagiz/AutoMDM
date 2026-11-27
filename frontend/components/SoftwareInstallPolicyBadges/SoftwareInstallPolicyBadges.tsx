@@ -38,7 +38,7 @@ const SoftwareInstallPolicyBadges = ({ policyType }: IPatchBadgesProps) => {
       underline={false}
       fixedPositionStrategy
     >
-      <Icon name="install-auto" color="ui-fleet-black-75" />
+      <Icon name="install-auto" color="ui-automdm-black-75" />
     </TooltipWrapper>
   );
 

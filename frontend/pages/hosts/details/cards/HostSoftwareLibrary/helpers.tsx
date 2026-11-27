@@ -25,7 +25,7 @@ export const DROPDOWN_OPTIONS = [
     value: "selfService",
     helpText: (
       <>
-        Software that end users can install from <b>Fleet Desktop</b> {">"}
+        Software that end users can install from <b>AutoMDM Desktop</b> {">"}
         <b>Self service</b>.
       </>
     ),
@@ -67,21 +67,21 @@ export const getInstallErrorMessage = (e: unknown) => {
   const reason = upperFirst(trimEnd(getErrorReason(e), "."));
 
   // Check VPP expiration first so a token whose location happens to contain a
-  // later branch's trigger phrase (fleetd installed, can be installed only on)
+  // later branch's trigger phrase (automdmd installed, can be installed only on)
   // still gets the Settings guidance and token-name surfacing.
   if (isVPPTokenExpiredReason(reason)) {
     return createVPPTokenExpiredMessage(reason);
   }
-  if (reason.includes("fleetd installed")) {
+  if (reason.includes("automdmd installed")) {
     return `${INSTALL_SOFTWARE_ERROR_PREFIX}. ${reason}.`;
   }
   if (reason.includes("can be installed only on")) {
     return createOnlyInstallableOnMacOSMessage(reason);
   }
   if (
-    reason.includes("unresolvable Fleet variable in managed app configuration")
+    reason.includes("unresolvable AutoMDM variable in managed app configuration")
   ) {
-    return `${INSTALL_SOFTWARE_ERROR_PREFIX} Couldn't resolve a Fleet variable in the managed app configuration for this host.`;
+    return `${INSTALL_SOFTWARE_ERROR_PREFIX} Couldn't resolve an AutoMDM variable in the managed app configuration for this host.`;
   }
   if (showAPIMessage(reason)) {
     return reason;
@@ -96,7 +96,7 @@ export const getUninstallErrorMessage = (e: unknown) => {
   if (
     reason.includes("run script") ||
     reason.includes("running script") ||
-    reason.includes("have fleetd") ||
+    reason.includes("have automdmd") ||
     reason.includes("only on")
   ) {
     return `${UNINSTALL_SOFTWARE_ERROR_PREFIX} ${reason}.`;

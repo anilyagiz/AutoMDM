@@ -1,12 +1,12 @@
 # Learn more about install scripts:
-# http://fleetdm.com/learn-more-about/install-scripts
+# http://automdm.com/learn-more-about/install-scripts
 #
 # The Azure Functions Core Tools MSI is machine-scope per its winget manifest,
-# but its Property table has no ALLUSERS row. When msiexec runs in Fleet's
+# but its Property table has no ALLUSERS row. When msiexec runs in AutoMDM's
 # SYSTEM context that would default to a per-user install into the SYSTEM
 # profile, so we pass ALLUSERS=1 explicitly to force a per-machine install.
 
-$logFile = "${env:TEMP}/fleet-install-software.log"
+$logFile = "${env:TEMP}/automdm-install-software.log"
 
 try {
 

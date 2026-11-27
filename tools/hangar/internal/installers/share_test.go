@@ -26,13 +26,13 @@ func writeFiles(t *testing.T, root string, files map[string]string) {
 func TestListShared(t *testing.T) {
 	root := t.TempDir()
 	writeFiles(t, root, map[string]string{
-		"rc/fleetd-rc-linux-arm64-desktop.deb": "d",
-		"rc/fleetd-rc-windows-arm64.msi":       "m",
-		"rc/manifest.json":                     "{}",
-		"rc/old/fleetd-rc-macos.pkg":           "too deep",
-		".hidden/fleetd-x-linux-amd64.rpm":     "hidden",
-		"loose file.pkg":                       "root-level",
-		"prev/fleetd-prev-linux-amd64.rpm":     "r",
+		"rc/automdmd-rc-linux-arm64-desktop.deb": "d",
+		"rc/automdmd-rc-windows-arm64.msi":       "m",
+		"rc/manifest.json":                       "{}",
+		"rc/old/automdmd-rc-macos.pkg":           "too deep",
+		".hidden/automdmd-x-linux-amd64.rpm":     "hidden",
+		"loose file.pkg":                         "root-level",
+		"prev/automdmd-prev-linux-amd64.rpm":     "r",
 	})
 	files, err := ListShared(root, "http://10.0.0.5:8000/")
 	if err != nil {
@@ -42,7 +42,7 @@ func TestListShared(t *testing.T) {
 	for _, f := range files {
 		paths = append(paths, f.Path)
 	}
-	want := "loose file.pkg,prev/fleetd-prev-linux-amd64.rpm,rc/fleetd-rc-linux-arm64-desktop.deb,rc/fleetd-rc-windows-arm64.msi"
+	want := "loose file.pkg,prev/automdmd-prev-linux-amd64.rpm,rc/automdmd-rc-linux-arm64-desktop.deb,rc/automdmd-rc-windows-arm64.msi"
 	if strings.Join(paths, ",") != want {
 		t.Fatalf("paths = %v", paths)
 	}
@@ -50,10 +50,10 @@ func TestListShared(t *testing.T) {
 		t.Errorf("escaped URL = %q", files[0].URL)
 	}
 	deb := files[2]
-	if deb.Shell != "sh" || deb.Command != `d=$(mktemp -d) && curl -fLo "$d/fleetd.deb" 'http://10.0.0.5:8000/rc/fleetd-rc-linux-arm64-desktop.deb' && sudo apt-get install -y "$d/fleetd.deb"` {
+	if deb.Shell != "sh" || deb.Command != `d=$(mktemp -d) && curl -fLo "$d/automdmd.deb" 'http://10.0.0.5:8000/rc/automdmd-rc-linux-arm64-desktop.deb' && sudo apt-get install -y "$d/automdmd.deb"` {
 		t.Errorf("deb command = %q", deb.Command)
 	}
-	if msi := files[3]; msi.Shell != "powershell" || !strings.Contains(msi.Command, "msiexec.exe") || !strings.Contains(msi.Command, "'http://10.0.0.5:8000/rc/fleetd-rc-windows-arm64.msi'") {
+	if msi := files[3]; msi.Shell != "powershell" || !strings.Contains(msi.Command, "msiexec.exe") || !strings.Contains(msi.Command, "'http://10.0.0.5:8000/rc/automdmd-rc-windows-arm64.msi'") {
 		t.Errorf("msi command = %q", msi.Command)
 	} else if !strings.HasPrefix(msi.Command, "$ErrorActionPreference = 'Stop';") || !strings.Contains(msi.Command, "NewGuid()") {
 		// A failed download must stop before msiexec, which would otherwise
@@ -97,8 +97,8 @@ func TestInstallCommandIgnoresHostileNames(t *testing.T) {
 func TestInstallCommandRuns(t *testing.T) {
 	root := t.TempDir()
 	writeFiles(t, root, map[string]string{
-		"rc/fleetd-rc-linux-arm64.deb":         "deb-bytes",
-		"rc/fleetd-rc-linux-arm64.pkg.tar.zst": "arch-bytes",
+		"rc/automdmd-rc-linux-arm64.deb":         "deb-bytes",
+		"rc/automdmd-rc-linux-arm64.pkg.tar.zst": "arch-bytes",
 	})
 	// Stands in for python http.server serving the folder.
 	srv := httptest.NewServer(http.FileServer(http.Dir(root)))

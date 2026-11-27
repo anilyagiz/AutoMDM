@@ -1,8 +1,8 @@
-# This workflow tests packaging of fleetd with the
-# `fleetctl package` command using a locally built fleetdm/wix image.
+# This workflow tests packaging of automdmd with the
+# `automdmctl package` command using a locally built fleetdm/wix image.
 #
-# It fetches the targets: orbit, osquery and fleet-desktop from the default
-# (Fleet's) TUF server, https://tuf.fleetctl.com.
+# It fetches the targets: orbit, osquery and automdm-desktop from the default
+# (AutoMDM's) TUF server, https://tuf.fleetctl.com.
 name: Test packaging with local fleetdm/wix
 
 on:
@@ -58,8 +58,8 @@ jobs:
         with:
           go-version-file: "go.mod"
 
-      - name: Build fleetctl
-        run: make fleetctl
+      - name: Build automdmctl
+        run: make automdmctl
 
       - name: Build fleetdm/wix
         run: make wix-docker
@@ -69,7 +69,7 @@ jobs:
       #
 
       - name: Build MSI
-        run: ./build/fleetctl package --type msi --enroll-secret=foo --fleet-url=https://localhost:8080
+        run: ./build/automdmctl package --type msi --enroll-secret=foo --automdm-url=https://localhost:8080
 
-      - name: Build MSI with Fleet Desktop
-        run: ./build/fleetctl package --type msi --enroll-secret=foo --fleet-url=https://localhost:8080 --fleet-desktop
+      - name: Build MSI with AutoMDM Desktop
+        run: ./build/automdmctl package --type msi --enroll-secret=foo --automdm-url=https://localhost:8080 --automdm-desktop

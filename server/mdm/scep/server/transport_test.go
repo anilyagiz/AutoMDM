@@ -14,12 +14,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/pkg/mdm/mdmtest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/cryptoutil"
-	"github.com/fleetdm/fleet/v4/server/mdm/scep/depot"
-	filedepot "github.com/fleetdm/fleet/v4/server/mdm/scep/depot/file"
-	scepserver "github.com/fleetdm/fleet/v4/server/mdm/scep/server"
+	"github.com/anilyagiz/automdm/v4/pkg/mdm/mdmtest"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/cryptoutil"
+	"github.com/anilyagiz/automdm/v4/server/mdm/scep/depot"
+	filedepot "github.com/anilyagiz/automdm/v4/server/mdm/scep/depot/file"
+	scepserver "github.com/anilyagiz/automdm/v4/server/mdm/scep/server"
 	"github.com/smallstep/scep"
 	"github.com/stretchr/testify/require"
 )
@@ -287,15 +287,15 @@ func TestInvalidReqs(t *testing.T) {
 	}
 }
 
-// berGuardService rejects PKIOperation messages the way Fleet's SCEP services do, with a
-// fleet.BadRequestError.
+// berGuardService rejects PKIOperation messages the way AutoMDM's SCEP services do, with a
+// automdm.BadRequestError.
 type berGuardService struct {
 	scepserver.Service
 }
 
 func (s berGuardService) PKIOperation(ctx context.Context, data []byte) ([]byte, error) {
 	if err := cryptoutil.ValidateBERDepth(data, cryptoutil.MaxBERDepth); err != nil {
-		return nil, &fleet.BadRequestError{
+		return nil, &automdm.BadRequestError{
 			Message:     "invalid request body",
 			InternalErr: err,
 		}
@@ -303,7 +303,7 @@ func (s berGuardService) PKIOperation(ctx context.Context, data []byte) ([]byte,
 	return s.Service.PKIOperation(ctx, data)
 }
 
-func TestPKIOperationFleetBadRequestError(t *testing.T) {
+func TestPKIOperationAutoMDMBadRequestError(t *testing.T) {
 	_, svc, teardown := newServer(t)
 	defer teardown()
 

@@ -22,9 +22,9 @@ describe("Device User Banners", () => {
         hostPlatform="darwin"
         mdmEnrollmentStatus="Off"
         mdmEnabledAndConfigured
-        depAssignedToFleet={false}
+        depAssignedToAutoMDM={false}
         onlyAllowAppleBusinessEnrollment={false}
-        connectedToFleetMdm
+        connectedToAutoMDMMdm
         macDiskEncryptionStatus={null}
         diskEncryptionActionRequired={null}
         detailUpdatedAt="2025-01-15T10:00:00Z"
@@ -42,9 +42,9 @@ describe("Device User Banners", () => {
         hostPlatform="darwin"
         mdmEnrollmentStatus="On (manual)"
         mdmEnabledAndConfigured
-        depAssignedToFleet={false}
+        depAssignedToAutoMDM={false}
         onlyAllowAppleBusinessEnrollment={false}
-        connectedToFleetMdm
+        connectedToAutoMDMMdm
         macDiskEncryptionStatus="action_required"
         diskEncryptionActionRequired="rotate_key"
         onTriggerEscrowLinuxKey={noop}
@@ -63,9 +63,9 @@ describe("Device User Banners", () => {
         hostPlatform="darwin"
         mdmEnrollmentStatus="On (automatic)"
         mdmEnabledAndConfigured
-        depAssignedToFleet={false}
+        depAssignedToAutoMDM={false}
         onlyAllowAppleBusinessEnrollment={false}
-        connectedToFleetMdm
+        connectedToAutoMDMMdm
         macDiskEncryptionStatus="action_required"
         diskEncryptionActionRequired="log_out"
         onTriggerEscrowLinuxKey={noop}
@@ -87,9 +87,9 @@ describe("Device User Banners", () => {
         hostPlatform="darwin"
         mdmEnrollmentStatus="On (company-owned)"
         mdmEnabledAndConfigured
-        depAssignedToFleet={false}
+        depAssignedToAutoMDM={false}
         onlyAllowAppleBusinessEnrollment={false}
-        connectedToFleetMdm
+        connectedToAutoMDMMdm
         macDiskEncryptionStatus="action_required"
         diskEncryptionActionRequired="turn_on_encryption"
         onTriggerEscrowLinuxKey={noop}
@@ -112,9 +112,9 @@ describe("Device User Banners", () => {
         diskEncryptionKeyAvailable={false}
         mdmEnrollmentStatus="On (automatic)"
         mdmEnabledAndConfigured
-        depAssignedToFleet={false}
+        depAssignedToAutoMDM={false}
         onlyAllowAppleBusinessEnrollment={false}
-        connectedToFleetMdm
+        connectedToAutoMDMMdm
         macDiskEncryptionStatus={null}
         diskEncryptionActionRequired={null}
         onTriggerEscrowLinuxKey={noop}
@@ -137,9 +137,9 @@ describe("Device User Banners", () => {
         diskEncryptionKeyAvailable={false}
         mdmEnrollmentStatus="On (automatic)"
         mdmEnabledAndConfigured
-        depAssignedToFleet={false}
+        depAssignedToAutoMDM={false}
         onlyAllowAppleBusinessEnrollment={false}
-        connectedToFleetMdm
+        connectedToAutoMDMMdm
         macDiskEncryptionStatus={null}
         diskEncryptionActionRequired={null}
         onTriggerEscrowLinuxKey={noop}
@@ -153,7 +153,7 @@ describe("Device User Banners", () => {
   });
 
   it.each<HostPlatform>(["arch", "cachyos"])(
-    "does not offer a linux disk encryption key on %s, which Fleet cannot escrow for",
+    "does not offer a linux disk encryption key on %s, which AutoMDM cannot escrow for",
     (platform) => {
       render(
         <DeviceUserBanners
@@ -163,9 +163,9 @@ describe("Device User Banners", () => {
           diskEncryptionKeyAvailable={false}
           mdmEnrollmentStatus="On (automatic)"
           mdmEnabledAndConfigured
-          depAssignedToFleet={false}
+          depAssignedToAutoMDM={false}
           onlyAllowAppleBusinessEnrollment={false}
-          connectedToFleetMdm
+          connectedToAutoMDMMdm
           macDiskEncryptionStatus={null}
           diskEncryptionActionRequired={null}
           onTriggerEscrowLinuxKey={noop}
@@ -192,9 +192,9 @@ describe("Device User Banners", () => {
         diskEncryptionKeyAvailable={false}
         mdmEnrollmentStatus="On (automatic)"
         mdmEnabledAndConfigured
-        depAssignedToFleet={false}
+        depAssignedToAutoMDM={false}
         onlyAllowAppleBusinessEnrollment={false}
-        connectedToFleetMdm
+        connectedToAutoMDMMdm
         macDiskEncryptionStatus={null}
         diskEncryptionActionRequired={null}
         onTriggerEscrowLinuxKey={noop}
@@ -203,11 +203,11 @@ describe("Device User Banners", () => {
       />
     );
     expect(screen.getByText(createPINExepectedText)).toBeInTheDocument();
-    // This fleetd cannot be handed the PIN, so the end user sets it themselves and has to refetch afterwards.
+    // This automdmd cannot be handed the PIN, so the end user sets it themselves and has to refetch afterwards.
     expect(screen.getByText(refetchToClearExpectedText)).toBeInTheDocument();
   });
 
-  it("drops the refetch instruction when fleetd can set the PIN", () => {
+  it("drops the refetch instruction when automdmd can set the PIN", () => {
     render(
       <DeviceUserBanners
         hostPlatform="windows"
@@ -215,15 +215,15 @@ describe("Device User Banners", () => {
           status: "action_required",
           detail: "",
           action_required: "create_pin",
-          fleetd_can_set_pin: true,
+          automdmd_can_set_pin: true,
         }}
         diskIsEncrypted
         diskEncryptionKeyAvailable={false}
         mdmEnrollmentStatus="On (automatic)"
         mdmEnabledAndConfigured
-        depAssignedToFleet={false}
+        depAssignedToAutoMDM={false}
         onlyAllowAppleBusinessEnrollment={false}
-        connectedToFleetMdm
+        connectedToAutoMDMMdm
         macDiskEncryptionStatus={null}
         diskEncryptionActionRequired={null}
         onTriggerEscrowLinuxKey={noop}
@@ -232,7 +232,7 @@ describe("Device User Banners", () => {
       />
     );
     expect(screen.getByText(createPINExepectedText)).toBeInTheDocument();
-    // Fleet clears the banner once its agent reports the PIN, so asking for a refetch would be busywork.
+    // AutoMDM clears the banner once its agent reports the PIN, so asking for a refetch would be busywork.
     expect(screen.queryByText(refetchToClearExpectedText)).toBeNull();
   });
 
@@ -249,9 +249,9 @@ describe("Device User Banners", () => {
         diskEncryptionKeyAvailable={false}
         mdmEnrollmentStatus="On (automatic)"
         mdmEnabledAndConfigured
-        depAssignedToFleet={false}
+        depAssignedToAutoMDM={false}
         onlyAllowAppleBusinessEnrollment={false}
-        connectedToFleetMdm
+        connectedToAutoMDMMdm
         macDiskEncryptionStatus={null}
         diskEncryptionActionRequired={null}
         onTriggerEscrowLinuxKey={noop}
@@ -274,15 +274,15 @@ describe("Device User Banners", () => {
         diskEncryptionOSSetting={{
           status: "action_required",
           detail:
-            "BitLocker protection is off. Fleet could not turn it back on: the TPM is not ready",
+            "BitLocker protection is off. AutoMDM could not turn it back on: the TPM is not ready",
         }}
         diskIsEncrypted
         diskEncryptionKeyAvailable={false}
         mdmEnrollmentStatus="On (automatic)"
         mdmEnabledAndConfigured
-        depAssignedToFleet={false}
+        depAssignedToAutoMDM={false}
         onlyAllowAppleBusinessEnrollment={false}
-        connectedToFleetMdm
+        connectedToAutoMDMMdm
         macDiskEncryptionStatus={null}
         diskEncryptionActionRequired={null}
         onTriggerEscrowLinuxKey={noop}
@@ -299,9 +299,9 @@ describe("Device User Banners", () => {
         hostPlatform="darwin"
         mdmEnrollmentStatus="On (manual)"
         mdmEnabledAndConfigured
-        depAssignedToFleet={false}
+        depAssignedToAutoMDM={false}
         onlyAllowAppleBusinessEnrollment={false}
-        connectedToFleetMdm
+        connectedToAutoMDMMdm
         macDiskEncryptionStatus="verifying"
         diskEncryptionActionRequired={null}
         onTriggerEscrowLinuxKey={noop}
@@ -326,9 +326,9 @@ describe("Device User Banners", () => {
         hostPlatform="darwin"
         mdmEnrollmentStatus={null}
         mdmEnabledAndConfigured
-        depAssignedToFleet={false}
+        depAssignedToAutoMDM={false}
         onlyAllowAppleBusinessEnrollment={false}
-        connectedToFleetMdm={false}
+        connectedToAutoMDMMdm={false}
         macDiskEncryptionStatus={null}
         diskEncryptionActionRequired={null}
         onTriggerEscrowLinuxKey={noop}
@@ -352,9 +352,9 @@ describe("Device User Banners", () => {
         hostPlatform="darwin"
         mdmEnrollmentStatus="Off"
         mdmEnabledAndConfigured
-        depAssignedToFleet={false}
+        depAssignedToAutoMDM={false}
         onlyAllowAppleBusinessEnrollment={false}
-        connectedToFleetMdm={false}
+        connectedToAutoMDMMdm={false}
         macDiskEncryptionStatus={null}
         diskEncryptionActionRequired={null}
         detailUpdatedAt="0001-01-01T00:00:00Z"
@@ -373,9 +373,9 @@ describe("Device User Banners", () => {
         hostPlatform="darwin"
         mdmEnrollmentStatus="Off"
         mdmEnabledAndConfigured
-        depAssignedToFleet={false}
+        depAssignedToAutoMDM={false}
         onlyAllowAppleBusinessEnrollment={false}
-        connectedToFleetMdm={false}
+        connectedToAutoMDMMdm={false}
         macDiskEncryptionStatus={null}
         diskEncryptionActionRequired={null}
         detailUpdatedAt="2025-01-15T10:00:00Z"
@@ -394,9 +394,9 @@ describe("Device User Banners", () => {
         hostPlatform="darwin"
         mdmEnrollmentStatus="Off"
         mdmEnabledAndConfigured
-        depAssignedToFleet={false}
+        depAssignedToAutoMDM={false}
         onlyAllowAppleBusinessEnrollment
-        connectedToFleetMdm={false}
+        connectedToAutoMDMMdm={false}
         macDiskEncryptionStatus={null}
         diskEncryptionActionRequired={null}
         detailUpdatedAt="2025-01-15T10:00:00Z"

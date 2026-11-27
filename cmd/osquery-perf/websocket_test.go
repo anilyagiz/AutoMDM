@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/cmd/osquery-perf/hostidentity"
-	"github.com/fleetdm/fleet/v4/cmd/osquery-perf/osquery_perf"
+	"github.com/anilyagiz/automdm/v4/cmd/osquery-perf/hostidentity"
+	"github.com/anilyagiz/automdm/v4/cmd/osquery-perf/osquery_perf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

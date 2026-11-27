@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -27,9 +27,9 @@ var (
 const hostAISessionsCleanupMargin = 24 * time.Hour
 
 // hostAISessionActions are the members of the host_ai_sessions.actions SET.
-var hostAISessionActions = []fleet.AISessionAction{
-	fleet.AISessionActionRead, fleet.AISessionActionWrite, fleet.AISessionActionExecute, fleet.AISessionActionSearch,
-	fleet.AISessionActionNetwork, fleet.AISessionActionMCP, fleet.AISessionActionOther,
+var hostAISessionActions = []automdm.AISessionAction{
+	automdm.AISessionActionRead, automdm.AISessionActionWrite, automdm.AISessionActionExecute, automdm.AISessionActionSearch,
+	automdm.AISessionActionNetwork, automdm.AISessionActionMCP, automdm.AISessionActionOther,
 }
 
 // Widths of the VARCHAR columns. Values are cut to fit rather than failing the host's ingestion.
@@ -52,7 +52,7 @@ const (
 	// all the sub-agent's calls; one still undecided after that long is final, and rereading it on every refresh of an
 	// active session would re-send the session's tail each time.
 	hostAISessionDecisionWindow = time.Hour
-	// hostAISessionMaxEmptyEventReads is how many reads of a session may return no events before Fleet stops asking
+	// hostAISessionMaxEmptyEventReads is how many reads of a session may return no events before AutoMDM stops asking
 	// until the session is active again, so one whose transcript is gone from the host doesn't keep its place ahead
 	// of the others.
 	hostAISessionMaxEmptyEventReads = 3
@@ -70,7 +70,7 @@ func newHostAISessionKey(agent, sessionID string) hostAISessionKey {
 	}
 }
 
-func (ds *Datastore) UpsertHostAISessions(ctx context.Context, hostID uint, sessions []*fleet.HostAISession) error {
+func (ds *Datastore) UpsertHostAISessions(ctx context.Context, hostID uint, sessions []*automdm.HostAISession) error {
 	// Assignments see the values of those before them, so events_empty_reads compares ended_at and tool_call_count before they're assigned: a session given up on is read
 	// again once it's active or has new calls, as Cursor's end time comes from its own metadata and may not move with
 	// them.
@@ -117,7 +117,7 @@ WHERE id = ?`
 	// Values as the columns hold them, so they compare equal to the stored ones. A session listed twice is kept as
 	// last listed.
 	var keys []hostAISessionKey
-	reported := make(map[hostAISessionKey]*fleet.HostAISession, len(sessions))
+	reported := make(map[hostAISessionKey]*automdm.HostAISession, len(sessions))
 	for _, s := range sessions {
 		key := newHostAISessionKey(s.Agent, s.AgentSessionID)
 		c := *s
@@ -148,7 +148,7 @@ WHERE id = ?`
 		//
 		// The host has stored sessions it no longer reports, so only those that ended since the earliest reported
 		// one are read. A stored session that ended before then and is reported again is taken for new and upserted.
-		var stored []*fleet.HostAISession
+		var stored []*automdm.HostAISession
 		if err := sqlx.SelectContext(ctx, tx, &stored, `
 SELECT
 	id, agent, agent_session_id, agent_version, username, account_identifier, model, project_path, git_repository,
@@ -157,12 +157,12 @@ SELECT
 FROM host_ai_sessions WHERE host_id = ? AND (ended_at >= ? OR ended_at IS NULL)`, hostID, earliestEnd); err != nil {
 			return ctxerr.Wrap(ctx, err, "select stored host ai sessions")
 		}
-		storedByKey := make(map[hostAISessionKey]*fleet.HostAISession, len(stored))
+		storedByKey := make(map[hostAISessionKey]*automdm.HostAISession, len(stored))
 		for _, s := range stored {
 			storedByKey[hostAISessionKey{agent: s.Agent, sessionID: s.AgentSessionID}] = s
 		}
 
-		var toInsert []*fleet.HostAISession
+		var toInsert []*automdm.HostAISession
 		for _, key := range keys {
 			s := reported[key]
 			old, ok := storedByKey[key]
@@ -182,7 +182,7 @@ FROM host_ai_sessions WHERE host_id = ? AND (ended_at >= ? OR ended_at IS NULL)`
 			}
 		}
 
-		generateValueArgs := func(s *fleet.HostAISession) (string, []any) {
+		generateValueArgs := func(s *automdm.HostAISession) (string, []any) {
 			return "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?),", []any{
 				hostID, s.Agent, s.AgentSessionID, s.AgentVersion, s.Username, s.AccountIdentifier, s.Model,
 				s.ProjectPath, s.GitRepository, s.GitBranch, s.StartedAt, s.EndedAt,
@@ -200,7 +200,7 @@ FROM host_ai_sessions WHERE host_id = ? AND (ended_at >= ? OR ended_at IS NULL)`
 	})
 }
 
-func hostAISessionUnchanged(stored, reported *fleet.HostAISession) bool {
+func hostAISessionUnchanged(stored, reported *automdm.HostAISession) bool {
 	return stored.AgentVersion == reported.AgentVersion &&
 		stored.Username == reported.Username &&
 		stored.AccountIdentifier == reported.AccountIdentifier &&
@@ -228,7 +228,7 @@ func sameAISessionTime(a, b *time.Time) bool {
 	return a.Equal(*b)
 }
 
-func (ds *Datastore) ListHostAISessionsNeedingEvents(ctx context.Context, hostID uint, limit int, maxEvents uint) ([]*fleet.HostAISessionEventsCursor, error) {
+func (ds *Datastore) ListHostAISessionsNeedingEvents(ctx context.Context, hostID uint, limit int, maxEvents uint) ([]*automdm.HostAISessionEventsCursor, error) {
 	// Catching up comes before rereading undecided events: an active session's ended_at moves at every refresh, so
 	// rereading first would re-send the same events each time and never reach the new ones. An undecided event can
 	// only get its decision if the agent wrote to the transcript after the event was read, so a caught-up session is
@@ -250,11 +250,11 @@ WHERE host_id = ? AND transcript_path <> '' AND events_empty_reads < ? AND
 ORDER BY ended_at DESC
 LIMIT ?`
 	now := time.Now().UTC()
-	activeAfter := now.Add(-fleet.HostAISessionsMaxAge).Add(hostAISessionsCleanupMargin)
-	var cursors []*fleet.HostAISessionEventsCursor
+	activeAfter := now.Add(-automdm.HostAISessionsMaxAge).Add(hostAISessionsCleanupMargin)
+	var cursors []*automdm.HostAISessionEventsCursor
 	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &cursors, stmt,
 		maxEvents, hostID, hostAISessionMaxEmptyEventReads, now, activeAfter, activeAfter,
-		maxEvents, fleet.AISessionAgentCursor, maxEvents, limit); err != nil {
+		maxEvents, automdm.AISessionAgentCursor, maxEvents, limit); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "list host ai sessions needing events")
 	}
 	return cursors, nil
@@ -290,7 +290,7 @@ func lockHostAISessions(ctx context.Context, q sqlx.QueryerContext, hostID uint,
 	return ids, nil
 }
 
-func (ds *Datastore) UpsertHostAISessionEvents(ctx context.Context, hostID uint, requested []*fleet.HostAISessionEventsCursor, events []*fleet.HostAISessionEvent) error {
+func (ds *Datastore) UpsertHostAISessionEvents(ctx context.Context, hostID uint, requested []*automdm.HostAISessionEventsCursor, events []*automdm.HostAISessionEvent) error {
 	// A decision, once recorded, is kept: a later read of the same call may come back without its result.
 	const upsertStmt = `
 INSERT INTO host_ai_session_events (
@@ -301,7 +301,7 @@ ON DUPLICATE KEY UPDATE
 
 	// The session's summary of its events, read by ListHostAISessionsNeedingEvents. events_ended_at records that the
 	// stored events were all read at the session's ended_at, so it stays when they weren't: when the read started
-	// after an undecided call, which may have had its decision in what was read, or when fleetd's result budget cut
+	// after an undecided call, which may have had its decision in what was read, or when automdmd's result budget cut
 	// the read before the last stored call. The undecided calls are then reread once the session is caught up.
 	// Assignments see the values of those before them, so event_count and first_undecided_tool_call_index are set
 	// before events_ended_at looks at them.
@@ -383,8 +383,8 @@ WHERE id = ?`
 			decision  string
 		}
 		decided := make(map[decisionKey][]uint)
-		toInsert := make([]*fleet.HostAISessionEvent, 0, len(events))
-		// Actions of the new events that the SET holds: one a newer fleetd reports stays on its event only.
+		toInsert := make([]*automdm.HostAISessionEvent, 0, len(events))
+		// Actions of the new events that the SET holds: one a newer automdmd reports stays on its event only.
 		newActions := make(map[uint][]string, len(keys))
 		for _, e := range events {
 			id, ok := sessionIDs[newHostAISessionKey(e.Agent, e.AgentSessionID)]
@@ -411,7 +411,7 @@ WHERE id = ?`
 				return ctxerr.Wrap(ctx, err, "update host ai session event decisions")
 			}
 		}
-		generateValueArgs := func(e *fleet.HostAISessionEvent) (string, []any) {
+		generateValueArgs := func(e *automdm.HostAISessionEvent) (string, []any) {
 			return "(?, ?, ?, ?, ?, ?, ?, ?, ?),", []any{
 				sessionIDs[newHostAISessionKey(e.Agent, e.AgentSessionID)],
 				e.ToolCallIndex,
@@ -474,7 +474,7 @@ SELECT s.host_id FROM (SELECT DISTINCT host_id FROM host_ai_sessions) s
 LEFT JOIN hosts h ON h.id = s.host_id
 WHERE h.id IS NULL`
 	// Sessions are kept for as long after they were last active, well after hosts stop reporting them. ended_at is
-	// the host's clock, so a session whose end is unknown or in the future is deleted once Fleet hasn't seen it change
+	// the host's clock, so a session whose end is unknown or in the future is deleted once AutoMDM hasn't seen it change
 	// for as long instead.
 	const expiredStmt = `
 SELECT id FROM (
@@ -587,10 +587,10 @@ const hostAISessionColumns = `
 
 // aiSessionCategories maps actions to their API categories, in the order of the categories, always returning a
 // non-nil slice so it's listed as [].
-func aiSessionCategories(actions ...fleet.AISessionAction) []fleet.AISessionCategory {
-	categories := []fleet.AISessionCategory{}
-	for _, c := range []fleet.AISessionCategory{fleet.AISessionCategoryCommand, fleet.AISessionCategoryFileAccess} {
-		if slices.ContainsFunc(actions, func(a fleet.AISessionAction) bool { return a.Category() == c }) {
+func aiSessionCategories(actions ...automdm.AISessionAction) []automdm.AISessionCategory {
+	categories := []automdm.AISessionCategory{}
+	for _, c := range []automdm.AISessionCategory{automdm.AISessionCategoryCommand, automdm.AISessionCategoryFileAccess} {
+		if slices.ContainsFunc(actions, func(a automdm.AISessionAction) bool { return a.Category() == c }) {
 			categories = append(categories, c)
 		}
 	}
@@ -598,29 +598,29 @@ func aiSessionCategories(actions ...fleet.AISessionAction) []fleet.AISessionCate
 }
 
 // aiSessionCategoryActions are the actions of each API category, for filtering on them.
-var aiSessionCategoryActions = map[fleet.AISessionCategory][]fleet.AISessionAction{
-	fleet.AISessionCategoryCommand:    {fleet.AISessionActionExecute},
-	fleet.AISessionCategoryFileAccess: {fleet.AISessionActionRead, fleet.AISessionActionWrite, fleet.AISessionActionSearch},
+var aiSessionCategoryActions = map[automdm.AISessionCategory][]automdm.AISessionAction{
+	automdm.AISessionCategoryCommand:    {automdm.AISessionActionExecute},
+	automdm.AISessionCategoryFileAccess: {automdm.AISessionActionRead, automdm.AISessionActionWrite, automdm.AISessionActionSearch},
 }
 
 type hostAISessionRow struct {
-	fleet.HostAISession
+	automdm.HostAISession
 	ActionsSet string `db:"actions"`
 }
 
-func (r *hostAISessionRow) toSession() *fleet.HostAISession {
+func (r *hostAISessionRow) toSession() *automdm.HostAISession {
 	s := r.HostAISession
-	s.Actions = []fleet.AISessionAction{}
+	s.Actions = []automdm.AISessionAction{}
 	if r.ActionsSet != "" {
 		for a := range strings.SplitSeq(r.ActionsSet, ",") {
-			s.Actions = append(s.Actions, fleet.AISessionAction(a))
+			s.Actions = append(s.Actions, automdm.AISessionAction(a))
 		}
 	}
 	s.Categories = aiSessionCategories(s.Actions...)
 	return &s
 }
 
-func (ds *Datastore) ListHostAISessions(ctx context.Context, hostID uint, opts fleet.HostAISessionListOptions) ([]*fleet.HostAISession, *fleet.PaginationMetadata, error) {
+func (ds *Datastore) ListHostAISessions(ctx context.Context, hostID uint, opts automdm.HostAISessionListOptions) ([]*automdm.HostAISession, *automdm.PaginationMetadata, error) {
 	where := ` FROM host_ai_sessions WHERE host_id = ?`
 	args := []any{hostID}
 	if opts.Agent != "" {
@@ -630,7 +630,7 @@ func (ds *Datastore) ListHostAISessions(ctx context.Context, hostID uint, opts f
 	if opts.Category != "" {
 		actions, ok := aiSessionCategoryActions[opts.Category]
 		if !ok {
-			return nil, nil, ctxerr.Wrap(ctx, fleet.NewInvalidArgumentError("category", "unsupported category: "+string(opts.Category)))
+			return nil, nil, ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("category", "unsupported category: "+string(opts.Category)))
 		}
 		var inSet []string
 		for _, a := range actions {
@@ -647,10 +647,10 @@ func (ds *Datastore) ListHostAISessions(ctx context.Context, hostID uint, opts f
 	}
 	order, ok := hostAISessionOrderColumns[orderKey]
 	if !ok {
-		return nil, nil, ctxerr.Wrap(ctx, fleet.NewInvalidArgumentError("order_key", "unsupported order key: "+orderKey))
+		return nil, nil, ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("order_key", "unsupported order key: "+orderKey))
 	}
 	direction := "ASC"
-	if opts.OrderDirection == fleet.OrderDescending {
+	if opts.OrderDirection == automdm.OrderDescending {
 		direction = "DESC"
 	}
 	// The order is built here rather than by the list options helper so unknown timestamps sort last. The order keys
@@ -674,9 +674,9 @@ func (ds *Datastore) ListHostAISessions(ctx context.Context, hostID uint, opts f
 		return nil, nil, ctxerr.Wrap(ctx, err, "list host ai sessions")
 	}
 
-	var meta *fleet.PaginationMetadata
+	var meta *automdm.PaginationMetadata
 	if listOpts.IncludeMetadata {
-		meta = &fleet.PaginationMetadata{HasPreviousResults: listOpts.Page > 0}
+		meta = &automdm.PaginationMetadata{HasPreviousResults: listOpts.Page > 0}
 		if err := sqlx.GetContext(ctx, ds.reader(ctx), &meta.TotalResults, `SELECT COUNT(*)`+where, args...); err != nil {
 			return nil, nil, ctxerr.Wrap(ctx, err, "count host ai sessions")
 		}
@@ -686,14 +686,14 @@ func (ds *Datastore) ListHostAISessions(ctx context.Context, hostID uint, opts f
 		}
 	}
 
-	sessions := make([]*fleet.HostAISession, 0, len(rows))
+	sessions := make([]*automdm.HostAISession, 0, len(rows))
 	for _, r := range rows {
 		sessions = append(sessions, r.toSession())
 	}
 	return sessions, meta, nil
 }
 
-func (ds *Datastore) GetHostAISession(ctx context.Context, hostID, id uint) (*fleet.HostAISession, error) {
+func (ds *Datastore) GetHostAISession(ctx context.Context, hostID, id uint) (*automdm.HostAISession, error) {
 	var row hostAISessionRow
 	if err := sqlx.GetContext(ctx, ds.reader(ctx), &row,
 		`SELECT `+hostAISessionColumns+` FROM host_ai_sessions WHERE id = ? AND host_id = ?`, id, hostID); err != nil {
@@ -705,13 +705,13 @@ func (ds *Datastore) GetHostAISession(ctx context.Context, hostID, id uint) (*fl
 	return row.toSession(), nil
 }
 
-func (ds *Datastore) ListHostAISessionEvents(ctx context.Context, aiSessionID uint, opts fleet.HostAISessionEventListOptions) ([]*fleet.HostAISessionEvent, *fleet.PaginationMetadata, error) {
+func (ds *Datastore) ListHostAISessionEvents(ctx context.Context, aiSessionID uint, opts automdm.HostAISessionEventListOptions) ([]*automdm.HostAISessionEvent, *automdm.PaginationMetadata, error) {
 	where := ` FROM host_ai_session_events WHERE ai_session_id = ?`
 	args := []any{aiSessionID}
 	if opts.Category != "" {
 		actions, ok := aiSessionCategoryActions[opts.Category]
 		if !ok {
-			return nil, nil, ctxerr.Wrap(ctx, fleet.NewInvalidArgumentError("category", "unsupported category: "+string(opts.Category)))
+			return nil, nil, ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("category", "unsupported category: "+string(opts.Category)))
 		}
 		where += ` AND action IN (?` + strings.Repeat(`, ?`, len(actions)-1) + `)`
 		for _, a := range actions {
@@ -729,14 +729,14 @@ ORDER BY tool_call_index`, slices.Clone(args), &listOpts, common_mysql.OrderKeyA
 	if err != nil {
 		return nil, nil, ctxerr.Wrap(ctx, err, "apply list options")
 	}
-	var events []*fleet.HostAISessionEvent
+	var events []*automdm.HostAISessionEvent
 	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &events, stmt, stmtArgs...); err != nil {
 		return nil, nil, ctxerr.Wrap(ctx, err, "list host ai session events")
 	}
 
-	var meta *fleet.PaginationMetadata
+	var meta *automdm.PaginationMetadata
 	if listOpts.IncludeMetadata {
-		meta = &fleet.PaginationMetadata{HasPreviousResults: listOpts.Page > 0}
+		meta = &automdm.PaginationMetadata{HasPreviousResults: listOpts.Page > 0}
 		if err := sqlx.GetContext(ctx, ds.reader(ctx), &meta.TotalResults, `SELECT COUNT(*)`+where, args...); err != nil {
 			return nil, nil, ctxerr.Wrap(ctx, err, "count host ai session events")
 		}
@@ -747,7 +747,7 @@ ORDER BY tool_call_index`, slices.Clone(args), &listOpts, common_mysql.OrderKeyA
 	}
 
 	if events == nil {
-		events = []*fleet.HostAISessionEvent{}
+		events = []*automdm.HostAISessionEvent{}
 	}
 	for _, e := range events {
 		e.Categories = aiSessionCategories(e.Action)

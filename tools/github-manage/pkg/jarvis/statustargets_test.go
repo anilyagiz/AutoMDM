@@ -23,16 +23,16 @@ func TestStatusTargets(t *testing.T) {
 		// Issue notification in another repo: included with its own repo.
 		mkNotification("fleetdm/confidential", "Issue", "https://api.github.com/repos/fleetdm/confidential/issues/40693"),
 		// PR notification: excluded.
-		mkNotification("fleetdm/fleet", "PullRequest", "https://api.github.com/repos/fleetdm/fleet/pulls/300"),
+		mkNotification("automdm/automdm", "PullRequest", "https://api.github.com/repos/automdm/automdm/pulls/300"),
 		// Duplicate of an assigned issue: deduped.
-		mkNotification("fleetdm/fleet", "Issue", "https://api.github.com/repos/fleetdm/fleet/issues/100"),
+		mkNotification("automdm/automdm", "Issue", "https://api.github.com/repos/automdm/automdm/issues/100"),
 		// No number (release notification): excluded.
-		mkNotification("fleetdm/fleet", "Release", "https://api.github.com/repos/fleetdm/fleet/releases/tag"),
+		mkNotification("automdm/automdm", "Release", "https://api.github.com/repos/automdm/automdm/releases/tag"),
 	}
 
-	got := statusTargets(issues, notifications, "fleetdm/fleet")
+	got := statusTargets(issues, notifications, "automdm/automdm")
 	want := []issueStatusTarget{
-		{repo: "fleetdm/fleet", number: 100},
+		{repo: "automdm/automdm", number: 100},
 		{repo: "fleetdm/confidential", number: 200},
 		{repo: "fleetdm/confidential", number: 40693},
 	}

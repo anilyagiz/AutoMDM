@@ -104,7 +104,7 @@ export default {
     const { team_id, ...restParams } = snakeCaseParams;
     const queryString = buildQueryStringFromParams({
       ...restParams,
-      fleet_id: team_id,
+      team_id: team_id,
     });
 
     return sendRequest(

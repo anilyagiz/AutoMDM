@@ -6,12 +6,12 @@ import (
 	"log/slog"
 	"net/http"
 
-	abmctx "github.com/fleetdm/fleet/v4/server/contexts/apple_bm"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/assets"
-	depclient "github.com/fleetdm/fleet/v4/server/mdm/nanodep/client"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanodep/storage"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	abmctx "github.com/anilyagiz/automdm/v4/server/contexts/apple_bm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/mdm/assets"
+	depclient "github.com/anilyagiz/automdm/v4/server/mdm/nanodep/client"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanodep/storage"
 )
 
 // SetABMTokenMetadata uses the provided ABM token to fetch the associated
@@ -20,9 +20,9 @@ import (
 // save it in the DB.
 func SetABMTokenMetadata(
 	ctx context.Context,
-	abmToken *fleet.ABMToken,
+	abmToken *automdm.ABMToken,
 	depStorage storage.AllDEPStorage,
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	logger *slog.Logger,
 	renewal bool,
 ) error {
@@ -38,10 +38,10 @@ const UnsavedABMTokenOrgName = "new_abm_token" //nolint:gosec
 
 func SetDecryptedABMTokenMetadata(
 	ctx context.Context,
-	abmToken *fleet.ABMToken,
+	abmToken *automdm.ABMToken,
 	decryptedToken *depclient.OAuth1Tokens,
 	depStorage storage.AllDEPStorage,
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	logger *slog.Logger,
 	renewal bool,
 ) error {
@@ -72,9 +72,9 @@ func SetDecryptedABMTokenMetadata(
 			// Request.
 			msg := err.Error()
 			if authErr.StatusCode == http.StatusUnauthorized {
-				msg = "The Apple Business certificate or server token is invalid. Restart Fleet with a valid certificate and token. See https://fleetdm.com/learn-more-about/setup-abm for help."
+				msg = "The Apple Business certificate or server token is invalid. Restart AutoMDM with a valid certificate and token. See https://automdm.com/learn-more-about/setup-abm for help."
 			}
-			return ctxerr.Wrap(ctx, &fleet.BadRequestError{
+			return ctxerr.Wrap(ctx, &automdm.BadRequestError{
 				Message:     msg,
 				InternalErr: err,
 			}, "apple GET /account request failed with authentication error")

@@ -6,10 +6,10 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/fleetdm/fleet/v4/ee/pkg/hostidentity/types"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/ee/pkg/hostidentity/types"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -70,7 +70,7 @@ func checkEnrollmentHoldsHostIdentityCert(
 		return ctxerr.Wrap(ctx, err, "check matched host identity certificate")
 	}
 	if unsignedForHost {
-		return ctxerr.Wrap(ctx, &fleet.EnrollmentRejectedError{Reason: fleet.EnrollmentRejectedHostIdentityCertRequired, HostID: &hostID},
+		return ctxerr.Wrap(ctx, &automdm.EnrollmentRejectedError{Reason: automdm.EnrollmentRejectedHostIdentityCertRequired, HostID: &hostID},
 			"enrollment not signed with the matched host's identity certificate")
 	}
 	return nil

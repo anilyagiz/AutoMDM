@@ -24,8 +24,8 @@ const MicrosoftGraphCredentialInvalidMessage = () => {
       }
     >
       Your Microsoft Graph client secret is expired, deleted, or has missing
-      permissions. Windows Autopilot devices won&apos;t sync to Fleet as pending
-      hosts. Users with the admin role in Fleet can update the credential.
+      permissions. Windows Autopilot devices won&apos;t sync to AutoMDM as pending
+      hosts. Users with the admin role in AutoMDM can update the credential.
     </InfoBanner>
   );
 };

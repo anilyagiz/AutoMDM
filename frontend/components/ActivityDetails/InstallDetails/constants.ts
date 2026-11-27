@@ -18,7 +18,7 @@ export const INSTALL_DETAILS_STATUS_ICONS: Record<
   pending_uninstall: "pending",
   failed_uninstall: "error",
   // Same "!" glyph as a failure, but the call site renders it muted grey
-  // (ui-fleet-black-50): a skip is deferred (app was open), not an error.
+  // (ui-automdm-black-50): a skip is deferred (app was open), not an error.
   skipped_install: "error",
 } as const;
 
@@ -26,7 +26,7 @@ export const SKIPPED_INSTALL_DETAILS_PREFIX =
   "The app was open. It will update once the user closes it and the ";
 export const SKIPPED_INSTALL_DETAILS_LINK_TEXT = "policy runs again";
 export const SKIPPED_INSTALL_DETAILS_LINK_URL =
-  "https://fleetdm.com/learn-more-about/policy-automations";
+  "https://automdm.com/learn-more-about/policy-automations";
 
 export const SKIPPED_INSTALL_DETAILS = `${SKIPPED_INSTALL_DETAILS_PREFIX}${SKIPPED_INSTALL_DETAILS_LINK_TEXT}.`;
 
@@ -34,9 +34,9 @@ export const SKIPPED_INSTALL_DETAILS = `${SKIPPED_INSTALL_DETAILS_PREFIX}${SKIPP
 export const SKIPPED_PRE_INSTALL_OUTPUT =
   "Query didn't return result or failed\nThe app was open";
 export const SKIPPED_PRE_INSTALL_OUTPUT_NOTIFY =
-  "Query didn't return result or failed\nThe app was open. Fleet notifies the end user 1 hour before the patch is forced.";
+  "Query didn't return result or failed\nThe app was open. AutoMDM notifies the end user 1 hour before the patch is forced.";
 export const SKIPPED_PRE_INSTALL_OUTPUT_DEADLINE =
-  "Query didn't return result or failed\nThe app was open. Fleet notifies the end user 1 hour before the patch deadline.";
+  "Query didn't return result or failed\nThe app was open. AutoMDM notifies the end user 1 hour before the patch deadline.";
 export const PRE_INSTALL_QUERY_FAIL_OUTPUT =
   "Query didn't return result or failed\nInstall stopped";
 

@@ -91,7 +91,7 @@ const DigicertForm = ({
         value={name}
         onChange={onInputChange}
         error={formValidation.name?.message}
-        helpText="Letters, numbers, and underscores only. Fleet will create configuration profile variables with the name as suffix (e.g. $FLEET_VAR_DIGICERT_DATA_WIFI_CERTIFICATE)."
+        helpText="Letters, numbers, and underscores only. AutoMDM will create configuration profile variables with the name as suffix (e.g. $AUTOMDM_VAR_DIGICERT_DATA_WIFI_CERTIFICATE)."
         parseTarget
         placeholder="WIFI_CERTIFICATE"
         inputOptions={{ maxLength: MAX_ENTITY_CHAR_LENGTH }}
@@ -138,7 +138,7 @@ const DigicertForm = ({
         onChange={onInputChange}
         parseTarget
         helpText="Certificates delivered to your hosts will have this CN in the subject."
-        placeholder="$FLEET_VAR_HOST_HARDWARE_SERIAL"
+        placeholder="$AUTOMDM_VAR_HOST_HARDWARE_SERIAL"
       />
       <InputField
         name="userPrincipalName"
@@ -147,7 +147,7 @@ const DigicertForm = ({
         onChange={onInputChange}
         parseTarget
         helpText="Certificates delivered to your hosts will have this UPN attribute in Subject Alternative Name (SAN). (optional)"
-        placeholder="$FLEET_VAR_HOST_HARDWARE_SERIAL"
+        placeholder="$AUTOMDM_VAR_HOST_HARDWARE_SERIAL"
       />
       <InputField
         name="certificateSeatId"
@@ -156,7 +156,7 @@ const DigicertForm = ({
         onChange={onInputChange}
         parseTarget
         helpText="Certificates delivered to your hosts will be assigned to this seat ID in DigiCert."
-        placeholder="$FLEET_VAR_HOST_HARDWARE_SERIAL"
+        placeholder="$AUTOMDM_VAR_HOST_HARDWARE_SERIAL"
       />
       <div className="modal-cta-wrap">
         <TooltipWrapper

@@ -29,7 +29,7 @@ export interface IScriptsResponse {
 export interface IListScriptsApiParams {
   page?: number;
   per_page?: number;
-  fleet_id?: number;
+  team_id?: number;
 }
 
 export interface IListScriptsQueryKey extends IListScriptsApiParams {
@@ -82,7 +82,7 @@ export interface IHostScriptsResponse {
 /**
  * Request body for POST /scripts/run
  *
- * https://github.com/fleetdm/fleet/blob/main/docs/Contributing/reference/api-for-contributors.md#run-script-asynchronously
+ * https://github.com/anilyagiz/automdm/blob/main/docs/Contributing/reference/api-for-contributors.md#run-script-asynchronously
  */
 export interface IScriptRunFormData {
   host_id: number;
@@ -93,7 +93,7 @@ export interface IScriptRunFormData {
 /**
  * Response body for POST /scripts/run
  *
- * https://github.com/fleetdm/fleet/blob/main/docs/Contributing/reference/api-for-contributors.md#run-script-asynchronously
+ * https://github.com/anilyagiz/automdm/blob/main/docs/Contributing/reference/api-for-contributors.md#run-script-asynchronously
  */
 export interface IScriptRunResponse {
   host_id: number;
@@ -101,7 +101,7 @@ export interface IScriptRunResponse {
 }
 
 export interface IScriptBatchSupportedFilters {
-  // a search string, not a Fleet.Query
+  // a search string, not an AutoMDM.Query
   query?: string;
   label_id?: number;
   team_id?: number;
@@ -160,10 +160,10 @@ export interface IScriptBatchSummaryV2 extends IScriptBatchHostCountsV2 {
   created_at: string;
   script_id: number;
   script_name: string;
-  fleet_id: number;
+  team_id: number;
   status: ScriptBatchStatus;
   canceled: boolean;
-  /** ISO 8601 date-time string. Always present as of Fleet 4.73.0 - `null`able for backwards compatibility with older batch runs. */
+  /** ISO 8601 date-time string. Always present as of AutoMDM 4.73.0 - `null`able for backwards compatibility with older batch runs. */
   not_before: string | null;
   // /** ISO 8601 date-time string. If present, this script batch run has started. */
   started_at: string | null;
@@ -172,7 +172,7 @@ export interface IScriptBatchSummaryV2 extends IScriptBatchHostCountsV2 {
 }
 
 export interface IScriptBatchSummariesParams {
-  fleet_id: number;
+  team_id: number;
   status: ScriptBatchStatus;
   page: number;
   per_page: number;
@@ -253,7 +253,7 @@ export default {
     formData.append("script", file);
 
     if (teamId) {
-      formData.append("fleet_id", teamId.toString());
+      formData.append("team_id", teamId.toString());
     }
 
     return sendRequest("POST", SCRIPTS, formData);

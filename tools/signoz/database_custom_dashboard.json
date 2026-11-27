@@ -1,12 +1,12 @@
 {
-  "title": "Fleet DB & Connection Observability",
+  "title": "AutoMDM DB & Connection Observability",
   "description": "MySQL client observability from db.sql.* instrumentation: query rate, latency, error rate, and connection-pool health.",
   "tags": ["mysql", "database"],
   "variables": {
     "environment": {
       "id": "environment",
       "name": "environment",
-      "description": "Deployment environment to view, auto-discovered from the deployment.environment resource attribute. Fleet always emits deployment.environment (default value 'default', overridable via OTEL_RESOURCE_ATTRIBUTES) so this key exists in every SigNoz instance Fleet reports to, which makes the dynamic lookup safe. Defaults to ALL so all environments show.",
+      "description": "Deployment environment to view, auto-discovered from the deployment.environment resource attribute. AutoMDM always emits deployment.environment (default value 'default', overridable via OTEL_RESOURCE_ATTRIBUTES) so this key exists in every SigNoz instance AutoMDM reports to, which makes the dynamic lookup safe. Defaults to ALL so all environments show.",
       "type": "DYNAMIC",
       "dynamicVariablesAttribute": "deployment.environment",
       "dynamicVariablesSource": "Metrics",
@@ -125,7 +125,7 @@
               ],
               "dataSource": "metrics",
               "filter": {
-                "expression": "service.name = 'fleet' AND deployment.environment IN $environment"
+                "expression": "service.name = 'automdm' AND deployment.environment IN $environment"
               },
               "functions": [],
               "groupBy": [],
@@ -161,7 +161,7 @@
               "disabled": true,
               "expression": "A",
               "filter": {
-                "expression": "service.name = 'fleet' AND deployment.environment IN $environment"
+                "expression": "service.name = 'automdm' AND deployment.environment IN $environment"
               },
               "functions": [],
               "groupBy": [],
@@ -188,7 +188,7 @@
               "disabled": true,
               "expression": "A",
               "filter": {
-                "expression": "service.name = 'fleet' AND deployment.environment IN $environment"
+                "expression": "service.name = 'automdm' AND deployment.environment IN $environment"
               },
               "functions": [],
               "groupBy": [],
@@ -264,7 +264,7 @@
               "disabled": false,
               "expression": "A",
               "filter": {
-                "expression": "service.name = 'fleet' AND deployment.environment IN $environment"
+                "expression": "service.name = 'automdm' AND deployment.environment IN $environment"
               },
               "functions": [],
               "groupBy": [],
@@ -384,7 +384,7 @@
               "disabled": false,
               "expression": "A",
               "filter": {
-                "expression": "service.name = 'fleet' AND deployment.environment IN $environment"
+                "expression": "service.name = 'automdm' AND deployment.environment IN $environment"
               },
               "functions": [],
               "groupBy": [
@@ -511,7 +511,7 @@
               "disabled": false,
               "expression": "A",
               "filter": {
-                "expression": "service.name = 'fleet' AND deployment.environment IN $environment"
+                "expression": "service.name = 'automdm' AND deployment.environment IN $environment"
               },
               "functions": [],
               "groupBy": [],
@@ -539,7 +539,7 @@
               "disabled": false,
               "expression": "B",
               "filter": {
-                "expression": "service.name = 'fleet' AND deployment.environment IN $environment"
+                "expression": "service.name = 'automdm' AND deployment.environment IN $environment"
               },
               "functions": [],
               "groupBy": [],
@@ -666,7 +666,7 @@
               "disabled": false,
               "expression": "A",
               "filter": {
-                "expression": "service.name = 'fleet' AND deployment.environment IN $environment"
+                "expression": "service.name = 'automdm' AND deployment.environment IN $environment"
               },
               "functions": [],
               "groupBy": [],
@@ -786,7 +786,7 @@
               "disabled": false,
               "expression": "A",
               "filter": {
-                "expression": "service.name = 'fleet' AND deployment.environment IN $environment"
+                "expression": "service.name = 'automdm' AND deployment.environment IN $environment"
               },
               "functions": [],
               "groupBy": [],
@@ -906,7 +906,7 @@
               "disabled": false,
               "expression": "A",
               "filter": {
-                "expression": "service.name = 'fleet' AND status IN (\"idle\") AND deployment.environment IN $environment"
+                "expression": "service.name = 'automdm' AND status IN (\"idle\") AND deployment.environment IN $environment"
               },
               "functions": [],
               "groupBy": [],
@@ -1026,7 +1026,7 @@
               "disabled": false,
               "expression": "A",
               "filter": {
-                "expression": "service.name = 'fleet' AND deployment.environment IN $environment"
+                "expression": "service.name = 'automdm' AND deployment.environment IN $environment"
               },
               "functions": [],
               "groupBy": [],
@@ -1054,7 +1054,7 @@
               "disabled": false,
               "expression": "B",
               "filter": {
-                "expression": "service.name = 'fleet' AND deployment.environment IN $environment"
+                "expression": "service.name = 'automdm' AND deployment.environment IN $environment"
               },
               "functions": [],
               "groupBy": [],
@@ -1181,7 +1181,7 @@
               "disabled": false,
               "expression": "A",
               "filter": {
-                "expression": "service.name = 'fleet' AND deployment.environment IN $environment"
+                "expression": "service.name = 'automdm' AND deployment.environment IN $environment"
               },
               "functions": [],
               "groupBy": [],
@@ -1209,7 +1209,7 @@
               "disabled": false,
               "expression": "B",
               "filter": {
-                "expression": "service.name = 'fleet' AND deployment.environment IN $environment"
+                "expression": "service.name = 'automdm' AND deployment.environment IN $environment"
               },
               "functions": [],
               "groupBy": [],
@@ -1336,7 +1336,7 @@
               "disabled": false,
               "expression": "A",
               "filter": {
-                "expression": "service.name = 'fleet' AND deployment.environment IN $environment"
+                "expression": "service.name = 'automdm' AND deployment.environment IN $environment"
               },
               "functions": [],
               "groupBy": [],
@@ -1456,7 +1456,7 @@
               "disabled": false,
               "expression": "A",
               "filter": {
-                "expression": "service.name = 'fleet' AND deployment.environment IN $environment"
+                "expression": "service.name = 'automdm' AND deployment.environment IN $environment"
               },
               "functions": [],
               "groupBy": [],

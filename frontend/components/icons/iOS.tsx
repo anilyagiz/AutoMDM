@@ -8,7 +8,7 @@ interface IiOSProps {
   size?: IconSizes;
 }
 
-const iOS = ({ color = "ui-fleet-black-75", size = "medium" }: IiOSProps) => {
+const iOS = ({ color = "ui-automdm-black-75", size = "medium" }: IiOSProps) => {
   return (
     <svg
       width={ICON_SIZES[size]}

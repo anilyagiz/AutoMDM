@@ -6,13 +6,13 @@ import (
 	"net/url"
 	"strconv"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/platform/endpointer"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/platform/endpointer"
 )
 
 // ListTeams retrieves the list of teams.
-func (c *Client) ListTeams(query string) ([]fleet.Team, error) {
-	verb, path := "GET", "/api/latest/fleet/fleets"
+func (c *Client) ListTeams(query string) ([]automdm.Team, error) {
+	verb, path := "GET", "/api/latest/automdm/teams"
 	var responseBody listTeamsResponse
 	err := c.authenticatedRequestWithQuery(nil, verb, path, &responseBody, query)
 	if err != nil {
@@ -22,11 +22,11 @@ func (c *Client) ListTeams(query string) ([]fleet.Team, error) {
 }
 
 // CreateTeam creates a new team.
-func (c *Client) CreateTeam(teamPayload fleet.TeamPayload) (*fleet.Team, error) {
+func (c *Client) CreateTeam(teamPayload automdm.TeamPayload) (*automdm.Team, error) {
 	req := createTeamRequest{
 		TeamPayload: teamPayload,
 	}
-	verb, path := "POST", "/api/latest/fleet/fleets"
+	verb, path := "POST", "/api/latest/automdm/teams"
 	var responseBody teamResponse
 	err := c.authenticatedRequest(req, verb, path, &responseBody)
 	if err != nil {
@@ -35,8 +35,8 @@ func (c *Client) CreateTeam(teamPayload fleet.TeamPayload) (*fleet.Team, error) 
 	return responseBody.Team, nil
 }
 
-func (c *Client) GetTeam(teamID uint) (*fleet.Team, error) {
-	verb, path := "GET", fmt.Sprintf("/api/latest/fleet/fleets/%d", teamID)
+func (c *Client) GetTeam(teamID uint) (*automdm.Team, error) {
+	verb, path := "GET", fmt.Sprintf("/api/latest/automdm/teams/%d", teamID)
 	var responseBody getTeamResponse
 	if err := c.authenticatedRequest(nil, verb, path, &responseBody); err != nil {
 		return nil, err
@@ -46,18 +46,18 @@ func (c *Client) GetTeam(teamID uint) (*fleet.Team, error) {
 
 // DeleteTeam deletes a team.
 func (c *Client) DeleteTeam(teamID uint) error {
-	verb, path := "DELETE", "/api/latest/fleet/fleets/"+strconv.FormatUint(uint64(teamID), 10)
+	verb, path := "DELETE", "/api/latest/automdm/teams/"+strconv.FormatUint(uint64(teamID), 10)
 	var responseBody deleteTeamResponse
 	return c.authenticatedRequest(nil, verb, path, &responseBody)
 }
 
 // ApplyTeams sends the list of Teams to be applied to the
-// Fleet instance.
-func (c *Client) ApplyTeams(specs []json.RawMessage, opts fleet.ApplyTeamSpecOptions) (map[string]uint, error) {
-	verb, path := "POST", "/api/latest/fleet/spec/fleets"
+// AutoMDM instance.
+func (c *Client) ApplyTeams(specs []json.RawMessage, opts automdm.ApplyTeamSpecOptions) (map[string]uint, error) {
+	verb, path := "POST", "/api/latest/automdm/spec/teams"
 	var responseBody applyTeamSpecsResponse
 	// Rewrite deprecated key names in each team spec to use the new names.
-	rules := endpointer.ExtractAliasRules(fleet.TeamSpec{})
+	rules := endpointer.ExtractAliasRules(automdm.TeamSpec{})
 	rewritten := make([]json.RawMessage, len(specs))
 	for i, spec := range specs {
 		updated, err := endpointer.RewriteOldToNewKeys(spec, rules)
@@ -77,22 +77,22 @@ func (c *Client) ApplyTeams(specs []json.RawMessage, opts fleet.ApplyTeamSpecOpt
 	return responseBody.TeamIDsByName, nil
 }
 
-// PatchFleet sends a partial update to the specified team.
-func (c *Client) PatchFleet(teamID uint, payload fleet.TeamPayload) error {
-	verb, path := "PATCH", "/api/latest/fleet/fleets/"+strconv.FormatUint(uint64(teamID), 10)
+// PatchAutoMDM sends a partial update to the specified team.
+func (c *Client) PatchAutoMDM(teamID uint, payload automdm.TeamPayload) error {
+	verb, path := "PATCH", "/api/latest/automdm/teams/"+strconv.FormatUint(uint64(teamID), 10)
 	var resp teamResponse
 	return c.authenticatedRequest(payload, verb, path, &resp)
 }
 
 // ApplyTeamProfiles sends the list of profiles to be applied for the specified
 // team.
-func (c *Client) ApplyTeamProfiles(tmName string, profiles []fleet.MDMProfileBatchPayload, opts fleet.ApplyTeamSpecOptions) error {
-	verb, path := "POST", "/api/latest/fleet/mdm/profiles/batch"
+func (c *Client) ApplyTeamProfiles(tmName string, profiles []automdm.MDMProfileBatchPayload, opts automdm.ApplyTeamSpecOptions) error {
+	verb, path := "POST", "/api/latest/automdm/mdm/profiles/batch"
 	query, err := url.ParseQuery(opts.RawQuery())
 	if err != nil {
 		return err
 	}
-	query.Add("fleet_name", tmName)
+	query.Add("team_name", tmName)
 	if opts.DryRunAssumptions != nil && opts.DryRunAssumptions.WindowsEnabledAndConfigured.Valid {
 		query.Add("assume_enabled", strconv.FormatBool(opts.DryRunAssumptions.WindowsEnabledAndConfigured.Value))
 	}
@@ -105,57 +105,57 @@ func (c *Client) ApplyTeamProfiles(tmName string, profiles []fleet.MDMProfileBat
 
 // applyDDMAssets sets the complete desired set of Apple DDM assets for the
 // given team (empty team name targets "No team"). It is used by GitOps.
-func (c *Client) applyDDMAssets(tmName string, assets []fleet.MDMAppleDDMAssetBatchPayload, opts fleet.ApplySpecOptions) error {
-	verb, path := "POST", "/api/latest/fleet/assets/batch"
+func (c *Client) applyDDMAssets(tmName string, assets []automdm.MDMAppleDDMAssetBatchPayload, opts automdm.ApplySpecOptions) error {
+	verb, path := "POST", "/api/latest/automdm/assets/batch"
 	query, err := url.ParseQuery(opts.RawQuery())
 	if err != nil {
 		return err
 	}
 	if tmName != "" {
-		query.Add("fleet_name", tmName)
+		query.Add("team_name", tmName)
 	}
 	return c.authenticatedRequestWithQuery(map[string]any{"assets": assets}, verb, path, nil, query.Encode())
 }
 
 // ApplyTeamScripts sends the list of scripts to be applied for the specified
 // team.
-func (c *Client) ApplyTeamScripts(tmName string, scripts []fleet.ScriptPayload, opts fleet.ApplySpecOptions) ([]fleet.ScriptResponse, error) {
-	verb, path := "POST", "/api/latest/fleet/scripts/batch"
+func (c *Client) ApplyTeamScripts(tmName string, scripts []automdm.ScriptPayload, opts automdm.ApplySpecOptions) ([]automdm.ScriptResponse, error) {
+	verb, path := "POST", "/api/latest/automdm/scripts/batch"
 	query, err := url.ParseQuery(opts.RawQuery())
 	if err != nil {
 		return nil, err
 	}
-	query.Add("fleet_name", tmName)
+	query.Add("team_name", tmName)
 
-	var resp fleet.BatchSetScriptsResponse
+	var resp automdm.BatchSetScriptsResponse
 	err = c.authenticatedRequestWithQuery(map[string]interface{}{"scripts": scripts}, verb, path, &resp, query.Encode())
 	return resp.Scripts, rewrapScriptBatchIndexErr(err, scripts)
 }
 
 func (c *Client) ApplyTeamSoftwareInstallers(
 	tmName string,
-	softwareInstallers []fleet.SoftwareInstallerPayload,
-	opts fleet.ApplySpecOptions,
+	softwareInstallers []automdm.SoftwareInstallerPayload,
+	opts automdm.ApplySpecOptions,
 	logFn func(format string, args ...any),
-) ([]fleet.SoftwarePackageResponse, []fleet.DeletedSoftwarePackage, []string, error) {
+) ([]automdm.SoftwarePackageResponse, []automdm.DeletedSoftwarePackage, []string, error) {
 	query, err := url.ParseQuery(opts.RawQuery())
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	query.Add("fleet_name", tmName)
+	query.Add("team_name", tmName)
 	return c.applySoftwareInstallers(softwareInstallers, query, opts.DryRun, logFn)
 }
 
-func (c *Client) ApplyTeamAppStoreAppsAssociation(tmName string, vppBatchPayload []fleet.VPPBatchPayload, opts fleet.ApplySpecOptions) ([]fleet.VPPAppResponse, []string, error) {
+func (c *Client) ApplyTeamAppStoreAppsAssociation(tmName string, vppBatchPayload []automdm.VPPBatchPayload, opts automdm.ApplySpecOptions) ([]automdm.VPPAppResponse, []string, error) {
 	query, err := url.ParseQuery(opts.RawQuery())
 	if err != nil {
 		return nil, nil, err
 	}
-	query.Add("fleet_name", tmName)
+	query.Add("team_name", tmName)
 	return c.applyAppStoreAppsAssociation(vppBatchPayload, query)
 }
 
-func (c *Client) ApplyNoTeamAppStoreAppsAssociation(vppBatchPayload []fleet.VPPBatchPayload, opts fleet.ApplySpecOptions) ([]fleet.VPPAppResponse, []string, error) {
+func (c *Client) ApplyNoTeamAppStoreAppsAssociation(vppBatchPayload []automdm.VPPBatchPayload, opts automdm.ApplySpecOptions) ([]automdm.VPPAppResponse, []string, error) {
 	query, err := url.ParseQuery(opts.RawQuery())
 	if err != nil {
 		return nil, nil, err
@@ -163,8 +163,8 @@ func (c *Client) ApplyNoTeamAppStoreAppsAssociation(vppBatchPayload []fleet.VPPB
 	return c.applyAppStoreAppsAssociation(vppBatchPayload, query)
 }
 
-func (c *Client) applyAppStoreAppsAssociation(vppBatchPayload []fleet.VPPBatchPayload, query url.Values) ([]fleet.VPPAppResponse, []string, error) {
-	verb, path := "POST", "/api/latest/fleet/software/app_store_apps/batch"
+func (c *Client) applyAppStoreAppsAssociation(vppBatchPayload []automdm.VPPBatchPayload, query url.Values) ([]automdm.VPPAppResponse, []string, error) {
+	verb, path := "POST", "/api/latest/automdm/software/app_store_apps/batch"
 	var appsResponse batchAssociateAppStoreAppsResponse
 	err := c.authenticatedRequestWithQuery(map[string]interface{}{"app_store_apps": vppBatchPayload}, verb, path, &appsResponse, query.Encode())
 	if err != nil {
@@ -175,8 +175,8 @@ func (c *Client) applyAppStoreAppsAssociation(vppBatchPayload []fleet.VPPBatchPa
 
 // matchAppStoreAppCustomIcons hydrates VPP responses with references to icons in the request payload, so we can track
 // which API calls to make to add/update/delete icons
-func matchAppStoreAppCustomIcons(request []fleet.VPPBatchPayload, response []fleet.VPPAppResponse) []fleet.VPPAppResponse {
-	byAdamID := make(map[string]fleet.VPPBatchPayload)
+func matchAppStoreAppCustomIcons(request []automdm.VPPBatchPayload, response []automdm.VPPAppResponse) []automdm.VPPAppResponse {
+	byAdamID := make(map[string]automdm.VPPBatchPayload)
 	for _, clientSide := range request {
 		byAdamID[clientSide.AppStoreID] = clientSide
 	}

@@ -12,44 +12,44 @@ All commands were tested on an Intel macOS.
 ```mermaid
 graph LR;
     tuf[TUF file server<br>http://host.docker.internal:8081];
-    fleet_server[Fleet Server<br>https://host.docker.internal:8080];
+    automdm_server[AutoMDM Server<br>https://host.docker.internal:8080];
     subgraph nginx[<b>nginx</b> https://host.docker.internal:8888]
         client_ca[client_ca.crt];
-        server_certificate_nginx[fleet.pem];
+        server_certificate_nginx[automdm.pem];
     end
-    nginx -- TLS Fleet --> fleet_server;
+    nginx -- TLS AutoMDM --> automdm_server;
     nginx -- HTTP /tuf --> tuf;
 
-    subgraph fleetd
+    subgraph automdmd
         subgraph orbit
-            fleet_client_certificate_orbit[fleet_client.crt<br>fleet_client.key];
+            automdm_client_certificate_orbit[automdm_client.crt<br>automdm_client.key];
             update_client_certificate_orbit[update_client.crt<br>update_client.key];
-            fleet_server_certificate_orbit[fleet.pem];
+            automdm_server_certificate_orbit[automdm.pem];
             update_server_certificate_orbit[update.pem];
         end
-        subgraph desktop [Fleet Desktop]
-            client_certificate_desktop["(from env)<br>fleet_client.crt<br>fleet_client.key"];
-            server_certificate_desktop["(from env)<br>fleet.pem"];
+        subgraph desktop [AutoMDM Desktop]
+            client_certificate_desktop["(from env)<br>automdm_client.crt<br>automdm_client.key"];
+            server_certificate_desktop["(from env)<br>automdm.pem"];
         end
         subgraph osquery[osquery];
-            client_certificate_osquery[--tls_client_cert=fleet_client.crt<br>--tls_client_key=fleet_client.key];
-            server_certificate_osquery[--tls_server_certs=fleet.pem];
+            client_certificate_osquery[--tls_client_cert=automdm_client.crt<br>--tls_client_key=automdm_client.key];
+            server_certificate_osquery[--tls_server_certs=automdm.pem];
         end
 
-        desktop_browser[Fleet Desktop<br> from Browser];
+        desktop_browser[AutoMDM Desktop<br> from Browser];
     end
 
-    orbit -- "Fleet Orbit API (TLS)" --> nginx;
-    desktop -- "Fleet Desktop API (TLS)" --> nginx;
+    orbit -- "AutoMDM Orbit API (TLS)" --> nginx;
+    desktop -- "AutoMDM Desktop API (TLS)" --> nginx;
     osquery -- "osquery<br>remote API (TLS)" --> nginx;
-    desktop_browser -- "My Device URL (TLS)" --> fleet_server;
+    desktop_browser -- "My Device URL (TLS)" --> automdm_server;
 
     orbit -- TUF TLS --> nginx;
 
-    subgraph fleetctl[fleetctl package command]
-        update_client_certificate_fleetctl[update_client.crt<br>update_client.key];
+    subgraph automdmctl[automdmctl package command]
+        update_client_certificate_automdmctl[update_client.crt<br>update_client.key];
     end
-    fleetctl -- TUF TLS --> nginx;
+    automdmctl -- TUF TLS --> nginx;
 ```
 
 The nginx proxy is configured to authenticate all TLS requests with the provided `client_ca.crt`.
@@ -74,27 +74,27 @@ The proxy will listen to port 8888 and use TLS client certificates for authentic
 rm -rf test_tuf
 
 SYSTEMS="macos windows linux" \
-PKG_FLEET_URL=https://host.docker.internal:8888 \
+PKG_AUTOMDM_URL=https://host.docker.internal:8888 \
 PKG_TUF_URL=https://host.docker.internal:8888/tuf \
-DEB_FLEET_URL=https://host.docker.internal:8888 \
+DEB_AUTOMDM_URL=https://host.docker.internal:8888 \
 DEB_TUF_URL=https://host.docker.internal:8888/tuf \
-RPM_FLEET_URL=https://host.docker.internal:8888 \
+RPM_AUTOMDM_URL=https://host.docker.internal:8888 \
 RPM_TUF_URL=https://host.docker.internal:8888/tuf \
-MSI_FLEET_URL=https://host.docker.internal:8888 \
+MSI_AUTOMDM_URL=https://host.docker.internal:8888 \
 MSI_TUF_URL=https://host.docker.internal:8888/tuf \
 GENERATE_PKG=1 \
 GENERATE_DEB=1 \
 GENERATE_RPM=1 \
 GENERATE_MSI=1 \
 ENROLL_SECRET=OokY/M85nibwa3WjDtC091QzXqkoVCwX \
-FLEET_DESKTOP=1 \
-USE_FLEET_CLIENT_CERTIFICATE=1 \
+AUTOMDM_DESKTOP=1 \
+USE_AUTOMDM_CLIENT_CERTIFICATE=1 \
 USE_UPDATE_SERVER_CERTIFICATE=1 \
 USE_UPDATE_CLIENT_CERTIFICATE=1 \
-FLEET_DESKTOP_ALTERNATIVE_BROWSER_HOST=host.docker.internal:8080 \
+AUTOMDM_DESKTOP_ALTERNATIVE_BROWSER_HOST=host.docker.internal:8080 \
 ./tools/tuf/test/main.sh
 ```
 
-We need to define `FLEET_DESKTOP_ALTERNATIVE_BROWSER_HOST` because we are not expecting users to configure client certificates on their browser.
+We need to define `AUTOMDM_DESKTOP_ALTERNATIVE_BROWSER_HOST` because we are not expecting users to configure client certificates on their browser.
 
 Once the packages are generated, they are ready to be installed on devices for testing.

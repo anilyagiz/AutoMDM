@@ -16,7 +16,7 @@
     min-width: 250px;
     font-size: $small;
     font-weight: $regular;
-    color: $ui-fleet-black-75;
+    color: $ui-automdm-black-75;
     position: relative;
     display: flex;
     flex-direction: column;
@@ -30,13 +30,13 @@
       position: absolute;
       width: 225px;
       height: 2px;
-      background-color: $ui-fleet-black-25;
+      background-color: $ui-automdm-black-25;
       top: 42px;
       left: 137px;
     }
 
     &::after {
-      @extend %fleeticon;
+      @extend %automdmicon;
       @include size(24px);
       min-height: 24px;
       background-color: transparent;
@@ -51,7 +51,7 @@
     }
 
     &:focus-visible {
-      outline: 1px solid $core-fleet-black;
+      outline: 1px solid $core-automdm-black;
       border-radius: $border-radius;
     }
 
@@ -61,19 +61,19 @@
 
     &--1 {
       &::after {
-        outline: 2px solid $ui-fleet-black-75;
+        outline: 2px solid $ui-automdm-black-75;
       }
 
       &.registration-breadcrumbs__page--active {
         &::after {
           background-color: transparent;
-          outline: 2px solid $ui-fleet-black-75;
+          outline: 2px solid $ui-automdm-black-75;
         }
       }
 
       &.registration-breadcrumbs__page--complete {
         &::before {
-          background: $ui-fleet-black-75;
+          background: $ui-automdm-black-75;
           background-size: auto;
           z-index: 2;
         }
@@ -81,7 +81,7 @@
         &::after {
           @include size(28px);
           content: "\f035";
-          color: $ui-fleet-black-75;
+          color: $ui-automdm-black-75;
           outline: 0;
         }
       }
@@ -89,26 +89,26 @@
 
     &--2 {
       &::after {
-        outline: solid 1px $ui-fleet-black-25;
+        outline: solid 1px $ui-automdm-black-25;
       }
 
       &.registration-breadcrumbs__page--active {
         &::after {
           background-color: transparent;
-          outline: 2px solid $ui-fleet-black-75;
+          outline: 2px solid $ui-automdm-black-75;
         }
       }
 
       &.registration-breadcrumbs__page--complete {
         &::before {
-          background: $ui-fleet-black-75;
+          background: $ui-automdm-black-75;
           z-index: 2;
         }
 
         &::after {
           @include size(28px);
           content: "\f035";
-          color: $ui-fleet-black-75;
+          color: $ui-automdm-black-75;
           outline: 0;
         }
       }
@@ -120,13 +120,13 @@
       }
 
       &::after {
-        outline: solid 1px $ui-fleet-black-25;
+        outline: solid 1px $ui-automdm-black-25;
       }
 
       &.registration-breadcrumbs__page--active {
         &::after {
           background-color: transparent;
-          outline: 2px solid $ui-fleet-black-75;
+          outline: 2px solid $ui-automdm-black-75;
         }
       }
 
@@ -134,7 +134,7 @@
         &::after {
           @include size(28px);
           content: "\f035";
-          color: $ui-fleet-black-75;
+          color: $ui-automdm-black-75;
           outline: 0;
         }
       }

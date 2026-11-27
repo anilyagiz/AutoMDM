@@ -11,5 +11,5 @@ go build -o qacheck .
 
 ## Run
 
-./qacheck -org fleetdm -project 71
-./qacheck -org fleetdm -project 97
+./qacheck -org automdm -project 71
+./qacheck -org automdm -project 97

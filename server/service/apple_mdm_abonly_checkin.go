@@ -3,19 +3,19 @@ package service
 import (
 	"log/slog"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
-	nano_service "github.com/fleetdm/fleet/v4/server/mdm/nanomdm/service"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
+	nano_service "github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/service"
 )
 
 // abOnlyEnrollmentCheckinService wraps the full MDM checkin/command service chain
-// (nanomdm's core service plus Fleet's own, dispatched together via multi.New) so that
+// (nanomdm's core service plus AutoMDM's own, dispatched together via multi.New) so that
 // rejecting an Authenticate actually reaches the device.
 //
 // multi.New treats every service after the first as a "sub service": their errors are only
 // logged (see MultiService.runOthers), never returned to the HTTP caller — only the first
-// service's return value determines the response. Fleet's own checkin service is registered
+// service's return value determines the response. AutoMDM's own checkin service is registered
 // as a sub service on purpose (its many side effects — host creation, activity logging —
 // must not fail the live MDM protocol handshake if e.g. a DB write has a transient error), so
 // a business rule that needs to actually block enrollment cannot live there. This wrapper is
@@ -23,12 +23,12 @@ import (
 // return value is what the HTTP handler sees.
 type abOnlyEnrollmentCheckinService struct {
 	nano_service.CheckinAndCommandService
-	ds     fleet.Datastore
+	ds     automdm.Datastore
 	logger *slog.Logger
 }
 
 // newABOnlyEnrollmentCheckinService wraps next with the Apple Business-only enrollment check.
-func newABOnlyEnrollmentCheckinService(next nano_service.CheckinAndCommandService, ds fleet.Datastore, logger *slog.Logger) nano_service.CheckinAndCommandService {
+func newABOnlyEnrollmentCheckinService(next nano_service.CheckinAndCommandService, ds automdm.Datastore, logger *slog.Logger) nano_service.CheckinAndCommandService {
 	return &abOnlyEnrollmentCheckinService{CheckinAndCommandService: next, ds: ds, logger: logger}
 }
 
@@ -50,7 +50,7 @@ func (s *abOnlyEnrollmentCheckinService) Authenticate(r *mdm.Request, m *mdm.Aut
 			s.logger.InfoContext(r.Context, "rejecting enrollment: serial not assigned in Apple Business",
 				"udid", m.UDID, "serial", m.SerialNumber,
 			)
-			returnErr := fleet.ABOnlyEnrollmentForbiddenError{}
+			returnErr := automdm.ABOnlyEnrollmentForbiddenError{}
 			return nano_service.NewHTTPStatusError(returnErr.StatusCode(), &returnErr)
 		}
 	}

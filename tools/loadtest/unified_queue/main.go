@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/service"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/service"
 )
 
 func printf(format string, a ...any) {
@@ -19,14 +19,14 @@ func printf(format string, a ...any) {
 }
 
 func main() {
-	fleetURL := flag.String("fleet_url", "", "URL (with protocol and port of Fleet server)")
+	automdmURL := flag.String("automdm_url", "", "URL (with protocol and port of AutoMDM server)")
 	apiToken := flag.String("api_token", "", "API authentication token to use on API calls")
 	debug := flag.Bool("debug", false, "Debug mode")
 
 	flag.Parse()
 
-	if *fleetURL == "" {
-		log.Fatal("missing fleet_url argument")
+	if *automdmURL == "" {
+		log.Fatal("missing automdm_url argument")
 	}
 	if *apiToken == "" {
 		log.Fatal("missing api_token argument")
@@ -35,7 +35,7 @@ func main() {
 	if *debug {
 		clientOpts = append(clientOpts, service.EnableClientDebug())
 	}
-	apiClient, err := service.NewClient(*fleetURL, true, "", "", clientOpts...)
+	apiClient, err := service.NewClient(*automdmURL, true, "", "", clientOpts...)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -62,7 +62,7 @@ func main() {
 		}
 		hostID, _ := strconv.Atoi(record[0])
 		hostname := record[1]
-		platform := fleet.PlatformFromHost(record[2])
+		platform := automdm.PlatformFromHost(record[2])
 		switch platform {
 		case "linux":
 			linuxHosts = append(linuxHosts, smallHost{ID: uint(hostID), Hostname: hostname, Platform: platform}) // nolint:gosec
@@ -74,14 +74,14 @@ func main() {
 	}
 	printf("Got linux=%d, windows=%d, macOS=%d\n", len(linuxHosts), len(windowsHosts), len(macOSHosts))
 
-	titles, err := apiClient.ListSoftwareTitles("per_page=1000&fleet_id=0&available_for_install=1")
+	titles, err := apiClient.ListSoftwareTitles("per_page=1000&team_id=0&available_for_install=1")
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	var (
-		macOSSoftware   []fleet.SoftwareTitleListResult
-		windowsSoftware []fleet.SoftwareTitleListResult
+		macOSSoftware   []automdm.SoftwareTitleListResult
+		windowsSoftware []automdm.SoftwareTitleListResult
 	)
 	for _, title := range titles {
 		if len(title.AppStoreApps) > 0 {
@@ -96,7 +96,7 @@ func main() {
 	}
 	printf("Got software titles windows=%d, macOS=%d\n", len(windowsSoftware), len(macOSSoftware))
 
-	scripts, err := apiClient.ListScripts("per_page=1000&fleet_id=0")
+	scripts, err := apiClient.ListScripts("per_page=1000&team_id=0")
 	if err != nil {
 		log.Fatal(err)
 	}

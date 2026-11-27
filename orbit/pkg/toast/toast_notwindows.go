@@ -14,7 +14,7 @@ func Remove(string, string) error {
 	return errors.ErrUnsupported
 }
 
-// RegisterFleetDesktopAppID is only implemented on Windows.
-func RegisterFleetDesktopAppID(string, []byte) error {
+// RegisterAutoMDMDesktopAppID is only implemented on Windows.
+func RegisterAutoMDMDesktopAppID(string, []byte) error {
 	return errors.ErrUnsupported
 }

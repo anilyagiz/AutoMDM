@@ -14,8 +14,8 @@ func TestGenerateMysqlConnectionString_IAMDefaultsToRDSMysqlTLS(t *testing.T) {
 	dsn := generateMysqlConnectionString(MysqlConfig{
 		Protocol: "tcp",
 		Address:  "db.example.com:3306",
-		Username: "fleet_iam",
-		Database: "fleet",
+		Username: "automdm_iam",
+		Database: "automdm",
 		Region:   "us-east-2",
 	})
 
@@ -30,8 +30,8 @@ func TestGenerateMysqlConnectionString_IAMWithCustomTLSConfig(t *testing.T) {
 	dsn := generateMysqlConnectionString(MysqlConfig{
 		Protocol:  "tcp",
 		Address:   "db.example.com:3306",
-		Username:  "fleet_iam",
-		Database:  "fleet",
+		Username:  "automdm_iam",
+		Database:  "automdm",
 		Region:    "us-east-2",
 		TLSConfig: "custom",
 	})
@@ -47,9 +47,9 @@ func TestGenerateMysqlConnectionString_NonIAMWithCustomTLSConfig(t *testing.T) {
 	dsn := generateMysqlConnectionString(MysqlConfig{
 		Protocol:  "tcp",
 		Address:   "db.example.com:3306",
-		Username:  "fleet",
+		Username:  "automdm",
 		Password:  "some-password",
-		Database:  "fleet",
+		Database:  "automdm",
 		TLSConfig: "custom",
 	})
 

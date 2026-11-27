@@ -134,7 +134,7 @@ fun MainScreen(onNavigateToDebug: () -> Unit) {
             Column(Modifier.padding(paddingValues = paddingValues)) {
                 LogoHeader()
                 HorizontalDivider()
-                AboutFleet {
+                AboutAutoMDM {
                     val intent = Intent(Intent.ACTION_VIEW, BuildConfig.INFO_URL.toUri())
                     if (intent.resolveActivity(context.packageManager) != null) {
                         // A browser is available, open the URL directly
@@ -154,8 +154,8 @@ fun MainScreen(onNavigateToDebug: () -> Unit) {
                         } else if (versionClicks == 1) {
                             val clipboard = context.getSystemService(ClipboardManager::class.java)
                                 ?: error("ClipboardManager not available")
-                            clipboard.setPrimaryClip(ClipData.newPlainText("", "Fleet Android Agent: ${BuildConfig.VERSION_NAME}"))
-                            Toast.makeText(context, "Fleet Agent version copied", Toast.LENGTH_SHORT).show()
+                            clipboard.setPrimaryClip(ClipData.newPlainText("", "AutoMDM Android Agent: ${BuildConfig.VERSION_NAME}"))
+                            Toast.makeText(context, "AutoMDM Agent version copied", Toast.LENGTH_SHORT).show()
                         }
                     }
                 }
@@ -165,7 +165,7 @@ fun MainScreen(onNavigateToDebug: () -> Unit) {
 }
 
 @Composable
-fun AboutFleet(modifier: Modifier = Modifier, onLearnClick: () -> Unit = {}) {
+fun AboutAutoMDM(modifier: Modifier = Modifier, onLearnClick: () -> Unit = {}) {
     Column(modifier = modifier.padding(20.dp)) {
         Text(
             text = stringResource(R.string.app_description),
@@ -178,9 +178,9 @@ fun AboutFleet(modifier: Modifier = Modifier, onLearnClick: () -> Unit = {}) {
                 .clickable(onClick = onLearnClick),
         ) {
             Text(
-                text = stringResource(R.string.learn_about_fleet),
+                text = stringResource(R.string.learn_about_automdm),
                 fontWeight = FontWeight.Bold,
-                color = FleetTextDark,
+                color = AutoMDMTextDark,
             )
             Icon(imageVector = Icons.AutoMirrored.Default.ArrowForward, contentDescription = "forward arrow")
         }
@@ -191,8 +191,8 @@ fun AboutFleet(modifier: Modifier = Modifier, onLearnClick: () -> Unit = {}) {
 fun LogoHeader(modifier: Modifier = Modifier) {
     Image(
         modifier = modifier.padding(20.dp),
-        painter = painterResource(R.drawable.fleet_logo),
-        contentDescription = stringResource(R.string.fleet_logo),
+        painter = painterResource(R.drawable.automdm_logo),
+        contentDescription = stringResource(R.string.automdm_logo),
     )
 }
 
@@ -201,7 +201,7 @@ fun CertificateList(modifier: Modifier = Modifier, certificates: CertificateStat
     Column(modifier = modifier.padding(all = 20.dp)) {
         Text(
             text = stringResource(R.string.certificate_list_title),
-            color = FleetTextDark,
+            color = AutoMDMTextDark,
             fontWeight = FontWeight.Bold,
         )
         certificates.ifEmpty {
@@ -228,7 +228,7 @@ fun AppVersion(onClick: () -> Unit = {}) {
         ) {
             Text(
                 text = stringResource(R.string.app_version_title),
-                color = FleetTextDark,
+                color = AutoMDMTextDark,
                 fontWeight = FontWeight.Bold,
             )
             Text(text = BuildConfig.VERSION_NAME)
@@ -238,12 +238,12 @@ fun AppVersion(onClick: () -> Unit = {}) {
 
 @Preview(showBackground = true)
 @Composable
-fun FleetScreenPreview() {
+fun AutoMDMScreenPreview() {
     MyApplicationTheme {
         Column {
             LogoHeader()
             HorizontalDivider()
-            AboutFleet()
+            AboutAutoMDM()
             HorizontalDivider()
             CertificateList(
                 certificates = mapOf(
@@ -258,8 +258,8 @@ fun FleetScreenPreview() {
 
 @Preview(showBackground = true)
 @Composable
-fun AboutFleetPreview() {
+fun AboutAutoMDMPreview() {
     MyApplicationTheme {
-        AboutFleet()
+        AboutAutoMDM()
     }
 }

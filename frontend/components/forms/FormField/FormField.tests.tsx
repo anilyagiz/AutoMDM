@@ -12,7 +12,7 @@ describe("FormField", () => {
         label="Name"
         name="name"
         helpText={
-          <CustomLink url="https://fleetdm.com/docs" text="Learn more" newTab />
+          <CustomLink url="https://automdm.com/docs" text="Learn more" newTab />
         }
       >
         <input id="name" />

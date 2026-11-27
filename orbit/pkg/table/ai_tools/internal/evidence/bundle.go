@@ -5,9 +5,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/ai_tools/internal/proc"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/internal/fsutil"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/internal/homes"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/ai_tools/internal/proc"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/internal/fsutil"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/internal/homes"
 )
 
 // Bundle is a per-query, read-only evidence set shared across collectors.

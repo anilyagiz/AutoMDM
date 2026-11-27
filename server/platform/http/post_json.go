@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
 )
 
 // errWithStatus is an error with a particular status code.
@@ -43,7 +43,7 @@ func PostJSONWithTimeout(ctx context.Context, url string, v any, logger *slog.Lo
 		return err
 	}
 
-	client := fleethttp.NewClient(fleethttp.WithTimeout(30 * time.Second))
+	client := automdmhttp.NewClient(automdmhttp.WithTimeout(30 * time.Second))
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(jsonBytes))
 	if err != nil {
 		return err

@@ -9,7 +9,7 @@ describe("IconStatusMessage - component", () => {
       <IconStatusMessage
         message="Test message"
         iconName="success"
-        iconColor="core-fleet-green"
+        iconColor="core-automdm-green"
       />
     );
     expect(

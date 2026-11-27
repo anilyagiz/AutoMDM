@@ -82,7 +82,7 @@ func ParseJSONtoProjectItems(jsonData []byte, limit int) ([]ProjectItem, int, er
 
 // GetProjectItemsWithTotal retrieves project items and returns the server reported total count.
 func GetProjectItemsWithTotal(projectID, limit int) ([]ProjectItem, int, error) {
-	results, err := runCommandWithRetry(fmt.Sprintf("gh project item-list --owner fleetdm --format json --limit %d %d", limit, projectID), 5, 2*time.Second)
+	results, err := runCommandWithRetry(fmt.Sprintf("gh project item-list --owner automdm --format json --limit %d %d", limit, projectID), 5, 2*time.Second)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -111,7 +111,7 @@ type OrgProject struct {
 // resolve a project name to its number/URL.
 func ListOrgProjects(owner string) ([]OrgProject, error) {
 	if owner == "" {
-		owner = "fleetdm"
+		owner = "automdm"
 	}
 	out, err := RunCommandWithRetry(fmt.Sprintf("gh project list --owner %s --format json --limit 200", owner), 3)
 	if err != nil {
@@ -207,7 +207,7 @@ func GetPreviousSprintItems(projectID, limit int) ([]ProjectItem, error) {
 // GetProjectFields retrieves all fields for a specific project.
 func GetProjectFields(projectID int) (map[string]ProjectField, error) {
 	// Run the command to get project fields
-	results, err := RunCommandAndReturnOutput(fmt.Sprintf("gh project field-list --owner fleetdm --format json %d", projectID))
+	results, err := RunCommandAndReturnOutput(fmt.Sprintf("gh project field-list --owner automdm --format json %d", projectID))
 	if err != nil {
 		return nil, err
 	}
@@ -507,7 +507,7 @@ func getProjectNodeID(projectID int) (string, error) {
 	projectNodeIDMutex.RUnlock()
 
 	// Not in cache, fetch from API
-	command := fmt.Sprintf("gh project view --owner fleetdm --format json %d", projectID)
+	command := fmt.Sprintf("gh project view --owner automdm --format json %d", projectID)
 	output, err := RunCommandAndReturnOutput(command)
 	if err != nil {
 		return "", fmt.Errorf("failed to get project details: %v", err)

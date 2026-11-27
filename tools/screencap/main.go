@@ -92,7 +92,7 @@ var fullPages = []pageEntry{
 	{"/settings/organization/agents", nil},
 	{"/settings/organization/statistics", nil},
 	{"/settings/organization/advanced", nil},
-	{"/settings/organization/fleet-desktop", nil},
+	{"/settings/organization/automdm-desktop", nil},
 	{"/settings/users", []modal{
 		{"add-user", `.action-button__add-user`, nil},
 	}},
@@ -119,7 +119,7 @@ var fullPages = []pageEntry{
 func main() {
 	sso := flag.Bool("sso", false, "use SSO login (opens visible browser)")
 	cookie := flag.String("cookie", "", "session cookie value")
-	cookieName := flag.String("cookie-name", "Fleet-Session", "name of the session cookie")
+	cookieName := flag.String("cookie-name", "AutoMDM-Session", "name of the session cookie")
 	email := flag.String("email", "", "login email")
 	password := flag.String("password", "", "login password")
 	waitSec := flag.Int("wait-time-seconds", 6, "seconds to wait for each page to load")
@@ -671,7 +671,7 @@ func chromeProfileDir() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	dir := filepath.Join(home, ".fleet", "screencap-profile")
+	dir := filepath.Join(home, ".team", "screencap-profile")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}
@@ -693,7 +693,7 @@ func loginSSO(ctx context.Context, baseURL string, waitTime time.Duration) {
 	fmt.Println()
 	fmt.Println("============================================================")
 	fmt.Println("  Complete the SSO login in the browser window that opened.")
-	fmt.Println("  Once you see the Fleet dashboard, press ENTER here.")
+	fmt.Println("  Once you see the AutoMDM dashboard, press ENTER here.")
 	fmt.Println("============================================================")
 	fmt.Println()
 
@@ -744,11 +744,11 @@ func loginPassword(ctx context.Context, baseURL, email, password string, waitTim
 func printUsage() {
 	fmt.Fprintf(os.Stderr, "Usage: screencap [flags] <base-url>\n\n")
 	fmt.Fprintf(os.Stderr, "Run the built-in full workflow:\n")
-	fmt.Fprintf(os.Stderr, "  screencap https://fleet.example.com\n\n")
+	fmt.Fprintf(os.Stderr, "  screencap https://automdm.example.com\n\n")
 	fmt.Fprintf(os.Stderr, "Record a custom workflow:\n")
-	fmt.Fprintf(os.Stderr, "  screencap -record my-flow https://fleet.example.com\n\n")
+	fmt.Fprintf(os.Stderr, "  screencap -record my-flow https://automdm.example.com\n\n")
 	fmt.Fprintf(os.Stderr, "Run a saved workflow:\n")
-	fmt.Fprintf(os.Stderr, "  screencap -workflow my-flow https://other-fleet.example.com\n\n")
+	fmt.Fprintf(os.Stderr, "  screencap -workflow my-flow https://other-team.example.com\n\n")
 	fmt.Fprintf(os.Stderr, "List saved workflows:\n")
 	fmt.Fprintf(os.Stderr, "  screencap -list\n\n")
 	fmt.Fprintf(os.Stderr, "Auth flags (combine with any mode above):\n")

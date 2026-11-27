@@ -2,19 +2,19 @@
 
 set -xe
 
-# This script initializes a test Fleet TUF repository.
+# This script initializes a test AutoMDM TUF repository.
 # All targets are created with version set to YY.MM.XXXXX, e.g. 25.5.56178
 # (patch version is a 16-bit number made from day, hour and minute).
 
 # Input:
 # TUF_PATH: directory path for the test TUF repository.
-# FLEET_ROOT_PASSPHRASE: Root role passphrase.
-# FLEET_TARGETS_PASSPHRASE: Targets role passphrase.
-# FLEET_SNAPSHOT_PASSPHRASE: Snapshot role passphrase.
-# FLEET_TIMESTAMP_PASSPHRASE: Timestamp role passphrase.
+# AUTOMDM_ROOT_PASSPHRASE: Root role passphrase.
+# AUTOMDM_TARGETS_PASSPHRASE: Targets role passphrase.
+# AUTOMDM_SNAPSHOT_PASSPHRASE: Snapshot role passphrase.
+# AUTOMDM_TIMESTAMP_PASSPHRASE: Timestamp role passphrase.
 # SYSTEMS: Space separated list of systems to support in the TUF repository. Default value is: "macos windows linux"
 # MACOS_USE_PREBUILT_DESKTOP_APP_TAR_GZ: Set variable to use a pre-built desktop.app.tar.gz. Useful when running on non-macOS host.
-# MACOSX_DEPLOYMENT_TARGET: Minimum macOS version for cgo builds (Fleet Desktop, orbit) when running on macOS. Default value is: "15" (Sequoia)
+# MACOSX_DEPLOYMENT_TARGET: Minimum macOS version for cgo builds (AutoMDM Desktop, orbit) when running on macOS. Default value is: "15" (Sequoia)
 
 # Without this, clang sets the Mach-O minimum OS to the build host's SDK version, so
 # binaries built on a newer macOS fail to launch on older ones (LSOpen error -10825).
@@ -58,7 +58,7 @@ fi
 
 mkdir -p $TUF_PATH/tmp
 
-./build/fleetctl updates init --path $TUF_PATH
+./build/automdmctl updates init --path $TUF_PATH
 
 source ./tools/tuf/test/load_orbit_version_vars.sh
 
@@ -88,7 +88,7 @@ for system in $SYSTEMS; do
 
     major=$(echo "$OSQUERY_VERSION" | cut -d "." -f 1)
     min=$(echo "$OSQUERY_VERSION" | cut -d "." -f 2)
-    ./build/fleetctl updates add \
+    ./build/automdmctl updates add \
         --path $TUF_PATH \
         --target $osqueryd_path \
         --platform $osqueryd_system \
@@ -156,8 +156,8 @@ for system in $SYSTEMS; do
       GOARCH=$goarch_value \
       go build \
       -race=$race_value \
-      -ldflags="-s -w -X github.com/fleetdm/fleet/v4/orbit/pkg/build.Version=$ORBIT_VERSION \
-        -X github.com/fleetdm/fleet/v4/orbit/pkg/build.Commit=$ORBIT_COMMIT" \
+      -ldflags="-s -w -X github.com/anilyagiz/automdm/v4/orbit/pkg/build.Version=$ORBIT_VERSION \
+        -X github.com/anilyagiz/automdm/v4/orbit/pkg/build.Commit=$ORBIT_COMMIT" \
       -o $orbit_target ./orbit/cmd/orbit
     fi
 
@@ -167,7 +167,7 @@ for system in $SYSTEMS; do
         codesign -s - -i com.fleetdm.orbit -f $orbit_target
     fi
 
-    ./build/fleetctl updates add \
+    ./build/automdmctl updates add \
         --path $TUF_PATH \
         --target $orbit_target \
         --platform $system \
@@ -175,14 +175,14 @@ for system in $SYSTEMS; do
         --version $ORBIT_VERSION -t $ORBIT_MAJOR.$ORBIT_MINOR -t $ORBIT_MAJOR -t stable
     rm $orbit_target
 
-    # Add Fleet Desktop application on macOS (if enabled).
-    if [[ $system == "macos" && -n "$FLEET_DESKTOP" ]]; then
+    # Add AutoMDM Desktop application on macOS (if enabled).
+    if [[ $system == "macos" && -n "$AUTOMDM_DESKTOP" ]]; then
         if [[ -z "$MACOS_USE_PREBUILT_DESKTOP_APP_TAR_GZ" ]]; then
-            FLEET_DESKTOP_VERBOSE=1 \
-            FLEET_DESKTOP_VERSION=$ORBIT_VERSION \
+            AUTOMDM_DESKTOP_VERBOSE=1 \
+            AUTOMDM_DESKTOP_VERSION=$ORBIT_VERSION \
             make desktop-app-tar-gz
         fi
-        ./build/fleetctl updates add \
+        ./build/automdmctl updates add \
         --path $TUF_PATH \
         --target desktop.app.tar.gz \
         --platform macos \
@@ -197,7 +197,7 @@ for system in $SYSTEMS; do
     if [[ $system == "macos" && -n "$SWIFT_DIALOG" ]]; then
         curl https://updates.fleetdm.com/targets/swiftDialog/macos/$SWIFT_DIALOG_VERSION/swiftDialog.app.tar.gz --output swiftDialog.app.tar.gz
 
-        ./build/fleetctl updates add \
+        ./build/automdmctl updates add \
             --path $TUF_PATH \
             --target swiftDialog.app.tar.gz \
             --platform macos \
@@ -210,7 +210,7 @@ for system in $SYSTEMS; do
     if [[ $system == "macos" && -n "$ESCROW_BUDDY" ]]; then
         make escrow-buddy-pkg version=$ESCROW_BUDDY_PKG_VERSION out-path=.
 
-        ./build/fleetctl updates add \
+        ./build/automdmctl updates add \
             --path $TUF_PATH \
             --target escrowBuddy.pkg \
             --platform macos \
@@ -219,37 +219,37 @@ for system in $SYSTEMS; do
         rm escrowBuddy.pkg
     fi
 
-    # Add Fleet Desktop application on windows (if enabled).
-    if [[ $system == "windows" && -n "$FLEET_DESKTOP" ]]; then
-        FLEET_DESKTOP_VERSION=$ORBIT_VERSION \
+    # Add AutoMDM Desktop application on windows (if enabled).
+    if [[ $system == "windows" && -n "$AUTOMDM_DESKTOP" ]]; then
+        AUTOMDM_DESKTOP_VERSION=$ORBIT_VERSION \
         make desktop-windows
-        ./build/fleetctl updates add \
+        ./build/automdmctl updates add \
         --path $TUF_PATH \
-        --target fleet-desktop.exe \
+        --target automdm-desktop.exe \
         --platform windows \
         --name desktop \
         --version $ORBIT_VERSION -t $ORBIT_MAJOR.$ORBIT_MINOR -t $ORBIT_MAJOR -t stable
-        rm fleet-desktop.exe
+        rm automdm-desktop.exe
     fi
 
-    # Add Fleet Desktop application on windows-arm64 (if enabled).
-    if [[ $system == "windows-arm64" && -n "$FLEET_DESKTOP" ]]; then
-        FLEET_DESKTOP_VERSION=$ORBIT_VERSION \
+    # Add AutoMDM Desktop application on windows-arm64 (if enabled).
+    if [[ $system == "windows-arm64" && -n "$AUTOMDM_DESKTOP" ]]; then
+        AUTOMDM_DESKTOP_VERSION=$ORBIT_VERSION \
         make desktop-windows-arm64
-        ./build/fleetctl updates add \
+        ./build/automdmctl updates add \
         --path $TUF_PATH \
-        --target fleet-desktop.exe \
+        --target automdm-desktop.exe \
         --platform windows-arm64 \
         --name desktop \
         --version $ORBIT_VERSION -t $ORBIT_MAJOR.$ORBIT_MINOR -t $ORBIT_MAJOR -t stable
-        rm fleet-desktop.exe
+        rm automdm-desktop.exe
     fi
 
-    # Add Fleet Desktop application on linux (if enabled).
-    if [[ $system == "linux" && -n "$FLEET_DESKTOP" ]]; then
-        FLEET_DESKTOP_VERSION=$ORBIT_VERSION \
+    # Add AutoMDM Desktop application on linux (if enabled).
+    if [[ $system == "linux" && -n "$AUTOMDM_DESKTOP" ]]; then
+        AUTOMDM_DESKTOP_VERSION=$ORBIT_VERSION \
         make desktop-linux
-        ./build/fleetctl updates add \
+        ./build/automdmctl updates add \
         --path $TUF_PATH \
         --target desktop.tar.gz \
         --platform linux \
@@ -258,11 +258,11 @@ for system in $SYSTEMS; do
         rm desktop.tar.gz
     fi
 
-    # Add Fleet Desktop application on linux-arm64 (if enabled).
-    if [[ $system == "linux-arm64" && -n "$FLEET_DESKTOP" ]]; then
-        FLEET_DESKTOP_VERSION=$ORBIT_VERSION \
+    # Add AutoMDM Desktop application on linux-arm64 (if enabled).
+    if [[ $system == "linux-arm64" && -n "$AUTOMDM_DESKTOP" ]]; then
+        AUTOMDM_DESKTOP_VERSION=$ORBIT_VERSION \
         make desktop-linux-arm64
-        ./build/fleetctl updates add \
+        ./build/automdmctl updates add \
                          --path $TUF_PATH \
                          --target desktop.tar.gz \
                          --platform linux-arm64 \
@@ -277,7 +277,7 @@ for system in $SYSTEMS; do
         do
             extensionName=$(basename $extension)
             extensionName=$(echo "$extensionName" | cut -d'.' -f1)
-            ./build/fleetctl updates add \
+            ./build/automdmctl updates add \
                 --path $TUF_PATH \
                 --target $extension \
                 --platform macos \
@@ -292,7 +292,7 @@ for system in $SYSTEMS; do
         do
             extensionName=$(basename $extension)
             extensionName=$(echo "$extensionName" | cut -d'.' -f1)
-            ./build/fleetctl updates add \
+            ./build/automdmctl updates add \
                 --path $TUF_PATH \
                 --target $extension \
                 --platform linux \
@@ -307,7 +307,7 @@ for system in $SYSTEMS; do
         do
             extensionName=$(basename $extension)
             extensionName=$(echo "$extensionName" | cut -d'.' -f1)
-            ./build/fleetctl updates add \
+            ./build/automdmctl updates add \
                              --path $TUF_PATH \
                              --target $extension \
                              --platform linux-arm64 \
@@ -323,7 +323,7 @@ for system in $SYSTEMS; do
             extensionName=$(basename $extension)
             extensionName=$(echo "$extensionName" | cut -d'.' -f1)
             echo "$FILE" | cut -d'.' -f2
-            ./build/fleetctl updates add \
+            ./build/automdmctl updates add \
                 --path $TUF_PATH \
                 --target $extension \
                 --platform windows \
@@ -339,7 +339,7 @@ for system in $SYSTEMS; do
             extensionName=$(basename $extension)
             extensionName=$(echo "$extensionName" | cut -d'.' -f1)
             echo "$FILE" | cut -d'.' -f2
-            ./build/fleetctl updates add \
+            ./build/automdmctl updates add \
                 --path $TUF_PATH \
                 --target $extension \
                 --platform windows-arm64 \

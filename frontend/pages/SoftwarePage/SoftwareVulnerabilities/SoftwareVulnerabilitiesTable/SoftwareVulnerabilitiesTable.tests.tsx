@@ -253,7 +253,7 @@ describe("Software Vulnerabilities table", () => {
     expect(screen.getByText("This is not a known CVE")).toBeInTheDocument();
     expect(
       screen.getByText(
-        "None of Fleet's vulnerability sources are aware of this CVE."
+        "None of AutoMDM's vulnerability sources are aware of this CVE."
       )
     ).toBeInTheDocument();
     expect(screen.queryByText("Vulnerability")).toBeNull();
@@ -341,7 +341,7 @@ describe("Software Vulnerabilities table", () => {
       });
 
       expect(
-        screen.getByText(/Available in Fleet Premium./i)
+        screen.getByText(/Available in AutoMDM Premium./i)
       ).toBeInTheDocument();
     });
   });

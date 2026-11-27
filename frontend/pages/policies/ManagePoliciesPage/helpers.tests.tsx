@@ -50,12 +50,12 @@ describe("getAutomationsForPolicy", () => {
       install_software: {
         name: "Chrome.app",
         software_title_id: 42,
-        icon_url: "/api/latest/fleet/software/titles/42/icon?fleet_id=1",
+        icon_url: "/api/latest/automdm/software/titles/42/icon?team_id=1",
       },
     });
     expect(result[0]).toMatchObject({
       type: "software",
-      iconUrl: "/api/latest/fleet/software/titles/42/icon?fleet_id=1",
+      iconUrl: "/api/latest/automdm/software/titles/42/icon?team_id=1",
     });
   });
 

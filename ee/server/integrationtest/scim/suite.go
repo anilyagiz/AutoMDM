@@ -5,11 +5,11 @@ import (
 	"os"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/service"
-	"github.com/fleetdm/fleet/v4/server/service/integrationtest"
-	"github.com/fleetdm/fleet/v4/server/service/svctest"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	"github.com/anilyagiz/automdm/v4/server/service"
+	"github.com/anilyagiz/automdm/v4/server/service/integrationtest"
+	"github.com/anilyagiz/automdm/v4/server/service/svctest"
 )
 
 type Suite struct {
@@ -18,29 +18,29 @@ type Suite struct {
 
 func SetUpSuite(t *testing.T, uniqueTestName string) *Suite {
 	// Note: t.Parallel() is called when MySQL datastore options are processed
-	license := &fleet.LicenseInfo{
-		Tier: fleet.TierPremium,
+	license := &automdm.LicenseInfo{
+		Tier: automdm.TierPremium,
 	}
-	ds, fleetCfg, fleetSvc, ctx := integrationtest.SetUpMySQLAndService(t, uniqueTestName, &service.TestServerOpts{
+	ds, automdmCfg, automdmSvc, ctx := integrationtest.SetUpMySQLAndService(t, uniqueTestName, &service.TestServerOpts{
 		License: license,
 	})
 	slogLogger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	users, server := svctest.RunServerForTestsWithServiceWithDS(t, ctx, ds, fleetSvc, &service.TestServerOpts{
-		License:     license,
-		FleetConfig: &fleetCfg,
-		Logger:      slogLogger,
-		EnableSCIM:  true,
+	users, server := svctest.RunServerForTestsWithServiceWithDS(t, ctx, ds, automdmSvc, &service.TestServerOpts{
+		License:       license,
+		AutoMDMConfig: &automdmCfg,
+		Logger:        slogLogger,
+		EnableSCIM:    true,
 		// Wire the real activity service so tests can assert audit-log activities.
 		DBConns: mysqltest.TestDBConnections(t, ds),
 	})
 
 	s := &Suite{
 		BaseSuite: integrationtest.BaseSuite{
-			Logger:   slogLogger,
-			DS:       ds,
-			FleetCfg: fleetCfg,
-			Users:    users,
-			Server:   server,
+			Logger:     slogLogger,
+			DS:         ds,
+			AutoMDMCfg: automdmCfg,
+			Users:      users,
+			Server:     server,
 		},
 	}
 

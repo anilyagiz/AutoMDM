@@ -26,7 +26,7 @@ const failedEnrollmentProfileContentBody = (
   const hostDisplayName = result.hostname || "this host";
   const messageText = (
     <span>
-      Fleet enrollment profile renewal failed for <b>{hostDisplayName}</b>
+      AutoMDM enrollment profile renewal failed for <b>{hostDisplayName}</b>
       {displayTime}.
     </span>
   );
@@ -42,8 +42,8 @@ const failedEnrollmentProfileContentBody = (
         isn&apos;t renewed before expiration, the host must be re-enrolled. For
         assistance, reach out to{" "}
         <CustomLink
-          text="Fleet support"
-          url="https://fleetdm.com/support"
+          text="AutoMDM support"
+          url="https://automdm.com/support"
           newTab
         />
         .

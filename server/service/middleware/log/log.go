@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/logging"
+	"github.com/anilyagiz/automdm/v4/server/contexts/logging"
 	"github.com/go-kit/kit/endpoint"
 	kithttp "github.com/go-kit/kit/transport/http"
 )

@@ -4,7 +4,7 @@ import { Link } from "react-router";
 // @ts-ignore
 import OrgLogoIcon from "components/icons/OrgLogoIcon";
 
-import FleetIcon from "../../../assets/images/fleet-avatar-24x24@2x.png";
+import AutoMDMIcon from "../../../assets/images/automdm-avatar-24x24@2x.png";
 
 interface ILogoOnlyNavProps {
   /** When set, the logo links to this path. */
@@ -15,7 +15,7 @@ const LogoOnlyNav = ({ to }: ILogoOnlyNavProps) => {
   const logo = (
     <div className="site-nav-item__logo-wrapper">
       <div className="site-nav-item__logo">
-        <OrgLogoIcon className="logo" src={FleetIcon} />
+        <OrgLogoIcon className="logo" src={AutoMDMIcon} />
       </div>
     </div>
   );

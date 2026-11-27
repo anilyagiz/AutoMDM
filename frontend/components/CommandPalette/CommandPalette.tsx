@@ -24,7 +24,7 @@ import paths from "router/paths";
 import { isDarkMode, setThemeMode } from "utilities/theme";
 
 import { isPreFilteredResult } from "./components/constants";
-import FleetPicker from "./components/FleetPicker";
+import TeamPicker from "./components/TeamPicker";
 import HighlightedLabel from "./components/HighlightedLabel";
 import HostPicker from "./components/HostPicker";
 import PolicyPicker from "./components/PolicyPicker";
@@ -36,9 +36,9 @@ import {
   ICommandSubItem,
   GROUPS,
   buildPaletteItems,
-  buildFleetSwitchUrl,
+  buildAutoMDMSwitchUrl,
   computeBestMatch,
-  pathSupportsAllFleets,
+  pathSupportsAllTeams,
   pathSupportsUnassigned,
 } from "./helpers";
 
@@ -65,7 +65,7 @@ const getUniqueSubItemValue = (sub: ICommandSubItem) => {
 
 type Page =
   | "root"
-  | "switch-fleet"
+  | "switch-team"
   | "view-host"
   | "view-software"
   | "view-software-library"
@@ -153,7 +153,7 @@ const CommandPalette = (): JSX.Element | null => {
     !!isTeamMaintainer;
 
   // Mirrors the Configuration profiles card: "Add profile" is for admins and
-  // maintainers of the current fleet, not its technicians.
+  // maintainers of the current team, not its technicians.
   const canAddConfigurationProfile =
     !!isGlobalAdmin ||
     !!isGlobalMaintainer ||
@@ -180,24 +180,24 @@ const CommandPalette = (): JSX.Element | null => {
   // observers viewing their own scope.
   const isViewerObserverInScope = !!isGlobalObserver || !!isTeamObserver;
 
-  // Primo Mode is a single-fleet premium installation. The fleet switcher
-  // should be hidden, fleet creation disabled, and All-fleets-only commands
-  // need to surface for the user's single fleet.
+  // Primo Mode is a single-team premium installation. The team switcher
+  // should be hidden, team creation disabled, and All-teams-only commands
+  // need to surface for the user's single team.
   const isPrimoMode = !!config?.partnerships?.enable_primo;
 
   // Track theme as reactive state so the toggle-dark-mode item's label
   // updates if the theme flips externally (system theme media query,
   // another tab, sibling component). utilities/theme dispatches a
-  // `fleet-theme-change` window event on every change.
+  // `automdm-theme-change` window event on every change.
   const [isDarkModeActive, setIsDarkModeActive] = useState(isDarkMode);
   useEffect(() => {
     const onThemeChange = (e: Event) => {
       const detail = (e as CustomEvent<{ dark: boolean }>).detail;
       setIsDarkModeActive(!!detail?.dark);
     };
-    window.addEventListener("fleet-theme-change", onThemeChange);
+    window.addEventListener("automdm-theme-change", onThemeChange);
     return () =>
-      window.removeEventListener("fleet-theme-change", onThemeChange);
+      window.removeEventListener("automdm-theme-change", onThemeChange);
   }, []);
 
   // Policy automations: mirrors ManagePoliciesPage.canEditAutomationsSettings.
@@ -208,7 +208,7 @@ const CommandPalette = (): JSX.Element | null => {
   // user who's team admin of A but viewing B correctly won't see this.
   const canManagePolicyAutomations = isGlobalAdmin || isTeamAdmin;
 
-  // Software automations require global admin (all fleets view)
+  // Software automations require global admin (all teams view)
   const canManageSoftwareAutomations = isGlobalAdmin;
 
   // Report automations: mirror ManageQueriesPage's `canManageAutomations`
@@ -219,7 +219,7 @@ const CommandPalette = (): JSX.Element | null => {
   // current one — they'd land on Reports and see no button.
   const canManageReportAutomations = isGlobalAdmin || isTeamAdmin;
 
-  // Host activity automations: per-fleet setting on the Hosts page, admin
+  // Host activity automations: per-team setting on the Hosts page, admin
   // only (mirrors ManageHostsPage's canManageHostActivityAutomations). The
   // destination opens the modal from `?manage_automations=1` and re-checks
   // the same gate.
@@ -231,7 +231,7 @@ const CommandPalette = (): JSX.Element | null => {
   const hasTeamSelected = currentTeam && currentTeam.id > 0;
   const isUnassigned = currentTeam?.id === 0;
 
-  // Append fleet_id to a path so navigation preserves the current team context.
+  // Append team_id to a path so navigation preserves the current team context.
   // Includes Unassigned (id 0) so navigation doesn't drop the no-team context.
   const withTeamId = useCallback(
     (path: string) => {
@@ -239,7 +239,7 @@ const CommandPalette = (): JSX.Element | null => {
         return path;
       }
       const separator = path.includes("?") ? "&" : "?";
-      return `${path}${separator}fleet_id=${currentTeam?.id}`;
+      return `${path}${separator}team_id=${currentTeam?.id}`;
     },
     [hasTeamSelected, isUnassigned, currentTeam?.id]
   );
@@ -273,26 +273,26 @@ const CommandPalette = (): JSX.Element | null => {
     []
   );
 
-  const canSwitchFleet =
+  const canSwitchTeam =
     isPremiumTier &&
     !isPrimoMode &&
     !!availableTeams &&
     availableTeams.length > 1;
 
-  // Display label for the fleet switcher button — falls back to the
-  // "All fleets" sentinel when no specific team is selected. Used in
+  // Display label for the team switcher button — falls back to the
+  // "All teams" sentinel when no specific team is selected. Used in
   // both the visible button text and the aria-label.
-  const fleetSwitcherLabel = currentTeam?.name || "All fleets";
+  const teamSwitcherLabel = currentTeam?.name || "All teams";
 
   // Detect macOS so we can render the Cmd glyph (⌘) vs. "Ctrl" inline on
-  // the fleet-switcher shortcut. navigator.platform is deprecated but
+  // the team-switcher shortcut. navigator.platform is deprecated but
   // still the most reliable cross-browser signal for this binary check.
   const isMacPlatform =
     typeof navigator !== "undefined" &&
     /Mac|iPhone|iPad|iPod/i.test(navigator.platform);
 
   const pickerPagePlaceholders: Partial<Record<Page, string>> = {
-    "switch-fleet": "Search a fleet...",
+    "switch-team": "Search a team...",
     "view-host": "Search hosts...",
     "view-software": "Search software inventory...",
     "view-software-library": "Search software library...",
@@ -301,7 +301,7 @@ const CommandPalette = (): JSX.Element | null => {
   };
   const pickerPagePlaceholder = pickerPagePlaceholders[page];
 
-  // Toggle open on Cmd+K / Ctrl+K; jump to switch-fleet on Cmd+Shift+F.
+  // Toggle open on Cmd+K / Ctrl+K; jump to switch-team on Cmd+Shift+F.
   // Focus is handled by the [open, page] effect below — don't rAF here, the
   // input ref isn't set until Radix's portal mounts.
   // Skip registration entirely for no-access users so we don't intercept
@@ -320,16 +320,16 @@ const CommandPalette = (): JSX.Element | null => {
       if (key === "k") {
         e.preventDefault();
         setOpen((prev) => !prev);
-      } else if (e.shiftKey && key === "f" && canSwitchFleet) {
+      } else if (e.shiftKey && key === "f" && canSwitchTeam) {
         e.preventDefault();
         setOpen(true);
         setSearch("");
-        setPage("switch-fleet");
+        setPage("switch-team");
       }
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [canSwitchFleet, isNoAccess, isMacPlatform]);
+  }, [canSwitchTeam, isNoAccess, isMacPlatform]);
 
   const navigate = useCallback((path: string) => {
     setOpen(false);
@@ -401,16 +401,16 @@ const CommandPalette = (): JSX.Element | null => {
     setOpen(nextOpen);
   }, []);
 
-  const handleSwitchFleet = useCallback(
-    (fleetId: number) => {
-      const selected = availableTeams?.find((t) => t.id === fleetId);
+  const handleSwitchTeam = useCallback(
+    (automdmId: number) => {
+      const selected = availableTeams?.find((t) => t.id === automdmId);
       if (selected) {
         setCurrentTeam(selected);
       }
 
       const { pathname, search: currentSearch } = window.location;
       browserHistory.push(
-        buildFleetSwitchUrl({ pathname, currentSearch, fleetId })
+        buildAutoMDMSwitchUrl({ pathname, currentSearch, automdmId })
       );
 
       // Return to root so the palette stays open on the main view.
@@ -641,17 +641,17 @@ const CommandPalette = (): JSX.Element | null => {
                 }}
                 onPointerDown={(e) => e.preventDefault()}
               >
-                <Icon name="chevron-down" color="ui-fleet-black-50" />
+                <Icon name="chevron-down" color="ui-automdm-black-50" />
               </button>
             )}
             {item.opensPickerPage && (
               <span aria-hidden className={`${baseClass}__item-more`}>
-                <Icon name="chevron-right" color="ui-fleet-black-50" />
+                <Icon name="chevron-right" color="ui-automdm-black-50" />
               </span>
             )}
           </div>
           {item.teamName && (
-            <span className={`${baseClass}__item-fleet`}>
+            <span className={`${baseClass}__item-automdm`}>
               <UprightEmoji text={item.teamName} />
             </span>
           )}
@@ -728,15 +728,15 @@ const CommandPalette = (): JSX.Element | null => {
                         navigate directly. */}
                     {!sub && item.opensPickerPage && (
                       <span aria-hidden className={`${baseClass}__item-more`}>
-                        <Icon name="chevron-right" color="ui-fleet-black-50" />
+                        <Icon name="chevron-right" color="ui-automdm-black-50" />
                       </span>
                     )}
                   </div>
                   {/* Team-context chip on items whose navigation switches
-                      the user's current fleet (e.g., add-report on All
-                      fleets shows "All fleets"). */}
+                      the user's current team (e.g., add-report on All
+                      teams shows "All teams"). */}
                   {!sub && item.teamName && (
-                    <span className={`${baseClass}__item-fleet`}>
+                    <span className={`${baseClass}__item-automdm`}>
                       <UprightEmoji text={item.teamName} />
                     </span>
                   )}
@@ -784,7 +784,7 @@ const CommandPalette = (): JSX.Element | null => {
   );
 
   const handleSelectHost = useCallback((hostId: number) => {
-    // Match ManageHostsPage.handleRowSelect — navigate without fleet_id so
+    // Match ManageHostsPage.handleRowSelect — navigate without team_id so
     // we don't switch the user's current team context. The host details
     // page reads the host's team from the host record itself.
     setOpen(false);
@@ -795,11 +795,11 @@ const CommandPalette = (): JSX.Element | null => {
     (softwareId: number) => {
       setOpen(false);
       const basePath = paths.SOFTWARE_TITLE_DETAILS(String(softwareId));
-      // Software titles are team-scoped; the destination page reads fleet_id
+      // Software titles are team-scoped; the destination page reads team_id
       // from the URL. Pass the user's current team so we don't drop them on
-      // "All fleets" view by accident. Unassigned (id 0) is preserved too.
+      // "All teams" view by accident. Unassigned (id 0) is preserved too.
       if (currentTeam && currentTeam.id !== APP_CONTEXT_ALL_TEAMS_ID) {
-        browserHistory.push(`${basePath}?fleet_id=${currentTeam.id}`);
+        browserHistory.push(`${basePath}?team_id=${currentTeam.id}`);
       } else {
         browserHistory.push(basePath);
       }
@@ -812,7 +812,7 @@ const CommandPalette = (): JSX.Element | null => {
       setOpen(false);
       const basePath = paths.REPORT_DETAILS(reportId);
       if (currentTeam && currentTeam.id !== APP_CONTEXT_ALL_TEAMS_ID) {
-        browserHistory.push(`${basePath}?fleet_id=${currentTeam.id}`);
+        browserHistory.push(`${basePath}?team_id=${currentTeam.id}`);
       } else {
         browserHistory.push(basePath);
       }
@@ -825,7 +825,7 @@ const CommandPalette = (): JSX.Element | null => {
       setOpen(false);
       const basePath = paths.POLICY_DETAILS(policyId);
       if (currentTeam && currentTeam.id !== APP_CONTEXT_ALL_TEAMS_ID) {
-        browserHistory.push(`${basePath}?fleet_id=${currentTeam.id}`);
+        browserHistory.push(`${basePath}?team_id=${currentTeam.id}`);
       } else {
         browserHistory.push(basePath);
       }
@@ -878,7 +878,7 @@ const CommandPalette = (): JSX.Element | null => {
           visually hidden so the palette UI stays unchanged. */}
       <DialogTitle className="sr-only">Command palette</DialogTitle>
       <DialogDescription className="sr-only">
-        Search for a page, command, or resource across Fleet.
+        Search for a page, command, or resource across AutoMDM.
       </DialogDescription>
       <div className={`${baseClass}__input-wrapper`}>
         {page !== "root" && (
@@ -892,7 +892,7 @@ const CommandPalette = (): JSX.Element | null => {
             className={`${baseClass}__back-button`}
             onClick={goBack}
           >
-            <Icon name="arrow-left" color="ui-fleet-black-75" />
+            <Icon name="arrow-left" color="ui-automdm-black-75" />
           </button>
         )}
         <Command.Input
@@ -905,15 +905,15 @@ const CommandPalette = (): JSX.Element | null => {
           onValueChange={setSearch}
           onKeyDown={onKeyDown}
         />
-        {page === "root" && canSwitchFleet && (
+        {page === "root" && canSwitchTeam && (
           <button
             type="button"
             // Locks the accessible name to the team name so the kbd
             // shortcut pills (aria-hidden) can't pollute it later if
             // the markup changes.
-            aria-label={`Switch fleet (currently ${fleetSwitcherLabel})`}
-            className={`${baseClass}__fleet-switcher`}
-            onClick={() => goToPage("switch-fleet")}
+            aria-label={`Switch team (currently ${teamSwitcherLabel})`}
+            className={`${baseClass}__team-switcher`}
+            onClick={() => goToPage("switch-team")}
             onKeyDown={(e) => {
               // Stop Enter from bubbling to cmdk-root, which would
               // activate whichever list item is currently highlighted.
@@ -923,12 +923,12 @@ const CommandPalette = (): JSX.Element | null => {
               }
             }}
           >
-            <span className={`${baseClass}__fleet-switcher-label`}>
-              {fleetSwitcherLabel}
+            <span className={`${baseClass}__team-switcher-label`}>
+              {teamSwitcherLabel}
             </span>
             <span
               aria-hidden
-              className={`${baseClass}__fleet-switcher-shortcut`}
+              className={`${baseClass}__team-switcher-shortcut`}
             >
               <kbd className={`${baseClass}__shortcut-key`}>
                 {isMacPlatform ? "⌘" : "Ctrl"}
@@ -958,10 +958,10 @@ const CommandPalette = (): JSX.Element | null => {
           </Command.Empty>
         )}
         {page === "root" && renderRootPage()}
-        {page === "switch-fleet" && (
-          <FleetPicker
-            // Drop "All fleets" and "Unassigned" on pages whose useTeamIdParam
-            // config rejects them (e.g. Dashboard hides Unassigned; the Fleet
+        {page === "switch-team" && (
+          <TeamPicker
+            // Drop "All teams" and "Unassigned" on pages whose useTeamIdParam
+            // config rejects them (e.g. Dashboard hides Unassigned; the AutoMDM
             // → Users/Options/Settings admin pages hide All). Otherwise the
             // option appears valid but selecting it triggers a redirect-to-
             // default and silently reverts. Read pathname at render — the
@@ -976,7 +976,7 @@ const CommandPalette = (): JSX.Element | null => {
               }
               if (
                 t.id === APP_CONTEXT_ALL_TEAMS_ID &&
-                !pathSupportsAllFleets(window.location.pathname)
+                !pathSupportsAllTeams(window.location.pathname)
               ) {
                 return false;
               }
@@ -984,7 +984,7 @@ const CommandPalette = (): JSX.Element | null => {
             })}
             currentTeam={currentTeam}
             search={search}
-            onSelect={handleSwitchFleet}
+            onSelect={handleSwitchTeam}
           />
         )}
         {page === "view-host" && (

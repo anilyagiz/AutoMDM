@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -39,7 +39,7 @@ func TestCarves(t *testing.T) {
 func testCarvesMetadata(t *testing.T, ds *Datastore) {
 	h := test.NewHost(t, ds, "foo.local", "192.168.1.10", "1", "1", time.Now())
 
-	expectedCarve := &fleet.CarveMetadata{
+	expectedCarve := &automdm.CarveMetadata{
 		HostId:     h.ID,
 		Name:       "foobar",
 		BlockCount: 10,
@@ -99,7 +99,7 @@ func testCarvesBlocks(t *testing.T, ds *Datastore) {
 
 	blockCount := int64(25)
 	blockSize := int64(30)
-	carve := &fleet.CarveMetadata{
+	carve := &automdm.CarveMetadata{
 		HostId:     h.ID,
 		Name:       "foobar",
 		BlockCount: blockCount,
@@ -139,7 +139,7 @@ func testCarvesCleanup(t *testing.T, ds *Datastore) {
 
 	blockCount := int64(25)
 	blockSize := int64(30)
-	carve := &fleet.CarveMetadata{
+	carve := &automdm.CarveMetadata{
 		HostId:     h.ID,
 		Name:       "foobar",
 		BlockCount: blockCount,
@@ -189,7 +189,7 @@ func testCarvesCleanup(t *testing.T, ds *Datastore) {
 func testCarvesList(t *testing.T, ds *Datastore) {
 	h := test.NewHost(t, ds, "foo.local", "192.168.1.10", "1", "1", time.Now())
 
-	expectedCarve := &fleet.CarveMetadata{
+	expectedCarve := &automdm.CarveMetadata{
 		HostId:     h.ID,
 		Name:       "foobar",
 		BlockCount: 10,
@@ -210,7 +210,7 @@ func testCarvesList(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 	expectedCarve.MaxBlock = 0
 
-	expectedCarve2 := &fleet.CarveMetadata{
+	expectedCarve2 := &automdm.CarveMetadata{
 		HostId:     h.ID,
 		Name:       "foobar2",
 		BlockCount: 42,
@@ -227,19 +227,19 @@ func testCarvesList(t *testing.T, ds *Datastore) {
 	assert.NotEqual(t, 0, expectedCarve2.ID)
 	expectedCarve2.MaxBlock = -1
 
-	carves, err := ds.ListCarves(context.Background(), fleet.CarveListOptions{Expired: true})
+	carves, err := ds.ListCarves(context.Background(), automdm.CarveListOptions{Expired: true})
 	require.NoError(t, err)
-	assert.Equal(t, []*fleet.CarveMetadata{expectedCarve, expectedCarve2}, carves)
+	assert.Equal(t, []*automdm.CarveMetadata{expectedCarve, expectedCarve2}, carves)
 
 	// Expire the carves
 	_, err = ds.CleanupCarves(context.Background(), time.Now().Add(24*time.Hour))
 	require.NoError(t, err)
 
-	carves, err = ds.ListCarves(context.Background(), fleet.CarveListOptions{Expired: false})
+	carves, err = ds.ListCarves(context.Background(), automdm.CarveListOptions{Expired: false})
 	require.NoError(t, err)
 	assert.Empty(t, carves)
 
-	carves, err = ds.ListCarves(context.Background(), fleet.CarveListOptions{Expired: true})
+	carves, err = ds.ListCarves(context.Background(), automdm.CarveListOptions{Expired: true})
 	require.NoError(t, err)
 	assert.Len(t, carves, 2)
 
@@ -259,9 +259,9 @@ func testCarvesList(t *testing.T, ds *Datastore) {
 		"error",
 	} {
 		t.Run("allowed order_"+key, func(t *testing.T) {
-			result, err := ds.ListCarves(context.Background(), fleet.CarveListOptions{
+			result, err := ds.ListCarves(context.Background(), automdm.CarveListOptions{
 				Expired:     true,
-				ListOptions: fleet.ListOptions{OrderKey: key, PerPage: 10},
+				ListOptions: automdm.ListOptions{OrderKey: key, PerPage: 10},
 			})
 			require.NoError(t, err)
 			require.NotEmpty(t, result)
@@ -269,9 +269,9 @@ func testCarvesList(t *testing.T, ds *Datastore) {
 	}
 
 	t.Run("rejects_unknown_key", func(t *testing.T) {
-		_, err := ds.ListCarves(context.Background(), fleet.CarveListOptions{
+		_, err := ds.ListCarves(context.Background(), automdm.CarveListOptions{
 			Expired:     true,
-			ListOptions: fleet.ListOptions{OrderKey: "h.node_key"},
+			ListOptions: automdm.ListOptions{OrderKey: "h.node_key"},
 		})
 		require.Error(t, err)
 	})
@@ -281,7 +281,7 @@ func testCarvesUpdate(t *testing.T, ds *Datastore) {
 	h := test.NewHost(t, ds, "foo.local", "192.168.1.10", "1", "1", time.Now())
 
 	actualCount := int64(10)
-	carve := &fleet.CarveMetadata{
+	carve := &automdm.CarveMetadata{
 		HostId:     h.ID,
 		Name:       "foobar",
 		BlockCount: actualCount,
@@ -312,8 +312,8 @@ func testCarvesExpire(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 	h := test.NewHost(t, ds, "foo.local", "192.168.1.10", "1", "1", time.Now())
 
-	newCarve := func(session string) *fleet.CarveMetadata {
-		c, err := ds.NewCarve(ctx, &fleet.CarveMetadata{
+	newCarve := func(session string) *automdm.CarveMetadata {
+		c, err := ds.NewCarve(ctx, &automdm.CarveMetadata{
 			HostId:     h.ID,
 			Name:       session,
 			BlockCount: 1,
@@ -333,7 +333,7 @@ func testCarvesExpire(t *testing.T, ds *Datastore) {
 
 	// Empty ids is a no-op.
 	require.NoError(t, ds.ExpireCarves(ctx, nil))
-	for _, c := range []*fleet.CarveMetadata{c1, c2, c3} {
+	for _, c := range []*automdm.CarveMetadata{c1, c2, c3} {
 		got, err := ds.Carve(ctx, c.ID)
 		require.NoError(t, err)
 		require.False(t, got.Expired)

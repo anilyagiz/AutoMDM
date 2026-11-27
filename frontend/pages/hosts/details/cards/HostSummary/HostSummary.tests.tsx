@@ -29,7 +29,7 @@ describe("Host Summary section", () => {
     });
   });
 
-  describe("Fleet data", () => {
+  describe("AutoMDM data", () => {
     it("renders the team name when present", () => {
       const render = createCustomRenderer({
         context: {
@@ -40,25 +40,25 @@ describe("Host Summary section", () => {
           },
         },
       });
-      const summaryData = createMockHostSummary({ fleet_name: "Engineering" });
+      const summaryData = createMockHostSummary({ team_name: "Engineering" });
       render(<HostSummary summaryData={summaryData} isPremiumTier />);
-      expect(screen.getByText("Fleet").nextElementSibling).toHaveTextContent(
+      expect(screen.getByText("AutoMDM").nextElementSibling).toHaveTextContent(
         "Engineering"
       );
     });
 
-    it("renders 'No team' when fleet_name is '---'", () => {
+    it("renders 'No team' when team_name is '---'", () => {
       const render = createCustomRenderer({
         /* ...context... */
       });
-      const summaryData = createMockHostSummary({ fleet_name: "---" });
+      const summaryData = createMockHostSummary({ team_name: "---" });
       render(<HostSummary summaryData={summaryData} isPremiumTier />);
       expect(screen.getByText("Unassigned")).toBeInTheDocument();
     });
   });
 
   describe("iOS and iPadOS data", () => {
-    it("for iOS, renders Fleet data only", async () => {
+    it("for iOS, renders AutoMDM data only", async () => {
       const render = createCustomRenderer({
         context: {
           app: {
@@ -70,22 +70,22 @@ describe("Host Summary section", () => {
       });
 
       const summaryData = createMockHostSummary({
-        fleet_id: 2,
-        fleet_name: "Mobile",
+        team_id: 2,
+        team_name: "Mobile",
         platform: "ios",
         os_name: "iOS",
         os_version: "14.7.1",
       });
 
-      const teamName = summaryData.fleet_name as string;
+      const teamName = summaryData.team_name as string;
 
       render(<HostSummary summaryData={summaryData} isPremiumTier />);
 
-      expect(screen.getByText("Fleet").nextElementSibling).toHaveTextContent(
+      expect(screen.getByText("AutoMDM").nextElementSibling).toHaveTextContent(
         teamName
       );
     });
-    it("for iPadOS, renders Fleet data only", async () => {
+    it("for iPadOS, renders AutoMDM data only", async () => {
       const render = createCustomRenderer({
         context: {
           app: {
@@ -97,18 +97,18 @@ describe("Host Summary section", () => {
       });
 
       const summaryData = createMockHostSummary({
-        fleet_id: 2,
-        fleet_name: "Mobile",
+        team_id: 2,
+        team_name: "Mobile",
         platform: "ipados",
         os_name: "iPadOS",
         os_version: "16.7.8",
       });
 
-      const teamName = summaryData.fleet_name as string;
+      const teamName = summaryData.team_name as string;
 
       render(<HostSummary summaryData={summaryData} isPremiumTier />);
 
-      expect(screen.getByText("Fleet").nextElementSibling).toHaveTextContent(
+      expect(screen.getByText("AutoMDM").nextElementSibling).toHaveTextContent(
         teamName
       );
     });
@@ -336,7 +336,7 @@ describe("Host Summary section", () => {
       expect(screen.queryByText("Patch deadline")).not.toBeInTheDocument();
     });
 
-    it("hides Patch deadline on Fleet Free", () => {
+    it("hides Patch deadline on AutoMDM Free", () => {
       const summaryData = createMockHostSummary({
         platform: "darwin",
         patch_deadline_at: "2026-10-13T20:00:00Z",

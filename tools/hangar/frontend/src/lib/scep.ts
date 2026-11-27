@@ -1,6 +1,6 @@
 // SCEP helpers. A SCEP "profile" is one saved launch config for the shared
 // in-repo scepserver binary — they differ by depot (CA), port, and challenge,
-// so several run side by side to expose multiple Custom SCEP CAs to Fleet at
+// so several run side by side to expose multiple Custom SCEP CAs to AutoMDM at
 // once. Process/log ids mirror the Go side (internal/scep) so the frontend can
 // address a running server's state and log ring without a round-trip.
 import type { ScepProfile, Settings } from "./ipc";
@@ -22,7 +22,7 @@ export function scepChannel(profileId: string): string {
 
 // --- URLs / copy strings ---
 
-/// The SCEP URL to paste into a Fleet Custom SCEP CA. Falls back to localhost
+/// The SCEP URL to paste into an AutoMDM Custom SCEP CA. Falls back to localhost
 /// when the LAN IP isn't known yet.
 export function scepUrl(lanIp: string, port: number): string {
   const host = lanIp || "localhost";

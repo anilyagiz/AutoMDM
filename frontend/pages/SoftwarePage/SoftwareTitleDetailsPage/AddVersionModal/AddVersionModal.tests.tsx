@@ -53,7 +53,7 @@ describe("AddVersionModal", () => {
     renderModal();
     expect(
       screen.getByText(
-        /If multiple versions target the same host, Fleet will deploy the one that was added first\./i
+        /If multiple versions target the same host, AutoMDM will deploy the one that was added first\./i
       )
     ).toBeInTheDocument();
   });
@@ -86,7 +86,7 @@ describe("AddVersionModal", () => {
     await user.tab();
     expect(
       await screen.findByText(
-        /A version with this name already exists on this fleet/i
+        /A version with this name already exists on this automdm/i
       )
     ).toBeInTheDocument();
   });
@@ -166,7 +166,7 @@ describe("AddVersionModal", () => {
       let body: Record<string, unknown> | undefined;
       mockServer.use(
         http.post(
-          "/api/latest/fleet/software/app_store_apps",
+          "/api/latest/automdm/software/app_store_apps",
           async ({ request }) => {
             body = (await request.json()) as Record<string, unknown>;
             return HttpResponse.json({});
@@ -196,7 +196,7 @@ describe("AddVersionModal", () => {
           },
         }),
       });
-      expect(body).toMatchObject({ fleet_id: 1, vpp_token_id: 2 });
+      expect(body).toMatchObject({ team_id: 1, vpp_token_id: 2 });
     });
 
     it("omits vpp_token_id when the title has no token", async () => {

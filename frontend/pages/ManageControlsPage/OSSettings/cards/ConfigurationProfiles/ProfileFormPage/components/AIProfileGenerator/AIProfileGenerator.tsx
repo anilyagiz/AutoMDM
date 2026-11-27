@@ -36,9 +36,9 @@ const baseClass = "ai-profile-generator";
 // The API's limit, counted in characters as it counts them.
 export const MAX_INSTRUCTIONS_LENGTH = 2000;
 
-const OS_SETTINGS_LEARN_MORE_URL = "https://fleetdm.com/os-settings";
-const UPGRADE_URL = "https://fleetdm.com/upgrade";
-// fleetdm.com sets the limit; keep this in step with it.
+const OS_SETTINGS_LEARN_MORE_URL = "https://automdm.com/os-settings";
+const UPGRADE_URL = "https://automdm.com/upgrade";
+// automdm.com sets the limit; keep this in step with it.
 const FREE_PROMPT_LIMIT = 15;
 
 // The arrow overlaps the default offset, leaving no gap above the button.
@@ -100,7 +100,7 @@ const LimitMessage = ({ retryAfterDays }: { retryAfterDays?: number }) => (
     ) : (
       "Upgrade to "
     )}
-    <CustomLink url={UPGRADE_URL} text="Fleet Premium" newTab />
+    <CustomLink url={UPGRADE_URL} text="AutoMDM Premium" newTab />
   </div>
 );
 
@@ -257,7 +257,7 @@ const AIProfileGenerator = ({
       instructions: instructions.trim(),
       platform,
       // as the upload does: left out for Unassigned and on Free
-      fleetId: isPremiumTier && teamId > 0 ? teamId : undefined,
+      automdmId: isPremiumTier && teamId > 0 ? teamId : undefined,
     });
   };
 
@@ -407,7 +407,7 @@ const AIProfileGenerator = ({
           />
           <ProfileBottomBar
             targetType={targets.targetType}
-            fleetName={teamName}
+            automdmName={teamName}
             onEditTargets={
               isPremiumTier ? () => setShowEditTargetsModal(true) : undefined
             }
@@ -422,7 +422,7 @@ const AIProfileGenerator = ({
       <div className={baseClass}>
         <h1>Add profile</h1>
         {isPremiumTier && teamName && (
-          <p className={`${baseClass}__fleet`}>
+          <p className={`${baseClass}__team`}>
             Adding profile for <b>{teamName}</b>.
           </p>
         )}
@@ -456,7 +456,7 @@ const AIProfileGenerator = ({
           the review form picks up what's chosen here. */}
       {showEditTargetsModal && (
         <EditTargetsModal
-          fleetId={teamId}
+          automdmId={teamId}
           targets={targets}
           onAddLabel={() => router.push(PATHS.LABEL_NEW_DYNAMIC)}
           onDone={(newTargets) => {

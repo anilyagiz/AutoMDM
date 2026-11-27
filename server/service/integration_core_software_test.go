@@ -24,11 +24,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	logtestutils "github.com/fleetdm/fleet/v4/server/platform/logging/testutils"
-	"github.com/fleetdm/fleet/v4/server/service/osquery_utils"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	logtestutils "github.com/anilyagiz/automdm/v4/server/platform/logging/testutils"
+	"github.com/anilyagiz/automdm/v4/server/service/osquery_utils"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
@@ -38,7 +38,7 @@ import (
 func (s *integrationTestSuite) TestVulnerableSoftware() {
 	t := s.T()
 
-	host, err := s.ds.NewHost(context.Background(), &fleet.Host{
+	host, err := s.ds.NewHost(context.Background(), &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -53,7 +53,7 @@ func (s *integrationTestSuite) TestVulnerableSoftware() {
 	require.NoError(t, err)
 	require.NotNil(t, host)
 
-	software := []fleet.Software{
+	software := []automdm.Software{
 		{Name: "foo", Version: "0.0.1", Source: "chrome_extensions", ExtensionID: "abc", ExtensionFor: "edge"},
 		{Name: "bar", Version: "0.0.3", Source: "apps", ExtensionID: "xyz", ExtensionFor: "chrome"},
 		// A Go binary reports its toolchain version in release, and its module path in
@@ -72,7 +72,7 @@ func (s *integrationTestSuite) TestVulnerableSoftware() {
 		}
 	}
 
-	cpes := []fleet.SoftwareCPE{{SoftwareID: soft1.ID, CPE: "somecpe"}}
+	cpes := []automdm.SoftwareCPE{{SoftwareID: soft1.ID, CPE: "somecpe"}}
 	_, err = s.ds.UpsertSoftwareCPEs(context.Background(), cpes)
 	require.NoError(t, err)
 
@@ -87,18 +87,18 @@ func (s *integrationTestSuite) TestVulnerableSoftware() {
 	}
 
 	inserted, err := s.ds.InsertSoftwareVulnerability(
-		context.Background(), fleet.SoftwareVulnerability{
+		context.Background(), automdm.SoftwareVulnerability{
 			SoftwareID: soft1.ID,
 			CVE:        "cve-123-123-132",
-		}, fleet.NVDSource,
+		}, automdm.NVDSource,
 	)
 	require.NoError(t, err)
 	require.True(t, inserted)
 
 	var hostResponse getHostResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", host.ID), nil, http.StatusOK, &hostResponse)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", host.ID), nil, http.StatusOK, &hostResponse)
 
-	assertSoftware := func(t *testing.T, software []fleet.HostSoftwareEntry, contains *fleet.Software) {
+	assertSoftware := func(t *testing.T, software []automdm.HostSoftwareEntry, contains *automdm.Software) {
 		t.Helper()
 		var found bool
 		for _, s := range software {
@@ -123,14 +123,14 @@ func (s *integrationTestSuite) TestVulnerableSoftware() {
 		}
 	}
 
-	expectedSoft2 := &fleet.Software{
+	expectedSoft2 := &automdm.Software{
 		Name:         "bar",
 		Version:      "0.0.3",
 		Source:       "apps",
 		ExtensionID:  "xyz",
 		ExtensionFor: "chrome",
 		GenerateCPE:  "somecpe",
-		Vulnerabilities: fleet.Vulnerabilities{
+		Vulnerabilities: automdm.Vulnerabilities{
 			{
 				CVE:         "cve-123-123-132",
 				DetailsLink: "https://nvd.nist.gov/vuln/detail/cve-123-123-132",
@@ -138,7 +138,7 @@ func (s *integrationTestSuite) TestVulnerableSoftware() {
 		},
 	}
 
-	expectedSoft1 := &fleet.Software{
+	expectedSoft1 := &automdm.Software{
 		Name:            "foo",
 		Version:         "0.0.1",
 		Source:          "chrome_extensions",
@@ -150,7 +150,7 @@ func (s *integrationTestSuite) TestVulnerableSoftware() {
 
 	// The module path stored in extension_id is not exposed for go_binaries; the other
 	// sources above keep theirs.
-	expectedSoftGo := &fleet.Software{
+	expectedSoftGo := &automdm.Software{
 		Name:        "air",
 		Version:     "v1.48.0",
 		Source:      "go_binaries",
@@ -164,7 +164,7 @@ func (s *integrationTestSuite) TestVulnerableSoftware() {
 
 	// no software host counts have been calculated yet, so this returns nothing
 	var versionsResp listSoftwareVersionsResponse
-	resp := s.Do("GET", "/api/latest/fleet/software/versions", nil, http.StatusOK, "vulnerable", "true", "order_key", "generated_cpe", "order_direction", "desc")
+	resp := s.Do("GET", "/api/latest/automdm/software/versions", nil, http.StatusOK, "vulnerable", "true", "order_key", "generated_cpe", "order_direction", "desc")
 	bodyBytes, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	assert.Contains(t, string(bodyBytes), `"counts_updated_at":null`)
@@ -178,7 +178,7 @@ func (s *integrationTestSuite) TestVulnerableSoftware() {
 	require.NoError(t, s.ds.SyncHostsSoftware(context.Background(), hostsCountTs))
 
 	versionsResp = listSoftwareVersionsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/software/versions", nil, http.StatusOK, &versionsResp, "vulnerable", "true", "order_key", "generated_cpe", "order_direction", "desc")
+	s.DoJSON("GET", "/api/latest/automdm/software/versions", nil, http.StatusOK, &versionsResp, "vulnerable", "true", "order_key", "generated_cpe", "order_direction", "desc")
 	require.Len(t, versionsResp.Software, 1)
 	require.Equal(t, 1, versionsResp.Count)
 	assert.Equal(t, soft1.ID, versionsResp.Software[0].ID)
@@ -189,11 +189,11 @@ func (s *integrationTestSuite) TestVulnerableSoftware() {
 	assert.WithinDuration(t, hostsCountTs, *versionsResp.CountsUpdatedAt, time.Second)
 
 	// an unsupported order_key returns 422
-	s.Do("GET", "/api/latest/fleet/software/versions", nil, http.StatusUnprocessableEntity, "order_key", "vendor_old")
+	s.Do("GET", "/api/latest/automdm/software/versions", nil, http.StatusUnprocessableEntity, "order_key", "vendor_old")
 
 	// Only List operating systems renamed its version sort key, so other lists still sort by version.
 	versionsResp = listSoftwareVersionsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/software/versions", nil, http.StatusOK, &versionsResp, "order_key", "version", "order_direction", "desc")
+	s.DoJSON("GET", "/api/latest/automdm/software/versions", nil, http.StatusOK, &versionsResp, "order_key", "version", "order_direction", "desc")
 	var versions []string
 	for _, sw := range versionsResp.Software {
 		versions = append(versions, sw.Version)
@@ -202,7 +202,7 @@ func (s *integrationTestSuite) TestVulnerableSoftware() {
 
 	// default sort, not only vulnerable
 	versionsResp = listSoftwareVersionsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/software/versions", nil, http.StatusOK, &versionsResp)
+	s.DoJSON("GET", "/api/latest/automdm/software/versions", nil, http.StatusOK, &versionsResp)
 	require.GreaterOrEqual(t, len(versionsResp.Software), len(software))
 	require.GreaterOrEqual(t, versionsResp.Count, len(software))
 	require.NotNil(t, versionsResp.CountsUpdatedAt)
@@ -210,7 +210,7 @@ func (s *integrationTestSuite) TestVulnerableSoftware() {
 
 	// request with a per_page limit (see #4058)
 	versionsResp = listSoftwareVersionsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/software/versions", nil, http.StatusOK, &versionsResp, "page", "0", "per_page", "2", "order_key", "hosts_count", "order_direction", "desc")
+	s.DoJSON("GET", "/api/latest/automdm/software/versions", nil, http.StatusOK, &versionsResp, "page", "0", "per_page", "2", "order_key", "hosts_count", "order_direction", "desc")
 	require.Len(t, versionsResp.Software, 2)
 	require.GreaterOrEqual(t, versionsResp.Count, 2)
 	require.NotNil(t, versionsResp.CountsUpdatedAt)
@@ -218,7 +218,7 @@ func (s *integrationTestSuite) TestVulnerableSoftware() {
 
 	// request next page, with per_page limit
 	versionsResp = listSoftwareVersionsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/software/versions", nil, http.StatusOK, &versionsResp, "per_page", "2", "page", "1", "order_key", "hosts_count", "order_direction", "desc")
+	s.DoJSON("GET", "/api/latest/automdm/software/versions", nil, http.StatusOK, &versionsResp, "per_page", "2", "page", "1", "order_key", "hosts_count", "order_direction", "desc")
 	require.Len(t, versionsResp.Software, 1)
 	require.GreaterOrEqual(t, versionsResp.Count, 2)
 	require.NotNil(t, versionsResp.CountsUpdatedAt)
@@ -226,13 +226,13 @@ func (s *integrationTestSuite) TestVulnerableSoftware() {
 
 	// request one past the last page
 	versionsResp = listSoftwareVersionsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/software/versions", nil, http.StatusOK, &versionsResp, "per_page", "2", "page", "2", "order_key", "hosts_count", "order_direction", "desc")
+	s.DoJSON("GET", "/api/latest/automdm/software/versions", nil, http.StatusOK, &versionsResp, "per_page", "2", "page", "2", "order_key", "hosts_count", "order_direction", "desc")
 	require.Empty(t, versionsResp.Software)
 	require.GreaterOrEqual(t, versionsResp.Count, 2)
 	require.Nil(t, versionsResp.CountsUpdatedAt) // CONFIRM: legacy counts updated at is calculated by the server based on the software entries in the paginated response so how should we handle now?
 
-	s.DoJSON("GET", "/api/latest/fleet/software/versions", nil, http.StatusBadRequest, &versionsResp, "per_page", "2", "page", "-10")
-	s.DoJSON("GET", "/api/latest/fleet/software/versions", nil, http.StatusBadRequest, &versionsResp, "per_page", "-2", "page", "2")
+	s.DoJSON("GET", "/api/latest/automdm/software/versions", nil, http.StatusBadRequest, &versionsResp, "per_page", "2", "page", "-10")
+	s.DoJSON("GET", "/api/latest/automdm/software/versions", nil, http.StatusBadRequest, &versionsResp, "per_page", "-2", "page", "2")
 }
 
 // softwareTypeFilterErrorCases are the invalid source and extension_for requests, with the error each
@@ -241,23 +241,23 @@ var softwareTypeFilterErrorCases = []struct {
 	params []string
 	reason string
 }{
-	{[]string{"source", "app"}, fmt.Sprintf(fleet.InvalidSoftwareSourceErrMsg, "app")},
-	{[]string{"source", "chrome_extensions", "extension_for", "brav"}, fmt.Sprintf(fleet.InvalidSoftwareExtensionForErrMsg, "brav")},
-	{[]string{"extension_for", "brave"}, fleet.SoftwareExtensionForRequiresSourceErrMsg},
+	{[]string{"source", "app"}, fmt.Sprintf(automdm.InvalidSoftwareSourceErrMsg, "app")},
+	{[]string{"source", "chrome_extensions", "extension_for", "brav"}, fmt.Sprintf(automdm.InvalidSoftwareExtensionForErrMsg, "brav")},
+	{[]string{"extension_for", "brave"}, automdm.SoftwareExtensionForRequiresSourceErrMsg},
 	{
 		[]string{"source", "apps,chrome_extensions", "extension_for", "cursor"},
-		fmt.Sprintf(fleet.SoftwareExtensionForSourceNotSelectedErrMsg, "cursor", "vscode_extensions"),
+		fmt.Sprintf(automdm.SoftwareExtensionForSourceNotSelectedErrMsg, "cursor", "vscode_extensions"),
 	},
-	{[]string{"source", "ai_tool"}, fmt.Sprintf(fleet.InvalidSoftwareSourceErrMsg, "ai_tool")},
+	{[]string{"source", "ai_tool"}, fmt.Sprintf(automdm.InvalidSoftwareSourceErrMsg, "ai_tool")},
 }
 
 func (s *integrationTestSuite) TestListSoftwareAndSoftwareDetails() {
 	t := s.T()
 
 	// create a few hosts specific to this test
-	hosts := make([]*fleet.Host, 20)
+	hosts := make([]*automdm.Host, 20)
 	for i := range hosts {
-		host, err := s.ds.NewHost(context.Background(), &fleet.Host{
+		host, err := s.ds.NewHost(context.Background(), &automdm.Host{
 			DetailUpdatedAt: time.Now(),
 			LabelUpdatedAt:  time.Now(),
 			PolicyUpdatedAt: time.Now(),
@@ -275,9 +275,9 @@ func (s *integrationTestSuite) TestListSoftwareAndSoftwareDetails() {
 	}
 
 	// create a bunch of software
-	sws := make([]fleet.Software, 20)
+	sws := make([]automdm.Software, 20)
 	for i := range sws {
-		sw := fleet.Software{Name: fmt.Sprintf("sw%02d", i), Version: fmt.Sprintf("0.0.%02d", i), Source: "apps"}
+		sw := automdm.Software{Name: fmt.Sprintf("sw%02d", i), Version: fmt.Sprintf("0.0.%02d", i), Source: "apps"}
 		if i%2 == 0 {
 			sw.Source = "chrome_extensions"
 			sw.ExtensionFor = "chrome"
@@ -285,12 +285,12 @@ func (s *integrationTestSuite) TestListSoftwareAndSoftwareDetails() {
 		sws[i] = sw
 	}
 
-	sortByNameAlphanumeric := func(sw []fleet.Software, a, b int) bool {
+	sortByNameAlphanumeric := func(sw []automdm.Software, a, b int) bool {
 		aNum, _ := strconv.Atoi(strings.TrimPrefix(sw[a].Name, "sw"))
 		bNum, _ := strconv.Atoi(strings.TrimPrefix(sw[b].Name, "sw"))
 		return aNum < bNum
 	}
-	sortEntryByNameAlphanumeric := func(sw []fleet.HostSoftwareEntry, a, b int) bool {
+	sortEntryByNameAlphanumeric := func(sw []automdm.HostSoftwareEntry, a, b int) bool {
 		aNum, _ := strconv.Atoi(strings.TrimPrefix(sw[a].Name, "sw"))
 		bNum, _ := strconv.Atoi(strings.TrimPrefix(sw[b].Name, "sw"))
 		return aNum < bNum
@@ -306,7 +306,7 @@ func (s *integrationTestSuite) TestListSoftwareAndSoftwareDetails() {
 
 		if i == 0 {
 			// this host has all software, refresh the list so we have the software.ID filled
-			sws = make([]fleet.Software, 0, len(h.Software))
+			sws = make([]automdm.Software, 0, len(h.Software))
 			for _, s := range h.Software {
 				sws = append(sws, s.Software)
 			}
@@ -319,9 +319,9 @@ func (s *integrationTestSuite) TestListSoftwareAndSoftwareDetails() {
 		}
 	}
 
-	var cpes []fleet.SoftwareCPE
+	var cpes []automdm.SoftwareCPE
 	for i, sw := range sws {
-		cpes = append(cpes, fleet.SoftwareCPE{SoftwareID: sw.ID, CPE: "somecpe" + strconv.Itoa(i)})
+		cpes = append(cpes, automdm.SoftwareCPE{SoftwareID: sw.ID, CPE: "somecpe" + strconv.Itoa(i)})
 	}
 
 	_, err := s.ds.UpsertSoftwareCPEs(context.Background(), cpes)
@@ -339,10 +339,10 @@ func (s *integrationTestSuite) TestListSoftwareAndSoftwareDetails() {
 	)
 	testCvePrefix := "cve-123-123"
 	for i, sw := range hosts[0].Software[:10] {
-		inserted, err := s.ds.InsertSoftwareVulnerability(context.Background(), fleet.SoftwareVulnerability{
+		inserted, err := s.ds.InsertSoftwareVulnerability(context.Background(), automdm.SoftwareVulnerability{
 			SoftwareID: sw.ID,
 			CVE:        fmt.Sprintf(testCvePrefix+"-%03d", i),
-		}, fleet.NVDSource)
+		}, automdm.NVDSource)
 		require.NoError(t, err)
 		require.True(t, inserted)
 	}
@@ -350,20 +350,20 @@ func (s *integrationTestSuite) TestListSoftwareAndSoftwareDetails() {
 
 	// create a team and make the last 3 hosts part of it (meaning 3 that use
 	// sws[19], 2 for sws[18], and 1 for sws[17])
-	tm, err := s.ds.NewTeam(context.Background(), &fleet.Team{
+	tm, err := s.ds.NewTeam(context.Background(), &automdm.Team{
 		Name: t.Name(),
 	})
 	require.NoError(t, err)
-	require.NoError(t, s.ds.AddHostsToTeam(context.Background(), fleet.NewAddHostsToTeamParams(&tm.ID, []uint{hosts[19].ID, hosts[18].ID, hosts[17].ID})))
+	require.NoError(t, s.ds.AddHostsToTeam(context.Background(), automdm.NewAddHostsToTeamParams(&tm.ID, []uint{hosts[19].ID, hosts[18].ID, hosts[17].ID})))
 	expectedTeamVersionsCount := 3
 
-	assertSoftwareDetails := func(expectedSoftware []fleet.Software, team string) {
+	assertSoftwareDetails := func(expectedSoftware []automdm.Software, team string) {
 		t.Helper()
 		// this is just a basic sanity check of the software details endpoints and doesn't test all of the
 		// fields that may be present in the response (e.g., vulnerabilities)
 		for _, sw := range expectedSoftware {
 			var detailsResp getSoftwareResponse
-			s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/software/versions/%d", sw.ID), nil, http.StatusOK, &detailsResp, "fleet_id", team)
+			s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/software/versions/%d", sw.ID), nil, http.StatusOK, &detailsResp, "team_id", team)
 			assert.Equal(t, sw.ID, detailsResp.Software.ID)
 			assert.Equal(t, sw.Name, detailsResp.Software.Name)
 			assert.Equal(t, sw.Version, detailsResp.Software.Version)
@@ -377,7 +377,7 @@ func (s *integrationTestSuite) TestListSoftwareAndSoftwareDetails() {
 	}
 
 	assertVersionsResp := func(
-		resp listSoftwareVersionsResponse, want []fleet.Software, ts time.Time, team string, swCount int, hostCounts ...int,
+		resp listSoftwareVersionsResponse, want []automdm.Software, ts time.Time, team string, swCount int, hostCounts ...int,
 	) {
 		require.Equal(t, swCount, resp.Count)
 		require.Len(t, resp.Software, len(want))
@@ -406,15 +406,15 @@ func (s *integrationTestSuite) TestListSoftwareAndSoftwareDetails() {
 
 	// no software host counts have been calculated yet, so this returns nothing
 	var versResp listSoftwareVersionsResponse
-	s.DoJSON("GET", "/api/latest/fleet/software/versions", nil, http.StatusOK, &versResp, "order_key", "hosts_count", "order_direction", "desc")
+	s.DoJSON("GET", "/api/latest/automdm/software/versions", nil, http.StatusOK, &versResp, "order_key", "hosts_count", "order_direction", "desc")
 	assertVersionsResp(versResp, nil, time.Time{}, "", 0)
 
 	// same with a team filter
 	teamStr := fmt.Sprintf("%d", tm.ID)
 	versResp = listSoftwareVersionsResponse{}
 	s.DoJSON(
-		"GET", "/api/latest/fleet/software/versions", nil, http.StatusOK, &versResp, "order_key", "hosts_count", "order_direction", "desc",
-		"fleet_id", teamStr,
+		"GET", "/api/latest/automdm/software/versions", nil, http.StatusOK, &versResp, "order_key", "hosts_count", "order_direction", "desc",
+		"team_id", teamStr,
 	)
 	assertVersionsResp(versResp, nil, time.Time{}, teamStr, 0)
 
@@ -424,93 +424,93 @@ func (s *integrationTestSuite) TestListSoftwareAndSoftwareDetails() {
 
 	// now the list software endpoint returns the software, get the first page without vulns
 	versResp = listSoftwareVersionsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/software/versions", nil, http.StatusOK, &versResp, "per_page", "5", "page", "0", "order_key", "hosts_count", "order_direction", "desc")
+	s.DoJSON("GET", "/api/latest/automdm/software/versions", nil, http.StatusOK, &versResp, "per_page", "5", "page", "0", "order_key", "hosts_count", "order_direction", "desc")
 	assertVersionsResp(
-		versResp, []fleet.Software{sws[19], sws[18], sws[17], sws[16], sws[15]}, hostsCountTs, "", len(sws), 20, 19, 18, 17, 16,
+		versResp, []automdm.Software{sws[19], sws[18], sws[17], sws[16], sws[15]}, hostsCountTs, "", len(sws), 20, 19, 18, 17, 16,
 	)
 	require.False(t, versResp.Meta.HasPreviousResults)
 	require.True(t, versResp.Meta.HasNextResults)
 
 	// second page (page=1)
 	versResp = listSoftwareVersionsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/software/versions", nil, http.StatusOK, &versResp, "per_page", "5", "page", "1", "order_key", "hosts_count", "order_direction", "desc")
+	s.DoJSON("GET", "/api/latest/automdm/software/versions", nil, http.StatusOK, &versResp, "per_page", "5", "page", "1", "order_key", "hosts_count", "order_direction", "desc")
 	assertVersionsResp(
-		versResp, []fleet.Software{sws[14], sws[13], sws[12], sws[11], sws[10]}, hostsCountTs, "", len(sws), 15, 14, 13, 12, 11,
+		versResp, []automdm.Software{sws[14], sws[13], sws[12], sws[11], sws[10]}, hostsCountTs, "", len(sws), 15, 14, 13, 12, 11,
 	)
 	require.True(t, versResp.Meta.HasPreviousResults)
 	require.True(t, versResp.Meta.HasNextResults)
 
 	// third page (page=2)
 	versResp = listSoftwareVersionsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/software/versions", nil, http.StatusOK, &versResp, "per_page", "5", "page", "2", "order_key", "hosts_count", "order_direction", "desc")
-	assertVersionsResp(versResp, []fleet.Software{sws[9], sws[8], sws[7], sws[6], sws[5]}, hostsCountTs, "", len(sws), 10, 9, 8, 7, 6)
+	s.DoJSON("GET", "/api/latest/automdm/software/versions", nil, http.StatusOK, &versResp, "per_page", "5", "page", "2", "order_key", "hosts_count", "order_direction", "desc")
+	assertVersionsResp(versResp, []automdm.Software{sws[9], sws[8], sws[7], sws[6], sws[5]}, hostsCountTs, "", len(sws), 10, 9, 8, 7, 6)
 	require.True(t, versResp.Meta.HasPreviousResults)
 	require.True(t, versResp.Meta.HasNextResults)
 
 	// last page (page=3)
 	versResp = listSoftwareVersionsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/software/versions", nil, http.StatusOK, &versResp, "per_page", "5", "page", "3", "order_key", "hosts_count", "order_direction", "desc")
-	assertVersionsResp(versResp, []fleet.Software{sws[4], sws[3], sws[2], sws[1], sws[0]}, hostsCountTs, "", len(sws), 5, 4, 3, 2, 1)
+	s.DoJSON("GET", "/api/latest/automdm/software/versions", nil, http.StatusOK, &versResp, "per_page", "5", "page", "3", "order_key", "hosts_count", "order_direction", "desc")
+	assertVersionsResp(versResp, []automdm.Software{sws[4], sws[3], sws[2], sws[1], sws[0]}, hostsCountTs, "", len(sws), 5, 4, 3, 2, 1)
 	require.True(t, versResp.Meta.HasPreviousResults)
 	require.False(t, versResp.Meta.HasNextResults)
 
 	// past the end
 	versResp = listSoftwareVersionsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/software/versions", nil, http.StatusOK, &versResp, "per_page", "5", "page", "4", "order_key", "hosts_count", "order_direction", "desc")
+	s.DoJSON("GET", "/api/latest/automdm/software/versions", nil, http.StatusOK, &versResp, "per_page", "5", "page", "4", "order_key", "hosts_count", "order_direction", "desc")
 	assertVersionsResp(versResp, nil, time.Time{}, "", len(sws))
 
 	// no explicit sort order, defaults to hosts_count DESC
 	versResp = listSoftwareVersionsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/software/versions", nil, http.StatusOK, &versResp, "per_page", "2", "page", "0")
-	assertVersionsResp(versResp, []fleet.Software{sws[19], sws[18]}, hostsCountTs, "", len(sws), 20, 19)
+	s.DoJSON("GET", "/api/latest/automdm/software/versions", nil, http.StatusOK, &versResp, "per_page", "2", "page", "0")
+	assertVersionsResp(versResp, []automdm.Software{sws[19], sws[18]}, hostsCountTs, "", len(sws), 20, 19)
 
 	// hosts_count ascending
 	versResp = listSoftwareVersionsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/software/versions", nil, http.StatusOK, &versResp, "per_page", "3", "page", "0", "order_key", "hosts_count", "order_direction", "asc")
-	assertVersionsResp(versResp, []fleet.Software{sws[0], sws[1], sws[2]}, hostsCountTs, "", len(sws), 1, 2, 3)
+	s.DoJSON("GET", "/api/latest/automdm/software/versions", nil, http.StatusOK, &versResp, "per_page", "3", "page", "0", "order_key", "hosts_count", "order_direction", "asc")
+	assertVersionsResp(versResp, []automdm.Software{sws[0], sws[1], sws[2]}, hostsCountTs, "", len(sws), 1, 2, 3)
 
 	// vulnerable software only
 	versResp = listSoftwareVersionsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/software/versions", nil, http.StatusOK, &versResp, "vulnerable", "true", "per_page", "5", "page", "0", "order_key", "hosts_count", "order_direction", "desc")
+	s.DoJSON("GET", "/api/latest/automdm/software/versions", nil, http.StatusOK, &versResp, "vulnerable", "true", "per_page", "5", "page", "0", "order_key", "hosts_count", "order_direction", "desc")
 	assertVersionsResp(
-		versResp, []fleet.Software{sws[9], sws[8], sws[7], sws[6], sws[5]}, hostsCountTs, "", expectedVulnVersionsCount, 10, 9, 8, 7, 6,
+		versResp, []automdm.Software{sws[9], sws[8], sws[7], sws[6], sws[5]}, hostsCountTs, "", expectedVulnVersionsCount, 10, 9, 8, 7, 6,
 	)
 
 	// vulnerable software only, next page
 	versResp = listSoftwareVersionsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/software/versions", nil, http.StatusOK, &versResp, "vulnerable", "true", "per_page", "5", "page", "1", "order_key", "hosts_count", "order_direction", "desc")
+	s.DoJSON("GET", "/api/latest/automdm/software/versions", nil, http.StatusOK, &versResp, "vulnerable", "true", "per_page", "5", "page", "1", "order_key", "hosts_count", "order_direction", "desc")
 	assertVersionsResp(
-		versResp, []fleet.Software{sws[4], sws[3], sws[2], sws[1], sws[0]}, hostsCountTs, "", expectedVulnVersionsCount, 5, 4, 3, 2, 1,
+		versResp, []automdm.Software{sws[4], sws[3], sws[2], sws[1], sws[0]}, hostsCountTs, "", expectedVulnVersionsCount, 5, 4, 3, 2, 1,
 	)
 
 	// vulnerable software only, past last page
 	versResp = listSoftwareVersionsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/software/versions", nil, http.StatusOK, &versResp, "vulnerable", "true", "per_page", "5", "page", "2", "order_key", "hosts_count", "order_direction", "desc")
+	s.DoJSON("GET", "/api/latest/automdm/software/versions", nil, http.StatusOK, &versResp, "vulnerable", "true", "per_page", "5", "page", "2", "order_key", "hosts_count", "order_direction", "desc")
 	assertVersionsResp(versResp, nil, time.Time{}, "", expectedVulnVersionsCount)
 
 	// /software/versions  filtered by name, version, cve (`/software` is deprecated)
 	versionsResp := listSoftwareVersionsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/software/versions", nil, http.StatusOK, &versionsResp, "query", sws[0].Name)
-	assertVersionsResp(versionsResp, []fleet.Software{sws[0]}, hostsCountTs, "", 1, 1)
+	s.DoJSON("GET", "/api/latest/automdm/software/versions", nil, http.StatusOK, &versionsResp, "query", sws[0].Name)
+	assertVersionsResp(versionsResp, []automdm.Software{sws[0]}, hostsCountTs, "", 1, 1)
 	// with whitespace
-	s.DoJSON("GET", "/api/latest/fleet/software/versions", nil, http.StatusOK, &versionsResp, "query", " "+sws[0].Name+"\n")
-	assertVersionsResp(versionsResp, []fleet.Software{sws[0]}, hostsCountTs, "", 1, 1)
+	s.DoJSON("GET", "/api/latest/automdm/software/versions", nil, http.StatusOK, &versionsResp, "query", " "+sws[0].Name+"\n")
+	assertVersionsResp(versionsResp, []automdm.Software{sws[0]}, hostsCountTs, "", 1, 1)
 
-	s.DoJSON("GET", "/api/latest/fleet/software/versions", nil, http.StatusOK, &versionsResp, "query", sws[0].Version)
-	assertVersionsResp(versionsResp, []fleet.Software{sws[0]}, hostsCountTs, "", 1, 1)
+	s.DoJSON("GET", "/api/latest/automdm/software/versions", nil, http.StatusOK, &versionsResp, "query", sws[0].Version)
+	assertVersionsResp(versionsResp, []automdm.Software{sws[0]}, hostsCountTs, "", 1, 1)
 	// with whitespace
-	s.DoJSON("GET", "/api/latest/fleet/software/versions", nil, http.StatusOK, &versionsResp, "query", "\n"+sws[0].Version+"  ")
-	assertVersionsResp(versionsResp, []fleet.Software{sws[0]}, hostsCountTs, "", 1, 1)
+	s.DoJSON("GET", "/api/latest/automdm/software/versions", nil, http.StatusOK, &versionsResp, "query", "\n"+sws[0].Version+"  ")
+	assertVersionsResp(versionsResp, []automdm.Software{sws[0]}, hostsCountTs, "", 1, 1)
 
 	// All 10 CVEs added to the first 10 software have the same cvePrefix, so should return all
 	// 10 vulnerable software versions
-	s.DoJSON("GET", "/api/latest/fleet/software/versions", nil, http.StatusOK, &versionsResp, "query", testCvePrefix)
+	s.DoJSON("GET", "/api/latest/automdm/software/versions", nil, http.StatusOK, &versionsResp, "query", testCvePrefix)
 	require.Len(t, versionsResp.Software, 10)
 	require.Equal(t, 10, versionsResp.Count)
 	// TODO(jacob) use `assertVersionsResp`
 	// assertVersionsResp(versionsResp, sws[:10], hostsCountTs, "", 10, 1)
 	// with whitespace
-	s.DoJSON("GET", "/api/latest/fleet/software/versions", nil, http.StatusOK, &versionsResp, "query", "  "+testCvePrefix+"\n")
+	s.DoJSON("GET", "/api/latest/automdm/software/versions", nil, http.StatusOK, &versionsResp, "query", "  "+testCvePrefix+"\n")
 	require.Len(t, versionsResp.Software, 10)
 	require.Equal(t, 10, versionsResp.Count)
 	// TODO(jacob) use `assertVersionsResp`
@@ -518,17 +518,17 @@ func (s *integrationTestSuite) TestListSoftwareAndSoftwareDetails() {
 
 	// filter by source and extension_for; even-indexed software are Chrome extensions, odd are apps
 	for _, c := range softwareTypeFilterErrorCases {
-		res := s.Do("GET", "/api/latest/fleet/software/versions", nil, http.StatusUnprocessableEntity, c.params...)
+		res := s.Do("GET", "/api/latest/automdm/software/versions", nil, http.StatusUnprocessableEntity, c.params...)
 		require.Contains(t, extractServerErrorText(res.Body), c.reason)
 	}
 	// The ai_tool filter is Premium. Free never ingests AI tools, so their sources aren't gated.
-	for _, path := range []string{"/api/latest/fleet/software/versions"} {
+	for _, path := range []string{"/api/latest/automdm/software/versions"} {
 		res := s.Do("GET", path, nil, http.StatusPaymentRequired, "ai_tool", "true")
 		require.NoError(t, res.Body.Close())
 		res = s.Do("GET", path, nil, http.StatusOK, "source", "mcp_servers")
 		require.NoError(t, res.Body.Close())
 	}
-	s.DoJSON("GET", "/api/latest/fleet/software/versions", nil, http.StatusOK, &versionsResp,
+	s.DoJSON("GET", "/api/latest/automdm/software/versions", nil, http.StatusOK, &versionsResp,
 		"source", "chrome_extensions", "extension_for", "chrome", "per_page", "5")
 	require.Equal(t, 10, versionsResp.Count)
 	require.Len(t, versionsResp.Software, 5)
@@ -538,15 +538,15 @@ func (s *integrationTestSuite) TestListSoftwareAndSoftwareDetails() {
 
 	require.NoError(t, s.ds.SyncHostsSoftwareTitles(context.Background(), time.Now()))
 	for _, c := range softwareTypeFilterErrorCases {
-		res := s.Do("GET", "/api/latest/fleet/software/titles", nil, http.StatusUnprocessableEntity, c.params...)
+		res := s.Do("GET", "/api/latest/automdm/software/titles", nil, http.StatusUnprocessableEntity, c.params...)
 		require.Contains(t, extractServerErrorText(res.Body), c.reason)
 	}
-	res := s.Do("GET", "/api/latest/fleet/software/titles", nil, http.StatusPaymentRequired, "ai_tool", "true")
+	res := s.Do("GET", "/api/latest/automdm/software/titles", nil, http.StatusPaymentRequired, "ai_tool", "true")
 	require.NoError(t, res.Body.Close())
-	res = s.Do("GET", "/api/latest/fleet/software/titles", nil, http.StatusOK, "source", "mcp_servers")
+	res = s.Do("GET", "/api/latest/automdm/software/titles", nil, http.StatusOK, "source", "mcp_servers")
 	require.NoError(t, res.Body.Close())
 	var titlesResp listSoftwareTitlesResponse
-	s.DoJSON("GET", "/api/latest/fleet/software/titles", nil, http.StatusOK, &titlesResp, "source", "apps")
+	s.DoJSON("GET", "/api/latest/automdm/software/titles", nil, http.StatusOK, &titlesResp, "source", "apps")
 	require.Equal(t, 10, titlesResp.Count)
 	for _, title := range titlesResp.SoftwareTitles {
 		require.Equal(t, "apps", title.Source)
@@ -555,38 +555,38 @@ func (s *integrationTestSuite) TestListSoftwareAndSoftwareDetails() {
 	// filter by the team, 2 by page
 	versResp = listSoftwareVersionsResponse{}
 	s.DoJSON(
-		"GET", "/api/latest/fleet/software/versions", nil, http.StatusOK, &versResp, "per_page", "2", "page", "0", "order_key",
-		"hosts_count", "order_direction", "desc", "fleet_id", teamStr,
+		"GET", "/api/latest/automdm/software/versions", nil, http.StatusOK, &versResp, "per_page", "2", "page", "0", "order_key",
+		"hosts_count", "order_direction", "desc", "team_id", teamStr,
 	)
-	assertVersionsResp(versResp, []fleet.Software{sws[19], sws[18]}, hostsCountTs, teamStr, expectedTeamVersionsCount, 3, 2)
+	assertVersionsResp(versResp, []automdm.Software{sws[19], sws[18]}, hostsCountTs, teamStr, expectedTeamVersionsCount, 3, 2)
 
 	// filter by the team, 2 by page, next page
 	versResp = listSoftwareVersionsResponse{}
 	s.DoJSON(
-		"GET", "/api/latest/fleet/software/versions", nil, http.StatusOK, &versResp, "per_page", "2", "page", "1", "order_key",
-		"hosts_count", "order_direction", "desc", "fleet_id", teamStr,
+		"GET", "/api/latest/automdm/software/versions", nil, http.StatusOK, &versResp, "per_page", "2", "page", "1", "order_key",
+		"hosts_count", "order_direction", "desc", "team_id", teamStr,
 	)
-	assertVersionsResp(versResp, []fleet.Software{sws[17]}, hostsCountTs, teamStr, expectedTeamVersionsCount, 1)
+	assertVersionsResp(versResp, []automdm.Software{sws[17]}, hostsCountTs, teamStr, expectedTeamVersionsCount, 1)
 
 	// filter by no team, 2 by page
 	versResp = listSoftwareVersionsResponse{}
 	s.DoJSON(
-		"GET", "/api/latest/fleet/software/versions", nil, http.StatusOK, &versResp, "per_page", "2", "page", "0", "order_key",
-		"name", "order_direction", "desc", "fleet_id", "0",
+		"GET", "/api/latest/automdm/software/versions", nil, http.StatusOK, &versResp, "per_page", "2", "page", "0", "order_key",
+		"name", "order_direction", "desc", "team_id", "0",
 	)
-	assertVersionsResp(versResp, []fleet.Software{sws[19], sws[18]}, hostsCountTs, "", len(sws), 17, 17)
+	assertVersionsResp(versResp, []automdm.Software{sws[19], sws[18]}, hostsCountTs, "", len(sws), 17, 17)
 
 	// Invalid software team -- admin gets a 404, team users get a 403
 	detailsResp := getSoftwareResponse{}
 	s.DoJSON(
-		"GET", fmt.Sprintf("/api/latest/fleet/software/versions/%d", versResp.Software[0].ID), nil, http.StatusNotFound, &detailsResp,
-		"fleet_id", "999999",
+		"GET", fmt.Sprintf("/api/latest/automdm/software/versions/%d", versResp.Software[0].ID), nil, http.StatusNotFound, &detailsResp,
+		"team_id", "999999",
 	)
 
 	// a request with without_vulnerability_details set to false does not return extra details
 	respVersions := listSoftwareVersionsResponse{}
 	s.DoJSON(
-		"GET", "/api/latest/fleet/software/versions",
+		"GET", "/api/latest/automdm/software/versions",
 		listSoftwareRequest{},
 		http.StatusOK, &respVersions,
 		"without_vulnerability_details", "false",
@@ -606,26 +606,26 @@ func (s *integrationTestSuite) TestListSoftwareAndSoftwareDetails() {
 func (s *integrationTestSuite) TestListVulnerabilities() {
 	t := s.T()
 	var resp listVulnerabilitiesResponse
-	s.DoJSON("GET", "/api/latest/fleet/vulnerabilities", nil, http.StatusOK, &resp)
+	s.DoJSON("GET", "/api/latest/automdm/vulnerabilities", nil, http.StatusOK, &resp)
 
 	// Invalid Order Key
-	s.DoJSON("GET", "/api/latest/fleet/vulnerabilities", nil, http.StatusBadRequest, &resp, "order_key", "foo", "order_direction", "asc")
+	s.DoJSON("GET", "/api/latest/automdm/vulnerabilities", nil, http.StatusBadRequest, &resp, "order_key", "foo", "order_direction", "asc")
 
 	// EE Order Key is an invalid order key
-	s.DoJSON("GET", "/api/latest/fleet/vulnerabilities", nil, http.StatusBadRequest, &resp, "order_key", "cvss_score", "order_direction", "asc")
+	s.DoJSON("GET", "/api/latest/automdm/vulnerabilities", nil, http.StatusBadRequest, &resp, "order_key", "cvss_score", "order_direction", "asc")
 
 	// Exploit is an EE only filter
-	s.DoJSON("GET", "/api/latest/fleet/vulnerabilities", nil, http.StatusPaymentRequired, &resp, "exploit", "true")
+	s.DoJSON("GET", "/api/latest/automdm/vulnerabilities", nil, http.StatusPaymentRequired, &resp, "exploit", "true")
 
 	// Server-internal options can't be set through the request body.
 	internalOpts := map[string]any{"IsEE": true, "ValidSortColumns": []string{"cvss_score"}}
-	s.DoJSON("GET", "/api/latest/fleet/vulnerabilities", internalOpts, http.StatusPaymentRequired, &resp, "exploit", "true")
-	s.DoJSON("GET", "/api/latest/fleet/vulnerabilities", internalOpts, http.StatusBadRequest, &resp, "order_key", "cvss_score", "order_direction", "asc")
+	s.DoJSON("GET", "/api/latest/automdm/vulnerabilities", internalOpts, http.StatusPaymentRequired, &resp, "exploit", "true")
+	s.DoJSON("GET", "/api/latest/automdm/vulnerabilities", internalOpts, http.StatusBadRequest, &resp, "order_key", "cvss_score", "order_direction", "asc")
 
-	s.DoJSON("GET", "/api/latest/fleet/vulnerabilities", nil, http.StatusOK, &resp)
+	s.DoJSON("GET", "/api/latest/automdm/vulnerabilities", nil, http.StatusOK, &resp)
 	s.Require().Empty(resp.Vulnerabilities)
 
-	host, err := s.ds.NewHost(context.Background(), &fleet.Host{
+	host, err := s.ds.NewHost(context.Background(), &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -640,7 +640,7 @@ func (s *integrationTestSuite) TestListVulnerabilities() {
 	})
 	require.NoError(t, err)
 
-	err = s.ds.UpdateHostOperatingSystem(context.Background(), host.ID, fleet.OperatingSystem{
+	err = s.ds.UpdateHostOperatingSystem(context.Background(), host.ID, automdm.OperatingSystem{
 		Name:     "Windows 11 Enterprise 22H2",
 		Version:  "10.0.19042.1234",
 		Platform: "windows",
@@ -648,7 +648,7 @@ func (s *integrationTestSuite) TestListVulnerabilities() {
 	require.NoError(t, err)
 	allos, err := s.ds.ListOperatingSystems(context.Background())
 	require.NoError(t, err)
-	var os fleet.OperatingSystem
+	var os automdm.OperatingSystem
 	for _, o := range allos {
 		if o.ID > os.ID {
 			os = o
@@ -658,20 +658,20 @@ func (s *integrationTestSuite) TestListVulnerabilities() {
 	err = s.ds.UpdateOSVersions(context.Background())
 	require.NoError(t, err)
 
-	_, err = s.ds.InsertOSVulnerability(context.Background(), fleet.OSVulnerability{
+	_, err = s.ds.InsertOSVulnerability(context.Background(), automdm.OSVulnerability{
 		OSID:              os.ID,
 		CVE:               "CVE-2021-12345",
 		ResolvedInVersion: new("10.0.19043.2013"),
-	}, fleet.MSRCSource)
+	}, automdm.MSRCSource)
 	require.NoError(t, err)
 
-	res, err := s.ds.UpdateHostSoftware(context.Background(), host.ID, []fleet.Software{
+	res, err := s.ds.UpdateHostSoftware(context.Background(), host.ID, []automdm.Software{
 		{Name: "Google Chrome", Version: "0.0.1", Source: "programs"},
 	})
 	require.NoError(t, err)
 	sw := res.Inserted[0]
 
-	_, err = s.ds.UpsertSoftwareCPEs(context.Background(), []fleet.SoftwareCPE{
+	_, err = s.ds.UpsertSoftwareCPEs(context.Background(), []automdm.SoftwareCPE{
 		{
 			SoftwareID: sw.ID,
 			CPE:        "cpe:2.3:a:google:chrome:1.0.0:*:*:*:*:*:*:*:*",
@@ -679,16 +679,16 @@ func (s *integrationTestSuite) TestListVulnerabilities() {
 	})
 	require.NoError(t, err)
 
-	_, err = s.ds.InsertSoftwareVulnerability(context.Background(), fleet.SoftwareVulnerability{
+	_, err = s.ds.InsertSoftwareVulnerability(context.Background(), automdm.SoftwareVulnerability{
 		SoftwareID: sw.ID,
 		CVE:        "CVE-2021-1235",
-	}, fleet.NVDSource)
+	}, automdm.NVDSource)
 	require.NoError(t, err)
 
 	err = s.ds.SyncHostsSoftware(context.Background(), time.Now())
 	require.NoError(t, err)
 
-	host2, err := s.ds.NewHost(context.Background(), &fleet.Host{
+	host2, err := s.ds.NewHost(context.Background(), &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -703,23 +703,23 @@ func (s *integrationTestSuite) TestListVulnerabilities() {
 	})
 	require.NoError(t, err)
 
-	res2, err := s.ds.UpdateHostSoftware(context.Background(), host2.ID, []fleet.Software{
+	res2, err := s.ds.UpdateHostSoftware(context.Background(), host2.ID, []automdm.Software{
 		{Name: "Firefox", Version: "0.0.1", Source: "programs"},
 	})
 	require.NoError(t, err)
 	sw2 := res2.Inserted[0]
 
 	// insert software vuln outside of host scope
-	_, err = s.ds.InsertSoftwareVulnerability(context.Background(), fleet.SoftwareVulnerability{
+	_, err = s.ds.InsertSoftwareVulnerability(context.Background(), automdm.SoftwareVulnerability{
 		SoftwareID: sw2.ID,
 		CVE:        "CVE-2021-1246",
-	}, fleet.NVDSource)
+	}, automdm.NVDSource)
 	require.NoError(t, err)
 
 	// insert CVEMeta
 	knownCVE := "cve-2021-12999"
 	mockTime := time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)
-	err = s.ds.InsertCVEMeta(context.Background(), []fleet.CVEMeta{
+	err = s.ds.InsertCVEMeta(context.Background(), []automdm.CVEMeta{
 		{
 			CVE:              "CVE-2021-12345",
 			CVSSScore:        new(7.5),
@@ -759,7 +759,7 @@ func (s *integrationTestSuite) TestListVulnerabilities() {
 	require.NoError(t, err)
 
 	// test list
-	s.DoJSON("GET", "/api/latest/fleet/vulnerabilities", nil, http.StatusOK, &resp)
+	s.DoJSON("GET", "/api/latest/automdm/vulnerabilities", nil, http.StatusOK, &resp)
 	require.NoError(t, resp.Err)
 	s.Require().Len(resp.Vulnerabilities, 3)
 	require.Equal(t, uint(3), resp.Count)
@@ -767,10 +767,10 @@ func (s *integrationTestSuite) TestListVulnerabilities() {
 	require.False(t, resp.Meta.HasNextResults)
 
 	expected := map[string]struct {
-		fleet.CVEMeta
+		automdm.CVEMeta
 		HostCount   uint
 		DetailsLink string
-		Source      fleet.VulnerabilitySource
+		Source      automdm.VulnerabilitySource
 	}{
 		"CVE-2021-12345": {
 			HostCount:   1,
@@ -796,7 +796,7 @@ func (s *integrationTestSuite) TestListVulnerabilities() {
 
 	// test list with matching query containing leading/trailing whitespace
 	// TODO(jacob) - this may be another parsing bug
-	s.DoJSON("GET", "/api/latest/fleet/vulnerabilities", nil, http.StatusOK, &resp, "query", "  123	")
+	s.DoJSON("GET", "/api/latest/automdm/vulnerabilities", nil, http.StatusOK, &resp, "query", "  123	")
 	require.NoError(t, resp.Err)
 	s.Require().Len(resp.Vulnerabilities, 2)
 	require.Equal(t, uint(2), resp.Count)
@@ -804,10 +804,10 @@ func (s *integrationTestSuite) TestListVulnerabilities() {
 	require.False(t, resp.Meta.HasNextResults)
 
 	expected = map[string]struct {
-		fleet.CVEMeta
+		automdm.CVEMeta
 		HostCount   uint
 		DetailsLink string
-		Source      fleet.VulnerabilitySource
+		Source      automdm.VulnerabilitySource
 	}{
 		"CVE-2021-12345": {
 			HostCount:   1,
@@ -829,7 +829,7 @@ func (s *integrationTestSuite) TestListVulnerabilities() {
 	}
 
 	// test list with non-matching query
-	s.DoJSON("GET", "/api/latest/fleet/vulnerabilities", nil, http.StatusOK, &resp, "query", "CVB")
+	s.DoJSON("GET", "/api/latest/automdm/vulnerabilities", nil, http.StatusOK, &resp, "query", "CVB")
 	require.NoError(t, resp.Err)
 	s.Require().Empty(resp.Vulnerabilities)
 	require.Equal(t, uint(0), resp.Count)
@@ -837,7 +837,7 @@ func (s *integrationTestSuite) TestListVulnerabilities() {
 	require.False(t, resp.Meta.HasNextResults)
 
 	// test with a known CVE that does not match on software/OS
-	s.DoJSON("GET", "/api/latest/fleet/vulnerabilities", nil, http.StatusOK, &resp, "query", knownCVE)
+	s.DoJSON("GET", "/api/latest/automdm/vulnerabilities", nil, http.StatusOK, &resp, "query", knownCVE)
 	require.NoError(t, resp.Err)
 	s.Empty(resp.Vulnerabilities)
 	assert.Equal(t, uint(0), resp.Count)
@@ -845,27 +845,27 @@ func (s *integrationTestSuite) TestListVulnerabilities() {
 	assert.False(t, resp.Meta.HasNextResults)
 
 	// test with a substring of a known CVE -- results are returned
-	s.DoJSON("GET", "/api/latest/fleet/vulnerabilities", nil, http.StatusOK, &resp, "query", "CVE-2021-1234")
+	s.DoJSON("GET", "/api/latest/automdm/vulnerabilities", nil, http.StatusOK, &resp, "query", "CVE-2021-1234")
 	require.NoError(t, resp.Err)
 	s.Len(resp.Vulnerabilities, 1)
 	assert.Equal(t, uint(1), resp.Count)
 	assert.False(t, resp.Meta.HasPreviousResults)
 	assert.False(t, resp.Meta.HasNextResults)
-	_ = s.Do("GET", "/api/latest/fleet/vulnerabilities/CVE-2021-1234", nil, http.StatusNotFound)
+	_ = s.Do("GET", "/api/latest/automdm/vulnerabilities/CVE-2021-1234", nil, http.StatusNotFound)
 
 	// Team 1 Filter
-	s.DoJSON("GET", "/api/latest/fleet/vulnerabilities", nil, http.StatusOK, &resp, "fleet_id", "1")
+	s.DoJSON("GET", "/api/latest/automdm/vulnerabilities", nil, http.StatusOK, &resp, "team_id", "1")
 	s.Require().Empty(resp.Vulnerabilities)
 
-	team, err := s.ds.NewTeam(context.Background(), &fleet.Team{Name: "team1"})
+	team, err := s.ds.NewTeam(context.Background(), &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
-	err = s.ds.AddHostsToTeam(context.Background(), fleet.NewAddHostsToTeamParams(&team.ID, []uint{host.ID}))
+	err = s.ds.AddHostsToTeam(context.Background(), automdm.NewAddHostsToTeamParams(&team.ID, []uint{host.ID}))
 	require.NoError(t, err)
 
 	err = s.ds.UpdateVulnerabilityHostCounts(context.Background(), 5)
 	require.NoError(t, err)
 
-	s.DoJSON("GET", "/api/latest/fleet/vulnerabilities", nil, http.StatusOK, &resp, "fleet_id", fmt.Sprintf("%d", team.ID))
+	s.DoJSON("GET", "/api/latest/automdm/vulnerabilities", nil, http.StatusOK, &resp, "team_id", fmt.Sprintf("%d", team.ID))
 	require.Len(t, resp.Vulnerabilities, 2)
 	require.Equal(t, uint(2), resp.Count)
 	require.False(t, resp.Meta.HasPreviousResults)
@@ -881,7 +881,7 @@ func (s *integrationTestSuite) TestListVulnerabilities() {
 	}
 
 	// No filter (global)
-	s.DoJSON("GET", "/api/latest/fleet/vulnerabilities", nil, http.StatusOK, &resp)
+	s.DoJSON("GET", "/api/latest/automdm/vulnerabilities", nil, http.StatusOK, &resp)
 	require.Len(t, resp.Vulnerabilities, 3)
 	require.Equal(t, uint(3), resp.Count)
 	require.Equal(t, uint(1), resp.Vulnerabilities[0].HostsCount)
@@ -889,34 +889,34 @@ func (s *integrationTestSuite) TestListVulnerabilities() {
 	require.Equal(t, uint(1), resp.Vulnerabilities[2].HostsCount)
 
 	// Team 0 Filter
-	s.DoJSON("GET", "/api/latest/fleet/vulnerabilities", nil, http.StatusOK, &resp, "fleet_id", "0")
+	s.DoJSON("GET", "/api/latest/automdm/vulnerabilities", nil, http.StatusOK, &resp, "team_id", "0")
 	require.Len(t, resp.Vulnerabilities, 1)
 	require.Equal(t, uint(1), resp.Count)
 	require.Equal(t, "CVE-2021-1246", resp.Vulnerabilities[0].CVE.CVE)
 	require.Equal(t, uint(1), resp.Vulnerabilities[0].HostsCount)
 
-	s.DoJSON("GET", "/api/latest/fleet/vulnerabilities", nil, http.StatusOK, &resp, "fleet_id", "0")
+	s.DoJSON("GET", "/api/latest/automdm/vulnerabilities", nil, http.StatusOK, &resp, "team_id", "0")
 	require.Len(t, resp.Vulnerabilities, 1)
 
 	var gResp getVulnerabilityResponse
 	// invalid cve
-	s.DoJSON("GET", "/api/latest/fleet/vulnerabilities/foobar", nil, http.StatusBadRequest, &gResp)
+	s.DoJSON("GET", "/api/latest/automdm/vulnerabilities/foobar", nil, http.StatusBadRequest, &gResp)
 
 	// Valid CVE but not in team scope
-	s.Do("GET", "/api/latest/fleet/vulnerabilities/CVE-2021-1246", nil, http.StatusNoContent, "fleet_id",
+	s.Do("GET", "/api/latest/automdm/vulnerabilities/CVE-2021-1246", nil, http.StatusNoContent, "team_id",
 		fmt.Sprintf("%d", team.ID))
 
 	// Valid CVE in "no team" scope
-	s.DoJSON("GET", "/api/latest/fleet/vulnerabilities/CVE-2021-1246", nil, http.StatusOK, &gResp, "fleet_id", "0")
+	s.DoJSON("GET", "/api/latest/automdm/vulnerabilities/CVE-2021-1246", nil, http.StatusOK, &gResp, "team_id", "0")
 
 	// Valid CVE not in "no team" scope
-	s.Do("GET", "/api/latest/fleet/vulnerabilities/CVE-2021-12345", nil, http.StatusNoContent, "fleet_id", "0")
+	s.Do("GET", "/api/latest/automdm/vulnerabilities/CVE-2021-12345", nil, http.StatusNoContent, "team_id", "0")
 
 	// Invalid TeamID
-	s.Do("GET", "/api/latest/fleet/vulnerabilities/CVE-2021-12345", nil, http.StatusForbidden, "fleet_id", "100")
+	s.Do("GET", "/api/latest/automdm/vulnerabilities/CVE-2021-12345", nil, http.StatusForbidden, "team_id", "100")
 
 	// Valid Global Request
-	s.DoJSON("GET", "/api/latest/fleet/vulnerabilities/CVE-2021-12345", nil, http.StatusOK, &gResp)
+	s.DoJSON("GET", "/api/latest/automdm/vulnerabilities/CVE-2021-12345", nil, http.StatusOK, &gResp)
 	require.NoError(t, gResp.Err)
 	require.Equal(t, "CVE-2021-12345", gResp.Vulnerability.CVE.CVE)
 	require.Equal(t, uint(1), gResp.Vulnerability.HostsCount)
@@ -937,7 +937,7 @@ func (s *integrationTestSuite) TestListVulnerabilities() {
 	var rawResp struct {
 		OSVersions []map[string]any `json:"os_versions"`
 	}
-	s.DoJSON("GET", "/api/latest/fleet/vulnerabilities/CVE-2021-12345", nil, http.StatusOK, &rawResp)
+	s.DoJSON("GET", "/api/latest/automdm/vulnerabilities/CVE-2021-12345", nil, http.StatusOK, &rawResp)
 	require.Len(t, rawResp.OSVersions, 1)
 	require.Equal(t, "Windows 11 Enterprise 22H2", rawResp.OSVersions[0]["os_name"])
 	require.Equal(t, "10.0.19042.1234", rawResp.OSVersions[0]["os_version"])
@@ -945,7 +945,7 @@ func (s *integrationTestSuite) TestListVulnerabilities() {
 		require.NotContains(t, rawResp.OSVersions[0], removed)
 	}
 
-	s.DoJSON("GET", "/api/latest/fleet/vulnerabilities/CVE-2021-1235", nil, http.StatusOK, &gResp)
+	s.DoJSON("GET", "/api/latest/automdm/vulnerabilities/CVE-2021-1235", nil, http.StatusOK, &gResp)
 	require.NoError(t, gResp.Err)
 	require.Equal(t, "CVE-2021-1235", gResp.Vulnerability.CVE.CVE)
 	require.Equal(t, uint(1), gResp.Vulnerability.HostsCount)
@@ -974,7 +974,7 @@ func (s *integrationTestSuite) TestDirectIngestSoftwareWithLongFields() {
 	require.NoError(t, err)
 	appConfig.Features.EnableSoftwareInventory = true
 
-	globalHost, err := s.ds.NewHost(context.Background(), &fleet.Host{
+	globalHost, err := s.ds.NewHost(context.Background(), &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -998,7 +998,7 @@ func (s *integrationTestSuite) TestDirectIngestSoftwareWithLongFields() {
 			"installed_path": "C:\\Program Files\\Wireshark",
 		},
 	}
-	detailQueries := osquery_utils.GetDetailQueries(context.Background(), config.FleetConfig{}, appConfig, &appConfig.Features, osquery_utils.Integrations{}, nil)
+	detailQueries := osquery_utils.GetDetailQueries(context.Background(), config.AutoMDMConfig{}, appConfig, &appConfig.Features, osquery_utils.Integrations{}, nil)
 	err = detailQueries["software_windows"].DirectIngestFunc(
 		context.Background(),
 		slog.New(slog.DiscardHandler),
@@ -1010,7 +1010,7 @@ func (s *integrationTestSuite) TestDirectIngestSoftwareWithLongFields() {
 
 	// Check that the software was properly ingested.
 	softwareQueryByName := "SELECT id, name, version, source, bundle_identifier, `release`, arch, vendor FROM software WHERE name = ?;"
-	var wiresharkSoftware fleet.Software
+	var wiresharkSoftware automdm.Software
 	mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
 		return sqlx.GetContext(context.Background(), q, &wiresharkSoftware, softwareQueryByName, "Wireshark 4.0.8 64-bit")
 	})
@@ -1038,7 +1038,7 @@ func (s *integrationTestSuite) TestDirectIngestSoftwareWithLongFields() {
 		rows,
 	)
 	require.NoError(t, err)
-	var wiresharkSoftware2 fleet.Software
+	var wiresharkSoftware2 automdm.Software
 	mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
 		return sqlx.GetContext(context.Background(), q, &wiresharkSoftware2, softwareQueryByName, "Wireshark 4.0.8 64-bit")
 	})
@@ -1048,16 +1048,16 @@ func (s *integrationTestSuite) TestDirectIngestSoftwareWithLongFields() {
 	// Simulate a osquery agent on Windows reporting a software row with a longer than 114 chars vendor field.
 	rows = []map[string]string{
 		{
-			"name":           "Foobar" + strings.Repeat("A", fleet.SoftwareNameMaxLength),
-			"version":        "4.0.8" + strings.Repeat("B", fleet.SoftwareVersionMaxLength),
+			"name":           "Foobar" + strings.Repeat("A", automdm.SoftwareNameMaxLength),
+			"version":        "4.0.8" + strings.Repeat("B", automdm.SoftwareVersionMaxLength),
 			"type":           "Program (Windows)",
-			"source":         "programs" + strings.Repeat("C", fleet.SoftwareSourceMaxLength),
-			"vendor":         strings.Repeat("D", fleet.SoftwareVendorMaxLength+1),
+			"source":         "programs" + strings.Repeat("C", automdm.SoftwareSourceMaxLength),
+			"vendor":         strings.Repeat("D", automdm.SoftwareVendorMaxLength+1),
 			"installed_path": "C:\\Program Files\\Foobar",
 			// Test UTF-8 encoded strings.
-			"bundle_identifier": strings.Repeat("⌘", fleet.SoftwareBundleIdentifierMaxLength+1),
-			"release":           strings.Repeat("F", fleet.SoftwareReleaseMaxLength-1) + "⌘⌘",
-			"arch":              strings.Repeat("G", fleet.SoftwareArchMaxLength+1),
+			"bundle_identifier": strings.Repeat("⌘", automdm.SoftwareBundleIdentifierMaxLength+1),
+			"release":           strings.Repeat("F", automdm.SoftwareReleaseMaxLength-1) + "⌘⌘",
+			"arch":              strings.Repeat("G", automdm.SoftwareArchMaxLength+1),
 		},
 	}
 
@@ -1070,19 +1070,19 @@ func (s *integrationTestSuite) TestDirectIngestSoftwareWithLongFields() {
 	)
 	require.NoError(t, err)
 
-	var foobarSoftware fleet.Software
+	var foobarSoftware automdm.Software
 	mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
-		return sqlx.GetContext(context.Background(), q, &foobarSoftware, softwareQueryByName, "Foobar"+strings.Repeat("A", fleet.SoftwareNameMaxLength-6))
+		return sqlx.GetContext(context.Background(), q, &foobarSoftware, softwareQueryByName, "Foobar"+strings.Repeat("A", automdm.SoftwareNameMaxLength-6))
 	})
 	require.NotZero(t, foobarSoftware.ID)
-	require.Equal(t, "Foobar"+strings.Repeat("A", fleet.SoftwareNameMaxLength-6), foobarSoftware.Name)
-	require.Equal(t, "4.0.8"+strings.Repeat("B", fleet.SoftwareNameMaxLength-5), foobarSoftware.Version)
-	require.Equal(t, "programs"+strings.Repeat("C", fleet.SoftwareSourceMaxLength-8), foobarSoftware.Source)
+	require.Equal(t, "Foobar"+strings.Repeat("A", automdm.SoftwareNameMaxLength-6), foobarSoftware.Name)
+	require.Equal(t, "4.0.8"+strings.Repeat("B", automdm.SoftwareNameMaxLength-5), foobarSoftware.Version)
+	require.Equal(t, "programs"+strings.Repeat("C", automdm.SoftwareSourceMaxLength-8), foobarSoftware.Source)
 	// Vendor field is currenty trimmed with a different method (... appended at the end)
-	require.Equal(t, strings.Repeat("D", fleet.SoftwareVendorMaxLength-3)+"...", foobarSoftware.Vendor)
-	require.Equal(t, strings.Repeat("⌘", fleet.SoftwareBundleIdentifierMaxLength), foobarSoftware.BundleIdentifier)
-	require.Equal(t, strings.Repeat("F", fleet.SoftwareReleaseMaxLength-1)+"⌘", foobarSoftware.Release)
-	require.Equal(t, strings.Repeat("G", fleet.SoftwareArchMaxLength), foobarSoftware.Arch)
+	require.Equal(t, strings.Repeat("D", automdm.SoftwareVendorMaxLength-3)+"...", foobarSoftware.Vendor)
+	require.Equal(t, strings.Repeat("⌘", automdm.SoftwareBundleIdentifierMaxLength), foobarSoftware.BundleIdentifier)
+	require.Equal(t, strings.Repeat("F", automdm.SoftwareReleaseMaxLength-1)+"⌘", foobarSoftware.Release)
+	require.Equal(t, strings.Repeat("G", automdm.SoftwareArchMaxLength), foobarSoftware.Arch)
 
 	// We now check that the same software with long (to be trimmed) fields is not created again as a new row.
 	err = detailQueries["software_windows"].DirectIngestFunc(
@@ -1094,9 +1094,9 @@ func (s *integrationTestSuite) TestDirectIngestSoftwareWithLongFields() {
 	)
 	require.NoError(t, err)
 
-	var foobarSoftware2 fleet.Software
+	var foobarSoftware2 automdm.Software
 	mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
-		return sqlx.GetContext(context.Background(), q, &foobarSoftware2, softwareQueryByName, "Foobar"+strings.Repeat("A", fleet.SoftwareNameMaxLength-6))
+		return sqlx.GetContext(context.Background(), q, &foobarSoftware2, softwareQueryByName, "Foobar"+strings.Repeat("A", automdm.SoftwareNameMaxLength-6))
 	})
 	require.Equal(t, foobarSoftware.ID, foobarSoftware2.ID)
 }
@@ -1108,7 +1108,7 @@ func (s *integrationTestSuite) TestDirectIngestSoftwareWithInvalidFields() {
 	require.NoError(t, err)
 	appConfig.Features.EnableSoftwareInventory = true
 
-	globalHost, err := s.ds.NewHost(context.Background(), &fleet.Host{
+	globalHost, err := s.ds.NewHost(context.Background(), &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -1134,7 +1134,7 @@ func (s *integrationTestSuite) TestDirectIngestSoftwareWithInvalidFields() {
 	}
 	handler1 := logtestutils.NewTestHandler()
 	logger1 := slog.New(handler1)
-	detailQueries := osquery_utils.GetDetailQueries(context.Background(), config.FleetConfig{}, appConfig, &appConfig.Features, osquery_utils.Integrations{}, nil)
+	detailQueries := osquery_utils.GetDetailQueries(context.Background(), config.AutoMDMConfig{}, appConfig, &appConfig.Features, osquery_utils.Integrations{}, nil)
 	err = detailQueries["software_windows"].DirectIngestFunc(
 		context.Background(),
 		logger1,
@@ -1164,7 +1164,7 @@ func (s *integrationTestSuite) TestDirectIngestSoftwareWithInvalidFields() {
 	// Check that the software was not ingested.
 	softwareQueryByVendor := "SELECT id, name, version, source, bundle_identifier, `release`, arch, vendor FROM software WHERE vendor = ?;"
 	mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
-		var wiresharkSoftware fleet.Software
+		var wiresharkSoftware automdm.Software
 		if sqlx.GetContext(context.Background(), q, &wiresharkSoftware, softwareQueryByVendor, "The Wireshark developer community, https://www.wireshark.org") != sql.ErrNoRows {
 			return errors.New("expected no results")
 		}
@@ -1182,7 +1182,7 @@ func (s *integrationTestSuite) TestDirectIngestSoftwareWithInvalidFields() {
 			"last_opened_at": "foobar",
 		},
 	}
-	detailQueries = osquery_utils.GetDetailQueries(context.Background(), config.FleetConfig{}, appConfig, &appConfig.Features, osquery_utils.Integrations{}, nil)
+	detailQueries = osquery_utils.GetDetailQueries(context.Background(), config.AutoMDMConfig{}, appConfig, &appConfig.Features, osquery_utils.Integrations{}, nil)
 	handler2 := logtestutils.NewTestHandler()
 	logger2 := slog.New(handler2)
 	err = detailQueries["software_windows"].DirectIngestFunc(
@@ -1212,7 +1212,7 @@ func (s *integrationTestSuite) TestDirectIngestSoftwareWithInvalidFields() {
 	// Check that the software was not ingested.
 	softwareQueryByName := "SELECT id, name, version, source, bundle_identifier, `release`, arch, vendor FROM software WHERE name = ?;"
 	mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
-		var wiresharkSoftware fleet.Software
+		var wiresharkSoftware automdm.Software
 		if sqlx.GetContext(context.Background(), q, &wiresharkSoftware, softwareQueryByName, "Wireshark 4.0.8 64-bit") != sql.ErrNoRows {
 			return errors.New("expected no results")
 		}
@@ -1233,7 +1233,7 @@ func (s *integrationTestSuite) TestDirectIngestSoftwareWithInvalidFields() {
 	}
 	handler3 := logtestutils.NewTestHandler()
 	logger3 := slog.New(handler3)
-	detailQueries = osquery_utils.GetDetailQueries(context.Background(), config.FleetConfig{}, appConfig, &appConfig.Features, osquery_utils.Integrations{}, nil)
+	detailQueries = osquery_utils.GetDetailQueries(context.Background(), config.AutoMDMConfig{}, appConfig, &appConfig.Features, osquery_utils.Integrations{}, nil)
 	err = detailQueries["software_windows"].DirectIngestFunc(
 		context.Background(),
 		logger3,
@@ -1254,7 +1254,7 @@ func (s *integrationTestSuite) TestDirectIngestSoftwareWithInvalidFields() {
 	require.True(t, foundInvalidTimestamp, "expected a debug log about software with invalid last opened timestamp")
 
 	// Check that the software was properly ingested.
-	var wiresharkSoftware fleet.Software
+	var wiresharkSoftware automdm.Software
 	mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
 		return sqlx.GetContext(context.Background(), q, &wiresharkSoftware, softwareQueryByName, "Wireshark 4.0.8 64-bit")
 	})
@@ -1299,7 +1299,7 @@ func (s *integrationTestSuite) TestAIToolFieldOmittedOnFree() {
 
 	host := s.createHosts(t, "darwin")[0]
 	// A flag set while the server was on Premium stays in the database after a downgrade.
-	_, err := s.ds.UpdateHostSoftware(ctx, host.ID, []fleet.Software{
+	_, err := s.ds.UpdateHostSoftware(ctx, host.ID, []automdm.Software{
 		{Name: "AIToolFreeClaude", Version: "1.0", Source: "apps", BundleIdentifier: "com.example.aitoolfreeclaude", AITool: new(true)},
 		{Name: "AIToolFreeSlack", Version: "1.0", Source: "apps", BundleIdentifier: "com.example.aitoolfreeslack"},
 	})
@@ -1314,37 +1314,37 @@ func (s *integrationTestSuite) TestAIToolFieldOmittedOnFree() {
 		return s.Do("GET", path, nil, http.StatusOK, params...)
 	}
 
-	titles := aiToolByName(t, get("/api/latest/fleet/software/titles", "query", "aitoolfree"), "software_titles")
+	titles := aiToolByName(t, get("/api/latest/automdm/software/titles", "query", "aitoolfree"), "software_titles")
 	require.Equal(t, want, titles)
-	versions := aiToolByName(t, get("/api/latest/fleet/software/versions", "query", "aitoolfree"), "software")
+	versions := aiToolByName(t, get("/api/latest/automdm/software/versions", "query", "aitoolfree"), "software")
 	require.Equal(t, want, versions)
-	require.Equal(t, want, aiToolByName(t, get(fmt.Sprintf("/api/latest/fleet/hosts/%d/software", host.ID)), "software"))
+	require.Equal(t, want, aiToolByName(t, get(fmt.Sprintf("/api/latest/automdm/hosts/%d/software", host.ID)), "software"))
 	require.Equal(t, want, aiToolByName(t,
-		s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token+"/software", nil, http.StatusOK), "software"))
-	require.Equal(t, want, aiToolByName(t, get(fmt.Sprintf("/api/latest/fleet/hosts/%d", host.ID)), "host", "software"))
-	require.Equal(t, want, aiToolByName(t, get("/api/latest/fleet/hosts/"+host.UUID), "host", "software"))
+		s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token+"/software", nil, http.StatusOK), "software"))
+	require.Equal(t, want, aiToolByName(t, get(fmt.Sprintf("/api/latest/automdm/hosts/%d", host.ID)), "host", "software"))
+	require.Equal(t, want, aiToolByName(t, get("/api/latest/automdm/hosts/"+host.UUID), "host", "software"))
 	require.Equal(t, want, aiToolByName(t,
-		s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token, nil, http.StatusOK), "host", "software"))
+		s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token, nil, http.StatusOK), "host", "software"))
 
 	var titlesResp listSoftwareTitlesResponse
-	s.DoJSON("GET", "/api/latest/fleet/software/titles", nil, http.StatusOK, &titlesResp, "query", "aitoolfree")
+	s.DoJSON("GET", "/api/latest/automdm/software/titles", nil, http.StatusOK, &titlesResp, "query", "aitoolfree")
 	require.Len(t, titlesResp.SoftwareTitles, 2)
 	for _, title := range titlesResp.SoftwareTitles {
 		require.Equal(t, map[string]*bool{title.Name: nil},
-			aiToolByName(t, get(fmt.Sprintf("/api/latest/fleet/software/titles/%d", title.ID)), "software_title"))
+			aiToolByName(t, get(fmt.Sprintf("/api/latest/automdm/software/titles/%d", title.ID)), "software_title"))
 	}
 	var versionsResp listSoftwareVersionsResponse
-	s.DoJSON("GET", "/api/latest/fleet/software/versions", nil, http.StatusOK, &versionsResp, "query", "aitoolfree")
+	s.DoJSON("GET", "/api/latest/automdm/software/versions", nil, http.StatusOK, &versionsResp, "query", "aitoolfree")
 	require.Len(t, versionsResp.Software, 2)
 	for _, sw := range versionsResp.Software {
 		require.Equal(t, map[string]*bool{sw.Name: nil},
-			aiToolByName(t, get(fmt.Sprintf("/api/latest/fleet/software/versions/%d", sw.ID)), "software"))
+			aiToolByName(t, get(fmt.Sprintf("/api/latest/automdm/software/versions/%d", sw.ID)), "software"))
 	}
 
 	var hostsBody struct {
 		Hosts []json.RawMessage `json:"hosts"`
 	}
-	res := get("/api/latest/fleet/hosts", "populate_software", "true", "query", host.Hostname)
+	res := get("/api/latest/automdm/hosts", "populate_software", "true", "query", host.Hostname)
 	require.NoError(t, json.NewDecoder(res.Body).Decode(&hostsBody))
 	require.NoError(t, res.Body.Close())
 	require.Len(t, hostsBody.Hosts, 1)

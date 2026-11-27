@@ -13,20 +13,20 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/automatic_policy"
-	"github.com/fleetdm/fleet/v4/server/authz"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxdb"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	apple_mdm "github.com/fleetdm/fleet/v4/server/mdm/apple"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
-	platform_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/pkg/automatic_policy"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxdb"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	apple_mdm "github.com/anilyagiz/automdm/v4/server/mdm/apple"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
+	platform_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 )
 
-func (ds *Datastore) GetVPPAppMetadataByTeamAndTitleID(ctx context.Context, teamID *uint, titleID uint) (*fleet.VPPAppStoreApp, error) {
+func (ds *Datastore) GetVPPAppMetadataByTeamAndTitleID(ctx context.Context, teamID *uint, titleID uint) (*automdm.VPPAppStoreApp, error) {
 	versions, err := ds.getAppStoreAppVersionsByTeamAndTitleID(ctx, teamID, titleID, true)
 	if err != nil {
 		return nil, err
@@ -34,11 +34,11 @@ func (ds *Datastore) GetVPPAppMetadataByTeamAndTitleID(ctx context.Context, team
 	return versions[0], nil
 }
 
-func (ds *Datastore) GetAppStoreAppVersionsByTeamAndTitleID(ctx context.Context, teamID uint, titleID uint) ([]*fleet.VPPAppStoreApp, error) {
+func (ds *Datastore) GetAppStoreAppVersionsByTeamAndTitleID(ctx context.Context, teamID uint, titleID uint) ([]*automdm.VPPAppStoreApp, error) {
 	return ds.getAppStoreAppVersionsByTeamAndTitleID(ctx, &teamID, titleID, false)
 }
 
-func (ds *Datastore) getAppStoreAppVersionsForTitles(ctx context.Context, teamID *uint, titleIDs []uint) ([]*fleet.VPPAppStoreApp, error) {
+func (ds *Datastore) getAppStoreAppVersionsForTitles(ctx context.Context, teamID *uint, titleIDs []uint) ([]*automdm.VPPAppStoreApp, error) {
 	if len(titleIDs) == 0 {
 		return nil, nil
 	}
@@ -81,7 +81,7 @@ ORDER BY vat.id`
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "build get VPP app metadata query")
 	}
-	var versions []*fleet.VPPAppStoreApp
+	var versions []*automdm.VPPAppStoreApp
 	err = sqlx.SelectContext(ctx, ds.reader(ctx), &versions, query, args...)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "get VPP app metadata")
@@ -89,7 +89,7 @@ ORDER BY vat.id`
 	return versions, nil
 }
 
-func (ds *Datastore) getAppStoreAppVersionsByTeamAndTitleID(ctx context.Context, teamID *uint, titleID uint, onlyFirstAdded bool) ([]*fleet.VPPAppStoreApp, error) {
+func (ds *Datastore) getAppStoreAppVersionsByTeamAndTitleID(ctx context.Context, teamID *uint, titleID uint, onlyFirstAdded bool) ([]*automdm.VPPAppStoreApp, error) {
 	versions, err := ds.getAppStoreAppVersionsForTitles(ctx, teamID, []uint{titleID})
 	if err != nil {
 		return nil, err
@@ -105,12 +105,12 @@ func (ds *Datastore) getAppStoreAppVersionsByTeamAndTitleID(ctx context.Context,
 
 	// Read the display name, automatic install policies, and icon once since they are set per title
 	displayName, err := ds.getSoftwareTitleDisplayName(ctx, tmID, titleID)
-	if err != nil && !fleet.IsNotFound(err) {
+	if err != nil && !automdm.IsNotFound(err) {
 		return nil, ctxerr.Wrap(ctx, err, "get display name for app store app")
 	}
 
-	var policies []fleet.AutomaticInstallPolicy
-	policiesByVersionID := make(map[uint][]fleet.AutomaticInstallPolicy)
+	var policies []automdm.AutomaticInstallPolicy
+	policiesByVersionID := make(map[uint][]automdm.AutomaticInstallPolicy)
 	var iconURL *string
 	if teamID != nil {
 		policies, err = ds.getPoliciesBySoftwareTitleIDs(ctx, []uint{titleID}, *teamID)
@@ -124,7 +124,7 @@ func (ds *Datastore) getAppStoreAppVersionsByTeamAndTitleID(ctx context.Context,
 		}
 
 		icon, err := ds.GetSoftwareTitleIcon(ctx, *teamID, titleID)
-		if err != nil && !fleet.IsNotFound(err) {
+		if err != nil && !automdm.IsNotFound(err) {
 			return nil, ctxerr.Wrap(ctx, err, "get software title icon")
 		}
 		if icon != nil {
@@ -145,7 +145,7 @@ func (ds *Datastore) getAppStoreAppVersionsByTeamAndTitleID(ctx context.Context,
 		return nil, err
 	}
 
-	// Select configuration separately because we can't scan NULL into json.RawMessage, if this is for a fleet
+	// Select configuration separately because we can't scan NULL into json.RawMessage, if this is for a team
 	var configurationByVersionID map[uint][]byte
 	if teamID != nil {
 		configurationByVersionID, err = ds.BulkGetVPPAppConfigurations(ctx, versionIDs)
@@ -155,7 +155,7 @@ func (ds *Datastore) getAppStoreAppVersionsByTeamAndTitleID(ctx context.Context,
 	}
 
 	for _, app := range versions {
-		var exclAny, inclAny, inclAll []fleet.SoftwareScopeLabel
+		var exclAny, inclAny, inclAll []automdm.SoftwareScopeLabel
 		for _, l := range labelsByVersionID[app.VPPAppsTeamsID] {
 			switch {
 			case l.Exclude && !l.RequireAll:
@@ -170,7 +170,7 @@ func (ds *Datastore) getAppStoreAppVersionsByTeamAndTitleID(ctx context.Context,
 		}
 
 		var count int
-		for _, set := range [][]fleet.SoftwareScopeLabel{exclAny, inclAny, inclAll} {
+		for _, set := range [][]automdm.SoftwareScopeLabel{exclAny, inclAny, inclAll} {
 			if len(set) > 0 {
 				count++
 			}
@@ -226,7 +226,7 @@ WHERE vatsc.vpp_app_team_id IN (?)`, vppAppsTeamIDs)
 	return categoriesByVersionID, nil
 }
 
-func (ds *Datastore) getVPPAppLabels(ctx context.Context, vppAppsTeamsIDs []uint) (map[uint][]fleet.SoftwareScopeLabel, error) {
+func (ds *Datastore) getVPPAppLabels(ctx context.Context, vppAppsTeamsIDs []uint) (map[uint][]automdm.SoftwareScopeLabel, error) {
 	query, args, err := sqlx.In(`
 SELECT
 	vatl.vpp_app_team_id,
@@ -249,13 +249,13 @@ WHERE
 
 	var labels []struct {
 		VPPAppsTeamsID uint `db:"vpp_app_team_id"`
-		fleet.SoftwareScopeLabel
+		automdm.SoftwareScopeLabel
 	}
 	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &labels, query, args...); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "get vpp app labels")
 	}
 
-	labelsByVersionID := make(map[uint][]fleet.SoftwareScopeLabel, len(vppAppsTeamsIDs))
+	labelsByVersionID := make(map[uint][]automdm.SoftwareScopeLabel, len(vppAppsTeamsIDs))
 	for _, label := range labels {
 		labelsByVersionID[label.VPPAppsTeamsID] = append(labelsByVersionID[label.VPPAppsTeamsID], label.SoftwareScopeLabel)
 	}
@@ -299,7 +299,7 @@ latest_installs AS (
 	GROUP BY vpp_app_team_id, host_id
 ),
 
--- select the installs of each host and version in the version's fleet, counting unfinished Android installs as pending because Android installs bypass upcoming activities
+-- select the installs of each host and version in the version's team, counting unfinished Android installs as pending because Android installs bypass upcoming activities
 attempts AS (
 	SELECT
 		li.host_id,
@@ -362,13 +362,13 @@ WHERE
 	AND l.vpp_app_team_id IS NOT NULL
 	AND (l.status != :software_status_failed OR i.host_id IS NULL OR l.install_id > i.install_id)`
 
-func (ds *Datastore) GetSummaryHostVPPAppInstalls(ctx context.Context, versions []*fleet.VPPAppStoreApp) (map[uint]*fleet.VPPAppStatusSummary,
+func (ds *Datastore) GetSummaryHostVPPAppInstalls(ctx context.Context, versions []*automdm.VPPAppStoreApp) (map[uint]*automdm.VPPAppStatusSummary,
 	error,
 ) {
-	summaries := make(map[uint]*fleet.VPPAppStatusSummary, len(versions))
+	summaries := make(map[uint]*automdm.VPPAppStatusSummary, len(versions))
 	versionIDs := make([]uint, 0, len(versions))
 	for _, version := range versions {
-		summaries[version.VPPAppsTeamsID] = &fleet.VPPAppStatusSummary{}
+		summaries[version.VPPAppsTeamsID] = &automdm.VPPAppStatusSummary{}
 		versionIDs = append(versionIDs, version.VPPAppsTeamsID)
 	}
 	if len(versionIDs) == 0 {
@@ -386,9 +386,9 @@ GROUP BY vpp_app_team_id`, vppAppVersionHostStatusesQuery)
 
 	query, args, err := sqlx.Named(stmt, map[string]interface{}{
 		"version_ids":               versionIDs,
-		"software_status_pending":   fleet.SoftwareInstallPending,
-		"software_status_failed":    fleet.SoftwareInstallFailed,
-		"software_status_installed": fleet.SoftwareInstalled,
+		"software_status_pending":   automdm.SoftwareInstallPending,
+		"software_status_failed":    automdm.SoftwareInstallFailed,
+		"software_status_installed": automdm.SoftwareInstalled,
 	})
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "get summary host vpp installs: named query")
@@ -400,7 +400,7 @@ GROUP BY vpp_app_team_id`, vppAppVersionHostStatusesQuery)
 
 	var versionSummaries []struct {
 		VPPAppTeamID uint `db:"vpp_app_team_id"`
-		fleet.VPPAppStatusSummary
+		automdm.VPPAppStatusSummary
 	}
 	err = sqlx.SelectContext(ctx, ds.reader(ctx), &versionSummaries, query, args...)
 	if err != nil {
@@ -445,7 +445,7 @@ func vppAppHostStatusNamedQuery(hvsiAlias, ncrAlias, colAlias string) string {
 	`, hvsiAlias, hvsiAlias, ncrAlias, ncrAlias, colAlias)
 }
 
-func (ds *Datastore) BatchInsertVPPApps(ctx context.Context, apps []*fleet.VPPApp) error {
+func (ds *Datastore) BatchInsertVPPApps(ctx context.Context, apps []*automdm.VPPApp) error {
 	return ds.withRetryTxx(ctx, func(tx sqlx.ExtContext) error {
 		for _, app := range apps {
 			titleID, err := ds.getOrInsertSoftwareTitleForVPPApp(ctx, tx, app)
@@ -455,7 +455,7 @@ func (ds *Datastore) BatchInsertVPPApps(ctx context.Context, apps []*fleet.VPPAp
 
 			app.TitleID = titleID
 
-			if err := insertVPPApps(ctx, tx, []*fleet.VPPApp{app}); err != nil {
+			if err := insertVPPApps(ctx, tx, []*automdm.VPPApp{app}); err != nil {
 				return ctxerr.Wrap(ctx, err, "BatchInsertVPPApps insertVPPApps transaction")
 			}
 		}
@@ -463,14 +463,14 @@ func (ds *Datastore) BatchInsertVPPApps(ctx context.Context, apps []*fleet.VPPAp
 	})
 }
 
-func (ds *Datastore) getExistingLabels(ctx context.Context, vppAppTeamID uint) (*fleet.LabelIdentsWithScope, error) {
+func (ds *Datastore) getExistingLabels(ctx context.Context, vppAppTeamID uint) (*automdm.LabelIdentsWithScope, error) {
 	existingLabels, err := ds.getVPPAppLabels(ctx, []uint{vppAppTeamID})
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "getting existing labels")
 	}
 
-	var labels fleet.LabelIdentsWithScope
-	var exclAny, inclAny, inclAll []fleet.SoftwareScopeLabel
+	var labels automdm.LabelIdentsWithScope
+	var exclAny, inclAny, inclAll []automdm.SoftwareScopeLabel
 	for _, l := range existingLabels[vppAppTeamID] {
 		switch {
 		case l.Exclude && !l.RequireAll:
@@ -485,7 +485,7 @@ func (ds *Datastore) getExistingLabels(ctx context.Context, vppAppTeamID uint) (
 	}
 
 	var count int
-	for _, set := range [][]fleet.SoftwareScopeLabel{exclAny, inclAny, inclAll} {
+	for _, set := range [][]automdm.SoftwareScopeLabel{exclAny, inclAny, inclAll} {
 		if len(set) > 0 {
 			count++
 		}
@@ -497,26 +497,26 @@ func (ds *Datastore) getExistingLabels(ctx context.Context, vppAppTeamID uint) (
 
 	switch {
 	case len(exclAny) > 0:
-		labels.LabelScope = fleet.LabelScopeExcludeAny
-		labels.ByName = make(map[string]fleet.LabelIdent, len(exclAny))
+		labels.LabelScope = automdm.LabelScopeExcludeAny
+		labels.ByName = make(map[string]automdm.LabelIdent, len(exclAny))
 		for _, l := range exclAny {
-			labels.ByName[l.LabelName] = fleet.LabelIdent{LabelName: l.LabelName, LabelID: l.LabelID}
+			labels.ByName[l.LabelName] = automdm.LabelIdent{LabelName: l.LabelName, LabelID: l.LabelID}
 		}
 		return &labels, nil
 
 	case len(inclAny) > 0:
-		labels.LabelScope = fleet.LabelScopeIncludeAny
-		labels.ByName = make(map[string]fleet.LabelIdent, len(inclAny))
+		labels.LabelScope = automdm.LabelScopeIncludeAny
+		labels.ByName = make(map[string]automdm.LabelIdent, len(inclAny))
 		for _, l := range inclAny {
-			labels.ByName[l.LabelName] = fleet.LabelIdent{LabelName: l.LabelName, LabelID: l.LabelID}
+			labels.ByName[l.LabelName] = automdm.LabelIdent{LabelName: l.LabelName, LabelID: l.LabelID}
 		}
 		return &labels, nil
 
 	case len(inclAll) > 0:
-		labels.LabelScope = fleet.LabelScopeIncludeAll
-		labels.ByName = make(map[string]fleet.LabelIdent, len(inclAll))
+		labels.LabelScope = automdm.LabelScopeIncludeAll
+		labels.ByName = make(map[string]automdm.LabelIdent, len(inclAll))
 		for _, l := range inclAll {
-			labels.ByName[l.LabelName] = fleet.LabelIdent{LabelName: l.LabelName, LabelID: l.LabelID}
+			labels.ByName[l.LabelName] = automdm.LabelIdent{LabelName: l.LabelName, LabelID: l.LabelID}
 		}
 		return &labels, nil
 
@@ -536,7 +536,7 @@ func (ds *Datastore) getVPPAppTeamCategoryIDs(ctx context.Context, vppAppTeamID 
 	return ids, nil
 }
 
-func (ds *Datastore) SetTeamVPPApps(ctx context.Context, teamID *uint, incomingApps []fleet.VPPAppTeam, appStoreAppIDsToTitleIDs map[string]uint) (bool, error) {
+func (ds *Datastore) SetTeamVPPApps(ctx context.Context, teamID *uint, incomingApps []automdm.VPPAppTeam, appStoreAppIDsToTitleIDs map[string]uint) (bool, error) {
 	stmt := `
 SELECT
 	vat.adam_id, vat.platform, vat.self_service, vat.install_during_setup, vat.id, vat.created_at added_at, vat.name version_name,
@@ -552,21 +552,21 @@ WHERE
 	vat.global_or_team_id = ?
 ORDER BY vat.id
 `
-	var existingVersions []fleet.VPPAppTeam
+	var existingVersions []automdm.VPPAppTeam
 	err := sqlx.SelectContext(ctx, ds.reader(ctx), &existingVersions, stmt, ptr.ValOrZero(teamID))
 	if err != nil {
 		return false, ctxerr.Wrap(ctx, err, "SetTeamVPPApps getting list of existing app versions")
 	}
 
-	existingVersionsByID := make(map[uint]fleet.VPPAppTeam, len(existingVersions))
+	existingVersionsByID := make(map[uint]automdm.VPPAppTeam, len(existingVersions))
 	for _, existingVersion := range existingVersions {
 		existingVersionsByID[existingVersion.AppTeamID] = existingVersion
 	}
 
-	incomingVersions := make([]fleet.VPPAppTeam, 0, len(incomingApps))
+	incomingVersions := make([]automdm.VPPAppTeam, 0, len(incomingApps))
 	for _, incomingApp := range incomingApps {
 		if incomingApp.VersionName == "" {
-			incomingApp.VersionName = fleet.DefaultAppStoreAppVersionName
+			incomingApp.VersionName = automdm.DefaultAppStoreAppVersionName
 		}
 		incomingVersions = append(incomingVersions, incomingApp)
 	}
@@ -591,7 +591,7 @@ ORDER BY vat.id
 	incomingIndexByVersionID := make(map[uint]int, len(incomingVersions))
 	for _, group := range equalNameGroups {
 		// Collect the existing version of each app in the group, names only match within one app
-		existingVersionIDsByApp := make(map[fleet.VPPAppID]uint)
+		existingVersionIDsByApp := make(map[automdm.VPPAppID]uint)
 		for _, nameIndex := range group.Indices {
 			if nameIndex < len(existingVersions) {
 				existingVersionIDsByApp[existingVersions[nameIndex].VPPAppID] = existingVersions[nameIndex].AppTeamID
@@ -618,17 +618,17 @@ ORDER BY vat.id
 	// if we're batch-setting apps and replacing the ones installed during setup
 	// in the same go, no need to validate that we don't delete one marked as
 	// install during setup (since we're overwriting those). This is always
-	// called from fleetctl gitops, so it should always be the case anyway.
+	// called from automdmctl gitops, so it should always be the case anyway.
 	var replacingInstallDuringSetup bool
 	if len(incomingApps) == 0 || incomingApps[0].InstallDuringSetup != nil {
 		replacingInstallDuringSetup = true
 	}
 
-	var toAddApps []fleet.VPPAppTeam
+	var toAddApps []automdm.VPPAppTeam
 	var toRemoveVersionIDs []uint
 
 	// Install only the first-added version of each app during setup, the first existing version in the list or else the first new version
-	setupIncomingIndexByApp := make(map[fleet.VPPAppID]int)
+	setupIncomingIndexByApp := make(map[automdm.VPPAppID]int)
 	for _, existingVersion := range existingVersions {
 		if incomingIndex, ok := incomingIndexByVersionID[existingVersion.AppTeamID]; ok {
 			if _, ok := setupIncomingIndexByApp[existingVersion.VPPAppID]; !ok {
@@ -717,13 +717,13 @@ ORDER BY vat.id
 			}
 
 			switch toAdd.Platform {
-			case fleet.AndroidPlatform:
+			case automdm.AndroidPlatform:
 				if toAdd.Configuration != nil {
 					if err := ds.updateAndroidAppConfigurationTx(ctx, tx, vppAppTeamID, toAdd.Configuration); err != nil {
 						return ctxerr.Wrap(ctx, err, "setting configuration for android app")
 					}
 				}
-			case fleet.IOSPlatform, fleet.IPadOSPlatform:
+			case automdm.IOSPlatform, automdm.IPadOSPlatform:
 				if len(toAdd.Configuration) > 0 {
 					if err := ds.updateVPPAppConfigurationTx(ctx, tx, vppAppTeamID, toAdd.Configuration); err != nil {
 						return ctxerr.Wrap(ctx, err, "setting configuration for vpp app")
@@ -778,7 +778,7 @@ ORDER BY vat.id
 }
 
 func (ds *Datastore) checkConflictingSoftwareInstallerForVPPApp(
-	ctx context.Context, q sqlx.QueryerContext, teamID *uint, appID fleet.VPPAppID,
+	ctx context.Context, q sqlx.QueryerContext, teamID *uint, appID automdm.VPPAppID,
 ) (exists bool, title string, err error) {
 	const stmt = `
 SELECT
@@ -810,20 +810,20 @@ WHERE
 	return true, title, nil
 }
 
-func (ds *Datastore) InsertVPPAppWithTeam(ctx context.Context, app *fleet.VPPApp, teamID *uint, existingVPPAppTeamID *uint) (*fleet.VPPApp, error) {
+func (ds *Datastore) InsertVPPAppWithTeam(ctx context.Context, app *automdm.VPPApp, teamID *uint, existingVPPAppTeamID *uint) (*automdm.VPPApp, error) {
 	var vppTokenID *uint
-	if app.Platform != fleet.AndroidPlatform {
+	if app.Platform != automdm.AndroidPlatform {
 		vppTokenID = app.VPPTokenID
 	}
 	if vppTokenID == nil {
 		vppToken, err := ds.GetVPPTokenByTeamID(ctx, teamID)
 		if err != nil {
-			if !fleet.IsNotFound(err) || app.Platform != fleet.AndroidPlatform {
+			if !automdm.IsNotFound(err) || app.Platform != automdm.AndroidPlatform {
 				return nil, ctxerr.Wrap(ctx, err, "InsertVPPAppWithTeam unable to get VPP Token ID")
 			}
 		}
 
-		if vppToken != nil && app.Platform != fleet.AndroidPlatform {
+		if vppToken != nil && app.Platform != automdm.AndroidPlatform {
 			vppTokenID = &vppToken.ID
 		}
 	}
@@ -841,7 +841,7 @@ func (ds *Datastore) InsertVPPAppWithTeam(ctx context.Context, app *fleet.VPPApp
 
 		app.TitleID = titleID
 
-		if err := insertVPPApps(ctx, tx, []*fleet.VPPApp{app}); err != nil {
+		if err := insertVPPApps(ctx, tx, []*automdm.VPPApp{app}); err != nil {
 			return ctxerr.Wrap(ctx, err, "InsertVPPAppWithTeam insertVPPApps transaction")
 		}
 
@@ -894,11 +894,11 @@ func (ds *Datastore) InsertVPPAppWithTeam(ctx context.Context, app *fleet.VPPApp
 
 		if app.Configuration != nil {
 			switch app.Platform {
-			case fleet.AndroidPlatform:
+			case automdm.AndroidPlatform:
 				if err := ds.updateAndroidAppConfigurationTx(ctx, tx, vppAppTeamID, app.Configuration); err != nil {
 					return ctxerr.Wrap(ctx, err, "setting configuration for android app")
 				}
-			case fleet.IOSPlatform, fleet.IPadOSPlatform:
+			case automdm.IOSPlatform, automdm.IPadOSPlatform:
 				// Empty bytes signals a clear (PATCH `"configuration": null`). Non-empty
 				// bytes upsert. Mirrors the batch path above so single-app and batch
 				// flows behave the same way.
@@ -927,9 +927,9 @@ func (ds *Datastore) InsertVPPAppWithTeam(ctx context.Context, app *fleet.VPPApp
 	return app, nil
 }
 
-func (ds *Datastore) GetVPPApps(ctx context.Context, teamID *uint) ([]fleet.VPPAppResponse, error) {
+func (ds *Datastore) GetVPPApps(ctx context.Context, teamID *uint) ([]automdm.VPPAppResponse, error) {
 	tmID := ptr.ValOrZero(teamID)
-	var results []fleet.VPPAppResponse
+	var results []automdm.VPPAppResponse
 
 	// intentionally using writer as this is called right after batch-setting VPP apps
 	if err := sqlx.SelectContext(ctx, ds.writer(ctx), &results, `
@@ -945,7 +945,7 @@ func (ds *Datastore) GetVPPApps(ctx context.Context, teamID *uint) ([]fleet.VPPA
 	return results, nil
 }
 
-func (ds *Datastore) GetAssignedVPPApps(ctx context.Context, teamID *uint) (map[fleet.VPPAppID]fleet.VPPAppTeam, error) {
+func (ds *Datastore) GetAssignedVPPApps(ctx context.Context, teamID *uint) (map[automdm.VPPAppID]automdm.VPPAppTeam, error) {
 	stmt := `
 SELECT
 	adam_id, platform, self_service, install_during_setup, id, created_at added_at, name version_name, vpp_token_id
@@ -960,13 +960,13 @@ ORDER BY vat.id DESC
 		tmID = *teamID
 	}
 
-	var results []fleet.VPPAppTeam
+	var results []automdm.VPPAppTeam
 	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &results, stmt, tmID); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "get assigned VPP apps")
 	}
 
 	// Read rows newest first so the first-added version of each app is written to the map last
-	appSet := make(map[fleet.VPPAppID]fleet.VPPAppTeam)
+	appSet := make(map[automdm.VPPAppID]automdm.VPPAppTeam)
 	for _, r := range results {
 		appSet[r.VPPAppID] = r
 	}
@@ -974,13 +974,13 @@ ORDER BY vat.id DESC
 	return appSet, nil
 }
 
-func (ds *Datastore) InsertVPPApps(ctx context.Context, apps []*fleet.VPPApp) error {
+func (ds *Datastore) InsertVPPApps(ctx context.Context, apps []*automdm.VPPApp) error {
 	return ds.withRetryTxx(ctx, func(tx sqlx.ExtContext) error {
 		return insertVPPApps(ctx, tx, apps)
 	})
 }
 
-func insertVPPApps(ctx context.Context, tx sqlx.ExtContext, apps []*fleet.VPPApp) error {
+func insertVPPApps(ctx context.Context, tx sqlx.ExtContext, apps []*automdm.VPPApp) error {
 	// country_code is intentionally only set on INSERT and not updated on
 	// duplicate key. The first add of a (adam_id, platform) row "anchors"
 	// the app to that storefront; subsequent inserts (from other teams) must
@@ -1016,7 +1016,7 @@ ON DUPLICATE KEY UPDATE
 	return ctxerr.Wrap(ctx, err, "insert VPP apps")
 }
 
-func insertVPPAppTeams(ctx context.Context, tx sqlx.ExtContext, appID fleet.VPPAppTeam, teamID *uint, vppTokenID *uint, existingVPPAppTeamID *uint) (uint, error) {
+func insertVPPAppTeams(ctx context.Context, tx sqlx.ExtContext, appID automdm.VPPAppTeam, teamID *uint, vppTokenID *uint, existingVPPAppTeamID *uint) (uint, error) {
 	// Pass the existing id to update that version on the primary key so its name can change, a NULL id inserts a new version or updates the one with the same name
 	stmt := `
 INSERT INTO vpp_apps_teams
@@ -1043,7 +1043,7 @@ ON DUPLICATE KEY UPDATE
 
 	versionName := appID.VersionName
 	if versionName == "" {
-		versionName = fleet.DefaultAppStoreAppVersionName
+		versionName = automdm.DefaultAppStoreAppVersionName
 	}
 
 	// Write the maintenance window only when automatic updates are turned on, the update skips empty times
@@ -1061,8 +1061,8 @@ ON DUPLICATE KEY UPDATE
 		if IsDuplicate(err) && existingVPPAppTeamID != nil {
 			// Return the rename conflict from the unique key on the name, it compares names the same way the column collation does.
 			// FE routes this to the Name field by matching the "a version named" substring (routeVersionNameError in frontend/pages/SoftwarePage/helpers.tsx); keep the phrase if you reword.
-			return 0, ctxerr.Wrap(ctx, fleet.ConflictError{
-				Message: fmt.Sprintf("Couldn't edit. A version named %q already exists for this app in this fleet.", versionName),
+			return 0, ctxerr.Wrap(ctx, automdm.ConflictError{
+				Message: fmt.Sprintf("Couldn't edit. A version named %q already exists for this app in this team.", versionName),
 			}, "renaming app store app version")
 		}
 		if IsDuplicate(err) {
@@ -1108,17 +1108,17 @@ func removeVPPAppTeams(ctx context.Context, tx sqlx.ExtContext, vppAppTeamID uin
 	return nil
 }
 
-func (ds *Datastore) getOrInsertSoftwareTitleForVPPApp(ctx context.Context, tx sqlx.ExtContext, app *fleet.VPPApp) (uint, error) {
+func (ds *Datastore) getOrInsertSoftwareTitleForVPPApp(ctx context.Context, tx sqlx.ExtContext, app *automdm.VPPApp) (uint, error) {
 	// NOTE: it was decided to populate "apps" as the source for VPP apps for now, TBD
 	// if this needs to change to better map to how software titles are reported
 	// back by osquery. Since it may change, we're using a variable for the source.
 	var source string
 	switch app.Platform {
-	case fleet.IOSPlatform:
+	case automdm.IOSPlatform:
 		source = "ios_apps"
-	case fleet.IPadOSPlatform:
+	case automdm.IPadOSPlatform:
 		source = "ipados_apps"
-	case fleet.AndroidPlatform:
+	case automdm.AndroidPlatform:
 		source = "android_apps"
 	default:
 		source = "apps"
@@ -1177,7 +1177,7 @@ func (ds *Datastore) getOrInsertSoftwareTitleForVPPApp(ctx context.Context, tx s
 	return titleID, nil
 }
 
-func (ds *Datastore) DeleteVPPAppFromTeam(ctx context.Context, teamID *uint, appID fleet.VPPAppID, vppAppTeamID *uint) error {
+func (ds *Datastore) DeleteVPPAppFromTeam(ctx context.Context, teamID *uint, appID automdm.VPPAppID, vppAppTeamID *uint) error {
 	var globalOrTeamID uint
 	if teamID != nil {
 		globalOrTeamID = *teamID
@@ -1224,7 +1224,7 @@ func (ds *Datastore) DeleteVPPAppFromTeam(ctx context.Context, teamID *uint, app
 		if installDuringSetup {
 			return errDeleteInstallerInstalledDuringSetup
 		}
-		return notFound("VPPApp").WithMessage(fmt.Sprintf("adam id %s platform %s for fleet id %d", appID.AdamID, appID.Platform,
+		return notFound("VPPApp").WithMessage(fmt.Sprintf("adam id %s platform %s for team id %d", appID.AdamID, appID.Platform,
 			globalOrTeamID))
 	}
 
@@ -1240,7 +1240,7 @@ func (ds *Datastore) DeleteVPPAppFromTeam(ctx context.Context, teamID *uint, app
 	return nil
 }
 
-func (ds *Datastore) GetTitleInfoFromVPPAppsTeamsID(ctx context.Context, vppAppsTeamsID uint) (*fleet.PolicySoftwareTitle, error) {
+func (ds *Datastore) GetTitleInfoFromVPPAppsTeamsID(ctx context.Context, vppAppsTeamsID uint) (*automdm.PolicySoftwareTitle, error) {
 	stmt := `
 	SELECT
 		va.name AS name,
@@ -1250,7 +1250,7 @@ func (ds *Datastore) GetTitleInfoFromVPPAppsTeamsID(ctx context.Context, vppApps
     JOIN vpp_apps_teams vat ON vat.adam_id = va.adam_id AND vat.platform = va.platform AND vat.id = ?
     LEFT JOIN software_title_display_names stdn ON stdn.software_title_id = va.title_id AND stdn.team_id = vat.global_or_team_id`
 
-	var info fleet.PolicySoftwareTitle
+	var info automdm.PolicySoftwareTitle
 	err := sqlx.GetContext(ctx, ds.reader(ctx), &info, stmt, vppAppsTeamsID)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -1262,7 +1262,7 @@ func (ds *Datastore) GetTitleInfoFromVPPAppsTeamsID(ctx context.Context, vppApps
 	return &info, nil
 }
 
-func (ds *Datastore) GetVPPAppMetadataByAdamIDPlatformTeamID(ctx context.Context, adamID string, platform fleet.InstallableDevicePlatform, teamID *uint) (*fleet.VPPApp, error) {
+func (ds *Datastore) GetVPPAppMetadataByAdamIDPlatformTeamID(ctx context.Context, adamID string, platform automdm.InstallableDevicePlatform, teamID *uint) (*automdm.VPPApp, error) {
 	stmt := `
 	SELECT va.adam_id,
 	 va.bundle_identifier,
@@ -1290,7 +1290,7 @@ func (ds *Datastore) GetVPPAppMetadataByAdamIDPlatformTeamID(ctx context.Context
 		tmID = *teamID
 	}
 
-	var dest fleet.VPPApp
+	var dest automdm.VPPApp
 	err := sqlx.GetContext(ctx, ds.reader(ctx), &dest, stmt, tmID, adamID, platform)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -1302,7 +1302,7 @@ func (ds *Datastore) GetVPPAppMetadataByAdamIDPlatformTeamID(ctx context.Context
 	return &dest, nil
 }
 
-func (ds *Datastore) GetVPPAppByTeamAndTitleID(ctx context.Context, teamID *uint, titleID uint, vppAppTeamID uint) (*fleet.VPPApp, error) {
+func (ds *Datastore) GetVPPAppByTeamAndTitleID(ctx context.Context, teamID *uint, titleID uint, vppAppTeamID uint) (*automdm.VPPApp, error) {
 	stmt := `
 SELECT
   vat.id,
@@ -1328,7 +1328,7 @@ WHERE vat.global_or_team_id = ? AND va.title_id = ? AND vat.id = ?
 		tmID = *teamID
 	}
 
-	var dest fleet.VPPApp
+	var dest automdm.VPPApp
 	err := sqlx.GetContext(ctx, ds.reader(ctx), &dest, stmt, tmID, titleID, vppAppTeamID)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -1340,13 +1340,13 @@ WHERE vat.global_or_team_id = ? AND va.title_id = ? AND vat.id = ?
 	return &dest, nil
 }
 
-func (ds *Datastore) InsertHostVPPSoftwareInstall(ctx context.Context, hostID uint, appID fleet.VPPAppID,
-	commandUUID, associatedEventID string, opts fleet.HostSoftwareInstallOptions,
+func (ds *Datastore) InsertHostVPPSoftwareInstall(ctx context.Context, hostID uint, appID automdm.VPPAppID,
+	commandUUID, associatedEventID string, opts automdm.HostSoftwareInstallOptions,
 ) error {
 	const (
 		insertUAStmt = `
 INSERT INTO upcoming_activities
-	(host_id, priority, user_id, fleet_initiated, activity_type, execution_id, payload)
+	(host_id, priority, user_id, automdm_initiated, activity_type, execution_id, payload)
 VALUES
 	(?, ?, ?, ?, 'vpp_app_install', ?,
 		JSON_OBJECT(
@@ -1388,7 +1388,7 @@ VALUES
 			hostID,
 			opts.Priority(),
 			userID,
-			opts.IsFleetInitiated(),
+			opts.IsAutoMDMInitiated(),
 			commandUUID,
 			opts.SelfService,
 			opts.ForScheduledUpdates,
@@ -1413,7 +1413,7 @@ VALUES
 			return ctxerr.Wrap(ctx, err, "insert vpp install request join table")
 		}
 
-		// deferred activations are picked up by the fleet-initiated release
+		// deferred activations are picked up by the automdm-initiated release
 		// cron within its per-minute budget
 		if !opts.DeferActivation {
 			if _, err := ds.activateNextUpcomingActivity(ctx, tx, hostID, ""); err != nil {
@@ -1538,21 +1538,21 @@ func (ds *Datastore) MapAdamIDsQueuedInstalls(ctx context.Context, hostID uint) 
 	return adamIDs, nil
 }
 
-func (ds *Datastore) GetPastActivityDataForAndroidVPPAppInstall(ctx context.Context, cmdUUID string, status fleet.SoftwareInstallerStatus) (*fleet.User, *fleet.ActivityInstalledAppStoreApp, error) {
+func (ds *Datastore) GetPastActivityDataForAndroidVPPAppInstall(ctx context.Context, cmdUUID string, status automdm.SoftwareInstallerStatus) (*automdm.User, *automdm.ActivityInstalledAppStoreApp, error) {
 	// See GetPastActivityDataForVPPAppInstall — same write-time-freeze rationale.
 	ctx = ctxdb.RequirePrimary(ctx, true)
 	return ds.getPastActivityDataForAndroidVPPAppInstallDB(ctx, ds.reader(ctx), cmdUUID, status)
 }
 
-func (ds *Datastore) getPastActivityDataForAndroidVPPAppInstallDB(ctx context.Context, q sqlx.QueryerContext, cmdUUID string, status fleet.SoftwareInstallerStatus) (*fleet.User, *fleet.ActivityInstalledAppStoreApp, error) {
-	mdmStatus := fleet.MDMAppleStatusAcknowledged
-	if status != fleet.SoftwareInstalled {
-		mdmStatus = fleet.MDMAppleStatusError
+func (ds *Datastore) getPastActivityDataForAndroidVPPAppInstallDB(ctx context.Context, q sqlx.QueryerContext, cmdUUID string, status automdm.SoftwareInstallerStatus) (*automdm.User, *automdm.ActivityInstalledAppStoreApp, error) {
+	mdmStatus := automdm.MDMAppleStatusAcknowledged
+	if status != automdm.SoftwareInstalled {
+		mdmStatus = automdm.MDMAppleStatusError
 	}
 	return ds.getPastActivityDataForVPPAppInstallDB(ctx, q, &mdm.CommandResults{CommandUUID: cmdUUID, Status: mdmStatus})
 }
 
-func (ds *Datastore) GetPastActivityDataForVPPAppInstall(ctx context.Context, commandResults *mdm.CommandResults) (*fleet.User, *fleet.ActivityInstalledAppStoreApp, error) {
+func (ds *Datastore) GetPastActivityDataForVPPAppInstall(ctx context.Context, commandResults *mdm.CommandResults) (*automdm.User, *automdm.ActivityInstalledAppStoreApp, error) {
 	// Called at activity-write time to snapshot the software display name
 	// override (and adjacent fields) into the activity JSON blob. Reading from
 	// a lagging replica could miss a rename an admin committed to the primary
@@ -1561,7 +1561,7 @@ func (ds *Datastore) GetPastActivityDataForVPPAppInstall(ctx context.Context, co
 	return ds.getPastActivityDataForVPPAppInstallDB(ctx, ds.reader(ctx), commandResults)
 }
 
-func (ds *Datastore) getPastActivityDataForVPPAppInstallDB(ctx context.Context, q sqlx.QueryerContext, commandResults *mdm.CommandResults) (*fleet.User, *fleet.ActivityInstalledAppStoreApp, error) {
+func (ds *Datastore) getPastActivityDataForVPPAppInstallDB(ctx context.Context, q sqlx.QueryerContext, commandResults *mdm.CommandResults) (*automdm.User, *automdm.ActivityInstalledAppStoreApp, error) {
 	if commandResults == nil {
 		return nil, nil, nil
 	}
@@ -1625,8 +1625,8 @@ WHERE
 
 	listStmt, args, err := sqlx.Named(stmt, map[string]any{
 		"command_uuid":              commandResults.CommandUUID,
-		"software_status_failed":    string(fleet.SoftwareInstallFailed),
-		"software_status_installed": string(fleet.SoftwareInstalled),
+		"software_status_failed":    string(automdm.SoftwareInstallFailed),
+		"software_status_installed": string(automdm.SoftwareInstalled),
 	})
 	if err != nil {
 		return nil, nil, ctxerr.Wrap(ctx, err, "build list query from named args")
@@ -1641,9 +1641,9 @@ WHERE
 		return nil, nil, ctxerr.Wrap(ctx, err, "select past activity data for VPP app install")
 	}
 
-	var user *fleet.User
+	var user *automdm.User
 	if res.UserID != nil {
-		user = &fleet.User{
+		user = &automdm.User{
 			ID:    *res.UserID,
 			Name:  *res.UserName,
 			Email: *res.UserEmail,
@@ -1652,17 +1652,17 @@ WHERE
 
 	var status string
 	switch commandResults.Status {
-	case fleet.MDMAppleStatusAcknowledged:
-		status = string(fleet.SoftwareInstalled)
-	case fleet.MDMAppleStatusCommandFormatError, fleet.MDMAppleStatusError:
-		status = string(fleet.SoftwareInstallFailed)
+	case automdm.MDMAppleStatusAcknowledged:
+		status = string(automdm.SoftwareInstalled)
+	case automdm.MDMAppleStatusCommandFormatError, automdm.MDMAppleStatusError:
+		status = string(automdm.SoftwareInstallFailed)
 	default:
 		// This case shouldn't happen (we should only be doing this check if the command is in a
 		// "terminal" state, but adding it so we have a default
-		status = string(fleet.SoftwareInstallPending)
+		status = string(automdm.SoftwareInstallPending)
 	}
 
-	act := &fleet.ActivityInstalledAppStoreApp{
+	act := &automdm.ActivityInstalledAppStoreApp{
 		HostID:              res.HostID,
 		HostDisplayName:     res.HostDisplayName,
 		SoftwareTitle:       res.SoftwareTitle,
@@ -1677,7 +1677,7 @@ WHERE
 		VersionName:         res.VersionName,
 	}
 	if res.VPPTokenID != nil {
-		act.VPPToken = &fleet.ActivityVPPToken{
+		act.VPPToken = &automdm.ActivityVPPToken{
 			ID:          *res.VPPTokenID,
 			Location:    res.VPPTokenLocation,
 			CountryCode: res.VPPTokenCountryCode,
@@ -1687,19 +1687,19 @@ WHERE
 	return user, act, nil
 }
 
-// RecordFailedVPPAppInstall records a VPP app install that Fleet failed before
+// RecordFailedVPPAppInstall records a VPP app install that AutoMDM failed before
 // sending it to the device — currently, the managed app configuration
-// referenced a Fleet variable that can't be resolved for this host (e.g. an
+// referenced an AutoMDM variable that can't be resolved for this host (e.g. an
 // IdP variable on a host with no IdP linkage). It writes a failed
 // host_vpp_software_installs row (verification_failed_at sentinel) without
 // enqueuing any MDM command or reserving a license, and returns the user +
 // failed-install activity to emit. failureReason is surfaced on the activity
 // (and the Install Details modal).
-func (ds *Datastore) RecordFailedVPPAppInstall(ctx context.Context, hostID uint, appID fleet.VPPAppID,
-	commandUUID, failureReason string, opts fleet.HostSoftwareInstallOptions,
-) (*fleet.User, *fleet.ActivityInstalledAppStoreApp, error) {
+func (ds *Datastore) RecordFailedVPPAppInstall(ctx context.Context, hostID uint, appID automdm.VPPAppID,
+	commandUUID, failureReason string, opts automdm.HostSoftwareInstallOptions,
+) (*automdm.User, *automdm.ActivityInstalledAppStoreApp, error) {
 	// Mirror the user attribution used by InsertHostVPPSoftwareInstall: a
-	// policy-driven install has no acting user (Fleet-initiated).
+	// policy-driven install has no acting user (AutoMDM-initiated).
 	var userID *uint
 	if ctxUser := authz.UserFromContext(ctx); ctxUser != nil && opts.PolicyID == nil {
 		userID = &ctxUser.ID
@@ -1712,8 +1712,8 @@ VALUES
 	(?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP(6), ?, ?)`
 
 	var (
-		user *fleet.User
-		act  *fleet.ActivityInstalledAppStoreApp
+		user *automdm.User
+		act  *automdm.ActivityInstalledAppStoreApp
 	)
 	err := ds.withRetryTxx(ctx, func(tx sqlx.ExtContext) error {
 		if _, err := tx.ExecContext(ctx, insStmt,
@@ -1725,7 +1725,7 @@ VALUES
 
 		var err error
 		user, act, err = ds.getPastActivityDataForVPPAppInstallDB(ctx, tx,
-			&mdm.CommandResults{CommandUUID: commandUUID, Status: fleet.MDMAppleStatusError})
+			&mdm.CommandResults{CommandUUID: commandUUID, Status: automdm.MDMAppleStatusError})
 		if err != nil {
 			return ctxerr.Wrap(ctx, err, "get failed vpp install activity data")
 		}
@@ -1761,7 +1761,7 @@ VALUES
 //     pre-activation case to find anything.
 //
 // Returns NotFound when no matching VPP install row exists in either table.
-func (ds *Datastore) GetVPPInstallReleaseInfoForCancel(ctx context.Context, hostID uint, executionID string) (*fleet.VPPInstallReleaseInfo, error) {
+func (ds *Datastore) GetVPPInstallReleaseInfoForCancel(ctx context.Context, hostID uint, executionID string) (*automdm.VPPInstallReleaseInfo, error) {
 	// Activated case first — fast path that doesn't depend on call ordering.
 	const activatedStmt = `
 SELECT
@@ -1797,7 +1797,7 @@ WHERE hvsi.host_id = ? AND hvsi.command_uuid = ?`
 	}
 	err := sqlx.GetContext(ctx, ds.reader(ctx), &row, activatedStmt, hostID, executionID)
 	if err == nil {
-		return &fleet.VPPInstallReleaseInfo{
+		return &automdm.VPPInstallReleaseInfo{
 			AdamID:                row.AdamID,
 			AssociatedEventID:     row.AssociatedEventID,
 			HasOtherActiveInstall: row.HasOtherActiveInstall,
@@ -1839,7 +1839,7 @@ WHERE ua.host_id = ? AND ua.execution_id = ? AND ua.activity_type = 'vpp_app_ins
 		}
 		return nil, ctxerr.Wrap(ctx, err, "get vpp install release info (upcoming)")
 	}
-	return &fleet.VPPInstallReleaseInfo{
+	return &automdm.VPPInstallReleaseInfo{
 		AdamID:                row.AdamID,
 		AssociatedEventID:     row.AssociatedEventID,
 		HasOtherActiveInstall: row.HasOtherActiveInstall,
@@ -1870,7 +1870,7 @@ SELECT EXISTS(
 	return isInstalled, nil
 }
 
-func (ds *Datastore) GetVPPTokenByLocation(ctx context.Context, loc string) (*fleet.VPPTokenDB, error) {
+func (ds *Datastore) GetVPPTokenByLocation(ctx context.Context, loc string) (*automdm.VPPTokenDB, error) {
 	stmt := `SELECT id FROM vpp_tokens WHERE location = ?`
 	var tokenID uint
 	if err := sqlx.GetContext(ctx, ds.reader(ctx), &tokenID, stmt, loc); err != nil {
@@ -1882,7 +1882,7 @@ func (ds *Datastore) GetVPPTokenByLocation(ctx context.Context, loc string) (*fl
 	return ds.GetVPPToken(ctx, tokenID)
 }
 
-func (ds *Datastore) InsertVPPToken(ctx context.Context, tok *fleet.VPPTokenData) (*fleet.VPPTokenDB, error) {
+func (ds *Datastore) InsertVPPToken(ctx context.Context, tok *automdm.VPPTokenData) (*automdm.VPPTokenDB, error) {
 	insertStmt := `
 	INSERT INTO
 		vpp_tokens (
@@ -1928,7 +1928,7 @@ func (ds *Datastore) InsertVPPToken(ctx context.Context, tok *fleet.VPPTokenData
 	return ds.GetVPPToken(ctxdb.RequirePrimary(ctx, true), uint(id)) //nolint:gosec // dismiss G115
 }
 
-func (ds *Datastore) UpdateVPPToken(ctx context.Context, tokenID uint, tok *fleet.VPPTokenData) (*fleet.VPPTokenDB, error) {
+func (ds *Datastore) UpdateVPPToken(ctx context.Context, tokenID uint, tok *automdm.VPPTokenData) (*automdm.VPPTokenDB, error) {
 	// country_code uses COALESCE so an empty CountryCode never wipes a
 	// previously-anchored value. Re-anchoring needs an explicit value.
 	stmt := `
@@ -1996,8 +1996,8 @@ func (ds *Datastore) UpdateVPPTokenCountryCode(ctx context.Context, tokenID uint
 
 // UpdateVPPAppCountryCode persists the anchored storefront country for a
 // (adam_id, platform) row in vpp_apps. Used by the re-anchor self-heal path
-// when the original anchored country has no Fleet-known token left.
-func (ds *Datastore) UpdateVPPAppCountryCode(ctx context.Context, adamID string, platform fleet.InstallableDevicePlatform, countryCode string) error {
+// when the original anchored country has no AutoMDM-known token left.
+func (ds *Datastore) UpdateVPPAppCountryCode(ctx context.Context, adamID string, platform automdm.InstallableDevicePlatform, countryCode string) error {
 	if countryCode == "" {
 		return ctxerr.New(ctx, "country code cannot be empty")
 	}
@@ -2054,24 +2054,24 @@ WHERE va.country_code IS NULL
 	return rows, nil
 }
 
-func vppTokenDataToVppTokenDB(ctx context.Context, tok *fleet.VPPTokenData) (*fleet.VPPTokenDB, error) {
+func vppTokenDataToVppTokenDB(ctx context.Context, tok *automdm.VPPTokenData) (*automdm.VPPTokenDB, error) {
 	tokRawBytes, err := base64.StdEncoding.DecodeString(tok.Token)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "decoding raw vpp token data")
 	}
 
-	var tokRaw fleet.VPPTokenRaw
+	var tokRaw automdm.VPPTokenRaw
 	if err := json.Unmarshal(tokRawBytes, &tokRaw); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "unmarshalling raw vpp token")
 	}
 
-	exp, err := time.Parse(fleet.VPPTimeFormat, tokRaw.ExpDate)
+	exp, err := time.Parse(automdm.VPPTimeFormat, tokRaw.ExpDate)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "parsing vpp token expiration date")
 	}
 	exp = exp.UTC()
 
-	vppTokenDB := &fleet.VPPTokenDB{
+	vppTokenDB := &automdm.VPPTokenDB{
 		OrgName:     tokRaw.OrgName,
 		Location:    tok.Location,
 		RenewDate:   exp,
@@ -2082,7 +2082,7 @@ func vppTokenDataToVppTokenDB(ctx context.Context, tok *fleet.VPPTokenData) (*fl
 	return vppTokenDB, nil
 }
 
-func (ds *Datastore) GetVPPToken(ctx context.Context, tokenID uint) (*fleet.VPPTokenDB, error) {
+func (ds *Datastore) GetVPPToken(ctx context.Context, tokenID uint) (*automdm.VPPTokenDB, error) {
 	stmt := `
 	SELECT
 		id,
@@ -2111,12 +2111,12 @@ func (ds *Datastore) GetVPPToken(ctx context.Context, tokenID uint) (*fleet.VPPT
 		vpp_token_id = ?
 `
 
-	var tokEnc fleet.VPPTokenDB
+	var tokEnc automdm.VPPTokenDB
 
 	var tokTeams []struct {
-		TeamID   *uint              `db:"team_id"`
-		NullTeam fleet.NullTeamType `db:"null_team_type"`
-		Name     string             `db:"name"`
+		TeamID   *uint                `db:"team_id"`
+		NullTeam automdm.NullTeamType `db:"null_team_type"`
+		Name     string               `db:"name"`
 	}
 
 	if err := sqlx.GetContext(ctx, ds.reader(ctx), &tokEnc, stmt, tokenID); err != nil {
@@ -2135,7 +2135,7 @@ func (ds *Datastore) GetVPPToken(ctx context.Context, tokenID uint) (*fleet.VPPT
 		return nil, ctxerr.Wrap(ctx, err, "selecting vpp token teams from db")
 	}
 
-	tok := &fleet.VPPTokenDB{
+	tok := &automdm.VPPTokenDB{
 		ID:          tokEnc.ID,
 		OrgName:     tokEnc.OrgName,
 		Location:    tokEnc.Location,
@@ -2153,22 +2153,22 @@ func (ds *Datastore) GetVPPToken(ctx context.Context, tokenID uint) (*fleet.VPPT
 TEAMLOOP:
 	for _, team := range tokTeams {
 		switch team.NullTeam {
-		case fleet.NullTeamAllTeams:
+		case automdm.NullTeamAllTeams:
 			// This should only be possible if there are no other teams
 			// Make sure something array is non-nil
 			if len(tokTeams) != 1 {
-				return nil, ctxerr.Errorf(ctx, "fleet \"%s\" belongs to All fleets, and %d other fleet(s)", tok.OrgName, len(tokTeams)-1)
+				return nil, ctxerr.Errorf(ctx, "team \"%s\" belongs to All teams, and %d other team(s)", tok.OrgName, len(tokTeams)-1)
 			}
-			tok.Teams = []fleet.TeamTuple{}
+			tok.Teams = []automdm.TeamTuple{}
 			break TEAMLOOP
-		case fleet.NullTeamNoTeam:
-			tok.Teams = append(tok.Teams, fleet.TeamTuple{
+		case automdm.NullTeamNoTeam:
+			tok.Teams = append(tok.Teams, automdm.TeamTuple{
 				ID:   0,
-				Name: fleet.DisplayNameNoTeam,
+				Name: automdm.DisplayNameNoTeam,
 			})
-		case fleet.NullTeamNone:
+		case automdm.NullTeamNone:
 			// Regular team
-			tok.Teams = append(tok.Teams, fleet.TeamTuple{
+			tok.Teams = append(tok.Teams, automdm.TeamTuple{
 				ID:   *team.TeamID,
 				Name: team.Name,
 			})
@@ -2178,7 +2178,7 @@ TEAMLOOP:
 	return tok, nil
 }
 
-func (ds *Datastore) UpdateVPPTokenTeams(ctx context.Context, id uint, teams []uint) (*fleet.VPPTokenDB, error) {
+func (ds *Datastore) UpdateVPPTokenTeams(ctx context.Context, id uint, teams []uint) (*automdm.VPPTokenDB, error) {
 	stmtRemove := `DELETE FROM vpp_token_teams WHERE vpp_token_id = ?`
 	stmtInsert := `
 	INSERT INTO
@@ -2188,14 +2188,14 @@ func (ds *Datastore) UpdateVPPTokenTeams(ctx context.Context, id uint, teams []u
 			null_team_type
 	) VALUES `
 	stmtValues := `(?, ?, ?)`
-	// Delete the token's apps, and their policy automations, on the fleets the token is no longer assigned to
+	// Delete the token's apps, and their policy automations, on the teams the token is no longer assigned to
 	stmtRemovePolicyAutomations := `UPDATE policies p
 		JOIN vpp_apps_teams vat ON vat.id = p.vpp_apps_teams_id AND vat.vpp_token_id = ? %s
 		SET vpp_apps_teams_id = NULL`
 	stmtDeleteApps := `DELETE vat FROM vpp_apps_teams vat WHERE vat.vpp_token_id = ? %s`
 
-	// Duplicate IDs would hit the unique key, or insert "No fleet" twice since team_id is NULL for it.
-	teams = slices.Clone(teams) // keeps nil (unassigned) distinct from [] (All fleets)
+	// Duplicate IDs would hit the unique key, or insert "No team" twice since team_id is NULL for it.
+	teams = slices.Clone(teams) // keeps nil (unassigned) distinct from [] (All teams)
 	slices.Sort(teams)
 	teams = slices.Compact(teams)
 
@@ -2219,26 +2219,26 @@ func (ds *Datastore) UpdateVPPTokenTeams(ctx context.Context, id uint, teams []u
 				values = strings.Join([]string{values, stmtValues}, ",")
 			}
 			var teamptr *uint
-			nullTeam := fleet.NullTeamNone
+			nullTeam := automdm.NullTeamNone
 			if team != 0 {
 				// Regular team
 				teamptr = &team
 			} else {
 				// NoTeam team
-				nullTeam = fleet.NullTeamNoTeam
+				nullTeam = automdm.NullTeamNoTeam
 			}
 			args = append(args, id, teamptr, nullTeam)
 		}
 	} else if teams != nil {
 		// Empty but not nil, All Teams!
 		values = stmtValues
-		args = append(args, id, nil, fleet.NullTeamAllTeams)
+		args = append(args, id, nil, automdm.NullTeamAllTeams)
 	}
 
 	stmtInsertFull := stmtInsert + values
 
 	err := ds.withRetryTxx(ctx, func(tx sqlx.ExtContext) error {
-		// Skip deleting apps when the token moves to all fleets, every fleet still has access to them
+		// Skip deleting apps when the token moves to all teams, every team still has access to them
 		if teams == nil || len(teams) > 0 {
 			// Expand into local copies so a retried transaction expands the original statements again
 			removePolicyAutomationsStmt := stmtRemovePolicyAutomations
@@ -2288,12 +2288,12 @@ func (ds *Datastore) UpdateVPPTokenTeams(ctx context.Context, id uint, teams []u
 	return ds.GetVPPToken(ctx, id)
 }
 
-func (ds *Datastore) GetVPPClientUser(ctx context.Context, tokenID uint, managedAppleID string) (*fleet.VPPClientUser, error) {
+func (ds *Datastore) GetVPPClientUser(ctx context.Context, tokenID uint, managedAppleID string) (*automdm.VPPClientUser, error) {
 	const stmt = `
 SELECT id, vpp_token_id, managed_apple_id, client_user_id, apple_user_id, status, created_at, updated_at
 FROM vpp_client_users
 WHERE vpp_token_id = ? AND managed_apple_id = ?`
-	var row fleet.VPPClientUser
+	var row automdm.VPPClientUser
 	if err := sqlx.GetContext(ctx, ds.reader(ctx), &row, stmt, tokenID, managedAppleID); err != nil {
 		if err == sql.ErrNoRows {
 			// Don't include managed_apple_id (PII) in the not-found message —
@@ -2306,7 +2306,7 @@ WHERE vpp_token_id = ? AND managed_apple_id = ?`
 	return &row, nil
 }
 
-func (ds *Datastore) InsertVPPClientUser(ctx context.Context, row *fleet.VPPClientUser) error {
+func (ds *Datastore) InsertVPPClientUser(ctx context.Context, row *automdm.VPPClientUser) error {
 	if row == nil {
 		return ctxerr.New(ctx, "InsertVPPClientUser: nil row")
 	}
@@ -2321,7 +2321,7 @@ ON DUPLICATE KEY UPDATE
 	status = VALUES(status)`
 	status := row.Status
 	if status == "" {
-		status = fleet.VPPClientUserStatusPending
+		status = automdm.VPPClientUserStatusPending
 	}
 	if _, err := ds.writer(ctx).ExecContext(ctx, stmt,
 		row.VPPTokenID, row.ManagedAppleID, row.ClientUserID, row.AppleUserID, status,
@@ -2354,7 +2354,7 @@ func (ds *Datastore) DeleteVPPToken(ctx context.Context, tokenID uint) error {
 	})
 }
 
-func (ds *Datastore) ListVPPTokens(ctx context.Context) ([]*fleet.VPPTokenDB, error) {
+func (ds *Datastore) ListVPPTokens(ctx context.Context) ([]*automdm.VPPTokenDB, error) {
 	// linter false positive on the word "token" (gosec G101)
 	//nolint:gosec
 	stmtTokens := `
@@ -2383,14 +2383,14 @@ func (ds *Datastore) ListVPPTokens(ctx context.Context) ([]*fleet.VPPTokenDB, er
 		teams t
 	ON vt.team_id = t.id
 `
-	var tokEncs []fleet.VPPTokenDB
+	var tokEncs []automdm.VPPTokenDB
 
 	var teams []struct {
-		ID         string             `db:"id"`
-		VPPTokenID uint               `db:"vpp_token_id"`
-		TeamID     *uint              `db:"team_id"`
-		TeamName   string             `db:"name"`
-		NullTeam   fleet.NullTeamType `db:"null_team_type"`
+		ID         string               `db:"id"`
+		VPPTokenID uint                 `db:"vpp_token_id"`
+		TeamID     *uint                `db:"team_id"`
+		TeamName   string               `db:"name"`
+		NullTeam   automdm.NullTeamType `db:"null_team_type"`
 	}
 
 	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &tokEncs, stmtTokens); err != nil {
@@ -2401,7 +2401,7 @@ func (ds *Datastore) ListVPPTokens(ctx context.Context) ([]*fleet.VPPTokenDB, er
 		return nil, ctxerr.Wrap(ctx, err, "selecting vpp token teams from db")
 	}
 
-	tokens := map[uint]*fleet.VPPTokenDB{}
+	tokens := map[uint]*automdm.VPPTokenDB{}
 
 	for _, tokEnc := range tokEncs {
 		tokDec, err := decrypt([]byte(tokEnc.Token), ds.serverPrivateKey)
@@ -2409,7 +2409,7 @@ func (ds *Datastore) ListVPPTokens(ctx context.Context) ([]*fleet.VPPTokenDB, er
 			return nil, ctxerr.Wrap(ctx, err, "decrypting vpp token with serverPrivateKey")
 		}
 
-		tokens[tokEnc.ID] = &fleet.VPPTokenDB{
+		tokens[tokEnc.ID] = &automdm.VPPTokenDB{
 			ID:          tokEnc.ID,
 			OrgName:     tokEnc.OrgName,
 			Location:    tokEnc.Location,
@@ -2428,39 +2428,39 @@ func (ds *Datastore) ListVPPTokens(ctx context.Context) ([]*fleet.VPPTokenDB, er
 		if token.Teams != nil && len(token.Teams) == 0 {
 			// Token was already assigned to All Teams, we should not
 			// see it again in a loop
-			return nil, fmt.Errorf("vpp token \"%s\" has been assigned to All fleets, and another fleet", token.OrgName)
+			return nil, fmt.Errorf("vpp token \"%s\" has been assigned to All teams, and another team", token.OrgName)
 		}
 		switch team.NullTeam {
-		case fleet.NullTeamAllTeams:
+		case automdm.NullTeamAllTeams:
 			// All teams, there should be no other teams.
 			// Make sure array is non-nil
 			if token.Teams != nil {
 				// This team has already been assigned something, this
 				// should not happen
-				return nil, fmt.Errorf("vpp token \"%s\" has been asssigned to All fleets, and another fleet", token.OrgName)
+				return nil, fmt.Errorf("vpp token \"%s\" has been asssigned to All teams, and another team", token.OrgName)
 			}
-			token.Teams = []fleet.TeamTuple{}
-		case fleet.NullTeamNoTeam:
-			token.Teams = append(token.Teams, fleet.TeamTuple{ID: 0, Name: fleet.DisplayNameNoTeam})
-		case fleet.NullTeamNone:
+			token.Teams = []automdm.TeamTuple{}
+		case automdm.NullTeamNoTeam:
+			token.Teams = append(token.Teams, automdm.TeamTuple{ID: 0, Name: automdm.DisplayNameNoTeam})
+		case automdm.NullTeamNone:
 			// Regular team
-			token.Teams = append(token.Teams, fleet.TeamTuple{ID: *team.TeamID, Name: team.TeamName})
+			token.Teams = append(token.Teams, automdm.TeamTuple{ID: *team.TeamID, Name: team.TeamName})
 		}
 	}
 
-	var outTokens []*fleet.VPPTokenDB
+	var outTokens []*automdm.VPPTokenDB
 	for _, token := range tokens {
 		outTokens = append(outTokens, token)
 	}
 
-	slices.SortFunc(outTokens, func(a, b *fleet.VPPTokenDB) int {
+	slices.SortFunc(outTokens, func(a, b *automdm.VPPTokenDB) int {
 		return cmp.Compare(a.ID, b.ID)
 	})
 
 	return outTokens, nil
 }
 
-func (ds *Datastore) GetVPPTokenByTeamID(ctx context.Context, teamID *uint) (*fleet.VPPTokenDB, error) {
+func (ds *Datastore) GetVPPTokenByTeamID(ctx context.Context, teamID *uint) (*automdm.VPPTokenDB, error) {
 	const stmt = `
 	SELECT
 		v.id,
@@ -2494,23 +2494,23 @@ func (ds *Datastore) GetVPPTokenByTeamID(ctx context.Context, teamID *uint) (*fl
 		vt.vpp_token_id = ?
 `
 
-	var tokEnc fleet.VPPTokenDB
+	var tokEnc automdm.VPPTokenDB
 
 	var tokTeams []struct {
-		TeamID   *uint              `db:"team_id"`
-		NullTeam fleet.NullTeamType `db:"null_team_type"`
-		Name     string             `db:"name"`
+		TeamID   *uint                `db:"team_id"`
+		NullTeam automdm.NullTeamType `db:"null_team_type"`
+		Name     string               `db:"name"`
 	}
 
 	// team_id = NULL never matches, so Unassigned reads only the null-type rows.
 	var tmID *uint
-	nullTeam := fleet.NullTeamAllTeams
+	nullTeam := automdm.NullTeamAllTeams
 	if teamID != nil && *teamID != 0 {
 		tmID = teamID
 	} else {
-		nullTeam = fleet.NullTeamNoTeam
+		nullTeam = automdm.NullTeamNoTeam
 	}
-	err := sqlx.GetContext(ctx, ds.reader(ctx), &tokEnc, stmt, tmID, nullTeam, fleet.NullTeamAllTeams)
+	err := sqlx.GetContext(ctx, ds.reader(ctx), &tokEnc, stmt, tmID, nullTeam, automdm.NullTeamAllTeams)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ctxerr.Wrap(ctx, notFound("VPPToken"), "retrieving vpp token by team")
@@ -2527,7 +2527,7 @@ func (ds *Datastore) GetVPPTokenByTeamID(ctx context.Context, teamID *uint) (*fl
 		return nil, ctxerr.Wrap(ctx, err, "retrieving vpp token team information")
 	}
 
-	tok := &fleet.VPPTokenDB{
+	tok := &automdm.VPPTokenDB{
 		ID:          tokEnc.ID,
 		OrgName:     tokEnc.OrgName,
 		Location:    tokEnc.Location,
@@ -2545,22 +2545,22 @@ func (ds *Datastore) GetVPPTokenByTeamID(ctx context.Context, teamID *uint) (*fl
 TEAMLOOP:
 	for _, team := range tokTeams {
 		switch team.NullTeam {
-		case fleet.NullTeamAllTeams:
+		case automdm.NullTeamAllTeams:
 			// This should only be possible if there are no other teams
 			// Make sure something array is non-nil
 			if len(tokTeams) != 1 {
-				return nil, ctxerr.Errorf(ctx, "fleet \"%s\" belongs to All fleets, and %d other fleet(s)", tok.OrgName, len(tokTeams)-1)
+				return nil, ctxerr.Errorf(ctx, "team \"%s\" belongs to All teams, and %d other team(s)", tok.OrgName, len(tokTeams)-1)
 			}
-			tok.Teams = []fleet.TeamTuple{}
+			tok.Teams = []automdm.TeamTuple{}
 			break TEAMLOOP
-		case fleet.NullTeamNoTeam:
-			tok.Teams = append(tok.Teams, fleet.TeamTuple{
+		case automdm.NullTeamNoTeam:
+			tok.Teams = append(tok.Teams, automdm.TeamTuple{
 				ID:   0,
-				Name: fleet.DisplayNameNoTeam,
+				Name: automdm.DisplayNameNoTeam,
 			})
-		case fleet.NullTeamNone:
+		case automdm.NullTeamNone:
 			// Regular team
-			tok.Teams = append(tok.Teams, fleet.TeamTuple{
+			tok.Teams = append(tok.Teams, automdm.TeamTuple{
 				ID:   *team.TeamID,
 				Name: team.Name,
 			})
@@ -2589,7 +2589,7 @@ func (ds *Datastore) GetExcludedHostIDMapForVPPApp(ctx context.Context, vppAppTe
 	return ds.getExcludedHostIDMapForSoftware(ctx, vppAppTeamID, softwareTypeVPP)
 }
 
-func (ds *Datastore) GetAllVPPApps(ctx context.Context) ([]*fleet.VPPApp, error) {
+func (ds *Datastore) GetAllVPPApps(ctx context.Context) ([]*automdm.VPPApp, error) {
 	query := `
 SELECT
     adam_id,
@@ -2602,12 +2602,12 @@ SELECT
 	COALESCE(country_code, '') AS country_code
 FROM vpp_apps WHERE platform IN (?)`
 
-	query, args, err := sqlx.In(query, fleet.ApplePlatforms)
+	query, args, err := sqlx.In(query, automdm.ApplePlatforms)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "get all vpp apps: building query")
 	}
 
-	var apps []*fleet.VPPApp
+	var apps []*automdm.VPPApp
 	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &apps, query, args...); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "getting all VPP apps")
 	}
@@ -2619,7 +2619,7 @@ FROM vpp_apps WHERE platform IN (?)`
 // (adam_id, platform), or a NotFound error if no row exists. Used by the
 // anchoring logic to decide whether to use the row's anchored country or to
 // treat the operation as a first-add.
-func (ds *Datastore) GetVPPAppByAdamIDPlatform(ctx context.Context, adamID string, platform fleet.InstallableDevicePlatform) (*fleet.VPPApp, error) {
+func (ds *Datastore) GetVPPAppByAdamIDPlatform(ctx context.Context, adamID string, platform automdm.InstallableDevicePlatform) (*automdm.VPPApp, error) {
 	const stmt = `
 SELECT
 	adam_id,
@@ -2633,7 +2633,7 @@ SELECT
 FROM vpp_apps
 WHERE adam_id = ? AND platform = ?`
 
-	var app fleet.VPPApp
+	var app automdm.VPPApp
 	if err := sqlx.GetContext(ctx, ds.reader(ctx), &app, stmt, adamID, platform); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ctxerr.Wrap(ctx, notFound("VPPApp"), "getting vpp app by adam id")
@@ -2648,7 +2648,7 @@ WHERE adam_id = ? AND platform = ?`
 // vpp_apps_teams. When multiple tokens are eligible, the one with the lowest
 // id is returned (deterministic). Returns NotFound if no eligible token
 // exists — callers may treat this as a re-anchor signal.
-func (ds *Datastore) GetVPPTokenOwningAppInCountry(ctx context.Context, adamID string, platform fleet.InstallableDevicePlatform, country string) (*fleet.VPPTokenDB, error) {
+func (ds *Datastore) GetVPPTokenOwningAppInCountry(ctx context.Context, adamID string, platform automdm.InstallableDevicePlatform, country string) (*automdm.VPPTokenDB, error) {
 	const stmt = `
 SELECT
 	v.id,
@@ -2666,7 +2666,7 @@ WHERE vat.adam_id = ?
 ORDER BY v.id ASC
 LIMIT 1`
 
-	var tokEnc fleet.VPPTokenDB
+	var tokEnc automdm.VPPTokenDB
 	if err := sqlx.GetContext(ctx, ds.reader(ctx), &tokEnc, stmt, adamID, platform, country); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ctxerr.Wrap(ctx, notFound("VPPToken"), "no vpp token owns app in country")
@@ -2679,7 +2679,7 @@ LIMIT 1`
 		return nil, ctxerr.Wrap(ctx, err, "decrypting vpp token with serverPrivateKey")
 	}
 
-	return &fleet.VPPTokenDB{
+	return &automdm.VPPTokenDB{
 		ID:          tokEnc.ID,
 		OrgName:     tokEnc.OrgName,
 		Location:    tokEnc.Location,
@@ -2689,7 +2689,7 @@ LIMIT 1`
 	}, nil
 }
 
-func (ds *Datastore) GetUnverifiedVPPInstallsForHost(ctx context.Context, hostUUID string) ([]*fleet.HostVPPSoftwareInstall, error) {
+func (ds *Datastore) GetUnverifiedVPPInstallsForHost(ctx context.Context, hostUUID string) ([]*automdm.HostVPPSoftwareInstall, error) {
 	stmt := `
 SELECT
 	hvsi.host_id AS host_id,
@@ -2711,7 +2711,7 @@ AND hvsi.verification_failed_at IS NULL
 AND hvsi.canceled = 0
 	`
 
-	var result []*fleet.HostVPPSoftwareInstall
+	var result []*automdm.HostVPPSoftwareInstall
 	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &result, stmt, hostUUID); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "get unverified VPP installs for host")
 	}
@@ -2764,7 +2764,7 @@ VALUES ((SELECT id FROM hosts WHERE uuid = ?), ?)
 			return ctxerr.WrapWithData(ctx, err, "no MDM install attempts found with given uuid", map[string]any{"install_command_uuid": installUUID, "verify_command_uuid": verifyCommandUUID, "host_uuid": hostUUID})
 		}
 
-		if _, err := tx.ExecContext(ctx, hostCmdStmt, hostUUID, fleet.VerifySoftwareInstallVPPPrefix); err != nil {
+		if _, err := tx.ExecContext(ctx, hostCmdStmt, hostUUID, automdm.VerifySoftwareInstallVPPPrefix); err != nil {
 			return ctxerr.Wrap(ctx, err, "insert verify host mdm command")
 		}
 
@@ -2886,7 +2886,7 @@ AND state = ?
 			return ctxerr.Wrap(ctx, err, "set all apple in-house install as failed")
 		}
 
-		if _, err := tx.ExecContext(ctx, deletePendingJobsStmt, jobName, fleet.JobStateQueued); err != nil {
+		if _, err := tx.ExecContext(ctx, deletePendingJobsStmt, jobName, automdm.JobStateQueued); err != nil {
 			return ctxerr.Wrap(ctx, err, "delete apple pending jobs")
 		}
 
@@ -2915,13 +2915,13 @@ WHERE verification_failed_at IS NULL AND verification_at IS NULL AND platform = 
 	})
 }
 
-func (ds *Datastore) MarkAllPendingVPPInstallsAsFailedForAndroidHost(ctx context.Context, hostID uint) (users []*fleet.User, activities []fleet.ActivityDetails, err error) {
+func (ds *Datastore) MarkAllPendingVPPInstallsAsFailedForAndroidHost(ctx context.Context, hostID uint) (users []*automdm.User, activities []automdm.ActivityDetails, err error) {
 	return ds.markAllPendingVPPInstallsAsFailedForHost(ctx, ds.writer(ctx), hostID, "android", softwareTypeVPP)
 }
 
 func (ds *Datastore) markAllPendingVPPInstallsAsFailedForHost(ctx context.Context, tx sqlx.ExtContext,
 	hostID uint, hostPlatform string, softwareType softwareType,
-) (users []*fleet.User, activities []fleet.ActivityDetails, err error) {
+) (users []*automdm.User, activities []automdm.ActivityDetails, err error) {
 	var tableName string
 	switch softwareType {
 	case softwareTypeInHouseApp:
@@ -2970,7 +2970,7 @@ WHERE
 	// This is currently ios/ipados-only, but harmless on other platforms and less error-prone than
 	// adding a platform check that could become outdated.
 	const deleteHostMDMCommandStmt = `DELETE FROM host_mdm_commands WHERE host_id = ? AND command_type = ?`
-	if _, err := tx.ExecContext(ctx, deleteHostMDMCommandStmt, hostID, fleet.VerifySoftwareInstallVPPPrefix); err != nil {
+	if _, err := tx.ExecContext(ctx, deleteHostMDMCommandStmt, hostID, automdm.VerifySoftwareInstallVPPPrefix); err != nil {
 		return nil, nil, ctxerr.Wrap(ctx, err, "delete pending host mdm command records")
 	}
 
@@ -2979,28 +2979,28 @@ WHERE
 		// field for Apple, as it should not be possible to turn MDM off during setup
 		// experience (host is not released).
 		var (
-			user        *fleet.User
-			actAppStore *fleet.ActivityInstalledAppStoreApp
-			actInHouse  *fleet.ActivityTypeInstalledSoftware
+			user        *automdm.User
+			actAppStore *automdm.ActivityInstalledAppStoreApp
+			actInHouse  *automdm.ActivityTypeInstalledSoftware
 			err         error
 		)
 		switch {
 		case hostPlatform == "android":
-			user, actAppStore, err = ds.getPastActivityDataForAndroidVPPAppInstallDB(ctx, tx, cmd, fleet.SoftwareInstallFailed)
+			user, actAppStore, err = ds.getPastActivityDataForAndroidVPPAppInstallDB(ctx, tx, cmd, automdm.SoftwareInstallFailed)
 		case softwareType == softwareTypeVPP:
-			user, actAppStore, err = ds.getPastActivityDataForVPPAppInstallDB(ctx, tx, &mdm.CommandResults{CommandUUID: cmd, Status: fleet.MDMAppleStatusError})
+			user, actAppStore, err = ds.getPastActivityDataForVPPAppInstallDB(ctx, tx, &mdm.CommandResults{CommandUUID: cmd, Status: automdm.MDMAppleStatusError})
 		case softwareType == softwareTypeInHouseApp:
-			user, actInHouse, err = ds.getPastActivityDataForInHouseAppInstallDB(ctx, tx, &mdm.CommandResults{CommandUUID: cmd, Status: fleet.MDMAppleStatusError})
+			user, actInHouse, err = ds.getPastActivityDataForInHouseAppInstallDB(ctx, tx, &mdm.CommandResults{CommandUUID: cmd, Status: automdm.MDMAppleStatusError})
 		}
 		if err != nil {
-			if fleet.IsNotFound(err) {
+			if automdm.IsNotFound(err) {
 				// shouldn't happen, but no need to fail
 				continue
 			}
 			return nil, nil, ctxerr.Wrap(ctx, err, "get past activity data for vpp app install")
 		}
 
-		// user may be nil if fleet-initiated activity, but the activity itself indicates
+		// user may be nil if automdm-initiated activity, but the activity itself indicates
 		// if a new entry must be made, since users and activities must match in length
 		// only one activity should be created per command
 		if actAppStore != nil {
@@ -3025,7 +3025,7 @@ WHERE
 	return users, activities, nil
 }
 
-func (ds *Datastore) GetAndroidAppsInScopeForHost(ctx context.Context, hostID uint) ([]fleet.VPPAppTeam, error) {
+func (ds *Datastore) GetAndroidAppsInScopeForHost(ctx context.Context, hostID uint) ([]automdm.VPPAppTeam, error) {
 	stmt := `
 SELECT
 	installable_id AS adam_id,
@@ -3126,7 +3126,7 @@ GROUP BY installable_id
 ORDER BY installable_id
 	`
 
-	var apps []fleet.VPPAppTeam
+	var apps []automdm.VPPAppTeam
 	err := sqlx.SelectContext(ctx, ds.reader(ctx), &apps, stmt, hostID, hostID, hostID, hostID, hostID, hostID, hostID, hostID)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "get in android apps in scope for host")
@@ -3135,7 +3135,7 @@ ORDER BY installable_id
 	return apps, nil
 }
 
-func (ds *Datastore) ListAndroidAppsInScopeForHosts(ctx context.Context, hostIDs []uint) (map[uint][]fleet.VPPAppTeam, error) {
+func (ds *Datastore) ListAndroidAppsInScopeForHosts(ctx context.Context, hostIDs []uint) (map[uint][]automdm.VPPAppTeam, error) {
 	if len(hostIDs) == 0 {
 		return nil, nil
 	}
@@ -3160,20 +3160,20 @@ func (ds *Datastore) ListAndroidAppsInScopeForHosts(ctx context.Context, hostIDs
 	}
 	var hostApps []struct {
 		HostID uint `db:"host_id"`
-		fleet.VPPAppTeam
+		automdm.VPPAppTeam
 	}
 	err = sqlx.SelectContext(ctx, ds.reader(ctx), &hostApps, query, args...)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "list android apps in scope for hosts")
 	}
-	appsByHostID := make(map[uint][]fleet.VPPAppTeam)
+	appsByHostID := make(map[uint][]automdm.VPPAppTeam)
 	for _, hostApp := range hostApps {
 		appsByHostID[hostApp.HostID] = append(appsByHostID[hostApp.HostID], hostApp.VPPAppTeam)
 	}
 	return appsByHostID, nil
 }
 
-func (ds *Datastore) GetVPPAppsToInstallDuringSetupExperience(ctx context.Context, teamID *uint, platform string) ([]fleet.VPPAppTeam, error) {
+func (ds *Datastore) GetVPPAppsToInstallDuringSetupExperience(ctx context.Context, teamID *uint, platform string) ([]automdm.VPPAppTeam, error) {
 	stmt := `
 SELECT
 	id,
@@ -3192,7 +3192,7 @@ ORDER BY vat.id
 		tmID = *teamID
 	}
 
-	var apps []fleet.VPPAppTeam
+	var apps []automdm.VPPAppTeam
 	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &apps, stmt, tmID, platform); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "get VPP apps to install during setup experience")
 	}
@@ -3208,7 +3208,7 @@ type appStoreAppChanges struct {
 // hasAppStoreAppChanged reports what changed between incomingApp and existingApp.
 // For Android, when the incoming configuration is being cleared, it also rewrites
 // incomingApp.Configuration to `{}` so the caller writes the sentinel downstream.
-func (ds *Datastore) hasAppStoreAppChanged(ctx context.Context, teamID *uint, incomingApp *fleet.VPPAppTeam, existingApp fleet.VPPAppTeam, isExistingApp bool) (appStoreAppChanges, error) {
+func (ds *Datastore) hasAppStoreAppChanged(ctx context.Context, teamID *uint, incomingApp *automdm.VPPAppTeam, existingApp automdm.VPPAppTeam, isExistingApp bool) (appStoreAppChanges, error) {
 	var categoriesChanged, labelsChanged, installDuringSetupChanged, displayNameChanged, configurationChanged, autoUpdateChanged bool
 
 	if isExistingApp {
@@ -3231,7 +3231,7 @@ func (ds *Datastore) hasAppStoreAppChanged(ctx context.Context, teamID *uint, in
 		displayNameChanged = existingDisplayName != incomingDisplayName
 
 		switch incomingApp.Platform {
-		case fleet.AndroidPlatform:
+		case automdm.AndroidPlatform:
 			configurationChanged, err = ds.HasAndroidAppConfigurationChanged(ctx, existingApp.AdamID, ptr.ValOrZero(teamID), &existingApp.AppTeamID, incomingApp.Configuration)
 			if err != nil {
 				return appStoreAppChanges{}, ctxerr.Wrap(ctx, err, "getting existing configuration for android app")
@@ -3240,7 +3240,7 @@ func (ds *Datastore) hasAppStoreAppChanged(ctx context.Context, teamID *uint, in
 			if configurationChanged && len(incomingApp.Configuration) == 0 {
 				incomingApp.Configuration = json.RawMessage("{}")
 			}
-		case fleet.IOSPlatform, fleet.IPadOSPlatform:
+		case automdm.IOSPlatform, automdm.IPadOSPlatform:
 			configurationChanged, err = ds.HasVPPAppConfigurationChanged(ctx, incomingApp.Platform, existingApp.AdamID, ptr.ValOrZero(teamID), &existingApp.AppTeamID, incomingApp.Configuration)
 			if err != nil {
 				return appStoreAppChanges{}, ctxerr.Wrap(ctx, err, "getting existing configuration for vpp app")
@@ -3291,36 +3291,36 @@ WHERE execution_id = ?
 	return fromAutoUpdate, fromConfigurationResend, nil
 }
 
-func (ds *Datastore) checkSoftwareConflictsForVPPApp(ctx context.Context, tx sqlx.QueryerContext, teamID *uint, teamName string, appID fleet.VPPAppID) error {
-	if appID.Platform == fleet.MacOSPlatform {
+func (ds *Datastore) checkSoftwareConflictsForVPPApp(ctx context.Context, tx sqlx.QueryerContext, teamID *uint, teamName string, appID automdm.VPPAppID) error {
+	if appID.Platform == automdm.MacOSPlatform {
 		exists, conflictingTitle, err := ds.checkConflictingSoftwareInstallerForVPPApp(ctx, tx, teamID, appID)
 		if err != nil {
 			return ctxerr.Wrap(ctx, err, "checking if software installer exists")
 		}
 		if exists {
-			return ctxerr.Wrap(ctx, fleet.ConflictError{
-				Message: fmt.Sprintf(fleet.CantAddSoftwareConflictMessage,
+			return ctxerr.Wrap(ctx, automdm.ConflictError{
+				Message: fmt.Sprintf(automdm.CantAddSoftwareConflictMessage,
 					conflictingTitle, teamName),
 			}, "vpp app conflicts with existing software installer")
 		}
 	}
 
 	// check if the vpp app conflicts with an existing in-house app
-	if appID.Platform == fleet.IOSPlatform || appID.Platform == fleet.IPadOSPlatform {
+	if appID.Platform == automdm.IOSPlatform || appID.Platform == automdm.IPadOSPlatform {
 		exists, conflictingTitle, err := ds.checkInHouseAppExistsForAdamID(ctx, tx, teamID, appID)
 		if err != nil {
 			return ctxerr.Wrap(ctx, err, "check if in-house app exists")
 		}
 		if exists {
-			return ctxerr.Wrap(ctx, fleet.ConflictError{
-				Message: fmt.Sprintf(fleet.CantAddSoftwareConflictMessage, conflictingTitle, teamName),
+			return ctxerr.Wrap(ctx, automdm.ConflictError{
+				Message: fmt.Sprintf(automdm.CantAddSoftwareConflictMessage, conflictingTitle, teamName),
 			}, "vpp app conflicts with existing in-house app")
 		}
 	}
 	return nil
 }
 
-func (ds *Datastore) GetHostVPPInstallByCommandUUID(ctx context.Context, commandUUID string) (*fleet.HostVPPSoftwareInstallLite, error) {
+func (ds *Datastore) GetHostVPPInstallByCommandUUID(ctx context.Context, commandUUID string) (*automdm.HostVPPSoftwareInstallLite, error) {
 	const stmt = `
 	SELECT
 	command_uuid,
@@ -3328,7 +3328,7 @@ func (ds *Datastore) GetHostVPPInstallByCommandUUID(ctx context.Context, command
 	retry_count
 	FROM host_vpp_software_installs
 	WHERE command_uuid = ?`
-	var vppSoftwareInstalls []fleet.HostVPPSoftwareInstallLite
+	var vppSoftwareInstalls []automdm.HostVPPSoftwareInstallLite
 	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &vppSoftwareInstalls, stmt, commandUUID); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "get VPP host install")
 	}
@@ -3345,7 +3345,7 @@ func (ds *Datastore) GetHostVPPInstallByCommandUUID(ctx context.Context, command
 	return &vppSoftwareInstalls[0], nil
 }
 
-func (ds *Datastore) RetryVPPInstall(ctx context.Context, vppInstall *fleet.HostVPPSoftwareInstallLite) error {
+func (ds *Datastore) RetryVPPInstall(ctx context.Context, vppInstall *automdm.HostVPPSoftwareInstallLite) error {
 	return ds.withTx(ctx, func(tx sqlx.ExtContext) error {
 		newCommandUUID := uuid.New().String()
 
@@ -3364,7 +3364,7 @@ func (ds *Datastore) RetryVPPInstall(ctx context.Context, vppInstall *fleet.Host
 			WHERE nano_command_uuid = ? AND host_uuid = (SELECT uuid FROM hosts WHERE id = ?)
 			AND status NOT IN (?, ?, ?)`,
 			newCommandUUID, vppInstall.InstallCommandUUID, vppInstall.HostID,
-			fleet.SetupExperienceStatusSuccess, fleet.SetupExperienceStatusFailure, fleet.SetupExperienceStatusCancelled)
+			automdm.SetupExperienceStatusSuccess, automdm.SetupExperienceStatusFailure, automdm.SetupExperienceStatusCancelled)
 		if err != nil {
 			return ctxerr.Wrap(ctx, err, "updating setup experience status result with new command uuid")
 		}
@@ -3374,7 +3374,7 @@ func (ds *Datastore) RetryVPPInstall(ctx context.Context, vppInstall *fleet.Host
 }
 
 // nanoEnqueueVPPInstall is the single fan-in point for every InstallApplication
-// command Fleet sends for a VPP iOS / iPadOS / macOS app. All of:
+// command AutoMDM sends for a VPP iOS / iPadOS / macOS app. All of:
 //
 //   - manual install from host details > software > library
 //   - self-service install
@@ -3385,7 +3385,7 @@ func (ds *Datastore) RetryVPPInstall(ctx context.Context, vppInstall *fleet.Host
 //   - admin reinstall
 //
 // land here via activateNextVPPAppInstallActivity. Configuration is fetched
-// and per-host $FLEET_VAR_* substitution is performed inside this function so
+// and per-host $AUTOMDM_VAR_* substitution is performed inside this function so
 // every send path inherits the latest stored config — including the case
 // where the app was installed without config and config is added later
 // (next activation picks up the change).
@@ -3437,11 +3437,11 @@ SELECT
 	ua.execution_id,
 	vaua.adam_id,
 	vaua.platform,
-	-- use the install's version when it's on the host's fleet, else the first-added version there, such as for installs of a deleted version or from another fleet
+	-- use the install's version when it's on the host's team, else the first-added version there, such as for installs of a deleted version or from another team
 	(
-		SELECT vat_fleet.id FROM vpp_apps_teams vat_fleet
-		WHERE vat_fleet.adam_id = vaua.adam_id AND vat_fleet.platform = vaua.platform AND vat_fleet.global_or_team_id = ?
-		ORDER BY vat_fleet.id <=> vaua.vpp_app_team_id DESC, vat_fleet.id
+		SELECT vat_automdm.id FROM vpp_apps_teams vat_automdm
+		WHERE vat_automdm.adam_id = vaua.adam_id AND vat_automdm.platform = vaua.platform AND vat_automdm.global_or_team_id = ?
+		ORDER BY vat_automdm.id <=> vaua.vpp_app_team_id DESC, vat_automdm.id
 		LIMIT 1
 	) AS vpp_app_team_id
 FROM
@@ -3474,7 +3474,7 @@ WHERE
 	// drop the field at the builder level (and we don't even bother fetching).
 	var vppAppTeamIDs []uint
 	for _, p := range pending {
-		if p.VPPAppTeamID != nil && (p.Platform == string(fleet.IOSPlatform) || p.Platform == string(fleet.IPadOSPlatform)) {
+		if p.VPPAppTeamID != nil && (p.Platform == string(automdm.IOSPlatform) || p.Platform == string(automdm.IPadOSPlatform)) {
 			vppAppTeamIDs = append(vppAppTeamIDs, *p.VPPAppTeamID)
 		}
 	}
@@ -3486,7 +3486,7 @@ WHERE
 	// Build the InstallApplication plist for each pending activation, then do
 	// one batch INSERT into nano_commands. Per-host, per-app build is required
 	// so the Configuration dict (which varies by team / adam_id) can be
-	// inlined and per-host $FLEET_VAR_* tokens can be substituted.
+	// inlined and per-host $AUTOMDM_VAR_* tokens can be substituted.
 	subHost := apple_mdm.AppConfigSubstitutionHost{
 		HostID:         hostID,
 		UUID:           hostData.UUID,
@@ -3501,9 +3501,9 @@ WHERE
 			cfg = configsByVPPAppTeamID[*p.VPPAppTeamID]
 		}
 		if len(cfg) > 0 {
-			substituted, err := apple_mdm.SubstituteFleetVarsInAppConfig(ctx, ds, cfg, subHost)
+			substituted, err := apple_mdm.SubstituteAutoMDMVarsInAppConfig(ctx, ds, cfg, subHost)
 			if err != nil {
-				return ctxerr.Wrap(ctx, err, "substitute fleet variables in vpp app configuration")
+				return ctxerr.Wrap(ctx, err, "substitute automdm variables in vpp app configuration")
 			}
 			cfg = substituted
 		}
@@ -3585,14 +3585,14 @@ SELECT EXISTS(
       AND va.adam_id != ?
       AND va.platform = 'android'
       AND vat.global_or_team_id = ?
-)`, name, fleet.AndroidWebAppPrefix+"%", excludeAdamID, globalOrTeamID)
+)`, name, automdm.AndroidWebAppPrefix+"%", excludeAdamID, globalOrTeamID)
 	if err != nil {
 		return false, ctxerr.Wrap(ctx, err, "checking android web app name exists on team")
 	}
 	return exists, nil
 }
 
-func (ds *Datastore) HasVPPAppConfigurationChanged(ctx context.Context, platform fleet.InstallableDevicePlatform, adamID string, teamID uint, vppAppTeamID *uint, newConfig []byte) (bool, error) {
+func (ds *Datastore) HasVPPAppConfigurationChanged(ctx context.Context, platform automdm.InstallableDevicePlatform, adamID string, teamID uint, vppAppTeamID *uint, newConfig []byte) (bool, error) {
 	stmt := `
 SELECT
 	COALESCE(BINARY COALESCE(?, '') != configuration, ?) AS has_changed
@@ -3683,7 +3683,7 @@ WHERE vat.id IN (?) AND vat.configuration IS NOT NULL
 }
 
 func (ds *Datastore) updateVPPAppConfigurationTx(ctx context.Context, tx sqlx.ExtContext, vppAppTeamID uint, config []byte) error {
-	if err := fleet.ValidateAppleAppConfiguration(config); err != nil {
+	if err := automdm.ValidateAppleAppConfiguration(config); err != nil {
 		return ctxerr.Wrap(ctx, err, "validating vpp app configuration")
 	}
 
@@ -3707,7 +3707,7 @@ func (ds *Datastore) updateVPPAppConfigurationTx(ctx context.Context, tx sqlx.Ex
 	return nil
 }
 
-func (ds *Datastore) GetAppStoreAppVersionCount(ctx context.Context, teamID *uint, appID fleet.VPPAppID, versionName string) (uint, bool, error) {
+func (ds *Datastore) GetAppStoreAppVersionCount(ctx context.Context, teamID *uint, appID automdm.VPPAppID, versionName string) (uint, bool, error) {
 	// Compare the name in SQL so the column collation decides which names match, the same way the unique key on the name does
 	var versionCount uint
 	var versionNameExists bool
@@ -3722,7 +3722,7 @@ func (ds *Datastore) GetAppStoreAppVersionCount(ctx context.Context, teamID *uin
 
 // GetDuplicateStringGroupsUnderCollation returns groups of strings from values that are duplicates under the utf8mb4_unicode_ci collation,
 // as the indices of the strings in values, one group per set of duplicates. Strings longer than 255 characters are never in a group.
-func (ds *Datastore) GetDuplicateStringGroupsUnderCollation(ctx context.Context, values []string) ([]fleet.DuplicateStringGroup, error) {
+func (ds *Datastore) GetDuplicateStringGroupsUnderCollation(ctx context.Context, values []string) ([]automdm.DuplicateStringGroup, error) {
 	valuesJSON, err := json.Marshal(values)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "marshal values")
@@ -3746,9 +3746,9 @@ ORDER BY MIN(jt.value_index)`, valuesJSON)
 		return nil, ctxerr.Wrap(ctx, err, "get duplicate string groups")
 	}
 
-	groups := make([]fleet.DuplicateStringGroup, 0, len(groupsJSON))
+	groups := make([]automdm.DuplicateStringGroup, 0, len(groupsJSON))
 	for _, groupJSON := range groupsJSON {
-		var group fleet.DuplicateStringGroup
+		var group automdm.DuplicateStringGroup
 		err = json.Unmarshal([]byte(groupJSON), &group.Indices)
 		if err != nil {
 			return nil, ctxerr.Wrap(ctx, err, "unmarshal duplicate string group")
@@ -3780,7 +3780,7 @@ ORDER BY other_vat.id
 	return versionIDs, nil
 }
 
-func (ds *Datastore) GetAppStoreAppVersionsByFleetAndTitle(ctx context.Context, platforms []fleet.InstallableDevicePlatform) (fleet.AppStoreAppVersionsByFleetAndTitleID, error) {
+func (ds *Datastore) GetAppStoreAppVersionsByTeamAndTitle(ctx context.Context, platforms []automdm.InstallableDevicePlatform) (automdm.AppStoreAppVersionsByTeamAndTitleID, error) {
 	const stmt = `
 SELECT
 	vat.global_or_team_id,
@@ -3800,20 +3800,20 @@ ORDER BY vat.id
 `
 	query, args, err := sqlx.In(stmt, platforms)
 	if err != nil {
-		return nil, ctxerr.Wrap(ctx, err, "build get app store app versions by fleet and title query")
+		return nil, ctxerr.Wrap(ctx, err, "build get app store app versions by team and title query")
 	}
 	var versions []struct {
-		FleetID uint `db:"global_or_team_id"`
-		TitleID uint `db:"title_id"`
-		fleet.VPPAppStoreApp
+		AutoMDMID uint `db:"global_or_team_id"`
+		TitleID   uint `db:"title_id"`
+		automdm.VPPAppStoreApp
 	}
 	err = sqlx.SelectContext(ctx, ds.reader(ctx), &versions, query, args...)
 	if err != nil {
-		return nil, ctxerr.Wrap(ctx, err, "get app store app versions by fleet and title")
+		return nil, ctxerr.Wrap(ctx, err, "get app store app versions by team and title")
 	}
-	versionsByTitleIDByFleetID := make(fleet.AppStoreAppVersionsByFleetAndTitleID)
+	versionsByTitleIDByTeamID := make(automdm.AppStoreAppVersionsByTeamAndTitleID)
 	if len(versions) == 0 {
-		return versionsByTitleIDByFleetID, nil
+		return versionsByTitleIDByTeamID, nil
 	}
 
 	versionIDs := make([]uint, 0, len(versions))
@@ -3828,18 +3828,18 @@ ORDER BY vat.id
 	for i := range versions {
 		version := &versions[i].VPPAppStoreApp
 		version.Configuration = configurationByVersionID[version.VPPAppsTeamsID]
-		fleetID := versions[i].FleetID
+		automdmID := versions[i].AutoMDMID
 		titleID := versions[i].TitleID
-		if versionsByTitleIDByFleetID[fleetID] == nil {
-			versionsByTitleIDByFleetID[fleetID] = make(map[uint][]*fleet.VPPAppStoreApp)
+		if versionsByTitleIDByTeamID[automdmID] == nil {
+			versionsByTitleIDByTeamID[automdmID] = make(map[uint][]*automdm.VPPAppStoreApp)
 		}
-		versionsByTitleIDByFleetID[fleetID][titleID] = append(versionsByTitleIDByFleetID[fleetID][titleID], version)
+		versionsByTitleIDByTeamID[automdmID][titleID] = append(versionsByTitleIDByTeamID[automdmID][titleID], version)
 	}
-	return versionsByTitleIDByFleetID, nil
+	return versionsByTitleIDByTeamID, nil
 }
 
-func (ds *Datastore) ListHostAppStoreAppInstallVersions(ctx context.Context, fleetID uint, hostIDs []uint, platforms []fleet.InstallableDevicePlatform) (map[uint]map[uint]fleet.HostVPPInstallWithUpcoming, error) {
-	installByHostIDByTitleID := make(map[uint]map[uint]fleet.HostVPPInstallWithUpcoming)
+func (ds *Datastore) ListHostAppStoreAppInstallVersions(ctx context.Context, automdmID uint, hostIDs []uint, platforms []automdm.InstallableDevicePlatform) (map[uint]map[uint]automdm.HostVPPInstallWithUpcoming, error) {
+	installByHostIDByTitleID := make(map[uint]map[uint]automdm.HostVPPInstallWithUpcoming)
 	if len(hostIDs) == 0 {
 		return installByHostIDByTitleID, nil
 	}
@@ -3854,7 +3854,7 @@ SELECT
 	latest.needs_resend
 FROM
 	hosts h
-	-- iOS and iPadOS apps are separate titles, so pair each host only with the fleet's apps of its own platform
+	-- iOS and iPadOS apps are separate titles, so pair each host only with the team's apps of its own platform
 	JOIN (
 		SELECT DISTINCT va.title_id, va.adam_id, va.platform
 		FROM
@@ -3888,7 +3888,7 @@ WHERE
 			s.title_id = app.title_id
 	)
 `
-	latestInstallsQuery, latestInstallsArgs, err := sqlx.In(latestInstallsStmt, fleetID, platforms, hostIDs, ptr.UintOrNilIfZero(fleetID))
+	latestInstallsQuery, latestInstallsArgs, err := sqlx.In(latestInstallsStmt, automdmID, platforms, hostIDs, ptr.UintOrNilIfZero(automdmID))
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "build list host app store app install versions query")
 	}
@@ -3915,11 +3915,11 @@ ORDER BY ua.created_at, ua.id
 
 	var latestInstalls []struct {
 		TitleID uint `db:"title_id"`
-		fleet.HostVPPSoftwareInstall
+		automdm.HostVPPSoftwareInstall
 	}
 	var upcomingInstalls []struct {
 		TitleID uint `db:"title_id"`
-		fleet.HostVPPInstallWithUpcoming
+		automdm.HostVPPInstallWithUpcoming
 	}
 	// An install activated between two separate reads would show up as neither upcoming nor installed and be sent again, so read
 	// both in one read-only transaction that sees a single snapshot
@@ -3940,9 +3940,9 @@ ORDER BY ua.created_at, ua.id
 
 	for _, latestInstall := range latestInstalls {
 		if installByHostIDByTitleID[latestInstall.TitleID] == nil {
-			installByHostIDByTitleID[latestInstall.TitleID] = make(map[uint]fleet.HostVPPInstallWithUpcoming)
+			installByHostIDByTitleID[latestInstall.TitleID] = make(map[uint]automdm.HostVPPInstallWithUpcoming)
 		}
-		installByHostIDByTitleID[latestInstall.TitleID][latestInstall.HostID] = fleet.HostVPPInstallWithUpcoming{
+		installByHostIDByTitleID[latestInstall.TitleID][latestInstall.HostID] = automdm.HostVPPInstallWithUpcoming{
 			HostVPPSoftwareInstall: latestInstall.HostVPPSoftwareInstall,
 		}
 	}
@@ -3958,7 +3958,7 @@ ORDER BY ua.created_at, ua.id
 	return installByHostIDByTitleID, nil
 }
 
-func (ds *Datastore) ListIOSAndIPadOSMDMHostsAfterID(ctx context.Context, afterHostID uint, limit int) ([]*fleet.Host, error) {
+func (ds *Datastore) ListIOSAndIPadOSMDMHostsAfterID(ctx context.Context, afterHostID uint, limit int) ([]*automdm.Host, error) {
 	const stmt = `
 SELECT
 	h.id,
@@ -3978,7 +3978,7 @@ WHERE
 ORDER BY h.id
 LIMIT ?
 `
-	var hosts []*fleet.Host
+	var hosts []*automdm.Host
 	err := sqlx.SelectContext(ctx, ds.reader(ctx), &hosts, stmt, afterHostID, limit)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "list iOS and iPadOS MDM hosts after id")

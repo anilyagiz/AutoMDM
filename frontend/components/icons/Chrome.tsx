@@ -9,7 +9,7 @@ interface IChromeProps {
 }
 
 const Chrome = ({
-  color = "ui-fleet-black-75",
+  color = "ui-automdm-black-75",
   size = "medium",
 }: IChromeProps) => {
   return (

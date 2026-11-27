@@ -1,0 +1,36 @@
+{{- $serviceName := include "automdm.servicename" . -}}
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: automdm
+    chart: automdm
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+{{- if .Values.serviceAnnotations }}
+  annotations:
+  {{- with .Values.serviceAnnotations}}
+  {{- toYaml . | trim | nindent 4}}
+  {{- end }}
+{{- end }}
+  name: {{ $serviceName }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  {{- if .Values.gke.ingress.useGKEIngress }}
+  type: NodePort
+  {{- end }}
+  selector:
+    app: automdm
+    chart: automdm
+    component: automdm-server
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+  ports:
+  - name: automdm
+    port: {{ ternary .Values.automdm.listenPort .Values.automdm.servicePort (eq .Values.automdm.servicePort nil) }}
+    targetPort: {{ .Values.automdm.listenPort }}
+    {{- if .Values.gke.ingress.useGKEIngress }}
+    {{- if .Values.gke.ingress.nodePort }}
+    nodePort: {{ .Values.gke.ingress.nodePort }}
+    {{- end }}
+    {{- end }}

@@ -5,9 +5,9 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/apple/vpp"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/mdm/apple/vpp"
 	"github.com/google/uuid"
 )
 
@@ -15,12 +15,12 @@ import (
 // a user-enrolled host whose Managed Apple ID hasn't yet been surfaced from
 // nanomdm's TokenUpdate hook. Callers should surface a retryable user-facing
 // message — the value is normally available a few minutes after enrollment.
-var errMissingManagedAppleID = fleet.NewUserMessageError(
-	errors.New("Couldn't install. Fleet hasn't received a Managed Apple ID for this host yet. Please wait a few minutes after enrollment and try again."),
+var errMissingManagedAppleID = automdm.NewUserMessageError(
+	errors.New("Couldn't install. AutoMDM hasn't received a Managed Apple ID for this host yet. Please wait a few minutes after enrollment and try again."),
 	http.StatusUnprocessableEntity,
 )
 
-// ensureVPPClientUser returns the Fleet-generated clientUserId for the host's
+// ensureVPPClientUser returns the AutoMDM-generated clientUserId for the host's
 // Managed Apple ID at the given VPP token (location), creating the Apple-side
 // VPP user via Apple's synchronous v1 registerVPPUserSrv endpoint on first
 // call. Idempotent: subsequent calls return the cached clientUserId from
@@ -28,7 +28,7 @@ var errMissingManagedAppleID = fleet.NewUserMessageError(
 //
 // Used by the user-scoped Associate Assets path for hosts enrolled via
 // Account-Driven User Enrollment (BYOD).
-func (svc *Service) ensureVPPClientUser(ctx context.Context, host *fleet.Host, token *fleet.VPPTokenDB) (string, error) {
+func (svc *Service) ensureVPPClientUser(ctx context.Context, host *automdm.Host, token *automdm.VPPTokenDB) (string, error) {
 	if host == nil {
 		return "", ctxerr.New(ctx, "ensureVPPClientUser: nil host")
 	}
@@ -47,10 +47,10 @@ func (svc *Service) ensureVPPClientUser(ctx context.Context, host *fleet.Host, t
 	// Cache hit on (vpp_token_id, managed_apple_id): a previous successful call
 	// already registered this user with Apple.
 	existing, err := svc.ds.GetVPPClientUser(ctx, token.ID, managedAppleID)
-	if err != nil && !fleet.IsNotFound(err) {
+	if err != nil && !automdm.IsNotFound(err) {
 		return "", ctxerr.Wrapf(ctx, err, "looking up vpp client user for token %d managed_apple_id %q", token.ID, managedAppleID)
 	}
-	if existing != nil && existing.Status == fleet.VPPClientUserStatusRegistered {
+	if existing != nil && existing.Status == automdm.VPPClientUserStatusRegistered {
 		return existing.ClientUserID, nil
 	}
 
@@ -71,11 +71,11 @@ func (svc *Service) registerVPPClientUser(ctx context.Context, tokenID uint, man
 		return "", ctxerr.Wrapf(ctx, err, "registering vpp user for managed apple id %q", managedAppleID)
 	}
 
-	row := &fleet.VPPClientUser{
+	row := &automdm.VPPClientUser{
 		VPPTokenID:     tokenID,
 		ManagedAppleID: managedAppleID,
 		ClientUserID:   clientUserID,
-		Status:         fleet.VPPClientUserStatusRegistered,
+		Status:         automdm.VPPClientUserStatusRegistered,
 	}
 	if appleUserID != "" {
 		row.AppleUserID = &appleUserID

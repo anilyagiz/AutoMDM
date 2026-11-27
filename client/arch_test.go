@@ -3,7 +3,7 @@ package client
 import (
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/archtest"
+	"github.com/anilyagiz/automdm/v4/server/archtest"
 )
 
 const m = archtest.ModuleName
@@ -16,7 +16,7 @@ func TestClientPackageDoesNotImportServerService(t *testing.T) {
 			m+"/ee/server/service...",
 		).
 		IgnoreDeps(
-			m + "/server/service/externalsvc", // server/fleet has a dependency on Jira and Zendesk.
+			m + "/server/service/externalsvc", // server/automdm has a dependency on Jira and Zendesk.
 		).
 		Check()
 }

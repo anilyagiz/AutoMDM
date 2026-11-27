@@ -2,7 +2,7 @@
 package gclplugin
 
 import (
-	"github.com/fleetdm/fleet/v4/tools/ci/apiparamcheck"
+	"github.com/anilyagiz/automdm/v4/tools/ci/apiparamcheck"
 	"github.com/golangci/plugin-module-register/register"
 	"golang.org/x/tools/go/analysis"
 )

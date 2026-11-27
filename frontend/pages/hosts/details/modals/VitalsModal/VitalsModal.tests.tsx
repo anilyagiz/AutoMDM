@@ -103,7 +103,7 @@ describe("VitalsModal component", () => {
 
     // Plus the pre-existing vitals, which the iOS/iPadOS card now trims away —
     // the modal is the only place they remain visible.
-    ["Added to Fleet", "Hardware model", "Operating system"].forEach(
+    ["Added to AutoMDM", "Hardware model", "Operating system"].forEach(
       (label) => {
         expect(renderedLabels).toContain(label);
       }

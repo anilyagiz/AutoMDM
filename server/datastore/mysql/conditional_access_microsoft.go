@@ -6,9 +6,9 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	fleetcrypto "github.com/fleetdm/fleet/v4/server/platform/crypto"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	automdmcrypto "github.com/anilyagiz/automdm/v4/server/platform/crypto"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -18,7 +18,7 @@ func (ds *Datastore) ConditionalAccessMicrosoftCreateIntegration(
 	if ds.serverPrivateKey == "" {
 		return ctxerr.New(ctx, "server private key is required for conditional access encryption")
 	}
-	encryptedSecret, err := fleetcrypto.Encrypt([]byte(proxyServerSecret), ds.serverPrivateKey)
+	encryptedSecret, err := automdmcrypto.Encrypt([]byte(proxyServerSecret), ds.serverPrivateKey)
 	if err != nil {
 		return ctxerr.Wrap(ctx, err, "encrypt proxy server secret")
 	}
@@ -70,12 +70,12 @@ func (ds *Datastore) EncryptConditionalAccessSecrets(ctx context.Context) error 
 		}
 		// If there's an integration configured, the server private key is required.
 		if ds.serverPrivateKey == "" {
-			return errors.New("FLEET_SERVER_PRIVATE_KEY is required when conditional access is configured")
+			return errors.New("AUTOMDM_SERVER_PRIVATE_KEY is required when conditional access is configured")
 		}
 		if len(row.ProxyServerSecret) == 0 || row.ProxyServerSecret[0] == 0x01 {
 			return nil // already encrypted or empty
 		}
-		encrypted, err := fleetcrypto.Encrypt(row.ProxyServerSecret, ds.serverPrivateKey)
+		encrypted, err := automdmcrypto.Encrypt(row.ProxyServerSecret, ds.serverPrivateKey)
 		if err != nil {
 			return ctxerr.Wrap(ctx, err, "encrypting legacy proxy server secret")
 		}
@@ -89,7 +89,7 @@ func (ds *Datastore) EncryptConditionalAccessSecrets(ctx context.Context) error 
 	})
 }
 
-func (ds *Datastore) ConditionalAccessMicrosoftGet(ctx context.Context) (*fleet.ConditionalAccessMicrosoftIntegration, error) {
+func (ds *Datastore) ConditionalAccessMicrosoftGet(ctx context.Context) (*automdm.ConditionalAccessMicrosoftIntegration, error) {
 	var row struct {
 		TenantID          string `db:"tenant_id"`
 		ProxyServerSecret []byte `db:"proxy_server_secret"`
@@ -106,11 +106,11 @@ func (ds *Datastore) ConditionalAccessMicrosoftGet(ctx context.Context) (*fleet.
 		}
 		return nil, ctxerr.Wrap(ctx, err, "getting microsoft_compliance_partner_integrations")
 	}
-	secret, err := fleetcrypto.Decrypt(row.ProxyServerSecret, ds.serverPrivateKey)
+	secret, err := automdmcrypto.Decrypt(row.ProxyServerSecret, ds.serverPrivateKey)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "decrypting proxy server secret")
 	}
-	return &fleet.ConditionalAccessMicrosoftIntegration{
+	return &automdm.ConditionalAccessMicrosoftIntegration{
 		TenantID:          row.TenantID,
 		ProxyServerSecret: string(secret),
 		SetupDone:         row.SetupDone,
@@ -131,8 +131,8 @@ func (ds *Datastore) ConditionalAccessMicrosoftDelete(ctx context.Context) error
 	})
 }
 
-func (ds *Datastore) LoadHostConditionalAccessStatus(ctx context.Context, hostID uint) (*fleet.HostConditionalAccessStatus, error) {
-	var hostConditionalAccessStatus fleet.HostConditionalAccessStatus
+func (ds *Datastore) LoadHostConditionalAccessStatus(ctx context.Context, hostID uint) (*automdm.HostConditionalAccessStatus, error) {
+	var hostConditionalAccessStatus automdm.HostConditionalAccessStatus
 	if err := sqlx.GetContext(ctx,
 		ds.reader(ctx),
 		&hostConditionalAccessStatus,
@@ -214,7 +214,7 @@ func (ds *Datastore) CreateHostConditionalAccessStatus(ctx context.Context, host
 			otherHostIDs := make([]uint, 0, len(others))
 			for _, o := range others {
 				if !verified || o.Verified {
-					return ctxerr.Wrap(ctx, &fleet.ConflictError{Message: "Entra device ID is already assigned to another host"})
+					return ctxerr.Wrap(ctx, &automdm.ConflictError{Message: "Entra device ID is already assigned to another host"})
 				}
 				otherHostIDs = append(otherHostIDs, o.HostID)
 			}

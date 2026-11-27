@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/require"
 )
 
@@ -62,9 +62,9 @@ func TestSync(t *testing.T) {
 	t.Run("#whatToDownload", func(t *testing.T) {
 		today := time.Now()
 
-		osVersions := fleet.OSVersions{
+		osVersions := automdm.OSVersions{
 			CountsUpdatedAt: time.Now(),
-			OSVersions: []fleet.OSVersion{
+			OSVersions: []automdm.OSVersion{
 				{
 					HostsCount: 1,
 					Platform:   "ubuntu",

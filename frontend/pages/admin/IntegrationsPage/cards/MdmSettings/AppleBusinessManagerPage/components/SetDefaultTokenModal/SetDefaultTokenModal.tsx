@@ -22,7 +22,7 @@ const SetDefaultTokenModal = ({
     <Modal onExit={onExit} title="Set as default for sign-in">
       <p>
         To restrict Managed Apple Account sign-in to managed devices, you also
-        need to turn on the restriction in Apple Business. Fleet can&apos;t turn
+        need to turn on the restriction in Apple Business. AutoMDM can&apos;t turn
         it on for you.
       </p>
       <img

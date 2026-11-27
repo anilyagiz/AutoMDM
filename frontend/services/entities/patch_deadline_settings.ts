@@ -7,7 +7,7 @@ import endpoints from "utilities/endpoints";
 import { buildQueryStringFromParams } from "utilities/url";
 
 export interface IUpdatePatchDeadlineSettingsFormData {
-  fleet_id: number;
+  team_id: number;
   days: Weekday[];
   time: string;
 }
@@ -18,8 +18,8 @@ interface IPatchDeadlineSettingsResponse {
 }
 
 export default {
-  getSettings: async (fleetId: number): Promise<IPatchDeadlineSettings> => {
-    const queryString = buildQueryStringFromParams({ fleet_id: fleetId });
+  getSettings: async (automdmId: number): Promise<IPatchDeadlineSettings> => {
+    const queryString = buildQueryStringFromParams({ team_id: automdmId });
     const res: IPatchDeadlineSettingsResponse = await sendRequest(
       "GET",
       `${endpoints.PATCH_DEADLINE_SETTINGS}?${queryString}`

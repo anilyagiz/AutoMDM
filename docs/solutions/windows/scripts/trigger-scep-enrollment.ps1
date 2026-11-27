@@ -1,27 +1,27 @@
 # ----- USER SETTINGS -----
 # FOR GUI USAGE:
-# Add your secret (with FLEET_SECRET_ prefix) to Fleet Desktop's Controls > Variables
-# Example: If you create a variable named "API", it becomes FLEET_SECRET_API
-# Then update the variable name in the line below to match your Fleet secret name
-# WARNING: Fleet will fail to upload this script if the variable name doesn't exist in your Fleet secrets
+# Add your secret (with AUTOMDM_SECRET_ prefix) to AutoMDM Desktop's Controls > Variables
+# Example: If you create a variable named "API", it becomes AUTOMDM_SECRET_API
+# Then update the variable name in the line below to match your AutoMDM secret name
+# WARNING: AutoMDM will fail to upload this script if the variable name doesn't exist in your AutoMDM secrets
 # FOR GITOPS USAGE: 
-# Add your GitHub secret to the workflow env section (see Fleet guide for details)
-# Example: FLEET_SECRET_API: ${{ secrets.FLEET_API_TOKEN }}
-# GitOps will automatically upload the variable to Fleet when syncing
+# Add your GitHub secret to the workflow env section (see AutoMDM guide for details)
+# Example: AUTOMDM_SECRET_API: ${{ secrets.AUTOMDM_API_TOKEN }}
+# GitOps will automatically upload the variable to AutoMDM when syncing
 # 
-# For complete documentation on Fleet variables, see:
-# https://fleetdm.com/guides/secrets-in-scripts-and-configuration-profiles
+# For complete documentation on AutoMDM variables, see:
+# https://automdm.com/guides/secrets-in-scripts-and-configuration-profiles
 
 $NODE_NAME = "OKTA"                    
 # Edit this to match your CSP node name
 
-$FLEET_API = "$FLEET_SECRET_API"
-# Update this to match your Fleet secret name
+$AUTOMDM_API = "$AUTOMDM_SECRET_API"
+# Update this to match your AutoMDM secret name
 # -------------------------
 
 $CmdId = [System.DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
 Write-Host "Current Date and Time (UTC - YYYY-MM-DD HH:MM:SS formatted): $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
-Write-Host "Fleet URL: $env:FLEET_DESKTOP_FLEET_URL"
+Write-Host "AutoMDM URL: $env:AUTOMDM_DESKTOP_AUTOMDM_URL"
 
 try {
     $HostUUID = (Get-CimInstance Win32_ComputerSystemProduct).UUID
@@ -60,16 +60,16 @@ $Body = @{
 Write-Host "Sending MDM command to host: $HostUUID"
 
 try {
-    $Response = Invoke-RestMethod -Uri "$env:FLEET_DESKTOP_FLEET_URL/api/v1/fleet/commands/run" `
+    $Response = Invoke-RestMethod -Uri "$env:AUTOMDM_DESKTOP_AUTOMDM_URL/api/v1/automdm/commands/run" `
         -Method POST `
-        -Headers @{"Authorization"="Bearer $FLEET_API";"Content-Type"="application/json"} `
+        -Headers @{"Authorization"="Bearer $AUTOMDM_API";"Content-Type"="application/json"} `
         -Body $Body
     $CommandUUID = $Response.command_uuid
     Write-Host "PASS - SCEP enrollment command sent successfully!"
     Write-Host "Command UUID: $CommandUUID"
     Write-Host ""
     Write-Host "To check results, copy and paste this command:"
-    Write-Host "fleetctl get mdm-command-results --id=$CommandUUID"
+    Write-Host "automdmctl get mdm-command-results --id=$CommandUUID"
 }
 catch {
     Write-Host "FAIL - SCEP enrollment failed: $($_.Exception.Message)"

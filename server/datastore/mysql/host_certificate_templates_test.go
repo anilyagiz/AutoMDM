@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
@@ -43,7 +43,7 @@ func TestHostCertificateTemplates(t *testing.T) {
 		{"CertificateTemplateReinstalledAfterTransferBackToOriginalTeam", testCertificateTemplateReinstalledAfterTransferBackToOriginalTeam},
 		{"GetAndroidCertificateTemplatesForRenewal", testGetAndroidCertificateTemplatesForRenewal},
 		{"SetAndroidCertificateTemplatesForRenewal", testSetAndroidCertificateTemplatesForRenewal},
-		{"GetOrCreateFleetChallengeForCertificateTemplate", testGetOrCreateFleetChallengeForCertificateTemplate},
+		{"GetOrCreateAutoMDMChallengeForCertificateTemplate", testGetOrCreateAutoMDMChallengeForCertificateTemplate},
 		{"RetryHostCertificateTemplate", testRetryHostCertificateTemplate},
 	}
 
@@ -58,9 +58,9 @@ func TestHostCertificateTemplates(t *testing.T) {
 
 // certTemplateTestSetup contains the common test fixtures for certificate template tests.
 type certTemplateTestSetup struct {
-	team     *fleet.Team
-	ca       *fleet.CertificateAuthority
-	template *fleet.CertificateTemplateResponse
+	team     *automdm.Team
+	ca       *automdm.CertificateAuthority
+	template *automdm.CertificateTemplateResponse
 }
 
 // createCertTemplateTestSetup creates a team, certificate authority, and certificate template for testing.
@@ -70,18 +70,18 @@ func createCertTemplateTestSetup(t *testing.T, ctx context.Context, ds *Datastor
 		teamName = fmt.Sprintf("Test Team %s", uuid.New().String()[:8])
 	}
 
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: teamName})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: teamName})
 	require.NoError(t, err)
 
-	ca, err := ds.NewCertificateAuthority(ctx, &fleet.CertificateAuthority{
-		Type:      string(fleet.CATypeCustomSCEPProxy),
+	ca, err := ds.NewCertificateAuthority(ctx, &automdm.CertificateAuthority{
+		Type:      string(automdm.CATypeCustomSCEPProxy),
 		Name:      ptr.String(fmt.Sprintf("Test SCEP CA %s", uuid.New().String()[:8])),
 		URL:       ptr.String("http://localhost:8080/scep"),
 		Challenge: ptr.String("test-challenge"),
 	})
 	require.NoError(t, err)
 
-	template, err := ds.CreateCertificateTemplate(ctx, &fleet.CertificateTemplate{
+	template, err := ds.CreateCertificateTemplate(ctx, &automdm.CertificateTemplate{
 		Name:                   fmt.Sprintf("Test Cert %s", uuid.New().String()[:8]),
 		TeamID:                 team.ID,
 		CertificateAuthorityID: ca.ID,
@@ -98,22 +98,22 @@ func createCertTemplateTestSetup(t *testing.T, ctx context.Context, ds *Datastor
 
 // noTeamCertTemplateTestSetup contains test fixtures for "no team" certificate template tests.
 type noTeamCertTemplateTestSetup struct {
-	ca       *fleet.CertificateAuthority
-	template *fleet.CertificateTemplateResponse
+	ca       *automdm.CertificateAuthority
+	template *automdm.CertificateTemplateResponse
 }
 
 // createNoTeamCertTemplateTestSetup creates a certificate authority and certificate template
 // for "no team" (team_id = 0) for testing.
 func createNoTeamCertTemplateTestSetup(t *testing.T, ctx context.Context, ds *Datastore) noTeamCertTemplateTestSetup {
-	ca, err := ds.NewCertificateAuthority(ctx, &fleet.CertificateAuthority{
-		Type:      string(fleet.CATypeCustomSCEPProxy),
+	ca, err := ds.NewCertificateAuthority(ctx, &automdm.CertificateAuthority{
+		Type:      string(automdm.CATypeCustomSCEPProxy),
 		Name:      ptr.String(fmt.Sprintf("Test SCEP CA NoTeam %s", uuid.New().String()[:8])),
 		URL:       ptr.String("http://localhost:8080/scep"),
 		Challenge: ptr.String("test-challenge"),
 	})
 	require.NoError(t, err)
 
-	template, err := ds.CreateCertificateTemplate(ctx, &fleet.CertificateTemplate{
+	template, err := ds.CreateCertificateTemplate(ctx, &automdm.CertificateTemplate{
 		Name:                   fmt.Sprintf("Test Cert NoTeam %s", uuid.New().String()[:8]),
 		TeamID:                 0, // No team uses team_id = 0
 		CertificateAuthorityID: ca.ID,
@@ -129,15 +129,15 @@ func createNoTeamCertTemplateTestSetup(t *testing.T, ctx context.Context, ds *Da
 
 // createEnrolledAndroidHost creates an enrolled Android host in the given team, whose device
 // has applied its host-specific policy.
-func createEnrolledAndroidHost(t *testing.T, ctx context.Context, ds *Datastore, hostUUID string, teamID *uint) *fleet.Host {
+func createEnrolledAndroidHost(t *testing.T, ctx context.Context, ds *Datastore, hostUUID string, teamID *uint) *automdm.Host {
 	return createEnrolledAndroidHostOnPolicy(t, ctx, ds, hostUUID, teamID, &hostUUID)
 }
 
 // createEnrolledAndroidHostOnPolicy creates an enrolled Android host whose device reports
 // appliedPolicyID as its applied policy.
-func createEnrolledAndroidHostOnPolicy(t *testing.T, ctx context.Context, ds *Datastore, hostUUID string, teamID *uint, appliedPolicyID *string) *fleet.Host {
-	androidHost := &fleet.AndroidHost{
-		Host: &fleet.Host{
+func createEnrolledAndroidHostOnPolicy(t *testing.T, ctx context.Context, ds *Datastore, hostUUID string, teamID *uint, appliedPolicyID *string) *automdm.Host {
+	androidHost := &automdm.AndroidHost{
+		Host: &automdm.Host{
 			UUID:     hostUUID,
 			TeamID:   teamID,
 			Platform: "android",
@@ -175,8 +175,8 @@ func testListAndroidHostUUIDsWithDeliverableCertificateTemplates(t *testing.T, d
 
 		// Insert host certificate template record (host already has this template)
 		_, err := ds.writer(ctx).ExecContext(ctx,
-			"INSERT INTO host_certificate_templates (host_uuid, certificate_template_id, fleet_challenge, status, name) VALUES (?, ?, ?, ?, ?)",
-			"test-host-uuid", setup.template.ID, "challenge", fleet.MDMDeliveryPending, setup.template.Name,
+			"INSERT INTO host_certificate_templates (host_uuid, certificate_template_id, automdm_challenge, status, name) VALUES (?, ?, ?, ?, ?)",
+			"test-host-uuid", setup.template.ID, "challenge", automdm.MDMDeliveryPending, setup.template.Name,
 		)
 		require.NoError(t, err)
 
@@ -190,7 +190,7 @@ func testListAndroidHostUUIDsWithDeliverableCertificateTemplates(t *testing.T, d
 		setup := createCertTemplateTestSetup(t, ctx, ds, "")
 
 		// Create a macOS host instead of Android
-		host := &fleet.Host{
+		host := &automdm.Host{
 			UUID:     "macos-host-uuid",
 			TeamID:   &setup.team.ID,
 			Platform: "darwin",
@@ -209,7 +209,7 @@ func testListAndroidHostUUIDsWithDeliverableCertificateTemplates(t *testing.T, d
 		setup := createCertTemplateTestSetup(t, ctx, ds, "")
 
 		// Create Android host without MDM enrollment
-		_, err := ds.NewHost(ctx, &fleet.Host{
+		_, err := ds.NewHost(ctx, &automdm.Host{
 			UUID:     "unenrolled-host-uuid",
 			TeamID:   &setup.team.ID,
 			Platform: "android",
@@ -251,7 +251,7 @@ func testListCertificateTemplatesForHosts(t *testing.T, ds *Datastore) {
 		setup := createCertTemplateTestSetup(t, ctx, ds, "")
 
 		// Create a second template for this team
-		_, err := ds.CreateCertificateTemplate(ctx, &fleet.CertificateTemplate{
+		_, err := ds.CreateCertificateTemplate(ctx, &automdm.CertificateTemplate{
 			Name:                   "Cert2",
 			TeamID:                 setup.team.ID,
 			CertificateAuthorityID: setup.ca.ID,
@@ -259,7 +259,7 @@ func testListCertificateTemplatesForHosts(t *testing.T, ds *Datastore) {
 		})
 		require.NoError(t, err)
 
-		_, err = ds.NewHost(ctx, &fleet.Host{
+		_, err = ds.NewHost(ctx, &automdm.Host{
 			UUID:     "test-host-uuid",
 			TeamID:   &setup.team.ID,
 			Platform: "android",
@@ -273,7 +273,7 @@ func testListCertificateTemplatesForHosts(t *testing.T, ds *Datastore) {
 		for _, res := range results {
 			require.Equal(t, "test-host-uuid", res.HostUUID)
 			require.NotEmpty(t, res.CertificateTemplateID)
-			require.Nil(t, res.FleetChallenge)
+			require.Nil(t, res.AutoMDMChallenge)
 			require.Nil(t, res.Status)
 		}
 	})
@@ -283,7 +283,7 @@ func testListCertificateTemplatesForHosts(t *testing.T, ds *Datastore) {
 		setup := createCertTemplateTestSetup(t, ctx, ds, "")
 
 		// Create a second template
-		templateTwo, err := ds.CreateCertificateTemplate(ctx, &fleet.CertificateTemplate{
+		templateTwo, err := ds.CreateCertificateTemplate(ctx, &automdm.CertificateTemplate{
 			Name:                   "Cert2",
 			TeamID:                 setup.team.ID,
 			CertificateAuthorityID: setup.ca.ID,
@@ -291,7 +291,7 @@ func testListCertificateTemplatesForHosts(t *testing.T, ds *Datastore) {
 		})
 		require.NoError(t, err)
 
-		_, err = ds.NewHost(ctx, &fleet.Host{
+		_, err = ds.NewHost(ctx, &automdm.Host{
 			UUID:     "test-host-uuid",
 			TeamID:   &setup.team.ID,
 			Platform: "android",
@@ -300,8 +300,8 @@ func testListCertificateTemplatesForHosts(t *testing.T, ds *Datastore) {
 
 		// Insert host certificate template record for first template only
 		_, err = ds.writer(ctx).ExecContext(ctx,
-			"INSERT INTO host_certificate_templates (host_uuid, certificate_template_id, fleet_challenge, status, name) VALUES (?, ?, ?, ?, ?)",
-			"test-host-uuid", setup.template.ID, "challenge", fleet.CertificateTemplateDelivered, setup.template.Name,
+			"INSERT INTO host_certificate_templates (host_uuid, certificate_template_id, automdm_challenge, status, name) VALUES (?, ?, ?, ?, ?)",
+			"test-host-uuid", setup.template.ID, "challenge", automdm.CertificateTemplateDelivered, setup.template.Name,
 		)
 		require.NoError(t, err)
 
@@ -313,11 +313,11 @@ func testListCertificateTemplatesForHosts(t *testing.T, ds *Datastore) {
 			require.Equal(t, "test-host-uuid", res.HostUUID)
 			require.NotEmpty(t, res.CertificateTemplateID)
 			if res.CertificateTemplateID == setup.template.ID {
-				require.Equal(t, ptr.String("challenge"), res.FleetChallenge)
-				require.Equal(t, &fleet.CertificateTemplateDelivered, res.Status)
+				require.Equal(t, ptr.String("challenge"), res.AutoMDMChallenge)
+				require.Equal(t, &automdm.CertificateTemplateDelivered, res.Status)
 			} else {
 				require.Equal(t, templateTwo.ID, res.CertificateTemplateID)
-				require.Nil(t, res.FleetChallenge)
+				require.Nil(t, res.AutoMDMChallenge)
 				require.Nil(t, res.Status)
 			}
 		}
@@ -328,7 +328,7 @@ func testListCertificateTemplatesForHosts(t *testing.T, ds *Datastore) {
 		setup := createNoTeamCertTemplateTestSetup(t, ctx, ds)
 
 		// Create a host with no team (TeamID = nil)
-		_, err := ds.NewHost(ctx, &fleet.Host{
+		_, err := ds.NewHost(ctx, &automdm.Host{
 			UUID:     "no-team-host-uuid",
 			TeamID:   nil,
 			Platform: "android",
@@ -351,7 +351,7 @@ func testGetCertificateTemplateForHostNoTeam(t *testing.T, ds *Datastore) {
 		setup := createCertTemplateTestSetup(t, ctx, ds, "")
 
 		// Create a host in the team
-		_, err := ds.NewHost(ctx, &fleet.Host{
+		_, err := ds.NewHost(ctx, &automdm.Host{
 			UUID:     "team-host-uuid",
 			TeamID:   &setup.team.ID,
 			Platform: "android",
@@ -370,7 +370,7 @@ func testGetCertificateTemplateForHostNoTeam(t *testing.T, ds *Datastore) {
 		setup := createNoTeamCertTemplateTestSetup(t, ctx, ds)
 
 		// Create a host with no team (TeamID = nil)
-		_, err := ds.NewHost(ctx, &fleet.Host{
+		_, err := ds.NewHost(ctx, &automdm.Host{
 			UUID:     "no-team-host-uuid",
 			TeamID:   nil,
 			Platform: "android",
@@ -390,7 +390,7 @@ func testGetCertificateTemplateForHostNoTeam(t *testing.T, ds *Datastore) {
 
 		_, err := ds.GetCertificateTemplateForHost(ctx, "non-existent-host", setup.template.ID)
 		require.Error(t, err)
-		require.True(t, fleet.IsNotFound(err))
+		require.True(t, automdm.IsNotFound(err))
 	})
 }
 
@@ -401,7 +401,7 @@ func testBulkInsertAndDeleteHostCertificateTemplates(t *testing.T, ds *Datastore
 		defer TruncateTables(t, ds)
 		setup := createCertTemplateTestSetup(t, ctx, ds, "")
 
-		templateTwo, err := ds.CreateCertificateTemplate(ctx, &fleet.CertificateTemplate{
+		templateTwo, err := ds.CreateCertificateTemplate(ctx, &automdm.CertificateTemplate{
 			Name:                   "Cert2",
 			TeamID:                 setup.team.ID,
 			CertificateAuthorityID: setup.ca.ID,
@@ -410,10 +410,10 @@ func testBulkInsertAndDeleteHostCertificateTemplates(t *testing.T, ds *Datastore
 		require.NoError(t, err)
 
 		// Insert host certificate templates
-		hostCerts := []fleet.HostCertificateTemplate{
-			{HostUUID: "host-1", CertificateTemplateID: setup.template.ID, FleetChallenge: ptr.String("challenge-1"), Status: fleet.CertificateTemplateDelivered, OperationType: fleet.MDMOperationTypeInstall},
-			{HostUUID: "host-1", CertificateTemplateID: templateTwo.ID, FleetChallenge: ptr.String("challenge-2"), Status: fleet.CertificateTemplateDelivered, OperationType: fleet.MDMOperationTypeInstall},
-			{HostUUID: "host-2", CertificateTemplateID: setup.template.ID, FleetChallenge: ptr.String("challenge-3"), Status: fleet.CertificateTemplateVerified, OperationType: fleet.MDMOperationTypeInstall},
+		hostCerts := []automdm.HostCertificateTemplate{
+			{HostUUID: "host-1", CertificateTemplateID: setup.template.ID, AutoMDMChallenge: ptr.String("challenge-1"), Status: automdm.CertificateTemplateDelivered, OperationType: automdm.MDMOperationTypeInstall},
+			{HostUUID: "host-1", CertificateTemplateID: templateTwo.ID, AutoMDMChallenge: ptr.String("challenge-2"), Status: automdm.CertificateTemplateDelivered, OperationType: automdm.MDMOperationTypeInstall},
+			{HostUUID: "host-2", CertificateTemplateID: setup.template.ID, AutoMDMChallenge: ptr.String("challenge-3"), Status: automdm.CertificateTemplateVerified, OperationType: automdm.MDMOperationTypeInstall},
 		}
 		err = ds.BulkInsertHostCertificateTemplates(ctx, hostCerts)
 		require.NoError(t, err)
@@ -424,7 +424,7 @@ func testBulkInsertAndDeleteHostCertificateTemplates(t *testing.T, ds *Datastore
 		require.Equal(t, 3, count)
 
 		// Delete only host-1's first certificate
-		toDelete := []fleet.HostCertificateTemplate{
+		toDelete := []automdm.HostCertificateTemplate{
 			{HostUUID: "host-1", CertificateTemplateID: setup.template.ID},
 		}
 		err = ds.DeleteHostCertificateTemplates(ctx, toDelete)
@@ -454,7 +454,7 @@ func testBulkInsertAndDeleteHostCertificateTemplates(t *testing.T, ds *Datastore
 		defer TruncateTables(t, ds)
 		setup := createCertTemplateTestSetup(t, ctx, ds, "")
 
-		templateTwo, err := ds.CreateCertificateTemplate(ctx, &fleet.CertificateTemplate{
+		templateTwo, err := ds.CreateCertificateTemplate(ctx, &automdm.CertificateTemplate{
 			Name:                   "Cert2",
 			TeamID:                 setup.team.ID,
 			CertificateAuthorityID: setup.ca.ID,
@@ -463,15 +463,15 @@ func testBulkInsertAndDeleteHostCertificateTemplates(t *testing.T, ds *Datastore
 		require.NoError(t, err)
 
 		// Insert host certificate templates
-		hostCerts := []fleet.HostCertificateTemplate{
-			{HostUUID: "host-1", CertificateTemplateID: setup.template.ID, FleetChallenge: ptr.String("challenge-1"), Status: fleet.CertificateTemplateDelivered, OperationType: fleet.MDMOperationTypeInstall},
-			{HostUUID: "host-1", CertificateTemplateID: templateTwo.ID, FleetChallenge: ptr.String("challenge-2"), Status: fleet.CertificateTemplateDelivered, OperationType: fleet.MDMOperationTypeInstall},
+		hostCerts := []automdm.HostCertificateTemplate{
+			{HostUUID: "host-1", CertificateTemplateID: setup.template.ID, AutoMDMChallenge: ptr.String("challenge-1"), Status: automdm.CertificateTemplateDelivered, OperationType: automdm.MDMOperationTypeInstall},
+			{HostUUID: "host-1", CertificateTemplateID: templateTwo.ID, AutoMDMChallenge: ptr.String("challenge-2"), Status: automdm.CertificateTemplateDelivered, OperationType: automdm.MDMOperationTypeInstall},
 		}
 		err = ds.BulkInsertHostCertificateTemplates(ctx, hostCerts)
 		require.NoError(t, err)
 
 		// Delete both records
-		toDelete := []fleet.HostCertificateTemplate{
+		toDelete := []automdm.HostCertificateTemplate{
 			{HostUUID: "host-1", CertificateTemplateID: setup.template.ID},
 			{HostUUID: "host-1", CertificateTemplateID: templateTwo.ID},
 		}
@@ -486,7 +486,7 @@ func testBulkInsertAndDeleteHostCertificateTemplates(t *testing.T, ds *Datastore
 
 	t.Run("no error when deleting non-existent records", func(t *testing.T) {
 		defer TruncateTables(t, ds)
-		toDelete := []fleet.HostCertificateTemplate{
+		toDelete := []automdm.HostCertificateTemplate{
 			{HostUUID: "non-existent-host", CertificateTemplateID: 999},
 		}
 		err := ds.DeleteHostCertificateTemplates(ctx, toDelete)
@@ -495,10 +495,10 @@ func testBulkInsertAndDeleteHostCertificateTemplates(t *testing.T, ds *Datastore
 
 	t.Run("no error with empty list", func(t *testing.T) {
 		defer TruncateTables(t, ds)
-		err := ds.BulkInsertHostCertificateTemplates(ctx, []fleet.HostCertificateTemplate{})
+		err := ds.BulkInsertHostCertificateTemplates(ctx, []automdm.HostCertificateTemplate{})
 		require.NoError(t, err)
 
-		err = ds.DeleteHostCertificateTemplates(ctx, []fleet.HostCertificateTemplate{})
+		err = ds.DeleteHostCertificateTemplates(ctx, []automdm.HostCertificateTemplate{})
 		require.NoError(t, err)
 	})
 }
@@ -517,7 +517,7 @@ func testDeleteHostCertificateTemplate(t *testing.T, ds *Datastore) {
 		defer TruncateTables(t, ds)
 		setup := createCertTemplateTestSetup(t, ctx, ds, "")
 
-		templateTwo, err := ds.CreateCertificateTemplate(ctx, &fleet.CertificateTemplate{
+		templateTwo, err := ds.CreateCertificateTemplate(ctx, &automdm.CertificateTemplate{
 			Name:                   "Cert2",
 			TeamID:                 setup.team.ID,
 			CertificateAuthorityID: setup.ca.ID,
@@ -526,10 +526,10 @@ func testDeleteHostCertificateTemplate(t *testing.T, ds *Datastore) {
 		require.NoError(t, err)
 
 		// Insert multiple host certificate template records
-		hostCerts := []fleet.HostCertificateTemplate{
-			{HostUUID: "host-1", CertificateTemplateID: setup.template.ID, FleetChallenge: ptr.String("challenge-1"), Status: fleet.CertificateTemplateVerified, OperationType: fleet.MDMOperationTypeRemove, Name: setup.template.Name},
-			{HostUUID: "host-1", CertificateTemplateID: templateTwo.ID, FleetChallenge: ptr.String("challenge-2"), Status: fleet.CertificateTemplateVerified, OperationType: fleet.MDMOperationTypeInstall, Name: templateTwo.Name},
-			{HostUUID: "host-2", CertificateTemplateID: setup.template.ID, FleetChallenge: ptr.String("challenge-3"), Status: fleet.CertificateTemplateVerified, OperationType: fleet.MDMOperationTypeRemove, Name: setup.template.Name},
+		hostCerts := []automdm.HostCertificateTemplate{
+			{HostUUID: "host-1", CertificateTemplateID: setup.template.ID, AutoMDMChallenge: ptr.String("challenge-1"), Status: automdm.CertificateTemplateVerified, OperationType: automdm.MDMOperationTypeRemove, Name: setup.template.Name},
+			{HostUUID: "host-1", CertificateTemplateID: templateTwo.ID, AutoMDMChallenge: ptr.String("challenge-2"), Status: automdm.CertificateTemplateVerified, OperationType: automdm.MDMOperationTypeInstall, Name: templateTwo.Name},
+			{HostUUID: "host-2", CertificateTemplateID: setup.template.ID, AutoMDMChallenge: ptr.String("challenge-3"), Status: automdm.CertificateTemplateVerified, OperationType: automdm.MDMOperationTypeRemove, Name: setup.template.Name},
 		}
 		err = ds.BulkInsertHostCertificateTemplates(ctx, hostCerts)
 		require.NoError(t, err)
@@ -566,7 +566,7 @@ func testUpsertHostCertificateTemplateStatus(t *testing.T, ds *Datastore) {
 	setup := createCertTemplateTestSetup(t, ctx, ds, "")
 
 	// Create a second template for testing insert
-	templateTwo, err := ds.CreateCertificateTemplate(ctx, &fleet.CertificateTemplate{
+	templateTwo, err := ds.CreateCertificateTemplate(ctx, &automdm.CertificateTemplate{
 		Name:                   "Cert2",
 		TeamID:                 setup.team.ID,
 		CertificateAuthorityID: setup.ca.ID,
@@ -575,7 +575,7 @@ func testUpsertHostCertificateTemplateStatus(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// Create a third template for testing insert with operation type
-	templateThree, err := ds.CreateCertificateTemplate(ctx, &fleet.CertificateTemplate{
+	templateThree, err := ds.CreateCertificateTemplate(ctx, &automdm.CertificateTemplate{
 		Name:                   "Cert3",
 		TeamID:                 setup.team.ID,
 		CertificateAuthorityID: setup.ca.ID,
@@ -584,7 +584,7 @@ func testUpsertHostCertificateTemplateStatus(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	hostUUID := uuid.New().String()
-	_, err = ds.NewHost(ctx, &fleet.Host{
+	_, err = ds.NewHost(ctx, &automdm.Host{
 		UUID:     hostUUID,
 		Platform: "android",
 		TeamID:   &setup.team.ID,
@@ -594,8 +594,8 @@ func testUpsertHostCertificateTemplateStatus(t *testing.T, ds *Datastore) {
 	// Create an initial record for the first template
 	ExecAdhocSQL(t, ds, func(q sqlx.ExtContext) error {
 		_, err = q.ExecContext(ctx,
-			"INSERT INTO host_certificate_templates (host_uuid, certificate_template_id, status, fleet_challenge, operation_type, name) VALUES (?, ?, ?, ?, ?, ?)",
-			hostUUID, setup.template.ID, fleet.MDMDeliveryPending, "some_challenge_value", fleet.MDMOperationTypeInstall, setup.template.Name)
+			"INSERT INTO host_certificate_templates (host_uuid, certificate_template_id, status, automdm_challenge, operation_type, name) VALUES (?, ?, ?, ?, ?, ?)",
+			hostUUID, setup.template.ID, automdm.MDMDeliveryPending, "some_challenge_value", automdm.MDMOperationTypeInstall, setup.template.Name)
 		return err
 	})
 
@@ -605,14 +605,14 @@ func testUpsertHostCertificateTemplateStatus(t *testing.T, ds *Datastore) {
 		newStatus             string
 		expectedErrorMsg      string
 		detail                *string
-		operationType         fleet.MDMOperationType
+		operationType         automdm.MDMOperationType
 		expectedOperationType string
 	}{
 		{
 			name:                  "valid update with install operation type",
 			templateID:            setup.template.ID,
 			newStatus:             "verified",
-			operationType:         fleet.MDMOperationTypeInstall,
+			operationType:         automdm.MDMOperationTypeInstall,
 			expectedOperationType: "install",
 		},
 		{
@@ -620,14 +620,14 @@ func testUpsertHostCertificateTemplateStatus(t *testing.T, ds *Datastore) {
 			templateID:            setup.template.ID,
 			newStatus:             "failed",
 			detail:                ptr.String("some details"),
-			operationType:         fleet.MDMOperationTypeInstall,
+			operationType:         automdm.MDMOperationTypeInstall,
 			expectedOperationType: "install",
 		},
 		{
 			name:             "invalid status",
 			templateID:       setup.template.ID,
 			newStatus:        "invalid_status",
-			operationType:    fleet.MDMOperationTypeInstall,
+			operationType:    automdm.MDMOperationTypeInstall,
 			expectedErrorMsg: "Invalid status 'invalid_status'",
 		},
 		{
@@ -635,31 +635,31 @@ func testUpsertHostCertificateTemplateStatus(t *testing.T, ds *Datastore) {
 			templateID:            templateTwo.ID,
 			newStatus:             "verified",
 			detail:                ptr.String("some details"),
-			operationType:         fleet.MDMOperationTypeInstall,
+			operationType:         automdm.MDMOperationTypeInstall,
 			expectedOperationType: "install",
 		},
 		{
 			name:                  "update operation type to remove",
 			templateID:            setup.template.ID,
 			newStatus:             "pending",
-			operationType:         fleet.MDMOperationTypeRemove,
+			operationType:         automdm.MDMOperationTypeRemove,
 			expectedOperationType: "remove",
 		},
 		{
 			name:                  "creates new record with remove operation type",
 			templateID:            templateThree.ID,
 			newStatus:             "pending",
-			operationType:         fleet.MDMOperationTypeRemove,
+			operationType:         automdm.MDMOperationTypeRemove,
 			expectedOperationType: "remove",
 		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := ds.UpsertCertificateStatus(ctx, &fleet.CertificateStatusUpdate{
+			err := ds.UpsertCertificateStatus(ctx, &automdm.CertificateStatusUpdate{
 				HostUUID:              hostUUID,
 				CertificateTemplateID: tc.templateID,
-				Status:                fleet.MDMDeliveryStatus(tc.newStatus),
+				Status:                automdm.MDMDeliveryStatus(tc.newStatus),
 				Detail:                tc.detail,
 				OperationType:         tc.operationType,
 			})
@@ -708,8 +708,8 @@ func testCreatePendingCertificateTemplatesForExistingHosts(t *testing.T, ds *Dat
 
 		for _, r := range records {
 			require.NotNil(t, r.Status)
-			require.EqualValues(t, fleet.CertificateTemplatePending, *r.Status)
-			require.Nil(t, r.FleetChallenge)
+			require.EqualValues(t, automdm.CertificateTemplatePending, *r.Status)
+			require.Nil(t, r.AutoMDMChallenge)
 		}
 	})
 
@@ -718,7 +718,7 @@ func testCreatePendingCertificateTemplatesForExistingHosts(t *testing.T, ds *Dat
 		setup := createCertTemplateTestSetup(t, ctx, ds, "")
 
 		// Create a macOS host
-		_, err := ds.NewHost(ctx, &fleet.Host{
+		_, err := ds.NewHost(ctx, &automdm.Host{
 			UUID:     "macos-host",
 			TeamID:   &setup.team.ID,
 			Platform: "darwin",
@@ -735,7 +735,7 @@ func testCreatePendingCertificateTemplatesForExistingHosts(t *testing.T, ds *Dat
 		setup := createCertTemplateTestSetup(t, ctx, ds, "")
 
 		// Create an unenrolled Android host (enrolled=false)
-		host, err := ds.NewHost(ctx, &fleet.Host{
+		host, err := ds.NewHost(ctx, &automdm.Host{
 			UUID:     "unenrolled-android",
 			TeamID:   &setup.team.ID,
 			Platform: "android",
@@ -781,7 +781,7 @@ func testListAndroidHostUUIDsWithPendingCertificateTemplates(t *testing.T, ds *D
 		createEnrolledAndroidHostOnPolicy(t, ctx, ds, "host-default-policy", &setup.team.ID, new("1"))
 		createEnrolledAndroidHostOnPolicy(t, ctx, ds, "host-no-policy", &setup.team.ID, nil)
 		// a host row with no Android device behind it
-		_, err := ds.NewHost(ctx, &fleet.Host{UUID: "host-no-device", TeamID: &setup.team.ID, Platform: "android"})
+		_, err := ds.NewHost(ctx, &automdm.Host{UUID: "host-no-device", TeamID: &setup.team.ID, Platform: "android"})
 		require.NoError(t, err)
 		createEnrolledAndroidHost(t, ctx, ds, "host-own-policy", &setup.team.ID)
 
@@ -799,7 +799,7 @@ func testListAndroidHostUUIDsWithPendingCertificateTemplates(t *testing.T, ds *D
 
 		// Insert records with various non-pending statuses
 		_, err := ds.writer(ctx).ExecContext(ctx,
-			"INSERT INTO host_certificate_templates (host_uuid, certificate_template_id, status, operation_type, fleet_challenge, name) VALUES (?, ?, ?, ?, ?, ?), (?, ?, ?, ?, ?, ?), (?, ?, ?, ?, ?, ?)",
+			"INSERT INTO host_certificate_templates (host_uuid, certificate_template_id, status, operation_type, automdm_challenge, name) VALUES (?, ?, ?, ?, ?, ?), (?, ?, ?, ?, ?, ?), (?, ?, ?, ?, ?, ?)",
 			"host-delivering", setup.template.ID, "delivering", "install", nil, setup.template.Name,
 			"host-delivered", setup.template.ID, "delivered", "install", "challenge1", setup.template.Name,
 			"host-verified", setup.template.ID, "verified", "install", "challenge2", setup.template.Name,
@@ -859,7 +859,7 @@ func testCertificateTemplateFullStateMachine(t *testing.T, ds *Datastore) {
 	setup := createCertTemplateTestSetup(t, ctx, ds, "")
 
 	// Create a second template
-	templateTwo, err := ds.CreateCertificateTemplate(ctx, &fleet.CertificateTemplate{
+	templateTwo, err := ds.CreateCertificateTemplate(ctx, &automdm.CertificateTemplate{
 		Name:                   "Test Cert 2",
 		TeamID:                 setup.team.ID,
 		CertificateAuthorityID: setup.ca.ID,
@@ -910,7 +910,7 @@ func testCertificateTemplateFullStateMachine(t *testing.T, ds *Datastore) {
 	require.Len(t, records, 2)
 	for _, r := range records {
 		require.NotNil(t, r.Status)
-		require.EqualValues(t, fleet.CertificateTemplateDelivering, *r.Status)
+		require.EqualValues(t, automdm.CertificateTemplateDelivering, *r.Status)
 	}
 
 	// GetCertificateTemplateStatusesByNameForHosts should return delivering for both (non-terminal -> withhold ONC profiles)
@@ -918,8 +918,8 @@ func testCertificateTemplateFullStateMachine(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 	certStatuses := allCertStatuses["android-host"]
 	require.Len(t, certStatuses, 2)
-	require.Equal(t, fleet.CertificateTemplateDelivering, certStatuses[setup.template.Name])
-	require.Equal(t, fleet.CertificateTemplateDelivering, certStatuses["Test Cert 2"])
+	require.Equal(t, automdm.CertificateTemplateDelivering, certStatuses[setup.template.Name])
+	require.Equal(t, automdm.CertificateTemplateDelivering, certStatuses["Test Cert 2"])
 
 	// Step 4: Transition to delivered (challenges are created on-demand)
 	err = ds.TransitionCertificateTemplatesToDelivered(ctx, "android-host", []uint{setup.template.ID, templateTwo.ID})
@@ -931,8 +931,8 @@ func testCertificateTemplateFullStateMachine(t *testing.T, ds *Datastore) {
 	require.Len(t, records, 2)
 	for _, r := range records {
 		require.NotNil(t, r.Status)
-		require.EqualValues(t, fleet.CertificateTemplateDelivered, *r.Status)
-		require.Nil(t, r.FleetChallenge) // Challenge not created yet
+		require.EqualValues(t, automdm.CertificateTemplateDelivered, *r.Status)
+		require.Nil(t, r.AutoMDMChallenge) // Challenge not created yet
 	}
 
 	// GetCertificateTemplateStatusesByNameForHosts should return delivered for both (still non-terminal)
@@ -940,15 +940,15 @@ func testCertificateTemplateFullStateMachine(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 	certStatuses = allCertStatuses["android-host"]
 	require.Len(t, certStatuses, 2)
-	require.Equal(t, fleet.CertificateTemplateDelivered, certStatuses[setup.template.Name])
-	require.Equal(t, fleet.CertificateTemplateDelivered, certStatuses["Test Cert 2"])
+	require.Equal(t, automdm.CertificateTemplateDelivered, certStatuses[setup.template.Name])
+	require.Equal(t, automdm.CertificateTemplateDelivered, certStatuses["Test Cert 2"])
 
 	// Step 5: Create challenges on-demand (simulating device fetch)
-	challenge1, err := ds.GetOrCreateFleetChallengeForCertificateTemplate(ctx, "android-host", setup.template.ID)
+	challenge1, err := ds.GetOrCreateAutoMDMChallengeForCertificateTemplate(ctx, "android-host", setup.template.ID)
 	require.NoError(t, err)
 	require.NotEmpty(t, challenge1)
 
-	challenge2, err := ds.GetOrCreateFleetChallengeForCertificateTemplate(ctx, "android-host", templateTwo.ID)
+	challenge2, err := ds.GetOrCreateAutoMDMChallengeForCertificateTemplate(ctx, "android-host", templateTwo.ID)
 	require.NoError(t, err)
 	require.NotEmpty(t, challenge2)
 
@@ -958,12 +958,12 @@ func testCertificateTemplateFullStateMachine(t *testing.T, ds *Datastore) {
 	require.Len(t, records, 2)
 	for _, r := range records {
 		require.NotNil(t, r.Status)
-		require.EqualValues(t, fleet.CertificateTemplateDelivered, *r.Status)
-		require.NotNil(t, r.FleetChallenge)
+		require.EqualValues(t, automdm.CertificateTemplateDelivered, *r.Status)
+		require.NotNil(t, r.AutoMDMChallenge)
 		if r.CertificateTemplateID == setup.template.ID {
-			require.Equal(t, challenge1, *r.FleetChallenge)
+			require.Equal(t, challenge1, *r.AutoMDMChallenge)
 		} else {
-			require.Equal(t, challenge2, *r.FleetChallenge)
+			require.Equal(t, challenge2, *r.AutoMDMChallenge)
 		}
 	}
 
@@ -973,15 +973,15 @@ func testCertificateTemplateFullStateMachine(t *testing.T, ds *Datastore) {
 	ExecAdhocSQL(t, ds, func(q sqlx.ExtContext) error {
 		_, err := q.ExecContext(ctx,
 			"UPDATE host_certificate_templates SET status = ? WHERE host_uuid = ? AND certificate_template_id = ?",
-			fleet.CertificateTemplateVerified, "android-host", setup.template.ID)
+			automdm.CertificateTemplateVerified, "android-host", setup.template.ID)
 		return err
 	})
 	allCertStatuses, err = ds.GetCertificateTemplateStatusesByNameForHosts(ctx, []string{"android-host"})
 	require.NoError(t, err)
 	certStatuses = allCertStatuses["android-host"]
 	require.Len(t, certStatuses, 2)
-	require.Equal(t, fleet.CertificateTemplateVerified, certStatuses[setup.template.Name])
-	require.Equal(t, fleet.CertificateTemplateDelivered, certStatuses["Test Cert 2"])
+	require.Equal(t, automdm.CertificateTemplateVerified, certStatuses[setup.template.Name])
+	require.Equal(t, automdm.CertificateTemplateDelivered, certStatuses["Test Cert 2"])
 
 	// Nonexistent host returns empty map
 	allCertStatuses, err = ds.GetCertificateTemplateStatusesByNameForHosts(ctx, []string{"no-such-host"})
@@ -1007,7 +1007,7 @@ func testCertificateTemplateFullStateMachine(t *testing.T, ds *Datastore) {
 	for _, r := range records {
 		if r.CertificateTemplateID == setup.template.ID {
 			require.NotNil(t, r.Status)
-			require.EqualValues(t, fleet.CertificateTemplatePending, *r.Status)
+			require.EqualValues(t, automdm.CertificateTemplatePending, *r.Status)
 		}
 	}
 }
@@ -1020,7 +1020,7 @@ func testCreatePendingCertificateTemplatesForNewHost(t *testing.T, ds *Datastore
 		setup := createCertTemplateTestSetup(t, ctx, ds, "")
 
 		// Create a second template
-		_, err := ds.CreateCertificateTemplate(ctx, &fleet.CertificateTemplate{
+		_, err := ds.CreateCertificateTemplate(ctx, &automdm.CertificateTemplate{
 			Name:                   "Cert2",
 			TeamID:                 setup.team.ID,
 			CertificateAuthorityID: setup.ca.ID,
@@ -1045,13 +1045,13 @@ func testCreatePendingCertificateTemplatesForNewHost(t *testing.T, ds *Datastore
 		for _, r := range records {
 			require.Equal(t, hostUUID, r.HostUUID)
 			require.NotNil(t, r.Status)
-			require.EqualValues(t, fleet.CertificateTemplatePending, *r.Status)
+			require.EqualValues(t, automdm.CertificateTemplatePending, *r.Status)
 		}
 	})
 
 	t.Run("no-op when team has no certificate templates", func(t *testing.T) {
 		defer TruncateTables(t, ds)
-		team, err := ds.NewTeam(ctx, &fleet.Team{Name: "Test Team No Templates"})
+		team, err := ds.NewTeam(ctx, &automdm.Team{Name: "Test Team No Templates"})
 		require.NoError(t, err)
 
 		hostUUID := "host-no-templates"
@@ -1063,7 +1063,7 @@ func testCreatePendingCertificateTemplatesForNewHost(t *testing.T, ds *Datastore
 
 	t.Run("resets verified certs to pending on re-enrollment", func(t *testing.T) {
 		// Reproduces https://github.com/fleetdm/fleet/issues/42600:
-		// When an Android host removes the work profile and re-installs it without Fleet receiving
+		// When an Android host removes the work profile and re-installs it without AutoMDM receiving
 		// a DELETED notification, old certificate records with status "verified" remain in the table.
 		// CreatePendingCertificateTemplatesForNewHost must reset them to "pending" so certs are re-delivered.
 		defer TruncateTables(t, ds)
@@ -1080,11 +1080,11 @@ func testCreatePendingCertificateTemplatesForNewHost(t *testing.T, ds *Datastore
 		// Simulate certs being delivered and verified with stale metadata from the previous lifecycle
 		_, err = ds.writer(ctx).ExecContext(ctx,
 			`UPDATE host_certificate_templates
-			SET status = ?, operation_type = ?, fleet_challenge = 'old-challenge',
+			SET status = ?, operation_type = ?, automdm_challenge = 'old-challenge',
 				detail = 'old detail', not_valid_before = '2025-01-01', not_valid_after = '2026-01-01',
 				serial = 'ABC123', retry_count = 2
 			WHERE host_uuid = ? AND certificate_template_id = ?`,
-			fleet.CertificateTemplateVerified, fleet.MDMOperationTypeInstall, hostUUID, setup.template.ID,
+			automdm.CertificateTemplateVerified, automdm.MDMOperationTypeInstall, hostUUID, setup.template.ID,
 		)
 		require.NoError(t, err)
 
@@ -1093,7 +1093,7 @@ func testCreatePendingCertificateTemplatesForNewHost(t *testing.T, ds *Datastore
 		require.NoError(t, err)
 		require.Len(t, records, 1)
 		require.NotNil(t, records[0].Status)
-		require.Equal(t, fleet.CertificateTemplateVerified, *records[0].Status)
+		require.Equal(t, automdm.CertificateTemplateVerified, *records[0].Status)
 
 		// Simulate re-enrollment (work profile removed and re-installed, no DELETED notification received).
 		// The delete is what clears stale rows from a previous team, if any.
@@ -1118,10 +1118,10 @@ func testCreatePendingCertificateTemplatesForNewHost(t *testing.T, ds *Datastore
 		require.NoError(t, err)
 		require.Len(t, records, 1)
 		require.NotNil(t, records[0].Status)
-		require.Equal(t, fleet.CertificateTemplatePending, *records[0].Status)
+		require.Equal(t, automdm.CertificateTemplatePending, *records[0].Status)
 		require.NotNil(t, records[0].OperationType)
-		require.Equal(t, fleet.MDMOperationTypeInstall, *records[0].OperationType)
-		require.Nil(t, records[0].FleetChallenge)
+		require.Equal(t, automdm.MDMOperationTypeInstall, *records[0].OperationType)
+		require.Nil(t, records[0].AutoMDMChallenge)
 
 		// Verify stale certificate metadata was cleared
 		var staleFields struct {
@@ -1154,14 +1154,14 @@ func testRevertStaleCertificateTemplates(t *testing.T, ds *Datastore) {
 		// Insert a record in 'delivering' status with updated_at set to 7 hours ago
 		_, err := ds.writer(ctx).ExecContext(ctx,
 			"INSERT INTO host_certificate_templates (host_uuid, certificate_template_id, status, operation_type, updated_at, name) VALUES (?, ?, ?, ?, DATE_SUB(NOW(), INTERVAL 7 HOUR), ?)",
-			"stale-host", setup.template.ID, fleet.CertificateTemplateDelivering, fleet.MDMOperationTypeInstall, setup.template.Name,
+			"stale-host", setup.template.ID, automdm.CertificateTemplateDelivering, automdm.MDMOperationTypeInstall, setup.template.Name,
 		)
 		require.NoError(t, err)
 
 		// Insert a record in 'delivering' status that is recent (1 hour ago)
 		_, err = ds.writer(ctx).ExecContext(ctx,
 			"INSERT INTO host_certificate_templates (host_uuid, certificate_template_id, status, operation_type, updated_at, name) VALUES (?, ?, ?, ?, DATE_SUB(NOW(), INTERVAL 1 HOUR), ?)",
-			"recent-host", setup.template.ID, fleet.CertificateTemplateDelivering, fleet.MDMOperationTypeInstall, setup.template.Name,
+			"recent-host", setup.template.ID, automdm.CertificateTemplateDelivering, automdm.MDMOperationTypeInstall, setup.template.Name,
 		)
 		require.NoError(t, err)
 
@@ -1172,8 +1172,8 @@ func testRevertStaleCertificateTemplates(t *testing.T, ds *Datastore) {
 
 		// Verify only the stale one was reverted
 		var statuses []struct {
-			HostUUID string                          `db:"host_uuid"`
-			Status   fleet.CertificateTemplateStatus `db:"status"`
+			HostUUID string                            `db:"host_uuid"`
+			Status   automdm.CertificateTemplateStatus `db:"status"`
 		}
 		err = ds.writer(ctx).SelectContext(ctx, &statuses,
 			"SELECT host_uuid, status FROM host_certificate_templates ORDER BY host_uuid")
@@ -1182,9 +1182,9 @@ func testRevertStaleCertificateTemplates(t *testing.T, ds *Datastore) {
 
 		for _, s := range statuses {
 			if s.HostUUID == "stale-host" {
-				require.EqualValues(t, fleet.CertificateTemplatePending, s.Status)
+				require.EqualValues(t, automdm.CertificateTemplatePending, s.Status)
 			} else {
-				require.EqualValues(t, fleet.CertificateTemplateDelivering, s.Status)
+				require.EqualValues(t, automdm.CertificateTemplateDelivering, s.Status)
 			}
 		}
 	})
@@ -1194,15 +1194,15 @@ func testRevertStaleCertificateTemplates(t *testing.T, ds *Datastore) {
 		setup := createCertTemplateTestSetup(t, ctx, ds, "")
 
 		// Insert records with various non-delivering statuses, all old
-		for _, status := range []fleet.CertificateTemplateStatus{
-			fleet.CertificateTemplatePending,
-			fleet.CertificateTemplateDelivered,
-			fleet.CertificateTemplateVerified,
-			fleet.CertificateTemplateFailed,
+		for _, status := range []automdm.CertificateTemplateStatus{
+			automdm.CertificateTemplatePending,
+			automdm.CertificateTemplateDelivered,
+			automdm.CertificateTemplateVerified,
+			automdm.CertificateTemplateFailed,
 		} {
 			_, err := ds.writer(ctx).ExecContext(ctx,
 				"INSERT INTO host_certificate_templates (host_uuid, certificate_template_id, status, operation_type, updated_at, name) VALUES (?, ?, ?, ?, DATE_SUB(NOW(), INTERVAL 7 HOUR), ?)",
-				fmt.Sprintf("host-%s", status), setup.template.ID, status, fleet.MDMOperationTypeInstall, setup.template.Name,
+				fmt.Sprintf("host-%s", status), setup.template.ID, status, automdm.MDMOperationTypeInstall, setup.template.Name,
 			)
 			require.NoError(t, err)
 		}
@@ -1230,16 +1230,16 @@ func testSetHostCertificateTemplatesToPendingRemove(t *testing.T, ds *Datastore)
 
 		// Insert records with various statuses for the same template
 		_, err := ds.writer(ctx).ExecContext(ctx, `
-			INSERT INTO host_certificate_templates (host_uuid, certificate_template_id, status, operation_type, fleet_challenge, name, uuid) VALUES
+			INSERT INTO host_certificate_templates (host_uuid, certificate_template_id, status, operation_type, automdm_challenge, name, uuid) VALUES
 			(?, ?, ?, ?, ?, ?, UUID_TO_BIN(UUID(), true)),
 			(?, ?, ?, ?, ?, ?, UUID_TO_BIN(UUID(), true)),
 			(?, ?, ?, ?, ?, ?, UUID_TO_BIN(UUID(), true)),
 			(?, ?, ?, ?, ?, ?, UUID_TO_BIN(UUID(), true))
 		`,
-			"host-pending", setup.template.ID, fleet.CertificateTemplatePending, fleet.MDMOperationTypeInstall, nil, setup.template.Name,
-			"host-delivered", setup.template.ID, fleet.CertificateTemplateDelivered, fleet.MDMOperationTypeInstall, "challenge1", setup.template.Name,
-			"host-verified", setup.template.ID, fleet.CertificateTemplateVerified, fleet.MDMOperationTypeInstall, "challenge2", setup.template.Name,
-			"host-failed", setup.template.ID, fleet.CertificateTemplateFailed, fleet.MDMOperationTypeInstall, "challenge3", setup.template.Name,
+			"host-pending", setup.template.ID, automdm.CertificateTemplatePending, automdm.MDMOperationTypeInstall, nil, setup.template.Name,
+			"host-delivered", setup.template.ID, automdm.CertificateTemplateDelivered, automdm.MDMOperationTypeInstall, "challenge1", setup.template.Name,
+			"host-verified", setup.template.ID, automdm.CertificateTemplateVerified, automdm.MDMOperationTypeInstall, "challenge2", setup.template.Name,
+			"host-failed", setup.template.ID, automdm.CertificateTemplateFailed, automdm.MDMOperationTypeInstall, "challenge3", setup.template.Name,
 		)
 		require.NoError(t, err)
 
@@ -1261,10 +1261,10 @@ func testSetHostCertificateTemplatesToPendingRemove(t *testing.T, ds *Datastore)
 
 		// Verify remaining rows (delivered, verified) have status=pending and operation_type=remove
 		var remaining []struct {
-			HostUUID      string                 `db:"host_uuid"`
-			Status        string                 `db:"status"`
-			OperationType fleet.MDMOperationType `db:"operation_type"`
-			UUID          string                 `db:"uuid"`
+			HostUUID      string                   `db:"host_uuid"`
+			Status        string                   `db:"status"`
+			OperationType automdm.MDMOperationType `db:"operation_type"`
+			UUID          string                   `db:"uuid"`
 		}
 		err = ds.writer(ctx).SelectContext(ctx, &remaining,
 			"SELECT host_uuid, status, operation_type, COALESCE(BIN_TO_UUID(uuid, true), '') AS uuid FROM host_certificate_templates ORDER BY host_uuid")
@@ -1272,8 +1272,8 @@ func testSetHostCertificateTemplatesToPendingRemove(t *testing.T, ds *Datastore)
 		require.Len(t, remaining, 2)
 
 		for _, r := range remaining {
-			require.Equal(t, string(fleet.CertificateTemplatePending), r.Status)
-			require.Equal(t, fleet.MDMOperationTypeRemove, r.OperationType)
+			require.Equal(t, string(automdm.CertificateTemplatePending), r.Status)
+			require.Equal(t, automdm.MDMOperationTypeRemove, r.OperationType)
 			require.NotEmpty(t, r.UUID, "UUID should be set after transition to remove")
 		}
 
@@ -1302,7 +1302,7 @@ func testSetHostCertificateTemplatesToPendingRemove(t *testing.T, ds *Datastore)
 		setup := createCertTemplateTestSetup(t, ctx, ds, "")
 
 		// Create a second template
-		templateTwo, err := ds.CreateCertificateTemplate(ctx, &fleet.CertificateTemplate{
+		templateTwo, err := ds.CreateCertificateTemplate(ctx, &automdm.CertificateTemplate{
 			Name:                   "Cert2",
 			TeamID:                 setup.team.ID,
 			CertificateAuthorityID: setup.ca.ID,
@@ -1312,12 +1312,12 @@ func testSetHostCertificateTemplatesToPendingRemove(t *testing.T, ds *Datastore)
 
 		// Insert records for both templates
 		_, err = ds.writer(ctx).ExecContext(ctx, `
-			INSERT INTO host_certificate_templates (host_uuid, certificate_template_id, status, operation_type, fleet_challenge, name) VALUES
+			INSERT INTO host_certificate_templates (host_uuid, certificate_template_id, status, operation_type, automdm_challenge, name) VALUES
 			(?, ?, ?, ?, ?, ?),
 			(?, ?, ?, ?, ?, ?)
 		`,
-			"host-1", setup.template.ID, fleet.CertificateTemplateDelivered, fleet.MDMOperationTypeInstall, "challenge1", setup.template.Name,
-			"host-1", templateTwo.ID, fleet.CertificateTemplateDelivered, fleet.MDMOperationTypeInstall, "challenge2", templateTwo.Name,
+			"host-1", setup.template.ID, automdm.CertificateTemplateDelivered, automdm.MDMOperationTypeInstall, "challenge1", setup.template.Name,
+			"host-1", templateTwo.ID, automdm.CertificateTemplateDelivered, automdm.MDMOperationTypeInstall, "challenge2", templateTwo.Name,
 		)
 		require.NoError(t, err)
 
@@ -1327,23 +1327,23 @@ func testSetHostCertificateTemplatesToPendingRemove(t *testing.T, ds *Datastore)
 
 		// Verify template one was updated
 		var row struct {
-			Status        string                 `db:"status"`
-			OperationType fleet.MDMOperationType `db:"operation_type"`
+			Status        string                   `db:"status"`
+			OperationType automdm.MDMOperationType `db:"operation_type"`
 		}
 		err = ds.writer(ctx).GetContext(ctx, &row,
 			"SELECT status, operation_type FROM host_certificate_templates WHERE certificate_template_id = ?",
 			setup.template.ID)
 		require.NoError(t, err)
-		require.Equal(t, string(fleet.CertificateTemplatePending), row.Status)
-		require.Equal(t, fleet.MDMOperationTypeRemove, row.OperationType)
+		require.Equal(t, string(automdm.CertificateTemplatePending), row.Status)
+		require.Equal(t, automdm.MDMOperationTypeRemove, row.OperationType)
 
 		// Verify template two was NOT affected
 		err = ds.writer(ctx).GetContext(ctx, &row,
 			"SELECT status, operation_type FROM host_certificate_templates WHERE certificate_template_id = ?",
 			templateTwo.ID)
 		require.NoError(t, err)
-		require.Equal(t, string(fleet.CertificateTemplateDelivered), row.Status)
-		require.Equal(t, fleet.MDMOperationTypeInstall, row.OperationType)
+		require.Equal(t, string(automdm.CertificateTemplateDelivered), row.Status)
+		require.Equal(t, automdm.MDMOperationTypeInstall, row.OperationType)
 	})
 
 	t.Run("handles no matching rows gracefully", func(t *testing.T) {
@@ -1362,7 +1362,7 @@ func testSetHostCertificateTemplatesToPendingRemoveForHost(t *testing.T, ds *Dat
 		setup := createCertTemplateTestSetup(t, ctx, ds, "")
 
 		// Create additional templates
-		templateTwo, err := ds.CreateCertificateTemplate(ctx, &fleet.CertificateTemplate{
+		templateTwo, err := ds.CreateCertificateTemplate(ctx, &automdm.CertificateTemplate{
 			Name:                   "Cert2",
 			TeamID:                 setup.team.ID,
 			CertificateAuthorityID: setup.ca.ID,
@@ -1370,7 +1370,7 @@ func testSetHostCertificateTemplatesToPendingRemoveForHost(t *testing.T, ds *Dat
 		})
 		require.NoError(t, err)
 
-		templateThree, err := ds.CreateCertificateTemplate(ctx, &fleet.CertificateTemplate{
+		templateThree, err := ds.CreateCertificateTemplate(ctx, &automdm.CertificateTemplate{
 			Name:                   "Cert3",
 			TeamID:                 setup.team.ID,
 			CertificateAuthorityID: setup.ca.ID,
@@ -1378,7 +1378,7 @@ func testSetHostCertificateTemplatesToPendingRemoveForHost(t *testing.T, ds *Dat
 		})
 		require.NoError(t, err)
 
-		templateFour, err := ds.CreateCertificateTemplate(ctx, &fleet.CertificateTemplate{
+		templateFour, err := ds.CreateCertificateTemplate(ctx, &automdm.CertificateTemplate{
 			Name:                   "Cert4",
 			TeamID:                 setup.team.ID,
 			CertificateAuthorityID: setup.ca.ID,
@@ -1388,18 +1388,18 @@ func testSetHostCertificateTemplatesToPendingRemoveForHost(t *testing.T, ds *Dat
 
 		// Insert records for host-1 (the target host) and host-2 (should not be affected)
 		_, err = ds.writer(ctx).ExecContext(ctx, `
-			INSERT INTO host_certificate_templates (host_uuid, certificate_template_id, status, operation_type, fleet_challenge, name) VALUES
+			INSERT INTO host_certificate_templates (host_uuid, certificate_template_id, status, operation_type, automdm_challenge, name) VALUES
 			(?, ?, ?, ?, ?, ?),
 			(?, ?, ?, ?, ?, ?),
 			(?, ?, ?, ?, ?, ?),
 			(?, ?, ?, ?, ?, ?),
 			(?, ?, ?, ?, ?, ?)
 		`,
-			"host-1", setup.template.ID, fleet.CertificateTemplatePending, fleet.MDMOperationTypeInstall, nil, setup.template.Name,
-			"host-1", templateTwo.ID, fleet.CertificateTemplateDelivered, fleet.MDMOperationTypeInstall, "challenge1", templateTwo.Name,
-			"host-1", templateThree.ID, fleet.CertificateTemplateFailed, fleet.MDMOperationTypeInstall, nil, templateThree.Name,
-			"host-1", templateFour.ID, fleet.CertificateTemplateDelivering, fleet.MDMOperationTypeRemove, nil, templateFour.Name,
-			"host-2", setup.template.ID, fleet.CertificateTemplateDelivered, fleet.MDMOperationTypeInstall, "challenge2", setup.template.Name,
+			"host-1", setup.template.ID, automdm.CertificateTemplatePending, automdm.MDMOperationTypeInstall, nil, setup.template.Name,
+			"host-1", templateTwo.ID, automdm.CertificateTemplateDelivered, automdm.MDMOperationTypeInstall, "challenge1", templateTwo.Name,
+			"host-1", templateThree.ID, automdm.CertificateTemplateFailed, automdm.MDMOperationTypeInstall, nil, templateThree.Name,
+			"host-1", templateFour.ID, automdm.CertificateTemplateDelivering, automdm.MDMOperationTypeRemove, nil, templateFour.Name,
+			"host-2", setup.template.ID, automdm.CertificateTemplateDelivered, automdm.MDMOperationTypeInstall, "challenge2", setup.template.Name,
 		)
 		require.NoError(t, err)
 
@@ -1424,30 +1424,30 @@ func testSetHostCertificateTemplatesToPendingRemoveForHost(t *testing.T, ds *Dat
 
 		// Verify host-1's delivered install was updated to pending remove
 		var row struct {
-			Status        string                 `db:"status"`
-			OperationType fleet.MDMOperationType `db:"operation_type"`
+			Status        string                   `db:"status"`
+			OperationType automdm.MDMOperationType `db:"operation_type"`
 		}
 		err = ds.writer(ctx).GetContext(ctx, &row,
 			"SELECT status, operation_type FROM host_certificate_templates WHERE host_uuid = ? AND certificate_template_id = ?",
 			"host-1", templateTwo.ID)
 		require.NoError(t, err)
-		require.Equal(t, string(fleet.CertificateTemplatePending), row.Status)
-		require.Equal(t, fleet.MDMOperationTypeRemove, row.OperationType)
+		require.Equal(t, string(automdm.CertificateTemplatePending), row.Status)
+		require.Equal(t, automdm.MDMOperationTypeRemove, row.OperationType)
 
 		// Verify host-1's delivering remove was NOT changed (removal in progress)
 		err = ds.writer(ctx).GetContext(ctx, &row,
 			"SELECT status, operation_type FROM host_certificate_templates WHERE host_uuid = ? AND certificate_template_id = ?",
 			"host-1", templateFour.ID)
 		require.NoError(t, err)
-		require.Equal(t, string(fleet.CertificateTemplateDelivering), row.Status, "remove operation should not change status")
-		require.Equal(t, fleet.MDMOperationTypeRemove, row.OperationType, "remove operation should stay as remove")
+		require.Equal(t, string(automdm.CertificateTemplateDelivering), row.Status, "remove operation should not change status")
+		require.Equal(t, automdm.MDMOperationTypeRemove, row.OperationType, "remove operation should stay as remove")
 
 		// Verify host-2 was NOT affected
 		err = ds.writer(ctx).GetContext(ctx, &row,
 			"SELECT status, operation_type FROM host_certificate_templates WHERE host_uuid = ?", "host-2")
 		require.NoError(t, err)
-		require.Equal(t, string(fleet.CertificateTemplateDelivered), row.Status)
-		require.Equal(t, fleet.MDMOperationTypeInstall, row.OperationType)
+		require.Equal(t, string(automdm.CertificateTemplateDelivered), row.Status)
+		require.Equal(t, automdm.MDMOperationTypeInstall, row.OperationType)
 	})
 }
 
@@ -1466,18 +1466,18 @@ func testListCertificateTemplatesForHostsIncludesRemovalAfterTeamTransfer(t *tes
 
 	// Insert verified certificate from Team A using BulkInsertHostCertificateTemplates
 	challenge := "challenge-a"
-	err := ds.BulkInsertHostCertificateTemplates(ctx, []fleet.HostCertificateTemplate{{
+	err := ds.BulkInsertHostCertificateTemplates(ctx, []automdm.HostCertificateTemplate{{
 		HostUUID:              host.UUID,
 		CertificateTemplateID: setupA.template.ID,
-		Status:                fleet.CertificateTemplateVerified,
-		OperationType:         fleet.MDMOperationTypeInstall,
-		FleetChallenge:        &challenge,
+		Status:                automdm.CertificateTemplateVerified,
+		OperationType:         automdm.MDMOperationTypeInstall,
+		AutoMDMChallenge:      &challenge,
 		Name:                  setupA.template.Name,
 	}})
 	require.NoError(t, err)
 
 	// Simulate team transfer: move host to Team B.
-	require.NoError(t, ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&setupB.team.ID, []uint{host.ID})))
+	require.NoError(t, ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&setupB.team.ID, []uint{host.ID})))
 	host.TeamID = &setupB.team.ID
 
 	// Mark Team A template for removal using the datastore method
@@ -1485,11 +1485,11 @@ func testListCertificateTemplatesForHostsIncludesRemovalAfterTeamTransfer(t *tes
 	require.NoError(t, err)
 
 	// Insert pending install for Team B template
-	err = ds.BulkInsertHostCertificateTemplates(ctx, []fleet.HostCertificateTemplate{{
+	err = ds.BulkInsertHostCertificateTemplates(ctx, []automdm.HostCertificateTemplate{{
 		HostUUID:              host.UUID,
 		CertificateTemplateID: setupB.template.ID,
-		Status:                fleet.CertificateTemplatePending,
-		OperationType:         fleet.MDMOperationTypeInstall,
+		Status:                automdm.CertificateTemplatePending,
+		OperationType:         automdm.MDMOperationTypeInstall,
 		Name:                  setupB.template.Name,
 	}})
 	require.NoError(t, err)
@@ -1500,7 +1500,7 @@ func testListCertificateTemplatesForHostsIncludesRemovalAfterTeamTransfer(t *tes
 
 	require.Len(t, results, 2, "should include both install and removal templates")
 
-	templatesByID := make(map[uint]fleet.CertificateTemplateForHost)
+	templatesByID := make(map[uint]automdm.CertificateTemplateForHost)
 	for _, r := range results {
 		templatesByID[r.CertificateTemplateID] = r
 	}
@@ -1508,14 +1508,14 @@ func testListCertificateTemplatesForHostsIncludesRemovalAfterTeamTransfer(t *tes
 	// Team A template should be marked for removal
 	require.Contains(t, templatesByID, setupA.template.ID, "should include Team A template marked for removal")
 	require.NotNil(t, templatesByID[setupA.template.ID].OperationType)
-	require.Equal(t, fleet.MDMOperationTypeRemove, *templatesByID[setupA.template.ID].OperationType)
+	require.Equal(t, automdm.MDMOperationTypeRemove, *templatesByID[setupA.template.ID].OperationType)
 	require.NotNil(t, templatesByID[setupA.template.ID].Status)
-	require.Equal(t, fleet.CertificateTemplatePending, *templatesByID[setupA.template.ID].Status)
+	require.Equal(t, automdm.CertificateTemplatePending, *templatesByID[setupA.template.ID].Status)
 
 	// Team B template should be pending install
 	require.Contains(t, templatesByID, setupB.template.ID, "should include Team B template")
 	require.NotNil(t, templatesByID[setupB.template.ID].OperationType)
-	require.Equal(t, fleet.MDMOperationTypeInstall, *templatesByID[setupB.template.ID].OperationType)
+	require.Equal(t, automdm.MDMOperationTypeInstall, *templatesByID[setupB.template.ID].OperationType)
 }
 
 // testListAndroidHostUUIDsWithPendingCertificateTemplatesIncludesRemoval verifies that
@@ -1527,11 +1527,11 @@ func testListAndroidHostUUIDsWithPendingCertificateTemplatesIncludesRemoval(t *t
 	host := createEnrolledAndroidHost(t, ctx, ds, uuid.New().String(), &setup.team.ID)
 
 	// Insert a pending removal template using BulkInsertHostCertificateTemplates
-	err := ds.BulkInsertHostCertificateTemplates(ctx, []fleet.HostCertificateTemplate{{
+	err := ds.BulkInsertHostCertificateTemplates(ctx, []automdm.HostCertificateTemplate{{
 		HostUUID:              host.UUID,
 		CertificateTemplateID: setup.template.ID,
-		Status:                fleet.CertificateTemplatePending,
-		OperationType:         fleet.MDMOperationTypeRemove,
+		Status:                automdm.CertificateTemplatePending,
+		OperationType:         automdm.MDMOperationTypeRemove,
 		Name:                  setup.template.Name,
 	}})
 	require.NoError(t, err)
@@ -1553,7 +1553,7 @@ func testGetAndTransitionCertificateTemplatesToDeliveringIncludesRemoval(t *test
 	host := createEnrolledAndroidHost(t, ctx, ds, uuid.New().String(), &setup.team.ID)
 
 	// Create second template for removal
-	templateForRemoval, err := ds.CreateCertificateTemplate(ctx, &fleet.CertificateTemplate{
+	templateForRemoval, err := ds.CreateCertificateTemplate(ctx, &automdm.CertificateTemplate{
 		Name:                   "Template for Removal",
 		TeamID:                 setup.team.ID,
 		CertificateAuthorityID: setup.ca.ID,
@@ -1562,19 +1562,19 @@ func testGetAndTransitionCertificateTemplatesToDeliveringIncludesRemoval(t *test
 	require.NoError(t, err)
 
 	// Insert both pending install and pending removal using BulkInsertHostCertificateTemplates
-	err = ds.BulkInsertHostCertificateTemplates(ctx, []fleet.HostCertificateTemplate{
+	err = ds.BulkInsertHostCertificateTemplates(ctx, []automdm.HostCertificateTemplate{
 		{
 			HostUUID:              host.UUID,
 			CertificateTemplateID: setup.template.ID,
-			Status:                fleet.CertificateTemplatePending,
-			OperationType:         fleet.MDMOperationTypeInstall,
+			Status:                automdm.CertificateTemplatePending,
+			OperationType:         automdm.MDMOperationTypeInstall,
 			Name:                  setup.template.Name,
 		},
 		{
 			HostUUID:              host.UUID,
 			CertificateTemplateID: templateForRemoval.ID,
-			Status:                fleet.CertificateTemplatePending,
-			OperationType:         fleet.MDMOperationTypeRemove,
+			Status:                automdm.CertificateTemplatePending,
+			OperationType:         automdm.MDMOperationTypeRemove,
 			Name:                  templateForRemoval.Name,
 		},
 	})
@@ -1602,7 +1602,7 @@ func testGetAndTransitionCertificateTemplatesToDeliveringIncludesRemoval(t *test
 	require.Len(t, statuses, 2)
 
 	for _, s := range statuses {
-		require.Equal(t, string(fleet.CertificateTemplateDelivering), s.Status,
+		require.Equal(t, string(automdm.CertificateTemplateDelivering), s.Status,
 			"template %d should be in delivering status", s.CertificateTemplateID)
 	}
 
@@ -1610,10 +1610,10 @@ func testGetAndTransitionCertificateTemplatesToDeliveringIncludesRemoval(t *test
 	hasInstall := false
 	hasRemove := false
 	for _, tmpl := range result.Templates {
-		if tmpl.OperationType == fleet.MDMOperationTypeInstall {
+		if tmpl.OperationType == automdm.MDMOperationTypeInstall {
 			hasInstall = true
 		}
-		if tmpl.OperationType == fleet.MDMOperationTypeRemove {
+		if tmpl.OperationType == automdm.MDMOperationTypeRemove {
 			hasRemove = true
 		}
 	}
@@ -1633,12 +1633,12 @@ func testCertificateTemplateReinstalledAfterTransferBackToOriginalTeam(t *testin
 
 	// Host starts with verified cert in Team A
 	challenge := "challenge-a"
-	err := ds.BulkInsertHostCertificateTemplates(ctx, []fleet.HostCertificateTemplate{{
+	err := ds.BulkInsertHostCertificateTemplates(ctx, []automdm.HostCertificateTemplate{{
 		HostUUID:              host.UUID,
 		CertificateTemplateID: setupA.template.ID,
-		Status:                fleet.CertificateTemplateVerified,
-		OperationType:         fleet.MDMOperationTypeInstall,
-		FleetChallenge:        &challenge,
+		Status:                automdm.CertificateTemplateVerified,
+		OperationType:         automdm.MDMOperationTypeInstall,
+		AutoMDMChallenge:      &challenge,
 		Name:                  setupA.template.Name,
 	}})
 	require.NoError(t, err)
@@ -1657,7 +1657,7 @@ func testCertificateTemplateReinstalledAfterTransferBackToOriginalTeam(t *testin
 	require.NotEmpty(t, initialUUID, "initial UUID should not be empty")
 
 	// Transfer to Team B: mark Team A cert for removal, create pending install for Team B
-	require.NoError(t, ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&setupB.team.ID, []uint{host.ID})))
+	require.NoError(t, ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&setupB.team.ID, []uint{host.ID})))
 	host.TeamID = &setupB.team.ID
 	require.NoError(t, ds.SetHostCertificateTemplatesToPendingRemoveForHost(ctx, host.UUID))
 	_, err = ds.CreatePendingCertificateTemplatesForNewHost(ctx, host.UUID, setupB.team.ID)
@@ -1677,7 +1677,7 @@ func testCertificateTemplateReinstalledAfterTransferBackToOriginalTeam(t *testin
 	require.NotEqual(t, initialUUID, uuidAfterRemove, "UUID should change when marked for removal")
 
 	// Transfer back to Team A: mark Team B cert for removal, re-create pending install for Team A
-	require.NoError(t, ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&setupA.team.ID, []uint{host.ID})))
+	require.NoError(t, ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&setupA.team.ID, []uint{host.ID})))
 	host.TeamID = &setupA.team.ID
 	require.NoError(t, ds.SetHostCertificateTemplatesToPendingRemoveForHost(ctx, host.UUID))
 	_, err = ds.CreatePendingCertificateTemplatesForNewHost(ctx, host.UUID, setupA.team.ID)
@@ -1687,7 +1687,7 @@ func testCertificateTemplateReinstalledAfterTransferBackToOriginalTeam(t *testin
 	results, err := ds.ListCertificateTemplatesForHosts(ctx, []string{host.UUID})
 	require.NoError(t, err)
 
-	var certA *fleet.CertificateTemplateForHost
+	var certA *automdm.CertificateTemplateForHost
 	for _, r := range results {
 		if r.CertificateTemplateID == setupA.template.ID {
 			certA = &r
@@ -1695,8 +1695,8 @@ func testCertificateTemplateReinstalledAfterTransferBackToOriginalTeam(t *testin
 		}
 	}
 	require.NotNil(t, certA, "Team A cert should exist")
-	require.Equal(t, fleet.MDMOperationTypeInstall, *certA.OperationType)
-	require.Equal(t, fleet.CertificateTemplatePending, *certA.Status)
+	require.Equal(t, automdm.MDMOperationTypeInstall, *certA.OperationType)
+	require.Equal(t, automdm.CertificateTemplatePending, *certA.Status)
 	require.NotNil(t, certA.UUID, "UUID should be set")
 	require.NotEqual(t, uuidAfterRemove, *certA.UUID, "UUID should change when reinstalled")
 }
@@ -1705,17 +1705,17 @@ func testGetAndroidCertificateTemplatesForRenewal(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
 	// Create test data
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "test team"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "test team"})
 	require.NoError(t, err)
 
-	ca, err := ds.NewCertificateAuthority(ctx, &fleet.CertificateAuthority{
+	ca, err := ds.NewCertificateAuthority(ctx, &automdm.CertificateAuthority{
 		Name: ptr.String("test ca"),
-		Type: string(fleet.CAConfigCustomSCEPProxy),
+		Type: string(automdm.CAConfigCustomSCEPProxy),
 		URL:  ptr.String("http://localhost:8080/scep"),
 	})
 	require.NoError(t, err)
 
-	template, err := ds.CreateCertificateTemplate(ctx, &fleet.CertificateTemplate{
+	template, err := ds.CreateCertificateTemplate(ctx, &automdm.CertificateTemplate{
 		TeamID:                 team.ID,
 		Name:                   "test template",
 		CertificateAuthorityID: ca.ID,
@@ -1733,8 +1733,8 @@ func testGetAndroidCertificateTemplatesForRenewal(t *testing.T, ds *Datastore) {
 		name          string
 		validityDays  int // total validity period in days
 		daysToExpiry  int // days until expiration
-		status        fleet.CertificateTemplateStatus
-		operationType fleet.MDMOperationType
+		status        automdm.CertificateTemplateStatus
+		operationType automdm.MDMOperationType
 		shouldRenew   bool
 		description   string
 	}{
@@ -1743,8 +1743,8 @@ func testGetAndroidCertificateTemplatesForRenewal(t *testing.T, ds *Datastore) {
 			name:          "validity_365d_expires_7d",
 			validityDays:  365,
 			daysToExpiry:  7,
-			status:        fleet.CertificateTemplateVerified,
-			operationType: fleet.MDMOperationTypeInstall,
+			status:        automdm.CertificateTemplateVerified,
+			operationType: automdm.MDMOperationTypeInstall,
 			shouldRenew:   true,
 			description:   "1 year cert expiring in 7 days should renew (< 30 day threshold)",
 		},
@@ -1752,8 +1752,8 @@ func testGetAndroidCertificateTemplatesForRenewal(t *testing.T, ds *Datastore) {
 			name:          "validity_365d_expires_29d",
 			validityDays:  365,
 			daysToExpiry:  29,
-			status:        fleet.CertificateTemplateVerified,
-			operationType: fleet.MDMOperationTypeInstall,
+			status:        automdm.CertificateTemplateVerified,
+			operationType: automdm.MDMOperationTypeInstall,
 			shouldRenew:   true,
 			description:   "1 year cert expiring in 29 days should renew (< 30 day threshold)",
 		},
@@ -1761,8 +1761,8 @@ func testGetAndroidCertificateTemplatesForRenewal(t *testing.T, ds *Datastore) {
 			name:          "validity_365d_expires_30d",
 			validityDays:  365,
 			daysToExpiry:  30,
-			status:        fleet.CertificateTemplateVerified,
-			operationType: fleet.MDMOperationTypeInstall,
+			status:        automdm.CertificateTemplateVerified,
+			operationType: automdm.MDMOperationTypeInstall,
 			shouldRenew:   false,
 			description:   "1 year cert expiring in exactly 30 days should NOT renew (threshold is < 30)",
 		},
@@ -1770,8 +1770,8 @@ func testGetAndroidCertificateTemplatesForRenewal(t *testing.T, ds *Datastore) {
 			name:          "validity_365d_expires_60d",
 			validityDays:  365,
 			daysToExpiry:  60,
-			status:        fleet.CertificateTemplateVerified,
-			operationType: fleet.MDMOperationTypeInstall,
+			status:        automdm.CertificateTemplateVerified,
+			operationType: automdm.MDMOperationTypeInstall,
 			shouldRenew:   false,
 			description:   "1 year cert expiring in 60 days should NOT renew",
 		},
@@ -1779,8 +1779,8 @@ func testGetAndroidCertificateTemplatesForRenewal(t *testing.T, ds *Datastore) {
 			name:          "validity_31d_expires_29d",
 			validityDays:  31,
 			daysToExpiry:  29,
-			status:        fleet.CertificateTemplateVerified,
-			operationType: fleet.MDMOperationTypeInstall,
+			status:        automdm.CertificateTemplateVerified,
+			operationType: automdm.MDMOperationTypeInstall,
 			shouldRenew:   true,
 			description:   "31 day cert expiring in 29 days should renew (validity > 30, uses 30 day threshold)",
 		},
@@ -1790,8 +1790,8 @@ func testGetAndroidCertificateTemplatesForRenewal(t *testing.T, ds *Datastore) {
 			name:          "validity_30d_expires_14d",
 			validityDays:  30,
 			daysToExpiry:  14,
-			status:        fleet.CertificateTemplateVerified,
-			operationType: fleet.MDMOperationTypeInstall,
+			status:        automdm.CertificateTemplateVerified,
+			operationType: automdm.MDMOperationTypeInstall,
 			shouldRenew:   true,
 			description:   "30 day cert expiring in 14 days should renew (< 15 day threshold = half of 30)",
 		},
@@ -1799,8 +1799,8 @@ func testGetAndroidCertificateTemplatesForRenewal(t *testing.T, ds *Datastore) {
 			name:          "validity_30d_expires_16d",
 			validityDays:  30,
 			daysToExpiry:  16,
-			status:        fleet.CertificateTemplateVerified,
-			operationType: fleet.MDMOperationTypeInstall,
+			status:        automdm.CertificateTemplateVerified,
+			operationType: automdm.MDMOperationTypeInstall,
 			shouldRenew:   false,
 			description:   "30 day cert expiring in 16 days should NOT renew (> 15 day threshold)",
 		},
@@ -1808,8 +1808,8 @@ func testGetAndroidCertificateTemplatesForRenewal(t *testing.T, ds *Datastore) {
 			name:          "validity_20d_expires_9d",
 			validityDays:  20,
 			daysToExpiry:  9,
-			status:        fleet.CertificateTemplateVerified,
-			operationType: fleet.MDMOperationTypeInstall,
+			status:        automdm.CertificateTemplateVerified,
+			operationType: automdm.MDMOperationTypeInstall,
 			shouldRenew:   true,
 			description:   "20 day cert expiring in 9 days should renew (< 10 day threshold = half of 20)",
 		},
@@ -1817,8 +1817,8 @@ func testGetAndroidCertificateTemplatesForRenewal(t *testing.T, ds *Datastore) {
 			name:          "validity_20d_expires_11d",
 			validityDays:  20,
 			daysToExpiry:  11,
-			status:        fleet.CertificateTemplateVerified,
-			operationType: fleet.MDMOperationTypeInstall,
+			status:        automdm.CertificateTemplateVerified,
+			operationType: automdm.MDMOperationTypeInstall,
 			shouldRenew:   false,
 			description:   "20 day cert expiring in 11 days should NOT renew (> 10 day threshold)",
 		},
@@ -1826,8 +1826,8 @@ func testGetAndroidCertificateTemplatesForRenewal(t *testing.T, ds *Datastore) {
 			name:          "validity_14d_expires_5d",
 			validityDays:  14,
 			daysToExpiry:  5,
-			status:        fleet.CertificateTemplateVerified,
-			operationType: fleet.MDMOperationTypeInstall,
+			status:        automdm.CertificateTemplateVerified,
+			operationType: automdm.MDMOperationTypeInstall,
 			shouldRenew:   true,
 			description:   "14 day cert expiring in 5 days should renew (< 7 day threshold = half of 14)",
 		},
@@ -1835,8 +1835,8 @@ func testGetAndroidCertificateTemplatesForRenewal(t *testing.T, ds *Datastore) {
 			name:          "validity_3d_expires_1d",
 			validityDays:  3,
 			daysToExpiry:  1,
-			status:        fleet.CertificateTemplateVerified,
-			operationType: fleet.MDMOperationTypeInstall,
+			status:        automdm.CertificateTemplateVerified,
+			operationType: automdm.MDMOperationTypeInstall,
 			shouldRenew:   true,
 			description:   "3 day cert expiring in 1 day should renew (validity > 2, < 1.5 day threshold)",
 		},
@@ -1846,8 +1846,8 @@ func testGetAndroidCertificateTemplatesForRenewal(t *testing.T, ds *Datastore) {
 			name:          "validity_2d_expires_1d",
 			validityDays:  2,
 			daysToExpiry:  1,
-			status:        fleet.CertificateTemplateVerified,
-			operationType: fleet.MDMOperationTypeInstall,
+			status:        automdm.CertificateTemplateVerified,
+			operationType: automdm.MDMOperationTypeInstall,
 			shouldRenew:   false,
 			description:   "2 day cert should NOT auto-renew (validity <= 2 days)",
 		},
@@ -1855,8 +1855,8 @@ func testGetAndroidCertificateTemplatesForRenewal(t *testing.T, ds *Datastore) {
 			name:          "validity_1d_expires_0d",
 			validityDays:  1,
 			daysToExpiry:  0,
-			status:        fleet.CertificateTemplateVerified,
-			operationType: fleet.MDMOperationTypeInstall,
+			status:        automdm.CertificateTemplateVerified,
+			operationType: automdm.MDMOperationTypeInstall,
 			shouldRenew:   false,
 			description:   "1 day cert should NOT auto-renew (validity <= 2 days)",
 		},
@@ -1866,8 +1866,8 @@ func testGetAndroidCertificateTemplatesForRenewal(t *testing.T, ds *Datastore) {
 			name:          "pending_status",
 			validityDays:  365,
 			daysToExpiry:  7,
-			status:        fleet.CertificateTemplatePending,
-			operationType: fleet.MDMOperationTypeInstall,
+			status:        automdm.CertificateTemplatePending,
+			operationType: automdm.MDMOperationTypeInstall,
 			shouldRenew:   false,
 			description:   "pending status should NOT renew",
 		},
@@ -1875,8 +1875,8 @@ func testGetAndroidCertificateTemplatesForRenewal(t *testing.T, ds *Datastore) {
 			name:          "delivered_status",
 			validityDays:  365,
 			daysToExpiry:  7,
-			status:        fleet.CertificateTemplateDelivered,
-			operationType: fleet.MDMOperationTypeInstall,
+			status:        automdm.CertificateTemplateDelivered,
+			operationType: automdm.MDMOperationTypeInstall,
 			shouldRenew:   false,
 			description:   "delivered status should NOT renew (only verified)",
 		},
@@ -1884,8 +1884,8 @@ func testGetAndroidCertificateTemplatesForRenewal(t *testing.T, ds *Datastore) {
 			name:          "failed_status",
 			validityDays:  365,
 			daysToExpiry:  7,
-			status:        fleet.CertificateTemplateFailed,
-			operationType: fleet.MDMOperationTypeInstall,
+			status:        automdm.CertificateTemplateFailed,
+			operationType: automdm.MDMOperationTypeInstall,
 			shouldRenew:   false,
 			description:   "failed status should NOT renew",
 		},
@@ -1895,8 +1895,8 @@ func testGetAndroidCertificateTemplatesForRenewal(t *testing.T, ds *Datastore) {
 			name:          "remove_operation",
 			validityDays:  365,
 			daysToExpiry:  7,
-			status:        fleet.CertificateTemplateVerified,
-			operationType: fleet.MDMOperationTypeRemove,
+			status:        automdm.CertificateTemplateVerified,
+			operationType: automdm.MDMOperationTypeRemove,
 			shouldRenew:   false,
 			description:   "remove operation should NOT renew",
 		},
@@ -1960,7 +1960,7 @@ func testGetAndroidCertificateTemplatesForRenewal(t *testing.T, ds *Datastore) {
 }
 
 // insertHostCertTemplate is a helper to insert a host_certificate_templates record with validity data
-func insertHostCertTemplate(t *testing.T, ds *Datastore, hostUUID string, templateID uint, status fleet.CertificateTemplateStatus, opType fleet.MDMOperationType, notValidBefore, notValidAfter *time.Time) {
+func insertHostCertTemplate(t *testing.T, ds *Datastore, hostUUID string, templateID uint, status automdm.CertificateTemplateStatus, opType automdm.MDMOperationType, notValidBefore, notValidAfter *time.Time) {
 	t.Helper()
 	_, err := ds.writer(t.Context()).ExecContext(
 		t.Context(),
@@ -1976,17 +1976,17 @@ func testSetAndroidCertificateTemplatesForRenewal(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
 	// Create test team, CA, and certificate template
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "test team renewal set"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "test team renewal set"})
 	require.NoError(t, err)
 
-	ca, err := ds.NewCertificateAuthority(ctx, &fleet.CertificateAuthority{
+	ca, err := ds.NewCertificateAuthority(ctx, &automdm.CertificateAuthority{
 		Name: ptr.String("test ca renewal set"),
-		Type: string(fleet.CAConfigCustomSCEPProxy),
+		Type: string(automdm.CAConfigCustomSCEPProxy),
 		URL:  ptr.String("http://localhost:8080/scep"),
 	})
 	require.NoError(t, err)
 
-	template, err := ds.CreateCertificateTemplate(ctx, &fleet.CertificateTemplate{
+	template, err := ds.CreateCertificateTemplate(ctx, &automdm.CertificateTemplate{
 		TeamID:                 team.ID,
 		Name:                   "test template set",
 		CertificateAuthorityID: ca.ID,
@@ -2003,12 +2003,12 @@ func testSetAndroidCertificateTemplatesForRenewal(t *testing.T, ds *Datastore) {
 	notValidAfter := now.Add(7 * 24 * time.Hour)
 
 	// Insert certificate records
-	insertHostCertTemplate(t, ds, host1.UUID, templateID, fleet.CertificateTemplateVerified, fleet.MDMOperationTypeInstall, &notValidBefore, &notValidAfter)
-	insertHostCertTemplate(t, ds, host2.UUID, templateID, fleet.CertificateTemplateDelivered, fleet.MDMOperationTypeInstall, &notValidBefore, &notValidAfter)
+	insertHostCertTemplate(t, ds, host1.UUID, templateID, automdm.CertificateTemplateVerified, automdm.MDMOperationTypeInstall, &notValidBefore, &notValidAfter)
+	insertHostCertTemplate(t, ds, host2.UUID, templateID, automdm.CertificateTemplateDelivered, automdm.MDMOperationTypeInstall, &notValidBefore, &notValidAfter)
 
-	// Set a fleet_challenge on host1 to verify it gets cleared during renewal
+	// Set an automdm_challenge on host1 to verify it gets cleared during renewal
 	_, err = ds.writer(ctx).ExecContext(ctx,
-		`UPDATE host_certificate_templates SET fleet_challenge = 'old-challenge' WHERE host_uuid = ?`,
+		`UPDATE host_certificate_templates SET automdm_challenge = 'old-challenge' WHERE host_uuid = ?`,
 		host1.UUID)
 	require.NoError(t, err)
 
@@ -2034,7 +2034,7 @@ func testSetAndroidCertificateTemplatesForRenewal(t *testing.T, ds *Datastore) {
 	originalUUID2 := originalUUIDs[1].UUID
 
 	// Set templates for renewal
-	templates := []fleet.HostCertificateTemplateForRenewal{
+	templates := []automdm.HostCertificateTemplateForRenewal{
 		{HostUUID: host1.UUID, CertificateTemplateID: templateID, NotValidAfter: notValidAfter},
 		{HostUUID: host2.UUID, CertificateTemplateID: templateID, NotValidAfter: notValidAfter},
 	}
@@ -2043,18 +2043,18 @@ func testSetAndroidCertificateTemplatesForRenewal(t *testing.T, ds *Datastore) {
 
 	// Verify the records were updated
 	var updatedRecords []struct {
-		HostUUID       string  `db:"host_uuid"`
-		Status         string  `db:"status"`
-		UUID           string  `db:"uuid"`
-		NotValidBefore *string `db:"not_valid_before"`
-		NotValidAfter  *string `db:"not_valid_after"`
-		Serial         *string `db:"serial"`
-		FleetChallenge *string `db:"fleet_challenge"`
-		Detail         *string `db:"detail"`
-		RetryCount     uint    `db:"retry_count"`
+		HostUUID         string  `db:"host_uuid"`
+		Status           string  `db:"status"`
+		UUID             string  `db:"uuid"`
+		NotValidBefore   *string `db:"not_valid_before"`
+		NotValidAfter    *string `db:"not_valid_after"`
+		Serial           *string `db:"serial"`
+		AutoMDMChallenge *string `db:"automdm_challenge"`
+		Detail           *string `db:"detail"`
+		RetryCount       uint    `db:"retry_count"`
 	}
 	err = sqlx.SelectContext(ctx, ds.reader(ctx), &updatedRecords,
-		`SELECT host_uuid, status, COALESCE(BIN_TO_UUID(uuid, true), '') AS uuid, not_valid_before, not_valid_after, serial, fleet_challenge, detail, retry_count
+		`SELECT host_uuid, status, COALESCE(BIN_TO_UUID(uuid, true), '') AS uuid, not_valid_before, not_valid_after, serial, automdm_challenge, detail, retry_count
 		 FROM host_certificate_templates WHERE host_uuid IN (?, ?) ORDER BY host_uuid`,
 		host1.UUID, host2.UUID)
 	require.NoError(t, err)
@@ -2062,7 +2062,7 @@ func testSetAndroidCertificateTemplatesForRenewal(t *testing.T, ds *Datastore) {
 
 	for _, r := range updatedRecords {
 		// Status should be pending
-		require.Equal(t, string(fleet.CertificateTemplatePending), r.Status, "Status should be updated to pending")
+		require.Equal(t, string(automdm.CertificateTemplatePending), r.Status, "Status should be updated to pending")
 
 		// UUID should be different (new one generated)
 		if r.HostUUID == host1.UUID {
@@ -2075,8 +2075,8 @@ func testSetAndroidCertificateTemplatesForRenewal(t *testing.T, ds *Datastore) {
 		require.Nil(t, r.NotValidBefore, "not_valid_before should be cleared")
 		require.Nil(t, r.NotValidAfter, "not_valid_after should be cleared")
 		require.Nil(t, r.Serial, "serial should be cleared")
-		// Fleet challenge should be cleared so a new one is generated on next delivery
-		require.Nil(t, r.FleetChallenge, "fleet_challenge should be cleared")
+		// AutoMDM challenge should be cleared so a new one is generated on next delivery
+		require.Nil(t, r.AutoMDMChallenge, "automdm_challenge should be cleared")
 		// A renewal is a fresh delivery, so nothing from the previous lifecycle may carry over.
 		// A leftover detail would otherwise be reported against the renewal, which is going fine.
 		require.Nil(t, r.Detail, "detail should be cleared")
@@ -2084,20 +2084,20 @@ func testSetAndroidCertificateTemplatesForRenewal(t *testing.T, ds *Datastore) {
 	}
 
 	// Test empty slice doesn't error
-	err = ds.SetAndroidCertificateTemplatesForRenewal(ctx, []fleet.HostCertificateTemplateForRenewal{})
+	err = ds.SetAndroidCertificateTemplatesForRenewal(ctx, []automdm.HostCertificateTemplateForRenewal{})
 	require.NoError(t, err)
 }
 
-func testGetOrCreateFleetChallengeForCertificateTemplate(t *testing.T, ds *Datastore) {
+func testGetOrCreateAutoMDMChallengeForCertificateTemplate(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
 	// Create test setup
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "test team challenge"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "test team challenge"})
 	require.NoError(t, err)
 
-	ca, err := ds.NewCertificateAuthority(ctx, &fleet.CertificateAuthority{
+	ca, err := ds.NewCertificateAuthority(ctx, &automdm.CertificateAuthority{
 		Name: ptr.String("test ca challenge"),
-		Type: string(fleet.CAConfigCustomSCEPProxy),
+		Type: string(automdm.CAConfigCustomSCEPProxy),
 		URL:  ptr.String("http://localhost:8080/scep"),
 	})
 	require.NoError(t, err)
@@ -2106,14 +2106,14 @@ func testGetOrCreateFleetChallengeForCertificateTemplate(t *testing.T, ds *Datas
 	host := test.NewHost(t, ds, "host-challenge", "192.168.1.1", "host_key_challenge", uuid.NewString(), now, test.WithPlatform("android"), test.WithTeamID(team.ID))
 
 	t.Run("returns error for non-existent template", func(t *testing.T) {
-		_, err := ds.GetOrCreateFleetChallengeForCertificateTemplate(ctx, host.UUID, 99999)
+		_, err := ds.GetOrCreateAutoMDMChallengeForCertificateTemplate(ctx, host.UUID, 99999)
 		require.Error(t, err)
-		require.True(t, fleet.IsNotFound(err))
+		require.True(t, automdm.IsNotFound(err))
 	})
 
 	t.Run("returns error for non-delivered status", func(t *testing.T) {
 		// Create a separate template for this test
-		pendingTemplate, err := ds.CreateCertificateTemplate(ctx, &fleet.CertificateTemplate{
+		pendingTemplate, err := ds.CreateCertificateTemplate(ctx, &automdm.CertificateTemplate{
 			TeamID:                 team.ID,
 			Name:                   "test template pending",
 			CertificateAuthorityID: ca.ID,
@@ -2126,16 +2126,16 @@ func testGetOrCreateFleetChallengeForCertificateTemplate(t *testing.T, ds *Datas
 			`INSERT INTO host_certificate_templates
 				(host_uuid, certificate_template_id, status, operation_type, name, uuid)
 			VALUES (?, ?, ?, ?, 'test', UUID_TO_BIN(UUID(), true))`,
-			host.UUID, pendingTemplate.ID, fleet.CertificateTemplatePending, fleet.MDMOperationTypeInstall)
+			host.UUID, pendingTemplate.ID, automdm.CertificateTemplatePending, automdm.MDMOperationTypeInstall)
 		require.NoError(t, err)
 
-		_, err = ds.GetOrCreateFleetChallengeForCertificateTemplate(ctx, host.UUID, pendingTemplate.ID)
+		_, err = ds.GetOrCreateAutoMDMChallengeForCertificateTemplate(ctx, host.UUID, pendingTemplate.ID)
 		require.Error(t, err)
-		require.True(t, fleet.IsNotFound(err))
+		require.True(t, automdm.IsNotFound(err))
 	})
 
 	t.Run("creates challenge on first call and returns same on subsequent calls", func(t *testing.T) {
-		template, err := ds.CreateCertificateTemplate(ctx, &fleet.CertificateTemplate{
+		template, err := ds.CreateCertificateTemplate(ctx, &automdm.CertificateTemplate{
 			TeamID:                 team.ID,
 			Name:                   "test template challenge",
 			CertificateAuthorityID: ca.ID,
@@ -2146,13 +2146,13 @@ func testGetOrCreateFleetChallengeForCertificateTemplate(t *testing.T, ds *Datas
 		// Insert a delivered certificate template WITHOUT a challenge
 		_, err = ds.writer(ctx).ExecContext(ctx,
 			`INSERT INTO host_certificate_templates
-				(host_uuid, certificate_template_id, status, operation_type, name, uuid, fleet_challenge)
+				(host_uuid, certificate_template_id, status, operation_type, name, uuid, automdm_challenge)
 			VALUES (?, ?, ?, ?, 'test', UUID_TO_BIN(UUID(), true), NULL)`,
-			host.UUID, template.ID, fleet.CertificateTemplateDelivered, fleet.MDMOperationTypeInstall)
+			host.UUID, template.ID, automdm.CertificateTemplateDelivered, automdm.MDMOperationTypeInstall)
 		require.NoError(t, err)
 
 		// First call should create a challenge
-		challenge, err := ds.GetOrCreateFleetChallengeForCertificateTemplate(ctx, host.UUID, template.ID)
+		challenge, err := ds.GetOrCreateAutoMDMChallengeForCertificateTemplate(ctx, host.UUID, template.ID)
 		require.NoError(t, err)
 		require.NotEmpty(t, challenge)
 		require.Len(t, challenge, 32) // Base64 encoded 24 bytes
@@ -2160,7 +2160,7 @@ func testGetOrCreateFleetChallengeForCertificateTemplate(t *testing.T, ds *Datas
 		// Verify challenge was stored in host_certificate_templates
 		var storedChallenge string
 		err = sqlx.GetContext(ctx, ds.reader(ctx), &storedChallenge,
-			`SELECT fleet_challenge FROM host_certificate_templates WHERE host_uuid = ? AND certificate_template_id = ?`,
+			`SELECT automdm_challenge FROM host_certificate_templates WHERE host_uuid = ? AND certificate_template_id = ?`,
 			host.UUID, template.ID)
 		require.NoError(t, err)
 		require.Equal(t, challenge, storedChallenge)
@@ -2173,7 +2173,7 @@ func testGetOrCreateFleetChallengeForCertificateTemplate(t *testing.T, ds *Datas
 		require.WithinDuration(t, time.Now(), createdAt, 5*time.Second)
 
 		// Subsequent call should return the same challenge
-		challenge2, err := ds.GetOrCreateFleetChallengeForCertificateTemplate(ctx, host.UUID, template.ID)
+		challenge2, err := ds.GetOrCreateAutoMDMChallengeForCertificateTemplate(ctx, host.UUID, template.ID)
 		require.NoError(t, err)
 		require.Equal(t, challenge, challenge2)
 
@@ -2185,10 +2185,10 @@ func testGetOrCreateFleetChallengeForCertificateTemplate(t *testing.T, ds *Datas
 		require.Equal(t, 1, count)
 
 		// The challenge is only accepted for the host and template it was created for.
-		scope := fleet.ChallengeScope{HostUUID: host.UUID, ProfileUUID: fmt.Sprintf("%s%d", fleet.MDMAndroidProfileUUIDPrefix, template.ID)}
-		require.ErrorIs(t, ds.ConsumeChallenge(ctx, challenge, fleet.ChallengeScope{HostUUID: "another-host", ProfileUUID: scope.ProfileUUID}),
+		scope := automdm.ChallengeScope{HostUUID: host.UUID, ProfileUUID: fmt.Sprintf("%s%d", automdm.MDMAndroidProfileUUIDPrefix, template.ID)}
+		require.ErrorIs(t, ds.ConsumeChallenge(ctx, challenge, automdm.ChallengeScope{HostUUID: "another-host", ProfileUUID: scope.ProfileUUID}),
 			sql.ErrNoRows)
-		require.ErrorIs(t, ds.ConsumeChallenge(ctx, challenge, fleet.ChallengeScope{HostUUID: host.UUID, ProfileUUID: "g0"}), sql.ErrNoRows)
+		require.ErrorIs(t, ds.ConsumeChallenge(ctx, challenge, automdm.ChallengeScope{HostUUID: host.UUID, ProfileUUID: "g0"}), sql.ErrNoRows)
 		require.NoError(t, ds.ConsumeChallenge(ctx, challenge, scope))
 	})
 }
@@ -2202,12 +2202,12 @@ func testRetryHostCertificateTemplate(t *testing.T, ds *Datastore) {
 		test.WithPlatform("android"), test.WithTeamID(setup.team.ID))
 
 	// Insert a host certificate template in "delivered" state (simulating initial delivery)
-	err := ds.BulkInsertHostCertificateTemplates(ctx, []fleet.HostCertificateTemplate{{
+	err := ds.BulkInsertHostCertificateTemplates(ctx, []automdm.HostCertificateTemplate{{
 		HostUUID:              host.UUID,
 		CertificateTemplateID: setup.template.ID,
-		Status:                fleet.CertificateTemplateDelivered,
-		FleetChallenge:        &challengeVal,
-		OperationType:         fleet.MDMOperationTypeInstall,
+		Status:                automdm.CertificateTemplateDelivered,
+		AutoMDMChallenge:      &challengeVal,
+		OperationType:         automdm.MDMOperationTypeInstall,
 		Name:                  setup.template.Name,
 	}})
 	require.NoError(t, err)
@@ -2221,7 +2221,7 @@ func testRetryHostCertificateTemplate(t *testing.T, ds *Datastore) {
 	// Verify initial state
 	record, err := ds.GetHostCertificateTemplateRecord(ctx, host.UUID, setup.template.ID)
 	require.NoError(t, err)
-	require.Equal(t, fleet.CertificateTemplateDelivered, record.Status)
+	require.Equal(t, automdm.CertificateTemplateDelivered, record.Status)
 	require.Equal(t, uint(0), record.RetryCount)
 
 	// First retry: verify status, retry_count, detail, and cleared fields
@@ -2230,7 +2230,7 @@ func testRetryHostCertificateTemplate(t *testing.T, ds *Datastore) {
 
 	record, err = ds.GetHostCertificateTemplateRecord(ctx, host.UUID, setup.template.ID)
 	require.NoError(t, err)
-	require.Equal(t, fleet.CertificateTemplatePending, record.Status)
+	require.Equal(t, automdm.CertificateTemplatePending, record.Status)
 	require.Equal(t, uint(1), record.RetryCount)
 	require.NotNil(t, record.Detail)
 	require.Equal(t, "SCEP enrollment failed", *record.Detail)
@@ -2254,7 +2254,7 @@ func testRetryHostCertificateTemplate(t *testing.T, ds *Datastore) {
 
 		record, err = ds.GetHostCertificateTemplateRecord(ctx, host.UUID, setup.template.ID)
 		require.NoError(t, err)
-		require.Equal(t, fleet.CertificateTemplatePending, record.Status)
+		require.Equal(t, automdm.CertificateTemplatePending, record.Status)
 		require.Equal(t, uint(i+2), record.RetryCount)
 		require.Equal(t, detail, *record.Detail)
 	}

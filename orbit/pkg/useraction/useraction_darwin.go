@@ -12,7 +12,7 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 )
 
 const defaultDialogTimeout = 30 // in seconds

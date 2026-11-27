@@ -2,11 +2,11 @@ package service
 
 // Calendar integration tests for the enterprise (premium) suite.
 //
-// Belongs here: calendar events created for hosts failing policies, moving hosts between fleets,
+// Belongs here: calendar events created for hosts failing policies, moving hosts between teams,
 // the calendar webhook callback, and event body updates.
 //
 // Does not belong here: other policy automations (integration_enterprise_policy_automations_test.go)
-// and fleet integration settings in general (integration_enterprise_teams_test.go).
+// and automdm integration settings in general (integration_enterprise_teams_test.go).
 
 import (
 	"context"
@@ -19,12 +19,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/ee/server/calendar"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	commonCalendar "github.com/fleetdm/fleet/v4/server/service/calendar"
-	"github.com/fleetdm/fleet/v4/server/service/redis_lock"
-	"github.com/fleetdm/fleet/v4/server/service/schedule"
+	"github.com/anilyagiz/automdm/v4/ee/server/calendar"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	commonCalendar "github.com/anilyagiz/automdm/v4/server/service/calendar"
+	"github.com/anilyagiz/automdm/v4/server/service/redis_lock"
+	"github.com/anilyagiz/automdm/v4/server/service/schedule"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
@@ -46,17 +46,17 @@ func (s *integrationEnterpriseTestSuite) TestCalendarEvents() {
 		require.NoError(t, err)
 	})
 
-	team1, err := s.ds.NewTeam(ctx, &fleet.Team{
+	team1, err := s.ds.NewTeam(ctx, &automdm.Team{
 		Name: "team1",
 	})
 	require.NoError(t, err)
-	team2, err := s.ds.NewTeam(ctx, &fleet.Team{
+	team2, err := s.ds.NewTeam(ctx, &automdm.Team{
 		Name: "team2",
 	})
 	require.NoError(t, err)
 
-	newHost := func(name string, teamID *uint) *fleet.Host {
-		h, err := s.ds.NewHost(ctx, &fleet.Host{
+	newHost := func(name string, teamID *uint) *automdm.Host {
+		h, err := s.ds.NewHost(ctx, &automdm.Host{
 			DetailUpdatedAt: time.Now(),
 			LabelUpdatedAt:  time.Now(),
 			PolicyUpdatedAt: time.Now(),
@@ -79,7 +79,7 @@ func (s *integrationEnterpriseTestSuite) TestCalendarEvents() {
 	_ = newHost("host5", nil) // global host
 
 	team1Policy1Calendar, err := s.ds.NewTeamPolicy(
-		ctx, team1.ID, nil, fleet.PolicyPayload{
+		ctx, team1.ID, nil, automdm.PolicyPayload{
 			Name:                  "team1Policy1Calendar",
 			Query:                 "SELECT 1;",
 			CalendarEventsEnabled: true,
@@ -87,7 +87,7 @@ func (s *integrationEnterpriseTestSuite) TestCalendarEvents() {
 	)
 	require.NoError(t, err)
 	team1Policy2, err := s.ds.NewTeamPolicy(
-		ctx, team1.ID, nil, fleet.PolicyPayload{
+		ctx, team1.ID, nil, automdm.PolicyPayload{
 			Name:                  "team1Policy2",
 			Query:                 "SELECT 2;",
 			CalendarEventsEnabled: true,
@@ -95,7 +95,7 @@ func (s *integrationEnterpriseTestSuite) TestCalendarEvents() {
 	)
 	require.NoError(t, err)
 	team2Policy1Calendar, err := s.ds.NewTeamPolicy(
-		ctx, team1.ID, nil, fleet.PolicyPayload{
+		ctx, team1.ID, nil, automdm.PolicyPayload{
 			Name:                  "team2Policy1Calendar",
 			Query:                 "SELECT 3;",
 			CalendarEventsEnabled: true,
@@ -103,7 +103,7 @@ func (s *integrationEnterpriseTestSuite) TestCalendarEvents() {
 	)
 	require.NoError(t, err)
 	team2Policy2, err := s.ds.NewTeamPolicy(
-		ctx, team1.ID, nil, fleet.PolicyPayload{
+		ctx, team1.ID, nil, automdm.PolicyPayload{
 			Name:                  "team2Policy2",
 			Query:                 "SELECT 4;",
 			CalendarEventsEnabled: false,
@@ -111,7 +111,7 @@ func (s *integrationEnterpriseTestSuite) TestCalendarEvents() {
 	)
 	require.NoError(t, err)
 	globalPolicy, err := s.ds.NewGlobalPolicy(
-		ctx, nil, fleet.PolicyPayload{
+		ctx, nil, automdm.PolicyPayload{
 			Name:                  "globalPolicy",
 			Query:                 "SELECT 5;",
 			CalendarEventsEnabled: false,
@@ -173,11 +173,11 @@ func (s *integrationEnterpriseTestSuite) TestCalendarEvents() {
 	// Set global configuration for the calendar feature.
 	appCfg, err := s.ds.AppConfig(ctx)
 	require.NoError(t, err)
-	appCfg.Integrations.GoogleCalendar = []*fleet.GoogleCalendarIntegration{
+	appCfg.Integrations.GoogleCalendar = []*automdm.GoogleCalendarIntegration{
 		{
 			Domain: "example.com",
-			ApiKey: fleet.GoogleCalendarApiKey{Values: map[string]string{
-				fleet.GoogleCalendarEmail: "calendar-mock@example.com",
+			ApiKey: automdm.GoogleCalendarApiKey{Values: map[string]string{
+				automdm.GoogleCalendarEmail: "calendar-mock@example.com",
 			}},
 		},
 	}
@@ -223,7 +223,7 @@ func (s *integrationEnterpriseTestSuite) TestCalendarEvents() {
 		team1WebhookServer.Close()
 	})
 
-	team1.Config.Integrations.GoogleCalendar = &fleet.TeamGoogleCalendarIntegration{
+	team1.Config.Integrations.GoogleCalendar = &automdm.TeamGoogleCalendarIntegration{
 		Enable:     true,
 		WebhookURL: team1WebhookServer.URL,
 	}
@@ -248,7 +248,7 @@ func (s *integrationEnterpriseTestSuite) TestCalendarEvents() {
 		team2WebhookServer.Close()
 	})
 
-	team2.Config.Integrations.GoogleCalendar = &fleet.TeamGoogleCalendarIntegration{
+	team2.Config.Integrations.GoogleCalendar = &automdm.TeamGoogleCalendarIntegration{
 		Enable:     true,
 		WebhookURL: team2WebhookServer.URL,
 	}
@@ -318,7 +318,7 @@ func (s *integrationEnterpriseTestSuite) TestCalendarEvents() {
 	require.Empty(t, team1CalendarEvents)
 
 	// Add an email but of another domain.
-	err = s.ds.ReplaceHostDeviceMapping(ctx, host1Team1.ID, []*fleet.HostDeviceMapping{
+	err = s.ds.ReplaceHostDeviceMapping(ctx, host1Team1.ID, []*automdm.HostDeviceMapping{
 		{
 			HostID: host1Team1.ID,
 			Email:  "user@other.com",
@@ -335,7 +335,7 @@ func (s *integrationEnterpriseTestSuite) TestCalendarEvents() {
 	require.NoError(t, err)
 	require.Empty(t, team1CalendarEvents)
 
-	err = s.ds.ReplaceHostDeviceMapping(ctx, host1Team1.ID, []*fleet.HostDeviceMapping{
+	err = s.ds.ReplaceHostDeviceMapping(ctx, host1Team1.ID, []*automdm.HostDeviceMapping{
 		{
 			HostID: host1Team1.ID,
 			Email:  "user1@example.com",
@@ -459,11 +459,11 @@ func (s *integrationEnterpriseTestSuite) TestCalendarEventsTransferringHosts() {
 	// Set global configuration for the calendar feature.
 	appCfg, err := s.ds.AppConfig(ctx)
 	require.NoError(t, err)
-	appCfg.Integrations.GoogleCalendar = []*fleet.GoogleCalendarIntegration{
+	appCfg.Integrations.GoogleCalendar = []*automdm.GoogleCalendarIntegration{
 		{
 			Domain: "example.com",
-			ApiKey: fleet.GoogleCalendarApiKey{Values: map[string]string{
-				fleet.GoogleCalendarEmail: "calendar-mock@example.com",
+			ApiKey: automdm.GoogleCalendarApiKey{Values: map[string]string{
+				automdm.GoogleCalendarEmail: "calendar-mock@example.com",
 			}},
 		},
 	}
@@ -471,30 +471,30 @@ func (s *integrationEnterpriseTestSuite) TestCalendarEventsTransferringHosts() {
 	require.NoError(t, err)
 	time.Sleep(2 * time.Second) // Wait 2 seconds for the app config cache to clear.
 
-	team1, err := s.ds.NewTeam(ctx, &fleet.Team{
+	team1, err := s.ds.NewTeam(ctx, &automdm.Team{
 		Name: "team1",
 	})
 	require.NoError(t, err)
-	team2, err := s.ds.NewTeam(ctx, &fleet.Team{
+	team2, err := s.ds.NewTeam(ctx, &automdm.Team{
 		Name: "team2",
 	})
 	require.NoError(t, err)
 
-	team1.Config.Integrations.GoogleCalendar = &fleet.TeamGoogleCalendarIntegration{
+	team1.Config.Integrations.GoogleCalendar = &automdm.TeamGoogleCalendarIntegration{
 		Enable:     true,
 		WebhookURL: "https://eoo.example.com",
 	}
 	team1, err = s.ds.SaveTeam(ctx, team1)
 	require.NoError(t, err)
-	team2.Config.Integrations.GoogleCalendar = &fleet.TeamGoogleCalendarIntegration{
+	team2.Config.Integrations.GoogleCalendar = &automdm.TeamGoogleCalendarIntegration{
 		Enable:     true,
 		WebhookURL: "https://foo.example.com",
 	}
 	team2, err = s.ds.SaveTeam(ctx, team2)
 	require.NoError(t, err)
 
-	newHost := func(name string, teamID *uint) *fleet.Host {
-		h, err := s.ds.NewHost(ctx, &fleet.Host{
+	newHost := func(name string, teamID *uint) *automdm.Host {
+		h, err := s.ds.NewHost(ctx, &automdm.Host{
 			DetailUpdatedAt: time.Now(),
 			LabelUpdatedAt:  time.Now(),
 			PolicyUpdatedAt: time.Now(),
@@ -511,7 +511,7 @@ func (s *integrationEnterpriseTestSuite) TestCalendarEventsTransferringHosts() {
 	}
 
 	host1 := newHost("host1", &team1.ID)
-	err = s.ds.ReplaceHostDeviceMapping(ctx, host1.ID, []*fleet.HostDeviceMapping{
+	err = s.ds.ReplaceHostDeviceMapping(ctx, host1.ID, []*automdm.HostDeviceMapping{
 		{
 			HostID: host1.ID,
 			Email:  "user1@example.com",
@@ -521,7 +521,7 @@ func (s *integrationEnterpriseTestSuite) TestCalendarEventsTransferringHosts() {
 	require.NoError(t, err)
 
 	team1Policy1, err := s.ds.NewTeamPolicy(
-		ctx, team1.ID, nil, fleet.PolicyPayload{
+		ctx, team1.ID, nil, automdm.PolicyPayload{
 			Name:                  "team1Policy1",
 			Query:                 "SELECT 1;",
 			CalendarEventsEnabled: true,
@@ -529,7 +529,7 @@ func (s *integrationEnterpriseTestSuite) TestCalendarEventsTransferringHosts() {
 	)
 	require.NoError(t, err)
 	team2Policy1, err := s.ds.NewTeamPolicy(
-		ctx, team2.ID, nil, fleet.PolicyPayload{
+		ctx, team2.ID, nil, automdm.PolicyPayload{
 			Name:                  "team2Policy1",
 			Query:                 "SELECT 2;",
 			CalendarEventsEnabled: true,
@@ -556,7 +556,7 @@ func (s *integrationEnterpriseTestSuite) TestCalendarEventsTransferringHosts() {
 	require.NoError(t, err)
 
 	// Transfer host to team2.
-	err = s.ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team2.ID, []uint{host1.ID}))
+	err = s.ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team2.ID, []uint{host1.ID}))
 	require.NoError(t, err)
 
 	// host1 is failing team2's policy too.
@@ -576,7 +576,7 @@ func (s *integrationEnterpriseTestSuite) TestCalendarEventsTransferringHosts() {
 	require.Equal(t, hostCalendarEvent2.CalendarEventID, hostCalendarEvent.CalendarEventID)
 
 	// Transfer host to global.
-	err = s.ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(nil, []uint{host1.ID}))
+	err = s.ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(nil, []uint{host1.ID}))
 	require.NoError(t, err)
 
 	// Move event to two days ago (to clean up the calendar event)
@@ -593,10 +593,10 @@ func (s *integrationEnterpriseTestSuite) TestCalendarEventsTransferringHosts() {
 
 	// Calendar event is cleaned up.
 	_, _, err = s.ds.GetHostCalendarEventByEmail(ctx, "user1@example.com")
-	require.True(t, fleet.IsNotFound(err))
+	require.True(t, automdm.IsNotFound(err))
 }
 
-func triggerAndWait(ctx context.Context, t *testing.T, ds fleet.Datastore, s *schedule.Schedule, timeout time.Duration) {
+func triggerAndWait(ctx context.Context, t *testing.T, ds automdm.Datastore, s *schedule.Schedule, timeout time.Duration) {
 	// Following code assumes (for simplicity) only triggered runs.
 	stats, err := ds.GetLatestCronStats(ctx, s.Name())
 	require.NoError(t, err)
@@ -620,7 +620,7 @@ func triggerAndWait(ctx context.Context, t *testing.T, ds fleet.Datastore, s *sc
 	for {
 		stats, err := ds.GetLatestCronStats(ctx, s.Name())
 		require.NoError(t, err)
-		if len(stats) > 0 && stats[0].ID > previousRunID && stats[0].Status == fleet.CronStatsStatusCompleted {
+		if len(stats) > 0 && stats[0].ID > previousRunID && stats[0].Status == automdm.CronStatsStatusCompleted {
 			t.Logf("cron %s:%d done", s.Name(), stats[0].ID)
 			return
 		}
@@ -653,13 +653,13 @@ func (s *integrationEnterpriseTestSuite) TestCalendarCallback() {
 		commonCalendar.RecentCalendarUpdateDuration = origRecentUpdateDuration
 	})
 
-	team1, err := s.ds.NewTeam(ctx, &fleet.Team{
+	team1, err := s.ds.NewTeam(ctx, &automdm.Team{
 		Name: "team1",
 	})
 	require.NoError(t, err)
 
-	newHost := func(name string, teamID *uint) *fleet.Host {
-		h, err := s.ds.NewHost(ctx, &fleet.Host{
+	newHost := func(name string, teamID *uint) *automdm.Host {
+		h, err := s.ds.NewHost(ctx, &automdm.Host{
 			DetailUpdatedAt: time.Now(),
 			LabelUpdatedAt:  time.Now(),
 			PolicyUpdatedAt: time.Now(),
@@ -680,7 +680,7 @@ func (s *integrationEnterpriseTestSuite) TestCalendarCallback() {
 	_ = newHost("host5", nil) // global host
 
 	team1Policy1Calendar, err := s.ds.NewTeamPolicy(
-		ctx, team1.ID, nil, fleet.PolicyPayload{
+		ctx, team1.ID, nil, automdm.PolicyPayload{
 			Name:                  "team1Policy1Calendar",
 			Query:                 "SELECT 1;",
 			CalendarEventsEnabled: true,
@@ -688,7 +688,7 @@ func (s *integrationEnterpriseTestSuite) TestCalendarCallback() {
 	)
 	require.NoError(t, err)
 	team1Policy2Calendar, err := s.ds.NewTeamPolicy(
-		ctx, team1.ID, nil, fleet.PolicyPayload{
+		ctx, team1.ID, nil, automdm.PolicyPayload{
 			Name:                  "team1Policy2Calendar",
 			Query:                 "SELECT 2;",
 			CalendarEventsEnabled: true,
@@ -696,7 +696,7 @@ func (s *integrationEnterpriseTestSuite) TestCalendarCallback() {
 	)
 	require.NoError(t, err)
 	globalPolicy, err := s.ds.NewGlobalPolicy(
-		ctx, nil, fleet.PolicyPayload{
+		ctx, nil, automdm.PolicyPayload{
 			Name:                  "globalPolicy",
 			Query:                 "SELECT 5;",
 			CalendarEventsEnabled: false,
@@ -704,7 +704,7 @@ func (s *integrationEnterpriseTestSuite) TestCalendarCallback() {
 	)
 	require.NoError(t, err)
 
-	genDistributedReqWithPolicyResults := func(host *fleet.Host, policyResults map[uint]*bool) submitDistributedQueryResultsRequestShim {
+	genDistributedReqWithPolicyResults := func(host *automdm.Host, policyResults map[uint]*bool) submitDistributedQueryResultsRequestShim {
 		var (
 			results  = make(map[string]json.RawMessage)
 			statuses = make(map[string]any)
@@ -730,7 +730,7 @@ func (s *integrationEnterpriseTestSuite) TestCalendarCallback() {
 			Results:  results,
 			Statuses: statuses,
 			Messages: messages,
-			Stats:    map[string]*fleet.Stats{},
+			Stats:    map[string]*automdm.Stats{},
 		}
 	}
 
@@ -758,11 +758,11 @@ func (s *integrationEnterpriseTestSuite) TestCalendarCallback() {
 	// Set global configuration for the calendar feature.
 	appCfg, err := s.ds.AppConfig(ctx)
 	require.NoError(t, err)
-	appCfg.Integrations.GoogleCalendar = []*fleet.GoogleCalendarIntegration{
+	appCfg.Integrations.GoogleCalendar = []*automdm.GoogleCalendarIntegration{
 		{
 			Domain: "example.com",
-			ApiKey: fleet.GoogleCalendarApiKey{Values: map[string]string{
-				fleet.GoogleCalendarEmail: calendar.MockEmail,
+			ApiKey: automdm.GoogleCalendarApiKey{Values: map[string]string{
+				automdm.GoogleCalendarEmail: calendar.MockEmail,
 			}},
 		},
 	}
@@ -770,7 +770,7 @@ func (s *integrationEnterpriseTestSuite) TestCalendarCallback() {
 	require.NoError(t, err)
 	time.Sleep(2 * time.Second) // Wait 2 seconds for the app config cache to clear.
 
-	team1.Config.Integrations.GoogleCalendar = &fleet.TeamGoogleCalendarIntegration{
+	team1.Config.Integrations.GoogleCalendar = &automdm.TeamGoogleCalendarIntegration{
 		Enable:     true,
 		WebhookURL: "https://example.com",
 	}
@@ -779,7 +779,7 @@ func (s *integrationEnterpriseTestSuite) TestCalendarCallback() {
 
 	// Add email mapping for host1Team1
 	const user1Email = "user1@example.com"
-	err = s.ds.ReplaceHostDeviceMapping(ctx, host1Team1.ID, []*fleet.HostDeviceMapping{
+	err = s.ds.ReplaceHostDeviceMapping(ctx, host1Team1.ID, []*automdm.HostDeviceMapping{
 		{
 			HostID: host1Team1.ID,
 			Email:  user1Email,
@@ -818,19 +818,19 @@ func (s *integrationEnterpriseTestSuite) TestCalendarCallback() {
 	require.NoError(t, err)
 
 	// Send a sync command
-	_ = s.DoRawWithHeaders("POST", "/api/v1/fleet/calendar/webhook/"+event.UUID, []byte(""), http.StatusOK, map[string]string{
+	_ = s.DoRawWithHeaders("POST", "/api/v1/automdm/calendar/webhook/"+event.UUID, []byte(""), http.StatusOK, map[string]string{
 		"X-Goog-Channel-Id":     details.ChannelID,
 		"X-Goog-Resource-State": "sync",
 	})
 
 	// Send a regular callback with bad channel ID
-	_ = s.DoRawWithHeaders("POST", "/api/v1/fleet/calendar/webhook/"+event.UUID, []byte(""), http.StatusForbidden, map[string]string{
+	_ = s.DoRawWithHeaders("POST", "/api/v1/automdm/calendar/webhook/"+event.UUID, []byte(""), http.StatusForbidden, map[string]string{
 		"X-Goog-Channel-Id":     "bad",
 		"X-Goog-Resource-State": "exists",
 	})
 
 	// Send a regular callback
-	_ = s.DoRawWithHeaders("POST", "/api/v1/fleet/calendar/webhook/"+event.UUID, []byte(""), http.StatusOK, map[string]string{
+	_ = s.DoRawWithHeaders("POST", "/api/v1/automdm/calendar/webhook/"+event.UUID, []byte(""), http.StatusOK, map[string]string{
 		"X-Goog-Channel-Id":     details.ChannelID,
 		"X-Goog-Resource-State": "exists",
 	})
@@ -848,7 +848,7 @@ func (s *integrationEnterpriseTestSuite) TestCalendarCallback() {
 	// This callback should put the event processing in a queue for async processing. It does not start async
 	// processing because it assumes another server is handling this webhook, and that server will start
 	// async processing.
-	_ = s.DoRawWithHeaders("POST", "/api/v1/fleet/calendar/webhook/"+event.UUID, []byte(""), http.StatusOK, map[string]string{
+	_ = s.DoRawWithHeaders("POST", "/api/v1/automdm/calendar/webhook/"+event.UUID, []byte(""), http.StatusOK, map[string]string{
 		"X-Goog-Channel-Id":     details.ChannelID,
 		"X-Goog-Resource-State": "exists",
 	})
@@ -870,7 +870,7 @@ func (s *integrationEnterpriseTestSuite) TestCalendarCallback() {
 	assert.NotEmpty(t, result)
 
 	// This callback should put the event processing in a queue for async processing, AND start the async processing
-	_ = s.DoRawWithHeaders("POST", "/api/v1/fleet/calendar/webhook/"+event.UUID, []byte(""), http.StatusOK, map[string]string{
+	_ = s.DoRawWithHeaders("POST", "/api/v1/automdm/calendar/webhook/"+event.UUID, []byte(""), http.StatusOK, map[string]string{
 		"X-Goog-Channel-Id":     details.ChannelID,
 		"X-Goog-Resource-State": "exists",
 	})
@@ -927,7 +927,7 @@ func (s *integrationEnterpriseTestSuite) TestCalendarCallback() {
 	assert.Len(t, calendar.ListGoogleMockEvents(), 1)
 
 	// The previous event UUID should not work anymore, but API returns OK because this is a common occurrence.
-	_ = s.DoRawWithHeaders("POST", "/api/v1/fleet/calendar/webhook/"+event.UUID, []byte(""), http.StatusOK, map[string]string{
+	_ = s.DoRawWithHeaders("POST", "/api/v1/automdm/calendar/webhook/"+event.UUID, []byte(""), http.StatusOK, map[string]string{
 		"X-Goog-Channel-Id":     details.ChannelID,
 		"X-Goog-Resource-State": "exists",
 	})
@@ -938,7 +938,7 @@ func (s *integrationEnterpriseTestSuite) TestCalendarCallback() {
 	bodyTag = details.BodyTag
 
 	// New event callback should work
-	_ = s.DoRawWithHeaders("POST", "/api/v1/fleet/calendar/webhook/"+eventRecreated.UUID, []byte(""), http.StatusOK,
+	_ = s.DoRawWithHeaders("POST", "/api/v1/automdm/calendar/webhook/"+eventRecreated.UUID, []byte(""), http.StatusOK,
 		map[string]string{
 			"X-Goog-Channel-Id":     details.ChannelID,
 			"X-Goog-Resource-State": "exists",
@@ -955,7 +955,7 @@ func (s *integrationEnterpriseTestSuite) TestCalendarCallback() {
 	}
 
 	// New event callback should cause the time to be updated in the DB
-	_ = s.DoRawWithHeaders("POST", "/api/v1/fleet/calendar/webhook/"+eventRecreated.UUID, []byte(""), http.StatusOK,
+	_ = s.DoRawWithHeaders("POST", "/api/v1/automdm/calendar/webhook/"+eventRecreated.UUID, []byte(""), http.StatusOK,
 		map[string]string{
 			"X-Goog-Channel-Id":     details.ChannelID,
 			"X-Goog-Resource-State": "exists",
@@ -983,7 +983,7 @@ func (s *integrationEnterpriseTestSuite) TestCalendarCallback() {
 		e.Description = "new description"
 	}
 	// New event callback should cause Etag to update but Body tag to remain the same
-	_ = s.DoRawWithHeaders("POST", "/api/v1/fleet/calendar/webhook/"+eventRecreated.UUID, []byte(""), http.StatusOK,
+	_ = s.DoRawWithHeaders("POST", "/api/v1/automdm/calendar/webhook/"+eventRecreated.UUID, []byte(""), http.StatusOK,
 		map[string]string{
 			"X-Goog-Channel-Id":     details.ChannelID,
 			"X-Goog-Resource-State": "exists",
@@ -1087,7 +1087,7 @@ func (s *integrationEnterpriseTestSuite) TestCalendarCallback() {
 	_, err = distributedLock.SetIfNotExist(ctx, commonCalendar.RecentUpdateKeyPrefix+event.UUID, commonCalendar.RecentCalendarUpdateValue,
 		1000)
 	require.NoError(t, err)
-	_ = s.DoRawWithHeaders("POST", "/api/v1/fleet/calendar/webhook/"+eventRecreated.UUID, []byte(""), http.StatusOK,
+	_ = s.DoRawWithHeaders("POST", "/api/v1/automdm/calendar/webhook/"+eventRecreated.UUID, []byte(""), http.StatusOK,
 		map[string]string{
 			"X-Goog-Channel-Id":     details.ChannelID,
 			"X-Goog-Resource-State": "exists",
@@ -1097,7 +1097,7 @@ func (s *integrationEnterpriseTestSuite) TestCalendarCallback() {
 	// Callback should work, but only clear the callback channel. Event in DB will be deleted on the next cron run.
 	_, err = distributedLock.ReleaseLock(ctx, commonCalendar.RecentUpdateKeyPrefix+event.UUID, commonCalendar.RecentCalendarUpdateValue)
 	require.NoError(t, err)
-	_ = s.DoRawWithHeaders("POST", "/api/v1/fleet/calendar/webhook/"+eventRecreated.UUID, []byte(""), http.StatusOK,
+	_ = s.DoRawWithHeaders("POST", "/api/v1/automdm/calendar/webhook/"+eventRecreated.UUID, []byte(""), http.StatusOK,
 		map[string]string{
 			"X-Goog-Channel-Id":     details.ChannelID,
 			"X-Goog-Resource-State": "exists",
@@ -1112,7 +1112,7 @@ func (s *integrationEnterpriseTestSuite) TestCalendarCallback() {
 
 	err = s.ds.DeleteHost(ctx, host1Team1.ID)
 	require.NoError(t, err)
-	_ = s.DoRawWithHeaders("POST", "/api/v1/fleet/calendar/webhook/"+eventRecreated.UUID, []byte(""), http.StatusOK,
+	_ = s.DoRawWithHeaders("POST", "/api/v1/automdm/calendar/webhook/"+eventRecreated.UUID, []byte(""), http.StatusOK,
 		map[string]string{
 			"X-Goog-Channel-Id":     details.ChannelID,
 			"X-Goog-Resource-State": "exists",
@@ -1147,13 +1147,13 @@ func (s *integrationEnterpriseTestSuite) TestCalendarEventBodyUpdate() {
 		commonCalendar.RecentCalendarUpdateDuration = origRecentUpdateDuration
 	})
 
-	team1, err := s.ds.NewTeam(ctx, &fleet.Team{
+	team1, err := s.ds.NewTeam(ctx, &automdm.Team{
 		Name: "team1",
 	})
 	require.NoError(t, err)
 
-	newHost := func(name string, teamID *uint) *fleet.Host {
-		h, err := s.ds.NewHost(ctx, &fleet.Host{
+	newHost := func(name string, teamID *uint) *automdm.Host {
+		h, err := s.ds.NewHost(ctx, &automdm.Host{
 			DetailUpdatedAt: time.Now(),
 			LabelUpdatedAt:  time.Now(),
 			PolicyUpdatedAt: time.Now(),
@@ -1174,7 +1174,7 @@ func (s *integrationEnterpriseTestSuite) TestCalendarEventBodyUpdate() {
 	_ = newHost("host5", nil) // global host
 
 	team1Policy1Calendar, err := s.ds.NewTeamPolicy(
-		ctx, team1.ID, nil, fleet.PolicyPayload{
+		ctx, team1.ID, nil, automdm.PolicyPayload{
 			Name:                  "team1Policy1Calendar",
 			Query:                 "SELECT 1;",
 			CalendarEventsEnabled: true,
@@ -1184,7 +1184,7 @@ func (s *integrationEnterpriseTestSuite) TestCalendarEventBodyUpdate() {
 	)
 	require.NoError(t, err)
 	team1Policy2Calendar, err := s.ds.NewTeamPolicy(
-		ctx, team1.ID, nil, fleet.PolicyPayload{
+		ctx, team1.ID, nil, automdm.PolicyPayload{
 			Name:                  "team1Policy2Calendar",
 			Query:                 "SELECT 2;",
 			CalendarEventsEnabled: true,
@@ -1194,7 +1194,7 @@ func (s *integrationEnterpriseTestSuite) TestCalendarEventBodyUpdate() {
 	)
 	require.NoError(t, err)
 	globalPolicy, err := s.ds.NewGlobalPolicy(
-		ctx, nil, fleet.PolicyPayload{
+		ctx, nil, automdm.PolicyPayload{
 			Name:                  "globalPolicy",
 			Query:                 "SELECT 5;",
 			CalendarEventsEnabled: false,
@@ -1204,7 +1204,7 @@ func (s *integrationEnterpriseTestSuite) TestCalendarEventBodyUpdate() {
 	)
 	require.NoError(t, err)
 
-	genDistributedReqWithPolicyResults := func(host *fleet.Host, policyResults map[uint]*bool) submitDistributedQueryResultsRequestShim {
+	genDistributedReqWithPolicyResults := func(host *automdm.Host, policyResults map[uint]*bool) submitDistributedQueryResultsRequestShim {
 		var (
 			results  = make(map[string]json.RawMessage)
 			statuses = make(map[string]any)
@@ -1230,7 +1230,7 @@ func (s *integrationEnterpriseTestSuite) TestCalendarEventBodyUpdate() {
 			Results:  results,
 			Statuses: statuses,
 			Messages: messages,
-			Stats:    map[string]*fleet.Stats{},
+			Stats:    map[string]*automdm.Stats{},
 		}
 	}
 
@@ -1258,11 +1258,11 @@ func (s *integrationEnterpriseTestSuite) TestCalendarEventBodyUpdate() {
 	// Set global configuration for the calendar feature.
 	appCfg, err := s.ds.AppConfig(ctx)
 	require.NoError(t, err)
-	appCfg.Integrations.GoogleCalendar = []*fleet.GoogleCalendarIntegration{
+	appCfg.Integrations.GoogleCalendar = []*automdm.GoogleCalendarIntegration{
 		{
 			Domain: "example.com",
-			ApiKey: fleet.GoogleCalendarApiKey{Values: map[string]string{
-				fleet.GoogleCalendarEmail: calendar.MockEmail,
+			ApiKey: automdm.GoogleCalendarApiKey{Values: map[string]string{
+				automdm.GoogleCalendarEmail: calendar.MockEmail,
 			}},
 		},
 	}
@@ -1270,7 +1270,7 @@ func (s *integrationEnterpriseTestSuite) TestCalendarEventBodyUpdate() {
 	require.NoError(t, err)
 	time.Sleep(2 * time.Second) // Wait 2 seconds for the app config cache to clear.
 
-	team1.Config.Integrations.GoogleCalendar = &fleet.TeamGoogleCalendarIntegration{
+	team1.Config.Integrations.GoogleCalendar = &automdm.TeamGoogleCalendarIntegration{
 		Enable:     true,
 		WebhookURL: "https://example.com",
 	}
@@ -1279,7 +1279,7 @@ func (s *integrationEnterpriseTestSuite) TestCalendarEventBodyUpdate() {
 
 	// Add email mapping for host1Team1
 	const user1Email = "user1@example.com"
-	err = s.ds.ReplaceHostDeviceMapping(ctx, host1Team1.ID, []*fleet.HostDeviceMapping{
+	err = s.ds.ReplaceHostDeviceMapping(ctx, host1Team1.ID, []*automdm.HostDeviceMapping{
 		{
 			HostID: host1Team1.ID,
 			Email:  user1Email,
@@ -1326,8 +1326,8 @@ func (s *integrationEnterpriseTestSuite) TestCalendarEventBodyUpdate() {
 
 	calEvents = getEvents()
 	require.Len(t, calEvents, 1)
-	assert.Contains(t, calEvents[0].Description, fleet.CalendarDefaultDescription)
-	assert.Contains(t, calEvents[0].Description, fleet.CalendarDefaultResolution)
+	assert.Contains(t, calEvents[0].Description, automdm.CalendarDefaultDescription)
+	assert.Contains(t, calEvents[0].Description, automdm.CalendarDefaultResolution)
 
 	// Put resolution back
 	team1Policy1Calendar.Resolution = new("putResolutionBack")
@@ -1362,8 +1362,8 @@ func (s *integrationEnterpriseTestSuite) TestCalendarEventBodyUpdate() {
 
 	calEvents = getEvents()
 	require.Len(t, calEvents, 1)
-	assert.Contains(t, calEvents[0].Description, fleet.CalendarDefaultDescription)
-	assert.Contains(t, calEvents[0].Description, fleet.CalendarDefaultResolution)
+	assert.Contains(t, calEvents[0].Description, automdm.CalendarDefaultDescription)
+	assert.Contains(t, calEvents[0].Description, automdm.CalendarDefaultResolution)
 
 	// Cause the other policy to pass
 	s.DoJSON("POST", "/api/osquery/distributed/write", genDistributedReqWithPolicyResults(
@@ -1393,7 +1393,7 @@ func (s *integrationEnterpriseTestSuite) TestCalendarEventBodyUpdate() {
 	calendar.ClearMockEvents()
 
 	// Send a regular callback
-	_ = s.DoRawWithHeaders("POST", "/api/v1/fleet/calendar/webhook/"+event.UUID, []byte(""), http.StatusOK, map[string]string{
+	_ = s.DoRawWithHeaders("POST", "/api/v1/automdm/calendar/webhook/"+event.UUID, []byte(""), http.StatusOK, map[string]string{
 		"X-Goog-Channel-Id":     details.ChannelID,
 		"X-Goog-Resource-State": "exists",
 	})
@@ -1419,7 +1419,7 @@ func (s *integrationEnterpriseTestSuite) TestCalendarEventBodyUpdate() {
 	calendar.ClearMockEvents()
 
 	// Send a regular callback
-	_ = s.DoRawWithHeaders("POST", "/api/v1/fleet/calendar/webhook/"+event.UUID, []byte(""), http.StatusOK, map[string]string{
+	_ = s.DoRawWithHeaders("POST", "/api/v1/automdm/calendar/webhook/"+event.UUID, []byte(""), http.StatusOK, map[string]string{
 		"X-Goog-Channel-Id":     details.ChannelID,
 		"X-Goog-Resource-State": "exists",
 	})
@@ -1427,6 +1427,6 @@ func (s *integrationEnterpriseTestSuite) TestCalendarEventBodyUpdate() {
 	// Make sure event body is correct after event was recreated
 	calEvents = getEvents()
 	require.Len(t, calEvents, 1)
-	assert.Contains(t, calEvents[0].Description, fleet.CalendarDefaultDescription)
-	assert.Contains(t, calEvents[0].Description, fleet.CalendarDefaultResolution)
+	assert.Contains(t, calEvents[0].Description, automdm.CalendarDefaultDescription)
+	assert.Contains(t, calEvents[0].Description, automdm.CalendarDefaultResolution)
 }

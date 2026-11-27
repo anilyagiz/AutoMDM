@@ -125,7 +125,7 @@ class ScepClientImplTest {
     }
 
     private fun buildTestCsr(subjectAlternativeName: String?) = scepClient.buildCsr(
-        entity = X500Name("CN=Test,O=FleetDM"),
+        entity = X500Name("CN=Test,O=AutoMDM"),
         keyPair = KeyPairGenerator.getInstance("RSA").apply { initialize(2048) }.genKeyPair(),
         challenge = "test-challenge",
         signatureAlgorithm = "SHA256withRSA",

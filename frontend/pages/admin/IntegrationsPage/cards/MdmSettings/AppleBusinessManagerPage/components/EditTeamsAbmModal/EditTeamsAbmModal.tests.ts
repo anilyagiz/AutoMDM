@@ -11,13 +11,13 @@ describe("EditTeamsAbmModal", () => {
     APP_CONTEXT_NO_TEAM_SUMMARY,
     { name: "Team 1", id: 1 },
     { name: "Team 2", id: 2 },
-    { name: "BYOD Fleet", id: 3 },
+    { name: "BYOD AutoMDM", id: 3 },
   ];
 
   describe("getOptions", () => {
     it("excludes all teams", () => {
       const expectedOptions = availableTeams.reduce((acc, t) => {
-        if (t.name !== "All fleets") {
+        if (t.name !== "All teams") {
           acc.push({ value: t.name, label: t.name });
         }
         return acc;
@@ -32,13 +32,13 @@ describe("EditTeamsAbmModal", () => {
         ios_team: "Team 1",
         ipados_team: "Team 2",
         macos_team: "Unassigned",
-        byod_team: "BYOD Fleet",
+        byod_team: "BYOD AutoMDM",
       };
       expect(getSelectedTeamIds(selectedTeamNames, availableTeams)).toEqual({
-        ios_fleet_id: 1,
-        ipados_fleet_id: 2,
-        macos_fleet_id: 0,
-        byod_fleet_id: 3,
+        ios_team_id: 1,
+        ipados_team_id: 2,
+        macos_team_id: 0,
+        byod_team_id: 3,
       });
     });
   });

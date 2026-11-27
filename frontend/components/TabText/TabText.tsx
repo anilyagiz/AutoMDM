@@ -50,7 +50,7 @@ const TabText = ({
       {showCheck && (
         <Icon
           name="check"
-          color="core-fleet-green"
+          color="core-automdm-green"
           className={`${baseClass}__check`}
         />
       )}

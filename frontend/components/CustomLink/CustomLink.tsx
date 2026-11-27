@@ -51,13 +51,13 @@ const CustomLink = ({
   const getIconColor = (): Colors => {
     switch (variant) {
       case "tooltip-link":
-        return "core-fleet-white";
+        return "core-automdm-white";
       case "flash-message-link":
-        return "core-fleet-black";
+        return "core-automdm-black";
       case "banner-link":
-        return "core-fleet-black";
+        return "core-automdm-black";
       default:
-        return "ui-fleet-black-75";
+        return "ui-automdm-black-75";
     }
   };
 

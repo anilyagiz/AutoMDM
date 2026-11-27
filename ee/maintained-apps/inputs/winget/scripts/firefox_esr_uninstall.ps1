@@ -1,4 +1,4 @@
-# Fleet extracts name from installer (EXE) and saves it to PACKAGE_ID
+# AutoMDM extracts name from installer (EXE) and saves it to PACKAGE_ID
 # variable
 # Match Firefox ESR only (e.g. "Mozilla Firefox 140.7.1 ESR (x64 en-US)"), not regular Firefox
 $softwareNameLike = "*Firefox*ESR*"

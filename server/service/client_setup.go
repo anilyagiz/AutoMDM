@@ -5,19 +5,19 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
-// Setup attempts to setup the current Fleet instance. If setup is successful,
+// Setup attempts to setup the current AutoMDM instance. If setup is successful,
 // an auth token is returned.
 func (c *Client) Setup(email, name, password, org string) (string, error) {
 	params := setupRequest{
-		Admin: &fleet.UserPayload{
+		Admin: &automdm.UserPayload{
 			Email:    &email,
 			Name:     &name,
 			Password: &password,
 		},
-		OrgInfo: &fleet.OrgInfo{
+		OrgInfo: &automdm.OrgInfo{
 			OrgName: org,
 		},
 		ServerURL: &c.addr,
@@ -29,7 +29,7 @@ func (c *Client) Setup(email, name, password, org string) (string, error) {
 	}
 	defer response.Body.Close()
 
-	// If setup has already been completed, Fleet will not serve the setup
+	// If setup has already been completed, AutoMDM will not serve the setup
 	// route, which will cause the request to 404
 	if response.StatusCode == http.StatusNotFound {
 		return "", setupAlreadyErr{}

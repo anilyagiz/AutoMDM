@@ -5,37 +5,37 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/fleetdm/fleet/v4/server/notifications"
-	"github.com/fleetdm/fleet/v4/server/notifications/api"
-	api_http "github.com/fleetdm/fleet/v4/server/notifications/api/http"
-	eu "github.com/fleetdm/fleet/v4/server/platform/endpointer"
-	platform_http "github.com/fleetdm/fleet/v4/server/platform/http"
-	"github.com/fleetdm/fleet/v4/server/platform/tracing"
+	"github.com/anilyagiz/automdm/v4/server/notifications"
+	"github.com/anilyagiz/automdm/v4/server/notifications/api"
+	api_http "github.com/anilyagiz/automdm/v4/server/notifications/api/http"
+	eu "github.com/anilyagiz/automdm/v4/server/platform/endpointer"
+	platform_http "github.com/anilyagiz/automdm/v4/server/platform/http"
+	"github.com/anilyagiz/automdm/v4/server/platform/tracing"
 	"github.com/go-kit/kit/endpoint"
 	kithttp "github.com/go-kit/kit/transport/http"
 )
 
 // errMissingHost means the request reached the handler without the host ID
-// the device auth middleware should have set. A Fleet programmer error, not
+// the device auth middleware should have set. An AutoMDM programmer error, not
 // something a caller can trigger.
 var errMissingHost = errors.New("internal error: missing host from request context")
 
 func GetRoutes(svc api.Service, authMiddleware endpoint.Middleware) eu.HandlerRoutesFunc {
 	return func(r *eu.Router, opts []kithttp.ServerOption) {
-		attachFleetAPIRoutes(r, svc, authMiddleware, opts)
+		attachAutoMDMAPIRoutes(r, svc, authMiddleware, opts)
 	}
 }
 
-func attachFleetAPIRoutes(r *eu.Router, svc api.Service, authMiddleware endpoint.Middleware, opts []kithttp.ServerOption) {
+func attachAutoMDMAPIRoutes(r *eu.Router, svc api.Service, authMiddleware endpoint.Middleware, opts []kithttp.ServerOption) {
 	de := newDeviceAuthenticatedEndpointer(svc, authMiddleware, opts, r, apiVersions()...)
 
-	de.GET("/api/_version_/fleet/device/{token}/notifications/{uuid}", getNotificationEndpoint, api_http.GetNotificationRequest{})
-	de.POST("/api/_version_/fleet/device/{token}/notifications/{uuid}/actions", notificationActionEndpoint, api_http.NotificationActionRequest{})
+	de.GET("/api/_version_/automdm/device/{token}/notifications/{uuid}", getNotificationEndpoint, api_http.GetNotificationRequest{})
+	de.POST("/api/_version_/automdm/device/{token}/notifications/{uuid}/actions", notificationActionEndpoint, api_http.NotificationActionRequest{})
 }
 
 func RegisterTracingTiers(registry *tracing.Registry) {
-	registry.Register(http.MethodGet, "/api/_version_/fleet/device/{token}/notifications/{uuid}", tracing.TierStandard)
-	registry.Register(http.MethodPost, "/api/_version_/fleet/device/{token}/notifications/{uuid}/actions", tracing.TierStandard)
+	registry.Register(http.MethodGet, "/api/_version_/automdm/device/{token}/notifications/{uuid}", tracing.TierStandard)
+	registry.Register(http.MethodPost, "/api/_version_/automdm/device/{token}/notifications/{uuid}/actions", tracing.TierStandard)
 }
 
 func apiVersions() []string {

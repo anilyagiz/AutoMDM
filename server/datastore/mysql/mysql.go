@@ -17,21 +17,21 @@ import (
 
 	"github.com/WatchBeam/clock"
 	"github.com/XSAM/otelsql"
+	condaccessdepot "github.com/anilyagiz/automdm/v4/ee/server/service/condaccess/depot"
+	hostidscepdepot "github.com/anilyagiz/automdm/v4/ee/server/service/hostidentity/depot"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxdb"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/migrations/tables"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/rdsauth"
+	"github.com/anilyagiz/automdm/v4/server/goose"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
+	nano_push "github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/push"
+	scep_depot "github.com/anilyagiz/automdm/v4/server/mdm/scep/depot"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
 	"github.com/doug-martin/goqu/v9"
 	"github.com/doug-martin/goqu/v9/exp"
-	condaccessdepot "github.com/fleetdm/fleet/v4/ee/server/service/condaccess/depot"
-	hostidscepdepot "github.com/fleetdm/fleet/v4/ee/server/service/hostidentity/depot"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxdb"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/migrations/tables"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/rdsauth"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/goose"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
-	nano_push "github.com/fleetdm/fleet/v4/server/mdm/nanomdm/push"
-	scep_depot "github.com/fleetdm/fleet/v4/server/mdm/scep/depot"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
 	"github.com/go-sql-driver/mysql"
 	"github.com/hashicorp/go-multierror"
 	"github.com/jmoiron/sqlx"
@@ -49,10 +49,10 @@ const (
 	hostIDsFanoutBatchSize = 10_000
 )
 
-// Datastore is an implementation of fleet.Datastore interface backed by
+// Datastore is an implementation of automdm.Datastore interface backed by
 // MySQL
 type Datastore struct {
-	replica fleet.DBReader // so it cannot be used to perform writes
+	replica automdm.DBReader // so it cannot be used to perform writes
 	primary *sqlx.DB
 
 	// Pools reserved for HealthCheck, so it doesn't wait behind requests for a connection.
@@ -65,7 +65,7 @@ type Datastore struct {
 	pusher nano_push.Pusher
 	// orbitConfigNotifier is nil unless orbit config nudges are enabled (see
 	// WithOrbitConfigNotifier).
-	orbitConfigNotifier fleet.AgentCheckInNotifier
+	orbitConfigNotifier automdm.AgentCheckInNotifier
 	android.Datastore
 
 	// nil if no read replica
@@ -94,16 +94,16 @@ type Datastore struct {
 	// ordering.
 	testActivateSpecificNextActivities []string
 
-	// This key is used to encrypt sensitive data stored in the Fleet DB, for example MDM
+	// This key is used to encrypt sensitive data stored in the AutoMDM DB, for example MDM
 	// certificates and keys.
 	serverPrivateKey string
 
-	// windowsFMAMatches caches the Windows Fleet-maintained apps that software ingestion
+	// windowsFMAMatches caches the Windows AutoMDM-maintained apps that software ingestion
 	// matches reported program names against. The lookup joins software_installers and
 	// software_titles, and ingestion runs on every host software update, so it is held
 	// briefly rather than issued per check-in.
 	//
-	// Deliberately TTL-only, with no invalidation on installer or catalog changes. Fleet
+	// Deliberately TTL-only, with no invalidation on installer or catalog changes. AutoMDM
 	// runs multiple server instances, so in-process invalidation would only clear the node
 	// that handled the change and the TTL would remain the real bound anyway; hooking the
 	// several direct and indirect mutation points would add staleness hazards to the flow
@@ -115,7 +115,7 @@ type Datastore struct {
 	//
 	// The cached slice is replaced, never mutated, so a reader may keep using the value it
 	// received after a refresh. Callers must not mutate it.
-	windowsFMAMatches       []fleet.MaintainedApp
+	windowsFMAMatches       []automdm.MaintainedApp
 	windowsFMAMatchesExpiry time.Time
 	windowsFMAMatchesMu     sync.RWMutex
 	// windowsFMAMatchesSF collapses a cache-miss stampede into one query per node, which is
@@ -133,7 +133,7 @@ func (ds *Datastore) WithPusher(p nano_push.Pusher) {
 // reader returns the DB instance to use for read-only statements, which is the
 // replica unless the primary has been explicitly required via
 // ctxdb.RequirePrimary.
-func (ds *Datastore) reader(ctx context.Context) fleet.DBReader {
+func (ds *Datastore) reader(ctx context.Context) automdm.DBReader {
 	if ctxdb.IsPrimaryRequired(ctx) {
 		return ds.primary
 	}
@@ -202,13 +202,13 @@ func (ds *Datastore) NewSCEPDepot() (scep_depot.Depot, error) {
 
 // NewHostIdentitySCEPDepot returns a scep_depot.Depot for host identity certs that uses the Datastore
 // underlying MySQL writer *sql.DB.
-func (ds *Datastore) NewHostIdentitySCEPDepot(logger *slog.Logger, cfg *config.FleetConfig) (scep_depot.Depot, error) {
+func (ds *Datastore) NewHostIdentitySCEPDepot(logger *slog.Logger, cfg *config.AutoMDMConfig) (scep_depot.Depot, error) {
 	return hostidscepdepot.NewHostIdentitySCEPDepot(ds.primary, ds, logger, cfg)
 }
 
 // NewConditionalAccessSCEPDepot returns a new conditional access SCEP depot that uses the
 // underlying MySQL writer *sql.DB.
-func (ds *Datastore) NewConditionalAccessSCEPDepot(logger *slog.Logger, cfg *config.FleetConfig) (scep_depot.Depot, error) {
+func (ds *Datastore) NewConditionalAccessSCEPDepot(logger *slog.Logger, cfg *config.AutoMDMConfig) (scep_depot.Depot, error) {
 	return condaccessdepot.NewConditionalAccessSCEPDepot(ds.primary, ds, logger, cfg)
 }
 
@@ -386,7 +386,7 @@ type hostXUpdatedAt struct {
 func (ds *Datastore) writeChanLoop() {
 	for item := range ds.writeCh {
 		switch actualItem := item.item.(type) {
-		case *fleet.Host:
+		case *automdm.Host:
 			item.errCh <- ds.UpdateHost(item.ctx, actualItem)
 		case hostXUpdatedAt:
 			err := ds.withRetryTxx(
@@ -558,7 +558,7 @@ func (ds *Datastore) MigrateTables(ctx context.Context) error {
 func (ds *Datastore) loadMigrations(
 	ctx context.Context,
 	writer *sql.DB,
-	reader fleet.DBReader,
+	reader automdm.DBReader,
 ) (tableRecs []int64, err error) {
 	// We need to run the following to trigger the creation of the migration status table.
 	_, err = tables.MigrationClient.GetDBVersion(writer)
@@ -578,7 +578,7 @@ func (ds *Datastore) loadMigrations(
 // comparing the known migrations in code and the applied migrations in the database.
 //
 // It assumes some deployments may have performed migrations out of order.
-func (ds *Datastore) MigrationStatus(ctx context.Context) (*fleet.MigrationStatus, error) {
+func (ds *Datastore) MigrationStatus(ctx context.Context) (*automdm.MigrationStatus, error) {
 	if tables.MigrationClient.Migrations == nil {
 		return nil, errors.New("unexpected nil migrations list")
 	}
@@ -590,40 +590,40 @@ func (ds *Datastore) MigrationStatus(ctx context.Context) (*fleet.MigrationStatu
 }
 
 // It assumes some deployments may have performed migrations out of order.
-func compareMigrations(knownTable goose.Migrations, appliedTable []int64) *fleet.MigrationStatus {
+func compareMigrations(knownTable goose.Migrations, appliedTable []int64) *automdm.MigrationStatus {
 	if len(appliedTable) == 0 {
-		return &fleet.MigrationStatus{
-			StatusCode: fleet.NoMigrationsCompleted,
+		return &automdm.MigrationStatus{
+			StatusCode: automdm.NoMigrationsCompleted,
 		}
 	}
 
-	// Databases upgraded from Fleet 4.95 keep their Fleet 4 migration records.
-	fleet4 := make(map[int64]struct{}, len(tables.Fleet4Migrations)+len(tables.Fleet4OptionalMigrations))
-	for _, v := range slices.Concat(tables.Fleet4Migrations, tables.Fleet4OptionalMigrations) {
-		fleet4[v] = struct{}{}
+	// Databases upgraded from AutoMDM 4.95 keep their AutoMDM 4 migration records.
+	automdm4 := make(map[int64]struct{}, len(tables.AutoMDM4Migrations)+len(tables.AutoMDM4OptionalMigrations))
+	for _, v := range slices.Concat(tables.AutoMDM4Migrations, tables.AutoMDM4OptionalMigrations) {
+		automdm4[v] = struct{}{}
 	}
 	missingTable, unknownTable, equalTable := compareVersions(
 		getVersionsFromMigrations(knownTable),
 		appliedTable,
-		fleet4,
+		automdm4,
 	)
 	if equalTable {
-		return &fleet.MigrationStatus{
-			StatusCode: fleet.AllMigrationsCompleted,
+		return &automdm.MigrationStatus{
+			StatusCode: automdm.AllMigrationsCompleted,
 		}
 	}
 
 	// Check for missing migrations first, as these are more important
 	// to detect than the unknown migrations.
 	if len(missingTable) > 0 {
-		return &fleet.MigrationStatus{
-			StatusCode:   fleet.SomeMigrationsCompleted,
+		return &automdm.MigrationStatus{
+			StatusCode:   automdm.SomeMigrationsCompleted,
 			MissingTable: missingTable,
 		}
 	}
 
-	return &fleet.MigrationStatus{
-		StatusCode:   fleet.UnknownMigrations,
+	return &automdm.MigrationStatus{
+		StatusCode:   automdm.UnknownMigrations,
 		UnknownTable: unknownTable,
 	}
 }
@@ -692,19 +692,19 @@ func (ds *Datastore) HealthCheck() error {
 	}
 	// Check that the primary is reachable and not in read-only mode.
 	// After an AWS Aurora failover the old writer is demoted to a reader;
-	// detecting this lets the health check fail so the orchestrator can restart Fleet.
+	// detecting this lets the health check fail so the orchestrator can restart AutoMDM.
 	var readOnly int
 	if err := primary.QueryRowContext(ctx, "SELECT @@read_only").Scan(&readOnly); err != nil {
 		return err
 	}
 	if readOnly == 1 {
 		// Intentionally return an error so that the health check endpoint returns a 500,
-		// signaling the orchestrator (ECS, Kubernetes) to restart Fleet with fresh DB connections.
+		// signaling the orchestrator (ECS, Kubernetes) to restart AutoMDM with fresh DB connections.
 		return errors.New("primary database is read-only, possible failover detected")
 	}
 
 	if ds.readReplicaConfig != nil {
-		var replica fleet.DBReader = ds.replica
+		var replica automdm.DBReader = ds.replica
 		if ds.healthReplica != nil {
 			replica = ds.healthReplica
 		}
@@ -757,7 +757,7 @@ func (ds *Datastore) Close() error {
 
 // appendListOptionsToSelect will apply the given list options to ds and
 // return the new select dataset.
-func appendListOptionsToSelect(ds *goqu.SelectDataset, opts fleet.ListOptions, allowlist common_mysql.OrderKeyAllowlist) (*goqu.SelectDataset, error) {
+func appendListOptionsToSelect(ds *goqu.SelectDataset, opts automdm.ListOptions, allowlist common_mysql.OrderKeyAllowlist) (*goqu.SelectDataset, error) {
 	ds, err := appendOrderByToSelect(ds, opts, allowlist)
 	if err != nil {
 		return nil, err
@@ -771,7 +771,7 @@ func appendListOptionsToSelect(ds *goqu.SelectDataset, opts fleet.ListOptions, a
 // it is rejected rather than reaching the ORDER BY. A nil allowlist rejects
 // every key. Mapped columns are quoted as identifiers, so they must be bare
 // column names rather than SQL expressions.
-func appendOrderByToSelect(ds *goqu.SelectDataset, opts fleet.ListOptions, allowlist common_mysql.OrderKeyAllowlist) (*goqu.SelectDataset, error) {
+func appendOrderByToSelect(ds *goqu.SelectDataset, opts automdm.ListOptions, allowlist common_mysql.OrderKeyAllowlist) (*goqu.SelectDataset, error) {
 	if opts.OrderKey == "" {
 		return ds, nil
 	}
@@ -794,7 +794,7 @@ func appendOrderByToSelect(ds *goqu.SelectDataset, opts fleet.ListOptions, allow
 		}
 
 		var orderedExpr exp.OrderedExpression
-		if opts.OrderDirection == fleet.OrderDescending {
+		if opts.OrderDirection == automdm.OrderDescending {
 			orderedExpr = goqu.L(sanitized).Desc()
 		} else {
 			orderedExpr = goqu.L(sanitized).Asc()
@@ -806,13 +806,13 @@ func appendOrderByToSelect(ds *goqu.SelectDataset, opts fleet.ListOptions, allow
 	return ds, nil
 }
 
-func appendLimitOffsetToSelect(ds *goqu.SelectDataset, opts fleet.ListOptions) *goqu.SelectDataset {
+func appendLimitOffsetToSelect(ds *goqu.SelectDataset, opts automdm.ListOptions) *goqu.SelectDataset {
 	perPage := opts.PerPage
 	// If caller doesn't supply a limit apply a reasonably large default limit
 	// to insure that an unbounded query with many results doesn't consume too
 	// much memory or hang
 	if perPage == 0 {
-		perPage = fleet.DefaultPerPage
+		perPage = automdm.DefaultPerPage
 	}
 
 	offset := perPage * opts.Page
@@ -838,7 +838,7 @@ func sanitizeColumn(col string) string {
 // The allowlist parameter maps user-facing order key names to actual SQL column expressions.
 // This prevents SQL injection and information disclosure via arbitrary column sorting.
 // See common_mysql.OrderKeyAllowlist for details.
-func appendListOptionsToSQLSecure(sql string, opts *fleet.ListOptions, allowlist common_mysql.OrderKeyAllowlist) (string, []any, error) {
+func appendListOptionsToSQLSecure(sql string, opts *automdm.ListOptions, allowlist common_mysql.OrderKeyAllowlist) (string, []any, error) {
 	return appendListOptionsWithCursorToSQLSecure(sql, nil, opts, allowlist)
 }
 
@@ -848,9 +848,9 @@ func appendListOptionsToSQLSecure(sql string, opts *fleet.ListOptions, allowlist
 // The allowlist parameter maps user-facing order key names to actual SQL column expressions.
 // This prevents SQL injection and information disclosure via arbitrary column sorting.
 // See common_mysql.OrderKeyAllowlist for details.
-func appendListOptionsWithCursorToSQLSecure(sql string, params []any, opts *fleet.ListOptions, allowlist common_mysql.OrderKeyAllowlist) (string, []any, error) {
+func appendListOptionsWithCursorToSQLSecure(sql string, params []any, opts *automdm.ListOptions, allowlist common_mysql.OrderKeyAllowlist) (string, []any, error) {
 	if opts.PerPage == 0 {
-		opts.PerPage = fleet.DefaultPerPage
+		opts.PerPage = automdm.DefaultPerPage
 	}
 	return common_mysql.AppendListOptionsWithParamsSecure(sql, params, opts, allowlist)
 }
@@ -860,12 +860,12 @@ func appendListOptionsWithCursorToSQLSecure(sql string, params []any, opts *flee
 //
 // filter provides the filtering parameters that should be used. hostKey is the
 // name/alias of the hosts table to use in generating the SQL.
-func (ds *Datastore) whereFilterHostsByTeams(filter fleet.TeamFilter, hostKey string) string {
+func (ds *Datastore) whereFilterHostsByTeams(filter automdm.TeamFilter, hostKey string) string {
 	if filter.User == nil {
 		// This is likely unintentional, however we would like to return no
 		// results rather than panicking or returning some other error. At least
 		// log.
-		ds.logger.InfoContext(context.TODO(), "fleet filter missing user")
+		ds.logger.InfoContext(context.TODO(), "team filter missing user")
 		return "FALSE"
 	}
 
@@ -876,9 +876,9 @@ func (ds *Datastore) whereFilterHostsByTeams(filter fleet.TeamFilter, hostKey st
 
 	if filter.User.GlobalRole != nil {
 		switch *filter.User.GlobalRole {
-		case fleet.RoleAdmin, fleet.RoleMaintainer, fleet.RoleTechnician, fleet.RoleObserverPlus:
+		case automdm.RoleAdmin, automdm.RoleMaintainer, automdm.RoleTechnician, automdm.RoleObserverPlus:
 			return defaultAllowClause
-		case fleet.RoleObserver:
+		case automdm.RoleObserver:
 			if filter.IncludeObserver {
 				if filter.ObserverTeamID != nil {
 					// Restrict global observer to only the specified team (e.g. the live query's own team).
@@ -896,15 +896,15 @@ func (ds *Datastore) whereFilterHostsByTeams(filter fleet.TeamFilter, hostKey st
 	var idStrs []string
 	var teamIDSeen bool
 	for _, team := range filter.User.Teams {
-		if team.Role == fleet.RoleAdmin ||
-			team.Role == fleet.RoleMaintainer ||
-			team.Role == fleet.RoleTechnician ||
-			team.Role == fleet.RoleObserverPlus {
+		if team.Role == automdm.RoleAdmin ||
+			team.Role == automdm.RoleMaintainer ||
+			team.Role == automdm.RoleTechnician ||
+			team.Role == automdm.RoleObserverPlus {
 			idStrs = append(idStrs, fmt.Sprint(team.ID))
 			if filter.TeamID != nil && *filter.TeamID == team.ID {
 				teamIDSeen = true
 			}
-		} else if team.Role == fleet.RoleObserver && filter.IncludeObserver {
+		} else if team.Role == automdm.RoleObserver && filter.IncludeObserver {
 			// When ObserverTeamID is set, restrict observer access to only that team.
 			// This scopes observer_can_run to the query's own team, not all observed teams.
 			if filter.ObserverTeamID == nil || *filter.ObserverTeamID == team.ID {
@@ -941,20 +941,20 @@ func (ds *Datastore) whereFilterHostsByTeams(filter fleet.TeamFilter, hostKey st
 // filter provides the filtering parameters that should be used.
 // filterTableAlias is the name/alias of the table to use in generating the
 // SQL.
-func (ds *Datastore) whereFilterTeamWithGlobalStats(filter fleet.TeamFilter, filterTableAlias string) string {
+func (ds *Datastore) whereFilterTeamWithGlobalStats(filter automdm.TeamFilter, filterTableAlias string) string {
 	globalFilter := fmt.Sprintf("%s.team_id = 0 AND %[1]s.global_stats = 1", filterTableAlias)
 	teamIDFilter := fmt.Sprintf("%s.team_id", filterTableAlias)
 	return ds.whereFilterGlobalOrTeamIDByTeamsWithSqlFilter(filter, globalFilter, teamIDFilter)
 }
 
 func (ds *Datastore) whereFilterGlobalOrTeamIDByTeamsWithSqlFilter(
-	filter fleet.TeamFilter, globalSqlFilter string, teamIDSqlFilter string,
+	filter automdm.TeamFilter, globalSqlFilter string, teamIDSqlFilter string,
 ) string {
 	if filter.User == nil {
 		// This is likely unintentional, however we would like to return no
 		// results rather than panicking or returning some other error. At least
 		// log.
-		ds.logger.InfoContext(context.TODO(), "fleet filter missing user")
+		ds.logger.InfoContext(context.TODO(), "team filter missing user")
 		return "FALSE"
 	}
 
@@ -965,9 +965,9 @@ func (ds *Datastore) whereFilterGlobalOrTeamIDByTeamsWithSqlFilter(
 
 	if filter.User.GlobalRole != nil {
 		switch *filter.User.GlobalRole {
-		case fleet.RoleAdmin, fleet.RoleMaintainer, fleet.RoleTechnician, fleet.RoleObserverPlus:
+		case automdm.RoleAdmin, automdm.RoleMaintainer, automdm.RoleTechnician, automdm.RoleObserverPlus:
 			return defaultAllowClause
-		case fleet.RoleObserver:
+		case automdm.RoleObserver:
 			if filter.IncludeObserver {
 				return defaultAllowClause
 			}
@@ -981,11 +981,11 @@ func (ds *Datastore) whereFilterGlobalOrTeamIDByTeamsWithSqlFilter(
 	var idStrs []string
 	var teamIDSeen bool
 	for _, team := range filter.User.Teams {
-		if team.Role == fleet.RoleAdmin ||
-			team.Role == fleet.RoleMaintainer ||
-			team.Role == fleet.RoleTechnician ||
-			team.Role == fleet.RoleObserverPlus ||
-			(team.Role == fleet.RoleObserver && filter.IncludeObserver) {
+		if team.Role == automdm.RoleAdmin ||
+			team.Role == automdm.RoleMaintainer ||
+			team.Role == automdm.RoleTechnician ||
+			team.Role == automdm.RoleObserverPlus ||
+			(team.Role == automdm.RoleObserver && filter.IncludeObserver) {
 			idStrs = append(idStrs, fmt.Sprint(team.ID))
 			if filter.TeamID != nil && *filter.TeamID == team.ID {
 				teamIDSeen = true
@@ -1014,20 +1014,20 @@ func (ds *Datastore) whereFilterGlobalOrTeamIDByTeamsWithSqlFilter(
 //
 // filter provides the filtering parameters that should be used. teamKey is the
 // name/alias of the teams table to use in generating the SQL.
-func (ds *Datastore) whereFilterTeams(filter fleet.TeamFilter, teamKey string) string {
+func (ds *Datastore) whereFilterTeams(filter automdm.TeamFilter, teamKey string) string {
 	if filter.User == nil {
 		// This is likely unintentional, however we would like to return no
 		// results rather than panicking or returning some other error. At least
 		// log.
-		ds.logger.InfoContext(context.TODO(), "fleet filter missing user")
+		ds.logger.InfoContext(context.TODO(), "team filter missing user")
 		return "FALSE"
 	}
 
 	if filter.User.GlobalRole != nil {
 		switch *filter.User.GlobalRole {
-		case fleet.RoleAdmin, fleet.RoleMaintainer, fleet.RoleTechnician, fleet.RoleGitOps, fleet.RoleObserverPlus:
+		case automdm.RoleAdmin, automdm.RoleMaintainer, automdm.RoleTechnician, automdm.RoleGitOps, automdm.RoleObserverPlus:
 			return "TRUE"
-		case fleet.RoleObserver:
+		case automdm.RoleObserver:
 			if filter.IncludeObserver {
 				return "TRUE"
 			}
@@ -1040,12 +1040,12 @@ func (ds *Datastore) whereFilterTeams(filter fleet.TeamFilter, teamKey string) s
 	// Collect matching teams
 	var idStrs []string
 	for _, team := range filter.User.Teams {
-		if team.Role == fleet.RoleAdmin ||
-			team.Role == fleet.RoleMaintainer ||
-			team.Role == fleet.RoleTechnician ||
-			team.Role == fleet.RoleGitOps ||
-			team.Role == fleet.RoleObserverPlus ||
-			(team.Role == fleet.RoleObserver && filter.IncludeObserver) {
+		if team.Role == automdm.RoleAdmin ||
+			team.Role == automdm.RoleMaintainer ||
+			team.Role == automdm.RoleTechnician ||
+			team.Role == automdm.RoleGitOps ||
+			team.Role == automdm.RoleObserverPlus ||
+			(team.Role == automdm.RoleObserver && filter.IncludeObserver) {
 			idStrs = append(idStrs, fmt.Sprint(team.ID))
 		}
 	}
@@ -1195,7 +1195,7 @@ func (ds *Datastore) InnoDBStatus(ctx context.Context) (string, error) {
 	err := ds.writer(ctx).GetContext(ctx, &status, "show engine innodb status")
 	if err != nil {
 		// To read innodb tables, DB user must have PROCESS privilege
-		// This can be set by DB admin like: GRANT PROCESS,SELECT ON *.* TO 'fleet'@'%';
+		// This can be set by DB admin like: GRANT PROCESS,SELECT ON *.* TO 'team'@'%';
 		if isMySQLAccessDenied(err) {
 			return "", &accessDeniedError{
 				Message:     "getting innodb status: DB user must have global PROCESS and SELECT privilege",
@@ -1207,8 +1207,8 @@ func (ds *Datastore) InnoDBStatus(ctx context.Context) (string, error) {
 	return status.Status, nil
 }
 
-func (ds *Datastore) ProcessList(ctx context.Context) ([]fleet.MySQLProcess, error) {
-	var processList []fleet.MySQLProcess
+func (ds *Datastore) ProcessList(ctx context.Context) ([]automdm.MySQLProcess, error) {
+	var processList []automdm.MySQLProcess
 	// using the writer even when doing a read to get the data from the main db node
 	err := ds.writer(ctx).SelectContext(ctx, &processList, "show processlist")
 	if err != nil {

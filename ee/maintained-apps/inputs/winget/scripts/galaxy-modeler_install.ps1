@@ -1,11 +1,11 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # Galaxy Modeler is an electron-builder (NSIS) installer; /S runs silent and
 # /allusers forces the machine-wide install per the winget machine-scope switch.
 #
 # Setup stops on a "Can't modify Galaxy Modeler's files" prompt while the app is
-# open, and nobody can answer it from Fleet's SYSTEM context, so the install
+# open, and nobody can answer it from AutoMDM's SYSTEM context, so the install
 # never returns. Stop the app first. Unsaved models are lost.
 
 $exeFilePath = "${env:INSTALLER_PATH}"

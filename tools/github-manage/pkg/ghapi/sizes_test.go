@@ -63,11 +63,11 @@ func TestPlanSizeSyncDuplicateNumbersAcrossRepos(t *testing.T) {
 	// Both boards contain #123 from two different repos with different sizes;
 	// each must pair with its own repo's counterpart, not the other's.
 	local := []ProjectItem{
-		withRepo(mkSized("fleet-123", 123, "M"), "fleetdm/fleet", 123),
+		withRepo(mkSized("automdm-123", 123, "M"), "automdm/automdm", 123),
 		withRepo(mkSized("conf-123", 123, ""), "fleetdm/confidential", 123),
 	}
 	remote := []ProjectItem{
-		withRepo(mkTShirtSized("r-fleet-123", 123, "M"), "fleetdm/fleet", 123),
+		withRepo(mkTShirtSized("r-automdm-123", 123, "M"), "automdm/automdm", 123),
 		withRepo(mkTShirtSized("r-conf-123", 123, "XL"), "fleetdm/confidential", 123),
 	}
 	plan := PlanSizeSync(local, remote)

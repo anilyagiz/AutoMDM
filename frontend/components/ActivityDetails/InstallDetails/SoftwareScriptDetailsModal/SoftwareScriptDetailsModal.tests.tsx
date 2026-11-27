@@ -110,7 +110,7 @@ describe("SoftwareScriptDetailsModal - StatusMessage component", () => {
     );
 
     expect(screen.queryByTestId("success-icon")).toBeInTheDocument();
-    expect(screen.getByText(/Fleet ran/)).toBeInTheDocument();
+    expect(screen.getByText(/AutoMDM ran/)).toBeInTheDocument();
     expect(screen.getByText(/CoolApp/)).toBeInTheDocument();
     expect(screen.getByText(/Test Host/)).toBeInTheDocument();
     expect(screen.getByText(/\(com\.cool\.app\)/)).toBeInTheDocument();
@@ -140,7 +140,7 @@ describe("SoftwareScriptDetailsModal - StatusMessage component", () => {
       jest.advanceTimersByTime(300);
     });
     expect(
-      screen.queryByText(/Time when Fleet sent command to run script/)
+      screen.queryByText(/Time when AutoMDM sent command to run script/)
     ).not.toBeInTheDocument();
   });
 
@@ -167,7 +167,7 @@ describe("SoftwareScriptDetailsModal - StatusMessage component", () => {
     await user.hover(screen.getByText(/3 days ago/));
     await waitFor(() => {
       expect(
-        screen.getByText(/Time when Fleet sent command to run script/)
+        screen.getByText(/Time when AutoMDM sent command to run script/)
       ).toBeInTheDocument();
     });
   });

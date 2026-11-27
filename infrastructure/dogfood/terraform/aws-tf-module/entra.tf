@@ -1,7 +1,7 @@
 variable "entra_api_key" {}
 
 resource "aws_iam_policy" "entra_conditional_access" {
-  name   = "fleet-entra-conditional-access"
+  name   = "automdm-entra-conditional-access"
   policy = data.aws_iam_policy_document.entra_conditional_access.json
 }
 

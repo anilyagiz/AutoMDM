@@ -5,7 +5,7 @@ Local MySQL performance monitoring using [PMM](https://docs.percona.com/percona-
 ## Prerequisites
 
 - Docker
-- Assumes fleet dev environment running the `fleet-mysql-1` container on the `fleet_default` network.
+- Assumes automdm dev environment running the `automdm-mysql-1` container on the `automdm_default` network.
 
 ## Setup
 
@@ -18,13 +18,13 @@ docker compose up -d
 ### 2. Create the PMM monitoring user in MySQL
 
 ```sh
-docker exec -it fleet-mysql-1 mysql -uroot -ptoor -e "
+docker exec -it automdm-mysql-1 mysql -uroot -ptoor -e "
   CREATE USER IF NOT EXISTS 'pmm'@'%' IDENTIFIED BY 'pmm';
   GRANT SELECT, PROCESS, REPLICATION CLIENT, RELOAD, BACKUP_ADMIN ON *.* TO 'pmm'@'%';
 "
 ```
 
-### 3. Register the Fleet MySQL instance
+### 3. Register the AutoMDM MySQL instance
 
 ```sh
 docker exec pmm-client pmm-admin add mysql \
@@ -33,10 +33,10 @@ docker exec pmm-client pmm-admin add mysql \
   --host=mysql \
   --port=3306 \
   --query-source=perfschema \
-  --service-name=fleet-mysql
+  --service-name=automdm-mysql
 ```
 
-`--host=mysql` refers to the `mysql` service name from the Fleet `docker-compose.yml`, which resolves within the shared `fleet_default` network.
+`--host=mysql` refers to the `mysql` service name from the AutoMDM `docker-compose.yml`, which resolves within the shared `automdm_default` network.
 
 ## Usage
 
@@ -53,14 +53,14 @@ Default credentials: `admin` / `admin`. These are development defaults only, not
 PMM may lose its connection to the service. Remove and re-add the service to restore monitoring:
 
 ```sh
-docker exec pmm-client pmm-admin remove mysql fleet-mysql
+docker exec pmm-client pmm-admin remove mysql automdm-mysql
 docker exec pmm-client pmm-admin add mysql \
   --username=pmm \
   --password=pmm \
   --host=mysql \
   --port=3306 \
   --query-source=perfschema \
-  --service-name=fleet-mysql
+  --service-name=automdm-mysql
 ```
 
 ## Teardown

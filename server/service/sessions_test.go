@@ -11,16 +11,16 @@ import (
 	"testing"
 	"time"
 
-	activity_api "github.com/fleetdm/fleet/v4/server/activity/api"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/datastore/redis/redistest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/sso"
-	"github.com/fleetdm/fleet/v4/server/test"
+	activity_api "github.com/anilyagiz/automdm/v4/server/activity/api"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis/redistest"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/sso"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -46,57 +46,57 @@ func TestSessionAuth(t *testing.T) {
 	ds := new(mock.Store)
 	svc, ctx := newTestService(t, ds, nil, nil)
 
-	ds.ListSessionsForUserFunc = func(ctx context.Context, id uint) ([]*fleet.Session, error) {
+	ds.ListSessionsForUserFunc = func(ctx context.Context, id uint) ([]*automdm.Session, error) {
 		if id == 999 {
-			return []*fleet.Session{
+			return []*automdm.Session{
 				{ID: 1, UserID: id, AccessedAt: time.Now()},
 			}, nil
 		}
 		return nil, nil
 	}
-	ds.SessionByIDFunc = func(ctx context.Context, id uint) (*fleet.Session, error) {
-		return &fleet.Session{ID: id, UserID: 999, AccessedAt: time.Now()}, nil
+	ds.SessionByIDFunc = func(ctx context.Context, id uint) (*automdm.Session, error) {
+		return &automdm.Session{ID: id, UserID: 999, AccessedAt: time.Now()}, nil
 	}
-	ds.DestroySessionFunc = func(ctx context.Context, ssn *fleet.Session) error {
+	ds.DestroySessionFunc = func(ctx context.Context, ssn *automdm.Session) error {
 		return nil
 	}
-	ds.MarkSessionAccessedFunc = func(ctx context.Context, ssn *fleet.Session) error {
+	ds.MarkSessionAccessedFunc = func(ctx context.Context, ssn *automdm.Session) error {
 		return nil
 	}
 
 	testCases := []struct {
 		name            string
-		user            *fleet.User
+		user            *automdm.User
 		shouldFailWrite bool
 		shouldFailRead  bool
 	}{
 		{
 			"global admin",
-			&fleet.User{ID: 111, GlobalRole: ptr.String(fleet.RoleAdmin)},
+			&automdm.User{ID: 111, GlobalRole: ptr.String(automdm.RoleAdmin)},
 			false,
 			false,
 		},
 		{
 			"global maintainer",
-			&fleet.User{ID: 111, GlobalRole: ptr.String(fleet.RoleMaintainer)},
+			&automdm.User{ID: 111, GlobalRole: ptr.String(automdm.RoleMaintainer)},
 			true,
 			true,
 		},
 		{
 			"global observer",
-			&fleet.User{ID: 111, GlobalRole: ptr.String(fleet.RoleObserver)},
+			&automdm.User{ID: 111, GlobalRole: ptr.String(automdm.RoleObserver)},
 			true,
 			true,
 		},
 		{
 			"owner user",
-			&fleet.User{ID: 999},
+			&automdm.User{ID: 999},
 			false,
 			false,
 		},
 		{
 			"non-owner user",
-			&fleet.User{ID: 888},
+			&automdm.User{ID: 888},
 			true,
 			true,
 		},
@@ -169,26 +169,26 @@ func TestMFA(t *testing.T) {
 	opts := &TestServerOpts{}
 	svc, ctx := newTestService(t, ds, nil, nil, opts)
 
-	user := &fleet.User{MFAEnabled: true, Name: "Bob Smith", Email: "foo@example.com"}
+	user := &automdm.User{MFAEnabled: true, Name: "Bob Smith", Email: "foo@example.com"}
 	require.NoError(t, user.SetPassword(test.GoodPassword, 10, 10))
-	ds.UserByEmailFunc = func(ctx context.Context, email string) (*fleet.User, error) {
+	ds.UserByEmailFunc = func(ctx context.Context, email string) (*automdm.User, error) {
 		return user, nil
 	}
 	var failedLoginActivity bool
 	opts.ActivityMock.NewActivityFunc = func(_ context.Context, _ *activity_api.User, activity activity_api.ActivityDetails) error {
-		if activity.ActivityName() == (fleet.ActivityTypeUserFailedLogin{}).ActivityName() {
+		if activity.ActivityName() == (automdm.ActivityTypeUserFailedLogin{}).ActivityName() {
 			failedLoginActivity = true
 		}
 		return nil
 	}
 	_, _, err := svc.Login(ctx, "foo@example.com", test.GoodPassword, false)
-	var authErr *fleet.AuthFailedError
+	var authErr *automdm.AuthFailedError
 	require.ErrorAs(t, err, &authErr)
 	require.Equal(t, "Authentication failed", err.Error())
 	require.True(t, failedLoginActivity)
 
-	var sentMail fleet.Email
-	mailer := &mockMailService{SendEmailFn: func(e fleet.Email) error {
+	var sentMail automdm.Email
+	mailer := &mockMailService{SendEmailFn: func(e automdm.Email) error {
 		sentMail = e
 		return nil
 	}}
@@ -196,8 +196,8 @@ func TestMFA(t *testing.T) {
 	ds.NewMFATokenFunc = func(ctx context.Context, userID uint) (string, error) {
 		return mfaToken, nil
 	}
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
 	}
 	innerSvc := &Service{
 		ds:          ds,
@@ -207,7 +207,7 @@ func TestMFA(t *testing.T) {
 	var mfaRequestedActivity bool
 	innerSvc.SetActivityService(&mock.MockActivityService{
 		NewActivityFunc: func(_ context.Context, _ *activity_api.User, activity activity_api.ActivityDetails) error {
-			if activity.ActivityName() == (fleet.ActivityTypeUserMFARequested{}).ActivityName() {
+			if activity.ActivityName() == (automdm.ActivityTypeUserMFARequested{}).ActivityName() {
 				mfaRequestedActivity = true
 			}
 			return nil
@@ -217,12 +217,12 @@ func TestMFA(t *testing.T) {
 	_, _, err = svcForMailing.Login(ctx, "foo@example.com", test.GoodPassword, true)
 	require.Equal(t, err, sendingMFAEmail)
 	require.Equal(t, "foo@example.com", sentMail.To[0])
-	require.Equal(t, "Log in to Fleet", sentMail.Subject)
+	require.Equal(t, "Log in to AutoMDM", sentMail.Subject)
 	require.True(t, mfaRequestedActivity)
 
-	var session *fleet.Session
-	var mfaUser *fleet.User
-	ds.SessionByMFATokenFunc = func(ctx context.Context, token string, sessionKeySize int) (*fleet.Session, *fleet.User, error) {
+	var session *automdm.Session
+	var mfaUser *automdm.User
+	ds.SessionByMFATokenFunc = func(ctx context.Context, token string, sessionKeySize int) (*automdm.Session, *automdm.User, error) {
 		if token == mfaToken {
 			return session, mfaUser, nil
 		}
@@ -232,11 +232,11 @@ func TestMFA(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, resp.Error())
 
-	session = &fleet.Session{}
+	session = &automdm.Session{}
 	mfaUser = user
 	opts.ActivityMock.NewActivityFunc = func(_ context.Context, user *activity_api.User, activity activity_api.ActivityDetails) error {
 		require.Equal(t, mfaUser.Email, user.Email)
-		require.Equal(t, fleet.ActivityTypeUserLoggedIn{}.ActivityName(), activity.ActivityName())
+		require.Equal(t, automdm.ActivityTypeUserLoggedIn{}.ActivityName(), activity.ActivityName())
 		return nil
 	}
 	resp, err = sessionCreateEndpoint(ctx, &sessionCreateRequest{Token: mfaToken}, svc)
@@ -250,15 +250,15 @@ func TestGetSessionByKey(t *testing.T) {
 	svc, ctx := newTestService(t, ds, nil, nil)
 	cfg := config.TestConfig()
 
-	theSession := &fleet.Session{UserID: 123, Key: "abc"}
+	theSession := &automdm.Session{UserID: 123, Key: "abc"}
 
-	ds.SessionByKeyFunc = func(ctx context.Context, key string) (*fleet.Session, error) {
+	ds.SessionByKeyFunc = func(ctx context.Context, key string) (*automdm.Session, error) {
 		return theSession, nil
 	}
-	ds.DestroySessionFunc = func(ctx context.Context, ssn *fleet.Session) error {
+	ds.DestroySessionFunc = func(ctx context.Context, ssn *automdm.Session) error {
 		return nil
 	}
-	ds.MarkSessionAccessedFunc = func(ctx context.Context, ssn *fleet.Session) error {
+	ds.MarkSessionAccessedFunc = func(ctx context.Context, ssn *automdm.Session) error {
 		return nil
 	}
 
@@ -275,7 +275,7 @@ func TestGetSessionByKey(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.desc, func(t *testing.T) {
-			var authErr *fleet.AuthRequiredError
+			var authErr *automdm.AuthRequiredError
 			ds.SessionByKeyFuncInvoked, ds.DestroySessionFuncInvoked, ds.MarkSessionAccessedFuncInvoked = false, false, false
 
 			theSession.AccessedAt = time.Now().Add(tc.accessed)
@@ -301,10 +301,10 @@ type testAuth struct {
 	userID              string
 	userDisplayName     string
 	requestID           string
-	assertionAttributes []fleet.SAMLAttribute
+	assertionAttributes []automdm.SAMLAttribute
 }
 
-var _ fleet.Auth = (*testAuth)(nil)
+var _ automdm.Auth = (*testAuth)(nil)
 
 func (a *testAuth) UserID() string {
 	return a.userID
@@ -318,7 +318,7 @@ func (a *testAuth) RequestID() string {
 	return a.requestID
 }
 
-func (a *testAuth) AssertionAttributes() []fleet.SAMLAttribute {
+func (a *testAuth) AssertionAttributes() []automdm.SAMLAttribute {
 	return a.assertionAttributes
 }
 
@@ -335,8 +335,8 @@ func TestGetSSOUser(t *testing.T) {
 	var logs bytes.Buffer
 	opts := &TestServerOpts{
 		Logger: slog.New(slog.NewTextHandler(&logs, nil)),
-		License: &fleet.LicenseInfo{
-			Tier: fleet.TierPremium,
+		License: &automdm.LicenseInfo{
+			Tier: automdm.TierPremium,
 		},
 	}
 	svc, ctx := newTestService(t, ds, nil, nil, opts)
@@ -349,9 +349,9 @@ func TestGetSSOUser(t *testing.T) {
 		return nil
 	}
 
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{
-			SSOSettings: &fleet.SSOSettings{
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{
+			SSOSettings: &automdm.SSOSettings{
 				EnableSSO:             true,
 				EnableSSOIdPLogin:     true,
 				EnableJITProvisioning: true,
@@ -359,12 +359,12 @@ func TestGetSSOUser(t *testing.T) {
 		}, nil
 	}
 
-	ds.UserByEmailFunc = func(ctx context.Context, email string) (*fleet.User, error) {
+	ds.UserByEmailFunc = func(ctx context.Context, email string) (*automdm.User, error) {
 		return nil, newNotFoundError()
 	}
 
-	var newUser *fleet.User
-	ds.NewUserFunc = func(ctx context.Context, user *fleet.User) (*fleet.User, error) {
+	var newUser *automdm.User
+	ds.NewUserFunc = func(ctx context.Context, user *automdm.User) (*automdm.User, error) {
 		newUser = user
 		return user, nil
 	}
@@ -373,16 +373,16 @@ func TestGetSSOUser(t *testing.T) {
 		userID:          "foo@example.com",
 		userDisplayName: "foo@example.com",
 		requestID:       "foobar",
-		assertionAttributes: []fleet.SAMLAttribute{
+		assertionAttributes: []automdm.SAMLAttribute{
 			{
-				Name: "FLEET_JIT_USER_ROLE_GLOBAL",
-				Values: []fleet.SAMLAttributeValue{
+				Name: "AUTOMDM_JIT_USER_ROLE_GLOBAL",
+				Values: []automdm.SAMLAttributeValue{
 					{Value: "admin"},
 				},
 			},
 			{
-				Name: "FLEET_JIT_USER_ROLE_TEAM_1",
-				Values: []fleet.SAMLAttributeValue{
+				Name: "AUTOMDM_JIT_USER_ROLE_TEAM_1",
+				Values: []automdm.SAMLAttributeValue{
 					{Value: "observer"},
 				},
 			},
@@ -392,14 +392,14 @@ func TestGetSSOUser(t *testing.T) {
 	// Test SSO login with a non-existent user.
 	_, err := svc.GetSSOUser(ctx, auth)
 	require.NoError(t, err)
-	require.Contains(t, logs.String(), "FLEET_JIT_USER_ROLE_TEAM_1") // warning for the removed attribute
+	require.Contains(t, logs.String(), "AUTOMDM_JIT_USER_ROLE_TEAM_1") // warning for the removed attribute
 
 	require.NotNil(t, newUser)
 	require.NotNil(t, newUser.GlobalRole)
 	require.Equal(t, "admin", *newUser.GlobalRole)
 	require.Empty(t, newUser.Teams)
 	require.Equal(t, []activity_api.ActivityDetails{
-		fleet.ActivityTypeChangedUserGlobalRole{
+		automdm.ActivityTypeChangedUserGlobalRole{
 			UserID:    newUser.ID,
 			UserName:  "foo@example.com",
 			UserEmail: "foo@example.com",
@@ -412,11 +412,11 @@ func TestGetSSOUser(t *testing.T) {
 
 	// (1) Check that when a user's role attributes are unchanged then SavedUser is not called.
 
-	ds.SaveUserFunc = func(ctx context.Context, user *fleet.User) error {
+	ds.SaveUserFunc = func(ctx context.Context, user *automdm.User) error {
 		return nil
 	}
 
-	ds.UserByEmailFunc = func(ctx context.Context, email string) (*fleet.User, error) {
+	ds.UserByEmailFunc = func(ctx context.Context, email string) (*automdm.User, error) {
 		return newUser, nil
 	}
 
@@ -425,25 +425,25 @@ func TestGetSSOUser(t *testing.T) {
 	require.NoError(t, err)
 
 	require.False(t, ds.SaveUserFuncInvoked)
-	require.Contains(t, logs.String(), "FLEET_JIT_USER_ROLE_TEAM_1")
+	require.Contains(t, logs.String(), "AUTOMDM_JIT_USER_ROLE_TEAM_1")
 
 	// (2) Test SSO login with the same user with roles updated in its attributes.
 
 	roleActivities = nil
-	var savedUser *fleet.User
-	ds.SaveUserFunc = func(ctx context.Context, user *fleet.User) error {
+	var savedUser *automdm.User
+	ds.SaveUserFunc = func(ctx context.Context, user *automdm.User) error {
 		savedUser = user
 		return nil
 	}
 
-	ds.TeamWithExtrasFunc = func(ctx context.Context, tid uint) (*fleet.Team, error) {
-		return &fleet.Team{ID: tid}, nil
+	ds.TeamWithExtrasFunc = func(ctx context.Context, tid uint) (*automdm.Team, error) {
+		return &automdm.Team{ID: tid}, nil
 	}
 
-	auth.assertionAttributes = []fleet.SAMLAttribute{
+	auth.assertionAttributes = []automdm.SAMLAttribute{
 		{
-			Name: "FLEET_JIT_USER_ROLE_FLEET_2",
-			Values: []fleet.SAMLAttributeValue{
+			Name: "AUTOMDM_JIT_USER_ROLE_TEAM_2",
+			Values: []automdm.SAMLAttributeValue{
 				{Value: "maintainer"},
 			},
 		},
@@ -460,14 +460,14 @@ func TestGetSSOUser(t *testing.T) {
 
 	require.True(t, ds.SaveUserFuncInvoked)
 	require.Equal(t, []activity_api.ActivityDetails{
-		fleet.ActivityTypeDeletedUserGlobalRole{
+		automdm.ActivityTypeDeletedUserGlobalRole{
 			UserID:    savedUser.ID,
 			UserName:  "foo@example.com",
 			UserEmail: "foo@example.com",
 			OldRole:   "admin",
 			JIT:       true,
 		},
-		fleet.ActivityTypeChangedUserTeamRole{
+		automdm.ActivityTypeChangedUserTeamRole{
 			UserID:    savedUser.ID,
 			UserName:  "foo@example.com",
 			UserEmail: "foo@example.com",
@@ -481,9 +481,9 @@ func TestGetSSOUser(t *testing.T) {
 
 	ds.SaveUserFuncInvoked = false
 
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{
-			SSOSettings: &fleet.SSOSettings{
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{
+			SSOSettings: &automdm.SSOSettings{
 				EnableSSO:             true,
 				EnableSSOIdPLogin:     true,
 				EnableJITProvisioning: false,
@@ -491,10 +491,10 @@ func TestGetSSOUser(t *testing.T) {
 		}, nil
 	}
 
-	auth.assertionAttributes = []fleet.SAMLAttribute{
+	auth.assertionAttributes = []automdm.SAMLAttribute{
 		{
-			Name: "FLEET_JIT_USER_ROLE_FLEET_2",
-			Values: []fleet.SAMLAttributeValue{
+			Name: "AUTOMDM_JIT_USER_ROLE_TEAM_2",
+			Values: []automdm.SAMLAttributeValue{
 				{Value: "admin"},
 			},
 		},
@@ -507,9 +507,9 @@ func TestGetSSOUser(t *testing.T) {
 
 	// (4) Test with invalid team ID in the attributes
 
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{
-			SSOSettings: &fleet.SSOSettings{
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{
+			SSOSettings: &automdm.SSOSettings{
 				EnableSSO:             true,
 				EnableSSOIdPLogin:     true,
 				EnableJITProvisioning: true,
@@ -517,14 +517,14 @@ func TestGetSSOUser(t *testing.T) {
 		}, nil
 	}
 
-	ds.TeamWithExtrasFunc = func(ctx context.Context, tid uint) (*fleet.Team, error) {
+	ds.TeamWithExtrasFunc = func(ctx context.Context, tid uint) (*automdm.Team, error) {
 		return nil, newNotFoundError()
 	}
 
-	auth.assertionAttributes = []fleet.SAMLAttribute{
+	auth.assertionAttributes = []automdm.SAMLAttribute{
 		{
-			Name: "FLEET_JIT_USER_ROLE_FLEET_3",
-			Values: []fleet.SAMLAttributeValue{
+			Name: "AUTOMDM_JIT_USER_ROLE_TEAM_3",
+			Values: []automdm.SAMLAttributeValue{
 				{Value: "maintainer"},
 			},
 		},
@@ -535,9 +535,9 @@ func TestGetSSOUser(t *testing.T) {
 
 	// (5) Test JIT provisioning with global technician role.
 
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{
-			SSOSettings: &fleet.SSOSettings{
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{
+			SSOSettings: &automdm.SSOSettings{
 				EnableSSO:             true,
 				EnableSSOIdPLogin:     true,
 				EnableJITProvisioning: true,
@@ -546,15 +546,15 @@ func TestGetSSOUser(t *testing.T) {
 	}
 
 	newUser = nil
-	ds.UserByEmailFunc = func(ctx context.Context, email string) (*fleet.User, error) {
+	ds.UserByEmailFunc = func(ctx context.Context, email string) (*automdm.User, error) {
 		return nil, newNotFoundError()
 	}
 	ds.NewUserFuncInvoked = false
 
-	auth.assertionAttributes = []fleet.SAMLAttribute{
+	auth.assertionAttributes = []automdm.SAMLAttribute{
 		{
-			Name: "FLEET_JIT_USER_ROLE_GLOBAL",
-			Values: []fleet.SAMLAttributeValue{
+			Name: "AUTOMDM_JIT_USER_ROLE_GLOBAL",
+			Values: []automdm.SAMLAttributeValue{
 				{Value: "technician"},
 			},
 		},
@@ -565,25 +565,25 @@ func TestGetSSOUser(t *testing.T) {
 
 	require.NotNil(t, newUser)
 	require.NotNil(t, newUser.GlobalRole)
-	require.Equal(t, fleet.RoleTechnician, *newUser.GlobalRole)
+	require.Equal(t, automdm.RoleTechnician, *newUser.GlobalRole)
 	require.Empty(t, newUser.Teams)
 
 	// (6) Test JIT provisioning with team technician role.
 
 	newUser = nil
-	ds.UserByEmailFunc = func(ctx context.Context, email string) (*fleet.User, error) {
+	ds.UserByEmailFunc = func(ctx context.Context, email string) (*automdm.User, error) {
 		return nil, newNotFoundError()
 	}
 	ds.NewUserFuncInvoked = false
 
-	ds.TeamWithExtrasFunc = func(ctx context.Context, tid uint) (*fleet.Team, error) {
-		return &fleet.Team{ID: tid}, nil
+	ds.TeamWithExtrasFunc = func(ctx context.Context, tid uint) (*automdm.Team, error) {
+		return &automdm.Team{ID: tid}, nil
 	}
 
-	auth.assertionAttributes = []fleet.SAMLAttribute{
+	auth.assertionAttributes = []automdm.SAMLAttribute{
 		{
-			Name: "FLEET_JIT_USER_ROLE_FLEET_1",
-			Values: []fleet.SAMLAttributeValue{
+			Name: "AUTOMDM_JIT_USER_ROLE_TEAM_1",
+			Values: []automdm.SAMLAttributeValue{
 				{Value: "technician"},
 			},
 		},
@@ -596,7 +596,7 @@ func TestGetSSOUser(t *testing.T) {
 	require.Nil(t, newUser.GlobalRole)
 	require.Len(t, newUser.Teams, 1)
 	require.Equal(t, uint(1), newUser.Teams[0].ID)
-	require.Equal(t, fleet.RoleTechnician, newUser.Teams[0].Role)
+	require.Equal(t, automdm.RoleTechnician, newUser.Teams[0].Role)
 }
 
 func TestInitiateSSOWithSSOServerURL(t *testing.T) {
@@ -608,22 +608,22 @@ func TestInitiateSSOWithSSOServerURL(t *testing.T) {
 	})
 
 	// Mock app config with SSO server URL
-	appConfig := &fleet.AppConfig{
-		ServerSettings: fleet.ServerSettings{
-			ServerURL: "https://fleet.example.com",
+	appConfig := &automdm.AppConfig{
+		ServerSettings: automdm.ServerSettings{
+			ServerURL: "https://automdm.example.com",
 		},
-		SSOSettings: &fleet.SSOSettings{
+		SSOSettings: &automdm.SSOSettings{
 			EnableSSO:    true,
-			SSOServerURL: "https://admin.fleet.example.com",
-			SSOProviderSettings: fleet.SSOProviderSettings{
-				EntityID: "fleet",
+			SSOServerURL: "https://admin.automdm.example.com",
+			SSOProviderSettings: automdm.SSOProviderSettings{
+				EntityID: "automdm",
 				IDPName:  "TestIDP",
 				Metadata: testSSOMetadata(),
 			},
 		},
 	}
 
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
 		return appConfig, nil
 	}
 
@@ -648,11 +648,11 @@ func TestInitiateSSOACSURLWithURLPrefix(t *testing.T) {
 	}{
 		{
 			name:      "server_url includes the subpath",
-			serverURL: "https://fleet.example.com/apps/fleet",
+			serverURL: "https://automdm.example.com/apps/automdm",
 		},
 		{
 			name:      "server_url omits the subpath",
-			serverURL: "https://fleet.example.com",
+			serverURL: "https://automdm.example.com",
 		},
 	}
 
@@ -662,26 +662,26 @@ func TestInitiateSSOACSURLWithURLPrefix(t *testing.T) {
 			pool := redistest.NopRedis()
 
 			cfg := config.TestConfig()
-			cfg.Server.URLPrefix = "/apps/fleet"
+			cfg.Server.URLPrefix = "/apps/automdm"
 
 			svc, ctx := newTestServiceWithConfig(t, ds, cfg, nil, nil, &TestServerOpts{
 				Pool: pool,
 			})
 
-			appConfig := &fleet.AppConfig{
-				ServerSettings: fleet.ServerSettings{
+			appConfig := &automdm.AppConfig{
+				ServerSettings: automdm.ServerSettings{
 					ServerURL: tc.serverURL,
 				},
-				SSOSettings: &fleet.SSOSettings{
+				SSOSettings: &automdm.SSOSettings{
 					EnableSSO: true,
-					SSOProviderSettings: fleet.SSOProviderSettings{
-						EntityID: "fleet",
+					SSOProviderSettings: automdm.SSOProviderSettings{
+						EntityID: "automdm",
 						IDPName:  "TestIDP",
 						Metadata: testSSOMetadata(),
 					},
 				},
 			}
-			ds.AppConfigFunc = func(_ context.Context) (*fleet.AppConfig, error) {
+			ds.AppConfigFunc = func(_ context.Context) (*automdm.AppConfig, error) {
 				return appConfig, nil
 			}
 
@@ -697,7 +697,7 @@ func TestInitiateSSOACSURLWithURLPrefix(t *testing.T) {
 			authReq := inflate(t, encoded)
 			require.NotNil(t, authReq.AssertionConsumerServiceURL)
 			require.Equal(t,
-				"https://fleet.example.com/apps/fleet/api/v1/fleet/sso/callback",
+				"https://automdm.example.com/apps/automdm/api/v1/automdm/sso/callback",
 				authReq.AssertionConsumerServiceURL,
 			)
 		})
@@ -719,40 +719,40 @@ func TestInitiateSSOWithTrailingSlash(t *testing.T) {
 	}{
 		{
 			name:         "server URL with trailing slash",
-			serverURL:    "https://fleet.example.com/",
+			serverURL:    "https://automdm.example.com/",
 			ssoServerURL: "",
 		},
 		{
 			name:         "SSO server URL with trailing slash",
-			serverURL:    "https://fleet.example.com",
-			ssoServerURL: "https://admin.fleet.example.com/",
+			serverURL:    "https://automdm.example.com",
+			ssoServerURL: "https://admin.automdm.example.com/",
 		},
 		{
 			name:         "both URLs with trailing slash",
-			serverURL:    "https://fleet.example.com/",
-			ssoServerURL: "https://admin.fleet.example.com/",
+			serverURL:    "https://automdm.example.com/",
+			ssoServerURL: "https://admin.automdm.example.com/",
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// Mock app config
-			appConfig := &fleet.AppConfig{
-				ServerSettings: fleet.ServerSettings{
+			appConfig := &automdm.AppConfig{
+				ServerSettings: automdm.ServerSettings{
 					ServerURL: tc.serverURL,
 				},
-				SSOSettings: &fleet.SSOSettings{
+				SSOSettings: &automdm.SSOSettings{
 					EnableSSO:    true,
 					SSOServerURL: tc.ssoServerURL,
-					SSOProviderSettings: fleet.SSOProviderSettings{
-						EntityID: "fleet",
+					SSOProviderSettings: automdm.SSOProviderSettings{
+						EntityID: "automdm",
 						IDPName:  "TestIDP",
 						Metadata: testSSOMetadata(),
 					},
 				},
 			}
 
-			ds.AppConfigFunc = func(_ context.Context) (*fleet.AppConfig, error) {
+			ds.AppConfigFunc = func(_ context.Context) (*automdm.AppConfig, error) {
 				return appConfig, nil
 			}
 
@@ -766,18 +766,18 @@ func TestInitiateSSOWithTrailingSlash(t *testing.T) {
 }
 
 // The relay URL is where the browser lands after the IdP callback, so only a
-// path on the Fleet origin is acceptable; anything carrying a host would turn
+// path on the AutoMDM origin is acceptable; anything carrying a host would turn
 // the login flow into a redirect off-site.
 func TestInitiateSSORelayURLMustBeRelativePath(t *testing.T) {
 	ds := new(mock.Store)
 	pool := redistest.NopRedis()
 	svc, ctx := newTestServiceWithConfig(t, ds, config.TestConfig(), nil, nil, &TestServerOpts{Pool: pool})
-	ds.AppConfigFunc = func(_ context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{
-			ServerSettings: fleet.ServerSettings{ServerURL: "https://fleet.example.com"},
-			SSOSettings: &fleet.SSOSettings{
+	ds.AppConfigFunc = func(_ context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{
+			ServerSettings: automdm.ServerSettings{ServerURL: "https://automdm.example.com"},
+			SSOSettings: &automdm.SSOSettings{
 				EnableSSO: true,
-				EntityID:  "fleet",
+				EntityID:  "automdm",
 				IDPName:   "TestIDP",
 				Metadata:  testSSOMetadata(),
 			},
@@ -794,7 +794,7 @@ func TestInitiateSSORelayURLMustBeRelativePath(t *testing.T) {
 
 	rejected := []string{
 		"https://evil.example/login",
-		"http://fleet.example.com/dashboard", // absolute even when same host: the API documents a relative URL
+		"http://automdm.example.com/dashboard", // absolute even when same host: the API documents a relative URL
 		"//evil.example/login",
 		`/\evil.example/login`,
 		"javascript:alert(1)",
@@ -805,7 +805,7 @@ func TestInitiateSSORelayURLMustBeRelativePath(t *testing.T) {
 		t.Run("rejects "+relayURL, func(t *testing.T) {
 			_, _, _, err := svc.InitiateSSO(ctx, relayURL)
 			require.Error(t, err)
-			var badReq *fleet.BadRequestError
+			var badReq *automdm.BadRequestError
 			require.ErrorAs(t, err, &badReq)
 		})
 	}
@@ -817,12 +817,12 @@ func TestInitiateSSOStoresRelayURL(t *testing.T) {
 	ds := new(mock.Store)
 	pool := redistest.SetupRedis(t, t.Name(), false, false, false)
 	svc, ctx := newTestServiceWithConfig(t, ds, config.TestConfig(), nil, nil, &TestServerOpts{Pool: pool})
-	ds.AppConfigFunc = func(_ context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{
-			ServerSettings: fleet.ServerSettings{ServerURL: "https://fleet.example.com"},
-			SSOSettings: &fleet.SSOSettings{
+	ds.AppConfigFunc = func(_ context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{
+			ServerSettings: automdm.ServerSettings{ServerURL: "https://automdm.example.com"},
+			SSOSettings: &automdm.SSOSettings{
 				EnableSSO: true,
-				EntityID:  "fleet",
+				EntityID:  "automdm",
 				IDPName:   "TestIDP",
 				Metadata:  testSSOMetadata(),
 			},
@@ -849,21 +849,21 @@ func TestInitiateSSOWithInvalidURL(t *testing.T) {
 	})
 
 	// Mock app config with invalid URL
-	appConfig := &fleet.AppConfig{
-		ServerSettings: fleet.ServerSettings{
+	appConfig := &automdm.AppConfig{
+		ServerSettings: automdm.ServerSettings{
 			ServerURL: "not-a-valid-url://%%%",
 		},
-		SSOSettings: &fleet.SSOSettings{
+		SSOSettings: &automdm.SSOSettings{
 			EnableSSO: true,
-			SSOProviderSettings: fleet.SSOProviderSettings{
-				EntityID: "fleet",
+			SSOProviderSettings: automdm.SSOProviderSettings{
+				EntityID: "automdm",
 				IDPName:  "TestIDP",
 				Metadata: testSSOMetadata(),
 			},
 		},
 	}
 
-	ds.AppConfigFunc = func(_ context.Context) (*fleet.AppConfig, error) {
+	ds.AppConfigFunc = func(_ context.Context) (*automdm.AppConfig, error) {
 		return appConfig, nil
 	}
 
@@ -872,7 +872,7 @@ func TestInitiateSSOWithInvalidURL(t *testing.T) {
 	require.Error(t, err)
 
 	// Verify it's a bad request error
-	var badReqErr *fleet.BadRequestError
+	var badReqErr *automdm.BadRequestError
 	require.ErrorAs(t, err, &badReqErr)
 	require.Contains(t, badReqErr.Message, "invalid SSO URL")
 }
@@ -882,12 +882,12 @@ func TestDecodeCallbackRequestSAMLResponseSizeCap(t *testing.T) {
 	// POST body and the URL query string. WithRequestBodySizeLimit only bounds
 	// the body, so the value-level cap must reject an oversized query argument.
 	t.Run("oversized SAMLResponse in query string is rejected", func(t *testing.T) {
-		oversized := strings.Repeat("A", int(fleet.MaxSSOCallbackSize)+1)
-		r := httptest.NewRequest("POST", "/api/v1/fleet/sso/callback?SAMLResponse="+oversized, nil)
+		oversized := strings.Repeat("A", int(automdm.MaxSSOCallbackSize)+1)
+		r := httptest.NewRequest("POST", "/api/v1/automdm/sso/callback?SAMLResponse="+oversized, nil)
 
 		_, _, _, err := decodeCallbackRequest(t.Context(), r)
 		require.Error(t, err)
-		var bre *fleet.BadRequestError
+		var bre *automdm.BadRequestError
 		require.ErrorAs(t, err, &bre)
 		require.Contains(t, bre.Message, "too large")
 	})
@@ -895,7 +895,7 @@ func TestDecodeCallbackRequestSAMLResponseSizeCap(t *testing.T) {
 	t.Run("normally-sized SAMLResponse passes the size check", func(t *testing.T) {
 		small := base64.StdEncoding.EncodeToString([]byte("<x/>"))
 		form := url.Values{"SAMLResponse": {small}}
-		r := httptest.NewRequest("POST", "/api/v1/fleet/sso/callback", strings.NewReader(form.Encode()))
+		r := httptest.NewRequest("POST", "/api/v1/automdm/sso/callback", strings.NewReader(form.Encode()))
 		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 		_, decoded, _, err := decodeCallbackRequest(t.Context(), r)
@@ -905,10 +905,10 @@ func TestDecodeCallbackRequestSAMLResponseSizeCap(t *testing.T) {
 }
 
 func TestDecodeCallbackRequestRelayState(t *testing.T) {
-	postWith := func(t *testing.T, form url.Values) fleet.SSORelayState {
+	postWith := func(t *testing.T, form url.Values) automdm.SSORelayState {
 		t.Helper()
 		form.Set("SAMLResponse", base64.StdEncoding.EncodeToString([]byte("<x/>")))
-		r := httptest.NewRequest("POST", "/api/v1/fleet/mdm/sso/callback", strings.NewReader(form.Encode()))
+		r := httptest.NewRequest("POST", "/api/v1/automdm/mdm/sso/callback", strings.NewReader(form.Encode()))
 		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 		_, _, relayState, err := decodeCallbackRequest(t.Context(), r)
@@ -918,8 +918,8 @@ func TestDecodeCallbackRequestRelayState(t *testing.T) {
 
 	t.Run("a recognized value survives the form round trip", func(t *testing.T) {
 		require.Equal(t,
-			fleet.SSORelayState(fleet.SSOInitiatorFleetDesktop),
-			postWith(t, url.Values{"RelayState": {fleet.SSOInitiatorFleetDesktop}}))
+			automdm.SSORelayState(automdm.SSOInitiatorAutoMDMDesktop),
+			postWith(t, url.Values{"RelayState": {automdm.SSOInitiatorAutoMDMDesktop}}))
 	})
 
 	t.Run("an absent RelayState decodes to empty", func(t *testing.T) {

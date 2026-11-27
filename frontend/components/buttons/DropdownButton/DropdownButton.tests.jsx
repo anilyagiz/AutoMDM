@@ -39,7 +39,7 @@ describe("DropdownButton - component", () => {
       <DropdownButton
         options={[
           {
-            label: "Rename fleet",
+            label: "Rename team",
             onClick: noop,
             disabled: true,
             gitOpsModeCompatible: true,
@@ -50,7 +50,7 @@ describe("DropdownButton - component", () => {
       </DropdownButton>
     );
 
-    await user.hover(screen.getByRole("button", { name: "Rename fleet" }));
+    await user.hover(screen.getByRole("button", { name: "Rename team" }));
     await waitFor(() => {
       expect(screen.getByRole("tooltip")).toBeInTheDocument();
     });
@@ -61,7 +61,7 @@ describe("DropdownButton - component", () => {
       <DropdownButton
         options={[
           {
-            label: "Rename fleet",
+            label: "Rename team",
             onClick: noop,
             disabled: true,
             gitOpsModeCompatible: true,
@@ -73,7 +73,7 @@ describe("DropdownButton - component", () => {
     );
 
     expect(container.querySelector(".gitops-mode-tooltip-wrapper")).toBeNull();
-    expect(screen.getByRole("button", { name: "Rename fleet" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Rename team" })).toBeDisabled();
   });
 
   it("does not wrap an enabled GitOps-compatible option in GitOps mode", () => {
@@ -90,7 +90,7 @@ describe("DropdownButton - component", () => {
       <DropdownButton
         options={[
           {
-            label: "Rename fleet",
+            label: "Rename team",
             onClick: noop,
             disabled: false,
             gitOpsModeCompatible: true,
@@ -102,6 +102,6 @@ describe("DropdownButton - component", () => {
     );
 
     expect(container.querySelector(".gitops-mode-tooltip-wrapper")).toBeNull();
-    expect(screen.getByRole("button", { name: "Rename fleet" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Rename team" })).toBeEnabled();
   });
 });

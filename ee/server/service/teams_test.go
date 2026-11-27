@@ -8,29 +8,29 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/pkg/optjson"
-	"github.com/fleetdm/fleet/v4/server/authz"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	mdmtest "github.com/fleetdm/fleet/v4/server/mdm/testing_utils"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	svcmock "github.com/fleetdm/fleet/v4/server/mock/service"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/pkg/optjson"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	mdmtest "github.com/anilyagiz/automdm/v4/server/mdm/testing_utils"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	svcmock "github.com/anilyagiz/automdm/v4/server/mock/service"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
 )
 
 func TestNewTeamNameValidation(t *testing.T) {
 	ds := new(mock.Store)
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
 	}
-	ds.NewTeamFunc = func(ctx context.Context, team *fleet.Team) (*fleet.Team, error) {
+	ds.NewTeamFunc = func(ctx context.Context, team *automdm.Team) (*automdm.Team, error) {
 		team.ID = 1
 		return team, nil
 	}
-	ds.TeamConflictsWithNameFunc = func(ctx context.Context, name string, excludeID uint) (*fleet.Team, error) {
+	ds.TeamConflictsWithNameFunc = func(ctx context.Context, name string, excludeID uint) (*automdm.Team, error) {
 		return nil, nil
 	}
 
@@ -38,22 +38,22 @@ func TestNewTeamNameValidation(t *testing.T) {
 	require.NoError(t, err)
 
 	mockSvc := &svcmock.Service{}
-	mockSvc.NewActivityFunc = func(ctx context.Context, user *fleet.User, activity fleet.ActivityDetails) error {
+	mockSvc.NewActivityFunc = func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error {
 		return nil
 	}
 
 	svc := &Service{
 		Service: mockSvc,
 		ds:      ds,
-		config: config.FleetConfig{
+		config: config.AutoMDMConfig{
 			Server: config.ServerConfig{PrivateKey: "something"},
 		},
 		authz: authorizer,
 	}
 
-	adminUser := &fleet.User{
+	adminUser := &automdm.User{
 		ID:         1,
-		GlobalRole: ptr.String(fleet.RoleAdmin),
+		GlobalRole: ptr.String(automdm.RoleAdmin),
 	}
 	ctx := test.UserContext(context.Background(), adminUser)
 
@@ -139,20 +139,20 @@ func TestNewTeamNameValidation(t *testing.T) {
 		},
 		{
 			name:     "name at max length is accepted",
-			teamName: new(strings.Repeat("a", fleet.MaxTeamNameLength)),
-			wantName: strings.Repeat("a", fleet.MaxTeamNameLength),
+			teamName: new(strings.Repeat("a", automdm.MaxTeamNameLength)),
+			wantName: strings.Repeat("a", automdm.MaxTeamNameLength),
 		},
 		{
 			name:     "name over max length is rejected",
-			teamName: new(strings.Repeat("a", fleet.MaxTeamNameLength+1)),
-			wantErr:  fmt.Sprintf("may not exceed %d characters", fleet.MaxTeamNameLength),
+			teamName: new(strings.Repeat("a", automdm.MaxTeamNameLength+1)),
+			wantErr:  fmt.Sprintf("may not exceed %d characters", automdm.MaxTeamNameLength),
 		},
 		{
 			// Guards against regressing to byte-based length checks, which
 			// would reject multibyte names that fit within the character cap.
 			name:     "multibyte name at max character length is accepted",
-			teamName: new(strings.Repeat("日", fleet.MaxTeamNameLength)),
-			wantName: strings.Repeat("日", fleet.MaxTeamNameLength),
+			teamName: new(strings.Repeat("日", automdm.MaxTeamNameLength)),
+			wantName: strings.Repeat("日", automdm.MaxTeamNameLength),
 		},
 		{
 			name:     "emoji only is rejected",
@@ -216,14 +216,14 @@ func TestNewTeamNameValidation(t *testing.T) {
 		},
 		{
 			name:     "name with an emoji is accepted",
-			teamName: new("Fleet 🚀"),
-			wantName: "Fleet 🚀",
+			teamName: new("AutoMDM 🚀"),
+			wantName: "AutoMDM 🚀",
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			payload := fleet.TeamPayload{Name: tc.teamName}
+			payload := automdm.TeamPayload{Name: tc.teamName}
 
 			team, err := svc.NewTeam(ctx, payload)
 			if tc.wantErr != "" {
@@ -241,23 +241,23 @@ func TestNewTeamNameValidation(t *testing.T) {
 
 func TestModifyTeamNameValidation(t *testing.T) {
 	ds := new(mock.Store)
-	ds.TeamWithExtrasFunc = func(ctx context.Context, tid uint) (*fleet.Team, error) {
-		return &fleet.Team{ID: tid, Name: "existing-team"}, nil
+	ds.TeamWithExtrasFunc = func(ctx context.Context, tid uint) (*automdm.Team, error) {
+		return &automdm.Team{ID: tid, Name: "existing-team"}, nil
 	}
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
 	}
-	ds.SaveTeamFunc = func(ctx context.Context, team *fleet.Team) (*fleet.Team, error) {
+	ds.SaveTeamFunc = func(ctx context.Context, team *automdm.Team) (*automdm.Team, error) {
 		return team, nil
 	}
-	ds.TeamConflictsWithNameFunc = func(ctx context.Context, name string, excludeID uint) (*fleet.Team, error) {
+	ds.TeamConflictsWithNameFunc = func(ctx context.Context, name string, excludeID uint) (*automdm.Team, error) {
 		return nil, nil
 	}
-	// A successful rename reconciles the fleet names copied into the app config.
+	// A successful rename reconciles the team names copied into the app config.
 	ds.GetABMTokenOrgNamesAssociatedByDefaultTeamsFunc = func(context.Context, *uint) ([]string, error) {
 		return nil, nil
 	}
-	ds.ListVPPTokensFunc = func(context.Context) ([]*fleet.VPPTokenDB, error) {
+	ds.ListVPPTokensFunc = func(context.Context) ([]*automdm.VPPTokenDB, error) {
 		return nil, nil
 	}
 
@@ -265,22 +265,22 @@ func TestModifyTeamNameValidation(t *testing.T) {
 	require.NoError(t, err)
 
 	mockSvc := &svcmock.Service{}
-	mockSvc.NewActivityFunc = func(ctx context.Context, user *fleet.User, activity fleet.ActivityDetails) error {
+	mockSvc.NewActivityFunc = func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error {
 		return nil
 	}
 
 	svc := &Service{
 		Service: mockSvc,
 		ds:      ds,
-		config: config.FleetConfig{
+		config: config.AutoMDMConfig{
 			Server: config.ServerConfig{PrivateKey: "something"},
 		},
 		authz: authorizer,
 	}
 
-	adminUser := &fleet.User{
+	adminUser := &automdm.User{
 		ID:         1,
-		GlobalRole: ptr.String(fleet.RoleAdmin),
+		GlobalRole: ptr.String(automdm.RoleAdmin),
 	}
 	ctx := test.UserContext(context.Background(), adminUser)
 
@@ -351,18 +351,18 @@ func TestModifyTeamNameValidation(t *testing.T) {
 		},
 		{
 			name:     "name at max length is accepted",
-			teamName: new(strings.Repeat("a", fleet.MaxTeamNameLength)),
-			wantName: strings.Repeat("a", fleet.MaxTeamNameLength),
+			teamName: new(strings.Repeat("a", automdm.MaxTeamNameLength)),
+			wantName: strings.Repeat("a", automdm.MaxTeamNameLength),
 		},
 		{
 			name:     "name over max length is rejected",
-			teamName: new(strings.Repeat("a", fleet.MaxTeamNameLength+1)),
-			wantErr:  fmt.Sprintf("may not exceed %d characters", fleet.MaxTeamNameLength),
+			teamName: new(strings.Repeat("a", automdm.MaxTeamNameLength+1)),
+			wantErr:  fmt.Sprintf("may not exceed %d characters", automdm.MaxTeamNameLength),
 		},
 		{
 			name:     "multibyte name at max character length is accepted",
-			teamName: new(strings.Repeat("日", fleet.MaxTeamNameLength)),
-			wantName: strings.Repeat("日", fleet.MaxTeamNameLength),
+			teamName: new(strings.Repeat("日", automdm.MaxTeamNameLength)),
+			wantName: strings.Repeat("日", automdm.MaxTeamNameLength),
 		},
 		{
 			name:     "emoji only is rejected",
@@ -426,14 +426,14 @@ func TestModifyTeamNameValidation(t *testing.T) {
 		},
 		{
 			name:     "name with an emoji is accepted",
-			teamName: new("Fleet 🚀"),
-			wantName: "Fleet 🚀",
+			teamName: new("AutoMDM 🚀"),
+			wantName: "AutoMDM 🚀",
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			payload := fleet.TeamPayload{Name: tc.teamName}
+			payload := automdm.TeamPayload{Name: tc.teamName}
 
 			team, err := svc.ModifyTeam(ctx, 1, payload)
 			if tc.wantErr != "" {
@@ -451,13 +451,13 @@ func TestModifyTeamNameValidation(t *testing.T) {
 
 func TestApplyTeamSpecsNameValidation(t *testing.T) {
 	ds := new(mock.Store)
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
 	}
-	ds.TeamByNameFunc = func(ctx context.Context, name string) (*fleet.Team, error) {
+	ds.TeamByNameFunc = func(ctx context.Context, name string) (*automdm.Team, error) {
 		return nil, &notFoundError{}
 	}
-	ds.TeamConflictsWithNameFunc = func(ctx context.Context, name string, excludeID uint) (*fleet.Team, error) {
+	ds.TeamConflictsWithNameFunc = func(ctx context.Context, name string, excludeID uint) (*automdm.Team, error) {
 		return nil, nil
 	}
 
@@ -466,15 +466,15 @@ func TestApplyTeamSpecsNameValidation(t *testing.T) {
 
 	svc := &Service{
 		ds: ds,
-		config: config.FleetConfig{
+		config: config.AutoMDMConfig{
 			Server: config.ServerConfig{PrivateKey: "something"},
 		},
 		authz: authorizer,
 	}
 
-	adminUser := &fleet.User{
+	adminUser := &automdm.User{
 		ID:         1,
-		GlobalRole: ptr.String(fleet.RoleAdmin),
+		GlobalRole: ptr.String(automdm.RoleAdmin),
 	}
 	ctx := test.UserContext(context.Background(), adminUser)
 
@@ -483,7 +483,7 @@ func TestApplyTeamSpecsNameValidation(t *testing.T) {
 	}
 
 	mockSvc := &svcmock.Service{}
-	mockSvc.NewActivityFunc = func(ctx context.Context, user *fleet.User, activity fleet.ActivityDetails) error {
+	mockSvc.NewActivityFunc = func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error {
 		return nil
 	}
 	svc.Service = mockSvc
@@ -541,18 +541,18 @@ func TestApplyTeamSpecsNameValidation(t *testing.T) {
 		},
 		{
 			name:     "name at max length is accepted",
-			teamName: strings.Repeat("a", fleet.MaxTeamNameLength),
-			wantName: strings.Repeat("a", fleet.MaxTeamNameLength),
+			teamName: strings.Repeat("a", automdm.MaxTeamNameLength),
+			wantName: strings.Repeat("a", automdm.MaxTeamNameLength),
 		},
 		{
 			name:     "name over max length is rejected",
-			teamName: strings.Repeat("a", fleet.MaxTeamNameLength+1),
-			wantErr:  fmt.Sprintf("may not exceed %d characters", fleet.MaxTeamNameLength),
+			teamName: strings.Repeat("a", automdm.MaxTeamNameLength+1),
+			wantErr:  fmt.Sprintf("may not exceed %d characters", automdm.MaxTeamNameLength),
 		},
 		{
 			name:     "multibyte name at max character length is accepted",
-			teamName: strings.Repeat("日", fleet.MaxTeamNameLength),
-			wantName: strings.Repeat("日", fleet.MaxTeamNameLength),
+			teamName: strings.Repeat("日", automdm.MaxTeamNameLength),
+			wantName: strings.Repeat("日", automdm.MaxTeamNameLength),
 		},
 		{
 			name:     "emoji only is rejected",
@@ -616,16 +616,16 @@ func TestApplyTeamSpecsNameValidation(t *testing.T) {
 		},
 		{
 			name:     "name with an emoji is accepted",
-			teamName: "Fleet 🚀",
-			wantName: "Fleet 🚀",
+			teamName: "AutoMDM 🚀",
+			wantName: "AutoMDM 🚀",
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result, err := svc.ApplyTeamSpecs(ctx, []*fleet.TeamSpec{
+			result, err := svc.ApplyTeamSpecs(ctx, []*automdm.TeamSpec{
 				{Name: tc.teamName},
-			}, fleet.ApplyTeamSpecOptions{ApplySpecOptions: fleet.ApplySpecOptions{DryRun: true}})
+			}, automdm.ApplyTeamSpecOptions{ApplySpecOptions: automdm.ApplySpecOptions{DryRun: true}})
 			if tc.wantErr != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tc.wantErr)
@@ -641,44 +641,44 @@ func TestApplyTeamSpecsNameValidation(t *testing.T) {
 // collides with an existing team under MySQL's collation.
 func TestNewTeamCollationEqualConflict(t *testing.T) {
 	ds := new(mock.Store)
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
 	}
-	ds.NewTeamFunc = func(ctx context.Context, team *fleet.Team) (*fleet.Team, error) {
+	ds.NewTeamFunc = func(ctx context.Context, team *automdm.Team) (*automdm.Team, error) {
 		t.Fatalf("NewTeam should not be called when a conflict is detected")
 		return nil, nil
 	}
-	ds.TeamConflictsWithNameFunc = func(ctx context.Context, name string, excludeID uint) (*fleet.Team, error) {
+	ds.TeamConflictsWithNameFunc = func(ctx context.Context, name string, excludeID uint) (*automdm.Team, error) {
 		require.Equal(t, uint(0), excludeID)
-		return &fleet.Team{ID: 42, Name: "ABC"}, nil
+		return &automdm.Team{ID: 42, Name: "ABC"}, nil
 	}
 
 	authorizer, err := authz.NewAuthorizer()
 	require.NoError(t, err)
 
 	mockSvc := &svcmock.Service{}
-	mockSvc.NewActivityFunc = func(ctx context.Context, user *fleet.User, activity fleet.ActivityDetails) error {
+	mockSvc.NewActivityFunc = func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error {
 		return nil
 	}
 
 	svc := &Service{
 		Service: mockSvc,
 		ds:      ds,
-		config: config.FleetConfig{
+		config: config.AutoMDMConfig{
 			Server: config.ServerConfig{PrivateKey: "something"},
 		},
 		authz: authorizer,
 	}
 
-	adminUser := &fleet.User{ID: 1, GlobalRole: new(fleet.RoleAdmin)}
+	adminUser := &automdm.User{ID: 1, GlobalRole: new(automdm.RoleAdmin)}
 	ctx := test.UserContext(context.Background(), adminUser)
 
-	_, err = svc.NewTeam(ctx, fleet.TeamPayload{Name: new("abc")})
+	_, err = svc.NewTeam(ctx, automdm.TeamPayload{Name: new("abc")})
 	require.Error(t, err)
-	var conflict *fleet.ConflictError
+	var conflict *automdm.ConflictError
 	require.ErrorAs(t, err, &conflict)
 	require.Contains(t, err.Error(), `"ABC"`)
-	require.Contains(t, err.Error(), fleet.TeamNameConflictHint)
+	require.Contains(t, err.Error(), automdm.TeamNameConflictHint)
 }
 
 // TestModifyTeamCaseOnlyRenameAndConflict covers two ModifyTeam scenarios:
@@ -688,21 +688,21 @@ func TestNewTeamCollationEqualConflict(t *testing.T) {
 //     team.
 func TestModifyTeamCaseOnlyRenameAndConflict(t *testing.T) {
 	ds := new(mock.Store)
-	ds.TeamWithExtrasFunc = func(ctx context.Context, tid uint) (*fleet.Team, error) {
-		return &fleet.Team{ID: tid, Name: "ABC"}, nil
+	ds.TeamWithExtrasFunc = func(ctx context.Context, tid uint) (*automdm.Team, error) {
+		return &automdm.Team{ID: tid, Name: "ABC"}, nil
 	}
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
 	}
-	ds.SaveTeamFunc = func(ctx context.Context, team *fleet.Team) (*fleet.Team, error) {
+	ds.SaveTeamFunc = func(ctx context.Context, team *automdm.Team) (*automdm.Team, error) {
 		return team, nil
 	}
-	// A case-only rename is still a rename, so it reconciles the fleet names
+	// A case-only rename is still a rename, so it reconciles the team names
 	// copied into the app config.
 	ds.GetABMTokenOrgNamesAssociatedByDefaultTeamsFunc = func(context.Context, *uint) ([]string, error) {
 		return nil, nil
 	}
-	ds.ListVPPTokensFunc = func(context.Context) ([]*fleet.VPPTokenDB, error) {
+	ds.ListVPPTokensFunc = func(context.Context) ([]*automdm.VPPTokenDB, error) {
 		return nil, nil
 	}
 
@@ -710,81 +710,81 @@ func TestModifyTeamCaseOnlyRenameAndConflict(t *testing.T) {
 	require.NoError(t, err)
 
 	mockSvc := &svcmock.Service{}
-	mockSvc.NewActivityFunc = func(ctx context.Context, user *fleet.User, activity fleet.ActivityDetails) error {
+	mockSvc.NewActivityFunc = func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error {
 		return nil
 	}
 
 	svc := &Service{
 		Service: mockSvc,
 		ds:      ds,
-		config: config.FleetConfig{
+		config: config.AutoMDMConfig{
 			Server: config.ServerConfig{PrivateKey: "something"},
 		},
 		authz: authorizer,
 	}
 
-	adminUser := &fleet.User{ID: 1, GlobalRole: new(fleet.RoleAdmin)}
+	adminUser := &automdm.User{ID: 1, GlobalRole: new(automdm.RoleAdmin)}
 	ctx := test.UserContext(context.Background(), adminUser)
 
 	t.Run("case-only self rename succeeds", func(t *testing.T) {
-		ds.TeamConflictsWithNameFunc = func(ctx context.Context, name string, excludeID uint) (*fleet.Team, error) {
+		ds.TeamConflictsWithNameFunc = func(ctx context.Context, name string, excludeID uint) (*automdm.Team, error) {
 			require.Equal(t, uint(5), excludeID)
 			return nil, nil
 		}
 
-		team, err := svc.ModifyTeam(ctx, 5, fleet.TeamPayload{Name: new("abc")})
+		team, err := svc.ModifyTeam(ctx, 5, automdm.TeamPayload{Name: new("abc")})
 		require.NoError(t, err)
 		require.NotNil(t, team)
 		require.Equal(t, "abc", team.Name)
 	})
 
 	t.Run("rename into another team's name conflicts", func(t *testing.T) {
-		ds.TeamConflictsWithNameFunc = func(ctx context.Context, name string, excludeID uint) (*fleet.Team, error) {
+		ds.TeamConflictsWithNameFunc = func(ctx context.Context, name string, excludeID uint) (*automdm.Team, error) {
 			require.Equal(t, uint(5), excludeID)
-			return &fleet.Team{ID: 6, Name: "def"}, nil
+			return &automdm.Team{ID: 6, Name: "def"}, nil
 		}
 
-		team, err := svc.ModifyTeam(ctx, 5, fleet.TeamPayload{Name: new("DEF")})
+		team, err := svc.ModifyTeam(ctx, 5, automdm.TeamPayload{Name: new("DEF")})
 		require.Error(t, err)
 		require.Nil(t, team)
-		var conflict *fleet.ConflictError
+		var conflict *automdm.ConflictError
 		require.ErrorAs(t, err, &conflict)
 		require.Contains(t, err.Error(), `"def"`)
-		require.Contains(t, err.Error(), fleet.TeamNameConflictHint)
+		require.Contains(t, err.Error(), automdm.TeamNameConflictHint)
 	})
 }
 
 func TestModifyTeamWebhookSettingsPartialUpdate(t *testing.T) {
-	stored := func() fleet.TeamWebhookSettings {
-		return fleet.TeamWebhookSettings{
-			HostStatusWebhook: &fleet.HostStatusWebhookSettings{
+	stored := func() automdm.TeamWebhookSettings {
+		return automdm.TeamWebhookSettings{
+			HostStatusWebhook: &automdm.HostStatusWebhookSettings{
 				Enable: true, DestinationURL: "https://example.com/status", HostPercentage: 10, DaysCount: 2,
 			},
-			FailingPoliciesWebhook: fleet.FailingPoliciesWebhookSettings{
+			FailingPoliciesWebhook: automdm.FailingPoliciesWebhookSettings{
 				Enable: true, DestinationURL: "https://example.com/policies", HostBatchSize: 5,
 			},
-			HostActivitiesWebhook: &fleet.HostActivitiesWebhookSettings{
+			HostActivitiesWebhook: &automdm.HostActivitiesWebhookSettings{
 				Enable: true, DestinationURL: "https://example.com/activities",
 			},
 		}
 	}
 
 	ds := new(mock.Store)
-	var saved fleet.TeamWebhookSettings
-	ds.TeamWithExtrasFunc = func(ctx context.Context, tid uint) (*fleet.Team, error) {
-		return &fleet.Team{ID: tid, Name: "team", Config: fleet.TeamConfig{WebhookSettings: stored()}}, nil
+	var saved automdm.TeamWebhookSettings
+	ds.TeamWithExtrasFunc = func(ctx context.Context, tid uint) (*automdm.Team, error) {
+		return &automdm.Team{ID: tid, Name: "team", Config: automdm.TeamConfig{WebhookSettings: stored()}}, nil
 	}
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
 	}
-	ds.SaveTeamFunc = func(ctx context.Context, team *fleet.Team) (*fleet.Team, error) {
+	ds.SaveTeamFunc = func(ctx context.Context, team *automdm.Team) (*automdm.Team, error) {
 		saved = team.Config.WebhookSettings
 		return team, nil
 	}
-	ds.DefaultTeamConfigFunc = func(ctx context.Context) (*fleet.TeamConfig, error) {
-		return &fleet.TeamConfig{WebhookSettings: stored()}, nil
+	ds.DefaultTeamConfigFunc = func(ctx context.Context) (*automdm.TeamConfig, error) {
+		return &automdm.TeamConfig{WebhookSettings: stored()}, nil
 	}
-	ds.SaveDefaultTeamConfigFunc = func(ctx context.Context, config *fleet.TeamConfig) error {
+	ds.SaveDefaultTeamConfigFunc = func(ctx context.Context, config *automdm.TeamConfig) error {
 		saved = config.WebhookSettings
 		return nil
 	}
@@ -792,54 +792,54 @@ func TestModifyTeamWebhookSettingsPartialUpdate(t *testing.T) {
 	authorizer, err := authz.NewAuthorizer()
 	require.NoError(t, err)
 	svc := &Service{Service: &svcmock.Service{}, ds: ds, authz: authorizer}
-	ctx := test.UserContext(t.Context(), &fleet.User{ID: 1, GlobalRole: new(fleet.RoleAdmin)})
+	ctx := test.UserContext(t.Context(), &automdm.User{ID: 1, GlobalRole: new(automdm.RoleAdmin)})
 
 	// Bodies match what the UI sends: each page only sends the webhook it manages.
 	cases := []struct {
 		name string
 		body string
-		want func(w *fleet.TeamWebhookSettings)
+		want func(w *automdm.TeamWebhookSettings)
 	}{
 		{
-			name: "host status only (fleet settings page)",
+			name: "host status only (team settings page)",
 			body: `{"webhook_settings": {"host_status_webhook": {"enable_host_status_webhook": false, "destination_url": "https://example.com/status2", "host_percentage": 20, "days_count": 3}}}`,
-			want: func(w *fleet.TeamWebhookSettings) {
-				w.HostStatusWebhook = &fleet.HostStatusWebhookSettings{DestinationURL: "https://example.com/status2", HostPercentage: 20, DaysCount: 3}
+			want: func(w *automdm.TeamWebhookSettings) {
+				w.HostStatusWebhook = &automdm.HostStatusWebhookSettings{DestinationURL: "https://example.com/status2", HostPercentage: 20, DaysCount: 3}
 			},
 		},
 		{
 			name: "failing policies only (policies automations)",
 			body: `{"webhook_settings": {"failing_policies_webhook": {"enable_failing_policies_webhook": true, "destination_url": "https://example.com/policies2", "host_batch_size": 0}}}`,
-			want: func(w *fleet.TeamWebhookSettings) {
-				w.FailingPoliciesWebhook = fleet.FailingPoliciesWebhookSettings{Enable: true, DestinationURL: "https://example.com/policies2"}
+			want: func(w *automdm.TeamWebhookSettings) {
+				w.FailingPoliciesWebhook = automdm.FailingPoliciesWebhookSettings{Enable: true, DestinationURL: "https://example.com/policies2"}
 			},
 		},
 		{
 			name: "host activities only (hosts page automations)",
 			body: `{"webhook_settings": {"host_activities_webhook": {"enable_host_activities_webhook": false, "destination_url": ""}}}`,
-			want: func(w *fleet.TeamWebhookSettings) {
-				w.HostActivitiesWebhook = &fleet.HostActivitiesWebhookSettings{}
+			want: func(w *automdm.TeamWebhookSettings) {
+				w.HostActivitiesWebhook = &automdm.HostActivitiesWebhookSettings{}
 			},
 		},
 		{
 			name: "empty webhook settings change nothing",
 			body: `{"webhook_settings": {}}`,
-			want: func(w *fleet.TeamWebhookSettings) {},
+			want: func(w *automdm.TeamWebhookSettings) {},
 		},
 		{
 			name: "explicitly disabling failing policies",
 			body: `{"webhook_settings": {"failing_policies_webhook": {"enable_failing_policies_webhook": false}}}`,
-			want: func(w *fleet.TeamWebhookSettings) {
-				w.FailingPoliciesWebhook = fleet.FailingPoliciesWebhookSettings{}
+			want: func(w *automdm.TeamWebhookSettings) {
+				w.FailingPoliciesWebhook = automdm.FailingPoliciesWebhookSettings{}
 			},
 		},
 	}
 	for _, teamID := range []uint{5, 0} {
 		for _, c := range cases {
 			t.Run(fmt.Sprintf("team %d: %s", teamID, c.name), func(t *testing.T) {
-				var payload fleet.TeamPayload
+				var payload automdm.TeamPayload
 				require.NoError(t, json.Unmarshal([]byte(c.body), &payload))
-				saved = fleet.TeamWebhookSettings{}
+				saved = automdm.TeamWebhookSettings{}
 
 				_, err := svc.ModifyTeam(ctx, teamID, payload)
 				require.NoError(t, err)
@@ -861,42 +861,42 @@ func TestModifyTeamWebhookSettingsPartialUpdate(t *testing.T) {
 func TestApplyTeamSpecsCollationEqualConflict(t *testing.T) {
 	authorizer, err := authz.NewAuthorizer()
 	require.NoError(t, err)
-	adminUser := &fleet.User{ID: 1, GlobalRole: new(fleet.RoleAdmin)}
+	adminUser := &automdm.User{ID: 1, GlobalRole: new(automdm.RoleAdmin)}
 	ctx := test.UserContext(context.Background(), adminUser)
 
 	newSvc := func() (*Service, *mock.Store) {
 		ds := new(mock.Store)
-		ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-			return &fleet.AppConfig{}, nil
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{}, nil
 		}
 		ds.IsEnrollSecretAvailableFunc = func(ctx context.Context, secret string, newB bool, teamID *uint) (bool, error) {
 			return true, nil
 		}
-		ds.TeamByNameFunc = func(ctx context.Context, name string) (*fleet.Team, error) {
+		ds.TeamByNameFunc = func(ctx context.Context, name string) (*automdm.Team, error) {
 			return nil, &notFoundError{}
 		}
-		ds.TeamByFilenameFunc = func(ctx context.Context, filename string) (*fleet.Team, error) {
+		ds.TeamByFilenameFunc = func(ctx context.Context, filename string) (*automdm.Team, error) {
 			return nil, &notFoundError{}
 		}
-		ds.TeamConflictsWithNameFunc = func(ctx context.Context, name string, excludeID uint) (*fleet.Team, error) {
+		ds.TeamConflictsWithNameFunc = func(ctx context.Context, name string, excludeID uint) (*automdm.Team, error) {
 			return nil, nil
 		}
-		// A rename reconciles the fleet names copied into the app config.
+		// A rename reconciles the team names copied into the app config.
 		ds.GetABMTokenOrgNamesAssociatedByDefaultTeamsFunc = func(context.Context, *uint) ([]string, error) {
 			return nil, nil
 		}
-		ds.ListVPPTokensFunc = func(context.Context) ([]*fleet.VPPTokenDB, error) {
+		ds.ListVPPTokensFunc = func(context.Context) ([]*automdm.VPPTokenDB, error) {
 			return nil, nil
 		}
 
 		mockSvc := &svcmock.Service{}
-		mockSvc.NewActivityFunc = func(ctx context.Context, user *fleet.User, activity fleet.ActivityDetails) error {
+		mockSvc.NewActivityFunc = func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error {
 			return nil
 		}
 		svc := &Service{
 			Service: mockSvc,
 			ds:      ds,
-			config: config.FleetConfig{
+			config: config.AutoMDMConfig{
 				Server: config.ServerConfig{PrivateKey: "something"},
 			},
 			authz:  authorizer,
@@ -908,20 +908,20 @@ func TestApplyTeamSpecsCollationEqualConflict(t *testing.T) {
 	t.Run("case-only rename of existing team succeeds and persists new name", func(t *testing.T) {
 		svc, ds := newSvc()
 		filename := "abc.yml"
-		existing := &fleet.Team{ID: 7, Name: "ABC", Filename: new(filename)}
-		ds.TeamByFilenameFunc = func(ctx context.Context, f string) (*fleet.Team, error) {
+		existing := &automdm.Team{ID: 7, Name: "ABC", Filename: new(filename)}
+		ds.TeamByFilenameFunc = func(ctx context.Context, f string) (*automdm.Team, error) {
 			require.Equal(t, filename, f)
 			return existing, nil
 		}
 		conflictCalls := 0
-		ds.TeamConflictsWithNameFunc = func(ctx context.Context, name string, excludeID uint) (*fleet.Team, error) {
+		ds.TeamConflictsWithNameFunc = func(ctx context.Context, name string, excludeID uint) (*automdm.Team, error) {
 			conflictCalls++
 			require.Equal(t, uint(7), excludeID,
 				"conflict check must exclude the team matched by filename so a case-only rename succeeds")
 			return nil, nil
 		}
-		var savedTeam *fleet.Team
-		ds.SaveTeamFunc = func(ctx context.Context, team *fleet.Team) (*fleet.Team, error) {
+		var savedTeam *automdm.Team
+		ds.SaveTeamFunc = func(ctx context.Context, team *automdm.Team) (*automdm.Team, error) {
 			savedTeam = team
 			return team, nil
 		}
@@ -929,9 +929,9 @@ func TestApplyTeamSpecsCollationEqualConflict(t *testing.T) {
 		// Run without DryRun so editTeamFromSpec actually rewrites team.Name
 		// and SaveTeam is called — otherwise we'd only be asserting that the
 		// conflict check didn't trip.
-		_, err := svc.ApplyTeamSpecs(ctx, []*fleet.TeamSpec{
+		_, err := svc.ApplyTeamSpecs(ctx, []*automdm.TeamSpec{
 			{Name: "abc", Filename: new(filename)},
-		}, fleet.ApplyTeamSpecOptions{})
+		}, automdm.ApplyTeamSpecOptions{})
 		require.NoError(t, err)
 		require.Equal(t, 1, conflictCalls, "TeamConflictsWithName must be called once per spec")
 		require.True(t, ds.SaveTeamFuncInvoked, "SaveTeam must be called to persist the rename")
@@ -945,27 +945,27 @@ func TestApplyTeamSpecsCollationEqualConflict(t *testing.T) {
 		// rename it to "DEF" via the same file, but another team "def"
 		// already exists under a different file. This must 409.
 		svc, ds := newSvc()
-		existing := &fleet.Team{ID: 7, Name: "ABC", Filename: new("abc.yml")}
-		ds.TeamByFilenameFunc = func(ctx context.Context, filename string) (*fleet.Team, error) {
+		existing := &automdm.Team{ID: 7, Name: "ABC", Filename: new("abc.yml")}
+		ds.TeamByFilenameFunc = func(ctx context.Context, filename string) (*automdm.Team, error) {
 			return existing, nil
 		}
-		ds.TeamConflictsWithNameFunc = func(ctx context.Context, name string, excludeID uint) (*fleet.Team, error) {
+		ds.TeamConflictsWithNameFunc = func(ctx context.Context, name string, excludeID uint) (*automdm.Team, error) {
 			require.Equal(t, uint(7), excludeID, "must exclude the filename-matched team")
-			return &fleet.Team{ID: 8, Name: "def"}, nil
+			return &automdm.Team{ID: 8, Name: "def"}, nil
 		}
-		ds.SaveTeamFunc = func(ctx context.Context, team *fleet.Team) (*fleet.Team, error) {
+		ds.SaveTeamFunc = func(ctx context.Context, team *automdm.Team) (*automdm.Team, error) {
 			t.Fatalf("SaveTeam must not be called when a conflict is detected")
 			return nil, nil
 		}
 
-		_, err := svc.ApplyTeamSpecs(ctx, []*fleet.TeamSpec{
+		_, err := svc.ApplyTeamSpecs(ctx, []*automdm.TeamSpec{
 			{Name: "DEF", Filename: new("abc.yml")},
-		}, fleet.ApplyTeamSpecOptions{ApplySpecOptions: fleet.ApplySpecOptions{DryRun: true}})
+		}, automdm.ApplyTeamSpecOptions{ApplySpecOptions: automdm.ApplySpecOptions{DryRun: true}})
 		require.Error(t, err)
-		var conflict *fleet.ConflictError
+		var conflict *automdm.ConflictError
 		require.ErrorAs(t, err, &conflict)
 		require.Contains(t, err.Error(), `"def"`)
-		require.Contains(t, err.Error(), fleet.TeamNameConflictHint)
+		require.Contains(t, err.Error(), automdm.TeamNameConflictHint)
 	})
 
 	t.Run("adopt existing team via new filename succeeds", func(t *testing.T) {
@@ -974,19 +974,19 @@ func TestApplyTeamSpecsCollationEqualConflict(t *testing.T) {
 		// (possibly taking over management from another YAML file). The
 		// pre-fix behavior was adoption; the fix must not break it.
 		svc, ds := newSvc()
-		existing := &fleet.Team{ID: 12, Name: "Adoptable", Filename: new("old.yml")}
-		ds.TeamByNameFunc = func(ctx context.Context, name string) (*fleet.Team, error) {
+		existing := &automdm.Team{ID: 12, Name: "Adoptable", Filename: new("old.yml")}
+		ds.TeamByNameFunc = func(ctx context.Context, name string) (*automdm.Team, error) {
 			return existing, nil
 		}
-		var savedTeam *fleet.Team
-		ds.SaveTeamFunc = func(ctx context.Context, team *fleet.Team) (*fleet.Team, error) {
+		var savedTeam *automdm.Team
+		ds.SaveTeamFunc = func(ctx context.Context, team *automdm.Team) (*automdm.Team, error) {
 			savedTeam = team
 			return team, nil
 		}
 
-		_, err := svc.ApplyTeamSpecs(ctx, []*fleet.TeamSpec{
+		_, err := svc.ApplyTeamSpecs(ctx, []*automdm.TeamSpec{
 			{Name: "Adoptable", Filename: new("new.yml")},
-		}, fleet.ApplyTeamSpecOptions{})
+		}, automdm.ApplyTeamSpecOptions{})
 		require.NoError(t, err)
 		require.True(t, ds.SaveTeamFuncInvoked, "SaveTeam must be called to adopt the team")
 		require.NotNil(t, savedTeam)
@@ -997,62 +997,62 @@ func TestApplyTeamSpecsCollationEqualConflict(t *testing.T) {
 
 	t.Run("intra-batch conflict short-circuits before any DB conflict check", func(t *testing.T) {
 		svc, ds := newSvc()
-		ds.TeamConflictsWithNameFunc = func(ctx context.Context, name string, excludeID uint) (*fleet.Team, error) {
+		ds.TeamConflictsWithNameFunc = func(ctx context.Context, name string, excludeID uint) (*automdm.Team, error) {
 			t.Fatalf("TeamConflictsWithName must not be called when the pre-pass catches the conflict (got name=%q, excludeID=%d)", name, excludeID)
 			return nil, nil
 		}
 
-		_, err := svc.ApplyTeamSpecs(ctx, []*fleet.TeamSpec{
+		_, err := svc.ApplyTeamSpecs(ctx, []*automdm.TeamSpec{
 			{Name: "ABC", Filename: new("foo.yml")},
 			{Name: "abc", Filename: new("bar.yml")},
-		}, fleet.ApplyTeamSpecOptions{ApplySpecOptions: fleet.ApplySpecOptions{DryRun: true}})
+		}, automdm.ApplyTeamSpecOptions{ApplySpecOptions: automdm.ApplySpecOptions{DryRun: true}})
 		require.Error(t, err)
-		var conflict *fleet.ConflictError
+		var conflict *automdm.ConflictError
 		require.ErrorAs(t, err, &conflict)
 		require.Contains(t, err.Error(), "foo.yml")
 		require.Contains(t, err.Error(), "bar.yml")
-		require.Contains(t, err.Error(), fleet.TeamNameConflictHint)
+		require.Contains(t, err.Error(), automdm.TeamNameConflictHint)
 	})
 
 	t.Run("intra-batch conflict ignores whitespace and punctuation", func(t *testing.T) {
 		svc, ds := newSvc()
-		ds.TeamConflictsWithNameFunc = func(ctx context.Context, name string, excludeID uint) (*fleet.Team, error) {
+		ds.TeamConflictsWithNameFunc = func(ctx context.Context, name string, excludeID uint) (*automdm.Team, error) {
 			t.Fatalf("TeamConflictsWithName must not be called when the pre-pass catches the conflict (got name=%q, excludeID=%d)", name, excludeID)
 			return nil, nil
 		}
 
-		_, err := svc.ApplyTeamSpecs(ctx, []*fleet.TeamSpec{
+		_, err := svc.ApplyTeamSpecs(ctx, []*automdm.TeamSpec{
 			{Name: "Work Stations"},
 			{Name: "Servers"},
 			{Name: "work-stations"},
-		}, fleet.ApplyTeamSpecOptions{})
-		var conflict *fleet.ConflictError
+		}, automdm.ApplyTeamSpecOptions{})
+		var conflict *automdm.ConflictError
 		require.ErrorAs(t, err, &conflict)
 		require.Contains(t, err.Error(), `"Work Stations"`)
 		require.Contains(t, err.Error(), `"work-stations"`)
-		require.Contains(t, err.Error(), fleet.TeamNameConflictHint)
+		require.Contains(t, err.Error(), automdm.TeamNameConflictHint)
 	})
 
 	t.Run("new team that conflicts with an existing team is not created", func(t *testing.T) {
 		for _, filename := range []*string{nil, new("work-stations.yml")} {
 			for _, dryRun := range []bool{false, true} {
 				svc, ds := newSvc()
-				ds.TeamConflictsWithNameFunc = func(ctx context.Context, name string, excludeID uint) (*fleet.Team, error) {
+				ds.TeamConflictsWithNameFunc = func(ctx context.Context, name string, excludeID uint) (*automdm.Team, error) {
 					require.Equal(t, "Work-stations", name)
 					require.Zero(t, excludeID)
-					return &fleet.Team{ID: 3, Name: "Workstations"}, nil
+					return &automdm.Team{ID: 3, Name: "Workstations"}, nil
 				}
-				ds.NewTeamFunc = func(ctx context.Context, team *fleet.Team) (*fleet.Team, error) {
+				ds.NewTeamFunc = func(ctx context.Context, team *automdm.Team) (*automdm.Team, error) {
 					t.Fatalf("NewTeam must not be called when a conflict is detected")
 					return nil, nil
 				}
 
-				_, err := svc.ApplyTeamSpecs(ctx, []*fleet.TeamSpec{
+				_, err := svc.ApplyTeamSpecs(ctx, []*automdm.TeamSpec{
 					{Name: "Work-stations", Filename: filename},
-				}, fleet.ApplyTeamSpecOptions{DryRun: dryRun})
-				var conflict *fleet.ConflictError
+				}, automdm.ApplyTeamSpecOptions{DryRun: dryRun})
+				var conflict *automdm.ConflictError
 				require.ErrorAs(t, err, &conflict)
-				require.Contains(t, err.Error(), fleet.TeamNameConflictMessage("Work-stations", "Workstations"))
+				require.Contains(t, err.Error(), automdm.TeamNameConflictMessage("Work-stations", "Workstations"))
 			}
 		}
 	})
@@ -1061,23 +1061,23 @@ func TestApplyTeamSpecsCollationEqualConflict(t *testing.T) {
 		// "Team 𝐁" matches the existing "Team 𝐀" under the collation, so the
 		// spec adopts it. The new name then matches "Team B" by name key.
 		svc, ds := newSvc()
-		ds.TeamByNameFunc = func(ctx context.Context, name string) (*fleet.Team, error) {
-			return &fleet.Team{ID: 12, Name: "Team 𝐀"}, nil
+		ds.TeamByNameFunc = func(ctx context.Context, name string) (*automdm.Team, error) {
+			return &automdm.Team{ID: 12, Name: "Team 𝐀"}, nil
 		}
-		ds.TeamConflictsWithNameFunc = func(ctx context.Context, name string, excludeID uint) (*fleet.Team, error) {
+		ds.TeamConflictsWithNameFunc = func(ctx context.Context, name string, excludeID uint) (*automdm.Team, error) {
 			require.Equal(t, "Team 𝐁", name)
 			require.Equal(t, uint(12), excludeID)
-			return &fleet.Team{ID: 13, Name: "Team B"}, nil
+			return &automdm.Team{ID: 13, Name: "Team B"}, nil
 		}
-		ds.SaveTeamFunc = func(ctx context.Context, team *fleet.Team) (*fleet.Team, error) {
+		ds.SaveTeamFunc = func(ctx context.Context, team *automdm.Team) (*automdm.Team, error) {
 			t.Fatalf("SaveTeam must not be called when a conflict is detected")
 			return nil, nil
 		}
 
-		_, err := svc.ApplyTeamSpecs(ctx, []*fleet.TeamSpec{
+		_, err := svc.ApplyTeamSpecs(ctx, []*automdm.TeamSpec{
 			{Name: "Team 𝐁", Filename: new("team-b.yml")},
-		}, fleet.ApplyTeamSpecOptions{})
-		var conflict *fleet.ConflictError
+		}, automdm.ApplyTeamSpecOptions{})
+		var conflict *automdm.ConflictError
 		require.ErrorAs(t, err, &conflict)
 		require.Contains(t, err.Error(), `"Team B"`)
 	})
@@ -1088,21 +1088,21 @@ func TestApplyTeamSpecsCollationEqualConflict(t *testing.T) {
 		// canonical form wins; users who want to rename must supply a
 		// filename.
 		svc, ds := newSvc()
-		existing := &fleet.Team{ID: 11, Name: "Workstations"}
-		ds.TeamByNameFunc = func(ctx context.Context, name string) (*fleet.Team, error) {
+		existing := &automdm.Team{ID: 11, Name: "Workstations"}
+		ds.TeamByNameFunc = func(ctx context.Context, name string) (*automdm.Team, error) {
 			// TeamByName is collation-aware in production, so "workstations"
 			// matches "Workstations" here.
 			return existing, nil
 		}
-		var savedTeam *fleet.Team
-		ds.SaveTeamFunc = func(ctx context.Context, team *fleet.Team) (*fleet.Team, error) {
+		var savedTeam *automdm.Team
+		ds.SaveTeamFunc = func(ctx context.Context, team *automdm.Team) (*automdm.Team, error) {
 			savedTeam = team
 			return team, nil
 		}
 
-		_, err := svc.ApplyTeamSpecs(ctx, []*fleet.TeamSpec{
+		_, err := svc.ApplyTeamSpecs(ctx, []*automdm.TeamSpec{
 			{Name: "workstations"}, // no filename
-		}, fleet.ApplyTeamSpecOptions{})
+		}, automdm.ApplyTeamSpecOptions{})
 		require.NoError(t, err)
 		require.True(t, ds.SaveTeamFuncInvoked)
 		require.NotNil(t, savedTeam)
@@ -1140,26 +1140,26 @@ func TestModifyTeamMDMEnableDiskEncryption(t *testing.T) {
 	authorizer, err := authz.NewAuthorizer()
 	require.NoError(t, err)
 	mockSvc := &svcmock.Service{}
-	mockSvc.NewActivityFunc = func(context.Context, *fleet.User, fleet.ActivityDetails) error {
+	mockSvc.NewActivityFunc = func(context.Context, *automdm.User, automdm.ActivityDetails) error {
 		return nil
 	}
 	ctx := test.UserContext(context.Background(),
-		&fleet.User{ID: 1, GlobalRole: ptr.String(fleet.RoleAdmin)})
+		&automdm.User{ID: 1, GlobalRole: ptr.String(automdm.RoleAdmin)})
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			ds := new(mock.Store)
-			ds.AppConfigFunc = func(context.Context) (*fleet.AppConfig, error) {
-				return &fleet.AppConfig{MDM: fleet.MDM{
+			ds.AppConfigFunc = func(context.Context) (*automdm.AppConfig, error) {
+				return &automdm.AppConfig{MDM: automdm.MDM{
 					EnabledAndConfigured:        tc.appleEnabled,
 					WindowsEnabledAndConfigured: tc.windowsEnabled,
 				}}, nil
 			}
-			ds.TeamWithExtrasFunc = func(_ context.Context, tid uint) (*fleet.Team, error) {
-				return &fleet.Team{ID: tid, Name: "team-1"}, nil
+			ds.TeamWithExtrasFunc = func(_ context.Context, tid uint) (*automdm.Team, error) {
+				return &automdm.Team{ID: tid, Name: "team-1"}, nil
 			}
-			var savedTeam *fleet.Team
-			ds.SaveTeamFunc = func(_ context.Context, team *fleet.Team) (*fleet.Team, error) {
+			var savedTeam *automdm.Team
+			ds.SaveTeamFunc = func(_ context.Context, team *automdm.Team) (*automdm.Team, error) {
 				savedTeam = team
 				return team, nil
 			}
@@ -1167,21 +1167,21 @@ func TestModifyTeamMDMEnableDiskEncryption(t *testing.T) {
 			// a regression that drops the gate would call into them on a
 			// Windows-only deployment and panic on the nil mock function.
 			if tc.appleEnabled {
-				ds.GetAllMDMConfigAssetsByNameFunc = func(_ context.Context, _ []fleet.MDMAssetName,
+				ds.GetAllMDMConfigAssetsByNameFunc = func(_ context.Context, _ []automdm.MDMAssetName,
 					_ sqlx.QueryerContext,
-				) (map[fleet.MDMAssetName]fleet.MDMConfigAsset, error) {
-					return map[fleet.MDMAssetName]fleet.MDMConfigAsset{
-						fleet.MDMAssetCACert: {Value: []byte(testCert)},
+				) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
+					return map[automdm.MDMAssetName]automdm.MDMConfigAsset{
+						automdm.MDMAssetCACert: {Value: []byte(testCert)},
 					}, nil
 				}
 				// the reconciler reads the stored settings back, so serve what
 				// SaveTeam just captured
-				ds.TeamMDMConfigFunc = func(_ context.Context, _ uint) (*fleet.TeamMDM, error) {
+				ds.TeamMDMConfigFunc = func(_ context.Context, _ uint) (*automdm.TeamMDM, error) {
 					require.NotNil(t, savedTeam, "reconcile ran before the team was saved")
 					mdm := savedTeam.Config.MDM
 					return &mdm, nil
 				}
-				ds.UpsertMDMAppleFleetConfigProfileFunc = func(_ context.Context, _ fleet.MDMAppleConfigProfile) error {
+				ds.UpsertMDMAppleAutoMDMConfigProfileFunc = func(_ context.Context, _ automdm.MDMAppleConfigProfile) error {
 					return nil
 				}
 			}
@@ -1189,11 +1189,11 @@ func TestModifyTeamMDMEnableDiskEncryption(t *testing.T) {
 			svc := &Service{
 				Service: mockSvc,
 				ds:      ds,
-				config:  config.FleetConfig{Server: config.ServerConfig{PrivateKey: "something"}},
+				config:  config.AutoMDMConfig{Server: config.ServerConfig{PrivateKey: "something"}},
 				authz:   authorizer,
 			}
 
-			payload := fleet.TeamPayload{MDM: &fleet.TeamPayloadMDM{
+			payload := automdm.TeamPayload{MDM: &automdm.TeamPayloadMDM{
 				EnableDiskEncryption: optjson.SetBool(true),
 			}}
 			team, err := svc.ModifyTeam(ctx, 1, payload)
@@ -1210,7 +1210,7 @@ func TestModifyTeamMDMEnableDiskEncryption(t *testing.T) {
 			require.True(t, team.Config.MDM.EnableDiskEncryption)
 			require.NotNil(t, savedTeam)
 			require.True(t, savedTeam.Config.MDM.EnableDiskEncryption)
-			require.Equal(t, tc.appleEnabled, ds.UpsertMDMAppleFleetConfigProfileFuncInvoked,
+			require.Equal(t, tc.appleEnabled, ds.UpsertMDMAppleAutoMDMConfigProfileFuncInvoked,
 				"FileVault profile write must match Apple MDM configuration")
 		})
 	}
@@ -1219,7 +1219,7 @@ func TestModifyTeamMDMEnableDiskEncryption(t *testing.T) {
 func TestUpdateTeamMDMDiskEncryption(t *testing.T) {
 	testCases := []struct {
 		name           string
-		mdmConfig      fleet.TeamMDM
+		mdmConfig      automdm.TeamMDM
 		diskEncryption *bool
 		requireTPMPIN  *bool
 		expectedError  string
@@ -1228,16 +1228,16 @@ func TestUpdateTeamMDMDiskEncryption(t *testing.T) {
 			name: "try to disable disk encryption with TPM PIN enabled",
 			// per-platform fields set to match the flat toggle, as the
 			// unmarshal gap-fill guarantees for teams loaded from the DB
-			mdmConfig: fleet.TeamMDM{
+			mdmConfig: automdm.TeamMDM{
 				EnableDiskEncryption: true,
-				MacOSSettings: fleet.MacOSSettings{
+				MacOSSettings: automdm.MacOSSettings{
 					EnableDiskEncryption:          optjson.SetBool(true),
 					EnableEscrowDiskEncryptionKey: optjson.SetBool(true),
 				},
-				WindowsSettings: fleet.WindowsSettings{
+				WindowsSettings: automdm.WindowsSettings{
 					EnableDiskEncryption: optjson.SetBool(true),
 				},
-				LinuxSettings: fleet.LinuxSettings{
+				LinuxSettings: automdm.LinuxSettings{
 					EnableEscrowDiskEncryptionKey: optjson.SetBool(true),
 				},
 				RequireBitLockerPIN: true,
@@ -1245,37 +1245,37 @@ func TestUpdateTeamMDMDiskEncryption(t *testing.T) {
 			diskEncryption: ptr.Bool(false),
 			requireTPMPIN:  ptr.Bool(true),
 
-			expectedError: fleet.CantDisableDiskEncryptionIfPINRequiredErrMsg,
+			expectedError: automdm.CantDisableDiskEncryptionIfPINRequiredErrMsg,
 		},
 		{
 			name: "try to enable disk encryption with TPM PIN enabled",
-			mdmConfig: fleet.TeamMDM{
+			mdmConfig: automdm.TeamMDM{
 				EnableDiskEncryption: false,
 				RequireBitLockerPIN:  false,
 			},
 			diskEncryption: ptr.Bool(false),
 			requireTPMPIN:  ptr.Bool(true),
-			expectedError:  fleet.CantEnablePINRequiredIfDiskEncryptionEnabled,
+			expectedError:  automdm.CantEnablePINRequiredIfDiskEncryptionEnabled,
 		},
 		{
 			name: "try to disable disk encryption with TPM PIN enabled when disk encryption prev enabled",
-			mdmConfig: fleet.TeamMDM{
+			mdmConfig: automdm.TeamMDM{
 				EnableDiskEncryption: true,
-				MacOSSettings: fleet.MacOSSettings{
+				MacOSSettings: automdm.MacOSSettings{
 					EnableDiskEncryption:          optjson.SetBool(true),
 					EnableEscrowDiskEncryptionKey: optjson.SetBool(true),
 				},
-				WindowsSettings: fleet.WindowsSettings{
+				WindowsSettings: automdm.WindowsSettings{
 					EnableDiskEncryption: optjson.SetBool(true),
 				},
-				LinuxSettings: fleet.LinuxSettings{
+				LinuxSettings: automdm.LinuxSettings{
 					EnableEscrowDiskEncryptionKey: optjson.SetBool(true),
 				},
 				RequireBitLockerPIN: false,
 			},
 			diskEncryption: ptr.Bool(false),
 			requireTPMPIN:  ptr.Bool(true),
-			expectedError:  fleet.CantDisableDiskEncryptionIfPINRequiredErrMsg,
+			expectedError:  automdm.CantDisableDiskEncryptionIfPINRequiredErrMsg,
 		},
 	}
 
@@ -1283,7 +1283,7 @@ func TestUpdateTeamMDMDiskEncryption(t *testing.T) {
 
 	svc := &Service{
 		ds: ds,
-		config: config.FleetConfig{
+		config: config.AutoMDMConfig{
 			Server: config.ServerConfig{
 				PrivateKey: "something",
 			},
@@ -1293,15 +1293,15 @@ func TestUpdateTeamMDMDiskEncryption(t *testing.T) {
 	ctx := context.Background()
 
 	for _, tC := range testCases {
-		team := fleet.Team{
-			Config: fleet.TeamConfig{
+		team := automdm.Team{
+			Config: automdm.TeamConfig{
 				MDM: tC.mdmConfig,
 			},
 		}
 
 		// the flat toggle fans out to every per-platform setting, as
 		// ResolvePerPlatform does for the endpoint payload
-		changes := fleet.DiskEncryptionSettingsChanges{
+		changes := automdm.DiskEncryptionSettingsChanges{
 			MacOSEnable:   tC.diskEncryption,
 			MacOSEscrow:   tC.diskEncryption,
 			WindowsEnable: tC.diskEncryption,
@@ -1326,12 +1326,12 @@ func TestUpdateTeamMDMDiskEncryption(t *testing.T) {
 }
 
 func TestObfuscateSecrets(t *testing.T) {
-	buildTeams := func(n int) []*fleet.Team {
-		r := make([]*fleet.Team, 0, n)
+	buildTeams := func(n int) []*automdm.Team {
+		r := make([]*automdm.Team, 0, n)
 		for i := 1; i <= n; i++ {
-			r = append(r, &fleet.Team{
+			r = append(r, &automdm.Team{
 				ID: uint(i), //nolint:gosec // dismiss G115
-				Secrets: []*fleet.EnrollSecret{
+				Secrets: []*automdm.EnrollSecret{
 					{Secret: "abc"},
 					{Secret: "123"},
 				},
@@ -1346,13 +1346,13 @@ func TestObfuscateSecrets(t *testing.T) {
 	})
 
 	t.Run("no teams", func(t *testing.T) {
-		user := fleet.User{}
+		user := automdm.User{}
 		err := obfuscateSecrets(&user, nil)
 		require.NoError(t, err)
 	})
 
 	t.Run("user is not a global observer", func(t *testing.T) {
-		user := fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}
+		user := automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}
 		teams := buildTeams(3)
 
 		err := obfuscateSecrets(&user, teams)
@@ -1360,19 +1360,19 @@ func TestObfuscateSecrets(t *testing.T) {
 
 		for _, team := range teams {
 			for _, s := range team.Secrets {
-				require.NotEqual(t, fleet.MaskedPassword, s.Secret)
+				require.NotEqual(t, automdm.MaskedPassword, s.Secret)
 			}
 		}
 	})
 
 	t.Run("user is global observer/observer+/technician", func(t *testing.T) {
 		roles := []*string{
-			ptr.String(fleet.RoleObserver),
-			ptr.String(fleet.RoleObserverPlus),
-			ptr.String(fleet.RoleTechnician),
+			ptr.String(automdm.RoleObserver),
+			ptr.String(automdm.RoleObserverPlus),
+			ptr.String(automdm.RoleTechnician),
 		}
 		for _, r := range roles {
-			user := &fleet.User{GlobalRole: r}
+			user := &automdm.User{GlobalRole: r}
 			teams := buildTeams(3)
 
 			err := obfuscateSecrets(user, teams)
@@ -1380,7 +1380,7 @@ func TestObfuscateSecrets(t *testing.T) {
 
 			for _, team := range teams {
 				for _, s := range team.Secrets {
-					require.Equal(t, fleet.MaskedPassword, s.Secret)
+					require.Equal(t, automdm.MaskedPassword, s.Secret)
 				}
 			}
 		}
@@ -1389,7 +1389,7 @@ func TestObfuscateSecrets(t *testing.T) {
 	t.Run("user is global gitops", func(t *testing.T) {
 		// gitops can write teams but is not allowed to read enroll secrets, so
 		// the secrets must be masked even in write responses.
-		user := &fleet.User{GlobalRole: new(fleet.RoleGitOps)}
+		user := &automdm.User{GlobalRole: new(automdm.RoleGitOps)}
 		teams := buildTeams(3)
 
 		err := obfuscateSecrets(user, teams)
@@ -1397,13 +1397,13 @@ func TestObfuscateSecrets(t *testing.T) {
 
 		for _, team := range teams {
 			for _, s := range team.Secrets {
-				require.Equal(t, fleet.MaskedPassword, s.Secret)
+				require.Equal(t, automdm.MaskedPassword, s.Secret)
 			}
 		}
 	})
 
 	t.Run("user is global maintainer", func(t *testing.T) {
-		user := &fleet.User{GlobalRole: new(fleet.RoleMaintainer)}
+		user := &automdm.User{GlobalRole: new(automdm.RoleMaintainer)}
 		teams := buildTeams(3)
 
 		err := obfuscateSecrets(user, teams)
@@ -1411,7 +1411,7 @@ func TestObfuscateSecrets(t *testing.T) {
 
 		for _, team := range teams {
 			for _, s := range team.Secrets {
-				require.NotEqual(t, fleet.MaskedPassword, s.Secret)
+				require.NotEqual(t, automdm.MaskedPassword, s.Secret)
 			}
 		}
 	})
@@ -1421,14 +1421,14 @@ func TestObfuscateSecrets(t *testing.T) {
 
 		// Team gitops can modify the team but must not read its enroll secrets,
 		// while team maintainer can. The user is not a member of team 0.
-		user := &fleet.User{Teams: []fleet.UserTeam{
+		user := &automdm.User{Teams: []automdm.UserTeam{
 			{
 				Team: *teams[1],
-				Role: fleet.RoleGitOps,
+				Role: automdm.RoleGitOps,
 			},
 			{
 				Team: *teams[2],
-				Role: fleet.RoleMaintainer,
+				Role: automdm.RoleMaintainer,
 			},
 		}}
 
@@ -1439,7 +1439,7 @@ func TestObfuscateSecrets(t *testing.T) {
 			for _, s := range team.Secrets {
 				// Only team 2 (maintainer) should be visible; team 0 (no
 				// membership) and team 1 (gitops) must be masked.
-				require.Equal(t, fleet.MaskedPassword == s.Secret, i == 0 || i == 1)
+				require.Equal(t, automdm.MaskedPassword == s.Secret, i == 0 || i == 1)
 			}
 		}
 	})
@@ -1448,22 +1448,22 @@ func TestObfuscateSecrets(t *testing.T) {
 		teams := buildTeams(5)
 
 		// Make user an observer in the 'even' teams
-		user := &fleet.User{Teams: []fleet.UserTeam{
+		user := &automdm.User{Teams: []automdm.UserTeam{
 			{
 				Team: *teams[1],
-				Role: fleet.RoleObserver,
+				Role: automdm.RoleObserver,
 			},
 			{
 				Team: *teams[2],
-				Role: fleet.RoleAdmin,
+				Role: automdm.RoleAdmin,
 			},
 			{
 				Team: *teams[3],
-				Role: fleet.RoleObserverPlus,
+				Role: automdm.RoleObserverPlus,
 			},
 			{
 				Team: *teams[4],
-				Role: fleet.RoleTechnician,
+				Role: automdm.RoleTechnician,
 			},
 		}}
 
@@ -1472,7 +1472,7 @@ func TestObfuscateSecrets(t *testing.T) {
 
 		for i, team := range teams {
 			for _, s := range team.Secrets {
-				require.Equal(t, fleet.MaskedPassword == s.Secret, i == 0 || i == 1 || i == 3 || i == 4)
+				require.Equal(t, automdm.MaskedPassword == s.Secret, i == 0 || i == 1 || i == 3 || i == 4)
 			}
 		}
 	})
@@ -1493,10 +1493,10 @@ func (e *bootstrapNotFoundError) IsNotFound() bool {
 func TestUpdateTeamMDMAppleSetupManualAgent(t *testing.T) {
 	cases := []struct {
 		Name             string
-		Count            fleet.SetupExperienceCount
+		Count            automdm.SetupExperienceCount
 		Error            string
 		BootstrapPackage string
-		MDMSetupPayload  fleet.MDMAppleSetupPayload
+		MDMSetupPayload  automdm.MDMAppleSetupPayload
 	}{
 		{
 			Name:             "good case",
@@ -1504,7 +1504,7 @@ func TestUpdateTeamMDMAppleSetupManualAgent(t *testing.T) {
 		},
 		{
 			Name: "no bootstrap package",
-			Count: fleet.SetupExperienceCount{
+			Count: automdm.SetupExperienceCount{
 				Installers: 0,
 				VPP:        0,
 				Scripts:    0,
@@ -1513,7 +1513,7 @@ func TestUpdateTeamMDMAppleSetupManualAgent(t *testing.T) {
 		},
 		{
 			Name: "installers exist",
-			Count: fleet.SetupExperienceCount{
+			Count: automdm.SetupExperienceCount{
 				Installers: 1,
 				VPP:        0,
 				Scripts:    0,
@@ -1524,14 +1524,14 @@ func TestUpdateTeamMDMAppleSetupManualAgent(t *testing.T) {
 		{
 			Name:             "vpp apps exist",
 			BootstrapPackage: "package",
-			Count: fleet.SetupExperienceCount{
+			Count: automdm.SetupExperienceCount{
 				VPP: 1,
 			},
 			Error: "disable setup experience software",
 		},
 		{
 			Name: "script exists",
-			Count: fleet.SetupExperienceCount{
+			Count: automdm.SetupExperienceCount{
 				Scripts: 1,
 			},
 			BootstrapPackage: "package",
@@ -1541,16 +1541,16 @@ func TestUpdateTeamMDMAppleSetupManualAgent(t *testing.T) {
 
 	ds := new(mock.Store)
 
-	ds.SaveAppConfigFunc = func(ctx context.Context, info *fleet.AppConfig) error {
+	ds.SaveAppConfigFunc = func(ctx context.Context, info *automdm.AppConfig) error {
 		return nil
 	}
 
-	ds.SaveTeamFunc = func(ctx context.Context, team *fleet.Team) (*fleet.Team, error) {
-		return &fleet.Team{}, nil
+	ds.SaveTeamFunc = func(ctx context.Context, team *automdm.Team) (*automdm.Team, error) {
+		return &automdm.Team{}, nil
 	}
 
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
 	}
 
 	authorizer, err := authz.NewAuthorizer()
@@ -1558,7 +1558,7 @@ func TestUpdateTeamMDMAppleSetupManualAgent(t *testing.T) {
 
 	svc := &Service{
 		ds: ds,
-		config: config.FleetConfig{
+		config: config.AutoMDMConfig{
 			Server: config.ServerConfig{
 				PrivateKey: "something",
 			},
@@ -1567,31 +1567,31 @@ func TestUpdateTeamMDMAppleSetupManualAgent(t *testing.T) {
 	}
 
 	// Add admin user to context
-	adminUser := &fleet.User{
+	adminUser := &automdm.User{
 		ID:         2,
-		GlobalRole: ptr.String(fleet.RoleAdmin),
+		GlobalRole: ptr.String(automdm.RoleAdmin),
 		Email:      "useradmin@example.com",
 	}
 	ctx := test.UserContext(context.Background(), adminUser)
 
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
-			ds.GetMDMAppleBootstrapPackageMetaFunc = func(ctx context.Context, teamID uint) (*fleet.MDMAppleBootstrapPackage, error) {
+			ds.GetMDMAppleBootstrapPackageMetaFunc = func(ctx context.Context, teamID uint) (*automdm.MDMAppleBootstrapPackage, error) {
 				if tc.BootstrapPackage == "" {
 					return nil, &bootstrapNotFoundError{msg: "bootstrap package not found"}
 				}
-				return &fleet.MDMAppleBootstrapPackage{
+				return &automdm.MDMAppleBootstrapPackage{
 					Name: tc.BootstrapPackage,
 				}, nil
 			}
 
-			ds.GetSetupExperienceCountFunc = func(ctx context.Context, platform string, teamID *uint) (*fleet.SetupExperienceCount, error) {
+			ds.GetSetupExperienceCountFunc = func(ctx context.Context, platform string, teamID *uint) (*automdm.SetupExperienceCount, error) {
 				return &tc.Count, nil
 			}
 
-			tm := &fleet.Team{}
+			tm := &automdm.Team{}
 
-			payload := fleet.MDMAppleSetupPayload{
+			payload := automdm.MDMAppleSetupPayload{
 				ManualAgentInstall: ptr.Bool(true),
 			}
 
@@ -1603,15 +1603,15 @@ func TestUpdateTeamMDMAppleSetupManualAgent(t *testing.T) {
 			}
 		})
 		t.Run(tc.Name+" no team", func(t *testing.T) {
-			ds.GetSetupExperienceCountFunc = func(ctx context.Context, platform string, teamID *uint) (*fleet.SetupExperienceCount, error) {
+			ds.GetSetupExperienceCountFunc = func(ctx context.Context, platform string, teamID *uint) (*automdm.SetupExperienceCount, error) {
 				return &tc.Count, nil
 			}
 
-			ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-				return &fleet.AppConfig{}, nil
+			ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+				return &automdm.AppConfig{}, nil
 			}
 
-			payload := fleet.MDMAppleSetupPayload{
+			payload := automdm.MDMAppleSetupPayload{
 				ManualAgentInstall: ptr.Bool(true),
 			}
 
@@ -1629,15 +1629,15 @@ func TestUpdateTeamMDMAppleSetupManualAgent(t *testing.T) {
 func TestApplyTeamSpecsWindowsManagedLocalAccount(t *testing.T) {
 	authorizer, err := authz.NewAuthorizer()
 	require.NoError(t, err)
-	adminUser := &fleet.User{ID: 1, GlobalRole: new(fleet.RoleAdmin)}
+	adminUser := &automdm.User{ID: 1, GlobalRole: new(automdm.RoleAdmin)}
 	ctx := test.UserContext(context.Background(), adminUser)
 
 	const teamName = "Mobile"
 
-	newSvc := func(t *testing.T, mdmConfigured bool) (*Service, *mock.Store, **fleet.Team) {
+	newSvc := func(t *testing.T, mdmConfigured bool) (*Service, *mock.Store, **automdm.Team) {
 		ds := new(mock.Store)
-		ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-			ac := &fleet.AppConfig{}
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			ac := &automdm.AppConfig{}
 			// mdmConfigured=false simulates the bug condition: the cached
 			// AppConfig still reports MDM as off even though it has actually
 			// been enabled. The fix must let the edit proceed regardless.
@@ -1645,32 +1645,32 @@ func TestApplyTeamSpecsWindowsManagedLocalAccount(t *testing.T) {
 			ac.MDM.WindowsEnabledAndConfigured = mdmConfigured
 			return ac, nil
 		}
-		ds.TeamByFilenameFunc = func(ctx context.Context, _ string) (*fleet.Team, error) {
+		ds.TeamByFilenameFunc = func(ctx context.Context, _ string) (*automdm.Team, error) {
 			return nil, &notFoundError{}
 		}
-		ds.TeamByNameFunc = func(ctx context.Context, name string) (*fleet.Team, error) {
+		ds.TeamByNameFunc = func(ctx context.Context, name string) (*automdm.Team, error) {
 			// Existing team has no Android/Windows custom settings — the spec
 			// is adding the first profile.
-			return &fleet.Team{ID: 42, Name: name}, nil
+			return &automdm.Team{ID: 42, Name: name}, nil
 		}
-		ds.TeamConflictsWithNameFunc = func(ctx context.Context, name string, excludeID uint) (*fleet.Team, error) {
+		ds.TeamConflictsWithNameFunc = func(ctx context.Context, name string, excludeID uint) (*automdm.Team, error) {
 			return nil, nil
 		}
-		var saved *fleet.Team
-		ds.SaveTeamFunc = func(ctx context.Context, team *fleet.Team) (*fleet.Team, error) {
+		var saved *automdm.Team
+		ds.SaveTeamFunc = func(ctx context.Context, team *automdm.Team) (*automdm.Team, error) {
 			saved = team
 			return team, nil
 		}
 
 		mockSvc := &svcmock.Service{}
-		mockSvc.NewActivityFunc = func(ctx context.Context, _ *fleet.User, _ fleet.ActivityDetails) error {
+		mockSvc.NewActivityFunc = func(ctx context.Context, _ *automdm.User, _ automdm.ActivityDetails) error {
 			return nil
 		}
 
 		svc := &Service{
 			Service: mockSvc,
 			ds:      ds,
-			config: config.FleetConfig{
+			config: config.AutoMDMConfig{
 				Server: config.ServerConfig{PrivateKey: "something"},
 			},
 			authz:  authorizer,
@@ -1681,41 +1681,41 @@ func TestApplyTeamSpecsWindowsManagedLocalAccount(t *testing.T) {
 
 	t.Run("edit persists and disables the windows managed local account toggle", func(t *testing.T) {
 		svc, ds, saved := newSvc(t, true)
-		existing := &fleet.Team{ID: 42, Name: teamName}
-		ds.TeamByNameFunc = func(context.Context, string) (*fleet.Team, error) { return existing, nil }
-		spec := &fleet.TeamSpec{
+		existing := &automdm.Team{ID: 42, Name: teamName}
+		ds.TeamByNameFunc = func(context.Context, string) (*automdm.Team, error) { return existing, nil }
+		spec := &automdm.TeamSpec{
 			Name: teamName,
-			MDM: fleet.TeamSpecMDM{
-				MacOSSetup: fleet.MacOSSetupSpec{EnableManagedLocalAccountWindows: optjson.SetBool(true)},
+			MDM: automdm.TeamSpecMDM{
+				MacOSSetup: automdm.MacOSSetupSpec{EnableManagedLocalAccountWindows: optjson.SetBool(true)},
 			},
 		}
-		_, err := svc.ApplyTeamSpecs(ctx, []*fleet.TeamSpec{spec}, fleet.ApplyTeamSpecOptions{})
+		_, err := svc.ApplyTeamSpecs(ctx, []*automdm.TeamSpec{spec}, automdm.ApplyTeamSpecOptions{})
 		require.NoError(t, err)
 		require.True(t, (*saved).Config.MDM.MacOSSetup.EnableManagedLocalAccountWindows.Value)
 
 		// an explicit false disables the managed local account again
 		spec.MDM.MacOSSetup.EnableManagedLocalAccountWindows = optjson.SetBool(false)
-		_, err = svc.ApplyTeamSpecs(ctx, []*fleet.TeamSpec{spec}, fleet.ApplyTeamSpecOptions{})
+		_, err = svc.ApplyTeamSpecs(ctx, []*automdm.TeamSpec{spec}, automdm.ApplyTeamSpecOptions{})
 		require.NoError(t, err)
 		require.False(t, (*saved).Config.MDM.MacOSSetup.EnableManagedLocalAccountWindows.Value)
 	})
 
 }
 
-// A GitOps dry run that turns on Windows MDM in the global file and creates a fleet with Windows setup settings
-// validates the new fleet against that assumed state, since the global change isn't saved yet.
+// A GitOps dry run that turns on Windows MDM in the global file and creates a team with Windows setup settings
+// validates the new team against that assumed state, since the global change isn't saved yet.
 func TestApplyTeamSpecsCreateDryRunWindowsMDMAssumption(t *testing.T) {
 	authorizer, err := authz.NewAuthorizer()
 	require.NoError(t, err)
-	ctx := test.UserContext(context.Background(), &fleet.User{ID: 1, GlobalRole: new(fleet.RoleAdmin)})
+	ctx := test.UserContext(context.Background(), &automdm.User{ID: 1, GlobalRole: new(automdm.RoleAdmin)})
 
 	ds := new(mock.Store)
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil // Windows MDM is off
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil // Windows MDM is off
 	}
-	ds.TeamByNameFunc = func(ctx context.Context, name string) (*fleet.Team, error) { return nil, &notFoundError{} }
-	ds.TeamByFilenameFunc = func(ctx context.Context, name string) (*fleet.Team, error) { return nil, &notFoundError{} }
-	ds.TeamConflictsWithNameFunc = func(ctx context.Context, name string, excludeID uint) (*fleet.Team, error) {
+	ds.TeamByNameFunc = func(ctx context.Context, name string) (*automdm.Team, error) { return nil, &notFoundError{} }
+	ds.TeamByFilenameFunc = func(ctx context.Context, name string) (*automdm.Team, error) { return nil, &notFoundError{} }
+	ds.TeamConflictsWithNameFunc = func(ctx context.Context, name string, excludeID uint) (*automdm.Team, error) {
 		return nil, nil
 	}
 	ds.IsEnrollSecretAvailableFunc = func(ctx context.Context, secret string, newB bool, teamID *uint) (bool, error) {
@@ -1724,29 +1724,29 @@ func TestApplyTeamSpecsCreateDryRunWindowsMDMAssumption(t *testing.T) {
 	svc := &Service{
 		Service: &svcmock.Service{},
 		ds:      ds,
-		config:  config.FleetConfig{Server: config.ServerConfig{PrivateKey: "something"}},
+		config:  config.AutoMDMConfig{Server: config.ServerConfig{PrivateKey: "something"}},
 		authz:   authorizer,
 		logger:  slog.New(slog.DiscardHandler),
 	}
 
 	for _, tc := range []struct {
 		name    string
-		setup   fleet.MacOSSetup
+		setup   automdm.MacOSSetup
 		wantErr string
 	}{
-		{"managed local account", fleet.MacOSSetup{EnableManagedLocalAccountWindows: optjson.SetBool(true)},
+		{"managed local account", automdm.MacOSSetup{EnableManagedLocalAccountWindows: optjson.SetBool(true)},
 			"setup_experience.windows_managed_local_account_enabled"},
-		{"require all software", fleet.MacOSSetup{RequireAllSoftwareWindows: true}, "setup_experience.windows_require_all_software"},
+		{"require all software", automdm.MacOSSetup{RequireAllSoftwareWindows: true}, "setup_experience.windows_require_all_software"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			specs := []*fleet.TeamSpec{{Name: "new fleet", MDM: fleet.TeamSpecMDM{MacOSSetup: fleet.MacOSSetupSpec{MacOSSetup: tc.setup}}}}
+			specs := []*automdm.TeamSpec{{Name: "new team", MDM: automdm.TeamSpecMDM{MacOSSetup: automdm.MacOSSetupSpec{MacOSSetup: tc.setup}}}}
 
-			_, err := svc.ApplyTeamSpecs(ctx, specs, fleet.ApplyTeamSpecOptions{DryRun: true})
+			_, err := svc.ApplyTeamSpecs(ctx, specs, automdm.ApplyTeamSpecOptions{DryRun: true})
 			require.ErrorContains(t, err, tc.wantErr)
 
-			_, err = svc.ApplyTeamSpecs(ctx, specs, fleet.ApplyTeamSpecOptions{
+			_, err = svc.ApplyTeamSpecs(ctx, specs, automdm.ApplyTeamSpecOptions{
 				DryRun:            true,
-				DryRunAssumptions: &fleet.TeamSpecsDryRunAssumptions{WindowsEnabledAndConfigured: optjson.SetBool(true)},
+				DryRunAssumptions: &automdm.TeamSpecsDryRunAssumptions{WindowsEnabledAndConfigured: optjson.SetBool(true)},
 			})
 			require.NoError(t, err)
 			require.False(t, ds.NewTeamFuncInvoked)
@@ -1761,20 +1761,20 @@ func TestModifyTeamMDMManagedLocalAccountRequiresMDM(t *testing.T) {
 	authorizer, err := authz.NewAuthorizer()
 	require.NoError(t, err)
 	ctx := test.UserContext(context.Background(),
-		&fleet.User{ID: 1, GlobalRole: new(fleet.RoleAdmin)})
+		&automdm.User{ID: 1, GlobalRole: new(automdm.RoleAdmin)})
 
 	windowsMDMConfigured := false
 	ds := new(mock.Store)
-	ds.AppConfigFunc = func(context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{MDM: fleet.MDM{
+	ds.AppConfigFunc = func(context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{MDM: automdm.MDM{
 			EnabledAndConfigured:        false,
 			WindowsEnabledAndConfigured: windowsMDMConfigured,
 		}}, nil
 	}
-	ds.TeamWithExtrasFunc = func(_ context.Context, tid uint) (*fleet.Team, error) {
-		return &fleet.Team{ID: tid, Name: "team-1"}, nil
+	ds.TeamWithExtrasFunc = func(_ context.Context, tid uint) (*automdm.Team, error) {
+		return &automdm.Team{ID: tid, Name: "team-1"}, nil
 	}
-	ds.SaveTeamFunc = func(_ context.Context, team *fleet.Team) (*fleet.Team, error) {
+	ds.SaveTeamFunc = func(_ context.Context, team *automdm.Team) (*automdm.Team, error) {
 		return team, nil
 	}
 
@@ -1784,11 +1784,11 @@ func TestModifyTeamMDMManagedLocalAccountRequiresMDM(t *testing.T) {
 	mockSvc.HasCustomSetupAssistantConfigurationWebURLFunc = func(context.Context, *uint) (bool, error) {
 		return false, nil
 	}
-	mockSvc.NewActivityFunc = func(_ context.Context, _ *fleet.User, act fleet.ActivityDetails) error {
+	mockSvc.NewActivityFunc = func(_ context.Context, _ *automdm.User, act automdm.ActivityDetails) error {
 		switch a := act.(type) {
-		case fleet.ActivityTypeEnabledManagedLocalAccount:
+		case automdm.ActivityTypeEnabledManagedLocalAccount:
 			activities = append(activities, a.ActivityName()+":"+a.Platform)
-		case fleet.ActivityTypeDisabledManagedLocalAccount:
+		case automdm.ActivityTypeDisabledManagedLocalAccount:
 			activities = append(activities, a.ActivityName()+":"+a.Platform)
 		}
 		return nil
@@ -1797,20 +1797,20 @@ func TestModifyTeamMDMManagedLocalAccountRequiresMDM(t *testing.T) {
 	svc := &Service{
 		Service: mockSvc,
 		ds:      ds,
-		config:  config.FleetConfig{Server: config.ServerConfig{PrivateKey: "something"}},
+		config:  config.AutoMDMConfig{Server: config.ServerConfig{PrivateKey: "something"}},
 		authz:   authorizer,
 		logger:  slog.New(slog.DiscardHandler),
 	}
 
-	windowsPayload := fleet.TeamPayload{MDM: &fleet.TeamPayloadMDM{
-		MacOSSetup: &fleet.TeamPayloadMacOSSetup{
+	windowsPayload := automdm.TeamPayload{MDM: &automdm.TeamPayloadMDM{
+		MacOSSetup: &automdm.TeamPayloadMacOSSetup{
 			EnableManagedLocalAccountWindows: optjson.SetBool(true),
 		},
 	}}
 
 	t.Run("macOS enable admin account requires Apple MDM", func(t *testing.T) {
-		_, err := svc.ModifyTeam(ctx, 1, fleet.TeamPayload{MDM: &fleet.TeamPayloadMDM{
-			MacOSSetup: &fleet.TeamPayloadMacOSSetup{EnableManagedLocalAccount: optjson.SetBool(true)},
+		_, err := svc.ModifyTeam(ctx, 1, automdm.TeamPayload{MDM: &automdm.TeamPayloadMDM{
+			MacOSSetup: &automdm.TeamPayloadMacOSSetup{EnableManagedLocalAccount: optjson.SetBool(true)},
 		}})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "setup_experience.macos_managed_local_account_enabled")
@@ -1839,8 +1839,8 @@ func TestModifyTeamMDMManagedLocalAccountRequiresMDM(t *testing.T) {
 		mockSvc.HasCustomSetupAssistantConfigurationWebURLFunc = func(context.Context, *uint) (bool, error) {
 			return true, nil
 		}
-		ds.TeamWithExtrasFunc = func(_ context.Context, tid uint) (*fleet.Team, error) {
-			tm := &fleet.Team{ID: tid, Name: "team-1"}
+		ds.TeamWithExtrasFunc = func(_ context.Context, tid uint) (*automdm.Team, error) {
+			tm := &automdm.Team{ID: tid, Name: "team-1"}
 			tm.Config.MDM.MacOSSetup.EnableManagedLocalAccount = optjson.SetBool(false)
 			tm.Config.MDM.MacOSSetup.EndUserLocalAccountType = optjson.SetString("none")
 			return tm, nil
@@ -1851,80 +1851,80 @@ func TestModifyTeamMDMManagedLocalAccountRequiresMDM(t *testing.T) {
 		require.True(t, team.Config.MDM.MacOSSetup.EnableManagedLocalAccountWindows.Value)
 
 		// Both checks still apply when the request touches what they guard.
-		_, err = svc.ModifyTeam(ctx, 1, fleet.TeamPayload{MDM: &fleet.TeamPayloadMDM{
-			MacOSSetup: &fleet.TeamPayloadMacOSSetup{EndUserLocalAccountType: optjson.SetString("standard")},
+		_, err = svc.ModifyTeam(ctx, 1, automdm.TeamPayload{MDM: &automdm.TeamPayloadMDM{
+			MacOSSetup: &automdm.TeamPayloadMacOSSetup{EndUserLocalAccountType: optjson.SetString("standard")},
 		}})
 		require.ErrorContains(t, err, "macos_managed_local_account_enabled is required")
-		ds.AppConfigFunc = func(context.Context) (*fleet.AppConfig, error) {
-			ac := &fleet.AppConfig{}
+		ds.AppConfigFunc = func(context.Context) (*automdm.AppConfig, error) {
+			ac := &automdm.AppConfig{}
 			ac.MDM.EndUserAuthentication.EntityID = "idp"
 			return ac, nil
 		}
-		_, err = svc.ModifyTeam(ctx, 1, fleet.TeamPayload{MDM: &fleet.TeamPayloadMDM{
-			MacOSSetup: &fleet.TeamPayloadMacOSSetup{EnableEndUserAuthentication: optjson.SetBool(true)},
+		_, err = svc.ModifyTeam(ctx, 1, automdm.TeamPayload{MDM: &automdm.TeamPayloadMDM{
+			MacOSSetup: &automdm.TeamPayloadMacOSSetup{EnableEndUserAuthentication: optjson.SetBool(true)},
 		}})
-		require.ErrorContains(t, err, fleet.EndUserAuthDEPWebURLConfiguredErrMsg)
+		require.ErrorContains(t, err, automdm.EndUserAuthDEPWebURLConfiguredErrMsg)
 	})
 }
 
-func TestDeleteTeamWindowsEnrollmentDefaultFleet(t *testing.T) {
+func TestDeleteTeamWindowsEnrollmentDefaultTeam(t *testing.T) {
 	deletedTeamID, otherTeamID := uint(42), uint(43)
 
 	testCases := []struct {
-		name           string
-		defaultFleetID *uint
-		wantCleared    bool
+		name             string
+		defaultAutoMDMID *uint
+		wantCleared      bool
 	}{
-		{name: "deleted fleet is the configured default", defaultFleetID: &deletedTeamID, wantCleared: true},
-		{name: "another fleet is the configured default", defaultFleetID: &otherTeamID},
+		{name: "deleted team is the configured default", defaultAutoMDMID: &deletedTeamID, wantCleared: true},
+		{name: "another team is the configured default", defaultAutoMDMID: &otherTeamID},
 		{name: "no default configured"},
 	}
 
 	authorizer, err := authz.NewAuthorizer()
 	require.NoError(t, err)
 	ctx := test.UserContext(context.Background(),
-		&fleet.User{ID: 1, GlobalRole: new(fleet.RoleAdmin)})
+		&automdm.User{ID: 1, GlobalRole: new(automdm.RoleAdmin)})
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			ds := new(mock.Store)
-			ds.TeamLiteFunc = func(_ context.Context, tid uint) (*fleet.TeamLite, error) {
-				return &fleet.TeamLite{ID: tid, Name: "team-1"}, nil
+			ds.TeamLiteFunc = func(_ context.Context, tid uint) (*automdm.TeamLite, error) {
+				return &automdm.TeamLite{ID: tid, Name: "team-1"}, nil
 			}
-			ds.ListHostsFunc = func(context.Context, fleet.TeamFilter, fleet.HostListOptions) ([]*fleet.Host, error) {
+			ds.ListHostsFunc = func(context.Context, automdm.TeamFilter, automdm.HostListOptions) ([]*automdm.Host, error) {
 				return nil, nil
 			}
-			ds.GetCertificateTemplatesByTeamIDFunc = func(context.Context, uint, fleet.ListOptions) (
-				[]*fleet.CertificateTemplateResponseSummary, *fleet.PaginationMetadata, error,
+			ds.GetCertificateTemplatesByTeamIDFunc = func(context.Context, uint, automdm.ListOptions) (
+				[]*automdm.CertificateTemplateResponseSummary, *automdm.PaginationMetadata, error,
 			) {
 				return nil, nil, nil
 			}
-			// Deleting a fleet also scrubs its name from the app config copies.
-			ds.AppConfigFunc = func(context.Context) (*fleet.AppConfig, error) {
-				return &fleet.AppConfig{}, nil
+			// Deleting a team also scrubs its name from the app config copies.
+			ds.AppConfigFunc = func(context.Context) (*automdm.AppConfig, error) {
+				return &automdm.AppConfig{}, nil
 			}
 			ds.GetABMTokenOrgNamesAssociatedByDefaultTeamsFunc = func(context.Context, *uint) ([]string, error) {
 				return nil, nil
 			}
-			ds.ListVPPTokensFunc = func(context.Context) ([]*fleet.VPPTokenDB, error) {
+			ds.ListVPPTokensFunc = func(context.Context) ([]*automdm.VPPTokenDB, error) {
 				return nil, nil
 			}
-			ds.GetWindowsEnrollmentDefaultFleetFunc = func(context.Context) (*uint, string, error) {
-				return tc.defaultFleetID, "default-fleet", nil
+			ds.GetWindowsEnrollmentDefaultTeamFunc = func(context.Context) (*uint, string, error) {
+				return tc.defaultAutoMDMID, "default-team", nil
 			}
 			var clearedTo *uint
-			ds.SetWindowsEnrollmentDefaultFleetFunc = func(_ context.Context, fleetID *uint) error {
-				clearedTo = fleetID
+			ds.SetWindowsEnrollmentDefaultTeamFunc = func(_ context.Context, automdmID *uint) error {
+				clearedTo = automdmID
 				return nil
 			}
 			ds.DeleteTeamFunc = func(context.Context, uint) error { return nil }
 
 			var activities []string
 			mockSvc := &svcmock.Service{}
-			mockSvc.NewActivityFunc = func(_ context.Context, _ *fleet.User, act fleet.ActivityDetails) error {
-				if a, ok := act.(fleet.ActivityTypeEditedWindowsEnrollmentDefaultFleet); ok {
-					require.Nil(t, a.FleetID, "cleared default must not name a fleet")
-					require.Nil(t, a.FleetName, "cleared default must not name a fleet")
+			mockSvc.NewActivityFunc = func(_ context.Context, _ *automdm.User, act automdm.ActivityDetails) error {
+				if a, ok := act.(automdm.ActivityTypeEditedWindowsEnrollmentDefaultTeam); ok {
+					require.Nil(t, a.AutoMDMID, "cleared default must not name a team")
+					require.Nil(t, a.AutoMDMName, "cleared default must not name a team")
 				}
 				activities = append(activities, act.ActivityName())
 				return nil
@@ -1939,15 +1939,15 @@ func TestDeleteTeamWindowsEnrollmentDefaultFleet(t *testing.T) {
 
 			require.NoError(t, svc.DeleteTeam(ctx, deletedTeamID))
 
-			// The deleted fleet activity always fires; the enrollment one only when the default was actually cleared.
-			require.Contains(t, activities, fleet.ActivityTypeDeletedTeam{}.ActivityName())
-			clearedActivity := fleet.ActivityTypeEditedWindowsEnrollmentDefaultFleet{}.ActivityName()
+			// The deleted team activity always fires; the enrollment one only when the default was actually cleared.
+			require.Contains(t, activities, automdm.ActivityTypeDeletedTeam{}.ActivityName())
+			clearedActivity := automdm.ActivityTypeEditedWindowsEnrollmentDefaultTeam{}.ActivityName()
 			if tc.wantCleared {
-				require.True(t, ds.SetWindowsEnrollmentDefaultFleetFuncInvoked)
-				require.Nil(t, clearedTo, "default fleet should be cleared, not reassigned")
+				require.True(t, ds.SetWindowsEnrollmentDefaultTeamFuncInvoked)
+				require.Nil(t, clearedTo, "default team should be cleared, not reassigned")
 				require.Contains(t, activities, clearedActivity)
 			} else {
-				require.False(t, ds.SetWindowsEnrollmentDefaultFleetFuncInvoked)
+				require.False(t, ds.SetWindowsEnrollmentDefaultTeamFuncInvoked)
 				require.NotContains(t, activities, clearedActivity)
 			}
 		})
@@ -1991,53 +1991,53 @@ func TestModifyTeamOSUpdatesDeadlineDays(t *testing.T) {
 	authorizer, err := authz.NewAuthorizer()
 	require.NoError(t, err)
 	ctx := test.UserContext(context.Background(),
-		&fleet.User{ID: 1, GlobalRole: new(fleet.RoleAdmin)})
+		&automdm.User{ID: 1, GlobalRole: new(automdm.RoleAdmin)})
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			var gotActivities []fleet.ActivityDetails
+			var gotActivities []automdm.ActivityDetails
 			mockSvc := &svcmock.Service{}
-			mockSvc.NewActivityFunc = func(_ context.Context, _ *fleet.User, a fleet.ActivityDetails) error {
+			mockSvc.NewActivityFunc = func(_ context.Context, _ *automdm.User, a automdm.ActivityDetails) error {
 				gotActivities = append(gotActivities, a)
 				return nil
 			}
 
 			ds := new(mock.Store)
-			ds.AppConfigFunc = func(context.Context) (*fleet.AppConfig, error) {
-				return &fleet.AppConfig{MDM: fleet.MDM{EnabledAndConfigured: true}}, nil
+			ds.AppConfigFunc = func(context.Context) (*automdm.AppConfig, error) {
+				return &automdm.AppConfig{MDM: automdm.MDM{EnabledAndConfigured: true}}, nil
 			}
-			ds.TeamWithExtrasFunc = func(_ context.Context, tid uint) (*fleet.Team, error) {
-				return &fleet.Team{ID: tid, Name: "team-1", Config: fleet.TeamConfig{
-					MDM: fleet.TeamMDM{
-						MacOSUpdates: fleet.AppleOSUpdateSettings{
-							MinimumVersion: optjson.SetString(fleet.AppleOSUpdateLatestVersion),
+			ds.TeamWithExtrasFunc = func(_ context.Context, tid uint) (*automdm.Team, error) {
+				return &automdm.Team{ID: tid, Name: "team-1", Config: automdm.TeamConfig{
+					MDM: automdm.TeamMDM{
+						MacOSUpdates: automdm.AppleOSUpdateSettings{
+							MinimumVersion: optjson.SetString(automdm.AppleOSUpdateLatestVersion),
 							DeadlineDays:   tc.storedDays,
 						},
 					},
 				}}, nil
 			}
-			var savedTeam *fleet.Team
-			ds.SaveTeamFunc = func(_ context.Context, team *fleet.Team) (*fleet.Team, error) {
+			var savedTeam *automdm.Team
+			ds.SaveTeamFunc = func(_ context.Context, team *automdm.Team) (*automdm.Team, error) {
 				savedTeam = team
 				return team, nil
 			}
 			ds.HasAppleUpdateConfigProfileConfiguredFunc = func(_ context.Context, teamID uint) (bool, error) {
 				return false, nil
 			}
-			ds.LabelIDsByNameFunc = func(_ context.Context, names []string, _ fleet.TeamFilter) (map[string]uint, error) {
+			ds.LabelIDsByNameFunc = func(_ context.Context, names []string, _ automdm.TeamFilter) (map[string]uint, error) {
 				ids := make(map[string]uint, len(names))
 				for i, name := range names {
 					ids[name] = uint(i + 1) //nolint:gosec
 				}
 				return ids, nil
 			}
-			var gotDecl *fleet.MDMAppleDeclaration
-			var gotVars []fleet.FleetVarName
-			ds.SetOrUpdateMDMAppleDeclarationFunc = func(_ context.Context, decl *fleet.MDMAppleDeclaration,
-				usesFleetVars []fleet.FleetVarName, activationAction fleet.MDMAppleActivationAction,
-			) (*fleet.MDMAppleDeclaration, error) {
+			var gotDecl *automdm.MDMAppleDeclaration
+			var gotVars []automdm.AutoMDMVarName
+			ds.SetOrUpdateMDMAppleDeclarationFunc = func(_ context.Context, decl *automdm.MDMAppleDeclaration,
+				usesAutoMDMVars []automdm.AutoMDMVarName, activationAction automdm.MDMAppleActivationAction,
+			) (*automdm.MDMAppleDeclaration, error) {
 				gotDecl = decl
-				gotVars = usesFleetVars
+				gotVars = usesAutoMDMVars
 				decl.DeclarationUUID = "decl-uuid"
 				return decl, nil
 			}
@@ -2045,13 +2045,13 @@ func TestModifyTeamOSUpdatesDeadlineDays(t *testing.T) {
 			svc := &Service{
 				Service: mockSvc,
 				ds:      ds,
-				config:  config.FleetConfig{Server: config.ServerConfig{PrivateKey: "something"}},
+				config:  config.AutoMDMConfig{Server: config.ServerConfig{PrivateKey: "something"}},
 				authz:   authorizer,
 			}
 
-			payload := fleet.TeamPayload{MDM: &fleet.TeamPayloadMDM{
-				MacOSUpdates: &fleet.AppleOSUpdateSettings{
-					MinimumVersion: optjson.SetString(fleet.AppleOSUpdateLatestVersion),
+			payload := automdm.TeamPayload{MDM: &automdm.TeamPayloadMDM{
+				MacOSUpdates: &automdm.AppleOSUpdateSettings{
+					MinimumVersion: optjson.SetString(automdm.AppleOSUpdateLatestVersion),
 					DeadlineDays:   tc.payloadDays,
 				},
 			}}
@@ -2067,7 +2067,7 @@ func TestModifyTeamOSUpdatesDeadlineDays(t *testing.T) {
 				"declaration regeneration must follow the change detection")
 			if tc.wantRedeploy {
 				require.NotNil(t, gotDecl)
-				require.Contains(t, string(gotDecl.RawJSON), "$FLEET_VAR_HOST_TARGET_OS_VERSION")
+				require.Contains(t, string(gotDecl.RawJSON), "$AUTOMDM_VAR_HOST_TARGET_OS_VERSION")
 				require.Len(t, gotVars, 2)
 			}
 
@@ -2075,9 +2075,9 @@ func TestModifyTeamOSUpdatesDeadlineDays(t *testing.T) {
 			// minimum_version, so the payload has to carry the sentinel through.
 			// Deadline stays empty in latest mode, which is what makes the
 			// renderer drop its "(deadline: ...)" clause.
-			var osUpdateActivities []fleet.ActivityTypeEditedMacOSMinVersion
+			var osUpdateActivities []automdm.ActivityTypeEditedMacOSMinVersion
 			for _, a := range gotActivities {
-				if edited, ok := a.(fleet.ActivityTypeEditedMacOSMinVersion); ok {
+				if edited, ok := a.(automdm.ActivityTypeEditedMacOSMinVersion); ok {
 					osUpdateActivities = append(osUpdateActivities, edited)
 				}
 			}
@@ -2086,7 +2086,7 @@ func TestModifyTeamOSUpdatesDeadlineDays(t *testing.T) {
 				return
 			}
 			require.Len(t, osUpdateActivities, 1)
-			require.Equal(t, fleet.AppleOSUpdateLatestVersion, osUpdateActivities[0].MinimumVersion)
+			require.Equal(t, automdm.AppleOSUpdateLatestVersion, osUpdateActivities[0].MinimumVersion)
 			require.Empty(t, osUpdateActivities[0].Deadline)
 			require.NotNil(t, osUpdateActivities[0].TeamID)
 			require.Equal(t, uint(1), *osUpdateActivities[0].TeamID)
@@ -2104,50 +2104,50 @@ func TestModifyTeamSwitchingOSUpdateModes(t *testing.T) {
 	authorizer, err := authz.NewAuthorizer()
 	require.NoError(t, err)
 	ctx := test.UserContext(context.Background(),
-		&fleet.User{ID: 1, GlobalRole: new(fleet.RoleAdmin)})
+		&automdm.User{ID: 1, GlobalRole: new(automdm.RoleAdmin)})
 
-	storedLatest := fleet.AppleOSUpdateSettings{
-		MinimumVersion: optjson.SetString(fleet.AppleOSUpdateLatestVersion),
+	storedLatest := automdm.AppleOSUpdateSettings{
+		MinimumVersion: optjson.SetString(automdm.AppleOSUpdateLatestVersion),
 		DeadlineDays:   optjson.SetInt(14),
 	}
 
-	setup := func(t *testing.T, stored fleet.AppleOSUpdateSettings) (*Service, func() *fleet.Team) {
+	setup := func(t *testing.T, stored automdm.AppleOSUpdateSettings) (*Service, func() *automdm.Team) {
 		// ModifyTeam checks minimum_version against GDMF, so serve Apple's asset
 		// list from the local fixture rather than reaching out to Apple.
 		mdmtest.StartNewAppleGDMFTestServer(t)
 
 		mockSvc := &svcmock.Service{}
-		mockSvc.NewActivityFunc = func(context.Context, *fleet.User, fleet.ActivityDetails) error {
+		mockSvc.NewActivityFunc = func(context.Context, *automdm.User, automdm.ActivityDetails) error {
 			return nil
 		}
 
 		ds := new(mock.Store)
-		ds.AppConfigFunc = func(context.Context) (*fleet.AppConfig, error) {
-			return &fleet.AppConfig{MDM: fleet.MDM{EnabledAndConfigured: true}}, nil
+		ds.AppConfigFunc = func(context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{MDM: automdm.MDM{EnabledAndConfigured: true}}, nil
 		}
-		ds.TeamWithExtrasFunc = func(_ context.Context, tid uint) (*fleet.Team, error) {
-			return &fleet.Team{ID: tid, Name: "team-1", Config: fleet.TeamConfig{
-				MDM: fleet.TeamMDM{MacOSUpdates: stored},
+		ds.TeamWithExtrasFunc = func(_ context.Context, tid uint) (*automdm.Team, error) {
+			return &automdm.Team{ID: tid, Name: "team-1", Config: automdm.TeamConfig{
+				MDM: automdm.TeamMDM{MacOSUpdates: stored},
 			}}, nil
 		}
-		var savedTeam *fleet.Team
-		ds.SaveTeamFunc = func(_ context.Context, team *fleet.Team) (*fleet.Team, error) {
+		var savedTeam *automdm.Team
+		ds.SaveTeamFunc = func(_ context.Context, team *automdm.Team) (*automdm.Team, error) {
 			savedTeam = team
 			return team, nil
 		}
 		ds.HasAppleUpdateConfigProfileConfiguredFunc = func(context.Context, uint) (bool, error) {
 			return false, nil
 		}
-		ds.LabelIDsByNameFunc = func(_ context.Context, names []string, _ fleet.TeamFilter) (map[string]uint, error) {
+		ds.LabelIDsByNameFunc = func(_ context.Context, names []string, _ automdm.TeamFilter) (map[string]uint, error) {
 			ids := make(map[string]uint, len(names))
 			for i, name := range names {
 				ids[name] = uint(i + 1) //nolint:gosec // G115: small test values
 			}
 			return ids, nil
 		}
-		ds.SetOrUpdateMDMAppleDeclarationFunc = func(_ context.Context, decl *fleet.MDMAppleDeclaration,
-			_ []fleet.FleetVarName, activationAction fleet.MDMAppleActivationAction,
-		) (*fleet.MDMAppleDeclaration, error) {
+		ds.SetOrUpdateMDMAppleDeclarationFunc = func(_ context.Context, decl *automdm.MDMAppleDeclaration,
+			_ []automdm.AutoMDMVarName, activationAction automdm.MDMAppleActivationAction,
+		) (*automdm.MDMAppleDeclaration, error) {
 			decl.DeclarationUUID = "decl-uuid"
 			return decl, nil
 		}
@@ -2158,17 +2158,17 @@ func TestModifyTeamSwitchingOSUpdateModes(t *testing.T) {
 		return &Service{
 			Service: mockSvc,
 			ds:      ds,
-			config:  config.FleetConfig{Server: config.ServerConfig{PrivateKey: "something"}},
+			config:  config.AutoMDMConfig{Server: config.ServerConfig{PrivateKey: "something"}},
 			authz:   authorizer,
-		}, func() *fleet.Team { return savedTeam }
+		}, func() *automdm.Team { return savedTeam }
 	}
 
 	t.Run("switching to a specific version", func(t *testing.T) {
 		svc, saved := setup(t, storedLatest)
 
 		// deadline_days is deliberately absent, as a sparse PATCH would leave it.
-		_, err := svc.ModifyTeam(ctx, 1, fleet.TeamPayload{MDM: &fleet.TeamPayloadMDM{
-			MacOSUpdates: &fleet.AppleOSUpdateSettings{
+		_, err := svc.ModifyTeam(ctx, 1, automdm.TeamPayload{MDM: &automdm.TeamPayloadMDM{
+			MacOSUpdates: &automdm.AppleOSUpdateSettings{
 				MinimumVersion: optjson.SetString("14.6.1"),
 				Deadline:       optjson.SetString("2026-09-01"),
 			},
@@ -2184,8 +2184,8 @@ func TestModifyTeamSwitchingOSUpdateModes(t *testing.T) {
 	t.Run("clearing enforcement entirely", func(t *testing.T) {
 		svc, saved := setup(t, storedLatest)
 
-		_, err := svc.ModifyTeam(ctx, 1, fleet.TeamPayload{MDM: &fleet.TeamPayloadMDM{
-			MacOSUpdates: &fleet.AppleOSUpdateSettings{
+		_, err := svc.ModifyTeam(ctx, 1, automdm.TeamPayload{MDM: &automdm.TeamPayloadMDM{
+			MacOSUpdates: &automdm.AppleOSUpdateSettings{
 				MinimumVersion: optjson.SetString(""),
 				Deadline:       optjson.SetString(""),
 			},
@@ -2200,22 +2200,22 @@ func TestModifyTeamSwitchingOSUpdateModes(t *testing.T) {
 	t.Run("switching into latest mode from a specific version", func(t *testing.T) {
 		// the mirror direction: a stored deadline is the stale field here, and the
 		// wholesale replace has to drop it just the same.
-		svc, saved := setup(t, fleet.AppleOSUpdateSettings{
+		svc, saved := setup(t, automdm.AppleOSUpdateSettings{
 			MinimumVersion: optjson.SetString("14.6.1"),
 			Deadline:       optjson.SetString("2026-09-01"),
 		})
 
 		// deadline is deliberately absent, as a sparse PATCH would leave it.
-		_, err := svc.ModifyTeam(ctx, 1, fleet.TeamPayload{MDM: &fleet.TeamPayloadMDM{
-			MacOSUpdates: &fleet.AppleOSUpdateSettings{
-				MinimumVersion: optjson.SetString(fleet.AppleOSUpdateLatestVersion),
+		_, err := svc.ModifyTeam(ctx, 1, automdm.TeamPayload{MDM: &automdm.TeamPayloadMDM{
+			MacOSUpdates: &automdm.AppleOSUpdateSettings{
+				MinimumVersion: optjson.SetString(automdm.AppleOSUpdateLatestVersion),
 				DeadlineDays:   optjson.SetInt(14),
 			},
 		}})
 		require.NoError(t, err)
 
 		require.NotNil(t, saved())
-		require.Equal(t, fleet.AppleOSUpdateLatestVersion, saved().Config.MDM.MacOSUpdates.MinimumVersion.Value)
+		require.Equal(t, automdm.AppleOSUpdateLatestVersion, saved().Config.MDM.MacOSUpdates.MinimumVersion.Value)
 		require.Equal(t, 14, saved().Config.MDM.MacOSUpdates.DeadlineDays.Value)
 		require.Empty(t, saved().Config.MDM.MacOSUpdates.Deadline.Value,
 			"the stored deadline must not survive the mode change")
@@ -2226,9 +2226,9 @@ func TestApplyTeamSpecsOSUpdatesValidation(t *testing.T) {
 	// GitOps applies team settings through editTeamFromSpec, which validates each
 	// Apple platform's OS update settings. All three must reject invalid settings,
 	// keyed by the platform that is at fault.
-	latest := func(days optjson.Int) fleet.AppleOSUpdateSettings {
-		return fleet.AppleOSUpdateSettings{
-			MinimumVersion: optjson.SetString(fleet.AppleOSUpdateLatestVersion),
+	latest := func(days optjson.Int) automdm.AppleOSUpdateSettings {
+		return automdm.AppleOSUpdateSettings{
+			MinimumVersion: optjson.SetString(automdm.AppleOSUpdateLatestVersion),
 			DeadlineDays:   days,
 		}
 	}
@@ -2237,39 +2237,39 @@ func TestApplyTeamSpecsOSUpdatesValidation(t *testing.T) {
 
 	testCases := []struct {
 		name    string
-		mdm     fleet.TeamSpecMDM
+		mdm     automdm.TeamSpecMDM
 		wantErr string
 	}{
 		{
 			name: "all platforms valid",
-			mdm:  fleet.TeamSpecMDM{MacOSUpdates: valid, IOSUpdates: valid, IPadOSUpdates: valid},
+			mdm:  automdm.TeamSpecMDM{MacOSUpdates: valid, IOSUpdates: valid, IPadOSUpdates: valid},
 		},
 		{
 			name:    "macos missing deadline_days",
-			mdm:     fleet.TeamSpecMDM{MacOSUpdates: missingDays},
+			mdm:     automdm.TeamSpecMDM{MacOSUpdates: missingDays},
 			wantErr: "macos_updates",
 		},
 		{
 			name:    "ios missing deadline_days",
-			mdm:     fleet.TeamSpecMDM{IOSUpdates: missingDays},
+			mdm:     automdm.TeamSpecMDM{IOSUpdates: missingDays},
 			wantErr: "ios_updates",
 		},
 		{
 			name:    "ipados missing deadline_days",
-			mdm:     fleet.TeamSpecMDM{IPadOSUpdates: missingDays},
+			mdm:     automdm.TeamSpecMDM{IPadOSUpdates: missingDays},
 			wantErr: "ipados_updates",
 		},
 		{
 			name:    "macos deadline with latest",
-			mdm:     fleet.TeamSpecMDM{MacOSUpdates: fleet.AppleOSUpdateSettings{MinimumVersion: optjson.SetString(fleet.AppleOSUpdateLatestVersion), Deadline: optjson.SetString("2026-09-01"), DeadlineDays: optjson.SetInt(14)}},
+			mdm:     automdm.TeamSpecMDM{MacOSUpdates: automdm.AppleOSUpdateSettings{MinimumVersion: optjson.SetString(automdm.AppleOSUpdateLatestVersion), Deadline: optjson.SetString("2026-09-01"), DeadlineDays: optjson.SetInt(14)}},
 			wantErr: "macos_updates",
 		},
 		{
 			// Not a "latest" case: a half-configured block was accepted before iOS
 			// was validated here, then enforced nothing because Configured() needs
-			// both fields. Existing fleet files like this now fail the apply.
+			// both fields. Existing automdm files like this now fail the apply.
 			name:    "ios version without deadline",
-			mdm:     fleet.TeamSpecMDM{IOSUpdates: fleet.AppleOSUpdateSettings{MinimumVersion: optjson.SetString("17.5")}},
+			mdm:     automdm.TeamSpecMDM{IOSUpdates: automdm.AppleOSUpdateSettings{MinimumVersion: optjson.SetString("17.5")}},
 			wantErr: "ios_updates",
 		},
 	}
@@ -2277,44 +2277,44 @@ func TestApplyTeamSpecsOSUpdatesValidation(t *testing.T) {
 	authorizer, err := authz.NewAuthorizer()
 	require.NoError(t, err)
 	ctx := test.UserContext(context.Background(),
-		&fleet.User{ID: 1, GlobalRole: new(fleet.RoleAdmin)})
+		&automdm.User{ID: 1, GlobalRole: new(automdm.RoleAdmin)})
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			mockSvc := &svcmock.Service{}
-			mockSvc.NewActivityFunc = func(context.Context, *fleet.User, fleet.ActivityDetails) error {
+			mockSvc.NewActivityFunc = func(context.Context, *automdm.User, automdm.ActivityDetails) error {
 				return nil
 			}
 
 			ds := new(mock.Store)
-			ds.AppConfigFunc = func(context.Context) (*fleet.AppConfig, error) {
-				return &fleet.AppConfig{MDM: fleet.MDM{EnabledAndConfigured: true}}, nil
+			ds.AppConfigFunc = func(context.Context) (*automdm.AppConfig, error) {
+				return &automdm.AppConfig{MDM: automdm.MDM{EnabledAndConfigured: true}}, nil
 			}
-			ds.TeamByNameFunc = func(_ context.Context, name string) (*fleet.Team, error) {
-				return &fleet.Team{ID: 1, Name: name}, nil
+			ds.TeamByNameFunc = func(_ context.Context, name string) (*automdm.Team, error) {
+				return &automdm.Team{ID: 1, Name: name}, nil
 			}
-			ds.TeamConflictsWithNameFunc = func(context.Context, string, uint) (*fleet.Team, error) {
+			ds.TeamConflictsWithNameFunc = func(context.Context, string, uint) (*automdm.Team, error) {
 				return nil, nil
 			}
 			ds.IsEnrollSecretAvailableFunc = func(context.Context, string, bool, *uint) (bool, error) {
 				return true, nil
 			}
-			ds.SaveTeamFunc = func(_ context.Context, team *fleet.Team) (*fleet.Team, error) {
+			ds.SaveTeamFunc = func(_ context.Context, team *automdm.Team) (*automdm.Team, error) {
 				return team, nil
 			}
 			ds.HasAppleUpdateConfigProfileConfiguredFunc = func(context.Context, uint) (bool, error) {
 				return false, nil
 			}
-			ds.LabelIDsByNameFunc = func(_ context.Context, names []string, _ fleet.TeamFilter) (map[string]uint, error) {
+			ds.LabelIDsByNameFunc = func(_ context.Context, names []string, _ automdm.TeamFilter) (map[string]uint, error) {
 				ids := make(map[string]uint, len(names))
 				for i, name := range names {
 					ids[name] = uint(i + 1) //nolint:gosec
 				}
 				return ids, nil
 			}
-			ds.SetOrUpdateMDMAppleDeclarationFunc = func(_ context.Context, decl *fleet.MDMAppleDeclaration,
-				_ []fleet.FleetVarName, activationAction fleet.MDMAppleActivationAction,
-			) (*fleet.MDMAppleDeclaration, error) {
+			ds.SetOrUpdateMDMAppleDeclarationFunc = func(_ context.Context, decl *automdm.MDMAppleDeclaration,
+				_ []automdm.AutoMDMVarName, activationAction automdm.MDMAppleActivationAction,
+			) (*automdm.MDMAppleDeclaration, error) {
 				decl.DeclarationUUID = "decl-uuid"
 				return decl, nil
 			}
@@ -2322,13 +2322,13 @@ func TestApplyTeamSpecsOSUpdatesValidation(t *testing.T) {
 			svc := &Service{
 				Service: mockSvc,
 				ds:      ds,
-				config:  config.FleetConfig{Server: config.ServerConfig{PrivateKey: "something"}},
+				config:  config.AutoMDMConfig{Server: config.ServerConfig{PrivateKey: "something"}},
 				authz:   authorizer,
 			}
 
 			_, err := svc.ApplyTeamSpecs(ctx,
-				[]*fleet.TeamSpec{{Name: "team-1", MDM: tc.mdm}},
-				fleet.ApplyTeamSpecOptions{})
+				[]*automdm.TeamSpec{{Name: "team-1", MDM: tc.mdm}},
+				automdm.ApplyTeamSpecOptions{})
 
 			if tc.wantErr == "" {
 				require.NoError(t, err)
@@ -2346,21 +2346,21 @@ func TestApplyTeamSpecsOSUpdatesValidation(t *testing.T) {
 // the same way editing an existing one does; they were previously dropped.
 func TestApplyTeamSpecsCreateAppliesAppleOSUpdates(t *testing.T) {
 	ds := new(mock.Store)
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
 	}
-	ds.TeamByNameFunc = func(ctx context.Context, name string) (*fleet.Team, error) {
+	ds.TeamByNameFunc = func(ctx context.Context, name string) (*automdm.Team, error) {
 		return nil, &notFoundError{}
 	}
-	ds.TeamConflictsWithNameFunc = func(ctx context.Context, name string, excludeID uint) (*fleet.Team, error) {
+	ds.TeamConflictsWithNameFunc = func(ctx context.Context, name string, excludeID uint) (*automdm.Team, error) {
 		return nil, nil
 	}
 	ds.IsEnrollSecretAvailableFunc = func(ctx context.Context, secret string, newB bool, teamID *uint) (bool, error) {
 		return true, nil
 	}
 
-	var created *fleet.Team
-	ds.NewTeamFunc = func(ctx context.Context, team *fleet.Team) (*fleet.Team, error) {
+	var created *automdm.Team
+	ds.NewTeamFunc = func(ctx context.Context, team *automdm.Team) (*automdm.Team, error) {
 		created = team
 		team.ID = 1
 		return team, nil
@@ -2371,34 +2371,34 @@ func TestApplyTeamSpecsCreateAppliesAppleOSUpdates(t *testing.T) {
 
 	svc := &Service{
 		ds: ds,
-		config: config.FleetConfig{
+		config: config.AutoMDMConfig{
 			Server: config.ServerConfig{PrivateKey: "something"},
 		},
 		authz: authorizer,
 	}
 	mockSvc := &svcmock.Service{}
-	mockSvc.NewActivityFunc = func(ctx context.Context, user *fleet.User, activity fleet.ActivityDetails) error {
+	mockSvc.NewActivityFunc = func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error {
 		return nil
 	}
 	svc.Service = mockSvc
 
-	ctx := test.UserContext(t.Context(), &fleet.User{ID: 1, GlobalRole: new(fleet.RoleAdmin)})
+	ctx := test.UserContext(t.Context(), &automdm.User{ID: 1, GlobalRole: new(automdm.RoleAdmin)})
 
-	spec := &fleet.TeamSpec{Name: "Engineering"}
-	spec.MDM.MacOSUpdates = fleet.AppleOSUpdateSettings{
+	spec := &automdm.TeamSpec{Name: "Engineering"}
+	spec.MDM.MacOSUpdates = automdm.AppleOSUpdateSettings{
 		MinimumVersion: optjson.SetString("15.0"),
 		Deadline:       optjson.SetString("2026-09-01"),
 	}
-	spec.MDM.IOSUpdates = fleet.AppleOSUpdateSettings{
+	spec.MDM.IOSUpdates = automdm.AppleOSUpdateSettings{
 		MinimumVersion: optjson.SetString("18.1"),
 		Deadline:       optjson.SetString("2026-09-02"),
 	}
-	spec.MDM.IPadOSUpdates = fleet.AppleOSUpdateSettings{
+	spec.MDM.IPadOSUpdates = automdm.AppleOSUpdateSettings{
 		MinimumVersion: optjson.SetString("18.2"),
 		Deadline:       optjson.SetString("2026-09-03"),
 	}
 
-	_, err = svc.ApplyTeamSpecs(ctx, []*fleet.TeamSpec{spec}, fleet.ApplyTeamSpecOptions{})
+	_, err = svc.ApplyTeamSpecs(ctx, []*automdm.TeamSpec{spec}, automdm.ApplyTeamSpecOptions{})
 	require.NoError(t, err)
 	require.True(t, ds.NewTeamFuncInvoked)
 	require.NotNil(t, created)
@@ -2413,30 +2413,30 @@ func TestApplyTeamSpecsCreateAppliesAppleOSUpdates(t *testing.T) {
 }
 
 // staleTeamNamesFixture is the state a rename or a delete has to reconcile: the
-// fleet names copied into mdm.apple_business, plus the abm_tokens rows that are
+// team names copied into mdm.apple_business, plus the abm_tokens rows that are
 // the source of truth for which of those entries may be touched.
 type staleTeamNamesFixture struct {
-	abmStored []fleet.MDMAppleABMAssignmentInfo
-	abmOrgs   []string // ABM tokens defaulting to this fleet
+	abmStored []automdm.MDMAppleABMAssignmentInfo
+	abmOrgs   []string // ABM tokens defaulting to this team
 }
 
 // newStaleTeamNamesService wires a service over f, and returns a live count of
 // app config writes.
-func newStaleTeamNamesService(t *testing.T, teamID uint, f staleTeamNamesFixture) (*Service, *mock.Store, *fleet.AppConfig, *int) {
-	appCfg := &fleet.AppConfig{}
+func newStaleTeamNamesService(t *testing.T, teamID uint, f staleTeamNamesFixture) (*Service, *mock.Store, *automdm.AppConfig, *int) {
+	appCfg := &automdm.AppConfig{}
 	appCfg.MDM.AppleBusinessManager = optjson.SetSlice(f.abmStored)
 
 	var saves int
 	ds := new(mock.Store)
-	ds.AppConfigFunc = func(context.Context) (*fleet.AppConfig, error) { return appCfg, nil }
-	ds.TeamConflictsWithNameFunc = func(context.Context, string, uint) (*fleet.Team, error) { return nil, nil }
-	ds.SaveTeamFunc = func(_ context.Context, team *fleet.Team) (*fleet.Team, error) { return team, nil }
+	ds.AppConfigFunc = func(context.Context) (*automdm.AppConfig, error) { return appCfg, nil }
+	ds.TeamConflictsWithNameFunc = func(context.Context, string, uint) (*automdm.Team, error) { return nil, nil }
+	ds.SaveTeamFunc = func(_ context.Context, team *automdm.Team) (*automdm.Team, error) { return team, nil }
 	ds.GetABMTokenOrgNamesAssociatedByDefaultTeamsFunc = func(_ context.Context, tid *uint) ([]string, error) {
 		require.NotNil(t, tid)
-		require.Equal(t, teamID, *tid, "must look up ABM defaults for this fleet")
+		require.Equal(t, teamID, *tid, "must look up ABM defaults for this team")
 		return f.abmOrgs, nil
 	}
-	ds.SaveAppConfigFunc = func(context.Context, *fleet.AppConfig) error {
+	ds.SaveAppConfigFunc = func(context.Context, *automdm.AppConfig) error {
 		saves++
 		return nil
 	}
@@ -2445,33 +2445,33 @@ func newStaleTeamNamesService(t *testing.T, teamID uint, f staleTeamNamesFixture
 	require.NoError(t, err)
 
 	mockSvc := &svcmock.Service{}
-	mockSvc.NewActivityFunc = func(context.Context, *fleet.User, fleet.ActivityDetails) error { return nil }
+	mockSvc.NewActivityFunc = func(context.Context, *automdm.User, automdm.ActivityDetails) error { return nil }
 
 	return &Service{
 		Service: mockSvc,
 		ds:      ds,
-		config:  config.FleetConfig{Server: config.ServerConfig{PrivateKey: "something"}},
+		config:  config.AutoMDMConfig{Server: config.ServerConfig{PrivateKey: "something"}},
 		authz:   authorizer,
 		logger:  slog.New(slog.DiscardHandler),
 	}, ds, appCfg, &saves
 }
 
 func TestApplyTeamSpecsRenameUpdatesStaleAppConfigTeamNames(t *testing.T) {
-	ctx := test.UserContext(context.Background(), &fleet.User{ID: 1, GlobalRole: new(fleet.RoleAdmin)})
+	ctx := test.UserContext(context.Background(), &automdm.User{ID: 1, GlobalRole: new(automdm.RoleAdmin)})
 
 	const filename = "workstations.yml"
 
-	newSvc := func() (*Service, *mock.Store, *fleet.AppConfig, *int) {
+	newSvc := func() (*Service, *mock.Store, *automdm.AppConfig, *int) {
 		svc, ds, appCfg, saves := newStaleTeamNamesService(t, 7, staleTeamNamesFixture{
-			abmStored: []fleet.MDMAppleABMAssignmentInfo{
+			abmStored: []automdm.MDMAppleABMAssignmentInfo{
 				{OrganizationName: "Acme Inc", MacOSTeam: "Workstations", IpadOSTeam: "Tablets"},
 			},
 			abmOrgs: []string{"Acme Inc"},
 		})
 		ds.IsEnrollSecretAvailableFunc = func(context.Context, string, bool, *uint) (bool, error) { return true, nil }
-		ds.TeamByNameFunc = func(context.Context, string) (*fleet.Team, error) { return nil, &notFoundError{} }
-		ds.TeamByFilenameFunc = func(context.Context, string) (*fleet.Team, error) {
-			return &fleet.Team{ID: 7, Name: "Workstations", Filename: new(filename)}, nil
+		ds.TeamByNameFunc = func(context.Context, string) (*automdm.Team, error) { return nil, &notFoundError{} }
+		ds.TeamByFilenameFunc = func(context.Context, string) (*automdm.Team, error) {
+			return &automdm.Team{ID: 7, Name: "Workstations", Filename: new(filename)}, nil
 		}
 		return svc, ds, appCfg, saves
 	}
@@ -2479,13 +2479,13 @@ func TestApplyTeamSpecsRenameUpdatesStaleAppConfigTeamNames(t *testing.T) {
 	t.Run("rename via filename-matched spec rewrites the ABM entries", func(t *testing.T) {
 		svc, _, appCfg, saves := newSvc()
 
-		_, err := svc.ApplyTeamSpecs(ctx, []*fleet.TeamSpec{
+		_, err := svc.ApplyTeamSpecs(ctx, []*automdm.TeamSpec{
 			{Name: "Laptops", Filename: new(filename)},
-		}, fleet.ApplyTeamSpecOptions{})
+		}, automdm.ApplyTeamSpecOptions{})
 		require.NoError(t, err)
 
 		require.Equal(t, 1, *saves)
-		require.Equal(t, []fleet.MDMAppleABMAssignmentInfo{
+		require.Equal(t, []automdm.MDMAppleABMAssignmentInfo{
 			{OrganizationName: "Acme Inc", MacOSTeam: "Laptops", IpadOSTeam: "Tablets"},
 		}, appCfg.MDM.AppleBusinessManager.Value)
 	})
@@ -2493,9 +2493,9 @@ func TestApplyTeamSpecsRenameUpdatesStaleAppConfigTeamNames(t *testing.T) {
 	t.Run("dry run does not touch the ABM config", func(t *testing.T) {
 		svc, ds, appCfg, saves := newSvc()
 
-		_, err := svc.ApplyTeamSpecs(ctx, []*fleet.TeamSpec{
+		_, err := svc.ApplyTeamSpecs(ctx, []*automdm.TeamSpec{
 			{Name: "Laptops", Filename: new(filename)},
-		}, fleet.ApplyTeamSpecOptions{ApplySpecOptions: fleet.ApplySpecOptions{DryRun: true}})
+		}, automdm.ApplyTeamSpecOptions{ApplySpecOptions: automdm.ApplySpecOptions{DryRun: true}})
 		require.NoError(t, err)
 
 		require.False(t, ds.GetABMTokenOrgNamesAssociatedByDefaultTeamsFuncInvoked)
@@ -2513,20 +2513,20 @@ func TestModifyTeamRenameUpdatesStaleAppConfigTeamNames(t *testing.T) {
 		fixture    staleTeamNamesFixture
 		wantLookup bool
 		wantSaves  int
-		wantABM    []fleet.MDMAppleABMAssignmentInfo
+		wantABM    []automdm.MDMAppleABMAssignmentInfo
 	}{
 		{
-			name:    "renames the fleet in the ABM entries",
+			name:    "renames the team in the ABM entries",
 			newName: "Laptops",
 			fixture: staleTeamNamesFixture{
-				abmStored: []fleet.MDMAppleABMAssignmentInfo{
+				abmStored: []automdm.MDMAppleABMAssignmentInfo{
 					{OrganizationName: "Acme Inc", MacOSTeam: "Workstations", IOSTeam: "Phones"},
 				},
 				abmOrgs: []string{"Acme Inc"},
 			},
 			wantLookup: true,
 			wantSaves:  1,
-			wantABM: []fleet.MDMAppleABMAssignmentInfo{
+			wantABM: []automdm.MDMAppleABMAssignmentInfo{
 				{OrganizationName: "Acme Inc", MacOSTeam: "Laptops", IOSTeam: "Phones"},
 			},
 		},
@@ -2534,7 +2534,7 @@ func TestModifyTeamRenameUpdatesStaleAppConfigTeamNames(t *testing.T) {
 			name:    "other ABM tokens are left alone",
 			newName: "Laptops",
 			fixture: staleTeamNamesFixture{
-				abmStored: []fleet.MDMAppleABMAssignmentInfo{
+				abmStored: []automdm.MDMAppleABMAssignmentInfo{
 					{OrganizationName: "Acme Inc", MacOSTeam: "Workstations"},
 					{OrganizationName: "Beta Corp", MacOSTeam: "Workstations"},
 				},
@@ -2542,41 +2542,41 @@ func TestModifyTeamRenameUpdatesStaleAppConfigTeamNames(t *testing.T) {
 			},
 			wantLookup: true,
 			wantSaves:  1,
-			wantABM: []fleet.MDMAppleABMAssignmentInfo{
+			wantABM: []automdm.MDMAppleABMAssignmentInfo{
 				{OrganizationName: "Acme Inc", MacOSTeam: "Laptops"},
 				{OrganizationName: "Beta Corp", MacOSTeam: "Workstations"},
 			},
 		},
 		{
-			name:    "fleet isn't referenced",
+			name:    "team isn't referenced",
 			newName: "Laptops",
 			fixture: staleTeamNamesFixture{
-				abmStored: []fleet.MDMAppleABMAssignmentInfo{{OrganizationName: "Acme Inc", MacOSTeam: "Servers"}},
+				abmStored: []automdm.MDMAppleABMAssignmentInfo{{OrganizationName: "Acme Inc", MacOSTeam: "Servers"}},
 			},
 			wantLookup: true,
-			wantABM:    []fleet.MDMAppleABMAssignmentInfo{{OrganizationName: "Acme Inc", MacOSTeam: "Servers"}},
+			wantABM:    []automdm.MDMAppleABMAssignmentInfo{{OrganizationName: "Acme Inc", MacOSTeam: "Servers"}},
 		},
 		{
 			name:    "same name is not a rename",
 			newName: "Workstations",
 			fixture: staleTeamNamesFixture{
-				abmStored: []fleet.MDMAppleABMAssignmentInfo{{OrganizationName: "Acme Inc", MacOSTeam: "Workstations"}},
+				abmStored: []automdm.MDMAppleABMAssignmentInfo{{OrganizationName: "Acme Inc", MacOSTeam: "Workstations"}},
 				abmOrgs:   []string{"Acme Inc"},
 			},
-			wantABM: []fleet.MDMAppleABMAssignmentInfo{{OrganizationName: "Acme Inc", MacOSTeam: "Workstations"}},
+			wantABM: []automdm.MDMAppleABMAssignmentInfo{{OrganizationName: "Acme Inc", MacOSTeam: "Workstations"}},
 		},
 	}
 
-	ctx := test.UserContext(context.Background(), &fleet.User{ID: 1, GlobalRole: new(fleet.RoleAdmin)})
+	ctx := test.UserContext(context.Background(), &automdm.User{ID: 1, GlobalRole: new(automdm.RoleAdmin)})
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			svc, ds, appCfg, saves := newStaleTeamNamesService(t, teamID, tc.fixture)
-			ds.TeamWithExtrasFunc = func(_ context.Context, tid uint) (*fleet.Team, error) {
-				return &fleet.Team{ID: tid, Name: "Workstations"}, nil
+			ds.TeamWithExtrasFunc = func(_ context.Context, tid uint) (*automdm.Team, error) {
+				return &automdm.Team{ID: tid, Name: "Workstations"}, nil
 			}
 
-			team, err := svc.ModifyTeam(ctx, teamID, fleet.TeamPayload{Name: new(tc.newName)})
+			team, err := svc.ModifyTeam(ctx, teamID, automdm.TeamPayload{Name: new(tc.newName)})
 			require.NoError(t, err)
 			require.Equal(t, tc.newName, team.Name)
 
@@ -2595,62 +2595,62 @@ func TestDeleteTeamCleansStaleAppConfigTeamNames(t *testing.T) {
 		name      string
 		fixture   staleTeamNamesFixture
 		wantSaves int
-		wantABM   []fleet.MDMAppleABMAssignmentInfo
+		wantABM   []automdm.MDMAppleABMAssignmentInfo
 	}{
 		{
-			name: "clears the fleet from the ABM entries",
+			name: "clears the team from the ABM entries",
 			fixture: staleTeamNamesFixture{
-				abmStored: []fleet.MDMAppleABMAssignmentInfo{
+				abmStored: []automdm.MDMAppleABMAssignmentInfo{
 					{OrganizationName: "Acme Inc", MacOSTeam: "Workstations", IOSTeam: "Phones"},
 				},
 				abmOrgs: []string{"Acme Inc"},
 			},
 			wantSaves: 1,
-			wantABM: []fleet.MDMAppleABMAssignmentInfo{
+			wantABM: []automdm.MDMAppleABMAssignmentInfo{
 				{OrganizationName: "Acme Inc", MacOSTeam: "", IOSTeam: "Phones"},
 			},
 		},
 		{
 			name: "other ABM tokens are left alone",
 			fixture: staleTeamNamesFixture{
-				abmStored: []fleet.MDMAppleABMAssignmentInfo{
+				abmStored: []automdm.MDMAppleABMAssignmentInfo{
 					{OrganizationName: "Acme Inc", MacOSTeam: "Workstations"},
 					{OrganizationName: "Beta Corp", MacOSTeam: "Workstations"},
 				},
 				abmOrgs: []string{"Acme Inc"},
 			},
 			wantSaves: 1,
-			wantABM: []fleet.MDMAppleABMAssignmentInfo{
+			wantABM: []automdm.MDMAppleABMAssignmentInfo{
 				{OrganizationName: "Acme Inc", MacOSTeam: ""},
 				{OrganizationName: "Beta Corp", MacOSTeam: "Workstations"},
 			},
 		},
 		{
-			name: "fleet isn't referenced",
+			name: "team isn't referenced",
 			fixture: staleTeamNamesFixture{
-				abmStored: []fleet.MDMAppleABMAssignmentInfo{{OrganizationName: "Acme Inc", MacOSTeam: "Servers"}},
+				abmStored: []automdm.MDMAppleABMAssignmentInfo{{OrganizationName: "Acme Inc", MacOSTeam: "Servers"}},
 			},
-			wantABM: []fleet.MDMAppleABMAssignmentInfo{{OrganizationName: "Acme Inc", MacOSTeam: "Servers"}},
+			wantABM: []automdm.MDMAppleABMAssignmentInfo{{OrganizationName: "Acme Inc", MacOSTeam: "Servers"}},
 		},
 	}
 
-	ctx := test.UserContext(context.Background(), &fleet.User{ID: 1, GlobalRole: new(fleet.RoleAdmin)})
+	ctx := test.UserContext(context.Background(), &automdm.User{ID: 1, GlobalRole: new(automdm.RoleAdmin)})
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			svc, ds, appCfg, saves := newStaleTeamNamesService(t, teamID, tc.fixture)
-			ds.TeamLiteFunc = func(_ context.Context, tid uint) (*fleet.TeamLite, error) {
-				return &fleet.TeamLite{ID: tid, Name: "Workstations"}, nil
+			ds.TeamLiteFunc = func(_ context.Context, tid uint) (*automdm.TeamLite, error) {
+				return &automdm.TeamLite{ID: tid, Name: "Workstations"}, nil
 			}
-			ds.ListHostsFunc = func(context.Context, fleet.TeamFilter, fleet.HostListOptions) ([]*fleet.Host, error) {
+			ds.ListHostsFunc = func(context.Context, automdm.TeamFilter, automdm.HostListOptions) ([]*automdm.Host, error) {
 				return nil, nil
 			}
-			ds.GetCertificateTemplatesByTeamIDFunc = func(context.Context, uint, fleet.ListOptions) (
-				[]*fleet.CertificateTemplateResponseSummary, *fleet.PaginationMetadata, error,
+			ds.GetCertificateTemplatesByTeamIDFunc = func(context.Context, uint, automdm.ListOptions) (
+				[]*automdm.CertificateTemplateResponseSummary, *automdm.PaginationMetadata, error,
 			) {
 				return nil, nil, nil
 			}
-			ds.GetWindowsEnrollmentDefaultFleetFunc = func(context.Context) (*uint, string, error) { return nil, "", nil }
+			ds.GetWindowsEnrollmentDefaultTeamFunc = func(context.Context) (*uint, string, error) { return nil, "", nil }
 			ds.DeleteTeamFunc = func(context.Context, uint) error { return nil }
 
 			require.NoError(t, svc.DeleteTeam(ctx, teamID))
@@ -2665,20 +2665,20 @@ func TestDeleteTeamCleansStaleAppConfigTeamNames(t *testing.T) {
 func TestModifyTeamPartialSetupExperienceKeepsEndUserAuth(t *testing.T) {
 	authorizer, err := authz.NewAuthorizer()
 	require.NoError(t, err)
-	ctx := test.UserContext(t.Context(), &fleet.User{ID: 1, GlobalRole: new(fleet.RoleAdmin)})
+	ctx := test.UserContext(t.Context(), &automdm.User{ID: 1, GlobalRole: new(automdm.RoleAdmin)})
 
 	ds := new(mock.Store)
-	ds.AppConfigFunc = func(context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil
+	ds.AppConfigFunc = func(context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
 	}
-	ds.TeamWithExtrasFunc = func(_ context.Context, tid uint) (*fleet.Team, error) {
-		tm := &fleet.Team{ID: tid, Name: "team-1"}
+	ds.TeamWithExtrasFunc = func(_ context.Context, tid uint) (*automdm.Team, error) {
+		tm := &automdm.Team{ID: tid, Name: "team-1"}
 		tm.Config.MDM.MacOSSetup.EnableEndUserAuthentication = true
 		tm.Config.MDM.MacOSSetup.LockEndUserInfo = optjson.SetBool(true)
 		return tm, nil
 	}
-	var saved *fleet.Team
-	ds.SaveTeamFunc = func(_ context.Context, team *fleet.Team) (*fleet.Team, error) {
+	var saved *automdm.Team
+	ds.SaveTeamFunc = func(_ context.Context, team *automdm.Team) (*automdm.Team, error) {
 		saved = team
 		return team, nil
 	}
@@ -2687,18 +2687,18 @@ func TestModifyTeamPartialSetupExperienceKeepsEndUserAuth(t *testing.T) {
 	mockSvc.HasCustomSetupAssistantConfigurationWebURLFunc = func(context.Context, *uint) (bool, error) {
 		return false, nil
 	}
-	mockSvc.NewActivityFunc = func(context.Context, *fleet.User, fleet.ActivityDetails) error { return nil }
+	mockSvc.NewActivityFunc = func(context.Context, *automdm.User, automdm.ActivityDetails) error { return nil }
 
 	svc := &Service{
 		Service: mockSvc,
 		ds:      ds,
-		config:  config.FleetConfig{Server: config.ServerConfig{PrivateKey: "something"}},
+		config:  config.AutoMDMConfig{Server: config.ServerConfig{PrivateKey: "something"}},
 		authz:   authorizer,
 		logger:  slog.New(slog.DiscardHandler),
 	}
 
 	// Decode from JSON so the payload carries only the keys a client sent.
-	var payload fleet.TeamPayload
+	var payload automdm.TeamPayload
 	require.NoError(t, json.Unmarshal([]byte(`{"mdm": {"setup_experience": {"lock_end_user_info": false}}}`), &payload))
 
 	_, err = svc.ModifyTeam(ctx, 1, payload)

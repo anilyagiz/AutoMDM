@@ -1,6 +1,6 @@
 package services
 
-import "github.com/fleetdm/fleet/tools/hangar/internal/processes"
+import "github.com/anilyagiz/automdm/tools/hangar/internal/processes"
 
 // ProcessService exposes the process/log/docker engine to the frontend.
 // Mirrors the process commands from processes.rs.

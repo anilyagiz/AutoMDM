@@ -19,7 +19,7 @@ const FailedToRotateManagedLocalAccountPasswordActivityItem = ({
       hideShowDetails={!hasDetail}
       onShowDetails={onShowDetails}
     >
-      <b>Fleet </b>
+      <b>AutoMDM </b>
       failed to rotate the managed local account password for this host.
     </ActivityItem>
   );

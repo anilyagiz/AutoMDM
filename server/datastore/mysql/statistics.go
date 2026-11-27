@@ -7,25 +7,25 @@ import (
 	"errors"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/version"
+	"github.com/anilyagiz/automdm/v4/server"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/version"
 	"github.com/jmoiron/sqlx"
 )
 
 type statistics struct {
-	fleet.UpdateCreateTimestamps
+	automdm.UpdateCreateTimestamps
 	Identifier string `db:"anonymous_identifier"`
 }
 
-func (ds *Datastore) ShouldSendStatistics(ctx context.Context, frequency time.Duration, config config.FleetConfig) (fleet.StatisticsPayload, bool, error) {
+func (ds *Datastore) ShouldSendStatistics(ctx context.Context, frequency time.Duration, config config.AutoMDMConfig) (automdm.StatisticsPayload, bool, error) {
 	lic, _ := license.FromContext(ctx)
 
-	computeStats := func(stats *fleet.StatisticsPayload, since time.Time) error {
+	computeStats := func(stats *automdm.StatisticsPayload, since time.Time) error {
 		enrolledHostsByOS, amountEnrolledHosts, err := amountEnrolledHostsByOSDB(ctx, ds.reader(ctx))
 		if err != nil {
 			return ctxerr.Wrap(ctx, err, "amount enrolled hosts by os")
@@ -108,21 +108,21 @@ func (ds *Datastore) ShouldSendStatistics(ctx context.Context, frequency time.Du
 		if err != nil {
 			return ctxerr.Wrap(ctx, err, "amount hosts by osquery version")
 		}
-		numHostsFleetDesktopEnabled, err := numHostsFleetDesktopEnabledDB(ctx, ds.reader(ctx))
+		numHostsAutoMDMDesktopEnabled, err := numHostsAutoMDMDesktopEnabledDB(ctx, ds.reader(ctx))
 		if err != nil {
-			return ctxerr.Wrap(ctx, err, "number of hosts with Fleet desktop installed")
+			return ctxerr.Wrap(ctx, err, "number of hosts with AutoMDM desktop installed")
 		}
 		numQueries, err := numSavedQueriesDB(ctx, ds.reader(ctx))
 		if err != nil {
 			return ctxerr.Wrap(ctx, err, "number of saved queries in DB")
 		}
-		fleetMaintainedAppsMacOS, fleetMaintainedAppsWindows, err := fleetMaintainedAppsInUseDB(ctx, ds.reader(ctx))
+		automdmMaintainedAppsMacOS, automdmMaintainedAppsWindows, err := automdmMaintainedAppsInUseDB(ctx, ds.reader(ctx))
 		if err != nil {
-			return ctxerr.Wrap(ctx, err, "fleet maintained apps")
+			return ctxerr.Wrap(ctx, err, "automdm maintained apps")
 		}
-		numHostsFleetMDMEnrolledMacOS, numHostsFleetMDMEnrolledWindows, numHostsFleetMDMEnrolledIOS, numHostsFleetMDMEnrolledIpadOS, err := numHostsFleetMDMEnrolledDB(ctx, ds.reader(ctx))
+		numHostsAutoMDMMDMEnrolledMacOS, numHostsAutoMDMMDMEnrolledWindows, numHostsAutoMDMMDMEnrolledIOS, numHostsAutoMDMMDMEnrolledIpadOS, err := numHostsAutoMDMMDMEnrolledDB(ctx, ds.reader(ctx))
 		if err != nil {
-			return ctxerr.Wrap(ctx, err, "number of hosts enrolled in Fleet MDM")
+			return ctxerr.Wrap(ctx, err, "number of hosts enrolled in AutoMDM")
 		}
 		numMDMAppleProfiles, err := tableRowsCount(ctx, ds.reader(ctx), "mdm_apple_configuration_profiles")
 		if err != nil {
@@ -185,9 +185,9 @@ func (ds *Datastore) ShouldSendStatistics(ctx context.Context, frequency time.Du
 		stats.AnyFailingPoliciesWebhookEnabled = appConfig.WebhookSettings.FailingPoliciesWebhook.Enable
 
 		stats.MaintenanceWindowsEnabled = false
-		teams, err := ds.ListTeams(ctx, fleet.TeamFilter{User: &fleet.User{
-			GlobalRole: ptr.String(fleet.RoleAdmin),
-		}}, fleet.ListOptions{})
+		teams, err := ds.ListTeams(ctx, automdm.TeamFilter{User: &automdm.User{
+			GlobalRole: ptr.String(automdm.RoleAdmin),
+		}}, automdm.ListOptions{})
 		if err != nil {
 			return ctxerr.Wrap(ctx, err, "list teams")
 		}
@@ -203,7 +203,7 @@ func (ds *Datastore) ShouldSendStatistics(ctx context.Context, frequency time.Du
 			}
 		}
 
-		// Check if "No team" / "Unassigned" fleet settings enable any webhooks
+		// Check if "No team" / "Unassigned" team settings enable any webhooks
 		if !stats.AnyFailingPoliciesWebhookEnabled || !stats.AnyHostActivitiesWebhookEnabled {
 			defaultTeamConfig, err := ds.DefaultTeamConfig(ctx)
 			if err != nil {
@@ -216,14 +216,14 @@ func (ds *Datastore) ShouldSendStatistics(ctx context.Context, frequency time.Du
 				stats.AnyHostActivitiesWebhookEnabled = true
 			}
 		}
-		stats.NumHostsFleetDesktopEnabled = numHostsFleetDesktopEnabled
+		stats.NumHostsAutoMDMDesktopEnabled = numHostsAutoMDMDesktopEnabled
 		stats.NumQueries = numQueries
-		stats.FleetMaintainedAppsMacOS = fleetMaintainedAppsMacOS
-		stats.FleetMaintainedAppsWindows = fleetMaintainedAppsWindows
-		stats.NumHostsFleetMDMEnrolledMacOS = numHostsFleetMDMEnrolledMacOS
-		stats.NumHostsFleetMDMEnrolledWindows = numHostsFleetMDMEnrolledWindows
-		stats.NumHostsFleetMDMEnrolledIOS = numHostsFleetMDMEnrolledIOS
-		stats.NumHostsFleetMDMEnrolledIpadOS = numHostsFleetMDMEnrolledIpadOS
+		stats.AutoMDMMaintainedAppsMacOS = automdmMaintainedAppsMacOS
+		stats.AutoMDMMaintainedAppsWindows = automdmMaintainedAppsWindows
+		stats.NumHostsAutoMDMMDMEnrolledMacOS = numHostsAutoMDMMDMEnrolledMacOS
+		stats.NumHostsAutoMDMMDMEnrolledWindows = numHostsAutoMDMMDMEnrolledWindows
+		stats.NumHostsAutoMDMMDMEnrolledIOS = numHostsAutoMDMMDMEnrolledIOS
+		stats.NumHostsAutoMDMMDMEnrolledIpadOS = numHostsAutoMDMMDMEnrolledIpadOS
 		stats.NumMDMAppleProfiles = numMDMAppleProfiles
 		stats.NumMDMWindowsProfiles = numMDMWindowsProfiles
 		stats.NumMDMAppleDeclarations = numMDMAppleDeclarations
@@ -262,7 +262,7 @@ func (ds *Datastore) ShouldSendStatistics(ctx context.Context, frequency time.Du
 
 		stats.TicketDestinationConfigured = len(appConfig.Integrations.Jira) > 0 || len(appConfig.Integrations.Zendesk) > 0
 		if appConfig.SSOSettings != nil {
-			stats.SSOConfiguredFleetUsers = appConfig.SSOSettings.EnableSSO
+			stats.SSOConfiguredTeamUsers = appConfig.SSOSettings.EnableSSO
 		}
 		stats.SSOConfiguredEndUsers = !appConfig.MDM.EndUserAuthentication.SSOProviderSettings.IsEmpty()
 		stats.AccountProvisioningConfigured = appConfig.MDM.AppleAccountProvisioning.Configured()
@@ -281,7 +281,7 @@ func (ds *Datastore) ShouldSendStatistics(ctx context.Context, frequency time.Du
 
 		stats.GitOpsModeEnabled = appConfig.GitOpsConfig.GitopsModeEnabled
 		stats.GitOpsModeExceptions = gitOpsExceptionsList(appConfig.GitOpsConfig.Exceptions)
-		stats.FleetDesktopSSOEnabled = appConfig.FleetDesktop.SSOEnabled
+		stats.AutoMDMDesktopSSOEnabled = appConfig.AutoMDMDesktop.SSOEnabled
 
 		return nil
 	}
@@ -292,29 +292,29 @@ func (ds *Datastore) ShouldSendStatistics(ctx context.Context, frequency time.Du
 		if err == sql.ErrNoRows {
 			anonIdentifier, err := server.GenerateRandomText(64)
 			if err != nil {
-				return fleet.StatisticsPayload{}, false, ctxerr.Wrap(ctx, err, "generate random text")
+				return automdm.StatisticsPayload{}, false, ctxerr.Wrap(ctx, err, "generate random text")
 			}
 			_, err = ds.writer(ctx).ExecContext(ctx, `INSERT INTO statistics(anonymous_identifier) VALUES (?)`, anonIdentifier)
 			if err != nil {
-				return fleet.StatisticsPayload{}, false, ctxerr.Wrap(ctx, err, "insert statistics")
+				return automdm.StatisticsPayload{}, false, ctxerr.Wrap(ctx, err, "insert statistics")
 			}
 
 			// compute active weekly users since now - frequency
-			stats := fleet.StatisticsPayload{
+			stats := automdm.StatisticsPayload{
 				AnonymousIdentifier: anonIdentifier,
-				FleetVersion:        version.Version().Version,
-				LicenseTier:         fleet.TierFree,
+				AutoMDMVersion:      version.Version().Version,
+				LicenseTier:         automdm.TierFree,
 			}
 			if lic != nil {
 				stats.LicenseTier = lic.GetTier()
 			}
 			if err := computeStats(&stats, time.Now().Add(-frequency)); err != nil {
-				return fleet.StatisticsPayload{}, false, ctxerr.Wrap(ctx, err, "compute statistics")
+				return automdm.StatisticsPayload{}, false, ctxerr.Wrap(ctx, err, "compute statistics")
 			}
 
 			return stats, true, nil
 		}
-		return fleet.StatisticsPayload{}, false, ctxerr.Wrap(ctx, err, "get statistics")
+		return automdm.StatisticsPayload{}, false, ctxerr.Wrap(ctx, err, "get statistics")
 	}
 
 	lastUpdated := dest.UpdatedAt
@@ -322,19 +322,19 @@ func (ds *Datastore) ShouldSendStatistics(ctx context.Context, frequency time.Du
 		lastUpdated = dest.CreatedAt
 	}
 	if time.Now().Before(lastUpdated.Add(frequency)) {
-		return fleet.StatisticsPayload{}, false, nil
+		return automdm.StatisticsPayload{}, false, nil
 	}
 
-	stats := fleet.StatisticsPayload{
+	stats := automdm.StatisticsPayload{
 		AnonymousIdentifier: dest.Identifier,
-		FleetVersion:        version.Version().Version,
-		LicenseTier:         fleet.TierFree,
+		AutoMDMVersion:      version.Version().Version,
+		LicenseTier:         automdm.TierFree,
 	}
 	if lic != nil {
 		stats.LicenseTier = lic.GetTier()
 	}
 	if err := computeStats(&stats, lastUpdated); err != nil {
-		return fleet.StatisticsPayload{}, false, ctxerr.Wrap(ctx, err, "compute statistics")
+		return automdm.StatisticsPayload{}, false, ctxerr.Wrap(ctx, err, "compute statistics")
 	}
 
 	return stats, true, nil
@@ -379,10 +379,10 @@ func (ds *Datastore) getTableRowCountsViaInformationSchema(ctx context.Context) 
 	return byName, nil
 }
 
-// fleetMaintainedAppsInUseDB returns the Fleet-maintained apps in use grouped by platform
+// automdmMaintainedAppsInUseDB returns the AutoMDM-maintained apps in use grouped by platform
 // (darwin for macOS, windows for Windows), along with whether a patch policy covers each app
 // and whether that patch policy carries a software automation.
-func fleetMaintainedAppsInUseDB(ctx context.Context, db sqlx.QueryerContext) (macOSApps []fleet.FleetMaintainedAppUsage, windowsApps []fleet.FleetMaintainedAppUsage, err error) {
+func automdmMaintainedAppsInUseDB(ctx context.Context, db sqlx.QueryerContext) (macOSApps []automdm.AutoMDMMaintainedAppUsage, windowsApps []automdm.AutoMDMMaintainedAppUsage, err error) {
 	// One slug backs several software_installers rows (one per team, plus cached versions), so
 	// aggregate per slug: without the GROUP BY, rows whose booleans differ by team would emit
 	// the same slug more than once.
@@ -393,36 +393,36 @@ func fleetMaintainedAppsInUseDB(ctx context.Context, db sqlx.QueryerContext) (ma
 			MAX(p.id IS NOT NULL) AS patch_policy,
 			MAX(` + policiesSoftwareAutomationClause + `) AS software_automation
 		FROM software_installers si
-		INNER JOIN fleet_maintained_apps fma ON si.fleet_maintained_app_id = fma.id
+		INNER JOIN automdm_maintained_apps fma ON si.automdm_maintained_app_id = fma.id
 		LEFT JOIN policies p
 			ON p.patch_software_title_id = si.title_id
 			AND p.type = ?
 			AND si.global_or_team_id = p.team_id
-		WHERE si.fleet_maintained_app_id IS NOT NULL AND fma.platform IN ('darwin', 'windows')
+		WHERE si.automdm_maintained_app_id IS NOT NULL AND fma.platform IN ('darwin', 'windows')
 		GROUP BY fma.slug, fma.platform
 		ORDER BY fma.platform, fma.slug
 	`
 
 	type appResult struct {
-		fleet.FleetMaintainedAppUsage
+		automdm.AutoMDMMaintainedAppUsage
 		Platform string `db:"platform"`
 	}
 
 	var results []appResult
-	if err := sqlx.SelectContext(ctx, db, &results, query, fleet.PolicyTypePatch); err != nil {
-		return nil, nil, ctxerr.Wrap(ctx, err, "selecting fleet maintained apps in use")
+	if err := sqlx.SelectContext(ctx, db, &results, query, automdm.PolicyTypePatch); err != nil {
+		return nil, nil, ctxerr.Wrap(ctx, err, "selecting automdm maintained apps in use")
 	}
 
 	// Initialize as empty slices (not nil) so they serialize as [] instead of null
-	macOSApps = make([]fleet.FleetMaintainedAppUsage, 0)
-	windowsApps = make([]fleet.FleetMaintainedAppUsage, 0)
+	macOSApps = make([]automdm.AutoMDMMaintainedAppUsage, 0)
+	windowsApps = make([]automdm.AutoMDMMaintainedAppUsage, 0)
 
 	for _, app := range results {
 		switch app.Platform {
 		case "darwin":
-			macOSApps = append(macOSApps, app.FleetMaintainedAppUsage)
+			macOSApps = append(macOSApps, app.AutoMDMMaintainedAppUsage)
 		case "windows":
-			windowsApps = append(windowsApps, app.FleetMaintainedAppUsage)
+			windowsApps = append(windowsApps, app.AutoMDMMaintainedAppUsage)
 		}
 	}
 
@@ -430,7 +430,7 @@ func fleetMaintainedAppsInUseDB(ctx context.Context, db sqlx.QueryerContext) (ma
 }
 
 func (ds *Datastore) entraConditionalAccessConfigured(ctx context.Context) (bool, error) {
-	// Conditional access is a Fleet Premium feature. Gate on the current license
+	// Conditional access is an AutoMDM Premium feature. Gate on the current license
 	// tier so that an integration left over from a previous Premium license
 	// (e.g. after a downgrade or expiry) isn't reported as configured.
 	if !license.IsPremium(ctx) {
@@ -440,7 +440,7 @@ func (ds *Datastore) entraConditionalAccessConfigured(ctx context.Context) (bool
 	// Check if the integration is fully configured.
 	integration, err := ds.ConditionalAccessMicrosoftGet(ctx)
 	if err != nil {
-		if fleet.IsNotFound(err) {
+		if automdm.IsNotFound(err) {
 			return false, nil
 		}
 		return false, ctxerr.Wrap(ctx, err, "failed to load the integration")
@@ -456,17 +456,17 @@ func (ds *Datastore) googleConditionalAccessConfigured(ctx context.Context) (boo
 	}
 	integration, err := ds.GetGoogleConditionalAccessIntegration(ctx)
 	if err != nil {
-		if fleet.IsNotFound(err) {
+		if automdm.IsNotFound(err) {
 			return false, nil
 		}
 		return false, ctxerr.Wrap(ctx, err, "failed to load the integration")
 	}
-	return integration.State == fleet.ConditionalAccessGoogleStateConnected, nil
+	return integration.State == automdm.ConditionalAccessGoogleStateConnected, nil
 }
 
 // gitOpsExceptionsList returns the names of enabled GitOps mode exceptions, in a stable order.
 // Always returns a non-nil slice so the payload serializes as [] when empty.
-func gitOpsExceptionsList(e fleet.GitOpsExceptions) []string {
+func gitOpsExceptionsList(e automdm.GitOpsExceptions) []string {
 	exceptions := make([]string, 0, 3)
 	if e.Labels {
 		exceptions = append(exceptions, "labels")
@@ -480,7 +480,7 @@ func gitOpsExceptionsList(e fleet.GitOpsExceptions) []string {
 	return exceptions
 }
 
-func (ds *Datastore) conditionalAccessEnabledOnATeam(ctx context.Context, teams []*fleet.Team) (bool, error) {
+func (ds *Datastore) conditionalAccessEnabledOnATeam(ctx context.Context, teams []*automdm.Team) (bool, error) {
 	// Check configuration for "Unassigned" is stored in the main appconfig.
 	cfg, err := ds.AppConfig(ctx)
 	if err != nil {
@@ -506,7 +506,7 @@ type aiGeneratedProfileCounts struct {
 }
 
 func (ds *Datastore) IncrementAIGeneratedProfileCount(ctx context.Context, platform string) error {
-	if platform != fleet.AutofillConfigProfilePlatformApple && platform != fleet.AutofillConfigProfilePlatformWindows {
+	if platform != automdm.AutofillConfigProfilePlatformApple && platform != automdm.AutofillConfigProfilePlatformWindows {
 		return ctxerr.Errorf(ctx, "unsupported platform for AI generated profile count: %q", platform)
 	}
 

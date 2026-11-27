@@ -4,12 +4,12 @@ import (
 	"context"
 	"fmt"
 
-	authz_ctx "github.com/fleetdm/fleet/v4/server/contexts/authz"
-	"github.com/fleetdm/fleet/v4/server/mdm/acme/api"
-	api_http "github.com/fleetdm/fleet/v4/server/mdm/acme/api/http"
-	"github.com/fleetdm/fleet/v4/server/mdm/acme/internal/types"
-	eu "github.com/fleetdm/fleet/v4/server/platform/endpointer"
-	platform_http "github.com/fleetdm/fleet/v4/server/platform/http"
+	authz_ctx "github.com/anilyagiz/automdm/v4/server/contexts/authz"
+	"github.com/anilyagiz/automdm/v4/server/mdm/acme/api"
+	api_http "github.com/anilyagiz/automdm/v4/server/mdm/acme/api/http"
+	"github.com/anilyagiz/automdm/v4/server/mdm/acme/internal/types"
+	eu "github.com/anilyagiz/automdm/v4/server/platform/endpointer"
+	platform_http "github.com/anilyagiz/automdm/v4/server/platform/http"
 	"github.com/go-kit/kit/endpoint"
 	kithttp "github.com/go-kit/kit/transport/http"
 )
@@ -18,17 +18,17 @@ import (
 // authMiddleware.
 func GetRoutes(svc api.Service, authMiddleware endpoint.Middleware) eu.HandlerRoutesFunc {
 	return func(r *eu.Router, opts []kithttp.ServerOption) {
-		attachFleetAPIRoutes(r, svc, authMiddleware, opts)
+		attachAutoMDMAPIRoutes(r, svc, authMiddleware, opts)
 	}
 }
 
-func attachFleetAPIRoutes(r *eu.Router, svc api.Service, authMiddleware endpoint.Middleware, opts []kithttp.ServerOption) {
+func attachAutoMDMAPIRoutes(r *eu.Router, svc api.Service, authMiddleware endpoint.Middleware, opts []kithttp.ServerOption) {
 	opts = append(opts, kithttp.ServerErrorEncoder(acmeErrorEncoder))
 	ae := newEndpointerWithNoAuth(svc, authMiddleware, opts, r)
 	// ACME endpoints use path identifier and JWS authn/z, so we use a middleware to mark
-	// the standard Fleet auth as skipped/done so the endpoints don't return a Forbidden
+	// the standard AutoMDM auth as skipped/done so the endpoints don't return a Forbidden
 	// error due to no standard auth done.
-	ae = ae.WithCustomMiddlewareAfterAuth(skipStandardFleetAuth())
+	ae = ae.WithCustomMiddlewareAfterAuth(skipStandardAutoMDMAuth())
 
 	// must support HEAD, GET and POST-as-GET for new_nonce as per
 	// https://datatracker.ietf.org/doc/html/rfc8555/#section-6.3 and
@@ -58,7 +58,7 @@ func attachFleetAPIRoutes(r *eu.Router, svc api.Service, authMiddleware endpoint
 	ae.POST("/api/mdm/acme/{identifier}/orders/{order_id}/finalize", finalizeOrderEndpoint, api_http.FinalizeOrderRequestContainer{})
 }
 
-func skipStandardFleetAuth() endpoint.Middleware {
+func skipStandardAutoMDMAuth() endpoint.Middleware {
 	return func(next endpoint.Endpoint) endpoint.Endpoint {
 		return func(ctx context.Context, req any) (any, error) {
 			if az, ok := authz_ctx.FromContext(ctx); ok {

@@ -8,14 +8,14 @@ import (
 	"errors"
 	"slices"
 
-	"github.com/fleetdm/fleet/v4/pkg/certificate"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/pkg/certificate"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 	"software.sslmate.com/src/go-pkcs12"
 )
 
 const (
 	msgP12BadPassword = "The PKCS#12 password is incorrect or the file is damaged." // nolint:gosec // G101: a message, not a credential
-	msgP12BER         = "The PKCS#12 file uses BER encoding, which Fleet can't read. Re-export it with OpenSSL (openssl pkcs12 -export) " +
+	msgP12BER         = "The PKCS#12 file uses BER encoding, which AutoMDM can't read. Re-export it with OpenSSL (openssl pkcs12 -export) " +
 		"to get a DER encoded file."
 	msgP12Invalid  = "Couldn't read the PKCS#12 file: %s"
 	msgP12Mismatch = "The private key in the PKCS#12 file doesn't match its certificate."

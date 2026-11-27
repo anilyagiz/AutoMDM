@@ -417,7 +417,7 @@ func (m *Model) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.focusView = !m.focusView
 
 	case "B":
-		// Open the branch-cleanup view: scan the configured fleet folders offline.
+		// Open the branch-cleanup view: scan the configured team folders offline.
 		m.branchView = true
 		m.branchCursor = 0
 		m.branchLoading = true
@@ -901,7 +901,7 @@ func (m *Model) startCloneMaxCursor() int {
 }
 
 // handleNewCloneKey drives the new-working-dir prompt: it takes a name, prefixes
-// it with "fleet-", clones the repo under the first clone_base_dirs entry, then
+// it with "automdm-", clones the repo under the first clone_base_dirs entry, then
 // runs the normal Start Work flow in the fresh clone.
 func (m *Model) handleNewCloneKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
@@ -923,10 +923,10 @@ func (m *Model) handleNewCloneKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if len(m.config.CloneBaseDirs) > 0 {
 			base = m.config.CloneBaseDirs[0]
 		}
-		dest := filepath.Join(expandHome(base), "fleet-"+name)
+		dest := filepath.Join(expandHome(base), "automdm-"+name)
 		m.mode = modeNormal
 		m.newCloneInput.Blur()
-		m.notice = fmt.Sprintf("cloning %s into fleet-%s… (this can take a while)", m.repo, name)
+		m.notice = fmt.Sprintf("cloning %s into automdm-%s… (this can take a while)", m.repo, name)
 		m.noticeErr = false
 		return m, cloneAndStartWorkCmd(m.repo, dest, m.startIssue, m.startProject, m.startBranch)
 	default:
@@ -937,11 +937,11 @@ func (m *Model) handleNewCloneKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 // sanitizeCloneName trims a user-entered working-dir name to a safe folder
-// segment: it drops any leading "fleet-" the user typed (we add it), trims
+// segment: it drops any leading "automdm-" the user typed (we add it), trims
 // slashes/spaces, and keeps it to a single path segment.
 func sanitizeCloneName(s string) string {
 	s = strings.TrimSpace(s)
-	s = strings.TrimPrefix(s, "fleet-")
+	s = strings.TrimPrefix(s, "automdm-")
 	s = strings.Trim(s, "/ ")
 	if i := strings.IndexAny(s, "/\\"); i >= 0 {
 		s = s[:i]

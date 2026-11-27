@@ -6,8 +6,8 @@ import (
 	"context"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 )
 
 type key int
@@ -28,8 +28,8 @@ func FromContext(ctx context.Context) (Viewer, bool) {
 // Viewer holds information about the current
 // user and the user's session
 type Viewer struct {
-	User    *fleet.User
-	Session *fleet.Session
+	User    *automdm.User
+	Session *automdm.Session
 }
 
 // UserID is a helper that enables quick access to the user ID of the current
@@ -141,13 +141,13 @@ func maskEmail(email string) string {
 }
 
 // systemUserName is the name used for the synthetic system user. It matches
-// the activity bounded context's ActivityAutomationAuthor constant ("Fleet").
-const systemUserName = "Fleet"
+// the activity bounded context's ActivityAutomationAuthor constant ("AutoMDM").
+const systemUserName = "AutoMDM"
 
 // systemUser is a synthetic user for internal system operations.
-var systemUser = &fleet.User{
+var systemUser = &automdm.User{
 	Name:       systemUserName,
-	GlobalRole: ptr.String(fleet.RoleAdmin),
+	GlobalRole: ptr.String(automdm.RoleAdmin),
 }
 
 // NewSystemContext returns a context with system-level (admin) privileges.

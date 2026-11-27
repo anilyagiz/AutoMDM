@@ -192,7 +192,7 @@ const GlobalHostStatusWebhook = ({
               tooltip={
                 <>
                   Select the minimum percentage of hosts that must fail to check
-                  into Fleet in order to trigger the webhook request.
+                  into AutoMDM in order to trigger the webhook request.
                 </>
               }
             />
@@ -210,7 +210,7 @@ const GlobalHostStatusWebhook = ({
                 <>
                   Select the minimum number of days that the configured{" "}
                   <strong>Percentage of hosts</strong> must fail to check into
-                  Fleet in order to trigger the webhook request.
+                  AutoMDM in order to trigger the webhook request.
                 </>
               }
             />

@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/microsoft/msgraph"
+	"github.com/anilyagiz/automdm/v4/server/microsoft/msgraph"
 	"github.com/stretchr/testify/assert"
 )
 

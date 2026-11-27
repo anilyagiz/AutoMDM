@@ -7,16 +7,16 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/platform/endpointer"
-	platform_http "github.com/fleetdm/fleet/v4/server/platform/http"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/platform/endpointer"
+	platform_http "github.com/anilyagiz/automdm/v4/server/platform/http"
 )
 
-// FleetErrorEncoder handles fleet-specific error encoding for
+// AutoMDMErrorEncoder handles automdm-specific error encoding for
 // DeviceSSORequiredError, AutofillConfigProfileError, MailError and OsqueryError.
-func FleetErrorEncoder(ctx context.Context, err error, w http.ResponseWriter, enc *json.Encoder, jsonErr *endpointer.JsonError) bool {
+func AutoMDMErrorEncoder(ctx context.Context, err error, w http.ResponseWriter, enc *json.Encoder, jsonErr *endpointer.JsonError) bool {
 	switch e := err.(type) {
-	case *fleet.DeviceSSORequiredError:
+	case *automdm.DeviceSSORequiredError:
 		// Used to distinguish a "you need to sign in with your IdP" scenario
 		// apart from a stale device token, which are both 401.
 		w.WriteHeader(http.StatusUnauthorized)
@@ -33,7 +33,7 @@ func FleetErrorEncoder(ctx context.Context, err error, w http.ResponseWriter, en
 		})
 		return true
 
-	case *fleet.AutofillConfigProfileError:
+	case *automdm.AutofillConfigProfileError:
 		// Set here because this case returns before EncodeError's generic Retry-After handling.
 		if e.RetryAfterSeconds > 0 {
 			w.Header().Set("Retry-After", strconv.Itoa(e.RetryAfterSeconds))
@@ -95,7 +95,7 @@ func FleetErrorEncoder(ctx context.Context, err error, w http.ResponseWriter, en
 }
 
 // deviceSSORequiredJSONError is the standard error envelope plus the marker the
-// "My device" page keys off of to start the Fleet Desktop SSO flow.
+// "My device" page keys off of to start the AutoMDM Desktop SSO flow.
 type deviceSSORequiredJSONError struct {
 	endpointer.JsonError
 	SSORequired bool `json:"sso_required"`
@@ -156,13 +156,13 @@ func NewOsqueryError(message string, nodeInvalid bool) *OsqueryError {
 }
 
 // encodeError is a convenience function that calls endpointer.EncodeError
-// with the FleetErrorEncoder. Use this for direct error encoding in handlers.
+// with the AutoMDMErrorEncoder. Use this for direct error encoding in handlers.
 func encodeError(ctx context.Context, err error, w http.ResponseWriter) {
-	endpointer.EncodeError(ctx, err, w, FleetErrorEncoder)
+	endpointer.EncodeError(ctx, err, w, AutoMDMErrorEncoder)
 }
 
-// fleetErrorEncoder is an adapter that wraps endpointer.EncodeError with
-// FleetErrorEncoder for use as a kithttp.ErrorEncoder.
-func fleetErrorEncoder(ctx context.Context, err error, w http.ResponseWriter) {
-	endpointer.EncodeError(ctx, err, w, FleetErrorEncoder)
+// automdmErrorEncoder is an adapter that wraps endpointer.EncodeError with
+// AutoMDMErrorEncoder for use as a kithttp.ErrorEncoder.
+func automdmErrorEncoder(ctx context.Context, err error, w http.ResponseWriter) {
+	endpointer.EncodeError(ctx, err, w, AutoMDMErrorEncoder)
 }

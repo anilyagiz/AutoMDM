@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
 type FilesystemConfig struct {
@@ -111,7 +111,7 @@ type Config struct {
 	Splunk     SplunkConfig
 }
 
-func NewJSONLogger(ctx context.Context, name string, config Config, logger *slog.Logger) (fleet.JSONLogger, error) {
+func NewJSONLogger(ctx context.Context, name string, config Config, logger *slog.Logger) (automdm.JSONLogger, error) {
 	switch config.Plugin {
 	case "":
 		// Allow "" to mean filesystem for backwards compatibility
@@ -131,13 +131,13 @@ func NewJSONLogger(ctx context.Context, name string, config Config, logger *slog
 		if err != nil {
 			return nil, fmt.Errorf("create filesystem %s logger: %w", name, err)
 		}
-		return fleet.JSONLogger(writer), nil
+		return automdm.JSONLogger(writer), nil
 	case "webhook":
 		writer, err := NewWebhookLogWriter(config.Webhook.URL, logger)
 		if err != nil {
 			return nil, fmt.Errorf("create webhook %s logger: %w", name, err)
 		}
-		return fleet.JSONLogger(writer), nil
+		return automdm.JSONLogger(writer), nil
 	case "firehose":
 		writer, err := NewFirehoseLogWriter(
 			config.Firehose.Region,
@@ -152,7 +152,7 @@ func NewJSONLogger(ctx context.Context, name string, config Config, logger *slog
 		if err != nil {
 			return nil, fmt.Errorf("create firehose %s logger: %w", name, err)
 		}
-		return fleet.JSONLogger(writer), nil
+		return automdm.JSONLogger(writer), nil
 	case "kinesis":
 		writer, err := NewKinesisLogWriter(
 			config.Kinesis.Region,
@@ -167,7 +167,7 @@ func NewJSONLogger(ctx context.Context, name string, config Config, logger *slog
 		if err != nil {
 			return nil, fmt.Errorf("create kinesis %s logger: %w", name, err)
 		}
-		return fleet.JSONLogger(writer), nil
+		return automdm.JSONLogger(writer), nil
 	case "lambda":
 		writer, err := NewLambdaLogWriter(
 			config.Lambda.Region,
@@ -181,7 +181,7 @@ func NewJSONLogger(ctx context.Context, name string, config Config, logger *slog
 		if err != nil {
 			return nil, fmt.Errorf("create lambda %s logger: %w", name, err)
 		}
-		return fleet.JSONLogger(writer), nil
+		return automdm.JSONLogger(writer), nil
 	case "pubsub":
 		writer, err := NewPubSubLogWriter(
 			ctx,
@@ -193,13 +193,13 @@ func NewJSONLogger(ctx context.Context, name string, config Config, logger *slog
 		if err != nil {
 			return nil, fmt.Errorf("create pubsub %s logger: %w", name, err)
 		}
-		return fleet.JSONLogger(writer), nil
+		return automdm.JSONLogger(writer), nil
 	case "stdout":
 		writer, err := NewStdoutLogWriter()
 		if err != nil {
 			return nil, fmt.Errorf("create stdout %s logger: %w", name, err)
 		}
-		return fleet.JSONLogger(writer), nil
+		return automdm.JSONLogger(writer), nil
 	case "kafkarest":
 		writer, err := NewKafkaRESTWriter(&KafkaRESTParams{
 			KafkaProxyHost:        config.KafkaREST.ProxyHost,
@@ -210,7 +210,7 @@ func NewJSONLogger(ctx context.Context, name string, config Config, logger *slog
 		if err != nil {
 			return nil, fmt.Errorf("create kafka rest %s logger: %w", name, err)
 		}
-		return fleet.JSONLogger(writer), nil
+		return automdm.JSONLogger(writer), nil
 	case "nats":
 		writer, err := NewNatsLogWriter(
 			ctx,
@@ -229,7 +229,7 @@ func NewJSONLogger(ctx context.Context, name string, config Config, logger *slog
 		if err != nil {
 			return nil, fmt.Errorf("create nats %s logger: %w", name, err)
 		}
-		return fleet.JSONLogger(writer), nil
+		return automdm.JSONLogger(writer), nil
 	case "splunk":
 		if config.Splunk.URL == "" {
 			return nil, fmt.Errorf("splunk %s logger: URL must not be empty", name)
@@ -246,7 +246,7 @@ func NewJSONLogger(ctx context.Context, name string, config Config, logger *slog
 			config.Splunk.InsecureSkipVerify,
 			logger,
 		)
-		return fleet.JSONLogger(writer), nil
+		return automdm.JSONLogger(writer), nil
 	default:
 		return nil, fmt.Errorf(
 			"unknown %s log plugin: %s", name, config.Plugin,

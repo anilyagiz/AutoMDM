@@ -21,27 +21,27 @@ const PAGE_SIZE = 10;
 type IAppRow = IPolicySoftwareToInstall & { id: number };
 
 interface IPatchDeadlineAppsTableProps {
-  // fleetId drives the page-reset effect and preserves fleet context on the
+  // automdmId drives the page-reset effect and preserves team context on the
   // outgoing row link; the parent fetches policies by it too.
-  fleetId: number;
+  automdmId: number;
   // Each app is the `patch_software` payload off a patch-automation policy.
   apps: IPolicySoftwareToInstall[];
   router: InjectedRouter;
 }
 
 const PatchDeadlineAppsTable = ({
-  fleetId,
+  automdmId,
   apps,
   router,
 }: IPatchDeadlineAppsTableProps) => {
   const [page, setPage] = useState(0);
 
-  // Rewind pagination on fleet switch so a shorter list doesn't strand users
+  // Rewind pagination on team switch so a shorter list doesn't strand users
   // past its end. safePage clamps the render; this keeps the stored state in
   // sync so Next doesn't need extra clicks to re-engage.
   useEffect(() => {
     setPage(0);
-  }, [fleetId]);
+  }, [automdmId]);
 
   // Alphanumeric + case-insensitive. `numeric: true` makes "App 2" sort before
   // "App 10". Client-side; revisit if lists grow large.
@@ -73,7 +73,7 @@ const PatchDeadlineAppsTable = ({
     router.push(
       getPathWithQueryParams(
         PATHS.SOFTWARE_TITLE_DETAILS(app.software_title_id.toString()),
-        { fleet_id: fleetId }
+        { team_id: automdmId }
       )
     );
   };

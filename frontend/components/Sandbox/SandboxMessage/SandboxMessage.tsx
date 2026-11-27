@@ -31,7 +31,7 @@ const SandboxMessage = ({
     ),
     sales: (
       <CustomLink
-        url={`https://fleetdm.com/upgrade`}
+        url={`https://automdm.com/upgrade`}
         text="Contact sales"
         newTab
       />

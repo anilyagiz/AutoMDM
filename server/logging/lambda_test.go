@@ -6,11 +6,11 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/anilyagiz/automdm/v4/server/logging/mock"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
 	"github.com/aws/aws-sdk-go-v2/service/lambda/types"
-	"github.com/fleetdm/fleet/v4/server/logging/mock"
-	"github.com/fleetdm/fleet/v4/server/test"
 	"github.com/stretchr/testify/assert"
 	tmock "github.com/stretchr/testify/mock"
 )

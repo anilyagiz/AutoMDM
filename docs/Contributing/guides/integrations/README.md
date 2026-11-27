@@ -1,11 +1,11 @@
-# Fleet Integration Guides
+# AutoMDM Integration Guides
 
-This directory contains guides for integrating Fleet with external systems.
+This directory contains guides for integrating AutoMDM with external systems.
 
 ## Integration Guides
 
-- [SCIM Integration](scim-integration.md) - Guide for integrating Fleet with SCIM
-- [Digicert Integration](digicert-integration.md) - Guide for integrating Fleet with Digicert
+- [SCIM Integration](scim-integration.md) - Guide for integrating AutoMDM with SCIM
+- [Digicert Integration](digicert-integration.md) - Guide for integrating AutoMDM with Digicert
 
 ## Related Resources
 

@@ -72,6 +72,6 @@ func init() {
 	issuesWithHistoricalLabelCmd.Flags().StringP("since", "s", "", "Oldest issue creation date (format: YYYY-MM-DD)")
 	issuesWithHistoricalLabelCmd.Flags().BoolP("verbose", "v", false, "Show verbose output as issues are pulled and evaluated")
 	issuesWithHistoricalLabelCmd.Flags().IntP("concurrency", "c", 10, "Number of concurrent workers for per-issue requests (issue lists are always retrieved one page at a time)")
-	issuesWithHistoricalLabelCmd.Flags().StringP("repo", "r", "fleetdm/fleet", "Repository to search (format: owner/repo)")
+	issuesWithHistoricalLabelCmd.Flags().StringP("repo", "r", "automdm/automdm", "Repository to search (format: owner/repo)")
 	issuesWithHistoricalLabelCmd.Flags().Int("older-than", 0, "Only pull issues with an ID less than this (for e.g. continuing after being rate-limited)")
 }

@@ -36,7 +36,7 @@ controls:
     configuration_profiles:
       - path: ./lib/windows-screenlock.xml
   scripts:
-    - path: ./lib/collect-fleetd-logs.sh
+    - path: ./lib/collect-automdmd-logs.sh
   enable_disk_encryption: true
   macos_recovery_lock_password_enabled: true
   windows_require_bitlocker_pin: true
@@ -142,14 +142,14 @@ policies:
     description: This should run a script on failure
     query: SELECT * from osquery_info;
     run_script:
-      path: ./lib/collect-fleetd-logs.sh
+      path: ./lib/collect-automdmd-logs.sh
   - name: 🔥 Failing policy with script
     platform: linux
     description: This policy should always fail.
     resolution: There is no resolution for this policy.
     query: SELECT 1 FROM osquery_info WHERE start_time < 0;
     run_script:
-      path: ./lib/collect-fleetd-logs.sh
+      path: ./lib/collect-automdmd-logs.sh
 software:
   app_store_apps:
     - app_store_id: "123456"
@@ -164,7 +164,7 @@ software:
       self_service: true
       labels_exclude_any:
         - a
-  fleet_maintained_apps:
+  automdm_maintained_apps:
     - slug: slack/darwin
       version: "4.47.65"
       self_service: true

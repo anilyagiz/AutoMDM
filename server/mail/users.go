@@ -5,7 +5,7 @@ import (
 	"html/template"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server"
+	"github.com/anilyagiz/automdm/v4/server"
 )
 
 type ChangeEmailMailer struct {
@@ -30,7 +30,7 @@ func (cem *ChangeEmailMailer) Message() ([]byte, error) {
 }
 
 type PasswordResetMailer struct {
-	// Base URL to use for Fleet endpoints
+	// Base URL to use for AutoMDM endpoints
 	BaseURL template.URL
 	// URL for loading image assets
 	AssetURL template.URL

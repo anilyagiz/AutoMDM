@@ -6,9 +6,9 @@
         <array>
             <dict>
                 <key>Password</key>
-                <string>$FLEET_VAR_DIGICERT_PASSWORD_%s</string>
+                <string>$AUTOMDM_VAR_DIGICERT_PASSWORD_%s</string>
                 <key>PayloadContent</key>
-                <data>${FLEET_VAR_DIGICERT_DATA_%s}</data>
+                <data>${AUTOMDM_VAR_DIGICERT_DATA_%s}</data>
                 <key>PayloadDisplayName</key>
                 <string>CertificatePKCS12</string>
                 <key>PayloadIdentifier</key>

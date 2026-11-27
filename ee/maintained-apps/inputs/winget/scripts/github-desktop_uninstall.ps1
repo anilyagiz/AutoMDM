@@ -7,7 +7,7 @@
 $displayName = "GitHub Desktop"
 $publisher = "GitHub, Inc."
 $deploymentToolUpgradeCode = "{00D8E2EE-13EA-5BEB-87F0-70EFC46A7D4A}"
-$taskName = "fleet-uninstall-github-desktop"
+$taskName = "automdm-uninstall-github-desktop"
 $taskRunning = 267009  # SCHED_S_TASK_RUNNING
 $timeoutSeconds = 600
 $exitCode = 0
@@ -132,8 +132,8 @@ function Invoke-UninstallerAsUser {
 
 try {
     # Left behind only if an install was interrupted.
-    if (Get-ScheduledTask -TaskName "fleet-install-github-desktop" -ErrorAction SilentlyContinue) {
-        Unregister-ScheduledTask -TaskName "fleet-install-github-desktop" -Confirm:$false -ErrorAction SilentlyContinue
+    if (Get-ScheduledTask -TaskName "automdm-install-github-desktop" -ErrorAction SilentlyContinue) {
+        Unregister-ScheduledTask -TaskName "automdm-install-github-desktop" -Confirm:$false -ErrorAction SilentlyContinue
     }
 
     foreach ($entry in @(Get-GitHubDesktopEntries)) {

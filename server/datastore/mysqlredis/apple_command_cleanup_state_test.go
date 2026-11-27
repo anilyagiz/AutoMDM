@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/datastore/redis/redistest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis/redistest"
+	"github.com/anilyagiz/automdm/v4/server/mock"
 	redigo "github.com/gomodule/redigo/redis"
 	"github.com/stretchr/testify/require"
 )
@@ -36,12 +36,12 @@ func TestMDMAppleCommandCleanupState(t *testing.T) {
 	// UTC so the round trip through JSON compares equal (no monotonic clock,
 	// no location pointer).
 	at := time.Date(2026, 9, 21, 10, 30, 0, 0, time.UTC)
-	want := &fleet.MDMAppleCommandCleanupState{
-		Retention: map[string]fleet.MDMAppleCommandCleanupCursor{
+	want := &automdm.MDMAppleCommandCleanupState{
+		Retention: map[string]automdm.MDMAppleCommandCleanupCursor{
 			"short:Acknowledged": {UpdatedAt: at, ID: "enrollment-1", CommandUUID: "REFETCH-DEVICE-1"},
 			"standard:Error":     {UpdatedAt: at.Add(-time.Hour), ID: "enrollment-2", CommandUUID: "cmd-2"},
 		},
-		Orphan: fleet.MDMAppleCommandOrphanCursor{CreatedAt: at.Add(-24 * time.Hour), CommandUUID: "cmd-0"},
+		Orphan: automdm.MDMAppleCommandOrphanCursor{CreatedAt: at.Add(-24 * time.Hour), CommandUUID: "cmd-0"},
 	}
 	require.NoError(t, ds.SetMDMAppleCommandCleanupState(ctx, want))
 	state, err = ds.GetMDMAppleCommandCleanupState(ctx)
@@ -50,9 +50,9 @@ func TestMDMAppleCommandCleanupState(t *testing.T) {
 
 	// partial states round-trip too: the map's nil-ness is preserved either
 	// way, so a caller that emptied the map does not get a nil map back.
-	for _, partial := range []*fleet.MDMAppleCommandCleanupState{
+	for _, partial := range []*automdm.MDMAppleCommandCleanupState{
 		{Orphan: want.Orphan},
-		{Retention: map[string]fleet.MDMAppleCommandCleanupCursor{}},
+		{Retention: map[string]automdm.MDMAppleCommandCleanupCursor{}},
 	} {
 		require.NoError(t, ds.SetMDMAppleCommandCleanupState(ctx, partial))
 		state, err = ds.GetMDMAppleCommandCleanupState(ctx)

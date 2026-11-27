@@ -9,11 +9,11 @@
     text-align: left;
     height: fit-content;
     padding: $pad-xlarge;
-    border: 1px solid $ui-fleet-black-10;
-    background: $core-fleet-white;
+    border: 1px solid $ui-automdm-black-10;
+    background: $core-automdm-white;
 
     &:hover {
-      border-color: $ui-fleet-black-50;
+      border-color: $ui-automdm-black-50;
     }
 
     &:focus-visible {
@@ -46,7 +46,7 @@
   }
 
   &__not-supported {
-    color: $ui-fleet-black-50;
+    color: $ui-automdm-black-50;
 
     &-text {
       font-size: $medium;
@@ -54,12 +54,12 @@
 
     // Do not show hover outline for non clickable card
     &:hover {
-      border-color: $ui-fleet-black-10;
+      border-color: $ui-automdm-black-10;
     }
   }
 
   &__description {
-    color: $ui-fleet-black-75;
+    color: $ui-automdm-black-75;
 
     .component__tooltip-wrapper__element {
       font-size: $x-small;

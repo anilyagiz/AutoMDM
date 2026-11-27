@@ -7,7 +7,7 @@
 
 $displayNamePattern = '^Loom \d'
 $publisher = "Loom, Inc."
-$taskName = "fleet-uninstall-loom"
+$taskName = "automdm-uninstall-loom"
 $appDir = "AppData\Local\Programs\Loom"  # in each user's profile
 $taskRunning = 267009  # SCHED_S_TASK_RUNNING
 $timeoutSeconds = 300

@@ -17,12 +17,12 @@ export type ServerHealth = { serve: ServeStatus; docker: DockerHealth };
 const SERVE_DOWN: ServeStatus = { up: false, upSinceMs: null };
 const DOCKER_DOWN: DockerHealth = { up: false, upSinceMs: null, containers: [] };
 
-/// Polls each server's `fleet serve` (TCP on its server port) and its docker
+/// Polls each server's `automdm serve` (TCP on its server port) and its docker
 /// compose project, returning a per-server health map. Lives at app level so
 /// the switcher, status strip, and tray all read the same state.
 ///
 /// Serve is probed on a slower cadence than docker because each serve probe is
-/// a raw TLS connect that shows up in fleet's log as a handshake error — with
+/// a raw TLS connect that shows up in team's log as a handshake error — with
 /// multiple servers that spam adds up, so we keep it to ~6/min/server and lean
 /// on the proc-transition reprobe for snappy updates. `enabled` gates the
 /// periodic probes off (e.g. during the first-run gate).

@@ -27,7 +27,7 @@ func Aggregate(ctx context.Context) (json.RawMessage, error) {
 
 	aggs := make([]ErrorAgg, len(storedErrs))
 	for i, stored := range storedErrs {
-		var ferr []fleetErrorJSON
+		var ferr []automdmErrorJSON
 		if err = json.Unmarshal(stored.Chain, &ferr); err != nil {
 			return empty, Wrap(ctx, err, "unmarshal on aggregation")
 		}
@@ -42,7 +42,7 @@ func Aggregate(ctx context.Context) (json.RawMessage, error) {
 
 // aggregateStack creates a single stack trace by joining all the stack traces in
 // an error chain
-func aggregateStack(chain []fleetErrorJSON, maxStack int) []string {
+func aggregateStack(chain []automdmErrorJSON, maxStack int) []string {
 	stack := make([]string, maxStack)
 	stackIdx := 0
 
@@ -61,7 +61,7 @@ out:
 	return stack[:stackIdx]
 }
 
-// vitalErrorData represents the structure of vital fleetd error data.
+// vitalErrorData represents the structure of vital automdmd error data.
 type vitalErrorData struct {
 	ErrorSource         string         `json:"error_source"`
 	ErrorSourceVersion  string         `json:"error_source_version"`
@@ -70,21 +70,21 @@ type vitalErrorData struct {
 	Vital               bool           `json:"vital"`
 }
 
-func getVitalMetadata(chain []fleetErrorJSON) json.RawMessage {
+func getVitalMetadata(chain []automdmErrorJSON) json.RawMessage {
 	for _, e := range chain {
 		if len(e.Data) > 0 {
-			// Currently, only vital fleetd errors contain metadata.
+			// Currently, only vital automdmd errors contain metadata.
 			// Note: vital errors should not contain any sensitive info
-			var fleetdErr vitalErrorData
+			var automdmdErr vitalErrorData
 			var err error
-			if err = json.Unmarshal(e.Data, &fleetdErr); err != nil || !fleetdErr.Vital {
+			if err = json.Unmarshal(e.Data, &automdmdErr); err != nil || !automdmdErr.Vital {
 				continue
 			}
 			export := map[string]interface{}{
-				"error_source":          fleetdErr.ErrorSource,
-				"error_source_version":  fleetdErr.ErrorSourceVersion,
-				"error_message":         fleetdErr.ErrorMessage,
-				"error_additional_info": fleetdErr.ErrorAdditionalInfo,
+				"error_source":          automdmdErr.ErrorSource,
+				"error_source_version":  automdmdErr.ErrorSourceVersion,
+				"error_message":         automdmdErr.ErrorMessage,
+				"error_additional_info": automdmdErr.ErrorAdditionalInfo,
 			}
 			var meta json.RawMessage
 			if meta, err = json.Marshal(export); err != nil {

@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
-	android_mock "github.com/fleetdm/fleet/v4/server/mdm/android/mock"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
+	android_mock "github.com/anilyagiz/automdm/v4/server/mdm/android/mock"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/androidmanagement/v1"
@@ -42,8 +42,8 @@ func pendingCommandForReconcile(cmdUUID, cmdType string, age time.Duration) *and
 func newReconcileFixture(t *testing.T, cmds ...*android.MDMAndroidCommand) (*AndroidMockDS, *android_mock.Client, *slog.Logger) {
 	t.Helper()
 	mockDS := InitCommonDSMocks()
-	mockDS.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{MDM: fleet.MDM{AndroidEnabledAndConfigured: true}}, nil
+	mockDS.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{MDM: automdm.MDM{AndroidEnabledAndConfigured: true}}, nil
 	}
 	mockDS.GetEnterpriseFunc = func(ctx context.Context) (*android.Enterprise, error) {
 		return &android.Enterprise{EnterpriseID: "E"}, nil
@@ -231,15 +231,15 @@ func TestReconcileAndroidCommands(t *testing.T) {
 				}
 				return nil, googleAPIError(http.StatusNotFound, "Device is no longer being managed")
 			}
-			mockDS.AndroidHostLiteByHostUUIDFunc = func(ctx context.Context, hostUUID string) (*fleet.AndroidHost, error) {
-				return &fleet.AndroidHost{Host: &fleet.Host{ID: hostID, UUID: hostUUID}, Device: &android.Device{DeviceID: tc.currentDeviceID}}, nil
+			mockDS.AndroidHostLiteByHostUUIDFunc = func(ctx context.Context, hostUUID string) (*automdm.AndroidHost, error) {
+				return &automdm.AndroidHost{Host: &automdm.Host{ID: hostID, UUID: hostUUID}, Device: &android.Device{DeviceID: tc.currentDeviceID}}, nil
 			}
-			mockDS.GetHostMDMFunc = func(ctx context.Context, id uint) (*fleet.HostMDM, error) {
-				return &fleet.HostMDM{}, nil
+			mockDS.GetHostMDMFunc = func(ctx context.Context, id uint) (*automdm.HostMDM, error) {
+				return &automdm.HostMDM{}, nil
 			}
 			mockDS.SetAndroidHostUnenrolledFunc = func(ctx context.Context, id uint) (bool, error) { return true, nil }
-			mockDS.ListHostsLiteByIDsFunc = func(ctx context.Context, ids []uint) ([]*fleet.Host, error) {
-				return []*fleet.Host{{ID: hostID}}, nil
+			mockDS.ListHostsLiteByIDsFunc = func(ctx context.Context, ids []uint) ([]*automdm.Host, error) {
+				return []*automdm.Host{{ID: hostID}}, nil
 			}
 			var gotStatus string
 			mockDS.UpdateMDMAndroidCommandStatusFunc = func(ctx context.Context, commandUUID, status string, errorCode, errorMessage, rawResult *string) error {
@@ -309,24 +309,24 @@ func TestReconcileAndroidCommands(t *testing.T) {
 		mockDS.UpdateMDMAndroidCommandStatusFunc = func(ctx context.Context, commandUUID, status string, errorCode, errorMessage, rawResult *string) error {
 			return nil
 		}
-		mockDS.AndroidHostLiteByHostUUIDFunc = func(ctx context.Context, hostUUID string) (*fleet.AndroidHost, error) {
+		mockDS.AndroidHostLiteByHostUUIDFunc = func(ctx context.Context, hostUUID string) (*automdm.AndroidHost, error) {
 			require.Equal(t, cmd.HostUUID, hostUUID)
-			return &fleet.AndroidHost{Host: &fleet.Host{ID: hostID, UUID: hostUUID}, Device: &android.Device{DeviceID: "D"}}, nil
+			return &automdm.AndroidHost{Host: &automdm.Host{ID: hostID, UUID: hostUUID}, Device: &android.Device{DeviceID: "D"}}, nil
 		}
 		// BYO: the work profile was removed, so host_mdm_actions must be cleared for the "Wiped" badge to drop.
-		mockDS.GetHostMDMFunc = func(ctx context.Context, id uint) (*fleet.HostMDM, error) {
-			return &fleet.HostMDM{IsPersonalEnrollment: true}, nil
+		mockDS.GetHostMDMFunc = func(ctx context.Context, id uint) (*automdm.HostMDM, error) {
+			return &automdm.HostMDM{IsPersonalEnrollment: true}, nil
 		}
 		mockDS.ClearHostMDMActionsFunc = func(ctx context.Context, id uint) error { return nil }
 		mockDS.SetAndroidHostUnenrolledFunc = func(ctx context.Context, id uint) (bool, error) {
 			require.Equal(t, hostID, id)
 			return true, nil
 		}
-		mockDS.ListHostsLiteByIDsFunc = func(ctx context.Context, ids []uint) ([]*fleet.Host, error) {
-			return []*fleet.Host{{ID: hostID, Hostname: "wiped-host"}}, nil
+		mockDS.ListHostsLiteByIDsFunc = func(ctx context.Context, ids []uint) ([]*automdm.Host, error) {
+			return []*automdm.Host{{ID: hostID, Hostname: "wiped-host"}}, nil
 		}
-		var activities []fleet.ActivityDetails
-		newActivity := func(_ context.Context, _ *fleet.User, details fleet.ActivityDetails) error {
+		var activities []automdm.ActivityDetails
+		newActivity := func(_ context.Context, _ *automdm.User, details automdm.ActivityDetails) error {
 			activities = append(activities, details)
 			return nil
 		}
@@ -336,7 +336,7 @@ func TestReconcileAndroidCommands(t *testing.T) {
 		require.True(t, mockDS.ClearHostMDMActionsFuncInvoked, "BYO wipe must clear host_mdm_actions")
 		require.True(t, mockDS.SetAndroidHostUnenrolledFuncInvoked, "a wiped host must be flipped to unenrolled")
 		require.Len(t, activities, 1)
-		require.IsType(t, fleet.ActivityTypeMDMUnenrolled{}, activities[0])
+		require.IsType(t, automdm.ActivityTypeMDMUnenrolled{}, activities[0])
 	})
 
 	t.Run("acknowledged WIPE of an earlier device records the result without unenrolling", func(t *testing.T) {
@@ -350,8 +350,8 @@ func TestReconcileAndroidCommands(t *testing.T) {
 			gotStatus = status
 			return nil
 		}
-		mockDS.AndroidHostLiteByHostUUIDFunc = func(ctx context.Context, hostUUID string) (*fleet.AndroidHost, error) {
-			return &fleet.AndroidHost{Host: &fleet.Host{ID: 56, UUID: hostUUID}, Device: &android.Device{DeviceID: "NEW"}}, nil
+		mockDS.AndroidHostLiteByHostUUIDFunc = func(ctx context.Context, hostUUID string) (*automdm.AndroidHost, error) {
+			return &automdm.AndroidHost{Host: &automdm.Host{ID: 56, UUID: hostUUID}, Device: &android.Device{DeviceID: "NEW"}}, nil
 		}
 
 		require.NoError(t, reconcileAndroidCommands(t.Context(), &mockDS.DataStore, client, logger, noopNewActivity, reconcileNow, reconcileTestCallInterval))
@@ -369,11 +369,11 @@ func TestReconcileAndroidCommands(t *testing.T) {
 		client.EnterprisesDevicesOperationsGetFunc = func(ctx context.Context, operationName string) (*androidmanagement.Operation, error) {
 			return &androidmanagement.Operation{Name: operationName, Done: true}, nil
 		}
-		mockDS.AndroidHostLiteByHostUUIDFunc = func(ctx context.Context, hostUUID string) (*fleet.AndroidHost, error) {
-			return &fleet.AndroidHost{Host: &fleet.Host{ID: 55, UUID: hostUUID}, Device: &android.Device{DeviceID: "D"}}, nil
+		mockDS.AndroidHostLiteByHostUUIDFunc = func(ctx context.Context, hostUUID string) (*automdm.AndroidHost, error) {
+			return &automdm.AndroidHost{Host: &automdm.Host{ID: 55, UUID: hostUUID}, Device: &android.Device{DeviceID: "D"}}, nil
 		}
-		mockDS.GetHostMDMFunc = func(ctx context.Context, id uint) (*fleet.HostMDM, error) {
-			return &fleet.HostMDM{IsPersonalEnrollment: false}, nil
+		mockDS.GetHostMDMFunc = func(ctx context.Context, id uint) (*automdm.HostMDM, error) {
+			return &automdm.HostMDM{IsPersonalEnrollment: false}, nil
 		}
 		mockDS.SetAndroidHostUnenrolledFunc = func(ctx context.Context, id uint) (bool, error) {
 			return false, errors.New("simulated transient DB connection drop")
@@ -393,7 +393,7 @@ func TestReconcileAndroidCommands(t *testing.T) {
 		client.EnterprisesDevicesOperationsGetFunc = func(ctx context.Context, operationName string) (*androidmanagement.Operation, error) {
 			return &androidmanagement.Operation{Name: operationName, Done: true}, nil
 		}
-		mockDS.AndroidHostLiteByHostUUIDFunc = func(ctx context.Context, hostUUID string) (*fleet.AndroidHost, error) {
+		mockDS.AndroidHostLiteByHostUUIDFunc = func(ctx context.Context, hostUUID string) (*automdm.AndroidHost, error) {
 			return nil, common_mysql.NotFound("Android device").WithName(hostUUID)
 		}
 		var gotStatus string
@@ -401,7 +401,7 @@ func TestReconcileAndroidCommands(t *testing.T) {
 			gotStatus = status
 			return nil
 		}
-		newActivity := func(_ context.Context, _ *fleet.User, _ fleet.ActivityDetails) error {
+		newActivity := func(_ context.Context, _ *automdm.User, _ automdm.ActivityDetails) error {
 			t.Fatalf("no activity must be emitted for a host that no longer exists")
 			return nil
 		}
@@ -419,7 +419,7 @@ func TestReconcileAndroidCommands(t *testing.T) {
 		client.EnterprisesDevicesOperationsGetFunc = func(ctx context.Context, operationName string) (*androidmanagement.Operation, error) {
 			return &androidmanagement.Operation{Name: operationName, Done: true}, nil
 		}
-		mockDS.AndroidHostLiteByHostUUIDFunc = func(ctx context.Context, hostUUID string) (*fleet.AndroidHost, error) {
+		mockDS.AndroidHostLiteByHostUUIDFunc = func(ctx context.Context, hostUUID string) (*automdm.AndroidHost, error) {
 			return nil, errors.New("simulated transient DB connection drop")
 		}
 		mockDS.UpdateMDMAndroidCommandStatusFunc = func(ctx context.Context, commandUUID, status string, errorCode, errorMessage, rawResult *string) error {
@@ -492,8 +492,8 @@ func TestReconcileAndroidCommands(t *testing.T) {
 	})
 
 	t.Run("AMAPI rejecting our credentials stops the run and surfaces an error", func(t *testing.T) {
-		// A missing or stale Fleet server secret, lost access to the enterprise, or (on the proxy path)
-		// fleetdm.com having no record of the enterprise, rejects every call identically -- working
+		// A missing or stale AutoMDM server secret, lost access to the enterprise, or (on the proxy path)
+		// automdm.com having no record of the enterprise, rejects every call identically -- working
 		// through the batch would only produce noise.
 		for _, statusCode := range []int{http.StatusUnauthorized, http.StatusForbidden} {
 			first := pendingCommandForReconcile("cmd-rejected", string(android.MDMAndroidCommandTypeLock), 48*time.Hour)
@@ -514,7 +514,7 @@ func TestReconcileAndroidCommands(t *testing.T) {
 	})
 
 	t.Run("commands from a previous enterprise past the grace period are failed before polling", func(t *testing.T) {
-		// A command left pending when Android Enterprise was disconnected points at an enterprise Fleet can no
+		// A command left pending when Android Enterprise was disconnected points at an enterprise AutoMDM can no
 		// longer read. AMAPI answers it with a 403, which would stop the run, so it must never be polled.
 		current := pendingCommandForReconcile("cmd-current", string(android.MDMAndroidCommandTypeLock), 48*time.Hour)
 		mockDS, client, logger := newReconcileFixture(t, current)
@@ -589,8 +589,8 @@ func TestReconcileAndroidCommands(t *testing.T) {
 
 	t.Run("android MDM turned off skips the run entirely", func(t *testing.T) {
 		mockDS, _, logger := newReconcileFixture(t)
-		mockDS.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-			return &fleet.AppConfig{MDM: fleet.MDM{AndroidEnabledAndConfigured: false}}, nil
+		mockDS.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{MDM: automdm.MDM{AndroidEnabledAndConfigured: false}}, nil
 		}
 
 		require.NoError(t, ReconcileAndroidCommands(t.Context(), &mockDS.DataStore, logger, "", noopNewActivity))

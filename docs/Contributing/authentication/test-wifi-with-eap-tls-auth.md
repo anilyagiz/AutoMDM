@@ -7,7 +7,7 @@ Requirements:
 
 > Instructions cover running FreeRADIUS and micromdm/scep on macOS
 
-These instructions cover end to end setup of WPA Enterprise with EAP TLS and deployment of client certificates with Fleet on Android hosts. FreeRADIUS server comes with built-in certificates so if you don't want to add micromdm/scep CA to Fleet and deploy client certificates, you can skip that step.
+These instructions cover end to end setup of WPA Enterprise with EAP TLS and deployment of client certificates with AutoMDM on Android hosts. FreeRADIUS server comes with built-in certificates so if you don't want to add micromdm/scep CA to AutoMDM and deploy client certificates, you can skip that step.
 
 ## 1. Install FreeRADIUS
 
@@ -146,4 +146,4 @@ To stop server use: `Ctrl+C`.
 
 ## 9. Certificate deployment and Wi-Fi configuration on Android
 
-Follow [these instructions](https://fleetdm.com/guides/configure-eap-tls-wifi-android)
+Follow [these instructions](https://automdm.com/guides/configure-eap-tls-wifi-android)

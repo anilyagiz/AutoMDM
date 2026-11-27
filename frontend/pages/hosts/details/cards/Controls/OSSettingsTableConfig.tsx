@@ -6,9 +6,9 @@ import TooltipTruncatedTextCell from "components/TableContainer/DataTable/Toolti
 import { IStringCellProps } from "interfaces/datatable_config";
 import { HostAndroidCertStatus, IHostMdmData } from "interfaces/host";
 import {
-  FLEET_ANDROID_CERTIFICATE_TEMPLATE_PROFILE_ID,
-  FLEET_FILEVAULT_PROFILE_DISPLAY_NAME,
-  FLEET_FLEETD_CONFIG_PROFILE_DISPLAY_NAME,
+  AUTOMDM_ANDROID_CERTIFICATE_TEMPLATE_PROFILE_ID,
+  AUTOMDM_FILEVAULT_PROFILE_DISPLAY_NAME,
+  AUTOMDM_AUTOMDMD_CONFIG_PROFILE_DISPLAY_NAME,
   IHostMdmProfile,
   isEnrolledInMdm,
   isLinuxDiskEncryptionStatus,
@@ -93,7 +93,7 @@ export const getRowActionProps = (
   canResendProfiles: boolean,
   canRotateRecoveryLockPassword?: boolean,
   canResendHostNameTemplate?: boolean,
-  canResendFleetdWhileVerifying?: boolean
+  canResendAutoMDMdWhileVerifying?: boolean
 ) => {
   const { platform, profile_uuid: profileUUID } = row;
 
@@ -102,9 +102,9 @@ export const getRowActionProps = (
   const isWindowsProfile = platform === "windows";
   const isAndroidCertificate =
     platform === "android" &&
-    profileUUID === FLEET_ANDROID_CERTIFICATE_TEMPLATE_PROFILE_ID;
+    profileUUID === AUTOMDM_ANDROID_CERTIFICATE_TEMPLATE_PROFILE_ID;
   // Android config profiles (unlike certificates) are delivered via AMAPI
-  // policy sync rather than pushed by Fleet, so they can never be resent.
+  // policy sync rather than pushed by AutoMDM, so they can never be resent.
   const isAndroidConfigProfile =
     platform === "android" && !isAndroidCertificate;
 
@@ -115,13 +115,13 @@ export const getRowActionProps = (
   return {
     canResendProfiles: canResendProfiles && isResendableProfile,
     lacksResendPermission: !canResendProfiles && isResendableProfile,
-    // With one-time enroll secrets, resending the Fleetd configuration profile
+    // With one-time enroll secrets, resending the AutoMDMd configuration profile
     // is how an admin gives a host a usable enroll secret, and that profile
     // sits in "verifying" until osquery's next profile refetch.
     canResendWhileVerifying:
-      !!canResendFleetdWhileVerifying &&
+      !!canResendAutoMDMdWhileVerifying &&
       isAppleMobileConfigProfile &&
-      row.name === FLEET_FLEETD_CONFIG_PROFILE_DISPLAY_NAME,
+      row.name === AUTOMDM_AUTOMDMD_CONFIG_PROFILE_DISPLAY_NAME,
     canRotateRecoveryLockPassword:
       profileUUID === REC_LOCK_SYNTHETIC_PROFILE_UUID &&
       canRotateRecoveryLockPassword,
@@ -142,7 +142,7 @@ interface IGenerateTableConfigOptions {
   rotateRecoveryLockPassword?: () => Promise<void>;
   canResendHostNameTemplate?: boolean;
   resendHostNameTemplate?: () => Promise<void>;
-  canResendFleetdWhileVerifying?: boolean;
+  canResendAutoMDMdWhileVerifying?: boolean;
   canManageSelfServiceProfiles?: boolean;
   onInstall?: (profile: IHostMdmProfileWithAddedStatus) => Promise<void>;
   onClickUninstall?: (profile: IHostMdmProfileWithAddedStatus) => void;
@@ -159,7 +159,7 @@ const generateTableConfig = ({
   rotateRecoveryLockPassword,
   canResendHostNameTemplate,
   resendHostNameTemplate,
-  canResendFleetdWhileVerifying,
+  canResendAutoMDMdWhileVerifying,
   canManageSelfServiceProfiles,
   onInstall,
   onClickUninstall,
@@ -229,7 +229,7 @@ const generateTableConfig = ({
           canResendProfiles,
           canRotateRecoveryLockPassword,
           canResendHostNameTemplate,
-          canResendFleetdWhileVerifying
+          canResendAutoMDMdWhileVerifying
         );
 
         return (
@@ -323,7 +323,7 @@ const makeDarwinRows = ({
 
   if (apple_settings?.disk_encryption === "action_required") {
     const dERow = profiles?.find(
-      (p) => p.name === FLEET_FILEVAULT_PROFILE_DISPLAY_NAME
+      (p) => p.name === AUTOMDM_FILEVAULT_PROFILE_DISPLAY_NAME
     );
     if (dERow) {
       // a reference to the original object in rows, so successfully updates it

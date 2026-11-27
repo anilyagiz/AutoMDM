@@ -2,9 +2,9 @@
 
 ## Enable MDM debug logging on the device
 
-1. Install the `./tools/mdm/apple/turn_on_debug_mdm_logging.mobileconfig` profile on the device manually (by double-clicking such file) or using Fleet MDM via:
+1. Install the `./tools/mdm/apple/turn_on_debug_mdm_logging.mobileconfig` profile on the device manually (by double-clicking such file) or using AutoMDM via:
 ```sh
-fleetctl apple-mdm enqueue-command InstallProfile --device-ids=<TARGET_DEVICE_ID> --mobileconfig ./tools/mdm/apple/turn_on_debug_mdm_logging.mobileconfig
+automdmctl apple-mdm enqueue-command InstallProfile --device-ids=<TARGET_DEVICE_ID> --mobileconfig ./tools/mdm/apple/turn_on_debug_mdm_logging.mobileconfig
 ```
 
 2. Check the profile was successfully installed in "System Preferences" -> "Profiles".
@@ -26,4 +26,4 @@ To trigger a redelivery of enrollment profile, run the following command on the 
 sudo profiles renew -type enrollment
 ```
 
-If the host does not have the right enrollment profile, try transferring the host to another fleet, wait for 10 minutes, then transfer it back and wait another 10 minutes.
+If the host does not have the right enrollment profile, try transferring the host to another team, wait for 10 minutes, then transfer it back and wait another 10 minutes.

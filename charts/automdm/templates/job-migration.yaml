@@ -1,0 +1,205 @@
+{{- if .Values.automdm.autoApplySQLMigrations }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  labels:
+    app: automdm
+    chart: automdm
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+  name: automdm-migration
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    {{- if not .Values.mysql.enabled }}
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "1"
+    "helm.sh/hook-delete-policy": hook-succeeded
+    {{- end }}
+    {{- with .Values.automdm.migrationJobAnnotations }}
+    {{- toYaml . | trim | nindent 4 }}
+    {{- end }}
+spec:
+  ttlSecondsAfterFinished: 100
+  template:
+    metadata:
+{{- with .Values.podAnnotations }}
+      annotations:
+{{- toYaml . | trim | nindent 8 }}
+{{- end }}
+      labels:
+        app: automdm
+        chart: automdm
+        heritage: {{ .Release.Service }}
+        release: {{ .Release.Name }}
+    spec:
+      restartPolicy: Never
+      shareProcessNamespace: true
+      containers:
+      - name: automdm-migration
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            /usr/bin/automdm prepare db --no-prompt;
+            {{- if .Values.gke.cloudSQL.enableProxy }}
+            sql_proxy_pid=$(pgrep cloud_sql_proxy) && kill -INT $sql_proxy_pid;
+            {{- end }}
+        image: "{{ .Values.imageRepository }}:{{ .Values.imageTag }}"
+        {{- with .Values.imagePullPolicy }}
+        imagePullPolicy: {{ . }}
+        {{- end }}
+        resources:
+          limits:
+            cpu: {{ .Values.resources.limits.cpu }}
+            memory: {{ .Values.resources.limits.memory }}
+          requests:
+            cpu: {{ .Values.resources.requests.cpu }}
+            memory: {{ .Values.resources.requests.memory }}
+        env:
+          - name: AUTOMDM_SERVER_ADDRESS
+            value: "0.0.0.0:{{ .Values.automdm.listenPort }}"
+          - name: AUTOMDM_AUTH_BCRYPT_COST
+            value: "{{ .Values.automdm.auth.bcryptCost }}"
+          - name: AUTOMDM_AUTH_SALT_KEY_SIZE
+            value: "{{ .Values.automdm.auth.saltKeySize }}"
+          - name: AUTOMDM_APP_TOKEN_KEY_SIZE
+            value: "{{ .Values.automdm.app.tokenKeySize }}"
+          - name: AUTOMDM_APP_TOKEN_VALIDITY_PERIOD
+            value: "{{ .Values.automdm.app.inviteTokenValidityPeriod }}"
+          - name: AUTOMDM_SESSION_KEY_SIZE
+            value: "{{ .Values.automdm.session.keySize }}"
+          - name: AUTOMDM_SESSION_DURATION
+            value: "{{ .Values.automdm.session.duration }}"
+          - name: AUTOMDM_LOGGING_DEBUG
+            value: "{{ .Values.automdm.logging.debug }}"
+          - name: AUTOMDM_LOGGING_JSON
+            value: "{{ .Values.automdm.logging.json }}"
+          - name: AUTOMDM_LOGGING_DISABLE_BANNER
+            value: "{{ .Values.automdm.logging.disableBanner }}"
+          - name: AUTOMDM_SERVER_TLS
+            value: "{{ .Values.automdm.tls.enabled }}"
+          {{- if .Values.automdm.tls.enabled }}
+          - name: AUTOMDM_SERVER_TLS_COMPATIBILITY
+            value: "{{ .Values.automdm.tls.compatibility }}"
+          - name: AUTOMDM_SERVER_CERT
+            value: "/secrets/tls/{{ .Values.automdm.tls.certSecretKey }}"
+          - name: AUTOMDM_SERVER_KEY
+            value: "/secrets/tls/{{ .Values.automdm.tls.keySecretKey }}"
+          {{- end }}
+          ## END AUTOMDM SECTION
+          ## BEGIN MYSQL SECTION
+          - name: AUTOMDM_MYSQL_ADDRESS
+            value: "{{ .Values.database.address }}"
+          - name: AUTOMDM_MYSQL_DATABASE
+            value: "{{ .Values.database.database }}"
+          - name: AUTOMDM_MYSQL_USERNAME
+            value: "{{ .Values.database.username }}"
+          - name: AUTOMDM_MYSQL_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.database.secretName }}
+                key: {{ .Values.database.passwordKey }}
+          - name: AUTOMDM_MYSQL_MAX_OPEN_CONNS
+            value: "{{ .Values.database.maxOpenConns }}"
+          - name: AUTOMDM_MYSQL_MAX_IDLE_CONNS
+            value: "{{ .Values.database.maxIdleConns }}"
+          - name: AUTOMDM_MYSQL_CONN_MAX_LIFETIME
+            value: "{{ .Values.database.connMaxLifetime }}"
+          {{- if .Values.database.tls.enabled }}
+          {{- if .Values.database.tls.caCertKey }}
+          - name: AUTOMDM_MYSQL_TLS_CA
+            value: "/secrets/mysql/{{ .Values.database.tls.caCertKey }}"
+          {{- end }}
+          {{- if .Values.database.tls.certKey }}
+          - name: AUTOMDM_MYSQL_TLS_CERT
+            value: "/secrets/mysql/{{ .Values.database.tls.certKey }}"
+          {{- end }}
+          {{- if .Values.database.tls.keyKey }}
+          - name: AUTOMDM_MYSQL_TLS_KEY
+            value: "/secrets/mysql/{{ .Values.database.tls.keyKey }}"
+          {{- end }}
+          - name: AUTOMDM_MYSQL_TLS_CONFIG
+            value: "{{ .Values.database.tls.config }}"
+          - name: AUTOMDM_MYSQL_TLS_SERVER_NAME
+            value: "{{ .Values.database.tls.serverName }}"
+          {{- end }}
+          ## END MYSQL SECTION
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            {{- if .Values.gke.cloudSQL.enableProxy }}
+            add:
+              - SYS_PTRACE
+            {{- else }}
+            drop: [ALL]
+            {{- end }}
+          privileged: false
+          readOnlyRootFilesystem: true
+          {{- if .Values.automdm.securityContext.runAsGroup }}
+          runAsGroup: {{ int64 .Values.automdm.securityContext.runAsGroup }}
+          {{- end }}
+          {{- if .Values.automdm.securityContext.runAsUser }}
+          runAsUser: {{ int64 .Values.automdm.securityContext.runAsUser }}
+          {{- end }}
+          {{- if .Values.automdm.securityContext.runAsNonRoot }}
+          runAsNonRoot: {{ .Values.automdm.securityContext.runAsNonRoot }}
+          {{- end }}
+        volumeMounts:
+          {{- if .Values.database.tls.enabled }}
+          - name: mysql-tls
+            readOnly: true
+            mountPath: /secrets/mysql
+          {{- end }}
+      {{- if .Values.gke.cloudSQL.enableProxy }}
+      - name: cloudsql-proxy
+        image: "{{ .Values.gke.cloudSQL.imageRepository }}:{{ .Values.gke.cloudSQL.imageTag }}"
+        command:
+        - "/cloud_sql_proxy"
+        - "-verbose={{ .Values.gke.cloudSQL.verbose}}"
+        - "-instances={{ .Values.gke.cloudSQL.instanceName }}=tcp:3306"
+        resources:
+          limits:
+            cpu: 0.5 # 500Mhz
+            memory: 150Mi
+          requests:
+            cpu: 0.1 # 100Mhz
+            memory: 50Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ALL]
+          privileged: false
+          readOnlyRootFilesystem: true
+          {{- if .Values.automdm.securityContext.runAsGroup }}
+          runAsGroup: {{ int64 .Values.automdm.securityContext.runAsGroup }}
+          {{- end }}
+          {{- if .Values.automdm.securityContext.runAsUser }}
+          runAsUser: {{ int64 .Values.automdm.securityContext.runAsUser }}
+          {{- end }}
+          {{- if .Values.automdm.securityContext.runAsNonRoot }}
+          runAsNonRoot: {{ .Values.automdm.securityContext.runAsNonRoot }}
+          {{- end }}
+      {{- end }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8}}
+      {{- end }}
+      serviceAccountName: automdm
+      volumes:
+        {{- if .Values.database.tls.enabled }}
+        - name: mysql-tls
+          secret:
+            secretName: "{{ .Values.database.secretName }}"
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+    {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+{{- end }}

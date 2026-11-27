@@ -7,7 +7,7 @@ import {
 } from "./config";
 import enrollSecretInterface, { IEnrollSecret } from "./enroll_secret";
 import { ITeamIntegrations } from "./integration";
-import { EndUserLocalAccountType, ITokenFleet } from "./mdm";
+import { EndUserLocalAccountType, ITokenAutoMDM } from "./mdm";
 import { UserRole } from "./user";
 
 export default PropTypes.shape({
@@ -139,7 +139,7 @@ export interface IRemoveTeamUserFormData {
   users: { id?: number }[];
 }
 interface INewTeamSecret {
-  fleet_id: number;
+  team_id: number;
   secret: string;
   created_at?: string;
 }
@@ -154,7 +154,7 @@ export const API_ALL_TEAMS_ID = undefined;
 export const APP_CONTEXT_ALL_TEAMS_ID = -1;
 export const APP_CONTEXT_ALL_TEAMS_SUMMARY: ITeamSummary = {
   id: APP_CONTEXT_ALL_TEAMS_ID,
-  name: "All fleets",
+  name: "All teams",
 } as const;
 
 export const API_NO_TEAM_ID = 0;
@@ -167,7 +167,7 @@ export const APP_CONTEXT_NO_TEAM_SUMMARY: ITeamSummary = {
 export const isAnyTeamSelected = (currentTeamId?: number) =>
   currentTeamId !== undefined && currentTeamId > APP_CONTEXT_NO_TEAM_ID;
 
-export const getFleetDisplayName = (fleet: ITokenFleet) =>
-  fleet.fleet_id === APP_CONTEXT_NO_TEAM_ID
+export const getTeamDisplayName = (team: ITokenAutoMDM) =>
+  team.team_id === APP_CONTEXT_NO_TEAM_ID
     ? APP_CONTEXT_NO_TEAM_SUMMARY.name
-    : fleet.name;
+    : team.name;

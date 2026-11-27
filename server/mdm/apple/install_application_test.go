@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/pkg/removednames"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/pkg/removednames"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mock"
 	"github.com/stretchr/testify/require"
 	"howett.net/plist"
 )
@@ -65,13 +65,13 @@ func TestBuildInstallApplicationCommand_VPP(t *testing.T) {
 			params: InstallApplicationParams{
 				CommandUUID:   commandUUID,
 				HostPlatform:  "ios",
-				ManifestURL:   "https://fleet.example.com/manifest",
+				ManifestURL:   "https://automdm.example.com/manifest",
 				Configuration: []byte("<dict><key>K</key><string>v</string></dict>"),
 			},
 			wantMgmt: 1,
 			wantHas: []string{
 				"<key>ManifestURL</key>",
-				"<string>https://fleet.example.com/manifest</string>",
+				"<string>https://automdm.example.com/manifest</string>",
 				"<key>Configuration</key>",
 				"<dict><key>K</key><string>v</string></dict>",
 			},
@@ -212,7 +212,7 @@ func TestBuildInstallApplicationCommand_ConfigurationOuterDictPreserved(t *testi
 	require.Equal(t, "https://example.com", cfgDict["ServerURL"])
 }
 
-func TestSubstituteFleetVarsInAppConfig(t *testing.T) {
+func TestSubstituteAutoMDMVarsInAppConfig(t *testing.T) {
 	ctx := context.Background()
 	host := AppConfigSubstitutionHost{
 		UUID:           "host-uuid-1",
@@ -227,29 +227,29 @@ func TestSubstituteFleetVarsInAppConfig(t *testing.T) {
 	emptyDS := new(mock.Store)
 
 	t.Run("no config returns nil error", func(t *testing.T) {
-		got, err := SubstituteFleetVarsInAppConfig(ctx, emptyDS, nil, host)
+		got, err := SubstituteAutoMDMVarsInAppConfig(ctx, emptyDS, nil, host)
 		require.NoError(t, err)
 		require.Nil(t, got)
 	})
 
 	t.Run("config without variables returns unchanged", func(t *testing.T) {
 		cfg := []byte(`<dict><key>K</key><string>plain</string></dict>`)
-		got, err := SubstituteFleetVarsInAppConfig(ctx, emptyDS, cfg, host)
+		got, err := SubstituteAutoMDMVarsInAppConfig(ctx, emptyDS, cfg, host)
 		require.NoError(t, err)
 		require.Equal(t, cfg, got)
 	})
 
 	t.Run("HOST_UUID substituted", func(t *testing.T) {
-		cfg := []byte(`<dict><key>K</key><string>$FLEET_VAR_HOST_UUID</string></dict>`)
-		got, err := SubstituteFleetVarsInAppConfig(ctx, emptyDS, cfg, host)
+		cfg := []byte(`<dict><key>K</key><string>$AUTOMDM_VAR_HOST_UUID</string></dict>`)
+		got, err := SubstituteAutoMDMVarsInAppConfig(ctx, emptyDS, cfg, host)
 		require.NoError(t, err)
 		require.Contains(t, string(got), "host-uuid-1")
-		require.NotContains(t, string(got), "$FLEET_VAR_HOST_UUID")
+		require.NotContains(t, string(got), "$AUTOMDM_VAR_HOST_UUID")
 	})
 
 	t.Run("HOST_HARDWARE_SERIAL substituted", func(t *testing.T) {
-		cfg := []byte(`<dict><key>K</key><string>${FLEET_VAR_HOST_HARDWARE_SERIAL}</string></dict>`)
-		got, err := SubstituteFleetVarsInAppConfig(ctx, emptyDS, cfg, host)
+		cfg := []byte(`<dict><key>K</key><string>${AUTOMDM_VAR_HOST_HARDWARE_SERIAL}</string></dict>`)
+		got, err := SubstituteAutoMDMVarsInAppConfig(ctx, emptyDS, cfg, host)
 		require.NoError(t, err)
 		require.Contains(t, string(got), "ABC123")
 	})
@@ -257,17 +257,17 @@ func TestSubstituteFleetVarsInAppConfig(t *testing.T) {
 	t.Run("HOST_PLATFORM darwin maps to macos", func(t *testing.T) {
 		darwinHost := host
 		darwinHost.Platform = "darwin"
-		cfg := []byte(`<dict><key>K</key><string>$FLEET_VAR_HOST_PLATFORM</string></dict>`)
-		got, err := SubstituteFleetVarsInAppConfig(ctx, emptyDS, cfg, darwinHost)
+		cfg := []byte(`<dict><key>K</key><string>$AUTOMDM_VAR_HOST_PLATFORM</string></dict>`)
+		got, err := SubstituteAutoMDMVarsInAppConfig(ctx, emptyDS, cfg, darwinHost)
 		require.NoError(t, err)
 		require.Contains(t, string(got), "macos")
 	})
 
-	t.Run("removed HOST_END_USER_EMAIL_IDP is unresolvable with its Fleet 5 message", func(t *testing.T) {
-		cfg := []byte(`<dict><key>K</key><string>$FLEET_VAR_HOST_END_USER_EMAIL_IDP</string></dict>`)
-		got, err := SubstituteFleetVarsInAppConfig(ctx, emptyDS, cfg, host)
+	t.Run("removed HOST_END_USER_EMAIL_IDP is unresolvable with its AutoMDM 5 message", func(t *testing.T) {
+		cfg := []byte(`<dict><key>K</key><string>$AUTOMDM_VAR_HOST_END_USER_EMAIL_IDP</string></dict>`)
+		got, err := SubstituteAutoMDMVarsInAppConfig(ctx, emptyDS, cfg, host)
 		require.ErrorIs(t, err, ErrUnresolvableAppConfigVar)
-		require.EqualError(t, err, `The "$FLEET_VAR_HOST_END_USER_EMAIL_IDP" variable is not available anymore. `+
+		require.EqualError(t, err, `The "$AUTOMDM_VAR_HOST_END_USER_EMAIL_IDP" variable is not available anymore. `+
 			`What to use instead: `+removednames.GuideURL)
 		require.Nil(t, got)
 	})
@@ -275,8 +275,8 @@ func TestSubstituteFleetVarsInAppConfig(t *testing.T) {
 	t.Run("XML special chars in substituted value are escaped", func(t *testing.T) {
 		specialHost := host
 		specialHost.HardwareSerial = "a&b<c"
-		cfg := []byte(`<dict><key>K</key><string>$FLEET_VAR_HOST_HARDWARE_SERIAL</string></dict>`)
-		got, err := SubstituteFleetVarsInAppConfig(ctx, emptyDS, cfg, specialHost)
+		cfg := []byte(`<dict><key>K</key><string>$AUTOMDM_VAR_HOST_HARDWARE_SERIAL</string></dict>`)
+		got, err := SubstituteAutoMDMVarsInAppConfig(ctx, emptyDS, cfg, specialHost)
 		require.NoError(t, err)
 		// Round-trip the resulting XML through the plist parser; if escaping
 		// is broken the parser will fail or decode incorrectly.
@@ -286,17 +286,17 @@ func TestSubstituteFleetVarsInAppConfig(t *testing.T) {
 		require.Equal(t, "a&b<c", parsed["K"])
 	})
 
-	t.Run("custom host vital expanded for the host after Fleet variables", func(t *testing.T) {
+	t.Run("custom host vital expanded for the host after AutoMDM variables", func(t *testing.T) {
 		ds := new(mock.Store)
 		ds.ExpandCustomHostVitalsFunc = func(ctx context.Context, hostID uint, document string) (string, error) {
 			require.Equal(t, uint(42), hostID)
 			require.Contains(t, document, "<string>ABC123</string>")
-			return strings.ReplaceAll(document, "$FLEET_HOST_VITAL_7", "tag-1"), nil
+			return strings.ReplaceAll(document, "$AUTOMDM_HOST_VITAL_7", "tag-1"), nil
 		}
 		vitalHost := host
 		vitalHost.HostID = 42
-		cfg := []byte(`<dict><key>S</key><string>$FLEET_VAR_HOST_HARDWARE_SERIAL</string><key>V</key><string>$FLEET_HOST_VITAL_7</string></dict>`)
-		got, err := SubstituteFleetVarsInAppConfig(ctx, ds, cfg, vitalHost)
+		cfg := []byte(`<dict><key>S</key><string>$AUTOMDM_VAR_HOST_HARDWARE_SERIAL</string><key>V</key><string>$AUTOMDM_HOST_VITAL_7</string></dict>`)
+		got, err := SubstituteAutoMDMVarsInAppConfig(ctx, ds, cfg, vitalHost)
 		require.NoError(t, err)
 		require.Equal(t, `<dict><key>S</key><string>ABC123</string><key>V</key><string>tag-1</string></dict>`, string(got))
 	})
@@ -304,18 +304,18 @@ func TestSubstituteFleetVarsInAppConfig(t *testing.T) {
 	t.Run("custom host vital without a value for the host is unresolvable", func(t *testing.T) {
 		ds := new(mock.Store)
 		ds.ExpandCustomHostVitalsFunc = func(ctx context.Context, hostID uint, document string) (string, error) {
-			return "", &fleet.MissingCustomHostVitalValueError{MissingIDs: []uint{7}, MissingNames: []string{"Asset tag"}}
+			return "", &automdm.MissingCustomHostVitalValueError{MissingIDs: []uint{7}, MissingNames: []string{"Asset tag"}}
 		}
-		cfg := []byte(`<dict><key>V</key><string>$FLEET_HOST_VITAL_7</string></dict>`)
-		got, err := SubstituteFleetVarsInAppConfig(ctx, ds, cfg, host)
+		cfg := []byte(`<dict><key>V</key><string>$AUTOMDM_HOST_VITAL_7</string></dict>`)
+		got, err := SubstituteAutoMDMVarsInAppConfig(ctx, ds, cfg, host)
 		require.ErrorIs(t, err, ErrUnresolvableAppConfigVar)
-		require.EqualError(t, err, "Couldn't populate the custom host vital Asset tag ($FLEET_HOST_VITAL_7) because there's no value set for this host.")
+		require.EqualError(t, err, "Couldn't populate the custom host vital Asset tag ($AUTOMDM_HOST_VITAL_7) because there's no value set for this host.")
 		require.Nil(t, got)
 	})
 
 	t.Run("multiple variables substituted independently", func(t *testing.T) {
-		cfg := []byte(`<dict><key>UUID</key><string>$FLEET_VAR_HOST_UUID</string><key>S</key><string>$FLEET_VAR_HOST_HARDWARE_SERIAL</string><key>P</key><string>$FLEET_VAR_HOST_PLATFORM</string></dict>`)
-		got, err := SubstituteFleetVarsInAppConfig(ctx, emptyDS, cfg, host)
+		cfg := []byte(`<dict><key>UUID</key><string>$AUTOMDM_VAR_HOST_UUID</string><key>S</key><string>$AUTOMDM_VAR_HOST_HARDWARE_SERIAL</string><key>P</key><string>$AUTOMDM_VAR_HOST_PLATFORM</string></dict>`)
+		got, err := SubstituteAutoMDMVarsInAppConfig(ctx, emptyDS, cfg, host)
 		require.NoError(t, err)
 		s := string(got)
 		require.Contains(t, s, "host-uuid-1")
@@ -328,10 +328,10 @@ func TestSubstituteFleetVarsInAppConfig(t *testing.T) {
 // without breaking the plist envelope.
 func TestSubstituteThenBuildRoundTrip(t *testing.T) {
 	ctx := context.Background()
-	cfg := []byte(`<dict><key>UUID</key><string>$FLEET_VAR_HOST_UUID</string></dict>`)
+	cfg := []byte(`<dict><key>UUID</key><string>$AUTOMDM_VAR_HOST_UUID</string></dict>`)
 	host := AppConfigSubstitutionHost{UUID: "uuid-x", Platform: "ios"}
 
-	substituted, err := SubstituteFleetVarsInAppConfig(ctx, new(mock.Store), cfg, host)
+	substituted, err := SubstituteAutoMDMVarsInAppConfig(ctx, new(mock.Store), cfg, host)
 	require.NoError(t, err)
 
 	cmd := BuildInstallApplicationCommand(InstallApplicationParams{

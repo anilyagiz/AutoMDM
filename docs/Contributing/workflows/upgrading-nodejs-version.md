@@ -1,4 +1,4 @@
-# Upgrading the Node.js version used to build Fleet
+# Upgrading the Node.js version used to build AutoMDM
 
 ## How Node.js releases work
 
@@ -52,7 +52,7 @@ Get any updates for `npm` using `npm i -g npm`. Then, install `yarn` using `npm 
 
 ## Updating build scripts
 
-In CI, Fleet uses `actions/setup-node` to select the Node.js version. We configure it to read from the repository root `package.json` using `node-version-file: package.json` so it respects the `engines.node` semver range.
+In CI, AutoMDM uses `actions/setup-node` to select the Node.js version. We configure it to read from the repository root `package.json` using `node-version-file: package.json` so it respects the `engines.node` semver range.
 
 ### What `check-latest` does
 
@@ -67,9 +67,9 @@ When `check-latest: true` is set on `actions/setup-node`:
 - With a semver range (e.g., `^24.10.0`), `check-latest` may increase setup time on the first run after a new patch is released because it downloads that newer version. Subsequent runs benefit from cache.
 - This option is supported in `actions/setup-node` v3 and later.
 
-In this repository, `check-latest: true` is set where the main Fleet app is built and published:
+In this repository, `check-latest: true` is set where the main AutoMDM app is built and published:
 - `.github/workflows/build-binaries.yaml`
-- `.github/workflows/goreleaser-snapshot-fleet.yaml`
+- `.github/workflows/goreleaser-snapshot-automdm.yaml`
 
 For more details, see the `actions/setup-node` documentation: https://github.com/actions/setup-node
 
@@ -92,4 +92,4 @@ For more details, see the `actions/setup-node` documentation: https://github.com
 
 ## Updating this guide
 
-As the Fleet project evolves, new areas may need to be touched when upgrading Node.js versions. Please update this guide with any new files you find that need changing (and remove any files that are no longer relevant).
+As the AutoMDM project evolves, new areas may need to be touched when upgrading Node.js versions. Please update this guide with any new files you find that need changing (and remove any files that are no longer relevant).

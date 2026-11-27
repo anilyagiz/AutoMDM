@@ -23,7 +23,7 @@ const HostEnrollmentRejectedActivityItem = ({
     >
       {activity.details?.reason === "end_user_authentication_required" ? (
         <span>
-          <b>Fleet</b> rejected an automatic enrollment for this host because
+          <b>AutoMDM</b> rejected an automatic enrollment for this host because
           IdP authentication is required.{" "}
           <CustomLink
             url={`${LEARN_MORE_ABOUT_BASE_LINK}/rejected-automatic-enrollment`}
@@ -33,7 +33,7 @@ const HostEnrollmentRejectedActivityItem = ({
         </span>
       ) : (
         <span>
-          <b>Fleet</b> rejected an enrollment for this host.
+          <b>AutoMDM</b> rejected an enrollment for this host.
         </span>
       )}
     </ActivityItem>

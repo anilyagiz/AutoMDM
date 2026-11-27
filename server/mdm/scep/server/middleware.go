@@ -6,14 +6,14 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/go-kit/kit/endpoint"
 )
 
 // acmeOnlyEnrollmentMiddleware refuses all SCEP issuance when only
-// ACME-attested Apple Business enrollment is allowed. Fleet never solicits
+// ACME-attested Apple Business enrollment is allowed. AutoMDM never solicits
 // SCEP renewals in that mode, so any PKIOperation is stale or hostile.
-func ACMEOnlyEnrollmentMiddleware(appCfgGetter fleet.GetsAppConfig) endpoint.Middleware {
+func ACMEOnlyEnrollmentMiddleware(appCfgGetter automdm.GetsAppConfig) endpoint.Middleware {
 	return func(next endpoint.Endpoint) endpoint.Endpoint {
 		return func(ctx context.Context, request any) (response any, err error) {
 			cfg, err := appCfgGetter.AppConfig(ctx)
@@ -21,7 +21,7 @@ func ACMEOnlyEnrollmentMiddleware(appCfgGetter fleet.GetsAppConfig) endpoint.Mid
 				return nil, fmt.Errorf("loading app config for SCEP enrollment policy: %w", err)
 			}
 			if cfg.MDM.IsAppleMDMSCEPBlocked() {
-				return nil, &fleet.ABOnlyEnrollmentForbiddenError{}
+				return nil, &automdm.ABOnlyEnrollmentForbiddenError{}
 			}
 			return next(ctx, request)
 		}

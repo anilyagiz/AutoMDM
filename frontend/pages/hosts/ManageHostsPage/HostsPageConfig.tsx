@@ -2,7 +2,7 @@ import { HOSTS_QUERY_PARAMS, ISortOption } from "services/entities/hosts";
 
 export const MANAGE_HOSTS_PAGE_FILTER_KEYS = [
   "query",
-  "fleet_id",
+  "team_id",
   "policy_id",
   "policy_response",
   "apple_settings",
@@ -86,19 +86,19 @@ export const hostSelectStatuses = (isPremiumTier: boolean) => {
       disabled: false,
       label: "All hosts",
       value: "",
-      helpText: "All hosts added to Fleet.",
+      helpText: "All hosts added to AutoMDM.",
     },
     {
       disabled: false,
       label: "Online hosts",
       value: "online",
-      helpText: "Hosts that have recently checked into Fleet.",
+      helpText: "Hosts that have recently checked into AutoMDM.",
     },
     {
       disabled: false,
       label: "Offline hosts",
       value: "offline",
-      helpText: "Hosts that haven't recently checked into Fleet.",
+      helpText: "Hosts that haven't recently checked into AutoMDM.",
     },
     {
       disabled: false,
@@ -110,14 +110,14 @@ export const hostSelectStatuses = (isPremiumTier: boolean) => {
       disabled: false,
       label: "New hosts",
       value: "new",
-      helpText: "Hosts added to Fleet in the last 24 hours.",
+      helpText: "Hosts added to AutoMDM in the last 24 hours.",
     },
     {
       disabled: false,
       label: "Enrolled hosts",
       value: "enrolled",
       helpText:
-        "Hosts that have enrolled to Fleet. Excludes hosts pending enrollment.",
+        "Hosts that have enrolled to AutoMDM. Excludes hosts pending enrollment.",
     },
   ];
 

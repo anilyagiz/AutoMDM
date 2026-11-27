@@ -13,13 +13,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
 // ListSoftwareVersions returns the software versions in one page of results, and the total number
 // of versions matching the query.
-func (c *Client) ListSoftwareVersions(query string) ([]fleet.Software, int, error) {
-	verb, path := "GET", "/api/latest/fleet/software/versions"
+func (c *Client) ListSoftwareVersions(query string) ([]automdm.Software, int, error) {
+	verb, path := "GET", "/api/latest/automdm/software/versions"
 	var responseBody listSoftwareVersionsResponse
 	err := c.authenticatedRequestWithQuery(nil, verb, path, &responseBody, query)
 	if err != nil {
@@ -29,8 +29,8 @@ func (c *Client) ListSoftwareVersions(query string) ([]fleet.Software, int, erro
 }
 
 // ListSoftwareTitles retrieves the software titles installed on hosts.
-func (c *Client) ListSoftwareTitles(query string) ([]fleet.SoftwareTitleListResult, error) {
-	verb, path := "GET", "/api/latest/fleet/software/titles"
+func (c *Client) ListSoftwareTitles(query string) ([]automdm.SoftwareTitleListResult, error) {
+	verb, path := "GET", "/api/latest/automdm/software/titles"
 	var responseBody listSoftwareTitlesResponse
 	err := c.authenticatedRequestWithQuery(nil, verb, path, &responseBody, query)
 	if err != nil {
@@ -40,10 +40,10 @@ func (c *Client) ListSoftwareTitles(query string) ([]fleet.SoftwareTitleListResu
 }
 
 // Get the software titles available for the setup experience.
-func (c *Client) GetSetupExperienceSoftware(platform string, teamID uint) ([]fleet.SoftwareTitleListResult, error) {
-	verb, path := "GET", "/api/latest/fleet/setup_experience/software"
+func (c *Client) GetSetupExperienceSoftware(platform string, teamID uint) ([]automdm.SoftwareTitleListResult, error) {
+	verb, path := "GET", "/api/latest/automdm/setup_experience/software"
 	var responseBody getSetupExperienceSoftwareResponse
-	query := fmt.Sprintf("platform=%s&fleet_id=%d", platform, teamID)
+	query := fmt.Sprintf("platform=%s&team_id=%d", platform, teamID)
 	err := c.authenticatedRequestWithQuery(nil, verb, path, &responseBody, query)
 	if err != nil {
 		return nil, err
@@ -54,12 +54,12 @@ func (c *Client) GetSetupExperienceSoftware(platform string, teamID uint) ([]fle
 // GetSoftwareTitleByID retrieves a software title by ID.
 //
 //nolint:gocritic // ignore captLocal
-func (c *Client) GetSoftwareTitleByID(ID uint, teamID *uint) (*fleet.SoftwareTitle, error) {
+func (c *Client) GetSoftwareTitleByID(ID uint, teamID *uint) (*automdm.SoftwareTitle, error) {
 	var query string
 	if teamID != nil {
-		query = fmt.Sprintf("fleet_id=%d", *teamID)
+		query = fmt.Sprintf("team_id=%d", *teamID)
 	}
-	verb, path := "GET", "/api/latest/fleet/software/titles/"+fmt.Sprint(ID)
+	verb, path := "GET", "/api/latest/automdm/software/titles/"+fmt.Sprint(ID)
 	var responseBody getSoftwareTitleResponse
 	err := c.authenticatedRequestWithQuery(nil, verb, path, &responseBody, query)
 	if err != nil {
@@ -69,8 +69,8 @@ func (c *Client) GetSoftwareTitleByID(ID uint, teamID *uint) (*fleet.SoftwareTit
 }
 
 func (c *Client) GetSoftwareTitleIcon(titleID uint, teamID uint) ([]byte, error) {
-	verb, path := "GET", fmt.Sprintf("/api/latest/fleet/software/titles/%d/icon", titleID)
-	response, err := c.AuthenticatedDo(verb, path, fmt.Sprintf("fleet_id=%d", teamID), nil)
+	verb, path := "GET", fmt.Sprintf("/api/latest/automdm/software/titles/%d/icon", titleID)
+	response, err := c.AuthenticatedDo(verb, path, fmt.Sprintf("team_id=%d", teamID), nil)
 	if err != nil {
 		return nil, fmt.Errorf("%s %s: %w", verb, path, err)
 	}
@@ -90,10 +90,10 @@ func (c *Client) GetSoftwareTitleIcon(titleID uint, teamID uint) ([]byte, error)
 }
 
 func (c *Client) ApplyNoTeamSoftwareInstallers(
-	softwareInstallers []fleet.SoftwareInstallerPayload,
-	opts fleet.ApplySpecOptions,
+	softwareInstallers []automdm.SoftwareInstallerPayload,
+	opts automdm.ApplySpecOptions,
 	logFn func(format string, args ...any),
-) ([]fleet.SoftwarePackageResponse, []fleet.DeletedSoftwarePackage, []string, error) {
+) ([]automdm.SoftwarePackageResponse, []automdm.DeletedSoftwarePackage, []string, error) {
 	query, err := url.ParseQuery(opts.RawQuery())
 	if err != nil {
 		return nil, nil, nil, err
@@ -102,12 +102,12 @@ func (c *Client) ApplyNoTeamSoftwareInstallers(
 }
 
 func (c *Client) applySoftwareInstallers(
-	softwareInstallers []fleet.SoftwareInstallerPayload,
+	softwareInstallers []automdm.SoftwareInstallerPayload,
 	query url.Values,
 	dryRun bool,
 	logFn func(format string, args ...any),
-) ([]fleet.SoftwarePackageResponse, []fleet.DeletedSoftwarePackage, []string, error) {
-	path := "/api/latest/fleet/software/batch"
+) ([]automdm.SoftwarePackageResponse, []automdm.DeletedSoftwarePackage, []string, error) {
+	path := "/api/latest/automdm/software/batch"
 	var resp batchSetSoftwareInstallersResponse
 	if err := c.authenticatedRequestWithQuery(map[string]any{"software": softwareInstallers}, "POST", path, &resp, query.Encode()); err != nil {
 		return nil, nil, nil, err
@@ -122,15 +122,15 @@ func (c *Client) applySoftwareInstallers(
 
 	// Assumes the server downloads packages one by one, so each "downloading" line prints
 	// right before its own "downloaded" line. Concurrent downloads would break this.
-	logDownloadProgress := func(downloadProgress []fleet.SoftwarePackageDownloadProgress) {
+	logDownloadProgress := func(downloadProgress []automdm.SoftwarePackageDownloadProgress) {
 		for payloadIndex, packageProgress := range downloadProgress {
 			// A package the batch hasn't started downloading has no name yet.
 			if packageProgress.Name == "" {
 				continue
 			}
 
-			// A package Fleet doesn't download gets only this line, never a downloading one.
-			if packageProgress.Status == fleet.SoftwarePackageDownloadSkipped {
+			// A package AutoMDM doesn't download gets only this line, never a downloading one.
+			if packageProgress.Status == automdm.SoftwarePackageDownloadSkipped {
 				_, printedSkip := printedResult[payloadIndex]
 				if !printedSkip {
 					printedResult[payloadIndex] = struct{}{}
@@ -151,10 +151,10 @@ func (c *Client) applySoftwareInstallers(
 				continue
 			}
 			switch packageProgress.Status {
-			case fleet.SoftwarePackageDownloadFailed:
+			case automdm.SoftwarePackageDownloadFailed:
 				printedResult[payloadIndex] = struct{}{}
 				logFn("Error: could not download software package %s\n", packageProgress.Name)
-			case fleet.SoftwarePackageDownloadFinished:
+			case automdm.SoftwarePackageDownloadFinished:
 				printedResult[payloadIndex] = struct{}{}
 				logFn("[+] downloaded software package - %s\n", packageProgress.Name)
 			}
@@ -170,11 +170,11 @@ func (c *Client) applySoftwareInstallers(
 		logDownloadProgress(resp.DownloadProgress)
 
 		switch {
-		case resp.Status == fleet.BatchSetSoftwareInstallersStatusProcessing:
+		case resp.Status == automdm.BatchSetSoftwareInstallersStatusProcessing:
 			time.Sleep(1 * time.Second)
-		case resp.Status == fleet.BatchSetSoftwareInstallersStatusFailed:
+		case resp.Status == automdm.BatchSetSoftwareInstallersStatusFailed:
 			return nil, nil, nil, errors.New(resp.Message)
-		case resp.Status == fleet.BatchSetSoftwareInstallersStatusCompleted:
+		case resp.Status == automdm.BatchSetSoftwareInstallersStatusCompleted:
 			return matchPackageIcons(softwareInstallers, resp.Packages), resp.DeletedPackages, resp.Categories, nil
 		default:
 			return nil, nil, nil, fmt.Errorf("unknown status: %q", resp.Status)
@@ -182,9 +182,9 @@ func (c *Client) applySoftwareInstallers(
 	}
 }
 
-func (c *Client) ListSelfServiceCategories(teamID uint) ([]fleet.SoftwareCategory, error) {
-	verb, path := "GET", "/api/latest/fleet/software/self_service_categories"
-	query := fmt.Sprintf("fleet_id=%d", teamID)
+func (c *Client) ListSelfServiceCategories(teamID uint) ([]automdm.SoftwareCategory, error) {
+	verb, path := "GET", "/api/latest/automdm/software/self_service_categories"
+	query := fmt.Sprintf("team_id=%d", teamID)
 	var responseBody getSelfServiceCategoriesResponse
 	if err := c.authenticatedRequestWithQuery(nil, verb, path, &responseBody, query); err != nil {
 		return nil, err
@@ -192,9 +192,9 @@ func (c *Client) ListSelfServiceCategories(teamID uint) ([]fleet.SoftwareCategor
 	return responseBody.SelfServiceCategories, nil
 }
 
-func (c *Client) GetPatchDeadlineSettings(fleetID uint) (*fleet.PatchDeadlineSettings, error) {
-	verb, path := "GET", "/api/latest/fleet/software/patch_deadline_settings"
-	query := fmt.Sprintf("fleet_id=%d", fleetID)
+func (c *Client) GetPatchDeadlineSettings(automdmID uint) (*automdm.PatchDeadlineSettings, error) {
+	verb, path := "GET", "/api/latest/automdm/software/patch_deadline_settings"
+	query := fmt.Sprintf("team_id=%d", automdmID)
 	var responseBody patchDeadlineSettingsResponse
 	if err := c.authenticatedRequestWithQuery(nil, verb, path, &responseBody, query); err != nil {
 		return nil, err
@@ -202,15 +202,15 @@ func (c *Client) GetPatchDeadlineSettings(fleetID uint) (*fleet.PatchDeadlineSet
 	return responseBody.PatchDeadlineSettings, nil
 }
 
-func (c *Client) UpdatePatchDeadlineSettings(fleetID uint, s fleet.PatchDeadlineSettings) error {
-	verb, path := "PATCH", "/api/latest/fleet/software/patch_deadline_settings"
-	params := updatePatchDeadlineSettingsRequest{FleetID: &fleetID, Days: s.Days, Time: s.Time}
+func (c *Client) UpdatePatchDeadlineSettings(automdmID uint, s automdm.PatchDeadlineSettings) error {
+	verb, path := "PATCH", "/api/latest/automdm/software/patch_deadline_settings"
+	params := updatePatchDeadlineSettingsRequest{AutoMDMID: &automdmID, Days: s.Days, Time: s.Time}
 	var responseBody patchDeadlineSettingsResponse
 	return c.authenticatedRequest(params, verb, path, &responseBody)
 }
 
 func (c *Client) DeleteSelfServiceCategory(id uint) error {
-	verb, path := "DELETE", fmt.Sprintf("/api/latest/fleet/software/self_service_categories/%d", id)
+	verb, path := "DELETE", fmt.Sprintf("/api/latest/automdm/software/self_service_categories/%d", id)
 	var responseBody deleteSelfServiceCategoriesResponse
 	return c.authenticatedRequest(nil, verb, path, &responseBody)
 }
@@ -236,11 +236,11 @@ func (c *Client) deleteUnusedSelfServiceCategories(teamID uint, keep []string) e
 
 // matchPackageIcons hydrates software responses with references to icons in the request payload, so we can track
 // which API calls to make to add/update/delete icons
-func matchPackageIcons(request []fleet.SoftwareInstallerPayload, response []fleet.SoftwarePackageResponse) []fleet.SoftwarePackageResponse {
+func matchPackageIcons(request []automdm.SoftwareInstallerPayload, response []automdm.SoftwarePackageResponse) []automdm.SoftwarePackageResponse {
 	// On the client side, software installer entries can have a URL or a hash or both ...
-	byURL := make(map[string]*fleet.SoftwareInstallerPayload)
-	byHash := make(map[string]*fleet.SoftwareInstallerPayload)
-	bySlug := make(map[string]*fleet.SoftwareInstallerPayload)
+	byURL := make(map[string]*automdm.SoftwareInstallerPayload)
+	byHash := make(map[string]*automdm.SoftwareInstallerPayload)
+	bySlug := make(map[string]*automdm.SoftwareInstallerPayload)
 
 	for i := range request {
 		clientSide := &request[i]
@@ -327,8 +327,8 @@ func (c *Client) putIcon(teamID uint, titleID uint, writer *multipart.Writer, bu
 	response, err := c.doContextWithBodyAndHeaders(
 		context.Background(),
 		"PUT",
-		fmt.Sprintf("/api/latest/fleet/software/titles/%d/icon", titleID),
-		fmt.Sprintf("fleet_id=%d", teamID),
+		fmt.Sprintf("/api/latest/automdm/software/titles/%d/icon", titleID),
+		fmt.Sprintf("team_id=%d", teamID),
 		buf.Bytes(),
 		map[string]string{
 			"Content-Type":  writer.FormDataContentType(),
@@ -354,8 +354,8 @@ func (c *Client) putIcon(teamID uint, titleID uint, writer *multipart.Writer, bu
 func (c *Client) DeleteIcon(teamID uint, titleID uint) error {
 	response, err := c.AuthenticatedDo(
 		"DELETE",
-		fmt.Sprintf("/api/latest/fleet/software/titles/%d/icon", titleID),
-		fmt.Sprintf("fleet_id=%d", teamID),
+		fmt.Sprintf("/api/latest/automdm/software/titles/%d/icon", titleID),
+		fmt.Sprintf("team_id=%d", teamID),
 		nil,
 	)
 	if err != nil {
@@ -373,29 +373,29 @@ func (c *Client) DeleteIcon(teamID uint, titleID uint) error {
 // InstallSoftware triggers a software installation (VPP or software package)
 // on the specified host.
 func (c *Client) InstallSoftware(hostID uint, softwareTitleID uint) error {
-	verb, path := "POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/software/%d/install", hostID, softwareTitleID)
+	verb, path := "POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/software/%d/install", hostID, softwareTitleID)
 	var responseBody installSoftwareResponse
 	return c.authenticatedRequest(nil, verb, path, &responseBody)
 }
 
-func (c *Client) GetFleetMaintainedApp(id uint) (*fleet.MaintainedApp, error) {
-	verb, path := "GET", fmt.Sprintf("/api/latest/fleet/software/fleet_maintained_apps/%d", id)
-	var responseBody getFleetMaintainedAppResponse
+func (c *Client) GetAutoMDMMaintainedApp(id uint) (*automdm.MaintainedApp, error) {
+	verb, path := "GET", fmt.Sprintf("/api/latest/automdm/software/automdm_maintained_apps/%d", id)
+	var responseBody getAutoMDMMaintainedAppResponse
 	err := c.authenticatedRequest(nil, verb, path, &responseBody)
 	if err != nil {
 		return nil, err
 	}
-	return responseBody.FleetMaintainedApp, nil
+	return responseBody.AutoMDMMaintainedApp, nil
 }
 
-func (c *Client) ListFleetMaintainedApps(teamID uint) ([]fleet.MaintainedApp, error) {
-	verb, path := "GET", "/api/latest/fleet/software/fleet_maintained_apps"
-	query := fmt.Sprintf("fleet_id=%d", teamID)
+func (c *Client) ListAutoMDMMaintainedApps(teamID uint) ([]automdm.MaintainedApp, error) {
+	verb, path := "GET", "/api/latest/automdm/software/automdm_maintained_apps"
+	query := fmt.Sprintf("team_id=%d", teamID)
 
-	var responseBody listFleetMaintainedAppsResponse
+	var responseBody listAutoMDMMaintainedAppsResponse
 	err := c.authenticatedRequestWithQuery(nil, verb, path, &responseBody, query)
 	if err != nil {
 		return nil, err
 	}
-	return responseBody.FleetMaintainedApps, nil
+	return responseBody.AutoMDMMaintainedApps, nil
 }

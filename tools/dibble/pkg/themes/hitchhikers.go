@@ -16,7 +16,7 @@ func init() {
 			{"Agrajag", "", "agrajag"},
 		},
 		Teams: []string{
-			"Heart of Gold", "Magrathea", "Vogon Constructor Fleet",
+			"Heart of Gold", "Magrathea", "Vogon Constructor AutoMDM",
 			"Restaurant at the End of the Universe", "Mostly Harmless",
 		},
 		Policies: []Named{

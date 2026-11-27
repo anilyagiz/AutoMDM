@@ -2,7 +2,7 @@ import React from "react";
 
 export const ADD_SOFTWARE_ERROR_PREFIX = "Couldn't add.";
 export const DEFAULT_ADD_SOFTWARE_ERROR_MESSAGE = `${ADD_SOFTWARE_ERROR_PREFIX} Please try again.`;
-export const REQUEST_TIMEOUT_ERROR_MESSAGE = `${ADD_SOFTWARE_ERROR_PREFIX} The request timed out. Make sure your server, and any proxy or load balancer in front of Fleet, allows enough time to transfer large installers.`;
+export const REQUEST_TIMEOUT_ERROR_MESSAGE = `${ADD_SOFTWARE_ERROR_PREFIX} The request timed out. Make sure your server, and any proxy or load balancer in front of AutoMDM, allows enough time to transfer large installers.`;
 
 export const DIFFERENT_FILE_TYPE_MESSAGE =
   "The selected package is for a different file type.";
@@ -20,7 +20,7 @@ export const ensurePeriod = (str: string) => {
 
 /**
  * Renders backend "already has ..." conflicts as flash-message JSX, bolding
- * the software title and fleet name per design. Returns null if the reason
+ * the software title and team name per design. Returns null if the reason
  * doesn't match a known pattern so callers can fall back to generic handling.
  */
 export const formatAlreadyAvailableInstallMessage = (msg: string) => {
@@ -28,37 +28,37 @@ export const formatAlreadyAvailableInstallMessage = (msg: string) => {
   const cleaned = msg.replace(/^Couldn't add software\.?\s*/, "");
 
   const fmaMatch = cleaned.match(
-    /^(.+?) already has a Fleet-maintained app on the (.+?) fleet\./
+    /^(.+?) already has an AutoMDM-maintained app on the (.+?) team\./
   );
   if (fmaMatch) {
     return (
       <>
         {ADD_SOFTWARE_ERROR_PREFIX} <b>{fmaMatch[1]}</b> already has a
-        Fleet-maintained app on the <b>{fmaMatch[2]}</b> fleet.
+        AutoMDM-maintained app on the <b>{fmaMatch[2]}</b> team.
       </>
     );
   }
 
   const vppMatch = cleaned.match(
-    /^(.+?) already has an Apple App Store \(VPP\) on the (.+?) fleet\./
+    /^(.+?) already has an Apple App Store \(VPP\) on the (.+?) team\./
   );
   if (vppMatch) {
     return (
       <>
         {ADD_SOFTWARE_ERROR_PREFIX} <b>{vppMatch[1]}</b> already has an Apple
-        App Store (VPP) on the <b>{vppMatch[2]}</b> fleet.
+        App Store (VPP) on the <b>{vppMatch[2]}</b> team.
       </>
     );
   }
 
   const packageMatch = cleaned.match(
-    /^(.+?) already has a software package on the (.+?) fleet\./
+    /^(.+?) already has a software package on the (.+?) team\./
   );
   if (packageMatch) {
     return (
       <>
         {ADD_SOFTWARE_ERROR_PREFIX} <b>{packageMatch[1]}</b> already has a
-        software package on the <b>{packageMatch[2]}</b> fleet.
+        software package on the <b>{packageMatch[2]}</b> team.
       </>
     );
   }
@@ -77,30 +77,30 @@ export const formatAlreadyAvailableInstallMessage = (msg: string) => {
 
   // Legacy generic conflict — kept as a fallback in case a code path still
   // emits it. Matches "<title> already has an installer available for the
-  // <fleet> fleet."
+  // <team> team."
   const legacyInstallerMatch = cleaned.match(
-    /^(.+?) already has an installer available for the (.+?) fleet\./
+    /^(.+?) already has an installer available for the (.+?) team\./
   );
   if (legacyInstallerMatch) {
     return (
       <>
         {ADD_SOFTWARE_ERROR_PREFIX} <b>{legacyInstallerMatch[1]}</b> already has
-        an installer available for the <b>{legacyInstallerMatch[2]}</b> fleet.
+        an installer available for the <b>{legacyInstallerMatch[2]}</b> team.
       </>
     );
   }
 
-  // Legacy quote-style: `SoftwareInstaller "X" already exists with fleet "Y".`
-  // or `In-house app "X" already exists with fleet "Y".` (emitted by
+  // Legacy quote-style: `SoftwareInstaller "X" already exists with team "Y".`
+  // or `In-house app "X" already exists with team "Y".` (emitted by
   // `alreadyExists(...).WithTeamName(...)` in the mysql layer).
   const legacyQuotedMatch = cleaned.match(
-    /^(?:SoftwareInstaller|In-house app) "(.+?)" already.+ fleet "(.+?)"\./
+    /^(?:SoftwareInstaller|In-house app) "(.+?)" already.+ team "(.+?)"\./
   );
   if (legacyQuotedMatch) {
     return (
       <>
         {ADD_SOFTWARE_ERROR_PREFIX} <b>{legacyQuotedMatch[1]}</b> already has an
-        installer available for the <b>{legacyQuotedMatch[2]}</b> fleet.
+        installer available for the <b>{legacyQuotedMatch[2]}</b> team.
       </>
     );
   }

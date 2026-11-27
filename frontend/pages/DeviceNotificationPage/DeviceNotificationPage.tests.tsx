@@ -37,13 +37,13 @@ describe("DeviceNotificationPage", () => {
   beforeEach(() => {
     postMessage.mockClear();
     window.webkit = {
-      messageHandlers: { fleetDesktop: { postMessage } },
+      messageHandlers: { automdmDesktop: { postMessage } },
     };
   });
 
   afterEach(() => {
     delete window.webkit;
-    localStorage.removeItem("fleet-theme");
+    localStorage.removeItem("automdm-theme");
     // A polling test that fails mid-way would otherwise leave fake timers on
     // and take every test after it down with it.
     jest.useRealTimers();
@@ -387,7 +387,7 @@ describe("DeviceNotificationPage", () => {
     });
     light.unmount();
 
-    localStorage.setItem("fleet-theme", "dark");
+    localStorage.setItem("automdm-theme", "dark");
     const dark = renderPage();
 
     await waitFor(() => {
@@ -399,8 +399,8 @@ describe("DeviceNotificationPage", () => {
   });
 
   // An org that never uploaded a logo gets empty urls from the server, and OrgLogoIcon
-  // substitutes Fleet's own logo rather than rendering a broken image.
-  it("renders Fleet's logo when the org has not set one", async () => {
+  // substitutes AutoMDM's own logo rather than rendering a broken image.
+  it("renders AutoMDM's logo when the org has not set one", async () => {
     mockServer.use(
       customDeviceNotificationHandler(
         createMockNotificationView({
@@ -414,7 +414,7 @@ describe("DeviceNotificationPage", () => {
 
     await waitFor(() => {
       const logo = container.querySelector(`.${baseClass}__logo`);
-      expect(logo).toHaveClass("default-fleet-logo");
+      expect(logo).toHaveClass("default-automdm-logo");
     });
   });
 });

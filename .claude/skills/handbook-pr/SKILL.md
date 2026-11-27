@@ -1,20 +1,20 @@
 ---
 name: handbook-pr
-description: Make a change to Fleet's handbook and open a pull request for it. Use whenever someone asks to add, update, remove, reword, or fix anything under handbook/ (Markdown pages, *.rituals.yml, open-positions.yml), including requests that arrive from a Slack thread or a GitHub mention, even if they never say "handbook" or "PR" (for example "document that IT owns laptop refreshes" or "add a note about time off for support roles"). Covers reading Fleet's writing guidelines, finding the right page, rules that break the fleetdm.com build or existing links, keeping private details off a public page, the PR title and description, and requesting the one right reviewer. Not for docs/, articles/, or website/ changes.
+description: Make a change to AutoMDM's handbook and open a pull request for it. Use whenever someone asks to add, update, remove, reword, or fix anything under handbook/ (Markdown pages, *.rituals.yml, open-positions.yml), including requests that arrive from a Slack thread or a GitHub mention, even if they never say "handbook" or "PR" (for example "document that IT owns laptop refreshes" or "add a note about time off for support roles"). Covers reading AutoMDM's writing guidelines, finding the right page, rules that break the automdm.com build or existing links, keeping private details off a public page, the PR title and description, and requesting the one right reviewer. Not for docs/, articles/, or website/ changes.
 allowed-tools: Read, Grep, Glob, Edit, Write, Bash(git *), Bash(gh pr *), Bash(gh api *), Bash(bash .claude/skills/handbook-pr/scripts/*)
 effort: medium
 ---
 
 # Handbook pull requests
 
-Fleet is a [handbook-first](https://fleetdm.com/handbook/company/why-this-way#why-handbook-first-strategy) company. The handbook is public at [fleetdm.com/handbook](https://fleetdm.com/handbook), and anything merged to `main` goes live right away. Your goal is a small, correct PR that the page maintainer can merge without edits.
+AutoMDM is a [handbook-first](https://automdm.com/handbook/company/why-this-way#why-handbook-first-strategy) company. The handbook is public at [automdm.com/handbook](https://automdm.com/handbook), and anything merged to `main` goes live right away. Your goal is a small, correct PR that the page maintainer can merge without edits.
 
 ## 1. Read the style guidelines
 
-Fleet's style guidelines are the source of truth for every word you write. Read them from the repo at the start of each handbook change. They change often, so don't rely on memory or on this skill:
+AutoMDM's style guidelines are the source of truth for every word you write. Read them from the repo at the start of each handbook change. They change often, so don't rely on memory or on this skill:
 
-- [Writing at Fleet](https://fleetdm.com/handbook/company/writing) (`handbook/company/writing.md`). Read "Writing style," "Writing mechanics," and the "Editing and publishing" checklist.
-- [Brand](https://fleetdm.com/handbook/company/brand) (`handbook/company/brand.md`) for naming and voice.
+- [Writing at AutoMDM](https://automdm.com/handbook/company/writing) (`handbook/company/writing.md`). Read "Writing style," "Writing mechanics," and the "Editing and publishing" checklist.
+- [Brand](https://automdm.com/handbook/company/brand) (`handbook/company/brand.md`) for naming and voice.
 - The `content-style` skill. Load it and use its checklist on all new or reworded prose.
 
 Link to these pages. Don't copy their rules into the handbook page or the PR description.
@@ -31,7 +31,7 @@ Link to these pages. Don't copy their rules into the handbook page or the PR des
 - Search before you write: `git grep -n -i "<keyword>" -- handbook/`. If the topic is already covered, update that section instead of adding a new one.
 - Link instead of duplicating. If a concept lives on another page, link to that section.
 - Rituals belong in the division's `*.rituals.yml` file, which renders as the rituals table on that page. Change the YAML entry and don't repeat the ritual as prose.
-- Most changes belong on an existing page. Only create a new page if the requester confirms it. Then follow ["Adding a new handbook page"](https://fleetdm.com/handbook/company/writing#adding-a-new-handbook-page): use the kebab-case, lowercase page title as the filename, add an H1 that matches it, and copy the meta tags from the parent page.
+- Most changes belong on an existing page. Only create a new page if the requester confirms it. Then follow ["Adding a new handbook page"](https://automdm.com/handbook/company/writing#adding-a-new-handbook-page): use the kebab-case, lowercase page title as the filename, add an H1 that matches it, and copy the meta tags from the parent page.
 
 ## 4. Make the edit
 
@@ -40,16 +40,16 @@ Match the page around you: heading levels, list style, bold lead-ins, and link f
 **Build and CI rules.** Breaking these fails `website/scripts/build-static-content.js` or `.github/workflows/docs.yml`:
 
 - Every handbook Markdown page needs `<meta name="maintainedBy" value="<github-username>">`. A `title` meta tag must be 40 characters or fewer, and emoji count as 2.
-- No `@fleetdm.com` email addresses. Link to a Slack channel or handbook section, or use `@example.com` in examples.
+- No `@automdm.com` email addresses. Link to a Slack channel or handbook section, or use `@example.com` in examples.
 - No `{{ }}` outside inline code, no code block nested inside another code block, and a blank line before any HTML comment that follows a list.
 - No "here" or "click here" as link text. Link descriptive words.
-- Images need absolute URLs, like `https://raw.githubusercontent.com/fleetdm/fleet/main/docs/images/<file>.png`.
+- Images need absolute URLs, like `https://raw.githubusercontent.com/automdm/automdm/main/docs/images/<file>.png`.
 - Every ritual needs `task`, `startedOn` (YYYY-MM-DD), `frequency`, `description`, and `dri`. If it has `autoIssue`, `frequency` must be `Daily`, `Weekly`, `Triweekly`, `Monthly`, `Quarterly`, or `Annually`. `dri` must be a real GitHub username: copy it from an existing entry or `website/config/custom.js`, and check new ones with `gh api users/<username>`.
 
 **Link rules** from writing.md:
 
-- Don't rename or remove headings unless the request requires it. fleetdm.com builds each anchor from the heading text, and Slack messages, GitHub issues, and other pages link to those anchors. If you must rename one, update every link to the old anchor in the same PR and call out the rename in the PR description.
-- Use full `https://fleetdm.com/handbook/...` URLs, even for sections on the same page. Don't use relative links like `(#section)` or `(../page.md)`.
+- Don't rename or remove headings unless the request requires it. automdm.com builds each anchor from the heading text, and Slack messages, GitHub issues, and other pages link to those anchors. If you must rename one, update every link to the old anchor in the same PR and call out the rename in the PR description.
+- Use full `https://automdm.com/handbook/...` URLs, even for sections on the same page. Don't use relative links like `(#section)` or `(../page.md)`.
 
 **Keep the diff minimal:**
 
@@ -59,7 +59,7 @@ Match the page around you: heading levels, list style, bold lead-ins, and link f
 
 ## 5. Check that it's safe to publish
 
-The handbook is public, and requests often come from DMs or private channels. Before you commit, remove anything that shouldn't be on fleetdm.com:
+The handbook is public, and requests often come from DMs or private channels. Before you commit, remove anything that shouldn't be on automdm.com:
 
 - Names of customers or prospects that aren't already public, deal or pricing details, and anyone's compensation, performance, or HR details
 - Security details, like internal hostnames, credentials, unpatched vulnerabilities, or detection gaps
@@ -94,7 +94,7 @@ _Requested by <name> · [Slack thread](<link>)_
 **After:**
 > <new text>
 
-**Page:** https://fleetdm.com/handbook/<path>#<section>
+**Page:** https://automdm.com/handbook/<path>#<section>
 
 ## Notes for reviewer
 
@@ -109,7 +109,7 @@ _Requested by <name> · [Slack thread](<link>)_
 - Don't add a "Generated with" footer if your environment already adds one. One is enough.
 - Write the body to a file and pass it with `--body-file`, so HTML comments and backticks come through as written.
 
-**Reviewer:** Request exactly one reviewer, the page maintainer. That's the person whose face appears on the page at fleetdm.com:
+**Reviewer:** Request exactly one reviewer, the page maintainer. That's the person whose face appears on the page at automdm.com:
 
 1. Use the `maintainedBy` meta tag at the bottom of the page you changed.
 2. For YAML files, or pages without the tag, use the closest matching path in `githubRepoDRIByPath` in `website/config/custom.js`.

@@ -14,7 +14,7 @@ import { createCustomRenderer, createMockRouter } from "test/test-utils";
 import SaveNewPolicyModal from "./SaveNewPolicyModal";
 
 const baseUrl = (path: string) => {
-  return `/api/latest/fleet${path}`;
+  return `/api/latest/automdm${path}`;
 };
 
 const mockLabels: ILabelSummary[] = [
@@ -63,7 +63,7 @@ describe("SaveNewPolicyModal", () => {
     policyTeamId: undefined,
     automationsConfig: createMockConfig(),
     globalConfig: createMockConfig(),
-    fleetName: "All fleets",
+    automdmName: "All teams",
     router: createMockRouter(),
   };
 
@@ -210,7 +210,7 @@ describe("SaveNewPolicyModal", () => {
       ).not.toBeInTheDocument();
     });
 
-    it("sends hidden when Hide from end user is checked on a fleet policy", async () => {
+    it("sends hidden when Hide from end user is checked on a team policy", async () => {
       const onCreatePolicy = jest.fn();
       render(
         <PolicyProvider>
@@ -219,7 +219,7 @@ describe("SaveNewPolicyModal", () => {
             onCreatePolicy={onCreatePolicy}
             isGlobalPolicy={false}
             policyTeamId={1}
-            fleetName="Workstations"
+            automdmName="Workstations"
           />
         </PolicyProvider>
       );
@@ -242,7 +242,7 @@ describe("SaveNewPolicyModal", () => {
       expect(onCreatePolicy.mock.calls[0][0].hidden).toBe(true);
     });
 
-    it("sends hidden for an All fleets policy too", async () => {
+    it("sends hidden for an All teams policy too", async () => {
       const onCreatePolicy = jest.fn();
       render(
         <PolicyProvider>

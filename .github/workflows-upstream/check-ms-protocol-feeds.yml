@@ -12,7 +12,7 @@ permissions: {}
 
 jobs:
   check-ms-mdm-protocol-docs:
-    if: github.event.repository.owner.login == 'fleetdm'
+    if: github.event.repository.owner.login == 'automdm'
     runs-on: ubuntu-latest
     permissions:
       issues: write

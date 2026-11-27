@@ -1,24 +1,24 @@
-# Fleet frontend
+# AutoMDM frontend
 
-The Fleet frontend is a Single Page Application using React with Typescript and Hooks.
+The AutoMDM frontend is a Single Page Application using React with Typescript and Hooks.
 
 ## Table of contents
-- [Running the Fleet web app](#running-the-fleet-web-app)
+- [Running the AutoMDM web app](#running-the-automdm-web-app)
 - [Testing](#testing)
 - [Directory Structure](#directory-structure)
 - [Patterns](#patterns)
 - [Storybook](#storybook)
 
-## Running the Fleet web app
+## Running the AutoMDM web app
 
-For details instruction on building and serving the Fleet web application
+For details instruction on building and serving the AutoMDM web application
 consult the [Contributing documentation](../docs/Contributing/getting-started/README.md).
 
 ## Testing
 
-Visit the [overview of Fleet UI testing](../docs/Contributing/guides/ui/fleet-ui-testing.md) for more information on our testing strategy, philosophies, and tools.
+Visit the [overview of AutoMDM UI testing](../docs/Contributing/guides/ui/automdm-ui-testing.md) for more information on our testing strategy, philosophies, and tools.
 
-To run unit or integration tests in `ComponentName.tests.tsx`, run `yarn test -- ComponentName.tests.tsx`. To [test all Javascript components](https://fleetdm.com/docs/contributing/testing-and-local-development#javascript-unit-tests) run `yarn test`.
+To run unit or integration tests in `ComponentName.tests.tsx`, run `yarn test -- ComponentName.tests.tsx`. To [test all Javascript components](https://automdm.com/docs/contributing/testing-and-local-development#javascript-unit-tests) run `yarn test`.
 
 
 [QA Wolf](https://www.qawolf.com/) manages our E2E test and will maintain the tests as well as raise
@@ -30,7 +30,7 @@ directory](./test/README.md).
 
 ## Directory structure
 
-Component directories in the Fleet front-end application encapsulate the entire
+Component directories in the AutoMDM front-end application encapsulate the entire
 component, including files for the component and its styles. The
 typical directory structure for a component is as follows:
 
@@ -64,16 +64,16 @@ where its information is pulled.
 
 ### [interfaces](./interfaces)
 
-Files in the interfaces directory are used to specify the Typescript interface for a reusable Fleet
+Files in the interfaces directory are used to specify the Typescript interface for a reusable AutoMDM
 entity. This is designed to DRY up the code and increase re-usability. These
 interfaces are imported in to component files and implemented when defining the
 component's props.
 
 **Additionally, local interfaces are used for props of local components.**
 
-### [layouts](https://github.com/fleetdm/fleet/tree/main/frontend/layouts)
+### [layouts](https://github.com/anilyagiz/automdm/tree/main/frontend/layouts)
 
-The Fleet application has only 1 layout, the [Core Layout](./layouts/CoreLayout/CoreLayout.jsx).
+The AutoMDM application has only 1 layout, the [Core Layout](./layouts/CoreLayout/CoreLayout.jsx).
 The Layout is rendered from the [router](./router/index.tsx) and are used to set up the general
 app UI (header, sidebar) and render child components.
 The child components rendered by the layout are typically page components.
@@ -95,7 +95,7 @@ Constants](./app_constants) object.
 
 ### [services](./services)
 
-CRUD functions for all Fleet entities (e.g. `report`) that link directly to the Fleet API.
+CRUD functions for all AutoMDM entities (e.g. `report`) that link directly to the AutoMDM API.
 
 ### [styles](./styles)
 
@@ -121,16 +121,16 @@ etc.
 
 ## Patterns
 
-The list of patterns used in the Fleet UI codebase can be found [in `patterns.md`](./docs/patterns.md).
+The list of patterns used in the AutoMDM UI codebase can be found [in `patterns.md`](./docs/patterns.md).
 
 ## Storybook
 
 [Storybook](https://storybook.js.org/) is a tool to document and visualize components, and we
-use it to capture our global components used across Fleet. Storybook is key when developing new
+use it to capture our global components used across AutoMDM. Storybook is key when developing new
 features and testing components before release. It runs a separate server exposed on port `6006`.
 To run this server, do the following:
 
-- Go to your root fleet project directory
+- Go to your root team project directory
 - Run `make deps`
 - Run `yarn storybook`
 

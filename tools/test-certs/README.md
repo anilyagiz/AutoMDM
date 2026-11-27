@@ -1,6 +1,6 @@
 # test-certs
 
-This directory contains a fake certificate chain to test TLS functionality in `fleet`, `fleetctl` and `fleetd`.
+This directory contains a fake certificate chain to test TLS functionality in `automdm`, `automdmctl` and `automdmd`.
 
 > The certificates were generated using the following guide: [OpenSSL create certificate chain](https://www.golinuxcloud.com/openssl-create-certificate-chain-linux/#Step_6_Generate_and_sign_server_certificate_using_Intermediate_CA)
 
@@ -19,7 +19,7 @@ Additionaly contains a `intermediate-and-root.cert.pem` which contains `intermed
 
 Contains a server certificate signed by the "intermediate CA" certificate.
 
-Contains certificates that can be used by a Fleet server:
+Contains certificates that can be used by an AutoMDM server:
 - `server.key.pem`: TLS server private key.
 - `leaf.cert.pem`: TLS server certificate alone.
 - `leaf-and-intermediate.cert.pem`: Contains `leaf.cert.pem` + `intermediate.cert.pem`.
@@ -27,18 +27,18 @@ Contains certificates that can be used by a Fleet server:
 
 ## Usage
 
-Run the Fleet server with the leaf certificate only:
+Run the AutoMDM server with the leaf certificate only:
 ```sh
-fleet serve --dev --dev_license \
+automdm serve --dev --dev_license \
     --server_cert ./tools/test-certs/server/leaf.cert.pem \
     --server_key ./tools/test-certs/server/server.key.pem \
     --logging_debug
 ```
 
-You will see that `fleetctl debug connection` will fail if only pinning the `root-ca.cert.pem` (because TLS client doesn't know about the intermediate certificate):
+You will see that `automdmctl debug connection` will fail if only pinning the `root-ca.cert.pem` (because TLS client doesn't know about the intermediate certificate):
 ```sh
-fleetctl debug connection \
-    --fleet-certificate ./tools/test-certs/root-ca/root-ca.cert.pem \
+automdmctl debug connection \
+    --automdm-certificate ./tools/test-certs/root-ca/root-ca.cert.pem \
     https://localhost:8080
 Debugging connection to localhost; Configuration context: none - using provided address; Root CA: ./tools/test-certs/root-ca/root-ca.cert.pem; TLS: secure.
 Success: can resolve host localhost.
@@ -46,9 +46,9 @@ Success: can dial server at localhost:8080.
 Error: Fail: certificate: dial for validate: verify certificate: x509: certificate signed by unknown authority
 ```
 
-And `fleetctl debug connection` will succeed if pinning with `intermediate-and-root.cert.pem`:
+And `automdmctl debug connection` will succeed if pinning with `intermediate-and-root.cert.pem`:
 ```sh
-fleetctl debug connection --fleet-certificate ./tools/test-certs/intermediate-ca/intermediate-and-root.cert.pem https://localhost:8080
+automdmctl debug connection --automdm-certificate ./tools/test-certs/intermediate-ca/intermediate-and-root.cert.pem https://localhost:8080
 Debugging connection to localhost; Configuration context: none - using provided address; Root CA: ./tools/test-certs/intermediate-ca/intermediate-and-root.cert.pem; TLS: secure.
 Success: can resolve host localhost.
 Success: can dial server at localhost:8080.

@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -19,54 +19,54 @@ func TestListOptionsFromRequest(t *testing.T) {
 		// url string to parse
 		url string
 		// expected list options
-		listOptions fleet.ListOptions
+		listOptions automdm.ListOptions
 		// should cause a BadRequest error
 		shouldErr400 bool
 	}{
 		// both params provided
 		{
 			url:         "/foo?page=1&per_page=10",
-			listOptions: fleet.ListOptions{Page: 1, PerPage: 10},
+			listOptions: automdm.ListOptions{Page: 1, PerPage: 10},
 		},
 		// only per_page (page should default to 0)
 		{
 			url:         "/foo?per_page=10",
-			listOptions: fleet.ListOptions{Page: 0, PerPage: 10},
+			listOptions: automdm.ListOptions{Page: 0, PerPage: 10},
 		},
 		// only page (per_page should default to defaultPerPage
 		{
 			url:         "/foo?page=10",
-			listOptions: fleet.ListOptions{Page: 10, PerPage: defaultPerPage},
+			listOptions: automdm.ListOptions{Page: 10, PerPage: defaultPerPage},
 		},
 		// no params provided (defaults to empty ListOptions indicating
 		// unlimited)
 		{
 			url:         "/foo?unrelated=foo",
-			listOptions: fleet.ListOptions{},
+			listOptions: automdm.ListOptions{},
 		},
 
 		// Both order params provided
 		{
 			url:         "/foo?order_key=foo&order_direction=desc",
-			listOptions: fleet.ListOptions{OrderKey: "foo", OrderDirection: fleet.OrderDescending},
+			listOptions: automdm.ListOptions{OrderKey: "foo", OrderDirection: automdm.OrderDescending},
 		},
 		// Both order params provided (asc)
 		{
 			url:         "/foo?order_key=bar&order_direction=asc",
-			listOptions: fleet.ListOptions{OrderKey: "bar", OrderDirection: fleet.OrderAscending},
+			listOptions: automdm.ListOptions{OrderKey: "bar", OrderDirection: automdm.OrderAscending},
 		},
 		// Default order direction
 		{
 			url:         "/foo?order_key=foo",
-			listOptions: fleet.ListOptions{OrderKey: "foo", OrderDirection: fleet.OrderAscending},
+			listOptions: automdm.ListOptions{OrderKey: "foo", OrderDirection: automdm.OrderAscending},
 		},
 
 		// All params defined
 		{
 			url: "/foo?order_key=foo&order_direction=desc&page=1&per_page=100&after=bar",
-			listOptions: fleet.ListOptions{
+			listOptions: automdm.ListOptions{
 				OrderKey:       "foo",
-				OrderDirection: fleet.OrderDescending,
+				OrderDirection: automdm.OrderDescending,
 				Page:           1,
 				PerPage:        100,
 				After:          "bar",
@@ -116,7 +116,7 @@ func TestListOptionsFromRequest(t *testing.T) {
 
 				if tt.shouldErr400 {
 					assert.NotNil(t, err)
-					var be *fleet.BadRequestError
+					var be *automdm.BadRequestError
 					require.ErrorAs(t, err, &be)
 					return
 				}
@@ -129,25 +129,25 @@ func TestListOptionsFromRequest(t *testing.T) {
 }
 
 func TestHostListOptionsFromRequest(t *testing.T) {
-	verified := fleet.OSSettingsVerified
+	verified := automdm.OSSettingsVerified
 	hostListOptionsTests := map[string]struct {
 		// url string to parse
 		url string
 		// expected options
-		hostListOptions fleet.HostListOptions
+		hostListOptions automdm.HostListOptions
 		// expected error message, if any
 		errorMessage string
 	}{
 		"no params passed": {
 			url:             "/foo",
-			hostListOptions: fleet.HostListOptions{},
+			hostListOptions: automdm.HostListOptions{},
 		},
 		"embedded list options params defined": {
 			url: "/foo?order_key=foo&order_direction=desc&page=1&per_page=100",
-			hostListOptions: fleet.HostListOptions{
-				ListOptions: fleet.ListOptions{
+			hostListOptions: automdm.HostListOptions{
+				ListOptions: automdm.ListOptions{
 					OrderKey:       "foo",
-					OrderDirection: fleet.OrderDescending,
+					OrderDirection: automdm.OrderDescending,
 					Page:           1,
 					PerPage:        100,
 				},
@@ -155,23 +155,23 @@ func TestHostListOptionsFromRequest(t *testing.T) {
 		},
 		"all params defined": {
 			url: "/foo?order_key=foo&order_direction=asc&page=10&per_page=1&device_mapping=T&additional_info_filters" +
-				"=filter1,filter2&status=new&fleet_id=2&policy_id=3&policy_response=passing&software_version_id=4&os_id=5" +
+				"=filter1,filter2&status=new&team_id=2&policy_id=3&policy_response=passing&software_version_id=4&os_id=5" +
 				"&os_name=osName&os_version=osVersion&os_version_id=5&disable_failing_policies=0&disable_issues=1&apple_settings=verified" +
 				"&macos_settings_disk_encryption=enforcing&os_settings=pending&os_settings_disk_encryption=failed" +
 				"&macos_bootstrap_package=installed&mdm_id=6&mdm_name=mdmName&mdm_enrollment_status=automatic" +
 				"&munki_issue_id=7&low_disk_space=99&vulnerability=CVE-2023-42887&populate_policies=true&populate_end_users=true&profile_uuid=123-abc&profile_status=verified" +
 				"&script_batch_execution_id=some-cool-batch-script-execution-id&script_batch_execution_status=pending" +
 				"&dep_profile_error=true&dep_assign_profile_response=FAILED",
-			hostListOptions: fleet.HostListOptions{
-				ListOptions: fleet.ListOptions{
+			hostListOptions: automdm.HostListOptions{
+				ListOptions: automdm.ListOptions{
 					OrderKey:       "foo",
-					OrderDirection: fleet.OrderAscending,
+					OrderDirection: automdm.OrderAscending,
 					Page:           10,
 					PerPage:        1,
 				},
 				DeviceMapping:                     true,
 				AdditionalFilters:                 []string{"filter1", "filter2"},
-				StatusFilter:                      fleet.StatusNew,
+				StatusFilter:                      automdm.StatusNew,
 				TeamFilter:                        ptr.Uint(2),
 				PolicyIDFilter:                    ptr.Uint(3),
 				PolicyResponseFilter:              ptr.Bool(true),
@@ -181,14 +181,14 @@ func TestHostListOptionsFromRequest(t *testing.T) {
 				OSNameFilter:                      ptr.String("osName"),
 				OSVersionFilter:                   ptr.String("osVersion"),
 				DisableIssues:                     true,
-				MacOSSettingsFilter:               fleet.OSSettingsVerified,
-				MacOSSettingsDiskEncryptionFilter: fleet.DiskEncryptionEnforcing,
-				OSSettingsFilter:                  fleet.OSSettingsPending,
-				OSSettingsDiskEncryptionFilter:    fleet.DiskEncryptionFailed,
-				MDMBootstrapPackageFilter:         (*fleet.MDMBootstrapPackageStatus)(ptr.String(string(fleet.MDMBootstrapPackageInstalled))),
+				MacOSSettingsFilter:               automdm.OSSettingsVerified,
+				MacOSSettingsDiskEncryptionFilter: automdm.DiskEncryptionEnforcing,
+				OSSettingsFilter:                  automdm.OSSettingsPending,
+				OSSettingsDiskEncryptionFilter:    automdm.DiskEncryptionFailed,
+				MDMBootstrapPackageFilter:         (*automdm.MDMBootstrapPackageStatus)(ptr.String(string(automdm.MDMBootstrapPackageInstalled))),
 				MDMIDFilter:                       ptr.Uint(6),
 				MDMNameFilter:                     ptr.String("mdmName"),
-				MDMEnrollmentStatusFilter:         fleet.MDMEnrollStatusAutomatic,
+				MDMEnrollmentStatusFilter:         automdm.MDMEnrollStatusAutomatic,
 				MunkiIssueIDFilter:                ptr.Uint(7),
 				LowDiskSpaceFilter:                ptr.Int(99),
 				VulnerabilityFilter:               ptr.String("CVE-2023-42887"),
@@ -196,31 +196,31 @@ func TestHostListOptionsFromRequest(t *testing.T) {
 				PopulateEndUsers:                  true,
 				ProfileUUIDFilter:                 ptr.String("123-abc"),
 				ProfileStatusFilter:               &verified,
-				BatchScriptExecutionStatusFilter:  fleet.BatchScriptExecutionPending,
+				BatchScriptExecutionStatusFilter:  automdm.BatchScriptExecutionPending,
 				BatchScriptExecutionIDFilter:      ptr.String("some-cool-batch-script-execution-id"),
 				DEPProfileErrorFilter:             new(true),
-				DEPAssignProfileResponseFilter:    new(fleet.DEPAssignProfileResponseFailed),
+				DEPAssignProfileResponseFilter:    new(automdm.DEPAssignProfileResponseFailed),
 			},
 		},
 		"all params defined (deprecated)": {
 			url: "/foo?order_key=foo&order_direction=asc&page=10&per_page=1&device_mapping=T&additional_info_filters" +
-				"=filter1,filter2&status=new&fleet_id=2&policy_id=3&policy_response=passing&software_version_id=4&os_id=5" +
+				"=filter1,filter2&status=new&team_id=2&policy_id=3&policy_response=passing&software_version_id=4&os_id=5" +
 				"&os_name=osName&os_version=osVersion&os_version_id=5&disable_failing_policies=0&disable_issues=1&apple_settings=verified" +
 				"&macos_settings_disk_encryption=enforcing&os_settings=pending&os_settings_disk_encryption=failed" +
 				"&macos_bootstrap_package=installed&mdm_id=6&mdm_name=mdmName&mdm_enrollment_status=automatic" +
 				"&munki_issue_id=7&low_disk_space=99&vulnerability=CVE-2023-42887&populate_policies=true&profile_uuid=123-abc&profile_status=verified" +
 				"&script_batch_execution_id=some-cool-batch-script-execution-id&script_batch_execution_status=pending" +
 				"&dep_profile_error=true&dep_assign_profile_response=FAILED",
-			hostListOptions: fleet.HostListOptions{
-				ListOptions: fleet.ListOptions{
+			hostListOptions: automdm.HostListOptions{
+				ListOptions: automdm.ListOptions{
 					OrderKey:       "foo",
-					OrderDirection: fleet.OrderAscending,
+					OrderDirection: automdm.OrderAscending,
 					Page:           10,
 					PerPage:        1,
 				},
 				DeviceMapping:                     true,
 				AdditionalFilters:                 []string{"filter1", "filter2"},
-				StatusFilter:                      fleet.StatusNew,
+				StatusFilter:                      automdm.StatusNew,
 				TeamFilter:                        ptr.Uint(2),
 				PolicyIDFilter:                    ptr.Uint(3),
 				PolicyResponseFilter:              ptr.Bool(true),
@@ -230,29 +230,29 @@ func TestHostListOptionsFromRequest(t *testing.T) {
 				OSNameFilter:                      ptr.String("osName"),
 				OSVersionFilter:                   ptr.String("osVersion"),
 				DisableIssues:                     true,
-				MacOSSettingsFilter:               fleet.OSSettingsVerified,
-				MacOSSettingsDiskEncryptionFilter: fleet.DiskEncryptionEnforcing,
-				OSSettingsFilter:                  fleet.OSSettingsPending,
-				OSSettingsDiskEncryptionFilter:    fleet.DiskEncryptionFailed,
-				MDMBootstrapPackageFilter:         (*fleet.MDMBootstrapPackageStatus)(ptr.String(string(fleet.MDMBootstrapPackageInstalled))),
+				MacOSSettingsFilter:               automdm.OSSettingsVerified,
+				MacOSSettingsDiskEncryptionFilter: automdm.DiskEncryptionEnforcing,
+				OSSettingsFilter:                  automdm.OSSettingsPending,
+				OSSettingsDiskEncryptionFilter:    automdm.DiskEncryptionFailed,
+				MDMBootstrapPackageFilter:         (*automdm.MDMBootstrapPackageStatus)(ptr.String(string(automdm.MDMBootstrapPackageInstalled))),
 				MDMIDFilter:                       ptr.Uint(6),
 				MDMNameFilter:                     ptr.String("mdmName"),
-				MDMEnrollmentStatusFilter:         fleet.MDMEnrollStatusAutomatic,
+				MDMEnrollmentStatusFilter:         automdm.MDMEnrollStatusAutomatic,
 				MunkiIssueIDFilter:                ptr.Uint(7),
 				LowDiskSpaceFilter:                ptr.Int(99),
 				VulnerabilityFilter:               ptr.String("CVE-2023-42887"),
 				PopulatePolicies:                  true,
 				ProfileUUIDFilter:                 ptr.String("123-abc"),
 				ProfileStatusFilter:               &verified,
-				BatchScriptExecutionStatusFilter:  fleet.BatchScriptExecutionPending,
+				BatchScriptExecutionStatusFilter:  automdm.BatchScriptExecutionPending,
 				BatchScriptExecutionIDFilter:      ptr.String("some-cool-batch-script-execution-id"),
 				DEPProfileErrorFilter:             new(true),
-				DEPAssignProfileResponseFilter:    (*fleet.DEPAssignProfileResponseStatus)(ptr.String(string(fleet.DEPAssignProfileResponseFailed))),
+				DEPAssignProfileResponseFilter:    (*automdm.DEPAssignProfileResponseStatus)(ptr.String(string(automdm.DEPAssignProfileResponseFailed))),
 			},
 		},
 		"policy_id and policy_response params (for coverage)": {
 			url: "/foo?policy_id=100&policy_response=failing",
-			hostListOptions: fleet.HostListOptions{
+			hostListOptions: automdm.HostListOptions{
 				PolicyIDFilter:       ptr.Uint(100),
 				PolicyResponseFilter: ptr.Bool(false),
 			},
@@ -265,13 +265,13 @@ func TestHostListOptionsFromRequest(t *testing.T) {
 			url:          "/foo?status=foo",
 			errorMessage: "Invalid status",
 		},
-		"error in fleet_id (number too large)": {
-			url:          "/foo?fleet_id=9,223,372,036,854,775,808",
-			errorMessage: "Invalid fleet_id",
+		"error in team_id (number too large)": {
+			url:          "/foo?team_id=9,223,372,036,854,775,808",
+			errorMessage: "Invalid team_id",
 		},
-		"error in fleet_id (not a number)": {
-			url:          "/foo?fleet_id=foo",
-			errorMessage: "Invalid fleet_id",
+		"error in team_id (not a number)": {
+			url:          "/foo?team_id=foo",
+			errorMessage: "Invalid team_id",
 		},
 		"error in policy_id": {
 			url:          "/foo?policy_id=foo",
@@ -319,8 +319,8 @@ func TestHostListOptionsFromRequest(t *testing.T) {
 		},
 		"failing_policies_count order key allowed when disable_issues is not set": {
 			url: "/foo?order_key=failing_policies_count",
-			hostListOptions: fleet.HostListOptions{
-				ListOptions: fleet.ListOptions{
+			hostListOptions: automdm.HostListOptions{
+				ListOptions: automdm.ListOptions{
 					OrderKey: "failing_policies_count",
 				},
 			},
@@ -335,8 +335,8 @@ func TestHostListOptionsFromRequest(t *testing.T) {
 		},
 		"device_mapping order key allowed when device_mapping is enabled": {
 			url: "/foo?device_mapping=true&order_key=device_mapping",
-			hostListOptions: fleet.HostListOptions{
-				ListOptions: fleet.ListOptions{
+			hostListOptions: automdm.HostListOptions{
+				ListOptions: automdm.ListOptions{
 					OrderKey: "device_mapping",
 				},
 				DeviceMapping: true,
@@ -352,7 +352,7 @@ func TestHostListOptionsFromRequest(t *testing.T) {
 		},
 		"status accepts enrolled": {
 			url:             "/foo?status=enrolled",
-			hostListOptions: fleet.HostListOptions{StatusFilter: fleet.StatusEnrolled},
+			hostListOptions: automdm.HostListOptions{StatusFilter: automdm.StatusEnrolled},
 		},
 		"error in mdm_enrollment_status (invalid option)": {
 			url:          "/foo?mdm_enrollment_status=foo",
@@ -400,13 +400,13 @@ func TestHostListOptionsFromRequest(t *testing.T) {
 		},
 		"dep_profile_error=true": {
 			url: "/foo?dep_profile_error=true",
-			hostListOptions: fleet.HostListOptions{
+			hostListOptions: automdm.HostListOptions{
 				DEPProfileErrorFilter: new(true),
 			},
 		},
 		"dep_profile_error=false": {
 			url: "/foo?dep_profile_error=false",
-			hostListOptions: fleet.HostListOptions{
+			hostListOptions: automdm.HostListOptions{
 				DEPProfileErrorFilter: new(false),
 			},
 		},
@@ -416,26 +416,26 @@ func TestHostListOptionsFromRequest(t *testing.T) {
 		},
 		"dep_assign_profile_response=SUCCESS": {
 			url: "/foo?dep_assign_profile_response=SUCCESS",
-			hostListOptions: fleet.HostListOptions{
-				DEPAssignProfileResponseFilter: (*fleet.DEPAssignProfileResponseStatus)(ptr.String(string(fleet.DEPAssignProfileResponseSuccess))),
+			hostListOptions: automdm.HostListOptions{
+				DEPAssignProfileResponseFilter: (*automdm.DEPAssignProfileResponseStatus)(ptr.String(string(automdm.DEPAssignProfileResponseSuccess))),
 			},
 		},
 		"dep_assign_profile_response=FAILED": {
 			url: "/foo?dep_assign_profile_response=FAILED",
-			hostListOptions: fleet.HostListOptions{
-				DEPAssignProfileResponseFilter: (*fleet.DEPAssignProfileResponseStatus)(ptr.String(string(fleet.DEPAssignProfileResponseFailed))),
+			hostListOptions: automdm.HostListOptions{
+				DEPAssignProfileResponseFilter: (*automdm.DEPAssignProfileResponseStatus)(ptr.String(string(automdm.DEPAssignProfileResponseFailed))),
 			},
 		},
 		"dep_assign_profile_response=THROTTLED": {
 			url: "/foo?dep_assign_profile_response=THROTTLED",
-			hostListOptions: fleet.HostListOptions{
-				DEPAssignProfileResponseFilter: (*fleet.DEPAssignProfileResponseStatus)(ptr.String(string(fleet.DEPAssignProfileResponseThrottled))),
+			hostListOptions: automdm.HostListOptions{
+				DEPAssignProfileResponseFilter: (*automdm.DEPAssignProfileResponseStatus)(ptr.String(string(automdm.DEPAssignProfileResponseThrottled))),
 			},
 		},
 		"dep_assign_profile_response=NOT_ACCESSIBLE": {
 			url: "/foo?dep_assign_profile_response=NOT_ACCESSIBLE",
-			hostListOptions: fleet.HostListOptions{
-				DEPAssignProfileResponseFilter: (*fleet.DEPAssignProfileResponseStatus)(ptr.String(string(fleet.DEPAssignProfileResponseNotAccessible))),
+			hostListOptions: automdm.HostListOptions{
+				DEPAssignProfileResponseFilter: (*automdm.DEPAssignProfileResponseStatus)(ptr.String(string(automdm.DEPAssignProfileResponseNotAccessible))),
 			},
 		},
 		"error in dep_assign_profile_response (invalid value)": {
@@ -456,19 +456,19 @@ func TestHostListOptionsFromRequest(t *testing.T) {
 		},
 		"software_version_id can be > 32bits": {
 			url: "/foo?software_version_id=" + fmt.Sprint(1<<33),
-			hostListOptions: fleet.HostListOptions{
+			hostListOptions: automdm.HostListOptions{
 				SoftwareVersionIDFilter: ptr.Uint(1 << 33),
 			},
 		},
 		"good software_version_id": {
 			url: "/foo?software_version_id=1",
-			hostListOptions: fleet.HostListOptions{
+			hostListOptions: automdm.HostListOptions{
 				SoftwareVersionIDFilter: ptr.Uint(1),
 			},
 		},
 		"good software_title_id": {
 			url: "/foo?software_title_id=1",
-			hostListOptions: fleet.HostListOptions{
+			hostListOptions: automdm.HostListOptions{
 				SoftwareTitleIDFilter: ptr.Uint(1),
 			},
 		},
@@ -482,35 +482,35 @@ func TestHostListOptionsFromRequest(t *testing.T) {
 		},
 		"invalid combination profile_uuid wihtout profile_status": {
 			url: "/foo?profile_uuid=123-abc",
-			hostListOptions: fleet.HostListOptions{
+			hostListOptions: automdm.HostListOptions{
 				ProfileUUIDFilter: ptr.String("123-abc"),
 			},
 			errorMessage: "Missing profile_status (it must be present when profile_uuid is specified)",
 		},
 		"invalid combination profile_status wihtout profile_uuid": {
 			url: "/foo?profile_status=verified",
-			hostListOptions: fleet.HostListOptions{
+			hostListOptions: automdm.HostListOptions{
 				ProfileStatusFilter: &verified,
 			},
 			errorMessage: "Missing profile_uuid (it must be present when profile_status is specified)",
 		},
 		// New param names (aliases for deprecated params)
-		"fleet_id": {
-			url: "/foo?fleet_id=5",
-			hostListOptions: fleet.HostListOptions{
+		"team_id": {
+			url: "/foo?team_id=5",
+			hostListOptions: automdm.HostListOptions{
 				TeamFilter: ptr.Uint(5),
 			},
 		},
 		"apple_settings": {
 			url: "/foo?apple_settings=pending",
-			hostListOptions: fleet.HostListOptions{
-				MacOSSettingsFilter: fleet.OSSettingsPending,
+			hostListOptions: automdm.HostListOptions{
+				MacOSSettingsFilter: automdm.OSSettingsPending,
 			},
 		},
 		"macos_bootstrap_package": {
 			url: "/foo?macos_bootstrap_package=installed",
-			hostListOptions: fleet.HostListOptions{
-				MDMBootstrapPackageFilter: (*fleet.MDMBootstrapPackageStatus)(ptr.String(string(fleet.MDMBootstrapPackageInstalled))),
+			hostListOptions: automdm.HostListOptions{
+				MDMBootstrapPackageFilter: (*automdm.MDMBootstrapPackageStatus)(ptr.String(string(automdm.MDMBootstrapPackageInstalled))),
 			},
 		},
 		"error in populate_end_users (invalid boolean)": {
@@ -527,14 +527,14 @@ func TestHostListOptionsFromRequest(t *testing.T) {
 		},
 		"good software_installer_id with required software_title_id": {
 			url: "/foo?software_title_id=1&software_installer_id=5",
-			hostListOptions: fleet.HostListOptions{
+			hostListOptions: automdm.HostListOptions{
 				SoftwareTitleIDFilter:     new(uint(1)),
 				SoftwareInstallerIDFilter: new(uint(5)),
 			},
 		},
 		"good app_store_app_version_id with required software_title_id": {
 			url: "/foo?software_title_id=1&app_store_app_version_id=7",
-			hostListOptions: fleet.HostListOptions{
+			hostListOptions: automdm.HostListOptions{
 				SoftwareTitleIDFilter:      new(uint(1)),
 				AppStoreAppVersionIDFilter: new(uint(7)),
 			},
@@ -562,7 +562,7 @@ func TestHostListOptionsFromRequest(t *testing.T) {
 
 				if tt.errorMessage != "" {
 					assert.NotNil(t, err)
-					var be *fleet.BadRequestError
+					var be *automdm.BadRequestError
 					require.ErrorAs(t, err, &be)
 					require.Contains(t, err.Error(), tt.errorMessage)
 					return
@@ -574,26 +574,26 @@ func TestHostListOptionsFromRequest(t *testing.T) {
 	}
 
 	removedSoftwareIDMessage := `The "software_id" parameter is not available anymore. ` +
-		`What to use instead: https://fleetdm.com/learn-more-about/fleet-5-upgrade`
+		`What to use instead: https://automdm.com/learn-more-about/automdm-5-upgrade`
 
-	// send software_id alone, the request should be rejected with the Fleet 5 message
+	// send software_id alone, the request should be rejected with the AutoMDM 5 message
 	softwareIDURL, err := url.Parse("/foo?software_id=1")
 	require.NoError(t, err)
 	_, err = hostListOptionsFromRequest(&http.Request{URL: softwareIDURL})
-	var invalidArgumentErr *fleet.InvalidArgumentError
+	var invalidArgumentErr *automdm.InvalidArgumentError
 	require.ErrorAs(t, err, &invalidArgumentErr)
 	require.Len(t, invalidArgumentErr.Invalid(), 1)
 	require.Equal(t, "software_id", invalidArgumentErr.Invalid()[0]["name"])
 	require.Equal(t, removedSoftwareIDMessage, invalidArgumentErr.Invalid()[0]["reason"])
 
-	// send software_id with software_version_id, the request should be rejected with the Fleet 5 message
+	// send software_id with software_version_id, the request should be rejected with the AutoMDM 5 message
 	softwareIDAndVersionIDURL, err := url.Parse("/foo?software_id=1&software_version_id=2")
 	require.NoError(t, err)
 	_, err = hostListOptionsFromRequest(&http.Request{URL: softwareIDAndVersionIDURL})
 	require.ErrorAs(t, err, &invalidArgumentErr)
 	require.Equal(t, removedSoftwareIDMessage, invalidArgumentErr.Invalid()[0]["reason"])
 
-	// send software_id with an empty value, the request should be rejected with the Fleet 5 message
+	// send software_id with an empty value, the request should be rejected with the AutoMDM 5 message
 	emptySoftwareIDURL, err := url.Parse("/foo?software_id=")
 	require.NoError(t, err)
 	_, err = hostListOptionsFromRequest(&http.Request{URL: emptySoftwareIDURL})
@@ -613,7 +613,7 @@ func TestHostListOptionsFromRequest(t *testing.T) {
 		require.Len(t, invalidArgumentErr.Invalid(), 1, c.query)
 		require.Equal(t, c.name, invalidArgumentErr.Invalid()[0]["name"], c.query)
 		require.Equal(t, `The "`+c.name+`" parameter is not available anymore. `+
-			`What to use instead: https://fleetdm.com/learn-more-about/fleet-5-upgrade`, invalidArgumentErr.Invalid()[0]["reason"], c.query)
+			`What to use instead: https://automdm.com/learn-more-about/automdm-5-upgrade`, invalidArgumentErr.Invalid()[0]["reason"], c.query)
 	}
 }
 
@@ -622,20 +622,20 @@ func TestCarveListOptionsFromRequest(t *testing.T) {
 		// url string to parse
 		url string
 		// expected options
-		carveListOptions fleet.CarveListOptions
+		carveListOptions automdm.CarveListOptions
 		// expected error message, if any
 		errorMessage string
 	}{
 		"no params passed": {
 			url:              "/foo",
-			carveListOptions: fleet.CarveListOptions{},
+			carveListOptions: automdm.CarveListOptions{},
 		},
 		"embedded list options params defined": {
 			url: "/foo?order_key=foo&order_direction=desc&page=1&per_page=100",
-			carveListOptions: fleet.CarveListOptions{
-				ListOptions: fleet.ListOptions{
+			carveListOptions: automdm.CarveListOptions{
+				ListOptions: automdm.ListOptions{
 					OrderKey:       "foo",
-					OrderDirection: fleet.OrderDescending,
+					OrderDirection: automdm.OrderDescending,
 					Page:           1,
 					PerPage:        100,
 				},
@@ -643,10 +643,10 @@ func TestCarveListOptionsFromRequest(t *testing.T) {
 		},
 		"all params defined": {
 			url: "/foo?order_key=foo&order_direction=asc&page=10&per_page=1&expired=true",
-			carveListOptions: fleet.CarveListOptions{
-				ListOptions: fleet.ListOptions{
+			carveListOptions: automdm.CarveListOptions{
+				ListOptions: automdm.ListOptions{
 					OrderKey:       "foo",
-					OrderDirection: fleet.OrderAscending,
+					OrderDirection: automdm.OrderAscending,
 					Page:           10,
 					PerPage:        1,
 				},
@@ -672,7 +672,7 @@ func TestCarveListOptionsFromRequest(t *testing.T) {
 
 				if tt.errorMessage != "" {
 					assert.NotNil(t, err)
-					var be *fleet.BadRequestError
+					var be *automdm.BadRequestError
 					require.ErrorAs(t, err, &be)
 					assert.True(
 						t, strings.Contains(err.Error(), tt.errorMessage),
@@ -692,31 +692,31 @@ func TestUserListOptionsFromRequest(t *testing.T) {
 		// url string to parse
 		url string
 		// expected options
-		userListOptions fleet.UserListOptions
+		userListOptions automdm.UserListOptions
 		// expected error message, if any
 		errorMessage string
 	}{
 		"no params passed": {
 			url:             "/foo",
-			userListOptions: fleet.UserListOptions{},
+			userListOptions: automdm.UserListOptions{},
 		},
 		"embedded list options params defined": {
 			url: "/foo?order_key=foo&order_direction=desc&page=1&per_page=100",
-			userListOptions: fleet.UserListOptions{
-				ListOptions: fleet.ListOptions{
+			userListOptions: automdm.UserListOptions{
+				ListOptions: automdm.ListOptions{
 					OrderKey:       "foo",
-					OrderDirection: fleet.OrderDescending,
+					OrderDirection: automdm.OrderDescending,
 					Page:           1,
 					PerPage:        100,
 				},
 			},
 		},
 		"all params defined": {
-			url: "/foo?order_key=foo&order_direction=asc&page=10&per_page=1&fleet_id=1",
-			userListOptions: fleet.UserListOptions{
-				ListOptions: fleet.ListOptions{
+			url: "/foo?order_key=foo&order_direction=asc&page=10&per_page=1&team_id=1",
+			userListOptions: automdm.UserListOptions{
+				ListOptions: automdm.ListOptions{
 					OrderKey:       "foo",
-					OrderDirection: fleet.OrderAscending,
+					OrderDirection: automdm.OrderAscending,
 					Page:           10,
 					PerPage:        1,
 				},
@@ -727,13 +727,13 @@ func TestUserListOptionsFromRequest(t *testing.T) {
 			url:          "/foo?page=-1",
 			errorMessage: "negative page value",
 		},
-		"error in fleet_id (negative_number)": {
-			url:          "/foo?fleet_id=-1",
-			errorMessage: "Invalid fleet_id",
+		"error in team_id (negative_number)": {
+			url:          "/foo?team_id=-1",
+			errorMessage: "Invalid team_id",
 		},
-		"error in fleet_id (not a number)": {
-			url:          "/foo?fleet_id=foo",
-			errorMessage: "Invalid fleet_id",
+		"error in team_id (not a number)": {
+			url:          "/foo?team_id=foo",
+			errorMessage: "Invalid team_id",
 		},
 	}
 
@@ -746,7 +746,7 @@ func TestUserListOptionsFromRequest(t *testing.T) {
 
 				if tt.errorMessage != "" {
 					assert.NotNil(t, err)
-					var be *fleet.BadRequestError
+					var be *automdm.BadRequestError
 					require.ErrorAs(t, err, &be)
 					assert.True(
 						t, strings.Contains(err.Error(), tt.errorMessage),

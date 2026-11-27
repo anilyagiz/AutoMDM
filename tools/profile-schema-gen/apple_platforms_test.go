@@ -4,7 +4,7 @@ import (
 	"maps"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/pkg/mdm/profilevalidation"
+	"github.com/anilyagiz/automdm/v4/pkg/mdm/profilevalidation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
@@ -66,7 +66,7 @@ func TestAppleRawPlatformsResolve(t *testing.T) {
 			},
 		},
 		{
-			name: "fields Fleet doesn't keep are dropped",
+			name: "fields AutoMDM doesn't keep are dropped",
 			own:  "macOS: {userenrollment: {mode: forbidden}, devicechannel: true, allowmanualinstall: true}",
 			want: parent,
 		},

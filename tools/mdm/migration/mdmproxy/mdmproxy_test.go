@@ -38,7 +38,7 @@ func Test_udidFromRequestBody(t *testing.T) {
 			want: "EFCAF06F-127C-42EA-BF01-E1923A836991",
 		},
 		{
-			name: "fleet example",
+			name: "automdm example",
 			args: args{[]byte(`
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

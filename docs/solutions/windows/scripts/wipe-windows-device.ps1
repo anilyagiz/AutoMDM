@@ -1,11 +1,11 @@
 # Please don't delete. This script is referenced in the guide here:
-# https://fleetdm.com/guides/lock-wipe-hosts
+# https://automdm.com/guides/lock-wipe-hosts
 #
 # wipe-windows-device.ps1
 # Fallback script to wipe a Windows device when the native MDM wipe command
 # (doWipe/doWipeProtected) fails with status 500 or the device is not wiped.
 #
-# When Fleet sends a wipe via the RemoteWipe CSP, the command may fail due to:
+# When AutoMDM sends a wipe via the RemoteWipe CSP, the command may fail due to:
 # - Disabled or missing Windows Recovery Environment (WinRE)
 # - Broken MDM enrollment state
 # - Server-side command processing errors (DB timeouts, auth failures)
@@ -24,17 +24,17 @@
 # The OS is never formatted. Windows rebuilds from the local Component Store
 # (WinSxS) or via Cloud Download, so no USB media is required.
 #
-# Usage: Run via Fleet on affected Windows hosts. Fully unattended.
+# Usage: Run via AutoMDM on affected Windows hosts. Fully unattended.
 
 #Requires -RunAsAdministrator
 
 # Log output for audit trail
-$logPath = "$env:ProgramData\fleet-wipe-device-$(Get-Date -Format 'yyyyMMdd-HHmmss').log"
+$logPath = "$env:ProgramData\automdm-wipe-device-$(Get-Date -Format 'yyyyMMdd-HHmmss').log"
 Start-Transcript -Path $logPath -ErrorAction SilentlyContinue | Out-Null
 
 $exitCode = 0
 
-Write-Host "=== Fleet Windows Device Wipe (Fallback) ==="
+Write-Host "=== AutoMDM Windows Device Wipe (Fallback) ==="
 Write-Host "Log file: $logPath"
 Write-Host ""
 
@@ -165,7 +165,7 @@ Write-Host ""
 # ---------------------------------------------------------------------------
 # 4. Trigger device wipe via WMI bridge
 # ---------------------------------------------------------------------------
-# Calls the RemoteWipe CSP locally, bypassing the Fleet MDM command queue.
+# Calls the RemoteWipe CSP locally, bypassing the AutoMDM command queue.
 # This avoids server-side DB timeouts, auth errors, and command processing
 # failures that caused the original issue.
 #

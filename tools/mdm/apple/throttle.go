@@ -4,11 +4,11 @@
 // THROTTLED.
 // The team transferring between needs to have End User Auth enabled and disabled respectively so the assigned profile differs.
 //
-// Each team transfer forces Fleet to (re)assign the host's DEP enrollment
+// Each team transfer forces AutoMDM to (re)assign the host's DEP enrollment
 // profile in Apple Business Manager. Doing this rapidly is what provokes a
 // THROTTLED response, which then surfaces on:
 //
-//	GET /api/latest/fleet/hosts/{id}/dep_assignment
+//	GET /api/latest/automdm/hosts/{id}/dep_assignment
 //	  -> host_dep_assignment.assign_profile_response == "THROTTLED"
 //
 // The host is transferred on every `interval`, and the DEP assignment is polled
@@ -18,14 +18,14 @@
 // Usage:
 //
 //	go run ./tools/mdm/apple/throttle.go \
-//	  -token "$FLEET_API_TOKEN" \
-//	  -url https://fleet.example.com \
+//	  -token "$AUTOMDM_API_TOKEN" \
+//	  -url https://automdm.example.com \
 //	  -host 42 \
 //	  -interval 2s \
 //	  -from 1 \
 //	  -to 2
 //
-// Use -from=-1 or -to=-1 to target "No team" (fleet_id: null).
+// Use -from=-1 or -to=-1 to target "No team" (team_id: null).
 package main
 
 import (
@@ -44,13 +44,13 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
 )
 
 func main() {
 	var (
-		token    = flag.String("token", "", "Fleet API token (required)")
-		baseURL  = flag.String("url", "", "Fleet base URL, e.g. https://fleet.example.com (required)")
+		token    = flag.String("token", "", "AutoMDM API token (required)")
+		baseURL  = flag.String("url", "", "AutoMDM base URL, e.g. https://automdm.example.com (required)")
 		hostID   = flag.Uint("host", 0, "host ID to transfer back and forth (required)")
 		interval = flag.Duration("interval", 2*time.Second, "transfer interval; DEP status is polled every interval+1s")
 		fromTeam = flag.Int("from", -1, "team ID to transfer FROM (-1 = No team)")
@@ -67,7 +67,7 @@ func main() {
 	}
 
 	c := &client{
-		http:    fleethttp.NewClient(),
+		http:    automdmhttp.NewClient(),
 		baseURL: strings.TrimRight(*baseURL, "/"),
 		token:   *token,
 		hostID:  *hostID,
@@ -143,20 +143,20 @@ type client struct {
 // transfer moves the host to the given team. A nil team means "No team".
 func (c *client) transfer(ctx context.Context, teamID *uint) error {
 	body, err := json.Marshal(struct {
-		TeamID  *uint  `json:"fleet_id"` // nolint:apiparamcheck // custom tool
+		TeamID  *uint  `json:"team_id"` // nolint:apiparamcheck // custom tool
 		HostIDs []uint `json:"hosts"`
 	}{TeamID: teamID, HostIDs: []uint{c.hostID}})
 	if err != nil {
 		return err
 	}
-	_, err = c.do(ctx, http.MethodPost, "/api/latest/fleet/hosts/transfer", body)
+	_, err = c.do(ctx, http.MethodPost, "/api/latest/automdm/hosts/transfer", body)
 	return err
 }
 
 // depAssignmentStatus returns the host's current assign_profile_response
 // (e.g. SUCCESS, FAILED, NOT_ACCESSIBLE, THROTTLED) and when it was updated.
 func (c *client) depAssignmentStatus(ctx context.Context) (status, updatedAt string, err error) {
-	respBody, err := c.do(ctx, http.MethodGet, fmt.Sprintf("/api/latest/fleet/hosts/%d/dep_assignment", c.hostID), nil)
+	respBody, err := c.do(ctx, http.MethodGet, fmt.Sprintf("/api/latest/automdm/hosts/%d/dep_assignment", c.hostID), nil)
 	if err != nil {
 		return "", "", err
 	}
@@ -211,7 +211,7 @@ func (c *client) do(ctx context.Context, method, path string, body []byte) ([]by
 }
 
 // teamPtr converts a team-ID flag to the *uint the API expects: a negative
-// value means "No team" (fleet_id: null).
+// value means "No team" (team_id: null).
 func teamPtr(id int) *uint {
 	if id < 0 {
 		return nil

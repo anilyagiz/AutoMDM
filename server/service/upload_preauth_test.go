@@ -13,14 +13,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/authz"
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/platform/endpointer"
-	platform_http "github.com/fleetdm/fleet/v4/server/platform/http"
-	"github.com/fleetdm/fleet/v4/server/service/middleware/auth"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/platform/endpointer"
+	platform_http "github.com/anilyagiz/automdm/v4/server/platform/http"
+	"github.com/anilyagiz/automdm/v4/server/service/middleware/auth"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -30,9 +30,9 @@ type uploadPreAuthRoute struct {
 }
 
 var uploadPreAuthRoutes = []uploadPreAuthRoute{
-	{"POST", "/software/package", "/api/latest/fleet/software/package", "/api/v1/fleet/software/package"},
-	{"PATCH", "/software/titles/{id}/package", "/api/v1/fleet/software/titles/1/package", "/api/v1/fleet/software/titles/{id}/package"},
-	{"POST", "/bootstrap", "/api/2022-04/fleet/bootstrap", "/api/v1/fleet/bootstrap"},
+	{"POST", "/software/package", "/api/latest/automdm/software/package", "/api/v1/automdm/software/package"},
+	{"PATCH", "/software/titles/{id}/package", "/api/v1/automdm/software/titles/1/package", "/api/v1/automdm/software/titles/{id}/package"},
+	{"POST", "/bootstrap", "/api/2022-04/automdm/bootstrap", "/api/v1/automdm/bootstrap"},
 }
 
 type uploadPreAuthBody struct {
@@ -56,23 +56,23 @@ func (w *uploadPreAuthRecorder) SetReadDeadline(deadline time.Time) error {
 	return nil
 }
 
-func newUploadPreAuthTestService(t *testing.T, users map[string]*fleet.User) fleet.Service {
+func newUploadPreAuthTestService(t *testing.T, users map[string]*automdm.User) automdm.Service {
 	t.Helper()
 	ds := new(mock.Store)
 	svc, _ := newTestService(t, ds, nil, nil)
-	tokens := make(map[string]*fleet.User, len(users))
+	tokens := make(map[string]*automdm.User, len(users))
 	for name, user := range users {
 		tokens[strings.ReplaceAll(name, " ", "_")] = user
 	}
-	ds.SessionByKeyFunc = func(ctx context.Context, key string) (*fleet.Session, error) {
+	ds.SessionByKeyFunc = func(ctx context.Context, key string) (*automdm.Session, error) {
 		u, ok := tokens[key]
 		if !ok {
 			return nil, &notFoundError{}
 		}
-		return &fleet.Session{Key: key, UserID: u.ID, AccessedAt: time.Now(), APIOnly: &u.APIOnly}, nil
+		return &automdm.Session{Key: key, UserID: u.ID, AccessedAt: time.Now(), APIOnly: &u.APIOnly}, nil
 	}
-	ds.MarkSessionAccessedFunc = func(ctx context.Context, session *fleet.Session) error { return nil }
-	ds.UserByIDFunc = func(ctx context.Context, id uint) (*fleet.User, error) {
+	ds.MarkSessionAccessedFunc = func(ctx context.Context, session *automdm.Session) error { return nil }
+	ds.UserByIDFunc = func(ctx context.Context, id uint) (*automdm.User, error) {
 		for _, u := range users {
 			if u.ID == id {
 				return u, nil
@@ -83,7 +83,7 @@ func newUploadPreAuthTestService(t *testing.T, users map[string]*fleet.User) fle
 	return svc
 }
 
-func serveUploadPreAuth(t *testing.T, svc fleet.Service, route uploadPreAuthRoute, bearer string) (*uploadPreAuthRecorder, int, bool) {
+func serveUploadPreAuth(t *testing.T, svc automdm.Service, route uploadPreAuthRoute, bearer string) (*uploadPreAuthRecorder, int, bool) {
 	t.Helper()
 	body := &uploadPreAuthBody{Reader: strings.NewReader(strings.Repeat("x", 8192))}
 	ran := false
@@ -96,7 +96,7 @@ func serveUploadPreAuth(t *testing.T, svc fleet.Service, route uploadPreAuthRout
 	router := endpointer.NewRouter()
 	router.Handle(endpointer.Route{
 		Methods:  []string{route.method},
-		Path:     "/api/_version_/fleet" + route.template,
+		Path:     "/api/_version_/automdm" + route.template,
 		Versions: []string{"v1", "2022-04", "latest"},
 	}, uploadPreAuth(svc, slog.New(slog.DiscardHandler))(next))
 	req := httptest.NewRequest(route.method, route.path, body)
@@ -111,7 +111,7 @@ func TestUploadPreAuthRoles(t *testing.T) {
 		t.Run(route.method+" "+route.path, func(t *testing.T) {
 			cases := []struct {
 				name            string
-				user            *fleet.User
+				user            *automdm.User
 				status          int
 				message, reason string
 			}{
@@ -121,17 +121,17 @@ func TestUploadPreAuthRoles(t *testing.T) {
 				{"no roles", test.UserNoRoles, http.StatusForbidden, "forbidden", ""},
 				{"team1 observer", test.UserTeamObserverTeam1, http.StatusForbidden, "forbidden", ""},
 				{"team1 technician", test.UserTeamTechnicianTeam1, http.StatusForbidden, "forbidden", ""},
-				{"forced-reset global admin", &fleet.User{GlobalRole: new(fleet.RoleAdmin), AdminForcedPasswordReset: true}, http.StatusUnauthorized, "password reset required", ""},
-				{"restricted API-only global admin", &fleet.User{GlobalRole: new(fleet.RoleAdmin), APIOnly: true,
-					APIEndpoints: []fleet.APIEndpointRef{{Method: "GET", Path: "/api/v1/fleet/hosts"}}}, http.StatusForbidden, "Forbidden", auth.EndpointRestrictionDeniedMessage},
+				{"forced-reset global admin", &automdm.User{GlobalRole: new(automdm.RoleAdmin), AdminForcedPasswordReset: true}, http.StatusUnauthorized, "password reset required", ""},
+				{"restricted API-only global admin", &automdm.User{GlobalRole: new(automdm.RoleAdmin), APIOnly: true,
+					APIEndpoints: []automdm.APIEndpointRef{{Method: "GET", Path: "/api/v1/automdm/hosts"}}}, http.StatusForbidden, "Forbidden", auth.EndpointRestrictionDeniedMessage},
 				{"global admin", test.UserAdmin, http.StatusNoContent, "", ""},
 				{"global gitops", test.UserGitOps, http.StatusNoContent, "", ""},
 				{"team1 maintainer", test.UserTeamMaintainerTeam1, http.StatusNoContent, "", ""},
 				{"team1 observer and team2 admin", test.UserTeamObserverTeam1TeamAdminTeam2, http.StatusNoContent, "", ""},
-				{"route API-only global admin", &fleet.User{GlobalRole: new(fleet.RoleAdmin), APIOnly: true,
-					APIEndpoints: []fleet.APIEndpointRef{{Method: route.method, Path: route.endpointPath}}}, http.StatusNoContent, "", ""},
+				{"route API-only global admin", &automdm.User{GlobalRole: new(automdm.RoleAdmin), APIOnly: true,
+					APIEndpoints: []automdm.APIEndpointRef{{Method: route.method, Path: route.endpointPath}}}, http.StatusNoContent, "", ""},
 			}
-			users := make(map[string]*fleet.User, len(cases))
+			users := make(map[string]*automdm.User, len(cases))
 			for i, tc := range cases {
 				u := *tc.user
 				u.ID = uint(i + 1)
@@ -168,7 +168,7 @@ func TestUploadPreAuthRoles(t *testing.T) {
 func TestUploadPreAuthDatastoreError(t *testing.T) {
 	ds := new(mock.Store)
 	svc, _ := newTestService(t, ds, nil, nil)
-	ds.SessionByKeyFunc = func(ctx context.Context, key string) (*fleet.Session, error) {
+	ds.SessionByKeyFunc = func(ctx context.Context, key string) (*automdm.Session, error) {
 		return nil, &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("connect: connection refused")}
 	}
 	for _, route := range uploadPreAuthRoutes {
@@ -186,16 +186,16 @@ func TestUploadPreAuthDatastoreError(t *testing.T) {
 }
 
 func TestUploadPreAuthMatchesAuthz(t *testing.T) {
-	roles := []string{fleet.RoleAdmin, fleet.RoleMaintainer, fleet.RoleGitOps, fleet.RoleTechnician, fleet.RoleObserver, fleet.RoleObserverPlus}
-	users := map[string]*fleet.User{"no roles": {}}
+	roles := []string{automdm.RoleAdmin, automdm.RoleMaintainer, automdm.RoleGitOps, automdm.RoleTechnician, automdm.RoleObserver, automdm.RoleObserverPlus}
+	users := map[string]*automdm.User{"no roles": {}}
 	for _, role := range roles {
-		users["global "+role] = &fleet.User{GlobalRole: new(role)}
-		users["team1 "+role] = &fleet.User{Teams: []fleet.UserTeam{{ID: 1, Role: role}}}
+		users["global "+role] = &automdm.User{GlobalRole: new(role)}
+		users["team1 "+role] = &automdm.User{Teams: []automdm.UserTeam{{ID: 1, Role: role}}}
 	}
 	users["team1 observer and team2 admin"] = test.UserTeamObserverTeam1TeamAdminTeam2
-	users["team1 maintainer and team2 observer"] = &fleet.User{Teams: []fleet.UserTeam{
-		{ID: 1, Role: fleet.RoleMaintainer},
-		{ID: 2, Role: fleet.RoleObserver},
+	users["team1 maintainer and team2 observer"] = &automdm.User{Teams: []automdm.UserTeam{
+		{ID: 1, Role: automdm.RoleMaintainer},
+		{ID: 2, Role: automdm.RoleObserver},
 	}}
 	i := uint(1)
 	for name, user := range users {
@@ -215,19 +215,19 @@ func TestUploadPreAuthMatchesAuthz(t *testing.T) {
 					var objects []any
 					route := uploadPreAuthRoutes[0]
 					if objectType == "software" {
-						objects = append(objects, &fleet.SoftwareInstaller{})
+						objects = append(objects, &automdm.SoftwareInstaller{})
 					} else {
 						route = uploadPreAuthRoutes[2]
 					}
 					for _, teamID := range []uint{0, 1, 2} {
 						if objectType == "software" {
-							objects = append(objects, &fleet.SoftwareInstaller{TeamID: new(teamID)})
+							objects = append(objects, &automdm.SoftwareInstaller{TeamID: new(teamID)})
 						} else {
-							objects = append(objects, &fleet.MDMAppleBootstrapPackage{TeamID: teamID})
+							objects = append(objects, &automdm.MDMAppleBootstrapPackage{TeamID: teamID})
 						}
 					}
 					for _, object := range objects {
-						if authorizer.Authorize(ctx, object, fleet.ActionWrite) == nil {
+						if authorizer.Authorize(ctx, object, automdm.ActionWrite) == nil {
 							want = true
 						}
 					}

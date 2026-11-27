@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import React from "react";
 
 import { createMockHostMdmProfile } from "__mocks__/hostMock";
-import { FLEET_ANDROID_CERTIFICATE_TEMPLATE_PROFILE_ID } from "interfaces/mdm";
+import { AUTOMDM_ANDROID_CERTIFICATE_TEMPLATE_PROFILE_ID } from "interfaces/mdm";
 
 import {
   getDetailGuidance,
@@ -41,12 +41,12 @@ describe("getDetailGuidance", () => {
     expect(result).toBeNull();
   });
 
-  it("links the guide in a Fleet 5 removed variable error", () => {
+  it("links the guide in an AutoMDM 5 removed variable error", () => {
     const guidance = getDetailGuidance(
       createMockHostMdmProfile({
         status: "failed",
         detail:
-          'The "$FLEET_VAR_HOST_END_USER_EMAIL_IDP" variable is not available anymore. What to use instead: https://fleetdm.com/learn-more-about/fleet-5-upgrade The variable is used in the DigiCert certificate authority, not in the profile.',
+          'The "$AUTOMDM_VAR_HOST_END_USER_EMAIL_IDP" variable is not available anymore. What to use instead: https://automdm.com/learn-more-about/automdm-5-upgrade The variable is used in the DigiCert certificate authority, not in the profile.',
       })
     );
 
@@ -54,11 +54,11 @@ describe("getDetailGuidance", () => {
 
     expect(
       screen.getByRole("link", {
-        name: /fleetdm.com\/learn-more-about\/fleet-5-upgrade/,
+        name: /automdm.com\/learn-more-about\/automdm-5-upgrade/,
       })
     ).toHaveAttribute(
       "href",
-      "https://fleetdm.com/learn-more-about/fleet-5-upgrade"
+      "https://automdm.com/learn-more-about/automdm-5-upgrade"
     );
     expect(
       screen.getByText(/used in the DigiCert certificate authority/)
@@ -86,7 +86,7 @@ describe("getDetailGuidance", () => {
     const guidance = getDetailGuidance(
       createMockHostMdmProfile({
         status: "failed",
-        detail: `Fleet couldn't populate $FLEET_VAR_CUSTOM_SCEP_URL_SCEP_WIFI because SCEP_WIFI certificate authority doesn't exist.`,
+        detail: `AutoMDM couldn't populate $AUTOMDM_VAR_CUSTOM_SCEP_URL_SCEP_WIFI because SCEP_WIFI certificate authority doesn't exist.`,
       })
     );
 
@@ -159,12 +159,12 @@ describe("getDetailGuidance", () => {
   });
 });
 
-// Every reason the Fleet Android app reports gets restated without SCEP, CSR, or key pair
+// Every reason the AutoMDM Android app reports gets restated without SCEP, CSR, or key pair
 // jargon, since these messages also reach the end user's My device page.
 describe("getDetailGuidance for android certificates", () => {
   const failedCert = (detail: string) =>
     createMockHostMdmProfile({
-      profile_uuid: FLEET_ANDROID_CERTIFICATE_TEMPLATE_PROFILE_ID,
+      profile_uuid: AUTOMDM_ANDROID_CERTIFICATE_TEMPLATE_PROFILE_ID,
       name: "BeyondCorp",
       platform: "android",
       operation_type: "install",
@@ -176,7 +176,7 @@ describe("getDetailGuidance for android certificates", () => {
   it.each([
     [
       "Network error during SCEP enrollment: Failed to communicate with SCEP server",
-      "Fleet couldn't reach the certificate authority.",
+      "AutoMDM couldn't reach the certificate authority.",
     ],
     [
       "SCEP enrollment failed: challenge rejected",
@@ -254,11 +254,11 @@ describe("getDetailText", () => {
         createMockHostMdmProfile({
           platform: "windows",
           detail:
-            "./Device/Vendor/MSFT/Policy/Config/Fleet/A: status 200, ./Device/Vendor/MSFT/Policy/Config/Fleet/B: status 500",
+            "./Device/Vendor/MSFT/Policy/Config/AutoMDM/A: status 200, ./Device/Vendor/MSFT/Policy/Config/AutoMDM/B: status 500",
         })
       )
     ).toBe(
-      "./Device/Vendor/MSFT/Policy/Config/Fleet/A: status 200\n./Device/Vendor/MSFT/Policy/Config/Fleet/B: status 500"
+      "./Device/Vendor/MSFT/Policy/Config/AutoMDM/A: status 200\n./Device/Vendor/MSFT/Policy/Config/AutoMDM/B: status 500"
     );
   });
 
@@ -278,7 +278,7 @@ describe("getDetailText", () => {
 
   it("leaves a BitLocker error unsplit", () => {
     const detail =
-      "BitLocker: starting encryption: encrypt(C:): error code returned during encryption: -2147024809. Fleet will retry automatically.";
+      "BitLocker: starting encryption: encrypt(C:): error code returned during encryption: -2147024809. AutoMDM will retry automatically.";
 
     expect(
       getDetailText(

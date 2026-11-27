@@ -4,17 +4,17 @@
         <key>CFBundlePackageType</key>
             <string>APPL</string>
         <key>CFBundleName</key>
-            <string>Fleet Hangar</string>
+            <string>AutoMDM Hangar</string>
         <key>CFBundleDisplayName</key>
-            <string>Fleet Hangar</string>
+            <string>AutoMDM Hangar</string>
         <key>CFBundleExecutable</key>
-            <string>fleet-hangar</string>
+            <string>automdm-hangar</string>
         <key>CFBundleIdentifier</key>
             <string>com.fleetdm.fleet-hangar</string>
         <key>CFBundleVersion</key>
             <string>1.0.0</string>
         <key>CFBundleGetInfoString</key>
-            <string>Desktop control panel for the Fleet dev environment</string>
+            <string>Desktop control panel for the AutoMDM dev environment</string>
         <key>CFBundleShortVersionString</key>
             <string>1.0.0</string>
         <key>CFBundleIconFile</key>

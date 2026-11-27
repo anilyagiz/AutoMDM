@@ -12,7 +12,7 @@ interface IUploadListProps<T = unknown> {
   HeadingComponent?: () => JSX.Element;
   /** If the row renders user-typed text (name/title/label/description),
    * wrap it in <TooltipTruncatedText /> with `flex: 1; min-width: 0` on the
-   * container — see "Lists & rows" in .claude/rules/fleet-frontend.md. */
+   * container — see "Lists & rows" in .claude/rules/automdm-frontend.md. */
   ListItemComponent: (props: { listItem: T }) => JSX.Element;
   className?: string;
 }

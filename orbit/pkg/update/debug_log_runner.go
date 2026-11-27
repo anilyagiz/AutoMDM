@@ -1,7 +1,7 @@
 package update
 
 import (
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
@@ -21,7 +21,7 @@ func NewDebugLogReceiver(startedInDebug bool) *DebugLogReceiver {
 // Run sets the global zerolog level to match config.DebugLogging. Nil
 // returns the value to the default, either info level or debug if the
 // agent was started in debug mode.
-func (r *DebugLogReceiver) Run(config *fleet.OrbitConfig) error {
+func (r *DebugLogReceiver) Run(config *automdm.OrbitConfig) error {
 	if config == nil {
 		return nil
 	}

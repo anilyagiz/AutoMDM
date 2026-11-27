@@ -1,6 +1,6 @@
 // Package homes enumerates real user home directories on the host.
 //
-// A Fleet-deployed osquery extension runs as root (macOS/Linux) or
+// An AutoMDM-deployed osquery extension runs as root (macOS/Linux) or
 // SYSTEM/Administrator (Windows), so every table must inventory ALL users'
 // homes — not just the daemon account's. Editor plugins, MCP configs and AI
 // tools all live under per-user home directories.

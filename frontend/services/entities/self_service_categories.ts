@@ -16,15 +16,15 @@ export interface ISelfServiceCategoryResponse {
 }
 
 export default {
-  getCategories: (fleetId: number): Promise<ISelfServiceCategoriesResponse> => {
+  getCategories: (automdmId: number): Promise<ISelfServiceCategoriesResponse> => {
     const { SELF_SERVICE_CATEGORIES } = endpoints;
-    const queryString = buildQueryStringFromParams({ fleet_id: fleetId });
+    const queryString = buildQueryStringFromParams({ team_id: automdmId });
     return sendRequest("GET", `${SELF_SERVICE_CATEGORIES}?${queryString}`);
   },
 
-  // Device-token-scoped variant — the BE derives the fleet from the device
-  // token so end users see the categories defined for their own fleet rather
-  // than the global (fleet_id=0) set.
+  // Device-token-scoped variant — the BE derives the team from the device
+  // token so end users see the categories defined for their own team rather
+  // than the global (team_id=0) set.
   getDeviceCategories: (
     deviceToken: string
   ): Promise<ISelfServiceCategoriesResponse> => {

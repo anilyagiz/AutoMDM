@@ -8,7 +8,7 @@
 # there when the wait runs out. Already absent counts as success.
 
 $packageFamilyName = "ProtonPass_158qdr94jw63p"
-# Under Fleet's 5-minute script timeout, so a failure exits 1603 instead of being killed.
+# Under AutoMDM's 5-minute script timeout, so a failure exits 1603 instead of being killed.
 $timeoutSeconds = 240
 $start = Get-Date
 

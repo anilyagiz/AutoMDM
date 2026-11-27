@@ -13,11 +13,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/dev_mode"
+	"github.com/anilyagiz/automdm/v4/server/mdm/apple/rootcert"
 	"github.com/cenkalti/backoff"
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/dev_mode"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/apple/rootcert"
 )
 
 const baseURL = "https://gdmf.apple.com/v2/pmv"
@@ -26,10 +26,10 @@ const baseURL = "https://gdmf.apple.com/v2/pmv"
 // [1]: http://gdmf.apple.com/v2/pmv
 // [2]: https://support.apple.com/guide/deployment/use-mdm-to-deploy-software-updates-depafd2fad80/web
 type AssetSets struct {
-	IOS   []fleet.OSUpdateAsset `json:"iOS"`
-	MacOS []fleet.OSUpdateAsset `json:"macOS"`
-	// VisionOS []Asset `json:"visionOS"` // Fleet doesn't support visionOS yet
-	// XROS     []Asset `json:"xrOS"`    // Fleet doesn't support xrOS yet
+	IOS   []automdm.OSUpdateAsset `json:"iOS"`
+	MacOS []automdm.OSUpdateAsset `json:"macOS"`
+	// VisionOS []Asset `json:"visionOS"` // AutoMDM doesn't support visionOS yet
+	// XROS     []Asset `json:"xrOS"`    // AutoMDM doesn't support xrOS yet
 }
 
 // AssetMetadata represents the response from the Apple Software Lookup Service[1][2].
@@ -38,7 +38,7 @@ type AssetSets struct {
 type AssetMetadata struct {
 	PublicAssetSets AssetSets `json:"PublicAssetSets"`
 	AssetSets       AssetSets `json:"AssetSets"`
-	// PublicRapidSecurityResponses interface{} `json:"PublicRapidSecurityResponses"` // Fleet doesn't support PublicRapidSecurityResponses yet
+	// PublicRapidSecurityResponses interface{} `json:"PublicRapidSecurityResponses"` // AutoMDM doesn't support PublicRapidSecurityResponses yet
 }
 
 // IsSupportedMacOSVersion checks if the given macOS version is supported by Apple. The
@@ -91,7 +91,7 @@ func (a AssetMetadata) IsSupportedIOSVersion(version string, devicePrefix string
 // updateAssets. If no matching asset is found, an error is returned.
 // [1]: http://gdmf.apple.com/v2/pmv
 // [2]: https://support.apple.com/guide/deployment/use-mdm-to-deploy-software-updates-depafd2fad80/web
-func GetLatestOSVersion(device fleet.MDMAppleMachineInfo, updateAssets map[string][]fleet.AppleSoftwareUpdateAsset) (*fleet.AppleSoftwareUpdateAsset, error) {
+func GetLatestOSVersion(device automdm.MDMAppleMachineInfo, updateAssets map[string][]automdm.AppleSoftwareUpdateAsset) (*automdm.AppleSoftwareUpdateAsset, error) {
 	assetSet := updateAssets["macos"] // default to public asset set; note that if the device is not macOS, iPhone, iPad, or iPod we'll fail to match the supported device and return an error below
 	if strings.HasPrefix(device.Product, "iPhone") ||
 		strings.HasPrefix(device.Product, "iPod") ||
@@ -109,7 +109,7 @@ func GetLatestOSVersion(device fleet.MDMAppleMachineInfo, updateAssets map[strin
 					latestIdx = i // first match found, update the index
 					continue
 				}
-				if fleet.CompareVersions(assetSet[latestIdx].ProductVersion, s.ProductVersion) < 0 {
+				if automdm.CompareVersions(assetSet[latestIdx].ProductVersion, s.ProductVersion) < 0 {
 					latestIdx = i // found a later version, update the index
 				}
 			}
@@ -131,12 +131,12 @@ func createClient() *http.Client {
 	// Create TLS config with Apple Root CA certificate.
 	certPool := x509.NewCertPool()
 	certPool.AddCert(rootcert.AppleRootCA)
-	return fleethttp.NewClient(
-		fleethttp.WithTLSClientConfig(&tls.Config{
+	return automdmhttp.NewClient(
+		automdmhttp.WithTLSClientConfig(&tls.Config{
 			RootCAs:    certPool,
 			MinVersion: tls.VersionTLS12,
 		}),
-		fleethttp.WithTimeout(10*time.Second),
+		automdmhttp.WithTimeout(10*time.Second),
 	)
 }
 
@@ -154,7 +154,7 @@ func GetAssetMetadata() (*AssetMetadata, error) {
 	if err != nil {
 		return nil, fmt.Errorf("creating request to Apple endpoint: %w", err)
 	}
-	req.Header.Set("User-Agent", "fleet-device-management")
+	req.Header.Set("User-Agent", "automdm-device-management")
 
 	resp, err := doWithRetry(req)
 	if err != nil {
@@ -221,7 +221,7 @@ func doWithRetry(req *http.Request) (*http.Response, error) {
 }
 
 func getBaseURL() string {
-	devURL := dev_mode.Env("FLEET_DEV_GDMF_URL")
+	devURL := dev_mode.Env("AUTOMDM_DEV_GDMF_URL")
 	if devURL != "" {
 		return devURL
 	}

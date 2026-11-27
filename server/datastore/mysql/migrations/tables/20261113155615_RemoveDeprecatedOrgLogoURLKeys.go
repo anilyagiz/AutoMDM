@@ -15,7 +15,7 @@ var orgLogoURLKeyRemovals = []struct{ Old, New string }{
 	{Old: "org_logo_url_light_background", New: "org_logo_url_light_mode"},
 }
 
-// Up_20261113155615 drops the deprecated org logo URL keys from the stored config. Fleet kept them mirrored to the new keys
+// Up_20261113155615 drops the deprecated org logo URL keys from the stored config. AutoMDM kept them mirrored to the new keys
 // on every write, but a config last saved before the new keys existed only has the old one, so its value moves to the new
 // key when that one is missing or empty.
 func Up_20261113155615(tx *sql.Tx) error {

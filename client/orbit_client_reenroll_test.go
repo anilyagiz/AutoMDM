@@ -12,20 +12,20 @@ import (
 	"testing/synctest"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func newReenrollTestClient(t *testing.T, serverURL, nodeKeyPath string) *OrbitClient {
 	t.Helper()
-	bc, err := NewBaseClient(serverURL, true, "", "", nil, fleet.CapabilityMap{}, nil)
+	bc, err := NewBaseClient(serverURL, true, "", "", nil, automdm.CapabilityMap{}, nil)
 	require.NoError(t, err)
 	return &OrbitClient{
 		BaseClient:      bc,
 		nodeKeyFilePath: nodeKeyPath,
 		enrollSecret:    "secret",
-		hostInfo:        fleet.OrbitHostInfo{HardwareUUID: "uuid-1", Platform: "linux"},
+		hostInfo:        automdm.OrbitHostInfo{HardwareUUID: "uuid-1", Platform: "linux"},
 	}
 }
 
@@ -49,7 +49,7 @@ func requireNodeKey(t *testing.T, path, want string) {
 // writeEnrollResponse writes a successful enroll response handing back nodeKey.
 func writeEnrollResponse(t *testing.T, w http.ResponseWriter, nodeKey string) {
 	t.Helper()
-	assert.NoError(t, json.NewEncoder(w).Encode(fleet.EnrollOrbitResponse{OrbitNodeKey: nodeKey}))
+	assert.NoError(t, json.NewEncoder(w).Encode(automdm.EnrollOrbitResponse{OrbitNodeKey: nodeKey}))
 }
 
 // setReenrollGracePeriod temporarily overrides the package-level grace period for the duration of
@@ -188,7 +188,7 @@ func TestAuthenticatedRequest401Debounce(t *testing.T) {
 		defer srv.Close()
 
 		oc := newReenrollTestClient(t, srv.URL, nodeKeyPath)
-		err := oc.authenticatedRequest("POST", "/api/fleet/orbit/config", &fleet.OrbitGetConfigRequest{}, &fleet.OrbitConfig{})
+		err := oc.authenticatedRequest("POST", "/api/automdm/orbit/config", &automdm.OrbitGetConfigRequest{}, &automdm.OrbitConfig{})
 		require.ErrorIs(t, err, ErrUnauthenticated)
 		require.False(t, oc.reenrollForced(), "a single 401 within the grace period should not arm re-enroll")
 		require.Equal(t, 0, enrollCalls)
@@ -215,7 +215,7 @@ func TestAuthenticatedRequest401Debounce(t *testing.T) {
 				w.WriteHeader(http.StatusUnauthorized)
 				return
 			}
-			assert.NoError(t, json.NewEncoder(w).Encode(fleet.OrbitConfig{}))
+			assert.NoError(t, json.NewEncoder(w).Encode(automdm.OrbitConfig{}))
 		}))
 		defer srv.Close()
 
@@ -226,7 +226,7 @@ func TestAuthenticatedRequest401Debounce(t *testing.T) {
 		oc.receiverUpdateCancelFunc = func() { restarts++ }
 
 		// First request: 401 -> re-enroll armed, but the existing key is NOT deleted yet.
-		err := oc.authenticatedRequest("POST", "/api/fleet/orbit/config", &fleet.OrbitGetConfigRequest{}, &fleet.OrbitConfig{})
+		err := oc.authenticatedRequest("POST", "/api/automdm/orbit/config", &automdm.OrbitGetConfigRequest{}, &automdm.OrbitConfig{})
 		require.ErrorIs(t, err, ErrUnauthenticated)
 		require.True(t, oc.reenrollForced())
 		requireNodeKey(t, nodeKeyPath, "existing-key")
@@ -237,7 +237,7 @@ func TestAuthenticatedRequest401Debounce(t *testing.T) {
 		mu.Unlock()
 
 		// Second request: getNodeKeyOrEnroll sees the armed re-enroll, enrolls, overwrites the key, and the request then succeeds.
-		err = oc.authenticatedRequest("POST", "/api/fleet/orbit/config", &fleet.OrbitGetConfigRequest{}, &fleet.OrbitConfig{})
+		err = oc.authenticatedRequest("POST", "/api/automdm/orbit/config", &automdm.OrbitGetConfigRequest{}, &automdm.OrbitConfig{})
 		require.NoError(t, err)
 		mu.Lock()
 		gotEnrollCalls := enrollCalls
@@ -250,7 +250,7 @@ func TestAuthenticatedRequest401Debounce(t *testing.T) {
 
 	t.Run("re-enroll rejected with a spent secret picks up a resent one and restarts", func(t *testing.T) {
 		setReenrollGracePeriod(t, 0)
-		t.Setenv("FLEETD_ENROLL_RETRY_INTERVAL", "1ms")
+		t.Setenv("AUTOMDMD_ENROLL_RETRY_INTERVAL", "1ms")
 		_, nodeKeyPath := newNodeKeyFile(t, "existing-key")
 
 		// The enroll endpoint accepts only the secret an administrator resent, as the server does for a host whose one-time
@@ -262,7 +262,7 @@ func TestAuthenticatedRequest401Debounce(t *testing.T) {
 			mu.Lock()
 			defer mu.Unlock()
 			if strings.HasSuffix(r.URL.Path, "/orbit/enroll") {
-				var req fleet.EnrollOrbitRequest
+				var req automdm.EnrollOrbitRequest
 				assert.NoError(t, json.NewDecoder(r.Body).Decode(&req))
 				presented = append(presented, req.EnrollSecret)
 				if req.EnrollSecret != "resent" {
@@ -277,7 +277,7 @@ func TestAuthenticatedRequest401Debounce(t *testing.T) {
 				w.WriteHeader(http.StatusUnauthorized)
 				return
 			}
-			assert.NoError(t, json.NewEncoder(w).Encode(fleet.OrbitConfig{}))
+			assert.NoError(t, json.NewEncoder(w).Encode(automdm.OrbitConfig{}))
 		}))
 		defer srv.Close()
 
@@ -293,10 +293,10 @@ func TestAuthenticatedRequest401Debounce(t *testing.T) {
 		oc.SetOnEnrollRejected(func() { rejections++ })
 		oc.receiverUpdateCancelFunc = func() { restarts++ }
 
-		err := oc.authenticatedRequest("POST", "/api/fleet/orbit/config", &fleet.OrbitGetConfigRequest{}, &fleet.OrbitConfig{})
+		err := oc.authenticatedRequest("POST", "/api/automdm/orbit/config", &automdm.OrbitGetConfigRequest{}, &automdm.OrbitConfig{})
 		require.ErrorIs(t, err, ErrUnauthenticated)
 
-		err = oc.authenticatedRequest("POST", "/api/fleet/orbit/config", &fleet.OrbitGetConfigRequest{}, &fleet.OrbitConfig{})
+		err = oc.authenticatedRequest("POST", "/api/automdm/orbit/config", &automdm.OrbitGetConfigRequest{}, &automdm.OrbitConfig{})
 		require.NoError(t, err)
 		requireNodeKey(t, nodeKeyPath, "new-key")
 		mu.Lock()
@@ -322,7 +322,7 @@ func TestAuthenticatedRequest401Debounce(t *testing.T) {
 		var restartCalls int
 		oc.receiverUpdateCancelFunc = func() { restartCalls++ }
 
-		err := oc.authenticatedRequest("POST", "/api/fleet/orbit/config", &fleet.OrbitGetConfigRequest{}, &fleet.OrbitConfig{})
+		err := oc.authenticatedRequest("POST", "/api/automdm/orbit/config", &automdm.OrbitGetConfigRequest{}, &automdm.OrbitConfig{})
 		require.ErrorIs(t, err, ErrUnauthenticated)
 		// Within the grace period the cert must be preserved and no restart triggered.
 		require.FileExists(t, certPath)
@@ -330,7 +330,7 @@ func TestAuthenticatedRequest401Debounce(t *testing.T) {
 
 		// Once 401s have persisted past the grace period, the cert is removed and a restart fires.
 		setReenrollGracePeriod(t, 0)
-		err = oc.authenticatedRequest("POST", "/api/fleet/orbit/config", &fleet.OrbitGetConfigRequest{}, &fleet.OrbitConfig{})
+		err = oc.authenticatedRequest("POST", "/api/automdm/orbit/config", &automdm.OrbitGetConfigRequest{}, &automdm.OrbitConfig{})
 		require.ErrorIs(t, err, ErrUnauthenticated)
 		require.NoFileExists(t, certPath)
 		require.Equal(t, 1, restartCalls)

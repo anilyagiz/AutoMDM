@@ -14,7 +14,7 @@ export const getConditionalAccessErrorMessage = (
       <>
         Couldn&apos;t {action}. Please configure a private key.{" "}
         <CustomLink
-          url={`${LEARN_MORE_ABOUT_BASE_LINK}/fleet-server-private-key`}
+          url={`${LEARN_MORE_ABOUT_BASE_LINK}/automdm-server-private-key`}
           text="Learn how"
           newTab
           variant="flash-message-link"

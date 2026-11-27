@@ -18,10 +18,10 @@ import (
 	"time"
 
 	"github.com/MicahParks/jwkset"
-	"github.com/fleetdm/fleet/v4/server"
-	"github.com/fleetdm/fleet/v4/server/dev_mode"
-	"github.com/fleetdm/fleet/v4/server/mdm/microsoft/syncml"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/cryptoutil"
+	"github.com/anilyagiz/automdm/v4/server"
+	"github.com/anilyagiz/automdm/v4/server/dev_mode"
+	"github.com/anilyagiz/automdm/v4/server/mdm/microsoft/syncml"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/cryptoutil"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/stretchr/testify/require"
 )
@@ -278,7 +278,7 @@ func TestAzureDataFromClaims(t *testing.T) {
 		return jwt.MapClaims{
 			"tid":         tid,
 			"iss":         "https://sts.windows.net/" + tid + "/",
-			"aud":         "https://fleet.example.com",
+			"aud":         "https://automdm.example.com",
 			"unique_name": "user@example.com",
 			"scp":         "mdm_delegation",
 		}
@@ -391,14 +391,14 @@ func TestGetAzureAuthTokenClaims(t *testing.T) {
 		_, _ = w.Write(jwksJSON)
 	}))
 	t.Cleanup(jwksServer.Close)
-	dev_mode.SetOverride("FLEET_DEV_AZURE_JWT_JWKS_URI", jwksServer.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_AZURE_JWT_JWKS_URI", jwksServer.URL, t)
 
 	signedToken := func(kid string) string {
 		token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
 			"upn": "user@example.com",
 			"tid": tid,
 			"iss": "https://sts.windows.net/" + tid + "/",
-			"aud": "https://fleet.example.com",
+			"aud": "https://automdm.example.com",
 			"scp": "mdm_delegation",
 			"exp": time.Now().Add(10 * time.Minute).Unix(),
 		})
@@ -427,7 +427,7 @@ func TestGetAzureAuthTokenClaims(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, "user@example.com", data.UPN)
 			require.Equal(t, tid, data.TenantID)
-			require.Equal(t, []string{"https://fleet.example.com"}, data.Audience)
+			require.Equal(t, []string{"https://automdm.example.com"}, data.Audience)
 		}
 		require.Equal(t, before+1, fetches.Load())
 	})

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/vulnrepo"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/vulnrepo"
 )
 
 const (
@@ -22,7 +22,7 @@ func artifactFilename(prefix, version string, date time.Time) string {
 	return prefix + version + "-" + date.Format(dateLayout) + artifactExt
 }
 
-// isArtifact reports whether name is a non-delta OSV artifact with the given prefix. Fleet only
+// isArtifact reports whether name is a non-delta OSV artifact with the given prefix. AutoMDM only
 // consumes full artifacts; delta assets are excluded from the release listing too.
 func isArtifact(name, prefix string) bool {
 	return strings.HasPrefix(name, prefix) && strings.HasSuffix(name, artifactExt) && !strings.Contains(name, "delta")

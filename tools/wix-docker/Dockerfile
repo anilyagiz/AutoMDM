@@ -1,11 +1,11 @@
 FROM debian:trixie-slim@sha256:f6e2cfac5cf956ea044b4bd75e6397b4372ad88fe00908045e9a0d21712ae3ba
 
-LABEL maintainer="Fleet Developers"
+LABEL maintainer="AutoMDM Developers"
 LABEL org.opencontainers.image.vendor="Fleet Device Management Inc."
 LABEL org.opencontainers.image.title="wix"
-LABEL org.opencontainers.image.source="https://github.com/fleetdm/fleet"
-LABEL org.opencontainers.image.url="https://fleetdm.com"
-LABEL org.opencontainers.image.documentation="https://fleetdm.com/docs"
+LABEL org.opencontainers.image.source="https://github.com/anilyagiz/automdm"
+LABEL org.opencontainers.image.url="https://automdm.com"
+LABEL org.opencontainers.image.documentation="https://automdm.com/docs"
 
 RUN true \
     && dpkg --add-architecture i386 \

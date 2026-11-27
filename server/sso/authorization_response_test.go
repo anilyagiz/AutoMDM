@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/beevik/etree"
 	"github.com/crewjam/saml"
-	"github.com/fleetdm/fleet/v4/server/fleet"
 	dsig "github.com/russellhaering/goxmldsig"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -445,7 +445,7 @@ QyrBRp8n4UR9PjoeIy0tTCmG0tqu/NackFH4PkamY84Etxe9uH0StmkhID46QTT4Cv2+jqCaklg+
 }
 
 func TestDecodeAttributes(t *testing.T) {
-	const samlResponse = `<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="_8419c6009d891c39b454f53b34454818bdab19bd3a" Version="2.0" IssueInstant="2022-08-10T19:42:34Z" Destination="https://localhost:8080/api/v1/fleet/sso/callback" InResponseTo="idJpL4A6IM6MMBQ9eH">
+	const samlResponse = `<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="_8419c6009d891c39b454f53b34454818bdab19bd3a" Version="2.0" IssueInstant="2022-08-10T19:42:34Z" Destination="https://localhost:8080/api/v1/automdm/sso/callback" InResponseTo="idJpL4A6IM6MMBQ9eH">
   <saml:Issuer>http://localhost:9080/simplesaml/saml2/idp/metadata.php</saml:Issuer>
   <ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
     <ds:SignedInfo>
@@ -495,7 +495,7 @@ func TestDecodeAttributes(t *testing.T) {
     <saml:Subject>
       <saml:NameID SPNameQualifier="https://localhost:8080" Format="urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress">sso_user@example.com</saml:NameID>
       <saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">
-        <saml:SubjectConfirmationData NotOnOrAfter="2022-08-10T19:47:34Z" Recipient="https://localhost:8080/api/v1/fleet/sso/callback" InResponseTo="idJpL4A6IM6MMBQ9eH"/>
+        <saml:SubjectConfirmationData NotOnOrAfter="2022-08-10T19:47:34Z" Recipient="https://localhost:8080/api/v1/automdm/sso/callback" InResponseTo="idJpL4A6IM6MMBQ9eH"/>
       </saml:SubjectConfirmation>
     </saml:Subject>
     <saml:Conditions NotBefore="2022-08-10T19:42:04Z" NotOnOrAfter="2022-08-10T19:47:34Z">
@@ -526,7 +526,7 @@ func TestDecodeAttributes(t *testing.T) {
 </samlp:Response>`
 
 	setFakeClock(t, "2022-08-10T19:42:34.000Z")
-	acsURL, err := url.Parse("https://localhost:8080/api/v1/fleet/sso/callback")
+	acsURL, err := url.Parse("https://localhost:8080/api/v1/automdm/sso/callback")
 	require.NoError(t, err)
 	p := dummySAMLProvider(acsURL)
 	p.IDPMetadata.EntityID = "http://localhost:9080/simplesaml/saml2/idp/metadata.php"
@@ -575,7 +575,7 @@ func TestUserDisplayName(t *testing.T) {
 
 func TestDecodeOktaResponseWithCustomAttrs(t *testing.T) {
 	const samlResponse = `<?xml version="1.0" encoding="UTF-8"?>
-<saml2p:Response Destination="https://example.com/api/v1/fleet/sso/callback" ID="id163119768052374872101569422" InResponseTo="id1Juy6Mx2IHYxLwsi" IssueInstant="2023-02-27T17:41:53.505Z" Version="2.0" xmlns:saml2p="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+<saml2p:Response Destination="https://example.com/api/v1/automdm/sso/callback" ID="id163119768052374872101569422" InResponseTo="id1Juy6Mx2IHYxLwsi" IssueInstant="2023-02-27T17:41:53.505Z" Version="2.0" xmlns:saml2p="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:xs="http://www.w3.org/2001/XMLSchema">
   <saml2:Issuer Format="urn:oasis:names:tc:SAML:2.0:nameid-format:entity" xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion">http://www.okta.com/exk8glknbnr9Lpdkl5d7</saml2:Issuer>
   <ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
     <ds:SignedInfo>
@@ -629,7 +629,7 @@ func TestDecodeOktaResponseWithCustomAttrs(t *testing.T) {
     <saml2:Subject xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion">
       <saml2:NameID Format="urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress">foo@example.com</saml2:NameID>
       <saml2:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">
-        <saml2:SubjectConfirmationData InResponseTo="id1Juy6Mx2IHYxLwsi" NotOnOrAfter="2023-02-27T17:46:53.506Z" Recipient="https://example.com/api/v1/fleet/sso/callback"/>
+        <saml2:SubjectConfirmationData InResponseTo="id1Juy6Mx2IHYxLwsi" NotOnOrAfter="2023-02-27T17:46:53.506Z" Recipient="https://example.com/api/v1/automdm/sso/callback"/>
       </saml2:SubjectConfirmation>
     </saml2:Subject>
     <saml2:Conditions NotBefore="2023-02-27T17:36:53.506Z" NotOnOrAfter="2023-02-27T17:46:53.506Z" xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion">
@@ -643,10 +643,10 @@ func TestDecodeOktaResponseWithCustomAttrs(t *testing.T) {
       </saml2:AuthnContext>
     </saml2:AuthnStatement>
     <saml2:AttributeStatement xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion">
-      <saml2:Attribute Name="FLEET_JIT_USER_ROLE_FLEET_1" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:unspecified">
+      <saml2:Attribute Name="AUTOMDM_JIT_USER_ROLE_TEAM_1" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:unspecified">
         <saml2:AttributeValue xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">observer</saml2:AttributeValue>
       </saml2:Attribute>
-      <saml2:Attribute Name="FLEET_JIT_USER_ROLE_FLEET_2" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:unspecified">
+      <saml2:Attribute Name="AUTOMDM_JIT_USER_ROLE_TEAM_2" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:unspecified">
         <saml2:AttributeValue xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">maintainer</saml2:AttributeValue>
       </saml2:Attribute>
       <saml2:Attribute Name="foo" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:unspecified">
@@ -657,7 +657,7 @@ func TestDecodeOktaResponseWithCustomAttrs(t *testing.T) {
 </saml2p:Response>`
 
 	setFakeClock(t, "2023-02-27T17:41:53.505Z")
-	acsURL, err := url.Parse("https://example.com/api/v1/fleet/sso/callback")
+	acsURL, err := url.Parse("https://example.com/api/v1/automdm/sso/callback")
 	require.NoError(t, err)
 	p := dummySAMLProvider(acsURL)
 	p.IDPMetadata.EntityID = "http://www.okta.com/exk8glknbnr9Lpdkl5d7"
@@ -667,24 +667,24 @@ func TestDecodeOktaResponseWithCustomAttrs(t *testing.T) {
 	require.NotNil(t, auth)
 	assert.Equal(t, "foo@example.com", auth.UserID())
 	attrs := auth.AssertionAttributes()
-	assert.Equal(t, []fleet.SAMLAttribute{
+	assert.Equal(t, []automdm.SAMLAttribute{
 		{
-			Name: "FLEET_JIT_USER_ROLE_FLEET_1",
-			Values: []fleet.SAMLAttributeValue{{
+			Name: "AUTOMDM_JIT_USER_ROLE_TEAM_1",
+			Values: []automdm.SAMLAttributeValue{{
 				Type:  "xs:string",
 				Value: "observer",
 			}},
 		},
 		{
-			Name: "FLEET_JIT_USER_ROLE_FLEET_2",
-			Values: []fleet.SAMLAttributeValue{{
+			Name: "AUTOMDM_JIT_USER_ROLE_TEAM_2",
+			Values: []automdm.SAMLAttributeValue{{
 				Type:  "xs:string",
 				Value: "maintainer",
 			}},
 		},
 		{
 			Name: "foo",
-			Values: []fleet.SAMLAttributeValue{{
+			Values: []automdm.SAMLAttributeValue{{
 				Type:  "xs:string",
 				Value: "bar",
 			}},

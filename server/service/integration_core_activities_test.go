@@ -15,9 +15,9 @@ import (
 	"strconv"
 	"time"
 
-	activity_api "github.com/fleetdm/fleet/v4/server/activity/api"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	activity_api "github.com/anilyagiz/automdm/v4/server/activity/api"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -32,34 +32,34 @@ func (s *integrationTestSuite) TestListActivities() {
 
 	activitySvc := mysqltest.NewTestActivityService(t, s.ds)
 	apiUser := &activity_api.User{ID: u.ID, Name: u.Name, Email: u.Email}
-	err := activitySvc.NewActivity(ctx, apiUser, fleet.ActivityTypeAppliedSpecPack{})
+	err := activitySvc.NewActivity(ctx, apiUser, automdm.ActivityTypeAppliedSpecPack{})
 	require.NoError(t, err)
 
-	err = activitySvc.NewActivity(ctx, apiUser, fleet.ActivityTypeDeletedPack{})
+	err = activitySvc.NewActivity(ctx, apiUser, automdm.ActivityTypeDeletedPack{})
 	require.NoError(t, err)
 
-	err = activitySvc.NewActivity(ctx, apiUser, fleet.ActivityTypeEditedPack{})
+	err = activitySvc.NewActivity(ctx, apiUser, automdm.ActivityTypeEditedPack{})
 	require.NoError(t, err)
 
 	lenPage := len(prevActivities) + 2
 
 	var listResp listActivitiesResponse
-	s.DoJSON("GET", "/api/latest/fleet/activities", nil, http.StatusOK, &listResp, "per_page", strconv.Itoa(lenPage), "order_key", "id")
+	s.DoJSON("GET", "/api/latest/automdm/activities", nil, http.StatusOK, &listResp, "per_page", strconv.Itoa(lenPage), "order_key", "id")
 	require.Len(t, listResp.Activities, lenPage)
 	require.NotNil(t, listResp.Meta)
-	assert.Equal(t, fleet.ActivityTypeAppliedSpecPack{}.ActivityName(), listResp.Activities[lenPage-2].Type)
-	assert.Equal(t, fleet.ActivityTypeDeletedPack{}.ActivityName(), listResp.Activities[lenPage-1].Type)
+	assert.Equal(t, automdm.ActivityTypeAppliedSpecPack{}.ActivityName(), listResp.Activities[lenPage-2].Type)
+	assert.Equal(t, automdm.ActivityTypeDeletedPack{}.ActivityName(), listResp.Activities[lenPage-1].Type)
 
-	s.DoJSON("GET", "/api/latest/fleet/activities", nil, http.StatusOK, &listResp, "per_page", strconv.Itoa(lenPage), "order_key", "id", "page", "1")
+	s.DoJSON("GET", "/api/latest/automdm/activities", nil, http.StatusOK, &listResp, "per_page", strconv.Itoa(lenPage), "order_key", "id", "page", "1")
 	require.Len(t, listResp.Activities, 1)
-	assert.Equal(t, fleet.ActivityTypeEditedPack{}.ActivityName(), listResp.Activities[0].Type)
+	assert.Equal(t, automdm.ActivityTypeEditedPack{}.ActivityName(), listResp.Activities[0].Type)
 
-	s.DoJSON("GET", "/api/latest/fleet/activities", nil, http.StatusOK, &listResp, "per_page", "1", "order_key", "id", "order_direction", "desc")
+	s.DoJSON("GET", "/api/latest/automdm/activities", nil, http.StatusOK, &listResp, "per_page", "1", "order_key", "id", "order_direction", "desc")
 	require.Len(t, listResp.Activities, 1)
-	assert.Equal(t, fleet.ActivityTypeEditedPack{}.ActivityName(), listResp.Activities[0].Type)
+	assert.Equal(t, automdm.ActivityTypeEditedPack{}.ActivityName(), listResp.Activities[0].Type)
 
 	listResp = listActivitiesResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/activities", nil, http.StatusOK, &listResp, "per_page", "1", "order_key", "id", "after", "0")
+	s.DoJSON("GET", "/api/latest/automdm/activities", nil, http.StatusOK, &listResp, "per_page", "1", "order_key", "id", "after", "0")
 	require.Len(t, listResp.Activities, 1)
 	require.Nil(t, listResp.Meta)
 }
@@ -67,16 +67,16 @@ func (s *integrationTestSuite) TestListActivities() {
 func (s *integrationTestSuite) TestGlobalPoliciesAutomationConfig() {
 	t := s.T()
 
-	gpParams := fleet.CreatePolicyRequest{
+	gpParams := automdm.CreatePolicyRequest{
 		Name:           "policy1",
 		Query:          "select 41;",
-		AutomationType: new(fleet.PolicyAutomationWebhookOrTicket),
+		AutomationType: new(automdm.PolicyAutomationWebhookOrTicket),
 	}
-	gpResp := fleet.CreatePolicyResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/policies", gpParams, http.StatusOK, &gpResp)
+	gpResp := automdm.CreatePolicyResponse{}
+	s.DoJSON("POST", "/api/latest/automdm/policies", gpParams, http.StatusOK, &gpResp)
 	require.NotNil(t, gpResp.Policy)
 
-	s.DoRaw("PATCH", "/api/latest/fleet/config", []byte(`{
+	s.DoRaw("PATCH", "/api/latest/automdm/config", []byte(`{
 		"webhook_settings": {
     		"failing_policies_webhook": {
      	 		"enable_failing_policies_webhook": true,
@@ -93,23 +93,23 @@ func (s *integrationTestSuite) TestGlobalPoliciesAutomationConfig() {
 	require.Equal(t, 1*time.Hour, config.WebhookSettings.Interval.Duration)
 	require.Equal(t, 1000, config.WebhookSettings.FailingPoliciesWebhook.HostBatchSize)
 
-	var getPolicyResp fleet.GetPolicyByIDResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/policies/%d", gpResp.Policy.ID), nil, http.StatusOK, &getPolicyResp)
+	var getPolicyResp automdm.GetPolicyByIDResponse
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/policies/%d", gpResp.Policy.ID), nil, http.StatusOK, &getPolicyResp)
 	require.NotNil(t, getPolicyResp.Policy.AutomationType)
-	require.Equal(t, fleet.PolicyAutomationWebhookOrTicket, *getPolicyResp.Policy.AutomationType)
+	require.Equal(t, automdm.PolicyAutomationWebhookOrTicket, *getPolicyResp.Policy.AutomationType)
 
 	// policy_ids no longer turns the automation on per policy.
-	res := s.DoRaw("PATCH", "/api/latest/fleet/config", []byte(fmt.Sprintf(`{
+	res := s.DoRaw("PATCH", "/api/latest/automdm/config", []byte(fmt.Sprintf(`{
 		"webhook_settings": {"failing_policies_webhook": {"policy_ids": [%d]}}
 	}`, gpResp.Policy.ID)), http.StatusUnprocessableEntity)
 	require.Contains(t, extractServerErrorText(res.Body), `The "policy_ids" parameter is not available anymore`)
 
-	deletePolicyParams := fleet.DeletePoliciesRequest{IDs: []uint{gpResp.Policy.ID}}
-	deletePolicyResp := fleet.DeletePoliciesResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/policies/delete", deletePolicyParams, http.StatusOK, &deletePolicyResp)
+	deletePolicyParams := automdm.DeletePoliciesRequest{IDs: []uint{gpResp.Policy.ID}}
+	deletePolicyResp := automdm.DeletePoliciesResponse{}
+	s.DoJSON("POST", "/api/latest/automdm/policies/delete", deletePolicyParams, http.StatusOK, &deletePolicyResp)
 
-	var listResp fleet.ListPoliciesResponse
-	s.DoJSON("GET", "/api/latest/fleet/policies", nil, http.StatusOK, &listResp, "automation_type", string(fleet.PolicyAutomationWebhookOrTicket))
+	var listResp automdm.ListPoliciesResponse
+	s.DoJSON("GET", "/api/latest/automdm/policies", nil, http.StatusOK, &listResp, "automation_type", string(automdm.PolicyAutomationWebhookOrTicket))
 	require.Empty(t, listResp.Policies)
 }
 
@@ -117,7 +117,7 @@ func (s *integrationTestSuite) TestActivitiesWebhookConfig() {
 	t := s.T()
 
 	s.DoRaw(
-		"PATCH", "/api/latest/fleet/config", []byte(
+		"PATCH", "/api/latest/automdm/config", []byte(
 			`{
 		"webhook_settings": {
 			"activities_webhook": {
@@ -130,7 +130,7 @@ func (s *integrationTestSuite) TestActivitiesWebhookConfig() {
 	)
 
 	s.lastActivityOfTypeMatches(
-		fleet.ActivityTypeEnabledActivityAutomations{}.ActivityName(),
+		automdm.ActivityTypeEnabledActivityAutomations{}.ActivityName(),
 		`{"webhook_url": "http://some/url"}`,
 		0,
 	)
@@ -140,7 +140,7 @@ func (s *integrationTestSuite) TestActivitiesWebhookConfig() {
 	require.Equal(t, "http://some/url", appConfig.WebhookSettings.ActivitiesWebhook.DestinationURL)
 
 	s.DoRaw(
-		"PATCH", "/api/latest/fleet/config", []byte(
+		"PATCH", "/api/latest/automdm/config", []byte(
 			`{
 		"webhook_settings": {
 			"activities_webhook": {
@@ -153,13 +153,13 @@ func (s *integrationTestSuite) TestActivitiesWebhookConfig() {
 	)
 
 	s.lastActivityOfTypeMatches(
-		fleet.ActivityTypeEditedActivityAutomations{}.ActivityName(),
+		automdm.ActivityTypeEditedActivityAutomations{}.ActivityName(),
 		`{"webhook_url": "http://some/other/url"}`,
 		0,
 	)
 
 	s.DoRaw(
-		"PATCH", "/api/latest/fleet/config", []byte(
+		"PATCH", "/api/latest/automdm/config", []byte(
 			`{
 		"webhook_settings": {
 			"activities_webhook": {
@@ -172,13 +172,13 @@ func (s *integrationTestSuite) TestActivitiesWebhookConfig() {
 	)
 
 	s.lastActivityOfTypeMatches(
-		fleet.ActivityTypeEditedActivityAutomations{}.ActivityName(),
+		automdm.ActivityTypeEditedActivityAutomations{}.ActivityName(),
 		`{"webhook_url": "http://some/other/url"}`,
 		0,
 	)
 
 	s.DoRaw(
-		"PATCH", "/api/latest/fleet/config", []byte(
+		"PATCH", "/api/latest/automdm/config", []byte(
 			`{
 		"webhook_settings": {
 			"activities_webhook": {
@@ -190,13 +190,13 @@ func (s *integrationTestSuite) TestActivitiesWebhookConfig() {
 	)
 
 	s.lastActivityOfTypeMatches(
-		fleet.ActivityTypeDisabledActivityAutomations{}.ActivityName(),
+		automdm.ActivityTypeDisabledActivityAutomations{}.ActivityName(),
 		``,
 		0,
 	)
 
 	s.DoRaw(
-		"PATCH", "/api/latest/fleet/config", []byte(
+		"PATCH", "/api/latest/automdm/config", []byte(
 			`{
 		"webhook_settings": {
 			"activities_webhook": {
@@ -209,7 +209,7 @@ func (s *integrationTestSuite) TestActivitiesWebhookConfig() {
 	)
 
 	s.lastActivityOfTypeMatches(
-		fleet.ActivityTypeEnabledActivityAutomations{}.ActivityName(),
+		automdm.ActivityTypeEnabledActivityAutomations{}.ActivityName(),
 		`{"webhook_url": "http://some/url"}`,
 		0,
 	)
@@ -219,7 +219,7 @@ func (s *integrationTestSuite) TestHostStatusWebhookConfig() {
 	t := s.T()
 
 	// enable with valid config
-	s.DoRaw("PATCH", "/api/latest/fleet/config", []byte(`{
+	s.DoRaw("PATCH", "/api/latest/automdm/config", []byte(`{
 		"webhook_settings": {
     		"host_status_webhook": {
      	 		"enable_host_status_webhook": true,
@@ -238,7 +238,7 @@ func (s *integrationTestSuite) TestHostStatusWebhookConfig() {
 	require.Equal(t, 1, config.WebhookSettings.HostStatusWebhook.DaysCount)
 
 	// update without a destination url
-	s.DoRaw("PATCH", "/api/latest/fleet/config", []byte(`{
+	s.DoRaw("PATCH", "/api/latest/automdm/config", []byte(`{
 		"webhook_settings": {
     		"host_status_webhook": {
      	 		"enable_host_status_webhook": true,
@@ -251,7 +251,7 @@ func (s *integrationTestSuite) TestHostStatusWebhookConfig() {
 	}`), http.StatusUnprocessableEntity)
 
 	// update without a negative days count
-	s.DoRaw("PATCH", "/api/latest/fleet/config", []byte(`{
+	s.DoRaw("PATCH", "/api/latest/automdm/config", []byte(`{
 		"webhook_settings": {
     		"host_status_webhook": {
      	 		"enable_host_status_webhook": true,
@@ -264,7 +264,7 @@ func (s *integrationTestSuite) TestHostStatusWebhookConfig() {
 	}`), http.StatusUnprocessableEntity)
 
 	// update with 0%
-	s.DoRaw("PATCH", "/api/latest/fleet/config", []byte(`{
+	s.DoRaw("PATCH", "/api/latest/automdm/config", []byte(`{
 		"webhook_settings": {
     		"host_status_webhook": {
      	 		"enable_host_status_webhook": true,
@@ -284,7 +284,7 @@ func (s *integrationTestSuite) TestHostStatusWebhookConfig() {
 	require.Equal(t, 1, config.WebhookSettings.HostStatusWebhook.DaysCount)
 
 	// disabling ignores the invalid parameters
-	s.DoRaw("PATCH", "/api/latest/fleet/config", []byte(`{
+	s.DoRaw("PATCH", "/api/latest/automdm/config", []byte(`{
 		"webhook_settings": {
     		"host_status_webhook": {
      	 		"enable_host_status_webhook": false,
@@ -302,7 +302,7 @@ func (s *integrationTestSuite) TestHostStatusWebhookConfig() {
 func (s *integrationTestSuite) TestVulnerabilitiesWebhookConfig() {
 	t := s.T()
 
-	s.DoRaw("PATCH", "/api/latest/fleet/config", []byte(`{
+	s.DoRaw("PATCH", "/api/latest/automdm/config", []byte(`{
 		"integrations": {"jira": [], "zendesk": []},
 		"webhook_settings": {
     		"vulnerabilities_webhook": {

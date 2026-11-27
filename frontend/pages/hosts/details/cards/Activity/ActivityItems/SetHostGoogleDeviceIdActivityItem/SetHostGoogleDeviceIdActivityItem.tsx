@@ -10,7 +10,7 @@ const SetHostGoogleDeviceIdActivityItem = ({
   const googleEmail = activity.details?.google_email;
   return (
     <ActivityItem activity={activity} hideCancel hideShowDetails>
-      <b>{activity.fleet_initiated ? "Fleet" : activity.actor_full_name} </b>
+      <b>{activity.automdm_initiated ? "AutoMDM" : activity.actor_full_name} </b>
       marked this host as company-owned in Google
       {googleEmail ? (
         <>

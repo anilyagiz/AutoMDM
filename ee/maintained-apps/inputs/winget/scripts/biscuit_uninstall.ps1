@@ -7,7 +7,7 @@
 
 $displayNamePattern = '^Biscuit \d'
 $publisher = "Biscuit Project"
-$taskName = "fleet-uninstall-biscuit"
+$taskName = "automdm-uninstall-biscuit"
 $appDir = "AppData\Local\Programs\biscuit"  # in each user's profile
 $taskRunning = 267009  # SCHED_S_TASK_RUNNING
 $timeoutSeconds = 300

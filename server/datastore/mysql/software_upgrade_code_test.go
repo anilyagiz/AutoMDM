@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -44,15 +44,15 @@ func testReconcileEmptyUpgradeCodes(t *testing.T, ds *Datastore) {
 
 	testCases := []struct {
 		name                              string
-		incomingSwChecksumToSw            map[string]fleet.Software
-		incomingSwChecksumToMatchingTitle map[string]fleet.SoftwareTitleSummary
+		incomingSwChecksumToSw            map[string]automdm.Software
+		incomingSwChecksumToMatchingTitle map[string]automdm.SoftwareTitleSummary
 		expectedUpdates                   map[uint]string // titleID -> value of expected upgrade_code
 		expectedInfoLogs                  int
 		expectedWarningLogs               int
 	}{
 		{
 			name: "update empty upgrade_code with non-empty value",
-			incomingSwChecksumToSw: map[string]fleet.Software{
+			incomingSwChecksumToSw: map[string]automdm.Software{
 				"checksum1": {
 					Name:        "Software 1",
 					Version:     "1.0",
@@ -60,7 +60,7 @@ func testReconcileEmptyUpgradeCodes(t *testing.T, ds *Datastore) {
 					UpgradeCode: &nonEmptyUc,
 				},
 			},
-			incomingSwChecksumToMatchingTitle: map[string]fleet.SoftwareTitleSummary{
+			incomingSwChecksumToMatchingTitle: map[string]automdm.SoftwareTitleSummary{
 				"checksum1": {
 					ID:          1,
 					Name:        "Software 1",
@@ -75,7 +75,7 @@ func testReconcileEmptyUpgradeCodes(t *testing.T, ds *Datastore) {
 		},
 		{
 			name: "skip when incoming software has empty upgrade_code",
-			incomingSwChecksumToSw: map[string]fleet.Software{
+			incomingSwChecksumToSw: map[string]automdm.Software{
 				"checksum2": {
 					Name:        "Software 2",
 					Version:     "3.0",
@@ -83,7 +83,7 @@ func testReconcileEmptyUpgradeCodes(t *testing.T, ds *Datastore) {
 					UpgradeCode: &emptyUc,
 				},
 			},
-			incomingSwChecksumToMatchingTitle: map[string]fleet.SoftwareTitleSummary{
+			incomingSwChecksumToMatchingTitle: map[string]automdm.SoftwareTitleSummary{
 				"checksum2": {
 					ID:          2,
 					Name:        "Software 2",
@@ -95,7 +95,7 @@ func testReconcileEmptyUpgradeCodes(t *testing.T, ds *Datastore) {
 		},
 		{
 			name: "skip and log warning when existing title has different, non-empty upgrade_code",
-			incomingSwChecksumToSw: map[string]fleet.Software{
+			incomingSwChecksumToSw: map[string]automdm.Software{
 				"checksum3": {
 					Name:        "Software 3",
 					Version:     "3.0",
@@ -103,7 +103,7 @@ func testReconcileEmptyUpgradeCodes(t *testing.T, ds *Datastore) {
 					UpgradeCode: &nonEmptyUc,
 				},
 			},
-			incomingSwChecksumToMatchingTitle: map[string]fleet.SoftwareTitleSummary{
+			incomingSwChecksumToMatchingTitle: map[string]automdm.SoftwareTitleSummary{
 				"checksum3": {
 					ID:          3,
 					Name:        "Software 3",
@@ -116,7 +116,7 @@ func testReconcileEmptyUpgradeCodes(t *testing.T, ds *Datastore) {
 		},
 		{
 			name: "log warning and replace when existing title has NULL upgrade_code",
-			incomingSwChecksumToSw: map[string]fleet.Software{
+			incomingSwChecksumToSw: map[string]automdm.Software{
 				"checksum4": {
 					Name:        "Software 4",
 					Version:     "5.0",
@@ -124,7 +124,7 @@ func testReconcileEmptyUpgradeCodes(t *testing.T, ds *Datastore) {
 					UpgradeCode: &nonEmptyUc,
 				},
 			},
-			incomingSwChecksumToMatchingTitle: map[string]fleet.SoftwareTitleSummary{
+			incomingSwChecksumToMatchingTitle: map[string]automdm.SoftwareTitleSummary{
 				"checksum4": {
 					ID:          4,
 					Name:        "Software 4",
@@ -224,7 +224,7 @@ func testUpgradeCodeDuplicateEntryError(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// Host reports software with Title B's name but same upgrade_code as Title A
-	incomingSoftware := []fleet.Software{
+	incomingSoftware := []automdm.Software{
 		{
 			Name:        "Visual Studio Community 2022",
 			Version:     "17.0.0",
@@ -280,7 +280,7 @@ func testUpgradeCodeCaseSensitivityWithExistingUpgradeCode(t *testing.T, ds *Dat
 	titleID, _ := result.LastInsertId()
 
 	// Host reports software with different casing but same upgrade_code
-	incomingSoftware := []fleet.Software{
+	incomingSoftware := []automdm.Software{
 		{
 			Name:        "QEMU guest agent", // lowercase
 			Version:     "107.0.1",
@@ -328,14 +328,14 @@ func testUpdateHostSoftwareCaseSensitivityTitleDuplication(t *testing.T, ds *Dat
 	upgradeCode := "{12345678-1234-1234-1234-123456789ABC}"
 
 	// Host A reports software with original casing and empty upgrade_code
-	swHostA := []fleet.Software{
+	swHostA := []automdm.Software{
 		{Name: "FooApp", Version: "1.0", Source: "programs", UpgradeCode: ptr.String("")},
 	}
 	_, err := ds.UpdateHostSoftware(ctx, hostA.ID, swHostA)
 	require.NoError(t, err)
 
 	// Verify title was created with original casing
-	var titlesBefore []fleet.SoftwareTitleSummary
+	var titlesBefore []automdm.SoftwareTitleSummary
 	err = ds.writer(ctx).SelectContext(ctx, &titlesBefore,
 		`SELECT id, name, source, upgrade_code FROM software_titles WHERE name = 'FooApp' AND source = 'programs'`)
 	require.NoError(t, err)
@@ -344,7 +344,7 @@ func testUpdateHostSoftwareCaseSensitivityTitleDuplication(t *testing.T, ds *Dat
 
 	// Host B reports the SAME software but with different casing and a non-empty upgrade_code
 	// This simulates osquery returning the name with different casing on different hosts
-	swHostB := []fleet.Software{
+	swHostB := []automdm.Software{
 		{Name: "fooapp", Version: "1.0", Source: "programs", UpgradeCode: ptr.String(upgradeCode)},
 	}
 	_, err = ds.UpdateHostSoftware(ctx, hostB.ID, swHostB)
@@ -390,7 +390,7 @@ func testUpdateHostSoftwareUpgradeCodeReconciliation(t *testing.T, ds *Datastore
 	upgradeCode := "{FB9C576D-97C3-49E8-8119-93AC9758CD4C}"
 
 	// Host A reports software v1.0 with empty upgrade_code
-	swHostA := []fleet.Software{
+	swHostA := []automdm.Software{
 		{Name: "Chef Cookbooks - Windows", Version: "1.0", Source: "programs", UpgradeCode: ptr.String("")},
 	}
 	_, err := ds.UpdateHostSoftware(ctx, hostA.ID, swHostA)
@@ -413,7 +413,7 @@ func testUpdateHostSoftwareUpgradeCodeReconciliation(t *testing.T, ds *Datastore
 
 	// Host B reports same software but v2.0 with non-empty upgrade_code
 	// This creates a NEW checksum (different version + upgrade_code affects checksum)
-	swHostB := []fleet.Software{
+	swHostB := []automdm.Software{
 		{Name: "Chef Cookbooks - Windows", Version: "2.0", Source: "programs", UpgradeCode: ptr.String(upgradeCode)},
 	}
 	_, err = ds.UpdateHostSoftware(ctx, hostB.ID, swHostB)
@@ -438,7 +438,7 @@ func testUpdateHostSoftwareUpgradeCodeReconciliation(t *testing.T, ds *Datastore
 
 	// Step 3: Host A reports v2.0 with empty upgrade_code
 	// The title's upgrade_code should NOT be cleared
-	swHostAv2 := []fleet.Software{
+	swHostAv2 := []automdm.Software{
 		{Name: "Chef Cookbooks - Windows", Version: "2.0", Source: "programs", UpgradeCode: ptr.String("")},
 	}
 	_, err = ds.UpdateHostSoftware(ctx, hostA.ID, swHostAv2)
@@ -473,7 +473,7 @@ func testSameUpgradeCodeDifferentNames(t *testing.T, ds *Datastore) {
 	upgradeCode := "{23170F69-40C1-2702-0000-000004000000}"
 
 	// Step 1: Host A reports "7-Zip 24.08 (x64 edition)" with upgrade_code
-	swHostA := []fleet.Software{
+	swHostA := []automdm.Software{
 		{
 			Name:        "7-Zip 24.08 (x64 edition)",
 			Version:     "24.08.00.0",
@@ -511,7 +511,7 @@ func testSameUpgradeCodeDifferentNames(t *testing.T, ds *Datastore) {
 	require.Equal(t, titleID, *softwareA[0].TitleID)
 
 	// Step 2: Host B reports "7-Zip 24.09 (x64 edition)" with SAME upgrade_code but different name
-	swHostB := []fleet.Software{
+	swHostB := []automdm.Software{
 		{
 			Name:        "7-Zip 24.09 (x64 edition)",
 			Version:     "24.09.00.0",

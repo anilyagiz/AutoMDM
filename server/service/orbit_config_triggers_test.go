@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/require"
 )
 
@@ -15,7 +15,7 @@ import (
 // fallback poll, with why. Hosts in their first hour after enrolling poll at
 // the default interval regardless (see orbitConfigOnboardingWindow).
 var orbitConfigFieldTriggers = map[string]string{
-	// fleet.OrbitConfig
+	// automdm.OrbitConfig
 	"script_execution_timeout":   "hook: orbitconfig_notify SaveAppConfig/SaveTeam/AddHostsToTeam",
 	"command_line_startup_flags": "hook: orbitconfig_notify SaveAppConfig/SaveTeam/AddHostsToTeam",
 	"extensions":                 "hook: orbitconfig_notify SaveAppConfig/SaveTeam/AddHostsToTeam; fallback-only for label membership changes",
@@ -25,7 +25,7 @@ var orbitConfigFieldTriggers = map[string]string{
 	"entra_device_token_request": "hook: orbitconfig_notify AddHostsToTeam; fallback-only for conditional access integration and setting changes",
 	"notifications":              "see the notifications fields",
 
-	// fleet.OrbitConfigNotifications
+	// automdm.OrbitConfigNotifications
 	"renew_enrollment_profile":                    "hook: EnrollOsquery; fallback-only for host_mdm changes from osquery ingestion",
 	"rotate_disk_encryption_key":                  "hook: SetHostsDiskEncryptionKeyStatus",
 	"needs_mdm_migration":                         "hook: EnrollOsquery, orbitconfig_notify SaveAppConfig; fallback-only for host_mdm changes from osquery ingestion",
@@ -48,7 +48,7 @@ var orbitConfigFieldTriggers = map[string]string{
 // learn it changed.
 func TestOrbitConfigFieldTriggers(t *testing.T) {
 	fields := make(map[string]struct{})
-	for _, typ := range []reflect.Type{reflect.TypeFor[fleet.OrbitConfig](), reflect.TypeFor[fleet.OrbitConfigNotifications]()} {
+	for _, typ := range []reflect.Type{reflect.TypeFor[automdm.OrbitConfig](), reflect.TypeFor[automdm.OrbitConfigNotifications]()} {
 		for f := range typ.Fields() {
 			name, _, _ := strings.Cut(f.Tag.Get("json"), ",")
 			require.NotEmpty(t, name, "field %s.%s has no json name", typ.Name(), f.Name)

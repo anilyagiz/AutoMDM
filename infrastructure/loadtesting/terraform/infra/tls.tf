@@ -8,8 +8,8 @@ resource "tls_self_signed_cert" "scep_cert" {
   private_key_pem = tls_private_key.scep_key.private_key_pem
 
   subject {
-    common_name  = "Fleet Root CA"
-    organization = "Fleet."
+    common_name  = "AutoMDM Root CA"
+    organization = "AutoMDM."
     country      = "US"
   }
 

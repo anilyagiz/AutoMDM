@@ -35,7 +35,7 @@ func TestLinuxWipeScriptStagesBeforeBlockingLogins(t *testing.T) {
 	stage := strings.LastIndex(script, `cp "$0" "$WIPE_SCRIPT"`)
 	block := strings.LastIndex(script, "\n    block_logins\n")
 	logout := strings.LastIndex(script, "\n    logout_users\n")
-	require.NotEqual(t, -1, stage, "linux_wipe.sh must stage the script out of fleetd's run directory")
+	require.NotEqual(t, -1, stage, "linux_wipe.sh must stage the script out of automdmd's run directory")
 	require.NotEqual(t, -1, block, "linux_wipe.sh must call block_logins")
 	require.Less(t, stage, block, "staging must succeed before logins are blocked")
 	require.Less(t, block, logout, "block_logins must run before logout_users")
@@ -46,8 +46,8 @@ func TestLinuxWipeScriptStagesBeforeBlockingLogins(t *testing.T) {
 func TestLinuxWipeScriptDetachesOutsideOrbitCgroup(t *testing.T) {
 	t.Parallel()
 	script := string(linuxWipeScript)
-	requireScriptContains(t, script, "systemd-run --unit=fleet-wipe", "linux_wipe.sh")
-	// --collect is systemd 236+, and Fleet supports RHEL/CentOS 7 (systemd 219).
+	requireScriptContains(t, script, "systemd-run --unit=automdm-wipe", "linux_wipe.sh")
+	// --collect is systemd 236+, and AutoMDM supports RHEL/CentOS 7 (systemd 219).
 	require.NotContains(t, script, "--collect", "linux_wipe.sh must not use --collect")
 	// Keying the fallback off systemd-run failing rather than existing: old
 	// systemd and an unreachable bus must still reach it.

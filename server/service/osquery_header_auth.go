@@ -5,10 +5,10 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	hostctx "github.com/fleetdm/fleet/v4/server/contexts/host"
-	"github.com/fleetdm/fleet/v4/server/contexts/osqueryauth"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	hostctx "github.com/anilyagiz/automdm/v4/server/contexts/host"
+	"github.com/anilyagiz/automdm/v4/server/contexts/osqueryauth"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -27,8 +27,8 @@ const (
 var osqueryPreAuthRejections = mustNewPreAuthRejectionsCounter()
 
 func mustNewPreAuthRejectionsCounter() metric.Int64Counter {
-	c, err := otel.Meter("fleet").Int64Counter(
-		"fleet.osquery.preauth_rejections",
+	c, err := otel.Meter("automdm").Int64Counter(
+		"automdm.osquery.preauth_rejections",
 		metric.WithDescription("Count of osquery requests rejected by the HTTP-level header pre-auth by route and reason"),
 		metric.WithUnit("{request}"),
 	)
@@ -69,7 +69,7 @@ const osqueryHeaderAuthScheme = "NodeKey"
 //     not read.
 //   - Header absent, malformed, or wrong scheme: 401 with node_invalid:true,
 //     body not read.
-func osqueryHeaderPreAuth(svc fleet.Service, logger *slog.Logger) func(http.Handler) http.Handler {
+func osqueryHeaderPreAuth(svc automdm.Service, logger *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
@@ -143,7 +143,7 @@ func extractNodeKeyFromHeader(r *http.Request) string {
 //     ownership.
 //   - Header valid NodeKey + invalid token: 401, body not read.
 //   - Header absent or wrong scheme: 401, body not read.
-func osqueryCarveBlockHeaderPreAuth(svc fleet.Service, logger *slog.Logger) func(http.Handler) http.Handler {
+func osqueryCarveBlockHeaderPreAuth(svc automdm.Service, logger *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()

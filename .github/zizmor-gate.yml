@@ -8,7 +8,7 @@
 rules:
   # dogfood-gitops.yml uses pull_request_target deliberately, so the workflow, composite actions and
   # gitops.sh always run from main rather than from the PR while secrets are in the environment. The
-  # PR head is checked out to a separate path and only read as data by `fleetctl gitops --dry-run`,
+  # PR head is checked out to a separate path and only read as data by `automdmctl gitops --dry-run`,
   # fork PRs are skipped by the job `if:`, and GITHUB_TOKEN is read-only with credentials not
   # persisted. Any other workflow adopting a dangerous trigger still fails the gate.
   dangerous-triggers:
@@ -21,12 +21,12 @@ rules:
   # filename, so keep these names unique.
   misfeature:
     ignore:
-      - build-fleetctl-msi.yml
+      - build-automdmctl-msi.yml
       - code-sign-windows.yml
       - e2e-agent.yml
-      - fleet-and-orbit.yml
+      - automdm-and-orbit.yml
       - generate-osqueryd-targets.yml
-      - goreleaser-fleet.yaml
+      - goreleaser-automdm.yaml
   # The template-injection rule stays ENABLED so new workflows are checked, and we waive only the
   # workflows that carry the existing backlog (listed below). We audited every current finding by
   # trigger and source: none are reachable by untrusted input. There are no workflow_run /
@@ -46,11 +46,11 @@ rules:
   template-injection:
     ignore:
       - action.yml # .github/actions/r2-upload/action.yml (bash; env/inputs from trusted callers)
-      - build-fleetctl-msi.yml
-      - build-fleetctl-pkg.yml
-      - build-fleetd-base-msi.yml
-      - build-fleetd-base-pkg.yml
-      - build-fleetdm-fleetctl-check-vulnerabilities.yml
+      - build-automdmctl-msi.yml
+      - build-automdmctl-pkg.yml
+      - build-automdmd-base-msi.yml
+      - build-automdmd-base-pkg.yml
+      - build-automdm-automdmctl-check-vulnerabilities.yml
       - check-vulnerabilities-in-released-docker-images.yml
       - check-wix-vulnerabilities.yml
       - code-sign-windows.yml
@@ -58,24 +58,24 @@ rules:
       - dogfood-automated-policy-updates.yml
       - dogfood-update-testing-qa-apps.yml
       - e2e-agent.yml
-      - fleet-and-orbit.yml
+      - automdm-and-orbit.yml
       - generate-desktop-targets.yml
       - golangci-lint.yml
-      - goreleaser-fleet.yaml
+      - goreleaser-automdm.yaml
       - goreleaser-orbit.yaml
-      - goreleaser-snapshot-fleet.yaml
+      - goreleaser-snapshot-automdm.yaml
       - ingest-maintained-apps.yml
       - loadtest-infra.yml
       - loadtest-osquery-perf.yml
       - product-eng-handbook-summary.yml
       - publish-go-module.yml
       - randokiller-go.yml
-      - release-fleetd-base.yml
-      - release-fleetd-chrome-beta.yml
-      - release-fleetd-chrome.yml
+      - release-automdmd-base.yml
+      - release-automdmd-chrome-beta.yml
+      - release-automdmd-chrome.yml
       - tag-aging-bugs.yml
       - test-db-changes.yml
       - test-fma-darwin-pr-only.yml
       - test-fma-windows-pr-only.yml
       - test-go-suite.yaml
-      - verify-fleetd-base.yml
+      - verify-automdmd-base.yml

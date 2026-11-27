@@ -1,7 +1,7 @@
 name: Check for new Docker base image patch release
 
 # Checks daily whether a new patch release of the base image used by the
-# fleetdm/fleet Docker image (tools/fleet-docker/Dockerfile) is available. If so,
+# automdm/automdm Docker image (tools/automdm-docker/Dockerfile) is available. If so,
 # it replaces that pinned image reference (tag and digest) in every file of the
 # repo that uses it, and opens an automated PR.
 
@@ -25,7 +25,7 @@ permissions: {}
 
 env:
   # Source of truth for the current base image version.
-  DOCKERFILE: tools/fleet-docker/Dockerfile
+  DOCKERFILE: tools/automdm-docker/Dockerfile
 
 jobs:
   check-docker-base-image-patch-release:
@@ -33,7 +33,7 @@ jobs:
       contents: read
     # Only run from main: a manual dispatch from a feature branch would check
     # out that branch and open a PR against main from stale/unrelated content.
-    if: github.repository == 'fleetdm/fleet' && github.ref == 'refs/heads/main'
+    if: github.repository == 'automdm/automdm' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - name: Harden Runner
@@ -121,7 +121,7 @@ jobs:
           NEW_REF: ${{ steps.check.outputs.new_ref }}
         run: |
           # Replace the exact pinned reference everywhere it's used, so other
-          # Dockerfiles on the same base image stay in sync with the fleet image.
+          # Dockerfiles on the same base image stay in sync with the automdm image.
           mapfile -t files < <(git grep -l -F "$CURRENT_REF")
           if [[ ${#files[@]} -eq 0 ]]; then
             echo "No files reference $CURRENT_REF" >&2
@@ -144,7 +144,7 @@ jobs:
         if: steps.check.outputs.update_needed == 'true'
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
-          token: ${{ secrets.FLEET_RELEASE_GITHUB_PAT }}
+          token: ${{ secrets.AUTOMDM_RELEASE_GITHUB_PAT }}
           base: main
           branch: update-docker-base-image-${{ steps.check.outputs.image }}-${{ steps.check.outputs.new_version }}
           delete-branch: true
@@ -154,7 +154,7 @@ jobs:
           commit-message: |
             Update Docker base image to ${{ steps.check.outputs.image }}:${{ steps.check.outputs.new_version }} [automated]
           body: |
-            Automated change from [GitHub action](https://github.com/fleetdm/fleet/actions/workflows/check-docker-base-image-patch-release.yml).
+            Automated change from [GitHub action](https://github.com/anilyagiz/automdm/actions/workflows/check-docker-base-image-patch-release.yml).
 
             Updates the Docker base image from `${{ steps.check.outputs.image }}:${{ steps.check.outputs.current_version }}` to the latest patch release, `${{ steps.check.outputs.new_ref }}`, in:
 
@@ -166,13 +166,13 @@ jobs:
         with:
           payload: |
             {
-              "text": "${{ job.status }}\nhttps://github.com/fleetdm/fleet/actions/runs/${{ github.run_id }}",
+              "text": "${{ job.status }}\nhttps://github.com/anilyagiz/automdm/actions/runs/${{ github.run_id }}",
               "blocks": [
                 {
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "❌ The check Docker base image patch release workflow failed\nhttps://github.com/fleetdm/fleet/actions/runs/${{ github.run_id }}"
+                    "text": "❌ The check Docker base image patch release workflow failed\nhttps://github.com/anilyagiz/automdm/actions/runs/${{ github.run_id }}"
                   }
                 }
               ]

@@ -38,7 +38,7 @@ p {{ color: var(--muted); }}
 </style>
 <main>
   <h1>{title}</h1>
-  <p>This dashboard fills in after the routine's first run. Each run rebuilds it from your Fleet data.</p>
+  <p>This dashboard fills in after the routine's first run. Each run rebuilds it from your AutoMDM data.</p>
 </main>
 """
 

@@ -10,12 +10,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	activity_api "github.com/fleetdm/fleet/v4/server/activity/api"
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/service/externalsvc"
+	activity_api "github.com/anilyagiz/automdm/v4/server/activity/api"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/service/externalsvc"
 	zendesk "github.com/nukosuke/go-zendesk/zendesk"
 	"github.com/stretchr/testify/require"
 )
@@ -24,10 +24,10 @@ func TestZendeskOnFinalFailure(t *testing.T) {
 	ctx := t.Context()
 
 	t.Run("failing policy records activity", func(t *testing.T) {
-		var recorded []fleet.ActivityDetails
+		var recorded []automdm.ActivityDetails
 		z := &Zendesk{
 			Log: slog.New(slog.DiscardHandler),
-			NewActivitySvc: &mock.MockActivityService{NewActivityFunc: func(_ context.Context, user *activity_api.User, activity fleet.ActivityDetails) error {
+			NewActivitySvc: &mock.MockActivityService{NewActivityFunc: func(_ context.Context, user *activity_api.User, activity automdm.ActivityDetails) error {
 				require.Nil(t, user)
 				recorded = append(recorded, activity)
 				return nil
@@ -36,14 +36,14 @@ func TestZendeskOnFinalFailure(t *testing.T) {
 
 		args, err := json.Marshal(zendeskArgs{FailingPolicy: &failingPolicyArgs{
 			PolicyID: 6,
-			Hosts:    []fleet.PolicySetHost{{ID: 3, Hostname: "h3"}},
+			Hosts:    []automdm.PolicySetHost{{ID: 3, Hostname: "h3"}},
 		}})
 		require.NoError(t, err)
 
 		require.NoError(t, z.OnFinalFailure(ctx, args, `422: {"error":"RecordInvalid"}`))
 
 		require.Len(t, recorded, 1)
-		act, ok := recorded[0].(fleet.ActivityTypeFailedAutomationTicket)
+		act, ok := recorded[0].(automdm.ActivityTypeFailedAutomationTicket)
 		require.True(t, ok)
 		require.Equal(t, uint(6), act.PolicyID)
 		require.Equal(t, []uint{3}, act.HostIDList)
@@ -52,10 +52,10 @@ func TestZendeskOnFinalFailure(t *testing.T) {
 	})
 
 	t.Run("vuln job records nothing", func(t *testing.T) {
-		var recorded []fleet.ActivityDetails
+		var recorded []automdm.ActivityDetails
 		z := &Zendesk{
 			Log: slog.New(slog.DiscardHandler),
-			NewActivitySvc: &mock.MockActivityService{NewActivityFunc: func(_ context.Context, _ *activity_api.User, activity fleet.ActivityDetails) error {
+			NewActivitySvc: &mock.MockActivityService{NewActivityFunc: func(_ context.Context, _ *activity_api.User, activity automdm.ActivityDetails) error {
 				recorded = append(recorded, activity)
 				return nil
 			}},
@@ -71,9 +71,9 @@ func TestZendeskOnFinalFailure(t *testing.T) {
 
 func TestZendeskRunRecordsCreatedActivity(t *testing.T) {
 	ds := new(mock.Store)
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{Integrations: fleet.Integrations{
-			Zendesk: []*fleet.ZendeskIntegration{
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{Integrations: automdm.Integrations{
+			Zendesk: []*automdm.ZendeskIntegration{
 				{EnableFailingPolicies: true},
 			},
 		}}, nil
@@ -89,15 +89,15 @@ func TestZendeskRunRecordsCreatedActivity(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("failing policy records created activity", func(t *testing.T) {
-		var recorded []fleet.ActivityDetails
+		var recorded []automdm.ActivityDetails
 		z := &Zendesk{
-			FleetURL:  "https://fleetdm.com",
-			Datastore: ds,
-			Log:       slog.New(slog.DiscardHandler),
+			AutoMDMURL: "https://automdm.com",
+			Datastore:  ds,
+			Log:        slog.New(slog.DiscardHandler),
 			NewClientFunc: func(opts *externalsvc.ZendeskOptions) (ZendeskClient, error) {
 				return client, nil
 			},
-			NewActivitySvc: &mock.MockActivityService{NewActivityFunc: func(_ context.Context, user *activity_api.User, activity fleet.ActivityDetails) error {
+			NewActivitySvc: &mock.MockActivityService{NewActivityFunc: func(_ context.Context, user *activity_api.User, activity automdm.ActivityDetails) error {
 				require.Nil(t, user)
 				recorded = append(recorded, activity)
 				return nil
@@ -105,10 +105,10 @@ func TestZendeskRunRecordsCreatedActivity(t *testing.T) {
 		}
 
 		args := json.RawMessage(`{"failing_policy":{"policy_id":6,"policy_name":"p6","hosts":[{"id":3,"hostname":"h3"}]}}`)
-		require.NoError(t, z.Run(license.NewContext(context.Background(), &fleet.LicenseInfo{Tier: fleet.TierFree}), args))
+		require.NoError(t, z.Run(license.NewContext(context.Background(), &automdm.LicenseInfo{Tier: automdm.TierFree}), args))
 
 		require.Len(t, recorded, 1)
-		act, ok := recorded[0].(fleet.ActivityTypeRanAutomationTicket)
+		act, ok := recorded[0].(automdm.ActivityTypeRanAutomationTicket)
 		require.True(t, ok)
 		require.Equal(t, uint(6), act.PolicyID)
 		require.Equal(t, []uint{3}, act.HostIDList)
@@ -120,8 +120,8 @@ func TestZendeskRunRecordsCreatedActivity(t *testing.T) {
 
 func TestZendeskRun(t *testing.T) {
 	ds := new(mock.Store)
-	ds.HostsByCVEFunc = func(ctx context.Context, cve string) ([]fleet.HostVulnerabilitySummary, error) {
-		return []fleet.HostVulnerabilitySummary{
+	ds.HostsByCVEFunc = func(ctx context.Context, cve string) ([]automdm.HostVulnerabilitySummary, error) {
+		return []automdm.HostVulnerabilitySummary{
 			{
 				ID:       1,
 				Hostname: "test",
@@ -132,22 +132,22 @@ func TestZendeskRun(t *testing.T) {
 			},
 		}, nil
 	}
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{Integrations: fleet.Integrations{
-			Zendesk: []*fleet.ZendeskIntegration{
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{Integrations: automdm.Integrations{
+			Zendesk: []*automdm.ZendeskIntegration{
 				{EnableSoftwareVulnerabilities: true, EnableFailingPolicies: true},
 			},
 		}}, nil
 	}
-	ds.TeamLiteFunc = func(ctx context.Context, tid uint) (*fleet.TeamLite, error) {
+	ds.TeamLiteFunc = func(ctx context.Context, tid uint) (*automdm.TeamLite, error) {
 		if tid != 123 {
 			return nil, errors.New("unexpected team id")
 		}
-		return &fleet.TeamLite{
+		return &automdm.TeamLite{
 			ID: 123,
-			Config: fleet.TeamConfigLite{
-				Integrations: fleet.TeamIntegrations{
-					Zendesk: []*fleet.TeamZendeskIntegration{
+			Config: automdm.TeamConfigLite{
+				Integrations: automdm.TeamIntegrations{
+					Zendesk: []*automdm.TeamZendeskIntegration{
 						{EnableFailingPolicies: true},
 					},
 				},
@@ -200,7 +200,7 @@ func TestZendeskRun(t *testing.T) {
 	}{
 		{
 			"vuln free",
-			fleet.TierFree,
+			automdm.TierFree,
 			`{"vulnerability":{"cve":"CVE-1234-5678"}}`,
 			`"subject":"Vulnerability CVE-1234-5678 detected on 1 host(s)"`,
 			[]string{
@@ -212,7 +212,7 @@ func TestZendeskRun(t *testing.T) {
 		},
 		{
 			"vuln with scores free",
-			fleet.TierFree,
+			automdm.TierFree,
 			`{"vulnerability":{"cve":"CVE-1234-5678","epss_probability":3.4,"cvss_score":50,"cisa_known_exploit":true}}`,
 			`"subject":"Vulnerability CVE-1234-5678 detected on 1 host(s)"`,
 			[]string{
@@ -224,23 +224,23 @@ func TestZendeskRun(t *testing.T) {
 		},
 		{
 			"failing global policy",
-			fleet.TierFree,
+			automdm.TierFree,
 			`{"failing_policy":{"policy_id": 1, "policy_name": "test-policy", "hosts": [{"id": 123, "hostname": "host-123"}]}}`,
 			`"subject":"test-policy policy failed on 1 host(s)"`,
 			[]string{"\\u0026policy_id=1\\u0026policy_response=failing"},
-			"\\u0026fleet_id=",
+			"\\u0026team_id=",
 		},
 		{
 			"failing team policy",
-			fleet.TierPremium,
+			automdm.TierPremium,
 			`{"failing_policy":{"policy_id": 2, "policy_name": "test-policy-2", "team_id": 123, "hosts": [{"id": 1, "hostname": "host-1"}, {"id": 2, "hostname": "host-2"}]}}`,
 			`"subject":"test-policy-2 policy failed on 2 host(s)"`,
-			[]string{"\\u0026fleet_id=123\\u0026policy_id=2\\u0026policy_response=failing"},
+			[]string{"\\u0026team_id=123\\u0026policy_id=2\\u0026policy_response=failing"},
 			"",
 		},
 		{
 			"vuln premium",
-			fleet.TierPremium,
+			automdm.TierPremium,
 			`{"vulnerability":{"cve":"CVE-1234-5678"}}`,
 			`"subject":"Vulnerability CVE-1234-5678 detected on 1 host(s)"`,
 			[]string{
@@ -252,7 +252,7 @@ func TestZendeskRun(t *testing.T) {
 		},
 		{
 			"vuln with scores premium",
-			fleet.TierPremium,
+			automdm.TierPremium,
 			`{"vulnerability":{"cve":"CVE-1234-5678","epss_probability":3.4,"cvss_score":50,"cisa_known_exploit":true}}`,
 			`"subject":"Vulnerability CVE-1234-5678 detected on 1 host(s)"`,
 			[]string{
@@ -264,7 +264,7 @@ func TestZendeskRun(t *testing.T) {
 		},
 		{
 			"vuln with published date",
-			fleet.TierPremium,
+			automdm.TierPremium,
 			`{"vulnerability":{"cve":"CVE-1234-5678","cve_published":"2012-04-23T18:25:43.511Z","epss_probability":3.4,"cvss_score":50,"cisa_known_exploit":true}}`,
 			`"subject":"Vulnerability CVE-1234-5678 detected on 1 host(s)"`,
 			[]string{
@@ -279,13 +279,13 @@ func TestZendeskRun(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.desc, func(t *testing.T) {
 			zendesk := &Zendesk{
-				FleetURL:  "https://fleetdm.com",
-				Datastore: ds,
-				Log:       slog.New(slog.DiscardHandler),
+				AutoMDMURL: "https://automdm.com",
+				Datastore:  ds,
+				Log:        slog.New(slog.DiscardHandler),
 				NewClientFunc: func(opts *externalsvc.ZendeskOptions) (ZendeskClient, error) {
 					return client, nil
 				},
-				NewActivitySvc: &mock.MockActivityService{NewActivityFunc: func(_ context.Context, _ *activity_api.User, _ fleet.ActivityDetails) error {
+				NewActivitySvc: &mock.MockActivityService{NewActivityFunc: func(_ context.Context, _ *activity_api.User, _ automdm.ActivityDetails) error {
 					return nil
 				}},
 			}
@@ -293,7 +293,7 @@ func TestZendeskRun(t *testing.T) {
 			expectedSubject = c.expectedSubject
 			expectedDescription = c.expectedDescription
 			expectedNotInDescription = c.expectedNotInDescription
-			err = zendesk.Run(license.NewContext(context.Background(), &fleet.LicenseInfo{Tier: c.licenseTier}), json.RawMessage(c.payload))
+			err = zendesk.Run(license.NewContext(context.Background(), &automdm.LicenseInfo{Tier: c.licenseTier}), json.RawMessage(c.payload))
 			require.NoError(t, err)
 		})
 	}
@@ -306,11 +306,11 @@ func TestZendeskQueueVulnJobs(t *testing.T) {
 
 	t.Run("same vulnerability on multiple software only queue one job", func(t *testing.T) {
 		var count int
-		ds.NewJobFunc = func(ctx context.Context, job *fleet.Job) (*fleet.Job, error) {
+		ds.NewJobFunc = func(ctx context.Context, job *automdm.Job) (*automdm.Job, error) {
 			count++
 			return job, nil
 		}
-		vulns := []fleet.SoftwareVulnerability{{
+		vulns := []automdm.SoftwareVulnerability{{
 			CVE:        "CVE-1234-5678",
 			SoftwareID: 1,
 		}, {
@@ -323,9 +323,9 @@ func TestZendeskQueueVulnJobs(t *testing.T) {
 			CVE:        "CVE-1234-5678",
 			SoftwareID: 3,
 		}}
-		meta := make(map[string]fleet.CVEMeta, len(vulns))
+		meta := make(map[string]automdm.CVEMeta, len(vulns))
 		for _, v := range vulns {
-			meta[v.CVE] = fleet.CVEMeta{CVE: v.CVE}
+			meta[v.CVE] = automdm.CVEMeta{CVE: v.CVE}
 		}
 
 		err := QueueZendeskVulnJobs(ctx, ds, logger, vulns, meta)
@@ -335,27 +335,27 @@ func TestZendeskQueueVulnJobs(t *testing.T) {
 	})
 
 	t.Run("success", func(t *testing.T) {
-		ds.NewJobFunc = func(ctx context.Context, job *fleet.Job) (*fleet.Job, error) {
+		ds.NewJobFunc = func(ctx context.Context, job *automdm.Job) (*automdm.Job, error) {
 			return job, nil
 		}
 		theCVE := "CVE-1234-5678"
-		meta := map[string]fleet.CVEMeta{
+		meta := map[string]automdm.CVEMeta{
 			theCVE: {CVE: theCVE},
 		}
-		err := QueueZendeskVulnJobs(ctx, ds, logger, []fleet.SoftwareVulnerability{{CVE: theCVE}}, meta)
+		err := QueueZendeskVulnJobs(ctx, ds, logger, []automdm.SoftwareVulnerability{{CVE: theCVE}}, meta)
 		require.NoError(t, err)
 		require.True(t, ds.NewJobFuncInvoked)
 	})
 
 	t.Run("failure", func(t *testing.T) {
-		ds.NewJobFunc = func(ctx context.Context, job *fleet.Job) (*fleet.Job, error) {
+		ds.NewJobFunc = func(ctx context.Context, job *automdm.Job) (*automdm.Job, error) {
 			return nil, io.EOF
 		}
 		theCVE := "CVE-1234-5678"
-		meta := map[string]fleet.CVEMeta{
+		meta := map[string]automdm.CVEMeta{
 			theCVE: {CVE: theCVE},
 		}
-		err := QueueZendeskVulnJobs(ctx, ds, logger, []fleet.SoftwareVulnerability{{CVE: theCVE}}, meta)
+		err := QueueZendeskVulnJobs(ctx, ds, logger, []automdm.SoftwareVulnerability{{CVE: theCVE}}, meta)
 		require.Error(t, err)
 		require.ErrorIs(t, err, io.EOF)
 		require.True(t, ds.NewJobFuncInvoked)
@@ -368,35 +368,35 @@ func TestZendeskQueueFailingPolicyJob(t *testing.T) {
 	logger := slog.New(slog.DiscardHandler)
 
 	t.Run("success global", func(t *testing.T) {
-		ds.NewJobFunc = func(ctx context.Context, job *fleet.Job) (*fleet.Job, error) {
+		ds.NewJobFunc = func(ctx context.Context, job *automdm.Job) (*automdm.Job, error) {
 			require.NotContains(t, string(*job.Args), `"team_id"`)
 			return job, nil
 		}
 		err := QueueZendeskFailingPolicyJob(ctx, ds, logger,
-			&fleet.Policy{PolicyData: fleet.PolicyData{ID: 1, Name: "p1"}}, []fleet.PolicySetHost{{ID: 1, Hostname: "h1"}})
+			&automdm.Policy{PolicyData: automdm.PolicyData{ID: 1, Name: "p1"}}, []automdm.PolicySetHost{{ID: 1, Hostname: "h1"}})
 		require.NoError(t, err)
 		require.True(t, ds.NewJobFuncInvoked)
 		ds.NewJobFuncInvoked = false
 	})
 
 	t.Run("success team", func(t *testing.T) {
-		ds.NewJobFunc = func(ctx context.Context, job *fleet.Job) (*fleet.Job, error) {
+		ds.NewJobFunc = func(ctx context.Context, job *automdm.Job) (*automdm.Job, error) {
 			require.Contains(t, string(*job.Args), `"team_id"`)
 			return job, nil
 		}
 		err := QueueZendeskFailingPolicyJob(ctx, ds, logger,
-			&fleet.Policy{PolicyData: fleet.PolicyData{ID: 1, Name: "p1", TeamID: ptr.Uint(2)}}, []fleet.PolicySetHost{{ID: 1, Hostname: "h1"}})
+			&automdm.Policy{PolicyData: automdm.PolicyData{ID: 1, Name: "p1", TeamID: ptr.Uint(2)}}, []automdm.PolicySetHost{{ID: 1, Hostname: "h1"}})
 		require.NoError(t, err)
 		require.True(t, ds.NewJobFuncInvoked)
 		ds.NewJobFuncInvoked = false
 	})
 
 	t.Run("failure", func(t *testing.T) {
-		ds.NewJobFunc = func(ctx context.Context, job *fleet.Job) (*fleet.Job, error) {
+		ds.NewJobFunc = func(ctx context.Context, job *automdm.Job) (*automdm.Job, error) {
 			return nil, io.EOF
 		}
 		err := QueueZendeskFailingPolicyJob(ctx, ds, logger,
-			&fleet.Policy{PolicyData: fleet.PolicyData{ID: 1, Name: "p1"}}, []fleet.PolicySetHost{{ID: 1, Hostname: "h1"}})
+			&automdm.Policy{PolicyData: automdm.PolicyData{ID: 1, Name: "p1"}}, []automdm.PolicySetHost{{ID: 1, Hostname: "h1"}})
 		require.Error(t, err)
 		require.ErrorIs(t, err, io.EOF)
 		require.True(t, ds.NewJobFuncInvoked)
@@ -404,11 +404,11 @@ func TestZendeskQueueFailingPolicyJob(t *testing.T) {
 	})
 
 	t.Run("no host", func(t *testing.T) {
-		ds.NewJobFunc = func(ctx context.Context, job *fleet.Job) (*fleet.Job, error) {
+		ds.NewJobFunc = func(ctx context.Context, job *automdm.Job) (*automdm.Job, error) {
 			return job, nil
 		}
 		err := QueueZendeskFailingPolicyJob(ctx, ds, logger,
-			&fleet.Policy{PolicyData: fleet.PolicyData{ID: 1, Name: "p1"}}, []fleet.PolicySetHost{})
+			&automdm.Policy{PolicyData: automdm.PolicyData{ID: 1, Name: "p1"}}, []automdm.PolicySetHost{})
 		require.NoError(t, err)
 		require.False(t, ds.NewJobFuncInvoked)
 		ds.NewJobFuncInvoked = false
@@ -434,11 +434,11 @@ func TestZendeskRunClientUpdate(t *testing.T) {
 	ds := new(mock.Store)
 
 	var globalCount int
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
 		// failing policies is globally enabled
 		globalCount++
-		return &fleet.AppConfig{Integrations: fleet.Integrations{
-			Zendesk: []*fleet.ZendeskIntegration{
+		return &automdm.AppConfig{Integrations: automdm.Integrations{
+			Zendesk: []*automdm.ZendeskIntegration{
 				{GroupID: 0, EnableFailingPolicies: true},
 				{GroupID: 1, EnableFailingPolicies: false}, // the team integration will use the group IDs 1-3
 				{GroupID: 2, EnableFailingPolicies: false},
@@ -447,11 +447,11 @@ func TestZendeskRunClientUpdate(t *testing.T) {
 		}}, nil
 	}
 
-	teamCfg := &fleet.TeamLite{
+	teamCfg := &automdm.TeamLite{
 		ID: 123,
-		Config: fleet.TeamConfigLite{
-			Integrations: fleet.TeamIntegrations{
-				Zendesk: []*fleet.TeamZendeskIntegration{
+		Config: automdm.TeamConfigLite{
+			Integrations: automdm.TeamIntegrations{
+				Zendesk: []*automdm.TeamZendeskIntegration{
 					{GroupID: 1, EnableFailingPolicies: true},
 				},
 			},
@@ -459,7 +459,7 @@ func TestZendeskRunClientUpdate(t *testing.T) {
 	}
 
 	var teamCount int
-	ds.TeamLiteFunc = func(ctx context.Context, tid uint) (*fleet.TeamLite, error) {
+	ds.TeamLiteFunc = func(ctx context.Context, tid uint) (*automdm.TeamLite, error) {
 		teamCount++
 
 		if tid != 123 {
@@ -473,12 +473,12 @@ func TestZendeskRunClientUpdate(t *testing.T) {
 		if zendesk0.GroupID == 1 {
 			// the second time we change the project key
 			zendesk0.GroupID = 2
-			teamCfg.Config.Integrations.Zendesk = []*fleet.TeamZendeskIntegration{&zendesk0}
+			teamCfg.Config.Integrations.Zendesk = []*automdm.TeamZendeskIntegration{&zendesk0}
 		} else if zendesk0.GroupID == 2 {
 			// the third time we disable it altogether
 			zendesk0.GroupID = 3
 			zendesk0.EnableFailingPolicies = false
-			teamCfg.Config.Integrations.Zendesk = []*fleet.TeamZendeskIntegration{&zendesk0}
+			teamCfg.Config.Integrations.Zendesk = []*automdm.TeamZendeskIntegration{&zendesk0}
 		}
 		return &curCfg, nil
 	}
@@ -486,9 +486,9 @@ func TestZendeskRunClientUpdate(t *testing.T) {
 	var groupIDs []int64
 	var clients []*mockZendeskClient
 	zendeskJob := &Zendesk{
-		FleetURL:  "http://example.com",
-		Datastore: ds,
-		Log:       slog.New(slog.DiscardHandler),
+		AutoMDMURL: "http://example.com",
+		Datastore:  ds,
+		Log:        slog.New(slog.DiscardHandler),
 		NewClientFunc: func(opts *externalsvc.ZendeskOptions) (ZendeskClient, error) {
 			// keep track of group IDs received in calls to NewClientFunc
 			groupIDs = append(groupIDs, opts.GroupID)
@@ -496,12 +496,12 @@ func TestZendeskRunClientUpdate(t *testing.T) {
 			clients = append(clients, c)
 			return c, nil
 		},
-		NewActivitySvc: &mock.MockActivityService{NewActivityFunc: func(_ context.Context, _ *activity_api.User, _ fleet.ActivityDetails) error {
+		NewActivitySvc: &mock.MockActivityService{NewActivityFunc: func(_ context.Context, _ *activity_api.User, _ automdm.ActivityDetails) error {
 			return nil
 		}},
 	}
 
-	ctx := license.NewContext(context.Background(), &fleet.LicenseInfo{Tier: fleet.TierFree})
+	ctx := license.NewContext(context.Background(), &automdm.LicenseInfo{Tier: automdm.TierFree})
 
 	// run it globally - it is enabled and will not change
 	err := zendeskJob.Run(ctx, json.RawMessage(`{"failing_policy":{"policy_id": 1, "policy_name": "test-policy", "hosts": []}}`))

@@ -64,7 +64,7 @@ const MainContent = ({
   } = useContext(AppContext);
 
   const renderAppWideBanner = () => {
-    const isFleetLicenseExpired = hasLicenseExpired(
+    const isAutoMDMLicenseExpired = hasLicenseExpired(
       config?.license.expiration || ""
     );
 
@@ -95,7 +95,7 @@ const MainContent = ({
         banner = <EJBCACertRenewalMessage expired={isEJBCACertExpired} />;
       } else if (config?.mdm.microsoft_graph_credential_invalid) {
         banner = <MicrosoftGraphCredentialInvalidMessage />;
-      } else if (isFleetLicenseExpired) {
+      } else if (isAutoMDMLicenseExpired) {
         banner = <LicenseExpirationBanner />;
       } else if (
         !pageHasBanner &&

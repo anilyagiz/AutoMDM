@@ -7,7 +7,7 @@ controls: # Controls added to "No team"
     configuration_profiles:
       - path: ./lib/windows-screenlock.xml
   scripts:
-    - path: ./lib/collect-fleetd-logs.sh
+    - path: ./lib/collect-automdmd-logs.sh
   enable_disk_encryption: true
   macos_recovery_lock_password_enabled: true
   macos_migration:
@@ -119,9 +119,9 @@ org_settings:
     live_reporting_disabled: false
     report_cap: 2000
     discard_reports_data: false
-    server_url: https://fleet.example.com
+    server_url: https://automdm.example.com
   org_info:
-    contact_url: https://fleetdm.com/company/contact
+    contact_url: https://automdm.com/company/contact
     org_logo_url_dark_mode: ""
     org_logo_url_light_mode: ""
     org_name: Fleet Device Management
@@ -156,8 +156,8 @@ org_settings:
         enable_failing_policies: true
         enable_software_vulnerabilities: false
         project_key: JIR
-        url: https://fleetdm.atlassian.net
-        username: reed@fleetdm.com
+        url: https://automdm.atlassian.net
+        username: reed@automdm.com
     zendesk: []
   mdm:
     end_user_authentication:
@@ -181,8 +181,8 @@ org_settings:
       destination_url: ""
       enable_vulnerabilities_webhook: false
       host_batch_size: 0
-  fleet_desktop: # Applies to Fleet Premium only
-    transparency_url: https://fleetdm.com/transparency
+  automdm_desktop: # Applies to AutoMDM Premium only
+    transparency_url: https://automdm.com/transparency
   host_expiry_settings: # Applies to all teams
     host_expiry_enabled: false
   activity_expiry_settings:

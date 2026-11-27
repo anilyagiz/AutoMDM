@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # Antigravity IDE installs per user and has no machine-wide mode (setup ignores
 # /ALLUSERS), so installing it from this script's SYSTEM context would put it in
@@ -8,7 +8,7 @@
 # SYSTEM's profile.
 
 $exeFilePath = "${env:INSTALLER_PATH}"
-$taskName = "fleet-install-antigravity-ide"
+$taskName = "automdm-install-antigravity-ide"
 $appId = "{AA73B3E3-C6C8-45C8-B1DC-4AE56C751432}_is1"
 $taskRunning = 267009  # SCHED_S_TASK_RUNNING
 $exitCode = 0
@@ -76,7 +76,7 @@ try {
         $running | Wait-Process -Timeout 30 -ErrorAction SilentlyContinue
     }
 
-    # Fleet's installer directory is not readable by that user, so stage a copy in
+    # AutoMDM's installer directory is not readable by that user, so stage a copy in
     # a new folder only SYSTEM and Administrators can write to.
     $security = New-Object System.Security.AccessControl.DirectorySecurity
     $security.SetAccessRuleProtection($true, $false)
@@ -85,7 +85,7 @@ try {
             (New-Object System.Security.Principal.SecurityIdentifier($grant[0])), $grant[1],
             "ContainerInherit, ObjectInherit", "None", "Allow")))
     }
-    $stageDir = Join-Path $env:ProgramData ("fleet-antigravity-ide-" + [guid]::NewGuid().ToString("N"))
+    $stageDir = Join-Path $env:ProgramData ("automdm-antigravity-ide-" + [guid]::NewGuid().ToString("N"))
     [void][System.IO.Directory]::CreateDirectory($stageDir, $security)
     $stagedInstaller = Join-Path $stageDir (Split-Path $exeFilePath -Leaf)
     Copy-Item -LiteralPath $exeFilePath -Destination $stagedInstaller -Force -ErrorAction Stop

@@ -12,7 +12,7 @@ const render = createCustomRenderer({
 
 describe("Host Details Banners", () => {
   const logOutExpectedText = /Disk encryption: Requires action from the end user\. Ask the end user to log out of their device or restart it\./;
-  const turnOnEncryptionExpectedText = /Disk encryption: Disk encryption is off, and this host's fleet doesn't enforce it\. Fleet will store the recovery key when the end user turns on FileVault\./;
+  const turnOnEncryptionExpectedText = /Disk encryption: Disk encryption is off, and this host's team doesn't enforce it\. AutoMDM will store the recovery key when the end user turns on FileVault\./;
   const myDeviceInstructionsText = /Disk encryption: Requires action from the end user\. Ask the user to follow/;
 
   it("tells the admin to ask the end user to log out when FileVault is deferred to the next login", () => {
@@ -20,8 +20,8 @@ describe("Host Details Banners", () => {
       <HostDetailsBanners
         hostPlatform="darwin"
         mdmEnrollmentStatus="On (automatic)"
-        connectedToFleetMdm
-        depAssignedToFleet={false}
+        connectedToAutoMDMMdm
+        depAssignedToAutoMDM={false}
         onlyAllowAppleBusinessEnrollment={false}
         macDiskEncryptionStatus="action_required"
         diskEncryptionActionRequired="log_out"
@@ -34,13 +34,13 @@ describe("Host Details Banners", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("tells the admin to ask the end user to log out when Fleet has no usable key", () => {
+  it("tells the admin to ask the end user to log out when AutoMDM has no usable key", () => {
     render(
       <HostDetailsBanners
         hostPlatform="darwin"
         mdmEnrollmentStatus="On (company-owned)"
-        connectedToFleetMdm
-        depAssignedToFleet={false}
+        connectedToAutoMDMMdm
+        depAssignedToAutoMDM={false}
         onlyAllowAppleBusinessEnrollment={false}
         macDiskEncryptionStatus="action_required"
         diskEncryptionActionRequired="rotate_key"
@@ -50,13 +50,13 @@ describe("Host Details Banners", () => {
     expect(screen.getByText(logOutExpectedText)).toBeInTheDocument();
   });
 
-  it("tells the admin the fleet doesn't enforce disk encryption when the disk is off", () => {
+  it("tells the admin the team doesn't enforce disk encryption when the disk is off", () => {
     render(
       <HostDetailsBanners
         hostPlatform="darwin"
         mdmEnrollmentStatus="On (manual)"
-        connectedToFleetMdm
-        depAssignedToFleet={false}
+        connectedToAutoMDMMdm
+        depAssignedToAutoMDM={false}
         onlyAllowAppleBusinessEnrollment={false}
         macDiskEncryptionStatus="action_required"
         diskEncryptionActionRequired="turn_on_encryption"
@@ -72,8 +72,8 @@ describe("Host Details Banners", () => {
       <HostDetailsBanners
         hostPlatform="darwin"
         mdmEnrollmentStatus="On (manual)"
-        connectedToFleetMdm
-        depAssignedToFleet={false}
+        connectedToAutoMDMMdm
+        depAssignedToAutoMDM={false}
         onlyAllowAppleBusinessEnrollment={false}
         macDiskEncryptionStatus="action_required"
       />
@@ -90,8 +90,8 @@ describe("Host Details Banners", () => {
       <HostDetailsBanners
         hostPlatform="darwin"
         mdmEnrollmentStatus="On (automatic)"
-        connectedToFleetMdm
-        depAssignedToFleet={false}
+        connectedToAutoMDMMdm
+        depAssignedToAutoMDM={false}
         onlyAllowAppleBusinessEnrollment={false}
         macDiskEncryptionStatus="verifying"
       />
@@ -108,8 +108,8 @@ describe("Host Details Banners", () => {
       <HostDetailsBanners
         hostPlatform="windows"
         mdmEnrollmentStatus="On (manual)"
-        connectedToFleetMdm
-        depAssignedToFleet={false}
+        connectedToAutoMDMMdm
+        depAssignedToAutoMDM={false}
         onlyAllowAppleBusinessEnrollment={false}
         macDiskEncryptionStatus={null}
         diskEncryptionOSSetting={{
@@ -128,8 +128,8 @@ describe("Host Details Banners", () => {
       <HostDetailsBanners
         hostPlatform="windows"
         mdmEnrollmentStatus="On (manual)"
-        connectedToFleetMdm
-        depAssignedToFleet={false}
+        connectedToAutoMDMMdm
+        depAssignedToAutoMDM={false}
         onlyAllowAppleBusinessEnrollment={false}
         macDiskEncryptionStatus={null}
         diskEncryptionOSSetting={{
@@ -152,14 +152,14 @@ describe("Host Details Banners", () => {
       <HostDetailsBanners
         hostPlatform="windows"
         mdmEnrollmentStatus="On (manual)"
-        connectedToFleetMdm
-        depAssignedToFleet={false}
+        connectedToAutoMDMMdm
+        depAssignedToAutoMDM={false}
         onlyAllowAppleBusinessEnrollment={false}
         macDiskEncryptionStatus={null}
         diskEncryptionOSSetting={{
           status: "action_required",
           detail:
-            "BitLocker protection is off. Fleet could not turn it back on: the TPM is not ready",
+            "BitLocker protection is off. AutoMDM could not turn it back on: the TPM is not ready",
         }}
       />
     );
@@ -176,8 +176,8 @@ describe("Host Details Banners", () => {
       <HostDetailsBanners
         hostPlatform="darwin"
         mdmEnrollmentStatus="Off"
-        connectedToFleetMdm
-        depAssignedToFleet={false}
+        connectedToAutoMDMMdm
+        depAssignedToAutoMDM={false}
         onlyAllowAppleBusinessEnrollment={false}
         macDiskEncryptionStatus={null}
         detailUpdatedAt="0001-01-01T00:00:00Z"
@@ -194,8 +194,8 @@ describe("Host Details Banners", () => {
       <HostDetailsBanners
         hostPlatform="darwin"
         mdmEnrollmentStatus="Off"
-        connectedToFleetMdm
-        depAssignedToFleet={false}
+        connectedToAutoMDMMdm
+        depAssignedToAutoMDM={false}
         onlyAllowAppleBusinessEnrollment={false}
         macDiskEncryptionStatus={null}
         detailUpdatedAt="2025-01-15T10:00:00Z"

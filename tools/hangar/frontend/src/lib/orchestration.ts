@@ -1,4 +1,4 @@
-// Start/Stop-all logic for the Fleet dev environment, scoped to one server.
+// Start/Stop-all logic for the AutoMDM dev environment, scoped to one server.
 // Extracted from MasterControl so the tray menu can drive the same flows
 // without duplicating chain ordering / skip-if-running rules.
 //
@@ -125,17 +125,17 @@ export function staleNgrokTunnels(
   return settings.ngrok.default_tunnels.filter((n) => !available.has(n));
 }
 
-/// Single-spawn helper: kicks off `fleet serve --dev` for one server without
+/// Single-spawn helper: kicks off `automdm serve --dev` for one server without
 /// the docker / prepare-db prerequisites that startAll handles. Suitable when
 /// the rest of the stack is already up (e.g. restarting serve after a restore).
 /// mockUrl is the server's running mock APNs (apnsMockLiveUrl), or null.
 export async function startServe(server: ServerProfile, mockUrl: string | null): Promise<void> {
   if (!server.worktree_path) throw new Error("server has no worktree configured");
   await api.startProcess({
-    id: procId(server.id, "fleet-serve"),
+    id: procId(server.id, "automdm-serve"),
     label: serveLabelFor(server),
     cwd: server.worktree_path,
-    program: "./build/fleet",
+    program: "./build/automdm",
     args: serveArgsFor(server),
     log_channel: serveChannel(server.id),
     env: serveEnvFor(server, mockUrl).length > 0 ? serveEnvFor(server, mockUrl) : null,
@@ -188,13 +188,13 @@ export async function startAll(args: StartAllArgs): Promise<void> {
   // Re-prepare db only on a cold boot.
   if (dockerWasDown) {
     await api.startProcess({
-      id: procId(server.id, "fleet-prepare-db"),
-      label: "fleet prepare db --dev",
+      id: procId(server.id, "automdm-prepare-db"),
+      label: "automdm prepare db --dev",
       cwd,
-      program: "./build/fleet",
+      program: "./build/automdm",
       args: prepareDbArgsFor(server),
     });
-    const ok = await waitForExit(procId(server.id, "fleet-prepare-db"));
+    const ok = await waitForExit(procId(server.id, "automdm-prepare-db"));
     if (!ok) return;
   }
   if (!health.serveUp) {
@@ -224,19 +224,19 @@ export async function startAll(args: StartAllArgs): Promise<void> {
 }
 
 /// Starts this server's mock APNs for osquery-perf, then restarts a running
-/// fleet serve that isn't pushing to it: Fleet reads the push URL only at
+/// automdm serve that isn't pushing to it: AutoMDM reads the push URL only at
 /// startup. The mock needs the server's Redis; pushes sent before it listens
-/// are retried by Fleet's apns_push_to_pending_hosts cron.
+/// are retried by AutoMDM's apns_push_to_pending_hosts cron.
 export async function startApnsMockFor(
   server: ServerProfile,
   settings: Settings,
   procs: ProcInfo[],
 ): Promise<void> {
   const mock = apnsMockStartArgs(server, settings);
-  if (!mock) throw new Error("set server 1's Fleet repo first: the mock runs from it");
+  if (!mock) throw new Error("set server 1's AutoMDM repo first: the mock runs from it");
   await api.startProcess(mock);
   const url = apnsMockUrl(server);
-  const serveId = procId(server.id, "fleet-serve");
+  const serveId = procId(server.id, "automdm-serve");
   const serve = procs.find((p) => p.id === serveId && (p.state === "running" || p.state === "stopping"));
   if (serve && serveNeedsRestartForApns(server, serve, url)) {
     await api.stopProcess(serveId);
@@ -265,7 +265,7 @@ export async function stopAll(args: StopAllArgs): Promise<void> {
   }
   if (health.serveUp) {
     try {
-      await api.stopProcess(procId(server.id, "fleet-serve"));
+      await api.stopProcess(procId(server.id, "automdm-serve"));
     } catch {}
   }
   if (health.apnsMockRunning) {

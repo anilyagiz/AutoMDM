@@ -16,12 +16,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/logging"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/platform/endpointer"
-	platform_http "github.com/fleetdm/fleet/v4/server/platform/http"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/logging"
+	"github.com/anilyagiz/automdm/v4/server/platform/endpointer"
+	platform_http "github.com/anilyagiz/automdm/v4/server/platform/http"
 	jwt "github.com/golang-jwt/jwt/v4"
 	"github.com/stretchr/testify/require"
 )
@@ -42,7 +42,7 @@ func TestPSSOOIDCROPGClientIdPErrors(t *testing.T) {
 		}
 	}
 	isAuthFailed := func(err error) bool {
-		var authErr *fleet.AuthFailedError
+		var authErr *automdm.AuthFailedError
 		return errors.As(err, &authErr)
 	}
 
@@ -128,7 +128,7 @@ func TestPSSOOIDCROPGClientVerifyConfig(t *testing.T) {
 	wants := map[string]struct{ field, message string }{
 		"client_credentials": {settingField, "rejected the client ID or client secret"},
 		"app_setup":          {settingField, "didn't let this app sign users in with a password"},
-		"unexpected":         {settingField, "rejected Fleet's test sign-in"},
+		"unexpected":         {settingField, "rejected AutoMDM's test sign-in"},
 		"token_url":          {urlField, "didn't return an OAuth response (HTTP"},
 		"token_url_token":    {urlField, "returned a token for " + ropgVerifyUsername},
 		"token_url_status":   {urlField, "didn't return an OAuth error"},
@@ -183,7 +183,7 @@ func TestPSSOOIDCROPGClientVerifyConfig(t *testing.T) {
 				}
 				want, ok := wants[tc.Want]
 				require.True(t, ok, "unknown want %q in %s", tc.Want, file)
-				var invalid *fleet.InvalidArgumentError
+				var invalid *automdm.InvalidArgumentError
 				require.ErrorAs(t, err, &invalid)
 				require.Contains(t, err.Error(), want.field+" ")
 				require.Contains(t, err.Error(), want.message)
@@ -196,7 +196,7 @@ func TestPSSOOIDCROPGClientVerifyConfig(t *testing.T) {
 func TestPSSOOIDCROPGClientVerifyConfigUnreachable(t *testing.T) {
 	verify := func(t *testing.T, tokenURL string, client *http.Client) string {
 		err := PSSOOIDCROPGClient{TokenURL: tokenURL, ClientID: "client", ClientSecret: "secret", HTTPClient: client}.VerifyConfig(t.Context())
-		var invalid *fleet.InvalidArgumentError
+		var invalid *automdm.InvalidArgumentError
 		require.ErrorAs(t, err, &invalid)
 		require.Contains(t, err.Error(), "mdm.apple_account_provisioning.oauth_idp_token_url ")
 		// Go's raw network errors name resolvers and internal hosts.
@@ -207,14 +207,14 @@ func TestPSSOOIDCROPGClientVerifyConfigUnreachable(t *testing.T) {
 	}
 
 	t.Run("unknown host", func(t *testing.T) {
-		transport := fleethttp.NewTransport()
+		transport := automdmhttp.NewTransport()
 		transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
 			return nil, &net.DNSError{Err: "no such host", Name: "idp.invalid", Server: "10.0.0.53:53", IsNotFound: true}
 		}
-		client := fleethttp.NewClient()
+		client := automdmhttp.NewClient()
 		client.Transport = transport
 		msg := verify(t, "https://idp.invalid/oauth2/v1/token", client)
-		require.Contains(t, msg, "Fleet couldn't find the host idp.invalid.")
+		require.Contains(t, msg, "AutoMDM couldn't find the host idp.invalid.")
 		require.NotContains(t, msg, "10.0.0.53")
 	})
 
@@ -222,14 +222,14 @@ func TestPSSOOIDCROPGClientVerifyConfigUnreachable(t *testing.T) {
 		srv := httptest.NewServer(http.NotFoundHandler())
 		srv.Close()
 		msg := verify(t, srv.URL, nil)
-		require.Contains(t, msg, "Fleet couldn't connect to "+strings.TrimPrefix(srv.URL, "http://"))
+		require.Contains(t, msg, "AutoMDM couldn't connect to "+strings.TrimPrefix(srv.URL, "http://"))
 	})
 
 	t.Run("untrusted certificate", func(t *testing.T) {
 		srv := httptest.NewTLSServer(http.NotFoundHandler())
 		t.Cleanup(srv.Close)
 		msg := verify(t, srv.URL, nil)
-		require.Contains(t, msg, "Fleet couldn't verify the TLS certificate of "+strings.TrimPrefix(srv.URL, "https://"))
+		require.Contains(t, msg, "AutoMDM couldn't verify the TLS certificate of "+strings.TrimPrefix(srv.URL, "https://"))
 	})
 
 	t.Run("IdP slower than the timeout", func(t *testing.T) {

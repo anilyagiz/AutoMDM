@@ -122,7 +122,7 @@ const ActivityFeedAutomationsModal = ({
             documentation for{" "}
             {
               <CustomLink
-                url="https://fleetdm.com/learn-more-about/audit-logs"
+                url="https://automdm.com/learn-more-about/audit-logs"
                 text="audit logs"
                 newTab
               />
@@ -159,7 +159,7 @@ const ActivityFeedAutomationsModal = ({
             name="url"
             value={formData.url}
             error={formErrors.url}
-            helpText="Fleet will send a JSON payload to this URL whenever a new activity is generated."
+            helpText="AutoMDM will send a JSON payload to this URL whenever a new activity is generated."
             disabled={!formData.enabled || gitOpsModeEnabled}
           />
         </div>

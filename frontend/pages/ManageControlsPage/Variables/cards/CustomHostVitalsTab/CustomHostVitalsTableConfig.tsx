@@ -9,7 +9,7 @@ import TooltipTruncatedTextCell from "components/TableContainer/DataTable/Toolti
 import { ICustomHostVital } from "interfaces/custom_host_vitals";
 
 export const getTokenFromVitalId = (id: number): string =>
-  `$FLEET_HOST_VITAL_${id}`;
+  `$AUTOMDM_HOST_VITAL_${id}`;
 
 interface IHeaderProps {
   column: {

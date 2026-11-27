@@ -16,13 +16,13 @@ import (
 	"strings"
 	"time"
 
-	maintained_apps "github.com/fleetdm/fleet/v4/ee/maintained-apps"
-	external_refs "github.com/fleetdm/fleet/v4/ee/maintained-apps/ingesters/homebrew/external_refs"
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/pkg/optjson"
-	"github.com/fleetdm/fleet/v4/pkg/patch_policy"
-	"github.com/fleetdm/fleet/v4/pkg/retry"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
+	maintained_apps "github.com/anilyagiz/automdm/v4/ee/maintained-apps"
+	external_refs "github.com/anilyagiz/automdm/v4/ee/maintained-apps/ingesters/homebrew/external_refs"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/pkg/optjson"
+	"github.com/anilyagiz/automdm/v4/pkg/patch_policy"
+	"github.com/anilyagiz/automdm/v4/pkg/retry"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 )
 
 func IngestApps(ctx context.Context, logger *slog.Logger, inputsPath, slugFilter string) ([]*maintained_apps.FMAManifestApp, error) {
@@ -37,7 +37,7 @@ func IngestApps(ctx context.Context, logger *slog.Logger, inputsPath, slugFilter
 		baseURL:          baseBrewAPIURL,
 		buildhubURL:      buildhubAPIURL,
 		logger:           logger,
-		client:           fleethttp.NewClient(fleethttp.WithTimeout(10 * time.Second)),
+		client:           automdmhttp.NewClient(automdmhttp.WithTimeout(10 * time.Second)),
 		retryInterval:    2 * time.Second,
 		retryMaxAttempts: 5,
 	}
@@ -395,7 +395,7 @@ func (i *brewIngester) ingestOne(ctx context.Context, input inputApp) (*maintain
 	if input.Token == "munki" {
 		// Managed Software Center.app isn't rebuilt on every munkitools release
 		// (7.4.0 and 7.4.1 both ship it as 7.4.0.5891), so its version usually lags
-		// the cask's. The version must be the app's: Fleet flags "Update available"
+		// the cask's. The version must be the app's: AutoMDM flags "Update available"
 		// when inventory reports less than the installer version, which would stick
 		// on up-to-date hosts. The patched query compares the core receipt instead,
 		// which changes every release. Both come from the installer itself. An

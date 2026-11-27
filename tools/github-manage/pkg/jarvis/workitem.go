@@ -64,7 +64,7 @@ type WorkItem struct {
 	Next      Action
 }
 
-// status keyword tests. Fleet's board uses "Ready", "In progress", "In review",
+// status keyword tests. AutoMDM's board uses "Ready", "In progress", "In review",
 // "Awaiting QA"; we match on the distinguishing substring so casing/wording drift
 // doesn't matter. "Ready" deliberately doesn't contain "review".
 func statusHas(s, sub string) bool { return strings.Contains(strings.ToLower(s), sub) }

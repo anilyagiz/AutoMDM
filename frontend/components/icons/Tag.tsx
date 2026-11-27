@@ -8,7 +8,7 @@ interface ITagProps {
   size?: IconSizes;
 }
 
-const Tag = ({ color = "ui-fleet-black-75", size = "medium" }: ITagProps) => {
+const Tag = ({ color = "ui-automdm-black-75", size = "medium" }: ITagProps) => {
   return (
     <svg
       width={ICON_SIZES[size]}

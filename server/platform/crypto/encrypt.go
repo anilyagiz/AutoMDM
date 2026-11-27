@@ -1,4 +1,4 @@
-// Package crypto provides shared encryption utilities for Fleet.
+// Package crypto provides shared encryption utilities for AutoMDM.
 package crypto
 
 import (

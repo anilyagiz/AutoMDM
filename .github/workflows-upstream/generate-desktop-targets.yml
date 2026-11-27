@@ -1,4 +1,4 @@
-name: Generate Fleet Desktop targets for Orbit
+name: Generate AutoMDM Desktop targets for Orbit
 
 on:
   push:
@@ -17,14 +17,14 @@ jobs:
   set-version:
     runs-on: ubuntu-latest
     outputs:
-      FLEET_DESKTOP_VERSION: ${{ steps.set-version.outputs.FLEET_DESKTOP_VERSION }}
+      AUTOMDM_DESKTOP_VERSION: ${{ steps.set-version.outputs.AUTOMDM_DESKTOP_VERSION }}
     steps:
-      - name: Set FLEET_DESKTOP_VERSION
+      - name: Set AUTOMDM_DESKTOP_VERSION
         id: set-version
         run: |
           # Remove refs/tags prefix and v prefix in version.
           VERSION=$(echo $GITHUB_REF | sed -e 's|refs/tags/.*v||')
-          echo "FLEET_DESKTOP_VERSION=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "AUTOMDM_DESKTOP_VERSION=$VERSION" >> "$GITHUB_OUTPUT"
   
   desktop-macos:
     # Set macOS version to '15' (previously was macos-12/13/14) for
@@ -79,9 +79,9 @@ jobs:
           AC_USERNAME=$AC_USERNAME \
           AC_PASSWORD=$AC_PASSWORD \
           AC_TEAM_ID=$AC_TEAM_ID \
-          FLEET_DESKTOP_APPLE_AUTHORITY=$CODESIGN_IDENTITY \
-          FLEET_DESKTOP_NOTARIZE=true \
-          FLEET_DESKTOP_VERSION=${{ needs.set-version.outputs.FLEET_DESKTOP_VERSION }} \
+          AUTOMDM_DESKTOP_APPLE_AUTHORITY=$CODESIGN_IDENTITY \
+          AUTOMDM_DESKTOP_NOTARIZE=true \
+          AUTOMDM_DESKTOP_VERSION=${{ needs.set-version.outputs.AUTOMDM_DESKTOP_VERSION }} \
           make desktop-app-tar-gz
 
       - name: Extract archive for attestation
@@ -93,7 +93,7 @@ jobs:
         continue-on-error: true
         uses: actions/attest-build-provenance@619dbb2e03e0189af0c55118e7d3c5e129e99726 # v2.0.0
         with:
-          subject-path: "extracted/Fleet\ Desktop.app/Contents/MacOS/*"
+          subject-path: "extracted/AutoMDM\ Desktop.app/Contents/MacOS/*"
 
       - name: Repackage archive
         run: |
@@ -129,16 +129,16 @@ jobs:
           # Security best practice to disable caching in release/publish workflows
           cache: false
 
-      - name: Generate fleet-desktop.exe
+      - name: Generate automdm-desktop.exe
         run: |
-          FLEET_DESKTOP_VERSION=${{ needs.set-version.outputs.FLEET_DESKTOP_VERSION }} \
+          AUTOMDM_DESKTOP_VERSION=${{ needs.set-version.outputs.AUTOMDM_DESKTOP_VERSION }} \
           make desktop-windows
 
-      - name: Upload fleet-desktop.exe
+      - name: Upload automdm-desktop.exe
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: unsigned-windows
-          path: fleet-desktop.exe
+          path: automdm-desktop.exe
 
   code-sign-windows:
     needs: desktop-windows
@@ -148,8 +148,8 @@ jobs:
       attestations: write # required for code-sign-windows
     with:
       attest: true
-      filename: fleet-desktop.exe
-      upload_name: fleet-desktop.exe
+      filename: automdm-desktop.exe
+      upload_name: automdm-desktop.exe
     secrets:
       DIGICERT_KEYLOCKER_CERTIFICATE: ${{ secrets.DIGICERT_KEYLOCKER_CERTIFICATE }}
       DIGICERT_KEYLOCKER_PASSWORD: ${{ secrets.DIGICERT_KEYLOCKER_PASSWORD }}
@@ -180,16 +180,16 @@ jobs:
           # Security best practice to disable caching in release/publish workflows
           cache: false
 
-      - name: Generate fleet-desktop.exe
+      - name: Generate automdm-desktop.exe
         run: |
-          FLEET_DESKTOP_VERSION=${{ needs.set-version.outputs.FLEET_DESKTOP_VERSION }} \
+          AUTOMDM_DESKTOP_VERSION=${{ needs.set-version.outputs.AUTOMDM_DESKTOP_VERSION }} \
           make desktop-windows-arm64
 
-      - name: Upload fleet-desktop.exe
+      - name: Upload automdm-desktop.exe
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: unsigned-windows-arm64
-          path: fleet-desktop.exe
+          path: automdm-desktop.exe
 
   code-sign-windows-arm64:
     needs: desktop-windows-arm64
@@ -199,8 +199,8 @@ jobs:
       attestations: write # required for code-sign-windows
     with:
       attest: true
-      filename: fleet-desktop.exe
-      upload_name: fleet-desktop-arm64.exe
+      filename: automdm-desktop.exe
+      upload_name: automdm-desktop-arm64.exe
       download_name: unsigned-windows-arm64
     secrets:
       DIGICERT_KEYLOCKER_CERTIFICATE: ${{ secrets.DIGICERT_KEYLOCKER_CERTIFICATE }}
@@ -236,7 +236,7 @@ jobs:
 
       - name: Generate desktop.tar.gz
         run: |
-          FLEET_DESKTOP_VERSION=${{ needs.set-version.outputs.FLEET_DESKTOP_VERSION }} \
+          AUTOMDM_DESKTOP_VERSION=${{ needs.set-version.outputs.AUTOMDM_DESKTOP_VERSION }} \
           make desktop-linux
 
       - name: Attest binary
@@ -278,7 +278,7 @@ jobs:
 
       - name: Generate desktop.tar.gz
         run: |
-          FLEET_DESKTOP_VERSION=${{ needs.set-version.outputs.FLEET_DESKTOP_VERSION }} \
+          AUTOMDM_DESKTOP_VERSION=${{ needs.set-version.outputs.AUTOMDM_DESKTOP_VERSION }} \
           make desktop-linux-arm64
 
       - name: Attest binary

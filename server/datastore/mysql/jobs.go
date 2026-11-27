@@ -8,17 +8,17 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxdb"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxdb"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 	"github.com/jmoiron/sqlx"
 )
 
-func (ds *Datastore) NewJob(ctx context.Context, job *fleet.Job) (*fleet.Job, error) {
+func (ds *Datastore) NewJob(ctx context.Context, job *automdm.Job) (*automdm.Job, error) {
 	return insertJobDB(ctx, ds.writer(ctx), job)
 }
 
-func insertJobDB(ctx context.Context, q sqlx.ExecerContext, job *fleet.Job) (*fleet.Job, error) {
+func insertJobDB(ctx context.Context, q sqlx.ExecerContext, job *automdm.Job) (*automdm.Job, error) {
 	query := `
 INSERT INTO jobs (
     name,
@@ -45,11 +45,11 @@ VALUES (?, ?, ?, ?, ?, COALESCE(?, NOW()))
 	return job, nil
 }
 
-func (ds *Datastore) GetQueuedJobs(ctx context.Context, maxNumJobs int, now time.Time) ([]*fleet.Job, error) {
+func (ds *Datastore) GetQueuedJobs(ctx context.Context, maxNumJobs int, now time.Time) ([]*automdm.Job, error) {
 	return ds.GetFilteredQueuedJobs(ctx, maxNumJobs, now, nil)
 }
 
-func (ds *Datastore) GetFilteredQueuedJobs(ctx context.Context, maxNumJobs int, now time.Time, jobNames []string) ([]*fleet.Job, error) {
+func (ds *Datastore) GetFilteredQueuedJobs(ctx context.Context, maxNumJobs int, now time.Time, jobNames []string) ([]*automdm.Job, error) {
 	query := `
 SELECT
     id, created_at, updated_at, name, args, state, retries, error, not_before
@@ -68,7 +68,7 @@ LIMIT ?
 		now = time.Now().UTC()
 	}
 
-	args := []interface{}{fleet.JobStateQueued, now}
+	args := []interface{}{automdm.JobStateQueued, now}
 
 	// Add job name filter if needed
 	var nameClause string
@@ -86,7 +86,7 @@ LIMIT ?
 	// The queue is mutated on the primary (UpdateJob), so it must be read from
 	// there too, otherwise replica lag returns jobs that were already processed.
 	ctx = ctxdb.RequirePrimary(ctx, true)
-	var jobs []*fleet.Job
+	var jobs []*automdm.Job
 	err := sqlx.SelectContext(ctx, ds.reader(ctx), &jobs, query, args...)
 	if err != nil {
 		return nil, err
@@ -95,7 +95,7 @@ LIMIT ?
 	return jobs, nil
 }
 
-func (ds *Datastore) updateJob(ctx context.Context, tx sqlx.ExtContext, id uint, job *fleet.Job) (*fleet.Job, error) {
+func (ds *Datastore) updateJob(ctx context.Context, tx sqlx.ExtContext, id uint, job *automdm.Job) (*automdm.Job, error) {
 	query := `
 UPDATE jobs
 SET
@@ -118,7 +118,7 @@ WHERE
 	return job, nil
 }
 
-func (ds *Datastore) UpdateJob(ctx context.Context, id uint, job *fleet.Job) (*fleet.Job, error) {
+func (ds *Datastore) UpdateJob(ctx context.Context, id uint, job *automdm.Job) (*automdm.Job, error) {
 	return ds.updateJob(ctx, ds.writer(ctx), id, job)
 }
 
@@ -139,8 +139,8 @@ func (ds *Datastore) CleanupWorkerJobs(ctx context.Context, failedSince, complet
 	completedBefore := now.Add(-completedSince)
 
 	res, err := ds.writer(ctx).ExecContext(ctx, stmt,
-		fleet.JobStateFailure, failedBefore,
-		fleet.JobStateSuccess, completedBefore)
+		automdm.JobStateFailure, failedBefore,
+		automdm.JobStateSuccess, completedBefore)
 	if err != nil {
 		return 0, ctxerr.Wrap(ctx, err, "cleanup worker jobs")
 	}
@@ -162,7 +162,7 @@ WHERE name = ? AND state = ? AND args = CAST(? AS JSON)
 LIMIT 1`
 	var found int
 	ctx = ctxdb.RequirePrimary(ctx, true)
-	err := sqlx.GetContext(ctx, ds.reader(ctx), &found, query, name, fleet.JobStateQueued, []byte(args))
+	err := sqlx.GetContext(ctx, ds.reader(ctx), &found, query, name, automdm.JobStateQueued, []byte(args))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return false, nil
@@ -172,7 +172,7 @@ LIMIT 1`
 	return true, nil
 }
 
-func (ds *Datastore) GetJob(ctx context.Context, jobID uint) (*fleet.Job, error) {
+func (ds *Datastore) GetJob(ctx context.Context, jobID uint) (*automdm.Job, error) {
 	query := `
 		SELECT
 			id,
@@ -189,7 +189,7 @@ func (ds *Datastore) GetJob(ctx context.Context, jobID uint) (*fleet.Job, error)
 		WHERE
 			id = ?`
 
-	job := &fleet.Job{}
+	job := &automdm.Job{}
 
 	if err := sqlx.GetContext(ctx, ds.reader(ctx), job, query, jobID); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "get job")

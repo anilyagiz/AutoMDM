@@ -70,10 +70,10 @@ export default {
   editTeams: async (params: {
     tokenId: number;
     teams: {
-      ios_fleet_id: number;
-      ipados_fleet_id: number;
-      macos_fleet_id: number;
-      byod_fleet_id: number;
+      ios_team_id: number;
+      ipados_team_id: number;
+      macos_team_id: number;
+      byod_team_id: number;
     };
   }) => {
     const { MDM_AB_TOKEN_TEAMS } = endpoints;

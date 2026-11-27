@@ -22,7 +22,7 @@ jest.mock("components/ToastNotification", () => ({
   notify: { success: jest.fn(), error: jest.fn() },
 }));
 
-const ssoEnabledHandler = http.get("/api/v1/fleet/sso", () =>
+const ssoEnabledHandler = http.get("/api/v1/automdm/sso", () =>
   HttpResponse.json({ settings: { sso_enabled: true } })
 );
 
@@ -78,7 +78,7 @@ describe("LoginPage", () => {
 
     await waitFor(() =>
       expect(notify.error).toHaveBeenCalledWith(
-        "Your session may have timed out. Please try again. Contact your Fleet administrator if the error persists."
+        "Your session may have timed out. Please try again. Contact your AutoMDM administrator if the error persists."
       )
     );
   });
@@ -105,7 +105,7 @@ describe("LoginPage", () => {
       http.post(baseUrl("/login"), () =>
         HttpResponse.json({
           user: createMockUser({ id: 2, email: "next@example.com" }),
-          available_fleets: [],
+          available_teams: [],
           token: "next-user-token",
         })
       )

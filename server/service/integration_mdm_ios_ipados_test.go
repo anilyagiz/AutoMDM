@@ -28,19 +28,19 @@ import (
 
 	"github.com/WatchBeam/clock"
 
-	"github.com/fleetdm/fleet/v4/server/dev_mode"
+	"github.com/anilyagiz/automdm/v4/server/dev_mode"
 
-	shared_mdm "github.com/fleetdm/fleet/v4/pkg/mdm"
-	"github.com/fleetdm/fleet/v4/pkg/mdm/mdmtest"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	apple_mdm "github.com/fleetdm/fleet/v4/server/mdm/apple"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanodep/godep"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/push"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/push/nanopush"
-	mdmtesting "github.com/fleetdm/fleet/v4/server/mdm/testing_utils"
-	"github.com/fleetdm/fleet/v4/server/service/redis_key_value"
+	shared_mdm "github.com/anilyagiz/automdm/v4/pkg/mdm"
+	"github.com/anilyagiz/automdm/v4/pkg/mdm/mdmtest"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	apple_mdm "github.com/anilyagiz/automdm/v4/server/mdm/apple"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanodep/godep"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/push"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/push/nanopush"
+	mdmtesting "github.com/anilyagiz/automdm/v4/server/mdm/testing_utils"
+	"github.com/anilyagiz/automdm/v4/server/service/redis_key_value"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	micromdm "github.com/micromdm/micromdm/mdm/mdm"
@@ -59,7 +59,7 @@ func (s *integrationMDMTestSuite) TestEnrollAfterDEPSyncIOSIPadOS() {
 	// fetch the host, it will match the one created above
 	// (NOTE: cannot check the returned OrbitNodeKey, this field is not part of the response)
 	var hostResp getHostResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", h.ID), nil, http.StatusOK, &hostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", h.ID), nil, http.StatusOK, &hostResp)
 	require.Equal(t, h.ID, hostResp.Host.ID)
 	require.NotEqual(t, h.LastEnrolledAt, hostResp.Host.LastEnrolledAt)
 
@@ -69,7 +69,7 @@ func (s *integrationMDMTestSuite) TestEnrollAfterDEPSyncIOSIPadOS() {
 	// fetch the host, it will match the one created above
 	// (NOTE: cannot check the returned OrbitNodeKey, this field is not part of the response)
 	hostResp = getHostResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", h.ID), nil, http.StatusOK, &hostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", h.ID), nil, http.StatusOK, &hostResp)
 	require.Equal(t, h.ID, hostResp.Host.ID)
 	require.NotEqual(t, h.LastEnrolledAt, hostResp.Host.LastEnrolledAt)
 
@@ -78,14 +78,14 @@ func (s *integrationMDMTestSuite) TestEnrollAfterDEPSyncIOSIPadOS() {
 
 	// fetch the host, it will match the one created above
 	hostResp = getHostResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", h.ID), nil, http.StatusOK, &hostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", h.ID), nil, http.StatusOK, &hostResp)
 	require.Equal(t, h.ID, hostResp.Host.ID)
 	require.NotEqual(t, h.LastEnrolledAt, hostResp.Host.LastEnrolledAt)
 
 	// list commands returns empty set -- no MDM commands should be queued at this point
 	for _, hostUUID := range enrolledHostUUIDs {
 		var listCmdResp listMDMCommandsResponse
-		s.DoJSON("GET", "/api/latest/fleet/commands", nil, http.StatusOK, &listCmdResp, "host_identifier", hostUUID)
+		s.DoJSON("GET", "/api/latest/automdm/commands", nil, http.StatusOK, &listCmdResp, "host_identifier", hostUUID)
 		require.Empty(t, listCmdResp.Results, hostUUID)
 	}
 }
@@ -96,9 +96,9 @@ func (s *integrationMDMTestSuite) TestEnrollAfterDEPSyncIOSIPadOS() {
 func (s *integrationMDMTestSuite) assertHostMDMCertificates(t *testing.T, hostID uint, templates []*x509.Certificate) {
 	t.Helper()
 	var resp listHostCertificatesResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/certificates", hostID), nil, http.StatusOK, &resp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/certificates", hostID), nil, http.StatusOK, &resp)
 	require.Len(t, resp.Certificates, len(templates))
-	bySerial := make(map[string]*fleet.HostCertificatePayload, len(resp.Certificates))
+	bySerial := make(map[string]*automdm.HostCertificatePayload, len(resp.Certificates))
 	for _, c := range resp.Certificates {
 		bySerial[c.Serial] = c
 	}
@@ -106,7 +106,7 @@ func (s *integrationMDMTestSuite) assertHostMDMCertificates(t *testing.T, hostID
 		serial := tmpl.SerialNumber.Text(16)
 		got, ok := bySerial[serial]
 		require.True(t, ok, "no certificate reported with serial %s", serial)
-		require.Equal(t, fleet.SystemHostCertificate, got.Source)
+		require.Equal(t, automdm.SystemHostCertificate, got.Source)
 		require.Empty(t, got.Username)
 		require.WithinDuration(t, tmpl.NotBefore, got.NotValidBefore, time.Second)
 		require.WithinDuration(t, tmpl.NotAfter, got.NotValidAfter, time.Second)
@@ -122,7 +122,7 @@ func (s *integrationMDMTestSuite) TestRefetchIOSIPadOS() {
 
 	// Try to refetch host that is not MDM enrolled
 	serialNumber := mdmtest.RandSerialNumber()
-	fleetHost, err := s.ds.NewHost(context.Background(), &fleet.Host{
+	automdmHost, err := s.ds.NewHost(context.Background(), &automdm.Host{
 		HardwareSerial:   serialNumber,
 		Platform:         "ipados",
 		LastEnrolledAt:   time.Now(),
@@ -130,26 +130,26 @@ func (s *integrationMDMTestSuite) TestRefetchIOSIPadOS() {
 		RefetchRequested: true,
 	})
 	require.NoError(t, err)
-	r := s.Do("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/refetch", fleetHost.ID), nil, http.StatusUnprocessableEntity, "error",
+	r := s.Do("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/refetch", automdmHost.ID), nil, http.StatusUnprocessableEntity, "error",
 		"host is not enrolled in MDM")
 	assert.Contains(t, extractServerErrorText(r.Body), "Host does not have MDM turned on")
 
 	// Enroll host
 	host, mdmClient := s.createAppleMobileHostThenEnrollMDM("ios")
-	require.NoError(t, s.ds.SetOrUpdateMDMData(context.Background(), host.ID, false, true, "https://foo.com", true, "", "", fleet.PersonalEnrollmentTypeNone))
+	require.NoError(t, s.ds.SetOrUpdateMDMData(context.Background(), host.ID, false, true, "https://foo.com", true, "", "", automdm.PersonalEnrollmentTypeNone))
 
 	s.enableABM(t.Name())
 	abmTok, err := s.ds.GetABMTokenByOrgName(t.Context(), t.Name())
 	require.NoError(t, err)
-	s.Require().NoError(s.ds.UpsertMDMAppleHostDEPAssignments(t.Context(), []fleet.Host{*host}, abmTok.ID, nil))
+	s.Require().NoError(s.ds.UpsertMDMAppleHostDEPAssignments(t.Context(), []automdm.Host{*host}, abmTok.ID, nil))
 
 	// Refetch host
-	_ = s.Do("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/refetch", host.ID), nil, http.StatusOK)
+	_ = s.Do("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/refetch", host.ID), nil, http.StatusOK)
 	const commandsSentPerRefetch = 3
 	commandsSent := commandsSentPerRefetch
 
 	var hostResp getHostResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", host.ID), nil, http.StatusOK, &hostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", host.ID), nil, http.StatusOK, &hostResp)
 	assert.Equal(t, host.ID, hostResp.Host.ID)
 	assert.True(t, hostResp.Host.RefetchRequested)
 
@@ -157,10 +157,10 @@ func (s *integrationMDMTestSuite) TestRefetchIOSIPadOS() {
 	require.NoError(t, err)
 	require.Len(t, commands, commandsSent)
 	requireTrackedRefetchCommands(t, commands, host.ID,
-		fleet.RefetchAppsCommandUUIDPrefix, fleet.RefetchCertsCommandUUIDPrefix, fleet.RefetchDeviceCommandUUIDPrefix)
+		automdm.RefetchAppsCommandUUIDPrefix, automdm.RefetchCertsCommandUUIDPrefix, automdm.RefetchDeviceCommandUUIDPrefix)
 
 	// Since refetch is already queued up, doing another refetch is a no-op and will not add more MDM commands
-	_ = s.Do("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/refetch", host.ID), nil, http.StatusOK)
+	_ = s.Do("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/refetch", host.ID), nil, http.StatusOK)
 
 	// Check the MDM commands and send response
 	cmd, err := mdmClient.Idle()
@@ -168,7 +168,7 @@ func (s *integrationMDMTestSuite) TestRefetchIOSIPadOS() {
 	require.NotNil(t, cmd)
 
 	const deviceName = "My iPhone"
-	expectedSoftware := []fleet.HostSoftwareEntry{
+	expectedSoftware := []automdm.HostSoftwareEntry{
 		{
 			BundleIdentifier: "com.evernote.iPhone.Evernote",
 			Name:             "Evernote",
@@ -178,7 +178,7 @@ func (s *integrationMDMTestSuite) TestRefetchIOSIPadOS() {
 	}
 	require.Equal(t, "InstalledApplicationList", cmd.Command.RequestType)
 	cmd, err = mdmClient.AcknowledgeInstalledApplicationList(mdmClient.UUID, cmd.CommandUUID,
-		[]fleet.Software{expectedSoftware[0].Software})
+		[]automdm.Software{expectedSoftware[0].Software})
 	require.NoError(t, err)
 	require.NotNil(t, cmd)
 	require.Equal(t, "CertificateList", cmd.Command.RequestType)
@@ -194,7 +194,7 @@ func (s *integrationMDMTestSuite) TestRefetchIOSIPadOS() {
 	require.Empty(t, commands)
 
 	hostResp = getHostResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", host.ID), nil, http.StatusOK, &hostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", host.ID), nil, http.StatusOK, &hostResp)
 	assert.Equal(t, host.ID, hostResp.Host.ID)
 	assert.False(t, hostResp.Host.RefetchRequested)
 	assert.Equal(t, deviceName, hostResp.Host.ComputerName)
@@ -213,10 +213,10 @@ func (s *integrationMDMTestSuite) TestRefetchIOSIPadOS() {
 	hostIPad, mdmClientIPad := s.createAppleMobileHostThenEnrollMDM("ipados")
 
 	// Refetch host
-	_ = s.Do("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/refetch", hostIPad.ID), nil, http.StatusOK)
+	_ = s.Do("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/refetch", hostIPad.ID), nil, http.StatusOK)
 	commandsSent += commandsSentPerRefetch
 
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", hostIPad.ID), nil, http.StatusOK, &hostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", hostIPad.ID), nil, http.StatusOK, &hostResp)
 	assert.Equal(t, hostIPad.ID, hostResp.Host.ID)
 	assert.True(t, hostResp.Host.RefetchRequested)
 
@@ -226,7 +226,7 @@ func (s *integrationMDMTestSuite) TestRefetchIOSIPadOS() {
 	require.NotNil(t, cmd)
 
 	const deviceNameIPad = "My iPad"
-	expectedSoftware = []fleet.HostSoftwareEntry{
+	expectedSoftware = []automdm.HostSoftwareEntry{
 		{
 			BundleIdentifier: "com.evernote.iPhone.Evernote",
 			Name:             "Evernote",
@@ -236,7 +236,7 @@ func (s *integrationMDMTestSuite) TestRefetchIOSIPadOS() {
 	}
 	require.Equal(t, "InstalledApplicationList", cmd.Command.RequestType)
 	cmd, err = mdmClientIPad.AcknowledgeInstalledApplicationList(mdmClientIPad.UUID, cmd.CommandUUID,
-		[]fleet.Software{expectedSoftware[0].Software})
+		[]automdm.Software{expectedSoftware[0].Software})
 	require.NoError(t, err)
 	require.NotNil(t, cmd)
 	require.Equal(t, "CertificateList", cmd.Command.RequestType)
@@ -249,7 +249,7 @@ func (s *integrationMDMTestSuite) TestRefetchIOSIPadOS() {
 	require.Nil(t, cmd)
 
 	hostResp = getHostResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", hostIPad.ID), nil, http.StatusOK, &hostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", hostIPad.ID), nil, http.StatusOK, &hostResp)
 	assert.Equal(t, hostIPad.ID, hostResp.Host.ID)
 	assert.False(t, hostResp.Host.RefetchRequested)
 	assert.Equal(t, deviceNameIPad, hostResp.Host.ComputerName)
@@ -265,13 +265,13 @@ func (s *integrationMDMTestSuite) TestRefetchIOSIPadOS() {
 	s.assertHostMDMCertificates(t, hostIPad.ID, testCerts)
 
 	hostIPod, mdmClientIPod := s.createIpodHostThenEnrollMDM()
-	require.NoError(t, s.ds.SetOrUpdateMDMData(context.Background(), hostIPod.ID, false, true, "https://foo.com", true, "", "", fleet.PersonalEnrollmentTypeNone))
+	require.NoError(t, s.ds.SetOrUpdateMDMData(context.Background(), hostIPod.ID, false, true, "https://foo.com", true, "", "", automdm.PersonalEnrollmentTypeNone))
 
 	// Refetch host
-	_ = s.Do("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/refetch", hostIPod.ID), nil, http.StatusOK)
+	_ = s.Do("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/refetch", hostIPod.ID), nil, http.StatusOK)
 	commandsSent += commandsSentPerRefetch
 
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", hostIPod.ID), nil, http.StatusOK, &hostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", hostIPod.ID), nil, http.StatusOK, &hostResp)
 	assert.Equal(t, hostIPod.ID, hostResp.Host.ID)
 	assert.True(t, hostResp.Host.RefetchRequested)
 
@@ -279,10 +279,10 @@ func (s *integrationMDMTestSuite) TestRefetchIOSIPadOS() {
 	require.NoError(t, err)
 	require.Len(t, commands, commandsSentPerRefetch)
 	requireTrackedRefetchCommands(t, commands, hostIPod.ID,
-		fleet.RefetchAppsCommandUUIDPrefix, fleet.RefetchCertsCommandUUIDPrefix, fleet.RefetchDeviceCommandUUIDPrefix)
+		automdm.RefetchAppsCommandUUIDPrefix, automdm.RefetchCertsCommandUUIDPrefix, automdm.RefetchDeviceCommandUUIDPrefix)
 
 	// Since refetch is already queued up, doing another refetch is a no-op and will not add more MDM commands
-	_ = s.Do("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/refetch", hostIPod.ID), nil, http.StatusOK)
+	_ = s.Do("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/refetch", hostIPod.ID), nil, http.StatusOK)
 
 	// Check the MDM commands and send response
 	cmd, err = mdmClientIPod.Idle()
@@ -290,7 +290,7 @@ func (s *integrationMDMTestSuite) TestRefetchIOSIPadOS() {
 	require.NotNil(t, cmd)
 
 	const deviceNameIPod = "My iPod"
-	expectedSoftware = []fleet.HostSoftwareEntry{
+	expectedSoftware = []automdm.HostSoftwareEntry{
 		{
 			BundleIdentifier: "com.evernote.iPhone.Evernote",
 			Name:             "Evernote",
@@ -300,7 +300,7 @@ func (s *integrationMDMTestSuite) TestRefetchIOSIPadOS() {
 	}
 	require.Equal(t, "InstalledApplicationList", cmd.Command.RequestType)
 	cmd, err = mdmClientIPod.AcknowledgeInstalledApplicationList(mdmClientIPod.UUID, cmd.CommandUUID,
-		[]fleet.Software{expectedSoftware[0].Software})
+		[]automdm.Software{expectedSoftware[0].Software})
 	require.NoError(t, err)
 	require.NotNil(t, cmd)
 	require.Equal(t, "CertificateList", cmd.Command.RequestType)
@@ -316,7 +316,7 @@ func (s *integrationMDMTestSuite) TestRefetchIOSIPadOS() {
 	require.Empty(t, commands)
 
 	hostResp = getHostResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", hostIPod.ID), nil, http.StatusOK, &hostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", hostIPod.ID), nil, http.StatusOK, &hostResp)
 	assert.Equal(t, hostIPod.ID, hostResp.Host.ID)
 	assert.False(t, hostResp.Host.RefetchRequested)
 
@@ -339,8 +339,8 @@ func (s *integrationMDMTestSuite) TestRefetchIOSIPadOS() {
 
 	// Check that we have the correct software titles
 	var resp listSoftwareTitlesResponse
-	s.DoJSON("GET", "/api/latest/fleet/software/titles", nil, http.StatusOK, &resp, "query", "Evernote")
-	expectedTitles := []fleet.SoftwareTitleListResult{
+	s.DoJSON("GET", "/api/latest/automdm/software/titles", nil, http.StatusOK, &resp, "query", "Evernote")
+	expectedTitles := []automdm.SoftwareTitleListResult{
 		{
 			BundleIdentifier: new("com.evernote.iPhone.Evernote"),
 			Name:             "Evernote",
@@ -369,7 +369,7 @@ func (s *integrationMDMTestSuite) TestRefetchIOSIPadOS() {
 	assert.ElementsMatch(t, expectedTitles, resp.SoftwareTitles)
 
 	// Test that software was deleted from device
-	_ = s.Do("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/refetch", host.ID), nil, http.StatusOK)
+	_ = s.Do("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/refetch", host.ID), nil, http.StatusOK)
 	commandsSent += commandsSentPerRefetch
 
 	// Check the MDM commands and send response
@@ -377,7 +377,7 @@ func (s *integrationMDMTestSuite) TestRefetchIOSIPadOS() {
 	require.NoError(t, err)
 	require.NotNil(t, cmd)
 	require.Equal(t, "InstalledApplicationList", cmd.Command.RequestType)
-	cmd, err = mdmClient.AcknowledgeInstalledApplicationList(mdmClient.UUID, cmd.CommandUUID, []fleet.Software{})
+	cmd, err = mdmClient.AcknowledgeInstalledApplicationList(mdmClient.UUID, cmd.CommandUUID, []automdm.Software{})
 	require.NoError(t, err)
 	require.NotNil(t, cmd)
 	require.Equal(t, "CertificateList", cmd.Command.RequestType)
@@ -391,7 +391,7 @@ func (s *integrationMDMTestSuite) TestRefetchIOSIPadOS() {
 	require.Nil(t, cmd)
 
 	hostResp = getHostResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", host.ID), nil, http.StatusOK, &hostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", host.ID), nil, http.StatusOK, &hostResp)
 	assert.Equal(t, host.ID, hostResp.Host.ID)
 	assert.False(t, hostResp.Host.RefetchRequested)
 	assert.Equal(t, deviceNameRenamed, hostResp.Host.ComputerName)
@@ -402,7 +402,7 @@ func (s *integrationMDMTestSuite) TestRefetchIOSIPadOS() {
 	// Mark host as unenrolled and refetch.
 	require.NoError(t, s.ds.UpdateMDMData(ctx, host.ID, false))
 	hostResp = getHostResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", host.ID), nil, http.StatusOK, &hostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", host.ID), nil, http.StatusOK, &hostResp)
 	require.NoError(t, err)
 	require.NotNil(t, hostResp.Host.MDM.EnrollmentStatus)
 	assert.Equal(t, "Pending", *hostResp.Host.MDM.EnrollmentStatus)
@@ -413,9 +413,9 @@ func (s *integrationMDMTestSuite) TestRefetchIOSIPadOS() {
 		return err
 	})
 	trigger := triggerRequest{
-		Name: string(fleet.CronAppleMDMIPhoneIPadRefetcher),
+		Name: string(automdm.CronAppleMDMIPhoneIPadRefetcher),
 	}
-	_ = s.Do("POST", "/api/latest/fleet/trigger", trigger, http.StatusOK)
+	_ = s.Do("POST", "/api/latest/automdm/trigger", trigger, http.StatusOK)
 	commandsSent += commandsSentPerRefetch
 
 	// Wait until MDM commands are set up
@@ -443,7 +443,7 @@ func (s *integrationMDMTestSuite) TestRefetchIOSIPadOS() {
 	require.NoError(t, err)
 	require.NotNil(t, cmd)
 	require.Equal(t, "InstalledApplicationList", cmd.Command.RequestType)
-	cmd, err = mdmClient.AcknowledgeInstalledApplicationList(mdmClient.UUID, cmd.CommandUUID, []fleet.Software{})
+	cmd, err = mdmClient.AcknowledgeInstalledApplicationList(mdmClient.UUID, cmd.CommandUUID, []automdm.Software{})
 	require.NoError(t, err)
 	require.NotNil(t, cmd)
 	require.Equal(t, "CertificateList", cmd.Command.RequestType)
@@ -456,7 +456,7 @@ func (s *integrationMDMTestSuite) TestRefetchIOSIPadOS() {
 	require.Nil(t, cmd)
 
 	hostResp = getHostResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", host.ID), nil, http.StatusOK, &hostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", host.ID), nil, http.StatusOK, &hostResp)
 	assert.Equal(t, host.ID, hostResp.Host.ID)
 	assert.False(t, hostResp.Host.RefetchRequested)
 	require.NotNil(t, hostResp.Host.MDM.EnrollmentStatus)
@@ -466,10 +466,10 @@ func (s *integrationMDMTestSuite) TestRefetchIOSIPadOS() {
 
 	// list commands should return all the commands we sent
 	var listedCommands int
-	for _, h := range []*fleet.Host{host, hostIPad, hostIPod} {
+	for _, h := range []*automdm.Host{host, hostIPad, hostIPod} {
 		var listCmdResp listMDMCommandsResponse
-		s.DoJSON("GET", "/api/latest/fleet/commands", nil, http.StatusOK, &listCmdResp,
-			"host_identifier", h.UUID, "per_page", fmt.Sprint(fleet.MaxMDMCommandsPerPage))
+		s.DoJSON("GET", "/api/latest/automdm/commands", nil, http.StatusOK, &listCmdResp,
+			"host_identifier", h.UUID, "per_page", fmt.Sprint(automdm.MaxMDMCommandsPerPage))
 		listedCommands += len(listCmdResp.Results)
 	}
 	require.Equal(t, commandsSent, listedCommands)
@@ -481,9 +481,9 @@ func (s *integrationMDMTestSuite) TestOTAEnrollment() {
 	// create a global enroll secret
 	globalSecret := "global_secret"
 	var applyResp applyEnrollSecretSpecResponse
-	s.DoJSON("POST", "/api/latest/fleet/spec/enroll_secret", applyEnrollSecretSpecRequest{
-		Spec: &fleet.EnrollSecretSpec{
-			Secrets: []*fleet.EnrollSecret{{Secret: globalSecret}},
+	s.DoJSON("POST", "/api/latest/automdm/spec/enroll_secret", applyEnrollSecretSpecRequest{
+		Spec: &automdm.EnrollSecretSpec{
+			Secrets: []*automdm.EnrollSecret{{Secret: globalSecret}},
 		},
 	}, http.StatusOK, &applyResp)
 
@@ -505,42 +505,42 @@ func (s *integrationMDMTestSuite) TestOTAEnrollment() {
 	// Setup signed req body, but also verify we can sign it.
 	signedReqBody, cert, key := s.getSignedOTAEnrollmentBody(t, reqBody)
 
-	// ensure fleet profiles
+	// ensure automdm profiles
 	s.awaitTriggerProfileSchedule(t)
 
 	t.Run("errors", func(t *testing.T) {
 		t.Run("if no enroll secret is provided", func(t *testing.T) {
-			httpResp := s.DoRawNoAuth("POST", "/api/latest/fleet/ota_enrollment", reqBody, http.StatusForbidden)
+			httpResp := s.DoRawNoAuth("POST", "/api/latest/automdm/ota_enrollment", reqBody, http.StatusForbidden)
 			errMsg := extractServerErrorText(httpResp.Body)
 			require.Contains(t, errMsg, "Couldn't install the profile. Invalid enroll secret. Please contact your IT admin.")
 			require.NoError(t, httpResp.Body.Close())
 		})
 
 		t.Run("if no body is provided", func(t *testing.T) {
-			httpResp := s.DoRawNoAuth("POST", "/api/latest/fleet/ota_enrollment?enroll_secret=foo", nil, http.StatusBadRequest)
+			httpResp := s.DoRawNoAuth("POST", "/api/latest/automdm/ota_enrollment?enroll_secret=foo", nil, http.StatusBadRequest)
 			errMsg := extractServerErrorText(httpResp.Body)
 			require.Contains(t, errMsg, "invalid request body")
 			require.NoError(t, httpResp.Body.Close())
 		})
 
 		t.Run("if body is unsigned", func(t *testing.T) {
-			httpResp := s.DoRawNoAuth("POST", "/api/latest/fleet/ota_enrollment?enroll_secret=foo", reqBody, http.StatusBadRequest)
+			httpResp := s.DoRawNoAuth("POST", "/api/latest/automdm/ota_enrollment?enroll_secret=foo", reqBody, http.StatusBadRequest)
 			errMsg := extractServerErrorText(httpResp.Body)
 			require.Contains(t, errMsg, "invalid request body")
 			require.NoError(t, httpResp.Body.Close())
 		})
 
 		t.Run("if invalid apple signature", func(t *testing.T) {
-			httpResp := s.DoRawNoAuth("POST", "/api/latest/fleet/ota_enrollment?enroll_secret=foo", signedReqBody, http.StatusForbidden)
+			httpResp := s.DoRawNoAuth("POST", "/api/latest/automdm/ota_enrollment?enroll_secret=foo", signedReqBody, http.StatusForbidden)
 			errMsg := extractServerErrorText(httpResp.Body)
 			require.Contains(t, errMsg, "Couldn't install the profile. Invalid enroll secret. Please contact your IT admin.")
 			require.NoError(t, httpResp.Body.Close())
 		})
 
 		t.Run("if invalid device signature", func(t *testing.T) {
-			dev_mode.SetOverride("FLEET_DEV_MDM_APPLE_DISABLE_DEVICE_INFO_CERT_VERIFY", "1", t)
+			dev_mode.SetOverride("AUTOMDM_DEV_MDM_APPLE_DISABLE_DEVICE_INFO_CERT_VERIFY", "1", t)
 			apple_mdm.SetMachineInfoVerificationForTest(t, false)
-			httpResp := s.DoRawNoAuth("POST", "/api/latest/fleet/ota_enrollment?enroll_secret=foo", signedReqBody, http.StatusForbidden)
+			httpResp := s.DoRawNoAuth("POST", "/api/latest/automdm/ota_enrollment?enroll_secret=foo", signedReqBody, http.StatusForbidden)
 			errMsg := extractServerErrorText(httpResp.Body)
 			require.Contains(t, errMsg, "Couldn't install the profile. Invalid enroll secret. Please contact your IT admin.")
 			require.NoError(t, httpResp.Body.Close())
@@ -550,16 +550,16 @@ func (s *integrationMDMTestSuite) TestOTAEnrollment() {
 			// the device-CA bypass makes the request look like OTA phase 1, but
 			// machine info verification is NOT disabled, so the throwaway
 			// signature must be rejected
-			dev_mode.SetOverride("FLEET_DEV_MDM_APPLE_DISABLE_DEVICE_INFO_CERT_VERIFY", "1", t)
-			httpResp := s.DoRawNoAuth("POST", "/api/latest/fleet/ota_enrollment?enroll_secret=foo", signedReqBody, http.StatusBadRequest)
+			dev_mode.SetOverride("AUTOMDM_DEV_MDM_APPLE_DISABLE_DEVICE_INFO_CERT_VERIFY", "1", t)
+			httpResp := s.DoRawNoAuth("POST", "/api/latest/automdm/ota_enrollment?enroll_secret=foo", signedReqBody, http.StatusBadRequest)
 			errMsg := extractServerErrorText(httpResp.Body)
 			require.Contains(t, errMsg, "unable to verify deviceinfo signature")
 			require.NoError(t, httpResp.Body.Close())
 		})
 
 		t.Run("if phase 2 signature is invalid", func(t *testing.T) {
-			// a genuine Fleet-signed phase-2 body with its content tampered: the
-			// signer cert still chains to Fleet, but the CMS signature no longer
+			// a genuine AutoMDM-signed phase-2 body with its content tampered: the
+			// signer cert still chains to AutoMDM, but the CMS signature no longer
 			// matches, so it must be rejected at decode.
 			raw, err := os.ReadFile("../mdm/apple/testdata/deviceinfo/ota-phase2-iphone.der")
 			require.NoError(t, err)
@@ -569,7 +569,7 @@ func (s *integrationMDMTestSuite) TestOTAEnrollment() {
 			i := bytes.Index(tampered, []byte("iPhone14,5"))
 			require.Positive(t, i)
 			tampered[i] ^= 0x01
-			httpResp := s.DoRawNoAuth("POST", "/api/latest/fleet/ota_enrollment?enroll_secret=foo", tampered, http.StatusBadRequest)
+			httpResp := s.DoRawNoAuth("POST", "/api/latest/automdm/ota_enrollment?enroll_secret=foo", tampered, http.StatusBadRequest)
 			errMsg := extractServerErrorText(httpResp.Body)
 			require.Contains(t, errMsg, "invalid request signature")
 			require.NoError(t, httpResp.Body.Close())
@@ -588,7 +588,7 @@ func (s *integrationMDMTestSuite) TestOTAEnrollment() {
 			require.NoError(t, signedData.AddSigner(cert, key, pkcs7.SignerInfoConfig{}))
 			signedReqBody, err = signedData.Finish()
 			require.NoError(t, err)
-			httpResp := s.DoRawNoAuth("POST", "/api/latest/fleet/ota_enrollment?enroll_secret=foo", signedReqBody, http.StatusBadRequest)
+			httpResp := s.DoRawNoAuth("POST", "/api/latest/automdm/ota_enrollment?enroll_secret=foo", signedReqBody, http.StatusBadRequest)
 			errMsg := extractServerErrorText(httpResp.Body)
 			require.Contains(t, errMsg, "SERIAL is required")
 			require.NoError(t, httpResp.Body.Close())
@@ -610,8 +610,8 @@ func (s *integrationMDMTestSuite) TestOTAEnrollment() {
 		t.Run("if idp uuid is required but not set", func(t *testing.T) {
 			var specResp applyTeamSpecsResponse
 			teamSecret := "team_secret"
-			teamSpecs := applyTeamSpecsRequest{Specs: []*fleet.TeamSpec{{Name: "newteam", Secrets: &[]fleet.EnrollSecret{{Secret: teamSecret}}, MDM: fleet.TeamSpecMDM{MacOSSetup: fleet.MacOSSetupSpec{EnableEndUserAuthentication: true}}}}}
-			s.DoJSON("POST", "/api/latest/fleet/spec/fleets", teamSpecs, http.StatusOK, &specResp)
+			teamSpecs := applyTeamSpecsRequest{Specs: []*automdm.TeamSpec{{Name: "newteam", Secrets: &[]automdm.EnrollSecret{{Secret: teamSecret}}, MDM: automdm.TeamSpecMDM{MacOSSetup: automdm.MacOSSetupSpec{EnableEndUserAuthentication: true}}}}}
+			s.DoJSON("POST", "/api/latest/automdm/spec/teams", teamSpecs, http.StatusOK, &specResp)
 
 			hwModel := "MacBookPro16,1"
 			mdmDevice := mdmtest.NewTestMDMClientAppleOTA(
@@ -628,7 +628,7 @@ func (s *integrationMDMTestSuite) TestOTAEnrollment() {
 	t.Run("succeeds", func(t *testing.T) {
 		verifySuccessfulOTAEnrollment := func(mdmDevice *mdmtest.TestAppleMDMClient, hwModel, platform string, enrollTime time.Time) getHostResponse {
 			var hostByIdentifierResp getHostResponse
-			s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%s", mdmDevice.UUID), nil, http.StatusOK, &hostByIdentifierResp)
+			s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%s", mdmDevice.UUID), nil, http.StatusOK, &hostByIdentifierResp)
 			require.Equal(t, hwModel, hostByIdentifierResp.Host.HardwareModel)
 			require.Equal(t, platform, hostByIdentifierResp.Host.Platform)
 			require.NotNil(t, hostByIdentifierResp.Host.LastMDMEnrolledAt)
@@ -657,7 +657,7 @@ func (s *integrationMDMTestSuite) TestOTAEnrollment() {
 			enrollTime := time.Now().UTC().Truncate(time.Second)
 			require.NoError(t, mdmDevice.Enroll())
 			s.awaitRunAppleMDMWorkerSchedule()
-			checkInstallFleetdCommandSent(t, mdmDevice, true)
+			checkInstallAutoMDMdCommandSent(t, mdmDevice, true)
 
 			hostByIdentifierResp := verifySuccessfulOTAEnrollment(mdmDevice, hwModel, "darwin", enrollTime)
 			require.Nil(t, hostByIdentifierResp.Host.TeamID)
@@ -675,8 +675,8 @@ func (s *integrationMDMTestSuite) TestOTAEnrollment() {
 		t.Run("ota enrolling an ipad", func(t *testing.T) {
 			var specResp applyTeamSpecsResponse
 			teamSecret := "team_secret"
-			teamSpecs := applyTeamSpecsRequest{Specs: []*fleet.TeamSpec{{Name: "newteam", Secrets: &[]fleet.EnrollSecret{{Secret: teamSecret}}}}}
-			s.DoJSON("POST", "/api/latest/fleet/spec/fleets", teamSpecs, http.StatusOK, &specResp)
+			teamSpecs := applyTeamSpecsRequest{Specs: []*automdm.TeamSpec{{Name: "newteam", Secrets: &[]automdm.EnrollSecret{{Secret: teamSecret}}}}}
+			s.DoJSON("POST", "/api/latest/automdm/spec/teams", teamSpecs, http.StatusOK, &specResp)
 
 			hwModel := "iPad13,16"
 			mdmDevice := mdmtest.NewTestMDMClientAppleOTA(
@@ -687,7 +687,7 @@ func (s *integrationMDMTestSuite) TestOTAEnrollment() {
 			enrollTime := time.Now().UTC().Truncate(time.Second)
 			require.NoError(t, mdmDevice.Enroll())
 			s.awaitRunAppleMDMWorkerSchedule()
-			checkInstallFleetdCommandSent(t, mdmDevice, false)
+			checkInstallAutoMDMdCommandSent(t, mdmDevice, false)
 
 			hostByIdentifierResp := verifySuccessfulOTAEnrollment(mdmDevice, hwModel, "ipados", enrollTime)
 			require.NotNil(t, hostByIdentifierResp.Host.TeamID)
@@ -704,7 +704,7 @@ func (s *integrationMDMTestSuite) TestOTAEnrollment() {
 			enrollTime := time.Now().UTC().Truncate(time.Second)
 			require.NoError(t, mdmDevice.Enroll())
 			s.awaitRunAppleMDMWorkerSchedule()
-			checkInstallFleetdCommandSent(t, mdmDevice, true)
+			checkInstallAutoMDMdCommandSent(t, mdmDevice, true)
 
 			resp := verifySuccessfulOTAEnrollment(mdmDevice, hwModel, "darwin", enrollTime)
 			account, err := s.ds.GetMDMIdPAccountByHostUUID(context.Background(), resp.Host.UUID)
@@ -714,7 +714,7 @@ func (s *integrationMDMTestSuite) TestOTAEnrollment() {
 
 		t.Run("ota enrollment with an idp session associates host with idp account", func(t *testing.T) {
 			idpEmail := "test@example.com"
-			err := s.ds.InsertMDMIdPAccount(context.Background(), &fleet.MDMIdPAccount{
+			err := s.ds.InsertMDMIdPAccount(context.Background(), &automdm.MDMIdPAccount{
 				Username: "test",
 				Email:    idpEmail,
 			})
@@ -733,14 +733,14 @@ func (s *integrationMDMTestSuite) TestOTAEnrollment() {
 			enrollTime := time.Now().UTC().Truncate(time.Second)
 			require.NoError(t, mdmDevice.Enroll())
 			s.awaitRunAppleMDMWorkerSchedule()
-			checkInstallFleetdCommandSent(t, mdmDevice, true)
+			checkInstallAutoMDMdCommandSent(t, mdmDevice, true)
 
 			resp := verifySuccessfulOTAEnrollment(mdmDevice, hwModel, "darwin", enrollTime)
 			verifySuccessfulIdpAssociation(resp.Host.UUID, idpAccount.UUID)
 
 			// the session is single-use: enrolling burned it
 			_, err = shared_mdm.ValidateBYODIdPSession(t.Context(), redis_key_value.New(s.redisPool), clock.C, sessionID)
-			require.ErrorAs(t, err, new(*fleet.AuthRequiredError))
+			require.ErrorAs(t, err, new(*automdm.AuthRequiredError))
 
 			// a second device presenting the same session enrolls without an account
 			secondDevice := mdmtest.NewTestMDMClientAppleOTA(
@@ -759,7 +759,7 @@ func (s *integrationMDMTestSuite) TestOTAEnrollment() {
 
 		t.Run("ota enrollment with a used idp session is refused where authentication is required", func(t *testing.T) {
 			idpEmail := "used@example.com"
-			err := s.ds.InsertMDMIdPAccount(context.Background(), &fleet.MDMIdPAccount{
+			err := s.ds.InsertMDMIdPAccount(context.Background(), &automdm.MDMIdPAccount{
 				Username: "used",
 				Email:    idpEmail,
 			})
@@ -771,8 +771,8 @@ func (s *integrationMDMTestSuite) TestOTAEnrollment() {
 
 			var specResp applyTeamSpecsResponse
 			teamSecret := "team_secret_used_session"
-			teamSpecs := applyTeamSpecsRequest{Specs: []*fleet.TeamSpec{{Name: "team used session", Secrets: &[]fleet.EnrollSecret{{Secret: teamSecret}}, MDM: fleet.TeamSpecMDM{MacOSSetup: fleet.MacOSSetupSpec{EnableEndUserAuthentication: true}}}}}
-			s.DoJSON("POST", "/api/latest/fleet/spec/fleets", teamSpecs, http.StatusOK, &specResp)
+			teamSpecs := applyTeamSpecsRequest{Specs: []*automdm.TeamSpec{{Name: "team used session", Secrets: &[]automdm.EnrollSecret{{Secret: teamSecret}}, MDM: automdm.TeamSpecMDM{MacOSSetup: automdm.MacOSSetupSpec{EnableEndUserAuthentication: true}}}}}
+			s.DoJSON("POST", "/api/latest/automdm/spec/teams", teamSpecs, http.StatusOK, &specResp)
 
 			mdmDevice := mdmtest.NewTestMDMClientAppleOTA(
 				s.server.URL,
@@ -816,7 +816,7 @@ func (s *integrationMDMTestSuite) TestAppleMDMAccountDrivenUserEnrollment() {
 	oldUrlIphoneAccessToken := getSSOAccessToken("sso_user2", "user123#", "")
 
 	acResp := appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 		"server_settings": {
 			"server_url": "`+originalServerUrl+`"
 		}
@@ -840,7 +840,7 @@ func (s *integrationMDMTestSuite) TestAppleMDMAccountDrivenUserEnrollment() {
 
 	iPhoneHost, err := s.ds.HostByIdentifier(context.Background(), iPhoneMdmDevice.EnrollmentID())
 	require.NoError(t, err)
-	s.lastActivityOfTypeMatches(fleet.ActivityTypeMDMEnrolled{}.ActivityName(),
+	s.lastActivityOfTypeMatches(automdm.ActivityTypeMDMEnrolled{}.ActivityName(),
 		fmt.Sprintf(`{"host_id": %d, "host_serial": "%s", "enrollment_id": "%s", "host_display_name": "%s (%s)", "installed_from_dep": false, "mdm_platform": "apple", "platform": "ios"}`, iPhoneHost.ID, iPhoneMdmDevice.EnrollmentID(), iPhoneMdmDevice.EnrollmentID(), iPhoneMdmDevice.Model, iPhoneMdmDevice.EnrollmentID()), 0)
 	linkedIDPAccount, err := s.ds.GetMDMIdPAccountByHostUUID(context.Background(), iPhoneMdmDevice.EnrollmentID())
 	require.NoError(t, err)
@@ -856,7 +856,7 @@ func (s *integrationMDMTestSuite) TestAppleMDMAccountDrivenUserEnrollment() {
 	require.ErrorContains(t, iPadMdmDevice.Enroll(), "401 Unauthorized")
 
 	// create a team we can update the ABM token to default the iPad enrollment to
-	team, err := s.ds.NewTeam(t.Context(), &fleet.Team{
+	team, err := s.ds.NewTeam(t.Context(), &automdm.Team{
 		Name: "team1",
 	})
 	require.NoError(t, err)
@@ -877,7 +877,7 @@ func (s *integrationMDMTestSuite) TestAppleMDMAccountDrivenUserEnrollment() {
 
 	iPadHost, err := s.ds.HostByIdentifier(context.Background(), iPadMdmDevice.EnrollmentID())
 	require.NoError(t, err)
-	s.lastActivityOfTypeMatches(fleet.ActivityTypeMDMEnrolled{}.ActivityName(),
+	s.lastActivityOfTypeMatches(automdm.ActivityTypeMDMEnrolled{}.ActivityName(),
 		fmt.Sprintf(`{"host_id": %d, "host_serial": "%s", "enrollment_id": "%s", "host_display_name": "%s (%s)", "installed_from_dep": false, "mdm_platform": "apple", "platform": "ipados"}`, iPadHost.ID, iPadMdmDevice.EnrollmentID(), iPadMdmDevice.EnrollmentID(), iPadMdmDevice.Model, iPadMdmDevice.EnrollmentID()), 0)
 	linkedIDPAccount, err = s.ds.GetMDMIdPAccountByHostUUID(context.Background(), iPadMdmDevice.EnrollmentID())
 	require.NoError(t, err)
@@ -894,7 +894,7 @@ func (s *integrationMDMTestSuite) TestAppleMDMAccountDrivenUserEnrollment() {
 
 	oldUrlIphoneHost, err := s.ds.HostByIdentifier(context.Background(), oldUrlIphoneMdmDevice.EnrollmentID())
 	require.NoError(t, err)
-	s.lastActivityOfTypeMatches(fleet.ActivityTypeMDMEnrolled{}.ActivityName(),
+	s.lastActivityOfTypeMatches(automdm.ActivityTypeMDMEnrolled{}.ActivityName(),
 		fmt.Sprintf(`{"host_id": %d, "host_serial": "%s", "enrollment_id": "%s", "host_display_name": "%s (%s)", "installed_from_dep": false, "mdm_platform": "apple", "platform": "ios"}`, oldUrlIphoneHost.ID, oldUrlIphoneMdmDevice.EnrollmentID(), oldUrlIphoneMdmDevice.EnrollmentID(), oldUrlIphoneMdmDevice.Model, oldUrlIphoneMdmDevice.EnrollmentID()), 0)
 	linkedIDPAccount, err = s.ds.GetMDMIdPAccountByHostUUID(context.Background(), oldUrlIphoneMdmDevice.EnrollmentID())
 	require.NoError(t, err)
@@ -928,7 +928,7 @@ func (s *integrationMDMTestSuite) TestAppleMDMAccountDrivenUserEnrollment() {
 	listHostsRes := listHostsResponse{}
 	var iPhoneHostID *uint
 	var iPadHostID *uint
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &listHostsRes)
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &listHostsRes)
 	require.Len(t, listHostsRes.Hosts, 3)
 	for _, host := range listHostsRes.Hosts {
 		switch host.UUID {
@@ -937,8 +937,8 @@ func (s *integrationMDMTestSuite) TestAppleMDMAccountDrivenUserEnrollment() {
 			assert.Equal(t, iPhoneMdmDevice.EnrollmentID(), host.UUID)
 			assert.Equal(t, iPhoneMdmDevice.EnrollmentID(), host.HardwareSerial)
 			require.NotNil(t, host.MDM.EnrollmentStatus)
-			assert.Equal(t, fleet.MDMEnrollmentStatusPersonal, *host.MDM.EnrollmentStatus)
-			assert.True(t, *host.MDM.ConnectedToFleet)
+			assert.Equal(t, automdm.MDMEnrollmentStatusPersonal, *host.MDM.EnrollmentStatus)
+			assert.True(t, *host.MDM.ConnectedToAutoMDM)
 			assert.Nil(t, host.TeamID)
 			id := host.ID
 			iPhoneHostID = &id
@@ -948,16 +948,16 @@ func (s *integrationMDMTestSuite) TestAppleMDMAccountDrivenUserEnrollment() {
 			assert.Equal(t, iPadMdmDevice.EnrollmentID(), host.HardwareSerial)
 			assert.Equal(t, iPadHwModel, host.HardwareModel)
 			require.NotNil(t, host.MDM.EnrollmentStatus)
-			assert.Equal(t, fleet.MDMEnrollmentStatusPersonal, *host.MDM.EnrollmentStatus)
-			assert.True(t, *host.MDM.ConnectedToFleet)
+			assert.Equal(t, automdm.MDMEnrollmentStatusPersonal, *host.MDM.EnrollmentStatus)
+			assert.True(t, *host.MDM.ConnectedToAutoMDM)
 			assert.Equal(t, team.ID, *host.TeamID)
 			id := host.ID
 			iPadHostID = &id
 		case oldUrlIphoneMdmDevice.EnrollmentID():
 			// Primarily assert it was enrolled correctly and fallback to unassigned
 			assert.Equal(t, "ios", host.Platform)
-			assert.Equal(t, fleet.MDMEnrollmentStatusPersonal, *host.MDM.EnrollmentStatus)
-			assert.True(t, *host.MDM.ConnectedToFleet)
+			assert.Equal(t, automdm.MDMEnrollmentStatusPersonal, *host.MDM.EnrollmentStatus)
+			assert.True(t, *host.MDM.ConnectedToAutoMDM)
 			assert.Nil(t, host.TeamID)
 		}
 	}
@@ -967,43 +967,43 @@ func (s *integrationMDMTestSuite) TestAppleMDMAccountDrivenUserEnrollment() {
 
 	// Confirm that host details endpoint contains the expected values for the iPhone
 	getHostResp := getDeviceHostResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", *iPhoneHostID), nil, http.StatusOK, &getHostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", *iPhoneHostID), nil, http.StatusOK, &getHostResp)
 	require.NotNil(t, getHostResp.Host.MDM.EnrollmentStatus)
-	assert.Equal(t, fleet.MDMEnrollmentStatusPersonal, *getHostResp.Host.MDM.EnrollmentStatus)
-	assert.True(t, *getHostResp.Host.MDM.ConnectedToFleet)
+	assert.Equal(t, automdm.MDMEnrollmentStatusPersonal, *getHostResp.Host.MDM.EnrollmentStatus)
+	assert.True(t, *getHostResp.Host.MDM.ConnectedToAutoMDM)
 	assert.Equal(t, iPhoneHwModel, getHostResp.Host.HardwareModel)
 	assert.Nil(t, getHostResp.Host.HostDetail.TeamID)
 
 	// Confirm that the host MDM endpoint contains the expected values for the iPhone
-	// using an inline struct because the definition of fleet.HostMDM makes it unusable here
+	// using an inline struct because the definition of automdm.HostMDM makes it unusable here
 	getHostMDMResponse := struct {
 		EnrollmentStatus string `json:"enrollment_status"`
 		ServerURL        string `json:"server_url"`
 		Name             string `json:"name"`
 		ID               uint   `json:"id"`
 	}{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/mdm", *iPhoneHostID), nil, http.StatusOK, &getHostMDMResponse)
-	assert.Equal(t, fleet.MDMEnrollmentStatusPersonal, getHostMDMResponse.EnrollmentStatus)
-	assert.Equal(t, fleet.WellKnownMDMFleet, getHostMDMResponse.Name)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/mdm", *iPhoneHostID), nil, http.StatusOK, &getHostMDMResponse)
+	assert.Equal(t, automdm.MDMEnrollmentStatusPersonal, getHostMDMResponse.EnrollmentStatus)
+	assert.Equal(t, automdm.WellKnownMDMAutoMDM, getHostMDMResponse.Name)
 
 	// Confirm that host details endpoint contains the expected values for the iPad
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", *iPadHostID), nil, http.StatusOK, &getHostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", *iPadHostID), nil, http.StatusOK, &getHostResp)
 	require.NotNil(t, getHostResp.Host.MDM.EnrollmentStatus)
-	assert.Equal(t, fleet.MDMEnrollmentStatusPersonal, *getHostResp.Host.MDM.EnrollmentStatus)
-	assert.True(t, *getHostResp.Host.MDM.ConnectedToFleet)
+	assert.Equal(t, automdm.MDMEnrollmentStatusPersonal, *getHostResp.Host.MDM.EnrollmentStatus)
+	assert.True(t, *getHostResp.Host.MDM.ConnectedToAutoMDM)
 	assert.Equal(t, team.ID, *getHostResp.Host.TeamID)
 
 	// Confirm that the host MDM endpoint contains the expected values for the iPad
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/mdm", *iPadHostID), nil, http.StatusOK, &getHostMDMResponse)
-	assert.Equal(t, fleet.MDMEnrollmentStatusPersonal, getHostMDMResponse.EnrollmentStatus)
-	assert.Equal(t, fleet.WellKnownMDMFleet, getHostMDMResponse.Name)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/mdm", *iPadHostID), nil, http.StatusOK, &getHostMDMResponse)
+	assert.Equal(t, automdm.MDMEnrollmentStatusPersonal, getHostMDMResponse.EnrollmentStatus)
+	assert.Equal(t, automdm.WellKnownMDMAutoMDM, getHostMDMResponse.Name)
 
 	for _, hostID := range []uint{*iPhoneHostID, *iPadHostID} {
 		var macadminsData macadminsDataResponse
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/macadmins", hostID), nil, http.StatusOK, &macadminsData)
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/macadmins", hostID), nil, http.StatusOK, &macadminsData)
 		require.NotNil(t, macadminsData.Macadmins)
 		require.NotNil(t, macadminsData.Macadmins.MDM)
-		assert.Equal(t, fleet.MDMEnrollmentStatusPersonal, macadminsData.Macadmins.MDM.EnrollmentStatus)
+		assert.Equal(t, automdm.MDMEnrollmentStatusPersonal, macadminsData.Macadmins.MDM.EnrollmentStatus)
 	}
 }
 
@@ -1034,7 +1034,7 @@ func (s *integrationMDMTestSuite) TestAppleMDMActionsOnPersonalHost() {
 	iPhoneAccessToken := getSSOAccessToken("sso_user", "user123#")
 
 	acResp := appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 		"server_settings": {
 			"server_url": "`+originalServerUrl+`"
 		}
@@ -1051,28 +1051,28 @@ func (s *integrationMDMTestSuite) TestAppleMDMActionsOnPersonalHost() {
 	assert.Equal(t, "sso_user@example.com", iPhoneMdmDevice.EnrollInfo.AssignedManagedAppleID)
 
 	listHostsRes := listHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &listHostsRes)
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &listHostsRes)
 	require.Len(t, listHostsRes.Hosts, 1)
 	host := listHostsRes.Hosts[0]
 	assert.Equal(t, host.UUID, iPhoneMdmDevice.EnrollmentID())
 	require.NotNil(t, host.MDM.EnrollmentStatus)
-	assert.Equal(t, fleet.MDMEnrollmentStatusPersonal, *host.MDM.EnrollmentStatus)
-	assert.True(t, *host.MDM.ConnectedToFleet)
+	assert.Equal(t, automdm.MDMEnrollmentStatusPersonal, *host.MDM.EnrollmentStatus)
+	assert.True(t, *host.MDM.ConnectedToAutoMDM)
 
 	// Confirm that locking or wiping the host fails with an appropriate error
 	// Lock the host
-	r := s.DoRaw("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/lock", host.ID), nil, http.StatusBadRequest)
-	require.Contains(t, extractServerErrorText(r.Body), fleet.CantLockPersonalHostsMessage)
+	r := s.DoRaw("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/lock", host.ID), nil, http.StatusBadRequest)
+	require.Contains(t, extractServerErrorText(r.Body), automdm.CantLockPersonalHostsMessage)
 
 	// try to wipe the host
-	r = s.Do("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/wipe", host.ID), nil, http.StatusBadRequest)
-	require.Contains(t, extractServerErrorText(r.Body), fleet.CantWipePersonalHostsMessage)
+	r = s.Do("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/wipe", host.ID), nil, http.StatusBadRequest)
+	require.Contains(t, extractServerErrorText(r.Body), automdm.CantWipePersonalHostsMessage)
 
-	r = s.Do("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/clear_passcode", host.ID), nil, http.StatusBadRequest)
-	require.Contains(t, extractServerErrorText(r.Body), fleet.CantClearPasscodePersonalHostsMessage)
+	r = s.Do("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/clear_passcode", host.ID), nil, http.StatusBadRequest)
+	require.Contains(t, extractServerErrorText(r.Body), automdm.CantClearPasscodePersonalHostsMessage)
 
 	// Confirm that turning off MDM for personal hosts are allowed - NEEDS to be last, to not turn off MDM for the other checks.
-	s.Do("DELETE", fmt.Sprintf("/api/latest/fleet/hosts/%d/mdm", host.ID), nil, http.StatusNoContent)
+	s.Do("DELETE", fmt.Sprintf("/api/latest/automdm/hosts/%d/mdm", host.ID), nil, http.StatusNoContent)
 }
 
 // Test for #27231
@@ -1083,8 +1083,8 @@ func (s *integrationMDMTestSuite) TestRecreateDeletedIPhoneBYOD() {
 	// create a team with its enroll secret
 	var specResp applyTeamSpecsResponse
 	teamSecret := "team_secret"
-	teamSpecs := applyTeamSpecsRequest{Specs: []*fleet.TeamSpec{{Name: "newteam", Secrets: &[]fleet.EnrollSecret{{Secret: teamSecret}}}}}
-	s.DoJSON("POST", "/api/latest/fleet/spec/fleets", teamSpecs, http.StatusOK, &specResp)
+	teamSpecs := applyTeamSpecsRequest{Specs: []*automdm.TeamSpec{{Name: "newteam", Secrets: &[]automdm.EnrollSecret{{Secret: teamSecret}}}}}
+	s.DoJSON("POST", "/api/latest/automdm/spec/teams", teamSpecs, http.StatusOK, &specResp)
 
 	// enroll a BYOD iPhone
 	model := "iPhone14,6"
@@ -1093,7 +1093,7 @@ func (s *integrationMDMTestSuite) TestRecreateDeletedIPhoneBYOD() {
 
 	// get its corresponding host
 	listHostsRes := listHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &listHostsRes)
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &listHostsRes)
 	require.Len(t, listHostsRes.Hosts, 1)
 	host := listHostsRes.Hosts[0]
 	require.Equal(t, mdmDevice.UUID, host.UUID)
@@ -1102,10 +1102,10 @@ func (s *integrationMDMTestSuite) TestRecreateDeletedIPhoneBYOD() {
 
 	// delete the host
 	var delResp deleteHostResponse
-	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/fleet/hosts/%d", host.ID), nil, http.StatusOK, &delResp)
+	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/automdm/hosts/%d", host.ID), nil, http.StatusOK, &delResp)
 
 	listHostsRes = listHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &listHostsRes)
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &listHostsRes)
 	require.Empty(t, listHostsRes.Hosts)
 
 	// run the reviver cron job, will send a push notification to the deleted host
@@ -1133,7 +1133,7 @@ func (s *integrationMDMTestSuite) TestRecreateDeletedIPhoneBYOD() {
 	require.Nil(t, cmd) // no command to process
 
 	listHostsRes = listHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &listHostsRes)
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &listHostsRes)
 	require.Len(t, listHostsRes.Hosts, 1)
 	require.Equal(t, mdmDevice.UUID, listHostsRes.Hosts[0].UUID)
 	require.Equal(t, mdmDevice.SerialNumber, listHostsRes.Hosts[0].HardwareSerial)
@@ -1147,8 +1147,8 @@ func (s *integrationMDMTestSuite) TestRecreateDeletedIPhoneADE() {
 
 	device := godep.Device{SerialNumber: "IOS0_SERIAL", Model: "iPhone 16 Pro", OS: "ios", DeviceFamily: "iPhone", OpType: "added"}
 
-	s.enableABM("fleet_ade_test")
-	s.mockDEPResponse("fleet_ade_test", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	s.enableABM("automdm_ade_test")
+	s.mockDEPResponse("automdm_ade_test", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		encoder := json.NewEncoder(w)
 		switch r.URL.Path {
 		case "/session":
@@ -1176,7 +1176,7 @@ func (s *integrationMDMTestSuite) TestRecreateDeletedIPhoneADE() {
 			resp.ProfileUUID = prof.ProfileUUID
 			resp.Devices = make(map[string]string, len(prof.Devices))
 			for _, device := range prof.Devices {
-				resp.Devices[device] = string(fleet.DEPAssignProfileResponseSuccess)
+				resp.Devices[device] = string(automdm.DEPAssignProfileResponseSuccess)
 			}
 			err = encoder.Encode(resp)
 			assert.NoError(t, err)
@@ -1190,7 +1190,7 @@ func (s *integrationMDMTestSuite) TestRecreateDeletedIPhoneADE() {
 
 	// host now exists in phantom (pending enrollment) form
 	listHostsRes := listHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &listHostsRes)
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &listHostsRes)
 	require.Len(t, listHostsRes.Hosts, 1)
 	host := listHostsRes.Hosts[0].Host
 	require.Equal(t, device.SerialNumber, host.HardwareSerial)
@@ -1209,7 +1209,7 @@ func (s *integrationMDMTestSuite) TestRecreateDeletedIPhoneADE() {
 
 	// host now exists as a full host
 	listHostsRes = listHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &listHostsRes)
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &listHostsRes)
 	require.Len(t, listHostsRes.Hosts, 1)
 	host = listHostsRes.Hosts[0].Host
 	require.Equal(t, device.SerialNumber, host.HardwareSerial)
@@ -1220,11 +1220,11 @@ func (s *integrationMDMTestSuite) TestRecreateDeletedIPhoneADE() {
 
 	// delete the host
 	var delResp deleteHostResponse
-	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/fleet/hosts/%d", host.ID), nil, http.StatusOK, &delResp)
+	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/automdm/hosts/%d", host.ID), nil, http.StatusOK, &delResp)
 
 	// host still exists, but back in phantom (pending enrollment) form
 	listHostsRes = listHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &listHostsRes)
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &listHostsRes)
 	require.Len(t, listHostsRes.Hosts, 1)
 	host = listHostsRes.Hosts[0].Host
 	require.Equal(t, device.SerialNumber, host.HardwareSerial)
@@ -1240,9 +1240,9 @@ func (s *integrationMDMTestSuite) TestRecreateDeletedIPhoneADE() {
 		return err
 	})
 	trigger := triggerRequest{
-		Name: string(fleet.CronAppleMDMIPhoneIPadRefetcher),
+		Name: string(automdm.CronAppleMDMIPhoneIPadRefetcher),
 	}
-	s.Do("POST", "/api/latest/fleet/trigger", trigger, http.StatusOK)
+	s.Do("POST", "/api/latest/automdm/trigger", trigger, http.StatusOK)
 
 	// Wait until MDM commands are set up
 	done := make(chan struct{})
@@ -1270,7 +1270,7 @@ func (s *integrationMDMTestSuite) TestRecreateDeletedIPhoneADE() {
 	for cmd != nil {
 		switch cmd.Command.RequestType {
 		case "InstalledApplicationList":
-			cmd, err = mdmDevice.AcknowledgeInstalledApplicationList(mdmDevice.UUID, cmd.CommandUUID, []fleet.Software{})
+			cmd, err = mdmDevice.AcknowledgeInstalledApplicationList(mdmDevice.UUID, cmd.CommandUUID, []automdm.Software{})
 			require.NoError(t, err)
 		case "CertificateList":
 			cmd, err = mdmDevice.AcknowledgeCertificateList(mdmDevice.UUID, cmd.CommandUUID, []*x509.Certificate{})
@@ -1284,7 +1284,7 @@ func (s *integrationMDMTestSuite) TestRecreateDeletedIPhoneADE() {
 	}
 
 	listHostsRes = listHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &listHostsRes)
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &listHostsRes)
 	require.Len(t, listHostsRes.Hosts, 1)
 	host = listHostsRes.Hosts[0].Host
 	require.Equal(t, device.SerialNumber, host.HardwareSerial)
@@ -1307,17 +1307,17 @@ func (s *integrationMDMTestSuite) TestBYODEnrollmentWithIdPEnabled() {
 	s.setUpMDMSSO(t, true)
 
 	// create a couple teams, one with IdP enabled and one without
-	teamNoIdP, err := s.ds.NewTeam(ctx, &fleet.Team{Name: "team without idp"})
+	teamNoIdP, err := s.ds.NewTeam(ctx, &automdm.Team{Name: "team without idp"})
 	require.NoError(t, err)
-	teamIdP, err := s.ds.NewTeam(ctx, &fleet.Team{Name: "team with idp"})
+	teamIdP, err := s.ds.NewTeam(ctx, &automdm.Team{Name: "team with idp"})
 	require.NoError(t, err)
 	teamIdP.Config.MDM.MacOSSetup.EnableEndUserAuthentication = true
 	_, err = s.ds.SaveTeam(ctx, teamIdP)
 	require.NoError(t, err)
 
-	err = s.ds.ApplyEnrollSecrets(ctx, &teamNoIdP.ID, []*fleet.EnrollSecret{{Secret: "noidp"}})
+	err = s.ds.ApplyEnrollSecrets(ctx, &teamNoIdP.ID, []*automdm.EnrollSecret{{Secret: "noidp"}})
 	require.NoError(t, err)
-	err = s.ds.ApplyEnrollSecrets(ctx, &teamIdP.ID, []*fleet.EnrollSecret{{Secret: "idp"}})
+	err = s.ds.ApplyEnrollSecrets(ctx, &teamIdP.ID, []*automdm.EnrollSecret{{Secret: "idp"}})
 	require.NoError(t, err)
 
 	// try to BYOD-enroll in team without IdP enabled, should render the download
@@ -1325,7 +1325,7 @@ func (s *integrationMDMTestSuite) TestBYODEnrollmentWithIdPEnabled() {
 	res := s.DoRawNoAuth("GET", "/enroll", nil, http.StatusOK, "enroll_secret", "noidp")
 	page, err := io.ReadAll(res.Body)
 	require.NoError(t, err)
-	require.Contains(t, string(page), "How to enroll your Android device to Fleet")
+	require.Contains(t, string(page), "How to enroll your Android device to AutoMDM")
 
 	// try to BYOD-enroll in team with IdP enabled, should redirect to SSO login
 	res = s.DoRawNoAuth("GET", "/enroll", nil, http.StatusSeeOther, "enroll_secret", "idp")
@@ -1360,7 +1360,7 @@ func (s *integrationMDMTestSuite) TestBYODEnrollmentWithIdPEnabled() {
 		map[string]string{"Cookie": shared_mdm.BYODIdpCookieName + "=" + byodSession}, "enroll_secret", "idp")
 	page, err = io.ReadAll(res.Body)
 	require.NoError(t, err)
-	require.Contains(t, string(page), "How to enroll your Android device to Fleet")
+	require.Contains(t, string(page), "How to enroll your Android device to AutoMDM")
 
 	// try to BYOD-enroll with invalid enroll secret, should redirect to SSO
 	// login as at least one team has it enabled
@@ -1382,12 +1382,12 @@ func (s *integrationMDMTestSuite) TestOTAEnrollSSOWithoutAppleDEPProfile() {
 	s.setUpMDMSSO(t, false)
 
 	// Create a team with IdP (end user authentication) enabled and an enroll secret.
-	teamIdP, err := s.ds.NewTeam(ctx, &fleet.Team{Name: "team with idp for ota sso test"})
+	teamIdP, err := s.ds.NewTeam(ctx, &automdm.Team{Name: "team with idp for ota sso test"})
 	require.NoError(t, err)
 	teamIdP.Config.MDM.MacOSSetup.EnableEndUserAuthentication = true
 	_, err = s.ds.SaveTeam(ctx, teamIdP)
 	require.NoError(t, err)
-	err = s.ds.ApplyEnrollSecrets(ctx, &teamIdP.ID, []*fleet.EnrollSecret{{Secret: "ota-sso-test"}}) //nolint:gosec // test credential
+	err = s.ds.ApplyEnrollSecrets(ctx, &teamIdP.ID, []*automdm.EnrollSecret{{Secret: "ota-sso-test"}}) //nolint:gosec // test credential
 	require.NoError(t, err)
 
 	// Remove any Apple DEP automatic enrollment profiles to simulate an
@@ -1412,7 +1412,7 @@ func (s *integrationMDMTestSuite) TestOTAEnrollSSOWithoutAppleDEPProfile() {
 	require.True(t, strings.HasPrefix(u.Path, "/enroll"), "expected redirect to /enroll, got: %s", location)
 	require.Empty(t, u.Query().Get("error"), "expected no error in redirect, got: %s", location)
 	require.Empty(t, u.Query().Get("enrollment_reference"), "expected no enrollment_reference in redirect, got: %s", location)
-	require.Equal(t, fleet.SSOInitiatorOTAEnroll, u.Query().Get("initiator"))
+	require.Equal(t, automdm.SSOInitiatorOTAEnroll, u.Query().Get("initiator"))
 	var byodCookie *http.Cookie
 	for _, c := range res.Cookies() {
 		if c.Name == shared_mdm.BYODIdpCookieName {
@@ -1440,10 +1440,10 @@ func (s *integrationMDMTestSuite) TestIOSiPadOSRefetch() {
 	}
 	model := "iPhone14,6"
 
-	successfulHost, err := s.ds.NewHost(ctx, &fleet.Host{
+	successfulHost, err := s.ds.NewHost(ctx, &automdm.Host{
 		HardwareSerial:  mdmtest.RandSerialNumber(),
 		UUID:            successfulPushUUID,
-		Platform:        string(fleet.IOSPlatform),
+		Platform:        string(automdm.IOSPlatform),
 		DetailUpdatedAt: time.Now().Add(-2 * time.Hour), // ensure refetch is needed
 	})
 	s.Require().NoError(err)
@@ -1453,10 +1453,10 @@ func (s *integrationMDMTestSuite) TestIOSiPadOSRefetch() {
 	err = successfulMdmDevice.Enroll()
 	s.Require().NoError(err)
 
-	failedHost, err := s.ds.NewHost(ctx, &fleet.Host{
+	failedHost, err := s.ds.NewHost(ctx, &automdm.Host{
 		HardwareSerial:  mdmtest.RandSerialNumber(),
 		UUID:            failedPushUUID,
-		Platform:        string(fleet.IOSPlatform),
+		Platform:        string(automdm.IOSPlatform),
 		DetailUpdatedAt: time.Now().Add(-2 * time.Hour), // ensure refetch is needed
 	})
 	s.Require().NoError(err)
@@ -1466,10 +1466,10 @@ func (s *integrationMDMTestSuite) TestIOSiPadOSRefetch() {
 	err = failedMdmDevice.Enroll()
 	s.Require().NoError(err)
 
-	failedHostTokenInactive, err := s.ds.NewHost(ctx, &fleet.Host{
+	failedHostTokenInactive, err := s.ds.NewHost(ctx, &automdm.Host{
 		HardwareSerial:  mdmtest.RandSerialNumber(),
 		UUID:            failedPushUUID,
-		Platform:        string(fleet.IOSPlatform),
+		Platform:        string(automdm.IOSPlatform),
 		DetailUpdatedAt: time.Now().Add(-2 * time.Hour), // ensure refetch is needed
 	})
 	s.Require().NoError(err)
@@ -1514,7 +1514,7 @@ func (s *integrationMDMTestSuite) TestIOSiPadOSRefetch() {
 		return nil, errors.New("unknown device")
 	}
 
-	err = apple_mdm.IOSiPadOSRefetch(ctx, s.ds, s.mdmCommander, s.logger, s.fleetSvc.NewActivity, 1000)
+	err = apple_mdm.IOSiPadOSRefetch(ctx, s.ds, s.mdmCommander, s.logger, s.automdmSvc.NewActivity, 1000)
 	s.Require().NoError(err) // Verify it not longer throws an error
 
 	// Verify successful is still enrolled
@@ -1543,17 +1543,17 @@ func (s *integrationMDMTestSuite) TestInstalledApplicationListCommandForBYODiDev
 
 	// create a manually-enrolled (BYOD) ios host
 	hostBYOD, mdmClientBYOD := s.createAppleMobileHostThenEnrollMDM("ios")
-	require.NoError(t, s.ds.SetOrUpdateMDMData(ctx, hostBYOD.ID, false, true, s.server.URL, false, "", "", fleet.PersonalEnrollmentTypeNone))
+	require.NoError(t, s.ds.SetOrUpdateMDMData(ctx, hostBYOD.ID, false, true, s.server.URL, false, "", "", automdm.PersonalEnrollmentTypeNone))
 
 	// Refetch host
-	s.Do("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/refetch", hostBYOD.ID), nil, http.StatusOK)
+	s.Do("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/refetch", hostBYOD.ID), nil, http.StatusOK)
 
 	// check expected command types
 	commands, err := s.ds.GetHostMDMCommands(ctx, hostBYOD.ID)
 	require.NoError(t, err)
 	require.Len(t, commands, 3)
 	requireTrackedRefetchCommands(t, commands, hostBYOD.ID,
-		fleet.RefetchAppsCommandUUIDPrefix, fleet.RefetchCertsCommandUUIDPrefix, fleet.RefetchDeviceCommandUUIDPrefix)
+		automdm.RefetchAppsCommandUUIDPrefix, automdm.RefetchCertsCommandUUIDPrefix, automdm.RefetchDeviceCommandUUIDPrefix)
 
 	checkExpectedCommands := func(mdmClient *mdmtest.TestAppleMDMClient, managedOnly bool, wantAppListCount int) {
 		var installedAppListCount int
@@ -1569,7 +1569,7 @@ func (s *integrationMDMTestSuite) TestInstalledApplicationListCommandForBYODiDev
 				require.NotNil(t, fullCmd.Command.InstalledApplicationList)
 				require.Equal(t, managedOnly, fullCmd.Command.InstalledApplicationList.ManagedAppsOnly)
 
-				cmd, err = mdmClient.AcknowledgeInstalledApplicationList(mdmClient.UUID, cmd.CommandUUID, []fleet.Software{})
+				cmd, err = mdmClient.AcknowledgeInstalledApplicationList(mdmClient.UUID, cmd.CommandUUID, []automdm.Software{})
 				require.NoError(t, err)
 
 			case "DeviceInformation":
@@ -1588,21 +1588,21 @@ func (s *integrationMDMTestSuite) TestInstalledApplicationListCommandForBYODiDev
 
 	// create a company-owned ios host
 	hostDEP, mdmClientDEP := s.createAppleMobileHostThenEnrollMDM("ios")
-	require.NoError(t, s.ds.SetOrUpdateMDMData(ctx, hostDEP.ID, false, true, s.server.URL, true, "", "", fleet.PersonalEnrollmentTypeNone))
+	require.NoError(t, s.ds.SetOrUpdateMDMData(ctx, hostDEP.ID, false, true, s.server.URL, true, "", "", automdm.PersonalEnrollmentTypeNone))
 
 	// Refetch host
-	s.Do("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/refetch", hostDEP.ID), nil, http.StatusOK)
+	s.Do("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/refetch", hostDEP.ID), nil, http.StatusOK)
 
 	commands, err = s.ds.GetHostMDMCommands(ctx, hostDEP.ID)
 	require.NoError(t, err)
 	require.Len(t, commands, 3)
 	requireTrackedRefetchCommands(t, commands, hostDEP.ID,
-		fleet.RefetchAppsCommandUUIDPrefix, fleet.RefetchCertsCommandUUIDPrefix, fleet.RefetchDeviceCommandUUIDPrefix)
+		automdm.RefetchAppsCommandUUIDPrefix, automdm.RefetchCertsCommandUUIDPrefix, automdm.RefetchDeviceCommandUUIDPrefix)
 
 	checkExpectedCommands(mdmClientDEP, false, 1)
 
 	// run the cron-based refetch, will not do anything as the devices were just refetched
-	err = apple_mdm.IOSiPadOSRefetch(ctx, s.ds, s.mdmCommander, s.logger, s.fleetSvc.NewActivity, 1000)
+	err = apple_mdm.IOSiPadOSRefetch(ctx, s.ds, s.mdmCommander, s.logger, s.automdmSvc.NewActivity, 1000)
 	require.NoError(t, err)
 
 	checkExpectedCommands(mdmClientBYOD, true, 0)
@@ -1615,7 +1615,7 @@ func (s *integrationMDMTestSuite) TestInstalledApplicationListCommandForBYODiDev
 	require.NoError(t, s.ds.UpdateHost(ctx, hostDEP))
 
 	// run the cron-based refetch again, will enqueue the commands with the correct managed only flag
-	err = apple_mdm.IOSiPadOSRefetch(ctx, s.ds, s.mdmCommander, s.logger, s.fleetSvc.NewActivity, 1000)
+	err = apple_mdm.IOSiPadOSRefetch(ctx, s.ds, s.mdmCommander, s.logger, s.automdmSvc.NewActivity, 1000)
 	require.NoError(t, err)
 
 	checkExpectedCommands(mdmClientBYOD, true, 1)

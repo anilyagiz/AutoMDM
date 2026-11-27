@@ -6,9 +6,9 @@ import (
 	"log/slog"
 	"net/http"
 
-	authz_ctx "github.com/fleetdm/fleet/v4/server/contexts/authz"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/publicip"
+	authz_ctx "github.com/anilyagiz/automdm/v4/server/contexts/authz"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/publicip"
 	"github.com/go-kit/kit/endpoint"
 	"github.com/throttled/throttled/v2"
 )

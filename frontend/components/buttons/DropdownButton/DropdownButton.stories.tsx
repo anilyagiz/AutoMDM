@@ -19,7 +19,7 @@ const options = [
   },
   {
     label: "Documentation",
-    onClick: () => window.open("https://fleetdm.com/docs", "_blank"),
+    onClick: () => window.open("https://automdm.com/docs", "_blank"),
   },
   {
     label: "Sign out",
@@ -36,7 +36,7 @@ const withGitOpsMode = (Story: React.ComponentType) => (
       config: createMockConfig({
         gitops: {
           gitops_mode_enabled: true,
-          repository_url: "https://github.com/example/fleet-config",
+          repository_url: "https://github.com/example/automdm-config",
           exceptions: { labels: false, software: false, secrets: false },
         },
       }),
@@ -103,13 +103,13 @@ export const GitOpsDisabledItems: Story = {
     children: "More options",
     options: [
       {
-        label: "Rename fleet",
+        label: "Rename team",
         onClick: noop,
         disabled: true,
         gitOpsModeCompatible: true,
       },
       {
-        label: "Delete fleet",
+        label: "Delete team",
         onClick: noop,
         disabled: true,
         gitOpsModeCompatible: true,

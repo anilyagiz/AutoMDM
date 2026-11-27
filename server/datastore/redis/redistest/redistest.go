@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/datastore/redis"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis"
 	redigo "github.com/gomodule/redigo/redis"
 	"github.com/stretchr/testify/require"
 )
@@ -20,7 +20,7 @@ func (nopRedis) Close() error { return nil }
 
 func (nopRedis) Stats() map[string]redigo.PoolStats { return nil }
 
-func (nopRedis) Mode() fleet.RedisMode { return fleet.RedisStandalone }
+func (nopRedis) Mode() automdm.RedisMode { return automdm.RedisStandalone }
 
 type nopConn struct{}
 
@@ -31,15 +31,15 @@ func (nopConn) Send(_ string, _ ...interface{}) error              { return nil 
 func (nopConn) Flush() error                                       { return nil }
 func (nopConn) Receive() (interface{}, error)                      { return nil, nil }
 
-func NopRedis() fleet.RedisPool {
+func NopRedis() automdm.RedisPool {
 	return nopRedis{}
 }
 
-func SetupRedis(tb testing.TB, cleanupKeyPrefix string, cluster, redir, readReplica bool) fleet.RedisPool {
+func SetupRedis(tb testing.TB, cleanupKeyPrefix string, cluster, redir, readReplica bool) automdm.RedisPool {
 	return SetupRedisWithConfig(tb, cleanupKeyPrefix, cluster, redir, readReplica, redis.PoolConfig{})
 }
 
-func SetupRedisWithConfig(tb testing.TB, cleanupKeyPrefix string, cluster, redir, readReplica bool, config redis.PoolConfig) fleet.RedisPool {
+func SetupRedisWithConfig(tb testing.TB, cleanupKeyPrefix string, cluster, redir, readReplica bool, config redis.PoolConfig) automdm.RedisPool {
 	if _, ok := os.LookupEnv("REDIS_TEST"); !ok {
 		tb.Skip("set REDIS_TEST environment variable to run redis-based tests")
 	}
@@ -104,7 +104,7 @@ func SetupRedisWithConfig(tb testing.TB, cleanupKeyPrefix string, cluster, redir
 	return pool
 }
 
-func cleanup(tb testing.TB, pool fleet.RedisPool, cleanupKeyPrefix string) {
+func cleanup(tb testing.TB, pool automdm.RedisPool, cleanupKeyPrefix string) {
 	keys, err := redis.ScanKeys(pool, cleanupKeyPrefix+"*", 1000)
 	require.NoError(tb, err)
 	for _, k := range keys {

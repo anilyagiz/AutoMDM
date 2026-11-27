@@ -9,16 +9,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/google/go-github/v37/github"
 	"golang.org/x/mod/semver"
 )
 
 func main() {
-	lastMinorReleases := flag.Int("last-minor-releases", 0, "Output number of Fleet minor releases (with highest patch number)")
+	lastMinorReleases := flag.Int("last-minor-releases", 0, "Output number of AutoMDM minor releases (with highest patch number)")
 	separator := flag.String("separator", " ", "Separator string to use in the output")
-	allCPEs := flag.Bool("all-cpes", false, "Output all Fleet version releases as CPEs")
+	allCPEs := flag.Bool("all-cpes", false, "Output all AutoMDM version releases as CPEs")
 	flag.Parse()
 
 	if *lastMinorReleases <= 0 && !*allCPEs {
@@ -28,7 +28,7 @@ func main() {
 		log.Fatal("Cannot set both --last-minor-releases or --all-cpes")
 	}
 
-	c := github.NewClient(fleethttp.NewGithubClient()).Repositories
+	c := github.NewClient(automdmhttp.NewGithubClient()).Repositories
 	var (
 		githubReleases []*github.RepositoryRelease
 		err            error
@@ -36,7 +36,7 @@ func main() {
 	var releaseVersions []string
 	if *allCPEs {
 		for page := 1; ; page++ {
-			releases, _, err := c.ListReleases(context.Background(), "fleetdm", "fleet", &github.ListOptions{Page: page, PerPage: 100})
+			releases, _, err := c.ListReleases(context.Background(), "automdm", "automdm", &github.ListOptions{Page: page, PerPage: 100})
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -47,12 +47,12 @@ func main() {
 				if strings.HasPrefix(*release.Name, "orbit-") {
 					continue
 				}
-				if strings.HasPrefix(*release.Name, "fleet-") {
-					versionWithoutPrefix := strings.TrimPrefix(*release.Name, "fleet-")
+				if strings.HasPrefix(*release.Name, "automdm-") {
+					versionWithoutPrefix := strings.TrimPrefix(*release.Name, "automdm-")
 					release.Name = ptr.String(versionWithoutPrefix)
 				}
-				if strings.HasPrefix(*release.Name, "Fleet ") {
-					versionWithoutPrefix := strings.TrimPrefix(*release.Name, "Fleet ")
+				if strings.HasPrefix(*release.Name, "AutoMDM ") {
+					versionWithoutPrefix := strings.TrimPrefix(*release.Name, "AutoMDM ")
 					release.Name = ptr.String(versionWithoutPrefix)
 				}
 				if (*release.Name)[0] != 'v' {
@@ -64,12 +64,12 @@ func main() {
 			time.Sleep(500 * time.Millisecond)
 		}
 	} else {
-		githubReleases, _, err = c.ListReleases(context.Background(), "fleetdm", "fleet", &github.ListOptions{})
+		githubReleases, _, err = c.ListReleases(context.Background(), "automdm", "automdm", &github.ListOptions{})
 		if err != nil {
 			log.Fatal(err)
 		}
 		for _, gr := range githubReleases {
-			releaseVersions = append(releaseVersions, strings.TrimPrefix(*gr.Name, "fleet-"))
+			releaseVersions = append(releaseVersions, strings.TrimPrefix(*gr.Name, "automdm-"))
 		}
 	}
 

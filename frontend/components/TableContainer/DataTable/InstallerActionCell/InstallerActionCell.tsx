@@ -5,8 +5,8 @@ import { InjectedRouter } from "react-router";
 import Button from "components/buttons/Button";
 import Icon from "components/Icon";
 import TooltipWrapper from "components/TooltipWrapper";
-import { IFleetMaintainedApp } from "interfaces/software";
-import { softwareAlreadyAddedTipContent } from "pages/SoftwarePage/SoftwareAddPage/SoftwareFleetMaintained/FleetMaintainedAppDetailsPage/FleetAppDetailsForm/FleetAppDetailsForm";
+import { IAutoMDMMaintainedApp } from "interfaces/software";
+import { softwareAlreadyAddedTipContent } from "pages/SoftwarePage/SoftwareAddPage/SoftwareAutoMDMMaintained/AutoMDMMaintainedAppDetailsPage/AutoMDMAppDetailsForm/AutoMDMAppDetailsForm";
 import PATHS from "router/paths";
 import { getPathWithQueryParams } from "utilities/url";
 
@@ -15,7 +15,7 @@ import TextCell from "../TextCell";
 const baseClass = "installer-action-cell";
 
 interface IInstallerActionCellProps {
-  value?: Omit<IFleetMaintainedApp, "name" | "version"> | null;
+  value?: Omit<IAutoMDMMaintainedApp, "name" | "version"> | null;
   router?: InjectedRouter;
   className?: string;
   teamId?: number;
@@ -43,8 +43,8 @@ const InstallerActionCell = ({
 
   const onClick = () => {
     const path = getPathWithQueryParams(
-      PATHS.SOFTWARE_FLEET_MAINTAINED_DETAILS(id),
-      { fleet_id: teamId }
+      PATHS.SOFTWARE_AUTOMDM_MAINTAINED_DETAILS(id),
+      { team_id: teamId }
     );
     if (router && path) {
       router?.push(path);

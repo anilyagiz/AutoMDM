@@ -1,5 +1,5 @@
 # script: Set_ScreenSaverGracePeriod.ps1 
-# author: brock@fleetdm.com © 2025 Fleet Device Management
+# author: brock@automdm.com © 2025 Fleet Device Management
 # description: PowerShell command to set MSS:(ScreenSaverGracePeriod) - the time in seconds before the screen saver grace period expires
 
 # Value to be configured for grace period as an interger in seconds

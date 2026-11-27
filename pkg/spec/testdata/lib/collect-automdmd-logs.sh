@@ -1,0 +1,4 @@
+# collect automdmd logs
+echo a${AUTOMDM_SECRET_AUTOMDM_SECRET_}a
+echo $NOT_AUTOMDM_SECRET_X
+echo $AUTOMDM_SECRET_BANANA

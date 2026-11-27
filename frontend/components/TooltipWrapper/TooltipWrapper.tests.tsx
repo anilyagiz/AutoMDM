@@ -28,7 +28,7 @@ describe("TooltipWrapper", () => {
     const { user } = renderWithSetup(
       <TooltipWrapper
         tipContent={
-          <CustomLink url="https://fleetdm.com/docs" text="Learn more" newTab />
+          <CustomLink url="https://automdm.com/docs" text="Learn more" newTab />
         }
       >
         <span>Hover me</span>

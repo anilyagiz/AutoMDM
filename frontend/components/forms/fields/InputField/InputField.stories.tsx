@@ -145,7 +145,7 @@ export const WithCopyAndOpenInNewTab: Story = {
     ...Default.args,
     name: "open-in-new-tab-input",
     label: "Share this link with your end users:",
-    value: "https://fleet.example.com/enroll?enroll_secret=abc123",
+    value: "https://automdm.example.com/enroll?enroll_secret=abc123",
     readOnly: true,
     enableCopy: true,
     enableOpenInNewTab: true,

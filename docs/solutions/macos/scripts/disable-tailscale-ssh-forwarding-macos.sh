@@ -5,7 +5,7 @@
 # Tailscale SSH server on macOS; the Tailscale app from the App Store or tailscale.com doesn't.
 # Sets TS_SSH_DISABLE_FORWARDING=1 in /etc/tailscale/tailscaled-env.txt and restarts tailscaled,
 # which drops Tailscale connections on this Mac for a few seconds.
-# Idempotent. Built for Fleet "Run script" (runs as root).
+# Idempotent. Built for AutoMDM "Run script" (runs as root).
 # Rollback: remove the line from the file, then launchctl kickstart -k system/<label>.
 # Exit: 0 = applied or nothing to do, 2 = needs a look (read output), 1 = error.
 

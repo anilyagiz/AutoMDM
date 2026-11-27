@@ -36,7 +36,7 @@ describe("DeleteProfileModal", () => {
     const link = screen.getByRole("link", { name: /Learn more/i });
     expect(link).toHaveAttribute(
       "href",
-      "https://fleetdm.com/learn-more-about/removal-behavior"
+      "https://automdm.com/learn-more-about/removal-behavior"
     );
     expect(link).toHaveAttribute("target", "_blank");
   });

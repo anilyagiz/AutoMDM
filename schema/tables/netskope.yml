@@ -107,8 +107,8 @@ examples: |-
     AND NOT (client_status = 'enable' AND tunnel_status = 'NSTUNNEL_CONNECTED');
   ```
 notes: |-
-  This table is not a core osquery table. It is included as part of Fleet's agent
-  ([fleetd](https://fleetdm.com/docs/get-started/anatomy#fleetd)).
+  This table is not a core osquery table. It is included as part of AutoMDM's agent
+  ([automdmd](https://automdm.com/docs/get-started/anatomy#automdmd)).
 
   The table always returns exactly one row, so that "not installed", "installed but degraded", and "installed but state could not be read" stay distinguishable. Check `client_installed` and `error` before treating the remaining columns as the client's real state.
 

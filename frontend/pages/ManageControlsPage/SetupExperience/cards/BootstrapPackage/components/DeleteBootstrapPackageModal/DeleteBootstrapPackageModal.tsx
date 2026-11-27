@@ -27,7 +27,7 @@ const DeleteBootstrapPackageModal = ({
           or uninstalls currently running on a host will still complete.
         </p>
         <p>
-          Option to install Fleet&apos;s agent (fleetd) manually will be
+          Option to install AutoMDM&apos;s agent (automdmd) manually will be
           disabled, so agent will be installed automatically during automatic
           enollment of macOS hosts.
         </p>

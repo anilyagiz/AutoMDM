@@ -1,11 +1,11 @@
 # Migration cleanup
 
-`migration-cleanup` repairs Fleet's MySQL migration status tables after a release
+`migration-cleanup` repairs AutoMDM's MySQL migration status tables after a release
 candidate branch renumbers migration files that may already have run in an
 existing database.
 
 The normal target is the RC branch that contains the final, renumbered migration
-filenames, such as `rc-minor-fleet-v4.86.0` or `rc-patch-fleet-v4.73.2`. The
+filenames, such as `rc-minor-automdm-v4.86.0` or `rc-patch-automdm-v4.73.2`. The
 tool compares that branch to `main`, finds migration file renames in
 `server/datastore/mysql/migrations/tables` and
 `server/datastore/mysql/migrations/data`, and generates SQL for the matching
@@ -14,10 +14,10 @@ tool compares that branch to `main`, finds migration file renames in
 ## When to use it
 
 Use this after a database has already run migrations from an RC build and later
-Fleet cannot complete startup or `fleet prepare db` because the same migrations
+AutoMDM cannot complete startup or `automdm prepare db` because the same migrations
 were renumbered on the RC branch.
 
-The tool only updates Fleet's migration status tables. It does not run, roll
+The tool only updates AutoMDM's migration status tables. It does not run, roll
 back, or modify migration files.
 
 Before applying against a shared or production database:
@@ -29,8 +29,8 @@ Before applying against a shared or production database:
 
 ## Build and help
 
-Run these commands from the root of a `fleetdm/fleet` checkout. If you run the
-tool from somewhere else, pass `-c /path/to/fleet` so it can inspect the correct
+Run these commands from the root of an `automdm/automdm` checkout. If you run the
+tool from somewhere else, pass `-c /path/to/automdm` so it can inspect the correct
 git history.
 
 ```sh
@@ -49,14 +49,14 @@ Exactly one of `--branch`, `--since-commit`, or `--commit` is required.
 Scan a branch against `main` for migration renames:
 
 ```sh
-go run ./tools/migration-cleanup -b rc-minor-fleet-v4.86.0
+go run ./tools/migration-cleanup -b rc-minor-automdm-v4.86.0
 ```
 
 Write the SQL to a file:
 
 ```sh
 go run ./tools/migration-cleanup \
-  -b rc-minor-fleet-v4.86.0 \
+  -b rc-minor-automdm-v4.86.0 \
   -o migration-cleanup.sql
 ```
 
@@ -64,8 +64,8 @@ Use `-c` when running the tool from a different working tree:
 
 ```sh
 go run ./tools/migration-cleanup \
-  -c /path/to/fleet \
-  -b rc-minor-fleet-v4.86.0
+  -c /path/to/automdm \
+  -b rc-minor-automdm-v4.86.0
 ```
 
 If the branch only exists on the remote, pass the plain branch name. The tool
@@ -101,21 +101,21 @@ the final state would be valid. It does not execute the generated SQL.
 
 ```sh
 go run ./tools/migration-cleanup \
-  -b rc-minor-fleet-v4.86.0 \
+  -b rc-minor-automdm-v4.86.0 \
   --dry-run \
   --db-host 127.0.0.1 \
-  --db-user fleet \
+  --db-user automdm \
   --db-password insecure \
-  --db-name fleet
+  --db-name automdm
 ```
 
-You can also use Fleet MySQL config flags or a Fleet config file:
+You can also use AutoMDM MySQL config flags or an AutoMDM config file:
 
 ```sh
 go run ./tools/migration-cleanup \
-  -b rc-minor-fleet-v4.86.0 \
+  -b rc-minor-automdm-v4.86.0 \
   --dry-run \
-  --config fleet.yml
+  --config automdm.yml
 ```
 
 ## Apply
@@ -124,17 +124,17 @@ Apply runs the same generated SQL in a transaction.
 
 ```sh
 go run ./tools/migration-cleanup \
-  -b rc-minor-fleet-v4.86.0 \
+  -b rc-minor-automdm-v4.86.0 \
   --apply \
   --db-host 127.0.0.1 \
-  --db-user fleet \
+  --db-user automdm \
   --db-password insecure \
-  --db-name fleet
+  --db-name automdm
 ```
 
 `--dry-run` and `--apply` are mutually exclusive.
 
-## Example: rc-minor-fleet-v4.86.0
+## Example: rc-minor-automdm-v4.86.0
 
 This was the move-up renumber case tested against a local MySQL database that
 had already run the pre-renumber 4.86 RC migrations. Running the latest RC
@@ -144,7 +144,7 @@ been applied under its old version ID.
 Generate SQL:
 
 ```sh
-go run ./tools/migration-cleanup -b rc-minor-fleet-v4.86.0
+go run ./tools/migration-cleanup -b rc-minor-automdm-v4.86.0
 ```
 
 Detected renumbers:
@@ -173,16 +173,16 @@ migration_status_tables: would renumber 530 row id(s) into version order, fixing
 Dry-run: SQL will apply cleanly.
 ```
 
-After `--apply`, rerunning the latest 4.86 RC Fleet migrations reported that
+After `--apply`, rerunning the latest 4.86 RC AutoMDM migrations reported that
 migrations were already complete.
 
-## Example: rc-patch-fleet-v4.73.2
+## Example: rc-patch-automdm-v4.73.2
 
 This was the move-down renumber style case used to verify the generated SQL for
 older patch RCs.
 
 ```sh
-go run ./tools/migration-cleanup -b rc-patch-fleet-v4.73.2
+go run ./tools/migration-cleanup -b rc-patch-automdm-v4.73.2
 ```
 
 Detected renumbers:

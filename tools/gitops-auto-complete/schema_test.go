@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/pkg/spec"
+	"github.com/anilyagiz/automdm/v4/pkg/spec"
 	ghodss "github.com/ghodss/yaml"
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
@@ -307,7 +307,7 @@ func containsNote(desc string, note string) bool {
 
 // TestControlsKeysCoverSpec fails when spec.GitOpsControls gains a controls key that
 // the hand-written ControlsWithTypes hasn't mirrored. It's the guard that would have
-// caught the missing name_template. The embedded fleet.BaseItem's path/paths are added
+// caught the missing name_template. The embedded automdm.BaseItem's path/paths are added
 // separately by addPathReferences, and the tag-less Defined field is internal, so both
 // are excluded from the comparison.
 func TestControlsKeysCoverSpec(t *testing.T) {

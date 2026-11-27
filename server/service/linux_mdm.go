@@ -3,49 +3,49 @@ package service
 import (
 	"context"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 )
 
-func (svc *Service) LinuxHostDiskEncryptionStatus(ctx context.Context, host fleet.Host) (fleet.HostMDMDiskEncryption, error) {
+func (svc *Service) LinuxHostDiskEncryptionStatus(ctx context.Context, host automdm.Host) (automdm.HostMDMDiskEncryption, error) {
 	if !host.IsLUKSSupported() {
-		return fleet.HostMDMDiskEncryption{}, nil
+		return automdm.HostMDMDiskEncryption{}, nil
 	}
 
-	actionRequired := fleet.DiskEncryptionActionRequired
-	verified := fleet.DiskEncryptionVerified
-	failed := fleet.DiskEncryptionFailed
+	actionRequired := automdm.DiskEncryptionActionRequired
+	verified := automdm.DiskEncryptionVerified
+	failed := automdm.DiskEncryptionFailed
 
 	key, err := svc.ds.GetHostDiskEncryptionKey(ctx, host.ID)
 	if err != nil {
-		if fleet.IsNotFound(err) {
-			return fleet.HostMDMDiskEncryption{
+		if automdm.IsNotFound(err) {
+			return automdm.HostMDMDiskEncryption{
 				Status: &actionRequired,
 			}, nil
 		}
-		return fleet.HostMDMDiskEncryption{}, err
+		return automdm.HostMDMDiskEncryption{}, err
 	}
 
 	if key.ClientError != "" {
-		return fleet.HostMDMDiskEncryption{
+		return automdm.HostMDMDiskEncryption{
 			Status: &failed,
 			Detail: key.ClientError,
 		}, nil
 	}
 
 	if key.Base64Encrypted == "" {
-		return fleet.HostMDMDiskEncryption{
+		return automdm.HostMDMDiskEncryption{
 			Status: &actionRequired,
 		}, nil
 	}
 
-	return fleet.HostMDMDiskEncryption{
+	return automdm.HostMDMDiskEncryption{
 		Status: &verified,
 	}, nil
 }
 
-func (svc *Service) GetMDMLinuxProfilesSummary(ctx context.Context, teamId *uint) (summary fleet.MDMProfilesSummary, err error) {
-	if err = svc.authz.Authorize(ctx, fleet.MDMConfigProfileAuthz{TeamID: teamId}, fleet.ActionRead); err != nil {
+func (svc *Service) GetMDMLinuxProfilesSummary(ctx context.Context, teamId *uint) (summary automdm.MDMProfilesSummary, err error) {
+	if err = svc.authz.Authorize(ctx, automdm.MDMConfigProfileAuthz{TeamID: teamId}, automdm.ActionRead); err != nil {
 		return summary, ctxerr.Wrap(ctx, err)
 	}
 
@@ -62,7 +62,7 @@ func (svc *Service) GetMDMLinuxProfilesSummary(ctx context.Context, teamId *uint
 		return summary, ctxerr.Wrap(ctx, err)
 	}
 
-	return fleet.MDMProfilesSummary{
+	return automdm.MDMProfilesSummary{
 		Verified: counts.Verified,
 		Pending:  counts.ActionRequired,
 		Failed:   counts.Failed,

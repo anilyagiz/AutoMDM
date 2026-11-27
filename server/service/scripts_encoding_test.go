@@ -44,8 +44,8 @@ func TestDecodeBase64Script(t *testing.T) {
 		},
 		{
 			name:     "multiline powershell script",
-			input:    base64.StdEncoding.EncodeToString([]byte("$logFile = \"${env:TEMP}/fleet-install.log\"\nStart-Process msiexec.exe")),
-			expected: "$logFile = \"${env:TEMP}/fleet-install.log\"\nStart-Process msiexec.exe",
+			input:    base64.StdEncoding.EncodeToString([]byte("$logFile = \"${env:TEMP}/automdm-install.log\"\nStart-Process msiexec.exe")),
+			expected: "$logFile = \"${env:TEMP}/automdm-install.log\"\nStart-Process msiexec.exe",
 			wantErr:  false,
 		},
 		{
@@ -125,5 +125,5 @@ func TestIsScriptsEncoded(t *testing.T) {
 
 func TestScriptsEncodedHeader(t *testing.T) {
 	// Verify the header constant has the expected value
-	require.Equal(t, "X-Fleet-Scripts-Encoded", ScriptsEncodedHeader)
+	require.Equal(t, "X-AutoMDM-Scripts-Encoded", ScriptsEncodedHeader)
 }

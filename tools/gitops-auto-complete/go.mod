@@ -1,9 +1,9 @@
-module fleetdm.local/gitops-auto-complete
+module automdm.local/gitops-auto-complete
 
 go 1.27.4
 
 require (
-	github.com/fleetdm/fleet/v4 v4.0.0
+	github.com/anilyagiz/automdm/v4 v4.0.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/invopop/jsonschema v0.14.0
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
@@ -141,4 +141,4 @@ require (
 	software.sslmate.com/src/go-pkcs12 v0.7.2 // indirect
 )
 
-replace github.com/fleetdm/fleet/v4 => ../..
+replace github.com/anilyagiz/automdm/v4 => ../..

@@ -8,7 +8,7 @@ interface IPinProps {
   size?: IconSizes;
 }
 
-const Pin = ({ color = "ui-fleet-black-75", size = "medium" }: IPinProps) => {
+const Pin = ({ color = "ui-automdm-black-75", size = "medium" }: IPinProps) => {
   return (
     <svg
       width={ICON_SIZES[size]}

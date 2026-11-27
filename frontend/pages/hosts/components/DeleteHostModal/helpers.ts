@@ -15,7 +15,7 @@ import {
 
 export interface IDeleteHostTarget {
   platform: HostPlatform;
-  isMdmEnrolledInFleet: boolean;
+  isMdmEnrolledInTeam: boolean;
   mdmEnrollmentStatus: MdmEnrollmentStatus | null;
 }
 
@@ -46,7 +46,7 @@ const deleteCopyGroup = (platform: string): DeleteCopyGroup => {
  */
 export const getMobileReEnrollAction = (
   platform: string,
-  isMdmEnrolledInFleet: boolean,
+  isMdmEnrolledInTeam: boolean,
   mdmEnrollmentStatus: MdmEnrollmentStatus | null
 ): "wipe" | "unenroll" | null => {
   if (isAndroid(platform)) {
@@ -54,7 +54,7 @@ export const getMobileReEnrollAction = (
     if (isAndroidBYO(mdmEnrollmentStatus)) return "unenroll";
     return null;
   }
-  return isMdmEnrolledInFleet ? "unenroll" : null;
+  return isMdmEnrolledInTeam ? "unenroll" : null;
 };
 
 /**
@@ -77,7 +77,7 @@ export const getSharedDeleteHostTarget = (
   }
   const target: IDeleteHostTarget = {
     platform: first.platform,
-    isMdmEnrolledInFleet: !!first.mdm?.connected_to_fleet,
+    isMdmEnrolledInTeam: !!first.mdm?.connected_to_automdm,
     mdmEnrollmentStatus: first.mdm?.enrollment_status ?? null,
   };
   const sameCopy = rest.every((host) => {
@@ -88,12 +88,12 @@ export const getSharedDeleteHostTarget = (
       return (
         getMobileReEnrollAction(
           host.platform,
-          !!host.mdm?.connected_to_fleet,
+          !!host.mdm?.connected_to_automdm,
           host.mdm?.enrollment_status ?? null
         ) ===
         getMobileReEnrollAction(
           target.platform,
-          target.isMdmEnrolledInFleet,
+          target.isMdmEnrolledInTeam,
           target.mdmEnrollmentStatus
         )
       );
@@ -102,7 +102,7 @@ export const getSharedDeleteHostTarget = (
       return true;
     }
     return (
-      !!host.mdm?.connected_to_fleet === target.isMdmEnrolledInFleet &&
+      !!host.mdm?.connected_to_automdm === target.isMdmEnrolledInTeam &&
       (host.mdm?.enrollment_status ?? null) === target.mdmEnrollmentStatus
     );
   });

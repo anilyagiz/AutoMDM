@@ -51,7 +51,7 @@ const OSSettingsNameCell = ({
           underline={false}
           showArrow
         >
-          <Icon name="eye-slash" color="ui-fleet-black-33" />
+          <Icon name="eye-slash" color="ui-automdm-black-33" />
         </TooltipWrapper>
       )}
     </div>

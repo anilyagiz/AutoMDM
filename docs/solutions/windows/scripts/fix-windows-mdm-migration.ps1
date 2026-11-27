@@ -1,8 +1,8 @@
 # Please don't delete. This script is referenced in the guide here:
-# https://fleetdm.com/guides/windows-mdm-setup#migrating-from-another-mdm-solution
+# https://automdm.com/guides/windows-mdm-setup#migrating-from-another-mdm-solution
 #
 # fix-windows-mdm-migration.ps1
-# Comprehensive remediation script for Windows hosts migrated to Fleet from another MDM solution
+# Comprehensive remediation script for Windows hosts migrated to AutoMDM from another MDM solution
 # (e.g., Microsoft Intune). Each fix is gated by a detection check so it only runs if needed.
 #
 # This script addresses:
@@ -13,18 +13,18 @@
 # 5. Stale EnterpriseMgmt scheduled tasks
 # 6. Local account lockout caused by tattooed LocalUsersAndGroups policies
 #
-# Usage: Run via Fleet on affected hosts. Reboot the device after running this script.
+# Usage: Run via AutoMDM on affected hosts. Reboot the device after running this script.
 # Reference: https://github.com/fleetdm/fleet/issues/38985
 
 #Requires -RunAsAdministrator
 
 # Log output for audit trail
-$logPath = "$env:TEMP\fleet-mdm-migration-$(Get-Date -Format 'yyyyMMdd-HHmmss').log"
+$logPath = "$env:TEMP\automdm-mdm-migration-$(Get-Date -Format 'yyyyMMdd-HHmmss').log"
 Start-Transcript -Path $logPath -ErrorAction SilentlyContinue | Out-Null
 
 $fixesApplied = 0
 
-Write-Host "=== Fleet Windows MDM Migration Remediation ==="
+Write-Host "=== AutoMDM Windows MDM Migration Remediation ==="
 Write-Host "Log file: $logPath"
 Write-Host ""
 
@@ -61,7 +61,7 @@ if (Test-Path $AADPath) {
 
 # Remove GUID-based enrollment entries in failed, removed, or error states
 # EnrollmentState: 0=Not enrolled, 1=Enrolled, 2=Failed, 3=Removed, 4=Error
-# We preserve state 0 (could be a pending Fleet enrollment) and state 1 (active)
+# We preserve state 0 (could be a pending AutoMDM enrollment) and state 1 (active)
 $EnrollmentPath = "HKLM:\SOFTWARE\Microsoft\Enrollments"
 $cleaned = 0
 Get-ChildItem -Path $EnrollmentPath -ErrorAction SilentlyContinue | ForEach-Object {
@@ -259,7 +259,7 @@ Write-Host "Fixes applied: $fixesApplied"
 if ($fixesApplied -gt 0) {
   Write-Host ""
   Write-Host "IMPORTANT: Reboot the device now to apply changes."
-  Write-Host "After reboot, select Refetch on the host details page in Fleet."
+  Write-Host "After reboot, select Refetch on the host details page in AutoMDM."
 } else {
   Write-Host "No issues detected - device appears healthy."
 }

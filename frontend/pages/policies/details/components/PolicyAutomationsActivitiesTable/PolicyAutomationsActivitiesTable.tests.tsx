@@ -37,7 +37,7 @@ const mockPolicy: IPolicy = {
   author_email: "test@example.com",
   resolution: "",
   platform: "",
-  fleet_id: null,
+  team_id: null,
   created_at: "2026-01-01T00:00:00Z",
   updated_at: "2026-01-01T00:00:00Z",
   critical: false,
@@ -52,7 +52,7 @@ const mockActivity = (
   id: 1,
   created_at: "2026-06-12T15:04:05Z",
   type: ActivityType.InstalledSoftware,
-  fleet_initiated: true,
+  automdm_initiated: true,
   details: { policy_id: 123, software_title: "1Password" },
   host_id: 42,
   host_display_name: "Anna's MacBook Pro",
@@ -243,7 +243,7 @@ describe("getAutomationStatusIcon", () => {
           },
         })
       )
-    ).toEqual({ name: "error", color: "ui-fleet-black-50" });
+    ).toEqual({ name: "error", color: "ui-automdm-black-50" });
     expect(getAutomationStatusIcon(mockActivity({ status: "error" }))).toEqual({
       name: "error",
     });
@@ -260,7 +260,7 @@ describe("getAutomationStatusIcon", () => {
           status: "success",
         })
       )
-    ).toEqual({ name: "error", color: "ui-fleet-black-50" });
+    ).toEqual({ name: "error", color: "ui-automdm-black-50" });
     expect(
       getAutomationStatusIcon(
         mockActivity({

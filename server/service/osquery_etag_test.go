@@ -8,17 +8,17 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/config"
-	hostctx "github.com/fleetdm/fleet/v4/server/contexts/host"
-	"github.com/fleetdm/fleet/v4/server/datastore/cached_mysql"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/service/redis_config_etag"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	hostctx "github.com/anilyagiz/automdm/v4/server/contexts/host"
+	"github.com/anilyagiz/automdm/v4/server/datastore/cached_mysql"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/service/redis_config_etag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// stubConfigETagStore is an in-memory fleet.ConfigETagStore for exercising
+// stubConfigETagStore is an in-memory automdm.ConfigETagStore for exercising
 // the GetClientConfigWithETag short circuit without Redis.
 type stubConfigETagStore struct {
 	// shared records
@@ -34,7 +34,7 @@ type stubConfigETagStore struct {
 	hostSetErr error
 
 	// gate state
-	scopes      fleet.ConfigETagLabelScopes
+	scopes      automdm.ConfigETagLabelScopes
 	scopesErr   error
 	callLoaders bool // when true, LabelScopes defers to the load callback
 
@@ -53,7 +53,7 @@ type stubConfigETagStore struct {
 	hostInvalidations []uint
 }
 
-var _ fleet.ConfigETagStore = (*stubConfigETagStore)(nil)
+var _ automdm.ConfigETagStore = (*stubConfigETagStore)(nil)
 
 func (s *stubConfigETagStore) GetETagIfCurrent(ctx context.Context, scope, platform string) (string, bool, error) {
 	s.getCalls++
@@ -96,9 +96,9 @@ func (s *stubConfigETagStore) InvalidateHost(ctx context.Context, hostID uint) e
 	return nil
 }
 
-func (s *stubConfigETagStore) LabelScopes(ctx context.Context, load func(ctx context.Context) (fleet.ConfigETagLabelScopes, error)) (fleet.ConfigETagLabelScopes, error) {
+func (s *stubConfigETagStore) LabelScopes(ctx context.Context, load func(ctx context.Context) (automdm.ConfigETagLabelScopes, error)) (automdm.ConfigETagLabelScopes, error) {
 	if s.scopesErr != nil {
-		return fleet.ConfigETagLabelScopes{}, s.scopesErr
+		return automdm.ConfigETagLabelScopes{}, s.scopesErr
 	}
 	if s.callLoaders {
 		return load(ctx)
@@ -113,17 +113,17 @@ func (s *stubConfigETagStore) ResetLabelScopes(ctx context.Context) error { retu
 // loader.
 func newETagTestDS() *mock.Store {
 	ds := new(mock.Store)
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
 	}
-	ds.ListScheduledQueriesForAgentsFunc = func(ctx context.Context, teamID *uint, hostID *uint, queryReportsDisabled bool) ([]*fleet.Query, error) {
+	ds.ListScheduledQueriesForAgentsFunc = func(ctx context.Context, teamID *uint, hostID *uint, queryReportsDisabled bool) ([]*automdm.Query, error) {
 		return nil, nil
 	}
 	ds.TeamAgentOptionsFunc = func(ctx context.Context, teamID uint) (*json.RawMessage, error) {
 		return nil, nil
 	}
-	ds.LabelScopedScheduledQueryScopesFunc = func(ctx context.Context) (fleet.ConfigETagLabelScopes, error) {
-		return fleet.ConfigETagLabelScopes{}, nil
+	ds.LabelScopedScheduledQueryScopesFunc = func(ctx context.Context) (automdm.ConfigETagLabelScopes, error) {
+		return automdm.ConfigETagLabelScopes{}, nil
 	}
 	return ds
 }
@@ -137,15 +137,15 @@ func TestConfigETagSharedShortCircuitHit(t *testing.T) {
 	store := &stubConfigETagStore{etag: `"stored"`, valid: true}
 	svc.SetConfigETagStore(store)
 
-	ctx = hostctx.NewContext(ctx, &fleet.Host{ID: 1, Platform: "darwin"})
+	ctx = hostctx.NewContext(ctx, &automdm.Host{ID: 1, Platform: "darwin"})
 	result, err := svc.GetClientConfigWithETag(ctx, new(`"stored"`))
 	require.NoError(t, err)
 
 	assert.True(t, result.NotModified)
 	assert.Nil(t, result.Body, "a not-modified result must carry no body")
 	assert.Equal(t, `"stored"`, result.ETag)
-	assert.Equal(t, fleet.ConfigETagStatusRedisNotModified, result.CacheStatus)
-	assert.Equal(t, fleet.ConfigETagModeShared, result.Mode)
+	assert.Equal(t, automdm.ConfigETagStatusRedisNotModified, result.CacheStatus)
+	assert.Equal(t, automdm.ConfigETagModeShared, result.Mode)
 	assert.Equal(t, 1, store.getCalls)
 	assert.Equal(t, 0, store.hostGetCalls, "shared mode must not read per-host records")
 	assert.Equal(t, 0, store.setCalls)
@@ -165,19 +165,19 @@ func TestConfigETagPerHostShortCircuitHit(t *testing.T) {
 	store := &stubConfigETagStore{
 		hostETag:  `"host-etag"`,
 		hostValid: true,
-		scopes:    fleet.ConfigETagLabelScopes{Global: true},
+		scopes:    automdm.ConfigETagLabelScopes{Global: true},
 	}
 	svc.SetConfigETagStore(store)
 
-	ctx = hostctx.NewContext(ctx, &fleet.Host{ID: 1, Platform: "darwin"})
+	ctx = hostctx.NewContext(ctx, &automdm.Host{ID: 1, Platform: "darwin"})
 	result, err := svc.GetClientConfigWithETag(ctx, new(`"host-etag"`))
 	require.NoError(t, err)
 
 	assert.True(t, result.NotModified)
 	assert.Nil(t, result.Body)
 	assert.Equal(t, `"host-etag"`, result.ETag)
-	assert.Equal(t, fleet.ConfigETagStatusRedisHostNotModified, result.CacheStatus)
-	assert.Equal(t, fleet.ConfigETagModeHost, result.Mode)
+	assert.Equal(t, automdm.ConfigETagStatusRedisHostNotModified, result.CacheStatus)
+	assert.Equal(t, automdm.ConfigETagModeHost, result.Mode)
 	assert.Equal(t, 1, store.hostGetCalls)
 	assert.Equal(t, 0, store.getCalls, "per-host mode must never read the shared record")
 	assert.Equal(t, 0, store.hostSetCalls)
@@ -192,49 +192,49 @@ func TestConfigETagPerHostShortCircuitHit(t *testing.T) {
 func TestConfigETagModeSelection(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
-		host     *fleet.Host
+		host     *automdm.Host
 		store    *stubConfigETagStore
-		wantMode fleet.ConfigETagMode
+		wantMode automdm.ConfigETagMode
 	}{
 		{
 			"no label scopes -> shared",
-			&fleet.Host{ID: 1, Platform: "darwin"},
+			&automdm.Host{ID: 1, Platform: "darwin"},
 			&stubConfigETagStore{},
 			"shared",
 		},
 		{
 			"global label scope -> host mode for teamless host",
-			&fleet.Host{ID: 1, Platform: "darwin"},
-			&stubConfigETagStore{scopes: fleet.ConfigETagLabelScopes{Global: true}},
+			&automdm.Host{ID: 1, Platform: "darwin"},
+			&stubConfigETagStore{scopes: automdm.ConfigETagLabelScopes{Global: true}},
 			"host",
 		},
 		{
 			"global label scope -> host mode for team host too (inherited)",
-			&fleet.Host{ID: 2, Platform: "darwin", TeamID: new(uint(9))},
-			&stubConfigETagStore{scopes: fleet.ConfigETagLabelScopes{Global: true}},
+			&automdm.Host{ID: 2, Platform: "darwin", TeamID: new(uint(9))},
+			&stubConfigETagStore{scopes: automdm.ConfigETagLabelScopes{Global: true}},
 			"host",
 		},
 		{
 			"team label scope -> host mode for that team",
-			&fleet.Host{ID: 3, Platform: "darwin", TeamID: new(uint(7))},
-			&stubConfigETagStore{scopes: fleet.ConfigETagLabelScopes{TeamIDs: []uint{7}}},
+			&automdm.Host{ID: 3, Platform: "darwin", TeamID: new(uint(7))},
+			&stubConfigETagStore{scopes: automdm.ConfigETagLabelScopes{TeamIDs: []uint{7}}},
 			"host",
 		},
 		{
 			"team label scope -> shared mode for other teams",
-			&fleet.Host{ID: 4, Platform: "darwin", TeamID: new(uint(8))},
-			&stubConfigETagStore{scopes: fleet.ConfigETagLabelScopes{TeamIDs: []uint{7}}},
+			&automdm.Host{ID: 4, Platform: "darwin", TeamID: new(uint(8))},
+			&stubConfigETagStore{scopes: automdm.ConfigETagLabelScopes{TeamIDs: []uint{7}}},
 			"shared",
 		},
 		{
 			"team label scope -> shared mode for teamless host",
-			&fleet.Host{ID: 5, Platform: "darwin"},
-			&stubConfigETagStore{scopes: fleet.ConfigETagLabelScopes{TeamIDs: []uint{7}}},
+			&automdm.Host{ID: 5, Platform: "darwin"},
+			&stubConfigETagStore{scopes: automdm.ConfigETagLabelScopes{TeamIDs: []uint{7}}},
 			"shared",
 		},
 		{
 			"label scope state error -> bypass (never guess shared)",
-			&fleet.Host{ID: 8, Platform: "darwin"},
+			&automdm.Host{ID: 8, Platform: "darwin"},
 			&stubConfigETagStore{scopesErr: assert.AnError},
 			"bypass",
 		},
@@ -266,7 +266,7 @@ func TestConfigETagModeSelection(t *testing.T) {
 // opted-in and legacy responses directly rather than re-marshaling (a config
 // containing json.RawMessage does not round-trip byte-identically through
 // map[string]any).
-func assertBodyCarriesETag(t *testing.T, result *fleet.ClientConfigResult) {
+func assertBodyCarriesETag(t *testing.T, result *automdm.ClientConfigResult) {
 	t.Helper()
 	var withKey map[string]any
 	require.NoError(t, json.Unmarshal(result.Body, &withKey))
@@ -280,11 +280,11 @@ func TestConfigETagMissBuildsAndPersists(t *testing.T) {
 	t.Run("shared mode", func(t *testing.T) {
 		for _, tc := range []struct {
 			name      string
-			host      *fleet.Host
+			host      *automdm.Host
 			wantScope string
 		}{
-			{"global host", &fleet.Host{ID: 1, Platform: "darwin"}, "global"},
-			{"team host", &fleet.Host{ID: 2, Platform: "windows", TeamID: new(uint(7))}, "team:7"},
+			{"global host", &automdm.Host{ID: 1, Platform: "darwin"}, "global"},
+			{"team host", &automdm.Host{ID: 2, Platform: "windows", TeamID: new(uint(7))}, "team:7"},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				ds := newETagTestDS()
@@ -317,11 +317,11 @@ func TestConfigETagMissBuildsAndPersists(t *testing.T) {
 		svc, ctx := newTestService(t, ds, nil, nil)
 		store := &stubConfigETagStore{
 			hostValid: false,
-			scopes:    fleet.ConfigETagLabelScopes{TeamIDs: []uint{7}},
+			scopes:    automdm.ConfigETagLabelScopes{TeamIDs: []uint{7}},
 		}
 		svc.SetConfigETagStore(store)
 
-		host := &fleet.Host{ID: 42, Platform: "linux", TeamID: new(uint(7))}
+		host := &automdm.Host{ID: 42, Platform: "linux", TeamID: new(uint(7))}
 		ctx = hostctx.NewContext(ctx, host)
 		result, err := svc.GetClientConfigWithETag(ctx, new(`"whatever-stale"`))
 		require.NoError(t, err)
@@ -329,7 +329,7 @@ func TestConfigETagMissBuildsAndPersists(t *testing.T) {
 		assert.False(t, result.NotModified)
 		assert.NotEmpty(t, result.Body)
 		assertBodyCarriesETag(t, result)
-		assert.Equal(t, fleet.ConfigETagModeHost, result.Mode)
+		assert.Equal(t, automdm.ConfigETagModeHost, result.Mode)
 		assert.True(t, ds.ListScheduledQueriesForAgentsFuncInvoked, "miss must do a full build")
 
 		require.Equal(t, 1, store.hostSetCalls)
@@ -347,13 +347,13 @@ func TestConfigETagMissBuildsAndPersists(t *testing.T) {
 // records with another host's config. Shared mode keeps using it.
 func TestConfigETagPerHostBypassesTeamPackCache(t *testing.T) {
 	ds := newETagTestDS()
-	schedules := []*fleet.Query{{
+	schedules := []*automdm.Query{{
 		Name:     "report-v1",
 		Query:    "SELECT 1",
 		Interval: 30,
-		Logging:  fleet.LoggingSnapshot,
+		Logging:  automdm.LoggingSnapshot,
 	}}
-	ds.ListScheduledQueriesForAgentsFunc = func(ctx context.Context, teamID *uint, hostID *uint, queryReportsDisabled bool) ([]*fleet.Query, error) {
+	ds.ListScheduledQueriesForAgentsFunc = func(ctx context.Context, teamID *uint, hostID *uint, queryReportsDisabled bool) ([]*automdm.Query, error) {
 		return schedules, nil
 	}
 
@@ -361,7 +361,7 @@ func TestConfigETagPerHostBypassesTeamPackCache(t *testing.T) {
 	store := &stubConfigETagStore{} // starts with NO label scopes → shared mode
 	svc.SetConfigETagStore(store)
 
-	host := &fleet.Host{ID: 1, Platform: "darwin"}
+	host := &automdm.Host{ID: 1, Platform: "darwin"}
 	ctx := hostctx.NewContext(baseCtx, host)
 
 	// 1. Shared-mode request populates the team pack cache with v1.
@@ -372,19 +372,19 @@ func TestConfigETagPerHostBypassesTeamPackCache(t *testing.T) {
 	// 2. The report set changes AND the scope becomes label-scoped (as a
 	// query CRUD would cause). The team pack cache still holds v1 for up to
 	// a minute.
-	schedules = []*fleet.Query{{
+	schedules = []*automdm.Query{{
 		Name:     "report-v2",
 		Query:    "SELECT 2",
 		Interval: 30,
-		Logging:  fleet.LoggingSnapshot,
+		Logging:  automdm.LoggingSnapshot,
 	}}
-	store.scopes = fleet.ConfigETagLabelScopes{Global: true}
+	store.scopes = automdm.ConfigETagLabelScopes{Global: true}
 
 	// 3. A per-host-mode build must bypass the cached v1 render and reflect
 	// v2 immediately.
 	second, err := svc.GetClientConfigWithETag(ctx, new(""))
 	require.NoError(t, err)
-	assert.Equal(t, fleet.ConfigETagModeHost, second.Mode)
+	assert.Equal(t, automdm.ConfigETagModeHost, second.Mode)
 	assert.Contains(t, string(second.Body), "report-v2",
 		"per-host mode must bypass the team pack cache")
 	assert.NotContains(t, string(second.Body), "report-v1")
@@ -392,10 +392,10 @@ func TestConfigETagPerHostBypassesTeamPackCache(t *testing.T) {
 	// 4. Control: back in shared mode, the (still unexpired) cached v1
 	// render is what a shared build serves — proving step 3 really did
 	// bypass the cache rather than the cache having expired.
-	store.scopes = fleet.ConfigETagLabelScopes{}
+	store.scopes = automdm.ConfigETagLabelScopes{}
 	third, err := svc.GetClientConfigWithETag(ctx, new(""))
 	require.NoError(t, err)
-	assert.Equal(t, fleet.ConfigETagModeShared, third.Mode)
+	assert.Equal(t, automdm.ConfigETagModeShared, third.Mode)
 	assert.Contains(t, string(third.Body), "report-v1",
 		"shared mode keeps using the team pack cache")
 }
@@ -416,17 +416,17 @@ func TestConfigETagScopeStateFallback(t *testing.T) {
 		wantCache bool
 	}{
 		{"scope state error uses team cache", assert.AnError, true},
-		{"leader-election contention bypasses team cache", fleet.ErrConfigETagGateLoading, false},
+		{"leader-election contention bypasses team cache", automdm.ErrConfigETagGateLoading, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ds := newETagTestDS()
-			schedules := []*fleet.Query{{
+			schedules := []*automdm.Query{{
 				Name:     "report-v1",
 				Query:    "SELECT 1",
 				Interval: 30,
-				Logging:  fleet.LoggingSnapshot,
+				Logging:  automdm.LoggingSnapshot,
 			}}
-			ds.ListScheduledQueriesForAgentsFunc = func(ctx context.Context, teamID *uint, hostID *uint, queryReportsDisabled bool) ([]*fleet.Query, error) {
+			ds.ListScheduledQueriesForAgentsFunc = func(ctx context.Context, teamID *uint, hostID *uint, queryReportsDisabled bool) ([]*automdm.Query, error) {
 				return schedules, nil
 			}
 
@@ -434,20 +434,20 @@ func TestConfigETagScopeStateFallback(t *testing.T) {
 			store := &stubConfigETagStore{} // shared mode initially
 			svc.SetConfigETagStore(store)
 
-			ctx := hostctx.NewContext(baseCtx, &fleet.Host{ID: 1, Platform: "darwin"})
+			ctx := hostctx.NewContext(baseCtx, &automdm.Host{ID: 1, Platform: "darwin"})
 
 			// 1. Shared-mode request warms the team pack cache with v1.
 			first, err := svc.GetClientConfigWithETag(ctx, new(""))
 			require.NoError(t, err)
-			require.Equal(t, fleet.ConfigETagModeShared, first.Mode)
+			require.Equal(t, automdm.ConfigETagModeShared, first.Mode)
 			require.Contains(t, string(first.Body), "report-v1")
 
 			// 2. Schedules change while scope state becomes unavailable.
-			schedules = []*fleet.Query{{
+			schedules = []*automdm.Query{{
 				Name:     "report-v2",
 				Query:    "SELECT 2",
 				Interval: 30,
-				Logging:  fleet.LoggingSnapshot,
+				Logging:  automdm.LoggingSnapshot,
 			}}
 			store.scopesErr = tc.scopesErr
 
@@ -456,7 +456,7 @@ func TestConfigETagScopeStateFallback(t *testing.T) {
 			getBefore, setBefore, hostSetBefore := store.getCalls, store.setCalls, store.hostSetCalls
 			second, err := svc.GetClientConfigWithETag(ctx, new(""))
 			require.NoError(t, err)
-			require.Equal(t, fleet.ConfigETagModeBypass, second.Mode)
+			require.Equal(t, automdm.ConfigETagModeBypass, second.Mode)
 			require.Equal(t, getBefore, store.getCalls, "bypass must not read Redis records")
 			require.Equal(t, setBefore, store.setCalls, "bypass must not write Redis records")
 			require.Equal(t, hostSetBefore, store.hostSetCalls, "bypass must not write Redis records")
@@ -472,7 +472,7 @@ func TestConfigETagScopeStateFallback(t *testing.T) {
 			store.scopesErr = nil
 			third, err := svc.GetClientConfigWithETag(ctx, new(""))
 			require.NoError(t, err)
-			require.Equal(t, fleet.ConfigETagModeShared, third.Mode)
+			require.Equal(t, automdm.ConfigETagModeShared, third.Mode)
 			require.Contains(t, string(third.Body), "report-v1")
 		})
 	}
@@ -495,16 +495,16 @@ func TestConfigETagNaiveNotModifiedStillWorks(t *testing.T) {
 				svc.SetConfigETagStore(store)
 			}
 
-			ctx = hostctx.NewContext(ctx, &fleet.Host{ID: 1, Platform: "darwin"})
+			ctx = hostctx.NewContext(ctx, &automdm.Host{ID: 1, Platform: "darwin"})
 
 			// first fetch: no validator
 			first, err := svc.GetClientConfigWithETag(ctx, new(""))
 			require.NoError(t, err)
 			assert.False(t, first.NotModified)
-			assert.Equal(t, fleet.ConfigETagStatusFullNoValidator, first.CacheStatus)
+			assert.Equal(t, automdm.ConfigETagStatusFullNoValidator, first.CacheStatus)
 			require.NotEmpty(t, first.ETag)
 			if !withStore {
-				assert.Equal(t, fleet.ConfigETagModeOff, first.Mode)
+				assert.Equal(t, automdm.ConfigETagModeOff, first.Mode)
 			}
 
 			// second fetch presents the etag: full build, then naive not-modified
@@ -513,7 +513,7 @@ func TestConfigETagNaiveNotModifiedStillWorks(t *testing.T) {
 			assert.True(t, second.NotModified)
 			assert.Nil(t, second.Body)
 			assert.Equal(t, first.ETag, second.ETag)
-			assert.Equal(t, fleet.ConfigETagStatusNotModified, second.CacheStatus)
+			assert.Equal(t, automdm.ConfigETagStatusNotModified, second.CacheStatus)
 
 			if !withStore {
 				assert.Equal(t, 0, store.getCalls)
@@ -532,7 +532,7 @@ func TestConfigETagNaiveNotModifiedStillWorks(t *testing.T) {
 func TestConfigETagBodyContract(t *testing.T) {
 	ds := newETagTestDS()
 	svc, baseCtx := newTestService(t, ds, nil, nil)
-	ctx := hostctx.NewContext(baseCtx, &fleet.Host{ID: 1, Platform: "darwin"})
+	ctx := hostctx.NewContext(baseCtx, &automdm.Host{ID: 1, Platform: "darwin"})
 
 	// Not opted in (nil): the canonical body, no etag key, and the validator
 	// covers exactly those bytes.
@@ -581,7 +581,7 @@ func TestConfigETagFeatureDisabled(t *testing.T) {
 	store := &stubConfigETagStore{etag: "stored", valid: true}
 	svc.SetConfigETagStore(store)
 
-	ctx := hostctx.NewContext(baseCtx, &fleet.Host{ID: 1, Platform: "darwin"})
+	ctx := hostctx.NewContext(baseCtx, &automdm.Host{ID: 1, Platform: "darwin"})
 
 	// Even echoing the exact stored validator gets a full legacy build.
 	result, err := svc.GetClientConfigWithETag(ctx, new("stored"))
@@ -590,8 +590,8 @@ func TestConfigETagFeatureDisabled(t *testing.T) {
 	require.NotNil(t, result.Body)
 	assert.NotContains(t, string(result.Body), `"etag"`,
 		"disabled feature must never emit an etag key")
-	assert.Equal(t, fleet.ConfigETagModeOff, result.Mode)
-	assert.Equal(t, fleet.ConfigETagStatusFullNoValidator, result.CacheStatus)
+	assert.Equal(t, automdm.ConfigETagModeOff, result.Mode)
+	assert.Equal(t, automdm.ConfigETagStatusFullNoValidator, result.CacheStatus)
 
 	// The store is never consulted or written.
 	assert.Equal(t, 0, store.getCalls)
@@ -607,17 +607,17 @@ func TestConfigETagFeatureDisabled(t *testing.T) {
 func TestConfigETagGateLoaders(t *testing.T) {
 	for _, tc := range []struct {
 		name        string
-		scopes      fleet.ConfigETagLabelScopes
-		wantMode    fleet.ConfigETagMode
+		scopes      automdm.ConfigETagLabelScopes
+		wantMode    automdm.ConfigETagMode
 		wantHostGet int
 		wantGet     int
 	}{
-		{"no label scopes -> shared", fleet.ConfigETagLabelScopes{}, fleet.ConfigETagModeShared, 0, 1},
-		{"global label scope -> host", fleet.ConfigETagLabelScopes{Global: true}, fleet.ConfigETagModeHost, 1, 0},
+		{"no label scopes -> shared", automdm.ConfigETagLabelScopes{}, automdm.ConfigETagModeShared, 0, 1},
+		{"global label scope -> host", automdm.ConfigETagLabelScopes{Global: true}, automdm.ConfigETagModeHost, 1, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ds := newETagTestDS()
-			ds.LabelScopedScheduledQueryScopesFunc = func(ctx context.Context) (fleet.ConfigETagLabelScopes, error) {
+			ds.LabelScopedScheduledQueryScopesFunc = func(ctx context.Context) (automdm.ConfigETagLabelScopes, error) {
 				return tc.scopes, nil
 			}
 
@@ -625,7 +625,7 @@ func TestConfigETagGateLoaders(t *testing.T) {
 			store := &stubConfigETagStore{callLoaders: true}
 			svc.SetConfigETagStore(store)
 
-			ctx = hostctx.NewContext(ctx, &fleet.Host{ID: 1, Platform: "darwin"})
+			ctx = hostctx.NewContext(ctx, &automdm.Host{ID: 1, Platform: "darwin"})
 			result, err := svc.GetClientConfigWithETag(ctx, new(`"anything"`))
 			require.NoError(t, err)
 
@@ -645,15 +645,15 @@ func TestConfigETagFailsOpen(t *testing.T) {
 	}{
 		{"shared read error", &stubConfigETagStore{getErr: assert.AnError}},
 		{"shared write error", &stubConfigETagStore{valid: false, setErr: assert.AnError}},
-		{"host read error", &stubConfigETagStore{hostGetErr: assert.AnError, scopes: fleet.ConfigETagLabelScopes{Global: true}}},
-		{"host write error", &stubConfigETagStore{hostValid: false, hostSetErr: assert.AnError, scopes: fleet.ConfigETagLabelScopes{Global: true}}},
+		{"host read error", &stubConfigETagStore{hostGetErr: assert.AnError, scopes: automdm.ConfigETagLabelScopes{Global: true}}},
+		{"host write error", &stubConfigETagStore{hostValid: false, hostSetErr: assert.AnError, scopes: automdm.ConfigETagLabelScopes{Global: true}}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ds := newETagTestDS()
 			svc, ctx := newTestService(t, ds, nil, nil)
 			svc.SetConfigETagStore(tc.store)
 
-			ctx = hostctx.NewContext(ctx, &fleet.Host{ID: 1, Platform: "darwin"})
+			ctx = hostctx.NewContext(ctx, &automdm.Host{ID: 1, Platform: "darwin"})
 			result, err := svc.GetClientConfigWithETag(ctx, new(`"anything"`))
 			require.NoError(t, err, "redis failures must not fail config delivery")
 			assert.False(t, result.NotModified)
@@ -664,7 +664,7 @@ func TestConfigETagFailsOpen(t *testing.T) {
 }
 
 // TestConfigETagStateLoggedOncePerContainer: the optimization-state log is
-// bounded to one line per Fleet container (sync.Once), no matter how many
+// bounded to one line per AutoMDM container (sync.Once), no matter how many
 // config requests are served — state visibility must not scale with request
 // volume.
 func TestConfigETagStateLoggedOncePerContainer(t *testing.T) {
@@ -676,7 +676,7 @@ func TestConfigETagStateLoggedOncePerContainer(t *testing.T) {
 	store := &stubConfigETagStore{}
 	svc.SetConfigETagStore(store)
 
-	ctx = hostctx.NewContext(ctx, &fleet.Host{ID: 1, Platform: "darwin"})
+	ctx = hostctx.NewContext(ctx, &automdm.Host{ID: 1, Platform: "darwin"})
 	for range 5 {
 		_, err := svc.GetClientConfigWithETag(ctx, new(`"whatever"`))
 		require.NoError(t, err)

@@ -17,7 +17,7 @@ const daysAgo = (days: number): string =>
 const mockEndpoints = (count: number): IApiEndpointRef[] =>
   Array.from({ length: count }, (_unused, i) => ({
     method: "GET",
-    path: `/api/v1/fleet/endpoint-${i}`,
+    path: `/api/v1/automdm/endpoint-${i}`,
   }));
 
 const renderPermissionsCell = (row: IUserTableData) => {
@@ -41,7 +41,7 @@ const createMockInvite = (overrides?: Partial<IInvite>): IInvite => ({
   name: "Invited User",
   sso_enabled: false,
   global_role: "observer",
-  fleets: [],
+  teams: [],
   ...overrides,
 });
 
@@ -77,7 +77,7 @@ describe("UsersTableConfig - combineDataSets", () => {
   });
 
   it("returns 'No access' for invites without a role", () => {
-    const invites = [createMockInvite({ global_role: null, fleets: [] })];
+    const invites = [createMockInvite({ global_role: null, teams: [] })];
     const [row] = combineDataSets([], invites, 99);
     expect(row.status).toBe("No access");
   });

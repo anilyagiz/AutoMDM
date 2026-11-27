@@ -91,7 +91,7 @@ describe("MDMStatusModal - component", () => {
         user={createMockUser()}
         lastMDMCheckIn=""
         onSuccessfulCheckIn={jest.fn()}
-        fleetId={null}
+        automdmId={null}
         onExit={jest.fn()}
       />
     );
@@ -113,7 +113,7 @@ describe("MDMStatusModal - component", () => {
         user={createMockUser()}
         lastMDMCheckIn=""
         onSuccessfulCheckIn={jest.fn()}
-        fleetId={null}
+        automdmId={null}
         onExit={jest.fn()}
       />
     );
@@ -125,7 +125,7 @@ describe("MDMStatusModal - component", () => {
     ).toBeInTheDocument();
   });
 
-  it("does not render profile assignment section on Fleet Free", async () => {
+  it("does not render profile assignment section on AutoMDM Free", async () => {
     (hostAPI.getDepAssignment as jest.Mock).mockResolvedValue(
       mockDepAssignmentResponse
     );
@@ -140,7 +140,7 @@ describe("MDMStatusModal - component", () => {
         user={createMockUser()}
         lastMDMCheckIn=""
         onSuccessfulCheckIn={jest.fn()}
-        fleetId={null}
+        automdmId={null}
         onExit={jest.fn()}
       />
     );
@@ -164,7 +164,7 @@ describe("MDMStatusModal - component", () => {
         user={createMockUser()}
         lastMDMCheckIn=""
         onSuccessfulCheckIn={jest.fn()}
-        fleetId={null}
+        automdmId={null}
         onExit={jest.fn()}
       />
     );
@@ -196,7 +196,7 @@ describe("MDMStatusModal - component", () => {
         user={createMockUser()}
         lastMDMCheckIn=""
         onSuccessfulCheckIn={jest.fn()}
-        fleetId={null}
+        automdmId={null}
         onExit={jest.fn()}
       />
     );
@@ -232,7 +232,7 @@ describe("MDMStatusModal - component", () => {
         user={createMockUser()}
         lastMDMCheckIn=""
         onSuccessfulCheckIn={jest.fn()}
-        fleetId={null}
+        automdmId={null}
         onExit={jest.fn()}
       />
     );
@@ -267,7 +267,7 @@ describe("MDMStatusModal - component", () => {
         user={createMockUser()}
         lastMDMCheckIn=""
         onSuccessfulCheckIn={jest.fn()}
-        fleetId={null}
+        automdmId={null}
         onExit={jest.fn()}
       />
     );
@@ -291,7 +291,7 @@ describe("MDMStatusModal - component", () => {
         user={createMockUser()}
         lastMDMCheckIn=""
         onSuccessfulCheckIn={jest.fn()}
-        fleetId={null}
+        automdmId={null}
         onExit={jest.fn()}
       />
     );
@@ -318,7 +318,7 @@ describe("MDMStatusModal - component", () => {
         user={createMockUser()}
         lastMDMCheckIn=""
         onSuccessfulCheckIn={jest.fn()}
-        fleetId={null}
+        automdmId={null}
         onExit={jest.fn()}
       />
     );
@@ -347,7 +347,7 @@ describe("MDMStatusModal - component", () => {
         user={createMockUser()}
         lastMDMCheckIn=""
         onSuccessfulCheckIn={jest.fn()}
-        fleetId={null}
+        automdmId={null}
         onExit={jest.fn()}
       />
     );
@@ -371,14 +371,14 @@ describe("MDMStatusModal - component", () => {
         user={createMockUser()}
         lastMDMCheckIn=""
         onSuccessfulCheckIn={jest.fn()}
-        fleetId={null}
+        automdmId={null}
         onExit={jest.fn()}
       />
     );
 
     expect(
       await screen.findByText(
-        "Fleet can't retrieve data from Apple right now. Please try again later."
+        "AutoMDM can't retrieve data from Apple right now. Please try again later."
       )
     ).toBeInTheDocument();
   });
@@ -388,7 +388,7 @@ describe("MDMStatusModal - component", () => {
       ...mockDepAssignmentResponse,
       dep_device: null,
       dep_device_error:
-        "Fleet can't connect to Apple Business. An admin needs to renew the AB token.",
+        "AutoMDM can't connect to Apple Business. An admin needs to renew the AB token.",
     });
 
     render(
@@ -401,14 +401,14 @@ describe("MDMStatusModal - component", () => {
         user={createMockUser()}
         lastMDMCheckIn=""
         onSuccessfulCheckIn={jest.fn()}
-        fleetId={null}
+        automdmId={null}
         onExit={jest.fn()}
       />
     );
 
     expect(
       await screen.findByText(
-        "Fleet can't connect to Apple Business. An admin needs to renew the AB token."
+        "AutoMDM can't connect to Apple Business. An admin needs to renew the AB token."
       )
     ).toBeInTheDocument();
   });
@@ -430,14 +430,14 @@ describe("MDMStatusModal - component", () => {
         user={createMockUser()}
         lastMDMCheckIn=""
         onSuccessfulCheckIn={jest.fn()}
-        fleetId={null}
+        automdmId={null}
         onExit={jest.fn()}
       />
     );
 
     expect(
       await screen.findByText(
-        "Fleet can't retrieve data from Apple right now. Please try again later."
+        "AutoMDM can't retrieve data from Apple right now. Please try again later."
       )
     ).toBeInTheDocument();
   });
@@ -462,7 +462,7 @@ describe("MDMStatusModal - component", () => {
         user={createMockUser()}
         lastMDMCheckIn=""
         onSuccessfulCheckIn={jest.fn()}
-        fleetId={null}
+        automdmId={null}
         onExit={jest.fn()}
       />
     );
@@ -476,7 +476,7 @@ describe("MDMStatusModal - component", () => {
     expect(screen.getByText("Throttled")).toBeInTheDocument();
   });
 
-  it("tells when Fleet will retry a throttled assignment using Apple's retry time", async () => {
+  it("tells when AutoMDM will retry a throttled assignment using Apple's retry time", async () => {
     const minutesFromNow = (minutes: number) =>
       new Date(Date.now() + minutes * 60 * 1000).toISOString();
     (hostAPI.getDepAssignment as jest.Mock).mockResolvedValue({
@@ -500,7 +500,7 @@ describe("MDMStatusModal - component", () => {
         user={createMockUser()}
         lastMDMCheckIn=""
         onSuccessfulCheckIn={jest.fn()}
-        fleetId={null}
+        automdmId={null}
         onExit={jest.fn()}
       />
     );
@@ -508,7 +508,7 @@ describe("MDMStatusModal - component", () => {
     await user.hover(await screen.findByText("Throttled"));
 
     expect(
-      await screen.findByText(/Fleet will try again in 2 hours/)
+      await screen.findByText(/AutoMDM will try again in 2 hours/)
     ).toBeInTheDocument();
   });
 
@@ -533,7 +533,7 @@ describe("MDMStatusModal - component", () => {
         user={createMockUser()}
         lastMDMCheckIn=""
         onSuccessfulCheckIn={jest.fn()}
-        fleetId={null}
+        automdmId={null}
         onExit={jest.fn()}
       />
     );
@@ -568,7 +568,7 @@ describe("MDMStatusModal - component", () => {
         user={createMockUser()}
         lastMDMCheckIn=""
         onSuccessfulCheckIn={jest.fn()}
-        fleetId={null}
+        automdmId={null}
         onExit={jest.fn()}
       />
     );
@@ -604,7 +604,7 @@ describe("MDMStatusModal - component", () => {
         user={createMockUser()}
         lastMDMCheckIn=""
         onSuccessfulCheckIn={jest.fn()}
-        fleetId={null}
+        automdmId={null}
         onExit={jest.fn()}
       />
     );
@@ -632,7 +632,7 @@ describe("MDMStatusModal - component", () => {
         user={createMockUser()}
         lastMDMCheckIn=""
         onSuccessfulCheckIn={jest.fn()}
-        fleetId={null}
+        automdmId={null}
         onExit={onExit}
       />
     );
@@ -726,8 +726,8 @@ describe("MDMStatusModal - MDM check-in", () => {
         lastMDMCheckIn={LAST_CHECK_IN}
         onSuccessfulCheckIn={jest.fn()}
         onExit={jest.fn()}
-        fleetId={props.fleetId ?? null}
-        connectedToFleet
+        automdmId={props.automdmId ?? null}
+        connectedToAutoMDM
         {...props}
       />
     );

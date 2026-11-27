@@ -9,20 +9,20 @@ import (
 	"net/http/pprof"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/agentws"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/contexts/logging"
-	"github.com/fleetdm/fleet/v4/server/contexts/token"
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/errorstore"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/service/middleware/auth"
+	"github.com/anilyagiz/automdm/v4/server/agentws"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/contexts/logging"
+	"github.com/anilyagiz/automdm/v4/server/contexts/token"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	"github.com/anilyagiz/automdm/v4/server/errorstore"
+	"github.com/anilyagiz/automdm/v4/server/service/middleware/auth"
 
 	kithttp "github.com/go-kit/kit/transport/http"
 )
 
 type debugAuthenticationMiddleware struct {
-	service fleet.Service
+	service automdm.Service
 }
 
 // Authenticate the user and ensure the account is not disabled.
@@ -40,7 +40,7 @@ func (m *debugAuthenticationMiddleware) Middleware(next http.Handler) http.Handl
 			return
 		}
 
-		if !v.CanPerformActions() || v.User.GlobalRole == nil || *v.User.GlobalRole != fleet.RoleAdmin {
+		if !v.CanPerformActions() || v.User.GlobalRole == nil || *v.User.GlobalRole != automdm.RoleAdmin {
 			http.Error(w, "Forbidden", http.StatusForbidden)
 			return
 		}
@@ -92,8 +92,8 @@ func jsonHandler(
 	}
 }
 
-// MakeDebugHandler creates an HTTP handler for the Fleet debug endpoints.
-func MakeDebugHandler(svc fleet.Service, config config.FleetConfig, logger *slog.Logger, eh *errorstore.Handler, ds fleet.Datastore, agentWSHub *agentws.Hub) http.Handler {
+// MakeDebugHandler creates an HTTP handler for the AutoMDM debug endpoints.
+func MakeDebugHandler(svc automdm.Service, config config.AutoMDMConfig, logger *slog.Logger, eh *errorstore.Handler, ds automdm.Datastore, agentWSHub *agentws.Hub) http.Handler {
 	r := http.NewServeMux()
 	r.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
 	r.HandleFunc("/debug/pprof/profile", pprof.Profile)

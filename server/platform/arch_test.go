@@ -4,24 +4,24 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/archtest"
+	"github.com/anilyagiz/automdm/v4/server/archtest"
 )
 
 const m = archtest.ModuleName
 
-// TestPlatformPackageDependencies checks that platform packages are NOT dependent on Fleet domain packages
+// TestPlatformPackageDependencies checks that platform packages are NOT dependent on AutoMDM domain packages
 // to maintain decoupling and modularity. This is a catch-all test.
 func TestPlatformPackageDependencies(t *testing.T) {
 	t.Parallel()
 	archtest.NewPackageTest(t, m+"/server/platform...").
-		OnlyInclude(regexp.MustCompile(`^github\.com/fleetdm/`)).
+		OnlyInclude(regexp.MustCompile(`^github\.com/automdm/`)).
 		WithTests().
 		ShouldNotDependOn(m+"/...").
 		IgnoreDeps(
 			// Platform packages can depend on each other
 			m+"/server/platform...",
 			// Infra packages
-			m+"/pkg/fleethttp",
+			m+"/pkg/automdmhttp",
 			m+"/server/contexts/authz",
 			m+"/server/contexts/ctxerr",
 			m+"/server/contexts/license",
@@ -32,19 +32,19 @@ func TestPlatformPackageDependencies(t *testing.T) {
 		Check()
 }
 
-// TestEndpointerPackageDependencies checks that endpointer package is not dependent on other Fleet domain packages
+// TestEndpointerPackageDependencies checks that endpointer package is not dependent on other AutoMDM domain packages
 // to maintain decoupling and modularity.
 func TestEndpointerPackageDependencies(t *testing.T) {
 	t.Parallel()
 	archtest.NewPackageTest(t, m+"/server/platform/endpointer").
-		OnlyInclude(regexp.MustCompile(`^github\.com/fleetdm/`)).
+		OnlyInclude(regexp.MustCompile(`^github\.com/automdm/`)).
 		WithTests().
 		ShouldNotDependOn(m+"/...").
 		IgnoreDeps(
 			// Platform packages
 			m+"/server/platform...",
 			// Infra packages
-			m+"/pkg/fleethttp",
+			m+"/pkg/automdmhttp",
 			m+"/server/contexts/authz",
 			m+"/server/contexts/ctxerr",
 			m+"/server/contexts/license",
@@ -58,11 +58,11 @@ func TestEndpointerPackageDependencies(t *testing.T) {
 func TestHTTPPackageDependencies(t *testing.T) {
 	t.Parallel()
 	archtest.NewPackageTest(t, m+"/server/platform/http").
-		OnlyInclude(regexp.MustCompile(`^github\.com/fleetdm/`)).
+		OnlyInclude(regexp.MustCompile(`^github\.com/automdm/`)).
 		WithTests().
 		ShouldNotDependOn(m+"/...").
 		IgnoreDeps(
-			m+"/pkg/fleethttp",
+			m+"/pkg/automdmhttp",
 			m+"/server/platform/errors",
 		).
 		Check()
@@ -71,7 +71,7 @@ func TestHTTPPackageDependencies(t *testing.T) {
 func TestJSONDecodePackageDependencies(t *testing.T) {
 	t.Parallel()
 	archtest.NewPackageTest(t, m+"/server/platform/jsondecode").
-		OnlyInclude(regexp.MustCompile(`^github\.com/fleetdm/`)).
+		OnlyInclude(regexp.MustCompile(`^github\.com/automdm/`)).
 		WithTests().
 		ShouldNotDependOn(m + "/...").
 		Check()
@@ -80,7 +80,7 @@ func TestJSONDecodePackageDependencies(t *testing.T) {
 func TestAuthzCheckPackageDependencies(t *testing.T) {
 	t.Parallel()
 	archtest.NewPackageTest(t, m+"/server/platform/middleware/authzcheck").
-		OnlyInclude(regexp.MustCompile(`^github\.com/fleetdm/`)).
+		OnlyInclude(regexp.MustCompile(`^github\.com/automdm/`)).
 		WithTests().
 		ShouldNotDependOn(m+"/...").
 		IgnoreDeps(
@@ -88,7 +88,7 @@ func TestAuthzCheckPackageDependencies(t *testing.T) {
 			m+"/server/platform/errors",
 			m+"/server/platform/http",
 			// Other infra packages
-			m+"/pkg/fleethttp",
+			m+"/pkg/automdmhttp",
 			m+"/server/contexts/authz",
 		).
 		Check()
@@ -97,7 +97,7 @@ func TestAuthzCheckPackageDependencies(t *testing.T) {
 func TestRatelimitPackageDependencies(t *testing.T) {
 	t.Parallel()
 	archtest.NewPackageTest(t, m+"/server/platform/middleware/ratelimit").
-		OnlyInclude(regexp.MustCompile(`^github\.com/fleetdm/`)).
+		OnlyInclude(regexp.MustCompile(`^github\.com/automdm/`)).
 		WithTests().
 		ShouldNotDependOn(m+"/...").
 		IgnoreDeps(
@@ -112,12 +112,12 @@ func TestRatelimitPackageDependencies(t *testing.T) {
 		Check()
 }
 
-// TestMysqlPackageDependencies checks that mysql package is not dependent on other Fleet domain packages
+// TestMysqlPackageDependencies checks that mysql package is not dependent on other AutoMDM domain packages
 // to maintain decoupling and modularity.
 func TestMysqlPackageDependencies(t *testing.T) {
 	t.Parallel()
 	archtest.NewPackageTest(t, m+"/server/platform/mysql...").
-		OnlyInclude(regexp.MustCompile(`^github\.com/fleetdm/`)).
+		OnlyInclude(regexp.MustCompile(`^github\.com/automdm/`)).
 		WithTests().
 		ShouldNotDependOn(m+"/...").
 		IgnoreDeps(
@@ -134,7 +134,7 @@ func TestMysqlPackageDependencies(t *testing.T) {
 func TestLoggingPackageDependencies(t *testing.T) {
 	t.Parallel()
 	archtest.NewPackageTest(t, m+"/server/platform/logging...").
-		OnlyInclude(regexp.MustCompile(`^github\.com/fleetdm/`)).
+		OnlyInclude(regexp.MustCompile(`^github\.com/automdm/`)).
 		WithTests().
 		ShouldNotDependOn(m + "/...").
 		IgnoreDeps(

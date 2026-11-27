@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/vulnrepo"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/vulnrepo"
 )
 
 const (
@@ -19,14 +19,14 @@ const (
 	OSVAndroidFilePrefix = "osv-android-"
 )
 
-// osvFilePrefixes lists every OSV artifact family Fleet mirrors.
+// osvFilePrefixes lists every OSV artifact family AutoMDM mirrors.
 var osvFilePrefixes = []string{OSVFilePrefix, OSVRHELFilePrefix, OSVAndroidFilePrefix}
 
 // Refresh checks all local Ubuntu OSV artifacts contained in 'vulnPath', deleting outdated
 // artifacts and downloading the latest required ones.
 func Refresh(
 	ctx context.Context,
-	versions *fleet.OSVersions,
+	versions *automdm.OSVersions,
 	vulnPath string,
 	now time.Time,
 ) ([]string, error) {
@@ -46,7 +46,7 @@ func Refresh(
 // RefreshRHEL checks local RHEL OSV artifacts, deleting outdated ones and downloading the latest.
 func RefreshRHEL(
 	ctx context.Context,
-	versions *fleet.OSVersions,
+	versions *automdm.OSVersions,
 	vulnPath string,
 	now time.Time,
 ) ([]string, error) {
@@ -66,7 +66,7 @@ func RefreshRHEL(
 // RefreshAndroid checks local Android OSV artifacts, deleting outdated ones and downloading the latest.
 func RefreshAndroid(
 	ctx context.Context,
-	oses []fleet.OperatingSystem,
+	oses []automdm.OperatingSystem,
 	vulnPath string,
 ) ([]string, error) {
 	neededVersions := getNeededAndroidVersions(oses)
@@ -119,7 +119,7 @@ func refreshArtifacts(
 
 // RefreshAll downloads every OSV artifact present in the latest release, without
 // filtering by host inventory. It is intended for use by tools that pre-seed a
-// vulnerability directory without DB access (e.g. `fleetctl vulnerability-data-stream`).
+// vulnerability directory without DB access (e.g. `automdmctl vulnerability-data-stream`).
 // Unlike Refresh / RefreshRHEL / RefreshAndroid, it does not delete older artifacts —
 // that responsibility stays with the server's vulnerability cron once the directory
 // is in use.
@@ -190,8 +190,8 @@ func neededVersions[T any](items []T, version func(T) string) []string {
 }
 
 // getNeededUbuntuVersions extracts unique Ubuntu versions from OS versions
-func getNeededUbuntuVersions(osVers *fleet.OSVersions) []string {
-	return neededVersions(osVers.OSVersions, func(os fleet.OSVersion) string {
+func getNeededUbuntuVersions(osVers *automdm.OSVersions) []string {
+	return neededVersions(osVers.OSVersions, func(os automdm.OSVersion) string {
 		if strings.ToLower(os.Platform) != "ubuntu" {
 			return ""
 		}
@@ -201,8 +201,8 @@ func getNeededUbuntuVersions(osVers *fleet.OSVersions) []string {
 }
 
 // getNeededRHELVersions extracts unique RHEL major versions from OS versions.
-func getNeededRHELVersions(osVers *fleet.OSVersions) []string {
-	return neededVersions(osVers.OSVersions, func(os fleet.OSVersion) string {
+func getNeededRHELVersions(osVers *automdm.OSVersions) []string {
+	return neededVersions(osVers.OSVersions, func(os automdm.OSVersion) string {
 		if strings.ToLower(os.Platform) != "rhel" {
 			return ""
 		}
@@ -215,8 +215,8 @@ func getNeededRHELVersions(osVers *fleet.OSVersions) []string {
 	})
 }
 
-func getNeededAndroidVersions(oses []fleet.OperatingSystem) []string {
-	return neededVersions(oses, func(os fleet.OperatingSystem) string {
+func getNeededAndroidVersions(oses []automdm.OperatingSystem) []string {
+	return neededVersions(oses, func(os automdm.OperatingSystem) string {
 		if os.Platform != "android" {
 			return ""
 		}

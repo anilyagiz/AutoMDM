@@ -19,7 +19,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 /**
- * Custom Application class for Fleet Agent.
+ * Custom Application class for AutoMDM Agent.
  * Runs when the app process starts (triggered by broadcasts, not by user).
  */
 class AgentApplication : Application() {
@@ -28,7 +28,7 @@ class AgentApplication : Application() {
         private set
 
     companion object {
-        private const val TAG = "fleet-app"
+        private const val TAG = "automdm-app"
 
         /**
          * Gets the CertificateOrchestrator instance from the Application.
@@ -43,13 +43,13 @@ class AgentApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        Log.i(TAG, "Fleet agent process started")
+        Log.i(TAG, "AutoMDM agent process started")
 
-        FleetLog.initialize(this)
+        AutoMDMLog.initialize(this)
 
         val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
-            FleetLog.e("fleet-crash", "Uncaught exception on thread ${thread.name}", throwable)
+            AutoMDMLog.e("automdm-crash", "Uncaught exception on thread ${thread.name}", throwable)
             if (defaultHandler != null) {
                 defaultHandler.uncaughtException(thread, throwable)
             } else {
@@ -89,7 +89,7 @@ class AgentApplication : Application() {
                     if (ApiClient.getApiKey() == null) {
                         val configResult = ApiClient.getOrbitConfig()
                         configResult.onSuccess {
-                            Log.d(TAG, "Successfully enrolled host with Fleet server")
+                            Log.d(TAG, "Successfully enrolled host with AutoMDM server")
                         }.onFailure { error ->
                             Log.w(TAG, "Host enrollment failed: ${error.message}")
                         }
@@ -98,7 +98,7 @@ class AgentApplication : Application() {
                     Log.d(TAG, "MDM enrollment credentials not available")
                 }
             } catch (e: Exception) {
-                FleetLog.e(TAG, "Error refreshing enrollment credentials", e)
+                AutoMDMLog.e(TAG, "Error refreshing enrollment credentials", e)
             }
         }
     }

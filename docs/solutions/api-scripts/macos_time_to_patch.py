@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""Compute macOS time-to-patch from Fleet's "Get macOS patch history" report.
+"""Compute macOS time-to-patch from AutoMDM's "Get macOS patch history" report.
 
 For every Mac and every Apple security release that applied to it, measures the
 days from Apple's release date (SOFA feed) to the first install of a version
 that includes the fix. Splits results into before and after the Mac enrolled
-in Fleet.
+in AutoMDM.
 
-Guide: https://fleetdm.com/guides/measure-macos-time-to-patch
+Guide: https://automdm.com/guides/measure-macos-time-to-patch
 
-Live:    FLEET_URL=https://fleet.example.com FLEET_API_TOKEN=... \
+Live:    AUTOMDM_URL=https://automdm.example.com AUTOMDM_API_TOKEN=... \
            ./macos_time_to_patch.py --report-id 123
 Offline: ./macos_time_to_patch.py --report-file report.json --hosts-file hosts.json
 
@@ -48,14 +48,14 @@ def parse_ts(s):
 # ---------------------------------------------------------------- data loading
 
 def http_json(url, token=None):
-    req = urllib.request.Request(url, headers={"User-Agent": "fleet-time-to-patch"})
+    req = urllib.request.Request(url, headers={"User-Agent": "automdm-time-to-patch"})
     if token:
         req.add_header("Authorization", f"Bearer {token}")
     try:
         with urllib.request.urlopen(req, timeout=60) as resp:
             return json.load(resp)
     except urllib.error.HTTPError as e:
-        hint = " Check FLEET_API_TOKEN." if e.code in (401, 403) else ""
+        hint = " Check AUTOMDM_API_TOKEN." if e.code in (401, 403) else ""
         sys.exit(f"error: {url.split('?')[0]} returned HTTP {e.code}.{hint}")
 
 
@@ -67,7 +67,7 @@ def load_json_file(path):
 def fetch_hosts(base, token):
     hosts, page = [], 0
     while True:
-        data = http_json(f"{base}/api/v1/fleet/hosts?per_page=500&page={page}", token)
+        data = http_json(f"{base}/api/v1/automdm/hosts?per_page=500&page={page}", token)
         batch = data.get("hosts", [])
         if not batch:
             return hosts
@@ -152,7 +152,7 @@ def evaluate_host(row, releases, window, now, cutover):
 
         rec = {"release": rel["version"], "release_date": rel["date"],
                "cves": rel["cves"], "exploited": rel["exploited"],
-               "period": "pre-Fleet" if cutover and rel["date"] < cutover else "Fleet",
+               "period": "pre-AutoMDM" if cutover and rel["date"] < cutover else "AutoMDM",
                "status": None, "patched_at": None, "days": None}
 
         if start is None or start > rel["date"]:
@@ -206,31 +206,31 @@ def fmt(v):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--report-id", type=int, action="append",
-                    help="Fleet report ID; repeat for the same report in several fleets")
-    ap.add_argument("--report-file", help="Saved JSON from GET /api/v1/fleet/reports/:id/report")
-    ap.add_argument("--hosts-file", help="Saved JSON from GET /api/v1/fleet/hosts")
+                    help="AutoMDM report ID; repeat for the same report in several teams")
+    ap.add_argument("--report-file", help="Saved JSON from GET /api/v1/automdm/reports/:id/report")
+    ap.add_argument("--hosts-file", help="Saved JSON from GET /api/v1/automdm/hosts")
     ap.add_argument("--sofa-file", help="Saved SOFA macOS feed (default: download)")
     ap.add_argument("--days", type=int, default=365, help="Look-back window for releases (default 365)")
     ap.add_argument("--sla-days", type=int, default=14, help="Patch SLA in days (default 14)")
-    ap.add_argument("--cutover-date", help="YYYY-MM-DD Fleet go-live for every host "
+    ap.add_argument("--cutover-date", help="YYYY-MM-DD AutoMDM go-live for every host "
                     "(default: each host's last_enrolled_at)")
-    ap.add_argument("--fleet", help="Only include hosts in the fleet with this name")
+    ap.add_argument("--team", help="Only include hosts in the team with this name")
     ap.add_argument("--include-zero-cve", action="store_true",
                     help="Also count releases with no published CVEs")
     ap.add_argument("--out-dir", default=".", help="Where to write CSV/JSON output")
     args = ap.parse_args()
 
-    base, token = os.environ.get("FLEET_URL", "").rstrip("/"), os.environ.get("FLEET_API_TOKEN")
+    base, token = os.environ.get("AUTOMDM_URL", "").rstrip("/"), os.environ.get("AUTOMDM_API_TOKEN")
     if args.report_file:
         reports = [load_json_file(args.report_file)]
     elif args.report_id and base and token:
-        reports = [http_json(f"{base}/api/v1/fleet/reports/{rid}/report", token)
+        reports = [http_json(f"{base}/api/v1/automdm/reports/{rid}/report", token)
                    for rid in args.report_id]
     else:
-        ap.error("pass --report-file, or --report-id with FLEET_URL and FLEET_API_TOKEN set")
+        ap.error("pass --report-file, or --report-id with AUTOMDM_URL and AUTOMDM_API_TOKEN set")
     for rep in reports:
         if rep.get("report_clipped"):
-            print(f"WARNING: Fleet clipped report {rep.get('report_id') or rep.get('query_id')}; "
+            print(f"WARNING: AutoMDM clipped report {rep.get('report_id') or rep.get('query_id')}; "
                   "some hosts are missing.", file=sys.stderr)
     report = {"results": [row for rep in reports for row in rep.get("results") or []]}
 
@@ -255,19 +255,19 @@ def main():
     for row in report.get("results", []):
         hid = row["host_id"]
         host = hosts.get(hid, {})
-        fleet = host.get("fleet_name") or host.get("team_name")
-        if args.fleet and fleet != args.fleet:
+        team = host.get("team_name") or host.get("team_name")
+        if args.team and team != args.team:
             continue
         cutover = global_cutover or parse_ts(host.get("last_enrolled_at"))
         for rec in evaluate_host(row.get("columns", {}), releases, window, now, cutover):
             rec.update(host_id=hid, host_name=host.get("display_name") or row.get("host_name"),
-                       fleet=fleet)
+                       team=team)
             recs.append(rec)
 
     os.makedirs(args.out_dir, exist_ok=True)
     iso = lambda t: datetime.fromtimestamp(t, timezone.utc).strftime("%Y-%m-%d %H:%M") if t else ""
     with open(os.path.join(args.out_dir, "time_to_patch_by_host.csv"), "w", newline="") as f:
-        cols = ["host_id", "host_name", "fleet", "release", "release_date", "cves", "exploited",
+        cols = ["host_id", "host_name", "team", "release", "release_date", "cves", "exploited",
                 "period", "status", "patched_at", "days"]
         w = csv.DictWriter(f, fieldnames=cols)
         w.writeheader()

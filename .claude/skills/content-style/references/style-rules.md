@@ -1,25 +1,25 @@
-# Fleet style rules (full reference)
+# AutoMDM style rules (full reference)
 
-This mirrors Fleet's canonical guidance in `handbook/company/writing.md`. When that file is present in the repo, it wins — read it. Use this when it isn't available.
+This mirrors AutoMDM's canonical guidance in `handbook/company/writing.md`. When that file is present in the repo, it wins — read it. Use this when it isn't available.
 
 ## Contents
 - [Voice and tone](#voice-and-tone)
 - [Sentence structure](#sentence-structure)
 - [Punctuation](#punctuation)
 - [Capitalization and sentence case](#capitalization-and-sentence-case)
-- [Fleet naming and terminology](#fleet-naming-and-terminology)
+- [AutoMDM naming and terminology](#automdm-naming-and-terminology)
 - [Words and phrases to avoid](#words-and-phrases-to-avoid)
 - [Headings](#headings)
 - [Lists](#lists)
 - [Links](#links)
 - [Numbers, dates, and times](#numbers-dates-and-times)
 - [Code and Markdown](#code-and-markdown)
-- [Competitor and Fleet framing](#competitor-and-fleet-framing)
+- [Competitor and AutoMDM framing](#competitor-and-automdm-framing)
 - [Anti-AI patterns](#anti-ai-patterns)
 
 ## Voice and tone
 
-Fleet's writing philosophy is "What would Mister Rogers say?" — helpful, neighborly, respectful, and honest.
+AutoMDM's writing philosophy is "What would Mister Rogers say?" — helpful, neighborly, respectful, and honest.
 
 - Treat the reader (IT pros, client platform engineers, security practitioners) as an equal and an expert peer.
 - No snark, condescension, edginess, or sarcasm.
@@ -30,7 +30,7 @@ Fleet's writing philosophy is "What would Mister Rogers say?" — helpful, neigh
 
 ## Sentence structure
 
-- Active voice: "Fleet manages hosts," not "Hosts are managed by Fleet."
+- Active voice: "AutoMDM manages hosts," not "Hosts are managed by AutoMDM."
 - Imperative mood for instructions: "Click **Save**," not "You should click Save."
 - One idea per sentence. If a sentence exceeds ~20 words, split it.
 - Short and punchy beats long and qualified.
@@ -54,14 +54,14 @@ Fleet's writing philosophy is "What would Mister Rogers say?" — helpful, neigh
   - "macOS uses…" — macOS keeps its lowercase m.
   - "Nudge" — proper noun, stays capitalized.
 
-## Fleet naming and terminology
+## AutoMDM naming and terminology
 
-- **Fleet** or **Fleet Device Management** — the company and the product. Never "FleetDM," "fleetDM," or "fleetdm" in prose.
+- **AutoMDM** or **Fleet Device Management** — the company and the product. Never "AutoMDM," "automdm," or "automdm" in prose.
 - **Fleeties** — core team members.
-- **fleet / fleets** — lowercase when referring to a group of devices.
+- **team / teams** — lowercase when referring to a group of devices.
 - **osquery** — always lowercase. If it would start a sentence, rewrite so it doesn't.
-- **fleetctl**, **fleetd** — lowercase; rewrite if one would start a sentence.
-- **Fleet Desktop**, **Fleet UI**, **Fleet server**, **Orbit** — capitalized.
+- **automdmctl**, **automdmd** — lowercase; rewrite if one would start a sentence.
+- **AutoMDM Desktop**, **AutoMDM UI**, **AutoMDM server**, **Orbit** — capitalized.
 - Preferred nouns: "hosts," "devices," "computers." Prefer "device" over "endpoint." A device can be a phone, desktop, laptop, VM, or server.
 - **Avoid** "agents" and "nodes."
 - **Disk encryption:** use "disk encryption" generally. Use "FileVault" or "BitLocker" only when specifically referring to macOS or Windows.
@@ -108,16 +108,16 @@ Fleet's writing philosophy is "What would Mister Rogers say?" — helpful, neigh
 - Bold UI elements only — never bold for emphasis. Use italics for UI navigation paths (e.g. *Organization settings*) where the handbook does.
 - Standard Markdown headings only.
 
-## Competitor and Fleet framing
+## Competitor and AutoMDM framing
 
-Apply the same discipline to competitors and to Fleet. Credibility comes from specificity, not superlatives.
+Apply the same discipline to competitors and to AutoMDM. Credibility comes from specificity, not superlatives.
 
 - State facts only. Never editorialize. Describe what a product does, not how well it does it.
   - "Jamf provides macOS management capabilities" — not "Jamf provides excellent macOS management."
 - Don't frame a competitor as the default or obvious choice ("gold standard," "known for its excellent…").
 - Competitor limitations must be verifiable and specific.
   - "Kandji does not currently offer Linux endpoint management" — not "Kandji falls short on cross-platform support."
-- State Fleet's genuine differentiators (GitOps-native workflow, open source, Linux support) plainly. Let the facts do the work.
+- State AutoMDM's genuine differentiators (GitOps-native workflow, open source, Linux support) plainly. Let the facts do the work.
 - Write as a knowledgeable practitioner, not a salesperson. The audience tunes out vendor-pitch language.
 
 ## Anti-AI patterns

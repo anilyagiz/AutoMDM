@@ -8,7 +8,7 @@ import TooltipWrapper from "components/TooltipWrapper";
 import { IHeaderProps, IStringCellProps } from "interfaces/datatable_config";
 import { IDropdownOption } from "interfaces/dropdownOption";
 import { IMdmAbToken } from "interfaces/mdm";
-import { getFleetDisplayName } from "interfaces/team";
+import { getTeamDisplayName } from "interfaces/team";
 import { getGitOpsModeTipContent } from "utilities/helpers";
 
 import RenewDateCell from "../../../components/RenewDateCell";
@@ -60,7 +60,7 @@ export const generateActions = (
   return [
     {
       value: "editTeams",
-      label: "Edit fleets",
+      label: "Edit teams",
       disabled: false,
       ...(gitopsModeEnabled ? gitOpsDisabledProps : {}),
     },
@@ -140,21 +140,21 @@ export const generateTableConfig = (
     {
       id: "macos_team",
       sortType: "caseInsensitive",
-      accessor: (originalRow) => getFleetDisplayName(originalRow.macos_fleet),
+      accessor: (originalRow) => getTeamDisplayName(originalRow.macos_team),
       Header: (cellProps: ITableHeaderProps) => {
         const titleWithToolTip = (
           <TooltipWrapper
             tipContent={
               <>
-                macOS hosts are automatically added to this fleet on initial
+                macOS hosts are automatically added to this team on initial
                 sync from AB. If a host is manually assigned to a different
-                fleet before enrollment, it will enroll to the newly assigned
-                fleet and not the default.
+                team before enrollment, it will enroll to the newly assigned
+                team and not the default.
               </>
             }
             fixedPositionStrategy
           >
-            macOS fleet
+            macOS team
           </TooltipWrapper>
         );
         return (
@@ -171,21 +171,21 @@ export const generateTableConfig = (
     {
       id: "ios_team",
       sortType: "caseInsensitive",
-      accessor: (originalRow) => getFleetDisplayName(originalRow.ios_fleet),
+      accessor: (originalRow) => getTeamDisplayName(originalRow.ios_team),
       Header: (cellProps: ITableHeaderProps) => {
         const titleWithToolTip = (
           <TooltipWrapper
             tipContent={
               <>
-                iOS hosts are automatically added to this fleet on initial sync
-                from AB. If a host is manually assigned to a different fleet
-                before enrollment, it will enroll to the newly assigned fleet
+                iOS hosts are automatically added to this team on initial sync
+                from AB. If a host is manually assigned to a different team
+                before enrollment, it will enroll to the newly assigned team
                 and not the default.
               </>
             }
             fixedPositionStrategy
           >
-            iOS fleet
+            iOS team
           </TooltipWrapper>
         );
         return (
@@ -202,21 +202,21 @@ export const generateTableConfig = (
     {
       id: "ipados_team",
       sortType: "caseInsensitive",
-      accessor: (originalRow) => getFleetDisplayName(originalRow.ipados_fleet),
+      accessor: (originalRow) => getTeamDisplayName(originalRow.ipados_team),
       Header: (cellProps: ITableHeaderProps) => {
         const titleWithToolTip = (
           <TooltipWrapper
             tipContent={
               <>
-                iPadOS hosts are automatically added to this fleet on initial
+                iPadOS hosts are automatically added to this team on initial
                 sync from AB. If a host is manually assigned to a different
-                fleet before enrollment, it will enroll to the newly assigned
-                fleet and not the default.
+                team before enrollment, it will enroll to the newly assigned
+                team and not the default.
               </>
             }
             fixedPositionStrategy
           >
-            iPadOS fleet
+            iPadOS team
           </TooltipWrapper>
         );
         return (
@@ -233,19 +233,19 @@ export const generateTableConfig = (
     {
       id: "byod_team",
       sortType: "caseInsensitive",
-      accessor: (originalRow) => getFleetDisplayName(originalRow.byod_fleet),
+      accessor: (originalRow) => getTeamDisplayName(originalRow.byod_team),
       Header: (cellProps: ITableHeaderProps) => {
         const titleWithToolTip = (
           <TooltipWrapper
             tipContent={
               <>
                 iOS/iPadOS hosts that enroll via Managed Apple Account are
-                automatically added to this fleet.
+                automatically added to this team.
               </>
             }
             fixedPositionStrategy
           >
-            BYOD fleet
+            BYOD team
           </TooltipWrapper>
         );
         return (

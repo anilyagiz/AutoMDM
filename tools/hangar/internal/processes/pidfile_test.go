@@ -9,11 +9,11 @@ import (
 
 func TestWritePidFileRoundTrip(t *testing.T) {
 	dir := t.TempDir()
-	recs := []PidRecord{{ID: "fleet-serve", PID: 123, Program: "/x/fleet", Args: []string{"serve"}}}
+	recs := []PidRecord{{ID: "automdm-serve", PID: 123, Program: "/x/automdm", Args: []string{"serve"}}}
 	writePidFile(dir, recs)
 
 	got := readPidRecords(dir)
-	if len(got) != 1 || got[0].ID != "fleet-serve" || got[0].PID != 123 {
+	if len(got) != 1 || got[0].ID != "automdm-serve" || got[0].PID != 123 {
 		t.Fatalf("round-trip mismatch: %+v", got)
 	}
 

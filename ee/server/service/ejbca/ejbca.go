@@ -1,4 +1,4 @@
-// Package ejbca is Fleet's client for the EJBCA REST API, authenticated with a TLS client certificate.
+// Package ejbca is AutoMDM's client for the EJBCA REST API, authenticated with a TLS client certificate.
 // https://docs.keyfactor.com/ejbca/latest/ejbca-rest-interface
 package ejbca
 
@@ -24,17 +24,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/ee/server/service/certissue"
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/pkg/str"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/ee/server/service/certissue"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/pkg/str"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 )
 
 const (
 	defaultTimeout = 20 * time.Second
 	restAPIPrefix  = "/ejbca/ejbca-rest-api"
-	// maxResponseSize bounds what Fleet reads from EJBCA. An enrolled certificate is a few KB.
+	// maxResponseSize bounds what AutoMDM reads from EJBCA. An enrolled certificate is a few KB.
 	maxResponseSize = 1 << 20
 	// serviceDisabledText is in the HTML EJBCA answers with, with a 403, when the REST protocol is disabled.
 	serviceDisabledText = "This service has been disabled"
@@ -47,7 +47,7 @@ const (
 // User-facing messages. They end up in the UI, so they say what to check.
 const (
 	msgInvalidURL          = "The EJBCA URL must be an https URL without credentials, such as https://ejbca.example.com:8443."
-	msgCertExpired         = "The TLS client certificate Fleet uses for EJBCA expired on %s. Upload a new client certificate."
+	msgCertExpired         = "The TLS client certificate AutoMDM uses for EJBCA expired on %s. Upload a new client certificate."
 	msgServerCertUntrusted = "Couldn't verify EJBCA's server certificate: %s. Add the CA that issued it to the trust CA bundle."
 	msgClientCertRejected  = "EJBCA rejected the TLS client certificate (%s). Check that EJBCA trusts the CA that issued it."
 	msgConnectionClosed    = "EJBCA closed the connection without responding. Check that the REST Certificate Management protocol is " +
@@ -56,10 +56,10 @@ const (
 	msgProtocolDisabled = "EJBCA's REST Certificate Management protocol is disabled. Enable it under System Configuration > " +
 		"Protocol Configuration in EJBCA, and restart EJBCA if needed."
 	msgNoTrustCerts  = "The EJBCA trust CA bundle has no usable certificates."
-	msgNotAuthorized = "EJBCA didn't authorize the Fleet client certificate: %s. Check that EJBCA trusts the CA that issued it, and that " +
-		"it is a member of an EJBCA role with the access rules Fleet needs."
-	msgNoCAs           = "The Fleet client certificate can't access any CAs in EJBCA. Add the CA to the access rules of its EJBCA role."
-	msgCANotFound      = "EJBCA CA %q was not found. The Fleet client certificate can access: %s."
+	msgNotAuthorized = "EJBCA didn't authorize the AutoMDM client certificate: %s. Check that EJBCA trusts the CA that issued it, and that " +
+		"it is a member of an EJBCA role with the access rules AutoMDM needs."
+	msgNoCAs           = "The AutoMDM client certificate can't access any CAs in EJBCA. Add the CA to the access rules of its EJBCA role."
+	msgCANotFound      = "EJBCA CA %q was not found. The AutoMDM client certificate can access: %s."
 	msgProfileNotFound = "EJBCA certificate profile %q was not found."
 	msgEnrollRejected  = "EJBCA rejected the enrollment request: %s. Check the CA, certificate profile, and end entity profile names."
 	msgUnexpected      = "Unexpected response from EJBCA, status %d: %s"
@@ -79,9 +79,9 @@ type Service struct {
 }
 
 // Compile-time check for the EJBCAService interface
-var _ fleet.EJBCAService = (*Service)(nil)
+var _ automdm.EJBCAService = (*Service)(nil)
 
-func NewService(opts ...Opt) fleet.EJBCAService {
+func NewService(opts ...Opt) automdm.EJBCAService {
 	s := &Service{}
 	s.populateOpts(opts)
 	return s
@@ -118,7 +118,7 @@ func (s *Service) populateOpts(opts []Opt) {
 
 // VerifyConnection checks that EJBCA accepts the client certificate and that the configured CA is one the certificate may use. It also
 // checks the certificate profile, but only when EJBCA's optional V2 protocol can look it up. EJBCA can't look up end entity profiles.
-func (s *Service) VerifyConnection(ctx context.Context, config fleet.EJBCA) error {
+func (s *Service) VerifyConnection(ctx context.Context, config automdm.EJBCA) error {
 	client, base, err := s.newClient(ctx, config)
 	if err != nil {
 		return err
@@ -175,7 +175,7 @@ func (s *Service) verifyCertificateProfile(ctx context.Context, client *http.Cli
 }
 
 // GetCertificate enrolls a certificate with a key generated here and returns both in a PKCS#12 bundle.
-func (s *Service) GetCertificate(ctx context.Context, config fleet.EJBCA) (*fleet.EJBCACertificate, error) {
+func (s *Service) GetCertificate(ctx context.Context, config automdm.EJBCA) (*automdm.EJBCACertificate, error) {
 	for field, value := range map[string]string{
 		"certificate authority name": config.CertificateAuthorityName,
 		"certificate profile name":   config.CertificateProfileName,
@@ -197,7 +197,7 @@ func (s *Service) GetCertificate(ctx context.Context, config fleet.EJBCA) (*flee
 		return nil, err
 	}
 
-	// EJBCA requires a password in the request. The client certificate authenticates Fleet, so a random one that is never kept will do.
+	// EJBCA requires a password in the request. The client certificate authenticates AutoMDM, so a random one that is never kept will do.
 	passwordBytes := make([]byte, 32)
 	if _, err := rand.Read(passwordBytes); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "generating EJBCA enrollment password")
@@ -262,13 +262,13 @@ func (s *Service) GetCertificate(ctx context.Context, config fleet.EJBCA) (*flee
 		return nil, err
 	}
 
-	// Lowercase hex padded to 40 characters, the format of Fleet's host certificate list, and it has to fit the serial column.
+	// Lowercase hex padded to 40 characters, the format of AutoMDM's host certificate list, and it has to fit the serial column.
 	serial := fmt.Sprintf("%040s", cert.SerialNumber.Text(16))
 	if len(serial) > maxSerialLength {
 		return nil, ctxerr.Errorf(ctx, msgSerialTooLong, maxSerialLength, serial)
 	}
 	s.logger.DebugContext(ctx, "EJBCA certificate issued", "serial_number", serial, "not_after", cert.NotAfter)
-	return &fleet.EJBCACertificate{
+	return &automdm.EJBCACertificate{
 		PfxData:        pfxData,
 		Password:       pfxPassword,
 		NotValidBefore: cert.NotBefore,
@@ -279,7 +279,7 @@ func (s *Service) GetCertificate(ctx context.Context, config fleet.EJBCA) (*flee
 
 // newClient returns an HTTP client that presents the client certificate, and EJBCA's REST base URL. It fails without contacting EJBCA
 // when the client certificate has expired, since EJBCA would only reject the handshake.
-func (s *Service) newClient(ctx context.Context, config fleet.EJBCA) (*http.Client, string, error) {
+func (s *Service) newClient(ctx context.Context, config automdm.EJBCA) (*http.Client, string, error) {
 	base, err := url.Parse(strings.TrimRight(config.URL, "/"))
 	if err != nil || base.Scheme != "https" || base.Host == "" || base.User != nil {
 		return nil, "", ctxerr.New(ctx, msgInvalidURL)
@@ -306,8 +306,8 @@ func (s *Service) newClient(ctx context.Context, config fleet.EJBCA) (*http.Clie
 		}
 		tlsConfig.RootCAs = pool
 	}
-	// Redirects are not followed, so an EJBCA response can't send Fleet's client certificate or the enrollment request elsewhere.
-	client := fleethttp.NewClient(fleethttp.WithTimeout(s.timeout), fleethttp.WithTLSClientConfig(tlsConfig), fleethttp.WithFollowRedir(false))
+	// Redirects are not followed, so an EJBCA response can't send AutoMDM's client certificate or the enrollment request elsewhere.
+	client := automdmhttp.NewClient(automdmhttp.WithTimeout(s.timeout), automdmhttp.WithTLSClientConfig(tlsConfig), automdmhttp.WithFollowRedir(false))
 	return client, base.JoinPath(restAPIPrefix).String(), nil
 }
 

@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/androidmanagement/v1"
@@ -57,7 +57,7 @@ func defaultRegisterRequest() registerRequest {
 	}
 }
 
-// certChangesBody builds a modifyPolicyApplications body from the same types Fleet uses to
+// certChangesBody builds a modifyPolicyApplications body from the same types AutoMDM uses to
 // send one, so a change to either wire format fails to compile here.
 func certChangesBody(t *testing.T, configs ...android.AgentManagedConfiguration) []byte {
 	t.Helper()
@@ -79,14 +79,14 @@ func certChangesBody(t *testing.T, configs ...android.AgentManagedConfiguration)
 
 func certConfig(templates ...android.AgentCertificateTemplate) android.AgentManagedConfiguration {
 	return android.AgentManagedConfiguration{
-		ServerURL:              "https://fleet.example.com",
+		ServerURL:              "https://automdm.example.com",
 		HostUUID:               testESID,
 		EnrollSecret:           "secret",
 		CertificateTemplateIDs: templates,
 	}
 }
 
-func certTemplate(id uint, operation fleet.MDMOperationType) android.AgentCertificateTemplate {
+func certTemplate(id uint, operation automdm.MDMOperationType) android.AgentCertificateTemplate {
 	return android.AgentCertificateTemplate{ID: id, Status: "pending", Operation: string(operation)}
 }
 
@@ -108,7 +108,7 @@ func TestHandlePolicyActionStoresPendingCertificates(t *testing.T) {
 			mux, store := newTestMux(t)
 			registerTestDevice(t, mux, defaultRegisterRequest(), http.StatusOK)
 
-			body := certChangesBody(t, certConfig(certTemplate(7, fleet.MDMOperationTypeInstall)))
+			body := certChangesBody(t, certConfig(certTemplate(7, automdm.MDMOperationTypeInstall)))
 			rr := postPolicyAction(t, mux, fmt.Sprintf("/v1/enterprises/%s/policies/%s:%s", testEnterpriseID, testESID, action), body)
 			require.Equal(t, http.StatusOK, rr.Code, "policy action response: %s", rr.Body.String())
 
@@ -117,7 +117,7 @@ func TestHandlePolicyActionStoresPendingCertificates(t *testing.T) {
 			assert.Equal(t, []uint{7}, d.PendingCertificates)
 
 			// The policy version must be keyed to the suffix-stripped policy name, otherwise
-			// the version the device reports never matches what Fleet recorded.
+			// the version the device reports never matches what AutoMDM recorded.
 			assert.Positive(t, store.getPolicyVersion(testPolicyName(testESID)))
 			assert.Zero(t, store.getPolicyVersion(testPolicyName(testESID+":"+action)))
 		})
@@ -125,7 +125,7 @@ func TestHandlePolicyActionStoresPendingCertificates(t *testing.T) {
 }
 
 // TestPolicyActionRequiresExistingPolicy covers --require-policies: AMAPI answers a policy
-// action on a policy that was never created with 404, which is how Fleet's certificate
+// action on a policy that was never created with 404, which is how AutoMDM's certificate
 // delivery failed for hosts whose host-specific policy didn't exist yet.
 func TestPolicyActionRequiresExistingPolicy(t *testing.T) {
 	testCases := []struct {
@@ -194,7 +194,7 @@ func TestPolicyActionRequiresExistingPolicy(t *testing.T) {
 			}
 			versionBefore := store.getPolicyVersion(testPolicyName(tc.policyID))
 
-			body := certChangesBody(t, certConfig(certTemplate(7, fleet.MDMOperationTypeInstall)))
+			body := certChangesBody(t, certConfig(certTemplate(7, automdm.MDMOperationTypeInstall)))
 			rr := postPolicyAction(t, mux, fmt.Sprintf("/v1/enterprises/%s/policies/%s:modifyPolicyApplications", testEnterpriseID, tc.policyID), body)
 			require.Equal(t, tc.wantStatus, rr.Code, "policy action response: %s", rr.Body.String())
 
@@ -218,15 +218,15 @@ func TestExtractAndStoreCertTemplateIDs(t *testing.T) {
 			name: "install ops in a later change are not dropped",
 			configs: []android.AgentManagedConfiguration{
 				certConfig(),
-				certConfig(certTemplate(11, fleet.MDMOperationTypeInstall)),
+				certConfig(certTemplate(11, automdm.MDMOperationTypeInstall)),
 			},
 			expected: []uint{11},
 		},
 		{
 			name: "a change with no install op does not stop later changes",
 			configs: []android.AgentManagedConfiguration{
-				certConfig(certTemplate(3, fleet.MDMOperationTypeRemove)),
-				certConfig(certTemplate(4, fleet.MDMOperationTypeInstall)),
+				certConfig(certTemplate(3, automdm.MDMOperationTypeRemove)),
+				certConfig(certTemplate(4, automdm.MDMOperationTypeInstall)),
 			},
 			expected: []uint{4},
 		},
@@ -234,8 +234,8 @@ func TestExtractAndStoreCertTemplateIDs(t *testing.T) {
 			name: "several install ops in one change are all collected",
 			configs: []android.AgentManagedConfiguration{
 				certConfig(
-					certTemplate(1, fleet.MDMOperationTypeInstall),
-					certTemplate(2, fleet.MDMOperationTypeInstall),
+					certTemplate(1, automdm.MDMOperationTypeInstall),
+					certTemplate(2, automdm.MDMOperationTypeInstall),
 				),
 			},
 			expected: []uint{1, 2},
@@ -243,7 +243,7 @@ func TestExtractAndStoreCertTemplateIDs(t *testing.T) {
 		{
 			name: "non-install ops are ignored",
 			configs: []android.AgentManagedConfiguration{
-				certConfig(certTemplate(6, fleet.MDMOperationTypeRemove)),
+				certConfig(certTemplate(6, automdm.MDMOperationTypeRemove)),
 			},
 			expected: nil,
 		},
@@ -277,7 +277,7 @@ func TestGetStateReportsPendingCertificates(t *testing.T) {
 	mux, _ := newTestMux(t)
 	registerTestDevice(t, mux, defaultRegisterRequest(), http.StatusOK)
 
-	body := certChangesBody(t, certConfig(certTemplate(42, fleet.MDMOperationTypeInstall)))
+	body := certChangesBody(t, certConfig(certTemplate(42, automdm.MDMOperationTypeInstall)))
 	rr := postPolicyAction(t, mux,
 		fmt.Sprintf("/v1/enterprises/%s/policies/%s:modifyPolicyApplications", testEnterpriseID, testESID), body)
 	require.Equal(t, http.StatusOK, rr.Code)
@@ -294,11 +294,11 @@ type testDeviceState struct {
 	AgentEnrollSecret   string   `json:"agent_enroll_secret"`
 }
 
-// TestGetStateReportsAgentEnrollSecret covers both ways Fleet sends the agent's managed configuration: a
+// TestGetStateReportsAgentEnrollSecret covers both ways AutoMDM sends the agent's managed configuration: a
 // modifyPolicyApplications change, and the app list in a policy patch.
 func TestGetStateReportsAgentEnrollSecret(t *testing.T) {
 	agentConfig := func(hostUUID, secret string) android.AgentManagedConfiguration {
-		return android.AgentManagedConfiguration{ServerURL: "https://fleet.example.com", HostUUID: hostUUID, EnrollSecret: secret}
+		return android.AgentManagedConfiguration{ServerURL: "https://automdm.example.com", HostUUID: hostUUID, EnrollSecret: secret}
 	}
 
 	t.Run("policy action", func(t *testing.T) {
@@ -325,7 +325,7 @@ func TestGetStateReportsAgentEnrollSecret(t *testing.T) {
 		agentManagedConfig, err := json.Marshal(agentConfig(testESID, "from-patch"))
 		require.NoError(t, err)
 		policy, err := json.Marshal(androidmanagement.Policy{Applications: []*androidmanagement.ApplicationPolicy{
-			// Another app's free-form configuration that happens to look like the agent's comes first, as in Fleet's lists.
+			// Another app's free-form configuration that happens to look like the agent's comes first, as in AutoMDM's lists.
 			{PackageName: "com.example.other", ManagedConfiguration: []byte(`{"host_uuid":"` + testESID + `","enroll_secret":"not-the-agent"}`)},
 			{PackageName: "com.fleetdm.agent", ManagedConfiguration: agentManagedConfig},
 		}})
@@ -338,7 +338,7 @@ func TestGetStateReportsAgentEnrollSecret(t *testing.T) {
 
 	t.Run("custom agent package", func(t *testing.T) {
 		mux, store := newTestMux(t)
-		store.agentPackage = "com.example.fleetagent"
+		store.agentPackage = "com.example.automdmagent"
 		registerTestDevice(t, mux, defaultRegisterRequest(), http.StatusOK)
 		// certChangesBody sends the configuration as com.fleetdm.agent, which isn't the agent here.
 		rr := postPolicyAction(t, mux, fmt.Sprintf("/v1/enterprises/%s/policies/%s:modifyPolicyApplications", testEnterpriseID, testESID),
@@ -409,7 +409,7 @@ func patchPolicy(t *testing.T, mux *http.ServeMux, policyID string) *httptest.Re
 // TestRegisterRestoresPolicyState covers recovery after this process is restarted: the agent
 // registers again reporting the policy state it last observed, and the mock must keep it
 // instead of resetting the device to the default policy at version 0. Reporting a regressed
-// policy would make Fleet see already-applied profiles as un-applied.
+// policy would make AutoMDM see already-applied profiles as un-applied.
 func TestRegisterRestoresPolicyState(t *testing.T) {
 	t.Run("reported policy state is kept", func(t *testing.T) {
 		mux, store := newTestMux(t)
@@ -423,14 +423,14 @@ func TestRegisterRestoresPolicyState(t *testing.T) {
 		assert.Equal(t, testPolicyName(testESID), d.PolicyName)
 		assert.Equal(t, int64(57), d.PolicyVersion)
 
-		// The device reports the version it last observed, so profiles Fleet already
+		// The device reports the version it last observed, so profiles AutoMDM already
 		// delivered are not seen as un-applied.
 		state := getTestState(t, mux, testESID, http.StatusOK)
 		assert.Equal(t, int64(57), state.PolicyVersion)
 		assert.Equal(t, testPolicyName(testESID), state.PolicyName)
 	})
 
-	// A restored version must NOT be recorded as the policy's current version: Fleet verifies
+	// A restored version must NOT be recorded as the policy's current version: AutoMDM verifies
 	// profiles whose included_in_policy_version is <= the applied version, so a device
 	// claiming a version this process never issued would flip pending profiles to Verified
 	// without the policy ever being applied — hiding stuck-in-Pending bugs.
@@ -459,8 +459,8 @@ func TestRegisterRestoresPolicyState(t *testing.T) {
 	})
 
 	// A policy patched before the device registers again leaves this process holding a low
-	// version for that policy. Reporting it would tell Fleet the device's applied version
-	// went backwards, and Fleet only verifies profiles whose included_in_policy_version is
+	// version for that policy. Reporting it would tell AutoMDM the device's applied version
+	// went backwards, and AutoMDM only verifies profiles whose included_in_policy_version is
 	// <= the applied version — so every profile delivered before the restart would be stuck
 	// Pending until some later patch happened to exceed the pre-restart version.
 	t.Run("a version issued before the restore does not regress the reported version", func(t *testing.T) {
@@ -487,7 +487,7 @@ func TestRegisterRestoresPolicyState(t *testing.T) {
 		assert.Zero(t, d.PolicyVersion)
 	})
 
-	// An out-of-range version must not reach Fleet at all. Fleet verifies profiles whose
+	// An out-of-range version must not reach AutoMDM at all. AutoMDM verifies profiles whose
 	// included_in_policy_version is <= the applied version, so an absurdly high version would
 	// flip every pending profile to Verified; a negative one would verify nothing ever.
 	for _, version := range []int64{1<<62 + 1, maxRestorablePolicyVersion + 1, -1} {
@@ -504,7 +504,7 @@ func TestRegisterRestoresPolicyState(t *testing.T) {
 			assert.Equal(t, "enterprises/LC01/policies/1", d.PolicyName,
 				"the device falls back to a fresh registration")
 
-			// And it must not be reported to Fleet either.
+			// And it must not be reported to AutoMDM either.
 			state := getTestState(t, mux, testESID, http.StatusOK)
 			assert.Zero(t, state.PolicyVersion)
 
@@ -560,7 +560,7 @@ func TestRegisterRestoresPolicyState(t *testing.T) {
 		mux, store := newTestMux(t)
 		registerTestDevice(t, mux, defaultRegisterRequest(), http.StatusOK)
 
-		body := certChangesBody(t, certConfig(certTemplate(9, fleet.MDMOperationTypeInstall)))
+		body := certChangesBody(t, certConfig(certTemplate(9, automdm.MDMOperationTypeInstall)))
 		require.Equal(t, http.StatusOK, postPolicyAction(t, mux,
 			fmt.Sprintf("/v1/enterprises/%s/policies/%s:modifyPolicyApplications", testEnterpriseID, testESID), body).Code)
 
@@ -578,7 +578,7 @@ func TestRegisterRestoresPolicyState(t *testing.T) {
 }
 
 // TestRegisterRejectsInjectedPendingState pins that the registration body can only carry the
-// fields the agent sends: pending commands would otherwise be acked to Fleet as if issued.
+// fields the agent sends: pending commands would otherwise be acked to AutoMDM as if issued.
 func TestRegisterRejectsInjectedPendingState(t *testing.T) {
 	mux, store := newTestMux(t)
 
@@ -598,7 +598,7 @@ func TestRegisterRejectsInjectedPendingState(t *testing.T) {
 	assert.Empty(t, d.PendingCertificates)
 }
 
-// TestDeletedDeviceStaysDeleted covers the resurrection bug: Fleet unenrolls a non-BYO
+// TestDeletedDeviceStaysDeleted covers the resurrection bug: AutoMDM unenrolls a non-BYO
 // Android host by deleting the device through AMAPI, so a device that registers again after
 // being deleted would re-appear in the device list the reconciler reads and re-enroll the
 // host, flip-flopping between mdm_unenrolled and mdm_enrolled.
@@ -623,7 +623,7 @@ func TestDeletedDeviceStaysDeleted(t *testing.T) {
 // TestDeleteOfUnknownDeviceStaysDeleted covers the delete that lands while this process has
 // forgotten the device — i.e. exactly the restart window this change is about. The ESID isn't
 // known then, so the deletion is recorded by resource name and the agent's next registration
-// must still be refused. Otherwise the device resurrects, and if Fleet also deleted the host
+// must still be refused. Otherwise the device resurrects, and if AutoMDM also deleted the host
 // the next STATUS_REPORT re-creates it as a ghost.
 func TestDeleteOfUnknownDeviceStaysDeleted(t *testing.T) {
 	mux, store := newTestMux(t)
@@ -677,7 +677,7 @@ func TestDevicesPatchToNewPolicyUsesNewPolicyVersion(t *testing.T) {
 	req.PolicyVersion = 57
 	registerTestDevice(t, mux, req, http.StatusOK)
 
-	// Fleet patches the new policy first, then points the device at it.
+	// AutoMDM patches the new policy first, then points the device at it.
 	require.Equal(t, http.StatusOK, patchPolicy(t, mux, testESID).Code)
 	issued := store.getPolicyVersion(testPolicyName(testESID))
 	require.Positive(t, issued)
@@ -703,7 +703,7 @@ func TestStoreConcurrentAccess(t *testing.T) {
 	// own goroutine, so the workers just drive requests.
 	registerPayload, err := json.Marshal(defaultRegisterRequest())
 	require.NoError(t, err)
-	certBody := certChangesBody(t, certConfig(certTemplate(1, fleet.MDMOperationTypeInstall)))
+	certBody := certChangesBody(t, certConfig(certTemplate(1, automdm.MDMOperationTypeInstall)))
 	policyActionPath := fmt.Sprintf("/v1/enterprises/%s/policies/%s:modifyPolicyApplications", testEnterpriseID, testESID)
 	policyPatchPath := fmt.Sprintf("/v1/enterprises/%s/policies/%s", testEnterpriseID, testESID)
 
@@ -749,9 +749,9 @@ func TestGetStateUnknownDeviceReturns404(t *testing.T) {
 }
 
 // TestDevicesListIncludesFakeDevices pins what the reconciler reads: a registered device must
-// be listed, since Fleet marks any enrolled device missing from this list as unenrolled.
+// be listed, since AutoMDM marks any enrolled device missing from this list as unenrolled.
 // TestEnterprisesListReportsEnterpriseWithoutRegisteredDevices checks that an enterprise in
-// use is reported even with no fake device registered against it. Fleet reads its enterprise
+// use is reported even with no fake device registered against it. AutoMDM reads its enterprise
 // missing from a successful list as proof of deletion, and reacts by deleting its enterprise
 // records, turning Android MDM off and unenrolling every Android host.
 func TestEnterprisesListReportsEnterpriseWithoutRegisteredDevices(t *testing.T) {
@@ -792,7 +792,7 @@ func TestEnterprisesListReportsEnterpriseWithoutRegisteredDevices(t *testing.T) 
 }
 
 // TestEnterprisesListRefusesToConfirmAnEmptyListItCannotKnow checks that with nothing observed
-// the answer is "unknown", not "empty". Fleet treats a failed list as a technical problem and
+// the answer is "unknown", not "empty". AutoMDM treats a failed list as a technical problem and
 // leaves its enterprise alone; an empty one it would act on.
 func TestEnterprisesListRefusesToConfirmAnEmptyListItCannotKnow(t *testing.T) {
 	mux, _ := newTestMux(t)
@@ -820,7 +820,7 @@ func TestEnterprisesListRecordsEnterpriseFromFailedDeviceRequest(t *testing.T) {
 
 // TestNoteEnterpriseIgnoresEmptyID checks that an empty path value is not recorded as an
 // enterprise. Recording it would leave the set non-empty and holding a meaningless ID, which
-// would both report "enterprises/" to Fleet and stop the unknown state from answering 503.
+// would both report "enterprises/" to AutoMDM and stop the unknown state from answering 503.
 func TestNoteEnterpriseIgnoresEmptyID(t *testing.T) {
 	store := newDeviceStore()
 	store.noteEnterprise("")
@@ -848,7 +848,7 @@ func TestNoteEnterpriseIsBounded(t *testing.T) {
 	store.entMu.RUnlock()
 	assert.Equal(t, maxTrackedEnterprises, got)
 
-	// The enterprise seen first is still there, so the report Fleet depends on is unaffected.
+	// The enterprise seen first is still there, so the report AutoMDM depends on is unaffected.
 	assert.Contains(t, store.knownEnterprises(), testEnterpriseID)
 }
 
@@ -905,7 +905,7 @@ func TestPolicyRequestGuard(t *testing.T) {
 	}
 }
 
-// Fleet's zero-touch configuration parses the expiration timestamp of the
+// AutoMDM's zero-touch configuration parses the expiration timestamp of the
 // token it just created, so a response without one failed that request with a
 // time-parsing error that named neither the mock nor the missing field.
 func TestEnrollmentTokenCreate(t *testing.T) {
@@ -928,11 +928,11 @@ func TestEnrollmentTokenCreate(t *testing.T) {
 		require.NotEmpty(t, token.ExpirationTimestamp)
 
 		expiry, err := time.Parse(time.RFC3339, token.ExpirationTimestamp)
-		require.NoError(t, err, "Fleet parses this exact way")
+		require.NoError(t, err, "AutoMDM parses this exact way")
 		assert.WithinDuration(t, time.Now().Add(30*24*time.Hour), expiry, time.Minute)
 	})
 
-	// The name is stored against the token Fleet created, so it has to be the
+	// The name is stored against the token AutoMDM created, so it has to be the
 	// enterprise that was asked for rather than a literal "mock".
 	t.Run("the name carries the enterprise from the path", func(t *testing.T) {
 		token := create(t, `{}`)
@@ -971,11 +971,11 @@ func TestEnrollmentTokenExpiry(t *testing.T) {
 	}{
 		{name: "an hour", duration: "3600s", want: now.Add(time.Hour)},
 		{name: "thirty days", duration: "2592000s", want: now.Add(30 * 24 * time.Hour)},
-		// Fleet's own zero-touch duration. A thousand years overflows
+		// AutoMDM's own zero-touch duration. A thousand years overflows
 		// time.Duration, so time.ParseDuration rejects the one value this has
 		// to handle; the seconds are added as seconds for that reason.
 		{
-			name:     "the zero-touch duration Fleet asks for",
+			name:     "the zero-touch duration AutoMDM asks for",
 			duration: "31536000000s",
 			want:     time.Unix(now.Unix()+31536000000, 0).UTC(),
 		},
@@ -991,7 +991,7 @@ func TestEnrollmentTokenExpiry(t *testing.T) {
 		})
 	}
 
-	// RFC 3339 has no year past 9999, and a timestamp Fleet cannot parse back
+	// RFC 3339 has no year past 9999, and a timestamp AutoMDM cannot parse back
 	// is the failure this whole handler exists to avoid.
 	t.Run("an absurd duration still formats as RFC 3339", func(t *testing.T) {
 		expiry := enrollmentTokenExpiry(now, "9223372036854775807s")
@@ -1002,7 +1002,7 @@ func TestEnrollmentTokenExpiry(t *testing.T) {
 	})
 }
 
-// TestDeviceAndOperationLookupsForPubSubVerification checks the lookups Fleet makes when it
+// TestDeviceAndOperationLookupsForPubSubVerification checks the lookups AutoMDM makes when it
 // handles a Pub/Sub notification: a fake device reports its hardware identity, and its
 // operations report as done.
 func TestDeviceAndOperationLookupsForPubSubVerification(t *testing.T) {

@@ -28,7 +28,7 @@ global.ResizeObserver = class {
   disconnect = noop;
 };
 
-// Known noisy warnings that don't indicate real bugs in Fleet code. Filtering
+// Known noisy warnings that don't indicate real bugs in AutoMDM code. Filtering
 // them keeps a genuine console.error/warn visible when a test actually fails,
 // instead of it being buried under thousands of unrelated lines.
 const SUPPRESSED_WARNINGS = [

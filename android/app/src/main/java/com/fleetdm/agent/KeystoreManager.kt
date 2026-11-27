@@ -11,7 +11,7 @@ import java.security.KeyStore
 
 object KeystoreManager {
     private const val ANDROID_KEYSTORE = "AndroidKeyStore"
-    private const val KEY_ALIAS = "fleet_api_key_encryption"
+    private const val KEY_ALIAS = "automdm_api_key_encryption"
     private const val TRANSFORMATION = "AES/GCM/NoPadding"
     private const val GCM_TAG_LENGTH = 128
     private const val IV_SEPARATOR = "]"

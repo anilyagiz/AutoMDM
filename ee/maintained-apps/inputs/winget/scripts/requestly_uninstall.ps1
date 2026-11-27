@@ -7,7 +7,7 @@
 
 $displayNamePattern = '^Requestly \d'
 $publisher = "BrowserStack Inc."
-$taskName = "fleet-uninstall-requestly"
+$taskName = "automdm-uninstall-requestly"
 $appDir = "AppData\Local\Programs\requestly"  # in each user's profile
 $taskRunning = 267009  # SCHED_S_TASK_RUNNING
 $timeoutSeconds = 300

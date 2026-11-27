@@ -26,7 +26,7 @@ import FilePy from "./FilePy";
 import FileScript from "./FileScript";
 import FileSh from "./FileSh";
 import FileVpp from "./FileVpp";
-import FleetLogo from "./FleetLogo";
+import AutoMDMLogo from "./AutoMDMLogo";
 import Lock from "./Lock";
 import Settings from "./Settings";
 
@@ -64,7 +64,7 @@ export const GRAPHIC_MAP = {
   calendar: Calendar,
   lock: Lock,
   settings: Settings,
-  "fleet-logo": FleetLogo,
+  "automdm-logo": AutoMDMLogo,
 };
 
 export type GraphicNames = keyof typeof GRAPHIC_MAP;

@@ -9,7 +9,7 @@ import { createCustomRenderer } from "test/test-utils";
 import AppleOSTargetForm from "./AppleOSTargetForm";
 
 const baseUrl = (path: string) => {
-  return `/api/latest/fleet${path}`;
+  return `/api/latest/automdm${path}`;
 };
 
 describe("AppleOSTargetForm", () => {
@@ -18,7 +18,7 @@ describe("AppleOSTargetForm", () => {
     withBackendMock: true,
   });
   const updateTeamConfigHandler = http.patch(
-    baseUrl("/fleets/1"),
+    baseUrl("/teams/1"),
     async ({ request }) => {
       requestBody = await request.json();
       return HttpResponse.json({});
@@ -286,7 +286,7 @@ describe("AppleOSTargetForm", () => {
     expect(screen.getByText(/Based on host hardware\./i)).toBeVisible();
     expect(screen.getByRole("link", { name: /Learn more/i })).toHaveAttribute(
       "href",
-      "https://fleetdm.com/learn-more-about/apple-available-os-updates"
+      "https://automdm.com/learn-more-about/apple-available-os-updates"
     );
   });
 
@@ -774,7 +774,7 @@ describe("AppleOSTargetForm", () => {
   it("keeps the entered version when the server rejects the save", async () => {
     let rejected = false;
     mockServer.use(
-      http.patch(baseUrl("/fleets/1"), () => {
+      http.patch(baseUrl("/teams/1"), () => {
         rejected = true;
         return HttpResponse.json(
           {
@@ -841,7 +841,7 @@ describe("AppleOSTargetForm", () => {
       );
     };
 
-    it("links to the profile builder with Apple and the current fleet on Premium", () => {
+    it("links to the profile builder with Apple and the current team on Premium", () => {
       renderForm(true, "");
 
       expect(
@@ -849,17 +849,17 @@ describe("AppleOSTargetForm", () => {
       ).toHaveAttribute(
         "href",
         expect.stringContaining(
-          "/controls/os-settings/configuration-profiles/new?fleet_id=2&platform=apple"
+          "/controls/os-settings/configuration-profiles/new?team_id=2&platform=apple"
         )
       );
     });
 
-    it("keeps the No fleet ID in the link", () => {
+    it("keeps the No team ID in the link", () => {
       renderForm(true, "", 0);
 
       expect(
         screen.getByRole("link", { name: "profile builder" })
-      ).toHaveAttribute("href", expect.stringContaining("fleet_id=0"));
+      ).toHaveAttribute("href", expect.stringContaining("team_id=0"));
     });
 
     it("says to use the profile builder instead when no updates are enforced", () => {

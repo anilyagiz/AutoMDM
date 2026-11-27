@@ -11,7 +11,7 @@ import (
 	osuser "os/user"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/user"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/user"
 )
 
 // GetIDTokenAsLoggedInUser runs this executable's entra-device-token command as the logged-in

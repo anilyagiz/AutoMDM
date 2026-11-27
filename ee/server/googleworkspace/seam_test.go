@@ -13,17 +13,17 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/require"
 )
 
 // TestDirectoryEndpointOverride exercises the QA/load-test seam end to end: with
-// FLEET_TEST_GOOGLE_WORKSPACE_ENDPOINT set and a token_uri in the service-account
+// AUTOMDM_TEST_GOOGLE_WORKSPACE_ENDPOINT set and a token_uri in the service-account
 // JSON, the real Directory client performs its JWT token exchange and Directory
 // API calls against a local fake server (over plain HTTP).
 func TestDirectoryEndpointOverride(t *testing.T) {
 	// Field projections as each endpoint received them, so the test can show the
-	// listings ask only for what Fleet maps. Written from the server's handler
+	// listings ask only for what AutoMDM maps. Written from the server's handler
 	// goroutines, so guard it rather than relying on the request/response round trip
 	// to order the writes before the assertions below.
 	var fieldsMu sync.Mutex
@@ -60,13 +60,13 @@ func TestDirectoryEndpointOverride(t *testing.T) {
 	pemKey := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der})
 
 	t.Setenv(endpointOverrideEnv, srv.URL)
-	intg := &fleet.GoogleWorkspaceIntegration{
+	intg := &automdm.GoogleWorkspaceIntegration{
 		Domain:                "b.com",
 		ImpersonatedUserEmail: "admin@b.com",
-		ApiKey: fleet.GoogleCalendarApiKey{Values: map[string]string{
-			fleet.GoogleCalendarEmail:      "sa@b.com",
-			fleet.GoogleCalendarPrivateKey: string(pemKey),
-			tokenURIKey:                    srv.URL + "/token",
+		ApiKey: automdm.GoogleCalendarApiKey{Values: map[string]string{
+			automdm.GoogleCalendarEmail:      "sa@b.com",
+			automdm.GoogleCalendarPrivateKey: string(pemKey),
+			tokenURIKey:                      srv.URL + "/token",
 		}},
 	}
 

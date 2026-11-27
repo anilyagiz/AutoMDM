@@ -10,9 +10,9 @@ import (
 	"text/template"
 
 	"github.com/Masterminds/semver"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/constant"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/update"
-	"github.com/fleetdm/fleet/v4/pkg/secure"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/constant"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/update"
+	"github.com/anilyagiz/automdm/v4/pkg/secure"
 	"github.com/goreleaser/nfpm/v2"
 	"github.com/goreleaser/nfpm/v2/arch"
 	"github.com/goreleaser/nfpm/v2/files"
@@ -157,15 +157,15 @@ func buildNFPM(opt Options, pkger nfpm.Packager, ext string) (string, error) {
 		}
 	}
 
-	if opt.FleetCertificate != "" {
-		if err := writeFleetServerCertificate(opt, orbitRoot); err != nil {
-			return "", fmt.Errorf("write fleet server certificate: %w", err)
+	if opt.AutoMDMCertificate != "" {
+		if err := writeAutoMDMServerCertificate(opt, orbitRoot); err != nil {
+			return "", fmt.Errorf("write automdm server certificate: %w", err)
 		}
 	}
 
-	if opt.FleetTLSClientCertificate != "" {
-		if err := writeFleetClientCertificate(opt, orbitRoot); err != nil {
-			return "", fmt.Errorf("write fleet client certificate: %w", err)
+	if opt.AutoMDMTLSClientCertificate != "" {
+		if err := writeAutoMDMClientCertificate(opt, orbitRoot); err != nil {
+			return "", fmt.Errorf("write automdm client certificate: %w", err)
 		}
 	}
 
@@ -240,7 +240,7 @@ func buildNFPM(opt Options, pkger nfpm.Packager, ext string) (string, error) {
 
 	archLinuxInfo := nfpm.ArchLinux{}
 	if _, ok := pkger.(arch.ArchLinux); ok {
-		archLinuxInfo.Packager = "Fleet"
+		archLinuxInfo.Packager = "AutoMDM"
 		preUpgradePath := filepath.Join(tmpDir, "preupgrade.sh")
 		if err := writeArchLinuxPreUpgrade(preUpgradePath); err != nil {
 			return "", fmt.Errorf("write preupgrade script: %w", err)
@@ -251,15 +251,15 @@ func buildNFPM(opt Options, pkger nfpm.Packager, ext string) (string, error) {
 
 	// Build package
 	info := &nfpm.Info{
-		Name:        "fleet-osquery",
+		Name:        "automdm-osquery",
 		Version:     opt.Version,
 		Platform:    "linux",
-		Description: "Fleet osquery -- runtime and autoupdater",
+		Description: "AutoMDM osquery -- runtime and autoupdater",
 		Arch:        opt.Architecture,
 		Maintainer:  "Fleet Device Management",
 		Vendor:      "Fleet Device Management",
-		License:     "https://github.com/fleetdm/fleet/blob/main/LICENSE",
-		Homepage:    "https://fleetdm.com",
+		License:     "https://github.com/anilyagiz/automdm/blob/main/LICENSE",
+		Homepage:    "https://automdm.com",
 		Overridables: nfpm.Overridables{
 			Contents: contents,
 			Scripts: nfpm.Scripts{
@@ -362,16 +362,16 @@ ORBIT_ORBIT_CHANNEL={{ .OrbitChannel }}
 ORBIT_OSQUERYD_CHANNEL={{ .OsquerydChannel }}
 ORBIT_UPDATE_INTERVAL={{ .OrbitUpdateInterval }}
 {{ if .Desktop }}
-ORBIT_FLEET_DESKTOP=true
+ORBIT_AUTOMDM_DESKTOP=true
 ORBIT_DESKTOP_CHANNEL={{ .DesktopChannel }}
-{{ if .FleetDesktopAlternativeBrowserHost }}
-ORBIT_FLEET_DESKTOP_ALTERNATIVE_BROWSER_HOST={{ .FleetDesktopAlternativeBrowserHost }}
+{{ if .AutoMDMDesktopAlternativeBrowserHost }}
+ORBIT_AUTOMDM_DESKTOP_ALTERNATIVE_BROWSER_HOST={{ .AutoMDMDesktopAlternativeBrowserHost }}
 {{ end }}
 {{ end }}
 {{ if .Insecure }}ORBIT_INSECURE=true{{ end }}
 {{ if .DisableUpdates }}ORBIT_DISABLE_UPDATES=true{{ end }}
-{{ if .FleetURL }}ORBIT_FLEET_URL={{.FleetURL}}{{ end }}
-{{ if .FleetCertificate }}ORBIT_FLEET_CERTIFICATE=/opt/orbit/fleet.pem{{ end }}
+{{ if .AutoMDMURL }}ORBIT_AUTOMDM_URL={{.AutoMDMURL}}{{ end }}
+{{ if .AutoMDMCertificate }}ORBIT_AUTOMDM_CERTIFICATE=/opt/orbit/automdm.pem{{ end }}
 {{ if .UpdateTLSServerCertificate }}ORBIT_UPDATE_TLS_CERTIFICATE=/opt/orbit/update.pem{{ end }}
 {{ if .EnrollSecret }}ORBIT_ENROLL_SECRET={{.EnrollSecret}}{{ end }}
 {{ if .Debug }}ORBIT_DEBUG=true{{ end }}
@@ -379,7 +379,7 @@ ORBIT_FLEET_DESKTOP_ALTERNATIVE_BROWSER_HOST={{ .FleetDesktopAlternativeBrowserH
 {{ if and (ne .HostIdentifier "") (ne .HostIdentifier "uuid") }}ORBIT_HOST_IDENTIFIER={{.HostIdentifier}}{{ end }}
 {{ if .OsqueryDB }}ORBIT_OSQUERY_DB={{.OsqueryDB}}{{ end }}
 {{ if .EndUserEmail }}ORBIT_END_USER_EMAIL={{.EndUserEmail}}{{ end }}
-{{ if .FleetManagedHostIdentityCertificate }}ORBIT_FLEET_MANAGED_HOST_IDENTITY_CERTIFICATE=true{{ end }}
+{{ if .AutoMDMManagedHostIdentityCertificate }}ORBIT_AUTOMDM_MANAGED_HOST_IDENTITY_CERTIFICATE=true{{ end }}
 {{ if .DisableSetupExperience }}ORBIT_DISABLE_SETUP_EXPERIENCE=true{{ end }}
 {{ if .BypassEndUserAuth }}ORBIT_BYPASS_END_USER_AUTH=true{{ end }}
 `))
@@ -456,7 +456,7 @@ func writePreRemove(pkger nfpm.Packager, path string) error {
 	// https://docs.fedoraproject.org/en-US/packaging-guidelines/Scriptlets/#_syntax
 	// https://docs.fedoraproject.org/en-US/packaging-guidelines/Scriptlets/#ordering
 	//
-	// "pkill fleet-desktop" is required because the application
+	// "pkill automdm-desktop" is required because the application
 	// runs as user (separate from sudo command that launched it),
 	// so on some systems it's not killed properly.
 	preRemoveScript := `#!/bin/sh
@@ -464,7 +464,7 @@ func writePreRemove(pkger nfpm.Packager, path string) error {
 case "${1:-}" in
   1|remove|deconfigure)
     systemctl disable --now orbit.service || true
-    pkill fleet-desktop || true
+    pkill automdm-desktop || true
     ;;
   0|upgrade)
     ;;
@@ -477,7 +477,7 @@ esac
 		preRemoveScript = `#!/bin/sh
 
 systemctl disable --now orbit.service || true
-pkill fleet-desktop || true
+pkill automdm-desktop || true
 
 `
 	}
@@ -549,7 +549,7 @@ func writeArchLinuxPreUpgrade(path string) error {
 	const preUpgradeScript = `#!/bin/sh
 
 systemctl disable --now orbit.service || true
-pkill fleet-desktop || true
+pkill automdm-desktop || true
 
 `
 	if err := os.WriteFile(path, []byte(preUpgradeScript), constant.DefaultFileMode); err != nil {

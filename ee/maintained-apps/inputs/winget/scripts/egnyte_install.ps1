@@ -1,12 +1,12 @@
 # Learn more about .msi install scripts:
-# http://fleetdm.com/learn-more-about/msi-install-scripts
+# http://automdm.com/learn-more-about/msi-install-scripts
 #
 # Egnyte's MSI has a LaunchCondition that fails (1603) when reboot
 # suppression is requested (/norestart => REBOOT=ReallySuppress) unless
 # ED_UPDATE_ON_BOOT=1 is also passed, which schedules the CBFS driver
 # update at next boot instead of forcing an immediate reboot.
 
-$logFile = "${env:TEMP}/fleet-install-software.log"
+$logFile = "${env:TEMP}/automdm-install-software.log"
 $msiFilePath = "${env:INSTALLER_PATH}"
 
 try {

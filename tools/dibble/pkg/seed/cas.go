@@ -35,7 +35,7 @@ type CAOptions struct {
 // DB column is just a VARCHAR.
 const caFakePrefix = "*"
 
-// NDES is special: Fleet hardcodes the name to "NDES" and the (type, name)
+// NDES is special: AutoMDM hardcodes the name to "NDES" and the (type, name)
 // unique index allows only one row. We can't prefix it; we just insert it
 // once per run and let duplicate-key errors become skips on re-runs.
 const ndesName = "NDES"

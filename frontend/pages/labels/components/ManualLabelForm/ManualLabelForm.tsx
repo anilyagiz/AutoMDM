@@ -22,7 +22,7 @@ const LABEL_TARGET_HOSTS_INPUT_PLACEHOLDER =
   "Search name, hostname, or serial number";
 const DEBOUNCE_DELAY = 500;
 const LABEL_YAML_DOCS_URL =
-  "https://fleetdm.com/docs/configuration/yaml-files#labels";
+  "https://automdm.com/docs/configuration/yaml-files#labels";
 
 export interface IManualLabelFormData {
   name: string;
@@ -139,7 +139,7 @@ const ManualLabelForm = ({
         teamName={teamName}
         onCancel={onCancel}
         onSave={onSaveNewLabel}
-        immutableFields={teamName ? ["fleets"] : []}
+        immutableFields={teamName ? ["teams"] : []}
         gitOpsLocksDefinitionOnly
         additionalFields={
           <>

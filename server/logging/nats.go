@@ -89,7 +89,7 @@ func NewNatsLogWriter(ctx context.Context, server, subject, credFile, nkeyFile, 
 	}
 
 	// Create the NATS connection options.
-	opts := []nats.Option{nats.Name("NATS Fleet Writer")}
+	opts := []nats.Option{nats.Name("NATS AutoMDM Writer")}
 
 	// Is a credentials file set?
 	if credFile != "" {

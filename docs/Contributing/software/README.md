@@ -1,12 +1,12 @@
 # Software
 
-Contributor docs for Fleet's software features: inventory, installation, and updates.
+Contributor docs for AutoMDM's software features: inventory, installation, and updates.
 
 - [Software overview](software-overview.md)
 - [Software inventory](software-inventory.md)
 - [Software installation](software-installation.md)
 - [Software updates](software-updates.md)
-- [Rollback a Fleet-maintained app version](rollback-fleet-maintained-app-version.md)
+- [Rollback an AutoMDM-maintained app version](rollback-automdm-maintained-app-version.md)
 
 ## Research
 

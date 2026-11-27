@@ -3,14 +3,14 @@ import { IGitOpsModeConfig } from "interfaces/config";
 import paths from "router/paths";
 
 import {
-  buildFleetSwitchUrl,
+  buildAutoMDMSwitchUrl,
   buildPaletteItems,
   computeBestMatch,
   GROUPS,
   highlightMatches,
   ICommandItem,
   ICommandPaletteContext,
-  pathSupportsAllFleets,
+  pathSupportsAllTeams,
   pathSupportsUnassigned,
   scoreMatch,
   SCORE_KEYWORD_EXACT,
@@ -89,7 +89,7 @@ describe("CommandPalette helpers", () => {
       expect(ids).toContain("settings-page");
     });
 
-    it("hides controls on All fleets", () => {
+    it("hides controls on All teams", () => {
       const items = buildPaletteItems(BASE_CONTEXT);
       const ids = items.map((i) => i.id);
       expect(ids).not.toContain("controls-page");
@@ -162,10 +162,10 @@ describe("CommandPalette helpers", () => {
       expect(addReport?.teamName).toBeUndefined();
     });
 
-    it("omits the chip on add-hosts and manage-enroll-secrets when on All fleets", () => {
-      // These commands intentionally do NOT switch teams from All fleets —
+    it("omits the chip on add-hosts and manage-enroll-secrets when on All teams", () => {
+      // These commands intentionally do NOT switch teams from All teams —
       // the destination page reads the existing team context, which on
-      // All fleets means global enroll secrets. So no chip should render.
+      // All teams means global enroll secrets. So no chip should render.
       const items = buildPaletteItems(BASE_CONTEXT);
 
       const addHosts = items.find((i) => i.id === "add-hosts");
@@ -175,15 +175,15 @@ describe("CommandPalette helpers", () => {
       expect(enrollSecrets?.teamName).toBeUndefined();
     });
 
-    it("omits the 'All fleets' chip on default-context actions when already on All fleets", () => {
-      // add-report stays on All fleets when invoked from All fleets — no
+    it("omits the 'All teams' chip on default-context actions when already on All teams", () => {
+      // add-report stays on All teams when invoked from All teams — no
       // switch, no chip.
       const items = buildPaletteItems(BASE_CONTEXT);
       const addReport = items.find((i) => i.id === "add-report");
       expect(addReport?.teamName).toBeUndefined();
     });
 
-    it("shows 'All fleets' on default-context actions when on Unassigned", () => {
+    it("shows 'All teams' on default-context actions when on Unassigned", () => {
       const items = buildPaletteItems({
         ...BASE_CONTEXT,
         hasTeamSelected: false,
@@ -191,7 +191,7 @@ describe("CommandPalette helpers", () => {
       });
 
       const addReport = items.find((i) => i.id === "add-report");
-      expect(addReport?.teamName).toBe("All fleets");
+      expect(addReport?.teamName).toBe("All teams");
     });
 
     it("omits the 'Unassigned' chip on add-hosts when already on Unassigned", () => {
@@ -336,7 +336,7 @@ describe("CommandPalette helpers", () => {
       expect(policyAutomations?.path).toContain("manage_automations=1");
     });
 
-    it("hides calendar + conditional-access keywords on All fleets (modal renders only Webhooks/tickets there)", () => {
+    it("hides calendar + conditional-access keywords on All teams (modal renders only Webhooks/tickets there)", () => {
       const items = buildPaletteItems(BASE_CONTEXT);
       const policyAutomations = items.find(
         (i) => i.id === "manage-policy-automations"
@@ -420,25 +420,25 @@ describe("CommandPalette helpers", () => {
       });
     });
 
-    it("shows which fleet Add profile lands on from All fleets", () => {
+    it("shows which team Add profile lands on from All teams", () => {
       const availableTeams = [
-        { id: -1, name: "All fleets" },
+        { id: -1, name: "All teams" },
         { id: 3, name: "Servers" },
         { id: 5, name: "Workstations" },
       ];
-      const fromAllFleets = buildPaletteItems({
+      const fromAllTeams = buildPaletteItems({
         ...BASE_CONTEXT,
         availableTeams,
       }).find((i) => i.id === "add-profile");
-      expect(fromAllFleets?.teamName).toBe("Workstations");
+      expect(fromAllTeams?.teamName).toBe("Workstations");
 
-      const fromFleet = buildPaletteItems({
+      const fromAutoMDM = buildPaletteItems({
         ...BASE_CONTEXT,
         availableTeams,
         hasTeamSelected: true,
         currentTeam: { id: 3, name: "Servers" },
       }).find((i) => i.id === "add-profile");
-      expect(fromFleet?.teamName).toBeUndefined();
+      expect(fromAutoMDM?.teamName).toBeUndefined();
     });
 
     it.each([
@@ -447,7 +447,7 @@ describe("CommandPalette helpers", () => {
         { canAddConfigurationProfile: false, isAdminOrMaintainer: false },
       ],
       [
-        "an admin elsewhere who is a technician of the current fleet",
+        "an admin elsewhere who is a technician of the current team",
         { canAddConfigurationProfile: false, isAdminOrMaintainer: true },
       ],
       [
@@ -535,7 +535,7 @@ describe("CommandPalette helpers", () => {
       expect(ids).not.toContain("controls-variables");
     });
 
-    it("includes Host names for admin/maintainer on a fleet", () => {
+    it("includes Host names for admin/maintainer on a team", () => {
       const items = buildPaletteItems({
         ...BASE_CONTEXT,
         hasTeamSelected: true,
@@ -576,8 +576,8 @@ describe("CommandPalette helpers", () => {
       expect(subIds).not.toContain("controls-host-name-template");
     });
 
-    it("appends fleet_id via withTeamId for team-scoped paths", () => {
-      const mockWithTeamId = (path: string) => `${path}?fleet_id=5`;
+    it("appends team_id via withTeamId for team-scoped paths", () => {
+      const mockWithTeamId = (path: string) => `${path}?team_id=5`;
 
       const items = buildPaletteItems({
         ...BASE_CONTEXT,
@@ -587,11 +587,11 @@ describe("CommandPalette helpers", () => {
       });
 
       const dashboard = items.find((i) => i.id === "dashboard");
-      expect(dashboard?.path).toContain("fleet_id=5");
+      expect(dashboard?.path).toContain("team_id=5");
     });
 
-    it("includes manage software automations without a teamName chip on All fleets", () => {
-      // Only visible on All fleets, destination is All fleets — no switch,
+    it("includes manage software automations without a teamName chip on All teams", () => {
+      // Only visible on All teams, destination is All teams — no switch,
       // no chip.
       const items = buildPaletteItems(BASE_CONTEXT);
 
@@ -631,11 +631,11 @@ describe("CommandPalette helpers", () => {
       );
     });
 
-    it("hides software add, script, and variable actions on All fleets", () => {
+    it("hides software add, script, and variable actions on All teams", () => {
       const items = buildPaletteItems(BASE_CONTEXT);
       const ids = items.map((i) => i.id);
 
-      expect(ids).not.toContain("add-fleet-maintained-app");
+      expect(ids).not.toContain("add-automdm-maintained-app");
       expect(ids).not.toContain("add-vpp-app");
       expect(ids).not.toContain("add-android-app-store-app");
       expect(ids).not.toContain("add-custom-package");
@@ -652,7 +652,7 @@ describe("CommandPalette helpers", () => {
       });
       const ids = items.map((i) => i.id);
 
-      expect(ids).toContain("add-fleet-maintained-app");
+      expect(ids).toContain("add-automdm-maintained-app");
       expect(ids).toContain("add-vpp-app");
       expect(ids).toContain("add-android-app-store-app");
       expect(ids).toContain("add-custom-package");
@@ -685,7 +685,7 @@ describe("CommandPalette helpers", () => {
       });
       const ids = items.map((i) => i.id);
 
-      expect(ids).not.toContain("add-fleet-maintained-app");
+      expect(ids).not.toContain("add-automdm-maintained-app");
       expect(ids).not.toContain("add-vpp-app");
       expect(ids).not.toContain("add-android-app-store-app");
       expect(ids).not.toContain("add-custom-package");
@@ -723,9 +723,9 @@ describe("CommandPalette helpers", () => {
       expect(items.map((i) => i.id)).not.toContain("settings-users");
     });
 
-    it("shows Software library on Unassigned but not All fleets", () => {
-      const allFleetsItems = buildPaletteItems(BASE_CONTEXT);
-      expect(allFleetsItems.map((i) => i.id)).not.toContain("software-library");
+    it("shows Software library on Unassigned but not All teams", () => {
+      const allTeamsItems = buildPaletteItems(BASE_CONTEXT);
+      expect(allTeamsItems.map((i) => i.id)).not.toContain("software-library");
 
       const unassignedItems = buildPaletteItems({
         ...BASE_CONTEXT,
@@ -778,20 +778,20 @@ describe("CommandPalette helpers", () => {
       expect(items.map((i) => i.id)).toContain("manage-report-automations");
     });
 
-    it("shows Add fleet only for admins", () => {
+    it("shows Add team only for admins", () => {
       const adminItems = buildPaletteItems(BASE_CONTEXT);
-      expect(adminItems.map((i) => i.id)).toContain("create-fleet");
+      expect(adminItems.map((i) => i.id)).toContain("create-team");
 
       const nonAdminItems = buildPaletteItems({
         ...BASE_CONTEXT,
         canAccessSettings: false,
         canManageSoftwareAutomations: false,
       });
-      expect(nonAdminItems.map((i) => i.id)).not.toContain("create-fleet");
+      expect(nonAdminItems.map((i) => i.id)).not.toContain("create-team");
     });
   });
 
-  describe("Fleet Free (isPremiumTier: false)", () => {
+  describe("AutoMDM Free (isPremiumTier: false)", () => {
     // Mirror production state on Free: AppContext never sets currentTeam
     // (no team picker exists), so hasTeamSelected stays false. The
     // derivation treats Free as team-or-unassigned regardless.
@@ -804,7 +804,7 @@ describe("CommandPalette helpers", () => {
 
     it("hides all software-add commands", () => {
       const ids = buildPaletteItems(FREE_CONTEXT).map((i) => i.id);
-      expect(ids).not.toContain("add-fleet-maintained-app");
+      expect(ids).not.toContain("add-automdm-maintained-app");
       expect(ids).not.toContain("add-vpp-app");
       expect(ids).not.toContain("add-android-app-store-app");
       expect(ids).not.toContain("add-custom-package");
@@ -863,10 +863,10 @@ describe("CommandPalette helpers", () => {
       expect(subIds).not.toContain("settings-int-conditional-access");
     });
 
-    it("hides settings-fleets, create-fleet, and view-software-library", () => {
+    it("hides settings-teams, create-team, and view-software-library", () => {
       const ids = buildPaletteItems(FREE_CONTEXT).map((i) => i.id);
-      expect(ids).not.toContain("settings-fleets");
-      expect(ids).not.toContain("create-fleet");
+      expect(ids).not.toContain("settings-teams");
+      expect(ids).not.toContain("create-team");
       expect(ids).not.toContain("view-software-library");
     });
 
@@ -931,24 +931,24 @@ describe("CommandPalette helpers", () => {
       currentTeam: { id: 7, name: "Default" },
     };
 
-    it("hides settings-fleets and create-fleet", () => {
+    it("hides settings-teams and create-team", () => {
       const ids = buildPaletteItems(PRIMO_CONTEXT).map((i) => i.id);
-      expect(ids).not.toContain("settings-fleets");
-      expect(ids).not.toContain("create-fleet");
+      expect(ids).not.toContain("settings-teams");
+      expect(ids).not.toContain("create-team");
     });
 
-    it("shows manage-software-automations (Primo treats single fleet as all)", () => {
+    it("shows manage-software-automations (Primo treats single team as all)", () => {
       const ids = buildPaletteItems(PRIMO_CONTEXT).map((i) => i.id);
       expect(ids).toContain("manage-software-automations");
     });
 
-    it("suppresses all teamName chips because Primo never switches fleet context", () => {
+    it("suppresses all teamName chips because Primo never switches team context", () => {
       const items = buildPaletteItems(PRIMO_CONTEXT);
       const itemsWithChips = items.filter((i) => i.teamName !== undefined);
       expect(itemsWithChips).toHaveLength(0);
     });
 
-    it("does not synthesize an 'Unassigned' or 'All fleets' chip on add-hosts", () => {
+    it("does not synthesize an 'Unassigned' or 'All teams' chip on add-hosts", () => {
       const addHosts = buildPaletteItems(PRIMO_CONTEXT).find(
         (i) => i.id === "add-hosts"
       );
@@ -957,7 +957,7 @@ describe("CommandPalette helpers", () => {
   });
 
   describe("GitOps Mode", () => {
-    it("hides create-fleet when GitOps mode is configured", () => {
+    it("hides create-team when GitOps mode is configured", () => {
       const gitopsConfig = createMockConfig();
       gitopsConfig.gitops = {
         ...gitopsConfig.gitops,
@@ -970,12 +970,12 @@ describe("CommandPalette helpers", () => {
         config: gitopsConfig,
       }).map((i) => i.id);
 
-      expect(ids).not.toContain("create-fleet");
+      expect(ids).not.toContain("create-team");
     });
 
     describe("add-self-service-category", () => {
       const exceptions = { labels: false, software: false, secrets: false };
-      const fleetIds = (gitops: Partial<IGitOpsModeConfig>) => {
+      const automdmIds = (gitops: Partial<IGitOpsModeConfig>) => {
         const config = createMockConfig();
         config.gitops = { ...config.gitops, ...gitops };
         return buildPaletteItems({
@@ -988,17 +988,17 @@ describe("CommandPalette helpers", () => {
       const url = "https://github.com/fleetdm/fleet-config";
 
       it("hides add-self-service-category when GitOps mode is on", () => {
-        const ids = fleetIds({
+        const ids = automdmIds({
           gitops_mode_enabled: true,
           repository_url: url,
           exceptions: { labels: true, software: false, secrets: true },
         });
         expect(ids).not.toContain("add-self-service-category");
-        expect(ids).toContain("add-fleet-maintained-app");
+        expect(ids).toContain("add-automdm-maintained-app");
       });
 
       it("hides add-self-service-category without a repository URL", () => {
-        const ids = fleetIds({
+        const ids = automdmIds({
           gitops_mode_enabled: true,
           repository_url: "",
           exceptions,
@@ -1007,126 +1007,126 @@ describe("CommandPalette helpers", () => {
       });
 
       it("keeps add-self-service-category when the software exception is on", () => {
-        const ids = fleetIds({
+        const ids = automdmIds({
           gitops_mode_enabled: true,
           repository_url: url,
           exceptions: { ...exceptions, software: true },
         });
         expect(ids).toContain("add-self-service-category");
-        expect(ids).not.toContain("create-fleet");
+        expect(ids).not.toContain("create-team");
       });
 
       it("keeps add-self-service-category when GitOps mode is off", () => {
-        const ids = fleetIds({ gitops_mode_enabled: false, exceptions });
+        const ids = automdmIds({ gitops_mode_enabled: false, exceptions });
         expect(ids).toContain("add-self-service-category");
       });
     });
   });
 
-  describe("buildFleetSwitchUrl", () => {
+  describe("buildAutoMDMSwitchUrl", () => {
     const parse = (url: string) => new URL(url, "http://localhost");
 
     describe("team-required page fallback", () => {
       it("redirects to /hosts/manage when switching to All from Controls", () => {
         expect(
-          buildFleetSwitchUrl({
+          buildAutoMDMSwitchUrl({
             pathname: paths.CONTROLS,
-            currentSearch: "?fleet_id=1",
-            fleetId: -1,
+            currentSearch: "?team_id=1",
+            automdmId: -1,
           })
         ).toBe(paths.MANAGE_HOSTS);
       });
 
-      it("keeps fleet_id=0 on the fallback URL when switching to Unassigned from a page that doesn't support it", () => {
+      it("keeps team_id=0 on the fallback URL when switching to Unassigned from a page that doesn't support it", () => {
         // NEW_REPORT uses includeNoTeam: false — Unassigned must bounce.
         expect(
-          buildFleetSwitchUrl({
+          buildAutoMDMSwitchUrl({
             pathname: paths.NEW_REPORT,
-            currentSearch: "?fleet_id=1",
-            fleetId: 0,
+            currentSearch: "?team_id=1",
+            automdmId: 0,
           })
-        ).toBe(`${paths.MANAGE_HOSTS}?fleet_id=0`);
+        ).toBe(`${paths.MANAGE_HOSTS}?team_id=0`);
       });
 
       it("stays on Controls when switching to Unassigned (Controls supports includeNoTeam)", () => {
         const url = parse(
-          buildFleetSwitchUrl({
+          buildAutoMDMSwitchUrl({
             pathname: paths.CONTROLS,
-            currentSearch: "?fleet_id=1",
-            fleetId: 0,
+            currentSearch: "?team_id=1",
+            automdmId: 0,
           })
         );
         expect(url.pathname).toBe(paths.CONTROLS);
-        expect(url.searchParams.get("fleet_id")).toBe("0");
+        expect(url.searchParams.get("team_id")).toBe("0");
       });
 
       it("stays on Software Library when switching to Unassigned (Library supports includeNoTeam)", () => {
         const url = parse(
-          buildFleetSwitchUrl({
+          buildAutoMDMSwitchUrl({
             pathname: paths.SOFTWARE_LIBRARY,
-            currentSearch: "?fleet_id=1&self_service=1",
-            fleetId: 0,
+            currentSearch: "?team_id=1&self_service=1",
+            automdmId: 0,
           })
         );
         expect(url.pathname).toBe(paths.SOFTWARE_LIBRARY);
-        expect(url.searchParams.get("fleet_id")).toBe("0");
+        expect(url.searchParams.get("team_id")).toBe("0");
       });
 
       it("does not trigger the fallback on a non-team-required page", () => {
         // /hosts/manage is not in TEAM_REQUIRED_PREFIXES.
         const url = parse(
-          buildFleetSwitchUrl({
+          buildAutoMDMSwitchUrl({
             pathname: paths.MANAGE_HOSTS,
-            currentSearch: "?fleet_id=1",
-            fleetId: -1,
+            currentSearch: "?team_id=1",
+            automdmId: -1,
           })
         );
         expect(url.pathname).toBe(paths.MANAGE_HOSTS);
-        expect(url.searchParams.has("fleet_id")).toBe(false);
+        expect(url.searchParams.has("team_id")).toBe(false);
       });
     });
 
     describe("else branch strip rules", () => {
-      it("sets fleet_id when switching between specific fleets", () => {
+      it("sets team_id when switching between specific teams", () => {
         const url = parse(
-          buildFleetSwitchUrl({
+          buildAutoMDMSwitchUrl({
             pathname: paths.MANAGE_HOSTS,
-            currentSearch: "?fleet_id=1",
-            fleetId: 2,
+            currentSearch: "?team_id=1",
+            automdmId: 2,
           })
         );
-        expect(url.searchParams.get("fleet_id")).toBe("2");
+        expect(url.searchParams.get("team_id")).toBe("2");
       });
 
-      it("removes fleet_id when switching to All fleets", () => {
+      it("removes team_id when switching to All teams", () => {
         const url = parse(
-          buildFleetSwitchUrl({
+          buildAutoMDMSwitchUrl({
             pathname: paths.MANAGE_HOSTS,
-            currentSearch: "?fleet_id=1",
-            fleetId: -1,
+            currentSearch: "?team_id=1",
+            automdmId: -1,
           })
         );
-        expect(url.searchParams.has("fleet_id")).toBe(false);
+        expect(url.searchParams.has("team_id")).toBe(false);
       });
 
-      it("strips page on any fleet switch", () => {
+      it("strips page on any team switch", () => {
         const url = parse(
-          buildFleetSwitchUrl({
+          buildAutoMDMSwitchUrl({
             pathname: paths.MANAGE_HOSTS,
-            currentSearch: "?fleet_id=1&page=3",
-            fleetId: 2,
+            currentSearch: "?team_id=1&page=3",
+            automdmId: 2,
           })
         );
         expect(url.searchParams.has("page")).toBe(false);
       });
 
-      it("strips script_batch_execution_id and script_batch_execution_status on any fleet switch", () => {
+      it("strips script_batch_execution_id and script_batch_execution_status on any team switch", () => {
         const url = parse(
-          buildFleetSwitchUrl({
+          buildAutoMDMSwitchUrl({
             pathname: paths.MANAGE_HOSTS,
             currentSearch:
-              "?fleet_id=1&script_batch_execution_id=abc&script_batch_execution_status=ran",
-            fleetId: 2,
+              "?team_id=1&script_batch_execution_id=abc&script_batch_execution_status=ran",
+            automdmId: 2,
           })
         );
         expect(url.searchParams.has("script_batch_execution_id")).toBe(false);
@@ -1135,12 +1135,12 @@ describe("CommandPalette helpers", () => {
         );
       });
 
-      it("strips software_status when switching to All fleets", () => {
+      it("strips software_status when switching to All teams", () => {
         const url = parse(
-          buildFleetSwitchUrl({
+          buildAutoMDMSwitchUrl({
             pathname: paths.MANAGE_HOSTS,
-            currentSearch: "?fleet_id=1&software_status=pending",
-            fleetId: -1,
+            currentSearch: "?team_id=1&software_status=pending",
+            automdmId: -1,
           })
         );
         expect(url.searchParams.has("software_status")).toBe(false);
@@ -1151,47 +1151,47 @@ describe("CommandPalette helpers", () => {
         "apple_settings=failing",
         "os_settings_disk_encryption=verified",
         "macos_bootstrap_package=failed",
-      ])("strips %s when switching to All fleets", (filter) => {
+      ])("strips %s when switching to All teams", (filter) => {
         const [name] = filter.split("=");
         const url = parse(
-          buildFleetSwitchUrl({
+          buildAutoMDMSwitchUrl({
             pathname: paths.MANAGE_HOSTS,
-            currentSearch: `?fleet_id=1&${filter}&query=mac`,
-            fleetId: -1,
+            currentSearch: `?team_id=1&${filter}&query=mac`,
+            automdmId: -1,
           })
         );
         expect(url.searchParams.has(name)).toBe(false);
         expect(url.searchParams.get("query")).toBe("mac");
       });
 
-      it("preserves fleet-scoped filters when switching between specific fleets", () => {
+      it("preserves team-scoped filters when switching between specific teams", () => {
         const url = parse(
-          buildFleetSwitchUrl({
+          buildAutoMDMSwitchUrl({
             pathname: paths.MANAGE_HOSTS,
-            currentSearch: "?fleet_id=1&os_settings=pending",
-            fleetId: 2,
+            currentSearch: "?team_id=1&os_settings=pending",
+            automdmId: 2,
           })
         );
         expect(url.searchParams.get("os_settings")).toBe("pending");
       });
 
-      it("preserves software_status when switching between specific fleets", () => {
+      it("preserves software_status when switching between specific teams", () => {
         const url = parse(
-          buildFleetSwitchUrl({
+          buildAutoMDMSwitchUrl({
             pathname: paths.MANAGE_HOSTS,
-            currentSearch: "?fleet_id=1&software_status=pending",
-            fleetId: 2,
+            currentSearch: "?team_id=1&software_status=pending",
+            automdmId: 2,
           })
         );
         expect(url.searchParams.get("software_status")).toBe("pending");
       });
 
-      it("preserves unrelated params across a fleet switch", () => {
+      it("preserves unrelated params across a team switch", () => {
         const url = parse(
-          buildFleetSwitchUrl({
+          buildAutoMDMSwitchUrl({
             pathname: paths.MANAGE_HOSTS,
-            currentSearch: "?fleet_id=1&query=foo&order_key=name",
-            fleetId: 2,
+            currentSearch: "?team_id=1&query=foo&order_key=name",
+            automdmId: 2,
           })
         );
         expect(url.searchParams.get("query")).toBe("foo");
@@ -1200,10 +1200,10 @@ describe("CommandPalette helpers", () => {
 
       it("returns a bare pathname when no params remain", () => {
         expect(
-          buildFleetSwitchUrl({
+          buildAutoMDMSwitchUrl({
             pathname: paths.MANAGE_HOSTS,
-            currentSearch: "?fleet_id=1",
-            fleetId: -1,
+            currentSearch: "?team_id=1",
+            automdmId: -1,
           })
         ).toBe(paths.MANAGE_HOSTS);
       });
@@ -1249,28 +1249,28 @@ describe("CommandPalette helpers", () => {
     });
   });
 
-  describe("pathSupportsAllFleets", () => {
+  describe("pathSupportsAllTeams", () => {
     it("returns true for top-level team-aware pages", () => {
-      expect(pathSupportsAllFleets(paths.DASHBOARD)).toBe(true);
-      expect(pathSupportsAllFleets(paths.MANAGE_HOSTS)).toBe(true);
-      expect(pathSupportsAllFleets(paths.SOFTWARE)).toBe(true);
-      expect(pathSupportsAllFleets(paths.MANAGE_POLICIES)).toBe(true);
-      expect(pathSupportsAllFleets(paths.MANAGE_REPORTS)).toBe(true);
+      expect(pathSupportsAllTeams(paths.DASHBOARD)).toBe(true);
+      expect(pathSupportsAllTeams(paths.MANAGE_HOSTS)).toBe(true);
+      expect(pathSupportsAllTeams(paths.SOFTWARE)).toBe(true);
+      expect(pathSupportsAllTeams(paths.MANAGE_POLICIES)).toBe(true);
+      expect(pathSupportsAllTeams(paths.MANAGE_REPORTS)).toBe(true);
     });
 
-    it("returns false for fleet admin detail pages (Users/Options/Settings)", () => {
-      expect(pathSupportsAllFleets(paths.FLEET_DETAILS_USERS(1))).toBe(false);
-      expect(pathSupportsAllFleets(paths.FLEET_DETAILS_OPTIONS(1))).toBe(false);
-      expect(pathSupportsAllFleets(paths.FLEET_DETAILS_SETTINGS(1))).toBe(
+    it("returns false for team admin detail pages (Users/Options/Settings)", () => {
+      expect(pathSupportsAllTeams(paths.TEAM_DETAILS_USERS(1))).toBe(false);
+      expect(pathSupportsAllTeams(paths.TEAM_DETAILS_OPTIONS(1))).toBe(false);
+      expect(pathSupportsAllTeams(paths.TEAM_DETAILS_SETTINGS(1))).toBe(
         false
       );
     });
 
-    it("still returns true for the /settings/fleets list page", () => {
-      // The list view itself has no fleet scope (no useTeamIdParam), so
+    it("still returns true for the /settings/teams list page", () => {
+      // The list view itself has no team scope (no useTeamIdParam), so
       // switching from the palette there is fine. Only the detail sub-pages
-      // (which require a specific fleet_id) hide All.
-      expect(pathSupportsAllFleets(paths.ADMIN_FLEETS)).toBe(true);
+      // (which require a specific team_id) hide All.
+      expect(pathSupportsAllTeams(paths.ADMIN_TEAMS)).toBe(true);
     });
   });
 
@@ -1297,7 +1297,7 @@ describe("CommandPalette helpers", () => {
       expect(scoreMatch("api-only user", "only", true)).toBe(
         SCORE_LABEL_WORD_PREFIX
       );
-      expect(scoreMatch("fleet-maintained app", "maintained", false)).toBe(
+      expect(scoreMatch("automdm-maintained app", "maintained", false)).toBe(
         SCORE_KEYWORD_WORD_PREFIX
       );
     });

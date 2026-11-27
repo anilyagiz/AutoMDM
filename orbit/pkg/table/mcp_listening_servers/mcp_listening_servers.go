@@ -10,8 +10,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/build"
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/build"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
 	osqclient "github.com/osquery/osquery-go"
 	"github.com/osquery/osquery-go/plugin/table"
 	"github.com/rs/zerolog/log"
@@ -160,7 +160,7 @@ type mcpScanner struct {
 // newMCPScanner creates a new MCP scanner with default dependencies.
 func newMCPScanner() *mcpScanner {
 	return &mcpScanner{
-		httpClient: fleethttp.NewClient(fleethttp.WithTimeout(2 * time.Second)),
+		httpClient: automdmhttp.NewClient(automdmhttp.WithTimeout(2 * time.Second)),
 		newClient: func(socket string, timeout time.Duration) (osqueryClient, error) {
 			return osqclient.NewClient(socket, timeout)
 		},
@@ -363,7 +363,7 @@ func (s *mcpScanner) checkMCPServer(ctx context.Context, address, port string) *
 			"roots":     map[string]interface{}{},
 		},
 		"clientInfo": map[string]interface{}{
-			"name":    "fleetd",
+			"name":    "automdmd",
 			"version": build.Version,
 		},
 	}

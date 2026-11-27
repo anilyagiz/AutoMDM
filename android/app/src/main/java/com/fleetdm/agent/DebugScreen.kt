@@ -59,10 +59,10 @@ data class LastError(
 )
 
 fun readLastError(): LastError? {
-    val text = FleetLog.readErrors()
+    val text = AutoMDMLog.readErrors()
     if (text.isBlank()) return null
 
-    // FleetLog line format: "2026-02-18T12:34:56Z E fleet-tag message"
+    // AutoMDMLog line format: "2026-02-18T12:34:56Z E automdm-tag message"
     val lineRegex = Regex("""^(\S+)\s+E\s+(\S+)\s+(.*)$""")
     return text.lines()
         .lastOrNull { lineRegex.matches(it) }
@@ -147,7 +147,7 @@ fun DebugScreen(onNavigateBack: () -> Unit, onNavigateToLogs: () -> Unit) {
                             lastError = lastError,
                         )
                         val infoJson = jsonPretty.encodeToString(info)
-                        clipboard.setPrimaryClip(ClipData.newPlainText("fleet debug information", infoJson))
+                        clipboard.setPrimaryClip(ClipData.newPlainText("automdm debug information", infoJson))
                         Toast.makeText(context, "Debug info copied", Toast.LENGTH_SHORT).show()
                     }) {
                         Icon(Icons.Filled.ContentCopy, contentDescription = "copy debug information")

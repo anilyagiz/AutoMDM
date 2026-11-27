@@ -83,7 +83,7 @@ Remove-Item -LiteralPath $logFile -Force -ErrorAction SilentlyContinue
 # while the uninstaller runs by clicking the dialog's button via the Win32 API.
 # SendMessage(BM_CLICK) works even in session 0 with no interactive desktop
 # (where SendKeys / AppActivate / SetForegroundWindow do not), which is how
-# Fleet's orbit agent runs uninstall scripts (as SYSTEM). We only ever click
+# AutoMDM's orbit agent runs uninstall scripts (as SYSTEM). We only ever click
 # "Yes"/"OK" -- never "No"/"Cancel" -- so we can never abort the uninstall; for
 # the keep-data prompt, "Yes" just proceeds (the program and its registry entry
 # are still removed, which is what Test-StillInstalled verifies).

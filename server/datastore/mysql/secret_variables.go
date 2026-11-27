@@ -11,13 +11,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/redact"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm"
-	"github.com/fleetdm/fleet/v4/server/mdm/apple/psso/regtoken"
-	"github.com/fleetdm/fleet/v4/server/mdm/assets"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/redact"
+	"github.com/anilyagiz/automdm/v4/server/mdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/apple/psso/regtoken"
+	"github.com/anilyagiz/automdm/v4/server/mdm/assets"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
 	"github.com/jmoiron/sqlx"
 	"golang.org/x/text/unicode/norm"
 )
@@ -31,7 +31,7 @@ var secretVariableAllowedOrderKeys = common_mysql.OrderKeyAllowlist{
 	"updated_at": "updated_at",
 }
 
-func (ds *Datastore) UpsertSecretVariables(ctx context.Context, secretVariables []fleet.SecretVariable) (created []string, updated []string, err error) {
+func (ds *Datastore) UpsertSecretVariables(ctx context.Context, secretVariables []automdm.SecretVariable) (created []string, updated []string, err error) {
 	if len(secretVariables) == 0 {
 		return nil, nil, nil
 	}
@@ -53,8 +53,8 @@ func (ds *Datastore) UpsertSecretVariables(ctx context.Context, secretVariables 
 	for _, existingVariable := range existingVariables {
 		existingVariableMap[existingVariable.Name] = existingVariable.Value
 	}
-	var variablesToInsert []fleet.SecretVariable
-	var variablesToUpdate []fleet.SecretVariable
+	var variablesToInsert []automdm.SecretVariable
+	var variablesToUpdate []automdm.SecretVariable
 	for _, secretVariable := range secretVariables {
 		existingValue, ok := existingVariableMap[secretVariable.Name]
 		switch {
@@ -137,7 +137,7 @@ func (ds *Datastore) CreateSecretVariable(ctx context.Context, name string, valu
 	return uint(id_), nil //nolint:gosec // dismiss G115
 }
 
-func (ds *Datastore) GetSecretVariables(ctx context.Context, names []string) ([]fleet.SecretVariable, error) {
+func (ds *Datastore) GetSecretVariables(ctx context.Context, names []string) ([]automdm.SecretVariable, error) {
 	if len(names) == 0 {
 		return nil, nil
 	}
@@ -150,7 +150,7 @@ func (ds *Datastore) GetSecretVariables(ctx context.Context, names []string) ([]
 		return nil, ctxerr.Wrap(ctx, err, "build secret variables query")
 	}
 
-	var secretVariables []fleet.SecretVariable
+	var secretVariables []automdm.SecretVariable
 
 	err = sqlx.SelectContext(ctx, ds.reader(ctx), &secretVariables, stmt, args...)
 	if err != nil {
@@ -168,8 +168,8 @@ func (ds *Datastore) GetSecretVariables(ctx context.Context, names []string) ([]
 	return secretVariables, nil
 }
 
-func (ds *Datastore) ListSecretVariables(ctx context.Context, opt fleet.ListOptions) (
-	secretVariables []fleet.SecretVariableIdentifier, meta *fleet.PaginationMetadata, count int, err error,
+func (ds *Datastore) ListSecretVariables(ctx context.Context, opt automdm.ListOptions) (
+	secretVariables []automdm.SecretVariableIdentifier, meta *automdm.PaginationMetadata, count int, err error,
 ) {
 	stmt := `SELECT id, name, created_at, updated_at FROM secret_variables WHERE true`
 
@@ -196,7 +196,7 @@ func (ds *Datastore) ListSecretVariables(ctx context.Context, opt fleet.ListOpti
 	}
 
 	if opt.IncludeMetadata {
-		meta = &fleet.PaginationMetadata{
+		meta = &automdm.PaginationMetadata{
 			HasPreviousResults: opt.Page > 0,
 			TotalResults:       uint(count), //nolint:gosec // dismiss G115
 		}
@@ -244,10 +244,10 @@ func (ds *Datastore) DeleteSecretVariable(ctx context.Context, id uint) (secretN
 			return ctxerr.Wrap(ctx, err, "get script contents")
 		}
 		for _, c := range scriptContents {
-			if fleet.ContainsVar(c.Contents, fleet.ServerSecretPrefix+secretName) {
-				return ctxerr.Wrap(ctx, &fleet.SecretUsedError{
+			if automdm.ContainsVar(c.Contents, automdm.ServerSecretPrefix+secretName) {
+				return ctxerr.Wrap(ctx, &automdm.SecretUsedError{
 					SecretName: secretName,
-					Entity: fleet.EntityUsingSecret{
+					Entity: automdm.EntityUsingSecret{
 						Type:     c.Type,
 						Name:     c.Name,
 						TeamName: c.TeamName,
@@ -268,10 +268,10 @@ func (ds *Datastore) DeleteSecretVariable(ctx context.Context, id uint) (secretN
 			return ctxerr.Wrap(ctx, err, "get apple profile contents")
 		}
 		for _, c := range appleConfigurationProfileContents {
-			if fleet.ContainsVar(c.Contents, fleet.ServerSecretPrefix+secretName) {
-				return ctxerr.Wrap(ctx, &fleet.SecretUsedError{
+			if automdm.ContainsVar(c.Contents, automdm.ServerSecretPrefix+secretName) {
+				return ctxerr.Wrap(ctx, &automdm.SecretUsedError{
 					SecretName: secretName,
-					Entity: fleet.EntityUsingSecret{
+					Entity: automdm.EntityUsingSecret{
 						Type:     c.Type,
 						Name:     c.Name,
 						TeamName: c.TeamName,
@@ -292,10 +292,10 @@ func (ds *Datastore) DeleteSecretVariable(ctx context.Context, id uint) (secretN
 			return ctxerr.Wrap(ctx, err, "get apple declaration contents")
 		}
 		for _, c := range appleDeclarationContents {
-			if fleet.ContainsVar(c.Contents, fleet.ServerSecretPrefix+secretName) {
-				return ctxerr.Wrap(ctx, &fleet.SecretUsedError{
+			if automdm.ContainsVar(c.Contents, automdm.ServerSecretPrefix+secretName) {
+				return ctxerr.Wrap(ctx, &automdm.SecretUsedError{
 					SecretName: secretName,
-					Entity: fleet.EntityUsingSecret{
+					Entity: automdm.EntityUsingSecret{
 						Type:     c.Type,
 						Name:     c.Name,
 						TeamName: c.TeamName,
@@ -316,10 +316,10 @@ func (ds *Datastore) DeleteSecretVariable(ctx context.Context, id uint) (secretN
 			return ctxerr.Wrap(ctx, err, "get windows profile contents")
 		}
 		for _, c := range windowsProfileContents {
-			if fleet.ContainsVar(c.Contents, fleet.ServerSecretPrefix+secretName) {
-				return ctxerr.Wrap(ctx, &fleet.SecretUsedError{
+			if automdm.ContainsVar(c.Contents, automdm.ServerSecretPrefix+secretName) {
+				return ctxerr.Wrap(ctx, &automdm.SecretUsedError{
 					SecretName: secretName,
-					Entity: fleet.EntityUsingSecret{
+					Entity: automdm.EntityUsingSecret{
 						Type:     c.Type,
 						Name:     c.Name,
 						TeamName: c.TeamName,
@@ -330,7 +330,7 @@ func (ds *Datastore) DeleteSecretVariable(ctx context.Context, id uint) (secretN
 
 		// 5. Check if the secret variable is used in a host name template, on a
 		// team or on "No team" (the global app config). The template is stored as
-		// the unexpanded $FLEET_SECRET_* placeholder in the config JSON.
+		// the unexpanded $AUTOMDM_SECRET_* placeholder in the config JSON.
 		var nameTemplateContents []entity
 		if err := sqlx.SelectContext(ctx, tx,
 			&nameTemplateContents,
@@ -351,10 +351,10 @@ func (ds *Datastore) DeleteSecretVariable(ctx context.Context, id uint) (secretN
 			return ctxerr.Wrap(ctx, err, "get host name template contents")
 		}
 		for _, c := range nameTemplateContents {
-			if fleet.ContainsVar(c.Contents, fleet.ServerSecretPrefix+secretName) {
-				return ctxerr.Wrap(ctx, &fleet.SecretUsedError{
+			if automdm.ContainsVar(c.Contents, automdm.ServerSecretPrefix+secretName) {
+				return ctxerr.Wrap(ctx, &automdm.SecretUsedError{
 					SecretName: secretName,
-					Entity: fleet.EntityUsingSecret{
+					Entity: automdm.EntityUsingSecret{
 						Type:     c.Type,
 						Name:     c.Name,
 						TeamName: c.TeamName,
@@ -380,8 +380,8 @@ func (ds *Datastore) ExpandEmbeddedSecrets(ctx context.Context, document string)
 	return expanded, err
 }
 
-func (ds *Datastore) expandEmbeddedSecrets(ctx context.Context, document string) (string, []fleet.SecretVariable, error) {
-	embeddedSecrets := fleet.ContainsPrefixVars(document, fleet.ServerSecretPrefix)
+func (ds *Datastore) expandEmbeddedSecrets(ctx context.Context, document string) (string, []automdm.SecretVariable, error) {
+	embeddedSecrets := automdm.ContainsPrefixVars(document, automdm.ServerSecretPrefix)
 	if len(embeddedSecrets) == 0 {
 		return document, nil, nil
 	}
@@ -406,14 +406,14 @@ func (ds *Datastore) expandEmbeddedSecrets(ctx context.Context, document string)
 	}
 
 	if len(missingSecrets) > 0 {
-		return "", nil, fleet.MissingSecretsError{MissingSecrets: missingSecrets}
+		return "", nil, automdm.MissingSecretsError{MissingSecrets: missingSecrets}
 	}
 
 	expanded, substituted := expandDocumentVars(document, func(s string) (string, bool) {
-		if !strings.HasPrefix(s, fleet.ServerSecretPrefix) {
+		if !strings.HasPrefix(s, automdm.ServerSecretPrefix) {
 			return "", false
 		}
-		val, ok := secretMap[strings.TrimPrefix(s, fleet.ServerSecretPrefix)]
+		val, ok := secretMap[strings.TrimPrefix(s, automdm.ServerSecretPrefix)]
 		return val, ok
 	})
 
@@ -427,13 +427,13 @@ func (ds *Datastore) expandEmbeddedSecrets(ctx context.Context, document string)
 	return expanded, secrets, nil
 }
 
-// expandDocumentVars runs fleet.MaybeExpand over document, resolving each
+// expandDocumentVars runs automdm.MaybeExpand over document, resolving each
 // variable name via resolve and escaping the substituted value for the
 // document's format (JSON or XML) so an injected value can't break the
 // surrounding profile. resolve returns the raw (unescaped) value and whether the
 // variable was handled; unhandled variables are left in place. Shared by
-// ExpandEmbeddedSecrets ($FLEET_SECRET_) and ExpandCustomHostVitals
-// ($FLEET_HOST_VITAL_) so the format escaping has a single implementation.
+// ExpandEmbeddedSecrets ($AUTOMDM_SECRET_) and ExpandCustomHostVitals
+// ($AUTOMDM_HOST_VITAL_) so the format escaping has a single implementation.
 // It also returns the escaped values it substituted.
 func expandDocumentVars(document string, resolve func(name string) (string, bool)) (string, []string) {
 	// XML detection is aggressive because Windows profiles do not begin with <?xml.
@@ -442,7 +442,7 @@ func expandDocumentVars(document string, resolve func(name string) (string, bool
 	documentIsJSON := strings.HasPrefix(trimmed, "{")
 
 	var substituted []string
-	expanded := fleet.MaybeExpand(document, func(s string, _, _ int) (string, bool) {
+	expanded := automdm.MaybeExpand(document, func(s string, _, _ int) (string, bool) {
 		val, ok := resolve(s)
 		if !ok {
 			return "", false
@@ -498,7 +498,7 @@ func (ds *Datastore) ValidateEmbeddedSecrets(ctx context.Context, documents []st
 	haveSecrets := make(map[string]struct{})
 
 	for _, document := range documents {
-		vars := fleet.ContainsPrefixVars(document, fleet.ServerSecretPrefix)
+		vars := automdm.ContainsPrefixVars(document, automdm.ServerSecretPrefix)
 		for _, v := range vars {
 			wantSecrets[v] = struct{}{}
 		}
@@ -527,17 +527,17 @@ func (ds *Datastore) ValidateEmbeddedSecrets(ctx context.Context, documents []st
 	}
 
 	if len(missingSecrets) > 0 {
-		return &fleet.MissingSecretsError{MissingSecrets: missingSecrets}
+		return &automdm.MissingSecretsError{MissingSecrets: missingSecrets}
 	}
 
 	return nil
 }
 
-// ExpandHostSecrets expands host-scoped secrets ($FLEET_HOST_SECRET_*) in the document.
+// ExpandHostSecrets expands host-scoped secrets ($AUTOMDM_HOST_SECRET_*) in the document.
 // The enrollmentID is the enrollment's device channel ID (the UDID, or the EnrollmentID for ADUE).
 func (ds *Datastore) ExpandHostSecrets(ctx context.Context, document string, enrollmentID string) (string, error) {
 	// Check for host secret placeholders
-	hostSecrets := fleet.ContainsPrefixVars(document, fleet.HostSecretPrefix)
+	hostSecrets := automdm.ContainsPrefixVars(document, automdm.HostSecretPrefix)
 	if len(hostSecrets) == 0 {
 		return document, nil
 	}
@@ -547,19 +547,19 @@ func (ds *Datastore) ExpandHostSecrets(ctx context.Context, document string, enr
 	secretValues := make(map[string]string)
 	for _, secretType := range hostSecrets {
 		switch secretType {
-		case fleet.HostSecretRecoveryLockPassword:
+		case automdm.HostSecretRecoveryLockPassword:
 			password, err := ds.getHostRecoveryLockPasswordDecrypted(ctx, enrollmentID)
 			if err != nil {
 				return "", ctxerr.Wrapf(ctx, err, "getting recovery lock password for host %s", enrollmentID)
 			}
 			secretValues[secretType] = password
-		case fleet.HostSecretRecoveryLockPendingPassword:
+		case automdm.HostSecretRecoveryLockPendingPassword:
 			password, err := ds.getHostRecoveryLockPendingPasswordDecrypted(ctx, enrollmentID)
 			if err != nil {
 				return "", ctxerr.Wrapf(ctx, err, "getting pending recovery lock password for host %s", enrollmentID)
 			}
 			secretValues[secretType] = password
-		case fleet.HostSecretMDMUnlockToken:
+		case automdm.HostSecretMDMUnlockToken:
 			details, err := ds.GetNanoMDMEnrollmentDetails(ctx, enrollmentID)
 			if err != nil {
 				return "", ctxerr.Wrapf(ctx, err, "getting MDM enrollment details for host %s", enrollmentID)
@@ -568,40 +568,40 @@ func (ds *Datastore) ExpandHostSecrets(ctx context.Context, document string, enr
 				return "", ctxerr.Errorf(ctx, "no MDM enrollment details found for host %s", enrollmentID)
 			}
 			if details.UnlockToken == nil {
-				return "", ctxerr.Errorf(ctx, "%s", fleet.CantClearPasscodePersonalHostsMessage)
+				return "", ctxerr.Errorf(ctx, "%s", automdm.CantClearPasscodePersonalHostsMessage)
 			}
 
 			// We need to send base64 encoded data in the <data> field.
 			encoded := base64.StdEncoding.EncodeToString([]byte(*details.UnlockToken))
 			secretValues[secretType] = encoded
-		case fleet.HostSecretPSSODeviceRegistrationToken:
+		case automdm.HostSecretPSSODeviceRegistrationToken:
 			token, err := ds.mintPSSODeviceRegistrationToken(ctx, enrollmentID)
 			if err != nil {
 				return "", ctxerr.Wrapf(ctx, err, "minting psso device registration token for host %s", enrollmentID)
 			}
 			secretValues[secretType] = token
-		case fleet.HostSecretSCEPChallenge:
-			challenge, err := ds.findOrCreateAppleEnrollmentSCEPChallenge(ctx, enrollmentID, fleet.AppleMDMCertPurposeSCEPRenewal,
-				fleet.AppleSCEPRenewalChallengeTTL, fleet.GenerateRandom32ByteEntropyURLSafeToken)
+		case automdm.HostSecretSCEPChallenge:
+			challenge, err := ds.findOrCreateAppleEnrollmentSCEPChallenge(ctx, enrollmentID, automdm.AppleMDMCertPurposeSCEPRenewal,
+				automdm.AppleSCEPRenewalChallengeTTL, automdm.GenerateRandom32ByteEntropyURLSafeToken)
 			if err != nil {
 				return "", ctxerr.Wrapf(ctx, err, "getting scep renewal challenge for enrollment %s", enrollmentID)
 			}
 			secretValues[secretType] = challenge
-		case fleet.HostSecretConditionalAccessSCEPChallenge:
+		case automdm.HostSecretConditionalAccessSCEPChallenge:
 			// The device channel ID is the UDID, which the Okta profile's SAN carries as %HardwareUUID%.
-			challenge, err := ds.findOrCreateAppleEnrollmentSCEPChallenge(ctx, enrollmentID, fleet.ConditionalAccessSCEPChallengePurpose,
-				fleet.ConditionalAccessSCEPChallengeTTL, newConditionalAccessSCEPChallengeToken)
+			challenge, err := ds.findOrCreateAppleEnrollmentSCEPChallenge(ctx, enrollmentID, automdm.ConditionalAccessSCEPChallengePurpose,
+				automdm.ConditionalAccessSCEPChallengeTTL, newConditionalAccessSCEPChallengeToken)
 			if err != nil {
 				return "", ctxerr.Wrapf(ctx, err, "getting conditional access scep challenge for enrollment %s", enrollmentID)
 			}
 			secretValues[secretType] = challenge
-		case fleet.HostSecretFileVaultKey:
+		case automdm.HostSecretFileVaultKey:
 			key, err := ds.getHostDiskEncryptionKeyDecrypted(ctx, enrollmentID)
 			if err != nil {
 				return "", ctxerr.Wrapf(ctx, err, "getting disk encryption key for host %s", enrollmentID)
 			}
 			secretValues[secretType] = key
-		case fleet.HostSecretEnrollSecret:
+		case automdm.HostSecretEnrollSecret:
 			secret, err := ds.mintHostOneTimeEnrollSecret(ctx, enrollmentID)
 			if err != nil {
 				return "", ctxerr.Wrapf(ctx, err, "minting one-time enroll secret for host %s", enrollmentID)
@@ -618,11 +618,11 @@ func (ds *Datastore) ExpandHostSecrets(ctx context.Context, document string, enr
 	documentIsJSON := strings.HasPrefix(trimmed, "{")
 
 	// Expand the placeholders
-	expanded := fleet.MaybeExpand(document, func(s string, startPos, endPos int) (string, bool) {
-		if !strings.HasPrefix(s, fleet.HostSecretPrefix) {
+	expanded := automdm.MaybeExpand(document, func(s string, startPos, endPos int) (string, bool) {
+		if !strings.HasPrefix(s, automdm.HostSecretPrefix) {
 			return "", false
 		}
-		secretType := strings.TrimPrefix(s, fleet.HostSecretPrefix)
+		secretType := strings.TrimPrefix(s, automdm.HostSecretPrefix)
 		val, ok := secretValues[secretType]
 		if !ok {
 			return "", false
@@ -645,16 +645,16 @@ func (ds *Datastore) ExpandHostSecrets(ctx context.Context, document string, enr
 	return expanded, nil
 }
 
-// mintPSSODeviceRegistrationToken mints a Fleet-signed Platform SSO device
+// mintPSSODeviceRegistrationToken mints an AutoMDM-signed Platform SSO device
 // registration token bound to hostUUID, using the PSSO signing key asset. The
 // token is not stored: it is minted fresh for the requesting host each time the
 // profile is delivered, so it never lands in the database or on /commands.
 func (ds *Datastore) mintPSSODeviceRegistrationToken(ctx context.Context, hostUUID string) (string, error) {
-	assets, err := ds.GetAllMDMConfigAssetsByName(ctx, []fleet.MDMAssetName{fleet.MDMAssetPSSOSigningKey}, nil)
+	assets, err := ds.GetAllMDMConfigAssetsByName(ctx, []automdm.MDMAssetName{automdm.MDMAssetPSSOSigningKey}, nil)
 	if err != nil {
 		return "", ctxerr.Wrap(ctx, err, "loading psso signing key")
 	}
-	asset, ok := assets[fleet.MDMAssetPSSOSigningKey]
+	asset, ok := assets[automdm.MDMAssetPSSOSigningKey]
 	if !ok || len(asset.Value) == 0 {
 		return "", ctxerr.New(ctx, "psso signing key asset is missing; configure Platform SSO first")
 	}
@@ -669,7 +669,7 @@ func (ds *Datastore) getHostDiskEncryptionKeyDecrypted(ctx context.Context, host
 	var encrypted string
 	// Primary, so the device is sent the key as it is now rather than as a lagging replica has it.
 	// Only the host with a pending rotation qualifies: hosts.uuid isn't unique, and the key is
-	// only ever sent to authorize a rotation Fleet requested.
+	// only ever sent to authorize a rotation AutoMDM requested.
 	err := sqlx.GetContext(ctx, ds.writer(ctx), &encrypted, `
 SELECT hdek.base64_encrypted
 FROM host_disk_encryption_keys hdek

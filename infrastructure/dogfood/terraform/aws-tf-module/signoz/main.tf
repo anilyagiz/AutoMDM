@@ -17,7 +17,7 @@ terraform {
   }
 
   backend "s3" {
-    bucket               = "fleet-terraform-state20220408141538466600000002"
+    bucket               = "automdm-terraform-state20220408141538466600000002"
     key                  = "dogfood/signoz/terraform.tfstate"
     workspace_key_prefix = "dogfood"
     region               = "us-east-2"
@@ -34,7 +34,7 @@ provider "aws" {
   default_tags {
     tags = {
       environment = "dogfood-signoz"
-      terraform   = "https://github.com/fleetdm/fleet/tree/main/infrastructure/dogfood/terraform/aws-tf-module/signoz"
+      terraform   = "https://github.com/anilyagiz/automdm/tree/main/infrastructure/dogfood/terraform/aws-tf-module/signoz"
       workspace   = terraform.workspace
     }
   }
@@ -43,12 +43,12 @@ provider "aws" {
 # Read shared VPC from remote state
 data "terraform_remote_state" "dogfood" {
   backend   = "s3"
-  workspace = "fleet"
+  workspace = "automdm"
   config = {
-    bucket         = "fleet-terraform-remote-state"
-    key            = "fleet"
+    bucket         = "automdm-terraform-remote-state"
+    key            = "automdm"
     region         = "us-east-2"
-    dynamodb_table = "fleet-terraform-state-lock"
+    dynamodb_table = "automdm-terraform-state-lock"
   }
 }
 
@@ -115,7 +115,7 @@ module "acm" {
   wait_for_validation = true
 }
 
-# Use shared fleet VPC
+# Use shared team VPC
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
   version = "~> 21.0"

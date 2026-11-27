@@ -1,6 +1,6 @@
 ---
 name: release-retro
-description: Format release retro notes for a Fleet working group into a Slack recap post and ~timebox GitHub issues. Use when asked to "post retro recap", "format retro notes", "create release retro", or after a retrospective when feedback needs to land in Slack and action items need to be tracked.
+description: Format release retro notes for an AutoMDM working group into a Slack recap post and ~timebox GitHub issues. Use when asked to "post retro recap", "format retro notes", "create release retro", or after a retrospective when feedback needs to land in Slack and action items need to be tracked.
 allowed-tools: Bash(gh *), Bash(grep *), Bash(date *), Read, Grep, Glob, mcp__claude_ai_Slack__slack_search_channels, mcp__claude_ai_Slack__slack_search_users, mcp__claude_ai_Slack__slack_list_channel_members, mcp__claude_ai_Slack__slack_send_message_draft
 model: sonnet
 effort: medium
@@ -28,7 +28,7 @@ Retro notes typically have two parts. Both may appear in any format the user pas
 ### 1. Resolve the working group
 
 - Slack channel ID: call `slack_search_channels` with the channel name; pick the matching result.
-- GitHub label: matches the channel name with a `#` prefix (e.g. `#g-first-impressions`). Verify with `gh label list --repo fleetdm/fleet --search "<channel-name>"`.
+- GitHub label: matches the channel name with a `#` prefix (e.g. `#g-first-impressions`). Verify with `gh label list --repo automdm/automdm --search "<channel-name>"`.
 
 ### 2. Resolve GitHub handles
 
@@ -115,7 +115,7 @@ On confirmation:
 
 1. Create the GitHub issues in parallel:
    ```bash
-   gh issue create --repo fleetdm/fleet \
+   gh issue create --repo automdm/automdm \
      --title "<title>" \
      --label "~timebox,<channel-label>" \
      --assignee <handle> [--assignee <handle> ...] \

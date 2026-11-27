@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/datastore/redis/redistest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis/redistest"
+	"github.com/anilyagiz/automdm/v4/server/mock"
 	redigo "github.com/gomodule/redigo/redis"
 	"github.com/stretchr/testify/require"
 )
@@ -20,24 +20,24 @@ func TestEnforceHostLimit(t *testing.T) {
 	redisSetMembersBatchSize = 2
 	defer func() { redisSetMembersBatchSize = oldBatchSize }()
 
-	runTest := func(t *testing.T, pool fleet.RedisPool) {
+	runTest := func(t *testing.T, pool automdm.RedisPool) {
 		var hostIDSeq uint
-		var expiredHostDetails []fleet.DeletedHostDetails
+		var expiredHostDetails []automdm.DeletedHostDetails
 		var incomingHostsIDs []uint
 
 		ctx := context.Background()
 		ds := new(mock.Store)
-		ds.EnrollOsqueryFunc = func(_ context.Context, opts ...fleet.DatastoreEnrollOsqueryOption) (*fleet.Host, error) {
-			config := &fleet.DatastoreEnrollOsqueryConfig{}
+		ds.EnrollOsqueryFunc = func(_ context.Context, opts ...automdm.DatastoreEnrollOsqueryOption) (*automdm.Host, error) {
+			config := &automdm.DatastoreEnrollOsqueryConfig{}
 			for _, opt := range opts {
 				opt(config)
 			}
 			hostIDSeq++
-			return &fleet.Host{
+			return &automdm.Host{
 				ID: hostIDSeq, OsqueryHostID: &config.OsqueryHostID, NodeKey: &config.NodeKey,
 			}, nil
 		}
-		ds.NewHostFunc = func(ctx context.Context, host *fleet.Host) (*fleet.Host, error) {
+		ds.NewHostFunc = func(ctx context.Context, host *automdm.Host) (*automdm.Host, error) {
 			hostIDSeq++
 			host.ID = hostIDSeq
 			return host, nil
@@ -48,7 +48,7 @@ func TestEnforceHostLimit(t *testing.T) {
 		ds.DeleteHostsFunc = func(ctx context.Context, ids []uint) error {
 			return nil
 		}
-		ds.CleanupExpiredHostsBatchFunc = func(ctx context.Context, batchSize int) ([]fleet.DeletedHostDetails, error) {
+		ds.CleanupExpiredHostsBatchFunc = func(ctx context.Context, batchSize int) ([]automdm.DeletedHostDetails, error) {
 			return expiredHostDetails, nil
 		}
 		ds.CleanupIncomingHostsFunc = func(ctx context.Context, now time.Time) ([]uint, error) {
@@ -68,24 +68,24 @@ func TestEnforceHostLimit(t *testing.T) {
 		}
 
 		// create a few hosts within the limit
-		h1, err := wrappedDS.NewHost(ctx, &fleet.Host{})
+		h1, err := wrappedDS.NewHost(ctx, &automdm.Host{})
 		require.NoError(t, err)
 		require.NotNil(t, h1)
 		requireInvokedAndReset(&ds.NewHostFuncInvoked)
 		requireCanEnroll(true)
 		h2, err := wrappedDS.EnrollOsquery(ctx,
-			fleet.WithEnrollOsqueryHostID("osquery-2"),
-			fleet.WithEnrollOsqueryNodeKey("node-2"),
-			fleet.WithEnrollOsqueryCooldown(time.Second),
+			automdm.WithEnrollOsqueryHostID("osquery-2"),
+			automdm.WithEnrollOsqueryNodeKey("node-2"),
+			automdm.WithEnrollOsqueryCooldown(time.Second),
 		)
 		require.NoError(t, err)
 		require.NotNil(t, h2)
 		requireInvokedAndReset(&ds.EnrollOsqueryFuncInvoked)
 		requireCanEnroll(true)
 		h3, err := wrappedDS.EnrollOsquery(ctx,
-			fleet.WithEnrollOsqueryHostID("osquery-3"),
-			fleet.WithEnrollOsqueryNodeKey("node-3"),
-			fleet.WithEnrollOsqueryCooldown(time.Second),
+			automdm.WithEnrollOsqueryHostID("osquery-3"),
+			automdm.WithEnrollOsqueryNodeKey("node-3"),
+			automdm.WithEnrollOsqueryCooldown(time.Second),
 		)
 		require.NoError(t, err)
 		require.NotNil(t, h3)
@@ -97,9 +97,9 @@ func TestEnforceHostLimit(t *testing.T) {
 		require.NoError(t, err)
 		requireCanEnroll(true)
 		h4, err := wrappedDS.EnrollOsquery(ctx,
-			fleet.WithEnrollOsqueryHostID("osquery-4"),
-			fleet.WithEnrollOsqueryNodeKey("node-4"),
-			fleet.WithEnrollOsqueryCooldown(time.Second),
+			automdm.WithEnrollOsqueryHostID("osquery-4"),
+			automdm.WithEnrollOsqueryNodeKey("node-4"),
+			automdm.WithEnrollOsqueryCooldown(time.Second),
 		)
 		require.NoError(t, err)
 		require.NotNil(t, h4)
@@ -111,22 +111,22 @@ func TestEnforceHostLimit(t *testing.T) {
 		require.NoError(t, err)
 		requireCanEnroll(true)
 		h5, err := wrappedDS.EnrollOsquery(ctx,
-			fleet.WithEnrollOsqueryHostID("osquery-5"),
-			fleet.WithEnrollOsqueryNodeKey("node-5"),
-			fleet.WithEnrollOsqueryCooldown(time.Second),
+			automdm.WithEnrollOsqueryHostID("osquery-5"),
+			automdm.WithEnrollOsqueryNodeKey("node-5"),
+			automdm.WithEnrollOsqueryCooldown(time.Second),
 		)
 		require.NoError(t, err)
 		require.NotNil(t, h5)
 		requireInvokedAndReset(&ds.EnrollOsqueryFuncInvoked)
 		requireCanEnroll(true)
-		h6, err := wrappedDS.NewHost(ctx, &fleet.Host{})
+		h6, err := wrappedDS.NewHost(ctx, &automdm.Host{})
 		require.NoError(t, err)
 		require.NotNil(t, h6)
 		requireInvokedAndReset(&ds.NewHostFuncInvoked)
 		requireCanEnroll(false)
 
 		// cleanup expired removes h4
-		expiredHostDetails = []fleet.DeletedHostDetails{{ID: h4.ID}}
+		expiredHostDetails = []automdm.DeletedHostDetails{{ID: h4.ID}}
 		_, err = wrappedDS.CleanupExpiredHostsBatch(ctx, 100)
 		require.NoError(t, err)
 		requireCanEnroll(true)
@@ -138,15 +138,15 @@ func TestEnforceHostLimit(t *testing.T) {
 
 		// can now create 2 more
 		h7, err := wrappedDS.EnrollOsquery(ctx,
-			fleet.WithEnrollOsqueryHostID("osquery-7"),
-			fleet.WithEnrollOsqueryNodeKey("node-7"),
-			fleet.WithEnrollOsqueryCooldown(time.Second),
+			automdm.WithEnrollOsqueryHostID("osquery-7"),
+			automdm.WithEnrollOsqueryNodeKey("node-7"),
+			automdm.WithEnrollOsqueryCooldown(time.Second),
 		)
 		require.NoError(t, err)
 		require.NotNil(t, h7)
 		requireInvokedAndReset(&ds.EnrollOsqueryFuncInvoked)
 		requireCanEnroll(true)
-		h8, err := wrappedDS.NewHost(ctx, &fleet.Host{})
+		h8, err := wrappedDS.NewHost(ctx, &automdm.Host{})
 		require.NoError(t, err)
 		require.NotNil(t, h8)
 		requireInvokedAndReset(&ds.NewHostFuncInvoked)
@@ -165,14 +165,14 @@ func TestEnforceHostLimit(t *testing.T) {
 }
 
 func TestSyncEnrolledHostIDs(t *testing.T) {
-	runTest := func(t *testing.T, pool fleet.RedisPool) {
+	runTest := func(t *testing.T, pool automdm.RedisPool) {
 		var hostIDSeq uint
 		var enrolledHostCount int
 		var enrolledHostIDs []uint
 		ctx := context.Background()
 
 		ds := new(mock.Store)
-		ds.NewHostFunc = func(ctx context.Context, host *fleet.Host) (*fleet.Host, error) {
+		ds.NewHostFunc = func(ctx context.Context, host *automdm.Host) (*automdm.Host, error) {
 			hostIDSeq++
 			host.ID = hostIDSeq
 			return host, nil
@@ -192,11 +192,11 @@ func TestSyncEnrolledHostIDs(t *testing.T) {
 		wrappedDS := New(ds, pool, WithEnforcedHostLimit(10)) // limit is irrelevant for this test
 
 		// create a few hosts kept in sync
-		h1, err := wrappedDS.NewHost(ctx, &fleet.Host{})
+		h1, err := wrappedDS.NewHost(ctx, &automdm.Host{})
 		require.NoError(t, err)
-		h2, err := wrappedDS.NewHost(ctx, &fleet.Host{})
+		h2, err := wrappedDS.NewHost(ctx, &automdm.Host{})
 		require.NoError(t, err)
-		h3, err := wrappedDS.NewHost(ctx, &fleet.Host{})
+		h3, err := wrappedDS.NewHost(ctx, &automdm.Host{})
 		require.NoError(t, err)
 
 		conn := pool.Get()

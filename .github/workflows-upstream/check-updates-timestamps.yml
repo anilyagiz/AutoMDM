@@ -106,7 +106,7 @@ jobs:
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "⚠️ https://updates.fleetdm.com/timestamp.json is about to expire or has already expired\nhttps://github.com/fleetdm/fleet/actions/runs/${{  github.run_id }}"
+                    "text": "⚠️ https://updates.fleetdm.com/timestamp.json is about to expire or has already expired\nhttps://github.com/anilyagiz/automdm/actions/runs/${{  github.run_id }}"
                   }
                 }
               ]
@@ -127,7 +127,7 @@ jobs:
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "⚠️ https://updates.fleetdm.com/snapshot.json is about to expire or has already expired\nhttps://github.com/fleetdm/fleet/actions/runs/${{  github.run_id }}"
+                    "text": "⚠️ https://updates.fleetdm.com/snapshot.json is about to expire or has already expired\nhttps://github.com/anilyagiz/automdm/actions/runs/${{  github.run_id }}"
                   }
                 }
               ]
@@ -148,7 +148,7 @@ jobs:
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "⚠️ https://updates.fleetdm.com/targets.json is about to expire or has already expired\nhttps://github.com/fleetdm/fleet/actions/runs/${{  github.run_id }}"
+                    "text": "⚠️ https://updates.fleetdm.com/targets.json is about to expire or has already expired\nhttps://github.com/anilyagiz/automdm/actions/runs/${{  github.run_id }}"
                   }
                 }
               ]
@@ -169,7 +169,7 @@ jobs:
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "⚠️ https://updates.fleetdm.com/root.json is about to expire or has already expired\nhttps://github.com/fleetdm/fleet/actions/runs/${{  github.run_id }}"
+                    "text": "⚠️ https://updates.fleetdm.com/root.json is about to expire or has already expired\nhttps://github.com/anilyagiz/automdm/actions/runs/${{  github.run_id }}"
                   }
                 }
               ]

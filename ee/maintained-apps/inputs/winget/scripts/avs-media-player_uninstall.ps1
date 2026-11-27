@@ -1,4 +1,4 @@
-# Fleet extracts name from installer (EXE) and saves it to PACKAGE_ID
+# AutoMDM extracts name from installer (EXE) and saves it to PACKAGE_ID
 # variable
 # AVS Media Player registers a versioned DisplayName in the registry
 # (e.g. "AVS Media Player 26.0.2"), so we match on the stable prefix.

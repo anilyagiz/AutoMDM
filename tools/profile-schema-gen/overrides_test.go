@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/mdm/profilevalidation"
+	"github.com/anilyagiz/automdm/v4/pkg/mdm/profilevalidation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -140,7 +140,7 @@ func TestApplyOverridesAdd(t *testing.T) {
 add:
   - {kind: apple_profile, payload_type: TopLevel, name: PayloadEnabled, key: {type: boolean}, reason: top}
   - {kind: apple_profile, payload_type: CommonPayloadKeys, name: PayloadEnabled, key: {type: boolean}, reason: common}
-  - {kind: apple_declaration, declaration_type: DeclarationBase, name: PayloadScope, key: {type: string, rangelist: [System, User]}, reason: fleet}
+  - {kind: apple_declaration, declaration_type: DeclarationBase, name: PayloadScope, key: {type: string, rangelist: [System, User]}, reason: team}
   - {kind: apple_profile, payload_type: com.apple.MCX, name: com.apple.login.mcx.Dotted, key: {type: boolean}, reason: dotted name}
   - kind: apple_profile
     payload_type: com.apple.security.scep
@@ -157,7 +157,7 @@ add:
 `))
 	assert.JSONEq(t, `{"type": "boolean", "override": "top"}`, jsonOf(t, s.AppleEnvelope.TopLevel.Keys["PayloadEnabled"]))
 	assert.JSONEq(t, `{"type": "boolean", "override": "common"}`, jsonOf(t, s.AppleEnvelope.CommonPayloadKeys.Keys["PayloadEnabled"]))
-	assert.JSONEq(t, `{"type": "string", "rangelist": ["System", "User"], "override": "fleet"}`,
+	assert.JSONEq(t, `{"type": "string", "rangelist": ["System", "User"], "override": "automdm"}`,
 		jsonOf(t, s.AppleDeclarationEnvelope.Keys["PayloadScope"]))
 	assert.JSONEq(t, `{"type": "boolean", "override": "dotted name"}`, jsonOf(t, notNil(t, s.AppleProfiles["com.apple.MCX"]).Keys["com.apple.login.mcx.Dotted"]))
 	scep := notNil(t, s.AppleProfiles["com.apple.security.scep"])

@@ -3,7 +3,7 @@ provider "aws" {
   default_tags {
     tags = {
       environment = "loadtest"
-      terraform   = "https://github.com/fleetdm/fleet/tree/main/infrastructure/infrastructure/terraform"
+      terraform   = "https://github.com/anilyagiz/automdm/tree/main/infrastructure/infrastructure/terraform"
       state       = "local"
     }
   }
@@ -15,7 +15,7 @@ provider "aws" {
   default_tags {
     tags = {
       environment = "loadtest"
-      terraform   = "https://github.com/fleetdm/fleet/tree/main/infrastructure/infrastructure/terraform"
+      terraform   = "https://github.com/anilyagiz/automdm/tree/main/infrastructure/infrastructure/terraform"
       state       = "local"
     }
   }
@@ -31,7 +31,7 @@ terraform {
     }
   }
   backend "s3" {
-    bucket               = "fleet-terraform-state20220408141538466600000002"
+    bucket               = "automdm-terraform-state20220408141538466600000002"
     key                  = "infrastructure/state/terraform.tfstate" # This should be set to account_alias/unique_key/terraform.tfstate
     workspace_key_prefix = "infrastructure"                         # This should be set to the account alias
     region               = "us-east-2"
@@ -47,8 +47,8 @@ locals {
     dogfood                  = "160035666661"
     loadtesting              = "917007347864"
     root                     = "831217569274"
-    fleet-cloud              = "611884880216"
-    fleet-try                = "564445215450"
+    automdm-cloud              = "611884880216"
+    automdm-try                = "564445215450"
     vpn                      = "636358323779"
   }
 }
@@ -57,7 +57,7 @@ module "remote-state-s3-backend" {
   source                                 = "nozaq/remote-state-s3-backend/aws"
   version                                = "1.1.2"
   dynamodb_enable_server_side_encryption = true
-  state_bucket_prefix                    = "fleet-terraform-state"
+  state_bucket_prefix                    = "automdm-terraform-state"
   tags                                   = {}
   providers = {
     aws         = aws

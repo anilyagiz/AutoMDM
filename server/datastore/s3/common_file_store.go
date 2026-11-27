@@ -11,12 +11,12 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 	"github.com/aws/aws-sdk-go-v2/feature/cloudfront/sign"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	types "github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -212,7 +212,7 @@ func (s *commonFileStore) Sign(ctx context.Context, fileID string, expiresIn tim
 
 	// GCS: hand out a presigned GET URL generated with this store's own
 	// client/credentials, so clients download directly from the bucket instead
-	// of proxying the bytes through Fleet.
+	// of proxying the bytes through AutoMDM.
 	if s.signedURL {
 		key := s.keyForFile(fileID)
 		req, err := s.presignClient.PresignGetObject(ctx, &s3.GetObjectInput{
@@ -225,14 +225,14 @@ func (s *commonFileStore) Sign(ctx context.Context, fileID string, expiresIn tim
 		return req.URL, nil
 	}
 
-	return "", ctxerr.Wrapf(ctx, fleet.ErrNotConfigured, "signing %s URL in S3 store", s.fileLabel)
+	return "", ctxerr.Wrapf(ctx, automdm.ErrNotConfigured, "signing %s URL in S3 store", s.fileLabel)
 }
 
 // PresignPut returns a presigned PUT URL for fileID with the body size signed
 // into the request, so the object store rejects a body of any other length.
 func (s *commonFileStore) PresignPut(ctx context.Context, fileID string, size int64, expiresIn time.Duration) (string, error) {
 	if !s.signedURL {
-		return "", ctxerr.Wrapf(ctx, fleet.ErrNotConfigured, "presigning %s upload URL in S3 store", s.fileLabel)
+		return "", ctxerr.Wrapf(ctx, automdm.ErrNotConfigured, "presigning %s upload URL in S3 store", s.fileLabel)
 	}
 	key := s.keyForFile(fileID)
 	req, err := s.presignClient.PresignPutObject(ctx, &s3.PutObjectInput{

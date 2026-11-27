@@ -84,7 +84,7 @@ describe("shouldShowControlsTab", () => {
     ).toBe(true);
   });
 
-  // Fleet only supports disk encryption on Fedora among rhel-likes, so the
+  // AutoMDM only supports disk encryption on Fedora among rhel-likes, so the
   // platform guard has to read os_version, not just the platform.
   describe("rhel-like platforms", () => {
     const rhelArgs = {
@@ -167,7 +167,7 @@ describe("getResendProfileErrorMessage", () => {
     data: { message: "Error", errors: [{ name: "base", reason }] },
   });
 
-  it("shows Fleet's reason for a client error", () => {
+  it("shows AutoMDM's reason for a client error", () => {
     expect(
       getResendProfileErrorMessage(
         apiError(403, "Ask your IT admin to resend it.")

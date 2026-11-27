@@ -1,12 +1,12 @@
 # nvdvuln
 
-This tool can be used to reproduce false positive/negative vulnerabilities found by Fleet.
+This tool can be used to reproduce false positive/negative vulnerabilities found by AutoMDM.
 
 The tool has two modes of operation:
-1. Run vulnerability processing using the NVD dataset on a specific software item. Such software item should be specified to the tool with the fields as stored in Fleet's `software` MySQL table.
-2. Fetch software from a Fleet instance (and their found vulnerabilities), then, run vulnerability processing on such software and report any differences in CVEs against the Fleet instance. This mode of operation is useful to test new changes to the vulnerability processing. Note that this mode fetches a single unpaginated page of software versions, so it covers at most 10,000 versions; on a larger instance the comparison silently runs against a subset.
+1. Run vulnerability processing using the NVD dataset on a specific software item. Such software item should be specified to the tool with the fields as stored in AutoMDM's `software` MySQL table.
+2. Fetch software from an AutoMDM instance (and their found vulnerabilities), then, run vulnerability processing on such software and report any differences in CVEs against the AutoMDM instance. This mode of operation is useful to test new changes to the vulnerability processing. Note that this mode fetches a single unpaginated page of software versions, so it covers at most 10,000 versions; on a larger instance the comparison silently runs against a subset.
 
-PS: This tool is only useful on systems and software where the NVD dataset is used to detect vulnerabilities. For instance, this tool should not be used with Microsoft Office applications for macOS because Fleet uses a different dataset to detect vulnerabilities on such applications.
+PS: This tool is only useful on systems and software where the NVD dataset is used to detect vulnerabilities. For instance, this tool should not be used with Microsoft Office applications for macOS because AutoMDM uses a different dataset to detect vulnerabilities on such applications.
 
 ## Example Mode 1
 
@@ -35,7 +35,7 @@ go run -tags fts5 ./tools/nvd/nvdvuln/nvdvuln.go \
     -debug \
     -sync \
     -db_dir /tmp/vulndbtest \
-    -software_from_url https://fleet.example.com \
+    -software_from_url https://automdm.example.com \
     -software_from_api_token <...>
 ```
 

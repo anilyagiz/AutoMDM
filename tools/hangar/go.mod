@@ -1,4 +1,4 @@
-module github.com/fleetdm/fleet/tools/hangar
+module github.com/anilyagiz/automdm/tools/hangar
 
 go 1.27.4
 

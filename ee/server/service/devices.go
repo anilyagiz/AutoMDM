@@ -13,34 +13,34 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server"
-	authz_ctx "github.com/fleetdm/fleet/v4/server/contexts/authz"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxdb"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	hostctx "github.com/fleetdm/fleet/v4/server/contexts/host"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/sso"
+	"github.com/anilyagiz/automdm/v4/server"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	authz_ctx "github.com/anilyagiz/automdm/v4/server/contexts/authz"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxdb"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	hostctx "github.com/anilyagiz/automdm/v4/server/contexts/host"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/sso"
 )
 
-func (svc *Service) ListDevicePolicies(ctx context.Context, host *fleet.Host, includeHidden bool) ([]*fleet.DevicePolicy, error) {
+func (svc *Service) ListDevicePolicies(ctx context.Context, host *automdm.Host, includeHidden bool) ([]*automdm.DevicePolicy, error) {
 	policies, err := svc.ds.ListPoliciesForHost(ctx, host)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "list policies for host")
 	}
 	if !includeHidden {
-		policies = slices.DeleteFunc(policies, func(p *fleet.HostPolicy) bool { return p.Hidden })
+		policies = slices.DeleteFunc(policies, func(p *automdm.HostPolicy) bool { return p.Hidden })
 	}
 	// return the device-safe representation of the policies, which excludes
 	// the policy author's identity and the raw SQL query.
-	return fleet.HostPoliciesToDevicePolicies(policies), nil
+	return automdm.HostPoliciesToDevicePolicies(policies), nil
 }
 
 // TriggerMigrateMDMDevice triggers the webhook associated with the MDM
-// migration to Fleet configuration. It is located in the ee package instead of
-// the server/webhooks one because it is a Fleet Premium only feature and for
+// migration to AutoMDM configuration. It is located in the ee package instead of
+// the server/webhooks one because it is an AutoMDM Premium only feature and for
 // licensing reasons this needs to live under this package.
-func (svc *Service) TriggerMigrateMDMDevice(ctx context.Context, host *fleet.Host) error {
+func (svc *Service) TriggerMigrateMDMDevice(ctx context.Context, host *automdm.Host) error {
 	svc.logger.DebugContext(ctx, "trigger migration webhook", "host_id", host.ID,
 		"refetch_critical_queries_until", host.RefetchCriticalQueriesUntil)
 
@@ -49,7 +49,7 @@ func (svc *Service) TriggerMigrateMDMDevice(ctx context.Context, host *fleet.Hos
 		return err
 	}
 	if !ac.MDM.EnabledAndConfigured {
-		return fleet.ErrMDMNotConfigured
+		return automdm.ErrMDMNotConfigured
 	}
 
 	if host.RefetchCriticalQueriesUntil != nil && host.RefetchCriticalQueriesUntil.After(svc.clock.Now()) {
@@ -61,12 +61,12 @@ func (svc *Service) TriggerMigrateMDMDevice(ctx context.Context, host *fleet.Hos
 		return nil
 	}
 
-	connected, err := svc.ds.IsHostConnectedToFleetMDM(ctx, host)
+	connected, err := svc.ds.IsHostConnectedToAutoMDMMDM(ctx, host)
 	if err != nil {
-		return ctxerr.Wrap(ctx, err, "checking if host is connected to Fleet")
+		return ctxerr.Wrap(ctx, err, "checking if host is connected to AutoMDM")
 	}
 
-	var bre fleet.BadRequestError
+	var bre automdm.BadRequestError
 	switch {
 	case !ac.MDM.MacOSMigration.Enable:
 		bre.InternalErr = ctxerr.New(ctx, "macOS migration not enabled")
@@ -79,12 +79,12 @@ func (svc *Service) TriggerMigrateMDMDevice(ctx context.Context, host *fleet.Hos
 		return ctxerr.Wrap(ctx, err, "fetching host mdm info")
 	}
 
-	manualMigrationEligible, err := fleet.IsEligibleForManualMigration(host, mdmInfo, connected)
+	manualMigrationEligible, err := automdm.IsEligibleForManualMigration(host, mdmInfo, connected)
 	if err != nil {
 		return ctxerr.Wrap(ctx, err, "checking manual migration eligibility")
 	}
 
-	if !fleet.IsEligibleForDEPMigration(host, mdmInfo, connected) && !manualMigrationEligible {
+	if !automdm.IsEligibleForDEPMigration(host, mdmInfo, connected) && !manualMigrationEligible {
 		bre.InternalErr = ctxerr.New(ctx, "host not eligible for macOS migration")
 	}
 
@@ -92,7 +92,7 @@ func (svc *Service) TriggerMigrateMDMDevice(ctx context.Context, host *fleet.Hos
 		return &bre
 	}
 
-	p := fleet.MigrateMDMDeviceWebhookPayload{}
+	p := automdm.MigrateMDMDeviceWebhookPayload{}
 	p.Timestamp = time.Now().UTC()
 	p.Host.ID = host.ID
 	p.Host.UUID = host.UUID
@@ -105,7 +105,7 @@ func (svc *Service) TriggerMigrateMDMDevice(ctx context.Context, host *fleet.Hos
 	// if the webhook was successfully triggered, we update the host to
 	// constantly run the query to check if it has been unenrolled from its
 	// existing third-party MDM.
-	refetchUntil := svc.clock.Now().Add(fleet.RefetchMDMUnenrollCriticalQueryDuration)
+	refetchUntil := svc.clock.Now().Add(automdm.RefetchMDMUnenrollCriticalQueryDuration)
 	host.RefetchCriticalQueriesUntil = &refetchUntil
 	if err := svc.ds.UpdateHostRefetchCriticalQueriesUntil(ctx, host.ID, &refetchUntil); err != nil {
 		return ctxerr.Wrap(ctx, err, "save host with refetch critical queries timestamp")
@@ -114,14 +114,14 @@ func (svc *Service) TriggerMigrateMDMDevice(ctx context.Context, host *fleet.Hos
 	return nil
 }
 
-func (svc *Service) BypassConditionalAccess(ctx context.Context, host *fleet.Host) error {
+func (svc *Service) BypassConditionalAccess(ctx context.Context, host *automdm.Host) error {
 	// this is not a user-authenticated endpoint
 	svc.authz.SkipAuthorization(ctx)
 
 	// iOS/iPadOS devices authenticate by UUID in the URL and don't participate in
 	// conditional access policies, so they can't bypass it.
 	if svc.authz.IsAuthenticatedWith(ctx, authz_ctx.AuthnDeviceURL) {
-		return fleet.NewUserMessageError(errors.New("conditional access bypass is not supported on this device"), http.StatusForbidden)
+		return automdm.NewUserMessageError(errors.New("conditional access bypass is not supported on this device"), http.StatusForbidden)
 	}
 
 	ac, err := svc.ds.AppConfig(ctx)
@@ -130,14 +130,14 @@ func (svc *Service) BypassConditionalAccess(ctx context.Context, host *fleet.Hos
 	}
 
 	if ac.ConditionalAccess != nil && !ac.ConditionalAccess.BypassEnabled() {
-		return fleet.NewUserMessageError(errors.New("conditional access bypass disabled"), http.StatusForbidden)
+		return automdm.NewUserMessageError(errors.New("conditional access bypass disabled"), http.StatusForbidden)
 	}
 
 	if err := svc.ds.ConditionalAccessBypassDevice(ctx, host.ID); err != nil {
 		return ctxerr.Wrap(ctx, err, "setting conditional access bypass")
 	}
 
-	idpFullName, err := fleet.GetEndUserIdpFullName(ctx, svc.ds, host.ID)
+	idpFullName, err := automdm.GetEndUserIdpFullName(ctx, svc.ds, host.ID)
 	if err != nil {
 		return ctxerr.Wrap(ctx, err, "getting end users for bypass activity")
 	}
@@ -146,7 +146,7 @@ func (svc *Service) BypassConditionalAccess(ctx context.Context, host *fleet.Hos
 		idpFullName = "An end user"
 	}
 
-	if err := svc.NewActivity(ctx, nil, fleet.ActivityTypeHostBypassedConditionalAccess{
+	if err := svc.NewActivity(ctx, nil, automdm.ActivityTypeHostBypassedConditionalAccess{
 		HostID:          host.ID,
 		HostDisplayName: host.DisplayName(),
 		IdPFullName:     idpFullName,
@@ -157,16 +157,16 @@ func (svc *Service) BypassConditionalAccess(ctx context.Context, host *fleet.Hos
 	return nil
 }
 
-func (svc *Service) GetFleetDesktopSummary(ctx context.Context) (fleet.DesktopSummary, error) {
+func (svc *Service) GetAutoMDMDesktopSummary(ctx context.Context) (automdm.DesktopSummary, error) {
 	// this is not a user-authenticated endpoint
 	svc.authz.SkipAuthorization(ctx)
 
-	var sum fleet.DesktopSummary
+	var sum automdm.DesktopSummary
 
 	host, ok := hostctx.FromContext(ctx)
 
 	if !ok {
-		err := ctxerr.Wrap(ctx, fleet.NewAuthRequiredError("internal error: missing host from request context"))
+		err := ctxerr.Wrap(ctx, automdm.NewAuthRequiredError("internal error: missing host from request context"))
 		return sum, err
 	}
 
@@ -189,9 +189,9 @@ func (svc *Service) GetFleetDesktopSummary(ctx context.Context) (fleet.DesktopSu
 	}
 
 	if appCfg.MDM.EnabledAndConfigured && appCfg.MDM.MacOSMigration.Enable {
-		connected, err := svc.ds.IsHostConnectedToFleetMDM(ctx, host)
+		connected, err := svc.ds.IsHostConnectedToAutoMDMMDM(ctx, host)
 		if err != nil {
-			return sum, ctxerr.Wrap(ctx, err, "checking if host is connected to Fleet")
+			return sum, ctxerr.Wrap(ctx, err, "checking if host is connected to AutoMDM")
 		}
 
 		mdmInfo, err := svc.ds.GetHostMDM(ctx, host.ID)
@@ -199,26 +199,26 @@ func (svc *Service) GetFleetDesktopSummary(ctx context.Context) (fleet.DesktopSu
 			return sum, ctxerr.Wrap(ctx, err, "could not retrieve mdm info")
 		}
 
-		needsDEPEnrollment := mdmInfo != nil && !mdmInfo.Enrolled && host.IsDEPAssignedToFleet()
+		needsDEPEnrollment := mdmInfo != nil && !mdmInfo.Enrolled && host.IsDEPAssignedToAutoMDM()
 
 		if needsDEPEnrollment {
 			sum.Notifications.RenewEnrollmentProfile = true
 		}
 
-		manualMigrationEligible, err := fleet.IsEligibleForManualMigration(host, mdmInfo, connected)
+		manualMigrationEligible, err := automdm.IsEligibleForManualMigration(host, mdmInfo, connected)
 		if err != nil {
 			return sum, ctxerr.Wrap(ctx, err, "checking manual migration eligibility")
 		}
 
-		if fleet.IsEligibleForDEPMigration(host, mdmInfo, connected) || manualMigrationEligible {
+		if automdm.IsEligibleForDEPMigration(host, mdmInfo, connected) || manualMigrationEligible {
 			sum.Notifications.NeedsMDMMigration = true
 		}
 
 	}
 
-	// Fleet Desktop prompts the end user to create a BitLocker startup PIN, but only when this host's fleetd can
+	// AutoMDM Desktop prompts the end user to create a BitLocker startup PIN, but only when this host's automdmd can
 	// actually apply one.
-	if host.FleetPlatform() == "windows" {
+	if host.AutoMDMPlatform() == "windows" {
 		needsPIN, err := svc.hostNeedsBitLockerPINPrompt(ctx, host, appCfg)
 		if err != nil {
 			return sum, ctxerr.Wrap(ctx, err, "checking whether to prompt for a bitlocker pin")
@@ -235,14 +235,14 @@ func (svc *Service) GetFleetDesktopSummary(ctx context.Context) (fleet.DesktopSu
 	// mdm information
 	sum.Config.MDM.MacOSMigration.Mode = appCfg.MDM.MacOSMigration.Mode
 
-	sum.AlternativeBrowserHost = appCfg.FleetDesktop.AlternativeBrowserHost
+	sum.AlternativeBrowserHost = appCfg.AutoMDMDesktop.AlternativeBrowserHost
 
 	return sum, nil
 }
 
-// hostNeedsBitLockerPINPrompt reports whether Fleet Desktop should prompt this Windows host's end user to create a
+// hostNeedsBitLockerPINPrompt reports whether AutoMDM Desktop should prompt this Windows host's end user to create a
 // BitLocker startup PIN.
-func (svc *Service) hostNeedsBitLockerPINPrompt(ctx context.Context, host *fleet.Host, appCfg *fleet.AppConfig) (bool, error) {
+func (svc *Service) hostNeedsBitLockerPINPrompt(ctx context.Context, host *automdm.Host, appCfg *automdm.AppConfig) (bool, error) {
 	cfg := appCfg.MDM.DiskEncryptionConfig()
 	if host.TeamID != nil && *host.TeamID > 0 {
 		teamMDM, err := svc.ds.TeamMDMConfig(ctx, *host.TeamID)
@@ -267,18 +267,18 @@ func (svc *Service) hostNeedsBitLockerPINPrompt(ctx context.Context, host *fleet
 	return diskEncryption.NeedsBitLockerPIN(), nil
 }
 
-func (svc *Service) TriggerLinuxDiskEncryptionEscrow(ctx context.Context, host *fleet.Host) error {
+func (svc *Service) TriggerLinuxDiskEncryptionEscrow(ctx context.Context, host *automdm.Host) error {
 	escrow, err := svc.ds.GetHostEscrowState(ctx, host.ID)
 	if err != nil {
 		return ctxerr.Wrap(ctx, err, "getting linux escrow state")
 	}
-	// queued but not yet picked up by fleetd, so a prompt is still on its way
+	// queued but not yet picked up by automdmd, so a prompt is still on its way
 	if escrow.Pending {
 		return nil
 	}
-	// fleetd is still prompting for the previous request; queueing again would prompt twice.
-	if remaining := escrow.InFlightRemaining(fleet.LinuxEscrowInFlightWindow); remaining > 0 {
-		return &fleet.LinuxEscrowInFlightError{RetryAfterSeconds: int(math.Ceil(remaining.Seconds()))}
+	// automdmd is still prompting for the previous request; queueing again would prompt twice.
+	if remaining := escrow.InFlightRemaining(automdm.LinuxEscrowInFlightWindow); remaining > 0 {
+		return &automdm.LinuxEscrowInFlightError{RetryAfterSeconds: int(math.Ceil(remaining.Seconds()))}
 	}
 
 	if err := svc.ds.AssertHasNoEncryptionKeyStored(ctx, host.ID); err != nil {
@@ -293,9 +293,9 @@ func (svc *Service) TriggerLinuxDiskEncryptionEscrow(ctx context.Context, host *
 	return svc.ds.QueueEscrow(ctx, host.ID)
 }
 
-func (svc *Service) validateReadyForLinuxEscrow(ctx context.Context, host *fleet.Host) error {
+func (svc *Service) validateReadyForLinuxEscrow(ctx context.Context, host *automdm.Host) error {
 	if !host.IsLUKSSupported() {
-		return &fleet.BadRequestError{Message: "Fleet does not yet support creating LUKS disk encryption keys on this platform."}
+		return &automdm.BadRequestError{Message: "AutoMDM does not yet support creating LUKS disk encryption keys on this platform."}
 	}
 
 	ac, err := svc.ds.AppConfig(ctx)
@@ -305,7 +305,7 @@ func (svc *Service) validateReadyForLinuxEscrow(ctx context.Context, host *fleet
 
 	if host.TeamID == nil {
 		if !ac.MDM.LinuxSettings.EnableEscrowDiskEncryptionKey.Value {
-			return &fleet.BadRequestError{Message: "Disk encryption is not enabled for hosts not assigned to a fleet."}
+			return &automdm.BadRequestError{Message: "Disk encryption is not enabled for hosts not assigned to a team."}
 		}
 	} else {
 		tc, err := svc.ds.TeamMDMConfig(ctx, *host.TeamID)
@@ -313,12 +313,12 @@ func (svc *Service) validateReadyForLinuxEscrow(ctx context.Context, host *fleet
 			return err
 		}
 		if !tc.DiskEncryptionConfig().LinuxEscrowEnabled {
-			return &fleet.BadRequestError{Message: "Disk encryption is not enabled for this host's fleet."}
+			return &automdm.BadRequestError{Message: "Disk encryption is not enabled for this host's team."}
 		}
 	}
 
 	if host.DiskEncryptionEnabled == nil || !*host.DiskEncryptionEnabled {
-		return &fleet.BadRequestError{Message: "Host's disk is not encrypted. Please encrypt your disk first."}
+		return &automdm.BadRequestError{Message: "Host's disk is not encrypted. Please encrypt your disk first."}
 	}
 
 	// We have to pull Orbit info because the auth context doesn't fill in host.OrbitVersion
@@ -327,12 +327,12 @@ func (svc *Service) validateReadyForLinuxEscrow(ctx context.Context, host *fleet
 		return err
 	}
 
-	minOrbitVersion := fleet.MinOrbitLUKSVersion
+	minOrbitVersion := automdm.MinOrbitLUKSVersion
 	if host.Platform == "omarchy" {
-		minOrbitVersion = fleet.MinOrbitOmarchyLUKSVersion
+		minOrbitVersion = automdm.MinOrbitOmarchyLUKSVersion
 	}
-	if orbitInfo == nil || !fleet.IsAtLeastVersion(orbitInfo.Version, minOrbitVersion) {
-		return &fleet.BadRequestError{Message: "Your version of fleetd does not support creating disk encryption keys on Linux. Please upgrade fleetd, then click Refetch, then try again."}
+	if orbitInfo == nil || !automdm.IsAtLeastVersion(orbitInfo.Version, minOrbitVersion) {
+		return &automdm.BadRequestError{Message: "Your version of automdmd does not support creating disk encryption keys on Linux. Please upgrade automdmd, then click Refetch, then try again."}
 	}
 
 	return nil
@@ -344,13 +344,13 @@ func (svc *Service) GetDeviceSoftwareIconsTitleIcon(ctx context.Context, teamID 
 	var err error
 
 	icon, err := svc.ds.GetSoftwareTitleIcon(ctx, teamID, titleID)
-	if err != nil && !fleet.IsNotFound(err) {
+	if err != nil && !automdm.IsNotFound(err) {
 		return nil, 0, "", ctxerr.Wrap(ctx, err, "getting software title icon")
 	}
 	if icon == nil {
 		vppApp, err := svc.ds.GetVPPAppMetadataByTeamAndTitleID(ctx, &teamID, titleID)
 		if vppApp != nil && vppApp.IconURL != nil {
-			return nil, 0, "", &fleet.VPPIconAvailable{IconURL: *vppApp.IconURL}
+			return nil, 0, "", &automdm.VPPIconAvailable{IconURL: *vppApp.IconURL}
 		}
 
 		return nil, 0, "", ctxerr.Wrap(ctx, err, "getting software title icon")
@@ -369,7 +369,7 @@ func (svc *Service) GetDeviceSoftwareIconsTitleIcon(ctx context.Context, teamID 
 	return imageBytes, size, icon.Filename, nil
 }
 
-func (svc *Service) GetDeviceSetupExperienceStatus(ctx context.Context) (*fleet.DeviceSetupExperienceStatusPayload, error) {
+func (svc *Service) GetDeviceSetupExperienceStatus(ctx context.Context) (*automdm.DeviceSetupExperienceStatusPayload, error) {
 	// This is a device endpoint, not a user-authenticated endpoint.
 	svc.authz.SkipAuthorization(ctx)
 
@@ -381,8 +381,8 @@ func (svc *Service) GetDeviceSetupExperienceStatus(ctx context.Context) (*fleet.
 	return svc.getHostSetupExperienceStatus(ctx, host)
 }
 
-func (svc *Service) getHostSetupExperienceStatus(ctx context.Context, host *fleet.Host) (*fleet.DeviceSetupExperienceStatusPayload, error) {
-	hostUUID, err := fleet.HostUUIDForSetupExperience(host)
+func (svc *Service) getHostSetupExperienceStatus(ctx context.Context, host *automdm.Host) (*automdm.DeviceSetupExperienceStatusPayload, error) {
+	hostUUID, err := automdm.HostUUIDForSetupExperience(host)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "failed to get host's UUID for the setup experience")
 	}
@@ -399,8 +399,8 @@ func (svc *Service) getHostSetupExperienceStatus(ctx context.Context, host *flee
 		return nil, ctxerr.Wrap(ctx, err, "recording cancelled setup experience installs")
 	}
 
-	var software []*fleet.SetupExperienceStatusResult
-	var scripts []*fleet.SetupExperienceStatusResult
+	var software []*automdm.SetupExperienceStatusResult
+	var scripts []*automdm.SetupExperienceStatusResult
 	for _, result := range results {
 		if result.IsForSoftware() {
 			software = append(software, result)
@@ -415,7 +415,7 @@ func (svc *Service) getHostSetupExperienceStatus(ctx context.Context, host *flee
 		return nil, ctxerr.Wrap(ctx, err, "getting next step for host setup experience")
 	}
 
-	return &fleet.DeviceSetupExperienceStatusPayload{
+	return &automdm.DeviceSetupExperienceStatusPayload{
 		Software: software,
 		Scripts:  scripts,
 	}, nil
@@ -431,14 +431,14 @@ const (
 )
 
 // createDeviceSSOSession mints a new device SSO session for host.
-func (svc *Service) createDeviceSSOSession(ctx context.Context, host *fleet.Host, idpAccountUUID string) (sessionID string, ttl time.Duration, err error) {
+func (svc *Service) createDeviceSSOSession(ctx context.Context, host *automdm.Host, idpAccountUUID string) (sessionID string, ttl time.Duration, err error) {
 	sessionID, err = server.GenerateRandomURLSafeText(deviceSSOSessionIDLength)
 	if err != nil {
 		return "", 0, ctxerr.Wrap(ctx, err, "generate device sso session id")
 	}
 
 	ttl = svc.config.Session.Duration
-	session := fleet.DeviceSSOSession{
+	session := automdm.DeviceSSOSession{
 		HostID:         host.ID,
 		IdPAccountUUID: idpAccountUUID,
 		ExpiresAt:      svc.clock.Now().Add(ttl),
@@ -455,9 +455,9 @@ func (svc *Service) createDeviceSSOSession(ctx context.Context, host *fleet.Host
 	return sessionID, ttl, nil
 }
 
-func (svc *Service) validateDeviceSSOSession(ctx context.Context, sessionID string) (*fleet.DeviceSSOSession, error) {
+func (svc *Service) validateDeviceSSOSession(ctx context.Context, sessionID string) (*automdm.DeviceSSOSession, error) {
 	if sessionID == "" {
-		return nil, ctxerr.Wrap(ctx, fleet.NewAuthRequiredError("device sso session not found"))
+		return nil, ctxerr.Wrap(ctx, automdm.NewAuthRequiredError("device sso session not found"))
 	}
 
 	val, err := svc.keyValueStore.Get(ctx, deviceSSOSessionKeyPrefix+sessionID)
@@ -465,33 +465,33 @@ func (svc *Service) validateDeviceSSOSession(ctx context.Context, sessionID stri
 		return nil, ctxerr.Wrap(ctx, err, "get device sso session")
 	}
 	if val == nil {
-		return nil, ctxerr.Wrap(ctx, fleet.NewAuthRequiredError("device sso session not found"))
+		return nil, ctxerr.Wrap(ctx, automdm.NewAuthRequiredError("device sso session not found"))
 	}
 
-	var session fleet.DeviceSSOSession
+	var session automdm.DeviceSSOSession
 	if err := json.Unmarshal([]byte(*val), &session); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "unmarshal device sso session")
 	}
 
 	if !svc.clock.Now().Before(session.ExpiresAt) {
-		return nil, ctxerr.Wrap(ctx, fleet.NewAuthRequiredError("device sso session expired"))
+		return nil, ctxerr.Wrap(ctx, automdm.NewAuthRequiredError("device sso session expired"))
 	}
 
 	return &session, nil
 }
 
-func (svc *Service) RequireDeviceSSOSession(ctx context.Context, host *fleet.Host, sessionID string) error {
+func (svc *Service) RequireDeviceSSOSession(ctx context.Context, host *automdm.Host, sessionID string) error {
 	appConfig, err := svc.ds.AppConfig(ctx)
 	if err != nil {
 		return ctxerr.Wrap(ctx, err, "getting app config")
 	}
-	if !appConfig.FleetDesktop.SSOEnabled {
+	if !appConfig.AutoMDMDesktop.SSOEnabled {
 		return nil
 	}
 
 	// Setup Experience opens the device page in a web view while Setup Assistant
 	// is still running, where the user won't be able to initiate the SSO flow.
-	inSetupExperience, err := fleet.HostIsInSetupExperience(ctx, svc.ds, host)
+	inSetupExperience, err := automdm.HostIsInSetupExperience(ctx, svc.ds, host)
 	if err != nil {
 		return ctxerr.Wrap(ctx, err, "checking if host is in setup experience")
 	}
@@ -500,7 +500,7 @@ func (svc *Service) RequireDeviceSSOSession(ctx context.Context, host *fleet.Hos
 	}
 
 	session, err := svc.validateDeviceSSOSession(ctx, sessionID)
-	var noSession *fleet.AuthRequiredError
+	var noSession *automdm.AuthRequiredError
 	switch {
 	case errors.As(err, &noSession):
 		svc.logger.DebugContext(ctx, "no device sso session for request", "host_id", host.ID, "err", err)
@@ -535,9 +535,9 @@ func (svc *Service) RequireDeviceSSOSession(ctx context.Context, host *fleet.Hos
 			return nil
 		}
 
-		var mdmIdpMappings []*fleet.HostDeviceMapping
+		var mdmIdpMappings []*automdm.HostDeviceMapping
 		for _, mapping := range deviceMappings {
-			if mapping.Source == fleet.DeviceMappingMDMIdpAccounts {
+			if mapping.Source == automdm.DeviceMappingMDMIdpAccounts {
 				mdmIdpMappings = append(mdmIdpMappings, mapping)
 			}
 		}
@@ -550,7 +550,7 @@ func (svc *Service) RequireDeviceSSOSession(ctx context.Context, host *fleet.Hos
 		for _, mapping := range mdmIdpMappings {
 			// first we have to lookup email -> mdm_idp_account UUID to correlate to the session IDP account UUID
 			idpAccount, err := svc.ds.GetMDMIdPAccountByEmail(ctx, mapping.Email)
-			if err != nil && !fleet.IsNotFound(err) {
+			if err != nil && !automdm.IsNotFound(err) {
 				return ctxerr.Wrap(ctx, err, "getting MDM IdP account by email")
 			} else if idpAccount == nil {
 				// not found should not happen, but no-op on it, and fall through to deny after all mappings
@@ -565,19 +565,19 @@ func (svc *Service) RequireDeviceSSOSession(ctx context.Context, host *fleet.Hos
 			// try the next, if none match we fall through to the error outside.
 		}
 
-		return ctxerr.Wrap(ctx, &fleet.BadRequestError{Message: "mismatched SSO user for this device"})
+		return ctxerr.Wrap(ctx, &automdm.BadRequestError{Message: "mismatched SSO user for this device"})
 	}
 
-	return ctxerr.Wrap(ctx, fleet.NewDeviceSSORequiredError("no device sso session"), "require device sso session")
+	return ctxerr.Wrap(ctx, automdm.NewDeviceSSORequiredError("no device sso session"), "require device sso session")
 }
 
-func (svc *Service) InitiateDeviceSSO(ctx context.Context, deviceURL string) (*fleet.DeviceSSOInitiation, error) {
+func (svc *Service) InitiateDeviceSSO(ctx context.Context, deviceURL string) (*automdm.DeviceSSOInitiation, error) {
 	// the device middleware already authenticated the host via its device token.
 	svc.authz.SkipAuthorization(ctx)
 
 	host, ok := hostctx.FromContext(ctx)
 	if !ok {
-		return nil, ctxerr.Wrap(ctx, fleet.NewAuthRequiredError("internal error: missing host from request context"))
+		return nil, ctxerr.Wrap(ctx, automdm.NewAuthRequiredError("internal error: missing host from request context"))
 	}
 
 	appConfig, err := svc.ds.AppConfig(ctx)
@@ -585,14 +585,14 @@ func (svc *Service) InitiateDeviceSSO(ctx context.Context, deviceURL string) (*f
 		return nil, ctxerr.Wrap(ctx, err, "getting app config")
 	}
 
-	if !appConfig.FleetDesktop.SSOEnabled {
-		err := &fleet.BadRequestError{Message: "Single sign-on for Fleet Desktop is not enabled."}
+	if !appConfig.AutoMDMDesktop.SSOEnabled {
+		err := &automdm.BadRequestError{Message: "Single sign-on for AutoMDM Desktop is not enabled."}
 		return nil, ctxerr.Wrap(ctx, err, "initiate device sso")
 	}
 
 	mdmSSOSettings := appConfig.MDM.EndUserAuthentication.SSOProviderSettings
 	if mdmSSOSettings.IsEmpty() {
-		err := &fleet.BadRequestError{Message: "Couldn't initiate single sign-on for Fleet Desktop because no IdP is configured for end user authentication."}
+		err := &automdm.BadRequestError{Message: "Couldn't initiate single sign-on for AutoMDM Desktop because no IdP is configured for end user authentication."}
 		return nil, ctxerr.Wrap(ctx, err, "initiate device sso")
 	}
 
@@ -603,7 +603,7 @@ func (svc *Service) InitiateDeviceSSO(ctx context.Context, deviceURL string) (*f
 		return nil, ctxerr.Wrap(ctx, err, "invalid MDM URL")
 	}
 
-	browserBase, err := appConfig.FleetDesktopBrowserUrl()
+	browserBase, err := appConfig.AutoMDMDesktopBrowserUrl()
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "invalid server URL")
 	}
@@ -613,13 +613,13 @@ func (svc *Service) InitiateDeviceSSO(ctx context.Context, deviceURL string) (*f
 	// the session cookie the other way around: if those hosts differ, neither
 	// arrives and the end user loops.
 	if !strings.EqualFold(browserBase.Hostname(), acsBase.Hostname()) {
-		err := &fleet.BadRequestError{
-			Message: "Fleet Desktop single sign-on requires the device page and the SAML callback on the same host.",
+		err := &automdm.BadRequestError{
+			Message: "AutoMDM Desktop single sign-on requires the device page and the SAML callback on the same host.",
 		}
 		return nil, ctxerr.Wrap(ctx, err, "initiate device sso")
 	}
 
-	acsURL := sso.CallbackURL(acsBase, svc.config.Server.URLPrefix, "/api/v1/fleet/mdm/sso/callback").String()
+	acsURL := sso.CallbackURL(acsBase, svc.config.Server.URLPrefix, "/api/v1/automdm/mdm/sso/callback").String()
 
 	samlProvider, err := sso.SAMLProviderFromConfiguredMetadata(ctx, mdmSSOSettings.EntityID, acsURL, &mdmSSOSettings)
 	if err != nil {
@@ -633,17 +633,17 @@ func (svc *Service) InitiateDeviceSSO(ctx context.Context, deviceURL string) (*f
 		svc.ssoSessionStore,
 		sso.URLWithPrefix(browserBase, svc.config.Server.URLPrefix, deviceURL).String(),
 		uint(sessionDuration.Seconds()), //nolint:gosec // dismiss G115
-		fleet.SSORelayState(fleet.SSOInitiatorFleetDesktop),
+		automdm.SSORelayState(automdm.SSOInitiatorAutoMDMDesktop),
 		sso.SSORequestData{
 			HostUUID:  host.UUID,
-			Initiator: fleet.SSOInitiatorFleetDesktop,
+			Initiator: automdm.SSOInitiatorAutoMDMDesktop,
 		},
 	)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "InitiateDeviceSSO creating authorization")
 	}
 
-	return &fleet.DeviceSSOInitiation{
+	return &automdm.DeviceSSOInitiation{
 		IdPURL:          idpURL,
 		SessionID:       sessionID,
 		SessionDuration: sessionDuration,

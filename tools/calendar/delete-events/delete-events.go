@@ -23,8 +23,8 @@ import (
 // Example: go run delete-events.go --users john@example.com,jane@example.com
 
 var (
-	serviceEmail = os.Getenv("FLEET_TEST_GOOGLE_CALENDAR_SERVICE_EMAIL")
-	privateKey   = os.Getenv("FLEET_TEST_GOOGLE_CALENDAR_PRIVATE_KEY")
+	serviceEmail = os.Getenv("AUTOMDM_TEST_GOOGLE_CALENDAR_SERVICE_EMAIL")
+	privateKey   = os.Getenv("AUTOMDM_TEST_GOOGLE_CALENDAR_PRIVATE_KEY")
 )
 
 const (
@@ -33,7 +33,7 @@ const (
 
 func main() {
 	if serviceEmail == "" || privateKey == "" {
-		log.Fatal("FLEET_TEST_GOOGLE_CALENDAR_SERVICE_EMAIL and FLEET_TEST_GOOGLE_CALENDAR_PRIVATE_KEY must be set")
+		log.Fatal("AUTOMDM_TEST_GOOGLE_CALENDAR_SERVICE_EMAIL and AUTOMDM_TEST_GOOGLE_CALENDAR_PRIVATE_KEY must be set")
 	}
 	// Strip newlines from private key
 	privateKey = strings.ReplaceAll(privateKey, "\\n", "\n")

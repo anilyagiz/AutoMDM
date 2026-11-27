@@ -16,9 +16,9 @@ func TestCacheRoundTrip(t *testing.T) {
 				PR: &ghapi.PullRequest{Number: 55555, HeadRefName: "b"}}},
 			BucketNeedsYourHands: {{Kind: KindIssue, Number: 38348, Title: "do it", Bucket: BucketNeedsYourHands}},
 		}},
-		Statuses:      map[string]string{ghapi.IssueRefKey("fleetdm/fleet", 38348): "In progress"},
-		Projects:      map[string]int{ghapi.IssueRefKey("fleetdm/fleet", 38348): 58},
-		IssueProjects: map[string][]ProjectRef{ghapi.IssueRefKey("fleetdm/fleet", 38348): {{Number: 58, UpdatedAt: "2026-06-01T00:00:00Z"}}},
+		Statuses:      map[string]string{ghapi.IssueRefKey("automdm/automdm", 38348): "In progress"},
+		Projects:      map[string]int{ghapi.IssueRefKey("automdm/automdm", 38348): 58},
+		IssueProjects: map[string][]ProjectRef{ghapi.IssueRefKey("automdm/automdm", 38348): {{Number: 58, UpdatedAt: "2026-06-01T00:00:00Z"}}},
 	}
 	if err := SaveCache(path, res); err != nil {
 		t.Fatalf("SaveCache: %v", err)
@@ -30,7 +30,7 @@ func TestCacheRoundTrip(t *testing.T) {
 	if at.IsZero() {
 		t.Error("expected a non-zero fetchedAt")
 	}
-	key := ghapi.IssueRefKey("fleetdm/fleet", 38348)
+	key := ghapi.IssueRefKey("automdm/automdm", 38348)
 	if got.Login != "george" || got.Statuses[key] != "In progress" || len(got.IssueProjects[key]) != 1 {
 		t.Errorf("round-trip mismatch: %+v", got)
 	}
@@ -59,7 +59,7 @@ func TestApplyFetchNilMapsSafe(t *testing.T) {
 	// A fetch/cache with all-nil enrichment maps (as an old cache would deserialize).
 	m.applyFetch(FetchResult{Login: "x", Board: Board{Buckets: map[Bucket][]Item{}}})
 	// These assignments panicked ("assignment to entry in nil map") before the fix.
-	key := ghapi.IssueRefKey("fleetdm/fleet", 42)
+	key := ghapi.IssueRefKey("automdm/automdm", 42)
 	m.issueProjects[key] = []ProjectRef{{Number: 58}}
 	m.statuses[key] = "In progress"
 	m.projects[key] = 58
@@ -90,7 +90,7 @@ func TestIsCompleted(t *testing.T) {
 }
 
 func TestMostRecentProject(t *testing.T) {
-	key := ghapi.IssueRefKey("fleetdm/fleet", 42)
+	key := ghapi.IssueRefKey("automdm/automdm", 42)
 	m := &Model{issueProjects: map[string][]ProjectRef{
 		key: {
 			{Number: 58, UpdatedAt: "2026-06-01T00:00:00Z"},
@@ -101,7 +101,7 @@ func TestMostRecentProject(t *testing.T) {
 	if got := m.mostRecentProject(key); got != 71 {
 		t.Errorf("expected most recent project 71, got %d", got)
 	}
-	if got := m.mostRecentProject(ghapi.IssueRefKey("fleetdm/fleet", 999)); got != 0 {
+	if got := m.mostRecentProject(ghapi.IssueRefKey("automdm/automdm", 999)); got != 0 {
 		t.Errorf("unknown issue should give 0, got %d", got)
 	}
 }

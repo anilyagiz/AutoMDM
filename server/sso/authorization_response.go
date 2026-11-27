@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/beevik/etree"
 	"github.com/crewjam/saml"
-	"github.com/fleetdm/fleet/v4/server/fleet"
 )
 
 const (
@@ -44,9 +44,9 @@ type resp struct {
 	assertion *saml.Assertion
 }
 
-var _ fleet.Auth = resp{}
+var _ automdm.Auth = resp{}
 
-// UserID partially implements the fleet.Auth interface.
+// UserID partially implements the automdm.Auth interface.
 func (r resp) UserID() string {
 	if r.assertion != nil && r.assertion.Subject != nil && r.assertion.Subject.NameID != nil {
 		return r.assertion.Subject.NameID.Value
@@ -54,7 +54,7 @@ func (r resp) UserID() string {
 	return ""
 }
 
-// UserDisplayName partially implements the fleet.Auth interface.
+// UserDisplayName partially implements the automdm.Auth interface.
 func (r resp) UserDisplayName() string {
 	if r.assertion == nil {
 		return ""
@@ -73,22 +73,22 @@ func (r resp) UserDisplayName() string {
 	return ""
 }
 
-// AssertionAttributes partially implements the fleet.Auth interface.
-func (r resp) AssertionAttributes() []fleet.SAMLAttribute {
+// AssertionAttributes partially implements the automdm.Auth interface.
+func (r resp) AssertionAttributes() []automdm.SAMLAttribute {
 	if r.assertion == nil {
 		return nil
 	}
-	var attrs []fleet.SAMLAttribute
+	var attrs []automdm.SAMLAttribute
 	for _, attrStatement := range r.assertion.AttributeStatements {
 		for _, attr := range attrStatement.Attributes {
-			var values []fleet.SAMLAttributeValue
+			var values []automdm.SAMLAttributeValue
 			for _, value := range attr.Values {
-				values = append(values, fleet.SAMLAttributeValue{
+				values = append(values, automdm.SAMLAttributeValue{
 					Type:  value.Type,
 					Value: value.Value,
 				})
 			}
-			attrs = append(attrs, fleet.SAMLAttribute{
+			attrs = append(attrs, automdm.SAMLAttribute{
 				Name:   attr.Name,
 				Values: values,
 			})
@@ -97,7 +97,7 @@ func (r resp) AssertionAttributes() []fleet.SAMLAttribute {
 	return attrs
 }
 
-// AssertionID partially implements the fleet.Auth interface.
+// AssertionID partially implements the automdm.Auth interface.
 func (r resp) AssertionID() string {
 	if r.assertion == nil {
 		return ""
@@ -105,7 +105,7 @@ func (r resp) AssertionID() string {
 	return r.assertion.ID
 }
 
-// AssertionNotOnOrAfter partially implements the fleet.Auth interface.
+// AssertionNotOnOrAfter partially implements the automdm.Auth interface.
 func (r resp) AssertionNotOnOrAfter() time.Time {
 	var notOnOrAfter time.Time
 	if r.assertion == nil {
@@ -184,7 +184,7 @@ func validateSAMLResponseShape(samlResponse []byte) error {
 }
 
 // ParseAndVerifySAMLResponse runs the parsing and validation of SAMLResponses.
-func ParseAndVerifySAMLResponse(samlProvider *saml.ServiceProvider, samlResponse []byte, requestID string, acsURL *url.URL) (fleet.Auth, error) {
+func ParseAndVerifySAMLResponse(samlProvider *saml.ServiceProvider, samlResponse []byte, requestID string, acsURL *url.URL) (automdm.Auth, error) {
 	// Reject oversized/over-nested documents before handing them to
 	// crewjam/saml -> goxmldsig, whose pre-signature canonicalization is (at the time of writing)
 	// unbounded and runs without authentication.

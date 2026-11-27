@@ -2,7 +2,7 @@
 #
 # Builds a multi-arch (amd64 + arm64) fleetdm/docker-idp image and pushes it under a new tag.
 #
-# The original image (pushed 2021-03-29, amd64 only) has no Dockerfile in any fleetdm repo. It is
+# The original image (pushed 2021-03-29, amd64 only) has no Dockerfile in any automdm repo. It is
 # kristophjunge/docker-test-saml-idp with the changes below, recovered from the image's layer
 # history. All baked-in certs/keys and config files are byte-identical to upstream except
 # saml20-sp-remote.php (docker-compose.yml mounts tools/saml/config.php over it anyway).
@@ -50,7 +50,7 @@ curl -fsSL "$UPSTREAM_TARBALL" | tar xz -C "$workdir" --strip-components=1
 
 cat > "$workdir/Dockerfile" <<'EOF'
 FROM php:7.4.16-apache
-LABEL maintainer="Fleet Developers <engineering@fleetdm.com>"
+LABEL maintainer="AutoMDM Developers <engineering@automdm.com>"
 
 # SimpleSAMLphp
 ARG SIMPLESAMLPHP_VERSION=1.19.0

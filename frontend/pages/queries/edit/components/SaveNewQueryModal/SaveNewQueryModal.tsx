@@ -237,7 +237,7 @@ const SaveNewQueryModal = ({
         // from previous New query page
         query: queryValue,
         // from doubly previous ManageQueriesPage
-        fleet_id: apiTeamIdForQuery,
+        team_id: apiTeamIdForQuery,
         labels_include_any: labelsIncludeAny,
         labels_include_all: labelsIncludeAll,
       });
@@ -315,7 +315,7 @@ const SaveNewQueryModal = ({
               Counts time the host is awake. Hosts that sleep will report after
               longer intervals of calendar time.{" "}
               <CustomLink
-                url="https://fleetdm.com/guides/reports#schedule-a-report"
+                url="https://automdm.com/guides/reports#schedule-a-report"
                 text="Learn more"
                 newTab
               />

@@ -3,7 +3,7 @@ package mysql
 import (
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/platform/tracing"
+	"github.com/anilyagiz/automdm/v4/server/platform/tracing"
 	"github.com/stretchr/testify/require"
 )
 

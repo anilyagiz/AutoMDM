@@ -14,13 +14,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/download"
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/nvd/tools/cvefeed"
-	feednvd "github.com/fleetdm/fleet/v4/server/vulnerabilities/nvd/tools/cvefeed/nvd"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/pkg/download"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/nvd/tools/cvefeed"
+	feednvd "github.com/anilyagiz/automdm/v4/server/vulnerabilities/nvd/tools/cvefeed/nvd"
 )
 
 type SyncOptions struct {
@@ -78,7 +78,7 @@ func DownloadEPSSFeed(vulnPath string) error {
 	}
 	path := filepath.Join(vulnPath, strings.TrimSuffix(epssFilename, ".gz"))
 
-	client := fleethttp.NewClient(fleethttp.WithNoTimeout())
+	client := automdmhttp.NewClient(automdmhttp.WithNoTimeout())
 	err = download.DownloadAndExtract(client, u, path)
 	if err != nil {
 		return fmt.Errorf("download %s: %w", u, err)
@@ -179,7 +179,7 @@ func DownloadCISAKnownExploitsFeed(vulnPath string, cisaKnownExploitsURL string)
 		return err
 	}
 
-	client := fleethttp.NewClient(fleethttp.WithNoTimeout())
+	client := automdmhttp.NewClient(automdmhttp.WithNoTimeout())
 	err = download.Download(client, u, path)
 	if err != nil {
 		return fmt.Errorf("download cisa known exploits: %w", err)
@@ -188,7 +188,7 @@ func DownloadCISAKnownExploitsFeed(vulnPath string, cisaKnownExploitsURL string)
 	return nil
 }
 
-func CVEMetaFromNVDFeedFiles(ctx context.Context, metaMap map[string]fleet.CVEMeta, vulnPath string, logger *slog.Logger) error {
+func CVEMetaFromNVDFeedFiles(ctx context.Context, metaMap map[string]automdm.CVEMeta, vulnPath string, logger *slog.Logger) error {
 	// load cvss scores
 	files, err := getNVDCVEFeedFiles(vulnPath)
 	if err != nil {
@@ -211,7 +211,7 @@ func CVEMetaFromNVDFeedFiles(ctx context.Context, metaMap map[string]fleet.CVEMe
 			}
 			schema := vuln.Schema()
 
-			meta := fleet.CVEMeta{CVE: cve}
+			meta := automdm.CVEMeta{CVE: cve}
 
 			if len(schema.CVE.Description.DescriptionData) > 0 {
 				meta.Description = schema.CVE.Description.DescriptionData[0].Value
@@ -234,7 +234,7 @@ func CVEMetaFromNVDFeedFiles(ctx context.Context, metaMap map[string]fleet.CVEMe
 	return nil
 }
 
-func CVEMetaFromEPSSFeedFiles(metaMap map[string]fleet.CVEMeta, vulnPath string, logger *slog.Logger) error {
+func CVEMetaFromEPSSFeedFiles(metaMap map[string]automdm.CVEMeta, vulnPath string, logger *slog.Logger) error {
 	// load epss scores
 	path := filepath.Join(vulnPath, strings.TrimSuffix(epssFilename, ".gz"))
 
@@ -256,7 +256,7 @@ func CVEMetaFromEPSSFeedFiles(metaMap map[string]fleet.CVEMeta, vulnPath string,
 	return nil
 }
 
-func CVEMetaFromCISAFeedFiles(metaMap map[string]fleet.CVEMeta, vulnPath string, logger *slog.Logger) error {
+func CVEMetaFromCISAFeedFiles(metaMap map[string]automdm.CVEMeta, vulnPath string, logger *slog.Logger) error {
 	// load known exploits
 	path := filepath.Join(vulnPath, cisaKnownExploitsFilename)
 	b, err := os.ReadFile(path)
@@ -289,8 +289,8 @@ func CVEMetaFromCISAFeedFiles(metaMap map[string]fleet.CVEMeta, vulnPath string,
 	return nil
 }
 
-func CVEMetaFromFiles(ctx context.Context, vulnPath string, logger *slog.Logger) (map[string]fleet.CVEMeta, error) {
-	metaMap := make(map[string]fleet.CVEMeta)
+func CVEMetaFromFiles(ctx context.Context, vulnPath string, logger *slog.Logger) (map[string]automdm.CVEMeta, error) {
+	metaMap := make(map[string]automdm.CVEMeta)
 
 	err := CVEMetaFromNVDFeedFiles(ctx, metaMap, vulnPath, logger)
 	if err != nil {
@@ -312,7 +312,7 @@ func CVEMetaFromFiles(ctx context.Context, vulnPath string, logger *slog.Logger)
 
 // LoadCVEMeta loads the cvss scores, epss scores, and known exploits from the previously downloaded feeds and saves
 // them to the database.
-func LoadCVEMeta(ctx context.Context, logger *slog.Logger, vulnPath string, ds fleet.Datastore) error {
+func LoadCVEMeta(ctx context.Context, logger *slog.Logger, vulnPath string, ds automdm.Datastore) error {
 	if !license.IsPremium(ctx) {
 		logger.InfoContext(ctx, "skipping cve_meta parsing due to license check")
 		return nil
@@ -328,7 +328,7 @@ func LoadCVEMeta(ctx context.Context, logger *slog.Logger, vulnPath string, ds f
 	}
 
 	// convert to slice
-	var meta []fleet.CVEMeta
+	var meta []automdm.CVEMeta
 	for _, score := range metaMap {
 		meta = append(meta, score)
 	}

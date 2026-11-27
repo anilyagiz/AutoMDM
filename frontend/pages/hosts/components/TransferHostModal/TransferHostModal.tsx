@@ -104,16 +104,16 @@ const TransferHostModal = ({
           value={getDropdownValue()}
           options={createTeamDropdownOptions()}
           onChange={onChangeSelectTeam}
-          placeholder="Select a fleet"
+          placeholder="Select a team"
           isSearchable
         />
         {isGlobalAdmin ? (
           <p>
-            Fleet not here?{" "}
+            AutoMDM not here?{" "}
             <CustomLink
-              url={PATHS.ADMIN_FLEETS}
+              url={PATHS.ADMIN_TEAMS}
               className={`${baseClass}__team-link`}
-              text="Add a fleet"
+              text="Add a team"
             />
           </p>
         ) : null}

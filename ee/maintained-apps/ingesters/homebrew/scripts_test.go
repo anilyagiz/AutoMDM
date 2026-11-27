@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/pkg/optjson"
+	"github.com/anilyagiz/automdm/v4/pkg/optjson"
 	"github.com/stretchr/testify/require"
 )
 
@@ -142,7 +142,7 @@ func TestInstallScriptZipExtractStopsOnFailure(t *testing.T) {
 		t.Skip("bash not found")
 	}
 	stubs := `stat() { echo alice; }
-realpath() { echo /tmp/fleet-test/installer; }
+realpath() { echo /tmp/automdm-test/installer; }
 ditto() { echo "ditto: Couldn't read pkzip signature." >&2; return 1; }
 sleep() { :; }
 sudo() { echo "sudo $*"; }
@@ -214,7 +214,7 @@ func TestOutputInstallScriptsStopWhenExtractionFails(t *testing.T) {
 
 // TestInstallScriptStopsWhenAppWontQuit runs generated install scripts in bash
 // with osascript and friends stubbed out. An app that's still running after the
-// quit timeout must not be replaced: fleetd deletes $TMPDIR after the install,
+// quit timeout must not be replaced: automdmd deletes $TMPDIR after the install,
 // taking the moved-aside bundle the app is still running from.
 func TestInstallScriptStopsWhenAppWontQuit(t *testing.T) {
 	if runtime.GOOS == "windows" {
@@ -251,7 +251,7 @@ func TestInstallScriptStopsWhenAppWontQuit(t *testing.T) {
 		stubs := `mode=` + mode + `
 quit_file=` + shellSingleQuote(filepath.Join(t.TempDir(), "quits")) + `
 stat() { echo alice; }
-realpath() { echo /tmp/fleet-test/installer; }
+realpath() { echo /tmp/automdm-test/installer; }
 ditto() { :; }
 sleep() { SECONDS=$((SECONDS + $1)); }
 sudo() { echo "sudo $*"; }
@@ -533,7 +533,7 @@ func TestCustomScriptsSkipRelaunchWhenAppWasntRunning(t *testing.T) {
 	stubs := func(t *testing.T, mode string) string {
 		return `mode=` + mode + `
 quit_file=` + shellSingleQuote(filepath.Join(t.TempDir(), "quits")) + `
-INSTALLER_PATH=/tmp/fleet-test/installer.pkg
+INSTALLER_PATH=/tmp/automdm-test/installer.pkg
 stat() { echo alice; }
 sleep() { SECONDS=$((SECONDS + $1)); }
 sudo() { echo "sudo $*"; }
@@ -621,7 +621,7 @@ func TestMozillaVPNScriptsStopOnlyTheGUI(t *testing.T) {
 		stubs := `procs=` + shellSingleQuote(procFile) + `
 signals=` + shellSingleQuote(sigFile) + `
 installer_mode=` + installerMode + `
-INSTALLER_PATH=/tmp/fleet-test/MozillaVPN.pkg
+INSTALLER_PATH=/tmp/automdm-test/MozillaVPN.pkg
 # Not "command sleep": bash 3.2 execs it in place of the backgrounded installer.
 sleep() { /bin/sleep 0.01; }
 scutil() { :; }
@@ -684,7 +684,7 @@ kill() {
 		require.NoError(t, err, out)
 		require.Empty(t, signals)
 		require.NotContains(t, out, "Quitting Mozilla VPN")
-		require.Contains(t, out, "installer -pkg /tmp/fleet-test/MozillaVPN.pkg -target /")
+		require.Contains(t, out, "installer -pkg /tmp/automdm-test/MozillaVPN.pkg -target /")
 	})
 
 	t.Run("quits on SIGTERM", func(t *testing.T) {
@@ -802,7 +802,7 @@ func TestTailscaleScriptsStopOnlyTheGUI(t *testing.T) {
 signals=` + shellSingleQuote(sigFile) + `
 reopen=` + shellSingleQuote(reopenProc) + `
 opens=` + shellSingleQuote(openFile) + `
-INSTALLER_PATH=/tmp/fleet-test/Tailscale.pkg
+INSTALLER_PATH=/tmp/automdm-test/Tailscale.pkg
 sleep() { :; }
 scutil() { :; }
 stat() { echo alice; }
@@ -854,7 +854,7 @@ kill() {
 			require.Empty(t, signals)
 			require.Empty(t, opens)
 			require.NotContains(t, out, "Quitting Tailscale")
-			require.Contains(t, out, "installer -pkg /tmp/fleet-test/Tailscale.pkg -target /")
+			require.Contains(t, out, "installer -pkg /tmp/automdm-test/Tailscale.pkg -target /")
 			require.NotContains(t, out, relaunch)
 		}
 	})
@@ -970,7 +970,7 @@ func TestPureVPNScriptsStopOnlyTheGUI(t *testing.T) {
 signals=` + shellSingleQuote(sigFile) + `
 reopen=` + shellSingleQuote(reopenProc) + `
 opens=` + shellSingleQuote(openFile) + `
-INSTALLER_PATH=/tmp/fleet-test/PureVPN.pkg
+INSTALLER_PATH=/tmp/automdm-test/PureVPN.pkg
 sleep() { :; }
 scutil() { :; }
 stat() { echo alice; }
@@ -1023,7 +1023,7 @@ kill() {
 			require.Empty(t, signals)
 			require.Empty(t, opens)
 			require.NotContains(t, out, "Quitting PureVPN")
-			require.Contains(t, out, "installer -pkg /tmp/fleet-test/PureVPN.pkg -target /")
+			require.Contains(t, out, "installer -pkg /tmp/automdm-test/PureVPN.pkg -target /")
 			require.NotContains(t, out, relaunch)
 		}
 	})
@@ -1140,11 +1140,11 @@ func TestWezTermScriptsQuitWithSIGTERM(t *testing.T) {
 signals=` + shellSingleQuote(sigFile) + `
 opened=` + shellSingleQuote(openFile) + `
 ps_fails=` + psFails + `
-INSTALLER_PATH=/tmp/fleet-test/WezTerm.zip
+INSTALLER_PATH=/tmp/automdm-test/WezTerm.zip
 stat() { echo ` + consoleUser + `; }
 realpath() { echo "$1"; }
 unzip() { :; }
-find() { echo /tmp/fleet-test/WezTerm-macos/WezTerm.app; }
+find() { echo /tmp/automdm-test/WezTerm-macos/WezTerm.app; }
 scutil() { :; }
 sleep() { :; }
 open() { echo "$*" >> "$opened"; }
@@ -1371,7 +1371,7 @@ open_failures=` + strconv.Itoa(openFailures) + `
 opened=` + shellSingleQuote(openFile) + `
 quits=` + shellSingleQuote(filepath.Join(dir, "quits")) + `
 stat() { echo alice; }
-realpath() { echo /tmp/fleet-test/installer; }
+realpath() { echo /tmp/automdm-test/installer; }
 ditto() { :; }
 sleep() { SECONDS=$((SECONDS + $1)); }
 sudo() { echo "sudo $*"; }
@@ -1791,7 +1791,7 @@ func TestUninstallScriptEscapesApostrophe(t *testing.T) {
 }
 
 // TestUninstallScriptTrash runs generated trash calls in bash with the console
-// user stubbed and the user's home under a temp dir. Fleet also runs uninstalls
+// user stubbed and the user's home under a temp dir. AutoMDM also runs uninstalls
 // at the login window, where there's no user Trash: moving into
 // /Users/loginwindow/.Trash left system paths behind, and an empty user shifted
 // the arguments so nothing was removed. With a user logged in, root must never
@@ -2883,7 +2883,7 @@ func TestUninstallScriptEarlyScriptHonorsSudo(t *testing.T) {
 }
 
 // TestUninstallScriptScriptDirectiveWithoutGUIUser runs generated script
-// directives in bash with the console user stubbed. Fleet also runs uninstalls
+// directives in bash with the console user stubbed. AutoMDM also runs uninstalls
 // at the login window, where `cd /Users/loginwindow` failed and skipped the
 // vendor uninstaller, and an empty user ran it with `sudo -u ""`.
 func TestUninstallScriptScriptDirectiveWithoutGUIUser(t *testing.T) {
@@ -2993,7 +2993,7 @@ sudo() {
 
 // TestUninstallScriptSkipsHomebrewPrefixScript drops script directives pointing
 // into the Caskroom: that path only exists where Homebrew installed the app, so
-// the command can't do anything on a Fleet-managed host.
+// the command can't do anything on an AutoMDM-managed host.
 func TestUninstallScriptSkipsHomebrewPrefixScript(t *testing.T) {
 	cask := &brewCask{
 		Artifacts: []*brewArtifact{

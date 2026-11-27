@@ -13,7 +13,7 @@ import GlobalVariables from "./GlobalVariables";
 const CELL_TEXT = { selector: ".data-table__tooltip-truncated-text" };
 
 const baseUrl = (path: string) => {
-  return `/api/latest/fleet${path}`;
+  return `/api/latest/automdm${path}`;
 };
 
 const baseProps = {

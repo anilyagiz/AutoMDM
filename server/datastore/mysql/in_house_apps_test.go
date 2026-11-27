@@ -8,14 +8,14 @@ import (
 	"testing"
 	"time"
 
-	activity_api "github.com/fleetdm/fleet/v4/server/activity/api"
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/push"
-	nanomdm_mysql "github.com/fleetdm/fleet/v4/server/mdm/nanomdm/storage/mysql"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/test"
+	activity_api "github.com/anilyagiz/automdm/v4/server/activity/api"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/push"
+	nanomdm_mysql "github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/storage/mysql"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
@@ -62,16 +62,16 @@ func testInHouseAppsCrud(t *testing.T, ds *Datastore) {
 	host3 := test.NewHost(t, ds, "host3", "3", "host3key", "host3uuid", time.Now())
 
 	user1 := test.NewUser(t, ds, "Alice", "alice@example.com", true)
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "team 1"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "team 1"})
 	require.NoError(t, err)
-	err = ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team.ID, []uint{host1.ID, host2.ID, host3.ID}))
+	err = ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team.ID, []uint{host1.ID, host2.ID, host3.ID}))
 	require.NoError(t, err)
 
 	nanoEnroll(t, ds, host1, false)
 	nanoEnroll(t, ds, host2, false)
 	nanoEnroll(t, ds, host3, false)
 
-	payload := fleet.UploadSoftwareInstallerPayload{
+	payload := automdm.UploadSoftwareInstallerPayload{
 		TeamID:           &team.ID,
 		UserID:           user1.ID,
 		Title:            "foo",
@@ -83,7 +83,7 @@ func testInHouseAppsCrud(t *testing.T, ds *Datastore) {
 		Version:          "1.2.3",
 	}
 
-	payloadV2 := fleet.UploadSoftwareInstallerPayload{
+	payloadV2 := automdm.UploadSoftwareInstallerPayload{
 		TeamID:           &team.ID,
 		UserID:           user1.ID,
 		Title:            "foo_v3_different_name", // Not used in code, needed for test
@@ -93,7 +93,7 @@ func testInHouseAppsCrud(t *testing.T, ds *Datastore) {
 		Platform:         "ios",
 		Extension:        "ipa",
 		Version:          "3.0.0",
-		ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+		ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 	}
 
 	// -------------------------
@@ -101,7 +101,7 @@ func testInHouseAppsCrud(t *testing.T, ds *Datastore) {
 	_, _, err = ds.MatchOrCreateSoftwareInstaller(ctx, &payload)
 	require.Error(t, err, "ValidatedLabels must not be nil")
 
-	payload.ValidatedLabels = &fleet.LabelIdentsWithScope{}
+	payload.ValidatedLabels = &automdm.LabelIdentsWithScope{}
 	installerID, titleID, err := ds.MatchOrCreateSoftwareInstaller(ctx, &payload)
 	require.NoError(t, err)
 	require.NotZero(t, installerID)
@@ -153,16 +153,16 @@ func testInHouseAppsCrud(t *testing.T, ds *Datastore) {
 	// Get summary and expect failed, installed, pending
 	summary, err := ds.GetSummaryHostInHouseAppInstalls(ctx, &team.ID, installerID)
 	require.NoError(t, err)
-	require.Equal(t, fleet.VPPAppStatusSummary{Installed: 1, Pending: 1, Failed: 1}, *summary)
+	require.Equal(t, automdm.VPPAppStatusSummary{Installed: 1, Pending: 1, Failed: 1}, *summary)
 
 	// -------------------------
 	// Update software installer
-	label, err := ds.NewLabel(ctx, &fleet.Label{Name: "include-any-1", Query: "select 1"})
+	label, err := ds.NewLabel(ctx, &automdm.Label{Name: "include-any-1", Query: "select 1"})
 	require.NoError(t, err)
 
-	validatedLabels := fleet.LabelIdentsWithScope{
+	validatedLabels := automdm.LabelIdentsWithScope{
 		LabelScope: "include_any",
-		ByName: map[string]fleet.LabelIdent{
+		ByName: map[string]automdm.LabelIdent{
 			"include-any-1": {
 				LabelID:   label.ID,
 				LabelName: label.Name,
@@ -170,7 +170,7 @@ func testInHouseAppsCrud(t *testing.T, ds *Datastore) {
 		},
 	}
 	cfg := []byte(`<dict><key>k</key><string>v1</string></dict>`)
-	updatePayload := fleet.UpdateSoftwareInstallerPayload{
+	updatePayload := automdm.UpdateSoftwareInstallerPayload{
 		TeamID:          &team.ID,
 		TitleID:         titleID,
 		InstallerID:     installerID,
@@ -185,8 +185,8 @@ func testInHouseAppsCrud(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// Installer updates correctly
-	var expectedLabels []fleet.SoftwareScopeLabel
-	expectedLabels = append(expectedLabels, fleet.SoftwareScopeLabel{LabelID: label.ID, LabelName: label.Name, Exclude: false, TitleID: titleID})
+	var expectedLabels []automdm.SoftwareScopeLabel
+	expectedLabels = append(expectedLabels, automdm.SoftwareScopeLabel{LabelID: label.ID, LabelName: label.Name, Exclude: false, TitleID: titleID})
 
 	newInstaller, err := ds.GetInHouseAppMetadataByTeamAndTitleID(ctx, &team.ID, titleID)
 	require.NoError(t, err)
@@ -260,7 +260,7 @@ func testInHouseAppsCrud(t *testing.T, ds *Datastore) {
 	require.Zero(t, count, "expected in_house_apps to be empty")
 
 	// create one that's self-service at creation time
-	payload2 := fleet.UploadSoftwareInstallerPayload{
+	payload2 := automdm.UploadSoftwareInstallerPayload{
 		TeamID:           &team.ID,
 		UserID:           user1.ID,
 		Title:            "foo2",
@@ -271,7 +271,7 @@ func testInHouseAppsCrud(t *testing.T, ds *Datastore) {
 		Extension:        "ipa",
 		Version:          "1.2.3",
 		SelfService:      true,
-		ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+		ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 	}
 	_, titleID2, err := ds.MatchOrCreateSoftwareInstaller(ctx, &payload2)
 	require.NoError(t, err)
@@ -284,7 +284,7 @@ func testInHouseAppsCrud(t *testing.T, ds *Datastore) {
 	require.True(t, installer2.SelfService)
 
 	// Test that app name is correct
-	payloadWithTitle := fleet.UploadSoftwareInstallerPayload{
+	payloadWithTitle := automdm.UploadSoftwareInstallerPayload{
 		TeamID:           &team.ID,
 		UserID:           user1.ID,
 		Title:            "New Title",
@@ -293,7 +293,7 @@ func testInHouseAppsCrud(t *testing.T, ds *Datastore) {
 		StorageID:        "testing5",
 		Extension:        "ipa",
 		Version:          "1.0.0",
-		ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+		ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 	}
 	_, titleIDWithTitle, err := ds.MatchOrCreateSoftwareInstaller(ctx, &payloadWithTitle)
 	require.NoError(t, err)
@@ -302,7 +302,7 @@ func testInHouseAppsCrud(t *testing.T, ds *Datastore) {
 	require.Equal(t, payloadWithTitle.Title, installerWithTitle.SoftwareTitle)
 
 	// Different bundle id with same name should create new software title
-	payloadSameName := fleet.UploadSoftwareInstallerPayload{
+	payloadSameName := automdm.UploadSoftwareInstallerPayload{
 		TeamID:           &team.ID,
 		UserID:           user1.ID,
 		Title:            "New Title",
@@ -311,15 +311,15 @@ func testInHouseAppsCrud(t *testing.T, ds *Datastore) {
 		StorageID:        "testing5",
 		Extension:        "ipa",
 		Version:          "1.0.0",
-		ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+		ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 	}
 	_, titleSameName, err := ds.MatchOrCreateSoftwareInstaller(ctx, &payloadSameName)
 	require.NoError(t, err)
 	require.NotEqual(t, titleIDWithTitle, titleSameName)
 
-	// Upload an app with a different bundle id but a filename already used in the fleet, it
+	// Upload an app with a different bundle id but a filename already used in the team, it
 	// should create a new in-house app for a new software title
-	payloadSameFilename := fleet.UploadSoftwareInstallerPayload{
+	payloadSameFilename := automdm.UploadSoftwareInstallerPayload{
 		TeamID:           &team.ID,
 		UserID:           user1.ID,
 		Title:            "Same Filename",
@@ -328,7 +328,7 @@ func testInHouseAppsCrud(t *testing.T, ds *Datastore) {
 		StorageID:        "testing6",
 		Extension:        "ipa",
 		Version:          "1.0.0",
-		ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+		ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 	}
 	_, titleSameFilename, err := ds.MatchOrCreateSoftwareInstaller(ctx, &payloadSameFilename)
 	require.NoError(t, err)
@@ -347,18 +347,18 @@ func testInHouseAppsMultipleTeams(t *testing.T, ds *Datastore) {
 
 	user1 := test.NewUser(t, ds, "Alice", "alice@example.com", true)
 
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "team 1"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "team 1"})
 	require.NoError(t, err)
-	err = ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team1.ID, []uint{host1.ID}))
+	err = ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team1.ID, []uint{host1.ID}))
 	require.NoError(t, err)
-	team2, err := ds.NewTeam(ctx, &fleet.Team{Name: "team 2"})
+	team2, err := ds.NewTeam(ctx, &automdm.Team{Name: "team 2"})
 	require.NoError(t, err)
-	err = ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team2.ID, []uint{host2.ID}))
+	err = ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team2.ID, []uint{host2.ID}))
 	require.NoError(t, err)
 
 	nanoEnroll(t, ds, host1, false)
 
-	payload1 := fleet.UploadSoftwareInstallerPayload{
+	payload1 := automdm.UploadSoftwareInstallerPayload{
 		TeamID:           &team1.ID,
 		UserID:           user1.ID,
 		Title:            "foo",
@@ -367,7 +367,7 @@ func testInHouseAppsMultipleTeams(t *testing.T, ds *Datastore) {
 		Platform:         "ios",
 		Extension:        "ipa",
 		Version:          "1.2.3",
-		ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+		ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 	}
 
 	payload2 := payload1
@@ -425,13 +425,13 @@ func testInHouseAppsCategories(t *testing.T, ds *Datastore) {
 	host1 := test.NewHost(t, ds, "host1", "1", "host1key", "host1uuid", time.Now())
 	user1 := test.NewUser(t, ds, "Alice", "alice@example.com", true)
 
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "team 1"})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "team 1"})
 	require.NoError(t, err)
-	require.NoError(t, ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team1.ID, []uint{host1.ID})))
+	require.NoError(t, ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team1.ID, []uint{host1.ID})))
 
 	nanoEnroll(t, ds, host1, false)
 
-	payload1 := fleet.UploadSoftwareInstallerPayload{
+	payload1 := automdm.UploadSoftwareInstallerPayload{
 		TeamID:           &team1.ID,
 		UserID:           user1.ID,
 		BundleIdentifier: "com.foo",
@@ -439,7 +439,7 @@ func testInHouseAppsCategories(t *testing.T, ds *Datastore) {
 		StorageID:        "id1234",
 		Extension:        "ipa",
 		SelfService:      false,
-		ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+		ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 		CategoryIDs:      []uint{1, 2},
 	}
 
@@ -462,14 +462,14 @@ func testInHouseAppsCategories(t *testing.T, ds *Datastore) {
 
 	// Test with empty categories
 
-	payload2 := fleet.UploadSoftwareInstallerPayload{
+	payload2 := automdm.UploadSoftwareInstallerPayload{
 		TeamID:           &team1.ID,
 		UserID:           user1.ID,
 		BundleIdentifier: "com.bar",
 		Filename:         "bar.ipa",
 		StorageID:        "id5678",
 		Extension:        "ipa",
-		ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+		ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 		CategoryIDs:      nil, // empty slice should work the same
 	}
 
@@ -482,7 +482,7 @@ func testInHouseAppsCategories(t *testing.T, ds *Datastore) {
 	require.Equal(t, 0, count)
 
 	// Update software categories
-	updatePayload := fleet.UpdateSoftwareInstallerPayload{
+	updatePayload := automdm.UpdateSoftwareInstallerPayload{
 		TeamID:          payload2.TeamID,
 		TitleID:         secondTitleID,
 		InstallerID:     secondInstallerID,
@@ -502,18 +502,18 @@ func testInHouseAppsCategories(t *testing.T, ds *Datastore) {
 	require.Equal(t, 2, count)
 }
 
-func createInHouseAppInstallRequest(t *testing.T, ds *Datastore, hostID uint, appID uint, titleID uint, user *fleet.User) string {
+func createInHouseAppInstallRequest(t *testing.T, ds *Datastore, hostID uint, appID uint, titleID uint, user *automdm.User) string {
 	ctx := context.Background()
 	ctx = viewer.NewContext(ctx, viewer.Viewer{User: user})
 
 	cmdUUID := uuid.NewString()
 
-	err := ds.InsertHostInHouseAppInstall(ctx, hostID, appID, titleID, cmdUUID, fleet.HostSoftwareInstallOptions{})
+	err := ds.InsertHostInHouseAppInstall(ctx, hostID, appID, titleID, cmdUUID, automdm.HostSoftwareInstallOptions{})
 	require.NoError(t, err)
 	return cmdUUID
 }
 
-func createInHouseAppInstallResult(t *testing.T, ds *Datastore, host *fleet.Host, cmdUUID string, status string) {
+func createInHouseAppInstallResult(t *testing.T, ds *Datastore, host *automdm.Host, cmdUUID string, status string) {
 	ctx := context.Background()
 
 	activitySvc := NewTestActivityService(t, ds)
@@ -532,14 +532,14 @@ func createInHouseAppInstallResult(t *testing.T, ds *Datastore, host *fleet.Host
 
 	// inserting the activity is what marks the upcoming activity as completed
 	// (and activates the next one).
-	err = activitySvc.NewActivity(ctx, nil, fleet.ActivityInstalledAppStoreApp{
+	err = activitySvc.NewActivity(ctx, nil, automdm.ActivityInstalledAppStoreApp{
 		HostID:      host.ID,
 		CommandUUID: cmdUUID,
 	})
 	require.NoError(t, err)
 }
 
-func createInHouseAppInstallResultVerified(t *testing.T, ds *Datastore, host *fleet.Host, cmdUUID string, status string) {
+func createInHouseAppInstallResultVerified(t *testing.T, ds *Datastore, host *automdm.Host, cmdUUID string, status string) {
 	createInHouseAppInstallResult(t, ds, host, cmdUUID, status)
 
 	ctx := t.Context()
@@ -560,23 +560,23 @@ func testBatchSetInHouseInstallers(t *testing.T, ds *Datastore) {
 	t.Cleanup(func() { ds.testActivateSpecificNextActivities = nil })
 
 	// create a team
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: t.Name()})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: t.Name()})
 	require.NoError(t, err)
 
 	// create a couple hosts
 	host1 := test.NewHost(t, ds, "host1", "1", "host1key", "host1uuid", time.Now(), test.WithPlatform("ios"))
 	host2 := test.NewHost(t, ds, "host2", "2", "host2key", "host2uuid", time.Now(), test.WithPlatform("ios"))
-	err = ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team.ID, []uint{host1.ID, host2.ID}))
+	err = ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team.ID, []uint{host1.ID, host2.ID}))
 	require.NoError(t, err)
 	nanoEnroll(t, ds, host1, false)
 	nanoEnroll(t, ds, host2, false)
 	user1 := test.NewUser(t, ds, "Alice", "alice@example.com", true)
 
-	assertTitlesAndApps := func(wantTitles []fleet.SoftwareTitleListResult, wantApps []fleet.SoftwareInstaller) {
-		tmFilter := fleet.TeamFilter{User: &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}}
+	assertTitlesAndApps := func(wantTitles []automdm.SoftwareTitleListResult, wantApps []automdm.SoftwareInstaller) {
+		tmFilter := automdm.TeamFilter{User: &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}}
 		titles, _, _, err := ds.ListSoftwareTitles(
 			ctx,
-			fleet.SoftwareTitleListOptions{TeamID: &team.ID},
+			automdm.SoftwareTitleListOptions{TeamID: &team.ID},
 			tmFilter,
 		)
 		require.NoError(t, err)
@@ -632,14 +632,14 @@ func testBatchSetInHouseInstallers(t *testing.T, ds *Datastore) {
 	require.Empty(t, apps)
 	assertTitlesAndApps(nil, nil)
 
-	err = ds.BatchSetInHouseAppsInstallers(ctx, &team.ID, []*fleet.UploadSoftwareInstallerPayload{})
+	err = ds.BatchSetInHouseAppsInstallers(ctx, &team.ID, []*automdm.UploadSoftwareInstallerPayload{})
 	require.NoError(t, err)
 	apps, err = ds.GetSoftwareInstallers(ctx, team.ID)
 	require.NoError(t, err)
 	require.Empty(t, apps)
 	assertTitlesAndApps(nil, nil)
 
-	ipa1 := fleet.UploadSoftwareInstallerPayload{
+	ipa1 := automdm.UploadSoftwareInstallerPayload{
 		TeamID:           &team.ID,
 		UserID:           user1.ID,
 		Title:            "ipa1",
@@ -650,10 +650,10 @@ func testBatchSetInHouseInstallers(t *testing.T, ds *Datastore) {
 		Version:          "1.0.0",
 		SelfService:      true,
 		DisplayName:      "Yeehaw 1",
-		ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+		ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 	}
 	// the batch-upload handler would've generated both iOS and iPadOS entries
-	err = ds.BatchSetInHouseAppsInstallers(ctx, &team.ID, []*fleet.UploadSoftwareInstallerPayload{
+	err = ds.BatchSetInHouseAppsInstallers(ctx, &team.ID, []*automdm.UploadSoftwareInstallerPayload{
 		{
 			StorageID:        ipa1.StorageID,
 			Filename:         ipa1.Filename,
@@ -663,7 +663,7 @@ func testBatchSetInHouseInstallers(t *testing.T, ds *Datastore) {
 			UserID:           user1.ID,
 			Platform:         "ios",
 			URL:              "https://example.com/1",
-			ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+			ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 			BundleIdentifier: ipa1.BundleIdentifier,
 			SelfService:      ipa1.SelfService,
 			DisplayName:      ipa1.DisplayName,
@@ -677,7 +677,7 @@ func testBatchSetInHouseInstallers(t *testing.T, ds *Datastore) {
 			UserID:           user1.ID,
 			Platform:         "ipados",
 			URL:              "https://example.com/1",
-			ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+			ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 			BundleIdentifier: ipa1.BundleIdentifier,
 			SelfService:      ipa1.SelfService,
 			DisplayName:      ipa1.DisplayName,
@@ -693,16 +693,16 @@ func testBatchSetInHouseInstallers(t *testing.T, ds *Datastore) {
 	require.NotNil(t, apps[0].TitleID)
 	require.Equal(t, "https://example.com/1", apps[0].URL)
 
-	assertTitlesAndApps([]fleet.SoftwareTitleListResult{
+	assertTitlesAndApps([]automdm.SoftwareTitleListResult{
 		{Name: ipa1.Title, Source: "ios_apps", BundleIdentifier: ptr.String("com.ipa1"), DisplayName: ipa1.DisplayName},
 		{Name: ipa1.Title, Source: "ipados_apps", BundleIdentifier: ptr.String("com.ipa1"), DisplayName: ipa1.DisplayName},
-	}, []fleet.SoftwareInstaller{
+	}, []automdm.SoftwareInstaller{
 		{Name: ipa1.Filename, Platform: "ios", Version: ipa1.Version, StorageID: ipa1.StorageID, SelfService: ipa1.SelfService, BundleIdentifier: ipa1.BundleIdentifier, DisplayName: ipa1.DisplayName},
 		{Name: ipa1.Filename, Platform: "ipados", Version: ipa1.Version, StorageID: ipa1.StorageID, SelfService: ipa1.SelfService, BundleIdentifier: ipa1.BundleIdentifier, DisplayName: ipa1.DisplayName},
 	})
 
 	// add a new installer + ipa1 installer
-	ipa2 := fleet.UploadSoftwareInstallerPayload{
+	ipa2 := automdm.UploadSoftwareInstallerPayload{
 		TeamID:           &team.ID,
 		UserID:           user1.ID,
 		Title:            "ipa2",
@@ -713,11 +713,11 @@ func testBatchSetInHouseInstallers(t *testing.T, ds *Datastore) {
 		Version:          "2.0.0",
 		SelfService:      false,
 		DisplayName:      "Yeehaw 2",
-		ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+		ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 	}
 
 	// the batch-upload handler would've generated both iOS and iPadOS entries
-	err = ds.BatchSetInHouseAppsInstallers(ctx, &team.ID, []*fleet.UploadSoftwareInstallerPayload{
+	err = ds.BatchSetInHouseAppsInstallers(ctx, &team.ID, []*automdm.UploadSoftwareInstallerPayload{
 		{
 			StorageID:        ipa1.StorageID,
 			Filename:         ipa1.Filename,
@@ -727,7 +727,7 @@ func testBatchSetInHouseInstallers(t *testing.T, ds *Datastore) {
 			UserID:           user1.ID,
 			Platform:         "ios",
 			URL:              "https://example.com/1",
-			ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+			ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 			BundleIdentifier: ipa1.BundleIdentifier,
 			SelfService:      ipa1.SelfService,
 			DisplayName:      ipa1.DisplayName,
@@ -741,7 +741,7 @@ func testBatchSetInHouseInstallers(t *testing.T, ds *Datastore) {
 			UserID:           user1.ID,
 			Platform:         "ipados",
 			URL:              "https://example.com/1",
-			ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+			ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 			BundleIdentifier: ipa1.BundleIdentifier,
 			SelfService:      ipa1.SelfService,
 			DisplayName:      ipa1.DisplayName,
@@ -755,7 +755,7 @@ func testBatchSetInHouseInstallers(t *testing.T, ds *Datastore) {
 			UserID:           user1.ID,
 			Platform:         "ios",
 			URL:              "https://example.com/2",
-			ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+			ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 			BundleIdentifier: ipa2.BundleIdentifier,
 			SelfService:      ipa2.SelfService,
 			DisplayName:      ipa2.DisplayName,
@@ -769,7 +769,7 @@ func testBatchSetInHouseInstallers(t *testing.T, ds *Datastore) {
 			UserID:           user1.ID,
 			Platform:         "ipados",
 			URL:              "https://example.com/2",
-			ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+			ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 			BundleIdentifier: ipa2.BundleIdentifier,
 			SelfService:      ipa2.SelfService,
 			DisplayName:      ipa2.DisplayName,
@@ -789,12 +789,12 @@ func testBatchSetInHouseInstallers(t *testing.T, ds *Datastore) {
 	require.NotNil(t, apps[0].TitleID)
 	require.Equal(t, "https://example.com/1", apps[0].URL)
 
-	assertTitlesAndApps([]fleet.SoftwareTitleListResult{
+	assertTitlesAndApps([]automdm.SoftwareTitleListResult{
 		{Name: ipa1.Title, Source: "ios_apps", BundleIdentifier: ptr.String("com.ipa1"), DisplayName: ipa1.DisplayName},
 		{Name: ipa1.Title, Source: "ipados_apps", BundleIdentifier: ptr.String("com.ipa1"), DisplayName: ipa1.DisplayName},
 		{Name: ipa2.Title, Source: "ios_apps", BundleIdentifier: ptr.String("com.ipa2"), DisplayName: ipa2.DisplayName},
 		{Name: ipa2.Title, Source: "ipados_apps", BundleIdentifier: ptr.String("com.ipa2"), DisplayName: ipa2.DisplayName},
-	}, []fleet.SoftwareInstaller{
+	}, []automdm.SoftwareInstaller{
 		{Name: ipa1.Filename, Platform: "ios", Version: ipa1.Version, StorageID: ipa1.StorageID, SelfService: ipa1.SelfService, BundleIdentifier: ipa1.BundleIdentifier, DisplayName: ipa1.DisplayName},
 		{Name: ipa1.Filename, Platform: "ipados", Version: ipa1.Version, StorageID: ipa1.StorageID, SelfService: ipa1.SelfService, BundleIdentifier: ipa1.BundleIdentifier, DisplayName: ipa1.DisplayName},
 		{Name: ipa2.Filename, Platform: "ios", Version: ipa2.Version, StorageID: ipa2.StorageID, SelfService: ipa2.SelfService, BundleIdentifier: ipa2.BundleIdentifier, DisplayName: ipa2.DisplayName},
@@ -802,7 +802,7 @@ func testBatchSetInHouseInstallers(t *testing.T, ds *Datastore) {
 	})
 
 	// rerun with no change
-	err = ds.BatchSetInHouseAppsInstallers(ctx, &team.ID, []*fleet.UploadSoftwareInstallerPayload{
+	err = ds.BatchSetInHouseAppsInstallers(ctx, &team.ID, []*automdm.UploadSoftwareInstallerPayload{
 		{
 			StorageID:        ipa1.StorageID,
 			Filename:         ipa1.Filename,
@@ -812,7 +812,7 @@ func testBatchSetInHouseInstallers(t *testing.T, ds *Datastore) {
 			UserID:           user1.ID,
 			Platform:         "ios",
 			URL:              "https://example.com/1",
-			ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+			ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 			BundleIdentifier: ipa1.BundleIdentifier,
 			SelfService:      ipa1.SelfService,
 			DisplayName:      ipa1.DisplayName,
@@ -826,7 +826,7 @@ func testBatchSetInHouseInstallers(t *testing.T, ds *Datastore) {
 			UserID:           user1.ID,
 			Platform:         "ipados",
 			URL:              "https://example.com/1",
-			ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+			ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 			BundleIdentifier: ipa1.BundleIdentifier,
 			SelfService:      ipa1.SelfService,
 			DisplayName:      ipa1.DisplayName,
@@ -840,7 +840,7 @@ func testBatchSetInHouseInstallers(t *testing.T, ds *Datastore) {
 			UserID:           user1.ID,
 			Platform:         "ios",
 			URL:              "https://example.com/2",
-			ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+			ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 			BundleIdentifier: ipa2.BundleIdentifier,
 			SelfService:      ipa2.SelfService,
 			DisplayName:      ipa2.DisplayName,
@@ -854,7 +854,7 @@ func testBatchSetInHouseInstallers(t *testing.T, ds *Datastore) {
 			UserID:           user1.ID,
 			Platform:         "ipados",
 			URL:              "https://example.com/2",
-			ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+			ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 			BundleIdentifier: ipa2.BundleIdentifier,
 			SelfService:      ipa2.SelfService,
 			DisplayName:      ipa2.DisplayName,
@@ -866,12 +866,12 @@ func testBatchSetInHouseInstallers(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 	require.Len(t, apps, 4)
 
-	assertTitlesAndApps([]fleet.SoftwareTitleListResult{
+	assertTitlesAndApps([]automdm.SoftwareTitleListResult{
 		{Name: ipa1.Title, Source: "ios_apps", BundleIdentifier: ptr.String("com.ipa1"), DisplayName: ipa1.DisplayName},
 		{Name: ipa1.Title, Source: "ipados_apps", BundleIdentifier: ptr.String("com.ipa1"), DisplayName: ipa1.DisplayName},
 		{Name: ipa2.Title, Source: "ios_apps", BundleIdentifier: ptr.String("com.ipa2"), DisplayName: ipa2.DisplayName},
 		{Name: ipa2.Title, Source: "ipados_apps", BundleIdentifier: ptr.String("com.ipa2"), DisplayName: ipa2.DisplayName},
-	}, []fleet.SoftwareInstaller{
+	}, []automdm.SoftwareInstaller{
 		{Name: ipa1.Filename, Platform: "ios", Version: ipa1.Version, StorageID: ipa1.StorageID, SelfService: ipa1.SelfService, BundleIdentifier: ipa1.BundleIdentifier, DisplayName: ipa1.DisplayName},
 		{Name: ipa1.Filename, Platform: "ipados", Version: ipa1.Version, StorageID: ipa1.StorageID, SelfService: ipa1.SelfService, BundleIdentifier: ipa1.BundleIdentifier, DisplayName: ipa1.DisplayName},
 		{Name: ipa2.Filename, Platform: "ios", Version: ipa2.Version, StorageID: ipa2.StorageID, SelfService: ipa2.SelfService, BundleIdentifier: ipa2.BundleIdentifier, DisplayName: ipa2.DisplayName},
@@ -886,7 +886,7 @@ func testBatchSetInHouseInstallers(t *testing.T, ds *Datastore) {
 	require.Len(t, catIDsByName, 2)
 	ipa2.CategoryIDs = []uint{catIDsByName[ipa2.Categories[0]], catIDsByName[ipa2.Categories[1]]}
 
-	err = ds.BatchSetInHouseAppsInstallers(ctx, &team.ID, []*fleet.UploadSoftwareInstallerPayload{
+	err = ds.BatchSetInHouseAppsInstallers(ctx, &team.ID, []*automdm.UploadSoftwareInstallerPayload{
 		{
 			StorageID:        ipa1.StorageID,
 			Filename:         ipa1.Filename,
@@ -896,7 +896,7 @@ func testBatchSetInHouseInstallers(t *testing.T, ds *Datastore) {
 			UserID:           user1.ID,
 			Platform:         "ios",
 			URL:              "https://example.com/1",
-			ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+			ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 			BundleIdentifier: ipa1.BundleIdentifier,
 			SelfService:      ipa1.SelfService,
 			DisplayName:      ipa1.DisplayName,
@@ -910,7 +910,7 @@ func testBatchSetInHouseInstallers(t *testing.T, ds *Datastore) {
 			UserID:           user1.ID,
 			Platform:         "ipados",
 			URL:              "https://example.com/1",
-			ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+			ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 			BundleIdentifier: ipa1.BundleIdentifier,
 			SelfService:      ipa1.SelfService,
 			DisplayName:      ipa1.DisplayName,
@@ -924,7 +924,7 @@ func testBatchSetInHouseInstallers(t *testing.T, ds *Datastore) {
 			UserID:           user1.ID,
 			Platform:         "ios",
 			URL:              "https://example.com/2",
-			ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+			ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 			BundleIdentifier: ipa2.BundleIdentifier,
 			SelfService:      ipa2.SelfService,
 			DisplayName:      ipa2.DisplayName,
@@ -939,7 +939,7 @@ func testBatchSetInHouseInstallers(t *testing.T, ds *Datastore) {
 			UserID:           user1.ID,
 			Platform:         "ipados",
 			URL:              "https://example.com/2",
-			ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+			ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 			BundleIdentifier: ipa2.BundleIdentifier,
 			SelfService:      ipa2.SelfService,
 			DisplayName:      ipa2.DisplayName,
@@ -952,12 +952,12 @@ func testBatchSetInHouseInstallers(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 	require.Len(t, apps, 4)
 
-	assertTitlesAndApps([]fleet.SoftwareTitleListResult{
+	assertTitlesAndApps([]automdm.SoftwareTitleListResult{
 		{Name: ipa1.Title, Source: "ios_apps", BundleIdentifier: ptr.String("com.ipa1"), DisplayName: ipa1.DisplayName},
 		{Name: ipa1.Title, Source: "ipados_apps", BundleIdentifier: ptr.String("com.ipa1"), DisplayName: ipa1.DisplayName},
 		{Name: ipa2.Title, Source: "ios_apps", BundleIdentifier: ptr.String("com.ipa2"), DisplayName: ipa2.DisplayName},
 		{Name: ipa2.Title, Source: "ipados_apps", BundleIdentifier: ptr.String("com.ipa2"), DisplayName: ipa2.DisplayName},
-	}, []fleet.SoftwareInstaller{
+	}, []automdm.SoftwareInstaller{
 		{Name: ipa1.Filename, Platform: "ios", Version: ipa1.Version, StorageID: ipa1.StorageID, SelfService: ipa1.SelfService, BundleIdentifier: ipa1.BundleIdentifier, DisplayName: ipa1.DisplayName},
 		{Name: ipa1.Filename, Platform: "ipados", Version: ipa1.Version, StorageID: ipa1.StorageID, SelfService: ipa1.SelfService, BundleIdentifier: ipa1.BundleIdentifier, DisplayName: ipa1.DisplayName},
 		{Name: ipa2.Filename, Platform: "ios", Version: ipa2.Version, StorageID: ipa2.StorageID, SelfService: ipa2.SelfService, BundleIdentifier: ipa2.BundleIdentifier, Categories: ipa2.Categories, DisplayName: ipa2.DisplayName},
@@ -965,7 +965,7 @@ func testBatchSetInHouseInstallers(t *testing.T, ds *Datastore) {
 	})
 
 	// remove ipa1
-	err = ds.BatchSetInHouseAppsInstallers(ctx, &team.ID, []*fleet.UploadSoftwareInstallerPayload{
+	err = ds.BatchSetInHouseAppsInstallers(ctx, &team.ID, []*automdm.UploadSoftwareInstallerPayload{
 		{
 			StorageID:        ipa2.StorageID,
 			Filename:         ipa2.Filename,
@@ -975,7 +975,7 @@ func testBatchSetInHouseInstallers(t *testing.T, ds *Datastore) {
 			UserID:           user1.ID,
 			Platform:         "ios",
 			URL:              "https://example.com/2",
-			ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+			ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 			BundleIdentifier: ipa2.BundleIdentifier,
 			SelfService:      ipa2.SelfService,
 			DisplayName:      ipa2.DisplayName,
@@ -990,7 +990,7 @@ func testBatchSetInHouseInstallers(t *testing.T, ds *Datastore) {
 			UserID:           user1.ID,
 			Platform:         "ipados",
 			URL:              "https://example.com/2",
-			ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+			ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 			BundleIdentifier: ipa2.BundleIdentifier,
 			SelfService:      ipa2.SelfService,
 			DisplayName:      ipa2.DisplayName,
@@ -1014,10 +1014,10 @@ func testBatchSetInHouseInstallers(t *testing.T, ds *Datastore) {
 		}
 	}
 
-	assertTitlesAndApps([]fleet.SoftwareTitleListResult{
+	assertTitlesAndApps([]automdm.SoftwareTitleListResult{
 		{Name: ipa2.Title, Source: "ios_apps", BundleIdentifier: ptr.String("com.ipa2"), DisplayName: ipa2.DisplayName},
 		{Name: ipa2.Title, Source: "ipados_apps", BundleIdentifier: ptr.String("com.ipa2"), DisplayName: ipa2.DisplayName},
-	}, []fleet.SoftwareInstaller{
+	}, []automdm.SoftwareInstaller{
 		{Name: ipa2.Filename, Platform: "ios", Version: ipa2.Version, StorageID: ipa2.StorageID, SelfService: ipa2.SelfService, BundleIdentifier: ipa2.BundleIdentifier, Categories: ipa2.Categories, DisplayName: ipa2.DisplayName},
 		{Name: ipa2.Filename, Platform: "ipados", Version: ipa2.Version, StorageID: ipa2.StorageID, SelfService: ipa2.SelfService, BundleIdentifier: ipa2.BundleIdentifier, Categories: ipa2.Categories, DisplayName: ipa2.DisplayName},
 	})
@@ -1029,10 +1029,10 @@ func testBatchSetInHouseInstallers(t *testing.T, ds *Datastore) {
 
 	summary, err := ds.GetSummaryHostInHouseAppInstalls(ctx, &team.ID, iosInHouseID2)
 	require.NoError(t, err)
-	require.Equal(t, fleet.VPPAppStatusSummary{Installed: 1, Pending: 1}, *summary)
+	require.Equal(t, automdm.VPPAppStatusSummary{Installed: 1, Pending: 1}, *summary)
 
 	// batch-set without changes, should not affect installs
-	err = ds.BatchSetInHouseAppsInstallers(ctx, &team.ID, []*fleet.UploadSoftwareInstallerPayload{
+	err = ds.BatchSetInHouseAppsInstallers(ctx, &team.ID, []*automdm.UploadSoftwareInstallerPayload{
 		{
 			StorageID:        ipa2.StorageID,
 			Filename:         ipa2.Filename,
@@ -1042,7 +1042,7 @@ func testBatchSetInHouseInstallers(t *testing.T, ds *Datastore) {
 			UserID:           user1.ID,
 			Platform:         "ios",
 			URL:              "https://example.com/2",
-			ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+			ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 			BundleIdentifier: ipa2.BundleIdentifier,
 			SelfService:      ipa2.SelfService,
 			DisplayName:      ipa2.DisplayName,
@@ -1057,7 +1057,7 @@ func testBatchSetInHouseInstallers(t *testing.T, ds *Datastore) {
 			UserID:           user1.ID,
 			Platform:         "ipados",
 			URL:              "https://example.com/2",
-			ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+			ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 			BundleIdentifier: ipa2.BundleIdentifier,
 			SelfService:      ipa2.SelfService,
 			DisplayName:      ipa2.DisplayName,
@@ -1069,17 +1069,17 @@ func testBatchSetInHouseInstallers(t *testing.T, ds *Datastore) {
 	apps, err = ds.GetSoftwareInstallers(ctx, team.ID)
 	require.NoError(t, err)
 	require.Len(t, apps, 2)
-	assertTitlesAndApps([]fleet.SoftwareTitleListResult{
+	assertTitlesAndApps([]automdm.SoftwareTitleListResult{
 		{Name: ipa2.Title, Source: "ios_apps", BundleIdentifier: ptr.String("com.ipa2"), DisplayName: ipa2.DisplayName},
 		{Name: ipa2.Title, Source: "ipados_apps", BundleIdentifier: ptr.String("com.ipa2"), DisplayName: ipa2.DisplayName},
-	}, []fleet.SoftwareInstaller{
+	}, []automdm.SoftwareInstaller{
 		{Name: ipa2.Filename, Platform: "ios", Version: ipa2.Version, StorageID: ipa2.StorageID, SelfService: ipa2.SelfService, BundleIdentifier: ipa2.BundleIdentifier, Categories: ipa2.Categories, DisplayName: ipa2.DisplayName},
 		{Name: ipa2.Filename, Platform: "ipados", Version: ipa2.Version, StorageID: ipa2.StorageID, SelfService: ipa2.SelfService, BundleIdentifier: ipa2.BundleIdentifier, Categories: ipa2.Categories, DisplayName: ipa2.DisplayName},
 	})
 
 	summary, err = ds.GetSummaryHostInHouseAppInstalls(ctx, &team.ID, iosInHouseID2)
 	require.NoError(t, err)
-	require.Equal(t, fleet.VPPAppStatusSummary{Installed: 1, Pending: 1}, *summary)
+	require.Equal(t, automdm.VPPAppStatusSummary{Installed: 1, Pending: 1}, *summary)
 
 	ipa2TitleID := apps[0].TitleID
 	name, err := ds.getSoftwareTitleDisplayName(ctx, team.ID, *ipa2TitleID)
@@ -1087,7 +1087,7 @@ func testBatchSetInHouseInstallers(t *testing.T, ds *Datastore) {
 	require.Equal(t, ipa2.DisplayName, name)
 
 	// remove ipa2 and add ipa1
-	err = ds.BatchSetInHouseAppsInstallers(ctx, &team.ID, []*fleet.UploadSoftwareInstallerPayload{
+	err = ds.BatchSetInHouseAppsInstallers(ctx, &team.ID, []*automdm.UploadSoftwareInstallerPayload{
 		{
 			StorageID:        ipa1.StorageID,
 			Filename:         ipa1.Filename,
@@ -1097,7 +1097,7 @@ func testBatchSetInHouseInstallers(t *testing.T, ds *Datastore) {
 			UserID:           user1.ID,
 			Platform:         "ios",
 			URL:              "https://example.com/1",
-			ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+			ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 			BundleIdentifier: ipa1.BundleIdentifier,
 			SelfService:      ipa1.SelfService,
 			DisplayName:      ipa1.DisplayName,
@@ -1111,7 +1111,7 @@ func testBatchSetInHouseInstallers(t *testing.T, ds *Datastore) {
 			UserID:           user1.ID,
 			Platform:         "ipados",
 			URL:              "https://example.com/1",
-			ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+			ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 			BundleIdentifier: ipa1.BundleIdentifier,
 			SelfService:      ipa1.SelfService,
 			DisplayName:      ipa1.DisplayName,
@@ -1134,10 +1134,10 @@ func testBatchSetInHouseInstallers(t *testing.T, ds *Datastore) {
 		}
 	}
 
-	assertTitlesAndApps([]fleet.SoftwareTitleListResult{
+	assertTitlesAndApps([]automdm.SoftwareTitleListResult{
 		{Name: ipa1.Title, Source: "ios_apps", BundleIdentifier: ptr.String("com.ipa1"), DisplayName: ipa1.DisplayName},
 		{Name: ipa1.Title, Source: "ipados_apps", BundleIdentifier: ptr.String("com.ipa1"), DisplayName: ipa1.DisplayName},
-	}, []fleet.SoftwareInstaller{
+	}, []automdm.SoftwareInstaller{
 		{Name: ipa1.Filename, Platform: "ios", Version: ipa1.Version, StorageID: ipa1.StorageID, SelfService: ipa1.SelfService, BundleIdentifier: ipa1.BundleIdentifier, DisplayName: ipa1.DisplayName},
 		{Name: ipa1.Filename, Platform: "ipados", Version: ipa1.Version, StorageID: ipa1.StorageID, SelfService: ipa1.SelfService, BundleIdentifier: ipa1.BundleIdentifier, DisplayName: ipa1.DisplayName},
 	})
@@ -1145,12 +1145,12 @@ func testBatchSetInHouseInstallers(t *testing.T, ds *Datastore) {
 	// stats don't report anything about ipa2 anymore
 	summary, err = ds.GetSummaryHostInHouseAppInstalls(ctx, &team.ID, iosInHouseID2)
 	require.NoError(t, err)
-	require.Equal(t, fleet.VPPAppStatusSummary{Installed: 0, Pending: 0}, *summary)
+	require.Equal(t, automdm.VPPAppStatusSummary{Installed: 0, Pending: 0}, *summary)
 
-	pendingHost1, _, err := ds.ListHostUpcomingActivities(ctx, host1.ID, fleet.ListOptions{PerPage: 10})
+	pendingHost1, _, err := ds.ListHostUpcomingActivities(ctx, host1.ID, automdm.ListOptions{PerPage: 10})
 	require.NoError(t, err)
 	require.Empty(t, pendingHost1)
-	pendingHost2, _, err := ds.ListHostUpcomingActivities(ctx, host2.ID, fleet.ListOptions{PerPage: 10})
+	pendingHost2, _, err := ds.ListHostUpcomingActivities(ctx, host2.ID, automdm.ListOptions{PerPage: 10})
 	require.NoError(t, err)
 	require.Empty(t, pendingHost2)
 
@@ -1165,11 +1165,11 @@ func testBatchSetInHouseInstallers(t *testing.T, ds *Datastore) {
 
 	summary, err = ds.GetSummaryHostInHouseAppInstalls(ctx, &team.ID, iosInHouseID1)
 	require.NoError(t, err)
-	require.Equal(t, fleet.VPPAppStatusSummary{Installed: 1, Pending: 1}, *summary)
+	require.Equal(t, automdm.VPPAppStatusSummary{Installed: 1, Pending: 1}, *summary)
 
 	// update the storage ID of ipa1 (so it is a different installer binary)
 	ipa1.StorageID = "ipa1-new"
-	err = ds.BatchSetInHouseAppsInstallers(ctx, &team.ID, []*fleet.UploadSoftwareInstallerPayload{
+	err = ds.BatchSetInHouseAppsInstallers(ctx, &team.ID, []*automdm.UploadSoftwareInstallerPayload{
 		{
 			StorageID:        ipa1.StorageID,
 			Filename:         ipa1.Filename,
@@ -1179,7 +1179,7 @@ func testBatchSetInHouseInstallers(t *testing.T, ds *Datastore) {
 			UserID:           user1.ID,
 			Platform:         "ios",
 			URL:              "https://example.com/1",
-			ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+			ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 			BundleIdentifier: ipa1.BundleIdentifier,
 			SelfService:      ipa1.SelfService,
 		},
@@ -1192,7 +1192,7 @@ func testBatchSetInHouseInstallers(t *testing.T, ds *Datastore) {
 			UserID:           user1.ID,
 			Platform:         "ipados",
 			URL:              "https://example.com/1",
-			ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+			ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 			BundleIdentifier: ipa1.BundleIdentifier,
 			SelfService:      ipa1.SelfService,
 		},
@@ -1203,10 +1203,10 @@ func testBatchSetInHouseInstallers(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 	require.Len(t, apps, 2)
 
-	assertTitlesAndApps([]fleet.SoftwareTitleListResult{
+	assertTitlesAndApps([]automdm.SoftwareTitleListResult{
 		{Name: ipa1.Title, Source: "ios_apps", BundleIdentifier: ptr.String("com.ipa1")},
 		{Name: ipa1.Title, Source: "ipados_apps", BundleIdentifier: ptr.String("com.ipa1")},
-	}, []fleet.SoftwareInstaller{
+	}, []automdm.SoftwareInstaller{
 		{Name: ipa1.Filename, Platform: "ios", Version: ipa1.Version, StorageID: ipa1.StorageID, SelfService: ipa1.SelfService, BundleIdentifier: ipa1.BundleIdentifier},
 		{Name: ipa1.Filename, Platform: "ipados", Version: ipa1.Version, StorageID: ipa1.StorageID, SelfService: ipa1.SelfService, BundleIdentifier: ipa1.BundleIdentifier},
 	})
@@ -1214,12 +1214,12 @@ func testBatchSetInHouseInstallers(t *testing.T, ds *Datastore) {
 	// stats don't report anything about ipa1 anymore (as if it was deleted)
 	summary, err = ds.GetSummaryHostInHouseAppInstalls(ctx, &team.ID, iosInHouseID1)
 	require.NoError(t, err)
-	require.Equal(t, fleet.VPPAppStatusSummary{Installed: 0, Pending: 0}, *summary)
+	require.Equal(t, automdm.VPPAppStatusSummary{Installed: 0, Pending: 0}, *summary)
 
-	pendingHost1, _, err = ds.ListHostUpcomingActivities(ctx, host1.ID, fleet.ListOptions{PerPage: 10})
+	pendingHost1, _, err = ds.ListHostUpcomingActivities(ctx, host1.ID, automdm.ListOptions{PerPage: 10})
 	require.NoError(t, err)
 	require.Empty(t, pendingHost1)
-	pendingHost2, _, err = ds.ListHostUpcomingActivities(ctx, host2.ID, fleet.ListOptions{PerPage: 10})
+	pendingHost2, _, err = ds.ListHostUpcomingActivities(ctx, host2.ID, automdm.ListOptions{PerPage: 10})
 	require.NoError(t, err)
 	require.Empty(t, pendingHost2)
 
@@ -1230,8 +1230,8 @@ func testBatchSetInHouseInstallers(t *testing.T, ds *Datastore) {
 		if batchTeamID != nil {
 			globalOrTeamID = *batchTeamID
 		}
-		ipa1Payloads := func(filename string) []*fleet.UploadSoftwareInstallerPayload {
-			return []*fleet.UploadSoftwareInstallerPayload{
+		ipa1Payloads := func(filename string) []*automdm.UploadSoftwareInstallerPayload {
+			return []*automdm.UploadSoftwareInstallerPayload{
 				{
 					StorageID:        ipa1.StorageID,
 					Filename:         filename,
@@ -1241,7 +1241,7 @@ func testBatchSetInHouseInstallers(t *testing.T, ds *Datastore) {
 					UserID:           user1.ID,
 					Platform:         "ios",
 					URL:              "https://example.com/1",
-					ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+					ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 					BundleIdentifier: ipa1.BundleIdentifier,
 					SelfService:      ipa1.SelfService,
 				},
@@ -1254,7 +1254,7 @@ func testBatchSetInHouseInstallers(t *testing.T, ds *Datastore) {
 					UserID:           user1.ID,
 					Platform:         "ipados",
 					URL:              "https://example.com/1",
-					ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+					ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 					BundleIdentifier: ipa1.BundleIdentifier,
 					SelfService:      ipa1.SelfService,
 				},
@@ -1290,7 +1290,7 @@ func testBatchSetInHouseInstallers(t *testing.T, ds *Datastore) {
 	}
 
 	// remove everything
-	err = ds.BatchSetInHouseAppsInstallers(ctx, &team.ID, []*fleet.UploadSoftwareInstallerPayload{})
+	err = ds.BatchSetInHouseAppsInstallers(ctx, &team.ID, []*automdm.UploadSoftwareInstallerPayload{})
 	require.NoError(t, err)
 	apps, err = ds.GetSoftwareInstallers(ctx, team.ID)
 	require.NoError(t, err)
@@ -1306,16 +1306,16 @@ func testBatchSetInHouseInstallersScopedViaLabels(t *testing.T, ds *Datastore) {
 	nanoEnroll(t, ds, host, false)
 
 	// create a couple teams and a user
-	tm1, err := ds.NewTeam(ctx, &fleet.Team{Name: t.Name() + "1"})
+	tm1, err := ds.NewTeam(ctx, &automdm.Team{Name: t.Name() + "1"})
 	require.NoError(t, err)
-	tm2, err := ds.NewTeam(ctx, &fleet.Team{Name: t.Name() + "2"})
+	tm2, err := ds.NewTeam(ctx, &automdm.Team{Name: t.Name() + "2"})
 	require.NoError(t, err)
 	user := test.NewUser(t, ds, "Alice", "alice@example.com", true)
 
 	// create some installer payloads to be used by test cases
-	installers := make([]*fleet.UploadSoftwareInstallerPayload, 3)
+	installers := make([]*automdm.UploadSoftwareInstallerPayload, 3)
 	for i := range installers {
-		installers[i] = &fleet.UploadSoftwareInstallerPayload{
+		installers[i] = &automdm.UploadSoftwareInstallerPayload{
 			UserID:           user.ID,
 			Title:            "ipa" + fmt.Sprint(i),
 			Filename:         fmt.Sprintf("ipa%d.ipa", i),
@@ -1330,16 +1330,16 @@ func testBatchSetInHouseInstallersScopedViaLabels(t *testing.T, ds *Datastore) {
 	}
 
 	// create some labels to be used by test cases
-	labels := make([]*fleet.Label, 4)
+	labels := make([]*automdm.Label, 4)
 	for i := range labels {
-		lbl, err := ds.NewLabel(ctx, &fleet.Label{Name: "label" + fmt.Sprint(i)})
+		lbl, err := ds.NewLabel(ctx, &automdm.Label{Name: "label" + fmt.Sprint(i)})
 		require.NoError(t, err)
 		labels[i] = lbl
 	}
 
 	type testPayload struct {
-		Installer           *fleet.UploadSoftwareInstallerPayload
-		Labels              []*fleet.Label
+		Installer           *automdm.UploadSoftwareInstallerPayload
+		Labels              []*automdm.Label
 		Exclude             bool
 		ShouldCancelPending *bool // nil if the installer is new (could not have pending), otherwise true/false if it was edited
 	}
@@ -1348,7 +1348,7 @@ func testBatchSetInHouseInstallersScopedViaLabels(t *testing.T, ds *Datastore) {
 	// tests matters - they cannot be run in isolation.
 	cases := []struct {
 		desc    string
-		team    *fleet.Team
+		team    *automdm.Team
 		payload []testPayload
 	}{
 		{
@@ -1365,58 +1365,58 @@ func testBatchSetInHouseInstallersScopedViaLabels(t *testing.T, ds *Datastore) {
 			desc: "team 1, installer0, include label0",
 			team: tm1,
 			payload: []testPayload{
-				{Installer: installers[0], Labels: []*fleet.Label{labels[0]}},
+				{Installer: installers[0], Labels: []*automdm.Label{labels[0]}},
 			},
 		},
 		{
 			desc: "no team, installer0 no change, add installer1 with exclude label1",
 			payload: []testPayload{
 				{Installer: installers[0], ShouldCancelPending: ptr.Bool(false)},
-				{Installer: installers[1], Labels: []*fleet.Label{labels[1]}, Exclude: true},
+				{Installer: installers[1], Labels: []*automdm.Label{labels[1]}, Exclude: true},
 			},
 		},
 		{
 			desc: "no team, installer0 no change, installer1 change to include label1",
 			payload: []testPayload{
 				{Installer: installers[0], ShouldCancelPending: ptr.Bool(false)},
-				{Installer: installers[1], Labels: []*fleet.Label{labels[1]}, Exclude: false, ShouldCancelPending: ptr.Bool(true)},
+				{Installer: installers[1], Labels: []*automdm.Label{labels[1]}, Exclude: false, ShouldCancelPending: ptr.Bool(true)},
 			},
 		},
 		{
 			desc: "team 1, installer0, include label0 and add label1",
 			team: tm1,
 			payload: []testPayload{
-				{Installer: installers[0], Labels: []*fleet.Label{labels[0], labels[1]}, ShouldCancelPending: ptr.Bool(true)},
+				{Installer: installers[0], Labels: []*automdm.Label{labels[0], labels[1]}, ShouldCancelPending: ptr.Bool(true)},
 			},
 		},
 		{
 			desc: "team 1, installer0, remove label0 and keep label1",
 			team: tm1,
 			payload: []testPayload{
-				{Installer: installers[0], Labels: []*fleet.Label{labels[1]}, ShouldCancelPending: ptr.Bool(true)},
+				{Installer: installers[0], Labels: []*automdm.Label{labels[1]}, ShouldCancelPending: ptr.Bool(true)},
 			},
 		},
 		{
 			desc: "team 1, installer0, switch to label0 and label2",
 			team: tm1,
 			payload: []testPayload{
-				{Installer: installers[0], Labels: []*fleet.Label{labels[0], labels[2]}, ShouldCancelPending: ptr.Bool(true)},
+				{Installer: installers[0], Labels: []*automdm.Label{labels[0], labels[2]}, ShouldCancelPending: ptr.Bool(true)},
 			},
 		},
 		{
 			desc: "team 2, 3 installers, mix of labels",
 			team: tm2,
 			payload: []testPayload{
-				{Installer: installers[0], Labels: []*fleet.Label{labels[0]}, Exclude: false},
-				{Installer: installers[1], Labels: []*fleet.Label{labels[0], labels[1], labels[2]}, Exclude: true},
-				{Installer: installers[2], Labels: []*fleet.Label{labels[1], labels[2]}, Exclude: false},
+				{Installer: installers[0], Labels: []*automdm.Label{labels[0]}, Exclude: false},
+				{Installer: installers[1], Labels: []*automdm.Label{labels[0], labels[1], labels[2]}, Exclude: true},
+				{Installer: installers[2], Labels: []*automdm.Label{labels[1], labels[2]}, Exclude: false},
 			},
 		},
 		{
 			desc: "team 1, installer0 no change and add installer2",
 			team: tm1,
 			payload: []testPayload{
-				{Installer: installers[0], Labels: []*fleet.Label{labels[0], labels[2]}, ShouldCancelPending: ptr.Bool(false)},
+				{Installer: installers[0], Labels: []*automdm.Label{labels[0], labels[2]}, ShouldCancelPending: ptr.Bool(false)},
 				{Installer: installers[2]},
 			},
 		},
@@ -1424,7 +1424,7 @@ func testBatchSetInHouseInstallersScopedViaLabels(t *testing.T, ds *Datastore) {
 			desc: "team 1, installer0 switch to labels 1 and 3, installer2 no change",
 			team: tm1,
 			payload: []testPayload{
-				{Installer: installers[0], Labels: []*fleet.Label{labels[1], labels[3]}, ShouldCancelPending: ptr.Bool(true)},
+				{Installer: installers[0], Labels: []*automdm.Label{labels[1], labels[3]}, ShouldCancelPending: ptr.Bool(true)},
 				{Installer: installers[2], ShouldCancelPending: ptr.Bool(false)},
 			},
 		},
@@ -1433,7 +1433,7 @@ func testBatchSetInHouseInstallersScopedViaLabels(t *testing.T, ds *Datastore) {
 			team: tm2,
 			payload: []testPayload{
 				{Installer: installers[1], ShouldCancelPending: ptr.Bool(true)},
-				{Installer: installers[2], Labels: []*fleet.Label{labels[1], labels[2]}, Exclude: false, ShouldCancelPending: ptr.Bool(false)},
+				{Installer: installers[2], Labels: []*automdm.Label{labels[1], labels[2]}, Exclude: false, ShouldCancelPending: ptr.Bool(false)},
 			},
 		},
 		{
@@ -1464,7 +1464,7 @@ func testBatchSetInHouseInstallersScopedViaLabels(t *testing.T, ds *Datastore) {
 		if len(c.payload) > 0 {
 			// create pending install requests for each updated installer, to see if
 			// it cancels it or not as expected.
-			err := ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(teamID, []uint{host.ID}))
+			err := ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(teamID, []uint{host.ID}))
 			require.NoError(t, err)
 			for i, payload := range c.payload {
 				if payload.ShouldCancelPending != nil {
@@ -1488,16 +1488,16 @@ func testBatchSetInHouseInstallersScopedViaLabels(t *testing.T, ds *Datastore) {
 
 		// create the payload by copying the test one, so that the original installers
 		// structs are not modified
-		payload := make([]*fleet.UploadSoftwareInstallerPayload, len(c.payload))
+		payload := make([]*automdm.UploadSoftwareInstallerPayload, len(c.payload))
 		for i, p := range c.payload {
 			installer := *p.Installer
-			installer.ValidatedLabels = &fleet.LabelIdentsWithScope{LabelScope: fleet.LabelScopeIncludeAny}
+			installer.ValidatedLabels = &automdm.LabelIdentsWithScope{LabelScope: automdm.LabelScopeIncludeAny}
 			if p.Exclude {
-				installer.ValidatedLabels.LabelScope = fleet.LabelScopeExcludeAny
+				installer.ValidatedLabels.LabelScope = automdm.LabelScopeExcludeAny
 			}
-			byName := make(map[string]fleet.LabelIdent, len(p.Labels))
+			byName := make(map[string]automdm.LabelIdent, len(p.Labels))
 			for _, lbl := range p.Labels {
-				byName[lbl.Name] = fleet.LabelIdent{LabelName: lbl.Name, LabelID: lbl.ID}
+				byName[lbl.Name] = automdm.LabelIdent{LabelName: lbl.Name, LabelID: lbl.ID}
 			}
 			installer.ValidatedLabels.ByName = byName
 			payload[i] = &installer
@@ -1511,7 +1511,7 @@ func testBatchSetInHouseInstallersScopedViaLabels(t *testing.T, ds *Datastore) {
 
 		// get the metadata for each installer to assert the batch did set the
 		// expected ones.
-		installersByFilename := make(map[string]*fleet.SoftwareInstaller, len(installers))
+		installersByFilename := make(map[string]*automdm.SoftwareInstaller, len(installers))
 		for _, ins := range installers {
 			meta, err := ds.GetInHouseAppMetadataByTeamAndTitleID(ctx, teamID, *ins.TitleID)
 			require.NoError(t, err)
@@ -1573,11 +1573,11 @@ func testEditDeleteInHouseInstallersActivateNextActivity(t *testing.T, ds *Datas
 	user := test.NewUser(t, ds, "Alice", "alice@example.com", true)
 
 	// create a label
-	label, err := ds.NewLabel(ctx, &fleet.Label{Name: "A"})
+	label, err := ds.NewLabel(ctx, &automdm.Label{Name: "A"})
 	require.NoError(t, err)
 
 	// create a few installers
-	err = ds.BatchSetInHouseAppsInstallers(ctx, nil, []*fleet.UploadSoftwareInstallerPayload{
+	err = ds.BatchSetInHouseAppsInstallers(ctx, nil, []*automdm.UploadSoftwareInstallerPayload{
 		{
 			StorageID:        "ipa0",
 			Filename:         "ipa0.ipa",
@@ -1587,7 +1587,7 @@ func testEditDeleteInHouseInstallersActivateNextActivity(t *testing.T, ds *Datas
 			UserID:           user.ID,
 			Platform:         "ios",
 			URL:              "https://example.com/0",
-			ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+			ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 			BundleIdentifier: "com.ipa0",
 			SelfService:      false,
 		},
@@ -1600,7 +1600,7 @@ func testEditDeleteInHouseInstallersActivateNextActivity(t *testing.T, ds *Datas
 			UserID:           user.ID,
 			Platform:         "ios",
 			URL:              "https://example.com/1",
-			ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+			ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 			BundleIdentifier: "com.ipa1",
 			SelfService:      false,
 		},
@@ -1630,14 +1630,14 @@ func testEditDeleteInHouseInstallersActivateNextActivity(t *testing.T, ds *Datas
 	host1Ipa0 := createInHouseAppInstallRequest(t, ds, host1.ID, ipa0.InstallerID, *installers[0].TitleID, user)
 	host1Ipa1 := createInHouseAppInstallRequest(t, ds, host1.ID, ipa1.InstallerID, *installers[1].TitleID, user)
 	// add a script exec as last activity for host1
-	host1Script, err := ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+	host1Script, err := ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 		HostID: host1.ID, ScriptContents: "echo", UserID: &user.ID, SyncRequest: true,
 	})
 	require.NoError(t, err)
 	host2Ipa0 := createInHouseAppInstallRequest(t, ds, host2.ID, ipa0.InstallerID, *installers[0].TitleID, user)
 	host2Ipa1 := createInHouseAppInstallRequest(t, ds, host2.ID, ipa1.InstallerID, *installers[1].TitleID, user)
 	// add a script exec as first activity for host3
-	host3Script, err := ds.NewHostScriptExecutionRequest(ctx, &fleet.HostScriptRequestPayload{
+	host3Script, err := ds.NewHostScriptExecutionRequest(ctx, &automdm.HostScriptRequestPayload{
 		HostID: host3.ID, ScriptContents: "echo", UserID: &user.ID, SyncRequest: true,
 	})
 	require.NoError(t, err)
@@ -1648,7 +1648,7 @@ func testEditDeleteInHouseInstallersActivateNextActivity(t *testing.T, ds *Datas
 	checkUpcomingActivities(t, ds, host3, host3Script.ExecutionID, host3Ipa1)
 
 	// update installer ipa0 metadata (label condition)
-	err = ds.BatchSetInHouseAppsInstallers(ctx, nil, []*fleet.UploadSoftwareInstallerPayload{
+	err = ds.BatchSetInHouseAppsInstallers(ctx, nil, []*automdm.UploadSoftwareInstallerPayload{
 		{
 			StorageID: "ipa0",
 			Filename:  "ipa0.ipa",
@@ -1658,9 +1658,9 @@ func testEditDeleteInHouseInstallersActivateNextActivity(t *testing.T, ds *Datas
 			UserID:    user.ID,
 			Platform:  "ios",
 			URL:       "https://example.com/0",
-			ValidatedLabels: &fleet.LabelIdentsWithScope{
-				LabelScope: fleet.LabelScopeIncludeAny,
-				ByName:     map[string]fleet.LabelIdent{label.Name: {LabelID: label.ID, LabelName: label.Name}},
+			ValidatedLabels: &automdm.LabelIdentsWithScope{
+				LabelScope: automdm.LabelScopeIncludeAny,
+				ByName:     map[string]automdm.LabelIdent{label.Name: {LabelID: label.ID, LabelName: label.Name}},
 			},
 			BundleIdentifier: "com.ipa0",
 			SelfService:      false,
@@ -1674,7 +1674,7 @@ func testEditDeleteInHouseInstallersActivateNextActivity(t *testing.T, ds *Datas
 			UserID:           user.ID,
 			Platform:         "ios",
 			URL:              "https://example.com/1",
-			ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+			ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 			BundleIdentifier: "com.ipa1",
 			SelfService:      false,
 		},
@@ -1687,7 +1687,7 @@ func testEditDeleteInHouseInstallersActivateNextActivity(t *testing.T, ds *Datas
 	checkUpcomingActivities(t, ds, host3, host3Script.ExecutionID, host3Ipa1)
 
 	// delete ipa1
-	err = ds.BatchSetInHouseAppsInstallers(ctx, nil, []*fleet.UploadSoftwareInstallerPayload{
+	err = ds.BatchSetInHouseAppsInstallers(ctx, nil, []*automdm.UploadSoftwareInstallerPayload{
 		{
 			StorageID: "ipa0",
 			Filename:  "ipa0.ipa",
@@ -1697,9 +1697,9 @@ func testEditDeleteInHouseInstallersActivateNextActivity(t *testing.T, ds *Datas
 			UserID:    user.ID,
 			Platform:  "ios",
 			URL:       "https://example.com/0",
-			ValidatedLabels: &fleet.LabelIdentsWithScope{
-				LabelScope: fleet.LabelScopeIncludeAny,
-				ByName:     map[string]fleet.LabelIdent{label.Name: {LabelID: label.ID, LabelName: label.Name}},
+			ValidatedLabels: &automdm.LabelIdentsWithScope{
+				LabelScope: automdm.LabelScopeIncludeAny,
+				ByName:     map[string]automdm.LabelIdent{label.Name: {LabelID: label.ID, LabelName: label.Name}},
 			},
 			BundleIdentifier: "com.ipa0",
 			SelfService:      false,
@@ -1717,7 +1717,7 @@ func testSoftwareTitleDisplayNameInHouse(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 	user1 := test.NewUser(t, ds, "Alice", "alice@example.com", true)
 
-	payload := fleet.UploadSoftwareInstallerPayload{
+	payload := automdm.UploadSoftwareInstallerPayload{
 		UserID:           user1.ID,
 		Title:            "foo",
 		BundleIdentifier: "com.foo",
@@ -1726,12 +1726,12 @@ func testSoftwareTitleDisplayNameInHouse(t *testing.T, ds *Datastore) {
 		Platform:         "ios",
 		Extension:        "ipa",
 		Version:          "1.2.3",
-		ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+		ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 	}
 	installerID, titleID, err := ds.MatchOrCreateSoftwareInstaller(ctx, &payload)
 	require.NoError(t, err)
 
-	err = ds.SaveInHouseAppUpdates(ctx, &fleet.UpdateSoftwareInstallerPayload{
+	err = ds.SaveInHouseAppUpdates(ctx, &automdm.UpdateSoftwareInstallerPayload{
 		TitleID:     titleID,
 		InstallerID: installerID,
 		Filename:    "new_foo_file.ipa",
@@ -1755,7 +1755,7 @@ func testSoftwareTitleDisplayNameInHouse(t *testing.T, ds *Datastore) {
 	// Add ipa, regular installer, vpp with names
 	installerID, titleID, err = ds.MatchOrCreateSoftwareInstaller(ctx, &payload)
 	require.NoError(t, err)
-	err = ds.SaveInHouseAppUpdates(ctx, &fleet.UpdateSoftwareInstallerPayload{
+	err = ds.SaveInHouseAppUpdates(ctx, &automdm.UpdateSoftwareInstallerPayload{
 		TitleID:     titleID,
 		InstallerID: installerID,
 		Filename:    "foo.ipa",
@@ -1764,22 +1764,22 @@ func testSoftwareTitleDisplayNameInHouse(t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 
-	payloadPkg := fleet.UploadSoftwareInstallerPayload{
+	payloadPkg := automdm.UploadSoftwareInstallerPayload{
 		UserID:           user1.ID,
 		Title:            "bar",
 		Filename:         "bar.pkg",
 		InstallScript:    "echo install",
 		BundleIdentifier: "com.bar",
 		Version:          "1.2.3",
-		ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+		ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 	}
 	_, pkgTitleID, err := ds.MatchOrCreateSoftwareInstaller(ctx, &payloadPkg)
 	require.NoError(t, err)
 
-	err = ds.SaveInstallerUpdates(ctx, &fleet.UpdateSoftwareInstallerPayload{
+	err = ds.SaveInstallerUpdates(ctx, &automdm.UpdateSoftwareInstallerPayload{
 		DisplayName:       ptr.String("update1"),
 		TitleID:           pkgTitleID,
-		InstallerFile:     &fleet.TempFileReader{},
+		InstallerFile:     &automdm.TempFileReader{},
 		InstallScript:     new(string),
 		PreInstallQuery:   new(string),
 		PostInstallScript: new(string),
@@ -1789,8 +1789,8 @@ func testSoftwareTitleDisplayNameInHouse(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	test.CreateInsertGlobalVPPToken(t, ds)
-	_, err = ds.InsertVPPAppWithTeam(ctx, &fleet.VPPApp{
-		VPPAppTeam:       fleet.VPPAppTeam{VPPAppID: fleet.VPPAppID{AdamID: "adam_vpp_1", Platform: "darwin"}, DisplayName: ptr.String("VPP 1")},
+	_, err = ds.InsertVPPAppWithTeam(ctx, &automdm.VPPApp{
+		VPPAppTeam:       automdm.VPPAppTeam{VPPAppID: automdm.VPPAppID{AdamID: "adam_vpp_1", Platform: "darwin"}, DisplayName: ptr.String("VPP 1")},
 		Name:             "vpp1",
 		BundleIdentifier: "com.app.vpp1",
 	}, nil, nil)
@@ -1810,7 +1810,7 @@ func testSoftwareTitleDisplayNameInHouse(t *testing.T, ds *Datastore) {
 	require.Len(t, names, 3)
 
 	// Batch set in-house apps, previous names should be deleted
-	err = ds.BatchSetInHouseAppsInstallers(ctx, ptr.Uint(0), []*fleet.UploadSoftwareInstallerPayload{
+	err = ds.BatchSetInHouseAppsInstallers(ctx, ptr.Uint(0), []*automdm.UploadSoftwareInstallerPayload{
 		{
 			StorageID:        "ipa1storageid",
 			Filename:         "ipa1.ipa",
@@ -1820,7 +1820,7 @@ func testSoftwareTitleDisplayNameInHouse(t *testing.T, ds *Datastore) {
 			UserID:           user1.ID,
 			Platform:         "ios",
 			URL:              "https://example.com/1",
-			ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+			ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 			BundleIdentifier: "com.ipa1",
 			SelfService:      true,
 			DisplayName:      "Yeehaw",
@@ -1834,7 +1834,7 @@ func testSoftwareTitleDisplayNameInHouse(t *testing.T, ds *Datastore) {
 			UserID:           user1.ID,
 			Platform:         "ipados",
 			URL:              "https://example.com/1",
-			ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+			ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 			BundleIdentifier: "com.ipa1",
 			SelfService:      true,
 			DisplayName:      "Yeehaw",
@@ -1847,7 +1847,7 @@ func testSoftwareTitleDisplayNameInHouse(t *testing.T, ds *Datastore) {
 	require.NotContains(t, names, "super foo") // previous in-house display names are deleted
 
 	// Delete all in-house apps
-	err = ds.BatchSetInHouseAppsInstallers(ctx, ptr.Uint(0), []*fleet.UploadSoftwareInstallerPayload{})
+	err = ds.BatchSetInHouseAppsInstallers(ctx, ptr.Uint(0), []*automdm.UploadSoftwareInstallerPayload{})
 	require.NoError(t, err)
 	names = getAllDisplayNames()
 	require.Len(t, names, 2)
@@ -1859,34 +1859,34 @@ func testInHouseAppsCancelledOnUnenroll(t *testing.T, ds *Datastore) {
 	user := test.NewUser(t, ds, "Alice", "alice@example.com", true)
 
 	// create an mdm enrolled host
-	iosHost, err := ds.NewHost(testCtx(), &fleet.Host{
+	iosHost, err := ds.NewHost(testCtx(), &automdm.Host{
 		Hostname:       "host1",
 		UUID:           "host1uuid",
 		HardwareSerial: "host1serial",
 		NodeKey:        ptr.String("host1key"),
-		Platform:       string(fleet.IOSPlatform),
+		Platform:       string(automdm.IOSPlatform),
 	})
 	require.NoError(t, err)
 	nanoEnroll(t, ds, iosHost, false)
 
-	hosts, err := ds.ListHosts(ctx, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{})
+	hosts, err := ds.ListHosts(ctx, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{})
 	require.NoError(t, err)
 	require.Len(t, hosts, 1)
 
-	vppApp, err := ds.InsertVPPAppWithTeam(ctx, &fleet.VPPApp{
+	vppApp, err := ds.InsertVPPAppWithTeam(ctx, &automdm.VPPApp{
 		Name: "vpp1", BundleIdentifier: "com.app.vpp1",
-		VPPAppTeam: fleet.VPPAppTeam{VPPAppID: fleet.VPPAppID{AdamID: "adam_vpp_app_1", Platform: fleet.IOSPlatform}},
+		VPPAppTeam: automdm.VPPAppTeam{VPPAppID: automdm.VPPAppID{AdamID: "adam_vpp_app_1", Platform: automdm.IOSPlatform}},
 	}, nil, nil)
 	require.NoError(t, err)
 
-	payload := fleet.UploadSoftwareInstallerPayload{
+	payload := automdm.UploadSoftwareInstallerPayload{
 		UserID:           user.ID,
 		BundleIdentifier: "com.foo",
 		Filename:         "foo.ipa",
 		StorageID:        "id1234",
 		Extension:        "ipa",
 		SelfService:      false,
-		ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+		ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 	}
 
 	payload2 := payload
@@ -1907,7 +1907,7 @@ func testInHouseAppsCancelledOnUnenroll(t *testing.T, ds *Datastore) {
 	checkUpcomingActivities(t, ds, iosHost, ipaCmd, ipaCmd2, vppCmd)
 	summary, err := ds.GetSummaryHostInHouseAppInstalls(ctx, ptr.Uint(0), inHouseAppID)
 	require.NoError(t, err)
-	require.Equal(t, fleet.VPPAppStatusSummary{Installed: 0, Pending: 1, Failed: 0}, *summary)
+	require.Equal(t, automdm.VPPAppStatusSummary{Installed: 0, Pending: 1, Failed: 0}, *summary)
 
 	// Create activity service for checking past activities
 	activitySvc := NewTestActivityService(t, ds)
@@ -1929,7 +1929,7 @@ func testInHouseAppsCancelledOnUnenroll(t *testing.T, ds *Datastore) {
 		require.NoError(t, activitySvc.NewActivity(ctx, apiUser, act))
 	}
 
-	// fleet needs to receive some command result at some
+	// team needs to receive some command result at some
 	// point for it to show up in the install summary
 	createInHouseAppInstallResult(t, ds, iosHost, ipaCmd, "Acknowledged")
 
@@ -1939,40 +1939,40 @@ func testInHouseAppsCancelledOnUnenroll(t *testing.T, ds *Datastore) {
 	require.Len(t, acts, 2)
 	// newest: created by createInHouseAppInstallResult with nil user
 	require.Nil(t, acts[0].ActorID)
-	require.Equal(t, acts[0].Type, fleet.ActivityInstalledAppStoreApp{}.ActivityName())
+	require.Equal(t, acts[0].Type, automdm.ActivityInstalledAppStoreApp{}.ActivityName())
 	// older: created by MDMTurnOff with user
 	require.NotNil(t, acts[1].ActorID)
 	require.Equal(t, *acts[1].ActorID, user.ID)
-	require.Equal(t, acts[1].Type, fleet.ActivityTypeInstalledSoftware{}.ActivityName())
+	require.Equal(t, acts[1].Type, automdm.ActivityTypeInstalledSoftware{}.ActivityName())
 
 	// there should be no upcoming activities and 1 failed install
 	checkUpcomingActivities(t, ds, iosHost)
 	summary, err = ds.GetSummaryHostInHouseAppInstalls(ctx, ptr.Uint(0), inHouseAppID)
 	require.NoError(t, err)
-	require.Equal(t, fleet.VPPAppStatusSummary{Installed: 0, Pending: 0, Failed: 1}, *summary)
+	require.Equal(t, automdm.VPPAppStatusSummary{Installed: 0, Pending: 0, Failed: 1}, *summary)
 }
 
 func testGetUnverifiedInHouseAppInstallsForHost(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 	user := test.NewUser(t, ds, "Alice", "alice@example.com", true)
 
-	iosHost, err := ds.NewHost(ctx, &fleet.Host{
+	iosHost, err := ds.NewHost(ctx, &automdm.Host{
 		Hostname:       "host1",
 		UUID:           "host1uuid",
 		HardwareSerial: "host1serial",
 		NodeKey:        new("host1key"),
-		Platform:       string(fleet.IOSPlatform),
+		Platform:       string(automdm.IOSPlatform),
 	})
 	require.NoError(t, err)
 	nanoEnroll(t, ds, iosHost, false)
 
-	inHouseAppID, titleID, err := ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
+	inHouseAppID, titleID, err := ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
 		UserID:           user.ID,
 		BundleIdentifier: "com.foo",
 		Filename:         "foo.ipa",
 		StorageID:        "id1234",
 		Extension:        "ipa",
-		ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+		ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 	})
 	require.NoError(t, err)
 
@@ -1998,12 +1998,12 @@ func testGetUnverifiedInHouseAppInstallsForHost(t *testing.T, ds *Datastore) {
 // setupTestInHouseApp inserts both iOS and iPadOS rows for the given filename
 // (insertInHouseApp creates them as a pair) and returns both IDs.
 func setupTestInHouseApp(t *testing.T, ds *Datastore, filename string) (iosID, ipadID uint) {
-	iosID, _, err := ds.insertInHouseApp(testCtx(), &fleet.InHouseAppPayload{
+	iosID, _, err := ds.insertInHouseApp(testCtx(), &automdm.InHouseAppPayload{
 		Title:           filename,
 		Filename:        filename,
 		BundleID:        "com.example." + filename,
 		StorageID:       uuid.NewString(),
-		ValidatedLabels: &fleet.LabelIdentsWithScope{},
+		ValidatedLabels: &automdm.LabelIdentsWithScope{},
 	})
 	require.NoError(t, err)
 	err = sqlx.GetContext(testCtx(), ds.reader(testCtx()), &ipadID,
@@ -2055,13 +2055,13 @@ func testInHouseAppConfigSiblingRows(t *testing.T, ds *Datastore) {
 	// configuration so platform-specific installer-ID lookups don't return
 	// "not found" on iPadOS (the bug this guards against).
 	cfg := []byte(`<dict><key>K</key><string>v</string></dict>`)
-	iosID, _, err := ds.insertInHouseApp(ctx, &fleet.InHouseAppPayload{
+	iosID, _, err := ds.insertInHouseApp(ctx, &automdm.InHouseAppPayload{
 		Title:           "siblings.ipa",
 		Filename:        "siblings.ipa",
 		BundleID:        "com.example.siblings",
 		StorageID:       uuid.NewString(),
 		Configuration:   cfg,
-		ValidatedLabels: &fleet.LabelIdentsWithScope{},
+		ValidatedLabels: &automdm.LabelIdentsWithScope{},
 	})
 	require.NoError(t, err)
 
@@ -2091,13 +2091,13 @@ func testInHouseAppInstallTokens(t *testing.T, ds *Datastore) {
 		require.EqualValues(t, 42, meta.SoftwareTitleID)
 		require.EqualValues(t, 3, meta.TeamID)
 		require.EqualValues(t, 7, meta.HostID)
-		require.WithinDuration(t, time.Now().UTC().Add(fleet.InHouseAppInstallTokenTTL), meta.ExpiresAt, time.Minute)
+		require.WithinDuration(t, time.Now().UTC().Add(automdm.InHouseAppInstallTokenTTL), meta.ExpiresAt, time.Minute)
 	})
 
 	t.Run("unknown token reports not found", func(t *testing.T) {
 		_, err := ds.GetInHouseAppInstallTokenMetadata(ctx, uuid.NewString())
 		require.Error(t, err)
-		require.True(t, fleet.IsNotFound(err), "expected NotFound, got %v", err)
+		require.True(t, automdm.IsNotFound(err), "expected NotFound, got %v", err)
 	})
 
 	t.Run("expired token reports not found", func(t *testing.T) {
@@ -2112,7 +2112,7 @@ func testInHouseAppInstallTokens(t *testing.T, ds *Datastore) {
 
 		_, err = ds.GetInHouseAppInstallTokenMetadata(ctx, token)
 		require.Error(t, err)
-		require.True(t, fleet.IsNotFound(err), "expected NotFound, got %v", err)
+		require.True(t, automdm.IsNotFound(err), "expected NotFound, got %v", err)
 	})
 
 	t.Run("cleanup deletes only expired", func(t *testing.T) {
@@ -2158,7 +2158,7 @@ func testInHouseAppInstallTokens(t *testing.T, ds *Datastore) {
 		require.Error(t, err)
 
 		_, err = ds.GetInHouseAppInstallTokenMetadata(ctx, token)
-		require.True(t, fleet.IsNotFound(err))
+		require.True(t, automdm.IsNotFound(err))
 	})
 }
 
@@ -2169,16 +2169,16 @@ func testInHouseSummaryUpcomingPerHostNoDropout(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
 	user := test.NewUser(t, ds, "Alice", "alice@example.com", true)
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "team drop"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "team drop"})
 	require.NoError(t, err)
 	host := test.NewHost(t, ds, "ihadrop-host", "1", "ihadropkey", "ihadropuuid", time.Now())
-	require.NoError(t, ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team.ID, []uint{host.ID})))
+	require.NoError(t, ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team.ID, []uint{host.ID})))
 
-	appID, titleID, err := ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
+	appID, titleID, err := ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
 		TeamID: &team.ID, UserID: user.ID,
 		Title: "ihadrop", Filename: "ihadrop.ipa", BundleIdentifier: "com.ihadrop",
 		StorageID: "ihadropstorage", Platform: "ios", Extension: "ipa", Version: "1.0",
-		ValidatedLabels: &fleet.LabelIdentsWithScope{},
+		ValidatedLabels: &automdm.LabelIdentsWithScope{},
 	})
 	require.NoError(t, err)
 
@@ -2187,7 +2187,7 @@ func testInHouseSummaryUpcomingPerHostNoDropout(t *testing.T, ds *Datastore) {
 	insert := func(execID string, priority, createdOffsetMicros int) {
 		res, err := ds.writer(ctx).ExecContext(ctx, `
 INSERT INTO upcoming_activities
-	(host_id, priority, fleet_initiated, activity_type, execution_id, payload, created_at)
+	(host_id, priority, automdm_initiated, activity_type, execution_id, payload, created_at)
 VALUES
 	(?, ?, 1, 'in_house_app_install', ?, JSON_OBJECT('self_service', false), NOW(6) + INTERVAL ? MICROSECOND)`,
 			host.ID, priority, execID, createdOffsetMicros)
@@ -2205,22 +2205,22 @@ VALUES (?, ?, ?)`, uaID, appID, titleID)
 
 	summary, err := ds.GetSummaryHostInHouseAppInstalls(ctx, &team.ID, appID)
 	require.NoError(t, err)
-	require.Equal(t, fleet.VPPAppStatusSummary{Pending: 1}, *summary)
+	require.Equal(t, automdm.VPPAppStatusSummary{Pending: 1}, *summary)
 }
 
 func testBatchSetInHouseInstallersInstallDuringSetup(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "team 1"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "team 1"})
 	require.NoError(t, err)
 	user1 := test.NewUser(t, ds, "Alice", "alice@example.com", true)
 
-	payloadForPlatform := func(platform string, installDuringSetup *bool) *fleet.UploadSoftwareInstallerPayload {
+	payloadForPlatform := func(platform string, installDuringSetup *bool) *automdm.UploadSoftwareInstallerPayload {
 		source := "ios_apps"
 		if platform == "ipados" {
 			source = "ipados_apps"
 		}
-		return &fleet.UploadSoftwareInstallerPayload{
+		return &automdm.UploadSoftwareInstallerPayload{
 			StorageID:          "ipa1",
 			Filename:           "ipa1.ipa",
 			Title:              "ipa1",
@@ -2229,7 +2229,7 @@ func testBatchSetInHouseInstallersInstallDuringSetup(t *testing.T, ds *Datastore
 			UserID:             user1.ID,
 			Platform:           platform,
 			URL:                "https://example.com/1",
-			ValidatedLabels:    &fleet.LabelIdentsWithScope{},
+			ValidatedLabels:    &automdm.LabelIdentsWithScope{},
 			BundleIdentifier:   "com.ipa1",
 			InstallDuringSetup: installDuringSetup,
 		}
@@ -2255,7 +2255,7 @@ func testBatchSetInHouseInstallersInstallDuringSetup(t *testing.T, ds *Datastore
 	}
 
 	// setup_experience_platform: [ios] → only the iOS row is flagged
-	err = ds.BatchSetInHouseAppsInstallers(ctx, &team.ID, []*fleet.UploadSoftwareInstallerPayload{
+	err = ds.BatchSetInHouseAppsInstallers(ctx, &team.ID, []*automdm.UploadSoftwareInstallerPayload{
 		payloadForPlatform("ios", new(true)),
 		payloadForPlatform("ipados", new(false)),
 	})
@@ -2263,7 +2263,7 @@ func testBatchSetInHouseInstallersInstallDuringSetup(t *testing.T, ds *Datastore
 	require.Equal(t, map[string]bool{"ios": true, "ipados": false}, flagsByPlatform())
 
 	// omitting the field preserves stored state on re-apply
-	err = ds.BatchSetInHouseAppsInstallers(ctx, &team.ID, []*fleet.UploadSoftwareInstallerPayload{
+	err = ds.BatchSetInHouseAppsInstallers(ctx, &team.ID, []*automdm.UploadSoftwareInstallerPayload{
 		payloadForPlatform("ios", nil),
 		payloadForPlatform("ipados", nil),
 	})
@@ -2271,7 +2271,7 @@ func testBatchSetInHouseInstallersInstallDuringSetup(t *testing.T, ds *Datastore
 	require.Equal(t, map[string]bool{"ios": true, "ipados": false}, flagsByPlatform())
 
 	// an explicit value overwrites in both directions
-	err = ds.BatchSetInHouseAppsInstallers(ctx, &team.ID, []*fleet.UploadSoftwareInstallerPayload{
+	err = ds.BatchSetInHouseAppsInstallers(ctx, &team.ID, []*automdm.UploadSoftwareInstallerPayload{
 		payloadForPlatform("ios", new(false)),
 		payloadForPlatform("ipados", new(true)),
 	})
@@ -2293,7 +2293,7 @@ func testInHouseAppManifestURLUsesAppleServerURL(t *testing.T, ds *Datastore) {
 	appCfg.MDM.AppleServerURL = deviceURL
 	require.NoError(t, ds.SaveAppConfig(ctx, appCfg))
 
-	err = ds.BatchSetInHouseAppsInstallers(ctx, nil, []*fleet.UploadSoftwareInstallerPayload{
+	err = ds.BatchSetInHouseAppsInstallers(ctx, nil, []*automdm.UploadSoftwareInstallerPayload{
 		{
 			StorageID:        "ipa0",
 			Filename:         "ipa0.ipa",
@@ -2303,7 +2303,7 @@ func testInHouseAppManifestURLUsesAppleServerURL(t *testing.T, ds *Datastore) {
 			UserID:           user.ID,
 			Platform:         "ios",
 			URL:              "https://example.com/0",
-			ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+			ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 			BundleIdentifier: "com.ipa0",
 		},
 	})
@@ -2325,9 +2325,9 @@ func testInHouseAppManifestURLUsesAppleServerURL(t *testing.T, ds *Datastore) {
 		`SELECT command FROM nano_commands WHERE command_uuid = ?`, cmdUUID))
 
 	// The device fetches the manifest itself, so the command has to carry the
-	// hostname Apple devices reach Fleet on rather than the admin one, which a
+	// hostname Apple devices reach AutoMDM on rather than the admin one, which a
 	// split-hostname deployment does not expose to them.
-	require.Contains(t, rawCmd, deviceURL+"/api/latest/fleet/software/titles/")
+	require.Contains(t, rawCmd, deviceURL+"/api/latest/automdm/software/titles/")
 	require.NotContains(t, rawCmd, adminURL)
 }
 
@@ -2339,7 +2339,7 @@ func testInHouseAppInstallPushesViaDirectActivation(t *testing.T, ds *Datastore)
 
 	user := test.NewUser(t, ds, "Direct Activation", "direct-activation@example.com", true)
 
-	payload := fleet.UploadSoftwareInstallerPayload{
+	payload := automdm.UploadSoftwareInstallerPayload{
 		UserID:           user.ID,
 		Title:            "direct-activation-app",
 		Filename:         "direct-activation.ipa",
@@ -2348,7 +2348,7 @@ func testInHouseAppInstallPushesViaDirectActivation(t *testing.T, ds *Datastore)
 		Platform:         "ios",
 		Extension:        "ipa",
 		Version:          "1.0.0",
-		ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+		ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 	}
 	installerID, titleID, err := ds.MatchOrCreateSoftwareInstaller(ctx, &payload)
 	require.NoError(t, err)
@@ -2385,14 +2385,14 @@ func testRemovePendingInHouseAppInstallsSkipsInstallWithDeletedUpcomingActivity(
 	host1 := test.NewHost(t, ds, "host1", "1", "host1key", "host1uuid", time.Now())
 	host2 := test.NewHost(t, ds, "host2", "2", "host2key", "host2uuid", time.Now())
 	user1 := test.NewUser(t, ds, "Alice", "alice@example.com", true)
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "team 1"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "team 1"})
 	require.NoError(t, err)
-	err = ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team.ID, []uint{host1.ID, host2.ID}))
+	err = ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team.ID, []uint{host1.ID, host2.ID}))
 	require.NoError(t, err)
 	nanoEnroll(t, ds, host1, false)
 	nanoEnroll(t, ds, host2, false)
 
-	installerID, titleID, err := ds.MatchOrCreateSoftwareInstaller(ctx, &fleet.UploadSoftwareInstallerPayload{
+	installerID, titleID, err := ds.MatchOrCreateSoftwareInstaller(ctx, &automdm.UploadSoftwareInstallerPayload{
 		TeamID:           &team.ID,
 		UserID:           user1.ID,
 		Title:            "foo",
@@ -2402,7 +2402,7 @@ func testRemovePendingInHouseAppInstallsSkipsInstallWithDeletedUpcomingActivity(
 		Platform:         "ios",
 		Extension:        "ipa",
 		Version:          "1.2.3",
-		ValidatedLabels:  &fleet.LabelIdentsWithScope{},
+		ValidatedLabels:  &automdm.LabelIdentsWithScope{},
 	})
 	require.NoError(t, err)
 

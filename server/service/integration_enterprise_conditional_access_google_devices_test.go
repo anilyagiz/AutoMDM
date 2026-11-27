@@ -15,14 +15,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/dev_mode"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
-	"github.com/fleetdm/fleet/v4/server/service/conditional_access_google"
-	"github.com/fleetdm/fleet/v4/server/service/conditional_access_google/mockserver"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	"github.com/anilyagiz/automdm/v4/server/dev_mode"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
+	"github.com/anilyagiz/automdm/v4/server/service/conditional_access_google"
+	"github.com/anilyagiz/automdm/v4/server/service/conditional_access_google/mockserver"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
@@ -36,7 +36,7 @@ type googleDeviceTest struct {
 	*googleCATest
 	syncer *GoogleConditionalAccessSyncer
 	// cronActivities are the activities the sync cron logged.
-	cronActivities []fleet.ActivityDetails
+	cronActivities []automdm.ActivityDetails
 }
 
 func (s *integrationEnterpriseTestSuite) newGoogleDeviceTest() *googleDeviceTest {
@@ -44,7 +44,7 @@ func (s *integrationEnterpriseTestSuite) newGoogleDeviceTest() *googleDeviceTest
 	g.syncer = NewGoogleConditionalAccessSyncer(s.ds, &GoogleConditionalAccessClient{
 		Relay:         g.client,
 		CloudIdentity: g.client.cloudIdentity,
-	}, func(_ context.Context, user *fleet.User, activity fleet.ActivityDetails) error {
+	}, func(_ context.Context, user *automdm.User, activity automdm.ActivityDetails) error {
 		require.Nil(g.t, user)
 		g.cronActivities = append(g.cronActivities, activity)
 		return nil
@@ -54,7 +54,7 @@ func (s *integrationEnterpriseTestSuite) newGoogleDeviceTest() *googleDeviceTest
 	g.t.Cleanup(func() {
 		s.token = s.getTestAdminToken()
 		if g.getConfig().Integrations.GoogleConditionalAccess != nil {
-			s.DoJSON("DELETE", "/api/latest/fleet/conditional_access/google", nil, http.StatusOK, &deleteGoogleConditionalAccessResponse{})
+			s.DoJSON("DELETE", "/api/latest/automdm/conditional_access/google", nil, http.StatusOK, &deleteGoogleConditionalAccessResponse{})
 		}
 	})
 	return g
@@ -67,26 +67,26 @@ func (g *googleDeviceTest) connectIntegration() {
 }
 
 // newIOSHost creates an iOS or iPadOS host enrolled in MDM; automatic makes it company-owned.
-func (g *googleDeviceTest) newIOSHost(platform string, automatic bool) *fleet.Host {
+func (g *googleDeviceTest) newIOSHost(platform string, automatic bool) *automdm.Host {
 	t := g.t
 	host := test.NewHost(t, g.s.ds, platform+"-"+uuid.NewString(), "", uuid.NewString(), uuid.NewString(), time.Now(), test.WithPlatform(platform))
 	cleanupCtx := context.WithoutCancel(t.Context())
 	t.Cleanup(func() { _ = g.s.ds.DeleteHost(cleanupCtx, host.ID) })
-	personal := fleet.PersonalEnrollmentTypeNone
+	personal := automdm.PersonalEnrollmentTypeNone
 	if !automatic {
-		personal = fleet.PersonalEnrollmentTypeAccountDriven
+		personal = automdm.PersonalEnrollmentTypeAccountDriven
 	}
-	require.NoError(t, g.s.ds.SetOrUpdateMDMData(t.Context(), host.ID, false, true, g.s.server.URL, automatic, fleet.WellKnownMDMFleet, "", personal))
+	require.NoError(t, g.s.ds.SetOrUpdateMDMData(t.Context(), host.ID, false, true, g.s.server.URL, automatic, automdm.WellKnownMDMAutoMDM, "", personal))
 	return host
 }
 
 // newAndroidHost enrolls an Android host the way Android MDM does, so eligibility is
 // checked against the flags enrollment writes.
-func (g *googleDeviceTest) newAndroidHost(companyOwned bool) *fleet.Host {
+func (g *googleDeviceTest) newAndroidHost(companyOwned bool) *automdm.Host {
 	t := g.t
 	hostUUID := uuid.NewString()
-	ah := &fleet.AndroidHost{
-		Host: &fleet.Host{
+	ah := &automdm.AndroidHost{
+		Host: &automdm.Host{
 			Hostname: "android-" + hostUUID, ComputerName: "android-" + hostUUID, Platform: "android",
 			OSVersion: "Android 14", HardwareSerial: uuid.NewString(), UUID: hostUUID,
 		},
@@ -101,7 +101,7 @@ func (g *googleDeviceTest) newAndroidHost(companyOwned bool) *fleet.Host {
 	return host
 }
 
-func (g *googleDeviceTest) androidDeviceID(host *fleet.Host) string {
+func (g *googleDeviceTest) androidDeviceID(host *automdm.Host) string {
 	var id string
 	mysqltest.ExecAdhocSQL(g.t, g.s.ds, func(q sqlx.ExtContext) error {
 		return sqlx.GetContext(g.t.Context(), q, &id, `SELECT device_id FROM android_devices WHERE host_id = ?`, host.ID)
@@ -109,23 +109,23 @@ func (g *googleDeviceTest) androidDeviceID(host *fleet.Host) string {
 	return id
 }
 
-func (g *googleDeviceTest) iosStatus(host *fleet.Host) fleet.GoogleConditionalAccessDeviceStatus {
-	var resp fleet.GoogleConditionalAccessDeviceStatus
-	res := g.s.DoRawNoAuth("POST", "/api/latest/fleet/device/"+host.UUID+"/conditional_access/google", nil, http.StatusOK)
+func (g *googleDeviceTest) iosStatus(host *automdm.Host) automdm.GoogleConditionalAccessDeviceStatus {
+	var resp automdm.GoogleConditionalAccessDeviceStatus
+	res := g.s.DoRawNoAuth("POST", "/api/latest/automdm/device/"+host.UUID+"/conditional_access/google", nil, http.StatusOK)
 	require.NoError(g.t, json.NewDecoder(res.Body).Decode(&resp))
 	return resp
 }
 
 // signInRequired reads the flag the Self-service web clip gets with the device details.
-func (g *googleDeviceTest) signInRequired(host *fleet.Host) bool {
+func (g *googleDeviceTest) signInRequired(host *automdm.Host) bool {
 	var resp getDeviceHostResponse
-	res := g.s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+host.UUID, nil, http.StatusOK)
+	res := g.s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+host.UUID, nil, http.StatusOK)
 	require.NoError(g.t, json.NewDecoder(res.Body).Decode(&resp))
 	return resp.GoogleConditionalAccessSignInRequired
 }
 
 // signIn returns the token in the sign-in URL the status route hands out.
-func (g *googleDeviceTest) signIn(host *fleet.Host) string {
+func (g *googleDeviceTest) signIn(host *automdm.Host) string {
 	st := g.iosStatus(host)
 	require.NotEmpty(g.t, st.SignInURL, "%+v", st)
 	u, err := url.Parse(st.SignInURL)
@@ -137,19 +137,19 @@ func (g *googleDeviceTest) signIn(host *fleet.Host) string {
 	return u.Query().Get("token")
 }
 
-func (g *googleDeviceTest) register(secret string, reg fleet.GoogleConditionalAccessRegistration, wantStatus int) fleet.GoogleConditionalAccessRegisterResult {
+func (g *googleDeviceTest) register(secret string, reg automdm.GoogleConditionalAccessRegistration, wantStatus int) automdm.GoogleConditionalAccessRegisterResult {
 	return g.registerWithAuthorization("Bearer "+secret, reg, wantStatus)
 }
 
 func (g *googleDeviceTest) registerWithAuthorization(
-	authorization string, reg fleet.GoogleConditionalAccessRegistration, wantStatus int,
-) fleet.GoogleConditionalAccessRegisterResult {
+	authorization string, reg automdm.GoogleConditionalAccessRegistration, wantStatus int,
+) automdm.GoogleConditionalAccessRegisterResult {
 	body, err := json.Marshal(reg)
 	require.NoError(g.t, err)
-	res := g.s.DoRawWithHeaders("POST", "/api/latest/fleet/google_conditional_access/register", body, wantStatus,
+	res := g.s.DoRawWithHeaders("POST", "/api/latest/automdm/google_conditional_access/register", body, wantStatus,
 		map[string]string{"Authorization": authorization})
 	var resp struct {
-		Result fleet.GoogleConditionalAccessRegisterResult `json:"result"`
+		Result automdm.GoogleConditionalAccessRegisterResult `json:"result"`
 	}
 	b, err := io.ReadAll(res.Body)
 	require.NoError(g.t, err)
@@ -157,16 +157,16 @@ func (g *googleDeviceTest) registerWithAuthorization(
 	return resp.Result
 }
 
-func (g *googleDeviceTest) registerNames(token string, names ...string) fleet.GoogleConditionalAccessRegisterResult {
-	return g.register("secret-"+googleTestCustomer, fleet.GoogleConditionalAccessRegistration{
+func (g *googleDeviceTest) registerNames(token string, names ...string) automdm.GoogleConditionalAccessRegisterResult {
+	return g.register("secret-"+googleTestCustomer, automdm.GoogleConditionalAccessRegistration{
 		Token: token, Names: names, Customer: googleTestCustomer, Email: "user@example.com",
 	}, http.StatusOK)
 }
 
-func (g *googleDeviceTest) states(host *fleet.Host) map[string]fleet.GoogleConditionalAccessDeviceUserState {
-	states := map[string]fleet.GoogleConditionalAccessDeviceUserState{}
+func (g *googleDeviceTest) states(host *automdm.Host) map[string]automdm.GoogleConditionalAccessDeviceUserState {
+	states := map[string]automdm.GoogleConditionalAccessDeviceUserState{}
 	mysqltest.ExecAdhocSQL(g.t, g.s.ds, func(q sqlx.ExtContext) error {
-		var rows []fleet.GoogleConditionalAccessDeviceUser
+		var rows []automdm.GoogleConditionalAccessDeviceUser
 		if err := sqlx.SelectContext(g.t.Context(), q, &rows, `SELECT device_user_name, state FROM google_conditional_access_device_users WHERE host_uuid = ?`, host.UUID); err != nil {
 			return err
 		}
@@ -178,7 +178,7 @@ func (g *googleDeviceTest) states(host *fleet.Host) map[string]fleet.GoogleCondi
 	return states
 }
 
-func (g *googleDeviceTest) registrationAttempts(host *fleet.Host) uint {
+func (g *googleDeviceTest) registrationAttempts(host *automdm.Host) uint {
 	var attempts uint
 	mysqltest.ExecAdhocSQL(g.t, g.s.ds, func(q sqlx.ExtContext) error {
 		return sqlx.GetContext(g.t.Context(), q, &attempts,
@@ -188,26 +188,26 @@ func (g *googleDeviceTest) registrationAttempts(host *fleet.Host) uint {
 }
 
 // registered reports whether the host has a name that is marked or waiting to be.
-func (g *googleDeviceTest) registered(host *fleet.Host) bool {
+func (g *googleDeviceTest) registered(host *automdm.Host) bool {
 	dev, err := g.s.ds.GetGoogleConditionalAccessDevice(g.t.Context(), host.UUID, googleTestCustomer)
-	if !fleet.IsNotFound(err) {
+	if !automdm.IsNotFound(err) {
 		require.NoError(g.t, err)
 	}
 	return dev.Registered()
 }
 
 // managed reports whether every name the host is registered with is marked.
-func (g *googleDeviceTest) managed(host *fleet.Host) bool {
+func (g *googleDeviceTest) managed(host *automdm.Host) bool {
 	dev, err := g.s.ds.GetGoogleConditionalAccessDevice(g.t.Context(), host.UUID, googleTestCustomer)
-	if !fleet.IsNotFound(err) {
+	if !automdm.IsNotFound(err) {
 		require.NoError(g.t, err)
 	}
 	return dev.Managed()
 }
 
-func (g *googleDeviceTest) hasDevice(host *fleet.Host) bool {
+func (g *googleDeviceTest) hasDevice(host *automdm.Host) bool {
 	_, err := g.s.ds.GetGoogleConditionalAccessDevice(g.t.Context(), host.UUID, googleTestCustomer)
-	if fleet.IsNotFound(err) {
+	if automdm.IsNotFound(err) {
 		return false
 	}
 	require.NoError(g.t, err)
@@ -215,9 +215,9 @@ func (g *googleDeviceTest) hasDevice(host *fleet.Host) bool {
 }
 
 // googleDeviceID returns the Google device ID host details show, "" when there's none.
-func (g *googleDeviceTest) googleDeviceID(host *fleet.Host) string {
+func (g *googleDeviceTest) googleDeviceID(host *automdm.Host) string {
 	var resp getHostResponse
-	g.s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", host.ID), nil, http.StatusOK, &resp)
+	g.s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", host.ID), nil, http.StatusOK, &resp)
 	require.NotNil(g.t, resp.Host)
 	if resp.Host.GoogleDeviceID == nil {
 		return ""
@@ -226,13 +226,13 @@ func (g *googleDeviceTest) googleDeviceID(host *fleet.Host) string {
 }
 
 // googleDeviceIDActivity is the details of the activity both ways of binding a host log.
-func googleDeviceIDActivity(host *fleet.Host, googleDeviceID string) string {
+func googleDeviceIDActivity(host *automdm.Host, googleDeviceID string) string {
 	return fmt.Sprintf(`{"host_id": %d, "host_display_name": %q, "google_device_id": %q}`, host.ID, host.DisplayName(), googleDeviceID)
 }
 
 // googleSignInActivity is the details of the activity a sign-in logs, which also names
 // the Google account that signed in.
-func googleSignInActivity(host *fleet.Host, googleDeviceID string) string {
+func googleSignInActivity(host *automdm.Host, googleDeviceID string) string {
 	return fmt.Sprintf(`{"host_id": %d, "host_display_name": %q, "google_device_id": %q, "google_email": "user@example.com"}`,
 		host.ID, host.DisplayName(), googleDeviceID)
 }
@@ -267,17 +267,17 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleDeviceRegist
 
 	// Not connected: nothing is enabled and Google isn't called.
 	require.False(t, g.signInRequired(ade))
-	require.Equal(t, fleet.GoogleConditionalAccessDeviceStatus{}, g.iosStatus(ade))
+	require.Equal(t, automdm.GoogleConditionalAccessDeviceStatus{}, g.iosStatus(ade))
 	require.Empty(t, g.googleDeviceID(ade))
 	g.sync()
 	require.Zero(t, g.client.devCalls().googleCalls)
-	g.register("anything", fleet.GoogleConditionalAccessRegistration{Token: "t"}, http.StatusUnauthorized)
+	g.register("anything", automdm.GoogleConditionalAccessRegistration{Token: "t"}, http.StatusUnauthorized)
 
 	g.connectIntegration()
 
 	// The device details tell a company-owned iPhone to sign in without counting an
 	// attempt, however often they are read.
-	for range fleet.GoogleConditionalAccessMaxRegistrationAttempts + 1 {
+	for range automdm.GoogleConditionalAccessMaxRegistrationAttempts + 1 {
 		require.True(t, g.signInRequired(ade))
 	}
 	require.False(t, g.hasDevice(ade))
@@ -285,43 +285,43 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleDeviceRegist
 
 	// Starting a sign-in mints a token and counts an attempt, so a GET, which a browser or
 	// a proxy may repeat, doesn't start one.
-	s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+ade.UUID+"/conditional_access/google", nil, http.StatusMethodNotAllowed)
+	s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+ade.UUID+"/conditional_access/google", nil, http.StatusMethodNotAllowed)
 	require.False(t, g.hasDevice(ade))
 
 	// A company-owned iPhone is handed a sign-in URL; a personal one and a Mac aren't.
 	token := g.signIn(ade)
 	st := g.iosStatus(byod)
-	require.Equal(t, fleet.GoogleConditionalAccessDeviceStatus{}, st)
-	var macStatus fleet.GoogleConditionalAccessDeviceStatus
-	res := s.DoRawNoAuth("POST", "/api/latest/fleet/device/google-ca-mac-token/conditional_access/google", nil, http.StatusOK)
+	require.Equal(t, automdm.GoogleConditionalAccessDeviceStatus{}, st)
+	var macStatus automdm.GoogleConditionalAccessDeviceStatus
+	res := s.DoRawNoAuth("POST", "/api/latest/automdm/device/google-ca-mac-token/conditional_access/google", nil, http.StatusOK)
 	require.NoError(t, json.NewDecoder(res.Body).Decode(&macStatus))
-	require.Equal(t, fleet.GoogleConditionalAccessDeviceStatus{}, macStatus)
+	require.Equal(t, automdm.GoogleConditionalAccessDeviceStatus{}, macStatus)
 	require.Empty(t, g.googleDeviceID(ade))
 
 	// A wrong secret is refused and leaves the token usable.
-	g.register("wrong", fleet.GoogleConditionalAccessRegistration{Token: token, Names: []string{"devices/x/deviceUsers/y"}}, http.StatusUnauthorized)
-	g.register("", fleet.GoogleConditionalAccessRegistration{Token: token}, http.StatusUnauthorized)
+	g.register("wrong", automdm.GoogleConditionalAccessRegistration{Token: token, Names: []string{"devices/x/deviceUsers/y"}}, http.StatusUnauthorized)
+	g.register("", automdm.GoogleConditionalAccessRegistration{Token: token}, http.StatusUnauthorized)
 	// The secret is a bearer token, whatever the case of the scheme.
-	g.registerWithAuthorization("secret-"+googleTestCustomer, fleet.GoogleConditionalAccessRegistration{Token: "t"}, http.StatusUnauthorized)
-	require.Equal(t, fleet.GoogleConditionalAccessRegisterNotAllowed,
-		g.registerWithAuthorization("bearer secret-"+googleTestCustomer, fleet.GoogleConditionalAccessRegistration{Token: "t"}, http.StatusOK))
+	g.registerWithAuthorization("secret-"+googleTestCustomer, automdm.GoogleConditionalAccessRegistration{Token: "t"}, http.StatusUnauthorized)
+	require.Equal(t, automdm.GoogleConditionalAccessRegisterNotAllowed,
+		g.registerWithAuthorization("bearer secret-"+googleTestCustomer, automdm.GoogleConditionalAccessRegistration{Token: "t"}, http.StatusOK))
 
 	// Registering two names stores and marks both, and binds the host to their device.
-	activitiesBefore := s.countActivitiesOfType(fleet.ActivityTypeSetHostGoogleDeviceID{}.ActivityName())
+	activitiesBefore := s.countActivitiesOfType(automdm.ActivityTypeSetHostGoogleDeviceID{}.ActivityName())
 	names := []string{"devices/ade/deviceUsers/1", "devices/ade/deviceUsers/2"}
-	require.Equal(t, fleet.GoogleConditionalAccessRegisterDone, g.registerNames(token, names...))
+	require.Equal(t, automdm.GoogleConditionalAccessRegisterDone, g.registerNames(token, names...))
 	require.Equal(t, []string{names[0] + " " + ade.UUID, names[1] + " " + ade.UUID}, g.client.devCalls().managed)
-	require.Equal(t, map[string]fleet.GoogleConditionalAccessDeviceUserState{
-		names[0]: fleet.GoogleConditionalAccessDeviceUserManaged, names[1]: fleet.GoogleConditionalAccessDeviceUserManaged,
+	require.Equal(t, map[string]automdm.GoogleConditionalAccessDeviceUserState{
+		names[0]: automdm.GoogleConditionalAccessDeviceUserManaged, names[1]: automdm.GoogleConditionalAccessDeviceUserManaged,
 	}, g.states(ade))
-	require.Equal(t, activitiesBefore+1, s.countActivitiesOfType(fleet.ActivityTypeSetHostGoogleDeviceID{}.ActivityName()))
-	activityID := s.lastActivityOfTypeMatches(fleet.ActivityTypeSetHostGoogleDeviceID{}.ActivityName(), googleSignInActivity(ade, "ade"), 0)
-	// The end user signed in, not a Fleet user.
-	var fleetInitiated bool
+	require.Equal(t, activitiesBefore+1, s.countActivitiesOfType(automdm.ActivityTypeSetHostGoogleDeviceID{}.ActivityName()))
+	activityID := s.lastActivityOfTypeMatches(automdm.ActivityTypeSetHostGoogleDeviceID{}.ActivityName(), googleSignInActivity(ade, "ade"), 0)
+	// The end user signed in, not an AutoMDM user.
+	var automdmInitiated bool
 	mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
-		return sqlx.GetContext(t.Context(), q, &fleetInitiated, `SELECT fleet_initiated FROM activity_past WHERE id = ?`, activityID)
+		return sqlx.GetContext(t.Context(), q, &automdmInitiated, `SELECT automdm_initiated FROM activity_past WHERE id = ?`, activityID)
 	})
-	require.True(t, fleetInitiated)
+	require.True(t, automdmInitiated)
 	require.Equal(t, "ade", g.googleDeviceID(ade))
 
 	// A registered host gets no URL and no attempt is counted.
@@ -331,44 +331,44 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleDeviceRegist
 	require.Zero(t, g.registrationAttempts(ade))
 
 	// The token can't be replayed.
-	require.Equal(t, fleet.GoogleConditionalAccessRegisterNotAllowed, g.registerNames(token, "devices/other/deviceUsers/1"))
+	require.Equal(t, automdm.GoogleConditionalAccessRegisterNotAllowed, g.registerNames(token, "devices/other/deviceUsers/1"))
 
 	// A host unenrolled after the URL was handed out is refused.
 	unenrolled := g.newIOSHost("ipados", true)
 	token = g.signIn(unenrolled)
-	require.NoError(t, s.ds.SetOrUpdateMDMData(t.Context(), unenrolled.ID, false, false, "", false, "", "", fleet.PersonalEnrollmentTypeNone))
-	require.Equal(t, fleet.GoogleConditionalAccessRegisterNotAllowed, g.registerNames(token, "devices/u/deviceUsers/1"))
+	require.NoError(t, s.ds.SetOrUpdateMDMData(t.Context(), unenrolled.ID, false, false, "", false, "", "", automdm.PersonalEnrollmentTypeNone))
+	require.Equal(t, automdm.GoogleConditionalAccessRegisterNotAllowed, g.registerNames(token, "devices/u/deviceUsers/1"))
 	require.Empty(t, g.states(unenrolled))
 
 	// So is a host deleted after the URL was handed out.
 	gone := g.newIOSHost("ios", true)
 	token = g.signIn(gone)
 	require.NoError(t, s.ds.DeleteHost(t.Context(), gone.ID))
-	require.Equal(t, fleet.GoogleConditionalAccessRegisterNotAllowed, g.registerNames(token, "devices/gone/deviceUsers/1"))
+	require.Equal(t, automdm.GoogleConditionalAccessRegisterNotAllowed, g.registerNames(token, "devices/gone/deviceUsers/1"))
 	require.False(t, g.hasDevice(gone))
 
 	// A name stored on another host is refused and nothing is stored.
 	second := g.newIOSHost("ios", true)
 	token = g.signIn(second)
-	require.Equal(t, fleet.GoogleConditionalAccessRegisterNotAllowed, g.registerNames(token, "devices/second/deviceUsers/1", names[1]))
+	require.Equal(t, automdm.GoogleConditionalAccessRegisterNotAllowed, g.registerNames(token, "devices/second/deviceUsers/1", names[1]))
 	require.Empty(t, g.states(second))
 
 	// An expired token is refused.
 	token = g.signIn(second)
 	g.execSQL(`UPDATE google_conditional_access_devices SET registration_token_expires_at = NOW(6) - INTERVAL 1 SECOND WHERE host_uuid = ?`, second.UUID)
-	require.Equal(t, fleet.GoogleConditionalAccessRegisterNotAllowed, g.registerNames(token, "devices/second/deviceUsers/1"))
+	require.Equal(t, automdm.GoogleConditionalAccessRegisterNotAllowed, g.registerNames(token, "devices/second/deviceUsers/1"))
 	require.Empty(t, g.states(second))
 
 	// A sign-in to another Workspace is refused.
 	token = g.signIn(second)
-	require.Equal(t, fleet.GoogleConditionalAccessRegisterNotAllowed, g.register("secret-"+googleTestCustomer,
-		fleet.GoogleConditionalAccessRegistration{Token: token, Names: []string{"devices/second/deviceUsers/1"}, Customer: "C09other"}, http.StatusOK))
+	require.Equal(t, automdm.GoogleConditionalAccessRegisterNotAllowed, g.register("secret-"+googleTestCustomer,
+		automdm.GoogleConditionalAccessRegistration{Token: token, Names: []string{"devices/second/deviceUsers/1"}, Customer: "C09other"}, http.StatusOK))
 	require.Empty(t, g.states(second))
 
 	// No names: nothing is stored and the attempt counter is reset.
 	token = g.signIn(second)
 	require.NotZero(t, g.registrationAttempts(second))
-	require.Equal(t, fleet.GoogleConditionalAccessRegisterNotFound, g.registerNames(token))
+	require.Equal(t, automdm.GoogleConditionalAccessRegisterNotFound, g.registerNames(token))
 	require.Empty(t, g.states(second))
 	require.Zero(t, g.registrationAttempts(second))
 
@@ -378,10 +378,10 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleDeviceRegist
 		d.markErrs = map[string]error{failing: errors.New("Google returned HTTP 500")}
 	})
 	token = g.signIn(second)
-	require.Equal(t, fleet.GoogleConditionalAccessRegisterDone, g.registerNames(token, "devices/second/deviceUsers/ok", failing))
-	require.Equal(t, map[string]fleet.GoogleConditionalAccessDeviceUserState{
-		"devices/second/deviceUsers/ok": fleet.GoogleConditionalAccessDeviceUserManaged,
-		failing:                         fleet.GoogleConditionalAccessDeviceUserPending,
+	require.Equal(t, automdm.GoogleConditionalAccessRegisterDone, g.registerNames(token, "devices/second/deviceUsers/ok", failing))
+	require.Equal(t, map[string]automdm.GoogleConditionalAccessDeviceUserState{
+		"devices/second/deviceUsers/ok": automdm.GoogleConditionalAccessDeviceUserManaged,
+		failing:                         automdm.GoogleConditionalAccessDeviceUserPending,
 	}, g.states(second))
 	require.Empty(t, g.iosStatus(second).SignInURL)
 	require.True(t, g.registered(second))
@@ -389,85 +389,85 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleDeviceRegist
 	require.Equal(t, "second", g.googleDeviceID(second))
 	g.client.setDev(func(d *googleDeviceMock) { d.markErrs = nil })
 	g.sync()
-	require.Equal(t, fleet.GoogleConditionalAccessDeviceUserPending, g.states(second)[failing], "retried before the backoff")
+	require.Equal(t, automdm.GoogleConditionalAccessDeviceUserPending, g.states(second)[failing], "retried before the backoff")
 	g.syncAfter(2 * time.Minute)
-	require.Equal(t, fleet.GoogleConditionalAccessDeviceUserManaged, g.states(second)[failing])
+	require.Equal(t, automdm.GoogleConditionalAccessDeviceUserManaged, g.states(second)[failing])
 	require.True(t, g.managed(second))
 
 	// Names under two device records are all stored and marked; the host shows the
 	// first one's device.
 	wiped := g.newIOSHost("ipados", true)
 	token = g.signIn(wiped)
-	require.Equal(t, fleet.GoogleConditionalAccessRegisterDone, g.registerNames(token, "devices/wiped-old/deviceUsers/1", "devices/wiped-new/deviceUsers/1"))
+	require.Equal(t, automdm.GoogleConditionalAccessRegisterDone, g.registerNames(token, "devices/wiped-old/deviceUsers/1", "devices/wiped-new/deviceUsers/1"))
 	require.Len(t, g.states(wiped), 2)
 	require.Equal(t, "wiped-old", g.googleDeviceID(wiped))
 
 	// A sign-in on a host whose names went stale replaces its device ID.
 	g.execSQL(`UPDATE google_conditional_access_device_users SET state = 'stale' WHERE host_uuid = ?`, wiped.UUID)
 	token = g.signIn(wiped)
-	require.Equal(t, fleet.GoogleConditionalAccessRegisterDone, g.registerNames(token, "devices/wiped-newest/deviceUsers/1"))
+	require.Equal(t, automdm.GoogleConditionalAccessRegisterDone, g.registerNames(token, "devices/wiped-newest/deviceUsers/1"))
 	require.Equal(t, "wiped-newest", g.googleDeviceID(wiped))
-	s.lastActivityOfTypeMatches(fleet.ActivityTypeSetHostGoogleDeviceID{}.ActivityName(), googleSignInActivity(wiped, "wiped-newest"), 0)
-	require.Equal(t, map[string]fleet.GoogleConditionalAccessDeviceUserState{
-		"devices/wiped-newest/deviceUsers/1": fleet.GoogleConditionalAccessDeviceUserManaged,
+	s.lastActivityOfTypeMatches(automdm.ActivityTypeSetHostGoogleDeviceID{}.ActivityName(), googleSignInActivity(wiped, "wiped-newest"), 0)
+	require.Equal(t, map[string]automdm.GoogleConditionalAccessDeviceUserState{
+		"devices/wiped-newest/deviceUsers/1": automdm.GoogleConditionalAccessDeviceUserManaged,
 	}, g.states(wiped))
 
 	// A lookup with a name that isn't a DeviceUser, or with more names than a sign-in
 	// registers, is refused whole.
 	strict := g.newIOSHost("ipados", true)
-	strictNames := make([]string, fleet.GoogleConditionalAccessMaxSignInDeviceUsers+1)
+	strictNames := make([]string, automdm.GoogleConditionalAccessMaxSignInDeviceUsers+1)
 	for i := range strictNames {
 		strictNames[i] = fmt.Sprintf("devices/strict/deviceUsers/%d", i+1)
 	}
-	require.Equal(t, fleet.GoogleConditionalAccessRegisterError,
+	require.Equal(t, automdm.GoogleConditionalAccessRegisterError,
 		g.registerNames(g.signIn(strict), strictNames[0], "devices/strict/deviceUsers/2/clientStates/x"))
 	require.Empty(t, g.states(strict))
-	require.Equal(t, fleet.GoogleConditionalAccessRegisterError, g.registerNames(g.signIn(strict), strictNames...))
+	require.Equal(t, automdm.GoogleConditionalAccessRegisterError, g.registerNames(g.signIn(strict), strictNames...))
 	require.Empty(t, g.states(strict))
 
 	// The most names it registers, with an email that isn't one left out of the activity.
-	require.Equal(t, fleet.GoogleConditionalAccessRegisterDone, g.register("secret-"+googleTestCustomer, fleet.GoogleConditionalAccessRegistration{
-		Token: g.signIn(strict), Names: strictNames[:fleet.GoogleConditionalAccessMaxSignInDeviceUsers],
+	require.Equal(t, automdm.GoogleConditionalAccessRegisterDone, g.register("secret-"+googleTestCustomer, automdm.GoogleConditionalAccessRegistration{
+		Token: g.signIn(strict), Names: strictNames[:automdm.GoogleConditionalAccessMaxSignInDeviceUsers],
 		Customer: googleTestCustomer, Email: "not an email",
 	}, http.StatusOK))
-	require.Len(t, g.states(strict), fleet.GoogleConditionalAccessMaxSignInDeviceUsers)
-	s.lastActivityOfTypeMatches(fleet.ActivityTypeSetHostGoogleDeviceID{}.ActivityName(), googleDeviceIDActivity(strict, "strict"), 0)
+	require.Len(t, g.states(strict), automdm.GoogleConditionalAccessMaxSignInDeviceUsers)
+	s.lastActivityOfTypeMatches(automdm.ActivityTypeSetHostGoogleDeviceID{}.ActivityName(), googleDeviceIDActivity(strict, "strict"), 0)
 
 	// A sign-in that finishes after an admin set the host's ID doesn't replace that registration.
 	late := g.newIOSHost("ios", true)
 	token = g.signIn(late)
 	lateNames := []string{"devices/late-admin/deviceUsers/1", "devices/late-admin/deviceUsers/2"}
 	g.client.setDev(func(d *googleDeviceMock) { d.deviceUsers = map[string][]string{"late-admin": lateNames} })
-	s.DoJSON("PUT", fmt.Sprintf("/api/latest/fleet/hosts/%d/google_device_id", late.ID),
+	s.DoJSON("PUT", fmt.Sprintf("/api/latest/automdm/hosts/%d/google_device_id", late.ID),
 		map[string]any{"google_device_id": "late-admin"}, http.StatusOK, &putHostGoogleDeviceIDResponse{})
-	require.Equal(t, fleet.GoogleConditionalAccessRegisterNotAllowed, g.registerNames(token, "devices/late-user/deviceUsers/1"))
+	require.Equal(t, automdm.GoogleConditionalAccessRegisterNotAllowed, g.registerNames(token, "devices/late-user/deviceUsers/1"))
 	require.Equal(t, "late-admin", g.googleDeviceID(late))
-	require.Equal(t, map[string]fleet.GoogleConditionalAccessDeviceUserState{
-		lateNames[0]: fleet.GoogleConditionalAccessDeviceUserManaged, lateNames[1]: fleet.GoogleConditionalAccessDeviceUserManaged,
+	require.Equal(t, map[string]automdm.GoogleConditionalAccessDeviceUserState{
+		lateNames[0]: automdm.GoogleConditionalAccessDeviceUserManaged, lateNames[1]: automdm.GoogleConditionalAccessDeviceUserManaged,
 	}, g.states(late))
 
 	// With no key stored the host is still registered, and its names wait for the cron.
 	keyless := g.newIOSHost("ios", true)
 	token = g.signIn(keyless)
-	require.NoError(t, s.ds.DeleteMDMConfigAssetsByName(t.Context(), []fleet.MDMAssetName{fleet.MDMAssetGoogleConditionalAccessServiceAccountKey}))
-	require.Equal(t, fleet.GoogleConditionalAccessRegisterDone, g.registerNames(token, "devices/keyless/deviceUsers/1"))
-	require.Equal(t, map[string]fleet.GoogleConditionalAccessDeviceUserState{
-		"devices/keyless/deviceUsers/1": fleet.GoogleConditionalAccessDeviceUserPending,
+	require.NoError(t, s.ds.DeleteMDMConfigAssetsByName(t.Context(), []automdm.MDMAssetName{automdm.MDMAssetGoogleConditionalAccessServiceAccountKey}))
+	require.Equal(t, automdm.GoogleConditionalAccessRegisterDone, g.registerNames(token, "devices/keyless/deviceUsers/1"))
+	require.Equal(t, map[string]automdm.GoogleConditionalAccessDeviceUserState{
+		"devices/keyless/deviceUsers/1": automdm.GoogleConditionalAccessDeviceUserPending,
 	}, g.states(keyless))
 	g.connectIntegration()
 
 	// A sign-in started before the integration was removed is refused like any other call.
 	orphan := g.newIOSHost("ios", true)
-	orphanReg := fleet.GoogleConditionalAccessRegistration{Names: []string{"devices/orphan/deviceUsers/1"}, Email: "user@example.com"}
+	orphanReg := automdm.GoogleConditionalAccessRegistration{Names: []string{"devices/orphan/deviceUsers/1"}, Email: "user@example.com"}
 	orphanReg.Token, orphanReg.Customer = g.signIn(orphan), googleTestCustomer
-	s.DoJSON("DELETE", "/api/latest/fleet/conditional_access/google", nil, http.StatusOK, &deleteGoogleConditionalAccessResponse{})
+	s.DoJSON("DELETE", "/api/latest/automdm/conditional_access/google", nil, http.StatusOK, &deleteGoogleConditionalAccessResponse{})
 	g.register("secret-"+googleTestCustomer, orphanReg, http.StatusUnauthorized)
 	g.connectIntegration()
 
 	// One started under a customer the integration has since left is refused too.
 	orphanReg.Token, orphanReg.Customer = g.signIn(orphan), "C03other"
 	g.connect("C03other", "admin@example.com", newGoogleCATestKey(t, "sa@example.iam.gserviceaccount.com"), http.StatusOK)
-	require.Equal(t, fleet.GoogleConditionalAccessRegisterNotAllowed, g.register("secret-C03other", orphanReg, http.StatusOK))
+	require.Equal(t, automdm.GoogleConditionalAccessRegisterNotAllowed, g.register("secret-C03other", orphanReg, http.StatusOK))
 	require.Empty(t, g.states(orphan))
 }
 
@@ -477,12 +477,12 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleDeviceRetryC
 	g.connectIntegration()
 	host := g.newIOSHost("ios", true)
 
-	for range fleet.GoogleConditionalAccessMaxRegistrationAttempts {
+	for range automdm.GoogleConditionalAccessMaxRegistrationAttempts {
 		g.signIn(host)
 	}
 	st := g.iosStatus(host)
 	// The cap is reached: no URL is handed out.
-	require.Equal(t, fleet.GoogleConditionalAccessDeviceStatus{}, st)
+	require.Equal(t, automdm.GoogleConditionalAccessDeviceStatus{}, st)
 
 	// Once the first attempt is older than the window, a URL is handed out again.
 	g.execSQL(`UPDATE google_conditional_access_devices SET first_registration_attempt_at = NOW(6) - INTERVAL 25 HOUR WHERE host_uuid = ?`, host.UUID)
@@ -493,13 +493,13 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleDeviceRetryC
 
 	// A register call resets the counter, whatever its result. The last token is
 	// still valid while blocked.
-	require.Equal(t, fleet.GoogleConditionalAccessRegisterNotFound, g.registerNames(token))
+	require.Equal(t, automdm.GoogleConditionalAccessRegisterNotFound, g.registerNames(token))
 	g.signIn(host)
 
 	// A sign-in URL that can't be built counts no attempt.
 	broken := g.newIOSHost("ios", true)
 	g.client.setDev(func(d *googleDeviceMock) { d.signInErr = errors.New("invalid relay uri") })
-	s.DoRawNoAuth("POST", "/api/latest/fleet/device/"+broken.UUID+"/conditional_access/google", nil, http.StatusInternalServerError)
+	s.DoRawNoAuth("POST", "/api/latest/automdm/device/"+broken.UUID+"/conditional_access/google", nil, http.StatusInternalServerError)
 	g.client.setDev(func(d *googleDeviceMock) { d.signInErr = nil })
 	require.False(t, g.hasDevice(broken))
 }
@@ -509,27 +509,27 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleUnmark() {
 	g := s.newGoogleDeviceTest()
 	g.connectIntegration()
 
-	register := func(host *fleet.Host, names ...string) {
-		require.Equal(t, fleet.GoogleConditionalAccessRegisterDone, g.registerNames(g.signIn(host), names...))
+	register := func(host *automdm.Host, names ...string) {
+		require.Equal(t, automdm.GoogleConditionalAccessRegisterDone, g.registerNames(g.signIn(host), names...))
 	}
 
 	// The admin removal queues the names, and the cron unmarks and removes them.
 	removed := g.newIOSHost("ios", true)
 	register(removed, "devices/removed/deviceUsers/1", "devices/removed/deviceUsers/2")
-	removedPath := fmt.Sprintf("/api/latest/fleet/hosts/%d/google_device_id", removed.ID)
+	removedPath := fmt.Sprintf("/api/latest/automdm/hosts/%d/google_device_id", removed.ID)
 	s.Do("DELETE", removedPath, nil, http.StatusNoContent)
-	require.Equal(t, map[string]fleet.GoogleConditionalAccessDeviceUserState{
-		"devices/removed/deviceUsers/1": fleet.GoogleConditionalAccessDeviceUserUnmanaging,
-		"devices/removed/deviceUsers/2": fleet.GoogleConditionalAccessDeviceUserUnmanaging,
+	require.Equal(t, map[string]automdm.GoogleConditionalAccessDeviceUserState{
+		"devices/removed/deviceUsers/1": automdm.GoogleConditionalAccessDeviceUserUnmanaging,
+		"devices/removed/deviceUsers/2": automdm.GoogleConditionalAccessDeviceUserUnmanaging,
 	}, g.states(removed))
-	s.lastActivityOfTypeMatches(fleet.ActivityTypeDeletedHostGoogleDeviceID{}.ActivityName(), googleDeviceIDActivity(removed, "removed"), 0)
+	s.lastActivityOfTypeMatches(automdm.ActivityTypeDeletedHostGoogleDeviceID{}.ActivityName(), googleDeviceIDActivity(removed, "removed"), 0)
 	// The ID is gone at once and the host can register again right away.
 	require.Empty(t, g.googleDeviceID(removed))
 	require.False(t, g.registered(removed))
 	// Removing it again logs nothing.
-	before := s.countActivitiesOfType(fleet.ActivityTypeDeletedHostGoogleDeviceID{}.ActivityName())
+	before := s.countActivitiesOfType(automdm.ActivityTypeDeletedHostGoogleDeviceID{}.ActivityName())
 	s.Do("DELETE", removedPath, nil, http.StatusNoContent)
-	require.Equal(t, before, s.countActivitiesOfType(fleet.ActivityTypeDeletedHostGoogleDeviceID{}.ActivityName()))
+	require.Equal(t, before, s.countActivitiesOfType(automdm.ActivityTypeDeletedHostGoogleDeviceID{}.ActivityName()))
 	g.sync()
 	_, _, _, unmanaged := g.client.calls()
 	require.ElementsMatch(t, []string{"devices/removed/deviceUsers/1", "devices/removed/deviceUsers/2"}, unmanaged)
@@ -537,17 +537,17 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleUnmark() {
 	require.False(t, g.hasDevice(removed))
 
 	// Whoever can write the host can remove its registration.
-	newUser := func(name string, role string) *fleet.User {
-		u := &fleet.User{Name: name, Email: name + "@example.com", GlobalRole: &role}
+	newUser := func(name string, role string) *automdm.User {
+		u := &automdm.User{Name: name, Email: name + "@example.com", GlobalRole: &role}
 		require.NoError(t, u.SetPassword(test.GoodPassword, 10, 10))
 		_, err := s.ds.NewUser(t.Context(), u)
 		require.NoError(t, err)
 		return u
 	}
-	maintainer := newUser("gca-device-maintainer", fleet.RoleMaintainer)
+	maintainer := newUser("gca-device-maintainer", automdm.RoleMaintainer)
 	s.setTokenForTest(t, maintainer.Email, test.GoodPassword)
 	s.Do("DELETE", removedPath, nil, http.StatusNoContent)
-	observer := newUser("gca-device-observer", fleet.RoleObserver)
+	observer := newUser("gca-device-observer", automdm.RoleObserver)
 	s.setTokenForTest(t, observer.Email, test.GoodPassword)
 	s.Do("DELETE", removedPath, nil, http.StatusForbidden)
 	s.token = s.getTestAdminToken()
@@ -565,14 +565,14 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleUnmark() {
 			"devices/deleted/deviceUsers/flaky": errors.New("Google returned HTTP 503"),
 		}
 	})
-	s.Do("DELETE", fmt.Sprintf("/api/latest/fleet/hosts/%d", deleted.ID), nil, http.StatusOK)
+	s.Do("DELETE", fmt.Sprintf("/api/latest/automdm/hosts/%d", deleted.ID), nil, http.StatusOK)
 	g.sync()
-	require.Equal(t, map[string]fleet.GoogleConditionalAccessDeviceUserState{
-		"devices/deleted/deviceUsers/flaky": fleet.GoogleConditionalAccessDeviceUserUnmanaging,
+	require.Equal(t, map[string]automdm.GoogleConditionalAccessDeviceUserState{
+		"devices/deleted/deviceUsers/flaky": automdm.GoogleConditionalAccessDeviceUserUnmanaging,
 	}, g.states(deleted))
 	g.client.setDev(func(d *googleDeviceMock) { d.unmarkErrs = nil })
 	g.sync()
-	require.Equal(t, fleet.GoogleConditionalAccessDeviceUserUnmanaging, g.states(deleted)["devices/deleted/deviceUsers/flaky"], "retried before the backoff")
+	require.Equal(t, automdm.GoogleConditionalAccessDeviceUserUnmanaging, g.states(deleted)["devices/deleted/deviceUsers/flaky"], "retried before the backoff")
 	g.syncAfter(2 * time.Minute)
 	require.Empty(t, g.states(deleted))
 	require.False(t, g.hasDevice(deleted))
@@ -591,14 +591,14 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleUnmark() {
 		}
 		d.leftDevices = map[string]bool{"left": true}
 	})
-	for _, h := range []*fleet.Host{left, denied} {
-		s.Do("DELETE", fmt.Sprintf("/api/latest/fleet/hosts/%d", h.ID), nil, http.StatusOK)
+	for _, h := range []*automdm.Host{left, denied} {
+		s.Do("DELETE", fmt.Sprintf("/api/latest/automdm/hosts/%d", h.ID), nil, http.StatusOK)
 	}
 	g.sync()
 	require.Empty(t, g.states(left))
 	require.False(t, g.hasDevice(left))
-	require.Equal(t, map[string]fleet.GoogleConditionalAccessDeviceUserState{
-		"devices/denied/deviceUsers/1": fleet.GoogleConditionalAccessDeviceUserUnmanaging,
+	require.Equal(t, map[string]automdm.GoogleConditionalAccessDeviceUserState{
+		"devices/denied/deviceUsers/1": automdm.GoogleConditionalAccessDeviceUserUnmanaging,
 	}, g.states(denied))
 	g.client.setDev(func(d *googleDeviceMock) { d.unmarkErrs, d.leftDevices = nil, nil })
 	g.syncAfter(time.Hour)
@@ -609,13 +609,13 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleUnmark() {
 	raced := g.newIOSHost("ios", true)
 	racedName := "devices/raced/deviceUsers/1"
 	register(raced, racedName)
-	s.Do("DELETE", fmt.Sprintf("/api/latest/fleet/hosts/%d/google_device_id", raced.ID), nil, http.StatusNoContent)
+	s.Do("DELETE", fmt.Sprintf("/api/latest/automdm/hosts/%d/google_device_id", raced.ID), nil, http.StatusNoContent)
 	g.client.reset()
 	g.client.setDev(func(d *googleDeviceMock) {
 		d.onUnmark = func(name string) {
 			if name == racedName {
 				g.execSQL(`UPDATE google_conditional_access_device_users SET state = ? WHERE device_user_name = ?`,
-					fleet.GoogleConditionalAccessDeviceUserManaged, name)
+					automdm.GoogleConditionalAccessDeviceUserManaged, name)
 			}
 		}
 	})
@@ -623,7 +623,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleUnmark() {
 	_, _, _, unmanaged = g.client.calls()
 	require.Equal(t, []string{racedName}, unmanaged)
 	require.Equal(t, []string{racedName + " " + raced.UUID}, g.client.devCalls().managed)
-	require.Equal(t, map[string]fleet.GoogleConditionalAccessDeviceUserState{racedName: fleet.GoogleConditionalAccessDeviceUserManaged}, g.states(raced))
+	require.Equal(t, map[string]automdm.GoogleConditionalAccessDeviceUserState{racedName: automdm.GoogleConditionalAccessDeviceUserManaged}, g.states(raced))
 	g.client.setDev(func(d *googleDeviceMock) { d.onUnmark = nil })
 
 	// A deleted host's failed mark is never retried.
@@ -663,12 +663,12 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleStaleNames()
 	host := g.newIOSHost("ios", true)
 	name := "devices/stale/deviceUsers/1"
 	g.client.setDev(func(d *googleDeviceMock) { d.markErrs = map[string]error{name: errors.New("Google returned HTTP 500")} })
-	require.Equal(t, fleet.GoogleConditionalAccessRegisterDone, g.registerNames(g.signIn(host), name))
+	require.Equal(t, automdm.GoogleConditionalAccessRegisterDone, g.registerNames(g.signIn(host), name))
 	g.client.setDev(func(d *googleDeviceMock) {
 		d.markErrs = map[string]error{name: googleResourceError{status: http.StatusNotFound}}
 	})
 	g.syncAfter(2 * time.Minute)
-	require.Equal(t, map[string]fleet.GoogleConditionalAccessDeviceUserState{name: fleet.GoogleConditionalAccessDeviceUserStale}, g.states(host))
+	require.Equal(t, map[string]automdm.GoogleConditionalAccessDeviceUserState{name: automdm.GoogleConditionalAccessDeviceUserStale}, g.states(host))
 	g.signIn(host)
 	_, _, _, unmanaged := g.client.calls()
 	require.Empty(t, unmanaged)
@@ -681,8 +681,8 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleStaleNames()
 	g.client.setDev(func(d *googleDeviceMock) {
 		d.markErrs = map[string]error{leftName: errors.New("Google returned HTTP 500"), deniedName: errors.New("Google returned HTTP 500")}
 	})
-	require.Equal(t, fleet.GoogleConditionalAccessRegisterDone, g.registerNames(g.signIn(left), leftName))
-	require.Equal(t, fleet.GoogleConditionalAccessRegisterDone, g.registerNames(g.signIn(denied), deniedName))
+	require.Equal(t, automdm.GoogleConditionalAccessRegisterDone, g.registerNames(g.signIn(left), leftName))
+	require.Equal(t, automdm.GoogleConditionalAccessRegisterDone, g.registerNames(g.signIn(denied), deniedName))
 	g.client.setDev(func(d *googleDeviceMock) {
 		d.markErrs = map[string]error{
 			leftName:   googleResourceError{status: http.StatusForbidden},
@@ -691,15 +691,15 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleStaleNames()
 		d.leftDevices = map[string]bool{"left403": true}
 	})
 	g.syncAfter(2 * time.Minute)
-	require.Equal(t, map[string]fleet.GoogleConditionalAccessDeviceUserState{leftName: fleet.GoogleConditionalAccessDeviceUserStale}, g.states(left))
-	require.Equal(t, map[string]fleet.GoogleConditionalAccessDeviceUserState{deniedName: fleet.GoogleConditionalAccessDeviceUserPending}, g.states(denied))
+	require.Equal(t, map[string]automdm.GoogleConditionalAccessDeviceUserState{leftName: automdm.GoogleConditionalAccessDeviceUserStale}, g.states(left))
+	require.Equal(t, map[string]automdm.GoogleConditionalAccessDeviceUserState{deniedName: automdm.GoogleConditionalAccessDeviceUserPending}, g.states(denied))
 	require.True(t, g.registered(denied))
 
 	// Google is only asked whether a device still exists after a write to it fails, so
 	// marked names cost no call on either cron.
 	two := g.newIOSHost("ios", true)
 	g.client.setDev(func(d *googleDeviceMock) { d.markErrs = nil })
-	require.Equal(t, fleet.GoogleConditionalAccessRegisterDone, g.registerNames(g.signIn(two), "devices/two/deviceUsers/1"))
+	require.Equal(t, automdm.GoogleConditionalAccessRegisterDone, g.registerNames(g.signIn(two), "devices/two/deviceUsers/1"))
 	g.client.setDev(func(d *googleDeviceMock) {
 		d.goneDevices = map[string]bool{"two": true}
 		d.googleCalls = 0
@@ -707,8 +707,8 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleStaleNames()
 	g.sync()
 	require.NoError(t, g.syncer.RetryAndroidHosts(t.Context()))
 	require.Zero(t, g.client.devCalls().googleCalls)
-	require.Equal(t, map[string]fleet.GoogleConditionalAccessDeviceUserState{
-		"devices/two/deviceUsers/1": fleet.GoogleConditionalAccessDeviceUserManaged,
+	require.Equal(t, map[string]automdm.GoogleConditionalAccessDeviceUserState{
+		"devices/two/deviceUsers/1": automdm.GoogleConditionalAccessDeviceUserManaged,
 	}, g.states(two))
 }
 
@@ -717,7 +717,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleDelegationFa
 	g := s.newGoogleDeviceTest()
 	g.connectIntegration()
 
-	getRow := func() *fleet.ConditionalAccessGoogleIntegration {
+	getRow := func() *automdm.ConditionalAccessGoogleIntegration {
 		row, err := s.ds.GetGoogleConditionalAccessIntegration(t.Context())
 		require.NoError(t, err)
 		return row
@@ -731,18 +731,18 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleDelegationFa
 	require.NoError(t, g.syncer.RetryAndroidHosts(t.Context()))
 	checks, _, _, _ := g.client.calls()
 	require.Empty(t, checks)
-	require.Equal(t, fleet.ConditionalAccessGoogleStateConnected, getRow().State)
+	require.Equal(t, automdm.ConditionalAccessGoogleStateConnected, getRow().State)
 	g.client.checkErr = nil
 
 	// A refusal during the work fails the run and is shown on the integration.
 	host := g.newIOSHost("ios", true)
 	name := "devices/auth/deviceUsers/1"
-	require.Equal(t, fleet.GoogleConditionalAccessRegisterDone, g.registerNames(g.signIn(host), name))
+	require.Equal(t, automdm.GoogleConditionalAccessRegisterDone, g.registerNames(g.signIn(host), name))
 	g.client.setDev(func(d *googleDeviceMock) { d.unmarkErrs = map[string]error{name: googleAuthError{}} })
-	s.Do("DELETE", fmt.Sprintf("/api/latest/fleet/hosts/%d", host.ID), nil, http.StatusOK)
+	s.Do("DELETE", fmt.Sprintf("/api/latest/automdm/hosts/%d", host.ID), nil, http.StatusOK)
 	require.Error(t, g.syncer.Sync(t.Context()))
 	row := getRow()
-	require.Equal(t, fleet.ConditionalAccessGoogleStateDelegationFailed, row.State)
+	require.Equal(t, automdm.ConditionalAccessGoogleStateDelegationFailed, row.State)
 	require.NotNil(t, row.ErrorMessage)
 
 	// While it shows the failure, each run checks the delegation first, and the runs that
@@ -750,14 +750,14 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleDelegationFa
 	g.client.checkErr = googleAuthError{}
 	require.NoError(t, g.syncer.Sync(t.Context()))
 	require.NoError(t, g.syncer.RetryAndroidHosts(t.Context()))
-	require.Equal(t, fleet.ConditionalAccessGoogleStateDelegationFailed, getRow().State)
+	require.Equal(t, automdm.ConditionalAccessGoogleStateDelegationFailed, getRow().State)
 	// Once Google accepts it again the integration shows connected and the work resumes.
 	g.client.checkErr = nil
 	g.client.setDev(func(d *googleDeviceMock) { d.unmarkErrs = nil })
 	g.sync()
 	require.Empty(t, g.states(host))
 	row = getRow()
-	require.Equal(t, fleet.ConditionalAccessGoogleStateConnected, row.State)
+	require.Equal(t, automdm.ConditionalAccessGoogleStateConnected, row.State)
 	require.Nil(t, row.ErrorMessage)
 
 	// A 403 on a write and on its device reads as the device leaving the Workspace only
@@ -768,7 +768,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleDelegationFa
 	g.client.setDev(func(d *googleDeviceMock) {
 		d.markErrs = map[string]error{revokedName: errors.New("Google returned HTTP 500")}
 	})
-	require.Equal(t, fleet.GoogleConditionalAccessRegisterDone, g.registerNames(g.signIn(revoked), revokedName))
+	require.Equal(t, automdm.GoogleConditionalAccessRegisterDone, g.registerNames(g.signIn(revoked), revokedName))
 	g.client.setDev(func(d *googleDeviceMock) {
 		d.markErrs = map[string]error{revokedName: googleResourceError{status: http.StatusForbidden}}
 		d.leftDevices = map[string]bool{"revoked": true}
@@ -777,17 +777,17 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleDelegationFa
 	g.syncer.now = func() time.Time { return time.Now().Add(2 * time.Minute) }
 	require.Error(t, g.syncer.Sync(t.Context()))
 	g.syncer.now = time.Now
-	require.Equal(t, fleet.ConditionalAccessGoogleStateDelegationFailed, getRow().State)
-	require.Equal(t, map[string]fleet.GoogleConditionalAccessDeviceUserState{revokedName: fleet.GoogleConditionalAccessDeviceUserPending}, g.states(revoked))
+	require.Equal(t, automdm.ConditionalAccessGoogleStateDelegationFailed, getRow().State)
+	require.Equal(t, map[string]automdm.GoogleConditionalAccessDeviceUserState{revokedName: automdm.GoogleConditionalAccessDeviceUserPending}, g.states(revoked))
 	g.client.checkErr = nil
 	g.client.setDev(func(d *googleDeviceMock) { d.markErrs, d.leftDevices = nil, nil })
 	row = getRow()
 
-	// A recovered delegation doesn't connect an integration fleetdm.com never registered.
-	row.ProxyServerSecret, row.State, row.ErrorMessage = "", fleet.ConditionalAccessGoogleStateDelegationFailed, new("refused")
+	// A recovered delegation doesn't connect an integration automdm.com never registered.
+	row.ProxyServerSecret, row.State, row.ErrorMessage = "", automdm.ConditionalAccessGoogleStateDelegationFailed, new("refused")
 	require.NoError(t, s.ds.SaveGoogleConditionalAccessIntegration(t.Context(), row))
 	g.sync()
-	require.Equal(t, fleet.ConditionalAccessGoogleStateDelegationFailed, getRow().State)
+	require.Equal(t, automdm.ConditionalAccessGoogleStateDelegationFailed, getRow().State)
 }
 
 func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleBookmarkMigration() {
@@ -799,7 +799,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleBookmarkMigr
 	gone := g.newIOSHost("ios", true)
 	personal := g.newIOSHost("ios", false)
 	// Rows as the migration from the bookmark flow's table leaves them: no customer, no names.
-	for host, deviceID := range map[*fleet.Host]string{migrated: "bm-device", gone: "bm-gone", personal: "bm-personal"} {
+	for host, deviceID := range map[*automdm.Host]string{migrated: "bm-device", gone: "bm-gone", personal: "bm-personal"} {
 		g.execSQL(`INSERT INTO google_conditional_access_devices (host_uuid, customer_id, google_device_id) VALUES (?, '', ?)`, host.UUID, deviceID)
 		require.Equal(t, deviceID, g.googleDeviceID(host))
 	}
@@ -814,9 +814,9 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleBookmarkMigr
 	// Before the migration pass the host signs in as usual.
 	g.signIn(migrated)
 	g.sync()
-	require.Equal(t, map[string]fleet.GoogleConditionalAccessDeviceUserState{
-		"devices/bm-device/deviceUsers/1": fleet.GoogleConditionalAccessDeviceUserManaged,
-		"devices/bm-device/deviceUsers/2": fleet.GoogleConditionalAccessDeviceUserManaged,
+	require.Equal(t, map[string]automdm.GoogleConditionalAccessDeviceUserState{
+		"devices/bm-device/deviceUsers/1": automdm.GoogleConditionalAccessDeviceUserManaged,
+		"devices/bm-device/deviceUsers/2": automdm.GoogleConditionalAccessDeviceUserManaged,
 	}, g.states(migrated))
 	require.Empty(t, g.iosStatus(migrated).SignInURL)
 	require.True(t, g.managed(migrated))
@@ -826,7 +826,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleBookmarkMigr
 	// A personal host is never migrated, and keeps its device ID until an admin removes it.
 	require.Empty(t, g.states(personal))
 	require.Equal(t, "bm-personal", g.googleDeviceID(personal))
-	s.Do("DELETE", fmt.Sprintf("/api/latest/fleet/hosts/%d/google_device_id", personal.ID), nil, http.StatusNoContent)
+	s.Do("DELETE", fmt.Sprintf("/api/latest/automdm/hosts/%d/google_device_id", personal.ID), nil, http.StatusNoContent)
 	require.Empty(t, g.googleDeviceID(personal))
 	require.False(t, g.hasDevice(personal))
 
@@ -851,9 +851,9 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleBookmarkMigr
 	g.client.setDev(func(d *googleDeviceMock) { d.listErr = nil })
 
 	// An admin removal drops the device ID with the names, so the sync doesn't migrate the host again.
-	s.Do("DELETE", fmt.Sprintf("/api/latest/fleet/hosts/%d/google_device_id", migrated.ID), nil, http.StatusNoContent)
+	s.Do("DELETE", fmt.Sprintf("/api/latest/automdm/hosts/%d/google_device_id", migrated.ID), nil, http.StatusNoContent)
 	require.Empty(t, g.googleDeviceID(migrated))
-	s.lastActivityOfTypeMatches(fleet.ActivityTypeDeletedHostGoogleDeviceID{}.ActivityName(),
+	s.lastActivityOfTypeMatches(automdm.ActivityTypeDeletedHostGoogleDeviceID{}.ActivityName(),
 		fmt.Sprintf(`{"host_id": %d, "host_display_name": %q, "google_device_id": "bm-device"}`, migrated.ID, migrated.DisplayName()), 0)
 	g.sync()
 	require.Empty(t, g.states(migrated))
@@ -863,7 +863,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleBookmarkMigr
 func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleAndroidResolution() {
 	t := s.T()
 	g := s.newGoogleDeviceTest()
-	managed := fleet.GoogleConditionalAccessDeviceUserManaged
+	managed := automdm.GoogleConditionalAccessDeviceUserManaged
 
 	host := g.newAndroidHost(true)
 	personal := g.newAndroidHost(false)
@@ -884,7 +884,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleAndroidResol
 		}
 	})
 	g.sync()
-	require.Equal(t, map[string]fleet.GoogleConditionalAccessDeviceUserState{
+	require.Equal(t, map[string]automdm.GoogleConditionalAccessDeviceUserState{
 		"devices/and-live/deviceUsers/1": managed, "devices/and-live/deviceUsers/2": managed, "devices/and-leftover/deviceUsers/1": managed,
 	}, g.states(host))
 	require.Equal(t, "and-live", g.googleDeviceID(host))
@@ -894,10 +894,10 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleAndroidResol
 	require.Equal(t, []string{hostAndroidID}, g.client.devCalls().finds)
 	// The activity is automated and names no Google account.
 	require.Len(t, g.cronActivities, 1)
-	require.Equal(t, fleet.ActivityTypeSetHostGoogleDeviceID{
+	require.Equal(t, automdm.ActivityTypeSetHostGoogleDeviceID{
 		HostID: host.ID, HostDisplayName: host.DisplayName(), GoogleDeviceID: "and-live", Automated: true,
 	}, g.cronActivities[0])
-	require.True(t, g.cronActivities[0].(fleet.ActivityTypeSetHostGoogleDeviceID).WasFromAutomation())
+	require.True(t, g.cronActivities[0].(automdm.ActivityTypeSetHostGoogleDeviceID).WasFromAutomation())
 	// A personal host is never resolved.
 	require.False(t, g.hasDevice(personal))
 
@@ -930,7 +930,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleAndroidResol
 		d.deviceUsers["and-late"] = []string{"devices/and-late/deviceUsers/1"}
 	})
 	require.NoError(t, g.syncer.RetryAndroidHosts(t.Context()))
-	require.Equal(t, map[string]fleet.GoogleConditionalAccessDeviceUserState{"devices/and-late/deviceUsers/1": managed}, g.states(late))
+	require.Equal(t, map[string]automdm.GoogleConditionalAccessDeviceUserState{"devices/and-late/deviceUsers/1": managed}, g.states(late))
 	require.Equal(t, "and-late", g.googleDeviceID(late))
 	require.Len(t, g.cronActivities, 2)
 	require.Zero(t, g.registrationAttempts(late))
@@ -938,9 +938,9 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleAndroidResol
 	// A host whose names went stale is registered again, with no new activity since its
 	// device ID didn't change.
 	g.execSQL(`UPDATE google_conditional_access_device_users SET state = ? WHERE host_uuid = ?`,
-		fleet.GoogleConditionalAccessDeviceUserStale, late.UUID)
+		automdm.GoogleConditionalAccessDeviceUserStale, late.UUID)
 	g.sync()
-	require.Equal(t, map[string]fleet.GoogleConditionalAccessDeviceUserState{"devices/and-late/deviceUsers/1": managed}, g.states(late))
+	require.Equal(t, map[string]automdm.GoogleConditionalAccessDeviceUserState{"devices/and-late/deviceUsers/1": managed}, g.states(late))
 	require.Len(t, g.cronActivities, 2)
 
 	// A bookmark-era device ID whose record is gone is replaced by the resolved one.
@@ -952,7 +952,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleAndroidResol
 		d.deviceUsers["and-bookmark"] = []string{"devices/and-bookmark/deviceUsers/1"}
 	})
 	g.sync()
-	require.Equal(t, map[string]fleet.GoogleConditionalAccessDeviceUserState{"devices/and-bookmark/deviceUsers/1": managed}, g.states(bookmark))
+	require.Equal(t, map[string]automdm.GoogleConditionalAccessDeviceUserState{"devices/and-bookmark/deviceUsers/1": managed}, g.states(bookmark))
 	require.Equal(t, "and-bookmark", g.googleDeviceID(bookmark))
 
 	// Unenrolling queues the unmark, and the host isn't resolved again.
@@ -988,26 +988,26 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleCleanup() {
 	// them, and a host registering under the new customer takes its row over.
 	kept := g.newIOSHost("ios", true)
 	takeover := g.newIOSHost("ios", true)
-	require.Equal(t, fleet.GoogleConditionalAccessRegisterDone, g.registerNames(g.signIn(kept), "devices/kept/deviceUsers/1"))
-	require.Equal(t, fleet.GoogleConditionalAccessRegisterDone, g.registerNames(g.signIn(takeover), "devices/takeover/deviceUsers/1"))
+	require.Equal(t, automdm.GoogleConditionalAccessRegisterDone, g.registerNames(g.signIn(kept), "devices/kept/deviceUsers/1"))
+	require.Equal(t, automdm.GoogleConditionalAccessRegisterDone, g.registerNames(g.signIn(takeover), "devices/takeover/deviceUsers/1"))
 	g.execSQL(`UPDATE google_conditional_access_devices SET customer_id = 'C03previous' WHERE host_uuid IN (?, ?)`, kept.UUID, takeover.UUID)
 	require.False(t, g.registered(takeover))
 	require.Empty(t, g.googleDeviceID(kept))
-	require.Equal(t, fleet.GoogleConditionalAccessRegisterDone, g.registerNames(g.signIn(takeover), "devices/takeover/deviceUsers/2"))
-	require.Equal(t, map[string]fleet.GoogleConditionalAccessDeviceUserState{
-		"devices/takeover/deviceUsers/2": fleet.GoogleConditionalAccessDeviceUserManaged,
+	require.Equal(t, automdm.GoogleConditionalAccessRegisterDone, g.registerNames(g.signIn(takeover), "devices/takeover/deviceUsers/2"))
+	require.Equal(t, map[string]automdm.GoogleConditionalAccessDeviceUserState{
+		"devices/takeover/deviceUsers/2": automdm.GoogleConditionalAccessDeviceUserManaged,
 	}, g.states(takeover))
 	g.sync()
 	require.Empty(t, g.states(kept))
 	require.True(t, g.registered(takeover))
 
 	// DELETE drops the registration, and the cron purges the device rows and the row 30
-	// days later, with no Google or fleetdm.com call.
-	s.DoJSON("DELETE", "/api/latest/fleet/conditional_access/google", nil, http.StatusOK, &deleteGoogleConditionalAccessResponse{})
-	require.Equal(t, fleet.GoogleConditionalAccessDeviceStatus{}, g.iosStatus(takeover))
+	// days later, with no Google or automdm.com call.
+	s.DoJSON("DELETE", "/api/latest/automdm/conditional_access/google", nil, http.StatusOK, &deleteGoogleConditionalAccessResponse{})
+	require.Equal(t, automdm.GoogleConditionalAccessDeviceStatus{}, g.iosStatus(takeover))
 	// The device is still marked in Google, so host details keep showing its ID.
 	require.Equal(t, "takeover", g.googleDeviceID(takeover))
-	g.register("secret-"+googleTestCustomer, fleet.GoogleConditionalAccessRegistration{Token: "t"}, http.StatusUnauthorized)
+	g.register("secret-"+googleTestCustomer, automdm.GoogleConditionalAccessRegistration{Token: "t"}, http.StatusUnauthorized)
 	g.client.reset()
 	g.sync()
 	require.True(t, g.hasDevice(takeover))
@@ -1020,7 +1020,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleCleanup() {
 	require.Empty(t, registers)
 	require.Empty(t, deregisters)
 	_, err = s.ds.GetGoogleConditionalAccessIntegration(t.Context())
-	require.True(t, fleet.IsNotFound(err))
+	require.True(t, automdm.IsNotFound(err))
 	require.False(t, g.hasDevice(takeover))
 	require.Zero(t, g.client.devCalls().googleCalls)
 }
@@ -1032,12 +1032,12 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleRemovedDurin
 
 	queued, failed := g.newIOSHost("ios", true), g.newIOSHost("ios", true)
 	queuedName, failedName := "devices/during-run/deviceUsers/1", "devices/during-run-failed/deviceUsers/1"
-	require.Equal(t, fleet.GoogleConditionalAccessRegisterDone, g.registerNames(g.signIn(queued), queuedName))
+	require.Equal(t, automdm.GoogleConditionalAccessRegisterDone, g.registerNames(g.signIn(queued), queuedName))
 	g.client.setDev(func(d *googleDeviceMock) {
 		d.markErrs = map[string]error{failedName: errors.New("Google returned HTTP 500")}
 	})
-	require.Equal(t, fleet.GoogleConditionalAccessRegisterDone, g.registerNames(g.signIn(failed), failedName))
-	s.Do("DELETE", fmt.Sprintf("/api/latest/fleet/hosts/%d/google_device_id", queued.ID), nil, http.StatusNoContent)
+	require.Equal(t, automdm.GoogleConditionalAccessRegisterDone, g.registerNames(g.signIn(failed), failedName))
+	s.Do("DELETE", fmt.Sprintf("/api/latest/automdm/hosts/%d/google_device_id", queued.ID), nil, http.StatusNoContent)
 
 	// The integration is removed while the run unmarks: the run stops before it marks
 	// anything with the removed integration's key.
@@ -1045,17 +1045,17 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleRemovedDurin
 	g.client.setDev(func(d *googleDeviceMock) {
 		d.onUnmark = func(string) {
 			require.NoError(t, s.ds.SaveGoogleConditionalAccessIntegration(context.WithoutCancel(t.Context()),
-				&fleet.ConditionalAccessGoogleIntegration{State: fleet.ConditionalAccessGoogleStateDeleted}))
+				&automdm.ConditionalAccessGoogleIntegration{State: automdm.ConditionalAccessGoogleStateDeleted}))
 		}
 	})
 	g.syncAfter(2 * time.Minute)
 	_, _, _, unmanaged := g.client.calls()
 	require.Equal(t, []string{queuedName}, unmanaged)
 	require.Empty(t, g.client.devCalls().managed)
-	require.Equal(t, map[string]fleet.GoogleConditionalAccessDeviceUserState{failedName: fleet.GoogleConditionalAccessDeviceUserPending}, g.states(failed))
+	require.Equal(t, map[string]automdm.GoogleConditionalAccessDeviceUserState{failedName: automdm.GoogleConditionalAccessDeviceUserPending}, g.states(failed))
 }
 
-// TestConditionalAccessGoogleMockServer runs the real fleetdm.com relay client and Cloud
+// TestConditionalAccessGoogleMockServer runs the real automdm.com relay client and Cloud
 // Identity client against the mock server.
 func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleMockServer() {
 	t := s.T()
@@ -1065,7 +1065,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleMockServer()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { handler.ServeHTTP(w, r) }))
 	t.Cleanup(srv.Close)
 	mock := mockserver.New(mockserver.Config{
-		Relay: true, Google: true, PublicURL: srv.URL, FleetURL: s.server.URL,
+		Relay: true, Google: true, PublicURL: srv.URL, AutoMDMURL: s.server.URL,
 		CustomerIDs: []string{googleTestCustomer}, FakeEmail: "ann@example.com",
 	})
 	handler = mock
@@ -1074,7 +1074,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleMockServer()
 		Relay:         conditional_access_google.NewRelay(srv.URL, conditional_access_google.AllowHTTP()),
 		CloudIdentity: conditional_access_google.NewCloudIdentityFactory(slog.New(slog.DiscardHandler)),
 	})
-	httpClient := fleethttp.NewClient(fleethttp.WithFollowRedir(false))
+	httpClient := automdmhttp.NewClient(automdmhttp.WithFollowRedir(false))
 	get := func(rawURL string) (*http.Response, string) {
 		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, rawURL, nil)
 		require.NoError(t, err)
@@ -1088,7 +1088,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleMockServer()
 
 	// Connect: the delegation check and the registration go to the mock.
 	g.connect(googleTestCustomer, "admin@example.com", newGoogleCATestKey(t, "sa@example.iam.gserviceaccount.com"), http.StatusOK)
-	require.Equal(t, fleet.ConditionalAccessGoogleStateConnected, g.status().State)
+	require.Equal(t, automdm.ConditionalAccessGoogleStateConnected, g.status().State)
 	require.Len(t, mock.State().Registrations, 1)
 
 	// Status, the fake sign-in, the callback and the register call.
@@ -1127,7 +1127,7 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleMockServer()
 	for _, d := range devices {
 		require.True(t, mock.SetDeviceState(d.Name, mockserver.DeviceDeleted))
 	}
-	s.Do("DELETE", fmt.Sprintf("/api/latest/fleet/hosts/%d/google_device_id", host.ID), nil, http.StatusNoContent)
+	s.Do("DELETE", fmt.Sprintf("/api/latest/automdm/hosts/%d/google_device_id", host.ID), nil, http.StatusNoContent)
 	g.syncAfter(2 * time.Minute)
 	require.Empty(t, g.states(host))
 	require.Empty(t, g.googleDeviceID(host))
@@ -1141,12 +1141,12 @@ func (s *integrationEnterpriseTestSuite) TestConditionalAccessGoogleMockServer()
 		CustomerID: googleTestCustomer, DeviceID: g.androidDeviceID(android), DeviceType: "android", Emails: []string{"ann@example.com"},
 	})
 	g.sync()
-	require.Equal(t, map[string]fleet.GoogleConditionalAccessDeviceUserState{
-		seeded.Users[0].Name: fleet.GoogleConditionalAccessDeviceUserManaged,
+	require.Equal(t, map[string]automdm.GoogleConditionalAccessDeviceUserState{
+		seeded.Users[0].Name: automdm.GoogleConditionalAccessDeviceUserManaged,
 	}, g.states(android))
 	require.Equal(t, strings.TrimPrefix(seeded.Name, "devices/"), g.googleDeviceID(android))
 
 	// Removing the integration deregisters from the mock.
-	s.DoJSON("DELETE", "/api/latest/fleet/conditional_access/google", nil, http.StatusOK, &deleteGoogleConditionalAccessResponse{})
+	s.DoJSON("DELETE", "/api/latest/automdm/conditional_access/google", nil, http.StatusOK, &deleteGoogleConditionalAccessResponse{})
 	require.Empty(t, mock.State().Registrations)
 }

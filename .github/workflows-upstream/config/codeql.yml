@@ -1,4 +1,4 @@
-name: Fleet CodeQL
+name: AutoMDM CodeQL
 
 paths-ignore:
   - website/assets/dependencies/

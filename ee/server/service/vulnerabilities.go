@@ -3,7 +3,7 @@ package service
 import (
 	"context"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
 var eeValidVulnSortColumns = []string{
@@ -15,13 +15,13 @@ var eeValidVulnSortColumns = []string{
 	"cve_published",
 }
 
-func (svc *Service) ListVulnerabilities(ctx context.Context, opt fleet.VulnListOptions) ([]fleet.VulnerabilityWithMetadata, *fleet.PaginationMetadata, error) {
+func (svc *Service) ListVulnerabilities(ctx context.Context, opt automdm.VulnListOptions) ([]automdm.VulnerabilityWithMetadata, *automdm.PaginationMetadata, error) {
 	opt.ValidSortColumns = eeValidVulnSortColumns
 	opt.IsEE = true
 	return svc.Service.ListVulnerabilities(ctx, opt)
 }
 
-func (svc *Service) Vulnerability(ctx context.Context, cve string, teamID *uint, useCVSScores bool) (vuln *fleet.VulnerabilityWithMetadata,
+func (svc *Service) Vulnerability(ctx context.Context, cve string, teamID *uint, useCVSScores bool) (vuln *automdm.VulnerabilityWithMetadata,
 	known bool, err error) {
 	return svc.Service.Vulnerability(ctx, cve, teamID, true)
 }

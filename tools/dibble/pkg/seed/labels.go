@@ -1,12 +1,12 @@
 package seed
 
 import (
-	"github.com/fleetdm/fleet/v4/tools/dibble/pkg/themes"
+	"github.com/anilyagiz/automdm/v4/tools/dibble/pkg/themes"
 )
 
 // Labels seeds dynamic (query-based) labels. Manual labels require live host
 // identifiers, which dibble can't synthesize meaningfully — those should be
-// created against a Fleet populated by osquery-perf.
+// created against an AutoMDM populated by osquery-perf.
 func Labels(c Client, log Logger, theme themes.Theme, count int) Result {
 	res := Result{Entity: "labels"}
 
@@ -26,7 +26,7 @@ func Labels(c Client, log Logger, theme themes.Theme, count int) Result {
 			"platform":    "",
 			"description": "Seeded by dibble — " + n.Name,
 		}
-		err := c.Post("/api/latest/fleet/labels", body, nil)
+		err := c.Post("/api/latest/automdm/labels", body, nil)
 		switch {
 		case err == nil:
 			res.Created++

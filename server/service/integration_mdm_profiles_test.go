@@ -5,11 +5,11 @@ import (
 	"crypto/x509"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/pkg/mdm/mdmtest"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/pkg/mdm/mdmtest"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/smallstep/pkcs7"
@@ -20,12 +20,12 @@ func (s *integrationMDMTestSuite) signedProfilesMatch(want, got [][]byte) {
 	t := s.T()
 	rootCA := x509.NewCertPool()
 
-	assets, err := s.ds.GetAllMDMConfigAssetsByName(context.Background(), []fleet.MDMAssetName{
-		fleet.MDMAssetCACert,
+	assets, err := s.ds.GetAllMDMConfigAssetsByName(context.Background(), []automdm.MDMAssetName{
+		automdm.MDMAssetCACert,
 	}, nil)
 	require.NoError(t, err)
 
-	require.True(t, rootCA.AppendCertsFromPEM(assets[fleet.MDMAssetCACert].Value))
+	require.True(t, rootCA.AppendCertsFromPEM(assets[automdm.MDMAssetCACert].Value))
 
 	// verify that all the profiles were signed usign the SCEP certificate,
 	// and grab their contents
@@ -44,11 +44,11 @@ func (s *integrationMDMTestSuite) signedProfilesMatch(want, got [][]byte) {
 // those helper functions to force-set a host profile status are copied from the Datastore
 // tests, couldn't put them in the test package due to circular dependency with mysql, would
 // be nice to find a way to avoid this copy eventually.
-func forceSetAppleHostProfileStatus(t *testing.T, ds *mysql.Datastore, hostUUID string, profile *fleet.MDMAppleConfigProfile, operation fleet.MDMOperationType, status fleet.MDMDeliveryStatus) {
+func forceSetAppleHostProfileStatus(t *testing.T, ds *mysql.Datastore, hostUUID string, profile *automdm.MDMAppleConfigProfile, operation automdm.MDMOperationType, status automdm.MDMDeliveryStatus) {
 	ctx := t.Context()
 
 	// empty status string means set to NULL
-	var actualStatus *fleet.MDMDeliveryStatus
+	var actualStatus *automdm.MDMDeliveryStatus
 	if status != "" {
 		actualStatus = &status
 	}
@@ -67,11 +67,11 @@ func forceSetAppleHostProfileStatus(t *testing.T, ds *mysql.Datastore, hostUUID 
 	})
 }
 
-func forceSetWindowsHostProfileStatus(t *testing.T, ds *mysql.Datastore, hostUUID string, profile *fleet.MDMWindowsConfigProfile, operation fleet.MDMOperationType, status fleet.MDMDeliveryStatus) {
+func forceSetWindowsHostProfileStatus(t *testing.T, ds *mysql.Datastore, hostUUID string, profile *automdm.MDMWindowsConfigProfile, operation automdm.MDMOperationType, status automdm.MDMDeliveryStatus) {
 	ctx := t.Context()
 
 	// empty status string means set to NULL
-	var actualStatus *fleet.MDMDeliveryStatus
+	var actualStatus *automdm.MDMDeliveryStatus
 	if status != "" {
 		actualStatus = &status
 	}
@@ -90,11 +90,11 @@ func forceSetWindowsHostProfileStatus(t *testing.T, ds *mysql.Datastore, hostUUI
 	})
 }
 
-func forceSetAppleHostDeclarationStatus(t *testing.T, ds *mysql.Datastore, hostUUID string, profile *fleet.MDMAppleDeclaration, operation fleet.MDMOperationType, status fleet.MDMDeliveryStatus) {
+func forceSetAppleHostDeclarationStatus(t *testing.T, ds *mysql.Datastore, hostUUID string, profile *automdm.MDMAppleDeclaration, operation automdm.MDMOperationType, status automdm.MDMDeliveryStatus) {
 	ctx := t.Context()
 
 	// empty status string means set to NULL
-	var actualStatus *fleet.MDMDeliveryStatus
+	var actualStatus *automdm.MDMDeliveryStatus
 	if status != "" {
 		actualStatus = &status
 	}
@@ -115,7 +115,7 @@ func forceSetAppleHostDeclarationStatus(t *testing.T, ds *mysql.Datastore, hostU
 
 // hostHasAppleProfileOp reports whether the host has an hmap row for the given identifier
 // and operation type, returning its command UUID.
-func hostHasAppleProfileOp(t *testing.T, ds *mysql.Datastore, hostUUID, ident string, op fleet.MDMOperationType) (bool, string) {
+func hostHasAppleProfileOp(t *testing.T, ds *mysql.Datastore, hostUUID, ident string, op automdm.MDMOperationType) (bool, string) {
 	var cmdUUIDs []string
 	mysqltest.ExecAdhocSQL(t, ds, func(q sqlx.ExtContext) error {
 		return sqlx.SelectContext(context.Background(), q, &cmdUUIDs,
@@ -131,12 +131,12 @@ func hostHasAppleProfileOp(t *testing.T, ds *mysql.Datastore, hostUUID, ident st
 }
 
 // enrollHostDrainInitialProfiles enrolls a macOS host, delivers+acks its initial
-// (fleetd/CA) profiles, and clears the reconcile-dedup key so later changes reprocess.
-func (s *integrationMDMTestSuite) enrollHostDrainInitialProfiles(t *testing.T) (*fleet.Host, *mdmtest.TestAppleMDMClient) {
+// (automdmd/CA) profiles, and clears the reconcile-dedup key so later changes reprocess.
+func (s *integrationMDMTestSuite) enrollHostDrainInitialProfiles(t *testing.T) (*automdm.Host, *mdmtest.TestAppleMDMClient) {
 	ctx := t.Context()
 	host, mdmDevice := createHostThenEnrollMDM(s.ds, s.server.URL, t)
 	s.awaitRunAppleMDMWorkerSchedule()
 	checkNextPayloads(t, mdmDevice, false)
-	require.NoError(t, s.keyValueStore.Delete(ctx, fleet.MDMProfileProcessingKeyPrefix+":"+host.UUID))
+	require.NoError(t, s.keyValueStore.Delete(ctx, automdm.MDMProfileProcessingKeyPrefix+":"+host.UUID))
 	return host, mdmDevice
 }

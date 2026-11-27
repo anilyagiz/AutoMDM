@@ -16,15 +16,15 @@ import (
 	"os"
 
 	"github.com/WatchBeam/clock"
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanodep/godep"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanodep/godep"
 )
 
 func main() {
 	mysqlAddr := flag.String("mysql", "localhost:3306", "mysql address")
-	serverPrivateKey := flag.String("key", "", "fleet server's private key (to decrypt MDM assets)")
+	serverPrivateKey := flag.String("key", "", "automdm server's private key (to decrypt MDM assets)")
 	profileUUID := flag.String("profile-uuid", "", "the Apple profile UUID to retrieve")
 	serialNum := flag.String("serial-number", "", "serial number of a device to get the device details")
 	command := flag.String("command", "", "the supported command to execute, if not providing profile-uuid or serial-number.")
@@ -55,8 +55,8 @@ func main() {
 	cfg := config.MysqlConfig{
 		Protocol:        "tcp",
 		Address:         *mysqlAddr,
-		Database:        "fleet",
-		Username:        "fleet",
+		Database:        "automdm",
+		Username:        "automdm",
 		Password:        "insecure",
 		MaxOpenConns:    50,
 		MaxIdleConns:    50,
@@ -65,7 +65,7 @@ func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	opts := []mysql.DBOption{
 		mysql.Logger(logger),
-		mysql.WithFleetConfig(&config.FleetConfig{
+		mysql.WithAutoMDMConfig(&config.AutoMDMConfig{
 			Server: config.ServerConfig{
 				PrivateKey: *serverPrivateKey,
 			},
@@ -80,7 +80,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	depClient := godep.NewClient(depStorage, fleethttp.NewClient())
+	depClient := godep.NewClient(depStorage, automdmhttp.NewClient())
 
 	ctx := context.Background()
 	var res any

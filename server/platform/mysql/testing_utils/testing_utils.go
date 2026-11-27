@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
 )
@@ -28,9 +28,9 @@ const (
 var TestReplicaAddress = getTestReplicaAddress()
 
 // getTestReplicaAddress returns the MySQL replica test server address from environment variable
-// FLEET_MYSQL_REPLICA_TEST_PORT or defaults to localhost:3310
+// AUTOMDM_MYSQL_REPLICA_TEST_PORT or defaults to localhost:3310
 func getTestReplicaAddress() string {
-	if port := os.Getenv("FLEET_MYSQL_REPLICA_TEST_PORT"); port != "" {
+	if port := os.Getenv("AUTOMDM_MYSQL_REPLICA_TEST_PORT"); port != "" {
 		return "localhost:" + port
 	}
 	return "localhost:3310"
@@ -39,9 +39,9 @@ func getTestReplicaAddress() string {
 var TestAddress = getTestAddress()
 
 // getTestAddress returns the MySQL test server address from environment variable
-// FLEET_MYSQL_TEST_PORT or defaults to localhost:3307
+// AUTOMDM_MYSQL_TEST_PORT or defaults to localhost:3307
 func getTestAddress() string {
-	if port := os.Getenv("FLEET_MYSQL_TEST_PORT"); port != "" {
+	if port := os.Getenv("AUTOMDM_MYSQL_TEST_PORT"); port != "" {
 		return "localhost:" + port
 	}
 	return "localhost:3307"
@@ -173,7 +173,7 @@ func MigrationVersions(dir string) ([]int64, error) {
 		if e.IsDir() || filepath.Ext(name) != ".go" || strings.HasSuffix(name, "_test.go") {
 			continue
 		}
-		// Non-migration files (migration.go, fleet4_migrations.go, ...) have no numeric prefix.
+		// Non-migration files (migration.go, automdm4_migrations.go, ...) have no numeric prefix.
 		prefix, _, found := strings.Cut(name, "_")
 		if v, err := strconv.ParseInt(prefix, 10, 64); found && err == nil && v > 0 {
 			versions = append(versions, v)
@@ -311,7 +311,7 @@ func ProcessOptions(t testing.TB, opts *DatastoreTestOptions) (string, *Datastor
 		}
 
 		cleanTestName = strings.ReplaceAll(
-			strings.TrimPrefix(details.Name(), "github.com/fleetdm/fleet/v4/"), "/", "_",
+			strings.TrimPrefix(details.Name(), "github.com/anilyagiz/automdm/v4/"), "/", "_",
 		)
 	}
 

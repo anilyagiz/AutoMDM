@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/pkg/nettest"
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/pkg/nettest"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
+	"github.com/anilyagiz/automdm/v4/server/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/tj/assert"
 )
@@ -51,21 +51,21 @@ func TestDownloadCISAKnownExploitsFeedMirror(t *testing.T) {
 func TestLoadCVEMeta(t *testing.T) {
 	ds := new(mock.Store)
 
-	var cveMeta []fleet.CVEMeta
-	ds.InsertCVEMetaFunc = func(ctx context.Context, x []fleet.CVEMeta) error {
+	var cveMeta []automdm.CVEMeta
+	ds.InsertCVEMetaFunc = func(ctx context.Context, x []automdm.CVEMeta) error {
 		cveMeta = x
 		return nil
 	}
 
 	logger := slog.New(slog.DiscardHandler)
-	err := LoadCVEMeta(license.NewContext(context.Background(), &fleet.LicenseInfo{
+	err := LoadCVEMeta(license.NewContext(context.Background(), &automdm.LicenseInfo{
 		Tier: "premium",
 	}), logger, "../testdata", ds)
 	require.NoError(t, err)
 	require.True(t, ds.InsertCVEMetaFuncInvoked)
 
 	// check some cves to make sure they got loaded correctly
-	metaMap := make(map[string]fleet.CVEMeta)
+	metaMap := make(map[string]automdm.CVEMeta)
 	for _, meta := range cveMeta {
 		metaMap[meta.CVE] = meta
 	}

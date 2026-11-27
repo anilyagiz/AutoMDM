@@ -1,12 +1,12 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 
 $exeFilePath = "${env:INSTALLER_PATH}"
 
 try {
 
 # With GIMP open, Setup leaves its locked files to be replaced at the next
-# reboot, and later installs exit with code 8 until then. Fleet runs as SYSTEM,
+# reboot, and later installs exit with code 8 until then. AutoMDM runs as SYSTEM,
 # outside the user's session, so it can't ask the app to close: stop it first.
 # Unsaved changes are lost.
 $running = Get-Process -ErrorAction SilentlyContinue |

@@ -3481,11 +3481,11 @@
       "description": "Fission is an audio editor."
     },
     {
-      "name": "Fleet Desktop",
-      "slug": "fleet-desktop/darwin",
+      "name": "AutoMDM Desktop",
+      "slug": "automdm-desktop/darwin",
       "platform": "darwin",
       "unique_identifier": "com.fleetdm.fleet-desktop",
-      "description": "Fleet Desktop is a native macOS application that provides end users with a self-service portal for Fleet."
+      "description": "AutoMDM Desktop is a native macOS application that provides end users with a self-service portal for AutoMDM."
     },
     {
       "name": "FLEXOPTIX App",

@@ -10,11 +10,11 @@ import { baseUrl, createCustomRenderer } from "test/test-utils";
 
 import EditTeamsVppModal from "./EditTeamsVppModal";
 
-const makeToken = (fleets: IMdmVppToken["fleets"]): IMdmVppToken =>
-  createMockVppToken({ id: 7, fleets });
+const makeToken = (teams: IMdmVppToken["teams"]): IMdmVppToken =>
+  createMockVppToken({ id: 7, teams });
 
 const availableTeams = [
-  createMockTeamSummary({ id: -1, name: "All fleets" }),
+  createMockTeamSummary({ id: -1, name: "All teams" }),
   createMockTeamSummary({ id: 1, name: "Workstations" }),
   createMockTeamSummary({ id: 2, name: "Personal mobile devices" }),
   createMockTeamSummary({ id: 0, name: "Unassigned" }),
@@ -28,7 +28,7 @@ const render = createCustomRenderer({
 const mockPatch = () => {
   const bodies: unknown[] = [];
   mockServer.use(
-    http.patch(baseUrl("/vpp_tokens/7/fleets"), async ({ request }) => {
+    http.patch(baseUrl("/vpp_tokens/7/teams"), async ({ request }) => {
       bodies.push(await request.json());
       return HttpResponse.json({});
     })
@@ -46,30 +46,30 @@ const renderModal = (token: IMdmVppToken, onSuccess = jest.fn()) =>
   );
 
 describe("EditTeamsVppModal", () => {
-  it("renders the intro and none of the one-token-per-fleet copy", () => {
+  it("renders the intro and none of the one-token-per-team copy", () => {
     renderModal(makeToken([]));
 
     expect(screen.getByText("Acme Inc.")).toBeInTheDocument();
     expect(
-      screen.queryByText(/Each fleet can have only one VPP token/)
+      screen.queryByText(/Each team can have only one VPP token/)
     ).toBeNull();
-    expect(screen.queryByText(/If you delete a fleet/)).toBeNull();
-    expect(screen.queryByText(/You can't choose fleets because/)).toBeNull();
+    expect(screen.queryByText(/If you delete an automdm/)).toBeNull();
+    expect(screen.queryByText(/You can't choose teams because/)).toBeNull();
   });
 
   describe("initial radio state", () => {
-    it("selects All fleets for a token on all fleets", () => {
+    it("selects All teams for a token on all teams", () => {
       renderModal(makeToken([]));
 
-      expect(screen.getByRole("radio", { name: "All fleets" })).toBeChecked();
+      expect(screen.getByRole("radio", { name: "All teams" })).toBeChecked();
       expect(screen.queryByRole("checkbox")).toBeNull();
     });
 
-    it("selects Custom with the token's fleets checked", () => {
+    it("selects Custom with the token's teams checked", () => {
       renderModal(
         makeToken([
-          { fleet_id: 2, name: "Personal mobile devices" },
-          { fleet_id: 0, name: "No team" },
+          { team_id: 2, name: "Personal mobile devices" },
+          { team_id: 0, name: "No team" },
         ])
       );
 
@@ -95,8 +95,8 @@ describe("EditTeamsVppModal", () => {
     });
   });
 
-  it("lists a fleet that another token already holds", () => {
-    // The modal never receives other tokens, so every fleet is listed.
+  it("lists a team that another token already holds", () => {
+    // The modal never receives other tokens, so every team is listed.
     renderModal(makeToken(null));
 
     expect(
@@ -105,19 +105,19 @@ describe("EditTeamsVppModal", () => {
   });
 
   describe("save", () => {
-    it("sends [] for All fleets", async () => {
+    it("sends [] for All teams", async () => {
       const bodies = mockPatch();
       const onSuccess = jest.fn();
       const { user } = renderModal(makeToken(null), onSuccess);
 
-      await user.click(screen.getByRole("radio", { name: "All fleets" }));
+      await user.click(screen.getByRole("radio", { name: "All teams" }));
       await user.click(screen.getByRole("button", { name: "Save" }));
 
       await waitFor(() => expect(onSuccess).toHaveBeenCalled());
-      expect(bodies).toEqual([{ fleets: [] }]);
+      expect(bodies).toEqual([{ teams: [] }]);
     });
 
-    it("sends the checked fleet ids for Custom", async () => {
+    it("sends the checked team ids for Custom", async () => {
       const bodies = mockPatch();
       const onSuccess = jest.fn();
       const { user } = renderModal(makeToken(null), onSuccess);
@@ -129,14 +129,14 @@ describe("EditTeamsVppModal", () => {
       await user.click(screen.getByRole("button", { name: "Save" }));
 
       await waitFor(() => expect(onSuccess).toHaveBeenCalled());
-      expect(bodies).toEqual([{ fleets: [1, 2] }]);
+      expect(bodies).toEqual([{ teams: [1, 2] }]);
     });
 
     it("sends null for Custom with nothing checked", async () => {
       const bodies = mockPatch();
       const onSuccess = jest.fn();
       const { user } = renderModal(
-        makeToken([{ fleet_id: 1, name: "W" }]),
+        makeToken([{ team_id: 1, name: "W" }]),
         onSuccess
       );
 
@@ -146,7 +146,7 @@ describe("EditTeamsVppModal", () => {
       await user.click(screen.getByRole("button", { name: "Save" }));
 
       await waitFor(() => expect(onSuccess).toHaveBeenCalled());
-      expect(bodies).toEqual([{ fleets: null }]);
+      expect(bodies).toEqual([{ teams: null }]);
     });
   });
 });

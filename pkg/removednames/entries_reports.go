@@ -2,7 +2,7 @@ package removednames
 
 func init() { register(reportEntries...) }
 
-// reportEntries are the /queries endpoints, renamed to /reports, and the deprecated report endpoints that Fleet 5 removed.
+// reportEntries are the /queries endpoints, renamed to /reports, and the deprecated report endpoints that AutoMDM 5 removed.
 var reportEntries = []Entry{
 	// Also covers DELETE /queries/{name}, which has the same shape.
 	pathEntry("/queries/{id}", "/reports/{id}"),

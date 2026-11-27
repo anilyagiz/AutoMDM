@@ -20,8 +20,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/removednames"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/pkg/removednames"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -36,12 +36,12 @@ func (s *integrationTestSuite) TestQueryCreationLogsActivity() {
 	err := s.ds.SaveUser(context.Background(), &admin1)
 	require.NoError(t, err)
 
-	params := fleet.QueryPayload{
+	params := automdm.QueryPayload{
 		Name:  new("user1"),
 		Query: new("select * from time;"),
 	}
-	var createQueryResp fleet.CreateQueryResponse
-	s.DoJSON("POST", "/api/latest/fleet/reports", &params, http.StatusOK, &createQueryResp)
+	var createQueryResp automdm.CreateQueryResponse
+	s.DoJSON("POST", "/api/latest/automdm/reports", &params, http.StatusOK, &createQueryResp)
 	defer s.cleanupQuery(createQueryResp.Report.ID)
 	assert.False(t, createQueryResp.Report.CreatedAt.IsZero())
 	assert.WithinDuration(t, time.Now(), createQueryResp.Report.CreatedAt, time.Minute)
@@ -49,7 +49,7 @@ func (s *integrationTestSuite) TestQueryCreationLogsActivity() {
 	assert.WithinDuration(t, time.Now(), createQueryResp.Report.UpdatedAt, time.Minute)
 
 	activities := listActivitiesResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/activities", nil, http.StatusOK, &activities)
+	s.DoJSON("GET", "/api/latest/automdm/activities", nil, http.StatusOK, &activities)
 
 	assert.GreaterOrEqual(t, len(activities.Activities), 1)
 	found := false
@@ -65,32 +65,32 @@ func (s *integrationTestSuite) TestQueryCreationLogsActivity() {
 }
 
 func (s *integrationTestSuite) TestQueryLabelsIncludeAnyRequiresPremium() {
-	// POST /api/v1/fleet/reports with labels_include_any should fail with 402 on free tier
-	var createResp fleet.CreateQueryResponse
-	s.DoJSON("POST", "/api/latest/fleet/reports", fleet.QueryPayload{
+	// POST /api/v1/automdm/reports with labels_include_any should fail with 402 on free tier
+	var createResp automdm.CreateQueryResponse
+	s.DoJSON("POST", "/api/latest/automdm/reports", automdm.QueryPayload{
 		Name:             new("test-labels-query"),
 		Query:            new("SELECT 1"),
 		LabelsIncludeAny: []string{"some-label"},
 	}, http.StatusPaymentRequired, &createResp)
 
 	// Create a query without labels_include_any to use for the PATCH test
-	var createOKResp fleet.CreateQueryResponse
-	s.DoJSON("POST", "/api/latest/fleet/reports", fleet.QueryPayload{
+	var createOKResp automdm.CreateQueryResponse
+	s.DoJSON("POST", "/api/latest/automdm/reports", automdm.QueryPayload{
 		Name:  new("test-labels-query-for-patch"),
 		Query: new("SELECT 1"),
 	}, http.StatusOK, &createOKResp)
 	defer s.cleanupQuery(createOKResp.Report.ID)
 
 	// PATCH with labels_include_any should also fail with 402 on free tier
-	var modifyResp fleet.ModifyQueryResponse
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/reports/%d", createOKResp.Report.ID), fleet.QueryPayload{
+	var modifyResp automdm.ModifyQueryResponse
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/reports/%d", createOKResp.Report.ID), automdm.QueryPayload{
 		LabelsIncludeAny: []string{"some-label"},
 	}, http.StatusPaymentRequired, &modifyResp)
 
-	// POST /api/latest/fleet/spec/reports with labels_include_any should fail with 402 on free tier
-	var applyResp fleet.ApplyQuerySpecsResponse
-	s.DoJSON("POST", "/api/latest/fleet/spec/reports", fleet.ApplyQuerySpecsRequest{
-		Specs: []*fleet.QuerySpec{
+	// POST /api/latest/automdm/spec/reports with labels_include_any should fail with 402 on free tier
+	var applyResp automdm.ApplyQuerySpecsResponse
+	s.DoJSON("POST", "/api/latest/automdm/spec/reports", automdm.ApplyQuerySpecsRequest{
+		Specs: []*automdm.QuerySpec{
 			{Name: "test-labels-spec-query", Query: "SELECT 1", LabelsIncludeAny: []string{"some-label"}},
 		},
 	}, http.StatusPaymentRequired, &applyResp)
@@ -100,55 +100,55 @@ func (s *integrationTestSuite) TestQueriesCRUD() {
 	t := s.T()
 
 	// try a non existent query
-	s.Do("GET", fmt.Sprintf("/api/latest/fleet/reports/%d", 9999), nil, http.StatusNotFound)
+	s.Do("GET", fmt.Sprintf("/api/latest/automdm/reports/%d", 9999), nil, http.StatusNotFound)
 
 	// list queries
-	var listQryResp fleet.ListQueriesResponse
-	s.DoJSON("GET", "/api/latest/fleet/reports", nil, http.StatusOK, &listQryResp)
+	var listQryResp automdm.ListQueriesResponse
+	s.DoJSON("GET", "/api/latest/automdm/reports", nil, http.StatusOK, &listQryResp)
 	assert.Empty(t, listQryResp.Queries)
 	assert.Equal(t, 0, listQryResp.Count)
 	assert.Equal(t, 0, listQryResp.InheritedQueryCount)
 
 	// create a query
 	sql := "select * from time;"
-	var createQueryResp fleet.CreateQueryResponse
-	reqQuery := &fleet.QueryPayload{
+	var createQueryResp automdm.CreateQueryResponse
+	reqQuery := &automdm.QueryPayload{
 		Name:  new(strings.ReplaceAll(t.Name(), "/", "_")),
 		Query: new(sql),
 	}
-	s.DoJSON("POST", "/api/latest/fleet/reports", reqQuery, http.StatusOK, &createQueryResp)
+	s.DoJSON("POST", "/api/latest/automdm/reports", reqQuery, http.StatusOK, &createQueryResp)
 	query := createQueryResp.Report
 	assert.Equal(t, query.Query, sql)
 	assert.Equal(t, createQueryResp.Report.Query, sql)
 
 	// listing returns that query
-	s.DoJSON("GET", "/api/latest/fleet/reports", nil, http.StatusOK, &listQryResp)
+	s.DoJSON("GET", "/api/latest/automdm/reports", nil, http.StatusOK, &listQryResp)
 	require.Len(t, listQryResp.Queries, 1)
 	assert.Equal(t, query.Name, listQryResp.Queries[0].Name)
 	assert.Equal(t, 1, listQryResp.Count)
 	assert.Equal(t, 0, listQryResp.InheritedQueryCount)
 
 	// listing with matching name returns that query
-	s.DoJSON("GET", "/api/latest/fleet/reports", nil, http.StatusOK, &listQryResp, "query", query.Name)
+	s.DoJSON("GET", "/api/latest/automdm/reports", nil, http.StatusOK, &listQryResp, "query", query.Name)
 	require.Len(t, listQryResp.Queries, 1)
 	assert.Equal(t, query.Name, listQryResp.Queries[0].Name)
 
 	// listing with matching name plus whitespace returns that query
-	s.DoJSON("GET", "/api/latest/fleet/reports", nil, http.StatusOK, &listQryResp, "query", "  "+query.Name+" ")
+	s.DoJSON("GET", "/api/latest/automdm/reports", nil, http.StatusOK, &listQryResp, "query", "  "+query.Name+" ")
 	require.Len(t, listQryResp.Queries, 1)
 	assert.Equal(t, query.Name, listQryResp.Queries[0].Name)
 
 	// listing with non-matching name returns nothing
-	s.DoJSON("GET", "/api/latest/fleet/reports", nil, http.StatusOK, &listQryResp, "query", "  nomatch")
+	s.DoJSON("GET", "/api/latest/automdm/reports", nil, http.StatusOK, &listQryResp, "query", "  nomatch")
 	require.Empty(t, listQryResp.Queries)
 
 	// Return that query by name
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/reports?query=%s", query.Name), nil, http.StatusOK, &listQryResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/reports?query=%s", query.Name), nil, http.StatusOK, &listQryResp)
 	require.Len(t, listQryResp.Queries, 1)
 	assert.Equal(t, query.Name, listQryResp.Queries[0].Name)
 
 	// next page returns nothing, count and meta are correct
-	s.DoJSON("GET", "/api/latest/fleet/reports", nil, http.StatusOK, &listQryResp, "per_page", "2", "page", "1")
+	s.DoJSON("GET", "/api/latest/automdm/reports", nil, http.StatusOK, &listQryResp, "per_page", "2", "page", "1")
 	require.Empty(t, listQryResp.Queries)
 	require.Equal(t, 1, listQryResp.Count)
 	require.Equal(t, 0, listQryResp.InheritedQueryCount)
@@ -156,14 +156,14 @@ func (s *integrationTestSuite) TestQueriesCRUD() {
 	require.False(t, listQryResp.Meta.HasNextResults)
 
 	// getting that query works
-	var getQryResp fleet.GetQueryResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/reports/%d", query.ID), nil, http.StatusOK, &getQryResp)
+	var getQryResp automdm.GetQueryResponse
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/reports/%d", query.ID), nil, http.StatusOK, &getQryResp)
 	assert.Equal(t, query.ID, getQryResp.Report.ID)
 	assert.Equal(t, sql, getQryResp.Report.Query)
 
 	// modify the query
-	var modQryResp fleet.ModifyQueryResponse
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/reports/%d", query.ID), fleet.QueryPayload{Description: new("updated")}, http.StatusOK, &modQryResp)
+	var modQryResp automdm.ModifyQueryResponse
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/reports/%d", query.ID), automdm.QueryPayload{Description: new("updated")}, http.StatusOK, &modQryResp)
 	assert.Equal(t, "updated", modQryResp.Report.Description)
 	assert.Equal(t, sql, modQryResp.Report.Query)
 
@@ -172,48 +172,48 @@ func (s *integrationTestSuite) TestQueriesCRUD() {
 	// TODO(jahziel): check that the query results were deleted after setting `discard_data`
 
 	// modify a non-existing query
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/reports/%d", query.ID+1), fleet.QueryPayload{Description: new("updated")}, http.StatusNotFound, &modQryResp)
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/reports/%d", query.ID+1), automdm.QueryPayload{Description: new("updated")}, http.StatusNotFound, &modQryResp)
 
 	// delete the query
-	var delQueryResp fleet.DeleteQueryByIDResponse
-	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/fleet/reports/%d", query.ID), nil, http.StatusOK, &delQueryResp)
+	var delQueryResp automdm.DeleteQueryByIDResponse
+	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/automdm/reports/%d", query.ID), nil, http.StatusOK, &delQueryResp)
 
 	// delete unknown query (i.e. the same, now deleted)
-	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/fleet/reports/%d", query.ID), nil, http.StatusNotFound, &delQueryResp)
+	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/automdm/reports/%d", query.ID), nil, http.StatusNotFound, &delQueryResp)
 
 	// create another query
-	reqQuery = &fleet.QueryPayload{
+	reqQuery = &automdm.QueryPayload{
 		Name:  new(strings.ReplaceAll(t.Name(), "/", "_") + "_2"),
 		Query: new("select 2"),
 	}
-	s.DoJSON("POST", "/api/latest/fleet/reports", reqQuery, http.StatusOK, &createQueryResp)
+	s.DoJSON("POST", "/api/latest/automdm/reports", reqQuery, http.StatusOK, &createQueryResp)
 	query2 := createQueryResp.Report
 
 	// delete it by id
-	var delByIDResp fleet.DeleteQueryByIDResponse
-	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/fleet/reports/%d", query2.ID), nil, http.StatusOK, &delByIDResp)
+	var delByIDResp automdm.DeleteQueryByIDResponse
+	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/automdm/reports/%d", query2.ID), nil, http.StatusOK, &delByIDResp)
 
 	// delete unknown query by id (same id just deleted)
-	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/fleet/reports/%d", query2.ID), nil, http.StatusNotFound, &delByIDResp)
+	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/automdm/reports/%d", query2.ID), nil, http.StatusNotFound, &delByIDResp)
 
 	// create another query
-	reqQuery = &fleet.QueryPayload{
+	reqQuery = &automdm.QueryPayload{
 		Name:  new(strings.ReplaceAll(t.Name(), "/", "_") + "_3"),
 		Query: new("select 3"),
 	}
-	s.DoJSON("POST", "/api/latest/fleet/reports", reqQuery, http.StatusOK, &createQueryResp)
+	s.DoJSON("POST", "/api/latest/automdm/reports", reqQuery, http.StatusOK, &createQueryResp)
 	query3 := createQueryResp.Report
 
 	// batch-delete by id, 3 ids, only one exists
-	var delBatchResp fleet.DeleteQueriesResponse
-	s.DoJSON("POST", "/api/latest/fleet/reports/delete", map[string]any{
+	var delBatchResp automdm.DeleteQueriesResponse
+	s.DoJSON("POST", "/api/latest/automdm/reports/delete", map[string]any{
 		"ids": []uint{query.ID, query2.ID, query3.ID},
 	}, http.StatusOK, &delBatchResp)
 	assert.Equal(t, uint(1), delBatchResp.Deleted)
 
 	// batch-delete by id, none exist
 	delBatchResp.Deleted = 0
-	s.DoJSON("POST", "/api/latest/fleet/reports/delete", map[string]any{
+	s.DoJSON("POST", "/api/latest/automdm/reports/delete", map[string]any{
 		"ids": []uint{query.ID, query2.ID, query3.ID},
 	}, http.StatusNotFound, &delBatchResp)
 	assert.Equal(t, uint(0), delBatchResp.Deleted)
@@ -223,9 +223,9 @@ func (s *integrationTestSuite) TestDeleteReportURLs() {
 	t := s.T()
 	prefix := strings.ReplaceAll(t.Name(), "/", "_")
 
-	createReport := func(name string) *fleet.Query {
-		var resp fleet.CreateQueryResponse
-		s.DoJSON("POST", "/api/latest/fleet/reports", &fleet.QueryPayload{Name: new(name), Query: new("select 1")}, http.StatusOK, &resp)
+	createReport := func(name string) *automdm.Query {
+		var resp automdm.CreateQueryResponse
+		s.DoJSON("POST", "/api/latest/automdm/reports", &automdm.QueryPayload{Name: new(name), Query: new("select 1")}, http.StatusOK, &resp)
 		return resp.Report
 	}
 	requireReportExists := func(id uint, exists bool) {
@@ -233,9 +233,9 @@ func (s *integrationTestSuite) TestDeleteReportURLs() {
 		if exists {
 			status = http.StatusOK
 		}
-		s.Do("GET", fmt.Sprintf("/api/latest/fleet/reports/%d", id), nil, status)
+		s.Do("GET", fmt.Sprintf("/api/latest/automdm/reports/%d", id), nil, status)
 	}
-	byIDPath := func(id uint) string { return fmt.Sprintf("/api/latest/fleet/reports/%d", id) }
+	byIDPath := func(id uint) string { return fmt.Sprintf("/api/latest/automdm/reports/%d", id) }
 
 	t.Run("by ID", func(t *testing.T) {
 		r := createReport(prefix + " by ID")
@@ -247,8 +247,8 @@ func (s *integrationTestSuite) TestDeleteReportURLs() {
 	t.Run("delete by name is gone", func(t *testing.T) {
 		r := createReport(prefix + "_by_name")
 		for _, c := range []struct{ prefix, endpoint string }{
-			{"/api/latest/fleet/queries/", "DELETE /queries/{id}"},
-			{"/api/latest/fleet/reports/", "DELETE /reports/{name}"},
+			{"/api/latest/automdm/queries/", "DELETE /queries/{id}"},
+			{"/api/latest/automdm/reports/", "DELETE /reports/{name}"},
 		} {
 			res := s.Do("DELETE", c.prefix+url.PathEscape(r.Name), nil, http.StatusGone)
 			var body struct {
@@ -264,13 +264,13 @@ func (s *integrationTestSuite) TestDeleteReportURLs() {
 		requireReportExists(r.ID, true)
 
 		// "delete" is a valid report name, so DELETE gets the 410 even though POST /reports/delete is a live route.
-		s.Do("DELETE", "/api/latest/fleet/reports/delete", nil, http.StatusGone)
-		s.Do("DELETE", "/api/v1/fleet/reports/"+url.PathEscape(r.Name), nil, http.StatusGone)
-		// The 410 route wildcards the fleet segment, so it must not answer outside /fleet.
+		s.Do("DELETE", "/api/latest/automdm/reports/delete", nil, http.StatusGone)
+		s.Do("DELETE", "/api/v1/automdm/reports/"+url.PathEscape(r.Name), nil, http.StatusGone)
+		// The 410 route wildcards the team segment, so it must not answer outside /automdm.
 		s.Do("DELETE", "/api/v1/other/reports/"+url.PathEscape(r.Name), nil, http.StatusNotFound)
 
 		// An all-digits value is gone too.
-		s.Do("DELETE", fmt.Sprintf("/api/latest/fleet/queries/%d", r.ID), nil, http.StatusGone)
+		s.Do("DELETE", fmt.Sprintf("/api/latest/automdm/queries/%d", r.ID), nil, http.StatusGone)
 		requireReportExists(r.ID, true)
 
 		s.Do("DELETE", byIDPath(r.ID), nil, http.StatusOK)
@@ -278,26 +278,26 @@ func (s *integrationTestSuite) TestDeleteReportURLs() {
 
 	t.Run("routes sharing the removed paths' shape still work", func(t *testing.T) {
 		r := createReport(prefix + " shared shape")
-		s.Do("PATCH", byIDPath(r.ID), fleet.QueryPayload{Description: new("updated")}, http.StatusOK)
+		s.Do("PATCH", byIDPath(r.ID), automdm.QueryPayload{Description: new("updated")}, http.StatusOK)
 		s.Do("GET", byIDPath(r.ID), nil, http.StatusOK)
 
 		// The removed reports by name path is DELETE-only, so other methods get a 405 rather than a 410 naming an endpoint that never existed.
-		s.Do("GET", "/api/latest/fleet/reports/"+url.PathEscape(r.Name), nil, http.StatusMethodNotAllowed)
-		s.Do("PATCH", "/api/latest/fleet/reports/"+url.PathEscape(r.Name), nil, http.StatusMethodNotAllowed)
+		s.Do("GET", "/api/latest/automdm/reports/"+url.PathEscape(r.Name), nil, http.StatusMethodNotAllowed)
+		s.Do("PATCH", "/api/latest/automdm/reports/"+url.PathEscape(r.Name), nil, http.StatusMethodNotAllowed)
 
-		s.Do("GET", "/api/latest/fleet/queries/"+url.PathEscape(r.Name), nil, http.StatusGone)
+		s.Do("GET", "/api/latest/automdm/queries/"+url.PathEscape(r.Name), nil, http.StatusGone)
 		s.Do("PUT", byIDPath(r.ID), nil, http.StatusMethodNotAllowed)
-		s.Do("GET", "/api/latest/fleet/reports/delete", nil, http.StatusMethodNotAllowed)
+		s.Do("GET", "/api/latest/automdm/reports/delete", nil, http.StatusMethodNotAllowed)
 
-		var delResp fleet.DeleteQueriesResponse
-		s.DoJSON("POST", "/api/latest/fleet/reports/delete", map[string]any{"ids": []uint{r.ID}}, http.StatusOK, &delResp)
+		var delResp automdm.DeleteQueriesResponse
+		s.DoJSON("POST", "/api/latest/automdm/reports/delete", map[string]any{"ids": []uint{r.ID}}, http.StatusOK, &delResp)
 		assert.Equal(t, uint(1), delResp.Deleted)
 	})
 
 	t.Run("removed by-ID paths", func(t *testing.T) {
 		r := createReport(prefix + " id removed")
-		s.Do("DELETE", fmt.Sprintf("/api/latest/fleet/reports/id/%d", r.ID), nil, http.StatusGone)
-		s.Do("DELETE", fmt.Sprintf("/api/latest/fleet/queries/id/%d", r.ID), nil, http.StatusGone)
+		s.Do("DELETE", fmt.Sprintf("/api/latest/automdm/reports/id/%d", r.ID), nil, http.StatusGone)
+		s.Do("DELETE", fmt.Sprintf("/api/latest/automdm/queries/id/%d", r.ID), nil, http.StatusGone)
 		requireReportExists(r.ID, true)
 		s.Do("DELETE", byIDPath(r.ID), nil, http.StatusOK)
 	})
@@ -307,7 +307,7 @@ func (s *integrationTestSuite) TestQueriesPaginationAndPlatformFilter() {
 	t := s.T()
 
 	// make a few queries
-	testQueries := []*fleet.Query{
+	testQueries := []*automdm.Query{
 		{Name: "PPTestQuery1", Query: "select 1", Platform: "darwin"},
 		{Name: "PPTestQuery2", Query: "select 2", Platform: "linux"},
 		{Name: "PPTestQuery3", Query: "select 3", Platform: "windows"},
@@ -319,66 +319,66 @@ func (s *integrationTestSuite) TestQueriesPaginationAndPlatformFilter() {
 		{Name: "PPTestQuery9", Query: "select 9"},
 		{Name: "PPTestQuery10", Query: "select 10"},
 	}
-	var createQueryResp fleet.CreateQueryResponse
+	var createQueryResp automdm.CreateQueryResponse
 	for _, q := range testQueries {
-		reqQuery := &fleet.QueryPayload{
+		reqQuery := &automdm.QueryPayload{
 			Name:     &q.Name,
 			Query:    &q.Query,
 			Platform: &q.Platform,
 		}
-		s.DoJSON("POST", "/api/latest/fleet/reports", reqQuery, http.StatusOK, &createQueryResp)
+		s.DoJSON("POST", "/api/latest/automdm/reports", reqQuery, http.StatusOK, &createQueryResp)
 		require.Equal(t, createQueryResp.Report.Name, q.Name)
 		require.Equal(t, createQueryResp.Report.Platform, q.Platform)
 		q.ID = createQueryResp.Report.ID
 	}
 
-	var listQryResp fleet.ListQueriesResponse
+	var listQryResp automdm.ListQueriesResponse
 	queryNameToMatch := "TestQuery"
 
 	// Test pagination, no filter
 
 	// middle of the pages
-	s.DoJSON("GET", "/api/latest/fleet/reports", nil, http.StatusOK, &listQryResp, "query", queryNameToMatch, "per_page", "2", "page", "1")
+	s.DoJSON("GET", "/api/latest/automdm/reports", nil, http.StatusOK, &listQryResp, "query", queryNameToMatch, "per_page", "2", "page", "1")
 	require.Len(t, listQryResp.Queries, 2)
 	require.Equal(t, 10, listQryResp.Count)
 	require.True(t, listQryResp.Meta.HasPreviousResults)
 	require.True(t, listQryResp.Meta.HasNextResults)
 
 	// first and only page
-	s.DoJSON("GET", "/api/latest/fleet/reports", nil, http.StatusOK, &listQryResp, "query", queryNameToMatch, "per_page", "10", "page", "0")
+	s.DoJSON("GET", "/api/latest/automdm/reports", nil, http.StatusOK, &listQryResp, "query", queryNameToMatch, "per_page", "10", "page", "0")
 	require.Len(t, listQryResp.Queries, 10)
 	require.Equal(t, 10, listQryResp.Count)
 	require.False(t, listQryResp.Meta.HasPreviousResults)
 	require.False(t, listQryResp.Meta.HasNextResults)
 
 	// first of a few pages
-	s.DoJSON("GET", "/api/latest/fleet/reports", nil, http.StatusOK, &listQryResp, "query", queryNameToMatch, "per_page", "2", "page", "0")
+	s.DoJSON("GET", "/api/latest/automdm/reports", nil, http.StatusOK, &listQryResp, "query", queryNameToMatch, "per_page", "2", "page", "0")
 	require.Len(t, listQryResp.Queries, 2)
 	require.Equal(t, 10, listQryResp.Count)
 	require.False(t, listQryResp.Meta.HasPreviousResults)
 	require.True(t, listQryResp.Meta.HasNextResults)
 
 	// last page
-	s.DoJSON("GET", "/api/latest/fleet/reports", nil, http.StatusOK, &listQryResp, "query", queryNameToMatch, "per_page", "5", "page", "1")
+	s.DoJSON("GET", "/api/latest/automdm/reports", nil, http.StatusOK, &listQryResp, "query", queryNameToMatch, "per_page", "5", "page", "1")
 	require.Len(t, listQryResp.Queries, 5)
 	require.Equal(t, 10, listQryResp.Count)
 	require.True(t, listQryResp.Meta.HasPreviousResults)
 	require.False(t, listQryResp.Meta.HasNextResults)
 
 	// after last page
-	s.DoJSON("GET", "/api/latest/fleet/reports", nil, http.StatusOK, &listQryResp, "query", queryNameToMatch, "per_page", "2", "page", "5")
+	s.DoJSON("GET", "/api/latest/automdm/reports", nil, http.StatusOK, &listQryResp, "query", queryNameToMatch, "per_page", "2", "page", "5")
 	require.Empty(t, listQryResp.Queries)
 	require.Equal(t, 10, listQryResp.Count)
 	require.True(t, listQryResp.Meta.HasPreviousResults)
 	require.False(t, listQryResp.Meta.HasNextResults)
 
 	// invalid order_key returns 422
-	listQryResp = fleet.ListQueriesResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/reports", nil, http.StatusUnprocessableEntity, &listQryResp, "order_key", "invalid")
+	listQryResp = automdm.ListQueriesResponse{}
+	s.DoJSON("GET", "/api/latest/automdm/reports", nil, http.StatusUnprocessableEntity, &listQryResp, "order_key", "invalid")
 
 	// test platform filtering
 
-	s.DoJSON("GET", "/api/latest/fleet/reports", nil, http.StatusOK, &listQryResp, "platform", "macos")
+	s.DoJSON("GET", "/api/latest/automdm/reports", nil, http.StatusOK, &listQryResp, "platform", "macos")
 	require.Len(t, listQryResp.Queries, 8)
 	require.Equal(t, 8, listQryResp.Count)
 	require.False(t, listQryResp.Meta.HasPreviousResults)
@@ -386,7 +386,7 @@ func (s *integrationTestSuite) TestQueriesPaginationAndPlatformFilter() {
 	require.Equal(t, "darwin", listQryResp.Queries[0].Platform)
 	require.Equal(t, "darwin,windows,linux", listQryResp.Queries[1].Platform)
 
-	s.DoJSON("GET", "/api/latest/fleet/reports", nil, http.StatusOK, &listQryResp, "platform", "windows")
+	s.DoJSON("GET", "/api/latest/automdm/reports", nil, http.StatusOK, &listQryResp, "platform", "windows")
 	require.Len(t, listQryResp.Queries, 8)
 	require.Equal(t, 8, listQryResp.Count)
 	require.False(t, listQryResp.Meta.HasPreviousResults)
@@ -394,7 +394,7 @@ func (s *integrationTestSuite) TestQueriesPaginationAndPlatformFilter() {
 	require.Equal(t, "windows", listQryResp.Queries[0].Platform)
 	require.Equal(t, "darwin,windows,linux", listQryResp.Queries[1].Platform)
 
-	s.DoJSON("GET", "/api/latest/fleet/reports", nil, http.StatusOK, &listQryResp, "platform", "linux")
+	s.DoJSON("GET", "/api/latest/automdm/reports", nil, http.StatusOK, &listQryResp, "platform", "linux")
 	require.Len(t, listQryResp.Queries, 8)
 	require.Equal(t, 8, listQryResp.Count)
 	require.False(t, listQryResp.Meta.HasPreviousResults)
@@ -402,37 +402,37 @@ func (s *integrationTestSuite) TestQueriesPaginationAndPlatformFilter() {
 	require.Equal(t, "linux", listQryResp.Queries[0].Platform)
 	require.Equal(t, "darwin,windows,linux", listQryResp.Queries[1].Platform)
 
-	s.DoJSON("GET", "/api/latest/fleet/reports", nil, http.StatusOK, &listQryResp, "platform", "linux", "per_page", "1", "page", "0")
+	s.DoJSON("GET", "/api/latest/automdm/reports", nil, http.StatusOK, &listQryResp, "platform", "linux", "per_page", "1", "page", "0")
 	require.Len(t, listQryResp.Queries, 1)
 	require.Equal(t, 8, listQryResp.Count)
 	require.False(t, listQryResp.Meta.HasPreviousResults)
 	require.True(t, listQryResp.Meta.HasNextResults)
 	require.Equal(t, "linux", listQryResp.Queries[0].Platform)
 
-	s.DoJSON("GET", "/api/latest/fleet/reports", nil, http.StatusOK, &listQryResp, "platform", "linux", "per_page", "1", "page", "1")
+	s.DoJSON("GET", "/api/latest/automdm/reports", nil, http.StatusOK, &listQryResp, "platform", "linux", "per_page", "1", "page", "1")
 	require.Len(t, listQryResp.Queries, 1)
 	require.Equal(t, 8, listQryResp.Count)
 	require.True(t, listQryResp.Meta.HasPreviousResults)
 	require.True(t, listQryResp.Meta.HasNextResults)
 	require.Equal(t, "darwin,windows,linux", listQryResp.Queries[0].Platform)
 
-	s.DoJSON("GET", "/api/latest/fleet/reports", nil, http.StatusBadRequest, &listQryResp, "platform", "lucas", "per_page", "1", "page", "1")
+	s.DoJSON("GET", "/api/latest/automdm/reports", nil, http.StatusBadRequest, &listQryResp, "platform", "lucas", "per_page", "1", "page", "1")
 
-	var delQueryResp fleet.DeleteQueryByIDResponse
+	var delQueryResp automdm.DeleteQueryByIDResponse
 	for _, q := range testQueries {
-		s.DoJSON("DELETE", fmt.Sprintf("/api/latest/fleet/reports/%d", q.ID), nil, http.StatusOK, &delQueryResp)
+		s.DoJSON("DELETE", fmt.Sprintf("/api/latest/automdm/reports/%d", q.ID), nil, http.StatusOK, &delQueryResp)
 	}
 }
 
 func (s *integrationTestSuite) TestQueriesBadRequests() {
 	t := s.T()
 
-	reqQuery := &fleet.QueryPayload{
+	reqQuery := &automdm.QueryPayload{
 		Name:  new("existing query"),
 		Query: new("select 42;"),
 	}
-	createQueryResp := fleet.CreateQueryResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/reports", reqQuery, http.StatusOK, &createQueryResp)
+	createQueryResp := automdm.CreateQueryResponse{}
+	s.DoJSON("POST", "/api/latest/automdm/reports", reqQuery, http.StatusOK, &createQueryResp)
 	require.NotNil(t, createQueryResp.Report)
 	existingQueryID := createQueryResp.Report.ID
 	defer s.cleanupQuery(existingQueryID)
@@ -491,24 +491,24 @@ func (s *integrationTestSuite) TestQueriesBadRequests() {
 		},
 	} {
 		t.Run(tc.tname, func(t *testing.T) {
-			reqQuery := &fleet.QueryPayload{
+			reqQuery := &automdm.QueryPayload{
 				Name:     new(tc.name),
 				Query:    new(tc.query),
 				Platform: new(tc.platform),
 				Logging:  new(tc.logging),
 			}
-			createQueryResp := fleet.CreateQueryResponse{}
-			s.DoJSON("POST", "/api/latest/fleet/reports", reqQuery, http.StatusBadRequest, &createQueryResp)
+			createQueryResp := automdm.CreateQueryResponse{}
+			s.DoJSON("POST", "/api/latest/automdm/reports", reqQuery, http.StatusBadRequest, &createQueryResp)
 			require.Nil(t, createQueryResp.Report)
 
-			payload := fleet.QueryPayload{
+			payload := automdm.QueryPayload{
 				Name:     new(tc.name),
 				Query:    new(tc.query),
 				Platform: new(tc.platform),
 				Logging:  new(tc.logging),
 			}
-			mResp := fleet.ModifyQueryResponse{}
-			s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/reports/%d", existingQueryID), &payload, http.StatusBadRequest, &mResp)
+			mResp := automdm.ModifyQueryResponse{}
+			s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/reports/%d", existingQueryID), &payload, http.StatusBadRequest, &mResp)
 			require.Nil(t, mResp.Report)
 			// TODO – add checks for specific errors
 		})
@@ -532,7 +532,7 @@ func (s *integrationTestSuite) TestQueriesBadRequests() {
 		},
 	} {
 		t.Run(tc.tname, func(t *testing.T) {
-			resp := s.DoRaw("POST", "/api/latest/fleet/reports", []byte(tc.body), http.StatusBadRequest)
+			resp := s.DoRaw("POST", "/api/latest/automdm/reports", []byte(tc.body), http.StatusBadRequest)
 			resp.Body.Close()
 		})
 	}
@@ -555,7 +555,7 @@ func (s *integrationTestSuite) TestQueriesBadRequests() {
 		},
 	} {
 		t.Run(tc.tname, func(t *testing.T) {
-			resp := s.DoRaw("POST", "/api/latest/fleet/spec/reports", []byte(tc.body), http.StatusBadRequest)
+			resp := s.DoRaw("POST", "/api/latest/automdm/spec/reports", []byte(tc.body), http.StatusBadRequest)
 			resp.Body.Close()
 		})
 	}
@@ -567,84 +567,84 @@ func (s *integrationTestSuite) TestQuerySpecs() {
 	s.lq.On("SetQueryResultsCount", mock.Anything, mock.Anything).Return(nil)
 
 	// list specs, none yet
-	var getSpecsResp fleet.GetQuerySpecsResponse
-	s.DoJSON("GET", "/api/latest/fleet/spec/reports", nil, http.StatusOK, &getSpecsResp)
+	var getSpecsResp automdm.GetQuerySpecsResponse
+	s.DoJSON("GET", "/api/latest/automdm/spec/reports", nil, http.StatusOK, &getSpecsResp)
 	assert.Empty(t, getSpecsResp.Specs)
 
 	// get unknown one
-	var getSpecResp fleet.GetQuerySpecResponse
-	s.DoJSON("GET", "/api/latest/fleet/spec/reports/nonesuch", nil, http.StatusNotFound, &getSpecResp)
+	var getSpecResp automdm.GetQuerySpecResponse
+	s.DoJSON("GET", "/api/latest/automdm/spec/reports/nonesuch", nil, http.StatusNotFound, &getSpecResp)
 
 	// create some queries via apply specs
 	q1 := strings.ReplaceAll(t.Name(), "/", "_")
 	q2 := q1 + "_2"
-	var applyResp fleet.ApplyQuerySpecsResponse
-	s.DoJSON("POST", "/api/latest/fleet/spec/reports", fleet.ApplyQuerySpecsRequest{
-		Specs: []*fleet.QuerySpec{
+	var applyResp automdm.ApplyQuerySpecsResponse
+	s.DoJSON("POST", "/api/latest/automdm/spec/reports", automdm.ApplyQuerySpecsRequest{
+		Specs: []*automdm.QuerySpec{
 			{Name: q1, Query: "SELECT 1"},
 			{Name: q2, Query: "SELECT 2"},
 		},
 	}, http.StatusOK, &applyResp)
 
 	// get the queries back
-	var listQryResp fleet.ListQueriesResponse
-	s.DoJSON("GET", "/api/latest/fleet/reports", nil, http.StatusOK, &listQryResp, "order_key", "name")
+	var listQryResp automdm.ListQueriesResponse
+	s.DoJSON("GET", "/api/latest/automdm/reports", nil, http.StatusOK, &listQryResp, "order_key", "name")
 	require.Len(t, listQryResp.Queries, 2)
 	assert.Equal(t, q1, listQryResp.Queries[0].Name)
 	assert.Equal(t, q2, listQryResp.Queries[1].Name)
 	q1ID, q2ID := listQryResp.Queries[0].ID, listQryResp.Queries[1].ID
 
 	// list specs
-	s.DoJSON("GET", "/api/latest/fleet/spec/reports", nil, http.StatusOK, &getSpecsResp)
+	s.DoJSON("GET", "/api/latest/automdm/spec/reports", nil, http.StatusOK, &getSpecsResp)
 	require.Len(t, getSpecsResp.Specs, 2)
 	names := []string{getSpecsResp.Specs[0].Name, getSpecsResp.Specs[1].Name}
 	assert.ElementsMatch(t, []string{q1, q2}, names)
 
 	// get specific spec
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/spec/reports/%s", q1), nil, http.StatusOK, &getSpecResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/spec/reports/%s", q1), nil, http.StatusOK, &getSpecResp)
 	assert.Equal(t, "SELECT 1", getSpecResp.Spec.Query)
 
 	// apply specs again - create q3 and update q2
 	q3 := q1 + "_3"
-	s.DoJSON("POST", "/api/latest/fleet/spec/reports", fleet.ApplyQuerySpecsRequest{
-		Specs: []*fleet.QuerySpec{
+	s.DoJSON("POST", "/api/latest/automdm/spec/reports", automdm.ApplyQuerySpecsRequest{
+		Specs: []*automdm.QuerySpec{
 			{Name: q2, Query: "SELECT -2"},
 			{Name: q3, Query: "SELECT 3"},
 		},
 	}, http.StatusOK, &applyResp)
 
 	// names that differ by case and accent are the same name to the database, fail
-	res := s.Do("POST", "/api/latest/fleet/spec/reports", fleet.ApplyQuerySpecsRequest{Specs: []*fleet.QuerySpec{
+	res := s.Do("POST", "/api/latest/automdm/spec/reports", automdm.ApplyQuerySpecsRequest{Specs: []*automdm.QuerySpec{
 		{Name: q1 + "_Bêta", Query: "SELECT 1"},
 		{Name: q1 + "_beta", Query: "SELECT 2"},
 	}}, http.StatusUnprocessableEntity)
 	require.Contains(t, extractServerErrorText(res.Body), fmt.Sprintf("More than one report has the same name: %q", q1+"_beta"))
-	s.DoJSON("GET", "/api/latest/fleet/reports", nil, http.StatusOK, &listQryResp)
+	s.DoJSON("GET", "/api/latest/automdm/reports", nil, http.StatusOK, &listQryResp)
 	require.Len(t, listQryResp.Queries, 3)
 
 	// try to create a query with invalid platform, fail
 	q4 := q1 + "_4"
-	s.DoJSON("POST", "/api/latest/fleet/spec/reports", fleet.ApplyQuerySpecsRequest{
-		Specs: []*fleet.QuerySpec{
+	s.DoJSON("POST", "/api/latest/automdm/spec/reports", automdm.ApplyQuerySpecsRequest{
+		Specs: []*automdm.QuerySpec{
 			{Name: q4, Query: "SELECT 4", Platform: "not valid"},
 		},
 	}, http.StatusBadRequest, &applyResp)
 
 	// try to edit a query with invalid platform, fail
-	s.DoJSON("POST", "/api/latest/fleet/spec/reports", fleet.ApplyQuerySpecsRequest{
-		Specs: []*fleet.QuerySpec{
+	s.DoJSON("POST", "/api/latest/automdm/spec/reports", automdm.ApplyQuerySpecsRequest{
+		Specs: []*automdm.QuerySpec{
 			{Name: q3, Query: "SELECT 3", Platform: "charles darwin"},
 		},
 	}, http.StatusBadRequest, &applyResp)
 
 	// list specs - has 3, not 4 (one was an update)
-	s.DoJSON("GET", "/api/latest/fleet/spec/reports", nil, http.StatusOK, &getSpecsResp)
+	s.DoJSON("GET", "/api/latest/automdm/spec/reports", nil, http.StatusOK, &getSpecsResp)
 	require.Len(t, getSpecsResp.Specs, 3)
 	names = []string{getSpecsResp.Specs[0].Name, getSpecsResp.Specs[1].Name, getSpecsResp.Specs[2].Name}
 	assert.ElementsMatch(t, []string{q1, q2, q3}, names)
 
 	// get the queries back again
-	s.DoJSON("GET", "/api/latest/fleet/reports", nil, http.StatusOK, &listQryResp, "order_key", "name")
+	s.DoJSON("GET", "/api/latest/automdm/reports", nil, http.StatusOK, &listQryResp, "order_key", "name")
 	require.Len(t, listQryResp.Queries, 3)
 	assert.Equal(t, q1ID, listQryResp.Queries[0].ID)
 	assert.Equal(t, q2ID, listQryResp.Queries[1].ID)
@@ -652,8 +652,8 @@ func (s *integrationTestSuite) TestQuerySpecs() {
 	q3ID := listQryResp.Queries[2].ID
 
 	// delete all queries created
-	var delBatchResp fleet.DeleteQueriesResponse
-	s.DoJSON("POST", "/api/latest/fleet/reports/delete", map[string]any{
+	var delBatchResp automdm.DeleteQueriesResponse
+	s.DoJSON("POST", "/api/latest/automdm/reports/delete", map[string]any{
 		"ids": []uint{q1ID, q2ID, q3ID},
 	}, http.StatusOK, &delBatchResp)
 	assert.Equal(t, uint(3), delBatchResp.Deleted)
@@ -717,20 +717,20 @@ func (s *integrationTestSuite) TestQueryReports() {
 		s.lq.ClearQueryReportsClippedOverride = nil
 	}()
 
-	team1, err := s.ds.NewTeam(ctx, &fleet.Team{
+	team1, err := s.ds.NewTeam(ctx, &automdm.Team{
 		ID:          42,
 		Name:        "team1",
 		Description: "desc team1",
 	})
 	require.NoError(t, err)
-	team2, err := s.ds.NewTeam(ctx, &fleet.Team{
+	team2, err := s.ds.NewTeam(ctx, &automdm.Team{
 		ID:          43,
 		Name:        "team2",
 		Description: "desc team2",
 	})
 	require.NoError(t, err)
 
-	host1Global, err := s.ds.NewHost(ctx, &fleet.Host{
+	host1Global, err := s.ds.NewHost(ctx, &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -745,7 +745,7 @@ func (s *integrationTestSuite) TestQueryReports() {
 	})
 	require.NoError(t, err)
 
-	host2Global, err := s.ds.NewHost(ctx, &fleet.Host{
+	host2Global, err := s.ds.NewHost(ctx, &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -760,7 +760,7 @@ func (s *integrationTestSuite) TestQueryReports() {
 	})
 	require.NoError(t, err)
 
-	host2Team1, err := s.ds.NewHost(ctx, &fleet.Host{
+	host2Team1, err := s.ds.NewHost(ctx, &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -776,10 +776,10 @@ func (s *integrationTestSuite) TestQueryReports() {
 	})
 	require.NoError(t, err)
 
-	err = s.ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team1.ID, []uint{host2Team1.ID}))
+	err = s.ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team1.ID, []uint{host2Team1.ID}))
 	require.NoError(t, err)
 
-	host1Team2, err := s.ds.NewHost(ctx, &fleet.Host{
+	host1Team2, err := s.ds.NewHost(ctx, &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -795,10 +795,10 @@ func (s *integrationTestSuite) TestQueryReports() {
 	})
 	require.NoError(t, err)
 
-	err = s.ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team2.ID, []uint{host1Team2.ID}))
+	err = s.ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team2.ID, []uint{host1Team2.ID}))
 	require.NoError(t, err)
 
-	osqueryInfoQuery, err := s.ds.NewQuery(ctx, &fleet.Query{
+	osqueryInfoQuery, err := s.ds.NewQuery(ctx, &automdm.Query{
 		Name:               "Osquery info",
 		Description:        "osquery_info table",
 		Query:              "select * from osquery_info;",
@@ -807,11 +807,11 @@ func (s *integrationTestSuite) TestQueryReports() {
 		AutomationsEnabled: true,
 		DiscardData:        false,
 		TeamID:             nil,
-		Logging:            fleet.LoggingSnapshot,
+		Logging:            automdm.LoggingSnapshot,
 	})
 	require.NoError(t, err)
 
-	usbDevicesQuery, err := s.ds.NewQuery(ctx, &fleet.Query{
+	usbDevicesQuery, err := s.ds.NewQuery(ctx, &automdm.Query{
 		Name:               "USB devices",
 		Description:        "usb_devices table",
 		Query:              "select * from usb_devices;",
@@ -820,20 +820,20 @@ func (s *integrationTestSuite) TestQueryReports() {
 		AutomationsEnabled: true,
 		DiscardData:        false,
 		TeamID:             new(team1.ID),
-		Logging:            fleet.LoggingSnapshot,
+		Logging:            automdm.LoggingSnapshot,
 	})
 	require.NoError(t, err)
 
 	// Should return no results.
-	var gqrr fleet.GetQueryReportResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/reports/%d/report", usbDevicesQuery.ID), fleet.GetQueryReportRequest{}, http.StatusOK, &gqrr)
+	var gqrr automdm.GetQueryReportResponse
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/reports/%d/report", usbDevicesQuery.ID), automdm.GetQueryReportRequest{}, http.StatusOK, &gqrr)
 	require.NoError(t, gqrr.Err)
 	require.Equal(t, usbDevicesQuery.ID, gqrr.QueryID)
 	require.NotNil(t, gqrr.Results)
 	require.Empty(t, gqrr.Results)
 
 	var ghqrr getHostQueryReportResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/reports/%d", host1Global.ID, usbDevicesQuery.ID), getHostQueryReportRequest{}, http.StatusOK, &ghqrr)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/reports/%d", host1Global.ID, usbDevicesQuery.ID), getHostQueryReportRequest{}, http.StatusOK, &ghqrr)
 	require.NoError(t, ghqrr.Err)
 	require.Equal(t, usbDevicesQuery.ID, ghqrr.QueryID)
 	require.Equal(t, host1Global.ID, ghqrr.HostID)
@@ -1039,8 +1039,8 @@ func (s *integrationTestSuite) TestQueryReports() {
 	// Count stays the same because error rows don't count against the limit.
 	require.Equal(t, 3, counts[osqueryInfoQuery.ID])
 
-	gqrr = fleet.GetQueryReportResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/reports/%d/report", usbDevicesQuery.ID), fleet.GetQueryReportRequest{}, http.StatusOK, &gqrr)
+	gqrr = automdm.GetQueryReportResponse{}
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/reports/%d/report", usbDevicesQuery.ID), automdm.GetQueryReportRequest{}, http.StatusOK, &gqrr)
 	require.NoError(t, gqrr.Err)
 	require.Equal(t, usbDevicesQuery.ID, gqrr.QueryID)
 	require.Len(t, gqrr.Results, 2)
@@ -1084,7 +1084,7 @@ func (s *integrationTestSuite) TestQueryReports() {
 	}, gqrr.Results[1].Columns)
 
 	ghqrr = getHostQueryReportResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/reports/%d", host2Team1.ID, usbDevicesQuery.ID), getHostQueryReportRequest{}, http.StatusOK, &ghqrr)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/reports/%d", host2Team1.ID, usbDevicesQuery.ID), getHostQueryReportRequest{}, http.StatusOK, &ghqrr)
 	require.NoError(t, ghqrr.Err)
 	require.Equal(t, usbDevicesQuery.ID, ghqrr.QueryID)
 	require.Equal(t, host2Team1.ID, ghqrr.HostID)
@@ -1124,8 +1124,8 @@ func (s *integrationTestSuite) TestQueryReports() {
 		"version":     "9.33",
 	}, ghqrr.Results[1].Columns)
 
-	gqrr = fleet.GetQueryReportResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/reports/%d/report", osqueryInfoQuery.ID), fleet.GetQueryReportRequest{}, http.StatusOK, &gqrr)
+	gqrr = automdm.GetQueryReportResponse{}
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/reports/%d/report", osqueryInfoQuery.ID), automdm.GetQueryReportRequest{}, http.StatusOK, &gqrr)
 	require.NoError(t, gqrr.Err)
 	require.Equal(t, osqueryInfoQuery.ID, gqrr.QueryID)
 	require.Len(t, gqrr.Results, 3)
@@ -1185,14 +1185,14 @@ func (s *integrationTestSuite) TestQueryReports() {
 		"watcher":        "1037",
 	}, gqrr.Results[2].Columns)
 
-	gqrr = fleet.GetQueryReportResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/reports/%d/report?fleet_id=%d", osqueryInfoQuery.ID, team2.ID), fleet.GetQueryReportRequest{}, http.StatusOK, &gqrr)
+	gqrr = automdm.GetQueryReportResponse{}
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/reports/%d/report?team_id=%d", osqueryInfoQuery.ID, team2.ID), automdm.GetQueryReportRequest{}, http.StatusOK, &gqrr)
 	require.NoError(t, gqrr.Err)
 	require.Equal(t, osqueryInfoQuery.ID, gqrr.QueryID)
 	require.Len(t, gqrr.Results, 1)
 
 	ghqrr = getHostQueryReportResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/reports/%d", host1Global.ID, osqueryInfoQuery.ID), getHostQueryReportRequest{}, http.StatusOK, &ghqrr)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/reports/%d", host1Global.ID, osqueryInfoQuery.ID), getHostQueryReportRequest{}, http.StatusOK, &ghqrr)
 	require.NoError(t, ghqrr.Err)
 	require.Equal(t, osqueryInfoQuery.ID, ghqrr.QueryID)
 	require.Equal(t, host1Global.ID, ghqrr.HostID)
@@ -1215,7 +1215,7 @@ func (s *integrationTestSuite) TestQueryReports() {
 	}, ghqrr.Results[0].Columns)
 
 	ghqrr = getHostQueryReportResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/reports/%d", host2Global.ID, osqueryInfoQuery.ID), getHostQueryReportRequest{}, http.StatusOK, &ghqrr)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/reports/%d", host2Global.ID, osqueryInfoQuery.ID), getHostQueryReportRequest{}, http.StatusOK, &ghqrr)
 	require.NoError(t, ghqrr.Err)
 	require.Equal(t, osqueryInfoQuery.ID, ghqrr.QueryID)
 	require.Equal(t, host2Global.ID, ghqrr.HostID)
@@ -1224,18 +1224,18 @@ func (s *integrationTestSuite) TestQueryReports() {
 	require.Empty(t, ghqrr.Results)
 
 	// verify that certain modifications to queries don't cause result deletion
-	modifyQueryResp := fleet.ModifyQueryResponse{}
+	modifyQueryResp := automdm.ModifyQueryResponse{}
 	updatedDesc := "Updated description"
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/reports/%d", osqueryInfoQuery.ID), fleet.ModifyQueryRequest{ID: osqueryInfoQuery.ID, Description: &updatedDesc}, http.StatusOK, &modifyQueryResp)
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/reports/%d", osqueryInfoQuery.ID), automdm.ModifyQueryRequest{ID: osqueryInfoQuery.ID, Description: &updatedDesc}, http.StatusOK, &modifyQueryResp)
 	require.Equal(t, updatedDesc, modifyQueryResp.Report.Description)
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/reports/%d/report", osqueryInfoQuery.ID), fleet.GetQueryReportRequest{}, http.StatusOK, &gqrr)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/reports/%d/report", osqueryInfoQuery.ID), automdm.GetQueryReportRequest{}, http.StatusOK, &gqrr)
 	require.Len(t, gqrr.Results, 3)
 
 	// now update the query and verify that results are deleted
 	updatedQuery := "SELECT * FROM some_new_table;"
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/reports/%d", osqueryInfoQuery.ID), fleet.ModifyQueryRequest{ID: osqueryInfoQuery.ID, Query: &updatedQuery}, http.StatusOK, &modifyQueryResp)
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/reports/%d", osqueryInfoQuery.ID), automdm.ModifyQueryRequest{ID: osqueryInfoQuery.ID, Query: &updatedQuery}, http.StatusOK, &modifyQueryResp)
 	require.Equal(t, updatedQuery, modifyQueryResp.Report.Query)
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/reports/%d/report", osqueryInfoQuery.ID), fleet.GetQueryReportRequest{}, http.StatusOK, &gqrr)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/reports/%d/report", osqueryInfoQuery.ID), automdm.GetQueryReportRequest{}, http.StatusOK, &gqrr)
 	require.Empty(t, gqrr.Results)
 
 	// Re-add results to our query and check that they're actually there
@@ -1244,14 +1244,14 @@ func (s *integrationTestSuite) TestQueryReports() {
 	require.Equal(t, 2, counts[usbDevicesQuery.ID])
 	require.Equal(t, 1, counts[osqueryInfoQuery.ID])
 
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/reports/%d/report", osqueryInfoQuery.ID), fleet.GetQueryReportRequest{}, http.StatusOK, &gqrr)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/reports/%d/report", osqueryInfoQuery.ID), automdm.GetQueryReportRequest{}, http.StatusOK, &gqrr)
 	require.Len(t, gqrr.Results, 1)
 
 	// now update the platform and verify that results are deleted
 	s.DoJSON(
-		"PATCH", fmt.Sprintf("/api/latest/fleet/reports/%d", osqueryInfoQuery.ID), fleet.ModifyQueryRequest{
+		"PATCH", fmt.Sprintf("/api/latest/automdm/reports/%d", osqueryInfoQuery.ID), automdm.ModifyQueryRequest{
 			ID: osqueryInfoQuery.ID,
-			QueryPayload: fleet.QueryPayload{
+			QueryPayload: automdm.QueryPayload{
 				Platform: new("linux"),
 			},
 		},
@@ -1259,22 +1259,22 @@ func (s *integrationTestSuite) TestQueryReports() {
 		&modifyQueryResp,
 	)
 	require.Equal(t, "linux", modifyQueryResp.Report.Platform)
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/reports/%d/report", osqueryInfoQuery.ID), fleet.GetQueryReportRequest{}, http.StatusOK, &gqrr)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/reports/%d/report", osqueryInfoQuery.ID), automdm.GetQueryReportRequest{}, http.StatusOK, &gqrr)
 	require.Empty(t, gqrr.Results)
 
 	// Re-add results to our query and check that they're actually there
 	s.DoJSON("POST", "/api/osquery/log", slreq, http.StatusOK, &slres)
 	require.NoError(t, slres.Err)
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/reports/%d/report", osqueryInfoQuery.ID), fleet.GetQueryReportRequest{}, http.StatusOK, &gqrr)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/reports/%d/report", osqueryInfoQuery.ID), automdm.GetQueryReportRequest{}, http.StatusOK, &gqrr)
 	require.Len(t, gqrr.Results, 1)
 	require.Equal(t, 2, counts[usbDevicesQuery.ID])
 	require.Equal(t, 1, counts[osqueryInfoQuery.ID])
 
 	// now update the platform to the same value and verify that results are not deleted
 	s.DoJSON(
-		"PATCH", fmt.Sprintf("/api/latest/fleet/reports/%d", osqueryInfoQuery.ID), fleet.ModifyQueryRequest{
+		"PATCH", fmt.Sprintf("/api/latest/automdm/reports/%d", osqueryInfoQuery.ID), automdm.ModifyQueryRequest{
 			ID: osqueryInfoQuery.ID,
-			QueryPayload: fleet.QueryPayload{
+			QueryPayload: automdm.QueryPayload{
 				Platform: new("linux"),
 			},
 		},
@@ -1282,14 +1282,14 @@ func (s *integrationTestSuite) TestQueryReports() {
 		&modifyQueryResp,
 	)
 	require.Equal(t, "linux", modifyQueryResp.Report.Platform)
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/reports/%d/report", osqueryInfoQuery.ID), fleet.GetQueryReportRequest{}, http.StatusOK, &gqrr)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/reports/%d/report", osqueryInfoQuery.ID), automdm.GetQueryReportRequest{}, http.StatusOK, &gqrr)
 	require.Len(t, gqrr.Results, 1)
 
 	// now update the min_osquery_version and verify that results are deleted
 	s.DoJSON(
-		"PATCH", fmt.Sprintf("/api/latest/fleet/reports/%d", osqueryInfoQuery.ID), fleet.ModifyQueryRequest{
+		"PATCH", fmt.Sprintf("/api/latest/automdm/reports/%d", osqueryInfoQuery.ID), automdm.ModifyQueryRequest{
 			ID: osqueryInfoQuery.ID,
-			QueryPayload: fleet.QueryPayload{
+			QueryPayload: automdm.QueryPayload{
 				MinOsqueryVersion: new("5.9.1"),
 			},
 		},
@@ -1297,22 +1297,22 @@ func (s *integrationTestSuite) TestQueryReports() {
 		&modifyQueryResp,
 	)
 	require.Equal(t, "5.9.1", modifyQueryResp.Report.MinOsqueryVersion)
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/reports/%d/report", osqueryInfoQuery.ID), fleet.GetQueryReportRequest{}, http.StatusOK, &gqrr)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/reports/%d/report", osqueryInfoQuery.ID), automdm.GetQueryReportRequest{}, http.StatusOK, &gqrr)
 	require.Empty(t, gqrr.Results)
 
 	// Re-add results to our query and check that they're actually there
 	s.DoJSON("POST", "/api/osquery/log", slreq, http.StatusOK, &slres)
 	require.NoError(t, slres.Err)
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/reports/%d/report", osqueryInfoQuery.ID), fleet.GetQueryReportRequest{}, http.StatusOK, &gqrr)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/reports/%d/report", osqueryInfoQuery.ID), automdm.GetQueryReportRequest{}, http.StatusOK, &gqrr)
 	require.Len(t, gqrr.Results, 1)
 	require.Equal(t, 2, counts[usbDevicesQuery.ID])
 	require.Equal(t, 1, counts[osqueryInfoQuery.ID])
 
 	// now update the min_osquery_version to another value and verify that results are deleted
 	s.DoJSON(
-		"PATCH", fmt.Sprintf("/api/latest/fleet/reports/%d", osqueryInfoQuery.ID), fleet.ModifyQueryRequest{
+		"PATCH", fmt.Sprintf("/api/latest/automdm/reports/%d", osqueryInfoQuery.ID), automdm.ModifyQueryRequest{
 			ID: osqueryInfoQuery.ID,
-			QueryPayload: fleet.QueryPayload{
+			QueryPayload: automdm.QueryPayload{
 				MinOsqueryVersion: new("5.11.0"),
 			},
 		},
@@ -1320,21 +1320,21 @@ func (s *integrationTestSuite) TestQueryReports() {
 		&modifyQueryResp,
 	)
 	require.Equal(t, "5.11.0", modifyQueryResp.Report.MinOsqueryVersion)
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/reports/%d/report", osqueryInfoQuery.ID), fleet.GetQueryReportRequest{}, http.StatusOK, &gqrr)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/reports/%d/report", osqueryInfoQuery.ID), automdm.GetQueryReportRequest{}, http.StatusOK, &gqrr)
 	require.Empty(t, gqrr.Results)
 
 	// Re-add results to our query and check that they're actually there
 	s.DoJSON("POST", "/api/osquery/log", slreq, http.StatusOK, &slres)
 	require.NoError(t, slres.Err)
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/reports/%d/report", osqueryInfoQuery.ID), fleet.GetQueryReportRequest{}, http.StatusOK, &gqrr)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/reports/%d/report", osqueryInfoQuery.ID), automdm.GetQueryReportRequest{}, http.StatusOK, &gqrr)
 	require.Len(t, gqrr.Results, 1)
 	require.Equal(t, 1, counts[osqueryInfoQuery.ID])
 
 	// now update the min_osquery_version to the same value and verify that results are not deleted
 	s.DoJSON(
-		"PATCH", fmt.Sprintf("/api/latest/fleet/reports/%d", osqueryInfoQuery.ID), fleet.ModifyQueryRequest{
+		"PATCH", fmt.Sprintf("/api/latest/automdm/reports/%d", osqueryInfoQuery.ID), automdm.ModifyQueryRequest{
 			ID: osqueryInfoQuery.ID,
-			QueryPayload: fleet.QueryPayload{
+			QueryPayload: automdm.QueryPayload{
 				MinOsqueryVersion: new("5.11.0"),
 			},
 		},
@@ -1342,11 +1342,11 @@ func (s *integrationTestSuite) TestQueryReports() {
 		&modifyQueryResp,
 	)
 	require.Equal(t, "5.11.0", modifyQueryResp.Report.MinOsqueryVersion)
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/reports/%d/report", osqueryInfoQuery.ID), fleet.GetQueryReportRequest{}, http.StatusOK, &gqrr)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/reports/%d/report", osqueryInfoQuery.ID), automdm.GetQueryReportRequest{}, http.StatusOK, &gqrr)
 	require.Len(t, gqrr.Results, 1)
 
 	// now update the query via specs and change the min_osquery_version, results should be deleted.
-	osqueryInfoQuerySpec := &fleet.QuerySpec{
+	osqueryInfoQuerySpec := &automdm.QuerySpec{
 		Name:               osqueryInfoQuery.Name,
 		Description:        osqueryInfoQuery.Description,
 		Query:              osqueryInfoQuery.Query,
@@ -1360,11 +1360,11 @@ func (s *integrationTestSuite) TestQueryReports() {
 	}
 	clipped[osqueryInfoQuery.ID] = true
 	osqueryInfoQuerySpec.MinOsqueryVersion = "5.12.0"
-	var applyResp fleet.ApplyQuerySpecsResponse
-	s.DoJSON("POST", "/api/latest/fleet/spec/reports", fleet.ApplyQuerySpecsRequest{
-		Specs: []*fleet.QuerySpec{osqueryInfoQuerySpec},
+	var applyResp automdm.ApplyQuerySpecsResponse
+	s.DoJSON("POST", "/api/latest/automdm/spec/reports", automdm.ApplyQuerySpecsRequest{
+		Specs: []*automdm.QuerySpec{osqueryInfoQuerySpec},
 	}, http.StatusOK, &applyResp)
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/reports/%d/report", osqueryInfoQuery.ID), fleet.GetQueryReportRequest{}, http.StatusOK, &gqrr)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/reports/%d/report", osqueryInfoQuery.ID), automdm.GetQueryReportRequest{}, http.StatusOK, &gqrr)
 	require.Empty(t, gqrr.Results)
 	require.False(t, gqrr.ReportClipped)
 	require.Equal(t, 0, counts[osqueryInfoQuery.ID]) // counter reset after min_osquery_version change
@@ -1373,26 +1373,26 @@ func (s *integrationTestSuite) TestQueryReports() {
 	// Re-add results to our query and check that they're actually there
 	s.DoJSON("POST", "/api/osquery/log", slreq, http.StatusOK, &slres)
 	require.NoError(t, slres.Err)
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/reports/%d/report", osqueryInfoQuery.ID), fleet.GetQueryReportRequest{}, http.StatusOK, &gqrr)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/reports/%d/report", osqueryInfoQuery.ID), automdm.GetQueryReportRequest{}, http.StatusOK, &gqrr)
 	require.Len(t, gqrr.Results, 1)
 	require.False(t, gqrr.ReportClipped)
 	require.Equal(t, 1, counts[osqueryInfoQuery.ID])
 
 	// don't change platform or min_osquery_version and results should not be deleted
-	s.DoJSON("POST", "/api/latest/fleet/spec/reports", fleet.ApplyQuerySpecsRequest{
-		Specs: []*fleet.QuerySpec{osqueryInfoQuerySpec},
+	s.DoJSON("POST", "/api/latest/automdm/spec/reports", automdm.ApplyQuerySpecsRequest{
+		Specs: []*automdm.QuerySpec{osqueryInfoQuerySpec},
 	}, http.StatusOK, &applyResp)
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/reports/%d/report", osqueryInfoQuery.ID), fleet.GetQueryReportRequest{}, http.StatusOK, &gqrr)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/reports/%d/report", osqueryInfoQuery.ID), automdm.GetQueryReportRequest{}, http.StatusOK, &gqrr)
 	require.Len(t, gqrr.Results, 1)
 	require.False(t, gqrr.ReportClipped)
 
 	// now update the platform and results should be deleted.
 	clipped[osqueryInfoQuery.ID] = true
 	osqueryInfoQuerySpec.Platform = "darwin"
-	s.DoJSON("POST", "/api/latest/fleet/spec/reports", fleet.ApplyQuerySpecsRequest{
-		Specs: []*fleet.QuerySpec{osqueryInfoQuerySpec},
+	s.DoJSON("POST", "/api/latest/automdm/spec/reports", automdm.ApplyQuerySpecsRequest{
+		Specs: []*automdm.QuerySpec{osqueryInfoQuerySpec},
 	}, http.StatusOK, &applyResp)
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/reports/%d/report", osqueryInfoQuery.ID), fleet.GetQueryReportRequest{}, http.StatusOK, &gqrr)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/reports/%d/report", osqueryInfoQuery.ID), automdm.GetQueryReportRequest{}, http.StatusOK, &gqrr)
 	require.Empty(t, gqrr.Results)
 	require.False(t, gqrr.ReportClipped)
 	require.Equal(t, 0, counts[osqueryInfoQuery.ID]) // counter reset after platform change
@@ -1400,9 +1400,9 @@ func (s *integrationTestSuite) TestQueryReports() {
 
 	// Update logging type, which should cause results deletion
 	clipped[usbDevicesQuery.ID] = true
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/reports/%d", usbDevicesQuery.ID), fleet.ModifyQueryRequest{ID: usbDevicesQuery.ID, Logging: &fleet.LoggingDifferential}, http.StatusOK, &modifyQueryResp)
-	require.Equal(t, fleet.LoggingDifferential, modifyQueryResp.Report.Logging)
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/reports/%d/report", usbDevicesQuery.ID), fleet.GetQueryReportRequest{}, http.StatusOK, &gqrr)
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/reports/%d", usbDevicesQuery.ID), automdm.ModifyQueryRequest{ID: usbDevicesQuery.ID, Logging: &automdm.LoggingDifferential}, http.StatusOK, &modifyQueryResp)
+	require.Equal(t, automdm.LoggingDifferential, modifyQueryResp.Report.Logging)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/reports/%d/report", usbDevicesQuery.ID), automdm.GetQueryReportRequest{}, http.StatusOK, &gqrr)
 	require.Empty(t, gqrr.Results)
 	require.False(t, gqrr.ReportClipped)
 	require.Equal(t, 0, counts[usbDevicesQuery.ID]) // counter reset after logging type change
@@ -1411,16 +1411,16 @@ func (s *integrationTestSuite) TestQueryReports() {
 	// Re-add results to our query and check that they're actually there
 	s.DoJSON("POST", "/api/osquery/log", slreq, http.StatusOK, &slres)
 	require.NoError(t, slres.Err)
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/reports/%d/report", osqueryInfoQuery.ID), fleet.GetQueryReportRequest{}, http.StatusOK, &gqrr)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/reports/%d/report", osqueryInfoQuery.ID), automdm.GetQueryReportRequest{}, http.StatusOK, &gqrr)
 	require.Len(t, gqrr.Results, 1)
 	require.False(t, gqrr.ReportClipped)
 	require.Equal(t, 1, counts[osqueryInfoQuery.ID])
 
 	clipped[osqueryInfoQuery.ID] = true
 	discardData := true
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/reports/%d", osqueryInfoQuery.ID), fleet.ModifyQueryRequest{ID: osqueryInfoQuery.ID, DiscardData: &discardData}, http.StatusOK, &modifyQueryResp)
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/reports/%d", osqueryInfoQuery.ID), automdm.ModifyQueryRequest{ID: osqueryInfoQuery.ID, DiscardData: &discardData}, http.StatusOK, &modifyQueryResp)
 	require.True(t, modifyQueryResp.Report.DiscardData)
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/reports/%d/report", osqueryInfoQuery.ID), fleet.GetQueryReportRequest{}, http.StatusOK, &gqrr)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/reports/%d/report", osqueryInfoQuery.ID), automdm.GetQueryReportRequest{}, http.StatusOK, &gqrr)
 	require.Empty(t, gqrr.Results)
 	require.False(t, gqrr.ReportClipped)
 	require.Equal(t, 0, counts[osqueryInfoQuery.ID]) // counter reset after discardData=true
@@ -1429,7 +1429,7 @@ func (s *integrationTestSuite) TestQueryReports() {
 	// check that now that discardData is set, we don't add new results
 	s.DoJSON("POST", "/api/osquery/log", slreq, http.StatusOK, &slres)
 	require.NoError(t, slres.Err)
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/reports/%d/report", osqueryInfoQuery.ID), fleet.GetQueryReportRequest{}, http.StatusOK, &gqrr)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/reports/%d/report", osqueryInfoQuery.ID), automdm.GetQueryReportRequest{}, http.StatusOK, &gqrr)
 	require.Empty(t, gqrr.Results)
 	require.False(t, gqrr.ReportClipped)
 
@@ -1437,7 +1437,7 @@ func (s *integrationTestSuite) TestQueryReports() {
 	// The system allows up to limit+10% rows before blocking new inserts.
 	// This ensures the cleanup cron always has rows to delete, enabling rotation.
 	discardData = false
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/reports/%d", osqueryInfoQuery.ID), fleet.ModifyQueryRequest{ID: osqueryInfoQuery.ID, DiscardData: &discardData}, http.StatusOK, &modifyQueryResp)
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/reports/%d", osqueryInfoQuery.ID), automdm.ModifyQueryRequest{ID: osqueryInfoQuery.ID, DiscardData: &discardData}, http.StatusOK, &modifyQueryResp)
 	require.False(t, modifyQueryResp.Report.DiscardData)
 
 	// Host1 submits exactly the max rows
@@ -1446,7 +1446,7 @@ func (s *integrationTestSuite) TestQueryReports() {
 		LogType: "result",
 		Data: []json.RawMessage{
 			json.RawMessage(`{
-  "snapshot": [` + results(fleet.DefaultMaxQueryReportRows, host1Global.UUID) + `
+  "snapshot": [` + results(automdm.DefaultMaxQueryReportRows, host1Global.UUID) + `
   ],
   "action": "snapshot",
   "name": "pack/Global/` + osqueryInfoQuery.Name + `",
@@ -1466,25 +1466,25 @@ func (s *integrationTestSuite) TestQueryReports() {
 	slres = submitLogsResponse{}
 	s.DoJSON("POST", "/api/osquery/log", slreq, http.StatusOK, &slres)
 	require.NoError(t, slres.Err)
-	require.Equal(t, fleet.DefaultMaxQueryReportRows, counts[osqueryInfoQuery.ID])
+	require.Equal(t, automdm.DefaultMaxQueryReportRows, counts[osqueryInfoQuery.ID])
 
 	// Host1 submits same rows again (overwrite), should still have 1000 rows
 	s.DoJSON("POST", "/api/osquery/log", slreq, http.StatusOK, &slres)
 	require.NoError(t, slres.Err)
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/reports/%d/report", osqueryInfoQuery.ID), fleet.GetQueryReportRequest{}, http.StatusOK, &gqrr)
-	require.Len(t, gqrr.Results, fleet.DefaultMaxQueryReportRows)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/reports/%d/report", osqueryInfoQuery.ID), automdm.GetQueryReportRequest{}, http.StatusOK, &gqrr)
+	require.Len(t, gqrr.Results, automdm.DefaultMaxQueryReportRows)
 	// Reaching the cap alone doesn't clip the report: nothing has been rejected yet.
 	require.False(t, gqrr.ReportClipped)
 	require.False(t, clipped[osqueryInfoQuery.ID])
-	require.Equal(t, fleet.DefaultMaxQueryReportRows, counts[osqueryInfoQuery.ID]) // counter unchanged after overwrite
+	require.Equal(t, automdm.DefaultMaxQueryReportRows, counts[osqueryInfoQuery.ID]) // counter unchanged after overwrite
 
 	ghqrr = getHostQueryReportResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/reports/%d", host1Global.ID, osqueryInfoQuery.ID), getHostQueryReportRequest{}, http.StatusOK, &ghqrr)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/reports/%d", host1Global.ID, osqueryInfoQuery.ID), getHostQueryReportRequest{}, http.StatusOK, &ghqrr)
 	require.NoError(t, ghqrr.Err)
-	require.Len(t, ghqrr.Results, fleet.DefaultMaxQueryReportRows)
+	require.Len(t, ghqrr.Results, automdm.DefaultMaxQueryReportRows)
 	require.False(t, ghqrr.ReportClipped)
 
-	submitRows := func(host *fleet.Host, n int) {
+	submitRows := func(host *automdm.Host, n int) {
 		slreq = submitLogsRequest{
 			NodeKey: *host.NodeKey,
 			LogType: "result",
@@ -1512,8 +1512,8 @@ func (s *integrationTestSuite) TestQueryReports() {
 		require.NoError(t, slres.Err)
 	}
 	checkReport := func(wantRows int, wantClipped bool) {
-		gqrr = fleet.GetQueryReportResponse{}
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/reports/%d/report", osqueryInfoQuery.ID), fleet.GetQueryReportRequest{}, http.StatusOK, &gqrr)
+		gqrr = automdm.GetQueryReportResponse{}
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/reports/%d/report", osqueryInfoQuery.ID), automdm.GetQueryReportRequest{}, http.StatusOK, &gqrr)
 		require.Len(t, gqrr.Results, wantRows)
 		require.Equal(t, wantClipped, gqrr.ReportClipped)
 		require.Equal(t, wantRows, counts[osqueryInfoQuery.ID])
@@ -1522,8 +1522,8 @@ func (s *integrationTestSuite) TestQueryReports() {
 	// Host2 submits 1000 rows. The report is full and host2 isn't in it, so nothing is stored
 	// and the rejection is recorded.
 	require.False(t, clipped[osqueryInfoQuery.ID])
-	submitRows(host2Global, fleet.DefaultMaxQueryReportRows)
-	checkReport(fleet.DefaultMaxQueryReportRows, true)
+	submitRows(host2Global, automdm.DefaultMaxQueryReportRows)
+	checkReport(automdm.DefaultMaxQueryReportRows, true)
 	require.True(t, clipped[osqueryInfoQuery.ID])
 
 	// Host1 is already in the full report, so it can shrink its result set. Simulate the
@@ -1533,48 +1533,48 @@ func (s *integrationTestSuite) TestQueryReports() {
 	checkReport(500, false)
 
 	// Host2 still doesn't fit (500 + 1000 > 1000); the rejection marks the report as clipped.
-	submitRows(host2Global, fleet.DefaultMaxQueryReportRows)
+	submitRows(host2Global, automdm.DefaultMaxQueryReportRows)
 	checkReport(500, true)
 	require.True(t, clipped[osqueryInfoQuery.ID])
 
 	// ...but 500 rows fit exactly. Admitting a host the report didn't cover yet clears the marker,
 	// even though the report is now full again.
 	submitRows(host2Global, 500)
-	checkReport(fleet.DefaultMaxQueryReportRows, false)
+	checkReport(automdm.DefaultMaxQueryReportRows, false)
 	require.False(t, clipped[osqueryInfoQuery.ID])
 
 	// Hosts already in the full report keep updating as long as their row count doesn't grow.
 	submitRows(host2Global, 500)
-	checkReport(fleet.DefaultMaxQueryReportRows, false)
+	checkReport(automdm.DefaultMaxQueryReportRows, false)
 	ghqrr = getHostQueryReportResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/reports/%d", host2Global.ID, osqueryInfoQuery.ID), getHostQueryReportRequest{}, http.StatusOK, &ghqrr)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/reports/%d", host2Global.ID, osqueryInfoQuery.ID), getHostQueryReportRequest{}, http.StatusOK, &ghqrr)
 	require.NoError(t, ghqrr.Err)
 	require.Len(t, ghqrr.Results, 500)
 	require.False(t, ghqrr.ReportClipped)
 
 	// Increase the limit so we can test further submissions
 	appConfigSpec := map[string]map[string]int{
-		"server_settings": {"report_cap": fleet.DefaultMaxQueryReportRows * 3},
+		"server_settings": {"report_cap": automdm.DefaultMaxQueryReportRows * 3},
 	}
-	s.Do("PATCH", "/api/latest/fleet/config", appConfigSpec, http.StatusOK)
+	s.Do("PATCH", "/api/latest/automdm/config", appConfigSpec, http.StatusOK)
 
 	// With limit 3000, we have 1000 rows, which is below the limit.
-	checkReport(fleet.DefaultMaxQueryReportRows, false)
+	checkReport(automdm.DefaultMaxQueryReportRows, false)
 
 	// Now host2 can grow its result set since we're under the new limit.
-	submitRows(host2Global, fleet.DefaultMaxQueryReportRows)
+	submitRows(host2Global, automdm.DefaultMaxQueryReportRows)
 	checkReport(1500, false)
 
 	// Without per_page every row is returned and there's no pagination metadata.
-	reportURL := fmt.Sprintf("/api/latest/fleet/reports/%d/report", osqueryInfoQuery.ID)
-	gqrr = fleet.GetQueryReportResponse{}
+	reportURL := fmt.Sprintf("/api/latest/automdm/reports/%d/report", osqueryInfoQuery.ID)
+	gqrr = automdm.GetQueryReportResponse{}
 	s.DoJSON("GET", reportURL, nil, http.StatusOK, &gqrr)
 	require.Len(t, gqrr.Results, 1500)
 	require.Equal(t, 1500, gqrr.Count)
 	require.Nil(t, gqrr.Meta)
 
 	// With per_page the rows are paginated and count is the total.
-	gqrr = fleet.GetQueryReportResponse{}
+	gqrr = automdm.GetQueryReportResponse{}
 	s.DoJSON("GET", reportURL, nil, http.StatusOK, &gqrr, "per_page", "1000")
 	require.Len(t, gqrr.Results, 1000)
 	require.Equal(t, 1500, gqrr.Count)
@@ -1582,7 +1582,7 @@ func (s *integrationTestSuite) TestQueryReports() {
 	require.True(t, gqrr.Meta.HasNextResults)
 	require.False(t, gqrr.Meta.HasPreviousResults)
 
-	gqrr = fleet.GetQueryReportResponse{}
+	gqrr = automdm.GetQueryReportResponse{}
 	s.DoJSON("GET", reportURL, nil, http.StatusOK, &gqrr, "per_page", "1000", "page", "1")
 	require.Len(t, gqrr.Results, 500)
 	require.Equal(t, 1500, gqrr.Count)
@@ -1590,18 +1590,18 @@ func (s *integrationTestSuite) TestQueryReports() {
 	require.True(t, gqrr.Meta.HasPreviousResults)
 
 	// Sort by host name and by a result column.
-	gqrr = fleet.GetQueryReportResponse{}
+	gqrr = automdm.GetQueryReportResponse{}
 	s.DoJSON("GET", reportURL, nil, http.StatusOK, &gqrr, "per_page", "1", "order_key", "host_name", "order_direction", "asc")
 	require.Len(t, gqrr.Results, 1)
 	require.Equal(t, host1Global.ID, gqrr.Results[0].HostID)
-	gqrr = fleet.GetQueryReportResponse{}
+	gqrr = automdm.GetQueryReportResponse{}
 	s.DoJSON("GET", reportURL, nil, http.StatusOK, &gqrr, "per_page", "1", "order_key", "uuid", "order_direction", "desc")
 	require.Len(t, gqrr.Results, 1)
 	require.Equal(t, host2Global.ID, gqrr.Results[0].HostID)
 	require.Equal(t, host2Global.UUID, gqrr.Results[0].Columns["uuid"])
 
 	// Search matches the host name.
-	gqrr = fleet.GetQueryReportResponse{}
+	gqrr = automdm.GetQueryReportResponse{}
 	s.DoJSON("GET", reportURL, nil, http.StatusOK, &gqrr, "per_page", "10", "query", host2Global.Hostname)
 	require.Len(t, gqrr.Results, 10)
 	require.Equal(t, 1000, gqrr.Count)
@@ -1610,7 +1610,7 @@ func (s *integrationTestSuite) TestQueryReports() {
 	}
 
 	// Result column names are bound parameters, so odd names are harmless.
-	gqrr = fleet.GetQueryReportResponse{}
+	gqrr = automdm.GetQueryReportResponse{}
 	s.DoJSON("GET", reportURL, nil, http.StatusOK, &gqrr, "per_page", "2", "order_key", `uuid") -- '`)
 	require.Len(t, gqrr.Results, 2)
 	require.Equal(t, 1500, gqrr.Count)
@@ -1626,13 +1626,13 @@ func (s *integrationTestSuite) TestOsqueryConfigPackCacheLabelScopedQueries() {
 	ctx := t.Context()
 
 	// Two teams so each ordering gets its own (cold) cache key.
-	teamA, err := s.ds.NewTeam(ctx, &fleet.Team{Name: t.Name() + "-A"})
+	teamA, err := s.ds.NewTeam(ctx, &automdm.Team{Name: t.Name() + "-A"})
 	require.NoError(t, err)
-	teamB, err := s.ds.NewTeam(ctx, &fleet.Team{Name: t.Name() + "-B"})
+	teamB, err := s.ds.NewTeam(ctx, &automdm.Team{Name: t.Name() + "-B"})
 	require.NoError(t, err)
 
-	newHost := func(name string, teamID *uint) *fleet.Host {
-		h, err := s.ds.NewHost(ctx, &fleet.Host{
+	newHost := func(name string, teamID *uint) *automdm.Host {
+		h, err := s.ds.NewHost(ctx, &automdm.Host{
 			DetailUpdatedAt: time.Now(),
 			LabelUpdatedAt:  time.Now(),
 			PolicyUpdatedAt: time.Now(),
@@ -1652,46 +1652,46 @@ func (s *integrationTestSuite) TestOsqueryConfigPackCacheLabelScopedQueries() {
 	hostB1 := newHost("b1", &teamB.ID) // label member
 	hostB2 := newHost("b2", &teamB.ID) // not a member
 
-	label, err := s.ds.NewLabel(ctx, &fleet.Label{
+	label, err := s.ds.NewLabel(ctx, &automdm.Label{
 		Name:  t.Name() + "-label",
 		Query: "SELECT 1;",
 	})
 	require.NoError(t, err)
-	for _, h := range []*fleet.Host{hostA1, hostB1} {
+	for _, h := range []*automdm.Host{hostA1, hostB1} {
 		err = s.ds.RecordLabelQueryExecutions(ctx, h, map[uint]*bool{label.ID: new(true)}, time.Now(), false)
 		require.NoError(t, err)
 	}
 
-	scoped := []fleet.LabelIdent{{LabelName: label.Name}}
+	scoped := []automdm.LabelIdent{{LabelName: label.Name}}
 
-	unscopedA, err := s.ds.NewQuery(ctx, &fleet.Query{
+	unscopedA, err := s.ds.NewQuery(ctx, &automdm.Query{
 		Name: t.Name() + "-unscoped-A", TeamID: &teamA.ID, Interval: 30,
-		AutomationsEnabled: true, Logging: fleet.LoggingSnapshot,
+		AutomationsEnabled: true, Logging: automdm.LoggingSnapshot,
 		Query: "SELECT * FROM time;", Saved: true,
 	})
 	require.NoError(t, err)
-	scopedA, err := s.ds.NewQuery(ctx, &fleet.Query{
+	scopedA, err := s.ds.NewQuery(ctx, &automdm.Query{
 		Name: t.Name() + "-scoped-A", TeamID: &teamA.ID, Interval: 30,
-		AutomationsEnabled: true, Logging: fleet.LoggingSnapshot,
+		AutomationsEnabled: true, Logging: automdm.LoggingSnapshot,
 		Query: "SELECT * FROM time;", Saved: true,
 		LabelsIncludeAny: scoped,
 	})
 	require.NoError(t, err)
-	unscopedB, err := s.ds.NewQuery(ctx, &fleet.Query{
+	unscopedB, err := s.ds.NewQuery(ctx, &automdm.Query{
 		Name: t.Name() + "-unscoped-B", TeamID: &teamB.ID, Interval: 30,
-		AutomationsEnabled: true, Logging: fleet.LoggingSnapshot,
+		AutomationsEnabled: true, Logging: automdm.LoggingSnapshot,
 		Query: "SELECT * FROM time;", Saved: true,
 	})
 	require.NoError(t, err)
-	scopedB, err := s.ds.NewQuery(ctx, &fleet.Query{
+	scopedB, err := s.ds.NewQuery(ctx, &automdm.Query{
 		Name: t.Name() + "-scoped-B", TeamID: &teamB.ID, Interval: 30,
-		AutomationsEnabled: true, Logging: fleet.LoggingSnapshot,
+		AutomationsEnabled: true, Logging: automdm.LoggingSnapshot,
 		Query: "SELECT * FROM time;", Saved: true,
 		LabelsIncludeAny: scoped,
 	})
 	require.NoError(t, err)
 
-	teamQueries := func(host *fleet.Host, teamID uint) map[string]any {
+	teamQueries := func(host *automdm.Host, teamID uint) map[string]any {
 		req := getClientConfigRequest{NodeKey: *host.NodeKey}
 		var resp getClientConfigResponse
 		s.DoJSON("POST", "/api/osquery/config", req, http.StatusOK, &resp)
@@ -1730,7 +1730,7 @@ func (s *integrationTestSuite) TestRemovedQueryKeys() {
 	t := s.T()
 
 	var raw map[string]json.RawMessage
-	res := s.DoRaw("GET", "/api/latest/fleet/reports", nil, http.StatusOK)
+	res := s.DoRaw("GET", "/api/latest/automdm/reports", nil, http.StatusOK)
 	require.NoError(t, json.NewDecoder(res.Body).Decode(&raw))
 	res.Body.Close()
 	assert.Contains(t, raw, "reports")
@@ -1745,23 +1745,23 @@ func (s *integrationTestSuite) TestRemovedQueryKeys() {
 		require.NoError(t, json.NewDecoder(res.Body).Decode(&raw))
 		require.Contains(t, raw, "report")
 		assert.NotContains(t, raw, "query")
-		var report fleet.Query
+		var report automdm.Query
 		require.NoError(t, json.Unmarshal(raw["report"], &report))
 		return report.ID
 	}
-	reportID := reportOnly("POST", "/api/latest/fleet/reports", fleet.QueryPayload{Name: new(t.Name()), Query: new("SELECT 1")})
-	reportOnly("GET", fmt.Sprintf("/api/latest/fleet/reports/%d", reportID), nil)
-	reportOnly("PATCH", fmt.Sprintf("/api/latest/fleet/reports/%d", reportID), fleet.QueryPayload{Description: new("updated")})
+	reportID := reportOnly("POST", "/api/latest/automdm/reports", automdm.QueryPayload{Name: new(t.Name()), Query: new("SELECT 1")})
+	reportOnly("GET", fmt.Sprintf("/api/latest/automdm/reports/%d", reportID), nil)
+	reportOnly("PATCH", fmt.Sprintf("/api/latest/automdm/reports/%d", reportID), automdm.QueryPayload{Description: new("updated")})
 
 	for _, c := range []struct {
 		method, path, key string
 		body              map[string]any
 	}{
-		{"POST", "/api/latest/fleet/policies", "query_id", map[string]any{"name": "p", "query_id": 1}},
-		{"POST", "/api/latest/fleet/targets/count", "query_id", map[string]any{"query_id": 1, "selected": map[string]any{}}},
-		{"POST", "/api/latest/fleet/targets", "query_id", map[string]any{"query_id": 1, "selected": map[string]any{}}},
-		{"POST", "/api/latest/fleet/reports/run", "query_id", map[string]any{"query_id": 1, "selected": map[string]any{}}},
-		{"GET", "/api/latest/fleet/reports/run", "query_ids", map[string]any{"query_ids": []uint{1}, "host_ids": []uint{1}}},
+		{"POST", "/api/latest/automdm/policies", "query_id", map[string]any{"name": "p", "query_id": 1}},
+		{"POST", "/api/latest/automdm/targets/count", "query_id", map[string]any{"query_id": 1, "selected": map[string]any{}}},
+		{"POST", "/api/latest/automdm/targets", "query_id", map[string]any{"query_id": 1, "selected": map[string]any{}}},
+		{"POST", "/api/latest/automdm/reports/run", "query_id", map[string]any{"query_id": 1, "selected": map[string]any{}}},
+		{"GET", "/api/latest/automdm/reports/run", "query_ids", map[string]any{"query_ids": []uint{1}, "host_ids": []uint{1}}},
 	} {
 		t.Run(c.method+" "+c.path, func(t *testing.T) {
 			res := s.Do(c.method, c.path, c.body, http.StatusUnprocessableEntity)

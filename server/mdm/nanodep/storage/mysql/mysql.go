@@ -7,8 +7,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/mdm/nanodep/client"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanodep/storage"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanodep/client"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanodep/storage"
 )
 
 // Schema contains the MySQL schema for the DEP storage.

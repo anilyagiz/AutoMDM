@@ -24,7 +24,7 @@ export interface SoftwareInstallerMeta {
   isAndroidPlayStoreApp: boolean;
   /** Only includes Google Play Store web apps */
   isAndroidPlayStoreWebApp: boolean;
-  isFleetMaintainedApp: boolean;
+  isAutoMDMMaintainedApp: boolean;
   isLatestFmaVersion: boolean;
   isCustomPackage: boolean;
   isIosOrIpadosApp: boolean;
@@ -77,30 +77,30 @@ export const useSoftwareInstaller = (
         ? isAndroidWebApp(softwareInstaller.app_store_id)
         : false;
 
-    const isFleetMaintainedApp =
-      "fleet_maintained_app_id" in softwareInstaller &&
-      !!softwareInstaller.fleet_maintained_app_id;
+    const isAutoMDMMaintainedApp =
+      "automdm_maintained_app_id" in softwareInstaller &&
+      !!softwareInstaller.automdm_maintained_app_id;
 
     const isLatestFmaVersion =
-      isFleetMaintainedApp &&
-      "fleet_maintained_versions" in softwareInstaller &&
-      !!softwareInstaller.fleet_maintained_versions &&
-      softwareInstaller.fleet_maintained_versions.every(
+      isAutoMDMMaintainedApp &&
+      "automdm_maintained_versions" in softwareInstaller &&
+      !!softwareInstaller.automdm_maintained_versions &&
+      softwareInstaller.automdm_maintained_versions.every(
         (fma) =>
           // Verify that the installer version is not older than any known
-          // Fleet‑maintained version by requiring compareVersions to return
+          // AutoMDM‑maintained version by requiring compareVersions to return
           // 0 (equal) or 1 (greater) for every entry.
           compareVersions(softwareInstaller.version ?? "", fma.version ?? "") >=
           0
       );
 
     const fmaVersions =
-      isFleetMaintainedApp && "fleet_maintained_versions" in softwareInstaller
-        ? softwareInstaller.fleet_maintained_versions
+      isAutoMDMMaintainedApp && "automdm_maintained_versions" in softwareInstaller
+        ? softwareInstaller.automdm_maintained_versions
         : [];
 
     const isCustomPackage =
-      installerType === "package" && !isFleetMaintainedApp;
+      installerType === "package" && !isAutoMDMMaintainedApp;
 
     const sha256 =
       ("hash_sha256" in softwareInstaller && softwareInstaller.hash_sha256) ||
@@ -140,7 +140,7 @@ export const useSoftwareInstaller = (
         installerType,
         isAndroidPlayStoreApp,
         isAndroidPlayStoreWebApp,
-        isFleetMaintainedApp,
+        isAutoMDMMaintainedApp,
         isLatestFmaVersion,
         fmaVersions,
         isCustomPackage,

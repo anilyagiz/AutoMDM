@@ -6,7 +6,7 @@ import { useEffect } from "react";
  * in-flight request would discard the user's work.
  *
  * Note: this does NOT block in-app react-router navigation; only browser-level
- * navigation. Soft navigation between Fleet routes still proceeds. */
+ * navigation. Soft navigation between AutoMDM routes still proceeds. */
 const useBlockNavigation = (block: boolean): void => {
   useEffect(() => {
     if (!block) return undefined;

@@ -22,7 +22,7 @@ describe("AndroidZeroTouchSection", () => {
     );
 
     expect(screen.getByText("Android zero-touch")).toBeVisible();
-    expect(screen.getByText(/Fleet Premium/i)).toBeVisible();
+    expect(screen.getByText(/AutoMDM Premium/i)).toBeVisible();
   });
 
   test("shows disabled message when Android MDM is off", () => {

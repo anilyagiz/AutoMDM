@@ -52,7 +52,7 @@ const SetupAssistant = ({
     refetchOnWindowFocus: false,
     retry: false,
     enabled: currentTeamId !== API_NO_TEAM_ID,
-    select: (res) => res.fleet,
+    select: (res) => res.team,
   });
 
   const {
@@ -176,7 +176,7 @@ const SetupAssistant = ({
         title="Setup Assistant"
         details={
           <CustomLink
-            url="https://fleetdm.com/learn-more-about/setup-assistant"
+            url="https://automdm.com/learn-more-about/setup-assistant"
             text="Preview end user experience"
             newTab
           />
@@ -188,7 +188,7 @@ const SetupAssistant = ({
           <>
             Add an automatic enrollment profile to customize Setup Assistant.{" "}
             <CustomLink
-              url="https://fleetdm.com/learn-more-about/enrollment-profiles"
+              url="https://automdm.com/learn-more-about/enrollment-profiles"
               text="Learn more"
               newTab
             />

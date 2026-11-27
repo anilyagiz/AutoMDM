@@ -12,7 +12,7 @@
     width: 470px;
 
     body.dark-mode &.card {
-      background-color: $core-fleet-white;
+      background-color: $core-automdm-white;
     }
   }
 
@@ -20,7 +20,7 @@
     display: flex;
     align-items: center;
     padding-bottom: $pad-medium;
-    border-bottom: 1px solid $ui-fleet-black-10;
+    border-bottom: 1px solid $ui-automdm-black-10;
   }
 
   @media all and (-ms-high-contrast: none), (-ms-high-contrast: active) {

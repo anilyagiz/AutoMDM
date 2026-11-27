@@ -15,24 +15,24 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/optjson"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/cron"
-	"github.com/fleetdm/fleet/v4/server/datastore/filesystem"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/datastore/redis/redistest"
-	"github.com/fleetdm/fleet/v4/server/dev_mode"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/live_query/live_query_mock"
-	"github.com/fleetdm/fleet/v4/server/mdm"
-	fleetmock "github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/pubsub"
-	"github.com/fleetdm/fleet/v4/server/service/conditional_access_google"
-	"github.com/fleetdm/fleet/v4/server/service/conditional_access_microsoft_proxy"
-	"github.com/fleetdm/fleet/v4/server/service/redis_install_attempts"
-	"github.com/fleetdm/fleet/v4/server/service/redis_lock"
-	"github.com/fleetdm/fleet/v4/server/service/schedule"
+	"github.com/anilyagiz/automdm/v4/pkg/optjson"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/cron"
+	"github.com/anilyagiz/automdm/v4/server/datastore/filesystem"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis/redistest"
+	"github.com/anilyagiz/automdm/v4/server/dev_mode"
+	"github.com/anilyagiz/automdm/v4/server/live_query/live_query_mock"
+	"github.com/anilyagiz/automdm/v4/server/mdm"
+	automdmmock "github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/pubsub"
+	"github.com/anilyagiz/automdm/v4/server/service/conditional_access_google"
+	"github.com/anilyagiz/automdm/v4/server/service/conditional_access_microsoft_proxy"
+	"github.com/anilyagiz/automdm/v4/server/service/redis_install_attempts"
+	"github.com/anilyagiz/automdm/v4/server/service/redis_lock"
+	"github.com/anilyagiz/automdm/v4/server/service/schedule"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/mock"
@@ -43,7 +43,7 @@ import (
 // withDiskEncryptionDefaults fills in the explicit per-platform disk
 // encryption booleans that every team spec apply now persists (settings
 // absent from the spec are stored as explicit false).
-func withDiskEncryptionDefaults(m fleet.TeamMDM) fleet.TeamMDM {
+func withDiskEncryptionDefaults(m automdm.TeamMDM) automdm.TeamMDM {
 	if !m.MacOSSettings.EnableDiskEncryption.Valid {
 		m.MacOSSettings.EnableDiskEncryption = optjson.SetBool(false)
 	}
@@ -59,10 +59,10 @@ func withDiskEncryptionDefaults(m fleet.TeamMDM) fleet.TeamMDM {
 	return m
 }
 
-// withCreateDefaults adds the defaults only fleet creation persists on top of
+// withCreateDefaults adds the defaults only team creation persists on top of
 // withDiskEncryptionDefaults: the canonical BitLocker PIN home is stored as
-// explicit false for new fleets, while edits leave an absent value untouched.
-func withCreateDefaults(m fleet.TeamMDM) fleet.TeamMDM {
+// explicit false for new teams, while edits leave an absent value untouched.
+func withCreateDefaults(m automdm.TeamMDM) automdm.TeamMDM {
 	m = withDiskEncryptionDefaults(m)
 	if !m.WindowsSettings.RequireBitLockerPIN.Valid {
 		m.WindowsSettings.RequireBitLockerPIN = optjson.SetBool(false)
@@ -79,11 +79,11 @@ func TestIntegrationsEnterprise(t *testing.T) {
 type integrationEnterpriseTestSuite struct {
 	withServer
 	suite.Suite
-	redisPool              fleet.RedisPool
-	attemptCounter         fleet.SoftwareInstallAttemptCounter
+	redisPool              automdm.RedisPool
+	attemptCounter         automdm.SoftwareInstallAttemptCounter
 	calendarSchedule       *schedule.Schedule
-	softwareInstallStore   fleet.SoftwareInstallerStore
-	softwareTitleIconStore fleet.SoftwareTitleIconStore
+	softwareInstallStore   automdm.SoftwareInstallerStore
+	softwareTitleIconStore automdm.SoftwareTitleIconStore
 
 	lq *live_query_mock.MockLiveQuery
 }
@@ -110,15 +110,15 @@ func (s *integrationEnterpriseTestSuite) SetupSuite() {
 
 	// Configure Windows WSTEP cert/key paths so the server initializes a
 	// wstepCertManager and can validate Windows MSI EUA tokens sent via
-	// /api/fleet/orbit/enroll. Required by TestOrbitEnrollWithEUAToken.
-	fleetCfg := config.TestConfig()
-	fleetCfg.MDM.WindowsWSTEPIdentityCert = "testdata/server.pem"
-	fleetCfg.MDM.WindowsWSTEPIdentityKey = "testdata/server.key"
-	fleetCfg.MicrosoftCompliancePartner.ClientID = testEntraClientID
+	// /api/automdm/orbit/enroll. Required by TestOrbitEnrollWithEUAToken.
+	automdmCfg := config.TestConfig()
+	automdmCfg.MDM.WindowsWSTEPIdentityCert = "testdata/server.pem"
+	automdmCfg.MDM.WindowsWSTEPIdentityKey = "testdata/server.key"
+	automdmCfg.MicrosoftCompliancePartner.ClientID = testEntraClientID
 
 	config := TestServerOpts{
-		License: &fleet.LicenseInfo{
-			Tier: fleet.TierPremium,
+		License: &automdm.LicenseInfo{
+			Tier: automdm.TierPremium,
 		},
 		Pool:                  s.redisPool,
 		InstallAttemptCounter: s.attemptCounter,
@@ -127,17 +127,17 @@ func (s *integrationEnterpriseTestSuite) SetupSuite() {
 		Logger:                slog.New(slog.NewTextHandler(os.Stdout, nil)),
 		EnableCachedDS:        true,
 		StartCronSchedules: []TestNewScheduleFunc{
-			func(ctx context.Context, ds fleet.Datastore) fleet.NewCronScheduleFunc {
-				return func() (fleet.CronSchedule, error) {
+			func(ctx context.Context, ds automdm.Datastore) automdm.NewCronScheduleFunc {
+				return func() (automdm.CronSchedule, error) {
 					// We set 24-hour interval so that it only runs when triggered.
 					var err error
 					cronLog := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-					if os.Getenv("FLEET_INTEGRATION_TESTS_DISABLE_LOG") != "" {
+					if os.Getenv("AUTOMDM_INTEGRATION_TESTS_DISABLE_LOG") != "" {
 						cronLog = slog.New(slog.DiscardHandler)
 					}
 					calendarSchedule, err = cron.NewCalendarSchedule(
 						ctx, s.T().Name(), s.ds, redis_lock.NewLock(s.redisPool), config.CalendarConfig{Periodicity: 24 * time.Hour},
-						cronLog, &fleetmock.MockActivityService{},
+						cronLog, &automdmmock.MockActivityService{},
 					)
 					return calendarSchedule, err
 				}
@@ -150,10 +150,10 @@ func (s *integrationEnterpriseTestSuite) SetupSuite() {
 			Relay:         mockedGoogleConditionalAccessClientInstance,
 			CloudIdentity: mockedGoogleConditionalAccessClientInstance.cloudIdentity,
 		},
-		DBConns:     s.dbConns,
-		FleetConfig: &fleetCfg,
+		DBConns:       s.dbConns,
+		AutoMDMConfig: &automdmCfg,
 	}
-	if os.Getenv("FLEET_INTEGRATION_TESTS_DISABLE_LOG") != "" {
+	if os.Getenv("AUTOMDM_INTEGRATION_TESTS_DISABLE_LOG") != "" {
 		config.Logger = slog.New(slog.DiscardHandler)
 	}
 	users, server := RunServerForTestsWithDS(s.T(), s.ds, &config)
@@ -163,11 +163,11 @@ func (s *integrationEnterpriseTestSuite) SetupSuite() {
 	s.cachedTokens = make(map[string]string)
 	s.calendarSchedule = calendarSchedule
 
-	dev_mode.SetOverride("FLEET_DEV_BATCH_RETRY_INTERVAL", "1s")
+	dev_mode.SetOverride("AUTOMDM_DEV_BATCH_RETRY_INTERVAL", "1s")
 }
 
 func (s *integrationEnterpriseTestSuite) TearDownSuite() {
-	dev_mode.ClearOverride("FLEET_DEV_BATCH_RETRY_INTERVAL")
+	dev_mode.ClearOverride("AUTOMDM_DEV_BATCH_RETRY_INTERVAL")
 }
 
 func (s *integrationEnterpriseTestSuite) TearDownTest() {
@@ -178,12 +178,12 @@ func (s *integrationEnterpriseTestSuite) TearDownTest() {
 
 // defaultExpectedWindowsSettings returns the WindowsSettings shape produced by a team config
 // save/load round trip with nothing configured.
-func defaultExpectedWindowsSettings() fleet.WindowsSettings {
-	return fleet.WindowsSettings{}
+func defaultExpectedWindowsSettings() automdm.WindowsSettings {
+	return automdm.WindowsSettings{}
 }
 
-func createHostAndDeviceToken(t *testing.T, ds *mysql.Datastore, token string) *fleet.Host {
-	host, err := ds.NewHost(context.Background(), &fleet.Host{
+func createHostAndDeviceToken(t *testing.T, ds *mysql.Datastore, token string) *automdm.Host {
+	host, err := ds.NewHost(context.Background(), &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -217,7 +217,7 @@ func createDeviceTokenForHost(t *testing.T, ds *mysql.Datastore, hostID uint, to
 }
 
 // generates the body and headers part of a multipart request ready to be
-// used via s.DoRawWithHeaders to POST /api/_version_/fleet/scripts.
+// used via s.DoRawWithHeaders to POST /api/_version_/automdm/scripts.
 func generateNewScriptMultipartRequest(t *testing.T,
 	fileName string, fileContent []byte, token string, extraFields map[string][]string,
 ) (*bytes.Buffer, map[string]string) {
@@ -228,16 +228,16 @@ func generateNewScriptMultipartRequest(t *testing.T,
 // the specified deadline/grace settings (or checks that it doesn't have the
 // profile if wantSettings is nil). It returns the profile_uuid if it exists,
 // empty string otherwise.
-func checkWindowsOSUpdatesProfile(t *testing.T, ds *mysql.Datastore, teamID *uint, wantSettings *fleet.WindowsUpdates) string {
+func checkWindowsOSUpdatesProfile(t *testing.T, ds *mysql.Datastore, teamID *uint, wantSettings *automdm.WindowsUpdates) string {
 	ctx := context.Background()
 
-	var prof fleet.MDMWindowsConfigProfile
+	var prof automdm.MDMWindowsConfigProfile
 	mysqltest.ExecAdhocSQL(t, ds, func(tx sqlx.ExtContext) error {
 		var globalOrTeamID uint
 		if teamID != nil {
 			globalOrTeamID = *teamID
 		}
-		err := sqlx.GetContext(ctx, tx, &prof, `SELECT profile_uuid, syncml FROM mdm_windows_configuration_profiles WHERE team_id = ? AND name = ?`, globalOrTeamID, mdm.FleetWindowsOSUpdatesProfileName)
+		err := sqlx.GetContext(ctx, tx, &prof, `SELECT profile_uuid, syncml FROM mdm_windows_configuration_profiles WHERE team_id = ? AND name = ?`, globalOrTeamID, mdm.AutoMDMWindowsOSUpdatesProfileName)
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil
 		}
@@ -258,13 +258,13 @@ func checkWindowsOSUpdatesProfile(t *testing.T, ds *mysql.Datastore, teamID *uin
 	return prof.ProfileUUID
 }
 
-func (s *integrationEnterpriseTestSuite) createHosts(t *testing.T, platforms ...string) []*fleet.Host {
-	var hosts []*fleet.Host
+func (s *integrationEnterpriseTestSuite) createHosts(t *testing.T, platforms ...string) []*automdm.Host {
+	var hosts []*automdm.Host
 	if len(platforms) == 0 {
 		platforms = []string{"debian", "rhel", "linux", "windows", "darwin"}
 	}
 	for i, platform := range platforms {
-		host, err := s.ds.NewHost(context.Background(), &fleet.Host{
+		host, err := s.ds.NewHost(context.Background(), &automdm.Host{
 			DetailUpdatedAt: time.Now(),
 			LabelUpdatedAt:  time.Now(),
 			PolicyUpdatedAt: time.Now(),
@@ -281,7 +281,7 @@ func (s *integrationEnterpriseTestSuite) createHosts(t *testing.T, platforms ...
 	return hosts
 }
 
-func genDistributedReqWithPolicyResults(host *fleet.Host, policyResults map[uint]*bool) submitDistributedQueryResultsRequestShim {
+func genDistributedReqWithPolicyResults(host *automdm.Host, policyResults map[uint]*bool) submitDistributedQueryResultsRequestShim {
 	var (
 		results  = make(map[string]json.RawMessage)
 		statuses = make(map[string]any)
@@ -307,7 +307,7 @@ func genDistributedReqWithPolicyResults(host *fleet.Host, policyResults map[uint
 		Results:  results,
 		Statuses: statuses,
 		Messages: messages,
-		Stats:    map[string]*fleet.Stats{},
+		Stats:    map[string]*automdm.Stats{},
 	}
 }
 
@@ -327,7 +327,7 @@ func checkScriptContentsID(t *testing.T, ds *mysql.Datastore, id uint, expectedC
 	require.Equal(t, expectedContents, contents)
 }
 
-func checkSoftwareInstaller(t *testing.T, ds *mysql.Datastore, payload *fleet.UploadSoftwareInstallerPayload) (installerID uint, titleID uint) {
+func checkSoftwareInstaller(t *testing.T, ds *mysql.Datastore, payload *automdm.UploadSoftwareInstallerPayload) (installerID uint, titleID uint) {
 	var tid uint
 	if payload.TeamID != nil {
 		tid = *payload.TeamID
@@ -425,9 +425,9 @@ func waitBatchSetSoftwareInstallers(t *testing.T, s *withServer, teamName string
 	timeout := time.After(1 * time.Minute)
 	for {
 		var batchResultResponse batchSetSoftwareInstallersResultResponse
-		s.DoJSON("GET", "/api/latest/fleet/software/batch/"+requestUUID, nil, http.StatusOK, &batchResultResponse, "fleet_name", teamName)
-		if batchResultResponse.Status == fleet.BatchSetSoftwareInstallersStatusCompleted ||
-			batchResultResponse.Status == fleet.BatchSetSoftwareInstallersStatusFailed {
+		s.DoJSON("GET", "/api/latest/automdm/software/batch/"+requestUUID, nil, http.StatusOK, &batchResultResponse, "team_name", teamName)
+		if batchResultResponse.Status == automdm.BatchSetSoftwareInstallersStatusCompleted ||
+			batchResultResponse.Status == automdm.BatchSetSoftwareInstallersStatusFailed {
 			return batchResultResponse
 		}
 		select {
@@ -439,12 +439,12 @@ func waitBatchSetSoftwareInstallers(t *testing.T, s *withServer, teamName string
 	}
 }
 
-func waitBatchSetSoftwareInstallersCompleted(t *testing.T, s *withServer, teamName string, requestUUID string) []fleet.SoftwarePackageResponse {
+func waitBatchSetSoftwareInstallersCompleted(t *testing.T, s *withServer, teamName string, requestUUID string) []automdm.SoftwarePackageResponse {
 	timeout := time.After(1 * time.Minute)
 	for {
 		var batchResultResponse batchSetSoftwareInstallersResultResponse
-		s.DoJSON("GET", "/api/latest/fleet/software/batch/"+requestUUID, nil, http.StatusOK, &batchResultResponse, "fleet_name", teamName)
-		if batchResultResponse.Status == fleet.BatchSetSoftwareInstallersStatusCompleted {
+		s.DoJSON("GET", "/api/latest/automdm/software/batch/"+requestUUID, nil, http.StatusOK, &batchResultResponse, "team_name", teamName)
+		if batchResultResponse.Status == automdm.BatchSetSoftwareInstallersStatusCompleted {
 			return batchResultResponse.Packages
 		}
 		select {
@@ -460,8 +460,8 @@ func waitBatchSetSoftwareInstallersFailed(t *testing.T, s *withServer, teamName 
 	timeout := time.After(1 * time.Minute)
 	for {
 		var batchResultResponse batchSetSoftwareInstallersResultResponse
-		s.DoJSON("GET", "/api/latest/fleet/software/batch/"+requestUUID, nil, http.StatusOK, &batchResultResponse, "fleet_name", teamName)
-		if batchResultResponse.Status == fleet.BatchSetSoftwareInstallersStatusFailed {
+		s.DoJSON("GET", "/api/latest/automdm/software/batch/"+requestUUID, nil, http.StatusOK, &batchResultResponse, "team_name", teamName)
+		if batchResultResponse.Status == automdm.BatchSetSoftwareInstallersStatusFailed {
 			require.Empty(t, batchResultResponse.Packages)
 			return batchResultResponse.Message
 		}
@@ -543,7 +543,7 @@ func (m *mockedConditionalAccessMicrosoftProxy) GetMessageStatus(
 
 var mockedConditionalAccessMicrosoftProxyInstance = &mockedConditionalAccessMicrosoftProxy{}
 
-// mockedGoogleConditionalAccessClient stands in for fleetdm.com and Google and records
+// mockedGoogleConditionalAccessClient stands in for automdm.com and Google and records
 // the calls the service makes.
 type mockedGoogleConditionalAccessClient struct {
 	mu              sync.Mutex
@@ -620,7 +620,7 @@ func (m *mockedGoogleConditionalAccessClient) SignInURL(customerID, hostUUID, to
 	if rc := m.realClient(); rc != nil {
 		return rc.Relay.SignInURL(customerID, hostUUID, token)
 	}
-	return conditional_access_google.NewRelay("https://fleetdm.example.com").SignInURL(customerID, hostUUID, token)
+	return conditional_access_google.NewRelay("https://automdm.example.com").SignInURL(customerID, hostUUID, token)
 }
 
 // googleAuthError is Google refusing the delegated token.
@@ -651,7 +651,7 @@ func (m *mockedGoogleConditionalAccessClient) Register(ctx context.Context, serv
 		secret = "secret-" + customerID
 	}
 	return &conditional_access_google.Registration{
-		FleetServerSecret: secret,
+		AutoMDMServerSecret: secret,
 	}, nil
 }
 
@@ -689,7 +689,7 @@ func (c *mockedGoogleCloudIdentity) CheckDelegation(_ context.Context) error {
 	return c.m.checkErr
 }
 
-func (c *mockedGoogleCloudIdentity) SetClientState(_ context.Context, name string, state fleet.GoogleConditionalAccessClientState) error {
+func (c *mockedGoogleCloudIdentity) SetClientState(_ context.Context, name string, state automdm.GoogleConditionalAccessClientState) error {
 	c.m.mu.Lock()
 	defer c.m.mu.Unlock()
 	c.m.dev.googleCalls++
@@ -804,7 +804,7 @@ func (m *mockedGoogleConditionalAccessClient) calls() (checks, registers, deregi
 
 var mockedGoogleConditionalAccessClientInstance = &mockedGoogleConditionalAccessClient{}
 
-func genDistributedReqWithLabelResults(host *fleet.Host, labelResults map[uint]*bool) submitDistributedQueryResultsRequestShim {
+func genDistributedReqWithLabelResults(host *automdm.Host, labelResults map[uint]*bool) submitDistributedQueryResultsRequestShim {
 	var (
 		results  = make(map[string]json.RawMessage)
 		statuses = make(map[string]any)
@@ -830,6 +830,6 @@ func genDistributedReqWithLabelResults(host *fleet.Host, labelResults map[uint]*
 		Results:  results,
 		Statuses: statuses,
 		Messages: messages,
-		Stats:    map[string]*fleet.Stats{},
+		Stats:    map[string]*automdm.Stats{},
 	}
 }

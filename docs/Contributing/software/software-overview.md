@@ -1,10 +1,10 @@
 # Software architecture overview
 
-This document provides an overview of Fleet's Software architecture.
+This document provides an overview of AutoMDM's Software architecture.
 
 ## Introduction
 
-Fleet's Software architecture is designed to manage software across the device fleet, including software inventory, vulnerability management, and software installation. This document provides insights into the design decisions, system components, and interactions specific to the Software functionality.
+AutoMDM's Software architecture is designed to manage software across the device fleet, including software inventory, vulnerability management, and software installation. This document provides insights into the design decisions, system components, and interactions specific to the Software functionality.
 
 ## System components
 
@@ -37,7 +37,7 @@ The Software Installation component manages the installation of software on devi
 
 The Software architecture integrates with the following components:
 
-- **Fleet Server**: For device management and software inventory collection.
+- **AutoMDM Server**: For device management and software inventory collection.
 - **Database**: For storing software inventory and vulnerability information.
 - **External Vulnerability Databases**: For retrieving vulnerability information.
 - **Platform-Specific Installation Mechanisms**: For installing software on devices.

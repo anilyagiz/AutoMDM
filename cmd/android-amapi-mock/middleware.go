@@ -24,7 +24,7 @@ func simulateLatencyAndErrors(latencyMean time.Duration, errorRate float64, next
 		// Occasionally return errors
 		if errorRate > 0 && rand.Float64() < errorRate { //nolint:gosec // load testing
 			w.Header().Set("Content-Type", "application/json")
-			// Fleet retries a 429 after 60s or more on user-initiated calls, so these add long waits to those
+			// AutoMDM retries a 429 after 60s or more on user-initiated calls, so these add long waits to those
 			// paths; background jobs fail fast and retry on their next run.
 			if rand.Float64() < 0.5 { //nolint:gosec // load testing
 				w.WriteHeader(http.StatusTooManyRequests)
@@ -65,7 +65,7 @@ func forwardForRealDevice(store *deviceStore, google *googleForwarder) func(http
 			// An unknown device is normally a real one, but it is also what every fake device
 			// looks like after this process restarts. Record a delete for it either way: if it
 			// was a forgotten fake device, its agent must not be able to register it again and
-			// resurrect a host Fleet just unenrolled. Recording a real device's name here is
+			// resurrect a host AutoMDM just unenrolled. Recording a real device's name here is
 			// harmless, since only fake devices ever register.
 			if r.Method == http.MethodDelete {
 				store.markDeleted(name)

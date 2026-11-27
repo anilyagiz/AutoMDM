@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 )
 
 func ExecCmd(ctx context.Context, scriptPath string, env []string) (output []byte, exitCode int, err error) {
@@ -25,7 +25,7 @@ func ExecCmd(ctx context.Context, scriptPath string, env []string) (output []byt
 	if err != nil {
 		return nil, -1, ctxerr.Wrapf(ctx, err, "opening script for validation %s", scriptPath)
 	}
-	directExecute, err := fleet.ValidateShebang(string(contents))
+	directExecute, err := automdm.ValidateShebang(string(contents))
 	if err != nil {
 		return nil, -1, ctxerr.Wrapf(ctx, err, "validating script %s", scriptPath)
 	}

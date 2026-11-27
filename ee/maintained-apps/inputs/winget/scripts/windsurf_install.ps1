@@ -5,7 +5,7 @@
 #   /NORESTART           = don't reboot (returns 3010 instead, treat as success)
 #   /ALLUSERS            = machine-scope install. Requires elevation; the
 #                          installer self-elevates (manifest:
-#                          ElevationRequirement: elevatesSelf), and Fleet/
+#                          ElevationRequirement: elevatesSelf), and AutoMDM/
 #                          SYSTEM already runs elevated anyway.
 #   /MERGETASKS=!runcode = keep default selectable tasks but deselect
 #                          "runcode" (which auto-launches Windsurf after

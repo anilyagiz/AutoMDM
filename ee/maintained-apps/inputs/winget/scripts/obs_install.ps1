@@ -1,12 +1,12 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 
 $exeFilePath = "${env:INSTALLER_PATH}"
 
 try {
 
 # Setup exits with code 2 while OBS is running, because it can't replace OBS's
-# open files. Fleet runs as SYSTEM, outside the user's session, so it can't ask
+# open files. AutoMDM runs as SYSTEM, outside the user's session, so it can't ask
 # OBS to close: stop it first, along with its helpers (obs-browser-page.exe,
 # obs-ffmpeg-mux.exe). Unsaved changes and active recordings or streams are lost.
 $running = Get-Process -ErrorAction SilentlyContinue |

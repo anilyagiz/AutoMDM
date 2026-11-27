@@ -34,8 +34,8 @@ const HANDBOOK_FILES = [
 
 // Handles that the regex captures but that are not personal accounts.
 const DENYLIST = new Set([
-  "fleetdm",
-  "fleetdm-bot",
+  "automdm",
+  "automdm-bot",
   "todo",
   "orgs",
   "issues",
@@ -129,7 +129,7 @@ function httpGet(url, token) {
   return new Promise((resolve, reject) => {
     const opts = {
       headers: {
-        "User-Agent": "fleetdm-build-fleetie-handles",
+        "User-Agent": "automdm-build-fleetie-handles",
         Accept: "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
         Authorization: `Bearer ${token}`,
@@ -187,7 +187,7 @@ async function main() {
     try {
       await fetchOrgMembers(token, handles);
       process.stderr.write(
-        `info: fetched fleetdm org members; running total ${handles.size}\n`
+        `info: fetched automdm org members; running total ${handles.size}\n`
       );
     } catch (err) {
       process.stderr.write(
@@ -205,7 +205,7 @@ async function main() {
     collectFromGitHistory(file, handles);
   }
 
-  // Re-apply the denylist after the union so we cannot leak `fleetdm` or `todo` even if a future source
+  // Re-apply the denylist after the union so we cannot leak `automdm` or `todo` even if a future source
   // emitted them in non-lowercased form.
   for (const denied of DENYLIST) {
     handles.delete(denied);

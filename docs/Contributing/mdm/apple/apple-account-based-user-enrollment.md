@@ -14,7 +14,7 @@ work and personal data.
 
 ## Questions?
 
-- Which fleet will the enrolling device be assigned to?
+- Which team will the enrolling device be assigned to?
 
 ## Links
 
@@ -25,10 +25,10 @@ work and personal data.
 The enrollment process follows these main steps:
 
 1. User initiates enrollment on their iOS device
-2. Device contacts Fleet server for enrollment
+2. Device contacts AutoMDM server for enrollment
 3. User authenticates via SSO (SAML or OAuth2)
-4. Fleet server validates authentication and provides the enrollment profile
-- Fleet server can link the SAML username/email to the device via the access-token it sends back to the device
+4. AutoMDM server validates authentication and provides the enrollment profile
+- AutoMDM server can link the SAML username/email to the device via the access-token it sends back to the device
 5. User authenticates with managed Apple ID
 6. Device gets SCEP certificate
 7. Device performs MDM check-in protocol steps
@@ -40,41 +40,41 @@ title: Account-driven user enrollment
 sequenceDiagram
     autonumber
     participant ios as iOS host
-    participant fleet as Fleet server
+    participant automdm as AutoMDM server
     participant IdP
     activate ios
-    ios->>+fleet: POST /account_driven_enroll
-    fleet-->>-ios: 401 WWW-Authenticate
+    ios->>+automdm: POST /account_driven_enroll
+    automdm-->>-ios: 401 WWW-Authenticate
     alt SAML
-        ios->>+fleet: Fleet SSO URL
-        fleet-->>-ios: HTML page
-        ios->>+fleet: [HTML page]<br>POST /api/v1/fleet/mdm/sso
-        fleet-->>-ios: IdP URL (SAML request, HTTP redirect binding)
+        ios->>+automdm: AutoMDM SSO URL
+        automdm-->>-ios: HTML page
+        ios->>+automdm: [HTML page]<br>POST /api/v1/automdm/mdm/sso
+        automdm-->>-ios: IdP URL (SAML request, HTTP redirect binding)
         ios->>+IdP: SAML request
         IdP-->>-ios: IdP login page
         ios->>ios: Enter IdP credentials
         ios->>+IdP: IdP login
         IdP-->>-ios: SAML Response
-        ios->>+fleet: [HTML page]<br>POST /api/v1/fleet/mdm/sso/callback<br>(SAML Response)
-        fleet-->>-ios: 308 (with access token)
+        ios->>+automdm: [HTML page]<br>POST /api/v1/automdm/mdm/sso/callback<br>(SAML Response)
+        automdm-->>-ios: 308 (with access token)
     else OAuth2
         ios->>IdP: Authorization URL
         ios->>ios: Enter IdP credentials
-        ios->>fleet: Token URL
-        activate fleet
-        fleet->>+IdP: Token URL (with client secret)
-        IdP-->>-fleet: Access token
-        fleet-->>ios: Forward access token
-        deactivate fleet
+        ios->>automdm: Token URL
+        activate automdm
+        automdm->>+IdP: Token URL (with client secret)
+        IdP-->>-automdm: Access token
+        automdm-->>ios: Forward access token
+        deactivate automdm
     end
-    ios->>+fleet: POST /account_driven_enroll (with Bearer token)
-    fleet-->>-ios: Enrollment profile
+    ios->>+automdm: POST /account_driven_enroll (with Bearer token)
+    automdm-->>-ios: Enrollment profile
     ios->>ios: Enter Apple credentials
-    ios->>fleet: Get SCEP certificate flow
-    ios->>+fleet: PUT /mdm/apple/mdm<br/>[check-in protocol]<br/>MessageType: Authenticate
-    fleet-->>-ios: OK
-    ios->>+fleet: PUT /mdm/apple/mdm<br/>[check-in protocol]<br/>MessageType: TokenUpdate
-    fleet-->>-ios: OK
+    ios->>automdm: Get SCEP certificate flow
+    ios->>+automdm: PUT /mdm/apple/mdm<br/>[check-in protocol]<br/>MessageType: Authenticate
+    automdm-->>-ios: OK
+    ios->>+automdm: PUT /mdm/apple/mdm<br/>[check-in protocol]<br/>MessageType: TokenUpdate
+    automdm-->>-ios: OK
     deactivate ios
 ```
 
@@ -91,10 +91,10 @@ Accept-Encoding	gzip, deflate, br
 Accept-Language	en-US,en;q=0.9
 Content-Length	3596
 Content-Type	application/pkcs7-signature
-Host	<Fleet server>
+Host	<AutoMDM server>
 User-Agent	DeviceManagementClient/1.0
 X-Forwarded-For	<Client IP>
-X-Forwarded-Host	<Fleet server>
+X-Forwarded-Host	<AutoMDM server>
 X-Forwarded-Proto	https
 ```
 
@@ -105,7 +105,7 @@ Headers
 Content-Length	0
 Content-Type	application/json; charset=utf-8
 Date	Tue, 29 Apr 2025 18:58:21 GMT
-Www-Authenticate	Bearer method="apple-as-web" url="<Fleet server URL>/mdm/sso"
+Www-Authenticate	Bearer method="apple-as-web" url="<AutoMDM server URL>/mdm/sso"
 ```
 
 ```
@@ -114,14 +114,14 @@ GET /mdm/sso
 Accept	text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
 Accept-Encoding	gzip, deflate, br
 Accept-Language	en-US,en;q=0.9
-Host	<Fleet server>
+Host	<AutoMDM server>
 Priority	u=0, i
 Sec-Fetch-Dest	document
 Sec-Fetch-Mode	navigate
 Sec-Fetch-Site	none
 User-Agent	Mozilla/5.0 (iPhone; CPU iPhone OS 18_2_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.2 Mobile/15E148 Safari/604.1
 X-Forwarded-For	<Client IP>
-X-Forwarded-Host	<Fleet server>
+X-Forwarded-Host	<AutoMDM server>
 X-Forwarded-Proto	https
 ```
 
@@ -132,7 +132,7 @@ HTML page for orchestrating SAML login
 ```
 
 ```
-POST /api/latest/fleet/mdm/sso
+POST /api/latest/automdm/mdm/sso
 
 Headers
 Accept	application/json, text/plain, */*
@@ -141,16 +141,16 @@ Accept-Language	en-US,en;q=0.9
 Authorization	Bearer null
 Content-Length	2
 Content-Type	application/json
-Host	<Fleet server>
-Origin	https://<Fleet server>
+Host	<AutoMDM server>
+Origin	https://<AutoMDM server>
 Priority	u=3, i
-Referer	https://<Fleet server>/mdm/sso?user-identifier=<Managed Apple ID>
+Referer	https://<AutoMDM server>/mdm/sso?user-identifier=<Managed Apple ID>
 Sec-Fetch-Dest	empty
 Sec-Fetch-Mode	cors
 Sec-Fetch-Site	same-origin
 User-Agent	Mozilla/5.0 (iPhone; CPU iPhone OS 18_2_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.2 Mobile/15E148 Safari/604.1
 X-Forwarded-For	<Client IP>
-X-Forwarded-Host	<Fleet server>
+X-Forwarded-Host	<AutoMDM server>
 X-Forwarded-Proto	https
 ```
 
@@ -168,7 +168,7 @@ Date	Tue, 29 Apr 2025 18:58:24 GMT
 ```
 
 ```
-POST /api/v1/fleet/mdm/sso/callback
+POST /api/v1/automdm/mdm/sso/callback
 
 Headers
 Accept	text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
@@ -176,7 +176,7 @@ Accept-Encoding	gzip, deflate, br
 Accept-Language	en-US,en;q=0.9
 Content-Length	9323
 Content-Type	application/x-www-form-urlencoded
-Host	<Fleet server>
+Host	<AutoMDM server>
 Origin	https://dev-XXXXXX.okta.com
 Priority	u=0, i
 Referer	https://dev-XXXXXX.okta.com/
@@ -185,7 +185,7 @@ Sec-Fetch-Mode	navigate
 Sec-Fetch-Site	cross-site
 User-Agent	Mozilla/5.0 (iPhone; CPU iPhone OS 18_2_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.2 Mobile/15E148 Safari/604.1
 X-Forwarded-For	<Client IP>
-X-Forwarded-Host	<Fleet server>
+X-Forwarded-Host	<AutoMDM server>
 X-Forwarded-Proto	https
 
 SAMLResponse: <data>
@@ -211,10 +211,10 @@ Accept-Language	en-US,en;q=0.9
 Authorization	Bearer cccca116-2527-11f0-a903-0242ac120002
 Content-Length	3596
 Content-Type	application/pkcs7-signature
-Host	<Fleet server>
+Host	<AutoMDM server>
 User-Agent	DeviceManagementClient/1.0
 X-Forwarded-For	<Client IP>
-X-Forwarded-Host	<Fleet server>
+X-Forwarded-Host	<AutoMDM server>
 X-Forwarded-Proto	https
 ```
 
@@ -222,13 +222,13 @@ X-Forwarded-Proto	https
 200 OK
 
 Headers
-Content-Disposition	attachment;fleet-enrollment-profile.mobileconfig
+Content-Disposition	attachment;automdm-enrollment-profile.mobileconfig
 Content-Length	3896
 Content-Type	application/x-apple-aspen-config
 Date	Tue, 29 Apr 2025 18:58:58 GMT
 X-Content-Type-Options	nosniff
 
-<fleet-enrollment-profile>
+<automdm-enrollment-profile>
 ```
 
 ```
@@ -246,11 +246,11 @@ Authorization	Bearer cccca116-2527-11f0-a903-0242ac120002
 Cache-Control	no-cache
 Content-Length	570
 Content-Type	application/x-apple-aspen-mdm-checkin
-Host	<Fleet server>
+Host	<AutoMDM server>
 Mdm-Signature	<signature>
 User-Agent	MDM/1.0
 X-Forwarded-For	<Client IP>
-X-Forwarded-Host	<Fleet server>
+X-Forwarded-Host	<AutoMDM server>
 X-Forwarded-Proto	https
 ```
 
@@ -294,11 +294,11 @@ Authorization	Bearer cccca116-2527-11f0-a903-0242ac120002
 Cache-Control	no-cache
 Content-Length	621
 Content-Type	application/x-apple-aspen-mdm-checkin
-Host	<Fleet server>
+Host	<AutoMDM server>
 Mdm-Signature	<signature>
 User-Agent	MDM/1.0
 X-Forwarded-For	<Client IP>
-X-Forwarded-Host	<Fleet server>
+X-Forwarded-Host	<AutoMDM server>
 X-Forwarded-Proto	https
 ```
 
@@ -344,11 +344,11 @@ Authorization	Bearer cccca116-2527-11f0-a903-0242ac120002
 Cache-Control	no-cache
 Content-Length	310
 Content-Type	application/x-apple-aspen-mdm
-Host	<Fleet server>
+Host	<AutoMDM server>
 Mdm-Signature	<signature>>
 User-Agent	MDM/1.0
 X-Forwarded-For	<Client IP>
-X-Forwarded-Host	<Fleet server>
+X-Forwarded-Host	<AutoMDM server>
 X-Forwarded-Proto	https
 ```
 

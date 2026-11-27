@@ -6,9 +6,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestFleetDefaultPolicyID(t *testing.T) {
-	require.Equal(t, "fleet0", FleetDefaultPolicyID(0))
-	require.Equal(t, "fleet42", FleetDefaultPolicyID(42))
+func TestAutoMDMDefaultPolicyID(t *testing.T) {
+	require.Equal(t, "automdm0", AutoMDMDefaultPolicyID(0))
+	require.Equal(t, "automdm42", AutoMDMDefaultPolicyID(42))
 }
 
 func TestIsDefaultPolicyID(t *testing.T) {
@@ -17,12 +17,12 @@ func TestIsDefaultPolicyID(t *testing.T) {
 		want     bool
 	}{
 		{policyID: "1", want: true},
-		{policyID: FleetDefaultPolicyID(0), want: true},
-		{policyID: FleetDefaultPolicyID(42), want: true},
-		{policyID: "fleet", want: false},
-		{policyID: "fleet-1", want: false},
-		{policyID: "fleetabc", want: false},
-		{policyID: "fleet007", want: false},
+		{policyID: AutoMDMDefaultPolicyID(0), want: true},
+		{policyID: AutoMDMDefaultPolicyID(42), want: true},
+		{policyID: "automdm", want: false},
+		{policyID: "automdm-1", want: false},
+		{policyID: "automdmabc", want: false},
+		{policyID: "automdm007", want: false},
 		{policyID: "2", want: false},
 		{policyID: "", want: false},
 		{policyID: "a1b2c3d4e5f6a7b8", want: false},

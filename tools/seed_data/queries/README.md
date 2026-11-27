@@ -14,7 +14,7 @@ stress-testing scenarios where the API-driven path would be too slow.
 
 ## Usage
 
-Assumes the local dev `docker-compose` MySQL (`fleet:insecure@localhost:3306/fleet`).
+Assumes the local dev `docker-compose` MySQL (`automdm:insecure@localhost:3306/automdm`).
 
 ```bash
 go run ./tools/seed_data/queries/seed_queries.go

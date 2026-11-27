@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/msrc/parsed"
-	msrcxml "github.com/fleetdm/fleet/v4/server/vulnerabilities/msrc/xml"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/msrc/parsed"
+	msrcxml "github.com/anilyagiz/automdm/v4/server/vulnerabilities/msrc/xml"
 	"github.com/stretchr/testify/require"
 )
 

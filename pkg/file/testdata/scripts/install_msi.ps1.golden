@@ -1,4 +1,4 @@
-$logFile = "${env:TEMP}/fleet-install-software.log"
+$logFile = "${env:TEMP}/automdm-install-software.log"
 
 # MSI exit codes that indicate success. 3010 = ERROR_SUCCESS_REBOOT_REQUIRED,
 # 1641 = ERROR_SUCCESS_REBOOT_INITIATED. Treat these as success rather than failure.

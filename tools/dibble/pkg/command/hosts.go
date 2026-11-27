@@ -22,7 +22,7 @@ import (
 // together by hand is enough friction that this subcommand pays for itself.
 //
 // Flow:
-//  1. List teams (and the global / no-team scope) from the Fleet API.
+//  1. List teams (and the global / no-team scope) from the AutoMDM API.
 //  2. Radio-button pick — single-select via survey.
 //  3. Fetch that team's enroll secret.
 //  4. Build the `go run cmd/osquery-perf/agent.go -enroll_secret … -server_url …`
@@ -32,12 +32,12 @@ func newHostsCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "hosts",
 		Short: "Pick a team and run osquery-perf against it (single-select radio + inline run)",
-		Long: `Lists existing teams (fleets), lets you pick one with a radio button, fetches
+		Long: `Lists existing teams (teams), lets you pick one with a radio button, fetches
 that team's enroll secret, and either prints the matching osquery-perf command
 or runs it for you.
 
 Picking the global / no-team option uses the global enroll secret from
-/api/latest/fleet/spec/enroll_secret.
+/api/latest/automdm/spec/enroll_secret.
 
 While osquery-perf runs inline, Ctrl-C is forwarded to it so you can stop the
 simulated hosts cleanly.
@@ -69,12 +69,12 @@ which is the canonical host simulator (see cmd/osquery-perf).`,
 				return err
 			}
 
-			repoRoot, err := findFleetRepoRoot()
+			repoRoot, err := findAutoMDMRepoRoot()
 			if err != nil {
 				return err
 			}
 
-			fullCmd, displayCmd := buildOsqueryPerfCmd(repoRoot, secret, viper.GetString(keyFleetURL), hostCount)
+			fullCmd, displayCmd := buildOsqueryPerfCmd(repoRoot, secret, viper.GetString(keyAutoMDMURL), hostCount)
 			scope := picked.scopeDescription()
 			printf("osquery-perf command for %s:", scope)
 			fmt.Fprintln(stdoutish, "\n"+displayCmd+"\n")
@@ -114,7 +114,7 @@ func (p pickedTeam) scopeDescription() string {
 // pickHostsTeam resolves which team to enroll into. Precedence mirrors
 // resolveSoftwareTeamID in software.go:
 //
-//  1. --team-name (looked up against Fleet)
+//  1. --team-name (looked up against AutoMDM)
 //  2. --team-id (0 = global, ≥1 = that team)
 //  3. Interactive single-select via survey
 func pickHostsTeam(c *Client, flagID int, flagName string) (pickedTeam, error) {
@@ -182,11 +182,11 @@ func fetchEnrollSecret(c *Client, picked pickedTeam) (string, error) {
 				} `json:"secrets"`
 			} `json:"spec"`
 		}
-		if err := c.Get("/api/latest/fleet/spec/enroll_secret", &resp); err != nil {
+		if err := c.Get("/api/latest/automdm/spec/enroll_secret", &resp); err != nil {
 			return "", fmt.Errorf("fetch global enroll secret: %w", err)
 		}
 		if len(resp.Spec.Secrets) == 0 {
-			return "", errors.New("global enroll secret is empty — set one in Fleet settings or run `dibble enroll-secrets`")
+			return "", errors.New("global enroll secret is empty — set one in AutoMDM settings or run `dibble enroll-secrets`")
 		}
 		return resp.Spec.Secrets[0].Secret, nil
 	}
@@ -196,7 +196,7 @@ func fetchEnrollSecret(c *Client, picked pickedTeam) (string, error) {
 			Secret string `json:"secret"`
 		} `json:"secrets"`
 	}
-	if err := c.Get(fmt.Sprintf("/api/latest/fleet/fleets/%d/secrets", picked.ID), &resp); err != nil {
+	if err := c.Get(fmt.Sprintf("/api/latest/automdm/teams/%d/secrets", picked.ID), &resp); err != nil {
 		return "", fmt.Errorf("fetch enroll secret for team %d: %w", picked.ID, err)
 	}
 	if len(resp.Secrets) == 0 {
@@ -205,10 +205,10 @@ func fetchEnrollSecret(c *Client, picked pickedTeam) (string, error) {
 	return resp.Secrets[0].Secret, nil
 }
 
-// findFleetRepoRoot walks up from the current working directory until it
-// finds the parent fleet checkout (the one with cmd/osquery-perf/agent.go).
+// findAutoMDMRepoRoot walks up from the current working directory until it
+// finds the parent automdm checkout (the one with cmd/osquery-perf/agent.go).
 // Returned path is absolute.
-func findFleetRepoRoot() (string, error) {
+func findAutoMDMRepoRoot() (string, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return "", fmt.Errorf("get cwd: %w", err)
@@ -220,7 +220,7 @@ func findFleetRepoRoot() (string, error) {
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			return "", fmt.Errorf("could not find fleet repo root (cmd/osquery-perf/agent.go) walking up from %s", cwd)
+			return "", fmt.Errorf("could not find automdm repo root (cmd/osquery-perf/agent.go) walking up from %s", cwd)
 		}
 		dir = parent
 	}

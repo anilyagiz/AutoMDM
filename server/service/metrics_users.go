@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
-func (mw metricsMiddleware) CreateUserFromInvite(ctx context.Context, p fleet.UserPayload) (*fleet.User, error) {
+func (mw metricsMiddleware) CreateUserFromInvite(ctx context.Context, p automdm.UserPayload) (*automdm.User, error) {
 	var (
-		user *fleet.User
+		user *automdm.User
 		err  error
 	)
 
@@ -24,9 +24,9 @@ func (mw metricsMiddleware) CreateUserFromInvite(ctx context.Context, p fleet.Us
 	return user, err
 }
 
-func (mw metricsMiddleware) ModifyUser(ctx context.Context, userID uint, p fleet.UserPayload) (*fleet.User, error) {
+func (mw metricsMiddleware) ModifyUser(ctx context.Context, userID uint, p automdm.UserPayload) (*automdm.User, error) {
 	var (
-		user *fleet.User
+		user *automdm.User
 		err  error
 	)
 
@@ -40,9 +40,9 @@ func (mw metricsMiddleware) ModifyUser(ctx context.Context, userID uint, p fleet
 	return user, err
 }
 
-func (mw metricsMiddleware) User(ctx context.Context, id uint) (*fleet.User, error) {
+func (mw metricsMiddleware) User(ctx context.Context, id uint) (*automdm.User, error) {
 	var (
-		user *fleet.User
+		user *automdm.User
 		err  error
 	)
 	defer func(begin time.Time) {
@@ -55,10 +55,10 @@ func (mw metricsMiddleware) User(ctx context.Context, id uint) (*fleet.User, err
 	return user, err
 }
 
-func (mw metricsMiddleware) ListUsers(ctx context.Context, opt fleet.UserListOptions) ([]*fleet.User, error) {
+func (mw metricsMiddleware) ListUsers(ctx context.Context, opt automdm.UserListOptions) ([]*automdm.User, error) {
 
 	var (
-		users []*fleet.User
+		users []*automdm.User
 		err   error
 	)
 	defer func(begin time.Time) {
@@ -71,9 +71,9 @@ func (mw metricsMiddleware) ListUsers(ctx context.Context, opt fleet.UserListOpt
 	return users, err
 }
 
-func (mw metricsMiddleware) AuthenticatedUser(ctx context.Context) (*fleet.User, error) {
+func (mw metricsMiddleware) AuthenticatedUser(ctx context.Context) (*automdm.User, error) {
 	var (
-		user *fleet.User
+		user *automdm.User
 		err  error
 	)
 

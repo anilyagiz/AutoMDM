@@ -10,7 +10,7 @@ import (
 	"sync"
 
 	"github.com/agnivade/levenshtein"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/hashicorp/go-multierror"
 )
 
@@ -145,18 +145,18 @@ func collectFields(t reflect.Type, keys map[string]fieldInfo) {
 // the concrete type to use for recursive validation.
 var anyFieldTypes = map[reflect.Type]map[string]reflect.Type{
 	reflect.TypeFor[GitOpsControls](): {
-		"macos_updates":    reflect.TypeFor[fleet.AppleOSUpdateSettings](),
-		"ios_updates":      reflect.TypeFor[fleet.AppleOSUpdateSettings](),
-		"ipados_updates":   reflect.TypeFor[fleet.AppleOSUpdateSettings](),
-		"macos_migration":  reflect.TypeFor[fleet.MacOSMigration](),
-		"windows_updates":  reflect.TypeFor[fleet.WindowsUpdates](),
-		"apple_settings":   reflect.TypeFor[fleet.GitOpsMacOSSettings](),
-		"windows_settings": reflect.TypeFor[fleet.GitOpsWindowsSettings](),
-		"android_settings": reflect.TypeFor[fleet.GitOpsAndroidSettings](),
+		"macos_updates":    reflect.TypeFor[automdm.AppleOSUpdateSettings](),
+		"ios_updates":      reflect.TypeFor[automdm.AppleOSUpdateSettings](),
+		"ipados_updates":   reflect.TypeFor[automdm.AppleOSUpdateSettings](),
+		"macos_migration":  reflect.TypeFor[automdm.MacOSMigration](),
+		"windows_updates":  reflect.TypeFor[automdm.WindowsUpdates](),
+		"apple_settings":   reflect.TypeFor[automdm.GitOpsMacOSSettings](),
+		"windows_settings": reflect.TypeFor[automdm.GitOpsWindowsSettings](),
+		"android_settings": reflect.TypeFor[automdm.GitOpsAndroidSettings](),
 	},
 	reflect.TypeFor[GitOpsOrgSettings](): {
-		"certificate_authorities":     reflect.TypeFor[fleet.GroupedCertificateAuthorities](),
-		"microsoft_graph_credentials": reflect.TypeFor[[]fleet.MicrosoftGraphCredential](),
+		"certificate_authorities":     reflect.TypeFor[automdm.GroupedCertificateAuthorities](),
+		"microsoft_graph_credentials": reflect.TypeFor[[]automdm.MicrosoftGraphCredential](),
 		"mdm":                         reflect.TypeFor[GitOpsMDM](),
 		"org_info":                    reflect.TypeFor[GitOpsOrgInfo](),
 	},
@@ -266,7 +266,7 @@ func validateMapKeys(data map[string]any, targetType reflect.Type, path []string
 
 		// Check the override registry for this field. This handles two cases:
 		// 1. `any`/`interface{}` fields that need a concrete type for recursion
-		// 2. Struct fields that need a gitops-extended type (e.g. fleet.MDM -> GitOpsMDM)
+		// 2. Struct fields that need a gitops-extended type (e.g. automdm.MDM -> GitOpsMDM)
 		if override, ok := parentOverrides[key]; ok {
 			fieldType = override
 		} else if fieldType.Kind() == reflect.Interface {

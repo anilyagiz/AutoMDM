@@ -8,14 +8,14 @@ import (
 	"testing"
 	"testing/synctest"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/toast"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/toast"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 const (
-	deviceURL        = "https://fleet.example.com/device/token"
-	rotatedDeviceURL = "https://fleet.example.com/device/rotated"
+	deviceURL        = "https://automdm.example.com/device/token"
+	rotatedDeviceURL = "https://automdm.example.com/device/rotated"
 )
 
 func TestBitLockerPINToast(t *testing.T) {
@@ -113,9 +113,9 @@ func TestBitLockerPINToastAcrossProcesses(t *testing.T) {
 
 	for _, tc := range []struct {
 		name string
-		// marker is what an earlier Fleet Desktop process left, or nil for none.
+		// marker is what an earlier AutoMDM Desktop process left, or nil for none.
 		marker *string
-		// noMarkerPath disables the marker, as when Fleet Desktop cannot find the directory for it.
+		// noMarkerPath disables the marker, as when AutoMDM Desktop cannot find the directory for it.
 		noMarkerPath bool
 		loginID      string
 		needsPIN     bool
@@ -128,7 +128,7 @@ func TestBitLockerPINToastAcrossProcesses(t *testing.T) {
 	}{
 		{name: "a first popup records the login", loginID: loginID, needsPIN: true, wantPopups: []bool{true}, wantMarker: new(loginID)},
 		{
-			name: "Fleet Desktop restarting within a login posts silently", marker: new(loginID), loginID: loginID, needsPIN: true,
+			name: "AutoMDM Desktop restarting within a login posts silently", marker: new(loginID), loginID: loginID, needsPIN: true,
 			wantPopups: []bool{false}, wantMarker: new(loginID),
 		},
 		{

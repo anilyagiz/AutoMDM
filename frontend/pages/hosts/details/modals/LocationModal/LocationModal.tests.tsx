@@ -83,7 +83,7 @@ describe("LocationModal", () => {
     ).toBeVisible();
     expect(
       screen.getByText(
-        /Lock is pending. Host will lock the next time it checks in to Fleet./i
+        /Lock is pending. Host will lock the next time it checks in to AutoMDM./i
       )
     ).toBeVisible();
   });
@@ -98,7 +98,7 @@ describe("LocationModal", () => {
 
     expect(
       screen.getByText(
-        /Location is pending. Host will share location the next time it checks in to Fleet./i
+        /Location is pending. Host will share location the next time it checks in to AutoMDM./i
       )
     ).toBeVisible();
   });

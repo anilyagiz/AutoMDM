@@ -11,7 +11,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
 // ToolchainInstallsVersion is the rule format this package reads. Published rules in any other
@@ -19,7 +19,7 @@ import (
 const ToolchainInstallsVersion = "1"
 
 // ToolchainInstalls are the rules that identify Go toolchain installs and read their Go version.
-// The mirror publishes them in the artifact, so a rule can be fixed without a Fleet release.
+// The mirror publishes them in the artifact, so a rule can be fixed without an AutoMDM release.
 // Servers apply them as published, so changes to toolchain_installs.json must keep passing
 // TestPublishedToolchainInstalls.
 type ToolchainInstalls struct {
@@ -142,12 +142,12 @@ func ToolchainRulesFrom(ctx context.Context, artifact *Artifact, logger *slog.Lo
 
 // IsToolchainInstall reports whether software is an install of the Go toolchain itself, which
 // is matched against the Go vulnerability database rather than NVD.
-func (r *ToolchainRules) IsToolchainInstall(software *fleet.Software) bool {
+func (r *ToolchainRules) IsToolchainInstall(software *automdm.Software) bool {
 	_, ok := r.rule(software)
 	return ok
 }
 
-func (r *ToolchainRules) rule(software *fleet.Software) (toolchainRule, bool) {
+func (r *ToolchainRules) rule(software *automdm.Software) (toolchainRule, bool) {
 	if r == nil {
 		return toolchainRule{}, false
 	}
@@ -164,9 +164,9 @@ func (r *ToolchainRules) rule(software *fleet.Software) (toolchainRule, bool) {
 // ignores case and knows nothing about sources, so IsToolchainInstall still makes the exact call.
 // It reports false when the rules claim no source: an iterator with no included sources would
 // cover all software.
-func (r *ToolchainRules) iterOptions() (fleet.SoftwareIterQueryOptions, bool) {
+func (r *ToolchainRules) iterOptions() (automdm.SoftwareIterQueryOptions, bool) {
 	if r == nil || len(r.bySource) == 0 {
-		return fleet.SoftwareIterQueryOptions{}, false
+		return automdm.SoftwareIterQueryOptions{}, false
 	}
 	var sources, alternatives []string
 	for source, rules := range r.bySource {
@@ -182,14 +182,14 @@ func (r *ToolchainRules) iterOptions() (fleet.SoftwareIterQueryOptions, bool) {
 	}
 	slices.Sort(sources)
 	slices.Sort(alternatives)
-	return fleet.SoftwareIterQueryOptions{
+	return automdm.SoftwareIterQueryOptions{
 		IncludedSources: sources,
 		NameMatch:       "^(" + strings.Join(slices.Compact(alternatives), "|") + ")$",
 	}, true
 }
 
 // version canonicalizes a toolchain install's Go version into semver.
-func (rule toolchainRule) version(software *fleet.Software) (string, bool) {
+func (rule toolchainRule) version(software *automdm.Software) (string, bool) {
 	for _, v := range rule.versions {
 		field := software.Version
 		if v.fromName {
@@ -208,7 +208,7 @@ func (rule toolchainRule) version(software *fleet.Software) (string, bool) {
 
 // match returns the stdlib and toolchain advisories affecting a Go toolchain install. Unlike a
 // binary, upgrading the toolchain is the fix, so the fixed version is kept.
-func (r *ToolchainRules) match(software *fleet.Software, artifact *Artifact) []fleet.SoftwareVulnerability {
+func (r *ToolchainRules) match(software *automdm.Software, artifact *Artifact) []automdm.SoftwareVulnerability {
 	rule, ok := r.rule(software)
 	if !ok {
 		return nil

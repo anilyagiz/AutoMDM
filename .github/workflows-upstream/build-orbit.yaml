@@ -32,7 +32,7 @@ jobs:
   build:
     permissions:
       contents: read
-    if: ${{ (github.repository == 'fleetdm/fleet') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+    if: ${{ (github.repository == 'automdm/automdm') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: macos-latest
     steps:
       - name: Harden Runner
@@ -68,7 +68,7 @@ jobs:
       - name: Build, codesign and notarize orbit
         run: go run ./orbit/tools/build/build.go 
         env:
-          GITHUB_TOKEN: ${{ secrets.FLEET_RELEASE_GITHUB_PAT }}
+          GITHUB_TOKEN: ${{ secrets.AUTOMDM_RELEASE_GITHUB_PAT }}
           AC_USERNAME: ${{ secrets.APPLE_USERNAME }}
           AC_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           AC_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}

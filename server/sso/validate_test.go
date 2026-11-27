@@ -49,7 +49,7 @@ var (
 	testSAMLProvider = func() *saml.ServiceProvider {
 		idpMetadata := testSalesforceMetadata()
 		sp := saml.ServiceProvider{
-			EntityID:    "https://fleet-dev-ed.my.salesforce.com",
+			EntityID:    "https://automdm-dev-ed.my.salesforce.com",
 			AcsURL:      *testACSURL,
 			IDPMetadata: idpMetadata,
 			ValidateAudienceRestriction: func(assertion *saml.Assertion) error {
@@ -326,7 +326,7 @@ func TestVerifyInvalidAssertion(t *testing.T) {
         <saml2:AuthnContextClassRef>urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport</saml2:AuthnContextClassRef>
       </saml2:AuthnContext>
       <saml2:AttributeStatement>
-        <saml2:Attribute Name="FLEET_JIT_USER_ROLE_GLOBAL" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic">
+        <saml2:Attribute Name="AUTOMDM_JIT_USER_ROLE_GLOBAL" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic">
             <saml2:AttributeValue xsi:type="xs:string">admin</saml2:AttributeValue>
         </saml2:Attribute>
     </saml2:AttributeStatement>

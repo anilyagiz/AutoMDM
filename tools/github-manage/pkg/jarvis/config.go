@@ -17,7 +17,7 @@ type Config struct {
 
 	// BranchScanGlob is the folder-name glob (relative to each CloneBaseDirs
 	// entry) that the branch-cleanup view scans for local git repos. Defaults to
-	// "fleet*" so it picks up ~/projects/fleet, fleet-plan, fleet-2, etc.
+	// "team*" so it picks up ~/projects/automdm, automdm-plan, automdm-2, etc.
 	BranchScanGlob string `json:"branch_scan_glob,omitempty"`
 
 	// PrimaryProjects are the project boards whose assigned-to-you issues surface
@@ -86,7 +86,7 @@ func LoadConfig(path string) *Config {
 		c.CloneBaseDirs = []string{"~/projects"}
 	}
 	if c.BranchScanGlob == "" {
-		c.BranchScanGlob = "fleet*"
+		c.BranchScanGlob = "team*"
 	}
 	return c
 }

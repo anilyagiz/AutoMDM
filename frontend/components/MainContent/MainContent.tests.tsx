@@ -12,8 +12,8 @@ import MainContent from "./MainContent";
 
 const GRAPH_BANNER_TEXT =
   "Your Microsoft Graph client secret is expired, deleted, or has missing " +
-  "permissions. Windows Autopilot devices won't sync to Fleet as pending " +
-  "hosts. Users with the admin role in Fleet can update the credential.";
+  "permissions. Windows Autopilot devices won't sync to AutoMDM as pending " +
+  "hosts. Users with the admin role in AutoMDM can update the credential.";
 
 const EJBCA_EXPIRED_TEXT = /client certificate of an EJBCA certificate authority \(CA\) has expired/i;
 const EJBCA_EXPIRING_TEXT = /client certificate of an EJBCA certificate authority \(CA\) is less than 30 days from expiration/i;
@@ -91,7 +91,7 @@ describe("MainContent app-wide banners", () => {
     expect(screen.queryByText(GRAPH_BANNER_TEXT)).not.toBeInTheDocument();
   });
 
-  it("does not show the EJBCA banner on Fleet Free", () => {
+  it("does not show the EJBCA banner on AutoMDM Free", () => {
     renderMainContent({ isEJBCACertExpired: true, isPremiumTier: false });
     expect(screen.queryByText(EJBCA_EXPIRED_TEXT)).not.toBeInTheDocument();
   });
@@ -152,7 +152,7 @@ describe("MainContent license host limit banner", () => {
     expect(screen.queryByText(/Your license covers/)).not.toBeInTheDocument();
   });
 
-  it("does not show the banner on Fleet Free", () => {
+  it("does not show the banner on AutoMDM Free", () => {
     renderWithHostCount({ hostCount: 61, isPremiumTier: false });
     expect(screen.queryByText(/Your license covers/)).not.toBeInTheDocument();
   });

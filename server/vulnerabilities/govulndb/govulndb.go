@@ -8,7 +8,7 @@
 // Go toolchain installs (see ToolchainRules) are matched here too rather than through NVD,
 // which matched the Homebrew "go" formula to ecies:go and lags the Go database on new CVEs.
 //
-// Fleet does not reach vuln.go.dev directly. cmd/govulndb-mirror, run by a job in
+// AutoMDM does not reach vuln.go.dev directly. cmd/govulndb-mirror, run by a job in
 // fleetdm/vulnerabilities, publishes the database as a release asset there, keeping a single
 // egress point for restricted deployments. See README.md for the artifact contract.
 //

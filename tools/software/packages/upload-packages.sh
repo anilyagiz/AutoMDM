@@ -4,10 +4,10 @@ set -euo pipefail
 shopt -s nullglob
 
 usage() {
-  echo "Usage: $0 -u FLEET_URL -t TEAM_ID -k API_TOKEN -f FOLDERPATH [-a]"
+  echo "Usage: $0 -u AUTOMDM_URL -t TEAM_ID -k API_TOKEN -f FOLDERPATH [-a]"
   echo ""
   echo "Options:"
-  echo "  -u FLEET_URL     The Fleet server URL"
+  echo "  -u AUTOMDM_URL     The AutoMDM server URL"
   echo "  -t TEAM_ID       The team ID"
   echo "  -k API_TOKEN     The API token for authentication"
   echo "  -f FOLDERPATH    Path to the folder containing packages"
@@ -32,7 +32,7 @@ if [[ -z "${API_URL:-}" || -z "${TEAM_ID:-}" || -z "${API_TOKEN:-}" || -z "${FOL
   usage
 fi
 
-ENDPOINT="$API_URL/api/v1/fleet/software/package"
+ENDPOINT="$API_URL/api/v1/automdm/software/package"
 found_files=false
 
 files=("$FOLDER"/*)
@@ -53,7 +53,7 @@ for file in "${files[@]}"; do
     -X POST "$ENDPOINT"
     -H "Authorization: Bearer $API_TOKEN"
     -F "software=@${file}"
-    -F "fleet_id=$TEAM_ID"
+    -F "team_id=$TEAM_ID"
     -F "automatic_install=$AUTO_INSTALL"
   )
 

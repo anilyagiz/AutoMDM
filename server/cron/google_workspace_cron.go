@@ -7,13 +7,13 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/service/schedule"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/service/schedule"
 )
 
 const (
-	// googleWorkspaceSyncInterval is how often Fleet pulls the Google Workspace directory.
+	// googleWorkspaceSyncInterval is how often AutoMDM pulls the Google Workspace directory.
 	googleWorkspaceSyncInterval = 5 * time.Minute
 
 	// scimSyncPageSize is the page size used when loading the current scim_* state
@@ -25,18 +25,18 @@ const (
 // integration. It is injected so cron can run without importing the EE client
 // package directly and so tests can supply a fake directory. The logger is
 // passed through so the directory client can emit per-user/group debug logs.
-type GoogleWorkspaceDirectoryFactory func(ctx context.Context, intg *fleet.GoogleWorkspaceIntegration, logger *slog.Logger) (fleet.GoogleWorkspaceDirectory, error)
+type GoogleWorkspaceDirectoryFactory func(ctx context.Context, intg *automdm.GoogleWorkspaceIntegration, logger *slog.Logger) (automdm.GoogleWorkspaceDirectory, error)
 
 // NewGoogleWorkspaceSchedule registers the periodic Google Workspace directory
 // sync. The job no-ops when no Google Workspace integration is configured.
 func NewGoogleWorkspaceSchedule(
 	ctx context.Context,
 	instanceID string,
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	factory GoogleWorkspaceDirectoryFactory,
 	logger *slog.Logger,
 ) (*schedule.Schedule, error) {
-	name := string(fleet.CronGoogleWorkspaceSync)
+	name := string(automdm.CronGoogleWorkspaceSync)
 	logger = logger.With("cron", name)
 	s := schedule.New(
 		ctx, name, instanceID, googleWorkspaceSyncInterval, ds, ds,
@@ -56,7 +56,7 @@ func NewGoogleWorkspaceSchedule(
 // because Google Workspace and SCIM are mutually exclusive (SCIM is ignored while
 // a Google Workspace integration is configured), that row represents the last IdP
 // ingest regardless of source.
-func cronGoogleWorkspaceSync(ctx context.Context, ds fleet.Datastore, factory GoogleWorkspaceDirectoryFactory, logger *slog.Logger) error {
+func cronGoogleWorkspaceSync(ctx context.Context, ds automdm.Datastore, factory GoogleWorkspaceDirectoryFactory, logger *slog.Logger) error {
 	appConfig, err := ds.AppConfig(ctx)
 	if err != nil {
 		return ctxerr.Wrap(ctx, err, "load app config")
@@ -69,13 +69,13 @@ func cronGoogleWorkspaceSync(ctx context.Context, ds fleet.Datastore, factory Go
 
 	syncErr := syncGoogleWorkspaceDirectory(ctx, ds, factory, intg, logger)
 
-	lastRequest := &fleet.ScimLastRequest{Status: "success"}
+	lastRequest := &automdm.ScimLastRequest{Status: "success"}
 	if syncErr != nil {
 		lastRequest.Status = "error"
 		// The scim_last_request.details column is VARCHAR(255). Sync errors can wrap
 		// arbitrarily long messages from the Google API, so truncate before writing or
 		// UpdateScimLastRequest rejects the row and the failure goes unrecorded.
-		lastRequest.Details = truncateRunes(syncErr.Error(), fleet.SCIMMaxFieldLength)
+		lastRequest.Details = truncateRunes(syncErr.Error(), automdm.SCIMMaxFieldLength)
 		logger.ErrorContext(ctx, "google workspace sync failed", "err", syncErr)
 	}
 	if err := ds.UpdateScimLastRequest(ctx, lastRequest); err != nil {
@@ -102,13 +102,13 @@ func truncateRunes(s string, maxRunes int) string {
 
 // syncGoogleWorkspaceDirectory pulls the full directory and reconciles it into the
 // scim_* tables. Everything downstream of those tables (host linking, IdP host
-// vitals, host-vitals labels, Fleet variables) is source-agnostic and works
+// vitals, host-vitals labels, AutoMDM variables) is source-agnostic and works
 // unchanged.
 func syncGoogleWorkspaceDirectory(
 	ctx context.Context,
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	factory GoogleWorkspaceDirectoryFactory,
-	intg *fleet.GoogleWorkspaceIntegration,
+	intg *automdm.GoogleWorkspaceIntegration,
 	logger *slog.Logger,
 ) error {
 	dir, err := factory(ctx, intg, logger)
@@ -151,14 +151,14 @@ func syncGoogleWorkspaceDirectory(
 
 // syncGoogleWorkspaceUsers reconciles users and returns a map of Google user ID
 // (external_id) -> scim_users.id, used to resolve group membership.
-func syncGoogleWorkspaceUsers(ctx context.Context, ds fleet.Datastore, gwUsers []*fleet.ScimUser, logger *slog.Logger) (map[string]uint, int, error) {
+func syncGoogleWorkspaceUsers(ctx context.Context, ds automdm.Datastore, gwUsers []*automdm.ScimUser, logger *slog.Logger) (map[string]uint, int, error) {
 	existing, err := listAllScimUsers(ctx, ds)
 	if err != nil {
 		// Failing to load the current state is fatal: without it every user would
 		// look new and we'd attempt to recreate the entire directory.
 		return nil, 0, ctxerr.Wrap(ctx, err, "list existing scim users")
 	}
-	existingByExtID := make(map[string]*fleet.ScimUser, len(existing))
+	existingByExtID := make(map[string]*automdm.ScimUser, len(existing))
 	for i := range existing {
 		u := &existing[i]
 		if u.ExternalID != nil {
@@ -228,8 +228,8 @@ func syncGoogleWorkspaceUsers(ctx context.Context, ds fleet.Datastore, gwUsers [
 // member Google user IDs to scim_users.id via extIDToScimUserID.
 func syncGoogleWorkspaceGroups(
 	ctx context.Context,
-	ds fleet.Datastore,
-	gwGroups []*fleet.GoogleWorkspaceGroup,
+	ds automdm.Datastore,
+	gwGroups []*automdm.GoogleWorkspaceGroup,
 	extIDToScimUserID map[string]uint,
 	logger *slog.Logger,
 ) (int, error) {
@@ -238,7 +238,7 @@ func syncGoogleWorkspaceGroups(
 		// Failing to load the current state is fatal (see syncGoogleWorkspaceUsers).
 		return 0, ctxerr.Wrap(ctx, err, "list existing scim groups")
 	}
-	existingByExtID := make(map[string]*fleet.ScimGroup, len(existing))
+	existingByExtID := make(map[string]*automdm.ScimGroup, len(existing))
 	for i := range existing {
 		g := &existing[i]
 		if g.ExternalID != nil {
@@ -266,7 +266,7 @@ func syncGoogleWorkspaceGroups(
 		}
 
 		displayName := uniqueDisplayName(gg.DisplayName, gg.ExternalID, usedDisplayNames)
-		desired := &fleet.ScimGroup{
+		desired := &automdm.ScimGroup{
 			ExternalID:  new(gg.ExternalID),
 			DisplayName: displayName,
 			ScimUsers:   memberIDs,
@@ -326,7 +326,7 @@ func uniqueDisplayName(displayName, externalID string, used map[string]struct{})
 	return candidate
 }
 
-func scimUserNeedsUpdate(existing, desired *fleet.ScimUser) bool {
+func scimUserNeedsUpdate(existing, desired *automdm.ScimUser) bool {
 	switch {
 	case existing.UserName != desired.UserName:
 		return true
@@ -345,19 +345,19 @@ func scimUserNeedsUpdate(existing, desired *fleet.ScimUser) bool {
 	}
 }
 
-func scimGroupNeedsUpdate(existing, desired *fleet.ScimGroup) bool {
+func scimGroupNeedsUpdate(existing, desired *automdm.ScimGroup) bool {
 	if existing.DisplayName != desired.DisplayName {
 		return true
 	}
 	return !uintSetEqual(existing.ScimUsers, desired.ScimUsers)
 }
 
-func listAllScimUsers(ctx context.Context, ds fleet.Datastore) ([]fleet.ScimUser, error) {
-	var all []fleet.ScimUser
+func listAllScimUsers(ctx context.Context, ds automdm.Datastore) ([]automdm.ScimUser, error) {
+	var all []automdm.ScimUser
 	startIndex := uint(1)
 	for {
-		page, total, err := ds.ListScimUsers(ctx, fleet.ScimUsersListOptions{
-			ScimListOptions: fleet.ScimListOptions{StartIndex: startIndex, PerPage: scimSyncPageSize},
+		page, total, err := ds.ListScimUsers(ctx, automdm.ScimUsersListOptions{
+			ScimListOptions: automdm.ScimListOptions{StartIndex: startIndex, PerPage: scimSyncPageSize},
 		})
 		if err != nil {
 			return nil, err
@@ -371,12 +371,12 @@ func listAllScimUsers(ctx context.Context, ds fleet.Datastore) ([]fleet.ScimUser
 	return all, nil
 }
 
-func listAllScimGroups(ctx context.Context, ds fleet.Datastore) ([]fleet.ScimGroup, error) {
-	var all []fleet.ScimGroup
+func listAllScimGroups(ctx context.Context, ds automdm.Datastore) ([]automdm.ScimGroup, error) {
+	var all []automdm.ScimGroup
 	startIndex := uint(1)
 	for {
-		page, total, err := ds.ListScimGroups(ctx, fleet.ScimGroupsListOptions{
-			ScimListOptions: fleet.ScimListOptions{StartIndex: startIndex, PerPage: scimSyncPageSize},
+		page, total, err := ds.ListScimGroups(ctx, automdm.ScimGroupsListOptions{
+			ScimListOptions: automdm.ScimListOptions{StartIndex: startIndex, PerPage: scimSyncPageSize},
 		})
 		if err != nil {
 			return nil, err
@@ -404,7 +404,7 @@ func boolPtrEqual(a, b *bool) bool {
 	return *a == *b
 }
 
-func scimEmailsEqual(a, b []fleet.ScimUserEmail) bool {
+func scimEmailsEqual(a, b []automdm.ScimUserEmail) bool {
 	if len(a) != len(b) {
 		return false
 	}

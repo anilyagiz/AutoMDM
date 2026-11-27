@@ -1,5 +1,5 @@
-// Package cabundle holds the CA bundle that fleetctl installs as <orbit root>/certs.pem,
-// which orbit passes to osquery as --tls_server_certs when no Fleet certificate is set.
+// Package cabundle holds the CA bundle that automdmctl installs as <orbit root>/certs.pem,
+// which orbit passes to osquery as --tls_server_certs when no AutoMDM certificate is set.
 package cabundle
 
 import (
@@ -21,9 +21,9 @@ var Bundle []byte
 
 // Refresh overwrites <rootDir>/certs.pem with Bundle if they differ, and reports whether it did.
 // Package upgrades and auto-updates never rewrite the installed file, so without this hosts keep
-// the bundle of the fleetctl version that built their package. A missing file is left missing.
+// the bundle of the automdmctl version that built their package. A missing file is left missing.
 //
-// Callers must not call it when a Fleet certificate (--fleet-certificate) is configured.
+// Callers must not call it when an AutoMDM certificate (--automdm-certificate) is configured.
 func Refresh(rootDir string) (bool, error) {
 	path := filepath.Join(rootDir, FileName)
 	installed, err := os.ReadFile(path)
@@ -54,7 +54,7 @@ func writeAtomic(path string, data []byte) error {
 		err = closeErr
 	}
 	if err == nil {
-		// Same mode fleetctl package uses; the bundle holds only public CA certificates.
+		// Same mode automdmctl package uses; the bundle holds only public CA certificates.
 		err = os.Chmod(tmpPath, 0o644) //nolint:gosec // G302
 	}
 	if err == nil {

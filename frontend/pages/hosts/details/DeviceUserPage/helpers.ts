@@ -93,11 +93,11 @@ export const isSSORequiredError = (error: unknown): boolean => {
 };
 
 const ssoAttemptKey = (deviceAuthToken: string) =>
-  `fleet-device-sso-attempt:${deviceAuthToken}`;
+  `automdm-device-sso-attempt:${deviceAuthToken}`;
 
 /** One automatic trip to the IdP per token. Coming back still unauthenticated
  * means the session cookie never stuck (blocked cookies, clock skew), and
- * initiating again would bounce the end user between Fleet and the IdP forever.
+ * initiating again would bounce the end user between AutoMDM and the IdP forever.
  *
  * Unreadable storage also answers false, not just a spent attempt: the guard
  * only works if the flag survives a full page navigation, so a browser that

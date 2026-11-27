@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -52,7 +52,7 @@ func testListOSVulnerabilitiesByOSEmpty(t *testing.T, ds *Datastore) {
 func testListOSVulnerabilitiesByOS(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
-	vulns := []fleet.OSVulnerability{
+	vulns := []automdm.OSVulnerability{
 		{CVE: "cve-1", OSID: 1, ResolvedInVersion: ptr.String("1.2.3")},
 		{CVE: "cve-3", OSID: 1, ResolvedInVersion: ptr.String("10.14.2")},
 		{CVE: "cve-2", OSID: 1, ResolvedInVersion: ptr.String("8.123.1")},
@@ -61,15 +61,15 @@ func testListOSVulnerabilitiesByOS(t *testing.T, ds *Datastore) {
 	}
 
 	for _, v := range vulns {
-		_, err := ds.InsertOSVulnerability(ctx, v, fleet.MSRCSource)
+		_, err := ds.InsertOSVulnerability(ctx, v, automdm.MSRCSource)
 		require.NoError(t, err)
 	}
 
 	t.Run("returns matching", func(t *testing.T) {
-		expected := []fleet.OSVulnerability{
-			{CVE: "cve-1", OSID: 1, ResolvedInVersion: ptr.String("1.2.3"), Source: fleet.MSRCSource},
-			{CVE: "cve-3", OSID: 1, ResolvedInVersion: ptr.String("10.14.2"), Source: fleet.MSRCSource},
-			{CVE: "cve-2", OSID: 1, ResolvedInVersion: ptr.String("8.123.1"), Source: fleet.MSRCSource},
+		expected := []automdm.OSVulnerability{
+			{CVE: "cve-1", OSID: 1, ResolvedInVersion: ptr.String("1.2.3"), Source: automdm.MSRCSource},
+			{CVE: "cve-3", OSID: 1, ResolvedInVersion: ptr.String("10.14.2"), Source: automdm.MSRCSource},
+			{CVE: "cve-2", OSID: 1, ResolvedInVersion: ptr.String("8.123.1"), Source: automdm.MSRCSource},
 		}
 
 		actual, err := ds.ListOSVulnerabilitiesByOS(ctx, 1)
@@ -81,7 +81,7 @@ func testListOSVulnerabilitiesByOS(t *testing.T, ds *Datastore) {
 func testListVulnsByOsNameAndVersion(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
-	seedOS := []fleet.OperatingSystem{
+	seedOS := []automdm.OperatingSystem{
 		{
 			Name:           "Microsoft Windows 11 Pro 21H2",
 			Version:        "10.0.22000.795",
@@ -108,7 +108,7 @@ func testListVulnsByOsNameAndVersion(t *testing.T, ds *Datastore) {
 		},
 	}
 
-	var dbOS []fleet.OperatingSystem
+	var dbOS []automdm.OperatingSystem
 	for _, seed := range seedOS {
 		os, err := newOperatingSystemDB(context.Background(), ds.writer(context.Background()), seed)
 		require.NoError(t, err)
@@ -121,7 +121,7 @@ func testListVulnsByOsNameAndVersion(t *testing.T, ds *Datastore) {
 
 	mockTime := time.Date(2024, time.January, 18, 10, 0, 0, 0, time.UTC)
 
-	cveMeta := []fleet.CVEMeta{
+	cveMeta := []automdm.CVEMeta{
 		{
 			CVE:              "CVE-2021-1234",
 			CVSSScore:        ptr.Float64(9.7),
@@ -152,22 +152,22 @@ func testListVulnsByOsNameAndVersion(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// add CVEs for each OS with different architectures
-	vulns := []fleet.OSVulnerability{
+	vulns := []automdm.OSVulnerability{
 		{CVE: "CVE-2021-1234", OSID: dbOS[0].ID, ResolvedInVersion: ptr.String("1.2.3")},
 		{CVE: "CVE-2021-1235", OSID: dbOS[1].ID, ResolvedInVersion: ptr.String("10.14.2")},
 		{CVE: "CVE-2021-1236", OSID: dbOS[2].ID, ResolvedInVersion: ptr.String("103.2.1")},
 	}
 
-	_, err = ds.InsertOSVulnerabilities(ctx, vulns, fleet.MSRCSource)
+	_, err = ds.InsertOSVulnerabilities(ctx, vulns, automdm.MSRCSource)
 	require.NoError(t, err)
 
 	// push other vulns into the past to ensure "SELECT DISTINCT" wouldn't deduplicate properly
 	_, err = ds.writer(ctx).ExecContext(ctx, "UPDATE operating_system_vulnerabilities SET created_at = NOW() - INTERVAL 5 SECOND")
 	require.NoError(t, err)
 
-	_, err = ds.InsertOSVulnerabilities(ctx, []fleet.OSVulnerability{
+	_, err = ds.InsertOSVulnerabilities(ctx, []automdm.OSVulnerability{
 		{CVE: "CVE-2021-1234", OSID: dbOS[1].ID, ResolvedInVersion: ptr.String("1.2.3")}, // same OS, different arch
-	}, fleet.MSRCSource)
+	}, automdm.MSRCSource)
 	require.NoError(t, err)
 
 	// test without CVS meta
@@ -213,20 +213,20 @@ func testListVulnsByOsNameAndVersion(t *testing.T, ds *Datastore) {
 func testInsertOSVulnerabilities(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
-	vulns := []fleet.OSVulnerability{
+	vulns := []automdm.OSVulnerability{
 		{CVE: "cve-1", OSID: 1},
 		{CVE: "cve-3", OSID: 1},
 		{CVE: "cve-2", OSID: 1},
 	}
 
-	c, err := ds.InsertOSVulnerabilities(ctx, vulns, fleet.MSRCSource)
+	c, err := ds.InsertOSVulnerabilities(ctx, vulns, automdm.MSRCSource)
 	require.NoError(t, err)
 	require.Equal(t, int64(3), c)
 
-	expected := []fleet.OSVulnerability{
-		{CVE: "cve-1", OSID: 1, Source: fleet.MSRCSource},
-		{CVE: "cve-3", OSID: 1, Source: fleet.MSRCSource},
-		{CVE: "cve-2", OSID: 1, Source: fleet.MSRCSource},
+	expected := []automdm.OSVulnerability{
+		{CVE: "cve-1", OSID: 1, Source: automdm.MSRCSource},
+		{CVE: "cve-3", OSID: 1, Source: automdm.MSRCSource},
+		{CVE: "cve-2", OSID: 1, Source: automdm.MSRCSource},
 	}
 
 	actual, err := ds.ListOSVulnerabilitiesByOS(ctx, 1)
@@ -237,35 +237,35 @@ func testInsertOSVulnerabilities(t *testing.T, ds *Datastore) {
 func testInsertOSVulnerability(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
-	vulns := fleet.OSVulnerability{
+	vulns := automdm.OSVulnerability{
 		CVE: "cve-1", OSID: 1, ResolvedInVersion: ptr.String("1.2.3"),
 	}
 
-	vulnsUpdate := fleet.OSVulnerability{
+	vulnsUpdate := automdm.OSVulnerability{
 		CVE: "cve-1", OSID: 1, ResolvedInVersion: ptr.String("1.2.4"),
 	}
 
-	vulnNoCVE := fleet.OSVulnerability{
+	vulnNoCVE := automdm.OSVulnerability{
 		OSID: 1, ResolvedInVersion: ptr.String("1.2.4"),
 	}
 
 	// Inserting a vulnerability with no CVE should not insert anything
-	didInsert, err := ds.InsertOSVulnerability(ctx, vulnNoCVE, fleet.MSRCSource)
+	didInsert, err := ds.InsertOSVulnerability(ctx, vulnNoCVE, automdm.MSRCSource)
 	require.Error(t, err)
 	require.False(t, didInsert)
 
 	// Inserting a vulnerability with a CVE should insert
-	didInsert, err = ds.InsertOSVulnerability(ctx, vulns, fleet.MSRCSource)
+	didInsert, err = ds.InsertOSVulnerability(ctx, vulns, automdm.MSRCSource)
 	require.NoError(t, err)
 	require.True(t, didInsert)
 
 	// Inserting the same vulnerability should not insert, but update
-	didInsert, err = ds.InsertOSVulnerability(ctx, vulnsUpdate, fleet.MSRCSource)
+	didInsert, err = ds.InsertOSVulnerability(ctx, vulnsUpdate, automdm.MSRCSource)
 	require.NoError(t, err)
 	assert.False(t, didInsert)
 
 	// Inserting the exact same vulnerability again may or may not change updated_at, but qualifies as an update
-	didInsert, err = ds.InsertOSVulnerability(ctx, vulnsUpdate, fleet.MSRCSource)
+	didInsert, err = ds.InsertOSVulnerability(ctx, vulnsUpdate, automdm.MSRCSource)
 	require.NoError(t, err)
 	assert.False(t, didInsert)
 
@@ -274,7 +274,7 @@ func testInsertOSVulnerability(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// Inserting the exact same vulnerability again will update again, as we need to bump updated_at
-	didInsert, err = ds.InsertOSVulnerability(ctx, vulnsUpdate, fleet.MSRCSource)
+	didInsert, err = ds.InsertOSVulnerability(ctx, vulnsUpdate, automdm.MSRCSource)
 	require.NoError(t, err)
 	assert.False(t, didInsert)
 
@@ -284,7 +284,7 @@ func testInsertOSVulnerability(t *testing.T, ds *Datastore) {
 	require.Equal(t, uint(1), recentRows)
 
 	expected := vulnsUpdate
-	expected.Source = fleet.MSRCSource
+	expected.Source = automdm.MSRCSource
 
 	list1, err := ds.ListOSVulnerabilitiesByOS(ctx, 1)
 	require.NoError(t, err)
@@ -295,7 +295,7 @@ func testInsertOSVulnerability(t *testing.T, ds *Datastore) {
 func testDeleteOSVulnerabilitiesEmpty(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
-	vulns := []fleet.OSVulnerability{
+	vulns := []automdm.OSVulnerability{
 		{CVE: "cve-1", OSID: 1},
 		{CVE: "cve-1", OSID: 1},
 		{CVE: "cve-3", OSID: 1},
@@ -309,17 +309,17 @@ func testDeleteOSVulnerabilitiesEmpty(t *testing.T, ds *Datastore) {
 func testDeleteOSVulnerabilities(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
-	vulns := []fleet.OSVulnerability{
+	vulns := []automdm.OSVulnerability{
 		{CVE: "cve-1", OSID: 1},
 		{CVE: "cve-2", OSID: 1},
 		{CVE: "cve-3", OSID: 1},
 	}
 
-	c, err := ds.InsertOSVulnerabilities(ctx, vulns, fleet.MSRCSource)
+	c, err := ds.InsertOSVulnerabilities(ctx, vulns, automdm.MSRCSource)
 	require.NoError(t, err)
 	require.Equal(t, int64(3), c)
 
-	toDelete := []fleet.OSVulnerability{
+	toDelete := []automdm.OSVulnerability{
 		{CVE: "cve-2", OSID: 1},
 	}
 
@@ -328,9 +328,9 @@ func testDeleteOSVulnerabilities(t *testing.T, ds *Datastore) {
 
 	actual, err := ds.ListOSVulnerabilitiesByOS(ctx, 1)
 	require.NoError(t, err)
-	require.ElementsMatch(t, []fleet.OSVulnerability{
-		{CVE: "cve-1", OSID: 1, Source: fleet.MSRCSource},
-		{CVE: "cve-3", OSID: 1, Source: fleet.MSRCSource},
+	require.ElementsMatch(t, []automdm.OSVulnerability{
+		{CVE: "cve-1", OSID: 1, Source: automdm.MSRCSource},
+		{CVE: "cve-3", OSID: 1, Source: automdm.MSRCSource},
 	}, actual)
 }
 
@@ -338,31 +338,31 @@ func testDeleteOutOfDateOSVulnerabilities(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 	yesterday := time.Now().Add(-3 * time.Hour).Format("2006-01-02 15:04:05")
 
-	oldVuln := fleet.OSVulnerability{
+	oldVuln := automdm.OSVulnerability{
 		CVE: "cve-1", OSID: 1,
 	}
 
-	newVuln := fleet.OSVulnerability{
+	newVuln := automdm.OSVulnerability{
 		CVE: "cve-2", OSID: 1,
 	}
 
-	_, err := ds.InsertOSVulnerability(ctx, oldVuln, fleet.NVDSource)
+	_, err := ds.InsertOSVulnerability(ctx, oldVuln, automdm.NVDSource)
 	require.NoError(t, err)
 
 	_, err = ds.writer(ctx).ExecContext(ctx, "UPDATE operating_system_vulnerabilities SET updated_at = ?", yesterday)
 	require.NoError(t, err)
 
-	_, err = ds.InsertOSVulnerability(ctx, newVuln, fleet.NVDSource)
+	_, err = ds.InsertOSVulnerability(ctx, newVuln, automdm.NVDSource)
 	require.NoError(t, err)
 
 	// Delete out of date vulns
-	err = ds.DeleteOutOfDateOSVulnerabilities(ctx, fleet.NVDSource, time.Now().UTC().Add(-time.Hour))
+	err = ds.DeleteOutOfDateOSVulnerabilities(ctx, automdm.NVDSource, time.Now().UTC().Add(-time.Hour))
 	require.NoError(t, err)
 
 	actual, err := ds.ListOSVulnerabilitiesByOS(ctx, 1)
 	require.NoError(t, err)
 	require.Len(t, actual, 1)
-	require.ElementsMatch(t, []fleet.OSVulnerability{newVuln}, actual)
+	require.ElementsMatch(t, []automdm.OSVulnerability{newVuln}, actual)
 }
 
 func testDeleteOrphanedOSVulnerabilities(t *testing.T, ds *Datastore) {
@@ -396,9 +396,9 @@ func testDeleteOrphanedOSVulnerabilities(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// Insert vulnerabilities for both operating systems.
-	_, err = ds.InsertOSVulnerability(ctx, fleet.OSVulnerability{OSID: uint(osWithHostID), CVE: "CVE-2024-100"}, fleet.UbuntuOVALSource)
+	_, err = ds.InsertOSVulnerability(ctx, automdm.OSVulnerability{OSID: uint(osWithHostID), CVE: "CVE-2024-100"}, automdm.UbuntuOVALSource)
 	require.NoError(t, err)
-	_, err = ds.InsertOSVulnerability(ctx, fleet.OSVulnerability{OSID: uint(osOrphanID), CVE: "CVE-2024-200"}, fleet.UbuntuOVALSource)
+	_, err = ds.InsertOSVulnerability(ctx, automdm.OSVulnerability{OSID: uint(osOrphanID), CVE: "CVE-2024-200"}, automdm.UbuntuOVALSource)
 	require.NoError(t, err)
 
 	// Remove the host, orphaning the OS.
@@ -433,10 +433,10 @@ func testDeleteOrphanedOSVulnerabilities(t *testing.T, ds *Datastore) {
 func testListKernelsByOS(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
-	kernel1 := fleet.Software{Name: "linux-image-6.11.0-9-generic", Version: "6.11.0-9.9", Source: "deb_packages", IsKernel: true}
-	kernel2 := fleet.Software{Name: "linux-image-7.11.0-10-generic", Version: "7.11.0-10.10", Source: "deb_packages", IsKernel: true}
-	kernel3 := fleet.Software{Name: "linux-image-8.11.0-11-generic", Version: "8.11.0-11.11", Source: "deb_packages", IsKernel: true}
-	software := []fleet.Software{
+	kernel1 := automdm.Software{Name: "linux-image-6.11.0-9-generic", Version: "6.11.0-9.9", Source: "deb_packages", IsKernel: true}
+	kernel2 := automdm.Software{Name: "linux-image-7.11.0-10-generic", Version: "7.11.0-10.10", Source: "deb_packages", IsKernel: true}
+	kernel3 := automdm.Software{Name: "linux-image-8.11.0-11-generic", Version: "8.11.0-11.11", Source: "deb_packages", IsKernel: true}
+	software := []automdm.Software{
 		kernel1,
 		kernel2,
 		kernel3, // this one will have 0 vulns
@@ -445,58 +445,58 @@ func testListKernelsByOS(t *testing.T, ds *Datastore) {
 	cases := []struct {
 		name                 string
 		team                 bool
-		host                 *fleet.Host
-		software             []fleet.Software
-		vulns                []fleet.SoftwareVulnerability
+		host                 *automdm.Host
+		software             []automdm.Software
+		vulns                []automdm.SoftwareVulnerability
 		vulnsByKernelVersion map[string][]string
-		os                   fleet.OperatingSystem
+		os                   automdm.OperatingSystem
 	}{
 		{
 			name:  "ubuntu no team",
 			team:  false,
 			host:  test.NewHost(t, ds, "host_ubuntu2410", "", "hostkey_ubuntu2410", "hostuuid_ubuntu2410", time.Now(), test.WithPlatform("linux")),
-			vulns: []fleet.SoftwareVulnerability{{CVE: "CVE-2025-0001"}, {CVE: "CVE-2025-0002"}, {CVE: "CVE-2025-0003"}},
+			vulns: []automdm.SoftwareVulnerability{{CVE: "CVE-2025-0001"}, {CVE: "CVE-2025-0002"}, {CVE: "CVE-2025-0003"}},
 			vulnsByKernelVersion: map[string][]string{
 				kernel1.Version: {"CVE-2025-0001", "CVE-2025-0002"},
 				kernel2.Version: {"CVE-2025-0003"},
 				kernel3.Version: nil,
 			},
 			software: software,
-			os:       fleet.OperatingSystem{Name: "Ubuntu", Version: "24.10", Arch: "x86_64", KernelVersion: "6.11.0-9-generic", Platform: "ubuntu"},
+			os:       automdm.OperatingSystem{Name: "Ubuntu", Version: "24.10", Arch: "x86_64", KernelVersion: "6.11.0-9-generic", Platform: "ubuntu"},
 		},
 		{
 			name:     "ubuntu with team",
 			team:     true,
 			host:     test.NewHost(t, ds, "host_ubuntu2404", "", "hostkey_ubuntu2404", "hostuuid_ubuntu2404", time.Now(), test.WithPlatform("linux")),
 			software: software[1:],
-			vulns:    []fleet.SoftwareVulnerability{{CVE: "CVE-2025-0004"}, {CVE: "CVE-2025-0005"}, {CVE: "CVE-2025-0003"}}, // Note the overlap; kernel2 has 0003 from the previous test
+			vulns:    []automdm.SoftwareVulnerability{{CVE: "CVE-2025-0004"}, {CVE: "CVE-2025-0005"}, {CVE: "CVE-2025-0003"}}, // Note the overlap; kernel2 has 0003 from the previous test
 			vulnsByKernelVersion: map[string][]string{
 				kernel2.Version: {"CVE-2025-0004", "CVE-2025-0005", "CVE-2025-0003"},
 				kernel3.Version: nil,
 			},
-			os: fleet.OperatingSystem{Name: "Ubuntu", Version: "24.04", Arch: "x86_64", KernelVersion: "6.11.0-9-generic", Platform: "ubuntu"},
+			os: automdm.OperatingSystem{Name: "Ubuntu", Version: "24.04", Arch: "x86_64", KernelVersion: "6.11.0-9-generic", Platform: "ubuntu"},
 		},
 		{
 			name:     "amazon linux with team",
 			team:     true,
 			host:     test.NewHost(t, ds, "host_amzn2023", "", "hostkey_amzn2023", "hostuuid_amzn2023", time.Now(), test.WithPlatform("fedora")),
-			software: []fleet.Software{{Name: "kernel", Version: "6.1.144", Arch: "x86_64", Source: "rpm_packages", IsKernel: true}},
-			vulns:    []fleet.SoftwareVulnerability{{CVE: "CVE-2025-0006"}},
+			software: []automdm.Software{{Name: "kernel", Version: "6.1.144", Arch: "x86_64", Source: "rpm_packages", IsKernel: true}},
+			vulns:    []automdm.SoftwareVulnerability{{CVE: "CVE-2025-0006"}},
 			vulnsByKernelVersion: map[string][]string{
 				"6.1.144": {"CVE-2025-0006"},
 			},
-			os: fleet.OperatingSystem{Name: "Amazon Linux", Version: "2023.0.0", Arch: "x86_64", KernelVersion: "6.1.144-170.251.amzn2023.x86_64", Platform: "amzn"},
+			os: automdm.OperatingSystem{Name: "Amazon Linux", Version: "2023.0.0", Arch: "x86_64", KernelVersion: "6.1.144-170.251.amzn2023.x86_64", Platform: "amzn"},
 		},
 		{
 			name:     "RHEL with team",
 			team:     true,
 			host:     test.NewHost(t, ds, "host_fedora41", "", "hostkey_fedora41", "hostuuid_fedora41", time.Now(), test.WithPlatform("rhel")),
-			software: []fleet.Software{{Name: "kernel", Version: "6.11.4", Arch: "aarch64", Source: "rpm_packages", IsKernel: true}},
-			vulns:    []fleet.SoftwareVulnerability{{CVE: "CVE-2025-0007"}},
+			software: []automdm.Software{{Name: "kernel", Version: "6.11.4", Arch: "aarch64", Source: "rpm_packages", IsKernel: true}},
+			vulns:    []automdm.SoftwareVulnerability{{CVE: "CVE-2025-0007"}},
 			vulnsByKernelVersion: map[string][]string{
 				"6.11.4": {"CVE-2025-0007"},
 			},
-			os: fleet.OperatingSystem{Name: "Fedora Linux", Version: "41.0.0", Arch: "aarch64", KernelVersion: "6.11.4-301.fc41.aarch64", Platform: "rhel"},
+			os: automdm.OperatingSystem{Name: "Fedora Linux", Version: "41.0.0", Arch: "aarch64", KernelVersion: "6.11.4-301.fc41.aarch64", Platform: "rhel"},
 		},
 	}
 
@@ -504,9 +504,9 @@ func testListKernelsByOS(t *testing.T, ds *Datastore) {
 		t.Run(tt.name, func(t *testing.T) {
 			var teamID uint
 			if tt.team {
-				team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "team1_" + tt.name})
+				team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "team1_" + tt.name})
 				require.NoError(t, err)
-				require.NoError(t, ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team1.ID, []uint{tt.host.ID})))
+				require.NoError(t, ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team1.ID, []uint{tt.host.ID})))
 				teamID = team1.ID
 			}
 
@@ -529,17 +529,17 @@ func testListKernelsByOS(t *testing.T, ds *Datastore) {
 				softwareIDByVersion[s.Version] = s.ID
 			}
 
-			cpes := []fleet.SoftwareCPE{
+			cpes := []automdm.SoftwareCPE{
 				{SoftwareID: tt.host.Software[0].ID, CPE: "somecpe"},
 			}
 			_, err = ds.UpsertSoftwareCPEs(ctx, cpes)
 			require.NoError(t, err)
 			require.NoError(t, ds.LoadHostSoftware(ctx, tt.host, false))
 
-			var vulnsToInsert []fleet.SoftwareVulnerability
+			var vulnsToInsert []automdm.SoftwareVulnerability
 			for k, v := range tt.vulnsByKernelVersion {
 				for _, s := range v {
-					vulnsToInsert = append(vulnsToInsert, fleet.SoftwareVulnerability{
+					vulnsToInsert = append(vulnsToInsert, automdm.SoftwareVulnerability{
 						SoftwareID: softwareIDByVersion[k],
 						CVE:        s,
 					})
@@ -547,7 +547,7 @@ func testListKernelsByOS(t *testing.T, ds *Datastore) {
 			}
 
 			for _, v := range vulnsToInsert {
-				_, err = ds.InsertSoftwareVulnerability(ctx, v, fleet.NVDSource)
+				_, err = ds.InsertSoftwareVulnerability(ctx, v, automdm.NVDSource)
 				require.NoError(t, err)
 			}
 			require.NoError(t, ds.LoadHostSoftware(ctx, tt.host, false))
@@ -612,18 +612,18 @@ func testKernelVulnsHostCount(t *testing.T, ds *Datastore) {
 	// Same as host 2 and 3, but on a different team
 	host4 := test.NewHost(t, ds, "host_ubuntu2404_3", "", "hostkey_ubuntu2404_3", "hostuuid_ubuntu2404_3", time.Now(), test.WithPlatform("ubuntu"))
 
-	os1 := &fleet.OperatingSystem{Name: "Ubuntu", Version: "24.10", Arch: "x86_64", KernelVersion: "6.11.0-9-generic", Platform: "ubuntu"}
-	os2 := &fleet.OperatingSystem{Name: "Ubuntu", Version: "24.04", Arch: "x86_64", KernelVersion: "6.11.0-9-generic", Platform: "ubuntu"}
+	os1 := &automdm.OperatingSystem{Name: "Ubuntu", Version: "24.10", Arch: "x86_64", KernelVersion: "6.11.0-9-generic", Platform: "ubuntu"}
+	os2 := &automdm.OperatingSystem{Name: "Ubuntu", Version: "24.04", Arch: "x86_64", KernelVersion: "6.11.0-9-generic", Platform: "ubuntu"}
 
-	kernel := fleet.Software{Name: "linux-image-6.11.0-9-generic", Version: "6.11.0-9.9", Source: "deb_packages", IsKernel: true}
+	kernel := automdm.Software{Name: "linux-image-6.11.0-9-generic", Version: "6.11.0-9.9", Source: "deb_packages", IsKernel: true}
 
-	team1, err := ds.NewTeam(ctx, &fleet.Team{Name: "team1_" + t.Name()})
+	team1, err := ds.NewTeam(ctx, &automdm.Team{Name: "team1_" + t.Name()})
 	require.NoError(t, err)
 
-	team2, err := ds.NewTeam(ctx, &fleet.Team{Name: "team2_" + t.Name()})
+	team2, err := ds.NewTeam(ctx, &automdm.Team{Name: "team2_" + t.Name()})
 	require.NoError(t, err)
-	require.NoError(t, ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team1.ID, []uint{host1.ID, host2.ID, host3.ID})))
-	require.NoError(t, ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team2.ID, []uint{host4.ID})))
+	require.NoError(t, ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team1.ID, []uint{host1.ID, host2.ID, host3.ID})))
+	require.NoError(t, ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team2.ID, []uint{host4.ID})))
 
 	require.NoError(t, ds.UpdateHostOperatingSystem(ctx, host1.ID, *os1))
 	require.NoError(t, ds.UpdateHostOperatingSystem(ctx, host2.ID, *os2))
@@ -636,33 +636,33 @@ func testKernelVulnsHostCount(t *testing.T, ds *Datastore) {
 	os2, err = ds.GetHostOperatingSystem(ctx, host2.ID)
 	require.NoError(t, err)
 
-	addKernelToHost := func(h *fleet.Host) {
-		var vulnsToInsert []fleet.SoftwareVulnerability
-		_, err = ds.UpdateHostSoftware(ctx, h.ID, []fleet.Software{kernel})
+	addKernelToHost := func(h *automdm.Host) {
+		var vulnsToInsert []automdm.SoftwareVulnerability
+		_, err = ds.UpdateHostSoftware(ctx, h.ID, []automdm.Software{kernel})
 		require.NoError(t, err)
 		require.NoError(t, ds.LoadHostSoftware(ctx, h, false))
 
-		_, err = ds.UpsertSoftwareCPEs(ctx, []fleet.SoftwareCPE{{SoftwareID: h.Software[0].ID, CPE: "somecpe"}})
+		_, err = ds.UpsertSoftwareCPEs(ctx, []automdm.SoftwareCPE{{SoftwareID: h.Software[0].ID, CPE: "somecpe"}})
 		require.NoError(t, err)
 
 		for _, cve := range []string{"CVE-2025-0001", "CVE-2025-0002"} {
-			vulnsToInsert = append(vulnsToInsert, fleet.SoftwareVulnerability{
+			vulnsToInsert = append(vulnsToInsert, automdm.SoftwareVulnerability{
 				SoftwareID: h.Software[0].ID,
 				CVE:        cve,
 			})
 		}
 
 		for _, v := range vulnsToInsert {
-			_, err = ds.InsertSoftwareVulnerability(ctx, v, fleet.NVDSource)
+			_, err = ds.InsertSoftwareVulnerability(ctx, v, automdm.NVDSource)
 			require.NoError(t, err)
 		}
 	}
 
-	for _, h := range []*fleet.Host{host1, host2, host3, host4} {
+	for _, h := range []*automdm.Host{host1, host2, host3, host4} {
 		addKernelToHost(h)
 	}
 
-	for _, h := range []*fleet.Host{host1, host2, host3, host4} {
+	for _, h := range []*automdm.Host{host1, host2, host3, host4} {
 		require.NoError(t, ds.LoadHostSoftware(ctx, h, false))
 	}
 
@@ -712,7 +712,7 @@ func testKernelVulnsHostCount(t *testing.T, ds *Datastore) {
 
 	// Add another host to team1, counts should update
 	host5 := test.NewHost(t, ds, "host_ubuntu2404_4", "", "hostkey_ubuntu2404_4", "hostuuid_ubuntu2404_4", time.Now(), test.WithPlatform("ubuntu"))
-	require.NoError(t, ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team1.ID, []uint{host5.ID})))
+	require.NoError(t, ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team1.ID, []uint{host5.ID})))
 	require.NoError(t, ds.UpdateHostOperatingSystem(ctx, host5.ID, *os2))
 	addKernelToHost(host5)
 
@@ -755,11 +755,11 @@ func testRefreshOSVersionVulnerabilities(t *testing.T, ds *Datastore) {
 
 	// Create test host and software
 	host := test.NewHost(t, ds, "test-host", "", "testkey", "testuuid", time.Now(), test.WithPlatform("ubuntu"))
-	team, err := ds.NewTeam(ctx, &fleet.Team{Name: "team1"})
+	team, err := ds.NewTeam(ctx, &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
-	require.NoError(t, ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&team.ID, []uint{host.ID})))
+	require.NoError(t, ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&team.ID, []uint{host.ID})))
 
-	os := fleet.OperatingSystem{
+	os := automdm.OperatingSystem{
 		Name:          "Ubuntu",
 		Version:       "22.04",
 		Arch:          "x86_64",
@@ -772,23 +772,23 @@ func testRefreshOSVersionVulnerabilities(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	// Create Linux kernel software with vulnerabilities
-	kernel := fleet.Software{
+	kernel := automdm.Software{
 		Name:     "linux",
 		Version:  "5.15.0-1",
 		Source:   "programs",
 		IsKernel: true,
 	}
-	_, err = ds.UpdateHostSoftware(ctx, host.ID, []fleet.Software{kernel})
+	_, err = ds.UpdateHostSoftware(ctx, host.ID, []automdm.Software{kernel})
 	require.NoError(t, err)
 	require.NoError(t, ds.LoadHostSoftware(ctx, host, false))
 
 	// Add CVEs to the kernel
-	vulns := []fleet.SoftwareVulnerability{
+	vulns := []automdm.SoftwareVulnerability{
 		{SoftwareID: host.Software[0].ID, CVE: "CVE-2024-0001"},
 		{SoftwareID: host.Software[0].ID, CVE: "CVE-2024-0002"},
 	}
 	for _, v := range vulns {
-		_, err = ds.InsertSoftwareVulnerability(ctx, v, fleet.NVDSource)
+		_, err = ds.InsertSoftwareVulnerability(ctx, v, automdm.NVDSource)
 		require.NoError(t, err)
 	}
 

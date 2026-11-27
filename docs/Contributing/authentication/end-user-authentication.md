@@ -1,10 +1,10 @@
 # End user authentication architecture
 
-This document provides an overview of Fleet's End User Authentication architecture for MDM.
+This document provides an overview of AutoMDM's End User Authentication architecture for MDM.
 
 ## Introduction
 
-End User Authentication in Fleet's MDM allows for associating managed devices with specific users, enabling user-based policies and personalized device management. This document provides insights into the design decisions, system components, and interactions specific to the End User Authentication functionality.
+End User Authentication in AutoMDM's MDM allows for associating managed devices with specific users, enabling user-based policies and personalized device management. This document provides insights into the design decisions, system components, and interactions specific to the End User Authentication functionality.
 
 ## Architecture overview
 
@@ -27,20 +27,20 @@ The End User Authentication architecture integrates with identity providers (IdP
 ### Automated authentication
 
 1. New device starts the enrollment process and is prompted to login to the IDP.
-2. Fleet captures the username and stores it to register after enrollment.
+2. AutoMDM captures the username and stores it to register after enrollment.
 3. Device enrolls with the MDM server.
 4. Optionally MDM server maps user information to SCIM data already sent by IdP.
 5. MDM server associates the user with the device.
 
 ## Identity provider integration
 
-Fleet integrates with various identity providers to authenticate users:
+AutoMDM integrates with various identity providers to authenticate users:
 
 - **SAML**: For integration with SAML-based identity providers such as Okta and Azure AD.
 
 ## User-device association
 
-User-device association is stored in the Fleet database and is used to apply user-specific policies and configurations to devices. The association can be established through:
+User-device association is stored in the AutoMDM database and is used to apply user-specific policies and configurations to devices. The association can be established through:
 
 - **Directory Integration**: When user information is retrieved from a directory service.
 - **Automated Authentication**: When a user enrolls in MDM after authenticating with an IDP.

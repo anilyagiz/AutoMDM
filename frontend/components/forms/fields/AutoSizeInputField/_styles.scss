@@ -1,14 +1,14 @@
 .component__auto-size-input-field {
   box-sizing: border-box;
-  color: $core-fleet-black;
+  color: $core-automdm-black;
 
   &::placeholder {
-    color: $ui-fleet-black-50;
+    color: $ui-automdm-black-50;
   }
 
   &:focus {
     outline: none;
-    border-color: $core-fleet-black;
+    border-color: $core-automdm-black;
   }
 
   .input-sizer {

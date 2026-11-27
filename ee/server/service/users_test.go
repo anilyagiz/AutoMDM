@@ -3,8 +3,8 @@ package service
 import (
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/stretchr/testify/require"
 )
 
@@ -13,9 +13,9 @@ func TestRolesChanged(t *testing.T) {
 		name string
 
 		oldGlobal *string
-		oldTeams  []fleet.UserTeam
+		oldTeams  []automdm.UserTeam
 		newGlobal *string
-		newTeams  []fleet.UserTeam
+		newTeams  []automdm.UserTeam
 
 		expectedRolesChanged bool
 	}{
@@ -48,9 +48,9 @@ func TestRolesChanged(t *testing.T) {
 		{
 			name:      "global-role-to-team-role",
 			oldGlobal: ptr.String("admin"),
-			newTeams: []fleet.UserTeam{
+			newTeams: []automdm.UserTeam{
 				{
-					Team: fleet.Team{ID: 1},
+					Team: automdm.Team{ID: 1},
 					Role: "admin",
 				},
 			},
@@ -58,23 +58,23 @@ func TestRolesChanged(t *testing.T) {
 		},
 		{
 			name: "change-role-in-teams",
-			oldTeams: []fleet.UserTeam{
+			oldTeams: []automdm.UserTeam{
 				{
-					Team: fleet.Team{ID: 1},
+					Team: automdm.Team{ID: 1},
 					Role: "maintainer",
 				},
 				{
-					Team: fleet.Team{ID: 2},
+					Team: automdm.Team{ID: 2},
 					Role: "maintainer",
 				},
 			},
-			newTeams: []fleet.UserTeam{
+			newTeams: []automdm.UserTeam{
 				{
-					Team: fleet.Team{ID: 1},
+					Team: automdm.Team{ID: 1},
 					Role: "admin",
 				},
 				{
-					Team: fleet.Team{ID: 2},
+					Team: automdm.Team{ID: 2},
 					Role: "maintainer",
 				},
 			},
@@ -82,19 +82,19 @@ func TestRolesChanged(t *testing.T) {
 		},
 		{
 			name: "remove-from-team",
-			oldTeams: []fleet.UserTeam{
+			oldTeams: []automdm.UserTeam{
 				{
-					Team: fleet.Team{ID: 1},
+					Team: automdm.Team{ID: 1},
 					Role: "maintainer",
 				},
 				{
-					Team: fleet.Team{ID: 2},
+					Team: automdm.Team{ID: 2},
 					Role: "maintainer",
 				},
 			},
-			newTeams: []fleet.UserTeam{
+			newTeams: []automdm.UserTeam{
 				{
-					Team: fleet.Team{ID: 2},
+					Team: automdm.Team{ID: 2},
 					Role: "maintainer",
 				},
 			},
@@ -102,23 +102,23 @@ func TestRolesChanged(t *testing.T) {
 		},
 		{
 			name: "no-change-teams",
-			oldTeams: []fleet.UserTeam{
+			oldTeams: []automdm.UserTeam{
 				{
-					Team: fleet.Team{ID: 1},
+					Team: automdm.Team{ID: 1},
 					Role: "admin",
 				},
 				{
-					Team: fleet.Team{ID: 2},
+					Team: automdm.Team{ID: 2},
 					Role: "maintainer",
 				},
 			},
-			newTeams: []fleet.UserTeam{
+			newTeams: []automdm.UserTeam{
 				{
-					Team: fleet.Team{ID: 1},
+					Team: automdm.Team{ID: 1},
 					Role: "admin",
 				},
 				{
-					Team: fleet.Team{ID: 2},
+					Team: automdm.Team{ID: 2},
 					Role: "maintainer",
 				},
 			},
@@ -126,13 +126,13 @@ func TestRolesChanged(t *testing.T) {
 		},
 		{
 			name: "added-to-teams",
-			newTeams: []fleet.UserTeam{
+			newTeams: []automdm.UserTeam{
 				{
-					Team: fleet.Team{ID: 1},
+					Team: automdm.Team{ID: 1},
 					Role: "admin",
 				},
 				{
-					Team: fleet.Team{ID: 2},
+					Team: automdm.Team{ID: 2},
 					Role: "maintainer",
 				},
 			},
@@ -140,23 +140,23 @@ func TestRolesChanged(t *testing.T) {
 		},
 		{
 			name: "removed-from-a-team-and-added-to-another",
-			oldTeams: []fleet.UserTeam{
+			oldTeams: []automdm.UserTeam{
 				{
-					Team: fleet.Team{ID: 1},
+					Team: automdm.Team{ID: 1},
 					Role: "admin",
 				},
 				{
-					Team: fleet.Team{ID: 3},
+					Team: automdm.Team{ID: 3},
 					Role: "observer",
 				},
 			},
-			newTeams: []fleet.UserTeam{
+			newTeams: []automdm.UserTeam{
 				{
-					Team: fleet.Team{ID: 1},
+					Team: automdm.Team{ID: 1},
 					Role: "admin",
 				},
 				{
-					Team: fleet.Team{ID: 2},
+					Team: automdm.Team{ID: 2},
 					Role: "maintainer",
 				},
 			},

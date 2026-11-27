@@ -13,14 +13,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/ee/server/calendar"
-	activity_api "github.com/fleetdm/fleet/v4/server/activity/api"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/datastore/redis/redistest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/service/redis_lock"
+	"github.com/anilyagiz/automdm/v4/ee/server/calendar"
+	activity_api "github.com/anilyagiz/automdm/v4/server/activity/api"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis/redistest"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/service/redis_lock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/googleapi"
@@ -120,23 +120,23 @@ func TestEventForDifferentHost(t *testing.T) {
 	ds := new(mock.Store)
 	ctx := context.Background()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{
-			Integrations: fleet.Integrations{
-				GoogleCalendar: []*fleet.GoogleCalendarIntegration{
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{
+			Integrations: automdm.Integrations{
+				GoogleCalendar: []*automdm.GoogleCalendarIntegration{
 					{},
 				},
 			},
 		}, nil
 	}
 	teamID1 := uint(1)
-	ds.ListTeamsFunc = func(ctx context.Context, filter fleet.TeamFilter, opt fleet.ListOptions) ([]*fleet.Team, error) {
-		return []*fleet.Team{
+	ds.ListTeamsFunc = func(ctx context.Context, filter automdm.TeamFilter, opt automdm.ListOptions) ([]*automdm.Team, error) {
+		return []*automdm.Team{
 			{
 				ID: teamID1,
-				Config: fleet.TeamConfig{
-					Integrations: fleet.TeamIntegrations{
-						GoogleCalendar: &fleet.TeamGoogleCalendarIntegration{
+				Config: automdm.TeamConfig{
+					Integrations: automdm.TeamIntegrations{
+						GoogleCalendar: &automdm.TeamGoogleCalendarIntegration{
 							Enable: true,
 						},
 					},
@@ -145,9 +145,9 @@ func TestEventForDifferentHost(t *testing.T) {
 		}, nil
 	}
 	policyID1 := uint(10)
-	ds.GetCalendarPoliciesFunc = func(ctx context.Context, teamID uint) ([]fleet.PolicyCalendarData, error) {
+	ds.GetCalendarPoliciesFunc = func(ctx context.Context, teamID uint) ([]automdm.PolicyCalendarData, error) {
 		require.Equal(t, teamID1, teamID)
-		return []fleet.PolicyCalendarData{
+		return []automdm.PolicyCalendarData{
 			{
 				ID:   policyID1,
 				Name: "Policy 1",
@@ -159,10 +159,10 @@ func TestEventForDifferentHost(t *testing.T) {
 	userEmail1 := "user@example.com"
 	ds.GetTeamHostsPolicyMembershipsFunc = func(
 		ctx context.Context, domain string, teamID uint, policyIDs []uint, _ *uint,
-	) ([]fleet.HostPolicyMembershipData, error) {
+	) ([]automdm.HostPolicyMembershipData, error) {
 		require.Equal(t, teamID1, teamID)
 		require.Equal(t, []uint{policyID1}, policyIDs)
-		return []fleet.HostPolicyMembershipData{
+		return []automdm.HostPolicyMembershipData{
 			{
 				HostID:           hostID1,
 				Email:            userEmail1,
@@ -173,19 +173,19 @@ func TestEventForDifferentHost(t *testing.T) {
 	}
 	// Return an existing event, but for a different host
 	eventTime := time.Now().Add(time.Hour)
-	ds.GetHostCalendarEventByEmailFunc = func(ctx context.Context, email string) (*fleet.HostCalendarEvent, *fleet.CalendarEvent, error) {
+	ds.GetHostCalendarEventByEmailFunc = func(ctx context.Context, email string) (*automdm.HostCalendarEvent, *automdm.CalendarEvent, error) {
 		require.Equal(t, userEmail1, email)
-		calEvent := &fleet.CalendarEvent{
+		calEvent := &automdm.CalendarEvent{
 			ID:        1,
 			Email:     email,
 			StartTime: eventTime,
 			EndTime:   eventTime,
 		}
-		hcEvent := &fleet.HostCalendarEvent{
+		hcEvent := &automdm.HostCalendarEvent{
 			ID:              1,
 			HostID:          hostID2,
 			CalendarEventID: 1,
-			WebhookStatus:   fleet.CalendarWebhookStatusNone,
+			WebhookStatus:   automdm.CalendarWebhookStatusNone,
 		}
 		return hcEvent, calEvent, nil
 	}
@@ -218,14 +218,14 @@ func TestCalendarEventsMultipleHosts(t *testing.T) {
 	//	hostID4 does not have example.com email and is passing policies.
 	//
 
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{
-			Integrations: fleet.Integrations{
-				GoogleCalendar: []*fleet.GoogleCalendarIntegration{
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{
+			Integrations: automdm.Integrations{
+				GoogleCalendar: []*automdm.GoogleCalendarIntegration{
 					{
 						Domain: "example.com",
-						ApiKey: fleet.GoogleCalendarApiKey{Values: map[string]string{
-							fleet.GoogleCalendarEmail: "calendar-mock@example.com",
+						ApiKey: automdm.GoogleCalendarApiKey{Values: map[string]string{
+							automdm.GoogleCalendarEmail: "calendar-mock@example.com",
 						}},
 					},
 				},
@@ -234,13 +234,13 @@ func TestCalendarEventsMultipleHosts(t *testing.T) {
 	}
 
 	teamID1 := uint(1)
-	ds.ListTeamsFunc = func(ctx context.Context, filter fleet.TeamFilter, opt fleet.ListOptions) ([]*fleet.Team, error) {
-		return []*fleet.Team{
+	ds.ListTeamsFunc = func(ctx context.Context, filter automdm.TeamFilter, opt automdm.ListOptions) ([]*automdm.Team, error) {
+		return []*automdm.Team{
 			{
 				ID: teamID1,
-				Config: fleet.TeamConfig{
-					Integrations: fleet.TeamIntegrations{
-						GoogleCalendar: &fleet.TeamGoogleCalendarIntegration{
+				Config: automdm.TeamConfig{
+					Integrations: automdm.TeamIntegrations{
+						GoogleCalendar: &automdm.TeamGoogleCalendarIntegration{
 							Enable:     true,
 							WebhookURL: "https://foo.example.com",
 						},
@@ -252,9 +252,9 @@ func TestCalendarEventsMultipleHosts(t *testing.T) {
 
 	policyID1 := uint(10)
 	policyID2 := uint(11)
-	ds.GetCalendarPoliciesFunc = func(ctx context.Context, teamID uint) ([]fleet.PolicyCalendarData, error) {
+	ds.GetCalendarPoliciesFunc = func(ctx context.Context, teamID uint) ([]automdm.PolicyCalendarData, error) {
 		require.Equal(t, teamID1, teamID)
-		return []fleet.PolicyCalendarData{
+		return []automdm.PolicyCalendarData{
 			{
 				ID:   policyID1,
 				Name: "Policy 1",
@@ -273,11 +273,11 @@ func TestCalendarEventsMultipleHosts(t *testing.T) {
 
 	ds.GetTeamHostsPolicyMembershipsFunc = func(
 		ctx context.Context, domain string, teamID uint, policyIDs []uint, _ *uint,
-	) ([]fleet.HostPolicyMembershipData, error) {
+	) ([]automdm.HostPolicyMembershipData, error) {
 		require.Equal(t, "example.com", domain)
 		require.Equal(t, teamID1, teamID)
 		require.Equal(t, []uint{policyID1, policyID2}, policyIDs)
-		return []fleet.HostPolicyMembershipData{
+		return []automdm.HostPolicyMembershipData{
 			{
 				HostID:           hostID1,
 				Email:            userEmail1,
@@ -302,15 +302,15 @@ func TestCalendarEventsMultipleHosts(t *testing.T) {
 			},
 		}, nil
 	}
-	ds.PolicyLiteFunc = func(ctx context.Context, policyID uint) (*fleet.PolicyLite, error) {
+	ds.PolicyLiteFunc = func(ctx context.Context, policyID uint) (*automdm.PolicyLite, error) {
 		switch policyID {
 		case policyID1:
-			return &fleet.PolicyLite{
+			return &automdm.PolicyLite{
 				ID:          policyID1,
 				Description: "Policy 1",
 			}, nil
 		case policyID2:
-			return &fleet.PolicyLite{
+			return &automdm.PolicyLite{
 				ID:          policyID2,
 				Description: "Policy 2",
 			}, nil
@@ -320,13 +320,13 @@ func TestCalendarEventsMultipleHosts(t *testing.T) {
 		}
 	}
 
-	ds.GetHostCalendarEventByEmailFunc = func(ctx context.Context, email string) (*fleet.HostCalendarEvent, *fleet.CalendarEvent, error) {
+	ds.GetHostCalendarEventByEmailFunc = func(ctx context.Context, email string) (*automdm.HostCalendarEvent, *automdm.CalendarEvent, error) {
 		return nil, nil, notFoundErr{}
 	}
 
 	var eventsMu sync.Mutex
-	calendarEvents := make(map[string]*fleet.CalendarEvent)
-	hostCalendarEvents := make(map[uint]*fleet.HostCalendarEvent)
+	calendarEvents := make(map[string]*automdm.CalendarEvent)
+	hostCalendarEvents := make(map[uint]*automdm.HostCalendarEvent)
 
 	ds.CreateOrUpdateCalendarEventFunc = func(ctx context.Context,
 		uuid string,
@@ -335,19 +335,19 @@ func TestCalendarEventsMultipleHosts(t *testing.T) {
 		data []byte,
 		timeZone *string,
 		hostID uint,
-		webhookStatus fleet.CalendarWebhookStatus,
-	) (*fleet.CalendarEvent, error) {
+		webhookStatus automdm.CalendarWebhookStatus,
+	) (*automdm.CalendarEvent, error) {
 		assert.NotEmpty(t, uuid)
 		require.Equal(t, hostID1, hostID)
 		require.Equal(t, userEmail1, email)
-		require.Equal(t, fleet.CalendarWebhookStatusNone, webhookStatus)
+		require.Equal(t, automdm.CalendarWebhookStatusNone, webhookStatus)
 		require.NotEmpty(t, data)
 		require.NotZero(t, startTime)
 		require.NotZero(t, endTime)
 
 		eventsMu.Lock()
 		calendarEventID := uint(len(calendarEvents) + 1) //nolint:gosec // dismiss G115
-		calendarEvents[email] = &fleet.CalendarEvent{
+		calendarEvents[email] = &automdm.CalendarEvent{
 			ID:        calendarEventID,
 			Email:     email,
 			StartTime: startTime,
@@ -355,7 +355,7 @@ func TestCalendarEventsMultipleHosts(t *testing.T) {
 			Data:      data,
 		}
 		hostCalendarEventID := uint(len(hostCalendarEvents) + 1) //nolint:gosec // dismiss G115
-		hostCalendarEvents[hostID] = &fleet.HostCalendarEvent{
+		hostCalendarEvents[hostID] = &automdm.HostCalendarEvent{
 			ID:              hostCalendarEventID,
 			HostID:          hostID,
 			CalendarEventID: calendarEventID,
@@ -376,8 +376,8 @@ func TestCalendarEventsMultipleHosts(t *testing.T) {
 
 	createdCalendarEvents := calendar.ListGoogleMockEvents()
 	require.Len(t, createdCalendarEvents, 1)
-	strings.Contains(createdCalendarEvents["1"].Description, fleet.CalendarDefaultDescription)
-	strings.Contains(createdCalendarEvents["1"].Description, fleet.CalendarDefaultResolution)
+	strings.Contains(createdCalendarEvents["1"].Description, automdm.CalendarDefaultDescription)
+	strings.Contains(createdCalendarEvents["1"].Description, automdm.CalendarDefaultResolution)
 }
 
 type notFoundErr struct{}
@@ -404,14 +404,14 @@ func TestCalendarEvents1KHosts(t *testing.T) {
 		calendar.ClearMockChannels()
 	})
 
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{
-			Integrations: fleet.Integrations{
-				GoogleCalendar: []*fleet.GoogleCalendarIntegration{
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{
+			Integrations: automdm.Integrations{
+				GoogleCalendar: []*automdm.GoogleCalendarIntegration{
 					{
 						Domain: "example.com",
-						ApiKey: fleet.GoogleCalendarApiKey{Values: map[string]string{
-							fleet.GoogleCalendarEmail: "calendar-mock@example.com",
+						ApiKey: automdm.GoogleCalendarApiKey{Values: map[string]string{
+							automdm.GoogleCalendarEmail: "calendar-mock@example.com",
 						}},
 					},
 				},
@@ -424,13 +424,13 @@ func TestCalendarEvents1KHosts(t *testing.T) {
 	teamID3 := uint(3)
 	teamID4 := uint(4)
 	teamID5 := uint(5)
-	ds.ListTeamsFunc = func(ctx context.Context, filter fleet.TeamFilter, opt fleet.ListOptions) ([]*fleet.Team, error) {
-		return []*fleet.Team{
+	ds.ListTeamsFunc = func(ctx context.Context, filter automdm.TeamFilter, opt automdm.ListOptions) ([]*automdm.Team, error) {
+		return []*automdm.Team{
 			{
 				ID: teamID1,
-				Config: fleet.TeamConfig{
-					Integrations: fleet.TeamIntegrations{
-						GoogleCalendar: &fleet.TeamGoogleCalendarIntegration{
+				Config: automdm.TeamConfig{
+					Integrations: automdm.TeamIntegrations{
+						GoogleCalendar: &automdm.TeamGoogleCalendarIntegration{
 							Enable:     true,
 							WebhookURL: "https://foo.example.com",
 						},
@@ -439,9 +439,9 @@ func TestCalendarEvents1KHosts(t *testing.T) {
 			},
 			{
 				ID: teamID2,
-				Config: fleet.TeamConfig{
-					Integrations: fleet.TeamIntegrations{
-						GoogleCalendar: &fleet.TeamGoogleCalendarIntegration{
+				Config: automdm.TeamConfig{
+					Integrations: automdm.TeamIntegrations{
+						GoogleCalendar: &automdm.TeamGoogleCalendarIntegration{
 							Enable:     true,
 							WebhookURL: "https://foo.example.com",
 						},
@@ -450,9 +450,9 @@ func TestCalendarEvents1KHosts(t *testing.T) {
 			},
 			{
 				ID: teamID3,
-				Config: fleet.TeamConfig{
-					Integrations: fleet.TeamIntegrations{
-						GoogleCalendar: &fleet.TeamGoogleCalendarIntegration{
+				Config: automdm.TeamConfig{
+					Integrations: automdm.TeamIntegrations{
+						GoogleCalendar: &automdm.TeamGoogleCalendarIntegration{
 							Enable:     true,
 							WebhookURL: "https://foo.example.com",
 						},
@@ -461,9 +461,9 @@ func TestCalendarEvents1KHosts(t *testing.T) {
 			},
 			{
 				ID: teamID4,
-				Config: fleet.TeamConfig{
-					Integrations: fleet.TeamIntegrations{
-						GoogleCalendar: &fleet.TeamGoogleCalendarIntegration{
+				Config: automdm.TeamConfig{
+					Integrations: automdm.TeamIntegrations{
+						GoogleCalendar: &automdm.TeamGoogleCalendarIntegration{
 							Enable:     true,
 							WebhookURL: "https://foo.example.com",
 						},
@@ -472,9 +472,9 @@ func TestCalendarEvents1KHosts(t *testing.T) {
 			},
 			{
 				ID: teamID5,
-				Config: fleet.TeamConfig{
-					Integrations: fleet.TeamIntegrations{
-						GoogleCalendar: &fleet.TeamGoogleCalendarIntegration{
+				Config: automdm.TeamConfig{
+					Integrations: automdm.TeamIntegrations{
+						GoogleCalendar: &automdm.TeamGoogleCalendarIntegration{
 							Enable:     true,
 							WebhookURL: "https://foo.example.com",
 						},
@@ -494,10 +494,10 @@ func TestCalendarEvents1KHosts(t *testing.T) {
 	policyID8 := uint(17)
 	policyID9 := uint(18)
 	policyID10 := uint(19)
-	ds.GetCalendarPoliciesFunc = func(ctx context.Context, teamID uint) ([]fleet.PolicyCalendarData, error) {
+	ds.GetCalendarPoliciesFunc = func(ctx context.Context, teamID uint) ([]automdm.PolicyCalendarData, error) {
 		switch teamID {
 		case teamID1:
-			return []fleet.PolicyCalendarData{
+			return []automdm.PolicyCalendarData{
 				{
 					ID:   policyID1,
 					Name: "Policy 1",
@@ -508,7 +508,7 @@ func TestCalendarEvents1KHosts(t *testing.T) {
 				},
 			}, nil
 		case teamID2:
-			return []fleet.PolicyCalendarData{
+			return []automdm.PolicyCalendarData{
 				{
 					ID:   policyID3,
 					Name: "Policy 3",
@@ -519,7 +519,7 @@ func TestCalendarEvents1KHosts(t *testing.T) {
 				},
 			}, nil
 		case teamID3:
-			return []fleet.PolicyCalendarData{
+			return []automdm.PolicyCalendarData{
 				{
 					ID:   policyID5,
 					Name: "Policy 5",
@@ -530,7 +530,7 @@ func TestCalendarEvents1KHosts(t *testing.T) {
 				},
 			}, nil
 		case teamID4:
-			return []fleet.PolicyCalendarData{
+			return []automdm.PolicyCalendarData{
 				{
 					ID:   policyID7,
 					Name: "Policy 7",
@@ -541,7 +541,7 @@ func TestCalendarEvents1KHosts(t *testing.T) {
 				},
 			}, nil
 		case teamID5:
-			return []fleet.PolicyCalendarData{
+			return []automdm.PolicyCalendarData{
 				{
 					ID:   policyID9,
 					Name: "Policy 9",
@@ -556,9 +556,9 @@ func TestCalendarEvents1KHosts(t *testing.T) {
 		}
 	}
 
-	hosts := make([]fleet.HostPolicyMembershipData, 0, 1000)
+	hosts := make([]automdm.HostPolicyMembershipData, 0, 1000)
 	for i := 0; i < 1000; i++ {
-		newHost := fleet.HostPolicyMembershipData{
+		newHost := automdm.HostPolicyMembershipData{
 			Email:              fmt.Sprintf("user%d@example.com", i),
 			Passing:            i%2 == 0,
 			HostID:             uint(i), //nolint:gosec // dismiss G115
@@ -581,9 +581,9 @@ func TestCalendarEvents1KHosts(t *testing.T) {
 		}
 		hosts = append(hosts, newHost)
 	}
-	ds.PolicyLiteFunc = func(ctx context.Context, policyID uint) (*fleet.PolicyLite, error) {
+	ds.PolicyLiteFunc = func(ctx context.Context, policyID uint) (*automdm.PolicyLite, error) {
 		resolution := fmt.Sprintf("Resolution for policy %d", policyID)
-		return &fleet.PolicyLite{
+		return &automdm.PolicyLite{
 			ID:          policyID,
 			Description: fmt.Sprintf("Policy %d", policyID),
 			Resolution:  &resolution,
@@ -592,7 +592,7 @@ func TestCalendarEvents1KHosts(t *testing.T) {
 
 	ds.GetTeamHostsPolicyMembershipsFunc = func(
 		ctx context.Context, domain string, teamID uint, policyIDs []uint, _ *uint,
-	) ([]fleet.HostPolicyMembershipData, error) {
+	) ([]automdm.HostPolicyMembershipData, error) {
 		var start, end int
 		switch teamID {
 		case teamID1:
@@ -609,14 +609,14 @@ func TestCalendarEvents1KHosts(t *testing.T) {
 		return hosts[start:end], nil
 	}
 
-	ds.GetHostCalendarEventByEmailFunc = func(ctx context.Context, email string) (*fleet.HostCalendarEvent, *fleet.CalendarEvent, error) {
+	ds.GetHostCalendarEventByEmailFunc = func(ctx context.Context, email string) (*automdm.HostCalendarEvent, *automdm.CalendarEvent, error) {
 		return nil, nil, notFoundErr{}
 	}
 
 	eventsCreated := 0
 	var eventsCreatedMu sync.Mutex
 
-	eventPerHost := make(map[uint]*fleet.CalendarEvent)
+	eventPerHost := make(map[uint]*automdm.CalendarEvent)
 
 	ds.CreateOrUpdateCalendarEventFunc = func(ctx context.Context,
 		uuid string,
@@ -625,29 +625,29 @@ func TestCalendarEvents1KHosts(t *testing.T) {
 		data []byte,
 		timeZone *string,
 		hostID uint,
-		webhookStatus fleet.CalendarWebhookStatus,
-	) (*fleet.CalendarEvent, error) {
+		webhookStatus automdm.CalendarWebhookStatus,
+	) (*automdm.CalendarEvent, error) {
 		assert.NotEmpty(t, uuid)
 		require.Equal(t, fmt.Sprintf("user%d@example.com", hostID), email)
 		eventsCreatedMu.Lock()
 		eventsCreated += 1
-		eventPerHost[hostID] = &fleet.CalendarEvent{
+		eventPerHost[hostID] = &automdm.CalendarEvent{
 			ID:        hostID,
 			Email:     email,
 			StartTime: startTime,
 			EndTime:   endTime,
 			Data:      data,
-			UpdateCreateTimestamps: fleet.UpdateCreateTimestamps{
-				CreateTimestamp: fleet.CreateTimestamp{
+			UpdateCreateTimestamps: automdm.UpdateCreateTimestamps{
+				CreateTimestamp: automdm.CreateTimestamp{
 					CreatedAt: time.Now(),
 				},
-				UpdateTimestamp: fleet.UpdateTimestamp{
+				UpdateTimestamp: automdm.UpdateTimestamp{
 					UpdatedAt: time.Now(),
 				},
 			},
 		}
 		eventsCreatedMu.Unlock()
-		require.Equal(t, fleet.CalendarWebhookStatusNone, webhookStatus)
+		require.Equal(t, automdm.CalendarWebhookStatusNone, webhookStatus)
 		require.NotEmpty(t, data)
 		require.NotZero(t, startTime)
 		require.NotZero(t, endTime)
@@ -664,9 +664,9 @@ func TestCalendarEvents1KHosts(t *testing.T) {
 	require.Equal(t, eventsCreated, 500)
 	require.Len(t, createdCalendarEvents, 500)
 
-	hosts = make([]fleet.HostPolicyMembershipData, 0, 1000)
+	hosts = make([]automdm.HostPolicyMembershipData, 0, 1000)
 	for i := 0; i < 1000; i++ {
-		hosts = append(hosts, fleet.HostPolicyMembershipData{
+		hosts = append(hosts, automdm.HostPolicyMembershipData{
 			Email:              fmt.Sprintf("user%d@example.com", i),
 			Passing:            true,
 			HostID:             uint(i), //nolint:gosec // dismiss G115
@@ -675,18 +675,18 @@ func TestCalendarEvents1KHosts(t *testing.T) {
 		})
 	}
 
-	ds.GetHostCalendarEventByEmailFunc = func(ctx context.Context, email string) (*fleet.HostCalendarEvent, *fleet.CalendarEvent, error) {
+	ds.GetHostCalendarEventByEmailFunc = func(ctx context.Context, email string) (*automdm.HostCalendarEvent, *automdm.CalendarEvent, error) {
 		hostID, err := strconv.Atoi(strings.TrimSuffix(strings.TrimPrefix(email, "user"), "@example.com"))
 		require.NoError(t, err)
 		if hostID%2 == 0 {
 			return nil, nil, notFoundErr{}
 		}
 		require.Contains(t, eventPerHost, uint(hostID)) //nolint:gosec // dismiss G115
-		return &fleet.HostCalendarEvent{
+		return &automdm.HostCalendarEvent{
 			ID:              uint(hostID), //nolint:gosec // dismiss G115
 			HostID:          uint(hostID), //nolint:gosec // dismiss G115
 			CalendarEventID: uint(hostID), //nolint:gosec // dismiss G115
-			WebhookStatus:   fleet.CalendarWebhookStatusNone,
+			WebhookStatus:   automdm.CalendarWebhookStatusNone,
 		}, eventPerHost[uint(hostID)], nil //nolint:gosec // dismiss G115
 	}
 
@@ -745,17 +745,17 @@ func TestEventBody(t *testing.T) {
 	//
 
 	const orgName = "Test Organization"
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{
-			OrgInfo: fleet.OrgInfo{
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{
+			OrgInfo: automdm.OrgInfo{
 				OrgName: orgName,
 			},
-			Integrations: fleet.Integrations{
-				GoogleCalendar: []*fleet.GoogleCalendarIntegration{
+			Integrations: automdm.Integrations{
+				GoogleCalendar: []*automdm.GoogleCalendarIntegration{
 					{
 						Domain: "example.com",
-						ApiKey: fleet.GoogleCalendarApiKey{Values: map[string]string{
-							fleet.GoogleCalendarEmail: "calendar-mock@example.com",
+						ApiKey: automdm.GoogleCalendarApiKey{Values: map[string]string{
+							automdm.GoogleCalendarEmail: "calendar-mock@example.com",
 						}},
 					},
 				},
@@ -764,13 +764,13 @@ func TestEventBody(t *testing.T) {
 	}
 
 	teamID1 := uint(1)
-	ds.ListTeamsFunc = func(ctx context.Context, filter fleet.TeamFilter, opt fleet.ListOptions) ([]*fleet.Team, error) {
-		return []*fleet.Team{
+	ds.ListTeamsFunc = func(ctx context.Context, filter automdm.TeamFilter, opt automdm.ListOptions) ([]*automdm.Team, error) {
+		return []*automdm.Team{
 			{
 				ID: teamID1,
-				Config: fleet.TeamConfig{
-					Integrations: fleet.TeamIntegrations{
-						GoogleCalendar: &fleet.TeamGoogleCalendarIntegration{
+				Config: automdm.TeamConfig{
+					Integrations: automdm.TeamIntegrations{
+						GoogleCalendar: &automdm.TeamGoogleCalendarIntegration{
 							Enable:     true,
 							WebhookURL: "https://foo.example.com",
 						},
@@ -785,9 +785,9 @@ func TestEventBody(t *testing.T) {
 	policyID3 := uint(12)
 	policyID4 := uint(13)
 	policyID5 := uint(14)
-	ds.GetCalendarPoliciesFunc = func(ctx context.Context, teamID uint) ([]fleet.PolicyCalendarData, error) {
+	ds.GetCalendarPoliciesFunc = func(ctx context.Context, teamID uint) ([]automdm.PolicyCalendarData, error) {
 		require.Equal(t, teamID1, teamID)
-		return []fleet.PolicyCalendarData{
+		return []automdm.PolicyCalendarData{
 			{
 				ID:   policyID1,
 				Name: "Policy 1",
@@ -821,11 +821,11 @@ func TestEventBody(t *testing.T) {
 
 	ds.GetTeamHostsPolicyMembershipsFunc = func(
 		ctx context.Context, domain string, teamID uint, policyIDs []uint, _ *uint,
-	) ([]fleet.HostPolicyMembershipData, error) {
+	) ([]automdm.HostPolicyMembershipData, error) {
 		require.Equal(t, "example.com", domain)
 		require.Equal(t, teamID1, teamID)
 		require.Equal(t, []uint{policyID1, policyID2, policyID3, policyID4, policyID5}, policyIDs)
-		return []fleet.HostPolicyMembershipData{
+		return []automdm.HostPolicyMembershipData{
 			{
 				HostID:           hostID1,
 				Email:            userEmail1,
@@ -877,28 +877,28 @@ func TestEventBody(t *testing.T) {
 			},
 		}, nil
 	}
-	ds.PolicyLiteFunc = func(ctx context.Context, policyID uint) (*fleet.PolicyLite, error) {
+	ds.PolicyLiteFunc = func(ctx context.Context, policyID uint) (*automdm.PolicyLite, error) {
 		switch policyID {
 		case policyID1:
-			return &fleet.PolicyLite{
+			return &automdm.PolicyLite{
 				ID:          policyID1,
 				Description: "Description for policy 1",
 				Resolution:  ptr.String("Resolution for policy 1"),
 			}, nil
 		case policyID2:
-			return &fleet.PolicyLite{
+			return &automdm.PolicyLite{
 				ID:          policyID2,
 				Description: "Description for policy 2",
 				Resolution:  ptr.String(""),
 			}, nil
 		case policyID3:
-			return &fleet.PolicyLite{
+			return &automdm.PolicyLite{
 				ID:          policyID2,
 				Description: "Description for policy 3",
 				Resolution:  nil,
 			}, nil
 		case policyID4:
-			return &fleet.PolicyLite{
+			return &automdm.PolicyLite{
 				ID:         policyID4,
 				Resolution: ptr.String("Resolution for policy 4"),
 			}, nil
@@ -910,13 +910,13 @@ func TestEventBody(t *testing.T) {
 		}
 	}
 
-	ds.GetHostCalendarEventByEmailFunc = func(ctx context.Context, email string) (*fleet.HostCalendarEvent, *fleet.CalendarEvent, error) {
+	ds.GetHostCalendarEventByEmailFunc = func(ctx context.Context, email string) (*automdm.HostCalendarEvent, *automdm.CalendarEvent, error) {
 		return nil, nil, notFoundErr{}
 	}
 
 	var eventsMu sync.Mutex
-	calendarEvents := make(map[uint]*fleet.CalendarEvent)
-	hostCalendarEvents := make(map[uint]*fleet.HostCalendarEvent)
+	calendarEvents := make(map[uint]*automdm.CalendarEvent)
+	hostCalendarEvents := make(map[uint]*automdm.HostCalendarEvent)
 
 	ds.CreateOrUpdateCalendarEventFunc = func(
 		ctx context.Context,
@@ -926,17 +926,17 @@ func TestEventBody(t *testing.T) {
 		data []byte,
 		timeZone *string,
 		hostID uint,
-		webhookStatus fleet.CalendarWebhookStatus,
-	) (*fleet.CalendarEvent, error) {
+		webhookStatus automdm.CalendarWebhookStatus,
+	) (*automdm.CalendarEvent, error) {
 		assert.NotEmpty(t, uuid)
-		require.Equal(t, fleet.CalendarWebhookStatusNone, webhookStatus)
+		require.Equal(t, automdm.CalendarWebhookStatusNone, webhookStatus)
 		require.NotEmpty(t, data)
 		require.NotZero(t, startTime)
 		require.NotZero(t, endTime)
 
 		eventsMu.Lock()
 		calendarEventID := uint(len(calendarEvents) + 1) //nolint:gosec // dismiss G115
-		calendarEvents[hostID] = &fleet.CalendarEvent{
+		calendarEvents[hostID] = &automdm.CalendarEvent{
 			ID:        calendarEventID,
 			Email:     email,
 			StartTime: startTime,
@@ -944,7 +944,7 @@ func TestEventBody(t *testing.T) {
 			Data:      data,
 		}
 		hostCalendarEventID := uint(len(hostCalendarEvents) + 1) //nolint:gosec // dismiss G115
-		hostCalendarEvents[hostID] = &fleet.HostCalendarEvent{
+		hostCalendarEvents[hostID] = &automdm.HostCalendarEvent{
 			ID:              hostCalendarEventID,
 			HostID:          hostID,
 			CalendarEventID: calendarEventID,
@@ -970,21 +970,21 @@ func TestEventBody(t *testing.T) {
 		var details map[string]string
 		err = json.Unmarshal(calendarEvents[hostCalEvent.HostID].Data, &details)
 		require.NoError(t, err)
-		// What Google Calendar calls the "Description" is what Fleet calls the "Body," since the Body
+		// What Google Calendar calls the "Description" is what AutoMDM calls the "Body," since the Body
 		// contains a description and a resolution.
 		eventBody := createdCalendarEvents[details["id"]].Description
 		switch hostCalEvent.HostID {
 		case hostID1:
-			assert.Contains(t, eventBody, fmt.Sprintf(`%s %s (Host 1).`, orgName, fleet.CalendarBodyStaticHeader))
+			assert.Contains(t, eventBody, fmt.Sprintf(`%s %s (Host 1).`, orgName, automdm.CalendarBodyStaticHeader))
 			assert.Contains(t, eventBody, "Description for policy 1")
 			assert.Contains(t, eventBody, "Resolution for policy 1")
 		case hostID6:
-			assert.Contains(t, eventBody, fmt.Sprintf(`%s %s (Host 6).`, orgName, fleet.CalendarBodyStaticHeader))
+			assert.Contains(t, eventBody, fmt.Sprintf(`%s %s (Host 6).`, orgName, automdm.CalendarBodyStaticHeader))
 			assert.Contains(t, eventBody, "Description for policy 1")
 			assert.Contains(t, eventBody, "Resolution for policy 1")
 		default:
-			assert.Contains(t, eventBody, fmt.Sprintf(`%s %s (Host`, orgName, fleet.CalendarBodyStaticHeader))
-			assert.Contains(t, eventBody, fleet.CalendarDefaultResolution)
+			assert.Contains(t, eventBody, fmt.Sprintf(`%s %s (Host`, orgName, automdm.CalendarBodyStaticHeader))
+			assert.Contains(t, eventBody, automdm.CalendarDefaultResolution)
 		}
 	}
 }
@@ -998,12 +998,12 @@ func TestRecordCalendarFailureActivity(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	type recorded struct {
-		acts []fleet.ActivityTypeFailedAutomationCalendarEvent
+		acts []automdm.ActivityTypeFailedAutomationCalendarEvent
 	}
 	newRecorder := func(r *recorded) activity_api.NewActivityService {
-		return &mock.MockActivityService{NewActivityFunc: func(_ context.Context, user *activity_api.User, activity fleet.ActivityDetails) error {
+		return &mock.MockActivityService{NewActivityFunc: func(_ context.Context, user *activity_api.User, activity automdm.ActivityDetails) error {
 			require.Nil(t, user)
-			act, ok := activity.(fleet.ActivityTypeFailedAutomationCalendarEvent)
+			act, ok := activity.(automdm.ActivityTypeFailedAutomationCalendarEvent)
 			require.True(t, ok)
 			r.acts = append(r.acts, act)
 			return nil
@@ -1012,7 +1012,7 @@ func TestRecordCalendarFailureActivity(t *testing.T) {
 
 	t.Run("googleapi error records one activity per failing policy", func(t *testing.T) {
 		var r recorded
-		host := fleet.HostPolicyMembershipData{HostID: 100, FailingPolicyIDs: "10,20"}
+		host := automdm.HostPolicyMembershipData{HostID: 100, FailingPolicyIDs: "10,20"}
 		err := &googleapi.Error{Code: 403, Message: "Rate Limit Exceeded", Body: `{"error":"rateLimitExceeded"}`}
 
 		recordCalendarFailureActivity(ctx, newRecorder(&r), host, err, logger)
@@ -1029,7 +1029,7 @@ func TestRecordCalendarFailureActivity(t *testing.T) {
 
 	t.Run("invalid_grant oauth error is recorded", func(t *testing.T) {
 		var r recorded
-		host := fleet.HostPolicyMembershipData{HostID: 101, FailingPolicyIDs: "10"}
+		host := automdm.HostPolicyMembershipData{HostID: 101, FailingPolicyIDs: "10"}
 		err := fmt.Errorf("configure: %w", errors.New("oauth2: cannot fetch token: 400 Bad Request\nResponse: {\n  \"error\": \"invalid_grant\"\n}"))
 
 		recordCalendarFailureActivity(ctx, newRecorder(&r), host, err, logger)
@@ -1042,7 +1042,7 @@ func TestRecordCalendarFailureActivity(t *testing.T) {
 
 	t.Run("internal error records nothing", func(t *testing.T) {
 		var r recorded
-		host := fleet.HostPolicyMembershipData{HostID: 102, FailingPolicyIDs: "10"}
+		host := automdm.HostPolicyMembershipData{HostID: 102, FailingPolicyIDs: "10"}
 
 		recordCalendarFailureActivity(ctx, newRecorder(&r), host, errors.New("create calendar event on db: boom"), logger)
 
@@ -1056,12 +1056,12 @@ func TestRecordCalendarRanActivity(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	type recorded struct {
-		acts []fleet.ActivityTypeRanAutomationCalendarEvent
+		acts []automdm.ActivityTypeRanAutomationCalendarEvent
 	}
 	newRecorder := func(r *recorded) activity_api.NewActivityService {
-		return &mock.MockActivityService{NewActivityFunc: func(_ context.Context, user *activity_api.User, activity fleet.ActivityDetails) error {
+		return &mock.MockActivityService{NewActivityFunc: func(_ context.Context, user *activity_api.User, activity automdm.ActivityDetails) error {
 			require.Nil(t, user)
-			act, ok := activity.(fleet.ActivityTypeRanAutomationCalendarEvent)
+			act, ok := activity.(automdm.ActivityTypeRanAutomationCalendarEvent)
 			require.True(t, ok)
 			r.acts = append(r.acts, act)
 			return nil
@@ -1070,7 +1070,7 @@ func TestRecordCalendarRanActivity(t *testing.T) {
 
 	t.Run("records one activity per failing policy", func(t *testing.T) {
 		var r recorded
-		host := fleet.HostPolicyMembershipData{HostID: 100, FailingPolicyIDs: "10,20"}
+		host := automdm.HostPolicyMembershipData{HostID: 100, FailingPolicyIDs: "10,20"}
 
 		recordCalendarCreatedActivity(ctx, newRecorder(&r), host, logger)
 
@@ -1084,7 +1084,7 @@ func TestRecordCalendarRanActivity(t *testing.T) {
 
 	t.Run("no failing policies records nothing", func(t *testing.T) {
 		var r recorded
-		host := fleet.HostPolicyMembershipData{HostID: 101, FailingPolicyIDs: ""}
+		host := automdm.HostPolicyMembershipData{HostID: 101, FailingPolicyIDs: ""}
 
 		recordCalendarCreatedActivity(ctx, newRecorder(&r), host, logger)
 

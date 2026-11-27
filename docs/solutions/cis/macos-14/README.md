@@ -1,20 +1,20 @@
 # macOS 14 Sonoma benchmark
 
-Fleet's policies have been written against v2.1.0 of the benchmark. You can refer to the [CIS website](https://www.cisecurity.org/cis-benchmarks) for full details about this version.
+AutoMDM's policies have been written against v2.1.0 of the benchmark. You can refer to the [CIS website](https://www.cisecurity.org/cis-benchmarks) for full details about this version.
 
-For requirements and usage details, see the [CIS Benchmarks](https://fleetdm.com/docs/using-fleet/cis-benchmarks) documentation.
+For requirements and usage details, see the [CIS Benchmarks](https://automdm.com/docs/using-automdm/cis-benchmarks) documentation.
 
 ### Contents
 
 | Folder | Description |
 |--------|-------------|
-| `policies/` | GitOps-compatible policy YAML — import via `fleetctl apply` or reference with `- path:` in `fleet.yml` |
-| `configuration-profiles/` | Apple `.mobileconfig` profiles — upload via Fleet UI or `fleetctl apply` to enforce the settings checked by the policies |
-| `scripts/` | Shell scripts — upload via Fleet UI or `fleetctl apply` and link as `run_script` remediation in the corresponding policy |
+| `policies/` | GitOps-compatible policy YAML — import via `automdmctl apply` or reference with `- path:` in `automdm.yml` |
+| `configuration-profiles/` | Apple `.mobileconfig` profiles — upload via AutoMDM UI or `automdmctl apply` to enforce the settings checked by the policies |
+| `scripts/` | Shell scripts — upload via AutoMDM UI or `automdmctl apply` and link as `run_script` remediation in the corresponding policy |
 
 ### Limitations
 
-The following CIS benchmarks cannot be checked with a policy in Fleet:
+The following CIS benchmarks cannot be checked with a policy in AutoMDM:
 1. 2.1.2 Audit App Store Password Settings
 2. 2.3.3.12 Ensure Computer Name Does Not Contain PII or Protected Organizational Information
 3. 2.6.6 Audit Lockdown Mode
@@ -28,7 +28,7 @@ The following CIS benchmarks cannot be checked with a policy in Fleet:
 
 CIS has left the parameters of the following checks up to the benchmark implementer. CIS recommends that an organization make a conscious decision for these benchmarks, but does not make a specific recommendation.
 
-Fleet has provided both an "enabled" and "disabled" version of these benchmarks. When both policies are added, at least one will fail. Once your organization has made a decision, you can delete one or the other policy.
+AutoMDM has provided both an "enabled" and "disabled" version of these benchmarks. When both policies are added, at least one will fail. Once your organization has made a decision, you can delete one or the other policy.
 The policy will be appended with a `-enabled` or `-disabled` label, such as `2.1.1.1-enabled`.
 
 - 2.1.1.1 Audit iCloud Keychain
@@ -42,4 +42,4 @@ Furthermore, CIS has decided to not require the following password complexity se
 - 5.2.5 Ensure Complex Password Must Contain Special Character Is Configured
 - 5.2.6 Ensure Complex Password Must Contain Uppercase and Lowercase Characters Is Configured
 
-However, Fleet has provided these as policies. If your organization declines to implement these, simply delete the corresponding policies.
+However, AutoMDM has provided these as policies. If your organization declines to implement these, simply delete the corresponding policies.

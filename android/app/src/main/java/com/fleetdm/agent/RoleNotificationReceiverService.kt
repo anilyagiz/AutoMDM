@@ -12,7 +12,7 @@ import com.google.android.managementapi.notification.NotificationReceiverService
  */
 class RoleNotificationReceiverService : NotificationReceiverService() {
     companion object {
-        private const val TAG = "fleet-RoleNotificationReceiverService"
+        private const val TAG = "team-RoleNotificationReceiverService"
     }
 
     override fun getAppRolesListener(): AppRolesListener = object : AppRolesListener {

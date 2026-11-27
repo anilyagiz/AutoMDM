@@ -115,9 +115,9 @@ const TurnOnAndroidMdm = ({ router }: ITurnOnAndroidMdmProps) => {
         notify.error(
           <>
             Couldn&apos;t connect. Android enterprise already exists for this
-            Fleet server. For help, please contact{" "}
+            AutoMDM server. For help, please contact{" "}
             <CustomLink
-              text="Fleet support"
+              text="AutoMDM support"
               url={SUPPORT_LINK}
               newTab
               variant="flash-message-link"
@@ -141,7 +141,7 @@ const TurnOnAndroidMdm = ({ router }: ITurnOnAndroidMdmProps) => {
         <CustomLink
           text="Learn More"
           newTab
-          url="https://fleetdm.com/learn-more-about/how-to-connect-android-enterprise"
+          url="https://automdm.com/learn-more-about/how-to-connect-android-enterprise"
         />
       </div>
       <GitOpsModeTooltipWrapper
@@ -195,7 +195,7 @@ const TurnOffAndroidMdm = ({ onClickTurnOff }: ITurnOffAndroidMdmProps) => {
                 <CustomLink
                   newTab
                   text="Google Admin Console"
-                  url="https://fleetdm.com/learn-more-about/google-admin-emm"
+                  url="https://automdm.com/learn-more-about/google-admin-emm"
                   variant="tooltip-link"
                 />
               </>

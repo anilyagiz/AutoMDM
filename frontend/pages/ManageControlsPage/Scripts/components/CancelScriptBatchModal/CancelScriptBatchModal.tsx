@@ -32,7 +32,7 @@ const CancelScriptBatchModal = ({
         </p>
         <p>
           If this script is currently running on a host, it will complete, but
-          results won&rsquo;t appear in Fleet.
+          results won&rsquo;t appear in AutoMDM.
         </p>
         <p>You cannot undo this action.</p>
         <div className="modal-cta-wrap">

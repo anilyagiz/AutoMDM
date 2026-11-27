@@ -15,8 +15,8 @@ const RanScriptActivityItem = ({
   isSoloActivity,
   hideCancel,
 }: IHostActivityItemComponentPropsWithShowDetails) => {
-  let ranScriptPrefix = tab === "past" ? "ran" : "told Fleet to run";
-  if (tab !== "past" && activity.fleet_initiated) {
+  let ranScriptPrefix = tab === "past" ? "ran" : "told AutoMDM to run";
+  if (tab !== "past" && activity.automdm_initiated) {
     ranScriptPrefix = "will run";
   }
 
@@ -29,7 +29,7 @@ const RanScriptActivityItem = ({
       isSoloActivity={isSoloActivity}
       hideCancel={hideCancel}
     >
-      <b>{activity.actor_full_name ?? "Fleet"}</b>
+      <b>{activity.actor_full_name ?? "AutoMDM"}</b>
       <>
         {" "}
         {ranScriptPrefix}{" "}

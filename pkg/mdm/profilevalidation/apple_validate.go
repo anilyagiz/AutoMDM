@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/variables"
+	"github.com/anilyagiz/automdm/v4/server/variables"
 	"github.com/micromdm/plist"
 )
 
@@ -23,7 +23,7 @@ func decodeAppleProfile(data []byte) (map[string]any, error) {
 	}
 	// DigiCert <data> placeholders aren't valid base64 until expansion; blank them as the upload
 	// parser does. The Contains check skips copying the whole profile when there are none.
-	if bytes.Contains(data, []byte("FLEET_VAR_")) {
+	if bytes.Contains(data, []byte("AUTOMDM_VAR_")) {
 		data = variables.ProfileDataVariableRegex.ReplaceAll(data, nil)
 	}
 	var root any
@@ -318,7 +318,7 @@ func (s *ProfileValidationSchema) ValidateAppleProfile(data []byte, mode Mode) (
 }
 
 // checkEnvelope reports a missing PayloadVersion and a malformed PayloadUUID or PayloadIdentifier.
-// Wrong types are left to the walk, and values with Fleet variables aren't checked.
+// Wrong types are left to the walk, and values with AutoMDM variables aren't checked.
 func (w *appleWalker) checkEnvelope(dict map[string]any) {
 	if _, ok := dict["PayloadVersion"]; !ok {
 		w.findings = append(w.findings, Finding{Code: CodeMissingPayloadVersion, PayloadType: w.payloadType, KeyPath: "PayloadVersion"})

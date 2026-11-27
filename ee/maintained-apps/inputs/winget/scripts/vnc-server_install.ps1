@@ -1,5 +1,5 @@
 # RealVNC Server ships as a zip containing both the 32-bit and 64-bit MSIs
-# (VNC-Server-<ver>-Windows-en-64bit.msi). Fleet downloads the zip to INSTALLER_PATH;
+# (VNC-Server-<ver>-Windows-en-64bit.msi). AutoMDM downloads the zip to INSTALLER_PATH;
 # this script extracts it and installs the 64-bit MSI per-machine and silently.
 # The MSI sets ALLUSERS=1, so it always installs machine-wide.
 

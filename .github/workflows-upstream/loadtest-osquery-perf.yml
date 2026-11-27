@@ -77,7 +77,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    name: Deploy Fleet Loadtest Environment
+    name: Deploy AutoMDM Loadtest Environment
     runs-on: ubuntu-latest
     steps:
       - name: Harden Runner

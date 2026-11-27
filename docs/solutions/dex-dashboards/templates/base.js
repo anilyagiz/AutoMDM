@@ -98,7 +98,7 @@ function vcmp(a, b) {
   return 0;
 }
 
-const hostUrl = (id) => `${DATA.fleet_url}/hosts/${id}`;
+const hostUrl = (id) => `${DATA.automdm_url}/hosts/${id}`;
 function hostLink(id, name) {
   return h("a", { href: hostUrl(id), target: "_blank", rel: "noopener", class: "cell-main", onclick: (e) => e.stopPropagation() }, name);
 }
@@ -141,15 +141,15 @@ function dashNav() {
   return wrap;
 }
 
-// Fleet and platform filters, remembered per viewer.
+// AutoMDM and platform filters, remembered per viewer.
 const store = {
   get(k) { try { return localStorage.getItem(k); } catch { return null; } },
   set(k, v) { try { localStorage.setItem(k, v); } catch { /* storage unavailable */ } },
 };
 const PLATFORMS = [["macos", "macOS"], ["windows", "Windows"], ["linux", "Linux"]];
 const platformLabel = (p) => (PLATFORMS.find(([k]) => k === p) || [p, p])[1];
-let FLEET = "";
-// A select-only combobox in the style of Fleet's DropdownWrapper. A native <select> opens the
+let AUTOMDM = "";
+// A select-only combobox in the style of AutoMDM's DropdownWrapper. A native <select> opens the
 // OS menu (on macOS, a pop-up over the control), not a list below it.
 let ddCount = 0;
 function dropdown(label, options, value, onChange) {
@@ -231,9 +231,9 @@ function dropdown(label, options, value, onChange) {
 
 let PLATFORM = "";
 // counts: {macos: n, ...}. unsupported: {linux: "why"} greys a platform out.
-function renderTop(fleets, onChange, counts = {}, unsupported = {}) {
-  const saved = store.get("dex-fleet");
-  FLEET = fleets.includes(saved) ? saved : "";
+function renderTop(teams, onChange, counts = {}, unsupported = {}) {
+  const saved = store.get("dex-automdm");
+  AUTOMDM = teams.includes(saved) ? saved : "";
   const savedP = store.get("dex-platform") || "";
   PLATFORM = savedP && counts[savedP] && !unsupported[savedP] ? savedP : "";
   const toggle = h("div", { class: "seg-toggle", role: "group", "aria-label": "Platform" });
@@ -247,15 +247,15 @@ function renderTop(fleets, onChange, counts = {}, unsupported = {}) {
     return why ? tip(btn, why) : btn;
   }));
   drawToggle();
-  const sel = dropdown("Filter by fleet", [["", "All fleets"], ...fleets.map((f) => [f, f])], FLEET, (v) => {
-    FLEET = v; store.set("dex-fleet", FLEET); onChange();
+  const sel = dropdown("Filter by team", [["", "All teams"], ...teams.map((f) => [f, f])], AUTOMDM, (v) => {
+    AUTOMDM = v; store.set("dex-automdm", AUTOMDM); onChange();
   });
-  const host = DATA.fleet_url.replace(/^https?:\/\//, "");
+  const host = DATA.automdm_url.replace(/^https?:\/\//, "");
   mount("top",
     dashNav(),
     h("div", { class: "top-row" }, toggle, h("div", { class: "controls" }, sel, themeToggle())),
     h("div", { class: "meta" },
-      h("span", {}, `Updated ${fmt.date(DATA.generated_at)}, ${DATA.generated_at.slice(11, 16)} UTC · `, h("a", { href: DATA.fleet_url, target: "_blank", rel: "noopener" }, host))));
+      h("span", {}, `Updated ${fmt.date(DATA.generated_at)}, ${DATA.generated_at.slice(11, 16)} UTC · `, h("a", { href: DATA.automdm_url, target: "_blank", rel: "noopener" }, host))));
 }
 const inPlatform = (p) => !PLATFORM || p === PLATFORM;
 
@@ -299,7 +299,7 @@ function themeToggle() {
   }).catch(() => {});
   return el;
 }
-const inFleet = (f) => !FLEET || f === FLEET;
+const inTeam = (f) => !AUTOMDM || f === AUTOMDM;
 
 // Tooltip shared by every chart.
 const tipEl = h("div", { class: "tip", role: "tooltip", hidden: true });
@@ -322,8 +322,8 @@ function tip(el, text) {
   return el;
 }
 
-// Daily trends. DATA.trend is [[date, {"<fleet>|<platform>": {field: n}}], ...],
-// so each field can be summed over the fleets and platforms the filters select.
+// Daily trends. DATA.trend is [[date, {"<team>|<platform>": {field: n}}], ...],
+// so each field can be summed over the teams and platforms the filters select.
 const RANGES = [[30, "30 days"], [90, "90 days"], [366, "1 year"]];
 let RANGE = Number(store.get("dex-range")) || 90;
 if (!RANGES.some(([d]) => d === RANGE)) RANGE = 90;
@@ -334,7 +334,7 @@ function trendRows(fields) {
     for (const f of fields) row[f] = 0;
     for (const [k, counts] of Object.entries(byKey)) {
       const i = k.lastIndexOf("|");
-      if (!inFleet(k.slice(0, i)) || !inPlatform(k.slice(i + 1))) continue;
+      if (!inTeam(k.slice(0, i)) || !inPlatform(k.slice(i + 1))) continue;
       for (const f of fields) row[f] += counts[f] || 0;
     }
     return row;
@@ -551,7 +551,7 @@ function sortTable({ columns, groups, sort, onRow, detail, id }) {
   return wrap;
 }
 
-// fleetdm.com's primary-button spotlight follows the cursor.
+// automdm.com's primary-button spotlight follows the cursor.
 document.addEventListener("pointermove", (e) => {
   const b = e.pointerType === "mouse" && e.target.closest && e.target.closest(".btn.primary");
   if (!b) return;

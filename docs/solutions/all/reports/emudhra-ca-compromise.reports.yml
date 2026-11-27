@@ -6,7 +6,7 @@
     columns finding, item, detail, and status. No row for a finding means
     it was not found.
 
-    Checks /etc/ssl/cert.pem, the fleetd CA bundle, the Apple trustd block, Homebrew
+    Checks /etc/ssl/cert.pem, the automdmd CA bundle, the Apple trustd block, Homebrew
     ca-certificates, certifi, and Go binaries.
 
     Source: https://emudhra.we-have-a-problem.com/
@@ -78,15 +78,15 @@
     FROM homebrew_packages
     WHERE name IN ('go', 'node')
     UNION ALL
-    -- fleetd ships its own CA bundle. osqueryd uses it (not the OS trust store) for TLS to Fleet.
+    -- automdmd ships its own CA bundle. osqueryd uses it (not the OS trust store) for TLS to AutoMDM.
     -- It is written at install time and never refreshed, so the OS vendor block does not cover it.
-    SELECT 'fleetd_osquery_ca_bundle', common_name, path,
-           'EXPOSED osqueryd-to-Fleet TLS trusts this root; run the remediation script'
+    SELECT 'automdmd_osquery_ca_bundle', common_name, path,
+           'EXPOSED osqueryd-to-AutoMDM TLS trusts this root; run the remediation script'
     FROM certificates
     WHERE path = '/opt/orbit/certs.pem'
       AND sha1 IN ('3043fa4ff257dca0c380ee2e58ea78b23fe6bbc1', 'd1eb23a46d17d68fd92564c2f1f1601764d8e349')
     UNION ALL
-    SELECT 'fleetd_agent', 'orbit ' || version, 'channel=' || orbit_channel || ' scripts_enabled=' || scripts_enabled,
+    SELECT 'automdmd_agent', 'orbit ' || version, 'channel=' || orbit_channel || ' scripts_enabled=' || scripts_enabled,
            'INFO orbit is Go; on macOS it verifies TLS through the OS, so the Apple block applies'
     FROM orbit_info
     UNION ALL
@@ -110,7 +110,7 @@
     columns finding, item, detail, and status. No row for a finding means
     it was not found.
 
-    Checks the system CA bundle, the fleetd CA bundle,
+    Checks the system CA bundle, the automdmd CA bundle,
     ca-certificates packages, certifi, and Go binaries.
 
     Source: https://emudhra.we-have-a-problem.com/
@@ -181,15 +181,15 @@
     FROM rpm_packages
     WHERE name IN ('golang', 'nodejs')
     UNION ALL
-    -- fleetd ships its own CA bundle. osqueryd uses it (not the OS trust store) for TLS to Fleet.
+    -- automdmd ships its own CA bundle. osqueryd uses it (not the OS trust store) for TLS to AutoMDM.
     -- It is written at install time and never refreshed, so the OS vendor block does not cover it.
-    SELECT 'fleetd_osquery_ca_bundle', common_name, path,
-           'EXPOSED osqueryd-to-Fleet TLS trusts this root; run the remediation script'
+    SELECT 'automdmd_osquery_ca_bundle', common_name, path,
+           'EXPOSED osqueryd-to-AutoMDM TLS trusts this root; run the remediation script'
     FROM certificates
     WHERE path = '/opt/orbit/certs.pem'
       AND sha1 IN ('3043fa4ff257dca0c380ee2e58ea78b23fe6bbc1', 'd1eb23a46d17d68fd92564c2f1f1601764d8e349')
     UNION ALL
-    SELECT 'fleetd_agent', 'orbit ' || version, 'channel=' || orbit_channel || ' scripts_enabled=' || scripts_enabled,
+    SELECT 'automdmd_agent', 'orbit ' || version, 'channel=' || orbit_channel || ' scripts_enabled=' || scripts_enabled,
            'INFO orbit is Go; on Linux it reads the system bundle, so it is safe only once root_in_ca_bundle rows are gone'
     FROM orbit_info
     UNION ALL
@@ -214,7 +214,7 @@
     it was not found.
 
     Checks certificate stores, the disallowed CTL sync,
-    Group Policy, the fleetd CA bundle, certifi, and Go binaries.
+    Group Policy, the automdmd CA bundle, certifi, and Go binaries.
 
     Source: https://emudhra.we-have-a-problem.com/
   discard_data: false
@@ -311,19 +311,19 @@
     FROM programs
     WHERE name LIKE 'Go Programming Language%' OR name = 'Node.js'
     UNION ALL
-    -- fleetd ships its own CA bundle. osqueryd uses it (not the Windows store) for TLS to Fleet.
+    -- automdmd ships its own CA bundle. osqueryd uses it (not the Windows store) for TLS to AutoMDM.
     -- Windows osquery cannot parse PEM files, so match one unique line from each root
-    -- (fleetd bundles wrap at 76 columns). The join skips hosts without the file.
-    SELECT 'fleetd_osquery_ca_bundle',
+    -- (automdmd bundles wrap at 76 columns). The join skips hosts without the file.
+    SELECT 'automdmd_osquery_ca_bundle',
            CASE WHEN l.line LIKE 'CBeQyh%' THEN 'emSign ECC Root CA - G3' ELSE 'AAA Certificate Services' END,
-           l.path, 'EXPOSED osqueryd-to-Fleet TLS trusts this root; run the remediation script'
+           l.path, 'EXPOSED osqueryd-to-AutoMDM TLS trusts this root; run the remediation script'
     FROM file f
     JOIN file_lines l ON l.path = f.path
     WHERE f.path = 'C:\Program Files\Orbit\certs.pem'
       AND l.line IN ('CBeQyh+KTOgNG3qxrdWBCUfvO6wIBHxcmbHtRwfSAjEAnbpV/KlK6O3t5nYBQnvI+GDZjVGLVTv7',
                      '8VlIMCFlA2zs6SFz7JsDoeA3raAVGI/6ugLOpyypEBMs1OUIJqsil2D4kF501KKaU73yqWjgom7C')
     UNION ALL
-    SELECT 'fleetd_agent', 'orbit ' || version, 'channel=' || orbit_channel || ' scripts_enabled=' || scripts_enabled,
+    SELECT 'automdmd_agent', 'orbit ' || version, 'channel=' || orbit_channel || ' scripts_enabled=' || scripts_enabled,
            'INFO orbit is Go; on Windows it verifies TLS through the OS, so the Microsoft block applies'
     FROM orbit_info
     UNION ALL

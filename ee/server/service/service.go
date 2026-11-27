@@ -5,20 +5,20 @@ import (
 	"log/slog"
 
 	"github.com/WatchBeam/clock"
-	"github.com/fleetdm/fleet/v4/ee/server/service/scep"
-	"github.com/fleetdm/fleet/v4/server/authz"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
-	apple_mdm "github.com/fleetdm/fleet/v4/server/mdm/apple"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanodep/storage"
-	"github.com/fleetdm/fleet/v4/server/microsoft/msgraph"
-	"github.com/fleetdm/fleet/v4/server/sso"
+	"github.com/anilyagiz/automdm/v4/ee/server/service/scep"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
+	apple_mdm "github.com/anilyagiz/automdm/v4/server/mdm/apple"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanodep/storage"
+	"github.com/anilyagiz/automdm/v4/server/microsoft/msgraph"
+	"github.com/anilyagiz/automdm/v4/server/sso"
 )
 
 // Service wraps a free Service and implements additional premium functionality on top of it.
 type Service struct {
-	fleet.Service
+	automdm.Service
 
 	// pssoState is the lazily-initialized cache of the PSSO signing key.
 	// Constructed on first use of a PSSO method.
@@ -27,58 +27,58 @@ type Service struct {
 	// pssoNonceStore backs the single-use nonces issued and consumed by the
 	// PSSO nonce/token flows. Redis-backed in production; may be nil in
 	// deployments/tests that never exercise PSSO.
-	pssoNonceStore fleet.PSSONonceStore
+	pssoNonceStore automdm.PSSONonceStore
 
-	ds                     fleet.Datastore
+	ds                     automdm.Datastore
 	logger                 *slog.Logger
-	config                 config.FleetConfig
+	config                 config.AutoMDMConfig
 	clock                  clock.Clock
 	authz                  *authz.Authorizer
 	depStorage             storage.AllDEPStorage
-	mdmAppleCommander      fleet.MDMAppleCommandIssuer
+	mdmAppleCommander      automdm.MDMAppleCommandIssuer
 	ssoSessionStore        sso.SessionStore
 	depService             *apple_mdm.DEPService
-	softwareInstallStore   fleet.SoftwareInstallerStore
-	bootstrapPackageStore  fleet.MDMBootstrapPackageStore
-	softwareTitleIconStore fleet.SoftwareTitleIconStore
-	stagedUploadStore      fleet.StagedUploadStore
-	distributedLock        fleet.Lock
-	keyValueStore          fleet.KeyValueStore
-	installAttemptCounter  fleet.SoftwareInstallAttemptCounter
-	scepConfigService      fleet.SCEPConfigService
-	scepEnrollmentClient   fleet.SCEPEnrollmentClient
-	digiCertService        fleet.DigiCertService
-	ejbcaService           fleet.EJBCAService
+	softwareInstallStore   automdm.SoftwareInstallerStore
+	bootstrapPackageStore  automdm.MDMBootstrapPackageStore
+	softwareTitleIconStore automdm.SoftwareTitleIconStore
+	stagedUploadStore      automdm.StagedUploadStore
+	distributedLock        automdm.Lock
+	keyValueStore          automdm.KeyValueStore
+	installAttemptCounter  automdm.SoftwareInstallAttemptCounter
+	scepConfigService      automdm.SCEPConfigService
+	scepEnrollmentClient   automdm.SCEPEnrollmentClient
+	digiCertService        automdm.DigiCertService
+	ejbcaService           automdm.EJBCAService
 	androidModule          android.Service
-	estService             fleet.ESTService
-	googleCASService       fleet.GoogleCASService
+	estService             automdm.ESTService
+	googleCASService       automdm.GoogleCASService
 	msGraphClientFactory   msgraph.ClientFactory
 }
 
 func NewService(
-	svc fleet.Service,
-	ds fleet.Datastore,
+	svc automdm.Service,
+	ds automdm.Datastore,
 	logger *slog.Logger,
-	config config.FleetConfig,
-	mailService fleet.MailService,
+	config config.AutoMDMConfig,
+	mailService automdm.MailService,
 	c clock.Clock,
 	depStorage storage.AllDEPStorage,
-	mdmAppleCommander fleet.MDMAppleCommandIssuer,
+	mdmAppleCommander automdm.MDMAppleCommandIssuer,
 	sso sso.SessionStore,
-	softwareInstallStore fleet.SoftwareInstallerStore,
-	bootstrapPackageStore fleet.MDMBootstrapPackageStore,
-	softwareTitleIconStore fleet.SoftwareTitleIconStore,
-	stagedUploadStore fleet.StagedUploadStore,
-	distributedLock fleet.Lock,
-	keyValueStore fleet.KeyValueStore,
-	installAttemptCounter fleet.SoftwareInstallAttemptCounter,
-	scepConfigService fleet.SCEPConfigService,
-	digiCertService fleet.DigiCertService,
-	ejbcaService fleet.EJBCAService,
+	softwareInstallStore automdm.SoftwareInstallerStore,
+	bootstrapPackageStore automdm.MDMBootstrapPackageStore,
+	softwareTitleIconStore automdm.SoftwareTitleIconStore,
+	stagedUploadStore automdm.StagedUploadStore,
+	distributedLock automdm.Lock,
+	keyValueStore automdm.KeyValueStore,
+	installAttemptCounter automdm.SoftwareInstallAttemptCounter,
+	scepConfigService automdm.SCEPConfigService,
+	digiCertService automdm.DigiCertService,
+	ejbcaService automdm.EJBCAService,
 	androidService android.Service,
-	estService fleet.ESTService,
-	googleCASService fleet.GoogleCASService,
-	pssoNonceStore fleet.PSSONonceStore,
+	estService automdm.ESTService,
+	googleCASService automdm.GoogleCASService,
+	pssoNonceStore automdm.PSSONonceStore,
 	msGraphClientFactory msgraph.ClientFactory,
 ) (*Service, error) {
 	authorizer, err := authz.NewAuthorizer()
@@ -122,7 +122,7 @@ func NewService(
 
 	// Override methods that can't be easily overriden via
 	// embedding.
-	svc.SetEnterpriseOverrides(fleet.EnterpriseOverrides{
+	svc.SetEnterpriseOverrides(automdm.EnterpriseOverrides{
 		HostFeatures:                      eeservice.HostFeatures,
 		TeamByIDOrName:                    eeservice.teamByIDOrName,
 		UpdateTeamMDMDiskEncryption:       eeservice.updateTeamMDMDiskEncryption,

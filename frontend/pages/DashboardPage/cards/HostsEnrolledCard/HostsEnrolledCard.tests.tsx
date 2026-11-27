@@ -236,8 +236,8 @@ describe("HostsEnrolledCard", () => {
       fireEvent.keyDown(macButton, { key: " " });
 
       expect(push).toHaveBeenCalledTimes(2);
-      // Links to the macOS built-in label (id 10) while preserving the fleet.
-      const expectedPath = expect.stringMatching(/\/labels\/10.*fleet_id=3/);
+      // Links to the macOS built-in label (id 10) while preserving the team.
+      const expectedPath = expect.stringMatching(/\/labels\/10.*team_id=3/);
       expect(push).toHaveBeenNthCalledWith(1, expectedPath);
       expect(push).toHaveBeenNthCalledWith(2, expectedPath);
     });

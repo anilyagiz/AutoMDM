@@ -83,15 +83,15 @@ func TestGroupInfoDistinguishesSameNumberAcrossRepos(t *testing.T) {
 		return Item{Kind: KindIssue, Number: 123, URL: "https://github.com/" + repo + "/issues/123",
 			Issue: &ghapi.Issue{Number: 123}}
 	}
-	m := Model{repo: "fleetdm/fleet", issueProjects: map[string][]ProjectRef{
-		ghapi.IssueRefKey("fleetdm/fleet", 123): {
+	m := Model{repo: "automdm/automdm", issueProjects: map[string][]ProjectRef{
+		ghapi.IssueRefKey("automdm/automdm", 123): {
 			{Number: 108, Title: "🍎 #g-apple-at-work", Status: "In progress"},
 		},
 		ghapi.IssueRefKey("fleetdm/confidential", 123): {
 			{Number: 109, Title: "❤️‍🩹 #g-auto-patching", Status: "Ready"},
 		},
 	}}
-	if emoji, status := m.groupInfo(issue("fleetdm/fleet")); emoji != "🍎" || status != "In progress" {
+	if emoji, status := m.groupInfo(issue("automdm/automdm")); emoji != "🍎" || status != "In progress" {
 		t.Errorf("fleet#123: got %q %q", emoji, status)
 	}
 	if emoji, status := m.groupInfo(issue("fleetdm/confidential")); emoji != "❤️‍🩹" || status != "Ready" {

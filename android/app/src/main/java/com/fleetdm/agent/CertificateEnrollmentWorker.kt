@@ -78,7 +78,7 @@ class CertificateEnrollmentWorker(context: Context, workerParams: WorkerParamete
                     is CleanupResult.AlreadyRemoved ->
                         Log.d(TAG, "Certificate $certId already removed (alias: ${result.alias})")
                     is CleanupResult.Failure ->
-                        FleetLog.e(TAG, "Failed to cleanup certificate $certId: ${result.reason}", result.exception)
+                        AutoMDMLog.e(TAG, "Failed to cleanup certificate $certId: ${result.reason}", result.exception)
                 }
             }
 
@@ -115,7 +115,7 @@ class CertificateEnrollmentWorker(context: Context, workerParams: WorkerParamete
                         // Treat as handled - no retry needed
                     }
                     is CertificateEnrollmentHandler.EnrollmentResult.Failure -> {
-                        FleetLog.e(TAG, "Certificate $certificateId enrollment failed: ${result.reason}", result.exception)
+                        AutoMDMLog.e(TAG, "Certificate $certificateId enrollment failed: ${result.reason}", result.exception)
                         if (result.isRetryable) {
                             hasTransientFailure = true
                         } else {
@@ -155,14 +155,14 @@ class CertificateEnrollmentWorker(context: Context, workerParams: WorkerParamete
                 }
             }
         } catch (e: Exception) {
-            FleetLog.e(TAG, "Unexpected error in certificate enrollment", e)
+            AutoMDMLog.e(TAG, "Unexpected error in certificate enrollment", e)
             Result.failure()
         }
     }
 
     companion object {
         const val WORK_NAME = "certificate_enrollment"
-        private const val TAG = "fleet-CertificateEnrollmentWorker"
+        private const val TAG = "automdm-CertificateEnrollmentWorker"
         private const val MAX_RETRY_ATTEMPTS = 5
 
         // Higher limit for delegation gate since it's a lightweight check and delegation can take minutes to propagate.

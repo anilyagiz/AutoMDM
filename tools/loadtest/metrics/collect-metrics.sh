@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# collect-metrics.sh - Collect AWS CloudWatch metrics for a Fleet load test environment.
+# collect-metrics.sh - Collect AWS CloudWatch metrics for an AutoMDM load test environment.
 #
 # Usage:
 #   ./collect-metrics.sh --workspace <name> [options]
@@ -209,10 +209,10 @@ echo ""
 # Resource name derivation
 # ---------------------------------------------------------------------------
 # Two possible naming schemes:
-#   Root config:  cluster = fleet-<ws>-backend, rds = fleetdm-<ws>-mysql, redis = fleet-<ws>-redis
-#   Infra module: cluster = fleet-<ws>,         rds = fleet-<ws>,         redis = fleet-<ws>
+#   Root config:  cluster = automdm-<ws>-backend, rds = automdm-<ws>-mysql, redis = automdm-<ws>-redis
+#   Infra module: cluster = automdm-<ws>,         rds = automdm-<ws>,         redis = automdm-<ws>
 
-PREFIX="fleet-${WORKSPACE}"
+PREFIX="automdm-${WORKSPACE}"
 
 # ---------------------------------------------------------------------------
 # Discovery: find actual resource names
@@ -246,7 +246,7 @@ echo "  ECS Cluster: $ECS_CLUSTER"
 ECS_SERVICES_JSON=$(aws ecs list-services --cluster "$ECS_CLUSTER" --region "$REGION" --output json 2>/dev/null || echo '{"serviceArns":[]}')
 ECS_SERVICE_ARNS=$(echo "$ECS_SERVICES_JSON" | jq -r '.serviceArns[]')
 
-FLEET_SERVICE=""
+AUTOMDM_SERVICE=""
 OSQUERY_PERF_SERVICE=""
 APNS_MOCK_SERVICE=""
 LOADTEST_SERVICES=()
@@ -254,21 +254,21 @@ LOADTEST_SERVICES=()
 for arn in $ECS_SERVICE_ARNS; do
   svc=$(basename "$arn")
   case "$svc" in
-    fleet)               FLEET_SERVICE="$svc" ;;
+    automdm)               AUTOMDM_SERVICE="$svc" ;;
     osquery_perf)        OSQUERY_PERF_SERVICE="$svc" ;;
     *apple-apns-mock)    APNS_MOCK_SERVICE="$svc" ;;
     loadtest-*)          LOADTEST_SERVICES+=("$svc") ;;
   esac
 done
 
-echo "  Fleet Service: ${FLEET_SERVICE:-<not found>}"
+echo "  AutoMDM Service: ${AUTOMDM_SERVICE:-<not found>}"
 echo "  osquery-perf Service: ${OSQUERY_PERF_SERVICE:-<not found>}"
 echo "  apns-mock Service: ${APNS_MOCK_SERVICE:-<not found>}"
 echo "  Loadtest Services: ${#LOADTEST_SERVICES[@]} found"
 
 # RDS — try both naming patterns
 RDS_CLUSTER_ID=""
-for candidate in "fleetdm-${WORKSPACE}-mysql" "${PREFIX}"; do
+for candidate in "automdm-${WORKSPACE}-mysql" "${PREFIX}"; do
   if aws rds describe-db-clusters --db-cluster-identifier "$candidate" --region "$REGION" \
        --query "DBClusters[0].DBClusterIdentifier" --output text 2>/dev/null | grep -q .; then
     RDS_CLUSTER_ID="$candidate"
@@ -336,8 +336,8 @@ if [[ -n "$REDIS_REPLICATION_GROUP" ]]; then
   echo "  Redis Nodes: ${REDIS_NODE_IDS[*]:-<none>}"
 fi
 
-# The mock APNs server runs its own ElastiCache rather than sharing Fleet's, so
-# a full-fleet push wave does not perturb the system under test. Only exists
+# The mock APNs server runs its own ElastiCache rather than sharing AutoMDM's, so
+# a full-automdm push wave does not perturb the system under test. Only exists
 # when the deployment enabled Apple MDM.
 APNS_REDIS_REPLICATION_GROUP=""
 if aws elasticache describe-replication-groups --replication-group-id "${PREFIX}-apns-mock" --region "$REGION" \
@@ -365,7 +365,7 @@ if [[ -n "$ALB_ARN" ]]; then
   ALB_ARN_SUFFIX=$(echo "$ALB_ARN" | grep -o '\(app\|net\)/.*')
   echo "  ALB: $ALB_ARN_SUFFIX"
 
-  # Find the target group for the fleet service
+  # Find the target group for the automdm service
   ALB_TG_ARN=$(aws elbv2 describe-target-groups --load-balancer-arn "$ALB_ARN" --region "$REGION" \
     --query "TargetGroups[0].TargetGroupArn" --output text 2>/dev/null || echo "")
   if [[ -n "$ALB_TG_ARN" ]]; then
@@ -376,25 +376,25 @@ else
   echo "  ALB: <not found>"
 fi
 
-# Discover CloudWatch log group for Fleet server
+# Discover CloudWatch log group for AutoMDM server
 # Try exact name matches first, then fall back to a broad search.
-# Patterns: /ecs/<prefix>-backend/fleet, /ecs/<prefix>/fleet, <prefix> (bare)
-FLEET_LOG_GROUP=""
-for candidate in "/ecs/${PREFIX}-backend/fleet" "/ecs/${PREFIX}/fleet" "${PREFIX}"; do
+# Patterns: /ecs/<prefix>-backend/automdm, /ecs/<prefix>/automdm, <prefix> (bare)
+AUTOMDM_LOG_GROUP=""
+for candidate in "/ecs/${PREFIX}-backend/automdm" "/ecs/${PREFIX}/automdm" "${PREFIX}"; do
   if aws logs describe-log-groups --log-group-name-prefix "$candidate" --region "$REGION" \
        --query "logGroups[0].logGroupName" --output text 2>/dev/null | grep -q "^${candidate}"; then
-    FLEET_LOG_GROUP="$candidate"
+    AUTOMDM_LOG_GROUP="$candidate"
     break
   fi
 done
-if [[ -z "$FLEET_LOG_GROUP" ]]; then
-  # Broad search: find log groups containing the workspace name and "fleet",
+if [[ -z "$AUTOMDM_LOG_GROUP" ]]; then
+  # Broad search: find log groups containing the workspace name and "team",
   # excluding Container Insights groups (which are metrics, not application logs).
-  FLEET_LOG_GROUP=$(aws logs describe-log-groups --region "$REGION" --output json 2>/dev/null \
-    | jq -r --arg ws "$WORKSPACE" '.logGroups[].logGroupName | select(contains($ws)) | select(contains("fleet")) | select(contains("containerinsights") | not)' \
+  AUTOMDM_LOG_GROUP=$(aws logs describe-log-groups --region "$REGION" --output json 2>/dev/null \
+    | jq -r --arg ws "$WORKSPACE" '.logGroups[].logGroupName | select(contains($ws)) | select(contains("automdm")) | select(contains("containerinsights") | not)' \
     | head -1)
 fi
-echo "  Fleet Log Group: ${FLEET_LOG_GROUP:-<not found>}"
+echo "  AutoMDM Log Group: ${AUTOMDM_LOG_GROUP:-<not found>}"
 
 # Discover CloudWatch log group for apns-mock server
 # Pattern: <prefix>-apple-apns-mock (bare name, not under /ecs/)
@@ -600,7 +600,7 @@ collect_service_health() {
 }
 
 # ---------------------------------------------------------------------------
-# Collect ECS Fleet Server metrics
+# Collect ECS AutoMDM Server metrics
 # max_iops_for_class <instance_class>
 # Returns the max IOPS for a given Aurora instance class. Echoes 0 if unknown.
 # Source: https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/AuroraMySQL.Managing.Performance.html
@@ -669,22 +669,22 @@ vcpus_for_class() {
 }
 
 # ---------------------------------------------------------------------------
-FLEET_SERVER_METRICS="{}"
-if [[ -n "$FLEET_SERVICE" ]]; then
-  echo "  Fleet Server: CPU Utilization (Container Insights)..."
-  fleet_cpu=$(collect_ecs_utilization "$ECS_CLUSTER" "$FLEET_SERVICE" "CpuUtilized" "CpuReserved")
+AUTOMDM_SERVER_METRICS="{}"
+if [[ -n "$AUTOMDM_SERVICE" ]]; then
+  echo "  AutoMDM Server: CPU Utilization (Container Insights)..."
+  automdm_cpu=$(collect_ecs_utilization "$ECS_CLUSTER" "$AUTOMDM_SERVICE" "CpuUtilized" "CpuReserved")
 
-  echo "  Fleet Server: Memory Utilization (Container Insights)..."
-  fleet_mem=$(collect_ecs_utilization "$ECS_CLUSTER" "$FLEET_SERVICE" "MemoryUtilized" "MemoryReserved")
+  echo "  AutoMDM Server: Memory Utilization (Container Insights)..."
+  automdm_mem=$(collect_ecs_utilization "$ECS_CLUSTER" "$AUTOMDM_SERVICE" "MemoryUtilized" "MemoryReserved")
 
   # Get running task count from describe-services (always available, no Container Insights needed)
-  fleet_tasks=$(aws ecs describe-services --cluster "$ECS_CLUSTER" --services "$FLEET_SERVICE" --region "$REGION" \
+  automdm_tasks=$(aws ecs describe-services --cluster "$ECS_CLUSTER" --services "$AUTOMDM_SERVICE" --region "$REGION" \
     --query "services[0].{runningCount:runningCount,desiredCount:desiredCount}" --output json 2>/dev/null || echo '{}')
 
-  FLEET_SERVER_METRICS=$(jq -n \
-    --argjson cpu "$fleet_cpu" \
-    --argjson mem "$fleet_mem" \
-    --argjson tasks "$fleet_tasks" \
+  AUTOMDM_SERVER_METRICS=$(jq -n \
+    --argjson cpu "$automdm_cpu" \
+    --argjson mem "$automdm_mem" \
+    --argjson tasks "$automdm_tasks" \
     '{cpu_utilization: $cpu, memory_utilization: $mem, task_counts: $tasks}')
 fi
 
@@ -1199,7 +1199,7 @@ fi
 # -------------------------------------------------------------------------
 ALB_METRICS="{}"
 if [[ -n "$ALB_ARN_SUFFIX" ]]; then
-  # TargetResponseTime: Average time (seconds) for the target (Fleet server)
+  # TargetResponseTime: Average time (seconds) for the target (AutoMDM server)
   # to respond to a request. Tracks API latency as seen by the ALB. Rising
   # values across releases indicate server-side performance degradation.
   echo "  ALB: TargetResponseTime (API latency)..."
@@ -1225,7 +1225,7 @@ if [[ -n "$ALB_ARN_SUFFIX" ]]; then
   alb_percentiles=$(echo "$alb_pcts_raw" | jq '.Datapoints[0].ExtendedStatistics // null
     | if . then with_entries(.value = (.value * 10000 | round / 10000)) else null end')
 
-  # HTTPCode_Target_5XX_Count: Total number of HTTP 5xx responses from Fleet
+  # HTTPCode_Target_5XX_Count: Total number of HTTP 5xx responses from AutoMDM
   # server containers. Non-zero values indicate server errors. Track over time
   # to catch regressions that introduce error-producing code paths.
   echo "  ALB: HTTPCode_Target_5XX_Count (server errors)..."
@@ -1237,7 +1237,7 @@ if [[ -n "$ALB_ARN_SUFFIX" ]]; then
   [[ "$alb_5xx" == "null" ]] && alb_5xx='{"Sum": 0, "Unit": "Count", "no_datapoints": true}'
 
   # HTTPCode_ELB_5XX_Count: 5xx generated by the ALB itself (target connection
-  # failures, timeouts, no healthy targets). These never reach Fleet server
+  # failures, timeouts, no healthy targets). These never reach AutoMDM server
   # logs, so target-5xx alone misses them.
   echo "  ALB: HTTPCode_ELB_5XX_Count (ALB-generated errors)..."
   alb_elb_5xx=$(collect_metric "AWS/ApplicationELB" "HTTPCode_ELB_5XX_Count" \
@@ -1280,10 +1280,10 @@ if [[ -n "$ALB_ARN_SUFFIX" ]]; then
 fi
 
 # -------------------------------------------------------------------------
-# CloudWatch Logs Insights — Fleet server error query
-# Queries the Fleet server log group for error-level log entries, filtering
+# CloudWatch Logs Insights — AutoMDM server error query
+# Queries the AutoMDM server log group for error-level log entries, filtering
 # out known noise:
-#   - fleet_detail_query_software errors (osquery-perf has a default 50%
+#   - team_detail_query_software errors (osquery-perf has a default 50%
 #     failure rate for software queries)
 #   - "context canceled" errors (normal during container deployments)
 #
@@ -1291,16 +1291,16 @@ fi
 # manual review. The expected value is 0 errors over at least 1 hour.
 # -------------------------------------------------------------------------
 LOGS_ERRORS="{}"
-if [[ -n "$FLEET_LOG_GROUP" ]]; then
-  echo "  CloudWatch Logs: Querying Fleet server errors..."
+if [[ -n "$AUTOMDM_LOG_GROUP" ]]; then
+  echo "  CloudWatch Logs: Querying AutoMDM server errors..."
   # Start the Logs Insights query (async)
   LOGS_QUERY_ID=$(aws logs start-query \
-    --log-group-name "$FLEET_LOG_GROUP" \
+    --log-group-name "$AUTOMDM_LOG_GROUP" \
     --start-time "$START_EPOCH" \
     --end-time "$END_EPOCH" \
     --query-string 'fields @timestamp, @message
 | filter ispresent(error) or ispresent(err) or level = "error"
-| filter @message not like /fleet_detail_query_software/
+| filter @message not like /team_detail_query_software/
 | filter @message not like /context canceled/
 | filter level != "debug"
 | filter level != "info"
@@ -1450,7 +1450,7 @@ if [[ -n "$RDS_WRITER_INSTANCE" ]]; then
     Average Maximum)
 
   # InsertLatency: Average latency (milliseconds) of INSERT queries on the writer.
-  # Fleet's workload is insert-heavy (host checkins, software inventory).
+  # AutoMDM's workload is insert-heavy (host checkins, software inventory).
   # Rising values may indicate index bloat or lock contention.
   echo "  RDS Writer: InsertLatency..."
   rds_w_insert_lat=$(collect_metric "AWS/RDS" "InsertLatency" \
@@ -1530,20 +1530,20 @@ fi
 # -------------------------------------------------------------------------
 # ECS Network traffic (Container Insights)
 # NetworkRxBytes / NetworkTxBytes measure the total bytes received/sent by
-# Fleet server containers. Useful for detecting unexpected traffic changes
+# AutoMDM server containers. Useful for detecting unexpected traffic changes
 # (e.g. a new feature that increases payload sizes). Requires Container
 # Insights to be enabled on the ECS cluster.
 # -------------------------------------------------------------------------
 NETWORK_METRICS="{}"
-if [[ -n "$FLEET_SERVICE" ]]; then
-  echo "  Fleet Server: Network RX (Container Insights)..."
+if [[ -n "$AUTOMDM_SERVICE" ]]; then
+  echo "  AutoMDM Server: Network RX (Container Insights)..."
   net_rx=$(collect_metric "ECS/ContainerInsights" "NetworkRxBytes" \
-    "Name=ClusterName,Value=$ECS_CLUSTER Name=ServiceName,Value=$FLEET_SERVICE" \
+    "Name=ClusterName,Value=$ECS_CLUSTER Name=ServiceName,Value=$AUTOMDM_SERVICE" \
     Sum Average)
 
-  echo "  Fleet Server: Network TX (Container Insights)..."
+  echo "  AutoMDM Server: Network TX (Container Insights)..."
   net_tx=$(collect_metric "ECS/ContainerInsights" "NetworkTxBytes" \
-    "Name=ClusterName,Value=$ECS_CLUSTER Name=ServiceName,Value=$FLEET_SERVICE" \
+    "Name=ClusterName,Value=$ECS_CLUSTER Name=ServiceName,Value=$AUTOMDM_SERVICE" \
     Sum Average)
 
   NETWORK_METRICS=$(jq -n \
@@ -1572,7 +1572,7 @@ fi
 #
 # Output JSON:
 #   abnormal_stops:        loadtest/osquery_perf tasks stopped with non-zero exit code
-#   fleet_abnormal_stops:  fleet server tasks stopped with non-zero exit code
+#   automdm_abnormal_stops:  automdm server tasks stopped with non-zero exit code
 #   running_tasks:         number of currently running tasks
 #   failed_health_checks:  service events reporting failed/unhealthy health checks
 #   unable_to_place:       service events reporting task placement failures
@@ -1597,7 +1597,7 @@ JQ_TS_EPOCH='def ts_epoch:
 if [[ -n "$LOADTEST_SVC" ]]; then
   echo "  Loadtest: Checking for container restarts..."
   # List stopped tasks in the cluster from the interval and count non-zero exit
-  # codes, split into loadtest tasks vs the Fleet server itself. Note: ECS only
+  # codes, split into loadtest tasks vs the AutoMDM server itself. Note: ECS only
   # retains stopped tasks for about an hour, so over a long interval this
   # undercounts — treat it as "recent crashes", not a full-window total.
   stopped_tasks=$(aws ecs list-tasks --cluster "$ECS_CLUSTER" --desired-status STOPPED \
@@ -1605,7 +1605,7 @@ if [[ -n "$LOADTEST_SVC" ]]; then
   stopped_arns=$(echo "$stopped_tasks" | jq -r '.taskArns[]' | head -50)
 
   restart_count=0
-  fleet_restart_count=0
+  automdm_restart_count=0
   if [[ -n "$stopped_arns" ]]; then
     task_details=$(aws ecs describe-tasks --cluster "$ECS_CLUSTER" \
       --tasks $stopped_arns \
@@ -1620,12 +1620,12 @@ if [[ -n "$LOADTEST_SVC" ]]; then
         | .group // ""] |
       {
         loadtest: [.[] | select(test("^service:(loadtest|osquery_perf)"))] | length,
-        fleet:    [.[] | select(. == "service:fleet")] | length
-      }' 2>/dev/null || echo '{"loadtest":0,"fleet":0}')
+        automdm:    [.[] | select(. == "service:automdm")] | length
+      }' 2>/dev/null || echo '{"loadtest":0,"team":0}')
     restart_count=$(echo "$abnormal_stops_json" | jq '.loadtest')
-    fleet_restart_count=$(echo "$abnormal_stops_json" | jq '.fleet')
+    automdm_restart_count=$(echo "$abnormal_stops_json" | jq '.automdm')
   fi
-  echo "  Loadtest: $restart_count abnormal loadtest stops, $fleet_restart_count abnormal fleet stops detected"
+  echo "  Loadtest: $restart_count abnormal loadtest stops, $automdm_restart_count abnormal automdm stops detected"
 
   # Query running tasks for uptime analysis
   echo "  Loadtest: Checking container uptime..."
@@ -1659,7 +1659,7 @@ if [[ -n "$LOADTEST_SVC" ]]; then
   # in the collection window. Health-check and placement failures alert;
   # ordinary start/stop events (including deliberate migration restarts) don't.
   SERVICES_TO_CHECK=()
-  [[ -n "$FLEET_SERVICE" ]] && SERVICES_TO_CHECK+=("$FLEET_SERVICE")
+  [[ -n "$AUTOMDM_SERVICE" ]] && SERVICES_TO_CHECK+=("$AUTOMDM_SERVICE")
   [[ -n "$OSQUERY_PERF_SERVICE" ]] && SERVICES_TO_CHECK+=("$OSQUERY_PERF_SERVICE")
   if [[ ${#LOADTEST_SERVICES[@]} -gt 0 ]]; then
     SERVICES_TO_CHECK+=("${LOADTEST_SERVICES[@]}")
@@ -1689,7 +1689,7 @@ if [[ -n "$LOADTEST_SVC" ]]; then
 
   CONTAINER_HEALTH=$(jq -n \
     --argjson abnormal_stops "$restart_count" \
-    --argjson fleet_abnormal_stops "$fleet_restart_count" \
+    --argjson automdm_abnormal_stops "$automdm_restart_count" \
     --argjson running_tasks "$running_count" \
     --argjson failed_health_checks "$failed_health_checks" \
     --argjson unable_to_place "$unable_to_place" \
@@ -1697,7 +1697,7 @@ if [[ -n "$LOADTEST_SVC" ]]; then
     --argjson tasks "$uptime_json" \
     '{
       abnormal_stops: $abnormal_stops,
-      fleet_abnormal_stops: $fleet_abnormal_stops,
+      automdm_abnormal_stops: $automdm_abnormal_stops,
       running_tasks: $running_tasks,
       failed_health_checks: $failed_health_checks,
       unable_to_place: $unable_to_place,
@@ -1721,7 +1721,7 @@ jq -n \
   --arg note "$NOTE" \
   --arg start_time "$START_TIME" \
   --arg end_time "$END_TIME" \
-  --argjson fleet_server "$FLEET_SERVER_METRICS" \
+  --argjson automdm_server "$AUTOMDM_SERVER_METRICS" \
   --argjson loadtest_containers "$LOADTEST_METRICS" \
   --argjson apns_mock "$APNS_MOCK_METRICS" \
   --argjson rds_writer "$RDS_WRITER_METRICS" \
@@ -1731,7 +1731,7 @@ jq -n \
   --argjson redis "$REDIS_METRICS" \
   --argjson apns_mock_redis "$APNS_REDIS_METRICS" \
   --argjson alb "$ALB_METRICS" \
-  --argjson fleet_server_errors "$LOGS_ERRORS" \
+  --argjson automdm_server_errors "$LOGS_ERRORS" \
   --argjson apns_mock_errors "$APNS_LOGS_ERRORS" \
   --argjson rds_writer_ext "$RDS_WRITER_EXT" \
   --argjson rds_readers_ext "$RDS_READERS_EXT" \
@@ -1748,7 +1748,7 @@ jq -n \
       interval: $interval,
       time_window: {start: $start_time, end: $end_time}
     } + (if $note == "" then {} else {note: $note} end)),
-    fleet_server: $fleet_server,
+    automdm_server: $automdm_server,
     loadtest_containers: $loadtest_containers,
     apns_mock: $apns_mock,
     rds_writer: $rds_writer,
@@ -1760,7 +1760,7 @@ jq -n \
     redis: $redis,
     apns_mock_redis: $apns_mock_redis,
     alb: $alb,
-    fleet_server_errors: $fleet_server_errors,
+    automdm_server_errors: $automdm_server_errors,
     apns_mock_errors: $apns_mock_errors,
     rds_writer_extended: $rds_writer_ext,
     rds_readers_extended: $rds_readers_ext,
@@ -1788,11 +1788,11 @@ echo ""
 echo '```'
 
 # Print a quick summary table to stdout
-if jq -e '.fleet_server.cpu_utilization' "$OUTPUT" >/dev/null 2>&1; then
-  fleet_cpu_avg=$(jq -r '.fleet_server.cpu_utilization.Average // "N/A"' "$OUTPUT")
-  fleet_mem_avg=$(jq -r '.fleet_server.memory_utilization.Average // "N/A"' "$OUTPUT")
-  fleet_running=$(jq -r '.fleet_server.task_counts.runningCount // "N/A"' "$OUTPUT")
-  printf "Fleet Server:  CPU=%s%%  Mem=%s%%  Containers=%s\n" "$fleet_cpu_avg" "$fleet_mem_avg" "$fleet_running"
+if jq -e '.automdm_server.cpu_utilization' "$OUTPUT" >/dev/null 2>&1; then
+  automdm_cpu_avg=$(jq -r '.automdm_server.cpu_utilization.Average // "N/A"' "$OUTPUT")
+  automdm_mem_avg=$(jq -r '.automdm_server.memory_utilization.Average // "N/A"' "$OUTPUT")
+  automdm_running=$(jq -r '.automdm_server.task_counts.runningCount // "N/A"' "$OUTPUT")
+  printf "AutoMDM Server:  CPU=%s%%  Mem=%s%%  Containers=%s\n" "$automdm_cpu_avg" "$automdm_mem_avg" "$automdm_running"
 fi
 
 if jq -e '.loadtest_containers.task_counts' "$OUTPUT" >/dev/null 2>&1; then
@@ -1888,16 +1888,16 @@ if jq -e '.alb.target_response_time' "$OUTPUT" >/dev/null 2>&1; then
   printf "               Target5xx=%s  ELB5xx=%s  Requests=%s  Traffic=%s\n" "$alb_5xx" "$alb_elb_5xx" "$alb_reqs" "$alb_bytes"
 fi
 
-if jq -e '.fleet_server_errors.error_count' "$OUTPUT" >/dev/null 2>&1; then
-  err_count=$(jq -r '.fleet_server_errors.error_count // "N/A"' "$OUTPUT")
-  err_samples=$(jq -r '.fleet_server_errors.sample_messages // [] | length' "$OUTPUT")
-  printf "Fleet Errors:  Count=%s\n" "$err_count"
+if jq -e '.automdm_server_errors.error_count' "$OUTPUT" >/dev/null 2>&1; then
+  err_count=$(jq -r '.automdm_server_errors.error_count // "N/A"' "$OUTPUT")
+  err_samples=$(jq -r '.automdm_server_errors.sample_messages // [] | length' "$OUTPUT")
+  printf "AutoMDM Errors:  Count=%s\n" "$err_count"
   # Show a few sample messages inline so the synopsis is actionable without
   # opening the JSON (which holds up to 10 full samples). Structured (JSON)
   # log lines are summarized to timestamp + endpoint + error detail; anything
   # else is shown truncated.
   if [[ "$err_samples" -gt 0 ]]; then
-    jq -r '.fleet_server_errors.sample_messages[:3][] |
+    jq -r '.automdm_server_errors.sample_messages[:3][] |
       ((fromjson? | [(.ts // ""), (.uri // ""), (."ingestion-err" // .err // .msg // "")] | map(select(. != "")) | join("  ")) // .) as $line |
       "  · " + $line[0:220] + (if ($line | length) > 220 then "…" else "" end)' "$OUTPUT"
     if [[ "$err_samples" -gt 3 ]]; then
@@ -1955,12 +1955,12 @@ fi
 
 if jq -e '.container_health' "$OUTPUT" >/dev/null 2>&1; then
   ch_stops=$(jq -r '.container_health.abnormal_stops // 0' "$OUTPUT")
-  ch_fleet_stops=$(jq -r '.container_health.fleet_abnormal_stops // 0' "$OUTPUT")
+  ch_automdm_stops=$(jq -r '.container_health.automdm_abnormal_stops // 0' "$OUTPUT")
   ch_running=$(jq -r '.container_health.running_tasks // 0' "$OUTPUT")
   ch_hc=$(jq -r '.container_health.failed_health_checks // 0' "$OUTPUT")
   ch_place=$(jq -r '.container_health.unable_to_place // 0' "$OUTPUT")
-  printf "Containers:    Running=%s  AbnormalStops=%s  FleetStops=%s  FailedHealthChecks=%s  PlacementFailures=%s\n" \
-    "$ch_running" "$ch_stops" "$ch_fleet_stops" "$ch_hc" "$ch_place"
+  printf "Containers:    Running=%s  AbnormalStops=%s  AutoMDMStops=%s  FailedHealthChecks=%s  PlacementFailures=%s\n" \
+    "$ch_running" "$ch_stops" "$ch_automdm_stops" "$ch_hc" "$ch_place"
   # Show the failure events themselves so the synopsis is actionable.
   jq -r '.container_health.service_events // [] | .[:3][] | "  · " + .at + "  " + .service + ": " + .message[0:160]' "$OUTPUT"
 fi
@@ -1979,8 +1979,8 @@ echo '```'
 # printed as alerts.
 #
 # Thresholds:
-#   Fleet Server CPU          < 80% avg
-#   Fleet Server Memory       < 80% avg
+#   AutoMDM Server CPU          < 80% avg
+#   AutoMDM Server Memory       < 80% avg
 #   RDS Writer CPU            < 80% avg
 #   RDS Reader CPU            < 90% avg
 #   RDS Writer Deadlocks      == 0
@@ -1997,10 +1997,10 @@ echo '```'
 #   apns-mock Redis CPU       < 80% avg
 #   apns-mock Redis Memory    < 70% avg
 #   apns-mock Redis Evictions  == 0
-#   Fleet Server Errors       == 0
+#   AutoMDM Server Errors       == 0
 #   apns-mock Errors          == 0
 #   IOPS Utilization          < 80% avg
-#   Container Abnormal Stops   == 0 (loadtest and fleet server, separately)
+#   Container Abnormal Stops   == 0 (loadtest and automdm server, separately)
 #   Failed Health Check Events == 0 (ECS service events; deliberate restarts
 #                              during migrations emit only start/stop events
 #                              and are not counted)
@@ -2040,8 +2040,8 @@ check_threshold() {
 }
 
 # Standard thresholds
-check_threshold "Fleet Server CPU avg"     '.fleet_server.cpu_utilization.Average'        lt 80
-check_threshold "Fleet Server Memory avg"  '.fleet_server.memory_utilization.Average'     lt 80
+check_threshold "AutoMDM Server CPU avg"     '.automdm_server.cpu_utilization.Average'        lt 80
+check_threshold "AutoMDM Server Memory avg"  '.automdm_server.memory_utilization.Average'     lt 80
 check_threshold "RDS Writer CPU avg"       '.rds_writer.cpu_utilization.Average'          lt 80
 check_threshold "RDS Writer Deadlocks"     '.rds_writer.deadlocks.Sum'                   eq 0
 check_threshold "Redis CPU avg"            '.redis[0].cpu_utilization.Average'            lt 80
@@ -2076,17 +2076,17 @@ for reader_label in $(jq -r '.rds_readers[].instance // empty' "$OUTPUT" 2>/dev/
     ".rds_readers_extended[] | select(.instance==\"$reader_label\") | .iops_utilization.utilization_pct" lt 80
 done
 
-check_threshold "Fleet Server Errors"      '.fleet_server_errors.error_count' eq 0
+check_threshold "AutoMDM Server Errors"      '.automdm_server_errors.error_count' eq 0
 check_threshold "apns-mock Errors"         '.apns_mock_errors.error_count' eq 0
 check_threshold "IOPS Utilization"         '.rds_writer_extended.iops_utilization.utilization_pct' lt 80
 check_threshold "Container Abnormal Stops"  '.container_health.abnormal_stops' eq 0
-check_threshold "Fleet Server Abnormal Stops" '.container_health.fleet_abnormal_stops' eq 0
+check_threshold "AutoMDM Server Abnormal Stops" '.container_health.automdm_abnormal_stops' eq 0
 check_threshold "Failed Health Check Events" '.container_health.failed_health_checks' eq 0
 check_threshold "Placement Failure Events"  '.container_health.unable_to_place' eq 0
 
 # Data coverage: if key metrics only have datapoints for part of the window,
 # the averages above are misleading (e.g. interval longer than the test ran).
-check_threshold "Fleet Server CPU data coverage" '.fleet_server.cpu_utilization.data_coverage' ge 0.9
+check_threshold "AutoMDM Server CPU data coverage" '.automdm_server.cpu_utilization.data_coverage' ge 0.9
 check_threshold "RDS Writer CPU data coverage"   '.rds_writer.cpu_utilization.data_coverage' ge 0.9
 check_threshold "ALB Requests data coverage"     '.alb.request_count.data_coverage' ge 0.9
 

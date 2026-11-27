@@ -78,10 +78,10 @@ func TestDeviceClientGetDesktopPayload(t *testing.T) {
 		mockRequestDoer.resBody = `{"alternative_browser_host": "gogetit.com:6969"}`
 		_, err := client.DesktopSummary(token)
 		require.NoError(t, err)
-		require.EqualValues(t, "gogetit.com:6969", client.fleetAlternativeBrowserHostFromServer)
+		require.EqualValues(t, "gogetit.com:6969", client.automdmAlternativeBrowserHostFromServer)
 	})
 }
-func TestDeviceClientGetFleetHost(t *testing.T) {
+func TestDeviceClientGetTeamHost(t *testing.T) {
 	testCases := []struct {
 		alternativeBrowserHostFromEnv    string
 		alternativeBrowserHostFromServer string
@@ -112,7 +112,7 @@ func TestDeviceClientGetFleetHost(t *testing.T) {
 	for _, tc := range testCases {
 		client, err := NewDeviceClient("", true, "", nil, tc.alternativeBrowserHostFromEnv)
 		require.NoError(t, err)
-		client.fleetAlternativeBrowserHostFromServer = tc.alternativeBrowserHostFromServer
+		client.automdmAlternativeBrowserHostFromServer = tc.alternativeBrowserHostFromServer
 		require.Equal(t, tc.expected, client.getAlternativeBrowserHostSetting())
 	}
 }

@@ -34,7 +34,7 @@ const CreateApiUserPage = ({ router }: ICreateApiUserPageProps) => {
     () => teamsAPI.loadAll(),
     {
       enabled: !!isPremiumTier,
-      select: (data: ILoadTeamsResponse) => data.fleets,
+      select: (data: ILoadTeamsResponse) => data.teams,
     }
   );
 
@@ -45,7 +45,7 @@ const CreateApiUserPage = ({ router }: ICreateApiUserPageProps) => {
       .createApiOnlyUser({
         name: formData.name,
         global_role: formData.global_role,
-        fleets: formData.fleets.map((f) => ({
+        teams: formData.teams.map((f) => ({
           id: f.id,
           role: f.role ?? "observer",
         })),
@@ -88,7 +88,7 @@ const CreateApiUserPage = ({ router }: ICreateApiUserPageProps) => {
         <>
           <div>
             <h1>New API-only user</h1>
-            <PageDescription content="This user will have access to the Fleet API, but will not be able to log into the UI." />
+            <PageDescription content="This user will have access to the AutoMDM API, but will not be able to log into the UI." />
           </div>
           <ApiUserForm
             isPremiumTier={isPremiumTier}

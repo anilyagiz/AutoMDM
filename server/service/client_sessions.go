@@ -5,20 +5,20 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
-// Login attempts to login to the current Fleet instance. If login is successful,
+// Login attempts to login to the current AutoMDM instance. If login is successful,
 // an auth token is returned.
 func (c *Client) Login(email, password string) (string, error) {
-	params := fleet.LoginRequest{
+	params := automdm.LoginRequest{
 		Email:    email,
 		Password: password,
 	}
 
-	response, err := c.Do("POST", "/api/latest/fleet/login", "", params)
+	response, err := c.Do("POST", "/api/latest/automdm/login", "", params)
 	if err != nil {
-		return "", fmt.Errorf("POST /api/latest/fleet/login: %w", err)
+		return "", fmt.Errorf("POST /api/latest/automdm/login: %w", err)
 	}
 	defer response.Body.Close()
 
@@ -33,7 +33,7 @@ func (c *Client) Login(email, password string) (string, error) {
 		)
 	}
 
-	var responseBody fleet.LoginResponse
+	var responseBody automdm.LoginResponse
 	err = json.NewDecoder(response.Body).Decode(&responseBody)
 	if err != nil {
 		return "", fmt.Errorf("decode login response: %w", err)
@@ -46,12 +46,12 @@ func (c *Client) Login(email, password string) (string, error) {
 	return responseBody.Token, nil
 }
 
-// SSOSettings returns the SSO settings for the current Fleet instance.
+// SSOSettings returns the SSO settings for the current AutoMDM instance.
 // This endpoint is unauthenticated and can be called before login.
-func (c *Client) SSOSettings() (*fleet.SessionSSOSettings, error) {
-	response, err := c.Do("GET", "/api/v1/fleet/sso", "", nil)
+func (c *Client) SSOSettings() (*automdm.SessionSSOSettings, error) {
+	response, err := c.Do("GET", "/api/v1/automdm/sso", "", nil)
 	if err != nil {
-		return nil, fmt.Errorf("GET /api/v1/fleet/sso: %w", err)
+		return nil, fmt.Errorf("GET /api/v1/automdm/sso: %w", err)
 	}
 	defer response.Body.Close()
 
@@ -60,7 +60,7 @@ func (c *Client) SSOSettings() (*fleet.SessionSSOSettings, error) {
 	}
 
 	var responseBody struct {
-		Settings *fleet.SessionSSOSettings `json:"settings"`
+		Settings *automdm.SessionSSOSettings `json:"settings"`
 	}
 	if err := json.NewDecoder(response.Body).Decode(&responseBody); err != nil {
 		return nil, fmt.Errorf("decode SSO settings response: %w", err)
@@ -69,9 +69,9 @@ func (c *Client) SSOSettings() (*fleet.SessionSSOSettings, error) {
 	return responseBody.Settings, nil
 }
 
-// Logout attempts to logout to the current Fleet instance.
+// Logout attempts to logout to the current AutoMDM instance.
 func (c *Client) Logout() error {
-	verb, path := "POST", "/api/latest/fleet/logout"
-	var responseBody fleet.LogoutResponse
+	verb, path := "POST", "/api/latest/automdm/logout"
+	var responseBody automdm.LogoutResponse
 	return c.authenticatedRequest(nil, verb, path, &responseBody)
 }

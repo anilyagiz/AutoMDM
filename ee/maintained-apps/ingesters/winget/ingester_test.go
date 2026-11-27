@@ -11,8 +11,8 @@ import (
 	"path"
 	"testing"
 
-	maintained_apps "github.com/fleetdm/fleet/v4/ee/maintained-apps"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	maintained_apps "github.com/anilyagiz/automdm/v4/ee/maintained-apps"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/google/go-github/v37/github"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

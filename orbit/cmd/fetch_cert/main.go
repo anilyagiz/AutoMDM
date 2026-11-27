@@ -13,12 +13,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/ee/orbit/pkg/scep"
-	"github.com/fleetdm/fleet/v4/ee/orbit/pkg/securehw"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/constant"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/update"
-	"github.com/fleetdm/fleet/v4/pkg/fleethttpsig"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/ee/orbit/pkg/scep"
+	"github.com/anilyagiz/automdm/v4/ee/orbit/pkg/securehw"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/constant"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/update"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttpsig"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	httpsig "github.com/remitly-oss/httpsig-go"
 	"github.com/rs/zerolog"
 )
@@ -42,8 +42,8 @@ func (c *Credentials) Close() {
 }
 
 func main() {
-	rootDir := flag.String("rootdir", update.DefaultOptions.RootDirectory, "fleetd installation root")
-	fleetURL := flag.String("fleeturl", "", "fleet server base URL")
+	rootDir := flag.String("rootdir", update.DefaultOptions.RootDirectory, "automdmd installation root")
+	automdmURL := flag.String("automdmurl", "", "automdm server base URL")
 	authorityID := flag.Uint("ca", 0, "certificate authority ID")
 	csrPath := flag.String("csr", "", "csr path")
 	outPath := flag.String("out", "certificate.pem", "output certificate path")
@@ -57,8 +57,8 @@ func main() {
 	}
 	logger := zerolog.New(os.Stderr).Level(logLevel)
 
-	if *fleetURL == "" {
-		logger.Error().Msg("fleet URL must be set")
+	if *automdmURL == "" {
+		logger.Error().Msg("automdm URL must be set")
 		flag.Usage()
 		os.Exit(1)
 	}
@@ -87,7 +87,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	cert, err := requestCert(signer, *fleetURL, *authorityID, string(csr))
+	cert, err := requestCert(signer, *automdmURL, *authorityID, string(csr))
 	if err != nil {
 		logger.Err(err).Msg("failed to request certificate")
 		os.Exit(1)
@@ -107,8 +107,8 @@ type requestCertificateResponse struct {
 	} `json:"errors"`
 }
 
-func requestCert(signer *httpsig.Signer, fleetURL string, certificateAuthorityID uint, csr string) (string, error) {
-	payload := fleet.RequestCertificatePayload{
+func requestCert(signer *httpsig.Signer, automdmURL string, certificateAuthorityID uint, csr string) (string, error) {
+	payload := automdm.RequestCertificatePayload{
 		ID:  certificateAuthorityID,
 		CSR: csr,
 	}
@@ -118,8 +118,8 @@ func requestCert(signer *httpsig.Signer, fleetURL string, certificateAuthorityID
 	}
 
 	requestURL := fmt.Sprintf(
-		"%s/api/v1/fleet/certificate_authorities/%d/request_certificate",
-		strings.TrimRight(fleetURL, "/"),
+		"%s/api/v1/automdm/certificate_authorities/%d/request_certificate",
+		strings.TrimRight(automdmURL, "/"),
 		certificateAuthorityID,
 	)
 	reader := bytes.NewReader(bodyBytes)
@@ -179,7 +179,7 @@ func getSigner(rootDir string, logger zerolog.Logger) (*httpsig.Signer, error) {
 		return nil, fmt.Errorf("invalid ECC algorithm: %v", v)
 	}
 
-	httpSigner, err := fleethttpsig.Signer(certSN, cryptoSigner, signingAlgorithm)
+	httpSigner, err := automdmhttpsig.Signer(certSN, cryptoSigner, signingAlgorithm)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP signer: %w", err)
 	}
@@ -194,7 +194,7 @@ func loadCredentials(rootDir string, logger zerolog.Logger) (*Credentials, error
 	}
 
 	credentials := &Credentials{
-		CertificatePath: filepath.Join(rootDir, constant.FleetHTTPSignatureCertificateFileName),
+		CertificatePath: filepath.Join(rootDir, constant.AutoMDMHTTPSignatureCertificateFileName),
 		SecureHW:        secureHWDevice,
 	}
 
@@ -229,7 +229,7 @@ func loadCredentials(rootDir string, logger zerolog.Logger) (*Credentials, error
 }
 
 func loadSCEPClientCert(metadataDir string) (*x509.Certificate, error) {
-	certPath := filepath.Join(metadataDir, constant.FleetHTTPSignatureCertificateFileName)
+	certPath := filepath.Join(metadataDir, constant.AutoMDMHTTPSignatureCertificateFileName)
 	certPEMBytes, err := os.ReadFile(certPath)
 	if err != nil {
 		return nil, fmt.Errorf("open %q: %w", certPath, err)

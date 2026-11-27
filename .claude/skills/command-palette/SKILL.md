@@ -1,6 +1,6 @@
 ---
 name: command-palette
-description: Authoring guide for the Fleet command palette. Use when adding or editing items in frontend/components/CommandPalette/groups/, when editing frontend/router/paths.ts or frontend/router/index.tsx, or when adding a new top-level page, global create action, MDM connector / singleton config, automation hook, or picker action that needs a palette entry.
+description: Authoring guide for the AutoMDM command palette. Use when adding or editing items in frontend/components/CommandPalette/groups/, when editing frontend/router/paths.ts or frontend/router/index.tsx, or when adding a new top-level page, global create action, MDM connector / singleton config, automation hook, or picker action that needs a palette entry.
 allowed-tools: Read, Grep, Glob, Bash(yarn test*)
 effort: medium
 ---
@@ -25,9 +25,9 @@ This skill exists to make sure that guide gets followed when palette-worthy chan
 
 1. **Update `frontend/components/CommandPalette/helpers.tests.ts`**:
    - Assert the item appears for the right roles and hides for the wrong ones
-   - If premium-only: assert absence in the `Fleet Free (isPremiumTier: false)` block
+   - If premium-only: assert absence in the `AutoMDM Free (isPremiumTier: false)` block
    - If hidden in primo mode: add to the `Primo Mode (isPrimoMode: true)` block
-   - If it sets a `teamName` chip: assert it renders / doesn't render against the relevant fleet contexts
+   - If it sets a `teamName` chip: assert it renders / doesn't render against the relevant team contexts
 2. Run the palette tests:
    ```
    yarn test frontend/components/CommandPalette/helpers.tests.ts

@@ -11,7 +11,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
 )
 
 var (
@@ -83,7 +83,7 @@ func unenroll(serialNumber string) error {
 	}
 	// Get device info to grab the device id
 	// https://api-docs.kandji.io/#78209960-31a7-4e3b-a2c0-95c7e65bb5f9
-	client := fleethttp.NewClient()
+	client := automdmhttp.NewClient()
 	req, err := http.NewRequest("GET", fmt.Sprintf("https://%s.api.kandji.io/api/v1/devices?serial_number=%s", *subdomainFlag, serialNumber), nil)
 	if err != nil {
 		return err

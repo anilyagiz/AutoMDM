@@ -6,7 +6,7 @@ resource "aws_ecs_service" "loadtest" {
   count                              = var.loadtest_containers
   name                               = "loadtest-${count.index}"
   launch_type                        = "FARGATE"
-  cluster                            = aws_ecs_cluster.fleet.id
+  cluster                            = aws_ecs_cluster.automdm.id
   task_definition                    = aws_ecs_task_definition.loadtest[count.index].arn
   desired_count                      = 1
   deployment_minimum_healthy_percent = 100

@@ -44,16 +44,16 @@ type IViewAllHostsLinkProps = CellProps<IOperatingSystemVersion>;
 type IHostHeaderProps = IHeaderProps<IOperatingSystemVersion>;
 
 // Windows feature-update codename, e.g. "21H2", "23H1" — one of the two
-// documented shapes of fleet.OSVersion.Version (the other being
+// documented shapes of team.OSVersion.Version (the other being
 // dot-separated numbers). Treated as a [year, half] version for comparison.
 const WINDOWS_FEATURE_UPDATE_PATTERN = /^(\d{2})H([12])$/;
 // Matches server/service/hosts.go's numericVersionPattern. Deliberately
 // stricter than `Number()` coercion, which also accepts "", "1.", ".1",
 // "+1", "1e2", and hex/whitespace as valid numbers.
 const NUMERIC_VERSION_PATTERN = /^\d+(\.\d+)*$/;
-// Ubuntu LTS releases report a literal " LTS" suffix in fleet.OSVersion.Version
+// Ubuntu LTS releases report a literal " LTS" suffix in team.OSVersion.Version
 // (e.g. "22.04.9 LTS") — osquery's os_version.version column reports it that
-// way and Fleet stores it verbatim. Matches server/service/hosts.go's
+// way and AutoMDM stores it verbatim. Matches server/service/hosts.go's
 // ubuntuLTSSuffixPattern.
 const UBUNTU_LTS_SUFFIX_PATTERN = /\s+LTS$/i;
 
@@ -175,7 +175,7 @@ const generateDefaultTableHeaders = (
 
       const softwareOsDetailsPath = getPathWithQueryParams(
         PATHS.SOFTWARE_OS_DETAILS(os_version_id),
-        { fleet_id: teamId }
+        { team_id: teamId }
       );
 
       const onClickSoftware = (e: React.MouseEvent) => {
@@ -241,7 +241,7 @@ const generateDefaultTableHeaders = (
                 <br />
                 macOS, Windows, Linux, and Android.{" "}
                 <CustomLink
-                  url="https://fleetdm.com/guides/vulnerability-processing#coverage"
+                  url="https://automdm.com/guides/vulnerability-processing#coverage"
                   variant="tooltip-link"
                   text="Learn more"
                   newTab
@@ -295,7 +295,7 @@ const generateDefaultTableHeaders = (
         <ViewAllHostsLink
           queryParams={{
             os_version_id,
-            fleet_id: teamId,
+            team_id: teamId,
           }}
           className="os-hosts-link"
           rowHover

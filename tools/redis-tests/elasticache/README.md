@@ -1,6 +1,6 @@
 # ElastiCache IAM Authentication Test Tools
 
-This directory contains tools for testing Fleet's ElastiCache IAM authentication implementation.
+This directory contains tools for testing AutoMDM's ElastiCache IAM authentication implementation.
 
 ## Prerequisites
 

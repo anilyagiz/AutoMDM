@@ -17,9 +17,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/nvd"
-	nvdsync "github.com/fleetdm/fleet/v4/server/vulnerabilities/nvd/sync"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/nvd"
+	nvdsync "github.com/anilyagiz/automdm/v4/server/vulnerabilities/nvd/sync"
 	"github.com/google/go-github/v37/github"
 )
 
@@ -217,7 +217,7 @@ func downloadReleaseAsset(ctx context.Context, dbDir, assetPath, fileName string
 	if err != nil {
 		return fmt.Errorf("create %s request: %w", fileName, err)
 	}
-	client := fleethttp.NewClient(fleethttp.WithNoTimeout())
+	client := automdmhttp.NewClient(automdmhttp.WithNoTimeout())
 	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("get %s: %w", fileName, err)

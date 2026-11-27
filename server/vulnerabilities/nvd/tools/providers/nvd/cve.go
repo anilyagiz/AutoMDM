@@ -33,8 +33,8 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/nvd/tools/providers/lib/client"
 	"github.com/facebookincubator/flog"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/nvd/tools/providers/lib/client"
 )
 
 // CVE defines the CVE data feed for synchronization.

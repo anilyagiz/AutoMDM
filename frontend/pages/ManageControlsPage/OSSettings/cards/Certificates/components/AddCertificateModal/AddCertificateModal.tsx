@@ -214,7 +214,7 @@ const AddCertModal = ({
           error={formValidation.subjectName?.message}
           helpText='Separate subject fields by ", ". For example: CN=john@example.com, O=Acme Inc.'
           parseTarget
-          placeholder="CN=$FLEET_VAR_HOST_END_USER_IDP_USERNAME, O=Your Organization"
+          placeholder="CN=$AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME, O=Your Organization"
         />
         <InputField
           name="subjectAlternativeName"
@@ -228,7 +228,7 @@ const AddCertModal = ({
           }
           helpText='Optional. Separate fields by ", " using format KEY=value. Allowed keys: DNS, EMAIL, UPN, IP, URI.'
           parseTarget
-          placeholder="UPN=$FLEET_VAR_HOST_END_USER_IDP_USERNAME, EMAIL=$FLEET_VAR_HOST_END_USER_IDP_USERNAME"
+          placeholder="UPN=$AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME, EMAIL=$AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME"
         />
         <div className="modal-cta-wrap">
           <Button isLoading={isUpdating} disabled={isUpdating} type="submit">

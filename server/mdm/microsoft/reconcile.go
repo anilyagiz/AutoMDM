@@ -3,8 +3,8 @@ package microsoft_mdm
 import (
 	"bytes"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/reconcile"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/reconcile"
 )
 
 // ComputeWindowsReconcileDeltas evaluates the desired profile state for each host in the input set using the SHARED dispatcher
@@ -13,20 +13,20 @@ import (
 // profilesByTeam groups every loaded profile by its team_id; profilesWithBrokenLabels holds the UUIDs of profiles carrying at
 // least one deleted label (kept out of removal).
 func ComputeWindowsReconcileDeltas(
-	hosts []*fleet.WindowsHostReconcileInfo,
+	hosts []*automdm.WindowsHostReconcileInfo,
 	hostLabels map[uint]map[uint]struct{},
-	currentByHost map[string][]*fleet.MDMWindowsProfilePayload,
-	profilesByTeam map[uint][]*fleet.WindowsProfileForReconcile,
+	currentByHost map[string][]*automdm.MDMWindowsProfilePayload,
+	profilesByTeam map[uint][]*automdm.WindowsProfileForReconcile,
 	profilesWithBrokenLabels map[string]struct{},
-) (toInstall, toRemove []*fleet.MDMWindowsProfilePayload) {
+) (toInstall, toRemove []*automdm.MDMWindowsProfilePayload) {
 	for _, host := range hosts {
 		teamProfiles := profilesByTeam[host.EffectiveTeamID()]
-		desired := make(map[string]*fleet.WindowsProfileForReconcile, len(teamProfiles))
+		desired := make(map[string]*automdm.WindowsProfileForReconcile, len(teamProfiles))
 
 		labelsForHost := hostLabels[host.HostID]
 
 		current := currentByHost[host.UUID]
-		currentByProfile := make(map[string]*fleet.MDMWindowsProfilePayload, len(current))
+		currentByProfile := make(map[string]*automdm.MDMWindowsProfilePayload, len(current))
 		for _, c := range current {
 			currentByProfile[c.ProfileUUID] = c
 		}
@@ -59,10 +59,10 @@ func ComputeWindowsReconcileDeltas(
 				// IFNULL(hmwp.secrets_updated_at < ds.secrets_updated_at, FALSE):
 				// only fires when BOTH timestamps are present and current is older.
 				needsInstall = true
-			case c.OperationType == fleet.MDMOperationTypeInstall && c.Status == nil:
+			case c.OperationType == automdm.MDMOperationTypeInstall && c.Status == nil:
 				// install was never sent (NULL status); re-push.
 				needsInstall = true
-			case c.OperationType == fleet.MDMOperationTypeRemove && !isTerminalRemoveStatus(c.Status):
+			case c.OperationType == automdm.MDMOperationTypeRemove && !isTerminalRemoveStatus(c.Status):
 				// currently marked for removal but not an in-flight or completed
 				// removal — flip back to install. Matches
 				// operation_type = remove AND COALESCE(status,'') NOT IN ('verifying','verified').
@@ -72,7 +72,7 @@ func ComputeWindowsReconcileDeltas(
 				continue
 			}
 
-			toInstall = append(toInstall, &fleet.MDMWindowsProfilePayload{
+			toInstall = append(toInstall, &automdm.MDMWindowsProfilePayload{
 				ProfileUUID:               p.ProfileUUID,
 				ProfileName:               p.ProfileName,
 				HostUUID:                  host.UUID,
@@ -88,7 +88,7 @@ func ComputeWindowsReconcileDeltas(
 				continue
 			}
 			// Skip rows already processing a remove
-			if c.OperationType == fleet.MDMOperationTypeRemove && c.Status != nil {
+			if c.OperationType == automdm.MDMOperationTypeRemove && c.Status != nil {
 				continue
 			}
 			// Keep (don't remove) profiles with a broken label
@@ -96,7 +96,7 @@ func ComputeWindowsReconcileDeltas(
 				continue
 			}
 
-			toRemove = append(toRemove, &fleet.MDMWindowsProfilePayload{
+			toRemove = append(toRemove, &automdm.MDMWindowsProfilePayload{
 				ProfileUUID:   c.ProfileUUID,
 				ProfileName:   c.ProfileName,
 				HostUUID:      host.UUID,
@@ -120,10 +120,10 @@ func ComputeWindowsReconcileDeltas(
 // still desired on the same host: a <Delete> must not revert a setting another applicable profile still enforces. Applicability is
 // evaluated per host, so a label-scoped profile only protects the hosts it actually applies to.
 func DesiredWindowsProfileUUIDsByHost(
-	hosts []*fleet.WindowsHostReconcileInfo,
+	hosts []*automdm.WindowsHostReconcileInfo,
 	hostLabels map[uint]map[uint]struct{},
-	currentByHost map[string][]*fleet.MDMWindowsProfilePayload,
-	profilesByTeam map[uint][]*fleet.WindowsProfileForReconcile,
+	currentByHost map[string][]*automdm.MDMWindowsProfilePayload,
+	profilesByTeam map[uint][]*automdm.WindowsProfileForReconcile,
 ) map[string][]string {
 	out := make(map[string][]string, len(hosts))
 	for _, host := range hosts {
@@ -131,7 +131,7 @@ func DesiredWindowsProfileUUIDsByHost(
 		labelsForHost := hostLabels[host.HostID]
 
 		current := currentByHost[host.UUID]
-		currentByProfile := make(map[string]*fleet.MDMWindowsProfilePayload, len(current))
+		currentByProfile := make(map[string]*automdm.MDMWindowsProfilePayload, len(current))
 		for _, c := range current {
 			currentByProfile[c.ProfileUUID] = c
 		}
@@ -151,19 +151,19 @@ func DesiredWindowsProfileUUIDsByHost(
 }
 
 // profileOnHost reports whether the profile currently has an install-operation row on the host (any status, including failed —
-// Fleet still intends it to be there). Remove-operation rows and absent rows mean not on host. The shared dispatcher uses this
+// AutoMDM still intends it to be there). Remove-operation rows and absent rows mean not on host. The shared dispatcher uses this
 // to preserve the host's current state when a dynamic label's membership is still unknown.
-func profileOnHost(currentByProfile map[string]*fleet.MDMWindowsProfilePayload, profileUUID string) bool {
+func profileOnHost(currentByProfile map[string]*automdm.MDMWindowsProfilePayload, profileUUID string) bool {
 	c, ok := currentByProfile[profileUUID]
-	return ok && c != nil && c.OperationType == fleet.MDMOperationTypeInstall
+	return ok && c != nil && c.OperationType == automdm.MDMOperationTypeInstall
 }
 
 // isTerminalRemoveStatus reports whether a remove row's status is one that the install query treats as "leave alone"
 // (verifying/verified). A NULL status, or any other status (e.g. pending, failed), means the remove can be flipped back to
 // install.
-func isTerminalRemoveStatus(status *fleet.MDMDeliveryStatus) bool {
+func isTerminalRemoveStatus(status *automdm.MDMDeliveryStatus) bool {
 	if status == nil {
 		return false
 	}
-	return *status == fleet.MDMDeliveryVerifying || *status == fleet.MDMDeliveryVerified
+	return *status == automdm.MDMDeliveryVerifying || *status == automdm.MDMDeliveryVerified
 }

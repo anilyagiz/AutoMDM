@@ -46,10 +46,10 @@ func (s *Server) renderFakeSignIn(w http.ResponseWriter, state string) {
 	})
 }
 
-// Copy of fleetdm.com's result pages.
+// Copy of automdm.com's result pages.
 var resultCopy = map[string]page{
 	"done":        {Heading: "You're done! 🎉", Body: "You can log in to apps with your company email."},
-	"not-allowed": {Heading: "This device isn't allowed to access company data.", Body: "Only company-owned devices that are enrolled to Fleet are allowed."},
+	"not-allowed": {Heading: "This device isn't allowed to access company data.", Body: "Only company-owned devices that are enrolled to AutoMDM are allowed."},
 	"not-found":   {Heading: "Sign in to Gmail on this device, then open this page again."},
 	"error":       {Heading: "Something went wrong. Try again."},
 }

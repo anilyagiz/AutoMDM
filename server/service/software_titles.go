@@ -9,9 +9,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
 )
 
 /////////////////////////////////////////////////////////////////////////////////
@@ -19,20 +19,20 @@ import (
 /////////////////////////////////////////////////////////////////////////////////
 
 type listSoftwareTitlesRequest struct {
-	fleet.SoftwareTitleListOptions
+	automdm.SoftwareTitleListOptions
 }
 
 type listSoftwareTitlesResponse struct {
-	Meta            *fleet.PaginationMetadata       `json:"meta"`
-	Count           int                             `json:"count"`
-	CountsUpdatedAt *time.Time                      `json:"counts_updated_at"`
-	SoftwareTitles  []fleet.SoftwareTitleListResult `json:"software_titles"`
-	Err             error                           `json:"error,omitempty"`
+	Meta            *automdm.PaginationMetadata       `json:"meta"`
+	Count           int                               `json:"count"`
+	CountsUpdatedAt *time.Time                        `json:"counts_updated_at"`
+	SoftwareTitles  []automdm.SoftwareTitleListResult `json:"software_titles"`
+	Err             error                             `json:"error,omitempty"`
 }
 
 func (r listSoftwareTitlesResponse) Error() error { return r.Err }
 
-func listSoftwareTitlesEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func listSoftwareTitlesEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*listSoftwareTitlesRequest)
 	titles, count, meta, err := svc.ListSoftwareTitles(ctx, req.SoftwareTitleListOptions)
 	if err != nil {
@@ -46,7 +46,7 @@ func listSoftwareTitlesEndpoint(ctx context.Context, request interface{}, svc fl
 		}
 	}
 	if len(titles) == 0 {
-		titles = []fleet.SoftwareTitleListResult{}
+		titles = []automdm.SoftwareTitleListResult{}
 	}
 	listResp := listSoftwareTitlesResponse{
 		SoftwareTitles: titles,
@@ -62,11 +62,11 @@ func listSoftwareTitlesEndpoint(ctx context.Context, request interface{}, svc fl
 
 func (svc *Service) ListSoftwareTitles(
 	ctx context.Context,
-	opt fleet.SoftwareTitleListOptions,
-) ([]fleet.SoftwareTitleListResult, int, *fleet.PaginationMetadata, error) {
-	if err := svc.authz.Authorize(ctx, &fleet.AuthzSoftwareInventory{
+	opt automdm.SoftwareTitleListOptions,
+) ([]automdm.SoftwareTitleListResult, int, *automdm.PaginationMetadata, error) {
+	if err := svc.authz.Authorize(ctx, &automdm.AuthzSoftwareInventory{
 		TeamID: opt.TeamID,
-	}, fleet.ActionRead); err != nil {
+	}, automdm.ActionRead); err != nil {
 		return nil, 0, nil, err
 	}
 
@@ -76,14 +76,14 @@ func (svc *Service) ListSoftwareTitles(
 	}
 
 	if opt.TeamID != nil && *opt.TeamID != 0 && !lic.IsPremium() {
-		return nil, 0, nil, fleet.ErrMissingLicense
+		return nil, 0, nil, automdm.ErrMissingLicense
 	}
 
 	if !lic.IsPremium() && (opt.MaximumCVSS > 0 || opt.MinimumCVSS > 0 || opt.KnownExploit || opt.AITool) {
-		return nil, 0, nil, fleet.ErrMissingLicense
+		return nil, 0, nil, automdm.ErrMissingLicense
 	}
 
-	opt.TypeFilter, err = fleet.ParseSoftwareTypeFilter(opt.Source, opt.ExtensionFor)
+	opt.TypeFilter, err = automdm.ParseSoftwareTypeFilter(opt.Source, opt.ExtensionFor)
 	if err != nil {
 		return nil, 0, nil, err
 	}
@@ -95,10 +95,10 @@ func (svc *Service) ListSoftwareTitles(
 
 	vc, ok := viewer.FromContext(ctx)
 	if !ok {
-		return nil, 0, nil, fleet.ErrNoContext
+		return nil, 0, nil, automdm.ErrNoContext
 	}
 
-	titles, count, meta, err := svc.ds.ListSoftwareTitles(ctx, opt, fleet.TeamFilter{
+	titles, count, meta, err := svc.ds.ListSoftwareTitles(ctx, opt, automdm.TeamFilter{
 		User:            vc.User,
 		IncludeObserver: true,
 		TeamID:          opt.TeamID,
@@ -125,17 +125,17 @@ func (svc *Service) ListSoftwareTitles(
 
 type getSoftwareTitleRequest struct {
 	ID     uint  `url:"id"`
-	TeamID *uint `query:"fleet_id,optional"`
+	TeamID *uint `query:"team_id,optional"`
 }
 
 type getSoftwareTitleResponse struct {
-	SoftwareTitle *fleet.SoftwareTitle `json:"software_title,omitempty"`
-	Err           error                `json:"error,omitempty"`
+	SoftwareTitle *automdm.SoftwareTitle `json:"software_title,omitempty"`
+	Err           error                  `json:"error,omitempty"`
 }
 
 func (r getSoftwareTitleResponse) Error() error { return r.Err }
 
-func getSoftwareTitleEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func getSoftwareTitleEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*getSoftwareTitleRequest)
 
 	software, err := svc.SoftwareTitleByID(ctx, req.ID, req.TeamID)
@@ -146,14 +146,14 @@ func getSoftwareTitleEndpoint(ctx context.Context, request interface{}, svc flee
 	return getSoftwareTitleResponse{SoftwareTitle: software}, nil
 }
 
-func (svc *Service) SoftwareTitleByID(ctx context.Context, id uint, teamID *uint) (*fleet.SoftwareTitle, error) {
-	if err := svc.authz.Authorize(ctx, &fleet.Host{TeamID: teamID}, fleet.ActionList); err != nil {
+func (svc *Service) SoftwareTitleByID(ctx context.Context, id uint, teamID *uint) (*automdm.SoftwareTitle, error) {
+	if err := svc.authz.Authorize(ctx, &automdm.Host{TeamID: teamID}, automdm.ActionList); err != nil {
 		return nil, err
 	}
 
 	if teamID != nil {
 		// Verify the caller has permission for the requested scope (team or global).
-		if err := svc.authz.Authorize(ctx, &fleet.AuthzSoftwareInventory{TeamID: teamID}, fleet.ActionRead); err != nil {
+		if err := svc.authz.Authorize(ctx, &automdm.AuthzSoftwareInventory{TeamID: teamID}, automdm.ActionRead); err != nil {
 			return nil, err
 		}
 		if *teamID != 0 {
@@ -161,7 +161,7 @@ func (svc *Service) SoftwareTitleByID(ctx context.Context, id uint, teamID *uint
 			if err != nil {
 				return nil, ctxerr.Wrap(ctx, err, "checking if team exists")
 			} else if !exists {
-				return nil, fleet.NewInvalidArgumentError("fleet_id", fmt.Sprintf("fleet %d does not exist", *teamID)).
+				return nil, automdm.NewInvalidArgumentError("team_id", fmt.Sprintf("team %d does not exist", *teamID)).
 					WithStatus(http.StatusNotFound)
 			}
 		}
@@ -169,11 +169,11 @@ func (svc *Service) SoftwareTitleByID(ctx context.Context, id uint, teamID *uint
 
 	vc, ok := viewer.FromContext(ctx)
 	if !ok {
-		return nil, fleet.ErrNoContext
+		return nil, automdm.ErrNoContext
 	}
 
 	// get software by id including team_id data from software_title_host_counts
-	software, err := svc.ds.SoftwareTitleByID(ctx, id, teamID, fleet.TeamFilter{
+	software, err := svc.ds.SoftwareTitleByID(ctx, id, teamID, automdm.TeamFilter{
 		User:            vc.User,
 		IncludeObserver: true,
 	})
@@ -188,18 +188,18 @@ func (svc *Service) SoftwareTitleByID(ctx context.Context, id uint, teamID *uint
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "get license")
 	}
-	// Skip installer data when no fleet is given, packages, App Store apps and in-house apps are set per fleet
+	// Skip installer data when no team is given, packages, App Store apps and in-house apps are set per team
 	if license.IsPremium() && teamID != nil {
 		// add software installer data if needed
 		if software.SoftwareInstallersCount > 0 {
 			pkgs, err := svc.ds.GetSoftwarePackagesByTeamAndTitleID(ctx, teamID, id)
-			if err != nil && !fleet.IsNotFound(err) {
+			if err != nil && !automdm.IsNotFound(err) {
 				return nil, ctxerr.Wrap(ctx, err, "get software packages")
 			}
 			if len(pkgs) > 0 {
 				// Display name and icon are title-level; fetch once from the first-added package.
 				titleMeta, err := svc.ds.GetSoftwareInstallerMetadataByTeamAndTitleID(ctx, teamID, id, true)
-				if err != nil && !fleet.IsNotFound(err) {
+				if err != nil && !automdm.IsNotFound(err) {
 					return nil, ctxerr.Wrap(ctx, err, "get software installer metadata")
 				}
 
@@ -216,7 +216,7 @@ func (svc *Service) SoftwareTitleByID(ctx context.Context, id uint, teamID *uint
 				// Key policies by installer_id so each package on a multi-package
 				// title only surfaces the ones actually bound to it. VPP-backed
 				// policies have nil InstallerID and carry a VPPAppsTeamsID instead.
-				policiesByInstaller := make(map[uint][]fleet.AutomaticInstallPolicy)
+				policiesByInstaller := make(map[uint][]automdm.AutomaticInstallPolicy)
 				if titleMeta != nil {
 					for _, p := range titleMeta.AutomaticInstallPolicies {
 						if p.InstallerID == nil {
@@ -240,14 +240,14 @@ func (svc *Service) SoftwareTitleByID(ctx context.Context, id uint, teamID *uint
 					}
 					pkg.AutomaticInstallPolicies = policiesByInstaller[pkg.InstallerID]
 
-					// Populate FleetMaintainedVersions/pin/patch policy for FMA titles.
+					// Populate AutoMDMMaintainedVersions/pin/patch policy for FMA titles.
 					// An FMA title has a single active package, so this runs on it.
-					if pkg.FleetMaintainedAppID != nil {
-						fmaVersions, err := svc.ds.GetFleetMaintainedVersionsByTitleID(ctx, teamID, id)
+					if pkg.AutoMDMMaintainedAppID != nil {
+						fmaVersions, err := svc.ds.GetAutoMDMMaintainedVersionsByTitleID(ctx, teamID, id)
 						if err != nil {
-							return nil, ctxerr.Wrap(ctx, err, "get fleet maintained versions")
+							return nil, ctxerr.Wrap(ctx, err, "get automdm maintained versions")
 						}
-						pkg.FleetMaintainedVersions = fmaVersions
+						pkg.AutoMDMMaintainedVersions = fmaVersions
 
 						// No pin row means the title tracks "Latest" (nil pinned_version); any other error is real.
 						pinnedVersion, err := svc.ds.GetPinnedVersion(ctx, teamID, id)
@@ -257,20 +257,20 @@ func (svc *Service) SoftwareTitleByID(ctx context.Context, id uint, teamID *uint
 						pkg.PinnedVersion = pinnedVersion
 
 						patchPolicy, err := svc.ds.GetPatchPolicy(ctx, teamID, id)
-						if err != nil && !fleet.IsNotFound(err) {
+						if err != nil && !automdm.IsNotFound(err) {
 							return nil, ctxerr.Wrap(ctx, err, "get patch policy")
 						}
 						pkg.PatchPolicy = patchPolicy
 
 						// While patch_when_closed, notify_before_patching, or patch_deadline is on, the
-						// pre-install query is Fleet's managed app open query, shown read-only.
+						// pre-install query is AutoMDM's managed app open query, shown read-only.
 						if patchPolicy != nil && (patchPolicy.PatchWhenClosed || patchPolicy.NotifyBeforePatching || patchPolicy.PatchDeadline) {
 							pkg.PreInstallQuery = pkg.AppOpenQuery
 						}
 					}
 				}
 
-				software.Packages = make([]fleet.SoftwareInstaller, len(pkgs))
+				software.Packages = make([]automdm.SoftwareInstaller, len(pkgs))
 				for i, pkg := range pkgs {
 					software.Packages[i] = *pkg
 				}
@@ -280,26 +280,26 @@ func (svc *Service) SoftwareTitleByID(ctx context.Context, id uint, teamID *uint
 		// add VPP app data if needed
 		if software.VPPAppsCount > 0 {
 			versions, err := svc.ds.GetAppStoreAppVersionsByTeamAndTitleID(ctx, *teamID, id)
-			if err != nil && !fleet.IsNotFound(err) {
+			if err != nil && !automdm.IsNotFound(err) {
 				return nil, ctxerr.Wrap(ctx, err, "get VPP app metadata")
 			}
 			summaries, err := svc.ds.GetSummaryHostVPPAppInstalls(ctx, versions)
 			if err != nil {
 				return nil, ctxerr.Wrap(ctx, err, "get VPP app status summary")
 			}
-			vppTokensByID := make(map[uint]*fleet.VPPTokenSummary)
+			vppTokensByID := make(map[uint]*automdm.VPPTokenSummary)
 			for _, meta := range versions {
 				meta.Status = summaries[meta.VPPAppsTeamsID]
 
 				if meta.VPPTokenID != nil {
 					if _, ok := vppTokensByID[*meta.VPPTokenID]; !ok {
-						var tok *fleet.VPPTokenDB
+						var tok *automdm.VPPTokenDB
 						tok, err = svc.ds.GetVPPToken(ctx, *meta.VPPTokenID)
-						if err != nil && !fleet.IsNotFound(err) {
+						if err != nil && !automdm.IsNotFound(err) {
 							return nil, ctxerr.Wrap(ctx, err, "get vpp token for app store app")
 						}
 						if tok != nil {
-							vppTokensByID[*meta.VPPTokenID] = &fleet.VPPTokenSummary{ID: tok.ID, OrgName: tok.OrgName, Location: tok.Location, CountryCode: tok.CountryCode}
+							vppTokensByID[*meta.VPPTokenID] = &automdm.VPPTokenSummary{ID: tok.ID, OrgName: tok.OrgName, Location: tok.Location, CountryCode: tok.CountryCode}
 						}
 					}
 					meta.VPPToken = vppTokensByID[*meta.VPPTokenID]
@@ -308,7 +308,7 @@ func (svc *Service) SoftwareTitleByID(ctx context.Context, id uint, teamID *uint
 				// Wrap iOS / iPadOS plist as a JSON string for the response.
 				if len(meta.Configuration) > 0 {
 					switch meta.Platform {
-					case fleet.IOSPlatform, fleet.IPadOSPlatform:
+					case automdm.IOSPlatform, automdm.IPadOSPlatform:
 						wrapped, err := json.Marshal(string(meta.Configuration))
 						if err != nil {
 							return nil, ctxerr.Wrap(ctx, err, "wrapping VPP configuration for response")
@@ -323,7 +323,7 @@ func (svc *Service) SoftwareTitleByID(ctx context.Context, id uint, teamID *uint
 		// add in house app data if needed
 		if software.InHouseAppCount > 0 {
 			meta, err := svc.ds.GetInHouseAppMetadataByTeamAndTitleID(ctx, teamID, id)
-			if err != nil && !fleet.IsNotFound(err) {
+			if err != nil && !automdm.IsNotFound(err) {
 				return nil, ctxerr.Wrap(ctx, err, "get in house app metadata")
 			}
 			if meta != nil {
@@ -331,7 +331,7 @@ func (svc *Service) SoftwareTitleByID(ctx context.Context, id uint, teamID *uint
 				if err != nil {
 					return nil, ctxerr.Wrap(ctx, err, "get in house app status summary")
 				}
-				meta.Status = &fleet.SoftwareInstallerStatusSummary{
+				meta.Status = &automdm.SoftwareInstallerStatusSummary{
 					Installed:      summary.Installed,
 					PendingInstall: summary.Pending,
 					FailedInstall:  summary.Failed,
@@ -345,7 +345,7 @@ func (svc *Service) SoftwareTitleByID(ctx context.Context, id uint, teamID *uint
 					}
 					meta.Configuration = wrapped
 				}
-				software.Packages = []fleet.SoftwareInstaller{*meta}
+				software.Packages = []automdm.SoftwareInstaller{*meta}
 			}
 		}
 	}
@@ -362,15 +362,15 @@ func (svc *Service) SoftwareTitleByID(ctx context.Context, id uint, teamID *uint
 // installable_entity read. This response embeds the full installer, so without
 // it a caller holding only software_inventory read would see script bodies and
 // managed app configuration that every other installer route withholds.
-func (svc *Service) filterInstallerDetailsForUser(ctx context.Context, teamID *uint, title *fleet.SoftwareTitle) {
+func (svc *Service) filterInstallerDetailsForUser(ctx context.Context, teamID *uint, title *automdm.SoftwareTitle) {
 	if title == nil {
 		return
 	}
-	if err := svc.authz.Authorize(ctx, &fleet.SoftwareInstaller{TeamID: teamID}, fleet.ActionRead); err == nil {
+	if err := svc.authz.Authorize(ctx, &automdm.SoftwareInstaller{TeamID: teamID}, automdm.ActionRead); err == nil {
 		return
 	}
 
-	filterInstaller := func(installer *fleet.SoftwareInstaller) {
+	filterInstaller := func(installer *automdm.SoftwareInstaller) {
 		installer.InstallScript = ""
 		installer.UninstallScript = ""
 		installer.PostInstallScript = ""
@@ -388,16 +388,16 @@ func (svc *Service) filterInstallerDetailsForUser(ctx context.Context, teamID *u
 
 func (svc *Service) SoftwareTitleNameForHostFilter(ctx context.Context, id uint, teamID *uint) (name, displayName string, err error) {
 	// Intentionally skip team-scoped inventory auth: only minimal title name.
-	if err := svc.authz.Authorize(ctx, &fleet.Host{TeamID: teamID}, fleet.ActionList); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.Host{TeamID: teamID}, automdm.ActionList); err != nil {
 		return "", "", err
 	}
 
 	vc, ok := viewer.FromContext(ctx)
 	if !ok {
-		return "", "", fleet.ErrNoContext
+		return "", "", automdm.ErrNoContext
 	}
 
-	return svc.ds.SoftwareTitleNameForHostFilter(ctx, id, teamID, fleet.TeamFilter{
+	return svc.ds.SoftwareTitleNameForHostFilter(ctx, id, teamID, automdm.TeamFilter{
 		User:            vc.User,
 		IncludeObserver: true,
 	})
@@ -419,32 +419,32 @@ type updateSoftwareNameResponse struct {
 func (r updateSoftwareNameResponse) Error() error { return r.Err }
 func (r updateSoftwareNameResponse) Status() int  { return http.StatusResetContent }
 
-func updateSoftwareNameEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func updateSoftwareNameEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*updateSoftwareNameRequest)
 	return updateSoftwareNameResponse{Err: svc.UpdateSoftwareName(ctx, req.ID, req.Name)}, nil
 }
 
 func (svc *Service) UpdateSoftwareName(ctx context.Context, titleID uint, name string) error {
-	if err := svc.authz.Authorize(ctx, &fleet.AuthzSoftwareInventory{}, fleet.ActionWrite); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.AuthzSoftwareInventory{}, automdm.ActionWrite); err != nil {
 		return err
 	}
 	vc, ok := viewer.FromContext(ctx)
 	if !ok {
-		return fleet.ErrNoContext
+		return automdm.ErrNoContext
 	}
 
 	// get software by id including team_id data from software_title_host_counts
-	software, err := svc.ds.SoftwareTitleByID(ctx, titleID, nil, fleet.TeamFilter{
+	software, err := svc.ds.SoftwareTitleByID(ctx, titleID, nil, automdm.TeamFilter{
 		User: vc.User,
 	})
 	if err != nil {
 		return ctxerr.Wrap(ctx, err, "getting software title by id")
 	}
 	if software.BundleIdentifier == nil || *software.BundleIdentifier == "" {
-		return fleet.NewInvalidArgumentError("id", "only titles with a bundle ID can have their name modified")
+		return automdm.NewInvalidArgumentError("id", "only titles with a bundle ID can have their name modified")
 	}
 	if name == "" {
-		return fleet.NewInvalidArgumentError("name", "cannot be empty")
+		return automdm.NewInvalidArgumentError("name", "cannot be empty")
 	}
 
 	return svc.ds.UpdateSoftwareTitleName(ctx, titleID, name)

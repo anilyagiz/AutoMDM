@@ -30,7 +30,7 @@ type device struct {
 type deviceUser struct {
 	id           string
 	email        string
-	clientStates map[string]*ClientState // by client state ID, "{bare customer ID}-fleet"
+	clientStates map[string]*ClientState // by client state ID, "{bare customer ID}-automdm"
 }
 
 // ClientState is what a client state patch recorded.
@@ -175,7 +175,7 @@ func (d *device) api() apiDevice {
 
 func (s *Server) handleListDevices(w http.ResponseWriter, r *http.Request, customer string) {
 	q := r.URL.Query()
-	// Only the filter Fleet sends is supported: the records with a given deviceId.
+	// Only the filter AutoMDM sends is supported: the records with a given deviceId.
 	filter := q.Get("filter")
 	deviceID, byID := strings.CutPrefix(filter, "id:")
 	if filter != "" && !byID {
@@ -281,8 +281,8 @@ func (s *Server) handlePatchClientState(w http.ResponseWriter, r *http.Request, 
 		}
 	}
 	stateID := r.PathValue("state")
-	if stateID != customer+"-fleet" {
-		s.logger.WarnContext(r.Context(), "client state ID isn't {customer}-fleet", "client_state", stateID)
+	if stateID != customer+"-automdm" {
+		s.logger.WarnContext(r.Context(), "client state ID isn't {customer}-automdm", "client_state", stateID)
 	}
 
 	deviceID := r.PathValue("device")

@@ -132,7 +132,7 @@ describe("Device User Page", () => {
     const host = createMockHost() as IHostDevice;
     host.mdm.enrollment_status = "On (manual)";
     host.platform = "windows";
-    host.dep_assigned_to_fleet = false;
+    host.dep_assigned_to_automdm = false;
 
     mockServer.use(customDeviceHandler({ host }));
     mockServer.use(defaultDeviceCertificatesHandler);
@@ -216,7 +216,7 @@ describe("Device User Page", () => {
       return user;
     };
 
-    it("does not check for setup experience software on Fleet Free", async () => {
+    it("does not check for setup experience software on AutoMDM Free", async () => {
       const host = createMockHost() as IHostDevice;
       host.platform = "linux";
 
@@ -227,7 +227,7 @@ describe("Device User Page", () => {
       });
     });
 
-    it("checks for setup experience steps on Fleet Premium, and renders Setting Up Your Device if there are such steps", async () => {
+    it("checks for setup experience steps on AutoMDM Premium, and renders Setting Up Your Device if there are such steps", async () => {
       const host = createMockHost() as IHostDevice;
       host.platform = "linux";
 
@@ -243,7 +243,7 @@ describe("Device User Page", () => {
 
       expect(screen.queryByText(REGULAR_DUP_MATCHER)).toBeNull();
     });
-    it("checks for setup experience steps on Fleet Premium, and renders the normal device user page if there are such steps", async () => {
+    it("checks for setup experience steps on AutoMDM Premium, and renders the normal device user page if there are such steps", async () => {
       const host = createMockHost() as IHostDevice;
       host.platform = "linux";
 
@@ -258,7 +258,7 @@ describe("Device User Page", () => {
 
       expect(screen.queryByText(SETTING_UP_YOUR_DEVICE_MATCHER)).toBeNull();
     });
-    it("checks for setup experience steps on Fleet Premium, and renders Setting Up Your Device even if there are no such steps if setup_only=1 is in the query", async () => {
+    it("checks for setup experience steps on AutoMDM Premium, and renders Setting Up Your Device even if there are no such steps if setup_only=1 is in the query", async () => {
       const host = createMockHost() as IHostDevice;
       host.platform = "linux";
 
@@ -273,7 +273,7 @@ describe("Device User Page", () => {
 
       expect(screen.queryByText(REGULAR_DUP_MATCHER)).toBeNull();
     });
-    it("checks for setup experience items on Fleet Premium, and renders Setting Up Your Device when all steps are complete if setup_only=1 is in the query", async () => {
+    it("checks for setup experience items on AutoMDM Premium, and renders Setting Up Your Device when all steps are complete if setup_only=1 is in the query", async () => {
       const host = createMockHost() as IHostDevice;
       host.platform = "linux";
 
@@ -644,7 +644,7 @@ describe("Device User Page", () => {
       const host = createMockHost() as IHostDevice;
       host.mdm.enrollment_status = "Off";
       host.platform = "darwin";
-      host.dep_assigned_to_fleet = false;
+      host.dep_assigned_to_automdm = false;
 
       const user = await setupTest({
         host,
@@ -669,7 +669,7 @@ describe("Device User Page", () => {
       const host = createMockHost() as IHostDevice;
       host.mdm.enrollment_status = null;
       host.platform = "darwin";
-      host.dep_assigned_to_fleet = false;
+      host.dep_assigned_to_automdm = false;
 
       const user = await setupTest({
         host,
@@ -694,7 +694,7 @@ describe("Device User Page", () => {
       const host = createMockHost() as IHostDevice;
       host.mdm.enrollment_status = null;
       host.platform = "darwin";
-      host.dep_assigned_to_fleet = false;
+      host.dep_assigned_to_automdm = false;
 
       await setupTest({
         host,
@@ -720,7 +720,7 @@ describe("Device User Page", () => {
       const host = createMockHost() as IHostDevice;
       host.mdm.enrollment_status = "On (manual)";
       host.platform = "darwin";
-      host.dep_assigned_to_fleet = false;
+      host.dep_assigned_to_automdm = false;
 
       await setupTest({
         host,
@@ -756,7 +756,7 @@ describe("Device User Page", () => {
       author_email: "test@example.com",
       resolution: "Fix the issue",
       platform: "darwin",
-      fleet_id: null,
+      team_id: null,
       created_at: "2022-01-01T12:00:00Z",
       updated_at: "2022-01-02T12:00:00Z",
       critical: false,
@@ -971,7 +971,7 @@ describe("Device User Page", () => {
   });
 });
 
-describe("Device User Page - Fleet Desktop SSO", () => {
+describe("Device User Page - AutoMDM Desktop SSO", () => {
   let initiateDeviceSSO: jest.SpyInstance;
 
   const pendingInitiation = () => new Promise<{ url: string }>(() => undefined);
@@ -1048,7 +1048,7 @@ describe("Device User Page - Fleet Desktop SSO", () => {
 
   it("does not initiate a second time after a round-trip that left no session", async () => {
     mockServer.use(ssoRequiredDeviceHandler);
-    window.sessionStorage.setItem("fleet-device-sso-attempt:testToken", "1");
+    window.sessionStorage.setItem("automdm-device-sso-attempt:testToken", "1");
 
     renderPage();
 
@@ -1135,7 +1135,7 @@ describe("Device User Page - MDM check-in ping", () => {
       status: "online",
     }) as IHostDevice;
     host.mdm.enrollment_status = enrollmentStatus;
-    host.mdm.connected_to_fleet = true;
+    host.mdm.connected_to_automdm = true;
 
     mockServer.use(customDeviceHandler({ host }));
 
@@ -1305,12 +1305,12 @@ describe("BitLocker PIN deep link", () => {
 
   /** What the device endpoint reports for a Windows host still waiting on a PIN. */
   const needsPIN = (
-    fleetdCanSetPIN: boolean
+    automdmdCanSetPIN: boolean
   ): IDeviceDiskEncryptionSetting => ({
     status: "action_required",
     detail: "",
     action_required: "create_pin",
-    fleetd_can_set_pin: fleetdCanSetPIN,
+    automdmd_can_set_pin: automdmdCanSetPIN,
   });
 
   const windowsHost = (diskEncryption: IDeviceDiskEncryptionSetting) => {
@@ -1359,7 +1359,7 @@ describe("BitLocker PIN deep link", () => {
     await expectParamDropped(router);
   });
 
-  it("opens the instructions when the host's fleetd cannot be handed a PIN", async () => {
+  it("opens the instructions when the host's automdmd cannot be handed a PIN", async () => {
     await renderWithCreatePINLink(windowsHost(needsPIN(false)));
 
     expect(await screen.findByText(INSTRUCTIONS)).toBeVisible();

@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -61,7 +61,7 @@ func TestValidateOrgLogoFile(t *testing.T) {
 		assert.ErrorContains(t, err, "PNG, JPEG, WebP, or SVG")
 	})
 	t.Run("rejects oversized file", func(t *testing.T) {
-		// fleet.ValidateOrgLogoBytes fires its size check before
+		// automdm.ValidateOrgLogoBytes fires its size check before
 		// image.DecodeConfig, so the body content doesn't need to
 		// decode as a real image.
 		body := make([]byte, orgLogoMaxFileSize+1)
@@ -96,7 +96,7 @@ func TestPlanAndStripOrgLogos(t *testing.T) {
 		actions, err := c.planAndStripOrgLogos(os, dir, false, logFn)
 		require.NoError(t, err)
 		require.Len(t, actions, 1)
-		assert.Equal(t, fleet.OrgLogoModeDark, actions[0].mode)
+		assert.Equal(t, automdm.OrgLogoModeDark, actions[0].mode)
 		assert.NotEmpty(t, actions[0].uploadPath)
 
 		orgInfo := os["org_info"].(map[string]any)
@@ -181,7 +181,7 @@ func TestPlanAndStripOrgLogos(t *testing.T) {
 		actions, err := c.planAndStripOrgLogos(os, dir, false, logFn)
 		require.NoError(t, err)
 		require.Len(t, actions, 1, "only the path-key mode queues an action; URL changes ride on the PATCH")
-		assert.Equal(t, fleet.OrgLogoModeDark, actions[0].mode)
+		assert.Equal(t, automdm.OrgLogoModeDark, actions[0].mode)
 		assert.NotEmpty(t, actions[0].uploadPath, "dark mode should plan an upload")
 
 		orgInfo := os["org_info"].(map[string]any)

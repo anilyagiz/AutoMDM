@@ -5,15 +5,15 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/fleetdm/fleet/v4/server"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 	"github.com/hashicorp/go-multierror"
 )
 
 func TriggerHostStatusWebhook(
 	ctx context.Context,
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	logger *slog.Logger,
 ) error {
 	multiErr := &multierror.Error{}
@@ -22,7 +22,7 @@ func TriggerHostStatusWebhook(
 	return multiErr.ErrorOrNil()
 }
 
-func triggerGlobalHostStatusWebhook(ctx context.Context, ds fleet.Datastore, logger *slog.Logger) error {
+func triggerGlobalHostStatusWebhook(ctx context.Context, ds automdm.Datastore, logger *slog.Logger) error {
 	appConfig, err := ds.AppConfig(ctx)
 	if err != nil {
 		return ctxerr.Wrap(ctx, err, "getting app config")
@@ -37,7 +37,7 @@ func triggerGlobalHostStatusWebhook(ctx context.Context, ds fleet.Datastore, log
 	return processWebhook(ctx, ds, nil, appConfig.WebhookSettings.HostStatusWebhook, logger)
 }
 
-func processWebhook(ctx context.Context, ds fleet.Datastore, teamID *uint, settings fleet.HostStatusWebhookSettings, logger *slog.Logger) error {
+func processWebhook(ctx context.Context, ds automdm.Datastore, teamID *uint, settings automdm.HostStatusWebhookSettings, logger *slog.Logger) error {
 	total, unseen, err := ds.TotalAndUnseenHostsSince(ctx, teamID, settings.DaysCount)
 	if err != nil {
 		return ctxerr.Wrap(ctx, err, "getting total and unseen hosts")
@@ -49,8 +49,8 @@ func processWebhook(ctx context.Context, ds fleet.Datastore, teamID *uint, setti
 		url := settings.DestinationURL
 
 		message := fmt.Sprintf(
-			"More than %.2f%% of your hosts have not checked into Fleet for more than %d days. "+
-				"You've been sent this message because the Host status webhook is enabled in your Fleet instance.",
+			"More than %.2f%% of your hosts have not checked into AutoMDM for more than %d days. "+
+				"You've been sent this message because the Host status webhook is enabled in your AutoMDM instance.",
 			percentUnseen, settings.DaysCount,
 		)
 		payload := map[string]interface{}{
@@ -63,7 +63,7 @@ func processWebhook(ctx context.Context, ds fleet.Datastore, teamID *uint, setti
 			},
 		}
 		if teamID != nil {
-			payload["data"].(map[string]any)["fleet_id"] = *teamID
+			payload["data"].(map[string]any)["team_id"] = *teamID
 		}
 
 		err = server.PostJSONWithTimeout(ctx, url, &payload, logger)
@@ -75,7 +75,7 @@ func processWebhook(ctx context.Context, ds fleet.Datastore, teamID *uint, setti
 	return nil
 }
 
-func triggerTeamHostStatusWebhook(ctx context.Context, ds fleet.Datastore, logger *slog.Logger) error {
+func triggerTeamHostStatusWebhook(ctx context.Context, ds automdm.Datastore, logger *slog.Logger) error {
 	teams, err := ds.TeamsSummary(ctx)
 	if err != nil {
 		return ctxerr.Wrap(ctx, err, "getting teams summary")
@@ -92,7 +92,7 @@ func triggerTeamHostStatusWebhook(ctx context.Context, ds fleet.Datastore, logge
 		if team.Config.WebhookSettings.HostStatusWebhook == nil || !team.Config.WebhookSettings.HostStatusWebhook.Enable {
 			continue
 		}
-		logger.DebugContext(ctx, "host status webhook triggered", "fleet_id", id)
+		logger.DebugContext(ctx, "host status webhook triggered", "team_id", id)
 		err = processWebhook(ctx, ds, &id, *team.Config.WebhookSettings.HostStatusWebhook, logger)
 		if err != nil {
 			multiErr = multierror.Append(multiErr, ctxerr.Wrap(ctx, err, "processing webhook"))

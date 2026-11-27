@@ -71,8 +71,8 @@ describe("Software Summary Card", () => {
       createMockSoftwareTitle({
         packages: [
           createMockSoftwarePackage({
-            fleet_maintained_app_id: 1,
-            fleet_maintained_app_slug: "zoom/darwin",
+            automdm_maintained_app_id: 1,
+            automdm_maintained_app_slug: "zoom/darwin",
           }),
         ],
       });
@@ -93,9 +93,9 @@ describe("Software Summary Card", () => {
         />
       );
 
-    it("shows the Fleet-maintained app slug on Premium", () => {
+    it("shows the AutoMDM-maintained app slug on Premium", () => {
       renderCard(renderPremium, fmaTitle());
-      expect(screen.getByText("Fleet-maintained app slug")).toBeInTheDocument();
+      expect(screen.getByText("AutoMDM-maintained app slug")).toBeInTheDocument();
       expect(screen.getByText("zoom/darwin")).toBeInTheDocument();
     });
 
@@ -165,16 +165,16 @@ describe("Software Summary Card", () => {
         })
       );
       expect(
-        screen.queryByText("Fleet-maintained app slug")
+        screen.queryByText("AutoMDM-maintained app slug")
       ).not.toBeInTheDocument();
       expect(screen.queryByText("App Store ID")).not.toBeInTheDocument();
       expect(screen.queryByText("Google Play ID")).not.toBeInTheDocument();
     });
 
-    it("hides the Fleet-maintained app slug on Fleet Free", () => {
+    it("hides the AutoMDM-maintained app slug on AutoMDM Free", () => {
       renderCard(renderFree, fmaTitle());
       expect(
-        screen.queryByText("Fleet-maintained app slug")
+        screen.queryByText("AutoMDM-maintained app slug")
       ).not.toBeInTheDocument();
       expect(screen.queryByText("zoom/darwin")).not.toBeInTheDocument();
     });
@@ -401,13 +401,13 @@ describe("Software Summary Card", () => {
       expect(options).not.toContain("Edit configuration");
     });
 
-    it("adds Versions after Deploy for a Premium Fleet-maintained app", async () => {
+    it("adds Versions after Deploy for a Premium AutoMDM-maintained app", async () => {
       const { user } = render(
         <SoftwareSummaryCard
           softwareTitle={createMockSoftwareTitle({
             packages: [
               createMockSoftwarePackage({
-                fleet_maintained_app_id: 7,
+                automdm_maintained_app_id: 7,
               }),
             ],
           })}
@@ -430,7 +430,7 @@ describe("Software Summary Card", () => {
       expect(versionsIdx).toBe(deployIdx + 1);
     });
 
-    it("hides Versions option on Fleet Free even for a Fleet-maintained app", async () => {
+    it("hides Versions option on AutoMDM Free even for an AutoMDM-maintained app", async () => {
       const freeRender = createCustomRenderer({
         context: {
           app: {
@@ -451,7 +451,7 @@ describe("Software Summary Card", () => {
           softwareTitle={createMockSoftwareTitle({
             packages: [
               createMockSoftwarePackage({
-                fleet_maintained_app_id: 7,
+                automdm_maintained_app_id: 7,
               }),
             ],
           })}
@@ -518,7 +518,7 @@ describe("Software Summary Card", () => {
           softwareTitle={createMockSoftwareTitle({
             packages: [
               createMockSoftwarePackage({
-                fleet_maintained_app_id: 7,
+                automdm_maintained_app_id: 7,
               }),
             ],
           })}
@@ -590,8 +590,8 @@ describe("Software Summary Card", () => {
       expect(editSoftware).not.toHaveAttribute("aria-disabled", "true");
     });
 
-    it("hides the Actions dropdown on 'All fleets' for a VPP title", () => {
-      // `teamId` is undefined when viewing "All fleets" — none of the per-fleet
+    it("hides the Actions dropdown on 'All teams' for a VPP title", () => {
+      // `teamId` is undefined when viewing "All teams" — none of the per-team
       // Actions items can act (no team scope), and leaving the dropdown open
       // stashes `show*Modal` state that pops the modal on team change.
       render(
@@ -636,7 +636,7 @@ describe("Software Summary Card", () => {
           softwareTitle={createMockSoftwareTitle({
             packages: [
               createMockSoftwarePackage({
-                fleet_maintained_app_id: 7,
+                automdm_maintained_app_id: 7,
               }),
             ],
           })}
@@ -673,13 +673,13 @@ describe("Software Summary Card", () => {
       },
     });
 
-    it("renders the Fleet-maintained pill for an FMA", () => {
+    it("renders the AutoMDM-maintained pill for an FMA", () => {
       render(
         <SoftwareSummaryCard
           softwareTitle={createMockSoftwareTitle({
             packages: [
               createMockSoftwarePackage({
-                fleet_maintained_app_id: 7,
+                automdm_maintained_app_id: 7,
               }),
             ],
           })}
@@ -693,7 +693,7 @@ describe("Software Summary Card", () => {
         />
       );
 
-      expect(screen.getByText("Fleet-maintained")).toBeInTheDocument();
+      expect(screen.getByText("AutoMDM-maintained")).toBeInTheDocument();
     });
 
     it("renders the App Store (VPP) pill for an Apple VPP app (macOS)", () => {
@@ -769,7 +769,7 @@ describe("Software Summary Card", () => {
             packages: [
               createMockSoftwarePackage({
                 self_service: true,
-                fleet_maintained_app_id: 7,
+                automdm_maintained_app_id: 7,
               }),
             ],
           })}
@@ -852,7 +852,7 @@ describe("Software Summary Card", () => {
           softwareTitle={createMockSoftwareTitle({
             packages: [
               createMockSoftwarePackage({
-                fleet_maintained_app_id: 7,
+                automdm_maintained_app_id: 7,
                 automatic_install_policies: [
                   { id: 1, name: "Policy A", type: "dynamic" },
                   { id: 2, name: "Policy B", type: "dynamic" },
@@ -879,7 +879,7 @@ describe("Software Summary Card", () => {
           softwareTitle={createMockSoftwareTitle({
             packages: [
               createMockSoftwarePackage({
-                fleet_maintained_app_id: 7,
+                automdm_maintained_app_id: 7,
                 patch_policy: {
                   id: 42,
                   name: "Outdated Postman",
@@ -909,7 +909,7 @@ describe("Software Summary Card", () => {
           softwareTitle={createMockSoftwareTitle({
             packages: [
               createMockSoftwarePackage({
-                fleet_maintained_app_id: 7,
+                automdm_maintained_app_id: 7,
                 automatic_install_policies: [
                   { id: 1, name: "Policy A", type: "dynamic" },
                 ],
@@ -962,7 +962,7 @@ describe("Software Summary Card", () => {
           softwareTitle={createMockSoftwareTitle({
             packages: [
               createMockSoftwarePackage({
-                fleet_maintained_app_id: 7,
+                automdm_maintained_app_id: 7,
                 automatic_install_policies: [
                   { id: 99, name: "Solo policy", type: "dynamic" },
                 ],
@@ -982,19 +982,19 @@ describe("Software Summary Card", () => {
       await user.click(screen.getByText("Auto install"));
 
       expect(pushedRouter.push).toHaveBeenCalledWith(
-        expect.stringMatching(/\/policies\/99.*fleet_id=3/)
+        expect.stringMatching(/\/policies\/99.*team_id=3/)
       );
     });
 
-    it("does not resurrect an open modal after a fleet-scope round trip", async () => {
-      // Command palette can switch fleets while a modal is open. The modal
-      // unmounts on the way to All fleets (softwareInstallerOnTeam flips
+    it("does not resurrect an open modal after an automdm-scope round trip", async () => {
+      // Command palette can switch teams while a modal is open. The modal
+      // unmounts on the way to All teams (softwareInstallerOnTeam flips
       // false), but its show*Modal state must reset — otherwise it remounts
-      // when the user returns to a specific fleet.
+      // when the user returns to a specific team.
       const softwareTitle = createMockSoftwareTitle({
         packages: [
           createMockSoftwarePackage({
-            fleet_maintained_app_id: 7,
+            automdm_maintained_app_id: 7,
             automatic_install_policies: [
               { id: 1, name: "Policy A", type: "dynamic" },
               { id: 2, name: "Policy B", type: "dynamic" },
@@ -1018,7 +1018,7 @@ describe("Software Summary Card", () => {
       await user.click(screen.getByText("Auto install"));
       expect(screen.getAllByText("Policy A").length).toBeGreaterThan(0);
 
-      // Palette-driven switch to "All fleets": chip and modal unmount.
+      // Palette-driven switch to "All teams": chip and modal unmount.
       rerender(
         <SoftwareSummaryCard
           softwareTitle={softwareTitle}
@@ -1032,7 +1032,7 @@ describe("Software Summary Card", () => {
       );
       expect(screen.queryByText("Policy A")).not.toBeInTheDocument();
 
-      // Palette-driven switch back to the same fleet: modal must stay closed.
+      // Palette-driven switch back to the same team: modal must stay closed.
       rerender(
         <SoftwareSummaryCard
           softwareTitle={softwareTitle}
@@ -1054,7 +1054,7 @@ describe("Software Summary Card", () => {
           softwareTitle={createMockSoftwareTitle({
             packages: [
               createMockSoftwarePackage({
-                fleet_maintained_app_id: 7,
+                automdm_maintained_app_id: 7,
                 automatic_install_policies: [
                   { id: 1, name: "Policy A", type: "dynamic" },
                   { id: 2, name: "Policy B", type: "dynamic" },
@@ -1170,10 +1170,10 @@ describe("Software Summary Card", () => {
       expect(screen.getByText("Schedule auto updates")).toBeInTheDocument();
     });
 
-    it("hides all header pills (kind + Self-service / Auto install / Auto updates) on 'All fleets'", () => {
+    it("hides all header pills (kind + Self-service / Auto install / Auto updates) on 'All teams'", () => {
       // Every pill derives from `app_store_apps` / `packages`, which
       // the backend fills from an arbitrary team on nil teamID; we hide the
-      // row rather than mislabel one team's data as an "All fleets" fact.
+      // row rather than mislabel one team's data as an "All teams" fact.
       render(
         <SoftwareSummaryCard
           softwareTitle={createMockSoftwareTitleDetails({

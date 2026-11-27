@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/datastore/redis"
-	"github.com/fleetdm/fleet/v4/server/datastore/redis/redistest"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis/redistest"
 	redigo "github.com/gomodule/redigo/redis"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -123,7 +123,7 @@ func TestCoordinatorPushDeliversToLocalStream(t *testing.T) {
 }
 
 func TestCoordinatorPushCrossesInstances(t *testing.T) {
-	// The whole point: Fleet load-balances its pushes, so the instance that
+	// The whole point: AutoMDM load-balances its pushes, so the instance that
 	// takes the push is almost never the one holding the stream.
 	env := testRedis(t)
 	holder := newTestCoordinator(t, env)
@@ -140,7 +140,7 @@ func TestCoordinatorPushCrossesInstances(t *testing.T) {
 }
 
 func TestCoordinatorPushBurstWaitsForConnection(t *testing.T) {
-	// Fleet pushes to thousands of devices at once. Calls past the pool limit
+	// AutoMDM pushes to thousands of devices at once. Calls past the pool limit
 	// must wait for a connection rather than fail with "pool exhausted".
 	prefix := "apnsmock:" + t.Name() + ":"
 	env := testRedisEnv{

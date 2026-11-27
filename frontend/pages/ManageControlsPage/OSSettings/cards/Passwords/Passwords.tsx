@@ -72,14 +72,14 @@ const Passwords = ({
     {
       ...DEFAULT_USE_QUERY_OPTIONS,
       enabled: currentTeamId !== API_NO_TEAM_ID,
-      select: (res) => res.fleet,
+      select: (res) => res.team,
       onSuccess: (res) => {
         setEnableRecoveryLockPassword(
           res.mdm?.macos_recovery_lock_password_enabled ?? false
         );
       },
       onError: (err) => {
-        notify.error("Couldn't load fleet settings. Please try again.", {
+        notify.error("Couldn't load team settings. Please try again.", {
           response: err,
         });
       },

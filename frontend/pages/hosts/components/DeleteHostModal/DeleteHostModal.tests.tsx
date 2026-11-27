@@ -83,7 +83,7 @@ describe("DeleteHostModal", () => {
   });
 
   it.each(["darwin", "windows", "ubuntu"] as const)(
-    "renders the agent copy for a single %s host not enrolled in Fleet MDM",
+    "renders the agent copy for a single %s host not enrolled in AutoMDM",
     (platform) => {
       renderModal({ hostName: "Host1", platform });
       expect(
@@ -93,7 +93,7 @@ describe("DeleteHostModal", () => {
       ).toBeVisible();
       expect(
         screen.getByText(
-          /This host will re-enroll unless Fleet's agent is uninstalled\./
+          /This host will re-enroll unless AutoMDM's agent is uninstalled\./
         )
       ).toBeVisible();
       expect(screen.queryByRole("list")).not.toBeInTheDocument();
@@ -110,7 +110,7 @@ describe("DeleteHostModal", () => {
         selectedHostIds: [7],
         hostName: "Mac1",
         platform: "darwin",
-        isMdmEnrolledInFleet: true,
+        isMdmEnrolledInTeam: true,
       },
       true
     );
@@ -121,12 +121,12 @@ describe("DeleteHostModal", () => {
     renderModal({
       selectedHostIds: [1, 2, 3],
       platform: "ipados",
-      isMdmEnrolledInFleet: true,
+      isMdmEnrolledInTeam: true,
     });
     expect(screen.getByText("3 hosts")).toBeVisible();
     expect(
       screen.getByText(
-        /and associated data from Fleet\. It won.t remove data from the hosts\./
+        /and associated data from AutoMDM\. It won.t remove data from the hosts\./
       )
     ).toBeVisible();
     expect(
@@ -141,7 +141,7 @@ describe("DeleteHostModal", () => {
       {
         selectedHostIds: [1, 2],
         platform: "darwin",
-        isMdmEnrolledInFleet: true,
+        isMdmEnrolledInTeam: true,
         mdmEnrollmentStatus: "On (automatic)",
       },
       true
@@ -161,7 +161,7 @@ describe("DeleteHostModal", () => {
     });
     expect(
       screen.getByText(
-        "This will remove all host data from Fleet. It won't remove data from the host."
+        "This will remove all host data from AutoMDM. It won't remove data from the host."
       )
     ).toBeVisible();
     expect(
@@ -177,11 +177,11 @@ describe("DeleteHostModal", () => {
     renderModal({
       hostName: "iPad",
       platform: "ipados",
-      isMdmEnrolledInFleet: true,
+      isMdmEnrolledInTeam: true,
     });
     expect(
       screen.getByText(
-        "This will remove all host data from Fleet. It won't remove data from the host."
+        "This will remove all host data from AutoMDM. It won't remove data from the host."
       )
     ).toBeVisible();
     expect(
@@ -199,7 +199,7 @@ describe("DeleteHostModal", () => {
     renderModal({
       hostName: "Mac",
       platform: "darwin",
-      isMdmEnrolledInFleet: true,
+      isMdmEnrolledInTeam: true,
     });
     expect(
       screen.getByText(
@@ -207,7 +207,7 @@ describe("DeleteHostModal", () => {
       )
     ).toBeVisible();
     expect(
-      screen.getByText(/re-enroll unless Fleet's agent is uninstalled\./i)
+      screen.getByText(/re-enroll unless AutoMDM's agent is uninstalled\./i)
     ).toBeVisible();
     expect(screen.getByRole("link", { name: /learn more/i })).toHaveAttribute(
       "href",
@@ -220,7 +220,7 @@ describe("DeleteHostModal", () => {
       {
         hostName: "Mac",
         platform: "darwin",
-        isMdmEnrolledInFleet: true,
+        isMdmEnrolledInTeam: true,
         mdmEnrollmentStatus: "On (manual)",
       },
       true
@@ -231,7 +231,7 @@ describe("DeleteHostModal", () => {
     ).toBeVisible();
     expect(
       screen.getByText(
-        /This host won't re-enroll on its own\. To re-enroll it, turn on MDM manually or reinstall Fleet's agent\./
+        /This host won't re-enroll on its own\. To re-enroll it, turn on MDM manually or reinstall AutoMDM's agent\./
       )
     ).toBeVisible();
     expect(screen.getByRole("link", { name: /learn more/i })).toHaveAttribute(
@@ -245,7 +245,7 @@ describe("DeleteHostModal", () => {
       {
         hostName: "Mac",
         platform: "darwin",
-        isMdmEnrolledInFleet: true,
+        isMdmEnrolledInTeam: true,
         mdmEnrollmentStatus: "On (automatic)",
       },
       true

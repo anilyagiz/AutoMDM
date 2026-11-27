@@ -20,8 +20,8 @@ const baseClass = "hosts-enrolled-card";
 
 // Use design-system color tokens via CSS custom properties so recharts picks
 // up the themed values for the SVG fills.
-const BAR_COLOR = "var(--core-fleet-green)";
-const BAR_HOVER_COLOR = "var(--core-fleet-green-over)";
+const BAR_COLOR = "var(--core-automdm-green)";
+const BAR_HOVER_COLOR = "var(--core-automdm-green-over)";
 
 // Mirror the sibling checkerboard's cell-grid height so the bar plot lines up
 // with the cells next to it. Formula, constants, and 30-day column count come
@@ -124,7 +124,7 @@ const HostsEnrolledTooltip = ({
         {datum.count.toLocaleString()} hosts
       </div>
       <div className={`${baseClass}__tooltip-share`}>
-        {percentLabel} of fleet
+        {percentLabel} of team
       </div>
     </div>
   );
@@ -209,7 +209,7 @@ const HostsEnrolledCard = ({
     if (labelId === undefined) return;
     router.push(
       getPathWithQueryParams(PATHS.MANAGE_HOSTS_LABEL(labelId), {
-        fleet_id: currentTeamId,
+        team_id: currentTeamId,
         // the chart doesn't count hosts pending MDM enrollment
         status: "enrolled",
       })
@@ -281,11 +281,11 @@ const HostsEnrolledCard = ({
             <CartesianGrid
               horizontal={false}
               strokeDasharray="3 3"
-              stroke="var(--ui-fleet-black-10)"
+              stroke="var(--ui-automdm-black-10)"
             />
             <CartesianGrid
               vertical={false}
-              stroke="var(--ui-fleet-black-10)"
+              stroke="var(--ui-automdm-black-10)"
               horizontalCoordinatesGenerator={({ offset }) => {
                 const { top, height } = offset;
                 const bandHeight = height / data.length;

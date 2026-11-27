@@ -26,8 +26,8 @@ $max-width: 2560px;
 }
 
 // Apply to the outer header row that contains TeamsHeader + action buttons,
-// NOT to .fleet-dropdown-wrapper itself — the wrapper needs its own
-// `display: inline-block` so FleetsDropdown's absolutely-positioned menu
+// NOT to .team-dropdown-wrapper itself — the wrapper needs its own
+// `display: inline-block` so AutoMDMsDropdown's absolutely-positioned menu
 // anchors under the button.
 @mixin normalize-team-header {
   display: flex;
@@ -43,7 +43,7 @@ $max-width: 2560px;
   // this is the current spacing needed to keep the description looking correct under the sub nav when scrolling.
   top: 104px;
   z-index: 2;
-  background-color: $core-fleet-white;
+  background-color: $core-automdm-white;
   margin: 0;
   padding: $pad-xxlarge 0 54px 0;
 }
@@ -126,14 +126,14 @@ $max-width: 2560px;
 }
 
 @mixin disabled-checkbox {
-  background-color: $ui-fleet-black-25;
-  border-color: $ui-fleet-black-25;
+  background-color: $ui-automdm-black-25;
+  border-color: $ui-automdm-black-25;
   pointer-events: none;
   cursor: default;
 }
 
 @mixin grey-text {
-  color: $ui-fleet-black-50;
+  color: $ui-automdm-black-50;
 }
 
 @mixin help-text {
@@ -150,21 +150,21 @@ $max-width: 2560px;
 @mixin form-label {
   font-size: $x-small;
   font-weight: $bold;
-  color: $core-fleet-black;
+  color: $core-automdm-black;
 }
 
 @mixin link {
-  color: $ui-fleet-black-75;
+  color: $ui-automdm-black-75;
   font-weight: $bold;
   font-size: $x-small;
   text-decoration: none;
 
   &:hover:not(.button--default) {
-    color: $core-fleet-black;
+    color: $core-automdm-black;
   }
 
   &:focus-visible {
-    color: $core-fleet-black;
+    color: $core-automdm-black;
     outline-color: $core-focused-outline;
     outline-offset: 1px;
     outline-style: solid;
@@ -330,7 +330,7 @@ $max-width: 2560px;
 
         // When tabbing
         &:focus-visible {
-          outline: 2px solid $core-fleet-black;
+          outline: 2px solid $core-automdm-black;
           outline-offset: 1px;
           border-radius: 4px;
         }
@@ -436,7 +436,7 @@ $max-width: 2560px;
     align-items: center;
     height: 100%;
     padding: 0 16px;
-    color: $ui-fleet-black-75;
+    color: $ui-automdm-black-75;
     font-weight: $regular;
     text-decoration: none;
     border-bottom: none;
@@ -445,7 +445,7 @@ $max-width: 2560px;
   a {
     cursor: pointer;
     &:hover {
-      color: $ui-fleet-black-75-over;
+      color: $ui-automdm-black-75-over;
     }
     // TooltipTruncatedText's inner element sets `cursor: default`; inherit so
     // the whole nav-item label reads as clickable.
@@ -455,14 +455,14 @@ $max-width: 2560px;
   }
 
   &:has(a):hover {
-    background-color: $ui-fleet-black-5;
+    background-color: $ui-automdm-black-5;
   }
 
   &--active {
-    background-color: $ui-fleet-black-5;
+    background-color: $ui-automdm-black-5;
     a {
       font-weight: $bold;
-      color: $core-fleet-black;
+      color: $core-automdm-black;
       * > .__react_component_tooltip {
         font-weight: initial;
       }
@@ -474,7 +474,7 @@ $max-width: 2560px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  border: 1px solid $ui-fleet-black-10;
+  border: 1px solid $ui-automdm-black-10;
   border-radius: $pad-xsmall;
   padding: $pad-xxlarge;
   gap: $pad-large;
@@ -489,11 +489,11 @@ $max-width: 2560px;
   background-image: linear-gradient(
     180deg,
     $gradient-background 0%,
-    $core-fleet-white 100%
+    $core-automdm-white 100%
   );
   background-size: 100% 150px; // Must do this or gradient can be different heights on different pages
   background-repeat: no-repeat;
-  background-color: $core-fleet-white; // area below gradient — transitionable
+  background-color: $core-automdm-white; // area below gradient — transitionable
 }
 
 // Bordered, scrollable list of checkbox rows with a status line for loading,
@@ -502,19 +502,19 @@ $max-width: 2560px;
 @mixin scrollable-checkbox-list($max-height) {
   max-height: $max-height;
   overflow-y: auto;
-  border: 1px solid $ui-fleet-black-10;
+  border: 1px solid $ui-automdm-black-10;
   border-radius: $border-radius;
 }
 
 @mixin scrollable-checkbox-list-row {
   padding: $pad-small $pad-medium;
-  border-bottom: 1px solid $ui-fleet-black-10;
+  border-bottom: 1px solid $ui-automdm-black-10;
 
   &:last-child {
     border-bottom: none;
   }
 
-  .fleet-checkbox {
+  .automdm-checkbox {
     margin: 0;
   }
 }
@@ -523,14 +523,14 @@ $max-width: 2560px;
   padding: $pad-medium;
   text-align: center;
   font-size: $x-small;
-  color: $ui-fleet-black-50;
+  color: $ui-automdm-black-50;
 }
 
 // Shared styling for a search input rendered inside a dropdown menu (icon on
-// the left, 36px tall, Fleet-black-10 border). Used by FleetsDropdown,
+// the left, 36px tall, AutoMDM-black-10 border). Used by AutoMDMsDropdown,
 // CategoryFilter, and ActivityTypeDropdown.
-// TODO: extend Fleet's SearchField / InputFieldWithIcon to cover this
-// pattern — out of scope for the FleetsDropdown rework.
+// TODO: extend AutoMDM's SearchField / InputFieldWithIcon to cover this
+// pattern — out of scope for the AutoMDMsDropdown rework.
 @mixin menu-search-input {
   width: 100%;
   height: 36px;
@@ -539,22 +539,22 @@ $max-width: 2560px;
   line-height: $line-height;
   font-family: "Inter", sans-serif;
   font-size: $x-small;
-  color: $core-fleet-black;
-  background-color: $core-fleet-white;
-  border: solid 1px $ui-fleet-black-10;
+  color: $core-automdm-black;
+  background-color: $core-automdm-white;
+  border: solid 1px $ui-automdm-black-10;
   border-radius: $border-radius;
 
   &::placeholder {
-    color: $ui-fleet-black-50;
+    color: $ui-automdm-black-50;
   }
 
   &:hover,
   &:focus {
     outline: none;
-    border-color: $ui-fleet-black-75;
+    border-color: $ui-automdm-black-75;
 
     + .icon svg path {
-      fill: $ui-fleet-black-75;
+      fill: $ui-automdm-black-75;
     }
   }
 }

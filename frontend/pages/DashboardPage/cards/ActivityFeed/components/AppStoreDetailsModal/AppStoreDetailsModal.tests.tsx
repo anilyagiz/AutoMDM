@@ -68,7 +68,7 @@ describe("AppStoreDetailsModal", () => {
     renderModal({
       platform: "android",
       version_name: "P",
-      configuration: { HomepageLocation: "https://fleetdm.com" },
+      configuration: { HomepageLocation: "https://automdm.com" },
     });
     expect(screen.getByText("Configuration")).toBeInTheDocument();
   });

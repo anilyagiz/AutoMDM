@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -34,7 +34,7 @@ func (ds *Datastore) listAppleMDMHostsForReconcileBatchTransaction(
 	tx common_mysql.DBReadTx,
 	afterHostUUID string,
 	batchSize int,
-) (hosts []*fleet.AppleHostReconcileInfo, pageFull bool, err error) {
+) (hosts []*automdm.AppleHostReconcileInfo, pageFull bool, err error) {
 	const stmt = `
 		SELECT
 			h.id              AS id,
@@ -77,9 +77,9 @@ func (ds *Datastore) listAppleMDMHostsForReconcileBatchTransaction(
 // orders by UUID, which the cursor pagination relies on). If this tiebreaker
 // changes, update the ORDER BY in listAppleMDMHostsForReconcileBatchTransaction
 // to keep pagination deterministic across page boundaries.
-func dedupeHostsByUUID(hosts []*fleet.AppleHostReconcileInfo) []*fleet.AppleHostReconcileInfo {
+func dedupeHostsByUUID(hosts []*automdm.AppleHostReconcileInfo) []*automdm.AppleHostReconcileInfo {
 	seen := make(map[string]int, len(hosts))
-	deduped := make([]*fleet.AppleHostReconcileInfo, 0, len(hosts))
+	deduped := make([]*automdm.AppleHostReconcileInfo, 0, len(hosts))
 	for _, h := range hosts {
 		if i, ok := seen[h.UUID]; ok {
 			if h.HostID > deduped[i].HostID {
@@ -103,7 +103,7 @@ func dedupeHostsByUUID(hosts []*fleet.AppleHostReconcileInfo) []*fleet.AppleHost
 func (ds *Datastore) GetAppleMDMHostForReconcile(
 	ctx context.Context,
 	hostUUID string,
-) (*fleet.AppleHostReconcileInfo, error) {
+) (*automdm.AppleHostReconcileInfo, error) {
 	const stmt = `
 		SELECT
 			h.id              AS id,
@@ -126,7 +126,7 @@ func (ds *Datastore) GetAppleMDMHostForReconcile(
 		LIMIT 1
 	`
 
-	var host fleet.AppleHostReconcileInfo
+	var host automdm.AppleHostReconcileInfo
 	if err := sqlx.GetContext(ctx, ds.reader(ctx), &host, stmt, hostUUID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -143,11 +143,11 @@ func (ds *Datastore) GetAppleMDMHostForReconcile(
 // doesn't scan every profile in the system on each enrollment — a real
 // concern in suites that accumulate profile rows across many sub-tests
 // without cleanup.
-func (ds *Datastore) ListAppleProfilesForReconcileByTeam(ctx context.Context, teamID uint) ([]*fleet.AppleProfileForReconcile, error) {
+func (ds *Datastore) ListAppleProfilesForReconcileByTeam(ctx context.Context, teamID uint) ([]*automdm.AppleProfileForReconcile, error) {
 	return ds.listAppleProfilesForReconcileTransaction(ctx, ds.reader(ctx), &teamID, nil)
 }
 
-func (ds *Datastore) GetAppleProfileForReconcile(ctx context.Context, teamID uint, profileUUID string) (*fleet.AppleProfileForReconcile, error) {
+func (ds *Datastore) GetAppleProfileForReconcile(ctx context.Context, teamID uint, profileUUID string) (*automdm.AppleProfileForReconcile, error) {
 	profiles, err := ds.listAppleProfilesForReconcileTransaction(ctx, ds.reader(ctx), &teamID, []string{profileUUID})
 	if err != nil {
 		return nil, err
@@ -168,17 +168,17 @@ func (ds *Datastore) GetAppleProfileForReconcile(ctx context.Context, teamID uin
 // in-memory handlers can apply the same "broken-label" semantics as the
 // legacy SQL: broken include-* profiles do not apply, and broken profiles
 // are exempted from removal.
-func (ds *Datastore) listAppleProfilesForReconcileTransaction(ctx context.Context, tx common_mysql.DBReadTx, teamID *uint, filterProfileUUIDs []string) ([]*fleet.AppleProfileForReconcile, error) {
+func (ds *Datastore) listAppleProfilesForReconcileTransaction(ctx context.Context, tx common_mysql.DBReadTx, teamID *uint, filterProfileUUIDs []string) ([]*automdm.AppleProfileForReconcile, error) {
 	type profileRow struct {
-		ProfileUUID       string             `db:"profile_uuid"`
-		ProfileIdentifier string             `db:"identifier"`
-		ProfileName       string             `db:"name"`
-		TeamID            uint               `db:"team_id"`
-		Checksum          []byte             `db:"checksum"`
-		SecretsUpdatedAt  sql.NullTime       `db:"secrets_updated_at"`
-		Scope             fleet.PayloadScope `db:"scope"`
-		SelfService       bool               `db:"self_service"`
-		Hidden            bool               `db:"hidden"`
+		ProfileUUID       string               `db:"profile_uuid"`
+		ProfileIdentifier string               `db:"identifier"`
+		ProfileName       string               `db:"name"`
+		TeamID            uint                 `db:"team_id"`
+		Checksum          []byte               `db:"checksum"`
+		SecretsUpdatedAt  sql.NullTime         `db:"secrets_updated_at"`
+		Scope             automdm.PayloadScope `db:"scope"`
+		SelfService       bool                 `db:"self_service"`
+		Hidden            bool                 `db:"hidden"`
 	}
 
 	profStmt := `
@@ -216,11 +216,11 @@ func (ds *Datastore) listAppleProfilesForReconcileTransaction(ctx context.Contex
 		return nil, nil
 	}
 
-	byUUID := make(map[string]*fleet.AppleProfileForReconcile, len(rows))
-	out := make([]*fleet.AppleProfileForReconcile, 0, len(rows))
+	byUUID := make(map[string]*automdm.AppleProfileForReconcile, len(rows))
+	out := make([]*automdm.AppleProfileForReconcile, 0, len(rows))
 	profileUUIDs := make([]string, 0, len(rows))
 	for _, r := range rows {
-		p := &fleet.AppleProfileForReconcile{
+		p := &automdm.AppleProfileForReconcile{
 			ProfileUUID:       r.ProfileUUID,
 			ProfileIdentifier: r.ProfileIdentifier,
 			ProfileName:       r.ProfileName,
@@ -297,7 +297,7 @@ func (ds *Datastore) listAppleProfilesForReconcileTransaction(ctx context.Contex
 	// carry both an include set and an exclude set.
 	type includeAccum struct {
 		set   bool
-		mode  fleet.AppleProfileIncludeMode
+		mode  automdm.AppleProfileIncludeMode
 		mixed bool
 	}
 	includeModes := make(map[string]*includeAccum, len(byUUID))
@@ -308,7 +308,7 @@ func (ds *Datastore) listAppleProfilesForReconcileTransaction(ctx context.Contex
 			continue
 		}
 
-		ref := fleet.AppleProfileLabelRef{
+		ref := automdm.AppleProfileLabelRef{
 			LabelMembershipType: lr.LabelMembershipType,
 		}
 		if lr.LabelID.Valid {
@@ -327,11 +327,11 @@ func (ds *Datastore) listAppleProfilesForReconcileTransaction(ctx context.Contex
 		// Include row.
 		p.IncludeLabels = append(p.IncludeLabels, ref)
 
-		var rowMode fleet.AppleProfileIncludeMode
+		var rowMode automdm.AppleProfileIncludeMode
 		if lr.RequireAll {
-			rowMode = fleet.AppleProfileIncludeAll
+			rowMode = automdm.AppleProfileIncludeAll
 		} else {
-			rowMode = fleet.AppleProfileIncludeAny
+			rowMode = automdm.AppleProfileIncludeAny
 		}
 
 		ia := includeModes[lr.ProfileUUID]
@@ -359,9 +359,9 @@ func (ds *Datastore) listAppleProfilesForReconcileTransaction(ctx context.Contex
 			// single mode). Drop the include set so we don't guess at
 			// intent; exclude labels (if any) are preserved.
 			p.IncludeLabels = nil
-			p.IncludeMode = fleet.AppleProfileIncludeNone
+			p.IncludeMode = automdm.AppleProfileIncludeNone
 			errMsg := "apple profile has mixed include label modes; ignoring include labels"
-			ds.logger.ErrorContext(ctx, errMsg, "profile_uuid", uuid, "fleet_id", p.TeamID)
+			ds.logger.ErrorContext(ctx, errMsg, "profile_uuid", uuid, "team_id", p.TeamID)
 			ctxerr.Handle(ctx, ctxerr.New(ctx, errMsg))
 			continue
 		}
@@ -378,7 +378,7 @@ func (ds *Datastore) listAppleProfilesForReconcileTransaction(ctx context.Contex
 func (ds *Datastore) BulkGetHostMDMAppleProfilesByUUIDs(
 	ctx context.Context,
 	hostUUIDs []string,
-) (map[string][]*fleet.MDMAppleProfilePayload, error) {
+) (map[string][]*automdm.MDMAppleProfilePayload, error) {
 	return ds.bulkGetHostMDMAppleProfilesByUUIDsTransaction(ctx, ds.reader(ctx), hostUUIDs)
 }
 
@@ -386,8 +386,8 @@ func (ds *Datastore) bulkGetHostMDMAppleProfilesByUUIDsTransaction(
 	ctx context.Context,
 	tx common_mysql.DBReadTx,
 	hostUUIDs []string,
-) (map[string][]*fleet.MDMAppleProfilePayload, error) {
-	out := make(map[string][]*fleet.MDMAppleProfilePayload, len(hostUUIDs))
+) (map[string][]*automdm.MDMAppleProfilePayload, error) {
+	out := make(map[string][]*automdm.MDMAppleProfilePayload, len(hostUUIDs))
 	if len(hostUUIDs) == 0 {
 		return out, nil
 	}
@@ -422,7 +422,7 @@ func (ds *Datastore) bulkGetHostMDMAppleProfilesByUUIDsTransaction(
 			return nil, ctxerr.Wrap(ctx, err, "build host mdm apple profiles query")
 		}
 
-		var rows []*fleet.MDMAppleProfilePayload
+		var rows []*automdm.MDMAppleProfilePayload
 		if err := sqlx.SelectContext(ctx, tx, &rows, q, args...); err != nil {
 			return nil, ctxerr.Wrap(ctx, err, "select host mdm apple profiles")
 		}
@@ -450,10 +450,10 @@ func (ds *Datastore) GetAppleProfileReconcileSnapshot(
 	afterHostUUID string,
 	batchSize int,
 ) (
-	hosts []*fleet.AppleHostReconcileInfo,
-	allProfiles []*fleet.AppleProfileForReconcile,
+	hosts []*automdm.AppleHostReconcileInfo,
+	allProfiles []*automdm.AppleProfileForReconcile,
 	hostLabels map[uint]map[uint]struct{},
-	currentByHost map[string][]*fleet.MDMAppleProfilePayload,
+	currentByHost map[string][]*automdm.MDMAppleProfilePayload,
 	optInsByHost map[string]map[string]struct{},
 	pageFull bool,
 	err error,
@@ -536,15 +536,15 @@ func (ds *Datastore) SetMDMAppleReconcileCursor(_ context.Context, _ string) err
 // in the system, paired with its label assignments. Mirrors
 // listAppleProfilesForReconcileTransaction so the batched DDM reconciler
 // runs the same label-row processing logic.
-func (ds *Datastore) listAppleDeclarationsForReconcileTransaction(ctx context.Context, tx common_mysql.DBReadTx) ([]*fleet.AppleDeclarationForReconcile, error) {
+func (ds *Datastore) listAppleDeclarationsForReconcileTransaction(ctx context.Context, tx common_mysql.DBReadTx) ([]*automdm.AppleDeclarationForReconcile, error) {
 	type declRow struct {
-		DeclarationUUID       string             `db:"declaration_uuid"`
-		DeclarationIdentifier string             `db:"identifier"`
-		DeclarationName       string             `db:"name"`
-		TeamID                uint               `db:"team_id"`
-		Token                 []byte             `db:"token"`
-		SecretsUpdatedAt      sql.NullTime       `db:"secrets_updated_at"`
-		Scope                 fleet.PayloadScope `db:"scope"`
+		DeclarationUUID       string               `db:"declaration_uuid"`
+		DeclarationIdentifier string               `db:"identifier"`
+		DeclarationName       string               `db:"name"`
+		TeamID                uint                 `db:"team_id"`
+		Token                 []byte               `db:"token"`
+		SecretsUpdatedAt      sql.NullTime         `db:"secrets_updated_at"`
+		Scope                 automdm.PayloadScope `db:"scope"`
 	}
 
 	const declStmt = `
@@ -560,10 +560,10 @@ func (ds *Datastore) listAppleDeclarationsForReconcileTransaction(ctx context.Co
 		return nil, nil
 	}
 
-	byUUID := make(map[string]*fleet.AppleDeclarationForReconcile, len(rows))
-	out := make([]*fleet.AppleDeclarationForReconcile, 0, len(rows))
+	byUUID := make(map[string]*automdm.AppleDeclarationForReconcile, len(rows))
+	out := make([]*automdm.AppleDeclarationForReconcile, 0, len(rows))
 	for _, r := range rows {
-		d := &fleet.AppleDeclarationForReconcile{
+		d := &automdm.AppleDeclarationForReconcile{
 			DeclarationUUID:       r.DeclarationUUID,
 			DeclarationIdentifier: r.DeclarationIdentifier,
 			DeclarationName:       r.DeclarationName,
@@ -613,7 +613,7 @@ func (ds *Datastore) listAppleDeclarationsForReconcileTransaction(ctx context.Co
 
 	type includeAccum struct {
 		set   bool
-		mode  fleet.AppleProfileIncludeMode
+		mode  automdm.AppleProfileIncludeMode
 		mixed bool
 	}
 	includeModes := make(map[string]*includeAccum, len(byUUID))
@@ -624,7 +624,7 @@ func (ds *Datastore) listAppleDeclarationsForReconcileTransaction(ctx context.Co
 			continue
 		}
 
-		ref := fleet.AppleProfileLabelRef{
+		ref := automdm.AppleProfileLabelRef{
 			LabelMembershipType: lr.LabelMembershipType,
 		}
 		if lr.LabelID.Valid {
@@ -642,11 +642,11 @@ func (ds *Datastore) listAppleDeclarationsForReconcileTransaction(ctx context.Co
 
 		d.IncludeLabels = append(d.IncludeLabels, ref)
 
-		var rowMode fleet.AppleProfileIncludeMode
+		var rowMode automdm.AppleProfileIncludeMode
 		if lr.RequireAll {
-			rowMode = fleet.AppleProfileIncludeAll
+			rowMode = automdm.AppleProfileIncludeAll
 		} else {
-			rowMode = fleet.AppleProfileIncludeAny
+			rowMode = automdm.AppleProfileIncludeAny
 		}
 
 		ia := includeModes[lr.EntityUUID]
@@ -670,17 +670,17 @@ func (ds *Datastore) listAppleDeclarationsForReconcileTransaction(ctx context.Co
 		}
 		if ia.mixed {
 			d.IncludeLabels = nil
-			d.IncludeMode = fleet.AppleProfileIncludeNone
+			d.IncludeMode = automdm.AppleProfileIncludeNone
 
 			errMsg := "apple declaration has mixed include label modes; ignoring include labels"
-			ds.logger.ErrorContext(ctx, errMsg, "declaration_uuid", uuid, "fleet_id", d.TeamID)
+			ds.logger.ErrorContext(ctx, errMsg, "declaration_uuid", uuid, "team_id", d.TeamID)
 			ctxerr.Handle(ctx, ctxerr.New(ctx, errMsg))
 			continue
 		}
 		d.IncludeMode = ia.mode
 	}
 
-	// Mark declarations that reference Fleet variables. The batched DDM
+	// Mark declarations that reference AutoMDM variables. The batched DDM
 	// reconciler uses this to set host_mdm_apple_declarations.variables_updated_at
 	// on install rows, mirroring the legacy setVariablesUpdatedAtForDeclarations.
 	declUUIDs := make([]string, 0, len(byUUID))
@@ -707,24 +707,24 @@ WHERE act.declaration_uuid IN (?)`
 		}
 		var withVars []string
 		if err := sqlx.SelectContext(ctx, tx, &withVars, q, args...); err != nil {
-			return nil, ctxerr.Wrap(ctx, err, "select apple declarations with fleet variables")
+			return nil, ctxerr.Wrap(ctx, err, "select apple declarations with automdm variables")
 		}
 		for _, u := range withVars {
 			if d, ok := byUUID[u]; ok {
-				d.HasFleetVariables = true
+				d.HasAutoMDMVariables = true
 			}
 		}
 
-		// Custom host vitals ($FLEET_HOST_VITAL_<id>) are a separate variable
+		// Custom host vitals ($AUTOMDM_HOST_VITAL_<id>) are a separate variable
 		// namespace that isn't recorded in mdm_configuration_profile_variables, so
 		// detect them by scanning the declaration body. Marking them
-		// HasFleetVariables makes the reconciler stamp variables_updated_at, which
+		// HasAutoMDMVariables makes the reconciler stamp variables_updated_at, which
 		// (a) lets handleDeclarationItems load raw_json and drop declarations it
 		// can't resolve for a host from the manifest, and (b) cache-busts the DDM
 		// token so a per-host value change is re-delivered. INSTR matches the
 		// prefix without the leading '$' so it catches both $FOO and ${FOO} forms.
 		const vitalsStmt = `SELECT declaration_uuid FROM mdm_apple_declarations WHERE declaration_uuid IN (?) AND INSTR(raw_json, ?) > 0`
-		q, args, err = sqlx.In(vitalsStmt, declUUIDs, fleet.CustomHostVitalPrefix)
+		q, args, err = sqlx.In(vitalsStmt, declUUIDs, automdm.CustomHostVitalPrefix)
 		if err != nil {
 			return nil, ctxerr.Wrap(ctx, err, "build apple declaration custom host vitals query")
 		}
@@ -734,7 +734,7 @@ WHERE act.declaration_uuid IN (?)`
 		}
 		for _, u := range withVitals {
 			if d, ok := byUUID[u]; ok {
-				d.HasFleetVariables = true
+				d.HasAutoMDMVariables = true
 			}
 		}
 
@@ -742,7 +742,7 @@ WHERE act.declaration_uuid IN (?)`
 		// the declaration body, so a vital referenced only from the activation
 		// still has to stamp variables_updated_at on the owning declaration.
 		const actVitalsStmt = `SELECT declaration_uuid FROM mdm_apple_ddm_activations WHERE declaration_uuid IN (?) AND INSTR(raw_json, ?) > 0`
-		q, args, err = sqlx.In(actVitalsStmt, declUUIDs, fleet.CustomHostVitalPrefix)
+		q, args, err = sqlx.In(actVitalsStmt, declUUIDs, automdm.CustomHostVitalPrefix)
 		if err != nil {
 			return nil, ctxerr.Wrap(ctx, err, "build activation custom host vitals query")
 		}
@@ -752,7 +752,7 @@ WHERE act.declaration_uuid IN (?)`
 		}
 		for _, u := range actWithVitals {
 			if d, ok := byUUID[u]; ok {
-				d.HasFleetVariables = true
+				d.HasAutoMDMVariables = true
 			}
 		}
 
@@ -816,7 +816,7 @@ WHERE act.declaration_uuid IN (?)`
 			}
 		}
 
-		// A declaration whose activation uses Fleet variables needs the same
+		// A declaration whose activation uses AutoMDM variables needs the same
 		// per-host token busting as one that uses them itself.
 		const actVarsStmt = `
 			SELECT DISTINCT a.declaration_uuid
@@ -829,11 +829,11 @@ WHERE act.declaration_uuid IN (?)`
 		}
 		var withActVars []string
 		if err := sqlx.SelectContext(ctx, tx, &withActVars, avq, avargs...); err != nil {
-			return nil, ctxerr.Wrap(ctx, err, "select apple activations with fleet variables")
+			return nil, ctxerr.Wrap(ctx, err, "select apple activations with automdm variables")
 		}
 		for _, u := range withActVars {
 			if d, ok := byUUID[u]; ok {
-				d.HasFleetVariables = true
+				d.HasAutoMDMVariables = true
 			}
 		}
 	}
@@ -848,8 +848,8 @@ func (ds *Datastore) bulkGetHostMDMAppleDeclarationsByUUIDsTransaction(
 	ctx context.Context,
 	tx common_mysql.DBReadTx,
 	hostUUIDs []string,
-) (map[string][]*fleet.MDMAppleHostDeclaration, error) {
-	out := make(map[string][]*fleet.MDMAppleHostDeclaration, len(hostUUIDs))
+) (map[string][]*automdm.MDMAppleHostDeclaration, error) {
+	out := make(map[string][]*automdm.MDMAppleHostDeclaration, len(hostUUIDs))
 	if len(hostUUIDs) == 0 {
 		return out, nil
 	}
@@ -891,7 +891,7 @@ func (ds *Datastore) bulkGetHostMDMAppleDeclarationsByUUIDsTransaction(
 			return nil, ctxerr.Wrap(ctx, err, "build host mdm apple declarations query")
 		}
 
-		var rows []*fleet.MDMAppleHostDeclaration
+		var rows []*automdm.MDMAppleHostDeclaration
 		if err := sqlx.SelectContext(ctx, tx, &rows, q, args...); err != nil {
 			return nil, ctxerr.Wrap(ctx, err, "select host mdm apple declarations")
 		}
@@ -909,7 +909,7 @@ func (ds *Datastore) bulkGetHostMDMAppleDeclarationsByUUIDsTransaction(
 // declarations that can't be delivered because the host has no user channel
 // (mirroring how the profile reconciler cleans up undeliverable user-scoped
 // profiles), so they don't linger as permanent "pending" rows.
-func (ds *Datastore) BulkDeleteMDMAppleHostDeclarations(ctx context.Context, rows []*fleet.MDMAppleHostDeclaration) error {
+func (ds *Datastore) BulkDeleteMDMAppleHostDeclarations(ctx context.Context, rows []*automdm.MDMAppleHostDeclaration) error {
 	if len(rows) == 0 {
 		return nil
 	}
@@ -949,10 +949,10 @@ func (ds *Datastore) GetAppleDeclarationReconcileSnapshot(
 	afterHostUUID string,
 	batchSize int,
 ) (
-	hosts []*fleet.AppleHostReconcileInfo,
-	allDecls []*fleet.AppleDeclarationForReconcile,
+	hosts []*automdm.AppleHostReconcileInfo,
+	allDecls []*automdm.AppleDeclarationForReconcile,
 	hostLabels map[uint]map[uint]struct{},
-	currentByHost map[string][]*fleet.MDMAppleHostDeclaration,
+	currentByHost map[string][]*automdm.MDMAppleHostDeclaration,
 	pageFull bool,
 	err error,
 ) {
@@ -1030,7 +1030,7 @@ func (ds *Datastore) SetMDMAppleDeclarationReconcileCursor(_ context.Context, _ 
 // status across all rows. Used by the batched DDM reconciler.
 func (ds *Datastore) BulkUpsertMDMAppleHostDeclarations(
 	ctx context.Context,
-	rows []*fleet.MDMAppleHostDeclaration,
+	rows []*automdm.MDMAppleHostDeclaration,
 ) error {
 	if len(rows) == 0 {
 		return nil
@@ -1064,12 +1064,12 @@ func (ds *Datastore) BulkUpsertMDMAppleHostDeclarations(
 		// Keep the per-row placeholder count under 60: MySQL caps a prepared
 		// statement at 65535 placeholders, and each batch binds batchSize rows.
 		args := make([]any, 0, len(batch)*12)
-		batchByKey := make(map[string]*fleet.MDMAppleHostDeclaration, len(batch))
+		batchByKey := make(map[string]*automdm.MDMAppleHostDeclaration, len(batch))
 		for _, r := range batch {
 			// Scope defaults to System
 			scope := r.Scope
 			if scope == "" {
-				scope = fleet.PayloadScopeSystem
+				scope = automdm.PayloadScopeSystem
 			}
 			valueParts = append(valueParts, "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
 			args = append(

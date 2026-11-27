@@ -1,16 +1,16 @@
 # Windows 11 Enterprise benchmarks (Intune)
 
-Fleet's policies have been written against v8.1 of the CIS benchmark for Windows 11 Enterprise, targeting devices enrolled in Microsoft Intune. You can refer to the [CIS website](https://www.cisecurity.org/cis-benchmarks) for full details about this version.
+AutoMDM's policies have been written against v8.1 of the CIS benchmark for Windows 11 Enterprise, targeting devices enrolled in Microsoft Intune. You can refer to the [CIS website](https://www.cisecurity.org/cis-benchmarks) for full details about this version.
 
-For requirements and usage details, see the [CIS Benchmarks](https://fleetdm.com/docs/using-fleet/cis-benchmarks) documentation.
+For requirements and usage details, see the [CIS Benchmarks](https://automdm.com/docs/using-automdm/cis-benchmarks) documentation.
 
 ### Contents
 
 | Folder | Description |
 |--------|-------------|
-| `policies/` | GitOps-compatible policy YAML (bl/l1/l2) — import via `fleetctl apply` or reference with `- path:` in `fleet.yml` |
-| `configuration-profiles/` | SyncML XML profiles — upload via Fleet UI or `fleetctl apply` to enforce the settings checked by the policies |
-| `scripts/` | PowerShell scripts — upload via Fleet UI or `fleetctl apply` and link as `run_script` remediation in the corresponding policy |
+| `policies/` | GitOps-compatible policy YAML (bl/l1/l2) — import via `automdmctl apply` or reference with `- path:` in `automdm.yml` |
+| `configuration-profiles/` | SyncML XML profiles — upload via AutoMDM UI or `automdmctl apply` to enforce the settings checked by the policies |
+| `scripts/` | PowerShell scripts — upload via AutoMDM UI or `automdmctl apply` and link as `run_script` remediation in the corresponding policy |
 
 ### Policy files
 
@@ -28,4 +28,4 @@ Policies are split by CIS level:
 
 ### How these policies work
 
-Each policy uses `mdm_bridge` queries to read CSP (Configuration Service Provider) values via OMA-URI, allowing Fleet to verify settings that were applied through Intune configuration profiles.
+Each policy uses `mdm_bridge` queries to read CSP (Configuration Service Provider) values via OMA-URI, allowing AutoMDM to verify settings that were applied through Intune configuration profiles.

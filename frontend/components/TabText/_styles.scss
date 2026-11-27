@@ -10,9 +10,9 @@
     padding: 1px 12px;
     justify-content: center;
     align-items: center;
-    background-color: $core-fleet-green;
+    background-color: $core-automdm-green;
     border-radius: 29px;
-    color: $core-fleet-white;
+    color: $core-automdm-white;
     font-weight: $bold;
     font-size: $xx-small;
 
@@ -20,7 +20,7 @@
       background-color: $core-vibrant-red;
     }
     &__pending {
-      background-color: $ui-fleet-black-50;
+      background-color: $ui-automdm-black-50;
     }
   }
 

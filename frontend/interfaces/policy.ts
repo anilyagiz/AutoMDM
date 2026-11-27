@@ -19,7 +19,7 @@ export default PropTypes.shape({
   resolution: PropTypes.string.isRequired,
   critical: PropTypes.bool,
   response: PropTypes.string,
-  fleet_id: PropTypes.number,
+  team_id: PropTypes.number,
   updated_at: PropTypes.string.isRequired,
 });
 
@@ -52,7 +52,7 @@ export interface IPolicyAutomationActivity {
   id: number;
   created_at: string;
   type: ActivityType;
-  fleet_initiated: boolean;
+  automdm_initiated: boolean;
   details: IActivityDetails;
   host_id: number;
   host_display_name: string;
@@ -72,7 +72,7 @@ export interface IPolicy {
   author_email: string;
   resolution: string;
   platform: CommaSeparatedPlatformString;
-  fleet_id: number | null;
+  team_id: number | null;
   created_at: string;
   updated_at: string;
   // A critical policy cannot be "resolved later" if Okta conditional access is enabled for it
@@ -80,7 +80,7 @@ export interface IPolicy {
   /** Only in host policy lists; the policy endpoints return `automation_type`. */
   calendar_events_enabled?: boolean;
   conditional_access_enabled?: boolean;
-  /** Hidden from end users in Fleet Desktop. Absent on device (My device) policies. */
+  /** Hidden from end users in AutoMDM Desktop. Absent on device (My device) policies. */
   hidden?: boolean;
   type: string;
   install_software?: IPolicySoftwareToInstall;
@@ -156,7 +156,7 @@ export interface IPolicyFormData {
   platform?: CommaSeparatedPlatformString;
   name?: string | number | boolean | undefined;
   query?: string | number | boolean | undefined;
-  fleet_id?: number | null;
+  team_id?: number | null;
   id?: number;
   hidden?: boolean;
   continuous_automations_enabled?: boolean;

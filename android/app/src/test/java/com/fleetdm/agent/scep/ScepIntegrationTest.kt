@@ -58,7 +58,7 @@ class ScepIntegrationTest {
         testTemplate = TestCertificateTemplateFactory.create(
             scepChallenge = challenge,
             name = "integration-test-cert-$uniqueId",
-            subjectName = "CN=IntegrationTestDevice-$uniqueId,O=FleetDM,C=US",
+            subjectName = "CN=IntegrationTestDevice-$uniqueId,O=AutoMDM,C=US",
         )
     }
 
@@ -106,7 +106,7 @@ class ScepIntegrationTest {
             val template = TestCertificateTemplateFactory.create(
                 scepChallenge = testTemplate.scepChallenge ?: "test-challenge",
                 name = "test-cert-$keySize-$uniqueId",
-                subjectName = "CN=IntegrationTestDevice-$keySize-$uniqueId,O=FleetDM,C=US",
+                subjectName = "CN=IntegrationTestDevice-$keySize-$uniqueId,O=AutoMDM,C=US",
                 keyLength = keySize,
             )
 
@@ -163,7 +163,7 @@ class ScepIntegrationTest {
 
         val template = testTemplate.copy(
             name = "san-test-cert-$uniqueId",
-            subjectName = "CN=SanIntegrationTest-$uniqueId,O=FleetDM,C=US",
+            subjectName = "CN=SanIntegrationTest-$uniqueId,O=AutoMDM,C=US",
             subjectAlternativeName = sanString,
         )
 

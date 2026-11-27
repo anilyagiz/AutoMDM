@@ -1,6 +1,6 @@
 ---
 name: review-pr
-description: Review a Fleet pull request for correctness, Go idioms, SQL safety, test coverage, and conventions. Use when asked to "review PR" or "review pull request".
+description: Review an AutoMDM pull request for correctness, Go idioms, SQL safety, test coverage, and conventions. Use when asked to "review PR" or "review pull request".
 context: fork
 allowed-tools: Bash(gh *), Read, Grep, Glob
 model: opus
@@ -16,7 +16,7 @@ Review the changes focusing on:
 2. **Go idioms** — error handling with ctxerr, proper context usage, slog logging
 3. **SQL safety** — injection risks, missing indexes for new queries, migration correctness
 4. **Test coverage** — are new code paths tested? Are integration tests needed?
-5. **Fleet conventions** — matches patterns in surrounding code
+5. **AutoMDM conventions** — matches patterns in surrounding code
 
 For each issue found, cite the specific file and line. Categorize findings as:
 - **Must fix** — bugs, security issues, data loss risks

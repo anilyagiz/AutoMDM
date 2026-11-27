@@ -12,12 +12,12 @@ func TestUp_20261119181608(t *testing.T) {
 	db := applyUpToPrev(t)
 
 	const (
-		oldRun      = "/api/v1/fleet/queries/run"
-		newRun      = "/api/v1/fleet/reports/run"
-		oldDelete   = "/api/v1/fleet/reports/id/:id"
-		otherDelete = "/api/v1/fleet/reports/id/{report_id}" // same fingerprint, other placeholder name
-		newDelete   = "/api/v1/fleet/reports/:id"
-		otherPath   = "/api/v1/fleet/reports"
+		oldRun      = "/api/v1/automdm/queries/run"
+		newRun      = "/api/v1/automdm/reports/run"
+		oldDelete   = "/api/v1/automdm/reports/id/:id"
+		otherDelete = "/api/v1/automdm/reports/id/{report_id}" // same fingerprint, other placeholder name
+		newDelete   = "/api/v1/automdm/reports/:id"
+		otherPath   = "/api/v1/automdm/reports"
 	)
 	newUser := func(name string) int64 {
 		return execNoErrLastID(t, db, `INSERT INTO users (password, salt, name, email, api_only) VALUES ('p', 's', ?, ?, 1)`,

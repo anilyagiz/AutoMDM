@@ -1,4 +1,4 @@
-// Multi-server helpers. A "server" is one independent local Fleet instance:
+// Multi-server helpers. A "server" is one independent local AutoMDM instance:
 // its own git worktree (so it can build/run a different branch), host ports,
 // docker compose project, and serve config. Server 1 keeps the canonical dev
 // ports so it behaves byte-identically to the single-server era; additional
@@ -56,30 +56,30 @@ export function procId(serverId: string, base: string): string {
   return `${serverId}:${base}`;
 }
 
-/// The fleet-serve log channel for a server (one structured-log ring + on-disk
+/// The automdm-serve log channel for a server (one structured-log ring + on-disk
 /// file per server).
 export function serveChannel(serverId: string): string {
-  return `fleet-serve-${serverId}`;
+  return `automdm-serve-${serverId}`;
 }
 
 // --- docker compose ---
 
 /// The docker network the compose project creates (`<project>_default`). Used
 /// by backup.sh / restore.sh, which attach a one-off mysql client container to
-/// it via FLEET_COMPOSE_NETWORK.
+/// it via AUTOMDM_COMPOSE_NETWORK.
 export function composeNetwork(server: ServerProfile): string {
   return `${server.compose_project}_default`;
 }
 
 // One-off client image for db backup/restore. Matches tools/backup_db/*.sh
-// (${FLEET_MYSQL_IMAGE:-mysql:8.0.44}).
+// (${AUTOMDM_MYSQL_IMAGE:-mysql:8.0.44}).
 const DB_CLIENT_IMAGE = "mysql:8.0.44";
 
-/// `bash -c` payload that dumps a server's `fleet` DB, via that server's compose
+/// `bash -c` payload that dumps a server's `automdm` DB, via that server's compose
 /// network, to a gzipped file. Hangar builds this itself instead of shelling out
 /// to the worktree's tools/backup_db/backup.sh, because secondary worktrees run
-/// old/released refs whose scripts predate FLEET_COMPOSE_NETWORK and would
-/// silently target the primary (fleet_default) stack. `set -o pipefail` inside
+/// old/released refs whose scripts predate AUTOMDM_COMPOSE_NETWORK and would
+/// silently target the primary (automdm_default) stack. `set -o pipefail` inside
 /// the container makes a failed mysqldump fail the whole command instead of
 /// writing a "successful" empty archive.
 export function dbBackupCommand(server: ServerProfile, absPath: string): string {
@@ -87,12 +87,12 @@ export function dbBackupCommand(server: ServerProfile, absPath: string): string 
   return (
     `docker run --rm --network '${net}' ${DB_CLIENT_IMAGE} ` +
     `bash -c 'set -o pipefail; mysqldump -hmysql -uroot -ptoor ` +
-    `--default-character-set=utf8mb4 --add-drop-database --databases fleet | gzip -' ` +
+    `--default-character-set=utf8mb4 --add-drop-database --databases team | gzip -' ` +
     `> '${absPath}'`
   );
 }
 
-/// `bash -c` payload that restores a gzipped dump into a server's `fleet` DB via
+/// `bash -c` payload that restores a gzipped dump into a server's `automdm` DB via
 /// that server's compose network. See dbBackupCommand for why Hangar owns this.
 export function dbRestoreCommand(
   server: ServerProfile,
@@ -101,27 +101,27 @@ export function dbRestoreCommand(
   const net = composeNetwork(server);
   return (
     `docker run --rm -i --network '${net}' ${DB_CLIENT_IMAGE} ` +
-    `bash -c 'set -o pipefail; gzip -dc - | MYSQL_PWD=toor mysql -hmysql -uroot fleet' ` +
+    `bash -c 'set -o pipefail; gzip -dc - | MYSQL_PWD=toor mysql -hmysql -uroot team' ` +
     `< '${absPath}'`
   );
 }
 
 /// docker compose env that maps the parameterized host ports to this server's
-/// block. Read by the `${FLEET_*_PORT:-default}` substitutions in
+/// block. Read by the `${AUTOMDM_*_PORT:-default}` substitutions in
 /// docker-compose.yml at `up` time.
 export function dockerEnvFor(server: ServerProfile): Array<[string, string]> {
   const p = server.ports;
   return [
-    ["FLEET_MYSQL_PORT", String(p.mysql)],
-    ["FLEET_REDIS_PORT", String(p.redis)],
-    ["FLEET_S3_PORT", String(p.s3)],
-    ["FLEET_S3_CONSOLE_PORT", String(p.s3_console)],
+    ["AUTOMDM_MYSQL_PORT", String(p.mysql)],
+    ["AUTOMDM_REDIS_PORT", String(p.redis)],
+    ["AUTOMDM_S3_PORT", String(p.s3)],
+    ["AUTOMDM_S3_CONSOLE_PORT", String(p.s3_console)],
   ];
 }
 
 /// `docker compose -p <project> up -d [services...]`. The default stack (server
 /// 1) brings up everything, matching prior single-server behavior; secondary
-/// stacks bring up only what a parallel fleet server needs (mysql/redis/s3),
+/// stacks bring up only what a parallel automdm server needs (mysql/redis/s3),
 /// so the optional services (mail, saml, prometheus, …) don't collide on their
 /// host ports between projects.
 export function dockerUpArgs(server: ServerProfile): string[] {
@@ -132,10 +132,10 @@ export function dockerUpArgs(server: ServerProfile): string[] {
   return args;
 }
 
-// --- fleet serve / prepare db ---
+// --- automdm serve / prepare db ---
 
 /// True when the server is on the canonical dev ports. For the default stack we
-/// omit the address flags / S3 env so `fleet serve --dev` runs exactly as it
+/// omit the address flags / S3 env so `automdm serve --dev` runs exactly as it
 /// did pre-multi-server; non-default stacks get explicit addresses.
 export function isDefaultStack(server: ServerProfile): boolean {
   const p = server.ports;
@@ -145,7 +145,7 @@ export function isDefaultStack(server: ServerProfile): boolean {
 }
 
 export function serveArgsFor(server: ServerProfile): string[] {
-  const cfg = server.fleet_serve;
+  const cfg = server.automdm_serve;
   const args = ["serve", "--dev"];
   const configPath = cfg.config_path?.trim();
   if (configPath) args.push("--config", configPath);
@@ -161,16 +161,16 @@ export function serveArgsFor(server: ServerProfile): string[] {
   return args;
 }
 
-/// fleet-serve env as [key, value] tuples. The user's configured env comes
+/// automdm-serve env as [key, value] tuples. The user's configured env comes
 /// first (enabled, non-empty-key rows only); non-default stacks then get the
 /// S3 endpoint overrides so the server talks to its own object store.
-/// mockUrl is this server's running mock APNs (apnsMockLiveUrl), which Fleet
+/// mockUrl is this server's running mock APNs (apnsMockLiveUrl), which AutoMDM
 /// then pushes to instead of Apple; null when it isn't running.
 export function serveEnvFor(
   server: ServerProfile,
   mockUrl: string | null = null,
 ): Array<[string, string]> {
-  const rows: Array<[string, string]> = server.fleet_serve.env
+  const rows: Array<[string, string]> = server.automdm_serve.env
     .map((e) => ({ ...e, key: e.key.trim() }))
     .filter((e) => e.enabled && e.key.length > 0)
     .map((e) => [e.key, e.value] as [string, string]);
@@ -180,13 +180,13 @@ export function serveEnvFor(
   }
   if (!isDefaultStack(server)) {
     const s3 = `http://localhost:${server.ports.s3}`;
-    rows.push(["FLEET_S3_SOFTWARE_INSTALLERS_ENDPOINT_URL", s3]);
-    rows.push(["FLEET_S3_CARVES_ENDPOINT_URL", s3]);
+    rows.push(["AUTOMDM_S3_SOFTWARE_INSTALLERS_ENDPOINT_URL", s3]);
+    rows.push(["AUTOMDM_S3_CARVES_ENDPOINT_URL", s3]);
   }
   return rows;
 }
 
-/// `fleet prepare db --dev`, pointed at the server's MySQL for non-default
+/// `automdm prepare db --dev`, pointed at the server's MySQL for non-default
 /// stacks (dev uses root/toor to create the schema).
 export function prepareDbArgsFor(server: ServerProfile): string[] {
   const args = ["prepare", "db", "--dev"];
@@ -195,31 +195,31 @@ export function prepareDbArgsFor(server: ServerProfile): string[] {
     args.push(
       "--mysql_username=root",
       "--mysql_password=toor",
-      "--mysql_database=fleet",
+      "--mysql_database=team",
     );
   }
   return args;
 }
 
-/// Label for the fleet-serve row/chip: reflects premium/free (the flag that
+/// Label for the automdm-serve row/chip: reflects premium/free (the flag that
 /// meaningfully changes server behavior).
 export function serveLabelFor(server: ServerProfile): string {
-  return server.fleet_serve.premium
-    ? "fleet serve --dev (premium)"
-    : "fleet serve --dev (free)";
+  return server.automdm_serve.premium
+    ? "automdm serve --dev (premium)"
+    : "automdm serve --dev (free)";
 }
 
 // --- mock APNs ---
 //
 // cmd/apple-apns-mock stands in for Apple's push service so osquery-perf's
 // simulated Apple devices get MDM pushes. Each server runs its own, on its own
-// Redis, started on demand from the osquery-perf tab. Fleet sends every Apple
-// push to one URL, so while fleet serve pushes to the mock, real Apple devices
+// Redis, started on demand from the osquery-perf tab. AutoMDM sends every Apple
+// push to one URL, so while automdm serve pushes to the mock, real Apple devices
 // on that server get none. It reads the URL only at startup, with --dev.
 
-export const APNS_PUSH_URL_ENV = "FLEET_DEV_MDM_APPLE_PUSH_SERVER_URL";
-/// Swaps Fleet's pusher for a no-op, so pushes never reach the mock either.
-export const APNS_DISABLE_PUSH_ENV = "FLEET_DEV_MDM_APPLE_DISABLE_PUSH";
+export const APNS_PUSH_URL_ENV = "AUTOMDM_DEV_MDM_APPLE_PUSH_SERVER_URL";
+/// Swaps AutoMDM's pusher for a no-op, so pushes never reach the mock either.
+export const APNS_DISABLE_PUSH_ENV = "AUTOMDM_DEV_MDM_APPLE_DISABLE_PUSH";
 
 /// 127.0.0.1, not localhost: the mock listens on IPv4 only. Matches
 /// apnsmock.URL on the Go side.
@@ -238,11 +238,11 @@ export function apnsMockChannel(serverId: string): string {
   return `apns-mock-${serverId}`;
 }
 
-/// ProcInfo.meta key holding the push URL fleet serve was started with ("" for
+/// ProcInfo.meta key holding the push URL automdm serve was started with ("" for
 /// none), so a serve that no longer matches the mock's state is noticed.
 export const SERVE_PUSH_URL_META = "apns_push_url";
 
-/// The push URL fleet serve gets from serveEnvFor, or undefined for Apple's.
+/// The push URL automdm serve gets from serveEnvFor, or undefined for Apple's.
 export function servePushUrlFor(
   server: ServerProfile,
   mockUrl: string | null,
@@ -252,7 +252,7 @@ export function servePushUrlFor(
     .pop()?.[1];
 }
 
-/// Start metadata for fleet serve; every path that starts it passes this.
+/// Start metadata for automdm serve; every path that starts it passes this.
 export function serveMetaFor(
   server: ServerProfile,
   mockUrl: string | null,
@@ -265,13 +265,13 @@ export function userEnvValue(
   server: ServerProfile,
   key: string,
 ): string | undefined {
-  // The last enabled row wins, as it does in the env fleet serve starts with.
-  return server.fleet_serve.env
+  // The last enabled row wins, as it does in the env automdm serve starts with.
+  return server.automdm_serve.env
     .filter((e) => e.enabled && e.key.trim() === key)
     .pop()?.value;
 }
 
-/// Why this server's Fleet won't push to its mock at mockUrl, or null when
+/// Why this server's AutoMDM won't push to its mock at mockUrl, or null when
 /// nothing in its env gets in the way.
 export function apnsMockEnvConflict(
   server: ServerProfile,
@@ -279,7 +279,7 @@ export function apnsMockEnvConflict(
 ): string | null {
   const disable = userEnvValue(server, APNS_DISABLE_PUSH_ENV);
   if (disable === "1") {
-    return `${APNS_DISABLE_PUSH_ENV}=1 is set in this server's env, so Fleet sends no pushes at all. Turn that row off.`;
+    return `${APNS_DISABLE_PUSH_ENV}=1 is set in this server's env, so AutoMDM sends no pushes at all. Turn that row off.`;
   }
   const url = userEnvValue(server, APNS_PUSH_URL_ENV);
   if (url !== undefined && url.trim() !== mockUrl) {
@@ -323,14 +323,14 @@ export function apnsMockRunningPort(
 }
 
 /// The URL of this server's running mock APNs, or null when it isn't running.
-/// fleet serve and osquery-perf use it, wherever the mock actually listens.
+/// automdm serve and osquery-perf use it, wherever the mock actually listens.
 export function apnsMockLiveUrl(server: ServerProfile, procs: ProcInfo[]): string | null {
   const port = apnsMockRunningPort(server, procs);
   return port === undefined ? null : apnsMockUrl(server, port);
 }
 
 /// `go run ./cmd/apple-apns-mock` from the primary repo, like Hangar's other
-/// repo tools (SCEP, TUF, MDM assets): the mock is independent of the Fleet
+/// repo tools (SCEP, TUF, MDM assets): the mock is independent of the AutoMDM
 /// version a server runs, and an older worktree may predate it.
 export function apnsMockStartArgs(
   server: ServerProfile,
@@ -390,12 +390,12 @@ export function serverForUrl(
 export function serverColorVar(color: string): string {
   switch (color) {
     case "purple":
-      return "var(--core-fleet-purple)";
+      return "var(--core-automdm-purple)";
     case "blue":
       return "var(--core-vibrant-blue)";
     case "green":
     default:
-      return "var(--core-fleet-green)";
+      return "var(--core-automdm-green)";
   }
 }
 

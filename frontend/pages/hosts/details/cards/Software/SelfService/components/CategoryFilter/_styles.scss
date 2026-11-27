@@ -4,7 +4,7 @@
 }
 
 .self-service-category-filter {
-  // The visible trigger is a real Fleet <Button variant="unstyled">. Its
+  // The visible trigger is a real AutoMDM <Button variant="unstyled">. Its
   // :focus-visible outline comes from button-variant() in
   // components/buttons/Button/_styles.scss, so we just style layout here.
   &__button {
@@ -20,7 +20,7 @@
   }
 
   &__button-label {
-    color: $core-fleet-black;
+    color: $core-automdm-black;
     font-weight: 600;
     font-size: 16px;
     line-height: 24px;
@@ -46,7 +46,7 @@
     position: sticky;
     top: 0;
     padding-top: $pad-small;
-    background-color: $core-fleet-white;
+    background-color: $core-automdm-white;
     z-index: 1;
 
     .icon {

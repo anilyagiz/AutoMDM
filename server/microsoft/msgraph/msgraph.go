@@ -1,5 +1,5 @@
-// Package msgraph is Fleet's client for Microsoft Graph. It authenticates as an Entra app registration using the
-// OAuth2 client-credentials grant and reads Windows Autopilot device identities, which Fleet surfaces as pending hosts.
+// Package msgraph is AutoMDM's client for Microsoft Graph. It authenticates as an Entra app registration using the
+// OAuth2 client-credentials grant and reads Windows Autopilot device identities, which AutoMDM surfaces as pending hosts.
 package msgraph
 
 import (
@@ -13,9 +13,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/clientcredentials"
 )
@@ -74,21 +74,21 @@ type Client interface {
 
 // ClientFactory builds a Client for a credential. It is injected so callers (notably the sync cron) do not import the
 // concrete client and tests can supply a fake, mirroring GoogleWorkspaceDirectoryFactory.
-type ClientFactory func(cred *fleet.MicrosoftGraphCredential) (Client, error)
+type ClientFactory func(cred *automdm.MicrosoftGraphCredential) (Client, error)
 
 type client struct {
 	cfg *clientcredentials.Config
-	// baseClient carries Fleet's shared transport settings and is handed to the oauth2 machinery per call.
+	// baseClient carries AutoMDM's shared transport settings and is handed to the oauth2 machinery per call.
 	baseClient *http.Client
 	graphHost  string
 }
 
 // NewClient builds a Graph client for the given credential. The returned client refreshes its own access token.
-func NewClient(cred *fleet.MicrosoftGraphCredential) (Client, error) {
+func NewClient(cred *automdm.MicrosoftGraphCredential) (Client, error) {
 	return newClientWithHosts(cred, defaultLoginHost, defaultGraphHost)
 }
 
-func newClientWithHosts(cred *fleet.MicrosoftGraphCredential, loginHost, graphHost string) (Client, error) {
+func newClientWithHosts(cred *automdm.MicrosoftGraphCredential, loginHost, graphHost string) (Client, error) {
 	if cred == nil || !cred.Configured() {
 		return nil, errors.New("microsoft graph credential is not fully configured")
 	}
@@ -104,7 +104,7 @@ func newClientWithHosts(cred *fleet.MicrosoftGraphCredential, loginHost, graphHo
 
 	return &client{
 		cfg:        cfg,
-		baseClient: fleethttp.NewClient(fleethttp.WithTimeout(requestTimeout)),
+		baseClient: automdmhttp.NewClient(automdmhttp.WithTimeout(requestTimeout)),
 		graphHost:  strings.TrimSuffix(graphHost, "/"),
 	}, nil
 }
@@ -181,7 +181,7 @@ func (c *client) ListWindowsAutopilotDevices(ctx context.Context) ([]WindowsAuto
 
 		// The next link is a URL chosen by the remote service, and the oauth2 transport attaches the access token to
 		// whatever we request. Requiring it to stay on the Graph origin means a malformed or hostile link cannot make
-		// Fleet hand its token to another host.
+		// AutoMDM hand its token to another host.
 		if link != "" {
 			if err := c.assertGraphOrigin(link); err != nil {
 				return nil, ctxerr.Wrap(ctx, err, "validate microsoft graph next link")

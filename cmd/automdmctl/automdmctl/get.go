@@ -1,0 +1,1823 @@
+package automdmctl
+
+import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"os"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/anilyagiz/automdm/v4/pkg/optjson"
+	"github.com/anilyagiz/automdm/v4/pkg/rawjson"
+	"github.com/anilyagiz/automdm/v4/pkg/secure"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/service"
+	"github.com/beevik/etree"
+	"github.com/fatih/color"
+	"github.com/ghodss/yaml"
+	kithttp "github.com/go-kit/kit/transport/http"
+	"github.com/olekukonko/tablewriter"
+	"github.com/urfave/cli/v2"
+	"gopkg.in/guregu/null.v3"
+)
+
+const (
+	yamlFlagName                = "yaml"
+	jsonFlagName                = "json"
+	expiredFlagName             = "expired"
+	includeServerConfigFlagName = "include-server-config"
+)
+
+type specGeneric struct {
+	Kind    string      `json:"kind"`
+	Version string      `json:"apiVersion"`
+	Spec    interface{} `json:"spec"`
+}
+
+func defaultTable(writer io.Writer) *tablewriter.Table {
+	table := tablewriter.NewWriter(writer)
+	table.SetRowLine(true)
+	return table
+}
+
+func borderlessTabularTable(writer io.Writer) *tablewriter.Table {
+	table := tablewriter.NewWriter(writer)
+	table.SetRowLine(false)
+	table.SetAutoWrapText(false)
+	table.SetAlignment(tablewriter.ALIGN_LEFT)
+	table.SetCenterSeparator("")
+	table.SetColumnSeparator("")
+	table.SetRowSeparator("")
+	table.SetHeaderLine(false)
+	table.SetBorder(false)
+	table.SetTablePadding("\t")
+	table.SetNoWhiteSpace(true)
+
+	return table
+}
+
+func yamlFlag() cli.Flag {
+	return &cli.BoolFlag{
+		Name:  yamlFlagName,
+		Usage: "Output in yaml format",
+	}
+}
+
+func jsonFlag() cli.Flag {
+	return &cli.BoolFlag{
+		Name:  jsonFlagName,
+		Usage: "Output in JSON format",
+	}
+}
+
+func removeDeprecatedKeysFlag() cli.Flag {
+	return &cli.BoolFlag{
+		Name:  "remove-deprecated-keys",
+		Usage: "Remove deprecated key names from YAML/JSON output, leaving only the new canonical names",
+	}
+}
+
+func printYaml(spec interface{}, writer io.Writer) error {
+	b, err := yaml.Marshal(spec)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(writer, "---\n%s", string(b))
+	return nil
+}
+
+// stripMismatchedLabelFields clears fields that are not meaningful for the
+// label's membership type so that exported YAML can be re-applied cleanly.
+func stripMismatchedLabelFields(label *automdm.LabelSpec) {
+	switch label.LabelMembershipType {
+	case automdm.LabelMembershipTypeManual:
+		label.Query = ""
+		label.Platform = ""
+		label.HostVitalsCriteria = nil
+	case automdm.LabelMembershipTypeDynamic:
+		label.Hosts = nil
+		label.HostVitalsCriteria = nil
+	case automdm.LabelMembershipTypeHostVitals:
+		label.Query = ""
+		label.Platform = ""
+		label.Hosts = nil
+	}
+}
+
+func printLabel(c *cli.Context, label *automdm.LabelSpec) error {
+	spec := specGeneric{
+		Kind:    automdm.LabelKind,
+		Version: automdm.ApiVersion,
+		Spec:    label,
+	}
+
+	return printSpec(c, spec)
+}
+
+func printQuerySpec(c *cli.Context, query *automdm.QuerySpec) error {
+	spec := specGeneric{
+		Kind:    automdm.ReportKind,
+		Version: automdm.ApiVersion,
+		Spec:    query,
+	}
+
+	return printSpec(c, spec)
+}
+
+func printSecret(c *cli.Context, secret *automdm.EnrollSecretSpec) error {
+	spec := specGeneric{
+		Kind:    automdm.EnrollSecretKind,
+		Version: automdm.ApiVersion,
+		Spec:    secret,
+	}
+
+	return printSpec(c, spec)
+}
+
+func printHost(c *cli.Context, host *automdm.HostResponse) error {
+	spec := specGeneric{
+		Kind:    automdm.HostKind,
+		Version: automdm.ApiVersion,
+		Spec:    host,
+	}
+
+	return printSpec(c, spec)
+}
+
+func printHostDetail(c *cli.Context, host *automdm.HostDetailResponse) error {
+	spec := specGeneric{
+		Kind:    automdm.HostKind,
+		Version: automdm.ApiVersion,
+		Spec:    host,
+	}
+
+	return printSpec(c, spec)
+}
+
+type enrichedAppConfigPresenter automdm.EnrichedAppConfig
+
+func (eacp enrichedAppConfigPresenter) MarshalJSON() ([]byte, error) {
+	type UpdateIntervalConfigPresenter struct {
+		OSQueryDetail string `json:"osquery_detail"`
+		OSQueryPolicy string `json:"osquery_policy"`
+		*automdm.UpdateIntervalConfig
+	}
+
+	type VulnerabilitiesConfigPresenter struct {
+		Periodicity               string `json:"periodicity"`
+		RecentVulnerabilityMaxAge string `json:"recent_vulnerability_max_age"`
+		*automdm.VulnerabilitiesConfig
+	}
+
+	enrichedJSON, err := json.Marshal(automdm.EnrichedAppConfig(eacp))
+	if err != nil {
+		return nil, err
+	}
+
+	extraFieldsJSON, err := json.Marshal(&struct {
+		UpdateInterval  UpdateIntervalConfigPresenter  `json:"update_interval,omitempty"`
+		Vulnerabilities VulnerabilitiesConfigPresenter `json:"vulnerabilities,omitempty"`
+	}{
+		UpdateInterval: UpdateIntervalConfigPresenter{
+			eacp.UpdateInterval.OSQueryDetail.String(),
+			eacp.UpdateInterval.OSQueryPolicy.String(),
+			eacp.UpdateInterval,
+		},
+		Vulnerabilities: VulnerabilitiesConfigPresenter{
+			eacp.Vulnerabilities.Periodicity.String(),
+			eacp.Vulnerabilities.RecentVulnerabilityMaxAge.String(),
+			eacp.Vulnerabilities,
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// we need to marshal and combine both groups separately because
+	// enrichedAppConfig has a custom marshaler.
+	return rawjson.CombineRoots(enrichedJSON, extraFieldsJSON)
+}
+
+func printConfig(c *cli.Context, config interface{}) error {
+	spec := specGeneric{
+		Kind:    automdm.AppConfigKind,
+		Version: automdm.ApiVersion,
+		Spec:    config,
+	}
+
+	return printSpec(c, spec)
+}
+
+type UserRoles struct {
+	Roles map[string]UserRole `json:"roles"`
+}
+
+type TeamRole struct {
+	Team string `json:"team"`
+	Role string `json:"role"`
+}
+
+type UserRole struct {
+	GlobalRole *string    `json:"global_role"`
+	Teams      []TeamRole `json:"teams"`
+}
+
+func usersToUserRoles(users []automdm.User) UserRoles {
+	roles := make(map[string]UserRole)
+	for _, u := range users {
+		var teams []TeamRole
+		for _, t := range u.Teams {
+			teams = append(teams, TeamRole{
+				Team: t.Name,
+				Role: t.Role,
+			})
+		}
+		roles[u.Email] = UserRole{
+			GlobalRole: u.GlobalRole,
+			Teams:      teams,
+		}
+	}
+	return UserRoles{Roles: roles}
+}
+
+func printUserRoles(c *cli.Context, users []automdm.User) error {
+	spec := specGeneric{
+		Kind:    automdm.UserRolesKind,
+		Version: automdm.ApiVersion,
+		Spec:    usersToUserRoles(users),
+	}
+
+	return printSpec(c, spec)
+}
+
+func printTeams(c *cli.Context, client *service.Client, teams []automdm.Team) error {
+	for _, team := range teams {
+		software, err := getTeamSoftwareSpec(client, team.ID)
+		if err != nil {
+			return err
+		}
+
+		var teamItem any
+		if c.Bool(yamlFlagName) {
+			teamSpec, err := automdm.TeamSpecFromTeam(&team)
+			if err != nil {
+				return err
+			}
+			teamSpec.Software = software
+			teamItem = teamSpec
+		} else {
+			team.Config.Software = software
+			teamItem = team
+		}
+		// Rename the team's own keys here, removing the old ones: printSpec only renames the keys it finds, and the spec key is no longer
+		// "team", whose renamed copy used to carry the new names. Delete this once the JSON tags are renamed in later PRs.
+		teamJSON, err := json.Marshal(teamItem)
+		if err != nil {
+			return err
+		}
+		var renamedTeam any
+		if err := json.Unmarshal(teamJSON, &renamedTeam); err != nil {
+			return err
+		}
+		replaceAliasKeys(renamedTeam, aliasRules, true)
+		spec := specGeneric{
+			Kind:    automdm.AutoMDMKind,
+			Version: automdm.ApiVersion,
+			Spec: map[string]interface{}{
+				"team": renamedTeam,
+			},
+		}
+
+		if err := printSpec(c, spec); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// getTeamSoftwareSpec builds the software section of a team spec from the
+// authoritative software endpoints (software titles + setup experience).
+func getTeamSoftwareSpec(client *service.Client, teamID uint) (*automdm.SoftwareSpec, error) {
+	titles, err := client.ListSoftwareTitles(fmt.Sprintf("available_for_install=1&team_id=%d", teamID))
+	if err != nil {
+		return nil, fmt.Errorf("could not list software titles for team %d: %w", teamID, err)
+	}
+	if len(titles) == 0 {
+		return nil, nil
+	}
+
+	// The setup experience membership is the source of truth in the setup
+	// experience tables, exposed via the setup experience endpoint.
+	setupSoftwareByTitleID := make(map[uint]struct{})
+	setupAppsByName := make(map[string]struct{})
+	setupSoftware, err := client.GetSetupExperienceSoftware("macos,windows,linux,ios,ipados,android", teamID)
+	if err != nil {
+		return nil, fmt.Errorf("could not get setup experience software for team %d: %w", teamID, err)
+	}
+	for _, sw := range setupSoftware {
+		if len(sw.Packages) > 0 && sw.Packages[0].InstallDuringSetup != nil && *sw.Packages[0].InstallDuringSetup {
+			setupSoftwareByTitleID[sw.ID] = struct{}{}
+		}
+		if len(sw.AppStoreApps) > 0 && sw.AppStoreApps[0].InstallDuringSetup != nil && *sw.AppStoreApps[0].InstallDuringSetup {
+			setupAppsByName[automdm.VPPAppID{AdamID: sw.AppStoreApps[0].AppStoreID, Platform: sw.AppStoreApps[0].Platform}.String()] = struct{}{}
+		}
+	}
+
+	var (
+		packages     []automdm.SoftwarePackageSpec
+		fmas         []automdm.MaintainedAppSpec
+		appStoreApps []automdm.TeamSpecAppStoreApp
+		seenInHouse  = make(map[string]struct{})
+		fmaSlugs     = make(map[uint]string)
+	)
+
+	resolveFMASlug := func(id uint) (string, error) {
+		if slug, ok := fmaSlugs[id]; ok {
+			return slug, nil
+		}
+		app, err := client.GetAutoMDMMaintainedApp(id)
+		if err != nil {
+			return "", fmt.Errorf("could not resolve automdm-maintained app %d: %w", id, err)
+		}
+		fmaSlugs[id] = app.Slug
+		return app.Slug, nil
+	}
+
+	for _, title := range titles {
+		// In-house (.ipa) apps can appear once per platform; only emit them once.
+		if isDuplicateInHouseApp(title, seenInHouse) {
+			continue
+		}
+
+		// Fetch the full title so we get fields not present in the list result,
+		// such as the configured labels.
+		detail, err := client.GetSoftwareTitleByID(title.ID, &teamID)
+		if err != nil {
+			return nil, fmt.Errorf("could not get software title %d for team %d: %w", title.ID, teamID, err)
+		}
+
+		switch {
+		case len(detail.Packages) > 0:
+			pkg := detail.Packages[0]
+			if pkg.AutoMDMMaintainedAppID != nil {
+				slug, err := resolveFMASlug(*pkg.AutoMDMMaintainedAppID)
+				if err != nil {
+					return nil, err
+				}
+				fmas = append(fmas, automdm.MaintainedAppSpec{
+					Slug:               slug,
+					SelfService:        pkg.SelfService,
+					LabelsIncludeAny:   scopeLabelNames(pkg.LabelsIncludeAny),
+					LabelsExcludeAny:   scopeLabelNames(pkg.LabelsExcludeAny),
+					LabelsIncludeAll:   scopeLabelNames(pkg.LabelsIncludeAll),
+					Categories:         optjson.SetSlice(pkg.Categories),
+					InstallDuringSetup: setupExperienceValue(setupSoftwareByTitleID, title.ID),
+				})
+				continue
+			}
+			packages = append(packages, automdm.SoftwarePackageSpec{
+				URL:                pkg.URL,
+				SHA256:             pkg.StorageID,
+				SelfService:        pkg.SelfService,
+				LabelsIncludeAny:   scopeLabelNames(pkg.LabelsIncludeAny),
+				LabelsExcludeAny:   scopeLabelNames(pkg.LabelsExcludeAny),
+				LabelsIncludeAll:   scopeLabelNames(pkg.LabelsIncludeAll),
+				Categories:         optjson.SetSlice(pkg.Categories),
+				InstallDuringSetup: setupExperienceValue(setupSoftwareByTitleID, title.ID),
+			})
+		case len(detail.AppStoreApps) > 0:
+			app := detail.AppStoreApps[0]
+			var installDuringSetup optjson.Bool
+			if _, ok := setupAppsByName[app.VPPAppID.String()]; ok {
+				installDuringSetup = optjson.SetBool(true)
+			}
+			appStoreAppSpec := automdm.TeamSpecAppStoreApp{
+				AppStoreID:         app.AdamID,
+				Platform:           string(app.Platform),
+				InstallDuringSetup: installDuringSetup,
+			}
+			// Output one object instead of a versions array when the app only has one version
+			if len(detail.AppStoreApps) > 1 || app.VersionName != automdm.DefaultAppStoreAppVersionName {
+				for _, version := range detail.AppStoreApps {
+					appStoreAppSpec.Versions = append(appStoreAppSpec.Versions, automdm.TeamSpecAppStoreAppVersion{
+						Name:             version.VersionName,
+						SelfService:      version.SelfService,
+						LabelsIncludeAny: scopeLabelNames(version.LabelsIncludeAny),
+						LabelsExcludeAny: scopeLabelNames(version.LabelsExcludeAny),
+						LabelsIncludeAll: scopeLabelNames(version.LabelsIncludeAll),
+						Categories:       version.Categories,
+					})
+				}
+			} else {
+				appStoreAppSpec.SelfService = app.SelfService
+				appStoreAppSpec.LabelsIncludeAny = scopeLabelNames(app.LabelsIncludeAny)
+				appStoreAppSpec.LabelsExcludeAny = scopeLabelNames(app.LabelsExcludeAny)
+				appStoreAppSpec.LabelsIncludeAll = scopeLabelNames(app.LabelsIncludeAll)
+				appStoreAppSpec.Categories = app.Categories
+			}
+			appStoreApps = append(appStoreApps, appStoreAppSpec)
+		}
+	}
+
+	if len(packages) == 0 && len(fmas) == 0 && len(appStoreApps) == 0 {
+		return nil, nil
+	}
+
+	spec := &automdm.SoftwareSpec{}
+	if len(packages) > 0 {
+		spec.Packages = optjson.SetSlice(packages)
+	}
+	if len(fmas) > 0 {
+		spec.AutoMDMMaintainedApps = optjson.SetSlice(fmas)
+	}
+	if len(appStoreApps) > 0 {
+		spec.AppStoreApps = optjson.SetSlice(appStoreApps)
+	}
+	return spec, nil
+}
+
+// setupExperienceValue returns an optjson.Bool set to true when the given title
+// is part of the setup experience, and an unset value otherwise (so it is not
+// changed on re-apply).
+func setupExperienceValue(setupByTitleID map[uint]struct{}, titleID uint) optjson.Bool {
+	if _, ok := setupByTitleID[titleID]; ok {
+		return optjson.SetBool(true)
+	}
+	return optjson.Bool{}
+}
+
+// scopeLabelNames extracts the label names from a list of software scope labels.
+// It returns nil when there are no labels, so the field is omitted from output.
+func scopeLabelNames(labels []automdm.SoftwareScopeLabel) []string {
+	if len(labels) == 0 {
+		return nil
+	}
+	names := make([]string, len(labels))
+	for i, l := range labels {
+		names[i] = l.LabelName
+	}
+	return names
+}
+
+func printSpec(c *cli.Context, spec specGeneric) error {
+	// Marshal the spec value to JSON, unmarshal to a raw tree, and apply
+	// alias key renames (e.g. "teams" → "teams") so both JSON and YAML
+	// output use the new canonical names.
+	b, err := json.Marshal(spec.Spec)
+	if err != nil {
+		return err
+	}
+	var raw any
+	if err := json.Unmarshal(b, &raw); err != nil {
+		return err
+	}
+	replaceAliasKeys(raw, aliasRules, c.Bool("remove-deprecated-keys"))
+	spec.Spec = raw
+
+	if c.Bool(jsonFlagName) {
+		b, err := json.Marshal(spec)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(c.App.Writer, "%s\n", b)
+		return nil
+	}
+	return printYaml(spec, c.App.Writer)
+}
+
+func getCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "get",
+		Usage: "Get/list resources",
+		Subcommands: withLogTopicFlags([]*cli.Command{
+			getReportsCommand(),
+			getLabelsCommand(),
+			getHostsCommand(),
+			getEnrollSecretCommand(),
+			getAppConfigCommand(),
+			getCarveCommand(),
+			getCarvesCommand(),
+			getUserRolesCommand(),
+			getTeamsCommand(),
+			getSoftwareCommand(),
+			getMDMAppleCommand(),
+			getMDMABCommand(),
+			getMDMCommandResultsCommand(),
+			getMDMCommandsCommand(),
+		}),
+	}
+}
+
+func queryToTableRow(query automdm.Query, teamName string) []string {
+	platform := "all"
+	if query.Platform != "" {
+		platform = query.Platform
+	}
+
+	minOsqueryVersion := "all"
+	if query.MinOsqueryVersion != "" {
+		minOsqueryVersion = query.MinOsqueryVersion
+	}
+
+	scheduleInfo := fmt.Sprintf(
+		"interval: %d\nplatform: %s\nmin_osquery_version: %s\nautomations_enabled: %t\nlogging: %s\ndiscard_data: %t",
+		query.Interval,
+		platform,
+		minOsqueryVersion,
+		query.AutomationsEnabled,
+		query.Logging,
+		query.DiscardData,
+	)
+
+	if len(query.LabelsIncludeAny) > 0 {
+		scheduleInfo += "\nlabels_include_any:"
+		for _, label := range query.LabelsIncludeAny {
+			scheduleInfo += fmt.Sprintf("\n  - %s", label.LabelName)
+		}
+	}
+	if len(query.LabelsIncludeAll) > 0 {
+		scheduleInfo += "\nlabels_include_all:"
+		for _, label := range query.LabelsIncludeAll {
+			scheduleInfo += fmt.Sprintf("\n  - %s", label.LabelName)
+		}
+	}
+
+	teamNameOut := teamName
+	if teamName == "" {
+		teamNameOut = "All teams"
+	}
+
+	return []string{
+		query.Name,
+		query.Description,
+		query.Query,
+		teamNameOut,
+		scheduleInfo,
+	}
+}
+
+func printInheritedReportsMsg(client *service.Client, automdmID *uint) error {
+	if automdmID != nil {
+		globalQueries, err := client.GetQueries(nil, nil)
+		if err != nil {
+			return fmt.Errorf("could not list global reports: %w", err)
+		}
+
+		if len(globalQueries) > 0 {
+			fmt.Printf("Not showing %d inherited reports. To see global reports, run this command without the `--team` flag.\n", len(globalQueries))
+		}
+		return nil
+	}
+
+	return nil
+}
+
+func printNoReportsFoundMsg(automdmID *uint) {
+	if automdmID != nil {
+		fmt.Println("No team reports found.")
+		return
+	}
+	fmt.Println("No global reports found.")
+	fmt.Println("To see team reports, run this command with the --team flag.")
+}
+
+func getReportsCommand() *cli.Command {
+	return &cli.Command{
+		Name:    "reports",
+		Aliases: []string{"report", "r", "queries", "query", "q"},
+		Usage:   "List information about reports",
+		Before: func(c *cli.Context) error {
+			logDeprecatedCommandName(c, []string{"queries", "query", "q"}, "reports")
+			return nil
+		},
+		Flags: []cli.Flag{
+			&cli.UintFlag{
+				Name:  automdmFlagName,
+				Usage: "filter reports by team_id (0 means global)",
+			},
+			jsonFlag(),
+			yamlFlag(),
+			removeDeprecatedKeysFlag(),
+			configFlag(),
+			contextFlag(),
+			debugFlag(),
+		},
+		Action: func(c *cli.Context) error {
+			client, err := clientFromCLI(c)
+			if err != nil {
+				return err
+			}
+
+			name := c.Args().First()
+
+			var teamID *uint
+			var teamName string
+
+			if tid := c.Uint(automdmFlagName); tid != 0 {
+				teamID = &tid
+				team, err := client.GetTeam(*teamID)
+				if err != nil {
+					var notFoundErr service.NotFoundErr
+					if errors.As(err, &notFoundErr) {
+						// Do not error out, just inform the user and 'gracefully' exit.
+						fmt.Println("AutoMDM not found.")
+						return nil
+					}
+					return fmt.Errorf("get team: %w", err)
+				}
+				teamName = team.Name
+			}
+
+			// if name wasn't provided, list either all global queries or all team queries...
+			if name == "" {
+				queries, err := client.GetQueries(teamID, nil)
+				if err != nil {
+					return fmt.Errorf("could not list queries: %w", err)
+				}
+
+				me, err := client.Me()
+				if err != nil {
+					return err
+				}
+				if me == nil {
+					return errors.New("/api/latest/automdm/me returned an empty user")
+				}
+				ok, err := userIsObserver(*me)
+				if err != nil {
+					return err
+				}
+				if ok {
+					// Filter out queries (in-place) that a observer user
+					// cannot execute (this behavior matches the UI).
+					n := 0
+					for _, query := range queries {
+						if query.ObserverCanRun {
+							queries[n] = query
+							n++
+						}
+					}
+					queries = queries[:n]
+				}
+
+				if len(queries) == 0 {
+					printNoReportsFoundMsg(teamID)
+					if err := printInheritedReportsMsg(client, teamID); err != nil {
+						return err
+					}
+					return nil
+				}
+
+				if c.Bool(yamlFlagName) || c.Bool(jsonFlagName) {
+					for _, query := range queries {
+						if err := printQuerySpec(c, &automdm.QuerySpec{
+							Name:        query.Name,
+							Description: query.Description,
+							Query:       query.Query,
+
+							TeamName:           teamName,
+							Interval:           query.Interval,
+							ObserverCanRun:     query.ObserverCanRun,
+							Platform:           query.Platform,
+							MinOsqueryVersion:  query.MinOsqueryVersion,
+							AutomationsEnabled: query.AutomationsEnabled,
+							Logging:            query.Logging,
+							DiscardData:        query.DiscardData,
+							LabelsIncludeAny:   automdm.LabelIdentsToNames(query.LabelsIncludeAny),
+							LabelsIncludeAll:   automdm.LabelIdentsToNames(query.LabelsIncludeAll),
+						}); err != nil {
+							return fmt.Errorf("unable to print query: %w", err)
+						}
+					}
+				} else {
+					// Default to printing as a table
+					rows := [][]string{}
+
+					columns := []string{"name", "description", "query", "team", "schedule"}
+					for _, query := range queries {
+						rows = append(rows, queryToTableRow(query, teamName))
+					}
+
+					printQueryTable(c, columns, rows)
+					if err := printInheritedReportsMsg(client, teamID); err != nil {
+						return err
+					}
+				}
+				return nil
+			}
+
+			query, err := client.GetQuerySpec(teamID, name)
+			if err != nil {
+				return err
+			}
+
+			if err := printQuerySpec(c, query); err != nil {
+				return fmt.Errorf("unable to print query: %w", err)
+			}
+
+			return nil
+		},
+	}
+}
+
+var errUserNoRoles = errors.New("user does not have roles")
+
+// userIsObserver returns whether the user is a global/team observer/observer+.
+// In the case of user belonging to multiple teams, a user is considered observer
+// if it is observer of all teams.
+//
+// Returns errUserNoRoles if the user does not have any roles.
+func userIsObserver(user automdm.User) (bool, error) {
+	if user.GlobalRole != nil {
+		return *user.GlobalRole == automdm.RoleObserver || *user.GlobalRole == automdm.RoleObserverPlus, nil
+	} // Team user
+	if len(user.Teams) == 0 {
+		return false, errUserNoRoles
+	}
+	for _, team := range user.Teams {
+		if team.Role != automdm.RoleObserver && team.Role != automdm.RoleObserverPlus {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
+func getLabelsCommand() *cli.Command {
+	return &cli.Command{
+		Name:    "labels",
+		Aliases: []string{"label", "l"},
+		Usage:   "List information about labels",
+		Flags: []cli.Flag{
+			jsonFlag(),
+			yamlFlag(),
+			removeDeprecatedKeysFlag(),
+			configFlag(),
+			contextFlag(),
+			debugFlag(),
+			&cli.UintFlag{
+				Name:  automdmFlagName,
+				Usage: "Return labels specific to this team ID; default global labels only when viewing multiple labels. With a label name, look the name up among the global labels and this team's labels",
+				Value: 0,
+			},
+		},
+		Action: func(c *cli.Context) error {
+			client, err := clientFromCLI(c)
+			if err != nil {
+				return err
+			}
+
+			name := c.Args().First()
+
+			// if name wasn't provided, list all labels, either globally or on a team
+			if name == "" {
+				labels, err := client.GetLabels(c.Uint(automdmFlagName))
+				if err != nil {
+					return fmt.Errorf("could not list labels: %w", err)
+				}
+
+				if c.Bool(yamlFlagName) || c.Bool(jsonFlagName) {
+					for _, label := range labels {
+						stripMismatchedLabelFields(label)
+						printLabel(c, label) //nolint:errcheck
+					}
+					return nil
+				}
+
+				if len(labels) == 0 {
+					fmt.Println("No labels found")
+					return nil
+				}
+
+				// Default to printing as a table
+				data := [][]string{}
+
+				for _, label := range labels {
+					data = append(data, []string{
+						label.Name,
+						label.Platform,
+						label.Description,
+						label.Query,
+					})
+				}
+
+				columns := []string{"name", "platform", "description", "query"}
+				printTable(c, columns, data)
+
+				return nil
+			}
+
+			// Label name was specified
+			automdmID := ptr.UintOrNilIfZero(c.Uint(automdmFlagName))
+			label, err := client.GetLabel(name, automdmID)
+			if err != nil {
+				var sce kithttp.StatusCoder
+				if automdmID == nil && errors.As(err, &sce) && sce.StatusCode() == http.StatusConflict {
+					return fmt.Errorf("To get one team's label, run `automdmctl get label --%s <team ID> %q`: %w", automdmFlagName, name, err)
+				}
+				return err
+			}
+
+			stripMismatchedLabelFields(label)
+			printLabel(c, label) //nolint:errcheck
+			return nil
+		},
+	}
+}
+
+func getEnrollSecretCommand() *cli.Command {
+	return &cli.Command{
+		Name:    "enroll_secret",
+		Aliases: []string{"enroll_secrets", "enroll-secret", "enroll-secrets"},
+		Usage:   "Retrieve the osquery enroll secrets",
+		Flags: []cli.Flag{
+			jsonFlag(),
+			yamlFlag(),
+			removeDeprecatedKeysFlag(),
+			configFlag(),
+			contextFlag(),
+			debugFlag(),
+		},
+		Action: func(c *cli.Context) error {
+			client, err := clientFromCLI(c)
+			if err != nil {
+				return err
+			}
+
+			secrets, err := client.GetEnrollSecretSpec()
+			if err != nil {
+				return err
+			}
+
+			err = printSecret(c, secrets)
+			if err != nil {
+				return err
+			}
+
+			return nil
+		},
+	}
+}
+
+func getAppConfigCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "config",
+		Usage: "Retrieve the AutoMDM app configuration",
+		Flags: []cli.Flag{
+			jsonFlag(),
+			yamlFlag(),
+			removeDeprecatedKeysFlag(),
+			configFlag(),
+			contextFlag(),
+			debugFlag(),
+			&cli.BoolFlag{
+				Name:  includeServerConfigFlagName,
+				Usage: "Include the server configuration in the output",
+			},
+		},
+		Action: func(c *cli.Context) error {
+			client, err := clientFromCLI(c)
+			if err != nil {
+				return err
+			}
+
+			config, err := client.GetAppConfig()
+			if err != nil {
+				return err
+			}
+
+			if c.Bool(includeServerConfigFlagName) {
+				err = printConfig(c, enrichedAppConfigPresenter(*config))
+			} else {
+				err = printConfig(c, config.AppConfig)
+			}
+			if err != nil {
+				return err
+			}
+
+			return nil
+		},
+	}
+}
+
+func getHostsCommand() *cli.Command {
+	return &cli.Command{
+		Name:    "hosts",
+		Aliases: []string{"host", "H"},
+		Usage:   "List information about hosts",
+		Flags: []cli.Flag{
+			&cli.UintFlag{
+				Name:     automdmFlagName,
+				Usage:    "filter hosts by team_id",
+				Required: false,
+			},
+			jsonFlag(),
+			yamlFlag(),
+			removeDeprecatedKeysFlag(),
+			configFlag(),
+			contextFlag(),
+			debugFlag(),
+			&cli.BoolFlag{
+				Name:  "mdm",
+				Usage: "Filters hosts by hosts that have MDM turned on in AutoMDM and are connected to AutoMDM's MDM server.",
+			},
+			&cli.BoolFlag{
+				Name:  "mdm-pending",
+				Usage: "Filters hosts by hosts ordered via Apple Business (AB) or added to Windows Autopilot. These will automatically enroll to AutoMDM and turn on MDM when they're unboxed.",
+			},
+		},
+		Action: func(c *cli.Context) error {
+			client, err := clientFromCLI(c)
+			if err != nil {
+				return err
+			}
+
+			identifier := c.Args().First()
+
+			if identifier == "" {
+				query := url.Values{}
+				query.Set("additional_info_filters", "*")
+				if teamID := c.Uint(automdmFlagName); teamID > 0 {
+					query.Set("team_id", strconv.FormatUint(uint64(teamID), 10))
+				}
+
+				if c.Bool("mdm") || c.Bool("mdm-pending") {
+					// print an error if MDM is not configured
+					if err := client.CheckAnyMDMEnabled(); err != nil {
+						return err
+					}
+
+					// --mdm and --mdm-pending are mutually exclusive, return an error if
+					// both are set (one returns the enrolled hosts, the other the pending
+					// to be enrolled, so it would always return an empty list).
+					if c.Bool("mdm") && c.Bool("mdm-pending") {
+						return errors.New("cannot use --mdm and --mdm-pending together")
+					}
+
+					if c.Bool("mdm") {
+						query.Set("connected_to_automdm", "true")
+					}
+					if c.Bool("mdm-pending") {
+						// hosts pending enrollment in AutoMDM's MDM server
+						query.Set("mdm_name", automdm.WellKnownMDMAutoMDM)
+						query.Set("mdm_enrollment_status", string(automdm.MDMEnrollStatusPending))
+					}
+				}
+				queryStr := query.Encode()
+
+				hosts, err := client.GetHosts(queryStr)
+				if err != nil {
+					return fmt.Errorf("could not list hosts: %w", err)
+				}
+
+				if len(hosts) == 0 {
+					if !c.Bool(jsonFlagName) && !c.Bool(yamlFlagName) {
+						fmt.Println("No hosts found")
+					}
+					return nil
+				}
+
+				if c.Bool(jsonFlagName) || c.Bool(yamlFlagName) {
+					for _, host := range hosts {
+						err = printHost(c, &host)
+						if err != nil {
+							return err
+						}
+					}
+					return nil
+				}
+
+				// Default to printing as table
+				data := [][]string{}
+
+				for _, host := range hosts {
+					data = append(data, []string{
+						host.Host.UUID,
+						host.DisplayText,
+						host.Host.Platform,
+						host.OsqueryVersion,
+						string(host.Status),
+					})
+				}
+
+				columns := []string{"uuid", "hostname", "platform", "osquery_version", "status"}
+				printTable(c, columns, data)
+			} else {
+				host, err := client.HostByIdentifier(identifier)
+				if err != nil {
+					return fmt.Errorf("could not get host: %w", err)
+				}
+				err = printHostDetail(c, host)
+				if err != nil {
+					return err
+				}
+			}
+			return nil
+		},
+	}
+}
+
+func getCarvesCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "carves",
+		Usage: "Retrieve the file carving sessions",
+		Flags: []cli.Flag{
+			&cli.BoolFlag{
+				Name:  expiredFlagName,
+				Usage: "Include expired carves",
+			},
+			configFlag(),
+			contextFlag(),
+			debugFlag(),
+		},
+		Action: func(c *cli.Context) error {
+			client, err := clientFromCLI(c)
+			if err != nil {
+				return err
+			}
+
+			expired := c.Bool(expiredFlagName)
+
+			carves, err := client.ListCarves(automdm.CarveListOptions{Expired: expired})
+			if err != nil {
+				return err
+			}
+
+			if len(carves) == 0 {
+				fmt.Println("No carves found")
+				return nil
+			}
+
+			data := [][]string{}
+			for _, c := range carves {
+				completion := fmt.Sprintf(
+					"%d%%",
+					int64((float64(c.MaxBlock+1)/float64(c.BlockCount))*100),
+				)
+				if c.Expired {
+					completion = "Expired"
+				}
+
+				errored := "no"
+				if c.Error != nil {
+					errored = "yes"
+				}
+
+				data = append(data, []string{
+					strconv.FormatInt(c.ID, 10),
+					c.CreatedAt.String(),
+					c.RequestId,
+					strconv.FormatInt(c.CarveSize, 10),
+					completion,
+					errored,
+				})
+			}
+
+			columns := []string{"id", "created_at", "request_id", "carve_size", "completion", "errored"}
+			printTable(c, columns, data)
+
+			return nil
+		},
+	}
+}
+
+func getCarveCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "carve",
+		Usage: "Retrieve details for a carve by ID",
+		Flags: []cli.Flag{
+			stdoutFlag(),
+			configFlag(),
+			contextFlag(),
+			outfileFlag(),
+			debugFlag(),
+		},
+		Action: func(c *cli.Context) error {
+			client, err := clientFromCLI(c)
+			if err != nil {
+				return err
+			}
+
+			idString := c.Args().First()
+
+			if idString == "" {
+				return errors.New("must provide carve ID as first argument")
+			}
+
+			id, err := strconv.ParseInt(idString, 10, 64)
+			if err != nil {
+				return fmt.Errorf("unable to parse carve ID as int: %w", err)
+			}
+
+			outFile := getOutfile(c)
+			stdout := c.Bool(stdoutFlagName)
+
+			if stdout && outFile != "" {
+				return errors.New("-stdout and -outfile must not be specified together")
+			}
+
+			carve, err := client.GetCarve(id)
+			if err != nil {
+				return err
+			}
+
+			if carve.Error != nil {
+				return errors.New(*carve.Error)
+			}
+
+			if stdout || outFile != "" {
+				out := os.Stdout
+				if outFile != "" {
+					f, err := secure.OpenFile(outFile, os.O_CREATE|os.O_WRONLY, defaultFileMode)
+					if err != nil {
+						return fmt.Errorf("open out file: %w", err)
+					}
+					defer f.Close()
+					out = f
+				}
+
+				reader, err := client.DownloadCarve(id)
+				if err != nil {
+					return err
+				}
+
+				if _, err := io.Copy(out, reader); err != nil {
+					return fmt.Errorf("download carve contents: %w", err)
+				}
+
+				return nil
+			}
+
+			if err := printYaml(carve, c.App.Writer); err != nil {
+				return fmt.Errorf("print carve yaml: %w", err)
+			}
+
+			return nil
+		},
+	}
+}
+
+func log(c *cli.Context, msg ...interface{}) {
+	fmt.Fprint(c.App.Writer, msg...)
+}
+
+func getUserRolesCommand() *cli.Command {
+	return &cli.Command{
+		Name:    "user_roles",
+		Aliases: []string{"user_role", "ur"},
+		Usage:   "List global and team roles for users",
+		Flags: []cli.Flag{
+			jsonFlag(),
+			yamlFlag(),
+			removeDeprecatedKeysFlag(),
+			configFlag(),
+			contextFlag(),
+			debugFlag(),
+		},
+		Action: func(c *cli.Context) error {
+			client, err := clientFromCLI(c)
+			if err != nil {
+				return err
+			}
+
+			users, err := client.ListUsers()
+			if err != nil {
+				return fmt.Errorf("could not list users: %w", err)
+			}
+
+			if len(users) == 0 {
+				log(c, "No users found")
+				return nil
+			}
+
+			if c.Bool(jsonFlagName) || c.Bool(yamlFlagName) {
+				err = printUserRoles(c, users)
+				if err != nil {
+					return err
+				}
+				return nil
+			}
+
+			// Default to printing as table
+			data := [][]string{}
+
+			for _, u := range users {
+				data = append(data, []string{
+					u.Name,
+					null.StringFromPtr(u.GlobalRole).ValueOrZero(),
+				})
+			}
+			columns := []string{"User", "Global Role"}
+			printTable(c, columns, data)
+
+			return nil
+		},
+	}
+}
+
+func printQueryTable(c *cli.Context, columns []string, data [][]string) {
+	table := defaultTable(c.App.Writer)
+	table.SetHeader(columns)
+	table.SetReflowDuringAutoWrap(false)
+	table.AppendBulk(data)
+	table.Render()
+}
+
+func printTable(c *cli.Context, columns []string, data [][]string) {
+	table := defaultTable(c.App.Writer)
+	table.SetHeader(columns)
+	table.AppendBulk(data)
+	table.Render()
+}
+
+func printKeyValueTable(c *cli.Context, rows [][]string) {
+	table := borderlessTabularTable(c.App.Writer)
+	table.AppendBulk(rows)
+	table.Render()
+}
+
+func getTeamsJSONFlag() cli.Flag {
+	return &cli.BoolFlag{
+		Name:  jsonFlagName,
+		Usage: "Output all team information in JSON format",
+	}
+}
+
+func getTeamsYAMLFlag() cli.Flag {
+	return &cli.BoolFlag{
+		Name:  yamlFlagName,
+		Usage: "Output team configuration in yaml format. Intended for use with \"automdmctl apply -f\"",
+	}
+}
+
+func getTeamsCommand() *cli.Command {
+	return &cli.Command{
+		Name:    "teams",
+		Aliases: []string{"team", "f"},
+		Usage:   "List teams",
+		Flags: []cli.Flag{
+			getTeamsJSONFlag(),
+			getTeamsYAMLFlag(),
+			removeDeprecatedKeysFlag(),
+			configFlag(),
+			contextFlag(),
+			debugFlag(),
+			&cli.StringFlag{
+				Name:  nameFlagName,
+				Usage: "filter by name",
+			},
+		},
+		Action: func(c *cli.Context) error {
+			client, err := clientFromCLI(c)
+			if err != nil {
+				return err
+			}
+
+			query := url.Values{}
+			if name := c.String(nameFlagName); name != "" {
+				query.Set("query", name)
+			}
+			queryStr := query.Encode()
+
+			teams, err := client.ListTeams(queryStr)
+			if err != nil {
+				return fmt.Errorf("could not list teams: %w", err)
+			}
+
+			if len(teams) == 0 {
+				log(c, "No teams found")
+				return nil
+			}
+
+			if c.Bool(jsonFlagName) || c.Bool(yamlFlagName) {
+				err = printTeams(c, client, teams)
+				if err != nil {
+					return err
+				}
+				return nil
+			}
+
+			// Default to printing as table
+			data := [][]string{}
+
+			sort.Slice(teams, func(i, j int) bool {
+				return teams[i].Name < teams[j].Name
+			})
+
+			for _, team := range teams {
+				data = append(data, []string{
+					team.Name,
+					strconv.Itoa(int(team.ID)),
+					fmt.Sprintf("%d", team.HostCount),
+					fmt.Sprintf("%d", team.UserCount),
+				})
+			}
+			columns := []string{"Team name", "Team ID", "Host count", "User count"}
+			printTable(c, columns, data)
+
+			return nil
+		},
+	}
+}
+
+func getSoftwareCommand() *cli.Command {
+	return &cli.Command{
+		Name:    "software",
+		Aliases: []string{"s"},
+		Usage:   "List software titles",
+		Flags: []cli.Flag{
+			&cli.UintFlag{
+				Name:  automdmFlagName,
+				Usage: "Only list software of hosts that belong to the specified team",
+			},
+			&cli.BoolFlag{
+				Name:  "versions",
+				Usage: "List software versions (up to 10,000)",
+			},
+			jsonFlag(),
+			yamlFlag(),
+			removeDeprecatedKeysFlag(),
+			configFlag(),
+			contextFlag(),
+			debugFlag(),
+		},
+		Action: func(c *cli.Context) error {
+			client, err := clientFromCLI(c)
+			if err != nil {
+				return err
+			}
+
+			if c.Bool(yamlFlagName) && c.Bool(jsonFlagName) {
+				return errors.New("Can't specify both yaml and json flags.")
+			}
+
+			query := url.Values{}
+
+			teamID := c.Uint(automdmFlagName)
+			if teamID != 0 {
+				query.Set("team_id", strconv.FormatUint(uint64(teamID), 10))
+			}
+
+			if c.Bool("versions") {
+				return printSoftwareVersions(c, client, query)
+			}
+			return printSoftwareTitles(c, client, query)
+		},
+	}
+}
+
+func printSoftwareVersions(c *cli.Context, client *service.Client, query url.Values) error {
+	// The request carries no pagination, so the server returns at most its
+	// maximum page size. An inventory larger than that is truncated here.
+	software, total, err := client.ListSoftwareVersions(query.Encode())
+	if err != nil {
+		return fmt.Errorf("could not list software versions: %w", err)
+	}
+	if total > len(software) {
+		fmt.Fprintf(c.App.ErrWriter,
+			"[!] Showing %d of %d software versions. To list them all, use the API's page and per_page parameters: GET /api/v1/automdm/software/versions\n",
+			len(software), total)
+	}
+
+	if len(software) == 0 {
+		log(c, "No software versions found")
+		return nil
+	}
+
+	if c.Bool(jsonFlagName) || c.Bool(yamlFlagName) {
+		spec := specGeneric{
+			Kind:    "software",
+			Version: "1",
+			Spec:    software,
+		}
+		err = printSpec(c, spec)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+
+	// Default to printing as table
+	data := [][]string{}
+
+	for _, s := range software {
+		data = append(data, []string{
+			s.Name,
+			s.Version,
+			s.Source,
+			fmt.Sprintf("%d vulnerabilities", len(s.Vulnerabilities)),
+			fmt.Sprint(s.HostsCount),
+		})
+	}
+	columns := []string{"Name", "Version", "Type", "Vulnerabilities", "Hosts"}
+	printTable(c, columns, data)
+	return nil
+}
+
+func printSoftwareTitles(c *cli.Context, client *service.Client, query url.Values) error {
+	software, err := client.ListSoftwareTitles(query.Encode())
+	if err != nil {
+		return fmt.Errorf("could not list software titles: %w", err)
+	}
+
+	if len(software) == 0 {
+		log(c, "No software titles found")
+		return nil
+	}
+
+	if c.Bool(jsonFlagName) || c.Bool(yamlFlagName) {
+		spec := specGeneric{
+			Kind:    "software_title",
+			Version: "1",
+			Spec:    software,
+		}
+		err = printSpec(c, spec)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+
+	// Default to printing as table
+	data := [][]string{}
+
+	for _, s := range software {
+		vulns := make(map[string]bool)
+		for _, ver := range s.Versions {
+			if ver.Vulnerabilities != nil {
+				for _, vuln := range *ver.Vulnerabilities {
+					vulns[vuln] = true
+				}
+			}
+		}
+		data = append(data, []string{
+			s.Name,
+			fmt.Sprintf("%d versions", s.VersionsCount),
+			s.Source,
+			fmt.Sprintf("%d vulnerabilities", len(vulns)),
+			fmt.Sprint(s.HostsCount),
+		})
+	}
+	columns := []string{"Name", "Versions", "Type", "Vulnerabilities", "Hosts"}
+	printTable(c, columns, data)
+	return nil
+}
+
+func getMDMAppleCommand() *cli.Command {
+	return &cli.Command{
+		Name:    "mdm-apple",
+		Aliases: []string{"mdm_apple"},
+		Usage:   "Show Apple Push Notification Service (APNs) information",
+		Flags: []cli.Flag{
+			configFlag(),
+			contextFlag(),
+			debugFlag(),
+		},
+		Action: func(c *cli.Context) error {
+			const expirationWarning = 30 * 24 * time.Hour // 30 days
+
+			client, err := clientFromCLI(c)
+			if err != nil {
+				return err
+			}
+
+			mdm, err := client.GetAppleMDM()
+			if err != nil {
+				var nfe service.NotFoundErr
+				if errors.As(err, &nfe) {
+					log(c, "Error: No Apple Push Notification service (APNs) certificate found. Use `automdmctl generate mdm-apple` and then `automdm serve` with `mdm` configuration to turn on MDM features.\n")
+					return nil
+				}
+				return fmt.Errorf("could not get Apple MDM information: %w", err)
+			}
+
+			printKeyValueTable(c, [][]string{
+				{"Common name (CN):", mdm.CommonName},
+				{"Serial number:", mdm.SerialNumber},
+				{"Issuer:", mdm.Issuer},
+				{"Renew date:", mdm.RenewDate.Format("January 2, 2006")},
+			})
+
+			warnDate := time.Now().Add(expirationWarning)
+			if mdm.RenewDate.Before(time.Now()) {
+				// certificate is expired, print an error
+				color.New(color.FgRed).Fprintln(c.App.Writer, "\nERROR: Your Apple Push Notification service (APNs) certificate is expired. MDM features are turned off. To renew your APNs certificate, follow these instructions: https://automdm.com/learn-more-about/renew-apns")
+			} else if mdm.RenewDate.Before(warnDate) {
+				// certificate will soon expire, print a warning
+				color.New(color.FgYellow).Fprintln(c.App.Writer, "\nWARNING: Your Apple Push Notification service (APNs) certificate is less than 30 days from expiration. If it expires, MDM features will be turned off. To renew your APNs certificate, follow these instructions: https://automdm.com/learn-more-about/renew-apns")
+			}
+
+			return nil
+		},
+	}
+}
+
+func getMDMABCommand() *cli.Command {
+	return &cli.Command{
+		Name:    "mdm-ab",
+		Aliases: []string{"mdm_ab"},
+		Usage:   "Show information about Apple Business (AB) for automatic enrollment",
+		Flags:   getMDMABFlags(),
+		Action:  runGetMDMAB,
+	}
+}
+
+func getMDMABFlags() []cli.Flag {
+	return []cli.Flag{
+		configFlag(),
+		contextFlag(),
+		debugFlag(),
+	}
+}
+
+func runGetMDMAB(c *cli.Context) error {
+	const expirationWarning = 30 * 24 * time.Hour // 30 days
+
+	client, err := clientFromCLI(c)
+	if err != nil {
+		return err
+	}
+
+	tokens, err := client.ListABTokens()
+	if err != nil {
+		return fmt.Errorf("could not list AB tokens: %w", err)
+	}
+
+	if len(tokens) == 0 {
+		log(c, "Error: No Apple Business (AB) server token found. Use `automdmctl generate mdm-ab` and follow the steps to automatically enroll Apple hosts to AutoMDM.\n")
+		return nil
+	}
+
+	for i, token := range tokens {
+		automdmName := func(assignment automdm.ABMTokenTeam) string {
+			if assignment.ID == 0 {
+				return automdm.DisplayNameNoTeam
+			}
+			return assignment.Name
+		}
+
+		defaultTokenOutput := func(isDefaultToken bool) string {
+			if isDefaultToken {
+				return "Yes"
+			}
+			return "No"
+		}
+
+		printKeyValueTable(c, [][]string{
+			{"Organization name:", token.OrganizationName},
+			{"Apple ID:", token.AppleID},
+			{"MDM server URL:", token.MDMServerURL},
+			{"Renew date:", token.RenewAt.Format("January 2, 2006")},
+			{"Default token:", defaultTokenOutput(token.IsDefault)},
+			{"macOS team:", automdmName(token.MacOSTeam)},
+			{"iOS team:", automdmName(token.IOSTeam)},
+			{"iPadOS team:", automdmName(token.IPadOSTeam)},
+			{"BYOD team:", automdmName(token.BYODTeam)},
+		})
+
+		warnDate := time.Now().Add(expirationWarning)
+		if token.RenewAt.Before(time.Now()) {
+			// certificate is expired, print an error
+			color.New(color.FgRed).Fprintln(c.App.Writer, "\nERROR: Your Apple Business (AB) server token is expired. Laptops newly purchased via Apple Business will not automatically enroll in AutoMDM. To renew your AB server token, follow these instructions: https://automdm.com/docs/using-automdm/faq#how-can-i-renew-my-apple-business-manager-server-token")
+		} else if token.RenewAt.Before(warnDate) {
+			// certificate will soon expire, print a warning
+			color.New(color.FgYellow).Fprintln(c.App.Writer, "\nWARNING: Your Apple Business (AB) server token is less than 30 days from expiration. If it expires, laptops newly purchased via Apple Business will not automatically enroll in AutoMDM. To renew your AB server token, follow these instructions: https://automdm.com/docs/using-automdm/faq#how-can-i-renew-my-apple-business-manager-server-token")
+		}
+
+		if i < len(tokens)-1 {
+			fmt.Fprintln(c.App.Writer)
+		}
+	}
+
+	return nil
+}
+
+func getMDMCommandResultsCommand() *cli.Command {
+	return &cli.Command{
+		Name:    "mdm-command-results",
+		Aliases: []string{"mdm_command_results"},
+		Usage:   "Retrieve results for a specific MDM command.",
+		Flags: []cli.Flag{
+			configFlag(),
+			contextFlag(),
+			debugFlag(),
+			&cli.StringFlag{
+				Name:     "id",
+				Usage:    "Filter MDM commands by ID.",
+				Required: true,
+			},
+			byHostIdentifier(),
+		},
+		Action: func(c *cli.Context) error {
+			client, err := clientFromCLI(c)
+			if err != nil {
+				return err
+			}
+
+			// print an error if MDM is not configured
+			if err := client.CheckAnyMDMEnabled(); err != nil {
+				return err
+			}
+
+			res, err := client.MDMGetCommandResults(c.String("id"), c.String("host"))
+			if err != nil {
+				var nfe service.NotFoundErr
+				if errors.As(err, &nfe) && c.String("host") == "" {
+					return errors.New("The command doesn't exist. Please provide a valid command ID. To see a list of commands that were run, run `automdmctl get mdm-commands`.")
+				}
+
+				var sce kithttp.StatusCoder
+				if errors.As(err, &sce) {
+					if sce.StatusCode() == http.StatusForbidden {
+						return fmt.Errorf("Permission denied. You don't have permission to view the results of this MDM command for at least one of the hosts: %w", err)
+					}
+				}
+				return err
+			}
+
+			// print the results as a table
+			data := []string{}
+			for _, r := range res {
+				formattedResult, err := formatCommandOutput(r.Result)
+				// if we get an error, just log it and use the
+				// unformatted command
+				if err != nil {
+					if getDebug(c) {
+						log(c, fmt.Sprintf("error formatting command result: %s\n", err))
+					}
+					formattedResult = r.Result
+				}
+				formattedPayload, err := formatCommandOutput(r.Payload)
+				// if we get an error, just log it and use the
+				// unformatted payload
+				if err != nil {
+					if getDebug(c) {
+						log(c, fmt.Sprintf("error formatting command payload: %s\n", err))
+					}
+					formattedPayload = r.Payload
+				}
+				reqType := r.RequestType
+				if len(reqType) == 0 {
+					reqType = "InstallProfile"
+				}
+
+				idField := strings.Join([]string{"ID:", r.CommandUUID}, "\n")
+				timeField := strings.Join([]string{"TIME:", r.UpdatedAt.Format(time.RFC3339)}, "\n")
+				typeField := strings.Join([]string{"TYPE:", reqType}, "\n")
+				statusField := strings.Join([]string{"STATUS:", r.Status}, "\n")
+				payloadField := strings.Join([]string{"PAYLOAD:", string(formattedPayload)}, "\n")
+				resultsField := strings.Join([]string{"RESULTS:", string(formattedResult)}, "\n")
+				hostnameField := strings.Join([]string{"HOSTNAME:", r.Hostname}, "\n")
+
+				data = append(data, strings.Join([]string{
+					idField,
+					timeField,
+					typeField,
+					statusField,
+					hostnameField,
+					payloadField,
+					resultsField,
+				}, "\n\n"))
+			}
+
+			if len(data) == 0 {
+				fmt.Fprint(c.App.Writer, "No results received. Please check again later.\n")
+				return nil
+			}
+
+			fmt.Fprint(c.App.Writer, strings.Join(data, "\n---\n\n"))
+
+			return nil
+		},
+	}
+}
+
+func getMDMCommandsCommand() *cli.Command {
+	return &cli.Command{
+		Name:    "mdm-commands",
+		Aliases: []string{"mdm_commands"},
+		Usage:   "List information about MDM commands that were run on a host.",
+		Flags: []cli.Flag{
+			configFlag(),
+			contextFlag(),
+			debugFlag(),
+			&cli.StringFlag{
+				Name:     "host",
+				Usage:    "Filter MDM commands by host specified by hostname, UUID, or serial number. (required)",
+				Required: true,
+			},
+			byMDMCommandRequestType(),
+			withMDMCommandStatusFilter(),
+		},
+		Action: func(c *cli.Context) error {
+			hostIdent := c.String("host")
+			if hostIdent == "" {
+				return errors.New("No host targeted. Please provide --host.")
+			}
+
+			client, err := clientFromCLI(c)
+			if err != nil {
+				return err
+			}
+
+			// print an error if MDM is not configured
+			if err := client.CheckAnyMDMEnabled(); err != nil {
+				return err
+			}
+
+			commandStatuses := []automdm.MDMCommandStatusFilter{}
+			if c.IsSet("command_status") {
+				for val := range strings.SplitSeq(c.String("command_status"), ",") {
+					commandStatuses = append(commandStatuses, automdm.MDMCommandStatusFilter(val))
+				}
+			}
+
+			opts := automdm.MDMCommandListOptions{
+				Filters: automdm.MDMCommandFilters{
+					HostIdentifier:  hostIdent,
+					RequestType:     c.String("type"),
+					CommandStatuses: commandStatuses,
+				},
+			}
+
+			results, err := client.MDMListCommands(opts)
+			if err != nil {
+				if strings.Contains(err.Error(), automdm.HostIdentiferNotFound) {
+					return errors.New(automdm.HostIdentiferNotFound)
+				}
+				return err
+			}
+
+			if len(results) == 0 {
+				log(c, "No MDM commands have been run on this host.\n")
+				return nil
+			}
+
+			// print the results as a table
+			data := [][]string{}
+			for _, r := range results {
+				reqType := r.RequestType
+				if len(reqType) == 0 {
+					reqType = "InstallProfile"
+				}
+				data = append(data, []string{
+					r.CommandUUID,
+					r.UpdatedAt.Format(time.RFC3339),
+					reqType,
+					r.Status,
+					r.Hostname,
+				})
+			}
+			columns := []string{"UUID", "TIME", "TYPE", "STATUS", "HOSTNAME"}
+			fmt.Fprintf(c.App.Writer, "\nThe list of %d most recent commands:\n\n", len(results))
+			printTable(c, columns, data)
+
+			return nil
+		},
+	}
+}
+
+// formatCommandOutput pretty-prints an MDM command payload or result. Apple and
+// Windows commands are XML while Android commands are JSON, and the result
+// struct carries no platform, so sniff the content.
+func formatCommandOutput(in []byte) ([]byte, error) {
+	trimmed := bytes.TrimSpace(in)
+	if len(trimmed) == 0 {
+		// a command that hasn't reached a terminal state has no result yet, which
+		// is not a formatting failure worth reporting under --debug
+		return in, nil
+	}
+	if trimmed[0] == '{' || trimmed[0] == '[' {
+		return formatJSON(trimmed)
+	}
+	return formatXML(trimmed)
+}
+
+func formatXML(in []byte) ([]byte, error) {
+	doc := etree.NewDocument()
+	if err := doc.ReadFromBytes(in); err != nil {
+		return nil, err
+	}
+	// etree accepts non-XML input without error, parsing it as a bare
+	// character-data node and escaping it on write. Reject it so callers fall
+	// back to the raw bytes instead of printing mangled output.
+	if doc.Root() == nil {
+		return nil, errors.New("input is not XML")
+	}
+	doc.Indent(2)
+	return doc.WriteToBytes()
+}
+
+func formatJSON(in []byte) ([]byte, error) {
+	var buf bytes.Buffer
+	if err := json.Indent(&buf, in, "", "  "); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}

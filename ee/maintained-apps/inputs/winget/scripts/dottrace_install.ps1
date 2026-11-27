@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # dotTrace is installed by a web bootstrapper that downloads the product at install time.
 # /PerMachine=True installs for all users instead of into the SYSTEM profile, and

@@ -13,7 +13,7 @@ import (
 	"strings"
 
 	"github.com/Masterminds/semver/v3"
-	"github.com/fleetdm/fleet/v4/pkg/mdm/profilevalidation"
+	"github.com/anilyagiz/automdm/v4/pkg/mdm/profilevalidation"
 )
 
 const (
@@ -33,7 +33,7 @@ func convertApple(ctx context.Context, logger *slog.Logger, src *appleSources, s
 	if schema.AppleDeclarationEnvelope, err = convertAppleGroup(ctx, logger, src.DeclarationBase); err != nil {
 		return err
 	}
-	// Fleet's server sets ServerToken when it serves a declaration, so uploads must never be
+	// AutoMDM's server sets ServerToken when it serves a declaration, so uploads must never be
 	// validated for it.
 	if _, ok := schema.AppleDeclarationEnvelope.Keys[appleServerTokenKey]; ok {
 		delete(schema.AppleDeclarationEnvelope.Keys, appleServerTokenKey)

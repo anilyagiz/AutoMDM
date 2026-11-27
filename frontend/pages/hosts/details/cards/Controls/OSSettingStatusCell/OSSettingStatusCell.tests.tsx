@@ -3,7 +3,7 @@ import React from "react";
 
 import { createMockHostMdmProfile } from "__mocks__/hostMock";
 import {
-  FLEET_ANDROID_CERTIFICATE_TEMPLATE_PROFILE_ID,
+  AUTOMDM_ANDROID_CERTIFICATE_TEMPLATE_PROFILE_ID,
   IHostMdmProfile,
 } from "interfaces/mdm";
 import {
@@ -64,7 +64,7 @@ describe("OS setting status cell", () => {
       operationType: "install" | "remove"
     ) =>
       createMockHostMdmProfile({
-        profile_uuid: FLEET_ANDROID_CERTIFICATE_TEMPLATE_PROFILE_ID,
+        profile_uuid: AUTOMDM_ANDROID_CERTIFICATE_TEMPLATE_PROFILE_ID,
         name: "Test cert",
         platform: "android",
         status,
@@ -92,14 +92,14 @@ describe("OS setting status cell", () => {
     );
   });
 
-  // Android certificate templates Fleet is automatically retrying after a failure. These keep an
+  // Android certificate templates AutoMDM is automatically retrying after a failure. These keep an
   // in-progress status while carrying the detail from the failed attempt.
   describe("retrying android certificate template row", () => {
     const retryingCert = (
       overrides?: Partial<IHostMdmProfile>
     ): IHostMdmProfile =>
       createMockHostMdmProfile({
-        profile_uuid: FLEET_ANDROID_CERTIFICATE_TEMPLATE_PROFILE_ID,
+        profile_uuid: AUTOMDM_ANDROID_CERTIFICATE_TEMPLATE_PROFILE_ID,
         name: "BeyondCorp",
         platform: "android",
         operation_type: "install",

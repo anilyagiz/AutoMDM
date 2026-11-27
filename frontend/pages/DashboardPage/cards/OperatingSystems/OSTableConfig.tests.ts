@@ -102,7 +102,7 @@ describe("compareOSVersionStrings", () => {
 
   it("strips Ubuntu's ' LTS' suffix before comparing numerically", () => {
     // osquery's os_version table reports Ubuntu LTS releases with a literal
-    // " LTS" suffix (e.g. "22.04.9 LTS"), which Fleet stores verbatim.
+    // " LTS" suffix (e.g. "22.04.9 LTS"), which AutoMDM stores verbatim.
     // Without stripping it, these tie as non-comparable instead of
     // comparing numerically.
     expect(compareOSVersionStrings("22.04.9 LTS", "22.04.15 LTS")).toEqual(-1);

@@ -10,7 +10,7 @@ import policiesAPI from "services/entities/policies";
 
 import { RESULT_PREFIXES } from "./constants";
 import HighlightedLabel from "./HighlightedLabel";
-import getFleetSuffix from "./pickerCopy";
+import getTeamSuffix from "./pickerCopy";
 import usePickerSearch from "./usePickerSearch";
 
 const baseClass = "command-palette";
@@ -40,7 +40,7 @@ const PolicyPicker = ({
       ? currentTeam.id
       : undefined;
 
-  const fleetSuffix = getFleetSuffix(currentTeam);
+  const automdmSuffix = getTeamSuffix(currentTeam);
 
   const { items: policies, isLoading, debouncedQuery } = usePickerSearch<
     ILoadAllPoliciesResponse,
@@ -50,7 +50,7 @@ const PolicyPicker = ({
     queryKeyPrefix: ["commandPalettePolicies", teamId ?? "global"],
     queryFn: (q) =>
       policiesAPI.loadAll({
-        fleetId: teamId,
+        automdmId: teamId,
         page: 0,
         perPage: POLICY_SEARCH_LIMIT,
         query: q || undefined,
@@ -77,14 +77,14 @@ const PolicyPicker = ({
     return (
       <div className={`${baseClass}__empty`}>
         {debouncedQuery
-          ? `No policies match "${debouncedQuery}"${fleetSuffix}.`
-          : `No policies found${fleetSuffix}.`}
+          ? `No policies match "${debouncedQuery}"${automdmSuffix}.`
+          : `No policies found${automdmSuffix}.`}
       </div>
     );
   }
 
   // "Inherited" applies only when viewing a specific team and the policy
-  // is a global one (fleet_id === null), matching PoliciesTableConfig.
+  // is a global one (team_id === null), matching PoliciesTableConfig.
   const isViewingSpecificTeam =
     !!currentTeam && currentTeam.id !== APP_CONTEXT_ALL_TEAMS_ID;
 
@@ -94,7 +94,7 @@ const PolicyPicker = ({
         const showCriticalBadge = isPremiumTier && policy.critical;
         const showPatchBadge = policy.type === "patch";
         const showInheritedBadge =
-          isViewingSpecificTeam && policy.fleet_id === null;
+          isViewingSpecificTeam && policy.team_id === null;
 
         return (
           <Command.Item

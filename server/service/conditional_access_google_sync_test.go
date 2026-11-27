@@ -4,25 +4,25 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/require"
 )
 
 func TestGoogleMarkRetryDue(t *testing.T) {
 	stored := time.Date(2026, 11, 7, 12, 0, 0, 0, time.UTC)
-	failed := func(lastFailure time.Duration) fleet.GoogleConditionalAccessDeviceUser {
-		return fleet.GoogleConditionalAccessDeviceUser{
+	failed := func(lastFailure time.Duration) automdm.GoogleConditionalAccessDeviceUser {
+		return automdm.GoogleConditionalAccessDeviceUser{
 			ErrorMessage: new("Google returned HTTP 500"), CreatedAt: stored, UpdatedAt: stored.Add(lastFailure),
 		}
 	}
 	cases := []struct {
 		name string
-		du   fleet.GoogleConditionalAccessDeviceUser
+		du   automdm.GoogleConditionalAccessDeviceUser
 		at   time.Duration // since the last change
 		due  bool
 	}{
-		{"just stored", fleet.GoogleConditionalAccessDeviceUser{CreatedAt: stored, UpdatedAt: stored}, 30 * time.Second, false},
-		{"stored a minute ago", fleet.GoogleConditionalAccessDeviceUser{CreatedAt: stored, UpdatedAt: stored}, time.Minute, true},
+		{"just stored", automdm.GoogleConditionalAccessDeviceUser{CreatedAt: stored, UpdatedAt: stored}, 30 * time.Second, false},
+		{"stored a minute ago", automdm.GoogleConditionalAccessDeviceUser{CreatedAt: stored, UpdatedAt: stored}, time.Minute, true},
 		{"failed at once, waits a minute", failed(0), 30 * time.Second, false},
 		{"failed at once, after a minute", failed(0), time.Minute, true},
 		{"failed after 10m, waits 10m", failed(10 * time.Minute), 9 * time.Minute, false},
@@ -39,7 +39,7 @@ func TestGoogleMarkRetryDue(t *testing.T) {
 
 func TestGoogleUnmarkRetryDue(t *testing.T) {
 	queuedAt := time.Date(2026, 11, 7, 12, 0, 0, 0, time.UTC)
-	queued := fleet.GoogleConditionalAccessDeviceUser{CreatedAt: queuedAt, UpdatedAt: queuedAt}
+	queued := automdm.GoogleConditionalAccessDeviceUser{CreatedAt: queuedAt, UpdatedAt: queuedAt}
 	// A queued unmark goes at once.
 	require.True(t, googleUnmarkRetryDue(queued, queuedAt))
 	// A failed one waits as long as it has been queued.

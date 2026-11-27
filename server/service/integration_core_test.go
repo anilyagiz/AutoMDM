@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/live_query/live_query_mock"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql"
+	"github.com/anilyagiz/automdm/v4/server/live_query/live_query_mock"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -49,13 +49,13 @@ func (s *slowReader) Read(p []byte) (n int, err error) {
 	return 0, nil
 }
 
-func (s *integrationTestSuite) createHosts(t *testing.T, platforms ...string) []*fleet.Host {
-	var hosts []*fleet.Host
+func (s *integrationTestSuite) createHosts(t *testing.T, platforms ...string) []*automdm.Host {
+	var hosts []*automdm.Host
 	if len(platforms) == 0 {
 		platforms = []string{"debian", "rhel", "linux"}
 	}
 	for i, platform := range platforms {
-		host, err := s.ds.NewHost(context.Background(), &fleet.Host{
+		host, err := s.ds.NewHost(context.Background(), &automdm.Host{
 			DetailUpdatedAt: time.Now(),
 			LabelUpdatedAt:  time.Now(),
 			PolicyUpdatedAt: time.Now(),
@@ -74,8 +74,8 @@ func (s *integrationTestSuite) createHosts(t *testing.T, platforms ...string) []
 
 type macadminsDataResponse struct {
 	Macadmins *struct {
-		Munki       *fleet.HostMunkiInfo    `json:"munki"`
-		MunkiIssues []*fleet.HostMunkiIssue `json:"munki_issues"`
+		Munki       *automdm.HostMunkiInfo    `json:"munki"`
+		MunkiIssues []*automdm.HostMunkiIssue `json:"munki_issues"`
 		MDM         *struct {
 			EnrollmentStatus string  `json:"enrollment_status"`
 			ServerURL        string  `json:"server_url"`
@@ -117,16 +117,16 @@ type validationErrResp struct {
 	} `json:"errors"`
 }
 
-func setOrbitEnrollment(t *testing.T, h *fleet.Host, ds fleet.Datastore) string {
+func setOrbitEnrollment(t *testing.T, h *automdm.Host, ds automdm.Datastore) string {
 	orbitKey := uuid.New().String()
 	_, err := ds.EnrollOrbit(
 		context.Background(),
-		fleet.WithEnrollOrbitHostInfo(fleet.OrbitHostInfo{
+		automdm.WithEnrollOrbitHostInfo(automdm.OrbitHostInfo{
 			HardwareUUID:   *h.OsqueryHostID,
 			HardwareSerial: h.HardwareSerial,
 		}),
-		fleet.WithEnrollOrbitNodeKey(orbitKey),
-		fleet.WithEnrollOrbitTeamID(h.TeamID),
+		automdm.WithEnrollOrbitNodeKey(orbitKey),
+		automdm.WithEnrollOrbitTeamID(h.TeamID),
 	)
 	require.NoError(t, err)
 	err = ds.SetOrUpdateHostOrbitInfo(
@@ -136,9 +136,9 @@ func setOrbitEnrollment(t *testing.T, h *fleet.Host, ds fleet.Datastore) string 
 	return orbitKey
 }
 
-func createOrbitEnrolledHost(t *testing.T, platform, suffix string, ds fleet.Datastore) *fleet.Host {
+func createOrbitEnrolledHost(t *testing.T, platform, suffix string, ds automdm.Datastore) *automdm.Host {
 	name := t.Name() + suffix
-	h, err := ds.NewHost(context.Background(), &fleet.Host{
+	h, err := ds.NewHost(context.Background(), &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -159,7 +159,7 @@ func createOrbitEnrolledHost(t *testing.T, platform, suffix string, ds fleet.Dat
 }
 
 // creates a session and returns it, its key is to be passed as authorization header.
-func createSession(t *testing.T, uid uint, ds fleet.Datastore) *fleet.Session {
+func createSession(t *testing.T, uid uint, ds automdm.Datastore) *automdm.Session {
 	ssn, err := ds.NewSession(context.Background(), uid, 64)
 	require.NoError(t, err)
 
@@ -167,8 +167,8 @@ func createSession(t *testing.T, uid uint, ds fleet.Datastore) *fleet.Session {
 }
 
 func (s *integrationTestSuite) cleanupQuery(queryID uint) {
-	var delResp fleet.DeleteQueryByIDResponse
-	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/fleet/reports/%d", queryID), nil, http.StatusOK, &delResp)
+	var delResp automdm.DeleteQueryByIDResponse
+	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/automdm/reports/%d", queryID), nil, http.StatusOK, &delResp)
 }
 
 func jsonMustMarshal(t testing.TB, v any) []byte {
@@ -417,8 +417,8 @@ func results(num int, hostID string) string {
 // createAndroidHostForTest creates an android host. companyOwned=false stores it as BYO
 // (is_personal_enrollment=true); companyOwned=true stores it as COBO.
 func createAndroidHostForTest(t *testing.T, ds *mysql.Datastore, teamID *uint, companyOwned bool) uint {
-	host := &fleet.AndroidHost{
-		Host: &fleet.Host{
+	host := &automdm.AndroidHost{
+		Host: &automdm.Host{
 			Hostname:                  "android-storage-host",
 			ComputerName:              "Android Storage Test Device",
 			Platform:                  "android",

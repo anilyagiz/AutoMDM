@@ -5,7 +5,7 @@ import (
 	"errors"
 	"text/template"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
 const (
@@ -116,7 +116,7 @@ type SystemDriveRequiresStartupAuthSpec struct {
 	ConfigureTPMPINKey *uint
 	// ConfigureTPM configures configure TPM startup
 	ConfigureTPM *uint
-	// ConfigurePINPolicies also sets the startup PIN policies Fleet's PIN flow assumes.
+	// ConfigurePINPolicies also sets the startup PIN policies AutoMDM's PIN flow assumes.
 	ConfigurePINPolicies bool
 }
 
@@ -160,7 +160,7 @@ func (spec SystemDriveRequiresStartupAuthSpec) validate() error {
 // SystemDriveRequiresStartupAuthCmd turns a SystemDrRequiresStartupAuthSpec into a
 // https://learn.microsoft.com/en-us/windows/client-management/mdm/bitlocker-csp#systemdrivesrequirestartupauthentication
 // CMD.
-func SystemDriveRequiresStartupAuthCmd(spec SystemDriveRequiresStartupAuthSpec) (*fleet.MDMWindowsCommand, error) {
+func SystemDriveRequiresStartupAuthCmd(spec SystemDriveRequiresStartupAuthSpec) (*automdm.MDMWindowsCommand, error) {
 	if err := spec.validate(); err != nil {
 		return nil, err
 	}
@@ -170,7 +170,7 @@ func SystemDriveRequiresStartupAuthCmd(spec SystemDriveRequiresStartupAuthSpec) 
 		return nil, errors.New("failed to execute SystemDrRequiresStartupAuthCmd template")
 	}
 
-	return &fleet.MDMWindowsCommand{
+	return &automdm.MDMWindowsCommand{
 		CommandUUID:  spec.CmdUUID,
 		RawCommand:   contents.Bytes(),
 		TargetLocURI: "./Device/Vendor/MSFT/BitLocker/SystemDrivesRequireStartupAuthentication",

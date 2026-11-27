@@ -8,7 +8,7 @@ import (
 
 // extensionInstallers lists the curated 2-3 installer fixtures per
 // extension. Order matters for display; the first entry per extension is
-// uploaded first which keeps log output readable. fleet-osquery.msi is
+// uploaded first which keeps log output readable. automdm-osquery.msi is
 // intentionally NOT listed: it's the agent installer and must not appear
 // as a custom software item.
 var extensionInstallers = map[string][]string{
@@ -23,7 +23,7 @@ var extensionInstallers = map[string][]string{
 
 // extensionScripts maps an extension to the install / uninstall script form
 // field values to send with the upload. Most extensions are left empty so
-// Fleet auto-generates the commands. .tar.gz and .exe both reject uploads
+// AutoMDM auto-generates the commands. .tar.gz and .exe both reject uploads
 // without explicit install scripts ("Install script is required for .X
 // packages") so we ship placeholders that satisfy the validator.
 var extensionScripts = map[string]struct {
@@ -40,7 +40,7 @@ var extensionScripts = map[string]struct {
 	},
 }
 
-// SoftwareOptions configures the custom-package and Fleet-maintained-app
+// SoftwareOptions configures the custom-package and AutoMDM-maintained-app
 // seeders. TeamID == 0 targets "no team" (global); a non-zero value scopes
 // the upload to that team.
 type SoftwareOptions struct {
@@ -48,7 +48,7 @@ type SoftwareOptions struct {
 	// apps land under. Zero means no team / global.
 	TeamID uint
 
-	// MaintainedAppCount is how many entries from /software/fleet_maintained_apps
+	// MaintainedAppCount is how many entries from /software/automdm_maintained_apps
 	// to seed. Zero skips FMA entirely. Defaults to 3 when running the
 	// "maintained" / "all" subcommands.
 	MaintainedAppCount int
@@ -67,8 +67,8 @@ func sortedExtensions() []string {
 
 // SoftwareCustom uploads the curated 2-3 installer fixtures per supported
 // extension to the given team (or "no team" when opt.TeamID == 0). Each
-// upload posts multipart to /api/latest/fleet/software/package, the same
-// endpoint Fleet's UI calls when adding a custom package.
+// upload posts multipart to /api/latest/automdm/software/package, the same
+// endpoint AutoMDM's UI calls when adding a custom package.
 //
 // Install / uninstall scripts are left empty; the server auto-generates
 // defaults based on the file extension.
@@ -91,11 +91,11 @@ func SoftwareCustom(c Client, log Logger, opt SoftwareOptions) Result {
 				continue
 			}
 			// Build the fields map per-fixture: extensions like .tar.gz
-			// need an explicit install_script, others let Fleet
+			// need an explicit install_script, others let AutoMDM
 			// auto-generate one.
 			fields := map[string]string{}
 			if teamField != "" {
-				fields["fleet_id"] = teamField
+				fields["team_id"] = teamField
 			}
 			if scripts, ok := extensionScripts[ext]; ok {
 				fields["install_script"] = scripts.install
@@ -106,7 +106,7 @@ func SoftwareCustom(c Client, log Logger, opt SoftwareOptions) Result {
 				Filename:  fixture,
 				Content:   content,
 			}}
-			err = c.PostMultipart("/api/latest/fleet/software/package", fields, files, nil)
+			err = c.PostMultipart("/api/latest/automdm/software/package", fields, files, nil)
 			switch {
 			case err == nil:
 				res.Created++
@@ -123,8 +123,8 @@ func SoftwareCustom(c Client, log Logger, opt SoftwareOptions) Result {
 	return res
 }
 
-// maintainedApp is the subset of fleet.MaintainedApp the seeder cares
-// about. Decoded from the listFleetMaintainedApps response.
+// maintainedApp is the subset of automdm.MaintainedApp the seeder cares
+// about. Decoded from the listAutoMDMMaintainedApps response.
 type maintainedApp struct {
 	ID       uint   `json:"id"`
 	Name     string `json:"name"`
@@ -132,16 +132,16 @@ type maintainedApp struct {
 }
 
 type listMaintainedAppsResponse struct {
-	FleetMaintainedApps []maintainedApp `json:"fleet_maintained_apps"`
+	AutoMDMMaintainedApps []maintainedApp `json:"automdm_maintained_apps"`
 }
 
-// SoftwareMaintained adds a handful of Fleet-maintained apps to the given
+// SoftwareMaintained adds a handful of AutoMDM-maintained apps to the given
 // team by:
 //
-//  1. GET /api/latest/fleet/software/fleet_maintained_apps to discover what
+//  1. GET /api/latest/automdm/software/automdm_maintained_apps to discover what
 //     the server's catalog contains (the list is generated server-side).
-//  2. POST /api/latest/fleet/software/fleet_maintained_apps with each
-//     selected fleet_maintained_app_id.
+//  2. POST /api/latest/automdm/software/automdm_maintained_apps with each
+//     selected automdm_maintained_app_id.
 //
 // Adding FMAs is per-team; opt.TeamID == 0 means no team / global.
 func SoftwareMaintained(c Client, log Logger, opt SoftwareOptions) Result {
@@ -150,17 +150,17 @@ func SoftwareMaintained(c Client, log Logger, opt SoftwareOptions) Result {
 		return res
 	}
 
-	listPath := "/api/latest/fleet/software/fleet_maintained_apps"
+	listPath := "/api/latest/automdm/software/automdm_maintained_apps"
 	if opt.TeamID > 0 {
-		listPath = fmt.Sprintf("%s?fleet_id=%d", listPath, opt.TeamID)
+		listPath = fmt.Sprintf("%s?team_id=%d", listPath, opt.TeamID)
 	}
 	var list listMaintainedAppsResponse
 	if err := c.Get(listPath, &list); err != nil {
 		res.Errors = append(res.Errors,
-			fmt.Errorf("list fleet-maintained apps: %w", err))
+			fmt.Errorf("list automdm-maintained apps: %w", err))
 		return res
 	}
-	if len(list.FleetMaintainedApps) == 0 {
+	if len(list.AutoMDMMaintainedApps) == 0 {
 		log.Printf("software (maintained): server returned no maintained apps to add")
 		return res
 	}
@@ -168,19 +168,19 @@ func SoftwareMaintained(c Client, log Logger, opt SoftwareOptions) Result {
 	// Pick the first N from the server's list — the catalog is curated so
 	// the head of the list is stable.
 	n := opt.MaintainedAppCount
-	if n > len(list.FleetMaintainedApps) {
-		n = len(list.FleetMaintainedApps)
+	if n > len(list.AutoMDMMaintainedApps) {
+		n = len(list.AutoMDMMaintainedApps)
 	}
 
 	for i := 0; i < n; i++ {
-		app := list.FleetMaintainedApps[i]
+		app := list.AutoMDMMaintainedApps[i]
 		body := map[string]any{
-			"fleet_maintained_app_id": app.ID,
+			"automdm_maintained_app_id": app.ID,
 		}
 		if opt.TeamID > 0 {
-			body["fleet_id"] = opt.TeamID
+			body["team_id"] = opt.TeamID
 		}
-		err := c.Post("/api/latest/fleet/software/fleet_maintained_apps", body, nil)
+		err := c.Post("/api/latest/automdm/software/automdm_maintained_apps", body, nil)
 		switch {
 		case err == nil:
 			res.Created++
@@ -196,7 +196,7 @@ func SoftwareMaintained(c Client, log Logger, opt SoftwareOptions) Result {
 	return res
 }
 
-// isAlreadyAdded recognizes the "already added" error Fleet returns when a
+// isAlreadyAdded recognizes the "already added" error AutoMDM returns when a
 // maintained app is re-added to the same team. The error isn't a generic
 // "already exists" 409, so we have to sniff the message.
 func isAlreadyAdded(err error) bool {

@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/fleetdm/fleet/v4/server/platform/logging/testutils"
+	"github.com/anilyagiz/automdm/v4/server/platform/logging/testutils"
 )
 
 func TestMultiHandler(t *testing.T) {

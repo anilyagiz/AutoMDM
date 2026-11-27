@@ -6,20 +6,20 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/datastore/redis"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis"
 	redigo "github.com/gomodule/redigo/redis"
 )
 
 type redisFailingPolicySet struct {
-	pool       fleet.RedisPool
+	pool       automdm.RedisPool
 	testPrefix string // for tests, the key prefix to use to avoid conflicts
 }
 
-var _ fleet.FailingPolicySet = (*redisFailingPolicySet)(nil)
+var _ automdm.FailingPolicySet = (*redisFailingPolicySet)(nil)
 
 // NewFailing creates a redis policy set for failing policies.
-func NewFailing(pool fleet.RedisPool) *redisFailingPolicySet {
+func NewFailing(pool automdm.RedisPool) *redisFailingPolicySet {
 	return &redisFailingPolicySet{
 		pool: pool,
 	}
@@ -31,7 +31,7 @@ type TestNamer interface {
 
 // NewFailingTest creates a redis policy set for failing policies to be used
 // only in tests.
-func NewFailingTest(t TestNamer, pool fleet.RedisPool) *redisFailingPolicySet {
+func NewFailingTest(t TestNamer, pool automdm.RedisPool) *redisFailingPolicySet {
 	return &redisFailingPolicySet{
 		pool:       pool,
 		testPrefix: t.Name() + ":",
@@ -61,7 +61,7 @@ func (r *redisFailingPolicySet) ListSets() ([]uint, error) {
 }
 
 // AddHost adds the given host to the policy sets.
-func (r *redisFailingPolicySet) AddHost(policyID uint, host fleet.PolicySetHost) error {
+func (r *redisFailingPolicySet) AddHost(policyID uint, host automdm.PolicySetHost) error {
 	// The order of the following two operations is important.
 	//
 	// The ordering of operations in AddHost and RemoveSet has been chosen to avoid
@@ -113,12 +113,12 @@ func (r *redisFailingPolicySet) scanPolicySet(policyID uint) ([]string, error) {
 }
 
 // ListHosts returns the list of hosts present in the policy set.
-func (r *redisFailingPolicySet) ListHosts(policyID uint) ([]fleet.PolicySetHost, error) {
+func (r *redisFailingPolicySet) ListHosts(policyID uint) ([]automdm.PolicySetHost, error) {
 	hostEntries, err := r.scanPolicySet(policyID)
 	if err != nil {
 		return nil, err
 	}
-	hosts := make([]fleet.PolicySetHost, len(hostEntries))
+	hosts := make([]automdm.PolicySetHost, len(hostEntries))
 	for i := range hostEntries {
 		policySetHost, err := parseHostEntry(hostEntries[i])
 		if err != nil {
@@ -130,7 +130,7 @@ func (r *redisFailingPolicySet) ListHosts(policyID uint) ([]fleet.PolicySetHost,
 }
 
 // RemoveHosts removes the hosts from the policy set.
-func (r *redisFailingPolicySet) RemoveHosts(policyID uint, hosts []fleet.PolicySetHost) error {
+func (r *redisFailingPolicySet) RemoveHosts(policyID uint, hosts []automdm.PolicySetHost) error {
 	if len(hosts) == 0 {
 		return nil
 	}
@@ -161,7 +161,7 @@ func (r *redisFailingPolicySet) RemoveSet(policyID uint) error {
 	return nil
 }
 
-func (r *redisFailingPolicySet) addHostToPolicySet(policyID uint, host fleet.PolicySetHost) error {
+func (r *redisFailingPolicySet) addHostToPolicySet(policyID uint, host automdm.PolicySetHost) error {
 	conn := redis.ConfigureDoer(r.pool, r.pool.Get())
 	defer conn.Close()
 
@@ -209,11 +209,11 @@ func (r *redisFailingPolicySet) policySetOfSetsKey() string {
 	return r.testPrefix + policySetsSetKey
 }
 
-func hostEntry(host fleet.PolicySetHost) string {
+func hostEntry(host automdm.PolicySetHost) string {
 	return fmt.Sprint(host.ID) + "," + host.Hostname
 }
 
-func parseHostEntry(v string) (*fleet.PolicySetHost, error) {
+func parseHostEntry(v string) (*automdm.PolicySetHost, error) {
 	parts := strings.SplitN(v, ",", 2)
 	if len(parts) != 2 {
 		return nil, fmt.Errorf("invalid format: %s", v)
@@ -222,7 +222,7 @@ func parseHostEntry(v string) (*fleet.PolicySetHost, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid id: %s", v)
 	}
-	return &fleet.PolicySetHost{
+	return &automdm.PolicySetHost{
 		ID:       uint(id),
 		Hostname: parts[1],
 	}, nil

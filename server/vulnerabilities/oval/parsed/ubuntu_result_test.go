@@ -3,7 +3,7 @@ package oval_parsed
 import (
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/require"
 )
 
@@ -27,7 +27,7 @@ func TestEvalKernel(t *testing.T) {
 		},
 	})
 
-	software := []fleet.Software{
+	software := []automdm.Software{
 		{ID: 1, Name: "linux-image-5.15.0-1003-generic"},
 		{ID: 2, Name: "linux-image-5.15.0-1004-generic"},
 		{ID: 3, Name: "linux-image-5.15.0-1005-generic"},
@@ -39,7 +39,7 @@ func TestEvalKernel(t *testing.T) {
 
 	vuln, err := r.EvalKernel(software)
 	require.NoError(t, err)
-	require.ElementsMatch(t, vuln, []fleet.SoftwareVulnerability{
+	require.ElementsMatch(t, vuln, []automdm.SoftwareVulnerability{
 		{SoftwareID: 1, CVE: "CVE-2019-1234"},
 		{SoftwareID: 4, CVE: "CVE-2019-1234"},
 	})

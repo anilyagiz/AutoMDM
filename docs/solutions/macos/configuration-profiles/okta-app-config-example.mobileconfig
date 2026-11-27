@@ -10,7 +10,7 @@
 			<key>OktaVerify.PasswordSyncClientID</key>
 			<string>YOUR_CLIENT_ID_FROM_PLATFORM_SSO_APP</string>
 			<key>OktaVerify.UserPrincipalName</key>
-			<string>$FLEET_VAR_HOST_END_USER_IDP_USERNAME</string>
+			<string>$AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME</string>
 			<key>PayloadDisplayName</key>
 			<string>Okta Verify (SSO Extension)</string>
 			<key>PayloadIdentifier</key>
@@ -30,7 +30,7 @@
 			<key>OktaVerify.OrgUrl</key>
 			<string>https://yourdomain.okta.com</string>
 			<key>OktaVerify.UserPrincipalName</key>
-			<string>$FLEET_VAR_HOST_END_USER_IDP_USERNAME</string>
+			<string>$AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME</string>
 			<key>PayloadDisplayName</key>
 			<string>Okta Verify</string>
 			<key>PayloadIdentifier</key>

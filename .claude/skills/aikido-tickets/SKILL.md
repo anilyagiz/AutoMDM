@@ -29,7 +29,7 @@ The user needs to download the pen test report PDF from Aikido:
 Adding issues to project boards requires the `project` scope on the GitHub CLI token. Test by running:
 
 ```bash
-gh project list --owner fleetdm --limit 1
+gh project list --owner automdm --limit 1
 ```
 
 If this fails with a scope error, the user needs to run interactively:
@@ -142,13 +142,13 @@ See full details below.
 4. **Add to the correct project board and set status to Ready:**
    ```bash
    # Get project node ID
-   PROJECT_NODE_ID=$(gh api graphql -f query='{ organization(login: "fleetdm") { projectV2(number: {project_number}) { id } } }' | jq -r '.data.organization.projectV2.id')
+   PROJECT_NODE_ID=$(gh api graphql -f query='{ organization(login: "automdm") { projectV2(number: {project_number}) { id } } }' | jq -r '.data.organization.projectV2.id')
 
    # Add to project
-   ITEM_ID=$(gh project item-add {project_number} --owner fleetdm --url {issue_url} --format json | jq -r '.id')
+   ITEM_ID=$(gh project item-add {project_number} --owner automdm --url {issue_url} --format json | jq -r '.id')
 
    # Get Status field ID and Ready option ID
-   READY_INFO=$(gh project field-list {project_number} --owner fleetdm --format json | jq '.fields[] | select(.name == "Status")')
+   READY_INFO=$(gh project field-list {project_number} --owner automdm --format json | jq '.fields[] | select(.name == "Status")')
    STATUS_FIELD_ID=$(echo "$READY_INFO" | jq -r '.id')
    READY_OPTION_ID=$(echo "$READY_INFO" | jq -r '.options[] | select(.name | test("Ready")) | .id')
 

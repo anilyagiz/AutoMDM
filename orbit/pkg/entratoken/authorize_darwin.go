@@ -12,19 +12,19 @@ typedef struct {
 	char *body;
 	int bodyLen;
 	char *err;
-} fleetAuthorizeResult;
+} automdmAuthorizeResult;
 
-fleetAuthorizeResult fleetEntraAuthorize(const char *url, double timeoutSeconds);
+automdmAuthorizeResult automdmEntraAuthorize(const char *url, double timeoutSeconds);
 
 #import <Foundation/Foundation.h>
 
 // Follows redirects within login.microsoftonline.com and stops at the first redirect
 // elsewhere (the app's redirect URI), recording its URL.
-@interface FleetEntraRedirectStopper : NSObject <NSURLSessionTaskDelegate>
+@interface AutoMDMEntraRedirectStopper : NSObject <NSURLSessionTaskDelegate>
 @property (copy) NSString *redirectURL;
 @end
 
-@implementation FleetEntraRedirectStopper
+@implementation AutoMDMEntraRedirectStopper
 - (void)URLSession:(NSURLSession *)session
               task:(NSURLSessionTask *)task
 willPerformHTTPRedirection:(NSHTTPURLResponse *)response
@@ -39,20 +39,20 @@ willPerformHTTPRedirection:(NSHTTPURLResponse *)response
 }
 @end
 
-static char *fleetCopyString(NSString *s) {
+static char *automdmCopyString(NSString *s) {
 	if (s == nil) {
 		return NULL;
 	}
 	return strdup([s UTF8String]);
 }
 
-fleetAuthorizeResult fleetEntraAuthorize(const char *url, double timeoutSeconds) {
-	__block fleetAuthorizeResult result = {0};
+automdmAuthorizeResult automdmEntraAuthorize(const char *url, double timeoutSeconds) {
+	__block automdmAuthorizeResult result = {0};
 	@autoreleasepool {
 		NSURLSessionConfiguration *config = [NSURLSessionConfiguration ephemeralSessionConfiguration];
 		config.timeoutIntervalForRequest = timeoutSeconds;
 		config.timeoutIntervalForResource = timeoutSeconds;
-		FleetEntraRedirectStopper *delegate = [FleetEntraRedirectStopper new];
+		AutoMDMEntraRedirectStopper *delegate = [AutoMDMEntraRedirectStopper new];
 		NSURLSession *session = [NSURLSession sessionWithConfiguration:config delegate:delegate delegateQueue:nil];
 		dispatch_semaphore_t done = dispatch_semaphore_create(0);
 		NSURL *u = [NSURL URLWithString:[NSString stringWithUTF8String:url]];
@@ -70,9 +70,9 @@ fleetAuthorizeResult fleetEntraAuthorize(const char *url, double timeoutSeconds)
 				}
 			}
 			if (redirectURL != nil) {
-				result.redirectURL = fleetCopyString(redirectURL);
+				result.redirectURL = automdmCopyString(redirectURL);
 			} else if (error != nil) {
-				result.err = fleetCopyString(error.localizedDescription);
+				result.err = automdmCopyString(error.localizedDescription);
 			}
 			// The page holding the code is a few KB; cap what's copied to Go.
 			NSUInteger n = MIN(data.length, (NSUInteger)(1 << 20));
@@ -112,7 +112,7 @@ func authorize(ctx context.Context, authorizeURL string) (*authorizeResponse, er
 	cURL := C.CString(authorizeURL)
 	defer C.free(unsafe.Pointer(cURL))
 
-	res := C.fleetEntraAuthorize(cURL, C.double(timeout.Seconds()))
+	res := C.automdmEntraAuthorize(cURL, C.double(timeout.Seconds()))
 	defer func() {
 		C.free(unsafe.Pointer(res.redirectURL))
 		C.free(unsafe.Pointer(res.body))

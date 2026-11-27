@@ -1,6 +1,6 @@
 package main
 
-// This tool builds Orbit and Fleet Desktop windows binaries with versioninfo information.
+// This tool builds Orbit and AutoMDM Desktop windows binaries with versioninfo information.
 // https://learn.microsoft.com/en-us/windows/win32/menurc/versioninfo-resource
 
 import (
@@ -15,8 +15,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/constant"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/packaging"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/constant"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/packaging"
 	"github.com/josephspurrier/goversioninfo"
 	zlog "github.com/rs/zerolog/log"
 )
@@ -46,14 +46,14 @@ func main() {
 	// Task Manager shows the file description as the process name. The product name stays: AppLocker publisher rules can
 	// pin it.
 	info := resourceInfo{
-		productName:     "Fleet osquery",
+		productName:     "AutoMDM osquery",
 		fileDescription: constant.AgentDisplayName,
-		comments:        "Fleet osquery",
+		comments:        "AutoMDM osquery",
 	}
 	if strings.HasSuffix(*flagCmdDir, "desktop") {
-		info.productName = "Fleet Desktop"
-		info.fileDescription = "Fleet Desktop" // shown in Windows taskbar
-		info.comments = "Fleet Desktop"
+		info.productName = "AutoMDM Desktop"
+		info.fileDescription = "AutoMDM Desktop" // shown in Windows taskbar
+		info.comments = "AutoMDM Desktop"
 	}
 
 	// now we need to create the 'resource_windows.syso' metadata file which contains versioninfo data
@@ -230,7 +230,7 @@ func buildTargetBinary(cmdDir string, version string, binaryPath string, arch st
 		linkFlags := fmt.Sprintf("-s -w -H=windowsgui -X=main.version=%s", version)
 		buildExec = exec.Command("go", "build", "-ldflags", linkFlags, "-o", outputBinary)
 	} else {
-		linkFlags := fmt.Sprintf("-s -w -X=github.com/fleetdm/fleet/v4/orbit/pkg/build.Version=%s", version)
+		linkFlags := fmt.Sprintf("-s -w -X=github.com/anilyagiz/automdm/v4/orbit/pkg/build.Version=%s", version)
 		buildExec = exec.Command("go", "build", "-ldflags", linkFlags, "-o", outputBinary)
 	}
 	buildExec.Env = append(os.Environ(), "GOOS=windows", fmt.Sprintf("GOARCH=%s", arch))

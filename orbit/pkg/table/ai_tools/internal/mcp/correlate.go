@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/ai_tools/internal/proc"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/ai_tools/internal/proc"
 )
 
 // mcpProcessMarkers identify a process as an MCP server regardless of any

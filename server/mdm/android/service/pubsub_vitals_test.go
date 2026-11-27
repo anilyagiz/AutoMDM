@@ -8,10 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
-	android_mock "github.com/fleetdm/fleet/v4/server/mdm/android/mock"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
+	android_mock "github.com/anilyagiz/automdm/v4/server/mdm/android/mock"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/androidmanagement/v1"
 )
@@ -60,12 +60,12 @@ func TestAndroidDeviceVitals(t *testing.T) {
 	cases := []struct {
 		name   string
 		device *androidmanagement.Device
-		want   fleet.MDMAndroidDeviceVitals
+		want   automdm.MDMAndroidDeviceVitals
 	}{
 		{
 			name:   "fully reporting device",
 			device: fullyReportingDevice,
-			want: fleet.MDMAndroidDeviceVitals{
+			want: automdm.MDMAndroidDeviceVitals{
 				APILevel:              new(int64(36)),
 				AdbEnabled:            new(true),
 				PasscodeProtected:     new(true),
@@ -78,10 +78,10 @@ func TestAndroidDeviceVitals(t *testing.T) {
 				SystemUpdateStatus:    new("SECURITY_UPDATE_AVAILABLE"),
 				SecurityPosture:       new("POTENTIALLY_COMPROMISED"),
 				IMEI:                  new("A1000031212"),
-				SecurityPostureDetails: []fleet.MDMAndroidPostureDetail{
+				SecurityPostureDetails: []automdm.MDMAndroidPostureDetail{
 					{SecurityRisk: "COMPROMISED_OS", Advice: []string{"Factory reset the device"}},
 				},
-				TelephonyInfos: []fleet.MDMAndroidTelephonyInfo{
+				TelephonyInfos: []automdm.MDMAndroidTelephonyInfo{
 					{PhoneNumber: "+15555550100", CarrierName: "Acme Mobile", ICCID: "8901410321111111111"},
 					{PhoneNumber: "+15555550101", CarrierName: "Acme Mobile", ActivationState: "ACTIVATED", ConfigMode: "USER_CONFIGURED"},
 				},
@@ -92,7 +92,7 @@ func TestAndroidDeviceVitals(t *testing.T) {
 			// inferred as false or "".
 			name:   "device reporting nothing",
 			device: &androidmanagement.Device{},
-			want:   fleet.MDMAndroidDeviceVitals{},
+			want:   automdm.MDMAndroidDeviceVitals{},
 		},
 		{
 			// deviceSettingsEnabled off in the applied policy: the settings
@@ -101,7 +101,7 @@ func TestAndroidDeviceVitals(t *testing.T) {
 			device: &androidmanagement.Device{
 				HardwareInfo: &androidmanagement.HardwareInfo{Manufacturer: "Motorola"},
 			},
-			want: fleet.MDMAndroidDeviceVitals{Manufacturer: new("Motorola")},
+			want: automdm.MDMAndroidDeviceVitals{Manufacturer: new("Motorola")},
 		},
 		{
 			// BYOD: AMAPI reports telephonyInfos for fully managed devices only.
@@ -109,7 +109,7 @@ func TestAndroidDeviceVitals(t *testing.T) {
 			device: &androidmanagement.Device{
 				NetworkInfo: &androidmanagement.NetworkInfo{WifiMacAddress: "7c:11:11:11:11:11"},
 			},
-			want: fleet.MDMAndroidDeviceVitals{},
+			want: automdm.MDMAndroidDeviceVitals{},
 		},
 		{
 			// Belt and braces: even if AMAPI did hand us network info for a
@@ -124,7 +124,7 @@ func TestAndroidDeviceVitals(t *testing.T) {
 					TelephonyInfos: []*androidmanagement.TelephonyInfo{{PhoneNumber: "+15555550100"}},
 				},
 			},
-			want: fleet.MDMAndroidDeviceVitals{},
+			want: automdm.MDMAndroidDeviceVitals{},
 		},
 		{
 			// AMAPI omits ownership on some status reports. Treating that as
@@ -137,8 +137,8 @@ func TestAndroidDeviceVitals(t *testing.T) {
 					TelephonyInfos: []*androidmanagement.TelephonyInfo{{PhoneNumber: "+15555550100"}},
 				},
 			},
-			want: fleet.MDMAndroidDeviceVitals{
-				TelephonyInfos: []fleet.MDMAndroidTelephonyInfo{{PhoneNumber: "+15555550100"}},
+			want: automdm.MDMAndroidDeviceVitals{
+				TelephonyInfos: []automdm.MDMAndroidTelephonyInfo{{PhoneNumber: "+15555550100"}},
 			},
 		},
 		{
@@ -150,9 +150,9 @@ func TestAndroidDeviceVitals(t *testing.T) {
 					TelephonyInfos: []*androidmanagement.TelephonyInfo{{PhoneNumber: "+15555550100"}},
 				},
 			},
-			want: fleet.MDMAndroidDeviceVitals{
+			want: automdm.MDMAndroidDeviceVitals{
 				IMEI:           new("A1000031212"),
-				TelephonyInfos: []fleet.MDMAndroidTelephonyInfo{{PhoneNumber: "+15555550100"}},
+				TelephonyInfos: []automdm.MDMAndroidTelephonyInfo{{PhoneNumber: "+15555550100"}},
 			},
 		},
 		{
@@ -163,7 +163,7 @@ func TestAndroidDeviceVitals(t *testing.T) {
 				Ownership:   DeviceOwnershipCompanyOwned,
 				NetworkInfo: &androidmanagement.NetworkInfo{Meid: "A00000292788E1"},
 			},
-			want: fleet.MDMAndroidDeviceVitals{MEID: new("A00000292788E1")},
+			want: automdm.MDMAndroidDeviceVitals{MEID: new("A00000292788E1")},
 		},
 		{
 			// Device-reported, so an oversized identifier must be truncated to
@@ -176,9 +176,9 @@ func TestAndroidDeviceVitals(t *testing.T) {
 					Meid: strings.Repeat("2", 300),
 				},
 			},
-			want: fleet.MDMAndroidDeviceVitals{
-				IMEI: new(strings.Repeat("1", fleet.MDMAndroidDeviceVitalMaxLength)),
-				MEID: new(strings.Repeat("2", fleet.MDMAndroidDeviceVitalMaxLength)),
+			want: automdm.MDMAndroidDeviceVitals{
+				IMEI: new(strings.Repeat("1", automdm.MDMAndroidDeviceVitalMaxLength)),
+				MEID: new(strings.Repeat("2", automdm.MDMAndroidDeviceVitalMaxLength)),
 			},
 		},
 		{
@@ -190,7 +190,7 @@ func TestAndroidDeviceVitals(t *testing.T) {
 					SystemUpdateInfo: &androidmanagement.SystemUpdateInfo{UpdateStatus: "UPDATE_STATUS_UNKNOWN"},
 				},
 			},
-			want: fleet.MDMAndroidDeviceVitals{},
+			want: automdm.MDMAndroidDeviceVitals{},
 		},
 		{
 			// AMAPI's *_UNSPECIFIED sentinels mean "no data", not a state, and
@@ -207,11 +207,11 @@ func TestAndroidDeviceVitals(t *testing.T) {
 					}},
 				},
 			},
-			want: fleet.MDMAndroidDeviceVitals{
+			want: automdm.MDMAndroidDeviceVitals{
 				AdbEnabled:         new(false),
 				PasscodeProtected:  new(false),
 				PlayProtectEnabled: new(false),
-				TelephonyInfos:     []fleet.MDMAndroidTelephonyInfo{{PhoneNumber: "+15555550100"}},
+				TelephonyInfos:     []automdm.MDMAndroidTelephonyInfo{{PhoneNumber: "+15555550100"}},
 			},
 		},
 		{
@@ -226,7 +226,7 @@ func TestAndroidDeviceVitals(t *testing.T) {
 					},
 				},
 			},
-			want: fleet.MDMAndroidDeviceVitals{SecurityPosture: new("SECURE")},
+			want: automdm.MDMAndroidDeviceVitals{SecurityPosture: new("SECURE")},
 		},
 		{
 			// Device-reported strings must not blow past the column width and
@@ -235,8 +235,8 @@ func TestAndroidDeviceVitals(t *testing.T) {
 			device: &androidmanagement.Device{
 				HardwareInfo: &androidmanagement.HardwareInfo{Manufacturer: strings.Repeat("a", 300)},
 			},
-			want: fleet.MDMAndroidDeviceVitals{
-				Manufacturer: new(strings.Repeat("a", fleet.MDMAndroidDeviceVitalMaxLength)),
+			want: automdm.MDMAndroidDeviceVitals{
+				Manufacturer: new(strings.Repeat("a", automdm.MDMAndroidDeviceVitalMaxLength)),
 			},
 		},
 		{
@@ -247,8 +247,8 @@ func TestAndroidDeviceVitals(t *testing.T) {
 			device: &androidmanagement.Device{
 				HardwareInfo: &androidmanagement.HardwareInfo{Manufacturer: strings.Repeat("\u00e9", 300)},
 			},
-			want: fleet.MDMAndroidDeviceVitals{
-				Manufacturer: new(strings.Repeat("\u00e9", fleet.MDMAndroidDeviceVitalMaxLength)),
+			want: automdm.MDMAndroidDeviceVitals{
+				Manufacturer: new(strings.Repeat("\u00e9", automdm.MDMAndroidDeviceVitalMaxLength)),
 			},
 		},
 		{
@@ -256,13 +256,13 @@ func TestAndroidDeviceVitals(t *testing.T) {
 			// stores rather than failing the write.
 			name:   "large api level is stored",
 			device: &androidmanagement.Device{ApiLevel: math.MaxInt32 + 1},
-			want:   fleet.MDMAndroidDeviceVitals{APILevel: new(int64(math.MaxInt32 + 1))},
+			want:   automdm.MDMAndroidDeviceVitals{APILevel: new(int64(math.MaxInt32 + 1))},
 		},
 		{
 			// 0 is AMAPI's "not reported" for this field.
 			name:   "zero api level is dropped",
 			device: &androidmanagement.Device{ApiLevel: 0},
-			want:   fleet.MDMAndroidDeviceVitals{},
+			want:   automdm.MDMAndroidDeviceVitals{},
 		},
 		{
 			// softwareInfo present but the device is too old to report a
@@ -271,7 +271,7 @@ func TestAndroidDeviceVitals(t *testing.T) {
 			device: &androidmanagement.Device{
 				SoftwareInfo: &androidmanagement.SoftwareInfo{SecurityPatchLevel: "2025-01-01"},
 			},
-			want: fleet.MDMAndroidDeviceVitals{SecurityUpdateVersion: new("2025-01-01")},
+			want: automdm.MDMAndroidDeviceVitals{SecurityUpdateVersion: new("2025-01-01")},
 		},
 		{
 			// A risk with no advice attached, and an advice entry with no
@@ -286,9 +286,9 @@ func TestAndroidDeviceVitals(t *testing.T) {
 					},
 				},
 			},
-			want: fleet.MDMAndroidDeviceVitals{
+			want: automdm.MDMAndroidDeviceVitals{
 				SecurityPosture: new("AT_RISK"),
-				SecurityPostureDetails: []fleet.MDMAndroidPostureDetail{
+				SecurityPostureDetails: []automdm.MDMAndroidPostureDetail{
 					{SecurityRisk: "UNKNOWN_OS"},
 					{SecurityRisk: "HARDWARE_BACKED_EVALUATION_FAILED"},
 				},
@@ -303,7 +303,7 @@ func TestAndroidDeviceVitals(t *testing.T) {
 				HardwareInfo:    &androidmanagement.HardwareInfo{Manufacturer: ""},
 				SecurityPosture: &androidmanagement.SecurityPosture{DevicePosture: ""},
 			},
-			want: fleet.MDMAndroidDeviceVitals{
+			want: automdm.MDMAndroidDeviceVitals{
 				AdbEnabled:         new(false),
 				PasscodeProtected:  new(false),
 				PlayProtectEnabled: new(false),
@@ -328,9 +328,9 @@ func TestUpdateHostPersistsVitals(t *testing.T) {
 
 	var (
 		gotHostUUID string
-		gotVitals   fleet.MDMAndroidDeviceVitals
+		gotVitals   automdm.MDMAndroidDeviceVitals
 	)
-	mockDS.SetOrUpdateHostMDMAndroidDeviceVitalsFunc = func(ctx context.Context, hostUUID string, vitals fleet.MDMAndroidDeviceVitals) error {
+	mockDS.SetOrUpdateHostMDMAndroidDeviceVitalsFunc = func(ctx context.Context, hostUUID string, vitals automdm.MDMAndroidDeviceVitals) error {
 		gotHostUUID = hostUUID
 		gotVitals = vitals
 		return nil
@@ -389,7 +389,7 @@ func TestUpdateHostPersistsVitals(t *testing.T) {
 	// A company-owned device's telephony info and radio identifier must
 	// survive the status-report path, not just enrollment.
 	require.Equal(t,
-		[]fleet.MDMAndroidTelephonyInfo{{PhoneNumber: "+15555550100", CarrierName: "Acme Mobile"}},
+		[]automdm.MDMAndroidTelephonyInfo{{PhoneNumber: "+15555550100", CarrierName: "Acme Mobile"}},
 		gotVitals.TelephonyInfos)
 	require.Equal(t, new("A1000031212"), gotVitals.IMEI)
 }
@@ -403,7 +403,7 @@ func TestEnrollmentPersistsVitals(t *testing.T) {
 	cases := []struct {
 		name              string
 		ownership         string
-		wantPhoneNumbers  []fleet.MDMAndroidTelephonyInfo
+		wantPhoneNumbers  []automdm.MDMAndroidTelephonyInfo
 		wantIMEI          *string
 		wantAdbEnabled    *bool
 		wantAPILevelIsSet bool
@@ -411,7 +411,7 @@ func TestEnrollmentPersistsVitals(t *testing.T) {
 		{
 			name:              "company owned",
 			ownership:         DeviceOwnershipCompanyOwned,
-			wantPhoneNumbers:  []fleet.MDMAndroidTelephonyInfo{{PhoneNumber: "+15555550100", CarrierName: "Acme Mobile"}},
+			wantPhoneNumbers:  []automdm.MDMAndroidTelephonyInfo{{PhoneNumber: "+15555550100", CarrierName: "Acme Mobile"}},
 			wantIMEI:          new("A1000031212"),
 			wantAdbEnabled:    new(true),
 			wantAPILevelIsSet: true,
@@ -431,25 +431,25 @@ func TestEnrollmentPersistsVitals(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			svc, mockDS := createAndroidService(t)
-			mockDS.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-				return &fleet.AppConfig{MDM: fleet.MDM{AndroidEnabledAndConfigured: true}}, nil
+			mockDS.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+				return &automdm.AppConfig{MDM: automdm.MDM{AndroidEnabledAndConfigured: true}}, nil
 			}
-			mockDS.VerifyEnrollSecretFunc = func(ctx context.Context, secret string) (*fleet.EnrollSecret, error) {
-				return &fleet.EnrollSecret{Secret: enrollSecret}, nil
+			mockDS.VerifyEnrollSecretFunc = func(ctx context.Context, secret string) (*automdm.EnrollSecret, error) {
+				return &automdm.EnrollSecret{Secret: enrollSecret}, nil
 			}
-			mockDS.AndroidHostLiteFunc = func(ctx context.Context, enterpriseSpecificID string) (*fleet.AndroidHost, error) {
+			mockDS.AndroidHostLiteFunc = func(ctx context.Context, enterpriseSpecificID string) (*automdm.AndroidHost, error) {
 				return nil, common_mysql.NotFound("android host lite")
 			}
-			mockDS.NewAndroidHostFunc = func(ctx context.Context, host *fleet.AndroidHost, companyOwned bool) (*fleet.AndroidHost, error) {
+			mockDS.NewAndroidHostFunc = func(ctx context.Context, host *automdm.AndroidHost, companyOwned bool) (*automdm.AndroidHost, error) {
 				host.Host.ID = 7
 				return host, nil
 			}
 
 			var (
 				gotHostUUID string
-				gotVitals   fleet.MDMAndroidDeviceVitals
+				gotVitals   automdm.MDMAndroidDeviceVitals
 			)
-			mockDS.SetOrUpdateHostMDMAndroidDeviceVitalsFunc = func(ctx context.Context, hostUUID string, vitals fleet.MDMAndroidDeviceVitals) error {
+			mockDS.SetOrUpdateHostMDMAndroidDeviceVitalsFunc = func(ctx context.Context, hostUUID string, vitals automdm.MDMAndroidDeviceVitals) error {
 				gotHostUUID = hostUUID
 				gotVitals = vitals
 				return nil

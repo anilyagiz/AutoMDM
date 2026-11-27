@@ -53,9 +53,9 @@ const EmptyMdmStatus = (): JSX.Element => (
       <>
         To see MDM versions, deploy&nbsp;
         <CustomLink
-          url="https://fleetdm.com/learn-more-about/fleetd"
+          url="https://automdm.com/learn-more-about/automdmd"
           newTab
-          text="Fleet's agent (fleetd)"
+          text="AutoMDM's agent (automdmd)"
         />
       </>
     }

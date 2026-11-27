@@ -87,7 +87,7 @@ func TestEmbeddedSchema(t *testing.T) {
 
 	t.Run("declarations", func(t *testing.T) {
 		require.NotNil(t, s.AppleDeclarationEnvelope)
-		assert.NotContains(t, s.AppleDeclarationEnvelope.Keys, "ServerToken", "set by Fleet's server, never validated")
+		assert.NotContains(t, s.AppleDeclarationEnvelope.Keys, "ServerToken", "set by AutoMDM's server, never validated")
 		assert.NotNil(t, s.AppleDeclarationEnvelope.Keys["Identifier"])
 		passcode := s.AppleDeclaration("com.apple.configuration.passcode.settings")
 		require.NotNil(t, passcode)
@@ -173,8 +173,8 @@ func TestEmbeddedSchemaWindows(t *testing.T) {
 	t.Run("dynamic instances and interior nodes", func(t *testing.T) {
 		assert.Same(t, s.Windows["./Vendor/MSFT/Firewall/MdmStore/FirewallRules/*/Action/Type"],
 			node("./Vendor/MSFT/Firewall/MdmStore/FirewallRules/BlockTelnet/Action/Type"))
-		// Profiles <Add> the instance before setting its children, as Fleet's SCEP profiles do.
-		scep := node("./Device/Vendor/MSFT/ClientCertificateInstall/SCEP/$FLEET_VAR_SCEP_WINDOWS_CERTIFICATE_ID")
+		// Profiles <Add> the instance before setting its children, as AutoMDM's SCEP profiles do.
+		scep := node("./Device/Vendor/MSFT/ClientCertificateInstall/SCEP/$AUTOMDM_VAR_SCEP_WINDOWS_CERTIFICATE_ID")
 		assert.Equal(t, WindowsFormats{WindowsFormatNode}, scep.Format)
 		// On an interior "*" node the regex constrains the instance's name.
 		assert.Equal(t, "^[^|/]*$", node("./Vendor/MSFT/Firewall/MdmStore/FirewallRules/*").RegEx)
@@ -184,7 +184,7 @@ func TestEmbeddedSchemaWindows(t *testing.T) {
 		const homepage = "Vendor/MSFT/Policy/Config/GoogleChrome~Policy~googlechrome~Startup/HomepageLocation"
 		assert.Equal(t, &WindowsNode{Format: chr, Scope: WindowsScopeDevice, Source: WindowsSourceADMXTemplate}, node("./Device/"+homepage))
 		assert.Equal(t, &WindowsNode{Format: chr, Scope: WindowsScopeUser, Source: WindowsSourceADMXTemplate}, node("./User/"+homepage))
-		// Paths use the profile generator's AppNames. Fleet's docs install Chrome as "Chrome", which
+		// Paths use the profile generator's AppNames. AutoMDM's docs install Chrome as "Chrome", which
 		// only reaches the DDF's generic Policy/Config/*/* node: #55792's matcher has to handle it.
 		docs := node("./Device/Vendor/MSFT/Policy/Config/chrome~Policy~googlechrome/RelaunchNotification")
 		assert.Equal(t, WindowsSourceWindows, docs.Source)

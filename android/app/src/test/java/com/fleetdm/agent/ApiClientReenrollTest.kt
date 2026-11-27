@@ -103,7 +103,7 @@ class ApiClientReenrollTest {
 
         // Verify first enrollment used the enroll secret and sent platform="android" on the wire
         val firstEnroll = mockWebServer.takeRequest()
-        assertEquals("/api/fleet/orbit/enroll", firstEnroll.path)
+        assertEquals("/api/automdm/orbit/enroll", firstEnroll.path)
         val firstEnrollBody = firstEnroll.body.readUtf8()
         assertTrue(firstEnrollBody.contains("test-enroll-secret"))
         assertTrue(
@@ -113,7 +113,7 @@ class ApiClientReenrollTest {
 
         // Verify first config used first-node-key
         val firstConfig = mockWebServer.takeRequest()
-        assertEquals("/api/fleet/orbit/config", firstConfig.path)
+        assertEquals("/api/automdm/orbit/config", firstConfig.path)
         assertTrue(firstConfig.body.readUtf8().contains("first-node-key"))
 
         // Second call: server returns 401 (simulating host deletion), triggering re-enrollment
@@ -127,17 +127,17 @@ class ApiClientReenrollTest {
 
         // Verify: config with old key returned 401
         val rejectedConfig = mockWebServer.takeRequest()
-        assertEquals("/api/fleet/orbit/config", rejectedConfig.path)
+        assertEquals("/api/automdm/orbit/config", rejectedConfig.path)
         assertTrue(rejectedConfig.body.readUtf8().contains("first-node-key"))
 
         // Verify: re-enrollment happened
         val reEnroll = mockWebServer.takeRequest()
-        assertEquals("/api/fleet/orbit/enroll", reEnroll.path)
+        assertEquals("/api/automdm/orbit/enroll", reEnroll.path)
         assertTrue(reEnroll.body.readUtf8().contains("test-enroll-secret"))
 
         // Verify: retry used new key
         val retryConfig = mockWebServer.takeRequest()
-        assertEquals("/api/fleet/orbit/config", retryConfig.path)
+        assertEquals("/api/automdm/orbit/config", retryConfig.path)
         assertTrue(retryConfig.body.readUtf8().contains("second-node-key"))
     }
 
@@ -178,7 +178,7 @@ class ApiClientReenrollTest {
 
         // Verify the flow: cert request (401) -> enroll -> cert request (success)
         val rejectedRequest = mockWebServer.takeRequest()
-        assertEquals("/api/fleetd/certificates/123", rejectedRequest.path)
+        assertEquals("/api/automdmd/certificates/123", rejectedRequest.path)
         // GET requests send node key in Authorization header, not body
         assertTrue(
             "Expected first-node-key in Authorization header",
@@ -186,10 +186,10 @@ class ApiClientReenrollTest {
         )
 
         val enrollRequest = mockWebServer.takeRequest()
-        assertEquals("/api/fleet/orbit/enroll", enrollRequest.path)
+        assertEquals("/api/automdm/orbit/enroll", enrollRequest.path)
 
         val retryRequest = mockWebServer.takeRequest()
-        assertEquals("/api/fleetd/certificates/123", retryRequest.path)
+        assertEquals("/api/automdmd/certificates/123", retryRequest.path)
         // Verify retry uses new key in Authorization header
         assertTrue(
             "Expected second-node-key in Authorization header",
@@ -255,8 +255,8 @@ class ApiClientReenrollTest {
         val body = statusReq.body.readUtf8()
 
         assertTrue(
-            "Expected status update at /api/fleetd/certificates/42/status, got: ${statusReq.path}",
-            statusReq.path?.endsWith("/api/fleetd/certificates/42/status") == true,
+            "Expected status update at /api/automdmd/certificates/42/status, got: ${statusReq.path}",
+            statusReq.path?.endsWith("/api/automdmd/certificates/42/status") == true,
         )
         assertTrue(
             "Expected serial as hex \"$expectedHex\" in body, got: $body",

@@ -2,7 +2,7 @@
 //
 // A macOS app launched from Finder/Dock inherits only the bare
 // /usr/bin:/bin:/usr/sbin:/sbin — NOT the user's shell PATH. That omits
-// Homebrew (/opt/homebrew/bin), Go (/usr/local/go/bin), nvm, ~/.fleetctl,
+// Homebrew (/opt/homebrew/bin), Go (/usr/local/go/bin), nvm, ~/.automdmctl,
 // etc., so bare-name spawns the app relies on (git, go, docker, ngrok,
 // python3, ...) fail with "No such file or directory" in the packaged app,
 // even though they work under `wails3 dev` (which inherits the terminal's
@@ -134,7 +134,7 @@ func Refresh() string {
 
 // Env returns the current process environment with PATH overridden to the
 // resolved login-shell PATH — suitable for exec.Cmd.Env so spawned tools
-// (git, fleetctl, docker, ...) resolve when launched from Finder.
+// (git, automdmctl, docker, ...) resolve when launched from Finder.
 func Env() []string {
 	return envWith(os.Environ(), ShellPath())
 }
@@ -250,7 +250,7 @@ func augmentInherited(home, inherited string) string {
 	if home != "" {
 		push(filepath.Join(home, "go/bin"))
 		push(filepath.Join(home, ".local/bin"))
-		push(filepath.Join(home, ".fleetctl"))
+		push(filepath.Join(home, ".automdmctl"))
 	}
 	for _, e := range strings.Split(inherited, ":") {
 		push(e)

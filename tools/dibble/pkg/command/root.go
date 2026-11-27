@@ -11,7 +11,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"github.com/fleetdm/fleet/v4/tools/dibble/pkg/themes"
+	"github.com/anilyagiz/automdm/v4/tools/dibble/pkg/themes"
 )
 
 // Build-time variables (set via -ldflags).
@@ -28,7 +28,7 @@ func Execute(args []string) error {
 	rootCmd := newRootCmd()
 	if shouldRunWizard(args) {
 		// Parse persistent flags so values like
-		//   dibble --fleet-url X --api-token Y
+		//   dibble --automdm-url X --api-token Y
 		// are honored by the wizard (and bound into viper via
 		// BindPFlag in newRootCmd). Without this, the wizard would
 		// prompt for values the user already provided.
@@ -42,7 +42,7 @@ func Execute(args []string) error {
 
 // shouldRunWizard reports whether `dibble` was invoked with no subcommand,
 // in which case we drop into the interactive wizard. Flags-only invocations
-// (e.g. `dibble --fleet-url X`) still trigger the wizard so it can fill in
+// (e.g. `dibble --automdm-url X`) still trigger the wizard so it can fill in
 // any missing config.
 func shouldRunWizard(args []string) bool {
 	for _, a := range args {
@@ -63,18 +63,18 @@ func shouldRunWizard(args []string) bool {
 
 // Config keys (viper).
 const (
-	keyFleetURL = "fleet_url"
-	keyAPIToken = "api_token"
-	keyTheme    = "theme"
-	keyInsecure = "insecure"
-	keySuffix   = "suffix"
+	keyAutoMDMURL = "automdm_url"
+	keyAPIToken   = "api_token"
+	keyTheme      = "theme"
+	keyInsecure   = "insecure"
+	keySuffix     = "suffix"
 )
 
 // newRootCmd builds the root cobra command and wires viper.
 //
 // Configuration precedence (highest first):
 //  1. Command-line flag
-//  2. Environment variable (FLEET_URL, FLEET_API_TOKEN, DIBBLE_THEME)
+//  2. Environment variable (AUTOMDM_URL, AUTOMDM_API_TOKEN, DIBBLE_THEME)
 //  3. ~/.dibble.yaml
 //  4. Built-in defaults
 func newRootCmd() *cobra.Command {
@@ -82,8 +82,8 @@ func newRootCmd() *cobra.Command {
 
 	root := &cobra.Command{
 		Use:   "dibble",
-		Short: "Fleet's seed slinger — plant test data into a Fleet server",
-		Long: `dibble is the one-stop CLI for seeding test data into a Fleet server.
+		Short: "AutoMDM's seed slinger — plant test data into an AutoMDM server",
+		Long: `dibble is the one-stop CLI for seeding test data into an AutoMDM server.
 Run it with no arguments for an interactive wizard, or pass a subcommand to
 script it.
 
@@ -96,11 +96,11 @@ Hosts are intentionally out of scope — use cmd/osquery-perf for that.`,
 	}
 
 	// Persistent flags (apply to every subcommand).
-	root.PersistentFlags().StringP("fleet-url", "u", "", "Fleet server URL (env FLEET_URL)")
-	root.PersistentFlags().StringP("api-token", "a", "", "Fleet API token (env FLEET_API_TOKEN)")
+	root.PersistentFlags().StringP("automdm-url", "u", "", "AutoMDM server URL (env AUTOMDM_URL)")
+	root.PersistentFlags().StringP("api-token", "a", "", "AutoMDM API token (env AUTOMDM_API_TOKEN)")
 	root.PersistentFlags().StringP("config", "c", "", "Config file (default $HOME/.dibble.yaml)")
 	root.PersistentFlags().StringP("theme", "t", "mix", "Easter-egg theme: mix, hitchhikers, goodplace, parksrec, tng, lotr, dbz, robin_williams, ghibli, cosmere, sailor_moon")
-	root.PersistentFlags().BoolP("dry-run", "d", false, "Print actions without calling the Fleet API")
+	root.PersistentFlags().BoolP("dry-run", "d", false, "Print actions without calling the AutoMDM API")
 	root.PersistentFlags().BoolP("verbose", "v", false, "Verbose logging")
 	root.PersistentFlags().Bool("no-wizard", false, "Disable the interactive wizard (always error on missing config)")
 	root.PersistentFlags().BoolP("insecure", "k", false, "Skip TLS certificate verification (for self-signed dev certs)")
@@ -110,7 +110,7 @@ Hosts are intentionally out of scope — use cmd/osquery-perf for that.`,
 	// config/dry-run/verbose flags are read via viper.Get* in initConfig
 	// and the HTTP client; without explicit binding they'd silently
 	// default to zero values regardless of what the user passed.
-	_ = viper.BindPFlag(keyFleetURL, root.PersistentFlags().Lookup("fleet-url"))
+	_ = viper.BindPFlag(keyAutoMDMURL, root.PersistentFlags().Lookup("automdm-url"))
 	_ = viper.BindPFlag(keyAPIToken, root.PersistentFlags().Lookup("api-token"))
 	_ = viper.BindPFlag(keyTheme, root.PersistentFlags().Lookup("theme"))
 	_ = viper.BindPFlag(keyInsecure, root.PersistentFlags().Lookup("insecure"))
@@ -119,13 +119,13 @@ Hosts are intentionally out of scope — use cmd/osquery-perf for that.`,
 	_ = viper.BindPFlag("dry-run", root.PersistentFlags().Lookup("dry-run"))
 	_ = viper.BindPFlag("verbose", root.PersistentFlags().Lookup("verbose"))
 
-	// Env mapping. FLEET_URL / FLEET_API_TOKEN feel natural to people coming
-	// from fleetctl, even though the dibble prefix would be more consistent.
+	// Env mapping. AUTOMDM_URL / AUTOMDM_API_TOKEN feel natural to people coming
+	// from automdmctl, even though the dibble prefix would be more consistent.
 	viper.SetEnvPrefix("DIBBLE")
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 	viper.AutomaticEnv()
-	_ = viper.BindEnv(keyFleetURL, "FLEET_URL", "DIBBLE_FLEET_URL")
-	_ = viper.BindEnv(keyAPIToken, "FLEET_API_TOKEN", "DIBBLE_API_TOKEN")
+	_ = viper.BindEnv(keyAutoMDMURL, "AUTOMDM_URL", "DIBBLE_AUTOMDM_URL")
+	_ = viper.BindEnv(keyAPIToken, "AUTOMDM_API_TOKEN", "DIBBLE_API_TOKEN")
 
 	// Subcommands.
 	root.AddCommand(newVersionCmd())
@@ -177,11 +177,11 @@ func configPath() string {
 }
 
 func requireConfig() error {
-	if viper.GetString(keyFleetURL) == "" {
-		return fmt.Errorf("missing --fleet-url (or FLEET_URL, or ~/.dibble.yaml). Run `dibble` with no args for the wizard")
+	if viper.GetString(keyAutoMDMURL) == "" {
+		return fmt.Errorf("missing --automdm-url (or AUTOMDM_URL, or ~/.dibble.yaml). Run `dibble` with no args for the wizard")
 	}
 	if viper.GetString(keyAPIToken) == "" {
-		return fmt.Errorf("missing --api-token (or FLEET_API_TOKEN, or ~/.dibble.yaml). Run `dibble` with no args for the wizard")
+		return fmt.Errorf("missing --api-token (or AUTOMDM_API_TOKEN, or ~/.dibble.yaml). Run `dibble` with no args for the wizard")
 	}
 	return nil
 }

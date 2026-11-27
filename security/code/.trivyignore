@@ -1,4 +1,4 @@
-# Vulnerable code in trim is not used in Fleet
+# Vulnerable code in trim is not used in AutoMDM
 
 CVE-2020-7753
 

@@ -47,7 +47,7 @@ func NewRegistry() *Registry {
 
 // Register classifies a method and path. Paths are normalized on write the same way they are on Lookup. The route template
 // version segment is collapsed to "_version_". Regex constrained params (e.g. "{id:[0-9]+}") are stripped to "{id}". Callers
-// can therefore register in either the readable form ("/api/_version_/fleet/hosts/{id}") or the raw template form, and lookups
+// can therefore register in either the readable form ("/api/_version_/automdm/hosts/{id}") or the raw template form, and lookups
 // will still match. Both alternate path forms (e.g. "/api/v1/osquery/..." and "/api/osquery/...") still need separate
 // registrations.
 //
@@ -75,24 +75,24 @@ func (r *Registry) Lookup(spanName string) (Tier, bool) {
 	return t, ok
 }
 
-// versionTemplatePattern matches the version segment of a route template, where Fleet replaces /_version_/ with
-// /{fleetversion:(?:v1|2022-04|latest)}/ at registration time. We normalize it back to /_version_/ so the registry stays
+// versionTemplatePattern matches the version segment of a route template, where AutoMDM replaces /_version_/ with
+// /{automdmversion:(?:v1|2022-04|latest)}/ at registration time. We normalize it back to /_version_/ so the registry stays
 // decoupled from the configured version list.
-var versionTemplatePattern = regexp.MustCompile(`\{fleetversion:[^}]*\}`)
+var versionTemplatePattern = regexp.MustCompile(`\{automdmversion:[^}]*\}`)
 
 // muxParamRegexPattern strips regex constraints from route template path params. For example {id:[0-9]+} becomes {id}, and
-// {fleet_id:[0-9]+} becomes {fleet_id}. Fleet uses this style extensively, and the route tier policy in
+// {team_id:[0-9]+} becomes {team_id}. AutoMDM uses this style extensively, and the route tier policy in
 // server/service/tracing_tiers.go registers the simpler {id} form. Without this normalization, spans whose mux template
 // includes the regex would miss the registry and silently fall to TierAlways at 100% sampling.
 var muxParamRegexPattern = regexp.MustCompile(`\{([a-zA-Z0-9_]+):[^}]+\}`)
 
 // CleanRouteTemplate rewrites a route template, or a span name built from one, into the readable form used for
-// span names and the http.route attribute: "/api/{fleetversion:(?:v1|2022-04|latest)}/fleet/hosts/{id:[0-9]+}" becomes
-// "/api/_version_/fleet/hosts/{id}".
+// span names and the http.route attribute: "/api/{automdmversion:(?:v1|2022-04|latest)}/automdm/hosts/{id:[0-9]+}" becomes
+// "/api/_version_/automdm/hosts/{id}".
 func CleanRouteTemplate(name string) string {
 	// Apply versionTemplatePattern first because it strips both the param name and the surrounding braces (replacing with
-	// `_version_`). muxParamRegexPattern preserves the braces. Running it first would turn {fleetversion:...} into
-	// {fleetversion}, which would then no longer match versionTemplatePattern.
+	// `_version_`). muxParamRegexPattern preserves the braces. Running it first would turn {automdmversion:...} into
+	// {automdmversion}, which would then no longer match versionTemplatePattern.
 	name = versionTemplatePattern.ReplaceAllString(name, "_version_")
 	name = muxParamRegexPattern.ReplaceAllString(name, "{$1}")
 	return name

@@ -16,7 +16,7 @@ endif
 REVISION = $(shell git rev-parse HEAD)
 REVSHORT = $(shell git rev-parse --short HEAD)
 USER = $(shell whoami)
-DOCKER_IMAGE_NAME = fleetdm/fleet
+DOCKER_IMAGE_NAME = automdm/automdm
 # The tool that was called on the command line (probably `make` or `fdm`).
 TOOL_CMD = "make"
 
@@ -33,14 +33,14 @@ ifneq ($(OS), Windows_NT)
 	endif
 
 	# The output binary name is different on Windows, so we're explicit here
-	OUTPUT = fleet
+	OUTPUT = automdm
 
 	# To populate version metadata, we use unix tools to get certain data
 	GOVERSION = $(shell go version | awk '{print $$3}')
 	NOW	= $(shell date +"%Y-%m-%d")
 else
 	# The output binary name is different on Windows, so we're explicit here
-	OUTPUT = fleet.exe
+	OUTPUT = automdm.exe
 
 	# To populate version metadata, we use windows tools to get the certain data
 	GOVERSION_CMD = "(go version).Split()[2]"
@@ -72,13 +72,13 @@ endif
 # -s and -w reduce binary size by stripping debug symbols.
 LDFLAGS_VERSION_RAW = \
 	-s -w \
-	-X github.com/fleetdm/fleet/v4/server/version.appName=${APP_NAME} \
-	-X github.com/fleetdm/fleet/v4/server/version.version=${VERSION} \
-	-X github.com/fleetdm/fleet/v4/server/version.branch=${BRANCH} \
-	-X github.com/fleetdm/fleet/v4/server/version.revision=${REVISION} \
-	-X github.com/fleetdm/fleet/v4/server/version.buildDate=${NOW} \
-	-X github.com/fleetdm/fleet/v4/server/version.buildUser=${USER} \
-	-X github.com/fleetdm/fleet/v4/server/version.goVersion=${GOVERSION}
+	-X github.com/anilyagiz/automdm/v4/server/version.appName=${APP_NAME} \
+	-X github.com/anilyagiz/automdm/v4/server/version.version=${VERSION} \
+	-X github.com/anilyagiz/automdm/v4/server/version.branch=${BRANCH} \
+	-X github.com/anilyagiz/automdm/v4/server/version.revision=${REVISION} \
+	-X github.com/anilyagiz/automdm/v4/server/version.buildDate=${NOW} \
+	-X github.com/anilyagiz/automdm/v4/server/version.buildUser=${USER} \
+	-X github.com/anilyagiz/automdm/v4/server/version.goVersion=${GOVERSION}
 LDFLAGS_VERSION = "${LDFLAGS_VERSION_RAW}"
 LDFLAGS_VERSION_STATIC = "${LDFLAGS_VERSION_RAW} -extldflags '-static'"
 
@@ -102,38 +102,38 @@ all: build
 	$(eval GOGC = off)
 	$(eval CGO_ENABLED = 0)
 
-.pre-fleet:
-	$(eval APP_NAME = fleet)
+.pre-automdm:
+	$(eval APP_NAME = automdm)
 
-.pre-fleetctl:
-	$(eval APP_NAME = fleetctl)
+.pre-automdmctl:
+	$(eval APP_NAME = automdmctl)
 
 # For the build target, decide which binaries to build.
 # Default to building both
-BINS_TO_BUILD = fleet fleetctl
+BINS_TO_BUILD = automdm automdmctl
 ifeq (build,$(filter build,$(MAKECMDGOALS)))
-	BINS_TO_BUILD = fleet fleetctl
-	ifeq ($(ARG1), fleet)
-		BINS_TO_BUILD = fleet
-	else ifeq ($(ARG1), fleetctl)
-		BINS_TO_BUILD = fleetctl
+	BINS_TO_BUILD = automdm automdmctl
+	ifeq ($(ARG1), automdm)
+		BINS_TO_BUILD = automdm
+	else ifeq ($(ARG1), automdmctl)
+		BINS_TO_BUILD = automdmctl
 	endif
 endif
 .help-short--build:
 	@echo "Build binaries"
 .help-long--build:
-	@echo "Builds the specified binaries (defaults to building fleet and fleetctl)"
+	@echo "Builds the specified binaries (defaults to building automdm and automdmctl)"
 .help-usage--build:
 	@echo "$(TOOL_CMD) build [binaries] [options]"
 .help-options--build:
 	@echo "GO_BUILD_RACE_ENABLED"
 	@echo "Turn on data race detection when building"
-	@echo "EXTRA_FLEETCTL_LDFLAGS=\"--flag1 --flag2...\""
-	@echo "Flags to provide to the Go linker when building fleetctl"
+	@echo "EXTRA_AUTOMDMCTL_LDFLAGS=\"--flag1 --flag2...\""
+	@echo "Flags to provide to the Go linker when building automdmctl"
 .help-extra--build:
 	@echo "AVAILABLE BINARIES:"
-	@echo "  fleet      Build the fleet binary"
-	@echo "  fleetctl   Build the fleetctl binary"
+	@echo "  automdm      Build the automdm binary"
+	@echo "  automdmctl   Build the automdmctl binary"
 build: $(BINS_TO_BUILD)
 
 .help-short--fdm:
@@ -151,12 +151,12 @@ dibble:
 	cd tools/dibble && go build -o dibble ./cmd/dibble
 
 .help-short--tidy-tool-modules:
-	@echo "Re-tidy tool modules that pin the parent fleet module (run after bumping the root go.mod)"
-# Tool modules under tools/ that pin the parent via `replace github.com/fleetdm/fleet/v4 => ../..`
+	@echo "Re-tidy tool modules that pin the parent automdm module (run after bumping the root go.mod)"
+# Tool modules under tools/ that pin the parent via `replace github.com/anilyagiz/automdm/v4 => ../..`
 # mirror the root module's transitive dependency graph, so a root go.mod/go.sum bump leaves their
 # go.mod/go.sum out of sync. This discovers those modules and re-tidies each one.
 tidy-tool-modules:
-	@mods=$$(grep -rlF --include=go.mod 'replace github.com/fleetdm/fleet/v4 =>' tools); \
+	@mods=$$(grep -rlF --include=go.mod 'replace github.com/anilyagiz/automdm/v4 =>' tools); \
 	for mod in $$mods; do \
 		dir=$$(dirname $$mod); \
 		echo "==> go mod tidy in $$dir"; \
@@ -164,13 +164,13 @@ tidy-tool-modules:
 	done
 
 .help-short--serve:
-	@echo "Start the fleet server"
+	@echo "Start the automdm server"
 .help-short--up:
-	@echo "Start the fleet server (alias for \`serve\`)"
+	@echo "Start the automdm server (alias for \`serve\`)"
 .help-long--serve: SERVE_CMD:=serve
 .help-long--up: SERVE_CMD:=up
 .help-long--serve .help-long--up:
-	@echo "Starts an instance of the Fleet web and API server."
+	@echo "Starts an instance of the AutoMDM web and API server."
 	@echo
 	@echo "  By default the server will listen on localhost:8080, in development mode with a premium license."
 	@echo "  If different options are used to start the server, the options will become 'sticky' and will be used the next time \`$(TOOL_CMD) $(SERVE_CMD)\` is called."
@@ -178,11 +178,11 @@ tidy-tool-modules:
 	@echo "  To see all available options, run \`$(TOOL_CMD) $(SERVE_CMD) --help\`"
 .help-options--serve .help-options--up:
 	@echo "HELP"
-	@echo "Show all options for the fleet serve command"
+	@echo "Show all options for the automdm serve command"
 	@echo "USE_IP"
 	@echo "Start the server on the IP address of the host machine"
 	@echo "NO_BUILD"
-	@echo "Don't build the fleet binary before starting the server"
+	@echo "Don't build the automdm binary before starting the server"
 	@echo "NO_SAVE"
 	@echo "Don't save the current arguments for the next invocation"
 	@echo "SHOW"
@@ -197,55 +197,55 @@ serve: EXTRA_CLI_ARGS := $(EXTRA_CLI_ARGS) --server_address=$(shell ipconfig get
 endif
 ifdef SHOW
 serve:
-	@SAVED_ARGS=$$(cat ~/.fleet/last-serve-invocation); \
+	@SAVED_ARGS=$$(cat ~/.automdm/last-serve-invocation); \
 	if [[ $$? -eq 0 ]]; then \
 		echo "$$SAVED_ARGS"; \
 	fi
 else ifdef HELP
 serve:
-	@./build/fleet serve --help
+	@./build/automdm serve --help
 else ifdef RESET
 serve:
-	@touch ~/.fleet/last-serve-invocation && rm ~/.fleet/last-serve-invocation
+	@touch ~/.automdm/last-serve-invocation && rm ~/.automdm/last-serve-invocation
 else
 serve:
-	@if [[ "$(NO_BUILD)" != "true" ]]; then make fleet; fi
+	@if [[ "$(NO_BUILD)" != "true" ]]; then make automdm; fi
 	$(call filter_args)
-	@mkdir -p ~/.fleet
+	@mkdir -p ~/.automdm
 # If FORWARDED_ARGS is not empty, run the command with the forwarded arguments.
 # Unless NO_SAVE is set to true, save the command to the last invocation file.
 # IF FORWARDED_ARGS is empty, attempt to repeat the last invocation.
 	@if [[ "$(FORWARDED_ARGS)" != "" ]]; then \
 		if [[ "$(NO_SAVE)" != "true" ]]; then \
-			echo "./build/fleet serve $(FORWARDED_ARGS)" > ~/.fleet/last-serve-invocation; \
+			echo "./build/automdm serve $(FORWARDED_ARGS)" > ~/.automdm/last-serve-invocation; \
 		fi; \
-		./build/fleet serve $(FORWARDED_ARGS); \
+		./build/automdm serve $(FORWARDED_ARGS); \
 	else \
-		if ! [[ -f ~/.fleet/last-serve-invocation ]]; then \
-			echo "./build/fleet serve --server_address=localhost:8080 --dev --dev_license" > ~/.fleet/last-serve-invocation; \
+		if ! [[ -f ~/.automdm/last-serve-invocation ]]; then \
+			echo "./build/automdm serve --server_address=localhost:8080 --dev --dev_license" > ~/.automdm/last-serve-invocation; \
 		fi; \
-		cat ~/.fleet/last-serve-invocation; \
-		$$(cat ~/.fleet/last-serve-invocation); \
+		cat ~/.automdm/last-serve-invocation; \
+		$$(cat ~/.automdm/last-serve-invocation); \
 	fi
 endif
 
-fleet: .prefix .pre-build .pre-fleet
-	CGO_ENABLED=1 go build -race=${GO_BUILD_RACE_ENABLED_VAR} -tags full,fts5,netgo -o build/${OUTPUT} -ldflags ${LDFLAGS_VERSION} ./cmd/fleet
+automdm: .prefix .pre-build .pre-automdm
+	CGO_ENABLED=1 go build -race=${GO_BUILD_RACE_ENABLED_VAR} -tags full,fts5,netgo -o build/${OUTPUT} -ldflags ${LDFLAGS_VERSION} ./cmd/automdm
 
-fleet-static: .prefix .pre-build .pre-fleet
-	CGO_ENABLED=1 go build -tags full,fts5,netgo -trimpath -o build/${OUTPUT} -ldflags ${LDFLAGS_VERSION_STATIC} ./cmd/fleet
+automdm-static: .prefix .pre-build .pre-automdm
+	CGO_ENABLED=1 go build -tags full,fts5,netgo -trimpath -o build/${OUTPUT} -ldflags ${LDFLAGS_VERSION_STATIC} ./cmd/automdm
 
-fleet-dev: GO_BUILD_RACE_ENABLED_VAR=true
-fleet-dev: fleet
+automdm-dev: GO_BUILD_RACE_ENABLED_VAR=true
+automdm-dev: automdm
 
-fleetctl: .prefix .pre-build .pre-fleetctl
+automdmctl: .prefix .pre-build .pre-automdmctl
 	# Race requires cgo
 	$(eval CGO_ENABLED := $(shell [[ "${GO_BUILD_RACE_ENABLED_VAR}" = "true" ]] && echo 1 || echo 0))
-	$(eval FLEETCTL_LDFLAGS := $(shell echo "${LDFLAGS_VERSION} ${EXTRA_FLEETCTL_LDFLAGS}"))
-	CGO_ENABLED=${CGO_ENABLED} go build -race=${GO_BUILD_RACE_ENABLED_VAR} -o build/fleetctl -ldflags="${FLEETCTL_LDFLAGS}" ./cmd/fleetctl
+	$(eval AUTOMDMCTL_LDFLAGS := $(shell echo "${LDFLAGS_VERSION} ${EXTRA_AUTOMDMCTL_LDFLAGS}"))
+	CGO_ENABLED=${CGO_ENABLED} go build -race=${GO_BUILD_RACE_ENABLED_VAR} -o build/automdmctl -ldflags="${AUTOMDMCTL_LDFLAGS}" ./cmd/automdmctl
 
-fleetctl-dev: GO_BUILD_RACE_ENABLED_VAR=true
-fleetctl-dev: fleetctl
+automdmctl-dev: GO_BUILD_RACE_ENABLED_VAR=true
+automdmctl-dev: automdmctl
 
 .help-short--lint-js:
 	@echo "Run the JavaScript linters"
@@ -262,7 +262,7 @@ ifndef SKIP_INCREMENTAL
 endif
 
 .help-short--check-no-testing-in-prod:
-	@echo "Fail if any Fleet-owned package reachable from cmd/fleet, cmd/fleetctl, or orbit/cmd/orbit imports \"testing\". See https://github.com/fleetdm/fleet/issues/45220."
+	@echo "Fail if any AutoMDM-owned package reachable from cmd/automdm, cmd/automdmctl, or orbit/cmd/orbit imports \"testing\". See https://github.com/fleetdm/fleet/issues/45220."
 check-no-testing-in-prod:
 	go run ./tools/check-no-testing-in-prod
 
@@ -311,9 +311,9 @@ dump-test-schema: test-schema
 # GO_TEST_EXTRA_FLAGS: Used to specify other arguments to `go test`.
 # GO_TEST_MAKE_FLAGS: Internal var used by other targets to add arguments to `go test`.
 PKG_TO_TEST := ""
-COVER_PKG ?= github.com/fleetdm/fleet/v4/...
+COVER_PKG ?= github.com/anilyagiz/automdm/v4/...
 go_test_pkg_to_test := $(addprefix ./,$(PKG_TO_TEST)) # set paths for packages to test
-dlv_test_pkg_to_test := $(addprefix github.com/fleetdm/fleet/v4/,$(PKG_TO_TEST)) # set URIs for packages to debug
+dlv_test_pkg_to_test := $(addprefix github.com/anilyagiz/automdm/v4/,$(PKG_TO_TEST)) # set URIs for packages to debug
 .run-go-tests:
 ifeq ($(PKG_TO_TEST), "")
 		@echo "Please specify one or more packages to test. See '$(TOOL_CMD) help run-go-tests' for more info.";
@@ -376,14 +376,14 @@ FAST_PKGS_TO_TEST := \
 	./orbit/pkg/cryptoinfo \
 	./orbit/pkg/dataflatten \
 	./orbit/pkg/keystore \
-	./server/fleetmcp \
+	./server/automdmmcp \
 	./server/goose \
 	./server/mdm/apple/appmanifest \
 	./server/mdm/lifecycle \
 	./server/mdm/scep/challenge \
 	./server/mdm/scep/x509util \
 	./server/policies
-FLEETCTL_PKGS_TO_TEST := ./cmd/fleetctl/...
+AUTOMDMCTL_PKGS_TO_TEST := ./cmd/automdmctl/...
 MYSQL_PKGS_TO_TEST := ./server/datastore/mysql/...
 SCRIPTS_PKGS_TO_TEST := ./orbit/pkg/scripts
 SERVICE_PKGS_TO_TEST := ./server/service
@@ -393,17 +393,17 @@ ifeq ($(CI_TEST_PKG), main)
     # This is the bucket of all the tests that are not in a specific group. We take a diff between DEFAULT_PKG_TO_TEST and all the specific *_PKGS_TO_TEST.
 	CI_PKG_TO_TEST=$(shell /bin/bash -c "comm -23 <(go list ${DEFAULT_PKGS_TO_TEST} | sort) <({ \
 	go list $(FAST_PKGS_TO_TEST) && \
-	go list $(FLEETCTL_PKGS_TO_TEST) && \
+	go list $(AUTOMDMCTL_PKGS_TO_TEST) && \
 	go list $(MYSQL_PKGS_TO_TEST) && \
 	go list $(SCRIPTS_PKGS_TO_TEST) && \
 	go list $(SERVICE_PKGS_TO_TEST) && \
 	go list $(VULN_PKGS_TO_TEST) && \
 	go list $(ACTIVITY_PKGS_TO_TEST) \
-	;} | sort) | sed -e 's|github.com/fleetdm/fleet/v4/||g'")
+	;} | sort) | sed -e 's|github.com/anilyagiz/automdm/v4/||g'")
 else ifeq ($(CI_TEST_PKG), fast)
 	CI_PKG_TO_TEST=$(FAST_PKGS_TO_TEST)
-else ifeq ($(CI_TEST_PKG), fleetctl)
-	CI_PKG_TO_TEST=$(FLEETCTL_PKGS_TO_TEST)
+else ifeq ($(CI_TEST_PKG), automdmctl)
+	CI_PKG_TO_TEST=$(AUTOMDMCTL_PKGS_TO_TEST)
 else ifeq ($(CI_TEST_PKG), mysql)
 	CI_PKG_TO_TEST=$(MYSQL_PKGS_TO_TEST)
 else ifeq ($(CI_TEST_PKG), scripts)
@@ -431,7 +431,7 @@ endif
 	@echo "  service"
 	@echo "  scripts"
 	@echo "  mysql"
-	@echo "  fleetctl"
+	@echo "  automdmctl"
 	@echo "  vuln"
 	@echo "  activity"
 	@echo "  main        (all tests not included in other bundles)"
@@ -493,14 +493,14 @@ generate-dev: .prefix generate-osquery-sql-parser
 .help-short--mock:
 	@echo "Update mock data store"
 mock: .prefix
-	go generate github.com/fleetdm/fleet/v4/server/mock github.com/fleetdm/fleet/v4/server/mock/mockresult github.com/fleetdm/fleet/v4/server/service/mock github.com/fleetdm/fleet/v4/server/mdm/android/mock
+	go generate github.com/anilyagiz/automdm/v4/server/mock github.com/anilyagiz/automdm/v4/server/mock/mockresult github.com/anilyagiz/automdm/v4/server/service/mock github.com/anilyagiz/automdm/v4/server/mdm/android/mock
 generate-mock: mock
 
 .help-short--doc:
 	@echo "Generate updated API documentation for activities, osquery flags"
 doc: .prefix
-	go generate github.com/fleetdm/fleet/v4/server/fleet
-	go generate github.com/fleetdm/fleet/v4/server/service/osquery_utils
+	go generate github.com/anilyagiz/automdm/v4/server/automdm
+	go generate github.com/anilyagiz/automdm/v4/server/service/osquery_utils
 
 generate-doc: doc
 
@@ -538,8 +538,8 @@ clean: clean-assets
 clean-assets:
 	git clean -fqx assets
 
-fleetctl-docker: xp-fleetctl
-	docker build -t fleetdm/fleetctl --platform=linux/amd64 -f tools/fleetctl-docker/Dockerfile .
+automdmctl-docker: xp-automdmctl
+	docker build -t automdm/automdmctl --platform=linux/amd64 -f tools/automdmctl-docker/Dockerfile .
 
 wix-docker:
 	cd tools/wix-docker && docker build -t fleetdm/wix --platform=linux/amd64 -f Dockerfile .
@@ -549,42 +549,42 @@ wix-docker:
 	mkdir -p build/binary-bundle/linux
 	mkdir -p build/binary-bundle/darwin
 
-xp-fleet: .pre-binary-bundle .pre-fleet generate
-	CGO_ENABLED=1 GOOS=linux go build -tags full,fts5,netgo -trimpath -o build/binary-bundle/linux/fleet -ldflags ${LDFLAGS_VERSION} ./cmd/fleet
-	CGO_ENABLED=1 GOOS=darwin go build -tags full,fts5,netgo -trimpath -o build/binary-bundle/darwin/fleet -ldflags ${LDFLAGS_VERSION} ./cmd/fleet
-	CGO_ENABLED=1 GOOS=windows go build -tags full,fts5,netgo -trimpath -o build/binary-bundle/windows/fleet.exe -ldflags ${LDFLAGS_VERSION} ./cmd/fleet
+xp-automdm: .pre-binary-bundle .pre-automdm generate
+	CGO_ENABLED=1 GOOS=linux go build -tags full,fts5,netgo -trimpath -o build/binary-bundle/linux/automdm -ldflags ${LDFLAGS_VERSION} ./cmd/automdm
+	CGO_ENABLED=1 GOOS=darwin go build -tags full,fts5,netgo -trimpath -o build/binary-bundle/darwin/automdm -ldflags ${LDFLAGS_VERSION} ./cmd/automdm
+	CGO_ENABLED=1 GOOS=windows go build -tags full,fts5,netgo -trimpath -o build/binary-bundle/windows/automdm.exe -ldflags ${LDFLAGS_VERSION} ./cmd/automdm
 
-xp-fleetctl: .pre-binary-bundle .pre-fleetctl generate-go
-	CGO_ENABLED=0 GOOS=linux go build -trimpath -o build/binary-bundle/linux/fleetctl -ldflags ${LDFLAGS_VERSION} ./cmd/fleetctl
-	CGO_ENABLED=0 GOOS=darwin go build -trimpath -o build/binary-bundle/darwin/fleetctl -ldflags ${LDFLAGS_VERSION} ./cmd/fleetctl
-	CGO_ENABLED=0 GOOS=windows go build -trimpath -o build/binary-bundle/windows/fleetctl.exe -ldflags ${LDFLAGS_VERSION} ./cmd/fleetctl
+xp-automdmctl: .pre-binary-bundle .pre-automdmctl generate-go
+	CGO_ENABLED=0 GOOS=linux go build -trimpath -o build/binary-bundle/linux/automdmctl -ldflags ${LDFLAGS_VERSION} ./cmd/automdmctl
+	CGO_ENABLED=0 GOOS=darwin go build -trimpath -o build/binary-bundle/darwin/automdmctl -ldflags ${LDFLAGS_VERSION} ./cmd/automdmctl
+	CGO_ENABLED=0 GOOS=windows go build -trimpath -o build/binary-bundle/windows/automdmctl.exe -ldflags ${LDFLAGS_VERSION} ./cmd/automdmctl
 
-binary-bundle: xp-fleet xp-fleetctl
-	cd build/binary-bundle && zip -r fleet.zip darwin/ linux/ windows/
-	cd build/binary-bundle && mkdir fleetctl-macos && cp darwin/fleetctl fleetctl-macos && tar -czf fleetctl-macos.tar.gz fleetctl-macos
-	cd build/binary-bundle && mkdir fleetctl-linux && cp linux/fleetctl fleetctl-linux && tar -czf fleetctl-linux.tar.gz fleetctl-linux
-	cd build/binary-bundle && mkdir fleetctl-windows && cp windows/fleetctl.exe fleetctl-windows && tar -czf fleetctl-windows.tar.gz fleetctl-windows
-	cd build/binary-bundle && cp windows/fleetctl.exe . && zip fleetctl.exe.zip fleetctl.exe
-	cd build/binary-bundle && shasum -a 256 fleet.zip fleetctl.exe.zip fleetctl-macos.tar.gz fleetctl-windows.tar.gz fleetctl-linux.tar.gz
+binary-bundle: xp-automdm xp-automdmctl
+	cd build/binary-bundle && zip -r automdm.zip darwin/ linux/ windows/
+	cd build/binary-bundle && mkdir automdmctl-macos && cp darwin/automdmctl automdmctl-macos && tar -czf automdmctl-macos.tar.gz automdmctl-macos
+	cd build/binary-bundle && mkdir automdmctl-linux && cp linux/automdmctl automdmctl-linux && tar -czf automdmctl-linux.tar.gz automdmctl-linux
+	cd build/binary-bundle && mkdir automdmctl-windows && cp windows/automdmctl.exe automdmctl-windows && tar -czf automdmctl-windows.tar.gz automdmctl-windows
+	cd build/binary-bundle && cp windows/automdmctl.exe . && zip automdmctl.exe.zip automdmctl.exe
+	cd build/binary-bundle && shasum -a 256 automdm.zip automdmctl.exe.zip automdmctl-macos.tar.gz automdmctl-windows.tar.gz automdmctl-linux.tar.gz
 
-# Build orbit/fleetd fleetd_tables extension
-fleetd-tables-windows:
-	GOOS=windows GOARCH=amd64 go build -o fleetd_tables_windows.exe ./orbit/cmd/fleetd_tables
-fleetd-tables-windows-arm64:
-	GOOS=windows GOARCH=arm64 go build -o fleetd_tables_windows_arm64.exe ./orbit/cmd/fleetd_tables
-fleetd-tables-linux:
-	GOOS=linux GOARCH=amd64 go build -o fleetd_tables_linux.ext ./orbit/cmd/fleetd_tables
-fleetd-tables-linux-arm64:
-	GOOS=linux GOARCH=arm64 go build -o fleetd_tables_linux_arm64.ext ./orbit/cmd/fleetd_tables
-fleetd-tables-darwin:
-	GOOS=darwin GOARCH=amd64 go build -o fleetd_tables_darwin.ext ./orbit/cmd/fleetd_tables
-fleetd-tables-darwin_arm64:
-	GOOS=darwin GOARCH=arm64 CGO_ENABLED=1 go build -o fleetd_tables_darwin_arm64.ext ./orbit/cmd/fleetd_tables
-fleetd-tables-darwin-universal: fleetd-tables-darwin fleetd-tables-darwin_arm64
-	lipo -create fleetd_tables_darwin.ext fleetd_tables_darwin_arm64.ext -output fleetd_tables_darwin_universal.ext
-fleetd-tables-all: fleetd-tables-windows fleetd-tables-linux fleetd-tables-darwin-universal fleetd-tables-linux-arm64 fleetd-tables-windows-arm64
-fleetd-tables-clean:
-	rm -f fleetd_tables_windows.exe fleetd_tables_linux.ext fleetd_tables_linux_arm64.ext fleetd_tables_darwin.ext fleetd_tables_darwin_arm64.ext fleetd_tables_darwin_universal.ext
+# Build orbit/automdmd automdmd_tables extension
+automdmd-tables-windows:
+	GOOS=windows GOARCH=amd64 go build -o automdmd_tables_windows.exe ./orbit/cmd/automdmd_tables
+automdmd-tables-windows-arm64:
+	GOOS=windows GOARCH=arm64 go build -o automdmd_tables_windows_arm64.exe ./orbit/cmd/automdmd_tables
+automdmd-tables-linux:
+	GOOS=linux GOARCH=amd64 go build -o automdmd_tables_linux.ext ./orbit/cmd/automdmd_tables
+automdmd-tables-linux-arm64:
+	GOOS=linux GOARCH=arm64 go build -o automdmd_tables_linux_arm64.ext ./orbit/cmd/automdmd_tables
+automdmd-tables-darwin:
+	GOOS=darwin GOARCH=amd64 go build -o automdmd_tables_darwin.ext ./orbit/cmd/automdmd_tables
+automdmd-tables-darwin_arm64:
+	GOOS=darwin GOARCH=arm64 CGO_ENABLED=1 go build -o automdmd_tables_darwin_arm64.ext ./orbit/cmd/automdmd_tables
+automdmd-tables-darwin-universal: automdmd-tables-darwin automdmd-tables-darwin_arm64
+	lipo -create automdmd_tables_darwin.ext automdmd_tables_darwin_arm64.ext -output automdmd_tables_darwin_universal.ext
+automdmd-tables-all: automdmd-tables-windows automdmd-tables-linux automdmd-tables-darwin-universal automdmd-tables-linux-arm64 automdmd-tables-windows-arm64
+automdmd-tables-clean:
+	rm -f automdmd_tables_windows.exe automdmd_tables_linux.ext automdmd_tables_linux_arm64.ext automdmd_tables_darwin.ext automdmd_tables_darwin_arm64.ext automdmd_tables_darwin_universal.ext
 
 .pre-binary-arch:
 ifndef GOOS
@@ -597,42 +597,42 @@ ifndef GOARCH
 endif
 
 
-binary-arch: .pre-binary-arch .pre-binary-bundle .pre-fleet
+binary-arch: .pre-binary-arch .pre-binary-bundle .pre-automdm
 	mkdir -p build/binary-bundle/${GOARCH}-${GOOS}
-	CGO_ENABLED=1 GOARCH=${GOARCH} GOOS=${GOOS} go build -tags full,fts5,netgo -o build/binary-bundle/${GOARCH}-${GOOS}/fleet -ldflags ${LDFLAGS_VERSION} ./cmd/fleet
-	CGO_ENABLED=0 GOARCH=${GOARCH} GOOS=${GOOS} go build -tags full,fts5,netgo -o build/binary-bundle/${GOARCH}-${GOOS}/fleetctl -ldflags ${LDFLAGS_VERSION} ./cmd/fleetctl
-	cd build/binary-bundle/${GOARCH}-${GOOS} && tar -czf fleetctl-${GOARCH}-${GOOS}.tar.gz fleetctl fleet
+	CGO_ENABLED=1 GOARCH=${GOARCH} GOOS=${GOOS} go build -tags full,fts5,netgo -o build/binary-bundle/${GOARCH}-${GOOS}/automdm -ldflags ${LDFLAGS_VERSION} ./cmd/automdm
+	CGO_ENABLED=0 GOARCH=${GOARCH} GOOS=${GOOS} go build -tags full,fts5,netgo -o build/binary-bundle/${GOARCH}-${GOOS}/automdmctl -ldflags ${LDFLAGS_VERSION} ./cmd/automdmctl
+	cd build/binary-bundle/${GOARCH}-${GOOS} && tar -czf automdmctl-${GOARCH}-${GOOS}.tar.gz automdmctl automdm
 
 
 # Drop, create, and migrate the e2e test database
 e2e-reset-db:
 	docker compose exec -T mysql_test bash -c 'echo "drop database if exists e2e; create database e2e;" | MYSQL_PWD=toor mysql -uroot'
-	./build/fleet prepare db --mysql_address=localhost:$${FLEET_MYSQL_TEST_PORT:-3307}  --mysql_username=root --mysql_password=toor --mysql_database=e2e
+	./build/automdm prepare db --mysql_address=localhost:$${AUTOMDM_MYSQL_TEST_PORT:-3307}  --mysql_username=root --mysql_password=toor --mysql_database=e2e
 
 e2e-setup:
-	./build/fleetctl config set --context e2e --address https://localhost:8642 --tls-skip-verify true
-	./build/fleetctl setup --context e2e --email=admin@example.com --password=password123# --org-name='Fleet Test' --name Admin
-	./build/fleetctl user create --context e2e --email=maintainer@example.com --name maintainer --password=password123# --global-role=maintainer
-	./build/fleetctl user create --context e2e --email=observer@example.com --name observer --password=password123# --global-role=observer
-	./build/fleetctl user create --context e2e --email=sso_user@example.com --name "SSO user" --sso=true
+	./build/automdmctl config set --context e2e --address https://localhost:8642 --tls-skip-verify true
+	./build/automdmctl setup --context e2e --email=admin@example.com --password=password123# --org-name='AutoMDM Test' --name Admin
+	./build/automdmctl user create --context e2e --email=maintainer@example.com --name maintainer --password=password123# --global-role=maintainer
+	./build/automdmctl user create --context e2e --email=observer@example.com --name observer --password=password123# --global-role=observer
+	./build/automdmctl user create --context e2e --email=sso_user@example.com --name "SSO user" --sso=true
 
 # Setup e2e test environment and pre-populate database with software and vulnerabilities fixtures.
 #
 # Use in lieu of `e2e-setup` for tests that depend on these fixtures
 e2e-setup-with-software:
 	curl 'https://localhost:8642/api/v1/setup' \
-		--data-raw '{"server_url":"https://localhost:8642","org_info":{"org_name":"Fleet Test"},"admin":{"admin":true,"email":"admin@example.com","name":"Admin","password":"password123#","password_confirmation":"password123#"}}' \
+		--data-raw '{"server_url":"https://localhost:8642","org_info":{"org_name":"AutoMDM Test"},"admin":{"admin":true,"email":"admin@example.com","name":"Admin","password":"password123#","password_confirmation":"password123#"}}' \
 		--compressed \
 		--insecure
 	./tools/backup_db/restore_e2e_software_test.sh
 
 e2e-serve-free: e2e-reset-db
-	./build/fleet serve --mysql_address=localhost:$${FLEET_MYSQL_TEST_PORT:-3307} --mysql_username=root --mysql_password=toor --mysql_database=e2e --server_address=0.0.0.0:8642
+	./build/automdm serve --mysql_address=localhost:$${AUTOMDM_MYSQL_TEST_PORT:-3307} --mysql_username=root --mysql_password=toor --mysql_database=e2e --server_address=0.0.0.0:8642
 
 e2e-serve-premium: e2e-reset-db
-	./build/fleet serve  --dev_license --mysql_address=localhost:$${FLEET_MYSQL_TEST_PORT:-3307} --mysql_username=root --mysql_password=toor --mysql_database=e2e --server_address=0.0.0.0:8642
+	./build/automdm serve  --dev_license --mysql_address=localhost:$${AUTOMDM_MYSQL_TEST_PORT:-3307} --mysql_username=root --mysql_password=toor --mysql_database=e2e --server_address=0.0.0.0:8642
 
-# Associate a host with a Fleet Desktop token.
+# Associate a host with an AutoMDM Desktop token.
 #
 # Usage:
 # make e2e-set-desktop-token host_id=1 token=foo
@@ -653,10 +653,10 @@ changelog-orbit:
 
 changelog-chrome:
 	$(eval TODAY_DATE := $(shell date "+%b %d, %Y"))
-	@echo -e "## fleetd-chrome $(version) ($(TODAY_DATE))\n" > new-CHANGELOG.md
-	sh -c "find ee/fleetd-chrome/changes -type file | grep -v .keep | xargs -I {} sh -c 'grep \"\S\" {}; echo' >> new-CHANGELOG.md"
-	sh -c "cat new-CHANGELOG.md ee/fleetd-chrome/CHANGELOG.md > tmp-CHANGELOG.md && rm new-CHANGELOG.md && mv tmp-CHANGELOG.md ee/fleetd-chrome/CHANGELOG.md"
-	sh -c "git rm ee/fleetd-chrome/changes/*"
+	@echo -e "## automdmd-chrome $(version) ($(TODAY_DATE))\n" > new-CHANGELOG.md
+	sh -c "find ee/automdmd-chrome/changes -type file | grep -v .keep | xargs -I {} sh -c 'grep \"\S\" {}; echo' >> new-CHANGELOG.md"
+	sh -c "cat new-CHANGELOG.md ee/automdmd-chrome/CHANGELOG.md > tmp-CHANGELOG.md && rm new-CHANGELOG.md && mv tmp-CHANGELOG.md ee/automdmd-chrome/CHANGELOG.md"
+	sh -c "git rm ee/automdmd-chrome/changes/*"
 
 changelog-android:
 	$(eval TODAY_DATE := $(shell date "+%b %d, %Y"))
@@ -666,17 +666,17 @@ changelog-android:
 	sh -c "cat new-CHANGELOG.md android/CHANGELOG.md > tmp-CHANGELOG.md && rm new-CHANGELOG.md && mv tmp-CHANGELOG.md android/CHANGELOG.md"
 	sh -c "find android/changes -type f ! -name .keep -exec git rm {} +"
 
-# Updates the documentation for the currently released versions of fleetd components in old Fleet's TUF (tuf.fleetctl.com).
-fleetd-old-tuf:
-	sh -c 'echo "<!-- DO NOT EDIT. This document is automatically generated by running \`make fleetd-old-tuf\`. -->\n# tuf.fleetctl.com\n\nFollowing are the currently deployed versions of fleetd components on the \`stable\` and \`edge\` channel.\n" > orbit/old-TUF.md'
+# Updates the documentation for the currently released versions of automdmd components in old AutoMDM's TUF (tuf.fleetctl.com).
+automdmd-old-tuf:
+	sh -c 'echo "<!-- DO NOT EDIT. This document is automatically generated by running \`make automdmd-old-tuf\`. -->\n# tuf.fleetctl.com\n\nFollowing are the currently deployed versions of automdmd components on the \`stable\` and \`edge\` channel.\n" > orbit/old-TUF.md'
 	sh -c 'echo "## \`stable\`\n" >> orbit/old-TUF.md'
 	sh -c 'go run tools/tuf/status/tuf-status.go channel-version -url https://tuf.fleetctl.com -channel stable -format markdown >> orbit/old-TUF.md'
 	sh -c 'echo "\n## \`edge\`\n" >> orbit/old-TUF.md'
 	sh -c 'go run tools/tuf/status/tuf-status.go channel-version -url https://tuf.fleetctl.com -channel edge -format markdown >> orbit/old-TUF.md'
 
-# Updates the documentation for the currently released versions of fleetd components in Fleet's TUF (updates.fleetdm.com).
-fleetd-tuf:
-	sh -c 'echo "<!-- DO NOT EDIT. This document is automatically generated by running \`make fleetd-tuf\`. -->\n# updates.fleetdm.com\n\nFollowing are the currently deployed versions of fleetd components on the \`stable\` and \`edge\` channel.\n" > orbit/TUF.md'
+# Updates the documentation for the currently released versions of automdmd components in AutoMDM's TUF (updates.fleetdm.com).
+automdmd-tuf:
+	sh -c 'echo "<!-- DO NOT EDIT. This document is automatically generated by running \`make automdmd-tuf\`. -->\n# updates.fleetdm.com\n\nFollowing are the currently deployed versions of automdmd components on the \`stable\` and \`edge\` channel.\n" > orbit/TUF.md'
 	sh -c 'echo "## \`stable\`\n" >> orbit/TUF.md'
 	sh -c 'go run tools/tuf/status/tuf-status.go channel-version -channel stable -format markdown >> orbit/TUF.md'
 	sh -c 'echo "\n## \`edge\`\n" >> orbit/TUF.md'
@@ -688,8 +688,8 @@ fleetd-tuf:
 
 # Reset the development DB
 db-reset:
-	docker compose exec -T mysql bash -c 'echo "drop database if exists fleet; create database fleet;" | MYSQL_PWD=toor mysql -uroot'
-	./build/fleet prepare db --dev
+	docker compose exec -T mysql bash -c 'echo "drop database if exists automdm; create database automdm;" | MYSQL_PWD=toor mysql -uroot'
+	./build/automdm prepare db --dev
 
 # Back up the development DB to file
 db-backup:
@@ -724,7 +724,7 @@ restore: $(SNAPSHOT_BINARY)
 	@$(SNAPSHOT_BINARY) restore
 	@if [[ "$(PREP)" == "true" || "$(PREPARE)" == "true" ]]; then \
 		echo "Running migrations..."; \
-		./build/fleet prepare db --dev; \
+		./build/automdm prepare db --dev; \
 	fi
 	@echo Done!
 
@@ -1003,7 +1003,7 @@ escrow-buddy-pkg:
 # Build and generate desktop.app.tar.gz bundle.
 #
 # Usage:
-# FLEET_DESKTOP_APPLE_AUTHORITY=foo FLEET_DESKTOP_VERSION=0.0.1 make desktop-app-tar-gz
+# AUTOMDM_DESKTOP_APPLE_AUTHORITY=foo AUTOMDM_DESKTOP_VERSION=0.0.1 make desktop-app-tar-gz
 #
 # Output: desktop.app.tar.gz
 desktop-app-tar-gz:
@@ -1013,7 +1013,7 @@ ifneq ($(shell uname), Darwin)
 endif
 	go run ./tools/desktop macos
 
-FLEET_DESKTOP_VERSION ?= unknown
+AUTOMDM_DESKTOP_VERSION ?= unknown
 
 # Build desktop executable for Windows.
 # This generates desktop executable for Windows that includes versioninfo binary properties
@@ -1022,11 +1022,11 @@ FLEET_DESKTOP_VERSION ?= unknown
 # To sign this binary with a certificate, use signtool.exe or osslsigncode tool
 #
 # Usage:
-# FLEET_DESKTOP_VERSION=0.0.1 make desktop-windows
+# AUTOMDM_DESKTOP_VERSION=0.0.1 make desktop-windows
 #
-# Output: fleet-desktop.exe
+# Output: automdm-desktop.exe
 desktop-windows:
-	go run ./orbit/tools/build/build-windows.go -version $(FLEET_DESKTOP_VERSION) -input ./orbit/cmd/desktop -output fleet-desktop.exe
+	go run ./orbit/tools/build/build-windows.go -version $(AUTOMDM_DESKTOP_VERSION) -input ./orbit/cmd/desktop -output automdm-desktop.exe
 
 # Build desktop executable for Windows.
 # This generates desktop executable for Windows that includes versioninfo binary properties
@@ -1035,11 +1035,11 @@ desktop-windows:
 # To sign this binary with a certificate, use signtool.exe or osslsigncode tool
 #
 # Usage:
-# FLEET_DESKTOP_VERSION=0.0.1 make desktop-windows-arm64
+# AUTOMDM_DESKTOP_VERSION=0.0.1 make desktop-windows-arm64
 #
-# Output: fleet-desktop.exe
+# Output: automdm-desktop.exe
 desktop-windows-arm64:
-	go run ./orbit/tools/build/build-windows.go -version $(FLEET_DESKTOP_VERSION) -input ./orbit/cmd/desktop -output fleet-desktop.exe -arch arm64
+	go run ./orbit/tools/build/build-windows.go -version $(AUTOMDM_DESKTOP_VERSION) -input ./orbit/cmd/desktop -output automdm-desktop.exe -arch arm64
 
 # Build desktop executable for Linux.
 #
@@ -1048,7 +1048,7 @@ desktop-windows-arm64:
 # host used to build it.
 #
 # Usage:
-# FLEET_DESKTOP_VERSION=0.0.1 make desktop-linux
+# AUTOMDM_DESKTOP_VERSION=0.0.1 make desktop-linux
 #
 # Output: desktop.tar.gz
 desktop-linux:
@@ -1057,17 +1057,17 @@ desktop-linux:
 # Build desktop executable for Linux ARM.
 #
 # Usage:
-# FLEET_DESKTOP_VERSION=0.0.1 make desktop-linux-arm64
+# AUTOMDM_DESKTOP_VERSION=0.0.1 make desktop-linux-arm64
 #
 # Output: desktop.tar.gz
 desktop-linux-arm64:
 	$(call build-desktop-linux,arm64)
 
 define build-desktop-linux
-	rm -rf fleet-desktop && mkdir -p fleet-desktop
-	CGO_ENABLED=0 GOOS=linux GOARCH=$(1) go build -trimpath -o fleet-desktop/fleet-desktop -ldflags "-s -w -X=main.version=$(FLEET_DESKTOP_VERSION)" ./orbit/cmd/desktop
-	tar czf desktop.tar.gz fleet-desktop
-	rm -r fleet-desktop
+	rm -rf automdm-desktop && mkdir -p automdm-desktop
+	CGO_ENABLED=0 GOOS=linux GOARCH=$(1) go build -trimpath -o automdm-desktop/automdm-desktop -ldflags "-s -w -X=main.version=$(AUTOMDM_DESKTOP_VERSION)" ./orbit/cmd/desktop
+	tar czf desktop.tar.gz automdm-desktop
+	rm -r automdm-desktop
 endef
 
 # Build orbit executable for Windows.
@@ -1109,25 +1109,25 @@ db-replica-setup:
 	$(eval MAIN_POSITION := $(shell MYSQL_PWD=toor mysql --host 127.0.0.1 --port 3308 -uroot --vertical -e 'show master status' | grep Position | grep -o '[0-9]*'))
 	$(eval MAIN_FILE := $(shell MYSQL_PWD=toor mysql --host 127.0.0.1 --port 3308 -uroot --vertical -e 'show master status' | grep File | sed -n -e 's/^.*: //p'))
 	MYSQL_PWD=toor mysql --host 127.0.0.1 --port 3309 -uroot -AN -e "change master to master_port=3306,master_host='mysql_main',master_user='$(MYSQL_REPLICATION_USER)',master_password='$(MYSQL_REPLICATION_PASSWORD)',master_log_file='$(MAIN_FILE)',master_log_pos=$(MAIN_POSITION);"
-	if [ "${FLEET_MYSQL_IMAGE}" == "mysql:8.0" ]; then MYSQL_PWD=toor mysql --host 127.0.0.1 --port 3309 -uroot -AN -e "change master to get_master_public_key=1;"; fi
+	if [ "${AUTOMDM_MYSQL_IMAGE}" == "mysql:8.0" ]; then MYSQL_PWD=toor mysql --host 127.0.0.1 --port 3309 -uroot -AN -e "change master to get_master_public_key=1;"; fi
 	MYSQL_PWD=toor mysql --host 127.0.0.1 --port 3309 -uroot -AN -e "change master to master_delay=1;"
 	MYSQL_PWD=toor mysql --host 127.0.0.1 --port 3309 -uroot -AN -e "start slave;"
 
 # db-replica-reset resets the main MySQL instance.
-db-replica-reset: fleet
-	MYSQL_PWD=toor mysql --host 127.0.0.1 --port 3308 -uroot -e "drop database if exists fleet; create database fleet;"
-	FLEET_MYSQL_ADDRESS=127.0.0.1:3308 ./build/fleet prepare db --dev
+db-replica-reset: automdm
+	MYSQL_PWD=toor mysql --host 127.0.0.1 --port 3308 -uroot -e "drop database if exists automdm; create database automdm;"
+	AUTOMDM_MYSQL_ADDRESS=127.0.0.1:3308 ./build/automdm prepare db --dev
 
-# db-replica-run runs fleet serve with one main and one read MySQL instance.
-db-replica-run: fleet
-	FLEET_MYSQL_ADDRESS=127.0.0.1:3308 FLEET_MYSQL_READ_REPLICA_ADDRESS=127.0.0.1:3309 FLEET_MYSQL_READ_REPLICA_USERNAME=fleet FLEET_MYSQL_READ_REPLICA_DATABASE=fleet FLEET_MYSQL_READ_REPLICA_PASSWORD=insecure ./build/fleet serve --dev --dev_license
+# db-replica-run runs automdm serve with one main and one read MySQL instance.
+db-replica-run: automdm
+	AUTOMDM_MYSQL_ADDRESS=127.0.0.1:3308 AUTOMDM_MYSQL_READ_REPLICA_ADDRESS=127.0.0.1:3309 AUTOMDM_MYSQL_READ_REPLICA_USERNAME=automdm AUTOMDM_MYSQL_READ_REPLICA_DATABASE=automdm AUTOMDM_MYSQL_READ_REPLICA_PASSWORD=insecure ./build/automdm serve --dev --dev_license
 
 vex-report:
-	sh -c 'echo "<!-- DO NOT EDIT. This document is automatically generated by running \`make vex-report\`. -->\n# Vulnerability Report\n\nFollowing is the vulnerability report of Fleet and its dependencies.\n" > security/status.md'
-	sh -c 'echo "## \`fleetdm/fleet\` docker image\n" >> security/status.md'
-	sh -c 'go run ./tools/vex-parser ./security/vex/fleet >> security/status.md'
-	sh -c 'echo "## \`fleetdm/fleetctl\` docker image\n" >> security/status.md'
-	sh -c 'go run ./tools/vex-parser ./security/vex/fleetctl >> security/status.md'
+	sh -c 'echo "<!-- DO NOT EDIT. This document is automatically generated by running \`make vex-report\`. -->\n# Vulnerability Report\n\nFollowing is the vulnerability report of AutoMDM and its dependencies.\n" > security/status.md'
+	sh -c 'echo "## \`automdm/automdm\` docker image\n" >> security/status.md'
+	sh -c 'go run ./tools/vex-parser ./security/vex/automdm >> security/status.md'
+	sh -c 'echo "## \`automdm/automdmctl\` docker image\n" >> security/status.md'
+	sh -c 'go run ./tools/vex-parser ./security/vex/automdmctl >> security/status.md'
 	sh -c 'echo "## \`fleetdm/wix\` docker image\n" >> security/status.md'
 	sh -c 'go run ./tools/vex-parser ./security/vex/wix >> security/status.md'
 

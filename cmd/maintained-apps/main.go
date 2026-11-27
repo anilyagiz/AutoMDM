@@ -13,11 +13,11 @@ import (
 	"slices"
 	"strings"
 
-	maintained_apps "github.com/fleetdm/fleet/v4/ee/maintained-apps"
-	"github.com/fleetdm/fleet/v4/ee/maintained-apps/ingesters/homebrew"
-	"github.com/fleetdm/fleet/v4/ee/maintained-apps/ingesters/winget"
-	"github.com/fleetdm/fleet/v4/pkg/file"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
+	maintained_apps "github.com/anilyagiz/automdm/v4/ee/maintained-apps"
+	"github.com/anilyagiz/automdm/v4/ee/maintained-apps/ingesters/homebrew"
+	"github.com/anilyagiz/automdm/v4/ee/maintained-apps/ingesters/winget"
+	"github.com/anilyagiz/automdm/v4/pkg/file"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 )
 
 func main() {
@@ -168,7 +168,7 @@ func updateAppsListFile(ctx context.Context, outApp *maintained_apps.FMAManifest
 			continue
 		}
 
-		// The Fleet-maintained apps list combines apps by name, so names must be unique per platform.
+		// The AutoMDM-maintained apps list combines apps by name, so names must be unique per platform.
 		// The table compares names with utf8mb4_unicode_ci, but EqualFold is close enough for this check.
 		if a.Platform == platform && strings.EqualFold(platformNameSuffix.ReplaceAllString(a.Name, ""), platformNameSuffix.ReplaceAllString(outApp.Name, "")) {
 			existingSlugWithSameName = a.Slug

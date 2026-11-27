@@ -1,22 +1,22 @@
-import { toFleetRoles } from "./users";
+import { toTeamRoles } from "./users";
 
-describe("toFleetRoles", () => {
-  it("keeps only the id and role of each fleet", () => {
-    const fleets = [
+describe("toTeamRoles", () => {
+  it("keeps only the id and role of each team", () => {
+    const teams = [
       {
         id: 3,
         role: "admin",
-        name: "Fleet A",
+        name: "AutoMDM A",
         mdm: {
           windows_settings: { configuration_profiles: [] },
         },
       },
     ];
 
-    expect(toFleetRoles(fleets)).toEqual([{ id: 3, role: "admin" }]);
+    expect(toTeamRoles(teams)).toEqual([{ id: 3, role: "admin" }]);
   });
 
-  it("returns undefined when there are no fleets", () => {
-    expect(toFleetRoles(undefined)).toBeUndefined();
+  it("returns undefined when there are no teams", () => {
+    expect(toTeamRoles(undefined)).toBeUndefined();
   });
 });

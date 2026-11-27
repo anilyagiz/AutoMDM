@@ -63,7 +63,7 @@ const RenewCertModal = ({
         <>
           Couldn&apos;t download. Please configure a private key.{" "}
           <CustomLink
-            url="https://fleetdm.com/learn-more-about/fleet-server-private-key"
+            url="https://automdm.com/learn-more-about/automdm-server-private-key"
             text="Learn how"
             newTab
             variant="flash-message-link"
@@ -84,7 +84,7 @@ const RenewCertModal = ({
         <p>
           Follow the step-by-step guide to renew.{" "}
           <CustomLink
-            url="https://fleetdm.com/learn-more-about/renew-apns"
+            url="https://automdm.com/learn-more-about/renew-apns"
             text="Learn how"
             newTab
           />

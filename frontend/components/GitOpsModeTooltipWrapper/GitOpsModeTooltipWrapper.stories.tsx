@@ -16,7 +16,7 @@ const withGitOpsMode = (Story: React.ComponentType) => (
       config: createMockConfig({
         gitops: {
           gitops_mode_enabled: true,
-          repository_url: "https://github.com/example/fleet-config",
+          repository_url: "https://github.com/example/automdm-config",
           exceptions: { labels: false, software: false, secrets: true },
         },
       }),

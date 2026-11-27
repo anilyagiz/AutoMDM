@@ -22,14 +22,14 @@ type Service interface {
 	// UnenrollAndroidHost triggers unenrollment (work profile removal) for the given Android host ID.
 	UnenrollAndroidHost(ctx context.Context, hostID uint) error
 
-	// LockAndroidHost issues an AMAPI RESET_PASSWORD command with a Fleet-generated password and the LOCK_NOW flag,
+	// LockAndroidHost issues an AMAPI RESET_PASSWORD command with an AutoMDM-generated password and the LOCK_NOW flag,
 	// persists the row in mdm_android_commands (status=pending, without newPassword), and writes
 	// host_mdm_actions.lock_ref and unlock_pin. Returns the generated password.
 	LockAndroidHost(ctx context.Context, hostID uint) (unlockPIN string, err error)
 
 	// ClearAndroidPasscode issues an AMAPI RESET_PASSWORD command with newPassword="". The work-profile (BYO)
 	// or device (COBO) passcode is cleared, not regenerated. Persists the row in mdm_android_commands but does NOT touch
-	// host_mdm_actions (clear passcode is a one-shot action with no UI lock/wipe state). Returns the Fleet-generated
+	// host_mdm_actions (clear passcode is a one-shot action with no UI lock/wipe state). Returns the AutoMDM-generated
 	// command_uuid so callers can correlate the API response with the persisted row via GetMDMAndroidCommandByUUID.
 	ClearAndroidPasscode(ctx context.Context, hostID uint) (commandUUID string, err error)
 
@@ -52,27 +52,27 @@ type Service interface {
 	// Note that unlike AddAppsToAndroidPolicy, this method replaces the existing app list with the given one, it is
 	// not additive/PATCH semantics.
 	SetAppsForAndroidPolicy(ctx context.Context, enterpriseName string, appPolicies []*androidmanagement.ApplicationPolicy, hostUUIDs map[string]string) (map[string]*MDMAndroidPolicyRequest, error)
-	AddFleetAgentToAndroidPolicy(ctx context.Context, enterpriseName string, hostConfigs map[string]AgentManagedConfiguration) error
-	BuildFleetAgentApplicationPolicy(ctx context.Context, hostUUID string) (*androidmanagement.ApplicationPolicy, error)
-	// BuildAndSendFleetAgentConfig builds the complete AgentManagedConfiguration for the given hosts
+	AddAutoMDMAgentToAndroidPolicy(ctx context.Context, enterpriseName string, hostConfigs map[string]AgentManagedConfiguration) error
+	BuildAutoMDMAgentApplicationPolicy(ctx context.Context, hostUUID string) (*androidmanagement.ApplicationPolicy, error)
+	// BuildAndSendAutoMDMAgentConfig builds the complete AgentManagedConfiguration for the given hosts
 	// (including certificate templates) and sends it to the Android Management API.
 	// This is the centralized function that should be used by all callers to avoid race conditions.
 	// If skipHostsWithoutNewCerts is true, hosts that don't have new certificate templates to deliver
 	// will be skipped.
-	BuildAndSendFleetAgentConfig(ctx context.Context, enterpriseName string, hostUUIDs []string, skipHostsWithoutNewCerts bool) error
-	// SendFleetAgentConfig builds and sends the host's Fleet agent configuration, returning the error when sending it fails.
-	SendFleetAgentConfig(ctx context.Context, enterpriseName string, hostUUID string) error
+	BuildAndSendAutoMDMAgentConfig(ctx context.Context, enterpriseName string, hostUUIDs []string, skipHostsWithoutNewCerts bool) error
+	// SendAutoMDMAgentConfig builds and sends the host's AutoMDM agent configuration, returning the error when sending it fails.
+	SendAutoMDMAgentConfig(ctx context.Context, enterpriseName string, hostUUID string) error
 	EnableAppReportsOnDefaultPolicy(ctx context.Context) error
 	MigrateToPerDevicePolicy(ctx context.Context) error
 	PatchDevice(ctx context.Context, policyID, deviceName string, device *androidmanagement.Device) (skip bool, apiErr error)
 	PatchPolicy(ctx context.Context, policyID, policyName string, policy *androidmanagement.Policy, metadata map[string]string) (skip bool, err error)
-	// PrepareHostPolicy replaces every setting of a host's own policy with its fleet's default policy (teamID 0
+	// PrepareHostPolicy replaces every setting of a host's own policy with its team's default policy (teamID 0
 	// is Unassigned), before the device is moved to it.
 	PrepareHostPolicy(ctx context.Context, enterpriseName, hostUUID string, teamID uint) error
 
 	// VerifyExistingEnterpriseIfAny checks if there's an existing enterprise in the database
 	// and if so, verifies it still exists in Google API. If it doesn't exist, performs cleanup.
-	// Returns fleet.IsNotFound error if enterprise was deleted, nil if no enterprise exists or verification passed.
+	// Returns automdm.IsNotFound error if enterprise was deleted, nil if no enterprise exists or verification passed.
 	VerifyExistingEnterpriseIfAny(ctx context.Context) error
 
 	// CreateAndroidWebApp creates a new web app for the given enterprise.
@@ -80,12 +80,12 @@ type Service interface {
 
 	// GetZeroTouchConfiguration returns the DPC extras JSON for zero-touch enrollment.
 	// Creates a long-lived reusable enrollment token on first call; returns the existing one on subsequent calls.
-	// teamID is the fleet to enroll devices into; nil means "Unassigned."
+	// teamID is the team to enroll devices into; nil means "Unassigned."
 	GetZeroTouchConfiguration(ctx context.Context, teamID *uint) (*ZeroTouchConfigurationResponse, error)
 
-	// EnsureFleetDefaultPolicy makes sure the default policy of a fleet (0 is Unassigned) exists in AMAPI and
+	// EnsureAutoMDMDefaultPolicy makes sure the default policy of a team (0 is Unassigned) exists in AMAPI and
 	// returns its name, for enrollment tokens to point at.
-	EnsureFleetDefaultPolicy(ctx context.Context, enterpriseName string, teamID uint) (string, error)
+	EnsureAutoMDMDefaultPolicy(ctx context.Context, enterpriseName string, teamID uint) (string, error)
 }
 
 // /////////////////////////////////////////////

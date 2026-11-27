@@ -1,8 +1,8 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # Rocket.Chat ships an electron-builder NSIS installer. /S runs it silently;
-# /allusers forces a per-machine install so the app is reachable from Fleet's
+# /allusers forces a per-machine install so the app is reachable from AutoMDM's
 # SYSTEM context (matches the winget machine-scope switch).
 
 $exeFilePath = "${env:INSTALLER_PATH}"

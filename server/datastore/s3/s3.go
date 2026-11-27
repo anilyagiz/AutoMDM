@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/aws_common"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/aws_common"
+	"github.com/anilyagiz/automdm/v4/server/config"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
@@ -50,7 +50,7 @@ type s3store struct {
 
 type installerNotFoundError struct{}
 
-var _ fleet.NotFoundError = (*installerNotFoundError)(nil)
+var _ automdm.NotFoundError = (*installerNotFoundError)(nil)
 
 func (p installerNotFoundError) Error() string {
 	return "installer not found"
@@ -125,7 +125,7 @@ func newS3Store(cfg config.S3ConfigInternal) (*s3store, error) {
 	// DisableSSL is only used for testing.
 	if cfg.DisableSSL {
 		// Ignoring "G402: TLS InsecureSkipVerify set true", this is only used for automated testing.
-		c := fleethttp.NewClient(fleethttp.WithNoTimeout(), fleethttp.WithTLSClientConfig(&tls.Config{ //nolint:gosec
+		c := automdmhttp.NewClient(automdmhttp.WithNoTimeout(), automdmhttp.WithTLSClientConfig(&tls.Config{ //nolint:gosec
 			InsecureSkipVerify: false,
 		}))
 		opts = append(opts, aws_config.WithHTTPClient(c))

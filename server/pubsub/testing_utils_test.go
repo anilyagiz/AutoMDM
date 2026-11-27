@@ -4,7 +4,7 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/datastore/redis/redistest"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis/redistest"
 )
 
 // setupRedisForTest builds a redisQueryResults backed by a freshly-created

@@ -59,7 +59,7 @@ describe("Certificates tab-header", () => {
     ).toBeInTheDocument();
   });
 
-  it("hides Add certificate on Fleet Free", async () => {
+  it("hides Add certificate on AutoMDM Free", async () => {
     mockServer.use(emptyCertsHandler, emptyCAHandler);
 
     const render = createCustomRenderer({

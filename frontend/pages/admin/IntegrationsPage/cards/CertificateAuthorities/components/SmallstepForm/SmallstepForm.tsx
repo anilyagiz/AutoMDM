@@ -67,7 +67,7 @@ const SmallstepForm = ({
         onChange={onChange}
         parseTarget
         placeholder="WIFI_CERTIFICATE"
-        helpText="Letters, numbers, and underscores only. Fleet will create configuration profile variables with the name as suffix (e.g. $FLEET_VAR_SMALLSTEP_DATA_WIFI_CERTIFICATE)."
+        helpText="Letters, numbers, and underscores only. AutoMDM will create configuration profile variables with the name as suffix (e.g. $AUTOMDM_VAR_SMALLSTEP_DATA_WIFI_CERTIFICATE)."
         inputOptions={{ maxLength: MAX_ENTITY_CHAR_LENGTH }}
       />
       <InputField
@@ -77,7 +77,7 @@ const SmallstepForm = ({
         error={validations.scepURL?.message}
         onChange={onChange}
         parseTarget
-        placeholder="https://example.scep.smallstep.com/p/agents/integration-fleet-xr9f4db7"
+        placeholder="https://example.scep.smallstep.com/p/agents/integration-automdm-xr9f4db7"
       />
       <InputField
         label="Challenge URL"
@@ -86,7 +86,7 @@ const SmallstepForm = ({
         error={validations.challengeURL?.message}
         onChange={onChange}
         parseTarget
-        placeholder="https://example.scep.smallstep.com/fleet/xr9f4db7-83f1-48ab-8982-8b6870d4fl85/challenge"
+        placeholder="https://example.scep.smallstep.com/automdm/xr9f4db7-83f1-48ab-8982-8b6870d4fl85/challenge"
         helpText={
           <>
             Smallstep calls this the <b>SCEP Challenge URL</b>.

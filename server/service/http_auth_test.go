@@ -15,9 +15,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -55,7 +55,7 @@ func TestLogin(t *testing.T) {
 		// test sessions
 		testUser := users[tt.email]
 
-		params := fleet.LoginRequest{
+		params := automdm.LoginRequest{
 			Email:    tt.email,
 			Password: tt.password,
 		}
@@ -63,12 +63,12 @@ func TestLogin(t *testing.T) {
 		assert.Nil(t, err)
 
 		requestBody := io.NopCloser(bytes.NewBuffer(j))
-		resp, err := http.Post(server.URL+"/api/latest/fleet/login", "application/json", requestBody)
+		resp, err := http.Post(server.URL+"/api/latest/automdm/login", "application/json", requestBody)
 		require.Nil(t, err)
 		assert.Equal(t, tt.status, resp.StatusCode)
 
 		jsn := struct {
-			User  *fleet.User         `json:"user"`
+			User  *automdm.User       `json:"user"`
 			Token string              `json:"token"`
 			Err   []map[string]string `json:"errors,omitempty"`
 		}{}
@@ -92,9 +92,9 @@ func TestLogin(t *testing.T) {
 		assert.NotEqual(t, "", sessions[0].Key)
 
 		// test logout
-		req, _ := http.NewRequest("POST", server.URL+"/api/latest/fleet/logout", nil)
+		req, _ := http.NewRequest("POST", server.URL+"/api/latest/automdm/logout", nil)
 		req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", jsn.Token))
-		client := fleethttp.NewClient()
+		client := automdmhttp.NewClient()
 		resp, err = client.Do(req)
 		require.Nil(t, err)
 		assert.Equal(t, http.StatusOK, resp.StatusCode, strconv.Itoa(tt.status))
@@ -109,24 +109,24 @@ func TestLogin(t *testing.T) {
 	}
 }
 
-func setupAuthTest(t *testing.T) (fleet.Datastore, map[string]fleet.User, *httptest.Server) {
+func setupAuthTest(t *testing.T) (automdm.Datastore, map[string]automdm.User, *httptest.Server) {
 	ds := new(mock.Store)
-	var users []*fleet.User
-	sessions := make(map[string]*fleet.Session)
-	ds.NewUserFunc = func(ctx context.Context, user *fleet.User) (*fleet.User, error) {
+	var users []*automdm.User
+	sessions := make(map[string]*automdm.Session)
+	ds.NewUserFunc = func(ctx context.Context, user *automdm.User) (*automdm.User, error) {
 		users = append(users, user)
 		return user, nil
 	}
-	ds.SessionByKeyFunc = func(ctx context.Context, key string) (*fleet.Session, error) {
+	ds.SessionByKeyFunc = func(ctx context.Context, key string) (*automdm.Session, error) {
 		return sessions[key], nil
 	}
-	ds.MarkSessionAccessedFunc = func(ctx context.Context, session *fleet.Session) error {
+	ds.MarkSessionAccessedFunc = func(ctx context.Context, session *automdm.Session) error {
 		s := sessions[session.Key]
 		s.AccessedAt = time.Now()
 		sessions[session.Key] = s
 		return nil
 	}
-	ds.UserByIDFunc = func(ctx context.Context, id uint) (*fleet.User, error) {
+	ds.UserByIDFunc = func(ctx context.Context, id uint) (*automdm.User, error) {
 		for _, user := range users {
 			if user.ID == id {
 				return user, nil
@@ -134,11 +134,11 @@ func setupAuthTest(t *testing.T) (fleet.Datastore, map[string]fleet.User, *httpt
 		}
 		return nil, errors.New("user not found")
 	}
-	ds.ListUsersFunc = func(ctx context.Context, opt fleet.UserListOptions) ([]*fleet.User, error) {
+	ds.ListUsersFunc = func(ctx context.Context, opt automdm.UserListOptions) ([]*automdm.User, error) {
 		return users, nil
 	}
-	ds.ListSessionsForUserFunc = func(ctx context.Context, id uint) ([]*fleet.Session, error) {
-		var userSessions []*fleet.Session
+	ds.ListSessionsForUserFunc = func(ctx context.Context, id uint) ([]*automdm.Session, error) {
+		var userSessions []*automdm.Session
 		for _, session := range sessions {
 			if session.UserID == id {
 				userSessions = append(userSessions, session)
@@ -146,7 +146,7 @@ func setupAuthTest(t *testing.T) (fleet.Datastore, map[string]fleet.User, *httpt
 		}
 		return userSessions, nil
 	}
-	ds.SessionByIDFunc = func(ctx context.Context, id uint) (*fleet.Session, error) {
+	ds.SessionByIDFunc = func(ctx context.Context, id uint) (*automdm.Session, error) {
 		for _, session := range sessions {
 			if session.ID == id {
 				return session, nil
@@ -154,23 +154,23 @@ func setupAuthTest(t *testing.T) (fleet.Datastore, map[string]fleet.User, *httpt
 		}
 		return nil, errors.New("session not found")
 	}
-	ds.DestroySessionFunc = func(ctx context.Context, session *fleet.Session) error {
+	ds.DestroySessionFunc = func(ctx context.Context, session *automdm.Session) error {
 		delete(sessions, session.Key)
 		return nil
 	}
 	usersMap, server := RunServerForTestsWithDS(t, ds)
-	ds.UserByEmailFunc = func(ctx context.Context, email string) (*fleet.User, error) {
+	ds.UserByEmailFunc = func(ctx context.Context, email string) (*automdm.User, error) {
 		user := usersMap[email]
 		return &user, nil
 	}
-	ds.NewSessionFunc = func(ctx context.Context, userID uint, sessionKeySize int) (*fleet.Session, error) {
+	ds.NewSessionFunc = func(ctx context.Context, userID uint, sessionKeySize int) (*automdm.Session, error) {
 		key := make([]byte, sessionKeySize)
 		_, err := rand.Read(key)
 		if err != nil {
 			return nil, err
 		}
 		sessionKey := base64.StdEncoding.EncodeToString(key)
-		session := &fleet.Session{
+		session := &automdm.Session{
 			UserID:     userID,
 			Key:        sessionKey,
 			AccessedAt: time.Now(),
@@ -178,8 +178,8 @@ func setupAuthTest(t *testing.T) (fleet.Datastore, map[string]fleet.User, *httpt
 		sessions[sessionKey] = session
 		return session, nil
 	}
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
 	}
 	return ds, usersMap, server
 }
@@ -191,7 +191,7 @@ func getTestAdminToken(t *testing.T, server *httptest.Server) string {
 func getTestUserToken(t *testing.T, server *httptest.Server, testUserId string) string {
 	testUser := testUsers[testUserId]
 
-	params := fleet.LoginRequest{
+	params := automdm.LoginRequest{
 		Email:    testUser.Email,
 		Password: testUser.PlaintextPassword,
 	}
@@ -199,12 +199,12 @@ func getTestUserToken(t *testing.T, server *httptest.Server, testUserId string) 
 	assert.Nil(t, err)
 
 	requestBody := io.NopCloser(bytes.NewBuffer(j))
-	resp, err := http.Post(server.URL+"/api/latest/fleet/login", "application/json", requestBody)
+	resp, err := http.Post(server.URL+"/api/latest/automdm/login", "application/json", requestBody)
 	require.Nil(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 
 	jsn := struct {
-		User  *fleet.User         `json:"user"`
+		User  *automdm.User       `json:"user"`
 		Token string              `json:"token"`
 		Err   []map[string]string `json:"errors,omitempty"`
 	}{}
@@ -217,8 +217,8 @@ func getTestUserToken(t *testing.T, server *httptest.Server, testUserId string) 
 func TestNoHeaderErrorsDifferently(t *testing.T) {
 	_, _, server := setupAuthTest(t)
 
-	req, _ := http.NewRequest("GET", server.URL+"/api/latest/fleet/users", nil)
-	client := fleethttp.NewClient()
+	req, _ := http.NewRequest("GET", server.URL+"/api/latest/automdm/users", nil)
+	client := automdmhttp.NewClient()
 	resp, err := client.Do(req)
 	require.Nil(t, err)
 	defer resp.Body.Close()
@@ -236,7 +236,7 @@ func TestNoHeaderErrorsDifferently(t *testing.T) {
 	assert.Equal(t, "Authorization header required", jsn.Errs[0]["reason"])
 	assert.NotEmpty(t, jsn.UUID)
 
-	req, _ = http.NewRequest("GET", server.URL+"/api/latest/fleet/users", nil)
+	req, _ = http.NewRequest("GET", server.URL+"/api/latest/automdm/users", nil)
 	req.Header.Add("Authorization", "Bearer AAAA")
 	resp, err = client.Do(req)
 	require.NoError(t, err)

@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/download"
+	"github.com/anilyagiz/automdm/v4/pkg/download"
 )
 
 const (

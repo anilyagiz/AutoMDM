@@ -23,14 +23,14 @@ interface ILoadTeamsParams {
 
 /**
  * The response body expected for the "Get team" endpoint.
- * See https://fleetdm.com/docs/using-fleet/rest-api#get-team
+ * See https://automdm.com/docs/using-automdm/rest-api#get-team
  */
 export interface ILoadTeamResponse {
-  fleet: ITeamConfig;
+  team: ITeamConfig;
 }
 
 export interface ILoadTeamsResponse {
-  fleets: ITeamConfig[];
+  teams: ITeamConfig[];
 }
 
 export interface ITeamFormData {
@@ -91,7 +91,7 @@ export default {
     if (teamId === undefined || teamId < API_NO_TEAM_ID) {
       return Promise.reject(
         new Error(
-          `Invalid fleet id: ${teamId} must be greater than or equal to ${API_NO_TEAM_ID}`
+          `Invalid team id: ${teamId} must be greater than or equal to ${API_NO_TEAM_ID}`
         )
       );
     }
@@ -125,7 +125,7 @@ export default {
     teamId?: number
   ): Promise<ILoadTeamResponse> => {
     if (typeof teamId === "undefined") {
-      return Promise.reject("Invalid usage: missing fleet id");
+      return Promise.reject("Invalid usage: missing team id");
     }
 
     const { TEAMS } = endpoints;
@@ -183,7 +183,7 @@ export default {
     if (!teamId || teamId <= API_NO_TEAM_ID) {
       return Promise.reject(
         new Error(
-          `Invalid fleet id: ${teamId} must be greater than ${API_NO_TEAM_ID}`
+          `Invalid team id: ${teamId} must be greater than ${API_NO_TEAM_ID}`
         )
       );
     }
@@ -199,7 +199,7 @@ export default {
     if (!teamId || teamId <= API_NO_TEAM_ID) {
       return Promise.reject(
         new Error(
-          `Invalid fleet id: ${teamId} must be greater than ${API_NO_TEAM_ID}`
+          `Invalid team id: ${teamId} must be greater than ${API_NO_TEAM_ID}`
         )
       );
     }

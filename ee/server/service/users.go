@@ -4,16 +4,16 @@ import (
 	"context"
 	"errors"
 
-	"github.com/fleetdm/fleet/v4/pkg/removednames"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/pkg/removednames"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 )
 
 // GetSSOUser is the premium implementation of svc.GetSSOUser, it allows to
 // create users during the SSO flow the first time they log in if
 // config.SSOSettings.EnableJITProvisioning is `true`
-func (svc *Service) GetSSOUser(ctx context.Context, auth fleet.Auth) (*fleet.User, error) {
+func (svc *Service) GetSSOUser(ctx context.Context, auth automdm.Auth) (*automdm.User, error) {
 	config, err := svc.ds.AppConfig(ctx)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "getting app config")
@@ -22,25 +22,25 @@ func (svc *Service) GetSSOUser(ctx context.Context, auth fleet.Auth) (*fleet.Use
 	// despite the fact that svc.NewUser will also validate the
 	// email, we do it here to avoid hitting the database early if
 	// the email happens to be invalid.
-	if err := fleet.ValidateEmail(auth.UserID()); err != nil {
+	if err := automdm.ValidateEmail(auth.UserID()); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "validating SSO response email")
 	}
 
 	user, err := svc.Service.GetSSOUser(ctx, auth)
-	var nfe fleet.NotFoundError
+	var nfe automdm.NotFoundError
 	switch {
 	case err == nil:
 		// If the user exists, we want to update the user roles from the attributes received
 		// in the SAMLResponse.
 
-		// If JIT provisioning is disabled, then Fleet does not attempt to change
+		// If JIT provisioning is disabled, then AutoMDM does not attempt to change
 		// the role of the existing user.
 		if config.SSOSettings == nil || !config.SSOSettings.EnableJITProvisioning {
 			return user, nil
 		}
 
 		// Load custom roles from SSO attributes.
-		ssoRolesInfo, coercedAttrs, ignoredAttrs, err := fleet.RolesFromSSOAttributes(auth.AssertionAttributes())
+		ssoRolesInfo, coercedAttrs, ignoredAttrs, err := automdm.RolesFromSSOAttributes(auth.AssertionAttributes())
 		if err != nil {
 			return nil, ctxerr.Wrap(ctx, err, "invalid SSO attributes")
 		}
@@ -67,7 +67,7 @@ func (svc *Service) GetSSOUser(ctx context.Context, auth fleet.Auth) (*fleet.Use
 
 		// rolesChanged assumes that there cannot be multiple role entries for the same team,
 		// which is ok because the "old" values comes from the database and the "new" values
-		// come from fleet.RolesFromSSOAttributes which already checks for duplicates.
+		// come from automdm.RolesFromSSOAttributes which already checks for duplicates.
 		if !rolesChanged(oldGlobalRole, oldTeamsRoles, newGlobalRole, newTeamsRoles) {
 			// Roles haven't changed, so nothing to do.
 			return user, nil
@@ -80,7 +80,7 @@ func (svc *Service) GetSSOUser(ctx context.Context, auth fleet.Auth) (*fleet.Use
 		if err != nil {
 			return nil, ctxerr.Wrap(ctx, err, "save user")
 		}
-		if err := fleet.LogRoleChangeActivities(ctx, svc, user, oldGlobalRole, oldTeamsRoles, user, true); err != nil {
+		if err := automdm.LogRoleChangeActivities(ctx, svc, user, oldGlobalRole, oldTeamsRoles, user, true); err != nil {
 			return nil, ctxerr.Wrap(ctx, err, "log activities for role change")
 		}
 		return user, nil
@@ -99,10 +99,10 @@ func (svc *Service) GetSSOUser(ctx context.Context, auth fleet.Auth) (*fleet.Use
 
 	var (
 		globalRole *string
-		teamRoles  []fleet.UserTeam
+		teamRoles  []automdm.UserTeam
 	)
 	// Attempt to retrieve user roles from SAML custom attributes.
-	ssoRolesInfo, coercedAttrs, ignoredAttrs, err := fleet.RolesFromSSOAttributes(auth.AssertionAttributes())
+	ssoRolesInfo, coercedAttrs, ignoredAttrs, err := automdm.RolesFromSSOAttributes(auth.AssertionAttributes())
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "invalid SSO attributes")
 	}
@@ -122,10 +122,10 @@ func (svc *Service) GetSSOUser(ctx context.Context, auth fleet.Auth) (*fleet.Use
 		}
 	} else {
 		// If no roles are set in the SSO attributes, default to setting user as a global observer.
-		globalRole = ptr.String(fleet.RoleObserver)
+		globalRole = ptr.String(automdm.RoleObserver)
 	}
 
-	user, err = svc.Service.NewUser(ctx, fleet.UserPayload{
+	user, err = svc.Service.NewUser(ctx, automdm.UserPayload{
 		Name:           &displayName,
 		Email:          new(auth.UserID()),
 		SSOEnabled:     new(true),
@@ -139,7 +139,7 @@ func (svc *Service) GetSSOUser(ctx context.Context, auth fleet.Auth) (*fleet.Use
 	if err := svc.NewActivity(
 		ctx,
 		user,
-		fleet.ActivityTypeUserAddedBySSO{},
+		automdm.ActivityTypeUserAddedBySSO{},
 	); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "create activity for SSO user creation")
 	}
@@ -149,14 +149,14 @@ func (svc *Service) GetSSOUser(ctx context.Context, auth fleet.Auth) (*fleet.Use
 // rolesChanged checks whether there was any change between the old and new roles.
 //
 // rolesChanged assumes that there cannot be multiple role entries for the same team.
-func rolesChanged(oldGlobal *string, oldTeams []fleet.UserTeam, newGlobal *string, newTeams []fleet.UserTeam) bool {
+func rolesChanged(oldGlobal *string, oldTeams []automdm.UserTeam, newGlobal *string, newTeams []automdm.UserTeam) bool {
 	if (newGlobal != nil && (oldGlobal == nil || *oldGlobal != *newGlobal)) || (newGlobal == nil && oldGlobal != nil) {
 		return true
 	}
 	if len(oldTeams) != len(newTeams) {
 		return true
 	}
-	oldTeamsMap := make(map[uint]fleet.UserTeam, len(oldTeams))
+	oldTeamsMap := make(map[uint]automdm.UserTeam, len(oldTeams))
 	for _, oldTeam := range oldTeams {
 		oldTeamsMap[oldTeam.Team.ID] = oldTeam
 	}
@@ -173,14 +173,14 @@ func rolesChanged(oldGlobal *string, oldTeams []fleet.UserTeam, newGlobal *strin
 }
 
 // userRolesFromSSOAttributes returns `globalRole` and `teamRoles` ready to be assigned
-// to a `fleet.User` struct fields `GlobalRole` and `Teams` respectively.
-func (svc *Service) userRolesFromSSOAttributes(ctx context.Context, ssoRolesInfo fleet.SSORolesInfo) (globalRole *string, teamsRoles []fleet.UserTeam, err error) {
+// to an `automdm.User` struct fields `GlobalRole` and `Teams` respectively.
+func (svc *Service) userRolesFromSSOAttributes(ctx context.Context, ssoRolesInfo automdm.SSORolesInfo) (globalRole *string, teamsRoles []automdm.UserTeam, err error) {
 	for _, teamRole := range ssoRolesInfo.Teams {
 		team, err := svc.ds.TeamWithExtras(ctx, teamRole.ID)
 		if err != nil {
 			return nil, nil, ctxerr.Wrap(ctx, err, "invalid team")
 		}
-		teamsRoles = append(teamsRoles, fleet.UserTeam{
+		teamsRoles = append(teamsRoles, automdm.UserTeam{
 			Team: *team,
 			Role: teamRole.Role,
 		})
@@ -189,7 +189,7 @@ func (svc *Service) userRolesFromSSOAttributes(ctx context.Context, ssoRolesInfo
 	return ssoRolesInfo.Global, teamsRoles, nil
 }
 
-// removedSAMLAttributeMessage is the warning for SAML attributes that Fleet 5 removed and the server ignores.
+// removedSAMLAttributeMessage is the warning for SAML attributes that AutoMDM 5 removed and the server ignores.
 func removedSAMLAttributeMessage(attrs []string) string {
 	entry, _ := removednames.FindSAMLAttribute(attrs[0])
 	return entry.Message()

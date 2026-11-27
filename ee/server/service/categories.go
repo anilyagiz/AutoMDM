@@ -6,28 +6,28 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server"
-	"github.com/fleetdm/fleet/v4/server/authz"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 )
 
-func (svc *Service) ListSoftwareCategories(ctx context.Context, teamID *uint) ([]fleet.SoftwareCategory, error) {
+func (svc *Service) ListSoftwareCategories(ctx context.Context, teamID *uint) ([]automdm.SoftwareCategory, error) {
 	if teamID == nil {
 		svc.authz.SkipAuthorization(ctx)
-		return nil, fleet.NewInvalidArgumentError("fleet_id", "fleet_id is required")
+		return nil, automdm.NewInvalidArgumentError("team_id", "team_id is required")
 	}
-	if err := svc.authz.Authorize(ctx, &fleet.SoftwareCategory{TeamID: *teamID}, fleet.ActionRead); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.SoftwareCategory{TeamID: *teamID}, automdm.ActionRead); err != nil {
 		return nil, err
 	}
 	if *teamID != 0 {
 		exists, err := svc.ds.TeamExists(ctx, *teamID)
 		if err != nil {
-			return nil, ctxerr.Wrap(ctx, err, "checking if fleet exists")
+			return nil, ctxerr.Wrap(ctx, err, "checking if team exists")
 		}
 		if !exists {
-			return nil, fleet.NewInvalidArgumentError("fleet_id", fmt.Sprintf("fleet %d does not exist", *teamID)).WithStatus(http.StatusNotFound)
+			return nil, automdm.NewInvalidArgumentError("team_id", fmt.Sprintf("team %d does not exist", *teamID)).WithStatus(http.StatusNotFound)
 		}
 	}
 	categories, err := svc.ds.ListSoftwareCategories(ctx, *teamID)
@@ -37,7 +37,7 @@ func (svc *Service) ListSoftwareCategories(ctx context.Context, teamID *uint) ([
 	return categories, nil
 }
 
-func (svc *Service) ListSelfServiceSoftwareCategoriesForHost(ctx context.Context, host *fleet.Host) ([]fleet.SoftwareCategory, error) {
+func (svc *Service) ListSelfServiceSoftwareCategoriesForHost(ctx context.Context, host *automdm.Host) ([]automdm.SoftwareCategory, error) {
 	teamID := ptr.ValOrZero(host.TeamID)
 
 	categories, err := svc.ds.ListSoftwareCategories(ctx, teamID)
@@ -47,27 +47,27 @@ func (svc *Service) ListSelfServiceSoftwareCategoriesForHost(ctx context.Context
 	return categories, nil
 }
 
-func (svc *Service) NewSoftwareCategory(ctx context.Context, teamID *uint, name string) (*fleet.SoftwareCategory, error) {
+func (svc *Service) NewSoftwareCategory(ctx context.Context, teamID *uint, name string) (*automdm.SoftwareCategory, error) {
 	name = strings.TrimSpace(name)
-	if err := (fleet.SoftwareCategory{Name: name}).Validate(); err != nil {
+	if err := (automdm.SoftwareCategory{Name: name}).Validate(); err != nil {
 		svc.authz.SkipAuthorization(ctx)
 		return nil, ctxerr.Wrap(ctx, err, "validating new software category")
 	}
 	if teamID == nil {
 		svc.authz.SkipAuthorization(ctx)
-		return nil, fleet.NewInvalidArgumentError("fleet_id", "fleet_id is required")
+		return nil, automdm.NewInvalidArgumentError("team_id", "team_id is required")
 	}
 
-	if err := svc.authz.Authorize(ctx, &fleet.SoftwareCategory{TeamID: *teamID}, fleet.ActionWrite); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.SoftwareCategory{TeamID: *teamID}, automdm.ActionWrite); err != nil {
 		return nil, err
 	}
 	if *teamID != 0 {
 		exists, err := svc.ds.TeamExists(ctx, *teamID)
 		if err != nil {
-			return nil, ctxerr.Wrap(ctx, err, "checking if fleet exists")
+			return nil, ctxerr.Wrap(ctx, err, "checking if team exists")
 		}
 		if !exists {
-			return nil, fleet.NewInvalidArgumentError("fleet_id", fmt.Sprintf("fleet %d does not exist", *teamID)).
+			return nil, automdm.NewInvalidArgumentError("team_id", fmt.Sprintf("team %d does not exist", *teamID)).
 				WithStatus(http.StatusNotFound)
 		}
 	}
@@ -81,7 +81,7 @@ func (svc *Service) NewSoftwareCategory(ctx context.Context, teamID *uint, name 
 	if err != nil {
 		return nil, err
 	}
-	if err := svc.NewActivity(ctx, authz.UserFromContext(ctx), fleet.ActivityTypeAddedSelfServiceCategory{
+	if err := svc.NewActivity(ctx, authz.UserFromContext(ctx), automdm.ActivityTypeAddedSelfServiceCategory{
 		SelfServiceCategoryName: category.Name,
 		TeamID:                  new(category.TeamID),
 		TeamName:                teamName,
@@ -91,9 +91,9 @@ func (svc *Service) NewSoftwareCategory(ctx context.Context, teamID *uint, name 
 	return category, nil
 }
 
-func (svc *Service) UpdateSoftwareCategory(ctx context.Context, id uint, name string) (*fleet.SoftwareCategory, error) {
+func (svc *Service) UpdateSoftwareCategory(ctx context.Context, id uint, name string) (*automdm.SoftwareCategory, error) {
 	name = strings.TrimSpace(name)
-	if err := (fleet.SoftwareCategory{Name: name}).Validate(); err != nil {
+	if err := (automdm.SoftwareCategory{Name: name}).Validate(); err != nil {
 		svc.authz.SkipAuthorization(ctx)
 		return nil, ctxerr.Wrap(ctx, err, "validating updated software category")
 	}
@@ -101,15 +101,15 @@ func (svc *Service) UpdateSoftwareCategory(ctx context.Context, id uint, name st
 	// we need to load the category first to scope authz to its team_id
 	category, err := svc.ds.SoftwareCategory(ctx, id)
 	if err != nil {
-		if fleet.IsNotFound(err) {
-			if authzErr := svc.authz.Authorize(ctx, &fleet.SoftwareCategory{}, fleet.ActionWrite); authzErr != nil {
+		if automdm.IsNotFound(err) {
+			if authzErr := svc.authz.Authorize(ctx, &automdm.SoftwareCategory{}, automdm.ActionWrite); authzErr != nil {
 				return nil, authzErr
 			}
 		}
 		svc.authz.SkipAuthorization(ctx)
 		return nil, ctxerr.Wrap(ctx, err, "get software category")
 	}
-	if err := svc.authz.Authorize(ctx, category, fleet.ActionWrite); err != nil {
+	if err := svc.authz.Authorize(ctx, category, automdm.ActionWrite); err != nil {
 		return nil, err
 	}
 
@@ -126,7 +126,7 @@ func (svc *Service) UpdateSoftwareCategory(ctx context.Context, id uint, name st
 	if err != nil {
 		return nil, err
 	}
-	if err := svc.NewActivity(ctx, authz.UserFromContext(ctx), fleet.ActivityTypeEditedSelfServiceCategory{
+	if err := svc.NewActivity(ctx, authz.UserFromContext(ctx), automdm.ActivityTypeEditedSelfServiceCategory{
 		SelfServiceCategoryName: updated.Name,
 		TeamID:                  new(updated.TeamID),
 		TeamName:                teamName,
@@ -140,8 +140,8 @@ func (svc *Service) DeleteSoftwareCategory(ctx context.Context, id uint) error {
 	// we need to load the category first to scope authz to its team_id
 	category, err := svc.ds.SoftwareCategory(ctx, id)
 	if err != nil {
-		if fleet.IsNotFound(err) {
-			if authzErr := svc.authz.Authorize(ctx, &fleet.SoftwareCategory{}, fleet.ActionWrite); authzErr != nil {
+		if automdm.IsNotFound(err) {
+			if authzErr := svc.authz.Authorize(ctx, &automdm.SoftwareCategory{}, automdm.ActionWrite); authzErr != nil {
 				return authzErr
 			}
 		}
@@ -149,7 +149,7 @@ func (svc *Service) DeleteSoftwareCategory(ctx context.Context, id uint) error {
 		return ctxerr.Wrap(ctx, err, "get software category")
 	}
 
-	if err := svc.authz.Authorize(ctx, category, fleet.ActionWrite); err != nil {
+	if err := svc.authz.Authorize(ctx, category, automdm.ActionWrite); err != nil {
 		return err
 	}
 	if err := svc.ds.DeleteSoftwareCategory(ctx, id); err != nil {
@@ -160,7 +160,7 @@ func (svc *Service) DeleteSoftwareCategory(ctx context.Context, id uint) error {
 	if err != nil {
 		return err
 	}
-	if err := svc.NewActivity(ctx, authz.UserFromContext(ctx), fleet.ActivityTypeDeletedSelfServiceCategory{
+	if err := svc.NewActivity(ctx, authz.UserFromContext(ctx), automdm.ActivityTypeDeletedSelfServiceCategory{
 		SelfServiceCategoryName: category.Name,
 		TeamID:                  new(category.TeamID),
 		TeamName:                teamName,
@@ -204,7 +204,7 @@ func (svc *Service) teamNameForActivity(ctx context.Context, teamID uint) (*stri
 func trimAndValidateCategories(ctx context.Context, categories []string) error {
 	for i, name := range categories {
 		categories[i] = strings.TrimSpace(name)
-		err := (fleet.SoftwareCategory{Name: categories[i]}).Validate()
+		err := (automdm.SoftwareCategory{Name: categories[i]}).Validate()
 		if err != nil {
 			return ctxerr.Wrapf(ctx, err, "category %q", categories[i])
 		}

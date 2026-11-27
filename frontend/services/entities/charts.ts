@@ -37,7 +37,7 @@ export interface IChartApiParams {
   days?: number;
   resolution?: number;
   tz_offset?: number;
-  fleet_id?: number;
+  team_id?: number;
   label_ids?: string;
   platforms?: string;
   include_host_ids?: string;

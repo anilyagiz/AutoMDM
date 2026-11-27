@@ -28,7 +28,7 @@ func (e *ExcessRetriesError) Error() string {
 // (github.com/cenkalti/backoff/v4), but I'm implementing a custom struct due to:
 //   - the very specific product requirements (retry n consecutive times per
 //     hash, then wait for a defined cooldown.)
-//   - this retry mechanism is used by the `fleetd` updater and needs to be
+//   - this retry mechanism is used by the `automdmd` updater and needs to be
 //     thread safe.
 type LimitedWithCooldown struct {
 	maxRetries int                  // maxRetries is the maximum number of retries allowed before entering cooldown.

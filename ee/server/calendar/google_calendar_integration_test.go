@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/ee/server/calendar/load_test"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/ee/server/calendar/load_test"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -55,9 +55,9 @@ func (s *googleCalendarIntegrationTestSuite) TestCreateGetDeleteEvent() {
 	userEmail := "user1@example.com"
 	config := &GoogleCalendarConfig{
 		Context: context.Background(),
-		IntegrationConfig: &fleet.GoogleCalendarIntegration{
+		IntegrationConfig: &automdm.GoogleCalendarIntegration{
 			Domain: "example.com",
-			ApiKey: fleet.GoogleCalendarApiKey{Values: map[string]string{
+			ApiKey: automdm.GoogleCalendarApiKey{Values: map[string]string{
 				"client_email": loadEmail,
 				"private_key":  s.server.URL,
 			}},
@@ -67,11 +67,11 @@ func (s *googleCalendarIntegrationTestSuite) TestCreateGetDeleteEvent() {
 	gCal := NewGoogleCalendar(config)
 	err := gCal.Configure(userEmail)
 	require.NoError(t, err)
-	var genBodyFn fleet.CalendarGenBodyFn = func(bool) (string, bool, error) {
+	var genBodyFn automdm.CalendarGenBodyFn = func(bool) (string, bool, error) {
 		return "Test event", true, nil
 	}
 	eventDate := time.Now().Add(48 * time.Hour)
-	event, err := gCal.CreateEvent(eventDate, genBodyFn, fleet.CalendarCreateEventOpts{})
+	event, err := gCal.CreateEvent(eventDate, genBodyFn, automdm.CalendarCreateEventOpts{})
 	require.NoError(t, err)
 	assert.Equal(t, startHour, event.StartTime.Hour())
 	assert.Equal(t, 0, event.StartTime.Minute())
@@ -84,7 +84,7 @@ func (s *googleCalendarIntegrationTestSuite) TestCreateGetDeleteEvent() {
 	assert.NotEmpty(t, channelID)
 	assert.NotEmpty(t, resourceID)
 
-	eventRsp, updated, err := gCal.GetAndUpdateEvent(event, genBodyFn, fleet.CalendarGetAndUpdateEventOpts{})
+	eventRsp, updated, err := gCal.GetAndUpdateEvent(event, genBodyFn, automdm.CalendarGetAndUpdateEventOpts{})
 	require.NoError(t, err)
 	assert.False(t, updated)
 	assert.Equal(t, event, eventRsp)
@@ -96,12 +96,12 @@ func (s *googleCalendarIntegrationTestSuite) TestCreateGetDeleteEvent() {
 	assert.NoError(t, err)
 
 	// Try to get deleted event
-	eventRsp, updated, err = gCal.GetAndUpdateEvent(event, genBodyFn, fleet.CalendarGetAndUpdateEventOpts{})
+	eventRsp, updated, err = gCal.GetAndUpdateEvent(event, genBodyFn, automdm.CalendarGetAndUpdateEventOpts{})
 	require.NoError(t, err)
 	assert.True(t, updated)
 	assert.NotEqual(t, event.StartTime.UTC().Truncate(24*time.Hour), eventRsp.StartTime.UTC().Truncate(24*time.Hour))
 
-	opts := fleet.CalendarCreateEventOpts{
+	opts := automdm.CalendarCreateEventOpts{
 		ChannelID:  channelID,
 		ResourceID: resourceID,
 		EventUUID:  eventUUID,
@@ -122,9 +122,9 @@ func (s *googleCalendarIntegrationTestSuite) TestFillUpCalendar() {
 	userEmail := "user2@example.com"
 	config := &GoogleCalendarConfig{
 		Context: context.Background(),
-		IntegrationConfig: &fleet.GoogleCalendarIntegration{
+		IntegrationConfig: &automdm.GoogleCalendarIntegration{
 			Domain: "example.com",
-			ApiKey: fleet.GoogleCalendarApiKey{Values: map[string]string{
+			ApiKey: automdm.GoogleCalendarApiKey{Values: map[string]string{
 				"client_email": loadEmail,
 				"private_key":  s.server.URL,
 			}},
@@ -138,7 +138,7 @@ func (s *googleCalendarIntegrationTestSuite) TestFillUpCalendar() {
 		return "Test event", true, nil
 	}
 	eventDate := time.Now().Add(48 * time.Hour)
-	event, err := gCal.CreateEvent(eventDate, genBodyFn, fleet.CalendarCreateEventOpts{})
+	event, err := gCal.CreateEvent(eventDate, genBodyFn, automdm.CalendarCreateEventOpts{})
 	require.NoError(t, err)
 	assert.Equal(t, startHour, event.StartTime.Hour())
 	assert.Equal(t, 0, event.StartTime.Minute())
@@ -148,7 +148,7 @@ func (s *googleCalendarIntegrationTestSuite) TestFillUpCalendar() {
 		if !(currentEventTime.Hour() == endHour-1 && currentEventTime.Minute() == 30) {
 			currentEventTime = currentEventTime.Add(30 * time.Minute)
 		}
-		event, err = gCal.CreateEvent(eventDate, genBodyFn, fleet.CalendarCreateEventOpts{})
+		event, err = gCal.CreateEvent(eventDate, genBodyFn, automdm.CalendarCreateEventOpts{})
 		require.NoError(t, err)
 		assert.Equal(t, currentEventTime.UTC(), event.StartTime.UTC())
 	}

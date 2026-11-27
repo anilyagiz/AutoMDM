@@ -8,8 +8,8 @@ variable "git_branch" {
   default     = null
 }
 
-variable "fleet_config" {
-  description = "The configuration to use for fleet itself, gets translated as environment variables"
+variable "automdm_config" {
+  description = "The configuration to use for automdm itself, gets translated as environment variables"
   type        = map(string)
   default     = {}
 }
@@ -20,8 +20,8 @@ variable "loadtest_containers" {
   default     = 0
 }
 
-variable "fleet_containers" {
-  description = "The number of containers running Fleet"
+variable "automdm_containers" {
+  description = "The number of containers running AutoMDM"
   type        = number
   default     = 10
 }
@@ -33,7 +33,7 @@ variable "db_instance_type" {
 }
 
 variable "mysql_max_open_conns" {
-  description = "Max open MySQL connections per Fleet container, applied to both the writer and read-replica pools. A single Aurora instance sees roughly fleet_containers * mysql_max_open_conns, up to 2x that on one instance during a failover or with no read replicas (when reader traffic falls back to the writer)."
+  description = "Max open MySQL connections per AutoMDM container, applied to both the writer and read-replica pools. A single Aurora instance sees roughly automdm_containers * mysql_max_open_conns, up to 2x that on one instance during a failover or with no read replicas (when reader traffic falls back to the writer)."
   type        = number
   default     = 10
 

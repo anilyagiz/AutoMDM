@@ -15,13 +15,13 @@ import (
 	"slices"
 	"strings"
 
-	maintained_apps "github.com/fleetdm/fleet/v4/ee/maintained-apps"
-	external_refs "github.com/fleetdm/fleet/v4/ee/maintained-apps/ingesters/winget/external_refs"
-	"github.com/fleetdm/fleet/v4/pkg/file"
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/pkg/patch_policy"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	feednvd "github.com/fleetdm/fleet/v4/server/vulnerabilities/nvd/tools/cvefeed/nvd"
+	maintained_apps "github.com/anilyagiz/automdm/v4/ee/maintained-apps"
+	external_refs "github.com/anilyagiz/automdm/v4/ee/maintained-apps/ingesters/winget/external_refs"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/pkg/file"
+	"github.com/anilyagiz/automdm/v4/pkg/patch_policy"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	feednvd "github.com/anilyagiz/automdm/v4/server/vulnerabilities/nvd/tools/cvefeed/nvd"
 	"github.com/google/go-github/v37/github"
 	"gopkg.in/yaml.v2"
 )
@@ -37,7 +37,7 @@ func IngestApps(ctx context.Context, logger *slog.Logger, inputsPath string, slu
 	var manifestApps []*maintained_apps.FMAManifestApp
 	var skippedApps int
 
-	githubHTTPClient := fleethttp.NewGithubClient()
+	githubHTTPClient := automdmhttp.NewGithubClient()
 	githubClient := github.NewClient(githubHTTPClient)
 	opts := &github.RepositoryContentGetOptions{
 		Ref: "master",
@@ -640,7 +640,7 @@ func isFileType(installerType string) bool {
 // project file URLs need in order to serve the file itself.
 //
 // A bare https://sourceforge.net/projects/<p>/files/<path> URL returns a 200
-// with an HTML landing page for non-browser clients, so Fleet would download
+// with an HTML landing page for non-browser clients, so AutoMDM would download
 // that page instead of the installer. Only the ".../download" form redirects to
 // a mirror and returns the binary. Some winget manifests already carry the
 // suffix (WinSCP) and some don't (CrystalDiskMark), so normalize here rather
@@ -751,7 +751,7 @@ type inputApp struct {
 	// Whether to use "no_check" instead of the app's hash (e.g. for non-pinned download URLs)
 	IgnoreHash bool `json:"ignore_hash"`
 	// IgnoreUpgradeCode leaves the MSI UpgradeCode out of the manifest, for apps that mint
-	// a new one every build (e.g. QGIS). Fleet resolves a Windows FMA's software title by
+	// a new one every build (e.g. QGIS). AutoMDM resolves a Windows FMA's software title by
 	// its upgrade code, so a per-build code would move the app to a new title on each update.
 	IgnoreUpgradeCode bool     `json:"ignore_upgrade_code"`
 	DefaultCategories []string `json:"default_categories"`

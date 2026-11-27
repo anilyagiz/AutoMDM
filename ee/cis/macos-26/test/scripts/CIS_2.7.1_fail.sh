@@ -5,7 +5,7 @@
 # the runner does not mistake a silent no-op for a successfully applied fail
 # state.
 # The plist is written by path as root instead of `sudo -u "$user" defaults
-# write com.apple.dock`: under Fleet's script runner (a root LaunchDaemon with
+# write com.apple.dock`: under AutoMDM's script runner (a root LaunchDaemon with
 # no user session) the per-user cfprefsd is unreachable and the domain write
 # fails with "Could not write domain". The on-disk file is what osquery's
 # `plist` table reads; the user's cfprefsd is restarted so its stale cache

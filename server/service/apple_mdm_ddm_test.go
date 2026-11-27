@@ -9,20 +9,20 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	fleetmdm "github.com/fleetdm/fleet/v4/server/mdm"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	automdmmdm "github.com/anilyagiz/automdm/v4/server/mdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
 )
 
 // Custom host vital values are arbitrary admin/external strings, so one may
-// contain a literal $FLEET_VAR_<name>. variables.Replace is a blind global
-// string replace, so vitals must be expanded after the Fleet-var pass — else a
-// $FLEET_VAR_ token embedded in a vital value would be rewritten by that pass.
-func TestReplaceDeclarationFleetVariablesExpandsVitalsLast(t *testing.T) {
+// contain a literal $AUTOMDM_VAR_<name>. variables.Replace is a blind global
+// string replace, so vitals must be expanded after the AutoMDM-var pass — else a
+// $AUTOMDM_VAR_ token embedded in a vital value would be rewritten by that pass.
+func TestReplaceDeclarationAutoMDMVariablesExpandsVitalsLast(t *testing.T) {
 	ctx := t.Context()
 	ds := mysqltest.CreateMySQLDS(t)
 	svc := MDMAppleDDMService{
@@ -30,7 +30,7 @@ func TestReplaceDeclarationFleetVariablesExpandsVitalsLast(t *testing.T) {
 		logger: slog.New(slog.NewTextHandler(os.Stdout, nil)),
 	}
 
-	host, err := ds.NewHost(ctx, &fleet.Host{
+	host, err := ds.NewHost(ctx, &automdm.Host{
 		UUID:            "vital-order-uuid",
 		Hostname:        "vital-order-host",
 		HardwareSerial:  "SERIAL123",
@@ -42,20 +42,20 @@ func TestReplaceDeclarationFleetVariablesExpandsVitalsLast(t *testing.T) {
 
 	vital, err := ds.CreateCustomHostVital(ctx, "asset_tag")
 	require.NoError(t, err)
-	// The vital's value deliberately embeds a literal $FLEET_VAR_ token.
-	require.NoError(t, ds.SetHostCustomHostVitalValue(ctx, host.ID, vital.ID, "tag-$FLEET_VAR_HOST_HARDWARE_SERIAL"))
+	// The vital's value deliberately embeds a literal $AUTOMDM_VAR_ token.
+	require.NoError(t, ds.SetHostCustomHostVitalValue(ctx, host.ID, vital.ID, "tag-$AUTOMDM_VAR_HOST_HARDWARE_SERIAL"))
 
-	contents := fmt.Sprintf(`{"vital":"$FLEET_HOST_VITAL_%d","serial":"$FLEET_VAR_HOST_HARDWARE_SERIAL"}`, vital.ID)
-	out, err := svc.replaceDeclarationFleetVariables(ctx, contents, host.UUID)
+	contents := fmt.Sprintf(`{"vital":"$AUTOMDM_HOST_VITAL_%d","serial":"$AUTOMDM_VAR_HOST_HARDWARE_SERIAL"}`, vital.ID)
+	out, err := svc.replaceDeclarationAutoMDMVariables(ctx, contents, host.UUID)
 	require.NoError(t, err)
 
-	// The genuine $FLEET_VAR_HOST_HARDWARE_SERIAL reference expands to the serial,
+	// The genuine $AUTOMDM_VAR_HOST_HARDWARE_SERIAL reference expands to the serial,
 	// but the identical token inside the vital's value survives intact because
 	// vitals are expanded last (variables.Replace never sees it).
-	require.JSONEq(t, `{"vital":"tag-$FLEET_VAR_HOST_HARDWARE_SERIAL","serial":"SERIAL123"}`, out)
+	require.JSONEq(t, `{"vital":"tag-$AUTOMDM_VAR_HOST_HARDWARE_SERIAL","serial":"SERIAL123"}`, out)
 }
 
-func TestReplaceDeclarationFleetVariablesIdPExternalID(t *testing.T) {
+func TestReplaceDeclarationAutoMDMVariablesIdPExternalID(t *testing.T) {
 	ctx := t.Context()
 	ds := mysqltest.CreateMySQLDS(t)
 	svc := MDMAppleDDMService{
@@ -63,7 +63,7 @@ func TestReplaceDeclarationFleetVariablesIdPExternalID(t *testing.T) {
 		logger: slog.New(slog.NewTextHandler(os.Stdout, nil)),
 	}
 
-	host, err := ds.NewHost(ctx, &fleet.Host{
+	host, err := ds.NewHost(ctx, &automdm.Host{
 		UUID:            "idp-external-id-uuid",
 		Hostname:        "idp-external-id-host",
 		OsqueryHostID:   new("idp-external-id"),
@@ -72,20 +72,20 @@ func TestReplaceDeclarationFleetVariablesIdPExternalID(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	scimUserID, err := ds.CreateScimUser(ctx, &fleet.ScimUser{UserName: "user@example.com", ExternalID: new("00u1abcd2EFGH3ijk4x7")})
+	scimUserID, err := ds.CreateScimUser(ctx, &automdm.ScimUser{UserName: "user@example.com", ExternalID: new("00u1abcd2EFGH3ijk4x7")})
 	require.NoError(t, err)
 	_, err = ds.SetOrUpdateHostSCIMUserMapping(ctx, host.ID, scimUserID)
 	require.NoError(t, err)
 
-	const contents = `{"id":"$FLEET_VAR_HOST_END_USER_IDP_EXTERNAL_ID"}`
-	out, err := svc.replaceDeclarationFleetVariables(ctx, contents, host.UUID)
+	const contents = `{"id":"$AUTOMDM_VAR_HOST_END_USER_IDP_EXTERNAL_ID"}`
+	out, err := svc.replaceDeclarationAutoMDMVariables(ctx, contents, host.UUID)
 	require.NoError(t, err)
 	require.JSONEq(t, `{"id":"00u1abcd2EFGH3ijk4x7"}`, out)
 
-	_, err = ds.ReplaceScimUser(ctx, &fleet.ScimUser{ID: scimUserID, UserName: "user@example.com"})
+	_, err = ds.ReplaceScimUser(ctx, &automdm.ScimUser{ID: scimUserID, UserName: "user@example.com"})
 	require.NoError(t, err)
-	_, err = svc.replaceDeclarationFleetVariables(ctx, contents, host.UUID)
-	require.ErrorContains(t, err, "There is no IdP external ID for this host. Fleet couldn't populate $FLEET_VAR_HOST_END_USER_IDP_EXTERNAL_ID.")
+	_, err = svc.replaceDeclarationAutoMDMVariables(ctx, contents, host.UUID)
+	require.ErrorContains(t, err, "There is no IdP external ID for this host. AutoMDM couldn't populate $AUTOMDM_VAR_HOST_END_USER_IDP_EXTERNAL_ID.")
 }
 
 func TestDeclarativeManagement_DeclarationItems(t *testing.T) {
@@ -98,7 +98,7 @@ func TestDeclarativeManagement_DeclarationItems(t *testing.T) {
 
 	// Helper function to create a host
 	createHost := func(t *testing.T, hostUUID, hardwareSerial string) {
-		_, err := ds.NewHost(context.Background(), &fleet.Host{
+		_, err := ds.NewHost(context.Background(), &automdm.Host{
 			UUID:            hostUUID,
 			Hostname:        "test-host-" + hostUUID,
 			HardwareSerial:  hardwareSerial,
@@ -112,8 +112,8 @@ func TestDeclarativeManagement_DeclarationItems(t *testing.T) {
 	}
 
 	// Helper function to create a declaration
-	createDeclaration := func(t *testing.T, uuid, name, identifier string) *fleet.MDMAppleDeclaration {
-		declaration := &fleet.MDMAppleDeclaration{
+	createDeclaration := func(t *testing.T, uuid, name, identifier string) *automdm.MDMAppleDeclaration {
+		declaration := &automdm.MDMAppleDeclaration{
 			DeclarationUUID: uuid,
 			Name:            name,
 			Identifier:      identifier,
@@ -167,7 +167,7 @@ func TestDeclarativeManagement_DeclarationItems(t *testing.T) {
 	// Helper function to call DeclarativeManagement and verify response
 	callDeclarativeManagementAndVerify := func(t *testing.T, hostUUID string,
 		expectedConfigurations, expectedActivations int,
-	) fleet.MDMAppleDDMDeclarationItemsResponse {
+	) automdm.MDMAppleDDMDeclarationItemsResponse {
 		req := mdm.Request{
 			Context: ctx,
 			EnrollID: &mdm.EnrollID{
@@ -184,7 +184,7 @@ func TestDeclarativeManagement_DeclarationItems(t *testing.T) {
 		require.NotNil(t, response)
 
 		// Parse the response
-		var declarationItemsResponse fleet.MDMAppleDDMDeclarationItemsResponse
+		var declarationItemsResponse automdm.MDMAppleDDMDeclarationItemsResponse
 		err = json.Unmarshal(response, &declarationItemsResponse)
 		require.NoError(t, err)
 
@@ -237,7 +237,7 @@ func TestDeclarativeManagement_DeclarationItems(t *testing.T) {
 		token := insertHostDeclaration(t, hostUUID, declaration.DeclarationUUID, "pending", "install", declaration.Identifier)
 
 		// Get the expected declarations token from the DB.
-		expectedToken, err := ds.MDMAppleDDMDeclarationsToken(ctx, hostUUID, fleet.PayloadScopeSystem)
+		expectedToken, err := ds.MDMAppleDDMDeclarationsToken(ctx, hostUUID, automdm.PayloadScopeSystem)
 		require.NoError(t, err)
 
 		// Call DeclarativeManagement and verify response
@@ -264,7 +264,7 @@ func TestDeclarativeManagement_DeclarationItems(t *testing.T) {
 		setupDeviceAndEnrollment(t, hostUUID, hardwareSerial)
 		insertHostDeclaration(t, hostUUID, declaration.DeclarationUUID, "pending", "install", declaration.Identifier)
 
-		tokenBefore, err := ds.MDMAppleDDMDeclarationsToken(ctx, hostUUID, fleet.PayloadScopeSystem)
+		tokenBefore, err := ds.MDMAppleDDMDeclarationsToken(ctx, hostUUID, automdm.PayloadScopeSystem)
 		require.NoError(t, err)
 		respBefore := callDeclarativeManagementAndVerify(t, hostUUID, 1, 1)
 		require.Equal(t, tokenBefore.DeclarationsToken, respBefore.DeclarationsToken)
@@ -278,7 +278,7 @@ func TestDeclarativeManagement_DeclarationItems(t *testing.T) {
 			return err
 		})
 
-		tokenAfter, err := ds.MDMAppleDDMDeclarationsToken(ctx, hostUUID, fleet.PayloadScopeSystem)
+		tokenAfter, err := ds.MDMAppleDDMDeclarationsToken(ctx, hostUUID, automdm.PayloadScopeSystem)
 		require.NoError(t, err)
 		respAfter := callDeclarativeManagementAndVerify(t, hostUUID, 1, 1)
 
@@ -300,7 +300,7 @@ func TestDeclarativeManagement_DeclarationItems(t *testing.T) {
 		response := callDeclarativeManagementAndVerify(t, hostUUID, 0, 0)
 
 		// Get the expected declarations token from the DB.
-		expectedToken, err := ds.MDMAppleDDMDeclarationsToken(ctx, hostUUID, fleet.PayloadScopeSystem)
+		expectedToken, err := ds.MDMAppleDDMDeclarationsToken(ctx, hostUUID, automdm.PayloadScopeSystem)
 		require.NoError(t, err)
 
 		// Verify the token in the response matches the expected token
@@ -328,7 +328,7 @@ func TestDeclarativeManagement_DeclarationItems(t *testing.T) {
 		insertHostDeclaration(t, hostUUID, declaration3.DeclarationUUID, "pending", "remove", declaration3.Identifier)
 
 		// Get the expected declarations token from the DB.
-		expectedToken, err := ds.MDMAppleDDMDeclarationsToken(ctx, hostUUID, fleet.PayloadScopeSystem)
+		expectedToken, err := ds.MDMAppleDDMDeclarationsToken(ctx, hostUUID, automdm.PayloadScopeSystem)
 		require.NoError(t, err)
 
 		// Call DeclarativeManagement and verify response
@@ -378,7 +378,7 @@ func TestDeclarativeManagement_DeclarationItems(t *testing.T) {
 		insertHostDeclaration(t, hostUUID, declaration3.DeclarationUUID, "", "remove", declaration3.Identifier)
 
 		// Get the expected declarations token from the DB.
-		expectedToken, err := ds.MDMAppleDDMDeclarationsToken(ctx, hostUUID, fleet.PayloadScopeSystem)
+		expectedToken, err := ds.MDMAppleDDMDeclarationsToken(ctx, hostUUID, automdm.PayloadScopeSystem)
 		require.NoError(t, err)
 
 		// Call DeclarativeManagement and verify response
@@ -444,7 +444,7 @@ func TestDeclarativeManagement_DeclarationItems(t *testing.T) {
 		setDeclarationUploadedAt(t, declaration8.DeclarationUUID, sameTimestamp.Add(3*time.Hour))
 
 		// Get the expected declarations token from the DB.
-		expectedToken, err := ds.MDMAppleDDMDeclarationsToken(ctx, hostUUID, fleet.PayloadScopeSystem)
+		expectedToken, err := ds.MDMAppleDDMDeclarationsToken(ctx, hostUUID, automdm.PayloadScopeSystem)
 		require.NoError(t, err)
 
 		// Call DeclarativeManagement and verify response
@@ -531,28 +531,28 @@ func TestDeclarativeManagement_DeclarationItems(t *testing.T) {
 
 		// A device-scoped and a user-scoped declaration.
 		deviceDecl := createDeclaration(t, "user-scope-device-decl", "DeviceDecl", "com.example.userscope.device")
-		userDeclRaw := &fleet.MDMAppleDeclaration{
+		userDeclRaw := &automdm.MDMAppleDeclaration{
 			DeclarationUUID: "user-scope-user-decl",
 			Name:            "UserDecl",
 			Identifier:      "com.example.userscope.user",
 			RawJSON:         []byte(`{"Type":"com.apple.test.declaration","Identifier":"com.example.userscope.user"}`),
-			Scope:           fleet.PayloadScopeUser,
+			Scope:           automdm.PayloadScopeUser,
 		}
 		userDecl, err := ds.NewMDMAppleDeclaration(ctx, userDeclRaw, nil)
 		require.NoError(t, err)
 
 		// Apple supports management declarations on the user channel too, and
-		// nothing in Fleet scopes by declaration type, so it must ride along.
-		userMgmtDecl, err := ds.NewMDMAppleDeclaration(ctx, &fleet.MDMAppleDeclaration{
+		// nothing in AutoMDM scopes by declaration type, so it must ride along.
+		userMgmtDecl, err := ds.NewMDMAppleDeclaration(ctx, &automdm.MDMAppleDeclaration{
 			DeclarationUUID: "user-scope-user-mgmt",
 			Name:            "UserMgmtDecl",
 			Identifier:      "com.example.userscope.mgmt",
-			RawJSON:         []byte(`{"Type":"com.apple.management.organization-info","Identifier":"com.example.userscope.mgmt","Payload":{"Name":"Fleet"}}`),
-			Scope:           fleet.PayloadScopeUser,
+			RawJSON:         []byte(`{"Type":"com.apple.management.organization-info","Identifier":"com.example.userscope.mgmt","Payload":{"Name":"AutoMDM"}}`),
+			Scope:           automdm.PayloadScopeUser,
 		}, nil)
 		require.NoError(t, err)
 
-		insertScopedHostDeclaration := func(declUUID, identifier string, scope fleet.PayloadScope) {
+		insertScopedHostDeclaration := func(declUUID, identifier string, scope automdm.PayloadScope) {
 			mysqltest.ExecAdhocSQL(t, ds, func(q sqlx.ExtContext) error {
 				var token string
 				if err := sqlx.GetContext(ctx, q, &token, "SELECT HEX(token) FROM mdm_apple_declarations WHERE declaration_uuid = ?", declUUID); err != nil {
@@ -566,11 +566,11 @@ func TestDeclarativeManagement_DeclarationItems(t *testing.T) {
 				return err
 			})
 		}
-		insertScopedHostDeclaration(deviceDecl.DeclarationUUID, deviceDecl.Identifier, fleet.PayloadScopeSystem)
-		insertScopedHostDeclaration(userDecl.DeclarationUUID, userDecl.Identifier, fleet.PayloadScopeUser)
-		insertScopedHostDeclaration(userMgmtDecl.DeclarationUUID, userMgmtDecl.Identifier, fleet.PayloadScopeUser)
+		insertScopedHostDeclaration(deviceDecl.DeclarationUUID, deviceDecl.Identifier, automdm.PayloadScopeSystem)
+		insertScopedHostDeclaration(userDecl.DeclarationUUID, userDecl.Identifier, automdm.PayloadScopeUser)
+		insertScopedHostDeclaration(userMgmtDecl.DeclarationUUID, userMgmtDecl.Identifier, automdm.PayloadScopeUser)
 
-		callChannel := func(enrollID *mdm.EnrollID) fleet.MDMAppleDDMDeclarationItemsResponse {
+		callChannel := func(enrollID *mdm.EnrollID) automdm.MDMAppleDDMDeclarationItemsResponse {
 			req := mdm.Request{Context: ctx, EnrollID: enrollID}
 			dm := mdm.DeclarativeManagement{}
 			dm.UDID = hostUUID
@@ -578,7 +578,7 @@ func TestDeclarativeManagement_DeclarationItems(t *testing.T) {
 			response, err := ddmService.DeclarativeManagement(&req, &dm)
 			require.NoError(t, err)
 			require.NotNil(t, response)
-			var parsed fleet.MDMAppleDDMDeclarationItemsResponse
+			var parsed automdm.MDMAppleDDMDeclarationItemsResponse
 			require.NoError(t, json.Unmarshal(response, &parsed))
 			return parsed
 		}
@@ -589,7 +589,7 @@ func TestDeclarativeManagement_DeclarationItems(t *testing.T) {
 		require.Len(t, deviceResp.Declarations.Configurations, 1)
 		require.Equal(t, deviceDecl.Identifier, deviceResp.Declarations.Configurations[0].Identifier)
 		require.Empty(t, deviceResp.Declarations.Management, "the user-scoped management declaration must not leak to the device channel")
-		sysToken, err := ds.MDMAppleDDMDeclarationsToken(ctx, hostUUID, fleet.PayloadScopeSystem)
+		sysToken, err := ds.MDMAppleDDMDeclarationsToken(ctx, hostUUID, automdm.PayloadScopeSystem)
 		require.NoError(t, err)
 		require.Equal(t, sysToken.DeclarationsToken, deviceResp.DeclarationsToken)
 
@@ -600,7 +600,7 @@ func TestDeclarativeManagement_DeclarationItems(t *testing.T) {
 		require.Equal(t, userDecl.Identifier, userResp.Declarations.Configurations[0].Identifier)
 		require.Len(t, userResp.Declarations.Management, 1)
 		require.Equal(t, userMgmtDecl.Identifier, userResp.Declarations.Management[0].Identifier)
-		userToken, err := ds.MDMAppleDDMDeclarationsToken(ctx, hostUUID, fleet.PayloadScopeUser)
+		userToken, err := ds.MDMAppleDDMDeclarationsToken(ctx, hostUUID, automdm.PayloadScopeUser)
 		require.NoError(t, err)
 		require.Equal(t, userToken.DeclarationsToken, userResp.DeclarationsToken)
 
@@ -614,14 +614,14 @@ func TestDeclarativeManagement_DeclarationItems(t *testing.T) {
 		createHost(t, hostUUID, hardwareSerial)
 		setupDeviceAndEnrollment(t, hostUUID, hardwareSerial)
 
-		// The stored declaration retains the Fleet-only top-level PayloadScope key
+		// The stored declaration retains the AutoMDM-only top-level PayloadScope key
 		// (it's only stripped at delivery).
-		decl, err := ds.NewMDMAppleDeclaration(ctx, &fleet.MDMAppleDeclaration{
+		decl, err := ds.NewMDMAppleDeclaration(ctx, &automdm.MDMAppleDeclaration{
 			DeclarationUUID: "strip-decl",
 			Name:            "StripDecl",
 			Identifier:      "com.example.strip",
 			RawJSON:         []byte(`{"Type":"com.apple.configuration.test","Identifier":"com.example.strip","PayloadScope":"System","Payload":{"Enabled":true}}`),
-			Scope:           fleet.PayloadScopeSystem,
+			Scope:           automdm.PayloadScopeSystem,
 		}, nil)
 		require.NoError(t, err)
 		require.Contains(t, string(decl.RawJSON), "PayloadScope", "stored raw_json keeps PayloadScope")
@@ -644,20 +644,20 @@ func TestDeclarativeManagement_DeclarationItems(t *testing.T) {
 	})
 
 	t.Run("PredicateStatusMapping", func(t *testing.T) {
-		// Payloads below are the real reports a macOS 26 host sent to a Fleet
+		// Payloads below are the real reports a macOS 26 host sent to an AutoMDM
 		// server, not hand-written. Apple splits a predicate outcome across two
 		// arrays: the activation carries Info.Predicate, while the configuration
 		// it gates reports Error.ActivationFailed. Reading only the
 		// configuration makes a host the predicate simply excluded look failed.
-		predicateFalse := func(configIdent, activationIdent, token string) fleet.MDMAppleDDMStatusReport {
-			var r fleet.MDMAppleDDMStatusReport
-			r.StatusItems.Management.Declarations.Activations = []fleet.MDMAppleDDMStatusDeclaration{{
+		predicateFalse := func(configIdent, activationIdent, token string) automdm.MDMAppleDDMStatusReport {
+			var r automdm.MDMAppleDDMStatusReport
+			r.StatusItems.Management.Declarations.Activations = []automdm.MDMAppleDDMStatusDeclaration{{
 				Identifier:  activationIdent,
 				Active:      false,
-				Valid:       fleet.MDMAppleDeclarationValid,
+				Valid:       automdm.MDMAppleDeclarationValid,
 				ServerToken: token,
-				Reasons: []fleet.MDMAppleDDMStatusErrorReason{{
-					Code:        fleet.MDMAppleDDMReasonPredicate,
+				Reasons: []automdm.MDMAppleDDMStatusErrorReason{{
+					Code:        automdm.MDMAppleDDMReasonPredicate,
 					Description: "Activations (" + activationIdent + ") predicate (FALSEPREDICATE) evaluated to false.",
 					Details: map[string]any{
 						"Identifier":  activationIdent,
@@ -666,13 +666,13 @@ func TestDeclarativeManagement_DeclarationItems(t *testing.T) {
 					},
 				}},
 			}}
-			r.StatusItems.Management.Declarations.Configurations = []fleet.MDMAppleDDMStatusDeclaration{{
+			r.StatusItems.Management.Declarations.Configurations = []automdm.MDMAppleDDMStatusDeclaration{{
 				Identifier:  configIdent,
 				Active:      false,
-				Valid:       fleet.MDMAppleDeclarationUnknown,
+				Valid:       automdm.MDMAppleDeclarationUnknown,
 				ServerToken: token,
-				Reasons: []fleet.MDMAppleDDMStatusErrorReason{{
-					Code:        fleet.MDMAppleDDMReasonActivationFailed,
+				Reasons: []automdm.MDMAppleDDMStatusErrorReason{{
+					Code:        automdm.MDMAppleDDMReasonActivationFailed,
 					Description: "Activation " + activationIdent + " has errors.",
 					Details: map[string]any{
 						"Identifier":  activationIdent,
@@ -685,18 +685,18 @@ func TestDeclarativeManagement_DeclarationItems(t *testing.T) {
 
 		// Same shape, but the activation reports no Info.Predicate -- the
 		// activation genuinely failed rather than being scoped out.
-		activationBroken := func(configIdent, activationIdent, token string) fleet.MDMAppleDDMStatusReport {
+		activationBroken := func(configIdent, activationIdent, token string) automdm.MDMAppleDDMStatusReport {
 			r := predicateFalse(configIdent, activationIdent, token)
 			r.StatusItems.Management.Declarations.Activations[0].Reasons = nil
 			return r
 		}
 
-		applied := func(configIdent, token string) fleet.MDMAppleDDMStatusReport {
-			var r fleet.MDMAppleDDMStatusReport
-			r.StatusItems.Management.Declarations.Configurations = []fleet.MDMAppleDDMStatusDeclaration{{
+		applied := func(configIdent, token string) automdm.MDMAppleDDMStatusReport {
+			var r automdm.MDMAppleDDMStatusReport
+			r.StatusItems.Management.Declarations.Configurations = []automdm.MDMAppleDDMStatusDeclaration{{
 				Identifier:  configIdent,
 				Active:      true,
-				Valid:       fleet.MDMAppleDeclarationValid,
+				Valid:       automdm.MDMAppleDeclarationValid,
 				ServerToken: token,
 			}}
 			return r
@@ -706,9 +706,9 @@ func TestDeclarativeManagement_DeclarationItems(t *testing.T) {
 		// false and not part of the activation process", so these report
 		// Active:false even when fully applied. Grading them like configurations
 		// left every one of them stuck on verifying.
-		management := func(ident, token string, valid fleet.MDMAppleDeclarationValidity) fleet.MDMAppleDDMStatusReport {
-			var r fleet.MDMAppleDDMStatusReport
-			r.StatusItems.Management.Declarations.Management = []fleet.MDMAppleDDMStatusDeclaration{{
+		management := func(ident, token string, valid automdm.MDMAppleDeclarationValidity) automdm.MDMAppleDDMStatusReport {
+			var r automdm.MDMAppleDDMStatusReport
+			r.StatusItems.Management.Declarations.Management = []automdm.MDMAppleDDMStatusDeclaration{{
 				Identifier:  ident,
 				Active:      false,
 				Valid:       valid,
@@ -719,67 +719,67 @@ func TestDeclarativeManagement_DeclarationItems(t *testing.T) {
 
 		cases := []struct {
 			name        string
-			report      func(configIdent, activationIdent, token string) fleet.MDMAppleDDMStatusReport
+			report      func(configIdent, activationIdent, token string) automdm.MDMAppleDDMStatusReport
 			declRawJSON string
-			wantStatus  fleet.MDMDeliveryStatus
+			wantStatus  automdm.MDMDeliveryStatus
 			wantDetail  string
 		}{
 			{
 				name: "valid management declaration is verified despite being inactive",
-				report: func(ident, _ string, token string) fleet.MDMAppleDDMStatusReport {
-					return management(ident, token, fleet.MDMAppleDeclarationValid)
+				report: func(ident, _ string, token string) automdm.MDMAppleDDMStatusReport {
+					return management(ident, token, automdm.MDMAppleDeclarationValid)
 				},
-				declRawJSON: `{"Type":"com.apple.management.organization-info","Identifier":"%s","Payload":{"Name":"Fleet"}}`,
-				wantStatus:  fleet.MDMDeliveryVerified,
+				declRawJSON: `{"Type":"com.apple.management.organization-info","Identifier":"%s","Payload":{"Name":"AutoMDM"}}`,
+				wantStatus:  automdm.MDMDeliveryVerified,
 			},
 			{
 				name: "invalid management declaration is failed",
-				report: func(ident, _ string, token string) fleet.MDMAppleDDMStatusReport {
-					return management(ident, token, fleet.MDMAppleDeclarationInvalid)
+				report: func(ident, _ string, token string) automdm.MDMAppleDDMStatusReport {
+					return management(ident, token, automdm.MDMAppleDeclarationInvalid)
 				},
-				declRawJSON: `{"Type":"com.apple.management.organization-info","Identifier":"%s","Payload":{"Name":"Fleet"}}`,
-				wantStatus:  fleet.MDMDeliveryFailed,
+				declRawJSON: `{"Type":"com.apple.management.organization-info","Identifier":"%s","Payload":{"Name":"AutoMDM"}}`,
+				wantStatus:  automdm.MDMDeliveryFailed,
 			},
 			{
 				name: "unchecked management declaration stays verifying",
-				report: func(ident, _ string, token string) fleet.MDMAppleDDMStatusReport {
-					return management(ident, token, fleet.MDMAppleDeclarationUnknown)
+				report: func(ident, _ string, token string) automdm.MDMAppleDDMStatusReport {
+					return management(ident, token, automdm.MDMAppleDeclarationUnknown)
 				},
-				declRawJSON: `{"Type":"com.apple.management.organization-info","Identifier":"%s","Payload":{"Name":"Fleet"}}`,
-				wantStatus:  fleet.MDMDeliveryVerifying,
+				declRawJSON: `{"Type":"com.apple.management.organization-info","Identifier":"%s","Payload":{"Name":"AutoMDM"}}`,
+				wantStatus:  automdm.MDMDeliveryVerifying,
 			},
 			{
 				// Unknown means "not checked yet", but reasons mean something already
 				// went wrong -- without this it would wait for a verdict forever.
 				name: "unknown management declaration reporting errors is failed",
-				report: func(ident, _ string, token string) fleet.MDMAppleDDMStatusReport {
-					r := management(ident, token, fleet.MDMAppleDeclarationUnknown)
-					r.StatusItems.Management.Declarations.Management[0].Reasons = []fleet.MDMAppleDDMStatusErrorReason{{
+				report: func(ident, _ string, token string) automdm.MDMAppleDDMStatusReport {
+					r := management(ident, token, automdm.MDMAppleDeclarationUnknown)
+					r.StatusItems.Management.Declarations.Management[0].Reasons = []automdm.MDMAppleDDMStatusErrorReason{{
 						Code:        "Error.InvalidPayload",
 						Description: "ManagementPayload (" + ident + ") has an invalid payload.",
 					}}
 					return r
 				},
-				declRawJSON: `{"Type":"com.apple.management.organization-info","Identifier":"%s","Payload":{"Name":"Fleet"}}`,
-				wantStatus:  fleet.MDMDeliveryFailed,
+				declRawJSON: `{"Type":"com.apple.management.organization-info","Identifier":"%s","Payload":{"Name":"AutoMDM"}}`,
+				wantStatus:  automdm.MDMDeliveryFailed,
 			},
 			{
 				name:       "predicate excluded the host is verified, not failed",
 				report:     predicateFalse,
-				wantStatus: fleet.MDMDeliveryVerified,
-				wantDetail: "Fleet verified, but predicate (FALSEPREDICATE) evaluated to false and settings were not applied to this host.",
+				wantStatus: automdm.MDMDeliveryVerified,
+				wantDetail: "AutoMDM verified, but predicate (FALSEPREDICATE) evaluated to false and settings were not applied to this host.",
 			},
 			{
 				name:       "activation failure without a predicate reason is failed",
 				report:     activationBroken,
-				wantStatus: fleet.MDMDeliveryFailed,
+				wantStatus: automdm.MDMDeliveryFailed,
 			},
 			{
 				name: "applied configuration is verified",
-				report: func(configIdent, _ string, token string) fleet.MDMAppleDDMStatusReport {
+				report: func(configIdent, _ string, token string) automdm.MDMAppleDDMStatusReport {
 					return applied(configIdent, token)
 				},
-				wantStatus: fleet.MDMDeliveryVerified,
+				wantStatus: automdm.MDMDeliveryVerified,
 			},
 		}
 
@@ -797,11 +797,11 @@ func TestDeclarativeManagement_DeclarationItems(t *testing.T) {
 				if c.declRawJSON != "" {
 					rawJSON = fmt.Sprintf(c.declRawJSON, configIdent)
 				}
-				decl, err := ds.NewMDMAppleDeclaration(ctx, &fleet.MDMAppleDeclaration{
+				decl, err := ds.NewMDMAppleDeclaration(ctx, &automdm.MDMAppleDeclaration{
 					Name:       "PredDecl-" + suffix,
 					Identifier: configIdent,
 					RawJSON:    []byte(rawJSON),
-					Scope:      fleet.PayloadScopeSystem,
+					Scope:      automdm.PayloadScopeSystem,
 				}, nil)
 				require.NoError(t, err)
 				token := insertHostDeclaration(t, hostUUID, decl.DeclarationUUID, "pending", "install", decl.Identifier)
@@ -843,13 +843,13 @@ func TestDeclarativeManagement_DeclarationItems(t *testing.T) {
 		setupDeviceAndEnrollment(t, outOfScopeUUID, outOfScopeSerial)
 
 		teamID := uint(42)
-		decl, err := ds.NewMDMAppleDeclaration(ctx, &fleet.MDMAppleDeclaration{
+		decl, err := ds.NewMDMAppleDeclaration(ctx, &automdm.MDMAppleDeclaration{
 			Name:       "ScopedDecl",
 			Identifier: "com.example.scoped",
 			TeamID:     &teamID,
 			RawJSON:    []byte(`{"Type":"com.apple.configuration.test","Identifier":"com.example.scoped","Payload":{"Enabled":true}}`),
-			Scope:      fleet.PayloadScopeSystem,
-			Activation: &fleet.MDMAppleCustomActivation{
+			Scope:      automdm.PayloadScopeSystem,
+			Activation: &automdm.MDMAppleCustomActivation{
 				Identifier:              "com.example.scoped.act",
 				RawJSON:                 []byte(`{"Type":"com.apple.activation.simple","Identifier":"com.example.scoped.act","Payload":{"StandardConfigurations":["com.example.scoped"]}}`),
 				ConfigurationIdentifier: "com.example.scoped",
@@ -890,13 +890,13 @@ func TestDeclarativeManagement_DeclarationItems(t *testing.T) {
 		setupDeviceAndEnrollment(t, hostUUID, hardwareSerial)
 
 		teamID := uint(43)
-		decl, err := ds.NewMDMAppleDeclaration(ctx, &fleet.MDMAppleDeclaration{
+		decl, err := ds.NewMDMAppleDeclaration(ctx, &automdm.MDMAppleDeclaration{
 			Name:       "ActTokenDecl",
 			Identifier: "com.example.acttoken",
 			TeamID:     &teamID,
 			RawJSON:    []byte(`{"Type":"com.apple.configuration.test","Identifier":"com.example.acttoken","Payload":{"Enabled":true}}`),
-			Scope:      fleet.PayloadScopeSystem,
-			Activation: &fleet.MDMAppleCustomActivation{
+			Scope:      automdm.PayloadScopeSystem,
+			Activation: &automdm.MDMAppleCustomActivation{
 				Identifier:              "com.example.acttoken.act",
 				RawJSON:                 []byte(`{"Type":"com.apple.activation.simple","Identifier":"com.example.acttoken.act","Payload":{"StandardConfigurations":["com.example.acttoken"]}}`),
 				ConfigurationIdentifier: "com.example.acttoken",
@@ -933,13 +933,13 @@ func TestDeclarativeManagement_DeclarationItems(t *testing.T) {
 		setupDeviceAndEnrollment(t, hostUUID, hardwareSerial)
 
 		teamID := uint(45)
-		decl, err := ds.NewMDMAppleDeclaration(ctx, &fleet.MDMAppleDeclaration{
+		decl, err := ds.NewMDMAppleDeclaration(ctx, &automdm.MDMAppleDeclaration{
 			Name:       "ActTokDecl",
 			Identifier: "com.example.acttok",
 			TeamID:     &teamID,
 			RawJSON:    []byte(`{"Type":"com.apple.configuration.test","Identifier":"com.example.acttok","Payload":{"Enabled":true}}`),
-			Scope:      fleet.PayloadScopeSystem,
-			Activation: &fleet.MDMAppleCustomActivation{
+			Scope:      automdm.PayloadScopeSystem,
+			Activation: &automdm.MDMAppleCustomActivation{
 				Identifier:              "com.example.acttok.act",
 				RawJSON:                 []byte(`{"Type":"com.apple.activation.simple","Identifier":"com.example.acttok.act","Payload":{"StandardConfigurations":["com.example.acttok"]}}`),
 				ConfigurationIdentifier: "com.example.acttok",
@@ -981,17 +981,17 @@ func TestDeclarativeManagement_DeclarationItems(t *testing.T) {
 		setupDeviceAndEnrollment(t, hostUUID, hardwareSerial)
 
 		teamID := uint(44)
-		decl, err := ds.NewMDMAppleDeclaration(ctx, &fleet.MDMAppleDeclaration{
+		decl, err := ds.NewMDMAppleDeclaration(ctx, &automdm.MDMAppleDeclaration{
 			Name:       "ActVarDecl",
 			Identifier: "com.example.actvar",
 			TeamID:     &teamID,
 			// No variables in the declaration itself.
 			RawJSON: []byte(`{"Type":"com.apple.configuration.test","Identifier":"com.example.actvar","Payload":{"Enabled":true}}`),
-			Scope:   fleet.PayloadScopeSystem,
-			Activation: &fleet.MDMAppleCustomActivation{
+			Scope:   automdm.PayloadScopeSystem,
+			Activation: &automdm.MDMAppleCustomActivation{
 				Identifier: "com.example.actvar.act",
 				// ...but the activation references a vital that doesn't exist.
-				RawJSON:                 []byte(`{"Type":"com.apple.activation.simple","Identifier":"com.example.actvar.act","Payload":{"StandardConfigurations":["com.example.actvar"],"Predicate":"$FLEET_HOST_VITAL_999999 == 'x'"}}`),
+				RawJSON:                 []byte(`{"Type":"com.apple.activation.simple","Identifier":"com.example.actvar.act","Payload":{"StandardConfigurations":["com.example.actvar"],"Predicate":"$AUTOMDM_HOST_VITAL_999999 == 'x'"}}`),
 				ConfigurationIdentifier: "com.example.actvar",
 			},
 		}, nil)
@@ -1011,7 +1011,7 @@ func TestDeclarativeManagement_DeclarationItems(t *testing.T) {
 				`SELECT status FROM host_mdm_apple_declarations WHERE host_uuid = ? AND declaration_uuid = ?`,
 				hostUUID, decl.DeclarationUUID)
 		})
-		require.Equal(t, string(fleet.MDMDeliveryFailed), status)
+		require.Equal(t, string(automdm.MDMDeliveryFailed), status)
 	})
 
 	t.Run("ManagementDeclarationRoutingAndEndpointGuard", func(t *testing.T) {
@@ -1021,11 +1021,11 @@ func TestDeclarativeManagement_DeclarationItems(t *testing.T) {
 		createHost(t, hostUUID, hardwareSerial)
 		setupDeviceAndEnrollment(t, hostUUID, hardwareSerial)
 
-		mgmt, err := ds.NewMDMAppleDeclaration(ctx, &fleet.MDMAppleDeclaration{
+		mgmt, err := ds.NewMDMAppleDeclaration(ctx, &automdm.MDMAppleDeclaration{
 			Name:       "MgmtDecl",
 			Identifier: "com.example.mgmt",
 			RawJSON:    []byte(`{"Type":"com.apple.management.organization-info","Identifier":"com.example.mgmt","Payload":{"Echo":"foo"}}`),
-			Scope:      fleet.PayloadScopeSystem,
+			Scope:      automdm.PayloadScopeSystem,
 		}, nil)
 		require.NoError(t, err)
 		insertHostDeclaration(t, hostUUID, mgmt.DeclarationUUID, "pending", "install", mgmt.Identifier)
@@ -1054,25 +1054,25 @@ func TestDeclarativeManagement_DeclarationItems(t *testing.T) {
 }
 
 // osUpdatesDeclContents is a minimal DDM software-update declaration body that
-// references both host-target OS Fleet variables. It is used by the OS-updates
+// references both host-target OS AutoMDM variables. It is used by the OS-updates
 // DDM sync tests below.
 const osUpdatesDeclContents = `{
 	"Type": "com.apple.configuration.softwareupdate.enforcement.specific",
 	"Identifier": "com.fleetdm.fleet.mdm.os-updates.macos",
 	"Payload": {
-		"TargetOSVersion": "$FLEET_VAR_HOST_TARGET_OS_VERSION",
-		"TargetLocalDateTime": "${FLEET_VAR_HOST_TARGET_OS_DEADLINE}T12:00:00"
+		"TargetOSVersion": "$AUTOMDM_VAR_HOST_TARGET_OS_VERSION",
+		"TargetLocalDateTime": "${AUTOMDM_VAR_HOST_TARGET_OS_DEADLINE}T12:00:00"
 	}
 }`
 
-// TestReplaceDeclarationFleetVariablesOSUpdateTargets covers the variable
+// TestReplaceDeclarationAutoMDMVariablesOSUpdateTargets covers the variable
 // resolution branch for the OS-update target variables:
 //   - the tracking row exists but the target hasn't been computed yet -> the
 //     declaration is deferred with a notReadyYetError (so the caller marks it
 //     pending, not failed),
 //   - the target is set -> the version and RFC3339 deadline are substituted,
 //   - there is no tracking row at all -> a hard error (marked failed).
-func TestReplaceDeclarationFleetVariablesOSUpdateTargets(t *testing.T) {
+func TestReplaceDeclarationAutoMDMVariablesOSUpdateTargets(t *testing.T) {
 	ctx := t.Context()
 	ds := mysqltest.CreateMySQLDS(t)
 	svc := MDMAppleDDMService{
@@ -1080,8 +1080,8 @@ func TestReplaceDeclarationFleetVariablesOSUpdateTargets(t *testing.T) {
 		logger: slog.New(slog.NewTextHandler(os.Stdout, nil)),
 	}
 
-	newHost := func(hostUUID string) *fleet.Host {
-		h, err := ds.NewHost(ctx, &fleet.Host{
+	newHost := func(hostUUID string) *automdm.Host {
+		h, err := ds.NewHost(ctx, &automdm.Host{
 			UUID:            hostUUID,
 			Hostname:        hostUUID,
 			OsqueryHostID:   new(hostUUID),
@@ -1101,7 +1101,7 @@ func TestReplaceDeclarationFleetVariablesOSUpdateTargets(t *testing.T) {
 		// A tracking row exists (device id captured) but no target has been set.
 		require.NoError(t, ds.InsertAppleSoftwareUpdateDeviceID(ctx, h.UUID, "Mac14,2"))
 
-		_, err := svc.replaceDeclarationFleetVariables(ctx, osUpdatesDeclContents, h.UUID)
+		_, err := svc.replaceDeclarationAutoMDMVariables(ctx, osUpdatesDeclContents, h.UUID)
 		var notReady notReadyYetError
 		require.ErrorAs(t, err, &notReady)
 		require.Contains(t, notReady.Message, "not yet available")
@@ -1114,15 +1114,15 @@ func TestReplaceDeclarationFleetVariablesOSUpdateTargets(t *testing.T) {
 
 		deadline, _ := time.Parse(time.DateOnly, time.Now().UTC().Add(48*time.Hour).Format(time.DateOnly))
 		resolvedAt := time.Now().UTC().Truncate(time.Microsecond)
-		require.NoError(t, ds.SetAppleOSUpdateTargetsAndResend(ctx, []*fleet.ComputedAppleSoftwareUpdateHost{{
-			AppleSoftwareUpdateHost: fleet.AppleSoftwareUpdateHost{
+		require.NoError(t, ds.SetAppleOSUpdateTargetsAndResend(ctx, []*automdm.ComputedAppleSoftwareUpdateHost{{
+			AppleSoftwareUpdateHost: automdm.AppleSoftwareUpdateHost{
 				HostUUID: h.UUID, TargetOSVersion: "15.1", TargetDeadline: &deadline, ResolvedAt: &resolvedAt,
 			},
 		}}))
 
-		out, err := svc.replaceDeclarationFleetVariables(ctx, osUpdatesDeclContents, h.UUID)
+		out, err := svc.replaceDeclarationAutoMDMVariables(ctx, osUpdatesDeclContents, h.UUID)
 		require.NoError(t, err)
-		require.NotContains(t, out, "$FLEET_VAR")
+		require.NotContains(t, out, "$AUTOMDM_VAR")
 
 		deadline = deadline.Add(12 * time.Hour) // noon local time
 
@@ -1142,7 +1142,7 @@ func TestReplaceDeclarationFleetVariablesOSUpdateTargets(t *testing.T) {
 	t.Run("missing tracking row is a hard error, not a defer", func(t *testing.T) {
 		h := newHost("os-var-missing") // no InsertAppleSoftwareUpdateDeviceID -> no tracking row
 
-		_, err := svc.replaceDeclarationFleetVariables(ctx, osUpdatesDeclContents, h.UUID)
+		_, err := svc.replaceDeclarationAutoMDMVariables(ctx, osUpdatesDeclContents, h.UUID)
 		require.Error(t, err)
 		var notReady notReadyYetError
 		require.NotErrorAs(t, err, &notReady, "a missing tracking row must not defer")
@@ -1170,7 +1170,7 @@ func TestDeclarativeManagementOSUpdatesPendingThenResolved(t *testing.T) {
 		declIdentifier = "com.fleetdm.fleet.mdm.os-updates.macos"
 	)
 
-	_, err := ds.NewHost(ctx, &fleet.Host{
+	_, err := ds.NewHost(ctx, &automdm.Host{
 		UUID:            hostUUID,
 		Hostname:        hostUUID,
 		OsqueryHostID:   new(hostUUID),
@@ -1183,14 +1183,14 @@ func TestDeclarativeManagementOSUpdatesPendingThenResolved(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Fleet-managed OS-updates DDM declaration referencing the two target vars.
-	decl, err := ds.NewMDMAppleDeclaration(ctx, &fleet.MDMAppleDeclaration{
+	// AutoMDM-managed OS-updates DDM declaration referencing the two target vars.
+	decl, err := ds.NewMDMAppleDeclaration(ctx, &automdm.MDMAppleDeclaration{
 		DeclarationUUID: "os-updates-decl-uuid",
-		Name:            fleetmdm.FleetMacOSUpdatesProfileName,
+		Name:            automdmmdm.AutoMDMMacOSUpdatesProfileName,
 		Identifier:      declIdentifier,
 		RawJSON:         []byte(osUpdatesDeclContents),
-		Scope:           fleet.PayloadScopeSystem,
-	}, []fleet.FleetVarName{fleet.FleetVarHostTargetOSVersion, fleet.FleetVarHostTargetOSDeadline})
+		Scope:           automdm.PayloadScopeSystem,
+	}, []automdm.AutoMDMVarName{automdm.AutoMDMVarHostTargetOSVersion, automdm.AutoMDMVarHostTargetOSDeadline})
 	require.NoError(t, err)
 
 	// Assign the declaration to the host. variables_updated_at is set (as the
@@ -1207,7 +1207,7 @@ func TestDeclarativeManagementOSUpdatesPendingThenResolved(t *testing.T) {
 			INSERT INTO host_mdm_apple_declarations
 				(host_uuid, declaration_uuid, status, operation_type, token, declaration_identifier, declaration_name, scope, variables_updated_at)
 			VALUES (?, ?, NULL, 'install', UNHEX(?), ?, ?, 'System', ?)`,
-			hostUUID, decl.DeclarationUUID, token, declIdentifier, fleetmdm.FleetMacOSUpdatesProfileName, initialVarsUpdated)
+			hostUUID, decl.DeclarationUUID, token, declIdentifier, automdmmdm.AutoMDMMacOSUpdatesProfileName, initialVarsUpdated)
 		return err
 	})
 
@@ -1238,10 +1238,10 @@ func TestDeclarativeManagementOSUpdatesPendingThenResolved(t *testing.T) {
 		}
 		return &vals[0]
 	}
-	configItems := func() []fleet.MDMAppleDDMManifest {
-		body, err := svc.handleDeclarationItems(ctx, hostUUID, fleet.PayloadScopeSystem)
+	configItems := func() []automdm.MDMAppleDDMManifest {
+		body, err := svc.handleDeclarationItems(ctx, hostUUID, automdm.PayloadScopeSystem)
 		require.NoError(t, err)
-		var resp fleet.MDMAppleDDMDeclarationItemsResponse
+		var resp automdm.MDMAppleDDMDeclarationItemsResponse
 		require.NoError(t, json.Unmarshal(body, &resp))
 		return resp.Declarations.Configurations
 	}
@@ -1250,13 +1250,13 @@ func TestDeclarativeManagementOSUpdatesPendingThenResolved(t *testing.T) {
 
 	// === Phase 1: target not ready -> pending with detail, excluded from manifest ===
 
-	body, err := svc.handleConfigurationDeclaration(ctx, configParts, hostUUID, fleet.PayloadScopeSystem, false)
+	body, err := svc.handleConfigurationDeclaration(ctx, configParts, hostUUID, automdm.PayloadScopeSystem, false)
 	require.NoError(t, err)
 	require.Nil(t, body, "an unresolvable declaration is served as an empty 200")
 
 	status, detail := readHostDecl()
 	require.NotNil(t, status)
-	require.Equal(t, string(fleet.MDMDeliveryPending), *status)
+	require.Equal(t, string(automdm.MDMDeliveryPending), *status)
 	require.Contains(t, detail, "not yet available")
 
 	for _, c := range configItems() {
@@ -1265,7 +1265,7 @@ func TestDeclarativeManagementOSUpdatesPendingThenResolved(t *testing.T) {
 	// handleDeclarationItems also keeps it pending with the detail.
 	status, detail = readHostDecl()
 	require.NotNil(t, status)
-	require.Equal(t, string(fleet.MDMDeliveryPending), *status)
+	require.Equal(t, string(automdm.MDMDeliveryPending), *status)
 	require.Contains(t, detail, "not yet available")
 
 	// === Phase 2: cron computes the target and bumps the declaration for resend ===
@@ -1273,8 +1273,8 @@ func TestDeclarativeManagementOSUpdatesPendingThenResolved(t *testing.T) {
 	deadline, _ := time.Parse(time.DateOnly, time.Now().UTC().Add(48*time.Hour).Format(time.DateOnly))
 	deadline = deadline.Add(12 * time.Hour) // noon local time
 	resolvedAt := time.Now().UTC().Truncate(time.Microsecond)
-	require.NoError(t, ds.SetAppleOSUpdateTargetsAndResend(ctx, []*fleet.ComputedAppleSoftwareUpdateHost{{
-		AppleSoftwareUpdateHost: fleet.AppleSoftwareUpdateHost{
+	require.NoError(t, ds.SetAppleOSUpdateTargetsAndResend(ctx, []*automdm.ComputedAppleSoftwareUpdateHost{{
+		AppleSoftwareUpdateHost: automdm.AppleSoftwareUpdateHost{
 			HostUUID: hostUUID, TargetOSVersion: "15.1", TargetDeadline: &deadline, ResolvedAt: &resolvedAt,
 		},
 		Resend: true,
@@ -1289,10 +1289,10 @@ func TestDeclarativeManagementOSUpdatesPendingThenResolved(t *testing.T) {
 
 	// === Phase 3: the declaration now resolves and is served with concrete values ===
 
-	body, err = svc.handleConfigurationDeclaration(ctx, configParts, hostUUID, fleet.PayloadScopeSystem, false)
+	body, err = svc.handleConfigurationDeclaration(ctx, configParts, hostUUID, automdm.PayloadScopeSystem, false)
 	require.NoError(t, err)
 	require.NotNil(t, body)
-	require.NotContains(t, string(body), "$FLEET_VAR")
+	require.NotContains(t, string(body), "$AUTOMDM_VAR")
 
 	var served struct {
 		Identifier string

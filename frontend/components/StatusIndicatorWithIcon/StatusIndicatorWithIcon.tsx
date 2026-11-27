@@ -60,7 +60,7 @@ const StatusIndicatorWithIcon = ({
     <span className={valueClasses}>
       <Icon
         name={statusIconNameMapping[status]}
-        color={status === "failure" ? "ui-fleet-black-50" : undefined}
+        color={status === "failure" ? "ui-automdm-black-50" : undefined}
       />
       <span>{value}</span>
     </span>

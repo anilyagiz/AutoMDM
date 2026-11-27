@@ -30,8 +30,8 @@ type PackageTest struct {
 	forbiddenPkgs []string
 }
 
-// ModuleName is the module name for the fleet project.
-const ModuleName = "github.com/fleetdm/fleet/v4"
+// ModuleName is the module name for the team project.
+const ModuleName = "github.com/anilyagiz/automdm/v4"
 
 // PackageTest will ignore dependency on this package.
 const thisPackage = ModuleName + "/server/archtest"

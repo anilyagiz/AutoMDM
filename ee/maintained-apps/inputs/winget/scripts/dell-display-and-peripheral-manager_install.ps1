@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 
 $exeFilePath = "${env:INSTALLER_PATH}"
 
@@ -12,7 +12,7 @@ try {
 #   /Silent            - no UI
 #   /HeadlessMode=true - required for SYSTEM/session-0 (no desktop) installs
 #   /TelemetryConsent=false - decline telemetry (no consent prompt)
-#   /TurnOffCA         - disable the app's own auto-update (Fleet manages updates)
+#   /TurnOffCA         - disable the app's own auto-update (AutoMDM manages updates)
 $processOptions = @{
   FilePath = "$exeFilePath"
   ArgumentList = "/Silent /HeadlessMode=true /TelemetryConsent=false /TurnOffCA"

@@ -2,7 +2,7 @@ package service
 
 // MDM-related tests for the enterprise (premium) suite, which runs without MDM configured.
 //
-// Belongs here: Apple and Windows OS update settings (fleet config and enforcement), Linux disk
+// Belongs here: Apple and Windows OS update settings (automdm config and enforcement), Linux disk
 // encryption, lock/unlock/wipe on Windows and Linux, and endpoints that require MDM when it is not
 // configured.
 //
@@ -22,11 +22,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/optjson"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm"
-	mdmtest "github.com/fleetdm/fleet/v4/server/mdm/testing_utils"
+	"github.com/anilyagiz/automdm/v4/pkg/optjson"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	"github.com/anilyagiz/automdm/v4/server/mdm"
+	mdmtest "github.com/anilyagiz/automdm/v4/server/mdm/testing_utils"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -39,22 +39,22 @@ func (s *integrationEnterpriseTestSuite) TestWindowsUpdatesTeamConfig() {
 	mdmtest.StartNewAppleGDMFTestServer(t)
 
 	// Create a team
-	team := &fleet.Team{
+	team := &automdm.Team{
 		Name:        t.Name(),
 		Description: "Team description",
-		Secrets:     []*fleet.EnrollSecret{{Secret: "XYZ"}},
+		Secrets:     []*automdm.EnrollSecret{{Secret: "XYZ"}},
 	}
 	var tmResp teamResponse
-	s.DoJSON("POST", "/api/latest/fleet/fleets", team, http.StatusOK, &tmResp)
+	s.DoJSON("POST", "/api/latest/automdm/teams", team, http.StatusOK, &tmResp)
 	require.Equal(t, team.Name, tmResp.Team.Name)
 	team.ID = tmResp.Team.ID
 
 	checkWindowsOSUpdatesProfile(t, s.ds, &team.ID, nil)
 
 	// modify the team's config
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d", team.ID), map[string]any{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d", team.ID), map[string]any{
 		"mdm": map[string]any{
-			"windows_updates": &fleet.WindowsUpdates{
+			"windows_updates": &automdm.WindowsUpdates{
 				DeadlineDays:    optjson.SetInt(5),
 				GracePeriodDays: optjson.SetInt(2),
 			},
@@ -62,9 +62,9 @@ func (s *integrationEnterpriseTestSuite) TestWindowsUpdatesTeamConfig() {
 	}, http.StatusOK, &tmResp)
 	require.Equal(t, 5, tmResp.Team.Config.MDM.WindowsUpdates.DeadlineDays.Value)
 	require.Equal(t, 2, tmResp.Team.Config.MDM.WindowsUpdates.GracePeriodDays.Value)
-	s.lastActivityMatches(fleet.ActivityTypeEditedWindowsUpdates{}.ActivityName(), fmt.Sprintf(`{"fleet_id": %d, "fleet_name": %q, "deadline_days": 5, "grace_period_days": 2}`, team.ID, team.Name), 0)
+	s.lastActivityMatches(automdm.ActivityTypeEditedWindowsUpdates{}.ActivityName(), fmt.Sprintf(`{"team_id": %d, "team_name": %q, "deadline_days": 5, "grace_period_days": 2}`, team.ID, team.Name), 0)
 
-	checkWindowsOSUpdatesProfile(t, s.ds, &team.ID, &fleet.WindowsUpdates{
+	checkWindowsOSUpdatesProfile(t, s.ds, &team.ID, &automdm.WindowsUpdates{
 		DeadlineDays:    optjson.SetInt(5),
 		GracePeriodDays: optjson.SetInt(2),
 	})
@@ -72,33 +72,33 @@ func (s *integrationEnterpriseTestSuite) TestWindowsUpdatesTeamConfig() {
 	// get the team via the GET endpoint, check that it properly returns the mdm
 	// settings.
 	var getTmResp getTeamResponse
-	s.DoJSON("GET", "/api/latest/fleet/fleets/"+fmt.Sprint(team.ID), nil, http.StatusOK, &getTmResp)
-	require.Equal(t, withCreateDefaults(fleet.TeamMDM{
-		MacOSUpdates: fleet.AppleOSUpdateSettings{
+	s.DoJSON("GET", "/api/latest/automdm/teams/"+fmt.Sprint(team.ID), nil, http.StatusOK, &getTmResp)
+	require.Equal(t, withCreateDefaults(automdm.TeamMDM{
+		MacOSUpdates: automdm.AppleOSUpdateSettings{
 			MinimumVersion: optjson.String{Set: true},
 			Deadline:       optjson.String{Set: true},
 			DeadlineDays:   optjson.Int{Set: true},
 			UpdateNewHosts: optjson.Bool{Set: true},
 		},
-		IOSUpdates: fleet.AppleOSUpdateSettings{
+		IOSUpdates: automdm.AppleOSUpdateSettings{
 			MinimumVersion: optjson.String{Set: true},
 			Deadline:       optjson.String{Set: true},
 			DeadlineDays:   optjson.Int{Set: true},
 			UpdateNewHosts: optjson.Bool{Set: true},
 		},
-		IPadOSUpdates: fleet.AppleOSUpdateSettings{
+		IPadOSUpdates: automdm.AppleOSUpdateSettings{
 			MinimumVersion: optjson.String{Set: true},
 			Deadline:       optjson.String{Set: true},
 			DeadlineDays:   optjson.Int{Set: true},
 			UpdateNewHosts: optjson.Bool{Set: true, Valid: false, Value: false},
 		},
-		WindowsUpdates: fleet.WindowsUpdates{
+		WindowsUpdates: automdm.WindowsUpdates{
 			DeadlineDays:    optjson.SetInt(5),
 			GracePeriodDays: optjson.SetInt(2),
 		},
-		MacOSSetup: fleet.MacOSSetup{
+		MacOSSetup: automdm.MacOSSetup{
 			EnableReleaseDeviceManually:      optjson.SetBool(false),
-			Software:                         optjson.Slice[*fleet.MacOSSetupSoftware]{Set: true, Value: []*fleet.MacOSSetupSoftware{}},
+			Software:                         optjson.Slice[*automdm.MacOSSetupSoftware]{Set: true, Value: []*automdm.MacOSSetupSoftware{}},
 			ManualAgentInstall:               optjson.Bool{Set: true},
 			LockEndUserInfo:                  optjson.SetBool(false),
 			EnableManagedLocalAccount:        optjson.SetBool(false),
@@ -106,15 +106,15 @@ func (s *integrationEnterpriseTestSuite) TestWindowsUpdatesTeamConfig() {
 			EnableManagedLocalAccountWindows: optjson.SetBool(false),
 		},
 		WindowsSettings: defaultExpectedWindowsSettings(),
-		AndroidSettings: fleet.AndroidSettings{
-			Certificates: optjson.Slice[fleet.CertificateTemplateSpec]{Set: true, Value: []fleet.CertificateTemplateSpec{}},
+		AndroidSettings: automdm.AndroidSettings{
+			Certificates: optjson.Slice[automdm.CertificateTemplateSpec]{Set: true, Value: []automdm.CertificateTemplateSpec{}},
 		},
 	}), getTmResp.Team.Config.MDM)
 
 	// only update the deadline
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d", team.ID), map[string]any{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d", team.ID), map[string]any{
 		"mdm": map[string]any{
-			"windows_updates": &fleet.WindowsUpdates{
+			"windows_updates": &automdm.WindowsUpdates{
 				DeadlineDays:    optjson.SetInt(6),
 				GracePeriodDays: optjson.SetInt(2),
 			},
@@ -122,18 +122,18 @@ func (s *integrationEnterpriseTestSuite) TestWindowsUpdatesTeamConfig() {
 	}, http.StatusOK, &tmResp)
 	require.Equal(t, 6, tmResp.Team.Config.MDM.WindowsUpdates.DeadlineDays.Value)
 	require.Equal(t, 2, tmResp.Team.Config.MDM.WindowsUpdates.GracePeriodDays.Value)
-	lastActivity := s.lastActivityMatches(fleet.ActivityTypeEditedWindowsUpdates{}.ActivityName(), fmt.Sprintf(`{"fleet_id": %d, "fleet_name": %q, "deadline_days": 6, "grace_period_days": 2}`, team.ID, team.Name), 0)
+	lastActivity := s.lastActivityMatches(automdm.ActivityTypeEditedWindowsUpdates{}.ActivityName(), fmt.Sprintf(`{"team_id": %d, "team_name": %q, "deadline_days": 6, "grace_period_days": 2}`, team.ID, team.Name), 0)
 
-	checkWindowsOSUpdatesProfile(t, s.ds, &team.ID, &fleet.WindowsUpdates{
+	checkWindowsOSUpdatesProfile(t, s.ds, &team.ID, &automdm.WindowsUpdates{
 		DeadlineDays:    optjson.SetInt(6),
 		GracePeriodDays: optjson.SetInt(2),
 	})
 
 	// setting the macos updates doesn't alter the windows updates
 	tmResp = teamResponse{}
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d", team.ID), map[string]any{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d", team.ID), map[string]any{
 		"mdm": map[string]any{
-			"macos_updates": &fleet.AppleOSUpdateSettings{
+			"macos_updates": &automdm.AppleOSUpdateSettings{
 				MinimumVersion: optjson.SetString("14.6.1"),
 				Deadline:       optjson.SetString("2021-01-01"),
 			},
@@ -144,19 +144,19 @@ func (s *integrationEnterpriseTestSuite) TestWindowsUpdatesTeamConfig() {
 	require.Equal(t, 6, tmResp.Team.Config.MDM.WindowsUpdates.DeadlineDays.Value)
 	require.Equal(t, 2, tmResp.Team.Config.MDM.WindowsUpdates.GracePeriodDays.Value)
 	// did not create a new activity for windows updates
-	s.lastActivityOfTypeMatches(fleet.ActivityTypeEditedWindowsUpdates{}.ActivityName(), "", lastActivity)
-	lastActivity = s.lastActivityMatches(fleet.ActivityTypeEditedMacOSMinVersion{}.ActivityName(), ``, 0)
+	s.lastActivityOfTypeMatches(automdm.ActivityTypeEditedWindowsUpdates{}.ActivityName(), "", lastActivity)
+	lastActivity = s.lastActivityMatches(automdm.ActivityTypeEditedMacOSMinVersion{}.ActivityName(), ``, 0)
 
-	checkWindowsOSUpdatesProfile(t, s.ds, &team.ID, &fleet.WindowsUpdates{
+	checkWindowsOSUpdatesProfile(t, s.ds, &team.ID, &automdm.WindowsUpdates{
 		DeadlineDays:    optjson.SetInt(6),
 		GracePeriodDays: optjson.SetInt(2),
 	})
 
 	// sending a nil MDM or WindowsUpdates config doesn't modify anything
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d", team.ID), map[string]any{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d", team.ID), map[string]any{
 		"mdm": nil,
 	}, http.StatusOK, &tmResp)
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d", team.ID), map[string]any{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d", team.ID), map[string]any{
 		"mdm": map[string]any{
 			"windows_updates": nil,
 		},
@@ -168,13 +168,13 @@ func (s *integrationEnterpriseTestSuite) TestWindowsUpdatesTeamConfig() {
 	// no new activity is created
 	s.lastActivityMatches("", "", lastActivity)
 
-	checkWindowsOSUpdatesProfile(t, s.ds, &team.ID, &fleet.WindowsUpdates{
+	checkWindowsOSUpdatesProfile(t, s.ds, &team.ID, &automdm.WindowsUpdates{
 		DeadlineDays:    optjson.SetInt(6),
 		GracePeriodDays: optjson.SetInt(2),
 	})
 
 	// sending empty WindowsUpdates fields empties both fields
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d", team.ID), map[string]any{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d", team.ID), map[string]any{
 		"mdm": map[string]any{
 			"windows_updates": map[string]any{
 				"deadline_days":     nil,
@@ -184,14 +184,14 @@ func (s *integrationEnterpriseTestSuite) TestWindowsUpdatesTeamConfig() {
 	}, http.StatusOK, &tmResp)
 	require.False(t, tmResp.Team.Config.MDM.WindowsUpdates.DeadlineDays.Valid)
 	require.False(t, tmResp.Team.Config.MDM.WindowsUpdates.GracePeriodDays.Valid)
-	s.lastActivityMatches(fleet.ActivityTypeEditedWindowsUpdates{}.ActivityName(), fmt.Sprintf(`{"fleet_id": %d, "fleet_name": %q, "deadline_days": null, "grace_period_days": null}`, team.ID, team.Name), 0)
+	s.lastActivityMatches(automdm.ActivityTypeEditedWindowsUpdates{}.ActivityName(), fmt.Sprintf(`{"team_id": %d, "team_name": %q, "deadline_days": null, "grace_period_days": null}`, team.ID, team.Name), 0)
 
 	checkWindowsOSUpdatesProfile(t, s.ds, &team.ID, nil)
 
 	// error checks:
 
 	// try to set an invalid deadline
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d", team.ID), map[string]any{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d", team.ID), map[string]any{
 		"mdm": map[string]any{
 			"windows_updates": map[string]any{
 				"deadline_days":     1000,
@@ -201,7 +201,7 @@ func (s *integrationEnterpriseTestSuite) TestWindowsUpdatesTeamConfig() {
 	}, http.StatusUnprocessableEntity, &tmResp)
 
 	// try to set an invalid grace period
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d", team.ID), map[string]any{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d", team.ID), map[string]any{
 		"mdm": map[string]any{
 			"windows_updates": map[string]any{
 				"deadline_days":     1,
@@ -211,7 +211,7 @@ func (s *integrationEnterpriseTestSuite) TestWindowsUpdatesTeamConfig() {
 	}, http.StatusUnprocessableEntity, &tmResp)
 
 	// try to set a deadline but not a grace period
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d", team.ID), map[string]any{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d", team.ID), map[string]any{
 		"mdm": map[string]any{
 			"windows_updates": map[string]any{
 				"deadline_days": 1,
@@ -220,7 +220,7 @@ func (s *integrationEnterpriseTestSuite) TestWindowsUpdatesTeamConfig() {
 	}, http.StatusUnprocessableEntity, &tmResp)
 
 	// try to set a grace period but no deadline
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d", team.ID), map[string]any{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d", team.ID), map[string]any{
 		"mdm": map[string]any{
 			"windows_updates": map[string]any{
 				"grace_period_days": 1,
@@ -229,7 +229,7 @@ func (s *integrationEnterpriseTestSuite) TestWindowsUpdatesTeamConfig() {
 	}, http.StatusUnprocessableEntity, &tmResp)
 
 	// try to set an empty grace period but a non-empty deadline
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d", team.ID), map[string]any{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d", team.ID), map[string]any{
 		"mdm": map[string]any{
 			"windows_updates": map[string]any{
 				"deadline_days":     1,
@@ -239,7 +239,7 @@ func (s *integrationEnterpriseTestSuite) TestWindowsUpdatesTeamConfig() {
 	}, http.StatusUnprocessableEntity, &tmResp)
 }
 
-func (s *integrationEnterpriseTestSuite) assertAppleOSUpdatesDeclaration(teamID *uint, profileName string, expected *fleet.AppleOSUpdateSettings) {
+func (s *integrationEnterpriseTestSuite) assertAppleOSUpdatesDeclaration(teamID *uint, profileName string, expected *automdm.AppleOSUpdateSettings) {
 	t := s.T()
 	if teamID == nil {
 		teamID = new(uint(0))
@@ -273,28 +273,28 @@ func (s *integrationEnterpriseTestSuite) TestAppleOSUpdatesTeamConfig() {
 	// Mock Apple GDMF API (required for validating OS update minimum version settings)
 	mdmtest.StartNewAppleGDMFTestServer(t)
 
-	team := &fleet.Team{
+	team := &automdm.Team{
 		Name:        t.Name(),
 		Description: "Team description",
-		Secrets:     []*fleet.EnrollSecret{{Secret: "XYZ"}},
+		Secrets:     []*automdm.EnrollSecret{{Secret: "XYZ"}},
 	}
 	var tmResp teamResponse
-	s.DoJSON("POST", "/api/latest/fleet/fleets", team, http.StatusOK, &tmResp)
+	s.DoJSON("POST", "/api/latest/automdm/teams", team, http.StatusOK, &tmResp)
 	require.Equal(t, team.Name, tmResp.Team.Name)
 	team.ID = tmResp.Team.ID
 
 	// no OS updates settings at the moment
-	s.assertAppleOSUpdatesDeclaration(&team.ID, mdm.FleetMacOSUpdatesProfileName, nil)
-	s.assertAppleOSUpdatesDeclaration(&team.ID, mdm.FleetIOSUpdatesProfileName, nil)
-	s.assertAppleOSUpdatesDeclaration(&team.ID, mdm.FleetIPadOSUpdatesProfileName, nil)
+	s.assertAppleOSUpdatesDeclaration(&team.ID, mdm.AutoMDMMacOSUpdatesProfileName, nil)
+	s.assertAppleOSUpdatesDeclaration(&team.ID, mdm.AutoMDMIOSUpdatesProfileName, nil)
+	s.assertAppleOSUpdatesDeclaration(&team.ID, mdm.AutoMDMIPadOSUpdatesProfileName, nil)
 
 	// modify the team's config (macOS first)
-	macOSUpdates := &fleet.AppleOSUpdateSettings{
+	macOSUpdates := &automdm.AppleOSUpdateSettings{
 		MinimumVersion: optjson.SetString("14.6.1"),
 		Deadline:       optjson.SetString("2021-01-01"),
 		UpdateNewHosts: optjson.SetBool(true),
 	}
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d", team.ID), map[string]any{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d", team.ID), map[string]any{
 		"mdm": map[string]any{
 			"macos_updates": macOSUpdates,
 		},
@@ -304,36 +304,36 @@ func (s *integrationEnterpriseTestSuite) TestAppleOSUpdatesTeamConfig() {
 	require.True(t, tmResp.Team.Config.MDM.MacOSUpdates.UpdateNewHosts.Value)
 
 	s.lastActivityOfTypeMatches(
-		fleet.ActivityTypeEditedMacOSMinVersion{}.ActivityName(),
-		fmt.Sprintf(`{"fleet_id": %d, "fleet_name": %q, "minimum_version": "14.6.1", "deadline": "2021-01-01"}`, team.ID, team.Name), 0,
+		automdm.ActivityTypeEditedMacOSMinVersion{}.ActivityName(),
+		fmt.Sprintf(`{"team_id": %d, "team_name": %q, "minimum_version": "14.6.1", "deadline": "2021-01-01"}`, team.ID, team.Name), 0,
 	)
 
 	s.lastActivityOfTypeMatches(
-		fleet.ActivityTypeEnabledMacosUpdateNewHosts{}.ActivityName(),
+		automdm.ActivityTypeEnabledMacosUpdateNewHosts{}.ActivityName(),
 		fmt.Sprintf(
-			`{"fleet_id": %d, "fleet_name": %q}`,
+			`{"team_id": %d, "team_name": %q}`,
 			team.ID,
 			team.Name,
 		), 0,
 	)
 
-	s.assertAppleOSUpdatesDeclaration(&team.ID, mdm.FleetMacOSUpdatesProfileName, macOSUpdates)
-	s.assertAppleOSUpdatesDeclaration(&team.ID, mdm.FleetIOSUpdatesProfileName, nil)
-	s.assertAppleOSUpdatesDeclaration(&team.ID, mdm.FleetIPadOSUpdatesProfileName, nil)
+	s.assertAppleOSUpdatesDeclaration(&team.ID, mdm.AutoMDMMacOSUpdatesProfileName, macOSUpdates)
+	s.assertAppleOSUpdatesDeclaration(&team.ID, mdm.AutoMDMIOSUpdatesProfileName, nil)
+	s.assertAppleOSUpdatesDeclaration(&team.ID, mdm.AutoMDMIPadOSUpdatesProfileName, nil)
 
 	// modify the team's config (now iOS and iPadOS)
-	iOSUpdates := &fleet.AppleOSUpdateSettings{
+	iOSUpdates := &automdm.AppleOSUpdateSettings{
 		MinimumVersion: optjson.SetString("17.6.1"),
 		Deadline:       optjson.SetString("2022-02-02"),
 		UpdateNewHosts: optjson.SetBool(true),
 	}
-	iPadOSUpdates := &fleet.AppleOSUpdateSettings{
+	iPadOSUpdates := &automdm.AppleOSUpdateSettings{
 		MinimumVersion: optjson.SetString("17.6.1"),
 		Deadline:       optjson.SetString("2023-03-03"),
 		UpdateNewHosts: optjson.SetBool(true),
 	}
 	fmt.Printf("%+v\n", iOSUpdates)
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d", team.ID), map[string]any{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d", team.ID), map[string]any{
 		"mdm": map[string]any{
 			"ios_updates":    iOSUpdates,
 			"ipados_updates": iPadOSUpdates,
@@ -353,29 +353,29 @@ func (s *integrationEnterpriseTestSuite) TestAppleOSUpdatesTeamConfig() {
 	// UpdateNewHosts values are ignored for iPadOS
 	require.Equal(t, optjson.Bool{Set: true}, tmResp.Team.Config.MDM.IPadOSUpdates.UpdateNewHosts)
 
-	s.lastActivityOfTypeMatches(fleet.ActivityTypeEditedMacOSMinVersion{}.ActivityName(), fmt.Sprintf(`{"fleet_id": %d, "fleet_name": %q, "minimum_version": "14.6.1", "deadline": "2021-01-01"}`, team.ID, team.Name), 0)
-	s.lastActivityOfTypeMatches(fleet.ActivityTypeEditedIOSMinVersion{}.ActivityName(), fmt.Sprintf(`{"fleet_id": %d, "fleet_name": %q, "minimum_version": "17.6.1", "deadline": "2022-02-02"}`, team.ID, team.Name), 0)
-	s.lastActivityOfTypeMatches(fleet.ActivityTypeEditedIPadOSMinVersion{}.ActivityName(), fmt.Sprintf(`{"fleet_id": %d, "fleet_name": %q, "minimum_version": "17.6.1", "deadline": "2023-03-03"}`, team.ID, team.Name), 0)
+	s.lastActivityOfTypeMatches(automdm.ActivityTypeEditedMacOSMinVersion{}.ActivityName(), fmt.Sprintf(`{"team_id": %d, "team_name": %q, "minimum_version": "14.6.1", "deadline": "2021-01-01"}`, team.ID, team.Name), 0)
+	s.lastActivityOfTypeMatches(automdm.ActivityTypeEditedIOSMinVersion{}.ActivityName(), fmt.Sprintf(`{"team_id": %d, "team_name": %q, "minimum_version": "17.6.1", "deadline": "2022-02-02"}`, team.ID, team.Name), 0)
+	s.lastActivityOfTypeMatches(automdm.ActivityTypeEditedIPadOSMinVersion{}.ActivityName(), fmt.Sprintf(`{"team_id": %d, "team_name": %q, "minimum_version": "17.6.1", "deadline": "2023-03-03"}`, team.ID, team.Name), 0)
 
-	s.assertAppleOSUpdatesDeclaration(&team.ID, mdm.FleetMacOSUpdatesProfileName, macOSUpdates)
-	s.assertAppleOSUpdatesDeclaration(&team.ID, mdm.FleetIOSUpdatesProfileName, iOSUpdates)
-	s.assertAppleOSUpdatesDeclaration(&team.ID, mdm.FleetIPadOSUpdatesProfileName, iPadOSUpdates)
+	s.assertAppleOSUpdatesDeclaration(&team.ID, mdm.AutoMDMMacOSUpdatesProfileName, macOSUpdates)
+	s.assertAppleOSUpdatesDeclaration(&team.ID, mdm.AutoMDMIOSUpdatesProfileName, iOSUpdates)
+	s.assertAppleOSUpdatesDeclaration(&team.ID, mdm.AutoMDMIPadOSUpdatesProfileName, iPadOSUpdates)
 
 	// only update the deadlines
-	macOSUpdates = &fleet.AppleOSUpdateSettings{
+	macOSUpdates = &automdm.AppleOSUpdateSettings{
 		MinimumVersion: optjson.SetString("14.6.1"),
 		Deadline:       optjson.SetString("2025-10-01"),
 		UpdateNewHosts: optjson.SetBool(true),
 	}
-	iOSUpdates = &fleet.AppleOSUpdateSettings{
+	iOSUpdates = &automdm.AppleOSUpdateSettings{
 		MinimumVersion: optjson.SetString("17.6.1"),
 		Deadline:       optjson.SetString("2024-02-02"),
 	}
-	iPadOSUpdates = &fleet.AppleOSUpdateSettings{
+	iPadOSUpdates = &automdm.AppleOSUpdateSettings{
 		MinimumVersion: optjson.SetString("17.6.1"),
 		Deadline:       optjson.SetString("2024-03-03"),
 	}
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d", team.ID), map[string]any{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d", team.ID), map[string]any{
 		"mdm": map[string]any{
 			"macos_updates":  macOSUpdates,
 			"ios_updates":    iOSUpdates,
@@ -394,29 +394,29 @@ func (s *integrationEnterpriseTestSuite) TestAppleOSUpdatesTeamConfig() {
 	require.Equal(t, "2024-03-03", tmResp.Team.Config.MDM.IPadOSUpdates.Deadline.Value)
 	require.Equal(t, optjson.Bool{Set: true}, tmResp.Team.Config.MDM.IPadOSUpdates.UpdateNewHosts)
 
-	macOSLastActivity := s.lastActivityOfTypeMatches(fleet.ActivityTypeEditedMacOSMinVersion{}.ActivityName(), fmt.Sprintf(`{"fleet_id": %d, "fleet_name": %q, "minimum_version": "14.6.1", "deadline": "2025-10-01"}`, team.ID, team.Name), 0)
-	iOSLastActivity := s.lastActivityOfTypeMatches(fleet.ActivityTypeEditedIOSMinVersion{}.ActivityName(), fmt.Sprintf(`{"fleet_id": %d, "fleet_name": %q, "minimum_version": "17.6.1", "deadline": "2024-02-02"}`, team.ID, team.Name), 0)
-	iPadOSLastActivity := s.lastActivityOfTypeMatches(fleet.ActivityTypeEditedIPadOSMinVersion{}.ActivityName(), fmt.Sprintf(`{"fleet_id": %d, "fleet_name": %q, "minimum_version": "17.6.1", "deadline": "2024-03-03"}`, team.ID, team.Name), 0)
+	macOSLastActivity := s.lastActivityOfTypeMatches(automdm.ActivityTypeEditedMacOSMinVersion{}.ActivityName(), fmt.Sprintf(`{"team_id": %d, "team_name": %q, "minimum_version": "14.6.1", "deadline": "2025-10-01"}`, team.ID, team.Name), 0)
+	iOSLastActivity := s.lastActivityOfTypeMatches(automdm.ActivityTypeEditedIOSMinVersion{}.ActivityName(), fmt.Sprintf(`{"team_id": %d, "team_name": %q, "minimum_version": "17.6.1", "deadline": "2024-02-02"}`, team.ID, team.Name), 0)
+	iPadOSLastActivity := s.lastActivityOfTypeMatches(automdm.ActivityTypeEditedIPadOSMinVersion{}.ActivityName(), fmt.Sprintf(`{"team_id": %d, "team_name": %q, "minimum_version": "17.6.1", "deadline": "2024-03-03"}`, team.ID, team.Name), 0)
 
-	s.assertAppleOSUpdatesDeclaration(&team.ID, mdm.FleetMacOSUpdatesProfileName, macOSUpdates)
-	s.assertAppleOSUpdatesDeclaration(&team.ID, mdm.FleetIOSUpdatesProfileName, iOSUpdates)
-	s.assertAppleOSUpdatesDeclaration(&team.ID, mdm.FleetIPadOSUpdatesProfileName, iPadOSUpdates)
+	s.assertAppleOSUpdatesDeclaration(&team.ID, mdm.AutoMDMMacOSUpdatesProfileName, macOSUpdates)
+	s.assertAppleOSUpdatesDeclaration(&team.ID, mdm.AutoMDMIOSUpdatesProfileName, iOSUpdates)
+	s.assertAppleOSUpdatesDeclaration(&team.ID, mdm.AutoMDMIPadOSUpdatesProfileName, iPadOSUpdates)
 
 	// Unchecking the UpdateNewHosts flag should register as an activity
-	macOSUpdates = &fleet.AppleOSUpdateSettings{
+	macOSUpdates = &automdm.AppleOSUpdateSettings{
 		MinimumVersion: optjson.SetString("14.6.1"),
 		Deadline:       optjson.SetString("2025-10-01"),
 		UpdateNewHosts: optjson.SetBool(false),
 	}
-	iOSUpdates = &fleet.AppleOSUpdateSettings{
+	iOSUpdates = &automdm.AppleOSUpdateSettings{
 		MinimumVersion: optjson.SetString("17.6.1"),
 		Deadline:       optjson.SetString("2024-02-02"),
 	}
-	iPadOSUpdates = &fleet.AppleOSUpdateSettings{
+	iPadOSUpdates = &automdm.AppleOSUpdateSettings{
 		MinimumVersion: optjson.SetString("17.6.1"),
 		Deadline:       optjson.SetString("2024-03-03"),
 	}
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d", team.ID), map[string]any{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d", team.ID), map[string]any{
 		"mdm": map[string]any{
 			"macos_updates":  macOSUpdates,
 			"ios_updates":    iOSUpdates,
@@ -425,9 +425,9 @@ func (s *integrationEnterpriseTestSuite) TestAppleOSUpdatesTeamConfig() {
 	}, http.StatusOK, &tmResp)
 	require.False(t, tmResp.Team.Config.MDM.MacOSUpdates.UpdateNewHosts.Value)
 	s.lastActivityOfTypeMatches(
-		fleet.ActivityTypeDisabledMacosUpdateNewHosts{}.ActivityName(),
+		automdm.ActivityTypeDisabledMacosUpdateNewHosts{}.ActivityName(),
 		fmt.Sprintf(
-			`{"fleet_id": %d, "fleet_name": %q}`,
+			`{"team_id": %d, "team_name": %q}`,
 			team.ID,
 			team.Name,
 		), 0,
@@ -435,9 +435,9 @@ func (s *integrationEnterpriseTestSuite) TestAppleOSUpdatesTeamConfig() {
 
 	// setting the windows updates doesn't alter the apple updates
 	tmResp = teamResponse{}
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d", team.ID), map[string]any{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d", team.ID), map[string]any{
 		"mdm": map[string]any{
-			"windows_updates": &fleet.WindowsUpdates{
+			"windows_updates": &automdm.WindowsUpdates{
 				DeadlineDays:    optjson.SetInt(10),
 				GracePeriodDays: optjson.SetInt(2),
 			},
@@ -452,20 +452,20 @@ func (s *integrationEnterpriseTestSuite) TestAppleOSUpdatesTeamConfig() {
 	require.Equal(t, 10, tmResp.Team.Config.MDM.WindowsUpdates.DeadlineDays.Value)
 	require.Equal(t, 2, tmResp.Team.Config.MDM.WindowsUpdates.GracePeriodDays.Value)
 	// did not create a new activity for os updates
-	s.lastActivityOfTypeMatches(fleet.ActivityTypeEditedMacOSMinVersion{}.ActivityName(), "", macOSLastActivity)
-	s.lastActivityOfTypeMatches(fleet.ActivityTypeEditedIOSMinVersion{}.ActivityName(), "", iOSLastActivity)
-	s.lastActivityOfTypeMatches(fleet.ActivityTypeEditedIPadOSMinVersion{}.ActivityName(), "", iPadOSLastActivity)
-	lastActivity := s.lastActivityMatches(fleet.ActivityTypeEditedWindowsUpdates{}.ActivityName(), ``, 0)
+	s.lastActivityOfTypeMatches(automdm.ActivityTypeEditedMacOSMinVersion{}.ActivityName(), "", macOSLastActivity)
+	s.lastActivityOfTypeMatches(automdm.ActivityTypeEditedIOSMinVersion{}.ActivityName(), "", iOSLastActivity)
+	s.lastActivityOfTypeMatches(automdm.ActivityTypeEditedIPadOSMinVersion{}.ActivityName(), "", iPadOSLastActivity)
+	lastActivity := s.lastActivityMatches(automdm.ActivityTypeEditedWindowsUpdates{}.ActivityName(), ``, 0)
 
-	s.assertAppleOSUpdatesDeclaration(&team.ID, mdm.FleetMacOSUpdatesProfileName, macOSUpdates)
-	s.assertAppleOSUpdatesDeclaration(&team.ID, mdm.FleetIOSUpdatesProfileName, iOSUpdates)
-	s.assertAppleOSUpdatesDeclaration(&team.ID, mdm.FleetIPadOSUpdatesProfileName, iPadOSUpdates)
+	s.assertAppleOSUpdatesDeclaration(&team.ID, mdm.AutoMDMMacOSUpdatesProfileName, macOSUpdates)
+	s.assertAppleOSUpdatesDeclaration(&team.ID, mdm.AutoMDMIOSUpdatesProfileName, iOSUpdates)
+	s.assertAppleOSUpdatesDeclaration(&team.ID, mdm.AutoMDMIPadOSUpdatesProfileName, iPadOSUpdates)
 
 	// sending a nil MDM or MacOSUpdate config doesn't modify anything
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d", team.ID), map[string]any{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d", team.ID), map[string]any{
 		"mdm": nil,
 	}, http.StatusOK, &tmResp)
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d", team.ID), map[string]any{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d", team.ID), map[string]any{
 		"mdm": map[string]any{
 			"macos_updates": nil,
 		},
@@ -479,12 +479,12 @@ func (s *integrationEnterpriseTestSuite) TestAppleOSUpdatesTeamConfig() {
 	// no new activity is created
 	s.lastActivityMatches("", "", lastActivity)
 
-	s.assertAppleOSUpdatesDeclaration(&team.ID, mdm.FleetMacOSUpdatesProfileName, macOSUpdates)
-	s.assertAppleOSUpdatesDeclaration(&team.ID, mdm.FleetIOSUpdatesProfileName, iOSUpdates)
-	s.assertAppleOSUpdatesDeclaration(&team.ID, mdm.FleetIPadOSUpdatesProfileName, iPadOSUpdates)
+	s.assertAppleOSUpdatesDeclaration(&team.ID, mdm.AutoMDMMacOSUpdatesProfileName, macOSUpdates)
+	s.assertAppleOSUpdatesDeclaration(&team.ID, mdm.AutoMDMIOSUpdatesProfileName, iOSUpdates)
+	s.assertAppleOSUpdatesDeclaration(&team.ID, mdm.AutoMDMIPadOSUpdatesProfileName, iPadOSUpdates)
 
 	// sending macos settings but no macos_updates does not change the macos updates
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d", team.ID), map[string]any{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d", team.ID), map[string]any{
 		"mdm": map[string]any{
 			"apple_settings": map[string]any{},
 		},
@@ -494,12 +494,12 @@ func (s *integrationEnterpriseTestSuite) TestAppleOSUpdatesTeamConfig() {
 	// no new activity is created
 	s.lastActivityMatches("", "", lastActivity)
 
-	s.assertAppleOSUpdatesDeclaration(&team.ID, mdm.FleetMacOSUpdatesProfileName, macOSUpdates)
-	s.assertAppleOSUpdatesDeclaration(&team.ID, mdm.FleetIOSUpdatesProfileName, iOSUpdates)
-	s.assertAppleOSUpdatesDeclaration(&team.ID, mdm.FleetIPadOSUpdatesProfileName, iPadOSUpdates)
+	s.assertAppleOSUpdatesDeclaration(&team.ID, mdm.AutoMDMMacOSUpdatesProfileName, macOSUpdates)
+	s.assertAppleOSUpdatesDeclaration(&team.ID, mdm.AutoMDMIOSUpdatesProfileName, iOSUpdates)
+	s.assertAppleOSUpdatesDeclaration(&team.ID, mdm.AutoMDMIPadOSUpdatesProfileName, iPadOSUpdates)
 
 	// sending empty apple os updates fields empties both fields and removes the DDM profiles
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d", team.ID), map[string]any{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d", team.ID), map[string]any{
 		"mdm": map[string]any{
 			"macos_updates": map[string]any{
 				"minimum_version": "",
@@ -521,18 +521,18 @@ func (s *integrationEnterpriseTestSuite) TestAppleOSUpdatesTeamConfig() {
 	require.Empty(t, tmResp.Team.Config.MDM.IOSUpdates.Deadline.Value)
 	require.Empty(t, tmResp.Team.Config.MDM.IPadOSUpdates.MinimumVersion.Value)
 	require.Empty(t, tmResp.Team.Config.MDM.IPadOSUpdates.Deadline.Value)
-	s.lastActivityOfTypeMatches(fleet.ActivityTypeEditedMacOSMinVersion{}.ActivityName(), fmt.Sprintf(`{"fleet_id": %d, "fleet_name": %q, "minimum_version": "", "deadline": ""}`, team.ID, team.Name), 0)
-	s.lastActivityOfTypeMatches(fleet.ActivityTypeEditedIOSMinVersion{}.ActivityName(), fmt.Sprintf(`{"fleet_id": %d, "fleet_name": %q, "minimum_version": "", "deadline": ""}`, team.ID, team.Name), 0)
-	s.lastActivityOfTypeMatches(fleet.ActivityTypeEditedIPadOSMinVersion{}.ActivityName(), fmt.Sprintf(`{"fleet_id": %d, "fleet_name": %q, "minimum_version": "", "deadline": ""}`, team.ID, team.Name), 0)
+	s.lastActivityOfTypeMatches(automdm.ActivityTypeEditedMacOSMinVersion{}.ActivityName(), fmt.Sprintf(`{"team_id": %d, "team_name": %q, "minimum_version": "", "deadline": ""}`, team.ID, team.Name), 0)
+	s.lastActivityOfTypeMatches(automdm.ActivityTypeEditedIOSMinVersion{}.ActivityName(), fmt.Sprintf(`{"team_id": %d, "team_name": %q, "minimum_version": "", "deadline": ""}`, team.ID, team.Name), 0)
+	s.lastActivityOfTypeMatches(automdm.ActivityTypeEditedIPadOSMinVersion{}.ActivityName(), fmt.Sprintf(`{"team_id": %d, "team_name": %q, "minimum_version": "", "deadline": ""}`, team.ID, team.Name), 0)
 
-	s.assertAppleOSUpdatesDeclaration(&team.ID, mdm.FleetMacOSUpdatesProfileName, nil)
-	s.assertAppleOSUpdatesDeclaration(&team.ID, mdm.FleetIOSUpdatesProfileName, nil)
-	s.assertAppleOSUpdatesDeclaration(&team.ID, mdm.FleetIPadOSUpdatesProfileName, nil)
+	s.assertAppleOSUpdatesDeclaration(&team.ID, mdm.AutoMDMMacOSUpdatesProfileName, nil)
+	s.assertAppleOSUpdatesDeclaration(&team.ID, mdm.AutoMDMIOSUpdatesProfileName, nil)
+	s.assertAppleOSUpdatesDeclaration(&team.ID, mdm.AutoMDMIPadOSUpdatesProfileName, nil)
 
 	// error checks:
 
 	// try to set an invalid deadline
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d", team.ID), map[string]any{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d", team.ID), map[string]any{
 		"mdm": map[string]any{
 			"macos_updates": map[string]any{
 				"minimum_version": "14.6.1",
@@ -540,7 +540,7 @@ func (s *integrationEnterpriseTestSuite) TestAppleOSUpdatesTeamConfig() {
 			},
 		},
 	}, http.StatusUnprocessableEntity, &tmResp)
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d", team.ID), map[string]any{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d", team.ID), map[string]any{
 		"mdm": map[string]any{
 			"ios_updates": map[string]any{
 				"minimum_version": "14.6.1",
@@ -548,7 +548,7 @@ func (s *integrationEnterpriseTestSuite) TestAppleOSUpdatesTeamConfig() {
 			},
 		},
 	}, http.StatusUnprocessableEntity, &tmResp)
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d", team.ID), map[string]any{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d", team.ID), map[string]any{
 		"mdm": map[string]any{
 			"ipados_updates": map[string]any{
 				"minimum_version": "14.6.1",
@@ -558,7 +558,7 @@ func (s *integrationEnterpriseTestSuite) TestAppleOSUpdatesTeamConfig() {
 	}, http.StatusUnprocessableEntity, &tmResp)
 
 	// try to set an invalid minimum version
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d", team.ID), map[string]any{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d", team.ID), map[string]any{
 		"mdm": map[string]any{
 			"macos_updates": map[string]any{
 				"minimum_version": "14.6.1 (19A583)",
@@ -566,7 +566,7 @@ func (s *integrationEnterpriseTestSuite) TestAppleOSUpdatesTeamConfig() {
 			},
 		},
 	}, http.StatusUnprocessableEntity, &tmResp)
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d", team.ID), map[string]any{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d", team.ID), map[string]any{
 		"mdm": map[string]any{
 			"ios_updates": map[string]any{
 				"minimum_version": "14.6.1 (19A583)",
@@ -574,7 +574,7 @@ func (s *integrationEnterpriseTestSuite) TestAppleOSUpdatesTeamConfig() {
 			},
 		},
 	}, http.StatusUnprocessableEntity, &tmResp)
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d", team.ID), map[string]any{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d", team.ID), map[string]any{
 		"mdm": map[string]any{
 			"ipados_updates": map[string]any{
 				"minimum_version": "14.6.1 (19A583)",
@@ -584,21 +584,21 @@ func (s *integrationEnterpriseTestSuite) TestAppleOSUpdatesTeamConfig() {
 	}, http.StatusUnprocessableEntity, &tmResp)
 
 	// try to set a deadline but not a minimum version
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d", team.ID), map[string]any{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d", team.ID), map[string]any{
 		"mdm": map[string]any{
 			"macos_updates": map[string]any{
 				"deadline": "2021-01-01T00:00:00Z",
 			},
 		},
 	}, http.StatusUnprocessableEntity, &tmResp)
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d", team.ID), map[string]any{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d", team.ID), map[string]any{
 		"mdm": map[string]any{
 			"ios_updates": map[string]any{
 				"deadline": "2021-01-01T00:00:00Z",
 			},
 		},
 	}, http.StatusUnprocessableEntity, &tmResp)
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d", team.ID), map[string]any{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d", team.ID), map[string]any{
 		"mdm": map[string]any{
 			"ipados_updates": map[string]any{
 				"deadline": "2021-01-01T00:00:00Z",
@@ -607,21 +607,21 @@ func (s *integrationEnterpriseTestSuite) TestAppleOSUpdatesTeamConfig() {
 	}, http.StatusUnprocessableEntity, &tmResp)
 
 	// try to set an empty deadline but not a minimum version
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d", team.ID), map[string]any{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d", team.ID), map[string]any{
 		"mdm": map[string]any{
 			"macos_updates": map[string]any{
 				"deadline": "",
 			},
 		},
 	}, http.StatusUnprocessableEntity, &tmResp)
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d", team.ID), map[string]any{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d", team.ID), map[string]any{
 		"mdm": map[string]any{
 			"ios_updates": map[string]any{
 				"deadline": "",
 			},
 		},
 	}, http.StatusUnprocessableEntity, &tmResp)
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d", team.ID), map[string]any{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d", team.ID), map[string]any{
 		"mdm": map[string]any{
 			"ipados_updates": map[string]any{
 				"deadline": "",
@@ -630,21 +630,21 @@ func (s *integrationEnterpriseTestSuite) TestAppleOSUpdatesTeamConfig() {
 	}, http.StatusUnprocessableEntity, &tmResp)
 
 	// try to set a minimum version but not a deadline
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d", team.ID), map[string]any{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d", team.ID), map[string]any{
 		"mdm": map[string]any{
 			"macos_updates": map[string]any{
 				"minimum_version": "14.6.1 (19A583)",
 			},
 		},
 	}, http.StatusUnprocessableEntity, &tmResp)
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d", team.ID), map[string]any{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d", team.ID), map[string]any{
 		"mdm": map[string]any{
 			"ios_updates": map[string]any{
 				"minimum_version": "14.6.1 (19A583)",
 			},
 		},
 	}, http.StatusUnprocessableEntity, &tmResp)
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d", team.ID), map[string]any{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d", team.ID), map[string]any{
 		"mdm": map[string]any{
 			"ipados_updates": map[string]any{
 				"minimum_version": "14.6.1 (19A583)",
@@ -653,21 +653,21 @@ func (s *integrationEnterpriseTestSuite) TestAppleOSUpdatesTeamConfig() {
 	}, http.StatusUnprocessableEntity, &tmResp)
 
 	// try to set an empty minimum version but not a deadline
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d", team.ID), map[string]any{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d", team.ID), map[string]any{
 		"mdm": map[string]any{
 			"macos_updates": map[string]any{
 				"minimum_version": "",
 			},
 		},
 	}, http.StatusUnprocessableEntity, &tmResp)
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d", team.ID), map[string]any{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d", team.ID), map[string]any{
 		"mdm": map[string]any{
 			"ios_updates": map[string]any{
 				"minimum_version": "",
 			},
 		},
 	}, http.StatusUnprocessableEntity, &tmResp)
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d", team.ID), map[string]any{
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d", team.ID), map[string]any{
 		"mdm": map[string]any{
 			"ipados_updates": map[string]any{
 				"minimum_version": "",
@@ -680,7 +680,7 @@ func (s *integrationEnterpriseTestSuite) TestLinuxDiskEncryption() {
 	t := s.T()
 
 	// create a Linux host
-	noTeamHost, err := s.ds.NewHost(context.Background(), &fleet.Host{
+	noTeamHost, err := s.ds.NewHost(context.Background(), &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -698,10 +698,10 @@ func (s *integrationEnterpriseTestSuite) TestLinuxDiskEncryption() {
 	orbitKey := setOrbitEnrollment(t, noTeamHost, s.ds)
 	noTeamHost.OrbitNodeKey = &orbitKey
 
-	team, err := s.ds.NewTeam(context.Background(), &fleet.Team{Name: "A team"})
+	team, err := s.ds.NewTeam(context.Background(), &automdm.Team{Name: "A team"})
 	require.NoError(t, err)
 	teamID := &team.ID
-	teamHost, err := s.ds.NewHost(context.Background(), &fleet.Host{
+	teamHost, err := s.ds.NewHost(context.Background(), &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -724,20 +724,20 @@ func (s *integrationEnterpriseTestSuite) TestLinuxDiskEncryption() {
 
 	// config profiles endpoint should work but show all zeroes
 	var profileSummary getMDMProfilesSummaryResponse
-	s.DoJSON("GET", "/api/latest/fleet/configuration_profiles/summary", getMDMProfilesSummaryRequest{}, http.StatusOK, &profileSummary)
-	require.Equal(t, fleet.MDMProfilesSummary{}, profileSummary.MDMProfilesSummary)
+	s.DoJSON("GET", "/api/latest/automdm/configuration_profiles/summary", getMDMProfilesSummaryRequest{}, http.StatusOK, &profileSummary)
+	require.Equal(t, automdm.MDMProfilesSummary{}, profileSummary.MDMProfilesSummary)
 
 	// set encrypted for host
 	require.NoError(t, s.ds.SetOrUpdateHostDisksEncryption(context.Background(), noTeamHost.ID, true, nil))
 
 	// should still show zeroes
-	s.DoJSON("GET", "/api/latest/fleet/configuration_profiles/summary", getMDMProfilesSummaryRequest{}, http.StatusOK, &profileSummary)
-	require.Equal(t, fleet.MDMProfilesSummary{}, profileSummary.MDMProfilesSummary)
+	s.DoJSON("GET", "/api/latest/automdm/configuration_profiles/summary", getMDMProfilesSummaryRequest{}, http.StatusOK, &profileSummary)
+	require.Equal(t, automdm.MDMProfilesSummary{}, profileSummary.MDMProfilesSummary)
 
 	// should be nil before disk encryption is turned on
 	// from host details
 	getHostResp := getHostResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", noTeamHost.ID), nil, http.StatusOK, &getHostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", noTeamHost.ID), nil, http.StatusOK, &getHostResp)
 	require.Nil(t, getHostResp.Host.MDM.OSSettings)
 
 	// and my device
@@ -745,67 +745,67 @@ func (s *integrationEnterpriseTestSuite) TestLinuxDiskEncryption() {
 	createDeviceTokenForHost(t, s.ds, noTeamHost.ID, deviceToken)
 
 	getDeviceHostResp := getDeviceHostResponse{}
-	res := s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+deviceToken, nil, http.StatusOK)
+	res := s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+deviceToken, nil, http.StatusOK)
 	err = json.NewDecoder(res.Body).Decode(&getDeviceHostResp)
 	require.NoError(t, err)
 	require.Nil(t, getHostResp.Host.MDM.OSSettings)
 
 	// turn on disk encryption enforcement
-	s.Do("POST", "/api/latest/fleet/disk_encryption", updateDiskEncryptionRequest{EnableDiskEncryption: new(true)}, http.StatusNoContent)
+	s.Do("POST", "/api/latest/automdm/disk_encryption", updateDiskEncryptionRequest{EnableDiskEncryption: new(true)}, http.StatusNoContent)
 
 	// should be populated after disk encryption is turned on
 	// from host details
 	getHostResp = getHostResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", noTeamHost.ID), nil, http.StatusOK, &getHostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", noTeamHost.ID), nil, http.StatusOK, &getHostResp)
 	require.NotNil(t, getHostResp.Host.MDM.OSSettings)
 
 	// and my device
 	getDeviceHostResp = getDeviceHostResponse{}
-	res = s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+deviceToken, nil, http.StatusOK)
+	res = s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+deviceToken, nil, http.StatusOK)
 	err = json.NewDecoder(res.Body).Decode(&getDeviceHostResp)
 	require.NoError(t, err)
 	require.NotNil(t, getHostResp.Host.MDM.OSSettings)
 
 	// should show the Linux host as pending
-	s.DoJSON("GET", "/api/latest/fleet/configuration_profiles/summary", getMDMProfilesSummaryRequest{}, http.StatusOK, &profileSummary)
-	require.Equal(t, fleet.MDMProfilesSummary{Pending: 1}, profileSummary.MDMProfilesSummary)
+	s.DoJSON("GET", "/api/latest/automdm/configuration_profiles/summary", getMDMProfilesSummaryRequest{}, http.StatusOK, &profileSummary)
+	require.Equal(t, automdm.MDMProfilesSummary{Pending: 1}, profileSummary.MDMProfilesSummary)
 
 	// encryption summary should succeed (Linux encryption doesn't require MDM)
 	var summary getMDMDiskEncryptionSummaryResponse
-	s.DoJSON("GET", "/api/latest/fleet/disk_encryption", getMDMDiskEncryptionSummaryRequest{}, http.StatusOK, &summary)
+	s.DoJSON("GET", "/api/latest/automdm/disk_encryption", getMDMDiskEncryptionSummaryRequest{}, http.StatusOK, &summary)
 	// disk is encrypted but key hasn't been escrowed yet
-	require.Equal(t, fleet.MDMDiskEncryptionSummary{ActionRequired: fleet.MDMPlatformsCounts{Linux: 1}}, *summary.MDMDiskEncryptionSummary)
+	require.Equal(t, automdm.MDMDiskEncryptionSummary{ActionRequired: automdm.MDMPlatformsCounts{Linux: 1}}, *summary.MDMDiskEncryptionSummary)
 
 	// trigger escrow process from device
 	// should fail because default Orbit version is too old
-	res = s.DoRawNoAuth("POST", fmt.Sprintf("/api/latest/fleet/device/%s/mdm/linux/trigger_escrow", deviceToken), nil, http.StatusBadRequest)
+	res = s.DoRawNoAuth("POST", fmt.Sprintf("/api/latest/automdm/device/%s/mdm/linux/trigger_escrow", deviceToken), nil, http.StatusBadRequest)
 	res.Body.Close()
 
 	// should succeed now that Orbit version isn't too old
-	require.NoError(t, s.ds.SetOrUpdateHostOrbitInfo(context.Background(), noTeamHost.ID, fleet.MinOrbitLUKSVersion, sql.NullString{}, sql.NullBool{}))
-	res = s.DoRawNoAuth("POST", fmt.Sprintf("/api/latest/fleet/device/%s/mdm/linux/trigger_escrow", deviceToken), nil, http.StatusNoContent)
+	require.NoError(t, s.ds.SetOrUpdateHostOrbitInfo(context.Background(), noTeamHost.ID, automdm.MinOrbitLUKSVersion, sql.NullString{}, sql.NullBool{}))
+	res = s.DoRawNoAuth("POST", fmt.Sprintf("/api/latest/automdm/device/%s/mdm/linux/trigger_escrow", deviceToken), nil, http.StatusNoContent)
 	res.Body.Close()
 
 	// confirm that Orbit endpoint shows notification flag
-	var orbitResponse fleet.OrbitGetConfigResponse
-	s.DoJSON("POST", "/api/fleet/orbit/config", fleet.OrbitGetConfigRequest{OrbitNodeKey: orbitKey}, http.StatusOK, &orbitResponse)
+	var orbitResponse automdm.OrbitGetConfigResponse
+	s.DoJSON("POST", "/api/automdm/orbit/config", automdm.OrbitGetConfigRequest{OrbitNodeKey: orbitKey}, http.StatusOK, &orbitResponse)
 	require.True(t, orbitResponse.Notifications.RunDiskEncryptionEscrow)
 
 	// confirm that second Orbit pull doesn't show notification flag
-	var secondOrbitResponse fleet.OrbitGetConfigResponse
-	s.DoJSON("POST", "/api/fleet/orbit/config", fleet.OrbitGetConfigRequest{OrbitNodeKey: orbitKey}, http.StatusOK, &secondOrbitResponse)
+	var secondOrbitResponse automdm.OrbitGetConfigResponse
+	s.DoJSON("POST", "/api/automdm/orbit/config", automdm.OrbitGetConfigRequest{OrbitNodeKey: orbitKey}, http.StatusOK, &secondOrbitResponse)
 	require.False(t, secondOrbitResponse.Notifications.RunDiskEncryptionEscrow)
 
 	// the agent is now prompting; triggering again must not re-queue, and the response says so
-	res = s.DoRawNoAuth("POST", fmt.Sprintf("/api/latest/fleet/device/%s/mdm/linux/trigger_escrow", deviceToken), nil, http.StatusConflict)
-	require.Contains(t, extractServerErrorText(res.Body), fleet.LinuxEscrowInFlightMessage)
+	res = s.DoRawNoAuth("POST", fmt.Sprintf("/api/latest/automdm/device/%s/mdm/linux/trigger_escrow", deviceToken), nil, http.StatusConflict)
+	require.Contains(t, extractServerErrorText(res.Body), automdm.LinuxEscrowInFlightMessage)
 	res.Body.Close()
 	retryAfter, err := strconv.Atoi(res.Header.Get("Retry-After"))
 	require.NoError(t, err)
 	require.Positive(t, retryAfter)
-	require.LessOrEqual(t, retryAfter, int(fleet.LinuxEscrowInFlightWindow.Seconds()))
-	var inFlightOrbitResponse fleet.OrbitGetConfigResponse
-	s.DoJSON("POST", "/api/fleet/orbit/config", fleet.OrbitGetConfigRequest{OrbitNodeKey: orbitKey}, http.StatusOK, &inFlightOrbitResponse)
+	require.LessOrEqual(t, retryAfter, int(automdm.LinuxEscrowInFlightWindow.Seconds()))
+	var inFlightOrbitResponse automdm.OrbitGetConfigResponse
+	s.DoJSON("POST", "/api/automdm/orbit/config", automdm.OrbitGetConfigRequest{OrbitNodeKey: orbitKey}, http.StatusOK, &inFlightOrbitResponse)
 	require.False(t, inFlightOrbitResponse.Notifications.RunDiskEncryptionEscrow)
 
 	// a progress report keeps the escrow in flight past the window
@@ -813,40 +813,40 @@ func (s *integrationEnterpriseTestSuite) TestLinuxDiskEncryption() {
 		_, err := q.ExecContext(t.Context(), `UPDATE host_disk_encryption_keys SET escrow_sent_at = DATE_SUB(escrow_sent_at, INTERVAL 1 HOUR) WHERE host_id = ?`, noTeamHost.ID)
 		return err
 	})
-	s.Do("POST", "/api/fleet/orbit/luks_data", fleet.OrbitPostLUKSRequest{
+	s.Do("POST", "/api/automdm/orbit/luks_data", automdm.OrbitPostLUKSRequest{
 		OrbitNodeKey: *noTeamHost.OrbitNodeKey,
-		Status:       fleet.LinuxEscrowStatusPrompting,
+		Status:       automdm.LinuxEscrowStatusPrompting,
 	}, http.StatusNoContent)
-	res = s.DoRawNoAuth("POST", fmt.Sprintf("/api/latest/fleet/device/%s/mdm/linux/trigger_escrow", deviceToken), nil, http.StatusConflict)
+	res = s.DoRawNoAuth("POST", fmt.Sprintf("/api/latest/automdm/device/%s/mdm/linux/trigger_escrow", deviceToken), nil, http.StatusConflict)
 	res.Body.Close()
 
 	// a canceled prompt ends the in-flight state without recording an error, so a retry
 	// queues immediately and the host's encryption status is left as it was
 	var beforeCancel, afterCancel getMDMDiskEncryptionSummaryResponse
-	s.DoJSON("GET", "/api/latest/fleet/disk_encryption", getMDMDiskEncryptionSummaryRequest{}, http.StatusOK, &beforeCancel)
-	s.Do("POST", "/api/fleet/orbit/luks_data", fleet.OrbitPostLUKSRequest{
+	s.DoJSON("GET", "/api/latest/automdm/disk_encryption", getMDMDiskEncryptionSummaryRequest{}, http.StatusOK, &beforeCancel)
+	s.Do("POST", "/api/automdm/orbit/luks_data", automdm.OrbitPostLUKSRequest{
 		OrbitNodeKey: *noTeamHost.OrbitNodeKey,
-		Status:       fleet.LinuxEscrowStatusCanceled,
+		Status:       automdm.LinuxEscrowStatusCanceled,
 	}, http.StatusNoContent)
-	s.DoJSON("GET", "/api/latest/fleet/disk_encryption", getMDMDiskEncryptionSummaryRequest{}, http.StatusOK, &afterCancel)
+	s.DoJSON("GET", "/api/latest/automdm/disk_encryption", getMDMDiskEncryptionSummaryRequest{}, http.StatusOK, &afterCancel)
 	require.Equal(t, *beforeCancel.MDMDiskEncryptionSummary, *afterCancel.MDMDiskEncryptionSummary)
-	res = s.DoRawNoAuth("POST", fmt.Sprintf("/api/latest/fleet/device/%s/mdm/linux/trigger_escrow", deviceToken), nil, http.StatusNoContent)
+	res = s.DoRawNoAuth("POST", fmt.Sprintf("/api/latest/automdm/device/%s/mdm/linux/trigger_escrow", deviceToken), nil, http.StatusNoContent)
 	res.Body.Close()
-	var canceledOrbitResponse fleet.OrbitGetConfigResponse
-	s.DoJSON("POST", "/api/fleet/orbit/config", fleet.OrbitGetConfigRequest{OrbitNodeKey: orbitKey}, http.StatusOK, &canceledOrbitResponse)
+	var canceledOrbitResponse automdm.OrbitGetConfigResponse
+	s.DoJSON("POST", "/api/automdm/orbit/config", automdm.OrbitGetConfigRequest{OrbitNodeKey: orbitKey}, http.StatusOK, &canceledOrbitResponse)
 	require.True(t, canceledOrbitResponse.Notifications.RunDiskEncryptionEscrow)
 
 	// set an error first; the successful write should overwrite that
-	s.Do("POST", "/api/fleet/orbit/luks_data", fleet.OrbitPostLUKSRequest{
+	s.Do("POST", "/api/automdm/orbit/luks_data", automdm.OrbitPostLUKSRequest{
 		OrbitNodeKey: *noTeamHost.OrbitNodeKey,
 		ClientError:  "Houston, we had a problem",
 	}, http.StatusNoContent)
 
 	// a report from the agent ends the in-flight state, so a retry queues immediately
-	res = s.DoRawNoAuth("POST", fmt.Sprintf("/api/latest/fleet/device/%s/mdm/linux/trigger_escrow", deviceToken), nil, http.StatusNoContent)
+	res = s.DoRawNoAuth("POST", fmt.Sprintf("/api/latest/automdm/device/%s/mdm/linux/trigger_escrow", deviceToken), nil, http.StatusNoContent)
 	res.Body.Close()
-	var retriggerOrbitResponse fleet.OrbitGetConfigResponse
-	s.DoJSON("POST", "/api/fleet/orbit/config", fleet.OrbitGetConfigRequest{OrbitNodeKey: orbitKey}, http.StatusOK, &retriggerOrbitResponse)
+	var retriggerOrbitResponse automdm.OrbitGetConfigResponse
+	s.DoJSON("POST", "/api/automdm/orbit/config", automdm.OrbitGetConfigRequest{OrbitNodeKey: orbitKey}, http.StatusOK, &retriggerOrbitResponse)
 	require.True(t, retriggerOrbitResponse.Notifications.RunDiskEncryptionEscrow)
 
 	// the in-flight window expired while the user was still typing and they clicked Create key
@@ -855,12 +855,12 @@ func (s *integrationEnterpriseTestSuite) TestLinuxDiskEncryption() {
 		_, err := q.ExecContext(t.Context(), `UPDATE host_disk_encryption_keys SET escrow_sent_at = DATE_SUB(escrow_sent_at, INTERVAL 1 HOUR) WHERE host_id = ?`, noTeamHost.ID)
 		return err
 	})
-	res = s.DoRawNoAuth("POST", fmt.Sprintf("/api/latest/fleet/device/%s/mdm/linux/trigger_escrow", deviceToken), nil, http.StatusNoContent)
+	res = s.DoRawNoAuth("POST", fmt.Sprintf("/api/latest/automdm/device/%s/mdm/linux/trigger_escrow", deviceToken), nil, http.StatusNoContent)
 	res.Body.Close()
 
 	// upload LUKS data
 	keySlot := new(uint(1))
-	s.Do("POST", "/api/fleet/orbit/luks_data", fleet.OrbitPostLUKSRequest{
+	s.Do("POST", "/api/automdm/orbit/luks_data", automdm.OrbitPostLUKSRequest{
 		OrbitNodeKey: *noTeamHost.OrbitNodeKey,
 		Passphrase:   "whale makes pail rise",
 		Salt:         "the team i like lost",
@@ -868,44 +868,44 @@ func (s *integrationEnterpriseTestSuite) TestLinuxDiskEncryption() {
 	}, http.StatusNoContent)
 
 	// saving the key drops the stale request, so the user is not prompted again
-	var afterKeyOrbitResponse fleet.OrbitGetConfigResponse
-	s.DoJSON("POST", "/api/fleet/orbit/config", fleet.OrbitGetConfigRequest{OrbitNodeKey: orbitKey}, http.StatusOK, &afterKeyOrbitResponse)
+	var afterKeyOrbitResponse automdm.OrbitGetConfigResponse
+	s.DoJSON("POST", "/api/automdm/orbit/config", automdm.OrbitGetConfigRequest{OrbitNodeKey: orbitKey}, http.StatusOK, &afterKeyOrbitResponse)
 	require.False(t, afterKeyOrbitResponse.Notifications.RunDiskEncryptionEscrow)
 
 	// confirm verified
-	s.DoJSON("GET", "/api/latest/fleet/disk_encryption", getMDMDiskEncryptionSummaryRequest{}, http.StatusOK, &summary)
-	require.Equal(t, fleet.MDMDiskEncryptionSummary{Verified: fleet.MDMPlatformsCounts{Linux: 1}}, *summary.MDMDiskEncryptionSummary)
+	s.DoJSON("GET", "/api/latest/automdm/disk_encryption", getMDMDiskEncryptionSummaryRequest{}, http.StatusOK, &summary)
+	require.Equal(t, automdm.MDMDiskEncryptionSummary{Verified: automdm.MDMPlatformsCounts{Linux: 1}}, *summary.MDMDiskEncryptionSummary)
 
 	// get passphrase back
 	var keyResponse getHostEncryptionKeyResponse
-	s.DoJSON("GET", fmt.Sprintf(`/api/latest/fleet/hosts/%d/encryption_key`, noTeamHost.ID), getHostEncryptionKeyRequest{}, http.StatusOK, &keyResponse)
+	s.DoJSON("GET", fmt.Sprintf(`/api/latest/automdm/hosts/%d/encryption_key`, noTeamHost.ID), getHostEncryptionKeyRequest{}, http.StatusOK, &keyResponse)
 	require.Equal(t, "whale makes pail rise", keyResponse.EncryptionKey.DecryptedValue)
 
 	// TEAM //
-	s.DoJSON("GET", "/api/latest/fleet/configuration_profiles/summary", getMDMProfilesSummaryRequest{TeamID: teamID}, http.StatusOK, &profileSummary)
-	require.Equal(t, fleet.MDMProfilesSummary{}, profileSummary.MDMProfilesSummary)
+	s.DoJSON("GET", "/api/latest/automdm/configuration_profiles/summary", getMDMProfilesSummaryRequest{TeamID: teamID}, http.StatusOK, &profileSummary)
+	require.Equal(t, automdm.MDMProfilesSummary{}, profileSummary.MDMProfilesSummary)
 
 	// set encrypted for host
 	require.NoError(t, s.ds.SetOrUpdateHostDisksEncryption(context.Background(), teamHost.ID, true, nil))
 
 	// should still show zeroes
-	s.DoJSON("GET", "/api/latest/fleet/configuration_profiles/summary", getMDMProfilesSummaryRequest{TeamID: teamID}, http.StatusOK, &profileSummary)
-	require.Equal(t, fleet.MDMProfilesSummary{}, profileSummary.MDMProfilesSummary)
+	s.DoJSON("GET", "/api/latest/automdm/configuration_profiles/summary", getMDMProfilesSummaryRequest{TeamID: teamID}, http.StatusOK, &profileSummary)
+	require.Equal(t, automdm.MDMProfilesSummary{}, profileSummary.MDMProfilesSummary)
 
 	// turn on disk encryption enforcement for team
-	s.Do("POST", "/api/latest/fleet/disk_encryption", updateDiskEncryptionRequest{TeamID: teamID, EnableDiskEncryption: new(true)}, http.StatusNoContent)
+	s.Do("POST", "/api/latest/automdm/disk_encryption", updateDiskEncryptionRequest{TeamID: teamID, EnableDiskEncryption: new(true)}, http.StatusNoContent)
 
 	// should show the Linux host as pending
-	s.DoJSON("GET", "/api/latest/fleet/configuration_profiles/summary", getMDMProfilesSummaryRequest{TeamID: teamID}, http.StatusOK, &profileSummary)
-	require.Equal(t, fleet.MDMProfilesSummary{Pending: 1}, profileSummary.MDMProfilesSummary)
+	s.DoJSON("GET", "/api/latest/automdm/configuration_profiles/summary", getMDMProfilesSummaryRequest{TeamID: teamID}, http.StatusOK, &profileSummary)
+	require.Equal(t, automdm.MDMProfilesSummary{Pending: 1}, profileSummary.MDMProfilesSummary)
 
 	// encryption summary should show host as action required
-	s.DoJSON("GET", "/api/latest/fleet/disk_encryption", getMDMDiskEncryptionSummaryRequest{TeamID: teamID}, http.StatusOK, &summary)
-	require.Equal(t, fleet.MDMDiskEncryptionSummary{ActionRequired: fleet.MDMPlatformsCounts{Linux: 1}}, *summary.MDMDiskEncryptionSummary)
+	s.DoJSON("GET", "/api/latest/automdm/disk_encryption", getMDMDiskEncryptionSummaryRequest{TeamID: teamID}, http.StatusOK, &summary)
+	require.Equal(t, automdm.MDMDiskEncryptionSummary{ActionRequired: automdm.MDMPlatformsCounts{Linux: 1}}, *summary.MDMDiskEncryptionSummary)
 
 	// upload LUKS data (no error, and no trigger, first this time)
 	keySlot = new(uint(3))
-	s.Do("POST", "/api/fleet/orbit/luks_data", fleet.OrbitPostLUKSRequest{ // #nosec G101 - test data
+	s.Do("POST", "/api/automdm/orbit/luks_data", automdm.OrbitPostLUKSRequest{ // #nosec G101 - test data
 		OrbitNodeKey: *teamHost.OrbitNodeKey,
 		Passphrase:   "the mome raths outgrabe",
 		Salt:         "jabberwocky, but salty",
@@ -913,11 +913,11 @@ func (s *integrationEnterpriseTestSuite) TestLinuxDiskEncryption() {
 	}, http.StatusNoContent)
 
 	// confirm verified
-	s.DoJSON("GET", "/api/latest/fleet/disk_encryption", getMDMDiskEncryptionSummaryRequest{TeamID: teamID}, http.StatusOK, &summary)
-	require.Equal(t, fleet.MDMDiskEncryptionSummary{Verified: fleet.MDMPlatformsCounts{Linux: 1}}, *summary.MDMDiskEncryptionSummary)
+	s.DoJSON("GET", "/api/latest/automdm/disk_encryption", getMDMDiskEncryptionSummaryRequest{TeamID: teamID}, http.StatusOK, &summary)
+	require.Equal(t, automdm.MDMDiskEncryptionSummary{Verified: automdm.MDMPlatformsCounts{Linux: 1}}, *summary.MDMDiskEncryptionSummary)
 
 	// get passphrase back
-	s.DoJSON("GET", fmt.Sprintf(`/api/latest/fleet/hosts/%d/encryption_key`, teamHost.ID), getHostEncryptionKeyRequest{}, http.StatusOK, &keyResponse)
+	s.DoJSON("GET", fmt.Sprintf(`/api/latest/automdm/hosts/%d/encryption_key`, teamHost.ID), getHostEncryptionKeyRequest{}, http.StatusOK, &keyResponse)
 	require.Equal(t, "the mome raths outgrabe", keyResponse.EncryptionKey.DecryptedValue)
 }
 
@@ -926,7 +926,7 @@ func (s *integrationEnterpriseTestSuite) TestMDMWindowsUpdates() {
 
 	// keep the last activity, to detect newly created ones
 	var activitiesResp listActivitiesResponse
-	s.DoJSON("GET", "/api/latest/fleet/activities", nil, http.StatusOK, &activitiesResp, "order_key", "id", "order_direction", "desc")
+	s.DoJSON("GET", "/api/latest/automdm/activities", nil, http.StatusOK, &activitiesResp, "order_key", "id", "order_direction", "desc")
 	var lastActivity uint
 	if len(activitiesResp.Activities) > 0 {
 		lastActivity = activitiesResp.Activities[0].ID
@@ -935,16 +935,16 @@ func (s *integrationEnterpriseTestSuite) TestMDMWindowsUpdates() {
 	checkInvalidConfig := func(config string) {
 		// try to set an invalid config
 		acResp := appConfigResponse{}
-		s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(config), http.StatusUnprocessableEntity, &acResp)
+		s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(config), http.StatusUnprocessableEntity, &acResp)
 
 		// get the appconfig, nothing changed
 		acResp = appConfigResponse{}
-		s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
-		require.Equal(t, fleet.WindowsUpdates{DeadlineDays: optjson.Int{Set: true}, GracePeriodDays: optjson.Int{Set: true}}, acResp.MDM.WindowsUpdates)
+		s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
+		require.Equal(t, automdm.WindowsUpdates{DeadlineDays: optjson.Int{Set: true}, GracePeriodDays: optjson.Int{Set: true}}, acResp.MDM.WindowsUpdates)
 
 		// no activity got created
 		activitiesResp = listActivitiesResponse{}
-		s.DoJSON("GET", "/api/latest/fleet/activities", nil, http.StatusOK, &activitiesResp, "order_key", "id", "order_direction", "desc")
+		s.DoJSON("GET", "/api/latest/automdm/activities", nil, http.StatusOK, &activitiesResp, "order_key", "id", "order_direction", "desc")
 		require.Condition(t, func() bool {
 			return (lastActivity == 0 && len(activitiesResp.Activities) == 0) ||
 				(len(activitiesResp.Activities) > 0 && activitiesResp.Activities[0].ID == lastActivity)
@@ -985,7 +985,7 @@ func (s *integrationEnterpriseTestSuite) TestMDMWindowsUpdates() {
 
 	// valid config
 	acResp := appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 			"mdm": {
 				"windows_updates": {
 					"deadline_days": 5,
@@ -996,23 +996,23 @@ func (s *integrationEnterpriseTestSuite) TestMDMWindowsUpdates() {
 	require.Equal(t, 5, acResp.MDM.WindowsUpdates.DeadlineDays.Value)
 	require.Equal(t, 1, acResp.MDM.WindowsUpdates.GracePeriodDays.Value)
 
-	checkWindowsOSUpdatesProfile(t, s.ds, nil, &fleet.WindowsUpdates{
+	checkWindowsOSUpdatesProfile(t, s.ds, nil, &automdm.WindowsUpdates{
 		DeadlineDays:    optjson.SetInt(5),
 		GracePeriodDays: optjson.SetInt(1),
 	})
 
 	// edited windows updates activity got created
-	s.lastActivityMatches(fleet.ActivityTypeEditedWindowsUpdates{}.ActivityName(), `{"deadline_days":5, "grace_period_days":1, "fleet_id": null, "fleet_name": null}`, 0)
+	s.lastActivityMatches(automdm.ActivityTypeEditedWindowsUpdates{}.ActivityName(), `{"deadline_days":5, "grace_period_days":1, "team_id": null, "team_name": null}`, 0)
 
 	// get the appconfig
 	acResp = appConfigResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
+	s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
 	require.Equal(t, 5, acResp.MDM.WindowsUpdates.DeadlineDays.Value)
 	require.Equal(t, 1, acResp.MDM.WindowsUpdates.GracePeriodDays.Value)
 
 	// update the deadline
 	acResp = appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 			"mdm": {
 				"windows_updates": {
 					"deadline_days": 6,
@@ -1023,31 +1023,31 @@ func (s *integrationEnterpriseTestSuite) TestMDMWindowsUpdates() {
 	require.Equal(t, 6, acResp.MDM.WindowsUpdates.DeadlineDays.Value)
 	require.Equal(t, 1, acResp.MDM.WindowsUpdates.GracePeriodDays.Value)
 
-	checkWindowsOSUpdatesProfile(t, s.ds, nil, &fleet.WindowsUpdates{
+	checkWindowsOSUpdatesProfile(t, s.ds, nil, &automdm.WindowsUpdates{
 		DeadlineDays:    optjson.SetInt(6),
 		GracePeriodDays: optjson.SetInt(1),
 	})
 
 	// another edited windows updates activity got created
-	lastActivity = s.lastActivityMatches(fleet.ActivityTypeEditedWindowsUpdates{}.ActivityName(), `{"deadline_days":6, "grace_period_days":1, "fleet_id": null, "fleet_name": null}`, 0)
+	lastActivity = s.lastActivityMatches(automdm.ActivityTypeEditedWindowsUpdates{}.ActivityName(), `{"deadline_days":6, "grace_period_days":1, "team_id": null, "team_name": null}`, 0)
 
 	// update something unrelated - the transparency url
 	acResp = appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{"fleet_desktop":{"transparency_url": "customURL"}}`), http.StatusOK, &acResp)
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{"automdm_desktop":{"transparency_url": "customURL"}}`), http.StatusOK, &acResp)
 	require.Equal(t, 6, acResp.MDM.WindowsUpdates.DeadlineDays.Value)
 	require.Equal(t, 1, acResp.MDM.WindowsUpdates.GracePeriodDays.Value)
 
 	// no activity got created
 	s.lastActivityMatches("", ``, lastActivity)
 
-	checkWindowsOSUpdatesProfile(t, s.ds, nil, &fleet.WindowsUpdates{
+	checkWindowsOSUpdatesProfile(t, s.ds, nil, &automdm.WindowsUpdates{
 		DeadlineDays:    optjson.SetInt(6),
 		GracePeriodDays: optjson.SetInt(1),
 	})
 
 	// clear the Windows requirement
 	acResp = appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 			"mdm": {
 				"windows_updates": {
 					"deadline_days": null,
@@ -1059,13 +1059,13 @@ func (s *integrationEnterpriseTestSuite) TestMDMWindowsUpdates() {
 	require.False(t, acResp.MDM.WindowsUpdates.GracePeriodDays.Valid)
 
 	// edited windows updates activity got created with empty requirement
-	lastActivity = s.lastActivityMatches(fleet.ActivityTypeEditedWindowsUpdates{}.ActivityName(), `{"deadline_days":null, "grace_period_days":null, "fleet_id": null, "fleet_name": null}`, 0)
+	lastActivity = s.lastActivityMatches(automdm.ActivityTypeEditedWindowsUpdates{}.ActivityName(), `{"deadline_days":null, "grace_period_days":null, "team_id": null, "team_name": null}`, 0)
 
 	checkWindowsOSUpdatesProfile(t, s.ds, nil, nil)
 
 	// update again with empty windows requirement
 	acResp = appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 			"mdm": {
 				"windows_updates": {
 					"deadline_days": null,
@@ -1088,7 +1088,7 @@ func (s *integrationEnterpriseTestSuite) TestMDMAppleOSUpdates() {
 
 	// keep the last activity, to detect newly created ones
 	var activitiesResp listActivitiesResponse
-	s.DoJSON("GET", "/api/latest/fleet/activities", nil, http.StatusOK, &activitiesResp, "order_key", "id", "order_direction", "desc")
+	s.DoJSON("GET", "/api/latest/automdm/activities", nil, http.StatusOK, &activitiesResp, "order_key", "id", "order_direction", "desc")
 	var lastActivity uint
 	if len(activitiesResp.Activities) > 0 {
 		lastActivity = activitiesResp.Activities[0].ID
@@ -1097,16 +1097,16 @@ func (s *integrationEnterpriseTestSuite) TestMDMAppleOSUpdates() {
 	checkInvalidConfig := func(config string) {
 		// try to set an invalid config
 		acResp := appConfigResponse{}
-		s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(config), http.StatusUnprocessableEntity, &acResp)
+		s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(config), http.StatusUnprocessableEntity, &acResp)
 
 		// get the appconfig, nothing changed
 		acResp = appConfigResponse{}
-		s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
-		require.Equal(t, fleet.AppleOSUpdateSettings{MinimumVersion: optjson.String{Set: true}, Deadline: optjson.String{Set: true}, DeadlineDays: optjson.Int{Set: true}, UpdateNewHosts: optjson.SetBool(false)}, acResp.MDM.MacOSUpdates)
+		s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
+		require.Equal(t, automdm.AppleOSUpdateSettings{MinimumVersion: optjson.String{Set: true}, Deadline: optjson.String{Set: true}, DeadlineDays: optjson.Int{Set: true}, UpdateNewHosts: optjson.SetBool(false)}, acResp.MDM.MacOSUpdates)
 
 		// no activity got created
 		activitiesResp = listActivitiesResponse{}
-		s.DoJSON("GET", "/api/latest/fleet/activities", nil, http.StatusOK, &activitiesResp, "order_key", "id", "order_direction", "desc")
+		s.DoJSON("GET", "/api/latest/automdm/activities", nil, http.StatusOK, &activitiesResp, "order_key", "id", "order_direction", "desc")
 		require.Condition(t, func() bool {
 			return (lastActivity == 0 && len(activitiesResp.Activities) == 0) ||
 				(len(activitiesResp.Activities) > 0 && activitiesResp.Activities[0].ID == lastActivity)
@@ -1209,7 +1209,7 @@ func (s *integrationEnterpriseTestSuite) TestMDMAppleOSUpdates() {
 
 	// valid config
 	acResp := appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 			"mdm": {
 				"macos_updates": {
 					"minimum_version": "13.6.9",
@@ -1241,26 +1241,26 @@ func (s *integrationEnterpriseTestSuite) TestMDMAppleOSUpdates() {
 	require.Equal(t, optjson.Bool{Set: true}, acResp.MDM.IPadOSUpdates.UpdateNewHosts) // posted value is ignored for iOS
 
 	// edited macos min version activity got created
-	s.lastActivityOfTypeMatches(fleet.ActivityTypeEditedMacOSMinVersion{}.ActivityName(), `{"deadline":"2022-01-01", "minimum_version":"13.6.9", "fleet_id": null, "fleet_name": null}`, 0)
-	s.lastActivityOfTypeMatches(fleet.ActivityTypeEditedIOSMinVersion{}.ActivityName(), `{"deadline":"2023-03-03", "minimum_version":"17.6", "fleet_id": null, "fleet_name": null}`, 0)
-	s.lastActivityOfTypeMatches(fleet.ActivityTypeEditedIPadOSMinVersion{}.ActivityName(), `{"deadline":"2024-04-04", "minimum_version":"17.6", "fleet_id": null, "fleet_name": null}`, 0)
+	s.lastActivityOfTypeMatches(automdm.ActivityTypeEditedMacOSMinVersion{}.ActivityName(), `{"deadline":"2022-01-01", "minimum_version":"13.6.9", "team_id": null, "team_name": null}`, 0)
+	s.lastActivityOfTypeMatches(automdm.ActivityTypeEditedIOSMinVersion{}.ActivityName(), `{"deadline":"2023-03-03", "minimum_version":"17.6", "team_id": null, "team_name": null}`, 0)
+	s.lastActivityOfTypeMatches(automdm.ActivityTypeEditedIPadOSMinVersion{}.ActivityName(), `{"deadline":"2024-04-04", "minimum_version":"17.6", "team_id": null, "team_name": null}`, 0)
 
 	// Activity for 'Update New Hosts checked' got created
-	s.lastActivityOfTypeMatches(fleet.ActivityTypeEnabledMacosUpdateNewHosts{}.ActivityName(), "", 0)
+	s.lastActivityOfTypeMatches(automdm.ActivityTypeEnabledMacosUpdateNewHosts{}.ActivityName(), "", 0)
 
-	s.assertAppleOSUpdatesDeclaration(nil, mdm.FleetMacOSUpdatesProfileName, &fleet.AppleOSUpdateSettings{
+	s.assertAppleOSUpdatesDeclaration(nil, mdm.AutoMDMMacOSUpdatesProfileName, &automdm.AppleOSUpdateSettings{
 		MinimumVersion: optjson.SetString("13.6.9"), Deadline: optjson.SetString("2022-01-01"),
 	})
-	s.assertAppleOSUpdatesDeclaration(nil, mdm.FleetIOSUpdatesProfileName, &fleet.AppleOSUpdateSettings{
+	s.assertAppleOSUpdatesDeclaration(nil, mdm.AutoMDMIOSUpdatesProfileName, &automdm.AppleOSUpdateSettings{
 		MinimumVersion: optjson.SetString("17.6"), Deadline: optjson.SetString("2023-03-03"),
 	})
-	s.assertAppleOSUpdatesDeclaration(nil, mdm.FleetIPadOSUpdatesProfileName, &fleet.AppleOSUpdateSettings{
+	s.assertAppleOSUpdatesDeclaration(nil, mdm.AutoMDMIPadOSUpdatesProfileName, &automdm.AppleOSUpdateSettings{
 		MinimumVersion: optjson.SetString("17.6"), Deadline: optjson.SetString("2024-04-04"),
 	})
 
 	// get the appconfig
 	acResp = appConfigResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
+	s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
 	require.Equal(t, "13.6.9", acResp.MDM.MacOSUpdates.MinimumVersion.Value)
 	require.Equal(t, "2022-01-01", acResp.MDM.MacOSUpdates.Deadline.Value)
 	require.Equal(t, optjson.SetBool(true), acResp.MDM.MacOSUpdates.UpdateNewHosts)
@@ -1275,7 +1275,7 @@ func (s *integrationEnterpriseTestSuite) TestMDMAppleOSUpdates() {
 
 	// update the deadline and the update_new_hosts flag
 	acResp = appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 			"mdm": {
 				"macos_updates": {
 					"minimum_version": "13.6.9",
@@ -1305,41 +1305,41 @@ func (s *integrationEnterpriseTestSuite) TestMDMAppleOSUpdates() {
 	require.Equal(t, optjson.Bool{Set: true}, acResp.MDM.IPadOSUpdates.UpdateNewHosts)
 
 	// another edited macos min version activity got created
-	s.lastActivityOfTypeMatches(fleet.ActivityTypeDisabledMacosUpdateNewHosts{}.ActivityName(), "", 0)
-	s.lastActivityOfTypeMatches(fleet.ActivityTypeEditedMacOSMinVersion{}.ActivityName(), `{"deadline":"2024-01-01", "minimum_version":"13.6.9", "fleet_id": null, "fleet_name": null}`, 0)
-	s.lastActivityOfTypeMatches(fleet.ActivityTypeEditedIOSMinVersion{}.ActivityName(), `{"deadline":"2025-05-05", "minimum_version":"17.6", "fleet_id": null, "fleet_name": null}`, 0)
-	lastActivity = s.lastActivityOfTypeMatches(fleet.ActivityTypeEditedIPadOSMinVersion{}.ActivityName(), `{"deadline":"2026-06-06", "minimum_version":"17.6", "fleet_id": null, "fleet_name": null}`, 0)
-	s.assertAppleOSUpdatesDeclaration(nil, mdm.FleetMacOSUpdatesProfileName, &fleet.AppleOSUpdateSettings{
+	s.lastActivityOfTypeMatches(automdm.ActivityTypeDisabledMacosUpdateNewHosts{}.ActivityName(), "", 0)
+	s.lastActivityOfTypeMatches(automdm.ActivityTypeEditedMacOSMinVersion{}.ActivityName(), `{"deadline":"2024-01-01", "minimum_version":"13.6.9", "team_id": null, "team_name": null}`, 0)
+	s.lastActivityOfTypeMatches(automdm.ActivityTypeEditedIOSMinVersion{}.ActivityName(), `{"deadline":"2025-05-05", "minimum_version":"17.6", "team_id": null, "team_name": null}`, 0)
+	lastActivity = s.lastActivityOfTypeMatches(automdm.ActivityTypeEditedIPadOSMinVersion{}.ActivityName(), `{"deadline":"2026-06-06", "minimum_version":"17.6", "team_id": null, "team_name": null}`, 0)
+	s.assertAppleOSUpdatesDeclaration(nil, mdm.AutoMDMMacOSUpdatesProfileName, &automdm.AppleOSUpdateSettings{
 		MinimumVersion: optjson.SetString("13.6.9"), Deadline: optjson.SetString("2024-01-01"),
 	})
-	s.assertAppleOSUpdatesDeclaration(nil, mdm.FleetIOSUpdatesProfileName, &fleet.AppleOSUpdateSettings{
+	s.assertAppleOSUpdatesDeclaration(nil, mdm.AutoMDMIOSUpdatesProfileName, &automdm.AppleOSUpdateSettings{
 		MinimumVersion: optjson.SetString("17.6"), Deadline: optjson.SetString("2025-05-05"),
 	})
-	s.assertAppleOSUpdatesDeclaration(nil, mdm.FleetIPadOSUpdatesProfileName, &fleet.AppleOSUpdateSettings{
+	s.assertAppleOSUpdatesDeclaration(nil, mdm.AutoMDMIPadOSUpdatesProfileName, &automdm.AppleOSUpdateSettings{
 		MinimumVersion: optjson.SetString("17.6"), Deadline: optjson.SetString("2026-06-06"),
 	})
 
 	// update something unrelated - the transparency url
 	acResp = appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{"fleet_desktop":{"transparency_url": "customURL"}}`), http.StatusOK, &acResp)
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{"automdm_desktop":{"transparency_url": "customURL"}}`), http.StatusOK, &acResp)
 	require.Equal(t, "13.6.9", acResp.MDM.MacOSUpdates.MinimumVersion.Value)
 	require.Equal(t, "2024-01-01", acResp.MDM.MacOSUpdates.Deadline.Value)
 
 	// no activity got created
 	s.lastActivityMatches("", ``, lastActivity)
-	s.assertAppleOSUpdatesDeclaration(nil, mdm.FleetMacOSUpdatesProfileName, &fleet.AppleOSUpdateSettings{
+	s.assertAppleOSUpdatesDeclaration(nil, mdm.AutoMDMMacOSUpdatesProfileName, &automdm.AppleOSUpdateSettings{
 		MinimumVersion: optjson.SetString("13.6.9"), Deadline: optjson.SetString("2024-01-01"),
 	})
-	s.assertAppleOSUpdatesDeclaration(nil, mdm.FleetIOSUpdatesProfileName, &fleet.AppleOSUpdateSettings{
+	s.assertAppleOSUpdatesDeclaration(nil, mdm.AutoMDMIOSUpdatesProfileName, &automdm.AppleOSUpdateSettings{
 		MinimumVersion: optjson.SetString("17.6"), Deadline: optjson.SetString("2025-05-05"),
 	})
-	s.assertAppleOSUpdatesDeclaration(nil, mdm.FleetIPadOSUpdatesProfileName, &fleet.AppleOSUpdateSettings{
+	s.assertAppleOSUpdatesDeclaration(nil, mdm.AutoMDMIPadOSUpdatesProfileName, &automdm.AppleOSUpdateSettings{
 		MinimumVersion: optjson.SetString("17.6"), Deadline: optjson.SetString("2026-06-06"),
 	})
 
 	// clear the apple OS requirements
 	acResp = appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 			"mdm": {
 				"macos_updates": {
 					"minimum_version": "",
@@ -1363,18 +1363,18 @@ func (s *integrationEnterpriseTestSuite) TestMDMAppleOSUpdates() {
 	require.Empty(t, acResp.MDM.IPadOSUpdates.Deadline.Value)
 
 	// edited macos min version activity got created with empty requirement
-	s.lastActivityOfTypeMatches(fleet.ActivityTypeEditedMacOSMinVersion{}.ActivityName(), `{"deadline":"", "minimum_version":"", "fleet_id": null, "fleet_name": null}`, 0)
-	s.lastActivityOfTypeMatches(fleet.ActivityTypeEditedIOSMinVersion{}.ActivityName(), `{"deadline":"", "minimum_version":"", "fleet_id": null, "fleet_name": null}`, 0)
-	lastActivity = s.lastActivityOfTypeMatches(fleet.ActivityTypeEditedIPadOSMinVersion{}.ActivityName(), `{"deadline":"", "minimum_version":"", "fleet_id": null, "fleet_name": null}`, 0)
+	s.lastActivityOfTypeMatches(automdm.ActivityTypeEditedMacOSMinVersion{}.ActivityName(), `{"deadline":"", "minimum_version":"", "team_id": null, "team_name": null}`, 0)
+	s.lastActivityOfTypeMatches(automdm.ActivityTypeEditedIOSMinVersion{}.ActivityName(), `{"deadline":"", "minimum_version":"", "team_id": null, "team_name": null}`, 0)
+	lastActivity = s.lastActivityOfTypeMatches(automdm.ActivityTypeEditedIPadOSMinVersion{}.ActivityName(), `{"deadline":"", "minimum_version":"", "team_id": null, "team_name": null}`, 0)
 
 	// check DDM profiles were removed
-	s.assertAppleOSUpdatesDeclaration(nil, mdm.FleetMacOSUpdatesProfileName, nil)
-	s.assertAppleOSUpdatesDeclaration(nil, mdm.FleetIOSUpdatesProfileName, nil)
-	s.assertAppleOSUpdatesDeclaration(nil, mdm.FleetIPadOSUpdatesProfileName, nil)
+	s.assertAppleOSUpdatesDeclaration(nil, mdm.AutoMDMMacOSUpdatesProfileName, nil)
+	s.assertAppleOSUpdatesDeclaration(nil, mdm.AutoMDMIOSUpdatesProfileName, nil)
+	s.assertAppleOSUpdatesDeclaration(nil, mdm.AutoMDMIPadOSUpdatesProfileName, nil)
 
 	// update again with empty apple OS requirements
 	acResp = appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 			"mdm": {
 				"macos_updates": {
 					"minimum_version": "",
@@ -1399,9 +1399,9 @@ func (s *integrationEnterpriseTestSuite) TestMDMAppleOSUpdates() {
 
 	// no activity or DDM profiles were created
 	s.lastActivityMatches("", ``, lastActivity)
-	s.assertAppleOSUpdatesDeclaration(nil, mdm.FleetMacOSUpdatesProfileName, nil)
-	s.assertAppleOSUpdatesDeclaration(nil, mdm.FleetIOSUpdatesProfileName, nil)
-	s.assertAppleOSUpdatesDeclaration(nil, mdm.FleetIPadOSUpdatesProfileName, nil)
+	s.assertAppleOSUpdatesDeclaration(nil, mdm.AutoMDMMacOSUpdatesProfileName, nil)
+	s.assertAppleOSUpdatesDeclaration(nil, mdm.AutoMDMIOSUpdatesProfileName, nil)
+	s.assertAppleOSUpdatesDeclaration(nil, mdm.AutoMDMIPadOSUpdatesProfileName, nil)
 }
 
 func (s *integrationEnterpriseTestSuite) TestMDMNotConfiguredEndpoints() {
@@ -1417,12 +1417,12 @@ func (s *integrationEnterpriseTestSuite) TestMDMNotConfiguredEndpoints() {
 	androidOnly := androidMDMConfigurationRequiredEndpoints()
 
 	for _, route := range mdmConfigurationRequiredEndpoints() {
-		var expectedErr fleet.ErrWithStatusCode = fleet.ErrMDMNotConfigured
+		var expectedErr automdm.ErrWithStatusCode = automdm.ErrMDMNotConfigured
 		path := route.path
 		if slices.Contains(windowsOnly, path) {
-			expectedErr = fleet.ErrWindowsMDMNotConfigured
+			expectedErr = automdm.ErrWindowsMDMNotConfigured
 		} else if slices.Contains(androidOnly, path) {
-			expectedErr = fleet.ErrAndroidMDMNotConfigured
+			expectedErr = automdm.ErrAndroidMDMNotConfigured
 		}
 		if route.deviceAuthenticated {
 			path = fmt.Sprintf(path, tkn)
@@ -1433,20 +1433,20 @@ func (s *integrationEnterpriseTestSuite) TestMDMNotConfiguredEndpoints() {
 		var multipartBody *bytes.Buffer
 		var headers map[string]string
 		switch {
-		case route.method == "POST" && route.path == "/api/fleet/orbit/setup_experience/status":
-			params = fleet.GetOrbitSetupExperienceStatusRequest{
+		case route.method == "POST" && route.path == "/api/automdm/orbit/setup_experience/status":
+			params = automdm.GetOrbitSetupExperienceStatusRequest{
 				OrbitNodeKey: *h.OrbitNodeKey,
 			}
 
-		case route.method == "POST" && route.path == "/api/latest/fleet/software/web_apps":
+		case route.method == "POST" && route.path == "/api/latest/automdm/software/web_apps":
 			multipartBody, headers = generateMultipartRequest(t, "", "", nil, s.token, map[string][]string{
 				"title": {"Test App"},
 				"url":   {"https://example.com"},
 			})
 
-		case route.method == "PATCH" && route.path == "/api/latest/fleet/setup_experience":
+		case route.method == "PATCH" && route.path == "/api/latest/automdm/setup_experience":
 			// These routes don't require MDM if you're only changing end-user auth, so we'll set something else to check.
-			params = fleet.MDMAppleSetupPayload{EnableReleaseDeviceManually: new(true)}
+			params = automdm.MDMAppleSetupPayload{EnableReleaseDeviceManually: new(true)}
 		}
 
 		var res *http.Response
@@ -1460,18 +1460,18 @@ func (s *integrationEnterpriseTestSuite) TestMDMNotConfiguredEndpoints() {
 	}
 
 	// setting enable release device manually requires MDM
-	res := s.Do("PATCH", "/api/v1/fleet/setup_experience", fleet.MDMAppleSetupPayload{EnableReleaseDeviceManually: new(true)}, http.StatusBadRequest)
+	res := s.Do("PATCH", "/api/v1/automdm/setup_experience", automdm.MDMAppleSetupPayload{EnableReleaseDeviceManually: new(true)}, http.StatusBadRequest)
 	errMsg := extractServerErrorText(res.Body)
-	require.Contains(t, errMsg, fleet.ErrMDMNotConfigured.Error())
+	require.Contains(t, errMsg, automdm.ErrMDMNotConfigured.Error())
 
-	res = s.Do("PATCH", "/api/v1/fleet/config", json.RawMessage(`{
+	res = s.Do("PATCH", "/api/v1/automdm/config", json.RawMessage(`{
 		"mdm": { "setup_experience": { "apple_enable_release_device_manually": true } }
 	}`), http.StatusUnprocessableEntity)
 	errMsg = extractServerErrorText(res.Body)
-	require.Contains(t, errMsg, `Couldn't update setup_experience because MDM features aren't turned on in Fleet.`)
+	require.Contains(t, errMsg, `Couldn't update setup_experience because MDM features aren't turned on in AutoMDM.`)
 
 	// setting end-user auth does NOT require MDM
-	s.Do("PATCH", "/api/v1/fleet/setup_experience", fleet.MDMAppleSetupPayload{EnableEndUserAuthentication: new(false)}, http.StatusNoContent)
+	s.Do("PATCH", "/api/v1/automdm/setup_experience", automdm.MDMAppleSetupPayload{EnableEndUserAuthentication: new(false)}, http.StatusNoContent)
 }
 
 func (s *integrationEnterpriseTestSuite) TestLockUnlockWipeWindowsLinux() {
@@ -1484,26 +1484,26 @@ func (s *integrationEnterpriseTestSuite) TestLockUnlockWipeWindowsLinux() {
 
 	// get the host's information
 	var getHostResp getHostResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", winHost.ID), nil, http.StatusOK, &getHostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", winHost.ID), nil, http.StatusOK, &getHostResp)
 	require.NotNil(t, getHostResp.Host.MDM.DeviceStatus)
 	require.Equal(t, "unlocked", *getHostResp.Host.MDM.DeviceStatus)
 	require.NotNil(t, getHostResp.Host.MDM.PendingAction)
 	require.Empty(t, *getHostResp.Host.MDM.PendingAction)
 
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", linuxHost.ID), nil, http.StatusOK, &getHostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", linuxHost.ID), nil, http.StatusOK, &getHostResp)
 	require.NotNil(t, getHostResp.Host.MDM.DeviceStatus)
 	require.Equal(t, "unlocked", *getHostResp.Host.MDM.DeviceStatus)
 	require.NotNil(t, getHostResp.Host.MDM.PendingAction)
 	require.Empty(t, *getHostResp.Host.MDM.PendingAction)
 
 	// try to lock/unlock/wipe the Windows host, fails because Windows MDM must be enabled
-	res := s.DoRaw("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/lock", winHost.ID), nil, http.StatusBadRequest)
+	res := s.DoRaw("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/lock", winHost.ID), nil, http.StatusBadRequest)
 	errMsg := extractServerErrorText(res.Body)
 	require.Contains(t, errMsg, "Windows MDM isn't turned on.")
-	res = s.DoRaw("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/unlock", winHost.ID), nil, http.StatusBadRequest)
+	res = s.DoRaw("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/unlock", winHost.ID), nil, http.StatusBadRequest)
 	errMsg = extractServerErrorText(res.Body)
 	require.Contains(t, errMsg, "Windows MDM isn't turned on.")
-	res = s.DoRaw("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/wipe", winHost.ID), nil, http.StatusBadRequest)
+	res = s.DoRaw("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/wipe", winHost.ID), nil, http.StatusBadRequest)
 	errMsg = extractServerErrorText(res.Body)
 	require.Contains(t, errMsg, "Windows MDM isn't turned on.")
 
@@ -1513,15 +1513,15 @@ func (s *integrationEnterpriseTestSuite) TestLockUnlockWipeWindowsLinux() {
 	)
 	require.NoError(t, err)
 	// try to lock/unlock/wipe the Linux host. Fails because scripts are not enabled.
-	res = s.DoRaw("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/lock", linuxHost.ID), nil, http.StatusUnprocessableEntity)
+	res = s.DoRaw("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/lock", linuxHost.ID), nil, http.StatusUnprocessableEntity)
 	errMsg = extractServerErrorText(res.Body)
-	require.Contains(t, errMsg, "Couldn't lock host. To lock, deploy the fleetd agent with --enable-scripts")
-	res = s.DoRaw("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/unlock", linuxHost.ID), nil, http.StatusUnprocessableEntity)
+	require.Contains(t, errMsg, "Couldn't lock host. To lock, deploy the automdmd agent with --enable-scripts")
+	res = s.DoRaw("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/unlock", linuxHost.ID), nil, http.StatusUnprocessableEntity)
 	errMsg = extractServerErrorText(res.Body)
-	require.Contains(t, errMsg, "Couldn't unlock host. To unlock, deploy the fleetd agent with --enable-scripts")
-	res = s.DoRaw("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/wipe", linuxHost.ID), nil, http.StatusUnprocessableEntity)
+	require.Contains(t, errMsg, "Couldn't unlock host. To unlock, deploy the automdmd agent with --enable-scripts")
+	res = s.DoRaw("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/wipe", linuxHost.ID), nil, http.StatusUnprocessableEntity)
 	errMsg = extractServerErrorText(res.Body)
-	require.Contains(t, errMsg, "Couldn't wipe host. To wipe, deploy the fleetd agent with --enable-scripts")
+	require.Contains(t, errMsg, "Couldn't wipe host. To wipe, deploy the automdmd agent with --enable-scripts")
 
 	// Enable scripts on Linux host
 	err = s.ds.SetOrUpdateHostOrbitInfo(
@@ -1530,27 +1530,27 @@ func (s *integrationEnterpriseTestSuite) TestLockUnlockWipeWindowsLinux() {
 	require.NoError(t, err)
 
 	// try to lock/unlock/wipe the Linux host succeeds, no MDM constraints
-	s.Do("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/lock", linuxHost.ID), nil, http.StatusOK)
+	s.Do("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/lock", linuxHost.ID), nil, http.StatusOK)
 
 	// simulate a successful script result for the lock command
 	status, err := s.ds.GetHostLockWipeStatus(ctx, linuxHost)
 	require.NoError(t, err)
 
-	var orbitScriptResp fleet.OrbitPostScriptResultResponse
-	s.DoJSON("POST", "/api/fleet/orbit/scripts/result",
+	var orbitScriptResp automdm.OrbitPostScriptResultResponse
+	s.DoJSON("POST", "/api/automdm/orbit/scripts/result",
 		json.RawMessage(fmt.Sprintf(`{"orbit_node_key": %q, "execution_id": %q, "exit_code": 0, "output": "ok"}`, *linuxHost.OrbitNodeKey, status.LockScript.ExecutionID)),
 		http.StatusOK, &orbitScriptResp)
 
-	s.Do("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/unlock", linuxHost.ID), nil, http.StatusOK)
+	s.Do("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/unlock", linuxHost.ID), nil, http.StatusOK)
 
 	// windows host status is unchanged, linux is locked pending unlock
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", winHost.ID), nil, http.StatusOK, &getHostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", winHost.ID), nil, http.StatusOK, &getHostResp)
 	require.NotNil(t, getHostResp.Host.MDM.DeviceStatus)
 	require.Equal(t, "unlocked", *getHostResp.Host.MDM.DeviceStatus)
 	require.NotNil(t, getHostResp.Host.MDM.PendingAction)
 	require.Empty(t, *getHostResp.Host.MDM.PendingAction)
 
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", linuxHost.ID), nil, http.StatusOK, &getHostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", linuxHost.ID), nil, http.StatusOK, &getHostResp)
 	require.NotNil(t, getHostResp.Host.MDM.DeviceStatus)
 	require.Equal(t, "locked", *getHostResp.Host.MDM.DeviceStatus)
 	require.NotNil(t, getHostResp.Host.MDM.PendingAction)
@@ -1558,7 +1558,7 @@ func (s *integrationEnterpriseTestSuite) TestLockUnlockWipeWindowsLinux() {
 
 	// attempting to Wipe the linux host fails due to pending unlock, not because
 	// of MDM not enabled
-	res = s.DoRaw("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/wipe", linuxHost.ID), nil, http.StatusUnprocessableEntity)
+	res = s.DoRaw("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/wipe", linuxHost.ID), nil, http.StatusUnprocessableEntity)
 	errMsg = extractServerErrorText(res.Body)
 	require.Contains(t, errMsg, "Host cannot be wiped until unlock is complete.")
 }
@@ -1566,7 +1566,7 @@ func (s *integrationEnterpriseTestSuite) TestLockUnlockWipeWindowsLinux() {
 func (s *integrationEnterpriseTestSuite) TestWindowsMigrateMDMNotEnabled() {
 	t := s.T()
 
-	res := s.Do("PATCH", "/api/v1/fleet/config", json.RawMessage(`{
+	res := s.Do("PATCH", "/api/v1/automdm/config", json.RawMessage(`{
 		"mdm": { "windows_mdm_migration_enabled": true }
 	}`), http.StatusUnprocessableEntity)
 	errMsg := extractServerErrorText(res.Body)

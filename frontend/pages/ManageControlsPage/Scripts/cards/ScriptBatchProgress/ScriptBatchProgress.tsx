@@ -87,7 +87,7 @@ const ScriptBatchProgress = ({
   const DEFAULT_PAGE_SIZE = 10;
 
   const queryKey = {
-    fleet_id: teamId,
+    team_id: teamId,
     status: selectedStatus,
     page: pageNumber,
     per_page: DEFAULT_PAGE_SIZE,
@@ -167,7 +167,7 @@ const ScriptBatchProgress = ({
               ]}
             />
             <div className={`${baseClass}__row-errors`}>
-              <Icon name="error" color="ui-fleet-black-50" />{" "}
+              <Icon name="error" color="ui-automdm-black-50" />{" "}
               <div>{errored_host_count}</div>
             </div>
           </div>

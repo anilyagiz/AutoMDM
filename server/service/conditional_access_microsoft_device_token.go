@@ -13,10 +13,10 @@ import (
 	"time"
 
 	"github.com/MicahParks/jwkset"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	hostctx "github.com/fleetdm/fleet/v4/server/contexts/host"
-	"github.com/fleetdm/fleet/v4/server/dev_mode"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	hostctx "github.com/anilyagiz/automdm/v4/server/contexts/host"
+	"github.com/anilyagiz/automdm/v4/server/dev_mode"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 )
@@ -29,7 +29,7 @@ var hostUUIDRe = regexp.MustCompile(`^[0-9A-Fa-f-]{1,64}$`)
 
 // entraDeviceNonce binds an Entra device token to a host. The host sees its own nonce, so it
 // isn't secret from it; the HMAC keeps other parties from deriving it, and the hardware UUID
-// prefix lets fleetd refuse to request a token for another host's nonce.
+// prefix lets automdmd refuse to request a token for another host's nonce.
 func entraDeviceNonce(secret, hostUUID string) string {
 	mac := hmac.New(sha256.New, []byte(secret))
 	mac.Write([]byte("entra-device-nonce|" + hostUUID))
@@ -38,7 +38,7 @@ func entraDeviceNonce(secret, hostUUID string) string {
 
 // entraDeviceTokenRequest returns the Entra device token request to send to the host in its
 // orbit config, or nil if the host doesn't need to report one.
-func (svc *Service) entraDeviceTokenRequest(ctx context.Context, host *fleet.Host) (*fleet.OrbitEntraDeviceTokenRequest, error) {
+func (svc *Service) entraDeviceTokenRequest(ctx context.Context, host *automdm.Host) (*automdm.OrbitEntraDeviceTokenRequest, error) {
 	clientID := svc.config.MicrosoftCompliancePartner.ClientID
 	if host.Platform != "darwin" || clientID == "" || !hostUUIDRe.MatchString(host.UUID) {
 		return nil, nil
@@ -50,19 +50,19 @@ func (svc *Service) entraDeviceTokenRequest(ctx context.Context, host *fleet.Hos
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "get conditional access integration")
 	}
-	return &fleet.OrbitEntraDeviceTokenRequest{
+	return &automdm.OrbitEntraDeviceTokenRequest{
 		TenantID: integration.TenantID,
 		ClientID: clientID,
 		Nonce:    entraDeviceNonce(integration.ProxyServerSecret, host.UUID),
 	}, nil
 }
 
-func postOrbitEntraDeviceTokenEndpoint(ctx context.Context, request any, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.OrbitPostEntraDeviceTokenRequest)
+func postOrbitEntraDeviceTokenEndpoint(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.OrbitPostEntraDeviceTokenRequest)
 	if err := svc.SetHostEntraDeviceToken(ctx, req.IDToken); err != nil {
-		return fleet.OrbitPostEntraDeviceTokenResponse{Err: err}, nil
+		return automdm.OrbitPostEntraDeviceTokenResponse{Err: err}, nil
 	}
-	return fleet.OrbitPostEntraDeviceTokenResponse{}, nil
+	return automdm.OrbitPostEntraDeviceTokenResponse{}, nil
 }
 
 func (svc *Service) SetHostEntraDeviceToken(ctx context.Context, idToken string) error {
@@ -99,7 +99,7 @@ func (svc *Service) SetHostEntraDeviceToken(ctx context.Context, idToken string)
 	}
 	if changed {
 		// Compliance is only sent to Intune with policy results; a refetch sends them now instead
-		// of at the next policy interval, so the user doesn't have to refetch from Fleet Desktop.
+		// of at the next policy interval, so the user doesn't have to refetch from AutoMDM Desktop.
 		if err := svc.ds.UpdateHostRefetchRequested(ctx, host.ID, true); err != nil {
 			return ctxerr.Wrap(ctx, err, "request host refetch")
 		}
@@ -124,7 +124,7 @@ func (e entraSigningKeysError) Unwrap() error { return e.err }
 
 // entraJWKSClients caches one client (with its background refresh) per JWKS URI. Failures
 // aren't cached, so a transient error doesn't break verification until restart. The
-// client refreshes hourly, so a key Microsoft just rotated in fails until then; fleetd
+// client refreshes hourly, so a key Microsoft just rotated in fails until then; automdmd
 // retries failed reports.
 var (
 	entraJWKSMu      sync.Mutex
@@ -133,7 +133,7 @@ var (
 
 func entraJWKS() (jwkset.Storage, error) {
 	jwksURI := "https://login.microsoftonline.com/common/discovery/v2.0/keys"
-	if devURI := dev_mode.Env("FLEET_DEV_ENTRA_DEVICE_TOKEN_JWKS_URI"); devURI != "" {
+	if devURI := dev_mode.Env("AUTOMDM_DEV_ENTRA_DEVICE_TOKEN_JWKS_URI"); devURI != "" {
 		jwksURI = devURI
 	}
 	entraJWKSMu.Lock()
@@ -185,7 +185,7 @@ func verifyEntraDeviceToken(ctx context.Context, rawToken, tenantID, clientID st
 	if !claims.VerifyAudience(clientID, true) {
 		return nil, errors.New("audience mismatch")
 	}
-	// A small leeway absorbs clock skew between Fleet and Entra.
+	// A small leeway absorbs clock skew between AutoMDM and Entra.
 	const leeway = 5 * time.Minute
 	if claims.ExpiresAt == nil || !claims.ExpiresAt.After(now.Add(-leeway)) {
 		return nil, errors.New("token expired")

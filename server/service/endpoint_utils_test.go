@@ -12,15 +12,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/optjson"
-	"github.com/fleetdm/fleet/v4/server/contexts/installersize"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/platform/endpointer"
-	platform_http "github.com/fleetdm/fleet/v4/server/platform/http"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/service/middleware/auth"
-	"github.com/fleetdm/fleet/v4/server/service/middleware/log"
+	"github.com/anilyagiz/automdm/v4/pkg/optjson"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/installersize"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/platform/endpointer"
+	platform_http "github.com/anilyagiz/automdm/v4/server/platform/http"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/service/middleware/auth"
+	"github.com/anilyagiz/automdm/v4/server/service/middleware/log"
 	"github.com/go-kit/kit/endpoint"
 	kithttp "github.com/go-kit/kit/transport/http"
 	"github.com/stretchr/testify/assert"
@@ -96,9 +96,9 @@ func TestUniversalDecoderIDsAndJSONEmbedded(t *testing.T) {
 
 func TestUniversalDecoderIDsAndListOptions(t *testing.T) {
 	type universalStruct struct {
-		ID1        uint              `url:"some-id"`
-		Opts       fleet.ListOptions `url:"list_options"`
-		SomeString string            `json:"some_string"`
+		ID1        uint                `url:"some-id"`
+		Opts       automdm.ListOptions `url:"list_options"`
+		SomeString string              `json:"some_string"`
 	}
 	decoder := makeDecoder(universalStruct{}, installersize.MaxSoftwareInstallerSize)
 
@@ -122,8 +122,8 @@ func TestUniversalDecoderHandlersEmbeddedAndNot(t *testing.T) {
 		SomeString string `json:"some_string"`
 	}
 	type universalStruct struct {
-		ID1  uint              `url:"some-id"`
-		Opts fleet.ListOptions `url:"list_options"`
+		ID1  uint                `url:"some-id"`
+		Opts automdm.ListOptions `url:"list_options"`
 		EmbeddedJSON
 	}
 	decoder := makeDecoder(universalStruct{}, installersize.MaxSoftwareInstallerSize)
@@ -145,8 +145,8 @@ func TestUniversalDecoderHandlersEmbeddedAndNot(t *testing.T) {
 
 func TestUniversalDecoderListOptions(t *testing.T) {
 	type universalStruct struct {
-		ID1  uint              `url:"some-id"`
-		Opts fleet.ListOptions `url:"list_options"`
+		ID1  uint                `url:"some-id"`
+		Opts automdm.ListOptions `url:"list_options"`
 	}
 	decoder := makeDecoder(universalStruct{}, installersize.MaxSoftwareInstallerSize)
 
@@ -238,8 +238,8 @@ func TestUniversalDecoderOptionalQueryParamNotPtr(t *testing.T) {
 
 func TestUniversalDecoderQueryAndListPlayNice(t *testing.T) {
 	type universalStruct struct {
-		ID1  *uint             `query:"some_id"`
-		Opts fleet.ListOptions `url:"list_options"`
+		ID1  *uint               `query:"some_id"`
+		Opts automdm.ListOptions `url:"list_options"`
 	}
 	decoder := makeDecoder(universalStruct{}, installersize.MaxSoftwareInstallerSize)
 
@@ -258,8 +258,8 @@ func TestUniversalDecoderQueryAndListPlayNice(t *testing.T) {
 
 func TestUniversalDecoderSizeLimit(t *testing.T) {
 	type universalStruct struct {
-		ID1  uint              `url:"some-id"`
-		Opts fleet.ListOptions `url:"list_options"`
+		ID1  uint                `url:"some-id"`
+		Opts automdm.ListOptions `url:"list_options"`
 	}
 	decoder := makeDecoder(universalStruct{}, platform_http.MaxRequestBodySize)
 
@@ -300,36 +300,36 @@ func (s stringErrorer) Error() error { return nil }
 func TestEndpointer(t *testing.T) {
 	r := endpointer.NewRouter()
 	ds := new(mock.Store)
-	ds.SessionByKeyFunc = func(ctx context.Context, key string) (*fleet.Session, error) {
-		return &fleet.Session{
+	ds.SessionByKeyFunc = func(ctx context.Context, key string) (*automdm.Session, error) {
+		return &automdm.Session{
 			ID:         3,
 			UserID:     42,
 			Key:        key,
 			AccessedAt: time.Now(),
 		}, nil
 	}
-	ds.DestroySessionFunc = func(ctx context.Context, session *fleet.Session) error {
+	ds.DestroySessionFunc = func(ctx context.Context, session *automdm.Session) error {
 		return nil
 	}
-	ds.MarkSessionAccessedFunc = func(ctx context.Context, session *fleet.Session) error {
+	ds.MarkSessionAccessedFunc = func(ctx context.Context, session *automdm.Session) error {
 		return nil
 	}
-	ds.UserByIDFunc = func(ctx context.Context, id uint) (*fleet.User, error) {
-		return &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}, nil
+	ds.UserByIDFunc = func(ctx context.Context, id uint) (*automdm.User, error) {
+		return &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}, nil
 	}
-	ds.ListUsersFunc = func(ctx context.Context, opt fleet.UserListOptions) ([]*fleet.User, error) {
-		return []*fleet.User{{GlobalRole: ptr.String(fleet.RoleAdmin)}}, nil
+	ds.ListUsersFunc = func(ctx context.Context, opt automdm.UserListOptions) ([]*automdm.User, error) {
+		return []*automdm.User{{GlobalRole: ptr.String(automdm.RoleAdmin)}}, nil
 	}
 
 	svc, _ := newTestService(t, ds, nil, nil)
 
-	fleetAPIOptions := []kithttp.ServerOption{
+	automdmAPIOptions := []kithttp.ServerOption{
 		kithttp.ServerBefore(
 			kithttp.PopulateRequestContext, // populate the request context with common fields
 			auth.SetRequestsContexts(svc),
 		),
 		kithttp.ServerErrorHandler(&endpointer.ErrorHandler{Logger: slog.New(slog.DiscardHandler)}),
-		kithttp.ServerErrorEncoder(fleetErrorEncoder),
+		kithttp.ServerErrorEncoder(automdmErrorEncoder),
 		kithttp.ServerAfter(
 			kithttp.SetContentType("application/json; charset=utf-8"),
 			log.LogRequestEnd(slog.New(slog.DiscardHandler)),
@@ -337,62 +337,62 @@ func TestEndpointer(t *testing.T) {
 		),
 	}
 
-	e := newUserAuthenticatedEndpointer(svc, fleetAPIOptions, r, "v1", "2021-11")
-	nopHandler := func(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+	e := newUserAuthenticatedEndpointer(svc, automdmAPIOptions, r, "v1", "2021-11")
+	nopHandler := func(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 		setAuthCheckedOnPreAuthErr(ctx)
 		return stringErrorer("nop"), nil
 	}
-	overrideHandler := func(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+	overrideHandler := func(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 		setAuthCheckedOnPreAuthErr(ctx)
 		return stringErrorer("override"), nil
 	}
 
 	// Regular path, no plan to deprecate
-	e.GET("/api/_version_/fleet/path1", nopHandler, struct{}{})
+	e.GET("/api/_version_/automdm/path1", nopHandler, struct{}{})
 
 	// New path, we want it only available starting from the specified version
-	e.StartingAtVersion("2021-11").GET("/api/_version_/fleet/newpath", nopHandler, struct{}{})
+	e.StartingAtVersion("2021-11").GET("/api/_version_/automdm/newpath", nopHandler, struct{}{})
 
 	// Path that was in v1, but was changed in 2021-11
-	e.EndingAtVersion("v1").GET("/api/_version_/fleet/overriddenpath", nopHandler, struct{}{})
-	e.StartingAtVersion("2021-11").GET("/api/_version_/fleet/overriddenpath", overrideHandler, struct{}{})
+	e.EndingAtVersion("v1").GET("/api/_version_/automdm/overriddenpath", nopHandler, struct{}{})
+	e.StartingAtVersion("2021-11").GET("/api/_version_/automdm/overriddenpath", overrideHandler, struct{}{})
 
 	// Path that got deprecated
-	e.EndingAtVersion("v1").GET("/api/_version_/fleet/deprecated", nopHandler, struct{}{})
+	e.EndingAtVersion("v1").GET("/api/_version_/automdm/deprecated", nopHandler, struct{}{})
 	// Path that got deprecated but in the latest version
-	e.EndingAtVersion("2021-11").GET("/api/_version_/fleet/deprecated-soon", nopHandler, struct{}{})
+	e.EndingAtVersion("2021-11").GET("/api/_version_/automdm/deprecated-soon", nopHandler, struct{}{})
 
 	// Aliasing works with versioning too
-	e.WithAltPaths("/api/_version_/fleet/something/{fff}").GET("/api/_version_/fleet/somethings/{fff}", nopHandler, struct{}{})
+	e.WithAltPaths("/api/_version_/automdm/something/{fff}").GET("/api/_version_/automdm/somethings/{fff}", nopHandler, struct{}{})
 
 	mustMatch := []struct {
 		method     string
 		path       string
 		overridden bool
 	}{
-		{method: "GET", path: "/api/v1/fleet/path1"},
-		{method: "GET", path: "/api/2021-11/fleet/path1"},
-		{method: "GET", path: "/api/latest/fleet/path1"},
+		{method: "GET", path: "/api/v1/automdm/path1"},
+		{method: "GET", path: "/api/2021-11/automdm/path1"},
+		{method: "GET", path: "/api/latest/automdm/path1"},
 
-		{method: "GET", path: "/api/2021-11/fleet/newpath"},
-		{method: "GET", path: "/api/latest/fleet/newpath"},
+		{method: "GET", path: "/api/2021-11/automdm/newpath"},
+		{method: "GET", path: "/api/latest/automdm/newpath"},
 
-		{method: "GET", path: "/api/v1/fleet/deprecated"},
+		{method: "GET", path: "/api/v1/automdm/deprecated"},
 
-		{method: "GET", path: "/api/v1/fleet/deprecated-soon"},
-		{method: "GET", path: "/api/2021-11/fleet/deprecated-soon"},
-		{method: "GET", path: "/api/latest/fleet/deprecated-soon"},
+		{method: "GET", path: "/api/v1/automdm/deprecated-soon"},
+		{method: "GET", path: "/api/2021-11/automdm/deprecated-soon"},
+		{method: "GET", path: "/api/latest/automdm/deprecated-soon"},
 
-		{method: "GET", path: "/api/v1/fleet/overriddenpath"},
-		{method: "GET", path: "/api/2021-11/fleet/overriddenpath", overridden: true},
-		{method: "GET", path: "/api/latest/fleet/overriddenpath", overridden: true},
+		{method: "GET", path: "/api/v1/automdm/overriddenpath"},
+		{method: "GET", path: "/api/2021-11/automdm/overriddenpath", overridden: true},
+		{method: "GET", path: "/api/latest/automdm/overriddenpath", overridden: true},
 
-		{method: "GET", path: "/api/v1/fleet/something/aaa"},
-		{method: "GET", path: "/api/2021-11/fleet/something/aaa"},
-		{method: "GET", path: "/api/latest/fleet/something/aaa"},
-		{method: "GET", path: "/api/v1/fleet/somethings/aaa"},
-		{method: "GET", path: "/api/2021-11/fleet/somethings/aaa"},
-		{method: "GET", path: "/api/latest/fleet/somethings/aaa"},
+		{method: "GET", path: "/api/v1/automdm/something/aaa"},
+		{method: "GET", path: "/api/2021-11/automdm/something/aaa"},
+		{method: "GET", path: "/api/latest/automdm/something/aaa"},
+		{method: "GET", path: "/api/v1/automdm/somethings/aaa"},
+		{method: "GET", path: "/api/2021-11/automdm/somethings/aaa"},
+		{method: "GET", path: "/api/latest/automdm/somethings/aaa"},
 	}
 
 	mustNotMatch := []struct {
@@ -400,14 +400,14 @@ func TestEndpointer(t *testing.T) {
 		path    string
 		handler http.Handler
 	}{
-		{method: "POST", path: "/api/v1/fleet/path1"},
-		{method: "GET", path: "/api/v1/fleet/qwejoqiwejqiowehioqwe"},
+		{method: "POST", path: "/api/v1/automdm/path1"},
+		{method: "GET", path: "/api/v1/automdm/qwejoqiwejqiowehioqwe"},
 		{method: "GET", path: "/api/v1/qwejoqiwejqiowehioqwe"},
 
-		{method: "GET", path: "/api/v1/fleet/newpath"},
+		{method: "GET", path: "/api/v1/automdm/newpath"},
 
-		{method: "GET", path: "/api/2021-11/fleet/deprecated"},
-		{method: "GET", path: "/api/latest/fleet/deprecated"},
+		{method: "GET", path: "/api/2021-11/automdm/deprecated"},
+		{method: "GET", path: "/api/latest/automdm/deprecated"},
 	}
 
 	doesItMatch := func(method, path string, override bool) bool {
@@ -440,13 +440,13 @@ func TestEndpointerCustomMiddleware(t *testing.T) {
 	ds := new(mock.Store)
 	svc, _ := newTestService(t, ds, nil, nil)
 
-	fleetAPIOptions := []kithttp.ServerOption{
+	automdmAPIOptions := []kithttp.ServerOption{
 		kithttp.ServerBefore(
 			kithttp.PopulateRequestContext,
 			auth.SetRequestsContexts(svc),
 		),
 		kithttp.ServerErrorHandler(&endpointer.ErrorHandler{Logger: slog.New(slog.DiscardHandler)}),
-		kithttp.ServerErrorEncoder(fleetErrorEncoder),
+		kithttp.ServerErrorEncoder(automdmErrorEncoder),
 		kithttp.ServerAfter(
 			kithttp.SetContentType("application/json; charset=utf-8"),
 			log.LogRequestEnd(slog.New(slog.DiscardHandler)),
@@ -455,8 +455,8 @@ func TestEndpointerCustomMiddleware(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	e := newNoAuthEndpointer(svc, fleetAPIOptions, r, "v1")
-	e.GET("/none/", func(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+	e := newNoAuthEndpointer(svc, automdmAPIOptions, r, "v1")
+	e.GET("/none/", func(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 		buf.WriteString("H1")
 		return nil, nil
 	}, nil)
@@ -481,7 +481,7 @@ func TestEndpointerCustomMiddleware(t *testing.T) {
 			}
 		},
 	).
-		GET("/mw/", func(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+		GET("/mw/", func(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 			buf.WriteString("H2")
 			return nil, nil
 		}, nil)

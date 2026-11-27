@@ -1,6 +1,6 @@
 # Patterns
 
-This contains the patterns that we follow in the Fleet UI.
+This contains the patterns that we follow in the AutoMDM UI.
 
 > NOTE: There are always exceptions to the rules, but we try as much as possible to
 follow these patterns unless a specific use case calls for something else. These
@@ -15,7 +15,7 @@ should be discussed within the team and documented before merged.
 - [Tier modes](#tier-modes)
 - [React hooks](#react-hooks)
 - [React Context](#react-context)
-- [Fleet API calls](#fleet-api-calls)
+- [AutoMDM API calls](#automdm-api-calls)
 - [Page routing](#page-routing)
 - [Command palette](#command-palette)
 - [Styles](#styles)
@@ -26,7 +26,7 @@ should be discussed within the team and documented before merged.
 
 ## Typing
 
-All Javascript and React files use Typescript, meaning the extensions are `.ts` and `.tsx`. Here are the guidelines on how we type at Fleet:
+All Javascript and React files use Typescript, meaning the extensions are `.ts` and `.tsx`. Here are the guidelines on how we type at AutoMDM:
 
 - Use *[global entity interfaces](../README.md#interfaces)* when interfaces are used multiple times across the app
 - Use *local interfaces* when typing entities limited to the specific page or component
@@ -152,7 +152,7 @@ export default {
 Software titles have two fields that look like a name:
 
 - `name` — the raw title from the installer/package metadata (e.g. `Microsoft.CompanyPortal`)
-- `display_name` — an optional custom name set per fleet by an admin
+- `display_name` — an optional custom name set per team by an admin
 
 Render the label from the resolved display name, but pass the **raw** `name` to
 `<SoftwareIcon>` — the icon matcher only knows raw, well-known names.
@@ -191,7 +191,7 @@ via `getMatchedSoftwareIcon({ name, source })` when `icon_url` is null. That
 matcher only knows the raw, well-known names (`notion`, `microsoft.companyportal`,
 etc.). If you pass it a resolved display name like `getDisplayedSoftwareName(...)`
 or `display_name || name`, an admin who renames the title to anything not in the
-match table will lose the icon to a generic fallback. Fleet-maintained apps are
+match table will lose the icon to a generic fallback. AutoMDM-maintained apps are
 the highest-risk surface because they have no `icon_url` — they depend
 entirely on name matching. See #47123.
 
@@ -426,7 +426,7 @@ Reference implementations: `EditQueryForm`, `PackageForm`, `EditScriptModal`, `A
 
 - Trim leading and trailing whitespace client-side before submitting. Send the trimmed value to the API.
 - Whitespace-only content in a required field counts as empty.
-- Cap free-text `maxLength` to the backend column length via `inputOptions={{ maxLength: N }}` on `InputField`. The native input silently truncates paste. See [Forms](../../.claude/rules/fleet-frontend.md#forms) in the top-level rules.
+- Cap free-text `maxLength` to the backend column length via `inputOptions={{ maxLength: N }}` on `InputField`. The native input silently truncates paste. See [Forms](../../.claude/rules/automdm-frontend.md#forms) in the top-level rules.
 - If the max length is unusual (e.g. a 48-character password), show an inline error on the field instead of relying on silent truncation.
 
 #### In-flight and submission lifecycle
@@ -436,7 +436,7 @@ Reference implementations: `EditQueryForm`, `PackageForm`, `EditScriptModal`, `A
 - The submit handler must guard against a second submission while one is in flight. Do not rely solely on the button being disabled.
 - The Cancel button remains enabled during submission and closes the modal immediately. It does not abort the in-flight request; the request completes in the background. We don't require abort because most call sites use plain Promises (not `useMutation`), and we don't want a confirmation dialog on Cancel — it adds friction to the common case for a rare one.
 - Because Cancel doesn't abort, the submission must be resilient to the modal being closed before the request resolves. Guard post-success side effects (toast, navigation, cache invalidation) so they don't fire against an unmounted component or a screen the user has already left. Failures on a closed modal are dropped silently — no toast, no re-open.
-- On success, close the modal and call `notify.success` before `router.push` / `router.replace`. This is a code-call order, not a visual order — `notify.success` defers toast creation by a tick, so calling it first lets the toast land on the destination page instead of getting wiped by its own navigation. See [Notifications](../../.claude/rules/fleet-frontend.md#notifications).
+- On success, close the modal and call `notify.success` before `router.push` / `router.replace`. This is a code-call order, not a visual order — `notify.success` defers toast creation by a tick, so calling it first lets the toast land on the destination page instead of getting wiped by its own navigation. See [Notifications](../../.claude/rules/automdm-frontend.md#notifications).
 - On failure, fields become editable again, the submit button re-enables immediately, and server errors surface per [Server-side errors](#server-side-errors).
 - Closing a modal with unsaved changes silently discards them. No confirmation dialog. (Exceptions like the SQL editor stay exceptions.)
 
@@ -471,7 +471,7 @@ Rules:
 - Article discipline: `your` for the user's own data (`your email`, `your name`); `a` for a value the user is constructing (`a valid URL`, `a password`).
 - One sentence per error. If it needs a second sentence, the constraint probably belongs in help text below the field, not in the error.
 - **No terminal periods on field errors.** They render in the label slot, and labels don't end with periods. (System/transport errors in toasts — see below — are the one place periods appear.)
-- See [Terminology](../../.claude/rules/fleet-frontend.md#terminology) for `fleet` vs `team` and other renaming rules.
+- See [Terminology](../../.claude/rules/automdm-frontend.md#terminology) for `automdm` vs `team` and other renaming rules.
 
 System/transport errors (server failures, timeouts, network errors — things the user can't fix by editing a field) render as toasts, not inline, and use a different register: **what happened + what to do**. Example: `Couldn't save your changes. Try again in a few minutes.` This is the one place periods appear (two sentences). Field-specific server errors — e.g. `"email already taken"` per [Server-side errors](#server-side-errors) — stay in the verb + object register.
 
@@ -479,19 +479,19 @@ System/transport errors (server failures, timeouts, network errors — things th
 
 The UI changes shape in two licensing-related modes. Both can be active at the same time on a Premium Primo tenant, so most gates need to consider them independently:
 
-- **Fleet Free** — the free tier. Many features are hidden, paywalled with `<PremiumFeatureMessage />`, or restricted. Flag: `!isPremiumTier` (the context value is `true` for Premium / Enterprise, `false` for Free, so the Free check is the negation).
-- **Primo mode** — a single-fleet Premium installation for partner deployments. The fleet switcher is hidden, fleet creation is disabled, and empty-state copy collapses. Flag: `isPrimoMode` (derived from `config.partnerships.enable_primo`).
+- **AutoMDM Free** — the free tier. Many features are hidden, paywalled with `<PremiumFeatureMessage />`, or restricted. Flag: `!isPremiumTier` (the context value is `true` for Premium / Enterprise, `false` for Free, so the Free check is the negation).
+- **Primo mode** — a single-team Premium installation for partner deployments. The team switcher is hidden, team creation is disabled, and empty-state copy collapses. Flag: `isPrimoMode` (derived from `config.partnerships.enable_primo`).
 
 Both flags can be true simultaneously (a Premium Primo tenant), and `isPrimoMode` is computed locally per-component, not in `AppContext` — see Gotchas. `frontend/components/CommandPalette/` is the canonical reference for handling both flags in tandem.
 
-### Fleet Free
+### AutoMDM Free
 
 #### How to check
 
 ```tsx
 const { isPremiumTier } = useContext(AppContext);
 if (!isPremiumTier) {
-  // Fleet Free behavior
+  // AutoMDM Free behavior
 }
 ```
 
@@ -512,7 +512,7 @@ if (!isPremiumTier) {
 
 ```tsx
 ...(isPremiumTier
-  ? [{ id: "add-fleet-maintained-app", label: "Add Fleet-maintained app", ... }]
+  ? [{ id: "add-automdm-maintained-app", label: "Add AutoMDM-maintained app", ... }]
   : [])
 ```
 
@@ -520,7 +520,7 @@ For other patterns (conditional props on sub-components, React Query `enabled` t
 
 ### Primo mode
 
-Primo mode is a partnership mode (`partnerships.enable_primo`) that provides a single-fleet experience. It hides fleet creation, defaults to the "Unassigned" fleet context, and simplifies empty states. It can be active at the same time as Fleet Free *or* Premium, and at the same time as GitOps mode — these all affect different things.
+Primo mode is a partnership mode (`partnerships.enable_primo`) that provides a single-team experience. It hides team creation, defaults to the "Unassigned" team context, and simplifies empty states. It can be active at the same time as AutoMDM Free *or* Premium, and at the same time as GitOps mode — these all affect different things.
 
 #### How to check
 
@@ -533,19 +533,19 @@ There's also a `PRIMO_TOOLTIP` constant in `utilities/constants.tsx` for disable
 
 #### What it affects
 
-- **"Create fleet" button**: disabled on ManageFleetsPage
-- **Fleet switcher**: hidden (both the page `FleetsDropdown` header and the command palette fleet picker)
-- **Selected fleet**: `useTeamIdParam` defaults to "Unassigned" instead of "All fleets"
-- **Empty states**: skip the fleet-scoped copy premium normally shows, falling back to the generic header that free tier already uses (e.g., "No policies yet" instead of "No policies for this fleet" or "No policies apply to all fleets")
-- **User form**: fleets dropdown disabled
-- **Software automations**: accessible from "Unassigned" (normally only from "All fleets")
+- **"Create team" button**: disabled on ManageTeamsPage
+- **Team switcher**: hidden (both the page `TeamsDropdown` header and the command palette team picker)
+- **Selected team**: `useTeamIdParam` defaults to "Unassigned" instead of "All teams"
+- **Empty states**: skip the team-scoped copy premium normally shows, falling back to the generic header that free tier already uses (e.g., "No policies yet" instead of "No policies for this team" or "No policies apply to all teams")
+- **User form**: teams dropdown disabled
+- **Software automations**: accessible from "Unassigned" (normally only from "All teams")
 
 #### Pattern: disable with tooltip
 
 The shared `Button` component doesn't accept a tooltip prop — use one of these patterns instead.
 
 **`TableContainer` action buttons** accept `disabledTooltipContent` directly on the
-`actionButton` config (see `ManageFleetsPage.tsx`):
+`actionButton` config (see `ManageTeamsPage.tsx`):
 
 ```tsx
 const disabledTooltip = isPrimoMode ? PRIMO_TOOLTIP : null;
@@ -553,9 +553,9 @@ const disabledTooltip = isPrimoMode ? PRIMO_TOOLTIP : null;
 <TableContainer
   // ...
   actionButton={{
-    name: "create fleet",
-    buttonText: "Create fleet",
-    onClick: toggleCreateFleetModal,
+    name: "create automdm",
+    buttonText: "Create automdm",
+    onClick: toggleCreateTeamModal,
     disabledTooltipContent: disabledTooltip,
   }}
 />;
@@ -567,7 +567,7 @@ const disabledTooltip = isPrimoMode ? PRIMO_TOOLTIP : null;
 ```tsx
 <TooltipWrapper tipContent={PRIMO_TOOLTIP} disableTooltip={!isPrimoMode} showArrow>
   <Button disabled={isPrimoMode} onClick={onCreate}>
-    Create fleet
+    Create automdm
   </Button>
 </TooltipWrapper>
 ```
@@ -582,16 +582,16 @@ Mock the flag in the test context (`isPremiumTier: false` for Free; `config: cre
 
 1. **`isPrimoMode` is not in AppContext.** Every component derives it from `config?.partnerships?.enable_primo`. If your refactor moves code out of a component that already had `config` in scope, you'll lose the Primo gate silently.
 2. **Both flags can be true.** A Premium Primo tenant. Gates that test only one (e.g., `if (!isPremiumTier) hide` or `if (isPrimoMode) hide`) are usually incomplete.
-3. **Dual-gated UI is common.** Table columns, picker columns, and entity selectors often gate on `isPremiumTier && !isPrimoMode` — premium-only AND multi-fleet-only. If your feature falls in either bucket, the dual gate is probably the right shape.
-4. **`useTeamIdParam` defaults change in Primo.** "Unassigned" instead of "All fleets" for the global default. If your code reads `currentTeamId === -1` to mean "all fleets selected," that path won't fire in Primo.
+3. **Dual-gated UI is common.** Table columns, picker columns, and entity selectors often gate on `isPremiumTier && !isPrimoMode` — premium-only AND multi-team-only. If your feature falls in either bucket, the dual gate is probably the right shape.
+4. **`useTeamIdParam` defaults change in Primo.** "Unassigned" instead of "All teams" for the global default. If your code reads `currentTeamId === -1` to mean "all teams selected," that path won't fire in Primo.
 
 ### How tier modes differ from GitOps mode
 
-| | Fleet Free | Primo mode | GitOps mode |
+| | AutoMDM Free | Primo mode | GitOps mode |
 |---|---|---|---|
-| Purpose | Free vs Premium feature gating | Single-fleet UI for partners | Repository-driven config management |
+| Purpose | Free vs Premium feature gating | Single-team UI for partners | Repository-driven config management |
 | Config | `license.tier !== "premium"` (i.e., `!isPremiumTier`) | `partnerships.enable_primo` | `gitops.gitops_mode_enabled` |
-| Main effect | Paywall (`<PremiumFeatureMessage />`) | Disables fleet creation, defaults to "Unassigned" | Disables manual editing |
+| Main effect | Paywall (`<PremiumFeatureMessage />`) | Disables team creation, defaults to "Unassigned" | Disables manual editing |
 | Component | Conditional checks + paywall | Conditional checks on the flag | `GitOpsModeTooltipWrapper` |
 
 ## React hooks
@@ -625,7 +625,7 @@ const PageOrComponent = (props) => {
 
 ### Custom hooks
 
-Along with the hooks supplied by React such as `useEffect()` and `useState()`, you may create custom hooks as needed. A custom hook is a shared helper function that uses React state internally, for example to extract certain properties from a context or update a value when state changes.  A good example of a widely-used custom hook is `useTeamIdParam`, which returns information about the currently selected fleet and ensures (via its use of `useEffect()`) that the caller will get up-to-date values whenever a different fleet is selected.
+Along with the hooks supplied by React such as `useEffect()` and `useState()`, you may create custom hooks as needed. A custom hook is a shared helper function that uses React state internally, for example to extract certain properties from a context or update a value when state changes.  A good example of a widely-used custom hook is `useTeamIdParam`, which returns information about the currently selected team and ensures (via its use of `useEffect()`) that the caller will get up-to-date values whenever a different team is selected.
 
 Custom hook names should be camel-cased and use the `use` prefix, and should live in the `frontend/hooks` directory.
 
@@ -641,7 +641,7 @@ Current custom hooks include:
 - [`usePlatformSelector`](../hooks/usePlatformSelector.tsx) — Manages platform-checkbox state (darwin/windows/linux/chrome) and renders the platform selector UI.
 - [`useQueryTargets`](../hooks/useQueryTargets.ts) — `react-query` wrapper that fetches and groups target hosts/labels/teams for a query.
 - [`useSoftwareInstallerMeta`](../hooks/useSoftwareInstallerMeta.ts) — Derives normalized metadata (installer type, FMA/VPP/Android flags, permissions, GitOps state) from a software title.
-- [`useTeamIdParam`](../hooks/useTeamIdParam.ts) — Reads/writes the `fleet_id` URL param, resolving the current fleet and handling param strip/replace rules on fleet change.
+- [`useTeamIdParam`](../hooks/useTeamIdParam.ts) — Reads/writes the `team_id` URL param, resolving the current team and handling param strip/replace rules on team change.
 - [`useToggleSidePanel`](../hooks/useToggleSidePanel.ts) — Simple open/closed state with toggle and explicit setter for a side panel.
 
 ## React context
@@ -661,13 +661,13 @@ const { currentUser, isPremiumTier } = useContext(AppContext);
 
 | Context | Purpose | Use this when |
 |---|---|---|
-| `AppContext` | Global app state: current user, config, team selection, role flags, license info | You need user identity, permissions, feature flags, or the active fleet |
+| `AppContext` | Global app state: current user, config, team selection, role flags, license info | You need user identity, permissions, feature flags, or the active team |
 | `PolicyContext` | In-progress policy editing state: name, query, resolution, platform, labels | You're on the policy edit/create flow and need to persist form state across steps |
 | `QueryContext` | In-progress report editing state: name, query body, frequency, targets, logging | You're on the report edit/create flow and need to persist form state across steps |
 | `RoutingContext` | Stores a redirect location for post-auth navigation | You need to redirect the user after login (e.g., deep link they hit while logged out) |
 | `TableContext` | Coordinates table row selection resets across components | You need to clear selected rows in a data table after a bulk action |
 
-## Fleet API calls
+## AutoMDM API calls
 
 ### Making API calls
 
@@ -857,7 +857,7 @@ Nested destinations under an existing palette entry live in that entry's `subIte
 These three "sub-" terms each mean exactly one thing in this codebase — keep them distinct:
 
 - **Sub-item** — an `ICommandSubItem` in a parent palette entry's `subItems` array
-- **Picker page** — the secondary screen opened when an entry has `opensPickerPage: true` (View host, View report, Switch fleet)
+- **Picker page** — the secondary screen opened when an entry has `opensPickerPage: true` (View host, View report, Switch team)
 - **Sub-route** — an app route nested under another (e.g., `/settings/integrations` under `/settings`)
 
 ### Required and optional fields
@@ -870,7 +870,7 @@ interface ICommandItem {
   path?: string;             // navigation target (use withTeamId() if team-scoped)
   onAction?: () => void;     // alternative to path for custom side effects
   keywords?: string[];       // synonyms + aliases — see below
-  teamName?: string;         // chip shown when the action switches the user's fleet context
+  teamName?: string;         // chip shown when the action switches the user's automdm context
   subItems?: ICommandSubItem[];
   opensPickerPage?: boolean;    // shows the chevron-right; required for picker actions
 }
@@ -882,7 +882,7 @@ interface ICommandItem {
 - Verb first for actions: "Add", "Edit", "Delete", "Run", "View", "Manage", "Turn on" / "Turn off".
 - No trailing punctuation.
 - Match the destination page's own primary-button text where possible.
-- Use **fleet** / **report** (current product terminology), not **team** / **query**. Existing items haven't been mass-renamed; this applies to *new* items only.
+- Use **team** / **report** (current product terminology), not **team** / **query**. Existing items haven't been mass-renamed; this applies to *new* items only.
 
 ### Keyword authoring
 
@@ -942,22 +942,22 @@ Add a new flag to `ICommandPaletteContext` + `CommandPalette.tsx` only when no e
 
 ### Team context (`teamName`)
 
-Set `teamName` when invoking the action will switch the user's current fleet context. The palette renders it as a chip on the right so the user sees the upcoming switch before they click.
+Set `teamName` when invoking the action will switch the user's current team context. The palette renders it as a chip on the right so the user sees the upcoming switch before they click.
 
-Each group builder receives an `IDerivedContext` (computed once by `deriveContext()` in `groups/derivations.ts`) as its second argument. Destructure the chip helper you need from it rather than hardcoding fleet names:
+Each group builder receives an `IDerivedContext` (computed once by `deriveContext()` in `groups/derivations.ts`) as its second argument. Destructure the chip helper you need from it rather than hardcoding team names:
 
 ```ts
 const buildExampleItems = (ctx, derived) => {
-  const { switchesFromUnassigned, switchesFromAllFleets } = derived;
+  const { switchesFromUnassigned, switchesFromAllTeams } = derived;
   // ...
 };
 ```
 
 The three chip helpers:
 
-- `switchesFromUnassigned` — destination requires a specific fleet, action invokable from Unassigned
-- `switchesFromAllFleets` — destination requires a specific fleet, action invokable from All fleets
-- `defaultDestination` — destination always lands on the default (e.g., "All fleets")
+- `switchesFromUnassigned` — destination requires a specific team, action invokable from Unassigned
+- `switchesFromAllTeams` — destination requires a specific team, action invokable from All teams
+- `defaultDestination` — destination always lands on the default (e.g., "All teams")
 
 Each returns `undefined` when no switch will actually happen, so you can pass it straight to `teamName` without guarding.
 
@@ -966,15 +966,15 @@ Each returns `undefined` when no switch will actually happen, so you can pass it
 Extend `frontend/components/CommandPalette/helpers.tests.ts` when adding a meaningful item:
 
 - New page / command: assert it appears for the right roles, hides for the wrong ones
-- Premium-only: assert it's absent in the `Fleet Free (isPremiumTier: false)` describe block
+- Premium-only: assert it's absent in the `AutoMDM Free (isPremiumTier: false)` describe block
 - Primo mode hidden: add to the `Primo Mode (isPrimoMode: true)` block
-- New `teamName` chip: assert it renders / doesn't render against the relevant fleet contexts
+- New `teamName` chip: assert it renders / doesn't render against the relevant team contexts
 
 The scoring helpers (`scoreMatch`, `scoreItemForBestMatch`, `computeBestMatch`, `highlightMatches`) and tier constants (`SCORE_LABEL_*`, `SCORE_KEYWORD_*`) have their own describe blocks in `helpers.tests.ts` — you don't need to re-test the framework when adding an item. If your new item exposes a specific ranking case worth pinning (e.g., a multi-token query that should promote it over a similarly-named item), add a small `computeBestMatch` test alongside.
 
 ## Styles
 
-Below are a few need-to-knows about what's available in Fleet's CSS:
+Below are a few need-to-knows about what's available in AutoMDM's CSS:
 
 ### Spacing
 
@@ -1145,9 +1145,9 @@ Candidates for future work:
 
 ### Frontend pitfalls in AI-assisted code
 
-Fleet engineers are expected to use AI coding tools as part of their daily
-workflow (see [AI tooling](https://fleetdm.com/handbook/engineering#ai-tooling)
-and [AI usage guidelines](https://fleetdm.com/handbook/company/communications#ai-usage-guidelines)).
+AutoMDM engineers are expected to use AI coding tools as part of their daily
+workflow (see [AI tooling](https://automdm.com/handbook/engineering#ai-tooling)
+and [AI usage guidelines](https://automdm.com/handbook/company/communications#ai-usage-guidelines)).
 You own the code you submit, AI-assisted or otherwise. The handbook covers the
 general principle; this section lists frontend pitfalls that AI tools produce
 often enough to warrant a deliberate check on every diff:
@@ -1166,7 +1166,7 @@ often enough to warrant a deliberate check on every diff:
   that interpolate user-controlled values without going through the approved
   helpers above.
 
-See [`.claude/rules/fleet-frontend.md`](../../.claude/rules/fleet-frontend.md)
+See [`.claude/rules/automdm-frontend.md`](../../.claude/rules/automdm-frontend.md)
 for the LLM-targeted summary of these rules.
 
 ## Other

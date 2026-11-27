@@ -9,7 +9,7 @@ interface IUpdateProps {
 }
 
 const Update = ({
-  color = "ui-fleet-black-75",
+  color = "ui-automdm-black-75",
   size = "medium",
 }: IUpdateProps) => {
   return (

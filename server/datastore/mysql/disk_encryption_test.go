@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/optjson"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/pkg/optjson"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
@@ -57,8 +57,8 @@ func testCleanupDiskEncryptionKeysOnTeamChange(t *testing.T, ds *Datastore) {
 	// No-op test
 	assert.NoError(t, ds.CleanupDiskEncryptionKeysOnTeamChange(ctx, []uint{1, 2, 3}, nil))
 
-	newHostWithKey := func(t *testing.T, suffix, platform string, teamID *uint) *fleet.Host {
-		h, err := ds.NewHost(ctx, &fleet.Host{
+	newHostWithKey := func(t *testing.T, suffix, platform string, teamID *uint) *automdm.Host {
+		h, err := ds.NewHost(ctx, &automdm.Host{
 			DetailUpdatedAt: time.Now(),
 			LabelUpdatedAt:  time.Now(),
 			PolicyUpdatedAt: time.Now(),
@@ -79,17 +79,17 @@ func testCleanupDiskEncryptionKeysOnTeamChange(t *testing.T, ds *Datastore) {
 
 	hasKey := func(t *testing.T, hostID uint) bool {
 		_, err := ds.GetHostDiskEncryptionKey(ctx, hostID)
-		if err != nil && fleet.IsNotFound(err) {
+		if err != nil && automdm.IsNotFound(err) {
 			return false
 		}
 		require.NoError(t, err)
 		return true
 	}
 
-	// Each case moves one host of each platform into a fleet with the given
+	// Each case moves one host of each platform into a team with the given
 	// settings. A key survives only when its own platform still escrows to
-	// Fleet there — before per-platform settings this was decided for every
-	// platform by whether the fleet had an Apple FileVault profile.
+	// AutoMDM there — before per-platform settings this was decided for every
+	// platform by whether the team had an Apple FileVault profile.
 	for i, tc := range []struct {
 		name                               string
 		macOSEnforce, macOSEscrow          bool
@@ -127,17 +127,17 @@ func testCleanupDiskEncryptionKeysOnTeamChange(t *testing.T, ds *Datastore) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			tm, err := ds.NewTeam(ctx, &fleet.Team{
-				Name: fmt.Sprintf("key-cleanup-fleet-%d", i),
-				Config: fleet.TeamConfig{MDM: fleet.TeamMDM{
-					MacOSSettings: fleet.MacOSSettings{
+			tm, err := ds.NewTeam(ctx, &automdm.Team{
+				Name: fmt.Sprintf("key-cleanup-automdm-%d", i),
+				Config: automdm.TeamConfig{MDM: automdm.TeamMDM{
+					MacOSSettings: automdm.MacOSSettings{
 						EnableDiskEncryption:          optjson.SetBool(tc.macOSEnforce),
 						EnableEscrowDiskEncryptionKey: optjson.SetBool(tc.macOSEscrow),
 					},
-					WindowsSettings: fleet.WindowsSettings{
+					WindowsSettings: automdm.WindowsSettings{
 						EnableDiskEncryption: optjson.SetBool(tc.windowsEnabled),
 					},
-					LinuxSettings: fleet.LinuxSettings{
+					LinuxSettings: automdm.LinuxSettings{
 						EnableEscrowDiskEncryptionKey: optjson.SetBool(tc.linuxEscrow),
 					},
 				}},
@@ -162,7 +162,7 @@ func testCleanupDiskEncryptionKeysOnTeamChange(t *testing.T, ds *Datastore) {
 func testDeleteLUKSData(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
-	hostOne, err := ds.NewHost(ctx, &fleet.Host{
+	hostOne, err := ds.NewHost(ctx, &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -175,7 +175,7 @@ func testDeleteLUKSData(t *testing.T, ds *Datastore) {
 	})
 	require.NoError(t, err)
 
-	hostTwo, err := ds.NewHost(ctx, &fleet.Host{
+	hostTwo, err := ds.NewHost(ctx, &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -207,14 +207,14 @@ func testDeleteLUKSData(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 
 	_, err = ds.GetHostDiskEncryptionKey(ctx, hostOne.ID)
-	require.True(t, fleet.IsNotFound(err))
+	require.True(t, automdm.IsNotFound(err))
 }
 
 func testGetHostArchivedDiskEncryptionKey(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
-	newHost := func(suffix, serial string, teamID *uint) *fleet.Host {
-		h, err := ds.NewHost(ctx, &fleet.Host{
+	newHost := func(suffix, serial string, teamID *uint) *automdm.Host {
+		h, err := ds.NewHost(ctx, &automdm.Host{
 			DetailUpdatedAt: time.Now(),
 			LabelUpdatedAt:  time.Now(),
 			PolicyUpdatedAt: time.Now(),
@@ -242,9 +242,9 @@ VALUES (?, ?, ?, ?, NULL, ?)`, hostID, serial, base64.StdEncoding.EncodeToString
 	const serial = "SHAREDSERIAL1"
 	now := time.Now().UTC().Truncate(time.Second)
 
-	victimTeam, err := ds.NewTeam(ctx, &fleet.Team{Name: "archived-victim-fleet"})
+	victimTeam, err := ds.NewTeam(ctx, &automdm.Team{Name: "archived-victim-automdm"})
 	require.NoError(t, err)
-	claimantTeam, err := ds.NewTeam(ctx, &fleet.Team{Name: "archived-claimant-fleet"})
+	claimantTeam, err := ds.NewTeam(ctx, &automdm.Team{Name: "archived-claimant-automdm"})
 	require.NoError(t, err)
 
 	victim := newHost("victim", serial, &victimTeam.ID)
@@ -252,8 +252,8 @@ VALUES (?, ?, ?, ?, NULL, ?)`, hostID, serial, base64.StdEncoding.EncodeToString
 	archiveRow(victim.ID, serial, "older-key", now.Add(-2*time.Hour))
 	archiveRow(victim.ID, serial, "newest-key", now.Add(-1*time.Hour))
 
-	// A second host carrying the same serial in another fleet, with no archived row
-	// of its own. This is the shape the cross-fleet disclosure relied on.
+	// A second host carrying the same serial in another team, with no archived row
+	// of its own. This is the shape the cross-team disclosure relied on.
 	claimant := newHost("claimant", serial, &claimantTeam.ID)
 
 	t.Run("host id match ignores the fallback flag", func(t *testing.T) {
@@ -267,21 +267,21 @@ VALUES (?, ?, ?, ?, NULL, ?)`, hostID, serial, base64.StdEncoding.EncodeToString
 	t.Run("no fallback means no serial lookup", func(t *testing.T) {
 		_, err := ds.GetHostArchivedDiskEncryptionKey(ctx, claimant, false)
 		require.Error(t, err)
-		require.True(t, fleet.IsNotFound(err))
+		require.True(t, automdm.IsNotFound(err))
 	})
 
 	t.Run("fallback finds the newest row for the serial", func(t *testing.T) {
 		key, err := ds.GetHostArchivedDiskEncryptionKey(ctx, claimant, true)
 		require.NoError(t, err)
 		requireDecodes(t, "newest-key", key.Base64Encrypted)
-		require.Equal(t, victim.ID, key.HostID, "the row returned belongs to the other fleet's host")
+		require.Equal(t, victim.ID, key.HostID, "the row returned belongs to the other team's host")
 	})
 
 	t.Run("fallback needs a serial to match on", func(t *testing.T) {
 		noSerial := newHost("noserial", "", &claimantTeam.ID)
 		_, err := ds.GetHostArchivedDiskEncryptionKey(ctx, noSerial, true)
 		require.Error(t, err)
-		require.True(t, fleet.IsNotFound(err))
+		require.True(t, automdm.IsNotFound(err))
 	})
 }
 
@@ -294,10 +294,10 @@ func requireDecodes(t *testing.T, want, gotBase64 string) {
 
 // newBitLockerPINHost creates a host with a Windows MDM enrollment, which carries the pending flag the orbit config
 // poll reads.
-func newBitLockerPINHost(t *testing.T, ds *Datastore) *fleet.Host {
+func newBitLockerPINHost(t *testing.T, ds *Datastore) *automdm.Host {
 	t.Helper()
 	hostUUID := uuid.NewString()
-	host, err := ds.NewHost(t.Context(), &fleet.Host{
+	host, err := ds.NewHost(t.Context(), &automdm.Host{
 		Hostname:      "pin-host-" + hostUUID,
 		OsqueryHostID: new(hostUUID),
 		NodeKey:       new(hostUUID),
@@ -345,13 +345,13 @@ func testBitLockerPINRequestLifecycle(t *testing.T, ds *Datastore) {
 	host := newBitLockerPINHost(t, ds)
 
 	_, err := ds.GetBitLockerPINRequest(ctx, host.ID)
-	require.True(t, fleet.IsNotFound(err))
+	require.True(t, automdm.IsNotFound(err))
 	require.False(t, bitLockerPINPending(t, ds, host.UUID))
 
 	require.NoError(t, ds.QueueBitLockerPINRequest(ctx, host, "encrypted-pin"))
 	req, err := ds.GetBitLockerPINRequest(ctx, host.ID)
 	require.NoError(t, err)
-	require.Equal(t, fleet.BitLockerPINRequestPending, req.Status)
+	require.Equal(t, automdm.BitLockerPINRequestPending, req.Status)
 	// Queuing and raising the flag commit together, so the poll can see it immediately.
 	require.True(t, bitLockerPINPending(t, ds, host.UUID))
 
@@ -361,24 +361,24 @@ func testBitLockerPINRequestLifecycle(t *testing.T, ds *Datastore) {
 	require.False(t, bitLockerPINPending(t, ds, host.UUID))
 	req, err = ds.GetBitLockerPINRequest(ctx, host.ID)
 	require.NoError(t, err)
-	require.Equal(t, fleet.BitLockerPINRequestDelivered, req.Status)
+	require.Equal(t, automdm.BitLockerPINRequestDelivered, req.Status)
 
 	// A replayed or concurrent collect comes away with nothing, and the ciphertext is already gone.
 	_, _, err = ds.TakeBitLockerPINRequest(ctx, host)
-	require.True(t, fleet.IsNotFound(err))
+	require.True(t, automdm.IsNotFound(err))
 	require.Nil(t, storedBitLockerPIN(t, ds, host.ID))
 
 	// An outcome naming a submission this host never collected is refused, so a host cannot mark itself as having a PIN.
 	// A well-formed id that matches nothing and one that does not parse are refused the same way.
 	for _, forged := range []string{uuid.NewString(), "not-the-collected-request"} {
-		require.True(t, fleet.IsNotFound(ds.SetBitLockerPINRequestOutcome(ctx, host, forged, fleet.BitLockerPINRequestSet, "")))
+		require.True(t, automdm.IsNotFound(ds.SetBitLockerPINRequestOutcome(ctx, host, forged, automdm.BitLockerPINRequestSet, "")))
 	}
 
-	require.NoError(t, ds.SetBitLockerPINRequestOutcome(ctx, host, requestUUID, fleet.BitLockerPINRequestSet, ""))
+	require.NoError(t, ds.SetBitLockerPINRequestOutcome(ctx, host, requestUUID, automdm.BitLockerPINRequestSet, ""))
 	req, err = ds.GetBitLockerPINRequest(ctx, host.ID)
 	require.NoError(t, err)
 	// The row survives success so the waiting page has a positive signal to poll for.
-	require.Equal(t, fleet.BitLockerPINRequestSet, req.Status)
+	require.Equal(t, automdm.BitLockerPINRequestSet, req.Status)
 }
 
 func testBitLockerPINRequestExpiredIsNotCollectable(t *testing.T, ds *Datastore) {
@@ -386,10 +386,10 @@ func testBitLockerPINRequestExpiredIsNotCollectable(t *testing.T, ds *Datastore)
 	host := newBitLockerPINHost(t, ds)
 
 	require.NoError(t, ds.QueueBitLockerPINRequest(ctx, host, "encrypted-pin"))
-	ageBitLockerPINRequest(t, ds, host.ID, "created_at", fleet.BitLockerPINRequestTTL+time.Minute)
+	ageBitLockerPINRequest(t, ds, host.ID, "created_at", automdm.BitLockerPINRequestTTL+time.Minute)
 
 	_, _, err := ds.TakeBitLockerPINRequest(ctx, host)
-	require.True(t, fleet.IsNotFound(err))
+	require.True(t, automdm.IsNotFound(err))
 	// A collect that finds nothing clears the flag rather than leaving it to wake the agent on every poll.
 	require.False(t, bitLockerPINPending(t, ds, host.UUID))
 }
@@ -401,17 +401,17 @@ func testBitLockerPINRequestResubmitReplaces(t *testing.T, ds *Datastore) {
 	require.NoError(t, ds.QueueBitLockerPINRequest(ctx, host, "first-pin"))
 	_, firstUUID, err := ds.TakeBitLockerPINRequest(ctx, host)
 	require.NoError(t, err)
-	require.NoError(t, ds.SetBitLockerPINRequestOutcome(ctx, host, firstUUID, fleet.BitLockerPINRequestFailed, "PIN rejected"))
+	require.NoError(t, ds.SetBitLockerPINRequestOutcome(ctx, host, firstUUID, automdm.BitLockerPINRequestFailed, "PIN rejected"))
 	req, err := ds.GetBitLockerPINRequest(ctx, host.ID)
 	require.NoError(t, err)
-	require.Equal(t, fleet.BitLockerPINRequestFailed, req.Status)
+	require.Equal(t, automdm.BitLockerPINRequestFailed, req.Status)
 	require.Equal(t, "PIN rejected", req.Error)
 
 	// Retrying supersedes the failure: one row per host, back to pending, with the error cleared.
 	require.NoError(t, ds.QueueBitLockerPINRequest(ctx, host, "second-pin"))
 	req, err = ds.GetBitLockerPINRequest(ctx, host.ID)
 	require.NoError(t, err)
-	require.Equal(t, fleet.BitLockerPINRequestPending, req.Status)
+	require.Equal(t, automdm.BitLockerPINRequestPending, req.Status)
 	require.Empty(t, req.Error)
 	require.True(t, bitLockerPINPending(t, ds, host.UUID))
 
@@ -420,8 +420,8 @@ func testBitLockerPINRequestResubmitReplaces(t *testing.T, ds *Datastore) {
 	require.Equal(t, "second-pin", pin)
 
 	// Both requests are now past delivery, so only the request id stops a late outcome for the first landing on the second.
-	require.True(t, fleet.IsNotFound(ds.SetBitLockerPINRequestOutcome(ctx, host, firstUUID, fleet.BitLockerPINRequestSet, "")))
-	require.NoError(t, ds.SetBitLockerPINRequestOutcome(ctx, host, secondUUID, fleet.BitLockerPINRequestSet, ""))
+	require.True(t, automdm.IsNotFound(ds.SetBitLockerPINRequestOutcome(ctx, host, firstUUID, automdm.BitLockerPINRequestSet, "")))
+	require.NoError(t, ds.SetBitLockerPINRequestOutcome(ctx, host, secondUUID, automdm.BitLockerPINRequestSet, ""))
 }
 
 func testBitLockerPINRequestDelete(t *testing.T, ds *Datastore) {
@@ -434,14 +434,14 @@ func testBitLockerPINRequestDelete(t *testing.T, ds *Datastore) {
 	require.NoError(t, ds.DeleteBitLockerPINRequest(ctx, host))
 
 	_, err := ds.GetBitLockerPINRequest(ctx, host.ID)
-	require.True(t, fleet.IsNotFound(err))
+	require.True(t, automdm.IsNotFound(err))
 	require.False(t, bitLockerPINPending(t, ds, host.UUID))
 }
 
 func testBitLockerPINRequestCleanup(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
 
-	settle := func(t *testing.T, host *fleet.Host, outcome fleet.BitLockerPINRequestStatus, reason string) {
+	settle := func(t *testing.T, host *automdm.Host, outcome automdm.BitLockerPINRequestStatus, reason string) {
 		t.Helper()
 		require.NoError(t, ds.QueueBitLockerPINRequest(ctx, host, "encrypted-pin"))
 		_, requestUUID, err := ds.TakeBitLockerPINRequest(ctx, host)
@@ -451,7 +451,7 @@ func testBitLockerPINRequestCleanup(t *testing.T, ds *Datastore) {
 	exists := func(t *testing.T, hostID uint) bool {
 		t.Helper()
 		_, err := ds.GetBitLockerPINRequest(ctx, hostID)
-		if fleet.IsNotFound(err) {
+		if automdm.IsNotFound(err) {
 			return false
 		}
 		require.NoError(t, err)
@@ -460,25 +460,25 @@ func testBitLockerPINRequestCleanup(t *testing.T, ds *Datastore) {
 	pastRetention := bitLockerPINRequestRetention + time.Hour
 
 	oldSet := newBitLockerPINHost(t, ds)
-	settle(t, oldSet, fleet.BitLockerPINRequestSet, "")
+	settle(t, oldSet, automdm.BitLockerPINRequestSet, "")
 	ageBitLockerPINRequest(t, ds, oldSet.ID, "updated_at", pastRetention)
 
 	oldFailed := newBitLockerPINHost(t, ds)
-	settle(t, oldFailed, fleet.BitLockerPINRequestFailed, "PIN rejected")
+	settle(t, oldFailed, automdm.BitLockerPINRequestFailed, "PIN rejected")
 	ageBitLockerPINRequest(t, ds, oldFailed.ID, "updated_at", pastRetention)
 
 	recentFailed := newBitLockerPINHost(t, ds)
-	settle(t, recentFailed, fleet.BitLockerPINRequestFailed, "PIN rejected")
+	settle(t, recentFailed, automdm.BitLockerPINRequestFailed, "PIN rejected")
 
-	// The agent collected the PIN too long ago and never reported, so Fleet stops waiting for it.
+	// The agent collected the PIN too long ago and never reported, so AutoMDM stops waiting for it.
 	unreported := newBitLockerPINHost(t, ds)
 	require.NoError(t, ds.QueueBitLockerPINRequest(ctx, unreported, "encrypted-pin"))
 	_, unreportedUUID, err := ds.TakeBitLockerPINRequest(ctx, unreported)
 	require.NoError(t, err)
-	ageBitLockerPINRequest(t, ds, unreported.ID, "updated_at", fleet.BitLockerPINResultTimeout+time.Minute)
+	ageBitLockerPINRequest(t, ds, unreported.ID, "updated_at", automdm.BitLockerPINResultTimeout+time.Minute)
 	// Refused as soon as it times out.
-	require.True(t, fleet.IsNotFound(
-		ds.SetBitLockerPINRequestOutcome(ctx, unreported, unreportedUUID, fleet.BitLockerPINRequestSet, ""),
+	require.True(t, automdm.IsNotFound(
+		ds.SetBitLockerPINRequestOutcome(ctx, unreported, unreportedUUID, automdm.BitLockerPINRequestSet, ""),
 	))
 
 	// Collected recently, so the agent may still report.
@@ -486,12 +486,12 @@ func testBitLockerPINRequestCleanup(t *testing.T, ds *Datastore) {
 	require.NoError(t, ds.QueueBitLockerPINRequest(ctx, recentlyCollected, "encrypted-pin"))
 	_, _, err = ds.TakeBitLockerPINRequest(ctx, recentlyCollected)
 	require.NoError(t, err)
-	ageBitLockerPINRequest(t, ds, recentlyCollected.ID, "updated_at", fleet.BitLockerPINResultTimeout-time.Minute)
+	ageBitLockerPINRequest(t, ds, recentlyCollected.ID, "updated_at", automdm.BitLockerPINResultTimeout-time.Minute)
 
 	// Expires in this same run, so it only just became terminal and must stay visible as a timeout for a full day.
 	justExpired := newBitLockerPINHost(t, ds)
 	require.NoError(t, ds.QueueBitLockerPINRequest(ctx, justExpired, "encrypted-pin"))
-	ageBitLockerPINRequest(t, ds, justExpired.ID, "created_at", fleet.BitLockerPINRequestTTL+time.Minute)
+	ageBitLockerPINRequest(t, ds, justExpired.ID, "created_at", automdm.BitLockerPINRequestTTL+time.Minute)
 
 	// Still within its TTL, so the agent can still collect it and the flag must survive the run.
 	stillPending := newBitLockerPINHost(t, ds)
@@ -506,18 +506,18 @@ func testBitLockerPINRequestCleanup(t *testing.T, ds *Datastore) {
 	for _, hostID := range []uint{justExpired.ID, unreported.ID} {
 		req, err := ds.GetBitLockerPINRequest(ctx, hostID)
 		require.NoError(t, err)
-		require.Equal(t, fleet.BitLockerPINRequestFailed, req.Status)
-		require.Equal(t, fleet.BitLockerPINRequestTimedOutError, req.Error)
+		require.Equal(t, automdm.BitLockerPINRequestFailed, req.Status)
+		require.Equal(t, automdm.BitLockerPINRequestTimedOutError, req.Error)
 		require.Nil(t, storedBitLockerPIN(t, ds, hostID), "a timed-out submission does not keep its ciphertext")
 	}
 
 	req, err := ds.GetBitLockerPINRequest(ctx, recentlyCollected.ID)
 	require.NoError(t, err)
-	require.Equal(t, fleet.BitLockerPINRequestDelivered, req.Status)
+	require.Equal(t, automdm.BitLockerPINRequestDelivered, req.Status)
 
 	// Still refused once the cron has retired it, so orbit drops the outcome. osquery still shows whether the PIN was set.
-	err = ds.SetBitLockerPINRequestOutcome(ctx, unreported, unreportedUUID, fleet.BitLockerPINRequestSet, "")
-	require.True(t, fleet.IsNotFound(err))
+	err = ds.SetBitLockerPINRequestOutcome(ctx, unreported, unreportedUUID, automdm.BitLockerPINRequestSet, "")
+	require.True(t, automdm.IsNotFound(err))
 
 	// The enrollment flag is what the config poll reads, so retiring a submission has to clear it.
 	require.False(t, bitLockerPINPending(t, ds, justExpired.UUID), "expiring a submission clears the enrollment flag")
@@ -539,7 +539,7 @@ func testDiskEncryptionKeyRotation(t *testing.T, ds *Datastore) {
 		_, err := q.ExecContext(ctx, `UPDATE host_disk_encryption_keys SET updated_at = ? WHERE host_id = ?`, backdate, host.ID)
 		return err
 	})
-	requireUnchanged := func(t *testing.T) *fleet.HostDiskEncryptionKey {
+	requireUnchanged := func(t *testing.T) *automdm.HostDiskEncryptionKey {
 		key, err := ds.GetHostDiskEncryptionKey(ctx, host.ID)
 		require.NoError(t, err)
 		require.True(t, backdate.Equal(key.UpdatedAt), "updated_at moved to %s", key.UpdatedAt)
@@ -565,7 +565,7 @@ func testDiskEncryptionKeyRotation(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 	require.Equal(t, host.ID, got.ID)
 	_, err = ds.GetHostByDiskEncryptionKeyRotationCommand(ctx, "cmd-2")
-	require.True(t, fleet.IsNotFound(err))
+	require.True(t, automdm.IsNotFound(err))
 
 	// a superseded command UUID leaves the marker alone
 	require.NoError(t, ds.ClearHostDiskEncryptionKeyRotationCommand(ctx, host.ID, "cmd-2"))
@@ -652,7 +652,7 @@ func testIsAppleMDMCommandPending(t *testing.T, ds *Datastore) {
 
 	enqueue := func() string {
 		cmdUUID := uuid.NewString()
-		require.NoError(t, commander.EnqueueCommand(ctx, []string{host.UUID}, createRawAppleCmd(fleet.RotateFileVaultKeyCmdName, cmdUUID)))
+		require.NoError(t, commander.EnqueueCommand(ctx, []string{host.UUID}, createRawAppleCmd(automdm.RotateFileVaultKeyCmdName, cmdUUID)))
 		return cmdUUID
 	}
 	report := func(cmdUUID, status string) {
@@ -665,12 +665,12 @@ func testIsAppleMDMCommandPending(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 	require.True(t, pending)
 
-	report(queued, fleet.MDMAppleStatusNotNow)
+	report(queued, automdm.MDMAppleStatusNotNow)
 	pending, err = ds.isAppleMDMCommandPending(ctx, host.UUID, queued)
 	require.NoError(t, err)
 	require.True(t, pending, "NotNow is retried")
 
-	for _, status := range fleet.MDMAppleTerminalStatuses {
+	for _, status := range automdm.MDMAppleTerminalStatuses {
 		answered := enqueue()
 		report(answered, status)
 		pending, err = ds.isAppleMDMCommandPending(ctx, host.UUID, answered)
@@ -725,21 +725,21 @@ func testDiskEncryptionKeyRotationInProgress(t *testing.T, ds *Datastore) {
 	ok, err = ds.SetHostDiskEncryptionKeyRotationCommand(ctx, host.ID, cmdUUID)
 	require.NoError(t, err)
 	require.True(t, ok)
-	require.NoError(t, commander.EnqueueCommand(ctx, []string{host.UUID}, createRawAppleCmd(fleet.RotateFileVaultKeyCmdName, cmdUUID)))
+	require.NoError(t, commander.EnqueueCommand(ctx, []string{host.UUID}, createRawAppleCmd(automdm.RotateFileVaultKeyCmdName, cmdUUID)))
 	backdate(t)
 	require.True(t, inProgress(t, cmdUUID))
 }
 
 func testWSTEPEncryptedDiskEncryptionKeys(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
-	newHost := func(name string) *fleet.Host {
+	newHost := func(name string) *automdm.Host {
 		return test.NewHost(t, ds, name+".local", "1.1.1.1", name+"-osquery", name+"-node", time.Now())
 	}
 	legacy := newHost("legacy")
 	errorOnly := newHost("error")
 	current := newHost("current")
 
-	setKey := func(h *fleet.Host, key, clientError string, decryptable *bool) {
+	setKey := func(h *automdm.Host, key, clientError string, decryptable *bool) {
 		_, err := ds.SetOrUpdateHostDiskEncryptionKey(ctx, h, key, clientError, decryptable)
 		require.NoError(t, err)
 	}
@@ -788,7 +788,7 @@ func testWSTEPEncryptedDiskEncryptionKeys(t *testing.T, ds *Datastore) {
 
 	// Marking matches the stored blob, clears the marker, keeps updated_at, and takes the row out of the list.
 	require.NoError(t, ds.MarkWindowsDiskEncryptionKeysUndecryptable(ctx, nil))
-	require.NoError(t, ds.MarkWindowsDiskEncryptionKeysUndecryptable(ctx, []fleet.HostDiskEncryptionKey{
+	require.NoError(t, ds.MarkWindowsDiskEncryptionKeysUndecryptable(ctx, []automdm.HostDiskEncryptionKey{
 		{HostID: legacy.ID, Base64Encrypted: "wstep-blob"},
 		{HostID: current.ID, Base64Encrypted: "stale-blob"},
 	}))
@@ -851,7 +851,7 @@ func testWSTEPEncryptedDiskEncryptionKeys(t *testing.T, ds *Datastore) {
 	replaced, err = ds.ReplaceWSTEPEncryptedArchivedDiskEncryptionKey(ctx, archived.ID, "wstep-blob", "wstep-blob")
 	require.NoError(t, err)
 	require.True(t, replaced)
-	var archivedAfter fleet.HostArchivedDiskEncryptionKey
+	var archivedAfter automdm.HostArchivedDiskEncryptionKey
 	ExecAdhocSQL(t, ds, func(q sqlx.ExtContext) error {
 		return sqlx.GetContext(ctx, q, &archivedAfter,
 			`SELECT base64_encrypted, wstep_encrypted FROM host_disk_encryption_keys_archive WHERE id = ?`, archived.ID)

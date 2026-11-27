@@ -3,7 +3,7 @@ package services
 import (
 	"time"
 
-	"github.com/fleetdm/fleet/tools/hangar/internal/db"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/db"
 )
 
 // DBService exposes the dev-MySQL backup directory. Mirrors db.rs.

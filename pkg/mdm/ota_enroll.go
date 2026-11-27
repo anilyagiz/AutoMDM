@@ -3,14 +3,14 @@ package mdm
 import (
 	"context"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 )
 
 // We take in the AndroidDatastore here, so it can also be called from the android package until https://github.com/fleetdm/fleet/issues/31218 is done
-func RequiresEnrollOTAAuthentication(ctx context.Context, ds fleet.AndroidDatastore, enrollSecret string, noTeamIdPEnabled bool) (bool, error) {
+func RequiresEnrollOTAAuthentication(ctx context.Context, ds automdm.AndroidDatastore, enrollSecret string, noTeamIdPEnabled bool) (bool, error) {
 	secret, err := ds.VerifyEnrollSecret(ctx, enrollSecret)
-	if err != nil && !fleet.IsNotFound(err) {
+	if err != nil && !automdm.IsNotFound(err) {
 		return false, ctxerr.Wrap(ctx, err, "verify enroll secret")
 	}
 

@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # HeidiSQL uses an Inno Setup installer. The winget manifest selects machine
 # scope via /ALLUSERS (the ingester does not forward manifest Custom switches),
@@ -9,7 +9,7 @@ $exeFilePath = "${env:INSTALLER_PATH}"
 
 try {
 
-# Setup fails with exit code 5 when HeidiSQL's files are in use. Fleet runs as
+# Setup fails with exit code 5 when HeidiSQL's files are in use. AutoMDM runs as
 # SYSTEM, outside the user's session, so it can't ask the app to close: stop it
 # first. Unsaved changes are lost.
 $running = Get-Process -ErrorAction SilentlyContinue |

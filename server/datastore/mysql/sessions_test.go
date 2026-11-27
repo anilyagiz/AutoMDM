@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/WatchBeam/clock"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -48,10 +48,10 @@ func TestSessions(t *testing.T) {
 }
 
 func testMFA(t *testing.T, ds *Datastore) {
-	user, err := ds.NewUser(context.Background(), &fleet.User{
+	user, err := ds.NewUser(context.Background(), &automdm.User{
 		Password:   []byte("supersecret"),
 		Email:      "me@example.com",
-		GlobalRole: ptr.String(fleet.RoleObserver),
+		GlobalRole: ptr.String(automdm.RoleObserver),
 	})
 	require.NoError(t, err)
 
@@ -86,7 +86,7 @@ func testMFA(t *testing.T, ds *Datastore) {
 		_, err := q.ExecContext(
 			context.Background(),
 			"UPDATE verification_tokens SET created_at = NOW() - INTERVAL ? SECOND - INTERVAL 0.5 SECOND",
-			fleet.MFALinkTTL.Seconds(),
+			automdm.MFALinkTTL.Seconds(),
 		)
 		return err
 	})
@@ -145,7 +145,7 @@ func testMFA(t *testing.T, ds *Datastore) {
 	require.Nil(t, session)
 }
 
-func sessionKeys(sessions []*fleet.Session) []string {
+func sessionKeys(sessions []*automdm.Session) []string {
 	keys := make([]string, 0, len(sessions))
 	for _, s := range sessions {
 		keys = append(keys, s.Key)
@@ -154,10 +154,10 @@ func sessionKeys(sessions []*fleet.Session) []string {
 }
 
 func testSessionsLastLoginAt(t *testing.T, ds *Datastore) {
-	user, err := ds.NewUser(context.Background(), &fleet.User{
+	user, err := ds.NewUser(context.Background(), &automdm.User{
 		Password:   []byte("supersecret"),
 		Email:      "login@example.com",
-		GlobalRole: new(fleet.RoleObserver),
+		GlobalRole: new(automdm.RoleObserver),
 	})
 	require.NoError(t, err)
 
@@ -203,7 +203,7 @@ func testSessionsLastLoginAt(t *testing.T, ds *Datastore) {
 	// live sessions surface last activity (accessed_at); ListUsers also
 	// returns it
 	require.NotNil(t, got.LastActivityAt)
-	users, err := ds.ListUsers(context.Background(), fleet.UserListOptions{})
+	users, err := ds.ListUsers(context.Background(), automdm.UserListOptions{})
 	require.NoError(t, err)
 	require.Len(t, users, 1)
 	require.NotNil(t, users[0].LastActivityAt)
@@ -219,10 +219,10 @@ func testSessionsLastLoginAt(t *testing.T, ds *Datastore) {
 }
 
 func testSessionsGetters(t *testing.T, ds *Datastore) {
-	user, err := ds.NewUser(context.Background(), &fleet.User{
+	user, err := ds.NewUser(context.Background(), &automdm.User{
 		Password:   []byte("supersecret"),
 		Email:      "other@bobcom",
-		GlobalRole: ptr.String(fleet.RoleObserver),
+		GlobalRole: ptr.String(automdm.RoleObserver),
 	})
 	require.NoError(t, err)
 
@@ -288,9 +288,9 @@ func testSessionsGetters(t *testing.T, ds *Datastore) {
 	assert.Equal(t, newSession.ID, gotByKey.ID)
 	require.Nil(t, gotByKey.APIOnly)
 
-	apiUser, err := ds.NewUser(context.Background(), &fleet.User{
+	apiUser, err := ds.NewUser(context.Background(), &automdm.User{
 		Password:   []byte("supersecret"),
-		GlobalRole: ptr.String(fleet.RoleObserver),
+		GlobalRole: ptr.String(automdm.RoleObserver),
 		APIOnly:    true,
 	})
 	require.NoError(t, err)

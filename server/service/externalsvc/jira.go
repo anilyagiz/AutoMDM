@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/andygrunwald/go-jira"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/pkg/str"
 	"github.com/cenkalti/backoff/v4"
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/pkg/str"
 )
 
 // Jira is a Jira client to be used to make requests to a jira external
@@ -34,7 +34,7 @@ type JiraOptions struct {
 // NewJiraClient returns a Jira client to use to make requests to a jira
 // external service.
 func NewJiraClient(opts *JiraOptions) (*Jira, error) {
-	tr := fleethttp.NewTransport()
+	tr := automdmhttp.NewTransport()
 	basicAuth := &jira.BasicAuthTransport{
 		Username:  opts.BasicAuthUsername,
 		Password:  opts.BasicAuthPassword,

@@ -26,11 +26,11 @@ export const teamHasVPPToken = (
   return tokens.some((token) => {
     // if we've got a non-null, empty array it means the token is available for
     // "All teams"
-    if (token.fleets?.length === 0) {
+    if (token.teams?.length === 0) {
       return true;
     }
 
-    return token.fleets?.some((team) => team.fleet_id === currentTeamId);
+    return token.teams?.some((team) => team.team_id === currentTeamId);
   });
 };
 
@@ -48,7 +48,7 @@ export const getErrorMessage = (e: unknown): string | ReactElement => {
     }
 
     if (reason.includes("VPPApp")) {
-      return `${ADD_SOFTWARE_ERROR_PREFIX} The software is already available to install in this fleet.`;
+      return `${ADD_SOFTWARE_ERROR_PREFIX} The software is already available to install in this team.`;
     }
   }
 

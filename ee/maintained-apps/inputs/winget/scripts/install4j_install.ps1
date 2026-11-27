@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # install4j ships as an install4j-built installer (bundled JRE). -q runs it
 # unattended; suppressUnattendedReboot avoids an automatic reboot.

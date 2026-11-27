@@ -7,7 +7,7 @@ import { renderWithSetup } from "test/test-utils";
 import DynamicLabelForm from "./DynamicLabelForm";
 
 describe("DynamicLabelForm", () => {
-  it("should render the Fleet Ace and Select Platform input", () => {
+  it("should render the AutoMDM Ace and Select Platform input", () => {
     render(<DynamicLabelForm onSave={noop} onCancel={noop} teamName={null} />);
 
     expect(screen.getByText("Query")).toBeInTheDocument();

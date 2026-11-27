@@ -5,10 +5,10 @@
 //     schedule (transcripts are parsed once and cached while unchanged);
 //   - ai_agent_session_messages: the conversation itself, one row per content
 //     block, for on-demand queries. Results are capped at about 1 MiB so they
-//     stay within what Fleet's server ingests; page tool calls with
+//     stay within what AutoMDM's server ingests; page tool calls with
 //     tool_call_index, and everything else with message_index.
 //
-// Ported from github.com/allenhouchins/fleet-extensions/ai_agent_sessions (MIT).
+// Ported from github.com/allenhouchins/automdm-extensions/ai_agent_sessions (MIT).
 package ai_agent_sessions
 
 import (
@@ -24,8 +24,8 @@ import (
 	"github.com/osquery/osquery-go/plugin/table"
 	"github.com/rs/zerolog/log"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/internal/homes"
-	"github.com/fleetdm/fleet/v4/pkg/str"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/internal/homes"
+	"github.com/anilyagiz/automdm/v4/pkg/str"
 )
 
 // Agent identifiers reported in the `agent` column.

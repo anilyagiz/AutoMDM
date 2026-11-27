@@ -150,7 +150,7 @@
     align-items: center;
     font-size: $x-small;
     font-weight: $bold;
-    color: $core-fleet-black;
+    color: $core-automdm-black;
     margin: 0;
     height: 36px;
     gap: $gap-table-elements;
@@ -164,7 +164,7 @@
       color: $ui-error;
     }
     .count-loading {
-      color: $ui-fleet-black-50;
+      color: $ui-automdm-black-50;
     }
   }
 
@@ -176,7 +176,7 @@
 
   &__search-input {
     position: relative;
-    color: $core-fleet-blue;
+    color: $core-automdm-blue;
     width: 100%;
 
     .input-with-icon {
@@ -202,12 +202,12 @@
       width: 100%;
     }
 
-    .fleeticon {
+    .automdmicon {
       position: absolute;
       top: 10px;
       left: 12px;
       font-size: $medium;
-      color: $core-fleet-black;
+      color: $core-automdm-black;
     }
   }
 
@@ -233,7 +233,7 @@
     text-align: center;
   }
 
-  .fleet-checkbox__tick {
+  .automdm-checkbox__tick {
     top: 1px;
   }
 

@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-STACK_NAME="${STACK_NAME:-fleet-mysql-iam-test}"
+STACK_NAME="${STACK_NAME:-automdm-mysql-iam-test}"
 
 echo "🧹 Cleaning up test environment..."
 

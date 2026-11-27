@@ -6,10 +6,10 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/config"
-	hostctx "github.com/fleetdm/fleet/v4/server/contexts/host"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	hostctx "github.com/anilyagiz/automdm/v4/server/contexts/host"
+	"github.com/anilyagiz/automdm/v4/server/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -23,7 +23,7 @@ func rawMessagePtr(s string) *json.RawMessage {
 // pack config cache testing. The returned callCounter tracks the number of
 // times ListScheduledQueriesForAgents is invoked (the main DB call that the
 // cache is intended to avoid).
-func setupPackConfigCacheTest(t *testing.T, cfgs ...config.FleetConfig) (
+func setupPackConfigCacheTest(t *testing.T, cfgs ...config.AutoMDMConfig) (
 	svc *Service,
 	ds *mock.Store,
 	callCounter *atomic.Int64,
@@ -34,8 +34,8 @@ func setupPackConfigCacheTest(t *testing.T, cfgs ...config.FleetConfig) (
 	callCounter = &atomic.Int64{}
 
 	// Base agent options (minimal).
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{
 			AgentOptions: rawMessagePtr(`{"config":{"options":{"pack_delimiter":"/"}}}`),
 		}, nil
 	}
@@ -45,10 +45,10 @@ func setupPackConfigCacheTest(t *testing.T, cfgs ...config.FleetConfig) (
 	}
 
 	// Scheduled queries for agents -- this is the main DB call we track.
-	ds.ListScheduledQueriesForAgentsFunc = func(ctx context.Context, teamID *uint, hostID *uint, queryReportsDisabled bool) ([]*fleet.Query, error) {
+	ds.ListScheduledQueriesForAgentsFunc = func(ctx context.Context, teamID *uint, hostID *uint, queryReportsDisabled bool) ([]*automdm.Query, error) {
 		callCounter.Add(1)
 		if teamID == nil {
-			return []*fleet.Query{
+			return []*automdm.Query{
 				{
 					Name:     "global_query",
 					Query:    "SELECT 1",
@@ -57,7 +57,7 @@ func setupPackConfigCacheTest(t *testing.T, cfgs ...config.FleetConfig) (
 				},
 			}, nil
 		}
-		return []*fleet.Query{
+		return []*automdm.Query{
 			{
 				Name:     "team_query",
 				Query:    "SELECT 2",
@@ -73,19 +73,19 @@ func setupPackConfigCacheTest(t *testing.T, cfgs ...config.FleetConfig) (
 		return false, nil
 	}
 
-	ds.UpdateHostFunc = func(ctx context.Context, host *fleet.Host) error {
+	ds.UpdateHostFunc = func(ctx context.Context, host *automdm.Host) error {
 		return nil
 	}
-	ds.HostLiteFunc = func(ctx context.Context, id uint) (*fleet.Host, error) {
-		return &fleet.Host{ID: id}, nil
+	ds.HostLiteFunc = func(ctx context.Context, id uint) (*automdm.Host, error) {
+		return &automdm.Host{ID: id}, nil
 	}
 
 	cfg := config.TestConfig()
 	if len(cfgs) > 0 {
 		cfg = cfgs[0]
 	}
-	fleetSvc, _ := newTestServiceWithConfig(t, ds, cfg, nil, nil)
-	svc = fleetSvc.(validationMiddleware).Service.(*Service)
+	automdmSvc, _ := newTestServiceWithConfig(t, ds, cfg, nil, nil)
+	svc = automdmSvc.(validationMiddleware).Service.(*Service)
 	return svc, ds, callCounter
 }
 
@@ -96,7 +96,7 @@ func TestPackConfigCacheDisabledByFlag(t *testing.T) {
 
 	require.Nil(t, svc.packConfigCache, "cache must not be constructed when the flag is off")
 
-	host := &fleet.Host{ID: 1}
+	host := &automdm.Host{ID: 1}
 	ctx := hostctx.NewContext(t.Context(), host)
 
 	conf1, err := svc.GetClientConfig(ctx)
@@ -122,7 +122,7 @@ func TestPackConfigCacheDisabledByFlag(t *testing.T) {
 func TestPackConfigCacheHit(t *testing.T) {
 	svc, _, callCounter := setupPackConfigCacheTest(t)
 
-	host := &fleet.Host{ID: 1}
+	host := &automdm.Host{ID: 1}
 	ctx := hostctx.NewContext(t.Context(), host)
 
 	// First call -- cache miss, should hit DB.
@@ -152,12 +152,12 @@ func TestPackConfigCacheNegativeCache(t *testing.T) {
 	svc, ds, callCounter := setupPackConfigCacheTest(t)
 
 	// Override: no scheduled queries at all.
-	ds.ListScheduledQueriesForAgentsFunc = func(ctx context.Context, teamID *uint, hostID *uint, queryReportsDisabled bool) ([]*fleet.Query, error) {
+	ds.ListScheduledQueriesForAgentsFunc = func(ctx context.Context, teamID *uint, hostID *uint, queryReportsDisabled bool) ([]*automdm.Query, error) {
 		callCounter.Add(1)
 		return nil, nil
 	}
 
-	host := &fleet.Host{ID: 1}
+	host := &automdm.Host{ID: 1}
 	ctx := hostctx.NewContext(t.Context(), host)
 
 	// First call -- cache miss, hits DB, finds no queries.
@@ -183,7 +183,7 @@ func TestPackConfigCacheNegativeCache(t *testing.T) {
 func TestPackConfigCacheExpiration(t *testing.T) {
 	svc, ds, callCounter := setupPackConfigCacheTest(t)
 
-	host := &fleet.Host{ID: 1}
+	host := &automdm.Host{ID: 1}
 	ctx := hostctx.NewContext(t.Context(), host)
 
 	// Warm the cache.
@@ -201,10 +201,10 @@ func TestPackConfigCacheExpiration(t *testing.T) {
 	svc.packConfigCache.Delete("has_label_scoped:" + packConfigCacheKey(host.TeamID, false))
 
 	// Update the mock so we can detect a fresh DB read.
-	ds.ListScheduledQueriesForAgentsFunc = func(ctx context.Context, teamID *uint, hostID *uint, queryReportsDisabled bool) ([]*fleet.Query, error) {
+	ds.ListScheduledQueriesForAgentsFunc = func(ctx context.Context, teamID *uint, hostID *uint, queryReportsDisabled bool) ([]*automdm.Query, error) {
 		callCounter.Add(1)
 		if teamID == nil {
-			return []*fleet.Query{
+			return []*automdm.Query{
 				{Name: "refreshed_query", Query: "SELECT 'refreshed'", Interval: 60, Logging: "snapshot"},
 			}, nil
 		}
@@ -223,7 +223,7 @@ func TestPackConfigCacheExpiration(t *testing.T) {
 func TestPackConfigCacheQueryChangesPickedUpAfterExpiry(t *testing.T) {
 	svc, ds, callCounter := setupPackConfigCacheTest(t)
 
-	host := &fleet.Host{ID: 1}
+	host := &automdm.Host{ID: 1}
 	ctx := hostctx.NewContext(t.Context(), host)
 
 	// Warm the cache with the original query.
@@ -232,10 +232,10 @@ func TestPackConfigCacheQueryChangesPickedUpAfterExpiry(t *testing.T) {
 	assert.Contains(t, string(conf1["packs"].(json.RawMessage)), "global_query")
 
 	// Simulate a query being created + modified.
-	ds.ListScheduledQueriesForAgentsFunc = func(ctx context.Context, teamID *uint, hostID *uint, queryReportsDisabled bool) ([]*fleet.Query, error) {
+	ds.ListScheduledQueriesForAgentsFunc = func(ctx context.Context, teamID *uint, hostID *uint, queryReportsDisabled bool) ([]*automdm.Query, error) {
 		callCounter.Add(1)
 		if teamID == nil {
-			return []*fleet.Query{
+			return []*automdm.Query{
 				{Name: "global_query", Query: "SELECT 'modified'", Interval: 60, Logging: "snapshot"},
 				{Name: "new_query", Query: "SELECT 'new'", Interval: 120, Logging: "snapshot"},
 			}, nil
@@ -267,9 +267,9 @@ func TestPackConfigCacheQueryChangesPickedUpAfterExpiry(t *testing.T) {
 func TestPackConfigCacheTeamIsolation(t *testing.T) {
 	svc, _, callCounter := setupPackConfigCacheTest(t)
 
-	globalHost := &fleet.Host{ID: 1}
-	team1Host := &fleet.Host{ID: 2, TeamID: new(uint(1))}
-	team2Host := &fleet.Host{ID: 3, TeamID: new(uint(2))}
+	globalHost := &automdm.Host{ID: 1}
+	team1Host := &automdm.Host{ID: 2, TeamID: new(uint(1))}
+	team2Host := &automdm.Host{ID: 3, TeamID: new(uint(2))}
 
 	ctxGlobal := hostctx.NewContext(t.Context(), globalHost)
 	ctxTeam1 := hostctx.NewContext(t.Context(), team1Host)
@@ -326,7 +326,7 @@ func TestPackConfigCacheLabelScopedBypass(t *testing.T) {
 		return true, nil
 	}
 
-	host := &fleet.Host{ID: 1}
+	host := &automdm.Host{ID: 1}
 	ctx := hostctx.NewContext(t.Context(), host)
 
 	// First call -- cache bypass due to label scoping, hits DB
@@ -352,7 +352,7 @@ func TestPackConfigCacheLabelScopedBypass(t *testing.T) {
 	}
 
 	// Use a team host to get a different cache key (cold cache).
-	teamHost := &fleet.Host{ID: 10, TeamID: new(uint(99))}
+	teamHost := &automdm.Host{ID: 10, TeamID: new(uint(99))}
 	ctxTeam := hostctx.NewContext(t.Context(), teamHost)
 
 	// First call with new cache key -- cache miss, hits DB.

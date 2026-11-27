@@ -99,7 +99,7 @@ const LiveResultsHeading = ({
           <span>&nbsp;{pluralizeHost(numHostsTargeted)} targeted</span>
         </div>
         <div className={`${baseClass}__percent-responded`}>
-          {!isFinished && <span>Fleet is talking to your hosts.&nbsp;</span>}
+          {!isFinished && <span>AutoMDM is talking to your hosts.&nbsp;</span>}
           <span>
             ({`${percentResponded}% `}
             <TooltipWrapper

@@ -8,7 +8,7 @@ export type ApiUserFormState = {
   name: string;
   global_role: UserRole;
   isGlobalUser: boolean;
-  fleets: ITeam[];
+  teams: ITeam[];
   isSpecificEndpoints: boolean;
   api_endpoints: IApiEndpointRef[];
 };
@@ -46,8 +46,8 @@ export const validateApiUserForm = (
   }
   // The permissions and API-access selectors only render on premium.
   if (isPremiumTier) {
-    if (!data.isGlobalUser && data.fleets.length === 0) {
-      errors.fleets = "Select at least one fleet";
+    if (!data.isGlobalUser && data.teams.length === 0) {
+      errors.teams = "Select at least one team";
     }
     if (
       data.isSpecificEndpoints &&

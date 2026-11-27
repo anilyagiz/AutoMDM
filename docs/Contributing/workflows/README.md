@@ -1,16 +1,16 @@
-# Fleet Development Workflows
+# AutoMDM Development Workflows
 
-This directory contains documentation on common development workflows in Fleet.
+This directory contains documentation on common development workflows in AutoMDM.
 
 ## Release Workflows
 
-- [Releasing Fleet](releasing-fleet.md) - Workflow for releasing Fleet
-- [Fleetd Development and Release Strategy](fleetd-development-and-release-strategy.md) - Workflow for developing and releasing fleetd
+- [Releasing AutoMDM](releasing-automdm.md) - Workflow for releasing AutoMDM
+- [AutoMDMd Development and Release Strategy](automdmd-development-and-release-strategy.md) - Workflow for developing and releasing automdmd
 
 ## Testing Workflows
 
 - [Deploying Chrome Test Extension](deploying-chrome-test-ext.md) - Workflow for deploying the Chrome test extension
-- [Fleet UI Testing](../guides/ui/fleet-ui-testing.md) - Workflow for testing the Fleet UI
+- [AutoMDM UI Testing](../guides/ui/automdm-ui-testing.md) - Workflow for testing the AutoMDM UI
 
 ## Dependency Management
 

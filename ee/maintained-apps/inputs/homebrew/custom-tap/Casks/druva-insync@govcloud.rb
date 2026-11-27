@@ -8,7 +8,7 @@ cask "druva-insync@govcloud" do
   homepage "https://www.druva.com/"
 
   livecheck do
-    skip "Bumped by Fleet's custom-tap routine from the GovCloud macOS entry of https://downloads.druva.com/insync/js/data.json"
+    skip "Bumped by AutoMDM's custom-tap routine from the GovCloud macOS entry of https://downloads.druva.com/insync/js/data.json"
   end
 
   depends_on macos: :sonoma

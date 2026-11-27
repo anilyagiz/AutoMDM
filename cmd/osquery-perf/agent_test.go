@@ -14,9 +14,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	apple_mdm "github.com/fleetdm/fleet/v4/server/mdm/apple"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	apple_mdm "github.com/anilyagiz/automdm/v4/server/mdm/apple"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
 	"github.com/smallstep/pkcs7"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -99,7 +99,7 @@ func TestParseInstallProfileCommand(t *testing.T) {
 }
 
 // TestParseInstallProfileCommandSigned covers the PKCS7 branch of
-// installProfilePayload. Fleet always signs profiles before sending them (see
+// installProfilePayload. AutoMDM always signs profiles before sending them (see
 // MDMAppleCommander.SignAndEncodeInstallProfile), so this is the path every
 // real InstallProfile command takes.
 func TestParseInstallProfileCommandSigned(t *testing.T) {
@@ -153,7 +153,7 @@ func TestInstalledProfileTracking(t *testing.T) {
 	for _, row := range results {
 		byIdentifier[row["identifier"]] = row
 	}
-	require.Contains(t, byIdentifier, apple_mdm.FleetPayloadIdentifier)
+	require.Contains(t, byIdentifier, apple_mdm.AutoMDMPayloadIdentifier)
 	require.Contains(t, byIdentifier, "com.example.device")
 	require.Contains(t, byIdentifier, "com.example.user")
 	assert.Equal(t, "Device Profile", byIdentifier["com.example.device"]["display_name"])
@@ -169,7 +169,7 @@ func TestInstalledProfileTracking(t *testing.T) {
 	assert.True(t, a.removeInstalledProfile("device", "com.example.device"))
 	assert.False(t, a.removeInstalledProfile("device", "com.example.device"))
 	assert.True(t, a.removeInstalledProfile("user", "com.example.user"))
-	assert.True(t, a.removeInstalledProfile("device", apple_mdm.FleetPayloadIdentifier))
+	assert.True(t, a.removeInstalledProfile("device", apple_mdm.AutoMDMPayloadIdentifier))
 	assert.Empty(t, a.mdmConfigProfilesMac())
 }
 
@@ -180,7 +180,7 @@ func TestProcessQueryMDMConfigProfiles(t *testing.T) {
 
 	// The legacy device-only query simulates a failed osquery discovery:
 	// handled, but nothing submitted for it.
-	handled, results, status, message, stats := a.processQuery("fleet_detail_query_mdm_config_profiles_darwin", "SELECT 1;", &cached)
+	handled, results, status, message, stats := a.processQuery("team_detail_query_mdm_config_profiles_darwin", "SELECT 1;", &cached)
 	assert.True(t, handled)
 	assert.Nil(t, results)
 	assert.Nil(t, status)
@@ -191,12 +191,12 @@ func TestProcessQueryMDMConfigProfiles(t *testing.T) {
 	// query ~10% of the time, so retry until a success is observed.
 	sawSuccess := false
 	for i := 0; i < 100 && !sawSuccess; i++ {
-		handled, results, status, _, _ := a.processQuery("fleet_detail_query_mdm_config_profiles_darwin_with_user", "SELECT 1;", &cached)
+		handled, results, status, _, _ := a.processQuery("team_detail_query_mdm_config_profiles_darwin_with_user", "SELECT 1;", &cached)
 		require.True(t, handled)
 		require.NotNil(t, status)
-		if *status == fleet.StatusOK {
+		if *status == automdm.StatusOK {
 			require.Len(t, results, 1)
-			assert.Equal(t, apple_mdm.FleetPayloadIdentifier, results[0]["identifier"])
+			assert.Equal(t, apple_mdm.AutoMDMPayloadIdentifier, results[0]["identifier"])
 			sawSuccess = true
 		} else {
 			assert.Empty(t, results)
@@ -222,7 +222,7 @@ func TestDelayCancelableMDMAck(t *testing.T) {
 	assert.Less(t, elapsed(time.Hour, nil), time.Second)
 
 	// a zero delay never waits, even for cancelable commands
-	for requestType := range fleet.CancelableAppleMDMRequestTypes {
+	for requestType := range automdm.CancelableAppleMDMRequestTypes {
 		assert.Less(t, elapsed(0, mkCmd(requestType)), time.Second)
 	}
 
@@ -323,7 +323,7 @@ func TestSoftwareAITools(t *testing.T) {
 	require.Len(t, bySource["ai_skills"], 3)
 	for _, r := range bySource["ai_skills"] {
 		require.Equal(t, "CLAUDE.md", r["name"])
-		require.True(t, strings.HasPrefix(r["installed_path"], "/Users/fleet/"), r["installed_path"])
+		require.True(t, strings.HasPrefix(r["installed_path"], "/Users/automdm/"), r["installed_path"])
 	}
 
 	// Marker rows point at template apps the host reports.

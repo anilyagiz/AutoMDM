@@ -50,7 +50,7 @@ func (e *Error) IsPermissionError() bool {
 }
 
 // IsTransient reports whether the call should simply be retried. Throttling and server errors must never be treated as
-// a bad credential, or a Microsoft outage would raise a credential alarm on every Fleet deployment at once.
+// a bad credential, or a Microsoft outage would raise a credential alarm on every AutoMDM deployment at once.
 func (e *Error) IsTransient() bool {
 	return e.StatusCode == http.StatusTooManyRequests || e.StatusCode >= http.StatusInternalServerError
 }

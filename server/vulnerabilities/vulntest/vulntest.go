@@ -17,10 +17,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -34,12 +34,12 @@ type Scanner struct {
 	// Name identifies this scanner for subtest naming (e.g. "oval", "osv").
 	Name string
 	// Source is the VulnerabilitySource this scanner writes to the DB.
-	Source fleet.VulnerabilitySource
+	Source automdm.VulnerabilitySource
 	// Setup loads scanner-specific definition artifacts into vulnPath
 	// for the given OS version. Called before Analyze.
-	Setup func(t *testing.T, vulnPath string, ver fleet.OSVersion)
+	Setup func(t *testing.T, vulnPath string, ver automdm.OSVersion)
 	// Analyze runs the vulnerability scanner against the datastore.
-	Analyze func(ctx context.Context, ds fleet.Datastore, ver fleet.OSVersion, vulnPath string) ([]fleet.SoftwareVulnerability, error)
+	Analyze func(ctx context.Context, ds automdm.Datastore, ver automdm.OSVersion, vulnPath string) ([]automdm.SoftwareVulnerability, error)
 }
 
 // SoftwareFixture represents a single software entry in a test fixture JSON file.
@@ -104,16 +104,16 @@ func LoadFixture(fixturePath string, t require.TestingT) *VulnFixture {
 func createHostWithSoftware(
 	ds *mysql.Datastore,
 	platformStr string,
-	ver fleet.OSVersion,
-	software []fleet.Software,
+	ver automdm.OSVersion,
+	software []automdm.Software,
 	t require.TestingT,
-) *fleet.Host {
+) *automdm.Host {
 	osqueryHostID, err := server.GenerateRandomText(10)
 	require.NoError(t, err)
 
 	ctx := context.Background()
 
-	h, err := ds.NewHost(ctx, &fleet.Host{
+	h, err := ds.NewHost(ctx, &automdm.Host{
 		Hostname:        platformStr,
 		NodeKey:         ptr.String(platformStr),
 		UUID:            platformStr,
@@ -133,9 +133,9 @@ func createHostWithSoftware(
 	err = ds.LoadHostSoftware(ctx, h, false)
 	require.NoError(t, err)
 
-	var cpes []fleet.SoftwareCPE
+	var cpes []automdm.SoftwareCPE
 	for _, s := range h.Software {
-		cpes = append(cpes, fleet.SoftwareCPE{SoftwareID: s.ID, CPE: fmt.Sprintf("%s-%s", s.Name, s.Version)})
+		cpes = append(cpes, automdm.SoftwareCPE{SoftwareID: s.ID, CPE: fmt.Sprintf("%s-%s", s.Name, s.Version)})
 	}
 	_, err = ds.UpsertSoftwareCPEs(ctx, cpes)
 	require.NoError(t, err)
@@ -143,15 +143,15 @@ func createHostWithSoftware(
 	return h
 }
 
-// fixturesToSoftware converts SoftwareFixtures to fleet.Software. The scanners only list
+// fixturesToSoftware converts SoftwareFixtures to automdm.Software. The scanners only list
 // software from the package sources they cover, so the fixtures have to carry the source their
 // platform would report.
-func fixturesToSoftware(platformStr string, fixtures []SoftwareFixture) []fleet.Software {
+func fixturesToSoftware(platformStr string, fixtures []SoftwareFixture) []automdm.Software {
 	source := packageSource(platformStr)
 
-	software := make([]fleet.Software, len(fixtures))
+	software := make([]automdm.Software, len(fixtures))
 	for i, fi := range fixtures {
-		software[i] = fleet.Software{
+		software[i] = automdm.Software{
 			Name:    fi.Name,
 			Version: fi.Version,
 			Release: fi.Release,
@@ -174,10 +174,10 @@ func packageSource(platformStr string) string {
 func LoadSoftwareFromFixture(
 	ds *mysql.Datastore,
 	platformStr string,
-	ver fleet.OSVersion,
+	ver automdm.OSVersion,
 	fixture *VulnFixture,
 	t require.TestingT,
-) *fleet.Host {
+) *automdm.Host {
 	return createHostWithSoftware(ds, platformStr, ver, fixturesToSoftware(platformStr, fixture.Software()), t)
 }
 
@@ -187,7 +187,7 @@ func RunAndAssert(
 	t *testing.T,
 	ds *mysql.Datastore,
 	scanner Scanner,
-	ver fleet.OSVersion,
+	ver automdm.OSVersion,
 	platformStr string,
 	fixturePath string,
 	vulnPath string,
@@ -269,10 +269,10 @@ func ExtractBzip2(src, dst string, t require.TestingT) {
 func LoadSoftware(
 	ds *mysql.Datastore,
 	platformStr string,
-	ver fleet.OSVersion,
+	ver automdm.OSVersion,
 	vulnPath string,
 	t require.TestingT,
-) *fleet.Host {
+) *automdm.Host {
 	var fixtures []SoftwareFixture
 	contents, err := os.ReadFile(filepath.Join(vulnPath, fmt.Sprintf("%s-software.json", platformStr)))
 	require.NoError(t, err)
@@ -318,7 +318,7 @@ func assertVulnsMatch(
 	t require.TestingT,
 	ds *mysql.Datastore,
 	hostID uint,
-	source fleet.VulnerabilitySource,
+	source automdm.VulnerabilitySource,
 	expected []string,
 ) {
 	ctx := context.Background()
@@ -356,12 +356,12 @@ func ExtractSoftwareAndCVEFixtures(
 // WithTestFixture orchestrates loading a test fixture: extracts archives, creates host with software,
 // runs UpdateOSVersions, calls the callback, then cleans up the host.
 func WithTestFixture(
-	version fleet.OSVersion,
+	version automdm.OSVersion,
 	platformStr string,
 	extractFn func(vulnPath string),
 	vulnPath string,
 	ds *mysql.Datastore,
-	afterLoad func(h *fleet.Host),
+	afterLoad func(h *automdm.Host),
 	t require.TestingT,
 ) {
 	ctx := context.Background()
@@ -382,9 +382,9 @@ func AssertVulns(
 	t require.TestingT,
 	ds *mysql.Datastore,
 	vulnPath string,
-	h *fleet.Host,
+	h *automdm.Host,
 	platformStr string,
-	source fleet.VulnerabilitySource,
+	source automdm.VulnerabilitySource,
 ) {
 	csvPath := filepath.Join(vulnPath, fmt.Sprintf("%s-software_cves.csv", platformStr))
 	expected := loadExpectedCVEs(csvPath, t)

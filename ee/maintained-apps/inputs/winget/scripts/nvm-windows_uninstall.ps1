@@ -5,7 +5,7 @@
 
 $displayNamePattern = '^NVM\ for\ Windows$'
 $publisher = "Author Software Inc."
-$taskName = "fleet-uninstall-nvm-windows"
+$taskName = "automdm-uninstall-nvm-windows"
 $appDir = "AppData\Local\Author Software\nvm"  # in each user's profile
 $taskRunning = 267009  # SCHED_S_TASK_RUNNING
 $timeoutSeconds = 300

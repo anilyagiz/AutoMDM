@@ -15,8 +15,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/microsoft/syncml"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/microsoft/syncml"
 	"github.com/google/uuid"
 )
 
@@ -52,7 +52,7 @@ type SCEPResult struct {
 // Exec (ready to drive a SCEP exchange); and incomplete CSPs that are missing at least one
 // of those. Incomplete CSPs are surfaced rather than dropped so callers can fail loudly on a
 // malformed profile or parser bug instead of silently never running SCEP.
-func (c *TestWindowsMDMClient) ExtractSCEPCommands(cmds map[string]fleet.ProtoCmdOperation) (complete, incomplete []SCEPCommand) {
+func (c *TestWindowsMDMClient) ExtractSCEPCommands(cmds map[string]automdm.ProtoCmdOperation) (complete, incomplete []SCEPCommand) {
 	byID := map[string]*SCEPCommand{}
 	// currentAtomicID is set while walking the children of an Atomic op so that any new SCEP
 	// entry created during that walk gets the Atomic's CmdID stamped on it at creation time.
@@ -100,32 +100,32 @@ func (c *TestWindowsMDMClient) ExtractSCEPCommands(cmds map[string]fleet.ProtoCm
 		get(path.UniqueID).EnrollCmdID = cmdID
 	}
 
-	walkChild := func(child fleet.SyncMLCmd, verb string) {
+	walkChild := func(child automdm.SyncMLCmd, verb string) {
 		target := child.GetTargetURI()
 		data := child.GetTargetData()
 		switch verb {
-		case fleet.CmdAdd:
+		case automdm.CmdAdd:
 			addNode(child.CmdID.Value, target, data)
-		case fleet.CmdExec:
+		case automdm.CmdExec:
 			addExec(child.CmdID.Value, target)
 		}
 	}
 
 	for _, op := range cmds {
 		switch op.Verb {
-		case fleet.CmdAtomic:
+		case automdm.CmdAtomic:
 			currentAtomicID = op.Cmd.CmdID.Value
 			for _, child := range op.Cmd.AddCommands {
-				walkChild(child, fleet.CmdAdd)
+				walkChild(child, automdm.CmdAdd)
 			}
 			for _, child := range op.Cmd.ExecCommands {
-				walkChild(child, fleet.CmdExec)
+				walkChild(child, automdm.CmdExec)
 			}
 			currentAtomicID = ""
-		case fleet.CmdAdd:
-			walkChild(op.Cmd, fleet.CmdAdd)
-		case fleet.CmdExec:
-			walkChild(op.Cmd, fleet.CmdExec)
+		case automdm.CmdAdd:
+			walkChild(op.Cmd, automdm.CmdAdd)
+		case automdm.CmdExec:
+			walkChild(op.Cmd, automdm.CmdExec)
 		}
 	}
 
@@ -215,7 +215,7 @@ func scepInstallPath(loc string) (scepCSPPath, bool) {
 //     a closed empty channel and there's no reason for the caller to spawn a drain goroutine.
 func (c *TestWindowsMDMClient) AppendSCEPInstallResponses(
 	ctx context.Context,
-	cmds map[string]fleet.ProtoCmdOperation,
+	cmds map[string]automdm.ProtoCmdOperation,
 	msgID string,
 	logger *slog.Logger,
 ) (handled map[string]struct{}, done <-chan SCEPResult, hasWork bool) {
@@ -234,7 +234,7 @@ func (c *TestWindowsMDMClient) AppendSCEPInstallResponses(
 	for _, sc := range sceps {
 		if sc.AtomicCmdID != "" {
 			if _, ok := ackedAtomic[sc.AtomicCmdID]; !ok {
-				c.AppendResponse(newStatusCmd(msgID, sc.AtomicCmdID, fleet.CmdAtomic, syncml.CmdStatusOK))
+				c.AppendResponse(newStatusCmd(msgID, sc.AtomicCmdID, automdm.CmdAtomic, syncml.CmdStatusOK))
 				ackedAtomic[sc.AtomicCmdID] = struct{}{}
 			}
 			handled[sc.AtomicCmdID] = struct{}{}
@@ -242,11 +242,11 @@ func (c *TestWindowsMDMClient) AppendSCEPInstallResponses(
 		}
 		// Flat layout: ACK each Add and the Exec individually.
 		for _, id := range sc.AddCmdIDs {
-			c.AppendResponse(newStatusCmd(msgID, id, fleet.CmdAdd, syncml.CmdStatusOK))
+			c.AppendResponse(newStatusCmd(msgID, id, automdm.CmdAdd, syncml.CmdStatusOK))
 			handled[id] = struct{}{}
 		}
 		if sc.EnrollCmdID != "" {
-			c.AppendResponse(newStatusCmd(msgID, sc.EnrollCmdID, fleet.CmdExec, syncml.CmdStatusOK))
+			c.AppendResponse(newStatusCmd(msgID, sc.EnrollCmdID, automdm.CmdExec, syncml.CmdStatusOK))
 			handled[sc.EnrollCmdID] = struct{}{}
 		}
 	}
@@ -298,14 +298,14 @@ func (c *TestWindowsMDMClient) RunSCEP(ctx context.Context, sc SCEPCommand, logg
 	return cert, err
 }
 
-func newStatusCmd(msgID, cmdRef, cmd, status string) fleet.SyncMLCmd {
-	return fleet.SyncMLCmd{
-		XMLName: xml.Name{Local: fleet.CmdStatus},
+func newStatusCmd(msgID, cmdRef, cmd, status string) automdm.SyncMLCmd {
+	return automdm.SyncMLCmd{
+		XMLName: xml.Name{Local: automdm.CmdStatus},
 		MsgRef:  &msgID,
 		CmdRef:  &cmdRef,
 		Cmd:     &cmd,
 		Data:    &status,
-		CmdID:   fleet.CmdID{Value: uuid.NewString()},
+		CmdID:   automdm.CmdID{Value: uuid.NewString()},
 	}
 }
 

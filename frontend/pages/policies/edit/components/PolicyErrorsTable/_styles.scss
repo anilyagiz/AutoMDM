@@ -2,7 +2,7 @@
   border-collapse: collapse;
 
   &__wrapper {
-    border: 1px solid $ui-fleet-black-10;
+    border: 1px solid $ui-automdm-black-10;
     border-radius: $border-radius-large;
     overflow: hidden;
     margin-top: $pad-medium;
@@ -14,7 +14,7 @@
 
   thead {
     background-color: $ui-off-white;
-    border-bottom: 1px solid $ui-fleet-black-10;
+    border-bottom: 1px solid $ui-automdm-black-10;
 
     th {
       font-size: $x-small;
@@ -38,11 +38,11 @@
   &__empty-table {
     text-align: center;
     font-size: $x-small;
-    color: $core-fleet-black;
+    color: $core-automdm-black;
   }
 
   &__policy-count {
-    color: $core-fleet-black;
+    color: $core-automdm-black;
     font-size: $x-small;
     font-weight: $bold;
     margin: 0 12px 0 0;
@@ -62,7 +62,7 @@
     font-weight: $regular;
     line-height: normal;
     letter-spacing: normal;
-    color: $core-fleet-black;
+    color: $core-automdm-black;
   }
 
   h2 {
@@ -87,7 +87,7 @@
     }
 
     p {
-      color: $core-fleet-black;
+      color: $core-automdm-black;
       font-weight: $regular;
       font-size: $x-small;
       margin: 0;
@@ -102,7 +102,7 @@
 }
 
 .no-team-policy {
-  border: 1px solid $ui-fleet-black-10;
+  border: 1px solid $ui-automdm-black-10;
   box-sizing: border-box;
   border-radius: 8px;
 }

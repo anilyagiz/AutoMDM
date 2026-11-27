@@ -10,12 +10,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/goval_dictionary"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/nvd"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/nvd/tools/cvefeed"
-	feednvd "github.com/fleetdm/fleet/v4/server/vulnerabilities/nvd/tools/cvefeed/nvd"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/oval"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/goval_dictionary"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/nvd"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/nvd/tools/cvefeed"
+	feednvd "github.com/anilyagiz/automdm/v4/server/vulnerabilities/nvd/tools/cvefeed/nvd"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/oval"
 )
 
 func main() {
@@ -35,7 +35,7 @@ func main() {
 }
 
 func checkNVDVulnerabilities(vulnPath string, logger *slog.Logger) {
-	metaMap := make(map[string]fleet.CVEMeta)
+	metaMap := make(map[string]automdm.CVEMeta)
 	if err := nvd.CVEMetaFromNVDFeedFiles(context.Background(), metaMap, vulnPath, logger); err != nil {
 		panic(err)
 	}
@@ -115,7 +115,7 @@ func checkGovalDictionaryVulnerabilities(vulnPath string) {
 		destFilename := platform.ToGovalDictionaryFilename()
 		filename := platform.ToGovalDatabaseFilename()
 
-		// Renaming these files from amzn_%d.sqlite3 to fleet_goval_dictionary_amzn_%d.sqlite3
+		// Renaming these files from amzn_%d.sqlite3 to automdm_goval_dictionary_amzn_%d.sqlite3
 		// In the vulnerabilities repository the `goval-dictionary fetch` downloads these files with the shorter name
 		// However, the goval_dictionary/sync.go#Refresh method download these files, extracts them, and uses the longer name
 		// See in specific the `downloadDatabase` function where it sets the `dstPath` to use `platform.ToGovalDictionaryFilename`

@@ -12,19 +12,19 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/contexts/logging"
-	"github.com/fleetdm/fleet/v4/server/contexts/token"
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/fleetmcp"
-	"github.com/fleetdm/fleet/v4/server/service/middleware/auth"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/automdmmcp"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
+	"github.com/anilyagiz/automdm/v4/server/contexts/logging"
+	"github.com/anilyagiz/automdm/v4/server/contexts/token"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	"github.com/anilyagiz/automdm/v4/server/service/middleware/auth"
 	kithttp "github.com/go-kit/kit/transport/http"
 )
 
 // The embedded MCP's client never resolves this host: it dials MCPConn.
-const mcpInternalBaseURL = "http://fleet.internal"
+const mcpInternalBaseURL = "http://automdm.internal"
 
 // MCPConn is the in-memory connection the embedded MCP uses to call this
 // server's own API, so every tool call goes through the same router, auth and
@@ -65,7 +65,7 @@ func (c *MCPConn) DialContext(ctx context.Context, _, _ string) (net.Conn, error
 	// Test handlers built without Start would otherwise block until the
 	// caller's context ends.
 	if !c.started.Load() {
-		return nil, errors.New("embedded MCP is not connected to the Fleet API")
+		return nil, errors.New("embedded MCP is not connected to the AutoMDM API")
 	}
 	return c.listener.dial(ctx)
 }
@@ -117,8 +117,8 @@ type pipeAddr struct{}
 func (pipeAddr) Network() string { return "pipe" }
 func (pipeAddr) String() string  { return "embedded-mcp" }
 
-// mcpUserLogHandler adds the caller to fleetmcp's log lines, which carry the
-// tool call's context but know nothing about Fleet users.
+// mcpUserLogHandler adds the caller to automdmmcp's log lines, which carry the
+// tool call's context but know nothing about AutoMDM users.
 type mcpUserLogHandler struct{ slog.Handler }
 
 func (h mcpUserLogHandler) Handle(ctx context.Context, r slog.Record) error {
@@ -136,40 +136,40 @@ func (h mcpUserLogHandler) WithGroup(name string) slog.Handler {
 	return mcpUserLogHandler{h.Handler.WithGroup(name)}
 }
 
-func newEmbeddedFleetClient(conn *MCPConn, urlPrefix string, logger *slog.Logger) (*fleetmcp.FleetClient, error) {
+func newEmbeddedAutoMDMClient(conn *MCPConn, urlPrefix string, logger *slog.Logger) (*automdmmcp.AutoMDMClient, error) {
 	ctx := context.Background()
 	// Both live query paths wait the period this server's own live query
 	// endpoints use, which operators already keep under their proxies' timeouts.
 	period, err := LiveQueryRestPeriod()
 	if err != nil {
-		logger.WarnContext(ctx, "invalid FLEET_LIVE_QUERY_REST_PERIOD, the embedded MCP uses the default", "err", err)
+		logger.WarnContext(ctx, "invalid AUTOMDM_LIVE_QUERY_REST_PERIOD, the embedded MCP uses the default", "err", err)
 	}
 	// The internal listener serves the same root handler as the public one,
 	// which only answers under the URL prefix.
-	return fleetmcp.NewFleetClient(ctx, mcpInternalBaseURL+urlPrefix, "", false, "", logger,
-		fleetmcp.WithDialContext(conn.DialContext),
-		fleetmcp.WithLiveQueryWaits(period, period),
+	return automdmmcp.NewAutoMDMClient(ctx, mcpInternalBaseURL+urlPrefix, "", false, "", logger,
+		automdmmcp.WithDialContext(conn.DialContext),
+		automdmmcp.WithLiveQueryWaits(period, period),
 	)
 }
 
 // grantedMCPRoutes returns which tool routes an API-only user's endpoint
 // allowlist grants, matched the way APIOnlyEndpointCheck matches each call the
 // tools make, or nil when the user has no allowlist.
-func grantedMCPRoutes(u *fleet.User) func(fleetmcp.Route) bool {
+func grantedMCPRoutes(u *automdm.User) func(automdmmcp.Route) bool {
 	if !u.APIOnly || len(u.APIEndpoints) == 0 {
 		return nil
 	}
 	granted := make(map[string]struct{}, len(u.APIEndpoints))
 	for _, ep := range u.APIEndpoints {
-		granted[fleet.NewAPIEndpointFromTpl(ep.Method, ep.Path).Fingerprint()] = struct{}{}
+		granted[automdm.NewAPIEndpointFromTpl(ep.Method, ep.Path).Fingerprint()] = struct{}{}
 	}
-	return func(r fleetmcp.Route) bool {
-		_, ok := granted[fleet.NewAPIEndpointFromTpl(r.Method, r.Path).Fingerprint()]
+	return func(r automdmmcp.Route) bool {
+		_, ok := granted[automdm.NewAPIEndpointFromTpl(r.Method, r.Path).Fingerprint()]
 		return ok
 	}
 }
 
-// sameOrigin reports whether a browser Origin header names the Fleet server
+// sameOrigin reports whether a browser Origin header names the AutoMDM server
 // itself, comparing scheme, host and port.
 func sameOrigin(origin, serverURL string) bool {
 	o, err := url.Parse(origin)
@@ -198,9 +198,9 @@ func (svc *Service) VerifyMCPAvailable(ctx context.Context) error {
 	case err != nil:
 		err = ctxerr.Wrap(ctx, err, "get app config")
 	case appCfg.ServerSettings.MCPDisabled:
-		err = &fleet.BadRequestError{Message: "Fleet's MCP server is disabled (server_settings.mcp_disabled)"}
+		err = &automdm.BadRequestError{Message: "AutoMDM's MCP server is disabled (server_settings.mcp_disabled)"}
 	case !license.IsPremium(ctx):
-		err = fleet.ErrMissingLicense
+		err = automdm.ErrMissingLicense
 	}
 	if err != nil {
 		// skipauth: this runs before authentication.
@@ -209,13 +209,13 @@ func (svc *Service) VerifyMCPAvailable(ctx context.Context) error {
 	return err
 }
 
-func newMCPHandler(svc fleet.Service, logger *slog.Logger, conn *MCPConn, urlPrefix string) (http.Handler, error) {
+func newMCPHandler(svc automdm.Service, logger *slog.Logger, conn *MCPConn, urlPrefix string) (http.Handler, error) {
 	toolLogger := slog.New(mcpUserLogHandler{logger.Handler()})
-	fleetClient, err := newEmbeddedFleetClient(conn, urlPrefix, toolLogger)
+	automdmClient, err := newEmbeddedAutoMDMClient(conn, urlPrefix, toolLogger)
 	if err != nil {
 		return nil, err
 	}
-	mcpHandler := fleetmcp.NewEmbeddedHTTPHandler(fleetmcp.NewEmbeddedMCPServer(fleetClient), toolLogger)
+	mcpHandler := automdmmcp.NewEmbeddedHTTPHandler(automdmmcp.NewEmbeddedMCPServer(automdmClient), toolLogger)
 	noop := func(context.Context, any) (any, error) { return nil, nil }
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -229,8 +229,8 @@ func newMCPHandler(svc fleet.Service, logger *slog.Logger, conn *MCPConn, urlPre
 		// stay at debug.
 		if err := svc.VerifyMCPAvailable(ctx); err != nil {
 			level := slog.LevelDebug
-			var badRequest *fleet.BadRequestError
-			if !errors.As(err, &badRequest) && !errors.Is(err, fleet.ErrMissingLicense) {
+			var badRequest *automdm.BadRequestError
+			if !errors.As(err, &badRequest) && !errors.Is(err, automdm.ErrMissingLicense) {
 				level = slog.LevelError
 			}
 			reject(level, "embedded MCP unavailable", err)
@@ -238,7 +238,7 @@ func newMCPHandler(svc fleet.Service, logger *slog.Logger, conn *MCPConn, urlPre
 		}
 		bearer := token.FromHTTPRequest(r)
 		if bearer == "" {
-			reject(slog.LevelDebug, "no auth token", fleet.NewAuthHeaderRequiredError("no auth token"))
+			reject(slog.LevelDebug, "no auth token", automdm.NewAuthHeaderRequiredError("no auth token"))
 			return
 		}
 		v, err := auth.AuthViewer(ctx, string(bearer), svc)
@@ -248,7 +248,7 @@ func newMCPHandler(svc fleet.Service, logger *slog.Logger, conn *MCPConn, urlPre
 		}
 		user := []any{"user", v.Email()}
 		if !v.User.APIOnly {
-			reject(slog.LevelInfo, "not an API-only user", fleet.NewPermissionError("Fleet's MCP server is only available to API-only users"), user...)
+			reject(slog.LevelInfo, "not an API-only user", automdm.NewPermissionError("AutoMDM's MCP server is only available to API-only users"), user...)
 			return
 		}
 		ctx = viewer.NewContext(ctx, *v)
@@ -268,12 +268,12 @@ func newMCPHandler(svc fleet.Service, logger *slog.Logger, conn *MCPConn, urlPre
 		// Browsers always send Origin and MCP clients outside a browser don't;
 		// a page on another origin must not drive this endpoint (DNS rebinding).
 		if origin := r.Header.Get("Origin"); origin != "" && !sameOrigin(origin, appConfig.ServerSettings.ServerURL) {
-			reject(slog.LevelInfo, "Origin doesn't match server_settings.server_url", fleet.NewPermissionError("Origin not allowed"), append(user, "origin", origin[:min(len(origin), 256)])...)
+			reject(slog.LevelInfo, "Origin doesn't match server_settings.server_url", automdm.NewPermissionError("Origin not allowed"), append(user, "origin", origin[:min(len(origin), 256)])...)
 			return
 		}
 		if granted := grantedMCPRoutes(v.User); granted != nil {
-			ctx = fleetmcp.ContextWithRouteFilter(ctx, granted)
+			ctx = automdmmcp.ContextWithRouteFilter(ctx, granted)
 		}
-		mcpHandler.ServeHTTP(w, r.WithContext(fleetmcp.ContextWithFleetToken(ctx, string(bearer))))
+		mcpHandler.ServeHTTP(w, r.WithContext(automdmmcp.ContextWithAutoMDMToken(ctx, string(bearer))))
 	}), nil
 }

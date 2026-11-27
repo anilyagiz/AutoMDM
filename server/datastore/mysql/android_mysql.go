@@ -5,10 +5,10 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxdb"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxdb"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -16,11 +16,11 @@ import (
 type AndroidDatastore struct {
 	logger  *slog.Logger
 	primary *sqlx.DB
-	replica fleet.DBReader // so it cannot be used to perform writes
+	replica automdm.DBReader // so it cannot be used to perform writes
 }
 
 // NewAndroidDatastore creates a new Android Datastore
-func NewAndroidDatastore(logger *slog.Logger, primary *sqlx.DB, replica fleet.DBReader) android.Datastore {
+func NewAndroidDatastore(logger *slog.Logger, primary *sqlx.DB, replica automdm.DBReader) android.Datastore {
 	return &AndroidDatastore{
 		logger:  logger,
 		primary: primary,
@@ -31,7 +31,7 @@ func NewAndroidDatastore(logger *slog.Logger, primary *sqlx.DB, replica fleet.DB
 // reader returns the DB instance to use for read-only statements, which is the
 // replica unless the primary has been explicitly required via
 // ctxdb.RequirePrimary.
-func (ds *AndroidDatastore) reader(ctx context.Context) fleet.DBReader {
+func (ds *AndroidDatastore) reader(ctx context.Context) automdm.DBReader {
 	if ctxdb.IsPrimaryRequired(ctx) {
 		return ds.primary
 	}

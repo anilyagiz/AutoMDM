@@ -8,7 +8,7 @@
     "source": "spreadsheet-backfill",
     "sheet_row": 36
   },
-  "fleet_server": {
+  "automdm_server": {
     "cpu_utilization": {
       "Average": 25.0
     },
@@ -80,19 +80,19 @@
       }
     }
   ],
-  "fleet_server_errors": {
+  "automdm_server_errors": {
     "error_count": 0
   },
   "backfill": {
-    "source": "Fleet release load testing results (Google Sheet), manual-logging era",
+    "source": "AutoMDM release load testing results (Google Sheet), manual-logging era",
     "purpose": "Ticket #28974",
     "one_click": null,
     "notes": "Baseline test after adding 4 Certificate Authorities. Before\u2026",
     "raw": {
-      "fleet_containers": "20",
+      "automdm_containers": "20",
       "loadtest_containers": "10",
-      "fleet_cpu": "~25%",
-      "fleet_mem": "~1.74%",
+      "automdm_cpu": "~25%",
+      "automdm_mem": "~1.74%",
       "errors": "No new errors. I did see this initially then it went away",
       "writer_top_sql": "INSERT IGNORE INTO `softw\u2026",
       "writer_cpu": "~4%",

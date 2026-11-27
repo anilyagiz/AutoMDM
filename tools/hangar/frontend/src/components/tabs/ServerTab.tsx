@@ -54,7 +54,7 @@ type ChainStep = {
   label: string;
   program: string;
   args: string[];
-  /// "skip awaiting spawn exit in chain runAll" — for things like fleet
+  /// "skip awaiting spawn exit in chain runAll" — for things like team
   /// serve where the spawn never returns. Pure chain-flow concern.
   longRunning?: boolean;
   logChannel?: string;
@@ -65,20 +65,20 @@ type ChainStep = {
   /// When true, the step row's display state comes from the health probe
   /// (externalRunning), not the spawn exit code, and it gets the
   /// LONG-RUNNING tag in the meta column. Set for steps that start a
-  /// persistent service (docker compose up -d, fleet serve --dev).
+  /// persistent service (docker compose up -d, automdm serve --dev).
   service?: boolean;
   /// Identifies the special steps without string-matching ids (ids are now
   /// per-server-namespaced): "docker-up" routes ▶ through the stale-cleanup
   /// helper; "serve" gets the command preview rendered beneath it.
   kind?: "docker-up" | "serve";
   /// Env vars to apply on the spawn, as [key, value] tuples (matches
-  /// the IPC shape). Only meaningful for the fleet-serve step right
+  /// the IPC shape). Only meaningful for the automdm-serve step right
   /// now — the build chain inherits the parent env unmodified.
   env?: Array<[string, string]>;
 };
 
 /// Build the run chain for a server — ids are namespaced to the server, the
-/// fleet-serve argv/env derive from the server's serve config + ports, and
+/// automdm-serve argv/env derive from the server's serve config + ports, and
 /// docker/prepare-db carry the per-server project/address flags.
 function runChainFor(server: ServerProfile): ChainStep[] {
   return [
@@ -92,15 +92,15 @@ function runChainFor(server: ServerProfile): ChainStep[] {
       kind: "docker-up",
     },
     {
-      id: procId(server.id, "fleet-prepare-db"),
-      label: "fleet prepare db --dev",
-      program: "./build/fleet",
+      id: procId(server.id, "automdm-prepare-db"),
+      label: "automdm prepare db --dev",
+      program: "./build/automdm",
       args: prepareDbArgsFor(server),
     },
     {
-      id: procId(server.id, "fleet-serve"),
+      id: procId(server.id, "automdm-serve"),
       label: serveLabelFor(server),
-      program: "./build/fleet",
+      program: "./build/automdm",
       args: serveArgsFor(server),
       env: serveEnvFor(server),
       longRunning: true,
@@ -167,7 +167,7 @@ export function ServerTab({
           color: "var(--app-text-dim)",
         }}
       >
-        No Fleet repo configured · open Settings to pick one
+        No AutoMDM repo configured · open Settings to pick one
       </div>
     );
   }
@@ -213,7 +213,7 @@ export function ServerTab({
       >
         <ChainCard
           title="Build chain"
-          subtitle="Install deps, bundle frontend, build fleet + fleetctl"
+          subtitle="Install deps, bundle frontend, build team + automdmctl"
           steps={buildChain}
           server={server}
           repoPath={repoPath}
@@ -233,7 +233,7 @@ export function ServerTab({
           now={now}
           externalRunningByStepId={{
             [procId(server.id, "docker-compose-up")]: docker.up,
-            [procId(server.id, "fleet-serve")]: serve.up,
+            [procId(server.id, "automdm-serve")]: serve.up,
           }}
           header={
             <div style={{ display: "flex", gap: 6 }}>
@@ -241,21 +241,21 @@ export function ServerTab({
               <HealthChip label="docker" up={docker.up} />
             </div>
           }
-          fleetServePreview={
+          automdmServePreview={
             <ServePreview
               server={server}
               mockUrl={apnsMockLive}
               onTogglePremium={(premium) => {
                 const next = updateServer(settings, server.id, (s) => ({
                   ...s,
-                  fleet_serve: { ...s.fleet_serve, premium },
+                  automdm_serve: { ...s.automdm_serve, premium },
                 }));
                 onSettingsChange(next);
                 api.saveSettings(next).catch((e) =>
                   console.error("save serve settings failed", e),
                 );
               }}
-              onConfigure={() => goToSettings("fleet-server")}
+              onConfigure={() => goToSettings("automdm-server")}
             />
           }
         />
@@ -397,11 +397,11 @@ function MasterControl({
   );
 }
 
-/// Preview + premium toggle rendered just under the fleet-serve row.
-/// Shows the exact `./build/fleet serve …` line that will spawn plus
+/// Preview + premium toggle rendered just under the automdm-serve row.
+/// Shows the exact `./build/automdm serve …` line that will spawn plus
 /// the env-var keys (values redacted). Premium toggle persists into the
-/// active server's `fleet_serve.premium`; everything else (config path,
-/// debug flags, env values) lives in Settings → Fleet server.
+/// active server's `automdm_serve.premium`; everything else (config path,
+/// debug flags, env values) lives in Settings → AutoMDM server.
 function ServePreview({
   server,
   mockUrl,
@@ -415,8 +415,8 @@ function ServePreview({
 }) {
   const args = serveArgsFor(server);
   const env = serveEnvFor(server, mockUrl);
-  const cmdPreview = `./build/fleet ${args.join(" ")}`;
-  const premium = server.fleet_serve.premium;
+  const cmdPreview = `./build/automdm ${args.join(" ")}`;
+  const premium = server.automdm_serve.premium;
 
   return (
     <div
@@ -447,7 +447,7 @@ function ServePreview({
           className="link-btn"
           style={{ fontSize: "var(--fs-xxx-small)" }}
         >
-          Settings → Fleet server ↗
+          Settings → AutoMDM server ↗
         </button>
       </div>
       <div
@@ -556,8 +556,8 @@ function SegmentButton({
         letterSpacing: "0.06em",
         border: "none",
         borderRadius: 999,
-        background: active ? "var(--core-fleet-green)" : "transparent",
-        color: active ? "var(--core-fleet-white)" : "var(--app-text-dim)",
+        background: active ? "var(--core-automdm-green)" : "transparent",
+        color: active ? "var(--core-automdm-white)" : "var(--app-text-dim)",
         cursor: "pointer",
       }}
     >
@@ -568,7 +568,7 @@ function SegmentButton({
 
 function HealthChip({ label, up }: { label: string; up: boolean }) {
   const state = up ? "up" : "down";
-  const color = up ? "var(--core-fleet-green)" : "var(--ui-error)";
+  const color = up ? "var(--core-automdm-green)" : "var(--ui-error)";
   const bg = up ? "var(--tint-success-soft)" : "var(--tint-danger-soft)";
   return (
     <div
@@ -591,7 +591,7 @@ function HealthChip({ label, up }: { label: string; up: boolean }) {
           fontSize: "var(--fs-xxx-small)",
           textTransform: "uppercase",
           letterSpacing: "0.05em",
-          color: "var(--core-fleet-white)",
+          color: "var(--core-automdm-white)",
           background: color,
           padding: "1px 5px",
           borderRadius: 3,
@@ -616,7 +616,7 @@ function ChainCard({
   branchByStepId,
   currentBranch,
   onStepRun,
-  fleetServePreview,
+  automdmServePreview,
 }: {
   title: string;
   subtitle: string;
@@ -630,10 +630,10 @@ function ChainCard({
   branchByStepId?: Record<string, string>;
   currentBranch?: string | null;
   onStepRun?: (stepId: string) => void;
-  /// Optional preview rendered under the fleet-serve row so the user
+  /// Optional preview rendered under the automdm-serve row so the user
   /// can see the resolved argv before clicking Play. Only the Run chain
   /// passes this — the Build chain has no equivalent toggle to preview.
-  fleetServePreview?: React.ReactNode;
+  automdmServePreview?: React.ReactNode;
 }) {
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -687,7 +687,7 @@ function ChainCard({
   }
 
   // Disable Run all when any of this chain's service steps are already up
-  // externally — running docker compose up -d / fleet serve again would
+  // externally — running docker compose up -d / automdm serve again would
   // either no-op or conflict. Build chain has no services so this is moot.
   const serviceUp = steps.some(
     (s) => s.service && (externalRunningByStepId?.[s.id] ?? false),
@@ -753,7 +753,7 @@ function ChainCard({
               treatAsIdle={isStepStale(s.id)}
               actionsDisabled={running}
             />
-            {s.kind === "serve" && fleetServePreview}
+            {s.kind === "serve" && automdmServePreview}
           </div>
         ))}
       </div>
@@ -874,7 +874,7 @@ function StepGlyph({
 }) {
   // Long-running service that's up gets the same pulsing dot as Active
   // Processes — checkmark is reserved for short-lived tasks that completed
-  // (make deps, fleet prepare db, etc.).
+  // (make deps, automdm prepare db, etc.).
   if (service && state === "done") {
     return (
       <span
@@ -956,7 +956,7 @@ function StepRow({
     proc?.started_at_ms != null
   ) {
     metaText = formatChainElapsed(now - proc.started_at_ms);
-    metaColor = "var(--core-fleet-green)";
+    metaColor = "var(--core-automdm-green)";
   }
 
   // Col 2 content: long-running sub-message takes priority, then the
@@ -1053,7 +1053,7 @@ function StepRow({
               fontSize: "var(--fs-xxx-small)",
               color: isStopping
                 ? "var(--app-text-dim)"
-                : "var(--core-fleet-green)",
+                : "var(--core-automdm-green)",
               textTransform: "uppercase",
               letterSpacing: "0.06em",
             }}
@@ -1115,7 +1115,7 @@ function ActiveProcessesPanel({
   goToSettings: (section: SettingsSection) => void;
 }) {
   const repoPath = server.worktree_path as string;
-  const serveId = procId(server.id, "fleet-serve");
+  const serveId = procId(server.id, "automdm-serve");
   const serveProc = procs.find((p) => p.id === serveId);
   const serveOwned = serveProc?.state === "running" || serveProc?.state === "stopping";
   const ngrokProc = procs.find((p) => p.id === "ngrok");
@@ -1129,7 +1129,7 @@ function ActiveProcessesPanel({
   const [ngrokInfo, setNgrokInfo] = useState<NgrokYamlInfo | null>(null);
   const [pythonLanIp, setPythonLanIp] = useState("");
   const apnsMockRunning = isRunning(procs, apnsMockProcId(server));
-  // SCEP servers aren't per Fleet server, but any running one is a process
+  // SCEP servers aren't per AutoMDM server, but any running one is a process
   // to see and stop here; they're started from the SCEP tab.
   const scepProcs = procs.filter(
     (p) => scepProfileIdOf(p.id) !== null && (p.state === "running" || p.state === "stopping"),
@@ -1138,7 +1138,7 @@ function ActiveProcessesPanel({
   const apnsMockPort = apnsMockRunningPort(server, procs) ?? server.ports.apns_mock;
   const apnsMockStatus = useApnsMockStatus(apnsMockRunning ? apnsMockPort : null);
   const apnsMockLive = apnsMockLiveUrl(server, procs);
-  // fleet serve pushes to the running mock, else to Apple, and reads which
+  // automdm serve pushes to the running mock, else to Apple, and reads which
   // only at startup: after the mock starts or stops, it needs a restart.
   const serveNeedsRestart =
     serveOwned && !!serveProc && serveNeedsRestartForApns(server, serveProc, apnsMockLive);
@@ -1362,7 +1362,7 @@ function ActiveProcessesPanel({
       >
         <div className="section-title" style={{ margin: 0 }}>
           Active processes ·{" "}
-          <span style={{ color: "var(--core-fleet-green)" }}>
+          <span style={{ color: "var(--core-automdm-green)" }}>
             {runningCount} running
           </span>{" "}
           · {configuredCount} configured
@@ -1372,20 +1372,20 @@ function ActiveProcessesPanel({
         <div style={{ marginBottom: "var(--pad-small)" }}>
           <WarningBanner
             action={{
-              label: busy === "serve-restart" ? "restarting…" : "Restart fleet serve",
+              label: busy === "serve-restart" ? "restarting…" : "Restart automdm serve",
               disabled: busy !== null,
               onClick: serveRestart,
             }}
           >
             {restartError
-              ? `Couldn't restart fleet serve: ${restartError}`
+              ? `Couldn't restart automdm serve: ${restartError}`
               : busy === "serve-restart"
-                ? "Restarting fleet serve…"
+                ? "Restarting automdm serve…"
                 : apnsMockLive
                   ? servePushedTo
-                    ? `fleet serve pushes to ${servePushedTo}, but mock APNs is at ${apnsMockLive}. Restart it so pushes reach the mock.`
-                    : "fleet serve was started before mock APNs, so its Apple MDM pushes go to Apple. Restart it to send them to the mock."
-                  : "mock APNs is stopped, but fleet serve still sends Apple MDM pushes to it. Restart it to send them to Apple again, so real devices get them."}
+                    ? `automdm serve pushes to ${servePushedTo}, but mock APNs is at ${apnsMockLive}. Restart it so pushes reach the mock.`
+                    : "automdm serve was started before mock APNs, so its Apple MDM pushes go to Apple. Restart it to send them to the mock."
+                  : "mock APNs is stopped, but automdm serve still sends Apple MDM pushes to it. Restart it to send them to Apple again, so real devices get them."}
           </WarningBanner>
         </div>
       )}
@@ -1399,7 +1399,7 @@ function ActiveProcessesPanel({
         <Cell>
           <ProcRow
             dotState={serve.up ? "run" : "idle"}
-            name="fleet serve --dev"
+            name="automdm serve --dev"
             subline={
               serve.up
                 ? `up · :${server.ports.server} · uptime ${formatUptime(now, serve.upSinceMs)}${serveOwned ? "" : " · external"}`
@@ -1998,7 +1998,7 @@ function ApnsMockCell({
       <div style={{ padding: "0 var(--pad-medium) var(--pad-medium)", display: "flex", flexDirection: "column", gap: 6 }}>
         {conflict && <WarningBanner>{conflict}</WarningBanner>}
         <span className="dim" style={{ fontSize: "var(--fs-xx-small)" }}>
-          While fleet serve pushes here, real Apple devices on this server get no pushes.
+          While automdm serve pushes here, real Apple devices on this server get no pushes.
         </span>
       </div>
     </Cell>
@@ -2240,7 +2240,7 @@ function RecentRow({
             }}
           >
             {/* Label refuses to shrink — otherwise a long error message
-                squeezes it down to a single-word column and "fleet serve
+                squeezes it down to a single-word column and "automdm serve
                 --dev" wraps to 3 lines. */}
             <span
               style={{

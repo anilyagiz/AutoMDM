@@ -3,13 +3,13 @@ package service
 import (
 	"context"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 )
 
 // findDuplicateNameUnderCollation compares names the way the utf8mb4_unicode_ci name columns do, ignoring case, accents and
 // trailing spaces, so a batch can't upsert two entries into one row. It returns the index in names of the first name that repeats an earlier one.
-func findDuplicateNameUnderCollation(ctx context.Context, ds fleet.Datastore, names []string) (duplicateIndex int, found bool, err error) {
+func findDuplicateNameUnderCollation(ctx context.Context, ds automdm.Datastore, names []string) (duplicateIndex int, found bool, err error) {
 	if len(names) < 2 {
 		return 0, false, nil
 	}

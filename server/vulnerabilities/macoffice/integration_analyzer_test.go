@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/test"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/macoffice"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	"github.com/anilyagiz/automdm/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/macoffice"
 	"github.com/stretchr/testify/require"
 )
 
@@ -95,7 +95,7 @@ func TestIntegrationsAnalyzer(t *testing.T) {
 	t.Run("no apps", func(t *testing.T) {
 		defer mysqltest.TruncateTables(t, ds)
 		host := test.NewHost(t, ds, "host1", "", "host1key", "host1uuid", time.Now())
-		software := []fleet.Software{
+		software := []automdm.Software{
 			{
 				Name:    "Bicrosoft Bord.app",
 				Version: "16.69.1",
@@ -113,7 +113,7 @@ func TestIntegrationsAnalyzer(t *testing.T) {
 	t.Run("no office apps", func(t *testing.T) {
 		defer mysqltest.TruncateTables(t, ds)
 		host := test.NewHost(t, ds, "host1", "", "host1key", "host1uuid", time.Now())
-		software := []fleet.Software{
+		software := []automdm.Software{
 			{
 				Name:             "Bicrosoft Bord.app",
 				Version:          "16.69.1",
@@ -132,7 +132,7 @@ func TestIntegrationsAnalyzer(t *testing.T) {
 	t.Run("latest version", func(t *testing.T) {
 		defer mysqltest.TruncateTables(t, ds)
 		host := test.NewHost(t, ds, "host1", "", "host1key", "host1uuid", time.Now())
-		software := []fleet.Software{
+		software := []automdm.Software{
 			{
 				Name:             "Microsoft Word.app",
 				Version:          "16.69.1",
@@ -158,7 +158,7 @@ func TestIntegrationsAnalyzer(t *testing.T) {
 	t.Run("vulnerable versions", func(t *testing.T) {
 		defer mysqltest.TruncateTables(t, ds)
 		host := test.NewHost(t, ds, "host2", "", "host2key", "host2uuid", time.Now())
-		software := []fleet.Software{
+		software := []automdm.Software{
 			{
 				Name:             "Microsoft Word.app",
 				Version:          "16.65",
@@ -177,8 +177,8 @@ func TestIntegrationsAnalyzer(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, ds.LoadHostSoftware(context.Background(), host, false))
 
-		var powerpoint fleet.HostSoftwareEntry
-		var word fleet.HostSoftwareEntry
+		var powerpoint automdm.HostSoftwareEntry
+		var word automdm.HostSoftwareEntry
 		for _, s := range host.HostSoftware.Software {
 			if s.Name == "Microsoft PowerPoint.app" {
 				powerpoint = s
@@ -190,22 +190,22 @@ func TestIntegrationsAnalyzer(t *testing.T) {
 		}
 
 		// These 'old' vulnerabilities should be cleared out...
-		ok, err := ds.InsertSoftwareVulnerability(ctx, fleet.SoftwareVulnerability{
+		ok, err := ds.InsertSoftwareVulnerability(ctx, automdm.SoftwareVulnerability{
 			SoftwareID: word.ID, CVE: "3000-3000",
-		}, fleet.MacOfficeReleaseNotesSource)
+		}, automdm.MacOfficeReleaseNotesSource)
 		require.True(t, ok)
 		require.NoError(t, err)
 
-		ok, err = ds.InsertSoftwareVulnerability(ctx, fleet.SoftwareVulnerability{
+		ok, err = ds.InsertSoftwareVulnerability(ctx, automdm.SoftwareVulnerability{
 			SoftwareID: powerpoint.ID, CVE: "4000-3000",
-		}, fleet.MacOfficeReleaseNotesSource)
+		}, automdm.MacOfficeReleaseNotesSource)
 		require.True(t, ok)
 		require.NoError(t, err)
 
 		vulns, err := macoffice.Analyze(ctx, ds, vulnPath, true)
 		require.NoError(t, err)
 
-		expected := []fleet.SoftwareVulnerability{
+		expected := []automdm.SoftwareVulnerability{
 			{SoftwareID: word.ID, CVE: "CVE-2023-21734"},
 			{SoftwareID: word.ID, CVE: "CVE-2023-21735"},
 			{SoftwareID: word.ID, CVE: "CVE-2022-44692"},
@@ -223,7 +223,7 @@ func TestIntegrationsAnalyzer(t *testing.T) {
 
 		require.ElementsMatch(t, expected, vulns)
 
-		stored, err := ds.ListSoftwareVulnerabilitiesByHostIDsSource(ctx, []uint{host.ID}, fleet.MacOfficeReleaseNotesSource)
+		stored, err := ds.ListSoftwareVulnerabilitiesByHostIDsSource(ctx, []uint{host.ID}, automdm.MacOfficeReleaseNotesSource)
 		require.NoError(t, err)
 		require.ElementsMatch(t, expected, stored[host.ID])
 	})

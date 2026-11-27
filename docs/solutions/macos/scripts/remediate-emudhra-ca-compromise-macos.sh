@@ -4,11 +4,11 @@
 # Apple's trustd block (Safari, system TLS) landed on 2026-10-19. This script fixes the
 # trust stores that block does NOT cover:
 #   1. /etc/ssl/cert.pem  - used by Apple's curl, git, python3, ruby, perl, openssl.
-#   2. /opt/orbit/certs.pem - fleetd's bundle that osqueryd uses for TLS to Fleet
-#      (changed only after proving the Fleet server still verifies).
+#   2. /opt/orbit/certs.pem - automdmd's bundle that osqueryd uses for TLS to AutoMDM
+#      (changed only after proving the AutoMDM server still verifies).
 #   3. Homebrew ca-certificates and certifi formulae (upgraded as the Homebrew owner).
-# Idempotent: safe to re-run. Built for Fleet "Run script" (runs as root).
-# Save it as a Fleet script: it is larger than the 10,000-character ad hoc limit.
+# Idempotent: safe to re-run. Built for AutoMDM "Run script" (runs as root).
+# Save it as an AutoMDM script: it is larger than the 10,000-character ad hoc limit.
 # Rollback: copy a *.pre-emudhra backup over the file it was taken from.
 # Exit: 0 = protected, 2 = still exposed or a step was skipped (read output), 1 = error.
 # Source: https://emudhra.we-have-a-problem.com/
@@ -115,46 +115,46 @@ fix_system_pem() {
 
 plist_env() { /usr/libexec/PlistBuddy -c "Print :EnvironmentVariables:$1" "$ORBIT_PLIST" 2>/dev/null; }
 
-fleet_url() {
+automdm_url() {
     local u
-    u=$(plist_env ORBIT_FLEET_URL)
-    [ -z "$u" ] && [ -r /opt/orbit/fleet_url.txt ] && u=$(tr -d '[:space:]' < /opt/orbit/fleet_url.txt)
+    u=$(plist_env ORBIT_AUTOMDM_URL)
+    [ -z "$u" ] && [ -r /opt/orbit/automdm_url.txt ] && u=$(tr -d '[:space:]' < /opt/orbit/automdm_url.txt)
     echo "$u"
 }
 
-# Only the plist decides: a leftover /opt/orbit/fleet.pem is ignored by osquery when
-# ORBIT_FLEET_CERTIFICATE is not set (for example after fleetd-base.pkg is reinstalled).
-fleet_pin() { plist_env ORBIT_FLEET_CERTIFICATE; }
+# Only the plist decides: a leftover /opt/orbit/automdm.pem is ignored by osquery when
+# ORBIT_AUTOMDM_CERTIFICATE is not set (for example after automdmd-base.pkg is reinstalled).
+automdm_pin() { plist_env ORBIT_AUTOMDM_CERTIFICATE; }
 
 fix_orbit_bundle() {
     local hits url pin tmp hostport host port
-    [ -f "$ORBIT_BUNDLE" ] || { log "FLEETD: $ORBIT_BUNDLE not present (fleetd not installed)"; return; }
+    [ -f "$ORBIT_BUNDLE" ] || { log "AUTOMDMD: $ORBIT_BUNDLE not present (automdmd not installed)"; return; }
     hits=$(blocked_in_bundle "$ORBIT_BUNDLE")
-    [ -z "$hits" ] && { log "FLEETD: $ORBIT_BUNDLE already clean"; return; }
+    [ -z "$hits" ] && { log "AUTOMDMD: $ORBIT_BUNDLE already clean"; return; }
     tmp=$(mktemp) || die "mktemp failed"
     filter_bundle "$ORBIT_BUNDLE" "$tmp"
     if [ -n "$(blocked_in_bundle "$tmp")" ] || [ "$(cert_count "$tmp")" -lt 50 ]; then
-        rm -f "$tmp"; warn "FLEETD: filtered bundle failed sanity check; not changed"; return
+        rm -f "$tmp"; warn "AUTOMDMD: filtered bundle failed sanity check; not changed"; return
     fi
-    url=$(fleet_url); pin=$(fleet_pin)
+    url=$(automdm_url); pin=$(automdm_pin)
     if [ -n "$pin" ]; then
-        log "FLEETD: osquery pins $pin, so certs.pem is unused; cleaning it anyway"
+        log "AUTOMDMD: osquery pins $pin, so certs.pem is unused; cleaning it anyway"
     elif [ -n "$url" ]; then
-        # Prove the Fleet server's chain still anchors in the filtered bundle before swapping it in.
+        # Prove the AutoMDM server's chain still anchors in the filtered bundle before swapping it in.
         hostport=${url#*://}; hostport=${hostport%%/*}
         host=${hostport%%:*}; port=443
         [ "$host" != "$hostport" ] && port=${hostport##*:}
         if ! chain_anchored_in "$tmp" "$host" "$port"; then
-            rm -f "$tmp"; warn "FLEETD: Fleet server chain at $host:$port does not anchor in the filtered bundle; not changed"; return
+            rm -f "$tmp"; warn "AUTOMDMD: AutoMDM server chain at $host:$port does not anchor in the filtered bundle; not changed"; return
         fi
-        log "FLEETD: Fleet server chain at $host:$port anchors in the filtered bundle"
+        log "AUTOMDMD: AutoMDM server chain at $host:$port anchors in the filtered bundle"
     else
-        rm -f "$tmp"; warn "FLEETD: Fleet URL not found; cannot prove safety; not changed"; return
+        rm -f "$tmp"; warn "AUTOMDMD: AutoMDM URL not found; cannot prove safety; not changed"; return
     fi
     if swap_in "$ORBIT_BUNDLE" "$tmp"; then
-        log "FLEETD: removed $(echo $hits | wc -w | tr -d ' ') root(s) from $ORBIT_BUNDLE (backup: $ORBIT_BUNDLE.pre-emudhra). osquery reloads it on its next connection."
+        log "AUTOMDMD: removed $(echo $hits | wc -w | tr -d ' ') root(s) from $ORBIT_BUNDLE (backup: $ORBIT_BUNDLE.pre-emudhra). osquery reloads it on its next connection."
     else
-        warn "FLEETD: could not write $ORBIT_BUNDLE"
+        warn "AUTOMDMD: could not write $ORBIT_BUNDLE"
     fi
     rm -f "$tmp"
 }
@@ -190,7 +190,7 @@ main() {
 
     log "----- Apple CLI trust bundle -----"
     fix_system_pem
-    log "----- fleetd osquery CA bundle -----"
+    log "----- automdmd osquery CA bundle -----"
     fix_orbit_bundle
     log "----- Homebrew -----"
     fix_homebrew

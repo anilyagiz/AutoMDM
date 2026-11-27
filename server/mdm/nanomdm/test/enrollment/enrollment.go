@@ -13,9 +13,9 @@ import (
 	"os"
 	"sync"
 
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/test"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/test/protocol"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/test"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/test/protocol"
 	"github.com/micromdm/plist"
 )
 

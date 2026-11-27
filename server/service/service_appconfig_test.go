@@ -6,10 +6,10 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -37,20 +37,20 @@ func TestCreateAppConfig(t *testing.T) {
 	ds := new(mock.Store)
 	svc, ctx := newTestService(t, ds, nil, nil)
 
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
 	}
 
 	appConfigTests := []struct {
-		configPayload fleet.AppConfig
+		configPayload automdm.AppConfig
 	}{
 		{
-			configPayload: fleet.AppConfig{
-				OrgInfo: fleet.OrgInfo{
+			configPayload: automdm.AppConfig{
+				OrgInfo: automdm.OrgInfo{
 					OrgLogoURLDarkMode: "acme.co/images/logo.png",
 					OrgName:            "Acme",
 				},
-				ServerSettings: fleet.ServerSettings{
+				ServerSettings: automdm.ServerSettings{
 					ServerURL:         "https://acme.co:8080/",
 					LiveQueryDisabled: true,
 				},
@@ -59,14 +59,14 @@ func TestCreateAppConfig(t *testing.T) {
 	}
 
 	for _, tt := range appConfigTests {
-		var result *fleet.AppConfig
-		ds.NewAppConfigFunc = func(ctx context.Context, config *fleet.AppConfig) (*fleet.AppConfig, error) {
+		var result *automdm.AppConfig
+		ds.NewAppConfigFunc = func(ctx context.Context, config *automdm.AppConfig) (*automdm.AppConfig, error) {
 			result = config
 			return config, nil
 		}
 
-		var gotSecrets []*fleet.EnrollSecret
-		ds.ApplyEnrollSecretsFunc = func(ctx context.Context, teamID *uint, secrets []*fleet.EnrollSecret) error {
+		var gotSecrets []*automdm.EnrollSecret
+		ds.ApplyEnrollSecretsFunc = func(ctx context.Context, teamID *uint, secrets []*automdm.EnrollSecret) error {
 			gotSecrets = secrets
 			return nil
 		}
@@ -93,38 +93,38 @@ func TestEmptyEnrollSecret(t *testing.T) {
 	ds := new(mock.Store)
 	svc, ctx := newTestService(t, ds, nil, nil)
 
-	ds.ApplyEnrollSecretsFunc = func(ctx context.Context, teamID *uint, secrets []*fleet.EnrollSecret) error {
+	ds.ApplyEnrollSecretsFunc = func(ctx context.Context, teamID *uint, secrets []*automdm.EnrollSecret) error {
 		return nil
 	}
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
 	}
-	ds.GetEnrollSecretsFunc = func(ctx context.Context, teamID *uint) ([]*fleet.EnrollSecret, error) {
+	ds.GetEnrollSecretsFunc = func(ctx context.Context, teamID *uint) ([]*automdm.EnrollSecret, error) {
 		return nil, nil
 	}
 
 	err := svc.ApplyEnrollSecretSpec(
 		test.UserContext(ctx, test.UserAdmin),
-		&fleet.EnrollSecretSpec{
-			Secrets: []*fleet.EnrollSecret{{}},
+		&automdm.EnrollSecretSpec{
+			Secrets: []*automdm.EnrollSecret{{}},
 		},
-		fleet.ApplySpecOptions{},
+		automdm.ApplySpecOptions{},
 	)
 	require.Error(t, err)
 
 	err = svc.ApplyEnrollSecretSpec(
 		test.UserContext(ctx, test.UserAdmin),
-		&fleet.EnrollSecretSpec{Secrets: []*fleet.EnrollSecret{{Secret: ""}}},
-		fleet.ApplySpecOptions{},
+		&automdm.EnrollSecretSpec{Secrets: []*automdm.EnrollSecret{{Secret: ""}}},
+		automdm.ApplySpecOptions{},
 	)
 	require.Error(t, err, "empty secret should be disallowed")
 
 	err = svc.ApplyEnrollSecretSpec(
 		test.UserContext(ctx, test.UserAdmin),
-		&fleet.EnrollSecretSpec{
-			Secrets: []*fleet.EnrollSecret{{Secret: "foo"}},
+		&automdm.EnrollSecretSpec{
+			Secrets: []*automdm.EnrollSecret{{Secret: "foo"}},
 		},
-		fleet.ApplySpecOptions{},
+		automdm.ApplySpecOptions{},
 	)
 	require.NoError(t, err)
 }
@@ -135,7 +135,7 @@ func TestService_LoggingConfig(t *testing.T) {
 		logFile = "NUL"
 	}
 
-	fileSystemConfig := fleet.FilesystemConfig{FilesystemConfig: config.FilesystemConfig{
+	fileSystemConfig := automdm.FilesystemConfig{FilesystemConfig: config.FilesystemConfig{
 		StatusLogFile:        logFile,
 		ResultLogFile:        logFile,
 		AuditLogFile:         logFile,
@@ -144,28 +144,28 @@ func TestService_LoggingConfig(t *testing.T) {
 		MaxSize:              500,
 	}}
 
-	firehoseConfig := fleet.FirehoseConfig{
+	firehoseConfig := automdm.FirehoseConfig{
 		Region:       testFirehosePluginConfig().Firehose.Region,
 		StatusStream: testFirehosePluginConfig().Firehose.StatusStream,
 		ResultStream: testFirehosePluginConfig().Firehose.ResultStream,
 		AuditStream:  testFirehosePluginConfig().Firehose.AuditStream,
 	}
 
-	kinesisConfig := fleet.KinesisConfig{
+	kinesisConfig := automdm.KinesisConfig{
 		Region:       testKinesisPluginConfig().Kinesis.Region,
 		StatusStream: testKinesisPluginConfig().Kinesis.StatusStream,
 		ResultStream: testKinesisPluginConfig().Kinesis.ResultStream,
 		AuditStream:  testKinesisPluginConfig().Kinesis.AuditStream,
 	}
 
-	lambdaConfig := fleet.LambdaConfig{
+	lambdaConfig := automdm.LambdaConfig{
 		Region:         testLambdaPluginConfig().Lambda.Region,
 		StatusFunction: testLambdaPluginConfig().Lambda.StatusFunction,
 		ResultFunction: testLambdaPluginConfig().Lambda.ResultFunction,
 		AuditFunction:  testLambdaPluginConfig().Lambda.AuditFunction,
 	}
 
-	pubsubConfig := fleet.PubSubConfig{
+	pubsubConfig := automdm.PubSubConfig{
 		PubSubConfig: config.PubSubConfig{
 			Project:       testPubSubPluginConfig().PubSub.Project,
 			StatusTopic:   testPubSubPluginConfig().PubSub.StatusTopic,
@@ -176,7 +176,7 @@ func TestService_LoggingConfig(t *testing.T) {
 	}
 
 	type fields struct {
-		config config.FleetConfig
+		config config.AutoMDMConfig
 	}
 	type args struct {
 		ctx context.Context
@@ -185,25 +185,25 @@ func TestService_LoggingConfig(t *testing.T) {
 		name    string
 		fields  fields
 		args    args
-		want    *fleet.Logging
+		want    *automdm.Logging
 		wantErr bool
 	}{
 		{
 			name:   "test default test config (aka filesystem)",
 			fields: fields{config: config.TestConfig()},
 			args:   args{ctx: test.UserContext(context.Background(), test.UserAdmin)},
-			want: &fleet.Logging{
+			want: &automdm.Logging{
 				Debug: true,
 				Json:  false,
-				Result: fleet.LoggingPlugin{
+				Result: automdm.LoggingPlugin{
 					Plugin: "filesystem",
 					Config: fileSystemConfig,
 				},
-				Status: fleet.LoggingPlugin{
+				Status: automdm.LoggingPlugin{
 					Plugin: "filesystem",
 					Config: fileSystemConfig,
 				},
-				Audit: fleet.LoggingPlugin{
+				Audit: automdm.LoggingPlugin{
 					Plugin: "filesystem",
 					Config: fileSystemConfig,
 				},
@@ -213,18 +213,18 @@ func TestService_LoggingConfig(t *testing.T) {
 			name:   "test firehose config",
 			fields: fields{config: testFirehosePluginConfig()},
 			args:   args{ctx: test.UserContext(context.Background(), test.UserAdmin)},
-			want: &fleet.Logging{
+			want: &automdm.Logging{
 				Debug: true,
 				Json:  false,
-				Result: fleet.LoggingPlugin{
+				Result: automdm.LoggingPlugin{
 					Plugin: "firehose",
 					Config: firehoseConfig,
 				},
-				Status: fleet.LoggingPlugin{
+				Status: automdm.LoggingPlugin{
 					Plugin: "firehose",
 					Config: firehoseConfig,
 				},
-				Audit: fleet.LoggingPlugin{
+				Audit: automdm.LoggingPlugin{
 					Plugin: "firehose",
 					Config: firehoseConfig,
 				},
@@ -234,18 +234,18 @@ func TestService_LoggingConfig(t *testing.T) {
 			name:   "test kinesis config",
 			fields: fields{config: testKinesisPluginConfig()},
 			args:   args{ctx: test.UserContext(context.Background(), test.UserAdmin)},
-			want: &fleet.Logging{
+			want: &automdm.Logging{
 				Debug: true,
 				Json:  false,
-				Result: fleet.LoggingPlugin{
+				Result: automdm.LoggingPlugin{
 					Plugin: "kinesis",
 					Config: kinesisConfig,
 				},
-				Status: fleet.LoggingPlugin{
+				Status: automdm.LoggingPlugin{
 					Plugin: "kinesis",
 					Config: kinesisConfig,
 				},
-				Audit: fleet.LoggingPlugin{
+				Audit: automdm.LoggingPlugin{
 					Plugin: "kinesis",
 					Config: kinesisConfig,
 				},
@@ -255,18 +255,18 @@ func TestService_LoggingConfig(t *testing.T) {
 			name:   "test lambda config",
 			fields: fields{config: testLambdaPluginConfig()},
 			args:   args{ctx: test.UserContext(context.Background(), test.UserAdmin)},
-			want: &fleet.Logging{
+			want: &automdm.Logging{
 				Debug: true,
 				Json:  false,
-				Result: fleet.LoggingPlugin{
+				Result: automdm.LoggingPlugin{
 					Plugin: "lambda",
 					Config: lambdaConfig,
 				},
-				Status: fleet.LoggingPlugin{
+				Status: automdm.LoggingPlugin{
 					Plugin: "lambda",
 					Config: lambdaConfig,
 				},
-				Audit: fleet.LoggingPlugin{
+				Audit: automdm.LoggingPlugin{
 					Plugin: "lambda",
 					Config: lambdaConfig,
 				},
@@ -276,18 +276,18 @@ func TestService_LoggingConfig(t *testing.T) {
 			name:   "test pubsub config",
 			fields: fields{config: testPubSubPluginConfig()},
 			args:   args{ctx: test.UserContext(context.Background(), test.UserAdmin)},
-			want: &fleet.Logging{
+			want: &automdm.Logging{
 				Debug: true,
 				Json:  false,
-				Result: fleet.LoggingPlugin{
+				Result: automdm.LoggingPlugin{
 					Plugin: "pubsub",
 					Config: pubsubConfig,
 				},
-				Status: fleet.LoggingPlugin{
+				Status: automdm.LoggingPlugin{
 					Plugin: "pubsub",
 					Config: pubsubConfig,
 				},
-				Audit: fleet.LoggingPlugin{
+				Audit: automdm.LoggingPlugin{
 					Plugin: "pubsub",
 					Config: pubsubConfig,
 				},
@@ -297,18 +297,18 @@ func TestService_LoggingConfig(t *testing.T) {
 			name:   "test stdout config",
 			fields: fields{config: testStdoutPluginConfig()},
 			args:   args{ctx: test.UserContext(context.Background(), test.UserAdmin)},
-			want: &fleet.Logging{
+			want: &automdm.Logging{
 				Debug: true,
 				Json:  false,
-				Result: fleet.LoggingPlugin{
+				Result: automdm.LoggingPlugin{
 					Plugin: "stdout",
 					Config: nil,
 				},
-				Status: fleet.LoggingPlugin{
+				Status: automdm.LoggingPlugin{
 					Plugin: "stdout",
 					Config: nil,
 				},
-				Audit: fleet.LoggingPlugin{
+				Audit: automdm.LoggingPlugin{
 					Plugin: "stdout",
 					Config: nil,
 				},
@@ -342,40 +342,40 @@ func TestModifyAppConfigPatches(t *testing.T) {
 	ds := new(mock.Store)
 	svc, ctx := newTestService(t, ds, nil, nil)
 
-	storedConfig := &fleet.AppConfig{OrgInfo: fleet.OrgInfo{OrgName: "FleetTest"}, ServerSettings: fleet.ServerSettings{ServerURL: "https://example.org"}}
+	storedConfig := &automdm.AppConfig{OrgInfo: automdm.OrgInfo{OrgName: "AutoMDMTest"}, ServerSettings: automdm.ServerSettings{ServerURL: "https://example.org"}}
 
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
 		return storedConfig, nil
 	}
 
-	ds.SaveAppConfigFunc = func(ctx context.Context, info *fleet.AppConfig) error {
+	ds.SaveAppConfigFunc = func(ctx context.Context, info *automdm.AppConfig) error {
 		storedConfig = info
 		return nil
 	}
 
-	ds.SaveABMTokenFunc = func(ctx context.Context, tok *fleet.ABMToken) error {
+	ds.SaveABMTokenFunc = func(ctx context.Context, tok *automdm.ABMToken) error {
 		return nil
 	}
 
-	ds.ListVPPTokensFunc = func(ctx context.Context) ([]*fleet.VPPTokenDB, error) {
-		return []*fleet.VPPTokenDB{}, nil
+	ds.ListVPPTokensFunc = func(ctx context.Context) ([]*automdm.VPPTokenDB, error) {
+		return []*automdm.VPPTokenDB{}, nil
 	}
 
-	ds.ListABMTokensFunc = func(ctx context.Context) ([]*fleet.ABMToken, error) {
-		return []*fleet.ABMToken{}, nil
+	ds.ListABMTokensFunc = func(ctx context.Context) ([]*automdm.ABMToken, error) {
+		return []*automdm.ABMToken{}, nil
 	}
 
 	configJSON := []byte(`{"org_info": { "org_name": "Acme", "org_logo_url_dark_mode": "somelogo.jpg" }}`)
 
 	ctx = test.UserContext(ctx, test.UserAdmin)
-	_, err := svc.ModifyAppConfig(ctx, configJSON, fleet.ApplySpecOptions{})
+	_, err := svc.ModifyAppConfig(ctx, configJSON, automdm.ApplySpecOptions{})
 	require.NoError(t, err)
 
 	assert.Equal(t, "Acme", storedConfig.OrgInfo.OrgName)
 
 	configJSON = []byte(`{"server_settings": { "server_url": "http://someurl" }}`)
 
-	_, err = svc.ModifyAppConfig(ctx, configJSON, fleet.ApplySpecOptions{})
+	_, err = svc.ModifyAppConfig(ctx, configJSON, automdm.ApplySpecOptions{})
 	require.NoError(t, err)
 
 	assert.Equal(t, "Acme", storedConfig.OrgInfo.OrgName)
@@ -384,7 +384,7 @@ func TestModifyAppConfigPatches(t *testing.T) {
 
 func TestService_EmailConfig(t *testing.T) {
 	type fields struct {
-		config config.FleetConfig
+		config config.AutoMDMConfig
 	}
 	type args struct {
 		ctx context.Context
@@ -393,7 +393,7 @@ func TestService_EmailConfig(t *testing.T) {
 		name    string
 		fields  fields
 		args    args
-		want    *fleet.EmailConfig
+		want    *automdm.EmailConfig
 		wantErr assert.ErrorAssertionFunc
 	}{
 		{
@@ -404,9 +404,9 @@ func TestService_EmailConfig(t *testing.T) {
 			args: args{
 				ctx: test.UserContext(context.Background(), test.UserAdmin),
 			},
-			want: &fleet.EmailConfig{
+			want: &automdm.EmailConfig{
 				Backend: "ses",
-				Config: fleet.SESConfig{
+				Config: automdm.SESConfig{
 					Region:       "us-east-1",
 					SourceARN:    "qux",
 					SenderDomain: "email.example.com",

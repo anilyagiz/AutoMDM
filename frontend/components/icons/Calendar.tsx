@@ -9,7 +9,7 @@ interface ICalendarProps {
 }
 
 const Calendar = ({
-  color = "ui-fleet-black-75",
+  color = "ui-automdm-black-75",
   size = "medium",
 }: ICalendarProps) => {
   return (

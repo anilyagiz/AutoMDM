@@ -6,7 +6,7 @@ import Button from "components/buttons/Button";
 import Card from "components/Card";
 import CardHeader from "components/CardHeader";
 import DataSet from "components/DataSet";
-import { HumanTimeDiffWithFleetLaunchCutoff } from "components/HumanTimeDiffWithDateTip";
+import { HumanTimeDiffWithTeamLaunchCutoff } from "components/HumanTimeDiffWithDateTip";
 import Icon from "components/Icon/Icon";
 import TooltipTruncatedText from "components/TooltipTruncatedText";
 import TooltipWrapper from "components/TooltipWrapper";
@@ -31,7 +31,7 @@ import { getHardwareModelDisplay } from "pages/hosts/helpers";
 import { DEFAULT_EMPTY_CELL_VALUE, BATTERY_TOOLTIP } from "utilities/constants";
 import {
   humanHostMemory,
-  wrapFleetHelper,
+  wrapAutoMDMHelper,
   getHostOSDisplayName,
   compareVersions,
   internationalTimeFormat,
@@ -51,7 +51,7 @@ export interface IHostVitalsSources {
   munki?: IMunkiData | null;
   mdm?: IHostMdmData;
   /** The OS version the host is required to reach, resolved per host by the
-   * server. "Pending" while Fleet is still working it out for a "latest"
+   * server. "Pending" while AutoMDM is still working it out for a "latest"
    * requirement, and undefined when OS updates aren't configured. */
   osUpdateMinimumVersion?: string | null;
   /** The deadline for osUpdateMinimumVersion, following the same states. */
@@ -109,7 +109,7 @@ const getGridColumnCount = (grid: HTMLElement | null) => {
 
 const baseClass = "vitals-card";
 
-/** What the API sends for a host's OS update target while Fleet is still
+/** What the API sends for a host's OS update target while AutoMDM is still
  * resolving a "latest" requirement. Shown to the user as-is, per the design. */
 const OS_UPDATE_REQUIREMENT_PENDING = "Pending";
 
@@ -136,7 +136,7 @@ const getHostDiskEncryptionTooltipMessage = (
   diskEncryptionEnabled = false
 ) => {
   if (platform === "chrome") {
-    return "Fleet does not check for disk encryption on Chromebooks, as they are encrypted by default.";
+    return "AutoMDM does not check for disk encryption on Chromebooks, as they are encrypted by default.";
   }
 
   if (
@@ -192,13 +192,13 @@ export const buildHostVitals = ({
   const vitals: VitalForSort[] = [];
 
   vitals.push({
-    sortKey: "Added to Fleet",
+    sortKey: "Added to AutoMDM",
     element: (
       <DataSet
-        key="added-to-fleet"
-        title="Added to Fleet"
+        key="added-to-automdm"
+        title="Added to AutoMDM"
         value={
-          <HumanTimeDiffWithFleetLaunchCutoff
+          <HumanTimeDiffWithTeamLaunchCutoff
             timeString={vitalsData.last_enrolled_at ?? "Unavailable"}
           />
         }
@@ -211,7 +211,7 @@ export const buildHostVitals = ({
     const {
       orbit_version,
       osquery_version,
-      fleet_desktop_version,
+      automdm_desktop_version,
     } = vitalsData;
 
     const isChromeOrVanillaOsqueryHost =
@@ -233,10 +233,10 @@ export const buildHostVitals = ({
                     osquery: {osquery_version}
                     <br />
                     Orbit: {orbit_version}
-                    {fleet_desktop_version !== DEFAULT_EMPTY_CELL_VALUE && (
+                    {automdm_desktop_version !== DEFAULT_EMPTY_CELL_VALUE && (
                       <>
                         <br />
-                        Fleet Desktop: {fleet_desktop_version}
+                        AutoMDM Desktop: {automdm_desktop_version}
                       </>
                     )}
                   </>
@@ -455,7 +455,7 @@ export const buildHostVitals = ({
           key="last-restarted"
           title="Last restarted"
           value={
-            <HumanTimeDiffWithFleetLaunchCutoff
+            <HumanTimeDiffWithTeamLaunchCutoff
               timeString={vitalsData.last_restarted_at}
               tooltipPosition="bottom"
             />
@@ -567,7 +567,7 @@ export const buildHostVitals = ({
         <DataSet
           key="memory"
           title="Memory"
-          value={wrapFleetHelper(humanHostMemory, vitalsData.memory)}
+          value={wrapAutoMDMHelper(humanHostMemory, vitalsData.memory)}
         />
       ),
     });
@@ -653,7 +653,7 @@ export const buildHostVitals = ({
           value={
             <span className={`${baseClass}__os-version`}>
               {!osVersionRequirementMet && (
-                <Icon name="error" color="ui-fleet-black-75" />
+                <Icon name="error" color="ui-automdm-black-75" />
               )}
               <TooltipWrapper
                 className={`${baseClass}__ellipsis-tooltip`}
@@ -695,7 +695,7 @@ export const buildHostVitals = ({
         <DataSet
           key="public-ip-address"
           title={
-            <TooltipWrapper tipContent="The IP address the host uses to connect to Fleet.">
+            <TooltipWrapper tipContent="The IP address the host uses to connect to AutoMDM.">
               Public IP address
             </TooltipWrapper>
           }

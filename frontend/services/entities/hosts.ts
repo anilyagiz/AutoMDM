@@ -107,10 +107,10 @@ export const HOSTS_QUERY_PARAMS = {
   SCRIPT_BATCH_EXECUTION_ID: "script_batch_execution_id",
 } as const;
 
-// Host filters that only apply within one fleet or "No fleet": without a fleet
-// the API narrows them to "No fleet" (or rejects software_status), so they're
-// cleared on any switch to All fleets.
-export const FLEET_SCOPED_HOST_FILTER_PARAMS = [
+// Host filters that only apply within one team or "No team": without a team
+// the API narrows them to "No team" (or rejects software_status), so they're
+// cleared on any switch to All teams.
+export const TEAM_SCOPED_HOST_FILTER_PARAMS = [
   HOSTS_QUERY_PARAMS.OS_SETTINGS,
   "apple_settings",
   HOSTS_QUERY_PARAMS.DISK_ENCRYPTION,
@@ -357,10 +357,10 @@ const getSortParams = (sortOptions?: ISortOption[]) => {
 
 const createMdmParams = (platform?: PlatformValueOptions, teamId?: number) => {
   if (platform === "all") {
-    return buildQueryStringFromParams({ fleet_id: teamId });
+    return buildQueryStringFromParams({ team_id: teamId });
   }
 
-  return buildQueryStringFromParams({ platform, fleet_id: teamId });
+  return buildQueryStringFromParams({ platform, team_id: teamId });
 };
 
 export default {
@@ -404,7 +404,7 @@ export default {
         query: query || undefined, // Prevents empty string passed to API which as of 4.47 will return an error
         status,
         label_id: labelId,
-        fleet_id: teamId,
+        team_id: teamId,
         policy_id: policyId,
         policy_response: policyResponse,
         software_title_id: softwareTitleId,
@@ -634,7 +634,7 @@ export default {
     const { HOSTS_TRANSFER } = endpoints;
 
     return sendRequest("POST", HOSTS_TRANSFER, {
-      fleet_id: teamId,
+      team_id: teamId,
       hosts: hostIds,
     });
   },
@@ -668,12 +668,12 @@ export default {
   }: IActionByFilter) => {
     const { HOSTS_TRANSFER_BY_FILTER } = endpoints;
     return sendRequest("POST", HOSTS_TRANSFER_BY_FILTER, {
-      fleet_id: teamId,
+      team_id: teamId,
       filters: {
         query: query || undefined, // Prevents empty string passed to API which as of 4.47 will return an error
         status,
         label_id: labelId,
-        fleet_id: currentTeam,
+        team_id: currentTeam,
         policy_id: policyId,
         policy_response: policyResponse,
         software_title_id: softwareTitleId,

@@ -30,26 +30,26 @@ jobs:
         id: date
         run: echo "::set-output name=date::$(date +'%y%m%d%H%M')"
 
-      - name: Checkout Fleet
+      - name: Checkout AutoMDM
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          repository: fleetdm/fleet
+          repository: automdm/automdm
           fetch-depth: 1
           ref: ${{ github.head_ref }}
-          path: fleet
+          path: automdm
           persist-credentials: false
 
       - name: Setup Go
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           cache: false
-          go-version-file: 'fleet/go.mod'
+          go-version-file: 'automdm/go.mod'
 
       - name: Ingest maintained apps
         env:
-          NETWORK_TEST_GITHUB_TOKEN: ${{ secrets.FLEET_RELEASE_GITHUB_PAT }}
+          NETWORK_TEST_GITHUB_TOKEN: ${{ secrets.AUTOMDM_RELEASE_GITHUB_PAT }}
         run: |
-          cd fleet
+          cd automdm
           go mod download
           go run cmd/maintained-apps/main.go
 
@@ -64,7 +64,7 @@ jobs:
               state: 'open',
               per_page: 100
             });
-            return pullRequests.filter(pr => pr.title.includes('Update Fleet-maintained apps') && pr.user.login === 'fleet-release').map(pr => pr.number);
+            return pullRequests.filter(pr => pr.title.includes('Update AutoMDM-maintained apps') && pr.user.login === 'automdm-release').map(pr => pr.number);
 
       - name: Log Info
         run: |
@@ -74,17 +74,17 @@ jobs:
         id: create-pr
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
-          token: ${{ secrets.FLEET_RELEASE_GITHUB_PAT }}
+          token: ${{ secrets.AUTOMDM_RELEASE_GITHUB_PAT }}
           base: main
-          path: fleet
+          path: automdm
           branch: fma-${{ steps.date.outputs.date }}
           delete-branch: true
-          title: "Update Fleet-maintained apps"
+          title: "Update AutoMDM-maintained apps"
           commit-message: |
-            Update Fleet-maintained apps.
+            Update AutoMDM-maintained apps.
 
             Generated automatically with cmd/maintained-apps.
-          body: Automated ingestion of latest Fleet-maintained app data.
+          body: Automated ingestion of latest AutoMDM-maintained app data.
           reviewers: allenhouchins
 
       - name: Close Existing PRs

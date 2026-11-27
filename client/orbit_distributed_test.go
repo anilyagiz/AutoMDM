@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -29,8 +29,8 @@ func TestDistributedReadWrite(t *testing.T) {
 			assert.NoError(t, json.NewDecoder(r.Body).Decode(&req))
 			assert.Equal(t, "orbit-key", req.NodeKey)
 			assert.NoError(t, json.NewEncoder(w).Encode(DistributedReadResponse{
-				Queries:    map[string]string{"fleet_distributed_query_1": "SELECT 1"},
-				Discovery:  map[string]string{"fleet_distributed_query_1": "SELECT 1"},
+				Queries:    map[string]string{"automdm_distributed_query_1": "SELECT 1"},
+				Discovery:  map[string]string{"automdm_distributed_query_1": "SELECT 1"},
 				Accelerate: 10,
 			}))
 		case "/api/osquery/distributed/write":
@@ -46,21 +46,21 @@ func TestDistributedReadWrite(t *testing.T) {
 
 	read, err := oc.DistributedRead()
 	require.NoError(t, err)
-	assert.Equal(t, map[string]string{"fleet_distributed_query_1": "SELECT 1"}, read.Queries)
+	assert.Equal(t, map[string]string{"automdm_distributed_query_1": "SELECT 1"}, read.Queries)
 	assert.Equal(t, uint(10), read.Accelerate)
 
 	err = oc.DistributedWrite(&DistributedWriteRequest{
-		Results: fleet.OsqueryDistributedQueryResults{
-			"fleet_distributed_query_1": {{"1": "1"}},
+		Results: automdm.OsqueryDistributedQueryResults{
+			"automdm_distributed_query_1": {{"1": "1"}},
 		},
-		Statuses: map[string]fleet.OsqueryStatus{"fleet_distributed_query_1": fleet.StatusOK},
+		Statuses: map[string]automdm.OsqueryStatus{"automdm_distributed_query_1": automdm.StatusOK},
 		Messages: map[string]string{},
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "orbit-key", gotWrite.NodeKey)
-	require.Contains(t, gotWrite.Results, "fleet_distributed_query_1")
-	assert.Equal(t, []map[string]string{{"1": "1"}}, gotWrite.Results["fleet_distributed_query_1"])
-	assert.Equal(t, fleet.StatusOK, gotWrite.Statuses["fleet_distributed_query_1"])
+	require.Contains(t, gotWrite.Results, "automdm_distributed_query_1")
+	assert.Equal(t, []map[string]string{{"1": "1"}}, gotWrite.Results["automdm_distributed_query_1"])
+	assert.Equal(t, automdm.StatusOK, gotWrite.Statuses["automdm_distributed_query_1"])
 }
 
 func TestOsqueryConfig(t *testing.T) {
@@ -76,7 +76,7 @@ func TestOsqueryConfig(t *testing.T) {
 		assert.Equal(t, "NodeKey orbit-key", r.Header.Get("Authorization"))
 		var body map[string]any
 		assert.NoError(t, json.NewDecoder(r.Body).Decode(&body))
-		got = append(got, gotRequest{body: body, fallbackChange: r.Header.Get(fleet.OsqueryConfigFallbackChangeHeader)})
+		got = append(got, gotRequest{body: body, fallbackChange: r.Header.Get(automdm.OsqueryConfigFallbackChangeHeader)})
 		_, _ = w.Write([]byte(`{"etag":"v1","options":{}}`))
 	}))
 	defer srv.Close()

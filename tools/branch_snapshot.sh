@@ -7,7 +7,7 @@ PREV_HEAD=$1
 CURR_HEAD=$2
 BRANCH_CHEKCOUT=$3
 
-DUMP_DIR="${HOME}/.fleet/snapshots/checkouts/"
+DUMP_DIR="${HOME}/.automdm/snapshots/checkouts/"
 BACKUP_TOOL="./tools/backup_db/backup.sh"
 RESTORE_TOOL="./tools/backup_db/restore.sh"
 

@@ -3,35 +3,35 @@ package service
 import (
 	"context"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
 // Search Targets
 ////////////////////////////////////////////////////////////////////////////////
 
-func searchTargetsEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.SearchTargetsRequest)
+func searchTargetsEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.SearchTargetsRequest)
 
 	results, err := svc.SearchTargets(ctx, req.MatchQuery, req.QueryID, req.Selected)
 	if err != nil {
-		return fleet.SearchTargetsResponse{Err: err}, nil
+		return automdm.SearchTargetsResponse{Err: err}, nil
 	}
 
-	targets := &fleet.TargetsData{
-		Hosts:  []*fleet.HostResponse{},
-		Labels: []fleet.LabelSearchResult{},
-		Teams:  []fleet.TeamSearchResult{},
+	targets := &automdm.TargetsData{
+		Hosts:  []*automdm.HostResponse{},
+		Labels: []automdm.LabelSearchResult{},
+		Teams:  []automdm.TeamSearchResult{},
 	}
 
 	for _, host := range results.Hosts {
-		targets.Hosts = append(targets.Hosts, fleet.HostResponseForHostCheap(host))
+		targets.Hosts = append(targets.Hosts, automdm.HostResponseForHostCheap(host))
 	}
 
 	for _, label := range results.Labels {
 		targets.Labels = append(targets.Labels,
-			fleet.LabelSearchResult{
+			automdm.LabelSearchResult{
 				Label:       label,
 				DisplayText: label.Name,
 				Count:       label.HostCount,
@@ -41,7 +41,7 @@ func searchTargetsEndpoint(ctx context.Context, request interface{}, svc fleet.S
 
 	for _, team := range results.Teams {
 		targets.Teams = append(targets.Teams,
-			fleet.TeamSearchResult{
+			automdm.TeamSearchResult{
 				Team:        team,
 				DisplayText: team.Name,
 				Count:       team.HostCount,
@@ -51,10 +51,10 @@ func searchTargetsEndpoint(ctx context.Context, request interface{}, svc fleet.S
 
 	metrics, err := svc.CountHostsInTargets(ctx, req.QueryID, req.Selected)
 	if err != nil {
-		return fleet.SearchTargetsResponse{Err: err}, nil
+		return automdm.SearchTargetsResponse{Err: err}, nil
 	}
 
-	return fleet.SearchTargetsResponse{
+	return automdm.SearchTargetsResponse{
 		Targets:                targets,
 		TargetsCount:           metrics.TotalHosts,
 		TargetsOnline:          metrics.OnlineHosts,
@@ -63,17 +63,17 @@ func searchTargetsEndpoint(ctx context.Context, request interface{}, svc fleet.S
 	}, nil
 }
 
-func (svc *Service) SearchTargets(ctx context.Context, matchQuery string, queryID *uint, targets fleet.HostTargets) (*fleet.TargetSearchResults, error) {
-	if err := svc.authz.Authorize(ctx, &fleet.Target{}, fleet.ActionRead); err != nil {
+func (svc *Service) SearchTargets(ctx context.Context, matchQuery string, queryID *uint, targets automdm.HostTargets) (*automdm.TargetSearchResults, error) {
+	if err := svc.authz.Authorize(ctx, &automdm.Target{}, automdm.ActionRead); err != nil {
 		return nil, err
 	}
 
 	vc, ok := viewer.FromContext(ctx)
 	if !ok {
-		return nil, fleet.ErrNoContext
+		return nil, automdm.ErrNoContext
 	}
 
-	filter := fleet.TeamFilter{User: vc.User}
+	filter := automdm.TeamFilter{User: vc.User}
 	if queryID != nil {
 		query, err := svc.ds.Query(ctx, *queryID)
 		if err != nil {
@@ -83,7 +83,7 @@ func (svc *Service) SearchTargets(ctx context.Context, matchQuery string, queryI
 		filter.ObserverTeamID = query.TeamID
 	}
 
-	results := &fleet.TargetSearchResults{}
+	results := &automdm.TargetSearchResults{}
 
 	hosts, err := svc.ds.SearchHosts(ctx, filter, matchQuery, true, targets.HostIDs...)
 	if err != nil {
@@ -115,17 +115,17 @@ func (svc *Service) SearchTargets(ctx context.Context, matchQuery string, queryI
 	return results, nil
 }
 
-func (svc *Service) CountHostsInTargets(ctx context.Context, queryID *uint, targets fleet.HostTargets) (*fleet.TargetMetrics, error) {
-	if err := svc.authz.Authorize(ctx, &fleet.Target{}, fleet.ActionRead); err != nil {
+func (svc *Service) CountHostsInTargets(ctx context.Context, queryID *uint, targets automdm.HostTargets) (*automdm.TargetMetrics, error) {
+	if err := svc.authz.Authorize(ctx, &automdm.Target{}, automdm.ActionRead); err != nil {
 		return nil, err
 	}
 
 	vc, ok := viewer.FromContext(ctx)
 	if !ok {
-		return nil, fleet.ErrNoContext
+		return nil, automdm.ErrNoContext
 	}
 
-	filter := fleet.TeamFilter{User: vc.User}
+	filter := automdm.TeamFilter{User: vc.User}
 	if queryID != nil {
 		query, err := svc.ds.Query(ctx, *queryID)
 		if err != nil {
@@ -143,15 +143,15 @@ func (svc *Service) CountHostsInTargets(ctx context.Context, queryID *uint, targ
 	return &metrics, nil
 }
 
-func countTargetsEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
-	req := request.(*fleet.CountTargetsRequest)
+func countTargetsEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
+	req := request.(*automdm.CountTargetsRequest)
 
 	counts, err := svc.CountHostsInTargets(ctx, req.QueryID, req.Selected)
 	if err != nil {
-		return fleet.CountTargetsResponse{Err: err}, nil
+		return automdm.CountTargetsResponse{Err: err}, nil
 	}
 
-	return fleet.CountTargetsResponse{
+	return automdm.CountTargetsResponse{
 		TargetsCount:   counts.TotalHosts,
 		TargetsOnline:  counts.OnlineHosts,
 		TargetsOffline: counts.OfflineHosts,

@@ -104,7 +104,7 @@ const appleOnly = {
 
 const MANUAL_LOCATION = {
   pathname: "/controls/os-settings/configuration-profiles/new/manual",
-  query: { fleet_id: 2 },
+  query: { team_id: 2 },
 };
 
 const renderGenerator = ({
@@ -137,7 +137,7 @@ const renderGenerator = ({
       teamName="Workstations"
       isPremiumTier={isPremiumTier}
       gitOpsModeEnabled={false}
-      listPath="/controls/os-settings/configuration-profiles?fleet_id=2"
+      listPath="/controls/os-settings/configuration-profiles?team_id=2"
       manualLocation={MANUAL_LOCATION}
       defaultPlatform={defaultPlatform}
     />
@@ -227,7 +227,7 @@ describe("AIProfileGenerator", () => {
     expect(screen.getByText("Apple (macOS, iOS, iPadOS)")).toBeInTheDocument();
   });
 
-  it("names the fleet the profile is added to", () => {
+  it("names the team the profile is added to", () => {
     renderGenerator();
     expect(screen.getByText("Workstations")).toBeInTheDocument();
   });
@@ -256,7 +256,7 @@ describe("AIProfileGenerator", () => {
     expect(autofillAPI.getConfigProfileContent).not.toHaveBeenCalled();
   });
 
-  it("sends both requests with the fleet, trimmed, and shows the progress", async () => {
+  it("sends both requests with the team, trimmed, and shows the progress", async () => {
     jest.useFakeTimers();
     renderGenerator();
     typeInstructions("  Turn off AirDrop  ");
@@ -272,7 +272,7 @@ describe("AIProfileGenerator", () => {
       expect.objectContaining({
         instructions: "Turn off AirDrop",
         platform: "apple",
-        fleetId: 2,
+        automdmId: 2,
       })
     );
     expect(screen.getByText("Reading request")).toBeInTheDocument();
@@ -295,12 +295,12 @@ describe("AIProfileGenerator", () => {
   it.each([
     ["Unassigned", { teamId: 0 }],
     ["Free", { isPremiumTier: false }],
-  ])("leaves the fleet out on %s", (_, options) => {
+  ])("leaves the team out on %s", (_, options) => {
     renderGenerator(options);
     typeInstructions("Turn off AirDrop");
     clickGenerate();
     expect(
-      jest.mocked(autofillAPI.getConfigProfileContent).mock.calls[0][0].fleetId
+      jest.mocked(autofillAPI.getConfigProfileContent).mock.calls[0][0].automdmId
     ).toBeUndefined();
   });
 
@@ -408,7 +408,7 @@ describe("AIProfileGenerator", () => {
       content.resolve({
         ...DECLARATION_RESPONSE,
         // a secret placeholder makes it unparseable JSON
-        content: `{"Type": "com.apple.configuration.passcode.settings", $FLEET_VAR_X}`,
+        content: `{"Type": "com.apple.configuration.passcode.settings", $AUTOMDM_VAR_X}`,
       })
     );
     await user.click(screen.getByRole("button", { name: "Add profile" }));
@@ -492,7 +492,7 @@ describe("AIProfileGenerator", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: /Learn more about OS settings/ })
-    ).toHaveAttribute("href", "https://fleetdm.com/os-settings");
+    ).toHaveAttribute("href", "https://automdm.com/os-settings");
     expect(screen.getByRole("textbox", { name: "Instructions" })).toHaveValue(
       "Turn off AirDrop"
     );
@@ -522,11 +522,11 @@ describe("AIProfileGenerator", () => {
     clickGenerate();
     await act(async () => content.reject(limitError("2505600")));
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "You have reached the 15 prompt limit. Try again in 29 days, or upgrade to Fleet Premium"
+      "You have reached the 15 prompt limit. Try again in 29 days, or upgrade to AutoMDM Premium"
     );
-    expect(screen.getByRole("link", { name: /Fleet Premium/ })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /AutoMDM Premium/ })).toHaveAttribute(
       "href",
-      "https://fleetdm.com/upgrade"
+      "https://automdm.com/upgrade"
     );
     // editing doesn't lift the limit
     typeInstructions("Turn off the camera");
@@ -574,7 +574,7 @@ describe("AIProfileGenerator", () => {
     ).toBeEnabled();
   });
 
-  it("goes to the manual view with the timeout banner when Fleet's AI call times out", async () => {
+  it("goes to the manual view with the timeout banner when AutoMDM's AI call times out", async () => {
     const { router } = renderGenerator();
     typeInstructions("Turn off AirDrop");
     clickGenerate();
@@ -714,7 +714,7 @@ describe("AIProfileGenerator", () => {
     ).toBe("Applies to hosts in custom targets for Workstations.");
   });
 
-  it("leaves Edit targets out while generating on Fleet Free", () => {
+  it("leaves Edit targets out while generating on AutoMDM Free", () => {
     renderGenerator({ isPremiumTier: false, teamId: 0 });
     typeInstructions("Turn off AirDrop");
     clickGenerate();

@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # AnyDesk.exe is both the installer and the app: --install takes the target
 # directory and registers the AnyDesk service, so it must run elevated.

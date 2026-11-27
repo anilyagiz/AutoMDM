@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
 	"github.com/stretchr/testify/require"
 )
 
@@ -58,7 +58,7 @@ func TestSignGCSPresignedURL(t *testing.T) {
 		require.NoError(t, err)
 
 		_, err = store.Sign(context.Background(), "abc123", 15*time.Minute)
-		require.ErrorIs(t, err, fleet.ErrNotConfigured)
+		require.ErrorIs(t, err, automdm.ErrNotConfigured)
 	})
 
 	t.Run("signed url with gcs iam auth is rejected", func(t *testing.T) {
@@ -97,7 +97,7 @@ func TestPresignPutGCS(t *testing.T) {
 	store, err := NewStagedUploadStore(cfg)
 	require.NoError(t, err)
 	_, err = store.PresignPut(t.Context(), "abc123", 42, time.Hour)
-	require.ErrorIs(t, err, fleet.ErrNotConfigured)
+	require.ErrorIs(t, err, automdm.ErrNotConfigured)
 
 	cfg.SoftwareInstallersSignedURL = true
 	store, err = NewStagedUploadStore(cfg)

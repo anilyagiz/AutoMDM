@@ -22,12 +22,12 @@ func TestDecodeWindowsProfile(t *testing.T) {
 	<Item>
 		<Meta><Format>chr</Format></Meta>
 		<Target><LocURI>./Device/Vendor/MSFT/Policy/Config/Chrome~Policy~googlechrome/HomepageLocation</LocURI></Target>
-		<Data><![CDATA[<enabled/><data id="HomepageLocation" value="https://fleetdm.com"/>]]></Data>
+		<Data><![CDATA[<enabled/><data id="HomepageLocation" value="https://automdm.com"/>]]></Data>
 	</Item>
 </Add>
 <Atomic>
 	<Exec>
-		<Item><Target><LocURI>./User/Vendor/MSFT/ClientCertificateInstall/SCEP/$FLEET_VAR_SCEP_WINDOWS_CERTIFICATE_ID/Install/Enroll</LocURI></Target></Item>
+		<Item><Target><LocURI>./User/Vendor/MSFT/ClientCertificateInstall/SCEP/$AUTOMDM_VAR_SCEP_WINDOWS_CERTIFICATE_ID/Install/Enroll</LocURI></Target></Item>
 	</Exec>
 	<Replace>
 		<Item>
@@ -48,8 +48,8 @@ func TestDecodeWindowsProfile(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []windowsItem{
 		{LocURI: "./Device/Vendor/MSFT/Policy/Config/DeviceLock/MinDevicePasswordLength", MetaFormat: "int", Data: new("8")},
-		{LocURI: "./Device/Vendor/MSFT/Policy/Config/Chrome~Policy~googlechrome/HomepageLocation", MetaFormat: "chr", Data: new(`<enabled/><data id="HomepageLocation" value="https://fleetdm.com"/>`)},
-		{LocURI: "./User/Vendor/MSFT/ClientCertificateInstall/SCEP/$FLEET_VAR_SCEP_WINDOWS_CERTIFICATE_ID/Install/Enroll"},
+		{LocURI: "./Device/Vendor/MSFT/Policy/Config/Chrome~Policy~googlechrome/HomepageLocation", MetaFormat: "chr", Data: new(`<enabled/><data id="HomepageLocation" value="https://automdm.com"/>`)},
+		{LocURI: "./User/Vendor/MSFT/ClientCertificateInstall/SCEP/$AUTOMDM_VAR_SCEP_WINDOWS_CERTIFICATE_ID/Install/Enroll"},
 		{LocURI: "./Vendor/MSFT/Firewall/MdmStore/PublicProfile/EnableFirewall", Data: new("")},
 		// The text leaves child elements out, so their raw markup is kept too.
 		{LocURI: "./Vendor/MSFT/Example/Xml", Data: new(""), DataXML: `<Rules><Rule id="1"/></Rules>`},
@@ -59,7 +59,7 @@ func TestDecodeWindowsProfile(t *testing.T) {
 
 func TestDecodeWindowsProfileEdges(t *testing.T) {
 	// A body that's only a secret placeholder expands at apply time; it has nothing to check.
-	items, err := decodeWindowsProfile([]byte(`$FLEET_SECRET_WINDOWS_PROFILE`))
+	items, err := decodeWindowsProfile([]byte(`$AUTOMDM_SECRET_WINDOWS_PROFILE`))
 	require.NoError(t, err)
 	assert.Empty(t, items)
 
@@ -131,14 +131,14 @@ func TestWindowsDataAccepts(t *testing.T) {
 		{name: "list with chr accepts int", formats: f(WindowsFormatInt, WindowsFormatChr), data: "5", want: true},
 		{name: "list of checked formats", formats: f(WindowsFormatInt, WindowsFormatBool), data: "abc"},
 
-		{name: "variable in chr", formats: f(WindowsFormatChr), data: "$FLEET_VAR_HOST_END_USER_IDP_USERNAME", want: true},
-		{name: "variable in xml", formats: f(WindowsFormatXML), data: "<a>$FLEET_VAR_HOST_UUID</a>", want: true},
-		{name: "variable in int", formats: f(WindowsFormatInt), data: "$FLEET_VAR_HOST_END_USER_IDP_USERNAME"},
-		{name: "variable in bool", formats: f(WindowsFormatBool), data: "${FLEET_VAR_HOST_UUID}"},
-		{name: "variable in b64", formats: f(WindowsFormatB64), data: "$FLEET_VAR_HOST_UUID"},
-		{name: "secret in int", formats: f(WindowsFormatInt), data: "$FLEET_SECRET_TIMEOUT", want: true},
-		{name: "secret in b64", formats: f(WindowsFormatB64), data: "${FLEET_SECRET_CERT}", want: true},
-		{name: "secret in raw child xml", formats: f(WindowsFormatXML), dataXML: "<a/>$FLEET_SECRET_RULES", want: true},
+		{name: "variable in chr", formats: f(WindowsFormatChr), data: "$AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME", want: true},
+		{name: "variable in xml", formats: f(WindowsFormatXML), data: "<a>$AUTOMDM_VAR_HOST_UUID</a>", want: true},
+		{name: "variable in int", formats: f(WindowsFormatInt), data: "$AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME"},
+		{name: "variable in bool", formats: f(WindowsFormatBool), data: "${AUTOMDM_VAR_HOST_UUID}"},
+		{name: "variable in b64", formats: f(WindowsFormatB64), data: "$AUTOMDM_VAR_HOST_UUID"},
+		{name: "secret in int", formats: f(WindowsFormatInt), data: "$AUTOMDM_SECRET_TIMEOUT", want: true},
+		{name: "secret in b64", formats: f(WindowsFormatB64), data: "${AUTOMDM_SECRET_CERT}", want: true},
+		{name: "secret in raw child xml", formats: f(WindowsFormatXML), dataXML: "<a/>$AUTOMDM_SECRET_RULES", want: true},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -166,7 +166,7 @@ func TestResolveWindowsNode(t *testing.T) {
 		{name: "bare firewall", locURI: "./Vendor/MSFT/Firewall/MdmStore/PublicProfile/EnableFirewall", want: node("./Vendor/MSFT/Firewall/MdmStore/PublicProfile/EnableFirewall")},
 		{name: "device firewall", locURI: "./Device/Vendor/MSFT/Firewall/MdmStore/PublicProfile/EnableFirewall", want: node("./Vendor/MSFT/Firewall/MdmStore/PublicProfile/EnableFirewall")},
 		{name: "firewall rule name", locURI: "./Vendor/MSFT/Firewall/MdmStore/FirewallRules/Block Telnet/Action/Type", want: node("./Vendor/MSFT/Firewall/MdmStore/FirewallRules/*/Action/Type")},
-		{name: "variable in dynamic segment", locURI: "./User/Vendor/MSFT/ClientCertificateInstall/SCEP/$FLEET_VAR_SCEP_WINDOWS_CERTIFICATE_ID/Install/Enroll", want: node("./User/Vendor/MSFT/ClientCertificateInstall/SCEP/*/Install/Enroll")},
+		{name: "variable in dynamic segment", locURI: "./User/Vendor/MSFT/ClientCertificateInstall/SCEP/$AUTOMDM_VAR_SCEP_WINDOWS_CERTIFICATE_ID/Install/Enroll", want: node("./User/Vendor/MSFT/ClientCertificateInstall/SCEP/*/Install/Enroll")},
 		{name: "lowercase", locURI: "./device/vendor/msft/policy/config/devicelock/maxinactivitytimedevicelock", want: node("./Device/Vendor/MSFT/Policy/Config/DeviceLock/MaxInactivityTimeDeviceLock")},
 		{name: "bare policy", locURI: "./Vendor/MSFT/Policy/Config/DeviceLock/MaxInactivityTimeDeviceLock", want: node("./Device/Vendor/MSFT/Policy/Config/DeviceLock/MaxInactivityTimeDeviceLock")},
 		{name: "user path for device-only policy", locURI: "./User/Vendor/MSFT/Policy/Config/DeviceLock/MaxInactivityTimeDeviceLock", want: node("./Device/Vendor/MSFT/Policy/Config/DeviceLock/MaxInactivityTimeDeviceLock"), wrongScope: true},
@@ -308,18 +308,18 @@ func TestValidateWindowsProfile(t *testing.T) {
 			profile: syncMLItem("./Device/Vendor/MSFT/Policy/ConfigOperations/ADMXInstall/GoogleChrome/Policy/GoogleChromeAdmx", "chr",
 				`<![CDATA[<policyDefinitions revision="1.0" schemaVersion="1.0"></policyDefinitions>]]>`) +
 				syncMLItem("./Device/Vendor/MSFT/Policy/Config/GoogleChrome~Policy~googlechrome~Startup/HomepageLocation", "chr",
-					`<![CDATA[<enabled/><data id="HomepageLocation" value="https://fleetdm.com"/>]]>`),
+					`<![CDATA[<enabled/><data id="HomepageLocation" value="https://automdm.com"/>]]>`),
 		},
-		{name: "variable in chr", profile: syncMLItem(emailSync, "chr", "$FLEET_VAR_HOST_END_USER_IDP_USERNAME")},
+		{name: "variable in chr", profile: syncMLItem(emailSync, "chr", "$AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME")},
 		{
 			name:    "variable in int",
-			profile: syncMLItem(minLength, "int", "$FLEET_VAR_HOST_END_USER_IDP_USERNAME"),
+			profile: syncMLItem(minLength, "int", "$AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME"),
 			lenient: []Finding{typeMismatch("DeviceLock", minLength, "int")},
 			strict:  []Finding{typeMismatch("DeviceLock", minLength, "int")},
 		},
-		{name: "secret in int", profile: syncMLItem(minLength, "int", "$FLEET_SECRET_MIN_LENGTH")},
-		{name: "variable in dynamic segment", profile: syncMLItem("./User/Vendor/MSFT/ClientCertificateInstall/SCEP/$FLEET_VAR_SCEP_WINDOWS_CERTIFICATE_ID/Install/KeyLength", "int", "2048")},
-		{name: "secret-only body", profile: "$FLEET_SECRET_WINDOWS_PROFILE"},
+		{name: "secret in int", profile: syncMLItem(minLength, "int", "$AUTOMDM_SECRET_MIN_LENGTH")},
+		{name: "variable in dynamic segment", profile: syncMLItem("./User/Vendor/MSFT/ClientCertificateInstall/SCEP/$AUTOMDM_VAR_SCEP_WINDOWS_CERTIFICATE_ID/Install/KeyLength", "int", "2048")},
+		{name: "secret-only body", profile: "$AUTOMDM_SECRET_WINDOWS_PROFILE"},
 		{
 			name:    "empty int",
 			profile: syncMLItem(minLength, "int", "") + "<Replace><Item><Target><LocURI>" + minLength + "</LocURI></Target><Data/></Item></Replace>",

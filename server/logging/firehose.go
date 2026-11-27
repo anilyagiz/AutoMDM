@@ -9,13 +9,13 @@ import (
 	"math"
 	"time"
 
+	"github.com/anilyagiz/automdm/v4/server/aws_common"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	aws_config "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/firehose"
 	"github.com/aws/aws-sdk-go-v2/service/firehose/types"
-	"github.com/fleetdm/fleet/v4/server/aws_common"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
 )
 
 const (
@@ -117,7 +117,7 @@ func (f *firehoseLogWriter) Write(ctx context.Context, logs []json.RawMessage) e
 		// We don't really have a good option for what to do with logs
 		// that are too big for Firehose. This behavior is consistent
 		// with osquery's behavior in the Firehose logger plugin, and
-		// the beginning bytes of the log should help the Fleet admin
+		// the beginning bytes of the log should help the AutoMDM admin
 		// diagnose the query generating huge results.
 		if len(log) > firehoseMaxSizeOfRecord {
 			f.logger.InfoContext(ctx, "dropping log over 1MB Firehose limit",

@@ -7,8 +7,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/pkg/removednames"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/pkg/removednames"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/hashicorp/go-multierror"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,7 +29,7 @@ func TestKnownJSONKeys(t *testing.T) {
 	})
 
 	t.Run("embedded struct", func(t *testing.T) {
-		// Label embeds BaseItem and fleet.LabelSpec
+		// Label embeds BaseItem and automdm.LabelSpec
 		keys := knownJSONKeys(reflect.TypeFor[Label]())
 		// Should have path/paths from BaseItem + all LabelSpec fields
 		assert.Contains(t, keys, "path")
@@ -73,7 +73,7 @@ func TestKnownJSONKeys(t *testing.T) {
 	t.Run("renameto alias accepted", func(t *testing.T) {
 		// MDM has `json:"apple_business_manager" renameto:"apple_business,inline"`
 		// — the registered alias must drop the ",inline" option.
-		keys := knownJSONKeys(reflect.TypeFor[fleet.MDM]())
+		keys := knownJSONKeys(reflect.TypeFor[automdm.MDM]())
 		assert.Contains(t, keys, "apple_business_manager")
 		assert.Contains(t, keys, "apple_business")
 		assert.NotContains(t, keys, "apple_business,inline")
@@ -97,7 +97,7 @@ func TestValidateUnknownKeys(t *testing.T) {
 			"query":       "SELECT 1",
 			"description": "a test",
 		}
-		errs := validateUnknownKeys(data, reflect.TypeFor[fleet.QuerySpec](), []string{"reports", "[0]"}, "test.yml")
+		errs := validateUnknownKeys(data, reflect.TypeFor[automdm.QuerySpec](), []string{"reports", "[0]"}, "test.yml")
 		assert.Empty(t, errs)
 	})
 
@@ -107,7 +107,7 @@ func TestValidateUnknownKeys(t *testing.T) {
 			"query":         "SELECT 1",
 			"unknown_field": "bad",
 		}
-		errs := validateUnknownKeys(data, reflect.TypeFor[fleet.QuerySpec](), []string{"reports", "[0]"}, "test.yml")
+		errs := validateUnknownKeys(data, reflect.TypeFor[automdm.QuerySpec](), []string{"reports", "[0]"}, "test.yml")
 		require.Len(t, errs, 1)
 		assert.Contains(t, errs[0].Error(), "unknown_field")
 		assert.Contains(t, errs[0].Error(), "reports.[0]")
@@ -124,7 +124,7 @@ func TestValidateUnknownKeys(t *testing.T) {
 			"bad1": "x",
 			"bad2": "y",
 		}
-		errs := validateUnknownKeys(data, reflect.TypeFor[fleet.QuerySpec](), []string{"reports"}, "test.yml")
+		errs := validateUnknownKeys(data, reflect.TypeFor[automdm.QuerySpec](), []string{"reports"}, "test.yml")
 		assert.Len(t, errs, 2)
 	})
 
@@ -153,7 +153,7 @@ func TestValidateUnknownKeys(t *testing.T) {
 		}
 		require.NotNil(t, removedErr)
 		assert.Equal(t, `in "default.yml": The "controls.setup_experience.require_all_software_macos" key is not available anymore. `+
-			`What to use instead: https://fleetdm.com/learn-more-about/fleet-5-upgrade`, removedErr.Error())
+			`What to use instead: https://automdm.com/learn-more-about/automdm-5-upgrade`, removedErr.Error())
 		require.NotNil(t, unknownErr)
 		assert.Empty(t, unknownErr.Suggestion, "the removed key is never suggested")
 
@@ -175,7 +175,7 @@ func TestValidateUnknownKeys(t *testing.T) {
 						"client_email":                "test@example.com",
 						"private_key":                 "some value",
 						"type":                        "service_account",
-						"project_id":                  "fleet-dogfood",
+						"project_id":                  "automdm-dogfood",
 						"private_key_id":              "abc123",
 						"client_id":                   "1234567890",
 						"auth_uri":                    "https://accounts.google.com/o/oauth2/auth",
@@ -187,7 +187,7 @@ func TestValidateUnknownKeys(t *testing.T) {
 				},
 			},
 		}
-		errs := validateUnknownKeys(data, reflect.TypeFor[fleet.Integrations](), []string{"org_settings", "integrations"}, "test.yml")
+		errs := validateUnknownKeys(data, reflect.TypeFor[automdm.Integrations](), []string{"org_settings", "integrations"}, "test.yml")
 		assert.Empty(t, errs)
 	})
 
@@ -201,7 +201,7 @@ func TestValidateUnknownKeys(t *testing.T) {
 				},
 			},
 		}
-		errs := validateUnknownKeys(data, reflect.TypeFor[fleet.Integrations](), []string{"org_settings", "integrations"}, "test.yml")
+		errs := validateUnknownKeys(data, reflect.TypeFor[automdm.Integrations](), []string{"org_settings", "integrations"}, "test.yml")
 		assert.Empty(t, errs)
 	})
 
@@ -216,18 +216,18 @@ func TestValidateUnknownKeys(t *testing.T) {
 				},
 			},
 		}
-		errs := validateUnknownKeys(data, reflect.TypeFor[fleet.Integrations](), []string{"org_settings", "integrations"}, "test.yml")
+		errs := validateUnknownKeys(data, reflect.TypeFor[automdm.Integrations](), []string{"org_settings", "integrations"}, "test.yml")
 		require.Len(t, errs, 1)
 		assert.Contains(t, errs[0].Error(), "bad_sibling")
 	})
 
 	t.Run("scalar data no errors", func(t *testing.T) {
-		errs := validateUnknownKeys("just a string", reflect.TypeFor[fleet.QuerySpec](), nil, "test.yml")
+		errs := validateUnknownKeys("just a string", reflect.TypeFor[automdm.QuerySpec](), nil, "test.yml")
 		assert.Empty(t, errs)
 	})
 
 	t.Run("nil data no errors", func(t *testing.T) {
-		errs := validateUnknownKeys(nil, reflect.TypeFor[fleet.QuerySpec](), nil, "test.yml")
+		errs := validateUnknownKeys(nil, reflect.TypeFor[automdm.QuerySpec](), nil, "test.yml")
 		assert.Empty(t, errs)
 	})
 
@@ -275,7 +275,7 @@ func TestValidateUnknownKeys(t *testing.T) {
 func TestSuggestKey(t *testing.T) {
 	t.Parallel()
 
-	known := knownJSONKeys(reflect.TypeFor[fleet.QuerySpec]())
+	known := knownJSONKeys(reflect.TypeFor[automdm.QuerySpec]())
 
 	t.Run("close typo suggests match", func(t *testing.T) {
 		assert.Equal(t, "query", suggestKey("qurey", known))
@@ -295,7 +295,7 @@ func TestSuggestKey(t *testing.T) {
 			"name":  "q",
 			"qurey": "SELECT 1",
 		}
-		errs := validateUnknownKeys(data, reflect.TypeFor[fleet.QuerySpec](), []string{"reports"}, "test.yml")
+		errs := validateUnknownKeys(data, reflect.TypeFor[automdm.QuerySpec](), []string{"reports"}, "test.yml")
 		require.Len(t, errs, 1)
 		assert.Contains(t, errs[0].Error(), `did you mean "query"`)
 
@@ -309,7 +309,7 @@ func TestSuggestKey(t *testing.T) {
 			"name":      "q",
 			"xylophone": "SELECT 1",
 		}
-		errs := validateUnknownKeys(data, reflect.TypeFor[fleet.QuerySpec](), []string{"reports"}, "test.yml")
+		errs := validateUnknownKeys(data, reflect.TypeFor[automdm.QuerySpec](), []string{"reports"}, "test.yml")
 		require.Len(t, errs, 1)
 		assert.NotContains(t, errs[0].Error(), "did you mean")
 
@@ -428,20 +428,20 @@ func TestValidateRawKeys(t *testing.T) {
 
 	t.Run("valid json", func(t *testing.T) {
 		raw := []byte(`{"name":"test","query":"SELECT 1"}`)
-		errs := validateRawKeys(raw, reflect.TypeFor[fleet.QuerySpec](), "test.yml", []string{"reports"})
+		errs := validateRawKeys(raw, reflect.TypeFor[automdm.QuerySpec](), "test.yml", []string{"reports"})
 		assert.Empty(t, errs)
 	})
 
 	t.Run("unknown key in json", func(t *testing.T) {
 		raw := []byte(`{"name":"test","query":"SELECT 1","typo_field":"bad"}`)
-		errs := validateRawKeys(raw, reflect.TypeFor[fleet.QuerySpec](), "test.yml", []string{"reports"})
+		errs := validateRawKeys(raw, reflect.TypeFor[automdm.QuerySpec](), "test.yml", []string{"reports"})
 		require.Len(t, errs, 1)
 		assert.Contains(t, errs[0].Error(), "typo_field")
 	})
 
 	t.Run("invalid json returns parse error", func(t *testing.T) {
 		raw := []byte(`{invalid json`)
-		errs := validateRawKeys(raw, reflect.TypeFor[fleet.QuerySpec](), "test.yml", []string{"reports"})
+		errs := validateRawKeys(raw, reflect.TypeFor[automdm.QuerySpec](), "test.yml", []string{"reports"})
 		require.Len(t, errs, 1)
 		assert.Contains(t, errs[0].Error(), "invalid")
 	})
@@ -567,6 +567,6 @@ func TestRemovedKeysRegistered(t *testing.T) {
 	}
 	walk(reflect.TypeFor[GitOpsControls](), "controls")
 	walk(reflect.TypeFor[GitOpsOrgSettings](), "org_settings")
-	walk(reflect.TypeFor[GitOpsFleetSettings](), "settings")
+	walk(reflect.TypeFor[GitOpsAutoMDMSettings](), "settings")
 	assert.Positive(t, found)
 }

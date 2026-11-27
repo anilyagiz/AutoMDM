@@ -18,7 +18,7 @@ const CELL_TEXT = { selector: ".data-table__tooltip-truncated-text" };
 
 // The tab filters server-side, so intercept GET /custom_host_vitals and return
 // the seeded vitals matching the `query` param — by name or the derived
-// $FLEET_HOST_VITAL_<id> token — mirroring the backend's search behavior.
+// $AUTOMDM_HOST_VITAL_<id> token — mirroring the backend's search behavior.
 const SEED = [
   { id: 1, name: "Asset tag", created_at: "", updated_at: "" },
   { id: 2, name: "Department", created_at: "", updated_at: "" },
@@ -35,7 +35,7 @@ const customHostVitalsHandler = http.get(
       ? SEED.filter(
           (v) =>
             v.name.toLowerCase().includes(q) ||
-            `$fleet_host_vital_${v.id}`.includes(q)
+            `$automdm_host_vital_${v.id}`.includes(q)
         )
       : SEED;
     return HttpResponse.json({
@@ -113,8 +113,8 @@ describe("CustomHostVitalsTab - URL-persistent search", () => {
   });
 
   it("matches the variable token as well as the name", async () => {
-    // "Department" seeds as id 2 -> token $FLEET_HOST_VITAL_2.
-    const props = makeProps({ query: "fleet_host_vital_2" });
+    // "Department" seeds as id 2 -> token $AUTOMDM_HOST_VITAL_2.
+    const props = makeProps({ query: "automdm_host_vital_2" });
     render(<CustomHostVitalsTab {...props} />);
 
     await waitFor(() => {

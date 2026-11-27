@@ -5,7 +5,7 @@
 # Rebuild every api/<token>.json from its Casks/<token>.rb source using
 # Homebrew. Run this whenever you edit or add a cask under Casks/, then
 # commit both the updated .rb and the regenerated .json alongside the
-# Fleet-maintained-app output manifest (produced separately by
+# AutoMDM-maintained-app output manifest (produced separately by
 # `go run cmd/maintained-apps/main.go --slug=<slug>`).
 #
 # Why a throwaway local tap? `brew info --cask --json=v2` can only parse
@@ -45,14 +45,14 @@ if [ ${#rb_files[@]} -eq 0 ]; then
   exit 1
 fi
 
-TAP_USER="fleetdm"
+TAP_USER="automdm"
 TAP_NAME="fma-custom-tap"
 TAP_DIR="$(brew --repository)/Library/Taps/${TAP_USER}/homebrew-${TAP_NAME}"
 WORK_DIR="$(mktemp -d)"
 
 cleanup() {
   rm -rf "$TAP_DIR" "$WORK_DIR"
-  # Only succeeds if empty, so another fleetdm tap stays put.
+  # Only succeeds if empty, so another automdm tap stays put.
   rmdir "$(dirname "$TAP_DIR")" 2>/dev/null || true
 }
 trap cleanup EXIT
@@ -82,7 +82,7 @@ fi
 mkdir -p api
 
 # Fields stripped from brew's output because they vary by developer
-# machine and are not read by Fleet's FMA ingester:
+# machine and are not read by AutoMDM's FMA ingester:
 #   installed, installed_time, outdated — install state on this host
 #   tap, tap_git_head, full_token       — tap identity (throwaway tap)
 #   generated_date                      — build timestamp

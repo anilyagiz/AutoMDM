@@ -5,12 +5,12 @@ import (
 	"maps"
 	"slices"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
 type rawJSONMessage json.RawMessage
 
-func (r *rawJSONMessage) Clone() (fleet.Cloner, error) {
+func (r *rawJSONMessage) Clone() (automdm.Cloner, error) {
 	var clone *rawJSONMessage
 	if r == nil {
 		return clone, nil
@@ -23,7 +23,7 @@ func (r *rawJSONMessage) Clone() (fleet.Cloner, error) {
 
 type queryIDList []uint
 
-func (ql queryIDList) Clone() (fleet.Cloner, error) {
+func (ql queryIDList) Clone() (automdm.Cloner, error) {
 	return slices.Clone(ql), nil
 }
 
@@ -31,7 +31,7 @@ func (ql queryIDList) Clone() (fleet.Cloner, error) {
 // Used during software ingestion to override osquery-reported names.
 type fmaNameMap map[string]string
 
-func (m fmaNameMap) Clone() (fleet.Cloner, error) {
+func (m fmaNameMap) Clone() (automdm.Cloner, error) {
 	if m == nil {
 		return fmaNameMap(nil), nil
 	}

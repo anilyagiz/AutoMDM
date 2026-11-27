@@ -17,41 +17,41 @@ import {
 
 import ManagePoliciesPage from "./ManagePoliciesPage";
 
-const FLEET_WITH_POLICIES_ID = 1;
-const FLEET_WITHOUT_POLICIES_ID = 2;
+const AUTOMDM_WITH_POLICIES_ID = 1;
+const AUTOMDM_WITHOUT_POLICIES_ID = 2;
 
 const getConfigHandler = () =>
   http.get(baseUrl("/config"), () => HttpResponse.json(createMockConfig()));
 
-const getFleetHandler = () =>
-  http.get(baseUrl("/fleets/:id"), ({ params }) => {
-    const fleetId = Number(params.id);
-    const fleet = {
+const getAutoMDMHandler = () =>
+  http.get(baseUrl("/teams/:id"), ({ params }) => {
+    const automdmId = Number(params.id);
+    const team = {
       ...createMockConfig(),
-      id: fleetId,
-      name: `Fleet ${fleetId}`,
+      id: automdmId,
+      name: `AutoMDM ${automdmId}`,
     };
-    return HttpResponse.json({ team: fleet, fleet });
+    return HttpResponse.json({ team: team, team });
   });
 
-const getFleetId = (request: Request) => {
-  const fleetId = new URL(request.url).searchParams.get("fleet_id");
-  return fleetId === null ? undefined : Number(fleetId);
+const getTeamId = (request: Request) => {
+  const automdmId = new URL(request.url).searchParams.get("team_id");
+  return automdmId === null ? undefined : Number(automdmId);
 };
 
-const getFleetPoliciesHandler = () =>
+const getTeamPoliciesHandler = () =>
   http.get(baseUrl("/policies"), ({ request }) => {
-    const fleetId = getFleetId(request);
-    if (fleetId === undefined) {
+    const automdmId = getTeamId(request);
+    if (automdmId === undefined) {
       return HttpResponse.json({ policies: [] });
     }
     const policies =
-      fleetId === FLEET_WITH_POLICIES_ID
+      automdmId === AUTOMDM_WITH_POLICIES_ID
         ? [
             createMockPolicy({
               id: 1,
               name: "Software policy",
-              fleet_id: fleetId,
+              team_id: automdmId,
               install_software: { name: "Zoom", software_title_id: 1 },
             }),
           ]
@@ -59,11 +59,11 @@ const getFleetPoliciesHandler = () =>
     return HttpResponse.json({ policies });
   });
 
-const getFleetPoliciesCountHandler = () =>
+const getTeamPoliciesCountHandler = () =>
   http.get(baseUrl("/policies/count"), ({ request }) => {
-    const fleetId = getFleetId(request);
+    const automdmId = getTeamId(request);
     return HttpResponse.json({
-      count: fleetId === FLEET_WITH_POLICIES_ID ? 1 : 0,
+      count: automdmId === AUTOMDM_WITH_POLICIES_ID ? 1 : 0,
     });
   });
 
@@ -80,14 +80,14 @@ const getAutomationFilterControl = (): HTMLElement => {
 const setupHandlers = () => {
   mockServer.use(
     getConfigHandler(),
-    getFleetHandler(),
-    getFleetPoliciesHandler(),
-    getFleetPoliciesCountHandler()
+    getAutoMDMHandler(),
+    getTeamPoliciesHandler(),
+    getTeamPoliciesCountHandler()
   );
 };
 
 describe("ManagePoliciesPage - automations filter", () => {
-  const renderPage = (fleetId: string, automationType?: string) => {
+  const renderPage = (automdmId: string, automationType?: string) => {
     setupHandlers();
 
     const render = createCustomRenderer({
@@ -99,10 +99,10 @@ describe("ManagePoliciesPage - automations filter", () => {
           isOnGlobalTeam: true,
           isPremiumTier: true,
           availableTeams: [
-            { id: -1, name: "All fleets" },
+            { id: -1, name: "All teams" },
             { id: 0, name: "Unassigned" },
-            { id: FLEET_WITH_POLICIES_ID, name: "Fleet with policies" },
-            { id: FLEET_WITHOUT_POLICIES_ID, name: "Fleet without policies" },
+            { id: AUTOMDM_WITH_POLICIES_ID, name: "AutoMDM with policies" },
+            { id: AUTOMDM_WITHOUT_POLICIES_ID, name: "AutoMDM without policies" },
           ],
           config: createMockConfig(),
           setCurrentTeam: jest.fn(),
@@ -112,7 +112,7 @@ describe("ManagePoliciesPage - automations filter", () => {
       },
     });
 
-    const query: Record<string, string> = { fleet_id: fleetId };
+    const query: Record<string, string> = { team_id: automdmId };
     if (automationType) {
       query.automation_type = automationType;
     }
@@ -132,8 +132,8 @@ describe("ManagePoliciesPage - automations filter", () => {
     );
   };
 
-  it("keeps the automations filter dropdown visible and enabled for a fleet with no policies when a filter is present in the URL", async () => {
-    renderPage(FLEET_WITHOUT_POLICIES_ID.toString(), "software");
+  it("keeps the automations filter dropdown visible and enabled for a team with no policies when a filter is present in the URL", async () => {
+    renderPage(AUTOMDM_WITHOUT_POLICIES_ID.toString(), "software");
 
     await waitFor(() => {
       expect(
@@ -143,14 +143,14 @@ describe("ManagePoliciesPage - automations filter", () => {
 
     // Per the fix for #44624: when a filter is present in the query params,
     // the automations filter dropdown must remain visible and enabled (and
-    // reflect the selected filter) even though this fleet has zero policies.
+    // reflect the selected filter) even though this team has zero policies.
     expect(screen.getByText("Software")).toBeInTheDocument();
     expect(getAutomationFilterControl()).not.toHaveClass(
       "react-select__control--is-disabled"
     );
   });
 
-  it("offers software/scripts/conditional access automation types for the 'Unassigned' fleet, but not calendar", async () => {
+  it("offers software/scripts/conditional access automation types for the 'Unassigned' team, but not calendar", async () => {
     const { user } = renderPage("0", "software");
 
     await waitFor(() => {
@@ -162,11 +162,11 @@ describe("ManagePoliciesPage - automations filter", () => {
     // The selected filter persists (sticky), matching what's in the URL.
     expect(screen.getByText("Software")).toBeInTheDocument();
 
-    // "Unassigned" is a real, policy-bearing fleet (unlike "All fleets", which
+    // "Unassigned" is a real, policy-bearing team (unlike "All teams", which
     // is restricted to webhook/ticket-only automations) -- it should offer
     // every automation type EXCEPT calendar events, which
-    // PolicyAutomationsFields hardcodes as fleet-only (never available for
-    // "All fleets" or "Unassigned").
+    // PolicyAutomationsFields hardcodes as automdm-only (never available for
+    // "All teams" or "Unassigned").
     await user.click(getAutomationFilterControl());
 
     expect(screen.getByText("Scripts")).toBeInTheDocument();
@@ -174,12 +174,12 @@ describe("ManagePoliciesPage - automations filter", () => {
     expect(screen.queryByText("Calendar")).not.toBeInTheDocument();
   });
 
-  it("rejects an automation_type=calendar query param for the 'Unassigned' fleet, since calendar isn't a valid option there", async () => {
+  it("rejects an automation_type=calendar query param for the 'Unassigned' team, since calendar isn't a valid option there", async () => {
     renderPage("0", "calendar");
 
     await waitFor(() => {
       expect(
-        screen.getByText("No policies for this fleet")
+        screen.getByText("No policies for this team")
       ).toBeInTheDocument();
     });
 
@@ -190,22 +190,22 @@ describe("ManagePoliciesPage - automations filter", () => {
   });
 });
 
-describe("ManagePoliciesPage - fleet's own policies", () => {
-  const INHERITED_ONLY_FLEET_ID = 3;
-  const MIXED_FLEET_ID = 4;
+describe("ManagePoliciesPage - team's own policies", () => {
+  const INHERITED_ONLY_TEAM_ID = 3;
+  const MIXED_TEAM_ID = 4;
 
   const inheritedPolicies = [
-    createMockPolicy({ id: 10, name: "Inherited one", fleet_id: null }),
-    createMockPolicy({ id: 11, name: "Inherited two", fleet_id: null }),
+    createMockPolicy({ id: 10, name: "Inherited one", team_id: null }),
+    createMockPolicy({ id: 11, name: "Inherited two", team_id: null }),
   ];
   const ownPolicies: Record<number, ReturnType<typeof createMockPolicy>[]> = {
-    0: [createMockPolicy({ id: 30, name: "Unassigned one", fleet_id: 0 })],
-    [INHERITED_ONLY_FLEET_ID]: [],
-    [MIXED_FLEET_ID]: [
+    0: [createMockPolicy({ id: 30, name: "Unassigned one", team_id: 0 })],
+    [INHERITED_ONLY_TEAM_ID]: [],
+    [MIXED_TEAM_ID]: [
       createMockPolicy({
         id: 20,
         name: "Own policy",
-        fleet_id: MIXED_FLEET_ID,
+        team_id: MIXED_TEAM_ID,
       }),
     ],
   };
@@ -219,21 +219,21 @@ describe("ManagePoliciesPage - fleet's own policies", () => {
 
   const policiesFor = (request: Request) => {
     const params = new URL(request.url).searchParams;
-    if (!params.has("fleet_id")) {
+    if (!params.has("team_id")) {
       return inheritedPolicies.filter((policy) => !deletedIds.has(policy.id));
     }
-    const own = ownPolicies[Number(params.get("fleet_id"))] ?? [];
+    const own = ownPolicies[Number(params.get("team_id"))] ?? [];
     return (params.get("merge_inherited") === "true"
       ? [...own, ...inheritedPolicies]
       : own
     ).filter((policy) => !deletedIds.has(policy.id));
   };
 
-  /** `fleetId` undefined is "All fleets". `handlers` override the defaults.
+  /** `automdmId` undefined is "All teams". `handlers` override the defaults.
    *  `keepCache` keeps inactive queries cached like the app does; the test
    *  renderer drops them at once. */
   const renderPage = (
-    fleetId: number | undefined,
+    automdmId: number | undefined,
     isPrimo = false,
     handlers: RequestHandler[] = [],
     keepCache = false
@@ -245,7 +245,7 @@ describe("ManagePoliciesPage - fleet's own policies", () => {
       // The first matching handler wins, so overrides go first.
       ...handlers,
       http.get(baseUrl("/config"), () => HttpResponse.json(config)),
-      getFleetHandler(),
+      getAutoMDMHandler(),
       http.get(baseUrl("/policies"), ({ request }) =>
         HttpResponse.json({ policies: policiesFor(request) })
       ),
@@ -268,10 +268,10 @@ describe("ManagePoliciesPage - fleet's own policies", () => {
           isOnGlobalTeam: true,
           isPremiumTier: true,
           availableTeams: [
-            { id: -1, name: "All fleets" },
+            { id: -1, name: "All teams" },
             { id: 0, name: "Unassigned" },
-            { id: INHERITED_ONLY_FLEET_ID, name: "Inherited only" },
-            { id: MIXED_FLEET_ID, name: "Mixed" },
+            { id: INHERITED_ONLY_TEAM_ID, name: "Inherited only" },
+            { id: MIXED_TEAM_ID, name: "Mixed" },
           ],
           config,
           setCurrentTeam: jest.fn(),
@@ -287,7 +287,7 @@ describe("ManagePoliciesPage - fleet's own policies", () => {
       : undefined;
     const page = (id: number | undefined) => {
       const query: Record<string, string> =
-        id === undefined ? {} : { fleet_id: id.toString() };
+        id === undefined ? {} : { team_id: id.toString() };
       const element = (
         <ManagePoliciesPage
           router={router}
@@ -309,10 +309,10 @@ describe("ManagePoliciesPage - fleet's own policies", () => {
         element
       );
     };
-    const result = render(page(fleetId));
-    /** Changes the fleet in the URL without onTeamChange, like browser Back. */
-    const showFleet = (id: number | undefined) => result.rerender(page(id));
-    return { ...result, showFleet };
+    const result = render(page(automdmId));
+    /** Changes the team in the URL without onTeamChange, like browser Back. */
+    const showAutoMDM = (id: number | undefined) => result.rerender(page(id));
+    return { ...result, showAutoMDM };
   };
 
   const rowCheckbox = async (name: string) =>
@@ -328,16 +328,16 @@ describe("ManagePoliciesPage - fleet's own policies", () => {
     await user.click(deleteButtons[deleteButtons.length - 1]);
   };
 
-  const ownCountRequest = (fleetId: number) => (request: Request) => {
+  const ownCountRequest = (automdmId: number) => (request: Request) => {
     const params = new URL(request.url).searchParams;
     return (
-      params.get("fleet_id") === String(fleetId) &&
+      params.get("team_id") === String(automdmId) &&
       params.get("merge_inherited") !== "true"
     );
   };
 
-  it("disables Manage automations and delete for a fleet with only inherited policies", async () => {
-    renderPage(INHERITED_ONLY_FLEET_ID);
+  it("disables Manage automations and delete for a team with only inherited policies", async () => {
+    renderPage(INHERITED_ONLY_TEAM_ID);
 
     await screen.findAllByText("Inherited one");
     // The button starts disabled, so wait for the merged count; a page using
@@ -351,8 +351,8 @@ describe("ManagePoliciesPage - fleet's own policies", () => {
     expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
   });
 
-  it("enables Manage automations and delete for a fleet with its own policies", async () => {
-    renderPage(MIXED_FLEET_ID);
+  it("enables Manage automations and delete for a team with its own policies", async () => {
+    renderPage(MIXED_TEAM_ID);
 
     await screen.findAllByText("Own policy");
     await waitFor(() =>
@@ -365,7 +365,7 @@ describe("ManagePoliciesPage - fleet's own policies", () => {
 
   it("still lets Primo mode delete inherited policies", async () => {
     const deleteRequests: number[][] = [];
-    // Primo mode has no fleets; its policies view is "Unassigned".
+    // Primo mode has no teams; its policies view is "Unassigned".
     const { user } = renderPage(0, true, [
       http.post(baseUrl("/policies/delete"), async ({ request }) => {
         const { ids } = (await request.json()) as { ids: number[] };
@@ -411,24 +411,24 @@ describe("ManagePoliciesPage - fleet's own policies", () => {
     notifyErrorSpy.mockRestore();
   });
 
-  it("closes the delete confirmation when the fleet changes", async () => {
-    const { user, showFleet } = renderPage(MIXED_FLEET_ID);
+  it("closes the delete confirmation when the team changes", async () => {
+    const { user, showAutoMDM } = renderPage(MIXED_TEAM_ID);
 
     await user.click(await rowCheckbox("Own policy"));
     await user.click(screen.getByRole("button", { name: /Delete/ }));
     await screen.findByText("Delete policies");
 
-    showFleet(INHERITED_ONLY_FLEET_ID);
+    showAutoMDM(INHERITED_ONLY_TEAM_ID);
 
     await waitFor(() =>
       expect(screen.queryByText("Delete policies")).not.toBeInTheDocument()
     );
   });
 
-  it("doesn't use the previous fleet's count while the new one loads", async () => {
-    const { showFleet } = renderPage(MIXED_FLEET_ID, false, [
+  it("doesn't use the previous team's count while the new one loads", async () => {
+    const { showAutoMDM } = renderPage(MIXED_TEAM_ID, false, [
       http.get(baseUrl("/policies/count"), ({ request }) =>
-        ownCountRequest(INHERITED_ONLY_FLEET_ID)(request)
+        ownCountRequest(INHERITED_ONLY_TEAM_ID)(request)
           ? new Promise<never>(() => undefined)
           : undefined
       ),
@@ -439,7 +439,7 @@ describe("ManagePoliciesPage - fleet's own policies", () => {
       ).toBeEnabled()
     );
 
-    showFleet(INHERITED_ONLY_FLEET_ID);
+    showAutoMDM(INHERITED_ONLY_TEAM_ID);
 
     await screen.findByText(/2 policies/);
     expect(
@@ -447,10 +447,10 @@ describe("ManagePoliciesPage - fleet's own policies", () => {
     ).toBeDisabled();
   });
 
-  it("keeps the fleet's own policies actionable when their count fails", async () => {
-    renderPage(MIXED_FLEET_ID, false, [
+  it("keeps the team's own policies actionable when their count fails", async () => {
+    renderPage(MIXED_TEAM_ID, false, [
       http.get(baseUrl("/policies/count"), ({ request }) =>
-        ownCountRequest(MIXED_FLEET_ID)(request)
+        ownCountRequest(MIXED_TEAM_ID)(request)
           ? HttpResponse.json({ message: "failed" }, { status: 500 })
           : undefined
       ),
@@ -464,18 +464,18 @@ describe("ManagePoliciesPage - fleet's own policies", () => {
     );
   });
 
-  it("doesn't show a deleted policy from another fleet's cached list", async () => {
-    const { user, showFleet } = renderPage(MIXED_FLEET_ID, false, [], true);
+  it("doesn't show a deleted policy from another team's cached list", async () => {
+    const { user, showAutoMDM } = renderPage(MIXED_TEAM_ID, false, [], true);
     await screen.findAllByText("Inherited one");
 
-    showFleet(undefined);
+    showAutoMDM(undefined);
     await user.click(await rowCheckbox("Inherited one"));
     await confirmDelete(user);
     await waitFor(() =>
       expect(screen.queryByText("Inherited one")).not.toBeInTheDocument()
     );
 
-    showFleet(MIXED_FLEET_ID);
+    showAutoMDM(MIXED_TEAM_ID);
 
     expect(screen.queryByText("Inherited one")).not.toBeInTheDocument();
     await screen.findAllByText("Own policy");

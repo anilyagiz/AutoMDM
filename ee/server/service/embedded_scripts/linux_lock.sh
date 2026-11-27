@@ -47,13 +47,13 @@ if [ -f /etc/os-release ] && grep -qi ubuntu /etc/os-release; then
         echo "Ubuntu with GDM detected - will reboot to text mode to avoid black screen issue"
         
         # Store current target for restoration during unlock
-        systemctl get-default > /etc/fleet.systemd-target.backup 2>/dev/null
+        systemctl get-default > /etc/automdm.systemd-target.backup 2>/dev/null
         
         # Switch default to text mode for next boot
         systemctl set-default multi-user.target
         
         # Mark that we switched to text mode
-        touch /etc/fleet.text-mode-lock
+        touch /etc/automdm.text-mode-lock
         
         # Set flag to reboot after creating lock files
         NEEDS_REBOOT=1
@@ -71,7 +71,7 @@ if systemctl is-active --quiet gdm || systemctl is-active --quiet gdm3; then
     echo "Setting GDM banner for lock notification"
     mkdir -p /etc/dconf/db/gdm.d
     # Use 99- prefix to ensure high priority (overrides lower numbers)
-    cat > /etc/dconf/db/gdm.d/99-fleet-lock-banner << 'EOF'
+    cat > /etc/dconf/db/gdm.d/99-automdm-lock-banner << 'EOF'
 [org/gnome/login-screen]
 banner-message-enable=true
 banner-message-text='System is locked by administrator'
@@ -90,9 +90,9 @@ fi
 
 # Create a systemd service to recreate nologin files on boot
 # This ensures our message persists even after systemd-user-sessions runs
-cat > /etc/systemd/system/fleet-lock-message.service << 'EOF'
+cat > /etc/systemd/system/automdm-lock-message.service << 'EOF'
 [Unit]
-Description=Fleet Lock Message
+Description=AutoMDM Lock Message
 After=systemd-user-sessions.service
 Before=getty.target gdm.service gdm3.service lightdm.service display-manager.service
 
@@ -105,7 +105,7 @@ RemainAfterExit=yes
 WantedBy=multi-user.target graphical.target
 EOF
 
-systemctl enable fleet-lock-message.service 2>/dev/null
+systemctl enable automdm-lock-message.service 2>/dev/null
 
 echo "All non-root users have been logged out and their accounts locked."
 
@@ -113,7 +113,7 @@ echo "All non-root users have been logged out and their accounts locked."
 if [ "$NEEDS_REBOOT" = "1" ]; then
     echo "System needs to reboot to complete lock process..."
 
-    # Schedule reboot instead of immediate to ensure script reports success to Fleet
+    # Schedule reboot instead of immediate to ensure script reports success to AutoMDM
     # The script already uses systemctl extensively, so systemd-run should be available
     # This gives us precise 10-second delay for the script to report success
     echo "Scheduling system reboot in 10 seconds to complete lock process..."

@@ -1,4 +1,4 @@
-# Fleet extracts name from installer (EXE) and saves it to PACKAGE_ID
+# AutoMDM extracts name from installer (EXE) and saves it to PACKAGE_ID
 # variable
 # Chatbox registers a versioned DisplayName (e.g. "Chatbox 1.21.1"). Match
 # "Chatbox <digit>..." so the separate "Chatbox Community Edition" product

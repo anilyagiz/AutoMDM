@@ -25,7 +25,7 @@ import ExampleWebhookUrlPayloadModal from "../ExampleWebhookUrlPayloadModal/Exam
 const baseClass = "end-user-migration-section";
 
 const VOLUNTARY_MODE_DESCRIPTION =
-  "The end user sees the above window when they select Migrate to Fleet in the Fleet Desktop menu. If they’re unenrolled from your old MDM, the window appears every 15-20 minutes.";
+  "The end user sees the above window when they select Migrate to AutoMDM in the AutoMDM Desktop menu. If they’re unenrolled from your old MDM, the window appears every 15-20 minutes.";
 const FORCED_MODE_DESCRIPTION =
   "The end user sees the above window every 15-20 minutes.";
 
@@ -164,7 +164,7 @@ const EndUserMigrationSection = ({ router }: IEndUserMigrationSectionProps) => {
         <p>
           Control the end user migration workflow for macOS hosts.{" "}
           <CustomLink
-            url="https://fleetdm.com/learn-more-about/end-user-migration-workflow"
+            url="https://automdm.com/learn-more-about/end-user-migration-workflow"
             text="Learn more"
             newTab
           />

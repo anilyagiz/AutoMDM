@@ -27,7 +27,7 @@ android {
         versionCode = 13
         versionName = "1.6.0"
 
-        buildConfigField("String", "INFO_URL", "\"https://fleetdm.com/better\"")
+        buildConfigField("String", "INFO_URL", "\"https://automdm.com/better\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

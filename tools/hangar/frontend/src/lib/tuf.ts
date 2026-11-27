@@ -4,7 +4,7 @@
 import type { NgrokRunningTunnel } from "./ipc";
 
 export const TUF_PORT = 8081;
-export const FLEET_PORT = 8080;
+export const AUTOMDM_PORT = 8080;
 export const TUF_PROC_ID = "tuf:build"; // must match internal/tuf.ProcID
 export const TUF_CHANNEL = "tuf-build"; // must match internal/tuf.LogChannel
 

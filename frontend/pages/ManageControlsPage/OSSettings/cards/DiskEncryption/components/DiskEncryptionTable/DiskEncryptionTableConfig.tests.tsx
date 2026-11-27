@@ -32,7 +32,7 @@ describe("generateTableData", () => {
     const rows = generateTableData("macos", SUMMARY, 1);
 
     expect(rowFor(rows, "verified")?.status.tooltip).toMatch(
-      /sent their key to Fleet/
+      /sent their key to AutoMDM/
     );
     expect(rowFor(rows, "verifying")?.status.tooltip).toMatch(
       /retrieving the disk encryption key/
@@ -43,10 +43,10 @@ describe("generateTableData", () => {
     const rows = generateTableData("macos", SUMMARY, 1, true);
 
     expect(rowFor(rows, "verified")?.status.tooltip).toBe(
-      "These hosts turned disk encryption on. Fleet verified with osquery."
+      "These hosts turned disk encryption on. AutoMDM verified with osquery."
     );
     expect(rowFor(rows, "verifying")?.status.tooltip).toBe(
-      "These hosts acknowledged the MDM command to turn on disk encryption. Fleet is verifying with osquery. This may take up to one hour."
+      "These hosts acknowledged the MDM command to turn on disk encryption. AutoMDM is verifying with osquery. This may take up to one hour."
     );
   });
 

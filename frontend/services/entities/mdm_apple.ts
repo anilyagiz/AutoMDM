@@ -71,7 +71,7 @@ export default {
     return sendRequest(
       "GET",
       getPathWithQueryParams(SOFTWARE_APP_STORE_APPS, {
-        fleet_id: teamId,
+        team_id: teamId,
         vpp_token_id: vppTokenId,
       })
     );
@@ -109,6 +109,6 @@ export default {
   }) => {
     const { MDM_VPP_TOKEN_TEAMS } = endpoints;
     const path = MDM_VPP_TOKEN_TEAMS(params.tokenId);
-    return sendRequest("PATCH", path, { fleets: params.teamIds });
+    return sendRequest("PATCH", path, { teams: params.teamIds });
   },
 };

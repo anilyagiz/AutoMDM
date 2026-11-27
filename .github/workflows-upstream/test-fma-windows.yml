@@ -1,4 +1,4 @@
-name: Test Fleet Maintained Apps - Windows
+name: Test AutoMDM Maintained Apps - Windows
 
 on:
   # Note: PR triggers removed - use test-fma-windows-pr-only.yml for PRs
@@ -43,7 +43,7 @@ jobs:
         with:
           egress-policy: audit
 
-      - name: Checkout Fleet
+      - name: Checkout AutoMDM
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 1

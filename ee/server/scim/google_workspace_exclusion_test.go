@@ -7,8 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -16,13 +16,13 @@ import (
 func TestGoogleWorkspaceExclusionMiddleware(t *testing.T) {
 	newDS := func(gwConfigured bool, appConfigErr error) *mock.Store {
 		ds := new(mock.Store)
-		ds.AppConfigFunc = func(context.Context) (*fleet.AppConfig, error) {
+		ds.AppConfigFunc = func(context.Context) (*automdm.AppConfig, error) {
 			if appConfigErr != nil {
 				return nil, appConfigErr
 			}
-			ac := &fleet.AppConfig{}
+			ac := &automdm.AppConfig{}
 			if gwConfigured {
-				ac.Integrations.GoogleWorkspace = []*fleet.GoogleWorkspaceIntegration{{Domain: "example.com"}}
+				ac.Integrations.GoogleWorkspace = []*automdm.GoogleWorkspaceIntegration{{Domain: "example.com"}}
 			}
 			return ac, nil
 		}

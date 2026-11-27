@@ -10,10 +10,10 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/acme/internal/types"
-	apple_mdm "github.com/fleetdm/fleet/v4/server/mdm/apple"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/mdm/acme/internal/types"
+	apple_mdm "github.com/anilyagiz/automdm/v4/server/mdm/apple"
 	"go.step.sm/crypto/jose"
 )
 
@@ -213,22 +213,22 @@ func (s *Service) FinalizeOrder(ctx context.Context, enrollment *types.Enrollmen
 	if k, ok := attestedKey.(interface{ Equal(crypto.PublicKey) bool }); !ok || !k.Equal(parsedCSR.PublicKey) {
 		return nil, types.BadCSRError("CSR public key does not match the attested device key")
 	}
-	// Normalize the common name and OU to match Fleet-issued SCEP certs. Preserve Fleet's
+	// Normalize the common name and OU to match AutoMDM-issued SCEP certs. Preserve AutoMDM's
 	// new-enrollment marker OU when the device presents it: it rides the enrollment profile's ACME
 	// Subject and lets the MDM checkin handler tell a fresh enrollment from a SCEP renewal (see
 	// certIsFromNewEnrollment in server/service/apple_mdm.go).
-	newEnrollment := slices.Contains(parsedCSR.Subject.OrganizationalUnit, apple_mdm.FleetEnrollmentSubjectOU)
+	newEnrollment := slices.Contains(parsedCSR.Subject.OrganizationalUnit, apple_mdm.AutoMDMEnrollmentSubjectOU)
 
 	signer, err := s.providers.CSRSigner(ctx)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "getting CSR signer")
 	}
 
-	extension := apple_mdm.AppleMDMCertificateBindingExtension{Purpose: fleet.AppleMDMCertPurpose(enrollment.Purpose)}
-	switch fleet.AppleMDMCertPurpose(enrollment.Purpose) {
-	case fleet.AppleMDMCertPurposeACME:
+	extension := apple_mdm.AppleMDMCertificateBindingExtension{Purpose: automdm.AppleMDMCertPurpose(enrollment.Purpose)}
+	switch automdm.AppleMDMCertPurpose(enrollment.Purpose) {
+	case automdm.AppleMDMCertPurposeACME:
 		extension.Serial = &enrollment.HostIdentifier
-	case fleet.AppleMDMCertPurposeACMERenewal:
+	case automdm.AppleMDMCertPurposeACMERenewal:
 		// Authenticate would reject the certificate anyway; fail here so the error points at the enrollment
 		if enrollment.EnrollmentID == nil || *enrollment.EnrollmentID == "" {
 			return nil, ctxerr.New(ctx, "acme_renewal enrollment has no enrollment ID")

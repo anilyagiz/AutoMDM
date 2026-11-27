@@ -1,4 +1,4 @@
-# Fleet extracts name from installer (EXE) and saves it to PACKAGE_ID
+# AutoMDM extracts name from installer (EXE) and saves it to PACKAGE_ID
 # variable
 # ClipboardFusion registers DisplayName "ClipboardFusion" with an arch suffix on 64-bit
 # systems (e.g. "ClipboardFusion (64-bit)"), so we match on the stable prefix.

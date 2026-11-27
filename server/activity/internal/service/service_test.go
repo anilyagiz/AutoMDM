@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/activity"
-	"github.com/fleetdm/fleet/v4/server/activity/api"
-	"github.com/fleetdm/fleet/v4/server/activity/internal/types"
-	platform_authz "github.com/fleetdm/fleet/v4/server/platform/authz"
-	platform_errors "github.com/fleetdm/fleet/v4/server/platform/errors"
+	"github.com/anilyagiz/automdm/v4/server/activity"
+	"github.com/anilyagiz/automdm/v4/server/activity/api"
+	"github.com/anilyagiz/automdm/v4/server/activity/internal/types"
+	platform_authz "github.com/anilyagiz/automdm/v4/server/platform/authz"
+	platform_errors "github.com/anilyagiz/automdm/v4/server/platform/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -254,16 +254,16 @@ func TestListActivitiesTranslatesStoredDetails(t *testing.T) {
 	cases := []struct {
 		name, stored, want string
 	}{
-		{"old keys", `{"team_id": 7, "team_name": "Old", "n": 1}`, `{"fleet_id":7,"fleet_name":"Old","n":1}`},
-		{"old and new keys keep the new ones", `{"team_id": 7, "fleet_id": 8, "team_name": null, "fleet_name": "New"}`,
-			`{"fleet_id":8,"fleet_name":"New"}`},
-		{"new keys", `{"fleet_id": 7, "fleet_name": "New"}`, `{"fleet_id": 7, "fleet_name": "New"}`},
-		{"removed key names as values", `{"fleet_name": "team_id", "other": "teams"}`, `{"fleet_name":"team_id","other":"teams"}`},
+		{"old keys", `{"team_id": 7, "team_name": "Old", "n": 1}`, `{"team_id":7,"team_name":"Old","n":1}`},
+		{"old and new keys keep the new ones", `{"team_id": 7, "team_id": 8, "team_name": null, "team_name": "New"}`,
+			`{"team_id":8,"team_name":"New"}`},
+		{"new keys", `{"team_id": 7, "team_name": "New"}`, `{"team_id": 7, "team_name": "New"}`},
+		{"removed key names as values", `{"team_name": "team_id", "other": "teams"}`, `{"team_name":"team_id","other":"teams"}`},
 		{"nested keys are left alone", `{"teams": [{"id": 1, "team_id": 2}], "x": {"team_name": "n"}}`,
-			`{"fleets":[{"id":1,"team_id":2}],"x":{"team_name":"n"}}`},
+			`{"teams":[{"id":1,"team_id":2}],"x":{"team_name":"n"}}`},
 		{"app-owned configuration", `{"team_id": 1, "configuration": {"managedConfiguration": {"team_id": 5, "teams": [1]}}}`,
-			`{"configuration":{"managedConfiguration":{"team_id":5,"teams":[1]}},"fleet_id":1}`},
-		{"large ids", `{"team_id": 9007199254740993}`, `{"fleet_id":9007199254740993}`},
+			`{"configuration":{"managedConfiguration":{"team_id":5,"teams":[1]}},"team_id":1}`},
+		{"large ids", `{"team_id": 9007199254740993}`, `{"team_id":9007199254740993}`},
 		{"malformed details", `{"team_id": `, `{"team_id": `},
 		{"details that are not an object", `[{"team_id": 1}]`, `[{"team_id": 1}]`},
 	}

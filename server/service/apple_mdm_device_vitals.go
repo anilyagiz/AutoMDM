@@ -3,7 +3,7 @@ package service
 import (
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
 // plistOpt returns a pointer to queryResponses[key] cast to T, or nil if the
@@ -103,12 +103,12 @@ func plistOptDictArray(queryResponses map[string]any, key string) []map[string]a
 	return out
 }
 
-func parseMDMAppleAccessibilitySettings(queryResponses map[string]any) *fleet.MDMAppleAccessibilitySettings {
+func parseMDMAppleAccessibilitySettings(queryResponses map[string]any) *automdm.MDMAppleAccessibilitySettings {
 	m, ok := queryResponses["AccessibilitySettings"].(map[string]any)
 	if !ok {
 		return nil
 	}
-	return &fleet.MDMAppleAccessibilitySettings{
+	return &automdm.MDMAppleAccessibilitySettings{
 		BoldTextEnabled:            plistOpt[bool](m, "BoldTextEnabled"),
 		GrayscaleEnabled:           plistOpt[bool](m, "GrayscaleEnabled"),
 		IncreaseContrastEnabled:    plistOpt[bool](m, "IncreaseContrastEnabled"),
@@ -121,12 +121,12 @@ func parseMDMAppleAccessibilitySettings(queryResponses map[string]any) *fleet.MD
 	}
 }
 
-func parseMDMAppleOrganizationInfo(queryResponses map[string]any) *fleet.MDMAppleOrganizationInfo {
+func parseMDMAppleOrganizationInfo(queryResponses map[string]any) *automdm.MDMAppleOrganizationInfo {
 	m, ok := queryResponses["OrganizationInfo"].(map[string]any)
 	if !ok {
 		return nil
 	}
-	return &fleet.MDMAppleOrganizationInfo{
+	return &automdm.MDMAppleOrganizationInfo{
 		OrganizationName:    plistOpt[string](m, "OrganizationName"),
 		OrganizationAddress: plistOpt[string](m, "OrganizationAddress"),
 		OrganizationPhone:   plistOpt[string](m, "OrganizationPhone"),
@@ -135,24 +135,24 @@ func parseMDMAppleOrganizationInfo(queryResponses map[string]any) *fleet.MDMAppl
 	}
 }
 
-func parseMDMAppleDeviceVitalsMDMOptions(queryResponses map[string]any) *fleet.MDMAppleDeviceVitalsMDMOptions {
+func parseMDMAppleDeviceVitalsMDMOptions(queryResponses map[string]any) *automdm.MDMAppleDeviceVitalsMDMOptions {
 	m, ok := queryResponses["MDMOptions"].(map[string]any)
 	if !ok {
 		return nil
 	}
-	return &fleet.MDMAppleDeviceVitalsMDMOptions{
+	return &automdm.MDMAppleDeviceVitalsMDMOptions{
 		ActivationLockAllowedWhileSupervised:             plistOpt[bool](m, "ActivationLockAllowedWhileSupervised"),
 		BootstrapTokenAllowed:                            plistOpt[bool](m, "BootstrapTokenAllowed"),
 		PromptUserToAllowBootstrapTokenForAuthentication: plistOpt[bool](m, "PromptUserToAllowBootstrapTokenForAuthentication"),
 	}
 }
 
-func parseMDMAppleServiceSubscriptions(queryResponses map[string]any) []fleet.MDMAppleServiceSubscription {
+func parseMDMAppleServiceSubscriptions(queryResponses map[string]any) []automdm.MDMAppleServiceSubscription {
 	dicts := plistOptDictArray(queryResponses, "ServiceSubscriptions")
 	if dicts == nil {
 		return nil
 	}
-	subscriptions := make([]fleet.MDMAppleServiceSubscription, 0, len(dicts))
+	subscriptions := make([]automdm.MDMAppleServiceSubscription, 0, len(dicts))
 	for _, m := range dicts {
 		slot := plistOpt[string](m, "Slot")
 		if slot == nil {
@@ -160,7 +160,7 @@ func parseMDMAppleServiceSubscriptions(queryResponses map[string]any) []fleet.MD
 			// be persisted.
 			continue
 		}
-		subscriptions = append(subscriptions, fleet.MDMAppleServiceSubscription{
+		subscriptions = append(subscriptions, automdm.MDMAppleServiceSubscription{
 			Slot:                     *slot,
 			CarrierSettingsVersion:   plistOpt[string](m, "CarrierSettingsVersion"),
 			CurrentCarrierNetwork:    plistOpt[string](m, "CurrentCarrierNetwork"),
@@ -188,8 +188,8 @@ func parseMDMAppleServiceSubscriptions(queryResponses map[string]any) []fleet.MD
 // from queryResponses (an enrollment method that doesn't support them, or an
 // older OS) are left nil, which SetOrUpdateHostMDMAppleDeviceVitals persists
 // as SQL NULL.
-func parseMDMAppleDeviceVitals(queryResponses map[string]any) fleet.MDMAppleDeviceVitals {
-	return fleet.MDMAppleDeviceVitals{
+func parseMDMAppleDeviceVitals(queryResponses map[string]any) automdm.MDMAppleDeviceVitals {
+	return automdm.MDMAppleDeviceVitals{
 		UDID:                       plistOpt[string](queryResponses, "UDID"),
 		ModelNumber:                plistOpt[string](queryResponses, "ModelNumber"),
 		ModemFirmwareVersion:       plistOpt[string](queryResponses, "ModemFirmwareVersion"),

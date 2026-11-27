@@ -46,10 +46,10 @@ export interface ISaveNewPolicyModalProps {
   isFetchingAutofillResolution: boolean;
   onClickAutofillDescription: () => Promise<void>;
   onClickAutofillResolution: () => Promise<void>;
-  /** True when the new policy targets "All fleets" (global); only the
+  /** True when the new policy targets "All teams" (global); only the
    *  webhook/ticket row is shown in the automations table. */
   isGlobalPolicy: boolean;
-  /** undefined for global, 0 for "Unassigned", positive for a fleet. */
+  /** undefined for global, 0 for "Unassigned", positive for a team. */
   policyTeamId: number | undefined;
   /** Config that owns the new policy's automations: global config for global
    *  policies, the team's config for team policies. */
@@ -57,8 +57,8 @@ export interface ISaveNewPolicyModalProps {
   /** Global config — needed for the conditional access row on the
    *  "Unassigned" view. */
   globalConfig: IConfig | undefined;
-  /** Display name of the fleet the new policy belongs to. */
-  fleetName: string;
+  /** Display name of the team the new policy belongs to. */
+  automdmName: string;
   router: InjectedRouter;
 }
 
@@ -90,7 +90,7 @@ const SaveNewPolicyModal = ({
   policyTeamId,
   automationsConfig,
   globalConfig,
-  fleetName,
+  automdmName,
   router,
 }: ISaveNewPolicyModalProps): JSX.Element => {
   const { isPremiumTier } = useContext(AppContext);
@@ -133,7 +133,7 @@ const SaveNewPolicyModal = ({
     () =>
       ({
         id: -1,
-        fleet_id: policyTeamId ?? null,
+        team_id: policyTeamId ?? null,
         continuous_automations_enabled: false,
       } as IPolicy),
     [policyTeamId]
@@ -242,7 +242,7 @@ const SaveNewPolicyModal = ({
             ) : (
               <>
                 Policy queries (SQL) will be sent to a <br />
-                large language model (LLM). Fleet <br />
+                large language model (LLM). AutoMDM <br />
                 doesn&apos;t use this data to train models.
               </>
             )
@@ -370,7 +370,7 @@ const SaveNewPolicyModal = ({
           teamIdForApi={policyTeamId}
           automationsConfig={automationsConfig}
           globalConfig={globalConfig}
-          fleetName={fleetName}
+          automdmName={automdmName}
           selectedPlatforms={platformSelector.getSelectedPlatforms()}
           onConditionalAccessChange={setConditionalAccessOn}
         />
@@ -408,7 +408,7 @@ const SaveNewPolicyModal = ({
                 tipContent={
                   conditionalAccessOn
                     ? "This setting is not compatible with the conditional access automation."
-                    : "Does not require action from the end user and is hidden in Fleet Desktop."
+                    : "Does not require action from the end user and is hidden in AutoMDM Desktop."
                 }
               >
                 Hide from end user

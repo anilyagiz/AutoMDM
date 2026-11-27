@@ -33,8 +33,8 @@ describe("useTeamIdParam", () => {
         useTeamIdParam({
           location: {
             pathname: "/policies/1",
-            search: "?fleet_id=0",
-            query: { fleet_id: "0" },
+            search: "?team_id=0",
+            query: { team_id: "0" },
           },
           router: createMockRouter(),
           includeAllTeams: true,

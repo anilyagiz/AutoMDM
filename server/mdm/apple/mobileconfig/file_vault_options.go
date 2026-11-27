@@ -12,7 +12,7 @@ type FDEFileVaultOptionsPayload struct {
 
 // ContainsFDEFileVaultOptionsPayload returns true if the payload contains any FileVault options.
 // https://developer.apple.com/documentation/devicemanagement/fdefilevaultoptions
-// Fleet users are not allowed to upload such payloads because Fleet fully manages disk encryption (FileVault).
+// AutoMDM users are not allowed to upload such payloads because AutoMDM fully manages disk encryption (FileVault).
 func ContainsFDEFileVaultOptionsPayload(contents []byte) (bool, error) {
 	if len(contents) == 0 {
 		return false, nil
@@ -23,7 +23,7 @@ func ContainsFDEFileVaultOptionsPayload(contents []byte) (bool, error) {
 		return false, err
 	}
 	for _, p := range prof.PayloadContent {
-		if p.PayloadType == FleetCustomSettingsPayloadType && p.DestroyFVKeyOnStandby != nil {
+		if p.PayloadType == AutoMDMCustomSettingsPayloadType && p.DestroyFVKeyOnStandby != nil {
 			return true, nil
 		}
 	}

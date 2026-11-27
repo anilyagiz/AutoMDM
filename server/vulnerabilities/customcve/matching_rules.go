@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/nvd/tools/cvefeed/nvd"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/nvd/tools/cvefeed/nvd"
 )
 
 var (
@@ -99,9 +99,9 @@ func getCVEMatchingRules() CVEMatchingRules {
 	}
 }
 
-func (r CVEMatchingRule) match(ctx context.Context, ds fleet.Datastore) ([]fleet.SoftwareVulnerability, error) {
-	var vulns []fleet.SoftwareVulnerability
-	filter := fleet.VulnSoftwareFilter{
+func (r CVEMatchingRule) match(ctx context.Context, ds automdm.Datastore) ([]automdm.SoftwareVulnerability, error) {
+	var vulns []automdm.SoftwareVulnerability
+	filter := automdm.VulnSoftwareFilter{
 		Name:    r.NameLikeMatch,
 		Sources: r.sources(),
 	}
@@ -123,7 +123,7 @@ func (r CVEMatchingRule) match(ctx context.Context, ds fleet.Datastore) ([]fleet
 
 		if nvd.SmartVerCmp(s.Version, r.ResolvedInVersion) < 0 {
 			for _, cve := range r.CVEs {
-				vulns = append(vulns, fleet.SoftwareVulnerability{
+				vulns = append(vulns, automdm.SoftwareVulnerability{
 					SoftwareID:        s.ID,
 					CVE:               cve,
 					ResolvedInVersion: &r.ResolvedInVersion,
@@ -162,13 +162,13 @@ func (r CVEMatchingRules) ValidateAll() error {
 }
 
 // CheckCustomVulnerabilities matches software against custom rules and inserts vulnerabilities
-func CheckCustomVulnerabilities(ctx context.Context, ds fleet.Datastore, logger *slog.Logger, startTime time.Time) ([]fleet.SoftwareVulnerability, error) {
+func CheckCustomVulnerabilities(ctx context.Context, ds automdm.Datastore, logger *slog.Logger, startTime time.Time) ([]automdm.SoftwareVulnerability, error) {
 	rules := getCVEMatchingRules()
 	if err := rules.ValidateAll(); err != nil {
 		return nil, fmt.Errorf("invalid rules: %w", err)
 	}
 
-	var vulns []fleet.SoftwareVulnerability
+	var vulns []automdm.SoftwareVulnerability
 	for i, rule := range rules {
 		v, err := rule.match(ctx, ds)
 		if err != nil {
@@ -178,7 +178,7 @@ func CheckCustomVulnerabilities(ctx context.Context, ds fleet.Datastore, logger 
 		vulns = append(vulns, v...)
 	}
 
-	newVulns, err := ds.InsertSoftwareVulnerabilities(ctx, vulns, fleet.CustomSource)
+	newVulns, err := ds.InsertSoftwareVulnerabilities(ctx, vulns, automdm.CustomSource)
 	if err != nil {
 		// Return early so DeleteOutOfDateVulnerabilities doesn't run.
 		// Otherwise, without the insert refreshing updated_at, all existing vulns would look stale and be deleted.
@@ -186,7 +186,7 @@ func CheckCustomVulnerabilities(ctx context.Context, ds fleet.Datastore, logger 
 		return nil, err
 	}
 
-	if err := ds.DeleteOutOfDateVulnerabilities(ctx, fleet.CustomSource, startTime); err != nil {
+	if err := ds.DeleteOutOfDateVulnerabilities(ctx, automdm.CustomSource, startTime); err != nil {
 		logger.ErrorContext(ctx, "Error deleting out of date vulnerabilities", "err", err)
 	}
 

@@ -6,17 +6,17 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	"github.com/fleetdm/fleet/v4/server/authz"
-	"github.com/fleetdm/fleet/v4/server/contexts/host"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/host"
+	"github.com/anilyagiz/automdm/v4/server/mock"
 	"github.com/stretchr/testify/require"
 )
 
 // These tests cover the gate that decides whether the agent is asked to restore protection.
 func TestShouldEnableBitLockerProtection(t *testing.T) {
-	protectionOff := fleet.BitLockerProtectionStatusOff
-	protectionOn := fleet.BitLockerProtectionStatusOn
+	protectionOff := automdm.BitLockerProtectionStatusOff
+	protectionOn := automdm.BitLockerProtectionStatusOn
 
 	for _, tc := range []struct {
 		name          string
@@ -83,7 +83,7 @@ func TestShouldEnableBitLockerProtection(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			host := &fleet.Host{
+			host := &automdm.Host{
 				DiskEncryptionEnabled:     tc.encrypted,
 				BitLockerProtectionStatus: tc.protection,
 				BitLockerBootProtectorSet: tc.bootProtector,
@@ -98,7 +98,7 @@ func TestSetOrUpdateDiskEncryptionProtection(t *testing.T) {
 	// recorder captures what reached the datastore, so each case asserts on values rather than only on invocation.
 	type recorder struct {
 		storedError   string
-		storedOutcome fleet.DiskEncryptionProtectionOutcome
+		storedOutcome automdm.DiskEncryptionProtectionOutcome
 		errorSet      bool
 		refetchValue  *bool
 	}
@@ -108,9 +108,9 @@ func TestSetOrUpdateDiskEncryptionProtection(t *testing.T) {
 		require.NoError(t, err)
 		svc := &Service{ds: ds, authz: svcAuthz}
 		rec := &recorder{}
-		ds.IsHostConnectedToFleetMDMFunc = func(ctx context.Context, h *fleet.Host) (bool, error) { return true, nil }
+		ds.IsHostConnectedToAutoMDMMDMFunc = func(ctx context.Context, h *automdm.Host) (bool, error) { return true, nil }
 		ds.SetOrUpdateHostBitLockerProtectionOutcomeFunc = func(
-			_ context.Context, _ uint, o fleet.DiskEncryptionProtectionOutcome, e string,
+			_ context.Context, _ uint, o automdm.DiskEncryptionProtectionOutcome, e string,
 		) error {
 			rec.errorSet, rec.storedError, rec.storedOutcome = true, e, o
 			return nil
@@ -122,13 +122,13 @@ func TestSetOrUpdateDiskEncryptionProtection(t *testing.T) {
 		return svc, ds, rec
 	}
 	ctx := func() context.Context {
-		return host.NewContext(t.Context(), &fleet.Host{ID: 1})
+		return host.NewContext(t.Context(), &automdm.Host{ID: 1})
 	}
 
 	t.Run("restored clears the reason and asks for a refetch", func(t *testing.T) {
 		svc, _, rec := setup()
 
-		require.NoError(t, svc.SetOrUpdateDiskEncryptionProtection(ctx(), fleet.DiskEncryptionProtectionRestored, ""))
+		require.NoError(t, svc.SetOrUpdateDiskEncryptionProtection(ctx(), automdm.DiskEncryptionProtectionRestored, ""))
 		require.True(t, rec.errorSet)
 		require.Empty(t, rec.storedError)
 		// osquery owns the protection status, so the status flips on evidence rather than on the agent's assertion.
@@ -139,32 +139,32 @@ func TestSetOrUpdateDiskEncryptionProtection(t *testing.T) {
 	t.Run("failure records the reason for the admin", func(t *testing.T) {
 		svc, _, rec := setup()
 
-		require.NoError(t, svc.SetOrUpdateDiskEncryptionProtection(ctx(), fleet.DiskEncryptionProtectionFailed, "the TPM is not ready"))
+		require.NoError(t, svc.SetOrUpdateDiskEncryptionProtection(ctx(), automdm.DiskEncryptionProtectionFailed, "the TPM is not ready"))
 		require.Equal(t, "the TPM is not ready", rec.storedError)
-		require.Equal(t, fleet.DiskEncryptionProtectionFailed, rec.storedOutcome)
+		require.Equal(t, automdm.DiskEncryptionProtectionFailed, rec.storedOutcome)
 		require.Nil(t, rec.refetchValue, "a host that was not repaired has nothing new to observe")
 	})
 
 	t.Run("a deferred repair is recorded as deferred, not failed", func(t *testing.T) {
 		svc, _, rec := setup()
 
-		require.NoError(t, svc.SetOrUpdateDiskEncryptionProtection(ctx(), fleet.DiskEncryptionProtectionDeferred,
+		require.NoError(t, svc.SetOrUpdateDiskEncryptionProtection(ctx(), automdm.DiskEncryptionProtectionDeferred,
 			"a restart is pending on this host"))
-		require.Equal(t, fleet.DiskEncryptionProtectionDeferred, rec.storedOutcome)
+		require.Equal(t, automdm.DiskEncryptionProtectionDeferred, rec.storedOutcome)
 		require.Equal(t, "a restart is pending on this host", rec.storedError)
 		require.Nil(t, rec.refetchValue, "nothing has changed on the host yet")
 	})
 
 	t.Run("never writes the disk encryption key", func(t *testing.T) {
-		for _, outcome := range []fleet.DiskEncryptionProtectionOutcome{
-			fleet.DiskEncryptionProtectionRestored,
-			fleet.DiskEncryptionProtectionDeferred,
-			fleet.DiskEncryptionProtectionFailed,
+		for _, outcome := range []automdm.DiskEncryptionProtectionOutcome{
+			automdm.DiskEncryptionProtectionRestored,
+			automdm.DiskEncryptionProtectionDeferred,
+			automdm.DiskEncryptionProtectionFailed,
 		} {
 			t.Run(string(outcome), func(t *testing.T) {
 				svc, ds, _ := setup()
 				reason := ""
-				if outcome != fleet.DiskEncryptionProtectionRestored {
+				if outcome != automdm.DiskEncryptionProtectionRestored {
 					reason = "a reason"
 				}
 
@@ -177,7 +177,7 @@ func TestSetOrUpdateDiskEncryptionProtection(t *testing.T) {
 	t.Run("rejects an unknown outcome", func(t *testing.T) {
 		svc, ds, rec := setup()
 
-		err := svc.SetOrUpdateDiskEncryptionProtection(ctx(), fleet.DiskEncryptionProtectionOutcome("nonsense"), "a reason")
+		err := svc.SetOrUpdateDiskEncryptionProtection(ctx(), automdm.DiskEncryptionProtectionOutcome("nonsense"), "a reason")
 		require.Error(t, err)
 		require.False(t, rec.errorSet, "a rejected outcome must not reach the datastore")
 		require.Nil(t, rec.refetchValue)
@@ -185,9 +185,9 @@ func TestSetOrUpdateDiskEncryptionProtection(t *testing.T) {
 	})
 
 	t.Run("rejects a failure with no reason", func(t *testing.T) {
-		for _, outcome := range []fleet.DiskEncryptionProtectionOutcome{
-			fleet.DiskEncryptionProtectionFailed,
-			fleet.DiskEncryptionProtectionDeferred,
+		for _, outcome := range []automdm.DiskEncryptionProtectionOutcome{
+			automdm.DiskEncryptionProtectionFailed,
+			automdm.DiskEncryptionProtectionDeferred,
 		} {
 			t.Run(string(outcome), func(t *testing.T) {
 				svc, _, rec := setup()
@@ -203,7 +203,7 @@ func TestSetOrUpdateDiskEncryptionProtection(t *testing.T) {
 		t.Run("padding alone is rejected", func(t *testing.T) {
 			svc, _, rec := setup()
 
-			require.Error(t, svc.SetOrUpdateDiskEncryptionProtection(ctx(), fleet.DiskEncryptionProtectionFailed,
+			require.Error(t, svc.SetOrUpdateDiskEncryptionProtection(ctx(), automdm.DiskEncryptionProtectionFailed,
 				strings.Repeat(" ", bitLockerProtectionErrorMaxLength+50)))
 			require.False(t, rec.errorSet)
 		})
@@ -212,7 +212,7 @@ func TestSetOrUpdateDiskEncryptionProtection(t *testing.T) {
 			svc, _, rec := setup()
 
 			padded := strings.Repeat(" ", bitLockerProtectionErrorMaxLength+50) + "the TPM is not ready"
-			require.NoError(t, svc.SetOrUpdateDiskEncryptionProtection(ctx(), fleet.DiskEncryptionProtectionFailed, padded))
+			require.NoError(t, svc.SetOrUpdateDiskEncryptionProtection(ctx(), automdm.DiskEncryptionProtectionFailed, padded))
 			require.Equal(t, "the TPM is not ready", rec.storedError)
 		})
 	})
@@ -229,7 +229,7 @@ func TestSetOrUpdateDiskEncryptionProtection(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				svc, _, rec := setup()
 
-				require.NoError(t, svc.SetOrUpdateDiskEncryptionProtection(ctx(), fleet.DiskEncryptionProtectionFailed,
+				require.NoError(t, svc.SetOrUpdateDiskEncryptionProtection(ctx(), automdm.DiskEncryptionProtectionFailed,
 					strings.Repeat(tc.char, bitLockerProtectionErrorMaxLength+50)))
 				require.True(t, utf8.ValidString(rec.storedError))
 				// The column is bounded in characters, not bytes.

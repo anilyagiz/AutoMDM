@@ -22,9 +22,9 @@ const meta: Meta<typeof IconStatusMessage> = {
       control: { type: "select" },
       options: [
         undefined,
-        "core-fleet-green",
-        "core-fleet-black",
-        "ui-fleet-black-75",
+        "core-automdm-green",
+        "core-automdm-black",
+        "ui-automdm-black-75",
         "status-success",
         "status-error",
       ],
@@ -48,7 +48,7 @@ export const Playground: Story = {
       </>
     ),
     iconName: "success",
-    iconColor: "core-fleet-green",
+    iconColor: "core-automdm-green",
     className: "",
     testId: "icon-status-playground",
   },

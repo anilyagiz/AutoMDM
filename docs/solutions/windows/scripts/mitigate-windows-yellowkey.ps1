@@ -21,7 +21,7 @@
     Mount, hive, edit, and unmount run in one try/finally so the hive and
     mount are always released. The mount directory is under %SystemRoot%\Temp,
     ACL-locked to Administrators. On success the script writes
-    HKLM\SOFTWARE\Fleet\YellowKey\BootExecMitigated = 1, which the
+    HKLM\SOFTWARE\AutoMDM\YellowKey\BootExecMitigated = 1, which the
     windows_yellowkey extension reads to report the host as `mitigated`.
 
     One-way: no unmitigate. If a patch ships, apply it and clear the marker.
@@ -29,7 +29,7 @@
 
 .PARAMETER MountPath
     Directory to use as the WinRE mount point. Created if missing and ACL-
-    locked to Administrators. Default: %SystemRoot%\Temp\fleet-yk-winre-mount
+    locked to Administrators. Default: %SystemRoot%\Temp\automdm-yk-winre-mount
 
 .OUTPUTS
     Structured key:value output to stdout for log capture.
@@ -50,7 +50,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $false)]
-    [string]$MountPath = (Join-Path $env:SystemRoot 'Temp\fleet-yk-winre-mount')
+    [string]$MountPath = (Join-Path $env:SystemRoot 'Temp\automdm-yk-winre-mount')
 )
 
 $ErrorActionPreference = 'Stop'
@@ -93,12 +93,12 @@ $mountCreated = $false
 $changesMade  = $false
 $editClean    = $false
 
-# --- Fleet: success marker path (BootExecMitigated is written on success;
+# --- AutoMDM: success marker path (BootExecMitigated is written on success;
 #     no opt-in gate because Microsoft's autofstx strip is the official
 #     mitigation and is safe to apply on every affected host). ---
-$markerPath = 'HKLM:\SOFTWARE\Fleet\YellowKey'
+$markerPath = 'HKLM:\SOFTWARE\AutoMDM\YellowKey'
 
-# --- Fleet: OS check ---
+# --- AutoMDM: OS check ---
 $os = (Get-CimInstance Win32_OperatingSystem).Caption
 Write-State "OS" $os
 $affected = ($os -match 'Windows 11' -or $os -match 'Server 2022' -or $os -match 'Server 2025')
@@ -303,7 +303,7 @@ if ($changesMade) {
     Write-State "WinRE re-sealed" "disable + enable"
 }
 
-# --- Fleet: success marker. Only written when the edit loop completed
+# --- AutoMDM: success marker. Only written when the edit loop completed
 #     cleanly AND every ControlSet read-back verified autofstx absent. ---
 try {
     if (-not (Test-Path $markerPath)) {

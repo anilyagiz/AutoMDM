@@ -11,8 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/pkg/file"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/pkg/file"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
 type AppCommander struct {
@@ -52,7 +52,7 @@ func (ac *AppCommander) isFrozen() (bool, error) {
 	return input.Frozen, nil
 }
 
-func (ac *AppCommander) extractAppVersion(installerTFR *fleet.TempFileReader) error {
+func (ac *AppCommander) extractAppVersion(installerTFR *automdm.TempFileReader) error {
 	if ac.Version == "latest" {
 		meta, err := file.ExtractInstallerMetadata(installerTFR)
 		if err != nil {

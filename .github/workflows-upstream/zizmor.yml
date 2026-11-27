@@ -58,7 +58,7 @@ jobs:
         uses: zizmorcore/zizmor-action@5f14fd08f7cf1cb1609c1e344975f152c7ee938d # v0.5.6
         with:
           version: ${{ env.ZIZMOR_VERSION }}
-          # Scope analysis to Fleet's own workflows and composite actions.
+          # Scope analysis to AutoMDM's own workflows and composite actions.
           inputs: .github/workflows .github/actions
           # Fail the job on findings, emitting them as inline annotations.
           advanced-security: false

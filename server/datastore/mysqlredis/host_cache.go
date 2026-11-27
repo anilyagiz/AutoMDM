@@ -8,19 +8,19 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/logging"
-	"github.com/fleetdm/fleet/v4/server/datastore/redis"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/logging"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
 	redigo "github.com/gomodule/redigo/redis"
 )
 
 // All host-cache keys live under this single versioned prefix so operators can
-// purge with `redis-cli --scan --pattern 'fleet:hostcache:v2:*' | xargs redis-cli DEL`.
+// purge with `redis-cli --scan --pattern 'automdm:hostcache:v2:*' | xargs redis-cli DEL`.
 // Bumping the version on a cached-payload schema change orphans old keys; they
 // TTL out within hostCacheTTL.
-const hostCacheKeyPrefix = "fleet:hostcache:v2"
+const hostCacheKeyPrefix = "automdm:hostcache:v2"
 
 const (
 	// hostCacheNegativeTTL caps how long a "not found" result is cached. The value trades off two forces:
@@ -62,7 +62,7 @@ const (
 	// the cache never fails a request.
 	hostCacheLookupMiss hostCacheLookup = iota
 
-	// hostCacheLookupHit means the returned *fleet.Host is valid and can be
+	// hostCacheLookupHit means the returned *automdm.Host is valid and can be
 	// served to the caller as-is.
 	hostCacheLookupHit
 
@@ -101,11 +101,11 @@ func hostCacheOrbitIndexByID(hostID uint) string {
 // to avoid duplicating the same logic for both families. Adding a third agent in the future means adding one more
 // cacheFamily value at this site; the read/write code does not change.
 type cacheFamily struct {
-	sfPrefix   string                    // singleflight key prefix to disambiguate flights ("nk:" or "onk:")
-	primaryKey func(string) string       // positive-cache key constructor
-	missKey    func(string) string       // negative-cache key constructor
-	indexKey   func(uint) string         // reverse-index key constructor
-	nodeKeyOf  func(*fleet.Host) *string // accessor for the family's host key field on *fleet.Host
+	sfPrefix   string                      // singleflight key prefix to disambiguate flights ("nk:" or "onk:")
+	primaryKey func(string) string         // positive-cache key constructor
+	missKey    func(string) string         // negative-cache key constructor
+	indexKey   func(uint) string           // reverse-index key constructor
+	nodeKeyOf  func(*automdm.Host) *string // accessor for the family's host key field on *automdm.Host
 }
 
 var (
@@ -114,14 +114,14 @@ var (
 		primaryKey: hostCacheKeyByNodeKey,
 		missKey:    hostCacheKeyMiss,
 		indexKey:   hostCacheIndexByID,
-		nodeKeyOf:  func(h *fleet.Host) *string { return h.NodeKey },
+		nodeKeyOf:  func(h *automdm.Host) *string { return h.NodeKey },
 	}
 	orbitCacheFamily = cacheFamily{
 		sfPrefix:   "onk:",
 		primaryKey: hostCacheKeyByOrbitNodeKey,
 		missKey:    hostCacheKeyOrbitMiss,
 		indexKey:   hostCacheOrbitIndexByID,
-		nodeKeyOf:  func(h *fleet.Host) *string { return h.OrbitNodeKey },
+		nodeKeyOf:  func(h *automdm.Host) *string { return h.OrbitNodeKey },
 	}
 )
 
@@ -147,7 +147,7 @@ func (d *Datastore) jitteredHostCacheTTL() time.Duration {
 //
 // On unmarshal failure the bad key is DELed so the next lookup repopulates from the database; this is the
 // schema-drift defense.
-func (d *Datastore) hostCacheGetFamily(ctx context.Context, fam cacheFamily, key string) (*fleet.Host, hostCacheLookup) {
+func (d *Datastore) hostCacheGetFamily(ctx context.Context, fam cacheFamily, key string) (*automdm.Host, hostCacheLookup) {
 	if !d.hostCacheEnabled || key == "" {
 		return nil, hostCacheLookupMiss
 	}
@@ -195,7 +195,7 @@ func (d *Datastore) hostCacheGetFamily(ctx context.Context, fam cacheFamily, key
 }
 
 // hostCacheGetByNodeKey is the osquery-family wrapper of hostCacheGetFamily.
-func (d *Datastore) hostCacheGetByNodeKey(ctx context.Context, nodeKey string) (*fleet.Host, hostCacheLookup) {
+func (d *Datastore) hostCacheGetByNodeKey(ctx context.Context, nodeKey string) (*automdm.Host, hostCacheLookup) {
 	return d.hostCacheGetFamily(ctx, osqueryCacheFamily, nodeKey)
 }
 
@@ -214,7 +214,7 @@ func (d *Datastore) hostCacheGetByNodeKey(ctx context.Context, nodeKey string) (
 // invalidate-by-ID can't find it via the missing indexKey. This is a very rare fail, and TTL bounds the staleness.
 //
 // Both SETs use EXAT (absolute Unix-second expiration) with a single computed expiresAt. EXAT requires Redis 6.2+
-func (d *Datastore) hostCachePutFamily(ctx context.Context, fam cacheFamily, host *fleet.Host) {
+func (d *Datastore) hostCachePutFamily(ctx context.Context, fam cacheFamily, host *automdm.Host) {
 	if !d.hostCacheEnabled || host == nil {
 		return
 	}
@@ -254,7 +254,7 @@ func (d *Datastore) hostCachePutFamily(ctx context.Context, fam cacheFamily, hos
 }
 
 // hostCachePutByNodeKey is the osquery-family wrapper of hostCachePutFamily.
-func (d *Datastore) hostCachePutByNodeKey(ctx context.Context, host *fleet.Host) {
+func (d *Datastore) hostCachePutByNodeKey(ctx context.Context, host *automdm.Host) {
 	d.hostCachePutFamily(ctx, osqueryCacheFamily, host)
 }
 
@@ -326,12 +326,12 @@ func (d *Datastore) hostCacheDeleteByNodeKey(ctx context.Context, nodeKey string
 }
 
 // hostCacheGetByOrbitNodeKey is the orbit-family wrapper of hostCacheGetFamily.
-func (d *Datastore) hostCacheGetByOrbitNodeKey(ctx context.Context, orbitNodeKey string) (*fleet.Host, hostCacheLookup) {
+func (d *Datastore) hostCacheGetByOrbitNodeKey(ctx context.Context, orbitNodeKey string) (*automdm.Host, hostCacheLookup) {
 	return d.hostCacheGetFamily(ctx, orbitCacheFamily, orbitNodeKey)
 }
 
 // hostCachePutByOrbitNodeKey is the orbit-family wrapper of hostCachePutFamily.
-func (d *Datastore) hostCachePutByOrbitNodeKey(ctx context.Context, host *fleet.Host) {
+func (d *Datastore) hostCachePutByOrbitNodeKey(ctx context.Context, host *automdm.Host) {
 	d.hostCachePutFamily(ctx, orbitCacheFamily, host)
 }
 
@@ -627,7 +627,7 @@ func (d *Datastore) recordHostCacheInvalidations(ctx context.Context, reason str
 // span) but drops cancellation; that's why we don't just use context.Background().
 //
 // We then wrap the detached ctx in context.WithTimeout(_, hostCacheFlightTimeout) so a wedged DB query
-// cannot pin the singleflight slot for this node_key indefinitely. Fleet's MysqlConfig does not set
+// cannot pin the singleflight slot for this node_key indefinitely. AutoMDM's MysqlConfig does not set
 // readTimeout/writeTimeout on the DSN, so without an explicit cap the safety net for a stuck query would be
 // operator-side only (MySQL server max_execution_time, TCP keepalive, or manual KILL). 30s is the cap.
 //
@@ -645,8 +645,8 @@ func (d *Datastore) loadHostFamily(
 	ctx context.Context,
 	fam cacheFamily,
 	key string,
-	dbLoad func(context.Context, string) (*fleet.Host, error),
-) (*fleet.Host, error) {
+	dbLoad func(context.Context, string) (*automdm.Host, error),
+) (*automdm.Host, error) {
 	if !d.hostCacheEnabled {
 		return dbLoad(ctx, key)
 	}
@@ -670,7 +670,7 @@ func (d *Datastore) loadHostFamily(
 		switch {
 		case derr == nil && h != nil:
 			d.hostCachePutFamily(flightCtx, fam, h)
-		case fleet.IsNotFound(derr):
+		case automdm.IsNotFound(derr):
 			d.hostCachePutNotFoundFamily(flightCtx, fam, key)
 			// Other (transient) errors are intentionally not cached, retry on next call.
 		}
@@ -687,7 +687,7 @@ func (d *Datastore) loadHostFamily(
 	if err != nil {
 		return nil, err
 	}
-	h, _ := v.(*fleet.Host)
+	h, _ := v.(*automdm.Host)
 	if h == nil {
 		// Inner returned (nil, nil); shouldn't happen but don't hand out a nil pointer that downstream code
 		// will dereference.
@@ -702,14 +702,14 @@ func (d *Datastore) loadHostFamily(
 
 // LoadHostByNodeKey overrides the inner Datastore's LoadHostByNodeKey to serve from the Redis cache when
 // populated. The osquery-family wrapper of loadHostFamily; see loadHostFamily for full semantics.
-func (d *Datastore) LoadHostByNodeKey(ctx context.Context, nodeKey string) (*fleet.Host, error) {
+func (d *Datastore) LoadHostByNodeKey(ctx context.Context, nodeKey string) (*automdm.Host, error) {
 	return d.loadHostFamily(ctx, osqueryCacheFamily, nodeKey, d.Datastore.LoadHostByNodeKey)
 }
 
 // LoadHostByOrbitNodeKey is the orbit-family wrapper of loadHostFamily. The additional fields
 // LoadHostByOrbitNodeKey's SELECT returns (DEP assignment, disk encryption state, encryption key availability,
-// team name) ride along automatically via the embedded fleet.Host in the cache envelope.
-func (d *Datastore) LoadHostByOrbitNodeKey(ctx context.Context, orbitNodeKey string) (*fleet.Host, error) {
+// team name) ride along automatically via the embedded automdm.Host in the cache envelope.
+func (d *Datastore) LoadHostByOrbitNodeKey(ctx context.Context, orbitNodeKey string) (*automdm.Host, error) {
 	return d.loadHostFamily(ctx, orbitCacheFamily, orbitNodeKey, d.Datastore.LoadHostByOrbitNodeKey)
 }
 
@@ -782,7 +782,7 @@ func uniqueHostIDs(ids []uint) []uint {
 // rewriteTeamChunk patches one chunk of host IDs, returning the hosts it patched
 // and the ones that must fall back to invalidation.
 func (d *Datastore) rewriteTeamChunk(
-	ctx context.Context, ids []uint, teamID *uint, destDiskEncryption fleet.DiskEncryptionConfig,
+	ctx context.Context, ids []uint, teamID *uint, destDiskEncryption automdm.DiskEncryptionConfig,
 ) (patched, fallback []uint) {
 	families := []cacheFamily{osqueryCacheFamily, orbitCacheFamily}
 	nFam := len(families)
@@ -868,8 +868,8 @@ func (d *Datastore) rewriteTeamChunk(
 // escrowKeptOnTransfer mirrors cleanupDiskEncryptionKeysOnTeamChangeDB's
 // per-platform decision so the cached MDM.EncryptionKeyAvailable flag stays in
 // step with the rows the transfer just deleted.
-func escrowKeptOnTransfer(platform string, cfg fleet.DiskEncryptionConfig) bool {
-	switch (&fleet.Host{Platform: platform}).FleetPlatform() {
+func escrowKeptOnTransfer(platform string, cfg automdm.DiskEncryptionConfig) bool {
+	switch (&automdm.Host{Platform: platform}).AutoMDMPlatform() {
 	case "darwin":
 		return cfg.MacOSEscrowEnabled
 	case "windows":

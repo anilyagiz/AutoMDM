@@ -1,15 +1,15 @@
-// Package etag_invalidate provides a fleet.Datastore decorator that fires
+// Package etag_invalidate provides an automdm.Datastore decorator that fires
 // osquery config ETag invalidations (see server/service/redis_config_etag)
 // after every successful write that can change a host's rendered config.
 //
 // WHY A DATASTORE DECORATOR, AND WHAT IT PROTECTS //
 // The Redis-backed config ETag SHORT CIRCUIT (see
-// fleet.OsqueryService.GetClientConfigWithETag) serves "unchanged" responses without
+// automdm.OsqueryService.GetClientConfigWithETag) serves "unchanged" responses without
 // building the config. Its correctness therefore depends ENTIRELY on this
 // decorator seeing every write that can change the rendered osquery config.
 // Hooking here — rather than in service methods — means core service,
 // ee/server/service, and GitOps batch endpoints are all covered by
-// construction, because they all funnel through the fleet.Datastore interface.
+// construction, because they all funnel through the automdm.Datastore interface.
 //
 // Two invalidation kinds exist, with very different blast radii:
 //
@@ -18,11 +18,11 @@
 //     host set is unknown. These are INFREQUENT administrative operations.
 //   - PER-HOST (InvalidateHost: record DEL + 30s publish quarantine): label
 //     result persistence and manual membership changes with known host IDs.
-//     These are CONTINUOUS at fleet scale.
+//     These are CONTINUOUS at team scale.
 //
 // HARD RULE The deployment-wide invalidation must be UNREACHABLE from
 // the routine label evaluation path (RecordLabelQueryExecutions). It runs
-// continuously across the fleet; routing it through the deployment generation
+// continuously across the team; routing it through the deployment generation
 // would re-arm the write fence forever — the optimization would never warm
 // while still paying Redis overhead on every request. It knows its host ID, so
 // it never needs the fallback. Each deployment-wide arming logs its source

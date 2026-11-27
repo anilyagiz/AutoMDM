@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/vulnrepo"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/vulnrepo"
 	"github.com/stretchr/testify/require"
 )
 

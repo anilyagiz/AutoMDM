@@ -1,4 +1,4 @@
-module terraform-provider-fleetdm
+module terraform-provider-automdm
 
 go 1.27.4
 

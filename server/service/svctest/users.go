@@ -13,10 +13,10 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/service"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/service"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -32,24 +32,24 @@ var testUsers = map[string]struct {
 	"admin1": {
 		PlaintextPassword: test.GoodPassword,
 		Email:             service.TestAdminUserEmail,
-		GlobalRole:        ptr.String(fleet.RoleAdmin),
+		GlobalRole:        ptr.String(automdm.RoleAdmin),
 	},
 	"user1": {
 		PlaintextPassword: test.GoodPassword,
 		Email:             service.TestMaintainerUserEmail,
-		GlobalRole:        ptr.String(fleet.RoleMaintainer),
+		GlobalRole:        ptr.String(automdm.RoleMaintainer),
 	},
 	"user2": {
 		PlaintextPassword: test.GoodPassword,
 		Email:             service.TestObserverUserEmail,
-		GlobalRole:        ptr.String(fleet.RoleObserver),
+		GlobalRole:        ptr.String(automdm.RoleObserver),
 	},
 }
 
 // createTestUsers seeds the standard set of admin/maintainer/observer users
 // into ds and returns them keyed by email.
-func createTestUsers(t *testing.T, ds fleet.Datastore) map[string]fleet.User {
-	users := make(map[string]fleet.User)
+func createTestUsers(t *testing.T, ds automdm.Datastore) map[string]automdm.User {
+	users := make(map[string]automdm.User)
 	// Map iteration is random so we sort and iterate using the testUsers keys.
 	var keys []string
 	for key := range testUsers {
@@ -59,7 +59,7 @@ func createTestUsers(t *testing.T, ds fleet.Datastore) map[string]fleet.User {
 	userID := uint(1)
 	for _, key := range keys {
 		u := testUsers[key]
-		user := &fleet.User{
+		user := &automdm.User{
 			ID:         userID,
 			Name:       "Test Name " + u.Email,
 			Email:      u.Email,
@@ -75,10 +75,10 @@ func createTestUsers(t *testing.T, ds fleet.Datastore) map[string]fleet.User {
 	return users
 }
 
-// GetToken posts to /api/latest/fleet/login and returns the auth token. It
+// GetToken posts to /api/latest/automdm/login and returns the auth token. It
 // fails the test on any error.
 func GetToken(t *testing.T, email string, password string, serverURL string) string {
-	params := fleet.LoginRequest{
+	params := automdm.LoginRequest{
 		Email:    email,
 		Password: password,
 	}
@@ -86,13 +86,13 @@ func GetToken(t *testing.T, email string, password string, serverURL string) str
 	require.NoError(t, err)
 
 	requestBody := io.NopCloser(bytes.NewBuffer(j))
-	resp, err := http.Post(serverURL+"/api/latest/fleet/login", "application/json", requestBody)
+	resp, err := http.Post(serverURL+"/api/latest/automdm/login", "application/json", requestBody)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 
 	jsn := struct {
-		User  *fleet.User         `json:"user"`
+		User  *automdm.User       `json:"user"`
 		Token string              `json:"token"`
 		Err   []map[string]string `json:"errors,omitempty"`
 	}{}

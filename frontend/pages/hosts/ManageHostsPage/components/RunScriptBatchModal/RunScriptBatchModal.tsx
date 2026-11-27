@@ -172,7 +172,7 @@ const RunScriptBatchModal = ({
                   PATHS.CONTROLS_SCRIPTS_BATCH_PROGRESS,
                   {
                     status: "scheduled",
-                    fleet_id: teamId,
+                    team_id: teamId,
                   }
                 )}
                 text="Show schedule"
@@ -188,7 +188,7 @@ const RunScriptBatchModal = ({
                   PATHS.CONTROLS_SCRIPTS_BATCH_PROGRESS,
                   {
                     status: "started",
-                    fleet_id: teamId,
+                    team_id: teamId,
                   }
                 )}
                 text="Show script activity"
@@ -230,11 +230,11 @@ const RunScriptBatchModal = ({
               <CustomLink
                 url={getPathWithQueryParams(
                   PATHS.CONTROLS_SCRIPTS,
-                  !isFreeTier ? { fleet_id: teamId } : undefined
+                  !isFreeTier ? { team_id: teamId } : undefined
                 )}
                 text="Add a script"
               />{" "}
-              to this fleet.
+              to this team.
             </>
           }
         />

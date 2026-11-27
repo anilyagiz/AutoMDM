@@ -8,7 +8,7 @@
     "source": "spreadsheet-backfill",
     "sheet_row": 58
   },
-  "fleet_server": {
+  "automdm_server": {
     "cpu_utilization": {
       "Average": 50.46
     },
@@ -79,20 +79,20 @@
       }
     }
   ],
-  "fleet_server_errors": {
+  "automdm_server_errors": {
     "error_count": 0
   },
   "backfill": {
-    "source": "Fleet release load testing results (Google Sheet), manual-logging era",
+    "source": "AutoMDM release load testing results (Google Sheet), manual-logging era",
     "purpose": "QA - <url>",
     "one_click": "yes",
     "notes": null,
     "raw": {
       "full_day": "no",
-      "fleet_containers": "30",
+      "automdm_containers": "30",
       "loadtest_containers": "200",
-      "fleet_cpu": "~50.46%",
-      "fleet_mem": "~3.8%",
+      "automdm_cpu": "~50.46%",
+      "automdm_mem": "~3.8%",
       "errors": "No new errores: logged a follow-up bug for existing one here\u2026",
       "writer_top_sql": "COMMIT",
       "writer_cpu": "~20%",

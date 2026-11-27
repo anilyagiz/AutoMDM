@@ -10,7 +10,7 @@ resource "aws_kms_key" "main" {
   enable_key_rotation     = true
 }
 
-resource "aws_ecr_repository" "fleet" {
+resource "aws_ecr_repository" "automdm" {
   name                 = local.customer
   image_tag_mutability = "IMMUTABLE"
 
@@ -27,20 +27,20 @@ resource "aws_ecr_repository" "fleet" {
 }
 
 resource "docker_image" "dockerhub" {
-  name          = "fleetdm/fleet:${var.tag}"
+  name          = "automdm/automdm:${var.tag}"
   pull_triggers = [data.docker_registry_image.dockerhub.sha256_digest]
 }
 
 data "docker_registry_image" "dockerhub" {
-  name = "fleetdm/fleet:${var.tag}"
+  name = "automdm/automdm:${var.tag}"
 }
 
-resource "docker_tag" "fleet" {
+resource "docker_tag" "automdm" {
   source_image = docker_image.dockerhub.name
-  target_image = "${aws_ecr_repository.fleet.repository_url}:${var.tag}-${split(":", data.docker_registry_image.dockerhub.sha256_digest)[1]}"
+  target_image = "${aws_ecr_repository.automdm.repository_url}:${var.tag}-${split(":", data.docker_registry_image.dockerhub.sha256_digest)[1]}"
 }
 
-resource "docker_registry_image" "fleet" {
-  name          = docker_tag.fleet.target_image
+resource "docker_registry_image" "automdm" {
+  name          = docker_tag.automdm.target_image
   keep_remotely = true
 }

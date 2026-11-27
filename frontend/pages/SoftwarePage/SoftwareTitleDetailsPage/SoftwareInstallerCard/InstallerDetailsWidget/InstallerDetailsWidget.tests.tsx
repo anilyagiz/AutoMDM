@@ -107,7 +107,7 @@ describe("InstallerDetailsWidget", () => {
   it("renders FMA label", () => {
     render(<InstallerDetailsWidget {...defaultProps} isFma />);
 
-    expect(screen.getByText(/Fleet-maintained/i)).toBeInTheDocument();
+    expect(screen.getByText(/AutoMDM-maintained/i)).toBeInTheDocument();
   });
 
   it("renders VPP label", () => {

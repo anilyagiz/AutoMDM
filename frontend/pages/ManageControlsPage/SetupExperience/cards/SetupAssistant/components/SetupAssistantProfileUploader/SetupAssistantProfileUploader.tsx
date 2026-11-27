@@ -45,7 +45,7 @@ const SetupAssistantProfileUploader = ({
           <>
             {errMessage}.{" "}
             <CustomLink
-              url="https://fleetdm.com/learn-more-about/dep-profile"
+              url="https://automdm.com/learn-more-about/dep-profile"
               text="Learn more"
               className={`${baseClass}__new-tab`}
               newTab

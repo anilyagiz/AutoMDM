@@ -11,16 +11,16 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/constant"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/constant"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/rs/zerolog/log"
 )
 
-// FlagRunner is a specialized runner to periodically check and update flags from Fleet
+// FlagRunner is a specialized runner to periodically check and update flags from AutoMDM
 // It is designed with Execute and Interrupt functions to be compatible with oklog/run
 //
 // It uses an OrbitConfigFetcher (which may be the OrbitClient with additional middleware), along
-// with FlagUpdateOptions to connect to Fleet
+// with FlagUpdateOptions to connect to AutoMDM
 type FlagRunner struct {
 	triggerOrbitRestart func(reason string)
 	opt                 FlagUpdateOptions
@@ -41,14 +41,14 @@ func NewFlagReceiver(triggerOrbitRestart func(reason string), opt FlagUpdateOpti
 	}
 }
 
-// DoFlagsUpdate checks for update of flags from Fleet
-// It gets the flags from the Fleet server, and compares them to locally stored flagfile (if it exists)
+// DoFlagsUpdate checks for update of flags from AutoMDM
+// It gets the flags from the AutoMDM server, and compares them to locally stored flagfile (if it exists)
 // If the flag comparison from disk and server are not equal, it writes the flags to disk, and returns true
-func (r *FlagRunner) Run(config *fleet.OrbitConfig) error {
+func (r *FlagRunner) Run(config *automdm.OrbitConfig) error {
 	// When command_line_flags is not set in the agent settings, the server omits
 	// the field and config.Flags is nil/empty. In that case Orbit leaves the
 	// osquery.flags file untouched, preserving any flags that were pre-packaged
-	// with fleetd or otherwise provided by the user.
+	// with automdmd or otherwise provided by the user.
 	//
 	// Explicitly setting command_line_flags to an empty document ({}) or "null" is
 	// distinct: those arrive as a non-empty payload that parses to an empty flag
@@ -57,7 +57,7 @@ func (r *FlagRunner) Run(config *fleet.OrbitConfig) error {
 		return nil
 	}
 
-	osqueryFlagMapFromFleet, err := getFlagsFromJSON(config.Flags)
+	osqueryFlagMapFromTeam, err := getFlagsFromJSON(config.Flags)
 	if err != nil {
 		return fmt.Errorf("error parsing flags: %w", err)
 	}
@@ -75,17 +75,17 @@ func (r *FlagRunner) Run(config *fleet.OrbitConfig) error {
 	}
 
 	// nothing on disk and nothing to write (e.g. {} with no existing file): no-op
-	if !flagFileExists && len(osqueryFlagMapFromFleet) == 0 {
+	if !flagFileExists && len(osqueryFlagMapFromTeam) == 0 {
 		return nil
 	}
 
 	// compare both flags, if they are equal, nothing to do
-	if flagFileExists && reflect.DeepEqual(osqueryFlagMapFromFile, osqueryFlagMapFromFleet) {
+	if flagFileExists && reflect.DeepEqual(osqueryFlagMapFromFile, osqueryFlagMapFromTeam) {
 		return nil
 	}
 
-	// flags are not equal, write the fleet flags to disk
-	err = writeFlagFile(r.opt.RootDir, osqueryFlagMapFromFleet)
+	// flags are not equal, write the team flags to disk
+	err = writeFlagFile(r.opt.RootDir, osqueryFlagMapFromTeam)
 	if err != nil {
 		return fmt.Errorf("error writing flags to disk: %w", err)
 	}
@@ -94,11 +94,11 @@ func (r *FlagRunner) Run(config *fleet.OrbitConfig) error {
 	return nil
 }
 
-// ExtensionRunner is a specialized runner to periodically check and update flags from Fleet
+// ExtensionRunner is a specialized runner to periodically check and update flags from AutoMDM
 // It is designed with Execute and Interrupt functions to be compatible with oklog/run
 //
 // It uses an an OrbitConfigFetcher (which may be the OrbitClient with additional middleware), along
-// with ExtensionUpdateOptions and updateRunner to connect to Fleet.
+// with ExtensionUpdateOptions and updateRunner to connect to AutoMDM.
 type ExtensionRunner struct {
 	opt                 ExtensionUpdateOptions
 	updateRunner        *Runner
@@ -121,14 +121,14 @@ func NewExtensionConfigUpdateRunner(opt ExtensionUpdateOptions, updateRunner *Ru
 	}
 }
 
-// DoExtensionConfigUpdate calls the /config API endpoint to grab extensions from Fleet
+// DoExtensionConfigUpdate calls the /config API endpoint to grab extensions from AutoMDM
 // It parses the extensions, computes the local hash, and writes the binary path to extension.load file
 //
 // It will only trigger a orbit restart when extensions were previously configured and now are cleared.
-func (r *ExtensionRunner) Run(config *fleet.OrbitConfig) error {
+func (r *ExtensionRunner) Run(config *automdm.OrbitConfig) error {
 	extensionAutoLoadFile := filepath.Join(r.opt.RootDir, "extensions.load")
 	if len(config.Extensions) == 0 {
-		// Extensions from Fleet is empty
+		// Extensions from AutoMDM is empty
 		// this can be either because of:
 		// 1. the default state, where no extensions are configured to begin with, or
 		// 2. extensions were previously configured, but now are deleted and reverted to empty state
@@ -158,10 +158,10 @@ func (r *ExtensionRunner) Run(config *fleet.OrbitConfig) error {
 
 	log.Debug().Str("extensions", string(config.Extensions)).Msg("received extensions configuration")
 
-	var extensions fleet.Extensions
+	var extensions automdm.Extensions
 	err := json.Unmarshal(config.Extensions, &extensions)
 	if err != nil {
-		return fmt.Errorf("error unmarshing json extensions config from fleet: %w", err)
+		return fmt.Errorf("error unmarshing json extensions config from team: %w", err)
 	}
 
 	// Filter out extensions not targeted to this OS.

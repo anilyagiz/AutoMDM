@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -33,8 +33,8 @@ type googleDeviceRow struct {
 	InWindow             bool   `db:"in_window"`
 }
 
-func (ds *Datastore) GetGoogleConditionalAccessIntegration(ctx context.Context) (*fleet.ConditionalAccessGoogleIntegration, error) {
-	var integration fleet.ConditionalAccessGoogleIntegration
+func (ds *Datastore) GetGoogleConditionalAccessIntegration(ctx context.Context) (*automdm.ConditionalAccessGoogleIntegration, error) {
+	var integration automdm.ConditionalAccessGoogleIntegration
 	if err := sqlx.GetContext(ctx, ds.reader(ctx), &integration, `
 		SELECT proxy_server_secret, state, error_message
 		FROM google_conditional_access_integrations
@@ -48,7 +48,7 @@ func (ds *Datastore) GetGoogleConditionalAccessIntegration(ctx context.Context) 
 	return &integration, nil
 }
 
-func (ds *Datastore) SaveGoogleConditionalAccessIntegration(ctx context.Context, integration *fleet.ConditionalAccessGoogleIntegration) error {
+func (ds *Datastore) SaveGoogleConditionalAccessIntegration(ctx context.Context, integration *automdm.ConditionalAccessGoogleIntegration) error {
 	// The row is updated in place so created_at keeps the time the integration was
 	// first set up.
 	if _, err := ds.writer(ctx).ExecContext(ctx, `
@@ -91,7 +91,7 @@ func (ds *Datastore) PurgeDeletedGoogleConditionalAccessIntegration(ctx context.
 		if err := sqlx.GetContext(ctx, tx, &deleted, `
 			SELECT 1 FROM google_conditional_access_integrations
 			WHERE id = 1 AND state = ? AND updated_at < ?
-			FOR UPDATE`, fleet.ConditionalAccessGoogleStateDeleted, deletedBefore); err != nil {
+			FOR UPDATE`, automdm.ConditionalAccessGoogleStateDeleted, deletedBefore); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return nil
 			}
@@ -119,8 +119,8 @@ func (ds *Datastore) PurgeDeletedGoogleConditionalAccessIntegration(ctx context.
 }
 
 func (ds *Datastore) SetGoogleConditionalAccessIntegrationState(
-	ctx context.Context, secret string, fromStates []fleet.ConditionalAccessGoogleState,
-	toState fleet.ConditionalAccessGoogleState, errorMessage *string,
+	ctx context.Context, secret string, fromStates []automdm.ConditionalAccessGoogleState,
+	toState automdm.ConditionalAccessGoogleState, errorMessage *string,
 ) (bool, error) {
 	stmt, args, err := sqlx.In(`UPDATE google_conditional_access_integrations SET state = ?, error_message = ?
 		WHERE id = 1 AND proxy_server_secret = ? AND state IN (?)`, toState, errorMessage, secret, fromStates)
@@ -138,14 +138,14 @@ func (ds *Datastore) SetGoogleConditionalAccessIntegrationState(
 	return n > 0, nil
 }
 
-func (ds *Datastore) GetGoogleConditionalAccessDevice(ctx context.Context, hostUUID, customerID string) (*fleet.GoogleConditionalAccessDevice, error) {
+func (ds *Datastore) GetGoogleConditionalAccessDevice(ctx context.Context, hostUUID, customerID string) (*automdm.GoogleConditionalAccessDevice, error) {
 	// One row per name, or a single row without one for a device with no names.
 	var rows []struct {
-		fleet.GoogleConditionalAccessDevice
-		Name         *string                                       `db:"device_user_name"`
-		State        *fleet.GoogleConditionalAccessDeviceUserState `db:"state"`
-		ErrorMessage *string                                       `db:"error_message"`
-		UpdatedAt    *time.Time                                    `db:"updated_at"`
+		automdm.GoogleConditionalAccessDevice
+		Name         *string                                         `db:"device_user_name"`
+		State        *automdm.GoogleConditionalAccessDeviceUserState `db:"state"`
+		ErrorMessage *string                                         `db:"error_message"`
+		UpdatedAt    *time.Time                                      `db:"updated_at"`
 	}
 	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &rows, `
 		SELECT d.host_uuid, du.device_user_name, du.state, du.error_message, du.updated_at
@@ -162,7 +162,7 @@ func (ds *Datastore) GetGoogleConditionalAccessDevice(ctx context.Context, hostU
 	dev := rows[0].GoogleConditionalAccessDevice
 	for _, r := range rows {
 		if r.Name != nil {
-			dev.DeviceUsers = append(dev.DeviceUsers, fleet.GoogleConditionalAccessDeviceUser{
+			dev.DeviceUsers = append(dev.DeviceUsers, automdm.GoogleConditionalAccessDeviceUser{
 				HostUUID: dev.HostUUID, Name: *r.Name, State: *r.State, ErrorMessage: r.ErrorMessage, UpdatedAt: *r.UpdatedAt,
 			})
 		}
@@ -190,14 +190,14 @@ func claimGoogleConditionalAccessDevice(ctx context.Context, tx sqlx.ExtContext,
 			first_registration_attempt_at IS NOT NULL AND first_registration_attempt_at > NOW(6) - INTERVAL ? SECOND AS in_window
 		FROM google_conditional_access_devices
 		WHERE host_uuid = ?
-		FOR UPDATE`, int(fleet.GoogleConditionalAccessRegistrationWindow.Seconds()), hostUUID); err != nil {
+		FOR UPDATE`, int(automdm.GoogleConditionalAccessRegistrationWindow.Seconds()), hostUUID); err != nil {
 		return googleDeviceRow{}, ctxerr.Wrap(ctx, err, "locking google_conditional_access_devices")
 	}
 	if row.CustomerID == customerID || customerID == "" {
 		return row, nil
 	}
 
-	// The names belong to the previous customer's Workspace, which Fleet no longer
+	// The names belong to the previous customer's Workspace, which AutoMDM no longer
 	// has a key for, so they are dropped without an unmark.
 	if _, err := tx.ExecContext(ctx,
 		`DELETE FROM google_conditional_access_device_users WHERE host_uuid = ?`, hostUUID); err != nil {
@@ -223,7 +223,7 @@ func (ds *Datastore) StartGoogleConditionalAccessRegistration(
 		if err != nil {
 			return err
 		}
-		if row.InWindow && row.RegistrationAttempts >= fleet.GoogleConditionalAccessMaxRegistrationAttempts {
+		if row.InWindow && row.RegistrationAttempts >= automdm.GoogleConditionalAccessMaxRegistrationAttempts {
 			return nil
 		}
 
@@ -294,7 +294,7 @@ func (ds *Datastore) RecordGoogleConditionalAccessRegistration(ctx context.Conte
 		if id, from, kept := googleDeviceIDForNames(current, names); !kept && id != nil {
 			if err := bindGoogleDeviceIDDB(ctx, tx, hostUUID, customerID, *id); err != nil {
 				if IsDuplicate(err) {
-					return ctxerr.Wrap(ctx, &fleet.GoogleConditionalAccessDeviceUserConflictError{Name: from})
+					return ctxerr.Wrap(ctx, &automdm.GoogleConditionalAccessDeviceUserConflictError{Name: from})
 				}
 				return ctxerr.Wrap(ctx, err, "setting host google device id")
 			}
@@ -333,7 +333,7 @@ func recordGoogleDeviceUsersDB(ctx context.Context, tx sqlx.ExtContext, hostUUID
 	var previousCustomers []string
 	for _, e := range elsewhere {
 		if !e.PreviousCustomer {
-			return ctxerr.Wrap(ctx, &fleet.GoogleConditionalAccessDeviceUserConflictError{Name: e.Name})
+			return ctxerr.Wrap(ctx, &automdm.GoogleConditionalAccessDeviceUserConflictError{Name: e.Name})
 		}
 		previousCustomers = append(previousCustomers, e.Name)
 	}
@@ -350,8 +350,8 @@ func recordGoogleDeviceUsersDB(ctx context.Context, tx sqlx.ExtContext, hostUUID
 	// The host's other names: Google already refused the stale ones, and the rest
 	// must be unmarked since the host no longer has them.
 	var others []struct {
-		Name  string                                       `db:"device_user_name"`
-		State fleet.GoogleConditionalAccessDeviceUserState `db:"state"`
+		Name  string                                         `db:"device_user_name"`
+		State automdm.GoogleConditionalAccessDeviceUserState `db:"state"`
 	}
 	stmt, args, err = sqlx.In(`
 		SELECT device_user_name, state FROM google_conditional_access_device_users
@@ -365,9 +365,9 @@ func recordGoogleDeviceUsersDB(ctx context.Context, tx sqlx.ExtContext, hostUUID
 	var stale, dropped []string
 	for _, o := range others {
 		switch o.State {
-		case fleet.GoogleConditionalAccessDeviceUserStale:
+		case automdm.GoogleConditionalAccessDeviceUserStale:
 			stale = append(stale, o.Name)
-		case fleet.GoogleConditionalAccessDeviceUserUnmanaging:
+		case automdm.GoogleConditionalAccessDeviceUserUnmanaging:
 			// Already queued.
 		default:
 			dropped = append(dropped, o.Name)
@@ -377,7 +377,7 @@ func recordGoogleDeviceUsersDB(ctx context.Context, tx sqlx.ExtContext, hostUUID
 		if err := googleExecIn(ctx, tx, "deleting stale names", `
 			DELETE FROM google_conditional_access_device_users
 			WHERE device_user_name IN (?) AND host_uuid = ? AND state = ?`,
-			stale, hostUUID, fleet.GoogleConditionalAccessDeviceUserStale); err != nil {
+			stale, hostUUID, automdm.GoogleConditionalAccessDeviceUserStale); err != nil {
 			return err
 		}
 	}
@@ -386,14 +386,14 @@ func recordGoogleDeviceUsersDB(ctx context.Context, tx sqlx.ExtContext, hostUUID
 		if err := googleExecIn(ctx, tx, "queueing unmark of dropped names", `
 			UPDATE google_conditional_access_device_users SET state = ?, error_message = NULL, created_at = NOW(6)
 			WHERE device_user_name IN (?) AND host_uuid = ? AND state <> ?`,
-			fleet.GoogleConditionalAccessDeviceUserUnmanaging, dropped, hostUUID, fleet.GoogleConditionalAccessDeviceUserUnmanaging); err != nil {
+			automdm.GoogleConditionalAccessDeviceUserUnmanaging, dropped, hostUUID, automdm.GoogleConditionalAccessDeviceUserUnmanaging); err != nil {
 			return err
 		}
 	}
 
 	args = make([]any, 0, 3*len(names))
 	for _, name := range names {
-		args = append(args, hostUUID, name, fleet.GoogleConditionalAccessDeviceUserPending)
+		args = append(args, hostUUID, name, automdm.GoogleConditionalAccessDeviceUserPending)
 	}
 	// created_at restarts with each registration, since the mark retry backoff counts from it.
 	if _, err := tx.ExecContext(ctx, `
@@ -417,13 +417,13 @@ func recordGoogleDeviceUsersDB(ctx context.Context, tx sqlx.ExtContext, hostUUID
 		return ctxerr.Wrap(ctx, err, "selecting taken names")
 	}
 	if len(taken) > 0 {
-		return ctxerr.Wrap(ctx, &fleet.GoogleConditionalAccessDeviceUserConflictError{Name: taken[0]})
+		return ctxerr.Wrap(ctx, &automdm.GoogleConditionalAccessDeviceUserConflictError{Name: taken[0]})
 	}
 	return nil
 }
 
 func (ds *Datastore) UpdateGoogleConditionalAccessDeviceUserState(
-	ctx context.Context, name string, fromState, toState fleet.GoogleConditionalAccessDeviceUserState, errorMessage *string,
+	ctx context.Context, name string, fromState, toState automdm.GoogleConditionalAccessDeviceUserState, errorMessage *string,
 ) (bool, error) {
 	res, err := ds.writer(ctx).ExecContext(ctx, `
 		UPDATE google_conditional_access_device_users SET state = ?, error_message = ?, updated_at = NOW(6)
@@ -454,7 +454,7 @@ func (ds *Datastore) QueueGoogleConditionalAccessUnmarkOfUnenrolledHosts(ctx con
 				WHERE h.uuid = du.host_uuid)
 			ORDER BY du.host_uuid
 			LIMIT ?`, customerID,
-			fleet.GoogleConditionalAccessDeviceUserPending, fleet.GoogleConditionalAccessDeviceUserManaged, limit,
+			automdm.GoogleConditionalAccessDeviceUserPending, automdm.GoogleConditionalAccessDeviceUserManaged, limit,
 		); err != nil {
 			return ctxerr.Wrap(ctx, err, "listing unenrolled hosts registered with google")
 		}
@@ -496,15 +496,15 @@ func queueGoogleConditionalAccessUnmarkDB(ctx context.Context, tx sqlx.ExtContex
 		}
 		if err := googleExecIn(ctx, tx, "deleting stale names",
 			`DELETE FROM google_conditional_access_device_users WHERE host_uuid IN (?) AND state = ?`,
-			registered, fleet.GoogleConditionalAccessDeviceUserStale); err != nil {
+			registered, automdm.GoogleConditionalAccessDeviceUserStale); err != nil {
 			return err
 		}
 		// created_at restarts with the queueing, since the unmark retry backoff counts from it.
 		if err := googleExecIn(ctx, tx, "queueing google conditional access unmark", `
 			UPDATE google_conditional_access_device_users SET state = ?, error_message = NULL, created_at = NOW(6)
 			WHERE host_uuid IN (?) AND state IN (?)`,
-			fleet.GoogleConditionalAccessDeviceUserUnmanaging, registered, []fleet.GoogleConditionalAccessDeviceUserState{
-				fleet.GoogleConditionalAccessDeviceUserPending, fleet.GoogleConditionalAccessDeviceUserManaged,
+			automdm.GoogleConditionalAccessDeviceUserUnmanaging, registered, []automdm.GoogleConditionalAccessDeviceUserState{
+				automdm.GoogleConditionalAccessDeviceUserPending, automdm.GoogleConditionalAccessDeviceUserManaged,
 			}); err != nil {
 			return err
 		}
@@ -521,8 +521,8 @@ func queueGoogleConditionalAccessUnmarkDB(ctx context.Context, tx sqlx.ExtContex
 }
 
 func (ds *Datastore) ListGoogleConditionalAccessDeviceUsers(
-	ctx context.Context, filter fleet.GoogleConditionalAccessDeviceUserFilter,
-) ([]fleet.GoogleConditionalAccessDeviceUser, error) {
+	ctx context.Context, filter automdm.GoogleConditionalAccessDeviceUserFilter,
+) ([]automdm.GoogleConditionalAccessDeviceUser, error) {
 	if len(filter.States) == 0 || filter.Limit <= 0 {
 		return nil, ctxerr.New(ctx, "listing google device users needs states and a limit")
 	}
@@ -539,7 +539,7 @@ func (ds *Datastore) ListGoogleConditionalAccessDeviceUsers(
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "building list of google device users")
 	}
-	var dus []fleet.GoogleConditionalAccessDeviceUser
+	var dus []automdm.GoogleConditionalAccessDeviceUser
 	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &dus, stmt, args...); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "listing google device users")
 	}
@@ -569,7 +569,7 @@ func (ds *Datastore) DeleteGoogleConditionalAccessUnmarkedDeviceUser(ctx context
 		}
 		res, err := tx.ExecContext(ctx, `
 			DELETE FROM google_conditional_access_device_users WHERE device_user_name = ? AND host_uuid = ? AND state = ?`,
-			name, hostUUID, fleet.GoogleConditionalAccessDeviceUserUnmanaging)
+			name, hostUUID, automdm.GoogleConditionalAccessDeviceUserUnmanaging)
 		if err != nil {
 			return ctxerr.Wrap(ctx, err, "deleting google device user")
 		}
@@ -588,8 +588,8 @@ func (ds *Datastore) DeleteGoogleConditionalAccessUnmarkedDeviceUser(ctx context
 
 func (ds *Datastore) ListGoogleConditionalAccessBookmarkHosts(
 	ctx context.Context, customerID string, afterHostID uint, limit int,
-) ([]fleet.GoogleConditionalAccessBookmarkHost, error) {
-	var hosts []fleet.GoogleConditionalAccessBookmarkHost
+) ([]automdm.GoogleConditionalAccessBookmarkHost, error) {
+	var hosts []automdm.GoogleConditionalAccessBookmarkHost
 	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &hosts, `
 		SELECT h.id AS host_id, d.host_uuid, d.google_device_id
 		FROM google_conditional_access_devices d
@@ -608,8 +608,8 @@ func (ds *Datastore) ListGoogleConditionalAccessBookmarkHosts(
 
 func (ds *Datastore) ListGoogleConditionalAccessUnresolvedAndroidHosts(
 	ctx context.Context, customerID string, minAttempts, maxAttempts, limit int,
-) ([]fleet.GoogleConditionalAccessAndroidHost, error) {
-	var hosts []fleet.GoogleConditionalAccessAndroidHost
+) ([]automdm.GoogleConditionalAccessAndroidHost, error) {
+	var hosts []automdm.GoogleConditionalAccessAndroidHost
 	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &hosts, `
 		SELECT h.id AS host_id, h.uuid AS host_uuid, ad.device_id AS android_device_id
 		FROM android_devices ad
@@ -623,7 +623,7 @@ func (ds *Datastore) ListGoogleConditionalAccessUnresolvedAndroidHosts(
 			WHERE du.host_uuid = d.host_uuid AND du.state IN (?, ?))
 		ORDER BY COALESCE(d.registration_attempts, 0), h.id
 		LIMIT ?`, customerID, minAttempts, maxAttempts, maxAttempts,
-		fleet.GoogleConditionalAccessDeviceUserPending, fleet.GoogleConditionalAccessDeviceUserManaged, limit,
+		automdm.GoogleConditionalAccessDeviceUserPending, automdm.GoogleConditionalAccessDeviceUserManaged, limit,
 	); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "listing unresolved android google hosts")
 	}

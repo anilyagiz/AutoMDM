@@ -2,7 +2,7 @@ package service
 
 // Host tests for the enterprise (premium) suite.
 //
-// Belongs here: listing and filtering hosts (including by software on another fleet), host health,
+// Belongs here: listing and filtering hosts (including by software on another team), host health,
 // host device mapping from the IdP, a host's past activities, OS versions, and the vulnerabilities
 // list.
 //
@@ -20,11 +20,11 @@ import (
 	"strings"
 	"time"
 
-	activity_api "github.com/fleetdm/fleet/v4/server/activity/api"
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/test"
+	activity_api "github.com/anilyagiz/automdm/v4/server/activity/api"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
@@ -35,7 +35,7 @@ func (s *integrationEnterpriseTestSuite) TestListHosts() {
 	t := s.T()
 
 	// create a couple of hosts
-	host1, err := s.ds.NewHost(context.Background(), &fleet.Host{
+	host1, err := s.ds.NewHost(context.Background(), &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -47,7 +47,7 @@ func (s *integrationEnterpriseTestSuite) TestListHosts() {
 		Platform:        "darwin",
 	})
 	require.NoError(t, err)
-	host2, err := s.ds.NewHost(context.Background(), &fleet.Host{
+	host2, err := s.ds.NewHost(context.Background(), &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -59,7 +59,7 @@ func (s *integrationEnterpriseTestSuite) TestListHosts() {
 		Platform:        "linux",
 	})
 	require.NoError(t, err)
-	host3, err := s.ds.NewHost(context.Background(), &fleet.Host{
+	host3, err := s.ds.NewHost(context.Background(), &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -78,10 +78,10 @@ func (s *integrationEnterpriseTestSuite) TestListHosts() {
 	require.NoError(t, s.ds.SetOrUpdateHostDisksSpace(context.Background(), host2.ID, 32.0, 4.0, 1000.0, new(float64(1200.0))))
 
 	var resp listHostsResponse
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &resp)
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &resp)
 	require.Len(t, resp.Hosts, 3)
 
-	allHostsLabel, err := s.ds.GetLabelSpec(context.Background(), fleet.TeamFilter{}, "All hosts")
+	allHostsLabel, err := s.ds.GetLabelSpec(context.Background(), automdm.TeamFilter{}, "All hosts")
 	require.NoError(t, err)
 	for _, h := range resp.Hosts {
 		err = s.ds.RecordLabelQueryExecutions(
@@ -91,80 +91,80 @@ func (s *integrationEnterpriseTestSuite) TestListHosts() {
 	}
 
 	resp = listHostsResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/labels/%d/hosts", allHostsLabel.ID), nil, http.StatusOK, &resp, "low_disk_space", "32")
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/labels/%d/hosts", allHostsLabel.ID), nil, http.StatusOK, &resp, "low_disk_space", "32")
 	require.Len(t, resp.Hosts, 1)
 
 	resp = listHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &resp, "low_disk_space", "32")
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &resp, "low_disk_space", "32")
 	require.Len(t, resp.Hosts, 1)
 	assert.Equal(t, host1.ID, resp.Hosts[0].ID)
 	assert.InDelta(t, 10.0, resp.Hosts[0].GigsDiskSpaceAvailable, 0.001)
 
 	resp = listHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &resp, "low_disk_space", "100")
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &resp, "low_disk_space", "100")
 	require.Len(t, resp.Hosts, 2)
 
 	// returns an error when the low_disk_space value is invalid (outside 1-100)
-	s.DoJSON("GET", "/api/latest/fleet/hosts/count", nil, http.StatusBadRequest, &resp, "low_disk_space", "101")
-	s.DoJSON("GET", "/api/latest/fleet/hosts/count", nil, http.StatusBadRequest, &resp, "low_disk_space", "0")
+	s.DoJSON("GET", "/api/latest/automdm/hosts/count", nil, http.StatusBadRequest, &resp, "low_disk_space", "101")
+	s.DoJSON("GET", "/api/latest/automdm/hosts/count", nil, http.StatusBadRequest, &resp, "low_disk_space", "0")
 
 	// counting hosts works with and without the filter too
 	var countResp countHostsResponse
-	s.DoJSON("GET", "/api/latest/fleet/hosts/count", nil, http.StatusOK, &countResp)
+	s.DoJSON("GET", "/api/latest/automdm/hosts/count", nil, http.StatusOK, &countResp)
 	require.Equal(t, 3, countResp.Count)
-	s.DoJSON("GET", "/api/latest/fleet/hosts/count", nil, http.StatusOK, &countResp, "low_disk_space", "32")
+	s.DoJSON("GET", "/api/latest/automdm/hosts/count", nil, http.StatusOK, &countResp, "low_disk_space", "32")
 	require.Equal(t, 1, countResp.Count)
-	s.DoJSON("GET", "/api/latest/fleet/hosts/count", nil, http.StatusOK, &countResp, "low_disk_space", "100")
+	s.DoJSON("GET", "/api/latest/automdm/hosts/count", nil, http.StatusOK, &countResp, "low_disk_space", "100")
 	require.Equal(t, 2, countResp.Count)
 
 	// host summary returns counts for low disk space
 	var summaryResp getHostSummaryResponse
-	s.DoJSON("GET", "/api/latest/fleet/host_summary", nil, http.StatusOK, &summaryResp, "low_disk_space", "32")
+	s.DoJSON("GET", "/api/latest/automdm/host_summary", nil, http.StatusOK, &summaryResp, "low_disk_space", "32")
 	require.Equal(t, uint(3), summaryResp.TotalsHostsCount)
 	require.NotNil(t, summaryResp.LowDiskSpaceCount)
 	require.Equal(t, uint(1), *summaryResp.LowDiskSpaceCount)
 
 	summaryResp = getHostSummaryResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/host_summary", nil, http.StatusOK, &summaryResp, "platform", "windows", "low_disk_space", "32")
+	s.DoJSON("GET", "/api/latest/automdm/host_summary", nil, http.StatusOK, &summaryResp, "platform", "windows", "low_disk_space", "32")
 	require.Equal(t, uint(1), summaryResp.TotalsHostsCount)
 	require.NotNil(t, summaryResp.LowDiskSpaceCount)
 	require.Equal(t, uint(0), *summaryResp.LowDiskSpaceCount)
 
 	// all possible filters
 	summaryResp = getHostSummaryResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/host_summary", nil, http.StatusOK, &summaryResp, "fleet_id", "1", "platform", "linux", "low_disk_space", "32")
+	s.DoJSON("GET", "/api/latest/automdm/host_summary", nil, http.StatusOK, &summaryResp, "team_id", "1", "platform", "linux", "low_disk_space", "32")
 	require.Equal(t, uint(0), summaryResp.TotalsHostsCount)
 	require.NotNil(t, summaryResp.LowDiskSpaceCount)
 	require.Equal(t, uint(0), *summaryResp.LowDiskSpaceCount)
 
 	// without low_disk_space, does not return the count
 	summaryResp = getHostSummaryResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/host_summary", nil, http.StatusOK, &summaryResp, "fleet_id", "1", "platform", "linux")
+	s.DoJSON("GET", "/api/latest/automdm/host_summary", nil, http.StatusOK, &summaryResp, "team_id", "1", "platform", "linux")
 	require.Equal(t, uint(0), summaryResp.TotalsHostsCount)
 	require.Nil(t, summaryResp.LowDiskSpaceCount)
 
 	// Add a failing policy
 	ctx := context.Background()
 	qr, err := s.ds.NewQuery(
-		ctx, &fleet.Query{
+		ctx, &automdm.Query{
 			Name:           "TestQueryEnterpriseTestListHosts",
 			Description:    "Some description",
 			Query:          "select * from osquery;",
 			ObserverCanRun: true,
-			Logging:        fleet.LoggingSnapshot,
+			Logging:        automdm.LoggingSnapshot,
 		},
 	)
 	require.NoError(t, err)
 
 	// add a global policy
-	gpParams := fleet.CreatePolicyRequest{
+	gpParams := automdm.CreatePolicyRequest{
 		Name:        qr.Name,
 		Query:       qr.Query,
 		Description: qr.Description,
 		Resolution:  "some global resolution",
 	}
-	gpResp := fleet.CreatePolicyResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/policies", gpParams, http.StatusOK, &gpResp)
+	gpResp := automdm.CreatePolicyResponse{}
+	s.DoJSON("POST", "/api/latest/automdm/policies", gpParams, http.StatusOK, &gpResp)
 	require.NotNil(t, gpResp.Policy)
 
 	// add a failing policy execution
@@ -177,7 +177,7 @@ func (s *integrationEnterpriseTestSuite) TestListHosts() {
 
 	// populate software for hosts
 	now := time.Now()
-	software := []fleet.Software{
+	software := []automdm.Software{
 		{Name: "foo", Version: "0.0.1", Source: "chrome_extensions"},
 	}
 	_, err = s.ds.UpdateHostSoftware(context.Background(), host1.ID, software)
@@ -185,14 +185,14 @@ func (s *integrationEnterpriseTestSuite) TestListHosts() {
 
 	require.NoError(t, s.ds.LoadHostSoftware(context.Background(), host1, false))
 
-	inserted, err := s.ds.InsertSoftwareVulnerability(context.Background(), fleet.SoftwareVulnerability{
+	inserted, err := s.ds.InsertSoftwareVulnerability(context.Background(), automdm.SoftwareVulnerability{
 		SoftwareID: host1.Software[0].ID,
 		CVE:        "cve-123-123-123",
-	}, fleet.NVDSource)
+	}, automdm.NVDSource)
 	require.NoError(t, err)
 	require.True(t, inserted)
 
-	vulnMeta := []fleet.CVEMeta{{
+	vulnMeta := []automdm.CVEMeta{{
 		CVE:              "cve-123-123-123",
 		CVSSScore:        new(float64(9.8)),
 		EPSSProbability:  new(float64(0.5)),
@@ -202,11 +202,11 @@ func (s *integrationEnterpriseTestSuite) TestListHosts() {
 	}}
 
 	require.NoError(t, s.ds.InsertCVEMeta(context.Background(), vulnMeta))
-	ctx = license.NewContext(ctx, &fleet.LicenseInfo{Tier: fleet.TierPremium})
+	ctx = license.NewContext(ctx, &automdm.LicenseInfo{Tier: automdm.TierPremium})
 	require.NoError(t, s.ds.UpdateHostIssuesVulnerabilities(ctx))
 
 	resp = listHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &resp, "populate_software", "true")
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &resp, "populate_software", "true")
 	require.Len(t, resp.Hosts, 3)
 	for _, h := range resp.Hosts {
 		if h.ID == host1.ID {
@@ -230,7 +230,7 @@ func (s *integrationEnterpriseTestSuite) TestListHosts() {
 	}
 
 	resp = listHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &resp, "populate_software", "without_vulnerability_details")
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &resp, "populate_software", "without_vulnerability_details")
 	require.Len(t, resp.Hosts, 3)
 	for _, h := range resp.Hosts {
 		if h.ID == host1.ID {
@@ -253,13 +253,13 @@ func (s *integrationEnterpriseTestSuite) TestListHosts() {
 	}
 
 	resp = listHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &resp, "populate_software", "false")
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &resp, "populate_software", "false")
 	require.Len(t, resp.Hosts, 3)
 	for _, h := range resp.Hosts {
 		require.Empty(t, h.Software)
 	}
 
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/labels/%d/hosts", allHostsLabel.ID), nil, http.StatusOK, &resp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/labels/%d/hosts", allHostsLabel.ID), nil, http.StatusOK, &resp)
 	assert.Len(t, resp.Hosts, 3)
 	for _, h := range resp.Hosts {
 		if h.ID == host1.ID {
@@ -275,12 +275,12 @@ func (s *integrationEnterpriseTestSuite) TestListHosts() {
 
 	// Test ordering by issues
 	s.DoJSON(
-		"GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &resp, "order_key", "issues",
+		"GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &resp, "order_key", "issues",
 	) // defaults to ascending order (lowest issues to most issues)
 	require.Len(t, resp.Hosts, 3)
 	assert.Equal(t, host1.ID, resp.Hosts[2].ID)
 	s.DoJSON(
-		"GET", fmt.Sprintf("/api/latest/fleet/labels/%d/hosts", allHostsLabel.ID), nil, http.StatusOK, &resp, "order_key", "issues",
+		"GET", fmt.Sprintf("/api/latest/automdm/labels/%d/hosts", allHostsLabel.ID), nil, http.StatusOK, &resp, "order_key", "issues",
 		"order_direction", "desc",
 	)
 	require.Len(t, resp.Hosts, 3)
@@ -292,13 +292,13 @@ func (s *integrationEnterpriseTestSuite) TestListHostsSoftwareVersionOnDifferent
 	ctx := context.Background()
 
 	// create 2 teams
-	team1, err := s.ds.NewTeam(ctx, &fleet.Team{Name: t.Name() + "_team1"})
+	team1, err := s.ds.NewTeam(ctx, &automdm.Team{Name: t.Name() + "_team1"})
 	require.NoError(t, err)
-	team2, err := s.ds.NewTeam(ctx, &fleet.Team{Name: t.Name() + "_team2"})
+	team2, err := s.ds.NewTeam(ctx, &automdm.Team{Name: t.Name() + "_team2"})
 	require.NoError(t, err)
 
 	// create 2 hosts
-	h1, err := s.ds.NewHost(ctx, &fleet.Host{
+	h1, err := s.ds.NewHost(ctx, &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -312,7 +312,7 @@ func (s *integrationEnterpriseTestSuite) TestListHostsSoftwareVersionOnDifferent
 	})
 	require.NoError(t, err)
 
-	h2, err := s.ds.NewHost(ctx, &fleet.Host{
+	h2, err := s.ds.NewHost(ctx, &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -329,8 +329,8 @@ func (s *integrationEnterpriseTestSuite) TestListHostsSoftwareVersionOnDifferent
 
 	// Install software only on h1 (team1).
 
-	testSw := fleet.Software{Name: "UniqueApp", Version: "3.4.5", Source: "apps", BundleIdentifier: "com.unique.app"}
-	_, err = s.ds.UpdateHostSoftware(ctx, h1.ID, []fleet.Software{
+	testSw := automdm.Software{Name: "UniqueApp", Version: "3.4.5", Source: "apps", BundleIdentifier: "com.unique.app"}
+	_, err = s.ds.UpdateHostSoftware(ctx, h1.ID, []automdm.Software{
 		testSw,
 	})
 	require.NoError(t, err)
@@ -344,9 +344,9 @@ func (s *integrationEnterpriseTestSuite) TestListHostsSoftwareVersionOnDifferent
 
 	// Filtering team1 by the software version returns the host and software including its bundle id.
 	var resp listHostsResponse
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &resp,
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &resp,
 		"software_version_id", fmt.Sprint(swVersionID),
-		"fleet_id", fmt.Sprint(team1.ID),
+		"team_id", fmt.Sprint(team1.ID),
 	)
 	require.Len(t, resp.Hosts, 1)
 	assert.Equal(t, h1.ID, resp.Hosts[0].ID)
@@ -358,9 +358,9 @@ func (s *integrationEnterpriseTestSuite) TestListHostsSoftwareVersionOnDifferent
 	// Filtering team2 (no hosts with this software) returns 0 hosts but still
 	// returns minimal software data
 	resp = listHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &resp,
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &resp,
 		"software_version_id", fmt.Sprint(swVersionID),
-		"fleet_id", fmt.Sprint(team2.ID),
+		"team_id", fmt.Sprint(team2.ID),
 	)
 	require.Empty(t, resp.Hosts)
 	require.NotNil(t, resp.Software, "software metadata should be returned even when no hosts match on this team")
@@ -371,9 +371,9 @@ func (s *integrationEnterpriseTestSuite) TestListHostsSoftwareVersionOnDifferent
 
 	// Filtering with a completely non-existent software_version_id → returns nil software.
 	resp = listHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &resp,
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &resp,
 		"software_version_id", "999999",
-		"fleet_id", fmt.Sprint(team2.ID),
+		"team_id", fmt.Sprint(team2.ID),
 	)
 	require.Empty(t, resp.Hosts)
 	assert.Empty(t, resp.Software)
@@ -384,13 +384,13 @@ func (s *integrationEnterpriseTestSuite) TestListHostsSoftwareTitleOnDifferentTe
 	ctx := t.Context()
 
 	// create 2 teams
-	team1, err := s.ds.NewTeam(ctx, &fleet.Team{Name: t.Name() + "_team1"})
+	team1, err := s.ds.NewTeam(ctx, &automdm.Team{Name: t.Name() + "_team1"})
 	require.NoError(t, err)
-	team2, err := s.ds.NewTeam(ctx, &fleet.Team{Name: t.Name() + "_team2"})
+	team2, err := s.ds.NewTeam(ctx, &automdm.Team{Name: t.Name() + "_team2"})
 	require.NoError(t, err)
 
 	// create 1 host on team1
-	h1, err := s.ds.NewHost(ctx, &fleet.Host{
+	h1, err := s.ds.NewHost(ctx, &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -405,8 +405,8 @@ func (s *integrationEnterpriseTestSuite) TestListHostsSoftwareTitleOnDifferentTe
 	require.NoError(t, err)
 
 	// Install software only on h1 (team1).
-	testSw := fleet.Software{Name: "UniqueTitleApp", Version: "3.4.5", Source: "apps", BundleIdentifier: "com.unique.titleapp"}
-	_, err = s.ds.UpdateHostSoftware(ctx, h1.ID, []fleet.Software{testSw})
+	testSw := automdm.Software{Name: "UniqueTitleApp", Version: "3.4.5", Source: "apps", BundleIdentifier: "com.unique.titleapp"}
+	_, err = s.ds.UpdateHostSoftware(ctx, h1.ID, []automdm.Software{testSw})
 	require.NoError(t, err)
 	require.NoError(t, s.ds.LoadHostSoftware(ctx, h1, false))
 	require.Len(t, h1.Software, 1)
@@ -422,9 +422,9 @@ func (s *integrationEnterpriseTestSuite) TestListHostsSoftwareTitleOnDifferentTe
 
 	// Filtering team1 (in-scope) by the software title returns the host and the title's name.
 	var resp listHostsResponse
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &resp,
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &resp,
 		"software_title_id", fmt.Sprint(titleID),
-		"fleet_id", fmt.Sprint(team1.ID),
+		"team_id", fmt.Sprint(team1.ID),
 	)
 	require.Len(t, resp.Hosts, 1)
 	assert.Equal(t, h1.ID, resp.Hosts[0].ID)
@@ -435,9 +435,9 @@ func (s *integrationEnterpriseTestSuite) TestListHostsSoftwareTitleOnDifferentTe
 	// this team) must not leak the title's name/display_name — software_title
 	// should be omitted entirely, not backfilled from an unscoped lookup.
 	resp = listHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &resp,
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &resp,
 		"software_title_id", fmt.Sprint(titleID),
-		"fleet_id", fmt.Sprint(team2.ID),
+		"team_id", fmt.Sprint(team2.ID),
 	)
 	require.Empty(t, resp.Hosts)
 	assert.Nil(t, resp.SoftwareTitle)
@@ -446,12 +446,12 @@ func (s *integrationEnterpriseTestSuite) TestListHostsSoftwareTitleOnDifferentTe
 func (s *integrationEnterpriseTestSuite) TestHostHealth() {
 	t := s.T()
 
-	team, err := s.ds.NewTeam(context.Background(), &fleet.Team{
+	team, err := s.ds.NewTeam(context.Background(), &automdm.Team{
 		Name: "team1",
 	})
 	require.NoError(t, err)
 
-	host, err := s.ds.NewHost(context.Background(), &fleet.Host{
+	host, err := s.ds.NewHost(context.Background(), &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		OsqueryHostID:   new(t.Name() + "hostid1"),
 		LabelUpdatedAt:  time.Now(),
@@ -470,14 +470,14 @@ func (s *integrationEnterpriseTestSuite) TestHostHealth() {
 	require.NoError(t, err)
 	require.NotNil(t, host)
 
-	passingTeamPolicy, err := s.ds.NewTeamPolicy(context.Background(), team.ID, nil, fleet.PolicyPayload{
+	passingTeamPolicy, err := s.ds.NewTeamPolicy(context.Background(), team.ID, nil, automdm.PolicyPayload{
 		Name:       "Passing Global Policy",
 		Query:      "select 1",
 		Resolution: "Run this command to fix it",
 	})
 	require.NoError(t, err)
 
-	failingTeamPolicy, err := s.ds.NewTeamPolicy(context.Background(), team.ID, nil, fleet.PolicyPayload{
+	failingTeamPolicy, err := s.ds.NewTeamPolicy(context.Background(), team.ID, nil, automdm.PolicyPayload{
 		Name:       "Failing Global Policy",
 		Query:      "select 1",
 		Resolution: "Run this command to fix it",
@@ -485,14 +485,14 @@ func (s *integrationEnterpriseTestSuite) TestHostHealth() {
 	})
 	require.NoError(t, err)
 
-	passingGlobalPolicy, err := s.ds.NewGlobalPolicy(context.Background(), nil, fleet.PolicyPayload{
+	passingGlobalPolicy, err := s.ds.NewGlobalPolicy(context.Background(), nil, automdm.PolicyPayload{
 		Name:       "Passing Global Policy",
 		Query:      "select 1",
 		Resolution: "Run this command to fix it",
 	})
 	require.NoError(t, err)
 
-	failingGlobalPolicy, err := s.ds.NewGlobalPolicy(context.Background(), nil, fleet.PolicyPayload{
+	failingGlobalPolicy, err := s.ds.NewGlobalPolicy(context.Background(), nil, automdm.PolicyPayload{
 		Name:       "Failing Global Policy",
 		Query:      "select 1",
 		Resolution: "Run this command to fix it",
@@ -506,18 +506,18 @@ func (s *integrationEnterpriseTestSuite) TestHostHealth() {
 	require.NoError(t, errOnly(s.ds.RecordPolicyQueryExecutions(context.Background(), host, map[uint]*bool{passingTeamPolicy.ID: new(true)}, time.Now(), false, nil)))
 
 	hh := getHostHealthResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/health", host.ID), nil, http.StatusOK, &hh)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/health", host.ID), nil, http.StatusOK, &hh)
 	require.Equal(t, host.ID, hh.HostID)
 	assert.NotNil(t, hh.HostHealth)
 	assert.Equal(t, 2, hh.HostHealth.FailingPoliciesCount)
 	assert.Equal(t, new(int(1)), hh.HostHealth.FailingCriticalPoliciesCount)
-	assert.Contains(t, hh.HostHealth.FailingPolicies, &fleet.HostHealthFailingPolicy{
+	assert.Contains(t, hh.HostHealth.FailingPolicies, &automdm.HostHealthFailingPolicy{
 		ID:         failingTeamPolicy.ID,
 		Name:       failingTeamPolicy.Name,
 		Resolution: failingTeamPolicy.Resolution,
 		Critical:   new(true),
 	})
-	assert.Contains(t, hh.HostHealth.FailingPolicies, &fleet.HostHealthFailingPolicy{
+	assert.Contains(t, hh.HostHealth.FailingPolicies, &automdm.HostHealthFailingPolicy{
 		ID:         failingGlobalPolicy.ID,
 		Name:       failingGlobalPolicy.Name,
 		Resolution: failingGlobalPolicy.Resolution,
@@ -528,18 +528,18 @@ func (s *integrationEnterpriseTestSuite) TestHostHealth() {
 func (s *integrationEnterpriseTestSuite) TestListVulnerabilities() {
 	t := s.T()
 	var resp listVulnerabilitiesResponse
-	s.DoJSON("GET", "/api/latest/fleet/vulnerabilities", nil, http.StatusOK, &resp)
+	s.DoJSON("GET", "/api/latest/automdm/vulnerabilities", nil, http.StatusOK, &resp)
 
 	// Invalid Order Key
-	s.DoJSON("GET", "/api/latest/fleet/vulnerabilities", nil, http.StatusBadRequest, &resp, "order_key", "foo", "order_direction", "asc")
+	s.DoJSON("GET", "/api/latest/automdm/vulnerabilities", nil, http.StatusBadRequest, &resp, "order_key", "foo", "order_direction", "asc")
 
 	// EE Only Order Key
-	s.DoJSON("GET", "/api/latest/fleet/vulnerabilities", nil, http.StatusOK, &resp, "order_key", "cvss_score", "order_direction", "asc")
+	s.DoJSON("GET", "/api/latest/automdm/vulnerabilities", nil, http.StatusOK, &resp, "order_key", "cvss_score", "order_direction", "asc")
 
-	s.DoJSON("GET", "/api/latest/fleet/vulnerabilities", nil, http.StatusOK, &resp)
+	s.DoJSON("GET", "/api/latest/automdm/vulnerabilities", nil, http.StatusOK, &resp)
 	s.Require().Empty(resp.Vulnerabilities)
 
-	host, err := s.ds.NewHost(context.Background(), &fleet.Host{
+	host, err := s.ds.NewHost(context.Background(), &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -555,7 +555,7 @@ func (s *integrationEnterpriseTestSuite) TestListVulnerabilities() {
 	require.NoError(t, err)
 
 	// Stored with "Microsoft", as Windows hosts report it; the API returns the name without it.
-	err = s.ds.UpdateHostOperatingSystem(context.Background(), host.ID, fleet.OperatingSystem{
+	err = s.ds.UpdateHostOperatingSystem(context.Background(), host.ID, automdm.OperatingSystem{
 		Name:     "Microsoft Windows 11 Enterprise 22H2",
 		Version:  "10.0.19042.1234",
 		Platform: "windows",
@@ -563,7 +563,7 @@ func (s *integrationEnterpriseTestSuite) TestListVulnerabilities() {
 	require.NoError(t, err)
 	allos, err := s.ds.ListOperatingSystems(context.Background())
 	require.NoError(t, err)
-	var os fleet.OperatingSystem
+	var os automdm.OperatingSystem
 	for _, o := range allos {
 		if o.ID > os.ID {
 			os = o
@@ -573,28 +573,28 @@ func (s *integrationEnterpriseTestSuite) TestListVulnerabilities() {
 	err = s.ds.UpdateOSVersions(context.Background())
 	require.NoError(t, err)
 
-	_, err = s.ds.InsertOSVulnerability(context.Background(), fleet.OSVulnerability{
+	_, err = s.ds.InsertOSVulnerability(context.Background(), automdm.OSVulnerability{
 		OSID:              os.ID,
 		CVE:               "CVE-2021-1234",
 		ResolvedInVersion: new("10.0.19043.2013"),
-	}, fleet.MSRCSource)
+	}, automdm.MSRCSource)
 	require.NoError(t, err)
 
-	res, err := s.ds.UpdateHostSoftware(context.Background(), host.ID, []fleet.Software{
+	res, err := s.ds.UpdateHostSoftware(context.Background(), host.ID, []automdm.Software{
 		{Name: "foo", Version: "0.0.1", Source: "chrome_extensions"},
 	})
 	require.NoError(t, err)
 	sw := res.Inserted[0]
 
-	_, err = s.ds.InsertSoftwareVulnerability(context.Background(), fleet.SoftwareVulnerability{
+	_, err = s.ds.InsertSoftwareVulnerability(context.Background(), automdm.SoftwareVulnerability{
 		SoftwareID: sw.ID,
 		CVE:        "CVE-2021-1235",
-	}, fleet.NVDSource)
+	}, automdm.NVDSource)
 	require.NoError(t, err)
 
 	// insert CVEMeta
 	mockTime := time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)
-	err = s.ds.InsertCVEMeta(context.Background(), []fleet.CVEMeta{
+	err = s.ds.InsertCVEMeta(context.Background(), []automdm.CVEMeta{
 		{
 			CVE:              "CVE-2021-1234",
 			CVSSScore:        new(float64(7.5)),
@@ -617,7 +617,7 @@ func (s *integrationEnterpriseTestSuite) TestListVulnerabilities() {
 	err = s.ds.UpdateVulnerabilityHostCounts(context.Background(), 5)
 	require.NoError(t, err)
 
-	s.DoJSON("GET", "/api/latest/fleet/vulnerabilities", nil, http.StatusOK, &resp)
+	s.DoJSON("GET", "/api/latest/automdm/vulnerabilities", nil, http.StatusOK, &resp)
 	s.Require().Len(resp.Vulnerabilities, 2)
 	require.Equal(t, uint(2), resp.Count)
 	require.False(t, resp.Meta.HasPreviousResults)
@@ -625,15 +625,15 @@ func (s *integrationEnterpriseTestSuite) TestListVulnerabilities() {
 	require.NoError(t, resp.Err)
 
 	expected := map[string]struct {
-		fleet.CVE
+		automdm.CVE
 		HostCount   uint
 		DetailsLink string
-		Source      fleet.VulnerabilitySource
+		Source      automdm.VulnerabilitySource
 	}{
 		"CVE-2021-1234": {
 			HostCount:   1,
 			DetailsLink: "https://nvd.nist.gov/vuln/detail/CVE-2021-1234",
-			CVE: fleet.CVE{
+			CVE: automdm.CVE{
 				CVE:              "CVE-2021-1234",
 				CVSSScore:        new(new(7.5)),
 				EPSSProbability:  new(new(0.5)),
@@ -645,7 +645,7 @@ func (s *integrationEnterpriseTestSuite) TestListVulnerabilities() {
 		"CVE-2021-1235": {
 			HostCount:   1,
 			DetailsLink: "https://nvd.nist.gov/vuln/detail/CVE-2021-1235",
-			CVE: fleet.CVE{
+			CVE: automdm.CVE{
 				CVE:              "CVE-2021-1235",
 				CVSSScore:        new(new(5.4)),
 				EPSSProbability:  new(new(0.6)),
@@ -665,23 +665,23 @@ func (s *integrationEnterpriseTestSuite) TestListVulnerabilities() {
 	}
 
 	// EE Exploit Filter
-	s.DoJSON("GET", "/api/latest/fleet/vulnerabilities", nil, http.StatusOK, &resp, "exploit", "true")
+	s.DoJSON("GET", "/api/latest/automdm/vulnerabilities", nil, http.StatusOK, &resp, "exploit", "true")
 	require.Len(t, resp.Vulnerabilities, 1)
 	require.Equal(t, "CVE-2021-1234", resp.Vulnerabilities[0].CVE.CVE)
 
 	// Test Team Filter
-	s.DoJSON("GET", "/api/latest/fleet/vulnerabilities", nil, http.StatusOK, &resp, "fleet_id", "1")
+	s.DoJSON("GET", "/api/latest/automdm/vulnerabilities", nil, http.StatusOK, &resp, "team_id", "1")
 	s.Require().Empty(resp.Vulnerabilities)
 
-	team, err := s.ds.NewTeam(context.Background(), &fleet.Team{Name: "team1"})
+	team, err := s.ds.NewTeam(context.Background(), &automdm.Team{Name: "team1"})
 	require.NoError(t, err)
-	err = s.ds.AddHostsToTeam(context.Background(), fleet.NewAddHostsToTeamParams(&team.ID, []uint{host.ID}))
+	err = s.ds.AddHostsToTeam(context.Background(), automdm.NewAddHostsToTeamParams(&team.ID, []uint{host.ID}))
 	require.NoError(t, err)
 
 	err = s.ds.UpdateVulnerabilityHostCounts(context.Background(), 5)
 	require.NoError(t, err)
 
-	s.DoJSON("GET", "/api/latest/fleet/vulnerabilities", nil, http.StatusOK, &resp, "fleet_id", fmt.Sprintf("%d", team.ID))
+	s.DoJSON("GET", "/api/latest/automdm/vulnerabilities", nil, http.StatusOK, &resp, "team_id", fmt.Sprintf("%d", team.ID))
 	require.Len(t, resp.Vulnerabilities, 2)
 	require.Equal(t, uint(2), resp.Count)
 	require.False(t, resp.Meta.HasPreviousResults)
@@ -697,7 +697,7 @@ func (s *integrationEnterpriseTestSuite) TestListVulnerabilities() {
 	}
 
 	var gResp getVulnerabilityResponse
-	s.DoJSON("GET", "/api/latest/fleet/vulnerabilities/CVE-2021-1234", nil, http.StatusOK, &gResp)
+	s.DoJSON("GET", "/api/latest/automdm/vulnerabilities/CVE-2021-1234", nil, http.StatusOK, &gResp)
 	require.NoError(t, gResp.Err)
 	require.Equal(t, "CVE-2021-1234", gResp.Vulnerability.CVE.CVE)
 	require.Equal(t, uint(1), gResp.Vulnerability.HostsCount)
@@ -715,37 +715,37 @@ func (s *integrationEnterpriseTestSuite) TestListVulnerabilities() {
 	require.Equal(t, "10.0.19043.2013", *gResp.OSVersions[0].ResolvedInVersion)
 
 	// A matched CVE without cve_meta (e.g. published by MSRC before NVD) still resolves.
-	_, err = s.ds.InsertOSVulnerability(t.Context(), fleet.OSVulnerability{
+	_, err = s.ds.InsertOSVulnerability(t.Context(), automdm.OSVulnerability{
 		OSID: os.ID,
 		CVE:  "CVE-2021-1236",
-	}, fleet.MSRCSource)
+	}, automdm.MSRCSource)
 	require.NoError(t, err)
 	err = s.ds.UpdateVulnerabilityHostCounts(t.Context(), 5)
 	require.NoError(t, err)
 
 	gResp = getVulnerabilityResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/vulnerabilities/CVE-2021-1236", nil, http.StatusOK, &gResp)
+	s.DoJSON("GET", "/api/latest/automdm/vulnerabilities/CVE-2021-1236", nil, http.StatusOK, &gResp)
 	require.NoError(t, gResp.Err)
-	require.Equal(t, fleet.CVE{
+	require.Equal(t, automdm.CVE{
 		CVE:         "CVE-2021-1236",
 		DetailsLink: "https://nvd.nist.gov/vuln/detail/CVE-2021-1236",
 	}, gResp.Vulnerability.CVE)
 	require.Equal(t, uint(1), gResp.Vulnerability.HostsCount)
 	require.Len(t, gResp.OSVersions, 1)
 
-	// Known to Fleet via its match, but no hosts in "No team".
-	s.Do("GET", "/api/latest/fleet/vulnerabilities/CVE-2021-1236", nil, http.StatusNoContent, "fleet_id", "0")
+	// Known to AutoMDM via its match, but no hosts in "No team".
+	s.Do("GET", "/api/latest/automdm/vulnerabilities/CVE-2021-1236", nil, http.StatusNoContent, "team_id", "0")
 }
 
 func (s *integrationEnterpriseTestSuite) TestOSVersions() {
 	t := s.T()
 
-	testOS := fleet.OperatingSystem{Name: "Windows 11 Pro", Version: "10.0.22621.2861", Arch: "x86_64", KernelVersion: "10.0.22621.2861", Platform: "windows"}
+	testOS := automdm.OperatingSystem{Name: "Windows 11 Pro", Version: "10.0.22621.2861", Arch: "x86_64", KernelVersion: "10.0.22621.2861", Platform: "windows"}
 
 	hosts := s.createHosts(t)
 
 	var resp listHostsResponse
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &resp)
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &resp)
 	require.Len(t, resp.Hosts, len(hosts))
 
 	// set operating system information on a host
@@ -762,12 +762,12 @@ func (s *integrationEnterpriseTestSuite) TestOSVersions() {
 	require.Positive(t, osinfo.ID)
 
 	resp = listHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &resp, "os_name", testOS.Name, "os_version", testOS.Version)
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &resp, "os_name", testOS.Name, "os_version", testOS.Version)
 	require.Len(t, resp.Hosts, 1)
 
 	expected := resp.Hosts[0]
 	resp = listHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &resp, "os_id", fmt.Sprintf("%d", osinfo.ID))
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &resp, "os_id", fmt.Sprintf("%d", osinfo.ID))
 	require.Len(t, resp.Hosts, 1)
 	require.Equal(t, expected, resp.Hosts[0])
 
@@ -775,14 +775,14 @@ func (s *integrationEnterpriseTestSuite) TestOSVersions() {
 	require.NoError(t, s.ds.UpdateOSVersions(context.Background()))
 
 	// insert OS Vulns
-	_, err := s.ds.InsertOSVulnerability(context.Background(), fleet.OSVulnerability{
+	_, err := s.ds.InsertOSVulnerability(context.Background(), automdm.OSVulnerability{
 		OSID: osinfo.ID,
 		CVE:  "CVE-2021-1234",
-	}, fleet.MSRCSource)
+	}, automdm.MSRCSource)
 	require.NoError(t, err)
 
 	// insert CVE MEta
-	vulnMeta := []fleet.CVEMeta{
+	vulnMeta := []automdm.CVEMeta{
 		{
 			CVE:              "CVE-2021-1234",
 			CVSSScore:        new(float64(5.4)),
@@ -795,7 +795,7 @@ func (s *integrationEnterpriseTestSuite) TestOSVersions() {
 	require.NoError(t, s.ds.InsertCVEMeta(context.Background(), vulnMeta))
 
 	var osVersionsResp osVersionsResponse
-	s.DoJSON("GET", "/api/latest/fleet/os_versions", nil, http.StatusOK, &osVersionsResp)
+	s.DoJSON("GET", "/api/latest/automdm/os_versions", nil, http.StatusOK, &osVersionsResp)
 	require.Len(t, osVersionsResp.OSVersions, 1)
 	require.Equal(t, 1, osVersionsResp.OSVersions[0].HostsCount)
 	require.Equal(t, testOS.Name, osVersionsResp.OSVersions[0].NameOnly)
@@ -812,41 +812,41 @@ func (s *integrationEnterpriseTestSuite) TestOSVersions() {
 	expectedOSVersion := osVersionsResp.OSVersions[0]
 
 	var osVersionResp getOSVersionResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/os_versions/%d", osinfo.OSVersionID), nil, http.StatusOK, &osVersionResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/os_versions/%d", osinfo.OSVersionID), nil, http.StatusOK, &osVersionResp)
 	require.Equal(t, &expectedOSVersion, osVersionResp.OSVersion)
 
 	// OS versions with invalid team
 	s.DoJSON(
-		"GET", fmt.Sprintf("/api/latest/fleet/os_versions/%d", osinfo.OSVersionID), nil, http.StatusNotFound, &osVersionResp, "fleet_id",
+		"GET", fmt.Sprintf("/api/latest/automdm/os_versions/%d", osinfo.OSVersionID), nil, http.StatusNotFound, &osVersionResp, "team_id",
 		"99999",
 	)
 
 	// Create team and ask for the OS versions from the team (with no hosts) -- should get 404.
 	tr := teamResponse{}
 	s.DoJSON(
-		"POST", "/api/latest/fleet/fleets", createTeamRequest{
+		"POST", "/api/latest/automdm/teams", createTeamRequest{
 			Name: new("os_versions_team"),
 		}, http.StatusOK, &tr,
 	)
 	osVersionResp = getOSVersionResponse{}
 	s.DoJSON(
-		"GET", fmt.Sprintf("/api/latest/fleet/os_versions/%d", osinfo.OSVersionID), nil, http.StatusNotFound, &osVersionResp, "fleet_id",
+		"GET", fmt.Sprintf("/api/latest/automdm/os_versions/%d", osinfo.OSVersionID), nil, http.StatusNotFound, &osVersionResp, "team_id",
 		fmt.Sprintf("%d", tr.Team.ID),
 	)
 
 	// return empty json if UpdateOSVersions cron hasn't run yet for new team
-	team0, err := s.ds.NewTeam(context.Background(), &fleet.Team{Name: "new team"})
+	team0, err := s.ds.NewTeam(context.Background(), &automdm.Team{Name: "new team"})
 	require.NoError(t, err)
-	require.NoError(t, s.ds.AddHostsToTeam(context.Background(), fleet.NewAddHostsToTeamParams(&team0.ID, []uint{hosts[0].ID})))
-	s.DoJSON("GET", "/api/latest/fleet/os_versions", nil, http.StatusOK, &osVersionsResp, "fleet_id", fmt.Sprintf("%d", team0.ID))
+	require.NoError(t, s.ds.AddHostsToTeam(context.Background(), automdm.NewAddHostsToTeamParams(&team0.ID, []uint{hosts[0].ID})))
+	s.DoJSON("GET", "/api/latest/automdm/os_versions", nil, http.StatusOK, &osVersionsResp, "team_id", fmt.Sprintf("%d", team0.ID))
 	require.Empty(t, osVersionsResp.OSVersions)
 
 	// return err if team_id is invalid
-	s.DoJSON("GET", "/api/latest/fleet/os_versions", nil, http.StatusBadRequest, &osVersionsResp, "fleet_id", "invalid")
+	s.DoJSON("GET", "/api/latest/automdm/os_versions", nil, http.StatusBadRequest, &osVersionsResp, "team_id", "invalid")
 
 	// Create another team and a team user
 	team1, err := s.ds.NewTeam(
-		context.Background(), &fleet.Team{
+		context.Background(), &automdm.Team{
 			ID:          42,
 			Name:        "team1-os_version",
 			Description: "desc team1",
@@ -856,14 +856,14 @@ func (s *integrationEnterpriseTestSuite) TestOSVersions() {
 	// Create a new admin for team1.
 	password := test.GoodPassword
 	email := "admin-team1-os_version@example.com"
-	u := &fleet.User{
+	u := &automdm.User{
 		Name:       "admin team1",
 		Email:      email,
 		GlobalRole: nil,
-		Teams: []fleet.UserTeam{
+		Teams: []automdm.UserTeam{
 			{
 				Team: *team1,
-				Role: fleet.RoleAdmin,
+				Role: automdm.RoleAdmin,
 			},
 		},
 	}
@@ -876,44 +876,44 @@ func (s *integrationEnterpriseTestSuite) TestOSVersions() {
 	// generate aggregated stats
 	require.NoError(t, s.ds.UpdateOSVersions(context.Background()))
 	// team1 user does not have access to team0 host
-	s.DoJSON("GET", "/api/latest/fleet/os_versions", nil, http.StatusOK, &osVersionsResp)
+	s.DoJSON("GET", "/api/latest/automdm/os_versions", nil, http.StatusOK, &osVersionsResp)
 	assert.Empty(t, osVersionsResp.OSVersions)
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/os_versions/%d", osinfo.OSVersionID), nil, http.StatusNotFound, &osVersionResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/os_versions/%d", osinfo.OSVersionID), nil, http.StatusNotFound, &osVersionResp)
 
 	// Move host from team0 to team1
-	require.NoError(t, s.ds.AddHostsToTeam(context.Background(), fleet.NewAddHostsToTeamParams(&team1.ID, []uint{hosts[0].ID})))
+	require.NoError(t, s.ds.AddHostsToTeam(context.Background(), automdm.NewAddHostsToTeamParams(&team1.ID, []uint{hosts[0].ID})))
 	require.NoError(t, s.ds.UpdateOSVersions(context.Background()))
-	s.DoJSON("GET", "/api/latest/fleet/os_versions", nil, http.StatusOK, &osVersionsResp)
+	s.DoJSON("GET", "/api/latest/automdm/os_versions", nil, http.StatusOK, &osVersionsResp)
 	require.Len(t, osVersionsResp.OSVersions, 1)
 	assert.Equal(t, expectedOSVersion, osVersionsResp.OSVersions[0])
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/os_versions/%d", osinfo.OSVersionID), nil, http.StatusOK, &osVersionResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/os_versions/%d", osinfo.OSVersionID), nil, http.StatusOK, &osVersionResp)
 	require.Equal(t, &expectedOSVersion, osVersionResp.OSVersion)
 
 	// Team user is forbidden to access invalid team
 	s.DoJSON(
-		"GET", fmt.Sprintf("/api/latest/fleet/os_versions/%d", osinfo.OSVersionID), nil, http.StatusForbidden, &osVersionResp, "fleet_id",
+		"GET", fmt.Sprintf("/api/latest/automdm/os_versions/%d", osinfo.OSVersionID), nil, http.StatusForbidden, &osVersionResp, "team_id",
 		"99999",
 	)
 
 	// team user doesn't have acess to "no team"
 	osVersionsResp = osVersionsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/os_versions", nil, http.StatusForbidden, &osVersionsResp, "fleet_id", "0")
+	s.DoJSON("GET", "/api/latest/automdm/os_versions", nil, http.StatusForbidden, &osVersionsResp, "team_id", "0")
 	require.Empty(t, osVersionsResp.OSVersions)
 
 	// team_id=0 is supported and returns results for hosts in "no team"
 	s.token = getTestAdminToken(t, s.server)
 	// no hosts, the results are empty
 	osVersionsResp = osVersionsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/os_versions", nil, http.StatusOK, &osVersionsResp, "fleet_id", "0")
+	s.DoJSON("GET", "/api/latest/automdm/os_versions", nil, http.StatusOK, &osVersionsResp, "team_id", "0")
 	require.Empty(t, osVersionsResp.OSVersions)
 	osVersionsResp = osVersionsResponse{}
 	// move the host to "no team" and update the stats
-	require.NoError(t, s.ds.AddHostsToTeam(context.Background(), fleet.NewAddHostsToTeamParams(nil, []uint{hosts[0].ID}))) // nolint:nilaway // createHosts always returns at least one host
+	require.NoError(t, s.ds.AddHostsToTeam(context.Background(), automdm.NewAddHostsToTeamParams(nil, []uint{hosts[0].ID}))) // nolint:nilaway // createHosts always returns at least one host
 	require.NoError(t, s.ds.UpdateOSVersions(context.Background()))
-	s.DoJSON("GET", "/api/latest/fleet/os_versions", nil, http.StatusOK, &osVersionsResp, "fleet_id", "0")
+	s.DoJSON("GET", "/api/latest/automdm/os_versions", nil, http.StatusOK, &osVersionsResp, "team_id", "0")
 	require.Len(t, osVersionsResp.OSVersions, 1)
 	osVersionResp = getOSVersionResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/os_versions/%d", osinfo.OSVersionID), nil, http.StatusOK, &osVersionResp, "fleet_id", "0")
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/os_versions/%d", osinfo.OSVersionID), nil, http.StatusOK, &osVersionResp, "team_id", "0")
 	require.Equal(t, &expectedOSVersion, osVersionResp.OSVersion)
 	require.Equal(t, 1, osVersionResp.OSVersion.HostsCount)
 }
@@ -926,9 +926,9 @@ func (s *integrationEnterpriseTestSuite) TestHostDeviceMappingIDP() {
 	host := hosts[0]
 
 	// Create a SCIM user for testing
-	scimUser := &fleet.ScimUser{
+	scimUser := &automdm.ScimUser{
 		UserName: "test.user",
-		Emails: []fleet.ScimUserEmail{
+		Emails: []automdm.ScimUserEmail{
 			{
 				Email:   "scim.user@example.com",
 				Primary: new(true),
@@ -942,25 +942,25 @@ func (s *integrationEnterpriseTestSuite) TestHostDeviceMappingIDP() {
 
 	// Test IDP device mapping with premium license and valid SCIM user
 	var putResp putHostDeviceMappingResponse
-	s.DoJSON("PUT", fmt.Sprintf("/api/latest/fleet/hosts/%d/device_mapping", host.ID),
+	s.DoJSON("PUT", fmt.Sprintf("/api/latest/automdm/hosts/%d/device_mapping", host.ID),
 		putHostDeviceMappingRequest{Email: "scim.user@example.com", Source: "idp"},
 		http.StatusOK, &putResp)
 
 	// Verify the IDP mapping was created and returned in device mappings
 	require.Equal(t, "scim.user@example.com", putResp.DeviceMapping[0].Email)
-	require.Equal(t, fleet.DeviceMappingMDMIdpAccounts, putResp.DeviceMapping[0].Source)
+	require.Equal(t, automdm.DeviceMappingMDMIdpAccounts, putResp.DeviceMapping[0].Source)
 
 	// Verify the IDP mapping appears in the host's device mappings via getHostDeviceMapping
 	var getResp listHostDeviceMappingResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/device_mapping", host.ID),
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/device_mapping", host.ID),
 		nil, http.StatusOK, &getResp)
 	require.Len(t, getResp.DeviceMapping, 1)
 	require.Equal(t, "scim.user@example.com", getResp.DeviceMapping[0].Email)
-	require.Equal(t, fleet.DeviceMappingMDMIdpAccounts, getResp.DeviceMapping[0].Source)
+	require.Equal(t, automdm.DeviceMappingMDMIdpAccounts, getResp.DeviceMapping[0].Source)
 
 	// Test that IDP mapping appears correctly in host details via getHostEndpoint
 	var hostResp getHostResponse
-	s.DoJSON("GET", "/api/v1/fleet/hosts/"+host.UUID, nil, http.StatusOK, &hostResp)
+	s.DoJSON("GET", "/api/v1/automdm/hosts/"+host.UUID, nil, http.StatusOK, &hostResp)
 
 	// Find the IDP information in end_users field
 	foundIdpInDetails := false
@@ -976,7 +976,7 @@ func (s *integrationEnterpriseTestSuite) TestHostDeviceMappingIDP() {
 
 	// Verify consistency between identifier and ID-based endpoints
 	hostResp2 := getHostResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/v1/fleet/hosts/%d", host.ID), nil, http.StatusOK, &hostResp2)
+	s.DoJSON("GET", fmt.Sprintf("/api/v1/automdm/hosts/%d", host.ID), nil, http.StatusOK, &hostResp2)
 
 	// Find the same IDP information in the ID-based endpoint
 	foundIdpInDetailsById := false
@@ -989,12 +989,12 @@ func (s *integrationEnterpriseTestSuite) TestHostDeviceMappingIDP() {
 
 	// Test that IDP accepts any username, even if not a SCIM user - should replace existing
 	// "scim.user@example.com" idp mapping
-	s.DoJSON("PUT", fmt.Sprintf("/api/latest/fleet/hosts/%d/device_mapping", host.ID),
+	s.DoJSON("PUT", fmt.Sprintf("/api/latest/automdm/hosts/%d/device_mapping", host.ID),
 		putHostDeviceMappingRequest{Email: "any.username@example.com", Source: "idp"},
 		http.StatusOK, &putResp)
 
 	// Test that custom mappings still work alongside IDP
-	s.DoJSON("PUT", fmt.Sprintf("/api/latest/fleet/hosts/%d/device_mapping", host.ID),
+	s.DoJSON("PUT", fmt.Sprintf("/api/latest/automdm/hosts/%d/device_mapping", host.ID),
 		putHostDeviceMappingRequest{Email: "custom.user@example.com", Source: "custom"},
 		http.StatusOK, &putResp)
 
@@ -1003,13 +1003,13 @@ func (s *integrationEnterpriseTestSuite) TestHostDeviceMappingIDP() {
 	foundCurrentIdp := false
 	foundOldIdp := false
 	for _, mapping := range putResp.DeviceMapping {
-		if mapping.Email == "custom.user@example.com" && mapping.Source == fleet.DeviceMappingCustomReplacement {
+		if mapping.Email == "custom.user@example.com" && mapping.Source == automdm.DeviceMappingCustomReplacement {
 			foundCustom = true
 		}
-		if mapping.Email == "any.username@example.com" && mapping.Source == fleet.DeviceMappingMDMIdpAccounts {
+		if mapping.Email == "any.username@example.com" && mapping.Source == automdm.DeviceMappingMDMIdpAccounts {
 			foundCurrentIdp = true
 		}
-		if mapping.Email == "scim.user@example.com" && mapping.Source == fleet.DeviceMappingMDMIdpAccounts {
+		if mapping.Email == "scim.user@example.com" && mapping.Source == automdm.DeviceMappingMDMIdpAccounts {
 			foundOldIdp = true
 		}
 	}
@@ -1019,7 +1019,7 @@ func (s *integrationEnterpriseTestSuite) TestHostDeviceMappingIDP() {
 
 	// Verify IDP appears in idp_username and custom appears in other_emails
 	var finalHostResp getHostResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/v1/fleet/hosts/%d", host.ID), nil, http.StatusOK, &finalHostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/v1/automdm/hosts/%d", host.ID), nil, http.StatusOK, &finalHostResp)
 
 	require.Len(t, finalHostResp.Host.EndUsers, 1, "Should have exactly one end user")
 	endUser := finalHostResp.Host.EndUsers[0]
@@ -1044,7 +1044,7 @@ func (s *integrationEnterpriseTestSuite) TestHostDeviceMappingIDP() {
 	assert.False(t, foundIdpInOtherEmails, "IDP mappings should NOT appear in other_emails")
 
 	// Test with non-SCIM IDP user only (should replace previous IDP mapping)
-	s.DoJSON("PUT", fmt.Sprintf("/api/latest/fleet/hosts/%d/device_mapping", host.ID),
+	s.DoJSON("PUT", fmt.Sprintf("/api/latest/automdm/hosts/%d/device_mapping", host.ID),
 		putHostDeviceMappingRequest{Email: "nonscim@example.com", Source: "idp"},
 		http.StatusOK, &putResp)
 
@@ -1052,10 +1052,10 @@ func (s *integrationEnterpriseTestSuite) TestHostDeviceMappingIDP() {
 	foundNonScimIdp := false
 	foundPreviousIdp := false
 	for _, mapping := range putResp.DeviceMapping {
-		if mapping.Email == "nonscim@example.com" && mapping.Source == fleet.DeviceMappingMDMIdpAccounts {
+		if mapping.Email == "nonscim@example.com" && mapping.Source == automdm.DeviceMappingMDMIdpAccounts {
 			foundNonScimIdp = true
 		}
-		if (mapping.Email == "scim.user@example.com" || mapping.Email == "any.username@example.com") && mapping.Source == fleet.DeviceMappingMDMIdpAccounts {
+		if (mapping.Email == "scim.user@example.com" || mapping.Email == "any.username@example.com") && mapping.Source == automdm.DeviceMappingMDMIdpAccounts {
 			foundPreviousIdp = true
 		}
 	}
@@ -1063,7 +1063,7 @@ func (s *integrationEnterpriseTestSuite) TestHostDeviceMappingIDP() {
 	assert.False(t, foundPreviousIdp, "Should NOT find old IDP mappings (replacement behavior)")
 
 	var nonScimHostResp getHostResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/v1/fleet/hosts/%d", host.ID), nil, http.StatusOK, &nonScimHostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/v1/automdm/hosts/%d", host.ID), nil, http.StatusOK, &nonScimHostResp)
 
 	require.Len(t, nonScimHostResp.Host.EndUsers, 1, "Should have exactly one end user")
 	endUser = nonScimHostResp.Host.EndUsers[0]
@@ -1082,15 +1082,15 @@ func (s *integrationEnterpriseTestSuite) TestHostDeviceMappingIDP() {
 	assert.False(t, foundNonScimInOtherEmails, "Non-SCIM IDP should NOT appear in other_emails")
 
 	// test DELETE
-	s.Do("DELETE", fmt.Sprintf("/api/latest/fleet/hosts/%d/device_mapping/idp", host.ID), deleteHostIDPRequest{}, http.StatusNoContent)
+	s.Do("DELETE", fmt.Sprintf("/api/latest/automdm/hosts/%d/device_mapping/idp", host.ID), deleteHostIDPRequest{}, http.StatusNoContent)
 
-	s.DoJSON("GET", "/api/v1/fleet/hosts/"+host.UUID, nil, http.StatusOK, &hostResp)
+	s.DoJSON("GET", "/api/v1/automdm/hosts/"+host.UUID, nil, http.StatusOK, &hostResp)
 	require.Len(t, hostResp.Host.EndUsers, 1, "Should have exactly one end user")
 	endUser = hostResp.Host.EndUsers[0]
 	// Non-SCIM IDP user should now be replaced by user's username
 	assert.Equal(t, "test.user", endUser.IdpUserName)
 
-	s.DoJSON("GET", fmt.Sprintf("/api/v1/fleet/hosts/%d", host.ID), nil, http.StatusOK, &hostResp2)
+	s.DoJSON("GET", fmt.Sprintf("/api/v1/automdm/hosts/%d", host.ID), nil, http.StatusOK, &hostResp2)
 	require.Len(t, hostResp2.Host.EndUsers, 1, "Should have exactly one end user")
 	endUser = hostResp.Host.EndUsers[0]
 
@@ -1100,16 +1100,16 @@ func (s *integrationEnterpriseTestSuite) TestHostDeviceMappingIDP() {
 
 // TestTeamAdminCanReadHostPastActivities is a regression test for issue #46009:
 // after the OPA-tag fix, team-scoped users were still getting 403 on
-// GET /api/_version_/fleet/hosts/{id}/activities for any host with a
+// GET /api/_version_/automdm/hosts/{id}/activities for any host with a
 // user-initiated past activity (locked_host being the common reproducer).
 // The cause was Service.UsersByIDs gating user enrichment behind an authz
-// check on an empty *fleet.User, which no team role can satisfy. The activity
+// check on an empty *automdm.User, which no team role can satisfy. The activity
 // ACL adapter now bypasses that check by going directly to the datastore.
 func (s *integrationEnterpriseTestSuite) TestTeamAdminCanReadHostPastActivities() {
 	t := s.T()
 	ctx := context.Background()
 
-	team, err := s.ds.NewTeam(ctx, &fleet.Team{
+	team, err := s.ds.NewTeam(ctx, &automdm.Team{
 		Name:        t.Name(),
 		Description: t.Name(),
 	})
@@ -1119,18 +1119,18 @@ func (s *integrationEnterpriseTestSuite) TestTeamAdminCanReadHostPastActivities(
 	})
 
 	teamAdminEmail := t.Name() + "_admin@example.com"
-	teamAdmin := &fleet.User{
+	teamAdmin := &automdm.User{
 		Name:  teamAdminEmail,
 		Email: teamAdminEmail,
-		Teams: []fleet.UserTeam{
-			{Team: *team, Role: fleet.RoleAdmin},
+		Teams: []automdm.UserTeam{
+			{Team: *team, Role: automdm.RoleAdmin},
 		},
 	}
 	require.NoError(t, teamAdmin.SetPassword(test.GoodPassword, 10, 10))
 	teamAdmin, err = s.ds.NewUser(ctx, teamAdmin)
 	require.NoError(t, err)
 
-	host, err := s.ds.NewHost(ctx, &fleet.Host{
+	host, err := s.ds.NewHost(ctx, &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -1151,7 +1151,7 @@ func (s *integrationEnterpriseTestSuite) TestTeamAdminCanReadHostPastActivities(
 	// Service.UsersByIDs and 403'd the team admin viewing the activity feed.
 	activitySvc := mysqltest.NewTestActivityService(t, s.ds)
 	apiUser := &activity_api.User{ID: teamAdmin.ID, Name: teamAdmin.Name, Email: teamAdmin.Email}
-	require.NoError(t, activitySvc.NewActivity(ctx, apiUser, fleet.ActivityTypeLockedHost{
+	require.NoError(t, activitySvc.NewActivity(ctx, apiUser, automdm.ActivityTypeLockedHost{
 		HostID:          host.ID,
 		HostDisplayName: host.DisplayName(),
 	}))
@@ -1160,9 +1160,9 @@ func (s *integrationEnterpriseTestSuite) TestTeamAdminCanReadHostPastActivities(
 	s.token = s.getTestToken(teamAdmin.Email, test.GoodPassword)
 
 	var listResp listActivitiesResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/activities", host.ID), nil, http.StatusOK, &listResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/activities", host.ID), nil, http.StatusOK, &listResp)
 	require.Len(t, listResp.Activities, 1)
-	require.Equal(t, fleet.ActivityTypeLockedHost{}.ActivityName(), listResp.Activities[0].Type)
+	require.Equal(t, automdm.ActivityTypeLockedHost{}.ActivityName(), listResp.Activities[0].Type)
 	require.NotNil(t, listResp.Activities[0].ActorEmail)
 	require.Equal(t, teamAdmin.Email, *listResp.Activities[0].ActorEmail)
 	require.NotNil(t, listResp.Activities[0].ActorFullName)
@@ -1186,7 +1186,9 @@ func (s *integrationEnterpriseTestSuite) TestHostGoogleDeviceID() {
 	}
 	const notConnected = "Google conditional access isn't connected. Connect it in Settings > Integrations > Conditional access."
 
-	idPath := func(h *fleet.Host) string { return fmt.Sprintf("/api/latest/fleet/hosts/%d/google_device_id", h.ID) }
+	idPath := func(h *automdm.Host) string {
+		return fmt.Sprintf("/api/latest/automdm/hosts/%d/google_device_id", h.ID)
+	}
 	hostJSON := func(path string) map[string]any {
 		res := s.Do("GET", path, nil, http.StatusOK)
 		var body struct {
@@ -1195,8 +1197,8 @@ func (s *integrationEnterpriseTestSuite) TestHostGoogleDeviceID() {
 		require.NoError(t, json.NewDecoder(res.Body).Decode(&body))
 		return body.Host
 	}
-	storedID := func(h *fleet.Host) any {
-		return hostJSON(fmt.Sprintf("/api/latest/fleet/hosts/%d", h.ID))["google_device_id"]
+	storedID := func(h *automdm.Host) any {
+		return hostJSON(fmt.Sprintf("/api/latest/automdm/hosts/%d", h.ID))["google_device_id"]
 	}
 	requireErrorReason := func(res *http.Response, reason string) {
 		var errBody struct {
@@ -1205,17 +1207,17 @@ func (s *integrationEnterpriseTestSuite) TestHostGoogleDeviceID() {
 		require.NoError(t, json.NewDecoder(res.Body).Decode(&errBody))
 		require.Equal(t, []map[string]string{{"name": "google_device_id", "reason": reason}}, errBody.Errors)
 	}
-	activityDetails := func(h *fleet.Host, id string) string {
+	activityDetails := func(h *automdm.Host, id string) string {
 		return fmt.Sprintf(`{"host_id": %d, "host_display_name": %q, "google_device_id": %q}`, h.ID, h.DisplayName(), id)
 	}
 
 	// mobile hosts report "" until set, other platforms omit the field
-	got := hostJSON(fmt.Sprintf("/api/latest/fleet/hosts/%d", iosHost.ID))
+	got := hostJSON(fmt.Sprintf("/api/latest/automdm/hosts/%d", iosHost.ID))
 	require.Contains(t, got, "google_device_id")
 	require.Empty(t, got["google_device_id"])
-	require.NotContains(t, hostJSON(fmt.Sprintf("/api/latest/fleet/hosts/%d", macHost.ID)), "google_device_id")
+	require.NotContains(t, hostJSON(fmt.Sprintf("/api/latest/automdm/hosts/%d", macHost.ID)), "google_device_id")
 
-	// Fleet marks the device, so the integration has to be connected
+	// AutoMDM marks the device, so the integration has to be connected
 	res := s.Do("PUT", idPath(iosHost), map[string]any{"google_device_id": "device-a"}, http.StatusUnprocessableEntity)
 	requireErrorReason(res, notConnected)
 	require.Empty(t, storedID(iosHost))
@@ -1261,9 +1263,9 @@ func (s *integrationEnterpriseTestSuite) TestHostGoogleDeviceID() {
 	require.Equal(t, "device-a", putResp.GoogleDeviceID)
 	activityID := s.lastActivityMatches("set_host_google_device_id", activityDetails(iosHost, "device-a"), 0)
 	s.lastHostActivityMatches(iosHost.ID, "set_host_google_device_id", activityDetails(iosHost, "device-a"), activityID)
-	require.Equal(t, map[string]fleet.GoogleConditionalAccessDeviceUserState{
-		"devices/device-a/deviceUsers/1": fleet.GoogleConditionalAccessDeviceUserManaged,
-		"devices/device-a/deviceUsers/2": fleet.GoogleConditionalAccessDeviceUserManaged,
+	require.Equal(t, map[string]automdm.GoogleConditionalAccessDeviceUserState{
+		"devices/device-a/deviceUsers/1": automdm.GoogleConditionalAccessDeviceUserManaged,
+		"devices/device-a/deviceUsers/2": automdm.GoogleConditionalAccessDeviceUserManaged,
 	}, g.states(iosHost))
 	require.Equal(t, []string{"devices/device-a/deviceUsers/1 " + iosHost.UUID, "devices/device-a/deviceUsers/2 " + iosHost.UUID},
 		g.client.devCalls().managed)
@@ -1278,7 +1280,7 @@ func (s *integrationEnterpriseTestSuite) TestHostGoogleDeviceID() {
 	s.lastActivityMatches("", "", activityID)
 
 	require.Equal(t, "device-a", storedID(iosHost))
-	require.Equal(t, "device-a", hostJSON("/api/latest/fleet/hosts/" + iosHost.UUID)["google_device_id"])
+	require.Equal(t, "device-a", hostJSON("/api/latest/automdm/hosts/" + iosHost.UUID)["google_device_id"])
 
 	// a different value is refused
 	res = s.Do("PUT", idPath(iosHost), map[string]any{"google_device_id": "device-b"}, http.StatusConflict)
@@ -1296,7 +1298,7 @@ func (s *integrationEnterpriseTestSuite) TestHostGoogleDeviceID() {
 	g.client.setDev(func(d *googleDeviceMock) { d.listErr = errors.New("Google returned HTTP 500") })
 	s.Do("PUT", idPath(androidHost), map[string]any{"google_device_id": "device-c"}, http.StatusBadGateway)
 	require.Equal(t, []string{androidID, androidID}, g.client.devCalls().finds)
-	// a host Fleet has no Android Management device ID for has no record to match, not
+	// a host AutoMDM has no Android Management device ID for has no record to match, not
 	// even one without an ID
 	noDeviceID := g.newAndroidHost(true)
 	mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
@@ -1323,7 +1325,7 @@ func (s *integrationEnterpriseTestSuite) TestHostGoogleDeviceID() {
 	requireErrorReason(res, "This Google device is already registered to another host.")
 	require.Empty(t, storedID(androidHost))
 	s.DoJSON("PUT", idPath(androidHost), map[string]any{"google_device_id": "device-c"}, http.StatusOK, &putResp)
-	require.Equal(t, "device-c", hostJSON("/api/latest/fleet/hosts/" + androidHost.UUID)["google_device_id"])
+	require.Equal(t, "device-c", hostJSON("/api/latest/automdm/hosts/" + androidHost.UUID)["google_device_id"])
 
 	// only DELETE removes the ID, and it logs an activity
 	res = s.Do("PUT", idPath(iosHost), map[string]any{"google_device_id": ""}, http.StatusUnprocessableEntity)
@@ -1333,9 +1335,9 @@ func (s *integrationEnterpriseTestSuite) TestHostGoogleDeviceID() {
 	s.Do("DELETE", idPath(iosHost), nil, http.StatusNoContent)
 	require.Empty(t, storedID(iosHost))
 	// the names wait for the cron to unmark them in Google
-	require.Equal(t, map[string]fleet.GoogleConditionalAccessDeviceUserState{
-		"devices/device-a/deviceUsers/1": fleet.GoogleConditionalAccessDeviceUserUnmanaging,
-		"devices/device-a/deviceUsers/2": fleet.GoogleConditionalAccessDeviceUserUnmanaging,
+	require.Equal(t, map[string]automdm.GoogleConditionalAccessDeviceUserState{
+		"devices/device-a/deviceUsers/1": automdm.GoogleConditionalAccessDeviceUserUnmanaging,
+		"devices/device-a/deviceUsers/2": automdm.GoogleConditionalAccessDeviceUserUnmanaging,
 	}, g.states(iosHost))
 	activityID = s.lastActivityMatches("deleted_host_google_device_id", activityDetails(iosHost, "device-a"), 0)
 	s.lastHostActivityMatches(iosHost.ID, "deleted_host_google_device_id", activityDetails(iosHost, "device-a"), activityID)
@@ -1387,15 +1389,15 @@ func (s *integrationEnterpriseTestSuite) TestHostGoogleDeviceID() {
 	})
 	s.DoJSON("PUT", idPath(iosHost), map[string]any{"google_device_id": "device-b"}, http.StatusOK, &putResp)
 	require.Equal(t, "device-b", storedID(iosHost))
-	require.Equal(t, fleet.GoogleConditionalAccessDeviceUserPending, g.states(iosHost)["devices/device-b/deviceUsers/1"])
+	require.Equal(t, automdm.GoogleConditionalAccessDeviceUserPending, g.states(iosHost)["devices/device-b/deviceUsers/1"])
 	g.client.setDev(func(d *googleDeviceMock) { d.markErrs = nil })
 
-	s.Do("PUT", "/api/latest/fleet/hosts/999999/google_device_id", map[string]any{"google_device_id": "device-d"}, http.StatusNotFound)
-	s.Do("DELETE", "/api/latest/fleet/hosts/999999/google_device_id", nil, http.StatusNotFound)
+	s.Do("PUT", "/api/latest/automdm/hosts/999999/google_device_id", map[string]any{"google_device_id": "device-d"}, http.StatusNotFound)
+	s.Do("DELETE", "/api/latest/automdm/hosts/999999/google_device_id", nil, http.StatusNotFound)
 
 	// an observer can read the host but not set or remove the ID
 	defer func() { s.token = s.getTestAdminToken() }()
-	observer := &fleet.User{Name: t.Name() + " observer", Email: "google-device-id-observer@example.com", GlobalRole: new(fleet.RoleObserver)}
+	observer := &automdm.User{Name: t.Name() + " observer", Email: "google-device-id-observer@example.com", GlobalRole: new(automdm.RoleObserver)}
 	require.NoError(t, observer.SetPassword(test.GoodPassword, 10, 10))
 	_, err := s.ds.NewUser(t.Context(), observer)
 	require.NoError(t, err)
@@ -1403,16 +1405,16 @@ func (s *integrationEnterpriseTestSuite) TestHostGoogleDeviceID() {
 	s.Do("PUT", idPath(androidHost), map[string]any{"google_device_id": "device-c"}, http.StatusForbidden)
 	s.Do("DELETE", idPath(androidHost), nil, http.StatusForbidden)
 
-	// a team maintainer can only set or remove the ID on hosts of their own fleet
+	// a team maintainer can only set or remove the ID on hosts of their own team
 	s.token = s.getTestAdminToken()
-	team, err := s.ds.NewTeam(t.Context(), &fleet.Team{Name: t.Name()})
+	team, err := s.ds.NewTeam(t.Context(), &automdm.Team{Name: t.Name()})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, s.ds.DeleteTeam(context.Background(), team.ID)) })
-	require.NoError(t, s.ds.AddHostsToTeam(t.Context(), fleet.NewAddHostsToTeamParams(&team.ID, []uint{androidHost.ID})))
-	teamMaintainer := &fleet.User{
+	require.NoError(t, s.ds.AddHostsToTeam(t.Context(), automdm.NewAddHostsToTeamParams(&team.ID, []uint{androidHost.ID})))
+	teamMaintainer := &automdm.User{
 		Name:  t.Name() + " team maintainer",
 		Email: "google-device-id-team-maintainer@example.com",
-		Teams: []fleet.UserTeam{{Team: *team, Role: fleet.RoleMaintainer}},
+		Teams: []automdm.UserTeam{{Team: *team, Role: automdm.RoleMaintainer}},
 	}
 	require.NoError(t, teamMaintainer.SetPassword(test.GoodPassword, 10, 10))
 	_, err = s.ds.NewUser(t.Context(), teamMaintainer)
@@ -1429,19 +1431,19 @@ func (s *integrationEnterpriseTestSuite) TestHostGoogleDeviceID() {
 	var apiUserResp struct {
 		Token string `json:"token"`
 	}
-	s.DoJSON("POST", "/api/latest/fleet/users/api_only", map[string]any{
+	s.DoJSON("POST", "/api/latest/automdm/users/api_only", map[string]any{
 		"name":        t.Name() + " registration service",
-		"global_role": fleet.RoleMaintainer,
+		"global_role": automdm.RoleMaintainer,
 		"api_endpoints": []map[string]any{
-			{"method": "GET", "path": "/api/v1/fleet/hosts/:id"},
-			{"method": "PUT", "path": "/api/v1/fleet/hosts/:id/google_device_id"},
+			{"method": "GET", "path": "/api/v1/automdm/hosts/:id"},
+			{"method": "PUT", "path": "/api/v1/automdm/hosts/:id/google_device_id"},
 		},
 	}, http.StatusOK, &apiUserResp)
 	require.NotEmpty(t, apiUserResp.Token)
 	s.token = apiUserResp.Token
 	// The GET /hosts/:id grant covers every value that route accepts.
-	hostJSON("/api/latest/fleet/hosts/" + androidHost.UUID)
-	s.Do("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", androidHost.ID), nil, http.StatusOK)
+	hostJSON("/api/latest/automdm/hosts/" + androidHost.UUID)
+	s.Do("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", androidHost.ID), nil, http.StatusOK)
 	s.DoJSON("PUT", idPath(androidHost), map[string]any{"google_device_id": "device-c"}, http.StatusOK, &putResp)
 	s.Do("DELETE", idPath(androidHost), nil, http.StatusForbidden)
 	s.token = s.getTestAdminToken()

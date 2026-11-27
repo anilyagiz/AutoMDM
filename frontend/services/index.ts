@@ -245,7 +245,7 @@ export const sendRequestWithProgressAndHeaders = async ({
 
 /**
  * Uploads a file straight to object storage through a presigned URL and returns
- * the upload id to register it with. The PUT uses bare axios so Fleet
+ * the upload id to register it with. The PUT uses bare axios so AutoMDM
  * credentials never reach the storage host; don't route it through the helpers
  * above.
  */
@@ -267,7 +267,7 @@ export const uploadToStorage = async ({
     endpoints.STAGED_UPLOAD,
     {
       target,
-      fleet_id: teamId ?? 0,
+      team_id: teamId ?? 0,
       size: file.size,
     }
   );

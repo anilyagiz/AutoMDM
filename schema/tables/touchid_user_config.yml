@@ -27,5 +27,5 @@ columns:
     type: integer
     required: false
     description: Value is 1 if Touch ID for Apple Pay is effectively available to the user (enabled and fingerprints enrolled). NULL if unknown.
-notes: This table is not a core osquery table. It is included as part of Fleet's agent ([fleetd](https://fleetdm.com/docs/get-started/anatomy#fleetd)). This table is from the [Mac Admins osquery extension](https://github.com/macadmins/osquery-extension).
+notes: This table is not a core osquery table. It is included as part of AutoMDM's agent ([automdmd](https://automdm.com/docs/get-started/anatomy#automdmd)). This table is from the [Mac Admins osquery extension](https://github.com/macadmins/osquery-extension).
 evented: false

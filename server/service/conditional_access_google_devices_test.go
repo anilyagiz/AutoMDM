@@ -5,9 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/service/conditional_access_google"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/service/conditional_access_google"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
 )
@@ -19,17 +19,17 @@ const googleCADeviceTestCustomer = "C02cajzvg"
 // canceled context. onStored runs once a registration is stored.
 type googleCADeviceTest struct {
 	*googleCADisconnectTest
-	host     *fleet.Host
+	host     *automdm.Host
 	deviceID string
-	states   map[string]fleet.GoogleConditionalAccessDeviceUserState
+	states   map[string]automdm.GoogleConditionalAccessDeviceUserState
 	onStored func()
 }
 
 func newGoogleCADeviceTest(t *testing.T) *googleCADeviceTest {
 	g := &googleCADeviceTest{
 		googleCADisconnectTest: newGoogleCADisconnectTest(t, googleCADeviceTestCustomer),
-		host:                   &fleet.Host{ID: 1, UUID: "host-uuid", Hostname: "iphone", Platform: "ios"},
-		states:                 map[string]fleet.GoogleConditionalAccessDeviceUserState{},
+		host:                   &automdm.Host{ID: 1, UUID: "host-uuid", Hostname: "iphone", Platform: "ios"},
+		states:                 map[string]automdm.GoogleConditionalAccessDeviceUserState{},
 	}
 	store := func(ctx context.Context, deviceID string, names []string) error {
 		if err := ctx.Err(); err != nil {
@@ -37,7 +37,7 @@ func newGoogleCADeviceTest(t *testing.T) *googleCADeviceTest {
 		}
 		g.deviceID = deviceID
 		for _, name := range names {
-			g.states[name] = fleet.GoogleConditionalAccessDeviceUserPending
+			g.states[name] = automdm.GoogleConditionalAccessDeviceUserPending
 		}
 		if g.onStored != nil {
 			g.onStored()
@@ -45,16 +45,16 @@ func newGoogleCADeviceTest(t *testing.T) *googleCADeviceTest {
 		return nil
 	}
 
-	g.ds.HostLiteFunc = func(context.Context, uint) (*fleet.Host, error) { return g.host, nil }
-	g.ds.HostByUUIDFunc = func(context.Context, string) (*fleet.Host, error) { return g.host, nil }
-	g.ds.GetHostMDMFunc = func(context.Context, uint) (*fleet.HostMDM, error) {
-		return &fleet.HostMDM{Enrolled: true, InstalledFromDep: true}, nil
+	g.ds.HostLiteFunc = func(context.Context, uint) (*automdm.Host, error) { return g.host, nil }
+	g.ds.HostByUUIDFunc = func(context.Context, string) (*automdm.Host, error) { return g.host, nil }
+	g.ds.GetHostMDMFunc = func(context.Context, uint) (*automdm.HostMDM, error) {
+		return &automdm.HostMDM{Enrolled: true, InstalledFromDep: true}, nil
 	}
 	g.ds.ConsumeGoogleConditionalAccessRegistrationTokenFunc = func(ctx context.Context, _ string, _ []byte) (string, error) {
 		return g.host.UUID, ctx.Err()
 	}
 	g.ds.RecordGoogleConditionalAccessRegistrationFunc = func(ctx context.Context, _, _ string, names []string) error {
-		return store(ctx, fleet.GoogleDeviceIDFromDeviceUserName(names[0]), names)
+		return store(ctx, automdm.GoogleDeviceIDFromDeviceUserName(names[0]), names)
 	}
 	g.ds.SetHostGoogleDeviceIDFunc = func(ctx context.Context, _, _, googleDeviceID string, names []string) (bool, error) {
 		if err := store(ctx, googleDeviceID, names); err != nil {
@@ -64,7 +64,7 @@ func newGoogleCADeviceTest(t *testing.T) *googleCADeviceTest {
 	}
 	g.ds.GetHostGoogleDeviceIDFunc = func(context.Context, string, string) (string, error) { return g.deviceID, nil }
 	g.ds.UpdateGoogleConditionalAccessDeviceUserStateFunc = func(
-		ctx context.Context, name string, _, toState fleet.GoogleConditionalAccessDeviceUserState, _ *string,
+		ctx context.Context, name string, _, toState automdm.GoogleConditionalAccessDeviceUserState, _ *string,
 	) (bool, error) {
 		if err := ctx.Err(); err != nil {
 			return false, err
@@ -77,22 +77,22 @@ func newGoogleCADeviceTest(t *testing.T) *googleCADeviceTest {
 
 func TestGoogleConditionalAccessDeviceRegistration(t *testing.T) {
 	const name = "devices/device-a/deviceUsers/1"
-	setActivity := []string{fleet.ActivityTypeSetHostGoogleDeviceID{}.ActivityName()}
-	pending := map[string]fleet.GoogleConditionalAccessDeviceUserState{name: fleet.GoogleConditionalAccessDeviceUserPending}
-	managed := map[string]fleet.GoogleConditionalAccessDeviceUserState{name: fleet.GoogleConditionalAccessDeviceUserManaged}
-	signIn := func(t *testing.T, g *googleCADeviceTest) fleet.GoogleConditionalAccessRegisterResult {
+	setActivity := []string{automdm.ActivityTypeSetHostGoogleDeviceID{}.ActivityName()}
+	pending := map[string]automdm.GoogleConditionalAccessDeviceUserState{name: automdm.GoogleConditionalAccessDeviceUserPending}
+	managed := map[string]automdm.GoogleConditionalAccessDeviceUserState{name: automdm.GoogleConditionalAccessDeviceUserManaged}
+	signIn := func(t *testing.T, g *googleCADeviceTest) automdm.GoogleConditionalAccessRegisterResult {
 		result, err := g.svc.RegisterGoogleConditionalAccessDevice(g.ctx, "secret-"+googleCADeviceTestCustomer,
-			fleet.GoogleConditionalAccessRegistration{
+			automdm.GoogleConditionalAccessRegistration{
 				Token: "token", Names: []string{name}, Customer: googleCADeviceTestCustomer, Email: "user@example.com",
 			})
 		require.NoError(t, err)
 		return result
 	}
 
-	t.Run("a sign-in is logged and marked when fleetdm.com disconnects", func(t *testing.T) {
+	t.Run("a sign-in is logged and marked when automdm.com disconnects", func(t *testing.T) {
 		g := newGoogleCADeviceTest(t)
 		g.onStored = g.relay.disconnect
-		require.Equal(t, fleet.GoogleConditionalAccessRegisterDone, signIn(t, g))
+		require.Equal(t, automdm.GoogleConditionalAccessRegisterDone, signIn(t, g))
 		require.Equal(t, setActivity, g.activities)
 		require.Equal(t, managed, g.states)
 	})
@@ -100,16 +100,16 @@ func TestGoogleConditionalAccessDeviceRegistration(t *testing.T) {
 	t.Run("a sign-in that can't be logged is still done and marked", func(t *testing.T) {
 		g := newGoogleCADeviceTest(t)
 		g.activityErr = errors.New("activity failed")
-		require.Equal(t, fleet.GoogleConditionalAccessRegisterDone, signIn(t, g))
+		require.Equal(t, automdm.GoogleConditionalAccessRegisterDone, signIn(t, g))
 		require.Equal(t, managed, g.states)
 	})
 
 	t.Run("a sign-in is done and logged when the key can't be read", func(t *testing.T) {
 		g := newGoogleCADeviceTest(t)
-		g.ds.GetAllMDMConfigAssetsByNameFunc = func(context.Context, []fleet.MDMAssetName, sqlx.QueryerContext) (map[fleet.MDMAssetName]fleet.MDMConfigAsset, error) {
+		g.ds.GetAllMDMConfigAssetsByNameFunc = func(context.Context, []automdm.MDMAssetName, sqlx.QueryerContext) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
 			return nil, errors.New("decrypt failed")
 		}
-		require.Equal(t, fleet.GoogleConditionalAccessRegisterDone, signIn(t, g))
+		require.Equal(t, automdm.GoogleConditionalAccessRegisterDone, signIn(t, g))
 		require.Equal(t, setActivity, g.activities)
 		require.Equal(t, pending, g.states)
 	})
@@ -132,7 +132,7 @@ func TestGoogleConditionalAccessDeviceRegistration(t *testing.T) {
 			d.deviceUsers = map[string][]string{"device-b": {"devices/device-b/deviceUsers/1"}}
 		})
 		err := g.svc.SetHostGoogleDeviceID(g.ctx, g.host.ID, "device-b")
-		var conflict *fleet.HostGoogleDeviceIDConflictError
+		var conflict *automdm.HostGoogleDeviceIDConflictError
 		require.ErrorAs(t, err, &conflict)
 		require.Equal(t, "device-a", g.deviceID)
 		require.Empty(t, g.states)
@@ -147,7 +147,7 @@ func TestMarkGoogleDeviceUserKeepsGoogleError(t *testing.T) {
 
 	ds := new(mock.Store)
 	ds.UpdateGoogleConditionalAccessDeviceUserStateFunc = func(
-		context.Context, string, fleet.GoogleConditionalAccessDeviceUserState, fleet.GoogleConditionalAccessDeviceUserState, *string,
+		context.Context, string, automdm.GoogleConditionalAccessDeviceUserState, automdm.GoogleConditionalAccessDeviceUserState, *string,
 	) (bool, error) {
 		return false, recordErr
 	}

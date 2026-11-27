@@ -166,9 +166,9 @@ const SoftwareTitleDetailsPage = ({
   // the same Versions modal.
   const [showVersionsModal, setShowVersionsModal] = useState(false);
 
-  // Command palette lets the user switch fleets while a modal is open. The
+  // Command palette lets the user switch teams while a modal is open. The
   // Library section unmounts on nil teamIdForApi, but page-owned modal state
-  // would remount the modal when the user returned to a specific fleet.
+  // would remount the modal when the user returned to a specific team.
   useEffect(() => {
     setShowLibraryEditModal(false);
     setShowDeleteModal(false);
@@ -266,7 +266,7 @@ const SoftwareTitleDetailsPage = ({
       // to the library.
       router.push(
         getPathWithQueryParams(paths.SOFTWARE_LIBRARY, {
-          fleet_id: teamIdForApi,
+          team_id: teamIdForApi,
         })
       );
     },
@@ -329,10 +329,10 @@ const SoftwareTitleDetailsPage = ({
 
   const renderLibrarySection = (title: ISoftwareTitleDetails) => {
     // Library section is Premium-only
-    // Fleet Free should not see it even when an installer is present.
-    // "All fleets" (teamIdForApi undefined) has no team scope for
+    // AutoMDM Free should not see it even when an installer is present.
+    // "All teams" (teamIdForApi undefined) has no team scope for
     // edit/delete/add — the section is a management surface, so hide it
-    // entirely rather than surface actions that would target no fleet.
+    // entirely rather than surface actions that would target no team.
     if (
       !isPremiumTier ||
       !isAvailableForInstall ||
@@ -380,7 +380,7 @@ const SoftwareTitleDetailsPage = ({
         software_title_id: softwareId,
         software_status,
         app_store_app_version_id: appStoreAppVersionId,
-        fleet_id: currentTeamId ?? APP_CONTEXT_NO_TEAM_ID,
+        team_id: currentTeamId ?? APP_CONTEXT_NO_TEAM_ID,
       });
 
     const renderAppStoreRow = () => {
@@ -397,7 +397,7 @@ const SoftwareTitleDetailsPage = ({
           )}
           version={appStore.version}
           // Apple App Store apps' version updates automatically, so the time the
-          // app was added to Fleet reads as the time this version was added.
+          // app was added to AutoMDM reads as the time this version was added.
           addedAt={isAndroidPlayStoreApp ? appStore.created_at : undefined}
           installerType="app-store"
           androidPlayStoreId={
@@ -542,7 +542,7 @@ const SoftwareTitleDetailsPage = ({
     const renderPackageRows = (pkg: ISoftwarePackage) => {
       if (!pkg) return null;
       const { labels, kind } = pickLabels(pkg);
-      const isFma = installerResult?.meta.isFleetMaintainedApp ?? false;
+      const isFma = installerResult?.meta.isAutoMDMMaintainedApp ?? false;
       const isLatestFmaVersion =
         installerResult?.meta.isLatestFmaVersion ?? false;
       const isScriptPackage =
@@ -557,7 +557,7 @@ const SoftwareTitleDetailsPage = ({
         pkg.status
       );
       const rows = buildLibraryVersionRows({
-        fleetMaintainedVersions: pkg.fleet_maintained_versions,
+        automdmMaintainedVersions: pkg.automdm_maintained_versions,
         activeVersion: pkg.version,
         pinnedVersion: pkg.pinned_version,
         addedTimestamp: pkg.uploaded_at,
@@ -613,7 +613,7 @@ const SoftwareTitleDetailsPage = ({
               router.push(
                 getPathWithQueryParams(
                   paths.POLICY_DETAILS(perPackagePolicies[0].id),
-                  { fleet_id: teamIdForApi }
+                  { team_id: teamIdForApi }
                 )
               );
               return;
@@ -903,7 +903,7 @@ const SoftwareTitleDetailsPage = ({
         refetchSoftwareTitle={refetchSoftwareTitle}
         onExit={closeLibraryEditModal}
         installerType={meta.installerType}
-        isFleetMaintainedApp={meta.isFleetMaintainedApp}
+        isAutoMDMMaintainedApp={meta.isAutoMDMMaintainedApp}
         isIosOrIpadosApp={meta.isIosOrIpadosApp}
         name={title.name}
         displayName={getDisplayedSoftwareName(title.name, title.display_name)}
@@ -988,7 +988,7 @@ const SoftwareTitleDetailsPage = ({
 
   const renderVersionsModal = (title: ISoftwareTitleDetails) => {
     // `teamIdForApi` is undefined on "All teams" (where `currentTeamId` is the
-    // -1 sentinel); guard so we never PATCH `fleet_id=-1`. Mirrors the delete modal.
+    // -1 sentinel); guard so we never PATCH `team_id=-1`. Mirrors the delete modal.
     if (
       !showVersionsModal ||
       !title.packages?.[0] ||
@@ -1018,7 +1018,7 @@ const SoftwareTitleDetailsPage = ({
           header={
             currentTeamId === APP_CONTEXT_ALL_TEAMS_ID
               ? "Software not found"
-              : "Software not found in this fleet"
+              : "Software not found in this team"
           }
           details="Expecting to see software? Check back later."
         />

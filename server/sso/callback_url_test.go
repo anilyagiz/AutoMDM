@@ -8,7 +8,7 @@ import (
 )
 
 func TestCallbackURL(t *testing.T) {
-	const callbackPath = "/api/v1/fleet/sso/callback"
+	const callbackPath = "/api/v1/automdm/sso/callback"
 
 	testCases := []struct {
 		name      string
@@ -18,51 +18,51 @@ func TestCallbackURL(t *testing.T) {
 	}{
 		{
 			name:      "no prefix configured",
-			baseURL:   "https://fleet.example.com",
+			baseURL:   "https://automdm.example.com",
 			urlPrefix: "",
-			want:      "https://fleet.example.com/api/v1/fleet/sso/callback",
+			want:      "https://automdm.example.com/api/v1/automdm/sso/callback",
 		},
 		{
 			name:      "root prefix is treated as no prefix",
-			baseURL:   "https://fleet.example.com",
+			baseURL:   "https://automdm.example.com",
 			urlPrefix: "/",
-			want:      "https://fleet.example.com/api/v1/fleet/sso/callback",
+			want:      "https://automdm.example.com/api/v1/automdm/sso/callback",
 		},
 		{
 			name:      "prefix set and base url already includes it",
-			baseURL:   "https://fleet.example.com/apps/fleet",
-			urlPrefix: "/apps/fleet",
-			want:      "https://fleet.example.com/apps/fleet/api/v1/fleet/sso/callback",
+			baseURL:   "https://automdm.example.com/apps/automdm",
+			urlPrefix: "/apps/automdm",
+			want:      "https://automdm.example.com/apps/automdm/api/v1/automdm/sso/callback",
 		},
 		{
 			name:      "prefix set and base url omits it",
-			baseURL:   "https://fleet.example.com",
-			urlPrefix: "/apps/fleet",
-			want:      "https://fleet.example.com/apps/fleet/api/v1/fleet/sso/callback",
+			baseURL:   "https://automdm.example.com",
+			urlPrefix: "/apps/automdm",
+			want:      "https://automdm.example.com/apps/automdm/api/v1/automdm/sso/callback",
 		},
 		{
 			name:      "base url includes prefix with trailing slash",
-			baseURL:   "https://fleet.example.com/apps/fleet/",
-			urlPrefix: "/apps/fleet",
-			want:      "https://fleet.example.com/apps/fleet/api/v1/fleet/sso/callback",
+			baseURL:   "https://automdm.example.com/apps/automdm/",
+			urlPrefix: "/apps/automdm",
+			want:      "https://automdm.example.com/apps/automdm/api/v1/automdm/sso/callback",
 		},
 		{
 			name:      "prefix configured with trailing slash",
-			baseURL:   "https://fleet.example.com/apps/fleet",
-			urlPrefix: "/apps/fleet/",
-			want:      "https://fleet.example.com/apps/fleet/api/v1/fleet/sso/callback",
+			baseURL:   "https://automdm.example.com/apps/automdm",
+			urlPrefix: "/apps/automdm/",
+			want:      "https://automdm.example.com/apps/automdm/api/v1/automdm/sso/callback",
 		},
 		{
-			name:      "proxy mounts fleet under an additional outer segment",
-			baseURL:   "https://fleet.example.com/gateway/apps/fleet",
-			urlPrefix: "/apps/fleet",
-			want:      "https://fleet.example.com/gateway/apps/fleet/api/v1/fleet/sso/callback",
+			name:      "proxy mounts team under an additional outer segment",
+			baseURL:   "https://automdm.example.com/gateway/apps/automdm",
+			urlPrefix: "/apps/automdm",
+			want:      "https://automdm.example.com/gateway/apps/automdm/api/v1/automdm/sso/callback",
 		},
 		{
 			name:      "outer segment that is not a full path segment still gets the prefix",
-			baseURL:   "https://fleet.example.com/myapps/fleet",
-			urlPrefix: "/apps/fleet",
-			want:      "https://fleet.example.com/myapps/fleet/apps/fleet/api/v1/fleet/sso/callback",
+			baseURL:   "https://automdm.example.com/myapps/automdm",
+			urlPrefix: "/apps/automdm",
+			want:      "https://automdm.example.com/myapps/automdm/apps/automdm/api/v1/automdm/sso/callback",
 		},
 	}
 

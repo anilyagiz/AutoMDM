@@ -1,6 +1,6 @@
 data "aws_ecr_authorization_token" "token" {}
 
-data "aws_ecr_repository" "fleet" {
+data "aws_ecr_repository" "automdm" {
   name = local.customer
 }
 

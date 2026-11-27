@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -52,7 +52,7 @@ func TestBuildOktaCACleanupScript(t *testing.T) {
 				assert.Empty(t, got)
 				return
 			}
-			assert.Contains(t, got, "set -- -y -u '"+c.username+"' "+shellSingleQuote(fleet.ConditionalAccessOktaCertificateCN))
+			assert.Contains(t, got, "set -- -y -u '"+c.username+"' "+shellSingleQuote(automdm.ConditionalAccessOktaCertificateCN))
 			assert.Contains(t, got, deleteDuplicateOktaSCEPScript,
 				"wrapped script must contain the embedded cleanup script verbatim")
 		})
@@ -86,7 +86,7 @@ func TestMaybeRunOktaCACleanupScript(t *testing.T) {
 
 	cases := []struct {
 		name           string
-		target         fleet.OktaCACleanupTarget
+		target         automdm.OktaCACleanupTarget
 		targetOK       bool
 		targetErr      error
 		wantErr        bool
@@ -95,7 +95,7 @@ func TestMaybeRunOktaCACleanupScript(t *testing.T) {
 	}{
 		{
 			name:        "okta CA profile + valid user: enqueues",
-			target:      fleet.OktaCACleanupTarget{HostID: hostID, UserShortName: shortName},
+			target:      automdm.OktaCACleanupTarget{HostID: hostID, UserShortName: shortName},
 			targetOK:    true,
 			wantEnqueue: true,
 		},
@@ -110,7 +110,7 @@ func TestMaybeRunOktaCACleanupScript(t *testing.T) {
 		},
 		{
 			name:           "invalid username: skipped without error",
-			target:         fleet.OktaCACleanupTarget{HostID: hostID, UserShortName: "ali ce"},
+			target:         automdm.OktaCACleanupTarget{HostID: hostID, UserShortName: "ali ce"},
 			targetOK:       true,
 			wantInvalidLog: true,
 		},
@@ -119,18 +119,18 @@ func TestMaybeRunOktaCACleanupScript(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			ds := new(mock.Store)
-			ds.OktaCACleanupTargetForInstallCommandFunc = func(_ context.Context, hUUID, cmdUUID string) (fleet.OktaCACleanupTarget, bool, error) {
+			ds.OktaCACleanupTargetForInstallCommandFunc = func(_ context.Context, hUUID, cmdUUID string) (automdm.OktaCACleanupTarget, bool, error) {
 				require.Equal(t, hostUUID, hUUID)
 				require.Equal(t, commandUUID, cmdUUID)
 				return c.target, c.targetOK, c.targetErr
 			}
-			ds.NewInternalHostScriptExecutionRequestFunc = func(_ context.Context, req *fleet.HostScriptRequestPayload) (*fleet.HostScriptResult, error) {
+			ds.NewInternalHostScriptExecutionRequestFunc = func(_ context.Context, req *automdm.HostScriptRequestPayload) (*automdm.HostScriptResult, error) {
 				require.Equal(t, hostID, req.HostID)
-				require.Contains(t, req.ScriptContents, "set -- -y -u '"+shortName+"' '"+fleet.ConditionalAccessOktaCertificateCN+"'")
+				require.Contains(t, req.ScriptContents, "set -- -y -u '"+shortName+"' '"+automdm.ConditionalAccessOktaCertificateCN+"'")
 				require.Contains(t, req.ScriptContents, deleteDuplicateOktaSCEPScript)
 				require.False(t, req.SyncRequest)
 				require.Nil(t, req.UserID)
-				return &fleet.HostScriptResult{}, nil
+				return &automdm.HostScriptResult{}, nil
 			}
 
 			svc := &MDMAppleCheckinAndCommandService{

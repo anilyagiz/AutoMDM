@@ -10,8 +10,8 @@ func init() {
 }
 
 // Up_20261110135538 rewrites the enabled_macos_disk_encryption and disabled_macos_disk_encryption activities as
-// edited_disk_encryption_settings. Before Fleet 4.92 one setting covered every platform, so no single platform is right and it is stored
-// as null. COALESCE prefers fleet_*: a JSON null (unassigned) is a non-NULL SQL value, so only a missing key falls through to team_*.
+// edited_disk_encryption_settings. Before AutoMDM 4.92 one setting covered every platform, so no single platform is right and it is stored
+// as null. COALESCE prefers automdm_*: a JSON null (unassigned) is a non-NULL SQL value, so only a missing key falls through to team_*.
 //
 // The index is forced because with stale statistics MySQL scans the whole table instead.
 func Up_20261110135538(tx *sql.Tx) error {
@@ -20,8 +20,8 @@ func Up_20261110135538(tx *sql.Tx) error {
 		SET
 			activity_type = 'edited_disk_encryption_settings',
 			details = JSON_OBJECT(
-				'fleet_id',   COALESCE(JSON_EXTRACT(details, '$.fleet_id'),   JSON_EXTRACT(details, '$.team_id')),
-				'fleet_name', COALESCE(JSON_EXTRACT(details, '$.fleet_name'), JSON_EXTRACT(details, '$.team_name')),
+				'team_id',   COALESCE(JSON_EXTRACT(details, '$.team_id'),   JSON_EXTRACT(details, '$.team_id')),
+				'team_name', COALESCE(JSON_EXTRACT(details, '$.team_name'), JSON_EXTRACT(details, '$.team_name')),
 				'platform',   NULL
 			)
 		WHERE activity_type IN ('enabled_macos_disk_encryption', 'disabled_macos_disk_encryption')`,

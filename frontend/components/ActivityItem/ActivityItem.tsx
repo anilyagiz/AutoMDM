@@ -18,12 +18,12 @@ export interface IShowActivityDetailsData {
   details?: IActivityDetails;
   created_at?: string;
   /** Display name of the user who triggered the activity. Empty / undefined
-   *  for Fleet-initiated activities. */
+   *  for AutoMDM-initiated activities. */
   actor_full_name?: string;
   /** True when no user triggered the activity (policy, auto-update, setup
    *  experience, etc.). Used by the install-details modal to render the
-   *  actor-driven failure copy ("Fleet failed to install …"). */
-  fleet_initiated?: boolean;
+   *  actor-driven failure copy ("AutoMDM failed to install …"). */
+  automdm_initiated?: boolean;
 }
 
 /**
@@ -108,7 +108,7 @@ const ActivityItem = ({
       details: activity.details,
       created_at: activity.created_at,
       actor_full_name: activity.actor_full_name,
-      fleet_initiated: activity.fleet_initiated,
+      automdm_initiated: activity.automdm_initiated,
     });
   };
 
@@ -119,7 +119,7 @@ const ActivityItem = ({
 
   return (
     <FeedListItem
-      useFleetAvatar={activity.fleet_initiated}
+      useAutoMDMAvatar={activity.automdm_initiated}
       useAPIOnlyAvatar={activity.actor_api_only}
       createdAt={activityCreatedAt}
       gravatarURL={gravatar_url}

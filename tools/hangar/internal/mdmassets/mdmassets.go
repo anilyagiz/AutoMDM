@@ -1,11 +1,11 @@
-// Package mdmassets runs Fleet's in-repo tools/mdm/assets exporter and persists
+// Package mdmassets runs AutoMDM's in-repo tools/mdm/assets exporter and persists
 // saved export configurations to <config-dir>/mdm-assets-configs.json (same
 // shape/pattern as the perfconfig package). Each config remembers the MySQL
 // connection (the tool's four consts), the encryption key, the output dir, and
 // an optional single-asset filter — so an export is one button press.
 //
 // Like perfconfig, this stores dev-only local credentials as plain text: the
-// same security boundary as ~/.fleet/config and the rest of the Hangar config.
+// same security boundary as ~/.automdm/config and the rest of the Hangar config.
 //
 // All persistence functions take an explicit directory so they're hermetically
 // testable; the service layer resolves the real config dir via the paths pkg.
@@ -24,20 +24,20 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/fleetdm/fleet/tools/hangar/internal/shellpath"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/shellpath"
 )
 
 const fileName = "mdm-assets-configs.json"
 
-// toolPkg is the in-repo exporter, built/run from the primary Fleet repo.
+// toolPkg is the in-repo exporter, built/run from the primary AutoMDM repo.
 const toolPkg = "./tools/mdm/assets"
 
 // Config is one saved MDM-assets export configuration.
 type Config struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
-	// MySQL connection — defaults mirror the tool's consts (fleet / insecure /
-	// localhost:3306 / fleet).
+	// MySQL connection — defaults mirror the tool's consts (team / insecure /
+	// localhost:3306 / team).
 	DBUser     string `json:"db_user"`
 	DBPassword string `json:"db_password"`
 	DBAddress  string `json:"db_address"`
@@ -45,7 +45,7 @@ type Config struct {
 	// Key is the server private key used to decrypt the assets (export's -key,
 	// required).
 	Key string `json:"key"`
-	// Dir is the export output directory; empty means the Fleet repo root.
+	// Dir is the export output directory; empty means the AutoMDM repo root.
 	Dir string `json:"dir"`
 	// AssetName optionally limits the export to a single asset (export's -name);
 	// empty exports the full set.
@@ -125,7 +125,7 @@ func StatFiles(paths []string) []AssetFile {
 	return files
 }
 
-// Export runs `go run ./tools/mdm/assets export …` from repoPath (so the Fleet
+// Export runs `go run ./tools/mdm/assets export …` from repoPath (so the AutoMDM
 // module resolves) writing to absDir, and returns the captured output + the
 // files produced. The tool's own failures surface via ExportResult (ExitCode /
 // Stderr), not the returned error — that's reserved for setup problems — so the

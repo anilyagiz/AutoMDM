@@ -1,4 +1,4 @@
-/* Config interface is a flattened version of the fleet/config API response */
+/* Config interface is a flattened version of the automdm/config API response */
 import {
   IWebhookHostStatus,
   IWebhookFailingPolicies,
@@ -54,7 +54,7 @@ export interface IAppleDeviceUpdates {
 }
 
 export interface IMdmConfig {
-  /** Update this URL if you're self-hosting Fleet and you want your hosts to talk to a different URL for MDM features. (If not configured, hosts will use the base URL of the Fleet instance.) */
+  /** Update this URL if you're self-hosting AutoMDM and you want your hosts to talk to a different URL for MDM features. (If not configured, hosts will use the base URL of the AutoMDM instance.) */
   apple_server_url: string;
   /** @deprecated Virtual key: true only when all per-platform disk
   encryption settings (`apple_settings`, `windows_settings`, `linux_settings`)
@@ -129,8 +129,8 @@ export interface IMdmConfig {
 
 /** Settings for new user-driven Windows MDM enrollments (Premium only). */
 export interface IWindowsAutomaticEnrollment {
-  /** Name of the fleet new MDM-enrolled Windows hosts are assigned to; "" means Unassigned. */
-  default_fleet: string;
+  /** Name of the team new MDM-enrolled Windows hosts are assigned to; "" means Unassigned. */
+  default_team: string;
 }
 
 // Note: IDeviceGlobalConfig is misnamed on the backend because in some cases it returns team config
@@ -150,7 +150,7 @@ export interface IDeviceGlobalConfig {
   >;
 }
 
-export interface IFleetDesktopSettings {
+export interface IAutoMDMDesktopSettings {
   transparency_url: string;
   alternative_browser_host: string;
   sso_enabled: boolean;
@@ -250,7 +250,7 @@ export interface IConfig {
     osquery_policy: number;
   };
   license: ILicense;
-  fleet_desktop: IFleetDesktopSettings;
+  automdm_desktop: IAutoMDMDesktopSettings;
   vulnerabilities: {
     databases_path: string;
     periodicity: number;
@@ -273,15 +273,15 @@ export interface IConfig {
   };
   mdm: IMdmConfig;
   gitops: IGitOpsModeConfig;
-  partnerships?: IFleetPartnerships;
-  /** Read-only, sourced from the fleet server configuration. Omitted when
+  partnerships?: IAutoMDMPartnerships;
+  /** Read-only, sourced from the automdm server configuration. Omitted when
    * nothing in it is enabled. */
   auth?: IAuthSettings;
   max_software_package_size: number;
   staged_upload_available: boolean;
 }
 
-interface IFleetPartnerships {
+interface IAutoMDMPartnerships {
   enable_primo: boolean;
 }
 
@@ -408,7 +408,7 @@ export const isEntraConditionalAccessConfigured = (
 
 /** Check if the Google conditional access settings are saved. The connection
  * state is in `conditional_access.google`. Not part of
- * `isConditionalAccessConfigured`: Google doesn't use per-fleet policy
+ * `isConditionalAccessConfigured`: Google doesn't use per-team policy
  * automations. */
 export const isGoogleConditionalAccessConfigured = (
   config: IConfig | null | undefined

@@ -18,7 +18,7 @@ export interface IProgressBar {
 
 const ProgressBar = ({
   sections,
-  backgroundColor = COLORS["ui-fleet-black-10"],
+  backgroundColor = COLORS["ui-automdm-black-10"],
   width = "large",
 }: IProgressBar) => {
   const classes = classnames(baseClass, {

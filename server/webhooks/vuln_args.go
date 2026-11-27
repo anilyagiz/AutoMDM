@@ -3,12 +3,12 @@ package webhooks
 import (
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
 type VulnArgs struct {
-	Vulnerablities []fleet.SoftwareVulnerability
-	Meta           map[string]fleet.CVEMeta
-	AppConfig      *fleet.AppConfig
+	Vulnerablities []automdm.SoftwareVulnerability
+	Meta           map[string]automdm.CVEMeta
+	AppConfig      *automdm.AppConfig
 	Time           time.Time
 }

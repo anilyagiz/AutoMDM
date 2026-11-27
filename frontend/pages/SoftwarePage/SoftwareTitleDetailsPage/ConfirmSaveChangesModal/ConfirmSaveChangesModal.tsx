@@ -39,7 +39,7 @@ const ConfirmSaveChangesModal = ({
         </p>
         <p>
           Installs or uninstalls currently running on a host will still
-          complete, but results won&apos;t appear in Fleet.
+          complete, but results won&apos;t appear in AutoMDM.
         </p>
         <p>You cannot undo this action.</p>
       </>

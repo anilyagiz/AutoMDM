@@ -1,5 +1,5 @@
-// Package spec contains functionality to parse "Fleet specs" yaml files
-// (which are concatenated yaml files) that can be applied to a Fleet server.
+// Package spec contains functionality to parse "Team specs" yaml files
+// (which are concatenated yaml files) that can be applied to an AutoMDM server.
 package spec
 
 import (
@@ -16,10 +16,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/fleetdm/fleet/v4/pkg/removednames"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/platform/endpointer"
-	"github.com/fleetdm/fleet/v4/server/platform/logging"
+	"github.com/anilyagiz/automdm/v4/pkg/removednames"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/platform/endpointer"
+	"github.com/anilyagiz/automdm/v4/server/platform/logging"
 	"github.com/ghodss/yaml"
 	"github.com/hashicorp/go-multierror"
 )
@@ -57,21 +57,21 @@ func lookupEnv(key string) (string, bool) {
 	return os.LookupEnv(key)
 }
 
-// Group holds a set of "specs" that can be applied to a Fleet server.
+// Group holds a set of "specs" that can be applied to an AutoMDM server.
 type Group struct {
-	Queries  []*fleet.QuerySpec
+	Queries  []*automdm.QuerySpec
 	Teams    []json.RawMessage
-	Labels   []*fleet.LabelSpec
-	Policies []*fleet.PolicySpec
-	Software []*fleet.SoftwarePackageSpec
+	Labels   []*automdm.LabelSpec
+	Policies []*automdm.PolicySpec
+	Software []*automdm.SoftwarePackageSpec
 	// This needs to be interface{} to allow for the patch logic. Otherwise we send a request that looks to the
 	// server like the user explicitly set the zero values.
 	AppConfig              interface{}
-	EnrollSecret           *fleet.EnrollSecretSpec
-	TeamsDryRunAssumptions *fleet.TeamSpecsDryRunAssumptions
-	CertificateAuthorities *fleet.GroupedCertificateAuthorities
+	EnrollSecret           *automdm.EnrollSecretSpec
+	TeamsDryRunAssumptions *automdm.TeamSpecsDryRunAssumptions
+	CertificateAuthorities *automdm.GroupedCertificateAuthorities
 	// MicrosoftGraphCredentials is applied through its own endpoint rather than the app config.
-	MicrosoftGraphCredentials *[]fleet.MicrosoftGraphCredential
+	MicrosoftGraphCredentials *[]automdm.MicrosoftGraphCredential
 }
 
 // Metadata holds the metadata for a single YAML section/item.
@@ -99,17 +99,17 @@ func rewriteNewToOldKeysWithRules(raw json.RawMessage, rules []endpointer.AliasR
 	return result, deprecatedKeysMap, nil
 }
 
-// Since Fleet 5 the config and fleet API types don't have the profiles, scripts, and setup
-// experience items, but config and fleet specs still list them next to the settings, so their
+// Since AutoMDM 5 the config and automdm API types don't have the profiles, scripts, and setup
+// experience items, but config and team specs still list them next to the settings, so their
 // renamed and removed key names come from the GitOps types.
 var gitOpsOnlyKeyTypes = []any{
-	fleet.GitOpsMacOSSettings{},
-	fleet.GitOpsWindowsSettings{},
-	fleet.GitOpsAndroidSettings{},
-	fleet.GitOpsMacOSSetup{},
+	automdm.GitOpsMacOSSettings{},
+	automdm.GitOpsWindowsSettings{},
+	automdm.GitOpsAndroidSettings{},
+	automdm.GitOpsMacOSSetup{},
 }
 
-// SpecAliasRules returns the renamed keys of a config or fleet spec, whose API type is target.
+// SpecAliasRules returns the renamed keys of a config or team spec, whose API type is target.
 func SpecAliasRules(target any) []endpointer.AliasRule {
 	rules := endpointer.ExtractAliasRules(target)
 	for _, t := range gitOpsOnlyKeyTypes {
@@ -118,7 +118,7 @@ func SpecAliasRules(target any) []endpointer.AliasRule {
 	return uniqueRules(rules)
 }
 
-// SpecRemovedKeyRules returns the removed keys of a config or fleet spec, whose API type is target.
+// SpecRemovedKeyRules returns the removed keys of a config or team spec, whose API type is target.
 func SpecRemovedKeyRules(target any) []endpointer.RemovedKeyRule {
 	rules := endpointer.ExtractRemovedKeyRules(target)
 	for _, t := range gitOpsOnlyKeyTypes {
@@ -172,16 +172,16 @@ func GroupFromBytes(b []byte, options ...GroupFromBytesOpts) (*Group, error) {
 
 		var deprecatedKeysMap map[string]string
 		switch kind {
-		case fleet.QueryKind, fleet.ReportKind:
-			if logFn != nil && kind == fleet.QueryKind {
+		case automdm.QueryKind, automdm.ReportKind:
+			if logFn != nil && kind == automdm.QueryKind {
 				logFn("[!] `kind: query` is deprecated, please use `kind: report` instead.\n")
 			}
 			var err error
-			s.Spec, deprecatedKeysMap, err = rewriteNewToOldKeys(s.Spec, fleet.QuerySpec{})
+			s.Spec, deprecatedKeysMap, err = rewriteNewToOldKeys(s.Spec, automdm.QuerySpec{})
 			if err != nil {
 				return nil, fmt.Errorf("in %s spec: %w", kind, err)
 			}
-			var querySpec *fleet.QuerySpec
+			var querySpec *automdm.QuerySpec
 			if err := yaml.Unmarshal(s.Spec, &querySpec); err != nil {
 				return nil, fmt.Errorf("unmarshaling %s spec: %w", kind, err)
 			}
@@ -191,13 +191,13 @@ func GroupFromBytes(b []byte, options ...GroupFromBytesOpts) (*Group, error) {
 			// Reject the whole file so a pack is never silently dropped from an apply.
 			return nil, removedNameError(removednames.KindSpecKind, "pack")
 
-		case fleet.LabelKind:
+		case automdm.LabelKind:
 			var err error
-			s.Spec, deprecatedKeysMap, err = rewriteNewToOldKeys(s.Spec, fleet.LabelSpec{})
+			s.Spec, deprecatedKeysMap, err = rewriteNewToOldKeys(s.Spec, automdm.LabelSpec{})
 			if err != nil {
 				return nil, fmt.Errorf("in %s spec: %w", kind, err)
 			}
-			var labelSpec *fleet.LabelSpec
+			var labelSpec *automdm.LabelSpec
 			if err := yaml.Unmarshal(s.Spec, &labelSpec); err != nil {
 				return nil, fmt.Errorf("unmarshaling %s spec: %w", kind, err)
 			}
@@ -211,21 +211,21 @@ func GroupFromBytes(b []byte, options ...GroupFromBytesOpts) (*Group, error) {
 			}
 			specs.Labels = append(specs.Labels, labelSpec)
 
-		case fleet.PolicyKind:
+		case automdm.PolicyKind:
 			var err error
-			s.Spec, deprecatedKeysMap, err = rewriteNewToOldKeys(s.Spec, fleet.PolicySpec{})
+			s.Spec, deprecatedKeysMap, err = rewriteNewToOldKeys(s.Spec, automdm.PolicySpec{})
 			if err != nil {
 				return nil, fmt.Errorf("in %s spec: %w", kind, err)
 			}
-			var policySpec *fleet.PolicySpec
+			var policySpec *automdm.PolicySpec
 			if err := yaml.Unmarshal(s.Spec, &policySpec); err != nil {
 				return nil, fmt.Errorf("unmarshaling %s spec: %w", kind, err)
 			}
 			specs.Policies = append(specs.Policies, policySpec)
 
-		case fleet.AppConfigKind:
+		case automdm.AppConfigKind:
 			var err error
-			s.Spec, deprecatedKeysMap, err = rewriteNewToOldKeysWithRules(s.Spec, SpecAliasRules(fleet.AppConfig{}))
+			s.Spec, deprecatedKeysMap, err = rewriteNewToOldKeysWithRules(s.Spec, SpecAliasRules(automdm.AppConfig{}))
 			if err != nil {
 				return nil, fmt.Errorf("in %s spec: %w", kind, err)
 			}
@@ -239,26 +239,26 @@ func GroupFromBytes(b []byte, options ...GroupFromBytesOpts) (*Group, error) {
 			}
 			specs.AppConfig = appConfigSpec
 
-		case fleet.EnrollSecretKind:
+		case automdm.EnrollSecretKind:
 			if specs.AppConfig != nil {
 				return nil, errors.New("enroll_secret defined twice in the same file")
 			}
 
-			var enrollSecretSpec *fleet.EnrollSecretSpec
+			var enrollSecretSpec *automdm.EnrollSecretSpec
 			if err := yaml.Unmarshal(s.Spec, &enrollSecretSpec); err != nil {
 				return nil, fmt.Errorf("unmarshaling %s spec: %w", kind, err)
 			}
 			specs.EnrollSecret = enrollSecretSpec
 
-		case fleet.UserRolesKind:
-			return nil, removedNameError(removednames.KindSpecKind, fleet.UserRolesKind)
+		case automdm.UserRolesKind:
+			return nil, removedNameError(removednames.KindSpecKind, automdm.UserRolesKind)
 
-		case fleet.TeamKind:
+		case automdm.TeamKind:
 			return nil, removedNameError(removednames.KindSpecKind, "team")
 
-		case fleet.FleetKind:
+		case automdm.AutoMDMKind:
 			// unmarshal to a raw map as we don't want to strip away unknown/invalid
-			// fields at this point - that validation is done in the apply spec/fleets
+			// fields at this point - that validation is done in the apply spec/teams
 			// endpoint so that it is enforced for both the API and the CLI.
 			rawTeam := make(map[string]json.RawMessage)
 			if err := yaml.Unmarshal(s.Spec, &rawTeam); err != nil {
@@ -272,7 +272,7 @@ func GroupFromBytes(b []byte, options ...GroupFromBytesOpts) (*Group, error) {
 				teamRaw json.RawMessage
 				err     error
 			)
-			teamRaw, deprecatedKeysMap, err = rewriteNewToOldKeysWithRules(rawTeam["fleet"], SpecAliasRules(fleet.TeamSpec{}))
+			teamRaw, deprecatedKeysMap, err = rewriteNewToOldKeysWithRules(rawTeam["team"], SpecAliasRules(automdm.TeamSpec{}))
 			if err != nil {
 				return nil, fmt.Errorf("in %s spec: %w", kind, err)
 			}
@@ -296,7 +296,7 @@ func GroupFromBytes(b []byte, options ...GroupFromBytesOpts) (*Group, error) {
 	return specs, nil
 }
 
-// removedNameError is the error for a removed name found in a spec file, with its Fleet 5 message.
+// removedNameError is the error for a removed name found in a spec file, with its AutoMDM 5 message.
 func removedNameError(kind removednames.Kind, name string) error {
 	if entry, ok := removednames.Find(kind, name, ""); ok {
 		return errors.New(entry.Message())
@@ -325,15 +325,15 @@ func generateRandomString(sizeBytes int) string {
 	return hex.EncodeToString(b)
 }
 
-// secretHandling defines how to handle FLEET_SECRET_ variables
+// secretHandling defines how to handle AUTOMDM_SECRET_ variables
 type secretHandling int
 
 const (
-	// secretsReject returns an error if FLEET_SECRET_ variables are found
+	// secretsReject returns an error if AUTOMDM_SECRET_ variables are found
 	secretsReject secretHandling = iota
-	// secretsIgnore leaves FLEET_SECRET_ variables as-is (for server to handle)
+	// secretsIgnore leaves AUTOMDM_SECRET_ variables as-is (for server to handle)
 	secretsIgnore
-	// secretsExpand expands FLEET_SECRET_ variables (for client-side validation only)
+	// secretsExpand expands AUTOMDM_SECRET_ variables (for client-side validation only)
 	secretsExpand
 )
 
@@ -345,8 +345,8 @@ func ExpandEnv(s string) (string, error) {
 // expandEnv expands environment variables for a gitops file.
 // $ can be escaped with a backslash, e.g. \$VAR
 // \$ can be escaped with another backslash, etc., e.g. \\\$VAR
-// $FLEET_VAR_XXX will not be expanded. These variables are expanded on the server.
-// The secretMode parameter controls how $FLEET_SECRET_XXX variables are handled.
+// $AUTOMDM_VAR_XXX will not be expanded. These variables are expanded on the server.
+// The secretMode parameter controls how $AUTOMDM_SECRET_XXX variables are handled.
 func expandEnv(s string, secretMode secretHandling) (string, error) {
 	// Generate a random escaping prefix that doesn't exist in s.
 	var preventEscapingPrefix string
@@ -359,10 +359,10 @@ func expandEnv(s string, secretMode secretHandling) (string, error) {
 
 	s = escapeString(s, preventEscapingPrefix)
 	exclusionZones := getExclusionZones(s)
-	// Zones where a $FLEET_SECRET_ reference is allowed and must be preserved (not
+	// Zones where a $AUTOMDM_SECRET_ reference is allowed and must be preserved (not
 	// rejected, not expanded) so the server can validate and expand it — currently
 	// the host name template (controls.name_template).
-	fleetSecretAllowedZones := getFleetSecretAllowedZones(s)
+	automdmSecretAllowedZones := getAutoMDMSecretAllowedZones(s)
 	trimmed := strings.TrimSpace(s)
 	documentIsXML := strings.HasPrefix(trimmed, "<") // We need to be more aggressive here, to also escape XML in Windows profiles which does not begin with <?xml
 	documentIsJSON := strings.HasPrefix(trimmed, "{")
@@ -376,7 +376,7 @@ func expandEnv(s string, secretMode secretHandling) (string, error) {
 		case documentIsXML:
 			var b strings.Builder
 			if xmlErr := xml.EscapeText(&b, []byte(value)); xmlErr != nil {
-				return "", fmt.Errorf("failed to XML escape fleet secret %s", env)
+				return "", fmt.Errorf("failed to XML escape automdm secret %s", env)
 			}
 			return b.String(), nil
 		default:
@@ -385,14 +385,14 @@ func expandEnv(s string, secretMode secretHandling) (string, error) {
 	}
 
 	var err *multierror.Error
-	s = fleet.MaybeExpand(s, func(env string, startPos, endPos int) (string, bool) {
+	s = automdm.MaybeExpand(s, func(env string, startPos, endPos int) (string, bool) {
 		switch {
 		case strings.HasPrefix(env, preventEscapingPrefix):
 			return "$" + strings.TrimPrefix(env, preventEscapingPrefix), true
-		case strings.HasPrefix(strings.ToUpper(env), fleet.ServerVarPrefix):
-			// Don't expand fleet vars -- they will be expanded on the server
+		case strings.HasPrefix(strings.ToUpper(env), automdm.ServerVarPrefix):
+			// Don't expand automdm vars -- they will be expanded on the server
 			return "", false
-		case strings.HasPrefix(env, fleet.ServerSecretPrefix):
+		case strings.HasPrefix(env, automdm.ServerSecretPrefix):
 			switch secretMode {
 			case secretsExpand:
 				// Expand secrets for client-side validation
@@ -408,7 +408,7 @@ func expandEnv(s string, secretMode secretHandling) (string, error) {
 				// If secret not found, leave as-is for server to handle
 				return "", false
 			case secretsReject:
-				for _, z := range fleetSecretAllowedZones {
+				for _, z := range automdmSecretAllowedZones {
 					if startPos >= z[0] && endPos <= z[1] {
 						// Allowed here (e.g. controls.name_template): leave the
 						// placeholder for the server to validate and expand.
@@ -416,7 +416,7 @@ func expandEnv(s string, secretMode secretHandling) (string, error) {
 					}
 				}
 				err = multierror.Append(err, fmt.Errorf("environment variables with %q prefix are only allowed in profiles and scripts: %q",
-					fleet.ServerSecretPrefix, env))
+					automdm.ServerSecretPrefix, env))
 				return "", false
 			default:
 				// Leave as-is for server to handle
@@ -424,7 +424,7 @@ func expandEnv(s string, secretMode secretHandling) (string, error) {
 			}
 		}
 
-		// Don't expand fleet vars if they are inside an 'exclusion' zone,
+		// Don't expand automdm vars if they are inside an 'exclusion' zone,
 		// i.e. 'description' or 'resolution'....
 		for _, z := range exclusionZones {
 			if startPos >= z[0] && endPos <= z[1] {
@@ -472,10 +472,10 @@ func ExpandEnvBytesIgnoreSecrets(b []byte) ([]byte, error) {
 	return []byte(s), nil
 }
 
-// ExpandEnvBytesIncludingSecrets expands environment variables including FLEET_SECRET_ variables.
+// ExpandEnvBytesIncludingSecrets expands environment variables including AUTOMDM_SECRET_ variables.
 // This should only be used for client-side validation where the actual secrets are needed temporarily.
 // The expanded secrets are never sent to the server.
-// Missing FLEET_SECRET_ variables do not fail the method; they are just not expanded.
+// Missing AUTOMDM_SECRET_ variables do not fail the method; they are just not expanded.
 func ExpandEnvBytesIncludingSecrets(b []byte) ([]byte, error) {
 	s, err := expandEnv(string(b), secretsExpand)
 	if err != nil {
@@ -484,7 +484,7 @@ func ExpandEnvBytesIncludingSecrets(b []byte) ([]byte, error) {
 	return []byte(s), nil
 }
 
-// LookupEnvSecrets only looks up FLEET_SECRET_XXX environment variables.
+// LookupEnvSecrets only looks up AUTOMDM_SECRET_XXX environment variables.
 // This is used for finding secrets in profiles and scripts. The original string is not modified.
 // A map of secret names to raw (unescaped) values is updated.
 // XML escaping is intentionally NOT done here — it is handled server-side during
@@ -495,8 +495,8 @@ func LookupEnvSecrets(s string, secretsMap map[string]string) error {
 	}
 
 	var err *multierror.Error
-	_ = fleet.MaybeExpand(s, func(env string, startPos, endPos int) (string, bool) {
-		if strings.HasPrefix(env, fleet.ServerSecretPrefix) {
+	_ = automdm.MaybeExpand(s, func(env string, startPos, endPos int) (string, bool) {
+		if strings.HasPrefix(env, automdm.ServerSecretPrefix) {
 			// lookup the secret and save it, but don't replace
 			v, ok := lookupEnv(env)
 			if !ok {
@@ -565,19 +565,19 @@ func getExclusionZones(s string) [][2]int {
 	return zones
 }
 
-// fleetSecretAllowedKeyPattern matches the single-line YAML value(s) where a
-// $FLEET_SECRET_ reference may appear in the main spec (outside profiles/scripts)
+// automdmSecretAllowedKeyPattern matches the single-line YAML value(s) where a
+// $AUTOMDM_SECRET_ reference may appear in the main spec (outside profiles/scripts)
 // and must be preserved for the server rather than rejected. Currently only the
 // host name template (controls.name_template) qualifies.
-var fleetSecretAllowedKeyPattern = regexp.MustCompile(`(?m)^\s*name_template:.*$`)
+var automdmSecretAllowedKeyPattern = regexp.MustCompile(`(?m)^\s*name_template:.*$`)
 
-// getFleetSecretAllowedZones returns the byte ranges of values where a
-// $FLEET_SECRET_ reference is allowed and left as-is (the server validates and
+// getAutoMDMSecretAllowedZones returns the byte ranges of values where a
+// $AUTOMDM_SECRET_ reference is allowed and left as-is (the server validates and
 // expands it). The zones are matched against the same (escaped) string
 // expandEnv operates on, so callers can compare token positions directly.
-func getFleetSecretAllowedZones(s string) [][2]int {
+func getAutoMDMSecretAllowedZones(s string) [][2]int {
 	var zones [][2]int
-	for _, r := range fleetSecretAllowedKeyPattern.FindAllStringIndex(s, -1) {
+	for _, r := range automdmSecretAllowedKeyPattern.FindAllStringIndex(s, -1) {
 		zones = append(zones, [2]int{r[0], r[1]})
 	}
 	return zones

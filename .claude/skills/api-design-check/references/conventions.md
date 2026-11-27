@@ -1,4 +1,4 @@
-# Fleet REST API conventions
+# AutoMDM REST API conventions
 
 These patterns were mined from `docs/API/rest-api.md` on 2026-10-06 (552 documented routes). The counts show how strong each convention is. Re-mine before trusting a count for a close call, using the commands at the bottom.
 
@@ -6,14 +6,14 @@ These patterns were mined from `docs/API/rest-api.md` on 2026-10-06 (552 documen
 
 ## URL
 
-- **Majority**: every route is `/api/v1/fleet/<resource>[/...]`. The docs always show `v1`. In code, new routes use `ue.StartingAtVersion("2022-04")` (see `.claude/rules/fleet-api.md`).
+- **Majority**: every route is `/api/v1/automdm/<resource>[/...]`. The docs always show `v1`. In code, new routes use `ue.StartingAtVersion("2022-04")` (see `.claude/rules/automdm-api.md`).
 - **Majority**: resources are plural snake_case nouns (`configuration_profiles`, `certificate_authorities`, `custom_host_vitals`). Exceptions are singletons (`config`, `logo`, `me`, `version`, `setup_experience`, `host_summary`).
 - **Inconsistent outlier**: the only hyphenated path is `conditional-access/microsoft`, while its siblings use `conditional_access/...`. Don't copy it.
 - **Exception**: SCIM paths (`/scim/Users`, `/scim/Groups`) and their camelCase JSON follow the SCIM RFC. Don't use them as a precedent.
-- **Majority**: the main path parameter is `:id` (106 routes). Secondary parameters are named after their resource: `:profile_uuid`, `:software_title_id`, `:policy_id`, `:fleet_id`. UUID-keyed resources use `:<thing>_uuid`.
+- **Majority**: the main path parameter is `:id` (106 routes). Secondary parameters are named after their resource: `:profile_uuid`, `:software_title_id`, `:policy_id`, `:team_id`. UUID-keyed resources use `:<thing>_uuid`.
 - **Patterns**:
   - Host-scoped resources and actions live under `/hosts/:id/...`.
-  - Fleet Desktop (end-user) endpoints are `/device/:token/...` and mirror their admin counterparts.
+  - AutoMDM Desktop (end-user) endpoints are `/device/:token/...` and mirror their admin counterparts.
   - GitOps/declarative endpoints are `/spec/<resource>`.
   - Bulk operations append `/batch` (`/scripts/run/batch`, `/configuration_profiles/resend/batch`).
   - Actions are `POST` to a verb sub-path (`/install`, `/uninstall`, `/resend`, `/cancel`, `/lock`, `/wipe`, `/refetch`).
@@ -30,7 +30,7 @@ These patterns were mined from `docs/API/rest-api.md` on 2026-10-06 (552 documen
 | DELETE | `Delete` (`Cancel` for pending work) | 29 / 2 |
 
 - **Split**: some partial updates are `POST` ("Update ...", 9 cases). Prefer `PATCH` for a new partial update unless the neighbors on the same resource use `POST`.
-- **Split**: `Create` vs `Add`. `Add` is used when attaching something to Fleet (software, certificate templates), and `Create` when Fleet makes the object.
+- **Split**: `Create` vs `Add`. `Add` is used when attaching something to AutoMDM (software, certificate templates), and `Create` when AutoMDM makes the object.
 
 ## Parameters
 
@@ -41,7 +41,7 @@ Shared names, with their type and location (use exactly these):
 | Name | Type | In | Notes |
 |---|---|---|---|
 | `id` | integer | path | 87 uses. A string only for non-numeric keys. |
-| `fleet_id` | integer | query (GET), body (mutations) | Premium. Write "If not specified, ..." for the default (usually "Unassigned" or global). |
+| `team_id` | integer | query (GET), body (mutations) | Premium. Write "If not specified, ..." for the default (usually "Unassigned" or global). |
 | `page` | integer | query | "Page number of the results to fetch." |
 | `per_page` | integer | query | |
 | `order_key` | string | query | List the allowed fields |
@@ -56,11 +56,11 @@ Shared names, with their type and location (use exactly these):
 - Pagination is the set `page`, `per_page`, `order_key`, `order_direction`, and `after`. A new list endpoint should support the same set as its neighbors (32–33 list endpoints have all of them).
 - **Doc bug pattern**: a path parameter documented with `In` = `body` or `query` (for example, `id` on "Get certificate authority (CA)").
 
-## Terminology: Fleets and Reports
+## Terminology: Teams and Reports
 
-- New parameter and field names use `fleet_id`, `fleet_name`, `fleets`, `report_id`, `reports`. The docs already mostly use these (66 `"fleet_id"` keys, and query examples use `fleet_id` 20 to 5).
+- New parameter and field names use `team_id`, `team_name`, `teams`, `report_id`, `reports`. The docs already mostly use these (66 `"team_id"` keys, and query examples use `team_id` 20 to 5).
 - **Legacy**: `team_id` still shows up in 89 JSON examples. Don't flag existing occurrences in an unrelated change. Do flag new ones.
-- In code, a renamed field keeps the old tag and adds `renameto`: `query:"team_id,optional" renameto:"fleet_id"` or `json:"team_id" renameto:"fleet_id"`. That makes both names accepted, and a request that sends both gets an `AliasConflictError` (`server/platform/endpointer/`). A brand-new field just uses the new name.
+- In code, a renamed field keeps the old tag and adds `renameto`: `query:"team_id,optional" renameto:"team_id"` or `json:"team_id" renameto:"team_id"`. That makes both names accepted, and a request that sends both gets an `AliasConflictError` (`server/platform/endpointer/`). A brand-new field just uses the new name.
 - "Query" in the product sense is now "report". `query` as a parameter means a search string or SQL text.
 
 ## Responses
@@ -78,18 +78,18 @@ Shared names, with their type and location (use exactly these):
 | 200 | Default success, including most creates | 251 |
 | 202 | A queued or async action on a host (install, resend, run script, refetch) | 15 |
 | 204 | Success with no body | 22 |
-| 201 | SCIM creates only. Fleet creates return 200. | 2 |
+| 201 | SCIM creates only. AutoMDM creates return 200. | 2 |
 | 409 | Name or uniqueness conflict, or a conflicting state | 3 |
 | 422 | Validation failure | 3 |
 | 404 | Not found | 4 |
 
-- **Split**: DELETE returns 200 (19, mostly older endpoints: hosts, users, labels, fleets, reports) or 204 (14, mostly newer: scripts, software, certificates, assets, CAs). Expect new endpoints to use 204, but flag it as a DRI call if the resource's siblings use 200.
+- **Split**: DELETE returns 200 (19, mostly older endpoints: hosts, users, labels, teams, reports) or 204 (14, mostly newer: scripts, software, certificates, assets, CAs). Expect new endpoints to use 204, but flag it as a DRI call if the resource's siblings use 200.
 
 ## Premium, auth, and registration
 
-- Premium-only endpoints and parameters start their description with `_Available in Fleet Premium._` (the punctuation varies: 126 have a trailing `.`, 70 and 51 use other forms. Prefer `_Available in Fleet Premium._`).
-- Non-default auth (Android node key, Fleet Desktop token) gets a `#### Request headers` section showing each accepted `Authorization` form.
-- A request body that can be larger than `FLEET_SERVER_DEFAULT_MAX_REQUEST_BODY_SIZE` (1 MiB) states its limit, and the code uses `ue.WithRequestBodySizeLimit`.
+- Premium-only endpoints and parameters start their description with `_Available in AutoMDM Premium._` (the punctuation varies: 126 have a trailing `.`, 70 and 51 use other forms. Prefer `_Available in AutoMDM Premium._`).
+- Non-default auth (Android node key, AutoMDM Desktop token) gets a `#### Request headers` section showing each accepted `Authorization` form.
+- A request body that can be larger than `AUTOMDM_SERVER_DEFAULT_MAX_REQUEST_BODY_SIZE` (1 MiB) states its limit, and the code uses `ue.WithRequestBodySizeLimit`.
 - Every new endpoint goes in `server/api_endpoints/api_endpoints.yml` (`method`, `path` with `:param`, and a `display_name` that matches the doc heading). This drives granular permissions for API-only users (handbook: `handbook/product-design/README.md`).
 
 ## Doc section structure
@@ -97,11 +97,11 @@ Shared names, with their type and location (use exactly these):
 ```
 ### <Verb> <resource>
 <One-sentence description.>
-`METHOD /api/v1/fleet/...`
+`METHOD /api/v1/automdm/...`
 #### Parameters
 | Name | Type | In | Description |
 #### Example
-`METHOD /api/v1/fleet/...` (concrete IDs, e.g. `/hosts/123`)
+`METHOD /api/v1/automdm/...` (concrete IDs, e.g. `/hosts/123`)
 ##### Request body          (when there is one)
 ##### Default response
 `Status: NNN`

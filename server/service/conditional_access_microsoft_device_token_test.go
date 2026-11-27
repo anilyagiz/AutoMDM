@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/MicahParks/jwkset"
-	"github.com/fleetdm/fleet/v4/server/dev_mode"
+	"github.com/anilyagiz/automdm/v4/server/dev_mode"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -41,7 +41,7 @@ func newTestEntraSigner(t *testing.T) *testEntraSigner {
 		_, _ = w.Write(jwksJSON)
 	}))
 	t.Cleanup(srv.Close)
-	dev_mode.SetOverride("FLEET_DEV_ENTRA_DEVICE_TOKEN_JWKS_URI", srv.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_ENTRA_DEVICE_TOKEN_JWKS_URI", srv.URL, t)
 	return s
 }
 

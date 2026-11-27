@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/notifications/api"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
-	mysql_testing_utils "github.com/fleetdm/fleet/v4/server/platform/mysql/testing_utils"
+	"github.com/anilyagiz/automdm/v4/server/notifications/api"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
+	mysql_testing_utils "github.com/anilyagiz/automdm/v4/server/platform/mysql/testing_utils"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
@@ -59,7 +59,7 @@ func (env *testEnv) InsertHost(t testing.TB, hostname string, platform string) u
 	return uint(id) //nolint:gosec // dismiss G115
 }
 
-// InsertHostOrbitInfo makes a host look fleetd-managed, which the dispatch
+// InsertHostOrbitInfo makes a host look automdmd-managed, which the dispatch
 // query requires.
 func (env *testEnv) InsertHostOrbitInfo(t testing.TB, hostID uint) {
 	t.Helper()

@@ -1,4 +1,4 @@
-# Fleet extracts name from installer (EXE) and saves it to PACKAGE_ID
+# AutoMDM extracts name from installer (EXE) and saves it to PACKAGE_ID
 # variable
 # Match the ARM64 ESR build only (e.g. "Mozilla Firefox ESR (AArch64 en-US)"),
 # leaving an x64 ESR or regular Firefox on the same host alone

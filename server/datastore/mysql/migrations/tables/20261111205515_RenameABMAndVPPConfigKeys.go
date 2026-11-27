@@ -11,20 +11,20 @@ func init() {
 	MigrationClient.AddMigration(Up_20261111205515, Down_20261111205515)
 }
 
-// abmVPPConfigKeyRenames are the keys, by the config list they are in, that move from "team" to "fleet" naming.
+// abmVPPConfigKeyRenames are the keys, by the config list they are in, that move from "team" to "team" naming.
 var abmVPPConfigKeyRenames = map[string]map[string]string{
 	"apple_business_manager": {
-		"macos_team":  "macos_fleet",
-		"ios_team":    "ios_fleet",
-		"ipados_team": "ipados_fleet",
-		"byod_team":   "byod_fleet",
+		"macos_team":  "macos_team",
+		"ios_team":    "ios_team",
+		"ipados_team": "ipados_team",
+		"byod_team":   "byod_team",
 	},
 	"volume_purchasing_program": {
-		"teams": "fleets",
+		"teams": "teams",
 	},
 }
 
-// Up_20261111205515 moves the stored ABM and VPP fleet assignments to the new keys. Without it an upgraded server reads the
+// Up_20261111205515 moves the stored ABM and VPP team assignments to the new keys. Without it an upgraded server reads the
 // old keys as empty, so GET /config and generate-gitops lose the assignments. The values are only a mirror of abm_tokens and
 // vpp_token_teams, but a GitOps run built from the empty mirror would clear every assignment. Other keys are kept as they are.
 func Up_20261111205515(tx *sql.Tx) error {

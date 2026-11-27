@@ -4,11 +4,11 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/fleetdm/fleet/v4/server/activity/api"
-	api_http "github.com/fleetdm/fleet/v4/server/activity/api/http"
-	eu "github.com/fleetdm/fleet/v4/server/platform/endpointer"
-	platform_http "github.com/fleetdm/fleet/v4/server/platform/http"
-	"github.com/fleetdm/fleet/v4/server/platform/tracing"
+	"github.com/anilyagiz/automdm/v4/server/activity/api"
+	api_http "github.com/anilyagiz/automdm/v4/server/activity/api/http"
+	eu "github.com/anilyagiz/automdm/v4/server/platform/endpointer"
+	platform_http "github.com/anilyagiz/automdm/v4/server/platform/http"
+	"github.com/anilyagiz/automdm/v4/server/platform/tracing"
 	"github.com/go-kit/kit/endpoint"
 	kithttp "github.com/go-kit/kit/transport/http"
 )
@@ -16,32 +16,32 @@ import (
 // GetRoutes returns a function that registers activity routes on the router.
 func GetRoutes(svc api.Service, authMiddleware endpoint.Middleware) eu.HandlerRoutesFunc {
 	return func(r *eu.Router, opts []kithttp.ServerOption) {
-		attachFleetAPIRoutes(r, svc, authMiddleware, opts)
+		attachAutoMDMAPIRoutes(r, svc, authMiddleware, opts)
 	}
 }
 
-func attachFleetAPIRoutes(r *eu.Router, svc api.Service, authMiddleware endpoint.Middleware, opts []kithttp.ServerOption) {
+func attachAutoMDMAPIRoutes(r *eu.Router, svc api.Service, authMiddleware endpoint.Middleware, opts []kithttp.ServerOption) {
 	// User-authenticated endpoints
 	ue := newUserAuthenticatedEndpointer(svc, authMiddleware, opts, r, apiVersions()...)
 
-	ue.GET("/api/_version_/fleet/activities", listActivitiesEndpoint, api_http.ListActivitiesRequest{})
-	ue.GET("/api/_version_/fleet/hosts/{id}/activities", listHostPastActivitiesEndpoint, api_http.ListHostPastActivitiesRequest{})
+	ue.GET("/api/_version_/automdm/activities", listActivitiesEndpoint, api_http.ListActivitiesRequest{})
+	ue.GET("/api/_version_/automdm/hosts/{id}/activities", listHostPastActivitiesEndpoint, api_http.ListHostPastActivitiesRequest{})
 }
 
 // RegisterTracingTiers classifies this context's routes for trace sampling. Both activity list endpoints are admin reads, so
 // they belong in the standard tier (default 2%). Kept next to the route registrations above so the two stay in sync. The
-// sampler's version normalizer collapses the {fleetversion:...} segment, so the "_version_" placeholder matches the rendered
+// sampler's version normalizer collapses the {automdmversion:...} segment, so the "_version_" placeholder matches the rendered
 // span name regardless of the configured API versions.
 func RegisterTracingTiers(registry *tracing.Registry) {
-	registry.Register(http.MethodGet, "/api/_version_/fleet/activities", tracing.TierStandard)
-	registry.Register(http.MethodGet, "/api/_version_/fleet/hosts/{id}/activities", tracing.TierStandard)
+	registry.Register(http.MethodGet, "/api/_version_/automdm/activities", tracing.TierStandard)
+	registry.Register(http.MethodGet, "/api/_version_/automdm/hosts/{id}/activities", tracing.TierStandard)
 }
 
 func apiVersions() []string {
 	return []string{"v1", "latest"}
 }
 
-// listActivitiesEndpoint handles GET /api/_version_/fleet/activities
+// listActivitiesEndpoint handles GET /api/_version_/automdm/activities
 func listActivitiesEndpoint(ctx context.Context, request any, svc api.Service) platform_http.Errorer {
 	req := request.(*api_http.ListActivitiesRequest)
 
@@ -56,7 +56,7 @@ func listActivitiesEndpoint(ctx context.Context, request any, svc api.Service) p
 	}
 }
 
-// listHostPastActivitiesEndpoint handles GET /api/_version_/fleet/hosts/{id}/activities
+// listHostPastActivitiesEndpoint handles GET /api/_version_/automdm/hosts/{id}/activities
 func listHostPastActivitiesEndpoint(ctx context.Context, request any, svc api.Service) platform_http.Errorer {
 	req := request.(*api_http.ListHostPastActivitiesRequest)
 

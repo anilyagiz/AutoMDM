@@ -74,7 +74,7 @@ describe("EJBCAForm", () => {
     await user.type(screen.getByLabelText("End entity profile name"), "EMPTY");
     await user.type(
       screen.getByLabelText("Certificate common name (CN)"),
-      "$FLEET_VAR_HOST_HARDWARE_SERIAL"
+      "$AUTOMDM_VAR_HOST_HARDWARE_SERIAL"
     );
     await user.click(screen.getByRole("button", { name: "Add CA" }));
 
@@ -89,7 +89,7 @@ describe("EJBCAForm", () => {
       caName: "ManagementCA",
       certificateProfileName: "ENDUSER",
       endEntityProfileName: "EMPTY",
-      commonName: "$FLEET_VAR_HOST_HARDWARE_SERIAL",
+      commonName: "$AUTOMDM_VAR_HOST_HARDWARE_SERIAL",
     });
   });
 

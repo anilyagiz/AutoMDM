@@ -117,7 +117,7 @@ const OrgDetails = ({
       />
       <FileUploader
         label="Organization logo (optional)"
-        graphicName="fleet-logo"
+        graphicName="automdm-logo"
         accept={ORG_LOGO_ACCEPT}
         message={ORG_LOGO_HELP_TEXT}
         buttonMessage="Choose file"

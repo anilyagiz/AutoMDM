@@ -86,7 +86,7 @@ interface IChartCardProps {
   // Org-level historical_data settings only, needed to decide who can turn
   // collection back on when the effective (AND'd) value is disabled.
   historicalDataGloballyEnabled?: Record<HistoricalDataConfigKey, boolean>;
-  // GitOps-managed default filter state for the current scope (org or fleet).
+  // GitOps-managed default filter state for the current scope (org or team).
   // Seeds the chart's filter controls on load; UI edits are not persisted.
   filterDefaults?: IVulnExposureFilterDefaults;
 }
@@ -129,7 +129,7 @@ const ChartCard = ({
       defaultChartType: "checkerboard",
       description: (
         <>
-          The number of hosts detected online (checking in to Fleet) during a
+          The number of hosts detected online (checking in to AutoMDM) during a
           given hour.
           <br />
           <br />
@@ -180,9 +180,9 @@ const ChartCard = ({
   }));
 
   // Labels and selected hosts are team-scoped, so clear filters when the
-  // active fleet changes to avoid submitting stale IDs under the new scope.
-  // Re-seed from the persisted defaults when the scope changes (fleet switch)
-  // or once the config/fleet data finishes loading. This also discards any
+  // active team changes to avoid submitting stale IDs under the new scope.
+  // Re-seed from the persisted defaults when the scope changes (team switch)
+  // or once the config/automdm data finishes loading. This also discards any
   // ephemeral UI edits, matching the "UI edits are not saved" behavior.
   useEffect(() => {
     setChartFilters(initialChartFilters);
@@ -233,7 +233,7 @@ const ChartCard = ({
       // represented in the chart, regardless of timezone.
       days: CHART_DAYS + 1,
       tz_offset: new Date().getTimezoneOffset(),
-      fleet_id: currentTeamId,
+      team_id: currentTeamId,
       label_ids: chartFilters.labelIDs.length
         ? chartFilters.labelIDs.join(",")
         : undefined,

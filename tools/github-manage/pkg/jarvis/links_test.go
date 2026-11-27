@@ -23,10 +23,10 @@ func TestSetAndSaveMergesConcurrentInstances(t *testing.T) {
 	}
 
 	// A starts work on #100; B starts work on #200 — interleaved.
-	if err := a.SetAndSave(100, Link{Branch: "a-100", ClonePath: "/tmp/fleet-a"}); err != nil {
+	if err := a.SetAndSave(100, Link{Branch: "a-100", ClonePath: "/tmp/automdm-a"}); err != nil {
 		t.Fatalf("A SetAndSave: %v", err)
 	}
-	if err := b.SetAndSave(200, Link{Branch: "b-200", ClonePath: "/tmp/fleet-b"}); err != nil {
+	if err := b.SetAndSave(200, Link{Branch: "b-200", ClonePath: "/tmp/automdm-b"}); err != nil {
 		t.Fatalf("B SetAndSave: %v", err)
 	}
 

@@ -37,7 +37,7 @@ const AddHostsModal = ({
   openEnrollSecretModal,
 }: IAddHostsModal): JSX.Element => {
   const { isPreviewMode, config } = useContext(AppContext);
-  const teamDisplayName = (isAnyTeamSelected && currentTeamName) || "Fleet";
+  const teamDisplayName = (isAnyTeamSelected && currentTeamName) || "AutoMDM";
 
   const {
     data: certificate,
@@ -62,7 +62,7 @@ const AddHostsModal = ({
       return <Spinner />;
     }
     if (!enrollSecret) {
-      // Hosts that get a one-time enroll secret from Fleet's MDM can still enroll without one.
+      // Hosts that get a one-time enroll secret from AutoMDM's MDM can still enroll without one.
       const appleOneTimeSecrets = !!config?.auth
         ?.mdm_apple_one_time_enroll_secrets;
       const windowsOneTimeSecrets = !!config?.auth

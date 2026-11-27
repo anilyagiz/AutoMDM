@@ -237,7 +237,7 @@ const Editor = ({
         name={name}
         className={baseClass}
         fontSize={14}
-        theme="fleet"
+        theme="automdm"
         width="100%"
         readOnly={readOnly || disabled}
         minLines={minLines}
@@ -247,7 +247,7 @@ const Editor = ({
         editorProps={{ $blockScrolling: Infinity }}
         setOptions={{
           textInputAriaLabel: ariaLabel ?? label,
-          // Fleet doesn't serve Ace's worker-*.js scripts and validates content
+          // AutoMDM doesn't serve Ace's worker-*.js scripts and validates content
           // itself, so the JSON/XML syntax workers would only 404.
           useWorker: false,
         }}

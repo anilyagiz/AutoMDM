@@ -18,8 +18,8 @@ import {
 
 import ProfileFormPage from "./ProfileFormPage";
 
-// Drive the resolved fleet directly, as ManageControlsPage.tests does: the
-// real hook needs a routed app to settle on a fleet.
+// Drive the resolved team directly, as ManageControlsPage.tests does: the
+// real hook needs a routed app to settle on a team.
 const mockUseTeamIdParam = jest.fn();
 jest.mock("hooks/useTeamIdParam", () => ({
   __esModule: true,
@@ -82,7 +82,7 @@ const WINDOWS_XML = `<Replace><Item><Target><LocURI>./Device/Vendor/MSFT/Policy/
 
 const existingProfile: IMdmProfile = {
   profile_uuid: "w-123",
-  fleet_id: 0,
+  team_id: 0,
   name: "Existing Windows",
   description: "Existing description",
   platform: "windows",
@@ -113,8 +113,8 @@ const makeRenderer = (
         isPremiumTier: false,
         isGlobalAdmin: true,
         currentUser: createMockUser(),
-        currentTeam: createMockTeamSummary({ id: 0, name: "No fleet" }),
-        availableTeams: [createMockTeamSummary({ id: 0, name: "No fleet" })],
+        currentTeam: createMockTeamSummary({ id: 0, name: "No team" }),
+        availableTeams: [createMockTeamSummary({ id: 0, name: "No team" })],
         config: createMockConfig({
           mdm,
           gitops: {
@@ -186,9 +186,9 @@ describe("ProfileFormPage", () => {
   beforeEach(() => {
     mockUseTeamIdParam.mockReturnValue({
       currentTeamId: 0,
-      currentTeamName: "No fleet",
+      currentTeamName: "No team",
       teamIdForApi: 0,
-      userTeams: [createMockTeamSummary({ id: 0, name: "No fleet" })],
+      userTeams: [createMockTeamSummary({ id: 0, name: "No team" })],
       handleTeamChange: jest.fn(),
     });
     jest.spyOn(labelsAPI, "summary").mockResolvedValue({ labels: [] });
@@ -278,7 +278,7 @@ describe("ProfileFormPage", () => {
     await waitFor(() => expect(mdmAPI.uploadProfile).toHaveBeenCalledTimes(1));
     expect(mdmAPI.getProfiles).toHaveBeenCalledTimes(1);
     expect(mdmAPI.getProfiles).toHaveBeenCalledWith({
-      fleet_id: 0,
+      team_id: 0,
       page: 0,
       per_page: 1000,
     });
@@ -419,7 +419,7 @@ describe("ProfileFormPage", () => {
       expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
     });
 
-    it("keeps the fleet when going back to the list", async () => {
+    it("keeps the team when going back to the list", async () => {
       mockUseTeamIdParam.mockReturnValue({
         currentTeamId: 1,
         currentTeamName: "Workstations",
@@ -430,12 +430,12 @@ describe("ProfileFormPage", () => {
       const { router } = renderPage(
         undefined,
         makeRenderer({ isPremiumTier: true }, true),
-        { fleet_id: "1" }
+        { team_id: "1" }
       );
 
       await waitFor(() =>
         expect(router.replace).toHaveBeenCalledWith(
-          "/controls/os-settings/configuration-profiles?fleet_id=1"
+          "/controls/os-settings/configuration-profiles?team_id=1"
         )
       );
     });
@@ -566,14 +566,14 @@ describe("ProfileFormPage", () => {
     it("shows an existing profile's targets read-only when its MDM is off", async () => {
       jest
         .spyOn(configProfileAPI, "getConfigProfile")
-        .mockResolvedValue({ ...existingProfile, fleet_id: 1 });
+        .mockResolvedValue({ ...existingProfile, team_id: 1 });
       const { user } = renderPage(
         existingProfile.profile_uuid,
         makeRenderer({ isPremiumTier: true }, false, {
           ...mdmConfig,
           windows_mdm_enabled: false,
         }),
-        { fleet_id: "1" }
+        { team_id: "1" }
       );
       await waitFor(() =>
         expect(screen.getByLabelText("Name")).toHaveValue("Existing Windows")
@@ -587,11 +587,11 @@ describe("ProfileFormPage", () => {
     it("opens with an existing profile's targets and replaces them on save", async () => {
       jest.spyOn(configProfileAPI, "getConfigProfile").mockResolvedValue({
         ...existingProfile,
-        fleet_id: 1,
+        team_id: 1,
         labels_exclude_any: [{ name: "Contractors", id: 2 }],
       });
       const { user } = renderPage(existingProfile.profile_uuid, premiumRender, {
-        fleet_id: "1",
+        team_id: "1",
       });
       await waitFor(() =>
         expect(screen.getByLabelText("Name")).toHaveValue("Existing Windows")
@@ -615,11 +615,11 @@ describe("ProfileFormPage", () => {
     it("shows the targets read-only in GitOps mode", async () => {
       jest
         .spyOn(configProfileAPI, "getConfigProfile")
-        .mockResolvedValue({ ...existingProfile, fleet_id: 1 });
+        .mockResolvedValue({ ...existingProfile, team_id: 1 });
       const { user } = renderPage(
         existingProfile.profile_uuid,
         makeRenderer({ isPremiumTier: true }, true),
-        { fleet_id: "1" }
+        { team_id: "1" }
       );
       await waitFor(() =>
         expect(screen.getByLabelText("Name")).toHaveValue("Existing Windows")
@@ -702,7 +702,7 @@ describe("ProfileFormPage", () => {
     expect(args.file.name).toBe("New profile.xml");
   });
 
-  it("follows the profile's fleet when the URL names a different one", async () => {
+  it("follows the profile's team when the URL names a different one", async () => {
     mockUseTeamIdParam.mockReturnValue({
       currentTeamId: 1,
       currentTeamName: "Workstations",
@@ -715,7 +715,7 @@ describe("ProfileFormPage", () => {
     });
     jest
       .spyOn(configProfileAPI, "getConfigProfile")
-      .mockResolvedValue({ ...existingProfile, fleet_id: 3 });
+      .mockResolvedValue({ ...existingProfile, team_id: 3 });
 
     const { router } = renderPage(
       existingProfile.profile_uuid,
@@ -727,20 +727,20 @@ describe("ProfileFormPage", () => {
           createMockTeamSummary({ id: 3, name: "Servers" }),
         ],
       }),
-      { fleet_id: "1" }
+      { team_id: "1" }
     );
 
     await waitFor(() =>
       expect(router.replace).toHaveBeenCalledWith(
-        `/controls/os-settings/configuration-profiles/${existingProfile.profile_uuid}?fleet_id=3`
+        `/controls/os-settings/configuration-profiles/${existingProfile.profile_uuid}?team_id=3`
       )
     );
     expect(router.replace).toHaveBeenCalledTimes(1);
-    // the wrong fleet's form is never shown
+    // the wrong team's form is never shown
     expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
   });
 
-  it("refuses a profile in a fleet the user can't manage instead of following it", async () => {
+  it("refuses a profile in a team the user can't manage instead of following it", async () => {
     // an admin of Workstations who is only a technician of Servers
     mockUseTeamIdParam.mockReturnValue({
       currentTeamId: 1,
@@ -751,7 +751,7 @@ describe("ProfileFormPage", () => {
     });
     jest
       .spyOn(configProfileAPI, "getConfigProfile")
-      .mockResolvedValue({ ...existingProfile, fleet_id: 3 });
+      .mockResolvedValue({ ...existingProfile, team_id: 3 });
 
     const { router } = renderPage(
       existingProfile.profile_uuid,
@@ -761,7 +761,7 @@ describe("ProfileFormPage", () => {
         isAnyTeamMaintainerOrTeamAdmin: true,
         currentTeam: createMockTeamSummary({ id: 1, name: "Workstations" }),
       }),
-      { fleet_id: "3" }
+      { team_id: "3" }
     );
 
     expect(
@@ -802,11 +802,11 @@ describe("ProfileFormPage", () => {
 
     await user.upload(
       screen.getByLabelText("Upload a profile"),
-      fileWithText("$FLEET_SECRET_PROFILE", "Secret.xml")
+      fileWithText("$AUTOMDM_SECRET_PROFILE", "Secret.xml")
     );
     await waitFor(() =>
       expect(screen.getByLabelText("Profile contents")).toHaveValue(
-        "$FLEET_SECRET_PROFILE"
+        "$AUTOMDM_SECRET_PROFILE"
       )
     );
     expect(
@@ -825,14 +825,14 @@ describe("ProfileFormPage", () => {
 
     await user.upload(
       screen.getByLabelText("Upload a profile"),
-      fileWithText("$FLEET_SECRET_PROFILE", "Secret.xml")
+      fileWithText("$AUTOMDM_SECRET_PROFILE", "Secret.xml")
     );
     await waitFor(() =>
       expect(screen.getByLabelText("Profile contents")).toHaveValue(
-        "$FLEET_SECRET_PROFILE"
+        "$AUTOMDM_SECRET_PROFILE"
       )
     );
-    setContents("$FLEET_SECRET_OTHER");
+    setContents("$AUTOMDM_SECRET_OTHER");
 
     await user.click(screen.getByRole("button", { name: "Add profile" }));
     expect(

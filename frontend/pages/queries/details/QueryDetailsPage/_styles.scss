@@ -57,12 +57,12 @@
     }
 
     ul {
-      color: $core-fleet-white;
+      color: $core-automdm-white;
 
       li {
         &::before {
           content: "•";
-          color: $core-fleet-white;
+          color: $core-automdm-white;
         }
       }
     }

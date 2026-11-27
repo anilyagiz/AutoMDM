@@ -3,24 +3,24 @@ package webhooks
 import (
 	"net/url"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	fleetwebhooks "github.com/fleetdm/fleet/v4/server/webhooks"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	automdmwebhooks "github.com/anilyagiz/automdm/v4/server/webhooks"
 )
 
 type Mapper struct {
-	fleetwebhooks.Mapper
+	automdmwebhooks.Mapper
 }
 
-func NewMapper() fleetwebhooks.VulnMapper {
+func NewMapper() automdmwebhooks.VulnMapper {
 	return &Mapper{}
 }
 
 func (m *Mapper) GetPayload(
 	hostBaseURL *url.URL,
-	hosts []fleet.HostVulnerabilitySummary,
+	hosts []automdm.HostVulnerabilitySummary,
 	cve string,
-	meta fleet.CVEMeta,
-) fleetwebhooks.WebhookPayload {
+	meta automdm.CVEMeta,
+) automdmwebhooks.WebhookPayload {
 	r := m.Mapper.GetPayload(hostBaseURL,
 		hosts,
 		cve,

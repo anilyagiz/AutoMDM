@@ -12,10 +12,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/cryptoutil"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/cryptoutil"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -31,7 +31,7 @@ type MySQLStorage struct {
 	db            *sql.DB
 	rm            bool
 	asyncLastSeen *asyncLastSeen
-	reader        func(ctx context.Context) fleet.DBReader
+	reader        func(ctx context.Context) automdm.DBReader
 }
 
 type config struct {
@@ -42,12 +42,12 @@ type config struct {
 	rm            bool
 	asyncCap      int
 	asyncInterval time.Duration
-	reader        func(ctx context.Context) fleet.DBReader
+	reader        func(ctx context.Context) automdm.DBReader
 }
 
 type Option func(*config)
 
-func WithReaderFunc(readerFunc func(ctx context.Context) fleet.DBReader) Option {
+func WithReaderFunc(readerFunc func(ctx context.Context) automdm.DBReader) Option {
 	return func(c *config) {
 		c.reader = readerFunc
 	}
@@ -113,14 +113,14 @@ func New(opts ...Option) (*MySQLStorage, error) {
 
 	mysqlStore := &MySQLStorage{db: cfg.db, logger: cfg.logger, rm: cfg.rm}
 	if cfg.reader == nil {
-		mysqlStore.reader = func(ctx context.Context) fleet.DBReader {
+		mysqlStore.reader = func(ctx context.Context) automdm.DBReader {
 			return sqlx.NewDb(mysqlStore.db, "")
 		}
 	} else {
 		mysqlStore.reader = cfg.reader
 	}
 
-	if v := os.Getenv("FLEET_DISABLE_ASYNC_NANO_LAST_SEEN"); v != "1" {
+	if v := os.Getenv("AUTOMDM_DISABLE_ASYNC_NANO_LAST_SEEN"); v != "1" {
 		asyncLastSeen := newAsyncLastSeen(cfg.asyncInterval, cfg.asyncCap, mysqlStore.updateLastSeenBatch)
 		mysqlStore.asyncLastSeen = asyncLastSeen
 

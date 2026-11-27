@@ -6,18 +6,18 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/constant"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/constant"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/require"
 )
 
 func TestAgentNamesReceiver(t *testing.T) {
-	capabilities := fleet.CapabilityMap{}
+	capabilities := automdm.CapabilityMap{}
 	var calls int
 	applyErr := errors.New("apply failed")
 	stateFile := filepath.Join(t.TempDir(), agentNamesStateFile)
 	r := &AgentNamesReceiver{
-		serverCapabilities: func() fleet.CapabilityMap { return capabilities },
+		serverCapabilities: func() automdm.CapabilityMap { return capabilities },
 		apply: func() error {
 			calls++
 			return applyErr
@@ -25,27 +25,27 @@ func TestAgentNamesReceiver(t *testing.T) {
 		stateFile: stateFile,
 	}
 
-	// A server older than Fleet 5 doesn't advertise the capability: nothing changes.
-	require.NoError(t, r.Run(&fleet.OrbitConfig{}))
+	// A server older than AutoMDM 5 doesn't advertise the capability: nothing changes.
+	require.NoError(t, r.Run(&automdm.OrbitConfig{}))
 	require.Zero(t, calls)
 	require.NoFileExists(t, stateFile)
 
 	// A failure doesn't fail the config fetch and is retried on the next one. The next start applies the names too.
-	capabilities[fleet.CapabilityFleetAgentNames] = struct{}{}
-	require.NoError(t, r.Run(&fleet.OrbitConfig{}))
-	require.NoError(t, r.Run(&fleet.OrbitConfig{}))
+	capabilities[automdm.CapabilityAutoMDMAgentNames] = struct{}{}
+	require.NoError(t, r.Run(&automdm.OrbitConfig{}))
+	require.NoError(t, r.Run(&automdm.OrbitConfig{}))
 	require.Equal(t, 2, calls)
 	require.FileExists(t, stateFile)
 
 	// Once applied, it isn't applied again during this orbit run.
 	applyErr = nil
-	require.NoError(t, r.Run(&fleet.OrbitConfig{}))
-	require.NoError(t, r.Run(&fleet.OrbitConfig{}))
+	require.NoError(t, r.Run(&automdm.OrbitConfig{}))
+	require.NoError(t, r.Run(&automdm.OrbitConfig{}))
 	require.Equal(t, 3, calls)
 
 	// A server without the capability stops the next start from applying the names.
-	delete(capabilities, fleet.CapabilityFleetAgentNames)
-	require.NoError(t, r.Run(&fleet.OrbitConfig{}))
+	delete(capabilities, automdm.CapabilityAutoMDMAgentNames)
+	require.NoError(t, r.Run(&automdm.OrbitConfig{}))
 	require.NoFileExists(t, stateFile)
 	require.Equal(t, 3, calls)
 }

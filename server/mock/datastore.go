@@ -4,33 +4,33 @@ import (
 	"context"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
-//go:generate go run ./mockimpl/impl.go -o datastore_mock.go "s *DataStore" "fleet.Datastore"
-//go:generate go run ./mockimpl/impl.go -o datastore_installers.go "s *InstallerStore" "fleet.InstallerStore"
-//go:generate go run ./mockimpl/impl.go -o nanodep/storage.go "s *Storage" "github.com/fleetdm/fleet/v4/server/mdm/nanodep/storage.AllDEPStorage"
-//go:generate go run ./mockimpl/impl.go -o mdm/datastore_mdm_mock.go "fs *MDMAppleStore" "fleet.MDMAppleStore"
+//go:generate go run ./mockimpl/impl.go -o datastore_mock.go "s *DataStore" "automdm.Datastore"
+//go:generate go run ./mockimpl/impl.go -o datastore_installers.go "s *InstallerStore" "automdm.InstallerStore"
+//go:generate go run ./mockimpl/impl.go -o nanodep/storage.go "s *Storage" "github.com/anilyagiz/automdm/v4/server/mdm/nanodep/storage.AllDEPStorage"
+//go:generate go run ./mockimpl/impl.go -o mdm/datastore_mdm_mock.go "fs *MDMAppleStore" "automdm.MDMAppleStore"
 //go:generate go run ./mockimpl/impl.go -o scep/depot.go "d *Depot" "depot.Depot"
-//go:generate go run ./mockimpl/impl.go -o scep/config.go "s *SCEPConfigService" "fleet.SCEPConfigService"
-//go:generate go run ./mockimpl/impl.go -o scep/enrollment_client.go "c *SCEPEnrollmentClient" "fleet.SCEPEnrollmentClient"
-//go:generate go run ./mockimpl/impl.go -o digicert/digicert.go "s *Service" "fleet.DigiCertService"
-//go:generate go run ./mockimpl/impl.go -o ejbca/ejbca.go "s *Service" "fleet.EJBCAService"
-//go:generate go run ./mockimpl/impl.go -o googlecas/googlecas.go "s *Service" "fleet.GoogleCASService"
-//go:generate go run ./mockimpl/impl.go -o mdm/bootstrap_package_store.go "s *MDMBootstrapPackageStore" "fleet.MDMBootstrapPackageStore"
-//go:generate go run ./mockimpl/impl.go -o software/software_installer_store.go "s *SoftwareInstallerStore" "fleet.SoftwareInstallerStore"
+//go:generate go run ./mockimpl/impl.go -o scep/config.go "s *SCEPConfigService" "automdm.SCEPConfigService"
+//go:generate go run ./mockimpl/impl.go -o scep/enrollment_client.go "c *SCEPEnrollmentClient" "automdm.SCEPEnrollmentClient"
+//go:generate go run ./mockimpl/impl.go -o digicert/digicert.go "s *Service" "automdm.DigiCertService"
+//go:generate go run ./mockimpl/impl.go -o ejbca/ejbca.go "s *Service" "automdm.EJBCAService"
+//go:generate go run ./mockimpl/impl.go -o googlecas/googlecas.go "s *Service" "automdm.GoogleCASService"
+//go:generate go run ./mockimpl/impl.go -o mdm/bootstrap_package_store.go "s *MDMBootstrapPackageStore" "automdm.MDMBootstrapPackageStore"
+//go:generate go run ./mockimpl/impl.go -o software/software_installer_store.go "s *SoftwareInstallerStore" "automdm.SoftwareInstallerStore"
 
-var _ fleet.Datastore = (*Store)(nil)
+var _ automdm.Datastore = (*Store)(nil)
 
 type Store struct {
 	DataStore
 }
 
-func (m *Store) EnrollOrbit(ctx context.Context, opts ...fleet.DatastoreEnrollOrbitOption) (*fleet.Host, error) {
+func (m *Store) EnrollOrbit(ctx context.Context, opts ...automdm.DatastoreEnrollOrbitOption) (*automdm.Host, error) {
 	return nil, nil
 }
 
-func (m *Store) LoadHostByOrbitNodeKey(ctx context.Context, orbitNodeKey string) (*fleet.Host, error) {
+func (m *Store) LoadHostByOrbitNodeKey(ctx context.Context, orbitNodeKey string) (*automdm.Host, error) {
 	if m.LoadHostByOrbitNodeKeyFunc != nil {
 		return m.DataStore.LoadHostByOrbitNodeKey(ctx, orbitNodeKey)
 	}
@@ -51,7 +51,7 @@ func (m *Store) RefreshMDMWindowsProfilesStatusRollup(ctx context.Context, hostU
 
 // AllLabelIDsByName falls back to the LabelIDsByName mock unless a test mocks it, so a test's label fixture serves both
 // lookups.
-func (m *Store) AllLabelIDsByName(ctx context.Context, names []string, filter fleet.TeamFilter) (map[string][]uint, error) {
+func (m *Store) AllLabelIDsByName(ctx context.Context, names []string, filter automdm.TeamFilter) (map[string][]uint, error) {
 	if m.AllLabelIDsByNameFunc != nil {
 		return m.DataStore.AllLabelIDsByName(ctx, names, filter)
 	}
@@ -77,7 +77,7 @@ func (m *Store) GetCurrentTime(ctx context.Context) (time.Time, error) {
 
 func (m *Store) Drop() error                             { return nil }
 func (m *Store) MigrateTables(ctx context.Context) error { return nil }
-func (m *Store) MigrationStatus(ctx context.Context) (*fleet.MigrationStatus, error) {
-	return &fleet.MigrationStatus{}, nil
+func (m *Store) MigrationStatus(ctx context.Context) (*automdm.MigrationStatus, error) {
+	return &automdm.MigrationStatus{}, nil
 }
 func (m *Store) Name() string { return "mock" }

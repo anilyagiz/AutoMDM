@@ -218,7 +218,7 @@ const ManageQueryAutomationsModal = ({
             <CustomLinkSizeContext.Provider value="small">
               Users with the admin role can&nbsp;
               <CustomLink
-                url="https://fleetdm.com/docs/using-fleet/log-destinations"
+                url="https://automdm.com/docs/using-automdm/log-destinations"
                 text="configure a different log destination"
                 newTab
               />

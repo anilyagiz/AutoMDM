@@ -101,13 +101,13 @@ func TestSnapdAPIErrorIsConflict(t *testing.T) {
 			name: "message plural: key slots ... already exist",
 			err: &snapdAPIError{
 				StatusCode: 400,
-				Message:    `key slots [(container-role: "system-data", name: "fleet-escrow"), (container-role: "system-save", name: "fleet-escrow")] already exist`,
+				Message:    `key slots [(container-role: "system-data", name: "automdm-escrow"), (container-role: "system-save", name: "automdm-escrow")] already exist`,
 			},
 			want: true,
 		},
 		{
 			name: "message singular: key slot ... already exists",
-			err:  &snapdAPIError{StatusCode: 400, Message: `key slot "fleet-escrow" already exists`},
+			err:  &snapdAPIError{StatusCode: 400, Message: `key slot "automdm-escrow" already exists`},
 			want: true,
 		},
 		{name: "auth failure is not a conflict", err: &snapdAPIError{StatusCode: 401, Message: "access denied"}, want: false},

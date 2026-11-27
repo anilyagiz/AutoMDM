@@ -12,8 +12,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/pkg/mdm/profilevalidation"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/pkg/mdm/profilevalidation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -46,7 +46,7 @@ func serveTarball(t *testing.T, body []byte) *httptest.Server {
 }
 
 func download(t *testing.T, srv *httptest.Server, dest string) error {
-	return downloadAppleTarball(t.Context(), slog.New(slog.DiscardHandler), fleethttp.NewClient(), srv.URL, testSHA, dest)
+	return downloadAppleTarball(t.Context(), slog.New(slog.DiscardHandler), automdmhttp.NewClient(), srv.URL, testSHA, dest)
 }
 
 func listFiles(t *testing.T, root string) []string {
@@ -159,7 +159,7 @@ func TestRunAppleUpdate(t *testing.T) {
 	require.NoError(t, os.MkdirAll(dir, 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "stale.yaml"), []byte("old"), 0o644))
 
-	got, err := runApple(t.Context(), slog.New(slog.DiscardHandler), fleethttp.NewClient(), appleRunOptions{
+	got, err := runApple(t.Context(), slog.New(slog.DiscardHandler), automdmhttp.NewClient(), appleRunOptions{
 		APIURL: srv.URL, TarballURL: srv.URL, Dir: dir, Update: true,
 		Pinned: &profilevalidation.AppleVersion{Release: "Release-v26.4", Commit: "1111111111111111111111111111111111111111"},
 	})
@@ -192,7 +192,7 @@ func TestRunAppleFetchPinned(t *testing.T) {
 	t.Run("missing download", func(t *testing.T) {
 		paths = nil
 		dir := filepath.Join(t.TempDir(), "apple")
-		got, err := runApple(t.Context(), slog.New(slog.DiscardHandler), fleethttp.NewClient(), opts(dir))
+		got, err := runApple(t.Context(), slog.New(slog.DiscardHandler), automdmhttp.NewClient(), opts(dir))
 		require.NoError(t, err)
 		assert.Equal(t, *pinned, got)
 		assert.Equal(t, []string{"/apple/device-management/tar.gz/" + pinnedSHA}, paths, "no API call")
@@ -206,7 +206,7 @@ func TestRunAppleFetchPinned(t *testing.T) {
 		dir := t.TempDir()
 		require.NoError(t, os.WriteFile(filepath.Join(dir, commitMarker), []byte(testSHA+"\n"), 0o644))
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "stale.yaml"), []byte("old"), 0o644))
-		_, err := runApple(t.Context(), slog.New(slog.DiscardHandler), fleethttp.NewClient(), opts(dir))
+		_, err := runApple(t.Context(), slog.New(slog.DiscardHandler), automdmhttp.NewClient(), opts(dir))
 		require.NoError(t, err)
 		assert.ElementsMatch(t, []string{commitMarker, "mdm/profiles/a.yaml"}, listFiles(t, dir))
 	})
@@ -215,7 +215,7 @@ func TestRunAppleFetchPinned(t *testing.T) {
 		paths = nil
 		dir := t.TempDir()
 		require.NoError(t, os.WriteFile(filepath.Join(dir, commitMarker), []byte(pinnedSHA+"\n"), 0o644))
-		_, err := runApple(t.Context(), slog.New(slog.DiscardHandler), fleethttp.NewClient(), opts(dir))
+		_, err := runApple(t.Context(), slog.New(slog.DiscardHandler), automdmhttp.NewClient(), opts(dir))
 		require.NoError(t, err)
 		assert.Empty(t, paths)
 	})

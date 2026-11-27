@@ -8,23 +8,23 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/datastore/redis"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis"
 	redigo "github.com/gomodule/redigo/redis"
 )
 
 type redisQueryResults struct {
-	pool             fleet.RedisPool
+	pool             automdm.RedisPool
 	duplicateResults bool
 	logger           *slog.Logger
 }
 
-var _ fleet.QueryResultStore = &redisQueryResults{}
+var _ automdm.QueryResultStore = &redisQueryResults{}
 
 // NewRedisQueryResults creats a new Redis implementation of the
 // QueryResultStore interface using the provided Redis connection pool.
-func NewRedisQueryResults(pool fleet.RedisPool, duplicateResults bool, logger *slog.Logger) *redisQueryResults {
+func NewRedisQueryResults(pool automdm.RedisPool, duplicateResults bool, logger *slog.Logger) *redisQueryResults {
 	return &redisQueryResults{
 		pool:             pool,
 		duplicateResults: duplicateResults,
@@ -37,11 +37,11 @@ func pubSubForID(id uint) string {
 }
 
 // Pool returns the redisc connection pool (used in tests).
-func (r *redisQueryResults) Pool() fleet.RedisPool {
+func (r *redisQueryResults) Pool() automdm.RedisPool {
 	return r.pool
 }
 
-func (r *redisQueryResults) WriteResult(result fleet.DistributedQueryResult) error {
+func (r *redisQueryResults) WriteResult(result automdm.DistributedQueryResult) error {
 	// pub-sub can publish and listen on any node in the cluster
 	conn := redis.ReadOnlyConn(r.pool, r.pool.Get())
 	defer conn.Close()
@@ -119,7 +119,7 @@ func receiveMessages(ctx context.Context, conn *redigo.PubSubConn, outChan chan<
 	}
 }
 
-func (r *redisQueryResults) ReadChannel(ctx context.Context, query fleet.DistributedQueryCampaign) (<-chan interface{}, error) {
+func (r *redisQueryResults) ReadChannel(ctx context.Context, query automdm.DistributedQueryCampaign) (<-chan interface{}, error) {
 	outChannel := make(chan interface{})
 	msgChannel := make(chan interface{})
 
@@ -160,7 +160,7 @@ func (r *redisQueryResults) ReadChannel(ctx context.Context, query fleet.Distrib
 				if !ok {
 					logger.ErrorContext(ctx, "unexpected exit in receiveMessages")
 					// NOTE(lucas): The below error string should not be modified. The UI is relying on it to detect
-					// when Fleet's connection to Redis has been interrupted unexpectedly.
+					// when AutoMDM's connection to Redis has been interrupted unexpectedly.
 					//
 					// TODO(lucas): We should add a unit test (at the time it required many changes to this production code
 					// which increases risk).
@@ -170,7 +170,7 @@ func (r *redisQueryResults) ReadChannel(ctx context.Context, query fleet.Distrib
 
 				switch msg := msg.(type) {
 				case redigo.Message:
-					var res fleet.DistributedQueryResult
+					var res automdm.DistributedQueryResult
 					err := json.Unmarshal(msg.Data, &res)
 					if err != nil {
 						if writeOrDone(ctx, outChannel, err) {

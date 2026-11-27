@@ -54,7 +54,7 @@ export const PLATFORM_BY_INDEX: SetupExperiencePlatform[] = [
 export interface InstallSoftwareLocation {
   pathname: string;
   query: {
-    fleet_id?: string;
+    team_id?: string;
   };
 }
 
@@ -82,7 +82,7 @@ const InstallSoftware = ({
     () =>
       mdmAPI.getSetupExperienceSoftware({
         platform: selectedPlatform,
-        fleet_id: currentTeamId,
+        team_id: currentTeamId,
         per_page: PER_PAGE_SIZE,
       }),
     {
@@ -107,7 +107,7 @@ const InstallSoftware = ({
   >(["team", currentTeamId], () => teamsAPI.load(currentTeamId), {
     ...DEFAULT_USE_QUERY_OPTIONS,
     enabled: isValidPlatform && currentTeamId !== API_NO_TEAM_ID,
-    select: (res) => res.fleet,
+    select: (res) => res.team,
   });
 
   const handleTabChange = useCallback(
@@ -115,7 +115,7 @@ const InstallSoftware = ({
       const newPlatform = PLATFORM_BY_INDEX[index];
       router.push(
         getPathWithQueryParams(PATHS.CONTROLS_INSTALL_SOFTWARE(newPlatform), {
-          fleet_id: currentTeamId,
+          team_id: currentTeamId,
         })
       );
     },
@@ -125,7 +125,7 @@ const InstallSoftware = ({
   if (!isValidPlatform) {
     router.replace(
       getPathWithQueryParams(PATHS.CONTROLS_INSTALL_SOFTWARE("macos"), {
-        fleet_id: currentTeamId,
+        team_id: currentTeamId,
       })
     );
   }
@@ -227,8 +227,8 @@ const InstallSoftware = ({
         variant="right-panel"
         content={
           selectedPlatform === "macos"
-            ? "Install software on hosts that automatically enroll to Fleet."
-            : "Install software on hosts that enroll to Fleet."
+            ? "Install software on hosts that automatically enroll to AutoMDM."
+            : "Install software on hosts that enroll to AutoMDM."
         }
       />
       <SetupExperienceContentContainer>

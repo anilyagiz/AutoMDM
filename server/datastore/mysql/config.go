@@ -3,8 +3,8 @@ package mysql
 import (
 	"log/slog"
 
-	"github.com/fleetdm/fleet/v4/server/config"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
 	"github.com/ngrok/sqlmw"
 )
 
@@ -62,9 +62,9 @@ func TracingEnabled(lconfig *config.LoggingConfig) DBOption {
 	}
 }
 
-// WithFleetConfig provides the fleet configuration so that any config option
+// WithAutoMDMConfig provides the team configuration so that any config option
 // that must be used in the datastore layer can be captured here.
-func WithFleetConfig(conf *config.FleetConfig) DBOption {
+func WithAutoMDMConfig(conf *config.AutoMDMConfig) DBOption {
 	return func(o *common_mysql.DBOptions) error {
 		o.PrivateKey = conf.Server.PrivateKey
 		return nil

@@ -13,7 +13,7 @@ import {
   GitService,
   DBService,
   GitopsService,
-  FleetctlService,
+  AutoMDMctlService,
   TroubleshootService,
   PerfService,
   PerfConfigService,
@@ -25,26 +25,26 @@ import {
   TufService,
   InstallersService,
   ApnsMockService,
-} from "../../bindings/github.com/fleetdm/fleet/tools/hangar/services";
+} from "../../bindings/github.com/anilyagiz/automdm/tools/hangar/services";
 
-import type * as buildinfoM from "../../bindings/github.com/fleetdm/fleet/tools/hangar/internal/buildinfo/models";
-import type * as settingsM from "../../bindings/github.com/fleetdm/fleet/tools/hangar/internal/settings/models";
-import type * as processesM from "../../bindings/github.com/fleetdm/fleet/tools/hangar/internal/processes/models";
-import type * as gitrepoM from "../../bindings/github.com/fleetdm/fleet/tools/hangar/internal/gitrepo/models";
-import type * as dbM from "../../bindings/github.com/fleetdm/fleet/tools/hangar/internal/db/models";
-import type * as depsM from "../../bindings/github.com/fleetdm/fleet/tools/hangar/internal/deps/models";
-import type * as fleetctlM from "../../bindings/github.com/fleetdm/fleet/tools/hangar/internal/fleetctl/models";
-import type * as gitopsM from "../../bindings/github.com/fleetdm/fleet/tools/hangar/internal/gitops/models";
-import type * as perfM from "../../bindings/github.com/fleetdm/fleet/tools/hangar/internal/perf/models";
-import type * as perfconfigM from "../../bindings/github.com/fleetdm/fleet/tools/hangar/internal/perfconfig/models";
-import type * as traymenuM from "../../bindings/github.com/fleetdm/fleet/tools/hangar/internal/traymenu/models";
-import type * as troubleshootM from "../../bindings/github.com/fleetdm/fleet/tools/hangar/internal/troubleshoot/models";
-import type * as scepM from "../../bindings/github.com/fleetdm/fleet/tools/hangar/internal/scep/models";
-import type * as mdmassetsM from "../../bindings/github.com/fleetdm/fleet/tools/hangar/internal/mdmassets/models";
-import type * as tufM from "../../bindings/github.com/fleetdm/fleet/tools/hangar/internal/tuf/models";
-import type * as installersM from "../../bindings/github.com/fleetdm/fleet/tools/hangar/internal/installers/models";
-import type * as servicesM from "../../bindings/github.com/fleetdm/fleet/tools/hangar/services/models";
-import type * as apnsmockM from "../../bindings/github.com/fleetdm/fleet/tools/hangar/internal/apnsmock/models";
+import type * as buildinfoM from "../../bindings/github.com/anilyagiz/automdm/tools/hangar/internal/buildinfo/models";
+import type * as settingsM from "../../bindings/github.com/anilyagiz/automdm/tools/hangar/internal/settings/models";
+import type * as processesM from "../../bindings/github.com/anilyagiz/automdm/tools/hangar/internal/processes/models";
+import type * as gitrepoM from "../../bindings/github.com/anilyagiz/automdm/tools/hangar/internal/gitrepo/models";
+import type * as dbM from "../../bindings/github.com/anilyagiz/automdm/tools/hangar/internal/db/models";
+import type * as depsM from "../../bindings/github.com/anilyagiz/automdm/tools/hangar/internal/deps/models";
+import type * as automdmctlM from "../../bindings/github.com/anilyagiz/automdm/tools/hangar/internal/automdmctl/models";
+import type * as gitopsM from "../../bindings/github.com/anilyagiz/automdm/tools/hangar/internal/gitops/models";
+import type * as perfM from "../../bindings/github.com/anilyagiz/automdm/tools/hangar/internal/perf/models";
+import type * as perfconfigM from "../../bindings/github.com/anilyagiz/automdm/tools/hangar/internal/perfconfig/models";
+import type * as traymenuM from "../../bindings/github.com/anilyagiz/automdm/tools/hangar/internal/traymenu/models";
+import type * as troubleshootM from "../../bindings/github.com/anilyagiz/automdm/tools/hangar/internal/troubleshoot/models";
+import type * as scepM from "../../bindings/github.com/anilyagiz/automdm/tools/hangar/internal/scep/models";
+import type * as mdmassetsM from "../../bindings/github.com/anilyagiz/automdm/tools/hangar/internal/mdmassets/models";
+import type * as tufM from "../../bindings/github.com/anilyagiz/automdm/tools/hangar/internal/tuf/models";
+import type * as installersM from "../../bindings/github.com/anilyagiz/automdm/tools/hangar/internal/installers/models";
+import type * as servicesM from "../../bindings/github.com/anilyagiz/automdm/tools/hangar/services/models";
+import type * as apnsmockM from "../../bindings/github.com/anilyagiz/automdm/tools/hangar/internal/apnsmock/models";
 
 // cast narrows a binding's $CancellablePromise<GeneratedModel> to the alias
 // type. Safe: the underlying value is the same JSON.
@@ -59,14 +59,14 @@ export type ThemePreference = "system" | "light" | "dark";
 export type BuildInfo = buildinfoM.Info;
 
 // Settings aliases the generated model but keeps theme as the union above and
-// servers as the FleetServeConfig-aliased ServerProfile.
+// servers as the AutoMDMServeConfig-aliased ServerProfile.
 export type Settings = Omit<settingsM.Settings, "theme" | "servers"> & {
   theme: ThemePreference;
   servers: ServerProfile[];
 };
 export type NgrokConfig = settingsM.NgrokConfig;
 export type PythonConfig = settingsM.PythonConfig;
-export type FleetServeConfig = settingsM.FleetServeConfig;
+export type AutoMDMServeConfig = settingsM.AutoMDMServeConfig;
 export type EnvVar = settingsM.EnvVar;
 export type NgrokTunnel = settingsM.NgrokTunnel;
 export type NgrokYamlInfo = settingsM.NgrokYamlInfo;
@@ -92,11 +92,11 @@ export type BranchStatus = gitrepoM.BranchStatus;
 export type Branch = gitrepoM.Branch;
 export type Worktree = gitrepoM.Worktree;
 
-// Multi-server profiles. ServerProfile keeps its generated fleet_serve as the
-// FleetServeConfig alias used elsewhere; ServerPorts is a flat numeric record.
+// Multi-server profiles. ServerProfile keeps its generated automdm_serve as the
+// AutoMDMServeConfig alias used elsewhere; ServerPorts is a flat numeric record.
 export type ServerPorts = settingsM.ServerPorts;
-export type ServerProfile = Omit<settingsM.ServerProfile, "fleet_serve"> & {
-  fleet_serve: FleetServeConfig;
+export type ServerProfile = Omit<settingsM.ServerProfile, "automdm_serve"> & {
+  automdm_serve: AutoMDMServeConfig;
 };
 export type ComposeTarget = processesM.ComposeTarget;
 
@@ -109,11 +109,11 @@ export type DockerStatus = processesM.DockerStatus;
 export type BackupEntry = dbM.BackupEntry;
 export type BackupNameCheck = dbM.BackupNameCheck;
 
-export type ResolvedBinary = fleetctlM.ResolvedBinary;
-export type ContextSummary = fleetctlM.ContextSummary;
-export type ContextInfo = fleetctlM.ContextInfo;
-export type RawConfig = fleetctlM.RawConfig;
-export type CapturedRun = fleetctlM.CapturedRun;
+export type ResolvedBinary = automdmctlM.ResolvedBinary;
+export type ContextSummary = automdmctlM.ContextSummary;
+export type ContextInfo = automdmctlM.ContextInfo;
+export type RawConfig = automdmctlM.RawConfig;
+export type CapturedRun = automdmctlM.CapturedRun;
 
 export type DetectedProcess = troubleshootM.DetectedProcess;
 export type KillOutcome = troubleshootM.KillOutcome;
@@ -180,7 +180,7 @@ export const DEFAULT_PYTHON_CONFIG: PythonConfig = {
   directory: null,
 };
 
-export const DEFAULT_FLEET_SERVE_CONFIG: FleetServeConfig = {
+export const DEFAULT_AUTOMDM_SERVE_CONFIG: AutoMDMServeConfig = {
   config_path: null,
   premium: true,
   debug: true,
@@ -198,10 +198,10 @@ export const api = {
   getSettings: () => cast<Settings>(SettingsService.GetSettings()),
   saveSettings: (settings: Settings) =>
     SettingsService.SaveSettings(settings as never),
-  probeFleetRepo: (path?: string) =>
-    cast<RepoProbe[]>(SettingsService.ProbeFleetRepo(path ?? "")),
-  detectFleetConfig: (repo: string) =>
-    cast<string | null>(SettingsService.DetectFleetConfig(repo)),
+  probeAutoMDMRepo: (path?: string) =>
+    cast<RepoProbe[]>(SettingsService.ProbeAutoMDMRepo(path ?? "")),
+  detectAutoMDMConfig: (repo: string) =>
+    cast<string | null>(SettingsService.DetectAutoMDMConfig(repo)),
   checkDependencies: (repoPath?: string | null, refreshPath?: boolean) =>
     cast<DepReport>(
       DepsService.CheckDependencies(repoPath ?? "", refreshPath ?? false),
@@ -289,7 +289,7 @@ export const api = {
   mdmAssetsReadFile: (path: string) =>
     cast<string>(MdmAssetsService.MdmAssetsReadFile(path)),
 
-  // Local TUF server + fleetd package generation (tools/tuf/test).
+  // Local TUF server + automdmd package generation (tools/tuf/test).
   tufServerStatus: () => cast<TufServerStatus>(TufService.TufServerStatus()),
   tufStartBuild: (cfg: TufConfig) => TufService.TufStartBuild(cfg as never),
   tufStopBuild: () => TufService.TufStopBuild(),
@@ -298,7 +298,7 @@ export const api = {
   tufDeleteAssets: () => TufService.TufDeleteAssets(),
   tufAssetsExist: () => cast<boolean>(TufService.TufAssetsExist()),
 
-  // fleetd packages for a fleetctl context's server (or a typed-in URL and
+  // automdmd packages for an automdmctl context's server (or a typed-in URL and
   // secret when manual is true).
   installersOfficialChannels: () =>
     cast<InstallersChannels>(InstallersService.InstallersOfficialChannels()),
@@ -307,8 +307,8 @@ export const api = {
   installersContextInfo: (contextName: string, manual: boolean) =>
     cast<InstallersContextInfo>(InstallersService.InstallersContextInfo(contextName, manual)),
   installersPackagesRoot: () => cast<string>(InstallersService.InstallersPackagesRoot()),
-  installersFleetSecret: (contextName: string, teamId: number | null) =>
-    InstallersService.InstallersFleetSecret(contextName, teamId),
+  installersAutoMDMSecret: (contextName: string, teamId: number | null) =>
+    InstallersService.InstallersAutoMDMSecret(contextName, teamId),
   installersCheckExtraFlags: (flags: string) => InstallersService.InstallersCheckExtraFlags(flags),
   installersScan: (contextName: string) =>
     cast<InstallersScanResult>(InstallersService.InstallersScan(contextName)),
@@ -390,16 +390,16 @@ export const api = {
   dbCheckBackupNameInDir: (dir: string, rawName: string) =>
     cast<BackupNameCheck>(DBService.DBCheckBackupNameInDir(dir, rawName)),
 
-  fleetctlResolveBinary: (repo: string | null, settingsPath: string | null) =>
+  automdmctlResolveBinary: (repo: string | null, settingsPath: string | null) =>
     cast<ResolvedBinary>(
-      FleetctlService.FleetctlResolveBinary(repo ?? "", settingsPath ?? ""),
+      AutoMDMctlService.AutoMDMctlResolveBinary(repo ?? "", settingsPath ?? ""),
     ),
-  fleetctlReadContext: () =>
-    cast<ContextInfo>(FleetctlService.FleetctlReadContext()),
-  fleetctlReadConfigRaw: () =>
-    cast<RawConfig>(FleetctlService.FleetctlReadConfigRaw()),
-  fleetctlSaveConfig: (yaml: string) =>
-    FleetctlService.FleetctlSaveConfig(yaml),
+  automdmctlReadContext: () =>
+    cast<ContextInfo>(AutoMDMctlService.AutoMDMctlReadContext()),
+  automdmctlReadConfigRaw: () =>
+    cast<RawConfig>(AutoMDMctlService.AutoMDMctlReadConfigRaw()),
+  automdmctlSaveConfig: (yaml: string) =>
+    AutoMDMctlService.AutoMDMctlSaveConfig(yaml),
 
   troubleshootScanPort: (port: number) =>
     cast<DetectedProcess[]>(TroubleshootService.TroubleshootScanPort(port)),
@@ -413,7 +413,7 @@ export const api = {
     cast<DockerContainer[]>(TroubleshootService.TroubleshootScanDocker()),
   troubleshootStopContainers: (ids: string[]) =>
     TroubleshootService.TroubleshootStopContainers(ids),
-  fleetctlRunCapture: (args: {
+  automdmctlRunCapture: (args: {
     program: string;
     cwd?: string | null;
     args: string[];
@@ -422,7 +422,7 @@ export const api = {
     timeoutMs?: number | null;
   }) =>
     cast<CapturedRun>(
-      FleetctlService.FleetctlRunCapture(
+      AutoMDMctlService.AutoMDMctlRunCapture(
         args.program,
         args.cwd ?? "",
         args.args,
@@ -433,7 +433,7 @@ export const api = {
     ),
 
   readLogWindow: (args: {
-    // A log channel name (per-server `fleet-serve-<id>`), or "all".
+    // A log channel name (per-server `automdm-serve-<id>`), or "all".
     source: string;
     since_ms: number;
     levels: string[];

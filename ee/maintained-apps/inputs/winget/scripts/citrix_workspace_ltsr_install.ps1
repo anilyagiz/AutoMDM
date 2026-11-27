@@ -1,8 +1,8 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 
 # /AutoUpdateStream=LTSR records the release track (LTSROnly = true), which is
-# how Fleet tells this install apart from Citrix Workspace Current Release.
+# how AutoMDM tells this install apart from Citrix Workspace Current Release.
 
 $paths = @(
   'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall',

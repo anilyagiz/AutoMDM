@@ -7,7 +7,7 @@ import (
 	"crypto/tls"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
 )
 
 type UserAuthenticateStore interface {
@@ -40,9 +40,9 @@ type BootstrapTokenStore interface {
 }
 
 type SecretStore interface {
-	// ExpandEmbeddedSecrets expands named secrets ($FLEET_SECRET_*) in the document.
+	// ExpandEmbeddedSecrets expands named secrets ($AUTOMDM_SECRET_*) in the document.
 	ExpandEmbeddedSecrets(ctx context.Context, document string) (string, error)
-	// ExpandHostSecrets expands host-scoped secrets ($FLEET_HOST_SECRET_*) in the document.
+	// ExpandHostSecrets expands host-scoped secrets ($AUTOMDM_HOST_SECRET_*) in the document.
 	// The enrollmentID (host UUID) is used to look up host-specific secrets like recovery lock passwords.
 	ExpandHostSecrets(ctx context.Context, document string, enrollmentID string) (string, error)
 	// SetRecoveryLockFailed marks a host's recovery lock as failed.

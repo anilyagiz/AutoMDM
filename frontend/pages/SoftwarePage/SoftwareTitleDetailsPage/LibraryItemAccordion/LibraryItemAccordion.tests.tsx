@@ -23,7 +23,7 @@ const statusPath = (software_status: "installed" | "pending" | "failed") =>
   getPathWithQueryParams(paths.MANAGE_HOSTS, {
     software_title_id: 123,
     software_status,
-    fleet_id: 0,
+    team_id: 0,
   });
 
 const baseProps: ILibraryItemAccordionProps = {
@@ -32,7 +32,7 @@ const baseProps: ILibraryItemAccordionProps = {
   addedAt: new Date("2026-06-15T00:00:00Z").toISOString(),
   isActive: true,
   canEditSoftware: true,
-  // The base accordion mock represents a Fleet-maintained app — that's the
+  // The base accordion mock represents an AutoMDM-maintained app — that's the
   // shape where Latest/Pinned/Major-version badges apply (the "Latest" badge
   // is scoped to FMA only). Custom-package tests opt out with
   // `isFma: false, isCustomPackage: true` overrides.
@@ -645,7 +645,7 @@ describe("LibraryItemAccordion", () => {
         user,
         container,
         "pending",
-        /Fleet is installing\/uninstalling/i
+        /AutoMDM is installing\/uninstalling/i
       );
       await expectTooltipOnHover(
         user,
@@ -684,7 +684,7 @@ describe("LibraryItemAccordion", () => {
         user,
         container,
         "pending",
-        /Fleet is installing\/uninstalling/i
+        /AutoMDM is installing\/uninstalling/i
       );
       await expectTooltipOnHover(
         user,
@@ -722,7 +722,7 @@ describe("LibraryItemAccordion", () => {
         user,
         container,
         "pending",
-        /Fleet is running the script/i
+        /AutoMDM is running the script/i
       );
       await expectTooltipOnHover(
         user,
@@ -871,15 +871,15 @@ describe("LibraryItemAccordion", () => {
         androidPlayStoreId: "com.google.enterprise.webapp.abc123",
         canActivateMultipleVersions: true,
         canDownload: false,
-        filename: "Fleet docs",
+        filename: "AutoMDM docs",
         iconOverride: <div data-testid="title-icon" />,
         onEditClick: jest.fn(),
         onTrashClick: jest.fn(),
       });
       expect(screen.getByTestId("title-icon")).toBeInTheDocument();
-      expect(screen.getByText("Fleet docs")).toBeInTheDocument();
+      expect(screen.getByText("AutoMDM docs")).toBeInTheDocument();
 
-      await user.click(screen.getByText("Fleet docs"));
+      await user.click(screen.getByText("AutoMDM docs"));
       expect(
         screen.getByRole("button", { name: "Edit targets" })
       ).toBeInTheDocument();

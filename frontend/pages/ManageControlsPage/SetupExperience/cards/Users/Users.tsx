@@ -126,7 +126,7 @@ const Users = ({ currentTeamId }: ISetupExperienceCardProps) => {
     refetchOnWindowFocus: false,
     retry: false,
     enabled: currentTeamId !== 0,
-    select: (res) => res.fleet,
+    select: (res) => res.team,
   });
 
   const defaultIsEndUserAuthEnabled = getEnabledEndUserAuth(

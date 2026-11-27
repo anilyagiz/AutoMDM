@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/io"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/io"
 	"github.com/stretchr/testify/require"
 )
 
@@ -51,10 +51,10 @@ func TestAnalyzer(t *testing.T) {
 	t.Run("updateVulnsInDB", func(t *testing.T) {
 		t.Run("on error when deleting vulns", func(t *testing.T) {
 			ds := new(mock.Store)
-			ds.DeleteSoftwareVulnerabilitiesFunc = func(ctx context.Context, vulnerabilities []fleet.SoftwareVulnerability) error {
+			ds.DeleteSoftwareVulnerabilitiesFunc = func(ctx context.Context, vulnerabilities []automdm.SoftwareVulnerability) error {
 				return errors.New("some error")
 			}
-			ds.InsertSoftwareVulnerabilitiesFunc = func(ctx context.Context, vulns []fleet.SoftwareVulnerability, source fleet.VulnerabilitySource) ([]fleet.SoftwareVulnerability, error) {
+			ds.InsertSoftwareVulnerabilitiesFunc = func(ctx context.Context, vulns []automdm.SoftwareVulnerability, source automdm.VulnerabilitySource) ([]automdm.SoftwareVulnerability, error) {
 				return nil, nil
 			}
 
@@ -64,15 +64,15 @@ func TestAnalyzer(t *testing.T) {
 		})
 
 		t.Run("on error when inserting vulns", func(t *testing.T) {
-			detected := []fleet.SoftwareVulnerability{
+			detected := []automdm.SoftwareVulnerability{
 				{SoftwareID: 1, CVE: "123"},
 			}
 
 			ds := new(mock.Store)
-			ds.DeleteSoftwareVulnerabilitiesFunc = func(ctx context.Context, vulnerabilities []fleet.SoftwareVulnerability) error {
+			ds.DeleteSoftwareVulnerabilitiesFunc = func(ctx context.Context, vulnerabilities []automdm.SoftwareVulnerability) error {
 				return nil
 			}
-			ds.InsertSoftwareVulnerabilitiesFunc = func(ctx context.Context, vulns []fleet.SoftwareVulnerability, source fleet.VulnerabilitySource) ([]fleet.SoftwareVulnerability, error) {
+			ds.InsertSoftwareVulnerabilitiesFunc = func(ctx context.Context, vulns []automdm.SoftwareVulnerability, source automdm.VulnerabilitySource) ([]automdm.SoftwareVulnerability, error) {
 				return nil, errors.New("some error")
 			}
 
@@ -84,7 +84,7 @@ func TestAnalyzer(t *testing.T) {
 
 	t.Run("collectVulnerabilities", func(t *testing.T) {
 		t.Run("no release notes", func(t *testing.T) {
-			software := fleet.Software{}
+			software := automdm.Software{}
 			var relNotes ReleaseNotes
 			vulns := collectVulnerabilities(&software, Word, relNotes)
 			require.Empty(t, vulns)
@@ -94,7 +94,7 @@ func TestAnalyzer(t *testing.T) {
 	t.Run("getStoredVulnerabilities", func(t *testing.T) {
 		t.Run("on error", func(t *testing.T) {
 			ds := new(mock.Store)
-			ds.SoftwareByIDFunc = func(ctx context.Context, id uint, teamID *uint, includeCVEScores bool, tmFilter *fleet.TeamFilter) (*fleet.Software, error) {
+			ds.SoftwareByIDFunc = func(ctx context.Context, id uint, teamID *uint, includeCVEScores bool, tmFilter *automdm.TeamFilter) (*automdm.Software, error) {
 				return nil, errors.New("some error")
 			}
 

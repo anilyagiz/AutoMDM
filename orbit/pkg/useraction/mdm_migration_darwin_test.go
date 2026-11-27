@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/constant"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/constant"
 	"github.com/stretchr/testify/require"
 )
 
@@ -254,7 +254,7 @@ func TestShouldSendWebhookUntilUnmanaged(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, 3, handler.TimeCalled) // webhook was called again.
 
-			// Device is now seen as unmanaged by Fleet server
+			// Device is now seen as unmanaged by AutoMDM server
 			m.props.IsUnmanaged = true
 
 			// This simulates our runner that periodically shows the window - should NOT call webhook since device is unmanaged, it will hit the early exit

@@ -82,7 +82,7 @@
   }
 }
 
-// A Fleet-maintained app icon renders as an <img> here, where a hand-authored
+// An AutoMDM-maintained app icon renders as an <img> here, where a hand-authored
 // icon renders as an <svg>. ".core-wrapper a img" in
 // layouts/CoreLayout/_styles.scss sets 12x12 and a left margin on any image
 // inside a link, and CSS beats the width/height attributes, so the box has to

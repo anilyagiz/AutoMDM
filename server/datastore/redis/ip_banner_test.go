@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/datastore/redis"
-	"github.com/fleetdm/fleet/v4/server/datastore/redis/redistest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis/redistest"
 	redigo "github.com/gomodule/redigo/redis"
 	"github.com/stretchr/testify/require"
 )
@@ -14,7 +14,7 @@ import (
 func TestIPBanner(t *testing.T) {
 	const prefix = "TestIPBanner::"
 
-	runTest := func(t *testing.T, pool fleet.RedisPool) {
+	runTest := func(t *testing.T, pool automdm.RedisPool) {
 		basicTest := func(t *testing.T, ip string, otherIP string) {
 			conn := pool.Get()
 			t.Cleanup(func() {
@@ -147,7 +147,7 @@ func TestIPBanner(t *testing.T) {
 			basicTest(t, "127.0.0.1", "192.168.0.1")
 		})
 
-		// Test with empty IP (when Fleet cannot extract the IP from the request).
+		// Test with empty IP (when AutoMDM cannot extract the IP from the request).
 		// All these requests would endup on the same "bucket".
 		t.Run("basic-empty", func(t *testing.T) {
 			t.Parallel()

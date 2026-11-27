@@ -13,7 +13,7 @@ import { getPathWithQueryParams } from "utilities/url";
 
 import SoftwareAppStoreVpp from "./SoftwareAppStoreVpp";
 
-const baseUrl = (path: string) => `/api/latest/fleet${path}`;
+const baseUrl = (path: string) => `/api/latest/automdm${path}`;
 
 const router = createMockRouter();
 
@@ -33,7 +33,7 @@ const teamMismatchVppHandler = http.get(baseUrl("/vpp_tokens"), () => {
         org_name: "Test Org",
         location: "US",
         renew_date: "2027-01-01",
-        fleets: [{ fleet_id: 999, name: "Other fleet" }],
+        teams: [{ team_id: 999, name: "Other team" }],
       },
     ],
   });
@@ -47,7 +47,7 @@ const teamVppHandler = http.get(baseUrl("/vpp_tokens"), () => {
         org_name: "Test Org",
         location: "US",
         renew_date: "2027-01-01",
-        fleets: [{ fleet_id: 1, name: "Workstations" }],
+        teams: [{ team_id: 1, name: "Workstations" }],
       },
     ],
   });
@@ -58,7 +58,7 @@ describe("SoftwareAppStoreVpp", () => {
     mockServer.resetHandlers();
   });
 
-  it("shows enable VPP when Apple MDM is off even if the fleet has a VPP token", async () => {
+  it("shows enable VPP when Apple MDM is off even if the team has a VPP token", async () => {
     let appsRequested = false;
     mockServer.use(
       teamVppHandler,
@@ -155,11 +155,11 @@ describe("SoftwareAppStoreVpp", () => {
     ).not.toBeInTheDocument();
   });
 
-  // GET /vpp_tokens filters to tokens the team-scoped user's fleets can read,
-  // so an empty list can also mean the fleet simply isn't on any token. The
-  // user can't tell the difference, so show the actionable "add fleet to VPP"
+  // GET /vpp_tokens filters to tokens the team-scoped user's teams can read,
+  // so an empty list can also mean the team simply isn't on any token. The
+  // user can't tell the difference, so show the actionable "add team to VPP"
   // message instead of the misleading "VPP isn't enabled" one.
-  it("shows add fleet to VPP copy for a fleet admin when their fleet isn't on any token", async () => {
+  it("shows add team to VPP copy for a team admin when their team isn't on any token", async () => {
     mockServer.use(emptyVppHandler, labelsHandler);
 
     const render = createCustomRenderer({
@@ -185,14 +185,14 @@ describe("SoftwareAppStoreVpp", () => {
     await waitFor(() => {
       expect(
         screen.getByText(
-          /Workstations fleet isn't added to Volume Purchasing Program \(VPP\)/i
+          /Workstations team isn't added to Volume Purchasing Program \(VPP\)/i
         )
       ).toBeInTheDocument();
     });
 
     expect(
       screen.getByText(
-        "To add App Store apps, ask your admin to add Workstations fleet to VPP."
+        "To add App Store apps, ask your admin to add Workstations team to VPP."
       )
     ).toBeInTheDocument();
     expect(
@@ -203,7 +203,7 @@ describe("SoftwareAppStoreVpp", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows add fleet to VPP button for admins when team has no VPP token", async () => {
+  it("shows add team to VPP button for admins when team has no VPP token", async () => {
     mockServer.use(teamMismatchVppHandler, labelsHandler);
 
     const render = createCustomRenderer({
@@ -228,14 +228,14 @@ describe("SoftwareAppStoreVpp", () => {
     await waitFor(() => {
       expect(
         screen.getByText(
-          /Workstations fleet isn't added to Volume Purchasing Program \(VPP\)/i
+          /Workstations team isn't added to Volume Purchasing Program \(VPP\)/i
         )
       ).toBeInTheDocument();
     });
 
     expect(
       screen.getByText(
-        "To add App Store apps, first add Workstations fleet to VPP."
+        "To add App Store apps, first add Workstations team to VPP."
       )
     ).toBeInTheDocument();
     expect(
@@ -268,14 +268,14 @@ describe("SoftwareAppStoreVpp", () => {
     await waitFor(() => {
       expect(
         screen.getByText(
-          /Workstations fleet isn't added to Volume Purchasing Program \(VPP\)/i
+          /Workstations team isn't added to Volume Purchasing Program \(VPP\)/i
         )
       ).toBeInTheDocument();
     });
 
     expect(
       screen.getByText(
-        "To add App Store apps, ask your admin to add Workstations fleet to VPP."
+        "To add App Store apps, ask your admin to add Workstations team to VPP."
       )
     ).toBeInTheDocument();
     expect(
@@ -320,7 +320,7 @@ describe("SoftwareAppStoreVpp", () => {
     ).toBeInTheDocument();
   });
 
-  it("falls back to generic copy when the fleet name hasn't resolved yet", async () => {
+  it("falls back to generic copy when the team name hasn't resolved yet", async () => {
     mockServer.use(teamMismatchVppHandler, labelsHandler);
 
     const render = createCustomRenderer({
@@ -339,13 +339,13 @@ describe("SoftwareAppStoreVpp", () => {
     await waitFor(() => {
       expect(
         screen.getByText(
-          /This fleet isn't added to Volume Purchasing Program \(VPP\)/i
+          /This team isn't added to Volume Purchasing Program \(VPP\)/i
         )
       ).toBeInTheDocument();
     });
 
     expect(
-      screen.getByText("To add App Store apps, first add this fleet to VPP.")
+      screen.getByText("To add App Store apps, first add this team to VPP.")
     ).toBeInTheDocument();
   });
 
@@ -358,14 +358,14 @@ describe("SoftwareAppStoreVpp", () => {
       org_name: "Acme Inc.",
       location: "Acme Inc.",
       country_code: "us",
-      fleets: [{ fleet_id: 1, name: "Workstations" }],
+      teams: [{ team_id: 1, name: "Workstations" }],
     });
     const jpToken = createMockVppToken({
       id: 2,
       org_name: "Acme K.K.",
       location: "Acme K.K.",
       country_code: "jp",
-      fleets: [{ fleet_id: 1, name: "Workstations" }],
+      teams: [{ team_id: 1, name: "Workstations" }],
     });
 
     const tokensHandler = (tokens: IMdmVppToken[]) =>
@@ -430,7 +430,7 @@ describe("SoftwareAppStoreVpp", () => {
       );
     };
 
-    it("lists the fleet's tokens with org name subtext and selects the first added", async () => {
+    it("lists the team's tokens with org name subtext and selects the first added", async () => {
       mockServer.use(tokensHandler([jpToken, usToken]));
       const requests = useAppsHandler();
 
@@ -440,7 +440,7 @@ describe("SoftwareAppStoreVpp", () => {
       expect(screen.getByText("VPP token")).toBeInTheDocument();
       await waitFor(() => expect(requests).toHaveLength(1));
       expect(requests[0].searchParams.get("vpp_token_id")).toBe("1");
-      expect(requests[0].searchParams.get("fleet_id")).toBe("1");
+      expect(requests[0].searchParams.get("team_id")).toBe("1");
 
       await screen.findByRole("radio", { name: /App 1/ });
       await openTokenDropdown(user);
@@ -496,14 +496,14 @@ describe("SoftwareAppStoreVpp", () => {
       ).not.toBeInTheDocument();
     });
 
-    it("offers an All fleets token alongside a fleet token", async () => {
+    it("offers an All teams token alongside an automdm token", async () => {
       mockServer.use(
         tokensHandler([
-          createMockVppToken({ ...usToken, fleets: [] }),
+          createMockVppToken({ ...usToken, teams: [] }),
           jpToken,
           createMockVppToken({
             id: 3,
-            fleets: [{ fleet_id: 999, name: "Other fleet" }],
+            teams: [{ team_id: 999, name: "Other team" }],
           }),
         ])
       );
@@ -605,7 +605,7 @@ describe("SoftwareAppStoreVpp", () => {
       ).toBeDisabled();
       await user.click(screen.getByRole("button", { name: "Cancel" }));
       expect(push).toHaveBeenCalledWith(
-        getPathWithQueryParams(PATHS.SOFTWARE_LIBRARY, { fleet_id: 1 })
+        getPathWithQueryParams(PATHS.SOFTWARE_LIBRARY, { team_id: 1 })
       );
     });
 
@@ -645,12 +645,12 @@ describe("SoftwareAppStoreVpp", () => {
       ).toBeInTheDocument();
     });
 
-    it("requests Unassigned apps with fleet_id 0 and the token's id", async () => {
+    it("requests Unassigned apps with team_id 0 and the token's id", async () => {
       mockServer.use(
         tokensHandler([
           createMockVppToken({
             ...usToken,
-            fleets: [{ fleet_id: 0, name: "Unassigned" }],
+            teams: [{ team_id: 0, name: "Unassigned" }],
           }),
         ])
       );
@@ -659,7 +659,7 @@ describe("SoftwareAppStoreVpp", () => {
       renderPage(false, undefined, 0);
 
       await waitFor(() => expect(requests).toHaveLength(1));
-      expect(requests[0].searchParams.get("fleet_id")).toBe("0");
+      expect(requests[0].searchParams.get("team_id")).toBe("0");
       expect(requests[0].searchParams.get("vpp_token_id")).toBe("1");
     });
 
@@ -683,7 +683,7 @@ describe("SoftwareAppStoreVpp", () => {
       await user.click(screen.getByRole("button", { name: "Add software" }));
 
       await waitFor(() => expect(body).toBeDefined());
-      expect(body).toMatchObject({ fleet_id: 1, vpp_token_id: 2 });
+      expect(body).toMatchObject({ team_id: 1, vpp_token_id: 2 });
     });
 
     it("adds the app with the only token's id when the dropdown is hidden", async () => {

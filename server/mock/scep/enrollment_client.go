@@ -7,10 +7,10 @@ import (
 	"crypto/x509"
 	"sync"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
-var _ fleet.SCEPEnrollmentClient = (*SCEPEnrollmentClient)(nil)
+var _ automdm.SCEPEnrollmentClient = (*SCEPEnrollmentClient)(nil)
 
 type GetCertificateFunc func(ctx context.Context, url string, csr *x509.CertificateRequest) (*x509.Certificate, error)
 

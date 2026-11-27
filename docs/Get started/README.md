@@ -1,6 +1,6 @@
 # Get started
 
-### [Why Fleet](./why-fleet.md)
+### [Why AutoMDM](./why-automdm.md)
 
 
 ### [Anatomy](./anatomy.md)

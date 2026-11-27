@@ -1,8 +1,8 @@
-<img width="200" alt="Fleet logo, landscape, dark text, transparent background" src="https://user-images.githubusercontent.com/618009/103300491-9197e280-49c4-11eb-8677-6b41027be800.png">
+<img width="200" alt="AutoMDM logo, landscape, dark text, transparent background" src="https://user-images.githubusercontent.com/618009/103300491-9197e280-49c4-11eb-8677-6b41027be800.png">
 
-Orbit is a lightweight osquery installer and autoupdater. With Orbit, it's easy to deploy osquery, manage configurations, and keep things up-to-date. Orbit eases the deployment of osquery connected with a [Fleet server](https://github.com/fleetdm/fleet), and is a (near) drop-in replacement for osquery in a variety of deployment scenarios.
+Orbit is a lightweight osquery installer and autoupdater. With Orbit, it's easy to deploy osquery, manage configurations, and keep things up-to-date. Orbit eases the deployment of osquery connected with an [AutoMDM server](https://github.com/anilyagiz/automdm), and is a (near) drop-in replacement for osquery in a variety of deployment scenarios.
 
-Orbit is the recommended agent for Fleet. But Orbit can be used with or without Fleet, and Fleet can be used with or without Orbit.
+Orbit is the recommended agent for AutoMDM. But Orbit can be used with or without AutoMDM, and AutoMDM can be used with or without Orbit.
 
 ## How to build from source
 
@@ -37,9 +37,9 @@ GOOS=windows \
 GOARCH=amd64 \
 go build \
 -trimpath \
--ldflags="-s -w -X github.com/fleetdm/fleet/v4/orbit/pkg/build.Version=$VERSION \
--X github.com/fleetdm/fleet/v4/orbit/pkg/build.Commit=$COMMIT \
--X github.com/fleetdm/fleet/v4/orbit/pkg/build.Date=$DATE" \
+-ldflags="-s -w -X github.com/anilyagiz/automdm/v4/orbit/pkg/build.Version=$VERSION \
+-X github.com/anilyagiz/automdm/v4/orbit/pkg/build.Commit=$COMMIT \
+-X github.com/anilyagiz/automdm/v4/orbit/pkg/build.Date=$DATE" \
 -o ./orbit.exe ./orbit/cmd/orbit
 ```
 
@@ -50,15 +50,15 @@ GOOS=linux \
 GOARCH=amd64 \
 go build \
 -trimpath \
--ldflags="-s -w -X github.com/fleetdm/fleet/v4/orbit/pkg/build.Version=$VERSION \
--X github.com/fleetdm/fleet/v4/orbit/pkg/build.Commit=$COMMIT \
--X github.com/fleetdm/fleet/v4/orbit/pkg/build.Date=$DATE" \
+-ldflags="-s -w -X github.com/anilyagiz/automdm/v4/orbit/pkg/build.Version=$VERSION \
+-X github.com/anilyagiz/automdm/v4/orbit/pkg/build.Commit=$COMMIT \
+-X github.com/anilyagiz/automdm/v4/orbit/pkg/build.Date=$DATE" \
 -o ./orbit-linux ./orbit/cmd/orbit
 ```
 
 ## Bugs
 
-To report a bug or request a feature, [create an issue in the `fleet` GitHub repository](https://github.com/fleetdm/fleet/issues).
+To report a bug or request a feature, [create an issue in the `automdm` GitHub repository](https://github.com/fleetdm/fleet/issues).
 
 ## Orbit Development
 
@@ -66,16 +66,16 @@ To report a bug or request a feature, [create an issue in the `fleet` GitHub rep
 
 To execute orbit from source, use the following commands:
 
-#### Connect to a Fleet server
+#### Connect to an AutoMDM server
 
-Modify the `fleet-url` and `enroll-secret` as appropriate:
+Modify the `automdm-url` and `enroll-secret` as appropriate:
 
 ```sh
-go run github.com/fleetdm/fleet/v4/orbit/cmd/orbit \
+go run github.com/anilyagiz/automdm/v4/orbit/cmd/orbit \
     --dev-mode \
     --disable-updates \
     --root-dir /tmp/orbit \
-    --fleet-url https://localhost:8080 \
+    --automdm-url https://localhost:8080 \
     --insecure \
     --enroll-secret Pz3zC0NMDdZfb3FtqiLgwoexItojrYh/ \
     -- --verbose
@@ -86,7 +86,7 @@ go run github.com/fleetdm/fleet/v4/orbit/cmd/orbit \
 With a `flagfile.txt` for osqueryd:
 
 ```sh 
-go run github.com/fleetdm/fleet/v4/orbit/cmd/orbit \
+go run github.com/anilyagiz/automdm/v4/orbit/cmd/orbit \
     --dev-mode \
     --disable-updates \
     --root-dir /tmp/orbit \
@@ -98,7 +98,7 @@ go run github.com/fleetdm/fleet/v4/orbit/cmd/orbit \
 This can be useful for building/testing extension tables:
 
 ```sh
-go run github.com/fleetdm/fleet/v4/orbit/cmd/orbit \
+go run github.com/anilyagiz/automdm/v4/orbit/cmd/orbit \
     --dev-mode \
     --disable-updates \
     --root-dir /tmp/orbit \
@@ -107,7 +107,7 @@ go run github.com/fleetdm/fleet/v4/orbit/cmd/orbit \
 
 ### Generate Installer Packages from Orbit Source
 
-The `fleetctl package` command generates installers by fetching the targets/executables from a [TUF](https://theupdateframework.io/) repository.
+The `automdmctl package` command generates installers by fetching the targets/executables from a [TUF](https://theupdateframework.io/) repository.
 To generate an installer that contains an Orbit built from source you need to setup a local TUF repository.
 The following document explains how you can generate a TUF repository, and installers that use it [tools/tuf/test](../tools/tuf/test/README.md).
 
@@ -118,7 +118,7 @@ The following document explains how you can generate a TUF repository, and insta
 Orbit is inspired by the success of [Kolide Launcher](https://github.com/kolide/launcher), and approaches a similar problem domain with new strategies informed by the challenges encountered in real world deployments. Orbit does not share any code with Launcher.
 
 - Both Orbit and Launcher use [The Update Framework](https://theupdateframework.com/) specification for managing updates. Orbit utilizes the official [go-tuf](https://github.com/theupdateframework/go-tuf) library, while Launcher has it's own implementation of the specification.
-- Orbit can be deployed as a (near) drop-in replacement for osquery, supporting full customization of the osquery flags. Launcher heavily manages the osquery flags making deployment outside of Fleet or Kolide's SaaS difficult.
+- Orbit can be deployed as a (near) drop-in replacement for osquery, supporting full customization of the osquery flags. Launcher heavily manages the osquery flags making deployment outside of AutoMDM or Kolide's SaaS difficult.
 - Orbit prefers the battle-tested plugins of osquery. Orbit uses the built-in logging, configuration, and live report plugins, while Launcher uses custom implementations.
 - Orbit prefers the built-in osquery remote APIs. Launcher utilizes a custom gRPC API that has led to issues with character encoding, load balancers/proxies, and request size limits.
 - Orbit encourages use of the osquery performance Watchdog, while Launcher disables the Watchdog.
@@ -126,22 +126,22 @@ Orbit is inspired by the success of [Kolide Launcher](https://github.com/kolide/
 Additionally, Orbit aims to tackle problems out of scope for Launcher:
 
 - Configure updates via release channels, providing more granular control over agent versioning.
-- Manage osquery startup flags from a remote (Fleet) server.
+- Manage osquery startup flags from a remote (AutoMDM) server.
 - Support for deploying and updating osquery extensions.
-- Manage osquery versions from a remote (Fleet) server.
+- Manage osquery versions from a remote (AutoMDM) server.
 
 ### Is Orbit Free?
 
 Yes! Orbit is licensed under an MIT license and all uses are encouraged.
 
-### How does orbit update osquery? And how do the stable and edge channels get triggered to update osquery on a self hosted Fleet instance?
+### How does orbit update osquery? And how do the stable and edge channels get triggered to update osquery on a self hosted AutoMDM instance?
 
-Orbit uses a configurable update server. We expect that many folks will just use the update server we manage (similar to what Kolide does with Launcher's update server). We are also offering [tooling for self-managing an update server](https://fleetdm.com/docs/deploying/fleetctl-agent-updates) as part of Fleet Premium (the subscription offering).
+Orbit uses a configurable update server. We expect that many folks will just use the update server we manage (similar to what Kolide does with Launcher's update server). We are also offering [tooling for self-managing an update server](https://automdm.com/docs/deploying/automdmctl-agent-updates) as part of AutoMDM Premium (the subscription offering).
 
 ## Community
 
 ### Chat
 
-Please join us in the #fleet channel on [osquery Slack](https://fleetdm.com/slack).
+Please join us in the #team channel on [osquery Slack](https://automdm.com/slack).
 
-<a href="https://fleetdm.com"><img alt="Banner featuring a futuristic cloud city with the Fleet logo" src="https://user-images.githubusercontent.com/618009/98254443-eaf21100-1f41-11eb-9e2c-63a0545601f3.jpg"/></a>
+<a href="https://automdm.com"><img alt="Banner featuring a futuristic cloud city with the AutoMDM logo" src="https://user-images.githubusercontent.com/618009/98254443-eaf21100-1f41-11eb-9e2c-63a0545601f3.jpg"/></a>

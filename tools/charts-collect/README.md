@@ -1,6 +1,6 @@
 # charts-collect
 
-Fetches live data from a Fleet instance via the REST API and writes chart rows
+Fetches live data from an AutoMDM instance via the REST API and writes chart rows
 into a local database. Designed to run hourly via cron.
 
 ## What it collects
@@ -16,31 +16,31 @@ into a local database. Designed to run hourly via cron.
 
 ```bash
 go run ./tools/charts-collect \
-  --fleet-url https://dogfood.fleetdm.com \
-  --fleet-token <token>
+  --automdm-url https://dogfood.fleetdm.com \
+  --automdm-token <token>
 
 go run ./tools/charts-collect \
-  --fleet-url https://dogfood.fleetdm.com \
-  --fleet-token <token> \
-  --mysql-dsn "fleet:fleet@tcp(localhost:3306)/fleet"
+  --automdm-url https://dogfood.fleetdm.com \
+  --automdm-token <token> \
+  --mysql-dsn "automdm:automdm@tcp(localhost:3306)/automdm"
 ```
 
 ## Flags and env vars
 
 | Flag | Env | Description |
 |------|-----|-------------|
-| `--fleet-url` | `FLEET_URL` | Fleet server URL (required) |
-| `--fleet-token` | `FLEET_TOKEN` | Fleet API token (required) |
+| `--automdm-url` | `AUTOMDM_URL` | AutoMDM server URL (required) |
+| `--automdm-token` | `AUTOMDM_TOKEN` | AutoMDM API token (required) |
 | `--mysql-dsn` | `MYSQL_DSN` | Full MySQL DSN |
 
 If `--mysql-dsn` / `MYSQL_DSN` is not set, the DSN is assembled from the same
-env vars used by the fleet server (so the same values can be reused, e.g. via
+env vars used by the automdm server (so the same values can be reused, e.g. via
 Render `fromService`):
 
-- `FLEET_MYSQL_ADDRESS`
-- `FLEET_MYSQL_USERNAME`
-- `FLEET_MYSQL_PASSWORD`
-- `FLEET_MYSQL_DATABASE`
+- `AUTOMDM_MYSQL_ADDRESS`
+- `AUTOMDM_MYSQL_USERNAME`
+- `AUTOMDM_MYSQL_PASSWORD`
+- `AUTOMDM_MYSQL_DATABASE`
 
 ## Notes
 

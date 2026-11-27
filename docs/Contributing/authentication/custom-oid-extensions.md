@@ -4,7 +4,7 @@
 
 Object Identifiers (OIDs) are globally unique identifiers used in various cryptographic standards, particularly in X.509 certificates and ASN.1 structures. Custom OID extensions allow organizations to embed proprietary or application-specific data within certificates and other cryptographic objects while maintaining standards compliance.
 
-Fleet uses IANA private enterprise number **63991** for all custom extensions. This ensures our extensions don't conflict with other organizations' implementations.
+AutoMDM uses IANA private enterprise number **63991** for all custom extensions. This ensures our extensions don't conflict with other organizations' implementations.
 
 ## Background
 
@@ -15,7 +15,7 @@ An OID is a hierarchical identifier written as a dot-separated sequence of numbe
 - `1.3.6.1` - ISO/ITU-T jointly assigned, Internet subtree
 - `1.3.6.1.4` - Private enterprises
 - `1.3.6.1.4.1` - IANA-assigned enterprise numbers
-- `1.3.6.1.4.1.63991` - Fleet's private enterprise number
+- `1.3.6.1.4.1.63991` - AutoMDM's private enterprise number
 
 ### Why use custom OID extensions?
 
@@ -34,9 +34,9 @@ In X.509 certificates, extensions appear in the v3 extensions field. Each extens
 - A critical flag (indicating whether the extension must be understood)
 - The extension value (encoded data)
 
-## Fleet's Custom Extensions
+## AutoMDM's Custom Extensions
 
-All Fleet-specific OID extensions follow the pattern `1.3.6.1.4.1.63991.x.y`.
+All AutoMDM-specific OID extensions follow the pattern `1.3.6.1.4.1.63991.x.y`.
 
 ### Certificate Renewal Extension
 
@@ -57,7 +57,7 @@ All Fleet-specific OID extensions follow the pattern `1.3.6.1.4.1.63991.x.y`.
 
 ### 1. Assigning an OID
 
-Use the next available number under Fleet's namespace:
+Use the next available number under AutoMDM's namespace:
 - `1.3.6.1.4.1.63991.1.x` - Host identity certificate-related extensions
 - `1.3.6.1.4.1.63991.2.x` - Future: ??? extensions
 

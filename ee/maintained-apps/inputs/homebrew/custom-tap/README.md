@@ -1,6 +1,6 @@
-# Fleet custom-tap casks
+# AutoMDM custom-tap casks
 
-This directory is a **self-contained source of truth** for Fleet-maintained apps that
+This directory is a **self-contained source of truth** for AutoMDM-maintained apps that
 don't exist in `Homebrew/homebrew-cask` and therefore can't be ingested from
 `https://formulae.brew.sh/api/`.
 
@@ -18,9 +18,9 @@ custom-tap/
 └── README.md             # You are here.
 ```
 
-It is **not** a real Homebrew tap — the Fleet repo isn't named
+It is **not** a real Homebrew tap — the AutoMDM repo isn't named
 `homebrew-<something>` and `Casks/` isn't at the repo root, so `brew tap` /
-`brew install` against it won't work. It exists solely to feed Fleet's FMA
+`brew install` against it won't work. It exists solely to feed AutoMDM's FMA
 ingester, and keeping both the source (`.rb`) and the built artifact (`.json`)
 in the same repo means the PR that changes a cask also tests the change in
 CI.

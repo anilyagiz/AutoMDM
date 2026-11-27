@@ -16,7 +16,7 @@ const OptInConfigurationProfileActivityItem = ({
       : "uninstalled";
   const actor = activity.details?.self_service
     ? "End user"
-    : activity.actor_full_name || "Fleet";
+    : activity.actor_full_name || "AutoMDM";
 
   return (
     <ActivityItem

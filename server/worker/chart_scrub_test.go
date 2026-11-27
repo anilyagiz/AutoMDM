@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	chart_api "github.com/fleetdm/fleet/v4/server/chart/api"
+	chart_api "github.com/anilyagiz/automdm/v4/server/chart/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -15,8 +15,8 @@ import (
 // fakeChartService implements chart_api.Service. Only the scrub methods are
 // exercised here; the rest panic to surface accidental call paths during tests.
 type fakeChartService struct {
-	scrubGlobalFn func(ctx context.Context, dataset string) error
-	scrubFleetFn  func(ctx context.Context, dataset string, fleetIDs []uint) error
+	scrubGlobalFn  func(ctx context.Context, dataset string) error
+	scrubAutoMDMFn func(ctx context.Context, dataset string, automdmIDs []uint) error
 }
 
 func (f *fakeChartService) GetChartData(_ context.Context, _ string, _ chart_api.RequestOpts) (*chart_api.Response, error) {
@@ -30,8 +30,8 @@ func (f *fakeChartService) CleanupData(_ context.Context, _ int) error { panic("
 func (f *fakeChartService) ScrubDatasetGlobal(ctx context.Context, dataset string) error {
 	return f.scrubGlobalFn(ctx, dataset)
 }
-func (f *fakeChartService) ScrubDatasetFleet(ctx context.Context, dataset string, fleetIDs []uint) error {
-	return f.scrubFleetFn(ctx, dataset, fleetIDs)
+func (f *fakeChartService) ScrubDatasetAutoMDM(ctx context.Context, dataset string, automdmIDs []uint) error {
+	return f.scrubAutoMDMFn(ctx, dataset, automdmIDs)
 }
 
 func TestChartScrubGlobalRun(t *testing.T) {
@@ -73,68 +73,68 @@ func TestChartScrubGlobalRun(t *testing.T) {
 	})
 }
 
-func TestChartScrubFleetRun(t *testing.T) {
-	t.Run("forwards dataset and fleet IDs to service", func(t *testing.T) {
+func TestChartScrubAutoMDMRun(t *testing.T) {
+	t.Run("forwards dataset and team IDs to service", func(t *testing.T) {
 		var gotDS string
-		var gotFleets []uint
-		fake := &fakeChartService{scrubFleetFn: func(_ context.Context, ds string, fleets []uint) error {
+		var gotTeams []uint
+		fake := &fakeChartService{scrubAutoMDMFn: func(_ context.Context, ds string, teams []uint) error {
 			gotDS = ds
-			gotFleets = fleets
+			gotTeams = teams
 			return nil
 		}}
-		j := &ChartScrubFleet{ChartService: fake}
-		args, _ := json.Marshal(ChartScrubFleetArgs{Dataset: "cve", FleetIDs: []uint{5, 7, 11}})
+		j := &ChartScrubAutoMDM{ChartService: fake}
+		args, _ := json.Marshal(ChartScrubAutoMDMArgs{Dataset: "cve", AutoMDMIDs: []uint{5, 7, 11}})
 		require.NoError(t, j.Run(t.Context(), args))
 		assert.Equal(t, "cve", gotDS)
-		assert.Equal(t, []uint{5, 7, 11}, gotFleets)
+		assert.Equal(t, []uint{5, 7, 11}, gotTeams)
 	})
 
-	t.Run("empty fleet list is no-op", func(t *testing.T) {
-		fake := &fakeChartService{scrubFleetFn: func(_ context.Context, _ string, _ []uint) error {
-			t.Fatal("service should not be invoked for empty fleet list")
+	t.Run("empty team list is no-op", func(t *testing.T) {
+		fake := &fakeChartService{scrubAutoMDMFn: func(_ context.Context, _ string, _ []uint) error {
+			t.Fatal("service should not be invoked for empty team list")
 			return nil
 		}}
-		j := &ChartScrubFleet{ChartService: fake}
-		args, _ := json.Marshal(ChartScrubFleetArgs{Dataset: "cve"})
+		j := &ChartScrubAutoMDM{ChartService: fake}
+		args, _ := json.Marshal(ChartScrubAutoMDMArgs{Dataset: "cve"})
 		require.NoError(t, j.Run(t.Context(), args))
 	})
 
 	t.Run("rejects empty dataset", func(t *testing.T) {
-		fake := &fakeChartService{scrubFleetFn: func(_ context.Context, _ string, _ []uint) error {
+		fake := &fakeChartService{scrubAutoMDMFn: func(_ context.Context, _ string, _ []uint) error {
 			t.Fatal("service should not be invoked for empty dataset")
 			return nil
 		}}
-		j := &ChartScrubFleet{ChartService: fake}
-		args, _ := json.Marshal(ChartScrubFleetArgs{FleetIDs: []uint{5}})
+		j := &ChartScrubAutoMDM{ChartService: fake}
+		args, _ := json.Marshal(ChartScrubAutoMDMArgs{AutoMDMIDs: []uint{5}})
 		require.Error(t, j.Run(t.Context(), args))
 	})
 
 	t.Run("propagates service error", func(t *testing.T) {
 		boom := errors.New("boom")
-		fake := &fakeChartService{scrubFleetFn: func(_ context.Context, _ string, _ []uint) error {
+		fake := &fakeChartService{scrubAutoMDMFn: func(_ context.Context, _ string, _ []uint) error {
 			return boom
 		}}
-		j := &ChartScrubFleet{ChartService: fake}
-		args, _ := json.Marshal(ChartScrubFleetArgs{Dataset: "cve", FleetIDs: []uint{5}})
+		j := &ChartScrubAutoMDM{ChartService: fake}
+		args, _ := json.Marshal(ChartScrubAutoMDMArgs{Dataset: "cve", AutoMDMIDs: []uint{5}})
 		require.ErrorIs(t, j.Run(t.Context(), args), boom)
 	})
 }
 
-// TestChartScrubJobNamesMatchFleetMirror locks the wire contract between the
-// fleet-package enqueue helper (which can't import the worker package due to
+// TestChartScrubJobNamesMatchAutoMDMMirror locks the wire contract between the
+// automdm-package enqueue helper (which can't import the worker package due to
 // an import cycle) and this package's job names + payload struct shapes.
-// If this test fails, update the constants in server/fleet/historical_data.go
+// If this test fails, update the constants in server/automdm/historical_data.go
 // to match — workers won't pick up jobs that get enqueued under stale names.
-func TestChartScrubJobNamesMatchFleetMirror(t *testing.T) {
+func TestChartScrubJobNamesMatchAutoMDMMirror(t *testing.T) {
 	require.Equal(t, "chart_scrub_dataset_global", ChartScrubDatasetGlobalJobName)
-	require.Equal(t, "chart_scrub_dataset_fleet", ChartScrubDatasetFleetJobName)
+	require.Equal(t, "chart_scrub_dataset_automdm", ChartScrubDatasetAutoMDMJobName)
 
 	// Round-trip the args through JSON to verify field names match.
 	gJSON, err := json.Marshal(ChartScrubGlobalArgs{Dataset: "uptime"})
 	require.NoError(t, err)
 	require.JSONEq(t, `{"dataset":"uptime"}`, string(gJSON))
 
-	fJSON, err := json.Marshal(ChartScrubFleetArgs{Dataset: "cve", FleetIDs: []uint{5, 7}})
+	fJSON, err := json.Marshal(ChartScrubAutoMDMArgs{Dataset: "cve", AutoMDMIDs: []uint{5, 7}})
 	require.NoError(t, err)
-	require.JSONEq(t, `{"dataset":"cve","fleet_ids":[5,7]}`, string(fJSON))
+	require.JSONEq(t, `{"dataset":"cve","team_ids":[5,7]}`, string(fJSON))
 }

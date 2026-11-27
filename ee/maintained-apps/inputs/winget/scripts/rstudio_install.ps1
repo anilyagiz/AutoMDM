@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # RStudio ships an NSIS installer built with NsisMultiUser, which rejects /S on
 # its own with exit code 666660 (invalid command-line parameters). /allusers
@@ -8,7 +8,7 @@
 $exeFilePath = "${env:INSTALLER_PATH}"
 
 # Setup exits 2 without installing while any rstudio.exe is running, in any
-# session. Fleet runs as SYSTEM, outside the user's session, so it can't ask
+# session. AutoMDM runs as SYSTEM, outside the user's session, so it can't ask
 # RStudio to close: stop it first, along with the R sessions and tools it runs
 # from its install directory, which hold files Setup replaces. Unsaved changes
 # are lost.

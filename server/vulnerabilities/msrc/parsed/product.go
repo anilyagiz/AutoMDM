@@ -7,8 +7,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 )
 
 // displayVersionPattern matches Windows display version strings like "22H2", "23H2", "24H2".
@@ -75,7 +75,7 @@ func buildNumber(kernelVersion string) string {
 	return ""
 }
 
-func (p Products) GetMatchForOS(ctx context.Context, os fleet.OperatingSystem) (string, error) {
+func (p Products) GetMatchForOS(ctx context.Context, os automdm.OperatingSystem) (string, error) {
 	isServerCoreHost := strings.EqualFold(os.InstallationType, "Server Core")
 	installationTypeKnown := os.InstallationType != ""
 	normalizedOS := NewProductFromOS(os)
@@ -127,7 +127,7 @@ func (p Products) GetMatchForOS(ctx context.Context, os fleet.OperatingSystem) (
 			// The product name carries no version, so the build number is the only
 			// discriminator. This is restricted to the builds whose products have no
 			// version at all, to avoid matching a host whose OS record was collected
-			// before Fleet started reporting the display version.
+			// before AutoMDM started reporting the display version.
 			continue
 		}
 
@@ -196,7 +196,7 @@ func NewProductFromFullName(fullName string) Product {
 	return Product(finalName)
 }
 
-func NewProductFromOS(os fleet.OperatingSystem) Product {
+func NewProductFromOS(os automdm.OperatingSystem) Product {
 	return Product(fmt.Sprintf("%s for %s", os.Name, os.Arch))
 }
 

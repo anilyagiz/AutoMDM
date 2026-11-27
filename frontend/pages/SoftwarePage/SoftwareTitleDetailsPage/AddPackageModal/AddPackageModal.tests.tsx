@@ -52,7 +52,7 @@ describe("AddPackageModal", () => {
       renderModal();
       expect(
         screen.getByText(
-          /If multiple versions target the same host, Fleet will deploy the one that was added first\./i
+          /If multiple versions target the same host, AutoMDM will deploy the one that was added first\./i
         )
       ).toBeInTheDocument();
     });
@@ -127,7 +127,7 @@ describe("AddPackageModal", () => {
       renderModal({}, true);
       expect(
         screen.queryByText(
-          /If multiple versions target the same host, Fleet will deploy the one that was added first\./i
+          /If multiple versions target the same host, AutoMDM will deploy the one that was added first\./i
         )
       ).not.toBeInTheDocument();
     });

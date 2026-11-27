@@ -6,26 +6,26 @@ import (
 	"fmt"
 	"net/url"
 
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/aws_common"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	aws_config "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/ses"
 	"github.com/aws/aws-sdk-go-v2/service/ses/types"
-	"github.com/fleetdm/fleet/v4/server/aws_common"
-	"github.com/fleetdm/fleet/v4/server/fleet"
 )
 
-type fleetSESSender interface {
+type automdmSESSender interface {
 	SendRawEmail(ctx context.Context, input *ses.SendRawEmailInput, optFns ...func(*ses.Options)) (*ses.SendRawEmailOutput, error)
 }
 
 type sesSender struct {
-	client       fleetSESSender
+	client       automdmSESSender
 	sourceArn    string
 	senderDomain string
 }
 
-func getFromSES(e fleet.Email, senderDomain string) (string, error) {
+func getFromSES(e automdm.Email, senderDomain string) (string, error) {
 	if senderDomain != "" {
 		return fmt.Sprintf("From: do-not-reply@%s\r\n", senderDomain), nil
 	}
@@ -36,11 +36,11 @@ func getFromSES(e fleet.Email, senderDomain string) (string, error) {
 	return fmt.Sprintf("From: %s\r\n", fmt.Sprintf("do-not-reply@%s", serverURL.Host)), nil
 }
 
-func (s *sesSender) SendEmail(ctx context.Context, e fleet.Email) error {
+func (s *sesSender) SendEmail(ctx context.Context, e automdm.Email) error {
 	if s.client == nil {
 		return errors.New("ses sender not configured")
 	}
-	msg, err := getMessageBody(e, func(e fleet.Email) (string, error) {
+	msg, err := getMessageBody(e, func(e automdm.Email) (string, error) {
 		return getFromSES(e, s.senderDomain)
 	})
 	if err != nil {
@@ -49,7 +49,7 @@ func (s *sesSender) SendEmail(ctx context.Context, e fleet.Email) error {
 	return s.sendMail(ctx, e, msg)
 }
 
-func (s *sesSender) CanSendEmail(smtpSettings fleet.SMTPSettings) bool {
+func (s *sesSender) CanSendEmail(smtpSettings automdm.SMTPSettings) bool {
 	return s.client != nil
 }
 
@@ -98,7 +98,7 @@ func NewSESSender(region, endpointURL, id, secret, stsAssumeRoleArn, stsExternal
 	}, nil
 }
 
-func (s *sesSender) sendMail(ctx context.Context, e fleet.Email, msg []byte) error {
+func (s *sesSender) sendMail(ctx context.Context, e automdm.Email, msg []byte) error {
 	_, err := s.client.SendRawEmail(ctx, &ses.SendRawEmailInput{
 		Destinations: e.To,
 		FromArn:      &s.sourceArn,

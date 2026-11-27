@@ -1,7 +1,7 @@
-// Package vulnrepo downloads vulnerability data that Fleet mirrors as release assets in the
+// Package vulnrepo downloads vulnerability data that AutoMDM mirrors as release assets in the
 // fleetdm/vulnerabilities repository.
 //
-// Fleet servers never fetch upstream vulnerability databases directly. A publisher job in that
+// AutoMDM servers never fetch upstream vulnerability databases directly. A publisher job in that
 // repository pulls each upstream source and attaches the result to a release, which keeps a
 // single egress point for restricted deployments. Each data source owns its own asset naming
 // and sync policy; this package only knows how to find a release's assets, download one, and
@@ -19,17 +19,17 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 	"github.com/google/go-github/v37/github"
 )
 
 const (
-	githubOwner = "fleetdm"
+	githubOwner = "automdm"
 	githubRepo  = "vulnerabilities"
 )
 
-// Asset is a release asset Fleet can download.
+// Asset is a release asset AutoMDM can download.
 type Asset struct {
 	Name string
 	ID   int64
@@ -60,10 +60,10 @@ type rawRelease struct {
 }
 
 // LatestRelease returns the repository's latest release, keeping only the assets keep reports
-// true for. A release carries assets for every data source Fleet mirrors, so a caller that
+// true for. A release carries assets for every data source AutoMDM mirrors, so a caller that
 // does not filter will see all of them.
 func LatestRelease(ctx context.Context, keep func(assetName string) bool) (*Release, error) {
-	httpClient := fleethttp.NewClient(fleethttp.WithNoTimeout())
+	httpClient := automdmhttp.NewClient(automdmhttp.WithNoTimeout())
 
 	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/latest", githubOwner, githubRepo)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -119,9 +119,9 @@ func isPlainFileName(name string) bool {
 // DownloadAsset writes a release asset to dstPath, following the redirect GitHub answers asset
 // downloads with. The caller is responsible for removing dstPath if the download fails.
 func DownloadAsset(ctx context.Context, assetID int64, dstPath string) error {
-	client := github.NewClient(fleethttp.NewGithubClient())
+	client := github.NewClient(automdmhttp.NewGithubClient())
 
-	httpClient := fleethttp.NewClient(fleethttp.WithNoTimeout())
+	httpClient := automdmhttp.NewClient(automdmhttp.WithNoTimeout())
 	rc, redirectURL, err := client.Repositories.DownloadReleaseAsset(ctx, githubOwner, githubRepo, assetID, httpClient)
 	if err != nil {
 		return ctxerr.Wrap(ctx, err, "downloading release asset")
@@ -153,7 +153,7 @@ func DownloadAsset(ctx context.Context, assetID int64, dstPath string) error {
 	}
 	defer rc.Close()
 
-	// #nosec G304 -- dstPath is built by the caller from a Fleet-controlled vuln directory
+	// #nosec G304 -- dstPath is built by the caller from an AutoMDM-controlled vuln directory
 	out, err := os.Create(dstPath)
 	if err != nil {
 		return ctxerr.Wrap(ctx, err, "creating destination file")
@@ -209,7 +209,7 @@ func EnsureAsset(ctx context.Context, asset *Asset, dstPath string, download Dow
 // FileSHA256 returns a file's digest in the same format Asset.Digest carries, so the two can
 // be compared directly.
 func FileSHA256(path string) (string, error) {
-	// #nosec G304 -- path is built by the caller from a Fleet-controlled vuln directory
+	// #nosec G304 -- path is built by the caller from an AutoMDM-controlled vuln directory
 	f, err := os.Open(path)
 	if err != nil {
 		return "", err
@@ -259,7 +259,7 @@ func RemoveLocalAssets(dir string, match func(name string) bool) error {
 		if !entry.Type().IsRegular() || !match(entry.Name()) {
 			continue
 		}
-		// #nosec G122 -- name comes from ReadDir in a Fleet-controlled vuln directory, checked IsRegular above
+		// #nosec G122 -- name comes from ReadDir in an AutoMDM-controlled vuln directory, checked IsRegular above
 		if err := os.Remove(filepath.Join(dir, entry.Name())); err != nil && !os.IsNotExist(err) {
 			return fmt.Errorf("removing %s: %w", entry.Name(), err)
 		}

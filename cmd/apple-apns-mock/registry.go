@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// ping is one push awaiting delivery. The payload is whatever Fleet posted,
+// ping is one push awaiting delivery. The payload is whatever AutoMDM posted,
 // kept verbatim; expiresAt rides along so a requeued ping keeps its original
 // expiry rather than getting a fresh TTL.
 type ping struct {
@@ -210,7 +210,7 @@ func (r *registry) tokens() []string {
 }
 
 // shardFor returns the token's shard along with the canonical (lowercased) key
-// to look it up by: Fleet and the device may disagree on token case.
+// to look it up by: AutoMDM and the device may disagree on token case.
 func (r *registry) shardFor(token string) (string, *shard) {
 	token = strings.ToLower(token)
 	return token, &r.shards[shardIndex(token)]

@@ -6,20 +6,20 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/constant"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/constant"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/rs/zerolog/log"
 )
 
-// agentNamesStateFile, in orbit's root directory, exists while the server has fleet.CapabilityFleetAgentNames. Linux
+// agentNamesStateFile, in orbit's root directory, exists while the server has automdm.CapabilityAutoMDMAgentNames. Linux
 // resets the process name at every start, so orbit applies it from this file before it reaches the server.
 const agentNamesStateFile = "agent_names_enabled"
 
-// AgentNamesReceiver renames the agent once the server has fleet.CapabilityFleetAgentNames: "Fleet" in Windows
-// Installed apps and "fleet" as the Linux process name. Service names, labels, units, packages and paths don't change, so
+// AgentNamesReceiver renames the agent once the server has automdm.CapabilityAutoMDMAgentNames: "AutoMDM" in Windows
+// Installed apps and "team" as the Linux process name. Service names, labels, units, packages and paths don't change, so
 // scripts, MDM profiles and EDR rules that match them keep working.
 type AgentNamesReceiver struct {
-	serverCapabilities func() fleet.CapabilityMap
+	serverCapabilities func() automdm.CapabilityMap
 	apply              func() error
 	stateFile          string // empty where the names outlive a restart
 
@@ -28,7 +28,7 @@ type AgentNamesReceiver struct {
 	rememberFailed bool
 }
 
-func NewAgentNamesReceiver(rootDir string, serverCapabilities func() fleet.CapabilityMap) *AgentNamesReceiver {
+func NewAgentNamesReceiver(rootDir string, serverCapabilities func() automdm.CapabilityMap) *AgentNamesReceiver {
 	r := &AgentNamesReceiver{serverCapabilities: serverCapabilities, apply: applyAgentDisplayNames}
 	if runtime.GOOS == "linux" {
 		r.stateFile = filepath.Join(rootDir, agentNamesStateFile)
@@ -37,8 +37,8 @@ func NewAgentNamesReceiver(rootDir string, serverCapabilities func() fleet.Capab
 }
 
 // Run applies the names once per orbit run, retrying on later config fetches until it succeeds.
-func (r *AgentNamesReceiver) Run(*fleet.OrbitConfig) error {
-	enabled := r.serverCapabilities().Has(fleet.CapabilityFleetAgentNames)
+func (r *AgentNamesReceiver) Run(*automdm.OrbitConfig) error {
+	enabled := r.serverCapabilities().Has(automdm.CapabilityAutoMDMAgentNames)
 	r.rememberForNextStart(enabled)
 	if !enabled || r.done {
 		return nil
@@ -46,9 +46,9 @@ func (r *AgentNamesReceiver) Run(*fleet.OrbitConfig) error {
 	if err := r.apply(); err != nil {
 		// Only the first failure is an error, so a host where it can't succeed doesn't log one on every config fetch.
 		if r.failed {
-			log.Debug().Err(err).Msg("show the agent as Fleet")
+			log.Debug().Err(err).Msg("show the agent as AutoMDM")
 		} else {
-			log.Error().Err(err).Msg("show the agent as Fleet")
+			log.Error().Err(err).Msg("show the agent as AutoMDM")
 			r.failed = true
 		}
 		return nil
@@ -100,6 +100,6 @@ func applyRememberedAgentNames(stateFile string, apply func() error) {
 	}
 	// AgentNamesReceiver tries again after the first config fetch.
 	if err := apply(); err != nil {
-		log.Debug().Err(err).Msg("show the agent as Fleet at start")
+		log.Debug().Err(err).Msg("show the agent as AutoMDM at start")
 	}
 }

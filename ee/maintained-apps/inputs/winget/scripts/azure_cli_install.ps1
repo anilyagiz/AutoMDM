@@ -1,5 +1,5 @@
 # Learn more about .msi install scripts:
-# http://fleetdm.com/learn-more-about/msi-install-scripts
+# http://automdm.com/learn-more-about/msi-install-scripts
 #
 # Installing over an existing Azure CLI of the same version turns into a repair,
 # which Windows Installer's SecureRepair blocks and fails with 1603. Any existing
@@ -7,7 +7,7 @@
 # and config live in the user profile and are not affected.
 
 $msiFilePath = "${env:INSTALLER_PATH}"
-$logFile = "${env:TEMP}/fleet-install-software.log"
+$logFile = "${env:TEMP}/automdm-install-software.log"
 $softwareName = "Microsoft Azure CLI (64-bit)"
 $softwarePublisher = "Microsoft Corporation"
 

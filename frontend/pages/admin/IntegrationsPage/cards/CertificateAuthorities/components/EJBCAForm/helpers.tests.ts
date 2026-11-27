@@ -22,7 +22,7 @@ const validFormData: IEJBCAFormData = {
   caName: "ManagementCA",
   certificateProfileName: "ENDUSER",
   endEntityProfileName: "EMPTY",
-  commonName: "$FLEET_VAR_HOST_HARDWARE_SERIAL",
+  commonName: "$AUTOMDM_VAR_HOST_HARDWARE_SERIAL",
 };
 
 const context = { certAuthorities: [] };
@@ -136,7 +136,7 @@ describe("EJBCAForm helpers", () => {
         generateEJBCAAddData({
           ...validFormData,
           trustCABundle: "-----BEGIN CERTIFICATE-----",
-          usernameTemplate: "$FLEET_VAR_HOST_UUID",
+          usernameTemplate: "$AUTOMDM_VAR_HOST_UUID",
           userPrincipalName: "upn@example.com",
         })
       ).toEqual({
@@ -148,8 +148,8 @@ describe("EJBCAForm helpers", () => {
         certificate_authority_name: "ManagementCA",
         certificate_profile_name: "ENDUSER",
         end_entity_profile_name: "EMPTY",
-        certificate_common_name: "$FLEET_VAR_HOST_HARDWARE_SERIAL",
-        username_template: "$FLEET_VAR_HOST_UUID",
+        certificate_common_name: "$AUTOMDM_VAR_HOST_HARDWARE_SERIAL",
+        username_template: "$AUTOMDM_VAR_HOST_UUID",
         certificate_user_principal_names: ["upn@example.com"],
       });
     });

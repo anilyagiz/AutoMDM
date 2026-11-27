@@ -5,7 +5,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/WatchBeam/clock"
-	mockredis "github.com/fleetdm/fleet/v4/server/mock/redis"
+	mockredis "github.com/anilyagiz/automdm/v4/server/mock/redis"
 	"io"
 	"log/slog"
 	"net/http"
@@ -15,10 +15,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	shared_mdm "github.com/fleetdm/fleet/v4/pkg/mdm"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	shared_mdm "github.com/anilyagiz/automdm/v4/pkg/mdm"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -104,16 +104,16 @@ func TestServeEndUserEnrollOTA(t *testing.T) {
 	ds.HasUsersFunc = func(ctx context.Context) (bool, error) {
 		return true, nil
 	}
-	appCfg := &fleet.AppConfig{
-		MDM: fleet.MDM{
+	appCfg := &automdm.AppConfig{
+		MDM: automdm.MDM{
 			EnabledAndConfigured:        false,
 			AndroidEnabledAndConfigured: false,
 		},
 	}
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
 		return appCfg, nil
 	}
-	ds.VerifyEnrollSecretFunc = func(ctx context.Context, secret string) (*fleet.EnrollSecret, error) {
+	ds.VerifyEnrollSecretFunc = func(ctx context.Context, secret string) (*automdm.EnrollSecret, error) {
 		return nil, &notFoundError{}
 	}
 	ds.TeamIDsWithSetupExperienceIdPEnabledFunc = func(ctx context.Context) ([]uint, error) {
@@ -146,8 +146,8 @@ func TestServeEndUserEnrollOTA(t *testing.T) {
 			bodyBytes, err := io.ReadAll(response.Body)
 			require.NoError(t, err)
 			bodyString := string(bodyBytes)
-			require.Contains(t, bodyString, "api/v1/fleet/enrollment_profiles/ota?enroll_secret=foo")
-			require.Contains(t, bodyString, "/api/v1/fleet/android_enterprise/enrollment_token")
+			require.Contains(t, bodyString, "api/v1/automdm/enrollment_profiles/ota?enroll_secret=foo")
+			require.Contains(t, bodyString, "/api/v1/automdm/android_enterprise/enrollment_token")
 			require.Contains(t, bodyString, fmt.Sprintf(`const ANDROID_MDM_ENABLED = "%t" === "true";`, enabled))
 			require.Contains(t, bodyString, fmt.Sprintf(`const MAC_MDM_ENABLED = "%t" == "true";`, enabled))
 		})
@@ -236,11 +236,11 @@ func TestEnrollNextStepsMuxRouting(t *testing.T) {
 // ssoURLCaptureService captures the customOriginalURL passed to InitiateMDMSSO so
 // tests can assert which query parameters survive into the SAML round-trip.
 type ssoURLCaptureService struct {
-	fleet.Service
+	automdm.Service
 	capturedOriginalURL string
 }
 
-func (s *ssoURLCaptureService) InitiateMDMSSO(_ context.Context, _, customOriginalURL, _ string, _ *fleet.MDMAppleMachineInfo) (string, int, string, error) {
+func (s *ssoURLCaptureService) InitiateMDMSSO(_ context.Context, _, customOriginalURL, _ string, _ *automdm.MDMAppleMachineInfo) (string, int, string, error) {
 	s.capturedOriginalURL = customOriginalURL
 	return "session-id", 300, "https://idp.example.com/sso", nil
 }
@@ -313,28 +313,28 @@ func TestServeEndUserEnrollOTAKeepsSessionForFullyManaged(t *testing.T) {
 		return true, nil
 	}
 	teamID := uint(1)
-	ds.VerifyEnrollSecretFunc = func(ctx context.Context, secret string) (*fleet.EnrollSecret, error) {
-		return &fleet.EnrollSecret{Secret: secret, TeamID: &teamID}, nil
+	ds.VerifyEnrollSecretFunc = func(ctx context.Context, secret string) (*automdm.EnrollSecret, error) {
+		return &automdm.EnrollSecret{Secret: secret, TeamID: &teamID}, nil
 	}
-	ds.TeamLiteFunc = func(ctx context.Context, id uint) (*fleet.TeamLite, error) {
-		return &fleet.TeamLite{
+	ds.TeamLiteFunc = func(ctx context.Context, id uint) (*automdm.TeamLite, error) {
+		return &automdm.TeamLite{
 			ID: id,
-			Config: fleet.TeamConfigLite{
-				MDM: fleet.TeamMDM{
-					MacOSSetup: fleet.MacOSSetup{
+			Config: automdm.TeamConfigLite{
+				MDM: automdm.TeamMDM{
+					MacOSSetup: automdm.MacOSSetup{
 						EnableEndUserAuthentication: true,
 					},
 				},
 			},
 		}, nil
 	}
-	appCfg := &fleet.AppConfig{
-		MDM: fleet.MDM{
+	appCfg := &automdm.AppConfig{
+		MDM: automdm.MDM{
 			EnabledAndConfigured:        true,
 			AndroidEnabledAndConfigured: true,
 		},
 	}
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
 		return appCfg, nil
 	}
 
@@ -358,7 +358,7 @@ func TestServeEndUserEnrollOTAKeepsSessionForFullyManaged(t *testing.T) {
 		require.NoError(t, err)
 		req.AddCookie(&http.Cookie{Name: shared_mdm.BYODIdpCookieName, Value: sessionID, Secure: true, HttpOnly: true, SameSite: http.SameSiteLaxMode})
 
-		response, err := fleethttp.NewClient(fleethttp.WithFollowRedir(false)).Do(req)
+		response, err := automdmhttp.NewClient(automdmhttp.WithFollowRedir(false)).Do(req)
 		require.NoError(t, err)
 		defer response.Body.Close()
 		require.Equal(t, http.StatusOK, response.StatusCode)
@@ -380,11 +380,11 @@ func TestServeEndUserEnrollOTAKeepsSessionForFullyManaged(t *testing.T) {
 func TestServeEndUserEnrollOTARejectsUnknownSession(t *testing.T) {
 	ds := new(mock.Store)
 	ds.HasUsersFunc = func(ctx context.Context) (bool, error) { return true, nil }
-	ds.VerifyEnrollSecretFunc = func(ctx context.Context, secret string) (*fleet.EnrollSecret, error) {
-		return &fleet.EnrollSecret{Secret: secret}, nil
+	ds.VerifyEnrollSecretFunc = func(ctx context.Context, secret string) (*automdm.EnrollSecret, error) {
+		return &automdm.EnrollSecret{Secret: secret}, nil
 	}
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{MDM: fleet.MDM{MacOSSetup: fleet.MacOSSetup{EnableEndUserAuthentication: true}}}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{MDM: automdm.MDM{MacOSSetup: automdm.MacOSSetup{EnableEndUserAuthentication: true}}}, nil
 	}
 	kv := newMemKeyValueStore()
 	svc := &enrollPageService{}
@@ -397,7 +397,7 @@ func TestServeEndUserEnrollOTARejectsUnknownSession(t *testing.T) {
 	require.NoError(t, err)
 	req.AddCookie(&http.Cookie{Name: shared_mdm.BYODIdpCookieName, Value: unknown, Secure: true, HttpOnly: true, SameSite: http.SameSiteLaxMode})
 
-	resp, err := fleethttp.NewClient(fleethttp.WithFollowRedir(false)).Do(req)
+	resp, err := automdmhttp.NewClient(automdmhttp.WithFollowRedir(false)).Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)

@@ -160,7 +160,7 @@ const AutomationsCell = ({
   // Each policy's webhook or ticket comes from the scope that owns it.
   const automations = getAutomationsForPolicy(
     policy,
-    policy.fleet_id === null
+    policy.team_id === null
       ? inheritedOtherAutomationType
       : otherAutomationType
   );
@@ -256,7 +256,7 @@ const getPolicyRefreshTime = (ms: number): string => {
 const getTooltip = (osqueryPolicyMs: number): JSX.Element => {
   return (
     <>
-      Fleet is collecting policy results. Try again
+      AutoMDM is collecting policy results. Try again
       <br />
       in about {getPolicyRefreshTime(osqueryPolicyMs)} as the system catches up.
     </>
@@ -297,7 +297,7 @@ const generateTableHeaders = (
       ),
       accessor: "name",
       Cell: (cellProps: ICellProps): JSX.Element => {
-        const { critical, hidden, id, fleet_id, type } = cellProps.row.original;
+        const { critical, hidden, id, team_id, type } = cellProps.row.original;
         return (
           <LinkCell
             className="w250"
@@ -312,7 +312,7 @@ const generateTableHeaders = (
                     Patch
                   </Tag>
                 )}
-                {viewingTeamPolicies && fleet_id === null && (
+                {viewingTeamPolicies && team_id === null && (
                   <Tag tooltip="This policy runs on all hosts." size="small">
                     Inherited
                   </Tag>
@@ -320,11 +320,11 @@ const generateTableHeaders = (
               </>
             }
             path={getPathWithQueryParams(PATHS.POLICY_DETAILS(id), {
-              // Inherited policies show fleet_id === null; preserve the
+              // Inherited policies show team_id === null; preserve the
               // current team context so back nav returns to the same list
               // instead of "All teams".
-              fleet_id:
-                fleet_id ?? (selectedTeamId !== -1 ? selectedTeamId : null),
+              team_id:
+                team_id ?? (selectedTeamId !== -1 ? selectedTeamId : null),
             })}
           />
         );
@@ -379,7 +379,7 @@ const generateTableHeaders = (
               path={getPathWithQueryParams(PATHS.MANAGE_HOSTS, {
                 policy_id: id,
                 policy_response: PolicyResponse.PASSING,
-                fleet_id: selectedTeamId,
+                team_id: selectedTeamId,
               })}
             />
           );
@@ -421,7 +421,7 @@ const generateTableHeaders = (
               path={getPathWithQueryParams(PATHS.MANAGE_HOSTS, {
                 policy_id: id,
                 policy_response: PolicyResponse.FAILING,
-                fleet_id: selectedTeamId,
+                team_id: selectedTeamId,
               })}
             />
           );
@@ -457,7 +457,7 @@ const generateTableHeaders = (
           headerProps,
           checkIfRowIsSelectable: (row) =>
             // allow selecting inherited policies in primo mode
-            isPrimoMode || row.original.fleet_id !== null,
+            isPrimoMode || row.original.team_id !== null,
         });
 
         // Regular table selection logic
@@ -494,7 +494,7 @@ const generateTableHeaders = (
         );
       },
       Cell: (cellProps: ICellProps): JSX.Element => {
-        const inheritedPolicy = cellProps.row.original.fleet_id === null;
+        const inheritedPolicy = cellProps.row.original.team_id === null;
         const props = cellProps.row.getToggleRowSelectedProps();
         const checkboxProps = {
           value: props.checked,

@@ -1,6 +1,6 @@
-// Command check-no-testing-in-prod fails the build if any Fleet-owned (i.e.
-// github.com/fleetdm/fleet/v4/...) package reachable from cmd/fleet,
-// cmd/fleetctl, or orbit/cmd/orbit directly imports Go's "testing"
+// Command check-no-testing-in-prod fails the build if any AutoMDM-owned (i.e.
+// github.com/anilyagiz/automdm/v4/...) package reachable from cmd/automdm,
+// cmd/automdmctl, or orbit/cmd/orbit directly imports Go's "testing"
 // package.
 //
 // Background: see https://github.com/fleetdm/fleet/issues/45220. Test
@@ -19,7 +19,7 @@
 // Note: third-party dependencies (currently a few pkcs7 forks and
 // apache/thrift) are intentionally NOT checked here -- they're out of our
 // control without an upstream swap. The intent of this check is to make
-// sure Fleet code never reintroduces the issue.
+// sure AutoMDM code never reintroduces the issue.
 package main
 
 import (
@@ -35,16 +35,16 @@ import (
 // Production binaries to audit. Any first-party package reachable from
 // these must not import "testing" directly.
 //
-// Important: these are bare binary paths, NOT "./cmd/fleet/..." — the
+// Important: these are bare binary paths, NOT "./cmd/automdm/..." — the
 // "..." form expands to include _test.go-only sibling packages that aren't
 // actually linked into the binary.
 var roots = []string{
-	"./cmd/fleet",
-	"./cmd/fleetctl",
+	"./cmd/automdm",
+	"./cmd/automdmctl",
 	"./orbit/cmd/orbit",
 }
 
-const fleetModulePrefix = "github.com/fleetdm/fleet/v4/"
+const automdmModulePrefix = "github.com/anilyagiz/automdm/v4/"
 
 type pkgInfo struct {
 	ImportPath string   `json:"ImportPath"`
@@ -89,7 +89,7 @@ func main() {
 		if p.Standard {
 			continue
 		}
-		if !strings.HasPrefix(p.ImportPath, fleetModulePrefix) {
+		if !strings.HasPrefix(p.ImportPath, automdmModulePrefix) {
 			continue
 		}
 		if slices.Contains(p.Imports, "testing") {
@@ -105,8 +105,8 @@ func main() {
 	}
 
 	sort.Strings(offenders)
-	fmt.Fprintln(os.Stderr, "check-no-testing-in-prod: the following Fleet packages are reachable from")
-	fmt.Fprintln(os.Stderr, "the production binaries (cmd/fleet, cmd/fleetctl, orbit/cmd/orbit) AND import")
+	fmt.Fprintln(os.Stderr, "check-no-testing-in-prod: the following AutoMDM packages are reachable from")
+	fmt.Fprintln(os.Stderr, "the production binaries (cmd/automdm, cmd/automdmctl, orbit/cmd/orbit) AND import")
 	fmt.Fprintln(os.Stderr, "the \"testing\" package directly. Move the test-only code into a sibling")
 	fmt.Fprintln(os.Stderr, "*test subpackage or a _test.go file. See https://github.com/fleetdm/fleet/issues/45220.")
 	fmt.Fprintln(os.Stderr)

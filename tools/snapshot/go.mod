@@ -1,4 +1,4 @@
-module github.com/fleetdm/fleet/v4/tools/snapshot
+module github.com/anilyagiz/automdm/v4/tools/snapshot
 
 go 1.27.4
 

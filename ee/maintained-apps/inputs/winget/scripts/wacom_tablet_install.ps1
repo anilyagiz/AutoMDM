@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # Wacom Tablet Driver ships as an InstallShield-style EXE; /s is the documented
 # silent flag per the winget manifest.

@@ -1,7 +1,7 @@
 package oval_parsed
 
 import (
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
 type RhelResult struct {
@@ -18,9 +18,9 @@ func NewRhelResult() *RhelResult {
 	}
 }
 
-func (r RhelResult) Eval(ver fleet.OSVersion, software []fleet.Software) ([]fleet.SoftwareVulnerability, error) {
+func (r RhelResult) Eval(ver automdm.OSVersion, software []automdm.Software) ([]automdm.SoftwareVulnerability, error) {
 	// Rpm Info Test Id => Matching software
-	pkgTstResults := make(map[int][]fleet.Software)
+	pkgTstResults := make(map[int][]automdm.Software)
 	for i, t := range r.RpmInfoTests {
 		rEval, err := t.Eval(software)
 		if err != nil {
@@ -39,7 +39,7 @@ func (r RhelResult) Eval(ver fleet.OSVersion, software []fleet.Software) ([]flee
 		OSTstResults[i] = rEval
 	}
 
-	vuln := make([]fleet.SoftwareVulnerability, 0)
+	vuln := make([]automdm.SoftwareVulnerability, 0)
 	for _, d := range r.Definitions {
 		if !d.Eval(OSTstResults, pkgTstResults) {
 			continue
@@ -48,7 +48,7 @@ func (r RhelResult) Eval(ver fleet.OSVersion, software []fleet.Software) ([]flee
 		for _, tId := range d.CollectTestIds() {
 			for _, software := range pkgTstResults[tId] {
 				for _, v := range d.CveVulnerabilities() {
-					vuln = append(vuln, fleet.SoftwareVulnerability{
+					vuln = append(vuln, automdm.SoftwareVulnerability{
 						SoftwareID: software.ID,
 						CVE:        v,
 					})
@@ -61,6 +61,6 @@ func (r RhelResult) Eval(ver fleet.OSVersion, software []fleet.Software) ([]flee
 }
 
 // EvalUname is not implemented for Rhel based distros
-func (r RhelResult) EvalKernel(software []fleet.Software) ([]fleet.SoftwareVulnerability, error) {
+func (r RhelResult) EvalKernel(software []automdm.Software) ([]automdm.SoftwareVulnerability, error) {
 	return nil, nil
 }

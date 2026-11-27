@@ -3,7 +3,7 @@ package tables
 import (
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/require"
 )
 
@@ -14,18 +14,18 @@ func TestUp_20261119154018(t *testing.T) {
 	rpmEpochChecksumBatchSize = 2
 	t.Cleanup(func() { rpmEpochChecksumBatchSize = prevBatchSize })
 
-	rpm := func(name string, epoch *uint32) fleet.Software {
-		return fleet.Software{
+	rpm := func(name string, epoch *uint32) automdm.Software {
+		return automdm.Software{
 			Name: name, Version: "1.0", Release: "1.el9", Arch: "x86_64", Vendor: "Rocky", Source: "rpm_packages",
 			Epoch: epoch,
 		}
 	}
-	checksum := func(sw fleet.Software) []byte {
+	checksum := func(sw automdm.Software) []byte {
 		sum, err := sw.ComputeRawChecksum()
 		require.NoError(t, err)
 		return sum
 	}
-	insertSoftware := func(sw fleet.Software, storedChecksum []byte) int64 {
+	insertSoftware := func(sw automdm.Software, storedChecksum []byte) int64 {
 		return execNoErrLastID(t, db,
 			"INSERT INTO software (name, version, source, `release`, vendor, arch, checksum) VALUES (?, ?, ?, ?, ?, ?, ?)",
 			sw.Name, sw.Version, sw.Source, sw.Release, sw.Vendor, sw.Arch, storedChecksum)
@@ -33,8 +33,8 @@ func TestUp_20261119154018(t *testing.T) {
 
 	// Rows created while the epoch was not part of the checksum, so the checksum is that of the
 	// software without its epoch.
-	withEpoch := make(map[int64]fleet.Software)
-	for _, sw := range []fleet.Software{
+	withEpoch := make(map[int64]automdm.Software)
+	for _, sw := range []automdm.Software{
 		rpm("tomcat", new(uint32(1))),
 		rpm("mod_ssl", new(uint32(1))),
 		rpm("bind-libs", new(uint32(32))),

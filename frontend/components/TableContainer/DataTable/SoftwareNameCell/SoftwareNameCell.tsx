@@ -216,7 +216,7 @@ export const InstallIconWithTooltip = ({
           <Icon
             name={iconName}
             className={`${baseClass}__install-icon`}
-            color="ui-fleet-black-50"
+            color="ui-automdm-black-50"
           />
         </TooltipWrapper>
       ))}
@@ -253,7 +253,7 @@ const ConfigurationIconWithTooltip = ({
         <Icon
           name="settings"
           className={`${baseClass}__configuration-icon`}
-          color="ui-fleet-black-50"
+          color="ui-automdm-black-50"
         />
       </span>
     </TooltipWrapper>

@@ -178,7 +178,7 @@ const WelcomeHost = ({
         <div className={`${baseClass}__empty-hosts`}>
           <p>Add your personal device to assess the security of your device.</p>
           <p>
-            In Fleet, laptops, workstations, and servers are referred to as
+            In AutoMDM, laptops, workstations, and servers are referred to as
             &quot;hosts&quot;.
           </p>
           <Button
@@ -198,9 +198,9 @@ const WelcomeHost = ({
         <div className={`${baseClass}__error`}>
           <p className="error-message">
             <Icon name="disable" color="status-error" />
-            Your device is not communicating with Fleet.
+            Your device is not communicating with AutoMDM.
           </p>
-          <p>Contact Fleet support for help troubleshooting.</p>
+          <p>Contact AutoMDM support for help troubleshooting.</p>
           <CustomLink url={SUPPORT_LINK} text="Get help" newTab />
         </div>
       </div>
@@ -215,7 +215,7 @@ const WelcomeHost = ({
             <Icon name="disable" color="status-error" />
             No policies apply to your device.
           </p>
-          <p>Contact Fleet support for help troubleshooting.</p>
+          <p>Contact AutoMDM support for help troubleshooting.</p>
           <CustomLink url={SUPPORT_LINK} text="Get help" newTab />
         </div>
       </div>
@@ -232,12 +232,12 @@ const WelcomeHost = ({
               url={PATHS.HOST_DETAILS(host.id)}
               text={host.display_name}
             />
-            <p>Your host is successfully connected to Fleet.</p>
+            <p>Your host is successfully connected to AutoMDM.</p>
           </div>
         </div>
         <div className={`${baseClass}__blurb`}>
           <p>
-            Fleet already ran the following policies to assess the security of
+            AutoMDM already ran the following policies to assess the security of
             your device:{" "}
           </p>
         </div>
@@ -256,7 +256,7 @@ const WelcomeHost = ({
                     <span className="info">{p.name}</span>
                     <Icon
                       name="chevron-right"
-                      color="ui-fleet-black-75"
+                      color="ui-automdm-black-75"
                       className="policy-arrow"
                     />
                   </div>
@@ -286,7 +286,7 @@ const WelcomeHost = ({
             onClick={onRefetchHost}
             disabled={showRefetchLoadingSpinner}
           >
-            <Icon name="refresh" color="core-fleet-white" /> Refetch
+            <Icon name="refresh" color="core-automdm-white" /> Refetch
           </Button>
           <span>
             Last updated{" "}

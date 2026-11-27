@@ -1,4 +1,4 @@
-// Package mail provides implementations of the Fleet MailService
+// Package mail provides implementations of the AutoMDM MailService
 package mail
 
 import (
@@ -14,16 +14,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
 )
 
 // ErrSTARTTLSWithoutSSLTLS is returned when a STARTTLS handshake fails while
 // the user has SSL/TLS disabled and SSL cert verification enabled.
 var ErrSTARTTLSWithoutSSLTLS = errors.New("STARTTLS must be disabled if not using SSL/TLS to connect.")
 
-func NewService(config config.FleetConfig) (fleet.MailService, error) {
+func NewService(config config.AutoMDMConfig) (automdm.MailService, error) {
 	switch strings.ToLower(config.Email.EmailBackend) {
 	case "ses":
 		return NewSESSender(config.SES.Region,
@@ -43,10 +43,10 @@ func NewService(config config.FleetConfig) (fleet.MailService, error) {
 type mailService struct{}
 
 type sender interface {
-	sendMail(ctx context.Context, e fleet.Email, msg []byte) error
+	sendMail(ctx context.Context, e automdm.Email, msg []byte) error
 }
 
-func Test(mailer fleet.MailService, e fleet.Email) error {
+func Test(mailer automdm.MailService, e automdm.Email) error {
 	mailBody, err := getMessageBody(e, getFrom)
 	if err != nil {
 		return fmt.Errorf("failed to get message body: %w", err)
@@ -70,9 +70,9 @@ const (
 	PortTLS = 587
 )
 
-type fromFunc func(e fleet.Email) (string, error)
+type fromFunc func(e automdm.Email) (string, error)
 
-func getMessageBody(e fleet.Email, f fromFunc) ([]byte, error) {
+func getMessageBody(e automdm.Email, f fromFunc) ([]byte, error) {
 	body, err := e.Mailer.Message()
 	if err != nil {
 		return nil, fmt.Errorf("get mailer message: %w", err)
@@ -94,11 +94,11 @@ func getMessageBody(e fleet.Email, f fromFunc) ([]byte, error) {
 	return msg, nil
 }
 
-func getFrom(e fleet.Email) (string, error) {
+func getFrom(e automdm.Email) (string, error) {
 	return "From: " + e.SMTPSettings.SMTPSenderAddress + "\r\n", nil
 }
 
-func (m mailService) SendEmail(ctx context.Context, e fleet.Email) error {
+func (m mailService) SendEmail(ctx context.Context, e automdm.Email) error {
 	if !e.SMTPSettings.SMTPConfigured {
 		return errors.New("requires that SMTP or SES (email) is configured.")
 	}
@@ -109,7 +109,7 @@ func (m mailService) SendEmail(ctx context.Context, e fleet.Email) error {
 	return m.sendMail(ctx, e, msg)
 }
 
-func (m mailService) CanSendEmail(smtpSettings fleet.SMTPSettings) bool {
+func (m mailService) CanSendEmail(smtpSettings automdm.SMTPSettings) bool {
 	return smtpSettings.SMTPConfigured
 }
 
@@ -155,8 +155,8 @@ func (l *loginauth) Next(fromServer []byte, more bool) (toServer []byte, err err
 	}
 }
 
-func smtpAuth(e fleet.Email) (smtp.Auth, error) {
-	if e.SMTPSettings.SMTPAuthenticationType != fleet.AuthTypeNameUserNamePassword {
+func smtpAuth(e automdm.Email) (smtp.Auth, error) {
+	if e.SMTPSettings.SMTPAuthenticationType != automdm.AuthTypeNameUserNamePassword {
 		return nil, nil
 	}
 
@@ -167,11 +167,11 @@ func smtpAuth(e fleet.Email) (smtp.Auth, error) {
 
 	var auth smtp.Auth
 	switch authMethod {
-	case fleet.AuthMethodNameCramMD5:
+	case automdm.AuthMethodNameCramMD5:
 		auth = smtp.CRAMMD5Auth(username, password)
-	case fleet.AuthMethodNamePlain:
+	case automdm.AuthMethodNamePlain:
 		auth = smtp.PlainAuth("", username, password, server)
-	case fleet.AuthMethodNameLogin:
+	case automdm.AuthMethodNameLogin:
 		auth = LoginAuth(username, password, server)
 	default:
 		return nil, fmt.Errorf("unknown SMTP auth type '%s'", authMethod)
@@ -179,7 +179,7 @@ func smtpAuth(e fleet.Email) (smtp.Auth, error) {
 	return auth, nil
 }
 
-func (m mailService) sendMail(ctx context.Context, e fleet.Email, msg []byte) error {
+func (m mailService) sendMail(ctx context.Context, e automdm.Email, msg []byte) error {
 	smtpHost := fmt.Sprintf(
 		"%s:%d", e.SMTPSettings.SMTPServer, e.SMTPSettings.SMTPPort)
 	auth, err := smtpAuth(e)
@@ -187,7 +187,7 @@ func (m mailService) sendMail(ctx context.Context, e fleet.Email, msg []byte) er
 		return fmt.Errorf("failed to get smtp auth: %w", err)
 	}
 
-	if e.SMTPSettings.SMTPAuthenticationMethod == fleet.AuthMethodNameCramMD5 {
+	if e.SMTPSettings.SMTPAuthenticationMethod == automdm.AuthMethodNameCramMD5 {
 		err = smtp.SendMail(smtpHost, auth, e.SMTPSettings.SMTPSenderAddress, e.To, msg)
 		if err != nil {
 			return fmt.Errorf("failed to send mail. crammd5 auth method: %w", err)
@@ -272,7 +272,7 @@ const dialTimeoutDuration = 28 * time.Second
 func dialTimeout(addr string, tlsConfig *tls.Config) (client *smtp.Client, err error) {
 	// Ensure that errors are always returned after at least 5s to
 	// eliminate (some) timing attacks (in which a malicious user tries to
-	// port scan using the email functionality in Fleet)
+	// port scan using the email functionality in AutoMDM)
 	c := time.After(30 * time.Second)
 	defer func() {
 		if err != nil {

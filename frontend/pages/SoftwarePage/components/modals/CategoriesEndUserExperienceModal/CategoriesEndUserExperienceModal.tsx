@@ -159,7 +159,7 @@ export const BasicSoftwareTable = ({
 
 interface ICategoriesEndUserExperienceModal {
   onCancel: () => void;
-  /** Used to scope the categories query to the current fleet */
+  /** Used to scope the categories query to the current team */
   teamId: number;
   isIosOrIpadosApp?: boolean;
   name?: string;

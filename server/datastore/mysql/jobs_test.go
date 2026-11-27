@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/require"
 )
 
@@ -41,8 +41,8 @@ func testQueueAndProcessJobs(t *testing.T, ds *Datastore) {
 	require.Empty(t, jobs)
 
 	// add a couple of jobs, one immediate, one delayed
-	j1 := &fleet.Job{Name: "j1", State: fleet.JobStateQueued}
-	j2 := &fleet.Job{Name: "j2", State: fleet.JobStateQueued, NotBefore: time.Now().Add(time.Hour)}
+	j1 := &automdm.Job{Name: "j1", State: automdm.JobStateQueued}
+	j2 := &automdm.Job{Name: "j2", State: automdm.JobStateQueued, NotBefore: time.Now().Add(time.Hour)}
 	j1, err = ds.NewJob(ctx, j1)
 	require.NoError(t, err)
 	require.NotZero(t, j1.ID)
@@ -59,7 +59,7 @@ func testQueueAndProcessJobs(t *testing.T, ds *Datastore) {
 	require.False(t, jobs[0].NotBefore.After(time.Now())) // before or equal
 
 	// update j1 as successful
-	j1.State = fleet.JobStateSuccess
+	j1.State = automdm.JobStateSuccess
 	_, err = ds.UpdateJob(ctx, j1.ID, j1)
 	require.NoError(t, err)
 
@@ -91,8 +91,8 @@ func testQueueAndProcessFilteredJobs(t *testing.T, ds *Datastore) {
 	require.Empty(t, jobs)
 
 	// add a couple of jobs
-	j1 := &fleet.Job{Name: "j1", State: fleet.JobStateQueued}
-	j2 := &fleet.Job{Name: "j2", State: fleet.JobStateQueued}
+	j1 := &automdm.Job{Name: "j1", State: automdm.JobStateQueued}
+	j2 := &automdm.Job{Name: "j2", State: automdm.JobStateQueued}
 	j1, err = ds.NewJob(ctx, j1)
 	require.NoError(t, err)
 	require.NotZero(t, j1.ID)
@@ -128,19 +128,19 @@ func testCleanupWorkerJobs(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 	require.EqualValues(t, 0, n)
 
-	setJobTimestamp := func(j *fleet.Job, subtract time.Duration) {
+	setJobTimestamp := func(j *automdm.Job, subtract time.Duration) {
 		j.NotBefore = time.Now().UTC().Add(-subtract)
 		_, err = ds.UpdateJob(ctx, j.ID, j)
 		require.NoError(t, err)
 	}
-	setJobStatus := func(j *fleet.Job, state fleet.JobState) {
+	setJobStatus := func(j *automdm.Job, state automdm.JobState) {
 		j.State = state
 		_, err = ds.UpdateJob(ctx, j.ID, j)
 		require.NoError(t, err)
 	}
 
 	// enqueue a job
-	j1 := &fleet.Job{Name: "j1", State: fleet.JobStateQueued}
+	j1 := &automdm.Job{Name: "j1", State: automdm.JobStateQueued}
 	j1, err = ds.NewJob(ctx, j1)
 	require.NoError(t, err)
 
@@ -158,7 +158,7 @@ func testCleanupWorkerJobs(t *testing.T, ds *Datastore) {
 	require.Equal(t, j1.ID, jobs[0].ID)
 
 	// mark it as done
-	setJobStatus(j1, fleet.JobStateSuccess)
+	setJobStatus(j1, automdm.JobStateSuccess)
 
 	// does not clear it if the completed duration is not far enough in the past
 	n, err = ds.CleanupWorkerJobs(ctx, time.Second, time.Minute)
@@ -175,9 +175,9 @@ func testCleanupWorkerJobs(t *testing.T, ds *Datastore) {
 	require.Len(t, jobs, 0)
 
 	// enqueue a few more jobs
-	queuedJobs := make([]*fleet.Job, 0, 4)
+	queuedJobs := make([]*automdm.Job, 0, 4)
 	for i := 0; i < 4; i++ {
-		j := &fleet.Job{Name: "j" + fmt.Sprint(i+1), State: fleet.JobStateQueued}
+		j := &automdm.Job{Name: "j" + fmt.Sprint(i+1), State: automdm.JobStateQueued}
 		j, err = ds.NewJob(ctx, j)
 		require.NoError(t, err)
 		setJobTimestamp(j, time.Duration(i+1)*time.Minute)
@@ -185,9 +185,9 @@ func testCleanupWorkerJobs(t *testing.T, ds *Datastore) {
 	}
 
 	// make jobs[1] and jobs[3] failed, jobs[2] successful, jobs[0] queued
-	setJobStatus(queuedJobs[1], fleet.JobStateFailure) // failed 2m ago
-	setJobStatus(queuedJobs[3], fleet.JobStateFailure) // failed 4m ago
-	setJobStatus(queuedJobs[2], fleet.JobStateSuccess) // successful 3m ago
+	setJobStatus(queuedJobs[1], automdm.JobStateFailure) // failed 2m ago
+	setJobStatus(queuedJobs[3], automdm.JobStateFailure) // failed 4m ago
+	setJobStatus(queuedJobs[2], automdm.JobStateSuccess) // successful 3m ago
 
 	// cleanup failed > 3m, success > 1m, should delete jobs[3] and jobs[2]
 	n, err = ds.CleanupWorkerJobs(ctx, 3*time.Minute, time.Minute)

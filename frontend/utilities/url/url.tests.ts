@@ -94,7 +94,7 @@ describe("url utilities > reconcileMutuallyInclusiveHostParams", () => {
       reconcileMutuallyInclusiveHostParams({ macSettingsStatus, teamId })
     ).toEqual({
       apple_settings: "pending",
-      fleet_id: 1,
+      team_id: 1,
     });
   });
 
@@ -107,18 +107,18 @@ describe("url utilities > reconcileMutuallyInclusiveHostParams", () => {
       })
     ).toEqual({
       apple_settings: "pending",
-      fleet_id: 0,
+      team_id: 0,
     });
   });
 
-  it("adds fleet_id: 0 when macSettingsStatus is present and teamId is not", () => {
+  it("adds team_id: 0 when macSettingsStatus is present and teamId is not", () => {
     const [macSettingsStatus, teamId] = ["pending" as const, undefined];
     expect(
       reconcileMutuallyInclusiveHostParams({
         macSettingsStatus,
         teamId,
       })
-    ).toEqual({ apple_settings: "pending", fleet_id: 0 });
+    ).toEqual({ apple_settings: "pending", team_id: 0 });
   });
 
   it("does not add apple_settings when teamId is present and macSettingsStatus is not", () => {
@@ -126,7 +126,7 @@ describe("url utilities > reconcileMutuallyInclusiveHostParams", () => {
     expect(
       reconcileMutuallyInclusiveHostParams({ macSettingsStatus, teamId })
     ).toEqual({
-      fleet_id: 1,
+      team_id: 1,
     });
   });
 
@@ -146,7 +146,7 @@ describe("url utilities > reconcileMutuallyInclusiveHostParams", () => {
         osSettings: "pending",
       })
     ).toEqual({
-      fleet_id: 1,
+      team_id: 1,
     });
     expect(
       reconcileMutuallyInclusiveHostParams({
@@ -155,7 +155,7 @@ describe("url utilities > reconcileMutuallyInclusiveHostParams", () => {
         osSettings: "pending",
       })
     ).toEqual({
-      fleet_id: undefined,
+      team_id: undefined,
     });
   });
 });
@@ -225,7 +225,7 @@ describe("url utilities > reconcileMutuallyExclusiveHostParams", () => {
       software_title_id: 12,
       software_status: "failed",
       app_store_app_version_id: 5,
-      fleet_id: 3,
+      team_id: 3,
     });
   });
 });

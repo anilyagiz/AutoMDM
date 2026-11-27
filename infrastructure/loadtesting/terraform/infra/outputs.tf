@@ -59,7 +59,7 @@ output "enroll_secret_arn" {
 output "vpc_subnets" {
   sensitive   = true
   value       = data.terraform_remote_state.shared.outputs.vpc.private_subnets
-  description = "VPC private subnets from shared fleet-vpc"
+  description = "VPC private subnets from shared automdm-vpc"
 }
 
 output "rds_cluster_endpoint" {
@@ -89,7 +89,7 @@ output "rds_security_group_id" {
 }
 
 output "apple_apns_mock_url" {
-  description = "Internal URL of the Apple APNs mock, or null when var.enable_apple_mdm is false. Fleet is already pointed at this; use it for osquery-perf or for curling /stats from inside the VPC."
+  description = "Internal URL of the Apple APNs mock, or null when var.enable_apple_mdm is false. AutoMDM is already pointed at this; use it for osquery-perf or for curling /stats from inside the VPC."
   value       = var.enable_apple_mdm ? "http://${local.apple_apns_mock_hostname}" : null
 }
 
@@ -99,7 +99,7 @@ output "apple_apns_mock_hostname" {
 }
 
 output "redis_endpoint" {
-  description = "Fleet's Redis endpoint. The mock APNs instances have their own; see apple_apns_mock_redis_endpoint."
+  description = "AutoMDM's Redis endpoint. The mock APNs instances have their own; see apple_apns_mock_redis_endpoint."
   value       = "${module.loadtest.redis.endpoint}:${module.loadtest.redis.port}"
 }
 

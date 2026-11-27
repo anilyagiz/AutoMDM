@@ -96,7 +96,7 @@ describe("MdmSettings end user agreement section", () => {
     expect(screen.queryByText(SECTION_TITLE)).not.toBeInTheDocument();
   });
 
-  it("hides the section on Fleet Free", async () => {
+  it("hides the section on AutoMDM Free", async () => {
     renderPage(
       {
         enabled_and_configured: false,

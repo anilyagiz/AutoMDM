@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/platform/endpointer"
+	"github.com/anilyagiz/automdm/v4/server/platform/endpointer"
 	"github.com/stretchr/testify/require"
 )
 
@@ -46,10 +46,10 @@ func DoHTTPReq(
 		var je endpointer.JsonError
 		err := jsonDecoder(resp.Body, &je)
 		if err != nil {
-			t.Logf("Error trying to decode response body as Fleet jsonError: %s", err)
+			t.Logf("Error trying to decode response body as AutoMDM jsonError: %s", err)
 			require.Equal(t, expectedStatusCode, resp.StatusCode, fmt.Sprintf("response: %+v", resp))
 		}
-		require.Equal(t, expectedStatusCode, resp.StatusCode, fmt.Sprintf("Fleet jsonError: %+v", je))
+		require.Equal(t, expectedStatusCode, resp.StatusCode, fmt.Sprintf("AutoMDM jsonError: %+v", je))
 	}
 	return resp
 }

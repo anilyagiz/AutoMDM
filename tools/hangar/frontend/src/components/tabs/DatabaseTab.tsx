@@ -55,7 +55,7 @@ export function DatabaseTab({
   goToLogs: () => void;
 }) {
   const repoPath = server.worktree_path;
-  const serveProcId = procId(server.id, "fleet-serve");
+  const serveProcId = procId(server.id, "automdm-serve");
   const [backups, setBackups] = useState<ListedBackup[]>([]);
   // The active server's central (app-data) backups dir — where NEW backups are
   // written, and what "Reveal" opens. Resolved once per active server.
@@ -162,7 +162,7 @@ export function DatabaseTab({
           color: "var(--app-text-dim)",
         }}
       >
-        No Fleet repo configured · open Settings to pick one
+        No AutoMDM repo configured · open Settings to pick one
       </div>
     );
   }
@@ -376,7 +376,7 @@ function StatusHeader({
 
   // Clear "starting…" the moment the server is actually up. Without this the
   // button would re-enable (and look spammable) the instant the process is
-  // spawned, long before fleet is listening.
+  // spawned, long before team is listening.
   useEffect(() => {
     if (serveUp) setServeBusy((b) => (b === "starting" ? null : b));
   }, [serveUp]);
@@ -405,7 +405,7 @@ function StatusHeader({
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <span className={`dot ${serveUp ? "run" : "idle"}`} />
         <span style={{ fontWeight: 600 }}>
-          fleet serve {serveUp ? "up" : "down"}
+          automdm serve {serveUp ? "up" : "down"}
         </span>
         {serveUp && !serveOwned && (
           <span
@@ -430,7 +430,7 @@ function StatusHeader({
           <button
             onClick={startServeAction}
             disabled={serveBusy != null}
-            title="fleet serve --dev · assumes docker is up"
+            title="automdm serve --dev · assumes docker is up"
             style={{ padding: "2px 10px", fontSize: "var(--fs-xxx-small)" }}
           >
             {serveBusy === "starting" ? "starting…" : "Start"}
@@ -514,7 +514,7 @@ function BackupsPanel({
   const restoreReason = !mysqlUp
     ? "MySQL is down — start docker compose first"
     : serveUp
-      ? "Stop fleet serve before restoring (it holds connections)"
+      ? "Stop automdm serve before restoring (it holds connections)"
       : undefined;
 
   return (
@@ -686,7 +686,7 @@ function BackupRow({
         background: selected
           ? "var(--tint-success-soft)"
           : "var(--app-surface-2)",
-        border: `1px solid ${selected ? "var(--core-fleet-green)" : "transparent"}`,
+        border: `1px solid ${selected ? "var(--core-automdm-green)" : "transparent"}`,
         display: "flex",
         flexDirection: "column",
         gap: 2,
@@ -750,7 +750,7 @@ function BackupRow({
             <span>·</span>
             <span
               className="mono"
-              style={{ color: "var(--core-fleet-purple)" }}
+              style={{ color: "var(--core-automdm-purple)" }}
             >
               {entry.branch}
             </span>
@@ -944,7 +944,7 @@ function NewBackupPanel({
           display: "flex",
           border: stemInvalid
             ? "1.5px solid var(--ui-error)"
-            : "1.5px solid var(--core-fleet-green)",
+            : "1.5px solid var(--core-automdm-green)",
           borderRadius: 5,
           fontFamily: "var(--font-mono)",
           fontSize: "var(--fs-xx-small)",
@@ -1100,14 +1100,14 @@ function ResetPanel({
 }) {
   const [confirmOpen, setConfirmOpen] = useState(false);
 
-  // Reset is gated the same way as Restore: needs MySQL up AND fleet
+  // Reset is gated the same way as Restore: needs MySQL up AND team
   // serve down. With serve up, the drop will block forever on the
   // open connections instead of cleanly recreating the schema.
   const blocked = !mysqlUp || serveUp || busy != null;
   const blockedReason = !mysqlUp
     ? "MySQL is down — start docker compose first"
     : serveUp
-      ? "Stop fleet serve before resetting (it holds connections)"
+      ? "Stop automdm serve before resetting (it holds connections)"
       : undefined;
 
   return (
@@ -1152,15 +1152,15 @@ function ResetPanel({
           className="dim"
           style={{ fontSize: "var(--fs-xxx-small)", lineHeight: 1.5 }}
         >
-          Drops &amp; recreates the <span className="mono">fleet</span>{" "}
+          Drops &amp; recreates the <span className="mono">team</span>{" "}
           schema, then runs{" "}
-          <span className="mono">fleet prepare db --dev</span>. All local
+          <span className="mono">automdm prepare db --dev</span>. All local
           data gone.
           {serveUp && (
             <>
               {" "}
               <span style={{ color: "var(--ui-error)" }}>
-                fleet serve is running — stop it first or the drop will
+                automdm serve is running — stop it first or the drop will
                 hang on open connections.
               </span>
             </>
@@ -1261,11 +1261,11 @@ function ResetConfirmModal({
             color: "var(--app-text)",
           }}
         >
-          docker compose exec mysql ... drop database fleet
+          docker compose exec mysql ... drop database team
           <br />
-          docker compose exec mysql ... create database fleet
+          docker compose exec mysql ... create database team
           <br />
-          ./build/fleet prepare db --dev
+          ./build/automdm prepare db --dev
         </div>
         <div
           className="dim"
@@ -1405,28 +1405,28 @@ async function runReset(ctx: {
         "mysql",
         "bash",
         "-c",
-        'echo "drop database if exists fleet; create database fleet;" | MYSQL_PWD=toor mysql -uroot',
+        'echo "drop database if exists team; create database team;" | MYSQL_PWD=toor mysql -uroot',
       ],
     });
     const dropOk = await waitForExit(dropId);
     if (!dropOk) {
       setError(
-        "Drop/create failed. Check the Logs tab — fleet serve still holding connections is the usual cause.",
+        "Drop/create failed. Check the Logs tab — automdm serve still holding connections is the usual cause.",
       );
       setBusy(null);
       return;
     }
     await api.startProcess({
       id: prepareId,
-      label: "db-reset · fleet prepare db --dev",
+      label: "db-reset · automdm prepare db --dev",
       cwd: repoPath,
-      program: "./build/fleet",
+      program: "./build/automdm",
       args: prepareDbArgsFor(server),
     });
     const prepOk = await waitForExit(prepareId);
     if (!prepOk) {
       setError(
-        "fleet prepare db --dev failed. Check the Logs tab for details.",
+        "automdm prepare db --dev failed. Check the Logs tab for details.",
       );
     }
     await refresh();

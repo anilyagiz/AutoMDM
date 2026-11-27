@@ -9,9 +9,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/service"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/service/certauth"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/service"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/service/certauth"
 	"github.com/micromdm/nanolib/log"
 	"github.com/micromdm/plist"
 	"github.com/stretchr/testify/assert"

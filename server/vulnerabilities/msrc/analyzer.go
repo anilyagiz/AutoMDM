@@ -9,12 +9,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/io"
-	msrc "github.com/fleetdm/fleet/v4/server/vulnerabilities/msrc/parsed"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/utils"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/io"
+	msrc "github.com/anilyagiz/automdm/v4/server/vulnerabilities/msrc/parsed"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/utils"
 )
 
 const (
@@ -23,12 +23,12 @@ const (
 
 func Analyze(
 	ctx context.Context,
-	ds fleet.Datastore,
-	os fleet.OperatingSystem,
+	ds automdm.Datastore,
+	os automdm.OperatingSystem,
 	vulnPath string,
 	collectVulns bool,
 	logger *slog.Logger,
-) ([]fleet.OSVulnerability, error) {
+) ([]automdm.OSVulnerability, error) {
 	bulletin, err := loadBulletin(os, vulnPath)
 	if err != nil {
 		return nil, err
@@ -55,12 +55,12 @@ func Analyze(
 		return nil, nil
 	}
 
-	toInsert := make(map[string]fleet.OSVulnerability)
-	toDelete := make(map[string]fleet.OSVulnerability)
+	toInsert := make(map[string]automdm.OSVulnerability)
+	toDelete := make(map[string]automdm.OSVulnerability)
 
 	// Run vulnerability detection for all hosts in this batch (hIDs)
 	// and store the results in 'found'.
-	var found []fleet.OSVulnerability
+	var found []automdm.OSVulnerability
 	for cve, v := range bulletin.Vulnerabilities {
 		// Check if this vulnerability targets the OS
 		if !utils.ProductIDsIntersect(v.ProductIDs, matchingPIDs) {
@@ -69,10 +69,10 @@ func Analyze(
 		// Check if the OS is vulnerable to the vulnerability by referencing the OS kernel version
 		isVuln, riv := isOSVulnerable(ctx, os.KernelVersion, bulletin, v, matchingPIDs, cve, logger)
 		if isVuln {
-			found = append(found, fleet.OSVulnerability{
+			found = append(found, automdm.OSVulnerability{
 				OSID:              os.ID,
 				CVE:               cve,
-				Source:            fleet.MSRCSource,
+				Source:            automdm.MSRCSource,
 				ResolvedInVersion: ptr.String(riv),
 			})
 		}
@@ -83,7 +83,7 @@ func Analyze(
 	if err != nil {
 		return nil, err
 	}
-	var existing []fleet.OSVulnerability
+	var existing []automdm.OSVulnerability
 	existing = append(existing, osVulns...)
 
 	// Compute what needs to be inserted/deleted for this batch
@@ -95,20 +95,20 @@ func Analyze(
 		toDelete[d.Key()] = d
 	}
 
-	err = utils.BatchProcess(toDelete, func(v []fleet.OSVulnerability) error {
+	err = utils.BatchProcess(toDelete, func(v []automdm.OSVulnerability) error {
 		return ds.DeleteOSVulnerabilities(ctx, v)
 	}, vulnBatchSize)
 	if err != nil {
 		return nil, err
 	}
 
-	var inserted []fleet.OSVulnerability
+	var inserted []automdm.OSVulnerability
 	if collectVulns {
-		inserted = make([]fleet.OSVulnerability, 0, len(toInsert))
+		inserted = make([]automdm.OSVulnerability, 0, len(toInsert))
 	}
 
-	err = utils.BatchProcess(toInsert, func(v []fleet.OSVulnerability) error {
-		n, err := ds.InsertOSVulnerabilities(ctx, v, fleet.MSRCSource)
+	err = utils.BatchProcess(toInsert, func(v []automdm.OSVulnerability) error {
+		n, err := ds.InsertOSVulnerabilities(ctx, v, automdm.MSRCSource)
 		if err != nil {
 			return err
 		}
@@ -190,7 +190,7 @@ func isProductVersionMismatch(feedVersion, osVersion []string) bool {
 }
 
 // loadBulletin loads the most recent bulletin for the given os
-func loadBulletin(os fleet.OperatingSystem, dir string) (*msrc.SecurityBulletin, error) {
+func loadBulletin(os automdm.OperatingSystem, dir string) (*msrc.SecurityBulletin, error) {
 	product := msrc.NewProductFromOS(os)
 	fileName := io.MSRCFileName(product.Name(), time.Now())
 

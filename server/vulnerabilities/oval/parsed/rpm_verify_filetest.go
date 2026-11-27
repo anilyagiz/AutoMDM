@@ -1,7 +1,7 @@
 package oval_parsed
 
 import (
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
 // <rpmverifyfile_test> can target any file installed via RPM - but in the case of OVAL
@@ -14,7 +14,7 @@ type RpmVerifyFileTest struct {
 	StateMatch    StateMatchType
 }
 
-func (t *RpmVerifyFileTest) Eval(ver fleet.OSVersion) (bool, error) {
+func (t *RpmVerifyFileTest) Eval(ver automdm.OSVersion) (bool, error) {
 	rEval, err := t.State.EvalOSVersion(ver)
 	if err != nil {
 		return false, err

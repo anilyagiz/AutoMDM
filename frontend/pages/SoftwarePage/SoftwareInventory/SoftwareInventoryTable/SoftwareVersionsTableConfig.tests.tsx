@@ -36,7 +36,7 @@ describe("SoftwareVersionsTableConfig", () => {
       await waitFor(() => {
         expect(
           screen.getByText(
-            "Fleet doesn't detect MCP server versions yet. Most MCP servers run with npx or uvx, which pick the version at launch unless it's pinned."
+            "AutoMDM doesn't detect MCP server versions yet. Most MCP servers run with npx or uvx, which pick the version at launch unless it's pinned."
           )
         ).toBeInTheDocument();
       });
@@ -66,7 +66,7 @@ describe("SoftwareVersionsTableConfig", () => {
       await waitFor(() => {
         expect(
           screen.getByText(
-            "Currently, Fleet doesn't detect vulnerabilities for MCP servers."
+            "Currently, AutoMDM doesn't detect vulnerabilities for MCP servers."
           )
         ).toBeInTheDocument();
       });

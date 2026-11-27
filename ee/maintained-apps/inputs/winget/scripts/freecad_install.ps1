@@ -1,11 +1,11 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # FreeCAD ships as a MultiUser NSIS installer. /S runs it silently and
 # /AllUsers forces the machine-wide install (HKLM + C:\Program Files).
 #
 # Setup refuses to run while FreeCAD is open ("You must close FreeCAD first!")
-# and exits 2. Fleet runs as SYSTEM, outside the user's session, so it can't
+# and exits 2. AutoMDM runs as SYSTEM, outside the user's session, so it can't
 # ask FreeCAD to close: stop it first. Unsaved documents are lost.
 
 $exeFilePath = "${env:INSTALLER_PATH}"

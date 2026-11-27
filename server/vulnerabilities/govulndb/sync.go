@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/vulnrepo"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/vulnrepo"
 )
 
 // Refresh downloads the latest mirrored Go vulnerability database artifact into vulnPath and
@@ -51,7 +51,7 @@ func LoadArtifact(ctx context.Context, vulnPath string) (*Artifact, error) {
 		return nil, nil
 	}
 
-	// #nosec G304 -- path is built from a Fleet-controlled vuln directory listing
+	// #nosec G304 -- path is built from an AutoMDM-controlled vuln directory listing
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, ctxerr.Wrapf(ctx, err, "opening %s", path)

@@ -1,4 +1,4 @@
-resource "aws_ecs_cluster" "fleet" {
+resource "aws_ecs_cluster" "automdm" {
   name = "${local.prefix}-backend"
 
   setting {
@@ -7,25 +7,25 @@ resource "aws_ecs_cluster" "fleet" {
   }
 }
 
-resource "aws_ecs_service" "fleet" {
-  name                               = "fleet"
+resource "aws_ecs_service" "automdm" {
+  name                               = "automdm"
   launch_type                        = "FARGATE"
-  cluster                            = aws_ecs_cluster.fleet.id
+  cluster                            = aws_ecs_cluster.automdm.id
   task_definition                    = aws_ecs_task_definition.backend.arn
-  desired_count                      = var.fleet_containers
+  desired_count                      = var.automdm_containers
   deployment_minimum_healthy_percent = 100
   deployment_maximum_percent         = 200
   health_check_grace_period_seconds  = 30
 
   load_balancer {
     target_group_arn = aws_lb_target_group.internal.arn
-    container_name   = "fleet"
+    container_name   = "automdm"
     container_port   = 8080
   }
 
   load_balancer {
     target_group_arn = aws_lb_target_group.main.arn
-    container_name   = "fleet"
+    container_name   = "automdm"
     container_port   = 8080
   }
 
@@ -41,7 +41,7 @@ resource "aws_cloudwatch_log_group" "backend" { #tfsec:ignore:aws-cloudwatch-log
 }
 
 data "aws_secretsmanager_secret" "license" {
-  name = "/fleet/license"
+  name = "/automdm/license"
 }
 
 resource "aws_ecs_task_definition" "backend" {
@@ -63,13 +63,13 @@ resource "aws_ecs_task_definition" "backend" {
           options = {
             awslogs-group         = aws_cloudwatch_log_group.backend.name
             awslogs-region        = data.aws_region.current.name
-            awslogs-stream-prefix = "fleet-prometheus-exporter"
+            awslogs-stream-prefix = "automdm-prometheus-exporter"
           }
         }
         environment = [
           {
             name  = "CLOUDWATCH_NAMESPACE"
-            value = "fleet-loadtest"
+            value = "automdm-loadtest"
           },
           {
             name  = "CLOUDWATCH_REGION"
@@ -82,8 +82,8 @@ resource "aws_ecs_task_definition" "backend" {
         ],
       },
       {
-        name        = "fleet"
-        image       = docker_registry_image.fleet.name
+        name        = "automdm"
+        image       = docker_registry_image.automdm.name
         cpu         = 1024
         memory      = 4096
         mountPoints = []
@@ -110,103 +110,103 @@ resource "aws_ecs_task_definition" "backend" {
           options = {
             awslogs-group         = aws_cloudwatch_log_group.backend.name
             awslogs-region        = data.aws_region.current.name
-            awslogs-stream-prefix = "fleet"
+            awslogs-stream-prefix = "automdm"
           }
         },
-        command = ["fleet", "serve", "--dev"]
+        command = ["automdm", "serve", "--dev"]
         secrets = concat([
           {
-            name      = "FLEET_MYSQL_PASSWORD"
+            name      = "AUTOMDM_MYSQL_PASSWORD"
             valueFrom = aws_secretsmanager_secret.database_password_secret.arn
           },
           {
-            name      = "FLEET_MYSQL_READ_REPLICA_PASSWORD"
+            name      = "AUTOMDM_MYSQL_READ_REPLICA_PASSWORD"
             valueFrom = aws_secretsmanager_secret.database_password_secret.arn
           },
           {
-            name      = "FLEET_LICENSE_KEY"
+            name      = "AUTOMDM_LICENSE_KEY"
             valueFrom = data.aws_secretsmanager_secret.license.arn
           },
           {
-            name      = "FLEET_SERVER_PRIVATE_KEY"
-            valueFrom = aws_secretsmanager_secret.fleet_server_private_key.arn
+            name      = "AUTOMDM_SERVER_PRIVATE_KEY"
+            valueFrom = aws_secretsmanager_secret.automdm_server_private_key.arn
           }
         ], local.secrets)
         environment = concat([
           {
-            name  = "FLEET_LOGGING_JSON"
+            name  = "AUTOMDM_LOGGING_JSON"
             value = "true"
           },
           {
-            name  = "FLEET_MYSQL_USERNAME"
+            name  = "AUTOMDM_MYSQL_USERNAME"
             value = module.aurora_mysql.cluster_master_username
           },
           {
-            name  = "FLEET_MYSQL_DATABASE"
+            name  = "AUTOMDM_MYSQL_DATABASE"
             value = module.aurora_mysql.cluster_database_name
           },
           {
-            name  = "FLEET_MYSQL_ADDRESS"
+            name  = "AUTOMDM_MYSQL_ADDRESS"
             value = "${module.aurora_mysql.cluster_endpoint}:3306"
           },
           {
-            name  = "FLEET_MYSQL_MAX_OPEN_CONNS"
+            name  = "AUTOMDM_MYSQL_MAX_OPEN_CONNS"
             value = tostring(var.mysql_max_open_conns)
           },
           {
-            name  = "FLEET_MYSQL_READ_REPLICA_USERNAME"
+            name  = "AUTOMDM_MYSQL_READ_REPLICA_USERNAME"
             value = module.aurora_mysql.cluster_master_username
           },
           {
-            name  = "FLEET_MYSQL_READ_REPLICA_DATABASE"
+            name  = "AUTOMDM_MYSQL_READ_REPLICA_DATABASE"
             value = module.aurora_mysql.cluster_database_name
           },
           {
-            name  = "FLEET_MYSQL_READ_REPLICA_ADDRESS"
+            name  = "AUTOMDM_MYSQL_READ_REPLICA_ADDRESS"
             value = "${module.aurora_mysql.cluster_reader_endpoint}:3306"
           },
           {
-            name  = "FLEET_MYSQL_READ_REPLICA_MAX_OPEN_CONNS"
+            name  = "AUTOMDM_MYSQL_READ_REPLICA_MAX_OPEN_CONNS"
             value = tostring(var.mysql_max_open_conns)
           },
           {
-            name  = "FLEET_REDIS_ADDRESS"
+            name  = "AUTOMDM_REDIS_ADDRESS"
             value = "${aws_elasticache_replication_group.default.primary_endpoint_address}:6379"
           },
           {
-            name  = "FLEET_REDIS_CLUSTER_FOLLOW_REDIRECTIONS"
+            name  = "AUTOMDM_REDIS_CLUSTER_FOLLOW_REDIRECTIONS"
             value = "true"
           },
           {
-            name  = "FLEET_OSQUERY_STATUS_LOG_PLUGIN"
+            name  = "AUTOMDM_OSQUERY_STATUS_LOG_PLUGIN"
             value = "filesystem"
           },
           {
-            name  = "FLEET_FILESYSTEM_STATUS_LOG_FILE"
+            name  = "AUTOMDM_FILESYSTEM_STATUS_LOG_FILE"
             value = "/dev/null"
           },
           {
-            name  = "FLEET_OSQUERY_RESULT_LOG_PLUGIN"
+            name  = "AUTOMDM_OSQUERY_RESULT_LOG_PLUGIN"
             value = "filesystem"
           },
           {
-            name  = "FLEET_FILESYSTEM_RESULT_LOG_FILE"
+            name  = "AUTOMDM_FILESYSTEM_RESULT_LOG_FILE"
             value = "/dev/null"
           },
           {
-            name  = "FLEET_SERVER_TLS"
+            name  = "AUTOMDM_SERVER_TLS"
             value = "false"
           },
           {
-            name  = "FLEET_REDIS_MAX_IDLE_CONNS"
+            name  = "AUTOMDM_REDIS_MAX_IDLE_CONNS"
             value = "100"
           },
           {
-            name  = "FLEET_REDIS_MAX_OPEN_CONNS"
+            name  = "AUTOMDM_REDIS_MAX_OPEN_CONNS"
             value = "100"
           },
           {
-            name  = "FLEET_S3_SOFTWARE_INSTALLERS_BUCKET"
+            name  = "AUTOMDM_S3_SOFTWARE_INSTALLERS_BUCKET"
             value = aws_s3_bucket.software_installers.bucket
           },
         ], local.additional_env_vars)
@@ -229,8 +229,8 @@ resource "aws_ecs_task_definition" "migration" {
   container_definitions = jsonencode(
     [
       {
-        name        = "fleet-prepare-db"
-        image       = docker_registry_image.fleet.name
+        name        = "automdm-prepare-db"
+        image       = docker_registry_image.automdm.name
         cpu         = 1024
         memory      = 2048
         mountPoints = []
@@ -249,39 +249,39 @@ resource "aws_ecs_task_definition" "migration" {
           options = {
             awslogs-group         = aws_cloudwatch_log_group.backend.name
             awslogs-region        = data.aws_region.current.name
-            awslogs-stream-prefix = "fleet-migration"
+            awslogs-stream-prefix = "automdm-migration"
           }
         },
-        command = ["fleet", "prepare", "--no-prompt=true", "db"]
+        command = ["automdm", "prepare", "--no-prompt=true", "db"]
         secrets = [
           {
-            name      = "FLEET_MYSQL_PASSWORD"
+            name      = "AUTOMDM_MYSQL_PASSWORD"
             valueFrom = aws_secretsmanager_secret.database_password_secret.arn
           }
         ]
         environment = [
           {
             name  = "CLOUDWATCH_NAMESPACE"
-            value = "fleet-loadtest-migration"
+            value = "automdm-loadtest-migration"
           },
           {
             name  = "CLOUDWATCH_REGION"
             value = "us-east-2"
           },
           {
-            name  = "FLEET_MYSQL_USERNAME"
+            name  = "AUTOMDM_MYSQL_USERNAME"
             value = module.aurora_mysql.cluster_master_username
           },
           {
-            name  = "FLEET_MYSQL_DATABASE"
+            name  = "AUTOMDM_MYSQL_DATABASE"
             value = module.aurora_mysql.cluster_database_name
           },
           {
-            name  = "FLEET_MYSQL_ADDRESS"
+            name  = "AUTOMDM_MYSQL_ADDRESS"
             value = "${module.aurora_mysql.cluster_endpoint}:3306"
           },
           {
-            name  = "FLEET_REDIS_ADDRESS"
+            name  = "AUTOMDM_REDIS_ADDRESS"
             value = "${aws_elasticache_replication_group.default.primary_endpoint_address}:6379"
           },
         ]
@@ -293,9 +293,9 @@ resource "aws_ecs_task_definition" "migration" {
 }
 
 resource "aws_appautoscaling_target" "ecs_target" {
-  max_capacity       = var.fleet_containers
-  min_capacity       = var.fleet_containers
-  resource_id        = "service/${aws_ecs_cluster.fleet.name}/${aws_ecs_service.fleet.name}"
+  max_capacity       = var.automdm_containers
+  min_capacity       = var.automdm_containers
+  resource_id        = "service/${aws_ecs_cluster.automdm.name}/${aws_ecs_service.automdm.name}"
   scalable_dimension = "ecs:service:DesiredCount"
   service_namespace  = "ecs"
 }
@@ -331,13 +331,13 @@ resource "aws_appautoscaling_policy" "ecs_policy_cpu" {
   }
 }
 
-resource "random_password" "fleet_server_private_key" {
+resource "random_password" "automdm_server_private_key" {
   length  = 32
   special = true
 }
 
-resource "aws_secretsmanager_secret" "fleet_server_private_key" {
-  name = "${terraform.workspace}-fleet-server-private-key"
+resource "aws_secretsmanager_secret" "automdm_server_private_key" {
+  name = "${terraform.workspace}-automdm-server-private-key"
 
   recovery_window_in_days = "0"
   lifecycle {
@@ -345,7 +345,7 @@ resource "aws_secretsmanager_secret" "fleet_server_private_key" {
   }
 }
 
-resource "aws_secretsmanager_secret_version" "fleet_server_private_key" {
-  secret_id     = aws_secretsmanager_secret.fleet_server_private_key.id
-  secret_string = random_password.fleet_server_private_key.result
+resource "aws_secretsmanager_secret_version" "automdm_server_private_key" {
+  secret_id     = aws_secretsmanager_secret.automdm_server_private_key.id
+  secret_string = random_password.automdm_server_private_key.result
 }

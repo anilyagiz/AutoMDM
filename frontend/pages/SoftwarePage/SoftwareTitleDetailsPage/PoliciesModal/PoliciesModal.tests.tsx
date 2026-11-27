@@ -53,9 +53,9 @@ describe("PoliciesModal", () => {
   });
 
   it("forwards teamId to InstallerPoliciesTable", () => {
-    // teamId is what the table threads into each policy LinkCell as fleet_id;
+    // teamId is what the table threads into each policy LinkCell as team_id;
     // if the prop is dropped, every row's "View policy" link silently loses
-    // fleet context.
+    // team context.
     render(<PoliciesModal policies={POLICIES} teamId={7} onExit={jest.fn()} />);
 
     expect(mockInstallerPoliciesTable).toHaveBeenCalledWith(

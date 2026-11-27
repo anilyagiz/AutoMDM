@@ -7,20 +7,20 @@ import (
 	"encoding/base64"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 	"github.com/jmoiron/sqlx"
 )
 
 // NewChallenge generates a random, base64-encoded challenge for the given scope and inserts it into the challenges
 // table. It returns the generated challenge or an error if the insertion fails.
-func (ds *Datastore) NewChallenge(ctx context.Context, scope fleet.ChallengeScope) (string, error) {
+func (ds *Datastore) NewChallenge(ctx context.Context, scope automdm.ChallengeScope) (string, error) {
 	return newChallenge(ctx, ds.writer(ctx), scope)
 }
 
 // newChallenge is a helper that generates and inserts a challenge using the provided executor.
 // This allows challenge creation within transactions.
-func newChallenge(ctx context.Context, exec sqlx.ExecerContext, scope fleet.ChallengeScope) (string, error) {
+func newChallenge(ctx context.Context, exec sqlx.ExecerContext, scope automdm.ChallengeScope) (string, error) {
 	key := make([]byte, 24)
 	_, err := rand.Read(key)
 	if err != nil {
@@ -38,7 +38,7 @@ func newChallenge(ctx context.Context, exec sqlx.ExecerContext, scope fleet.Chal
 // ConsumeChallenge checks if a valid challenge exists in the challenges table for the given scope and deletes it if it
 // does. The error will include sql.ErrNoRows if the challenge is not found, is expired, or was created for a different
 // scope. A challenge presented for a different scope is left in place, so only its own delivery can use it up.
-func (ds *Datastore) ConsumeChallenge(ctx context.Context, challenge string, scope fleet.ChallengeScope) error {
+func (ds *Datastore) ConsumeChallenge(ctx context.Context, challenge string, scope automdm.ChallengeScope) error {
 	if challenge == "" {
 		// no challenge provided, treat as invalid
 		return ctxerr.Wrap(ctx, sql.ErrNoRows, "consume challenge called with empty challenge")
@@ -77,7 +77,7 @@ func (ds *Datastore) ConsumeChallenge(ctx context.Context, challenge string, sco
 			return nil
 		}
 		// check expiry
-		if time.Since(createdAt) <= fleet.OneTimeChallengeTTL {
+		if time.Since(createdAt) <= automdm.OneTimeChallengeTTL {
 			valid = true
 		} else {
 			msg = "challenge expired"
@@ -100,7 +100,7 @@ func (ds *Datastore) ConsumeChallenge(ctx context.Context, challenge string, sco
 
 // CleanupExpiredChallenges removes expired challenges from the challenges table.
 func (ds *Datastore) CleanupExpiredChallenges(ctx context.Context) (int64, error) {
-	res, err := ds.writer(ctx).ExecContext(ctx, `DELETE FROM challenges WHERE created_at < ?`, time.Now().Add(-fleet.OneTimeChallengeTTL))
+	res, err := ds.writer(ctx).ExecContext(ctx, `DELETE FROM challenges WHERE created_at < ?`, time.Now().Add(-automdm.OneTimeChallengeTTL))
 	if err != nil {
 		return 0, ctxerr.Wrap(ctx, err, "cleanup expired challenges")
 	}

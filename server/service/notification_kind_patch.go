@@ -10,12 +10,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server"
-	activity_api "github.com/fleetdm/fleet/v4/server/activity/api"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	notifications_api "github.com/fleetdm/fleet/v4/server/notifications/api"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server"
+	activity_api "github.com/anilyagiz/automdm/v4/server/activity/api"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	notifications_api "github.com/anilyagiz/automdm/v4/server/notifications/api"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 )
 
 const (
@@ -38,7 +38,7 @@ var (
 	patchNotificationReminderPayload    = json.RawMessage(`{"reminder":true}`)
 )
 
-func shouldNotificationBeReminder(patchNotification *fleet.PatchNotification, now time.Time) bool {
+func shouldNotificationBeReminder(patchNotification *automdm.PatchNotification, now time.Time) bool {
 	if patchNotification == nil || patchNotification.InstallAt == nil {
 		return false
 	}
@@ -58,7 +58,7 @@ func (svc *Service) setPatchNotificationPayloadForDisplay(ctx context.Context, h
 	patchNotification, err := svc.ds.GetPatchNotification(ctx, notificationUUID)
 	if err != nil {
 		svc.logger.ErrorContext(ctx, "failed to get the patch notification a script belongs to", "notification_uuid", notificationUUID, "err", err)
-		return "Fleet couldn't load the notification this script belongs to."
+		return "AutoMDM couldn't load the notification this script belongs to."
 	}
 	if patchNotification == nil {
 		return ""
@@ -69,12 +69,12 @@ func (svc *Service) setPatchNotificationPayloadForDisplay(ctx context.Context, h
 		payload = patchNotificationReminderPayload
 	} else if err := svc.prunePatchNotificationApps(ctx, hostID, notificationUUID); err != nil {
 		svc.logger.ErrorContext(ctx, "failed to prune the apps a patch notification no longer needs to update", "notification_uuid", notificationUUID, "err", err)
-		return "Fleet couldn't remove the apps that are already updated from the notification."
+		return "AutoMDM couldn't remove the apps that are already updated from the notification."
 	}
 	err = svc.notificationsSvc.SetNotificationPayload(ctx, notificationUUID, payload)
 	if err != nil {
 		svc.logger.ErrorContext(ctx, "failed to set the patch notification payload", "notification_uuid", notificationUUID, "err", err)
-		return "Fleet couldn't record which notice this script shows."
+		return "AutoMDM couldn't record which notice this script shows."
 	}
 	return ""
 }
@@ -122,7 +122,7 @@ func patchNotificationIsReminder(payload json.RawMessage) (bool, error) {
 }
 
 type patchNotificationActivityWriter interface {
-	NewActivity(ctx context.Context, user *fleet.User, activity activity_api.ActivityDetails) error
+	NewActivity(ctx context.Context, user *automdm.User, activity activity_api.ActivityDetails) error
 }
 
 // The patch kind doesn't own the notifications table, so delaying and acting on
@@ -135,7 +135,7 @@ type patchNotificationService interface {
 
 type patchNotificationKind struct {
 	name            string
-	ds              fleet.Datastore
+	ds              automdm.Datastore
 	activities      patchNotificationActivityWriter
 	notificationSvc patchNotificationService
 	logger          *slog.Logger
@@ -148,7 +148,7 @@ type PatchNotificationKind interface {
 
 func NewPatchNotificationKind(
 	name string,
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	activities patchNotificationActivityWriter,
 	notificationSvc patchNotificationService,
 	logger *slog.Logger,
@@ -185,28 +185,28 @@ func nextPatchDeadline(now time.Time, loc *time.Location, days []string, hour, m
 	return time.Time{}, false
 }
 
-func (svc *Service) createPatchNotificationForEndUser(ctx context.Context, host *fleet.Host, install *fleet.HostSoftwareInstallerResult) error {
+func (svc *Service) createPatchNotificationForEndUser(ctx context.Context, host *automdm.Host, install *automdm.HostSoftwareInstallerResult) error {
 	if install.SoftwareTitleID == nil {
 		svc.logger.InfoContext(ctx, "not notifying about a skipped patch for software with no title",
 			"host_id", host.ID, "install_uuid", install.InstallUUID)
 		return nil
 	}
 
-	// Orbit authenticates the host from a replica or the host cache, either of which can still show the fleet
-	// it just left, so use the fleet read with the result.
+	// Orbit authenticates the host from a replica or the host cache, either of which can still show the team
+	// it just left, so use the team read with the result.
 	hostTeamID := ptr.ValOrZero(install.HostTeamID)
 
 	// an install queued before a transfer can still skip after it
 	if install.InstallerGlobalOrTeamID != nil && *install.InstallerGlobalOrTeamID != hostTeamID {
-		svc.logger.InfoContext(ctx, "not notifying about a skipped patch whose installer is outside the host's fleet",
+		svc.logger.InfoContext(ctx, "not notifying about a skipped patch whose installer is outside the host's team",
 			"host_id", host.ID, "install_uuid", install.InstallUUID, "software_installer_id", ptr.ValOrZero(install.SoftwareInstallerID))
 		return nil
 	}
 
-	kind := fleet.PatchNotificationKind
+	kind := automdm.PatchNotificationKind
 	var nextAttemptAt *time.Time
 	if install.PatchDeadline {
-		kind = fleet.PatchDeadlineNotificationKind
+		kind = automdm.PatchDeadlineNotificationKind
 		if host.TimeZone == nil || *host.TimeZone == "" {
 			svc.logger.DebugContext(ctx, "not scheduling patch deadline, host timezone unknown",
 				"host_id", host.ID, "install_uuid", install.InstallUUID)
@@ -253,10 +253,10 @@ func (svc *Service) createPatchNotificationForEndUser(ctx context.Context, host 
 	if err != nil {
 		return ctxerr.Wrap(ctx, err, "list host last title install data for a skipped patch")
 	}
-	titleKey := fleet.HostSoftwareTitleKey{HostID: host.ID, SoftwareTitleID: *install.SoftwareTitleID}
+	titleKey := automdm.HostSoftwareTitleKey{HostID: host.ID, SoftwareTitleID: *install.SoftwareTitleID}
 	// an install carrying override_pre_install_query skips while the app is open, so it patches nothing
-	installPending := slices.ContainsFunc(installsByTitle[titleKey], func(queued *fleet.HostLastInstallData) bool {
-		return queued.Status != nil && *queued.Status == fleet.SoftwareInstallPending && !queued.OverridePreInstallQuery
+	installPending := slices.ContainsFunc(installsByTitle[titleKey], func(queued *automdm.HostLastInstallData) bool {
+		return queued.Status != nil && *queued.Status == automdm.SoftwareInstallPending && !queued.OverridePreInstallQuery
 	})
 	if installPending {
 		svc.logger.InfoContext(ctx, "not notifying about a skipped patch whose app already has an install queued",
@@ -316,7 +316,7 @@ func (svc *Service) createPatchNotificationForEndUser(ctx context.Context, host 
 	// PatchNotificationExistsForApp returns true and this function returns early. Anything written
 	// after it that failed would stay missing for the life of the notification. A notification left
 	// with no apps is safe by comparison, since Render fails it and the policy opens a new one.
-	if err := svc.ds.AddPatchNotificationApp(ctx, notificationUUID, fleet.PatchNotificationApp{
+	if err := svc.ds.AddPatchNotificationApp(ctx, notificationUUID, automdm.PatchNotificationApp{
 		PolicyID:            install.PolicyID,
 		SoftwareTitleID:     *install.SoftwareTitleID,
 		SoftwareInstallerID: install.SoftwareInstallerID,
@@ -337,7 +337,7 @@ func (k *patchNotificationKind) renderView(ctx context.Context, notification *no
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "list patch notification apps")
 	}
-	// Fail the notification because it has no apps to display, so Fleet stops sending it.
+	// Fail the notification because it has no apps to display, so AutoMDM stops sending it.
 	if len(apps) == 0 {
 		err = k.notificationSvc.SetNotificationStatus(ctx, notification.UUID,
 			notifications_api.EndUserNotificationFailed,
@@ -368,7 +368,7 @@ func (k *patchNotificationKind) renderView(ctx context.Context, notification *no
 
 	// Read each app's own install so an item shows where that install got to, not the notification's single acted flag.
 	// Skip it until the installs are out, because nothing has been queued to report before then.
-	var installStatusesByTitle map[uint]fleet.SoftwareInstallerStatus
+	var installStatusesByTitle map[uint]automdm.SoftwareInstallerStatus
 	if installsQueued {
 		installStatusesByTitle, err = k.ds.ListPatchNotificationAppInstallStatuses(ctx, notification.UUID)
 		if err != nil {
@@ -384,7 +384,7 @@ func (k *patchNotificationKind) renderView(ctx context.Context, notification *no
 			DisplayName:     app.DisplayName,
 		}
 		if app.HasIcon {
-			icon := fleet.SoftwareTitleIcon{SoftwareTitleID: app.SoftwareTitleID}
+			icon := automdm.SoftwareTitleIcon{SoftwareTitleID: app.SoftwareTitleID}
 			iconURL := icon.IconUrlWithDeviceToken(deviceToken)
 			item.IconURL = &iconURL
 		}
@@ -393,24 +393,24 @@ func (k *patchNotificationKind) renderView(ctx context.Context, notification *no
 			installStatus := installStatusesByTitle[app.SoftwareTitleID]
 			// Fail an app whose installer was deleted, because no install was ever queued for it.
 			if app.SoftwareInstallerID == nil {
-				installStatus = fleet.SoftwareInstallFailed
+				installStatus = automdm.SoftwareInstallFailed
 			}
 			if app.UpdatedInInventory {
-				installStatus = fleet.SoftwareInstalled
+				installStatus = automdm.SoftwareInstalled
 			}
 
 			switch installStatus {
-			case fleet.SoftwareInstalled:
-				item.InstallStatus = string(fleet.SoftwareInstalled)
+			case automdm.SoftwareInstalled:
+				item.InstallStatus = string(automdm.SoftwareInstalled)
 				item.Status = "Updated"
-			case fleet.SoftwareInstallFailed:
-				item.InstallStatus = string(fleet.SoftwareInstallFailed)
+			case automdm.SoftwareInstallFailed:
+				item.InstallStatus = string(automdm.SoftwareInstallFailed)
 				item.Status = "Failed"
 			case "canceled_install":
 				item.InstallStatus = ""
 				item.Status = ""
 			default:
-				item.InstallStatus = string(fleet.SoftwareInstallPending)
+				item.InstallStatus = string(automdm.SoftwareInstallPending)
 				item.Status = "Updating..."
 			}
 		}
@@ -453,8 +453,8 @@ func (k *patchNotificationKind) renderView(ctx context.Context, notification *no
 
 	return &notifications_api.NotificationView{
 		UUID:                notification.UUID,
-		OrgLogoURLLightMode: fleet.AbsolutizeLogoURL(appConfig.OrgInfo.OrgLogoURLLightMode, serverURL),
-		OrgLogoURLDarkMode:  fleet.AbsolutizeLogoURL(appConfig.OrgInfo.OrgLogoURLDarkMode, serverURL),
+		OrgLogoURLLightMode: automdm.AbsolutizeLogoURL(appConfig.OrgInfo.OrgLogoURLLightMode, serverURL),
+		OrgLogoURLDarkMode:  automdm.AbsolutizeLogoURL(appConfig.OrgInfo.OrgLogoURLDarkMode, serverURL),
 		Title:               "Save your work",
 		Description:         description,
 		Items:               items,
@@ -533,10 +533,10 @@ func (k *patchNotificationKind) RemindAndInstallDuePatches(ctx context.Context) 
 
 func (k *patchNotificationKind) remindOrInstallDuePatch(
 	ctx context.Context,
-	duePatch fleet.PatchNotificationDue,
-	apps []fleet.PatchNotificationAppDetail,
-	installedVersions map[fleet.HostSoftwareTitleKey][]string,
-	installsByTitle map[fleet.HostSoftwareTitleKey][]*fleet.HostLastInstallData,
+	duePatch automdm.PatchNotificationDue,
+	apps []automdm.PatchNotificationAppDetail,
+	installedVersions map[automdm.HostSoftwareTitleKey][]string,
+	installsByTitle map[automdm.HostSoftwareTitleKey][]*automdm.HostLastInstallData,
 	now time.Time,
 ) error {
 	notificationIsReminder, err := patchNotificationIsReminder(duePatch.Payload)
@@ -614,9 +614,9 @@ func (k *patchNotificationKind) remindOrInstallDuePatch(
 		return ctxerr.Wrap(ctx, err, "set patch notification apps updated in inventory")
 	}
 
-	// Queue every other app, an app Fleet installed since it joined is set as queued without a new install.
+	// Queue every other app, an app AutoMDM installed since it joined is set as queued without a new install.
 	// Skip an app an earlier pass recorded as updated in inventory even if the inventory changed since, the toast already shows it as updated.
-	appsToQueue := make([]fleet.PatchNotificationAppDetail, 0, len(apps))
+	appsToQueue := make([]automdm.PatchNotificationAppDetail, 0, len(apps))
 	for _, app := range apps {
 		if app.UpdatedInInventory || slices.Contains(updatedInInventoryTitleIDs, app.SoftwareTitleID) {
 			continue
@@ -630,24 +630,24 @@ func (k *patchNotificationKind) remindOrInstallDuePatch(
 	return nil
 }
 
-func installedVersionsByTitle(versions []fleet.HostSoftwareTitleVersion) map[fleet.HostSoftwareTitleKey][]string {
-	installedVersions := make(map[fleet.HostSoftwareTitleKey][]string, len(versions))
+func installedVersionsByTitle(versions []automdm.HostSoftwareTitleVersion) map[automdm.HostSoftwareTitleKey][]string {
+	installedVersions := make(map[automdm.HostSoftwareTitleKey][]string, len(versions))
 	for _, version := range versions {
-		key := fleet.HostSoftwareTitleKey{HostID: version.HostID, SoftwareTitleID: version.SoftwareTitleID}
+		key := automdm.HostSoftwareTitleKey{HostID: version.HostID, SoftwareTitleID: version.SoftwareTitleID}
 		installedVersions[key] = append(installedVersions[key], version.Version)
 	}
 	return installedVersions
 }
 
-// splitUpdatedPatchNotificationApps leaves out the apps the host already updated, Fleet installed since they joined the notification,
+// splitUpdatedPatchNotificationApps leaves out the apps the host already updated, AutoMDM installed since they joined the notification,
 // or whose policy no longer uses this notification's patch option, so nothing is queued for them
 func splitUpdatedPatchNotificationApps(
 	hostID uint,
-	apps []fleet.PatchNotificationAppDetail,
-	installedVersions map[fleet.HostSoftwareTitleKey][]string,
-	installsByTitle map[fleet.HostSoftwareTitleKey][]*fleet.HostLastInstallData,
-) (remaining []fleet.PatchNotificationAppDetail, alreadyUpdatedTitleIDs, updatedInInventoryTitleIDs []uint) {
-	remaining = make([]fleet.PatchNotificationAppDetail, 0, len(apps))
+	apps []automdm.PatchNotificationAppDetail,
+	installedVersions map[automdm.HostSoftwareTitleKey][]string,
+	installsByTitle map[automdm.HostSoftwareTitleKey][]*automdm.HostLastInstallData,
+) (remaining []automdm.PatchNotificationAppDetail, alreadyUpdatedTitleIDs, updatedInInventoryTitleIDs []uint) {
+	remaining = make([]automdm.PatchNotificationAppDetail, 0, len(apps))
 	for _, app := range apps {
 		if app.PolicyOptionChanged {
 			alreadyUpdatedTitleIDs = append(alreadyUpdatedTitleIDs, app.SoftwareTitleID)
@@ -658,7 +658,7 @@ func splitUpdatedPatchNotificationApps(
 			continue
 		}
 
-		appKey := fleet.HostSoftwareTitleKey{HostID: hostID, SoftwareTitleID: app.SoftwareTitleID}
+		appKey := automdm.HostSoftwareTitleKey{HostID: hostID, SoftwareTitleID: app.SoftwareTitleID}
 
 		// Count the app as updated when every version of it in the host's software inventory matches the installer's version
 		installed := installedVersions[appKey]
@@ -675,14 +675,14 @@ func splitUpdatedPatchNotificationApps(
 			continue
 		}
 
-		var installedByFleet bool
+		var installedByTeam bool
 		for _, install := range installsByTitle[appKey] {
-			if install.Status != nil && *install.Status == fleet.SoftwareInstalled && install.UpdatedAt.After(app.CreatedAt) {
-				installedByFleet = true
+			if install.Status != nil && *install.Status == automdm.SoftwareInstalled && install.UpdatedAt.After(app.CreatedAt) {
+				installedByTeam = true
 				break
 			}
 		}
-		if installedByFleet {
+		if installedByTeam {
 			alreadyUpdatedTitleIDs = append(alreadyUpdatedTitleIDs, app.SoftwareTitleID)
 			continue
 		}
@@ -703,7 +703,7 @@ func (k *patchNotificationKind) OnAction(ctx context.Context, notification *noti
 		return nil, nil
 
 	default:
-		return nil, ctxerr.Wrap(ctx, fleet.NewInvalidArgumentError("action",
+		return nil, ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("action",
 			fmt.Sprintf("%q is not something that can be done to a patch notification", actionID)))
 	}
 }
@@ -767,8 +767,8 @@ func (k *patchNotificationKind) queuePatchNotificationInstalls(
 	ctx context.Context,
 	notificationUUID string,
 	hostID uint,
-	apps []fleet.PatchNotificationAppDetail,
-	installsByTitle map[fleet.HostSoftwareTitleKey][]*fleet.HostLastInstallData,
+	apps []automdm.PatchNotificationAppDetail,
+	installsByTitle map[automdm.HostSoftwareTitleKey][]*automdm.HostLastInstallData,
 ) (installsRecorded bool, err error) {
 	// install_queued records that an app has been dealt with, whether that meant queueing an install
 	// or deciding not to. An app left unmarked is one this pass could not queue, which is what tells
@@ -794,9 +794,9 @@ func (k *patchNotificationKind) queuePatchNotificationInstalls(
 		}
 
 		// an install carrying override_pre_install_query would skip while the app is open, so it needs to be queued again
-		titleKey := fleet.HostSoftwareTitleKey{HostID: hostID, SoftwareTitleID: app.SoftwareTitleID}
-		installPending := slices.ContainsFunc(installsByTitle[titleKey], func(install *fleet.HostLastInstallData) bool {
-			return install.Status != nil && *install.Status == fleet.SoftwareInstallPending && !install.OverridePreInstallQuery
+		titleKey := automdm.HostSoftwareTitleKey{HostID: hostID, SoftwareTitleID: app.SoftwareTitleID}
+		installPending := slices.ContainsFunc(installsByTitle[titleKey], func(install *automdm.HostLastInstallData) bool {
+			return install.Status != nil && *install.Status == automdm.SoftwareInstallPending && !install.OverridePreInstallQuery
 		})
 		if installPending {
 			queuedTitleIDs = append(queuedTitleIDs, app.SoftwareTitleID)
@@ -804,8 +804,8 @@ func (k *patchNotificationKind) queuePatchNotificationInstalls(
 		}
 
 		// install history, not the host's inventory, which lags an install by minutes
-		installedSinceJoining := slices.ContainsFunc(installsByTitle[titleKey], func(install *fleet.HostLastInstallData) bool {
-			return install.Status != nil && *install.Status == fleet.SoftwareInstalled && install.UpdatedAt.After(app.CreatedAt)
+		installedSinceJoining := slices.ContainsFunc(installsByTitle[titleKey], func(install *automdm.HostLastInstallData) bool {
+			return install.Status != nil && *install.Status == automdm.SoftwareInstalled && install.UpdatedAt.After(app.CreatedAt)
 		})
 		if installedSinceJoining {
 			k.logger.InfoContext(ctx, "not installing a patch notification app that was already updated",
@@ -815,9 +815,9 @@ func (k *patchNotificationKind) queuePatchNotificationInstalls(
 		}
 
 		// OverridePreInstallQuery stays false, so the app open check does not stop the install
-		_, insertErr := k.ds.InsertSoftwareInstallRequest(ctx, hostID, *app.SoftwareInstallerID, fleet.HostSoftwareInstallOptions{PolicyID: app.PolicyID})
+		_, insertErr := k.ds.InsertSoftwareInstallRequest(ctx, hostID, *app.SoftwareInstallerID, automdm.HostSoftwareInstallOptions{PolicyID: app.PolicyID})
 		if insertErr != nil {
-			// One app Fleet cannot queue must not hold up the rest. This app stays unmarked below,
+			// One app AutoMDM cannot queue must not hold up the rest. This app stays unmarked below,
 			// which is what brings the notification back to be finished.
 			queueErrs = append(queueErrs, ctxerr.Wrapf(ctx, insertErr,
 				"insert software install request: host_id=%d, software_installer_id=%d", hostID, *app.SoftwareInstallerID))
@@ -837,7 +837,7 @@ func (k *patchNotificationKind) queuePatchNotificationInstalls(
 
 func (k *patchNotificationKind) OnOutcome(ctx context.Context, notification *notifications_api.EndUserNotification, outcome notifications_api.NotificationOutcome) error {
 	// A failing notification is retried every minute until it expires. Only the
-	// first of a run of identical failures gets an activity, so a host with Fleet
+	// first of a run of identical failures gets an activity, so a host with AutoMDM
 	// Desktop closed does not fill the feed with the same failure.
 	if !outcome.Displayed && notification.LastExitCode != nil && *notification.LastExitCode == outcome.ExitCode {
 		return nil
@@ -861,11 +861,11 @@ func (k *patchNotificationKind) OnOutcome(ctx context.Context, notification *not
 	// dotted form against the FE's WELL_KNOWN normalization) and silently drop
 	// the admin's choice.
 	softwareTitles := make([]string, 0, len(apps))
-	software := make([]fleet.NotifySoftwareTitle, 0, len(apps))
+	software := make([]automdm.NotifySoftwareTitle, 0, len(apps))
 	policyIDs := make([]uint, 0, len(apps))
 	for _, app := range apps {
 		softwareTitles = append(softwareTitles, app.Name)
-		item := fleet.NotifySoftwareTitle{
+		item := automdm.NotifySoftwareTitle{
 			Title:   app.Name,
 			TitleID: app.SoftwareTitleID,
 		}
@@ -904,7 +904,7 @@ func (k *patchNotificationKind) OnOutcome(ctx context.Context, notification *not
 		installAt = &deadline
 	}
 
-	if err := k.activities.NewActivity(ctx, nil, fleet.ActivityTypeNotifiedEndUserBeforePatching{
+	if err := k.activities.NewActivity(ctx, nil, automdm.ActivityTypeNotifiedEndUserBeforePatching{
 		HostID:                notification.HostID,
 		HostDisplayName:       host.DisplayName(),
 		PatchNotificationUUID: notification.UUID,

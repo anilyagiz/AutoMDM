@@ -10,12 +10,12 @@ import (
 //go:embed scripts/install_pkg.sh
 var installPkgScript string
 
-//go:embed scripts/install_pkg_fleetd.sh
-var InstallPkgFleetdScript string
+//go:embed scripts/install_pkg_automdmd.sh
+var InstallPkgAutoMDMdScript string
 
-// IsFleetdPkg returns true if the given package IDs indicate this is a
-// fleet-osquery (fleetd/orbit) package.
-func IsFleetdPkg(packageIDs []string) bool {
+// IsAutoMDMdPkg returns true if the given package IDs indicate this is a
+// automdm-osquery (automdmd/orbit) package.
+func IsAutoMDMdPkg(packageIDs []string) bool {
 	for _, id := range packageIDs {
 		if strings.HasPrefix(id, "com.fleetdm.orbit") {
 			return true

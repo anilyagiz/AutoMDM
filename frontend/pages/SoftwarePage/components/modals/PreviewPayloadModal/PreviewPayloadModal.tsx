@@ -47,13 +47,13 @@ const PreviewPayloadModal = ({
         {
           id: 1,
           display_name: "macbook-1",
-          url: "https://fleet.example.com/hosts/1",
+          url: "https://automdm.example.com/hosts/1",
           software_installed_paths: ["/usr/lib/some-path"],
         },
         {
           id: 2,
           display_name: "macbook-2",
-          url: "https://fleet.example.com/hosts/2",
+          url: "https://automdm.example.com/hosts/2",
         },
       ],
     },
@@ -75,10 +75,10 @@ const PreviewPayloadModal = ({
       className={baseClass}
     >
       <p>
-        Want to learn more about how automations in Fleet work?{" "}
+        Want to learn more about how automations in AutoMDM work?{" "}
         <CustomLink
-          url="https://fleetdm.com/docs/using-fleet/automations"
-          text="Check out the Fleet documentation"
+          url="https://automdm.com/docs/using-automdm/automations"
+          text="Check out the AutoMDM documentation"
           newTab
         />
       </p>

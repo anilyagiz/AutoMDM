@@ -3,8 +3,8 @@ package apple_mdm
 import (
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"howett.net/plist"
@@ -12,20 +12,20 @@ import (
 
 func TestMDMAppleEnrollURL(t *testing.T) {
 	cases := []struct {
-		appConfig   *fleet.AppConfig
+		appConfig   *automdm.AppConfig
 		expectedURL string
 	}{
 		{
-			appConfig: &fleet.AppConfig{
-				ServerSettings: fleet.ServerSettings{
+			appConfig: &automdm.AppConfig{
+				ServerSettings: automdm.ServerSettings{
 					ServerURL: "https://foo.example.com",
 				},
 			},
 			expectedURL: "https://foo.example.com/api/mdm/apple/enroll?token=tok",
 		},
 		{
-			appConfig: &fleet.AppConfig{
-				ServerSettings: fleet.ServerSettings{
+			appConfig: &automdm.AppConfig{
+				ServerSettings: automdm.ServerSettings{
 					ServerURL: "https://foo.example.com/",
 				},
 			},

@@ -10,17 +10,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server"
-	apiendpoints "github.com/fleetdm/fleet/v4/server/api_endpoints"
-	"github.com/fleetdm/fleet/v4/server/authz"
-	authz_ctx "github.com/fleetdm/fleet/v4/server/contexts/authz"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxdb"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mail"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server"
+	apiendpoints "github.com/anilyagiz/automdm/v4/server/api_endpoints"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	authz_ctx "github.com/anilyagiz/automdm/v4/server/contexts/authz"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxdb"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	"github.com/anilyagiz/automdm/v4/server/mail"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -28,11 +28,11 @@ import (
 ////////////////////////////////////////////////////////////////////////////////
 
 type createUserRequest struct {
-	fleet.UserPayload
+	automdm.UserPayload
 }
 
 type createUserResponse struct {
-	User *fleet.User `json:"user,omitempty"`
+	User *automdm.User `json:"user,omitempty"`
 	// Token is only returned when creating API-only (non-SSO) users.
 	Token *string `json:"token,omitempty"`
 	Err   error   `json:"error,omitempty"`
@@ -40,13 +40,13 @@ type createUserResponse struct {
 
 func (r createUserResponse) Error() error { return r.Err }
 
-func createUserEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func createUserEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*createUserRequest)
 
 	if req.APIEndpoints != nil {
 		setAuthCheckedOnPreAuthErr(ctx)
 		return createUserResponse{
-			Err: fleet.NewInvalidArgumentError(
+			Err: automdm.NewInvalidArgumentError(
 				"api_endpoints",
 				"This endpoint does not accept API endpoint values",
 			),
@@ -63,9 +63,9 @@ func createUserEndpoint(ctx context.Context, request interface{}, svc fleet.Serv
 	}, nil
 }
 
-var errMailerRequiredForMFA = badRequest("Email must be set up to enable Fleet MFA")
+var errMailerRequiredForMFA = badRequest("Email must be set up to enable AutoMDM MFA")
 
-func validateAPIEndpointRefs(ctx context.Context, refs *[]fleet.APIEndpointRef) error {
+func validateAPIEndpointRefs(ctx context.Context, refs *[]automdm.APIEndpointRef) error {
 	if refs == nil {
 		// Absent (nil pointer): no change.
 		return nil
@@ -78,7 +78,7 @@ func validateAPIEndpointRefs(ctx context.Context, refs *[]fleet.APIEndpointRef) 
 		// Explicit empty array: not valid; send null to grant full access.
 		return ctxerr.Wrap(
 			ctx,
-			fleet.NewInvalidArgumentError(
+			automdm.NewInvalidArgumentError(
 				"api_endpoints",
 				"at least one API endpoint must be specified",
 			),
@@ -91,7 +91,7 @@ func validateAPIEndpointRefs(ctx context.Context, refs *[]fleet.APIEndpointRef) 
 	if len(entries) > len(allEndpoints) {
 		return ctxerr.Wrap(
 			ctx,
-			fleet.NewInvalidArgumentError("api_endpoints", "maximum number of API endpoints reached"),
+			automdm.NewInvalidArgumentError("api_endpoints", "maximum number of API endpoints reached"),
 		)
 	}
 
@@ -103,7 +103,7 @@ func validateAPIEndpointRefs(ctx context.Context, refs *[]fleet.APIEndpointRef) 
 	hasDuplicates := false
 	var unknownFps []string
 	for _, ref := range entries {
-		fp := fleet.NewAPIEndpointFromTpl(ref.Method, ref.Path).Fingerprint()
+		fp := automdm.NewAPIEndpointFromTpl(ref.Method, ref.Path).Fingerprint()
 		if _, dup := seen[fp]; dup {
 			hasDuplicates = true
 			continue
@@ -113,7 +113,7 @@ func validateAPIEndpointRefs(ctx context.Context, refs *[]fleet.APIEndpointRef) 
 			unknownFps = append(unknownFps, fp)
 		}
 	}
-	invalid := &fleet.InvalidArgumentError{}
+	invalid := &automdm.InvalidArgumentError{}
 	if hasDuplicates {
 		invalid.Append("api_endpoints", "one or more api_endpoints entries are duplicated")
 	}
@@ -126,12 +126,12 @@ func validateAPIEndpointRefs(ctx context.Context, refs *[]fleet.APIEndpointRef) 
 	return nil
 }
 
-func (svc *Service) CreateUser(ctx context.Context, p fleet.UserPayload) (*fleet.User, *string, error) {
-	var teams []fleet.UserTeam
+func (svc *Service) CreateUser(ctx context.Context, p automdm.UserPayload) (*automdm.User, *string, error) {
+	var teams []automdm.UserTeam
 	if p.Teams != nil {
 		teams = *p.Teams
 	}
-	if err := svc.authz.Authorize(ctx, &fleet.User{Teams: teams}, fleet.ActionWrite); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.User{Teams: teams}, automdm.ActionWrite); err != nil {
 		return nil, nil, err
 	}
 
@@ -139,20 +139,20 @@ func (svc *Service) CreateUser(ctx context.Context, p fleet.UserPayload) (*fleet
 		return nil, nil, ctxerr.Wrap(ctx, err, "verify user payload")
 	}
 
-	// Do not allow creating a user with any Premium-only features on Fleet Free.
+	// Do not allow creating a user with any Premium-only features on AutoMDM Free.
 	if !license.IsPremium(ctx) {
-		var teamRoles []fleet.UserTeam
+		var teamRoles []automdm.UserTeam
 		if p.Teams != nil {
 			teamRoles = *p.Teams
 		}
-		if fleet.PremiumRolesPresent(p.GlobalRole, teamRoles) {
-			return nil, nil, fleet.ErrMissingLicense
+		if automdm.PremiumRolesPresent(p.GlobalRole, teamRoles) {
+			return nil, nil, automdm.ErrMissingLicense
 		}
 		if p.APIOnly != nil && *p.APIOnly && p.APIEndpoints != nil && *p.APIEndpoints != nil {
-			return nil, nil, fleet.ErrMissingLicense
+			return nil, nil, automdm.ErrMissingLicense
 		}
 		if p.APIOnly != nil && *p.APIOnly && len(teamRoles) > 0 {
-			return nil, nil, fleet.ErrMissingLicense
+			return nil, nil, automdm.ErrMissingLicense
 		}
 	}
 
@@ -170,7 +170,7 @@ func (svc *Service) CreateUser(ctx context.Context, p fleet.UserPayload) (*fleet
 			_, ok := teamIDs[userTeam.Team.ID]
 			if !ok {
 				return nil, nil, ctxerr.Wrap(
-					ctx, fleet.NewInvalidArgumentError("fleets.id", fmt.Sprintf("fleet with id %d does not exist", userTeam.Team.ID)),
+					ctx, automdm.NewInvalidArgumentError("teams.id", fmt.Sprintf("team with id %d does not exist", userTeam.Team.ID)),
 				)
 			}
 		}
@@ -192,7 +192,7 @@ func (svc *Service) CreateUser(ctx context.Context, p fleet.UserPayload) (*fleet
 			return nil, nil, err
 		}
 
-		var smtpSettings fleet.SMTPSettings
+		var smtpSettings automdm.SMTPSettings
 		if config.SMTPSettings != nil {
 			smtpSettings = *config.SMTPSettings
 		}
@@ -203,7 +203,7 @@ func (svc *Service) CreateUser(ctx context.Context, p fleet.UserPayload) (*fleet
 	}
 
 	if p.APIEndpoints != nil && (p.APIOnly == nil || !*p.APIOnly) {
-		return nil, nil, ctxerr.Wrap(ctx, fleet.NewInvalidArgumentError("api_endpoints", "API endpoints can only be specified for API only users"))
+		return nil, nil, ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("api_endpoints", "API endpoints can only be specified for API only users"))
 	}
 	if p.APIOnly != nil && *p.APIOnly {
 		if err := validateAPIEndpointRefs(ctx, p.APIEndpoints); err != nil {
@@ -239,19 +239,19 @@ func (svc *Service) CreateUser(ctx context.Context, p fleet.UserPayload) (*fleet
 // Create API-Only user
 ////////////////////////////////////////////////////////////////////////////////
 
-type fleetsPayload struct {
+type teamsPayload struct {
 	ID   uint   `json:"id" db:"id"`
 	Role string `json:"role" db:"role"`
 }
 
 type createAPIOnlyUserRequest struct {
-	Name         *string                 `json:"name,omitempty"`
-	GlobalRole   *string                 `json:"global_role,omitempty"`
-	Fleets       *[]fleetsPayload        `json:"fleets,omitempty"`
-	APIEndpoints *[]fleet.APIEndpointRef `json:"api_endpoints,omitempty"`
+	Name         *string                   `json:"name,omitempty"`
+	GlobalRole   *string                   `json:"global_role,omitempty"`
+	Teams        *[]teamsPayload           `json:"teams,omitempty"`
+	APIEndpoints *[]automdm.APIEndpointRef `json:"api_endpoints,omitempty"`
 }
 
-func createAPIOnlyUserEndpoint(ctx context.Context, request any, svc fleet.Service) (fleet.Errorer, error) {
+func createAPIOnlyUserEndpoint(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*createAPIOnlyUserRequest)
 
 	pwd, err := server.GenerateRandomPwd()
@@ -277,24 +277,24 @@ func createAPIOnlyUserEndpoint(ctx context.Context, request any, svc fleet.Servi
 		}, nil
 	}
 
-	var fleets []fleet.UserTeam
-	if req.Fleets != nil {
-		for _, t := range *req.Fleets {
-			val := fleet.UserTeam{}
+	var teams []automdm.UserTeam
+	if req.Teams != nil {
+		for _, t := range *req.Teams {
+			val := automdm.UserTeam{}
 			val.ID = t.ID
 			val.Role = t.Role
-			fleets = append(fleets, val)
+			teams = append(teams, val)
 		}
 	}
 
-	user, token, err := svc.CreateUser(ctx, fleet.UserPayload{
+	user, token, err := svc.CreateUser(ctx, automdm.UserPayload{
 		Name:                     req.Name,
 		Email:                    &email,
 		Password:                 &pwd,
 		APIOnly:                  new(true),
 		AdminForcedPasswordReset: new(false),
 		GlobalRole:               req.GlobalRole,
-		Teams:                    &fleets,
+		Teams:                    &teams,
 		APIEndpoints:             req.APIEndpoints,
 	})
 	if err != nil {
@@ -312,24 +312,24 @@ func createAPIOnlyUserEndpoint(ctx context.Context, request any, svc fleet.Servi
 ////////////////////////////////////////////////////////////////////////////////
 
 type modifyAPIOnlyUserRequest struct {
-	ID           uint                       `json:"-" url:"id"`
-	Name         *string                    `json:"name,omitempty"`
-	GlobalRole   *string                    `json:"global_role,omitempty"`
-	Teams        *[]fleet.UserTeam          `json:"fleets,omitempty"`
-	APIEndpoints fleet.OptionalAPIEndpoints `json:"api_endpoints"`
+	ID           uint                         `json:"-" url:"id"`
+	Name         *string                      `json:"name,omitempty"`
+	GlobalRole   *string                      `json:"global_role,omitempty"`
+	Teams        *[]automdm.UserTeam          `json:"teams,omitempty"`
+	APIEndpoints automdm.OptionalAPIEndpoints `json:"api_endpoints"`
 }
 
 type modifyAPIOnlyUserResponse struct {
-	User *fleet.User `json:"user,omitempty"`
-	Err  error       `json:"error,omitempty"`
+	User *automdm.User `json:"user,omitempty"`
+	Err  error         `json:"error,omitempty"`
 }
 
 func (r modifyAPIOnlyUserResponse) Error() error { return r.Err }
 
-func modifyAPIOnlyUserEndpoint(ctx context.Context, request any, svc fleet.Service) (fleet.Errorer, error) {
+func modifyAPIOnlyUserEndpoint(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*modifyAPIOnlyUserRequest)
 
-	payload := fleet.UserPayload{
+	payload := automdm.UserPayload{
 		Name:       req.Name,
 		GlobalRole: req.GlobalRole,
 		Teams:      req.Teams,
@@ -337,7 +337,7 @@ func modifyAPIOnlyUserEndpoint(ctx context.Context, request any, svc fleet.Servi
 	if req.APIEndpoints.Present {
 		if req.APIEndpoints.Value == nil {
 			// null → clear all entries; signal via non-nil pointer to nil slice.
-			var emptyEndpoints []fleet.APIEndpointRef
+			var emptyEndpoints []automdm.APIEndpointRef
 			payload.APIEndpoints = &emptyEndpoints
 		} else {
 			payload.APIEndpoints = &req.APIEndpoints.Value
@@ -351,18 +351,18 @@ func modifyAPIOnlyUserEndpoint(ctx context.Context, request any, svc fleet.Servi
 	return modifyAPIOnlyUserResponse{User: user}, nil
 }
 
-func (svc *Service) ModifyAPIOnlyUser(ctx context.Context, userID uint, p fleet.UserPayload) (*fleet.User, error) {
+func (svc *Service) ModifyAPIOnlyUser(ctx context.Context, userID uint, p automdm.UserPayload) (*automdm.User, error) {
 	target, err := svc.ds.UserByID(ctx, userID)
 	if err != nil {
 		setAuthCheckedOnPreAuthErr(ctx)
 		return nil, ctxerr.Wrap(ctx, err)
 	}
-	if err := svc.authz.Authorize(ctx, target, fleet.ActionWrite); err != nil {
+	if err := svc.authz.Authorize(ctx, target, automdm.ActionWrite); err != nil {
 		return nil, err
 	}
 
 	if !target.APIOnly {
-		return nil, ctxerr.Wrap(ctx, fleet.NewInvalidArgumentError("id", "target user is not an API-only user"))
+		return nil, ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("id", "target user is not an API-only user"))
 	}
 
 	vc, ok := viewer.FromContext(ctx)
@@ -370,10 +370,10 @@ func (svc *Service) ModifyAPIOnlyUser(ctx context.Context, userID uint, p fleet.
 		return nil, ctxerr.New(ctx, "viewer not present")
 	}
 	if vc.UserID() == userID {
-		return nil, ctxerr.Wrap(ctx, fleet.NewInvalidArgumentError("id", "cannot modify your own API-only user"))
+		return nil, ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("id", "cannot modify your own API-only user"))
 	}
 
-	return svc.ModifyUser(ctx, userID, fleet.UserPayload{
+	return svc.ModifyUser(ctx, userID, automdm.UserPayload{
 		Name:         p.Name,
 		GlobalRole:   p.GlobalRole,
 		Teams:        p.Teams,
@@ -386,13 +386,13 @@ func (svc *Service) ModifyAPIOnlyUser(ctx context.Context, userID uint, p fleet.
 // Create User From Invite
 ////////////////////////////////////////////////////////////////////////////////
 
-func createUserFromInviteEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func createUserFromInviteEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*createUserRequest)
 
 	if req.APIOnly != nil || req.APIEndpoints != nil {
 		setAuthCheckedOnPreAuthErr(ctx)
 		return createUserResponse{
-			Err: fleet.NewInvalidArgumentError(
+			Err: automdm.NewInvalidArgumentError(
 				"api_endpoints",
 				"This endpoint does not accept API endpoint values",
 			),
@@ -406,7 +406,7 @@ func createUserFromInviteEndpoint(ctx context.Context, request interface{}, svc 
 	return createUserResponse{User: user}, nil
 }
 
-func (svc *Service) CreateUserFromInvite(ctx context.Context, p fleet.UserPayload) (*fleet.User, error) {
+func (svc *Service) CreateUserFromInvite(ctx context.Context, p automdm.UserPayload) (*automdm.User, error) {
 	// skipauth: There is no viewer context at this point. We rely on verifying
 	// the invite for authNZ.
 	svc.authz.SkipAuthorization(ctx)
@@ -425,7 +425,7 @@ func (svc *Service) CreateUserFromInvite(ctx context.Context, p fleet.UserPayloa
 		payloadEmail = *p.Email
 	}
 	if invite.Email != payloadEmail {
-		return nil, fleet.NewInvalidArgumentError("invite_token", "Invite Token does not match Email Address.")
+		return nil, automdm.NewInvalidArgumentError("invite_token", "Invite Token does not match Email Address.")
 	}
 
 	// set the payload role property based on an existing invite.
@@ -440,15 +440,15 @@ func (svc *Service) CreateUserFromInvite(ctx context.Context, p fleet.UserPayloa
 		// SSO invites must not create local password credentials. Reject the
 		// payload if it carries a password field at all, even an empty one.
 		if p.Password != nil {
-			return nil, ctxerr.Wrap(ctx, fleet.NewInvalidArgumentError("password", "not allowed for SSO invitations"))
+			return nil, ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("password", "not allowed for SSO invitations"))
 		}
 	} else {
 		// Non-SSO invites require a valid password.
 		if p.Password == nil || *p.Password == "" {
-			return nil, ctxerr.Wrap(ctx, fleet.NewInvalidArgumentError("password", "Password missing required argument"))
+			return nil, ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("password", "Password missing required argument"))
 		}
-		if err := fleet.ValidatePasswordRequirements(*p.Password); err != nil {
-			return nil, ctxerr.Wrap(ctx, fleet.NewInvalidArgumentError("password", err.Error()))
+		if err := automdm.ValidatePasswordRequirements(*p.Password); err != nil {
+			return nil, ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("password", err.Error()))
 		}
 	}
 
@@ -469,24 +469,24 @@ func (svc *Service) CreateUserFromInvite(ctx context.Context, p fleet.UserPayloa
 ////////////////////////////////////////////////////////////////////////////////
 
 type listUsersRequest struct {
-	ListOptions fleet.UserListOptions `url:"user_options"`
+	ListOptions automdm.UserListOptions `url:"user_options"`
 }
 
 type listUsersResponse struct {
-	Users []fleet.User `json:"users"`
-	Err   error        `json:"error,omitempty"`
+	Users []automdm.User `json:"users"`
+	Err   error          `json:"error,omitempty"`
 }
 
 func (r listUsersResponse) Error() error { return r.Err }
 
-func listUsersEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func listUsersEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*listUsersRequest)
 	users, err := svc.ListUsers(ctx, req.ListOptions)
 	if err != nil {
 		return listUsersResponse{Err: err}, nil
 	}
 
-	resp := listUsersResponse{Users: []fleet.User{}}
+	resp := listUsersResponse{Users: []automdm.User{}}
 	for _, user := range users {
 		resp.Users = append(resp.Users, *user)
 	}
@@ -496,11 +496,11 @@ func listUsersEndpoint(ctx context.Context, request interface{}, svc fleet.Servi
 // filterUserTeamsToRequesterScope returns the subset of teams that the
 // requester is permitted to see. A requester with any global role sees all
 // teams unchanged; a team-scoped requester sees only teams they have a role in.
-func filterUserTeamsToRequesterScope(teams []fleet.UserTeam, requester *fleet.User) []fleet.UserTeam {
+func filterUserTeamsToRequesterScope(teams []automdm.UserTeam, requester *automdm.User) []automdm.UserTeam {
 	if requester.HasAnyGlobalRole() {
 		return teams
 	}
-	filtered := make([]fleet.UserTeam, 0, len(teams))
+	filtered := make([]automdm.UserTeam, 0, len(teams))
 	for _, t := range teams {
 		if requester.HasAnyRoleInTeam(t.ID) {
 			filtered = append(filtered, t)
@@ -509,18 +509,18 @@ func filterUserTeamsToRequesterScope(teams []fleet.UserTeam, requester *fleet.Us
 	return filtered
 }
 
-func (svc *Service) ListUsers(ctx context.Context, opt fleet.UserListOptions) ([]*fleet.User, error) {
-	user := &fleet.User{}
+func (svc *Service) ListUsers(ctx context.Context, opt automdm.UserListOptions) ([]*automdm.User, error) {
+	user := &automdm.User{}
 	if opt.TeamID != 0 {
-		user.Teams = []fleet.UserTeam{{Team: fleet.Team{ID: opt.TeamID}}}
+		user.Teams = []automdm.UserTeam{{Team: automdm.Team{ID: opt.TeamID}}}
 	}
-	if err := svc.authz.Authorize(ctx, user, fleet.ActionRead); err != nil {
+	if err := svc.authz.Authorize(ctx, user, automdm.ActionRead); err != nil {
 		return nil, err
 	}
 
 	vc, ok := viewer.FromContext(ctx)
 	if !ok {
-		return nil, fleet.ErrNoContext
+		return nil, automdm.ErrNoContext
 	}
 
 	users, err := svc.ds.ListUsers(ctx, opt)
@@ -544,9 +544,9 @@ func (svc *Service) ListUsers(ctx context.Context, opt fleet.UserListOptions) ([
 	return users, nil
 }
 
-func (svc *Service) UsersByIDs(ctx context.Context, ids []uint) ([]*fleet.UserSummary, error) {
+func (svc *Service) UsersByIDs(ctx context.Context, ids []uint) ([]*automdm.UserSummary, error) {
 	// Authorize read access to users (no specific team context)
-	if err := svc.authz.Authorize(ctx, &fleet.User{}, fleet.ActionRead); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.User{}, automdm.ActionRead); err != nil {
 		return nil, err
 	}
 
@@ -560,21 +560,21 @@ type getMeRequest struct {
 	IncludeUISettings bool `query:"include_ui_settings,optional"`
 }
 
-func meEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func meEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	user, err := svc.AuthenticatedUser(ctx)
 	if err != nil {
 		return getUserResponse{Err: err}, nil
 	}
 	availableTeams, err := svc.ListAvailableTeamsForUser(ctx, user)
 	if err != nil {
-		if errors.Is(err, fleet.ErrMissingLicense) {
-			availableTeams = []*fleet.TeamSummary{}
+		if errors.Is(err, automdm.ErrMissingLicense) {
+			availableTeams = []*automdm.TeamSummary{}
 		} else {
 			return getUserResponse{Err: err}, nil
 		}
 	}
 	req := request.(*getMeRequest)
-	var userSettings *fleet.UserSettings
+	var userSettings *automdm.UserSettings
 	if req.IncludeUISettings {
 		userSettings, err = svc.GetUserSettings(ctx, user.ID)
 		if err != nil {
@@ -584,18 +584,18 @@ func meEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fl
 	return getUserResponse{User: user, AvailableTeams: availableTeams, Settings: userSettings}, nil
 }
 
-func (svc *Service) AuthenticatedUser(ctx context.Context) (*fleet.User, error) {
+func (svc *Service) AuthenticatedUser(ctx context.Context) (*automdm.User, error) {
 	vc, ok := viewer.FromContext(ctx)
 	if !ok {
-		return nil, fleet.ErrNoContext
+		return nil, automdm.ErrNoContext
 	}
 
-	if err := svc.authz.Authorize(ctx, &fleet.User{ID: vc.UserID()}, fleet.ActionRead); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.User{ID: vc.UserID()}, automdm.ActionRead); err != nil {
 		return nil, err
 	}
 
 	if !vc.IsLoggedIn() {
-		return nil, fleet.NewPermissionError("not logged in")
+		return nil, automdm.NewPermissionError("not logged in")
 	}
 	return vc.User, nil
 }
@@ -610,15 +610,15 @@ type getUserRequest struct {
 }
 
 type getUserResponse struct {
-	User           *fleet.User          `json:"user,omitempty"`
-	AvailableTeams []*fleet.TeamSummary `json:"available_fleets"`
-	Settings       *fleet.UserSettings  `json:"settings,omitempty"`
-	Err            error                `json:"error,omitempty"`
+	User           *automdm.User          `json:"user,omitempty"`
+	AvailableTeams []*automdm.TeamSummary `json:"available_teams"`
+	Settings       *automdm.UserSettings  `json:"settings,omitempty"`
+	Err            error                  `json:"error,omitempty"`
 }
 
 func (r getUserResponse) Error() error { return r.Err }
 
-func getUserEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func getUserEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*getUserRequest)
 	user, err := svc.User(ctx, req.ID)
 	if err != nil {
@@ -626,14 +626,14 @@ func getUserEndpoint(ctx context.Context, request interface{}, svc fleet.Service
 	}
 	availableTeams, err := svc.ListAvailableTeamsForUser(ctx, user)
 	if err != nil {
-		if errors.Is(err, fleet.ErrMissingLicense) {
-			availableTeams = []*fleet.TeamSummary{}
+		if errors.Is(err, automdm.ErrMissingLicense) {
+			availableTeams = []*automdm.TeamSummary{}
 		} else {
 			return getUserResponse{Err: err}, nil
 		}
 	}
 
-	var userSettings *fleet.UserSettings
+	var userSettings *automdm.UserSettings
 	if req.IncludeUISettings {
 		userSettings, err = svc.GetUserSettings(ctx, user.ID)
 		if err != nil {
@@ -643,8 +643,8 @@ func getUserEndpoint(ctx context.Context, request interface{}, svc fleet.Service
 	return getUserResponse{User: user, AvailableTeams: availableTeams, Settings: userSettings}, nil
 }
 
-func (svc *Service) GetUserSettings(ctx context.Context, userID uint) (*fleet.UserSettings, error) {
-	if err := svc.authz.Authorize(ctx, &fleet.User{ID: userID}, fleet.ActionRead); err != nil {
+func (svc *Service) GetUserSettings(ctx context.Context, userID uint) (*automdm.UserSettings, error) {
+	if err := svc.authz.Authorize(ctx, &automdm.User{ID: userID}, automdm.ActionRead); err != nil {
 		return nil, err
 	}
 	return svc.ds.UserSettings(ctx, userID)
@@ -660,14 +660,14 @@ func setAuthCheckedOnPreAuthErr(ctx context.Context) {
 	}
 }
 
-func (svc *Service) User(ctx context.Context, id uint) (*fleet.User, error) {
+func (svc *Service) User(ctx context.Context, id uint) (*automdm.User, error) {
 	user, err := svc.ds.UserByID(ctx, id)
 	if err != nil {
 		setAuthCheckedOnPreAuthErr(ctx)
 		return nil, ctxerr.Wrap(ctx, err)
 	}
 
-	if err := svc.authz.Authorize(ctx, user, fleet.ActionRead); err != nil {
+	if err := svc.authz.Authorize(ctx, user, automdm.ActionRead); err != nil {
 		return nil, err
 	}
 	user.Status = user.ComputeStatus(time.Now())
@@ -680,23 +680,23 @@ func (svc *Service) User(ctx context.Context, id uint) (*fleet.User, error) {
 
 type modifyUserRequest struct {
 	ID uint `json:"-" url:"id"`
-	fleet.UserPayload
+	automdm.UserPayload
 }
 
 type modifyUserResponse struct {
-	User *fleet.User `json:"user,omitempty"`
-	Err  error       `json:"error,omitempty"`
+	User *automdm.User `json:"user,omitempty"`
+	Err  error         `json:"error,omitempty"`
 }
 
 func (r modifyUserResponse) Error() error { return r.Err }
 
-func modifyUserEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func modifyUserEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*modifyUserRequest)
 
 	if req.APIOnly != nil || req.APIEndpoints != nil {
 		setAuthCheckedOnPreAuthErr(ctx)
 		return modifyUserResponse{
-			Err: fleet.NewInvalidArgumentError(
+			Err: automdm.NewInvalidArgumentError(
 				"api_endpoints",
 				"This endpoint does not accept API endpoint values",
 			),
@@ -711,7 +711,7 @@ func modifyUserEndpoint(ctx context.Context, request interface{}, svc fleet.Serv
 	return modifyUserResponse{User: user}, nil
 }
 
-func (svc *Service) ModifyUser(ctx context.Context, userID uint, p fleet.UserPayload) (*fleet.User, error) {
+func (svc *Service) ModifyUser(ctx context.Context, userID uint, p automdm.UserPayload) (*automdm.User, error) {
 	user, err := svc.User(ctx, userID)
 	if err != nil {
 		setAuthCheckedOnPreAuthErr(ctx)
@@ -721,24 +721,24 @@ func (svc *Service) ModifyUser(ctx context.Context, userID uint, p fleet.UserPay
 	oldGlobalRole := user.GlobalRole
 	oldTeams := user.Teams
 
-	if err := svc.authz.Authorize(ctx, user, fleet.ActionWrite); err != nil {
+	if err := svc.authz.Authorize(ctx, user, automdm.ActionWrite); err != nil {
 		return nil, err
 	}
 
-	// Do not allow setting any Premium-only features on Fleet Free.
+	// Do not allow setting any Premium-only features on AutoMDM Free.
 	if !license.IsPremium(ctx) {
-		var teamRoles []fleet.UserTeam
+		var teamRoles []automdm.UserTeam
 		if p.Teams != nil {
 			teamRoles = *p.Teams
 		}
-		if fleet.PremiumRolesPresent(p.GlobalRole, teamRoles) {
-			return nil, fleet.ErrMissingLicense
+		if automdm.PremiumRolesPresent(p.GlobalRole, teamRoles) {
+			return nil, automdm.ErrMissingLicense
 		}
 		if user.APIOnly && p.APIEndpoints != nil && *p.APIEndpoints != nil {
-			return nil, fleet.ErrMissingLicense
+			return nil, automdm.ErrMissingLicense
 		}
 		if p.APIOnly != nil && *p.APIOnly && len(teamRoles) > 0 {
-			return nil, fleet.ErrMissingLicense
+			return nil, automdm.ErrMissingLicense
 		}
 	}
 
@@ -752,15 +752,15 @@ func (svc *Service) ModifyUser(ctx context.Context, userID uint, p fleet.UserPay
 	}
 
 	if p.APIOnly != nil && *p.APIOnly != user.APIOnly {
-		return nil, ctxerr.Wrap(ctx, fleet.NewInvalidArgumentError("api_only", "cannot change api_only status of a user"))
+		return nil, ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("api_only", "cannot change api_only status of a user"))
 	}
 	if p.APIEndpoints != nil && !user.APIOnly {
-		return nil, ctxerr.Wrap(ctx, fleet.NewInvalidArgumentError("api_endpoints", "API endpoints can only be specified for API only users"))
+		return nil, ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("api_endpoints", "API endpoints can only be specified for API only users"))
 	}
 	if p.APIEndpoints != nil {
 		// Changing endpoint permissions is a privileged operation — same level as
 		// changing roles. This prevents an API-only user from expanding their own access.
-		if err := svc.authz.Authorize(ctx, user, fleet.ActionWriteRole); err != nil {
+		if err := svc.authz.Authorize(ctx, user, automdm.ActionWriteRole); err != nil {
 			return nil, err
 		}
 	}
@@ -775,7 +775,7 @@ func (svc *Service) ModifyUser(ctx context.Context, userID uint, p fleet.UserPay
 				return nil, ctxerr.New(ctx, "license not found")
 			}
 			if !lic.IsPremium() {
-				return nil, fleet.ErrMissingLicense
+				return nil, automdm.ErrMissingLicense
 			}
 			if (p.SSOEnabled != nil && *p.SSOEnabled) || (p.SSOEnabled == nil && user.SSOEnabled) {
 				return nil, SSOMFAConflict
@@ -787,7 +787,7 @@ func (svc *Service) ModifyUser(ctx context.Context, userID uint, p fleet.UserPay
 				return nil, err
 			}
 
-			var smtpSettings fleet.SMTPSettings
+			var smtpSettings automdm.SMTPSettings
 			if config.SMTPSettings != nil {
 				smtpSettings = *config.SMTPSettings
 			}
@@ -804,11 +804,11 @@ func (svc *Service) ModifyUser(ctx context.Context, userID uint, p fleet.UserPay
 	}
 
 	if p.GlobalRole != nil || p.Teams != nil {
-		if err := svc.authz.Authorize(ctx, user, fleet.ActionWriteRole); err != nil {
+		if err := svc.authz.Authorize(ctx, user, automdm.ActionWriteRole); err != nil {
 			return nil, err
 		}
 		licChecker, _ := license.FromContext(ctx)
-		lic, _ := licChecker.(*fleet.LicenseInfo)
+		lic, _ := licChecker.(*automdm.LicenseInfo)
 		if lic == nil {
 			return nil, ctxerr.New(ctx, "license not found")
 		}
@@ -816,27 +816,27 @@ func (svc *Service) ModifyUser(ctx context.Context, userID uint, p fleet.UserPay
 		// enforce API-only roles (GitOps).
 		rolesPayload := p
 		rolesPayload.APIOnly = new(user.APIOnly)
-		if err := fleet.ValidateUserRoles(false, rolesPayload, *lic); err != nil {
+		if err := automdm.ValidateUserRoles(false, rolesPayload, *lic); err != nil {
 			return nil, ctxerr.Wrap(ctx, err, "validate role")
 		}
 	}
 
 	if p.NewPassword != nil {
-		if err := svc.authz.Authorize(ctx, user, fleet.ActionChangePassword); err != nil {
+		if err := svc.authz.Authorize(ctx, user, automdm.ActionChangePassword); err != nil {
 			return nil, err
 		}
-		if err := fleet.ValidatePasswordRequirements(*p.NewPassword); err != nil {
-			return nil, ctxerr.Wrap(ctx, fleet.NewInvalidArgumentError("new_password", err.Error()))
+		if err := automdm.ValidatePasswordRequirements(*p.NewPassword); err != nil {
+			return nil, ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("new_password", err.Error()))
 		}
 		if ownUser {
 			// when changing one's own password, user cannot reuse the same password
 			// and the old password must be provided (validated by p.VerifyModify above)
 			// and must be valid. If changed by admin, then this is not required.
 			if err := vc.User.ValidatePassword(*p.NewPassword); err == nil {
-				return nil, ctxerr.Wrap(ctx, fleet.NewInvalidArgumentError("new_password", "Cannot reuse old password"))
+				return nil, ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("new_password", "Cannot reuse old password"))
 			}
 			if err := vc.User.ValidatePassword(*p.Password); err != nil {
-				return nil, ctxerr.Wrap(ctx, fleet.NewPermissionError("incorrect password"))
+				return nil, ctxerr.Wrap(ctx, automdm.NewPermissionError("incorrect password"))
 			}
 		}
 	}
@@ -862,7 +862,7 @@ func (svc *Service) ModifyUser(ctx context.Context, userID uint, p fleet.UserPay
 
 	if p.SSOEnabled != nil {
 		if !*p.SSOEnabled && user.SSOEnabled && p.NewPassword == nil {
-			return nil, fleet.NewInvalidArgumentError("missing password", "a new password must be provided when disabling SSO")
+			return nil, automdm.NewInvalidArgumentError("missing password", "a new password must be provided when disabling SSO")
 		}
 		user.SSOEnabled = *p.SSOEnabled
 	}
@@ -876,42 +876,42 @@ func (svc *Service) ModifyUser(ctx context.Context, userID uint, p fleet.UserPay
 	}
 
 	currentUser := authz.UserFromContext(ctx)
-	callerIsGlobalAdmin := currentUser != nil && currentUser.GlobalRole != nil && *currentUser.GlobalRole == fleet.RoleAdmin
+	callerIsGlobalAdmin := currentUser != nil && currentUser.GlobalRole != nil && *currentUser.GlobalRole == automdm.RoleAdmin
 
 	var isGlobalAdminDemotion bool
 
 	if p.GlobalRole != nil {
 		if !callerIsGlobalAdmin {
 			return nil, authz.ForbiddenWithInternal(
-				"cannot edit global role as a fleet member",
-				currentUser, user, fleet.ActionWriteRole,
+				"cannot edit global role as a team member",
+				currentUser, user, automdm.ActionWriteRole,
 			)
 		}
 
 		if p.Teams != nil && len(*p.Teams) > 0 {
-			return nil, fleet.NewInvalidArgumentError("fleets", "may not be specified with global_role")
+			return nil, automdm.NewInvalidArgumentError("teams", "may not be specified with global_role")
 		}
 
 		// Track whether this is a demotion from global admin so we can
 		// use an atomic check+save later to prevent TOCTOU races.
-		isGlobalAdminDemotion = user.GlobalRole != nil && *user.GlobalRole == fleet.RoleAdmin && *p.GlobalRole != fleet.RoleAdmin
+		isGlobalAdminDemotion = user.GlobalRole != nil && *user.GlobalRole == automdm.RoleAdmin && *p.GlobalRole != automdm.RoleAdmin
 
 		user.GlobalRole = p.GlobalRole
-		user.Teams = []fleet.UserTeam{}
+		user.Teams = []automdm.UserTeam{}
 	} else if p.Teams != nil {
 		// Track whether this is a demotion from global admin by assigning teams.
-		isGlobalAdminDemotion = user.GlobalRole != nil && *user.GlobalRole == fleet.RoleAdmin
+		isGlobalAdminDemotion = user.GlobalRole != nil && *user.GlobalRole == automdm.RoleAdmin
 
 		if user.HasAnyGlobalRole() && !callerIsGlobalAdmin {
 			return nil, authz.ForbiddenWithInternal(
-				"cannot move a global user to fleets as a fleet member",
-				currentUser, user, fleet.ActionWriteRole,
+				"cannot move a global user to teams as a team member",
+				currentUser, user, automdm.ActionWriteRole,
 			)
 		}
 		if !isAdminOfTheModifiedTeams(currentUser, user.Teams, *p.Teams) {
 			return nil, authz.ForbiddenWithInternal(
-				"cannot modify fleets in that way",
-				currentUser, user, fleet.ActionWriteRole,
+				"cannot modify teams in that way",
+				currentUser, user, automdm.ActionWriteRole,
 			)
 		}
 		user.Teams = *p.Teams
@@ -928,11 +928,11 @@ func (svc *Service) ModifyUser(ctx context.Context, userID uint, p fleet.UserPay
 			}
 		}
 		err = svc.ds.SaveUserIfNotLastAdmin(ctx, user)
-		if errors.Is(err, fleet.ErrLastGlobalAdmin) {
+		if errors.Is(err, automdm.ErrLastGlobalAdmin) {
 			if p.GlobalRole != nil {
-				return nil, fleet.NewInvalidArgumentError("global_role", "cannot demote the last global admin")
+				return nil, automdm.NewInvalidArgumentError("global_role", "cannot demote the last global admin")
 			}
-			return nil, fleet.NewInvalidArgumentError("fleets", "cannot demote the last global admin")
+			return nil, automdm.NewInvalidArgumentError("teams", "cannot demote the last global admin")
 		}
 		if err == nil && p.NewPassword != nil {
 			// Clean up password reset requests and sessions like setNewPassword does.
@@ -962,7 +962,7 @@ func (svc *Service) ModifyUser(ctx context.Context, userID uint, p fleet.UserPay
 		return nil, err
 	}
 	adminUser := authz.UserFromContext(ctx)
-	if err := fleet.LogRoleChangeActivities(ctx, svc, adminUser, oldGlobalRole, oldTeams, user, false); err != nil {
+	if err := automdm.LogRoleChangeActivities(ctx, svc, adminUser, oldGlobalRole, oldTeams, user, false); err != nil {
 		return nil, err
 	}
 
@@ -983,7 +983,7 @@ type deleteUserResponse struct {
 
 func (r deleteUserResponse) Error() error { return r.Err }
 
-func deleteUserEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func deleteUserEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*deleteUserRequest)
 	if _, err := svc.DeleteUser(ctx, req.ID); err != nil {
 		return deleteUserResponse{Err: err}, nil
@@ -991,21 +991,21 @@ func deleteUserEndpoint(ctx context.Context, request interface{}, svc fleet.Serv
 	return deleteUserResponse{}, nil
 }
 
-func (svc *Service) DeleteUser(ctx context.Context, id uint) (*fleet.User, error) {
+func (svc *Service) DeleteUser(ctx context.Context, id uint) (*automdm.User, error) {
 	user, err := svc.ds.UserByID(ctx, id)
 	if err != nil {
 		setAuthCheckedOnPreAuthErr(ctx)
 		return nil, ctxerr.Wrap(ctx, err)
 	}
-	if err := svc.authz.Authorize(ctx, user, fleet.ActionWrite); err != nil {
+	if err := svc.authz.Authorize(ctx, user, automdm.ActionWrite); err != nil {
 		return nil, err
 	}
 
 	// Atomically check that we're not deleting the last global admin before deleting.
-	if user.GlobalRole != nil && *user.GlobalRole == fleet.RoleAdmin {
+	if user.GlobalRole != nil && *user.GlobalRole == automdm.RoleAdmin {
 		if err := svc.ds.DeleteUserIfNotLastAdmin(ctx, id); err != nil {
-			if errors.Is(err, fleet.ErrLastGlobalAdmin) {
-				return nil, fleet.NewInvalidArgumentError("id", "cannot delete the last global admin")
+			if errors.Is(err, automdm.ErrLastGlobalAdmin) {
+				return nil, automdm.NewInvalidArgumentError("id", "cannot delete the last global admin")
 			}
 			return nil, err
 		}
@@ -1017,7 +1017,7 @@ func (svc *Service) DeleteUser(ctx context.Context, id uint) (*fleet.User, error
 	if err := svc.NewActivity(
 		ctx,
 		adminUser,
-		fleet.ActivityTypeDeletedUser{
+		automdm.ActivityTypeDeletedUser{
 			UserID:    user.ID,
 			UserName:  user.Name,
 			UserEmail: user.Email,
@@ -1039,13 +1039,13 @@ type requirePasswordResetRequest struct {
 }
 
 type requirePasswordResetResponse struct {
-	User *fleet.User `json:"user,omitempty"`
-	Err  error       `json:"error,omitempty"`
+	User *automdm.User `json:"user,omitempty"`
+	Err  error         `json:"error,omitempty"`
 }
 
 func (r requirePasswordResetResponse) Error() error { return r.Err }
 
-func requirePasswordResetEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func requirePasswordResetEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*requirePasswordResetRequest)
 	user, err := svc.RequirePasswordReset(ctx, req.ID, req.Require)
 	if err != nil {
@@ -1054,8 +1054,8 @@ func requirePasswordResetEndpoint(ctx context.Context, request interface{}, svc 
 	return requirePasswordResetResponse{User: user}, nil
 }
 
-func (svc *Service) RequirePasswordReset(ctx context.Context, uid uint, require bool) (*fleet.User, error) {
-	if err := svc.authz.Authorize(ctx, &fleet.User{ID: uid}, fleet.ActionWrite); err != nil {
+func (svc *Service) RequirePasswordReset(ctx context.Context, uid uint, require bool) (*automdm.User, error) {
+	if err := svc.authz.Authorize(ctx, &automdm.User{ID: uid}, automdm.ActionWrite); err != nil {
 		return nil, err
 	}
 
@@ -1101,7 +1101,7 @@ type changePasswordResponse struct {
 
 func (r changePasswordResponse) Error() error { return r.Err }
 
-func changePasswordEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func changePasswordEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*changePasswordRequest)
 	err := svc.ChangePassword(ctx, req.OldPassword, req.NewPassword)
 	return changePasswordResponse{Err: err}, nil
@@ -1110,30 +1110,30 @@ func changePasswordEndpoint(ctx context.Context, request interface{}, svc fleet.
 func (svc *Service) ChangePassword(ctx context.Context, oldPass, newPass string) error {
 	vc, ok := viewer.FromContext(ctx)
 	if !ok {
-		return fleet.ErrNoContext
+		return automdm.ErrNoContext
 	}
 
-	if err := svc.authz.Authorize(ctx, vc.User, fleet.ActionChangePassword); err != nil {
+	if err := svc.authz.Authorize(ctx, vc.User, automdm.ActionChangePassword); err != nil {
 		return err
 	}
 
 	if oldPass == "" {
-		return ctxerr.Wrap(ctx, fleet.NewInvalidArgumentError("old_password", "Old password cannot be empty"))
+		return ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("old_password", "Old password cannot be empty"))
 	}
 	if newPass == "" {
-		return ctxerr.Wrap(ctx, fleet.NewInvalidArgumentError("new_password", "New password cannot be empty"))
+		return ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("new_password", "New password cannot be empty"))
 	}
-	if err := fleet.ValidatePasswordRequirements(newPass); err != nil {
-		return ctxerr.Wrap(ctx, fleet.NewInvalidArgumentError("new_password", err.Error()))
+	if err := automdm.ValidatePasswordRequirements(newPass); err != nil {
+		return ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("new_password", err.Error()))
 	}
 	if vc.User.SSOEnabled {
 		return ctxerr.New(ctx, "change password for single sign on user not allowed")
 	}
 	if err := vc.User.ValidatePassword(newPass); err == nil {
-		return ctxerr.Wrap(ctx, fleet.NewInvalidArgumentError("new_password", "Cannot reuse old password"))
+		return ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("new_password", "Cannot reuse old password"))
 	}
 	if err := vc.User.ValidatePassword(oldPass); err != nil {
-		return ctxerr.Wrap(ctx, fleet.NewInvalidArgumentError("old_password", "old password does not match"))
+		return ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("old_password", "old password does not match"))
 	}
 
 	if err := svc.setNewPassword(ctx, vc.User, newPass, true); err != nil {
@@ -1157,7 +1157,7 @@ type getInfoAboutSessionsForUserResponse struct {
 
 func (r getInfoAboutSessionsForUserResponse) Error() error { return r.Err }
 
-func getInfoAboutSessionsForUserEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func getInfoAboutSessionsForUserEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*getInfoAboutSessionsForUserRequest)
 	sessions, err := svc.GetInfoAboutSessionsForUser(ctx, req.ID)
 	if err != nil {
@@ -1174,12 +1174,12 @@ func getInfoAboutSessionsForUserEndpoint(ctx context.Context, request interface{
 	return resp, nil
 }
 
-func (svc *Service) GetInfoAboutSessionsForUser(ctx context.Context, id uint) ([]*fleet.Session, error) {
-	if err := svc.authz.Authorize(ctx, &fleet.Session{UserID: id}, fleet.ActionRead); err != nil {
+func (svc *Service) GetInfoAboutSessionsForUser(ctx context.Context, id uint) ([]*automdm.Session, error) {
+	if err := svc.authz.Authorize(ctx, &automdm.Session{UserID: id}, automdm.ActionRead); err != nil {
 		return nil, err
 	}
 
-	var validatedSessions []*fleet.Session
+	var validatedSessions []*automdm.Session
 
 	sessions, err := svc.ds.ListSessionsForUser(ctx, id)
 	if err != nil {
@@ -1209,7 +1209,7 @@ type deleteSessionsForUserResponse struct {
 
 func (r deleteSessionsForUserResponse) Error() error { return r.Err }
 
-func deleteSessionsForUserEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func deleteSessionsForUserEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*deleteSessionsForUserRequest)
 	err := svc.DeleteSessionsForUser(ctx, req.ID)
 	if err != nil {
@@ -1219,7 +1219,7 @@ func deleteSessionsForUserEndpoint(ctx context.Context, request interface{}, svc
 }
 
 func (svc *Service) DeleteSessionsForUser(ctx context.Context, id uint) error {
-	if err := svc.authz.Authorize(ctx, &fleet.Session{UserID: id}, fleet.ActionWrite); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.Session{UserID: id}, automdm.ActionWrite); err != nil {
 		return err
 	}
 
@@ -1241,7 +1241,7 @@ type changeEmailResponse struct {
 
 func (r changeEmailResponse) Error() error { return r.Err }
 
-func changeEmailEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func changeEmailEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*changeEmailRequest)
 	newEmailAddress, err := svc.ChangeUserEmail(ctx, req.Token)
 	if err != nil {
@@ -1253,10 +1253,10 @@ func changeEmailEndpoint(ctx context.Context, request interface{}, svc fleet.Ser
 func (svc *Service) ChangeUserEmail(ctx context.Context, token string) (string, error) {
 	vc, ok := viewer.FromContext(ctx)
 	if !ok {
-		return "", fleet.ErrNoContext
+		return "", automdm.ErrNoContext
 	}
 
-	if err := svc.authz.Authorize(ctx, &fleet.User{ID: vc.UserID()}, fleet.ActionWrite); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.User{ID: vc.UserID()}, automdm.ActionWrite); err != nil {
 		return "", err
 	}
 
@@ -1267,9 +1267,9 @@ func (svc *Service) ChangeUserEmail(ctx context.Context, token string) (string, 
 // roles in the teams.
 //
 // TODO: End-goal is to move all this logic to policy.rego.
-func isAdminOfTheModifiedTeams(currentUser *fleet.User, originalUserTeams, newUserTeams []fleet.UserTeam) bool {
+func isAdminOfTheModifiedTeams(currentUser *automdm.User, originalUserTeams, newUserTeams []automdm.UserTeam) bool {
 	// Global admins can modify all user teams roles.
-	if currentUser.GlobalRole != nil && *currentUser.GlobalRole == fleet.RoleAdmin {
+	if currentUser.GlobalRole != nil && *currentUser.GlobalRole == automdm.RoleAdmin {
 		return true
 	}
 
@@ -1301,7 +1301,7 @@ func isAdminOfTheModifiedTeams(currentUser *fleet.User, originalUserTeams, newUs
 	// Then gather the teams the current user is admin for.
 	currentUserTeamAdmin := make(map[uint]struct{})
 	for _, team := range currentUser.Teams {
-		if team.Role == fleet.RoleAdmin {
+		if team.Role == automdm.RoleAdmin {
 			currentUserTeamAdmin[team.ID] = struct{}{}
 		}
 	}
@@ -1317,12 +1317,12 @@ func isAdminOfTheModifiedTeams(currentUser *fleet.User, originalUserTeams, newUs
 	return true
 }
 
-func (svc *Service) modifyEmailAddress(ctx context.Context, user *fleet.User, email string, password *string) error {
+func (svc *Service) modifyEmailAddress(ctx context.Context, user *automdm.User, email string, password *string) error {
 	// password requirement handled in validation middleware
 	if password != nil {
 		err := user.ValidatePassword(*password)
 		if err != nil {
-			return fleet.NewPermissionError("incorrect password")
+			return automdm.NewPermissionError("incorrect password")
 		}
 	}
 	random, err := server.GenerateRandomText(svc.config.App.TokenKeySize)
@@ -1358,13 +1358,13 @@ func (svc *Service) modifyEmailAddress(ctx context.Context, user *fleet.User, em
 		return err
 	}
 
-	var smtpSettings fleet.SMTPSettings
+	var smtpSettings automdm.SMTPSettings
 	if config.SMTPSettings != nil {
 		smtpSettings = *config.SMTPSettings
 	}
 
-	changeEmail := fleet.Email{
-		Subject:      "Confirm Fleet Email Change",
+	changeEmail := automdm.Email{
+		Subject:      "Confirm AutoMDM Email Change",
 		To:           []string{email},
 		SMTPSettings: smtpSettings,
 		ServerURL:    config.ServerSettings.ServerURL,
@@ -1380,7 +1380,7 @@ func (svc *Service) modifyEmailAddress(ctx context.Context, user *fleet.User, em
 // saves user in datastore.
 // doesn't need to be exposed to the transport
 // the service should expose actions for modifying a user instead
-func (svc *Service) saveUser(ctx context.Context, user *fleet.User) error {
+func (svc *Service) saveUser(ctx context.Context, user *automdm.User) error {
 	return svc.ds.SaveUser(ctx, user)
 }
 
@@ -1393,13 +1393,13 @@ type performRequiredPasswordResetRequest struct {
 }
 
 type performRequiredPasswordResetResponse struct {
-	User *fleet.User `json:"user,omitempty"`
-	Err  error       `json:"error,omitempty"`
+	User *automdm.User `json:"user,omitempty"`
+	Err  error         `json:"error,omitempty"`
 }
 
 func (r performRequiredPasswordResetResponse) Error() error { return r.Err }
 
-func performRequiredPasswordResetEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func performRequiredPasswordResetEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*performRequiredPasswordResetRequest)
 	user, err := svc.PerformRequiredPasswordReset(ctx, req.Password)
 	if err != nil {
@@ -1408,7 +1408,7 @@ func performRequiredPasswordResetEndpoint(ctx context.Context, request interface
 	return performRequiredPasswordResetResponse{User: user}, nil
 }
 
-func (svc *Service) PerformRequiredPasswordReset(ctx context.Context, password string) (*fleet.User, error) {
+func (svc *Service) PerformRequiredPasswordReset(ctx context.Context, password string) (*automdm.User, error) {
 	vc, ok := viewer.FromContext(ctx)
 	if !ok {
 		// No user in the context -- authentication issue
@@ -1417,34 +1417,34 @@ func (svc *Service) PerformRequiredPasswordReset(ctx context.Context, password s
 	}
 	if !vc.CanPerformPasswordReset() {
 		svc.authz.SkipAuthorization(ctx)
-		return nil, fleet.NewPermissionError("cannot reset password")
+		return nil, automdm.NewPermissionError("cannot reset password")
 	}
 	user := vc.User
 
-	if err := svc.authz.Authorize(ctx, user, fleet.ActionChangePassword); err != nil {
+	if err := svc.authz.Authorize(ctx, user, automdm.ActionChangePassword); err != nil {
 		return nil, err
 	}
 
 	if user.SSOEnabled {
 		// should never happen because this would get caught by the
 		// CanPerformPasswordReset check above
-		err := fleet.NewPermissionError("password reset for single sign on user not allowed")
+		err := automdm.NewPermissionError("password reset for single sign on user not allowed")
 		return nil, ctxerr.Wrap(ctx, err)
 	}
 	if !user.IsAdminForcedPasswordReset() {
 		// should never happen because this would get caught by the
 		// CanPerformPasswordReset check above
-		err := fleet.NewPermissionError("cannot reset password")
+		err := automdm.NewPermissionError("cannot reset password")
 		return nil, ctxerr.Wrap(ctx, err)
 	}
 
 	// prevent setting the same password
 	if err := user.ValidatePassword(password); err == nil {
-		return nil, fleet.NewInvalidArgumentError("new_password", "Cannot reuse old password")
+		return nil, automdm.NewInvalidArgumentError("new_password", "Cannot reuse old password")
 	}
 
-	if err := fleet.ValidatePasswordRequirements(password); err != nil {
-		return nil, fleet.NewInvalidArgumentError("new_password", "Password does not meet required criteria: Must include 12 characters, at least 1 number (e.g. 0 - 9), and at least 1 symbol (e.g. &*#).")
+	if err := automdm.ValidatePasswordRequirements(password); err != nil {
+		return nil, automdm.NewInvalidArgumentError("new_password", "Password does not meet required criteria: Must include 12 characters, at least 1 number (e.g. 0 - 9), and at least 1 symbol (e.g. &*#).")
 	}
 
 	user.AdminForcedPasswordReset = false
@@ -1473,7 +1473,7 @@ func (svc *Service) PerformRequiredPasswordReset(ctx context.Context, password s
 // setNewPassword is a helper for changing a user's password. It should be
 // called to set the new password after proper authorization has been
 // performed.
-func (svc *Service) setNewPassword(ctx context.Context, user *fleet.User, password string, clearSessions bool) error {
+func (svc *Service) setNewPassword(ctx context.Context, user *automdm.User, password string, clearSessions bool) error {
 	err := user.SetPassword(password, svc.config.Auth.SaltKeySize, svc.config.Auth.BcryptCost)
 	if err != nil {
 		return ctxerr.Wrap(ctx, err, "setting new password")
@@ -1513,7 +1513,7 @@ type resetPasswordResponse struct {
 
 func (r resetPasswordResponse) Error() error { return r.Err }
 
-func resetPasswordEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func resetPasswordEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*resetPasswordRequest)
 	err := svc.ResetPassword(ctx, req.PasswordResetToken, req.NewPassword)
 	return resetPasswordResponse{Err: err}, nil
@@ -1526,22 +1526,22 @@ func (svc *Service) ResetPassword(ctx context.Context, token, password string) e
 	svc.authz.SkipAuthorization(ctx)
 
 	if token == "" {
-		return ctxerr.Wrap(ctx, fleet.NewInvalidArgumentError("token", "Token cannot be empty field"))
+		return ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("token", "Token cannot be empty field"))
 	}
 	if password == "" {
-		return ctxerr.Wrap(ctx, fleet.NewInvalidArgumentError("new_password", "New password cannot be empty field"))
+		return ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("new_password", "New password cannot be empty field"))
 	}
-	if err := fleet.ValidatePasswordRequirements(password); err != nil {
-		return ctxerr.Wrap(ctx, fleet.NewInvalidArgumentError("new_password", err.Error()))
+	if err := automdm.ValidatePasswordRequirements(password); err != nil {
+		return ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("new_password", err.Error()))
 	}
 
 	reset, err := svc.ds.FindPasswordResetByToken(ctx, token)
 	if err != nil {
-		return ctxerr.Wrap(ctx, fleet.NewAuthFailedError(err.Error()), "find password reset request by token")
+		return ctxerr.Wrap(ctx, automdm.NewAuthFailedError(err.Error()), "find password reset request by token")
 	}
 	user, err := svc.ds.UserByID(ctx, reset.UserID)
 	if err != nil {
-		return ctxerr.Wrap(ctx, fleet.NewAuthFailedError(err.Error()), "find user by id")
+		return ctxerr.Wrap(ctx, automdm.NewAuthFailedError(err.Error()), "find user by id")
 	}
 
 	if user.SSOEnabled {
@@ -1550,7 +1550,7 @@ func (svc *Service) ResetPassword(ctx context.Context, token, password string) e
 
 	// prevent setting the same password
 	if err := user.ValidatePassword(password); err == nil {
-		return fleet.NewInvalidArgumentError("new_password", "Cannot reuse old password")
+		return automdm.NewInvalidArgumentError("new_password", "Cannot reuse old password")
 	}
 
 	// Hash the new password before touching the database. Hashing is the only step that
@@ -1558,7 +1558,7 @@ func (svc *Service) ResetPassword(ctx context.Context, token, password string) e
 	// CPU-bound, so it must run before — and outside of — the reset transaction. Doing it
 	// here also guarantees a rejected password never consumes the token.
 	if err := user.SetPassword(password, svc.config.Auth.SaltKeySize, svc.config.Auth.BcryptCost); err != nil {
-		return ctxerr.Wrap(ctx, fleet.NewInvalidArgumentError("new_password", err.Error()))
+		return ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("new_password", err.Error()))
 	}
 
 	// Consume the token and apply the password change atomically. Within a single
@@ -1568,8 +1568,8 @@ func (svc *Service) ResetPassword(ctx context.Context, token, password string) e
 	// a failure in any step rolls back the token consumption so the reset link stays
 	// usable.
 	if err := svc.ds.ResetPassword(ctx, token, user); err != nil {
-		if fleet.IsNotFound(err) {
-			return ctxerr.Wrap(ctx, fleet.NewAuthFailedError("invalid password reset token"), "password reset token already used")
+		if automdm.IsNotFound(err) {
+			return ctxerr.Wrap(ctx, automdm.NewAuthFailedError("invalid password reset token"), "password reset token already used")
 		}
 		return ctxerr.Wrap(ctx, err, "resetting password")
 	}
@@ -1592,12 +1592,12 @@ type forgotPasswordResponse struct {
 func (r forgotPasswordResponse) Error() error { return r.Err }
 func (r forgotPasswordResponse) Status() int  { return http.StatusAccepted }
 
-func forgotPasswordEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func forgotPasswordEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*forgotPasswordRequest)
 	// Any error returned by the service should not be returned to the
 	// client to prevent information disclosure (it will be logged in the
 	// server logs).
-	if err := svc.RequestPasswordReset(ctx, req.Email); errors.Is(err, fleet.ErrPasswordResetNotConfigured) {
+	if err := svc.RequestPasswordReset(ctx, req.Email); errors.Is(err, automdm.ErrPasswordResetNotConfigured) {
 		return forgotPasswordResponse{Err: err}, nil
 	}
 	return forgotPasswordResponse{}, nil
@@ -1619,7 +1619,7 @@ func (svc *Service) RequestPasswordReset(ctx context.Context, email string) erro
 		return err
 	}
 	if !svc.mailService.CanSendEmail(*config.SMTPSettings) {
-		return fleet.ErrPasswordResetNotConfigured
+		return automdm.ErrPasswordResetNotConfigured
 	}
 
 	user, err := svc.ds.UserByEmail(ctx, email)
@@ -1636,7 +1636,7 @@ func (svc *Service) RequestPasswordReset(ctx context.Context, email string) erro
 	}
 	token := base64.URLEncoding.EncodeToString([]byte(random))
 
-	request := &fleet.PasswordResetRequest{
+	request := &automdm.PasswordResetRequest{
 		UserID: user.ID,
 		Token:  token,
 	}
@@ -1645,13 +1645,13 @@ func (svc *Service) RequestPasswordReset(ctx context.Context, email string) erro
 		return err
 	}
 
-	var smtpSettings fleet.SMTPSettings
+	var smtpSettings automdm.SMTPSettings
 	if config.SMTPSettings != nil {
 		smtpSettings = *config.SMTPSettings
 	}
 
-	resetEmail := fleet.Email{
-		Subject:      "Reset Your Fleet Password",
+	resetEmail := automdm.Email{
+		Subject:      "Reset Your AutoMDM Password",
 		To:           []string{user.Email},
 		SMTPSettings: smtpSettings,
 		ServerURL:    config.ServerSettings.ServerURL,
@@ -1669,10 +1669,10 @@ func (svc *Service) RequestPasswordReset(ctx context.Context, email string) erro
 	return err
 }
 
-func (svc *Service) ListAvailableTeamsForUser(ctx context.Context, user *fleet.User) ([]*fleet.TeamSummary, error) {
+func (svc *Service) ListAvailableTeamsForUser(ctx context.Context, user *automdm.User) ([]*automdm.TeamSummary, error) {
 	// skipauth: No authorization check needed due to implementation returning
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return nil, fleet.ErrMissingLicense
+	return nil, automdm.ErrMissingLicense
 }

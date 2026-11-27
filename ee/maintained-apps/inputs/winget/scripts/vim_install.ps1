@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # Vim ships an NSIS installer built with NsisMultiUser, which rejects /S on
 # its own with exit code 666660 (invalid command-line parameters). /allusers

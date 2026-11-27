@@ -40,7 +40,7 @@ import {
   DEFAULT_GRAVATAR_LINK_FALLBACK,
   DEFAULT_GRAVATAR_LINK_DARK,
   DEFAULT_GRAVATAR_LINK_DARK_FALLBACK,
-  INITIAL_FLEET_DATE,
+  INITIAL_AUTOMDM_DATE,
   PLATFORM_LABEL_DISPLAY_TYPES,
   isPlatformLabelNameFromAPI,
 } from "utilities/constants";
@@ -190,12 +190,12 @@ export const formatSelectedTargetsForApi = (
   // TODO: can flatMap be removed?
   const hostIds = flatMap(targets, filterTarget("hosts"));
   const labelIds = flatMap(targets, filterTarget("labels"));
-  const fleetIds = flatMap(targets, filterTarget("teams"));
+  const automdmIds = flatMap(targets, filterTarget("teams"));
 
   return {
     hosts: hostIds.sort(),
     labels: labelIds.sort(),
-    fleets: fleetIds.sort(),
+    teams: automdmIds.sort(),
   };
 };
 
@@ -287,14 +287,14 @@ export const generateTeam = (
       // no global role and only one team
       return teams[0].name;
     }
-    return `${teams.length} fleets`; // no global role and multiple teams
+    return `${teams.length} teams`; // no global role and multiple teams
   }
 
   if (teams.length === 0) {
     // global role and no teams
     return ROLE_GLOBAL;
   }
-  return `${teams.length + 1} fleets`; // global role and one or more teams
+  return `${teams.length + 1} teams`; // global role and one or more teams
 };
 
 export const generateTeamNames = (teams: ITeam[]): string[] => {
@@ -321,7 +321,7 @@ export const greyCell = (roleOrTeamText: string): boolean => {
   const GREYED_TEXT = [ROLE_GLOBAL, "Unassigned", ROLE_VARIOUS, "Unknown"];
 
   return (
-    GREYED_TEXT.includes(roleOrTeamText) || roleOrTeamText.includes(" fleets")
+    GREYED_TEXT.includes(roleOrTeamText) || roleOrTeamText.includes(" teams")
   );
 };
 
@@ -351,7 +351,7 @@ export const inMilliseconds = (nanoseconds: number): number => {
 };
 
 export const humanHostLastSeen = (lastSeen: string): string => {
-  if (!lastSeen || lastSeen < INITIAL_FLEET_DATE) {
+  if (!lastSeen || lastSeen < INITIAL_AUTOMDM_DATE) {
     return "Never";
   }
   if (lastSeen === "Unavailable") {
@@ -361,7 +361,7 @@ export const humanHostLastSeen = (lastSeen: string): string => {
 };
 
 export const humanHostEnrolled = (enrolled: string): string => {
-  if (!enrolled || enrolled < INITIAL_FLEET_DATE) {
+  if (!enrolled || enrolled < INITIAL_AUTOMDM_DATE) {
     return "Never";
   }
   return timeAgo(new Date(enrolled), { addSuffix: true });
@@ -375,9 +375,9 @@ export const humanHostMemory = (bytes: number): string => {
 };
 
 export const humanHostDetailUpdated = (detailUpdated?: string): string => {
-  // Handles the case when a host has checked in to Fleet but
+  // Handles the case when a host has checked in to AutoMDM but
   // its details haven't been updated.
-  if (!detailUpdated || detailUpdated < INITIAL_FLEET_DATE) {
+  if (!detailUpdated || detailUpdated < INITIAL_AUTOMDM_DATE) {
     return "unavailable";
   }
   try {
@@ -387,7 +387,7 @@ export const humanHostDetailUpdated = (detailUpdated?: string): string => {
   }
 };
 
-/** Unlike humanHost helper functions, there are no Fleet-related date restrictions */
+/** Unlike humanHost helper functions, there are no AutoMDM-related date restrictions */
 export const humanLastSeen = (lastSeen: string): string => {
   if (!lastSeen) {
     return "Never";
@@ -473,7 +473,7 @@ export const hostTeamName = (teamName: string | null): string => {
 
 export const humanQueryLastRun = (lastRun: string): string => {
   // Handles the case when a query has never been ran.
-  if (!lastRun || lastRun < INITIAL_FLEET_DATE) {
+  if (!lastRun || lastRun < INITIAL_AUTOMDM_DATE) {
     return "Has not run";
   }
 
@@ -682,7 +682,7 @@ export const normalizeEmptyValues = (
 export const wait = (milliseconds: number) =>
   new Promise((resolve) => setTimeout(resolve, milliseconds));
 
-export const wrapFleetHelper = (
+export const wrapAutoMDMHelper = (
   helperFn: (value: any) => string, // TODO: replace any with unknown and improve type narrowing by callers
   value: string
 ): string => {
@@ -843,18 +843,18 @@ export const generateGenericLearnMoreErrMsg = (errMsg: string) => {
   return errMsg;
 };
 
-const FLEET_5_REMOVAL_MESSAGE = /^(.*? What to use instead: )(https:\/\/\S+)(.*)$/;
+const AUTOMDM_5_REMOVAL_MESSAGE = /^(.*? What to use instead: )(https:\/\/\S+)(.*)$/;
 
 /**
- * Formats any Fleet 5 removal message from the API ("The ... is not available anymore. What to use
+ * Formats any AutoMDM 5 removal message from the API ("The ... is not available anymore. What to use
  * instead: <guide URL>") with the guide URL as a link. Returns null for any other message. Pass the
  * "default" link variant outside toasts.
  */
-export const formatFleet5RemovalMessage = (
+export const formatAutoMDM5RemovalMessage = (
   message: string,
   linkVariant: "flash-message-link" | "default" = "flash-message-link"
 ) => {
-  const match = message.match(FLEET_5_REMOVAL_MESSAGE);
+  const match = message.match(AUTOMDM_5_REMOVAL_MESSAGE);
   if (!match) {
     return null;
   }
@@ -907,7 +907,7 @@ export default {
   syntaxHighlight,
   normalizeEmptyValues,
   wait,
-  wrapFleetHelper,
+  wrapAutoMDMHelper,
   isDateTimePast,
   generateGenericLearnMoreErrMsg,
 };

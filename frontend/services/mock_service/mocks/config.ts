@@ -15,7 +15,7 @@ interface IResponses {
 
 const DELAY = 500;
 
-const ENDPOINT = "/latest/fleet";
+const ENDPOINT = "/latest/automdm";
 
 const WILDCARDS: string[] = [":", "*", "{", "}"];
 
@@ -58,7 +58,7 @@ const REQUEST_RESPONSE_MAPPINGS: IResponses = {
       observer_can_run: false,
       query: "SELECT * FROM osquery_info;",
       id: 1,
-      fleet_id: null,
+      team_id: null,
       platform: "linux",
     },
     "autofill/policies": RESPONSES.aiAutofillPolicy,

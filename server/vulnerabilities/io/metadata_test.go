@@ -30,7 +30,7 @@ func TestSecurityBulletinName(t *testing.T) {
 	t.Run("WinOfficeFileName", func(t *testing.T) {
 		now := time.Now()
 		result := WinOfficeFileName(now)
-		require.Contains(t, result, "fleet_winoffice_")
+		require.Contains(t, result, "automdm_winoffice_")
 		require.Contains(t, result, "bulletin")
 		require.Contains(t, result, strconv.Itoa(now.Year()))
 		require.Contains(t, result, strconv.Itoa(int(now.Month())))

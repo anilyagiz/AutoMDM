@@ -17,20 +17,20 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/fleetdm/fleet/v4/ee/server/service/hostidentity/httpsig"
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/contexts/authz"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/ee/server/service/hostidentity/httpsig"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/authz"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 	"github.com/smallstep/pkcs7"
 )
 
-// This code largely adapted from fleet/website/api/controllers/get-est-device-certificate.js
-func (svc *Service) RequestCertificate(ctx context.Context, p fleet.RequestCertificatePayload) (*string, error) {
+// This code largely adapted from automdm/website/api/controllers/get-est-device-certificate.js
+func (svc *Service) RequestCertificate(ctx context.Context, p automdm.RequestCertificatePayload) (*string, error) {
 	auth, authOk := authz.FromContext(ctx)
 	if !authOk {
 		// This shouldn't be possible
-		return nil, &fleet.BadRequestError{Message: "Missing authentication authorization context"}
+		return nil, &automdm.BadRequestError{Message: "Missing authentication authorization context"}
 	}
 
 	var hostID *uint
@@ -40,14 +40,14 @@ func (svc *Service) RequestCertificate(ctx context.Context, p fleet.RequestCerti
 
 		hostIdentityCert, certOk := httpsig.FromContext(ctx)
 		if !certOk {
-			return nil, fleet.NewPermissionError("Missing host identity certificate for signed certificate request.")
+			return nil, automdm.NewPermissionError("Missing host identity certificate for signed certificate request.")
 		}
 		if hostIdentityCert.HostID == nil {
-			return nil, fleet.NewPermissionError("Host identity certificate is not associated with an enrolled host.")
+			return nil, automdm.NewPermissionError("Host identity certificate is not associated with an enrolled host.")
 		}
 		hostID = hostIdentityCert.HostID
 
-	} else if err := svc.authz.Authorize(ctx, &fleet.RequestCertificatePayload{}, fleet.ActionWrite); err != nil {
+	} else if err := svc.authz.Authorize(ctx, &automdm.RequestCertificatePayload{}, automdm.ActionWrite); err != nil {
 		// User-based auth path
 		return nil, err
 	}
@@ -65,10 +65,10 @@ func (svc *Service) RequestCertificate(ctx context.Context, p fleet.RequestCerti
 
 	issueCert, err := svc.newCertificateIssuer(ca)
 	if err != nil {
-		return nil, &fleet.BadRequestError{Message: err.Error(), InternalErr: err}
+		return nil, &automdm.BadRequestError{Message: err.Error(), InternalErr: err}
 	}
 
-	if err := svc.verifyRequesterIdentity(ctx, p, hostID, fleet.CAType(ca.Type), certificateRequest); err != nil {
+	if err := svc.verifyRequesterIdentity(ctx, p, hostID, automdm.CAType(ca.Type), certificateRequest); err != nil {
 		return nil, err
 	}
 
@@ -77,10 +77,10 @@ func (svc *Service) RequestCertificate(ctx context.Context, p fleet.RequestCerti
 		svc.logger.ErrorContext(ctx, "Certificate request to the certificate authority failed", "ca_id", ca.ID, "ca_type", ca.Type, "err", err)
 		// A CA that could not serve the request gets a 503 with Retry-After, so curl --retry and
 		// similar clients wait and retry instead of failing the install.
-		if _, ok := errors.AsType[fleet.CertificateAuthorityTransientError](err); ok {
+		if _, ok := errors.AsType[automdm.CertificateAuthorityTransientError](err); ok {
 			return nil, err
 		}
-		return nil, &fleet.BadRequestError{Message: err.Error(), InternalErr: err}
+		return nil, &automdm.BadRequestError{Message: err.Error(), InternalErr: err}
 	}
 
 	if !p.ReturnPEMCertificate {
@@ -99,7 +99,7 @@ func (svc *Service) RequestCertificate(ctx context.Context, p fleet.RequestCerti
 // verifyRequesterIdentity applies the identity safeguards to the CSR: the IdP introspection
 // allowlist, the calling host's end-user binding, and IdP token introspection. hostID is the
 // calling host for device-signed requests and nil otherwise.
-func (svc *Service) verifyRequesterIdentity(ctx context.Context, p fleet.RequestCertificatePayload, hostID *uint, caType fleet.CAType,
+func (svc *Service) verifyRequesterIdentity(ctx context.Context, p automdm.RequestCertificatePayload, hostID *uint, caType automdm.CAType,
 	certificateRequest *x509.CertificateRequest,
 ) error {
 	appConfig, err := svc.ds.AppConfig(ctx)
@@ -130,7 +130,7 @@ func (svc *Service) verifyRequesterIdentity(ctx context.Context, p fleet.Request
 	// email, DNS, URI or IP SANs, so for it the UPN is the identity and the only SAN allowed. That
 	// shape is checked on every request, since Google would reject anything else.
 	var identity, csrEmail, csrUsername string
-	upnOnly := caType == fleet.CATypeGoogleCAS
+	upnOnly := caType == automdm.CATypeGoogleCAS
 	switch {
 	case upnOnly:
 		identity, err = extractCSROnlyUPN(ctx, certificateRequest)
@@ -220,9 +220,9 @@ func (svc *Service) verifyRequesterIdentity(ctx context.Context, p fleet.Request
 // It returns the certificate as a base64-encoded PKCS7 envelope.
 type certificateIssuer func(ctx context.Context, csr *x509.CertificateRequest) ([]byte, error)
 
-func (svc *Service) newCertificateIssuer(ca *fleet.CertificateAuthority) (certificateIssuer, error) {
-	switch fleet.CAType(ca.Type) {
-	case fleet.CATypeHydrant, fleet.CATypeCustomESTProxy:
+func (svc *Service) newCertificateIssuer(ca *automdm.CertificateAuthority) (certificateIssuer, error) {
+	switch automdm.CAType(ca.Type) {
+	case automdm.CATypeHydrant, automdm.CATypeCustomESTProxy:
 		estCA, err := ca.ESTProxyCA()
 		if err != nil {
 			return nil, err
@@ -230,7 +230,7 @@ func (svc *Service) newCertificateIssuer(ca *fleet.CertificateAuthority) (certif
 		return func(ctx context.Context, csr *x509.CertificateRequest) ([]byte, error) {
 			return issueESTCertificate(ctx, svc.estService, estCA, csr)
 		}, nil
-	case fleet.CATypeNDESSCEPProxy:
+	case automdm.CATypeNDESSCEPProxy:
 		if ca.URL == nil {
 			return nil, errors.New("Certificate authority does not have a SCEP URL configured.")
 		}
@@ -238,7 +238,7 @@ func (svc *Service) newCertificateIssuer(ca *fleet.CertificateAuthority) (certif
 		return func(ctx context.Context, csr *x509.CertificateRequest) ([]byte, error) {
 			return issueSCEPCertificate(ctx, svc.scepEnrollmentClient, scepURL, csr)
 		}, nil
-	case fleet.CATypeGoogleCAS:
+	case automdm.CATypeGoogleCAS:
 		googleCAS, err := ca.GoogleCASCA()
 		if err != nil {
 			return nil, err
@@ -255,7 +255,7 @@ func (svc *Service) newCertificateIssuer(ca *fleet.CertificateAuthority) (certif
 // The CSR is sent re-encoded from the DER that was parsed and checked, so
 // nothing else in the request payload reaches the CA. It is wrapped because EST bodies use MIME
 // base64 (RFC 7030 via RFC 2045), which limits lines to 76 characters.
-func issueESTCertificate(ctx context.Context, estService fleet.ESTService, ca fleet.ESTProxyCA, csr *x509.CertificateRequest) ([]byte, error) {
+func issueESTCertificate(ctx context.Context, estService automdm.ESTService, ca automdm.ESTProxyCA, csr *x509.CertificateRequest) ([]byte, error) {
 	certificate, err := estService.GetCertificate(ctx, ca, string(wrapBase64(csr.Raw))) //nolint (staticheck bug)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "EST certificate request failed")
@@ -264,8 +264,8 @@ func issueESTCertificate(ctx context.Context, estService fleet.ESTService, ca fl
 }
 
 // issueSCEPCertificate serves SCEP CAs. Any challenge the CA requires must already be in the
-// caller-signed CSR, since Fleet cannot add one without the CSR's private key.
-func issueSCEPCertificate(ctx context.Context, client fleet.SCEPEnrollmentClient, scepURL string, csr *x509.CertificateRequest) ([]byte, error) {
+// caller-signed CSR, since AutoMDM cannot add one without the CSR's private key.
+func issueSCEPCertificate(ctx context.Context, client automdm.SCEPEnrollmentClient, scepURL string, csr *x509.CertificateRequest) ([]byte, error) {
 	cert, err := client.GetCertificate(ctx, scepURL, csr)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "SCEP certificate request failed")
@@ -279,7 +279,7 @@ func issueSCEPCertificate(ctx context.Context, client fleet.SCEPEnrollmentClient
 
 // issueGoogleCASCertificate serves Google CAS CAs. Google returns a PEM certificate, which is
 // wrapped as a PKCS7 envelope so the response has the same shape as every other CA's.
-func (svc *Service) issueGoogleCASCertificate(ctx context.Context, ca fleet.GoogleCASCA, csr *x509.CertificateRequest) ([]byte, error) {
+func (svc *Service) issueGoogleCASCertificate(ctx context.Context, ca automdm.GoogleCASCA, csr *x509.CertificateRequest) ([]byte, error) {
 	cert, err := svc.googleCASService.IssueCertificate(ctx, ca, csr)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "Google CAS certificate request failed")
@@ -311,7 +311,7 @@ func checkIssuedIdentity(ctx context.Context, cert *x509.Certificate, csr *x509.
 	for _, ext := range cert.Extensions {
 		switch {
 		case ext.Id.Equal(securityIdentifierOID):
-			return ctxerr.New(ctx, "Google CAS issued a certificate with identity information Fleet didn't request. Check the CA pool's issuance policy.")
+			return ctxerr.New(ctx, "Google CAS issued a certificate with identity information AutoMDM didn't request. Check the CA pool's issuance policy.")
 		case ext.Id.Equal(sanOID):
 			sans++
 			if issued, err = parseOnlyUPNSAN(ctx, ext.Value); err != nil {
@@ -341,7 +341,7 @@ func wrapBase64(data []byte) []byte {
 }
 
 func hostEndUserMismatchError() error {
-	return fleet.NewPermissionError("Certificate subject does not match the end user identity recorded for this host.")
+	return automdm.NewPermissionError("Certificate subject does not match the end user identity recorded for this host.")
 }
 
 // verifyHostEndUserBinding requires the CSR's identity to be the one the calling host is recorded as
@@ -350,12 +350,12 @@ func hostEndUserMismatchError() error {
 func (svc *Service) verifyHostEndUserBinding(ctx context.Context, hostID uint, identity string) error {
 	mismatch := hostEndUserMismatchError()
 
-	endUsers, err := fleet.GetEndUsers(ctx, svc.ds, hostID)
+	endUsers, err := automdm.GetEndUsers(ctx, svc.ds, hostID)
 	if err != nil {
 		return ctxerr.Wrap(ctx, err, "getting end users for host end user binding")
 	}
 	// GetEndUsers returns at most one record, the SCIM one where it exists and otherwise one built
-	// from device mapping, so index zero is the host's identity. Same shape as the Fleet variable
+	// from device mapping, so index zero is the host's identity. Same shape as the AutoMDM variable
 	// expansion in certificate_templates.go and profile_variables.go.
 	if len(endUsers) == 0 || endUsers[0].IdpUserName == "" {
 		return mismatch
@@ -375,7 +375,7 @@ func upnMatchesEmail(email, upn string) bool {
 	if upn == "" {
 		return false
 	}
-	return strings.EqualFold(upn, email) || strings.EqualFold(upn, fleet.EmailLocalPart(email))
+	return strings.EqualFold(upn, email) || strings.EqualFold(upn, automdm.EmailLocalPart(email))
 }
 
 // pkcs7EnvelopeToPEM converts a base64-encoded PKCS7 envelope (as returned by an EST
@@ -414,7 +414,7 @@ func pkcs7EnvelopeToPEM(envelope []byte) (string, error) {
 }
 
 func (svc *Service) introspectIDPToken(ctx context.Context, idpClientID, idpToken, idpOauthURL string) (*oauthIntrospectionResponse, error) {
-	httpClient := fleethttp.NewClient(fleethttp.WithTimeout(20 * time.Second))
+	httpClient := automdmhttp.NewClient(automdmhttp.WithTimeout(20 * time.Second))
 	introspectionRequest := url.Values{
 		"client_id": []string{idpClientID},
 		"token":     []string{idpToken},
@@ -477,7 +477,7 @@ func (svc *Service) extractCSRUserInfo(ctx context.Context, req *x509.Certificat
 	return req.EmailAddresses[0], upn, nil
 }
 
-// extractCSROnlyUPN returns the CSR's UPN when the CSR asks for nothing else, the shape Fleet sends
+// extractCSROnlyUPN returns the CSR's UPN when the CSR asks for nothing else, the shape AutoMDM sends
 // to Google CAS: DER with a single extension request, whose only extension is a SAN holding one
 // strictly encoded UPN.
 func extractCSROnlyUPN(ctx context.Context, req *x509.CertificateRequest) (string, error) {

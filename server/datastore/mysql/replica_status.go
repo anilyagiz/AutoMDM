@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 )
 
 // MasterStatus is a struct that holds the file and position of the master,

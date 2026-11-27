@@ -57,19 +57,19 @@ export const Solo: Story = {
   args: { isSoloActivity: true, hideCancel: true },
 };
 
-export const FleetInitiated: Story = {
-  name: "Fleet-initiated (Fleet avatar)",
+export const AutoMDMInitiated: Story = {
+  name: "AutoMDM-initiated (AutoMDM avatar)",
   args: {
     activity: createMockActivity({
       actor_full_name: "",
       actor_email: undefined,
-      fleet_initiated: true,
+      automdm_initiated: true,
       type: ActivityType.RanScript,
       created_at: "2026-06-01T08:00:00.000Z",
     }),
     children: (
       <>
-        <strong>Fleet</strong> ran a script on <strong>rachels-macbook</strong>.
+        <strong>AutoMDM</strong> ran a script on <strong>rachels-macbook</strong>.
       </>
     ),
     hideCancel: true,

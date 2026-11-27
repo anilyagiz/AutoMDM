@@ -13,27 +13,27 @@ import (
 	"strings"
 	"testing"
 
-	ma "github.com/fleetdm/fleet/v4/ee/maintained-apps"
-	"github.com/fleetdm/fleet/v4/server/authz"
-	authz_ctx "github.com/fleetdm/fleet/v4/server/contexts/authz"
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/dev_mode"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	mocksoftware "github.com/fleetdm/fleet/v4/server/mock/software"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	ma "github.com/anilyagiz/automdm/v4/ee/maintained-apps"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	authz_ctx "github.com/anilyagiz/automdm/v4/server/contexts/authz"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	"github.com/anilyagiz/automdm/v4/server/dev_mode"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	mocksoftware "github.com/anilyagiz/automdm/v4/server/mock/software"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/stretchr/testify/require"
 )
 
 func TestListMaintainedAppsAuth(t *testing.T) {
 	t.Parallel()
 	ds := new(mock.Store)
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
 	}
-	ds.ListAvailableFleetMaintainedAppsFunc = func(ctx context.Context, teamID *uint, opt fleet.MaintainedAppListOptions) ([]fleet.MaintainedApp, *fleet.PaginationMetadata, error) {
-		return []fleet.MaintainedApp{}, &fleet.PaginationMetadata{}, nil
+	ds.ListAvailableAutoMDMMaintainedAppsFunc = func(ctx context.Context, teamID *uint, opt automdm.MaintainedAppListOptions) ([]automdm.MaintainedApp, *automdm.PaginationMetadata, error) {
+		return []automdm.MaintainedApp{}, &automdm.PaginationMetadata{}, nil
 	}
 	authorizer, err := authz.NewAuthorizer()
 	require.NoError(t, err)
@@ -41,63 +41,63 @@ func TestListMaintainedAppsAuth(t *testing.T) {
 
 	testCases := []struct {
 		name                        string
-		user                        *fleet.User
+		user                        *automdm.User
 		shouldFailWithNoTeam        bool
 		shouldFailWithMatchingTeam  bool
 		shouldFailWithDifferentTeam bool
 	}{
 		{
 			"global admin",
-			&fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)},
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)},
 			false,
 			false,
 			false,
 		},
 		{
 			"global maintainer",
-			&fleet.User{GlobalRole: ptr.String(fleet.RoleMaintainer)},
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleMaintainer)},
 			false,
 			false,
 			false,
 		},
 		{
 			"global observer",
-			&fleet.User{GlobalRole: ptr.String(fleet.RoleObserver)},
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleObserver)},
 			true,
 			true,
 			true,
 		},
 		{
 			"team admin",
-			&fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleAdmin}}},
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleAdmin}}},
 			false,
 			false,
 			true,
 		},
 		{
 			"team maintainer",
-			&fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleMaintainer}}},
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleMaintainer}}},
 			false,
 			false,
 			true,
 		},
 		{
 			"team observer",
-			&fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleObserver}}},
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserver}}},
 			true,
 			true,
 			true,
 		},
 		{
 			"global gitops",
-			&fleet.User{GlobalRole: ptr.String(fleet.RoleGitOps)},
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleGitOps)},
 			false,
 			false,
 			false,
 		},
 		{
 			"team gitops",
-			&fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleGitOps}}},
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleGitOps}}},
 			false,
 			false,
 			true,
@@ -109,7 +109,7 @@ func TestListMaintainedAppsAuth(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := viewer.NewContext(context.Background(), viewer.Viewer{User: tt.user})
 
-			_, _, err := svc.ListFleetMaintainedApps(ctx, nil, fleet.MaintainedAppListOptions{})
+			_, _, err := svc.ListAutoMDMMaintainedApps(ctx, nil, automdm.MaintainedAppListOptions{})
 			if tt.shouldFailWithNoTeam {
 				require.Error(t, err)
 				require.ErrorAs(t, err, &forbiddenError)
@@ -117,7 +117,7 @@ func TestListMaintainedAppsAuth(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			_, _, err = svc.ListFleetMaintainedApps(ctx, new(uint(1)), fleet.MaintainedAppListOptions{})
+			_, _, err = svc.ListAutoMDMMaintainedApps(ctx, new(uint(1)), automdm.MaintainedAppListOptions{})
 			if tt.shouldFailWithMatchingTeam {
 				require.Error(t, err)
 				require.ErrorAs(t, err, &forbiddenError)
@@ -125,7 +125,7 @@ func TestListMaintainedAppsAuth(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			_, _, err = svc.ListFleetMaintainedApps(ctx, new(uint(2)), fleet.MaintainedAppListOptions{})
+			_, _, err = svc.ListAutoMDMMaintainedApps(ctx, new(uint(2)), automdm.MaintainedAppListOptions{})
 			if tt.shouldFailWithDifferentTeam {
 				require.Error(t, err)
 				require.ErrorAs(t, err, &forbiddenError)
@@ -138,11 +138,11 @@ func TestListMaintainedAppsAuth(t *testing.T) {
 
 func TestGetMaintainedAppAuth(t *testing.T) {
 	ds := new(mock.Store)
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
 	}
-	ds.GetMaintainedAppByIDFunc = func(ctx context.Context, appID uint, teamID *uint) (*fleet.MaintainedApp, error) {
-		return &fleet.MaintainedApp{Slug: "1password/darwin"}, nil
+	ds.GetMaintainedAppByIDFunc = func(ctx context.Context, appID uint, teamID *uint) (*automdm.MaintainedApp, error) {
+		return &automdm.MaintainedApp{Slug: "1password/darwin"}, nil
 	}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -193,63 +193,63 @@ func TestGetMaintainedAppAuth(t *testing.T) {
 
 	testCases := []struct {
 		name                        string
-		user                        *fleet.User
+		user                        *automdm.User
 		shouldFailWithNoTeam        bool
 		shouldFailWithMatchingTeam  bool
 		shouldFailWithDifferentTeam bool
 	}{
 		{
 			"global admin",
-			&fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)},
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)},
 			false,
 			false,
 			false,
 		},
 		{
 			"global maintainer",
-			&fleet.User{GlobalRole: ptr.String(fleet.RoleMaintainer)},
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleMaintainer)},
 			false,
 			false,
 			false,
 		},
 		{
 			"global observer",
-			&fleet.User{GlobalRole: ptr.String(fleet.RoleObserver)},
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleObserver)},
 			true,
 			true,
 			true,
 		},
 		{
 			"team admin",
-			&fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleAdmin}}},
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleAdmin}}},
 			false,
 			false,
 			true,
 		},
 		{
 			"team maintainer",
-			&fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleMaintainer}}},
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleMaintainer}}},
 			false,
 			false,
 			true,
 		},
 		{
 			"team observer",
-			&fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleObserver}}},
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleObserver}}},
 			true,
 			true,
 			true,
 		},
 		{
 			"global gitops",
-			&fleet.User{GlobalRole: ptr.String(fleet.RoleGitOps)},
+			&automdm.User{GlobalRole: ptr.String(automdm.RoleGitOps)},
 			false,
 			false,
 			false,
 		},
 		{
 			"team gitops",
-			&fleet.User{Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleGitOps}}},
+			&automdm.User{Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleGitOps}}},
 			false,
 			false,
 			true,
@@ -257,11 +257,11 @@ func TestGetMaintainedAppAuth(t *testing.T) {
 	}
 
 	var forbiddenError *authz.Forbidden
-	dev_mode.SetOverride("FLEET_DEV_MAINTAINED_APPS_BASE_URL", srv.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_MAINTAINED_APPS_BASE_URL", srv.URL, t)
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := viewer.NewContext(context.Background(), viewer.Viewer{User: tt.user})
-			_, err := svc.GetFleetMaintainedApp(ctx, 123, nil)
+			_, err := svc.GetAutoMDMMaintainedApp(ctx, 123, nil)
 
 			if tt.shouldFailWithNoTeam {
 				require.Error(t, err)
@@ -270,7 +270,7 @@ func TestGetMaintainedAppAuth(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			_, err = svc.GetFleetMaintainedApp(ctx, 1, ptr.Uint(1))
+			_, err = svc.GetAutoMDMMaintainedApp(ctx, 1, ptr.Uint(1))
 			if tt.shouldFailWithMatchingTeam {
 				require.Error(t, err)
 				require.ErrorAs(t, err, &forbiddenError)
@@ -278,7 +278,7 @@ func TestGetMaintainedAppAuth(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			_, err = svc.GetFleetMaintainedApp(ctx, 1, ptr.Uint(2))
+			_, err = svc.GetAutoMDMMaintainedApp(ctx, 1, ptr.Uint(2))
 			if tt.shouldFailWithDifferentTeam {
 				require.Error(t, err)
 				require.ErrorAs(t, err, &forbiddenError)
@@ -289,42 +289,42 @@ func TestGetMaintainedAppAuth(t *testing.T) {
 	}
 }
 
-func TestGetFleetMaintainedAppManifestUnreachable(t *testing.T) {
+func TestGetAutoMDMMaintainedAppManifestUnreachable(t *testing.T) {
 	ds := new(mock.Store)
-	ds.GetMaintainedAppByIDFunc = func(ctx context.Context, appID uint, teamID *uint) (*fleet.MaintainedApp, error) {
-		return &fleet.MaintainedApp{ID: appID, Name: "Rectangle", Slug: "rectangle/darwin"}, nil
+	ds.GetMaintainedAppByIDFunc = func(ctx context.Context, appID uint, teamID *uint) (*automdm.MaintainedApp, error) {
+		return &automdm.MaintainedApp{ID: appID, Name: "Rectangle", Slug: "rectangle/darwin"}, nil
 	}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
 	t.Cleanup(srv.Close)
-	dev_mode.SetOverride("FLEET_DEV_MAINTAINED_APPS_BASE_URL", srv.URL, t)
-	dev_mode.SetOverride("FLEET_DEV_MAINTAINED_APPS_FALLBACK_BASE_URL", srv.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_MAINTAINED_APPS_BASE_URL", srv.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_MAINTAINED_APPS_FALLBACK_BASE_URL", srv.URL, t)
 
 	authorizer, err := authz.NewAuthorizer()
 	require.NoError(t, err)
 	svc := &Service{authz: authorizer, ds: ds}
-	ctx := viewer.NewContext(t.Context(), viewer.Viewer{User: &fleet.User{GlobalRole: new(fleet.RoleAdmin)}})
+	ctx := viewer.NewContext(t.Context(), viewer.Viewer{User: &automdm.User{GlobalRole: new(automdm.RoleAdmin)}})
 
-	expectedMessage := "Fleet couldn't fetch the manifest for Rectangle. Please try again."
+	expectedMessage := "AutoMDM couldn't fetch the manifest for Rectangle. Please try again."
 
-	// get the app for a fleet while the manifest returns errors, a 502 with the message should be returned
-	_, err = svc.GetFleetMaintainedApp(ctx, 1, new(uint(1)))
-	var gatewayErr *fleet.GatewayError
+	// get the app for a team while the manifest returns errors, a 502 with the message should be returned
+	_, err = svc.GetAutoMDMMaintainedApp(ctx, 1, new(uint(1)))
+	var gatewayErr *automdm.GatewayError
 	require.ErrorAs(t, err, &gatewayErr)
 	require.Equal(t, http.StatusBadGateway, gatewayErr.StatusCode())
 	require.Equal(t, expectedMessage, gatewayErr.Error())
 
 	// get the app for Unassigned while the manifest returns errors, a 502 with the message should be returned
-	_, err = svc.GetFleetMaintainedApp(ctx, 1, new(uint(0)))
+	_, err = svc.GetAutoMDMMaintainedApp(ctx, 1, new(uint(0)))
 	gatewayErr = nil
 	require.ErrorAs(t, err, &gatewayErr)
 	require.Equal(t, http.StatusBadGateway, gatewayErr.StatusCode())
 	require.Equal(t, expectedMessage, gatewayErr.Error())
 }
 
-func TestAddFleetMaintainedApp(t *testing.T) {
+func TestAddAutoMDMMaintainedApp(t *testing.T) {
 	installerBytes := []byte("abc")
 
 	// this is the hash we expect to get in the DB
@@ -337,8 +337,8 @@ func TestAddFleetMaintainedApp(t *testing.T) {
 	ds.ValidateEmbeddedSecretsFunc = func(ctx context.Context, documents []string) error {
 		return nil
 	}
-	ds.GetMaintainedAppByIDFunc = func(ctx context.Context, appID uint, teamID *uint) (*fleet.MaintainedApp, error) {
-		return &fleet.MaintainedApp{
+	ds.GetMaintainedAppByIDFunc = func(ctx context.Context, appID uint, teamID *uint) (*automdm.MaintainedApp, error) {
+		return &automdm.MaintainedApp{
 			ID:               1,
 			Name:             "Internet Exploder",
 			Slug:             "iexplode/windows",
@@ -356,7 +356,7 @@ func TestAddFleetMaintainedApp(t *testing.T) {
 		_, _ = w.Write(installerBytes)
 	}))
 	defer installerServer.Close()
-	ds.MatchOrCreateSoftwareInstallerFunc = func(ctx context.Context, payload *fleet.UploadSoftwareInstallerPayload) (uint, uint, error) {
+	ds.MatchOrCreateSoftwareInstallerFunc = func(ctx context.Context, payload *automdm.UploadSoftwareInstallerPayload) (uint, uint, error) {
 		require.Equal(t, spoofedSHA, payload.StorageID)
 		require.Empty(t, payload.BundleIdentifier)
 		require.Equal(t, "Internet Exploder", payload.Title)
@@ -367,7 +367,7 @@ func TestAddFleetMaintainedApp(t *testing.T) {
 		require.Equal(t, "IEXPLODE-SETUP.EXE", payload.Filename, "filename keeps the original casing")
 		require.Equal(t, "exe", payload.Extension)
 
-		// Can't easily inject a proper fleet.service so we bail early before NewActivity gets called and panics
+		// Can't easily inject a proper automdm.service so we bail early before NewActivity gets called and panics
 		return 0, 0, errors.New("forced error to short-circuit storage and activity creation")
 	}
 
@@ -397,30 +397,30 @@ func TestAddFleetMaintainedApp(t *testing.T) {
 	}))
 
 	t.Cleanup(manifestServer.Close)
-	dev_mode.SetOverride("FLEET_DEV_MAINTAINED_APPS_BASE_URL", manifestServer.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_MAINTAINED_APPS_BASE_URL", manifestServer.URL, t)
 
 	svc := newTestService(t, ds)
 
 	authCtx := authz_ctx.AuthorizationContext{}
 	ctx := authz_ctx.NewContext(context.Background(), &authCtx)
-	ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}})
-	_, err = svc.AddFleetMaintainedApp(ctx, nil, 1, "", "", "", "", false, false, nil, nil, nil)
+	ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}})
+	_, err = svc.AddAutoMDMMaintainedApp(ctx, nil, 1, "", "", "", "", false, false, nil, nil, nil)
 	require.ErrorContains(t, err, "forced error to short-circuit storage and activity creation")
 
 	require.True(t, ds.MatchOrCreateSoftwareInstallerFuncInvoked)
 }
 
-// TestAddFleetMaintainedAppReconcilesWindowsTitles covers the wiring, not the merge
+// TestAddAutoMDMMaintainedAppReconcilesWindowsTitles covers the wiring, not the merge
 // itself: adding a maintained app must kick the Windows title reconcile so software
 // already inventoried under a versioned title picks up the installer straight away
 // rather than waiting for the periodic pass.
-func TestAddFleetMaintainedAppReconcilesWindowsTitles(t *testing.T) {
+func TestAddAutoMDMMaintainedAppReconcilesWindowsTitles(t *testing.T) {
 	installerBytes := []byte("abc")
 
 	ds := new(mock.Store)
 	ds.ValidateEmbeddedSecretsFunc = func(ctx context.Context, documents []string) error { return nil }
-	ds.GetMaintainedAppByIDFunc = func(ctx context.Context, appID uint, teamID *uint) (*fleet.MaintainedApp, error) {
-		return &fleet.MaintainedApp{
+	ds.GetMaintainedAppByIDFunc = func(ctx context.Context, appID uint, teamID *uint) (*automdm.MaintainedApp, error) {
+		return &automdm.MaintainedApp{
 			ID: 1, Name: "Internet Exploder", Slug: "iexplode/windows",
 			Platform: "windows", UniqueIdentifier: "Internet Exploder",
 		}, nil
@@ -428,7 +428,7 @@ func TestAddFleetMaintainedAppReconcilesWindowsTitles(t *testing.T) {
 	ds.GetSoftwareCategoryNameToIDMapFunc = func(ctx context.Context, teamID uint, names []string) (map[string]uint, error) {
 		return map[string]uint{}, nil
 	}
-	ds.MatchOrCreateSoftwareInstallerFunc = func(ctx context.Context, payload *fleet.UploadSoftwareInstallerPayload) (uint, uint, error) {
+	ds.MatchOrCreateSoftwareInstallerFunc = func(ctx context.Context, payload *automdm.UploadSoftwareInstallerPayload) (uint, uint, error) {
 		return 1, 42, nil
 	}
 	ds.ReconcileWindowsMaintainedAppSoftwareTitlesFunc = func(ctx context.Context) error { return nil }
@@ -453,7 +453,7 @@ func TestAddFleetMaintainedAppReconcilesWindowsTitles(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(manifest)
 	}))
 	t.Cleanup(manifestServer.Close)
-	dev_mode.SetOverride("FLEET_DEV_MAINTAINED_APPS_BASE_URL", manifestServer.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_MAINTAINED_APPS_BASE_URL", manifestServer.URL, t)
 
 	svc := newTestService(t, ds)
 	// Fail at the storage step, which runs just after the reconcile, so the call returns
@@ -465,9 +465,9 @@ func TestAddFleetMaintainedAppReconcilesWindowsTitles(t *testing.T) {
 	}
 
 	ctx := authz_ctx.NewContext(context.Background(), &authz_ctx.AuthorizationContext{})
-	ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{GlobalRole: new(fleet.RoleAdmin)}})
+	ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{GlobalRole: new(automdm.RoleAdmin)}})
 
-	_, err := svc.AddFleetMaintainedApp(ctx, nil, 1, "", "", "", "", false, false, nil, nil, nil)
+	_, err := svc.AddAutoMDMMaintainedApp(ctx, nil, 1, "", "", "", "", false, false, nil, nil, nil)
 	require.ErrorContains(t, err, "forced error to short-circuit storage and activity creation")
 
 	require.True(t, ds.MatchOrCreateSoftwareInstallerFuncInvoked)
@@ -475,13 +475,13 @@ func TestAddFleetMaintainedAppReconcilesWindowsTitles(t *testing.T) {
 		"adding a Windows maintained app must reconcile Windows software titles")
 }
 
-func TestAddFleetMaintainedAppFleetVariables(t *testing.T) {
+func TestAddAutoMDMMaintainedAppAutoMDMVariables(t *testing.T) {
 	ds := new(mock.Store)
 	ds.ValidateEmbeddedSecretsFunc = func(ctx context.Context, documents []string) error {
 		return nil
 	}
-	ds.GetMaintainedAppByIDFunc = func(ctx context.Context, appID uint, teamID *uint) (*fleet.MaintainedApp, error) {
-		return &fleet.MaintainedApp{
+	ds.GetMaintainedAppByIDFunc = func(ctx context.Context, appID uint, teamID *uint) (*automdm.MaintainedApp, error) {
+		return &automdm.MaintainedApp{
 			ID:               1,
 			Name:             "Internet Exploder",
 			Slug:             "iexplode/windows",
@@ -499,7 +499,7 @@ func TestAddFleetMaintainedAppFleetVariables(t *testing.T) {
 	}))
 	defer installerServer.Close()
 
-	// manifest whose default scripts reference an unsupported Fleet variable
+	// manifest whose default scripts reference an unsupported AutoMDM variable
 	manifestServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		manifest := ma.FMAManifestFile{
 			Versions: []*ma.FMAManifestApp{{
@@ -513,29 +513,29 @@ func TestAddFleetMaintainedAppFleetVariables(t *testing.T) {
 				SHA256:             noCheckHash,
 			}},
 			Refs: map[string]string{
-				"foobaz": "echo $FLEET_VAR_NONEXISTENT",
+				"foobaz": "echo $AUTOMDM_VAR_NONEXISTENT",
 			},
 		}
 		_ = json.NewEncoder(w).Encode(manifest)
 	}))
 	t.Cleanup(manifestServer.Close)
-	dev_mode.SetOverride("FLEET_DEV_MAINTAINED_APPS_BASE_URL", manifestServer.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_MAINTAINED_APPS_BASE_URL", manifestServer.URL, t)
 
 	svc := newTestService(t, ds)
 
 	authCtx := authz_ctx.AuthorizationContext{}
 	ctx := authz_ctx.NewContext(context.Background(), &authCtx)
-	ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{GlobalRole: new(fleet.RoleAdmin)}})
-	ctx = license.NewContext(ctx, &fleet.LicenseInfo{Tier: fleet.TierPremium})
+	ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{GlobalRole: new(automdm.RoleAdmin)}})
+	ctx = license.NewContext(ctx, &automdm.LicenseInfo{Tier: automdm.TierPremium})
 
 	// empty script inputs default to the manifest scripts, which are validated
 	// after that resolution
-	_, err := svc.AddFleetMaintainedApp(ctx, nil, 1, "", "", "", "", false, false, nil, nil, nil)
-	require.ErrorContains(t, err, "Fleet variable $FLEET_VAR_NONEXISTENT is not supported in scripts.")
+	_, err := svc.AddAutoMDMMaintainedApp(ctx, nil, 1, "", "", "", "", false, false, nil, nil, nil)
+	require.ErrorContains(t, err, "AutoMDM variable $AUTOMDM_VAR_NONEXISTENT is not supported in scripts.")
 
 	// caller-provided scripts are validated the same way
-	_, err = svc.AddFleetMaintainedApp(ctx, nil, 1, "echo ok", "", "echo $FLEET_VAR_NONEXISTENT", "echo ok", false, false, nil, nil, nil)
-	require.ErrorContains(t, err, "Fleet variable $FLEET_VAR_NONEXISTENT is not supported in scripts.")
+	_, err = svc.AddAutoMDMMaintainedApp(ctx, nil, 1, "echo ok", "", "echo $AUTOMDM_VAR_NONEXISTENT", "echo ok", false, false, nil, nil, nil)
+	require.ErrorContains(t, err, "AutoMDM variable $AUTOMDM_VAR_NONEXISTENT is not supported in scripts.")
 }
 
 func TestExtractMaintainedAppVersionWhenLatest(t *testing.T) {
@@ -552,8 +552,8 @@ func TestExtractMaintainedAppVersionWhenLatest(t *testing.T) {
 	ds.ValidateEmbeddedSecretsFunc = func(ctx context.Context, documents []string) error {
 		return nil
 	}
-	ds.GetMaintainedAppByIDFunc = func(ctx context.Context, appID uint, teamID *uint) (*fleet.MaintainedApp, error) {
-		return &fleet.MaintainedApp{
+	ds.GetMaintainedAppByIDFunc = func(ctx context.Context, appID uint, teamID *uint) (*automdm.MaintainedApp, error) {
+		return &automdm.MaintainedApp{
 			ID:               1,
 			Name:             "Dummy",
 			Slug:             "dummy/darwin",
@@ -571,11 +571,11 @@ func TestExtractMaintainedAppVersionWhenLatest(t *testing.T) {
 		_, _ = w.Write(installerBytes)
 	}))
 	defer installerServer.Close()
-	ds.MatchOrCreateSoftwareInstallerFunc = func(ctx context.Context, payload *fleet.UploadSoftwareInstallerPayload) (uint, uint, error) {
+	ds.MatchOrCreateSoftwareInstallerFunc = func(ctx context.Context, payload *automdm.UploadSoftwareInstallerPayload) (uint, uint, error) {
 		require.Equal(t, spoofedSHA, payload.StorageID)
 		require.Equal(t, "1.0.0", payload.Version)
 
-		// Can't easily inject a proper fleet.service so we bail early before NewActivity gets called and panics
+		// Can't easily inject a proper automdm.service so we bail early before NewActivity gets called and panics
 		return 0, 0, errors.New("forced error to short-circuit storage and activity creation")
 	}
 
@@ -605,14 +605,14 @@ func TestExtractMaintainedAppVersionWhenLatest(t *testing.T) {
 	}))
 
 	t.Cleanup(manifestServer.Close)
-	dev_mode.SetOverride("FLEET_DEV_MAINTAINED_APPS_BASE_URL", manifestServer.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_MAINTAINED_APPS_BASE_URL", manifestServer.URL, t)
 
 	svc := newTestService(t, ds)
 
 	authCtx := authz_ctx.AuthorizationContext{}
 	ctx := authz_ctx.NewContext(context.Background(), &authCtx)
-	ctx = viewer.NewContext(ctx, viewer.Viewer{User: &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}})
-	_, err = svc.AddFleetMaintainedApp(ctx, nil, 1, "", "", "", "", false, false, nil, nil, nil)
+	ctx = viewer.NewContext(ctx, viewer.Viewer{User: &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}})
+	_, err = svc.AddAutoMDMMaintainedApp(ctx, nil, 1, "", "", "", "", false, false, nil, nil, nil)
 	require.ErrorContains(t, err, "forced error to short-circuit storage and activity creation")
 
 	require.True(t, ds.MatchOrCreateSoftwareInstallerFuncInvoked)

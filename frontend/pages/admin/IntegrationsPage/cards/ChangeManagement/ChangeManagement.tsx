@@ -181,7 +181,7 @@ const ChangeManagement = () => {
       <PageDescription
         content={
           <>
-            When using a git repository to manage Fleet, you can optionally put
+            When using a git repository to manage AutoMDM, you can optionally put
             the UI in GitOps mode. This prevents you from making changes in the
             UI that would be overridden by GitOps workflows.{" "}
             <CustomLink

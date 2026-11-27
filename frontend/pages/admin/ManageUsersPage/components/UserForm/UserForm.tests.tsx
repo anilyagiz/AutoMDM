@@ -49,12 +49,12 @@ describe("UserForm - component", () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
-  it("renders the 'at least one fleet' error inline rather than as a toast", async () => {
+  it("renders the 'at least one team' error inline rather than as a toast", async () => {
     const { user } = renderWithSetup(<UserForm {...defaultProps} />);
 
     await user.click(screen.getByText("Add"));
 
-    expect(screen.getByText("Select at least one fleet")).toBeInTheDocument();
+    expect(screen.getByText("Select at least one team")).toBeInTheDocument();
   });
 
   it("renders SSO option when canUseSso is true", () => {
@@ -151,7 +151,7 @@ describe("UserForm - component", () => {
     ["new user", true, "Add"],
     ["existing user", false, "Save"],
   ])(
-    "runs Fleet's validation, not the browser's, on an email without @ (%s)",
+    "runs AutoMDM's validation, not the browser's, on an email without @ (%s)",
     async (_, isNewUser, buttonText) => {
       const { user } = renderWithSetup(
         <UserForm {...defaultProps} isNewUser={isNewUser} />
@@ -210,14 +210,14 @@ describe("UserForm - component", () => {
     render(
       <UserForm
         {...defaultProps}
-        availableTeams={[createMockTeam({ id: 1, name: "Fleet 1" })]}
+        availableTeams={[createMockTeam({ id: 1, name: "AutoMDM 1" })]}
         defaultGlobalRole={null}
-        defaultTeams={[createMockTeam({ id: 1, name: "Fleet 1" })]}
+        defaultTeams={[createMockTeam({ id: 1, name: "AutoMDM 1" })]}
         isUpdatingUsers
       />
     );
 
-    expect(screen.getByRole("checkbox", { name: "Fleet 1" })).toHaveAttribute(
+    expect(screen.getByRole("checkbox", { name: "AutoMDM 1" })).toHaveAttribute(
       "aria-disabled",
       "true"
     );

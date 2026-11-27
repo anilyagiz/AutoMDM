@@ -13,7 +13,7 @@ const createTestRenderer = () =>
     context: { app: { isPremiumTier: true } },
   });
 
-const renderSso = (subsection = "fleet-users", gitOpsModeEnabled = false) => {
+const renderSso = (subsection = "team-users", gitOpsModeEnabled = false) => {
   const router = ({ push: jest.fn() } as unknown) as InjectedRouter;
   const config = createMockConfig();
   const handleSubmit = jest.fn().mockResolvedValue(true);
@@ -46,7 +46,7 @@ afterAll(() => {
   confirmSpy.mockRestore();
 });
 
-describe("Sso - Fleet users", () => {
+describe("Sso - AutoMDM users", () => {
   it("does not prompt on tab switch when a checkbox is toggled back to its original state", async () => {
     const { user, router } = renderSso();
 
@@ -140,7 +140,7 @@ describe("Sso - Fleet users", () => {
   });
 
   it("does not submit in GitOps mode", async () => {
-    const { user, handleSubmit } = renderSso("fleet-users", true);
+    const { user, handleSubmit } = renderSso("team-users", true);
 
     await user.type(screen.getByLabelText("Entity ID"), "{Enter}");
 
@@ -164,7 +164,7 @@ describe("Sso - Fleet users", () => {
         isPremiumTier
         isUpdatingSettings={false}
         router={({ push: noop } as unknown) as InjectedRouter}
-        subsection="fleet-users"
+        subsection="team-users"
       />
     );
 
@@ -192,7 +192,7 @@ describe("Sso - End users", () => {
     await user.type(idpName, "Okta");
     await user.clear(idpName);
 
-    await user.click(screen.getByText("Fleet users"));
+    await user.click(screen.getByText("AutoMDM users"));
 
     expect(confirmSpy).not.toHaveBeenCalled();
     expect(router.push).toHaveBeenCalled();
@@ -202,7 +202,7 @@ describe("Sso - End users", () => {
     const { user } = renderSso("end-users");
 
     await user.type(screen.getByLabelText("Identity provider name"), "Okta");
-    await user.click(screen.getByText("Fleet users"));
+    await user.click(screen.getByText("AutoMDM users"));
 
     expect(confirmSpy).toHaveBeenCalled();
   });

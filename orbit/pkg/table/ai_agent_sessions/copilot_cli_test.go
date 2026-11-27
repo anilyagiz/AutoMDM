@@ -9,7 +9,7 @@ import (
 )
 
 var copilotEvents = lines(
-	`{"type":"session.start","data":{"sessionId":"24b9ca9f","copilotVersion":"1.0.104","startTime":"2026-07-06T02:36:32.043Z","selectedModel":"auto","context":{"cwd":"/Users/alice/GitHub/fleet","branch":"dogfood","repository":"https://x-access-token:ghp_FAKE@github.com/fleetdm/fleet.git"}},"id":"e1","timestamp":"2026-07-06T02:36:32.058Z"}`,
+	`{"type":"session.start","data":{"sessionId":"24b9ca9f","copilotVersion":"1.0.104","startTime":"2026-07-06T02:36:32.043Z","selectedModel":"auto","context":{"cwd":"/Users/alice/GitHub/automdm","branch":"dogfood","repository":"https://x-access-token:ghp_FAKE@github.com/anilyagiz/automdm.git"}},"id":"e1","timestamp":"2026-07-06T02:36:32.058Z"}`,
 	`{"type":"system.message","data":{"role":"system","content":"You are the GitHub Copilot CLI"},"timestamp":"2026-07-06T02:36:32.100Z"}`,
 	`{"type":"user.message","data":{"content":"summarize this diff"},"timestamp":"2026-07-06T02:36:32.200Z"}`,
 	`{"type":"assistant.message","data":{"messageId":"a1","model":"claude-haiku-4.5","content":"Looking."},"timestamp":"2026-07-06T02:36:33.000Z"}`,
@@ -40,9 +40,9 @@ func TestCopilotCLISession(t *testing.T) {
 	s := onlySession(t, agentCopilotCLI)
 	requireRow(t, map[string]string{
 		"session_id":         "24b9ca9f",
-		"project_path":       "/Users/alice/GitHub/fleet",
+		"project_path":       "/Users/alice/GitHub/automdm",
 		"git_branch":         "dogfood",
-		"git_repository":     "https://github.com/fleetdm/fleet.git",
+		"git_repository":     "https://github.com/anilyagiz/automdm.git",
 		"agent_version":      "1.0.104",
 		"model":              "claude-haiku-4.5",
 		"user_messages":      "1",
@@ -98,7 +98,7 @@ func TestCopilotCLIMessages(t *testing.T) {
 		"assistant/text Here is the summary.",
 	}, render(rows, false, "content"))
 	require.Equal(t, "c1", rows[2]["tool_use_id"])
-	require.Equal(t, "/Users/alice/GitHub/fleet", rows[2]["cwd"])
+	require.Equal(t, "/Users/alice/GitHub/automdm", rows[2]["cwd"])
 
 	require.Equal(t, []string{
 		"bash | execute | git diff | error",

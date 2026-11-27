@@ -52,7 +52,7 @@ notes: |-
   - One table covers seven kinds of AI tool, discriminated by `type`. Each column lists the types that populate it; a column that doesn't apply to a row's `type` is an empty string.
   - The extension enumerates all home directories on the host (`/Users/*`, `/home/*`, `/root`, `C:\Users\*`), not just the daemon account's. Running as root provides full visibility across all users.
   - Process and socket data is a point-in-time snapshot taken when the query runs, so a tool that starts and exits between queries leaves no `sockets` row.
-  - This table is not a core osquery table. It is included as part of Fleet's agent ([fleetd](https://fleetdm.com/docs/get-started/anatomy#fleetd)).
+  - This table is not a core osquery table. It is included as part of AutoMDM's agent ([automdmd](https://automdm.com/docs/get-started/anatomy#automdmd)).
 columns:
   - name: type
     description: "Options are `mcp_server`, `ide_plugins`, `agents`, `apps`, `sockets`, `agent_instruction`, or `browser_extension`."
@@ -63,7 +63,7 @@ columns:
     type: text
     required: false
   - name: identifier
-    description: "Unique identifier varying by type: MCP server name, plugin ID (`publisher.name`), agent binary, Fleet's name for the app (e.g. `claude-desktop`; the bundle ID is in `detail`), socket service, instruction tool, or browser extension ID. Populated for all types."
+    description: "Unique identifier varying by type: MCP server name, plugin ID (`publisher.name`), agent binary, AutoMDM's name for the app (e.g. `claude-desktop`; the bundle ID is in `detail`), socket service, instruction tool, or browser extension ID. Populated for all types."
     type: text
     required: false
   - name: category
@@ -111,11 +111,11 @@ columns:
     type: text
     required: false
   - name: confidence
-    description: "Detection confidence from 0 to 100. Populated for `agents`. [Known agents](https://github.com/fleetdm/fleet/blob/main/orbit/pkg/table/ai_tools/internal/agents/agents.go) always score 100. Everything else is scored from the `evidence` tokens by [weighted signal family](https://github.com/fleetdm/fleet/blob/main/orbit/pkg/table/ai_tools/internal/evidence/score.go), and a row is only reported once the score clears the emit threshold."
+    description: "Detection confidence from 0 to 100. Populated for `agents`. [Known agents](https://github.com/anilyagiz/automdm/blob/main/orbit/pkg/table/ai_tools/internal/agents/agents.go) always score 100. Everything else is scored from the `evidence` tokens by [weighted signal family](https://github.com/anilyagiz/automdm/blob/main/orbit/pkg/table/ai_tools/internal/evidence/score.go), and a row is only reported once the score clears the emit threshold."
     type: integer
     required: false
   - name: evidence
-    description: "Comma-separated tokens naming the signals behind the detection — the proof Fleet used to decide this is an agent and not a folder named `claude`. Populated for `agents`. Possible values: `catalog`, `running`, `binary`, `tool_home`, `workspace_shape`, `workspace_shape_weak`, `mcp_config`, `instructions`, and `framework:<name>` (for example `framework:crewai`)."
+    description: "Comma-separated tokens naming the signals behind the detection — the proof AutoMDM used to decide this is an agent and not a folder named `claude`. Populated for `agents`. Possible values: `catalog`, `running`, `binary`, `tool_home`, `workspace_shape`, `workspace_shape_weak`, `mcp_config`, `instructions`, and `framework:<name>` (for example `framework:crewai`)."
     type: text
     required: false
   - name: uid

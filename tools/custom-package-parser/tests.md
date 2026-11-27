@@ -1,6 +1,6 @@
 # Custom packages tests
 
-This document aims to provide us with some stats for the most used apps with respect to what Fleet extracts from the installers and what osquery reports for the installed applications.
+This document aims to provide us with some stats for the most used apps with respect to what AutoMDM extracts from the installers and what osquery reports for the installed applications.
 The goal is to improve the accuracy of automatically generated policy queries for installers.
 
 ## Results
@@ -49,7 +49,7 @@ The results have been calculated using many of the apps in the current list of F
 
 ✅ https://downloads.1password.com/win/1PasswordSetup-latest.exe
 - Default installer script didn't work.
-- Running `1PasswordSetup-latest.exe --silent` on the `cmd` works, but not via Fleet because the installer is per-user, whereas the MSI is system-wide, see https://support.1password.com/deploy-1password/.
+- Running `1PasswordSetup-latest.exe --silent` on the `cmd` works, but not via AutoMDM because the installer is per-user, whereas the MSI is system-wide, see https://support.1password.com/deploy-1password/.
 Extracted metadata:
 - Name: '1Password' (matches osquery's `programs.name`)
 - Package IDs: '1Password'

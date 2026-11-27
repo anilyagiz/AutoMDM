@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/pkg/removednames"
-	"github.com/fleetdm/fleet/v4/server/platform/logging"
+	"github.com/anilyagiz/automdm/v4/pkg/removednames"
+	"github.com/anilyagiz/automdm/v4/server/platform/logging"
 )
 
 // DeprecatedKeyMapping defines a mapping from an old YAML key path to a new one.
@@ -23,32 +23,32 @@ type DeprecatedKeyMapping struct {
 // It serves two purposes:
 //  1. ApplyDeprecatedKeyMappings uses the full paths to migrate deprecated keys in gitops YAML input.
 //  2. buildAliasRules (in generate_gitops.go) extracts leaf key names to rename keys in
-//     serialized output for generate_gitops, fleetctl get, and fleetctl apply.
+//     serialized output for generate_gitops, automdmctl get, and automdmctl apply.
 //
-// When adding new deprecations, add them here. The team-related keys that Fleet 5 removed are in RemovedGitOpsKeys instead.
+// When adding new deprecations, add them here. The team-related keys that AutoMDM 5 removed are in RemovedGitOpsKeys instead.
 var DeprecatedGitOpsKeyMappings = []DeprecatedKeyMapping{
 	// Top-level gitops keys
 	{"queries", "reports"},
 
 	// The following entries are renameto tags on struct fields that appear in serialized
-	// API output (fleetctl get and fleetctl apply) but are not gitops input keys. They are
+	// API output (automdmctl get and automdmctl apply) but are not gitops input keys. They are
 	// included here so that buildAliasRules can derive them. The paths are leaf-only (no dots)
 	// since they don't participate in ApplyDeprecatedKeyMappings traversal.
-	{"available_teams", "available_fleets"},
-	{"default_team", "default_fleet"},
-	{"host_team_id", "host_fleet_id"},
-	{"ios_team_id", "ios_fleet_id"},
-	{"ipados_team_id", "ipados_fleet_id"},
-	{"macos_team_id", "macos_fleet_id"},
+	{"available_teams", "available_teams"},
+	{"default_team", "default_team"},
+	{"host_team_id", "host_team_id"},
+	{"ios_team_id", "ios_team_id"},
+	{"ipados_team_id", "ipados_team_id"},
+	{"macos_team_id", "macos_team_id"},
 	{"query_count", "report_count"},
 	{"query_id", "report_id"},
 	{"query_ids", "report_ids"},
 	{"query_name", "report_name"},
-	{"team", "fleet"},
-	{"team_id", "fleet_id"},
-	{"team_ids_by_name", "fleet_ids_by_name"},
-	{"team_ids", "fleet_ids"},
-	{"team_name", "fleet_name"},
+	{"team", "team"},
+	{"team_id", "team_id"},
+	{"team_ids_by_name", "team_ids_by_name"},
+	{"team_ids", "team_ids"},
+	{"team_name", "team_name"},
 }
 
 // DeprecatedGitOpsKeyScopes confines a leaf rename to the objects it belongs to, keyed by the leaf name buildAliasRules
@@ -59,16 +59,16 @@ var DeprecatedGitOpsKeyMappings = []DeprecatedKeyMapping{
 // Keep in sync with the `renamescope` struct tags, which do the same job for the API request/response layer.
 var DeprecatedGitOpsKeyScopes = map[string][]string{}
 
-// RemovedGitOpsKeys are the keys that Fleet 5 removed from GitOps files. They are rejected, not migrated (RejectRemovedKeys), and
-// buildAliasRules also reads the ones with a replacement, because the structs that fleetctl serializes still carry the old names.
+// RemovedGitOpsKeys are the keys that AutoMDM 5 removed from GitOps files. They are rejected, not migrated (RejectRemovedKeys), and
+// buildAliasRules also reads the ones with a replacement, because the structs that automdmctl serializes still carry the old names.
 // Every path has an entry in pkg/removednames, which supplies the error message.
 var RemovedGitOpsKeys = []DeprecatedKeyMapping{
 	{"team_settings", "settings"},
-	{"org_settings.mdm.apple_business[].macos_team", "org_settings.mdm.apple_business[].macos_fleet"},
-	{"org_settings.mdm.apple_business[].ios_team", "org_settings.mdm.apple_business[].ios_fleet"},
-	{"org_settings.mdm.apple_business[].ipados_team", "org_settings.mdm.apple_business[].ipados_fleet"},
-	{"org_settings.mdm.apple_business[].byod_team", "org_settings.mdm.apple_business[].byod_fleet"},
-	{"org_settings.mdm.volume_purchasing_program[].teams", "org_settings.mdm.volume_purchasing_program[].fleets"},
+	{"org_settings.mdm.apple_business[].macos_team", "org_settings.mdm.apple_business[].macos_team"},
+	{"org_settings.mdm.apple_business[].ios_team", "org_settings.mdm.apple_business[].ios_team"},
+	{"org_settings.mdm.apple_business[].ipados_team", "org_settings.mdm.apple_business[].ipados_team"},
+	{"org_settings.mdm.apple_business[].byod_team", "org_settings.mdm.apple_business[].byod_team"},
+	{"org_settings.mdm.volume_purchasing_program[].teams", "org_settings.mdm.volume_purchasing_program[].teams"},
 	{"org_settings.webhook_settings.failing_policies_webhook.policy_ids", ""},
 	{"settings.webhook_settings.failing_policies_webhook.policy_ids", ""},
 }

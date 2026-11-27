@@ -9,19 +9,19 @@ import (
 	"log/slog"
 	"slices"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	apple_mdm "github.com/fleetdm/fleet/v4/server/mdm/apple"
-	scepserver "github.com/fleetdm/fleet/v4/server/mdm/scep/server"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	apple_mdm "github.com/anilyagiz/automdm/v4/server/mdm/apple"
+	scepserver "github.com/anilyagiz/automdm/v4/server/mdm/scep/server"
 	"github.com/smallstep/scep"
 )
 
 // AppleMDMSCEPStore is an interface for managing SCEP challenges in the Apple MDM context.
 // Supports Static challenge retrieval and dynamic challenge consumption
 type AppleMDMSCEPStore interface {
-	ConsumeAppleSCEPChallenge(ctx context.Context, challenge string) (*fleet.AppleSCEPChallengeInfo, error)
+	ConsumeAppleSCEPChallenge(ctx context.Context, challenge string) (*automdm.AppleSCEPChallengeInfo, error)
 	SetAppleSCEPChallengeIssuedCert(ctx context.Context, challenge string, certSerial int64) error
-	fleet.MDMAssetRetriever
+	automdm.MDMAssetRetriever
 }
 
 type appleMDMChallengeSigner interface {
@@ -33,13 +33,13 @@ type appleMDMChallengeSigner interface {
 func AppleMDMChallengeMiddleware(logger *slog.Logger, store AppleMDMSCEPStore, staticChallengeEnabled bool, next appleMDMChallengeSigner) scepserver.CSRSignerContextFunc {
 	return func(ctx context.Context, m *scep.CSRReqMessage) (*x509.Certificate, error) {
 		// Check the OU for the newEnrollment identifier
-		hasNewEnrollmentOU := slices.Contains(m.CSR.Subject.OrganizationalUnit, apple_mdm.FleetEnrollmentSubjectOU)
+		hasNewEnrollmentOU := slices.Contains(m.CSR.Subject.OrganizationalUnit, apple_mdm.AutoMDMEnrollmentSubjectOU)
 
 		if staticChallengeEnabled {
-			assets, err := store.GetAllMDMConfigAssetsByName(ctx, []fleet.MDMAssetName{fleet.MDMAssetSCEPChallenge}, nil)
+			assets, err := store.GetAllMDMConfigAssetsByName(ctx, []automdm.MDMAssetName{automdm.MDMAssetSCEPChallenge}, nil)
 			if err == nil {
 				// no error, proceed with static challenge check
-				staticSCEPChallenge := string(assets[fleet.MDMAssetSCEPChallenge].Value)
+				staticSCEPChallenge := string(assets[automdm.MDMAssetSCEPChallenge].Value)
 				if staticSCEPChallenge != "" && subtle.ConstantTimeCompare([]byte(m.ChallengePassword), []byte(staticSCEPChallenge)) == 1 {
 					// pass on match, on failure fall through to dynamic challenge check
 					// do not sign certificate with information since we don't have it for static challenge
@@ -64,12 +64,12 @@ func AppleMDMChallengeMiddleware(logger *slog.Logger, store AppleMDMSCEPStore, s
 		// We build the case here, so each caller can do it their way.
 		extension := apple_mdm.AppleMDMCertificateBindingExtension{Purpose: dynamicChallengeInfo.Purpose}
 		switch dynamicChallengeInfo.Purpose {
-		case fleet.AppleMDMCertPurposeADE, fleet.AppleMDMCertPurposeOTAPhaseOne, fleet.AppleMDMCertPurposeOTAPhaseTwo:
+		case automdm.AppleMDMCertPurposeADE, automdm.AppleMDMCertPurposeOTAPhaseOne, automdm.AppleMDMCertPurposeOTAPhaseTwo:
 			extension.UDID = dynamicChallengeInfo.UUID
 			extension.Serial = dynamicChallengeInfo.Serial
-		case fleet.AppleMDMCertPurposeADUE:
+		case automdm.AppleMDMCertPurposeADUE:
 			extension.IDPAccountUUID = dynamicChallengeInfo.IDPAccountUUID
-		case fleet.AppleMDMCertPurposeSCEPRenewal:
+		case automdm.AppleMDMCertPurposeSCEPRenewal:
 			extension.EnrollmentID = dynamicChallengeInfo.UUID
 		default:
 			return nil, ctxerr.New(ctx, fmt.Sprintf("unsupported SCEP challenge purpose: %s", dynamicChallengeInfo.Purpose))

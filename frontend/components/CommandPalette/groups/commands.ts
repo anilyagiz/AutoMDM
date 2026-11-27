@@ -34,7 +34,7 @@ const buildCommandsItems = (
     isGitOpsMode,
     isSoftwareGitOpsMode,
     switchesFromUnassigned,
-    switchesFromAllFleets,
+    switchesFromAllTeams,
     defaultDestination,
   } = derived;
 
@@ -80,8 +80,8 @@ const buildCommandsItems = (
       onAction: onViewSoftware,
       opensPickerPage: true,
     },
-    // View software library — Premium-only and hidden on "All fleets" since
-    // libraries are per-fleet.
+    // View software library — Premium-only and hidden on "All teams" since
+    // libraries are per-team.
     ...(isPremiumTier && hasTeamOrUnassigned
       ? [
           {
@@ -96,8 +96,8 @@ const buildCommandsItems = (
               "package",
               "vpp",
               "fma",
-              "fleet-maintained",
-              "fleet maintained",
+              "automdm-maintained",
+              "automdm maintained",
               "app store",
               "google play",
               "search software library",
@@ -155,7 +155,7 @@ const buildCommandsItems = (
             keywords: [
               "enroll",
               "install",
-              "fleetd",
+              "automdmd",
               "device",
               "create hosts",
               "new hosts",
@@ -184,7 +184,7 @@ const buildCommandsItems = (
               "device health",
             ],
           },
-          // Same gate as the profiles card's "Add profile": current-fleet
+          // Same gate as the profiles card's "Add profile": current-team
           // admins and maintainers, once some MDM is on. Hidden in GitOps
           // mode, where the page can't be submitted.
           ...(canAddConfigurationProfile &&
@@ -196,7 +196,7 @@ const buildCommandsItems = (
                   label: "Add profile",
                   group: "Commands" as const,
                   path: withTeamId(paths.CONTROLS_CUSTOM_SETTINGS_NEW),
-                  teamName: switchesFromAllFleets,
+                  teamName: switchesFromAllTeams,
                   keywords: [
                     "create",
                     "new",
@@ -218,7 +218,7 @@ const buildCommandsItems = (
               ]
             : []),
           // Software add actions require Premium + a team or unassigned
-          // (not "All fleets"). Each destination page renders a
+          // (not "All teams"). Each destination page renders a
           // <PremiumFeatureMessage /> in Free. Also gated on
           // `canAddSoftware` which mirrors SoftwarePage's "Add software"
           // button — global admin/maintainer or admin/maintainer of the
@@ -228,20 +228,20 @@ const buildCommandsItems = (
           ...(isPremiumTier && hasTeamOrUnassigned && canAddSoftware
             ? [
                 {
-                  id: "add-fleet-maintained-app",
-                  label: "Add Fleet-maintained app",
+                  id: "add-automdm-maintained-app",
+                  label: "Add AutoMDM-maintained app",
                   group: "Commands" as const,
-                  path: withTeamId(paths.SOFTWARE_ADD_FLEET_MAINTAINED),
+                  path: withTeamId(paths.SOFTWARE_ADD_AUTOMDM_MAINTAINED),
                   keywords: [
                     "install",
                     "software",
                     "managed app",
                     "fma",
-                    "create fleet-maintained app",
-                    "new fleet-maintained app",
-                    "add fleet maintained app",
-                    "create fleet maintained app",
-                    "new fleet maintained app",
+                    "create automdm-maintained app",
+                    "new automdm-maintained app",
+                    "add automdm maintained app",
+                    "create automdm maintained app",
+                    "new automdm maintained app",
                     "create fma app",
                     "new fma app",
                     "add fma app",
@@ -345,7 +345,7 @@ const buildCommandsItems = (
               ]
             : []),
           // Script and variable actions require a team or unassigned
-          // (not "All fleets"). Scripts also hide for technicians —
+          // (not "All teams"). Scripts also hide for technicians —
           // ScriptLibrary.tsx disables the page button for them.
           ...(hasTeamOrUnassigned && !isTechnician
             ? [
@@ -404,7 +404,7 @@ const buildCommandsItems = (
             label: "Manage enroll secrets",
             group: "Commands" as const,
             path: withTeamId(`${paths.MANAGE_HOSTS}?manage_enroll_secrets=1`),
-            keywords: ["enrollment", "token", "fleetd", "enroll secret"],
+            keywords: ["enrollment", "token", "automdmd", "enroll secret"],
           },
         ]
       : []),
@@ -499,17 +499,17 @@ const buildCommandsItems = (
                     "create user",
                   ],
                 },
-                // Add fleet — Premium-only, hidden in Primo Mode, and
-                // hidden in GitOps Mode (ManageFleetsPage disables the
+                // Add team — Premium-only, hidden in Primo Mode, and
+                // hidden in GitOps Mode (ManageTeamsPage disables the
                 // primary action in all three states).
                 ...(isPremiumTier && !isPrimoMode && !isGitOpsMode
                   ? [
                       {
-                        id: "create-fleet",
-                        label: "Add fleet",
+                        id: "create-team",
+                        label: "Add team",
                         group: "Commands" as const,
-                        path: `${paths.ADMIN_FLEETS}?create_fleet=1`,
-                        keywords: ["new fleet", "add fleet", "create fleet"],
+                        path: `${paths.ADMIN_TEAMS}?create_team=1`,
+                        keywords: ["new team", "add team", "create team"],
                       },
                     ]
                   : []),
@@ -519,7 +519,7 @@ const buildCommandsItems = (
       : []),
 
     // Theme toggle and Sign out — always available. Theme is a per-user
-    // UI preference, not a write against Fleet data (setThemeMode is
+    // UI preference, not a write against AutoMDM data (setThemeMode is
     // exposed to every signed-in user via My Account → Theme), so it
     // sits outside the canWrite gate alongside Sign out.
     {

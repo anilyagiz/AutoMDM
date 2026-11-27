@@ -8,12 +8,12 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/service/middleware/auth"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/service/middleware/auth"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/websocket"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	"github.com/anilyagiz/automdm/v4/server/websocket"
 	gws "github.com/gorilla/websocket"
 	"github.com/igm/sockjs-go/v3/sockjs"
 )
@@ -22,9 +22,9 @@ import (
 // Stream Distributed Query Campaign Results and Metadata
 ////////////////////////////////////////////////////////////////////////////////
 
-var reVersion = regexp.MustCompile(`\{fleetversion:\(\?:([^\}\)]+)\)\}`)
+var reVersion = regexp.MustCompile(`\{automdmversion:\(\?:([^\}\)]+)\)\}`)
 
-func makeStreamDistributedQueryCampaignResultsHandler(config config.ServerConfig, svc fleet.Service, logger *slog.Logger) func(string) http.Handler {
+func makeStreamDistributedQueryCampaignResultsHandler(config config.ServerConfig, svc automdm.Service, logger *slog.Logger) func(string) http.Handler {
 	opt := sockjs.DefaultOptions
 	opt.Websocket = true
 	opt.RawWebsocket = true
@@ -47,7 +47,7 @@ func makeStreamDistributedQueryCampaignResultsHandler(config config.ServerConfig
 		// the special path values (such as the session id).
 		matches := reVersion.FindStringSubmatch(path)
 		if len(matches) == 0 {
-			panic("unexpected path, could not expand fleetversion: " + path)
+			panic("unexpected path, could not expand automdmversion: " + path)
 		}
 
 		versions := strings.Split(matches[1], "|")

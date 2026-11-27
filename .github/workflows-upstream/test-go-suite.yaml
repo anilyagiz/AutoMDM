@@ -20,7 +20,7 @@ on:
         type: string
         default: ''
       cover_pkg:
-        description: 'Go coverage package pattern (e.g., "github.com/fleetdm/fleet/v4/server/activity/..."). Defaults to all fleet packages.'
+        description: 'Go coverage package pattern (e.g., "github.com/anilyagiz/automdm/v4/server/activity/..."). Defaults to all automdm packages.'
         required: false
         type: string
         default: ''
@@ -35,7 +35,7 @@ on:
         type: boolean
         default: false
     secrets:
-      FLEET_RELEASE_GITHUB_PAT:
+      AUTOMDM_RELEASE_GITHUB_PAT:
         description: 'GitHub PAT used as NETWORK_TEST_GITHUB_TOKEN for tests that hit the GitHub API.'
         required: false
       SLACK_G_HELP_ENGINEERING_WEBHOOK_URL:
@@ -145,12 +145,12 @@ jobs:
     - name: Start Infra Dependencies
       if: ${{ env.NEED_DOCKER }}
       # Use & to background this
-      run: FLEET_REDIS_IMAGE=${{ inputs.redis }} FLEET_MYSQL_IMAGE=${{ inputs.mysql }} $DOCKER_COMMAND &
+      run: AUTOMDM_REDIS_IMAGE=${{ inputs.redis }} AUTOMDM_MYSQL_IMAGE=${{ inputs.mysql }} $DOCKER_COMMAND &
 
     - name: Add TLS certificate for SMTP Tests
       if: ${{ env.NEED_DOCKER }}
       run: |
-        sudo cp tools/smtp4dev/fleet.crt /usr/local/share/ca-certificates/
+        sudo cp tools/smtp4dev/automdm.crt /usr/local/share/ca-certificates/
         sudo update-ca-certificates
 
     - name: Install ZSH
@@ -189,7 +189,7 @@ jobs:
             fi
 
             # Try to connect to MySQL
-            output=$(docker compose exec -T $container_name sh -c "mysql -uroot -p\"\${MYSQL_ROOT_PASSWORD}\" -e \"SELECT 1=1\" fleet" 2>&1)
+            output=$(docker compose exec -T $container_name sh -c "mysql -uroot -p\"\${MYSQL_ROOT_PASSWORD}\" -e \"SELECT 1=1\" automdm" 2>&1)
             exit_code=$?
 
             # Log the attempt
@@ -213,7 +213,7 @@ jobs:
           docker compose down
 
           echo "Restarting containers..."
-          FLEET_REDIS_IMAGE=${{ inputs.redis }} FLEET_MYSQL_IMAGE=${{ inputs.mysql }} $DOCKER_COMMAND &
+          AUTOMDM_REDIS_IMAGE=${{ inputs.redis }} AUTOMDM_MYSQL_IMAGE=${{ inputs.mysql }} $DOCKER_COMMAND &
 
           # Give containers a moment to start
           sleep 10
@@ -269,22 +269,22 @@ jobs:
       if: ${{ env.GENERATE_TEST_SCHEMA }}
       run: make test-schema
 
-    - name: Build Fleet server Docker image (for fleetctl preview test)
-      if: ${{ inputs.suite == 'fleetctl' }}
+    - name: Build AutoMDM server Docker image (for automdmctl preview test)
+      if: ${{ inputs.suite == 'automdmctl' }}
       run: |
-        make fleet-static
-        cp ./build/fleet fleet
-        docker build -t fleetdm/fleet:dev -f tools/fleet-docker/Dockerfile .
-        rm fleet
+        make automdm-static
+        cp ./build/automdm automdm
+        docker build -t automdm/automdm:dev -f tools/automdm-docker/Dockerfile .
+        rm automdm
 
         # Update in-a-box docker-compose to add pull_policy: never for locally built image
         # This prevents Docker from trying to pull the image from Docker Hub
-        sed -i '/^  fleet01:/,/^  [^ ]/{s/^\(    image: fleetdm\/fleet.*\)/\1\n    pull_policy: never/}' tools/osquery/in-a-box/docker-compose.yml
-        sed -i '/^  fleet02:/,/^  [^ ]/{s/^\(    image: fleetdm\/fleet.*\)/\1\n    pull_policy: never/}' tools/osquery/in-a-box/docker-compose.yml
+        sed -i '/^  automdm01:/,/^  [^ ]/{s/^\(    image: automdm\/automdm.*\)/\1\n    pull_policy: never/}' tools/osquery/in-a-box/docker-compose.yml
+        sed -i '/^  automdm02:/,/^  [^ ]/{s/^\(    image: automdm\/automdm.*\)/\1\n    pull_policy: never/}' tools/osquery/in-a-box/docker-compose.yml
 
     - name: Run Go Tests
       env:
-        FLEET_PREVIEW_TAG: ${{ inputs.suite == 'fleetctl' && 'dev' || 'main' }}
+        AUTOMDM_PREVIEW_TAG: ${{ inputs.suite == 'automdmctl' && 'dev' || 'main' }}
       run: |
         USE_GOTESTSUM=1 \
           GOTESTSUM_FORMAT=testdox \
@@ -300,10 +300,10 @@ jobs:
           MAIL_TEST=1 \
           AWS_ENDPOINT_URL="http://127.0.0.1:4566" \
           AWS_REGION=us-east-1 \
-          NETWORK_TEST_GITHUB_TOKEN=${{ secrets.FLEET_RELEASE_GITHUB_PAT }} \
+          NETWORK_TEST_GITHUB_TOKEN=${{ secrets.AUTOMDM_RELEASE_GITHUB_PAT }} \
           CI_TEST_PKG="${{ env.CI_TEST_PKG }}" \
-          COVER_PKG="${{ inputs.cover_pkg || 'github.com/fleetdm/fleet/v4/...' }}" \
-          FLEET_PREVIEW_TAG="${{ env.FLEET_PREVIEW_TAG }}" \
+          COVER_PKG="${{ inputs.cover_pkg || 'github.com/anilyagiz/automdm/v4/...' }}" \
+          AUTOMDM_PREVIEW_TAG="${{ env.AUTOMDM_PREVIEW_TAG }}" \
           make test-go 2>&1 | tee /tmp/gotest.log
 
     - name: Save coverage
@@ -340,7 +340,7 @@ jobs:
       env:
         JOB_STATUS: ${{ job.status }}
         EVENT_URL: ${{ github.event.pull_request.html_url || github.event.head.html_url }}
-        RUN_URL: https://github.com/fleetdm/fleet/actions/runs/${{ github.run_id }}\n${{ github.event.pull_request.html_url || github.event.head.html_url }}
+        RUN_URL: https://github.com/anilyagiz/automdm/actions/runs/${{ github.run_id }}\n${{ github.event.pull_request.html_url || github.event.head.html_url }}
         SLACK_WEBHOOK_URL: ${{ secrets.SLACK_G_HELP_ENGINEERING_WEBHOOK_URL }}
         SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
 

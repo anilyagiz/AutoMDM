@@ -3,9 +3,9 @@ package service
 import (
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/pkg/removednames"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/platform/endpointer"
+	"github.com/anilyagiz/automdm/v4/pkg/removednames"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/platform/endpointer"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -16,7 +16,7 @@ func TestRemovedKeyMessage(t *testing.T) {
 	require.True(t, ok)
 	require.EqualError(t, &endpointer.RemovedKeyError{Key: "team_name"}, entry.Message())
 
-	// Any other name, or a registered one in another letter case, gets the standard Fleet 5 wording.
+	// Any other name, or a registered one in another letter case, gets the standard AutoMDM 5 wording.
 	require.EqualError(t, &endpointer.RemovedKeyError{Key: "Require_All_Software_Macos"},
 		`The "Require_All_Software_Macos" parameter is not available anymore. What to use instead: `+removednames.GuideURL)
 }
@@ -25,8 +25,8 @@ func TestRemovedKeyMessage(t *testing.T) {
 // there.
 func TestRemovedKeyTagsRegistered(t *testing.T) {
 	for _, typ := range []any{
-		fleet.AppConfig{}, fleet.TeamPayload{}, fleet.TeamSpec{}, fleet.MDMAppleSetupPayload{},
-		fleet.CreatePolicyRequest{}, fleet.ModifyPolicyRequest{},
+		automdm.AppConfig{}, automdm.TeamPayload{}, automdm.TeamSpec{}, automdm.MDMAppleSetupPayload{},
+		automdm.CreatePolicyRequest{}, automdm.ModifyPolicyRequest{},
 	} {
 		rules := endpointer.ExtractRemovedKeyRules(typ)
 		require.NotEmpty(t, rules, "%T", typ)
@@ -42,11 +42,11 @@ func TestRemovedKeyTagsRegistered(t *testing.T) {
 func TestRemovedKeyWithContextNotRejectedElsewhere(t *testing.T) {
 	require.NotContains(t, requestNames(removednames.KindJSONKey), removednames.WipeHostWindowsParam.Old)
 	appConfig := []byte(`{"agent_options":{"overrides":{"platforms":{"windows":{"options":{"distributed_interval":10}}}}}}`)
-	require.NoError(t, endpointer.CheckRemovedKeys(appConfig, endpointer.ExtractRemovedKeyRules(fleet.AppConfig{})))
+	require.NoError(t, endpointer.CheckRemovedKeys(appConfig, endpointer.ExtractRemovedKeyRules(automdm.AppConfig{})))
 }
 
 func TestRemovedAppleSettingsKeysAreScoped(t *testing.T) {
-	for _, typ := range []any{fleet.AppConfig{}, fleet.TeamPayload{}, fleet.TeamSpec{}} {
+	for _, typ := range []any{automdm.AppConfig{}, automdm.TeamPayload{}, automdm.TeamSpec{}} {
 		rules := endpointer.ExtractRemovedKeyRules(typ)
 		var removed *endpointer.RemovedKeyError
 		require.ErrorAs(t, endpointer.CheckRemovedKeys([]byte(`{"mdm": {"macos_settings": {}}}`), rules), &removed, "%T", typ)

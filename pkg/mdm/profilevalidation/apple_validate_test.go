@@ -27,7 +27,7 @@ func TestDecodeAppleProfileKinds(t *testing.T) {
 		want  string
 	}{
 		{name: "string", value: `<string>x</string>`, want: "string"},
-		{name: "fleet variable is a string", value: `<string>$FLEET_VAR_HOST_UUID</string>`, want: "string"},
+		{name: "automdm variable is a string", value: `<string>$AUTOMDM_VAR_HOST_UUID</string>`, want: "string"},
 		{name: "true", value: `<true/>`, want: "boolean"},
 		{name: "false", value: `<false/>`, want: "boolean"},
 		{name: "integer", value: `<integer>5</integer>`, want: "integer"},
@@ -35,8 +35,8 @@ func TestDecodeAppleProfileKinds(t *testing.T) {
 		{name: "real", value: `<real>1.5</real>`, want: "real"},
 		{name: "date", value: `<date>2026-01-01T00:00:00Z</date>`, want: "date"},
 		{name: "data", value: `<data>AQID</data>`, want: "data"},
-		{name: "digicert placeholder blanked", value: `<data>$FLEET_VAR_DIGICERT_DATA_CA</data>`, want: "data"},
-		{name: "braced digicert placeholder blanked", value: `<data>${FLEET_VAR_DIGICERT_DATA_CA}</data>`, want: "data"},
+		{name: "digicert placeholder blanked", value: `<data>$AUTOMDM_VAR_DIGICERT_DATA_CA</data>`, want: "data"},
+		{name: "braced digicert placeholder blanked", value: `<data>${AUTOMDM_VAR_DIGICERT_DATA_CA}</data>`, want: "data"},
 		{name: "array", value: `<array><string>a</string></array>`, want: "array"},
 		{name: "dictionary", value: `<dict><key>a</key><true/></dict>`, want: "dictionary"},
 	}
@@ -59,8 +59,8 @@ func TestDecodeAppleProfileErrors(t *testing.T) {
 		{name: "invalid xml", data: `<?xml version="1.0"?><plist><dict><key>k</key>`, wantErr: "decode profile"},
 		{name: "root not a dictionary", data: `<?xml version="1.0"?><plist version="1.0"><array/></plist>`, wantErr: "root is array"},
 		// Only expanded or DigiCert variables can appear where the element needs a number or base64.
-		{name: "secret in integer element", data: plistDict(`<key>k</key><integer>$FLEET_SECRET_X</integer>`), wantErr: "decode profile"}, // we fail to parse it in the upload path as the XML parser sees a string "$FLEET_SECRET" instead of a number, so I kept the same here.
-		{name: "non-digicert variable in data", data: plistDict(`<key>k</key><data>$FLEET_VAR_X</data>`), wantErr: "decode profile"},
+		{name: "secret in integer element", data: plistDict(`<key>k</key><integer>$AUTOMDM_SECRET_X</integer>`), wantErr: "decode profile"}, // we fail to parse it in the upload path as the XML parser sees a string "$AUTOMDM_SECRET" instead of a number, so I kept the same here.
+		{name: "non-digicert variable in data", data: plistDict(`<key>k</key><data>$AUTOMDM_VAR_X</data>`), wantErr: "decode profile"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -148,11 +148,11 @@ func TestTypeAccepts(t *testing.T) {
 		{name: "profile string in data", key: key(AppleTypeData), value: "AQID"},
 		{name: "profile string in date", key: key(AppleTypeDate), value: "2026-01-01T00:00:00Z"},
 
-		{name: "fleet variable in string", key: key(AppleTypeString), value: "$FLEET_VAR_HOST_END_USER_IDP_USERNAME", want: true},
-		{name: "fleet variable in integer", key: key(AppleTypeInteger), value: "$FLEET_VAR_HOST_END_USER_IDP_USERNAME"},
-		{name: "fleet variable in data", key: key(AppleTypeData), value: "$FLEET_VAR_HOST_END_USER_IDP_USERNAME"},
-		{name: "secret in integer", key: key(AppleTypeInteger), value: "$FLEET_SECRET_PORT", want: true},
-		{name: "braced secret inside a string in boolean", key: key(AppleTypeBoolean), value: "x${FLEET_SECRET_ON}", want: true},
+		{name: "automdm variable in string", key: key(AppleTypeString), value: "$AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME", want: true},
+		{name: "automdm variable in integer", key: key(AppleTypeInteger), value: "$AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME"},
+		{name: "automdm variable in data", key: key(AppleTypeData), value: "$AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME"},
+		{name: "secret in integer", key: key(AppleTypeInteger), value: "$AUTOMDM_SECRET_PORT", want: true},
+		{name: "braced secret inside a string in boolean", key: key(AppleTypeBoolean), value: "x${AUTOMDM_SECRET_ON}", want: true},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -414,15 +414,15 @@ func TestValidateAppleProfile(t *testing.T) {
 			sameBoth: true,
 		},
 		{
-			name:     "fleet variable in a string slot",
-			profile:  mobileconfig(payload(restrictions, `<key>PayloadDisplayName</key><string>$FLEET_VAR_HOST_END_USER_IDP_USERNAME</string>`)),
+			name:     "automdm variable in a string slot",
+			profile:  mobileconfig(payload(restrictions, `<key>PayloadDisplayName</key><string>$AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME</string>`)),
 			sameBoth: true,
 		},
 		{
-			name: "fleet variable in integer and data slots",
+			name: "automdm variable in integer and data slots",
 			profile: mobileconfig(
-				payload(restrictions, `<key>enforcedSoftwareUpdateDelay</key><string>$FLEET_VAR_HOST_END_USER_IDP_USERNAME</string>`),
-				payload("com.apple.security.pkcs12", `<key>PayloadContent</key><string>$FLEET_VAR_HOST_END_USER_IDP_USERNAME</string>`),
+				payload(restrictions, `<key>enforcedSoftwareUpdateDelay</key><string>$AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME</string>`),
+				payload("com.apple.security.pkcs12", `<key>PayloadContent</key><string>$AUTOMDM_VAR_HOST_END_USER_IDP_USERNAME</string>`),
 			),
 			lenient: []Finding{
 				mismatch(restrictions, "enforcedSoftwareUpdateDelay", []string{"integer"}, "string"),
@@ -432,18 +432,18 @@ func TestValidateAppleProfile(t *testing.T) {
 		},
 		{
 			name:     "digicert placeholder in a data slot",
-			profile:  mobileconfig(payload("com.apple.security.pkcs12", `<key>PayloadContent</key><data>$FLEET_VAR_DIGICERT_DATA_CA</data>`)),
+			profile:  mobileconfig(payload("com.apple.security.pkcs12", `<key>PayloadContent</key><data>$AUTOMDM_VAR_DIGICERT_DATA_CA</data>`)),
 			sameBoth: true,
 		},
 		{
 			name:     "secret in an integer slot",
-			profile:  mobileconfig(payload(restrictions, `<key>enforcedSoftwareUpdateDelay</key><string>${FLEET_SECRET_DELAY}</string>`)),
+			profile:  mobileconfig(payload(restrictions, `<key>enforcedSoftwareUpdateDelay</key><string>${AUTOMDM_SECRET_DELAY}</string>`)),
 			sameBoth: true,
 		},
 		{
 			name: "seeded allow entries",
 			profile: mobileconfig(
-				payload("com.google.Chrome", `<key>HomepageLocation</key><string>https://fleetdm.com</string>`),
+				payload("com.google.Chrome", `<key>HomepageLocation</key><string>https://automdm.com</string>`),
 				payload("us.zoom.config", `<key>nogoogle</key><integer>1</integer>`),
 				payload("com.apple.universalcontrol", `<key>Disable</key><true/>`),
 			),
@@ -461,10 +461,10 @@ func TestValidateAppleProfile(t *testing.T) {
 			name: "envelope problems",
 			profile: []byte(plistDict(`<key>PayloadType</key><string>Configuration</string>
 				<key>PayloadUUID</key><string>not-a-uuid</string>
-				<key>PayloadIdentifier</key><string>$FLEET_VAR_HOST_UUID</string>
+				<key>PayloadIdentifier</key><string>$AUTOMDM_VAR_HOST_UUID</string>
 				<key>PayloadContent</key><array><dict>
 					<key>PayloadType</key><string>` + restrictions + `</string>
-					<key>PayloadUUID</key><string>${FLEET_SECRET_UUID}</string>
+					<key>PayloadUUID</key><string>${AUTOMDM_SECRET_UUID}</string>
 					<key>PayloadIdentifier</key><string>restrictions</string>
 				</dict></array>`)),
 			strict: []Finding{
@@ -588,7 +588,7 @@ func TestValidateAppleDeclaration(t *testing.T) {
 		},
 		{
 			name:     "secret in an integer slot",
-			data:     declaration(lockType, `{"MinimumLength": "$FLEET_SECRET_LENGTH"}`),
+			data:     declaration(lockType, `{"MinimumLength": "$AUTOMDM_SECRET_LENGTH"}`),
 			sameBoth: true,
 		},
 		{

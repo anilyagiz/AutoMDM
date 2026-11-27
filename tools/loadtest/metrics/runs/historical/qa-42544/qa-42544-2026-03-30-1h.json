@@ -8,7 +8,7 @@
     "source": "spreadsheet-backfill",
     "sheet_row": 63
   },
-  "fleet_server": {
+  "automdm_server": {
     "cpu_utilization": {
       "Average": 65.0
     },
@@ -79,20 +79,20 @@
       }
     }
   ],
-  "fleet_server_errors": {
+  "automdm_server_errors": {
     "error_count": 0
   },
   "backfill": {
-    "source": "Fleet release load testing results (Google Sheet), manual-logging era",
+    "source": "AutoMDM release load testing results (Google Sheet), manual-logging era",
     "purpose": "MDM loadtest for 42544",
     "one_click": "yes",
     "notes": null,
     "raw": {
       "full_day": "no",
-      "fleet_containers": "25",
+      "automdm_containers": "25",
       "loadtest_containers": "80",
-      "fleet_cpu": "~65%",
-      "fleet_mem": "~3%",
+      "automdm_cpu": "~65%",
+      "automdm_mem": "~3%",
       "errors": "No errors",
       "writer_top_sql": "COMMIT",
       "writer_cpu": "~50%",

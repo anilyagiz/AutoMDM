@@ -1,6 +1,6 @@
 # Apple MDM
 
-Contributor docs for Fleet's Apple (macOS, iOS, iPadOS) MDM feature area.
+Contributor docs for AutoMDM's Apple (macOS, iOS, iPadOS) MDM feature area.
 
 ## Architecture
 

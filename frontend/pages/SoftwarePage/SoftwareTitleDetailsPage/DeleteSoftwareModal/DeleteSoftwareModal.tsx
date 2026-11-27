@@ -40,7 +40,7 @@ const getPlatformMessage = (isAppStoreApp: boolean, isAndroidApp: boolean) => {
         </p>
         <p>
           Pending or already started installs and uninstalls won&apos;t be
-          canceled, and the results won&apos;t appear in Fleet.
+          canceled, and the results won&apos;t appear in AutoMDM.
         </p>
       </>
     );
@@ -54,7 +54,7 @@ const getPlatformMessage = (isAppStoreApp: boolean, isAndroidApp: boolean) => {
       <p>
         Pending installs and uninstalls will be canceled. If they have already
         started, they won&apos;t be canceled, and the results won&apos;t appear
-        in Fleet.
+        in AutoMDM.
       </p>
     </>
   );

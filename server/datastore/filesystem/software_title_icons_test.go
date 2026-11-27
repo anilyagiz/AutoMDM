@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/require"
 )
 
@@ -53,7 +53,7 @@ func TestSoftwareTitleIconStore(t *testing.T) {
 
 	blob, length, err := store.Get(ctx, "non-existant-icon")
 	require.Error(t, err)
-	require.True(t, fleet.IsNotFound(err))
+	require.True(t, automdm.IsNotFound(err))
 	require.Nil(t, blob)
 	require.Zero(t, length)
 
@@ -92,7 +92,7 @@ func TestSoftwareTitleIconStore(t *testing.T) {
 	require.Equal(t, 1, n)
 	assertIconsOnDisk(t, dir, []string{id0})
 
-	_, err = store.Sign(ctx, id0, fleet.SoftwareTitleIconSignedURLExpiry)
+	_, err = store.Sign(ctx, id0, automdm.SoftwareTitleIconSignedURLExpiry)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "signing not supported for software title icons in filesystem store")
 }

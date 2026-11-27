@@ -98,7 +98,7 @@ describe("InstallSoftware", () => {
       expect(screen.getByText(/Turn on Android MDM/)).toBeInTheDocument();
     });
     expect(
-      screen.getByText(/Install software on hosts that enroll to Fleet/)
+      screen.getByText(/Install software on hosts that enroll to AutoMDM/)
     ).toBeVisible();
   });
 

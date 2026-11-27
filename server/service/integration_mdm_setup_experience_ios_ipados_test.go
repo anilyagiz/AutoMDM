@@ -19,16 +19,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/mdm/mdmtest"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/dev_mode"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	apple_mdm "github.com/fleetdm/fleet/v4/server/mdm/apple"
-	"github.com/fleetdm/fleet/v4/server/mdm/apple/mobileconfig"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanodep/godep"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/push"
-	"github.com/fleetdm/fleet/v4/server/worker"
+	"github.com/anilyagiz/automdm/v4/pkg/mdm/mdmtest"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	"github.com/anilyagiz/automdm/v4/server/dev_mode"
+	apple_mdm "github.com/anilyagiz/automdm/v4/server/mdm/apple"
+	"github.com/anilyagiz/automdm/v4/server/mdm/apple/mobileconfig"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanodep/godep"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/push"
+	"github.com/anilyagiz/automdm/v4/server/worker"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	micromdm "github.com/micromdm/micromdm/mdm/mdm"
@@ -41,21 +41,21 @@ func (s *integrationMDMTestSuite) TestSetupExperienceIOSAndIPadOS() {
 	t := s.T()
 	s.setSkipWorkerJobs(t)
 	ctx := context.Background()
-	abmOrgName := "fleet_ade_ios_ipados_team_test"
+	abmOrgName := "automdm_ade_ios_ipados_team_test"
 
 	s.enableABM(abmOrgName)
 
-	team, err := s.ds.NewTeam(ctx, &fleet.Team{Name: "team 1"})
+	team, err := s.ds.NewTeam(ctx, &automdm.Team{Name: "team 1"})
 	require.NoError(t, err)
 
 	var acResp appConfigResponse
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(fmt.Sprintf(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(fmt.Sprintf(`{
 			"mdm": {
 			       "apple_business": [{
 			         "organization_name": %q,
-			         "macos_fleet": %q,
-			         "ios_fleet": %q,
-			         "ipados_fleet": %q
+			         "macos_team": %q,
+			         "ios_team": %q,
+			         "ipados_team": %q
 			       }]
 			}
 		}`, abmOrgName, team.Name, team.Name, team.Name)), http.StatusOK, &acResp)
@@ -63,48 +63,48 @@ func (s *integrationMDMTestSuite) TestSetupExperienceIOSAndIPadOS() {
 	orgName := "Fleet Device Management Inc."
 	token := "mycooltoken"
 	expTime := time.Now().Add(200 * time.Hour).UTC().Round(time.Second)
-	expDate := expTime.Format(fleet.VPPTimeFormat)
+	expDate := expTime.Format(automdm.VPPTimeFormat)
 	tokenJSON := fmt.Sprintf(`{"expDate":"%s","token":"%s","orgName":"%s"}`, expDate, token, orgName)
-	dev_mode.SetOverride("FLEET_DEV_VPP_URL", s.appleVPPConfigSrv.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_VPP_URL", s.appleVPPConfigSrv.URL, t)
 	var validToken uploadVPPTokenResponse
-	s.uploadDataViaForm("/api/latest/fleet/vpp_tokens", "token", "token.vpptoken", []byte(base64.StdEncoding.EncodeToString([]byte(tokenJSON))), http.StatusAccepted, "", &validToken)
+	s.uploadDataViaForm("/api/latest/automdm/vpp_tokens", "token", "token.vpptoken", []byte(base64.StdEncoding.EncodeToString([]byte(tokenJSON))), http.StatusAccepted, "", &validToken)
 
 	var getVPPTokenResp getVPPTokensResponse
-	s.DoJSON("GET", "/api/latest/fleet/vpp_tokens", &getVPPTokensRequest{}, http.StatusOK, &getVPPTokenResp)
+	s.DoJSON("GET", "/api/latest/automdm/vpp_tokens", &getVPPTokensRequest{}, http.StatusOK, &getVPPTokenResp)
 
 	// Associate team to the VPP token.
 	var resPatchVPP patchVPPTokensTeamsResponse
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/vpp_tokens/%d/fleets", getVPPTokenResp.Tokens[0].ID), patchVPPTokensTeamsRequest{TeamIDs: []uint{team.ID}}, http.StatusOK, &resPatchVPP)
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/vpp_tokens/%d/teams", getVPPTokenResp.Tokens[0].ID), patchVPPTokensTeamsRequest{TeamIDs: []uint{team.ID}}, http.StatusOK, &resPatchVPP)
 
 	// app 1 macOS only
-	macOSApp1 := &fleet.VPPApp{
+	macOSApp1 := &automdm.VPPApp{
 		AdamID:           "1",
-		Platform:         fleet.MacOSPlatform,
+		Platform:         automdm.MacOSPlatform,
 		Name:             "App 1",
 		BundleIdentifier: "a-1",
 		IconURL:          "https://example.com/images/1",
 		LatestVersion:    "1.0.0",
 	}
 	// App 2 supports macOS, iOS, iPadOS
-	macOSApp2 := &fleet.VPPApp{
+	macOSApp2 := &automdm.VPPApp{
 		AdamID:           "2",
-		Platform:         fleet.MacOSPlatform,
+		Platform:         automdm.MacOSPlatform,
 		Name:             "App 2",
 		BundleIdentifier: "b-2",
 		IconURL:          "https://example.com/images/2",
 		LatestVersion:    "2.0.0",
 	}
-	iOSApp2 := &fleet.VPPApp{
+	iOSApp2 := &automdm.VPPApp{
 		AdamID:           "2",
-		Platform:         fleet.IOSPlatform,
+		Platform:         automdm.IOSPlatform,
 		Name:             "App 2",
 		BundleIdentifier: "b-2",
 		IconURL:          "https://example.com/images/2",
 		LatestVersion:    "2.0.0",
 	}
-	iPadOSApp2 := &fleet.VPPApp{
+	iPadOSApp2 := &automdm.VPPApp{
 		AdamID:           "2",
-		Platform:         fleet.IPadOSPlatform,
+		Platform:         automdm.IPadOSPlatform,
 		Name:             "App 2",
 		BundleIdentifier: "b-2",
 		IconURL:          "https://example.com/images/2",
@@ -112,20 +112,20 @@ func (s *integrationMDMTestSuite) TestSetupExperienceIOSAndIPadOS() {
 	}
 
 	// App 3 is iPadOS only
-	iPadOSApp3 := &fleet.VPPApp{
+	iPadOSApp3 := &automdm.VPPApp{
 		AdamID:           "3",
-		Platform:         fleet.IPadOSPlatform,
+		Platform:         automdm.IPadOSPlatform,
 		Name:             "App 3",
 		BundleIdentifier: "c-3",
 		IconURL:          "https://example.com/images/3",
 		LatestVersion:    "3.0.0",
 	}
 
-	expectedApps := []*fleet.VPPApp{macOSApp1, macOSApp2, iOSApp2, iPadOSApp2, iPadOSApp3}
+	expectedApps := []*automdm.VPPApp{macOSApp1, macOSApp2, iOSApp2, iPadOSApp2, iPadOSApp3}
 
 	var addAppResp addAppStoreAppResponse
 	// Add apps
-	getSoftwareTitleIDFromApp := func(app *fleet.VPPApp) uint {
+	getSoftwareTitleIDFromApp := func(app *automdm.VPPApp) uint {
 		var titleID uint
 		mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
 			ctx := context.Background()
@@ -136,10 +136,10 @@ func (s *integrationMDMTestSuite) TestSetupExperienceIOSAndIPadOS() {
 		return titleID
 	}
 
-	titleIDsByApp := make(map[*fleet.VPPApp]uint)
+	titleIDsByApp := make(map[*automdm.VPPApp]uint)
 	for _, app := range expectedApps {
 		addAppResp = addAppStoreAppResponse{}
-		s.DoJSON("POST", "/api/latest/fleet/software/app_store_apps",
+		s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps",
 			&addAppStoreAppRequest{TeamID: &team.ID, AppStoreID: app.AdamID, Platform: app.Platform},
 			http.StatusOK, &addAppResp)
 		titleIDsByApp[app] = getSoftwareTitleIDFromApp(app)
@@ -147,7 +147,7 @@ func (s *integrationMDMTestSuite) TestSetupExperienceIOSAndIPadOS() {
 
 	putSetupExperienceSoftwareForPlatform := func(t *testing.T, platform string, teamID uint, titleIDs []uint) {
 		var swInstallResp putSetupExperienceSoftwareResponse
-		s.DoJSON("PUT", "/api/v1/fleet/setup_experience/software", putSetupExperienceSoftwareRequest{
+		s.DoJSON("PUT", "/api/v1/automdm/setup_experience/software", putSetupExperienceSoftwareRequest{
 			Platform: platform,
 			TeamID:   teamID,
 			TitleIDs: titleIDs,
@@ -165,7 +165,7 @@ func (s *integrationMDMTestSuite) TestSetupExperienceIOSAndIPadOS() {
 
 	// Add a profile
 	teamProfile := mobileconfigForTest("N1", "I1")
-	s.Do("POST", "/api/v1/fleet/mdm/profiles/batch", appleProfilesBatchRequest([][]byte{teamProfile}), http.StatusNoContent, "fleet_id", fmt.Sprint(team.ID))
+	s.Do("POST", "/api/v1/automdm/mdm/profiles/batch", appleProfilesBatchRequest([][]byte{teamProfile}), http.StatusNoContent, "team_id", fmt.Sprint(team.ID))
 
 	devices := []godep.Device{
 		{
@@ -186,7 +186,7 @@ func (s *integrationMDMTestSuite) TestSetupExperienceIOSAndIPadOS() {
 
 	s.appleVPPConfigSrvConfig.SerialNumbers = append(s.appleVPPConfigSrvConfig.SerialNumbers, devices[0].SerialNumber, devices[1].SerialNumber)
 
-	vppAppIDsByDeviceFamily := map[string][]*fleet.VPPApp{
+	vppAppIDsByDeviceFamily := map[string][]*automdm.VPPApp{
 		"iPhone": {iOSApp2},
 		"iPad":   {iPadOSApp2, iPadOSApp3},
 	}
@@ -226,21 +226,21 @@ func (s *integrationMDMTestSuite) TestSetupExperienceIOSInHouseApp() {
 	t := s.T()
 	s.setSkipWorkerJobs(t)
 	ctx := context.Background()
-	abmOrgName := "fleet_ade_ios_in_house_test"
+	abmOrgName := "automdm_ade_ios_in_house_test"
 
 	s.enableABM(abmOrgName)
 
-	team, err := s.ds.NewTeam(ctx, &fleet.Team{Name: "team in-house se"})
+	team, err := s.ds.NewTeam(ctx, &automdm.Team{Name: "team in-house se"})
 	require.NoError(t, err)
 
 	var acResp appConfigResponse
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(fmt.Sprintf(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(fmt.Sprintf(`{
 			"mdm": {
 			       "apple_business": [{
 			         "organization_name": %q,
-			         "macos_fleet": %q,
-			         "ios_fleet": %q,
-			         "ipados_fleet": %q
+			         "macos_team": %q,
+			         "ios_team": %q,
+			         "ipados_team": %q
 			       }]
 			}
 		}`, abmOrgName, team.Name, team.Name, team.Name)), http.StatusOK, &acResp)
@@ -249,24 +249,24 @@ func (s *integrationMDMTestSuite) TestSetupExperienceIOSInHouseApp() {
 	orgName := "Fleet Device Management Inc."
 	token := "mycooltoken"
 	expTime := time.Now().Add(200 * time.Hour).UTC().Round(time.Second)
-	expDate := expTime.Format(fleet.VPPTimeFormat)
+	expDate := expTime.Format(automdm.VPPTimeFormat)
 	tokenJSON := fmt.Sprintf(`{"expDate":"%s","token":"%s","orgName":"%s"}`, expDate, token, orgName)
-	dev_mode.SetOverride("FLEET_DEV_VPP_URL", s.appleVPPConfigSrv.URL, t)
+	dev_mode.SetOverride("AUTOMDM_DEV_VPP_URL", s.appleVPPConfigSrv.URL, t)
 	var validToken uploadVPPTokenResponse
-	s.uploadDataViaForm("/api/latest/fleet/vpp_tokens", "token", "token.vpptoken", []byte(base64.StdEncoding.EncodeToString([]byte(tokenJSON))), http.StatusAccepted, "", &validToken)
+	s.uploadDataViaForm("/api/latest/automdm/vpp_tokens", "token", "token.vpptoken", []byte(base64.StdEncoding.EncodeToString([]byte(tokenJSON))), http.StatusAccepted, "", &validToken)
 	var getVPPTokenResp getVPPTokensResponse
-	s.DoJSON("GET", "/api/latest/fleet/vpp_tokens", &getVPPTokensRequest{}, http.StatusOK, &getVPPTokenResp)
+	s.DoJSON("GET", "/api/latest/automdm/vpp_tokens", &getVPPTokensRequest{}, http.StatusOK, &getVPPTokenResp)
 	var resPatchVPP patchVPPTokensTeamsResponse
-	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/vpp_tokens/%d/fleets", getVPPTokenResp.Tokens[0].ID), patchVPPTokensTeamsRequest{TeamIDs: []uint{team.ID}}, http.StatusOK, &resPatchVPP)
+	s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/vpp_tokens/%d/teams", getVPPTokenResp.Tokens[0].ID), patchVPPTokensTeamsRequest{TeamIDs: []uint{team.ID}}, http.StatusOK, &resPatchVPP)
 
-	iOSApp := &fleet.VPPApp{
-		AdamID: "2", Platform: fleet.IOSPlatform,
+	iOSApp := &automdm.VPPApp{
+		AdamID: "2", Platform: automdm.IOSPlatform,
 		Name:             "App 2",
 		BundleIdentifier: "b-2",
 		LatestVersion:    "2.0.0",
 	}
 	var addAppResp addAppStoreAppResponse
-	s.DoJSON("POST", "/api/latest/fleet/software/app_store_apps",
+	s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps",
 		&addAppStoreAppRequest{TeamID: &team.ID, AppStoreID: iOSApp.AdamID, Platform: iOSApp.Platform},
 		http.StatusOK, &addAppResp)
 	var vppTitleID uint
@@ -275,14 +275,14 @@ func (s *integrationMDMTestSuite) TestSetupExperienceIOSInHouseApp() {
 	})
 
 	// upload the .ipa (creates the iOS and iPadOS titles) and select the iOS title
-	s.uploadSoftwareInstaller(t, &fleet.UploadSoftwareInstallerPayload{Filename: "ipa_test.ipa", TeamID: &team.ID}, http.StatusOK, "")
+	s.uploadSoftwareInstaller(t, &automdm.UploadSoftwareInstallerPayload{Filename: "ipa_test.ipa", TeamID: &team.ID}, http.StatusOK, "")
 	var ipaTitleID uint
 	mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
 		return sqlx.GetContext(ctx, q, &ipaTitleID, `SELECT title_id FROM in_house_apps WHERE global_or_team_id = ? AND platform = 'ios'`, team.ID)
 	})
 
 	var swInstallResp putSetupExperienceSoftwareResponse
-	s.DoJSON("PUT", "/api/v1/fleet/setup_experience/software", putSetupExperienceSoftwareRequest{
+	s.DoJSON("PUT", "/api/v1/automdm/setup_experience/software", putSetupExperienceSoftwareRequest{
 		Platform: "ios",
 		TeamID:   team.ID,
 		TitleIDs: []uint{vppTitleID, ipaTitleID},
@@ -290,7 +290,7 @@ func (s *integrationMDMTestSuite) TestSetupExperienceIOSInHouseApp() {
 
 	// custom profile, expected by the enroll/release helper
 	teamProfile := mobileconfigForTest("N1", "I1")
-	s.Do("POST", "/api/v1/fleet/mdm/profiles/batch", appleProfilesBatchRequest([][]byte{teamProfile}), http.StatusNoContent, "fleet_id", fmt.Sprint(team.ID))
+	s.Do("POST", "/api/v1/automdm/mdm/profiles/batch", appleProfilesBatchRequest([][]byte{teamProfile}), http.StatusNoContent, "team_id", fmt.Sprint(team.ID))
 
 	device := godep.Device{
 		Model:        "iPhone 16 Pro",
@@ -307,8 +307,8 @@ func (s *integrationMDMTestSuite) TestSetupExperienceIOSInHouseApp() {
 			ABMOrg:             abmOrgName,
 			TeamID:             &team.ID,
 			CustomProfileIdent: "N1",
-			VppAppsToInstall:   []*fleet.VPPApp{iOSApp},
-			InHouseAppsToInstall: []fleet.Software{
+			VppAppsToInstall:   []*automdm.VPPApp{iOSApp},
+			InHouseAppsToInstall: []automdm.Software{
 				{BundleIdentifier: "com.ipa-test.ipa-test", Name: "ipa_test", Version: "1.0"},
 			},
 		})
@@ -316,7 +316,7 @@ func (s *integrationMDMTestSuite) TestSetupExperienceIOSInHouseApp() {
 		// both setup experience items reached success, and the in-house row carries
 		// its app pointer and MDM command UUID
 		listHostsRes := listHostsResponse{}
-		s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &listHostsRes)
+		s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &listHostsRes)
 		require.Len(t, listHostsRes.Hosts, 1)
 		hostUUID := listHostsRes.Hosts[0].UUID
 		results, err := s.ds.ListSetupExperienceResultsByHostUUID(ctx, hostUUID, team.ID)
@@ -324,7 +324,7 @@ func (s *integrationMDMTestSuite) TestSetupExperienceIOSInHouseApp() {
 		require.Len(t, results, 2)
 		var inHouseSeen, vppSeen bool
 		for _, res := range results {
-			require.Equal(t, fleet.SetupExperienceStatusSuccess, res.Status)
+			require.Equal(t, automdm.SetupExperienceStatusSuccess, res.Status)
 			switch {
 			case res.InHouseAppID != nil:
 				inHouseSeen = true
@@ -338,20 +338,20 @@ func (s *integrationMDMTestSuite) TestSetupExperienceIOSInHouseApp() {
 
 		// the verified in-house install is recorded with setup-experience attribution
 		var activitiesResp listActivitiesResponse
-		s.DoJSON("GET", "/api/latest/fleet/activities", nil, http.StatusOK, &activitiesResp, "per_page", "50", "order_key", "id", "order_direction", "desc")
+		s.DoJSON("GET", "/api/latest/automdm/activities", nil, http.StatusOK, &activitiesResp, "per_page", "50", "order_key", "id", "order_direction", "desc")
 		var inHouseActivitySeen bool
 		for _, act := range activitiesResp.Activities {
-			if act.Type != (fleet.ActivityTypeInstalledSoftware{}).ActivityName() || act.Details == nil {
+			if act.Type != (automdm.ActivityTypeInstalledSoftware{}).ActivityName() || act.Details == nil {
 				continue
 			}
-			var details fleet.ActivityTypeInstalledSoftware
+			var details automdm.ActivityTypeInstalledSoftware
 			require.NoError(t, json.Unmarshal(*act.Details, &details))
 			if details.SoftwareTitle != "ipa_test" {
 				continue
 			}
 			inHouseActivitySeen = true
 			require.True(t, details.FromSetupExperience)
-			require.Equal(t, string(fleet.SoftwareInstalled), details.Status)
+			require.Equal(t, string(automdm.SoftwareInstalled), details.Status)
 		}
 		require.True(t, inHouseActivitySeen, "expected an installed_software activity for the in-house app")
 	})
@@ -363,10 +363,10 @@ type DEPEnrollMobileTestOpts struct {
 	TeamID                            *uint
 	CustomProfileIdent                string
 	EnrollmentProfileFromDEPUsingPost bool
-	VppAppsToInstall                  []*fleet.VPPApp
+	VppAppsToInstall                  []*automdm.VPPApp
 	// InHouseAppsToInstall lists in-house apps (.ipa) expected to install during
 	// setup, as the device would report them in InstalledApplicationList.
-	InHouseAppsToInstall []fleet.Software
+	InHouseAppsToInstall []automdm.Software
 }
 
 func (s *integrationMDMTestSuite) runDEPEnrollReleaseMobileDeviceWithVPPTest(t *testing.T, device godep.Device, opts DEPEnrollMobileTestOpts) {
@@ -378,19 +378,19 @@ func (s *integrationMDMTestSuite) runDEPEnrollReleaseMobileDeviceWithVPPTest(t *
 		"macos_manual_agent_install":           false,
 	}
 	if opts.TeamID != nil {
-		payload["fleet_id"] = *opts.TeamID
+		payload["team_id"] = *opts.TeamID
 	}
 
-	s.Do("PATCH", "/api/latest/fleet/setup_experience", json.RawMessage(jsonMustMarshal(t, payload)), http.StatusNoContent)
+	s.Do("PATCH", "/api/latest/automdm/setup_experience", json.RawMessage(jsonMustMarshal(t, payload)), http.StatusNoContent)
 	t.Cleanup(func() {
 		// Get back to the default state.
 		payload["apple_enable_release_device_manually"] = false
-		s.Do("PATCH", "/api/latest/fleet/setup_experience", json.RawMessage(jsonMustMarshal(t, payload)), http.StatusNoContent)
+		s.Do("PATCH", "/api/latest/automdm/setup_experience", json.RawMessage(jsonMustMarshal(t, payload)), http.StatusNoContent)
 	})
 
 	// query all hosts - none yet
 	listHostsRes := listHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &listHostsRes)
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &listHostsRes)
 	require.Empty(t, listHostsRes.Hosts)
 
 	s.pushProvider.PushFunc = func(_ context.Context, pushes []*mdm.Push) (map[string]*push.Response, error) {
@@ -425,7 +425,7 @@ func (s *integrationMDMTestSuite) runDEPEnrollReleaseMobileDeviceWithVPPTest(t *
 			resp.ProfileUUID = prof.ProfileUUID
 			resp.Devices = make(map[string]string, len(prof.Devices))
 			for _, device := range prof.Devices {
-				resp.Devices[device] = string(fleet.DEPAssignProfileResponseSuccess)
+				resp.Devices[device] = string(automdm.DEPAssignProfileResponseSuccess)
 			}
 			err = encoder.Encode(resp)
 			assert.NoError(t, err)
@@ -438,7 +438,7 @@ func (s *integrationMDMTestSuite) runDEPEnrollReleaseMobileDeviceWithVPPTest(t *
 	s.runDEPSchedule()
 
 	listHostsRes = listHostsResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &listHostsRes)
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &listHostsRes)
 	require.Len(t, listHostsRes.Hosts, 1)
 	require.Equal(t, listHostsRes.Hosts[0].HardwareSerial, device.SerialNumber)
 	enrolledHost := listHostsRes.Hosts[0].Host
@@ -492,13 +492,13 @@ func (s *integrationMDMTestSuite) runDEPEnrollReleaseMobileDeviceWithVPPTest(t *
 
 	totalAppsToInstall := len(opts.VppAppsToInstall) + len(opts.InHouseAppsToInstall)
 	// For reporting back via InstalledApplicationList
-	reportedInstalledApps := make([]fleet.Software, 0, totalAppsToInstall)
+	reportedInstalledApps := make([]automdm.Software, 0, totalAppsToInstall)
 	// For verifying number of installs
 	installedApps := make(map[string]int, totalAppsToInstall)
 	var inHouseInstallCount int
 
 	var installProfileCount, installAppCount, refetchVerifyCount, otherCount int
-	var profileCustomSeen, profileFleetCASeen, unexpectedProfileSeen bool
+	var profileCustomSeen, profileAutoMDMCASeen, unexpectedProfileSeen bool
 
 	// Can be useful for debugging
 	logCommands := true
@@ -512,7 +512,7 @@ func (s *integrationMDMTestSuite) runDEPEnrollReleaseMobileDeviceWithVPPTest(t *
 		var fullCmd micromdm.CommandPayload
 		require.NoError(t, plist.Unmarshal(cmd.Raw, &fullCmd))
 
-		if strings.HasPrefix(cmd.CommandUUID, fleet.RefetchAppsCommandUUID()) {
+		if strings.HasPrefix(cmd.CommandUUID, automdm.RefetchAppsCommandUUID()) {
 			cmd, err = mdmDevice.Acknowledge(cmd.CommandUUID)
 			require.NoError(t, err)
 			continue
@@ -527,11 +527,11 @@ func (s *integrationMDMTestSuite) runDEPEnrollReleaseMobileDeviceWithVPPTest(t *
 			if strings.Contains(string(fullCmd.Command.InstallProfile.Payload), //nolint:gocritic // ignore ifElseChain
 				fmt.Sprintf("<string>%s</string>", opts.CustomProfileIdent)) {
 				profileCustomSeen = true
-			} else if strings.Contains(string(fullCmd.Command.InstallProfile.Payload), fmt.Sprintf("<string>%s</string>", mobileconfig.FleetdConfigPayloadIdentifier)) {
+			} else if strings.Contains(string(fullCmd.Command.InstallProfile.Payload), fmt.Sprintf("<string>%s</string>", mobileconfig.AutoMDMdConfigPayloadIdentifier)) {
 				unexpectedProfileSeen = true
-			} else if strings.Contains(string(fullCmd.Command.InstallProfile.Payload), fmt.Sprintf("<string>%s</string>", mobileconfig.FleetCARootConfigPayloadIdentifier)) {
-				profileFleetCASeen = true
-			} else if strings.Contains(string(fullCmd.Command.InstallProfile.Payload), fmt.Sprintf("<string>%s</string", mobileconfig.FleetFileVaultPayloadIdentifier)) &&
+			} else if strings.Contains(string(fullCmd.Command.InstallProfile.Payload), fmt.Sprintf("<string>%s</string>", mobileconfig.AutoMDMCARootConfigPayloadIdentifier)) {
+				profileAutoMDMCASeen = true
+			} else if strings.Contains(string(fullCmd.Command.InstallProfile.Payload), fmt.Sprintf("<string>%s</string", mobileconfig.AutoMDMFileVaultPayloadIdentifier)) &&
 				strings.Contains(string(fullCmd.Command.InstallProfile.Payload), "ForceEnableInSetupAssistant") {
 				unexpectedProfileSeen = true
 			}
@@ -542,7 +542,7 @@ func (s *integrationMDMTestSuite) runDEPEnrollReleaseMobileDeviceWithVPPTest(t *
 				}
 				for _, app := range opts.VppAppsToInstall {
 					if app.AdamID == fmt.Sprint(*fullCmd.Command.InstallApplication.ITunesStoreID) {
-						reportedInstalledApps = append(reportedInstalledApps, fleet.Software{BundleIdentifier: app.BundleIdentifier, Name: app.Name, Version: app.LatestVersion, Installed: true})
+						reportedInstalledApps = append(reportedInstalledApps, automdm.Software{BundleIdentifier: app.BundleIdentifier, Name: app.Name, Version: app.LatestVersion, Installed: true})
 						installedApps[app.AdamID]++
 					}
 				}
@@ -635,7 +635,7 @@ func (s *integrationMDMTestSuite) runDEPEnrollReleaseMobileDeviceWithVPPTest(t *
 
 	require.Equal(t, 2, installProfileCount)
 	require.True(t, profileCustomSeen)
-	require.True(t, profileFleetCASeen)
+	require.True(t, profileAutoMDMCASeen)
 	require.False(t, unexpectedProfileSeen)
 
 	require.Equal(t, totalAppsToInstall, installAppCount)
@@ -651,7 +651,7 @@ func (s *integrationMDMTestSuite) runDEPEnrollReleaseMobileDeviceWithVPPTest(t *
 
 	require.Equal(t, 0, otherCount)
 
-	pendingReleaseJobs := []*fleet.Job{}
+	pendingReleaseJobs := []*automdm.Job{}
 	if opts.EnableReleaseManually {
 		// get the worker's pending job from the future, there should not be any
 		// because it needs to be released manually
@@ -674,7 +674,7 @@ func (s *integrationMDMTestSuite) runDEPEnrollReleaseMobileDeviceWithVPPTest(t *
 
 	// Automatic release - device release job should be enqueued
 	pending, err := s.ds.GetQueuedJobs(ctx, 5, time.Now().UTC().Add(time.Minute))
-	pendingVerifyJobs := []*fleet.Job{}
+	pendingVerifyJobs := []*automdm.Job{}
 	require.NoError(t, err)
 	for _, job := range pending {
 		if job.Name == "apple_mdm" && strings.Contains(string(*job.Args), string(worker.AppleMDMPostDEPReleaseDeviceTask)) {
@@ -706,7 +706,7 @@ func (s *integrationMDMTestSuite) runDEPEnrollReleaseMobileDeviceWithVPPTest(t *
 	require.NoError(t, err)
 	for cmd != nil {
 		var fullCmd micromdm.CommandPayload
-		if strings.HasPrefix(cmd.CommandUUID, fleet.RefetchAppsCommandUUID()) {
+		if strings.HasPrefix(cmd.CommandUUID, automdm.RefetchAppsCommandUUID()) {
 			cmd, err = mdmDevice.Acknowledge(cmd.CommandUUID)
 			require.NoError(t, err)
 			continue
@@ -776,7 +776,7 @@ func (s *integrationMDMTestSuite) runDEPEnrollReleaseMobileDeviceWithVPPTest(t *
 	require.Len(t, cmds, 1)
 	var deviceConfiguredCount int
 	for _, cmd := range cmds {
-		if strings.HasPrefix(cmd.CommandUUID, fleet.RefetchAppsCommandUUIDPrefix) || strings.HasPrefix(cmd.CommandUUID, fleet.VerifySoftwareInstallVPPPrefix) {
+		if strings.HasPrefix(cmd.CommandUUID, automdm.RefetchAppsCommandUUIDPrefix) || strings.HasPrefix(cmd.CommandUUID, automdm.VerifySoftwareInstallVPPPrefix) {
 			refetchVerifyCount++
 			continue
 		}
@@ -793,7 +793,7 @@ func (s *integrationMDMTestSuite) runDEPEnrollReleaseMobileDeviceWithVPPTest(t *
 
 // TestSetupExperienceBYODiOS exercises the post-enrollment integration path
 // for an iOS Account-Driven User Enrollment (BYOD): after the device finishes
-// TokenUpdate, Fleet should
+// TokenUpdate, AutoMDM should
 //   - persist the Managed Apple ID on host_mdm (from the IdP account email),
 //     and
 //   - have the iphone_ipad_refetcher cron pick the host up on its next tick
@@ -828,7 +828,7 @@ func (s *integrationMDMTestSuite) TestSetupExperienceBYODiOS() {
 	require.True(t, strings.HasPrefix(loc.String(), "apple-remotemanagement-user-login://authentication-results?access-token="))
 	accessToken := strings.Split(loc.String(), "apple-remotemanagement-user-login://authentication-results?access-token=")[1]
 
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 		"server_settings": {"server_url": "`+originalServerURL+`"}
 	}`), http.StatusOK, &appConfigResponse{})
 
@@ -846,13 +846,13 @@ func (s *integrationMDMTestSuite) TestSetupExperienceBYODiOS() {
 	// Locate the freshly enrolled host. For Account-Driven User Enrollment the
 	// host UUID is the enrollment id, not a real device UDID.
 	var hostsResp listHostsResponse
-	s.DoJSON("GET", "/api/latest/fleet/hosts", nil, http.StatusOK, &hostsResp)
+	s.DoJSON("GET", "/api/latest/automdm/hosts", nil, http.StatusOK, &hostsResp)
 	var enrolledHostID uint
 	for _, h := range hostsResp.Hosts {
 		if h.UUID == mdmDevice.EnrollmentID() {
 			enrolledHostID = h.ID
 			require.NotNil(t, h.MDM.EnrollmentStatus)
-			require.Equal(t, fleet.MDMEnrollmentStatusPersonal, *h.MDM.EnrollmentStatus)
+			require.Equal(t, automdm.MDMEnrollmentStatusPersonal, *h.MDM.EnrollmentStatus)
 			break
 		}
 	}
@@ -868,12 +868,12 @@ func (s *integrationMDMTestSuite) TestSetupExperienceBYODiOS() {
 	// ListIOSAndIPadOSToRefetch, our brand-new host (its details_updated_at is
 	// set to the enroll time) gets picked up on this very first tick rather
 	// than waiting up to an hour.
-	require.NoError(t, apple_mdm.IOSiPadOSRefetch(ctx, s.ds, s.mdmCommander, s.logger, s.fleetSvc.NewActivity, 1000))
+	require.NoError(t, apple_mdm.IOSiPadOSRefetch(ctx, s.ds, s.mdmCommander, s.logger, s.automdmSvc.NewActivity, 1000))
 
 	tracked, err := s.ds.GetHostMDMCommands(ctx, enrolledHostID)
 	require.NoError(t, err)
 	requireTrackedRefetchCommands(t, tracked, enrolledHostID,
-		fleet.RefetchAppsCommandUUIDPrefix, fleet.RefetchCertsCommandUUIDPrefix, fleet.RefetchDeviceCommandUUIDPrefix)
+		automdm.RefetchAppsCommandUUIDPrefix, automdm.RefetchCertsCommandUUIDPrefix, automdm.RefetchDeviceCommandUUIDPrefix)
 
 	// Drain the device's command queue and check the three refetch commands
 	// arrive. InstalledApplicationList for BYOD MUST request managed apps only;

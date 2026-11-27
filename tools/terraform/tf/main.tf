@@ -1,14 +1,14 @@
 terraform {
   required_providers {
-    fleetdm = {
-      source = "fleetdm.com/tf/fleetdm"
+    automdm = {
+      source = "automdm.com/tf/automdm"
     }
   }
 }
 
-provider "fleetdm" {
+provider "automdm" {
   url = "https://something.cloud.fleetdm.com"
-  // apikey provided via FLEETDM_APIKEY
+  // apikey provided via AUTOMDM_APIKEY
 }
 
 locals {
@@ -39,7 +39,7 @@ locals {
   }
 }
 
-resource "fleetdm_teams" "hello_world" {
+resource "automdm_teams" "hello_world" {
   name          = "my_first_team"
   description   = "This is my first team"
   agent_options = local.default_agent_options

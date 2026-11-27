@@ -9,13 +9,13 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis"
 	"github.com/cenkalti/backoff/v4"
-	"github.com/fleetdm/fleet/v4/server/datastore/redis"
-	"github.com/fleetdm/fleet/v4/server/fleet"
 	redigo "github.com/gomodule/redigo/redis"
 )
 
-// coordinator makes a set of instances behave like one server: Fleet may push
+// coordinator makes a set of instances behave like one server: AutoMDM may push
 // to any of them and it reaches whichever holds the device's stream.
 //
 //	push       SET pending:<token> <ping> GET PX <ttl>, then PUBLISH <token>
@@ -27,7 +27,7 @@ import (
 // delivery exactly-once when two nodes briefly hold the same token.
 type coordinator struct {
 	reg    *registry
-	pool   fleet.RedisPool
+	pool   automdm.RedisPool
 	logger *slog.Logger
 	cfg    coordinatorConfig
 }
@@ -38,7 +38,7 @@ type coordinatorConfig struct {
 	DefaultTTL time.Duration // retention when the push carries no apns-expiration
 }
 
-func newCoordinator(pool fleet.RedisPool, reg *registry, logger *slog.Logger, cfg coordinatorConfig) *coordinator {
+func newCoordinator(pool automdm.RedisPool, reg *registry, logger *slog.Logger, cfg coordinatorConfig) *coordinator {
 	return &coordinator{reg: reg, pool: pool, logger: logger, cfg: cfg}
 }
 
@@ -83,7 +83,7 @@ func decodePing(b []byte) (*ping, error) {
 }
 
 // Push stores a push and announces it. An error means it was not accepted, so
-// the handler answers 503 and Fleet's pending-hosts cron retries.
+// the handler answers 503 and AutoMDM's pending-hosts cron retries.
 func (c *coordinator) Push(ctx context.Context, token string, payload []byte, expiresAt time.Time) error {
 	c.reg.pushesReceived.Add(1)
 

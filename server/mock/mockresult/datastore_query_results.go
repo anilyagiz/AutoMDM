@@ -6,14 +6,14 @@ import (
 	"context"
 	"sync"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
-var _ fleet.QueryResultStore = (*QueryResultStore)(nil)
+var _ automdm.QueryResultStore = (*QueryResultStore)(nil)
 
-type WriteResultFunc func(result fleet.DistributedQueryResult) error
+type WriteResultFunc func(result automdm.DistributedQueryResult) error
 
-type ReadChannelFunc func(ctx context.Context, query fleet.DistributedQueryCampaign) (<-chan interface{}, error)
+type ReadChannelFunc func(ctx context.Context, query automdm.DistributedQueryCampaign) (<-chan interface{}, error)
 
 type HealthCheckFunc func() error
 
@@ -30,14 +30,14 @@ type QueryResultStore struct {
 	mu sync.Mutex
 }
 
-func (s *QueryResultStore) WriteResult(result fleet.DistributedQueryResult) error {
+func (s *QueryResultStore) WriteResult(result automdm.DistributedQueryResult) error {
 	s.mu.Lock()
 	s.WriteResultFuncInvoked = true
 	s.mu.Unlock()
 	return s.WriteResultFunc(result)
 }
 
-func (s *QueryResultStore) ReadChannel(ctx context.Context, query fleet.DistributedQueryCampaign) (<-chan interface{}, error) {
+func (s *QueryResultStore) ReadChannel(ctx context.Context, query automdm.DistributedQueryCampaign) (<-chan interface{}, error) {
 	s.mu.Lock()
 	s.ReadChannelFuncInvoked = true
 	s.mu.Unlock()

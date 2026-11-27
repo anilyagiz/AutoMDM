@@ -9,14 +9,14 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/cloudidentity/v1"
 	"google.golang.org/api/option"
 )
 
-// OAuthConfig is Fleet's Web OAuth client, allowlisted by Google for the lookup.
+// OAuthConfig is AutoMDM's Web OAuth client, allowlisted by Google for the lookup.
 type OAuthConfig struct {
 	ClientID     string
 	ClientSecret string
@@ -136,13 +136,13 @@ func fakeUserID(deviceResourceID, email string) string {
 }
 
 // lookup exchanges the code with real Google and runs the DeviceUsers lookup for the
-// signed-in user with Fleet's partner ID and the host UUID, the pair Gmail carries.
+// signed-in user with AutoMDM's partner ID and the host UUID, the pair Gmail carries.
 func (o *OAuthConfig) lookup(ctx context.Context, redirectURL, code, hostUUID string) (*lookup, error) {
 	if code == "" {
 		return nil, errors.New("missing code")
 	}
 	// The exchange and the lookup share this client's timeout.
-	ctx = context.WithValue(ctx, oauth2.HTTPClient, fleethttp.NewClient())
+	ctx = context.WithValue(ctx, oauth2.HTTPClient, automdmhttp.NewClient())
 	tok, err := o.oauth2(redirectURL).Exchange(ctx, code)
 	if err != nil {
 		return nil, fmt.Errorf("exchange the code: %w", err)

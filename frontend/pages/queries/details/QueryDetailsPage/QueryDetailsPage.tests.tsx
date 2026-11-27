@@ -58,13 +58,13 @@ jest.mock("../components/NoResults/NoResults", () => ({
 
 const QUERY_ID = 1;
 const HOST_ID = 42;
-const FILTERED_QUERIES_PATH = "/queries/manage?fleet_id=1";
+const FILTERED_QUERIES_PATH = "/queries/manage?team_id=1";
 
 const setupQueryHandlers = () => {
   mockServer.use(
     http.get(baseUrl(`/reports/${QUERY_ID}`), () =>
       HttpResponse.json({
-        report: createMockSchedulableQuery({ id: QUERY_ID, fleet_id: null }),
+        report: createMockSchedulableQuery({ id: QUERY_ID, team_id: null }),
       })
     ),
     http.get(baseUrl(`/reports/${QUERY_ID}/report`), () =>
@@ -88,7 +88,7 @@ const createProps = (hostId?: number) => ({
 const baseAppContext = {
   isGlobalAdmin: true,
   isOnGlobalTeam: true,
-  // Free tier short-circuits useTeamIdParam's redirect logic when no fleet_id is set,
+  // Free tier short-circuits useTeamIdParam's redirect logic when no team_id is set,
   // keeping the test focused on backPath() rather than team reconciliation.
   isFreeTier: true,
   isPremiumTier: false,
@@ -116,7 +116,7 @@ describe("QueryDetailsPage - renders fresh query data (regression #43310)", () =
         HttpResponse.json({
           report: createMockSchedulableQuery({
             id: QUERY_ID,
-            fleet_id: null,
+            team_id: null,
             name: "Fresh report name",
             description: "Fresh report description",
             query: "SELECT 'fresh';",
@@ -178,7 +178,7 @@ describe("QueryDetailsPage - renders fresh query data (regression #43310)", () =
         HttpResponse.json({
           report: createMockSchedulableQuery({
             id: QUERY_ID,
-            fleet_id: null,
+            team_id: null,
             observer_can_run: true,
           }),
         })
@@ -275,7 +275,7 @@ const setupReportHandlers = ({
       return HttpResponse.json({
         report: createMockSchedulableQuery({
           id: QUERY_ID,
-          fleet_id: null,
+          team_id: null,
           ...queryOverrides,
         }),
       });

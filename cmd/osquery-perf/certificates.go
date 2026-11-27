@@ -50,19 +50,19 @@ func (c simulatedCert) sha1Hex() string {
 // sharedCerts are reported by every simulated host (common root and intermediate CAs).
 var sharedCerts = []simulatedCert{
 	{
-		ca: true, commonName: "Fleet Root CA",
-		subjectCommonName: "Fleet Root CA", subjectOrg: "Fleet Device Management Inc.", subjectCountry: "US",
-		issuerCommonName: "Fleet Root CA", issuerOrg: "Fleet Device Management Inc.", issuerCountry: "US",
+		ca: true, commonName: "AutoMDM Root CA",
+		subjectCommonName: "AutoMDM Root CA", subjectOrg: "Fleet Device Management Inc.", subjectCountry: "US",
+		issuerCommonName: "AutoMDM Root CA", issuerOrg: "Fleet Device Management Inc.", issuerCountry: "US",
 		keyAlgorithm: "rsaEncryption", keyStrength: "4096", keyUsage: "Certificate Signing, CRL Signing",
-		signingAlgorithm: "sha256WithRSAEncryption", serial: "osquery-perf-shared-fleet-root-ca",
+		signingAlgorithm: "sha256WithRSAEncryption", serial: "osquery-perf-shared-automdm-root-ca",
 		notValidBeforeUnix: "1577836800", notValidAfterUnix: "1893456000", // 2020-01-01 .. 2030-01-01
 	},
 	{
-		ca: true, commonName: "Fleet Intermediate CA",
-		subjectCommonName: "Fleet Intermediate CA", subjectOrg: "Fleet Device Management Inc.", subjectOrgUnit: "Issuing", subjectCountry: "US",
-		issuerCommonName: "Fleet Root CA", issuerOrg: "Fleet Device Management Inc.", issuerCountry: "US",
+		ca: true, commonName: "AutoMDM Intermediate CA",
+		subjectCommonName: "AutoMDM Intermediate CA", subjectOrg: "Fleet Device Management Inc.", subjectOrgUnit: "Issuing", subjectCountry: "US",
+		issuerCommonName: "AutoMDM Root CA", issuerOrg: "Fleet Device Management Inc.", issuerCountry: "US",
 		keyAlgorithm: "rsaEncryption", keyStrength: "2048", keyUsage: "Certificate Signing, CRL Signing",
-		signingAlgorithm: "sha256WithRSAEncryption", serial: "osquery-perf-shared-fleet-intermediate-ca",
+		signingAlgorithm: "sha256WithRSAEncryption", serial: "osquery-perf-shared-automdm-intermediate-ca",
 		notValidBeforeUnix: "1577836800", notValidAfterUnix: "1893456000",
 	},
 	{
@@ -175,8 +175,8 @@ func (a *agent) storeSCEPCertSpec(uniqueID string, cert *x509.Certificate) {
 }
 
 // scepIssuedCertSpec converts a certificate issued during a Windows MDM SCEP exchange into a simulatedCert. The
-// cert's subject carries the fleet-<profileUUID> renewal-ID marker (expanded from the profile's
-// $FLEET_VAR_SCEP_RENEWAL_ID), which the server matches on ingestion to flip the SCEP profile to verified. Reported
+// cert's subject carries the automdm-<profileUUID> renewal-ID marker (expanded from the profile's
+// $AUTOMDM_VAR_SCEP_RENEWAL_ID), which the server matches on ingestion to flip the SCEP profile to verified. Reported
 // machine-scoped: osquery-perf drives SCEP CSPs on the device channel, so the cert lands in the LocalMachine store.
 func scepIssuedCertSpec(cert *x509.Certificate) simulatedCert {
 	return simulatedCert{
@@ -392,12 +392,12 @@ func (a *agent) certificatesWindows() []map[string]string {
 
 // windowsRows renders the osquery `certificates` rows for a cert on Windows. Machine-scoped certs produce one row.
 // User-scoped certs produce the redundant rows osquery returns from the user's Personal hive and its companion _Classes
-// hive (the Fleet server dedupes them by SHA1 + scope + username).
+// hive (the AutoMDM server dedupes them by SHA1 + scope + username).
 func (a *agent) windowsRows(c simulatedCert) []map[string]string {
 	base := map[string]string{
 		"ca":          boolStr(c.ca),
 		"common_name": c.commonName,
-		// subject2/issuer2 are the X.500 distinguished name columns Fleet's Windows certificates query selects,
+		// subject2/issuer2 are the X.500 distinguished name columns AutoMDM's Windows certificates query selects,
 		// populated on Windows starting with osquery 5.23.1.
 		"subject2":          windowsDN(c.subjectCountry, c.subjectOrg, c.subjectOrgUnit, c.subjectCommonName),
 		"issuer2":           windowsDN(c.issuerCountry, c.issuerOrg, "", c.issuerCommonName),

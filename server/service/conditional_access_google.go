@@ -8,19 +8,19 @@ import (
 	"log/slog"
 	"reflect"
 
-	"github.com/fleetdm/fleet/v4/server/authz"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxdb"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/dev_mode"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/service/conditional_access_google"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxdb"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
+	"github.com/anilyagiz/automdm/v4/server/dev_mode"
+	"github.com/anilyagiz/automdm/v4/server/service/conditional_access_google"
 )
 
-const missingServerPrivateKeyMessage = "Missing required private key. Learn how to configure the private key here: https://fleetdm.com/learn-more-about/fleet-server-private-key"
+const missingServerPrivateKeyMessage = "Missing required private key. Learn how to configure the private key here: https://automdm.com/learn-more-about/automdm-server-private-key"
 
 ////////////////////////////////////////////////////////////////////////////////
-// POST /api/_version_/fleet/conditional_access/google
+// POST /api/_version_/automdm/conditional_access/google
 ////////////////////////////////////////////////////////////////////////////////
 
 type connectGoogleConditionalAccessRequest struct {
@@ -32,14 +32,14 @@ type connectGoogleConditionalAccessRequest struct {
 type googleConditionalAccessResponse struct {
 	CustomerID string `json:"customer_id"`
 	AdminEmail string `json:"admin_email"`
-	fleet.ConditionalAccessGoogleStatus
+	automdm.ConditionalAccessGoogleStatus
 	Err error `json:"error,omitempty"`
 }
 
 func (r googleConditionalAccessResponse) Error() error { return r.Err }
 
 func newGoogleConditionalAccessResponse(
-	settings *fleet.GoogleConditionalAccessIntegration, status *fleet.ConditionalAccessGoogleStatus,
+	settings *automdm.GoogleConditionalAccessIntegration, status *automdm.ConditionalAccessGoogleStatus,
 ) googleConditionalAccessResponse {
 	var resp googleConditionalAccessResponse
 	if settings != nil {
@@ -52,7 +52,7 @@ func newGoogleConditionalAccessResponse(
 	return resp
 }
 
-func connectGoogleConditionalAccessEndpoint(ctx context.Context, request any, svc fleet.Service) (fleet.Errorer, error) {
+func connectGoogleConditionalAccessEndpoint(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*connectGoogleConditionalAccessRequest)
 	if err := svc.ConnectGoogleConditionalAccess(ctx, req.CustomerID, req.AdminEmail, req.ServiceAccountKey); err != nil {
 		return googleConditionalAccessResponse{Err: err}, nil
@@ -66,18 +66,18 @@ func connectGoogleConditionalAccessEndpoint(ctx context.Context, request any, sv
 }
 
 func (svc *Service) ConnectGoogleConditionalAccess(ctx context.Context, customerID, adminEmail string, serviceAccountKey json.RawMessage) error {
-	if err := svc.authz.Authorize(ctx, &fleet.ConditionalAccessGoogleIntegration{}, fleet.ActionWrite); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.ConditionalAccessGoogleIntegration{}, automdm.ActionWrite); err != nil {
 		return ctxerr.Wrap(ctx, err, "failed to authorize")
 	}
 	if lic, _ := license.FromContext(ctx); lic == nil || !lic.IsPremium() {
-		return fleet.ErrMissingLicense
+		return automdm.ErrMissingLicense
 	}
 	if svc.googleConditionalAccess == nil {
 		return ctxerr.New(ctx, "google conditional access client is not configured")
 	}
 
-	settings := fleet.GoogleConditionalAccessIntegration{CustomerID: customerID, AdminEmail: adminEmail}
-	invalid := &fleet.InvalidArgumentError{}
+	settings := automdm.GoogleConditionalAccessIntegration{CustomerID: customerID, AdminEmail: adminEmail}
+	invalid := &automdm.InvalidArgumentError{}
 	settings.Validate(invalid)
 	// The delegation check rejects any key Google can't use.
 	if len(serviceAccountKey) == 0 || string(serviceAccountKey) == "null" {
@@ -87,7 +87,7 @@ func (svc *Service) ConnectGoogleConditionalAccess(ctx context.Context, customer
 		return ctxerr.Wrap(ctx, invalid)
 	}
 	if svc.config.Server.PrivateKey == "" || testSetEmptyPrivateKey {
-		return ctxerr.Wrap(ctx, fleet.NewInvalidArgumentError("service_account_key", missingServerPrivateKeyMessage))
+		return ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("service_account_key", missingServerPrivateKeyMessage))
 	}
 
 	ctx = ctxdb.RequirePrimary(ctx, true)
@@ -103,9 +103,9 @@ func (svc *Service) ConnectGoogleConditionalAccess(ctx context.Context, customer
 }
 
 // applyGoogleConditionalAccessSettings connects the integration with settings and key,
-// calling Google and fleetdm.com only for what differs from the config and storedKey.
+// calling Google and automdm.com only for what differs from the config and storedKey.
 func (svc *Service) applyGoogleConditionalAccessSettings(
-	ctx context.Context, appConfig *fleet.AppConfig, settings fleet.GoogleConditionalAccessIntegration, key, storedKey []byte,
+	ctx context.Context, appConfig *automdm.AppConfig, settings automdm.GoogleConditionalAccessIntegration, key, storedKey []byte,
 ) error {
 	existing, err := svc.googleConditionalAccessIntegration(ctx)
 	if err != nil {
@@ -115,14 +115,14 @@ func (svc *Service) applyGoogleConditionalAccessSettings(
 	current := appConfig.Integrations.GoogleConditionalAccess
 	keyChanged := !sameGoogleServiceAccountKey(storedKey, key)
 	changed := keyChanged || current == nil || *current != settings
-	if !changed && existing != nil && existing.State == fleet.ConditionalAccessGoogleStateConnected {
+	if !changed && existing != nil && existing.State == automdm.ConditionalAccessGoogleStateConnected {
 		return nil
 	}
 
 	if err := svc.verifyGoogleConditionalAccess(ctx, settings, key, "service_account_key"); err != nil {
 		return err
 	}
-	// From here fleetdm.com and the stored state change together, so a client that
+	// From here automdm.com and the stored state change together, so a client that
 	// disconnects must not stop it halfway: a registration whose secret isn't saved can't
 	// be removed.
 	ctx = context.WithoutCancel(ctx)
@@ -159,12 +159,12 @@ func (svc *Service) applyGoogleConditionalAccessSettings(
 // registration, and one edit for a change to a registered integration, even when the
 // change replaced the registration.
 func (svc *Service) newGoogleConditionalAccessConnectedActivity(ctx context.Context, wasRegistered, changed bool) error {
-	var activity fleet.ActivityDetails
+	var activity automdm.ActivityDetails
 	switch {
 	case !wasRegistered:
-		activity = fleet.ActivityTypeAddedConditionalAccessIntegrationGoogle{}
+		activity = automdm.ActivityTypeAddedConditionalAccessIntegrationGoogle{}
 	case changed:
-		activity = fleet.ActivityTypeEditedConditionalAccessIntegrationGoogle{}
+		activity = automdm.ActivityTypeEditedConditionalAccessIntegrationGoogle{}
 	default:
 		return nil
 	}
@@ -178,14 +178,14 @@ func (svc *Service) newGoogleConditionalAccessConnectedActivity(ctx context.Cont
 // the previous registration and the new one failed, so nothing replaced it; the retry logs
 // the addition. Its own failure is only logged: the caller returns the registration error.
 func (svc *Service) newGoogleConditionalAccessLeftActivity(ctx context.Context) {
-	deleted := fleet.ActivityTypeDeletedConditionalAccessIntegrationGoogle{}
+	deleted := automdm.ActivityTypeDeletedConditionalAccessIntegrationGoogle{}
 	if err := svc.NewActivity(ctx, authz.UserFromContext(ctx), deleted); err != nil {
 		svc.logger.ErrorContext(ctx, "create activity for deletion of google conditional access integration", "err", err)
 	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// PATCH /api/_version_/fleet/conditional_access/google
+// PATCH /api/_version_/automdm/conditional_access/google
 ////////////////////////////////////////////////////////////////////////////////
 
 type updateGoogleConditionalAccessRequest struct {
@@ -194,7 +194,7 @@ type updateGoogleConditionalAccessRequest struct {
 	ServiceAccountKey json.RawMessage `json:"service_account_key"`
 }
 
-func updateGoogleConditionalAccessEndpoint(ctx context.Context, request any, svc fleet.Service) (fleet.Errorer, error) {
+func updateGoogleConditionalAccessEndpoint(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*updateGoogleConditionalAccessRequest)
 	if err := svc.UpdateGoogleConditionalAccess(ctx, req.CustomerID, req.AdminEmail, req.ServiceAccountKey); err != nil {
 		return googleConditionalAccessResponse{Err: err}, nil
@@ -208,11 +208,11 @@ func updateGoogleConditionalAccessEndpoint(ctx context.Context, request any, svc
 }
 
 func (svc *Service) UpdateGoogleConditionalAccess(ctx context.Context, customerID, adminEmail *string, serviceAccountKey json.RawMessage) error {
-	if err := svc.authz.Authorize(ctx, &fleet.ConditionalAccessGoogleIntegration{}, fleet.ActionWrite); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.ConditionalAccessGoogleIntegration{}, automdm.ActionWrite); err != nil {
 		return ctxerr.Wrap(ctx, err, "failed to authorize")
 	}
 	if lic, _ := license.FromContext(ctx); lic == nil || !lic.IsPremium() {
-		return fleet.ErrMissingLicense
+		return automdm.ErrMissingLicense
 	}
 	if svc.googleConditionalAccess == nil {
 		return ctxerr.New(ctx, "google conditional access client is not configured")
@@ -225,7 +225,7 @@ func (svc *Service) UpdateGoogleConditionalAccess(ctx context.Context, customerI
 	}
 	current := appConfig.Integrations.GoogleConditionalAccess
 	if current == nil {
-		return &fleet.BadRequestError{Message: "integration not found"}
+		return &automdm.BadRequestError{Message: "integration not found"}
 	}
 
 	settings := *current
@@ -235,13 +235,13 @@ func (svc *Service) UpdateGoogleConditionalAccess(ctx context.Context, customerI
 	if adminEmail != nil {
 		settings.AdminEmail = *adminEmail
 	}
-	invalid := &fleet.InvalidArgumentError{}
+	invalid := &automdm.InvalidArgumentError{}
 	settings.Validate(invalid)
 	if invalid.HasErrors() {
 		return ctxerr.Wrap(ctx, invalid)
 	}
 	if svc.config.Server.PrivateKey == "" || testSetEmptyPrivateKey {
-		return ctxerr.Wrap(ctx, fleet.NewInvalidArgumentError("service_account_key", missingServerPrivateKeyMessage))
+		return ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("service_account_key", missingServerPrivateKeyMessage))
 	}
 
 	storedKey, err := svc.googleConditionalAccessKey(ctx)
@@ -253,17 +253,17 @@ func (svc *Service) UpdateGoogleConditionalAccess(ctx context.Context, customerI
 		key = storedKey
 	}
 	if len(key) == 0 {
-		return ctxerr.Wrap(ctx, fleet.NewInvalidArgumentError("service_account_key",
+		return ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("service_account_key",
 			"service_account_key is required because no service account key is stored"))
 	}
 	return svc.applyGoogleConditionalAccessSettings(ctx, appConfig, settings, key, storedKey)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// GET /api/_version_/fleet/conditional_access/google
+// GET /api/_version_/automdm/conditional_access/google
 ////////////////////////////////////////////////////////////////////////////////
 
-func getGoogleConditionalAccessEndpoint(ctx context.Context, _ any, svc fleet.Service) (fleet.Errorer, error) {
+func getGoogleConditionalAccessEndpoint(ctx context.Context, _ any, svc automdm.Service) (automdm.Errorer, error) {
 	settings, status, err := svc.GetGoogleConditionalAccess(ctx)
 	if err != nil {
 		return googleConditionalAccessResponse{Err: err}, nil
@@ -271,8 +271,8 @@ func getGoogleConditionalAccessEndpoint(ctx context.Context, _ any, svc fleet.Se
 	return newGoogleConditionalAccessResponse(settings, status), nil
 }
 
-func (svc *Service) GetGoogleConditionalAccess(ctx context.Context) (*fleet.GoogleConditionalAccessIntegration, *fleet.ConditionalAccessGoogleStatus, error) {
-	if err := svc.authz.Authorize(ctx, &fleet.AppConfig{}, fleet.ActionRead); err != nil {
+func (svc *Service) GetGoogleConditionalAccess(ctx context.Context) (*automdm.GoogleConditionalAccessIntegration, *automdm.ConditionalAccessGoogleStatus, error) {
+	if err := svc.authz.Authorize(ctx, &automdm.AppConfig{}, automdm.ActionRead); err != nil {
 		return nil, nil, ctxerr.Wrap(ctx, err, "failed to authorize")
 	}
 	if lic, _ := license.FromContext(ctx); lic == nil || !lic.IsPremium() {
@@ -282,7 +282,7 @@ func (svc *Service) GetGoogleConditionalAccess(ctx context.Context) (*fleet.Goog
 	if err != nil {
 		return nil, nil, ctxerr.Wrap(ctx, err, "load app config")
 	}
-	status := &fleet.ConditionalAccessGoogleStatus{}
+	status := &automdm.ConditionalAccessGoogleStatus{}
 	settings := appConfig.Integrations.GoogleConditionalAccess
 	// The connection state and the key only exist while the integration is configured.
 	if settings == nil {
@@ -306,7 +306,7 @@ func (svc *Service) GetGoogleConditionalAccess(ctx context.Context) (*fleet.Goog
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// DELETE /api/_version_/fleet/conditional_access/google
+// DELETE /api/_version_/automdm/conditional_access/google
 ////////////////////////////////////////////////////////////////////////////////
 
 type deleteGoogleConditionalAccessResponse struct {
@@ -315,7 +315,7 @@ type deleteGoogleConditionalAccessResponse struct {
 
 func (r deleteGoogleConditionalAccessResponse) Error() error { return r.Err }
 
-func deleteGoogleConditionalAccessEndpoint(ctx context.Context, _ any, svc fleet.Service) (fleet.Errorer, error) {
+func deleteGoogleConditionalAccessEndpoint(ctx context.Context, _ any, svc automdm.Service) (automdm.Errorer, error) {
 	if err := svc.DeleteGoogleConditionalAccess(ctx); err != nil {
 		return deleteGoogleConditionalAccessResponse{Err: err}, nil
 	}
@@ -323,11 +323,11 @@ func deleteGoogleConditionalAccessEndpoint(ctx context.Context, _ any, svc fleet
 }
 
 func (svc *Service) DeleteGoogleConditionalAccess(ctx context.Context) error {
-	if err := svc.authz.Authorize(ctx, &fleet.ConditionalAccessGoogleIntegration{}, fleet.ActionWrite); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.ConditionalAccessGoogleIntegration{}, automdm.ActionWrite); err != nil {
 		return ctxerr.Wrap(ctx, err, "failed to authorize")
 	}
 	if lic, _ := license.FromContext(ctx); lic == nil || !lic.IsPremium() {
-		return fleet.ErrMissingLicense
+		return automdm.ErrMissingLicense
 	}
 
 	ctx = ctxdb.RequirePrimary(ctx, true)
@@ -344,13 +344,13 @@ func (svc *Service) DeleteGoogleConditionalAccess(ctx context.Context) error {
 		return ctxerr.Wrap(ctx, err, "load app config")
 	}
 	current := appConfig.Integrations.GoogleConditionalAccess
-	active := existing != nil && existing.State != fleet.ConditionalAccessGoogleStateDeleted
+	active := existing != nil && existing.State != automdm.ConditionalAccessGoogleStateDeleted
 	if !active && !keyStored && current == nil {
-		return &fleet.BadRequestError{Message: "integration not found"}
+		return &automdm.BadRequestError{Message: "integration not found"}
 	}
 
 	// A client that disconnects must not stop the removal halfway, which would leave
-	// Fleet with a registration fleetdm.com no longer has.
+	// AutoMDM with a registration automdm.com no longer has.
 	ctx = context.WithoutCancel(ctx)
 
 	// The setting is cleared last, so a failed DELETE can be retried.
@@ -372,14 +372,14 @@ func (svc *Service) DeleteGoogleConditionalAccess(ctx context.Context) error {
 	return nil
 }
 
-// removeGoogleConditionalAccess drops customerID's fleetdm.com registration first, so a
+// removeGoogleConditionalAccess drops customerID's automdm.com registration first, so a
 // failure changes nothing and the customer is free for another server right away, then
 // marks the row deleted. Nothing is unmarked in Google, and the device rows are kept for a
 // re-add for the same customer.
 func (svc *Service) removeGoogleConditionalAccess(
-	ctx context.Context, serverURL, customerID string, existing *fleet.ConditionalAccessGoogleIntegration,
+	ctx context.Context, serverURL, customerID string, existing *automdm.ConditionalAccessGoogleIntegration,
 ) error {
-	if existing == nil || existing.State == fleet.ConditionalAccessGoogleStateDeleted {
+	if existing == nil || existing.State == automdm.ConditionalAccessGoogleStateDeleted {
 		return nil
 	}
 	registered := existing.Registered()
@@ -388,11 +388,11 @@ func (svc *Service) removeGoogleConditionalAccess(
 			return err
 		}
 	}
-	if err := svc.saveGoogleConditionalAccessRow(ctx, nil, fleet.ConditionalAccessGoogleStateDeleted, nil); err != nil {
+	if err := svc.saveGoogleConditionalAccessRow(ctx, nil, automdm.ConditionalAccessGoogleStateDeleted, nil); err != nil {
 		return err
 	}
 	if registered {
-		if err := svc.NewActivity(ctx, authz.UserFromContext(ctx), fleet.ActivityTypeDeletedConditionalAccessIntegrationGoogle{}); err != nil {
+		if err := svc.NewActivity(ctx, authz.UserFromContext(ctx), automdm.ActivityTypeDeletedConditionalAccessIntegrationGoogle{}); err != nil {
 			return ctxerr.Wrap(ctx, err, "create activity for deletion of google conditional access integration")
 		}
 	}
@@ -412,8 +412,8 @@ const (
 // a dry run too.
 type googleConditionalAccessPlan struct {
 	action   googleConditionalAccessAction
-	settings fleet.GoogleConditionalAccessIntegration
-	existing *fleet.ConditionalAccessGoogleIntegration
+	settings automdm.GoogleConditionalAccessIntegration
+	existing *automdm.ConditionalAccessGoogleIntegration
 	key      []byte
 	// storeKey is set when key came with the update and replaces the stored key.
 	storeKey bool
@@ -433,7 +433,7 @@ type googleConditionalAccessPlan struct {
 }
 
 // copyGoogleConditionalAccessSettings returns a copy of the settings, nil for nil.
-func copyGoogleConditionalAccessSettings(settings *fleet.GoogleConditionalAccessIntegration) *fleet.GoogleConditionalAccessIntegration {
+func copyGoogleConditionalAccessSettings(settings *automdm.GoogleConditionalAccessIntegration) *automdm.GoogleConditionalAccessIntegration {
 	if settings == nil {
 		return nil
 	}
@@ -445,10 +445,10 @@ func copyGoogleConditionalAccessSettings(settings *fleet.GoogleConditionalAccess
 // the payload was decoded over it, and reports whether the payload carries the setting. A
 // null or absent one keeps old, the settings before the decode. In overwrite mode (GitOps)
 // a given object replaces them rather than merging, and a null one turns the integration
-// off: fleetctl sends null when the YAML has none, while older fleetctl versions don't send
+// off: automdmctl sends null when the YAML has none, while older automdmctl versions don't send
 // the key at all.
 func mergeGoogleConditionalAccessSettings(
-	appConfig *fleet.AppConfig, old, given *fleet.GoogleConditionalAccessIntegration, overwrite bool, payload []byte,
+	appConfig *automdm.AppConfig, old, given *automdm.GoogleConditionalAccessIntegration, overwrite bool, payload []byte,
 ) bool {
 	cleared := overwrite && googleConditionalAccessInPayload(payload)
 	switch {
@@ -465,7 +465,7 @@ func mergeGoogleConditionalAccessSettings(
 
 // dropGoogleConditionalAccessStatus removes the status from a config about to be saved: it
 // is filled on read and never stored.
-func dropGoogleConditionalAccessStatus(appConfig *fleet.AppConfig) {
+func dropGoogleConditionalAccessStatus(appConfig *automdm.AppConfig) {
 	if appConfig.ConditionalAccess != nil {
 		appConfig.ConditionalAccess.Google = nil
 	}
@@ -480,9 +480,9 @@ func (svc *Service) logGoogleConditionalAccessUpdateError(ctx context.Context, e
 }
 
 // planVerifiedGoogleConditionalAccess plans the work an app config update implies for the
-// integration and verifies it with Google. There is no plan on Fleet Free.
+// integration and verifies it with Google. There is no plan on AutoMDM Free.
 func (svc *Service) planVerifiedGoogleConditionalAccess(
-	ctx context.Context, premium bool, oldSettings, settings *fleet.GoogleConditionalAccessIntegration, requested bool,
+	ctx context.Context, premium bool, oldSettings, settings *automdm.GoogleConditionalAccessIntegration, requested bool,
 	newKey []byte, oldServerURL, serverURL string,
 ) (*googleConditionalAccessPlan, error) {
 	if !premium {
@@ -500,12 +500,12 @@ func (svc *Service) planVerifiedGoogleConditionalAccess(
 
 // planGoogleConditionalAccess compares the desired settings with the config's and the
 // connection state, so a GitOps run that resends the same settings makes no Google or
-// fleetdm.com call. Only an update that carries the Google settings (requested) is
+// automdm.com call. Only an update that carries the Google settings (requested) is
 // planned, so an unrelated config change never reads the integration or depends on Google
-// or fleetdm.com being reachable. Nil settings mean the integration is off, and nothing is
+// or automdm.com being reachable. Nil settings mean the integration is off, and nothing is
 // read when it is off before and after the update.
 func (svc *Service) planGoogleConditionalAccess(
-	ctx context.Context, oldSettings, settings *fleet.GoogleConditionalAccessIntegration, requested bool,
+	ctx context.Context, oldSettings, settings *automdm.GoogleConditionalAccessIntegration, requested bool,
 	newKey []byte, oldServerURL, serverURL string,
 ) (*googleConditionalAccessPlan, error) {
 	if !requested || (oldSettings == nil && settings == nil) {
@@ -552,7 +552,7 @@ func (svc *Service) planGoogleConditionalAccess(
 	}
 	if len(key) == 0 {
 		// Removing the integration deletes its key, so adding it back needs a key too.
-		return nil, ctxerr.Wrap(ctx, fleet.NewInvalidArgumentError("integrations.google_conditional_access.api_key_json",
+		return nil, ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("integrations.google_conditional_access.api_key_json",
 			"api_key_json is required because no service account key is stored"))
 	}
 	plan.action = googleConditionalAccessConnect
@@ -567,7 +567,7 @@ func (svc *Service) verifyGoogleConditionalAccessPlan(ctx context.Context, plan 
 	}
 	if plan.retry {
 		err := svc.checkGoogleDelegation(ctx, plan.settings, plan.key)
-		if _, outage := errors.AsType[*fleet.GatewayError](err); outage {
+		if _, outage := errors.AsType[*automdm.GatewayError](err); outage {
 			// An outage says nothing about the connection, so its state is kept and the next
 			// update retries.
 			svc.logger.WarnContext(ctx, "skip google conditional access retry", "err", err)
@@ -582,15 +582,15 @@ func (svc *Service) verifyGoogleConditionalAccessPlan(ctx context.Context, plan 
 
 // applyGoogleConditionalAccessPlan does the part of the plan that must come before the
 // app config is saved, so a failure leaves the config unchanged: leaving a changed or
-// removed customer on fleetdm.com, and storing a new key. The removed integration's key
+// removed customer on automdm.com, and storing a new key. The removed integration's key
 // is deleted by finishGoogleConditionalAccessPlan, so a failed save doesn't need a new
 // key upload to add it back.
 func (svc *Service) applyGoogleConditionalAccessPlan(ctx context.Context, plan *googleConditionalAccessPlan) error {
 	if plan == nil {
 		return nil
 	}
-	// As in the endpoints, a client that disconnects must not stop a change on fleetdm.com
-	// before Fleet has recorded it.
+	// As in the endpoints, a client that disconnects must not stop a change on automdm.com
+	// before AutoMDM has recorded it.
 	ctx = ctxdb.RequirePrimary(context.WithoutCancel(ctx), true)
 	switch plan.action {
 	case googleConditionalAccessRemove:
@@ -641,7 +641,7 @@ func (svc *Service) finishGoogleConditionalAccessPlan(ctx context.Context, plan 
 	// A retry has the same customer as before, so there is no customer to leave.
 	if plan.retryReason != "" {
 		return svc.saveGoogleConditionalAccessRow(ctx, plan.existing,
-			fleet.ConditionalAccessGoogleStateDelegationFailed, &plan.retryReason)
+			automdm.ConditionalAccessGoogleStateDelegationFailed, &plan.retryReason)
 	}
 	err := svc.registerGoogleConditionalAccess(ctx, plan.serverURL, plan.settings, plan.existing, plan.oldCustomerID)
 	if err == nil {
@@ -670,7 +670,7 @@ func (svc *Service) leaveChangedGoogleConditionalAccessCustomer(ctx context.Cont
 
 // takeGoogleConditionalAccessKey clears the key from the settings, since it is stored in
 // mdm_config_assets and never with the app config, and returns it when one was given.
-func (svc *Service) takeGoogleConditionalAccessKey(gca *fleet.GoogleConditionalAccessIntegration, invalid *fleet.InvalidArgumentError) []byte {
+func (svc *Service) takeGoogleConditionalAccessKey(gca *automdm.GoogleConditionalAccessIntegration, invalid *automdm.InvalidArgumentError) []byte {
 	if gca == nil {
 		return nil
 	}
@@ -685,7 +685,7 @@ func (svc *Service) takeGoogleConditionalAccessKey(gca *fleet.GoogleConditionalA
 	return []byte(key)
 }
 
-// GoogleConditionalAccessClient holds the fleetdm.com relay and the Cloud Identity
+// GoogleConditionalAccessClient holds the automdm.com relay and the Cloud Identity
 // client factory.
 type GoogleConditionalAccessClient struct {
 	Relay         conditional_access_google.Relay
@@ -708,14 +708,14 @@ func NewGoogleConditionalAccessClient(relayURI string, logger *slog.Logger) *Goo
 // googleConditionalAccessConnected reports whether the integration is connected with
 // settings, given the settings currently in the config.
 func googleConditionalAccessConnected(
-	existing *fleet.ConditionalAccessGoogleIntegration, current *fleet.GoogleConditionalAccessIntegration,
-	settings fleet.GoogleConditionalAccessIntegration,
+	existing *automdm.ConditionalAccessGoogleIntegration, current *automdm.GoogleConditionalAccessIntegration,
+	settings automdm.GoogleConditionalAccessIntegration,
 ) bool {
-	return existing != nil && existing.State == fleet.ConditionalAccessGoogleStateConnected &&
+	return existing != nil && existing.State == automdm.ConditionalAccessGoogleStateConnected &&
 		current != nil && *current == settings
 }
 
-func googleConditionalAccessSecret(existing *fleet.ConditionalAccessGoogleIntegration) string {
+func googleConditionalAccessSecret(existing *automdm.ConditionalAccessGoogleIntegration) string {
 	if existing == nil {
 		return ""
 	}
@@ -724,7 +724,7 @@ func googleConditionalAccessSecret(existing *fleet.ConditionalAccessGoogleIntegr
 
 // googleConditionalAccessCustomerID is the customer a stored registration belongs to:
 // the one the config names.
-func googleConditionalAccessCustomerID(settings *fleet.GoogleConditionalAccessIntegration) string {
+func googleConditionalAccessCustomerID(settings *automdm.GoogleConditionalAccessIntegration) string {
 	if settings == nil {
 		return ""
 	}
@@ -732,7 +732,7 @@ func googleConditionalAccessCustomerID(settings *fleet.GoogleConditionalAccessIn
 }
 
 // checkGoogleDelegation's error message is shown to the admin.
-func (svc *Service) checkGoogleDelegation(ctx context.Context, settings fleet.GoogleConditionalAccessIntegration, key []byte) error {
+func (svc *Service) checkGoogleDelegation(ctx context.Context, settings automdm.GoogleConditionalAccessIntegration, key []byte) error {
 	creds := conditional_access_google.Credentials{ServiceAccountKey: key, AdminEmail: settings.AdminEmail, CustomerID: settings.CustomerID}
 	client, err := svc.googleConditionalAccess.CloudIdentity(ctx, creds)
 	if err != nil {
@@ -741,19 +741,19 @@ func (svc *Service) checkGoogleDelegation(ctx context.Context, settings fleet.Go
 	if err := client.CheckDelegation(ctx); err != nil {
 		// An outage says nothing about the settings, so it isn't reported against them.
 		if conditional_access_google.IsUnavailable(err) {
-			return fleet.NewBadGatewayError("Couldn't verify the settings with Google", err)
+			return automdm.NewBadGatewayError("Couldn't verify the settings with Google", err)
 		}
 		return errors.New("Couldn't connect to Google: " + err.Error())
 	}
 	return nil
 }
 
-func (svc *Service) verifyGoogleConditionalAccess(ctx context.Context, settings fleet.GoogleConditionalAccessIntegration, key []byte, field string) error {
+func (svc *Service) verifyGoogleConditionalAccess(ctx context.Context, settings automdm.GoogleConditionalAccessIntegration, key []byte, field string) error {
 	if err := svc.checkGoogleDelegation(ctx, settings, key); err != nil {
-		if gwErr, ok := errors.AsType[*fleet.GatewayError](err); ok {
+		if gwErr, ok := errors.AsType[*automdm.GatewayError](err); ok {
 			return ctxerr.Wrap(ctx, gwErr, "check google delegation")
 		}
-		return ctxerr.Wrap(ctx, fleet.NewInvalidArgumentError(field, err.Error()))
+		return ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError(field, err.Error()))
 	}
 	return nil
 }
@@ -761,10 +761,10 @@ func (svc *Service) verifyGoogleConditionalAccess(ctx context.Context, settings 
 // saveGoogleConditionalAccessRow saves the connection state, keeping the registration of
 // registration (nil to drop it).
 func (svc *Service) saveGoogleConditionalAccessRow(
-	ctx context.Context, registration *fleet.ConditionalAccessGoogleIntegration,
-	state fleet.ConditionalAccessGoogleState, errorMessage *string,
+	ctx context.Context, registration *automdm.ConditionalAccessGoogleIntegration,
+	state automdm.ConditionalAccessGoogleState, errorMessage *string,
 ) error {
-	row := &fleet.ConditionalAccessGoogleIntegration{State: state, ErrorMessage: errorMessage}
+	row := &automdm.ConditionalAccessGoogleIntegration{State: state, ErrorMessage: errorMessage}
 	if registration != nil {
 		row.ProxyServerSecret = registration.ProxyServerSecret
 	}
@@ -774,36 +774,36 @@ func (svc *Service) saveGoogleConditionalAccessRow(
 	return nil
 }
 
-// registerGoogleConditionalAccess registers with fleetdm.com unless existing is already
+// registerGoogleConditionalAccess registers with automdm.com unless existing is already
 // registered for this customer (registeredCustomerID), and saves the row. Callers must
 // have run the delegation check and left any previous customer.
 func (svc *Service) registerGoogleConditionalAccess(
-	ctx context.Context, serverURL string, settings fleet.GoogleConditionalAccessIntegration,
-	existing *fleet.ConditionalAccessGoogleIntegration, registeredCustomerID string,
+	ctx context.Context, serverURL string, settings automdm.GoogleConditionalAccessIntegration,
+	existing *automdm.ConditionalAccessGoogleIntegration, registeredCustomerID string,
 ) error {
 	if existing.Registered() && registeredCustomerID == settings.CustomerID {
-		return svc.saveGoogleConditionalAccessRow(ctx, existing, fleet.ConditionalAccessGoogleStateConnected, nil)
+		return svc.saveGoogleConditionalAccessRow(ctx, existing, automdm.ConditionalAccessGoogleStateConnected, nil)
 	}
 
-	if err := svc.saveGoogleConditionalAccessRow(ctx, nil, fleet.ConditionalAccessGoogleStatePending, nil); err != nil {
+	if err := svc.saveGoogleConditionalAccessRow(ctx, nil, automdm.ConditionalAccessGoogleStatePending, nil); err != nil {
 		return err
 	}
 
 	resp, err := svc.googleConditionalAccess.Relay.Register(ctx, serverURL, settings.CustomerID)
 	if err != nil {
-		gwErr := newFleetdmRelayError("Couldn't register with fleetdm.com", err)
+		gwErr := newAutoMDMRelayError("Couldn't register with automdm.com", err)
 		reason := gwErr.Error()
-		if saveErr := svc.saveGoogleConditionalAccessRow(ctx, nil, fleet.ConditionalAccessGoogleStateRegistrationFailed, &reason); saveErr != nil {
+		if saveErr := svc.saveGoogleConditionalAccessRow(ctx, nil, automdm.ConditionalAccessGoogleStateRegistrationFailed, &reason); saveErr != nil {
 			svc.logger.ErrorContext(ctx, "record google conditional access registration error", "err", saveErr)
 		}
-		return ctxerr.Wrap(ctx, gwErr, "register with fleetdm.com")
+		return ctxerr.Wrap(ctx, gwErr, "register with automdm.com")
 	}
-	row := &fleet.ConditionalAccessGoogleIntegration{
-		ProxyServerSecret: resp.FleetServerSecret, State: fleet.ConditionalAccessGoogleStateConnected,
+	row := &automdm.ConditionalAccessGoogleIntegration{
+		ProxyServerSecret: resp.AutoMDMServerSecret, State: automdm.ConditionalAccessGoogleStateConnected,
 	}
 	if err := svc.ds.SaveGoogleConditionalAccessIntegration(ctx, row); err != nil {
 		// Without its saved secret the registration could never be removed, so drop it now.
-		if derr := svc.googleConditionalAccess.Relay.Deregister(ctx, serverURL, settings.CustomerID, resp.FleetServerSecret); derr != nil {
+		if derr := svc.googleConditionalAccess.Relay.Deregister(ctx, serverURL, settings.CustomerID, resp.AutoMDMServerSecret); derr != nil {
 			svc.logger.ErrorContext(ctx, "drop google conditional access registration that couldn't be saved", "err", derr)
 		}
 		return ctxerr.Wrap(ctx, err, "save google conditional access integration")
@@ -822,35 +822,35 @@ func (svc *Service) leaveGoogleConditionalAccessCustomer(ctx context.Context, se
 	if err := svc.deleteGoogleConditionalAccessRegistration(ctx, serverURL, customerID, secret); err != nil {
 		return err
 	}
-	// The secret is no longer valid on fleetdm.com, so the row must not keep it.
-	return svc.saveGoogleConditionalAccessRow(ctx, nil, fleet.ConditionalAccessGoogleStatePending, nil)
+	// The secret is no longer valid on automdm.com, so the row must not keep it.
+	return svc.saveGoogleConditionalAccessRow(ctx, nil, automdm.ConditionalAccessGoogleStatePending, nil)
 }
 
 func (svc *Service) deleteGoogleConditionalAccessRegistration(ctx context.Context, serverURL, customerID, secret string) error {
 	if customerID == "" {
 		// Can't happen while the config names the registration's customer.
-		svc.logger.WarnContext(ctx, "google conditional access registration without a customer in the config, dropping it in Fleet only")
+		svc.logger.WarnContext(ctx, "google conditional access registration without a customer in the config, dropping it in AutoMDM only")
 		return nil
 	}
 	if err := svc.googleConditionalAccess.Relay.Deregister(ctx, serverURL, customerID, secret); err != nil {
-		if !fleet.IsNotFound(err) {
-			return ctxerr.Wrap(ctx, newFleetdmRelayError("Couldn't delete the registration on fleetdm.com", err),
-				"delete registration on fleetdm.com")
+		if !automdm.IsNotFound(err) {
+			return ctxerr.Wrap(ctx, newAutoMDMRelayError("Couldn't delete the registration on automdm.com", err),
+				"delete registration on automdm.com")
 		}
-		// A missing record on fleetdm.com must not block the removal in Fleet.
-		svc.logger.WarnContext(ctx, "google conditional access registration not found on fleetdm.com, continuing")
+		// A missing record on automdm.com must not block the removal in AutoMDM.
+		svc.logger.WarnContext(ctx, "google conditional access registration not found on automdm.com, continuing")
 	}
 	return nil
 }
 
-// newFleetdmRelayError hides the relay's status behind a 502: a 401 from fleetdm.com
-// would read as an expired Fleet session.
-func newFleetdmRelayError(message string, err error) *fleet.GatewayError {
-	return fleet.NewBadGatewayError(message, err)
+// newAutoMDMRelayError hides the relay's status behind a 502: a 401 from automdm.com
+// would read as an expired AutoMDM session.
+func newAutoMDMRelayError(message string, err error) *automdm.GatewayError {
+	return automdm.NewBadGatewayError(message, err)
 }
 
 func (svc *Service) saveGoogleConditionalAccessSettings(
-	ctx context.Context, appConfig *fleet.AppConfig, settings fleet.GoogleConditionalAccessIntegration,
+	ctx context.Context, appConfig *automdm.AppConfig, settings automdm.GoogleConditionalAccessIntegration,
 ) error {
 	if current := appConfig.Integrations.GoogleConditionalAccess; current != nil && *current == settings {
 		return nil
@@ -862,10 +862,10 @@ func (svc *Service) saveGoogleConditionalAccessSettings(
 	return nil
 }
 
-func (svc *Service) googleConditionalAccessIntegration(ctx context.Context) (*fleet.ConditionalAccessGoogleIntegration, error) {
+func (svc *Service) googleConditionalAccessIntegration(ctx context.Context) (*automdm.ConditionalAccessGoogleIntegration, error) {
 	integration, err := svc.ds.GetGoogleConditionalAccessIntegration(ctx)
 	if err != nil {
-		if fleet.IsNotFound(err) {
+		if automdm.IsNotFound(err) {
 			return nil, nil
 		}
 		return nil, ctxerr.Wrap(ctx, err, "load google conditional access integration")
@@ -876,32 +876,32 @@ func (svc *Service) googleConditionalAccessIntegration(ctx context.Context) (*fl
 // googleConditionalAccessKeyStored checks hashes only, so reading the config doesn't
 // decrypt the key.
 func (svc *Service) googleConditionalAccessKeyStored(ctx context.Context) (bool, error) {
-	hashes, err := svc.ds.GetAllMDMConfigAssetsHashes(ctx, []fleet.MDMAssetName{fleet.MDMAssetGoogleConditionalAccessServiceAccountKey})
+	hashes, err := svc.ds.GetAllMDMConfigAssetsHashes(ctx, []automdm.MDMAssetName{automdm.MDMAssetGoogleConditionalAccessServiceAccountKey})
 	if err != nil {
-		if fleet.IsNotFound(err) {
+		if automdm.IsNotFound(err) {
 			return false, nil
 		}
 		return false, ctxerr.Wrap(ctx, err, "check google conditional access service account key")
 	}
-	_, ok := hashes[fleet.MDMAssetGoogleConditionalAccessServiceAccountKey]
+	_, ok := hashes[automdm.MDMAssetGoogleConditionalAccessServiceAccountKey]
 	return ok, nil
 }
 
 func (svc *Service) googleConditionalAccessKey(ctx context.Context) ([]byte, error) {
 	assets, err := svc.ds.GetAllMDMConfigAssetsByName(ctx,
-		[]fleet.MDMAssetName{fleet.MDMAssetGoogleConditionalAccessServiceAccountKey}, nil)
+		[]automdm.MDMAssetName{automdm.MDMAssetGoogleConditionalAccessServiceAccountKey}, nil)
 	switch {
-	case fleet.IsNotFound(err):
+	case automdm.IsNotFound(err):
 		return nil, nil
 	case err != nil:
 		return nil, ctxerr.Wrap(ctx, err, "load google conditional access service account key")
 	}
-	return assets[fleet.MDMAssetGoogleConditionalAccessServiceAccountKey].Value, nil
+	return assets[automdm.MDMAssetGoogleConditionalAccessServiceAccountKey].Value, nil
 }
 
 func (svc *Service) storeGoogleConditionalAccessKey(ctx context.Context, key []byte) error {
-	if err := svc.ds.ReplaceMDMConfigAssets(ctx, []fleet.MDMConfigAsset{{
-		Name:  fleet.MDMAssetGoogleConditionalAccessServiceAccountKey,
+	if err := svc.ds.ReplaceMDMConfigAssets(ctx, []automdm.MDMConfigAsset{{
+		Name:  automdm.MDMAssetGoogleConditionalAccessServiceAccountKey,
 		Value: key,
 	}}, nil); err != nil {
 		return ctxerr.Wrap(ctx, err, "store google conditional access service account key")
@@ -910,7 +910,7 @@ func (svc *Service) storeGoogleConditionalAccessKey(ctx context.Context, key []b
 }
 
 func (svc *Service) deleteGoogleConditionalAccessKey(ctx context.Context) error {
-	if err := svc.ds.DeleteMDMConfigAssetsByName(ctx, []fleet.MDMAssetName{fleet.MDMAssetGoogleConditionalAccessServiceAccountKey}); err != nil {
+	if err := svc.ds.DeleteMDMConfigAssetsByName(ctx, []automdm.MDMAssetName{automdm.MDMAssetGoogleConditionalAccessServiceAccountKey}); err != nil {
 		return ctxerr.Wrap(ctx, err, "delete google conditional access service account key")
 	}
 	return nil

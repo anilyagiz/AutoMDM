@@ -8,16 +8,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/authz"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxdb"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxdb"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/jmoiron/sqlx"
 )
 
-func (ds *Datastore) insertInHouseApp(ctx context.Context, payload *fleet.InHouseAppPayload) (uint, uint, error) {
+func (ds *Datastore) insertInHouseApp(ctx context.Context, payload *automdm.InHouseAppPayload) (uint, uint, error) {
 	selectStmt := `SELECT COUNT(id) FROM in_house_apps WHERE global_or_team_id = ? AND bundle_identifier = ?`
 
 	var tid *uint
@@ -110,7 +110,7 @@ func (ds *Datastore) getOrGenerateInHouseAppTitleID(ctx context.Context, name st
 	return titleID, nil
 }
 
-func (ds *Datastore) insertInHouseAppDB(ctx context.Context, tx sqlx.ExtContext, payload *fleet.InHouseAppPayload, args []any) (uint, error) {
+func (ds *Datastore) insertInHouseAppDB(ctx context.Context, tx sqlx.ExtContext, payload *automdm.InHouseAppPayload, args []any) (uint, error) {
 	stmt := `
 	INSERT INTO in_house_apps (
 		team_id,
@@ -187,7 +187,7 @@ func inHouseAppHostStatusNamedQuery(hihsiAlias, ncrAlias, colAlias string) strin
 	`, hihsiAlias, hihsiAlias, ncrAlias, ncrAlias, colAlias)
 }
 
-func (ds *Datastore) GetInHouseAppMetadataByTeamAndTitleID(ctx context.Context, teamID *uint, titleID uint) (*fleet.SoftwareInstaller, error) {
+func (ds *Datastore) GetInHouseAppMetadataByTeamAndTitleID(ctx context.Context, teamID *uint, titleID uint) (*automdm.SoftwareInstaller, error) {
 	query := `
 SELECT
   iha.id,
@@ -213,7 +213,7 @@ WHERE
 		tmID = *teamID
 	}
 
-	var dest fleet.SoftwareInstaller
+	var dest automdm.SoftwareInstaller
 	err := sqlx.GetContext(ctx, ds.reader(ctx), &dest, query, titleID, tmID)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -227,7 +227,7 @@ WHERE
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "get in house app labels")
 	}
-	var exclAny, inclAny, inclAll []fleet.SoftwareScopeLabel
+	var exclAny, inclAny, inclAll []automdm.SoftwareScopeLabel
 	for _, l := range labels {
 		switch {
 		case l.Exclude && !l.RequireAll:
@@ -242,7 +242,7 @@ WHERE
 	}
 
 	var count int
-	for _, set := range [][]fleet.SoftwareScopeLabel{exclAny, inclAny, inclAll} {
+	for _, set := range [][]automdm.SoftwareScopeLabel{exclAny, inclAny, inclAll} {
 		if len(set) > 0 {
 			count++
 		}
@@ -264,7 +264,7 @@ WHERE
 	}
 
 	displayName, err := ds.getSoftwareTitleDisplayName(ctx, tmID, titleID)
-	if err != nil && !fleet.IsNotFound(err) {
+	if err != nil && !automdm.IsNotFound(err) {
 		return nil, ctxerr.Wrap(ctx, err, "get in house app display name")
 	}
 
@@ -272,7 +272,7 @@ WHERE
 
 	if teamID != nil {
 		icon, err := ds.GetSoftwareTitleIcon(ctx, *teamID, titleID)
-		if err != nil && !fleet.IsNotFound(err) {
+		if err != nil && !automdm.IsNotFound(err) {
 			return nil, ctxerr.Wrap(ctx, err, "get software title icon")
 		}
 		if icon != nil {
@@ -281,7 +281,7 @@ WHERE
 	}
 
 	cfg, err := ds.GetInHouseAppConfiguration(ctx, dest.InstallerID)
-	if err != nil && !fleet.IsNotFound(err) {
+	if err != nil && !automdm.IsNotFound(err) {
 		return nil, ctxerr.Wrap(ctx, err, "get in-house app configuration")
 	}
 	if cfg != nil {
@@ -291,7 +291,7 @@ WHERE
 	return &dest, nil
 }
 
-func (ds *Datastore) SaveInHouseAppUpdates(ctx context.Context, payload *fleet.UpdateSoftwareInstallerPayload) error {
+func (ds *Datastore) SaveInHouseAppUpdates(ctx context.Context, payload *automdm.UpdateSoftwareInstallerPayload) error {
 	err := ds.withRetryTxx(ctx, func(tx sqlx.ExtContext) error {
 		stmt := `UPDATE in_house_apps SET
 			storage_id = ?,
@@ -429,15 +429,15 @@ func (ds *Datastore) RemovePendingInHouseAppInstalls(ctx context.Context, inHous
 	for _, in := range installs {
 		_, err := ds.CancelHostUpcomingActivity(ctx, in.HostID, in.ExecutionID)
 		// Ignore the not found error for installs that finished or were canceled since the select above, their upcoming activity is already deleted
-		if err != nil && !fleet.IsNotFound(err) {
+		if err != nil && !automdm.IsNotFound(err) {
 			return err
 		}
 	}
 	return nil
 }
 
-func (ds *Datastore) GetSummaryHostInHouseAppInstalls(ctx context.Context, teamID *uint, inHouseAppID uint) (*fleet.VPPAppStatusSummary, error) {
-	var dest fleet.VPPAppStatusSummary // Using the vpp struct since it is more appropriate for ipa
+func (ds *Datastore) GetSummaryHostInHouseAppInstalls(ctx context.Context, teamID *uint, inHouseAppID uint) (*automdm.VPPAppStatusSummary, error) {
+	var dest automdm.VPPAppStatusSummary // Using the vpp struct since it is more appropriate for ipa
 	stmt := `
 WITH
 -- select most recent upcoming activity per host (per activity type)
@@ -499,8 +499,8 @@ past AS (
 			AND hihsi.removed = 0
 			AND hihsi.canceled = 0
 	) ranked
-	-- LEFT JOIN so Fleet-side pre-flight failures (unresolvable
-	-- managed-config Fleet variable) survive — those never enqueue an MDM
+	-- LEFT JOIN so AutoMDM-side pre-flight failures (unresolvable
+	-- managed-config AutoMDM variable) survive — those never enqueue an MDM
 	-- command, so no ncr row exists. The CASE above maps
 	-- verification_failed_at IS NOT NULL to failed before any ncr.status
 	-- branch is evaluated.
@@ -537,12 +537,12 @@ FROM upcoming
 	query, args, err := sqlx.Named(stmt, map[string]any{
 		"in_house_app_id":           inHouseAppID,
 		"team_id":                   tmID,
-		"mdm_status_acknowledged":   fleet.MDMAppleStatusAcknowledged,
-		"mdm_status_error":          fleet.MDMAppleStatusError,
-		"mdm_status_format_error":   fleet.MDMAppleStatusCommandFormatError,
-		"software_status_pending":   fleet.SoftwarePending,
-		"software_status_failed":    fleet.SoftwareFailed,
-		"software_status_installed": fleet.SoftwareInstalled,
+		"mdm_status_acknowledged":   automdm.MDMAppleStatusAcknowledged,
+		"mdm_status_error":          automdm.MDMAppleStatusError,
+		"mdm_status_format_error":   automdm.MDMAppleStatusCommandFormatError,
+		"software_status_pending":   automdm.SoftwarePending,
+		"software_status_failed":    automdm.SoftwareFailed,
+		"software_status_installed": automdm.SoftwareInstalled,
 	})
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "get summary host in house app installs: named query")
@@ -559,11 +559,11 @@ func (ds *Datastore) IsInHouseAppLabelScoped(ctx context.Context, inHouseAppID, 
 	return ds.isSoftwareLabelScoped(ctx, inHouseAppID, hostID, softwareTypeInHouseApp)
 }
 
-func (ds *Datastore) InsertHostInHouseAppInstall(ctx context.Context, hostID uint, inHouseAppID, softwareTitleID uint, commandUUID string, opts fleet.HostSoftwareInstallOptions) error {
+func (ds *Datastore) InsertHostInHouseAppInstall(ctx context.Context, hostID uint, inHouseAppID, softwareTitleID uint, commandUUID string, opts automdm.HostSoftwareInstallOptions) error {
 	const (
 		insertUAStmt = `
 INSERT INTO upcoming_activities
-		(host_id, priority, user_id, fleet_initiated, activity_type, execution_id, payload)
+		(host_id, priority, user_id, automdm_initiated, activity_type, execution_id, payload)
 VALUES
 		(?, ?, ?, ?, 'in_house_app_install', ?,
 			JSON_OBJECT(
@@ -602,7 +602,7 @@ VALUES
 			hostID,
 			opts.Priority(),
 			userID,
-			opts.IsFleetInitiated(),
+			opts.IsAutoMDMInitiated(),
 			commandUUID,
 			opts.SelfService,
 			userID,
@@ -621,7 +621,7 @@ VALUES
 			return ctxerr.Wrap(ctx, err, "insert in house app install request join table")
 		}
 
-		// deferred activations are picked up by the fleet-initiated release
+		// deferred activations are picked up by the automdm-initiated release
 		// cron within its per-minute budget
 		if !opts.DeferActivation {
 			if _, err := ds.activateNextUpcomingActivity(ctx, tx, hostID, ""); err != nil {
@@ -689,7 +689,7 @@ WHERE verification_command_uuid = ?
 	return nil
 }
 
-func (ds *Datastore) GetUnverifiedInHouseAppInstallsForHost(ctx context.Context, hostUUID string) ([]*fleet.HostVPPSoftwareInstall, error) {
+func (ds *Datastore) GetUnverifiedInHouseAppInstallsForHost(ctx context.Context, hostUUID string) ([]*automdm.HostVPPSoftwareInstall, error) {
 	stmt := `
 SELECT
 		hihsi.host_id AS host_id,
@@ -708,7 +708,7 @@ AND hihsi.verification_failed_at IS NULL
 AND hihsi.canceled = 0
 		`
 
-	var result []*fleet.HostVPPSoftwareInstall
+	var result []*automdm.HostVPPSoftwareInstall
 	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &result, stmt, hostUUID); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "get unverified in-house app installs for host")
 	}
@@ -716,7 +716,7 @@ AND hihsi.canceled = 0
 	return result, nil
 }
 
-func (ds *Datastore) GetPastActivityDataForInHouseAppInstall(ctx context.Context, commandResults *mdm.CommandResults) (*fleet.User, *fleet.ActivityTypeInstalledSoftware, error) {
+func (ds *Datastore) GetPastActivityDataForInHouseAppInstall(ctx context.Context, commandResults *mdm.CommandResults) (*automdm.User, *automdm.ActivityTypeInstalledSoftware, error) {
 	// Called at activity-write time to snapshot the software display name
 	// override (and adjacent fields) into the activity JSON blob. Reading from
 	// a lagging replica could miss a rename an admin committed to the primary
@@ -725,7 +725,7 @@ func (ds *Datastore) GetPastActivityDataForInHouseAppInstall(ctx context.Context
 	return ds.getPastActivityDataForInHouseAppInstallDB(ctx, ds.reader(ctx), commandResults)
 }
 
-func (ds *Datastore) getPastActivityDataForInHouseAppInstallDB(ctx context.Context, q sqlx.QueryerContext, commandResults *mdm.CommandResults) (*fleet.User, *fleet.ActivityTypeInstalledSoftware, error) {
+func (ds *Datastore) getPastActivityDataForInHouseAppInstallDB(ctx context.Context, q sqlx.QueryerContext, commandResults *mdm.CommandResults) (*automdm.User, *automdm.ActivityTypeInstalledSoftware, error) {
 	if commandResults == nil {
 		return nil, nil, nil
 	}
@@ -770,8 +770,8 @@ WHERE
 
 	listStmt, args, err := sqlx.Named(stmt, map[string]any{
 		"command_uuid":              commandResults.CommandUUID,
-		"software_status_failed":    string(fleet.SoftwareInstallFailed),
-		"software_status_installed": string(fleet.SoftwareInstalled),
+		"software_status_failed":    string(automdm.SoftwareInstallFailed),
+		"software_status_installed": string(automdm.SoftwareInstalled),
 	})
 	if err != nil {
 		return nil, nil, ctxerr.Wrap(ctx, err, "build list query from named args")
@@ -786,9 +786,9 @@ WHERE
 		return nil, nil, ctxerr.Wrap(ctx, err, "select past activity data for in-house app install")
 	}
 
-	var user *fleet.User
+	var user *automdm.User
 	if res.UserID != nil {
-		user = &fleet.User{
+		user = &automdm.User{
 			ID:    *res.UserID,
 			Name:  *res.UserName,
 			Email: *res.UserEmail,
@@ -797,17 +797,17 @@ WHERE
 
 	var status string
 	switch commandResults.Status {
-	case fleet.MDMAppleStatusAcknowledged:
-		status = string(fleet.SoftwareInstalled)
-	case fleet.MDMAppleStatusCommandFormatError, fleet.MDMAppleStatusError:
-		status = string(fleet.SoftwareInstallFailed)
+	case automdm.MDMAppleStatusAcknowledged:
+		status = string(automdm.SoftwareInstalled)
+	case automdm.MDMAppleStatusCommandFormatError, automdm.MDMAppleStatusError:
+		status = string(automdm.SoftwareInstallFailed)
 	default:
 		// This case shouldn't happen (we should only be doing this check if the command is in a
 		// "terminal" state, but adding it so we have a default
-		status = string(fleet.SoftwareInstallPending)
+		status = string(automdm.SoftwareInstallPending)
 	}
 
-	act := &fleet.ActivityTypeInstalledSoftware{
+	act := &automdm.ActivityTypeInstalledSoftware{
 		HostID:              res.HostID,
 		HostDisplayName:     res.HostDisplayName,
 		SoftwareTitle:       res.SoftwareTitle,
@@ -821,15 +821,15 @@ WHERE
 }
 
 // RecordFailedInHouseAppInstall records an in-house (.ipa) app install that
-// Fleet failed before sending it to the device — currently, the managed app
-// configuration referenced a Fleet variable that can't be resolved for this
+// AutoMDM failed before sending it to the device — currently, the managed app
+// configuration referenced an AutoMDM variable that can't be resolved for this
 // host. It writes a failed host_in_house_software_installs row
 // (verification_failed_at sentinel) without enqueuing any MDM command, and
 // returns the user + failed-install activity to emit. failureReason is
 // surfaced on the activity (and the Install Details modal).
 func (ds *Datastore) RecordFailedInHouseAppInstall(ctx context.Context, hostID, inHouseAppID uint,
-	commandUUID, failureReason string, opts fleet.HostSoftwareInstallOptions,
-) (*fleet.User, *fleet.ActivityTypeInstalledSoftware, error) {
+	commandUUID, failureReason string, opts automdm.HostSoftwareInstallOptions,
+) (*automdm.User, *automdm.ActivityTypeInstalledSoftware, error) {
 	// Mirror InsertHostInHouseAppInstall's user attribution (in-house apps have
 	// no policy-driven path, so no PolicyID check).
 	var userID *uint
@@ -845,8 +845,8 @@ FROM in_house_apps iha
 WHERE iha.id = ?`
 
 	var (
-		user *fleet.User
-		act  *fleet.ActivityTypeInstalledSoftware
+		user *automdm.User
+		act  *automdm.ActivityTypeInstalledSoftware
 	)
 	err := ds.withRetryTxx(ctx, func(tx sqlx.ExtContext) error {
 		if _, err := tx.ExecContext(ctx, insStmt,
@@ -857,7 +857,7 @@ WHERE iha.id = ?`
 
 		var err error
 		user, act, err = ds.getPastActivityDataForInHouseAppInstallDB(ctx, tx,
-			&mdm.CommandResults{CommandUUID: commandUUID, Status: fleet.MDMAppleStatusError})
+			&mdm.CommandResults{CommandUUID: commandUUID, Status: automdm.MDMAppleStatusError})
 		if err != nil {
 			return ctxerr.Wrap(ctx, err, "get failed in-house install activity data")
 		}
@@ -874,7 +874,7 @@ WHERE iha.id = ?`
 	return user, act, nil
 }
 
-func (ds *Datastore) BatchSetInHouseAppsInstallers(ctx context.Context, tmID *uint, installers []*fleet.UploadSoftwareInstallerPayload) error {
+func (ds *Datastore) BatchSetInHouseAppsInstallers(ctx context.Context, tmID *uint, installers []*automdm.UploadSoftwareInstallerPayload) error {
 	const upsertSoftwareTitles = `
 INSERT INTO software_titles
   (name, source, extension_for, bundle_identifier)
@@ -1245,24 +1245,24 @@ WHERE
 			// Check for installers that target iOS/iPadOS if they conflict with an existing VPP app
 			if installer.BundleIdentifier != "" {
 				// Check for iOS VPP app conflict
-				exists, err := ds.checkVPPAppExistsForTitleIdentifier(ctx, tx, tmID, string(fleet.IOSPlatform), installer.BundleIdentifier, "ios_apps", "")
+				exists, err := ds.checkVPPAppExistsForTitleIdentifier(ctx, tx, tmID, string(automdm.IOSPlatform), installer.BundleIdentifier, "ios_apps", "")
 				if err != nil {
 					return ctxerr.Wrap(ctx, err, "check if VPP app (ios) exists for in-house app")
 				}
 				if exists {
-					return ctxerr.Wrap(ctx, fleet.ConflictError{
-						Message: fmt.Sprintf(fleet.CantAddSoftwareConflictMessage, installer.Title, teamName),
+					return ctxerr.Wrap(ctx, automdm.ConflictError{
+						Message: fmt.Sprintf(automdm.CantAddSoftwareConflictMessage, installer.Title, teamName),
 					}, "in-house app conflicts with existing VPP app (ios)")
 				}
 
 				// Check for iPadOS VPP app conflict
-				exists, err = ds.checkVPPAppExistsForTitleIdentifier(ctx, tx, tmID, string(fleet.IPadOSPlatform), installer.BundleIdentifier, "ipados_apps", "")
+				exists, err = ds.checkVPPAppExistsForTitleIdentifier(ctx, tx, tmID, string(automdm.IPadOSPlatform), installer.BundleIdentifier, "ipados_apps", "")
 				if err != nil {
 					return ctxerr.Wrap(ctx, err, "check if VPP app (ipados) exists for in-house app")
 				}
 				if exists {
-					return ctxerr.Wrap(ctx, fleet.ConflictError{
-						Message: fmt.Sprintf(fleet.CantAddSoftwareConflictMessage, installer.Title, teamName),
+					return ctxerr.Wrap(ctx, automdm.ConflictError{
+						Message: fmt.Sprintf(automdm.CantAddSoftwareConflictMessage, installer.Title, teamName),
 					}, "in-house app conflicts with existing VPP app (ipados)")
 				}
 			}
@@ -1492,8 +1492,8 @@ WHERE
 					existing[0].IsMetadataModified = true
 				}
 
-				excludeLabels := installer.ValidatedLabels.LabelScope == fleet.LabelScopeExcludeAny
-				requireAllLabels := installer.ValidatedLabels.LabelScope == fleet.LabelScopeIncludeAll
+				excludeLabels := installer.ValidatedLabels.LabelScope == automdm.LabelScopeExcludeAny
+				requireAllLabels := installer.ValidatedLabels.LabelScope == automdm.LabelScopeIncludeAll
 				if len(existing) > 0 && !existing[0].IsMetadataModified {
 					// load the remaining labels for that installer, so that we can detect
 					// if any label changed (if the counts differ, then labels did change,
@@ -1705,7 +1705,7 @@ WHERE
 	return exists == 1, nil
 }
 
-func (ds *Datastore) checkInHouseAppExistsForAdamID(ctx context.Context, q sqlx.QueryerContext, teamID *uint, appID fleet.VPPAppID) (exists bool, title string, err error) {
+func (ds *Datastore) checkInHouseAppExistsForAdamID(ctx context.Context, q sqlx.QueryerContext, teamID *uint, appID automdm.VPPAppID) (exists bool, title string, err error) {
 	const stmt = `
 SELECT st.name
 FROM software_titles st
@@ -1790,7 +1790,7 @@ WHERE in_house_app_id IN (?)
 }
 
 func (ds *Datastore) updateInHouseAppConfigurationTx(ctx context.Context, tx sqlx.ExtContext, inHouseAppID uint, config []byte) error {
-	if err := fleet.ValidateAppleAppConfiguration(config); err != nil {
+	if err := automdm.ValidateAppleAppConfiguration(config); err != nil {
 		return ctxerr.Wrap(ctx, err, "validating in-house app configuration")
 	}
 
@@ -1821,7 +1821,7 @@ INSERT INTO in_house_app_install_tokens
 VALUES
 	(?, ?, ?, ?, ?)
 `
-	expiresAt := time.Now().UTC().Add(fleet.InHouseAppInstallTokenTTL)
+	expiresAt := time.Now().UTC().Add(automdm.InHouseAppInstallTokenTTL)
 	if _, err := ex.ExecContext(ctx, stmt, token, softwareTitleID, teamID, hostID, expiresAt); err != nil {
 		return ctxerr.Wrap(ctx, err, "insert in-house app install token")
 	}
@@ -1831,7 +1831,7 @@ VALUES
 func (ds *Datastore) GetInHouseAppInstallTokenMetadata(
 	ctx context.Context,
 	token string,
-) (*fleet.InHouseAppInstallTokenMetadata, error) {
+) (*automdm.InHouseAppInstallTokenMetadata, error) {
 	const stmt = `
 SELECT token, software_title_id, team_id, host_id, expires_at
 FROM in_house_app_install_tokens
@@ -1839,7 +1839,7 @@ WHERE token = ? AND expires_at > NOW(6)
 `
 	// Read from primary: tokens are minted in the activation tx and may be
 	// looked up before replicas have caught up.
-	var meta fleet.InHouseAppInstallTokenMetadata
+	var meta automdm.InHouseAppInstallTokenMetadata
 	if err := sqlx.GetContext(ctx, ds.writer(ctx), &meta, stmt, token); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ctxerr.Wrap(ctx, notFound("InHouseAppInstallToken"))

@@ -5,9 +5,9 @@
 
 $upgradeCode = '{D8A1DC6C-8EDA-4135-8E82-6F4EEA116B2F}'
 $packageName = 'eMClient.20054CA46072C'
-# Under Fleet's 5-minute script timeout, so a failure exits 1603 instead of being killed.
+# Under AutoMDM's 5-minute script timeout, so a failure exits 1603 instead of being killed.
 $timeoutSeconds = 240
-# Monotonic, so a clock change can't stretch the wait past Fleet's limit.
+# Monotonic, so a clock change can't stretch the wait past AutoMDM's limit.
 $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 # 3010 = reboot required, 1641 = reboot initiated
 $successCodes = @(0, 3010, 1641)

@@ -10,7 +10,7 @@ jest.mock("services", () => ({
 const mockSendRequest = sendRequest as jest.MockedFunction<typeof sendRequest>;
 
 const ZERO_TOUCH_PATH =
-  "/latest/fleet/android_enterprise/zero_touch_configuration";
+  "/latest/automdm/android_enterprise/zero_touch_configuration";
 
 describe("mdmAndroidAPI.getZeroTouchConfiguration", () => {
   beforeEach(() => {
@@ -19,11 +19,11 @@ describe("mdmAndroidAPI.getZeroTouchConfiguration", () => {
   });
 
   it.each([
-    ["no fleet", undefined, ZERO_TOUCH_PATH],
+    ["no team", undefined, ZERO_TOUCH_PATH],
     ["Unassigned (0)", 0, ZERO_TOUCH_PATH],
-    ["a fleet", 7, `${ZERO_TOUCH_PATH}?fleet_id=7`],
-  ])("requests %s", async (_, fleetId, expectedPath) => {
-    await mdmAndroidAPI.getZeroTouchConfiguration(fleetId);
+    ["a team", 7, `${ZERO_TOUCH_PATH}?team_id=7`],
+  ])("requests %s", async (_, automdmId, expectedPath) => {
+    await mdmAndroidAPI.getZeroTouchConfiguration(automdmId);
     expect(mockSendRequest).toHaveBeenCalledWith("GET", expectedPath);
   });
 });

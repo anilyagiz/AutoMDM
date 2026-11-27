@@ -19,11 +19,11 @@ func createHttpClient(m dsl.Matcher) {
 		`new(http.Client)`,
 		`http.Transport{$*_}`,
 		`new(http.Transport)`,
-	).Report(`http.Client: use fleethttp.NewClient instead`)
+	).Report(`http.Client: use automdmhttp.NewClient instead`)
 }
 
 func txCheck(m dsl.Matcher) {
-	m.Import("github.com/fleetdm/fleet/v4/server/datastore/mysql")
+	m.Import("github.com/anilyagiz/automdm/v4/server/datastore/mysql")
 	m.Import("github.com/jmoiron/sqlx")
 
 	isDatastoreType := func(v dsl.Var) bool {

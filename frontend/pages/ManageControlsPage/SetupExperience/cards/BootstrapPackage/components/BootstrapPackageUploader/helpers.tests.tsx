@@ -23,15 +23,15 @@ describe("getErrorMessage", () => {
           errors: [{ name: "size", reason: "The maximum file size is 1KiB." }],
         },
       } as unknown) as AxiosResponse<IApiError>);
-    expect(getErrorMessage(err("/api/latest/fleet/staged_upload"))).toBe(
+    expect(getErrorMessage(err("/api/latest/automdm/staged_upload"))).toBe(
       "Couldn’t upload. The maximum file size is 1KiB."
     );
-    expect(getErrorMessage(err("/api/latest/fleet/bootstrap"))).toBe(
+    expect(getErrorMessage(err("/api/latest/automdm/bootstrap"))).toBe(
       UPLOAD_ERROR_MESSAGES.default.message
     );
   });
 
-  it("maps a Fleet API reason", () => {
+  it("maps an AutoMDM API reason", () => {
     const err = {
       data: { errors: [{ name: "base", reason: "file is not signed" }] },
     } as AxiosResponse<IApiError>;
@@ -42,7 +42,7 @@ describe("getErrorMessage", () => {
     render(<>{UPLOAD_ERROR_MESSAGES.unsigned.message}</>);
     expect(screen.getByRole("link", { name: /learn more/i })).toHaveAttribute(
       "href",
-      "https://fleetdm.com/learn-more-about/sign-bootstrap-package"
+      "https://automdm.com/learn-more-about/sign-bootstrap-package"
     );
   });
 });

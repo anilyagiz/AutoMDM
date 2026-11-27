@@ -54,7 +54,7 @@ export type IEditCertAuthorityFormData =
 
 interface IGetCertsParams extends PaginationParams {
   // not supported: after, order key, order direction, match query, meta (always included)
-  fleet_id?: number;
+  team_id?: number;
 }
 
 export interface IQueryKeyGetCerts extends IGetCertsParams {
@@ -118,14 +118,14 @@ export default {
     return sendRequest("GET", CERTIFICATE_AUTHORITY_REQUEST_CERT(id));
   },
   getCerts: ({
-    fleet_id,
+    team_id,
     page,
     per_page,
   }: IGetCertsParams): Promise<IGetCertsResponse> => {
     const { CERTIFICATES } = endpoints;
 
     const queryString = buildQueryStringFromParams({
-      fleet_id,
+      team_id,
       page,
       per_page,
     });
@@ -150,7 +150,7 @@ export default {
       subject_name: subjectName,
       // omit when empty so the server treats it as "no SAN"
       ...(trimmedSAN !== "" && { subject_alternative_name: trimmedSAN }),
-      fleet_id: teamId === APP_CONTEXT_ALL_TEAMS_ID ? API_ALL_TEAMS_ID : teamId,
+      team_id: teamId === APP_CONTEXT_ALL_TEAMS_ID ? API_ALL_TEAMS_ID : teamId,
     };
     return sendRequest("POST", CERTIFICATES, requestBody);
   },

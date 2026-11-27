@@ -35,16 +35,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/ee/server/service/certissue"
-	"github.com/fleetdm/fleet/v4/ee/server/service/ejbca/ejbcatest"
-	svc_scep "github.com/fleetdm/fleet/v4/ee/server/service/scep"
-	"github.com/fleetdm/fleet/v4/pkg/removednames"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm"
-	apple_mdm "github.com/fleetdm/fleet/v4/server/mdm/apple"
-	scepserver "github.com/fleetdm/fleet/v4/server/mdm/scep/server"
-	"github.com/fleetdm/fleet/v4/server/service/integrationtest/scep_server"
+	"github.com/anilyagiz/automdm/v4/ee/server/service/certissue"
+	"github.com/anilyagiz/automdm/v4/ee/server/service/ejbca/ejbcatest"
+	svc_scep "github.com/anilyagiz/automdm/v4/ee/server/service/scep"
+	"github.com/anilyagiz/automdm/v4/pkg/removednames"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	"github.com/anilyagiz/automdm/v4/server/mdm"
+	apple_mdm "github.com/anilyagiz/automdm/v4/server/mdm/apple"
+	scepserver "github.com/anilyagiz/automdm/v4/server/mdm/scep/server"
+	"github.com/anilyagiz/automdm/v4/server/service/integrationtest/scep_server"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	micromdm "github.com/micromdm/micromdm/mdm/mdm"
@@ -77,7 +77,7 @@ func (s *integrationMDMTestSuite) runSCEPProxyTestWithOptionalSuffix(suffix stri
 		mobileconfigForTest("N2", "Bad1"),
 	}
 	// add global profile
-	s.Do("POST", "/api/v1/fleet/mdm/profiles/batch", appleProfilesBatchRequest(globalProfiles), http.StatusNoContent)
+	s.Do("POST", "/api/v1/automdm/mdm/profiles/batch", appleProfilesBatchRequest(globalProfiles), http.StatusNoContent)
 
 	// Create a host and then enroll to MDM.
 	host, mdmDevice := createHostThenEnrollMDM(s.ds, s.server.URL, t)
@@ -85,23 +85,23 @@ func (s *integrationMDMTestSuite) runSCEPProxyTestWithOptionalSuffix(suffix stri
 	// trigger a profile sync
 	s.awaitRunAppleMDMWorkerSchedule()
 	s.awaitTriggerProfileSchedule(t)
-	require.NoError(t, s.keyValueStore.Delete(ctx, fleet.MDMProfileProcessingKeyPrefix+":"+host.UUID))
+	require.NoError(t, s.keyValueStore.Delete(ctx, automdm.MDMProfileProcessingKeyPrefix+":"+host.UUID))
 	profiles, err := s.ds.GetHostMDMAppleProfiles(ctx, host.UUID)
 	require.NoError(t, err)
 	require.GreaterOrEqual(t, len(profiles), 2)
 	var profileUUID string
-	var goodProfile, badProfile fleet.HostMDMAppleProfile
+	var goodProfile, badProfile automdm.HostMDMAppleProfile
 	for _, profile := range profiles {
 		switch profile.Identifier {
 		case "Good1":
 			profileUUID = profile.ProfileUUID
 			goodProfile = profile
 		case "Bad1":
-			profile.Status = &fleet.MDMDeliveryFailed
+			profile.Status = &automdm.MDMDeliveryFailed
 			badProfile = profile
 		}
 	}
-	err = s.ds.BulkUpsertMDMAppleHostProfiles(ctx, []*fleet.MDMAppleBulkUpsertHostProfilePayload{{
+	err = s.ds.BulkUpsertMDMAppleHostProfiles(ctx, []*automdm.MDMAppleBulkUpsertHostProfilePayload{{
 		ProfileUUID:       badProfile.ProfileUUID,
 		ProfileIdentifier: badProfile.Identifier,
 		ProfileName:       badProfile.Name,
@@ -111,7 +111,7 @@ func (s *integrationMDMTestSuite) runSCEPProxyTestWithOptionalSuffix(suffix stri
 		Status:            badProfile.Status,
 		Detail:            badProfile.Detail,
 		Checksum:          []byte("checksum"),
-		Scope:             fleet.PayloadScopeSystem,
+		Scope:             automdm.PayloadScopeSystem,
 	}, {
 		ProfileUUID:       goodProfile.ProfileUUID,
 		ProfileIdentifier: goodProfile.Identifier,
@@ -122,20 +122,20 @@ func (s *integrationMDMTestSuite) runSCEPProxyTestWithOptionalSuffix(suffix stri
 		Status:            goodProfile.Status,
 		Detail:            goodProfile.Detail,
 		Checksum:          []byte("checksum"),
-		Scope:             fleet.PayloadScopeSystem,
+		Scope:             automdm.PayloadScopeSystem,
 	}})
 	require.NoError(t, err)
-	err = s.ds.BulkUpsertMDMManagedCertificates(ctx, []*fleet.MDMManagedCertificate{
+	err = s.ds.BulkUpsertMDMManagedCertificates(ctx, []*automdm.MDMManagedCertificate{
 		{
 			HostUUID:    host.UUID,
 			ProfileUUID: profileUUID,
-			Type:        fleet.CAConfigNDES,
+			Type:        automdm.CAConfigNDES,
 			CAName:      "NDES",
 		},
 		{
 			HostUUID:    host.UUID,
 			ProfileUUID: badProfile.ProfileUUID,
-			Type:        fleet.CAConfigNDES,
+			Type:        automdm.CAConfigNDES,
 			CAName:      "NDES",
 		},
 	})
@@ -183,8 +183,8 @@ func (s *integrationMDMTestSuite) runSCEPProxyTestWithOptionalSuffix(suffix stri
 	adminUrl := "bad-admin-url"
 	username := "user"
 	password := "pass"
-	ca, err := s.ds.NewCertificateAuthority(ctx, &fleet.CertificateAuthority{
-		Type:     string(fleet.CATypeNDESSCEPProxy),
+	ca, err := s.ds.NewCertificateAuthority(ctx, &automdm.CertificateAuthority{
+		Type:     string(automdm.CATypeNDESSCEPProxy),
 		Name:     new("bad-url"),
 		URL:      &testServer.URL,
 		AdminURL: &adminUrl,
@@ -223,9 +223,9 @@ func (s *integrationMDMTestSuite) runSCEPProxyTestWithOptionalSuffix(suffix stri
 	})
 
 	// Bypass service validation to verify timeout behaviour
-	s.DoRaw("DELETE", fmt.Sprintf("/api/latest/fleet/certificate_authorities/%d", ca.ID), nil, http.StatusNoContent)
-	ca, err = s.ds.NewCertificateAuthority(ctx, &fleet.CertificateAuthority{
-		Type:     string(fleet.CATypeNDESSCEPProxy),
+	s.DoRaw("DELETE", fmt.Sprintf("/api/latest/automdm/certificate_authorities/%d", ca.ID), nil, http.StatusNoContent)
+	ca, err = s.ds.NewCertificateAuthority(ctx, &automdm.CertificateAuthority{
+		Type:     string(automdm.CATypeNDESSCEPProxy),
 		Name:     new("bad-url"),
 		URL:      &ndesTimeoutServer.URL,
 		AdminURL: &adminUrl,
@@ -245,9 +245,9 @@ func (s *integrationMDMTestSuite) runSCEPProxyTestWithOptionalSuffix(suffix stri
 
 	scepServer := scep_server.StartTestSCEPServer(t)
 
-	s.DoRaw("DELETE", fmt.Sprintf("/api/latest/fleet/certificate_authorities/%d", ca.ID), nil, http.StatusNoContent)
-	_, err = s.ds.NewCertificateAuthority(ctx, &fleet.CertificateAuthority{
-		Type:     string(fleet.CATypeNDESSCEPProxy),
+	s.DoRaw("DELETE", fmt.Sprintf("/api/latest/automdm/certificate_authorities/%d", ca.ID), nil, http.StatusNoContent)
+	_, err = s.ds.NewCertificateAuthority(ctx, &automdm.CertificateAuthority{
+		Type:     string(automdm.CATypeNDESSCEPProxy),
 		Name:     new("bad-url"),
 		URL:      new(scepServer.URL + "/scep"),
 		AdminURL: &adminUrl,
@@ -308,12 +308,12 @@ func (s *integrationMDMTestSuite) runSCEPProxyTestWithOptionalSuffix(suffix stri
 	assert.Equal(t, scep.CertRep, pkiMessage.MessageType)
 
 	// Expired challenge
-	err = s.ds.BulkUpsertMDMManagedCertificates(ctx, []*fleet.MDMManagedCertificate{
+	err = s.ds.BulkUpsertMDMManagedCertificates(ctx, []*automdm.MDMManagedCertificate{
 		{
 			HostUUID:             host.UUID,
 			ProfileUUID:          profileUUID,
 			ChallengeRetrievedAt: new(time.Now().Add(-svc_scep.NDESChallengeInvalidAfter)),
-			Type:                 fleet.CAConfigNDES,
+			Type:                 automdm.CAConfigNDES,
 			CAName:               "NDES",
 		},
 	})
@@ -325,12 +325,12 @@ func (s *integrationMDMTestSuite) runSCEPProxyTestWithOptionalSuffix(suffix stri
 	assert.Contains(t, string(errBody), "challenge password")
 
 	// Non-expired challenge
-	err = s.ds.BulkUpsertMDMManagedCertificates(ctx, []*fleet.MDMManagedCertificate{
+	err = s.ds.BulkUpsertMDMManagedCertificates(ctx, []*automdm.MDMManagedCertificate{
 		{
 			HostUUID:             host.UUID,
 			ProfileUUID:          profileUUID,
 			ChallengeRetrievedAt: new(time.Now().Add(-svc_scep.NDESChallengeInvalidAfter + time.Minute)),
-			Type:                 fleet.CAConfigNDES,
+			Type:                 automdm.CAConfigNDES,
 			CAName:               "NDES",
 		},
 	})
@@ -375,31 +375,31 @@ func (s *integrationMDMTestSuite) runSmallstepSCEPProxyTestWithOptionalSuffix(su
 		mobileconfigForTest("N2", "Bad1"),
 	}
 	// add global profile
-	s.Do("POST", "/api/v1/fleet/mdm/profiles/batch", appleProfilesBatchRequest(globalProfiles), http.StatusNoContent)
+	s.Do("POST", "/api/v1/automdm/mdm/profiles/batch", appleProfilesBatchRequest(globalProfiles), http.StatusNoContent)
 
 	// Create a host and then enroll to MDM.
 	host, mdmDevice := createHostThenEnrollMDM(s.ds, s.server.URL, t)
 	setupPusher(s, t, mdmDevice)
-	// ensure fleet profiles
+	// ensure automdm profiles
 	s.awaitTriggerProfileSchedule(t)
 	s.awaitRunAppleMDMWorkerSchedule()
-	require.NoError(t, s.keyValueStore.Delete(ctx, fleet.MDMProfileProcessingKeyPrefix+":"+host.UUID))
+	require.NoError(t, s.keyValueStore.Delete(ctx, automdm.MDMProfileProcessingKeyPrefix+":"+host.UUID))
 	profiles, err := s.ds.GetHostMDMAppleProfiles(ctx, host.UUID)
 	require.NoError(t, err)
 	require.GreaterOrEqual(t, len(profiles), 2)
 	var profileUUID string
-	var goodProfile, badProfile fleet.HostMDMAppleProfile
+	var goodProfile, badProfile automdm.HostMDMAppleProfile
 	for _, profile := range profiles {
 		switch profile.Identifier {
 		case "Good1":
 			profileUUID = profile.ProfileUUID
 			goodProfile = profile
 		case "Bad1":
-			profile.Status = &fleet.MDMDeliveryFailed
+			profile.Status = &automdm.MDMDeliveryFailed
 			badProfile = profile
 		}
 	}
-	err = s.ds.BulkUpsertMDMAppleHostProfiles(ctx, []*fleet.MDMAppleBulkUpsertHostProfilePayload{{
+	err = s.ds.BulkUpsertMDMAppleHostProfiles(ctx, []*automdm.MDMAppleBulkUpsertHostProfilePayload{{
 		ProfileUUID:       badProfile.ProfileUUID,
 		ProfileIdentifier: badProfile.Identifier,
 		ProfileName:       badProfile.Name,
@@ -409,7 +409,7 @@ func (s *integrationMDMTestSuite) runSmallstepSCEPProxyTestWithOptionalSuffix(su
 		Status:            badProfile.Status,
 		Detail:            badProfile.Detail,
 		Checksum:          []byte("checksum"),
-		Scope:             fleet.PayloadScopeSystem,
+		Scope:             automdm.PayloadScopeSystem,
 	}, {
 		ProfileUUID:       goodProfile.ProfileUUID,
 		ProfileIdentifier: goodProfile.Identifier,
@@ -420,20 +420,20 @@ func (s *integrationMDMTestSuite) runSmallstepSCEPProxyTestWithOptionalSuffix(su
 		Status:            goodProfile.Status,
 		Detail:            goodProfile.Detail,
 		Checksum:          []byte("checksum"),
-		Scope:             fleet.PayloadScopeSystem,
+		Scope:             automdm.PayloadScopeSystem,
 	}})
 	require.NoError(t, err)
-	err = s.ds.BulkUpsertMDMManagedCertificates(ctx, []*fleet.MDMManagedCertificate{
+	err = s.ds.BulkUpsertMDMManagedCertificates(ctx, []*automdm.MDMManagedCertificate{
 		{
 			HostUUID:    host.UUID,
 			ProfileUUID: profileUUID,
-			Type:        fleet.CAConfigSmallstep,
+			Type:        automdm.CAConfigSmallstep,
 			CAName:      caName,
 		},
 		{
 			HostUUID:    host.UUID,
 			ProfileUUID: badProfile.ProfileUUID,
-			Type:        fleet.CAConfigSmallstep,
+			Type:        automdm.CAConfigSmallstep,
 			CAName:      caName,
 		},
 	})
@@ -481,8 +481,8 @@ func (s *integrationMDMTestSuite) runSmallstepSCEPProxyTestWithOptionalSuffix(su
 	challengeUrl := "bad-admin-url"
 	username := "user"
 	password := "pass"
-	ca, err := s.ds.NewCertificateAuthority(ctx, &fleet.CertificateAuthority{
-		Type:         string(fleet.CATypeSmallstep),
+	ca, err := s.ds.NewCertificateAuthority(ctx, &automdm.CertificateAuthority{
+		Type:         string(automdm.CATypeSmallstep),
 		Name:         new(caName),
 		URL:          &testServer.URL,
 		ChallengeURL: &challengeUrl,
@@ -521,9 +521,9 @@ func (s *integrationMDMTestSuite) runSmallstepSCEPProxyTestWithOptionalSuffix(su
 	})
 
 	// Bypass service validation to verify timeout behaviour
-	s.DoRaw("DELETE", fmt.Sprintf("/api/latest/fleet/certificate_authorities/%d", ca.ID), nil, http.StatusNoContent)
-	ca, err = s.ds.NewCertificateAuthority(ctx, &fleet.CertificateAuthority{
-		Type:         string(fleet.CATypeSmallstep),
+	s.DoRaw("DELETE", fmt.Sprintf("/api/latest/automdm/certificate_authorities/%d", ca.ID), nil, http.StatusNoContent)
+	ca, err = s.ds.NewCertificateAuthority(ctx, &automdm.CertificateAuthority{
+		Type:         string(automdm.CATypeSmallstep),
 		Name:         new(caName),
 		URL:          &ndesTimeoutServer.URL,
 		ChallengeURL: &challengeUrl,
@@ -543,9 +543,9 @@ func (s *integrationMDMTestSuite) runSmallstepSCEPProxyTestWithOptionalSuffix(su
 
 	scepServer := scep_server.StartTestSCEPServer(t)
 
-	s.DoRaw("DELETE", fmt.Sprintf("/api/latest/fleet/certificate_authorities/%d", ca.ID), nil, http.StatusNoContent)
-	_, err = s.ds.NewCertificateAuthority(ctx, &fleet.CertificateAuthority{
-		Type:         string(fleet.CATypeSmallstep),
+	s.DoRaw("DELETE", fmt.Sprintf("/api/latest/automdm/certificate_authorities/%d", ca.ID), nil, http.StatusNoContent)
+	_, err = s.ds.NewCertificateAuthority(ctx, &automdm.CertificateAuthority{
+		Type:         string(automdm.CATypeSmallstep),
 		Name:         new(caName),
 		URL:          new(scepServer.URL + "/scep"),
 		ChallengeURL: &challengeUrl,
@@ -606,12 +606,12 @@ func (s *integrationMDMTestSuite) runSmallstepSCEPProxyTestWithOptionalSuffix(su
 	assert.Equal(t, scep.CertRep, pkiMessage.MessageType)
 
 	// Expired challenge
-	err = s.ds.BulkUpsertMDMManagedCertificates(ctx, []*fleet.MDMManagedCertificate{
+	err = s.ds.BulkUpsertMDMManagedCertificates(ctx, []*automdm.MDMManagedCertificate{
 		{
 			HostUUID:             host.UUID,
 			ProfileUUID:          profileUUID,
 			ChallengeRetrievedAt: new(time.Now().Add(-svc_scep.SmallstepChallengeInvalidAfter)),
-			Type:                 fleet.CAConfigSmallstep,
+			Type:                 automdm.CAConfigSmallstep,
 			CAName:               caName,
 		},
 	})
@@ -623,12 +623,12 @@ func (s *integrationMDMTestSuite) runSmallstepSCEPProxyTestWithOptionalSuffix(su
 	assert.Contains(t, string(errBody), "challenge password")
 
 	// Non-expired challenge
-	err = s.ds.BulkUpsertMDMManagedCertificates(ctx, []*fleet.MDMManagedCertificate{
+	err = s.ds.BulkUpsertMDMManagedCertificates(ctx, []*automdm.MDMManagedCertificate{
 		{
 			HostUUID:             host.UUID,
 			ProfileUUID:          profileUUID,
 			ChallengeRetrievedAt: new(time.Now().Add(-svc_scep.SmallstepChallengeInvalidAfter + time.Minute)),
-			Type:                 fleet.CAConfigSmallstep,
+			Type:                 automdm.CAConfigSmallstep,
 			CAName:               caName,
 		},
 	})
@@ -667,7 +667,7 @@ func (s *integrationMDMTestSuite) TestDigiCertConfig() {
 		DigiCert: &caBad,
 	}
 	res := createCertificateAuthorityResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/certificate_authorities", &certPayload, http.StatusBadRequest, &res)
+	s.DoJSON("POST", "/api/latest/automdm/certificate_authorities", &certPayload, http.StatusBadRequest, &res)
 
 	// Add 3 DigiCert integrations
 	ca0 := newMockDigicertCA(digiCertServer.server.URL, "ca0")
@@ -677,21 +677,21 @@ func (s *integrationMDMTestSuite) TestDigiCertConfig() {
 	ca2 := newMockDigicertCA(digiCertServer.server.URL, "ca2")
 	ca2.APIToken = "api_token2"
 	certPayload.CertificateAuthorityPayload.DigiCert = &ca0
-	s.DoJSON("POST", "/api/latest/fleet/certificate_authorities", &certPayload, http.StatusOK, &res)
+	s.DoJSON("POST", "/api/latest/automdm/certificate_authorities", &certPayload, http.StatusOK, &res)
 	certPayload.CertificateAuthorityPayload.DigiCert = &ca1
-	s.DoJSON("POST", "/api/latest/fleet/certificate_authorities", &certPayload, http.StatusOK, &res)
+	s.DoJSON("POST", "/api/latest/automdm/certificate_authorities", &certPayload, http.StatusOK, &res)
 	certPayload.CertificateAuthorityPayload.DigiCert = &ca2
-	s.DoJSON("POST", "/api/latest/fleet/certificate_authorities", &certPayload, http.StatusOK, &res)
+	s.DoJSON("POST", "/api/latest/automdm/certificate_authorities", &certPayload, http.StatusOK, &res)
 
 	listRes := listCertificateAuthoritiesResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/certificate_authorities", &listCertificateAuthoritiesRequest{}, http.StatusOK, &listRes)
+	s.DoJSON("GET", "/api/latest/automdm/certificate_authorities", &listCertificateAuthoritiesRequest{}, http.StatusOK, &listRes)
 
-	digiCerts := []*fleet.CertificateAuthority{}
-	digiCertsWithSecrets := []*fleet.CertificateAuthority{}
+	digiCerts := []*automdm.CertificateAuthority{}
+	digiCertsWithSecrets := []*automdm.CertificateAuthority{}
 	for _, ca := range listRes.CertificateAuthorities {
-		if ca.Type == string(fleet.CATypeDigiCert) {
+		if ca.Type == string(automdm.CATypeDigiCert) {
 			getRes := getCertificateAuthorityResponse{}
-			s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/certificate_authorities/%d", ca.ID), &getCertificateAuthorityRequest{}, http.StatusOK, &getRes)
+			s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/certificate_authorities/%d", ca.ID), &getCertificateAuthorityRequest{}, http.StatusOK, &getRes)
 			digiCerts = append(digiCerts, getRes.CertificateAuthority)
 
 			caWithSecret, err := s.ds.GetCertificateAuthorityByID(ctx, ca.ID, true)
@@ -702,7 +702,7 @@ func (s *integrationMDMTestSuite) TestDigiCertConfig() {
 	assert.Len(t, digiCerts, 3)
 
 	for _, ca := range digiCerts {
-		assert.Equal(t, fleet.MaskedPassword, *ca.APIToken)
+		assert.Equal(t, automdm.MaskedPassword, *ca.APIToken)
 	}
 
 	require.Len(t, digiCertsWithSecrets, 3)
@@ -712,10 +712,10 @@ func (s *integrationMDMTestSuite) TestDigiCertConfig() {
 
 	// Check 3 added activities are present
 	var listActivities listActivitiesResponse
-	s.DoJSON("GET", "/api/latest/fleet/activities", nil, http.StatusOK,
+	s.DoJSON("GET", "/api/latest/automdm/activities", nil, http.StatusOK,
 		&listActivities, "order_key", "id", "order_direction", "desc", "per_page", "10")
 	require.NotEmpty(t, listActivities.Activities)
-	activity := fleet.ActivityAddedDigiCert{}
+	activity := automdm.ActivityAddedDigiCert{}
 	caNames := make([]string, 0, 3)
 	for _, act := range listActivities.Activities {
 		if act.Type == activity.ActivityName() {
@@ -738,14 +738,14 @@ func (s *integrationMDMTestSuite) TestDigiCertConfig() {
 		ca3.APIToken = "api_token3"
 		appConfig = map[string]interface{}{
 			"integrations": map[string]interface{}{
-				"digicert": []fleet.DigiCertCA{ca3, ca2, ca1},
+				"digicert": []automdm.DigiCertCA{ca3, ca2, ca1},
 			},
 		}
 		raw, err = json.Marshal(appConfig)
 		require.NoError(t, err)
 		req.RawMessage = raw
 		res = appConfigResponse{}
-		s.DoJSON("PATCH", "/api/latest/fleet/config", &req, http.StatusOK, &res)
+		s.DoJSON("PATCH", "/api/latest/automdm/config", &req, http.StatusOK, &res)
 		require.Len(t, res.Integrations.DigiCert.Value, 3)
 		assert.NotEqual(t, res.Integrations.DigiCert.Value[0].Name, res.Integrations.DigiCert.Value[1].Name)
 		assert.NotEqual(t, res.Integrations.DigiCert.Value[1].Name, res.Integrations.DigiCert.Value[2].Name)
@@ -760,9 +760,9 @@ func (s *integrationMDMTestSuite) TestDigiCertConfig() {
 			default:
 				t.Fatalf("unexpected ca name: %s", ca.Name)
 			}
-			assert.Equal(t, ca.APIToken, fleet.MaskedPassword)
+			assert.Equal(t, ca.APIToken, automdm.MaskedPassword)
 		}
-		assets, err = s.ds.GetAllCAConfigAssetsByType(ctx, fleet.CAConfigDigiCert)
+		assets, err = s.ds.GetAllCAConfigAssetsByType(ctx, automdm.CAConfigDigiCert)
 		require.NoError(t, err)
 		require.Len(t, assets, 3)
 		assert.EqualValues(t, "api_token1", assets["ca1"].Value)
@@ -770,12 +770,12 @@ func (s *integrationMDMTestSuite) TestDigiCertConfig() {
 		assert.EqualValues(t, "api_token3", assets["ca3"].Value)
 
 		listActivities = listActivitiesResponse{}
-		s.DoJSON("GET", "/api/latest/fleet/activities", nil, http.StatusOK,
+		s.DoJSON("GET", "/api/latest/automdm/activities", nil, http.StatusOK,
 			&listActivities, "order_key", "id", "order_direction", "desc", "per_page", "10")
 		require.True(t, len(listActivities.Activities) > 0)
-		activity = fleet.ActivityAddedDigiCert{}
-		editActivity := fleet.ActivityEditedDigiCert{}
-		delActivity := fleet.ActivityDeletedDigiCert{}
+		activity = automdm.ActivityAddedDigiCert{}
+		editActivity := automdm.ActivityEditedDigiCert{}
+		delActivity := automdm.ActivityDeletedDigiCert{}
 		var numFound int
 		for _, act := range listActivities.Activities {
 			switch act.Type {
@@ -804,17 +804,17 @@ func (s *integrationMDMTestSuite) TestDigiCertConfig() {
 
 	// Clear DigiCert integrations
 	for _, ca := range digiCerts {
-		s.DoRaw("DELETE", fmt.Sprintf("/api/latest/fleet/certificate_authorities/%d", ca.ID), nil, http.StatusNoContent)
+		s.DoRaw("DELETE", fmt.Sprintf("/api/latest/automdm/certificate_authorities/%d", ca.ID), nil, http.StatusNoContent)
 	}
 
 	// TODO(HCA): Re enable and switch out with endpoints once update endpoint is implemented.
 	/*
 		// Check that 3 deleted activities are present
 		listActivities = listActivitiesResponse{}
-		s.DoJSON("GET", "/api/latest/fleet/activities", nil, http.StatusOK,
+		s.DoJSON("GET", "/api/latest/automdm/activities", nil, http.StatusOK,
 			&listActivities, "order_key", "id", "order_direction", "desc", "per_page", "10")
 		require.True(t, len(listActivities.Activities) > 0)
-		delActivity := fleet.ActivityDeletedDigiCert{}
+		delActivity := automdm.ActivityDeletedDigiCert{}
 		caNames = make([]string, 0, 3)
 		for _, act := range listActivities.Activities {
 			if act.Type == delActivity.ActivityName() {
@@ -839,7 +839,7 @@ func (s *integrationMDMTestSuite) TestDigiCertIntegration() {
 
 	appConfig, err := s.ds.AppConfig(ctx)
 	require.NoError(t, err)
-	appConfig.MDM.MacOSSetup = fleet.MacOSSetup{
+	appConfig.MDM.MacOSSetup = automdm.MacOSSetup{
 		EnableEndUserAuthentication: false,
 	}
 	err = s.ds.SaveAppConfig(ctx, appConfig)
@@ -852,7 +852,7 @@ func (s *integrationMDMTestSuite) TestDigiCertIntegration() {
 		DigiCert: &ca,
 	}
 	res := createCertificateAuthorityResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/certificate_authorities", &certPayload, http.StatusOK, &res)
+	s.DoJSON("POST", "/api/latest/automdm/certificate_authorities", &certPayload, http.StatusOK, &res)
 
 	// Create a host and then enroll to MDM.
 	host, mdmDevice := createHostThenEnrollMDM(s.ds, s.server.URL, t)
@@ -874,12 +874,12 @@ func (s *integrationMDMTestSuite) TestDigiCertIntegration() {
 		require.NoError(t, err)
 	}
 
-	err = s.keyValueStore.Delete(ctx, fleet.MDMProfileProcessingKeyPrefix+":"+host.UUID)
+	err = s.keyValueStore.Delete(ctx, automdm.MDMProfileProcessingKeyPrefix+":"+host.UUID)
 	require.NoError(t, err)
 
 	// Add a profile with a bad CA
 	profile := digiCertForTest("N1", "BadCA", "badName")
-	rawRes := s.Do("POST", "/api/latest/fleet/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{
+	rawRes := s.Do("POST", "/api/latest/automdm/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{
 		{Name: "N1", Contents: profile},
 	}}, http.StatusBadRequest)
 	errMsg := extractServerErrorText(rawRes.Body)
@@ -888,7 +888,7 @@ func (s *integrationMDMTestSuite) TestDigiCertIntegration() {
 	// ////////////////////////////////
 	// Test a good profile -- happy path
 	profile = digiCertForTest("N2", "I2", "my_CA")
-	s.Do("POST", "/api/latest/fleet/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{
+	s.Do("POST", "/api/latest/automdm/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{
 		{Name: "N2", Contents: profile},
 	}}, http.StatusNoContent)
 	profiles, err := s.ds.GetHostMDMAppleProfiles(ctx, host.UUID)
@@ -961,10 +961,10 @@ func (s *integrationMDMTestSuite) TestDigiCertIntegration() {
 		DigiCert: &caFail,
 	}
 	resFail := createCertificateAuthorityResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/certificate_authorities", &certPayload, http.StatusOK, &resFail)
+	s.DoJSON("POST", "/api/latest/automdm/certificate_authorities", &certPayload, http.StatusOK, &resFail)
 
 	profileFail := digiCertForTest("N3", "I3", "fail_CA")
-	s.Do("POST", "/api/latest/fleet/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{
+	s.Do("POST", "/api/latest/automdm/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{
 		{Name: "N2", Contents: profile}, // resend the previous profile so it doesn't get removed
 		{Name: "N3", Contents: profileFail},
 	}}, http.StatusNoContent)
@@ -977,20 +977,20 @@ func (s *integrationMDMTestSuite) TestDigiCertIntegration() {
 	require.Contains(t, string(p.Mobileconfig), "com.fleetdm.pkcs12")
 
 	getHostResp := getDeviceHostResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", host.ID), nil, http.StatusOK, &getHostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", host.ID), nil, http.StatusOK, &getHostResp)
 	var foundGood, foundFailed bool
 	require.NotNil(t, getHostResp.Host.MDM.Profiles)
 	for _, prof := range *getHostResp.Host.MDM.Profiles {
 		if prof.Name == "N2" {
 			foundGood = true
-			assert.EqualValues(t, fleet.MDMDeliveryVerifying, *prof.Status)
-			assert.Equal(t, fleet.MDMOperationTypeInstall, prof.OperationType)
+			assert.EqualValues(t, automdm.MDMDeliveryVerifying, *prof.Status)
+			assert.Equal(t, automdm.MDMOperationTypeInstall, prof.OperationType)
 			continue
 		}
 		if prof.Name == "N3" {
 			foundFailed = true
-			assert.EqualValues(t, fleet.MDMDeliveryFailed, *prof.Status)
-			assert.Equal(t, fleet.MDMOperationTypeInstall, prof.OperationType)
+			assert.EqualValues(t, automdm.MDMDeliveryFailed, *prof.Status)
+			assert.Equal(t, automdm.MDMOperationTypeInstall, prof.OperationType)
 			assert.Contains(t, prof.Detail, "Expected Fail")
 			continue
 		}
@@ -999,7 +999,7 @@ func (s *integrationMDMTestSuite) TestDigiCertIntegration() {
 	assert.True(t, foundFailed)
 
 	// ////////////////////////////////
-	// Test DigiCert CA with Fleet variables
+	// Test DigiCert CA with AutoMDM variables
 	mysqltest.ExecAdhocSQL(t, s.ds, func(db sqlx.ExtContext) error {
 		_, err := db.ExecContext(
 			context.Background(),
@@ -1009,25 +1009,25 @@ func (s *integrationMDMTestSuite) TestDigiCertIntegration() {
 
 		return err
 	})
-	caFleetVars := fleet.DigiCertCA{
-		Name:                          "FleetVars",
+	caAutoMDMVars := automdm.DigiCertCA{
+		Name:                          "AutoMDMVars",
 		URL:                           digiCertServer.server.URL,
 		APIToken:                      "api_token",
 		ProfileID:                     "profile_id",
-		CertificateCommonName:         "$FLEET_VAR_" + string(fleet.FleetVarHostHardwareSerial) + " $FLEET_VAR_" + string(fleet.FleetVarHostEndUserIDPUsername),
-		CertificateUserPrincipalNames: []string{"_${FLEET_VAR_" + string(fleet.FleetVarHostEndUserIDPUsername) + "}_"},
-		CertificateSeatID:             "_${FLEET_VAR_" + string(fleet.FleetVarHostHardwareSerial) + "}_",
+		CertificateCommonName:         "$AUTOMDM_VAR_" + string(automdm.AutoMDMVarHostHardwareSerial) + " $AUTOMDM_VAR_" + string(automdm.AutoMDMVarHostEndUserIDPUsername),
+		CertificateUserPrincipalNames: []string{"_${AUTOMDM_VAR_" + string(automdm.AutoMDMVarHostEndUserIDPUsername) + "}_"},
+		CertificateSeatID:             "_${AUTOMDM_VAR_" + string(automdm.AutoMDMVarHostHardwareSerial) + "}_",
 	}
 	certPayload = createCertificateAuthorityRequest{
-		DigiCert: &caFleetVars,
+		DigiCert: &caAutoMDMVars,
 	}
-	resFleetVars := createCertificateAuthorityResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/certificate_authorities", &certPayload, http.StatusOK, &resFleetVars)
+	resAutoMDMVars := createCertificateAuthorityResponse{}
+	s.DoJSON("POST", "/api/latest/automdm/certificate_authorities", &certPayload, http.StatusOK, &resAutoMDMVars)
 
-	profileFleetVars := digiCertForTest("N4", "I4", "FleetVars")
-	s.Do("POST", "/api/latest/fleet/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{
+	profileAutoMDMVars := digiCertForTest("N4", "I4", "AutoMDMVars")
+	s.Do("POST", "/api/latest/automdm/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{
 		{Name: "N2", Contents: profile}, // resend the previous profile so it doesn't get removed
-		{Name: "N4", Contents: profileFleetVars},
+		{Name: "N4", Contents: profileAutoMDMVars},
 	}}, http.StatusNoContent)
 	profiles, err = s.ds.GetHostMDMAppleProfiles(ctx, host.UUID)
 	require.NoError(t, err)
@@ -1040,14 +1040,14 @@ func (s *integrationMDMTestSuite) TestDigiCertIntegration() {
 
 	// Check that status is pending (and not failed)
 	getHostResp = getDeviceHostResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", host.ID), nil, http.StatusOK, &getHostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", host.ID), nil, http.StatusOK, &getHostResp)
 	require.NotNil(t, getHostResp.Host.MDM.Profiles)
 	var found bool
 	for _, prof := range *getHostResp.Host.MDM.Profiles {
 		if prof.Name == "N4" {
 			found = true
-			assert.EqualValues(t, fleet.MDMDeliveryPending, *prof.Status)
-			assert.Equal(t, fleet.MDMOperationTypeInstall, prof.OperationType)
+			assert.EqualValues(t, automdm.MDMDeliveryPending, *prof.Status)
+			assert.Equal(t, automdm.MDMOperationTypeInstall, prof.OperationType)
 			assert.Empty(t, prof.Detail)
 			continue
 		}
@@ -1100,7 +1100,7 @@ func (s *integrationMDMTestSuite) TestDigiCertIntegration() {
 
 	// Check request to DigiCert
 	digiCertServer.certReqMu.Lock()
-	assert.Equal(t, caFleetVars.ProfileID, digiCertServer.certReq.Profile["id"])
+	assert.Equal(t, caAutoMDMVars.ProfileID, digiCertServer.certReq.Profile["id"])
 	assert.Equal(t, "_"+host.HardwareSerial+"_", digiCertServer.certReq.Seat["seat_id"])
 	assert.Equal(t, "x509", digiCertServer.certReq.DeliveryFormat)
 	assert.Equal(t, host.HardwareSerial+" idp@example.com", digiCertServer.certReq.Attributes["subject"].(map[string]any)["common_name"])
@@ -1118,9 +1118,9 @@ func (s *integrationMDMTestSuite) TestDigiCertIntegration() {
 
 	// ////////////////////////////////
 	// Test a good profile with 2 DigiCert payloads -- happy path
-	s.Do("POST", "/api/latest/fleet/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{
-		{Name: "N2", Contents: profile},          // resend the previous profile so it doesn't get removed
-		{Name: "N4", Contents: profileFleetVars}, // resend the previous profile so it doesn't get removed
+	s.Do("POST", "/api/latest/automdm/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{
+		{Name: "N2", Contents: profile},            // resend the previous profile so it doesn't get removed
+		{Name: "N4", Contents: profileAutoMDMVars}, // resend the previous profile so it doesn't get removed
 		{Name: "DigiCert2", Contents: digiCert2Mobileconfig},
 	}}, http.StatusNoContent)
 	profiles, err = s.ds.GetHostMDMAppleProfiles(ctx, host.UUID)
@@ -1169,25 +1169,25 @@ func (s *integrationMDMTestSuite) TestDigiCertIntegration() {
 	require.NoError(t, err)
 	require.NotNil(t, prof)
 	assert.NotNil(t, prof.NotValidAfter)
-	assert.Equal(t, fleet.CAConfigDigiCert, prof.Type)
-	assert.Equal(t, fleet.MDMDeliveryVerifying, *prof.Status)
-	prof, err = s.ds.GetAppleHostMDMCertificateProfile(ctx, host.UUID, p.ProfileUUID, "FleetVars")
+	assert.Equal(t, automdm.CAConfigDigiCert, prof.Type)
+	assert.Equal(t, automdm.MDMDeliveryVerifying, *prof.Status)
+	prof, err = s.ds.GetAppleHostMDMCertificateProfile(ctx, host.UUID, p.ProfileUUID, "AutoMDMVars")
 	require.NoError(t, err)
 	require.NotNil(t, prof)
 	assert.NotNil(t, prof.NotValidAfter)
-	assert.Equal(t, fleet.CAConfigDigiCert, prof.Type)
-	assert.Equal(t, fleet.MDMDeliveryVerifying, *prof.Status)
+	assert.Equal(t, automdm.CAConfigDigiCert, prof.Type)
+	assert.Equal(t, automdm.MDMDeliveryVerifying, *prof.Status)
 
 	// ////////////////////////////////
 	// Modify the CN/UPN/Seat ID of the profile -- DigiCert verification should not happen
 	digiCertServer.server.Close() // so that verify fails if attempted
-	caFleetVars.CertificateCommonName = "common_name"
-	caFleetVars.CertificateUserPrincipalNames = nil
-	caFleetVars.CertificateSeatID = "seat_id"
+	caAutoMDMVars.CertificateCommonName = "common_name"
+	caAutoMDMVars.CertificateUserPrincipalNames = nil
+	caAutoMDMVars.CertificateSeatID = "seat_id"
 	// TODO(HCA): Call update endpoint to follow logic below once implemented
 	/* appConfig = map[string]interface{}{
 		"integrations": map[string]interface{}{
-			"digicert": []fleet.DigiCertCA{ca, caFail, caFleetVars},
+			"digicert": []automdm.DigiCertCA{ca, caFail, caAutoMDMVars},
 		},
 	}
 	raw, err = json.Marshal(appConfig)
@@ -1195,7 +1195,7 @@ func (s *integrationMDMTestSuite) TestDigiCertIntegration() {
 	req = modifyAppConfigRequest{}
 	req.RawMessage = raw
 	res = appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", &req, http.StatusOK, &res)
+	s.DoJSON("PATCH", "/api/latest/automdm/config", &req, http.StatusOK, &res)
 	assert.Len(t, res.Integrations.DigiCert.Value, 3)*/
 }
 
@@ -1207,7 +1207,7 @@ func (s *integrationMDMTestSuite) TestDigiCertIntegrationWithHostPlatform() {
 
 	appConfig, err := s.ds.AppConfig(ctx)
 	require.NoError(t, err)
-	appConfig.MDM.MacOSSetup = fleet.MacOSSetup{
+	appConfig.MDM.MacOSSetup = automdm.MacOSSetup{
 		EnableEndUserAuthentication: false,
 	}
 	err = s.ds.SaveAppConfig(ctx, appConfig)
@@ -1220,7 +1220,7 @@ func (s *integrationMDMTestSuite) TestDigiCertIntegrationWithHostPlatform() {
 		DigiCert: &ca,
 	}
 	res := createCertificateAuthorityResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/certificate_authorities", &certPayload, http.StatusOK, &res)
+	s.DoJSON("POST", "/api/latest/automdm/certificate_authorities", &certPayload, http.StatusOK, &res)
 
 	// Create a host and then enroll to MDM.
 	host, mdmDevice := createHostThenEnrollMDM(s.ds, s.server.URL, t)
@@ -1241,28 +1241,28 @@ func (s *integrationMDMTestSuite) TestDigiCertIntegrationWithHostPlatform() {
 		_, err = mdmDevice.Acknowledge(cmd.CommandUUID)
 		require.NoError(t, err)
 	}
-	err = s.keyValueStore.Delete(ctx, fleet.MDMProfileProcessingKeyPrefix+":"+host.UUID)
+	err = s.keyValueStore.Delete(ctx, automdm.MDMProfileProcessingKeyPrefix+":"+host.UUID)
 	require.NoError(t, err)
 
 	// ////////////////////////////////
-	// Test DigiCert CA with HOST_PLATFORM Fleet variable
-	caPlatform := fleet.DigiCertCA{
+	// Test DigiCert CA with HOST_PLATFORM AutoMDM variable
+	caPlatform := automdm.DigiCertCA{
 		Name:                          "PlatformVar",
 		URL:                           digiCertServer.server.URL,
 		APIToken:                      "api_token",
 		ProfileID:                     "profile_id",
-		CertificateCommonName:         "$FLEET_VAR_" + string(fleet.FleetVarHostPlatform) + "-device",
-		CertificateUserPrincipalNames: []string{"${FLEET_VAR_" + string(fleet.FleetVarHostPlatform) + "}@example.com"},
-		CertificateSeatID:             "seat_${FLEET_VAR_" + string(fleet.FleetVarHostPlatform) + "}",
+		CertificateCommonName:         "$AUTOMDM_VAR_" + string(automdm.AutoMDMVarHostPlatform) + "-device",
+		CertificateUserPrincipalNames: []string{"${AUTOMDM_VAR_" + string(automdm.AutoMDMVarHostPlatform) + "}@example.com"},
+		CertificateSeatID:             "seat_${AUTOMDM_VAR_" + string(automdm.AutoMDMVarHostPlatform) + "}",
 	}
 	certPayload = createCertificateAuthorityRequest{
 		DigiCert: &caPlatform,
 	}
 	resPlatform := createCertificateAuthorityResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/certificate_authorities", &certPayload, http.StatusOK, &resPlatform)
+	s.DoJSON("POST", "/api/latest/automdm/certificate_authorities", &certPayload, http.StatusOK, &resPlatform)
 
 	profilePlatform := digiCertForTest("N5", "I5", "PlatformVar")
-	s.Do("POST", "/api/latest/fleet/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{
+	s.Do("POST", "/api/latest/automdm/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{
 		{Name: "N5", Contents: profilePlatform},
 	}}, http.StatusNoContent)
 	profiles, err := s.ds.GetHostMDMAppleProfiles(ctx, host.UUID)
@@ -1275,14 +1275,14 @@ func (s *integrationMDMTestSuite) TestDigiCertIntegrationWithHostPlatform() {
 
 	// Check that status is pending (and not failed)
 	getHostResp := getDeviceHostResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", host.ID), nil, http.StatusOK, &getHostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", host.ID), nil, http.StatusOK, &getHostResp)
 	require.NotNil(t, getHostResp.Host.MDM.Profiles)
 	found := false
 	for _, prof := range *getHostResp.Host.MDM.Profiles {
 		if prof.Name == "N5" {
 			found = true
-			assert.EqualValues(t, fleet.MDMDeliveryPending, *prof.Status)
-			assert.Equal(t, fleet.MDMOperationTypeInstall, prof.OperationType)
+			assert.EqualValues(t, automdm.MDMDeliveryPending, *prof.Status)
+			assert.Equal(t, automdm.MDMOperationTypeInstall, prof.OperationType)
 			assert.Empty(t, prof.Detail)
 			continue
 		}
@@ -1347,16 +1347,16 @@ func (s *integrationMDMTestSuite) TestDigiCertIntegrationWithHostPlatform() {
 	digiCertServer.server.Close() // so that verify fails if attempted
 }
 
-// TestRemovedFleetVariableSavedBeforeUpgrade covers a server upgraded with $FLEET_VAR_HOST_END_USER_EMAIL_IDP still saved in a profile
+// TestRemovedAutoMDMVariableSavedBeforeUpgrade covers a server upgraded with $AUTOMDM_VAR_HOST_END_USER_EMAIL_IDP still saved in a profile
 // and in a DigiCert CA: uploads reject it, and what is already saved fails on delivery instead of reaching the host or DigiCert.
-func (s *integrationMDMTestSuite) TestRemovedFleetVariableSavedBeforeUpgrade() {
+func (s *integrationMDMTestSuite) TestRemovedAutoMDMVariableSavedBeforeUpgrade() {
 	t := s.T()
 	ctx := t.Context()
 	s.setSkipWorkerJobs(t)
 	digiCertServer := createMockDigiCertServer(t)
 	t.Cleanup(digiCertServer.server.Close)
 
-	const removedVarMsg = `The "$FLEET_VAR_HOST_END_USER_EMAIL_IDP" variable is not available anymore. ` +
+	const removedVarMsg = `The "$AUTOMDM_VAR_HOST_END_USER_EMAIL_IDP" variable is not available anymore. ` +
 		`What to use instead: ` + removednames.GuideURL
 
 	host, mdmDevice := createHostThenEnrollMDM(s.ds, s.server.URL, t)
@@ -1372,24 +1372,24 @@ func (s *integrationMDMTestSuite) TestRemovedFleetVariableSavedBeforeUpgrade() {
 		_, err = mdmDevice.Acknowledge(cmd.CommandUUID)
 		require.NoError(t, err)
 	}
-	require.NoError(t, s.keyValueStore.Delete(ctx, fleet.MDMProfileProcessingKeyPrefix+":"+host.UUID))
+	require.NoError(t, s.keyValueStore.Delete(ctx, automdm.MDMProfileProcessingKeyPrefix+":"+host.UUID))
 
 	body, headers := generateNewProfileMultipartRequest(t, "removed.mobileconfig",
 		mobileconfigForTest("N1", "I1", "HOST_END_USER_EMAIL_IDP"), s.token, nil)
-	res := s.DoRawWithHeaders("POST", "/api/latest/fleet/configuration_profiles", body.Bytes(), http.StatusUnprocessableEntity, headers)
+	res := s.DoRawWithHeaders("POST", "/api/latest/automdm/configuration_profiles", body.Bytes(), http.StatusUnprocessableEntity, headers)
 	require.Equal(t, "Validation Failed: "+removedVarMsg, extractServerErrorText(res.Body))
-	res = s.Do("POST", "/api/latest/fleet/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{
+	res = s.Do("POST", "/api/latest/automdm/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{
 		{Name: "N1", Contents: mobileconfigForTest("N1", "I1", "HOST_END_USER_EMAIL_IDP")},
 	}}, http.StatusUnprocessableEntity)
 	require.Contains(t, extractServerErrorText(res.Body), removedVarMsg)
 
-	// A DigiCert CA and a profile saved with the variable, the way a Fleet 4 server stored them.
+	// A DigiCert CA and a profile saved with the variable, the way an AutoMDM 4 server stored them.
 	ca := newMockDigicertCA(digiCertServer.server.URL, "StoredVar")
 	var caResp createCertificateAuthorityResponse
-	s.DoJSON("POST", "/api/latest/fleet/certificate_authorities", &createCertificateAuthorityRequest{DigiCert: &ca}, http.StatusOK, &caResp)
+	s.DoJSON("POST", "/api/latest/automdm/certificate_authorities", &createCertificateAuthorityRequest{DigiCert: &ca}, http.StatusOK, &caResp)
 	mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
 		_, err := q.ExecContext(ctx, `UPDATE certificate_authorities SET certificate_common_name = ? WHERE id = ?`,
-			"$FLEET_VAR_HOST_END_USER_EMAIL_IDP", caResp.ID)
+			"$AUTOMDM_VAR_HOST_END_USER_EMAIL_IDP", caResp.ID)
 		return err
 	})
 	t.Cleanup(func() {
@@ -1398,10 +1398,10 @@ func (s *integrationMDMTestSuite) TestRemovedFleetVariableSavedBeforeUpgrade() {
 			return err
 		})
 	})
-	s.Do("POST", "/api/latest/fleet/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{
+	s.Do("POST", "/api/latest/automdm/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{
 		{Name: "N2", Contents: digiCertForTest("N2", "I2", ca.Name)},
 	}}, http.StatusNoContent)
-	stored, err := fleet.NewMDMAppleConfigProfile(mobileconfigForTest("N3", "I3", "HOST_END_USER_EMAIL_IDP"), nil)
+	stored, err := automdm.NewMDMAppleConfigProfile(mobileconfigForTest("N3", "I3", "HOST_END_USER_EMAIL_IDP"), nil)
 	require.NoError(t, err)
 	_, err = s.ds.NewMDMAppleConfigProfile(ctx, *stored, nil)
 	require.NoError(t, err)
@@ -1409,15 +1409,15 @@ func (s *integrationMDMTestSuite) TestRemovedFleetVariableSavedBeforeUpgrade() {
 	s.awaitTriggerProfileSchedule(t)
 
 	var hostResp getHostResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", host.ID), nil, http.StatusOK, &hostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", host.ID), nil, http.StatusOK, &hostResp)
 	require.NotNil(t, hostResp.Host.MDM.Profiles)
 	details := map[string]string{}
 	for _, prof := range *hostResp.Host.MDM.Profiles {
 		if prof.Name != "N2" && prof.Name != "N3" {
-			continue // Fleet's own profiles
+			continue // AutoMDM's own profiles
 		}
 		require.NotNil(t, prof.Status, prof.Name)
-		assert.EqualValues(t, fleet.MDMDeliveryFailed, *prof.Status, prof.Name)
+		assert.EqualValues(t, automdm.MDMDeliveryFailed, *prof.Status, prof.Name)
 		details[prof.Name] = prof.Detail
 	}
 	assert.Equal(t, map[string]string{
@@ -1585,7 +1585,7 @@ func (s *integrationMDMTestSuite) TestCustomSCEPConfig() {
 		CustomSCEPProxy: &caBad,
 	}
 	res := createCertificateAuthorityResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/certificate_authorities", &certPayload, http.StatusBadRequest, &res)
+	s.DoJSON("POST", "/api/latest/automdm/certificate_authorities", &certPayload, http.StatusBadRequest, &res)
 
 	// Add 3 CustomSCEPProxy integrations
 	ca0 := newMockCustomSCEPProxyCA(scepServerURL, "ca0")
@@ -1595,21 +1595,21 @@ func (s *integrationMDMTestSuite) TestCustomSCEPConfig() {
 	ca2 := newMockCustomSCEPProxyCA(scepServerURL, "ca2")
 	ca2.Challenge = "challenge2"
 	certPayload.CertificateAuthorityPayload.CustomSCEPProxy = &ca0
-	s.DoJSON("POST", "/api/latest/fleet/certificate_authorities", &certPayload, http.StatusOK, &res)
+	s.DoJSON("POST", "/api/latest/automdm/certificate_authorities", &certPayload, http.StatusOK, &res)
 	certPayload.CertificateAuthorityPayload.CustomSCEPProxy = &ca1
-	s.DoJSON("POST", "/api/latest/fleet/certificate_authorities", &certPayload, http.StatusOK, &res)
+	s.DoJSON("POST", "/api/latest/automdm/certificate_authorities", &certPayload, http.StatusOK, &res)
 	certPayload.CertificateAuthorityPayload.CustomSCEPProxy = &ca2
-	s.DoJSON("POST", "/api/latest/fleet/certificate_authorities", &certPayload, http.StatusOK, &res)
+	s.DoJSON("POST", "/api/latest/automdm/certificate_authorities", &certPayload, http.StatusOK, &res)
 
 	listRes := listCertificateAuthoritiesResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/certificate_authorities", &listCertificateAuthoritiesRequest{}, http.StatusOK, &listRes)
+	s.DoJSON("GET", "/api/latest/automdm/certificate_authorities", &listCertificateAuthoritiesRequest{}, http.StatusOK, &listRes)
 
-	customScepProxies := []*fleet.CertificateAuthority{}
-	customScepProxiesWithSecrets := []*fleet.CertificateAuthority{}
+	customScepProxies := []*automdm.CertificateAuthority{}
+	customScepProxiesWithSecrets := []*automdm.CertificateAuthority{}
 	for _, ca := range listRes.CertificateAuthorities {
-		if ca.Type == string(fleet.CATypeCustomSCEPProxy) {
+		if ca.Type == string(automdm.CATypeCustomSCEPProxy) {
 			getRes := getCertificateAuthorityResponse{}
-			s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/certificate_authorities/%d", ca.ID), &getCertificateAuthorityRequest{}, http.StatusOK, &getRes)
+			s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/certificate_authorities/%d", ca.ID), &getCertificateAuthorityRequest{}, http.StatusOK, &getRes)
 			customScepProxies = append(customScepProxies, getRes.CertificateAuthority)
 
 			caWithSecret, err := s.ds.GetCertificateAuthorityByID(ctx, ca.ID, true)
@@ -1622,7 +1622,7 @@ func (s *integrationMDMTestSuite) TestCustomSCEPConfig() {
 	assert.Len(t, customScepProxies, 3)
 
 	for _, ca := range customScepProxies {
-		assert.Equal(t, fleet.MaskedPassword, *ca.Challenge)
+		assert.Equal(t, automdm.MaskedPassword, *ca.Challenge)
 	}
 
 	require.Len(t, customScepProxiesWithSecrets, 3)
@@ -1632,10 +1632,10 @@ func (s *integrationMDMTestSuite) TestCustomSCEPConfig() {
 
 	// Check 3 added activities are present
 	var listActivities listActivitiesResponse
-	s.DoJSON("GET", "/api/latest/fleet/activities", nil, http.StatusOK,
+	s.DoJSON("GET", "/api/latest/automdm/activities", nil, http.StatusOK,
 		&listActivities, "order_key", "id", "order_direction", "desc", "per_page", "10")
 	require.NotEmpty(t, listActivities.Activities)
-	activity := fleet.ActivityAddedCustomSCEPProxy{}
+	activity := automdm.ActivityAddedCustomSCEPProxy{}
 	caNames := make([]string, 0, 3)
 	for _, act := range listActivities.Activities {
 		if act.Type == activity.ActivityName() {
@@ -1657,14 +1657,14 @@ func (s *integrationMDMTestSuite) TestCustomSCEPConfig() {
 	ca3.Challenge = "challenge3"
 	appConfig = map[string]interface{}{
 		"integrations": map[string]interface{}{
-			"custom_scep_proxy": []fleet.CustomSCEPProxyCA{ca3, ca2, ca1},
+			"custom_scep_proxy": []automdm.CustomSCEPProxyCA{ca3, ca2, ca1},
 		},
 	}
 	raw, err = json.Marshal(appConfig)
 	require.NoError(t, err)
 	req.RawMessage = raw
 	res = appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", &req, http.StatusOK, &res)
+	s.DoJSON("PATCH", "/api/latest/automdm/config", &req, http.StatusOK, &res)
 	require.Len(t, res.Integrations.CustomSCEPProxy.Value, 3)
 	assert.NotEqual(t, res.Integrations.CustomSCEPProxy.Value[0].Name, res.Integrations.CustomSCEPProxy.Value[1].Name)
 	assert.NotEqual(t, res.Integrations.CustomSCEPProxy.Value[1].Name, res.Integrations.CustomSCEPProxy.Value[2].Name)
@@ -1679,9 +1679,9 @@ func (s *integrationMDMTestSuite) TestCustomSCEPConfig() {
 		default:
 			t.Fatalf("unexpected ca name: %s", ca.Name)
 		}
-		assert.Equal(t, ca.Challenge, fleet.MaskedPassword)
+		assert.Equal(t, ca.Challenge, automdm.MaskedPassword)
 	}
-	assets, err = s.ds.GetAllCAConfigAssetsByType(ctx, fleet.CAConfigCustomSCEPProxy)
+	assets, err = s.ds.GetAllCAConfigAssetsByType(ctx, automdm.CAConfigCustomSCEPProxy)
 	require.NoError(t, err)
 	require.Len(t, assets, 3)
 	assert.EqualValues(t, "challenge1-modified", assets["ca1"].Value)
@@ -1689,12 +1689,12 @@ func (s *integrationMDMTestSuite) TestCustomSCEPConfig() {
 	assert.EqualValues(t, "challenge3", assets["ca3"].Value)
 
 	listActivities = listActivitiesResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/activities", nil, http.StatusOK,
+	s.DoJSON("GET", "/api/latest/automdm/activities", nil, http.StatusOK,
 		&listActivities, "order_key", "id", "order_direction", "desc", "per_page", "10")
 	require.True(t, len(listActivities.Activities) > 0)
-	activity = fleet.ActivityAddedCustomSCEPProxy{}
-	editActivity := fleet.ActivityEditedCustomSCEPProxy{}
-	delActivity := fleet.ActivityDeletedCustomSCEPProxy{}
+	activity = automdm.ActivityAddedCustomSCEPProxy{}
+	editActivity := automdm.ActivityEditedCustomSCEPProxy{}
+	delActivity := automdm.ActivityDeletedCustomSCEPProxy{}
 	var numFound int
 	for _, act := range listActivities.Activities {
 		switch act.Type {
@@ -1722,17 +1722,17 @@ func (s *integrationMDMTestSuite) TestCustomSCEPConfig() {
 
 	// Clear CustomSCEPProxy integrations
 	for _, ca := range customScepProxies {
-		s.DoRaw("DELETE", fmt.Sprintf("/api/latest/fleet/certificate_authorities/%d", ca.ID), nil, http.StatusNoContent)
+		s.DoRaw("DELETE", fmt.Sprintf("/api/latest/automdm/certificate_authorities/%d", ca.ID), nil, http.StatusNoContent)
 	}
 
 	// TODO(HCA): Re enable and switch out with endpoints once update endpoint is implemented.
 	/*
 		// Check that 3 deleted activities are present
 		listActivities = listActivitiesResponse{}
-		s.DoJSON("GET", "/api/latest/fleet/activities", nil, http.StatusOK,
+		s.DoJSON("GET", "/api/latest/automdm/activities", nil, http.StatusOK,
 			&listActivities, "order_key", "id", "order_direction", "desc", "per_page", "10")
 		require.True(t, len(listActivities.Activities) > 0)
-		delActivity = fleet.ActivityDeletedCustomSCEPProxy{}
+		delActivity = automdm.ActivityDeletedCustomSCEPProxy{}
 		caNames = make([]string, 0, 3)
 		for _, act := range listActivities.Activities {
 			if act.Type == delActivity.ActivityName() {
@@ -1757,7 +1757,7 @@ func (s *integrationMDMTestSuite) TestCustomSCEPIntegration() {
 	scepServerURL := scepServer.URL + "/scep"
 
 	// parseSCEPProfile returns the parsed SCEP profile along with the identifier from the profile URL
-	parseSCEPProfile := func(t *testing.T, raw []byte, scepConfig fleet.CustomSCEPProxyCA) (SCEPProfileContent, string) {
+	parseSCEPProfile := func(t *testing.T, raw []byte, scepConfig automdm.CustomSCEPProxyCA) (SCEPProfileContent, string) {
 		var fullCmd micromdm.CommandPayload
 		require.NoError(t, plist.Unmarshal(raw, &fullCmd))
 		require.NotNil(t, fullCmd.Command)
@@ -1817,7 +1817,7 @@ func (s *integrationMDMTestSuite) TestCustomSCEPIntegration() {
 	// checkProfileInstallStatus is a helper function to check the status of a profile in the host
 	// response. It asserts that the profile with the given name exists, checks its status,
 	// operation type, and detail. It returns the profile UUID for further checks.
-	checkProfileInstallStatus := func(t *testing.T, hostResp getDeviceHostResponse, profileName string, wantStatus fleet.MDMDeliveryStatus, wantDetail string) string {
+	checkProfileInstallStatus := func(t *testing.T, hostResp getDeviceHostResponse, profileName string, wantStatus automdm.MDMDeliveryStatus, wantDetail string) string {
 		var found bool
 		require.NotNil(t, hostResp.Host.MDM.Profiles)
 		var profileUUID string
@@ -1825,7 +1825,7 @@ func (s *integrationMDMTestSuite) TestCustomSCEPIntegration() {
 			if prof.Name == profileName {
 				found = true
 				require.EqualValues(t, wantStatus, *prof.Status)
-				require.Equal(t, fleet.MDMOperationTypeInstall, prof.OperationType)
+				require.Equal(t, automdm.MDMOperationTypeInstall, prof.OperationType)
 				require.Contains(t, prof.Detail, wantDetail)
 				profileUUID = prof.ProfileUUID
 				break
@@ -1836,8 +1836,8 @@ func (s *integrationMDMTestSuite) TestCustomSCEPIntegration() {
 	}
 
 	// verifySCEPProfile is a helper function to verify the SCEP profile in the host profiles.
-	verifySCEPProfile := func(t *testing.T, host *fleet.Host, hostProf fleet.HostMacOSProfile, wantProfUUID string, wantCAName string) {
-		hostProfs := map[string]*fleet.HostMacOSProfile{
+	verifySCEPProfile := func(t *testing.T, host *automdm.Host, hostProf automdm.HostMacOSProfile, wantProfUUID string, wantCAName string) {
+		hostProfs := map[string]*automdm.HostMacOSProfile{
 			hostProf.Identifier: &hostProf,
 		}
 		require.NoError(t, apple_mdm.VerifyHostMDMProfiles(context.Background(), s.ds, host, hostProfs))
@@ -1845,8 +1845,8 @@ func (s *integrationMDMTestSuite) TestCustomSCEPIntegration() {
 		require.NoError(t, err)
 		require.NotNil(t, prof)
 		require.Equal(t, wantCAName, prof.CAName)
-		require.Equal(t, fleet.CAConfigCustomSCEPProxy, prof.Type)
-		require.Equal(t, fleet.MDMDeliveryVerified, *prof.Status)
+		require.Equal(t, automdm.CAConfigCustomSCEPProxy, prof.Type)
+		require.Equal(t, automdm.MDMDeliveryVerified, *prof.Status)
 	}
 
 	s.awaitTriggerProfileSchedule(t)
@@ -1867,16 +1867,16 @@ func (s *integrationMDMTestSuite) TestCustomSCEPIntegration() {
 		require.NoError(t, err)
 	}
 
-	err := s.keyValueStore.Delete(ctx, fleet.MDMProfileProcessingKeyPrefix+":"+host.UUID)
+	err := s.keyValueStore.Delete(ctx, automdm.MDMProfileProcessingKeyPrefix+":"+host.UUID)
 	require.NoError(t, err)
 
 	// /////////////////////////////////////////
 	// Upload a profile without defining the CA
-	resp := s.Do("POST", "/api/v1/fleet/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{
+	resp := s.Do("POST", "/api/v1/automdm/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{
 		{Name: "N0", Contents: customSCEPForTest("N0", "I0", "scepName")},
 	}}, http.StatusBadRequest)
 	errMsg := extractServerErrorText(resp.Body)
-	assert.Contains(t, errMsg, "FLEET_VAR_CUSTOM_SCEP_")
+	assert.Contains(t, errMsg, "AUTOMDM_VAR_CUSTOM_SCEP_")
 	assert.Contains(t, errMsg, "_scepName does not exist")
 
 	// /////////////////////////////////////////
@@ -1888,29 +1888,29 @@ func (s *integrationMDMTestSuite) TestCustomSCEPIntegration() {
 		CustomSCEPProxy: &ca0,
 	}
 	res1 := createCertificateAuthorityResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/certificate_authorities", &certPayload, http.StatusOK, &res1)
+	s.DoJSON("POST", "/api/latest/automdm/certificate_authorities", &certPayload, http.StatusOK, &res1)
 	certPayload.CertificateAuthorityPayload.CustomSCEPProxy = &ca1
 	res2 := createCertificateAuthorityResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/certificate_authorities", &certPayload, http.StatusOK, &res2)
+	s.DoJSON("POST", "/api/latest/automdm/certificate_authorities", &certPayload, http.StatusOK, &res2)
 
 	// //////////////////////////////////////////////
 	// Upload a profile with two valid SCEP payloads.
-	resp = s.Do("POST", "/api/v1/fleet/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{
+	resp = s.Do("POST", "/api/v1/automdm/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{
 		{Name: "CustomSCEP2", Contents: customSCEPMobileconfig2},
 	}}, http.StatusBadRequest)
 	errMsg = extractServerErrorText(resp.Body)
-	assert.Contains(t, errMsg, fleet.MultipleSCEPPayloadsErrMsg)
+	assert.Contains(t, errMsg, automdm.MultipleSCEPPayloadsErrMsg)
 
 	// /////////////////////////////////////////
 	// Happy path: upload the profile containing a single valid SCEP config
 	profileContents := customSCEPForTest("N0", "I0", "scepName")
-	s.Do("POST", "/api/v1/fleet/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{
+	s.Do("POST", "/api/v1/automdm/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{
 		{Name: "N0", Contents: profileContents},
 	}}, http.StatusNoContent)
 	s.awaitTriggerProfileSchedule(t)
 	getHostResp := getDeviceHostResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", host.ID), nil, http.StatusOK, &getHostResp)
-	profileUUID := checkProfileInstallStatus(t, getHostResp, "N0", fleet.MDMDeliveryPending, "")
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", host.ID), nil, http.StatusOK, &getHostResp)
+	profileUUID := checkProfileInstallStatus(t, getHostResp, "N0", automdm.MDMDeliveryPending, "")
 
 	cmd, err := mdmDevice.Idle()
 	require.NoError(t, err)
@@ -1965,7 +1965,7 @@ func (s *integrationMDMTestSuite) TestCustomSCEPIntegration() {
 			FROM host_mdm_apple_profiles WHERE host_uuid = ? AND profile_uuid = ?`, otherHostUUID, host.UUID, profileUUID)
 		require.NoError(t, err)
 		_, err = q.ExecContext(ctx, `INSERT INTO host_mdm_managed_certificates (host_uuid, profile_uuid, type, ca_name) VALUES (?, ?, ?, ?)`,
-			otherHostUUID, profileUUID, fleet.CAConfigCustomSCEPProxy, "scepName")
+			otherHostUUID, profileUUID, automdm.CAConfigCustomSCEPProxy, "scepName")
 		require.NoError(t, err)
 		return nil
 	})
@@ -1999,8 +1999,8 @@ func (s *integrationMDMTestSuite) TestCustomSCEPIntegration() {
 	assert.Nil(t, cmd)
 
 	getHostResp = getDeviceHostResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", host.ID), nil, http.StatusOK, &getHostResp)
-	profileUUIDTest := checkProfileInstallStatus(t, getHostResp, "N0", fleet.MDMDeliveryVerifying, "")
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", host.ID), nil, http.StatusOK, &getHostResp)
+	profileUUIDTest := checkProfileInstallStatus(t, getHostResp, "N0", automdm.MDMDeliveryVerifying, "")
 	require.Equal(t, profileUUID, profileUUIDTest, "Expected the same profile UUID after re-sending the SCEP profile")
 
 	// Try again, it should fail because the profile is not pending
@@ -2042,7 +2042,7 @@ func (s *integrationMDMTestSuite) TestCustomSCEPIntegration() {
 		stmt := "SELECT coalesce(status, '') FROM host_mdm_apple_profiles WHERE host_uuid = ? AND profile_uuid = ?"
 		err := sqlx.GetContext(context.Background(), q, &status, stmt, host.UUID, profileUUID)
 		require.NoError(t, err)
-		require.Equal(t, string(fleet.MDMDeliveryPending), status, "Expected profile status to be pending after re-sending the SCEP profile")
+		require.Equal(t, string(automdm.MDMDeliveryPending), status, "Expected profile status to be pending after re-sending the SCEP profile")
 		return nil
 	})
 
@@ -2056,7 +2056,7 @@ func (s *integrationMDMTestSuite) TestCustomSCEPIntegration() {
 		stmt := "SELECT coalesce(status, '')  FROM host_mdm_apple_profiles WHERE host_uuid = ? AND profile_uuid = ?"
 		err := sqlx.GetContext(context.Background(), q, &status, stmt, host.UUID, profileUUID)
 		require.NoError(t, err)
-		require.Equal(t, string(fleet.MDMDeliveryPending), status, "Expected profile status to be pending after re-sending the SCEP profile")
+		require.Equal(t, string(automdm.MDMDeliveryPending), status, "Expected profile status to be pending after re-sending the SCEP profile")
 		return nil
 	})
 
@@ -2070,8 +2070,8 @@ func (s *integrationMDMTestSuite) TestCustomSCEPIntegration() {
 
 	// Check the host details
 	getHostResp = getDeviceHostResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", host.ID), nil, http.StatusOK, &getHostResp)
-	profileUUID2 := checkProfileInstallStatus(t, getHostResp, "N0", fleet.MDMDeliveryPending, "")
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", host.ID), nil, http.StatusOK, &getHostResp)
+	profileUUID2 := checkProfileInstallStatus(t, getHostResp, "N0", automdm.MDMDeliveryPending, "")
 	require.Equal(t, profileUUID, profileUUID2, "Expected the same profile UUID after re-sending the SCEP profile")
 
 	// Expire the challenge so that the next PKIOperation fails
@@ -2100,8 +2100,8 @@ func (s *integrationMDMTestSuite) TestCustomSCEPIntegration() {
 
 	// Check hosts details, derived status should still be pending
 	getHostResp = getDeviceHostResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", host.ID), nil, http.StatusOK, &getHostResp)
-	profileUUID2 = checkProfileInstallStatus(t, getHostResp, "N0", fleet.MDMDeliveryPending, "")
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", host.ID), nil, http.StatusOK, &getHostResp)
+	profileUUID2 = checkProfileInstallStatus(t, getHostResp, "N0", automdm.MDMDeliveryPending, "")
 	require.Equal(t, profileUUID, profileUUID2, "Expected the same profile UUID after re-sending the SCEP profile")
 
 	// Reconcile profiles, raw status becomes pending
@@ -2111,7 +2111,7 @@ func (s *integrationMDMTestSuite) TestCustomSCEPIntegration() {
 		stmt := "SELECT coalesce(status, '') FROM host_mdm_apple_profiles WHERE host_uuid = ? AND profile_uuid = ?"
 		err := sqlx.GetContext(context.Background(), q, &status, stmt, host.UUID, profileUUID)
 		require.NoError(t, err)
-		require.Equal(t, string(fleet.MDMDeliveryPending), status, "Expected profile status to be pending after re-sending the SCEP profile")
+		require.Equal(t, string(automdm.MDMDeliveryPending), status, "Expected profile status to be pending after re-sending the SCEP profile")
 		return nil
 	})
 
@@ -2125,7 +2125,7 @@ func (s *integrationMDMTestSuite) TestCustomSCEPIntegration() {
 		stmt := "SELECT coalesce(status, '') FROM host_mdm_apple_profiles WHERE host_uuid = ? AND profile_uuid = ?"
 		err := sqlx.GetContext(context.Background(), q, &status, stmt, host.UUID, profileUUID)
 		require.NoError(t, err)
-		require.Equal(t, string(fleet.MDMDeliveryPending), status, "Expected profile status to be pending after re-sending the SCEP profile")
+		require.Equal(t, string(automdm.MDMDeliveryPending), status, "Expected profile status to be pending after re-sending the SCEP profile")
 		return nil
 	})
 
@@ -2150,19 +2150,19 @@ func (s *integrationMDMTestSuite) TestCustomSCEPIntegration() {
 	require.NoError(t, err)
 	assert.Nil(t, cmd)
 	getHostResp = getDeviceHostResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", host.ID), nil, http.StatusOK, &getHostResp)
-	profileUUID3 := checkProfileInstallStatus(t, getHostResp, "N0", fleet.MDMDeliveryVerifying, "")
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", host.ID), nil, http.StatusOK, &getHostResp)
+	profileUUID3 := checkProfileInstallStatus(t, getHostResp, "N0", automdm.MDMDeliveryVerifying, "")
 	require.Equal(t, profileUUID2, profileUUID3, "Expected the same profile UUID after acknowledging the SCEP profile")
 
-	verifySCEPProfile(t, host, fleet.HostMacOSProfile{
+	verifySCEPProfile(t, host, automdm.HostMacOSProfile{
 		Identifier:  "I0",
 		DisplayName: "N0",
 		InstallDate: time.Now(),
 	}, profileUUID, "scepName")
 
 	getHostResp = getDeviceHostResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", host.ID), nil, http.StatusOK, &getHostResp)
-	profileUUID4 := checkProfileInstallStatus(t, getHostResp, "N0", fleet.MDMDeliveryVerified, "")
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", host.ID), nil, http.StatusOK, &getHostResp)
+	profileUUID4 := checkProfileInstallStatus(t, getHostResp, "N0", automdm.MDMDeliveryVerified, "")
 	require.Equal(t, profileUUID3, profileUUID4, "Expected the same profile UUID after verifying the SCEP profile")
 
 	// No more commands pending
@@ -2172,13 +2172,13 @@ func (s *integrationMDMTestSuite) TestCustomSCEPIntegration() {
 
 	// ////////////////////////////////////////////
 	// Remove the CAs and try to re-send the profile
-	s.DoRaw("DELETE", fmt.Sprintf("/api/latest/fleet/certificate_authorities/%d", res1.ID), nil, http.StatusNoContent)
-	s.DoRaw("DELETE", fmt.Sprintf("/api/latest/fleet/certificate_authorities/%d", res2.ID), nil, http.StatusNoContent)
-	_ = s.DoRaw("POST", fmt.Sprintf("/api/latest/fleet/hosts/%d/configuration_profiles/%s/resend", host.ID, profileUUID), nil, http.StatusAccepted)
+	s.DoRaw("DELETE", fmt.Sprintf("/api/latest/automdm/certificate_authorities/%d", res1.ID), nil, http.StatusNoContent)
+	s.DoRaw("DELETE", fmt.Sprintf("/api/latest/automdm/certificate_authorities/%d", res2.ID), nil, http.StatusNoContent)
+	_ = s.DoRaw("POST", fmt.Sprintf("/api/latest/automdm/hosts/%d/configuration_profiles/%s/resend", host.ID, profileUUID), nil, http.StatusAccepted)
 	s.awaitTriggerProfileSchedule(t)
 	getHostResp = getDeviceHostResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", host.ID), nil, http.StatusOK, &getHostResp)
-	checkProfileInstallStatus(t, getHostResp, "N0", fleet.MDMDeliveryFailed,
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", host.ID), nil, http.StatusOK, &getHostResp)
+	checkProfileInstallStatus(t, getHostResp, "N0", automdm.MDMDeliveryFailed,
 		"scepName certificate authority doesn't exist")
 }
 
@@ -2208,13 +2208,13 @@ func (s *integrationMDMTestSuite) TestEJBCAIntegration() {
 
 	appConfig, err := s.ds.AppConfig(ctx)
 	require.NoError(t, err)
-	appConfig.MDM.MacOSSetup = fleet.MacOSSetup{EnableEndUserAuthentication: false}
+	appConfig.MDM.MacOSSetup = automdm.MacOSSetup{EnableEndUserAuthentication: false}
 	require.NoError(t, s.ds.SaveAppConfig(ctx, appConfig))
 
 	const p12Password = "p12-password"
 	createCA := func(fake *ejbcatest.Server, name, endEntityProfile string) uint {
 		var res createCertificateAuthorityResponse
-		s.DoJSON("POST", "/api/latest/fleet/certificate_authorities", map[string]any{"ejbca": map[string]any{
+		s.DoJSON("POST", "/api/latest/automdm/certificate_authorities", map[string]any{"ejbca": map[string]any{
 			"name":                             name,
 			"url":                              fake.HTTP.URL,
 			"client_p12":                       fake.ClientP12(t, time.Now().Add(365*24*time.Hour), p12Password),
@@ -2223,8 +2223,8 @@ func (s *integrationMDMTestSuite) TestEJBCAIntegration() {
 			"certificate_authority_name":       ejbcatest.CAName,
 			"certificate_profile_name":         ejbcatest.CertProfile,
 			"end_entity_profile_name":          endEntityProfile,
-			"certificate_common_name":          "$FLEET_VAR_HOST_HARDWARE_SERIAL cn",
-			"username_template":                "$FLEET_VAR_HOST_UUID",
+			"certificate_common_name":          "$AUTOMDM_VAR_HOST_HARDWARE_SERIAL cn",
+			"username_template":                "$AUTOMDM_VAR_HOST_UUID",
 			"certificate_user_principal_names": []string{"upn@example.com"},
 		}}, http.StatusOK, &res)
 		return res.ID
@@ -2248,9 +2248,9 @@ func (s *integrationMDMTestSuite) TestEJBCAIntegration() {
 	}
 	// Receive the enrollment profiles, which this test doesn't check.
 	drainCommands()
-	// The reconciler skips a host that is still being set up, so Fleet's own profiles (fleetd config and root CA) are only queued
+	// The reconciler skips a host that is still being set up, so AutoMDM's own profiles (automdmd config and root CA) are only queued
 	// on the first tick after the flag is cleared. Deliver them now so they can't arrive in the middle of the test.
-	require.NoError(t, s.keyValueStore.Delete(ctx, fleet.MDMProfileProcessingKeyPrefix+":"+host.UUID))
+	require.NoError(t, s.keyValueStore.Delete(ctx, automdm.MDMProfileProcessingKeyPrefix+":"+host.UUID))
 	s.awaitTriggerProfileSchedule(t)
 	drainCommands()
 
@@ -2281,12 +2281,12 @@ func (s *integrationMDMTestSuite) TestEJBCAIntegration() {
 		require.NoError(t, err)
 		return certificate
 	}
-	setProfiles := func(profiles ...fleet.MDMProfileBatchPayload) {
-		s.Do("POST", "/api/latest/fleet/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: profiles}, http.StatusNoContent)
+	setProfiles := func(profiles ...automdm.MDMProfileBatchPayload) {
+		s.Do("POST", "/api/latest/automdm/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: profiles}, http.StatusNoContent)
 	}
 
 	// A profile that uses a CA that doesn't exist is rejected.
-	rawRes := s.Do("POST", "/api/latest/fleet/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{
+	rawRes := s.Do("POST", "/api/latest/automdm/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{
 		{Name: "N1", Contents: ejbcaForTest("N1", "I1", "badName")},
 	}}, http.StatusBadRequest)
 	require.Contains(t, extractServerErrorText(rawRes.Body), "_badName does not exist")
@@ -2294,7 +2294,7 @@ func (s *integrationMDMTestSuite) TestEJBCAIntegration() {
 
 	// The host gets a certificate, with the common name and UPN of the CA filled in, and under the username of the CA.
 	profile := ejbcaForTest("N2", "I2", "ejbca_CA")
-	setProfiles(fleet.MDMProfileBatchPayload{Name: "N2", Contents: profile})
+	setProfiles(automdm.MDMProfileBatchPayload{Name: "N2", Contents: profile})
 	s.awaitTriggerProfileSchedule(t)
 	p := s.assertConfigProfilesByIdentifier(nil, "I2", true)
 	certificate := installedCertificate()
@@ -2307,15 +2307,15 @@ func (s *integrationMDMTestSuite) TestEJBCAIntegration() {
 	managed, err := s.ds.GetAppleHostMDMCertificateProfile(ctx, host.UUID, p.ProfileUUID, "ejbca_CA")
 	require.NoError(t, err)
 	require.NotNil(t, managed)
-	assert.Equal(t, fleet.CAConfigEJBCA, managed.Type)
-	assert.Equal(t, fleet.MDMDeliveryVerifying, *managed.Status)
+	assert.Equal(t, automdm.CAConfigEJBCA, managed.Type)
+	assert.Equal(t, automdm.MDMDeliveryVerifying, *managed.Status)
 	require.NotNil(t, managed.NotValidAfter)
 	assert.True(t, managed.NotValidAfter.Equal(certificate.NotAfter))
 	require.NotNil(t, managed.Serial)
 	assert.Equal(t, fmt.Sprintf("%040s", certificate.SerialNumber.Text(16)), *managed.Serial)
 
 	// Changing the connection settings doesn't issue new certificates.
-	s.Do("PATCH", fmt.Sprintf("/api/latest/fleet/certificate_authorities/%d", caID),
+	s.Do("PATCH", fmt.Sprintf("/api/latest/automdm/certificate_authorities/%d", caID),
 		map[string]any{"ejbca": map[string]any{"trust_ca_bundle": fake.ServerPEM}}, http.StatusOK)
 	s.awaitTriggerProfileSchedule(t)
 	cmd, err := mdmDevice.Idle()
@@ -2323,8 +2323,8 @@ func (s *integrationMDMTestSuite) TestEJBCAIntegration() {
 	require.Nil(t, cmd, "a connection change doesn't resend the profile")
 
 	// Changing a certificate field does, and the host gets a new certificate.
-	s.Do("PATCH", fmt.Sprintf("/api/latest/fleet/certificate_authorities/%d", caID),
-		map[string]any{"ejbca": map[string]any{"certificate_common_name": "new $FLEET_VAR_HOST_HARDWARE_SERIAL"}}, http.StatusOK)
+	s.Do("PATCH", fmt.Sprintf("/api/latest/automdm/certificate_authorities/%d", caID),
+		map[string]any{"ejbca": map[string]any{"certificate_common_name": "new $AUTOMDM_VAR_HOST_HARDWARE_SERIAL"}}, http.StatusOK)
 	s.awaitTriggerProfileSchedule(t)
 	certificate = installedCertificate()
 	assert.Equal(t, "new "+host.HardwareSerial, certificate.Subject.CommonName)
@@ -2334,18 +2334,18 @@ func (s *integrationMDMTestSuite) TestEJBCAIntegration() {
 	// An enrollment EJBCA rejects fails the profile with the reason.
 	createCA(fake, "fail_CA", "noSuchEndEntityProfile")
 	setProfiles(
-		fleet.MDMProfileBatchPayload{Name: "N2", Contents: profile},
-		fleet.MDMProfileBatchPayload{Name: "N3", Contents: ejbcaForTest("N3", "I3", "fail_CA")},
+		automdm.MDMProfileBatchPayload{Name: "N2", Contents: profile},
+		automdm.MDMProfileBatchPayload{Name: "N3", Contents: ejbcaForTest("N3", "I3", "fail_CA")},
 	)
 	s.awaitTriggerProfileSchedule(t)
 	getHostResp := getDeviceHostResponse{}
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", host.ID), nil, http.StatusOK, &getHostResp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", host.ID), nil, http.StatusOK, &getHostResp)
 	require.NotNil(t, getHostResp.Host.MDM.Profiles)
 	var foundFailed bool
 	for _, prof := range *getHostResp.Host.MDM.Profiles {
 		if prof.Name == "N3" {
 			foundFailed = true
-			assert.EqualValues(t, fleet.MDMDeliveryFailed, *prof.Status)
+			assert.EqualValues(t, automdm.MDMDeliveryFailed, *prof.Status)
 			assert.Contains(t, prof.Detail, "Couldn't get certificate from EJBCA for fail_CA.")
 			assert.Contains(t, prof.Detail, `End Entity Profile of name "noSuchEndEntityProfile" was not found`)
 		}
@@ -2356,29 +2356,29 @@ func (s *integrationMDMTestSuite) TestEJBCAIntegration() {
 	unavailable := ejbcatest.New(t, func(f *ejbcatest.Server) { f.EnrollStatus = http.StatusServiceUnavailable })
 	createCA(unavailable, "down_CA", ejbcatest.EndEntityProfile)
 	setProfiles(
-		fleet.MDMProfileBatchPayload{Name: "N2", Contents: profile},
-		fleet.MDMProfileBatchPayload{Name: "N3", Contents: ejbcaForTest("N3", "I3", "fail_CA")},
-		fleet.MDMProfileBatchPayload{Name: "N4", Contents: ejbcaForTest("N4", "I4", "down_CA")},
+		automdm.MDMProfileBatchPayload{Name: "N2", Contents: profile},
+		automdm.MDMProfileBatchPayload{Name: "N3", Contents: ejbcaForTest("N3", "I3", "fail_CA")},
+		automdm.MDMProfileBatchPayload{Name: "N4", Contents: ejbcaForTest("N4", "I4", "down_CA")},
 	)
-	hostProfile := func(name string) fleet.HostMDMProfile {
+	hostProfile := func(name string) automdm.HostMDMProfile {
 		var resp getDeviceHostResponse
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", host.ID), nil, http.StatusOK, &resp)
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", host.ID), nil, http.StatusOK, &resp)
 		for _, prof := range *resp.Host.MDM.Profiles {
 			if prof.Name == name {
 				return prof
 			}
 		}
 		require.Failf(t, "profile not found", "profile %s", name)
-		return fleet.HostMDMProfile{}
+		return automdm.HostMDMProfile{}
 	}
-	statusOf := func(prof fleet.HostMDMProfile) string {
+	statusOf := func(prof automdm.HostMDMProfile) string {
 		if prof.Status == nil {
 			return ""
 		}
 		return *prof.Status
 	}
 	retries := func() uint {
-		counts, err := s.ds.GetHostMDMProfilesRetryCounts(ctx, &fleet.Host{UUID: host.UUID, Platform: "darwin"})
+		counts, err := s.ds.GetHostMDMProfilesRetryCounts(ctx, &automdm.Host{UUID: host.UUID, Platform: "darwin"})
 		require.NoError(t, err)
 		for _, count := range counts {
 			if count.ProfileIdentifier == "I4" {
@@ -2391,11 +2391,11 @@ func (s *integrationMDMTestSuite) TestEJBCAIntegration() {
 	for attempt := uint(1); attempt <= mdm.MaxAppleProfileRetries; attempt++ {
 		s.awaitTriggerProfileSchedule(t)
 		assert.Equal(t, attempt, retries())
-		assert.NotEqual(t, string(fleet.MDMDeliveryFailed), statusOf(hostProfile("N4")), "attempt %d", attempt)
+		assert.NotEqual(t, string(automdm.MDMDeliveryFailed), statusOf(hostProfile("N4")), "attempt %d", attempt)
 	}
 	s.awaitTriggerProfileSchedule(t)
 	failedProfile := hostProfile("N4")
-	assert.Equal(t, string(fleet.MDMDeliveryFailed), statusOf(failedProfile))
+	assert.Equal(t, string(automdm.MDMDeliveryFailed), statusOf(failedProfile))
 	assert.Contains(t, failedProfile.Detail, "Couldn't get certificate from EJBCA for down_CA.")
 	var enrollAttempts int
 	for _, request := range unavailable.Requests() {

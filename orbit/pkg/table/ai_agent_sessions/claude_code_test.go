@@ -15,15 +15,15 @@ import (
 // command, a refused command, a refused-looking MCP result and a final reply.
 var claudeTranscript = lines(
 	`{"type":"queue-operation","operation":"enqueue","timestamp":"2026-08-11T13:27:08.788Z","sessionId":"5d1f26db","content":"..."}`,
-	`{"type":"user","sessionId":"5d1f26db","timestamp":"2026-08-11T13:27:10.000Z","cwd":"/Users/alice/GitHub/fleet","version":"2.1.222","gitBranch":"main","message":{"role":"user","content":"fix the build"}}`,
-	`{"type":"assistant","sessionId":"5d1f26db","timestamp":"2026-08-11T13:27:20.000Z","cwd":"/Users/alice/GitHub/fleet","version":"2.1.222","gitBranch":"main","message":{"id":"m1","role":"assistant","model":"claude-opus-5","content":[{"type":"text","text":"Looking."},{"type":"tool_use","id":"t1","name":"Read","input":{"file_path":"/Users/alice/GitHub/fleet/Makefile"}}],"usage":{"input_tokens":10,"output_tokens":248,"cache_read_input_tokens":30802,"cache_creation_input_tokens":22539}}}`,
-	`{"type":"assistant","sessionId":"5d1f26db","timestamp":"2026-08-11T13:27:21.000Z","cwd":"/Users/alice/GitHub/fleet","version":"2.1.222","gitBranch":"main","message":{"id":"m1","role":"assistant","model":"claude-opus-5","content":[{"type":"tool_use","id":"t2","name":"Bash","input":{"command":"make build\necho done"}}],"usage":{"input_tokens":10,"output_tokens":248,"cache_read_input_tokens":30802,"cache_creation_input_tokens":22539}}}`,
-	`{"type":"user","sessionId":"5d1f26db","timestamp":"2026-08-11T13:27:25.000Z","cwd":"/Users/alice/GitHub/fleet","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"file contents"},{"type":"tool_result","tool_use_id":"t2","is_error":true,"content":"Exit code 2\nboom"}]}}`,
-	`{"type":"assistant","sessionId":"5d1f26db","timestamp":"2026-08-11T13:27:40.000Z","cwd":"/Users/alice/GitHub/fleet","message":{"id":"m2","role":"assistant","model":"claude-opus-5","content":[{"type":"tool_use","id":"t3","name":"Bash","input":{"command":"rm -rf /tmp/x"}}],"usage":{"input_tokens":5,"output_tokens":100,"cache_read_input_tokens":1000,"cache_creation_input_tokens":0}}}`,
+	`{"type":"user","sessionId":"5d1f26db","timestamp":"2026-08-11T13:27:10.000Z","cwd":"/Users/alice/GitHub/automdm","version":"2.1.222","gitBranch":"main","message":{"role":"user","content":"fix the build"}}`,
+	`{"type":"assistant","sessionId":"5d1f26db","timestamp":"2026-08-11T13:27:20.000Z","cwd":"/Users/alice/GitHub/automdm","version":"2.1.222","gitBranch":"main","message":{"id":"m1","role":"assistant","model":"claude-opus-5","content":[{"type":"text","text":"Looking."},{"type":"tool_use","id":"t1","name":"Read","input":{"file_path":"/Users/alice/GitHub/automdm/Makefile"}}],"usage":{"input_tokens":10,"output_tokens":248,"cache_read_input_tokens":30802,"cache_creation_input_tokens":22539}}}`,
+	`{"type":"assistant","sessionId":"5d1f26db","timestamp":"2026-08-11T13:27:21.000Z","cwd":"/Users/alice/GitHub/automdm","version":"2.1.222","gitBranch":"main","message":{"id":"m1","role":"assistant","model":"claude-opus-5","content":[{"type":"tool_use","id":"t2","name":"Bash","input":{"command":"make build\necho done"}}],"usage":{"input_tokens":10,"output_tokens":248,"cache_read_input_tokens":30802,"cache_creation_input_tokens":22539}}}`,
+	`{"type":"user","sessionId":"5d1f26db","timestamp":"2026-08-11T13:27:25.000Z","cwd":"/Users/alice/GitHub/automdm","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"file contents"},{"type":"tool_result","tool_use_id":"t2","is_error":true,"content":"Exit code 2\nboom"}]}}`,
+	`{"type":"assistant","sessionId":"5d1f26db","timestamp":"2026-08-11T13:27:40.000Z","cwd":"/Users/alice/GitHub/automdm","message":{"id":"m2","role":"assistant","model":"claude-opus-5","content":[{"type":"tool_use","id":"t3","name":"Bash","input":{"command":"rm -rf /tmp/x"}}],"usage":{"input_tokens":5,"output_tokens":100,"cache_read_input_tokens":1000,"cache_creation_input_tokens":0}}}`,
 	`{"type":"user","sessionId":"5d1f26db","timestamp":"2026-08-11T13:27:45.000Z","toolDenialKind":"user-rejected","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t3","is_error":true,"content":"The user doesn't want to proceed with this tool use."}]}}`,
 	`{"type":"assistant","sessionId":"5d1f26db","timestamp":"2026-08-11T13:27:50.000Z","message":{"id":"m3","role":"assistant","model":"claude-opus-5","content":[{"type":"tool_use","id":"t4","name":"mcp__github__create_issue","input":{"title":"x"}}],"usage":{"input_tokens":1,"output_tokens":1}}}`,
 	`{"type":"user","sessionId":"5d1f26db","timestamp":"2026-08-11T13:27:55.000Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t4","is_error":true,"content":[{"type":"text","text":"The user doesn't want to proceed"}]}]}}`,
-	`{"type":"assistant","sessionId":"5d1f26db","timestamp":"2026-08-11T13:28:10.000Z","cwd":"/Users/alice/GitHub/fleet","version":"2.1.222","gitBranch":"allenhouchins/fix","message":{"id":"m4","role":"assistant","model":"<synthetic>","content":[{"type":"text","text":"Done."}]}}`,
+	`{"type":"assistant","sessionId":"5d1f26db","timestamp":"2026-08-11T13:28:10.000Z","cwd":"/Users/alice/GitHub/automdm","version":"2.1.222","gitBranch":"allenhouchins/fix","message":{"id":"m4","role":"assistant","model":"<synthetic>","content":[{"type":"text","text":"Done."}]}}`,
 )
 
 var claudeSubagent = lines(
@@ -71,7 +71,7 @@ func writeClaudePrompts(t *testing.T, home, id string, prompts ...string) string
 
 func writeClaudeFixture(t *testing.T, home string) (main, sub string) {
 	t.Helper()
-	proj := filepath.Join(home, ".claude", "projects", "-Users-alice-GitHub-fleet")
+	proj := filepath.Join(home, ".claude", "projects", "-Users-alice-GitHub-automdm")
 	main = filepath.Join(proj, "5d1f26db.jsonl")
 	sub = filepath.Join(proj, "5d1f26db", "subagents", "agent-a1.jsonl")
 	writeFile(t, main, claudeTranscript)
@@ -88,7 +88,7 @@ func TestClaudeCodeSession(t *testing.T) {
 		"agent":          agentClaudeCode,
 		"session_id":     "5d1f26db",
 		"username":       "alice",
-		"project_path":   "/Users/alice/GitHub/fleet",
+		"project_path":   "/Users/alice/GitHub/automdm",
 		"git_branch":     "allenhouchins/fix",
 		"git_repository": "",
 		"agent_version":  "2.1.222",
@@ -141,17 +141,17 @@ func TestClaudeCodeMessages(t *testing.T) {
 	require.Empty(t, rows[0]["model"])
 	require.Equal(t, "Done.", rows[13]["content"])
 	require.Empty(t, rows[13]["model"], "synthetic model is dropped")
-	require.JSONEq(t, `{"file_path":"/Users/alice/GitHub/fleet/Makefile"}`, rows[2]["content"])
+	require.JSONEq(t, `{"file_path":"/Users/alice/GitHub/automdm/Makefile"}`, rows[2]["content"])
 	require.Equal(t, "t1", rows[2]["tool_use_id"])
 	require.Equal(t, "t1", rows[4]["tool_use_id"])
-	require.Equal(t, "/Users/alice/GitHub/fleet", rows[2]["cwd"])
+	require.Equal(t, "/Users/alice/GitHub/automdm", rows[2]["cwd"])
 	require.Equal(t, "1786454840", rows[2]["timestamp"])
 	require.Equal(t, main, rows[0]["transcript_path"])
 	require.Equal(t, main, rows[len(rows)-1]["transcript_path"], "sub-agent rows report the session's transcript")
 	require.FileExists(t, sub)
 
 	require.Equal(t, []string{
-		"Read | read | /Users/alice/GitHub/fleet/Makefile | allowed",
+		"Read | read | /Users/alice/GitHub/automdm/Makefile | allowed",
 		"Bash | execute | make build | error",
 		`Grep | search | "TODO" in src | allowed`,
 		"Bash | execute | rm -rf /tmp/x | denied",

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
 type PolicyData struct {
@@ -106,7 +106,7 @@ func tableFromExistsQuery(existsQuery string) string {
 }
 
 // GenerateFromInstaller creates a patch policy with all fields from an installer
-func GenerateFromInstaller(p PolicyData, installer *fleet.SoftwareInstaller) (*PolicyData, error) {
+func GenerateFromInstaller(p PolicyData, installer *automdm.SoftwareInstaller) (*PolicyData, error) {
 	// use the patch policy query from the app manifest if available
 	query := installer.PatchQuery
 

@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strings"
 
-	maintained_apps "github.com/fleetdm/fleet/v4/ee/maintained-apps"
+	maintained_apps "github.com/anilyagiz/automdm/v4/ee/maintained-apps"
 )
 
 var sublimeTextBuildRegex = regexp.MustCompile(`sublime_text_build_(\d{4})_`)

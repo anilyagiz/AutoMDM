@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	microsoft_mdm "github.com/fleetdm/fleet/v4/server/mdm/microsoft"
-	"github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	microsoft_mdm "github.com/anilyagiz/automdm/v4/server/mdm/microsoft"
+	"github.com/anilyagiz/automdm/v4/server/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"pgregory.net/rapid"
@@ -68,55 +68,55 @@ type pbtESPTrace struct {
 // mocked empty so the property focuses on Stage 3 + finalize. Profile-stage logic is covered by the
 // example-based subtests in TestGetESPCommands.
 func newPBTESPSvc(
-	statuses []fleet.SetupExperienceStatusResultStatus, timedOut, requireAll bool,
-) (*Service, *fleet.MDMWindowsEnrolledDevice, *pbtESPTrace) {
+	statuses []automdm.SetupExperienceStatusResultStatus, timedOut, requireAll bool,
+) (*Service, *automdm.MDMWindowsEnrolledDevice, *pbtESPTrace) {
 	ds := new(mock.Store)
 	trace := &pbtESPTrace{}
 
 	osqueryHostID := "pbt-esp-osq"
-	ds.HostLiteByIdentifierFunc = func(ctx context.Context, id string) (*fleet.HostLite, error) {
-		return &fleet.HostLite{ID: 1, UUID: id, OsqueryHostID: &osqueryHostID, TeamID: nil}, nil
+	ds.HostLiteByIdentifierFunc = func(ctx context.Context, id string) (*automdm.HostLite, error) {
+		return &automdm.HostLite{ID: 1, UUID: id, OsqueryHostID: &osqueryHostID, TeamID: nil}, nil
 	}
-	ds.HostLiteByIDFunc = func(ctx context.Context, id uint) (*fleet.HostLite, error) {
-		return &fleet.HostLite{ID: id, OsqueryHostID: &osqueryHostID, TeamID: nil}, nil
+	ds.HostLiteByIDFunc = func(ctx context.Context, id uint) (*automdm.HostLite, error) {
+		return &automdm.HostLite{ID: id, OsqueryHostID: &osqueryHostID, TeamID: nil}, nil
 	}
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		ac := &fleet.AppConfig{}
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		ac := &automdm.AppConfig{}
 		ac.MDM.WindowsEnabledAndConfigured = true
 		ac.MDM.MacOSSetup.RequireAllSoftwareWindows = requireAll
 		return ac, nil
 	}
 
 	// Profiles are out of PBT scope.
-	ds.GetWindowsMDMHostForReconcileFunc = func(ctx context.Context, hUUID string) (*fleet.WindowsHostReconcileInfo, error) {
-		return &fleet.WindowsHostReconcileInfo{HostID: 1, UUID: hUUID}, nil
+	ds.GetWindowsMDMHostForReconcileFunc = func(ctx context.Context, hUUID string) (*automdm.WindowsHostReconcileInfo, error) {
+		return &automdm.WindowsHostReconcileInfo{HostID: 1, UUID: hUUID}, nil
 	}
-	ds.ListWindowsProfilesForReconcileByTeamFunc = func(ctx context.Context, teamID uint) ([]*fleet.WindowsProfileForReconcile, error) {
+	ds.ListWindowsProfilesForReconcileByTeamFunc = func(ctx context.Context, teamID uint) ([]*automdm.WindowsProfileForReconcile, error) {
 		return nil, nil
 	}
 	ds.BulkGetHostLabelMembershipsFunc = func(ctx context.Context, hostIDs, labelIDs []uint) (map[uint]map[uint]struct{}, error) {
 		return nil, nil
 	}
-	ds.BulkGetHostMDMWindowsProfilesByUUIDsFunc = func(ctx context.Context, hostUUIDs []string) (map[string][]*fleet.MDMWindowsProfilePayload, error) {
+	ds.BulkGetHostMDMWindowsProfilesByUUIDsFunc = func(ctx context.Context, hostUUIDs []string) (map[string][]*automdm.MDMWindowsProfilePayload, error) {
 		return nil, nil
 	}
-	ds.GetHostMDMWindowsProfilesFunc = func(ctx context.Context, hUUID string) ([]fleet.HostMDMWindowsProfile, error) {
+	ds.GetHostMDMWindowsProfilesFunc = func(ctx context.Context, hUUID string) ([]automdm.HostMDMWindowsProfile, error) {
 		return nil, nil
 	}
 
 	// Stage 3 results plus the cancel-block re-list both go through this single mock so they're consistent.
 	// Each row gets a HostSoftwareInstallsExecutionID so the cancel-upcoming loop has something to cancel on
 	// non-terminal rows.
-	results := make([]*fleet.SetupExperienceStatusResult, 0, len(statuses))
+	results := make([]*automdm.SetupExperienceStatusResult, 0, len(statuses))
 	for i, s := range statuses {
 		execID := fmt.Sprintf("pbt-exec-%d", i)
-		results = append(results, &fleet.SetupExperienceStatusResult{
+		results = append(results, &automdm.SetupExperienceStatusResult{
 			Name:                            fmt.Sprintf("item-%d", i),
 			Status:                          s,
 			HostSoftwareInstallsExecutionID: &execID,
 		})
 	}
-	ds.ListSetupExperienceResultsByHostUUIDFunc = func(ctx context.Context, hUUID string, teamID uint) ([]*fleet.SetupExperienceStatusResult, error) {
+	ds.ListSetupExperienceResultsByHostUUIDFunc = func(ctx context.Context, hUUID string, teamID uint) ([]*automdm.SetupExperienceStatusResult, error) {
 		return results, nil
 	}
 	// The empty-results disambiguation case (empty results + has_items=true → wait) is covered by
@@ -128,7 +128,7 @@ func newPBTESPSvc(
 
 	// Side-effect hooks. callOrder lets the property assert the cancel-upcoming → cancel-status → persist →
 	// cas ordering safely.
-	ds.CancelHostUpcomingActivityFunc = func(ctx context.Context, hostID uint, executionID string) (fleet.ActivityDetails, error) {
+	ds.CancelHostUpcomingActivityFunc = func(ctx context.Context, hostID uint, executionID string) (automdm.ActivityDetails, error) {
 		trace.cancelUpcomingExecIDs = append(trace.cancelUpcomingExecIDs, executionID)
 		trace.callOrder = append(trace.callOrder, "cancel-upcoming")
 		return nil, nil
@@ -137,28 +137,28 @@ func newPBTESPSvc(
 		trace.callOrder = append(trace.callOrder, "cancel-status")
 		return nil
 	}
-	ds.MDMWindowsInsertCommandsForHostFunc = func(ctx context.Context, hostUUIDOrDeviceID string, cmds []*fleet.MDMWindowsCommand) error {
+	ds.MDMWindowsInsertCommandsForHostFunc = func(ctx context.Context, hostUUIDOrDeviceID string, cmds []*automdm.MDMWindowsCommand) error {
 		trace.callOrder = append(trace.callOrder, "persist")
 		for _, c := range cmds {
 			trace.persistedCmdUUIDs = append(trace.persistedCmdUUIDs, c.CommandUUID)
 		}
 		return nil
 	}
-	ds.SetMDMWindowsAwaitingConfigurationFunc = func(ctx context.Context, mdmDeviceID string, from, to fleet.WindowsMDMAwaitingConfiguration) (bool, error) {
+	ds.SetMDMWindowsAwaitingConfigurationFunc = func(ctx context.Context, mdmDeviceID string, from, to automdm.WindowsMDMAwaitingConfiguration) (bool, error) {
 		trace.callOrder = append(trace.callOrder, "cas")
 		return true, nil
 	}
-	ds.MDMWindowsGetESPReleaseAckStatusFunc = func(ctx context.Context, enrollmentID uint, targetLocURI, cmdUUIDPrefix string) (*fleet.MDMWindowsESPReleaseAckStatus, error) {
-		return &fleet.MDMWindowsESPReleaseAckStatus{}, nil
+	ds.MDMWindowsGetESPReleaseAckStatusFunc = func(ctx context.Context, enrollmentID uint, targetLocURI, cmdUUIDPrefix string) (*automdm.MDMWindowsESPReleaseAckStatus, error) {
+		return &automdm.MDMWindowsESPReleaseAckStatus{}, nil
 	}
 
 	svc := &Service{ds: ds, logger: pbtESPLogger}
 	svc.SetActivityService(&mock.MockActivityService{})
 
-	device := &fleet.MDMWindowsEnrolledDevice{
+	device := &automdm.MDMWindowsEnrolledDevice{
 		MDMDeviceID:           pbtESPDeviceID,
 		HostUUID:              pbtESPHostUUID,
-		AwaitingConfiguration: fleet.WindowsMDMAwaitingConfigurationActive,
+		AwaitingConfiguration: automdm.WindowsMDMAwaitingConfigurationActive,
 	}
 	if timedOut {
 		past := time.Now().Add(-4 * time.Hour)
@@ -187,14 +187,14 @@ const (
 // reflects the inputs there. The require_all=true timeout path does not re-examine them (a real failure would already
 // have hard-blocked on an earlier check-in), so observedHasFailure stays false there even when a failure is present.
 func pbtESPSpec(
-	statuses []fleet.SetupExperienceStatusResultStatus, timedOut, requireAll bool,
+	statuses []automdm.SetupExperienceStatusResultStatus, timedOut, requireAll bool,
 ) (decision pbtESPDecision, observedHasFailure bool) {
 	var inputAnyInFlight, inputHasFailure bool
 	for _, s := range statuses {
 		switch s {
-		case fleet.SetupExperienceStatusFailure:
+		case automdm.SetupExperienceStatusFailure:
 			inputHasFailure = true
-		case fleet.SetupExperienceStatusPending, fleet.SetupExperienceStatusRunning:
+		case automdm.SetupExperienceStatusPending, automdm.SetupExperienceStatusRunning:
 			inputAnyInFlight = true
 		}
 	}
@@ -230,7 +230,7 @@ func pbtESPSpec(
 }
 
 // pbtFindCmdByLocURI returns the first command whose target LocURI contains the given substring.
-func pbtFindCmdByLocURI(cmds []*fleet.SyncMLCmd, substr string) *fleet.SyncMLCmd {
+func pbtFindCmdByLocURI(cmds []*automdm.SyncMLCmd, substr string) *automdm.SyncMLCmd {
 	for _, c := range cmds {
 		if c.GetTargetURI() != "" && strings.Contains(c.GetTargetURI(), substr) {
 			return c
@@ -241,12 +241,12 @@ func pbtFindCmdByLocURI(cmds []*fleet.SyncMLCmd, substr string) *fleet.SyncMLCmd
 
 // TestPBT_HandleESPRelease tests releases due to software failures or timeout. It does not test the happy path (which requires an Ack from device). The happy path is covered by other tests.
 func TestPBT_HandleESPRelease(t *testing.T) {
-	statusGen := rapid.SampledFrom([]fleet.SetupExperienceStatusResultStatus{
-		fleet.SetupExperienceStatusPending,
-		fleet.SetupExperienceStatusRunning,
-		fleet.SetupExperienceStatusSuccess,
-		fleet.SetupExperienceStatusFailure,
-		fleet.SetupExperienceStatusCancelled,
+	statusGen := rapid.SampledFrom([]automdm.SetupExperienceStatusResultStatus{
+		automdm.SetupExperienceStatusPending,
+		automdm.SetupExperienceStatusRunning,
+		automdm.SetupExperienceStatusSuccess,
+		automdm.SetupExperienceStatusFailure,
+		automdm.SetupExperienceStatusCancelled,
 	})
 
 	rapid.Check(t, func(rt *rapid.T) {
@@ -259,7 +259,7 @@ func TestPBT_HandleESPRelease(t *testing.T) {
 		// order. Only the warn path consumes it (dynamic CustomErrorText).
 		var expectedFailedNames []string
 		for i, s := range statuses {
-			if s == fleet.SetupExperienceStatusFailure {
+			if s == automdm.SetupExperienceStatusFailure {
 				expectedFailedNames = append(expectedFailedNames, fmt.Sprintf("item-%d", i))
 			}
 		}
@@ -390,7 +390,7 @@ func TestPBT_HandleESPRelease(t *testing.T) {
 		expectedCancelUpcomingCount := 0
 		if expectedCancelBlock {
 			for _, s := range statuses {
-				if s == fleet.SetupExperienceStatusPending || s == fleet.SetupExperienceStatusRunning {
+				if s == automdm.SetupExperienceStatusPending || s == automdm.SetupExperienceStatusRunning {
 					expectedCancelUpcomingCount++
 				}
 			}

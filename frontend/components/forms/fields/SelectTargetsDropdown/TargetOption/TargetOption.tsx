@@ -83,7 +83,7 @@ const TargetOption = ({
         variant="subdued"
         size="small"
       >
-        <Icon name="plus" color="core-fleet-green" />
+        <Icon name="plus" color="core-automdm-green" />
       </Button>
     </div>
   );

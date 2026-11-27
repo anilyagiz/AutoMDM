@@ -130,7 +130,7 @@ func (o Order) ValidateOrderCreation(enrollment *Enrollment) error {
 		return RejectedIdentifierError("The identifier value does not match the host identifier for this enrollment")
 	}
 
-	// notBefore and notAfter, which are optional, must not be set because fleet is going
+	// notBefore and notAfter, which are optional, must not be set because team is going
 	// to control these and the Apple payload doesn't allow specification of them.
 	if o.NotBefore != nil || o.NotAfter != nil {
 		return MalformedError("notBefore and notAfter must not be set in the order request")

@@ -1,0 +1,211 @@
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+#
+# default.yml
+#
+# Use this global manifest (`default.yml`) to configure
+# top-level settings for your organization as a whole, and
+# controls/reports/etc that apply to all of your teams.
+#
+# To see all supported options, check out:
+#   • https://automdm.com/docs/configuration/yaml-files
+#
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+org_settings:
+  org_info:
+    ###########################################################
+    # The name of your organization is displayed to end users
+    # during the setup experience for new hardware, and to admins
+    # in the AutoMDM UI.
+    #
+    # Read more:
+    #   • https://automdm.com/docs/configuration/yaml-files#org-info
+    ###########################################################
+    org_name: <%= .org_name %>
+
+  server_settings:
+    ###########################################################
+    # The server URL where AutoMDM is running.
+    #
+    # Note: This is configured as a repository "secret" just so
+    # that it can be more easily used in the CI/CD workflow
+    # configurations.
+    ###########################################################
+    server_url: $AUTOMDM_URL
+
+  ###########################################################
+  # Uncomment to use single sign-on (SSO) for admins accessing AutoMDM.
+  #
+  # Read more:
+  #   • https://automdm.com/docs/configuration/yaml-files#sso-settings
+  #   • https://automdm.com/docs/deploy/single-sign-on-sso
+  ###########################################################
+  # sso_settings:
+  #   idp_name: "Okta" # e.g. "Entra", "Okta", "Google Workspace", etc.  (This appears to admins on the login screen as a "Sign in with ________" button.)
+  #   metadata_url: "https://okta.com/replace-this-url" # This must exactly match the "IdP metadata URL" provided by your identity provider (IdP) when setting up this integration.
+  #   entity_id: "team-admins" # This must exactly match the "Entity ID" field you chose when setting up this integration in your identity provider (IdP).
+
+  ###########################################################
+  # Uncomment if you self-host AutoMDM and want it to send user
+  # invite and password reset emails through your SMTP server.
+  #
+  # Note: Any setting left out of this file is reset to its
+  # default, so keep this section once you rely on it.
+  #
+  # Read more:
+  #   • https://automdm.com/docs/configuration/yaml-files#smtp-settings
+  ###########################################################
+  # smtp_settings:
+  #   enable_smtp: true
+  #   sender_address: "team@example.com"
+  #   server: "smtp.example.com"
+  #   port: 587
+  #   user_name: "team@example.com"
+  #   password: "your-smtp-password" # Keep this out of the repo: reference a CI/CD secret here instead.
+
+  ###########################################################
+  # Uncomment to make GitOps-managed settings read-only in the
+  # AutoMDM UI (GitOps mode).
+  #
+  # Read more:
+  #   • https://automdm.com/docs/configuration/yaml-files#gitops
+  ###########################################################
+  # gitops:
+  #   gitops_mode_enabled: true
+  #   repository_url: "https://github.com/your-org/your-automdm-gitops-repo"
+
+  ###########################################################
+  # Uncomment to automatically delete hosts that haven't
+  # checked in to AutoMDM for a number of days.
+  #
+  # Read more:
+  #   • https://automdm.com/docs/configuration/yaml-files#host-expiry-settings
+  ###########################################################
+  # host_expiry_settings:
+  #   host_expiry_enabled: true
+  #   host_expiry_window: 30 # days
+
+  ###########################################################
+  # Uncomment to automatically delete activities older than a
+  # number of days.
+  #
+  # Read more:
+  #   • https://automdm.com/docs/configuration/yaml-files#activity-expiry-settings
+  ###########################################################
+  # activity_expiry_settings:
+  #   activity_expiry_enabled: true
+  #   activity_expiry_window: 30 # days
+
+  ###########################################################
+  # Uncomment to customize AutoMDM Desktop for your end users.
+  #
+  # Read more:
+  #   • https://automdm.com/docs/configuration/yaml-files#automdm-desktop
+  ###########################################################
+  # automdm_desktop:
+  #   transparency_url: "https://example.com/transparency"
+  #   alternative_browser_host: "automdm-desktop.example.com"
+
+  ###########################################################
+  # Uncomment to send webhooks when things happen in AutoMDM,
+  # such as activities or hosts going offline.
+  #
+  # Read more:
+  #   • https://automdm.com/docs/configuration/yaml-files#webhook-settings
+  ###########################################################
+  # webhook_settings:
+  #   activities_webhook:
+  #     enable_activities_webhook: true
+  #     destination_url: "https://example.com/webhook-handler"
+
+  mdm:
+    ###########################################################
+    # Uncomment to use single sign-on (SSO) to authenticate
+    # new computers enrolling in AutoMDM during end user setup.
+    #
+    # Read more:
+    #   • https://automdm.com/docs/configuration/yaml-files#end-user-authentication
+    #   • https://automdm.com/guides/setup-experience#require-idp-authentication
+    ###########################################################
+    # end_user_authentication:
+    #   idp_name: "Okta"  # e.g. "Entra", "Okta", "Google Workspace", etc. (Displayed to end users.)
+    #   metadata_url: "https://okta.com/replace-this-url" # This must exactly match the "IdP metadata URL" provided by your identity provider (IdP) when setting up this integration.
+    #   entity_id: "automdm-end-users" # This must exactly match the "Entity ID" field you chose when setting up this integration in your identity provider (IdP).
+
+    ###########################################################
+    # Uncomment when you are ready to start using zero-touch enrollment
+    # for Apple devices via Apple Business (AB).
+    #
+    # Read more:
+    #   • https://automdm.com/docs/configuration/yaml-files#apple-business-manager
+    #   • https://automdm.com/guides/apple-mdm-setup#apple-business-manager-abm
+    ###########################################################
+    # apple_business:
+    #   - organization_name: "My Company, Inc." # This must exactly match the organization name in Apple Business (AB).
+    #     macos_team: "💻 Workstations" # Where new macOS devices from AB will appear
+
+    ###########################################################
+    # Uncomment to start using Apple's volume purchase program (VPP)
+    # for making software available from the App Store and managing
+    # software licenses.
+    #
+    # Read more:
+    #   • https://automdm.com/docs/configuration/yaml-files#volume-purchasing-program
+    #   • https://automdm.com/guides/apple-mdm-setup#volume-purchasing-program-vpp
+    ###########################################################
+    # volume_purchasing_program:
+    #   - location: "My organization unit." # This must exactly match an "Organization Unit" name in Apple Business (AB). Apple previously called this "location." AutoMDM will rename it to "organization unit" in the next major version.
+    #     teams:
+    #       - "💻 Workstations"
+    #       - "📱🔐 Personal mobile devices"
+
+controls:
+  ###########################################################
+  # Uncomment when you are ready to migrate Macs to AutoMDM
+  # from a different MDM server, especially devices running
+  # macOS ≤v26.
+  #
+  # For more information about what this does, see:
+  #   • https://automdm.com/docs/configuration/yaml-files#macos-migration
+  #   • https://automdm.com/guides/mdm-migration#end-user-workflow
+  #
+  # Note: This is a global setting that cannot be applied per-team.
+  ###########################################################
+  # macos_migration:
+  #   enable: true
+  #   mode: voluntary # Start with "voluntary", then change this to "forced" closer to the deadline.
+  #   webhook_url: "https://your-custom-webhook-or-one-provided-off-the-shelf-by-team-for-the-mdm-you-are-coming-from.example.com/webhooks/receive-from-team"
+  #   # ^ When end users click "Migrate to AutoMDM", this webhook is triggered.
+  #   # By convention it looks up the device and unmanages it in the old MDM,
+  #   # then enrolls the device in AutoMDM.  Unsure?  Get help @ automdm.com/support.
+
+  ###########################################################
+  # Uncomment when you are ready to start using AutoMDM's Windows MDM features.
+  # 
+  # Read more:
+  #   • https://automdm.com/guides/windows-mdm-setup
+  ###########################################################
+  # windows_mdm_enabled: true
+
+
+###########################################################
+# Labels are static or dynamic groupings of computers for
+# scoping, reporting, and more.  Use labels for everything
+# from "x86 macs" to "finance department" to "needs new battery".
+#
+# For more, see:
+#   • https://automdm.com/docs/configuration/yaml-files#labels
+#   • https://automdm.com/guides/managing-labels-in-team
+#
+# (Optional) You can choose to manage labels in the AutoMDM GUI
+# instead of in your git repo by **commenting out** `labels`
+# below and removing the `labels/` folder.
+#
+# > Note: If you exclude `labels` from your git repo, then any
+# > AI-assisted tools you may be using like Claude/Copilot/Kilocode
+# > won't be able to see them as easily for use in scoping,
+# > and could make it harder to do prompts like, for example:
+# > "Make sure everyone in finance has the latest version of Excel"
+###########################################################
+labels:
+  - paths: ./labels/*.yml

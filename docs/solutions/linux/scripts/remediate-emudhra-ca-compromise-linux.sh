@@ -3,10 +3,10 @@
 # Remove trust in the roots behind the compromised eMudhra/emSign intermediates (Oct 2026).
 #   1. Upgrade the distro ca-certificates package (apt, dnf, yum, zypper, apk).
 #   2. If the system bundle still trusts a compromised root, distrust it the distro-native way.
-#   3. Strip the same roots from fleetd's private CA bundle (/opt/orbit/certs.pem), which
-#      osqueryd uses for its TLS connection to Fleet. Only after proving Fleet still verifies.
-# Idempotent: safe to re-run. Built for Fleet "Run script" (runs as root). Needs bash and openssl.
-# Save it as a Fleet script: it is larger than the 10,000-character ad hoc limit.
+#   3. Strip the same roots from automdmd's private CA bundle (/opt/orbit/certs.pem), which
+#      osqueryd uses for its TLS connection to AutoMDM. Only after proving AutoMDM still verifies.
+# Idempotent: safe to re-run. Built for AutoMDM "Run script" (runs as root). Needs bash and openssl.
+# Save it as an AutoMDM script: it is larger than the 10,000-character ad hoc limit.
 # Rollback: copy back the *.pre-emudhra backups, delete emudhra-*.pem from the p11-kit
 # blocklist directory, then re-run update-ca-certificates or update-ca-trust.
 # Exit: 0 = protected, 2 = still exposed or a step was skipped (read output), 1 = error.
@@ -181,41 +181,41 @@ env_value() { sed -n "s/^$1=//p" "$ORBIT_ENV" 2>/dev/null | tail -1 | tr -d '"'"
 
 fix_orbit_bundle() {
     local hits url pin tmp rc nocapath
-    [ -f "$ORBIT_BUNDLE" ] || { log "FLEETD: $ORBIT_BUNDLE not present (fleetd not installed)"; return; }
+    [ -f "$ORBIT_BUNDLE" ] || { log "AUTOMDMD: $ORBIT_BUNDLE not present (automdmd not installed)"; return; }
     hits=$(blocked_in_bundle "$ORBIT_BUNDLE")
-    [ -z "$hits" ] && { log "FLEETD: $ORBIT_BUNDLE already clean"; return; }
+    [ -z "$hits" ] && { log "AUTOMDMD: $ORBIT_BUNDLE already clean"; return; }
 
     tmp=$(mktemp) || die "mktemp failed"
     filter_bundle "$ORBIT_BUNDLE" "$tmp"
     if [ -n "$(blocked_in_bundle "$tmp")" ] || [ "$(cert_count "$tmp")" -lt 50 ]; then
-        rm -f "$tmp"; warn "FLEETD: filtered bundle failed sanity check; not changed"; return
+        rm -f "$tmp"; warn "AUTOMDMD: filtered bundle failed sanity check; not changed"; return
     fi
 
-    url=$(env_value ORBIT_FLEET_URL)
-    pin=$(env_value ORBIT_FLEET_CERTIFICATE)
+    url=$(env_value ORBIT_AUTOMDM_URL)
+    pin=$(env_value ORBIT_AUTOMDM_CERTIFICATE)
     if [ -n "$pin" ]; then
-        log "FLEETD: osquery pins $pin, so certs.pem is unused; cleaning it anyway"
+        log "AUTOMDMD: osquery pins $pin, so certs.pem is unused; cleaning it anyway"
     elif [ -n "$url" ]; then
-        # Prove the Fleet server still verifies with the filtered bundle before swapping it in.
+        # Prove the AutoMDM server still verifies with the filtered bundle before swapping it in.
         # --capath points at an empty directory so curl cannot fall back to the system store.
         nocapath=$(mktemp -d)
         curl -sS -o /dev/null --max-time 20 --cacert "$tmp" --capath "$nocapath" "$url" 2>/dev/null; rc=$?
         rmdir "$nocapath"
         if [ "$rc" -ne 0 ]; then
-            rm -f "$tmp"; warn "FLEETD: Fleet server did not verify with the filtered bundle (curl exit $rc); not changed"; return
+            rm -f "$tmp"; warn "AUTOMDMD: AutoMDM server did not verify with the filtered bundle (curl exit $rc); not changed"; return
         fi
-        log "FLEETD: Fleet server verifies with the filtered bundle"
+        log "AUTOMDMD: AutoMDM server verifies with the filtered bundle"
     else
-        rm -f "$tmp"; warn "FLEETD: no ORBIT_FLEET_URL in $ORBIT_ENV; cannot prove safety; not changed"; return
+        rm -f "$tmp"; warn "AUTOMDMD: no ORBIT_AUTOMDM_URL in $ORBIT_ENV; cannot prove safety; not changed"; return
     fi
 
     if { [ -e "$ORBIT_BUNDLE.pre-emudhra" ] || cp -p "$ORBIT_BUNDLE" "$ORBIT_BUNDLE.pre-emudhra"; } &&
        cp -p "$ORBIT_BUNDLE" "$ORBIT_BUNDLE.new" && cat "$tmp" > "$ORBIT_BUNDLE.new" && mv -f "$ORBIT_BUNDLE.new" "$ORBIT_BUNDLE"; then
         rm -f "$tmp"
     else
-        rm -f "$tmp" "$ORBIT_BUNDLE.new"; warn "FLEETD: could not write $ORBIT_BUNDLE"; return
+        rm -f "$tmp" "$ORBIT_BUNDLE.new"; warn "AUTOMDMD: could not write $ORBIT_BUNDLE"; return
     fi
-    log "FLEETD: removed $(echo "$hits" | wc -w | tr -d ' ') root(s) from $ORBIT_BUNDLE (backup: $ORBIT_BUNDLE.pre-emudhra). osquery reloads it on its next connection."
+    log "AUTOMDMD: removed $(echo "$hits" | wc -w | tr -d ' ') root(s) from $ORBIT_BUNDLE (backup: $ORBIT_BUNDLE.pre-emudhra). osquery reloads it on its next connection."
 }
 
 main() {
@@ -239,7 +239,7 @@ main() {
     fi
     if [ -z "$hits" ]; then log "BUNDLE: $bundle PROTECTED"; else warn "BUNDLE: $bundle STILL TRUSTS $hits"; fi
 
-    log "----- fleetd osquery CA bundle -----"
+    log "----- automdmd osquery CA bundle -----"
     fix_orbit_bundle
     if [ -f "$ORBIT_BUNDLE" ]; then
         if [ -z "$(blocked_in_bundle "$ORBIT_BUNDLE")" ]; then log "VERIFY: $ORBIT_BUNDLE PROTECTED"

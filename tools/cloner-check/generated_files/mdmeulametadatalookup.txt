@@ -1,9 +1,9 @@
-github.com/fleetdm/fleet/v4/server/fleet/MDMEULAMetadataLookup	EULA	*fleet.MDMEULA
-github.com/fleetdm/fleet/v4/server/fleet/MDMEULA	Name	string
-github.com/fleetdm/fleet/v4/server/fleet/MDMEULA	Bytes	[]uint8
-github.com/fleetdm/fleet/v4/server/fleet/MDMEULA	Sha256	[]uint8
-github.com/fleetdm/fleet/v4/server/fleet/MDMEULA	Token	string
-github.com/fleetdm/fleet/v4/server/fleet/MDMEULA	CreatedAt	time.Time
+github.com/anilyagiz/automdm/v4/server/automdm/MDMEULAMetadataLookup	EULA	*automdm.MDMEULA
+github.com/anilyagiz/automdm/v4/server/automdm/MDMEULA	Name	string
+github.com/anilyagiz/automdm/v4/server/automdm/MDMEULA	Bytes	[]uint8
+github.com/anilyagiz/automdm/v4/server/automdm/MDMEULA	Sha256	[]uint8
+github.com/anilyagiz/automdm/v4/server/automdm/MDMEULA	Token	string
+github.com/anilyagiz/automdm/v4/server/automdm/MDMEULA	CreatedAt	time.Time
 time/Time	wall	uint64
 time/Time	ext	int64
 time/Time	loc	*time.Location
@@ -21,4 +21,4 @@ time/Location	extend	string
 time/Location	cacheStart	int64
 time/Location	cacheEnd	int64
 time/Location	cacheZone	*time.zone
-github.com/fleetdm/fleet/v4/server/fleet/MDMEULA	Platform	fleet.MDMEULAPlatform	string
+github.com/anilyagiz/automdm/v4/server/automdm/MDMEULA	Platform	automdm.MDMEULAPlatform	string

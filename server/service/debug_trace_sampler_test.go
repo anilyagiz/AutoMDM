@@ -11,9 +11,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	mockds "github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/platform/tracing"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	mockds "github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/platform/tracing"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
@@ -28,9 +28,9 @@ func adminAuthedRequest(t *testing.T, method, target string, body string) (*mock
 	t.Helper()
 	svc := &mockService{}
 	svc.On("GetSessionByKey", mock.Anything, "fake_session_key").
-		Return(&fleet.Session{UserID: 42, ID: 1}, nil)
+		Return(&automdm.Session{UserID: 42, ID: 1}, nil)
 	svc.On("UserUnauthorized", mock.Anything, uint(42)).
-		Return(&fleet.User{ID: 42, GlobalRole: new(fleet.RoleAdmin)}, nil)
+		Return(&automdm.User{ID: 42, GlobalRole: new(automdm.RoleAdmin)}, nil)
 
 	var reqBody io.Reader
 	if body != "" {
@@ -42,7 +42,7 @@ func adminAuthedRequest(t *testing.T, method, target string, body string) (*mock
 }
 
 func TestTraceSamplerHandler_GET(t *testing.T) {
-	svc, req := adminAuthedRequest(t, http.MethodGet, "https://fleetdm.com/debug/trace_sampler", "")
+	svc, req := adminAuthedRequest(t, http.MethodGet, "https://automdm.com/debug/trace_sampler", "")
 
 	ds := new(mockds.Store)
 	ds.GetTraceSamplerSettingsFunc = func(_ context.Context) (*tracing.Settings, error) {
@@ -69,7 +69,7 @@ func TestTraceSamplerHandler_GET(t *testing.T) {
 
 func TestTraceSamplerHandler_PATCH_PersistsChangesAndReturnsRow(t *testing.T) {
 	svc, req := adminAuthedRequest(t, http.MethodPatch,
-		"https://fleetdm.com/debug/trace_sampler",
+		"https://automdm.com/debug/trace_sampler",
 		`{"force_full": true}`)
 
 	ds := new(mockds.Store)
@@ -114,7 +114,7 @@ func TestTraceSamplerHandler_PATCH_PartialUpdatePreservesOtherFields(t *testing.
 	// Locks in the docstring claim that "PATCH semantics mean only the provided fields are applied." Sending only
 	// high_volume_ratio must leave standard_ratio and force_full at their prior values.
 	svc, req := adminAuthedRequest(t, http.MethodPatch,
-		"https://fleetdm.com/debug/trace_sampler",
+		"https://automdm.com/debug/trace_sampler",
 		`{"high_volume_ratio": 0.5}`)
 
 	ds := new(mockds.Store)
@@ -144,7 +144,7 @@ func TestTraceSamplerHandler_PATCH_PartialUpdatePreservesOtherFields(t *testing.
 
 func TestTraceSamplerHandler_PATCH_ReadFailureReturns500(t *testing.T) {
 	svc, req := adminAuthedRequest(t, http.MethodPatch,
-		"https://fleetdm.com/debug/trace_sampler",
+		"https://automdm.com/debug/trace_sampler",
 		`{"force_full": true}`)
 
 	ds := new(mockds.Store)
@@ -162,7 +162,7 @@ func TestTraceSamplerHandler_PATCH_ReadFailureReturns500(t *testing.T) {
 
 func TestTraceSamplerHandler_PATCH_WriteFailureReturns500(t *testing.T) {
 	svc, req := adminAuthedRequest(t, http.MethodPatch,
-		"https://fleetdm.com/debug/trace_sampler",
+		"https://automdm.com/debug/trace_sampler",
 		`{"force_full": true}`)
 
 	ds := new(mockds.Store)
@@ -183,7 +183,7 @@ func TestTraceSamplerHandler_PATCH_WriteFailureReturns500(t *testing.T) {
 
 func TestTraceSamplerHandler_PATCH_RejectsBadJSON(t *testing.T) {
 	svc, req := adminAuthedRequest(t, http.MethodPatch,
-		"https://fleetdm.com/debug/trace_sampler",
+		"https://automdm.com/debug/trace_sampler",
 		`{"force_full":`) // malformed
 
 	ds := new(mockds.Store)
@@ -208,7 +208,7 @@ func TestTraceSamplerHandler_PATCH_RejectsOutOfRangeRatio(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			svc, req := adminAuthedRequest(t, http.MethodPatch,
-				"https://fleetdm.com/debug/trace_sampler", c.body)
+				"https://automdm.com/debug/trace_sampler", c.body)
 			ds := new(mockds.Store)
 			handler := MakeDebugHandler(svc, testConfig, discardLogger(), nil, ds, nil)
 			res := httptest.NewRecorder()
@@ -223,7 +223,7 @@ func TestTraceSamplerHandler_PATCH_RejectsOutOfRangeRatio(t *testing.T) {
 
 func TestTraceSamplerHandler_PATCH_RequiresAtLeastOneField(t *testing.T) {
 	svc, req := adminAuthedRequest(t, http.MethodPatch,
-		"https://fleetdm.com/debug/trace_sampler", `{}`)
+		"https://automdm.com/debug/trace_sampler", `{}`)
 	ds := new(mockds.Store)
 	handler := MakeDebugHandler(svc, testConfig, discardLogger(), nil, ds, nil)
 	res := httptest.NewRecorder()

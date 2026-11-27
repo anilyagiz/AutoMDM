@@ -11,7 +11,7 @@ examples: |-
   ```
   SELECT extension.name, extension.publisher, extension.version FROM users JOIN vscode_extensions extension USING (uid);
   ```
-notes: Querying this table requires joining against the `users` table. [Learn more](https://fleetdm.com/guides/osquery-consider-joining-against-the-users-table)
+notes: Querying this table requires joining against the `users` table. [Learn more](https://automdm.com/guides/osquery-consider-joining-against-the-users-table)
 columns:
 - name: name
   description: Extension Name

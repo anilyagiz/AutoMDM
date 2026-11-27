@@ -6,19 +6,19 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
 // GetHosts retrieves the list of all Hosts
-func (c *Client) GetHosts(query string) ([]fleet.HostResponse, error) {
-	verb, path := "GET", "/api/latest/fleet/hosts"
+func (c *Client) GetHosts(query string) ([]automdm.HostResponse, error) {
+	verb, path := "GET", "/api/latest/automdm/hosts"
 	var responseBody listHostsResponse
 	err := c.authenticatedRequestWithQuery(nil, verb, path, &responseBody, query)
 	return responseBody.Hosts, err
 }
 
-func (c *Client) GetHost(id uint) (*fleet.HostDetailResponse, error) {
-	verb, path := "GET", fmt.Sprintf("/api/latest/fleet/hosts/%d", id)
+func (c *Client) GetHost(id uint) (*automdm.HostDetailResponse, error) {
+	verb, path := "GET", fmt.Sprintf("/api/latest/automdm/hosts/%d", id)
 	var responseBody getHostResponse
 	err := c.authenticatedRequest(nil, verb, path, &responseBody)
 	return responseBody.Host, err
@@ -26,8 +26,8 @@ func (c *Client) GetHost(id uint) (*fleet.HostDetailResponse, error) {
 
 // HostByIdentifier retrieves a host as GET /hosts/:id resolves it: by host ID first, then by hardware_serial, uuid, or hostname, the newest
 // one when several match.
-func (c *Client) HostByIdentifier(identifier string) (*fleet.HostDetailResponse, error) {
-	verb, path := "GET", "/api/latest/fleet/hosts/"+url.PathEscape(identifier)
+func (c *Client) HostByIdentifier(identifier string) (*automdm.HostDetailResponse, error) {
+	verb, path := "GET", "/api/latest/automdm/hosts/"+url.PathEscape(identifier)
 	var responseBody getHostResponse
 	if err := c.authenticatedRequest(nil, verb, path, &responseBody); err != nil {
 		return nil, err
@@ -40,12 +40,12 @@ func (c *Client) HostByIdentifier(identifier string) (*fleet.HostDetailResponse,
 }
 
 func (c *Client) translateTransferHostsToIDs(hosts []string, label string, team string) ([]uint, uint, uint, error) {
-	verb, path := "POST", "/api/latest/fleet/translate"
+	verb, path := "POST", "/api/latest/automdm/translate"
 	var responseBody translatorResponse
 
-	var translatePayloads []fleet.TranslatePayload
+	var translatePayloads []automdm.TranslatePayload
 	for _, host := range hosts {
-		translatedPayload, err := encodeTranslatedPayload(fleet.TranslatorTypeHost, host)
+		translatedPayload, err := encodeTranslatedPayload(automdm.TranslatorTypeHost, host)
 		if err != nil {
 			return nil, 0, 0, err
 		}
@@ -53,7 +53,7 @@ func (c *Client) translateTransferHostsToIDs(hosts []string, label string, team 
 	}
 
 	if label != "" {
-		translatedPayload, err := encodeTranslatedPayload(fleet.TranslatorTypeLabel, label)
+		translatedPayload, err := encodeTranslatedPayload(automdm.TranslatorTypeLabel, label)
 		if err != nil {
 			return nil, 0, 0, err
 		}
@@ -61,7 +61,7 @@ func (c *Client) translateTransferHostsToIDs(hosts []string, label string, team 
 	}
 
 	if team != "" {
-		translatedPayload, err := encodeTranslatedPayload(fleet.TranslatorTypeFleet, team)
+		translatedPayload, err := encodeTranslatedPayload(automdm.TranslatorTypeAutoMDM, team)
 		if err != nil {
 			return nil, 0, 0, err
 		}
@@ -84,41 +84,41 @@ func (c *Client) translateTransferHostsToIDs(hosts []string, label string, team 
 
 	for _, payload := range responseBody.List {
 		switch payload.Type {
-		case fleet.TranslatorTypeLabel:
+		case automdm.TranslatorTypeLabel:
 			labelID = payload.Payload.ID
-		case fleet.TranslatorTypeFleet:
+		case automdm.TranslatorTypeAutoMDM:
 			teamID = payload.Payload.ID
-		case fleet.TranslatorTypeHost:
+		case automdm.TranslatorTypeHost:
 			hostIDs = append(hostIDs, payload.Payload.ID)
 		}
 	}
 	return hostIDs, labelID, teamID, nil
 }
 
-func encodeTranslatedPayload(translatorType string, identifier string) (fleet.TranslatePayload, error) {
-	translatedPayload := fleet.TranslatePayload{
+func encodeTranslatedPayload(translatorType string, identifier string) (automdm.TranslatePayload, error) {
+	translatedPayload := automdm.TranslatePayload{
 		Type:    translatorType,
-		Payload: fleet.StringIdentifierToIDPayload{Identifier: identifier},
+		Payload: automdm.StringIdentifierToIDPayload{Identifier: identifier},
 	}
 	return translatedPayload, nil
 }
 
-func (c *Client) TransferHosts(hosts []string, label, labelFleet string, status, searchQuery string, team string) error {
+func (c *Client) TransferHosts(hosts []string, label, labelAutoMDM string, status, searchQuery string, team string) error {
 	labelToTranslate := label
-	if labelFleet != "" {
-		// The translate endpoint looks a label up by name alone, which fails when several fleets use the name.
+	if labelAutoMDM != "" {
+		// The translate endpoint looks a label up by name alone, which fails when several teams use the name.
 		labelToTranslate = ""
 	}
 	hostIDs, labelID, teamID, err := c.translateTransferHostsToIDs(hosts, labelToTranslate, team)
 	if err != nil {
 		return err
 	}
-	if labelFleet != "" {
-		_, _, labelFleetID, err := c.translateTransferHostsToIDs(nil, "", labelFleet)
+	if labelAutoMDM != "" {
+		_, _, labelTeamID, err := c.translateTransferHostsToIDs(nil, "", labelAutoMDM)
 		if err != nil {
 			return err
 		}
-		spec, err := c.GetLabel(label, &labelFleetID)
+		spec, err := c.GetLabel(label, &labelTeamID)
 		if err != nil {
 			return err
 		}
@@ -130,7 +130,7 @@ func (c *Client) TransferHosts(hosts []string, label, labelFleet string, status,
 		teamIDPtr = &teamID
 	}
 	if len(hosts) != 0 {
-		verb, path := "POST", "/api/latest/fleet/hosts/transfer"
+		verb, path := "POST", "/api/latest/automdm/hosts/transfer"
 		var responseBody addHostsToTeamResponse
 		params := addHostsToTeamRequest{TeamID: teamIDPtr, HostIDs: hostIDs}
 		return c.authenticatedRequest(params, verb, path, &responseBody)
@@ -143,14 +143,14 @@ func (c *Client) TransferHosts(hosts []string, label, labelFleet string, status,
 	}
 
 	if status != "" {
-		filter["status"] = fleet.HostStatus(status)
+		filter["status"] = automdm.HostStatus(status)
 	}
 
 	if searchQuery != "" {
 		filter["query"] = searchQuery
 	}
 
-	verb, path := "POST", "/api/latest/fleet/hosts/transfer/filter"
+	verb, path := "POST", "/api/latest/automdm/hosts/transfer/filter"
 	var responseBody addHostsToTeamByFilterResponse
 	params := addHostsToTeamByFilterRequest{
 		TeamID:  teamIDPtr,
@@ -165,7 +165,7 @@ func (c *Client) TransferHosts(hosts []string, label, labelFleet string, status,
 // The first row holds the name of the columns and each subsequent row are
 // the column values for each host.
 func (c *Client) GetHostsReport(columns ...string) ([][]string, error) {
-	verb, path := "GET", "/api/latest/fleet/hosts/report"
+	verb, path := "GET", "/api/latest/automdm/hosts/report"
 	query := make(url.Values)
 	query.Add("format", "csv")
 	if len(columns) > 0 {

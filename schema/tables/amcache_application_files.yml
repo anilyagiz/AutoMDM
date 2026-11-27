@@ -24,7 +24,7 @@ notes: |-
   table. Windows 10 and Windows Server 2022 populate both on every record and most other columns on
   most rows.
 
-  This table can hold tens of thousands of rows, so a scheduled SELECT * will exceed Fleet's 1 MB
+  This table can hold tens of thousands of rows, so a scheduled SELECT * will exceed AutoMDM's 1 MB
   per log line and truncate. Constrain on program_id, sha1 or last_write_time. Those are populated
   on every Windows family, whereas path is empty on most Windows 11 rows and makes a poor filter
   there.
@@ -32,7 +32,7 @@ notes: |-
   While Windows is writing to the Amcache hive, a query returns an error instead of possibly
   inconsistent rows. Run it again shortly.
 
-  This table is not a core osquery table. It is included as part of Fleet's agent ([fleetd](https://fleetdm.com/docs/get-started/anatomy#fleetd)).
+  This table is not a core osquery table. It is included as part of AutoMDM's agent ([automdmd](https://automdm.com/docs/get-started/anatomy#automdmd)).
 examples: |-
   Find executables under user-writable directories that no installed application accounts for.
 

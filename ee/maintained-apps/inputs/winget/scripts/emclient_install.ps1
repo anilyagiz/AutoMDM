@@ -7,13 +7,13 @@ $installerPath = "${env:INSTALLER_PATH}"
 $launcherPath = Join-Path ${env:ProgramFiles(x86)} 'eM Client\MailClient.exe'
 $appInstallerUrl = 'https://licensing.emclient.com/api/update/emclient.appinstaller'
 $packageName = 'eMClient.20054CA46072C'
-$taskName = 'fleet-install-emclient'
+$taskName = 'automdm-install-emclient'
 $taskRunning = 267009  # SCHED_S_TASK_RUNNING
-# Fleet stops install scripts after an hour.
+# AutoMDM stops install scripts after an hour.
 $deadline = (Get-Date).AddMinutes(50)
 # 3010 = reboot required, 1641 = reboot initiated
 $successCodes = @(0, 3010, 1641)
-$workDir = Join-Path $env:TEMP "fleet-emclient-$([guid]::NewGuid())"
+$workDir = Join-Path $env:TEMP "automdm-emclient-$([guid]::NewGuid())"
 $logFile = Join-Path $workDir 'install.log'
 $exitCode = 0
 

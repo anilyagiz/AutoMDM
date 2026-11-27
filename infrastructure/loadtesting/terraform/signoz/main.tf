@@ -21,7 +21,7 @@ terraform {
   }
 
   backend "s3" {
-    bucket               = "fleet-terraform-state20220408141538466600000002"
+    bucket               = "automdm-terraform-state20220408141538466600000002"
     key                  = "loadtesting/loadtesting/signoz/terraform.tfstate"
     workspace_key_prefix = "loadtesting"
     region               = "us-east-2"
@@ -39,7 +39,7 @@ provider "aws" {
   default_tags {
     tags = {
       environment = "loadtest-signoz"
-      terraform   = "https://github.com/fleetdm/fleet/tree/main/infrastructure/loadtesting/terraform/signoz"
+      terraform   = "https://github.com/anilyagiz/automdm/tree/main/infrastructure/loadtesting/terraform/signoz"
       workspace   = terraform.workspace
     }
   }
@@ -49,7 +49,7 @@ provider "aws" {
 data "terraform_remote_state" "shared_vpc" {
   backend = "s3"
   config = {
-    bucket               = "fleet-terraform-state20220408141538466600000002"
+    bucket               = "automdm-terraform-state20220408141538466600000002"
     key                  = "loadtesting/loadtesting/shared/terraform.tfstate"
     workspace_key_prefix = "loadtesting"
     region               = "us-east-2"
@@ -103,7 +103,7 @@ locals {
   cluster_name = "signoz-${terraform.workspace}"
 }
 
-# Use shared fleet VPC
+# Use shared team VPC
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
   version = "~> 21.0"

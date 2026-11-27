@@ -3,9 +3,9 @@ package services
 import (
 	"time"
 
-	"github.com/fleetdm/fleet/tools/hangar/internal/paths"
-	"github.com/fleetdm/fleet/tools/hangar/internal/perf"
-	"github.com/fleetdm/fleet/tools/hangar/internal/perfconfig"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/paths"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/perf"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/perfconfig"
 )
 
 // PerfService exposes the osquery-perf template catalog. Mirrors perf.rs.

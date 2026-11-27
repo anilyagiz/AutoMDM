@@ -16,8 +16,8 @@ import (
 	"strings"
 	"testing"
 
-	authz_ctx "github.com/fleetdm/fleet/v4/server/contexts/authz"
-	platform_http "github.com/fleetdm/fleet/v4/server/platform/http"
+	authz_ctx "github.com/anilyagiz/automdm/v4/server/contexts/authz"
+	platform_http "github.com/anilyagiz/automdm/v4/server/platform/http"
 	"github.com/go-kit/kit/endpoint"
 	kithttp "github.com/go-kit/kit/transport/http"
 	"github.com/stretchr/testify/assert"
@@ -783,7 +783,7 @@ func TestMakeDecoderPremiumErrorNamesTheQueryParam(t *testing.T) {
 }
 
 type renamedPremiumRequest struct {
-	TeamIDs     []uint `json:"team_ids" premium:"true" renameto:"fleet_ids"`
+	TeamIDs     []uint `json:"team_ids" premium:"true" renameto:"team_ids"`
 	InstallerID uint   `json:"software_installer_id" renameto:"software_package_id,inline" premium:"true"`
 }
 
@@ -794,7 +794,7 @@ func TestMakeDecoderPremiumErrorNamesTheRenamedFieldAsSent(t *testing.T) {
 		body string
 		want string
 	}{
-		{body: `{"fleet_ids":[1]}`, want: "option fleet_ids requires a premium license"},
+		{body: `{"team_ids":[1]}`, want: "option team_ids requires a premium license"},
 		{body: `{"team_ids":[1]}`, want: "option team_ids requires a premium license"},
 		{body: `{"software_package_id":1}`, want: "option software_package_id requires a premium license"},
 		{body: `{"software_installer_id":1}`, want: "option software_installer_id requires a premium license"},

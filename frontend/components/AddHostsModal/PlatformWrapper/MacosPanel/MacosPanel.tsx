@@ -11,7 +11,7 @@ import { getPathWithQueryParams } from "utilities/url";
 type DeviceType = "companyOwned" | "personalBYOD";
 
 const generateInstallerString = (serverUrl: string, enrollSecret: string) => {
-  return `fleetctl package --type=pkg --enable-scripts --fleet-desktop --fleet-url=${serverUrl} --enroll-secret=${enrollSecret}`;
+  return `automdmctl package --type=pkg --enable-scripts --automdm-desktop --automdm-url=${serverUrl} --enroll-secret=${enrollSecret}`;
 };
 
 const baseClass = "macos-panel";
@@ -34,7 +34,7 @@ const MacosPanel = ({
   const helpText =
     "When the end user navigates to this URL, the enrollment profile " +
     "will download in their browser. End users will have to install the profile " +
-    "to enroll to Fleet.";
+    "to enroll to AutoMDM.";
 
   if (!config) return null;
 
@@ -101,9 +101,9 @@ const MacosPanel = ({
         enableCopy
         label={
           <>
-            Use this command to generate Fleet&apos;s agent.{" "}
+            Use this command to generate AutoMDM&apos;s agent.{" "}
             <CustomLink
-              url={`${LEARN_MORE_ABOUT_BASE_LINK}/generate-fleets-agent`}
+              url={`${LEARN_MORE_ABOUT_BASE_LINK}/generate-teams-agent`}
               text="Learn how"
               newTab
             />

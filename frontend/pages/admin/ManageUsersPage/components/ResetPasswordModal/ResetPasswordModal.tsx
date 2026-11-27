@@ -23,9 +23,9 @@ const ResetPasswordModal = ({
       <div className={baseClass}>
         <p>
           This user will be asked to reset their password after their next
-          successful log in to Fleet.
+          successful log in to AutoMDM.
           <br />
-          This will revoke all active Fleet API tokens for this user.
+          This will revoke all active AutoMDM API tokens for this user.
         </p>
         <div className="modal-cta-wrap">
           <Button type="button" onClick={onResetConfirm}>

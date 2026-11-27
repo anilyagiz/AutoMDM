@@ -12,21 +12,21 @@ import (
 	"net/http"
 	"net/url"
 
+	condaccessdepot "github.com/anilyagiz/automdm/v4/ee/server/service/condaccess/depot"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/mdm/assets"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/cryptoutil"
+	scepdepot "github.com/anilyagiz/automdm/v4/server/mdm/scep/depot"
+	"github.com/anilyagiz/automdm/v4/server/mdm/scep/kitlogadapter"
+	scepserver "github.com/anilyagiz/automdm/v4/server/mdm/scep/server"
+	"github.com/anilyagiz/automdm/v4/server/service/middleware/otel"
 	"github.com/cenkalti/backoff/v4"
-	condaccessdepot "github.com/fleetdm/fleet/v4/ee/server/service/condaccess/depot"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/assets"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/cryptoutil"
-	scepdepot "github.com/fleetdm/fleet/v4/server/mdm/scep/depot"
-	"github.com/fleetdm/fleet/v4/server/mdm/scep/kitlogadapter"
-	scepserver "github.com/fleetdm/fleet/v4/server/mdm/scep/server"
-	"github.com/fleetdm/fleet/v4/server/service/middleware/otel"
 	"github.com/smallstep/scep"
 )
 
 const (
-	scepPath         = fleet.ConditionalAccessSCEPPath
+	scepPath         = automdm.ConditionalAccessSCEPPath
 	scepValidityDays = 398 // Apple's maximum allowed certificate validity
 )
 
@@ -48,12 +48,12 @@ func RegisterSCEP(
 	ctx context.Context,
 	mux *http.ServeMux,
 	scepStorage scepdepot.Depot,
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	logger *slog.Logger,
-	fleetConfig *config.FleetConfig,
+	automdmConfig *config.AutoMDMConfig,
 ) error {
-	if fleetConfig == nil {
-		return errors.New("fleet config is nil")
+	if automdmConfig == nil {
+		return errors.New("automdm config is nil")
 	}
 	err := initAssets(ctx, ds)
 	if err != nil {
@@ -62,7 +62,7 @@ func RegisterSCEP(
 
 	scepServiceLogger := logger.With("component", "conditional-access-scep")
 	// Create signer without renewal middleware (key difference from host identity SCEP)
-	signer := challengeMiddleware(ds, scepServiceLogger, fleetConfig.MDM, scepdepot.NewSigner(
+	signer := challengeMiddleware(ds, scepServiceLogger, automdmConfig.MDM, scepdepot.NewSigner(
 		scepStorage,
 		scepdepot.WithValidityDays(scepValidityDays),
 	))
@@ -83,7 +83,7 @@ func RegisterSCEP(
 	// This note also applies to the other SCEP servers we use.
 	// That is why we're not using ctxerr wrappers here.
 	scepHandler := scepserver.MakeHTTPHandler(e, scepService, scepLogger)
-	scepHandler = otel.WrapHandler(scepHandler, scepPath, *fleetConfig)
+	scepHandler = otel.WrapHandler(scepHandler, scepPath, *automdmConfig)
 	mux.Handle(scepPath, scepHandler)
 	// The Windows SCEP client appends /pkiclient.exe to the server URL, as NDES expects, and can't be told not to.
 	mux.Handle(scepPath+"/pkiclient.exe", scepHandler)
@@ -94,12 +94,12 @@ type csrCallbackSigner interface {
 	SignX509CSRWithCallback(csr *x509.CertificateRequest, subject pkix.Name, callback func(tmpl *x509.Certificate)) (*x509.Certificate, error)
 }
 
-// challengeMiddleware checks that ChallengePassword is a one-time challenge Fleet created for the host in the CSR's
+// challengeMiddleware checks that ChallengePassword is a one-time challenge AutoMDM created for the host in the CSR's
 // device URI, or a global enroll secret, which profiles written before one-time challenges carry, and signs the CSR
 // with that device URI as the certificate's only SAN, rather than every SAN the requester asked for. The global enroll
-// secret is only accepted for a host enrolled in Fleet MDM whose platform doesn't get one-time enroll secrets.
+// secret is only accepted for a host enrolled in AutoMDM whose platform doesn't get one-time enroll secrets.
 // Unlike host identity SCEP, this does NOT support renewal (no renewal extension check).
-func challengeMiddleware(ds fleet.Datastore, logger *slog.Logger, mdmConfig config.MDMConfig, next csrCallbackSigner) scepserver.CSRSignerContextFunc {
+func challengeMiddleware(ds automdm.Datastore, logger *slog.Logger, mdmConfig config.MDMConfig, next csrCallbackSigner) scepserver.CSRSignerContextFunc {
 	return func(ctx context.Context, m *scep.CSRReqMessage) (*x509.Certificate, error) {
 		if m.ChallengePassword == "" {
 			return nil, errors.New("missing challenge")
@@ -111,7 +111,7 @@ func challengeMiddleware(ds fleet.Datastore, logger *slog.Logger, mdmConfig conf
 		// Looked up before any challenge is used, so a request for a host that doesn't exist doesn't use one up.
 		_, err := ds.HostByUUID(ctx, hostUUID)
 		switch {
-		case fleet.IsNotFound(err):
+		case automdm.IsNotFound(err):
 			return nil, errors.New("unknown host")
 		case err != nil:
 			return nil, fmt.Errorf("looking up host: %w", err)
@@ -142,13 +142,13 @@ func challengeMiddleware(ds fleet.Datastore, logger *slog.Logger, mdmConfig conf
 			logger.WarnContext(ctx, "conditional access certificate requested with a global enroll secret, redeploy the Okta profile to use one-time challenges",
 				"host_uuid", hostUUID)
 			return sign()
-		case !fleet.IsNotFound(err):
+		case !automdm.IsNotFound(err):
 			return nil, fmt.Errorf("verifying enrollment secret: %w", err)
 		}
 
 		err = ds.ConsumeConditionalAccessSCEPChallenge(ctx, m.ChallengePassword, hostUUID)
 		switch {
-		case fleet.IsNotFound(err):
+		case automdm.IsNotFound(err):
 			return nil, errors.New("invalid challenge")
 		case err != nil:
 			return nil, fmt.Errorf("consuming conditional access SCEP challenge: %w", err)
@@ -158,15 +158,15 @@ func challengeMiddleware(ds fleet.Datastore, logger *slog.Logger, mdmConfig conf
 }
 
 // globalEnrollSecretAllowed reports whether the global enroll secret is accepted for the host. The Okta profile only
-// reaches a host through Fleet MDM, so Fleet's own enrollment records decide, not the platform the host reports.
-func globalEnrollSecretAllowed(ctx context.Context, ds fleet.Datastore, mdmConfig config.MDMConfig, hostUUID string) (bool, error) {
+// reaches a host through AutoMDM, so AutoMDM's own enrollment records decide, not the platform the host reports.
+func globalEnrollSecretAllowed(ctx context.Context, ds automdm.Datastore, mdmConfig config.MDMConfig, hostUUID string) (bool, error) {
 	enrollment, err := ds.GetNanoMDMEnrollment(ctx, hostUUID)
 	if err != nil {
 		return false, fmt.Errorf("looking up Apple MDM enrollment: %w", err)
 	}
 	apple := enrollment != nil && enrollment.Enabled
 	_, err = ds.MDMWindowsGetEnrolledDeviceWithHostUUID(ctx, hostUUID)
-	if err != nil && !fleet.IsNotFound(err) {
+	if err != nil && !automdm.IsNotFound(err) {
 		return false, fmt.Errorf("looking up Windows MDM enrollment: %w", err)
 	}
 	windows := err == nil
@@ -181,7 +181,7 @@ type service struct {
 	// The (chainable) CSR signing function
 	signer scepserver.CSRSignerContext
 	logger *slog.Logger
-	ds     fleet.Datastore
+	ds     automdm.Datastore
 }
 
 // GetCACaps returns the CA capabilities.
@@ -218,18 +218,18 @@ func (svc *service) GetCACert(ctx context.Context, _ string) ([]byte, int, error
 }
 
 // caKeyPair retrieves the CA certificate and key for conditional access.
-func caKeyPair(ctx context.Context, ds fleet.MDMAssetRetriever) (*tls.Certificate, error) {
-	return assets.KeyPair(ctx, ds, fleet.MDMAssetConditionalAccessCACert, fleet.MDMAssetConditionalAccessCAKey)
+func caKeyPair(ctx context.Context, ds automdm.MDMAssetRetriever) (*tls.Certificate, error) {
+	return assets.KeyPair(ctx, ds, automdm.MDMAssetConditionalAccessCACert, automdm.MDMAssetConditionalAccessCAKey)
 }
 
 // PKIOperation handles SCEP PKI operations (certificate signing).
 func (svc *service) PKIOperation(ctx context.Context, data []byte) ([]byte, error) {
 	if len(data) == 0 {
-		return nil, &fleet.BadRequestError{Message: "missing data for PKIOperation"}
+		return nil, &automdm.BadRequestError{Message: "missing data for PKIOperation"}
 	}
 
 	if err := cryptoutil.ValidateBERDepth(data, cryptoutil.MaxBERDepth); err != nil {
-		return nil, &fleet.BadRequestError{
+		return nil, &automdm.BadRequestError{
 			Message:     "invalid request body",
 			InternalErr: err,
 		}
@@ -238,7 +238,7 @@ func (svc *service) PKIOperation(ctx context.Context, data []byte) ([]byte, erro
 	msg, err := scep.ParsePKIMessage(data, scep.WithLogger(kitlogadapter.NewLogger(svc.logger)))
 	if err != nil {
 		// The body is not a valid SCEP pkiMessage, which is a client error.
-		return nil, &fleet.BadRequestError{
+		return nil, &automdm.BadRequestError{
 			Message:     "invalid request body",
 			InternalErr: err,
 		}
@@ -297,7 +297,7 @@ func (svc *service) GetNextCACert(_ context.Context) ([]byte, error) {
 }
 
 // NewSCEPService creates a new conditional access SCEP service.
-func NewSCEPService(ds fleet.Datastore, signer scepserver.CSRSignerContext, logger *slog.Logger) scepserver.Service {
+func NewSCEPService(ds automdm.Datastore, signer scepserver.CSRSignerContext, logger *slog.Logger) scepserver.Service {
 	return &service{
 		ds:     ds,
 		signer: signer,

@@ -6,9 +6,9 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/android/service/androidmgmt"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android/service/androidmgmt"
 )
 
 const (
@@ -22,10 +22,10 @@ const (
 	androidReconcilePageLogInterval = 100
 )
 
-// ReconcileAndroidDevices polls AMAPI for devices that Fleet still considers enrolled
+// ReconcileAndroidDevices polls AMAPI for devices that AutoMDM still considers enrolled
 // and flips them to unenrolled if Google reports them missing (404).
 // This complements (does not replace) Pub/Sub DELETED handling.
-func ReconcileAndroidDevices(ctx context.Context, ds fleet.Datastore, logger *slog.Logger, licenseKey string, newActivityFn fleet.NewActivityFunc) error {
+func ReconcileAndroidDevices(ctx context.Context, ds automdm.Datastore, logger *slog.Logger, licenseKey string, newActivityFn automdm.NewActivityFunc) error {
 	// A run that hits the AMAPI quota is retried by the next scheduled run.
 	ctx = androidmgmt.WithoutRetry(ctx)
 
@@ -46,8 +46,8 @@ func ReconcileAndroidDevices(ctx context.Context, ds fleet.Datastore, logger *sl
 	client := NewAMAPIClient(ctx, logger, licenseKey)
 
 	// Best-effort set authentication secret for proxy client usage (no-op for Google client).
-	if assets, err := ds.GetAllMDMConfigAssetsByName(ctx, []fleet.MDMAssetName{fleet.MDMAssetAndroidFleetServerSecret}, nil); err == nil {
-		if asset, ok := assets[fleet.MDMAssetAndroidFleetServerSecret]; ok && len(asset.Value) > 0 {
+	if assets, err := ds.GetAllMDMConfigAssetsByName(ctx, []automdm.MDMAssetName{automdm.MDMAssetAndroidAutoMDMServerSecret}, nil); err == nil {
+		if asset, ok := assets[automdm.MDMAssetAndroidAutoMDMServerSecret]; ok && len(asset.Value) > 0 {
 			_ = client.SetAuthenticationSecret(string(asset.Value))
 		}
 	}
@@ -108,7 +108,7 @@ func ReconcileAndroidDevices(ctx context.Context, ds fleet.Datastore, logger *sl
 				displayName = hosts[0].DisplayName()
 				serial = hosts[0].HardwareSerial
 			}
-			if aerr := newActivityFn(ctx, nil, fleet.ActivityTypeMDMUnenrolled{
+			if aerr := newActivityFn(ctx, nil, automdm.ActivityTypeMDMUnenrolled{
 				HostID:           dev.HostID,
 				HostSerial:       serial,
 				HostDisplayName:  displayName,

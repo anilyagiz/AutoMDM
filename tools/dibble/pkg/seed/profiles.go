@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/tools/dibble/pkg/themes"
+	"github.com/anilyagiz/automdm/v4/tools/dibble/pkg/themes"
 )
 
 // Profiles seeds MDM configuration profiles. The same endpoint
-// (/api/latest/fleet/configuration_profiles) accepts both Apple
-// (.mobileconfig) and Windows (.xml) payloads — Fleet detects the platform
+// (/api/latest/automdm/configuration_profiles) accepts both Apple
+// (.mobileconfig) and Windows (.xml) payloads — AutoMDM detects the platform
 // from the content.
 //
 // The seeded profile content is parameterized: the PayloadIdentifier (Apple)
@@ -38,10 +38,10 @@ func Profiles(c Client, log Logger, theme themes.Theme, teams []Team, count int)
 	res := Result{Entity: "profiles"}
 
 	// Skip platforms whose MDM stack isn't turned on — otherwise every
-	// upload returns the same 400 "MDM features aren't turned on in Fleet"
+	// upload returns the same 400 "MDM features aren't turned on in AutoMDM"
 	// and floods the run output.
 	var cfg mdmConfigSubset
-	if err := c.Get("/api/latest/fleet/config", &cfg); err != nil {
+	if err := c.Get("/api/latest/automdm/config", &cfg); err != nil {
 		res.Errors = append(res.Errors, fmt.Errorf("check MDM config: %w", err))
 		return res
 	}
@@ -74,12 +74,12 @@ func Profiles(c Client, log Logger, theme themes.Theme, teams []Team, count int)
 		}
 		fields := map[string]string{}
 		if teamID > 0 {
-			// Fleet's renamed "team" → "fleet" — the multipart key is fleet_id.
-			fields["fleet_id"] = fmt.Sprintf("%d", teamID)
+			// AutoMDM's renamed "team" → "team" — the multipart key is team_id.
+			fields["team_id"] = fmt.Sprintf("%d", teamID)
 		}
-		// Form field is "profile"; Fleet detects platform from the filename's extension.
+		// Form field is "profile"; AutoMDM detects platform from the filename's extension.
 		files := []MultipartFile{{FieldName: "profile", Filename: filename, Content: []byte(content)}}
-		err := c.PostMultipart("/api/latest/fleet/configuration_profiles", fields, files, nil)
+		err := c.PostMultipart("/api/latest/automdm/configuration_profiles", fields, files, nil)
 		switch {
 		case err == nil:
 			res.Created++

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
 type inmemQueryResults struct {
@@ -13,7 +13,7 @@ type inmemQueryResults struct {
 	channelMutex   sync.Mutex
 }
 
-var _ fleet.QueryResultStore = &inmemQueryResults{}
+var _ automdm.QueryResultStore = &inmemQueryResults{}
 
 // NewInmemQueryResults initializes a new in-memory implementation of the
 // QueryResultStore interface.
@@ -33,7 +33,7 @@ func (im *inmemQueryResults) getChannel(id uint) chan interface{} {
 	return channel
 }
 
-func (im *inmemQueryResults) WriteResult(result fleet.DistributedQueryResult) error {
+func (im *inmemQueryResults) WriteResult(result automdm.DistributedQueryResult) error {
 	channel := im.getChannel(result.DistributedQueryCampaignID)
 
 	select {
@@ -46,7 +46,7 @@ func (im *inmemQueryResults) WriteResult(result fleet.DistributedQueryResult) er
 	return nil
 }
 
-func (im *inmemQueryResults) ReadChannel(ctx context.Context, campaign fleet.DistributedQueryCampaign) (<-chan interface{}, error) {
+func (im *inmemQueryResults) ReadChannel(ctx context.Context, campaign automdm.DistributedQueryCampaign) (<-chan interface{}, error) {
 	channel := im.getChannel(campaign.ID)
 	go func() {
 		<-ctx.Done()

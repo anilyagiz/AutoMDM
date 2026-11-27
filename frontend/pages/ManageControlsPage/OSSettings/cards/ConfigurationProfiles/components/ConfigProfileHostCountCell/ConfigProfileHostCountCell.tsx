@@ -36,7 +36,7 @@ const ConfigProfileHostCountCell = ({
         variant="secondary"
         size="small"
       >
-        <Icon name="retry" color="ui-fleet-black-75" />
+        <Icon name="retry" color="ui-automdm-black-75" />
         <span>Resend</span>
       </Button>
     );
@@ -53,7 +53,7 @@ const ConfigProfileHostCountCell = ({
         {renderResendButton()}
         <ViewAllHostsLink
           queryParams={{
-            fleet_id: teamId,
+            team_id: teamId,
             profile_uuid: uuid,
             profile_status: status,
           }}

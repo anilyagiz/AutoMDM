@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
 // To run:
@@ -29,7 +29,7 @@ import (
 //
 //	benchstat /tmp/before.txt /tmp/after.txt
 //
-// Tune the dataset size with FLEET_BENCH_SIZE: "smoke" (default, ~5s seed),
+// Tune the dataset size with AUTOMDM_BENCH_SIZE: "smoke" (default, ~5s seed),
 // "realistic" (~30s seed), or "large" (~3min seed). EXPLAIN plan differences
 // show up at any size; wall-time differences widen with scale.
 
@@ -74,19 +74,19 @@ const benchTeamID uint = 1
 
 func pickBenchSize(tb testing.TB) benchSize {
 	tb.Helper()
-	name := os.Getenv("FLEET_BENCH_SIZE")
+	name := os.Getenv("AUTOMDM_BENCH_SIZE")
 	if name == "" {
 		name = "smoke"
 	}
 	sz, ok := benchSizes[name]
 	if !ok {
-		tb.Fatalf("unknown FLEET_BENCH_SIZE=%q (want smoke|realistic|large)", name)
+		tb.Fatalf("unknown AUTOMDM_BENCH_SIZE=%q (want smoke|realistic|large)", name)
 	}
 	return sz
 }
 
-// seedVulnPerfData populates a Fleet schema with enough data to make the
-// query planner exercise the indexed paths. It bypasses Fleet's ingestion
+// seedVulnPerfData populates an AutoMDM schema with enough data to make the
+// query planner exercise the indexed paths. It bypasses AutoMDM's ingestion
 // code in favor of direct multi-row INSERTs so seeding stays under a minute
 // even at "large" size.
 func seedVulnPerfData(tb testing.TB, ds *Datastore, sz benchSize) {
@@ -276,15 +276,15 @@ func BenchmarkListVulnerabilities(b *testing.B) {
 
 	cases := []struct {
 		name string
-		opt  fleet.VulnListOptions
+		opt  automdm.VulnListOptions
 	}{
 		{
 			name: "cvss_score_page0_per20",
-			opt: fleet.VulnListOptions{
+			opt: automdm.VulnListOptions{
 				IsEE: true,
-				ListOptions: fleet.ListOptions{
+				ListOptions: automdm.ListOptions{
 					OrderKey:        "cvss_score",
-					OrderDirection:  fleet.OrderDescending,
+					OrderDirection:  automdm.OrderDescending,
 					PerPage:         20,
 					IncludeMetadata: true,
 				},
@@ -292,11 +292,11 @@ func BenchmarkListVulnerabilities(b *testing.B) {
 		},
 		{
 			name: "cvss_score_page50_per20",
-			opt: fleet.VulnListOptions{
+			opt: automdm.VulnListOptions{
 				IsEE: true,
-				ListOptions: fleet.ListOptions{
+				ListOptions: automdm.ListOptions{
 					OrderKey:        "cvss_score",
-					OrderDirection:  fleet.OrderDescending,
+					OrderDirection:  automdm.OrderDescending,
 					PerPage:         20,
 					Page:            50,
 					IncludeMetadata: true,
@@ -305,12 +305,12 @@ func BenchmarkListVulnerabilities(b *testing.B) {
 		},
 		{
 			name: "exploit_filter_page0",
-			opt: fleet.VulnListOptions{
+			opt: automdm.VulnListOptions{
 				IsEE:         true,
 				KnownExploit: true,
-				ListOptions: fleet.ListOptions{
+				ListOptions: automdm.ListOptions{
 					OrderKey:        "cvss_score",
-					OrderDirection:  fleet.OrderDescending,
+					OrderDirection:  automdm.OrderDescending,
 					PerPage:         20,
 					IncludeMetadata: true,
 				},
@@ -318,11 +318,11 @@ func BenchmarkListVulnerabilities(b *testing.B) {
 		},
 		{
 			name: "created_at_page0",
-			opt: fleet.VulnListOptions{
+			opt: automdm.VulnListOptions{
 				IsEE: true,
-				ListOptions: fleet.ListOptions{
+				ListOptions: automdm.ListOptions{
 					OrderKey:        "created_at",
-					OrderDirection:  fleet.OrderDescending,
+					OrderDirection:  automdm.OrderDescending,
 					PerPage:         20,
 					IncludeMetadata: true,
 				},
@@ -330,12 +330,12 @@ func BenchmarkListVulnerabilities(b *testing.B) {
 		},
 		{
 			name: "team_cvss_score_page0",
-			opt: fleet.VulnListOptions{
+			opt: automdm.VulnListOptions{
 				IsEE:   true,
 				TeamID: new(benchTeamID),
-				ListOptions: fleet.ListOptions{
+				ListOptions: automdm.ListOptions{
 					OrderKey:        "cvss_score",
-					OrderDirection:  fleet.OrderDescending,
+					OrderDirection:  automdm.OrderDescending,
 					PerPage:         20,
 					IncludeMetadata: true,
 				},
@@ -343,13 +343,13 @@ func BenchmarkListVulnerabilities(b *testing.B) {
 		},
 		{
 			name: "team_exploit_page0",
-			opt: fleet.VulnListOptions{
+			opt: automdm.VulnListOptions{
 				IsEE:         true,
 				TeamID:       new(benchTeamID),
 				KnownExploit: true,
-				ListOptions: fleet.ListOptions{
+				ListOptions: automdm.ListOptions{
 					OrderKey:        "cvss_score",
-					OrderDirection:  fleet.OrderDescending,
+					OrderDirection:  automdm.OrderDescending,
 					PerPage:         20,
 					IncludeMetadata: true,
 				},
@@ -377,16 +377,16 @@ func BenchmarkCountVulnerabilities(b *testing.B) {
 
 	cases := []struct {
 		name string
-		opt  fleet.VulnListOptions
+		opt  automdm.VulnListOptions
 	}{
-		{"global_no_filter", fleet.VulnListOptions{IsEE: true}},
-		{"global_exploit", fleet.VulnListOptions{IsEE: true, KnownExploit: true}},
-		{"match_query", fleet.VulnListOptions{
+		{"global_no_filter", automdm.VulnListOptions{IsEE: true}},
+		{"global_exploit", automdm.VulnListOptions{IsEE: true, KnownExploit: true}},
+		{"match_query", automdm.VulnListOptions{
 			IsEE:        true,
-			ListOptions: fleet.ListOptions{MatchQuery: "CVE-2024-0001"},
+			ListOptions: automdm.ListOptions{MatchQuery: "CVE-2024-0001"},
 		}},
-		{"team_no_filter", fleet.VulnListOptions{IsEE: true, TeamID: new(benchTeamID)}},
-		{"team_exploit", fleet.VulnListOptions{IsEE: true, TeamID: new(benchTeamID), KnownExploit: true}},
+		{"team_no_filter", automdm.VulnListOptions{IsEE: true, TeamID: new(benchTeamID)}},
+		{"team_exploit", automdm.VulnListOptions{IsEE: true, TeamID: new(benchTeamID), KnownExploit: true}},
 	}
 
 	for _, c := range cases {
@@ -409,16 +409,16 @@ func BenchmarkListSoftwareVersions(b *testing.B) {
 
 	cases := []struct {
 		name string
-		opt  fleet.SoftwareListOptions
+		opt  automdm.SoftwareListOptions
 	}{
 		{
 			name: "no_filter_page0",
-			opt: fleet.SoftwareListOptions{
+			opt: automdm.SoftwareListOptions{
 				WithHostCounts:   true,
 				IncludeCVEScores: true,
-				ListOptions: fleet.ListOptions{
+				ListOptions: automdm.ListOptions{
 					OrderKey:        "hosts_count",
-					OrderDirection:  fleet.OrderDescending,
+					OrderDirection:  automdm.OrderDescending,
 					PerPage:         20,
 					IncludeMetadata: true,
 				},
@@ -426,13 +426,13 @@ func BenchmarkListSoftwareVersions(b *testing.B) {
 		},
 		{
 			name: "vulnerable_page0",
-			opt: fleet.SoftwareListOptions{
+			opt: automdm.SoftwareListOptions{
 				VulnerableOnly:   true,
 				WithHostCounts:   true,
 				IncludeCVEScores: true,
-				ListOptions: fleet.ListOptions{
+				ListOptions: automdm.ListOptions{
 					OrderKey:        "hosts_count",
-					OrderDirection:  fleet.OrderDescending,
+					OrderDirection:  automdm.OrderDescending,
 					PerPage:         20,
 					IncludeMetadata: true,
 				},
@@ -440,15 +440,15 @@ func BenchmarkListSoftwareVersions(b *testing.B) {
 		},
 		{
 			name: "vulnerable_exploit_cvss_page0",
-			opt: fleet.SoftwareListOptions{
+			opt: automdm.SoftwareListOptions{
 				VulnerableOnly:   true,
 				KnownExploit:     true,
 				MinimumCVSS:      3,
 				WithHostCounts:   true,
 				IncludeCVEScores: true,
-				ListOptions: fleet.ListOptions{
+				ListOptions: automdm.ListOptions{
 					OrderKey:        "hosts_count",
-					OrderDirection:  fleet.OrderDescending,
+					OrderDirection:  automdm.OrderDescending,
 					PerPage:         20,
 					IncludeMetadata: true,
 				},
@@ -456,14 +456,14 @@ func BenchmarkListSoftwareVersions(b *testing.B) {
 		},
 		{
 			name: "vulnerable_narrow_query_page0",
-			opt: fleet.SoftwareListOptions{
+			opt: automdm.SoftwareListOptions{
 				VulnerableOnly:   true,
 				WithHostCounts:   true,
 				IncludeCVEScores: true,
-				ListOptions: fleet.ListOptions{
+				ListOptions: automdm.ListOptions{
 					MatchQuery:      "software-1",
 					OrderKey:        "hosts_count",
-					OrderDirection:  fleet.OrderDescending,
+					OrderDirection:  automdm.OrderDescending,
 					PerPage:         20,
 					IncludeMetadata: true,
 				},
@@ -473,14 +473,14 @@ func BenchmarkListSoftwareVersions(b *testing.B) {
 			// Broad match (1-char LIKE) — matches almost every software row;
 			// useful for spotting plan flips driven by predicate selectivity.
 			name: "vulnerable_broad_query_page0",
-			opt: fleet.SoftwareListOptions{
+			opt: automdm.SoftwareListOptions{
 				VulnerableOnly:   true,
 				WithHostCounts:   true,
 				IncludeCVEScores: true,
-				ListOptions: fleet.ListOptions{
+				ListOptions: automdm.ListOptions{
 					MatchQuery:      "s",
 					OrderKey:        "hosts_count",
-					OrderDirection:  fleet.OrderDescending,
+					OrderDirection:  automdm.OrderDescending,
 					PerPage:         20,
 					IncludeMetadata: true,
 				},
@@ -488,14 +488,14 @@ func BenchmarkListSoftwareVersions(b *testing.B) {
 		},
 		{
 			name: "team_vulnerable_page0",
-			opt: fleet.SoftwareListOptions{
+			opt: automdm.SoftwareListOptions{
 				TeamID:           new(benchTeamID),
 				VulnerableOnly:   true,
 				WithHostCounts:   true,
 				IncludeCVEScores: true,
-				ListOptions: fleet.ListOptions{
+				ListOptions: automdm.ListOptions{
 					OrderKey:        "hosts_count",
-					OrderDirection:  fleet.OrderDescending,
+					OrderDirection:  automdm.OrderDescending,
 					PerPage:         20,
 					IncludeMetadata: true,
 				},
@@ -505,17 +505,17 @@ func BenchmarkListSoftwareVersions(b *testing.B) {
 			// Matches the customer's full Q1 pattern: team + exploit + cvss
 			// floor + vulnerable + search.
 			name: "team_full_customer_pattern_page0",
-			opt: fleet.SoftwareListOptions{
+			opt: automdm.SoftwareListOptions{
 				TeamID:           new(benchTeamID),
 				VulnerableOnly:   true,
 				KnownExploit:     true,
 				MinimumCVSS:      3,
 				WithHostCounts:   true,
 				IncludeCVEScores: true,
-				ListOptions: fleet.ListOptions{
+				ListOptions: automdm.ListOptions{
 					MatchQuery:      "s",
 					OrderKey:        "hosts_count",
-					OrderDirection:  fleet.OrderDescending,
+					OrderDirection:  automdm.OrderDescending,
 					PerPage:         20,
 					IncludeMetadata: true,
 				},
@@ -543,20 +543,20 @@ func BenchmarkCountSoftware(b *testing.B) {
 
 	cases := []struct {
 		name string
-		opt  fleet.SoftwareListOptions
+		opt  automdm.SoftwareListOptions
 	}{
-		{"no_filter", fleet.SoftwareListOptions{}},
-		{"vulnerable", fleet.SoftwareListOptions{VulnerableOnly: true}},
-		{"vulnerable_exploit", fleet.SoftwareListOptions{
+		{"no_filter", automdm.SoftwareListOptions{}},
+		{"vulnerable", automdm.SoftwareListOptions{VulnerableOnly: true}},
+		{"vulnerable_exploit", automdm.SoftwareListOptions{
 			VulnerableOnly: true, KnownExploit: true, IncludeCVEScores: true,
 		}},
-		{"vulnerable_cvss", fleet.SoftwareListOptions{
+		{"vulnerable_cvss", automdm.SoftwareListOptions{
 			VulnerableOnly: true, MinimumCVSS: 3, IncludeCVEScores: true,
 		}},
-		{"team_vulnerable", fleet.SoftwareListOptions{
+		{"team_vulnerable", automdm.SoftwareListOptions{
 			TeamID: new(benchTeamID), VulnerableOnly: true,
 		}},
-		{"team_vulnerable_exploit", fleet.SoftwareListOptions{
+		{"team_vulnerable_exploit", automdm.SoftwareListOptions{
 			TeamID: new(benchTeamID), VulnerableOnly: true,
 			KnownExploit: true, IncludeCVEScores: true,
 		}},

@@ -140,7 +140,7 @@ describe("Button component", () => {
         .getByTestId("plus-icon")
         .querySelector("path")
         ?.getAttribute("fill")
-    ).toContain("core-fleet-white");
+    ).toContain("core-automdm-white");
   });
   it("auto-colors the icon white on the alert variant", () => {
     render(
@@ -153,7 +153,7 @@ describe("Button component", () => {
         .getByTestId("plus-icon")
         .querySelector("path")
         ?.getAttribute("fill")
-    ).toContain("core-fleet-white");
+    ).toContain("core-automdm-white");
   });
   it("does not render the icon on the oversized variant (icons not enabled)", () => {
     render(
@@ -174,7 +174,7 @@ describe("Button component", () => {
         .getByTestId("plus-icon")
         .querySelector("path")
         ?.getAttribute("fill")
-    ).toContain("ui-fleet-black-75");
+    ).toContain("ui-automdm-black-75");
   });
   it("treats a false child as no label and applies icon-only styling", () => {
     // Callers commonly do `{cond && "Label"}` — a false-y cond means no label.
@@ -220,7 +220,7 @@ describe("Button component", () => {
     // We still want the square icon-only styling for those.
     const { container } = render(
       <Button variant="secondary" ariaLabel="Close">
-        <Icon name="close" color="core-fleet-black" />
+        <Icon name="close" color="core-automdm-black" />
       </Button>
     );
     expect(container.firstChild).toHaveClass("button--icon-only");

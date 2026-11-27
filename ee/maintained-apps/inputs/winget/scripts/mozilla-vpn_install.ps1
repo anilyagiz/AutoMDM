@@ -1,5 +1,5 @@
 # Learn more about .msi install scripts:
-# http://fleetdm.com/learn-more-about/msi-install-scripts
+# http://automdm.com/learn-more-about/msi-install-scripts
 #
 # Mozilla VPN's MSI starts the MozillaVPNBroker / MozillaVPNProxy services
 # (ServiceControl with Wait=1) and, on a fresh install, auto-launches the
@@ -11,7 +11,7 @@
 # timeout, then stop any lingering Mozilla VPN GUI process so it can't
 # interfere with the rest of the validation run.
 
-$logFile = "${env:TEMP}/fleet-install-software.log"
+$logFile = "${env:TEMP}/automdm-install-software.log"
 $msiFilePath = "${env:INSTALLER_PATH}"
 
 $timeoutSeconds = 300

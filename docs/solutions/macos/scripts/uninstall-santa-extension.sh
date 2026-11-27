@@ -2,16 +2,16 @@
 
 # Santa universal extension uninstaller script
 # Removes the santa.ext extension and cleans up configuration
-# Safe for deployment via Fleet (schedules orbit restart to avoid script termination)
+# Safe for deployment via AutoMDM (schedules orbit restart to avoid script termination)
 #
 # Usage:
-#   sudo ./uninstall-santa-extension.sh          # Default: scheduled restart (Fleet-safe)
+#   sudo ./uninstall-santa-extension.sh          # Default: scheduled restart (AutoMDM-safe)
 #   sudo ./uninstall-santa-extension.sh immediate # Immediate restart (manual execution)
 
 set -e  # Exit on any error
 
 # Variables
-EXTENSION_DIR="/var/fleet/extensions"
+EXTENSION_DIR="/var/automdm/extensions"
 OSQUERY_DIR="/var/osquery"
 EXTENSIONS_LOAD_FILE="$OSQUERY_DIR/extensions.load"
 EXTENSION_NAME="santa.ext"
@@ -126,7 +126,7 @@ handle_orbit_restart() {
         log "Immediate restart requested - restarting orbit service now..."
         restart_orbit_immediate
     else
-        log "Scheduling orbit service restart (safe for Fleet deployment)..."
+        log "Scheduling orbit service restart (safe for AutoMDM deployment)..."
         schedule_orbit_restart
     fi
 }
@@ -188,7 +188,7 @@ main() {
     if [[ "$IMMEDIATE_RESTART" == "immediate" ]]; then
         log "Mode: Immediate restart (manual execution)"
     else
-        log "Mode: Scheduled restart (safe for Fleet deployment)"
+        log "Mode: Scheduled restart (safe for AutoMDM deployment)"
     fi
     
     # Ensure log directory exists for background process
@@ -221,7 +221,7 @@ main() {
     # Remove any old extension references
     remove_old_extension_references
     
-    # Handle orbit restart (scheduled for Fleet deployment, immediate for manual)
+    # Handle orbit restart (scheduled for AutoMDM deployment, immediate for manual)
     handle_orbit_restart
     
     # Clean up backup on success

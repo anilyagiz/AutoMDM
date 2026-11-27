@@ -18,6 +18,6 @@ func TriggerWindowsMDMSync() error {
 	return nil
 }
 
-func HasActiveFleetMDMEnrollment() bool {
+func HasActiveAutoMDMMDMEnrollment() bool {
 	return false
 }

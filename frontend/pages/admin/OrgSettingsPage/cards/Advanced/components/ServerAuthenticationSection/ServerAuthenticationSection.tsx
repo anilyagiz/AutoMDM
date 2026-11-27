@@ -40,14 +40,14 @@ const ServerAuthenticationSection = ({
               !disableChildren && (
                 // Manual break: too long for `text-wrap: balance` (~6-line cap).
                 <>
-                  Update this URL if you want your Fleet users (admins,
+                  Update this URL if you want your AutoMDM users (admins,
                   maintainers, observers) to login via SSO using a URL
-                  that&apos;s different than the base URL of your Fleet
+                  that&apos;s different than the base URL of your AutoMDM
                   instance.
                   <br />
                   <br />
                   If not configured, login via SSO will use the base URL of the
-                  Fleet instance.
+                  AutoMDM instance.
                 </>
               )
             }
@@ -70,7 +70,7 @@ const ServerAuthenticationSection = ({
               error={formErrors.mdmAppleServerURL}
               tooltip={
                 !disableChildren &&
-                "Update this URL if you're self-hosting Fleet and you want your hosts to talk to this URL for MDM features. If not configured, hosts will use the base URL of the Fleet instance."
+                "Update this URL if you're self-hosting AutoMDM and you want your hosts to talk to this URL for MDM features. If not configured, hosts will use the base URL of the AutoMDM instance."
               }
               helpText="If this URL changes and hosts already have MDM turned on, the end users will have to turn MDM off and back on to use MDM features."
             />

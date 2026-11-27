@@ -1,27 +1,27 @@
 package android
 
 import (
-	"github.com/fleetdm/fleet/v4/server/service/redis_key_value"
+	"github.com/anilyagiz/automdm/v4/server/service/redis_key_value"
 	"log/slog"
 	"os"
 	"testing"
 
-	ee_android "github.com/fleetdm/fleet/v4/ee/server/mdm/android"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	android_mock "github.com/fleetdm/fleet/v4/server/mdm/android/mock"
-	android_service "github.com/fleetdm/fleet/v4/server/mdm/android/service"
-	"github.com/fleetdm/fleet/v4/server/service"
-	"github.com/fleetdm/fleet/v4/server/service/integrationtest"
-	"github.com/fleetdm/fleet/v4/server/service/svctest"
+	ee_android "github.com/anilyagiz/automdm/v4/ee/server/mdm/android"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	android_mock "github.com/anilyagiz/automdm/v4/server/mdm/android/mock"
+	android_service "github.com/anilyagiz/automdm/v4/server/mdm/android/service"
+	"github.com/anilyagiz/automdm/v4/server/service"
+	"github.com/anilyagiz/automdm/v4/server/service/integrationtest"
+	"github.com/anilyagiz/automdm/v4/server/service/svctest"
 	"github.com/stretchr/testify/require"
 )
 
 type Suite struct {
 	integrationtest.BaseSuite
 	AndroidProxy  *android_mock.Client
-	KeyValueStore fleet.KeyValueStore
+	KeyValueStore automdm.KeyValueStore
 }
 
 type suiteOptions struct {
@@ -32,7 +32,7 @@ type suiteOptions struct {
 type SuiteOption func(*suiteOptions)
 
 // WithEEAndroidService wraps the core Android service with the premium one, as
-// cmd/fleet/serve.go does, and serves requests with the given license tier.
+// cmd/automdm/serve.go does, and serves requests with the given license tier.
 func WithEEAndroidService(licenseTier string) SuiteOption {
 	return func(o *suiteOptions) {
 		o.licenseTier = licenseTier
@@ -41,13 +41,13 @@ func WithEEAndroidService(licenseTier string) SuiteOption {
 }
 
 func SetUpSuite(t *testing.T, uniqueTestName string, opts ...SuiteOption) *Suite {
-	options := suiteOptions{licenseTier: fleet.TierFree}
+	options := suiteOptions{licenseTier: automdm.TierFree}
 	for _, opt := range opts {
 		opt(&options)
 	}
 
-	license := &fleet.LicenseInfo{Tier: options.licenseTier}
-	ds, redisPool, fleetCfg, fleetSvc, ctx := integrationtest.SetUpMySQLAndRedisAndService(t, uniqueTestName, &service.TestServerOpts{License: license})
+	license := &automdm.LicenseInfo{Tier: options.licenseTier}
+	ds, redisPool, automdmCfg, automdmSvc, ctx := integrationtest.SetUpMySQLAndRedisAndService(t, uniqueTestName, &service.TestServerOpts{License: license})
 	keyValueStore := redis_key_value.New(redisPool)
 	slogLogger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	proxy := android_mock.Client{}
@@ -58,7 +58,7 @@ func SetUpSuite(t *testing.T, uniqueTestName string, opts ...SuiteOption) *Suite
 		&proxy,
 		"test-private-key",
 		ds,
-		fleetSvc.NewActivity,
+		automdmSvc.NewActivity,
 		config.AndroidAgentConfig{
 			Package:       "com.fleetdm.agent",
 			SigningSHA256: "abc123def456",
@@ -74,9 +74,9 @@ func SetUpSuite(t *testing.T, uniqueTestName string, opts ...SuiteOption) *Suite
 		androidSvc = eeAndroidSvc
 	}
 	dbConns := mysqltest.TestDBConnections(t, ds)
-	users, server := svctest.RunServerForTestsWithServiceWithDS(t, ctx, ds, fleetSvc, &service.TestServerOpts{
+	users, server := svctest.RunServerForTestsWithServiceWithDS(t, ctx, ds, automdmSvc, &service.TestServerOpts{
 		License:       license,
-		FleetConfig:   &fleetCfg,
+		AutoMDMConfig: &automdmCfg,
 		Pool:          redisPool,
 		Logger:        slogLogger,
 		AndroidModule: androidSvc,
@@ -85,11 +85,11 @@ func SetUpSuite(t *testing.T, uniqueTestName string, opts ...SuiteOption) *Suite
 
 	s := &Suite{
 		BaseSuite: integrationtest.BaseSuite{
-			Logger:   slogLogger,
-			DS:       ds,
-			FleetCfg: fleetCfg,
-			Users:    users,
-			Server:   server,
+			Logger:     slogLogger,
+			DS:         ds,
+			AutoMDMCfg: automdmCfg,
+			Users:      users,
+			Server:     server,
 		},
 		AndroidProxy:  &proxy,
 		KeyValueStore: keyValueStore,

@@ -4,14 +4,14 @@ import (
 	"context"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/notifications/api"
-	platform_errors "github.com/fleetdm/fleet/v4/server/platform/errors"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/notifications/api"
+	platform_errors "github.com/anilyagiz/automdm/v4/server/platform/errors"
 )
 
 // notificationOutcomeForExitCode maps a notify exit code to a reason and a retry
 // wait, nil meaning no retry. Codes come from
-// apps/fleet-desktop-macos/FleetDesktop/cli.swift.
+// apps/automdm-desktop-macos/AutoMDMDesktop/cli.swift.
 func notificationOutcomeForExitCode(exitCode int64) (reason string, retryIn *time.Duration) {
 	shortRetry := api.EndUserNotificationShortRetryInterval
 	longRetry := api.EndUserNotificationLongRetryInterval
@@ -20,13 +20,13 @@ func notificationOutcomeForExitCode(exitCode int64) (reason string, retryIn *tim
 	case 0:
 		return "", nil
 
-	// Fleet asked for something impossible, so asking again changes nothing.
+	// AutoMDM asked for something impossible, so asking again changes nothing.
 	case 2:
 		return api.EndUserNotificationReasonBadInvocation, nil
 	case 20:
 		return api.EndUserNotificationReasonBadConfiguration, nil
 
-	// Fleet Desktop couldn't display the notification.
+	// AutoMDM Desktop couldn't display the notification.
 	case 30:
 		return api.EndUserNotificationReasonPageLoadFailed, &shortRetry
 	case 31:
@@ -42,15 +42,15 @@ func notificationOutcomeForExitCode(exitCode int64) (reason string, retryIn *tim
 	case 70:
 		return api.EndUserNotificationReasonInternalError, &shortRetry
 
-	// fleetd has scripts disabled, or Fleet couldn't build the notification's URL.
-	// Neither clears up on its own. Values mirror server/fleet, which this context
+	// automdmd has scripts disabled, or AutoMDM couldn't build the notification's URL.
+	// Neither clears up on its own. Values mirror server/automdm, which this context
 	// can't import.
 	case -2:
 		return api.EndUserNotificationReasonScriptsDisabled, &longRetry
 	case -5:
 		return api.EndUserNotificationReasonURLUnresolved, &longRetry
 
-	// Fleet Desktop can't display a notification. Wait the long duration so an
+	// AutoMDM Desktop can't display a notification. Wait the long duration so an
 	// admin or a patch policy has a chance to install a newer version.
 	case 100:
 		return api.EndUserNotificationReasonDesktopMissing, &longRetry

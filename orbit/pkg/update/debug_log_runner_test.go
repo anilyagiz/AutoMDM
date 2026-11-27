@@ -3,7 +3,7 @@ package update
 import (
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 )
@@ -64,7 +64,7 @@ func TestDebugLogReceiver(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			zerolog.SetGlobalLevel(tc.startLevel)
-			err := r.Run(&fleet.OrbitConfig{DebugLogging: tc.debugLogging})
+			err := r.Run(&automdm.OrbitConfig{DebugLogging: tc.debugLogging})
 			require.NoError(t, err)
 			require.Equal(t, tc.expectedLevel, zerolog.GlobalLevel())
 		})
@@ -82,16 +82,16 @@ func TestDebugLogReceiverStartupFlagIsFloor(t *testing.T) {
 
 	// Server off + already debug: floor keeps it on.
 	zerolog.SetGlobalLevel(zerolog.DebugLevel)
-	require.NoError(t, r.Run(&fleet.OrbitConfig{DebugLogging: &falseVal}))
+	require.NoError(t, r.Run(&automdm.OrbitConfig{DebugLogging: &falseVal}))
 	require.Equal(t, zerolog.DebugLevel, zerolog.GlobalLevel())
 
 	// Server nil + already debug: floor keeps it on.
 	zerolog.SetGlobalLevel(zerolog.DebugLevel)
-	require.NoError(t, r.Run(&fleet.OrbitConfig{DebugLogging: nil}))
+	require.NoError(t, r.Run(&automdm.OrbitConfig{DebugLogging: nil}))
 	require.Equal(t, zerolog.DebugLevel, zerolog.GlobalLevel())
 
 	// Server on: always honored.
 	zerolog.SetGlobalLevel(zerolog.InfoLevel)
-	require.NoError(t, r.Run(&fleet.OrbitConfig{DebugLogging: &trueVal}))
+	require.NoError(t, r.Run(&automdm.OrbitConfig{DebugLogging: &trueVal}))
 	require.Equal(t, zerolog.DebugLevel, zerolog.GlobalLevel())
 }

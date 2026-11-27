@@ -1,97 +1,97 @@
-name: fleetctl-gitops
-description: Runs fleetctl gitops to apply configuration to Fleet
+name: automdmctl-gitops
+description: Runs automdmctl gitops to apply configuration to AutoMDM
 # Schema: https://json.schemastore.org/github-action.json
 
 # This action expects the following env vars to be set:
-# - FLEET_URL: The URL of the Fleet server to apply configuration to.
-# - FLEET_API_TOKEN: An API token for a Fleet GitOps user.
+# - AUTOMDM_URL: The URL of the AutoMDM server to apply configuration to.
+# - AUTOMDM_API_TOKEN: An API token for an AutoMDM GitOps user.
 #
 # Optional:
-# - FLEET_GITOPS_DIR: The directory containing the GitOps config (default.yml,
-#   fleets/*.yml). Defaults to the current directory.
-# - FLEET_CUSTOM_HEADERS: Comma-separated "Header:Value" pairs (e.g. a Cloudflare
-#   Access service token) sent on every request to the Fleet server.
+# - AUTOMDM_GITOPS_DIR: The directory containing the GitOps config (default.yml,
+#   teams/*.yml). Defaults to the current directory.
+# - AUTOMDM_CUSTOM_HEADERS: Comma-separated "Header:Value" pairs (e.g. a Cloudflare
+#   Access service token) sent on every request to the AutoMDM server.
 
 inputs:
   working-directory:
     description: 'The working directory, which should be the root of the repository.'
     default: './'
   dry-run-only:
-    description: 'Whether to only run the fleetctl gitops commands in dry-run mode.'
+    description: 'Whether to only run the automdmctl gitops commands in dry-run mode.'
     default: 'false'
-  delete-other-fleets:
-    description: 'Whether to delete other fleets in Fleet which are not part of the gitops config.'
+  delete-other-teams:
+    description: 'Whether to delete other teams in AutoMDM which are not part of the gitops config.'
     default: 'true'
 
 runs:
   using: "composite"
   steps:
-    - name: Install fleetctl
+    - name: Install automdmctl
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       # github-env: the GITHUB_PATH write below appends the runner-controlled constant
-      # $HOME/.fleetctl, not any user-supplied value, so it cannot inject a path.
+      # $HOME/.automdmctl, not any user-supplied value, so it cannot inject a path.
       run: | # zizmor: ignore[github-env]
-        FLEET_URL="${FLEET_URL%/}"
+        AUTOMDM_URL="${AUTOMDM_URL%/}"
 
-        # Build optional custom request headers from FLEET_CUSTOM_HEADERS, a comma-separated
+        # Build optional custom request headers from AUTOMDM_CUSTOM_HEADERS, a comma-separated
         # list of "Header:Value" pairs (e.g. a Cloudflare Access service token). Empty by default.
         CURL_HEADER_ARGS=()
-        if [[ -n "${FLEET_CUSTOM_HEADERS:-}" ]]; then
-          IFS=',' read -ra _CUSTOM_HEADERS <<< "$FLEET_CUSTOM_HEADERS"
+        if [[ -n "${AUTOMDM_CUSTOM_HEADERS:-}" ]]; then
+          IFS=',' read -ra _CUSTOM_HEADERS <<< "$AUTOMDM_CUSTOM_HEADERS"
           for _header in "${_CUSTOM_HEADERS[@]}"; do
             CURL_HEADER_ARGS+=(--header "$_header")
           done
         fi
 
-        FLEET_VERSION="$(curl "$FLEET_URL/api/v1/fleet/version" --header "Authorization: Bearer $FLEET_API_TOKEN" "${CURL_HEADER_ARGS[@]}" --fail --silent --connect-timeout 10 --max-time 60 | jq --raw-output '.version')"
-        DEFAULT_FLEETCTL_VERSION="latest"
+        AUTOMDM_VERSION="$(curl "$AUTOMDM_URL/api/v1/automdm/version" --header "Authorization: Bearer $AUTOMDM_API_TOKEN" "${CURL_HEADER_ARGS[@]}" --fail --silent --connect-timeout 10 --max-time 60 | jq --raw-output '.version')"
+        DEFAULT_AUTOMDMCTL_VERSION="latest"
 
-        # Decide which fleetctl version to install:
+        # Decide which automdmctl version to install:
         # If the server returns a clean version (e.g. 4.74.0), use that.
-        # If the server returns a snapshot (e.g. 0.0.0-SNAPSHOT-xxxxx) or is empty, pin to DEFAULT_FLEETCTL_VERSION.
-        if [[ -z "$FLEET_VERSION" ]]; then
-          INSTALL_VERSION="$DEFAULT_FLEETCTL_VERSION"
-        elif [[ "$FLEET_VERSION" == 0.0.0-SNAPSHOT* ]]; then
-          INSTALL_VERSION="$DEFAULT_FLEETCTL_VERSION"
-        elif [[ "$FLEET_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-          INSTALL_VERSION="$FLEET_VERSION"
+        # If the server returns a snapshot (e.g. 0.0.0-SNAPSHOT-xxxxx) or is empty, pin to DEFAULT_AUTOMDMCTL_VERSION.
+        if [[ -z "$AUTOMDM_VERSION" ]]; then
+          INSTALL_VERSION="$DEFAULT_AUTOMDMCTL_VERSION"
+        elif [[ "$AUTOMDM_VERSION" == 0.0.0-SNAPSHOT* ]]; then
+          INSTALL_VERSION="$DEFAULT_AUTOMDMCTL_VERSION"
+        elif [[ "$AUTOMDM_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          INSTALL_VERSION="$AUTOMDM_VERSION"
         else
           # Strip anything after + (e.g. 4.81.0+foobar -> 4.81.0)
-          FLEET_VERSION="${FLEET_VERSION%%\+*}"
-          if [[ "$FLEET_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            INSTALL_VERSION="$FLEET_VERSION"
+          AUTOMDM_VERSION="${AUTOMDM_VERSION%%\+*}"
+          if [[ "$AUTOMDM_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            INSTALL_VERSION="$AUTOMDM_VERSION"
           else
-            INSTALL_VERSION="$DEFAULT_FLEETCTL_VERSION"
+            INSTALL_VERSION="$DEFAULT_AUTOMDMCTL_VERSION"
           fi
         fi
 
-        echo "Installing fleetctl v$INSTALL_VERSION..."
-        # Fall back to the latest release when no fleetctl release matches the server version.
-        curl -fsSL https://fleetdm.com/resources/install-fleetctl.sh | FLEETCTL_VERSION="$INSTALL_VERSION" bash \
-          || curl -fsSL https://fleetdm.com/resources/install-fleetctl.sh | bash
-        echo "$HOME/.fleetctl" >> "$GITHUB_PATH"
+        echo "Installing automdmctl v$INSTALL_VERSION..."
+        # Fall back to the latest release when no automdmctl release matches the server version.
+        curl -fsSL https://automdm.com/resources/install-automdmctl.sh | AUTOMDMCTL_VERSION="$INSTALL_VERSION" bash \
+          || curl -fsSL https://automdm.com/resources/install-automdmctl.sh | bash
+        echo "$HOME/.automdmctl" >> "$GITHUB_PATH"
 
-    - name: Configure fleetctl
+    - name: Configure automdmctl
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       run: |
-        # Build optional custom request headers from FLEET_CUSTOM_HEADERS, a comma-separated
-        # list of "Header:Value" pairs. fleetctl persists them and sends them on every request,
+        # Build optional custom request headers from AUTOMDM_CUSTOM_HEADERS, a comma-separated
+        # list of "Header:Value" pairs. automdmctl persists them and sends them on every request,
         # so the gitops commands below use them too.
         CUSTOM_HEADER_ARGS=()
-        if [[ -n "${FLEET_CUSTOM_HEADERS:-}" ]]; then
-          IFS=',' read -ra _CUSTOM_HEADERS <<< "$FLEET_CUSTOM_HEADERS"
+        if [[ -n "${AUTOMDM_CUSTOM_HEADERS:-}" ]]; then
+          IFS=',' read -ra _CUSTOM_HEADERS <<< "$AUTOMDM_CUSTOM_HEADERS"
           for _header in "${_CUSTOM_HEADERS[@]}"; do
             CUSTOM_HEADER_ARGS+=(--custom-header "$_header")
           done
         fi
-        fleetctl config set --address "$FLEET_URL" --token "$FLEET_API_TOKEN" "${CUSTOM_HEADER_ARGS[@]}"
+        automdmctl config set --address "$AUTOMDM_URL" --token "$AUTOMDM_API_TOKEN" "${CUSTOM_HEADER_ARGS[@]}"
 
-    - name: Run fleetctl gitops commands
+    - name: Run automdmctl gitops commands
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       env:
-        FLEET_DRY_RUN_ONLY: ${{ inputs.dry-run-only }}
-        FLEET_DELETE_OTHER_FLEETS: ${{ inputs.delete-other-fleets }}
+        AUTOMDM_DRY_RUN_ONLY: ${{ inputs.dry-run-only }}
+        AUTOMDM_DELETE_OTHER_TEAMS: ${{ inputs.delete-other-teams }}
       run: bash "$GITHUB_ACTION_PATH/gitops.sh"

@@ -5,7 +5,7 @@ import (
 	"path"
 )
 
-// ResolveURL resolves a relative path to a server URL (typically the Fleet
+// ResolveURL resolves a relative path to a server URL (typically the AutoMDM
 // server's). If cleanQuery is true, the query string part is cleared.
 func ResolveURL(serverURL, relPath string, cleanQuery bool) (string, error) {
 	u, err := url.Parse(serverURL)

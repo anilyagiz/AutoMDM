@@ -25,16 +25,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/mdm/mdmtest"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	apple_mdm "github.com/fleetdm/fleet/v4/server/mdm/apple"
-	"github.com/fleetdm/fleet/v4/server/mdm/microsoft/syncml"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
-	scepserver "github.com/fleetdm/fleet/v4/server/mdm/scep/server"
-	mdmtesting "github.com/fleetdm/fleet/v4/server/mdm/testing_utils"
-	"github.com/fleetdm/fleet/v4/server/service/integrationtest/scep_server"
+	"github.com/anilyagiz/automdm/v4/pkg/mdm/mdmtest"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	apple_mdm "github.com/anilyagiz/automdm/v4/server/mdm/apple"
+	"github.com/anilyagiz/automdm/v4/server/mdm/microsoft/syncml"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
+	scepserver "github.com/anilyagiz/automdm/v4/server/mdm/scep/server"
+	mdmtesting "github.com/anilyagiz/automdm/v4/server/mdm/testing_utils"
+	"github.com/anilyagiz/automdm/v4/server/service/integrationtest/scep_server"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	micromdm "github.com/micromdm/micromdm/mdm/mdm"
@@ -67,7 +67,7 @@ func testWindowsSCEPProfile(s *integrationMDMTestSuite, windowsScepProfile []byt
 	// Create windows host and enroll in MDM
 	host, mdmDevice := createWindowsHostThenEnrollMDM(s.ds, s.server.URL, t)
 
-	// verifyCommands runs a management session, drives any SCEP CSPs to completion against Fleet's
+	// verifyCommands runs a management session, drives any SCEP CSPs to completion against AutoMDM's
 	// SCEP proxy, ACKs the rest of the commands with the given status, and asserts the SCEP exchange
 	// succeeded (cert returned, no error). Returns the number of SCEP exchanges performed.
 	verifyCommands := func(wantProfiles int, status string) int {
@@ -94,14 +94,14 @@ func testWindowsSCEPProfile(s *integrationMDMTestSuite, windowsScepProfile []byt
 			}
 			cmdID := c.Cmd.CmdID.Value
 			verb := c.Verb
-			mdmDevice.AppendResponse(fleet.SyncMLCmd{
-				XMLName: xml.Name{Local: fleet.CmdStatus},
+			mdmDevice.AppendResponse(automdm.SyncMLCmd{
+				XMLName: xml.Name{Local: automdm.CmdStatus},
 				MsgRef:  &msgID,
 				CmdRef:  &cmdID,
 				Cmd:     &verb,
 				Data:    &status,
 				Items:   nil,
-				CmdID:   fleet.CmdID{Value: uuid.NewString()},
+				CmdID:   automdm.CmdID{Value: uuid.NewString()},
 			})
 		}
 		require.Equal(t, wantProfiles, atomicCmds)
@@ -122,17 +122,17 @@ func testWindowsSCEPProfile(s *integrationMDMTestSuite, windowsScepProfile []byt
 	}
 
 	// Upload SCEP profile with missing CA
-	resp := s.Do("POST", "/api/v1/fleet/mdm/profiles/batch",
-		batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{
+	resp := s.Do("POST", "/api/v1/automdm/mdm/profiles/batch",
+		batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{
 			{Name: "WindowsSCEPProfile", Contents: windowsScepProfile},
 		}},
 		http.StatusBadRequest)
 	errMsg := extractServerErrorText(resp.Body)
-	require.Contains(t, errMsg, "Fleet variable $FLEET_VAR_CUSTOM_SCEP_PROXY_URL_INTEGRATION does not exist.")
+	require.Contains(t, errMsg, "AutoMDM variable $AUTOMDM_VAR_CUSTOM_SCEP_PROXY_URL_INTEGRATION does not exist.")
 
 	// Create Custom SCEP CA
-	ca := &fleet.CertificateAuthority{
-		Type:      string(fleet.CATypeCustomSCEPProxy),
+	ca := &automdm.CertificateAuthority{
+		Type:      string(automdm.CATypeCustomSCEPProxy),
 		Name:      new("INTEGRATION"),
 		Challenge: new("integration-test"),
 		URL:       new(scepServerURL),
@@ -142,16 +142,16 @@ func testWindowsSCEPProfile(s *integrationMDMTestSuite, windowsScepProfile []byt
 	require.NoError(t, err)
 
 	// Fail on missing OU
-	resp = s.Do("POST", "/api/v1/fleet/mdm/profiles/batch",
-		batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{
-			{Name: "WindowsSCEPProfile", Contents: bytes.ReplaceAll(windowsScepProfile, []byte(fleet.FleetVarSCEPRenewalID.WithPrefix()), []byte("BOGUS"))},
+	resp = s.Do("POST", "/api/v1/automdm/mdm/profiles/batch",
+		batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{
+			{Name: "WindowsSCEPProfile", Contents: bytes.ReplaceAll(windowsScepProfile, []byte(automdm.AutoMDMVarSCEPRenewalID.WithPrefix()), []byte("BOGUS"))},
 		}},
 		http.StatusBadRequest)
 	errMsg = extractServerErrorText(resp.Body)
-	require.Contains(t, errMsg, "SCEP profile for custom SCEP certificate authority requires: $FLEET_VAR_CUSTOM_SCEP_CHALLENGE_<CA_NAME>, $FLEET_VAR_CUSTOM_SCEP_PROXY_URL_<CA_NAME>, and $FLEET_VAR_CERTIFICATE_RENEWAL_ID variables")
+	require.Contains(t, errMsg, "SCEP profile for custom SCEP certificate authority requires: $AUTOMDM_VAR_CUSTOM_SCEP_CHALLENGE_<CA_NAME>, $AUTOMDM_VAR_CUSTOM_SCEP_PROXY_URL_<CA_NAME>, and $AUTOMDM_VAR_CERTIFICATE_RENEWAL_ID variables")
 
-	s.Do("POST", "/api/v1/fleet/mdm/profiles/batch",
-		batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{
+	s.Do("POST", "/api/v1/automdm/mdm/profiles/batch",
+		batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{
 			{Name: "WindowsSCEPProfile", Contents: windowsScepProfile},
 		}},
 		http.StatusNoContent)
@@ -167,7 +167,7 @@ func testWindowsSCEPProfile(s *integrationMDMTestSuite, windowsScepProfile []byt
 		if p.Name == "WindowsSCEPProfile" {
 			foundProfile = true
 			require.NotNil(t, p.Status)
-			assert.Equal(t, fleet.MDMDeliveryPending, *p.Status)
+			assert.Equal(t, automdm.MDMDeliveryPending, *p.Status)
 		}
 	}
 	require.True(t, foundProfile, "WindowsSCEPProfile not found for host")
@@ -175,8 +175,8 @@ func testWindowsSCEPProfile(s *integrationMDMTestSuite, windowsScepProfile []byt
 	scepCount := verifyCommands(1, syncml.CmdStatusOK)
 	require.Equal(t, 1, scepCount, "SCEP exchange should have run exactly once")
 
-	// The device ACKed the SCEP <Exec>, but for a Fleet-proxied SCEP profile that only means the exchange was
-	// accepted, not that a certificate landed on the host. The profile stays "verifying" until Fleet observes the
+	// The device ACKed the SCEP <Exec>, but for an AutoMDM-proxied SCEP profile that only means the exchange was
+	// accepted, not that a certificate landed on the host. The profile stays "verifying" until AutoMDM observes the
 	// matching certificate.
 	profiles, err = s.ds.GetHostMDMWindowsProfiles(ctx, host.UUID)
 	require.NoError(t, err)
@@ -187,27 +187,27 @@ func testWindowsSCEPProfile(s *integrationMDMTestSuite, windowsScepProfile []byt
 			foundProfile = true
 			profileUUID = p.ProfileUUID
 			require.NotNil(t, p.Status)
-			assert.Equal(t, fleet.MDMDeliveryVerifying, *p.Status)
+			assert.Equal(t, automdm.MDMDeliveryVerifying, *p.Status)
 		}
 	}
 	require.True(t, foundProfile, "WindowsSCEPProfile not found for host")
 
 	// Simulate osquery reporting the issued certificate. It carries the profile's renewal-ID marker
-	// (fleet-<profile_uuid>) in its OU, which Fleet matches back to the profile's managed-certificate row.
+	// (automdm-<profile_uuid>) in its OU, which AutoMDM matches back to the profile's managed-certificate row.
 	sha1Sum := make([]byte, 20)
 	copy(sha1Sum, profileUUID)
-	require.NoError(t, s.ds.UpdateHostCertificates(ctx, host.ID, host.UUID, []*fleet.HostCertificateRecord{{
+	require.NoError(t, s.ds.UpdateHostCertificates(ctx, host.ID, host.UUID, []*automdm.HostCertificateRecord{{
 		HostID:                    host.ID,
 		CommonName:                "windows-scep-cert",
 		SubjectCommonName:         "windows-scep-cert",
-		SubjectOrganizationalUnit: "fleet-" + profileUUID,
+		SubjectOrganizationalUnit: "automdm-" + profileUUID,
 		SHA1Sum:                   sha1Sum,
 		NotValidBefore:            time.Now().Add(-time.Hour),
 		NotValidAfter:             time.Now().Add(365 * 24 * time.Hour),
-		Source:                    fleet.SystemHostCertificate,
-	}}, fleet.HostCertificateOriginOsquery, nil))
+		Source:                    automdm.SystemHostCertificate,
+	}}, automdm.HostCertificateOriginOsquery, nil))
 
-	// Now that Fleet has observed the matching certificate, the profile is verified.
+	// Now that AutoMDM has observed the matching certificate, the profile is verified.
 	profiles, err = s.ds.GetHostMDMWindowsProfiles(ctx, host.UUID)
 	require.NoError(t, err)
 	foundProfile = false
@@ -215,7 +215,7 @@ func testWindowsSCEPProfile(s *integrationMDMTestSuite, windowsScepProfile []byt
 		if p.Name == "WindowsSCEPProfile" {
 			foundProfile = true
 			require.NotNil(t, p.Status)
-			assert.Equal(t, fleet.MDMDeliveryVerified, *p.Status)
+			assert.Equal(t, automdm.MDMDeliveryVerified, *p.Status)
 		}
 	}
 	require.True(t, foundProfile, "WindowsSCEPProfile not found for host")
@@ -229,8 +229,8 @@ func testWindowsSCEPProfile(s *integrationMDMTestSuite, windowsScepProfile []byt
 }
 
 // TestWindowsHardcodedSCEPProfile covers a Windows MDM SCEP profile that uses a hardcoded SCEP
-// server URL and challenge instead of Fleet's Custom SCEP proxy variables. The test client
-// should still drive the SCEP exchange against the literal URL; Fleet's SCEP proxy is not
+// server URL and challenge instead of AutoMDM's Custom SCEP proxy variables. The test client
+// should still drive the SCEP exchange against the literal URL; AutoMDM's SCEP proxy is not
 // involved on this path.
 func (s *integrationMDMTestSuite) TestWindowsHardcodedSCEPProfile() {
 	t := s.T()
@@ -246,14 +246,14 @@ func (s *integrationMDMTestSuite) TestWindowsHardcodedSCEPProfile() {
 		t.Run(locPrefix, func(t *testing.T) {
 			profileName := "HardcodedSCEPProfile" + strings.ReplaceAll(locPrefix, "/", "_")
 			profile := bytes.ReplaceAll(fixtures[locPrefix],
-				[]byte("$FLEET_VAR_CUSTOM_SCEP_PROXY_URL_INTEGRATION"), []byte(scepServerURL))
+				[]byte("$AUTOMDM_VAR_CUSTOM_SCEP_PROXY_URL_INTEGRATION"), []byte(scepServerURL))
 			profile = bytes.ReplaceAll(profile,
-				[]byte("$FLEET_VAR_CUSTOM_SCEP_CHALLENGE_INTEGRATION"), []byte("any-challenge"))
+				[]byte("$AUTOMDM_VAR_CUSTOM_SCEP_CHALLENGE_INTEGRATION"), []byte("any-challenge"))
 			profile = bytes.ReplaceAll(profile,
-				[]byte("$FLEET_VAR_SCEP_RENEWAL_ID"), []byte("hardcoded-renewal"))
+				[]byte("$AUTOMDM_VAR_SCEP_RENEWAL_ID"), []byte("hardcoded-renewal"))
 
-			s.Do("POST", "/api/v1/fleet/mdm/profiles/batch",
-				batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{
+			s.Do("POST", "/api/v1/automdm/mdm/profiles/batch",
+				batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{
 					{Name: profileName, Contents: profile},
 				}},
 				http.StatusNoContent)
@@ -271,7 +271,7 @@ func (s *integrationMDMTestSuite) TestWindowsHardcodedSCEPProfile() {
 			defer cancel()
 			handled, scepResults, _ := mdmDevice.AppendSCEPInstallResponses(scepCtx, cmds, msgID, nil)
 			for _, c := range cmds {
-				if c.Verb == fleet.CmdStatus {
+				if c.Verb == automdm.CmdStatus {
 					continue
 				}
 				if _, ok := handled[c.Cmd.CmdID.Value]; ok {
@@ -280,13 +280,13 @@ func (s *integrationMDMTestSuite) TestWindowsHardcodedSCEPProfile() {
 				cmdID := c.Cmd.CmdID.Value
 				verb := c.Verb
 				status := syncml.CmdStatusOK
-				mdmDevice.AppendResponse(fleet.SyncMLCmd{
-					XMLName: xml.Name{Local: fleet.CmdStatus},
+				mdmDevice.AppendResponse(automdm.SyncMLCmd{
+					XMLName: xml.Name{Local: automdm.CmdStatus},
 					MsgRef:  &msgID,
 					CmdRef:  &cmdID,
 					Cmd:     &verb,
 					Data:    &status,
-					CmdID:   fleet.CmdID{Value: uuid.NewString()},
+					CmdID:   automdm.CmdID{Value: uuid.NewString()},
 				})
 			}
 
@@ -308,7 +308,7 @@ func (s *integrationMDMTestSuite) TestWindowsHardcodedSCEPProfile() {
 				if p.Name == profileName {
 					found = true
 					require.NotNil(t, p.Status)
-					assert.Equal(t, fleet.MDMDeliveryVerified, *p.Status)
+					assert.Equal(t, automdm.MDMDeliveryVerified, *p.Status)
 				}
 			}
 			require.True(t, found, "%s not found for host", profileName)
@@ -317,42 +317,42 @@ func (s *integrationMDMTestSuite) TestWindowsHardcodedSCEPProfile() {
 }
 
 // TestWindowsConditionalAccessSCEPProfile covers a Windows SCEP profile written before the challenge variable existed:
-// the admin writes a global enroll secret into it directly or through a secret variable. Fleet fills in the SCEP URL at
+// the admin writes a global enroll secret into it directly or through a secret variable. AutoMDM fills in the SCEP URL at
 // delivery and tracks the certificate the way it tracks a proxied certificate authority's.
 func (s *integrationMDMTestSuite) TestWindowsConditionalAccessSCEPProfile() {
 	t := s.T()
 	ctx := t.Context()
 
-	require.NoError(t, s.ds.ApplyEnrollSecrets(ctx, nil, []*fleet.EnrollSecret{{Secret: "first+secret="}}))
-	_, _, err := s.ds.UpsertSecretVariables(ctx, []fleet.SecretVariable{
+	require.NoError(t, s.ds.ApplyEnrollSecrets(ctx, nil, []*automdm.EnrollSecret{{Secret: "first+secret="}}))
+	_, _, err := s.ds.UpsertSecretVariables(ctx, []automdm.SecretVariable{
 		{Name: "CONDACCESS_CHALLENGE", Value: "first+secret="},
 		{Name: "BAD_CHALLENGE", Value: "bad_secret"},
 	})
 	require.NoError(t, err)
 	withChallenge := func(challenge string) []byte {
 		profile := bytes.ReplaceAll(windowsUserSCEPProfileBytes,
-			[]byte("$FLEET_VAR_CUSTOM_SCEP_PROXY_URL_INTEGRATION"), []byte(fleet.FleetVarConditionalAccessSCEPURL.WithPrefix()))
-		return bytes.ReplaceAll(profile, []byte("$FLEET_VAR_CUSTOM_SCEP_CHALLENGE_INTEGRATION"), []byte(challenge))
+			[]byte("$AUTOMDM_VAR_CUSTOM_SCEP_PROXY_URL_INTEGRATION"), []byte(automdm.AutoMDMVarConditionalAccessSCEPURL.WithPrefix()))
+		return bytes.ReplaceAll(profile, []byte("$AUTOMDM_VAR_CUSTOM_SCEP_CHALLENGE_INTEGRATION"), []byte(challenge))
 	}
 
 	// A challenge Windows can't send is rejected at upload, secret variables included.
-	resp := s.Do("POST", "/api/v1/fleet/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{
-		{Name: "ConditionalAccessSCEP", Contents: withChallenge("$FLEET_SECRET_BAD_CHALLENGE")},
+	resp := s.Do("POST", "/api/v1/automdm/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{
+		{Name: "ConditionalAccessSCEP", Contents: withChallenge("$AUTOMDM_SECRET_BAD_CHALLENGE")},
 	}}, http.StatusBadRequest)
 	require.Contains(t, extractServerErrorText(resp.Body), conditionalAccessChallengeInvalidMsg)
 
-	s.Do("POST", "/api/v1/fleet/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{
-		{Name: "ConditionalAccessSCEP", Contents: withChallenge("$FLEET_SECRET_CONDACCESS_CHALLENGE")},
+	s.Do("POST", "/api/v1/automdm/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{
+		{Name: "ConditionalAccessSCEP", Contents: withChallenge("$AUTOMDM_SECRET_CONDACCESS_CHALLENGE")},
 	}}, http.StatusNoContent)
 
 	appConfig, err := s.ds.AppConfig(ctx)
 	require.NoError(t, err)
-	scepURL, err := url.JoinPath(appConfig.ServerSettings.ServerURL, "/api/fleet/conditional_access/scep")
+	scepURL, err := url.JoinPath(appConfig.ServerSettings.ServerURL, "/api/automdm/conditional_access/scep")
 	require.NoError(t, err)
 
 	host, mdmDevice := createWindowsHostThenEnrollMDM(s.ds, s.server.URL, t)
 
-	hostProfile := func() *fleet.HostMDMWindowsProfile {
+	hostProfile := func() *automdm.HostMDMWindowsProfile {
 		profiles, err := s.ds.GetHostMDMWindowsProfiles(ctx, host.UUID)
 		require.NoError(t, err)
 		for _, p := range profiles {
@@ -388,29 +388,29 @@ func (s *integrationMDMTestSuite) TestWindowsConditionalAccessSCEPProfile() {
 	s.awaitTriggerProfileSchedule(t)
 	p := hostProfile()
 	require.NotNil(t, p.Status)
-	require.Equal(t, fleet.MDMDeliveryPending, *p.Status)
+	require.Equal(t, automdm.MDMDeliveryPending, *p.Status)
 	raw := rawCommand(p.CommandUUID)
 	require.Contains(t, raw, "<Data>"+scepURL+"</Data>")
 	// A secret variable is only expanded when the command is sent, so the stored command never holds the secret.
-	require.Contains(t, raw, "<Data>$FLEET_SECRET_CONDACCESS_CHALLENGE</Data>")
+	require.Contains(t, raw, "<Data>$AUTOMDM_SECRET_CONDACCESS_CHALLENGE</Data>")
 	require.NotContains(t, raw, "first+secret=")
 
-	managedCert, err := s.ds.GetWindowsHostMDMCertificateProfile(ctx, host.UUID, p.ProfileUUID, fleet.ConditionalAccessManagedCertificateCAName)
+	managedCert, err := s.ds.GetWindowsHostMDMCertificateProfile(ctx, host.UUID, p.ProfileUUID, automdm.ConditionalAccessManagedCertificateCAName)
 	require.NoError(t, err)
 	require.NotNil(t, managedCert)
-	require.Equal(t, fleet.CAConfigConditionalAccess, managedCert.Type)
+	require.Equal(t, automdm.CAConfigConditionalAccess, managedCert.Type)
 	require.NotNil(t, managedCert.ChallengeRetrievedAt)
 
 	// Windows acknowledges the Exec before it contacts the SCEP server, so the ack alone doesn't verify the profile.
 	require.Equal(t, "first+secret=", ackCommands())
 	p = hostProfile()
 	require.NotNil(t, p.Status)
-	require.Equal(t, fleet.MDMDeliveryVerifying, *p.Status)
+	require.Equal(t, automdm.MDMDeliveryVerifying, *p.Status)
 
 	// After the enroll secret and the secret variable are rotated, a redelivery carries the new secret without re-uploading
 	// the profile.
-	require.NoError(t, s.ds.ApplyEnrollSecrets(ctx, nil, []*fleet.EnrollSecret{{Secret: "second-secret"}}))
-	_, _, err = s.ds.UpsertSecretVariables(ctx, []fleet.SecretVariable{{Name: "CONDACCESS_CHALLENGE", Value: "second-secret"}})
+	require.NoError(t, s.ds.ApplyEnrollSecrets(ctx, nil, []*automdm.EnrollSecret{{Secret: "second-secret"}}))
+	_, _, err = s.ds.UpsertSecretVariables(ctx, []automdm.SecretVariable{{Name: "CONDACCESS_CHALLENGE", Value: "second-secret"}})
 	require.NoError(t, err)
 	queueRedelivery(p.ProfileUUID)
 	s.awaitTriggerProfileSchedule(t)
@@ -421,31 +421,31 @@ func (s *integrationMDMTestSuite) TestWindowsConditionalAccessSCEPProfile() {
 }
 
 // TestWindowsConditionalAccessRenderedProfiles uploads both rendered Windows conditional access profiles unchanged and
-// enrolls the host's certificate against Fleet's conditional access SCEP server with a one-time challenge.
+// enrolls the host's certificate against AutoMDM's conditional access SCEP server with a one-time challenge.
 func (s *integrationMDMTestSuite) TestWindowsConditionalAccessRenderedProfiles() {
 	t := s.T()
 	ctx := t.Context()
 
-	var profiles fleet.ConditionalAccessWindowsProfiles
-	s.DoJSON("GET", "/api/latest/fleet/conditional_access/idp/windows/profiles", nil, http.StatusOK, &profiles)
+	var profiles automdm.ConditionalAccessWindowsProfiles
+	s.DoJSON("GET", "/api/latest/automdm/conditional_access/idp/windows/profiles", nil, http.StatusOK, &profiles)
 
-	tm, err := s.ds.NewTeam(ctx, &fleet.Team{Name: t.Name()})
+	tm, err := s.ds.NewTeam(ctx, &automdm.Team{Name: t.Name()})
 	require.NoError(t, err)
 	for fileName, contents := range map[string]string{
 		"OktaSCEP.xml":     profiles.SCEPProfile,
 		"OktaBrowsers.xml": profiles.BrowserProfile,
 	} {
 		body, headers := generateNewProfileMultipartRequest(t, fileName, []byte(contents), s.token,
-			map[string][]string{"fleet_id": {fmt.Sprint(tm.ID)}})
-		s.DoRawWithHeaders("POST", "/api/latest/fleet/configuration_profiles", body.Bytes(), http.StatusOK, headers)
+			map[string][]string{"team_id": {fmt.Sprint(tm.ID)}})
+		s.DoRawWithHeaders("POST", "/api/latest/automdm/configuration_profiles", body.Bytes(), http.StatusOK, headers)
 	}
 
 	host, mdmDevice := createWindowsHostThenEnrollMDM(s.ds, s.server.URL, t)
-	require.NoError(t, s.ds.AddHostsToTeam(ctx, fleet.NewAddHostsToTeamParams(&tm.ID, []uint{host.ID})))
+	require.NoError(t, s.ds.AddHostsToTeam(ctx, automdm.NewAddHostsToTeamParams(&tm.ID, []uint{host.ID})))
 	s.awaitTriggerProfileSchedule(t)
 
 	// The stored command only holds a placeholder; the challenge is created when the command is sent.
-	scepProfileRow := func() fleet.HostMDMWindowsProfile {
+	scepProfileRow := func() automdm.HostMDMWindowsProfile {
 		hostProfiles, err := s.ds.GetHostMDMWindowsProfiles(ctx, host.UUID)
 		require.NoError(t, err)
 		for _, p := range hostProfiles {
@@ -454,13 +454,13 @@ func (s *integrationMDMTestSuite) TestWindowsConditionalAccessRenderedProfiles()
 			}
 		}
 		require.FailNow(t, "OktaSCEP not found for host")
-		return fleet.HostMDMWindowsProfile{}
+		return automdm.HostMDMWindowsProfile{}
 	}
 	var raw string
 	mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
 		return sqlx.GetContext(ctx, q, &raw, `SELECT raw_command FROM windows_mdm_commands WHERE command_uuid = ?`, scepProfileRow().CommandUUID)
 	})
-	require.Contains(t, raw, "<Data>"+fleet.HostSecretPlaceholder(fleet.HostSecretConditionalAccessSCEPChallenge)+"</Data>")
+	require.Contains(t, raw, "<Data>"+automdm.HostSecretPlaceholder(automdm.HostSecretConditionalAccessSCEPChallenge)+"</Data>")
 
 	cmds, err := mdmDevice.StartManagementSession()
 	require.NoError(t, err)
@@ -470,20 +470,20 @@ func (s *integrationMDMTestSuite) TestWindowsConditionalAccessRenderedProfiles()
 	defer cancel()
 	handled, scepResults, _ := mdmDevice.AppendSCEPInstallResponses(scepCtx, cmds, msgID, nil)
 	for _, c := range cmds {
-		if c.Verb == fleet.CmdStatus {
+		if c.Verb == automdm.CmdStatus {
 			continue
 		}
 		if _, ok := handled[c.Cmd.CmdID.Value]; ok {
 			continue
 		}
 		cmdID, verb, status := c.Cmd.CmdID.Value, c.Verb, syncml.CmdStatusOK
-		mdmDevice.AppendResponse(fleet.SyncMLCmd{
-			XMLName: xml.Name{Local: fleet.CmdStatus},
+		mdmDevice.AppendResponse(automdm.SyncMLCmd{
+			XMLName: xml.Name{Local: automdm.CmdStatus},
 			MsgRef:  &msgID,
 			CmdRef:  &cmdID,
 			Cmd:     &verb,
 			Data:    &status,
-			CmdID:   fleet.CmdID{Value: uuid.NewString()},
+			CmdID:   automdm.CmdID{Value: uuid.NewString()},
 		})
 	}
 	var certs []*x509.Certificate
@@ -497,7 +497,7 @@ func (s *integrationMDMTestSuite) TestWindowsConditionalAccessRenderedProfiles()
 
 	hostProfiles, err := s.ds.GetHostMDMWindowsProfiles(ctx, host.UUID)
 	require.NoError(t, err)
-	statuses := map[string]fleet.MDMDeliveryStatus{}
+	statuses := map[string]automdm.MDMDeliveryStatus{}
 	var scepProfileUUID string
 	for _, p := range hostProfiles {
 		require.NotNil(t, p.Status, p.Name)
@@ -506,14 +506,14 @@ func (s *integrationMDMTestSuite) TestWindowsConditionalAccessRenderedProfiles()
 			scepProfileUUID = p.ProfileUUID
 		}
 	}
-	require.Equal(t, fleet.MDMDeliveryVerifying, statuses["OktaSCEP"])
-	require.Equal(t, fleet.MDMDeliveryVerified, statuses["OktaBrowsers"])
+	require.Equal(t, automdm.MDMDeliveryVerifying, statuses["OktaSCEP"])
+	require.Equal(t, automdm.MDMDeliveryVerified, statuses["OktaBrowsers"])
 
 	cert := certs[0]
-	require.Equal(t, fleet.ConditionalAccessOktaCertificateCN, cert.Subject.CommonName)
-	require.Equal(t, []string{"fleet-" + scepProfileUUID}, cert.Subject.OrganizationalUnit)
+	require.Equal(t, automdm.ConditionalAccessOktaCertificateCN, cert.Subject.CommonName)
+	require.Equal(t, []string{"automdm-" + scepProfileUUID}, cert.Subject.OrganizationalUnit)
 	require.Len(t, cert.URIs, 1)
-	require.Equal(t, "urn:device:fleet:uuid:"+host.UUID, cert.URIs[0].String())
+	require.Equal(t, "urn:device:automdm:uuid:"+host.UUID, cert.URIs[0].String())
 	hostID, err := s.ds.GetConditionalAccessCertHostIDBySerialNumber(ctx, uint64(cert.SerialNumber.Int64())) //nolint:gosec // G115
 	require.NoError(t, err)
 	require.Equal(t, host.ID, hostID)
@@ -522,7 +522,7 @@ func (s *integrationMDMTestSuite) TestWindowsConditionalAccessRenderedProfiles()
 	var consumed []string
 	mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
 		return sqlx.SelectContext(ctx, q, &consumed, `SELECT challenge FROM mdm_apple_scep_challenges
-			WHERE host_uuid = ? AND purpose = ? AND consumed_at IS NOT NULL`, host.UUID, fleet.ConditionalAccessSCEPChallengePurpose)
+			WHERE host_uuid = ? AND purpose = ? AND consumed_at IS NOT NULL`, host.UUID, automdm.ConditionalAccessSCEPChallengePurpose)
 	})
 	require.Len(t, consumed, 1)
 	require.NoError(t, s.ds.ResendHostMDMProfile(ctx, host.UUID, scepProfileUUID))
@@ -610,21 +610,21 @@ func (s *integrationMDMTestSuite) TestACMEProfileUploadAcceptsAllMarkerPlacement
 
 	uploadACME := func(name, cn, ou string) {
 		profile := fmt.Sprintf(acmeProfileTemplate, cn, ou)
-		s.Do("POST", "/api/v1/fleet/mdm/profiles/batch",
-			batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{
+		s.Do("POST", "/api/v1/automdm/mdm/profiles/batch",
+			batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{
 				{Name: name, Contents: []byte(profile)},
 			}},
 			http.StatusNoContent)
 	}
 
 	t.Run("preferred marker in OU (auto-renewal active)", func(t *testing.T) {
-		uploadACME("acme-ou-preferred", "static-cn", "$FLEET_VAR_CERTIFICATE_RENEWAL_ID")
+		uploadACME("acme-ou-preferred", "static-cn", "$AUTOMDM_VAR_CERTIFICATE_RENEWAL_ID")
 	})
 	t.Run("legacy marker in OU", func(t *testing.T) {
-		uploadACME("acme-ou-legacy", "static-cn", "$FLEET_VAR_SCEP_RENEWAL_ID")
+		uploadACME("acme-ou-legacy", "static-cn", "$AUTOMDM_VAR_SCEP_RENEWAL_ID")
 	})
 	t.Run("preferred marker in CN", func(t *testing.T) {
-		uploadACME("acme-cn-preferred", "$FLEET_VAR_CERTIFICATE_RENEWAL_ID", "static-ou")
+		uploadACME("acme-cn-preferred", "$AUTOMDM_VAR_CERTIFICATE_RENEWAL_ID", "static-ou")
 	})
 	t.Run("no marker (opt-out; no auto-renewal but still uploads)", func(t *testing.T) {
 		uploadACME("acme-no-marker", "static-cn", "static-ou")
@@ -638,60 +638,60 @@ func (s *integrationMDMTestSuite) TestRawSCEPProfileUploadAcceptsAllMarkerPlacem
 
 	uploadRawSCEP := func(name, cn, ou string) {
 		profile := fmt.Sprintf(rawSCEPProfileTemplate, cn, ou)
-		s.Do("POST", "/api/v1/fleet/mdm/profiles/batch",
-			batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{
+		s.Do("POST", "/api/v1/automdm/mdm/profiles/batch",
+			batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{
 				{Name: name, Contents: []byte(profile)},
 			}},
 			http.StatusNoContent)
 	}
 
 	t.Run("preferred marker in OU (auto-renewal active)", func(t *testing.T) {
-		uploadRawSCEP("rawscep-ou-preferred", "static-cn", "$FLEET_VAR_CERTIFICATE_RENEWAL_ID")
+		uploadRawSCEP("rawscep-ou-preferred", "static-cn", "$AUTOMDM_VAR_CERTIFICATE_RENEWAL_ID")
 	})
 	t.Run("legacy marker in OU", func(t *testing.T) {
-		uploadRawSCEP("rawscep-ou-legacy", "static-cn", "$FLEET_VAR_SCEP_RENEWAL_ID")
+		uploadRawSCEP("rawscep-ou-legacy", "static-cn", "$AUTOMDM_VAR_SCEP_RENEWAL_ID")
 	})
 	t.Run("preferred marker in CN", func(t *testing.T) {
-		uploadRawSCEP("rawscep-cn-preferred", "$FLEET_VAR_CERTIFICATE_RENEWAL_ID", "static-ou")
+		uploadRawSCEP("rawscep-cn-preferred", "$AUTOMDM_VAR_CERTIFICATE_RENEWAL_ID", "static-ou")
 	})
 	t.Run("no marker (opt-out; no auto-renewal but still uploads)", func(t *testing.T) {
 		uploadRawSCEP("rawscep-no-marker", "static-cn", "static-ou")
 	})
 }
 
-// TestConditionalAccessAppleProfileOneTimeChallenge uploads the Okta profile as copied from Fleet and delivers it on
+// TestConditionalAccessAppleProfileOneTimeChallenge uploads the Okta profile as copied from AutoMDM and delivers it on
 // the user channel: the stored command holds only a placeholder, and the device gets a one-time challenge bound to its
 // UUID, the one the profile's SAN carries.
 func (s *integrationMDMTestSuite) TestConditionalAccessAppleProfileOneTimeChallenge() {
 	t := s.T()
 	ctx := t.Context()
 
-	require.NoError(t, s.ds.ApplyEnrollSecrets(ctx, nil, []*fleet.EnrollSecret{{Secret: t.Name()}}))
+	require.NoError(t, s.ds.ApplyEnrollSecrets(ctx, nil, []*automdm.EnrollSecret{{Secret: t.Name()}}))
 	host, mdmDevice := s.enrollHostDrainInitialProfiles(t)
 	require.NoError(t, mdmDevice.UserEnroll())
 
-	resp := s.DoRaw("GET", "/api/latest/fleet/conditional_access/idp/apple/profile", nil, http.StatusOK)
+	resp := s.DoRaw("GET", "/api/latest/automdm/conditional_access/idp/apple/profile", nil, http.StatusOK)
 	profile, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	require.NoError(t, resp.Body.Close())
 	// The single-profile endpoint is the one the custom OS settings UI uses when an admin uploads the profile.
 	body, headers := generateNewProfileMultipartRequest(t, "ConditionalAccessProfile.mobileconfig", profile, s.token, nil)
-	s.DoRawWithHeaders("POST", "/api/latest/fleet/configuration_profiles", body.Bytes(), http.StatusOK, headers)
+	s.DoRawWithHeaders("POST", "/api/latest/automdm/configuration_profiles", body.Bytes(), http.StatusOK, headers)
 	s.awaitTriggerProfileSchedule(t)
 
-	ok, cmdUUID := hostHasAppleProfileOp(t, s.ds, host.UUID, fleet.ConditionalAccessOktaProfileIdentifier, fleet.MDMOperationTypeInstall)
+	ok, cmdUUID := hostHasAppleProfileOp(t, s.ds, host.UUID, automdm.ConditionalAccessOktaProfileIdentifier, automdm.MDMOperationTypeInstall)
 	require.True(t, ok)
 	appConfig, err := s.ds.AppConfig(ctx)
 	require.NoError(t, err)
-	scepURL, err := url.JoinPath(appConfig.ServerSettings.ServerURL, fleet.ConditionalAccessSCEPPath)
+	scepURL, err := url.JoinPath(appConfig.ServerSettings.ServerURL, automdm.ConditionalAccessSCEPPath)
 	require.NoError(t, err)
 	var stored string
 	mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
 		return sqlx.GetContext(ctx, q, &stored, `SELECT command FROM nano_commands WHERE command_uuid = ?`, cmdUUID)
 	})
-	require.Contains(t, stored, "<string>"+fleet.HostSecretPlaceholder(fleet.HostSecretConditionalAccessSCEPChallenge)+"</string>")
+	require.Contains(t, stored, "<string>"+automdm.HostSecretPlaceholder(automdm.HostSecretConditionalAccessSCEPChallenge)+"</string>")
 	require.Contains(t, stored, "<string>"+scepURL+"</string>")
-	require.NotContains(t, stored, "FLEET_VAR_CONDITIONAL_ACCESS")
+	require.NotContains(t, stored, "AUTOMDM_VAR_CONDITIONAL_ACCESS")
 
 	cmd, err := mdmDevice.UserIdle()
 	require.NoError(t, err)
@@ -722,22 +722,22 @@ func (s *integrationMDMTestSuite) TestConditionalAccessAppleProfileOneTimeChalle
 	require.NoError(t, err)
 
 	err = s.ds.ConsumeConditionalAccessSCEPChallenge(ctx, challenge, "another-host-uuid")
-	require.True(t, fleet.IsNotFound(err), err)
+	require.True(t, automdm.IsNotFound(err), err)
 	require.NoError(t, s.ds.ConsumeConditionalAccessSCEPChallenge(ctx, challenge, host.UUID))
 }
 
 // TestWindowsSCEPProfilePreferredVariableAccepted exercises the
 // Windows validator on a pre-existing surface: NDES / Custom SCEP
-// proxy validators accept both legacy $FLEET_VAR_SCEP_RENEWAL_ID and
-// preferred $FLEET_VAR_CERTIFICATE_RENEWAL_ID. The existing
+// proxy validators accept both legacy $AUTOMDM_VAR_SCEP_RENEWAL_ID and
+// preferred $AUTOMDM_VAR_CERTIFICATE_RENEWAL_ID. The existing
 // TestWindowsDeviceSCEPProfile covers the legacy spelling.
 func (s *integrationMDMTestSuite) TestWindowsSCEPProfilePreferredVariableAccepted() {
 	t := s.T()
 	ctx := context.Background()
 
 	scepServer := scep_server.StartTestSCEPServer(t)
-	_, err := s.ds.NewCertificateAuthority(ctx, &fleet.CertificateAuthority{
-		Type:      string(fleet.CATypeCustomSCEPProxy),
+	_, err := s.ds.NewCertificateAuthority(ctx, &automdm.CertificateAuthority{
+		Type:      string(automdm.CATypeCustomSCEPProxy),
 		Name:      new("INTEGRATION"),
 		Challenge: new("integration-test"),
 		URL:       new(scepServer.URL + "/scep"),
@@ -748,32 +748,32 @@ func (s *integrationMDMTestSuite) TestWindowsSCEPProfilePreferredVariableAccepte
 	// the embedded XML, ReplaceAll silently no-ops and we'd test the legacy
 	// path twice instead of the preferred one.
 	require.True(t,
-		bytes.Contains(windowsDeviceSCEPProfileBytes, []byte("$FLEET_VAR_SCEP_RENEWAL_ID")),
-		"fixture must contain $FLEET_VAR_SCEP_RENEWAL_ID for the swap to test the preferred name",
+		bytes.Contains(windowsDeviceSCEPProfileBytes, []byte("$AUTOMDM_VAR_SCEP_RENEWAL_ID")),
+		"fixture must contain $AUTOMDM_VAR_SCEP_RENEWAL_ID for the swap to test the preferred name",
 	)
 	preferred := bytes.ReplaceAll(
 		windowsDeviceSCEPProfileBytes,
-		[]byte("$FLEET_VAR_SCEP_RENEWAL_ID"),
-		[]byte("$FLEET_VAR_CERTIFICATE_RENEWAL_ID"),
+		[]byte("$AUTOMDM_VAR_SCEP_RENEWAL_ID"),
+		[]byte("$AUTOMDM_VAR_CERTIFICATE_RENEWAL_ID"),
 	)
 	require.True(t,
-		bytes.Contains(preferred, []byte("$FLEET_VAR_CERTIFICATE_RENEWAL_ID")),
+		bytes.Contains(preferred, []byte("$AUTOMDM_VAR_CERTIFICATE_RENEWAL_ID")),
 		"preferred-name swap did not produce the expected token",
 	)
 	require.False(t,
-		bytes.Contains(preferred, []byte("$FLEET_VAR_SCEP_RENEWAL_ID")),
+		bytes.Contains(preferred, []byte("$AUTOMDM_VAR_SCEP_RENEWAL_ID")),
 		"legacy token must be fully replaced",
 	)
 
-	s.Do("POST", "/api/v1/fleet/mdm/profiles/batch",
-		batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{
+	s.Do("POST", "/api/v1/automdm/mdm/profiles/batch",
+		batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{
 			{Name: "WindowsSCEPProfilePreferred", Contents: preferred},
 		}},
 		http.StatusNoContent)
 }
 
 // acmeProfileForScope builds a profile with a single ACME payload in the given scope.
-func acmeProfileForScope(ident string, scope fleet.PayloadScope) []byte {
+func acmeProfileForScope(ident string, scope automdm.PayloadScope) []byte {
 	return []byte(fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -851,7 +851,7 @@ func nanoCertificateListUUIDs(t *testing.T, ds *mysql.Datastore, enrollmentID st
 // hostCertificateScopes maps common name to reported scope, per the host details API.
 func (s *integrationMDMTestSuite) hostCertificateScopes(t *testing.T, hostID uint) map[string]string {
 	var resp listHostCertificatesResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/hosts/%d/certificates", hostID), nil, http.StatusOK, &resp)
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/hosts/%d/certificates", hostID), nil, http.StatusOK, &resp)
 	scopes := make(map[string]string, len(resp.Certificates))
 	for _, c := range resp.Certificates {
 		scope := string(c.Source)
@@ -871,8 +871,8 @@ func (s *integrationMDMTestSuite) TestACMECertForUserChannelProfile() {
 	t := s.T()
 	ctx := t.Context()
 
-	// Enroll a macOS device and drain the initial (fleetd/CA) profiles.
-	require.NoError(t, s.ds.ApplyEnrollSecrets(ctx, nil, []*fleet.EnrollSecret{{Secret: t.Name()}}))
+	// Enroll a macOS device and drain the initial (automdmd/CA) profiles.
+	require.NoError(t, s.ds.ApplyEnrollSecrets(ctx, nil, []*automdm.EnrollSecret{{Secret: t.Name()}}))
 	host, mdmDevice := s.enrollHostDrainInitialProfiles(t)
 
 	// User-channel enrollment, as DEP-enrolled macOS devices do automatically.
@@ -883,15 +883,15 @@ func (s *integrationMDMTestSuite) TestACMECertForUserChannelProfile() {
 
 	// Upload a user-scoped ACME profile.
 	const profIdent = "com.fleetdm.test.profile.acme.wifi"
-	s.Do("POST", "/api/v1/fleet/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{
-		{Name: "ACME-WiFi", Contents: acmeProfileForScope(profIdent, fleet.PayloadScopeUser)},
+	s.Do("POST", "/api/v1/automdm/mdm/profiles/batch", batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{
+		{Name: "ACME-WiFi", Contents: acmeProfileForScope(profIdent, automdm.PayloadScopeUser)},
 	}}, http.StatusNoContent)
 
 	// Trigger profile reconciliation so the cron picks up the new profile.
 	s.awaitTriggerProfileSchedule(t)
 
 	// Verify the profile row was created with scope=User.
-	ok, cmdUUID := hostHasAppleProfileOp(t, s.ds, host.UUID, profIdent, fleet.MDMOperationTypeInstall)
+	ok, cmdUUID := hostHasAppleProfileOp(t, s.ds, host.UUID, profIdent, automdm.MDMOperationTypeInstall)
 	require.True(t, ok, "ACME profile should be pending install")
 	require.NotEmpty(t, cmdUUID)
 
@@ -934,11 +934,11 @@ func (s *integrationMDMTestSuite) TestACMECertForUserChannelProfile() {
 
 	// Cleanup must run against the answering enrollment, or the user channel's
 	// refetch rows are never reclaimed.
-	var trackedCommands []fleet.HostMDMCommand
+	var trackedCommands []automdm.HostMDMCommand
 	trackedCommands, err = s.ds.GetHostMDMCommands(ctx, host.ID)
 	require.NoError(t, err)
 	require.NotContains(t, trackedCommands,
-		fleet.HostMDMCommand{HostID: host.ID, CommandType: fleet.RefetchCertsCommandUUIDPrefix},
+		automdm.HostMDMCommand{HostID: host.ID, CommandType: automdm.RefetchCertsCommandUUIDPrefix},
 		"refetch certs tracking row must be cleared once the user channel answers")
 }
 
@@ -949,7 +949,7 @@ func (s *integrationMDMTestSuite) TestACMECertUserAndSystemScopedProfilesCoexist
 	t := s.T()
 	ctx := t.Context()
 
-	require.NoError(t, s.ds.ApplyEnrollSecrets(ctx, nil, []*fleet.EnrollSecret{{Secret: t.Name()}}))
+	require.NoError(t, s.ds.ApplyEnrollSecrets(ctx, nil, []*automdm.EnrollSecret{{Secret: t.Name()}}))
 	host, mdmDevice := s.enrollHostDrainInitialProfiles(t)
 	require.NoError(t, mdmDevice.UserEnroll())
 	userEnr, err := s.ds.GetNanoMDMUserEnrollment(ctx, host.UUID)
@@ -962,14 +962,14 @@ func (s *integrationMDMTestSuite) TestACMECertUserAndSystemScopedProfilesCoexist
 		userCN        = "acme-user-keychain-cert"
 		sysCN         = "acme-system-keychain-cert"
 	)
-	userProfile := fleet.MDMProfileBatchPayload{Name: "ACME-User", Contents: acmeProfileForScope(userProfIdent, fleet.PayloadScopeUser)}
-	sysProfile := fleet.MDMProfileBatchPayload{Name: "ACME-System", Contents: acmeProfileForScope(sysProfIdent, fleet.PayloadScopeSystem)}
+	userProfile := automdm.MDMProfileBatchPayload{Name: "ACME-User", Contents: acmeProfileForScope(userProfIdent, automdm.PayloadScopeUser)}
+	sysProfile := automdm.MDMProfileBatchPayload{Name: "ACME-System", Contents: acmeProfileForScope(sysProfIdent, automdm.PayloadScopeSystem)}
 
 	// --- Install the user-scoped profile and ingest its login keychain cert ---
-	s.Do("POST", "/api/v1/fleet/mdm/profiles/batch",
-		batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{userProfile}}, http.StatusNoContent)
+	s.Do("POST", "/api/v1/automdm/mdm/profiles/batch",
+		batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{userProfile}}, http.StatusNoContent)
 	s.awaitTriggerProfileSchedule(t)
-	ok, userCmdUUID := hostHasAppleProfileOp(t, s.ds, host.UUID, userProfIdent, fleet.MDMOperationTypeInstall)
+	ok, userCmdUUID := hostHasAppleProfileOp(t, s.ds, host.UUID, userProfIdent, automdm.MDMOperationTypeInstall)
 	require.True(t, ok)
 	ackProfileInstall(t, mdmDevice, true, userCmdUUID)
 
@@ -985,10 +985,10 @@ func (s *integrationMDMTestSuite) TestACMECertUserAndSystemScopedProfilesCoexist
 	require.Equal(t, "user:"+mdmDevice.Username, s.hostCertificateScopes(t, host.ID)[userCN])
 
 	// --- Install the system-scoped profile and ingest its system keychain cert ---
-	s.Do("POST", "/api/v1/fleet/mdm/profiles/batch",
-		batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{userProfile, sysProfile}}, http.StatusNoContent)
+	s.Do("POST", "/api/v1/automdm/mdm/profiles/batch",
+		batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{userProfile, sysProfile}}, http.StatusNoContent)
 	s.awaitTriggerProfileSchedule(t)
-	ok, sysCmdUUID := hostHasAppleProfileOp(t, s.ds, host.UUID, sysProfIdent, fleet.MDMOperationTypeInstall)
+	ok, sysCmdUUID := hostHasAppleProfileOp(t, s.ds, host.UUID, sysProfIdent, automdm.MDMOperationTypeInstall)
 	require.True(t, ok)
 	ackProfileInstall(t, mdmDevice, false, sysCmdUUID)
 
@@ -1012,10 +1012,10 @@ func (s *integrationMDMTestSuite) TestACMECertUserAndSystemScopedProfilesCoexist
 		"device-channel refetch must not clear the login keychain cert it cannot see")
 
 	// --- Removing the user-scoped profile clears only its own cert ---
-	s.Do("POST", "/api/v1/fleet/mdm/profiles/batch",
-		batchSetMDMProfilesRequest{Profiles: []fleet.MDMProfileBatchPayload{sysProfile}}, http.StatusNoContent)
+	s.Do("POST", "/api/v1/automdm/mdm/profiles/batch",
+		batchSetMDMProfilesRequest{Profiles: []automdm.MDMProfileBatchPayload{sysProfile}}, http.StatusNoContent)
 	s.awaitTriggerProfileSchedule(t)
-	ok, removeCmdUUID := hostHasAppleProfileOp(t, s.ds, host.UUID, userProfIdent, fleet.MDMOperationTypeRemove)
+	ok, removeCmdUUID := hostHasAppleProfileOp(t, s.ds, host.UUID, userProfIdent, automdm.MDMOperationTypeRemove)
 	require.True(t, ok, "user-scoped profile should be pending removal")
 	ackProfileInstall(t, mdmDevice, true, removeCmdUUID)
 

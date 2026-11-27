@@ -9,7 +9,7 @@ import (
 )
 
 // DefaultRepo is the repository jarvis targets when none is specified.
-const DefaultRepo = "fleetdm/fleet"
+const DefaultRepo = "automdm/automdm"
 
 // prListFields is the full set of --json fields for PRs you authored, where CI
 // state and mergeability drive bucketing. statusCheckRollup is expensive — only

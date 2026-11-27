@@ -27,7 +27,7 @@ interface IRunQueryPageProps {
   params: Params;
   location: {
     pathname: string;
-    query: { host_id?: string; fleet_id?: string; from?: string };
+    query: { host_id?: string; team_id?: string; from?: string };
     search: string;
   };
 }
@@ -76,7 +76,7 @@ const RunQueryPage = ({
     selectedQueryTargetsByType.labels
   );
   const [targetedTeams, setTargetedTeams] = useState<ITeam[]>(
-    selectedQueryTargetsByType.fleets
+    selectedQueryTargetsByType.teams
   );
   const [targetsTotalCount, setTargetsTotalCount] = useState(0);
 
@@ -88,7 +88,7 @@ const RunQueryPage = ({
 
     router.push(
       getPathWithQueryParams(path, {
-        fleet_id: teamIdForApi,
+        team_id: teamIdForApi,
       })
     );
   }
@@ -149,13 +149,13 @@ const RunQueryPage = ({
     setSelectedQueryTargetsByType({
       hosts: targetedHosts,
       labels: targetedLabels,
-      fleets: targetedTeams,
+      teams: targetedTeams,
     });
   }, [targetedLabels, targetedHosts, targetedTeams]);
 
   // Updates title that shows up on browser tabs
   useEffect(() => {
-    // e.g., Run Discover TLS certificates | Reports | Fleet
+    // e.g., Run Discover TLS certificates | Reports | AutoMDM
     if (storedQuery?.name) {
       document.title = `Run ${storedQuery.name} | Reports | ${DOCUMENT_TITLE_SUFFIX}`;
     } else {
@@ -172,7 +172,7 @@ const RunQueryPage = ({
           : PATHS.REPORT_DETAILS(queryId);
     }
 
-    router.push(getPathWithQueryParams(path, { fleet_id: teamIdForApi }));
+    router.push(getPathWithQueryParams(path, { team_id: teamIdForApi }));
   }, [queryId, location.query.from, router, teamIdForApi]);
 
   const renderScreen = () => {
@@ -192,7 +192,7 @@ const RunQueryPage = ({
       setTargetedTeams,
       setTargetsTotalCount,
       isObserverCanRunQuery: storedQuery?.observer_can_run,
-      queryTeamId: storedQuery?.fleet_id ?? null,
+      queryTeamId: storedQuery?.team_id ?? null,
     };
 
     const step2Props = {

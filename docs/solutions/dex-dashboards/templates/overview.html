@@ -57,8 +57,8 @@
 </script>
 <script>
 const splitKey = (k) => { const i = k.lastIndexOf("|"); return [k.slice(0, i), k.slice(i + 1)]; };
-const selected = (k) => { const [f, p] = splitKey(k); return inFleet(f) && inPlatform(p); };
-const fleets = [...new Set(Object.keys(DATA.hosts).map((k) => splitKey(k)[0]))].sort();
+const selected = (k) => { const [f, p] = splitKey(k); return inTeam(f) && inPlatform(p); };
+const teams = [...new Set(Object.keys(DATA.hosts).map((k) => splitKey(k)[0]))].sort();
 const platformCounts = {};
 for (const [k, n] of Object.entries(DATA.hosts)) platformCounts[splitKey(k)[1]] = (platformCounts[splitKey(k)[1]] || 0) + n;
 
@@ -72,7 +72,7 @@ const windowLabel = (page, days) => {
 const kwhFmt = (x) => (x == null ? "---" : x >= 100 ? fmt.n(Math.round(x)) : x >= 10 ? (Math.round(x * 10) / 10).toString() : (Math.round(x * 100) / 100).toString());
 const kgFmt = (g) => (g == null ? "---" : g >= 10000 ? `${fmt.n(Math.round(g / 1000))} kg` : g >= 1000 ? `${Math.round(g / 100) / 10} kg` : `${Math.round(g)} g`);
 
-// One row per day of a page's counts, summed over the selected fleets and platforms.
+// One row per day of a page's counts, summed over the selected teams and platforms.
 function dailyRows(page) {
   const { trend, fields } = DATA.pages[page];
   return trend.map(([date, byKey]) => {
@@ -106,7 +106,7 @@ const CARDS = [
     unit: (r) => `of ${fmt.plural(r.ai, "computer")} with AI tools`,
     rows: (r, rows) => [["High-risk findings", fmt.n(r.high), r.high], ["Medium-risk findings", fmt.n(r.med)],
       ["Agent sessions, last 7 days", DATA.pages.ai.usage_since ? fmt.n(sumSince(rows, "u_s", 7)) : "---"]] },
-  { page: "connectivity", title: "Connectivity", about: "Whether every computer reports to Fleet, and the network under the Macs.",
+  { page: "connectivity", title: "Connectivity", about: "Whether every computer reports to AutoMDM, and the network under the Macs.",
     label: () => "Reporting within 24 hours", spark: (r) => pct(r.fresh24, r.computers), keyFmt: fmt.pct, yMax: 100,
     unit: (r) => `${fmt.n(r.fresh24)} of ${fmt.n(r.computers)}`,
     rows: (r) => [["Not seen for 7+ days", fmt.n(r.stale7), r.stale7],
@@ -136,7 +136,7 @@ const CARDS = [
     unit: (r) => { const g = expGrade(r.scored ? r.score10 / r.scored / 10 : NaN); return `${g ? `grade ${g}, ` : ""}${fmt.plural(r.scored, "computer")} scored`; },
     rows: (r) => { const low = expLowest(r); return [[`Good experience (${expPage.target}+)`, fmt.pct(pct(r.good || 0, r.scored))],
       ["Below target", fmt.n(r.scored - (r.good || 0)), r.scored - (r.good || 0)], ["Lowest category", low ? `${low[0]}, ${Math.round(low[1])}` : "---"]]; } },
-  { page: "policies", title: "Policies", about: "Which Fleet policies your computers pass and fail, today and on any day this year.", pair: true,
+  { page: "policies", title: "Policies", about: "Which AutoMDM policies your computers pass and fail, today and on any day this year.", pair: true,
     label: () => "Policy pass rate", spark: (r) => pct(r.passed, r.passed + r.failed), keyFmt: fmt.pct, yMax: 100,
     unit: (r) => `${fmt.n(r.passed)} of ${fmt.n(r.passed + r.failed)} results`,
     rows: (r) => [["Failing a policy", fmt.n(r.any_fail), r.any_fail], ["Passing every policy", fmt.pct(pct(r.all_pass, r.computers))],
@@ -145,7 +145,7 @@ const CARDS = [
     label: () => "Every source fresh", spark: (r) => pct(r.all_fresh, r.computers), keyFmt: fmt.pct, yMax: 100,
     unit: (r) => `${fmt.n(r.all_fresh)} of ${fmt.n(r.computers)}`,
     rows: (r) => [["Disk encryption off", fmt.n(r.disk_known - r.disk_on), r.disk_known - r.disk_on],
-      ["fleetd current", fmt.pct(pct(r.agent_current, r.computers))], ["Failing a policy", fmt.n(r.failing)]] },
+      ["automdmd current", fmt.pct(pct(r.agent_current, r.computers))], ["Failing a policy", fmt.n(r.failing)]] },
 ];
 
 // Sparklines draw at their container's width, like the trend charts.
@@ -181,7 +181,7 @@ function render() {
   for (const el of sparks) trendRO.unobserve(el);
   sparks.clear();
   const total = Object.entries(DATA.hosts).filter(([k]) => selected(k)).reduce((a, [, n]) => a + n, 0);
-  const nFleets = new Set(Object.keys(DATA.hosts).filter(selected).map((k) => splitKey(k)[0])).size;
+  const nTeams = new Set(Object.keys(DATA.hosts).filter(selected).map((k) => splitKey(k)[0])).size;
   const byPage = Object.fromEntries(CARDS.map((c) => {
     const rows = dailyRows(c.page);
     const last = rows.length && rows[rows.length - 1].date === today ? rows[rows.length - 1] : null;
@@ -203,12 +203,12 @@ function render() {
   const support = [];
   if (high) support.push(`AI tools show ${fmt.plural(high, "high-risk finding")}.`);
   if (neverSlept) support.push(`${fmt.n(neverSlept)} ${neverSlept === 1 ? "computer hasn't" : "computers haven't"} slept in a week or more.`);
-  support.push("Numbers follow the fleet and platform you pick above.");
+  support.push("Numbers follow the team and platform you pick above.");
   const railRow = (label, n, page) => h("div", { class: "rail-row" },
     pageLink(DATA.links[page], {}, label), h("b", { class: n ? "hl-bad" : null }, fmt.n(n)));
   mount("hero",
     h("div", {}, h("div", { class: "eyebrow" }, "Computers"),
-      h("div", { class: "big" }, h("b", {}, fmt.n(total)), h("span", {}, FLEET ? `in ${FLEET}` : `in ${fmt.plural(nFleets, "fleet")}`))),
+      h("div", { class: "big" }, h("b", {}, fmt.n(total)), h("span", {}, AUTOMDM ? `in ${AUTOMDM}` : `in ${fmt.plural(nTeams, "team")}`))),
     h("div", { class: "hero-mid" }, h("p", { class: "lede" }, lede), h("p", { class: "support" }, support.join(" "))),
     h("div", { class: "rail" }, h("div", { class: "eyebrow" }, "Right now"),
       railRow("Need hardware action", action, "lifecycle"),
@@ -249,9 +249,9 @@ function render() {
   });
   mount("dashes", grid);
 
-  document.getElementById("foot").textContent = `Data from ${DATA.fleet_url.replace(/^https?:\/\//, "")} via the Fleet API, from the same daily counts as each dashboard's Over time charts. Rebuilt daily.`;
+  document.getElementById("foot").textContent = `Data from ${DATA.automdm_url.replace(/^https?:\/\//, "")} via the AutoMDM API, from the same daily counts as each dashboard's Over time charts. Rebuilt daily.`;
 }
 
-renderTop(fleets, render, platformCounts);
+renderTop(teams, render, platformCounts);
 render();
 </script>

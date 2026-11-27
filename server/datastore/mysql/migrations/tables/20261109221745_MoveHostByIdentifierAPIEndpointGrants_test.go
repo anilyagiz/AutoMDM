@@ -12,9 +12,9 @@ func TestUp_20261109221745(t *testing.T) {
 	db := applyUpToPrev(t)
 
 	const (
-		oldPath   = "/api/v1/fleet/hosts/identifier/:identifier"
-		newPath   = "/api/v1/fleet/hosts/:id"
-		otherPath = "/api/v1/fleet/hosts"
+		oldPath   = "/api/v1/automdm/hosts/identifier/:identifier"
+		newPath   = "/api/v1/automdm/hosts/:id"
+		otherPath = "/api/v1/automdm/hosts"
 	)
 	newUser := func(name string) int64 {
 		return execNoErrLastID(t, db, `INSERT INTO users (password, salt, name, email, api_only) VALUES ('p', 's', ?, ?, 1)`,

@@ -20,7 +20,7 @@
   }
 
   &__avatar-upper-dash {
-    border-right: 2px solid $ui-fleet-black-25;
+    border-right: 2px solid $ui-automdm-black-25;
     grid-column-start: 1;
     grid-column-end: 2;
     grid-row-start: 1;
@@ -28,7 +28,7 @@
   }
 
   &__avatar-lower-dash {
-    border-right: 2px solid $ui-fleet-black-25;
+    border-right: 2px solid $ui-automdm-black-25;
     grid-column-start: 1;
     grid-column-end: 2;
     grid-row-start: 3;
@@ -47,7 +47,7 @@
     margin-bottom: $pad-large;
 
     &:focus-visible {
-      outline: 2px solid $ui-fleet-black-75;
+      outline: 2px solid $ui-automdm-black-75;
     }
 
     &:hover,
@@ -94,7 +94,7 @@
     &:hover {
       svg {
         path {
-          fill: $ui-fleet-black-75-over;
+          fill: $ui-automdm-black-75-over;
         }
       }
     }
@@ -111,7 +111,7 @@
 
   &__details-bottomline {
     font-size: $xx-small;
-    color: $ui-fleet-black-50;
+    color: $ui-automdm-black-50;
   }
 
   &__show-query-icon {
@@ -137,7 +137,7 @@
    * we also dont show to actions on hover
    */
   &__solo-item {
-    border: 1px solid $ui-fleet-black-10;
+    border: 1px solid $ui-automdm-black-10;
     border-radius: $border-radius-large;
     padding: $pad-medium;
     display: flex;

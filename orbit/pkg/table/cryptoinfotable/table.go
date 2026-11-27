@@ -10,10 +10,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/cryptoinfo"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/dataflatten"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/dataflattentable"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/table/tablehelpers"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/cryptoinfo"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/dataflatten"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/dataflattentable"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/table/tablehelpers"
 	"github.com/osquery/osquery-go/plugin/table"
 	"github.com/rs/zerolog"
 )

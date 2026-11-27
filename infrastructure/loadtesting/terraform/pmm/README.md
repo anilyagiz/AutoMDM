@@ -1,4 +1,4 @@
-# PMM for Fleet loadtesting
+# PMM for AutoMDM loadtesting
 
 Deploys [Percona Monitoring and Management (PMM)](https://docs.percona.com/percona-monitoring-and-management/) as an optional
 add-on for a loadtest environment. PMM runs on ECS Fargate behind the internal ALB and automatically registers the loadtest's
@@ -10,12 +10,12 @@ Use PMM when chasing a MySQL-internal bottleneck. Its dashboards expose `SHOW GL
 nor Performance Insights surface. These include InnoDB buffer pool hit rate and evictions, redo log and checkpoint pressure,
 row lock waits and deadlocks, handler rates, temp tables on disk, thread and table cache churn, and connection errors.
 
-Do NOT use PMM's Query Analytics (QAN) for per-query analysis. Fleet runs its parametrized DML as binary-protocol prepared
+Do NOT use PMM's Query Analytics (QAN) for per-query analysis. AutoMDM runs its parametrized DML as binary-protocol prepared
 statements. MySQL never aggregates those into the `performance_schema` digest table that QAN reads, so QAN misses most of the
 write path (verified on MySQL 8.0.44 and 8.4.9). For per-query analysis use one of these instead:
 
 - **AWS Performance Insights** (enabled on loadtest instances). Server-side and protocol-agnostic. Group by `db.sql_tokenized`.
-- **SigNoz**. Client-side otelsql spans with full query text and the Fleet endpoint or cron context that issued them.
+- **SigNoz**. Client-side otelsql spans with full query text and the AutoMDM endpoint or cron context that issued them.
 
 ## Prerequisites
 
@@ -38,7 +38,7 @@ Outputs:
 
 ```sh
 aws secretsmanager get-secret-value \
-  --secret-id fleet-<workspace>-pmm-admin-password \
+  --secret-id automdm-<workspace>-pmm-admin-password \
   --query SecretString --output text
 ```
 

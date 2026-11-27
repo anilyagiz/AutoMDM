@@ -6,7 +6,7 @@ Those activities are processed in order (that is, the second activity being bloc
 
 Types of activities that can be queued include:
 * Script execution
-* Software installation (custom installers or from the Fleet-maintained apps)
+* Software installation (custom installers or from the AutoMDM-maintained apps)
 * VPP app installation
 * Software uninstallation
 * In-house app installation (also known as .ipa or custom apps, added in the [Use API to deploy in-house (enterprise) iOS/iPadOS package story](https://github.com/fleetdm/fleet/issues/30936))
@@ -30,10 +30,10 @@ Something similar happens when an activity gets a (terminal state) result - rega
 
 When an activity is ready to execute (to become "active"), it is updated in `upcoming_activities` to set a NON-NULL timestamp in the `activated_at` field, and in the same transaction, it is inserted in the proper table specific to the activity type, to then be picked up by the same flow that existed pre-unified queue to process those activities, that is:
 
-* For scripts, it inserts a pending execution row in `host_script_results` with the same `execution_id` as the upcoming activity, and `fleetd` (orbit) will pick it up via its notifications;
-* For software installs, it inserts a pending install row in `host_software_installs` with the same `execution_id` as the upcoming activity, and `fleetd` (orbit) will pick it up via its notifications;
+* For scripts, it inserts a pending execution row in `host_script_results` with the same `execution_id` as the upcoming activity, and `automdmd` (orbit) will pick it up via its notifications;
+* For software installs, it inserts a pending install row in `host_software_installs` with the same `execution_id` as the upcoming activity, and `automdmd` (orbit) will pick it up via its notifications;
 * For VPP apps, since they are processed by an MDM command, it inserts a pending MDM command in `nano_commands` and `nano_enrollment_queue`, with the `command_uuid` set to the `execution_id` of the upcoming activity, and a push notification will be sent to the host to process it via MDM, and it inserts in `host_vpp_software_installs`;
-* For software uninstalls, it is a bit more complex but it inserts in both `host_script_results` and `host_software_installs` with the proper `uninstall = TRUE` flag, and the same `execution_id` is used in both tables to link them (as was done before the unified queue), and `fleetd` (orbit) will pick it up via its notifications.
+* For software uninstalls, it is a bit more complex but it inserts in both `host_script_results` and `host_software_installs` with the proper `uninstall = TRUE` flag, and the same `execution_id` is used in both tables to link them (as was done before the unified queue), and `automdmd` (orbit) will pick it up via its notifications.
 * For In-house apps, since they are processed by an MDM command, it inserts a pending MDM command in `nano_commands` and `nano_enrollment_queue`, with the `command_uuid` set to the `execution_id` of the upcoming activity, and a push notification will be sent to the host to process it via MDM, and it inserts in `host_in_house_software_installs`;
 
 The behavior described above is **very important** to ensure the queue does not become stuck, in fact those are the **two rules that every future change needs to keep in mind** when it affects the upcoming activities:
@@ -55,18 +55,18 @@ Note that:
     - For example, `Datastore.GetHostScriptDetails` returns details of the latest execution request for a script, regardless of if it is pending, in progress or done. To do so, the query does a UNION in `upcoming_activities` and `host_script_results`, using the latest in `host_script_results` only if none exist in `upcoming_activities` (if there is a request in `upcoming_activities`, it is necessarily more recent than the ones that already have a result).
 	- Many examples already exist that look into both tables, make sure to search for existing examples to help keep a consistent pattern (and fix any bugs in all places if one is found).
 * For VPP app installs, the call to `activateNextUpcomingActivity` is done when the `ActivityInstalledAppStoreApp` past activity gets created, not in a transaction when the MDM command result gets saved.
-    - This is due to our use of the third-party `nanomdm` package where saving MDM results is done by this package while our handling of the result is done separately in the `server/service/apple_mdm.go` file. Pretty much all of the state that Fleet saves in relation with MDM command results is not transactional with saving the MDM result itself in the `nano_*` tables.
+    - This is due to our use of the third-party `nanomdm` package where saving MDM results is done by this package while our handling of the result is done separately in the `server/service/apple_mdm.go` file. Pretty much all of the state that AutoMDM saves in relation with MDM command results is not transactional with saving the MDM result itself in the `nano_*` tables.
 
 ### Cancellation
 
-Starting with Fleet v4.67.0 (with the [Cancel upcoming activities story](https://github.com/fleetdm/fleet/issues/25540)), cancellation of upcoming activities is supported. It is implemented as follows:
+Starting with AutoMDM v4.67.0 (with the [Cancel upcoming activities story](https://github.com/fleetdm/fleet/issues/25540)), cancellation of upcoming activities is supported. It is implemented as follows:
 
 * If the upcoming activity was not _activated_ yet, then it simply deletes the row from `upcoming_activities`. A few more cleanup steps are done to ensure that if it was a Wipe/Lock script, the host's state is properly reset to "not pending wipe/lock".
 * Otherwise if it was _activated_, then a new `canceled` boolean field was added to the `host_script_results`, `host_software_installs` and `host_vpp_software_installs` tables (and was added at creation for `host_in_house_software_installs`) and it is set to `true` for the corresponding row. In addition to this:
     - If the software/VPP app install or script was part of the setup experience flow, the corresponding entry in setup experience is marked as "failed";
 	- For VPP and in-house apps, the corresponding MDM command is marked as inactive (`active = 0`) so that it won't be sent to the host if it hasn't already been sent.
 
-An _activated_ activity is not guaranteed to not run/execute, because the host may have already received request to process it. This is ok, Fleet will properly record any result of a canceled activity, it just won't show up in Fleet because it will just show as _canceled_ (there are new past activities for the cancelation of upcoming activities). Queries that return e.g. the last status of a software install or the last result of a saved script will ignore canceled executions.
+An _activated_ activity is not guaranteed to not run/execute, because the host may have already received request to process it. This is ok, AutoMDM will properly record any result of a canceled activity, it just won't show up in AutoMDM because it will just show as _canceled_ (there are new past activities for the cancelation of upcoming activities). Queries that return e.g. the last status of a software install or the last result of a saved script will ignore canceled executions.
 
 ## Testing
 

@@ -25,7 +25,7 @@
         {
           "field": "version",
           "pattern": "^(?:\\d+:)?(.+?)(?:-[^-]+)?$",
-          "note": "Fleet stores only the upstream version, but rows ingested by Fleet before 4.93.0 carry Arch's [epoch:]version-pkgrel form."
+          "note": "AutoMDM stores only the upstream version, but rows ingested by AutoMDM before 4.93.0 carry Arch's [epoch:]version-pkgrel form."
         }
       ]
     },

@@ -3,7 +3,7 @@ package api
 import (
 	"context"
 
-	"github.com/fleetdm/fleet/v4/server/mdm/acme/internal/types"
+	"github.com/anilyagiz/automdm/v4/server/mdm/acme/internal/types"
 )
 
 // AuthorizationService does not handle normal authentication, but the ACME concept of authorization as part of the protocol.

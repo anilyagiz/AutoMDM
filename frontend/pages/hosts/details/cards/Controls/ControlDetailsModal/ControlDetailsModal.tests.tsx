@@ -3,7 +3,7 @@ import React from "react";
 
 import { createMockHostMdmProfile } from "__mocks__/hostMock";
 import {
-  FLEET_ANDROID_CERTIFICATE_TEMPLATE_PROFILE_ID,
+  AUTOMDM_ANDROID_CERTIFICATE_TEMPLATE_PROFILE_ID,
   IHostMdmProfile,
 } from "interfaces/mdm";
 import {
@@ -48,10 +48,10 @@ describe("ControlDetailsModal", () => {
     expect(screen.getByText(/applied/, { selector: "span" })).toHaveTextContent(
       "Anna's MacBook Pro applied Okta Verify settings."
     );
-    expect(screen.getByText(/Fleet verified\./)).toBeInTheDocument();
+    expect(screen.getByText(/AutoMDM verified\./)).toBeInTheDocument();
   });
 
-  it("drops the key phrasing for the FileVault profile when the fleet is enforce-only", () => {
+  it("drops the key phrasing for the FileVault profile when the team is enforce-only", () => {
     renderModal({
       isMacOSDiskEncryptionEnforceOnly: true,
       control: createMockHostMdmProfile({
@@ -64,12 +64,12 @@ describe("ControlDetailsModal", () => {
     });
 
     expect(
-      screen.getByText(/turned disk encryption on\. Fleet verified\./)
+      screen.getByText(/turned disk encryption on\. AutoMDM verified\./)
     ).toBeInTheDocument();
-    expect(screen.queryByText(/sent the key to Fleet/)).toBeNull();
+    expect(screen.queryByText(/sent the key to AutoMDM/)).toBeNull();
   });
 
-  it("drops the key retrieval phrasing while verifying when the fleet is enforce-only", () => {
+  it("drops the key retrieval phrasing while verifying when the team is enforce-only", () => {
     renderModal({
       isMacOSDiskEncryptionEnforceOnly: true,
       control: createMockHostMdmProfile({
@@ -83,7 +83,7 @@ describe("ControlDetailsModal", () => {
 
     expect(
       screen.getByText(
-        /Fleet is verifying with osquery\. This may take up to one hour\./
+        /AutoMDM is verifying with osquery\. This may take up to one hour\./
       )
     ).toBeInTheDocument();
     expect(screen.queryByText(/retrieving the disk encryption key/)).toBeNull();
@@ -102,7 +102,7 @@ describe("ControlDetailsModal", () => {
 
     expect(
       screen.getByText(
-        /turned disk encryption on and sent the key to Fleet\. Fleet verified\./
+        /turned disk encryption on and sent the key to AutoMDM\. AutoMDM verified\./
       )
     ).toBeInTheDocument();
   });
@@ -146,7 +146,7 @@ describe("ControlDetailsModal", () => {
       operation_type: "install",
       status: "failed",
       detail:
-        "./Device/Vendor/MSFT/Policy/Config/Fleet/A: status 200, ./Device/Vendor/MSFT/Policy/Config/Fleet/B: status 500",
+        "./Device/Vendor/MSFT/Policy/Config/AutoMDM/A: status 200, ./Device/Vendor/MSFT/Policy/Config/AutoMDM/B: status 500",
     });
 
     it("shows the failure message and a copyable details block, one result per line", () => {
@@ -161,7 +161,7 @@ describe("ControlDetailsModal", () => {
       ).toBeInTheDocument();
       expect(
         screen.getByText(
-          /Fleet\/A: status 200\s+\.\/Device\/Vendor\/MSFT\/Policy\/Config\/Fleet\/B: status 500/
+          /AutoMDM\/A: status 200\s+\.\/Device\/Vendor\/MSFT\/Policy\/Config\/AutoMDM\/B: status 500/
         )
       ).toBeInTheDocument();
     });
@@ -208,7 +208,7 @@ describe("ControlDetailsModal", () => {
       ).not.toBeInTheDocument();
     });
 
-    it("drops the details block for a Fleet 5 removed variable error", () => {
+    it("drops the details block for an AutoMDM 5 removed variable error", () => {
       renderModal({
         control: createMockHostMdmProfile({
           name: "Wi-Fi",
@@ -216,12 +216,12 @@ describe("ControlDetailsModal", () => {
           operation_type: "install",
           status: "failed",
           detail:
-            'The "$FLEET_VAR_HOST_END_USER_EMAIL_IDP" variable is not available anymore. What to use instead: https://fleetdm.com/learn-more-about/fleet-5-upgrade',
+            'The "$AUTOMDM_VAR_HOST_END_USER_EMAIL_IDP" variable is not available anymore. What to use instead: https://automdm.com/learn-more-about/automdm-5-upgrade',
         }),
       });
 
       expect(
-        screen.getByRole("link", { name: /fleet-5-upgrade/ })
+        screen.getByRole("link", { name: /automdm-5-upgrade/ })
       ).toBeInTheDocument();
       expect(screen.queryByText("Details:")).not.toBeInTheDocument();
     });
@@ -277,7 +277,7 @@ describe("ControlDetailsModal", () => {
         screen.getByText(/failed to turn on disk encryption\./)
       ).toBeInTheDocument();
       expect(
-        screen.getByText(/Fleet will retry automatically\./)
+        screen.getByText(/AutoMDM will retry automatically\./)
       ).toBeInTheDocument();
     });
   });
@@ -302,7 +302,7 @@ describe("ControlDetailsModal", () => {
       expect(
         screen.getByText(/was renamed/, { selector: "span" })
       ).toHaveTextContent(
-        "Anna's MacBook Pro was renamed to match this fleet's host name template. Fleet verified."
+        "Anna's MacBook Pro was renamed to match this team's host name template. AutoMDM verified."
       );
     });
 
@@ -314,7 +314,7 @@ describe("ControlDetailsModal", () => {
       expect(
         screen.getByText(/recovery lock password/, { selector: "span" })
       ).toHaveTextContent(
-        "Fleet set a recovery lock password for Anna's MacBook Pro."
+        "AutoMDM set a recovery lock password for Anna's MacBook Pro."
       );
     });
 
@@ -327,7 +327,7 @@ describe("ControlDetailsModal", () => {
             operation_type: "install",
             detail: "",
           }),
-          profile_uuid: FLEET_ANDROID_CERTIFICATE_TEMPLATE_PROFILE_ID,
+          profile_uuid: AUTOMDM_ANDROID_CERTIFICATE_TEMPLATE_PROFILE_ID,
           status: "verified",
         },
       });
@@ -335,7 +335,7 @@ describe("ControlDetailsModal", () => {
       expect(
         screen.getByText(/applied/, { selector: "span" })
       ).toHaveTextContent(
-        "Anna's MacBook Pro applied Wi-Fi cert. Fleet verified."
+        "Anna's MacBook Pro applied Wi-Fi cert. AutoMDM verified."
       );
     });
 
@@ -359,7 +359,7 @@ describe("ControlDetailsModal", () => {
     // reason wins, otherwise we assert a PIN requirement that may not exist.
     it("prefers the server reason over the PIN wording on windows disk encryption", () => {
       const detail =
-        "BitLocker protection is off. Fleet could not turn it back on: could not add a TPM protector, so protection was not re-enabled: 0x80310066";
+        "BitLocker protection is off. AutoMDM could not turn it back on: could not add a TPM protector, so protection was not re-enabled: 0x80310066";
 
       renderModal({
         control: generateWinDiskEncryptionSetting("action_required", detail),
@@ -389,7 +389,7 @@ describe("ControlDetailsModal", () => {
     // message, not a footnote to copy about an MDM command.
     it("prefers the server reason over the MDM command wording on windows disk encryption enforcing", () => {
       const detail =
-        "Fleet can't read this host's stored recovery key. The host will escrow a new one when it comes online.";
+        "AutoMDM can't read this host's stored recovery key. The host will escrow a new one when it comes online.";
 
       renderModal({
         control: generateWinDiskEncryptionSetting("enforcing", detail),
@@ -423,11 +423,11 @@ describe("ControlDetailsModal", () => {
   });
 
   describe("non-failed controls carrying a detail", () => {
-    // A custom activation's predicate can exclude a host. Fleet delivered the
+    // A custom activation's predicate can exclude a host. AutoMDM delivered the
     // profile, so the status is Verified, but "applied the setting" is untrue.
     it("replaces the status message on a verified control", () => {
       const detail =
-        'Fleet verified, but predicate ("ASSET-002" == "ASSET-001") evaluated to false and settings were not applied to this host.';
+        'AutoMDM verified, but predicate ("ASSET-002" == "ASSET-001") evaluated to false and settings were not applied to this host.';
 
       renderModal({
         control: createMockHostMdmProfile({
@@ -441,7 +441,7 @@ describe("ControlDetailsModal", () => {
 
       expect(screen.getByText(detail)).toBeInTheDocument();
       expect(
-        screen.queryByText(/applied Passcode\. Fleet verified\./)
+        screen.queryByText(/applied Passcode\. AutoMDM verified\./)
       ).not.toBeInTheDocument();
       expect(screen.queryByText("Details:")).not.toBeInTheDocument();
     });
@@ -519,20 +519,20 @@ describe("ControlDetailsModal", () => {
     });
   });
 
-  // Android certificate templates Fleet is automatically retrying after a failure. These keep an
+  // Android certificate templates AutoMDM is automatically retrying after a failure. These keep an
   // in-progress status while carrying the detail from the failed attempt, so the retry message
   // is the only place the failure is explained.
   describe("retrying android certificate", () => {
-    // What the Fleet Android app reports, and how the UI restates it.
+    // What the AutoMDM Android app reports, and how the UI restates it.
     const SCEP_ERROR =
       "Network error during SCEP enrollment: Failed to communicate with SCEP server";
-    const SCEP_MESSAGE = "Fleet couldn't reach the certificate authority.";
+    const SCEP_MESSAGE = "AutoMDM couldn't reach the certificate authority.";
 
     const retryingCert = (
       overrides?: Partial<IHostMdmProfile>
     ): IHostMdmProfile =>
       createMockHostMdmProfile({
-        profile_uuid: FLEET_ANDROID_CERTIFICATE_TEMPLATE_PROFILE_ID,
+        profile_uuid: AUTOMDM_ANDROID_CERTIFICATE_TEMPLATE_PROFILE_ID,
         name: "BeyondCorp",
         platform: "android",
         operation_type: "install",
@@ -605,7 +605,7 @@ describe("ControlDetailsModal", () => {
       expectMessage(`${SCEP_MESSAGE} Retrying enrollment.`);
     });
 
-    // The same restatement as while retrying, so the failure is not reworded the moment Fleet
+    // The same restatement as while retrying, so the failure is not reworded the moment AutoMDM
     // gives up. It moves from the status message to the guidance line below it.
     it("keeps the same restatement once the retries are exhausted", () => {
       renderModal({

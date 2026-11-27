@@ -16,9 +16,9 @@ set -euo pipefail
 #   ./backport-check.sh <base> <patch_branch> <minor_branch>
 #
 # Example:
-#   ./backport-check.sh fleet-v4.81.0 rc-patch-fleet-v4.81.1 rc-minor-fleet-v4.82.0
+#   ./backport-check.sh automdm-v4.81.0 rc-patch-automdm-v4.81.1 rc-minor-automdm-v4.82.0
 
-BASE="${1:?base ref required (e.g. fleet-v4.81.0)}"
+BASE="${1:?base ref required (e.g. automdm-v4.81.0)}"
 PATCH_BRANCH="${2:?patch branch required}"
 MINOR_BRANCH="${3:?minor branch required}"
 

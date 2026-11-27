@@ -1,13 +1,13 @@
 // This module exists solely for automated vulnerability scanning of inlined dependencies.
-// It is NOT compiled into Fleet. Do not add any Go code to this directory.
+// It is NOT compiled into AutoMDM. Do not add any Go code to this directory.
 //
-// These dependencies have been copied/inlined into Fleet's codebase. This go.mod file
+// These dependencies have been copied/inlined into AutoMDM's codebase. This go.mod file
 // allows tools like GitHub Dependabot and govulncheck to detect vulnerabilities in
 // the specific versions that were copied.
 //
 // IMPORTANT: When updating inlined dependencies, update the versions here to match.
 
-module github.com/fleetdm/fleet/v4/third_party/vuln-check
+module github.com/anilyagiz/automdm/v4/third_party/vuln-check
 
 go 1.27.4
 

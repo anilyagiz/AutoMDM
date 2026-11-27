@@ -1,10 +1,10 @@
-name: Deploy Fleet agent downloader app to Heroku.
+name: Deploy AutoMDM agent downloader app to Heroku.
 
 on:
   push:
     branches: [ main ]
     paths:
-      - 'ee/fleet-agent-downloader/**'
+      - 'ee/automdm-agent-downloader/**'
 
 permissions: {}
 
@@ -16,7 +16,7 @@ jobs:
   build:
     permissions:
       contents: read
-    if: ${{ github.repository == 'fleetdm/fleet' }}
+    if: ${{ github.repository == 'automdm/automdm' }}
 
     runs-on: ubuntu-22.04
 
@@ -56,7 +56,7 @@ jobs:
 
     # Now start building!
     # > …but first, get a little crazy for a sec and delete the top-level package.json file
-    # > i.e. the one used by the Fleet server.  This is because require() in node will go
+    # > i.e. the one used by the AutoMDM server.  This is because require() in node will go
     # > hunting in ancestral directories for missing dependencies, and since some of the
     # > bundled transpiler tasks sniff for package availability using require(), this trips
     # > up when it encounters another Node universe in the parent directory.
@@ -64,28 +64,28 @@ jobs:
     # > Turns out there's a similar issue with how eslint plugins are looked up, so we
     # > delete the top level .eslintrc file too.
     - run: rm -f .eslintrc.js
-    # > And, as a change to the top-level fleetdm/fleet .gitignore on May 2, 2022 revealed,
+    # > And, as a change to the top-level automdm/automdm .gitignore on May 2, 2022 revealed,
     # > we also need to delete the top level .gitignore file too, so that its rules don't
     # > interfere with the committing and force-pushing we're doing as part of our deploy
     # > script here.  For more info, see: https://github.com/fleetdm/fleet/pull/5549
     - run: rm -f .gitignore
 
     # Get dependencies (including dev deps)
-    - run: cd ee/fleet-agent-downloader/ && npm ci
+    - run: cd ee/automdm-agent-downloader/ && npm ci
 
     # Run sanity checks
-    - run: cd ee/fleet-agent-downloader/ && npm test
+    - run: cd ee/automdm-agent-downloader/ && npm test
 
     # Compile assets
-    - run: cd ee/fleet-agent-downloader/ && npm run build-for-prod
+    - run: cd ee/automdm-agent-downloader/ && npm run build-for-prod
 
     # Commit newly-built assets locally so we can push them to Heroku below.
     # (This commit will never be pushed to GitHub- only to Heroku.)
     # > The local config flags make this work in GitHub's environment.
-    - run: git add ee/fleet-agent-downloader/.www
+    - run: git add ee/automdm-agent-downloader/.www
 
     # Configure the Heroku app we'll be deploying to
-    - run: heroku git:remote -a fleet-agent-downloader
+    - run: heroku git:remote -an automdm-agent-downloader
     - run: git remote -v
 
     # Deploy to Heroku (by pushing)
@@ -104,10 +104,10 @@ jobs:
         # Create a parentless commit from the tree object.
         COMMIT=$(git -c "user.name=Fleetwood" -c "user.email=github@example.com" \
           commit-tree "$TREE" \
-          -m 'AUTOMATED COMMIT - Deploy Fleet agent downloader app with the latest staged changes, including generated production assets.')
+          -m 'AUTOMATED COMMIT - Deploy AutoMDM agent downloader app with the latest staged changes, including generated production assets.')
         # Push the parentless commit to Heroku
         # Note: The commit pushed to Heroku will not contain the full git history.
-        # This lets up deploy this app from the Fleet monorepo while working around Heroku's pack size limits.
+        # This lets up deploy this app from the AutoMDM monorepo while working around Heroku's pack size limits.
         git push heroku "$COMMIT":refs/heads/master --force
-    - name: 🌐 Fleet agent downloader has been deployed
+    - name: 🌐 AutoMDM agent downloader has been deployed
       run: echo '' && echo '--' && echo 'OK, done.  It should be live momentarily.' && echo '(if you get impatient, check the Heroku dashboard for status)'

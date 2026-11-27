@@ -30,7 +30,7 @@ func TestSplunkWrite(t *testing.T) {
 	}))
 	defer server.Close()
 
-	writer := NewSplunkLogWriter(server.URL, "test-token", "main", "fleet", "fleet:json", false, slog.Default())
+	writer := NewSplunkLogWriter(server.URL, "test-token", "main", "automdm", "automdm:json", false, slog.Default())
 
 	err := writer.Write(ctx, logs)
 	require.NoError(t, err)
@@ -50,8 +50,8 @@ func TestSplunkWrite(t *testing.T) {
 	for i, evt := range events {
 		assert.JSONEq(t, string(logs[i]), string(evt.Event))
 		assert.Equal(t, "main", evt.Index)
-		assert.Equal(t, "fleet", evt.Source)
-		assert.Equal(t, "fleet:json", evt.SourceType)
+		assert.Equal(t, "automdm", evt.Source)
+		assert.Equal(t, "automdm:json", evt.SourceType)
 		assert.NotZero(t, evt.Time)
 	}
 }

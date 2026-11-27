@@ -58,7 +58,7 @@ const EmptySoftwareTable = ({
           <>
             Users with the admin role can{" "}
             <CustomLink
-              url="https://fleetdm.com/docs/using-fleet/vulnerability-processing#configuration"
+              url="https://automdm.com/docs/using-automdm/vulnerability-processing#configuration"
               text="turn on software inventory"
               newTab
             />

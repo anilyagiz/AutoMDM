@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/macoffice"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/macoffice"
 )
 
 func panicif(err error) {

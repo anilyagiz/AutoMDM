@@ -1,5 +1,5 @@
 # Learn more about install scripts:
-# http://fleetdm.com/learn-more-about/install-scripts
+# http://automdm.com/learn-more-about/install-scripts
 #
 # Audacity 4 ships as a WiX MSI that installs to "%ProgramFiles%\Audacity 4"
 # and registers as "Audacity 4.0" (publisher "Audacity").
@@ -8,7 +8,7 @@
 # product registered as "Audacity 3.x" by "Audacity Team"). After a successful
 # install, remove any 3.x install so the host converges on a single Audacity.
 
-$logFile = "${env:TEMP}/fleet-install-software.log"
+$logFile = "${env:TEMP}/automdm-install-software.log"
 $successCodes = @(0, 3010, 1641)
 
 function Remove-LegacyAudacity3 {

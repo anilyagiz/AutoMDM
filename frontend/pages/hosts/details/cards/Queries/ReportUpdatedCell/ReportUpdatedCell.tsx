@@ -2,7 +2,7 @@ import React from "react";
 import { browserHistory } from "react-router";
 
 import Button from "components/buttons/Button";
-import { HumanTimeDiffWithFleetLaunchCutoff } from "components/HumanTimeDiffWithDateTip";
+import { HumanTimeDiffWithTeamLaunchCutoff } from "components/HumanTimeDiffWithDateTip";
 import Icon from "components/Icon";
 import TextCell from "components/TableContainer/DataTable/TextCell";
 import TooltipWrapper from "components/TooltipWrapper";
@@ -44,7 +44,7 @@ const ReportUpdatedCell = ({
               <TooltipWrapper
                 tipContent={
                   <>
-                    Results from this report are not reported in Fleet. Data is
+                    Results from this report are not reported in AutoMDM. Data is
                     being sent to your log destination.
                   </>
                 }
@@ -69,7 +69,7 @@ const ReportUpdatedCell = ({
               <TooltipWrapper
                 tipContent={
                   <>
-                    Fleet is collecting report results.
+                    AutoMDM is collecting report results.
                     <br />
                     Check back later.
                   </>
@@ -95,7 +95,7 @@ const ReportUpdatedCell = ({
         <TextCell
           // last_fetched will be truthy at this point
           value={{ timeString: last_fetched ?? "" }}
-          formatter={HumanTimeDiffWithFleetLaunchCutoff}
+          formatter={HumanTimeDiffWithTeamLaunchCutoff}
           className={`${baseClass}__value`}
         />
       </>
@@ -120,7 +120,7 @@ const ReportUpdatedCell = ({
           size="small"
         >
           <span className={`${baseClass}__view-report--text`}>View data</span>
-          <Icon name="chevron-right" color="ui-fleet-black-75" />
+          <Icon name="chevron-right" color="ui-automdm-black-75" />
         </Button>
       )}
     </span>

@@ -9,16 +9,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/authz"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -31,28 +31,28 @@ func TestUserAuth(t *testing.T) {
 		teamID      = 1
 		otherTeamID = 2
 	)
-	ds.TeamsSummaryFunc = func(ctx context.Context) ([]*fleet.TeamSummary, error) {
-		team1 := &fleet.TeamSummary{ID: teamID}
-		team2 := &fleet.TeamSummary{ID: otherTeamID}
-		return []*fleet.TeamSummary{team1, team2}, nil
+	ds.TeamsSummaryFunc = func(ctx context.Context) ([]*automdm.TeamSummary, error) {
+		team1 := &automdm.TeamSummary{ID: teamID}
+		team2 := &automdm.TeamSummary{ID: otherTeamID}
+		return []*automdm.TeamSummary{team1, team2}, nil
 	}
-	ds.InviteByTokenFunc = func(ctx context.Context, token string) (*fleet.Invite, error) {
-		return &fleet.Invite{
+	ds.InviteByTokenFunc = func(ctx context.Context, token string) (*automdm.Invite, error) {
+		return &automdm.Invite{
 			Email: "some@email.com",
 			Token: "ABCD",
-			UpdateCreateTimestamps: fleet.UpdateCreateTimestamps{
-				CreateTimestamp: fleet.CreateTimestamp{CreatedAt: time.Now()},
-				UpdateTimestamp: fleet.UpdateTimestamp{UpdatedAt: time.Now()},
+			UpdateCreateTimestamps: automdm.UpdateCreateTimestamps{
+				CreateTimestamp: automdm.CreateTimestamp{CreatedAt: time.Now()},
+				UpdateTimestamp: automdm.UpdateTimestamp{UpdatedAt: time.Now()},
 			},
 		}, nil
 	}
-	ds.NewUserFunc = func(ctx context.Context, user *fleet.User) (*fleet.User, error) {
-		return &fleet.User{}, nil
+	ds.NewUserFunc = func(ctx context.Context, user *automdm.User) (*automdm.User, error) {
+		return &automdm.User{}, nil
 	}
 	ds.DeleteInviteFunc = func(ctx context.Context, id uint) error {
 		return nil
 	}
-	ds.InviteByEmailFunc = func(ctx context.Context, email string) (*fleet.Invite, error) {
+	ds.InviteByEmailFunc = func(ctx context.Context, email string) (*automdm.Invite, error) {
 		return nil, errors.New("AA")
 	}
 
@@ -66,28 +66,28 @@ func TestUserAuth(t *testing.T) {
 
 	userTeamMaintainerID := uint(999)
 	userGlobalMaintainerID := uint(888)
-	var self *fleet.User // to be set by tests
-	ds.UserByIDFunc = func(ctx context.Context, id uint) (*fleet.User, error) {
+	var self *automdm.User // to be set by tests
+	ds.UserByIDFunc = func(ctx context.Context, id uint) (*automdm.User, error) {
 		switch id {
 		case userTeamMaintainerID:
-			return &fleet.User{
+			return &automdm.User{
 				ID:    userTeamMaintainerID,
-				Teams: []fleet.UserTeam{{Team: fleet.Team{ID: teamID}, Role: fleet.RoleMaintainer}},
+				Teams: []automdm.UserTeam{{Team: automdm.Team{ID: teamID}, Role: automdm.RoleMaintainer}},
 			}, nil
 		case userGlobalMaintainerID:
-			return &fleet.User{
+			return &automdm.User{
 				ID:         userGlobalMaintainerID,
-				GlobalRole: ptr.String(fleet.RoleMaintainer),
+				GlobalRole: ptr.String(automdm.RoleMaintainer),
 			}, nil
 		default:
 			return self, nil
 		}
 	}
 
-	ds.SaveUserFunc = func(ctx context.Context, user *fleet.User) error {
+	ds.SaveUserFunc = func(ctx context.Context, user *automdm.User) error {
 		return nil
 	}
-	ds.ListUsersFunc = func(ctx context.Context, opts fleet.UserListOptions) ([]*fleet.User, error) {
+	ds.ListUsersFunc = func(ctx context.Context, opts automdm.UserListOptions) ([]*automdm.User, error) {
 		return nil, nil
 	}
 	ds.DeleteUserFunc = func(ctx context.Context, id uint) error {
@@ -96,22 +96,22 @@ func TestUserAuth(t *testing.T) {
 	ds.DestroyAllSessionsForUserFunc = func(ctx context.Context, id uint) error {
 		return nil
 	}
-	ds.ListSessionsForUserFunc = func(ctx context.Context, id uint) ([]*fleet.Session, error) {
+	ds.ListSessionsForUserFunc = func(ctx context.Context, id uint) ([]*automdm.Session, error) {
 		return nil, nil
 	}
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
 	}
 	ds.DeleteUserIfNotLastAdminFunc = func(ctx context.Context, id uint) error {
 		return nil // Allow delete (multiple admins exist)
 	}
-	ds.SaveUserIfNotLastAdminFunc = func(ctx context.Context, user *fleet.User) error {
+	ds.SaveUserIfNotLastAdminFunc = func(ctx context.Context, user *automdm.User) error {
 		return nil // Allow save (multiple admins exist)
 	}
 
 	testCases := []struct {
 		name string
-		user *fleet.User
+		user *automdm.User
 
 		shouldFailGlobalWrite bool
 		shouldFailTeamWrite   bool
@@ -140,7 +140,7 @@ func TestUserAuth(t *testing.T) {
 	}{
 		{
 			name:                                 "global admin",
-			user:                                 &fleet.User{ID: 1000, GlobalRole: ptr.String(fleet.RoleAdmin)},
+			user:                                 &automdm.User{ID: 1000, GlobalRole: ptr.String(automdm.RoleAdmin)},
 			shouldFailGlobalWrite:                false,
 			shouldFailTeamWrite:                  false,
 			shouldFailWriteRoleGlobalToGlobal:    false,
@@ -161,7 +161,7 @@ func TestUserAuth(t *testing.T) {
 		},
 		{
 			name:                                 "global maintainer",
-			user:                                 &fleet.User{ID: 1000, GlobalRole: ptr.String(fleet.RoleMaintainer)},
+			user:                                 &automdm.User{ID: 1000, GlobalRole: ptr.String(automdm.RoleMaintainer)},
 			shouldFailGlobalWrite:                true,
 			shouldFailTeamWrite:                  true,
 			shouldFailWriteRoleGlobalToGlobal:    true,
@@ -182,7 +182,7 @@ func TestUserAuth(t *testing.T) {
 		},
 		{
 			name:                                 "global observer",
-			user:                                 &fleet.User{ID: 1000, GlobalRole: ptr.String(fleet.RoleObserver)},
+			user:                                 &automdm.User{ID: 1000, GlobalRole: ptr.String(automdm.RoleObserver)},
 			shouldFailGlobalWrite:                true,
 			shouldFailTeamWrite:                  true,
 			shouldFailWriteRoleGlobalToGlobal:    true,
@@ -203,7 +203,7 @@ func TestUserAuth(t *testing.T) {
 		},
 		{
 			name:                                 "team admin, belongs to team",
-			user:                                 &fleet.User{ID: 1000, Teams: []fleet.UserTeam{{Team: fleet.Team{ID: teamID}, Role: fleet.RoleAdmin}}},
+			user:                                 &automdm.User{ID: 1000, Teams: []automdm.UserTeam{{Team: automdm.Team{ID: teamID}, Role: automdm.RoleAdmin}}},
 			shouldFailGlobalWrite:                true,
 			shouldFailTeamWrite:                  false,
 			shouldFailWriteRoleGlobalToGlobal:    true,
@@ -224,7 +224,7 @@ func TestUserAuth(t *testing.T) {
 		},
 		{
 			name:                                 "team maintainer, belongs to team",
-			user:                                 &fleet.User{ID: 1000, Teams: []fleet.UserTeam{{Team: fleet.Team{ID: teamID}, Role: fleet.RoleMaintainer}}},
+			user:                                 &automdm.User{ID: 1000, Teams: []automdm.UserTeam{{Team: automdm.Team{ID: teamID}, Role: automdm.RoleMaintainer}}},
 			shouldFailGlobalWrite:                true,
 			shouldFailTeamWrite:                  true,
 			shouldFailWriteRoleGlobalToGlobal:    true,
@@ -245,7 +245,7 @@ func TestUserAuth(t *testing.T) {
 		},
 		{
 			name:                                 "team observer, belongs to team",
-			user:                                 &fleet.User{ID: 1000, Teams: []fleet.UserTeam{{Team: fleet.Team{ID: teamID}, Role: fleet.RoleObserver}}},
+			user:                                 &automdm.User{ID: 1000, Teams: []automdm.UserTeam{{Team: automdm.Team{ID: teamID}, Role: automdm.RoleObserver}}},
 			shouldFailGlobalWrite:                true,
 			shouldFailTeamWrite:                  true,
 			shouldFailWriteRoleGlobalToGlobal:    true,
@@ -266,7 +266,7 @@ func TestUserAuth(t *testing.T) {
 		},
 		{
 			name:                                 "team maintainer, DOES NOT belong to team",
-			user:                                 &fleet.User{ID: 1000, Teams: []fleet.UserTeam{{Team: fleet.Team{ID: otherTeamID}, Role: fleet.RoleMaintainer}}},
+			user:                                 &automdm.User{ID: 1000, Teams: []automdm.UserTeam{{Team: automdm.Team{ID: otherTeamID}, Role: automdm.RoleMaintainer}}},
 			shouldFailGlobalWrite:                true,
 			shouldFailTeamWrite:                  true,
 			shouldFailWriteRoleGlobalToGlobal:    true,
@@ -287,7 +287,7 @@ func TestUserAuth(t *testing.T) {
 		},
 		{
 			name:                                 "team admin, DOES NOT belong to team",
-			user:                                 &fleet.User{ID: 1000, Teams: []fleet.UserTeam{{Team: fleet.Team{ID: otherTeamID}, Role: fleet.RoleAdmin}}},
+			user:                                 &automdm.User{ID: 1000, Teams: []automdm.UserTeam{{Team: automdm.Team{ID: otherTeamID}, Role: automdm.RoleAdmin}}},
 			shouldFailGlobalWrite:                true,
 			shouldFailTeamWrite:                  true,
 			shouldFailWriteRoleGlobalToGlobal:    true,
@@ -308,7 +308,7 @@ func TestUserAuth(t *testing.T) {
 		},
 		{
 			name:                                 "team observer, DOES NOT belong to team",
-			user:                                 &fleet.User{ID: 1000, Teams: []fleet.UserTeam{{Team: fleet.Team{ID: otherTeamID}, Role: fleet.RoleObserver}}},
+			user:                                 &automdm.User{ID: 1000, Teams: []automdm.UserTeam{{Team: automdm.Team{ID: otherTeamID}, Role: automdm.RoleObserver}}},
 			shouldFailGlobalWrite:                true,
 			shouldFailTeamWrite:                  true,
 			shouldFailWriteRoleGlobalToGlobal:    true,
@@ -344,21 +344,21 @@ func TestUserAuth(t *testing.T) {
 			require.NoError(t, err)
 
 			// A user can always write itself (write rego action).
-			_, err = svc.ModifyUser(ctx, tt.user.ID, fleet.UserPayload{Name: ptr.String("Foo")})
+			_, err = svc.ModifyUser(ctx, tt.user.ID, automdm.UserPayload{Name: ptr.String("Foo")})
 			require.NoError(t, err)
 
 			// A user can always change its own password (change_password rego action).
-			_, err = svc.ModifyUser(ctx, tt.user.ID, fleet.UserPayload{Password: ptr.String(test.GoodPassword), NewPassword: ptr.String(test.GoodPassword2)})
+			_, err = svc.ModifyUser(ctx, tt.user.ID, automdm.UserPayload{Password: ptr.String(test.GoodPassword), NewPassword: ptr.String(test.GoodPassword2)})
 			require.NoError(t, err)
 
 			changeRole := func(role string) string {
 				switch role {
-				case fleet.RoleMaintainer:
-					return fleet.RoleAdmin // promote
-				case fleet.RoleAdmin:
-					return fleet.RoleMaintainer // demote
-				case fleet.RoleObserver:
-					return fleet.RoleAdmin // promote
+				case automdm.RoleMaintainer:
+					return automdm.RoleAdmin // promote
+				case automdm.RoleAdmin:
+					return automdm.RoleMaintainer // demote
+				case automdm.RoleObserver:
+					return automdm.RoleAdmin // promote
 				default:
 					t.Fatalf("unknown role: %s", role)
 					return ""
@@ -367,21 +367,21 @@ func TestUserAuth(t *testing.T) {
 
 			// Test a user modifying its own role within its domain (write_role rego action).
 			if tt.user.GlobalRole != nil {
-				_, err = svc.ModifyUser(ctx, tt.user.ID, fleet.UserPayload{GlobalRole: ptr.String(changeRole(*tt.user.GlobalRole))})
+				_, err = svc.ModifyUser(ctx, tt.user.ID, automdm.UserPayload{GlobalRole: ptr.String(changeRole(*tt.user.GlobalRole))})
 				checkAuthErr(t, tt.shouldFailWriteRoleOwnDomain, err)
 			} else { // Team user
-				ownTeamDifferentRole := []fleet.UserTeam{
+				ownTeamDifferentRole := []automdm.UserTeam{
 					{
-						Team: fleet.Team{ID: tt.user.Teams[0].ID},
+						Team: automdm.Team{ID: tt.user.Teams[0].ID},
 						Role: changeRole(tt.user.Teams[0].Role),
 					},
 				}
-				_, err = svc.ModifyUser(ctx, tt.user.ID, fleet.UserPayload{Teams: &ownTeamDifferentRole})
+				_, err = svc.ModifyUser(ctx, tt.user.ID, automdm.UserPayload{Teams: &ownTeamDifferentRole})
 				checkAuthErr(t, tt.shouldFailWriteRoleOwnDomain, err)
 			}
 
-			teams := []fleet.UserTeam{{Team: fleet.Team{ID: teamID}, Role: fleet.RoleMaintainer}}
-			_, _, err = svc.CreateUser(ctx, fleet.UserPayload{
+			teams := []automdm.UserTeam{{Team: automdm.Team{ID: teamID}, Role: automdm.RoleMaintainer}}
+			_, _, err = svc.CreateUser(ctx, automdm.UserPayload{
 				Name:     ptr.String("Some Name"),
 				Email:    ptr.String("some@email.com"),
 				Password: ptr.String(test.GoodPassword),
@@ -389,31 +389,31 @@ func TestUserAuth(t *testing.T) {
 			})
 			checkAuthErr(t, tt.shouldFailTeamWrite, err)
 
-			_, _, err = svc.CreateUser(ctx, fleet.UserPayload{
+			_, _, err = svc.CreateUser(ctx, automdm.UserPayload{
 				Name:       ptr.String("Some Name"),
 				Email:      ptr.String("some@email.com"),
 				Password:   ptr.String(test.GoodPassword),
-				GlobalRole: ptr.String(fleet.RoleAdmin),
+				GlobalRole: ptr.String(automdm.RoleAdmin),
 			})
 			checkAuthErr(t, tt.shouldFailGlobalWrite, err)
 
-			_, err = svc.ModifyUser(ctx, userGlobalMaintainerID, fleet.UserPayload{Name: ptr.String("Foo")})
+			_, err = svc.ModifyUser(ctx, userGlobalMaintainerID, automdm.UserPayload{Name: ptr.String("Foo")})
 			checkAuthErr(t, tt.shouldFailGlobalWrite, err)
 
-			_, err = svc.ModifyUser(ctx, userTeamMaintainerID, fleet.UserPayload{Name: ptr.String("Bar")})
+			_, err = svc.ModifyUser(ctx, userTeamMaintainerID, automdm.UserPayload{Name: ptr.String("Bar")})
 			checkAuthErr(t, tt.shouldFailTeamWrite, err)
 
-			_, err = svc.ModifyUser(ctx, userGlobalMaintainerID, fleet.UserPayload{GlobalRole: ptr.String(fleet.RoleMaintainer)})
+			_, err = svc.ModifyUser(ctx, userGlobalMaintainerID, automdm.UserPayload{GlobalRole: ptr.String(automdm.RoleMaintainer)})
 			checkAuthErr(t, tt.shouldFailWriteRoleGlobalToGlobal, err)
 
-			_, err = svc.ModifyUser(ctx, userGlobalMaintainerID, fleet.UserPayload{Teams: &teams})
+			_, err = svc.ModifyUser(ctx, userGlobalMaintainerID, automdm.UserPayload{Teams: &teams})
 			checkAuthErr(t, tt.shouldFailWriteRoleGlobalToTeam, err)
 
-			anotherTeams := []fleet.UserTeam{{Team: fleet.Team{ID: otherTeamID}, Role: fleet.RoleMaintainer}}
-			_, err = svc.ModifyUser(ctx, userTeamMaintainerID, fleet.UserPayload{Teams: &anotherTeams})
+			anotherTeams := []automdm.UserTeam{{Team: automdm.Team{ID: otherTeamID}, Role: automdm.RoleMaintainer}}
+			_, err = svc.ModifyUser(ctx, userTeamMaintainerID, automdm.UserPayload{Teams: &anotherTeams})
 			checkAuthErr(t, tt.shouldFailWriteRoleTeamToAnotherTeam, err)
 
-			_, err = svc.ModifyUser(ctx, userTeamMaintainerID, fleet.UserPayload{GlobalRole: ptr.String(fleet.RoleMaintainer)})
+			_, err = svc.ModifyUser(ctx, userTeamMaintainerID, automdm.UserPayload{GlobalRole: ptr.String(automdm.RoleMaintainer)})
 			checkAuthErr(t, tt.shouldFailWriteRoleTeamToGlobal, err)
 
 			_, err = svc.User(ctx, userGlobalMaintainerID)
@@ -434,23 +434,23 @@ func TestUserAuth(t *testing.T) {
 			_, err = svc.RequirePasswordReset(ctx, userTeamMaintainerID, false)
 			checkAuthErr(t, tt.shouldFailTeamPasswordReset, err)
 
-			_, err = svc.ModifyUser(ctx, userGlobalMaintainerID, fleet.UserPayload{NewPassword: ptr.String(test.GoodPassword2)})
+			_, err = svc.ModifyUser(ctx, userGlobalMaintainerID, automdm.UserPayload{NewPassword: ptr.String(test.GoodPassword2)})
 			checkAuthErr(t, tt.shouldFailGlobalChangePassword, err)
 
-			_, err = svc.ModifyUser(ctx, userTeamMaintainerID, fleet.UserPayload{NewPassword: ptr.String(test.GoodPassword2)})
+			_, err = svc.ModifyUser(ctx, userTeamMaintainerID, automdm.UserPayload{NewPassword: ptr.String(test.GoodPassword2)})
 			checkAuthErr(t, tt.shouldFailTeamChangePassword, err)
 
-			_, err = svc.ListUsers(ctx, fleet.UserListOptions{})
+			_, err = svc.ListUsers(ctx, automdm.UserListOptions{})
 			checkAuthErr(t, tt.shouldFailListAll, err)
 
-			_, err = svc.ListUsers(ctx, fleet.UserListOptions{TeamID: teamID})
+			_, err = svc.ListUsers(ctx, automdm.UserListOptions{TeamID: teamID})
 			checkAuthErr(t, tt.shouldFailListTeam, err)
 		})
 	}
 }
 
 func TestModifyUserEmail(t *testing.T) {
-	user := &fleet.User{
+	user := &automdm.User{
 		ID:    3,
 		Email: "foo@bar.com",
 	}
@@ -460,28 +460,28 @@ func TestModifyUserEmail(t *testing.T) {
 	ms.PendingEmailChangeFunc = func(ctx context.Context, id uint, em, tk string) error {
 		return nil
 	}
-	ms.UserByIDFunc = func(ctx context.Context, id uint) (*fleet.User, error) {
+	ms.UserByIDFunc = func(ctx context.Context, id uint) (*automdm.User, error) {
 		return user, nil
 	}
-	ms.UserByEmailFunc = func(ctx context.Context, email string) (*fleet.User, error) {
+	ms.UserByEmailFunc = func(ctx context.Context, email string) (*automdm.User, error) {
 		return nil, &notFoundErr{}
 	}
-	ms.InviteByEmailFunc = func(ctx context.Context, email string) (*fleet.Invite, error) {
+	ms.InviteByEmailFunc = func(ctx context.Context, email string) (*automdm.Invite, error) {
 		return nil, &notFoundErr{}
 	}
-	ms.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		config := &fleet.AppConfig{
-			SMTPSettings: &fleet.SMTPSettings{
+	ms.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		config := &automdm.AppConfig{
+			SMTPSettings: &automdm.SMTPSettings{
 				SMTPConfigured:         true,
-				SMTPAuthenticationType: fleet.AuthTypeNameNone,
+				SMTPAuthenticationType: automdm.AuthTypeNameNone,
 				SMTPPort:               1025,
 				SMTPServer:             "127.0.0.1",
-				SMTPSenderAddress:      "xxx@fleet.co",
+				SMTPSenderAddress:      "xxx@automdm.co",
 			},
 		}
 		return config, nil
 	}
-	ms.SaveUserFunc = func(ctx context.Context, u *fleet.User) error {
+	ms.SaveUserFunc = func(ctx context.Context, u *automdm.User) error {
 		// verify this isn't changed yet
 		assert.Equal(t, "foo@bar.com", u.Email)
 		// verify is changed per bug 1123
@@ -490,7 +490,7 @@ func TestModifyUserEmail(t *testing.T) {
 	}
 	svc, ctx := newTestService(t, ms, nil, nil)
 	ctx = viewer.NewContext(ctx, viewer.Viewer{User: user})
-	payload := fleet.UserPayload{
+	payload := automdm.UserPayload{
 		Email:    ptr.String("zip@zap.com"),
 		Password: ptr.String(test.GoodPassword),
 		Position: ptr.String("minion"),
@@ -502,7 +502,7 @@ func TestModifyUserEmail(t *testing.T) {
 }
 
 func TestModifyUserEmailNoPassword(t *testing.T) {
-	user := &fleet.User{
+	user := &automdm.User{
 		ID:    3,
 		Email: "foo@bar.com",
 	}
@@ -512,36 +512,36 @@ func TestModifyUserEmailNoPassword(t *testing.T) {
 	ms.PendingEmailChangeFunc = func(ctx context.Context, id uint, em, tk string) error {
 		return nil
 	}
-	ms.UserByIDFunc = func(ctx context.Context, id uint) (*fleet.User, error) {
+	ms.UserByIDFunc = func(ctx context.Context, id uint) (*automdm.User, error) {
 		return user, nil
 	}
-	ms.UserByEmailFunc = func(ctx context.Context, email string) (*fleet.User, error) {
+	ms.UserByEmailFunc = func(ctx context.Context, email string) (*automdm.User, error) {
 		return user, nil
 	}
-	ms.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		config := &fleet.AppConfig{
-			SMTPSettings: &fleet.SMTPSettings{
+	ms.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		config := &automdm.AppConfig{
+			SMTPSettings: &automdm.SMTPSettings{
 				SMTPConfigured:         true,
-				SMTPAuthenticationType: fleet.AuthTypeNameNone,
+				SMTPAuthenticationType: automdm.AuthTypeNameNone,
 				SMTPPort:               1025,
 				SMTPServer:             "127.0.0.1",
-				SMTPSenderAddress:      "xxx@fleet.co",
+				SMTPSenderAddress:      "xxx@automdm.co",
 			},
 		}
 		return config, nil
 	}
-	ms.SaveUserFunc = func(ctx context.Context, u *fleet.User) error {
+	ms.SaveUserFunc = func(ctx context.Context, u *automdm.User) error {
 		return nil
 	}
 	svc, ctx := newTestService(t, ms, nil, nil)
 	ctx = viewer.NewContext(ctx, viewer.Viewer{User: user})
-	payload := fleet.UserPayload{
+	payload := automdm.UserPayload{
 		Email: ptr.String("zip@zap.com"),
 		// NO PASSWORD
 	}
 	_, err = svc.ModifyUser(ctx, 3, payload)
 	require.NotNil(t, err)
-	var iae *fleet.InvalidArgumentError
+	var iae *automdm.InvalidArgumentError
 	ok := errors.As(err, &iae)
 	require.True(t, ok)
 	require.Len(t, iae.Errors, 1)
@@ -550,23 +550,23 @@ func TestModifyUserEmailNoPassword(t *testing.T) {
 }
 
 func TestMFAHandling(t *testing.T) {
-	admin := &fleet.User{
-		Name:       "Fleet Admin",
+	admin := &automdm.User{
+		Name:       "AutoMDM Admin",
 		Email:      "admin@foo.com",
-		GlobalRole: ptr.String(fleet.RoleAdmin),
+		GlobalRole: ptr.String(automdm.RoleAdmin),
 	}
 
 	ms := new(mock.Store)
 	svc, ctx := newTestService(t, ms, nil, nil)
 	ctx = viewer.NewContext(ctx, viewer.Viewer{User: admin})
 
-	payload := fleet.UserPayload{
+	payload := automdm.UserPayload{
 		Email:      ptr.String("foo@example.com"),
 		Name:       ptr.String("Full Name"),
 		Password:   ptr.String(test.GoodPassword),
 		MFAEnabled: ptr.Bool(true),
 		SSOEnabled: ptr.Bool(true),
-		GlobalRole: ptr.String(fleet.RoleObserver),
+		GlobalRole: ptr.String(automdm.RoleObserver),
 	}
 
 	// test creation
@@ -574,20 +574,20 @@ func TestMFAHandling(t *testing.T) {
 	_, _, err := svc.CreateUser(ctx, payload)
 	require.ErrorContains(t, err, "SSO")
 
-	appConfig := &fleet.AppConfig{SMTPSettings: &fleet.SMTPSettings{}}
-	ms.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
+	appConfig := &automdm.AppConfig{SMTPSettings: &automdm.SMTPSettings{}}
+	ms.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
 		return appConfig, nil
 	}
 
 	payload.SSOEnabled = nil
-	ms.InviteByEmailFunc = func(ctx context.Context, email string) (*fleet.Invite, error) {
+	ms.InviteByEmailFunc = func(ctx context.Context, email string) (*automdm.Invite, error) {
 		return nil, &notFoundErr{}
 	}
 	_, _, err = svc.CreateUser(ctx, payload)
 	require.ErrorContains(t, err, "mail")
 
 	appConfig.SMTPSettings.SMTPConfigured = true
-	ms.NewUserFunc = func(ctx context.Context, user *fleet.User) (*fleet.User, error) {
+	ms.NewUserFunc = func(ctx context.Context, user *automdm.User) (*automdm.User, error) {
 		user.ID = 4
 		return user, nil
 	}
@@ -595,7 +595,7 @@ func TestMFAHandling(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, user.MFAEnabled)
 
-	premiumCtx := license.NewContext(ctx, &fleet.LicenseInfo{Tier: fleet.TierPremium})
+	premiumCtx := license.NewContext(ctx, &automdm.LicenseInfo{Tier: automdm.TierPremium})
 	user, _, err = svc.CreateUser(premiumCtx, payload)
 	require.NoError(t, err)
 	require.True(t, user.MFAEnabled)
@@ -603,41 +603,41 @@ func TestMFAHandling(t *testing.T) {
 	// test modification
 
 	appConfig.SMTPSettings.SMTPConfigured = false
-	ms.UserByIDFunc = func(ctx context.Context, id uint) (*fleet.User, error) {
+	ms.UserByIDFunc = func(ctx context.Context, id uint) (*automdm.User, error) {
 		return user, nil
 	}
-	_, err = svc.ModifyUser(ctx, user.ID, fleet.UserPayload{SSOEnabled: ptr.Bool(true)})
+	_, err = svc.ModifyUser(ctx, user.ID, automdm.UserPayload{SSOEnabled: ptr.Bool(true)})
 	require.ErrorContains(t, err, "SSO")
 
 	user.SSOEnabled = true
 	user.MFAEnabled = false
-	_, err = svc.ModifyUser(ctx, user.ID, fleet.UserPayload{MFAEnabled: ptr.Bool(true)})
+	_, err = svc.ModifyUser(ctx, user.ID, automdm.UserPayload{MFAEnabled: ptr.Bool(true)})
 	require.ErrorContains(t, err, "license")
 
-	_, err = svc.ModifyUser(premiumCtx, user.ID, fleet.UserPayload{MFAEnabled: ptr.Bool(true)})
+	_, err = svc.ModifyUser(premiumCtx, user.ID, automdm.UserPayload{MFAEnabled: ptr.Bool(true)})
 	require.ErrorContains(t, err, "SSO")
 
 	user.SSOEnabled = false
-	_, err = svc.ModifyUser(premiumCtx, user.ID, fleet.UserPayload{MFAEnabled: ptr.Bool(true)})
+	_, err = svc.ModifyUser(premiumCtx, user.ID, automdm.UserPayload{MFAEnabled: ptr.Bool(true)})
 	require.ErrorContains(t, err, "mail")
 
-	ms.SaveUserFunc = func(ctx context.Context, u *fleet.User) error {
+	ms.SaveUserFunc = func(ctx context.Context, u *automdm.User) error {
 		return nil
 	}
 	user.MFAEnabled = true // allow keeping MFA on when modifying a user with MFA already on
-	_, err = svc.ModifyUser(ctx, user.ID, fleet.UserPayload{MFAEnabled: ptr.Bool(true), Name: ptr.String("Joe Bob")})
+	_, err = svc.ModifyUser(ctx, user.ID, automdm.UserPayload{MFAEnabled: ptr.Bool(true), Name: ptr.String("Joe Bob")})
 	require.NoError(t, err)
-	_, err = svc.ModifyUser(ctx, user.ID, fleet.UserPayload{Name: ptr.String("Joe Bob")})
+	_, err = svc.ModifyUser(ctx, user.ID, automdm.UserPayload{Name: ptr.String("Joe Bob")})
 	require.NoError(t, err)
 
 	user.MFAEnabled = false
 	appConfig.SMTPSettings.SMTPConfigured = true
-	_, err = svc.ModifyUser(premiumCtx, user.ID, fleet.UserPayload{MFAEnabled: ptr.Bool(true)})
+	_, err = svc.ModifyUser(premiumCtx, user.ID, automdm.UserPayload{MFAEnabled: ptr.Bool(true)})
 	require.NoError(t, err)
 }
 
 func TestModifyAdminUserEmailNoPassword(t *testing.T) {
-	user := &fleet.User{
+	user := &automdm.User{
 		ID:    3,
 		Email: "foo@bar.com",
 	}
@@ -647,37 +647,37 @@ func TestModifyAdminUserEmailNoPassword(t *testing.T) {
 	ms.PendingEmailChangeFunc = func(ctx context.Context, id uint, em, tk string) error {
 		return nil
 	}
-	ms.UserByIDFunc = func(ctx context.Context, id uint) (*fleet.User, error) {
+	ms.UserByIDFunc = func(ctx context.Context, id uint) (*automdm.User, error) {
 		return user, nil
 	}
-	ms.UserByEmailFunc = func(ctx context.Context, email string) (*fleet.User, error) {
+	ms.UserByEmailFunc = func(ctx context.Context, email string) (*automdm.User, error) {
 		return user, nil
 	}
-	ms.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		config := &fleet.AppConfig{
-			SMTPSettings: &fleet.SMTPSettings{
+	ms.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		config := &automdm.AppConfig{
+			SMTPSettings: &automdm.SMTPSettings{
 				SMTPConfigured:         true,
-				SMTPAuthenticationType: fleet.AuthTypeNameNone,
+				SMTPAuthenticationType: automdm.AuthTypeNameNone,
 				SMTPPort:               1025,
 				SMTPServer:             "127.0.0.1",
-				SMTPSenderAddress:      "xxx@fleet.co",
+				SMTPSenderAddress:      "xxx@automdm.co",
 			},
 		}
 		return config, nil
 	}
-	ms.SaveUserFunc = func(ctx context.Context, u *fleet.User) error {
+	ms.SaveUserFunc = func(ctx context.Context, u *automdm.User) error {
 		return nil
 	}
 	svc, ctx := newTestService(t, ms, nil, nil)
 	ctx = viewer.NewContext(ctx, viewer.Viewer{User: user})
-	payload := fleet.UserPayload{
+	payload := automdm.UserPayload{
 		Email: ptr.String("zip@zap.com"),
 		// NO PASSWORD
 		// Password: &test.TestGoodPassword,
 	}
 	_, err = svc.ModifyUser(ctx, 3, payload)
 	require.NotNil(t, err)
-	var iae *fleet.InvalidArgumentError
+	var iae *automdm.InvalidArgumentError
 	ok := errors.As(err, &iae)
 	require.True(t, ok)
 	require.Len(t, iae.Errors, 1)
@@ -686,7 +686,7 @@ func TestModifyAdminUserEmailNoPassword(t *testing.T) {
 }
 
 func TestModifyAdminUserEmailPassword(t *testing.T) {
-	user := &fleet.User{
+	user := &automdm.User{
 		ID:    3,
 		Email: "foo@bar.com",
 	}
@@ -696,33 +696,33 @@ func TestModifyAdminUserEmailPassword(t *testing.T) {
 	ms.PendingEmailChangeFunc = func(ctx context.Context, id uint, em, tk string) error {
 		return nil
 	}
-	ms.UserByEmailFunc = func(ctx context.Context, email string) (*fleet.User, error) {
+	ms.UserByEmailFunc = func(ctx context.Context, email string) (*automdm.User, error) {
 		return nil, &notFoundErr{}
 	}
-	ms.InviteByEmailFunc = func(ctx context.Context, email string) (*fleet.Invite, error) {
+	ms.InviteByEmailFunc = func(ctx context.Context, email string) (*automdm.Invite, error) {
 		return nil, &notFoundErr{}
 	}
-	ms.UserByIDFunc = func(ctx context.Context, id uint) (*fleet.User, error) {
+	ms.UserByIDFunc = func(ctx context.Context, id uint) (*automdm.User, error) {
 		return user, nil
 	}
-	ms.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		config := &fleet.AppConfig{
-			SMTPSettings: &fleet.SMTPSettings{
+	ms.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		config := &automdm.AppConfig{
+			SMTPSettings: &automdm.SMTPSettings{
 				SMTPConfigured:         true,
-				SMTPAuthenticationType: fleet.AuthTypeNameNone,
+				SMTPAuthenticationType: automdm.AuthTypeNameNone,
 				SMTPPort:               1025,
 				SMTPServer:             "127.0.0.1",
-				SMTPSenderAddress:      "xxx@fleet.co",
+				SMTPSenderAddress:      "xxx@automdm.co",
 			},
 		}
 		return config, nil
 	}
-	ms.SaveUserFunc = func(ctx context.Context, u *fleet.User) error {
+	ms.SaveUserFunc = func(ctx context.Context, u *automdm.User) error {
 		return nil
 	}
 	svc, ctx := newTestService(t, ms, nil, nil)
 	ctx = viewer.NewContext(ctx, viewer.Viewer{User: user})
-	payload := fleet.UserPayload{
+	payload := automdm.UserPayload{
 		Email:    ptr.String("zip@zap.com"),
 		Password: ptr.String(test.GoodPassword),
 	}
@@ -758,10 +758,10 @@ func testUsersCreateUserForcePasswdReset(t *testing.T, ds *mysql.Datastore) {
 	svc, ctx := newTestService(t, ds, nil, nil)
 
 	// Create admin user.
-	admin := &fleet.User{
-		Name:       "Fleet Admin",
+	admin := &automdm.User{
+		Name:       "AutoMDM Admin",
 		Email:      "admin@foo.com",
-		GlobalRole: ptr.String(fleet.RoleAdmin),
+		GlobalRole: ptr.String(automdm.RoleAdmin),
 	}
 	err := admin.SetPassword(test.GoodPassword, 10, 10)
 	require.NoError(t, err)
@@ -770,11 +770,11 @@ func testUsersCreateUserForcePasswdReset(t *testing.T, ds *mysql.Datastore) {
 
 	// As the admin, create a new user.
 	ctx = viewer.NewContext(ctx, viewer.Viewer{User: admin})
-	user, sessionKey, err := svc.CreateUser(ctx, fleet.UserPayload{
+	user, sessionKey, err := svc.CreateUser(ctx, automdm.UserPayload{
 		Name:       ptr.String("Some Observer"),
 		Email:      ptr.String("some-observer@email.com"),
 		Password:   ptr.String(test.GoodPassword),
-		GlobalRole: ptr.String(fleet.RoleObserver),
+		GlobalRole: ptr.String(automdm.RoleObserver),
 	})
 	require.NoError(t, err)
 	require.Nil(t, sessionKey) // only set when creating API-only users
@@ -788,7 +788,7 @@ func testUsersChangePassword(t *testing.T, ds *mysql.Datastore) {
 	svc, ctx := newTestService(t, ds, nil, nil)
 	users := createTestUsers(t, ds)
 	passwordChangeTests := []struct {
-		user        fleet.User
+		user        automdm.User
 		oldPassword string
 		newPassword string
 		anyErr      bool
@@ -803,7 +803,7 @@ func testUsersChangePassword(t *testing.T, ds *mysql.Datastore) {
 			user:        users["admin1@example.com"],
 			oldPassword: test.GoodPassword2,
 			newPassword: test.GoodPassword,
-			wantErr:     fleet.NewInvalidArgumentError("new_password", "Cannot reuse old password"),
+			wantErr:     automdm.NewInvalidArgumentError("new_password", "Cannot reuse old password"),
 		},
 		{ // all good
 			user:        users["user1@example.com"],
@@ -819,7 +819,7 @@ func testUsersChangePassword(t *testing.T, ds *mysql.Datastore) {
 		{ // missing old password
 			user:        users["user1@example.com"],
 			newPassword: test.GoodPassword2,
-			wantErr:     fleet.NewInvalidArgumentError("old_password", "Old password cannot be empty"),
+			wantErr:     automdm.NewInvalidArgumentError("old_password", "Old password cannot be empty"),
 		},
 	}
 
@@ -857,7 +857,7 @@ func testUsersRequirePasswordReset(t *testing.T, ds *mysql.Datastore) {
 			user, err := ds.UserByEmail(context.Background(), tt.Email)
 			require.Nil(t, err)
 
-			var sessions []*fleet.Session
+			var sessions []*automdm.Session
 
 			// Log user in
 			_, _, err = svc.Login(test.UserContext(ctx, test.UserAdmin), tt.Email, tt.PlaintextPassword, false)
@@ -956,27 +956,27 @@ func TestResetPassword(t *testing.T) {
 		{ // prevent reuse
 			token:       "abcd",
 			newPassword: test.GoodPassword2,
-			wantErr:     fleet.NewInvalidArgumentError("new_password", "Cannot reuse old password"),
+			wantErr:     automdm.NewInvalidArgumentError("new_password", "Cannot reuse old password"),
 		},
 		{ // bad token
 			token:       "dcbaz",
 			newPassword: test.GoodPassword,
-			wantErr:     fleet.NewAuthFailedError("invalid password reset token"),
+			wantErr:     automdm.NewAuthFailedError("invalid password reset token"),
 		},
 		{ // missing token
 			newPassword: test.GoodPassword,
-			wantErr:     fleet.NewInvalidArgumentError("token", "Token cannot be empty field"),
+			wantErr:     automdm.NewInvalidArgumentError("token", "Token cannot be empty field"),
 		},
 	}
 
 	for _, tt := range passwordResetTests {
 		t.Run("", func(t *testing.T) {
-			request := &fleet.PasswordResetRequest{
-				UpdateCreateTimestamps: fleet.UpdateCreateTimestamps{
-					CreateTimestamp: fleet.CreateTimestamp{
+			request := &automdm.PasswordResetRequest{
+				UpdateCreateTimestamps: automdm.UpdateCreateTimestamps{
+					CreateTimestamp: automdm.CreateTimestamp{
 						CreatedAt: time.Now(),
 					},
-					UpdateTimestamp: fleet.UpdateTimestamp{
+					UpdateTimestamp: automdm.UpdateTimestamp{
 						UpdatedAt: time.Now(),
 					},
 				},
@@ -987,7 +987,7 @@ func TestResetPassword(t *testing.T) {
 			_, err := ds.NewPasswordResetRequest(context.Background(), request)
 			assert.Nil(t, err)
 
-			serr := svc.ResetPassword(test.UserContext(ctx, &fleet.User{ID: 1}), tt.token, tt.newPassword)
+			serr := svc.ResetPassword(test.UserContext(ctx, &automdm.User{ID: 1}), tt.token, tt.newPassword)
 			if tt.wantErr != nil {
 				assert.Equal(t, tt.wantErr.Error(), ctxerr.Cause(serr).Error())
 			} else {
@@ -1008,7 +1008,7 @@ func TestResetPasswordConcurrent(t *testing.T) {
 	createTestUsers(t, ds)
 
 	const token = "concurrent-reset-token"
-	_, err := ds.NewPasswordResetRequest(t.Context(), &fleet.PasswordResetRequest{
+	_, err := ds.NewPasswordResetRequest(t.Context(), &automdm.PasswordResetRequest{
 		ExpiresAt: time.Now().Add(time.Hour * 24),
 		UserID:    1,
 		Token:     token,
@@ -1054,7 +1054,7 @@ func TestResetPasswordTokenSurvivesRejection(t *testing.T) {
 	createTestUsers(t, ds) // user ID 1's current password is test.GoodPassword
 
 	const token = "survives-rejection-token"
-	_, err := ds.NewPasswordResetRequest(t.Context(), &fleet.PasswordResetRequest{
+	_, err := ds.NewPasswordResetRequest(t.Context(), &automdm.PasswordResetRequest{
 		ExpiresAt: time.Now().Add(time.Hour * 24),
 		UserID:    1,
 		Token:     token,
@@ -1080,7 +1080,7 @@ func TestResetPasswordTokenSurvivesRejection(t *testing.T) {
 	require.Error(t, svc.ResetPassword(ctx, token, test.GoodPassword))
 }
 
-func refreshCtx(t *testing.T, ctx context.Context, user *fleet.User, ds fleet.Datastore, session *fleet.Session) context.Context {
+func refreshCtx(t *testing.T, ctx context.Context, user *automdm.User, ds automdm.Datastore, session *automdm.Session) context.Context {
 	reloadedUser, err := ds.UserByEmail(ctx, user.Email)
 	require.NoError(t, err)
 
@@ -1126,18 +1126,18 @@ func TestIsAdminOfTheModifiedTeams(t *testing.T) {
 		{
 			name: "global-admin-allmighty",
 			actionUserRoles: roles{
-				global: ptr.String(fleet.RoleAdmin),
+				global: ptr.String(automdm.RoleAdmin),
 			},
 			targetUserOriginalTeams: []teamWithRole{
 				{
 					teamID: 1,
-					role:   fleet.RoleAdmin,
+					role:   automdm.RoleAdmin,
 				},
 			},
 			targetUserNewTeams: []teamWithRole{
 				{
 					teamID: 2,
-					role:   fleet.RoleAdmin,
+					role:   automdm.RoleAdmin,
 				},
 			},
 			expected: true,
@@ -1145,18 +1145,18 @@ func TestIsAdminOfTheModifiedTeams(t *testing.T) {
 		{
 			name: "global-maintainer-cannot-modify-team-users",
 			actionUserRoles: roles{
-				global: ptr.String(fleet.RoleMaintainer),
+				global: ptr.String(automdm.RoleMaintainer),
 			},
 			targetUserOriginalTeams: []teamWithRole{
 				{
 					teamID: 1,
-					role:   fleet.RoleAdmin,
+					role:   automdm.RoleAdmin,
 				},
 			},
 			targetUserNewTeams: []teamWithRole{
 				{
 					teamID: 1,
-					role:   fleet.RoleMaintainer,
+					role:   automdm.RoleMaintainer,
 				},
 			},
 			expected: false,
@@ -1167,24 +1167,24 @@ func TestIsAdminOfTheModifiedTeams(t *testing.T) {
 				teams: []teamWithRole{
 					{
 						teamID: 1,
-						role:   fleet.RoleAdmin,
+						role:   automdm.RoleAdmin,
 					},
 					{
 						teamID: 2,
-						role:   fleet.RoleAdmin,
+						role:   automdm.RoleAdmin,
 					},
 				},
 			},
 			targetUserOriginalTeams: []teamWithRole{
 				{
 					teamID: 1,
-					role:   fleet.RoleAdmin,
+					role:   automdm.RoleAdmin,
 				},
 			},
 			targetUserNewTeams: []teamWithRole{
 				{
 					teamID: 2,
-					role:   fleet.RoleAdmin,
+					role:   automdm.RoleAdmin,
 				},
 			},
 			expected: true,
@@ -1195,32 +1195,32 @@ func TestIsAdminOfTheModifiedTeams(t *testing.T) {
 				teams: []teamWithRole{
 					{
 						teamID: 1,
-						role:   fleet.RoleMaintainer,
+						role:   automdm.RoleMaintainer,
 					},
 					{
 						teamID: 2,
-						role:   fleet.RoleAdmin,
+						role:   automdm.RoleAdmin,
 					},
 				},
 			},
 			targetUserOriginalTeams: []teamWithRole{
 				{
 					teamID: 1,
-					role:   fleet.RoleMaintainer,
+					role:   automdm.RoleMaintainer,
 				},
 				{
 					teamID: 2,
-					role:   fleet.RoleMaintainer,
+					role:   automdm.RoleMaintainer,
 				},
 			},
 			targetUserNewTeams: []teamWithRole{
 				{
 					teamID: 1,
-					role:   fleet.RoleMaintainer,
+					role:   automdm.RoleMaintainer,
 				},
 				{
 					teamID: 2,
-					role:   fleet.RoleAdmin,
+					role:   automdm.RoleAdmin,
 				},
 			},
 			expected: true,
@@ -1231,24 +1231,24 @@ func TestIsAdminOfTheModifiedTeams(t *testing.T) {
 				teams: []teamWithRole{
 					{
 						teamID: 1,
-						role:   fleet.RoleAdmin,
+						role:   automdm.RoleAdmin,
 					},
 					{
 						teamID: 2,
-						role:   fleet.RoleMaintainer,
+						role:   automdm.RoleMaintainer,
 					},
 				},
 			},
 			targetUserOriginalTeams: []teamWithRole{
 				{
 					teamID: 1,
-					role:   fleet.RoleAdmin,
+					role:   automdm.RoleAdmin,
 				},
 			},
 			targetUserNewTeams: []teamWithRole{
 				{
 					teamID: 2,
-					role:   fleet.RoleAdmin,
+					role:   automdm.RoleAdmin,
 				},
 			},
 			expected: false,
@@ -1259,24 +1259,24 @@ func TestIsAdminOfTheModifiedTeams(t *testing.T) {
 				teams: []teamWithRole{
 					{
 						teamID: 1,
-						role:   fleet.RoleObserver,
+						role:   automdm.RoleObserver,
 					},
 					{
 						teamID: 2,
-						role:   fleet.RoleAdmin,
+						role:   automdm.RoleAdmin,
 					},
 				},
 			},
 			targetUserOriginalTeams: []teamWithRole{
 				{
 					teamID: 1,
-					role:   fleet.RoleAdmin,
+					role:   automdm.RoleAdmin,
 				},
 			},
 			targetUserNewTeams: []teamWithRole{
 				{
 					teamID: 2,
-					role:   fleet.RoleAdmin,
+					role:   automdm.RoleAdmin,
 				},
 			},
 			expected: false,
@@ -1287,24 +1287,24 @@ func TestIsAdminOfTheModifiedTeams(t *testing.T) {
 				teams: []teamWithRole{
 					{
 						teamID: 1,
-						role:   fleet.RoleAdmin,
+						role:   automdm.RoleAdmin,
 					},
 				},
 			},
 			targetUserOriginalTeams: []teamWithRole{
 				{
 					teamID: 1,
-					role:   fleet.RoleAdmin,
+					role:   automdm.RoleAdmin,
 				},
 			},
 			targetUserNewTeams: []teamWithRole{
 				{
 					teamID: 1,
-					role:   fleet.RoleAdmin,
+					role:   automdm.RoleAdmin,
 				},
 				{
 					teamID: 2,
-					role:   fleet.RoleObserver,
+					role:   automdm.RoleObserver,
 				},
 			},
 			expected: false,
@@ -1315,24 +1315,24 @@ func TestIsAdminOfTheModifiedTeams(t *testing.T) {
 				teams: []teamWithRole{
 					{
 						teamID: 1,
-						role:   fleet.RoleAdmin,
+						role:   automdm.RoleAdmin,
 					},
 				},
 			},
 			targetUserOriginalTeams: []teamWithRole{
 				{
 					teamID: 1,
-					role:   fleet.RoleAdmin,
+					role:   automdm.RoleAdmin,
 				},
 			},
 			targetUserNewTeams: []teamWithRole{
 				{
 					teamID: 1,
-					role:   fleet.RoleAdmin,
+					role:   automdm.RoleAdmin,
 				},
 				{
 					teamID: 2,
-					role:   fleet.RoleAdmin,
+					role:   automdm.RoleAdmin,
 				},
 			},
 			expected: false,
@@ -1343,20 +1343,20 @@ func TestIsAdminOfTheModifiedTeams(t *testing.T) {
 				teams: []teamWithRole{
 					{
 						teamID: 1,
-						role:   fleet.RoleAdmin,
+						role:   automdm.RoleAdmin,
 					},
 				},
 			},
 			targetUserOriginalTeams: []teamWithRole{
 				{
 					teamID: 2,
-					role:   fleet.RoleAdmin,
+					role:   automdm.RoleAdmin,
 				},
 			},
 			targetUserNewTeams: []teamWithRole{
 				{
 					teamID: 1,
-					role:   fleet.RoleAdmin,
+					role:   automdm.RoleAdmin,
 				},
 			},
 			expected: false,
@@ -1367,28 +1367,28 @@ func TestIsAdminOfTheModifiedTeams(t *testing.T) {
 				teams: []teamWithRole{
 					{
 						teamID: 1,
-						role:   fleet.RoleAdmin,
+						role:   automdm.RoleAdmin,
 					},
 				},
 			},
 			targetUserOriginalTeams: []teamWithRole{
 				{
 					teamID: 1,
-					role:   fleet.RoleAdmin,
+					role:   automdm.RoleAdmin,
 				},
 				{
 					teamID: 2,
-					role:   fleet.RoleAdmin,
+					role:   automdm.RoleAdmin,
 				},
 			},
 			targetUserNewTeams: []teamWithRole{
 				{
 					teamID: 1,
-					role:   fleet.RoleAdmin,
+					role:   automdm.RoleAdmin,
 				},
 				{
 					teamID: 2,
-					role:   fleet.RoleMaintainer,
+					role:   automdm.RoleMaintainer,
 				},
 			},
 			expected: false,
@@ -1399,43 +1399,43 @@ func TestIsAdminOfTheModifiedTeams(t *testing.T) {
 				teams: []teamWithRole{
 					{
 						teamID: 1,
-						role:   fleet.RoleMaintainer,
+						role:   automdm.RoleMaintainer,
 					},
 					{
 						teamID: 2,
-						role:   fleet.RoleAdmin,
+						role:   automdm.RoleAdmin,
 					},
 				},
 			},
 			targetUserOriginalTeams: []teamWithRole{
 				{
 					teamID: 1,
-					role:   fleet.RoleMaintainer,
+					role:   automdm.RoleMaintainer,
 				},
 				{
 					teamID: 2,
-					role:   fleet.RoleMaintainer,
+					role:   automdm.RoleMaintainer,
 				},
 			},
 			targetUserNewTeams: []teamWithRole{
 				{
 					teamID: 1,
-					role:   fleet.RoleAdmin,
+					role:   automdm.RoleAdmin,
 				},
 				{
 					teamID: 2,
-					role:   fleet.RoleAdmin,
+					role:   automdm.RoleAdmin,
 				},
 			},
 			expected: false,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			userTeamsFn := func(twr []teamWithRole) []fleet.UserTeam {
-				var userTeams []fleet.UserTeam
+			userTeamsFn := func(twr []teamWithRole) []automdm.UserTeam {
+				var userTeams []automdm.UserTeam
 				for _, ot := range twr {
-					userTeams = append(userTeams, fleet.UserTeam{
-						Team: fleet.Team{ID: ot.teamID},
+					userTeams = append(userTeams, automdm.UserTeam{
+						Team: automdm.Team{ID: ot.teamID},
 						Role: ot.role,
 					})
 				}
@@ -1447,7 +1447,7 @@ func TestIsAdminOfTheModifiedTeams(t *testing.T) {
 			newUserTeams := userTeamsFn(tc.targetUserNewTeams)
 
 			result := isAdminOfTheModifiedTeams(
-				&fleet.User{
+				&automdm.User{
 					GlobalRole: tc.actionUserRoles.global,
 					Teams:      actionUserTeams,
 				},
@@ -1466,23 +1466,23 @@ func TestTeamAdminAddRoleOtherTeam(t *testing.T) {
 	svc, ctx := newTestService(t, ds, nil, nil)
 
 	// adminTeam2 is a team admin of team with ID=2.
-	adminTeam2 := &fleet.User{
+	adminTeam2 := &automdm.User{
 		ID: 1,
-		Teams: []fleet.UserTeam{
+		Teams: []automdm.UserTeam{
 			{
-				Team: fleet.Team{ID: 2},
-				Role: fleet.RoleAdmin,
+				Team: automdm.Team{ID: 2},
+				Role: automdm.RoleAdmin,
 			},
 		},
 	}
 
-	ds.UserByIDFunc = func(ctx context.Context, id uint) (*fleet.User, error) {
+	ds.UserByIDFunc = func(ctx context.Context, id uint) (*automdm.User, error) {
 		if id != 1 {
 			return nil, newNotFoundError()
 		}
 		return adminTeam2, nil
 	}
-	ds.SaveUserFunc = func(ctx context.Context, user *fleet.User) error {
+	ds.SaveUserFunc = func(ctx context.Context, user *automdm.User) error {
 		return nil
 	}
 
@@ -1490,15 +1490,15 @@ func TestTeamAdminAddRoleOtherTeam(t *testing.T) {
 	require.NoError(t, adminTeam2.SetPassword("p4ssw0rd.1337", 10, 10))
 
 	// adminTeam2 tries to add itself to team with ID=3 as admin.
-	_, err := svc.ModifyUser(ctx, adminTeam2.ID, fleet.UserPayload{
-		Teams: &[]fleet.UserTeam{
+	_, err := svc.ModifyUser(ctx, adminTeam2.ID, automdm.UserPayload{
+		Teams: &[]automdm.UserTeam{
 			{
-				Team: fleet.Team{ID: 2},
-				Role: fleet.RoleAdmin,
+				Team: automdm.Team{ID: 2},
+				Role: automdm.RoleAdmin,
 			},
 			{
-				Team: fleet.Team{ID: 3},
-				Role: fleet.RoleAdmin,
+				Team: automdm.Team{ID: 3},
+				Role: automdm.RoleAdmin,
 			},
 		},
 	})
@@ -1509,17 +1509,17 @@ func TestTeamAdminAddRoleOtherTeam(t *testing.T) {
 func testUsersCreateUserWithAPIOnly(t *testing.T, ds *mysql.Datastore) {
 	svc, ctx := newTestService(t, ds, nil, nil)
 
-	host, err := ds.NewHost(ctx, &fleet.Host{
+	host, err := ds.NewHost(ctx, &automdm.Host{
 		UUID:          "uuid-42",
 		OsqueryHostID: ptr.String("osquery_host_id-42"),
 	})
 	require.NoError(t, err)
 
 	// Create admin user.
-	admin := &fleet.User{
-		Name:       "Fleet Admin",
+	admin := &automdm.User{
+		Name:       "AutoMDM Admin",
 		Email:      "admin@foo.com",
-		GlobalRole: ptr.String(fleet.RoleAdmin),
+		GlobalRole: ptr.String(automdm.RoleAdmin),
 	}
 	err = admin.SetPassword(test.GoodPassword, 10, 10)
 	require.NoError(t, err)
@@ -1528,11 +1528,11 @@ func testUsersCreateUserWithAPIOnly(t *testing.T, ds *mysql.Datastore) {
 
 	// As the admin, create a new API-only user.
 	ctx = viewer.NewContext(ctx, viewer.Viewer{User: admin})
-	apiOnlyUser, sessionKey, err := svc.CreateUser(ctx, fleet.UserPayload{
+	apiOnlyUser, sessionKey, err := svc.CreateUser(ctx, automdm.UserPayload{
 		Name:       ptr.String("Some Observer"),
 		Email:      ptr.String("some-observer@email.com"),
 		Password:   ptr.String(test.GoodPassword),
-		GlobalRole: ptr.String(fleet.RoleObserver),
+		GlobalRole: ptr.String(automdm.RoleObserver),
 		APIOnly:    ptr.Bool(true),
 	})
 	require.NoError(t, err)
@@ -1547,7 +1547,7 @@ func testUsersCreateUserWithAPIOnly(t *testing.T, ds *mysql.Datastore) {
 
 	refreshCtx(t, ctx, apiOnlyUser, ds, session)
 
-	hosts, err := svc.ListHosts(ctx, fleet.HostListOptions{})
+	hosts, err := svc.ListHosts(ctx, automdm.HostListOptions{})
 	require.NoError(t, err)
 	require.Len(t, hosts, 1)
 	require.Equal(t, host.ID, hosts[0].ID)
@@ -1560,11 +1560,11 @@ type adminTestUserOpts struct {
 	apiOnly    bool
 }
 
-func newAdminTestUser(opts *adminTestUserOpts) *fleet.User {
-	user := &fleet.User{
+func newAdminTestUser(opts *adminTestUserOpts) *automdm.User {
+	user := &automdm.User{
 		ID:         1,
 		Email:      "admin@example.com",
-		GlobalRole: ptr.String(fleet.RoleAdmin),
+		GlobalRole: ptr.String(automdm.RoleAdmin),
 		APIOnly:    false,
 	}
 	if opts != nil {
@@ -1582,7 +1582,7 @@ func newAdminTestUser(opts *adminTestUserOpts) *fleet.User {
 	return user
 }
 
-func setupAdminTestContext(t *testing.T, adminUser *fleet.User) (*mock.Store, fleet.Service, context.Context) {
+func setupAdminTestContext(t *testing.T, adminUser *automdm.User) (*mock.Store, automdm.Service, context.Context) {
 	ds := new(mock.Store)
 	svc, ctx := newTestService(t, ds, nil, nil)
 	ctx = viewer.NewContext(ctx, viewer.Viewer{User: adminUser})
@@ -1594,16 +1594,16 @@ func TestDeleteUserLastAdminProtection(t *testing.T) {
 		adminUser := newAdminTestUser(nil)
 		ds, svc, ctx := setupAdminTestContext(t, adminUser)
 
-		ds.UserByIDFunc = func(ctx context.Context, id uint) (*fleet.User, error) {
+		ds.UserByIDFunc = func(ctx context.Context, id uint) (*automdm.User, error) {
 			return adminUser, nil
 		}
 		ds.DeleteUserIfNotLastAdminFunc = func(ctx context.Context, id uint) error {
-			return fleet.ErrLastGlobalAdmin
+			return automdm.ErrLastGlobalAdmin
 		}
 
 		_, err := svc.DeleteUser(ctx, adminUser.ID)
 		require.Error(t, err)
-		var argErr *fleet.InvalidArgumentError
+		var argErr *automdm.InvalidArgumentError
 		require.ErrorAs(t, err, &argErr)
 		assert.Contains(t, err.Error(), "cannot delete the last global admin")
 	})
@@ -1612,14 +1612,14 @@ func TestDeleteUserLastAdminProtection(t *testing.T) {
 		adminUser := newAdminTestUser(nil)
 		ds, svc, ctx := setupAdminTestContext(t, adminUser)
 
-		ds.UserByIDFunc = func(ctx context.Context, id uint) (*fleet.User, error) {
+		ds.UserByIDFunc = func(ctx context.Context, id uint) (*automdm.User, error) {
 			return adminUser, nil
 		}
 		ds.DeleteUserIfNotLastAdminFunc = func(ctx context.Context, id uint) error {
 			return nil
 		}
-		ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-			return &fleet.AppConfig{}, nil
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{}, nil
 		}
 		_, err := svc.DeleteUser(ctx, adminUser.ID)
 		require.NoError(t, err)
@@ -1635,16 +1635,16 @@ func TestDeleteUserLastAdminProtection(t *testing.T) {
 			email:   "api-admin@example.com",
 			apiOnly: true,
 		})
-		ds.UserByIDFunc = func(ctx context.Context, id uint) (*fleet.User, error) {
+		ds.UserByIDFunc = func(ctx context.Context, id uint) (*automdm.User, error) {
 			return apiOnlyAdmin, nil
 		}
 		ds.DeleteUserIfNotLastAdminFunc = func(ctx context.Context, id uint) error {
-			return fleet.ErrLastGlobalAdmin
+			return automdm.ErrLastGlobalAdmin
 		}
 
 		_, err := svc.DeleteUser(ctx, apiOnlyAdmin.ID)
 		require.Error(t, err)
-		var argErr *fleet.InvalidArgumentError
+		var argErr *automdm.InvalidArgumentError
 		require.ErrorAs(t, err, &argErr)
 		assert.Contains(t, err.Error(), "cannot delete the last global admin")
 	})
@@ -1656,16 +1656,16 @@ func TestDeleteUserLastAdminProtection(t *testing.T) {
 		maintainerUser := newAdminTestUser(&adminTestUserOpts{
 			id:         3,
 			email:      "maintainer@example.com",
-			globalRole: fleet.RoleMaintainer,
+			globalRole: automdm.RoleMaintainer,
 		})
-		ds.UserByIDFunc = func(ctx context.Context, id uint) (*fleet.User, error) {
+		ds.UserByIDFunc = func(ctx context.Context, id uint) (*automdm.User, error) {
 			return maintainerUser, nil
 		}
 		ds.DeleteUserFunc = func(ctx context.Context, id uint) error {
 			return nil
 		}
-		ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-			return &fleet.AppConfig{}, nil
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{}, nil
 		}
 		_, err := svc.DeleteUser(ctx, maintainerUser.ID)
 		require.NoError(t, err)
@@ -1676,11 +1676,11 @@ func TestDeleteUserLastAdminProtection(t *testing.T) {
 
 func TestModifyUserLastAdminProtection(t *testing.T) {
 	// setupModifyUserMocks sets up common mocks needed for ModifyUser tests.
-	setupModifyUserMocks := func(ds *mock.Store, targetUser *fleet.User) {
-		ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-			return &fleet.AppConfig{}, nil
+	setupModifyUserMocks := func(ds *mock.Store, targetUser *automdm.User) {
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{}, nil
 		}
-		ds.UserByIDFunc = func(ctx context.Context, id uint) (*fleet.User, error) {
+		ds.UserByIDFunc = func(ctx context.Context, id uint) (*automdm.User, error) {
 			return targetUser, nil
 		}
 	}
@@ -1689,15 +1689,15 @@ func TestModifyUserLastAdminProtection(t *testing.T) {
 		adminUser := newAdminTestUser(nil)
 		ds, svc, ctx := setupAdminTestContext(t, adminUser)
 		setupModifyUserMocks(ds, adminUser)
-		ds.SaveUserIfNotLastAdminFunc = func(ctx context.Context, u *fleet.User) error {
-			return fleet.ErrLastGlobalAdmin
+		ds.SaveUserIfNotLastAdminFunc = func(ctx context.Context, u *automdm.User) error {
+			return automdm.ErrLastGlobalAdmin
 		}
 
-		_, err := svc.ModifyUser(ctx, adminUser.ID, fleet.UserPayload{
-			GlobalRole: ptr.String(fleet.RoleMaintainer),
+		_, err := svc.ModifyUser(ctx, adminUser.ID, automdm.UserPayload{
+			GlobalRole: ptr.String(automdm.RoleMaintainer),
 		})
 		require.Error(t, err)
-		var argErr *fleet.InvalidArgumentError
+		var argErr *automdm.InvalidArgumentError
 		require.ErrorAs(t, err, &argErr)
 		assert.Contains(t, err.Error(), "cannot demote the last global admin")
 	})
@@ -1706,19 +1706,19 @@ func TestModifyUserLastAdminProtection(t *testing.T) {
 		adminUser := newAdminTestUser(nil)
 		ds, svc, ctx := setupAdminTestContext(t, adminUser)
 		setupModifyUserMocks(ds, adminUser)
-		ds.SaveUserIfNotLastAdminFunc = func(ctx context.Context, u *fleet.User) error {
-			return fleet.ErrLastGlobalAdmin
+		ds.SaveUserIfNotLastAdminFunc = func(ctx context.Context, u *automdm.User) error {
+			return automdm.ErrLastGlobalAdmin
 		}
-		ds.TeamsSummaryFunc = func(ctx context.Context) ([]*fleet.TeamSummary, error) {
-			return []*fleet.TeamSummary{{ID: 1}}, nil
+		ds.TeamsSummaryFunc = func(ctx context.Context) ([]*automdm.TeamSummary, error) {
+			return []*automdm.TeamSummary{{ID: 1}}, nil
 		}
 
-		teams := []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleAdmin}}
-		_, err := svc.ModifyUser(ctx, adminUser.ID, fleet.UserPayload{
+		teams := []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleAdmin}}
+		_, err := svc.ModifyUser(ctx, adminUser.ID, automdm.UserPayload{
 			Teams: &teams,
 		})
 		require.Error(t, err)
-		var argErr *fleet.InvalidArgumentError
+		var argErr *automdm.InvalidArgumentError
 		require.ErrorAs(t, err, &argErr)
 		assert.Contains(t, err.Error(), "cannot demote the last global admin")
 	})
@@ -1727,11 +1727,11 @@ func TestModifyUserLastAdminProtection(t *testing.T) {
 		adminUser := newAdminTestUser(nil)
 		ds, svc, ctx := setupAdminTestContext(t, adminUser)
 		setupModifyUserMocks(ds, adminUser)
-		ds.SaveUserIfNotLastAdminFunc = func(ctx context.Context, u *fleet.User) error {
+		ds.SaveUserIfNotLastAdminFunc = func(ctx context.Context, u *automdm.User) error {
 			return nil
 		}
-		_, err := svc.ModifyUser(ctx, adminUser.ID, fleet.UserPayload{
-			GlobalRole: ptr.String(fleet.RoleMaintainer),
+		_, err := svc.ModifyUser(ctx, adminUser.ID, automdm.UserPayload{
+			GlobalRole: ptr.String(automdm.RoleMaintainer),
 		})
 		require.NoError(t, err)
 	})
@@ -1740,11 +1740,11 @@ func TestModifyUserLastAdminProtection(t *testing.T) {
 		adminUser := newAdminTestUser(nil)
 		ds, svc, ctx := setupAdminTestContext(t, adminUser)
 		setupModifyUserMocks(ds, adminUser)
-		ds.SaveUserFunc = func(ctx context.Context, u *fleet.User) error {
+		ds.SaveUserFunc = func(ctx context.Context, u *automdm.User) error {
 			return nil
 		}
-		_, err := svc.ModifyUser(ctx, adminUser.ID, fleet.UserPayload{
-			GlobalRole: ptr.String(fleet.RoleAdmin),
+		_, err := svc.ModifyUser(ctx, adminUser.ID, automdm.UserPayload{
+			GlobalRole: ptr.String(automdm.RoleAdmin),
 		})
 		require.NoError(t, err)
 		// SaveUserIfNotLastAdmin should NOT have been called since role isn't changing
@@ -1761,26 +1761,26 @@ func TestModifyUserLastAdminProtection(t *testing.T) {
 			apiOnly: true,
 		})
 		setupModifyUserMocks(ds, apiOnlyAdmin)
-		ds.SaveUserIfNotLastAdminFunc = func(ctx context.Context, u *fleet.User) error {
-			return fleet.ErrLastGlobalAdmin
+		ds.SaveUserIfNotLastAdminFunc = func(ctx context.Context, u *automdm.User) error {
+			return automdm.ErrLastGlobalAdmin
 		}
 
-		_, err := svc.ModifyUser(ctx, apiOnlyAdmin.ID, fleet.UserPayload{
-			GlobalRole: ptr.String(fleet.RoleMaintainer),
+		_, err := svc.ModifyUser(ctx, apiOnlyAdmin.ID, automdm.UserPayload{
+			GlobalRole: ptr.String(automdm.RoleMaintainer),
 		})
 		require.Error(t, err)
-		var argErr *fleet.InvalidArgumentError
+		var argErr *automdm.InvalidArgumentError
 		require.ErrorAs(t, err, &argErr)
 		assert.Contains(t, err.Error(), "cannot demote the last global admin")
 	})
 }
 
 func TestModifyUserAPIOnlyStatusProtection(t *testing.T) {
-	setupModifyUserMocks := func(ds *mock.Store, targetUser *fleet.User) {
-		ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-			return &fleet.AppConfig{}, nil
+	setupModifyUserMocks := func(ds *mock.Store, targetUser *automdm.User) {
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{}, nil
 		}
-		ds.UserByIDFunc = func(ctx context.Context, id uint) (*fleet.User, error) {
+		ds.UserByIDFunc = func(ctx context.Context, id uint) (*automdm.User, error) {
 			return targetUser, nil
 		}
 	}
@@ -1791,9 +1791,9 @@ func TestModifyUserAPIOnlyStatusProtection(t *testing.T) {
 		ds, svc, ctx := setupAdminTestContext(t, adminUser)
 		setupModifyUserMocks(ds, regularUser)
 
-		_, err := svc.ModifyUser(ctx, regularUser.ID, fleet.UserPayload{APIOnly: new(true)})
+		_, err := svc.ModifyUser(ctx, regularUser.ID, automdm.UserPayload{APIOnly: new(true)})
 		require.Error(t, err)
-		var argErr *fleet.InvalidArgumentError
+		var argErr *automdm.InvalidArgumentError
 		require.ErrorAs(t, err, &argErr)
 	})
 
@@ -1803,9 +1803,9 @@ func TestModifyUserAPIOnlyStatusProtection(t *testing.T) {
 		ds, svc, ctx := setupAdminTestContext(t, adminUser)
 		setupModifyUserMocks(ds, apiUser)
 
-		_, err := svc.ModifyUser(ctx, apiUser.ID, fleet.UserPayload{APIOnly: new(false)})
+		_, err := svc.ModifyUser(ctx, apiUser.ID, automdm.UserPayload{APIOnly: new(false)})
 		require.Error(t, err)
-		var argErr *fleet.InvalidArgumentError
+		var argErr *automdm.InvalidArgumentError
 		require.ErrorAs(t, err, &argErr)
 	})
 }
@@ -1818,13 +1818,13 @@ func TestPasswordChangeClearsTokensAndSessions(t *testing.T) {
 
 		ds, svc, ctx := setupAdminTestContext(t, adminUser)
 
-		ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-			return &fleet.AppConfig{}, nil
+		ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{}, nil
 		}
-		ds.UserByIDFunc = func(ctx context.Context, id uint) (*fleet.User, error) {
+		ds.UserByIDFunc = func(ctx context.Context, id uint) (*automdm.User, error) {
 			return adminUser, nil
 		}
-		ds.SaveUserFunc = func(ctx context.Context, u *fleet.User) error {
+		ds.SaveUserFunc = func(ctx context.Context, u *automdm.User) error {
 			return nil
 		}
 		var deletedPasswordResetForUserID uint
@@ -1839,7 +1839,7 @@ func TestPasswordChangeClearsTokensAndSessions(t *testing.T) {
 			return nil
 		}
 
-		_, err = svc.ModifyUser(ctx, adminUser.ID, fleet.UserPayload{
+		_, err = svc.ModifyUser(ctx, adminUser.ID, automdm.UserPayload{
 			Password:    ptr.String(test.GoodPassword),
 			NewPassword: ptr.String(test.GoodPassword2),
 		})
@@ -1859,7 +1859,7 @@ func TestPasswordChangeClearsTokensAndSessions(t *testing.T) {
 
 		ds, svc, ctx := setupAdminTestContext(t, adminUser)
 
-		ds.SaveUserFunc = func(ctx context.Context, u *fleet.User) error {
+		ds.SaveUserFunc = func(ctx context.Context, u *automdm.User) error {
 			return nil
 		}
 
@@ -1889,7 +1889,7 @@ func TestPasswordChangeClearsTokensAndSessions(t *testing.T) {
 		ds := new(mock.Store)
 		svc, ctx := newTestService(t, ds, nil, nil)
 
-		targetUser := &fleet.User{
+		targetUser := &automdm.User{
 			ID:    42,
 			Email: "user@example.com",
 		}
@@ -1897,9 +1897,9 @@ func TestPasswordChangeClearsTokensAndSessions(t *testing.T) {
 		require.NoError(t, err)
 
 		resetToken := "valid-reset-token" // #nosec G101 - test data
-		ds.FindPasswordResetByTokenFunc = func(ctx context.Context, token string) (*fleet.PasswordResetRequest, error) {
+		ds.FindPasswordResetByTokenFunc = func(ctx context.Context, token string) (*automdm.PasswordResetRequest, error) {
 			if token == resetToken {
-				return &fleet.PasswordResetRequest{
+				return &automdm.PasswordResetRequest{
 					UserID: targetUser.ID,
 					Token:  token,
 				}, nil
@@ -1907,7 +1907,7 @@ func TestPasswordChangeClearsTokensAndSessions(t *testing.T) {
 			return nil, errors.New("token not found")
 		}
 
-		ds.UserByIDFunc = func(ctx context.Context, id uint) (*fleet.User, error) {
+		ds.UserByIDFunc = func(ctx context.Context, id uint) (*automdm.User, error) {
 			if id == targetUser.ID {
 				return targetUser, nil
 			}
@@ -1919,9 +1919,9 @@ func TestPasswordChangeClearsTokensAndSessions(t *testing.T) {
 		// delegates to a single ResetPassword call.
 		var (
 			passedToken string
-			passedUser  *fleet.User
+			passedUser  *automdm.User
 		)
-		ds.ResetPasswordFunc = func(ctx context.Context, token string, u *fleet.User) error {
+		ds.ResetPasswordFunc = func(ctx context.Context, token string, u *automdm.User) error {
 			passedToken = token
 			passedUser = u
 			return nil
@@ -1942,7 +1942,7 @@ func TestPasswordChangeClearsTokensAndSessions(t *testing.T) {
 		ds := new(mock.Store)
 		svc, ctx := newTestService(t, ds, nil, nil)
 
-		targetUser := &fleet.User{
+		targetUser := &automdm.User{
 			ID:                       42,
 			Email:                    "user@example.com",
 			AdminForcedPasswordReset: true,
@@ -1950,8 +1950,8 @@ func TestPasswordChangeClearsTokensAndSessions(t *testing.T) {
 		err := targetUser.SetPassword(test.GoodPassword, 10, 10)
 		require.NoError(t, err)
 
-		currentSession := &fleet.Session{ID: 1, UserID: targetUser.ID}
-		otherSession := &fleet.Session{ID: 2, UserID: targetUser.ID}
+		currentSession := &automdm.Session{ID: 1, UserID: targetUser.ID}
+		otherSession := &automdm.Session{ID: 2, UserID: targetUser.ID}
 
 		// CanPerformPasswordReset requires a session to be present.
 		ctx = viewer.NewContext(ctx, viewer.Viewer{
@@ -1959,7 +1959,7 @@ func TestPasswordChangeClearsTokensAndSessions(t *testing.T) {
 			Session: currentSession,
 		})
 
-		ds.SaveUserFunc = func(ctx context.Context, u *fleet.User) error {
+		ds.SaveUserFunc = func(ctx context.Context, u *automdm.User) error {
 			return nil
 		}
 
@@ -1969,12 +1969,12 @@ func TestPasswordChangeClearsTokensAndSessions(t *testing.T) {
 			return nil
 		}
 
-		ds.ListSessionsForUserFunc = func(ctx context.Context, userID uint) ([]*fleet.Session, error) {
-			return []*fleet.Session{currentSession, otherSession}, nil
+		ds.ListSessionsForUserFunc = func(ctx context.Context, userID uint) ([]*automdm.Session, error) {
+			return []*automdm.Session{currentSession, otherSession}, nil
 		}
 
 		var destroyedSessionIDs []uint
-		ds.DestroySessionFunc = func(ctx context.Context, s *fleet.Session) error {
+		ds.DestroySessionFunc = func(ctx context.Context, s *automdm.Session) error {
 			destroyedSessionIDs = append(destroyedSessionIDs, s.ID)
 			return nil
 		}
@@ -1995,33 +1995,33 @@ func TestPasswordChangeClearsTokensAndSessions(t *testing.T) {
 // TestListUsersFiltersTeamsToRequesterScope verifies that a team-scoped admin
 // listing users does not receive team memberships (IDs/names/roles) for teams
 // the requester has no role in. Regression test for the cross-team data
-// exposure on GET /api/latest/fleet/users for shared multi-team users.
+// exposure on GET /api/latest/automdm/users for shared multi-team users.
 func TestListUsersFiltersTeamsToRequesterScope(t *testing.T) {
 	ds := new(mock.Store)
 	svc, ctx := newTestService(t, ds, nil, nil)
 
 	// A user shared across team 1 and team 2, as returned by the datastore
 	// (ds.ListUsers always loads the user's full team list).
-	sharedUserTeams := []fleet.UserTeam{
-		{Team: fleet.Team{ID: 1, Name: "Team 1"}, Role: fleet.RoleObserver},
-		{Team: fleet.Team{ID: 2, Name: "Team 2"}, Role: fleet.RoleObserver},
+	sharedUserTeams := []automdm.UserTeam{
+		{Team: automdm.Team{ID: 1, Name: "Team 1"}, Role: automdm.RoleObserver},
+		{Team: automdm.Team{ID: 2, Name: "Team 2"}, Role: automdm.RoleObserver},
 	}
-	ds.ListUsersFunc = func(ctx context.Context, opt fleet.UserListOptions) ([]*fleet.User, error) {
-		return []*fleet.User{{
+	ds.ListUsersFunc = func(ctx context.Context, opt automdm.UserListOptions) ([]*automdm.User, error) {
+		return []*automdm.User{{
 			ID:    10,
-			Teams: append([]fleet.UserTeam{}, sharedUserTeams...),
+			Teams: append([]automdm.UserTeam{}, sharedUserTeams...),
 		}}, nil
 	}
 
 	// Requester is an admin of team 1 only, listing users of team 1.
-	teamOneAdmin := &fleet.User{
+	teamOneAdmin := &automdm.User{
 		ID:    1,
-		Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleAdmin}},
+		Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleAdmin}},
 	}
 	ctx = viewer.NewContext(ctx, viewer.Viewer{User: teamOneAdmin})
 
 	resp, err := listUsersEndpoint(ctx, &listUsersRequest{
-		ListOptions: fleet.UserListOptions{TeamID: 1},
+		ListOptions: automdm.UserListOptions{TeamID: 1},
 	}, svc)
 	require.NoError(t, err)
 
@@ -2041,12 +2041,12 @@ func TestListUsersGlobalRequesterSeesAllTeams(t *testing.T) {
 	ds := new(mock.Store)
 	svc, ctx := newTestService(t, ds, nil, nil)
 
-	ds.ListUsersFunc = func(ctx context.Context, opt fleet.UserListOptions) ([]*fleet.User, error) {
-		return []*fleet.User{{
+	ds.ListUsersFunc = func(ctx context.Context, opt automdm.UserListOptions) ([]*automdm.User, error) {
+		return []*automdm.User{{
 			ID: 10,
-			Teams: []fleet.UserTeam{
-				{Team: fleet.Team{ID: 1, Name: "Team 1"}, Role: fleet.RoleObserver},
-				{Team: fleet.Team{ID: 2, Name: "Team 2"}, Role: fleet.RoleObserver},
+			Teams: []automdm.UserTeam{
+				{Team: automdm.Team{ID: 1, Name: "Team 1"}, Role: automdm.RoleObserver},
+				{Team: automdm.Team{ID: 2, Name: "Team 2"}, Role: automdm.RoleObserver},
 			},
 		}}, nil
 	}
@@ -2073,18 +2073,18 @@ func TestListUsersComputesStatus(t *testing.T) {
 	svc, ctx := newTestService(t, ds, nil, nil)
 
 	now := time.Now() //nolint:staticcheck // it is referenced.
-	ds.ListUsersFunc = func(ctx context.Context, opt fleet.UserListOptions) ([]*fleet.User, error) {
-		return []*fleet.User{
+	ds.ListUsersFunc = func(ctx context.Context, opt automdm.UserListOptions) ([]*automdm.User, error) {
+		return []*automdm.User{
 			{
 				// recent login -> active
 				ID:          10,
-				GlobalRole:  new(fleet.RoleAdmin),
+				GlobalRole:  new(automdm.RoleAdmin),
 				LastLoginAt: new(now.Add(-24 * time.Hour)),
 			},
 			{
 				// stale login -> inactive
 				ID:          11,
-				GlobalRole:  new(fleet.RoleAdmin),
+				GlobalRole:  new(automdm.RoleAdmin),
 				LastLoginAt: new(now.Add(-31 * 24 * time.Hour)),
 			},
 			{
@@ -2096,21 +2096,21 @@ func TestListUsersComputesStatus(t *testing.T) {
 				// scope: status must be computed from the full memberships
 				// (inactive), not the stripped ones (which would be no access)
 				ID:          13,
-				Teams:       []fleet.UserTeam{{Team: fleet.Team{ID: 2}, Role: fleet.RoleObserver}},
+				Teams:       []automdm.UserTeam{{Team: automdm.Team{ID: 2}, Role: automdm.RoleObserver}},
 				LastLoginAt: new(now.Add(-31 * 24 * time.Hour)),
 			},
 		}, nil
 	}
 
 	// Requester is an admin of team 1 only.
-	teamOneAdmin := &fleet.User{
+	teamOneAdmin := &automdm.User{
 		ID:    1,
-		Teams: []fleet.UserTeam{{Team: fleet.Team{ID: 1}, Role: fleet.RoleAdmin}},
+		Teams: []automdm.UserTeam{{Team: automdm.Team{ID: 1}, Role: automdm.RoleAdmin}},
 	}
 	ctx = viewer.NewContext(ctx, viewer.Viewer{User: teamOneAdmin})
 
 	resp, err := listUsersEndpoint(ctx, &listUsersRequest{
-		ListOptions: fleet.UserListOptions{TeamID: 1},
+		ListOptions: automdm.UserListOptions{TeamID: 1},
 	}, svc)
 	require.NoError(t, err)
 
@@ -2119,10 +2119,10 @@ func TestListUsersComputesStatus(t *testing.T) {
 	require.NoError(t, lr.Err)
 	require.Len(t, lr.Users, 4)
 
-	require.Equal(t, fleet.UserStatusActive, lr.Users[0].Status)
-	require.Equal(t, fleet.UserStatusInactive, lr.Users[1].Status)
-	require.Equal(t, fleet.UserStatusNoAccess, lr.Users[2].Status)
-	require.Equal(t, fleet.UserStatusInactive, lr.Users[3].Status)
+	require.Equal(t, automdm.UserStatusActive, lr.Users[0].Status)
+	require.Equal(t, automdm.UserStatusInactive, lr.Users[1].Status)
+	require.Equal(t, automdm.UserStatusNoAccess, lr.Users[2].Status)
+	require.Equal(t, automdm.UserStatusInactive, lr.Users[3].Status)
 	// ...and team 2 was still stripped from the response.
 	require.Empty(t, lr.Users[3].Teams)
 }

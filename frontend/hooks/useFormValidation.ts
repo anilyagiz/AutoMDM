@@ -7,7 +7,7 @@ import { notify } from "components/ToastNotification";
  *
  * Keys are free-form strings rather than `keyof TFormData` because some errors
  * belong to a selector rather than a single form value (e.g. `teams` for an
- * "at least one fleet" rule).
+ * "at least one team" rule).
  */
 export type IFormErrors = Record<string, string>;
 

@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/fleetdm/fleet/v4/tools/dibble/pkg/seed"
+	"github.com/anilyagiz/automdm/v4/tools/dibble/pkg/seed"
 )
 
 // newCAsCmd wires `dibble cas`. The seeder writes directly to MySQL,
@@ -19,7 +19,7 @@ func newCAsCmd() *cobra.Command {
 		Short: "Seed fake certificate authorities directly into MySQL (non-idempotent)",
 		Long: `Seed fake certificate authorities directly into MySQL. Each batch writes
 one row for each of: custom_scep_proxy, custom_est_proxy, digicert, hydrant,
-smallstep. A single NDES row is inserted at the start of the run (Fleet
+smallstep. A single NDES row is inserted at the start of the run (AutoMDM
 hardcodes the NDES name and only allows one).
 
 Encrypted secret columns are left NULL — the CAs list cleanly in the UI but
@@ -38,7 +38,7 @@ and don't collide across runs.`,
 			return reportErrors(res.Errors)
 		},
 	}
-	cmd.Flags().String("dsn", "fleet:insecure@tcp(localhost:3306)/fleet", "MySQL DSN")
+	cmd.Flags().String("dsn", "automdm:insecure@tcp(localhost:3306)/automdm", "MySQL DSN")
 	cmd.Flags().Int("count", 1, "Number of batches; each batch writes one row per non-NDES CA type")
 	return cmd
 }

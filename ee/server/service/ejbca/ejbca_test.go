@@ -13,9 +13,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/ee/server/service/certissue"
-	"github.com/fleetdm/fleet/v4/ee/server/service/ejbca/ejbcatest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/ee/server/service/certissue"
+	"github.com/anilyagiz/automdm/v4/ee/server/service/ejbca/ejbcatest"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"software.sslmate.com/src/go-pkcs12"
@@ -26,7 +26,7 @@ func TestVerifyConnection(t *testing.T) {
 	tests := []struct {
 		name      string
 		configure func(*ejbcatest.Server)
-		modify    func(t *testing.T, f *ejbcatest.Server, config *fleet.EJBCA)
+		modify    func(t *testing.T, f *ejbcatest.Server, config *automdm.EJBCA)
 		wantErr   string
 		// wantNoRequests is for failures that must not contact EJBCA.
 		wantNoRequests bool
@@ -56,24 +56,24 @@ func TestVerifyConnection(t *testing.T) {
 		{name: "protocol disabled", configure: func(f *ejbcatest.Server) { f.ProtocolDisabled = true }, wantErr: msgProtocolDisabled},
 		{
 			name:    "URL with the /ejbca path of the admin UI",
-			modify:  func(_ *testing.T, f *ejbcatest.Server, config *fleet.EJBCA) { config.URL = f.HTTP.URL + "/ejbca/" },
+			modify:  func(_ *testing.T, f *ejbcatest.Server, config *automdm.EJBCA) { config.URL = f.HTTP.URL + "/ejbca/" },
 			wantErr: msgNotFound,
 		},
 		{
 			name:    "server certificate not trusted",
-			modify:  func(_ *testing.T, _ *ejbcatest.Server, config *fleet.EJBCA) { config.TrustCABundlePEM = "" },
+			modify:  func(_ *testing.T, _ *ejbcatest.Server, config *automdm.EJBCA) { config.TrustCABundlePEM = "" },
 			wantErr: strings.Split(msgServerCertUntrusted, "%s")[0],
 		},
 		{
 			name: "client certificate from a CA EJBCA doesn't trust",
-			modify: func(t *testing.T, _ *ejbcatest.Server, config *fleet.EJBCA) {
+			modify: func(t *testing.T, _ *ejbcatest.Server, config *automdm.EJBCA) {
 				config.MTLSCertPEM, config.MTLSKeyPEM = ejbcatest.NewCA(t, "Other CA").IssueClient(t, time.Now().Add(time.Hour))
 			},
 			wantErr: strings.Split(msgClientCertRejected, "%s")[0],
 		},
 		{
 			name: "client certificate expired",
-			modify: func(t *testing.T, f *ejbcatest.Server, config *fleet.EJBCA) {
+			modify: func(t *testing.T, f *ejbcatest.Server, config *automdm.EJBCA) {
 				notAfter := time.Now().Add(-time.Hour)
 				config.MTLSCertPEM, config.MTLSKeyPEM = f.ClientCA.IssueClient(t, notAfter)
 			},
@@ -82,14 +82,14 @@ func TestVerifyConnection(t *testing.T) {
 		},
 		{
 			name: "trust bundle without certificates",
-			modify: func(_ *testing.T, _ *ejbcatest.Server, config *fleet.EJBCA) {
+			modify: func(_ *testing.T, _ *ejbcatest.Server, config *automdm.EJBCA) {
 				config.TrustCABundlePEM = "not a certificate"
 			},
 			wantErr: msgNoTrustCerts,
 		},
 		{
 			name:    "server not running",
-			modify:  func(_ *testing.T, f *ejbcatest.Server, _ *fleet.EJBCA) { f.HTTP.Close() },
+			modify:  func(_ *testing.T, f *ejbcatest.Server, _ *automdm.EJBCA) { f.HTTP.Close() },
 			wantErr: strings.Split(msgUnreachable, "%s")[0],
 		},
 	}
@@ -127,7 +127,7 @@ func TestInvalidURLs(t *testing.T) {
 		"https://user:pass@ejbca.example.com",
 	} {
 		t.Run(url, func(t *testing.T) {
-			require.ErrorContains(t, NewService().VerifyConnection(t.Context(), fleet.EJBCA{URL: url}), msgInvalidURL)
+			require.ErrorContains(t, NewService().VerifyConnection(t.Context(), automdm.EJBCA{URL: url}), msgInvalidURL)
 		})
 	}
 }
@@ -171,7 +171,7 @@ func TestGetCertificate(t *testing.T) {
 	assert.Equal(t, "DER", body["response_format"])
 	assert.Len(t, body["password"], 64)
 
-	// What Fleet got back: the key and the certificate EJBCA issued, in a bundle that the password opens.
+	// What AutoMDM got back: the key and the certificate EJBCA issued, in a bundle that the password opens.
 	key, issued, err := pkcs12.Decode(cert.PfxData, cert.Password)
 	require.NoError(t, err)
 	assert.Equal(t, "alice@example.com", issued.Subject.CommonName)
@@ -195,33 +195,35 @@ func TestGetCertificateErrors(t *testing.T) {
 	tests := []struct {
 		name      string
 		configure func(*ejbcatest.Server)
-		modify    func(t *testing.T, f *ejbcatest.Server, config *fleet.EJBCA)
+		modify    func(t *testing.T, f *ejbcatest.Server, config *automdm.EJBCA)
 		wantErr   string
 		// wantTransient is whether the error is one that is expected to clear on its own, so the enrollment is worth retrying.
 		wantTransient bool
 	}{
 		{
 			name: "unknown CA",
-			modify: func(_ *testing.T, _ *ejbcatest.Server, config *fleet.EJBCA) {
+			modify: func(_ *testing.T, _ *ejbcatest.Server, config *automdm.EJBCA) {
 				config.CertificateAuthorityName = "Missing"
 			},
 			wantErr: fmt.Sprintf(msgEnrollRejected, `CA with name "Missing" doesn't exist`),
 		},
 		{
 			name: "unknown certificate profile",
-			modify: func(_ *testing.T, _ *ejbcatest.Server, config *fleet.EJBCA) {
+			modify: func(_ *testing.T, _ *ejbcatest.Server, config *automdm.EJBCA) {
 				config.CertificateProfileName = "Missing"
 			},
 			wantErr: fmt.Sprintf(msgEnrollRejected, `Certificate profile with name "Missing" doesn't exist`),
 		},
 		{
-			name:    "unknown end entity profile",
-			modify:  func(_ *testing.T, _ *ejbcatest.Server, config *fleet.EJBCA) { config.EndEntityProfileName = "Missing" },
+			name: "unknown end entity profile",
+			modify: func(_ *testing.T, _ *ejbcatest.Server, config *automdm.EJBCA) {
+				config.EndEntityProfileName = "Missing"
+			},
 			wantErr: fmt.Sprintf(msgEnrollRejected, `End Entity Profile of name "Missing" was not found`),
 		},
 		{
 			name:    "URL with the /ejbca path of the admin UI",
-			modify:  func(_ *testing.T, f *ejbcatest.Server, config *fleet.EJBCA) { config.URL = f.HTTP.URL + "/ejbca" },
+			modify:  func(_ *testing.T, f *ejbcatest.Server, config *automdm.EJBCA) { config.URL = f.HTTP.URL + "/ejbca" },
 			wantErr: msgNotFound,
 		},
 		{
@@ -236,7 +238,7 @@ func TestGetCertificateErrors(t *testing.T) {
 		},
 		{
 			name:    "EJBCA that is not running",
-			modify:  func(_ *testing.T, f *ejbcatest.Server, _ *fleet.EJBCA) { f.HTTP.Close() },
+			modify:  func(_ *testing.T, f *ejbcatest.Server, _ *automdm.EJBCA) { f.HTTP.Close() },
 			wantErr: strings.Split(msgUnreachable, "%s")[0], wantTransient: true,
 		},
 		{
@@ -265,19 +267,19 @@ func TestGetCertificateErrors(t *testing.T) {
 			cert, err := NewService().GetCertificate(t.Context(), config)
 			require.ErrorContains(t, err, tt.wantErr)
 			require.Nil(t, cert)
-			_, isTransient := errors.AsType[fleet.CertificateAuthorityTransientError](err)
+			_, isTransient := errors.AsType[automdm.CertificateAuthorityTransientError](err)
 			require.Equal(t, tt.wantTransient, isTransient)
 		})
 	}
 
 	t.Run("required fields", func(t *testing.T) {
 		f := ejbcatest.New(t, nil)
-		for field, clear := range map[string]func(*fleet.EJBCA){
-			"certificate authority name": func(c *fleet.EJBCA) { c.CertificateAuthorityName = "" },
-			"certificate profile name":   func(c *fleet.EJBCA) { c.CertificateProfileName = "" },
-			"end entity profile name":    func(c *fleet.EJBCA) { c.EndEntityProfileName = "" },
-			"common name":                func(c *fleet.EJBCA) { c.CertificateCommonName = "" },
-			"username":                   func(c *fleet.EJBCA) { c.UsernameTemplate = "" },
+		for field, clear := range map[string]func(*automdm.EJBCA){
+			"certificate authority name": func(c *automdm.EJBCA) { c.CertificateAuthorityName = "" },
+			"certificate profile name":   func(c *automdm.EJBCA) { c.CertificateProfileName = "" },
+			"end entity profile name":    func(c *automdm.EJBCA) { c.EndEntityProfileName = "" },
+			"common name":                func(c *automdm.EJBCA) { c.CertificateCommonName = "" },
+			"username":                   func(c *automdm.EJBCA) { c.UsernameTemplate = "" },
 		} {
 			config := f.Config(t)
 			clear(&config)
@@ -299,7 +301,7 @@ func TestConnectionsClosed(t *testing.T) {
 	require.Eventually(t, func() bool { return f.OpenConns() == 0 }, 5*time.Second, 10*time.Millisecond)
 }
 
-// EJBCA can't send Fleet's client certificate or an enrollment request to another host with a redirect.
+// EJBCA can't send AutoMDM's client certificate or an enrollment request to another host with a redirect.
 func TestRedirectsNotFollowed(t *testing.T) {
 	t.Parallel()
 	var hits atomic.Int32
@@ -367,10 +369,10 @@ func TestGetCertificatePadsSerial(t *testing.T) {
 // An end entity profile can set the common name itself, for example from the username.
 func TestGetCertificateAcceptsOtherCommonName(t *testing.T) {
 	t.Parallel()
-	f := ejbcatest.New(t, func(f *ejbcatest.Server) { f.IssuedCommonName = new("FLEET-USER-1") })
+	f := ejbcatest.New(t, func(f *ejbcatest.Server) { f.IssuedCommonName = new("TEAM-USER-1") })
 	cert, err := NewService().GetCertificate(t.Context(), f.Config(t))
 	require.NoError(t, err)
 	_, issued, err := pkcs12.Decode(cert.PfxData, cert.Password)
 	require.NoError(t, err)
-	assert.Equal(t, "FLEET-USER-1", issued.Subject.CommonName)
+	assert.Equal(t, "TEAM-USER-1", issued.Subject.CommonName)
 }

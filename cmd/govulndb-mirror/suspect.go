@@ -10,7 +10,7 @@ import (
 // cannot read without guessing, or a snapshot that shrank against the last published one.
 //
 // These skip the publish and alert instead of failing the workflow. A bad upstream day should
-// not page anyone, and it must never reach Fleet: an artifact missing advisories is read as
+// not page anyone, and it must never reach AutoMDM: an artifact missing advisories is read as
 // those advisories having been remediated.
 type suspectError struct{ msg string }
 

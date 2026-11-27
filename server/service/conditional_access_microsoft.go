@@ -5,10 +5,10 @@ import (
 	"errors"
 	"uuid"
 
-	"github.com/fleetdm/fleet/v4/server/authz"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
 )
 
 type conditionalAccessMicrosoftCreateRequest struct {
@@ -18,14 +18,14 @@ type conditionalAccessMicrosoftCreateRequest struct {
 
 type conditionalAccessMicrosoftCreateResponse struct {
 	// MicrosoftAuthenticationURL holds the URL to redirect the admin to consent access
-	// to the tenant to Fleet's multi-tenant application.
+	// to the tenant to AutoMDM's multi-tenant application.
 	MicrosoftAuthenticationURL string `json:"microsoft_authentication_url"`
 	Err                        error  `json:"error,omitempty"`
 }
 
 func (r conditionalAccessMicrosoftCreateResponse) Error() error { return r.Err }
 
-func conditionalAccessMicrosoftCreateEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func conditionalAccessMicrosoftCreateEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*conditionalAccessMicrosoftCreateRequest)
 	adminConsentURL, err := svc.ConditionalAccessMicrosoftCreateIntegration(ctx, req.MicrosoftTenantID)
 	if err != nil {
@@ -38,17 +38,17 @@ func conditionalAccessMicrosoftCreateEndpoint(ctx context.Context, request inter
 
 func (svc *Service) ConditionalAccessMicrosoftCreateIntegration(ctx context.Context, tenantID string) (adminConsentURL string, err error) {
 	// 0. Check user is authorized to create an integration.
-	if err := svc.authz.Authorize(ctx, &fleet.ConditionalAccessMicrosoftIntegration{}, fleet.ActionWrite); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.ConditionalAccessMicrosoftIntegration{}, automdm.ActionWrite); err != nil {
 		return "", ctxerr.Wrap(ctx, err, "failed to authorize")
 	}
 
 	if lic, _ := license.FromContext(ctx); lic == nil || !lic.IsPremium() {
-		return "", fleet.ErrMissingLicense
+		return "", automdm.ErrMissingLicense
 	}
 
 	// The tenant ID is later sent to the proxy in query strings, so only accept the canonical GUID format Entra uses.
 	if _, err := uuid.Parse(tenantID); len(tenantID) != 36 || err != nil {
-		return "", fleet.NewInvalidArgumentError("microsoft_tenant_id", "must be a valid Microsoft Entra tenant ID (GUID)")
+		return "", automdm.NewInvalidArgumentError("microsoft_tenant_id", "must be a valid Microsoft Entra tenant ID (GUID)")
 	}
 
 	// Load current integration, if any.
@@ -66,7 +66,7 @@ func (svc *Service) ConditionalAccessMicrosoftCreateIntegration(ctx context.Cont
 		}
 		return getResponse.AdminConsentURL, nil
 	case existingIntegration != nil && existingIntegration.SetupDone:
-		return "", &fleet.BadRequestError{Message: "integration already setup"}
+		return "", &automdm.BadRequestError{Message: "integration already setup"}
 	}
 
 	//
@@ -105,7 +105,7 @@ type conditionalAccessMicrosoftConfirmResponse struct {
 
 func (r conditionalAccessMicrosoftConfirmResponse) Error() error { return r.Err }
 
-func conditionalAccessMicrosoftConfirmEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func conditionalAccessMicrosoftConfirmEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	_ = request.(*conditionalAccessMicrosoftConfirmRequest)
 	configurationCompleted, setupError, err := svc.ConditionalAccessMicrosoftConfirm(ctx)
 	if err != nil {
@@ -119,12 +119,12 @@ func conditionalAccessMicrosoftConfirmEndpoint(ctx context.Context, request inte
 
 func (svc *Service) ConditionalAccessMicrosoftConfirm(ctx context.Context) (configurationCompleted bool, setupError string, err error) {
 	// Check user is authorized to write integrations.
-	if err := svc.authz.Authorize(ctx, &fleet.ConditionalAccessMicrosoftIntegration{}, fleet.ActionWrite); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.ConditionalAccessMicrosoftIntegration{}, automdm.ActionWrite); err != nil {
 		return false, "", ctxerr.Wrap(ctx, err, "failed to authorize")
 	}
 
 	if lic, _ := license.FromContext(ctx); lic == nil || !lic.IsPremium() {
-		return false, "", fleet.ErrMissingLicense
+		return false, "", automdm.ErrMissingLicense
 	}
 
 	// Load current integration.
@@ -159,7 +159,7 @@ func (svc *Service) ConditionalAccessMicrosoftConfirm(ctx context.Context) (conf
 	if err := svc.NewActivity(
 		ctx,
 		authz.UserFromContext(ctx),
-		fleet.ActivityTypeAddedConditionalAccessIntegrationMicrosoft{},
+		automdm.ActivityTypeAddedConditionalAccessIntegrationMicrosoft{},
 	); err != nil {
 		return false, "", ctxerr.Wrap(ctx, err, "create activity for conditional access integration microsoft")
 	}
@@ -175,7 +175,7 @@ type conditionalAccessMicrosoftDeleteResponse struct {
 
 func (r conditionalAccessMicrosoftDeleteResponse) Error() error { return r.Err }
 
-func conditionalAccessMicrosoftDeleteEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func conditionalAccessMicrosoftDeleteEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	_ = request.(*conditionalAccessMicrosoftDeleteRequest)
 	if err := svc.ConditionalAccessMicrosoftDelete(ctx); err != nil {
 		return conditionalAccessMicrosoftDeleteResponse{Err: err}, nil
@@ -185,19 +185,19 @@ func conditionalAccessMicrosoftDeleteEndpoint(ctx context.Context, request inter
 
 func (svc *Service) ConditionalAccessMicrosoftDelete(ctx context.Context) error {
 	// Check user is authorized to delete an integration.
-	if err := svc.authz.Authorize(ctx, &fleet.ConditionalAccessMicrosoftIntegration{}, fleet.ActionWrite); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.ConditionalAccessMicrosoftIntegration{}, automdm.ActionWrite); err != nil {
 		return ctxerr.Wrap(ctx, err, "failed to authorize")
 	}
 
 	if lic, _ := license.FromContext(ctx); lic == nil || !lic.IsPremium() {
-		return fleet.ErrMissingLicense
+		return automdm.ErrMissingLicense
 	}
 
 	// Load current integration.
 	integration, err := svc.ds.ConditionalAccessMicrosoftGet(ctx)
 	if err != nil {
-		if fleet.IsNotFound(err) {
-			return &fleet.BadRequestError{Message: "integration not found"}
+		if automdm.IsNotFound(err) {
+			return &automdm.BadRequestError{Message: "integration not found"}
 		}
 		return ctxerr.Wrap(ctx, err, "failed to load the integration")
 	}
@@ -205,9 +205,9 @@ func (svc *Service) ConditionalAccessMicrosoftDelete(ctx context.Context) error 
 	// Delete integration on the proxy.
 	deleteResponse, err := svc.conditionalAccessMicrosoftProxy.Delete(ctx, integration.TenantID, integration.ProxyServerSecret)
 	if err != nil {
-		if fleet.IsNotFound(err) {
+		if automdm.IsNotFound(err) {
 			// In case there's an issue on the Proxy database we want to make sure to
-			// allow deleting the integration in Fleet, so we continue.
+			// allow deleting the integration in AutoMDM, so we continue.
 			svc.logger.WarnContext(ctx, "delete returned not found, continuing...")
 		} else {
 			return ctxerr.Wrap(ctx, err, "failed to delete the integration on the proxy")
@@ -224,7 +224,7 @@ func (svc *Service) ConditionalAccessMicrosoftDelete(ctx context.Context) error 
 	if err := svc.NewActivity(
 		ctx,
 		authz.UserFromContext(ctx),
-		fleet.ActivityTypeDeletedConditionalAccessIntegrationMicrosoft{},
+		automdm.ActivityTypeDeletedConditionalAccessIntegrationMicrosoft{},
 	); err != nil {
 		return ctxerr.Wrap(ctx, err, "create activity for deletion of conditional access integration microsoft")
 	}
@@ -232,9 +232,9 @@ func (svc *Service) ConditionalAccessMicrosoftDelete(ctx context.Context) error 
 	return nil
 }
 
-func (svc *Service) ConditionalAccessMicrosoftGet(ctx context.Context) (*fleet.ConditionalAccessMicrosoftIntegration, error) {
+func (svc *Service) ConditionalAccessMicrosoftGet(ctx context.Context) (*automdm.ConditionalAccessMicrosoftIntegration, error) {
 	// Check user is authorized to read app config (which is where expose integration information)
-	if err := svc.authz.Authorize(ctx, &fleet.AppConfig{}, fleet.ActionRead); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.AppConfig{}, automdm.ActionRead); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "failed to authorize")
 	}
 
@@ -245,7 +245,7 @@ func (svc *Service) ConditionalAccessMicrosoftGet(ctx context.Context) (*fleet.C
 	// Load current integration.
 	integration, err := svc.ds.ConditionalAccessMicrosoftGet(ctx)
 	if err != nil {
-		if fleet.IsNotFound(err) {
+		if automdm.IsNotFound(err) {
 			return nil, nil
 		}
 		return nil, ctxerr.Wrap(ctx, err, "failed to load the integration")

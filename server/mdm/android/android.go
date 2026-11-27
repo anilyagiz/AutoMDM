@@ -7,16 +7,16 @@ import (
 	"time"
 )
 
-// DefaultAndroidPolicyID is the global policy that enrollment tokens pointed at before fleets got their own
+// DefaultAndroidPolicyID is the global policy that enrollment tokens pointed at before teams got their own
 // default policy. Zero-touch tokens created back then still point at it.
 const DefaultAndroidPolicyID = 1
 
-// fleetDefaultPolicyPrefix is letters only, since AMAPI doesn't document which characters policy IDs allow.
-const fleetDefaultPolicyPrefix = "fleet"
+// automdmDefaultPolicyPrefix is letters only, since AMAPI doesn't document which characters policy IDs allow.
+const automdmDefaultPolicyPrefix = "automdm"
 
-// FleetDefaultPolicyID returns the ID of the policy a fleet's hosts enroll with. teamID 0 is Unassigned.
-func FleetDefaultPolicyID(teamID uint) string {
-	return fleetDefaultPolicyPrefix + strconv.FormatUint(uint64(teamID), 10)
+// AutoMDMDefaultPolicyID returns the ID of the policy a team's hosts enroll with. teamID 0 is Unassigned.
+func AutoMDMDefaultPolicyID(teamID uint) string {
+	return automdmDefaultPolicyPrefix + strconv.FormatUint(uint64(teamID), 10)
 }
 
 // IsDefaultPolicyID reports whether policyID is an enrollment policy rather than a host's own policy.
@@ -24,12 +24,12 @@ func IsDefaultPolicyID(policyID string) bool {
 	if policyID == strconv.Itoa(DefaultAndroidPolicyID) {
 		return true
 	}
-	digits, ok := strings.CutPrefix(policyID, fleetDefaultPolicyPrefix)
+	digits, ok := strings.CutPrefix(policyID, automdmDefaultPolicyPrefix)
 	if !ok {
 		return false
 	}
 	teamID, err := strconv.ParseUint(digits, 10, 32)
-	return err == nil && FleetDefaultPolicyID(uint(teamID)) == policyID
+	return err == nil && AutoMDMDefaultPolicyID(uint(teamID)) == policyID
 }
 
 type SignupDetails struct {
@@ -70,14 +70,14 @@ type EnrollmentToken struct {
 
 type ZeroTouchToken struct {
 	ID         uint      `db:"id" json:"id"`
-	TeamID     *uint     `db:"team_id" json:"fleet_id"`
+	TeamID     *uint     `db:"team_id" json:"team_id"`
 	TokenName  string    `db:"token_name" json:"token_name"`
 	TokenValue string    `db:"token_value" json:"token_value"`
 	ExpiresAt  time.Time `db:"expires_at" json:"expires_at"`
 	CreatedAt  time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
-	// UsesFleetPolicy is false for tokens created against the global DefaultAndroidPolicyID.
-	UsesFleetPolicy bool `db:"uses_fleet_policy" json:"-"`
+	// UsesAutoMDMPolicy is false for tokens created against the global DefaultAndroidPolicyID.
+	UsesAutoMDMPolicy bool `db:"uses_automdm_policy" json:"-"`
 }
 
 type Device struct {
@@ -124,9 +124,9 @@ const (
 	AppStatusForceInstalled = "FORCE_INSTALLED"
 )
 
-// MDMAndroidCommand represents a single AMAPI command Fleet issued via EnterprisesDevicesService.IssueCommand (Lock,
+// MDMAndroidCommand represents a single AMAPI command AutoMDM issued via EnterprisesDevicesService.IssueCommand (Lock,
 // Wipe, Clear passcode). One row is inserted at issue time and updated by the Pub/Sub COMMAND handler when the device
-// acks or AMAPI rejects. CommandUUID is the Fleet-generated identifier that host_mdm_actions.{lock_ref, wipe_ref}
+// acks or AMAPI rejects. CommandUUID is the AutoMDM-generated identifier that host_mdm_actions.{lock_ref, wipe_ref}
 // points to for Android hosts; OperationName is the AMAPI-assigned operation name used to correlate Pub/Sub
 // notifications back to the originating command.
 type MDMAndroidCommand struct {
@@ -158,20 +158,20 @@ const (
 	MDMAndroidCommandTypeStopLostMode        MDMAndroidCommandType = "STOP_LOST_MODE"
 )
 
-// AndroidMDMRequiresPremiumCmdMessage is the error message displayed by fleetctl mdm
+// AndroidMDMRequiresPremiumCmdMessage is the error message displayed by automdmctl mdm
 // run-command when a Premium license is required for an Android command. Keep in sync
 // with the androidMDMPremiumCommands set in server/service/mdm.go.
-const AndroidMDMRequiresPremiumCmdMessage = "Missing or invalid license. LOCK and RESET_PASSWORD commands are available in Fleet Premium only."
+const AndroidMDMRequiresPremiumCmdMessage = "Missing or invalid license. LOCK and RESET_PASSWORD commands are available in AutoMDM Premium only."
 
 // MDMAndroidCommandStatus is the lifecycle state of an MDMAndroidCommand row.
 type MDMAndroidCommandStatus string
 
 const (
-	// MDMAndroidCommandStatusPending — Fleet has called IssueCommand and AMAPI accepted, but the Pub/Sub COMMAND
+	// MDMAndroidCommandStatusPending — AutoMDM has called IssueCommand and AMAPI accepted, but the Pub/Sub COMMAND
 	// notification with the device-side result has not yet arrived.
 	MDMAndroidCommandStatusPending MDMAndroidCommandStatus = "Pending"
 	// MDMAndroidCommandStatusAcknowledged — Pub/Sub COMMAND notification arrived and the device successfully executed the
-	// command (no AMAPI error_code). server/fleet imports this constant in HostLockWipeStatus.IsLocked/IsWiped.
+	// command (no AMAPI error_code). server/automdm imports this constant in HostLockWipeStatus.IsLocked/IsWiped.
 	MDMAndroidCommandStatusAcknowledged MDMAndroidCommandStatus = "Acknowledged"
 	// MDMAndroidCommandStatusError — Pub/Sub COMMAND notification arrived with a non-empty AMAPI error_code (e.g.
 	// UNSUPPORTED, API_LEVEL, INVALID_VALUE).

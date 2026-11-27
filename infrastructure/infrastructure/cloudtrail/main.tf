@@ -6,7 +6,7 @@ terraform {
     }
   }
   backend "s3" {
-    bucket               = "fleet-terraform-state20220408141538466600000002"
+    bucket               = "automdm-terraform-state20220408141538466600000002"
     key                  = "root/cloudtrail/terraform.tfstate" # This should be set to account_alias/unique_key/terraform.tfstate
     workspace_key_prefix = "root"                              # This should be set to the account alias
     region               = "us-east-2"
@@ -21,8 +21,8 @@ provider "aws" {
   default_tags {
     tags = {
       environment = "cloudtrail"
-      terraform   = "https://github.com/fleetdm/fleet/tree/main/infrastructure/infrastructure/cloudtrail"
-      state       = "s3://fleet-terraform-state20220408141538466600000002/root/cloudtrail/terraform.tfstate"
+      terraform   = "https://github.com/anilyagiz/automdm/tree/main/infrastructure/infrastructure/cloudtrail"
+      state       = "s3://automdm-terraform-state20220408141538466600000002/root/cloudtrail/terraform.tfstate"
     }
   }
 }
@@ -36,8 +36,8 @@ provider "aws" {
   default_tags {
     tags = {
       environment = "cloudtrail"
-      terraform   = "https://github.com/fleetdm/fleet/tree/main/infrastructure/infrastructure/cloudtrail"
-      state       = "s3://fleet-terraform-state20220408141538466600000002/root/cloudtrail/terraform.tfstate"
+      terraform   = "https://github.com/anilyagiz/automdm/tree/main/infrastructure/infrastructure/cloudtrail"
+      state       = "s3://automdm-terraform-state20220408141538466600000002/root/cloudtrail/terraform.tfstate"
     }
   }
 }
@@ -51,7 +51,7 @@ module "cloudtrail" {
   }
   source = "terraform-aws-modules/s3-bucket/aws"
 
-  bucket                  = "fleet-cloudtrail-logs"
+  bucket                  = "automdm-cloudtrail-logs"
   acl                     = "private"
   block_public_policy     = true
   block_public_acls       = true

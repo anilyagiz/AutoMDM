@@ -1,7 +1,7 @@
 package s3
 
 import (
-	"github.com/fleetdm/fleet/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/config"
 )
 
 const softwareInstallersPrefix = "software-installers"

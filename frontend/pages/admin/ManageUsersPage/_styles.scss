@@ -212,7 +212,7 @@
     top: 44px;
     left: 0;
     z-index: 1;
-    background-color: $core-fleet-white;
+    background-color: $core-automdm-white;
     border-radius: 0 0 8px 8px;
 
     .table-container {
@@ -260,7 +260,7 @@
     margin-top: $pad-medium;
 
     .table-container {
-      background-color: $core-fleet-white;
+      background-color: $core-automdm-white;
 
       &__header {
         display: none;

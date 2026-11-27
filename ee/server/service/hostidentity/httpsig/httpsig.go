@@ -9,14 +9,14 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/fleetdm/fleet/v4/ee/pkg/hostidentity/types"
-	"github.com/fleetdm/fleet/v4/pkg/fleethttpsig"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/ee/pkg/hostidentity/types"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttpsig"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/remitly-oss/httpsig-go"
 )
 
 type HTTPSig struct {
-	ds     fleet.Datastore
+	ds     automdm.Datastore
 	logger *slog.Logger
 }
 
@@ -32,7 +32,7 @@ func (k KeySpecer) KeySpec() (httpsig.KeySpec, error) {
 // _ ensures that KeySpecer implements the httpsig.KeySpecer interface.
 var _ httpsig.KeySpecer = KeySpecer{}
 
-func NewHTTPSig(ds fleet.Datastore, logger *slog.Logger) *HTTPSig {
+func NewHTTPSig(ds automdm.Datastore, logger *slog.Logger) *HTTPSig {
 	return &HTTPSig{
 		ds:     ds,
 		logger: logger,
@@ -43,7 +43,7 @@ func NewHTTPSig(ds fleet.Datastore, logger *slog.Logger) *HTTPSig {
 var _ httpsig.KeyFetcher = (*HTTPSig)(nil)
 
 func (h *HTTPSig) Verifier() (*httpsig.Verifier, error) {
-	return fleethttpsig.Verifier(h)
+	return automdmhttpsig.Verifier(h)
 }
 
 func (h *HTTPSig) FetchByKeyID(ctx context.Context, _ http.Header, keyID string) (httpsig.KeySpecer, error) {
@@ -55,7 +55,7 @@ func (h *HTTPSig) FetchByKeyID(ctx context.Context, _ http.Header, keyID string)
 	}
 	identityCert, err := h.ds.GetHostIdentityCertBySerialNumber(ctx, keyIDInt)
 	switch {
-	case fleet.IsNotFound(err):
+	case automdm.IsNotFound(err):
 		return nil, fmt.Errorf("certificate not found with keyID: %d", keyIDInt)
 	case err != nil:
 		err = fmt.Errorf("loading certificate: %w", err)
@@ -99,7 +99,7 @@ func (h *HTTPSig) Fetch(_ context.Context, _ http.Header, _ httpsig.MetadataProv
 // Host identity cert is used for TPM-backed HTTP message signatures.
 // If the host has one, then all agent traffic should have HTTP message signatures unless specified otherwise.
 // The host identity certificate must match the host's node key.
-func VerifyHostIdentity(ctx context.Context, ds fleet.Datastore, host *fleet.Host) error {
+func VerifyHostIdentity(ctx context.Context, ds automdm.Datastore, host *automdm.Host) error {
 	hostIdentityCert, ok := FromContext(ctx)
 	if !ok {
 		return errors.New("authentication error: missing host identity certificate")

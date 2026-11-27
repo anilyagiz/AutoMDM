@@ -40,16 +40,16 @@ const ApiOnlyUser = ({ router }: IApiOnlyUserProps): JSX.Element => {
       <>
         <div>
           <p>
-            You attempted to access Fleet with an{" "}
+            You attempted to access AutoMDM with an{" "}
             <CustomLink
               text="API only user"
               newTab
-              url="https://fleetdm.com/docs/using-fleet/fleetctl-cli#using-fleetctl-with-an-api-only-user"
+              url="https://automdm.com/docs/using-automdm/automdmctl-cli#using-automdmctl-with-an-api-only-user"
             />
             .
           </p>
           <p className={`${baseClass}__sub-lead-text`}>
-            This user doesn&apos;t have access to the Fleet UI.
+            This user doesn&apos;t have access to the AutoMDM UI.
           </p>
         </div>
         <Button onClick={handleClick} className={`${baseClass}__login-button`}>

@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/retry"
+	"github.com/anilyagiz/automdm/v4/pkg/retry"
 )
 
 func lock(lockFilePath string) {

@@ -75,7 +75,7 @@ divergent skill, copy it under a new name so the updater won't touch it.
 ## Conventions
 
 - Artifacts are Markdown; commit them alongside the code they describe.
-- Use the new terminology in new artifacts: **Fleets** (not Teams), **Reports**
+- Use the new terminology in new artifacts: **Teams** (not Teams), **Reports**
   (not Queries). Existing code keeps its current names.
 - Treat `openspec/` artifacts as documentation, not as a contract: code review
   is still the source of truth.

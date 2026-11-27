@@ -7,10 +7,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/anilyagiz/automdm/v4/server/contexts/logging"
+	platform_http "github.com/anilyagiz/automdm/v4/server/platform/http"
 	"github.com/elimity-com/scim"
 	scimerrors "github.com/elimity-com/scim/errors"
-	"github.com/fleetdm/fleet/v4/server/contexts/logging"
-	platform_http "github.com/fleetdm/fleet/v4/server/platform/http"
 	"github.com/stretchr/testify/require"
 )
 
@@ -33,7 +33,7 @@ func (s stubHandler) Delete(*http.Request, string) error { return s.err }
 func TestSanitizedResourceHandler(t *testing.T) {
 	t.Parallel()
 
-	driverErr := errors.New("batch insert scim group users: Error 1452 (23000): a foreign key constraint fails (`fleet`.`scim_user_group`)")
+	driverErr := errors.New("batch insert scim group users: Error 1452 (23000): a foreign key constraint fails (`team`.`scim_user_group`)")
 
 	for _, tc := range []struct {
 		name     string

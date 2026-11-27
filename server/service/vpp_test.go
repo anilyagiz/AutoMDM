@@ -7,15 +7,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/authz"
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
-	android_mock "github.com/fleetdm/fleet/v4/server/mdm/android/mock"
-	android_service "github.com/fleetdm/fleet/v4/server/mdm/android/service"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
+	android_mock "github.com/anilyagiz/automdm/v4/server/mdm/android/mock"
+	android_service "github.com/anilyagiz/automdm/v4/server/mdm/android/service"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/androidmanagement/v1"
@@ -24,26 +24,26 @@ import (
 func TestVPPAuth(t *testing.T) {
 	ds := new(mock.Store)
 
-	assets := map[fleet.MDMAssetName]fleet.MDMConfigAsset{
-		fleet.MDMAssetAndroidFleetServerSecret: {Value: []byte("secret")},
+	assets := map[automdm.MDMAssetName]automdm.MDMConfigAsset{
+		automdm.MDMAssetAndroidAutoMDMServerSecret: {Value: []byte("secret")},
 	}
-	ds.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []fleet.MDMAssetName,
+	ds.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []automdm.MDMAssetName,
 		_ sqlx.QueryerContext,
-	) (map[fleet.MDMAssetName]fleet.MDMConfigAsset, error) {
+	) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
 		return assets, nil
 	}
 
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{MDM: fleet.MDM{EnabledAndConfigured: true}}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{MDM: automdm.MDM{EnabledAndConfigured: true}}, nil
 	}
 
-	license := &fleet.LicenseInfo{Tier: fleet.TierPremium, Expiration: time.Now().Add(24 * time.Hour)}
+	license := &automdm.LicenseInfo{Tier: automdm.TierPremium, Expiration: time.Now().Add(24 * time.Hour)}
 	androidMockClient := &android_mock.Client{}
 	androidMockClient.SetAuthenticationSecretFunc = func(secret string) error { return nil }
 	androidMockClient.EnterprisesWebAppsCreateFunc = func(ctx context.Context, enterpriseName string, app *androidmanagement.WebApp) (*androidmanagement.WebApp, error) {
 		return &androidmanagement.WebApp{Name: "webapp1"}, nil
 	}
-	noopNewActivity := func(_ context.Context, _ *fleet.User, _ fleet.ActivityDetails) error { return nil }
+	noopNewActivity := func(_ context.Context, _ *automdm.User, _ automdm.ActivityDetails) error { return nil }
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	androidSvc, err := android_service.NewServiceWithClient(logger, ds, androidMockClient, "test-private-key", ds, noopNewActivity, config.AndroidAgentConfig{})
 	require.NoError(t, err)
@@ -64,7 +64,7 @@ func TestVPPAuth(t *testing.T) {
 
 	testCases := []struct {
 		name                   string
-		user                   *fleet.User
+		user                   *automdm.User
 		teamID                 *uint
 		shouldFailRead         bool
 		shouldFailWrite        bool
@@ -110,22 +110,22 @@ func TestVPPAuth(t *testing.T) {
 			ds.TeamExistsFunc = func(ctx context.Context, teamID uint) (bool, error) {
 				return false, nil
 			}
-			ds.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []fleet.MDMAssetName,
+			ds.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, assetNames []automdm.MDMAssetName,
 				_ sqlx.QueryerContext,
-			) (map[fleet.MDMAssetName]fleet.MDMConfigAsset, error) {
-				return map[fleet.MDMAssetName]fleet.MDMConfigAsset{}, nil
+			) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
+				return map[automdm.MDMAssetName]automdm.MDMConfigAsset{}, nil
 			}
-			ds.TeamWithExtrasFunc = func(ctx context.Context, tid uint) (*fleet.Team, error) {
-				return &fleet.Team{ID: 1}, nil
+			ds.TeamWithExtrasFunc = func(ctx context.Context, tid uint) (*automdm.Team, error) {
+				return &automdm.Team{ID: 1}, nil
 			}
-			ds.GetVPPTokenByTeamIDFunc = func(ctx context.Context, teamID *uint) (*fleet.VPPTokenDB, error) {
-				return &fleet.VPPTokenDB{ID: 1, OrgName: "org", Teams: []fleet.TeamTuple{{ID: 1}}}, nil
+			ds.GetVPPTokenByTeamIDFunc = func(ctx context.Context, teamID *uint) (*automdm.VPPTokenDB, error) {
+				return &automdm.VPPTokenDB{ID: 1, OrgName: "org", Teams: []automdm.TeamTuple{{ID: 1}}}, nil
 			}
 			ds.GetEnterpriseFunc = func(ctx context.Context) (*android.Enterprise, error) {
 				return &android.Enterprise{}, nil
 			}
-			ds.ListVPPTokensFunc = func(ctx context.Context) ([]*fleet.VPPTokenDB, error) {
-				return []*fleet.VPPTokenDB{}, nil
+			ds.ListVPPTokensFunc = func(ctx context.Context) ([]*automdm.VPPTokenDB, error) {
+				return []*automdm.VPPTokenDB{}, nil
 			}
 			// Note: these calls always return an error because they're attempting to unmarshal a
 			// non-existent VPP token.
@@ -136,7 +136,7 @@ func TestVPPAuth(t *testing.T) {
 				checkAuthErr(t, tt.shouldFailRead, err)
 			}
 
-			_, err = svc.AddAppStoreApp(ctx, tt.teamID, fleet.VPPAppTeam{AdamID: "123", Platform: fleet.IOSPlatform})
+			_, err = svc.AddAppStoreApp(ctx, tt.teamID, automdm.VPPAppTeam{AdamID: "123", Platform: automdm.IOSPlatform})
 			if tt.teamID == nil {
 				require.Error(t, err)
 			} else {

@@ -41,7 +41,7 @@ policies:
     description: This should run a script on failure
     query: SELECT * from osquery_info;
     run_script:
-      path: ./lib/collect-fleetd-logs.sh
+      path: ./lib/collect-automdmd-logs.sh
   - path: ./policies/script-policy.yml
 software:
   app_store_apps:
@@ -57,7 +57,7 @@ software:
       self_service: true
       labels_exclude_any:
         - a
-  fleet_maintained_apps:
+  automdm_maintained_apps:
     - slug: slack/darwin
       version: "4.47.65"
       self_service: true

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os/exec"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/constant"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/constant"
 )
 
 // DefaultOptions are the default options to use when creating an update
@@ -83,7 +83,7 @@ var (
 		Platform:             "macos",
 		Channel:              "stable",
 		TargetFile:           "desktop.app.tar.gz",
-		ExtractedExecSubPath: []string{"Fleet Desktop.app", "Contents", "MacOS", constant.DesktopAppExecName},
+		ExtractedExecSubPath: []string{"AutoMDM Desktop.app", "Contents", "MacOS", constant.DesktopAppExecName},
 	}
 
 	DesktopWindowsTarget = TargetInfo{
@@ -102,7 +102,7 @@ var (
 		Platform:             "linux",
 		Channel:              "stable",
 		TargetFile:           "desktop.tar.gz",
-		ExtractedExecSubPath: []string{"fleet-desktop", constant.DesktopAppExecName},
+		ExtractedExecSubPath: []string{"automdm-desktop", constant.DesktopAppExecName},
 		CustomCheckExec: func(execPath string) error {
 			cmd := exec.Command(execPath, "--help")
 			if out, err := cmd.CombinedOutput(); err != nil {
@@ -116,7 +116,7 @@ var (
 		Platform:             "linux-arm64",
 		Channel:              "stable",
 		TargetFile:           "desktop.tar.gz",
-		ExtractedExecSubPath: []string{"fleet-desktop", constant.DesktopAppExecName},
+		ExtractedExecSubPath: []string{"automdm-desktop", constant.DesktopAppExecName},
 		CustomCheckExec: func(execPath string) error {
 			cmd := exec.Command(execPath, "--help")
 			if out, err := cmd.CombinedOutput(); err != nil {

@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	apple_mdm "github.com/fleetdm/fleet/v4/server/mdm/apple"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanodep/godep"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
+	apple_mdm "github.com/anilyagiz/automdm/v4/server/mdm/apple"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanodep/godep"
 )
 
 // depDeleteCheck is what Apple says about a host's Apple Business assignment
@@ -22,7 +22,7 @@ const (
 	depDeleteNoAssignment depDeleteCheck = iota
 	// depDeleteDisowned means Apple no longer reports the device as assigned to
 	// us. Releasing a device from Apple Business never sends the deleted op_type
-	// that would clear Fleet's assignment record, so the record outlives the
+	// that would clear AutoMDM's assignment record, so the record outlives the
 	// assignment and would otherwise restore the host forever.
 	depDeleteDisowned
 	// depDeleteAssigned means Apple still reports the device as ours, so
@@ -41,15 +41,15 @@ type depDeleteResult struct {
 }
 
 // checkDEPAssignmentsForDelete asks Apple whether the given hosts are still
-// assigned to this Fleet instance, so a delete is not reported as successful
+// assigned to this AutoMDM instance, so a delete is not reported as successful
 // when the host is about to be restored from a stale assignment record.
 //
-// Anything that leaves Fleet unable to get an answer about a host — Apple being
+// Anything that leaves AutoMDM unable to get an answer about a host — Apple being
 // unreachable, Apple reporting a failed lookup, or its Apple Business token not
 // resolving — is reported as depDeleteUnverified for that host rather than failing
 // the whole call. Only failures to read the state this check is built on (app
 // config, the assignment rows) return an error.
-func (svc *Service) checkDEPAssignmentsForDelete(ctx context.Context, hosts []*fleet.Host) (map[uint]depDeleteResult, error) {
+func (svc *Service) checkDEPAssignmentsForDelete(ctx context.Context, hosts []*automdm.Host) (map[uint]depDeleteResult, error) {
 	checks := make(map[uint]depDeleteResult, len(hosts))
 	for _, h := range hosts {
 		checks[h.ID] = depDeleteResult{check: depDeleteNoAssignment}
@@ -90,7 +90,7 @@ func (svc *Service) checkDEPAssignmentsForDelete(ctx context.Context, hosts []*f
 	for _, a := range assignments {
 		if a.ABMTokenID == nil || a.HardwareSerial == "" {
 			// An assignment with no token is left over from an Apple Business token
-			// that was removed from Fleet: there is no organization left to ask, and
+			// that was removed from AutoMDM: there is no organization left to ask, and
 			// nothing can restore the host through it either. Treat it as released so
 			// the record is cleared rather than blocking the delete forever.
 			checks[a.HostID] = depDeleteResult{check: depDeleteDisowned}
@@ -211,9 +211,9 @@ func (svc *Service) clearDisownedDEPAssignments(ctx context.Context, checks map[
 // delete from one that removed nothing and decide whether retrying the whole
 // request is safe.
 func unverifiedABMHostsError(names []string, deleted int) error {
-	msg := fmt.Sprintf("%s Hosts: %s.", fleet.CantDeleteHostUnverifiedABMMessage, strings.Join(names, ", "))
+	msg := fmt.Sprintf("%s Hosts: %s.", automdm.CantDeleteHostUnverifiedABMMessage, strings.Join(names, ", "))
 	if deleted > 0 {
 		msg = fmt.Sprintf("%s The other %d host(s) were deleted.", msg, deleted)
 	}
-	return fleet.NewBadGatewayError(msg, nil)
+	return automdm.NewBadGatewayError(msg, nil)
 }

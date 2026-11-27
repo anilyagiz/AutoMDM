@@ -6,20 +6,20 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/pkg/file"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/pkg/file"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/require"
 )
 
 // These tests exercise the pure-Go xar writer (writeXar) by feeding its output
-// to Fleet's own xar decoder in pkg/file. A xar that round-trips through the
+// to AutoMDM's own xar decoder in pkg/file. A xar that round-trips through the
 // decoder proves the encoder produces a well-formed header, a valid zlib TOC,
 // and correct heap offsets/lengths (the decoder reads members back by those
 // offsets). The writer is platform-independent, so these run everywhere.
 
 const testDistribution = `<?xml version="1.0" encoding="utf-8"?>
 <installer-gui-script minSpecVersion="2">
-	<title>Fleet osquery</title>
+	<title>AutoMDM osquery</title>
 	<product id="com.fleetdm.orbit" version="1.2.3"/>
 	<pkg-ref id="com.fleetdm.orbit.base.pkg" version="1.2.3" packageIdentifier="com.fleetdm.orbit"/>
 </installer-gui-script>
@@ -53,7 +53,7 @@ func buildXar(t *testing.T, root string) []byte {
 
 func extractXARMetadata(t *testing.T, xarBytes []byte) *file.InstallerMetadata {
 	t.Helper()
-	tfr, err := fleet.NewTempFileReader(bytes.NewReader(xarBytes), t.TempDir)
+	tfr, err := automdm.NewTempFileReader(bytes.NewReader(xarBytes), t.TempDir)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = tfr.Close() })
 	meta, err := file.ExtractXARMetadata(tfr)
@@ -86,7 +86,7 @@ func TestWriteXarReadableByDecoder(t *testing.T) {
 	// heap that begins with the 20-byte TOC checksum) yields exactly the bytes we
 	// wrote; if any offset/length were off the XML parse would fail.
 	meta := extractXARMetadata(t, xarBytes)
-	require.Equal(t, "Fleet osquery", meta.Name)
+	require.Equal(t, "AutoMDM osquery", meta.Name)
 	require.Equal(t, "1.2.3", meta.Version)
 	require.Equal(t, "com.fleetdm.orbit", meta.BundleIdentifier)
 	require.Contains(t, meta.PackageIDs, "com.fleetdm.orbit")
@@ -126,5 +126,5 @@ func TestWriteXarEmptyAndNestedDirs(t *testing.T) {
 	require.ErrorIs(t, file.CheckPKGSignature(bytes.NewReader(xarBytes)), file.ErrNotSigned)
 
 	meta := extractXARMetadata(t, xarBytes)
-	require.Equal(t, "Fleet osquery", meta.Name)
+	require.Equal(t, "AutoMDM osquery", meta.Name)
 }

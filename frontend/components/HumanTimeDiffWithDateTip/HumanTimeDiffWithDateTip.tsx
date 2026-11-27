@@ -3,12 +3,12 @@ import React from "react";
 import ReactTooltip, { Place } from "react-tooltip";
 
 import TooltipWrapper from "components/TooltipWrapper";
-import { INITIAL_FLEET_DATE } from "utilities/constants";
+import { INITIAL_AUTOMDM_DATE } from "utilities/constants";
 import { humanLastSeen, internationalTimeFormat } from "utilities/helpers";
 
 interface IHumanTimeDiffWithDateTip {
   timeString: string;
-  cutoffBeforeFleetLaunch?: boolean;
+  cutoffBeforeAutoMDMLaunch?: boolean;
   tooltipPosition?: Place;
   /** Content for a tooltip on the "Never" value, explaining to the caller's
    * audience why the date is missing. Ignored unless the value renders as
@@ -18,11 +18,11 @@ interface IHumanTimeDiffWithDateTip {
 
 /** Returns "Unavailable" if date is empty string or "Unavailable"
  * Returns "Invalid date" if date is invalid
- * Returns "Never" if cutoffBeforeFleetLaunch is true and date is before the
- * initial launch of Fleet */
+ * Returns "Never" if cutoffBeforeAutoMDMLaunch is true and date is before the
+ * initial launch of AutoMDM */
 export const HumanTimeDiffWithDateTip = ({
   timeString,
-  cutoffBeforeFleetLaunch = false,
+  cutoffBeforeAutoMDMLaunch = false,
   tooltipPosition = "top",
   neverTooltip,
 }: IHumanTimeDiffWithDateTip): JSX.Element => {
@@ -32,9 +32,9 @@ export const HumanTimeDiffWithDateTip = ({
     return <span>Unavailable</span>;
   }
 
-  // There are cases where dates are set in Fleet to be the "zero date" which
+  // There are cases where dates are set in AutoMDM to be the "zero date" which
   // serves as an indicator that a particular date isn't set.
-  if (cutoffBeforeFleetLaunch && timeString < INITIAL_FLEET_DATE) {
+  if (cutoffBeforeAutoMDMLaunch && timeString < INITIAL_AUTOMDM_DATE) {
     if (!neverTooltip) {
       return <span>Never</span>;
     }
@@ -76,8 +76,8 @@ export const HumanTimeDiffWithDateTip = ({
 };
 
 /** Returns a HumanTimeDiffWithDateTip configured to return "Never" in the case
- * that the timeString is before the launch date of Fleet */
-export const HumanTimeDiffWithFleetLaunchCutoff = ({
+ * that the timeString is before the launch date of AutoMDM */
+export const HumanTimeDiffWithTeamLaunchCutoff = ({
   timeString,
   tooltipPosition = "top",
   neverTooltip,
@@ -87,7 +87,7 @@ export const HumanTimeDiffWithFleetLaunchCutoff = ({
       timeString={timeString}
       tooltipPosition={tooltipPosition}
       neverTooltip={neverTooltip}
-      cutoffBeforeFleetLaunch
+      cutoffBeforeAutoMDMLaunch
     />
   );
 };

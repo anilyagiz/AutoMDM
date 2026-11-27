@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
@@ -43,7 +43,7 @@ func testHostGoogleDeviceIDSetAndGet(t *testing.T, ds *Datastore) {
 	host := test.NewHost(t, ds, "h1", "", "h1key", "h1uuid", time.Now())
 	other := test.NewHost(t, ds, "h2", "", "h2key", "h2uuid", time.Now())
 	names := []string{"devices/device-a/deviceUsers/1", "devices/device-a/deviceUsers/2"}
-	requireID := func(h *fleet.Host, want string) {
+	requireID := func(h *automdm.Host, want string) {
 		t.Helper()
 		id, err := ds.GetHostGoogleDeviceID(ctx, h.UUID, googleTestCustomer)
 		require.NoError(t, err)
@@ -56,9 +56,9 @@ func testHostGoogleDeviceIDSetAndGet(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 	require.True(t, changed)
 	requireID(host, "device-a")
-	require.Equal(t, map[string]fleet.GoogleConditionalAccessDeviceUserState{
-		names[0]: fleet.GoogleConditionalAccessDeviceUserPending,
-		names[1]: fleet.GoogleConditionalAccessDeviceUserPending,
+	require.Equal(t, map[string]automdm.GoogleConditionalAccessDeviceUserState{
+		names[0]: automdm.GoogleConditionalAccessDeviceUserPending,
+		names[1]: automdm.GoogleConditionalAccessDeviceUserPending,
 	}, googleDeviceUserStates(t, ds, host.UUID))
 
 	// The ID shows when no customer is configured, and not for another customer.
@@ -80,7 +80,7 @@ func testHostGoogleDeviceIDSetAndGet(t *testing.T, ds *Datastore) {
 
 	// a different value is refused and the stored one is kept
 	_, err = ds.SetHostGoogleDeviceID(ctx, host.UUID, googleTestCustomer, "device-b", []string{"devices/device-b/deviceUsers/1"})
-	var conflictErr *fleet.HostGoogleDeviceIDConflictError
+	var conflictErr *automdm.HostGoogleDeviceIDConflictError
 	require.ErrorAs(t, err, &conflictErr)
 	require.Equal(t, "device-a", conflictErr.StoredID) //nolint:nilaway // cannot be nil due to require.ErrorAs above
 	var statusErr interface{ Status() int }
@@ -104,7 +104,7 @@ func testHostGoogleDeviceIDSetAndGet(t *testing.T, ds *Datastore) {
 	}
 	// nor a device with a name stored on another host, and nothing is written
 	_, err = ds.SetHostGoogleDeviceID(ctx, other.UUID, googleTestCustomer, "device-x", []string{"devices/device-x/deviceUsers/1", names[0]})
-	var nameConflict *fleet.GoogleConditionalAccessDeviceUserConflictError
+	var nameConflict *automdm.GoogleConditionalAccessDeviceUserConflictError
 	require.ErrorAs(t, err, &nameConflict)
 	requireID(other, "")
 	_, err = ds.SetHostGoogleDeviceID(ctx, other.UUID, googleTestCustomer, "device-b", []string{"devices/device-b/deviceUsers/1"})
@@ -121,19 +121,19 @@ func testHostGoogleDeviceIDSetAndGet(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 	require.True(t, deleted)
 	requireID(host, "")
-	require.Equal(t, map[string]fleet.GoogleConditionalAccessDeviceUserState{
-		names[0]: fleet.GoogleConditionalAccessDeviceUserUnmanaging,
-		names[1]: fleet.GoogleConditionalAccessDeviceUserUnmanaging,
+	require.Equal(t, map[string]automdm.GoogleConditionalAccessDeviceUserState{
+		names[0]: automdm.GoogleConditionalAccessDeviceUserUnmanaging,
+		names[1]: automdm.GoogleConditionalAccessDeviceUserUnmanaging,
 	}, googleDeviceUserStates(t, ds, host.UUID))
 
 	// a new ID can be set right away, while the old names wait for the unmark
 	_, err = ds.SetHostGoogleDeviceID(ctx, host.UUID, googleTestCustomer, "device-c", []string{"devices/device-c/deviceUsers/1"})
 	require.NoError(t, err)
 	requireID(host, "device-c")
-	require.Equal(t, map[string]fleet.GoogleConditionalAccessDeviceUserState{
-		names[0]:                         fleet.GoogleConditionalAccessDeviceUserUnmanaging,
-		names[1]:                         fleet.GoogleConditionalAccessDeviceUserUnmanaging,
-		"devices/device-c/deviceUsers/1": fleet.GoogleConditionalAccessDeviceUserPending,
+	require.Equal(t, map[string]automdm.GoogleConditionalAccessDeviceUserState{
+		names[0]:                         automdm.GoogleConditionalAccessDeviceUserUnmanaging,
+		names[1]:                         automdm.GoogleConditionalAccessDeviceUserUnmanaging,
+		"devices/device-c/deviceUsers/1": automdm.GoogleConditionalAccessDeviceUserPending,
 	}, googleDeviceUserStates(t, ds, host.UUID))
 
 	// deleting when no ID is set is a no-op
@@ -167,13 +167,13 @@ func testHostGoogleDeviceIDKeptOnAppleReenrollment(t *testing.T, ds *Datastore) 
 
 	// the device enrolls again with the same serial and UDID, so the host row is reused
 	reenroll := func() {
-		err := ds.MDMAppleUpsertHost(ctx, &fleet.Host{
+		err := ds.MDMAppleUpsertHost(ctx, &automdm.Host{
 			UUID:           "iphone-uuid",
 			HardwareSerial: "iphone-serial",
 			Platform:       "ios",
-		}, fleet.PersonalEnrollmentTypeNone)
+		}, automdm.PersonalEnrollmentTypeNone)
 		require.NoError(t, err)
-		hosts := listHostsCheckCount(t, ds, fleet.TeamFilter{User: test.UserAdmin}, fleet.HostListOptions{}, 1)
+		hosts := listHostsCheckCount(t, ds, automdm.TeamFilter{User: test.UserAdmin}, automdm.HostListOptions{}, 1)
 		require.Equal(t, host.ID, hosts[0].ID)
 		id, err := ds.GetHostGoogleDeviceID(ctx, host.UUID, googleTestCustomer)
 		require.NoError(t, err)
@@ -211,7 +211,7 @@ func testHostGoogleDeviceIDKeptOnAndroidReenrollment(t *testing.T, ds *Datastore
 	require.NoError(t, ds.UpdateAndroidHost(ctx, android, true, false))
 	requireID(android.Host.UUID, "device-a")
 
-	// a host enrolled by the Fleet Android agent is reused when it enrolls in MDM
+	// a host enrolled by the AutoMDM Android agent is reused when it enrolls in MDM
 	agentHost := test.NewHost(t, ds, "agent", "", "agentkey", "es-id-agent", time.Now())
 	_, err = ds.writer(ctx).ExecContext(ctx, `UPDATE hosts SET platform = 'android' WHERE id = ?`, agentHost.ID)
 	require.NoError(t, err)
@@ -256,7 +256,7 @@ func testHostGoogleDeviceIDConcurrentDifferentValues(t *testing.T, ds *Datastore
 
 func testHostGoogleDeviceIDConcurrentSameValueDifferentHosts(t *testing.T, ds *Datastore) {
 	ctx := t.Context()
-	hosts := []*fleet.Host{
+	hosts := []*automdm.Host{
 		test.NewHost(t, ds, "h1", "", "h1key", "h1uuid", time.Now()),
 		test.NewHost(t, ds, "h2", "", "h2key", "h2uuid", time.Now()),
 	}
@@ -303,7 +303,7 @@ func testHostGoogleDeviceIDVoidsRegistrationToken(t *testing.T, ds *Datastore) {
 	require.True(t, changed)
 
 	_, err = ds.ConsumeGoogleConditionalAccessRegistrationToken(ctx, googleTestCustomer, googleTokenHash("t1"))
-	require.True(t, fleet.IsNotFound(err))
+	require.True(t, automdm.IsNotFound(err))
 }
 
 // With no customer configured a row keeps belonging to the customer it was set for.
@@ -319,11 +319,11 @@ func testHostGoogleDeviceIDNoCustomer(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 	require.False(t, changed)
 	_, err = ds.SetHostGoogleDeviceID(ctx, "uuid-1", "", "device-b", nil)
-	var conflictErr *fleet.HostGoogleDeviceIDConflictError
+	var conflictErr *automdm.HostGoogleDeviceIDConflictError
 	require.ErrorAs(t, err, &conflictErr)
 	require.Equal(t, "device-a", conflictErr.StoredID) //nolint:nilaway // cannot be nil due to require.ErrorAs above
-	require.Equal(t, map[string]fleet.GoogleConditionalAccessDeviceUserState{
-		names[0]: fleet.GoogleConditionalAccessDeviceUserPending,
+	require.Equal(t, map[string]automdm.GoogleConditionalAccessDeviceUserState{
+		names[0]: automdm.GoogleConditionalAccessDeviceUserPending,
 	}, googleDeviceUserStates(t, ds, "uuid-1"))
 
 	// its ID still counts as used by another host

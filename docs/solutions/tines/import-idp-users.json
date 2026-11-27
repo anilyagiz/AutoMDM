@@ -15,7 +15,7 @@
       "guid": "f851f840038ca4e65d6583f5f9629fb3",
       "origin_story_identifier": "cloud:7eae93edade9e4517a5fea97a8619402:cb1b5323377e8962631f3729483dd932",
       "options": {
-        "url": "<<RESOURCE.fleet_url.>>/api/v1/fleet/hosts/<<for_each_host.host.id>>/device_mapping",
+        "url": "<<RESOURCE.automdm_url.>>/api/v1/automdm/hosts/<<for_each_host.host.id>>/device_mapping",
         "content_type": "application_json",
         "method": "put",
         "payload": {
@@ -23,7 +23,7 @@
           "source": "idp"
         },
         "headers": {
-          "Authorization": "Bearer <<CREDENTIAL.fleet_api_token>>"
+          "Authorization": "Bearer <<CREDENTIAL.automdm_api_token>>"
         }
       },
       "reporting": {
@@ -45,17 +45,17 @@
     },
     {
       "type": "Agents::HTTPRequestAgent",
-      "name": "Get hosts from Fleet",
+      "name": "Get hosts from AutoMDM",
       "disabled": false,
       "description": null,
       "guid": "ed5bd71f979ceaeb0b20c6345eda5d13",
       "origin_story_identifier": "cloud:7eae93edade9e4517a5fea97a8619402:cb1b5323377e8962631f3729483dd932",
       "options": {
-        "url": "<<RESOURCE.fleet_url>>/api/v1/fleet/hosts",
+        "url": "<<RESOURCE.automdm_url>>/api/v1/automdm/hosts",
         "content_type": "application_json",
         "method": "get",
         "headers": {
-          "Authorization": "Bearer <<CREDENTIAL.fleet_api_token>>"
+          "Authorization": "Bearer <<CREDENTIAL.automdm_api_token>>"
         },
         "query_params": {
           "per_page": "<<setup.hosts_per_page>>",
@@ -89,7 +89,7 @@
       "origin_story_identifier": "cloud:7eae93edade9e4517a5fea97a8619402:cb1b5323377e8962631f3729483dd932",
       "options": {
         "mode": "explode",
-        "path": "=get_hosts_from_fleet.body.hosts",
+        "path": "=get_hosts_from_team.body.hosts",
         "to": "host",
         "limit": "500"
       },
@@ -122,7 +122,7 @@
           {
             "type": "field==value",
             "value": "<<setup.hosts_per_page>>",
-            "path": "<<SIZE(get_hosts_from_fleet.body.hosts)>>"
+            "path": "<<SIZE(get_hosts_from_team.body.hosts)>>"
           }
         ]
       },
@@ -202,17 +202,17 @@
     },
     {
       "type": "Agents::HTTPRequestAgent",
-      "name": "Get hosts from Fleet",
+      "name": "Get hosts from AutoMDM",
       "disabled": false,
       "description": null,
       "guid": "b3f26eaa5653c8fabfb7f9bad65f4c99",
       "origin_story_identifier": "cloud:7eae93edade9e4517a5fea97a8619402:cb1b5323377e8962631f3729483dd932",
       "options": {
-        "url": "<<RESOURCE.fleet_url>>/api/v1/fleet/hosts",
+        "url": "<<RESOURCE.automdm_url>>/api/v1/automdm/hosts",
         "content_type": "application_json",
         "method": "get",
         "headers": {
-          "Authorization": "Bearer <<CREDENTIAL.fleet_api_token>>"
+          "Authorization": "Bearer <<CREDENTIAL.automdm_api_token>>"
         },
         "query_params": {
           "per_page": "=setup.hosts_per_page",
@@ -280,7 +280,7 @@
         "payload": {
           "body": [
             {
-              "assigned_to": "example@fleetdm.com"
+              "assigned_to": "example@automdm.com"
             }
           ]
         }
@@ -371,7 +371,7 @@
   ],
   "diagram_notes": [
     {
-      "content": "CREDENTIALS:\n\n- Fleet API Token\n- Oomnita API TOKEN\n\nRESOURCES:\n\n- Fleet URL: fleet_url\n- Oomnitza URL: oomnitza_url\n\n\nUSAGE:\n\n- Run manually, or on a schedule. \n- In the Setup block, you can specify the number of Fleet hosts to pull per page\n- No inputs required at runtime\n\nWorkflow:\n\n- Fetch a page of hosts from Fleet\n- For each host, use the serial number to fetch the corresponding asset from Oomnitza\n- If the user associated with the asset is not the email assosciated with the host in Fleet, update Fleet IdP User to match\n- Repeat until all hosts have been fetched from Fleet\n\n\nNOTE:\n\nThe Oomnitza API documentation is fairly well locked down. I was able to gather enough information from various sources to have a reasonable expectation that the call I've set up will respond with data in the format mapped out in the currently disabled block. If that isn't the case, this can be adjusted in the \"Update host email\" HTTP Request. I'm happy to take care of that as well. \n\n",
+      "content": "CREDENTIALS:\n\n- AutoMDM API Token\n- Oomnita API TOKEN\n\nRESOURCES:\n\n- AutoMDM URL: automdm_url\n- Oomnitza URL: oomnitza_url\n\n\nUSAGE:\n\n- Run manually, or on a schedule. \n- In the Setup block, you can specify the number of AutoMDM hosts to pull per page\n- No inputs required at runtime\n\nWorkflow:\n\n- Fetch a page of hosts from AutoMDM\n- For each host, use the serial number to fetch the corresponding asset from Oomnitza\n- If the user associated with the asset is not the email assosciated with the host in AutoMDM, update AutoMDM IdP User to match\n- Repeat until all hosts have been fetched from AutoMDM\n\n\nNOTE:\n\nThe Oomnitza API documentation is fairly well locked down. I was able to gather enough information from various sources to have a reasonable expectation that the call I've set up will respond with data in the format mapped out in the currently disabled block. If that isn't the case, this can be adjusted in the \"Update host email\" HTTP Request. I'm happy to take care of that as well. \n\n",
       "position": [
         30,
         0

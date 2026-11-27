@@ -11,7 +11,7 @@ jest.mock("services/entities/hosts");
 const mockPasswordResponse = {
   host_id: 7,
   managed_account_password: {
-    username: "_fleetadmin",
+    username: "_automdmadmin",
     password: "supersecret",
     updated_at: "2026-04-30T13:00:00Z",
   },
@@ -38,7 +38,7 @@ describe("ManagedAccountModal", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText("_fleetadmin")).toBeVisible();
+      expect(screen.getByText("_automdmadmin")).toBeVisible();
     });
     expect(screen.getByText("Username")).toBeVisible();
   });
@@ -79,7 +79,7 @@ describe("ManagedAccountModal", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText("_fleetadmin")).toBeVisible();
+      expect(screen.getByText("_automdmadmin")).toBeVisible();
     });
     expect(
       screen.queryByText(/Password rotates automatically after/i)
@@ -97,7 +97,7 @@ describe("ManagedAccountModal", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText("_fleetadmin")).toBeVisible();
+      expect(screen.getByText("_automdmadmin")).toBeVisible();
     });
     expect(screen.queryByText("Rotate password")).not.toBeInTheDocument();
   });
@@ -224,7 +224,7 @@ describe("ManagedAccountModal", () => {
     await waitFor(() => {
       expect(screen.getByText(/Couldn't rotate password/i)).toBeVisible();
     });
-    expect(screen.getByText("_fleetadmin")).toBeVisible();
+    expect(screen.getByText("_automdmadmin")).toBeVisible();
     expect(screen.getByText("Rotate password")).toBeVisible();
   });
 

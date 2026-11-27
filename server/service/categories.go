@@ -4,9 +4,9 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	hostctx "github.com/fleetdm/fleet/v4/server/contexts/host"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	hostctx "github.com/anilyagiz/automdm/v4/server/contexts/host"
 )
 
 //////////////////////////////////////////////////////////////////////////////
@@ -14,17 +14,17 @@ import (
 //////////////////////////////////////////////////////////////////////////////
 
 type getSelfServiceCategoriesRequest struct {
-	TeamID *uint `query:"fleet_id,optional"`
+	TeamID *uint `query:"team_id,optional"`
 }
 
 type getSelfServiceCategoriesResponse struct {
-	SelfServiceCategories []fleet.SoftwareCategory `json:"self_service_categories"`
-	Err                   error                    `json:"error,omitempty"`
+	SelfServiceCategories []automdm.SoftwareCategory `json:"self_service_categories"`
+	Err                   error                      `json:"error,omitempty"`
 }
 
 func (r getSelfServiceCategoriesResponse) Error() error { return r.Err }
 
-func getSelfServiceCategoriesEndpoint(ctx context.Context, request any, svc fleet.Service) (fleet.Errorer, error) {
+func getSelfServiceCategoriesEndpoint(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*getSelfServiceCategoriesRequest)
 	categories, err := svc.ListSoftwareCategories(ctx, req.TeamID)
 	if err != nil {
@@ -33,12 +33,12 @@ func getSelfServiceCategoriesEndpoint(ctx context.Context, request any, svc flee
 	return getSelfServiceCategoriesResponse{SelfServiceCategories: categories}, nil
 }
 
-func (svc *Service) ListSoftwareCategories(ctx context.Context, _ *uint) ([]fleet.SoftwareCategory, error) {
+func (svc *Service) ListSoftwareCategories(ctx context.Context, _ *uint) ([]automdm.SoftwareCategory, error) {
 	// skipauth: No authorization check needed due to implementation returning
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return nil, fleet.ErrMissingLicense
+	return nil, automdm.ErrMissingLicense
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -54,16 +54,16 @@ func (r *getDeviceSelfServiceCategoriesRequest) deviceAuthToken() string {
 }
 
 type getDeviceSelfServiceCategoriesResponse struct {
-	SelfServiceCategories []fleet.SoftwareCategory `json:"self_service_categories"`
-	Err                   error                    `json:"error,omitempty"`
+	SelfServiceCategories []automdm.SoftwareCategory `json:"self_service_categories"`
+	Err                   error                      `json:"error,omitempty"`
 }
 
 func (r getDeviceSelfServiceCategoriesResponse) Error() error { return r.Err }
 
-func getDeviceSelfServiceCategoriesEndpoint(ctx context.Context, request any, svc fleet.Service) (fleet.Errorer, error) {
+func getDeviceSelfServiceCategoriesEndpoint(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
 	host, ok := hostctx.FromContext(ctx)
 	if !ok {
-		err := ctxerr.Wrap(ctx, fleet.NewAuthRequiredError("internal error: missing host from request context"))
+		err := ctxerr.Wrap(ctx, automdm.NewAuthRequiredError("internal error: missing host from request context"))
 		return getDeviceSelfServiceCategoriesResponse{Err: err}, nil
 	}
 
@@ -74,12 +74,12 @@ func getDeviceSelfServiceCategoriesEndpoint(ctx context.Context, request any, sv
 	return getDeviceSelfServiceCategoriesResponse{SelfServiceCategories: categories}, nil
 }
 
-func (svc *Service) ListSelfServiceSoftwareCategoriesForHost(ctx context.Context, host *fleet.Host) ([]fleet.SoftwareCategory, error) {
+func (svc *Service) ListSelfServiceSoftwareCategoriesForHost(ctx context.Context, host *automdm.Host) ([]automdm.SoftwareCategory, error) {
 	// skipauth: No authorization check needed due to implementation returning
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return nil, fleet.ErrMissingLicense
+	return nil, automdm.ErrMissingLicense
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -87,18 +87,18 @@ func (svc *Service) ListSelfServiceSoftwareCategoriesForHost(ctx context.Context
 //////////////////////////////////////////////////////////////////////////////
 
 type addSelfServiceCategoriesRequest struct {
-	TeamID *uint  `json:"fleet_id"`
+	TeamID *uint  `json:"team_id"`
 	Name   string `json:"name"`
 }
 
 type addSelfServiceCategoriesResponse struct {
-	SelfServiceCategory *fleet.SoftwareCategory `json:"self_service_category"`
-	Err                 error                   `json:"error,omitempty"`
+	SelfServiceCategory *automdm.SoftwareCategory `json:"self_service_category"`
+	Err                 error                     `json:"error,omitempty"`
 }
 
 func (r addSelfServiceCategoriesResponse) Error() error { return r.Err }
 
-func addSelfServiceCategoriesEndpoint(ctx context.Context, request any, svc fleet.Service) (fleet.Errorer, error) {
+func addSelfServiceCategoriesEndpoint(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*addSelfServiceCategoriesRequest)
 	category, err := svc.NewSoftwareCategory(ctx, req.TeamID, req.Name)
 	if err != nil {
@@ -107,12 +107,12 @@ func addSelfServiceCategoriesEndpoint(ctx context.Context, request any, svc flee
 	return addSelfServiceCategoriesResponse{SelfServiceCategory: category}, nil
 }
 
-func (svc *Service) NewSoftwareCategory(ctx context.Context, _ *uint, _ string) (*fleet.SoftwareCategory, error) {
+func (svc *Service) NewSoftwareCategory(ctx context.Context, _ *uint, _ string) (*automdm.SoftwareCategory, error) {
 	// skipauth: No authorization check needed due to implementation returning
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return nil, fleet.ErrMissingLicense
+	return nil, automdm.ErrMissingLicense
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -125,13 +125,13 @@ type patchSelfServiceCategoriesRequest struct {
 }
 
 type patchSelfServiceCategoriesResponse struct {
-	SelfServiceCategory *fleet.SoftwareCategory `json:"self_service_category"`
-	Err                 error                   `json:"error,omitempty"`
+	SelfServiceCategory *automdm.SoftwareCategory `json:"self_service_category"`
+	Err                 error                     `json:"error,omitempty"`
 }
 
 func (r patchSelfServiceCategoriesResponse) Error() error { return r.Err }
 
-func patchSelfServiceCategoriesEndpoint(ctx context.Context, request any, svc fleet.Service) (fleet.Errorer, error) {
+func patchSelfServiceCategoriesEndpoint(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*patchSelfServiceCategoriesRequest)
 	category, err := svc.UpdateSoftwareCategory(ctx, req.ID, req.Name)
 	if err != nil {
@@ -140,12 +140,12 @@ func patchSelfServiceCategoriesEndpoint(ctx context.Context, request any, svc fl
 	return patchSelfServiceCategoriesResponse{SelfServiceCategory: category}, nil
 }
 
-func (svc *Service) UpdateSoftwareCategory(ctx context.Context, _ uint, _ string) (*fleet.SoftwareCategory, error) {
+func (svc *Service) UpdateSoftwareCategory(ctx context.Context, _ uint, _ string) (*automdm.SoftwareCategory, error) {
 	// skipauth: No authorization check needed due to implementation returning
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return nil, fleet.ErrMissingLicense
+	return nil, automdm.ErrMissingLicense
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -163,7 +163,7 @@ type deleteSelfServiceCategoriesResponse struct {
 func (r deleteSelfServiceCategoriesResponse) Error() error { return r.Err }
 func (r deleteSelfServiceCategoriesResponse) Status() int  { return http.StatusNoContent }
 
-func deleteSelfServiceCategoriesEndpoint(ctx context.Context, request any, svc fleet.Service) (fleet.Errorer, error) {
+func deleteSelfServiceCategoriesEndpoint(ctx context.Context, request any, svc automdm.Service) (automdm.Errorer, error) {
 	req := request.(*deleteSelfServiceCategoriesRequest)
 	if err := svc.DeleteSoftwareCategory(ctx, req.ID); err != nil {
 		return deleteSelfServiceCategoriesResponse{Err: err}, nil
@@ -176,5 +176,5 @@ func (svc *Service) DeleteSoftwareCategory(ctx context.Context, _ uint) error {
 	// only license error.
 	svc.authz.SkipAuthorization(ctx)
 
-	return fleet.ErrMissingLicense
+	return automdm.ErrMissingLicense
 }

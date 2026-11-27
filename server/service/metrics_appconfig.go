@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
-func (mw metricsMiddleware) NewAppConfig(ctx context.Context, p fleet.AppConfig) (*fleet.AppConfig, error) {
+func (mw metricsMiddleware) NewAppConfig(ctx context.Context, p automdm.AppConfig) (*automdm.AppConfig, error) {
 	var (
-		info *fleet.AppConfig
+		info *automdm.AppConfig
 		err  error
 	)
 	defer func(begin time.Time) {
@@ -22,9 +22,9 @@ func (mw metricsMiddleware) NewAppConfig(ctx context.Context, p fleet.AppConfig)
 	return info, err
 }
 
-func (mw metricsMiddleware) AppConfigObfuscated(ctx context.Context) (*fleet.AppConfig, error) {
+func (mw metricsMiddleware) AppConfigObfuscated(ctx context.Context) (*automdm.AppConfig, error) {
 	var (
-		info *fleet.AppConfig
+		info *automdm.AppConfig
 		err  error
 	)
 	defer func(begin time.Time) {
@@ -36,9 +36,9 @@ func (mw metricsMiddleware) AppConfigObfuscated(ctx context.Context) (*fleet.App
 	return info, err
 }
 
-func (mw metricsMiddleware) ModifyAppConfig(ctx context.Context, p []byte, applyOpts fleet.ApplySpecOptions) (*fleet.AppConfig, error) {
+func (mw metricsMiddleware) ModifyAppConfig(ctx context.Context, p []byte, applyOpts automdm.ApplySpecOptions) (*automdm.AppConfig, error) {
 	var (
-		info *fleet.AppConfig
+		info *automdm.AppConfig
 		err  error
 	)
 	defer func(begin time.Time) {

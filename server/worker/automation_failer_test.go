@@ -9,21 +9,21 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/service/externalsvc"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/service/externalsvc"
 	"github.com/stretchr/testify/require"
 )
 
 func TestJiraFailer(t *testing.T) {
 	ds := new(mock.Store)
-	ds.HostsByCVEFunc = func(ctx context.Context, cve string) ([]fleet.HostVulnerabilitySummary, error) {
-		return []fleet.HostVulnerabilitySummary{{ID: 1, Hostname: "test"}}, nil
+	ds.HostsByCVEFunc = func(ctx context.Context, cve string) ([]automdm.HostVulnerabilitySummary, error) {
+		return []automdm.HostVulnerabilitySummary{{ID: 1, Hostname: "test"}}, nil
 	}
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{Integrations: fleet.Integrations{
-			Jira: []*fleet.JiraIntegration{
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{Integrations: automdm.Integrations{
+			Jira: []*automdm.JiraIntegration{
 				{EnableSoftwareVulnerabilities: true},
 			},
 		}}, nil
@@ -61,9 +61,9 @@ func TestJiraFailer(t *testing.T) {
 
 	// create the Jira job with that failer-wrapped client
 	jira := &Jira{
-		FleetURL:  "http://example.com",
-		Datastore: ds,
-		Log:       slog.New(slog.DiscardHandler),
+		AutoMDMURL: "http://example.com",
+		Datastore:  ds,
+		Log:        slog.New(slog.DiscardHandler),
 		NewClientFunc: func(opts *externalsvc.JiraOptions) (JiraClient, error) {
 			return failer, nil
 		},
@@ -73,7 +73,7 @@ func TestJiraFailer(t *testing.T) {
 	cves := []string{"CVE-2018-1234", "CVE-2019-1234", "CVE-2020-1234", "CVE-2021-1234"}
 	for i := 0; i < 10; i++ {
 		cve := cves[i%len(cves)] //nolint:gosec // dismiss G602
-		err := jira.Run(license.NewContext(context.Background(), &fleet.LicenseInfo{Tier: fleet.TierFree}), json.RawMessage(fmt.Sprintf(`{"vulnerability":{"cve":%q}}`, cve)))
+		err := jira.Run(license.NewContext(context.Background(), &automdm.LicenseInfo{Tier: automdm.TierFree}), json.RawMessage(fmt.Sprintf(`{"vulnerability":{"cve":%q}}`, cve)))
 		if err != nil {
 			failedIndices = append(failedIndices, i)
 		}
@@ -89,12 +89,12 @@ func TestJiraFailer(t *testing.T) {
 
 func TestZendeskFailer(t *testing.T) {
 	ds := new(mock.Store)
-	ds.HostsByCVEFunc = func(ctx context.Context, cve string) ([]fleet.HostVulnerabilitySummary, error) {
-		return []fleet.HostVulnerabilitySummary{{ID: 1, Hostname: "test"}}, nil
+	ds.HostsByCVEFunc = func(ctx context.Context, cve string) ([]automdm.HostVulnerabilitySummary, error) {
+		return []automdm.HostVulnerabilitySummary{{ID: 1, Hostname: "test"}}, nil
 	}
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{Integrations: fleet.Integrations{
-			Zendesk: []*fleet.ZendeskIntegration{
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{Integrations: automdm.Integrations{
+			Zendesk: []*automdm.ZendeskIntegration{
 				{EnableSoftwareVulnerabilities: true},
 			},
 		}}, nil
@@ -120,9 +120,9 @@ func TestZendeskFailer(t *testing.T) {
 
 	// create the Zendesk job with that failer-wrapped client
 	zendesk := &Zendesk{
-		FleetURL:  "http://example.com",
-		Datastore: ds,
-		Log:       slog.New(slog.DiscardHandler),
+		AutoMDMURL: "http://example.com",
+		Datastore:  ds,
+		Log:        slog.New(slog.DiscardHandler),
 		NewClientFunc: func(opts *externalsvc.ZendeskOptions) (ZendeskClient, error) {
 			return failer, nil
 		},
@@ -132,7 +132,7 @@ func TestZendeskFailer(t *testing.T) {
 	cves := []string{"CVE-2018-1234", "CVE-2019-1234", "CVE-2020-1234", "CVE-2021-1234"}
 	for i := 0; i < 10; i++ {
 		cve := cves[i%len(cves)] //nolint:gosec // dismiss G602
-		err := zendesk.Run(license.NewContext(context.Background(), &fleet.LicenseInfo{Tier: fleet.TierFree}), json.RawMessage(fmt.Sprintf(`{"vulnerability":{"cve":%q}}`, cve)))
+		err := zendesk.Run(license.NewContext(context.Background(), &automdm.LicenseInfo{Tier: automdm.TierFree}), json.RawMessage(fmt.Sprintf(`{"vulnerability":{"cve":%q}}`, cve)))
 		if err != nil {
 			failedIndices = append(failedIndices, i)
 		}

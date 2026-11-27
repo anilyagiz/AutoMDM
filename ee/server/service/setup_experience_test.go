@@ -11,14 +11,14 @@ import (
 	"time"
 
 	"github.com/WatchBeam/clock"
-	"github.com/fleetdm/fleet/v4/pkg/optjson"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/contexts/logging"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/pkg/optjson"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
+	"github.com/anilyagiz/automdm/v4/server/contexts/logging"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -29,16 +29,16 @@ func TestSetupExperienceNextStep(t *testing.T) {
 	svc := newTestService(t, ds)
 
 	requestedInstalls := make(map[uint][]uint)
-	requestedUpdateSetupExperience := []*fleet.SetupExperienceStatusResult{}
-	requestedScriptExecution := []*fleet.HostScriptRequestPayload{}
+	requestedUpdateSetupExperience := []*automdm.SetupExperienceStatusResult{}
+	requestedScriptExecution := []*automdm.HostScriptRequestPayload{}
 	resetIndicators := func() {
 		ds.InsertSoftwareInstallRequestFuncInvoked = false
 		ds.InsertHostVPPSoftwareInstallFuncInvoked = false
 		ds.NewHostScriptExecutionRequestFuncInvoked = false
 		ds.UpdateSetupExperienceStatusResultFuncInvoked = false
 		clear(requestedInstalls)
-		requestedUpdateSetupExperience = []*fleet.SetupExperienceStatusResult{}
-		requestedScriptExecution = []*fleet.HostScriptRequestPayload{}
+		requestedUpdateSetupExperience = []*automdm.SetupExperienceStatusResult{}
+		requestedScriptExecution = []*automdm.HostScriptRequestPayload{}
 	}
 
 	host1UUID := "123"
@@ -47,48 +47,48 @@ func TestSetupExperienceNextStep(t *testing.T) {
 	scriptID1 := uint(3)
 	scriptContentID1 := uint(4)
 
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{
-			MDM: fleet.MDM{
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{
+			MDM: automdm.MDM{
 				EnabledAndConfigured: true,
 			},
 		}, nil
 	}
 
-	ds.IsHostConnectedToFleetMDMFunc = func(ctx context.Context, host *fleet.Host) (bool, error) {
+	ds.IsHostConnectedToAutoMDMMDMFunc = func(ctx context.Context, host *automdm.Host) (bool, error) {
 		return true, nil
 	}
 
-	var mockListSetupExperience []*fleet.SetupExperienceStatusResult
-	ds.ListSetupExperienceResultsByHostUUIDFunc = func(ctx context.Context, hostUUID string, teamID uint) ([]*fleet.SetupExperienceStatusResult, error) {
+	var mockListSetupExperience []*automdm.SetupExperienceStatusResult
+	ds.ListSetupExperienceResultsByHostUUIDFunc = func(ctx context.Context, hostUUID string, teamID uint) ([]*automdm.SetupExperienceStatusResult, error) {
 		return mockListSetupExperience, nil
 	}
 
-	var mockListHostsLite []*fleet.Host
-	ds.ListHostsLiteByUUIDsFunc = func(ctx context.Context, filter fleet.TeamFilter, uuids []string) ([]*fleet.Host, error) {
+	var mockListHostsLite []*automdm.Host
+	ds.ListHostsLiteByUUIDsFunc = func(ctx context.Context, filter automdm.TeamFilter, uuids []string) ([]*automdm.Host, error) {
 		return mockListHostsLite, nil
 	}
 
-	ds.InsertSoftwareInstallRequestFunc = func(ctx context.Context, hostID, softwareInstallerID uint, opts fleet.HostSoftwareInstallOptions) (string, error) {
+	ds.InsertSoftwareInstallRequestFunc = func(ctx context.Context, hostID, softwareInstallerID uint, opts automdm.HostSoftwareInstallOptions) (string, error) {
 		requestedInstalls[hostID] = append(requestedInstalls[hostID], softwareInstallerID)
 		return "install-uuid", nil
 	}
 
-	ds.UpdateSetupExperienceStatusResultFunc = func(ctx context.Context, status *fleet.SetupExperienceStatusResult) error {
+	ds.UpdateSetupExperienceStatusResultFunc = func(ctx context.Context, status *automdm.SetupExperienceStatusResult) error {
 		requestedUpdateSetupExperience = append(requestedUpdateSetupExperience, status)
 		return nil
 	}
 
-	ds.NewHostScriptExecutionRequestFunc = func(ctx context.Context, request *fleet.HostScriptRequestPayload) (*fleet.HostScriptResult, error) {
+	ds.NewHostScriptExecutionRequestFunc = func(ctx context.Context, request *automdm.HostScriptRequestPayload) (*automdm.HostScriptResult, error) {
 		requestedScriptExecution = append(requestedScriptExecution, request)
-		return &fleet.HostScriptResult{
+		return &automdm.HostScriptResult{
 			ExecutionID: "script-uuid",
 		}, nil
 	}
 
-	mockListHostsLite = append(mockListHostsLite, &fleet.Host{UUID: host1UUID, ID: host1ID})
+	mockListHostsLite = append(mockListHostsLite, &automdm.Host{UUID: host1UUID, ID: host1ID})
 
-	finished, err := svc.SetupExperienceNextStep(ctx, &fleet.Host{
+	finished, err := svc.SetupExperienceNextStep(ctx, &automdm.Host{
 		UUID:     host1UUID,
 		Platform: "darwin",
 	})
@@ -101,15 +101,15 @@ func TestSetupExperienceNextStep(t *testing.T) {
 	resetIndicators()
 
 	// Only installer queued
-	mockListSetupExperience = []*fleet.SetupExperienceStatusResult{
+	mockListSetupExperience = []*automdm.SetupExperienceStatusResult{
 		{
 			HostUUID:            host1UUID,
 			SoftwareInstallerID: &installerID1,
-			Status:              fleet.SetupExperienceStatusPending,
+			Status:              automdm.SetupExperienceStatusPending,
 		},
 	}
 
-	finished, err = svc.SetupExperienceNextStep(ctx, &fleet.Host{
+	finished, err = svc.SetupExperienceNextStep(ctx, &automdm.Host{
 		UUID:     host1UUID,
 		Platform: "darwin",
 	})
@@ -122,10 +122,10 @@ func TestSetupExperienceNextStep(t *testing.T) {
 	assert.Len(t, requestedInstalls, 1)
 	assert.Len(t, requestedUpdateSetupExperience, 1)
 	assert.Equal(t, "install-uuid", *requestedUpdateSetupExperience[0].HostSoftwareInstallsExecutionID)
-	assert.Equal(t, fleet.SetupExperienceStatusRunning, requestedUpdateSetupExperience[0].Status)
+	assert.Equal(t, automdm.SetupExperienceStatusRunning, requestedUpdateSetupExperience[0].Status)
 
-	mockListSetupExperience[0].Status = fleet.SetupExperienceStatusSuccess
-	finished, err = svc.SetupExperienceNextStep(ctx, &fleet.Host{
+	mockListSetupExperience[0].Status = automdm.SetupExperienceStatusSuccess
+	finished, err = svc.SetupExperienceNextStep(ctx, &automdm.Host{
 		UUID:     host1UUID,
 		Platform: "darwin",
 	})
@@ -138,16 +138,16 @@ func TestSetupExperienceNextStep(t *testing.T) {
 	// test, the setup required would be too much
 
 	// Only script queued
-	mockListSetupExperience = []*fleet.SetupExperienceStatusResult{
+	mockListSetupExperience = []*automdm.SetupExperienceStatusResult{
 		{
 			HostUUID:                host1UUID,
 			SetupExperienceScriptID: &scriptID1,
 			ScriptContentID:         &scriptContentID1,
-			Status:                  fleet.SetupExperienceStatusPending,
+			Status:                  automdm.SetupExperienceStatusPending,
 		},
 	}
 
-	finished, err = svc.SetupExperienceNextStep(ctx, &fleet.Host{
+	finished, err = svc.SetupExperienceNextStep(ctx, &automdm.Host{
 		UUID:     host1UUID,
 		Platform: "darwin",
 	})
@@ -161,8 +161,8 @@ func TestSetupExperienceNextStep(t *testing.T) {
 	assert.Len(t, requestedUpdateSetupExperience, 1)
 	assert.Equal(t, "script-uuid", *requestedUpdateSetupExperience[0].ScriptExecutionID)
 
-	mockListSetupExperience[0].Status = fleet.SetupExperienceStatusSuccess
-	finished, err = svc.SetupExperienceNextStep(ctx, &fleet.Host{
+	mockListSetupExperience[0].Status = automdm.SetupExperienceStatusSuccess
+	finished, err = svc.SetupExperienceNextStep(ctx, &automdm.Host{
 		UUID:     host1UUID,
 		Platform: "darwin",
 	})
@@ -172,22 +172,22 @@ func TestSetupExperienceNextStep(t *testing.T) {
 	resetIndicators()
 
 	// Both installer and script
-	mockListSetupExperience = []*fleet.SetupExperienceStatusResult{
+	mockListSetupExperience = []*automdm.SetupExperienceStatusResult{
 		{
 			HostUUID:            host1UUID,
 			SoftwareInstallerID: &installerID1,
-			Status:              fleet.SetupExperienceStatusPending,
+			Status:              automdm.SetupExperienceStatusPending,
 		},
 		{
 			HostUUID:                host1UUID,
 			SetupExperienceScriptID: &scriptID1,
 			ScriptContentID:         &scriptContentID1,
-			Status:                  fleet.SetupExperienceStatusPending,
+			Status:                  automdm.SetupExperienceStatusPending,
 		},
 	}
 
 	// Only installer is queued
-	finished, err = svc.SetupExperienceNextStep(ctx, &fleet.Host{
+	finished, err = svc.SetupExperienceNextStep(ctx, &automdm.Host{
 		UUID:     host1UUID,
 		Platform: "darwin",
 	})
@@ -202,9 +202,9 @@ func TestSetupExperienceNextStep(t *testing.T) {
 	assert.Len(t, requestedUpdateSetupExperience, 1)
 
 	// install finished, call it again. This time script is queued
-	mockListSetupExperience[0].Status = fleet.SetupExperienceStatusSuccess
+	mockListSetupExperience[0].Status = automdm.SetupExperienceStatusSuccess
 
-	finished, err = svc.SetupExperienceNextStep(ctx, &fleet.Host{
+	finished, err = svc.SetupExperienceNextStep(ctx, &automdm.Host{
 		UUID:     host1UUID,
 		Platform: "darwin",
 	})
@@ -219,9 +219,9 @@ func TestSetupExperienceNextStep(t *testing.T) {
 	assert.Len(t, requestedUpdateSetupExperience, 2)
 
 	// both finished, now we're done
-	mockListSetupExperience[1].Status = fleet.SetupExperienceStatusFailure
+	mockListSetupExperience[1].Status = automdm.SetupExperienceStatusFailure
 
-	finished, err = svc.SetupExperienceNextStep(ctx, &fleet.Host{
+	finished, err = svc.SetupExperienceNextStep(ctx, &automdm.Host{
 		UUID:     host1UUID,
 		Platform: "darwin",
 	})
@@ -234,14 +234,14 @@ func TestSetupExperienceSetWithManualAgentInstall(t *testing.T) {
 	ds := new(mock.Store)
 	svc, baseSvc := newTestServiceWithMock(t, ds)
 
-	appConfig := fleet.AppConfig{}
-	team := fleet.TeamLite{}
+	appConfig := automdm.AppConfig{}
+	team := automdm.TeamLite{}
 
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
 		return &appConfig, nil
 	}
 
-	ds.TeamLiteFunc = func(ctx context.Context, tid uint) (*fleet.TeamLite, error) {
+	ds.TeamLiteFunc = func(ctx context.Context, tid uint) (*automdm.TeamLite, error) {
 		return &team, nil
 	}
 
@@ -253,11 +253,11 @@ func TestSetupExperienceSetWithManualAgentInstall(t *testing.T) {
 		return nil
 	}
 
-	ds.SetSetupExperienceScriptFunc = func(ctx context.Context, script *fleet.Script) (bool, error) {
+	ds.SetSetupExperienceScriptFunc = func(ctx context.Context, script *automdm.Script) (bool, error) {
 		return true, nil
 	}
 
-	baseSvc.NewActivityFunc = func(ctx context.Context, user *fleet.User, activity fleet.ActivityDetails) error {
+	baseSvc.NewActivityFunc = func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error {
 		return nil
 	}
 
@@ -307,7 +307,7 @@ func TestSetupExperienceSetWithManualAgentInstall(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("should not block for non darwin hosts", func(t *testing.T) {
-		for _, platform := range fleet.SetupExperienceSupportedPlatforms {
+		for _, platform := range automdm.SetupExperienceSupportedPlatforms {
 			if platform == "darwin" {
 				continue
 			}
@@ -323,58 +323,58 @@ func TestSetupExperienceScriptRejectsUnknownCustomHostVital(t *testing.T) {
 	ds := new(mock.Store)
 	svc, baseSvc := newTestServiceWithMock(t, ds)
 
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
 	}
 	ds.ValidateEmbeddedSecretsFunc = func(ctx context.Context, documents []string) error { return nil }
 	ds.ValidateReferencedCustomHostVitalsFunc = func(ctx context.Context, documents []string) error {
-		return &fleet.MissingCustomHostVitalsError{MissingIDs: []uint{99}}
+		return &automdm.MissingCustomHostVitalsError{MissingIDs: []uint{99}}
 	}
-	ds.SetSetupExperienceScriptFunc = func(ctx context.Context, script *fleet.Script) (bool, error) { return true, nil }
-	baseSvc.NewActivityFunc = func(ctx context.Context, user *fleet.User, activity fleet.ActivityDetails) error { return nil }
+	ds.SetSetupExperienceScriptFunc = func(ctx context.Context, script *automdm.Script) (bool, error) { return true, nil }
+	baseSvc.NewActivityFunc = func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error { return nil }
 
-	err := svc.SetSetupExperienceScript(ctx, nil, "potato.sh", bytes.NewReader([]byte("echo $FLEET_HOST_VITAL_99")))
+	err := svc.SetSetupExperienceScript(ctx, nil, "potato.sh", bytes.NewReader([]byte("echo $AUTOMDM_HOST_VITAL_99")))
 	require.Error(t, err)
 	require.ErrorContains(t, err, "Custom host vital")
 	require.False(t, ds.SetSetupExperienceScriptFuncInvoked)
 }
 
-func TestSetupExperienceScriptFleetVariables(t *testing.T) {
+func TestSetupExperienceScriptAutoMDMVariables(t *testing.T) {
 	ctx := test.UserContext(context.Background(), test.UserAdmin)
-	ctx = license.NewContext(ctx, &fleet.LicenseInfo{Tier: fleet.TierPremium})
+	ctx = license.NewContext(ctx, &automdm.LicenseInfo{Tier: automdm.TierPremium})
 	ds := new(mock.Store)
 	svc, baseSvc := newTestServiceWithMock(t, ds)
 
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
 	}
 	ds.ValidateEmbeddedSecretsFunc = func(ctx context.Context, documents []string) error { return nil }
 	ds.ValidateReferencedCustomHostVitalsFunc = func(ctx context.Context, documents []string) error { return nil }
-	ds.SetSetupExperienceScriptFunc = func(ctx context.Context, script *fleet.Script) (bool, error) { return true, nil }
-	baseSvc.NewActivityFunc = func(ctx context.Context, user *fleet.User, activity fleet.ActivityDetails) error { return nil }
+	ds.SetSetupExperienceScriptFunc = func(ctx context.Context, script *automdm.Script) (bool, error) { return true, nil }
+	baseSvc.NewActivityFunc = func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error { return nil }
 
-	err := svc.SetSetupExperienceScript(ctx, nil, "potato.sh", bytes.NewReader([]byte("echo $FLEET_VAR_NONEXISTENT")))
-	require.ErrorContains(t, err, "Fleet variable $FLEET_VAR_NONEXISTENT is not supported in scripts.")
+	err := svc.SetSetupExperienceScript(ctx, nil, "potato.sh", bytes.NewReader([]byte("echo $AUTOMDM_VAR_NONEXISTENT")))
+	require.ErrorContains(t, err, "AutoMDM variable $AUTOMDM_VAR_NONEXISTENT is not supported in scripts.")
 	require.False(t, ds.SetSetupExperienceScriptFuncInvoked)
 
-	err = svc.SetSetupExperienceScript(ctx, nil, "potato.sh", bytes.NewReader([]byte("echo $FLEET_VAR_HOST_UUID")))
+	err = svc.SetSetupExperienceScript(ctx, nil, "potato.sh", bytes.NewReader([]byte("echo $AUTOMDM_VAR_HOST_UUID")))
 	require.NoError(t, err)
 	require.True(t, ds.SetSetupExperienceScriptFuncInvoked)
 }
 
 func TestSetupExperienceScriptDeprecationWarning(t *testing.T) {
 	ctx := test.UserContext(t.Context(), test.UserAdmin)
-	ctx = license.NewContext(ctx, &fleet.LicenseInfo{Tier: fleet.TierPremium})
+	ctx = license.NewContext(ctx, &automdm.LicenseInfo{Tier: automdm.TierPremium})
 	ds := new(mock.Store)
 	svc, baseSvc := newTestServiceWithMock(t, ds)
 
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
 	}
 	ds.ValidateEmbeddedSecretsFunc = func(ctx context.Context, documents []string) error { return nil }
 	ds.ValidateReferencedCustomHostVitalsFunc = func(ctx context.Context, documents []string) error { return nil }
 	// unchanged content: no activity, but the warning must still be logged
-	ds.SetSetupExperienceScriptFunc = func(ctx context.Context, script *fleet.Script) (bool, error) { return false, nil }
+	ds.SetSetupExperienceScriptFunc = func(ctx context.Context, script *automdm.Script) (bool, error) { return false, nil }
 
 	lc := &logging.LoggingContext{}
 	err := svc.SetSetupExperienceScript(logging.NewContext(ctx, lc), nil, "potato.sh", bytes.NewReader([]byte("echo hi")))
@@ -390,7 +390,7 @@ func TestSetupExperienceScriptDeprecationWarning(t *testing.T) {
 	assert.Empty(t, lc.Extras)
 
 	// deleting when there is no script logs nothing
-	ds.GetSetupExperienceScriptFunc = func(ctx context.Context, teamID *uint) (*fleet.Script, error) {
+	ds.GetSetupExperienceScriptFunc = func(ctx context.Context, teamID *uint) (*automdm.Script, error) {
 		return nil, NewNotFoundError("")
 	}
 	lc = &logging.LoggingContext{}
@@ -399,11 +399,11 @@ func TestSetupExperienceScriptDeprecationWarning(t *testing.T) {
 	assert.Empty(t, lc.Extras)
 
 	// deleting an existing script logs the warning
-	ds.GetSetupExperienceScriptFunc = func(ctx context.Context, teamID *uint) (*fleet.Script, error) {
-		return &fleet.Script{Name: "potato.sh"}, nil
+	ds.GetSetupExperienceScriptFunc = func(ctx context.Context, teamID *uint) (*automdm.Script, error) {
+		return &automdm.Script{Name: "potato.sh"}, nil
 	}
 	ds.DeleteSetupExperienceScriptFunc = func(ctx context.Context, teamID *uint) error { return nil }
-	baseSvc.NewActivityFunc = func(ctx context.Context, user *fleet.User, activity fleet.ActivityDetails) error { return nil }
+	baseSvc.NewActivityFunc = func(ctx context.Context, user *automdm.User, activity automdm.ActivityDetails) error { return nil }
 	lc = &logging.LoggingContext{}
 	require.NoError(t, svc.DeleteSetupExperienceScript(logging.NewContext(ctx, lc), nil))
 	require.NotNil(t, lc.ForceLevel)
@@ -416,19 +416,19 @@ func TestSetupExperienceScriptCustomHostVitalInfraErrorPropagates(t *testing.T) 
 	ds := new(mock.Store)
 	svc, _ := newTestServiceWithMock(t, ds)
 
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{}, nil
 	}
 	ds.ValidateEmbeddedSecretsFunc = func(ctx context.Context, documents []string) error { return nil }
 	ds.ValidateReferencedCustomHostVitalsFunc = func(ctx context.Context, documents []string) error {
 		return ctxerr.Wrap(ctx, errors.New("connection refused"), "validating custom host vitals")
 	}
-	ds.SetSetupExperienceScriptFunc = func(ctx context.Context, script *fleet.Script) (bool, error) { return false, nil }
+	ds.SetSetupExperienceScriptFunc = func(ctx context.Context, script *automdm.Script) (bool, error) { return false, nil }
 
-	err := svc.SetSetupExperienceScript(ctx, nil, "potato.sh", bytes.NewReader([]byte("echo $FLEET_HOST_VITAL_99")))
+	err := svc.SetSetupExperienceScript(ctx, nil, "potato.sh", bytes.NewReader([]byte("echo $AUTOMDM_HOST_VITAL_99")))
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "connection refused")
-	var invalidArgErr *fleet.InvalidArgumentError
+	var invalidArgErr *automdm.InvalidArgumentError
 	require.NotErrorAs(t, err, &invalidArgErr, "an infrastructure failure must not be reported as invalid input (422)")
 	require.False(t, ds.SetSetupExperienceScriptFuncInvoked)
 }
@@ -451,7 +451,7 @@ func TestSetupExperienceNextStepPolicyGated(t *testing.T) {
 	// Fixed clock so the gating-policy wait bound is deterministic. "now" sits just after enrollment (well within the bound); the
 	// fail-open subtest simulates elapsed time by moving host.LastEnrolledAt into the past (the bound is now - LastEnrolledAt).
 	svc.clock = clock.NewMockClock(labelsReportedAt)
-	host := &fleet.Host{
+	host := &automdm.Host{
 		ID:             42,
 		UUID:           "win-uuid",
 		OsqueryHostID:  &hostUUID,
@@ -460,23 +460,23 @@ func TestSetupExperienceNextStepPolicyGated(t *testing.T) {
 		LabelUpdatedAt: labelsReportedAt,
 	}
 
-	ds.AppConfigFunc = func(ctx context.Context) (*fleet.AppConfig, error) {
-		return &fleet.AppConfig{MDM: fleet.MDM{EnabledAndConfigured: true}}, nil
+	ds.AppConfigFunc = func(ctx context.Context) (*automdm.AppConfig, error) {
+		return &automdm.AppConfig{MDM: automdm.MDM{EnabledAndConfigured: true}}, nil
 	}
-	ds.IsHostConnectedToFleetMDMFunc = func(ctx context.Context, host *fleet.Host) (bool, error) { return true, nil }
+	ds.IsHostConnectedToAutoMDMMDMFunc = func(ctx context.Context, host *automdm.Host) (bool, error) { return true, nil }
 
-	var items []*fleet.SetupExperienceStatusResult
-	ds.ListSetupExperienceResultsByHostUUIDFunc = func(ctx context.Context, hostUUID string, teamID uint) ([]*fleet.SetupExperienceStatusResult, error) {
+	var items []*automdm.SetupExperienceStatusResult
+	ds.ListSetupExperienceResultsByHostUUIDFunc = func(ctx context.Context, hostUUID string, teamID uint) ([]*automdm.SetupExperienceStatusResult, error) {
 		return items, nil
 	}
 
-	var installs []fleet.HostSoftwareInstallOptions
-	ds.InsertSoftwareInstallRequestFunc = func(ctx context.Context, hostID, softwareInstallerID uint, opts fleet.HostSoftwareInstallOptions) (string, error) {
+	var installs []automdm.HostSoftwareInstallOptions
+	ds.InsertSoftwareInstallRequestFunc = func(ctx context.Context, hostID, softwareInstallerID uint, opts automdm.HostSoftwareInstallOptions) (string, error) {
 		installs = append(installs, opts)
 		return "gated-install-uuid", nil
 	}
-	var updates []*fleet.SetupExperienceStatusResult
-	ds.UpdateSetupExperienceStatusResultFunc = func(ctx context.Context, status *fleet.SetupExperienceStatusResult) error {
+	var updates []*automdm.SetupExperienceStatusResult
+	ds.UpdateSetupExperienceStatusResultFunc = func(ctx context.Context, status *automdm.SetupExperienceStatusResult) error {
 		updates = append(updates, status)
 		return nil
 	}
@@ -505,7 +505,7 @@ func TestSetupExperienceNextStepPolicyGated(t *testing.T) {
 		return policyResult, nil
 	}
 	var deliverable map[string]string
-	ds.PolicyQueriesForHostFilteredFunc = func(ctx context.Context, host *fleet.Host, policyIDs []uint) (map[string]string, error) {
+	ds.PolicyQueriesForHostFilteredFunc = func(ctx context.Context, host *automdm.Host, policyIDs []uint) (map[string]string, error) {
 		return deliverable, nil
 	}
 	// The host policy clock is reset once, when a gated setup finishes (so the host's other policies re-run promptly post-setup).
@@ -528,8 +528,8 @@ func TestSetupExperienceNextStepPolicyGated(t *testing.T) {
 	}
 
 	// gatedItem builds the host's single gated "GatedApp" item in the given status; gatedPending is the common pending case.
-	gatedItem := func(status fleet.SetupExperienceStatusResultStatus) []*fleet.SetupExperienceStatusResult {
-		return []*fleet.SetupExperienceStatusResult{{
+	gatedItem := func(status automdm.SetupExperienceStatusResultStatus) []*automdm.SetupExperienceStatusResult {
+		return []*automdm.SetupExperienceStatusResult{{
 			HostUUID:            hostUUID,
 			Name:                "GatedApp",
 			SoftwareInstallerID: &installerID,
@@ -537,8 +537,8 @@ func TestSetupExperienceNextStepPolicyGated(t *testing.T) {
 			Status:              status,
 		}}
 	}
-	gatedPending := func() []*fleet.SetupExperienceStatusResult {
-		return gatedItem(fleet.SetupExperienceStatusPending)
+	gatedPending := func() []*automdm.SetupExperienceStatusResult {
+		return gatedItem(automdm.SetupExperienceStatusPending)
 	}
 
 	// singleInScope is the in-scope (deliverable) policy set for the default single-gating-policy item; bothInScope (below) is the
@@ -556,7 +556,7 @@ func TestSetupExperienceNextStepPolicyGated(t *testing.T) {
 		require.False(t, finished)
 		require.False(t, ds.InsertSoftwareInstallRequestFuncInvoked, "passing policy must not install")
 		require.Len(t, updates, 1)
-		require.Equal(t, fleet.SetupExperienceStatusSuccess, updates[0].Status)
+		require.Equal(t, automdm.SetupExperienceStatusSuccess, updates[0].Status)
 		require.Nil(t, updates[0].HostSoftwareInstallsExecutionID)
 		require.False(t, ds.ClearHostPolicyUpdatedAtFuncInvoked, "clock is reset at setup completion, not per gated result")
 	})
@@ -574,7 +574,7 @@ func TestSetupExperienceNextStepPolicyGated(t *testing.T) {
 		require.True(t, installs[0].ForSetupExperience, "gated install must run as a setup-experience install")
 		require.Nil(t, installs[0].PolicyID, "setup experience owns the install; it must not be a policy-automation install")
 		require.Len(t, updates, 1)
-		require.Equal(t, fleet.SetupExperienceStatusRunning, updates[0].Status)
+		require.Equal(t, automdm.SetupExperienceStatusRunning, updates[0].Status)
 		require.NotNil(t, updates[0].HostSoftwareInstallsExecutionID)
 		require.False(t, ds.ClearHostPolicyUpdatedAtFuncInvoked, "clock is reset at setup completion, not per gated result")
 	})
@@ -590,7 +590,7 @@ func TestSetupExperienceNextStepPolicyGated(t *testing.T) {
 		require.False(t, finished)
 		require.False(t, ds.InsertSoftwareInstallRequestFuncInvoked)
 		require.Len(t, updates, 1)
-		require.Equal(t, fleet.SetupExperienceStatusRunning, updates[0].Status)
+		require.Equal(t, automdm.SetupExperienceStatusRunning, updates[0].Status)
 		require.Nil(t, updates[0].HostSoftwareInstallsExecutionID)
 		require.False(t, ds.ClearHostPolicyUpdatedAtFuncInvoked, "no result consumed yet; policy clock must not be reset")
 	})
@@ -610,7 +610,7 @@ func TestSetupExperienceNextStepPolicyGated(t *testing.T) {
 		require.Len(t, installs, 1, "a gating policy that never reports must fail open to installing, not wedge setup experience")
 		require.True(t, installs[0].ForSetupExperience)
 		require.Len(t, updates, 1)
-		require.Equal(t, fleet.SetupExperienceStatusRunning, updates[0].Status)
+		require.Equal(t, automdm.SetupExperienceStatusRunning, updates[0].Status)
 		require.NotNil(t, updates[0].HostSoftwareInstallsExecutionID)
 	})
 
@@ -630,7 +630,7 @@ func TestSetupExperienceNextStepPolicyGated(t *testing.T) {
 		require.Len(t, installs, 1)
 		require.True(t, installs[0].ForSetupExperience)
 		require.Len(t, updates, 1)
-		require.Equal(t, fleet.SetupExperienceStatusRunning, updates[0].Status)
+		require.Equal(t, automdm.SetupExperienceStatusRunning, updates[0].Status)
 		require.False(t, ds.ClearHostPolicyUpdatedAtFuncInvoked, "out-of-scope fallback ran no gating policy; policy clock must not be reset")
 	})
 
@@ -650,7 +650,7 @@ func TestSetupExperienceNextStepPolicyGated(t *testing.T) {
 		require.Len(t, installs, 1)
 		require.True(t, installs[0].ForSetupExperience)
 		require.Len(t, updates, 1)
-		require.Equal(t, fleet.SetupExperienceStatusRunning, updates[0].Status)
+		require.Equal(t, automdm.SetupExperienceStatusRunning, updates[0].Status)
 		require.NotNil(t, updates[0].HostSoftwareInstallsExecutionID)
 	})
 
@@ -667,7 +667,7 @@ func TestSetupExperienceNextStepPolicyGated(t *testing.T) {
 		require.Len(t, installs, 1, "an out-of-scope policy must not gate the install even if it reported a pass")
 		require.True(t, installs[0].ForSetupExperience)
 		require.Len(t, updates, 1)
-		require.Equal(t, fleet.SetupExperienceStatusRunning, updates[0].Status)
+		require.Equal(t, automdm.SetupExperienceStatusRunning, updates[0].Status)
 		require.NotNil(t, updates[0].HostSoftwareInstallsExecutionID)
 	})
 
@@ -688,7 +688,7 @@ func TestSetupExperienceNextStepPolicyGated(t *testing.T) {
 		require.False(t, finished)
 		require.False(t, ds.InsertSoftwareInstallRequestFuncInvoked, "install is skipped only when every gating policy passes")
 		require.Len(t, updates, 1)
-		require.Equal(t, fleet.SetupExperienceStatusSuccess, updates[0].Status)
+		require.Equal(t, automdm.SetupExperienceStatusSuccess, updates[0].Status)
 	})
 
 	t.Run("multiple gating policies, one fails -> installed", func(t *testing.T) {
@@ -704,7 +704,7 @@ func TestSetupExperienceNextStepPolicyGated(t *testing.T) {
 		require.Len(t, installs, 1, "any failing gating policy must install")
 		require.True(t, installs[0].ForSetupExperience)
 		require.Len(t, updates, 1)
-		require.Equal(t, fleet.SetupExperienceStatusRunning, updates[0].Status)
+		require.Equal(t, automdm.SetupExperienceStatusRunning, updates[0].Status)
 		require.NotNil(t, updates[0].HostSoftwareInstallsExecutionID)
 	})
 
@@ -720,7 +720,7 @@ func TestSetupExperienceNextStepPolicyGated(t *testing.T) {
 		require.False(t, finished)
 		require.False(t, ds.InsertSoftwareInstallRequestFuncInvoked, "must not install while a gating policy is still pending")
 		require.Len(t, updates, 1)
-		require.Equal(t, fleet.SetupExperienceStatusRunning, updates[0].Status)
+		require.Equal(t, automdm.SetupExperienceStatusRunning, updates[0].Status)
 		require.Nil(t, updates[0].HostSoftwareInstallsExecutionID)
 	})
 
@@ -737,7 +737,7 @@ func TestSetupExperienceNextStepPolicyGated(t *testing.T) {
 		require.False(t, ds.PolicyQueriesForHostFilteredFuncInvoked, "must not evaluate scope until labels are reported")
 		require.False(t, ds.InsertSoftwareInstallRequestFuncInvoked, "must not fail-open before labels are computed")
 		require.Len(t, updates, 1)
-		require.Equal(t, fleet.SetupExperienceStatusRunning, updates[0].Status)
+		require.Equal(t, automdm.SetupExperienceStatusRunning, updates[0].Status)
 		require.Nil(t, updates[0].HostSoftwareInstallsExecutionID)
 	})
 
@@ -746,9 +746,9 @@ func TestSetupExperienceNextStepPolicyGated(t *testing.T) {
 		ungatedInstallerID := uint(8)
 		// Gated item is first (lower id / earlier alphabetically); the un-gated item is second. Un-gated-first selection must
 		// still start the un-gated install so a gated item's policy/label wait does not delay it.
-		items = []*fleet.SetupExperienceStatusResult{
-			{HostUUID: hostUUID, Name: "A-GatedApp", SoftwareInstallerID: &installerID, PolicyGated: true, Status: fleet.SetupExperienceStatusPending},
-			{HostUUID: hostUUID, Name: "Z-UngatedApp", SoftwareInstallerID: &ungatedInstallerID, Status: fleet.SetupExperienceStatusPending},
+		items = []*automdm.SetupExperienceStatusResult{
+			{HostUUID: hostUUID, Name: "A-GatedApp", SoftwareInstallerID: &installerID, PolicyGated: true, Status: automdm.SetupExperienceStatusPending},
+			{HostUUID: hostUUID, Name: "Z-UngatedApp", SoftwareInstallerID: &ungatedInstallerID, Status: automdm.SetupExperienceStatusPending},
 		}
 
 		finished, err := svc.SetupExperienceNextStep(ctx, host)
@@ -763,7 +763,7 @@ func TestSetupExperienceNextStepPolicyGated(t *testing.T) {
 	t.Run("running gated item awaiting policy is re-checked each poll", func(t *testing.T) {
 		reset()
 		// Already running, no install execution yet -> awaiting-policy phase.
-		items = gatedItem(fleet.SetupExperienceStatusRunning)
+		items = gatedItem(automdm.SetupExperienceStatusRunning)
 		policyResult = &policyPasses // result now available
 		deliverable = singleInScope  // in scope
 
@@ -772,7 +772,7 @@ func TestSetupExperienceNextStepPolicyGated(t *testing.T) {
 		require.False(t, finished)
 		require.False(t, ds.InsertSoftwareInstallRequestFuncInvoked)
 		require.Len(t, updates, 1)
-		require.Equal(t, fleet.SetupExperienceStatusSuccess, updates[0].Status)
+		require.Equal(t, automdm.SetupExperienceStatusSuccess, updates[0].Status)
 		require.False(t, ds.ClearHostPolicyUpdatedAtFuncInvoked, "clock is reset at setup completion, not per gated result")
 	})
 
@@ -780,7 +780,7 @@ func TestSetupExperienceNextStepPolicyGated(t *testing.T) {
 		reset()
 		// Already running, no install execution yet, and still no policy result -> nothing changed, so we must not re-persist
 		// the same running state on every poll (avoids write amplification while waiting).
-		items = gatedItem(fleet.SetupExperienceStatusRunning)
+		items = gatedItem(automdm.SetupExperienceStatusRunning)
 		policyResult = nil
 		deliverable = singleInScope // in scope, just not reported yet
 
@@ -794,7 +794,7 @@ func TestSetupExperienceNextStepPolicyGated(t *testing.T) {
 	t.Run("setup finishes with a gated item -> host policy clock reset once", func(t *testing.T) {
 		reset()
 		// All items terminal (the gated item resolved on a prior poll); this poll reaches the "finished" branch.
-		items = gatedItem(fleet.SetupExperienceStatusSuccess)
+		items = gatedItem(automdm.SetupExperienceStatusSuccess)
 
 		finished, err := svc.SetupExperienceNextStep(ctx, host)
 		require.NoError(t, err)
@@ -805,11 +805,11 @@ func TestSetupExperienceNextStepPolicyGated(t *testing.T) {
 	t.Run("setup finishes with no gated item -> host policy clock not reset", func(t *testing.T) {
 		reset()
 		// A terminal, un-gated setup item (PolicyGated false): finishing must not touch the policy clock.
-		items = []*fleet.SetupExperienceStatusResult{{
+		items = []*automdm.SetupExperienceStatusResult{{
 			HostUUID:            hostUUID,
 			Name:                "UngatedApp",
 			SoftwareInstallerID: &installerID,
-			Status:              fleet.SetupExperienceStatusSuccess,
+			Status:              automdm.SetupExperienceStatusSuccess,
 		}}
 
 		finished, err := svc.SetupExperienceNextStep(ctx, host)
@@ -825,63 +825,63 @@ func TestSetupExperienceNextStepRunningScriptResult(t *testing.T) {
 	svc := newTestService(t, ds)
 
 	const hostUUID = "host-uuid"
-	host := &fleet.Host{ID: 1, UUID: hostUUID, Platform: "darwin"}
+	host := &automdm.Host{ID: 1, UUID: hostUUID, Platform: "darwin"}
 	execID := "exec-1"
 
-	var step *fleet.SetupExperienceStatusResult
-	ds.ListSetupExperienceResultsByHostUUIDFunc = func(ctx context.Context, hostUUID string, teamID uint) ([]*fleet.SetupExperienceStatusResult, error) {
-		return []*fleet.SetupExperienceStatusResult{step}, nil
+	var step *automdm.SetupExperienceStatusResult
+	ds.ListSetupExperienceResultsByHostUUIDFunc = func(ctx context.Context, hostUUID string, teamID uint) ([]*automdm.SetupExperienceStatusResult, error) {
+		return []*automdm.SetupExperienceStatusResult{step}, nil
 	}
-	var result *fleet.HostScriptResult
-	ds.GetHostScriptExecutionResultFunc = func(ctx context.Context, id string) (*fleet.HostScriptResult, error) {
+	var result *automdm.HostScriptResult
+	ds.GetHostScriptExecutionResultFunc = func(ctx context.Context, id string) (*automdm.HostScriptResult, error) {
 		if result == nil {
 			return nil, &notFoundError{}
 		}
 		return result, nil
 	}
-	var updatedTo []fleet.SetupExperienceStatusResultStatus
+	var updatedTo []automdm.SetupExperienceStatusResultStatus
 	rowMatches := true
-	ds.MaybeUpdateSetupExperienceScriptStatusFunc = func(ctx context.Context, gotHostUUID, gotExecID string, status fleet.SetupExperienceStatusResultStatus) (bool, error) {
+	ds.MaybeUpdateSetupExperienceScriptStatusFunc = func(ctx context.Context, gotHostUUID, gotExecID string, status automdm.SetupExperienceStatusResultStatus) (bool, error) {
 		assert.Equal(t, hostUUID, gotHostUUID)
 		assert.Equal(t, execID, gotExecID)
 		updatedTo = append(updatedTo, status)
 		return rowMatches, nil
 	}
 
-	runningStep := func(execID *string) *fleet.SetupExperienceStatusResult {
-		return &fleet.SetupExperienceStatusResult{
+	runningStep := func(execID *string) *automdm.SetupExperienceStatusResult {
+		return &automdm.SetupExperienceStatusResult{
 			HostUUID:                hostUUID,
 			Name:                    "script.sh",
 			SetupExperienceScriptID: new(uint(1)),
 			ScriptContentID:         new(uint(2)),
 			ScriptExecutionID:       execID,
-			Status:                  fleet.SetupExperienceStatusRunning,
+			Status:                  automdm.SetupExperienceStatusRunning,
 		}
 	}
 
 	cases := []struct {
 		name         string
 		execID       *string
-		result       *fleet.HostScriptResult
+		result       *automdm.HostScriptResult
 		rowChanged   bool
 		wantFinished bool
-		wantUpdate   []fleet.SetupExperienceStatusResultStatus
+		wantUpdate   []automdm.SetupExperienceStatusResultStatus
 	}{
 		{name: "no result yet", execID: &execID},
-		{name: "result without exit code", execID: &execID, result: &fleet.HostScriptResult{ExecutionID: execID}},
-		{name: "no execution id", execID: nil, result: &fleet.HostScriptResult{ExecutionID: execID, ExitCode: new(int64(0))}},
+		{name: "result without exit code", execID: &execID, result: &automdm.HostScriptResult{ExecutionID: execID}},
+		{name: "no execution id", execID: nil, result: &automdm.HostScriptResult{ExecutionID: execID, ExitCode: new(int64(0))}},
 		{
-			name: "recorded success", execID: &execID, result: &fleet.HostScriptResult{ExecutionID: execID, ExitCode: new(int64(0))},
-			wantFinished: true, wantUpdate: []fleet.SetupExperienceStatusResultStatus{fleet.SetupExperienceStatusSuccess},
+			name: "recorded success", execID: &execID, result: &automdm.HostScriptResult{ExecutionID: execID, ExitCode: new(int64(0))},
+			wantFinished: true, wantUpdate: []automdm.SetupExperienceStatusResultStatus{automdm.SetupExperienceStatusSuccess},
 		},
 		{
-			name: "recorded failure", execID: &execID, result: &fleet.HostScriptResult{ExecutionID: execID, ExitCode: new(int64(1))},
-			wantFinished: true, wantUpdate: []fleet.SetupExperienceStatusResultStatus{fleet.SetupExperienceStatusFailure},
+			name: "recorded failure", execID: &execID, result: &automdm.HostScriptResult{ExecutionID: execID, ExitCode: new(int64(1))},
+			wantFinished: true, wantUpdate: []automdm.SetupExperienceStatusResultStatus{automdm.SetupExperienceStatusFailure},
 		},
 		{
 			// the step points at another execution or already finished: keep waiting rather than finish from a stale read
-			name: "recorded result but step row no longer matches", execID: &execID, result: &fleet.HostScriptResult{ExecutionID: execID, ExitCode: new(int64(0))},
-			rowChanged: true, wantUpdate: []fleet.SetupExperienceStatusResultStatus{fleet.SetupExperienceStatusSuccess},
+			name: "recorded result but step row no longer matches", execID: &execID, result: &automdm.HostScriptResult{ExecutionID: execID, ExitCode: new(int64(0))},
+			rowChanged: true, wantUpdate: []automdm.SetupExperienceStatusResultStatus{automdm.SetupExperienceStatusSuccess},
 		},
 	}
 	for _, c := range cases {
@@ -897,36 +897,36 @@ func TestSetupExperienceNextStepRunningScriptResult(t *testing.T) {
 
 func TestSetupExperienceNextStepVPPInstallFailureActivityToken(t *testing.T) {
 	ctx := context.Background()
-	host := &fleet.Host{ID: 1, UUID: "host-uuid", Platform: "ios"}
+	host := &automdm.Host{ID: 1, UUID: "host-uuid", Platform: "ios"}
 
-	setup := func(t *testing.T, tokenID *uint, getToken func(context.Context, uint) (*fleet.VPPTokenDB, error)) *fleet.ActivityInstalledAppStoreApp {
+	setup := func(t *testing.T, tokenID *uint, getToken func(context.Context, uint) (*automdm.VPPTokenDB, error)) *automdm.ActivityInstalledAppStoreApp {
 		ds := new(mock.Store)
 		svc, baseSvc := newTestServiceWithMock(t, ds)
 		svc.logger = slog.New(slog.NewTextHandler(io.Discard, nil))
-		ds.AppConfigFunc = func(context.Context) (*fleet.AppConfig, error) {
-			return &fleet.AppConfig{MDM: fleet.MDM{EnabledAndConfigured: true}}, nil
+		ds.AppConfigFunc = func(context.Context) (*automdm.AppConfig, error) {
+			return &automdm.AppConfig{MDM: automdm.MDM{EnabledAndConfigured: true}}, nil
 		}
-		// A host that isn't connected to Fleet MDM fails the install before anything is queued.
-		ds.IsHostConnectedToFleetMDMFunc = func(context.Context, *fleet.Host) (bool, error) { return false, nil }
-		ds.ListSetupExperienceResultsByHostUUIDFunc = func(context.Context, string, uint) ([]*fleet.SetupExperienceStatusResult, error) {
-			return []*fleet.SetupExperienceStatusResult{{
+		// A host that isn't connected to AutoMDM fails the install before anything is queued.
+		ds.IsHostConnectedToAutoMDMMDMFunc = func(context.Context, *automdm.Host) (bool, error) { return false, nil }
+		ds.ListSetupExperienceResultsByHostUUIDFunc = func(context.Context, string, uint) ([]*automdm.SetupExperienceStatusResult, error) {
+			return []*automdm.SetupExperienceStatusResult{{
 				HostUUID:         host.UUID,
 				Name:             "Canva",
-				Status:           fleet.SetupExperienceStatusPending,
+				Status:           automdm.SetupExperienceStatusPending,
 				VPPAppTeamID:     new(uint(1)),
 				VPPAppAdamID:     new("100"),
-				VPPAppPlatform:   new(string(fleet.IOSPlatform)),
+				VPPAppPlatform:   new(string(automdm.IOSPlatform)),
 				VPPAppVPPTokenID: tokenID,
 				SoftwareTitleID:  new(uint(9)),
 			}}, nil
 		}
-		ds.UpdateSetupExperienceStatusResultFunc = func(context.Context, *fleet.SetupExperienceStatusResult) error { return nil }
+		ds.UpdateSetupExperienceStatusResultFunc = func(context.Context, *automdm.SetupExperienceStatusResult) error { return nil }
 		ds.GetSoftwareTitleDisplayNameFunc = func(context.Context, *uint, uint) (*string, error) { return nil, nil }
 		ds.GetVPPTokenFunc = getToken
-		baseSvc.IsAllSetupExperienceSoftwareRequiredFunc = func(context.Context, *fleet.Host) (bool, error) { return false, nil }
-		var got *fleet.ActivityInstalledAppStoreApp
-		baseSvc.NewActivityFunc = func(_ context.Context, _ *fleet.User, a fleet.ActivityDetails) error {
-			act, ok := a.(fleet.ActivityInstalledAppStoreApp)
+		baseSvc.IsAllSetupExperienceSoftwareRequiredFunc = func(context.Context, *automdm.Host) (bool, error) { return false, nil }
+		var got *automdm.ActivityInstalledAppStoreApp
+		baseSvc.NewActivityFunc = func(_ context.Context, _ *automdm.User, a automdm.ActivityDetails) error {
+			act, ok := a.(automdm.ActivityInstalledAppStoreApp)
 			require.True(t, ok)
 			got = &act
 			return nil
@@ -935,26 +935,26 @@ func TestSetupExperienceNextStepVPPInstallFailureActivityToken(t *testing.T) {
 		_, err := svc.SetupExperienceNextStep(ctx, host)
 		require.NoError(t, err)
 		require.NotNil(t, got)
-		require.Equal(t, string(fleet.SoftwareInstallFailed), got.Status)
+		require.Equal(t, string(automdm.SoftwareInstallFailed), got.Status)
 		return got
 	}
 
 	t.Run("carries the app's token", func(t *testing.T) {
-		act := setup(t, new(uint(7)), func(_ context.Context, id uint) (*fleet.VPPTokenDB, error) {
-			return &fleet.VPPTokenDB{ID: id, Location: "Acme Japan", CountryCode: "jp"}, nil
+		act := setup(t, new(uint(7)), func(_ context.Context, id uint) (*automdm.VPPTokenDB, error) {
+			return &automdm.VPPTokenDB{ID: id, Location: "Acme Japan", CountryCode: "jp"}, nil
 		})
-		require.Equal(t, &fleet.ActivityVPPToken{ID: 7, Location: "Acme Japan", CountryCode: "jp"}, act.VPPToken)
+		require.Equal(t, &automdm.ActivityVPPToken{ID: 7, Location: "Acme Japan", CountryCode: "jp"}, act.VPPToken)
 	})
 
 	t.Run("a deleted token gives null", func(t *testing.T) {
-		act := setup(t, new(uint(7)), func(context.Context, uint) (*fleet.VPPTokenDB, error) {
+		act := setup(t, new(uint(7)), func(context.Context, uint) (*automdm.VPPTokenDB, error) {
 			return nil, &notFoundError{}
 		})
 		require.Nil(t, act.VPPToken)
 	})
 
 	t.Run("a lookup error still emits the activity", func(t *testing.T) {
-		act := setup(t, new(uint(7)), func(context.Context, uint) (*fleet.VPPTokenDB, error) {
+		act := setup(t, new(uint(7)), func(context.Context, uint) (*automdm.VPPTokenDB, error) {
 			return nil, errors.New("db down")
 		})
 		require.Nil(t, act.VPPToken)

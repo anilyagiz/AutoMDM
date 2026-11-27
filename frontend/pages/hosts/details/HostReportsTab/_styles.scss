@@ -49,7 +49,7 @@
   &__count {
     font-size: $x-small;
     font-weight: $bold;
-    color: $core-fleet-black;
+    color: $core-automdm-black;
   }
 
   &__toggle {
@@ -117,13 +117,13 @@
 
   &__last-updated {
     font-size: $xx-small;
-    color: $ui-fleet-black-75;
+    color: $ui-automdm-black-75;
     white-space: nowrap;
   }
 
   &__description {
     font-size: $xx-small;
-    color: $ui-fleet-black-75;
+    color: $ui-automdm-black-75;
     margin: 0;
     overflow-wrap: anywhere;
   }

@@ -10,7 +10,7 @@
 
 $displayNamePattern = '^Portfolio\ Performance$'
 $publisher = "Andreas Buchen"
-$taskName = "fleet-uninstall-portfolioperformance"
+$taskName = "automdm-uninstall-portfolioperformance"
 $appDir = "AppData\Local\Programs\PortfolioPerformance"  # in each user's profile
 $taskRunning = 267009  # SCHED_S_TASK_RUNNING
 $timeoutSeconds = 300

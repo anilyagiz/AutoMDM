@@ -7,8 +7,8 @@ import (
 	"math/rand/v2"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/logging"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
+	"github.com/anilyagiz/automdm/v4/server/contexts/logging"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
 	"google.golang.org/api/androidmanagement/v1"
 )
 
@@ -17,8 +17,8 @@ import (
 var defaultRetryDelays = []time.Duration{60 * time.Second}
 
 // defaultRetryBudget is the latest a retry may start, measured from the start of the HTTP request (or of the
-// first attempt, outside a request). Every retried call is made while serving an HTTP request, and Fleet stops
-// writing responses after 100s with the default FLEET_LIVE_QUERY_REST_PERIOD, so this leaves time for the
+// first attempt, outside a request). Every retried call is made while serving an HTTP request, and AutoMDM stops
+// writing responses after 100s with the default AUTOMDM_LIVE_QUERY_REST_PERIOD, so this leaves time for the
 // retried call and the response. A retry that started later would complete after the client was told the
 // request failed, or be cancelled partway when the client disconnects.
 const defaultRetryBudget = 75 * time.Second
@@ -56,7 +56,7 @@ func retryWait(delay, remaining time.Duration) (time.Duration, bool) {
 	if delay > remaining {
 		return 0, false
 	}
-	// Jitter spreads out the retries of Fleet servers that share the proxy's quota, so they don't all
+	// Jitter spreads out the retries of AutoMDM servers that share the proxy's quota, so they don't all
 	// land at the start of the next quota window.
 	if spread := min(delay/2, remaining-delay); spread > 0 {
 		delay += time.Duration(rand.Int64N(int64(spread))) //nolint:gosec // jitter does not need a secure source

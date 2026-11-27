@@ -5,20 +5,20 @@ import (
 	"database/sql"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
 
-func SetOrbitEnrollment(t *testing.T, h *fleet.Host, ds fleet.Datastore) string {
+func SetOrbitEnrollment(t *testing.T, h *automdm.Host, ds automdm.Datastore) string {
 	orbitKey := uuid.New().String()
 	_, err := ds.EnrollOrbit(context.Background(),
-		fleet.WithEnrollOrbitHostInfo(fleet.OrbitHostInfo{
+		automdm.WithEnrollOrbitHostInfo(automdm.OrbitHostInfo{
 			HardwareUUID:   *h.OsqueryHostID,
 			HardwareSerial: h.HardwareSerial,
 		}),
-		fleet.WithEnrollOrbitNodeKey(orbitKey),
-		fleet.WithEnrollOrbitTeamID(h.TeamID),
+		automdm.WithEnrollOrbitNodeKey(orbitKey),
+		automdm.WithEnrollOrbitTeamID(h.TeamID),
 	)
 	require.NoError(t, err)
 	err = ds.SetOrUpdateHostOrbitInfo(

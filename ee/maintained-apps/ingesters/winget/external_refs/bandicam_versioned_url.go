@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	maintained_apps "github.com/fleetdm/fleet/v4/ee/maintained-apps"
+	maintained_apps "github.com/anilyagiz/automdm/v4/ee/maintained-apps"
 )
 
 const bandicamRollingURL = "https://dl.bandicam.com/bdcamsetup.exe"
@@ -16,7 +16,7 @@ const bandicamRollingURL = "https://dl.bandicam.com/bdcamsetup.exe"
 // Vendor also serves: https://dl.bandicam.com/old/BDCAMSETUP_27_0_7_2687.EXE
 //
 // The rolling URL serves the next build as soon as the vendor ships it, which
-// would break the pinned SHA-256 until winget and Fleet catch up.
+// would break the pinned SHA-256 until winget and AutoMDM catch up.
 func BandicamVersionedURL(app *maintained_apps.FMAManifestApp) (*maintained_apps.FMAManifestApp, error) {
 	if !strings.EqualFold(app.InstallerURL, bandicamRollingURL) {
 		return app, nil

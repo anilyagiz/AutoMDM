@@ -31,8 +31,8 @@
   - [Testing Kinesis Logging](#testing-kinesis-logging)
   - [Testing pre-built installers](#testing-pre-built-installers)
   - [Telemetry](#telemetry)
-  - [Fleetd Chrome extension](#fleetd-chrome-extension)
-  - [fleetd-base installers](#fleetd-base-installers)
+  - [AutoMDMd Chrome extension](#automdmd-chrome-extension)
+  - [automdmd-base installers](#automdmd-base-installers)
   - [MDM setup and testing](#mdm-setup-and-testing)
     - [ABM setup](#abm-setup)
       - [Private key, certificate, and encrypted token](#private-key-certificate-and-encrypted-token)
@@ -51,21 +51,21 @@
 
 ## License key
 
-Do you need to test Fleet Premium features locally?
+Do you need to test AutoMDM Premium features locally?
 
 Use the `--dev_license` flag to use the default development license key.
 
 For example:
 
 ```sh
-./build/fleet serve --dev --dev_license
+./build/automdm serve --dev --dev_license
 ```
 
 ## Simulated hosts
 
 It can be helpful to quickly populate the UI with simulated hosts when developing or testing features that require host information.
 
-Check out the [instructions](https://github.com/fleetdm/fleet/tree/main/tools/osquery#usage) for starting up simulated hosts in your development environment.
+Check out the [instructions](https://github.com/anilyagiz/automdm/tree/main/tools/osquery#usage) for starting up simulated hosts in your development environment.
 
 ## Test suite
 
@@ -81,9 +81,9 @@ This installs the version of `golangci-lint` used in our CI environment (current
 REDIS_TEST=1 MYSQL_TEST=1 make test
 ```
 
-The integration tests in the `server/service` package can generate a lot of logs mixed with the test results output. To make it easier to identify a failing test in this package, you can set the `FLEET_INTEGRATION_TESTS_DISABLE_LOG=1` environment variable so that logging is disabled.
+The integration tests in the `server/service` package can generate a lot of logs mixed with the test results output. To make it easier to identify a failing test in this package, you can set the `AUTOMDM_INTEGRATION_TESTS_DISABLE_LOG=1` environment variable so that logging is disabled.
 
-The MDM integration tests are run with a random selection of software installer storage backends (local filesystem or S3), and similar for the bootstrap packages storage (DB or S3). You can force usage of the S3 backend by setting `FLEET_INTEGRATION_TESTS_SOFTWARE_INSTALLER_STORE=s3`. Note that `S3_STORAGE_TEST=1` must also be set for the S3 backend to be used.
+The MDM integration tests are run with a random selection of software installer storage backends (local filesystem or S3), and similar for the bootstrap packages storage (DB or S3). You can force usage of the S3 backend by setting `AUTOMDM_INTEGRATION_TESTS_SOFTWARE_INSTALLER_STORE=s3`. Note that `S3_STORAGE_TEST=1` must also be set for the S3 backend to be used.
 
 When the S3 backend is used, this line will be printed in the tests' output (as this could be relevant to understand and debug the test failure):
 
@@ -165,12 +165,12 @@ MYSQL_TEST=1 make test-go
 
 #### Configuring MySQL test port
 
-By default, the test MySQL instance uses port 3307. You can customize this port using the `FLEET_MYSQL_TEST_PORT` environment variable.
+By default, the test MySQL instance uses port 3307. You can customize this port using the `AUTOMDM_MYSQL_TEST_PORT` environment variable.
 
 For example, to use a different port:
 
 ```sh
-export FLEET_MYSQL_TEST_PORT=3327
+export AUTOMDM_MYSQL_TEST_PORT=3327
 docker-compose up -d mysql_test
 MYSQL_TEST=1 make test-go
 ```
@@ -217,27 +217,27 @@ have to worry about working with E2E testing code or raising issues themselves.
 
 However, development may necessitate running E2E tests on demand. To run E2E tests live on a branch such as the `main` branch, developers can navigate to [Deploy Cloud Environments](https://github.com/fleetdm/confidential/actions/workflows/cloud-deploy.yml) in our [/confidential](https://github.com/fleetdm/confidential) repo's Actions and select "Run workflow".
 
-For Fleet employees, if you would like access to the QA Wolf platform you can reach out in the [#help-engineering](https://fleetdm.slack.com/archives/C019WG4GH0A) slack channel.
+For AutoMDM employees, if you would like access to the QA Wolf platform you can reach out in the [#help-engineering](https://automdm.slack.com/archives/C019WG4GH0A) slack channel.
 
 ### Preparation
 
-Make sure dependencies are up to date and to build the [Fleet binaries locally](https://fleetdm.com/docs/contributing/building-fleet).
+Make sure dependencies are up to date and to build the [AutoMDM binaries locally](https://automdm.com/docs/contributing/building-automdm).
 
-For Fleet Free tests:
+For AutoMDM Free tests:
 
 ```sh
 make e2e-reset-db
 make e2e-serve-free
 ```
 
-For Fleet Premium tests:
+For AutoMDM Premium tests:
 
 ```sh
 make e2e-reset-db
 make e2e-serve-premium
 ```
 
-This will start a local Fleet server connected to the E2E database. Leave this server running for the duration of end-to-end testing.
+This will start a local AutoMDM server connected to the E2E database. Leave this server running for the duration of end-to-end testing.
 
 ```sh
 make e2e-setup
@@ -251,13 +251,13 @@ Tests can be run in interactive mode or from the command line.
 
 ### Interactive
 
-For Fleet Free tests:
+For AutoMDM Free tests:
 
 ```sh
 yarn e2e-browser:free
 ```
 
-For Fleet Premium tests:
+For AutoMDM Premium tests:
 
 ```sh
 yarn e2e-browser:premium
@@ -267,13 +267,13 @@ Use the graphical UI controls to run and view tests.
 
 ### Command line
 
-For Fleet Free tests:
+For AutoMDM Free tests:
 
 ```sh
 yarn e2e-cli:free
 ```
 
-For Fleet Premium tests:
+For AutoMDM Premium tests:
 
 ```sh
 yarn e2e-cli:premium
@@ -283,7 +283,7 @@ Tests will run automatically, and results are reported to the shell.
 
 ## Test hosts
 
-The Fleet repo includes tools to start testing osquery hosts. Please see the documentation in [/tools/osquery](https://github.com/fleetdm/fleet/tree/main/tools/osquery) for more information.
+The AutoMDM repo includes tools to start testing osquery hosts. Please see the documentation in [/tools/osquery](https://github.com/anilyagiz/automdm/tree/main/tools/osquery) for more information.
 
 ## Email
 
@@ -293,7 +293,7 @@ The Fleet repo includes tools to start testing osquery hosts. Please see the doc
 
 This runs as the `mailhog` service in `docker-compose.yml`. The service name is kept for backwards compatibility, but it runs Mailpit.
 
-To intercept sent emails while running a Fleet development environment, first, as an Admin in the Fleet UI, navigate to the Organization settings.
+To intercept sent emails while running an AutoMDM development environment, first, as an Admin in the AutoMDM UI, navigate to the Organization settings.
 
 Then, in the "SMTP options" section, set:
 - "Sender address" to any email address. Note that you may use any active or inactive sender address.
@@ -356,7 +356,7 @@ docker-compose exec mysql mysql -uroot -ptoor -Dfleet
 
 ## MySQL replica delay
 
-To set up replication delay on a local dev setup, follow the instructions at [/tools/mysql-replica-testing](https://github.com/fleetdm/fleet/tree/main/tools/mysql-replica-testing). This will create a new primary/secondary database for testing delay issues and will not affect your existing database.
+To set up replication delay on a local dev setup, follow the instructions at [/tools/mysql-replica-testing](https://github.com/anilyagiz/automdm/tree/main/tools/mysql-replica-testing). This will create a new primary/secondary database for testing delay issues and will not affect your existing database.
 
 
 ## Redis REPL
@@ -371,7 +371,7 @@ docker-compose exec redis redis-cli
 
 For end-to-end testing including advanced use cases (e.g. SCIM), [Okta](https://developer.okta.com/signup/) has an Integrator Free Plan available that you can develop against.
 
-For simpler use cases, Fleet's `docker-compose` file includes a SAML identity provider (IdP) for testing SAML-based SSO locally.
+For simpler use cases, AutoMDM's `docker-compose` file includes a SAML identity provider (IdP) for testing SAML-based SSO locally.
 
 ### Configuration
 
@@ -400,15 +400,15 @@ Email: sso_user_3_global_admin@example.com
 Password: user123#
 Display name: SSO User 3
 
-# sso_user_4_fleet_maintainer is automatically added as maintainer of Fleet with ID = 1.
-# If a fleet with ID 1 doesn't exist then the login with this user will fail.
-Username: sso_user_4_fleet_maintainer
-Email: sso_user_4_fleet_maintainer@example.com
+# sso_user_4_team_maintainer is automatically added as maintainer of AutoMDM with ID = 1.
+# If an automdm with ID 1 doesn't exist then the login with this user will fail.
+Username: sso_user_4_team_maintainer
+Email: sso_user_4_team_maintainer@example.com
 Password: user123#
 Display name: SSO User 4
 
-Username: sso_user_5_fleet_admin
-Email: sso_user_5_fleet_admin@example.com
+Username: sso_user_5_team_admin
+Email: sso_user_5_team_admin@example.com
 Password: user123#
 Display name: SSO User 5
 
@@ -422,15 +422,15 @@ Email: sso_user_no_displayname@example.com
 Password: user123#
 ```
 
-Use the Fleet UI to invite one of these users with the associated email. Be sure the "Enable single sign-on" box is checked for that user. Now, after accepting the invitation, you should be able to log in as that user by clicking "Sign on with SimpleSAML" on the login page.
+Use the AutoMDM UI to invite one of these users with the associated email. Be sure the "Enable single sign-on" box is checked for that user. Now, after accepting the invitation, you should be able to log in as that user by clicking "Sign on with SimpleSAML" on the login page.
 
-To add additional users, modify [tools/saml/users.php](https://github.com/fleetdm/fleet/tree/main/tools/saml/users.php) and restart the `simplesaml` container.
+To add additional users, modify [tools/saml/users.php](https://github.com/anilyagiz/automdm/tree/main/tools/saml/users.php) and restart the `simplesaml` container.
 
 ### Testing IdP initiated login
 
 To test the "IdP initiated flow" with SimpleSAML you can visit the following URL on your browser:
 http://127.0.0.1:9080/simplesaml/saml2/idp/SSOService.php?spentityid=sso.test.com
-After login, SimpleSAML should redirect the user to Fleet.
+After login, SimpleSAML should redirect the user to AutoMDM.
 
 <meta name="pageOrderInSection" value="200">
 
@@ -442,16 +442,16 @@ The SimpleSAML identity provider can also be used to test IdP authentication dur
 
 To test devices on the same network, the easiest method is:
 
-1. Start your local Fleet instance using the server cert and key from `/tools/osquery`, e.g.
+1. Start your local AutoMDM instance using the server cert and key from `/tools/osquery`, e.g.
 
 ```
-fleet serve --server_cert ./tools/osquery/fleet.crt --server_key ./tools/osquery/fleet.key ...etc...
+automdm serve --server_cert ./tools/osquery/automdm.crt --server_key ./tools/osquery/automdm.key ...etc...
 ```
 
 This allows devices to connect using `host.docker.internal` as the server address.
 
 
-2. Add an entry in the candidate device's `/etc/hosts` (or for Windows, `\WINDOWS\system32\drivers\etc\hosts`) pointing `host.docker.internal` to the IP address of the computer running your Fleet instance.
+2. Add an entry in the candidate device's `/etc/hosts` (or for Windows, `\WINDOWS\system32\drivers\etc\hosts`) pointing `host.docker.internal` to the IP address of the computer running your AutoMDM instance.
 
 3. Configure IdP authentication on the **Integration settings -> Single Sign On -> End Users** page with the following:
 
@@ -461,13 +461,13 @@ Entity ID: mdm.host.docker.internal
 Metadata URL: http://host.docker.internal:9080/simplesaml/saml2/idp/metadata.php
 ```
 
-4. Configure the Fleet server address in **Settings -> Organization settings -> Fleet web address** to:
+4. Configure the AutoMDM server address in **Settings -> Organization settings -> AutoMDM web address** to:
 
 ```
 https://host.docker.internal:8080
 ```
 
-5. Make sure the Orbit running on your host devices uses the same `fleet.crt` certificate and `https://host.docker.internal:8080` as the Fleet address, either by building a package using `--fleet-certificate` and `--fleet-url` or running Orbit from source using those same options.
+5. Make sure the Orbit running on your host devices uses the same `automdm.crt` certificate and `https://host.docker.internal:8080` as the AutoMDM address, either by building a package using `--automdm-certificate` and `--automdm-url` or running Orbit from source using those same options.
 
 
 ## Testing Kinesis logging
@@ -503,7 +503,7 @@ $ awslocal kinesis list-streams
 ```
 Use the following to describe the sample_status stream. 
 
-Note: Check the `StreamARN` value to see your region. If your region is not `us-east-1` you will need to update the command for running `fleet serve` below to match your region. 
+Note: Check the `StreamARN` value to see your region. If your region is not `us-east-1` you will need to update the command for running `automdm serve` below to match your region. 
 ```sh
 $ awslocal kinesis describe-stream --stream-name sample_status
 {
@@ -536,23 +536,23 @@ $ awslocal kinesis describe-stream --stream-name sample_status
 }
 ```
 
-Use the following configuration to run Fleet:
+Use the following configuration to run AutoMDM:
 ```sh
-FLEET_OSQUERY_RESULT_LOG_PLUGIN=kinesis
-FLEET_OSQUERY_STATUS_LOG_PLUGIN=kinesis
-FLEET_KINESIS_REGION=us-east-1
-FLEET_KINESIS_ENDPOINT_URL=http://localhost:4566
-FLEET_KINESIS_ACCESS_KEY_ID=default
-FLEET_KINESIS_SECRET_ACCESS_KEY=default
-FLEET_KINESIS_STATUS_STREAM=sample_status
-FLEET_KINESIS_RESULT_STREAM=sample_result
+AUTOMDM_OSQUERY_RESULT_LOG_PLUGIN=kinesis
+AUTOMDM_OSQUERY_STATUS_LOG_PLUGIN=kinesis
+AUTOMDM_KINESIS_REGION=us-east-1
+AUTOMDM_KINESIS_ENDPOINT_URL=http://localhost:4566
+AUTOMDM_KINESIS_ACCESS_KEY_ID=default
+AUTOMDM_KINESIS_SECRET_ACCESS_KEY=default
+AUTOMDM_KINESIS_STATUS_STREAM=sample_status
+AUTOMDM_KINESIS_RESULT_STREAM=sample_result
 ```
 
-Here's a sample command for running `fleet serve`:
+Here's a sample command for running `automdm serve`:
 ```sh
-make fleet && FLEET_OSQUERY_RESULT_LOG_PLUGIN=kinesis FLEET_OSQUERY_STATUS_LOG_PLUGIN=kinesis FLEET_KINESIS_REGION=us-east-1 FLEET_KINESIS_ENDPOINT_URL=http://localhost:4566 FLEET_KINESIS_ACCESS_KEY_ID=default FLEET_KINESIS_SECRET_ACCESS_KEY=default FLEET_KINESIS_STATUS_STREAM=sample_status FLEET_KINESIS_RESULT_STREAM=sample_result ./build/fleet serve --dev --dev_license --logging_debug
+make automdm && AUTOMDM_OSQUERY_RESULT_LOG_PLUGIN=kinesis AUTOMDM_OSQUERY_STATUS_LOG_PLUGIN=kinesis AUTOMDM_KINESIS_REGION=us-east-1 AUTOMDM_KINESIS_ENDPOINT_URL=http://localhost:4566 AUTOMDM_KINESIS_ACCESS_KEY_ID=default AUTOMDM_KINESIS_SECRET_ACCESS_KEY=default AUTOMDM_KINESIS_STATUS_STREAM=sample_status AUTOMDM_KINESIS_RESULT_STREAM=sample_result ./build/automdm serve --dev --dev_license --logging_debug
 ```
-Fleet will now be relaying "status" and "result" logs from osquery agents to the LocalStack's
+AutoMDM will now be relaying "status" and "result" logs from osquery agents to the LocalStack's
 kinesis.
 
 Let's work on inspecting "status" logs received by Kinesis ("status" logs are easier to verify, to generate "result" logs so you need to configure "schedule queries").
@@ -609,7 +609,7 @@ echo eyJob3N0SWRlbnRpZmllciI6Ijg3OGE2ZWRmLTcxMzEtNGUyOC05NWEyLWQzNDQ5MDVjYWNhYiI
 
 ## Testing Firehose logging
 
-We will configure Fleet to send result and status logs to Firehose directly which will in turn stream them to S3 (`Fleet -> LocalStack Firehose -> LocalStack S3`).
+We will configure AutoMDM to send result and status logs to Firehose directly which will in turn stream them to S3 (`AutoMDM -> LocalStack Firehose -> LocalStack S3`).
 
 Install the `aws` client: `brew install aws-cli`
 Set the following alias to ease interaction with [LocalStack](https://github.com/localstack/localstack):
@@ -712,17 +712,17 @@ awslocal firehose create-delivery-stream --cli-input-json file://$(pwd)/firehose
 
 After applying such configuration, "result" logs will be stored under the `results/` prefix and "status" logs will be stored under `status/` prefix (both on the `s3-firehose` bucket).
 
-Finally, here's the Fleet configuration:
+Finally, here's the AutoMDM configuration:
 ```sh
-FLEET_OSQUERY_RESULT_LOG_PLUGIN=firehose
-FLEET_OSQUERY_STATUS_LOG_PLUGIN=firehose
-FLEET_FIREHOSE_REGION=us-east-1
-FLEET_FIREHOSE_ENDPOINT_URL=http://localhost:4566
-FLEET_FIREHOSE_ACCESS_KEY_ID=default
-FLEET_FIREHOSE_SECRET_ACCESS_KEY=default
-FLEET_FIREHOSE_STS_ASSUME_ROLE_ARN=arn:aws:iam::000000000000:role/super-role
-FLEET_FIREHOSE_RESULT_STREAM=s3-stream-result
-FLEET_FIREHOSE_STATUS_STREAM=s3-stream-status
+AUTOMDM_OSQUERY_RESULT_LOG_PLUGIN=firehose
+AUTOMDM_OSQUERY_STATUS_LOG_PLUGIN=firehose
+AUTOMDM_FIREHOSE_REGION=us-east-1
+AUTOMDM_FIREHOSE_ENDPOINT_URL=http://localhost:4566
+AUTOMDM_FIREHOSE_ACCESS_KEY_ID=default
+AUTOMDM_FIREHOSE_SECRET_ACCESS_KEY=default
+AUTOMDM_FIREHOSE_STS_ASSUME_ROLE_ARN=arn:aws:iam::000000000000:role/super-role
+AUTOMDM_FIREHOSE_RESULT_STREAM=s3-stream-result
+AUTOMDM_FIREHOSE_STATUS_STREAM=s3-stream-status
 ```
 
 You can inspect logs by visiting `http://localhost:4566/s3-firehose` on your browser.
@@ -747,18 +747,18 @@ $ curl -fsSL https://binaries.nats.dev/nats-io/nats-server/v2@latest | sh
 $ ./nats-server
 ```
 
-4. Run Fleet with the following flags:
+4. Run AutoMDM with the following flags:
 
 ```sh
-$ FLEET_ACTIVITY_ENABLE_AUDIT_LOG=true \
-FLEET_ACTIVITY_AUDIT_LOG_PLUGIN=nats \
-FLEET_OSQUERY_RESULT_LOG_PLUGIN=nats \
-FLEET_OSQUERY_STATUS_LOG_PLUGIN=nats \
-FLEET_NATS_SERVER=nats://localhost:4222 \
-FLEET_NATS_STATUS_SUBJECT=osquery_status \
-FLEET_NATS_RESULT_SUBJECT=osquery_result \
-FLEET_NATS_AUDIT_SUBJECT=fleet_audit \
-./build/fleet serve --dev
+$ AUTOMDM_ACTIVITY_ENABLE_AUDIT_LOG=true \
+AUTOMDM_ACTIVITY_AUDIT_LOG_PLUGIN=nats \
+AUTOMDM_OSQUERY_RESULT_LOG_PLUGIN=nats \
+AUTOMDM_OSQUERY_STATUS_LOG_PLUGIN=nats \
+AUTOMDM_NATS_SERVER=nats://localhost:4222 \
+AUTOMDM_NATS_STATUS_SUBJECT=osquery_status \
+AUTOMDM_NATS_RESULT_SUBJECT=osquery_result \
+AUTOMDM_NATS_AUDIT_SUBJECT=automdm_audit \
+./build/automdm serve --dev
 ```
 
 5. Open another terminal and run the following command to subscribe to all subjects.
@@ -818,54 +818,54 @@ $ ./nats-server -config nats-server-config.conf
 
 You should see a log saying `Using configuration file: nats-server-config.conf`.
 
-5. Start Fleet with the following flags:
+5. Start AutoMDM with the following flags:
 
 ```sh
-$ FLEET_ACTIVITY_ENABLE_AUDIT_LOG=true \
-FLEET_ACTIVITY_AUDIT_LOG_PLUGIN=nats \
-FLEET_OSQUERY_RESULT_LOG_PLUGIN=nats \
-FLEET_OSQUERY_STATUS_LOG_PLUGIN=nats \
-FLEET_NATS_SERVER=nats://localhost:4222 \
-FLEET_NATS_STATUS_SUBJECT=osquery_status \
-FLEET_NATS_RESULT_SUBJECT=osquery_result \
-FLEET_NATS_AUDIT_SUBJECT=fleet_audit \
-FLEET_NATS_NKEY_FILE="nkey-cred-file.txt" \
-./build/fleet serve --dev
+$ AUTOMDM_ACTIVITY_ENABLE_AUDIT_LOG=true \
+AUTOMDM_ACTIVITY_AUDIT_LOG_PLUGIN=nats \
+AUTOMDM_OSQUERY_RESULT_LOG_PLUGIN=nats \
+AUTOMDM_OSQUERY_STATUS_LOG_PLUGIN=nats \
+AUTOMDM_NATS_SERVER=nats://localhost:4222 \
+AUTOMDM_NATS_STATUS_SUBJECT=osquery_status \
+AUTOMDM_NATS_RESULT_SUBJECT=osquery_result \
+AUTOMDM_NATS_AUDIT_SUBJECT=automdm_audit \
+AUTOMDM_NATS_NKEY_FILE="nkey-cred-file.txt" \
+./build/automdm serve --dev
 ```
 
 ## Telemetry
 
 You can configure the server to record and report trace data using OpenTelemetry and use a tracing system like [Jaeger](https://www.jaegertracing.io/) to consume this data and inspect the traces locally.
 
-Please refer to [tools/telemetry](https://github.com/fleetdm/fleet/tree/main/tools/telemetry/README.md) for instructions.
+Please refer to [tools/telemetry](https://github.com/anilyagiz/automdm/tree/main/tools/telemetry/README.md) for instructions.
 
-## Fleetd Chrome extension
+## AutoMDMd Chrome extension
 
 ### Debugging the service Worker
 
 View service worker logs in chrome://serviceworker-internals/?devtools (in production), or in chrome://extensions (only during development).
 
-## fleetd-base installers
+## automdmd-base installers
 
-"fleetd-base" installers are pre-built `pkg` and `msi` installers that do not contain hardcoded `--fleet-url` and `--enroll-secret` values.
+"automdmd-base" installers are pre-built `pkg` and `msi` installers that do not contain hardcoded `--automdm-url` and `--enroll-secret` values.
 
-Anyone can build a base installer, but Fleet provides a public repository of signed base installers at:
+Anyone can build a base installer, but AutoMDM provides a public repository of signed base installers at:
 
 - [Production Usage](https://download.fleetdm.com)
 - [Development Usage](https://download-testing.fleetdm.com)
 
-The workflow that builds and releases the installers is defined in `.github/workflows/release-fleetd-base.yml`.
+The workflow that builds and releases the installers is defined in `.github/workflows/release-automdmd-base.yml`.
 
 The base installers are used:
 
-- By Fleet MDM to automatically install `fleetd` when a host enables MDM features.
-- By customers deploying `fleetd` using third-party tools (e.g., Puppet or Chef).
+- By AutoMDM to automatically install `automdmd` when a host enables MDM features.
+- By customers deploying `automdmd` using third-party tools (e.g., Puppet or Chef).
 
-The Fleet server uses the production server by default, but you can change this during development
-using the development flag `FLEET_DEV_DOWNLOAD_FLEETDM_URL`.
+The AutoMDM server uses the production server by default, but you can change this during development
+using the development flag `AUTOMDM_DEV_DOWNLOAD_AUTOMDM_URL`.
 
 
-### Building your own non-signed fleetd-base installer
+### Building your own non-signed automdmd-base installer
 
 Due to historical reasons, each type of installer has its own peculiarities:
 
@@ -875,56 +875,56 @@ Due to historical reasons, each type of installer has its own peculiarities:
 - `msi` installers read configuration values at installation time.
 
 ```sh
-# Build a fleetd-base.pkg installer
-$ fleetctl package --type=pkg --use-system-configuration
+# Build an automdmd-base.pkg installer
+$ automdmctl package --type=pkg --use-system-configuration
 
-# Build a fleetd-base.msi installer, using dummy values to avoid errors
-$ fleetctl package --type=msi --fleet-url=dummy --enroll-secret=dummy
+# Build an automdmd-base.msi installer, using dummy values to avoid errors
+$ automdmctl package --type=msi --automdm-url=dummy --enroll-secret=dummy
 
-# Install a fleetd-base.msi installer
-$ msiexec /i fleetd-base.msi FLEET_URL="<target_url>" FLEET_SECRET="<secret_to_use>"
+# Install an automdmd-base.msi installer
+$ msiexec /i automdmd-base.msi AUTOMDM_URL="<target_url>" AUTOMDM_SECRET="<secret_to_use>"
 ```
 
 **Note:** a non-signed base installer _cannot_ be installed on a macOS host during the ADE MDM enrollment
 flow. Apple requires that applications installed via an `InstallEnterpriseApplication` command be
 signed with a development certificate.
 
-### Building and serving your own signed fleetd-base.pkg installer for macOS
+### Building and serving your own signed automdmd-base.pkg installer for macOS
 
-Only signed fleetd installers can be used during the ADE MDM enrollment flow. If you are
+Only signed automdmd installers can be used during the ADE MDM enrollment flow. If you are
 developing/testing logic that needs to run during that flow, you will need to build and serve a
-signed fleetd-base.pkg installer.
+signed automdmd-base.pkg installer.
 
-You will also need to serve the manifest for the fleetd-base installer. This manifest is used as
-part of the `InstallEnterpriseApplication` command that installs fleetd; it contains a checksum of
-the fleetd-base installer file, as well as the URL at which the MDM protocol can download the actual
+You will also need to serve the manifest for the automdmd-base installer. This manifest is used as
+part of the `InstallEnterpriseApplication` command that installs automdmd; it contains a checksum of
+the automdmd-base installer file, as well as the URL at which the MDM protocol can download the actual
 installer file.
 
 #### Pre-requisites
 
-- An ngrok URL for serving the `fleetd-base.pkg` installer and the manifest `.plist` file
+- An ngrok URL for serving the `automdmd-base.pkg` installer and the manifest `.plist` file
 
-#### Building a signed fleetd-base installer from `edge`
+#### Building a signed automdmd-base installer from `edge`
 
-We have a [GitHub workflow](../../.github/workflows/build-fleetd-base-pkg.yml) that can build a signed
-fleetd-base installer using fleetd components from any of the release channels we support. You'll
-most likely use `edge` since we release fleetd components built from an RC branch to `edge` for
+We have a [GitHub workflow](../../.github/workflows/build-automdmd-base-pkg.yml) that can build a signed
+automdmd-base installer using automdmd components from any of the release channels we support. You'll
+most likely use `edge` since we release automdmd components built from an RC branch to `edge` for
 QA before an official release.
 
 To use the workflow, follow these steps:
 
-1. Trigger the build and codesign fleetd-base.pkg workflow at https://github.com/fleetdm/fleet/actions/workflows/build-fleetd-base-pkg.yml.
+1. Trigger the build and codesign automdmd-base.pkg workflow at https://github.com/anilyagiz/automdm/actions/workflows/build-automdmd-base-pkg.yml.
 2. Click the run workflow drop down and fill in `"edge"` for the first 3 fields. Fill in the ngrok URL
   from the "Pre-requisites" above in the last field.
 3. Click the Run workflow button. This will generate two files:
-  - `fleet-base-manifest.plist`
-  - `fleet-base.pkg`
+  - `automdm-base-manifest.plist`
+  - `automdm-base.pkg`
 4. Download them to your workstation.
 
-#### Building a signed fleetd-base installer from `local TUF` and signing with Apple Developer Account
+#### Building a signed automdmd-base installer from `local TUF` and signing with Apple Developer Account
 
-1. Set up a [local TUF](https://github.com/fleetdm/fleet/blob/main/tools/tuf/test/README.md#run). Include swiftDialog (`SWIFT_DIALOG=1`). Make sure your local TUF is accessible via a public `$LOCAL_TUF_URL`.
-2. Build fleetd base pkg installer from your local TUF service by running the following command after the local TUF repository is generated `fleetctl package --type=pkg --update-roots=$(fleetctl updates roots --path ./test_tuf) --disable-open-folder --debug --update-url=$LOCAL_TUF_URL --enable-scripts --use-system-configuration`.
+1. Set up a [local TUF](https://github.com/anilyagiz/automdm/blob/main/tools/tuf/test/README.md#run). Include swiftDialog (`SWIFT_DIALOG=1`). Make sure your local TUF is accessible via a public `$LOCAL_TUF_URL`.
+2. Build automdmd base pkg installer from your local TUF service by running the following command after the local TUF repository is generated `automdmctl package --type=pkg --update-roots=$(automdmctl updates roots --path ./test_tuf) --disable-open-folder --debug --update-url=$LOCAL_TUF_URL --enable-scripts --use-system-configuration`.
 3. Obtain a `Developer ID Installer Certificate`:
 - Sign in to your Apple Developer account.
 - Navigate to "Certificates, IDs, & Profiles".
@@ -937,13 +937,13 @@ To use the workflow, follow these steps:
 
 `productsign --sign "Developer ID Installer: Your Apple Account Name (serial number)" <path_to_unpacked_files> <path_to_signed_package.pkg>`
 
-Example: `productsign --sign "Developer ID Installer: PezHub (5F863R529J)" fleet-osquery.pkg signed-fleetd.pkg`
+Example: `productsign --sign "Developer ID Installer: PezHub (5F863R529J)" automdm-osquery.pkg signed-automdmd.pkg`
 
-5. Check the signature by running `pkgutil --check-signature signed-fleetd.pkg`
-6. Rename your signed pkg `mv signed-fleetd.pkg fleet-base.pkg`
+5. Check the signature by running `pkgutil --check-signature signed-automdmd.pkg`
+6. Rename your signed pkg `mv signed-automdmd.pkg automdm-base.pkg`
 7. Create the manifest:
 - Get the SHA-256 checksum of your pkg `shasum -a 256 path/to/your.pkg`
-- Create a .plist with your SHA-256 hash and the URL where you plan to host the fleet pkg and save it as `fleetd-base-manifest.plist`
+- Create a .plist with your SHA-256 hash and the URL where you plan to host the team pkg and save it as `automdmd-base-manifest.plist`
 
 Example:
 ```
@@ -964,7 +964,7 @@ Example:
               <string>1234abcd56789</string>
             </array>
             <key>url</key>
-            <string>https://tuf.pezhub.ngrok.app/fleet-base.pkg</string>
+            <string>https://tuf.pezhub.ngrok.app/automdm-base.pkg</string>
           </dict>
         </array>
       </dict>
@@ -973,67 +973,67 @@ Example:
 </plist>
 ```
 
-8. Serve the `fleet-base.pkg` and `fleetd-base-manifest.plist`
+8. Serve the `automdm-base.pkg` and `automdmd-base-manifest.plist`
 
 
-#### Serving the signed fleetd-base.pkg installer
+#### Serving the signed automdmd-base.pkg installer
 
-1. Create a directory named `fleetd-base-dir` and a subdirectory named `stable`. Tip: we have the `$FLEET_REPO_ROOT_DIR/tmp`
+1. Create a directory named `automdmd-base-dir` and a subdirectory named `stable`. Tip: we have the `$AUTOMDM_REPO_ROOT_DIR/tmp`
    directory gitignored, so that's a convenient place to create the directories:
 ```sh
-# From the Fleet repo root dir
-mkdir -p ./tmp/fleetd-base-dir/stable
+# From the AutoMDM repo root dir
+mkdir -p ./tmp/automdmd-base-dir/stable
 ```
-2. Move `fleet-base.pkg` to `./tmp/fleetd-base-dir`.
-3. Move `fleet-base-manifest.plist` to `./tmp/fleetd-base-dir/stable`.
-4. Start up an HTTP file server from the Fleet repo root directory using the [`tools/file-server`](../../tools/file-server/README.md) tool: `go run ./tools/file-server 8085 ./tmp/fleetd-base-dir`
+2. Move `automdm-base.pkg` to `./tmp/automdmd-base-dir`.
+3. Move `automdm-base-manifest.plist` to `./tmp/automdmd-base-dir/stable`.
+4. Start up an HTTP file server from the AutoMDM repo root directory using the [`tools/file-server`](../../tools/file-server/README.md) tool: `go run ./tools/file-server 8085 ./tmp/automdmd-base-dir`
 5. Start your second ngrok tunnel and forward to http://localhost:8085.
 	- Example: `ngrok http --domain=more.pezhub.ngrok.app http://localhost:8085`
-6. Start your fleet server with `FLEET_DEV_DOWNLOAD_FLEETDM_URL` to point to the ngrok URL.
-	- Example: `FLEET_DEV_DOWNLOAD_FLEETDM_URL="https://more.pezhub.ngrok.app"`
+6. Start your automdm server with `AUTOMDM_DEV_DOWNLOAD_AUTOMDM_URL` to point to the ngrok URL.
+	- Example: `AUTOMDM_DEV_DOWNLOAD_AUTOMDM_URL="https://more.pezhub.ngrok.app"`
 7. Enroll your mac with ADE. Tip: You can watch ngrok traffic via the inspect web interface url to ensure the two hosted packages are in the correct place and successfully reached by the host.
 
-### Building and serving your own fleetd-base.msi installer for Windows
+### Building and serving your own automdmd-base.msi installer for Windows
 
 Unlike the ADE Enrollment flow Autopilot does not require a signed installer so you may build a
 signed MSI containing `edge` components or, depending on your needs, build one locally from code on
 a branch you're working on. Step 1 Option A below describes the former and B describes the latter
 
-You will also need to serve the `meta.json` for the fleetd-base.msi installer, creation of which is
+You will also need to serve the `meta.json` for the automdmd-base.msi installer, creation of which is
 described below.
 
-For Autopilot, Azure requires the Fleet server instance to have a proper domain name with some TXT/MX records added (see `/settings/integrations/automatic-enrollment/windows` on your Fleet instance).
-For that reason, currently the only way to test this flow is to use Dogfood or the QA fleet server,
+For Autopilot, Azure requires the AutoMDM server instance to have a proper domain name with some TXT/MX records added (see `/settings/integrations/automatic-enrollment/windows` on your AutoMDM instance).
+For that reason, currently the only way to test this flow is to use Dogfood or the QA automdm server,
 which already have this configured, or to [configure an alternate server for this workflow](../mdm/windows/windows-autopilot.md#setting-up-a-custom-domain-with-ngrok).
 
 #### Pre-requisites
 
-- The URL of your Fleet server
+- The URL of your AutoMDM server
 - An ngrok tunnel URL pointed at your local TUF server. In the examples below this is
-  https://tuf.fleetdm-example.ngrok.app and the TUF server is running on http://localhost:8081
-- An ngrok tunnel URL for serving the `fleetd-base.msi` installer and a properly formatted
+  https://tuf.automdm-example.ngrok.app and the TUF server is running on http://localhost:8081
+- An ngrok tunnel URL for serving the `automdmd-base.msi` installer and a properly formatted
   `meta.json` file under the `stable/` path. In the examples below this is
-  https://installers.fleetdm-example.ngrok.app and the installers are served from http://localhost:8085
-- Perform a deployment with `FLEET_DEV_DOWNLOAD_FLEETDM_URL` set to the "installers" ngrok URL.
+  https://installers.automdm-example.ngrok.app and the installers are served from http://localhost:8085
+- Perform a deployment with `AUTOMDM_DEV_DOWNLOAD_AUTOMDM_URL` set to the "installers" ngrok URL.
 
-#### Step 1 Option A: Building a signed fleetd-base.msi installer from `edge`
+#### Step 1 Option A: Building a signed automdmd-base.msi installer from `edge`
 
-If you want to use a signed installer, we have a [GitHub workflow](../../.github/workflows/build-fleetd-base-msi.yml)
-that can build a signed fleetd-base installer using fleetd components from any of the
-releasechannels we support. You'll most likely use `edge` since we release fleetd components
+If you want to use a signed installer, we have a [GitHub workflow](../../.github/workflows/build-automdmd-base-msi.yml)
+that can build a signed automdmd-base installer using automdmd components from any of the
+releasechannels we support. You'll most likely use `edge` since we release automdmd components
 built from an RC branch to `edge` for QA before an official release.
 
 To use the workflow, follow these steps:
 
-1. Trigger the build and codesign fleetd-base.msi workflow at https://github.com/fleetdm/fleet/actions/workflows/build-fleetd-base-msi.yml.
+1. Trigger the build and codesign automdmd-base.msi workflow at https://github.com/anilyagiz/automdm/actions/workflows/build-automdmd-base-msi.yml.
 2. Click the run workflow drop down and fill in `"edge"` for the first 3 fields. Fill in the ngrok URL
   from the "Pre-requisites" above in the last field.
 3. Click the Run workflow button. This will generate two files:
   - `meta.json`
-  - `fleetd-base.msi`
+  - `automdmd-base.msi`
 4. Download them to your workstation.
 
-#### Step 1 Option B: Building a fleetd-base.msi installer from local components
+#### Step 1 Option B: Building an automdmd-base.msi installer from local components
 
 If you have changes in a branch you want to test you can build an installer locally and serve it.
 
@@ -1041,11 +1041,11 @@ If you have changes in a branch you want to test you can build an installer loca
 ```sh
 #!/bin/bash
 SYSTEMS="windows" \
-MSI_FLEET_URL=https://[your fleet server's name] \
-MSI_TUF_URL=https://tuf.fleetdm-example.ngrok.app \
+MSI_AUTOMDM_URL=https://[your automdm server's name] \
+MSI_TUF_URL=https://tuf.automdm-example.ngrok.app \
 GENERATE_MSI=1 \
 ENROLL_SECRET=[enroll secret] \
-FLEET_DESKTOP=1 \
+AUTOMDM_DESKTOP=1 \
 TUF_PORT=8081 \
 DEBUG=1 \
 ./tools/tuf/test/main.sh
@@ -1053,37 +1053,37 @@ DEBUG=1 \
 2. Create a meta.json with the following contents:
 ```
 {
-  "fleetd_base_msi_url": "[your ngrok "installers" URL]/stable/fleetd-base.msi",
-  "fleetd_base_msi_sha256": "[sha256sum of]"
+  "automdmd_base_msi_url": "[your ngrok "installers" URL]/stable/automdmd-base.msi",
+  "automdmd_base_msi_sha256": "[sha256sum of]"
 }
 ```
-3. Rename the generated fleet-osquery.msi to fleetd-base.msi
+3. Rename the generated automdm-osquery.msi to automdmd-base.msi
 
-#### Serving the fleetd-base.msi installer
+#### Serving the automdmd-base.msi installer
 
-1. Create a directory named `fleetd-base-dir` and a subdirectory named `stable`. Tip: we have the `$FLEET_REPO_ROOT_DIR/tmp`
+1. Create a directory named `automdmd-base-dir` and a subdirectory named `stable`. Tip: we have the `$AUTOMDM_REPO_ROOT_DIR/tmp`
    directory gitignored, so that's a convenient place to create the directories:
 ```sh
-# From the Fleet repo root dir
-mkdir -p ./tmp/fleetd-base-dir/stable
+# From the AutoMDM repo root dir
+mkdir -p ./tmp/automdmd-base-dir/stable
 ```
-2. Move `fleetd-base.msi` to `./tmp/fleetd-base-dir/stable`.
-3. Move `meta.json` to `./tmp/fleetd-base-dir/stable`.
-4. Start up an HTTP file server from the Fleet repo root directory using the [`tools/file-server`](../../tools/file-server/README.md) tool: `go run ./tools/file-server 8085 ./tmp/fleetd-base-dir`
+2. Move `automdmd-base.msi` to `./tmp/automdmd-base-dir/stable`.
+3. Move `meta.json` to `./tmp/automdmd-base-dir/stable`.
+4. Start up an HTTP file server from the AutoMDM repo root directory using the [`tools/file-server`](../../tools/file-server/README.md) tool: `go run ./tools/file-server 8085 ./tmp/automdmd-base-dir`
 5. Start your "installers" ngrok tunnel and forward to http://localhost:8085.
-	- Example: `ngrok http --domain=installers.fleetdm-example.ngrok.app http://localhost:8085`
-6. Start your Fleet server with `FLEET_DEV_DOWNLOAD_FLEETDM_URL` set to the "installers" ngrok URL. For a local dev server:
-	- Example: `FLEET_DEV_DOWNLOAD_FLEETDM_URL="https://installers.fleetdm-example.ngrok.app" ./build/fleet serve --dev`
+	- Example: `ngrok http --domain=installers.automdm-example.ngrok.app http://localhost:8085`
+6. Start your AutoMDM server with `AUTOMDM_DEV_DOWNLOAD_AUTOMDM_URL` set to the "installers" ngrok URL. For a local dev server:
+	- Example: `AUTOMDM_DEV_DOWNLOAD_AUTOMDM_URL="https://installers.automdm-example.ngrok.app" ./build/automdm serve --dev`
 	- For Dogfood/QA deployments using Terraform, set the environment variable on `infrastructure/dogfood/terraform/aws-tf-module/main.tf`.
 	- Note: This variable is only read when dev mode is enabled (`--dev` flag).
 7. Enroll your Windows device with Autopilot. See the [Windows Autopilot guide](../mdm/windows/windows-autopilot.md#enrolling-the-device) for detailed enrollment steps, including prerequisites like custom domain setup and required licenses. Tip: You can watch ngrok traffic via the inspect web interface url to ensure the two hosted packages are in the correct place and successfully reached by the host.
 
 ## AI configuration profile autofill
 
-The autofill configuration profile endpoints call the configuration profile generator on `https://fleetdm.com`. To test against a local or preview website instead, start the server in dev mode with `FLEET_DEV_AI_AUTOFILL_BASE_URL` set to the website's base URL:
+The autofill configuration profile endpoints call the configuration profile generator on `https://automdm.com`. To test against a local or preview website instead, start the server in dev mode with `AUTOMDM_DEV_AI_AUTOFILL_BASE_URL` set to the website's base URL:
 
 ```sh
-FLEET_DEV_AI_AUTOFILL_BASE_URL="http://localhost:2024" ./build/fleet serve --dev
+AUTOMDM_DEV_AI_AUTOFILL_BASE_URL="http://localhost:2024" ./build/automdm serve --dev
 ```
 
 The variable is ignored without `--dev`. Pointing it at an unreachable URL exercises the AI service failure path.
@@ -1099,22 +1099,22 @@ To run your local server with the MDM features enabled, you need to get certific
 
 ### ABM setup
 
-To enable the [DEP](https://github.com/fleetdm/fleet/blob/main/tools/mdm/apple/glossary-and-protocols.md#dep-device-enrollment-program) enrollment flow, the Fleet server needs an encrypted token generated by Apple.
+To enable the [DEP](https://github.com/anilyagiz/automdm/blob/main/tools/mdm/apple/glossary-and-protocols.md#dep-device-enrollment-program) enrollment flow, the AutoMDM server needs an encrypted token generated by Apple.
 
-First ask @lukeheath to create an account for you in [ABM](https://github.com/fleetdm/fleet/blob/main/tools/mdm/apple/glossary-and-protocols.md#abm-apple-business-manager). You'll need an account to generate an encrypted token.
+First ask @lukeheath to create an account for you in [ABM](https://github.com/anilyagiz/automdm/blob/main/tools/mdm/apple/glossary-and-protocols.md#abm-apple-business-manager). You'll need an account to generate an encrypted token.
 
-Once you have access to ABM, follow [these guided instructions](https://fleetdm.com/docs/using-fleet/mdm-setup#apple-business-manager-abm) to get and upload the encrypted token.
+Once you have access to ABM, follow [these guided instructions](https://automdm.com/docs/using-automdm/mdm-setup#apple-business-manager-abm) to get and upload the encrypted token.
 
 ### APNs and SCEP setup
 
-The server also needs a certificate to identify with Apple's [APNs](https://github.com/fleetdm/fleet/blob/main/tools/mdm/apple/glossary-and-protocols.md#apns-apple-push-notification-service) servers.
+The server also needs a certificate to identify with Apple's [APNs](https://github.com/anilyagiz/automdm/blob/main/tools/mdm/apple/glossary-and-protocols.md#apns-apple-push-notification-service) servers.
 
-To get a certificate and upload it, [these guided instructions](https://fleetdm.com/docs/using-fleet/mdm-macos-setup#apple-push-notification-service-apns).
+To get a certificate and upload it, [these guided instructions](https://automdm.com/docs/using-automdm/mdm-macos-setup#apple-push-notification-service-apns).
 
 Note that:
 
-1. Fleet must be running to generate the token and certificate.
-2. You must be logged in to Fleet as a global admin. See [Building Fleet](./Building-Fleet.md) for details on getting Fleet setup locally.
+1. AutoMDM must be running to generate the token and certificate.
+2. You must be logged in to AutoMDM as a global admin. See [Building AutoMDM](./Building-AutoMDM.md) for details on getting AutoMDM setup locally.
 3. To login into https://identity.apple.com/pushcert you can use your ABM account generated in the previous step.
 4. Save the token and certificate in a safe place.
 
@@ -1134,7 +1134,7 @@ With the software in place, you need to create a VM and install macOS, the steps
 
 
 If you are using VMWare, we've used [this guide](https://travellingtechguy.blog/vmware-dep/) in the
-past, please reach out in [#g-mdm](https://fleetdm.slack.com/archives/C03C41L5YEL) before starting
+past, please reach out in [#g-mdm](https://automdm.slack.com/archives/C03C41L5YEL) before starting
 so you can get the right serial numbers.
 
 If you are using UTM, you can simply click "Create a New Virtual Machine" button with the default
@@ -1144,15 +1144,15 @@ If you are using QEMU for Linux, follow the instruction guide to install a recen
 
 #### Testing manual enrollment
 
-1. Create a fleetd package that you will install on your host machine. You can get this command from the fleet
+1. Create an automdmd package that you will install on your host machine. You can get this command from the team
    UI on the manage hosts page when you click the `add hosts` button. Alternatively, you can run the command:
 
   ```sh
-  ./build/fleetctl package --type=pkg --fleet-desktop --fleet-url=<url-of-fleet-instance> --enroll-secret=<your-fleet-enroll-secret>
+  ./build/automdmctl package --type=pkg --automdm-desktop --automdm-url=<url-of-automdm-instance> --enroll-secret=<your-automdm-enroll-secret>
   ```
 
-2. Install this package on the host. This will add fleet desktop to this machine and from there you
-   can go to the My Device page and see a banner at the top of the UI to enroll in Fleet MDM.
+2. Install this package on the host. This will add automdm desktop to this machine and from there you
+   can go to the My Device page and see a banner at the top of the UI to enroll in AutoMDM.
 
 #### Testing DEP enrollment
 
@@ -1168,19 +1168,19 @@ For rapid iteration during local development, you can use the same configuration
 
 To fully test e2e during DEP enrollment however, you need:
 
-- A local tunnel to your Fleet server (instructions to set your tunnel are in the [running the server](#running-the-server) section)
+- A local tunnel to your AutoMDM server (instructions to set your tunnel are in the [running the server](#running-the-server) section)
 - A local tunnel to your local IdP server (or, optionally create an account in a cloud IdP like Okta)
 
-With an accessible Fleet server and IdP server, you can configure your env:
+With an accessible AutoMDM server and IdP server, you can configure your env:
 
-- If you're going to use the SimpleSAML server that is automatically started in local development, edit [./tools/saml/config.php](https://github.com/fleetdm/fleet/blob/6cfef3d3478f02227677071fe3a62bada77c1139/tools/saml/config.php) and replace `https://localhost:8080` everywhere with the URL of your local tunnel.
+- If you're going to use the SimpleSAML server that is automatically started in local development, edit [./tools/saml/config.php](https://github.com/anilyagiz/automdm/blob/6cfef3d3478f02227677071fe3a62bada77c1139/tools/saml/config.php) and replace `https://localhost:8080` everywhere with the URL of your local tunnel.
 - After saving the file, restart the SimpleSAML service (eg: `docker-compose restart saml_idp`)
 - Finally, edit your app configuration:
 
 ```yaml
 mdm:
   end_user_authentication:
-    entity_id: <your_fleet_tunnel_url>
+    entity_id: <your_team_tunnel_url>
     idp_name: SimpleSAML
     metadata_url: <your_idp_tunnel_url>/simplesaml/saml2/idp/metadata.php
 ```
@@ -1193,24 +1193,24 @@ The next time you go through the DEP flow, you should be prompted to authenticat
 
 A bootstrap package is a `pkg` file that gets automatically installed on hosts when they enroll via ABM/DEP.
 
-The `pkg` file needs to be a signed "distribution package", you can find a dummy file that meets all the requirements [in Drive](https://drive.google.com/file/d/1adwAOTD5G6D4WzWvJeMId6mDhyeFy-lm/view). We have instructions in [the docs](https://fleetdm.com/docs/using-fleet/mdm-macos-setup-experience#bootstrap-package) to upload a new bootstrap package to your Fleet instance.
+The `pkg` file needs to be a signed "distribution package", you can find a dummy file that meets all the requirements [in Drive](https://drive.google.com/file/d/1adwAOTD5G6D4WzWvJeMId6mDhyeFy-lm/view). We have instructions in [the docs](https://automdm.com/docs/using-automdm/mdm-macos-setup-experience#bootstrap-package) to upload a new bootstrap package to your AutoMDM instance.
 
-The dummy package linked above adds a Fleet logo in `/Library/FleetDM/fleet-logo.png`. To verify if the package was installed, you can open that folder and verify that the logo is there.
+The dummy package linked above adds an AutoMDM logo in `/Library/AutoMDM/automdm-logo.png`. To verify if the package was installed, you can open that folder and verify that the logo is there.
 
 ### Puppet module
 
-> The Puppet module is deprecated as of Fleet 4.66. It is maintained for backwards compatibility.
+> The Puppet module is deprecated as of AutoMDM 4.66. It is maintained for backwards compatibility.
 
-Instructions to develop and test the module can be found in the [`CONTRIBUTING.md` file](https://github.com/fleetdm/fleet/blob/main/ee/tools/puppet/fleetdm/CONTRIBUTING.md) that sits alongside the module code.
+Instructions to develop and test the module can be found in the [`CONTRIBUTING.md` file](https://github.com/anilyagiz/automdm/blob/main/ee/tools/puppet/fleetdm/CONTRIBUTING.md) that sits alongside the module code.
 
 ### Testing the end user flow for MDM migrations
 
-The [end user flow](https://fleetdm.com/docs/using-fleet/mdm-migration-guide#end-user-workflow) requires you to have a webserver running to receive a webhook from the Fleet server and perform an unenrollment.
+The [end user flow](https://automdm.com/docs/using-automdm/mdm-migration-guide#end-user-workflow) requires you to have a webserver running to receive a webhook from the AutoMDM server and perform an unenrollment.
 
-We have a few servers in `tools/mdm/migration` that you can use. Follow the instructions on their README and configure your Fleet server to point to them.
+We have a few servers in `tools/mdm/migration` that you can use. Follow the instructions on their README and configure your AutoMDM server to point to them.
 
 <meta name="pageOrderInSection" value="1500">
-<meta name="description" value="An overview of Fleet's full test suite and integration tests.">
+<meta name="description" value="An overview of AutoMDM's full test suite and integration tests.">
 
 ## Software packages
 
@@ -1219,4 +1219,4 @@ We have a few servers in `tools/mdm/migration` that you can use. Follow the inst
 - macOS: `sudo grep "runner=installer" /var/log/orbit/orbit.stderr.log`.
 - Ubuntu: `sudo grep "runner=installer" /var/log/syslog` (or using `journalctl` if `syslog` is not available).
 - Fedora: `sudo grep "runner=installer" /var/log/messages` (or using `journalctl` if `syslog` is not available).
-- Windows: `grep "runner=installer" C:\Windows\system32\config\systemprofile\AppData\Local\FleetDM\Orbit\Logs\orbit-osquery.log`
+- Windows: `grep "runner=installer" C:\Windows\system32\config\systemprofile\AppData\Local\AutoMDM\Orbit\Logs\orbit-osquery.log`

@@ -21,7 +21,7 @@ import {
 import { pluralize } from "utilities/strings/stringUtils";
 
 const baseClass = "host-report-card";
-const ICON_COLOR: Colors = "ui-fleet-black-75";
+const ICON_COLOR: Colors = "ui-automdm-black-75";
 
 const ACTION_SHOW_DETAILS = "show_details";
 const ACTION_VIEW_ALL_HOSTS = "view_all_hosts";
@@ -136,7 +136,7 @@ const HostReportCard = ({
       return (
         <ReportBanner
           iconName="info"
-          message="Results from this report are not stored in Fleet."
+          message="Results from this report are not stored in AutoMDM."
         />
       );
     }
@@ -145,7 +145,7 @@ const HostReportCard = ({
       return (
         <ReportBanner
           iconName="pending"
-          message={`Fleet is awaiting results from ${hostName}.`}
+          message={`AutoMDM is awaiting results from ${hostName}.`}
         />
       );
     }

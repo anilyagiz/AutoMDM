@@ -254,7 +254,7 @@ export function OsqueryPerfTab({
   }, [refreshConfigs]);
 
   // Live log subscription. Filters in JS rather than the backend so we
-  // share the same `proc:log` channel that fleet serve uses — no new
+  // share the same `proc:log` channel that automdm serve uses — no new
   // event types to maintain.
   //
   // The `cancelled` flag closes the React-18-StrictMode race where the
@@ -336,7 +336,7 @@ export function OsqueryPerfTab({
     configId: string | null,
   ) {
     if (!repoPath) {
-      setError("Set the Fleet repo path in Settings first.");
+      setError("Set the AutoMDM repo path in Settings first.");
       return;
     }
     if (activeCount >= MAX_PERF_RUNS) {
@@ -465,7 +465,7 @@ export function OsqueryPerfTab({
           color: "var(--app-text-dim)",
         }}
       >
-        No Fleet repo configured · open Settings to pick one
+        No AutoMDM repo configured · open Settings to pick one
       </div>
     );
   }
@@ -867,7 +867,7 @@ function RunCard({
 function StatePill({ state }: { state: PerfDisplay }) {
   const map: Record<PerfDisplay, { bg: string; text: string }> = {
     running: {
-      bg: "var(--core-fleet-green)",
+      bg: "var(--core-automdm-green)",
       text: "running",
     },
     starting: {
@@ -882,12 +882,12 @@ function StatePill({ state }: { state: PerfDisplay }) {
   };
   const c = map[state];
   // Yellow needs dark text for legibility in BOTH themes. --ui-on-warning is
-  // a fixed dark that doesn't flip between themes (unlike --core-fleet-black,
-  // which goes near-white in dark mode). The rest use --core-fleet-white which
+  // a fixed dark that doesn't flip between themes (unlike --core-automdm-black,
+  // which goes near-white in dark mode). The rest use --core-automdm-white which
   // is white in light mode and near-black in dark — correct contrast for
   // green / red / gray bgs.
   const fg =
-    state === "starting" ? "var(--ui-on-warning)" : "var(--core-fleet-white)";
+    state === "starting" ? "var(--ui-on-warning)" : "var(--core-automdm-white)";
   return (
     <span
       style={{
@@ -939,9 +939,9 @@ function CommandSummary({ command }: { command: string }) {
           className="mono"
           style={{
             background:
-              "color-mix(in srgb, var(--core-fleet-purple) 10%, transparent)",
+              "color-mix(in srgb, var(--core-automdm-purple) 10%, transparent)",
             border:
-              "1px solid color-mix(in srgb, var(--core-fleet-purple) 50%, transparent)",
+              "1px solid color-mix(in srgb, var(--core-automdm-purple) 50%, transparent)",
             color: "var(--app-text)",
             padding: "0 6px",
             borderRadius: 999,
@@ -1161,7 +1161,7 @@ function ConfigChip({
   // get the same neutral border as any other element; the green
   // border + tint signals "this is the active preset".
   const borderColor = loaded
-    ? "var(--core-fleet-green)"
+    ? "var(--core-automdm-green)"
     : "var(--app-border)";
   const bg = loaded ? "var(--tint-success-soft)" : "transparent";
 
@@ -1228,7 +1228,7 @@ function ConfigChip({
           fontSize: "var(--fs-xx-small)",
           border: `1px solid ${borderColor}`,
           background: bg,
-          color: loaded ? "var(--core-fleet-green)" : "var(--app-text)",
+          color: loaded ? "var(--core-automdm-green)" : "var(--app-text)",
           borderRadius: 999,
           whiteSpace: "nowrap",
           fontWeight: loaded ? 600 : 400,
@@ -1238,7 +1238,7 @@ function ConfigChip({
           aria-hidden
           style={{
             color: loaded
-              ? "var(--core-fleet-green)"
+              ? "var(--core-automdm-green)"
               : "var(--app-text)",
             fontSize: "var(--fs-x-small)",
             lineHeight: 1,
@@ -1454,7 +1454,7 @@ function NewRunPanel({
                 <span
                   className="mono"
                   style={{
-                    color: "var(--core-fleet-green)",
+                    color: "var(--core-automdm-green)",
                     textTransform: "none",
                     letterSpacing: 0,
                     fontWeight: 600,
@@ -1551,7 +1551,7 @@ function NewRunPanel({
       </Field>
 
       <Field
-        label="Fleet URL"
+        label="AutoMDM URL"
         hint="Defaults to https://localhost:8080. Edit if you're pointing at a different server."
       >
         <div style={{ display: "flex", gap: 6 }}>
@@ -1583,7 +1583,7 @@ function NewRunPanel({
               <span
                 style={{
                   fontSize: "var(--fs-xxx-small)",
-                  color: "var(--core-fleet-purple)",
+                  color: "var(--core-automdm-purple)",
                   textTransform: "uppercase",
                   letterSpacing: "0.05em",
                   marginLeft: 4,
@@ -1594,7 +1594,7 @@ function NewRunPanel({
             )}
           </>
         }
-        hint="Use fleetctl get enroll_secret or copy from the Fleet UI (Hosts → Manage enroll secret)."
+        hint="Use automdmctl get enroll_secret or copy from the AutoMDM UI (Hosts → Manage enroll secret)."
       >
         <input
           type="text"
@@ -1647,11 +1647,11 @@ function NewRunPanel({
                 background: n === total ? "var(--tint-success-soft)" : undefined,
                 borderColor:
                   n === total
-                    ? "var(--core-fleet-green)"
+                    ? "var(--core-automdm-green)"
                     : "var(--app-border)",
                 color:
                   n === total
-                    ? "var(--core-fleet-green)"
+                    ? "var(--core-automdm-green)"
                     : "var(--app-text-dim)",
               }}
             >
@@ -1716,7 +1716,7 @@ function NewRunPanel({
                       type="checkbox"
                       checked={selected}
                       onChange={() => toggleOs(t.id)}
-                      style={{ accentColor: "var(--core-fleet-green)" }}
+                      style={{ accentColor: "var(--core-automdm-green)" }}
                     />
                     <span
                       style={{
@@ -1739,9 +1739,9 @@ function NewRunPanel({
                     <span
                       style={{
                         fontSize: "var(--fs-xxx-small)",
-                        color: "var(--core-fleet-purple)",
+                        color: "var(--core-automdm-purple)",
                         padding: "0 5px",
-                        border: "1px solid var(--core-fleet-purple)",
+                        border: "1px solid var(--core-automdm-purple)",
                         borderRadius: 3,
                         textTransform: "uppercase",
                         letterSpacing: "0.05em",
@@ -1921,13 +1921,13 @@ function MdmSection({
                 <span className="mono">
                   go run tools/mdm/assets/main.go export -key=&lt;server_private_key&gt; -dir=&lt;tmp&gt; -name=scep_challenge
                 </span>{" "}
-                in the Fleet repo, then paste the file contents here.
+                in the AutoMDM repo, then paste the file contents here.
                 {appleMdm && (
                   <>
                     {" "}
-                    Fleet only accepts it with static challenges allowed:{" "}
-                    <span className="mono">FLEET_MDM_APPLE_SCEP_STATIC_CHALLENGE_ENABLED=1</span> in Settings →
-                    Fleet server, or <span className="mono">mdm.apple_scep_static_challenge_enabled</span> in its
+                    AutoMDM only accepts it with static challenges allowed:{" "}
+                    <span className="mono">AUTOMDM_MDM_APPLE_SCEP_STATIC_CHALLENGE_ENABLED=1</span> in Settings →
+                    AutoMDM server, or <span className="mono">mdm.apple_scep_static_challenge_enabled</span> in its
                     config. Without it, hosts retry SCEP and never enroll in MDM.
                   </>
                 )}
@@ -1952,7 +1952,7 @@ function MdmSection({
 }
 
 /// The mock APNs URL simulated Apple devices listen on for MDM pushes. The
-/// agent refuses to start Apple MDM hosts without one, and Fleet has to push
+/// agent refuses to start Apple MDM hosts without one, and AutoMDM has to push
 /// to the same mock, so this also reports whether that's set up.
 // MockApnsCard runs the mock APNs that a run's simulated Apple hosts need, for
 // the server the run targets. Start waits until what the mock needs is there:
@@ -1974,7 +1974,7 @@ function MockApnsCard({
   const status = useApnsMockStatus(running ? port : null);
   const repo = settings.servers[0]?.worktree_path ?? "";
   const serveRunning = procs.some(
-    (p) => p.id === procId(server.id, "fleet-serve") && (p.state === "running" || p.state === "stopping"),
+    (p) => p.id === procId(server.id, "automdm-serve") && (p.state === "running" || p.state === "stopping"),
   );
 
   const [pre, setPre] = useState<ApnsMockPreflight | null>(null);
@@ -2002,7 +2002,7 @@ function MockApnsCard({
       needs.push(
         repo
           ? `Server 1's repo (${repo}) has no cmd/apple-apns-mock: check out a newer branch there.`
-          : "Set server 1's Fleet repo in Settings: the mock runs from it.",
+          : "Set server 1's AutoMDM repo in Settings: the mock runs from it.",
       );
     }
     if (!pre.redis_up) {
@@ -2049,9 +2049,9 @@ function MockApnsCard({
             className="primary"
             onClick={() => act(() => startApnsMockFor(server, settings, procs))}
             disabled={busy || !ready}
-            title={ready ? (serveRunning ? `Also restarts fleet serve on ${server.name} so it pushes here` : "") : "See what's missing below"}
+            title={ready ? (serveRunning ? `Also restarts automdm serve on ${server.name} so it pushes here` : "") : "See what's missing below"}
           >
-            {busy ? "Starting…" : serveRunning ? "Start (restarts fleet serve)" : "Start"}
+            {busy ? "Starting…" : serveRunning ? "Start (restarts automdm serve)" : "Start"}
           </button>
         )}
         {log.length > 0 && <button onClick={() => setShowLog((v) => !v)}>{showLog ? "Hide logs" : "Logs"}</button>}
@@ -2087,7 +2087,7 @@ function MockApnsCard({
         <span>
           <span className="mono">127.0.0.1:{server.ports.redis}</span>
           {!running && pre && (
-            <span style={{ color: pre.redis_up ? "var(--core-fleet-green)" : "var(--ui-error)" }}>
+            <span style={{ color: pre.redis_up ? "var(--core-automdm-green)" : "var(--ui-error)" }}>
               {pre.redis_up ? " · answering" : " · not answering"}
             </span>
           )}
@@ -2113,7 +2113,7 @@ function MockApnsCard({
       )}
       {err && <div style={{ color: "var(--ui-error)", ...small }}>{err}</div>}
       <div className="dim" style={small}>
-        While it runs, fleet serve on {server.name} pushes to it instead of Apple, so real Apple devices on{" "}
+        While it runs, automdm serve on {server.name} pushes to it instead of Apple, so real Apple devices on{" "}
         {server.name} get no pushes.
       </div>
     </div>
@@ -2152,13 +2152,13 @@ function ApnsField({
     note = `${server.name} isn't running mock APNs. Start it in Mock APNs at the top of this tab, or enter the URL of a mock you run yourself.`;
   } else {
     tone = "error";
-    note = "The server URL isn't one of Hangar's servers. Enter the mock APNs URL that Fleet server pushes to (its FLEET_DEV_MDM_APPLE_PUSH_SERVER_URL).";
+    note = "The server URL isn't one of Hangar's servers. Enter the mock APNs URL that AutoMDM server pushes to (its AUTOMDM_DEV_MDM_APPLE_PUSH_SERVER_URL).";
   }
   if (apns.serveNeedsRestart && server) {
     tone = tone === "error" ? "error" : "warn";
     note = (
       <>
-        {note} fleet serve on {server.name} isn't pushing to the mock yet: restart it from the Server tab.
+        {note} automdm serve on {server.name} isn't pushing to the mock yet: restart it from the Server tab.
       </>
     );
   }
@@ -2181,7 +2181,7 @@ function ApnsField({
                     ? "var(--ui-warning)"
                     : tone === "neutral"
                       ? "var(--app-text-dim)"
-                      : "var(--core-fleet-green)",
+                      : "var(--core-automdm-green)",
             }}
           >
             {note}
@@ -2328,7 +2328,7 @@ function CommandPreview({ args }: { args: string[] }) {
       {args.map((a, i) => (
         <span key={i}>
           {a.startsWith("--") ? (
-            <span style={{ color: "var(--core-fleet-green)" }}>{a}</span>
+            <span style={{ color: "var(--core-automdm-green)" }}>{a}</span>
           ) : (
             a
           )}
@@ -2415,7 +2415,7 @@ export type ApnsTarget = {
   overridden: boolean;
   /// That server's running mock APNs, or null.
   mockUrl: string | null;
-  /// That server's fleet serve is up and isn't pushing to its running mock.
+  /// That server's automdm serve is up and isn't pushing to its running mock.
   serveNeedsRestart: boolean;
 };
 
@@ -2429,7 +2429,7 @@ export function resolveApnsTarget(
   const serveProc = server
     ? procs.find(
         (p) =>
-          p.id === procId(server.id, "fleet-serve") &&
+          p.id === procId(server.id, "automdm-serve") &&
           (p.state === "running" || p.state === "stopping"),
       )
     : undefined;

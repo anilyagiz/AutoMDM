@@ -1,4 +1,4 @@
-import { IFleetMaintainedVersion } from "interfaces/software";
+import { IAutoMDMMaintainedVersion } from "interfaces/software";
 import { compareVersions } from "utilities/helpers";
 
 /** Radio value meaning "track Latest" (no pin). Sent to the API as an empty
@@ -22,7 +22,7 @@ const majorOf = (version: string): string => version.split(".")[0];
  * to N+1).
  */
 export const deriveVersionOptions = (
-  versions: IFleetMaintainedVersion[]
+  versions: IAutoMDMMaintainedVersion[]
 ): IVersionOption[] => {
   const sorted = [...versions].sort((a, b) =>
     compareVersions(b.version, a.version)

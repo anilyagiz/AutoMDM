@@ -88,7 +88,7 @@ const CalendarEventPreviewModal = ({
                       rel="noreferrer"
                       target="_blank"
                     >
-                      Fleet
+                      AutoMDM
                     </a>{" "}
                     icon in your computer&apos;s menu and select{" "}
                     <b>My device</b>

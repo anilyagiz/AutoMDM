@@ -25,7 +25,7 @@ interface ITestFormProps {
  * This component abstracts away the downloading of the package. It implements this
  * with a browser form that calls the correct url to initiate the package download.
  * We do it this way as this allows us to take advantage of the browsers native
- * downloading UI instead of having to handle this in the Fleet UI.
+ * downloading UI instead of having to handle this in the AutoMDM UI.
  * TODO: make common component and use here and in DownloadInstallers.tsx.
  */
 const DownloadPackageButton = ({ url, token, className }: ITestFormProps) => {

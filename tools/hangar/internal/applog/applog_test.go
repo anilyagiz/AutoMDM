@@ -250,11 +250,11 @@ func TestHeartbeatIncludesRegisteredStats(t *testing.T) {
 	s := Setup(dir)
 	defer s.Close("test")
 
-	s.SetStats(func() []any { return []any{"running_procs", "fleet-serve-s1,ngrok"} })
+	s.SetStats(func() []any { return []any{"running_procs", "automdm-serve-s1,ngrok"} })
 	s.heartbeat()
 
 	body := readLog(t, dir)
-	for _, want := range []string{"heartbeat", "goroutines=", "running_procs=fleet-serve-s1,ngrok"} {
+	for _, want := range []string{"heartbeat", "goroutines=", "running_procs=automdm-serve-s1,ngrok"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("missing %q in the heartbeat:\n%s", want, body)
 		}

@@ -12,11 +12,11 @@ columns:
   - name: device_auth_token
     type: text
     required: false
-    description: Current Fleet Desktop token in the instance.
+    description: Current AutoMDM Desktop token in the instance.
   - name: enrolled
     type: text
     required: false
-    description: Returns whether the Orbit instance is enrolled to Fleet (true/false).
+    description: Returns whether the Orbit instance is enrolled to AutoMDM (true/false).
   - name: last_recorded_error
     type: text
     required: false
@@ -32,11 +32,11 @@ columns:
   - name: desktop_channel
     type: text
     required: false
-    description: The Update Framework update channel used for the Fleet Desktop executable.
+    description: The Update Framework update channel used for the AutoMDM Desktop executable.
   - name: desktop_version
     type: text
     required: false
-    description: The version of the fleet-desktop instance. Blank if fleet-desktop is not installed.
+    description: The version of the automdm-desktop instance. Blank if automdm-desktop is not installed.
   - name: uptime
     type: bigint
     required: false
@@ -49,5 +49,5 @@ columns:
     type: text
     required: false
     description: The Update Framework server URL.
-notes: This table is not a core osquery table. It is included as part of Fleet's agent ([fleetd](https://fleetdm.com/docs/get-started/anatomy#fleetd)).
+notes: This table is not a core osquery table. It is included as part of AutoMDM's agent ([automdmd](https://automdm.com/docs/get-started/anatomy#automdmd)).
 evented: false

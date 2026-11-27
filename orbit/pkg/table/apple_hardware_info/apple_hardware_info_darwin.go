@@ -6,7 +6,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	osqclient "github.com/osquery/osquery-go"
 	"github.com/osquery/osquery-go/plugin/table"
 )
@@ -38,7 +38,7 @@ func Generate(ctx context.Context, _ table.QueryContext, socket string) ([]map[s
 
 	// Return an empty marketing_name when there's no mapping entry so a missing
 	// mapping can be told apart from the raw model identifier.
-	name := fleet.AppleHardwareModelsToMarketingNames[model]
+	name := automdm.AppleHardwareModelsToMarketingNames[model]
 
 	return []map[string]string{{
 		"marketing_name": name,

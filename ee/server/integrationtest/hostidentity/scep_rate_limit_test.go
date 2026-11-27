@@ -15,19 +15,19 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	scepclient "github.com/fleetdm/fleet/v4/server/mdm/scep/client"
-	"github.com/fleetdm/fleet/v4/server/mdm/scep/enrollment"
-	scepserver "github.com/fleetdm/fleet/v4/server/mdm/scep/server"
-	"github.com/fleetdm/fleet/v4/server/mdm/scep/x509util"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	scepclient "github.com/anilyagiz/automdm/v4/server/mdm/scep/client"
+	"github.com/anilyagiz/automdm/v4/server/mdm/scep/enrollment"
+	scepserver "github.com/anilyagiz/automdm/v4/server/mdm/scep/server"
+	"github.com/anilyagiz/automdm/v4/server/mdm/scep/x509util"
 	"github.com/stretchr/testify/require"
 )
 
 func TestSCEPRateLimit(t *testing.T) {
 	// Set up suite with rate limiting configuration
 	cooldown := 5 * time.Minute
-	s := SetUpSuiteWithConfig(t, "integrationtest.HostIdentitySCEPRateLimit", false, func(cfg *config.FleetConfig) {
+	s := SetUpSuiteWithConfig(t, "integrationtest.HostIdentitySCEPRateLimit", false, func(cfg *config.AutoMDMConfig) {
 		cfg.Osquery.EnrollCooldown = cooldown
 	})
 
@@ -55,7 +55,7 @@ func TestSCEPRateLimit(t *testing.T) {
 	})
 }
 
-// requestSCEPCertificate enrolls hostIdentifier with Fleet's host identity SCEP server. A rate
+// requestSCEPCertificate enrolls hostIdentifier with AutoMDM's host identity SCEP server. A rate
 // limited request fails with a scepserver.ResponseStatusError of 429.
 func requestSCEPCertificate(t *testing.T, s *Suite, hostIdentifier string) (*x509.Certificate, error) {
 	t.Helper()
@@ -78,7 +78,7 @@ func requestSCEPCertificate(t *testing.T, s *Suite, hostIdentifier string) (*x50
 	require.NoError(t, err)
 
 	timeout := 30 * time.Second
-	scepClient, err := scepclient.New(s.Server.URL+"/api/fleet/orbit/host_identity/scep", s.Logger, scepclient.WithTimeout(&timeout))
+	scepClient, err := scepclient.New(s.Server.URL+"/api/automdm/orbit/host_identity/scep", s.Logger, scepclient.WithTimeout(&timeout))
 	require.NoError(t, err)
 	caCerts, err := enrollment.FetchCACerts(ctx, scepClient)
 	require.NoError(t, err)

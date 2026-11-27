@@ -13,7 +13,7 @@ func init() {
 }
 
 // Up_20261118195416 rewrites "No team", in any letter case, in the stored Apple Business assignments to the empty string that
-// unassigned saves as. Fleet 5 rejects "No team", and GET /config and generate-gitops would hand it back. Old key names are covered too,
+// unassigned saves as. AutoMDM 5 rejects "No team", and GET /config and generate-gitops would hand it back. Old key names are covered too,
 // in case the key renames have not run yet.
 func Up_20261118195416(tx *sql.Tx) error {
 	var raw []byte
@@ -34,7 +34,7 @@ func Up_20261118195416(tx *sql.Tx) error {
 		entries, _ := appConfig.MDM[listKey].([]any)
 		for i, e := range entries {
 			entry, _ := e.(map[string]any)
-			for _, nameKey := range []string{"macos_team", "ios_team", "ipados_team", "byod_team", "macos_fleet", "ios_fleet", "ipados_fleet", "byod_fleet"} {
+			for _, nameKey := range []string{"macos_team", "ios_team", "ipados_team", "byod_team", "macos_team", "ios_team", "ipados_team", "byod_team"} {
 				if name, _ := entry[nameKey].(string); !strings.EqualFold(name, "No team") {
 					continue
 				}

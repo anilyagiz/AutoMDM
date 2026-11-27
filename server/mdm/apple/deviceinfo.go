@@ -43,10 +43,10 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"github.com/fleetdm/fleet/v4/server/dev_mode"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/apple/rootcert"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/cryptoutil"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/dev_mode"
+	"github.com/anilyagiz/automdm/v4/server/mdm/apple/rootcert"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/cryptoutil"
 	"github.com/micromdm/plist"
 	"github.com/smallstep/pkcs7"
 )
@@ -404,9 +404,9 @@ func verifyChainToDeviceCA(leaf *x509.Certificate, bag []*x509.Certificate, devi
 
 // ParseDeviceinfo attempts to parse the provided string, assuming it to be the base64-encoded value
 // of an x-apple-aspen-deviceinfo header. If successful, it returns the parsed
-// *fleet.MDMAppleMachineInfo along with the containing PKCS7 payload, which callers on
+// *automdm.MDMAppleMachineInfo along with the containing PKCS7 payload, which callers on
 // Apple-signed enrollment lanes must pass to VerifyMachineInfoSignature.
-func ParseDeviceinfo(b64 string) (*fleet.MDMAppleMachineInfo, *pkcs7.PKCS7, error) {
+func ParseDeviceinfo(b64 string) (*automdm.MDMAppleMachineInfo, *pkcs7.PKCS7, error) {
 	// Rejects oversized input without decoding it. Padding lets up to two bytes
 	// over the limit share its encoded length, so the decoded length is checked
 	// too.
@@ -432,7 +432,7 @@ func ParseDeviceinfo(b64 string) (*fleet.MDMAppleMachineInfo, *pkcs7.PKCS7, erro
 
 // ParseMachineInfoFromPKCS7 parses a MachineInfo plist from a PKCS7 payload without verifying
 // its signature. Callers must pass the returned PKCS7 payload to VerifyMachineInfoSignature.
-func ParseMachineInfoFromPKCS7(buf []byte) (info *fleet.MDMAppleMachineInfo, p7 *pkcs7.PKCS7, err error) {
+func ParseMachineInfoFromPKCS7(buf []byte) (info *automdm.MDMAppleMachineInfo, p7 *pkcs7.PKCS7, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("panic while parsing PKCS7: %v", r)
@@ -447,7 +447,7 @@ func ParseMachineInfoFromPKCS7(buf []byte) (info *fleet.MDMAppleMachineInfo, p7 
 		return nil, nil, fmt.Errorf("could not decode pkcs7: %w", err)
 	}
 
-	info = new(fleet.MDMAppleMachineInfo)
+	info = new(automdm.MDMAppleMachineInfo)
 	if err = plist.Unmarshal(p7.Content, info); err != nil {
 		return nil, nil, fmt.Errorf("could not decode plist: %w", err)
 	}
@@ -460,7 +460,7 @@ func ParseMachineInfoFromPKCS7(buf []byte) (info *fleet.MDMAppleMachineInfo, p7 
 //
 // NOTE: most of this code was taken from micromdm.
 func VerifyFromAppleIphoneDeviceCA(c *x509.Certificate) error {
-	if dev_mode.Env("FLEET_DEV_MDM_APPLE_DISABLE_DEVICE_INFO_CERT_VERIFY") == "1" {
+	if dev_mode.Env("AUTOMDM_DEV_MDM_APPLE_DISABLE_DEVICE_INFO_CERT_VERIFY") == "1" {
 		return nil
 	}
 

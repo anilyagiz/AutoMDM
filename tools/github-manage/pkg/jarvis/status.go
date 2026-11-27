@@ -9,7 +9,7 @@ import (
 // Status intents jarvis writes. Each is an ordered list of candidate substrings
 // matched case-insensitively against the board's actual Status options (which
 // carry emoji/wording variations), so the first that exists on the board wins.
-// Fleet boards use "🐥 Ready for review" rather than "In review", so that's tried
+// AutoMDM boards use "🐥 Ready for review" rather than "In review", so that's tried
 // first; "in review" is a fallback for boards that name it that way.
 var (
 	statusInProgress = []string{"in progress"}

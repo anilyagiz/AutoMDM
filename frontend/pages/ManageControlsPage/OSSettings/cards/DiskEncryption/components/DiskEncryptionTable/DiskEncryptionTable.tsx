@@ -34,7 +34,7 @@ const PLATFORM_TO_OSQUERY_PLATFORM = {
 interface IDiskEncryptionTableProps {
   platform: keyof IDiskEncryptionStatusAggregate;
   currentTeamId?: number;
-  /** macOS enforce-on/escrow-off: hosts never send Fleet a key, so status
+  /** macOS enforce-on/escrow-off: hosts never send AutoMDM a key, so status
    * tooltips drop the key phrasing. */
   isMacOSEnforceOnly?: boolean;
   router: InjectedRouter;
@@ -65,8 +65,8 @@ const DiskEncryptionTable = ({
     }
   );
 
-  // builtin labels are global, so the summary is fetched without a fleet
-  // (Free tier rejects fleet-scoped summaries)
+  // builtin labels are global, so the summary is fetched without a team
+  // (Free tier rejects team-scoped summaries)
   const { data: labels } = useQuery<
     ILabelsSummaryResponse,
     Error,
@@ -83,7 +83,7 @@ const DiskEncryptionTable = ({
 
       const queryParams = {
         [HOSTS_QUERY_PARAMS.DISK_ENCRYPTION]: status?.value,
-        fleet_id: teamId,
+        team_id: teamId,
       };
       // fall back to the unfiltered hosts page when the platform label hasn't
       // loaded or is missing, rather than dropping the click

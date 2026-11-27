@@ -61,15 +61,15 @@ const rowCount = () => screen.getAllByRole("row").length - 1;
 
 describe("Controls card", () => {
   describe("Resend while verifying", () => {
-    const verifyingFleetd = control({
-      profile_uuid: "a-fleetd",
-      name: "Fleetd configuration",
+    const verifyingAutoMDMd = control({
+      profile_uuid: "a-automdmd",
+      name: "AutoMDMd configuration",
       status: "verifying",
     });
 
-    it("offers Resend on the Fleetd configuration profile when one-time enroll secrets are on", () => {
+    it("offers Resend on the AutoMDMd configuration profile when one-time enroll secrets are on", () => {
       renderControls(
-        { controls: [verifyingFleetd] },
+        { controls: [verifyingAutoMDMd] },
         { oneTimeEnrollSecrets: true }
       );
       expect(
@@ -78,13 +78,13 @@ describe("Controls card", () => {
     });
 
     it("disables it when one-time enroll secrets are off", () => {
-      renderControls({ controls: [verifyingFleetd] });
+      renderControls({ controls: [verifyingAutoMDMd] });
       expect(screen.getByRole("button", { name: "Resend" })).toBeDisabled();
     });
 
     it("disables it to the end user", () => {
       renderControls(
-        { controls: [verifyingFleetd], isDeviceUser: true },
+        { controls: [verifyingAutoMDMd], isDeviceUser: true },
         { oneTimeEnrollSecrets: true }
       );
       expect(screen.getByRole("button", { name: "Resend" })).toBeDisabled();
@@ -234,7 +234,7 @@ describe("Controls card", () => {
     );
 
     expect(screen.getByText(/applied/, { selector: "span" })).toHaveTextContent(
-      "Anna's MacBook Pro applied Okta Verify settings. Fleet verified."
+      "Anna's MacBook Pro applied Okta Verify settings. AutoMDM verified."
     );
   });
 
@@ -260,7 +260,7 @@ describe("Controls card", () => {
 
   describe("empty state", () => {
     it("offers a link to the Controls page when the user can reach it", () => {
-      renderControls({ canAddControls: true, isConnectedToFleetMdm: true });
+      renderControls({ canAddControls: true, isConnectedToAutoMDMMdm: true });
 
       expect(screen.getByText("No controls")).toBeInTheDocument();
       expect(
@@ -272,7 +272,7 @@ describe("Controls card", () => {
     });
 
     it("hides the link for a user who can't reach the Controls page", () => {
-      renderControls({ canAddControls: false, isConnectedToFleetMdm: true });
+      renderControls({ canAddControls: false, isConnectedToAutoMDMMdm: true });
 
       expect(screen.getByText("No controls")).toBeInTheDocument();
       expect(
@@ -280,31 +280,31 @@ describe("Controls card", () => {
       ).not.toBeInTheDocument();
     });
 
-    // A host Fleet has no MDM connection to can't receive controls at all, so
+    // A host AutoMDM has no MDM connection to can't receive controls at all, so
     // "none have been added" would point at the wrong problem.
-    describe("a host not connected to Fleet MDM", () => {
-      it("says the host isn't talking to Fleet for MDM features", () => {
-        renderControls({ canAddControls: true, isConnectedToFleetMdm: false });
+    describe("a host not connected to AutoMDM", () => {
+      it("says the host isn't talking to AutoMDM for MDM features", () => {
+        renderControls({ canAddControls: true, isConnectedToAutoMDMMdm: false });
 
         expect(
           screen.getByText(
-            "No controls available. This host isn't talking to Fleet for MDM features."
+            "No controls available. This host isn't talking to AutoMDM for MDM features."
           )
         ).toBeInTheDocument();
       });
 
-      it("says the device isn't talking to Fleet for MDM features on My device", () => {
-        renderControls({ isDeviceUser: true, isConnectedToFleetMdm: false });
+      it("says the device isn't talking to AutoMDM for MDM features on My device", () => {
+        renderControls({ isDeviceUser: true, isConnectedToAutoMDMMdm: false });
 
         expect(
           screen.getByText(
-            "No controls available. Your device isn't talking to Fleet for MDM features."
+            "No controls available. Your device isn't talking to AutoMDM for MDM features."
           )
         ).toBeInTheDocument();
       });
 
       it("hides the Add controls link, which wouldn't fix anything", () => {
-        renderControls({ canAddControls: true, isConnectedToFleetMdm: false });
+        renderControls({ canAddControls: true, isConnectedToAutoMDMMdm: false });
 
         expect(
           screen.queryByRole("button", { name: "Add controls" })
@@ -313,15 +313,15 @@ describe("Controls card", () => {
     });
 
     it.each([
-      ["a fleet", 3, "fleet_id=3"],
-      // A no-team host reports fleet_id: null. Dropping the param entirely
-      // would land the user on whatever fleet they were last viewing.
-      ["no team", null, "fleet_id=0"],
+      ["a team", 3, "team_id=3"],
+      // A no-team host reports team_id: null. Dropping the param entirely
+      // would land the user on whatever team they were last viewing.
+      ["no team", null, "team_id=0"],
     ])("links to the Controls page for %s", (_label, teamId, expected) => {
       const router = createMockRouter();
       const { user } = renderControls({
         canAddControls: true,
-        isConnectedToFleetMdm: true,
+        isConnectedToAutoMDMMdm: true,
         teamId,
         router,
       });
@@ -339,7 +339,7 @@ describe("Controls card", () => {
       renderControls({
         isDeviceUser: true,
         canAddControls: true,
-        isConnectedToFleetMdm: true,
+        isConnectedToAutoMDMMdm: true,
       });
 
       expect(
@@ -602,7 +602,7 @@ describe("Controls card", () => {
       )
     ).toBeInTheDocument();
   });
-  it("hides the hidden profile toggle on fleet free", async () => {
+  it("hides the hidden profile toggle on automdm free", async () => {
     renderControls({
       isDeviceUser: true,
       isPremiumTier: false,

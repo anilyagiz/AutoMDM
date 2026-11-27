@@ -2,7 +2,7 @@ import React from "react";
 
 import CustomLink from "components/CustomLink";
 import { getErrorReason } from "interfaces/errors";
-import { FLEET_GUIDES_BASE_LINK } from "utilities/constants";
+import { AUTOMDM_GUIDES_BASE_LINK } from "utilities/constants";
 
 const DEFAULT_ERROR_MESSAGE = "Unable to update Windows MDM. Please try again.";
 
@@ -14,10 +14,10 @@ export const getErrorMessage = (err: unknown) => {
   if (message) {
     return (
       <>
-        Couldn&apos;t turn on Windows MDM. Please configure Fleet with a
+        Couldn&apos;t turn on Windows MDM. Please configure AutoMDM with a
         certificate and key pair first.{" "}
         <CustomLink
-          url={`${FLEET_GUIDES_BASE_LINK}/windows-mdm-setup#step-1-generate-your-certificate-and-key`}
+          url={`${AUTOMDM_GUIDES_BASE_LINK}/windows-mdm-setup#step-1-generate-your-certificate-and-key`}
           text="Learn more"
           newTab
           variant="flash-message-link"

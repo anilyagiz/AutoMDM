@@ -17,7 +17,7 @@ a.btn { display: inline-flex; align-items: center; box-sizing: border-box; text-
 .grade.lg { min-width: 36px; height: 36px; font-size: 20px; border-radius: 6px; }
 .big .grade { align-self: center; }
 .delta { font-variant-numeric: tabular-nums; white-space: nowrap; }
-.delta.up { color: var(--core-fleet-green); }
+.delta.up { color: var(--core-automdm-green); }
 .delta.down { color: var(--bad); }
 .delta.none { color: var(--ink-2); }
 .cats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; }
@@ -47,7 +47,7 @@ a.btn { display: inline-flex; align-items: center; box-sizing: border-box; text-
 .pick { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: end; }
 .pick label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--ink-2); }
 .pick input.search { width: 280px; }
-.cmp td.better { color: var(--core-fleet-green); font-weight: 600; }
+.cmp td.better { color: var(--core-automdm-green); font-weight: 600; }
 .cmp td.worse { color: var(--bad); }
 .log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .log li { display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; border-bottom: 1px solid var(--line); color: var(--ink-2); }
@@ -57,7 +57,7 @@ a.btn { display: inline-flex; align-items: center; box-sizing: border-box; text-
 /* Settings editor */
 input.num { font: 400 14px var(--font-ui); color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 4px;
   height: 32px; width: 64px; padding: 0 8px; box-sizing: border-box; font-variant-numeric: tabular-nums; }
-input.num:hover { border-color: var(--ui-fleet-black-50); }
+input.num:hover { border-color: var(--ui-automdm-black-50); }
 input.num:focus-visible { outline: none; border-color: var(--ink); }
 input.num:disabled { background: var(--panel-2); color: var(--ink-2); }
 input.num.letter { width: 48px; }
@@ -227,7 +227,7 @@ const HOSTS = DATA.hosts.map(([id, name, fi, p, mi, ci, oi, di, codes], i) => {
     PRESENT[i * DAYS + d] = any;
   }
   const n = DATA.names;
-  return { id, _id: id, i, name, p, fleet: n.fleets[fi], model: n.models[mi] || "Unknown model", chip: n.chips[ci] || "Unknown CPU",
+  return { id, _id: id, i, name, p, team: n.teams[fi], model: n.models[mi] || "Unknown model", chip: n.chips[ci] || "Unknown CPU",
     os: n.oses[oi] || "", dept: n.depts[di] || "" };
 });
 const BY_ID = new Map(HOSTS.map((h) => [String(h.id), h]));
@@ -257,7 +257,7 @@ function computeAll(cfg) {
   const tmp = new Float64Array(C);
   const trend = new Map();
   for (const h of HOSTS) {
-    const key = `${h.fleet}|${h.p}`;
+    const key = `${h.team}|${h.p}`;
     for (let d = 0; d < DAYS; d++) {
       const at = h.i * DAYS + d;
       if (!PRESENT[at]) continue;
@@ -383,15 +383,15 @@ function hostCell(x) {
 const pluralComputers = (n) => fmt.plural(n, "computer");
 
 // ---- views ----
-let VIEW = { kind: "fleet" };
+let VIEW = { kind: "team" };
 let CAT_SEL = store.get("dex-exp-cat") || "";
-let COHORT = store.get("dex-exp-cohort") || "fleet";
+let COHORT = store.get("dex-exp-cohort") || "team";
 let GRADE_SEL = new Set();
 let QUERY = "";
 
 function route() {
   const m = location.hash.match(/^#(host|compare)=(.*)$/);
-  VIEW = m ? { kind: m[1], arg: decodeURIComponent(m[2]) } : location.hash === "#scoring" ? { kind: "scoring" } : { kind: "fleet" };
+  VIEW = m ? { kind: m[1], arg: decodeURIComponent(m[2]) } : location.hash === "#scoring" ? { kind: "scoring" } : { kind: "team" };
   // Opening the settings without changing anything leaves no draft behind.
   if (VIEW.kind !== "scoring" && DRAFT && !draftDirty()) setDraft(null);
   render();
@@ -399,7 +399,7 @@ function route() {
 }
 
 function selectedNow() {
-  return HOSTS.filter((h) => PRESENT[h.i * DAYS + TODAY] && inFleet(h.fleet) && inPlatform(h.p));
+  return HOSTS.filter((h) => PRESENT[h.i * DAYS + TODAY] && inTeam(h.team) && inPlatform(h.p));
 }
 
 function render() {
@@ -408,7 +408,7 @@ function render() {
   if (VIEW.kind === "host") return renderHost(BY_ID.get(VIEW.arg));
   if (VIEW.kind === "compare") return renderCompare(VIEW.arg);
   if (VIEW.kind === "scoring") return renderScoring();
-  return renderFleet();
+  return renderAutoMDM();
 }
 
 function renderPreview() {
@@ -425,8 +425,8 @@ function titleRow(title, subtitle, tools, back) {
     tools ? h("div", { class: "title-tools" }, tools) : null);
 }
 
-// ---- fleet view ----
-function renderFleet() {
+// ---- team view ----
+function renderAutoMDM() {
   const cfg = active();
   titleRow("Experience score",
     "One score from 0 to 100 for each computer, built from every dashboard: performance, hardware, security, and software. Admins choose what counts and how much.",
@@ -562,14 +562,14 @@ function pointsLegend(cfg) {
 }
 
 const COHORTS = [
-  ["fleet", "Fleet", (x) => x.fleet], ["platform", "Platform", (x) => platformLabel(x.p)], ["model", "Model", (x) => x.model],
+  ["team", "AutoMDM", (x) => x.team], ["platform", "Platform", (x) => platformLabel(x.p)], ["model", "Model", (x) => x.model],
   ["chip", "CPU", (x) => x.chip], ["ram", "Memory", (x) => valueLabel(SIGS[SIDX.ram], code(x, TODAY, "ram"))],
   ["os", "OS", (x) => x.os || "Unknown"], ["dept", "Department", (x) => x.dept || "No department"],
 ];
 function cohortSection(cfg, sc) {
   const hasDept = HOSTS.some((x) => x.dept);
   const list = COHORTS.filter(([k]) => k !== "dept" || hasDept);
-  if (!list.some(([k]) => k === COHORT)) COHORT = "fleet";
+  if (!list.some(([k]) => k === COHORT)) COHORT = "team";
   const [, label, key] = list.find(([k]) => k === COHORT);
   const groups = new Map();
   for (const x of sc) {
@@ -651,7 +651,7 @@ function hostsSection(cfg, now) {
     { key: "weak", label: "Lowest category", value: (r) => (r.weakest ? r.weakest[1] : null),
       cell: (r) => (r.weakest ? [catLabel(r.weakest[0]), " ", h("span", { class: "cell-sub" }, scoreFmt(r.weakest[1]))] : "---") },
     { key: "issue", label: "Costs the most", value: () => 0, cell: (r) => { const t = r.stale ? null : topIssue(r.x); return t ? h("span", { class: "cell-sub" }, `${t.g.sig.label}: ${valueLabel(t.g.sig, t.v)}`) : "---"; } },
-    { key: "fleet", label: "Fleet", value: (r) => r.x.fleet.toLowerCase(), cell: (r) => h("span", { class: "cell-sub", style: "white-space:nowrap" }, r.x.fleet) },
+    { key: "team", label: "AutoMDM", value: (r) => r.x.team.toLowerCase(), cell: (r) => h("span", { class: "cell-sub", style: "white-space:nowrap" }, r.x.team) },
   ];
   const search = h("input", { class: "search", type: "search", placeholder: "Search computers", "aria-label": "Search computers", value: QUERY });
   search.addEventListener("input", () => { QUERY = search.value.trim().toLowerCase(); const t = document.getElementById("hosts-table-wrap"); if (t) t.replaceChildren(table()); });
@@ -665,8 +665,8 @@ function hostsSection(cfg, now) {
       h("div", { class: "chips" }, gradesAll.map((g) => h("button", { type: "button", class: "chip", style: `--tone:var(--${g === "Not scored" ? "neutral" : gradeTone(g)})`,
         "aria-pressed": GRADE_SEL.has(g) ? "true" : "false", onclick: () => { GRADE_SEL.has(g) ? GRADE_SEL.delete(g) : GRADE_SEL.add(g); render(); } },
         h("i"), g === "Not scored" ? g : `Grade ${g}`, h("b", {}, fmt.n(counts[g]))))),
-      h("span", { style: "display:flex;gap:8px;flex-wrap:wrap" }, search, rows.length ? copyButton("Copy as CSV", () => csv([["host", "fleet", "platform", "score", "grade", "change_7d", "lowest_category", "fleet_url"],
-        ...filtered().map((r) => [r.x.name, r.x.fleet, platformLabel(r.x.p), Number.isFinite(r.s) ? r1(r.s) : "", r.grade || "", Number.isFinite(r.delta) ? r1(r.delta) : "",
+      h("span", { style: "display:flex;gap:8px;flex-wrap:wrap" }, search, rows.length ? copyButton("Copy as CSV", () => csv([["host", "team", "platform", "score", "grade", "change_7d", "lowest_category", "automdm_url"],
+        ...filtered().map((r) => [r.x.name, r.x.team, platformLabel(r.x.p), Number.isFinite(r.s) ? r1(r.s) : "", r.grade || "", Number.isFinite(r.delta) ? r1(r.delta) : "",
           r.weakest ? catLabel(r.weakest[0]) : "", hostUrl(r.x.id)])])) : null)),
     h("div", { id: "hosts-table-wrap" }, table()));
 }
@@ -700,7 +700,7 @@ function methodSection(cfg) {
 function settingsSourceText() {
   if (SAVED_META) return `These settings were saved on this page${SAVED_META.at ? ` on ${fmt.date(SAVED_META.at)}` : ""}.`;
   return { file: "These settings come from the scoring file this dashboard was built with.", page: "These settings were saved on this page.",
-    "built-in": "These are Fleet's default settings." }[DATA.scoring_source] || "";
+    "built-in": "These are AutoMDM's default settings." }[DATA.scoring_source] || "";
 }
 
 // ---- one computer ----
@@ -709,18 +709,18 @@ function renderHost(x) {
   if (!cfg.host_views) return blocked();
   if (!x) {
     titleRow("Computer not found", null, null, true);
-    mount("view", empty("No computer with that ID", "It may have been removed from Fleet, or it hasn't checked in for a long time."));
+    mount("view", empty("No computer with that ID", "It may have been removed from AutoMDM, or it hasn't checked in for a long time."));
     return footer();
   }
   const f = DATA.facts[String(x.id)] || {};
   const st = STALE[x.i * DAYS + TODAY], present = PRESENT[x.i * DAYS + TODAY];
   const s = comp(x), d7 = weekAgo(x);
-  const meta = [x.fleet, platformLabel(x.p), f.model || x.model, f.chip, f.ram ? `${f.ram} GB` : null, f.os ? f.os[0] : x.os, x.dept].filter(Boolean).join(" · ");
-  titleRow(x.name, meta, [h("a", { href: hostUrl(x.id), target: "_blank", rel: "noopener", class: "btn" }, "Open in Fleet"),
+  const meta = [x.team, platformLabel(x.p), f.model || x.model, f.chip, f.ram ? `${f.ram} GB` : null, f.os ? f.os[0] : x.os, x.dept].filter(Boolean).join(" · ");
+  titleRow(x.name, meta, [h("a", { href: hostUrl(x.id), target: "_blank", rel: "noopener", class: "btn" }, "Open in AutoMDM"),
     h("a", { href: `#compare=${x.id}`, class: "btn" }, "Compare with…")], true);
-  const fleetNow = HOSTS.filter((y) => scored(y));
-  const sameModel = fleetNow.filter((y) => y.model === x.model && y !== x);
-  const others = fleetNow.filter((y) => y !== x);
+  const automdmNow = HOSTS.filter((y) => scored(y));
+  const sameModel = automdmNow.filter((y) => y.model === x.model && y !== x);
+  const others = automdmNow.filter((y) => y !== x);
   const share = (group) => pct(group.filter((y) => comp(y) < s).length, group.length);
   const rank = (group, all, some) => { const p = share(group); return p === 0 ? all : `${some} ${fmt.pct(p)}`; };
   const lede = st ? `Not scored: it last checked in ${fmt.ago(f.seen ? (Date.parse(DATA.generated_at) - Date.parse(f.seen)) / 864e5 : null)}.`
@@ -806,13 +806,13 @@ function blocked() {
 }
 
 // ---- compare ----
-const CMP_KINDS = [["host", "Another computer"], ["model", "Same model, average"], ["os", "Same OS, average"], ["fleet", "Whole fleet, average"]];
+const CMP_KINDS = [["host", "Another computer"], ["model", "Same model, average"], ["os", "Same OS, average"], ["team", "Whole fleet, average"]];
 function renderCompare(arg) {
   const cfg = active();
   if (!cfg.host_views) return blocked();
   const [aId = "", bArg = ""] = (arg || "").split(",");
   const a = BY_ID.get(aId);
-  const kind = ["model", "os", "fleet"].includes(bArg) ? bArg : "host";
+  const kind = ["model", "os", "team"].includes(bArg) ? bArg : "host";
   const b = kind === "host" ? BY_ID.get(bArg) : null;
   titleRow("Compare computers", "Two computers side by side, or one against the average of similar computers. Every signal shows its value and points.",
     a ? h("a", { href: hostHref(a), class: "btn" }, `Open ${a.name}`) : null, true);
@@ -833,7 +833,7 @@ function renderCompare(arg) {
     mount("view", h("div", { class: "panel" }, controls), empty("Pick a computer to start", "Type part of its name, then pick it from the list."));
     return footer();
   }
-  const group = kind === "host" ? null : HOSTS.filter((y) => y !== a && scored(y) && (kind === "fleet" || (kind === "model" ? y.model === a.model : y.os === a.os)));
+  const group = kind === "host" ? null : HOSTS.filter((y) => y !== a && scored(y) && (kind === "team" || (kind === "model" ? y.model === a.model : y.os === a.os)));
   if (kind === "host" && !b) {
     mount("view", h("div", { class: "panel" }, controls), empty("Pick a second computer", "Or compare with the average of computers like it."));
     return footer();
@@ -1054,7 +1054,7 @@ function renderScoring() {
         ["Signal", "Weight", "Points"].map((t) => h("th", {}, h("button", { type: "button", tabindex: "-1" }, t))))), h("tbody", {}, rows))));
   });
   const importBox = IMPORT_OPEN ? h("div", { class: "panel" }, h("h3", {}, "Import settings"),
-    h("p", { class: "panel-note", style: "margin:0 0 8px" }, "Paste settings JSON, such as a file you downloaded here. Anything it leaves out, or any value that isn't valid, uses Fleet's default."),
+    h("p", { class: "panel-note", style: "margin:0 0 8px" }, "Paste settings JSON, such as a file you downloaded here. Anything it leaves out, or any value that isn't valid, uses AutoMDM's default."),
     h("textarea", { class: "json", id: "import-json", "aria-label": "Settings JSON" }),
     IMPORT_ERR ? h("p", { class: "err" }, IMPORT_ERR) : null,
     h("div", { class: "btn-row", style: "margin-top:8px" },
@@ -1086,7 +1086,7 @@ function renderEditorButtons() {
   el.replaceChildren(...[
     canSave() ? h("button", { type: "button", class: "btn primary", disabled: !dirty, onclick: saveDraft }, "Save for everyone") : null,
     h("button", { type: "button", class: "btn", disabled: !dirty, onclick: () => { discardDraft(); location.hash = "#"; } }, "Discard changes"),
-    h("button", { type: "button", class: "btn", onclick: () => { setDraft(DATA.builtin); computeAll(active()); renderScoring(); } }, "Reset to Fleet's defaults"),
+    h("button", { type: "button", class: "btn", onclick: () => { setDraft(DATA.builtin); computeAll(active()); renderScoring(); } }, "Reset to AutoMDM's defaults"),
     h("button", { type: "button", class: "btn", onclick: downloadSettings }, "Download settings"),
     copyButton("Copy settings JSON", () => JSON.stringify(mergeScoring(DRAFT || SAVED), null, 2)),
     h("button", { type: "button", class: "btn", onclick: () => { IMPORT_OPEN = true; renderScoring(); } }, "Import settings"),
@@ -1147,7 +1147,7 @@ async function renderLog() {
 }
 
 function footer() {
-  document.getElementById("foot").textContent = `Data from ${DATA.fleet_url.replace(/^https?:\/\//, "")} via the Fleet API, through the other dashboards. Scores computed in your browser with the settings above. Rebuilt daily.`;
+  document.getElementById("foot").textContent = `Data from ${DATA.automdm_url.replace(/^https?:\/\//, "")} via the AutoMDM API, through the other dashboards. Scores computed in your browser with the settings above. Rebuilt daily.`;
 }
 
 async function initStore() {
@@ -1171,14 +1171,14 @@ async function initStore() {
       renderLog();
     }, () => { LOG = []; renderLog(); });
   }
-  if (VIEW.kind === "fleet") render();
+  if (VIEW.kind === "team") render();
 }
 
-const fleets = [...new Set(HOSTS.map((x) => x.fleet))].sort();
+const teams = [...new Set(HOSTS.map((x) => x.team))].sort();
 const platformCounts = {};
 for (const x of HOSTS) if (PRESENT[x.i * DAYS + TODAY]) platformCounts[x.p] = (platformCounts[x.p] || 0) + 1;
 computeAll(active());
-renderTop(fleets, render, platformCounts);
+renderTop(teams, render, platformCounts);
 window.addEventListener("hashchange", route);
 route();
 initStore();

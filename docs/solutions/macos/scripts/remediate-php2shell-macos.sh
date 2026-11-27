@@ -2,12 +2,12 @@
 # remediate-php2shell-macos.sh
 # Update Homebrew PHP for PHP2Shell (CVE-2026-109618, CVE-2026-109619, disclosed 2026-10-21).
 #   1. Runs brew update, then brew upgrade for every installed php or php@X.Y formula, as the
-#      Homebrew owner (Fleet runs scripts as root, and brew refuses to run as root).
+#      Homebrew owner (AutoMDM runs scripts as root, and brew refuses to run as root).
 #   2. Restarts PHP services that launchd manages for Homebrew (php-fpm and httpd), so no
 #      worker keeps the old code.
 #   3. Flags runtimes it can't update: php@8.1 and older (no fix), MAMP, containers.
 # Fixed releases: 8.5.12, 8.4.27, 8.3.36, 8.2.35.
-# Idempotent: safe to re-run. Built for Fleet "Run script" (runs as root).
+# Idempotent: safe to re-run. Built for AutoMDM "Run script" (runs as root).
 # Exit: 0 = updated or nothing to do, 2 = something needs a look (read output), 1 = error.
 # Advisories: https://github.com/php/php-src/security/advisories/GHSA-w8hw-w9fx-j79w
 #             https://github.com/php/php-src/security/advisories/GHSA-6wmf-4rv5-p3rp
@@ -115,7 +115,7 @@ main() {
     pgrep -x php-fpm >/dev/null 2>&1 && log "php-fpm is running: $(pgrep -x php-fpm | head -1 | xargs -I{} sh -c 'ps -o comm= -p {}' 2>/dev/null)"
 
     if [ "$EXIT" -eq 0 ]; then
-        log "DONE: the Fleet policy re-checks formula versions on its next run."
+        log "DONE: the AutoMDM policy re-checks formula versions on its next run."
     else
         log "DONE with warnings (exit 2): read the lines above."
     fi

@@ -113,7 +113,7 @@ const getStatusMessage = (result: ICommandResult): React.ReactNode => {
         <span>
           The <b>{result.request_type}</b> command{namePart} is deferred on{" "}
           <b>{result.hostname}</b> because the host was locked or was running on
-          battery power while in Power Nap. Fleet will try again.
+          battery power while in Power Nap. AutoMDM will try again.
         </span>
       );
 

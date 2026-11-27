@@ -10,7 +10,7 @@
     },
     "note": "qa-54047 post-upgrade calm baseline (4.92.2 RC, dc3a236617) 02:40-02:55 UTC, after the ~11 min catch-up; before post-fix tests"
   },
-  "fleet_server": {
+  "automdm_server": {
     "cpu_utilization": {
       "Average": 30.2,
       "Minimum": 30.17,
@@ -386,7 +386,7 @@
       "data_coverage": 1
     }
   },
-  "fleet_server_errors": {
+  "automdm_server_errors": {
     "error_count": 0.0,
     "sample_messages": []
   },

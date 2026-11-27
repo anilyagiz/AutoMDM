@@ -7,7 +7,7 @@ examples: |-
   ```
   SELECT * FROM firefox_preferences WHERE path IN (SELECT path FROM file WHERE path LIKE '/home/%/.mozilla/firefox/%/prefs.js') AND fullkey = 'network.dns.disablePrefetch' and value = 'true';
   ```
-notes: This table is not a core osquery table. It is included as part of fleetd, the osquery manager from Fleet. Code based on work by [Kolide](https://github.com/kolide/launcher).
+notes: This table is not a core osquery table. It is included as part of automdmd, the osquery manager from AutoMDM. Code based on work by [Kolide](https://github.com/kolide/launcher).
 platforms:
   - darwin
   - linux

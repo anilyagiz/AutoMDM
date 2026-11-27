@@ -20,6 +20,6 @@ notes: |-
   Monitoring the macOS package install history is useful for:
   - Regularly checking for newly installed packages and identifying suspicious software
   - Verifying that only approved packages are installed
-  - Creating a Fleet policy to receive alerts for any unauthorized or vulnerable installations
+  - Creating an AutoMDM policy to receive alerts for any unauthorized or vulnerable installations
   
   Apple’s [installer package documentation](https://developer.apple.com/documentation/xcode/packaging-mac-software-for-distribution)

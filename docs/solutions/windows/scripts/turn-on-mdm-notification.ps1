@@ -1,7 +1,7 @@
 # Encode the script as Base64, so we can use it with a scheduled task
 $encodedCommand = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes(@'
 # Locate the MDM Enrollment Key in the registry
-$enrollmentKey = Get-Item -Path HKLM:\SOFTWARE\Microsoft\Enrollments\* | Get-ItemProperty | Where-Object {$_.ProviderID -eq 'Fleet'} | Where-Object {$_.EnrollmentState -match '1|6|13'}
+$enrollmentKey = Get-Item -Path HKLM:\SOFTWARE\Microsoft\Enrollments\* | Get-ItemProperty | Where-Object {$_.ProviderID -eq 'AutoMDM'} | Where-Object {$_.EnrollmentState -match '1|6|13'}
 
 if($enrollmentKey){
     $isMDMTurnedOn = $true
@@ -17,7 +17,7 @@ if ($isMDMTurnedOn) {
     Unregister-ScheduledTask -TaskName "$taskName" -Confirm:$false
     Start-Sleep -Seconds 10
 } else {
-    $title = "Migrate to Fleet"
+    $title = "Migrate to AutoMDM"
     $message = "Mobile device management is off. MDM allows your organization to change settings and install software.
     
 Turn on MDM by following these steps:
@@ -26,9 +26,9 @@ Close this window, go to Settings and search `"Access work or school`".
     
 Select **Connect** and enter your work email and password.
     
-Open Fleet Desktop (Fleet icon) in your system tray (^) and select **Refetch** on your **My device** page to tell your organization that MDM is on.
+Open AutoMDM Desktop (AutoMDM icon) in your system tray (^) and select **Refetch** on your **My device** page to tell your organization that MDM is on.
     
-This **Migrate to Fleet** window will pop up every 5 minutes until you finish."
+This **Migrate to AutoMDM** window will pop up every 5 minutes until you finish."
     
 # Send the message
 (New-Object -ComObject WScript.Shell).Popup($message, 0, $title, 0)

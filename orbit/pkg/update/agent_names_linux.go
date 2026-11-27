@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/constant"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/constant"
 )
 
 // applyAgentDisplayNames sets the process name that ps -e, top, systemctl status and System Monitor show, and the thread

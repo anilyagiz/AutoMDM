@@ -6,10 +6,10 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/migrations/tables"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/platform/mysql/testing_utils"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/migrations/tables"
+	"github.com/anilyagiz/automdm/v4/server/platform/mysql/testing_utils"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,14 +23,14 @@ func TestMigrationStatus(t *testing.T) {
 
 	status, err := ds.MigrationStatus(context.Background())
 	require.NoError(t, err)
-	assert.EqualValues(t, fleet.NoMigrationsCompleted, status.StatusCode)
+	assert.EqualValues(t, automdm.NoMigrationsCompleted, status.StatusCode)
 	assert.Empty(t, status.MissingTable)
 
 	require.Nil(t, ds.MigrateTables(context.Background()))
 
 	status, err = ds.MigrationStatus(context.Background())
 	require.NoError(t, err)
-	assert.EqualValues(t, fleet.AllMigrationsCompleted, status.StatusCode)
+	assert.EqualValues(t, automdm.AllMigrationsCompleted, status.StatusCode)
 	assert.Empty(t, status.MissingTable)
 
 	// Insert unknown migration.
@@ -38,43 +38,43 @@ func TestMigrationStatus(t *testing.T) {
 	require.NoError(t, err)
 	status, err = ds.MigrationStatus(context.Background())
 	require.NoError(t, err)
-	assert.EqualValues(t, fleet.UnknownMigrations, status.StatusCode)
+	assert.EqualValues(t, automdm.UnknownMigrations, status.StatusCode)
 	_, err = ds.writer(context.Background()).Exec(`DELETE FROM ` + tables.MigrationClient.TableName + ` WHERE version_id = 1638994765`)
 	require.NoError(t, err)
 
 	status, err = ds.MigrationStatus(context.Background())
 	require.NoError(t, err)
-	assert.EqualValues(t, fleet.AllMigrationsCompleted, status.StatusCode)
+	assert.EqualValues(t, automdm.AllMigrationsCompleted, status.StatusCode)
 	assert.Empty(t, status.MissingTable)
 }
 
-func TestMigrationStatusFleet4Upgrade(t *testing.T) {
+func TestMigrationStatusAutoMDM4Upgrade(t *testing.T) {
 	ds := createMySQLDSForMigrationTests(t, t.Name())
 	t.Cleanup(func() {
 		ds.Close()
 	})
 	ctx := t.Context()
 
-	// A Fleet 4.95 database: every Fleet 4 migration applied, no baseline yet.
+	// An AutoMDM 4.95 database: every AutoMDM 4 migration applied, no baseline yet.
 	_, err := tables.MigrationClient.GetDBVersion(ds.primary.DB)
 	require.NoError(t, err)
-	for _, v := range slices.Concat(tables.Fleet4Migrations, tables.Fleet4OptionalMigrations) {
+	for _, v := range slices.Concat(tables.AutoMDM4Migrations, tables.AutoMDM4OptionalMigrations) {
 		_, err := ds.writer(ctx).Exec(`INSERT INTO `+tables.MigrationClient.TableName+` (version_id, is_applied) VALUES (?, 1)`, v)
 		require.NoError(t, err)
 	}
 	status, err := ds.MigrationStatus(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, fleet.SomeMigrationsCompleted, status.StatusCode)
-	fleet5Versions := getVersionsFromMigrations(tables.MigrationClient.Migrations)
-	assert.ElementsMatch(t, fleet5Versions, status.MissingTable)
+	assert.Equal(t, automdm.SomeMigrationsCompleted, status.StatusCode)
+	automdm5Versions := getVersionsFromMigrations(tables.MigrationClient.Migrations)
+	assert.ElementsMatch(t, automdm5Versions, status.MissingTable)
 
-	for _, v := range fleet5Versions {
+	for _, v := range automdm5Versions {
 		_, err = ds.writer(ctx).Exec(`INSERT INTO `+tables.MigrationClient.TableName+` (version_id, is_applied) VALUES (?, 1)`, v)
 		require.NoError(t, err)
 	}
 	status, err = ds.MigrationStatus(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, fleet.AllMigrationsCompleted, status.StatusCode)
+	assert.Equal(t, automdm.AllMigrationsCompleted, status.StatusCode)
 }
 
 func TestMigrations(t *testing.T) {
@@ -89,7 +89,7 @@ func TestMigrations(t *testing.T) {
 	// as Windows). If there's a reason for one of these to have a "platform" set,
 	// please add the exception here.
 	var count int
-	err := sqlx.Get(ds.primary, &count, `SELECT COUNT(*) FROM labels WHERE label_type = ? AND platform != ''`, fleet.LabelTypeBuiltIn)
+	err := sqlx.Get(ds.primary, &count, `SELECT COUNT(*) FROM labels WHERE label_type = ? AND platform != ''`, automdm.LabelTypeBuiltIn)
 	require.NoError(t, err)
 	require.Zero(t, count)
 

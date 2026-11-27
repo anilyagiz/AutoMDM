@@ -6,10 +6,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/fleetdm/fleet/tools/hangar/internal/paths"
+	"github.com/anilyagiz/automdm/tools/hangar/internal/paths"
 )
 
-// RepoProbe is the result of validating a candidate Fleet clone.
+// RepoProbe is the result of validating a candidate AutoMDM clone.
 type RepoProbe struct {
 	Path   string  `json:"path"`
 	Valid  bool    `json:"valid"`
@@ -17,8 +17,8 @@ type RepoProbe struct {
 }
 
 // devRoots are the well-known dev-root parent dirs we scan for clones. Each
-// is searched at depth 2 as well (catches <parent>/<org>/fleet layouts like
-// GitHub Desktop's ~/Documents/GitHub/fleetdm/fleet).
+// is searched at depth 2 as well (catches <parent>/<org>/automdm layouts like
+// GitHub Desktop's ~/Documents/GitHub/automdm/automdm).
 var devRoots = []string{
 	"~/repositories", "~/repos", "~/code", "~/Code", "~/src",
 	"~/Developer", "~/Documents/GitHub", "~/Projects", "~/projects",
@@ -29,9 +29,9 @@ func invalid(path, reason string) RepoProbe {
 	return RepoProbe{Path: path, Valid: false, Reason: &reason}
 }
 
-// probe validates a single path (after tilde expansion) as a Fleet clone:
+// probe validates a single path (after tilde expansion) as an AutoMDM clone:
 // it must exist, contain a go.mod, and that go.mod's module must be
-// github.com/fleetdm/fleet.
+// github.com/anilyagiz/automdm.
 func probe(path string) RepoProbe {
 	p := paths.Expand(path)
 	if _, err := os.Stat(p); err != nil {
@@ -45,29 +45,29 @@ func probe(path string) RepoProbe {
 	if err != nil {
 		return invalid(p, "could not read go.mod: "+err.Error())
 	}
-	if !strings.Contains(string(contents), "github.com/fleetdm/fleet") {
-		return invalid(p, "go.mod module is not github.com/fleetdm/fleet")
+	if !strings.Contains(string(contents), "github.com/anilyagiz/automdm") {
+		return invalid(p, "go.mod module is not github.com/anilyagiz/automdm")
 	}
 	return RepoProbe{Path: paths.OnDisk(p), Valid: true}
 }
 
-// ProbeOne validates the given path as a Fleet repo.
+// ProbeOne validates the given path as an AutoMDM repo.
 func ProbeOne(path string) RepoProbe { return probe(path) }
 
-// DiscoverFleetRepos walks the well-known dev-root parents (plus ~/fleet)
-// and returns every directory that looks like a Fleet clone, deduped by
+// DiscoverAutoMDMRepos walks the well-known dev-root parents (plus ~/automdm)
+// and returns every directory that looks like an AutoMDM clone, deduped by
 // identity so a clone reached via a symlink, or via both ~/code and ~/Code
 // on a case-insensitive volume, appears once.
-func DiscoverFleetRepos() []RepoProbe {
+func DiscoverAutoMDMRepos() []RepoProbe {
 	home, _ := os.UserHomeDir()
 	roots := make([]string, len(devRoots))
 	for i, r := range devRoots {
 		roots[i] = paths.Expand(r)
 	}
-	return discoverFleetRepos(home, roots)
+	return discoverAutoMDMRepos(home, roots)
 }
 
-func discoverFleetRepos(home string, roots []string) []RepoProbe {
+func discoverAutoMDMRepos(home string, roots []string) []RepoProbe {
 	var results []RepoProbe
 	var seen []os.FileInfo
 	add := func(pr RepoProbe) {
@@ -89,9 +89,9 @@ func discoverFleetRepos(home string, roots []string) []RepoProbe {
 		}
 	}
 
-	// ~/fleet as a one-off (we don't scan all of ~ — too noisy).
+	// ~/automdm as a one-off (we don't scan all of ~ — too noisy).
 	if home != "" {
-		maybeAdd(filepath.Join(home, "fleet"))
+		maybeAdd(filepath.Join(home, "automdm"))
 	}
 
 	for _, root := range roots {
@@ -130,12 +130,12 @@ func discoverFleetRepos(home string, roots []string) []RepoProbe {
 	return results
 }
 
-// DetectFleetConfig returns the relative name (fleet.yml / fleet.yaml) of a
+// DetectAutoMDMConfig returns the relative name (automdm.yml / automdm.yaml) of a
 // serve config in the repo root, or "" if none exists. Relative because
 // serve always runs with the repo as cwd.
-func DetectFleetConfig(repo string) string {
+func DetectAutoMDMConfig(repo string) string {
 	root := paths.Expand(repo)
-	for _, name := range []string{"fleet.yml", "fleet.yaml"} {
+	for _, name := range []string{"automdm.yml", "automdm.yaml"} {
 		if fi, err := os.Stat(filepath.Join(root, name)); err == nil && fi.Mode().IsRegular() {
 			return name
 		}

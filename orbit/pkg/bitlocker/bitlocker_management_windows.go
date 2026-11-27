@@ -548,11 +548,11 @@ func encryptVolumeOnCOMThread(targetVolume string) (string, error) {
 
 	// Delete the registry key now that we've read it. If it was orphaned from a previous MDM,
 	// this cleans it up permanently. In practice, customers should not use GPO for BitLocker
-	// policy alongside Fleet MDM since the two will conflict. However, if an active GPO is present,
+	// policy alongside AutoMDM since the two will conflict. However, if an active GPO is present,
 	// it will re-apply the key on its next refresh (~90 minutes). Orbit retries every ~30
 	// seconds on failure, so interim retries before the GPO re-applies the key will default to
 	// EncryptDataOnly and fail with E_INVALIDARG. That's expected and the error is reported to
-	// Fleet. Once the GPO restores the key, the next retry reads it and succeeds.
+	// AutoMDM. Once the GPO restores the key, the next retry reads it and succeeds.
 	deleteOSEncryptionTypeRegistry()
 
 	// Prepare for encryption
@@ -588,7 +588,7 @@ func encryptVolumeOnCOMThread(targetVolume string) (string, error) {
 }
 
 // rotateRecoveryKeyOnCOMThread rotates the recovery key on an already-encrypted volume.
-// It adds a new Fleet-managed recovery key protector, removes old recovery key protectors,
+// It adds a new AutoMDM-managed recovery key protector, removes old recovery key protectors,
 // and returns the new recovery key for escrow. The disk is never decrypted.
 func rotateRecoveryKeyOnCOMThread(targetVolume string) (string, error) {
 	vol, err := bitlockerConnect(targetVolume)

@@ -12,12 +12,12 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/str"
-	activity_api "github.com/fleetdm/fleet/v4/server/activity/api"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/service/externalsvc"
+	"github.com/anilyagiz/automdm/v4/pkg/str"
+	activity_api "github.com/anilyagiz/automdm/v4/server/activity/api"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
+	"github.com/anilyagiz/automdm/v4/server/service/externalsvc"
 	zendesk "github.com/nukosuke/go-zendesk/zendesk"
 )
 
@@ -60,7 +60,7 @@ Affected hosts:
 
 {{ $end := len .Hosts }}{{ if gt $end 50 }}{{ $end = 50 }}{{ end }}
 {{ range slice .Hosts 0 $end }}
-* [{{ .DisplayName }}]({{ $.FleetURL }}/hosts/{{ .ID }})
+* [{{ .DisplayName }}]({{ $.AutoMDMURL }}/hosts/{{ .ID }})
 {{ range $path := .SoftwareInstalledPaths }}
     * {{ $path }}
 {{ end }}
@@ -68,13 +68,13 @@ Affected hosts:
 
 View the affected software and more affected hosts:
 
-1. Go to the [Software]({{ .FleetURL }}/software/manage) page in Fleet.
+1. Go to the [Software]({{ .AutoMDMURL }}/software/manage) page in AutoMDM.
 2. Above the list of software, in the **Search software** box, enter "{{ .CVE }}".
 3. Hover over the affected software and select **View all hosts**.
 
 ----
 
-This ticket was created automatically by your Fleet Zendesk integration.
+This ticket was created automatically by your AutoMDM Zendesk integration.
 `)),
 
 	FailingPolicySummary: template.Must(template.New("").Parse(
@@ -82,27 +82,27 @@ This ticket was created automatically by your Fleet Zendesk integration.
 	)),
 
 	FailingPolicyDescription: template.Must(template.New("").Parse(
-		`{{ if .PolicyCritical }}This policy is marked as **Critical** in Fleet.
+		`{{ if .PolicyCritical }}This policy is marked as **Critical** in AutoMDM.
 
 {{ end }}Hosts:
 {{ $end := len .Hosts }}{{ if gt $end 50 }}{{ $end = 50 }}{{ end }}
 {{ range slice .Hosts 0 $end }}
-* [{{ .DisplayName }}]({{ $.FleetURL }}/hosts/{{ .ID }})
+* [{{ .DisplayName }}]({{ $.AutoMDMURL }}/hosts/{{ .ID }})
 {{ end }}
 
-View hosts that failed {{ .PolicyName }} on the [**Hosts**]({{ .FleetURL }}/hosts/manage/?order_key=hostname&order_direction=asc&{{ if .TeamID }}fleet_id={{ .TeamID }}&{{ end }}policy_id={{ .PolicyID }}&policy_response=failing) page in Fleet.
+View hosts that failed {{ .PolicyName }} on the [**Hosts**]({{ .AutoMDMURL }}/hosts/manage/?order_key=hostname&order_direction=asc&{{ if .TeamID }}team_id={{ .TeamID }}&{{ end }}policy_id={{ .PolicyID }}&policy_response=failing) page in AutoMDM.
 
 ----
 
-This issue was created automatically by your Fleet Zendesk integration.
+This issue was created automatically by your AutoMDM Zendesk integration.
 `)),
 }
 
 type zendeskVulnTplArgs struct {
-	NVDURL   string
-	FleetURL string
-	CVE      string
-	Hosts    []fleet.HostVulnerabilitySummary
+	NVDURL     string
+	AutoMDMURL string
+	CVE        string
+	Hosts      []automdm.HostVulnerabilitySummary
 
 	IsPremium bool
 
@@ -122,8 +122,8 @@ type ZendeskClient interface {
 
 // Zendesk is the job processor for zendesk integrations.
 type Zendesk struct {
-	FleetURL       string
-	Datastore      fleet.Datastore
+	AutoMDMURL     string
+	Datastore      automdm.Datastore
 	Log            *slog.Logger
 	NewClientFunc  func(*externalsvc.ZendeskOptions) (ZendeskClient, error)
 	NewActivitySvc activity_api.NewActivityService
@@ -279,7 +279,7 @@ func (z *Zendesk) OnFinalFailure(ctx context.Context, argsJSON json.RawMessage, 
 		return nil
 	}
 
-	return z.NewActivitySvc.NewActivity(ctx, nil, fleet.ActivityTypeFailedAutomationTicket{
+	return z.NewActivitySvc.NewActivity(ctx, nil, automdm.ActivityTypeFailedAutomationTicket{
 		PolicyID:      args.FailingPolicy.PolicyID,
 		HostIDList:    args.FailingPolicy.hostIDs(),
 		Type:          "zendesk",
@@ -293,7 +293,7 @@ func (z *Zendesk) runVuln(ctx context.Context, cli ZendeskClient, args zendeskAr
 		return errors.New("invalid job args")
 	}
 
-	var hosts []fleet.HostVulnerabilitySummary
+	var hosts []automdm.HostVulnerabilitySummary
 	var err error
 
 	// Default to deprecated method in case we are processing an 'old' job payload
@@ -311,7 +311,7 @@ func (z *Zendesk) runVuln(ctx context.Context, cli ZendeskClient, args zendeskAr
 
 	tplArgs := &zendeskVulnTplArgs{
 		NVDURL:           nvdCVEURL,
-		FleetURL:         z.FleetURL,
+		AutoMDMURL:       z.AutoMDMURL,
 		CVE:              vargs.CVE,
 		Hosts:            hosts,
 		IsPremium:        license.IsPremium(ctx),
@@ -333,7 +333,7 @@ func (z *Zendesk) runVuln(ctx context.Context, cli ZendeskClient, args zendeskAr
 }
 
 func (z *Zendesk) runFailingPolicy(ctx context.Context, cli ZendeskClient, args zendeskArgs) error {
-	tplArgs := newFailingPoliciesTplArgs(z.FleetURL, args.FailingPolicy)
+	tplArgs := newFailingPoliciesTplArgs(z.AutoMDMURL, args.FailingPolicy)
 
 	createdTicket, err := z.createTemplatedTicket(ctx, cli, zendeskTemplates.FailingPolicySummary, zendeskTemplates.FailingPolicyDescription, tplArgs)
 	if err != nil {
@@ -346,11 +346,11 @@ func (z *Zendesk) runFailingPolicy(ctx context.Context, cli ZendeskClient, args 
 		"ticket_id", createdTicket.ID,
 	}
 	if args.FailingPolicy.TeamID != nil {
-		attrs = append(attrs, "fleet_id", *args.FailingPolicy.TeamID)
+		attrs = append(attrs, "team_id", *args.FailingPolicy.TeamID)
 	}
 	z.Log.DebugContext(ctx, "created zendesk ticket for failing policy", attrs...)
 
-	if err := z.NewActivitySvc.NewActivity(ctx, nil, fleet.ActivityTypeRanAutomationTicket{
+	if err := z.NewActivitySvc.NewActivity(ctx, nil, automdm.ActivityTypeRanAutomationTicket{
 		PolicyID:   args.FailingPolicy.PolicyID,
 		HostIDList: args.FailingPolicy.hostIDs(),
 		Type:       "zendesk",
@@ -391,10 +391,10 @@ func (z *Zendesk) createTemplatedTicket(ctx context.Context, cli ZendeskClient, 
 // via the worker.
 func QueueZendeskVulnJobs(
 	ctx context.Context,
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	logger *slog.Logger,
-	recentVulns []fleet.SoftwareVulnerability,
-	cveMeta map[string]fleet.CVEMeta,
+	recentVulns []automdm.SoftwareVulnerability,
+	cveMeta map[string]automdm.CVEMeta,
 ) error {
 	logger.InfoContext(ctx, "zendesk integration enabled", "recent_vulns", len(recentVulns))
 
@@ -432,8 +432,8 @@ func QueueZendeskVulnJobs(
 
 // QueueZendeskFailingPolicyJob queues a Zendesk job for a failing policy to
 // process asynchronously via the worker.
-func QueueZendeskFailingPolicyJob(ctx context.Context, ds fleet.Datastore, logger *slog.Logger,
-	policy *fleet.Policy, hosts []fleet.PolicySetHost,
+func QueueZendeskFailingPolicyJob(ctx context.Context, ds automdm.Datastore, logger *slog.Logger,
+	policy *automdm.Policy, hosts []automdm.PolicySetHost,
 ) error {
 	attrs := []interface{}{
 		"enabled", "true",
@@ -441,7 +441,7 @@ func QueueZendeskFailingPolicyJob(ctx context.Context, ds fleet.Datastore, logge
 		"hosts_count", len(hosts),
 	}
 	if policy.TeamID != nil {
-		attrs = append(attrs, "fleet_id", *policy.TeamID)
+		attrs = append(attrs, "team_id", *policy.TeamID)
 	}
 	if len(hosts) == 0 {
 		logger.DebugContext(ctx, "skipping, no host", attrs...)

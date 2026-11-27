@@ -14,7 +14,7 @@ const objArray = [
 // tests json known value edge case and hypothetical key edge case
 const objArray2 = [
   {
-    host_display_name: "Rachel@Fleet",
+    host_display_name: "Rachel@AutoMDM",
     last_fetched: "2024-06-25T13:11:18Z",
     uid: "145",
     json_result: {
@@ -43,7 +43,7 @@ describe("convertToCSV - utility", () => {
   });
   it("correctly creates table headers and fields including quotes and commas to CSV format", () => {
     expect(convertToCSV({ objArray: objArray2, tableHeaders })).toEqual(
-      '"host_display_name","last_fetched","uid","json_result","edge"",""case"\n"Rachel@Fleet","2024-06-25T13:11:18Z","145","{""AC Power:"":{""acwake"":""0"",""hibernatefile"":""/var/vm/sleepimage""}}","true"'
+      '"host_display_name","last_fetched","uid","json_result","edge"",""case"\n"Rachel@AutoMDM","2024-06-25T13:11:18Z","145","{""AC Power:"":{""acwake"":""0"",""hibernatefile"":""/var/vm/sleepimage""}}","true"'
     );
   });
   it.each([

@@ -22,7 +22,7 @@ const CLIENT_CERT_EXPIRY_STATUS_CONFIG: IRenewDateCellStatusConfig = {
   error: {
     tooltipText: (
       <>
-        The client certificate expired. Fleet can&apos;t get certificates from
+        The client certificate expired. AutoMDM can&apos;t get certificates from
         EJBCA until you upload a new one.
         <br />
         To renew it, edit the certificate authority and upload a new one.

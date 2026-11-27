@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # Raspberry Pi Imager uses an Inno Setup installer; it needs /VERYSILENT to
 # run silently and installs machine-wide when run elevated. Its installer

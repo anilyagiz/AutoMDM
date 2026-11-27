@@ -9,8 +9,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/stretchr/testify/require"
 )
 
@@ -36,7 +36,7 @@ func TestCalendarEvents(t *testing.T) {
 func testUpdateCalendarEvent(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
-	host, err := ds.NewHost(context.Background(), &fleet.Host{
+	host, err := ds.NewHost(context.Background(), &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -48,7 +48,7 @@ func testUpdateCalendarEvent(t *testing.T, ds *Datastore) {
 		PrimaryMac:      "30-65-EC-6F-C4-58",
 	})
 	require.NoError(t, err)
-	err = ds.ReplaceHostDeviceMapping(ctx, host.ID, []*fleet.HostDeviceMapping{
+	err = ds.ReplaceHostDeviceMapping(ctx, host.ID, []*automdm.HostDeviceMapping{
 		{
 			HostID: host.ID,
 			Email:  "foo@example.com",
@@ -62,7 +62,7 @@ func testUpdateCalendarEvent(t *testing.T, ds *Datastore) {
 	timeZone := "America/Argentina/Buenos_Aires"
 	eventUUID := uuid.New().String()
 	calendarEvent, err := ds.CreateOrUpdateCalendarEvent(ctx, eventUUID, "foo@example.com", startTime1, endTime1, []byte(`{}`), &timeZone,
-		host.ID, fleet.CalendarWebhookStatusNone)
+		host.ID, automdm.CalendarWebhookStatusNone)
 	require.NoError(t, err)
 
 	time.Sleep(1 * time.Second)
@@ -92,7 +92,7 @@ func testUpdateCalendarEvent(t *testing.T, ds *Datastore) {
 func testCreateOrUpdateCalendarEvent(t *testing.T, ds *Datastore) {
 	ctx := context.Background()
 
-	host, err := ds.NewHost(context.Background(), &fleet.Host{
+	host, err := ds.NewHost(context.Background(), &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -104,7 +104,7 @@ func testCreateOrUpdateCalendarEvent(t *testing.T, ds *Datastore) {
 		PrimaryMac:      "30-65-EC-6F-C4-58",
 	})
 	require.NoError(t, err)
-	err = ds.ReplaceHostDeviceMapping(ctx, host.ID, []*fleet.HostDeviceMapping{
+	err = ds.ReplaceHostDeviceMapping(ctx, host.ID, []*automdm.HostDeviceMapping{
 		{
 			HostID: host.ID,
 			Email:  "foo@example.com",
@@ -119,7 +119,7 @@ func testCreateOrUpdateCalendarEvent(t *testing.T, ds *Datastore) {
 	endTime1 := startTime1.Add(30 * time.Minute)
 	eventUUID := uuid.New().String()
 	calendarEvent, err := ds.CreateOrUpdateCalendarEvent(ctx, eventUUID, "foo@example.com", startTime1, endTime1, []byte(`{}`), &timeZone,
-		host.ID, fleet.CalendarWebhookStatusNone)
+		host.ID, automdm.CalendarWebhookStatusNone)
 	require.NoError(t, err)
 	require.Equal(t, *calendarEvent.TimeZone, timeZone)
 
@@ -127,7 +127,7 @@ func testCreateOrUpdateCalendarEvent(t *testing.T, ds *Datastore) {
 
 	eventUUID2 := uuid.New().String()
 	calendarEvent2, err := ds.CreateOrUpdateCalendarEvent(ctx, eventUUID2, "foo@example.com", startTime1, endTime1, []byte(`{}`), &timeZone,
-		host.ID, fleet.CalendarWebhookStatusNone)
+		host.ID, automdm.CalendarWebhookStatusNone)
 	require.NoError(t, err)
 	require.Greater(t, calendarEvent2.UpdatedAt, calendarEvent.UpdatedAt)
 	calendarEvent.UpdatedAt = calendarEvent2.UpdatedAt
@@ -140,7 +140,7 @@ func testCreateOrUpdateCalendarEvent(t *testing.T, ds *Datastore) {
 	startTime2 := startTime1.Add(1 * time.Hour)
 	endTime2 := startTime1.Add(30 * time.Minute)
 	calendarEvent3, err := ds.CreateOrUpdateCalendarEvent(ctx, eventUUID2, "foo@example.com", startTime2, endTime2,
-		[]byte(`{"foo": "bar"}`), &timeZone, host.ID, fleet.CalendarWebhookStatusPending)
+		[]byte(`{"foo": "bar"}`), &timeZone, host.ID, automdm.CalendarWebhookStatusPending)
 	require.NoError(t, err)
 	require.Greater(t, calendarEvent3.UpdatedAt, calendarEvent2.UpdatedAt)
 	require.WithinDuration(t, startTime2, calendarEvent3.StartTime, 1*time.Second)

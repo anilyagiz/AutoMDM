@@ -10,16 +10,16 @@ import (
 	"time"
 
 	"github.com/WatchBeam/clock"
-	"github.com/fleetdm/fleet/v4/ee/server/service/certissue"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	scepclient "github.com/fleetdm/fleet/v4/server/mdm/scep/client"
-	"github.com/fleetdm/fleet/v4/server/mdm/scep/enrollment"
-	scepserver "github.com/fleetdm/fleet/v4/server/mdm/scep/server"
+	"github.com/anilyagiz/automdm/v4/ee/server/service/certissue"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	scepclient "github.com/anilyagiz/automdm/v4/server/mdm/scep/client"
+	"github.com/anilyagiz/automdm/v4/server/mdm/scep/enrollment"
+	scepserver "github.com/anilyagiz/automdm/v4/server/mdm/scep/server"
 	smallstepscep "github.com/smallstep/scep"
 )
 
-// EnrollmentClient implements fleet.SCEPEnrollmentClient.
+// EnrollmentClient implements automdm.SCEPEnrollmentClient.
 type EnrollmentClient struct {
 	logger  *slog.Logger
 	timeout *time.Duration
@@ -34,7 +34,7 @@ type cachedCACerts struct {
 	fetchedAt time.Time
 }
 
-var _ fleet.SCEPEnrollmentClient = (*EnrollmentClient)(nil)
+var _ automdm.SCEPEnrollmentClient = (*EnrollmentClient)(nil)
 
 // NewEnrollmentClient returns an EnrollmentClient whose SCEP requests time out after 30 seconds.
 func NewEnrollmentClient(logger *slog.Logger) *EnrollmentClient {
@@ -120,7 +120,7 @@ const enrollmentRetryAfterSeconds = 30
 // error's message. Other errors are returned as they are; the caller wraps them.
 func wrapEnrollmentError(err error) error {
 	if rejected, ok := errors.AsType[enrollment.RejectedError](err); ok && rejected.Status == smallstepscep.FAILURE {
-		// Not every SCEP CA requires a challenge, so Fleet cannot check for one up front, but a
+		// Not every SCEP CA requires a challenge, so AutoMDM cannot check for one up front, but a
 		// missing or wrong one is the likeliest cause of a rejection.
 		return fmt.Errorf("%w; if this certificate authority requires a challenge, "+
 			"include it as the CSR's challengePassword attribute", err)
@@ -136,7 +136,7 @@ func wrapEnrollmentError(err error) error {
 	if !transient {
 		return err
 	}
-	return fleet.CertificateAuthorityTransientError{
+	return automdm.CertificateAuthorityTransientError{
 		Message:           reqErr.Error(),
 		RetryAfterSeconds: enrollmentRetryAfterSeconds,
 	}

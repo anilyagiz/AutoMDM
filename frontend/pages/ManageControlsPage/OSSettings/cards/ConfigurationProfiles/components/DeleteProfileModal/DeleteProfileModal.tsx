@@ -22,7 +22,7 @@ const generateMessageSuffix = (isPremiumTier?: boolean, teamId?: number) => {
   if (!isPremiumTier) {
     return "";
   }
-  return teamId ? "assigned to this fleet" : "that are unassigned";
+  return teamId ? "assigned to this team" : "that are unassigned";
 };
 
 const DeleteProfileModal = ({

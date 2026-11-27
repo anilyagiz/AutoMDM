@@ -20,7 +20,7 @@ const MOCK_PROPS = {
   hostPlatform: "ios",
   hostName: "iphone-1",
   onlyAllowAppleBusinessEnrollment: false,
-  depAssignedToFleet: false,
+  depAssignedToAutoMDM: false,
   onSuccess: jest.fn(),
   onClose: jest.fn(),
 };
@@ -131,7 +131,7 @@ describe("UnenrollMdmModal", () => {
   });
 
   describe("when onlyAllowAppleBusinessEnrollment is true", () => {
-    describe("and depAssignedToFleet is false", () => {
+    describe("and depAssignedToAutoMDM is false", () => {
       it.each(["ios", "ipados", "macos"])(
         "%s shows will not be able to enroll",
         (platform) => {
@@ -141,7 +141,7 @@ describe("UnenrollMdmModal", () => {
               {...MOCK_PROPS}
               hostPlatform={platform}
               onlyAllowAppleBusinessEnrollment
-              depAssignedToFleet={false}
+              depAssignedToAutoMDM={false}
               enrollmentStatus="On (manual)"
             />
           );
@@ -157,7 +157,7 @@ describe("UnenrollMdmModal", () => {
               {...MOCK_PROPS}
               hostPlatform={platform}
               onlyAllowAppleBusinessEnrollment
-              depAssignedToFleet={false}
+              depAssignedToAutoMDM={false}
               enrollmentStatus="On (company-owned)"
             />
           );
@@ -170,7 +170,7 @@ describe("UnenrollMdmModal", () => {
         }
       );
     });
-    describe("and depAssignedToFleet is true", () => {
+    describe("and depAssignedToAutoMDM is true", () => {
       it.each(["ios", "ipados", "macos"])(
         "%s shows will not be able to enroll with current manual enrollment",
         (platform) => {
@@ -180,7 +180,7 @@ describe("UnenrollMdmModal", () => {
               {...MOCK_PROPS}
               hostPlatform={platform}
               onlyAllowAppleBusinessEnrollment
-              depAssignedToFleet
+              depAssignedToAutoMDM
               enrollmentStatus="On (manual)"
             />
           );
@@ -201,7 +201,7 @@ describe("UnenrollMdmModal", () => {
               {...MOCK_PROPS}
               hostPlatform={platform}
               onlyAllowAppleBusinessEnrollment
-              depAssignedToFleet
+              depAssignedToAutoMDM
               enrollmentStatus="On (automatic)"
             />
           );

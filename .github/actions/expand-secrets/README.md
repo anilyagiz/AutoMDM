@@ -38,7 +38,7 @@ then:
 cd my-secrets-dir
 for f in *; do
   jq -n --arg k "$f" --rawfile v "$f" '{($k): ($v | rtrimstr("\n"))}'
-done | jq -s 'add' | gh secret set DOGFOOD_GITOPS_SECRETS_JSON --repo fleetdm/fleet
+done | jq -s 'add' | gh secret set DOGFOOD_GITOPS_SECRETS_JSON --repo automdm/automdm
 ```
 
 `rtrimstr("\n")` strips the single trailing newline most editors add;
@@ -51,7 +51,7 @@ patch a single key if you have the current JSON locally:
 
 ```bash
 jq --arg v "$NEW_VALUE" '.SECRET_NAME = $v' bundle.json |
-  gh secret set DOGFOOD_GITOPS_SECRETS_JSON --repo fleetdm/fleet
+  gh secret set DOGFOOD_GITOPS_SECRETS_JSON --repo automdm/automdm
 ```
 
 ## Caveats

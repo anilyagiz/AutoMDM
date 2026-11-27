@@ -20,7 +20,7 @@ import EndUserAuthSection from "../IdentityProviders/components/EndUserAuthSecti
 
 import { ISsoFormData, newSsoFormData, validateSsoForm } from "./helpers";
 
-export const AUTH_TARGETS_BY_INDEX = ["fleet-users", "end-users"];
+export const AUTH_TARGETS_BY_INDEX = ["team-users", "end-users"];
 
 const Sso = ({
   appConfig,
@@ -103,13 +103,13 @@ const Sso = ({
       router.push(
         newSubsection === "end-users"
           ? PATHS.ADMIN_INTEGRATIONS_SSO_END_USERS
-          : PATHS.ADMIN_INTEGRATIONS_SSO_FLEET_USERS
+          : PATHS.ADMIN_INTEGRATIONS_SSO_TEAM_USERS
       );
     },
     [hasUnsavedChanges, reset, router]
   );
 
-  const renderFleetSsoTab = () => {
+  const renderAutoMDMSsoTab = () => {
     return (
       <form onSubmit={onFormSubmit(onValidSubmit)} autoComplete="off">
         {/* "form" class applies global form styling to fields for free */}
@@ -137,7 +137,7 @@ const Sso = ({
             helpText="The URI you provide here must exactly match the Entity ID field used in the identity provider configuration."
             {...getTextFieldProps("entityId")}
             disabled={isSubmitting || gitOpsModeEnabled}
-            tooltip="The Entity ID is a required URI that you use to identify Fleet when configuring the identity provider. Okta calls this Audience Restriction."
+            tooltip="The Entity ID is a required URI that you use to identify AutoMDM when configuring the identity provider. Okta calls this Audience Restriction."
           />
           <InputField
             label="IdP image URL"
@@ -233,9 +233,9 @@ const Sso = ({
       <PageDescription
         content={
           <>
-            Configure authentication for Fleet users logging into Fleet or end
+            Configure authentication for AutoMDM users logging into AutoMDM or end
             users enrolling their hosts. To populate identity provider (IdP)
-            host vitals and automatically delete Fleet users, head to{" "}
+            host vitals and automatically delete AutoMDM users, head to{" "}
             <CustomLink
               text="Identity provider (IdP)"
               url={PATHS.ADMIN_INTEGRATIONS_IDENTITY_PROVIDER}
@@ -252,13 +252,13 @@ const Sso = ({
         >
           <TabList>
             <Tab>
-              <TabText>Fleet users</TabText>
+              <TabText>AutoMDM users</TabText>
             </Tab>
             <Tab>
               <TabText>End users</TabText>
             </Tab>
           </TabList>
-          <TabPanel key="fleet-users">{renderFleetSsoTab()}</TabPanel>
+          <TabPanel key="team-users">{renderAutoMDMSsoTab()}</TabPanel>
           <TabPanel key="end-users">{renderEndUserSsoTab()}</TabPanel>
         </Tabs>
       </TabNav>

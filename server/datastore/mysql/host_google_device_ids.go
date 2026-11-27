@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -35,12 +35,12 @@ func (ds *Datastore) SetHostGoogleDeviceID(ctx context.Context, hostUUID, custom
 			if stored.Same != nil && *stored.Same {
 				return nil
 			}
-			return &fleet.HostGoogleDeviceIDConflictError{StoredID: *stored.ID}
+			return &automdm.HostGoogleDeviceIDConflictError{StoredID: *stored.ID}
 		}
 
 		if err := bindGoogleDeviceIDDB(ctx, tx, hostUUID, customerID, googleDeviceID); err != nil {
 			if IsDuplicate(err) {
-				return fleet.NewInvalidArgumentError("google_device_id", "This Google device ID is already used by another host.").
+				return automdm.NewInvalidArgumentError("google_device_id", "This Google device ID is already used by another host.").
 					WithStatus(http.StatusConflict)
 			}
 			return ctxerr.Wrap(ctx, err, "setting host google device id")
@@ -134,7 +134,7 @@ func bindGoogleDeviceIDDB(ctx context.Context, tx sqlx.ExtContext, hostUUID, cus
 // name, returned with the name it came from, or nil with no names.
 func googleDeviceIDForNames(stored string, names []string) (id *string, from string, kept bool) {
 	for _, name := range names {
-		deviceID := fleet.GoogleDeviceIDFromDeviceUserName(name)
+		deviceID := automdm.GoogleDeviceIDFromDeviceUserName(name)
 		if deviceID == "" {
 			continue
 		}

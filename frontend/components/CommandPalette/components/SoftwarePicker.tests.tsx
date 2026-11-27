@@ -73,7 +73,7 @@ describe("SoftwarePicker", () => {
     });
   });
 
-  it("renders the library empty state when no titles match in the fleet", async () => {
+  it("renders the library empty state when no titles match in the team", async () => {
     const { findByText } = renderPicker(
       <SoftwarePicker
         search=""
@@ -88,7 +88,7 @@ describe("SoftwarePicker", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders the inventory empty state when no titles match in the fleet", async () => {
+  it("renders the inventory empty state when no titles match in the team", async () => {
     const { findByText } = renderPicker(
       <SoftwarePicker
         search=""
@@ -102,7 +102,7 @@ describe("SoftwarePicker", () => {
     ).toBeInTheDocument();
   });
 
-  it("inventory empty state uses 'in this fleet' for Unassigned", async () => {
+  it("inventory empty state uses 'in this team' for Unassigned", async () => {
     const { findByText } = renderPicker(
       <SoftwarePicker
         search=""
@@ -112,15 +112,15 @@ describe("SoftwarePicker", () => {
     );
 
     expect(
-      await findByText(/No software found in this fleet\./)
+      await findByText(/No software found in this team\./)
     ).toBeInTheDocument();
   });
 
-  it("inventory empty state drops the suffix on All fleets", async () => {
+  it("inventory empty state drops the suffix on All teams", async () => {
     const { findByText } = renderPicker(
       <SoftwarePicker
         search=""
-        currentTeam={{ id: -1, name: "All fleets" }}
+        currentTeam={{ id: -1, name: "All teams" }}
         onSelect={jest.fn()}
       />
     );
@@ -162,7 +162,7 @@ describe("SoftwarePicker", () => {
     expect(queryByText("Microsoft.CompanyPortal")).not.toBeInTheDocument();
   });
 
-  it("library empty state uses 'this fleet's library' for Unassigned", async () => {
+  it("library empty state uses 'this team's library' for Unassigned", async () => {
     const { findByText } = renderPicker(
       <SoftwarePicker
         search=""
@@ -173,7 +173,7 @@ describe("SoftwarePicker", () => {
     );
 
     expect(
-      await findByText(/No software in this fleet's library\./)
+      await findByText(/No software in this team's library\./)
     ).toBeInTheDocument();
   });
 });

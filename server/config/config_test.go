@@ -16,9 +16,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/anilyagiz/automdm/v4/pkg/removednames"
+	"github.com/anilyagiz/automdm/v4/pkg/testutils"
 	"github.com/docker/go-units"
-	"github.com/fleetdm/fleet/v4/pkg/removednames"
-	"github.com/fleetdm/fleet/v4/pkg/testutils"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -49,7 +49,7 @@ func TestConfigRoundtrip(t *testing.T) {
 	// values to be verified on the roundtrip. Note that bools are always
 	// set to true, which could false positive if the default value is
 	// true.
-	original := &FleetConfig{}
+	original := &AutoMDMConfig{}
 	v := reflect.ValueOf(original)
 	var populate func(conf_v reflect.Value, name string, conf_index int)
 	populate = func(conf_v reflect.Value, name string, conf_index int) {
@@ -71,7 +71,7 @@ func TestConfigRoundtrip(t *testing.T) {
 				// These are deprecated field names in the S3 config. Set them to zero value, which leads to the new fields being populated instead.
 				case "Bucket", "Prefix", "Region", "EndpointURL", "AccessKeyID", "SecretAccessKey", "StsAssumeRoleArn", "StsExternalID":
 					key_v.SetString("")
-				// This is a deprecated config for "Fleet Sandbox" that doesn't exist anymore.
+				// This is a deprecated config for "AutoMDM Sandbox" that doesn't exist anymore.
 				case "GlobalEnrollSecret":
 					key_v.SetString("")
 				default:
@@ -132,7 +132,7 @@ func TestOsqueryConfigETagDefaults(t *testing.T) {
 		},
 		{
 			desc:            "opted in",
-			envVars:         []string{"FLEET_OSQUERY_CONFIG_ETAGS=true", "FLEET_OSQUERY_REDIS_CONFIG_ETAGS=true"},
+			envVars:         []string{"AUTOMDM_OSQUERY_CONFIG_ETAGS=true", "AUTOMDM_OSQUERY_REDIS_CONFIG_ETAGS=true"},
 			wantConfigETags: true,
 			wantRedisETags:  true,
 		},
@@ -141,7 +141,7 @@ func TestOsqueryConfigETagDefaults(t *testing.T) {
 			// effectiveRedisConfigETags. Enabling the Redis one here must
 			// not implicitly enable the protocol.
 			desc:            "redis flag alone does not enable the protocol",
-			envVars:         []string{"FLEET_OSQUERY_REDIS_CONFIG_ETAGS=true"},
+			envVars:         []string{"AUTOMDM_OSQUERY_REDIS_CONFIG_ETAGS=true"},
 			wantConfigETags: false,
 			wantRedisETags:  true,
 		},
@@ -162,7 +162,7 @@ func TestOsqueryConfigETagDefaults(t *testing.T) {
 				t.Setenv(kv[0], kv[1])
 			}
 
-			var loadedCfg FleetConfig
+			var loadedCfg AutoMDMConfig
 			require.NotPanics(t, func() {
 				loadedCfg = mustLoadConfig(t, man)
 			})
@@ -189,19 +189,19 @@ func TestServerConfigEndpointRequestSizeOverrides(t *testing.T) {
 			yaml: `
 server:
   endpoint_request_size_overrides:
-    - endpoint: "/api/_version_/fleet/software/titles/{title_id:[0-9]+}/package/token/{token}"
+    - endpoint: "/api/_version_/automdm/software/titles/{title_id:[0-9]+}/package/token/{token}"
       max_request_size: "50MiB"
     - endpoint: "/api/osquery/log"
       max_request_size: "20MiB"`,
 			expectedOverrides: EndpointRequestSizeOverrides{
-				"/api/_version_/fleet/software/titles/{title_id:[0-9]+}/package/token/{token}": 50 * units.MiB,
+				"/api/_version_/automdm/software/titles/{title_id:[0-9]+}/package/token/{token}": 50 * units.MiB,
 				"/api/osquery/log": 20 * units.MiB,
 			},
 		},
 		{
 			desc: "Enviroment variable - JSON array",
 			env: []string{
-				`FLEET_SERVER_ENDPOINT_REQUEST_SIZE_OVERRIDES=[{"endpoint": "/api/osquery/log", "max_request_size": "20MiB"}]`,
+				`AUTOMDM_SERVER_ENDPOINT_REQUEST_SIZE_OVERRIDES=[{"endpoint": "/api/osquery/log", "max_request_size": "20MiB"}]`,
 			},
 			expectedOverrides: EndpointRequestSizeOverrides{
 				"/api/osquery/log": 20 * units.MiB,
@@ -215,7 +215,7 @@ server:
     - endpoint: "/api/osquery/log"
       max_request_size: "20MiB"`,
 			env: []string{
-				`FLEET_SERVER_ENDPOINT_REQUEST_SIZE_OVERRIDES=[{"endpoint": "/api/osquery/distributed/write", "max_request_size": "10MiB"}]`,
+				`AUTOMDM_SERVER_ENDPOINT_REQUEST_SIZE_OVERRIDES=[{"endpoint": "/api/osquery/distributed/write", "max_request_size": "10MiB"}]`,
 			},
 			expectedOverrides: EndpointRequestSizeOverrides{
 				"/api/osquery/distributed/write": 10 * units.MiB,
@@ -238,7 +238,7 @@ server:
 		{
 			desc: "Malformed JSON in environment variable panics",
 			env: []string{
-				`FLEET_SERVER_ENDPOINT_REQUEST_SIZE_OVERRIDES=not-json`,
+				`AUTOMDM_SERVER_ENDPOINT_REQUEST_SIZE_OVERRIDES=not-json`,
 			},
 			panics: true,
 		},
@@ -278,7 +278,7 @@ server:
 				t.Setenv(kv[0], kv[1])
 			}
 
-			var loadedCfg FleetConfig
+			var loadedCfg AutoMDMConfig
 			if c.panics {
 				require.Panics(t, func() {
 					loadedCfg, _ = man.LoadConfig()
@@ -316,7 +316,7 @@ ses:
 			yaml: `
 ses:
   sender_domain: notifications.example.com`,
-			envVars: []string{"FLEET_SES_SENDER_DOMAIN=mailer.example.com"},
+			envVars: []string{"AUTOMDM_SES_SENDER_DOMAIN=mailer.example.com"},
 			want:    "mailer.example.com",
 		},
 	}
@@ -895,7 +895,7 @@ func TestAppleCommandCleanupValidate(t *testing.T) {
 // loadConfigWithOverrides parses the config the way the server does at
 // startup: yaml first, then environment variables on top. The process
 // environment is cleared for the duration of the test so only envVars apply.
-func loadConfigWithOverrides(t *testing.T, yaml string, envVars []string) FleetConfig {
+func loadConfigWithOverrides(t *testing.T, yaml string, envVars []string) AutoMDMConfig {
 	var cmd cobra.Command
 	cmd.PersistentFlags().StringP("config", "c", "", "Path to a configuration file")
 	man := NewManager(&cmd)
@@ -941,10 +941,10 @@ mdm:
 		{
 			desc: "env overrides",
 			envVars: []string{
-				"FLEET_MDM_APPLE_COMMAND_CLEANUP_SHORT_RETENTION=1h",
-				"FLEET_MDM_APPLE_COMMAND_CLEANUP_STANDARD_RETENTION=0",
-				"FLEET_MDM_APPLE_COMMAND_CLEANUP_MAX_ROW_DELETIONS_PER_RUN=0",
-				"FLEET_MDM_APPLE_COMMAND_CLEANUP_MAX_COMMAND_DELETIONS_PER_RUN=10",
+				"AUTOMDM_MDM_APPLE_COMMAND_CLEANUP_SHORT_RETENTION=1h",
+				"AUTOMDM_MDM_APPLE_COMMAND_CLEANUP_STANDARD_RETENTION=0",
+				"AUTOMDM_MDM_APPLE_COMMAND_CLEANUP_MAX_ROW_DELETIONS_PER_RUN=0",
+				"AUTOMDM_MDM_APPLE_COMMAND_CLEANUP_MAX_COMMAND_DELETIONS_PER_RUN=10",
 			},
 			want: knobs{short: time.Hour, standard: 0, rows: 0, cmds: 10},
 		},
@@ -993,16 +993,16 @@ google_workspace:
 		{
 			desc: "env overrides",
 			envVars: []string{
-				"FLEET_GOOGLE_WORKSPACE_MAX_USERS=1",
-				"FLEET_GOOGLE_WORKSPACE_MAX_GROUPS=2",
-				"FLEET_GOOGLE_WORKSPACE_MAX_GROUP_MEMBERS=3",
-				"FLEET_GOOGLE_WORKSPACE_MAX_GROUP_MEMBERSHIPS=4",
+				"AUTOMDM_GOOGLE_WORKSPACE_MAX_USERS=1",
+				"AUTOMDM_GOOGLE_WORKSPACE_MAX_GROUPS=2",
+				"AUTOMDM_GOOGLE_WORKSPACE_MAX_GROUP_MEMBERS=3",
+				"AUTOMDM_GOOGLE_WORKSPACE_MAX_GROUP_MEMBERSHIPS=4",
 			},
 			want: GoogleWorkspaceConfig{MaxUsers: 1, MaxGroups: 2, MaxGroupMembers: 3, MaxGroupMemberships: 4},
 		},
 		{
 			desc:    "zero disables a limit",
-			envVars: []string{"FLEET_GOOGLE_WORKSPACE_MAX_USERS=0"},
+			envVars: []string{"AUTOMDM_GOOGLE_WORKSPACE_MAX_USERS=0"},
 			want: GoogleWorkspaceConfig{
 				MaxUsers:            0,
 				MaxGroups:           DefaultGoogleWorkspaceMaxGroups,
@@ -1191,7 +1191,7 @@ func TestOsqueryConfigInMemoryCacheDefault(t *testing.T) {
 	os.Clearenv()
 	require.False(t, mustLoadConfig(t, man).Osquery.ConfigInMemoryCache)
 
-	t.Setenv("FLEET_OSQUERY_CONFIG_IN_MEMORY_CACHE", "true")
+	t.Setenv("AUTOMDM_OSQUERY_CONFIG_IN_MEMORY_CACHE", "true")
 	require.True(t, mustLoadConfig(t, man).Osquery.ConfigInMemoryCache)
 }
 
@@ -1215,8 +1215,8 @@ func TestOsqueryQueryReportConcurrencyLimits(t *testing.T) {
 	require.Equal(t, 80, cfg.MaxConcurrentQueryReportReads)
 	require.Zero(t, cfg.MaxConcurrentQueryReportWrites)
 
-	t.Setenv("FLEET_OSQUERY_MAX_CONCURRENT_QUERY_REPORT_READS", "5")
-	t.Setenv("FLEET_OSQUERY_MAX_CONCURRENT_QUERY_REPORT_WRITES", "7")
+	t.Setenv("AUTOMDM_OSQUERY_MAX_CONCURRENT_QUERY_REPORT_READS", "5")
+	t.Setenv("AUTOMDM_OSQUERY_MAX_CONCURRENT_QUERY_REPORT_WRITES", "7")
 	cfg = load("")
 	require.Equal(t, 5, cfg.MaxConcurrentQueryReportReads)
 	require.Equal(t, 7, cfg.MaxConcurrentQueryReportWrites)
@@ -1308,21 +1308,21 @@ func TestServerConfigURLPrefix(t *testing.T) {
 	})
 
 	t.Run("missing leading slash is normalized and passes", func(t *testing.T) {
-		cfg := ServerConfig{URLPrefix: "fleet"}
+		cfg := ServerConfig{URLPrefix: "automdm"}
 		cfg.NormalizeURLPrefix()
-		require.Equal(t, "/fleet", cfg.URLPrefix)
+		require.Equal(t, "/automdm", cfg.URLPrefix)
 		cfg.ValidateURLPrefix(func(err error, msg string) { t.Fatalf("unexpected error: %v", err) })
 	})
 
 	t.Run("trailing slash is normalized away", func(t *testing.T) {
-		cfg := ServerConfig{URLPrefix: "/fleet/"}
+		cfg := ServerConfig{URLPrefix: "/automdm/"}
 		cfg.NormalizeURLPrefix()
-		require.Equal(t, "/fleet", cfg.URLPrefix)
+		require.Equal(t, "/automdm", cfg.URLPrefix)
 		cfg.ValidateURLPrefix(func(err error, msg string) { t.Fatalf("unexpected error: %v", err) })
 	})
 
 	t.Run("invalid character is rejected after normalization", func(t *testing.T) {
-		cfg := ServerConfig{URLPrefix: "/fleet space"}
+		cfg := ServerConfig{URLPrefix: "/automdm space"}
 		cfg.NormalizeURLPrefix()
 		called := false
 		cfg.ValidateURLPrefix(func(err error, msg string) { called = true })
@@ -1427,8 +1427,8 @@ func TestSoftwareInstallersSignedURLKeys(t *testing.T) {
 		want bool
 	}{
 		{"", false},
-		{"FLEET_S3_SOFTWARE_INSTALLERS_GCS_SIGNED_URL", true},
-		{"FLEET_S3_SOFTWARE_INSTALLERS_SIGNED_URL", true},
+		{"AUTOMDM_S3_SOFTWARE_INSTALLERS_GCS_SIGNED_URL", true},
+		{"AUTOMDM_S3_SOFTWARE_INSTALLERS_SIGNED_URL", true},
 	} {
 		t.Run(c.env, func(t *testing.T) {
 			testutils.SaveEnv(t)
@@ -1449,21 +1449,21 @@ func TestSoftwareInstallersBackend(t *testing.T) {
 
 	cases := []struct {
 		name    string
-		cfg     FleetConfig
+		cfg     AutoMDMConfig
 		want    StorageBackend
 		wantErr string
 	}{
-		{name: "local", cfg: FleetConfig{}, want: StorageBackendLocal},
-		{name: "s3 only", cfg: FleetConfig{S3: s3Cfg}, want: StorageBackendS3},
-		{name: "azure only", cfg: FleetConfig{CloudStorage: CloudStorageConfig{Azure: azureCfg}}, want: StorageBackendAzure},
+		{name: "local", cfg: AutoMDMConfig{}, want: StorageBackendLocal},
+		{name: "s3 only", cfg: AutoMDMConfig{S3: s3Cfg}, want: StorageBackendS3},
+		{name: "azure only", cfg: AutoMDMConfig{CloudStorage: CloudStorageConfig{Azure: azureCfg}}, want: StorageBackendAzure},
 		{
 			name:    "both",
-			cfg:     FleetConfig{S3: s3Cfg, CloudStorage: CloudStorageConfig{Azure: azureCfg}},
+			cfg:     AutoMDMConfig{S3: s3Cfg, CloudStorage: CloudStorageConfig{Azure: azureCfg}},
 			wantErr: "Couldn't configure. `s3_software_installers_bucket` and `cloud_storage.azure.files_container` cannot both be set; choose one storage backend for software installers.",
 		},
 		{
 			// the carves bucket does not select the software installers backend
-			name: "s3 carves only", cfg: FleetConfig{S3: S3Config{CarvesBucket: "carves"}}, want: StorageBackendLocal,
+			name: "s3 carves only", cfg: AutoMDMConfig{S3: S3Config{CarvesBucket: "carves"}}, want: StorageBackendLocal,
 		},
 	}
 	for _, c := range cases {
@@ -1491,41 +1491,41 @@ func TestSoftwareInstallersBackend(t *testing.T) {
 func TestSoftwareInstallersSignedURLAndStagedUpload(t *testing.T) {
 	cases := []struct {
 		name             string
-		cfg              FleetConfig
+		cfg              AutoMDMConfig
 		wantSigned       bool
 		wantStagedUpload bool
 	}{
-		{name: "default", cfg: FleetConfig{}},
+		{name: "default", cfg: AutoMDMConfig{}},
 		{
 			name:       "s3 cloudfront signer",
-			cfg:        FleetConfig{S3: S3Config{SoftwareInstallersBucket: "b", SoftwareInstallersCloudFrontSigner: &testSigner{}}},
+			cfg:        AutoMDMConfig{S3: S3Config{SoftwareInstallersBucket: "b", SoftwareInstallersCloudFrontSigner: &testSigner{}}},
 			wantSigned: true,
 		},
 		{
 			name:             "s3 signed url with bucket",
-			cfg:              FleetConfig{S3: S3Config{SoftwareInstallersBucket: "b", SoftwareInstallersSignedURL: true}},
+			cfg:              AutoMDMConfig{S3: S3Config{SoftwareInstallersBucket: "b", SoftwareInstallersSignedURL: true}},
 			wantSigned:       true,
 			wantStagedUpload: true,
 		},
 		{
 			// S3 is only selected when a bucket is set, so its signing settings are ignored otherwise
 			name: "s3 signed url without bucket",
-			cfg:  FleetConfig{S3: S3Config{SoftwareInstallersSignedURL: true}},
+			cfg:  AutoMDMConfig{S3: S3Config{SoftwareInstallersSignedURL: true}},
 		},
 		{
 			name: "s3 cloudfront signer without bucket",
-			cfg:  FleetConfig{S3: S3Config{SoftwareInstallersCloudFrontSigner: &testSigner{}}},
+			cfg:  AutoMDMConfig{S3: S3Config{SoftwareInstallersCloudFrontSigner: &testSigner{}}},
 		},
 		{
 			name: "s3 signed url ignored when azure is selected",
-			cfg: FleetConfig{
+			cfg: AutoMDMConfig{
 				S3:           S3Config{SoftwareInstallersSignedURL: true},
 				CloudStorage: CloudStorageConfig{Azure: AzureConfig{SoftwareInstallersContainer: "c"}},
 			},
 		},
 		{
 			name: "azure signed url ignored when s3 is selected",
-			cfg: FleetConfig{
+			cfg: AutoMDMConfig{
 				S3:           S3Config{SoftwareInstallersBucket: "b"},
 				CloudStorage: CloudStorageConfig{Azure: AzureConfig{SoftwareInstallersSignedURL: true}},
 			},
@@ -1533,7 +1533,7 @@ func TestSoftwareInstallersSignedURLAndStagedUpload(t *testing.T) {
 		},
 		{
 			name: "both backends configured",
-			cfg: FleetConfig{
+			cfg: AutoMDMConfig{
 				S3:           S3Config{SoftwareInstallersBucket: "b", SoftwareInstallersSignedURL: true},
 				CloudStorage: CloudStorageConfig{Azure: AzureConfig{SoftwareInstallersContainer: "c", SoftwareInstallersSignedURL: true}},
 			},
@@ -1541,18 +1541,18 @@ func TestSoftwareInstallersSignedURLAndStagedUpload(t *testing.T) {
 		},
 		{
 			name: "azure signed url",
-			cfg: FleetConfig{CloudStorage: CloudStorageConfig{Azure: AzureConfig{
+			cfg: AutoMDMConfig{CloudStorage: CloudStorageConfig{Azure: AzureConfig{
 				SoftwareInstallersContainer: "c", SoftwareInstallersSignedURL: true,
 			}}},
 			wantSigned: true,
 		},
 		{
 			name: "azure without signed url",
-			cfg:  FleetConfig{CloudStorage: CloudStorageConfig{Azure: AzureConfig{SoftwareInstallersContainer: "c"}}},
+			cfg:  AutoMDMConfig{CloudStorage: CloudStorageConfig{Azure: AzureConfig{SoftwareInstallersContainer: "c"}}},
 		},
 		{
 			name: "azure signed url without container",
-			cfg:  FleetConfig{CloudStorage: CloudStorageConfig{Azure: AzureConfig{SoftwareInstallersSignedURL: true}}},
+			cfg:  AutoMDMConfig{CloudStorage: CloudStorageConfig{Azure: AzureConfig{SoftwareInstallersSignedURL: true}}},
 		},
 	}
 	for _, c := range cases {
@@ -1590,7 +1590,7 @@ func TestMDMConfigOneTimeEnrollSecretsForPlatform(t *testing.T) {
 	}
 }
 
-func mustLoadConfig(t *testing.T, man Manager) FleetConfig {
+func mustLoadConfig(t *testing.T, man Manager) AutoMDMConfig {
 	t.Helper()
 	cfg, err := man.LoadConfig()
 	require.NoError(t, err)

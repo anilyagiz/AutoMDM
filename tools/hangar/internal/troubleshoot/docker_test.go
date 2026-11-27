@@ -8,16 +8,16 @@ import (
 
 func TestParseContainers(t *testing.T) {
 	raw := strings.Join([]string{
-		"3f2a9c1b7d4e\tfleet-mysql-1\tmysql:8.0.36\tfleet\tmysql\tUp 2 hours\t0.0.0.0:3306->3306/tcp, [::]:3306->3306/tcp, 33060/tcp",
-		"9b8c7d6e5f4a\tfleet-s2-minio-1\tminio/minio\tfleet-s2\tminio\tUp 5 minutes\t0.0.0.0:9010-9011->9000-9001/tcp",
-		"0a1b2c3d4e5f\tgifted_wu\tfleetdm/wix:latest\t\t\tUp 30 seconds\t",
+		"3f2a9c1b7d4e\tautomdm-mysql-1\tmysql:8.0.36\tteam\tmysql\tUp 2 hours\t0.0.0.0:3306->3306/tcp, [::]:3306->3306/tcp, 33060/tcp",
+		"9b8c7d6e5f4a\tautomdm-s2-minio-1\tminio/minio\tautomdm-s2\tminio\tUp 5 minutes\t0.0.0.0:9010-9011->9000-9001/tcp",
+		"0a1b2c3d4e5f\tgifted_wu\tautomdm/wix:latest\t\t\tUp 30 seconds\t",
 		"not\tenough\tfields",
 		"",
 	}, "\n")
 	got := parseContainers(raw)
 	want := []Container{
-		{ID: "3f2a9c1b7d4e", Name: "fleet-mysql-1", Image: "mysql:8.0.36", Project: "fleet", Service: "mysql", Status: "Up 2 hours", Ports: []PortRange{{3306, 3306}}},
-		{ID: "9b8c7d6e5f4a", Name: "fleet-s2-minio-1", Image: "minio/minio", Project: "fleet-s2", Service: "minio", Status: "Up 5 minutes", Ports: []PortRange{{9010, 9011}}},
+		{ID: "3f2a9c1b7d4e", Name: "automdm-mysql-1", Image: "mysql:8.0.36", Project: "automdm", Service: "mysql", Status: "Up 2 hours", Ports: []PortRange{{3306, 3306}}},
+		{ID: "9b8c7d6e5f4a", Name: "automdm-s2-minio-1", Image: "minio/minio", Project: "automdm-s2", Service: "minio", Status: "Up 5 minutes", Ports: []PortRange{{9010, 9011}}},
 		{ID: "0a1b2c3d4e5f", Name: "gifted_wu", Image: "fleetdm/wix:latest", Status: "Up 30 seconds", Ports: []PortRange{}},
 	}
 	if !reflect.DeepEqual(got, want) {
@@ -56,7 +56,7 @@ func TestStderrError(t *testing.T) {
 }
 
 func TestStopContainersRejectsNonIDs(t *testing.T) {
-	for _, id := range []string{"-f", "--time=0", "fleet-mysql-1", "3F2A9C1B7D4E", ""} {
+	for _, id := range []string{"-f", "--time=0", "automdm-mysql-1", "3F2A9C1B7D4E", ""} {
 		if err := StopContainers([]string{id}); err == nil || !strings.Contains(err.Error(), "not a container id") {
 			t.Errorf("StopContainers(%q) = %v, want a not-a-container-id error", id, err)
 		}

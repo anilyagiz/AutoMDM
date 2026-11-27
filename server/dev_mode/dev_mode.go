@@ -45,7 +45,7 @@ func Env(name string) string {
 
 func SetOverride(name string, value string, cleanup ...testingTB) { // optional parameter to reset on test cleanup
 	if len(cleanup) > 0 {
-		cleanup[0].Setenv("FLEET_DEV_OVERRIDE_SET", "1") // triggers test deny-parallel check
+		cleanup[0].Setenv("AUTOMDM_DEV_OVERRIDE_SET", "1") // triggers test deny-parallel check
 		cleanup[0].Cleanup(func() {
 			ClearOverride(name)
 		})

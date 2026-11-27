@@ -5,7 +5,7 @@ import React from "react";
 import { CellProps, Column } from "react-table";
 
 import Checkbox from "components/forms/fields/Checkbox";
-import { HumanTimeDiffWithFleetLaunchCutoff } from "components/HumanTimeDiffWithDateTip";
+import { HumanTimeDiffWithTeamLaunchCutoff } from "components/HumanTimeDiffWithDateTip";
 import NotSupported from "components/NotSupported";
 import StatusIndicator from "components/StatusIndicator";
 import HeaderCell from "components/TableContainer/DataTable/HeaderCell/HeaderCell";
@@ -196,14 +196,14 @@ const allHostTableHeaders = (teamId?: number): IHostTableColumnConfig[] => [
     },
     disableHidden: true,
   },
-  // Fleet
+  // AutoMDM
   {
-    title: "Fleet",
+    title: "AutoMDM",
     Header: (cellProps: IHostTableHeaderProps) => (
-      <HeaderCell value="Fleet" isSortedDesc={cellProps.column.isSortedDesc} />
+      <HeaderCell value="AutoMDM" isSortedDesc={cellProps.column.isSortedDesc} />
     ),
-    accessor: "fleet_name",
-    id: "fleet_name",
+    accessor: "team_name",
+    id: "team_name",
     Cell: (cellProps) => (
       <TextCell value={cellProps.cell.value} formatter={hostTeamName} />
     ),
@@ -357,7 +357,7 @@ const allHostTableHeaders = (teamId?: number): IHostTableColumnConfig[] => [
       // TODO(android): android doesn't support refetch?
       <TextCell
         value={
-          <HumanTimeDiffWithFleetLaunchCutoff
+          <HumanTimeDiffWithTeamLaunchCutoff
             timeString={cellProps.cell.value}
             neverTooltip={NEVER_FETCHED_TOOLTIP}
           />
@@ -610,7 +610,7 @@ const allHostTableHeaders = (teamId?: number): IHostTableColumnConfig[] => [
     Header: (cellProps: IHostTableHeaderProps) => (
       <HeaderCell
         value={
-          <TooltipWrapper tipContent="The IP address the host uses to connect to Fleet.">
+          <TooltipWrapper tipContent="The IP address the host uses to connect to AutoMDM.">
             Public IP address
           </TooltipWrapper>
         }
@@ -634,7 +634,7 @@ const allHostTableHeaders = (teamId?: number): IHostTableColumnConfig[] => [
     Header: (cellProps: IHostTableHeaderProps) => {
       const titleWithToolTip = (
         <TooltipWrapper
-          tipContent="Only supported on hosts that run Fleet's agent: macOS, Windows, Linux, and ChromeOS."
+          tipContent="Only supported on hosts that run AutoMDM's agent: macOS, Windows, Linux, and ChromeOS."
           tooltipClass="host-table-header-tooltip"
           fixedPositionStrategy
         >
@@ -655,7 +655,7 @@ const allHostTableHeaders = (teamId?: number): IHostTableColumnConfig[] => [
         platform,
         orbit_version,
         osquery_version,
-        fleet_desktop_version,
+        automdm_desktop_version,
       } = cellProps.row.original;
 
       if (isMobilePlatform(platform)) {
@@ -680,11 +680,11 @@ const allHostTableHeaders = (teamId?: number): IHostTableColumnConfig[] => [
               osquery: {osquery_version}
               <br />
               Orbit: {orbit_version}
-              {fleet_desktop_version &&
-                fleet_desktop_version !== DEFAULT_EMPTY_CELL_VALUE && (
+              {automdm_desktop_version &&
+                automdm_desktop_version !== DEFAULT_EMPTY_CELL_VALUE && (
                   <>
                     <br />
-                    Fleet Desktop: {fleet_desktop_version}
+                    AutoMDM Desktop: {automdm_desktop_version}
                   </>
                 )}
             </>
@@ -727,7 +727,7 @@ const allHostTableHeaders = (teamId?: number): IHostTableColumnConfig[] => [
       return (
         <TextCell
           value={{ timeString: cellProps.cell.value }}
-          formatter={HumanTimeDiffWithFleetLaunchCutoff}
+          formatter={HumanTimeDiffWithTeamLaunchCutoff}
         />
       );
     },
@@ -738,7 +738,7 @@ const allHostTableHeaders = (teamId?: number): IHostTableColumnConfig[] => [
     Header: (cellProps: IHostTableHeaderProps) => {
       const titleWithToolTip = (
         <TooltipWrapper
-          tipContent="Only supported on macOS, Windows, Linux, and ChromeOS where Fleet's agent can measure system uptime."
+          tipContent="Only supported on macOS, Windows, Linux, and ChromeOS where AutoMDM's agent can measure system uptime."
           tooltipClass="host-table-header-tooltip"
           fixedPositionStrategy
         >
@@ -765,24 +765,24 @@ const allHostTableHeaders = (teamId?: number): IHostTableColumnConfig[] => [
           value={{
             timeString: last_restarted_at,
           }}
-          formatter={HumanTimeDiffWithFleetLaunchCutoff}
+          formatter={HumanTimeDiffWithTeamLaunchCutoff}
         />
       );
     },
   },
-  // Added to Fleet
+  // Added to AutoMDM
   {
-    title: "Added to Fleet",
+    title: "Added to AutoMDM",
     Header: (cellProps: IHostTableHeaderProps) => {
       const titleWithToolTip = (
         <TooltipWrapper
           tipContent={
             <>
-              The last time the <br /> host enrolled with Fleet.
+              The last time the <br /> host enrolled with AutoMDM.
             </>
           }
         >
-          Added to Fleet
+          Added to AutoMDM
         </TooltipWrapper>
       );
       return (
@@ -797,15 +797,15 @@ const allHostTableHeaders = (teamId?: number): IHostTableColumnConfig[] => [
     Cell: (cellProps: IHostTableStringCellProps) => (
       <TextCell
         value={{ timeString: cellProps.cell.value }}
-        formatter={HumanTimeDiffWithFleetLaunchCutoff}
+        formatter={HumanTimeDiffWithTeamLaunchCutoff}
       />
     ),
   },
 ];
 
-/** The Fleet column used to be `team_name`; maps that id in saved settings and URLs to the current one. */
-const toFleetColumnId = (id: string) =>
-  id === "team_name" ? "fleet_name" : id;
+/** The Team column used to be `team_name`; maps that id in saved settings and URLs to the current one. */
+const toTeamColumnId = (id: string) =>
+  id === "team_name" ? "team_name" : id;
 
 const defaultHiddenColumns = [
   "hostname",
@@ -830,7 +830,7 @@ const defaultHiddenColumns = [
 
 /**
  * Will generate a host table column configuration based off of the current user
- * permissions and license tier of fleet they are on.
+ * permissions and license tier of team they are on.
  */
 const generateAvailableTableHeaders = ({
   isFreeTier = true,
@@ -847,13 +847,13 @@ const generateAvailableTableHeaders = ({
       if (isFreeTier) {
         if (
           isOnlyObserver &&
-          ["selection", "fleet_name"].includes(currentColumn.id || "")
+          ["selection", "team_name"].includes(currentColumn.id || "")
         ) {
           return columns;
           // skip over column headers that are not shown in free admin/maintainer
         }
         if (
-          currentColumn.id === "fleet_name" ||
+          currentColumn.id === "team_name" ||
           currentColumn.id === "mdm.server_url" ||
           currentColumn.id === "mdm.enrollment_status"
         ) {
@@ -897,7 +897,7 @@ const generateVisibleTableColumns = ({
 
 export {
   defaultHiddenColumns,
-  toFleetColumnId,
+  toTeamColumnId,
   generateAvailableTableHeaders,
   generateVisibleTableColumns,
   getPrimaryDeviceUser,

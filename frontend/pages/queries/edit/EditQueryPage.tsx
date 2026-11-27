@@ -41,7 +41,7 @@ import EditQueryForm from "./components/EditQueryForm";
 interface IEditQueryPageProps {
   router: InjectedRouter;
   params: Params;
-  location: Location<{ host_id: string; fleet_id?: string }>;
+  location: Location<{ host_id: string; team_id?: string }>;
 }
 
 const baseClass = "edit-query-page";
@@ -165,12 +165,12 @@ const EditQueryPage = ({
   if (
     !isOnGlobalTeam &&
     !isStoredQueryLoading &&
-    storedQuery?.fleet_id &&
-    !(storedQuery?.fleet_id?.toString() === location.query.fleet_id)
+    storedQuery?.team_id &&
+    !(storedQuery?.team_id?.toString() === location.query.team_id)
   ) {
     router.push(
       getPathWithQueryParams(location.pathname, {
-        fleet_id: storedQuery?.fleet_id?.toString(),
+        team_id: storedQuery?.team_id?.toString(),
         host_id: hostId,
       })
     );
@@ -178,15 +178,15 @@ const EditQueryPage = ({
 
   // Used to set host's team in AppContext for RBAC actions
   useEffect(() => {
-    if (storedQuery?.fleet_id) {
+    if (storedQuery?.team_id) {
       const querysTeam = availableTeams?.find(
-        (team) => team.id === storedQuery.fleet_id
+        (team) => team.id === storedQuery.team_id
       );
       setCurrentTeam(querysTeam);
     }
   }, [storedQuery]);
 
-  const detectIsFleetQueryRunnable = () => {
+  const detectIsAutoMDMQueryRunnable = () => {
     statusAPI.live_query().catch(() => {
       setIsLiveQueryRunnable(false);
     });
@@ -199,7 +199,7 @@ const EditQueryPage = ({
     const canEditExistingQuery =
       isGlobalAdmin ||
       isGlobalMaintainer ||
-      (isTeamMaintainerOrTeamAdmin && storedQuery?.fleet_id);
+      (isTeamMaintainerOrTeamAdmin && storedQuery?.team_id);
 
     if (
       !isStoredQueryLoading && // Confirms teamId for storedQuery before RBAC reroute
@@ -211,14 +211,14 @@ const EditQueryPage = ({
       router.push(
         getPathWithQueryParams(PATHS.REPORT_DETAILS(queryId), {
           host_id: location.query.host_id,
-          fleet_id: location.query.fleet_id,
+          team_id: location.query.team_id,
         })
       );
     }
   }, [queryId, isTeamMaintainerOrTeamAdmin, isStoredQueryLoading]);
 
   useEffect(() => {
-    detectIsFleetQueryRunnable();
+    detectIsAutoMDMQueryRunnable();
     if (!queryId) {
       setLastEditedQueryId(DEFAULT_QUERY.id);
       setLastEditedQueryName(DEFAULT_QUERY.name);
@@ -242,7 +242,7 @@ const EditQueryPage = ({
 
   // Updates title that shows up on browser tabs
   useEffect(() => {
-    // e.g., Editing Discover TLS certificates | Queries | Fleet
+    // e.g., Editing Discover TLS certificates | Queries | AutoMDM
     const storedQueryTitleCopy = storedQuery?.name
       ? `Editing ${storedQuery.name} | `
       : "";
@@ -262,7 +262,7 @@ const EditQueryPage = ({
       notify.success("Report created.");
       router.push(
         getPathWithQueryParams(PATHS.REPORT_DETAILS(report.id), {
-          fleet_id: report.fleet_id,
+          team_id: report.team_id,
           host_id: hostId,
         })
       );
@@ -271,8 +271,8 @@ const EditQueryPage = ({
       if (getErrorReason(createError).includes("already exists")) {
         const teamErrorText =
           teamNameForQuery && apiTeamIdForQuery !== 0
-            ? `the ${teamNameForQuery} fleet`
-            : "all fleets";
+            ? `the ${teamNameForQuery} team`
+            : "all teams";
         setBackendValidators({
           name: `A report with that name already exists for ${teamErrorText}.`,
         });
@@ -315,7 +315,7 @@ const EditQueryPage = ({
       router.push(
         getPathWithQueryParams(PATHS.REPORT_DETAILS(queryId), {
           host_id: location.query.host_id,
-          fleet_id: location.query.fleet_id,
+          team_id: location.query.team_id,
         })
       );
     } catch (updateError) {
@@ -365,7 +365,7 @@ const EditQueryPage = ({
 
     return (
       <InfoBanner color="yellow">
-        Fleet is unable to run a live report. Refresh the page or log in again.
+        AutoMDM is unable to run a live report. Refresh the page or log in again.
         If this keeps happening please{" "}
         <CustomLink
           url="https://github.com/fleetdm/fleet/issues/new/choose"
@@ -382,7 +382,7 @@ const EditQueryPage = ({
   const backPath = () => {
     if (queryId) {
       return getPathWithQueryParams(PATHS.REPORT_DETAILS(queryId), {
-        fleet_id: currentTeamId,
+        team_id: currentTeamId,
         host_id: hostId,
       });
     }
@@ -394,7 +394,7 @@ const EditQueryPage = ({
     if (filteredQueriesPath) return filteredQueriesPath;
 
     return getPathWithQueryParams(PATHS.MANAGE_REPORTS, {
-      fleet_id: currentTeamId,
+      team_id: currentTeamId,
     });
   };
 

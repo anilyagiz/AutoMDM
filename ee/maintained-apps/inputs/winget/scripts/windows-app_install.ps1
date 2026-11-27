@@ -2,12 +2,12 @@
 # opportunistically register for the currently logged-on console user (via a scheduled
 # task in their session) so the app is immediately visible without requiring sign-out.
 #
-# The Fleet agent runs as Local System on Windows, and Add-AppxPackage cannot run in that
+# The AutoMDM agent runs as Local System on Windows, and Add-AppxPackage cannot run in that
 # context (HRESULT 0x80073CF9). The scheduled task is the supported way to register a
 # package in a user session from a system-context script.
 
 $softwareName = "WindowsApp"
-$taskName = "fleet-install-$softwareName.msix"
+$taskName = "automdm-install-$softwareName.msix"
 $scriptPath = "$env:PUBLIC\install-$softwareName.ps1"
 $exitCodeFile = "$env:PUBLIC\install-exitcode-$softwareName.txt"
 

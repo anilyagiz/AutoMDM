@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/update"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/update"
 	"github.com/stretchr/testify/require"
 )
 
@@ -27,40 +27,40 @@ func TestGetCertPath(t *testing.T) {
 	cases := []struct {
 		name         string
 		rootDir      string
-		fleetCert    string
+		automdmCert  string
 		expectedPath string
 		expectError  error
 	}{
 		{
 			name:         "Default cert path exists",
 			rootDir:      validRoot,
-			fleetCert:    "",
+			automdmCert:  "",
 			expectedPath: validCertPath,
 		},
 		{
 			name:         "Provided cert path exists",
 			rootDir:      validRoot,
-			fleetCert:    srcCertPath,
+			automdmCert:  srcCertPath,
 			expectedPath: srcCertPath,
 		},
 		{
 			name:         "Default cert does not exist",
 			rootDir:      invalidRoot,
-			fleetCert:    "",
+			automdmCert:  "",
 			expectedPath: "",
 			expectError:  fmt.Errorf("cert not found at %s", filepath.Join(invalidRoot, "certs.pem")),
 		},
 		{
 			name:         "Invalid cert path provided",
 			rootDir:      "",
-			fleetCert:    filepath.Join(validRoot, "blah.pem"),
+			automdmCert:  filepath.Join(validRoot, "blah.pem"),
 			expectedPath: "",
 			expectError:  fmt.Errorf("cert not found at %s", filepath.Join(validRoot, "blah.pem")),
 		},
 		{
 			name:         "Invalid PEM format",
 			rootDir:      "",
-			fleetCert:    invalidCertPath,
+			automdmCert:  invalidCertPath,
 			expectedPath: "",
 			expectError:  fmt.Errorf("invalid PEM format %s: no valid certificates found in %s", invalidCertPath, invalidCertPath),
 		},
@@ -68,7 +68,7 @@ func TestGetCertPath(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			path, err := getCertPath(tt.rootDir, tt.fleetCert)
+			path, err := getCertPath(tt.rootDir, tt.automdmCert)
 
 			if tt.expectError != nil {
 				require.Error(t, err)

@@ -4,10 +4,10 @@ import (
 	"maps"
 	"sync"
 
-	"github.com/fleetdm/fleet/v4/client"
+	"github.com/anilyagiz/automdm/v4/client"
 )
 
-// QueryCache holds distributed queries fetched from the Fleet server (via
+// QueryCache holds distributed queries fetched from the AutoMDM server (via
 // HTTP distributed/read) until osquery picks them up on its next local
 // distributed poll (a thrift call to orbit's distributed plugin).
 type QueryCache struct {

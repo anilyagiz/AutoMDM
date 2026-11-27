@@ -14,10 +14,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/acme/internal/types"
-	"github.com/fleetdm/fleet/v4/server/mdm/acme/testhelpers"
-	apple_mdm "github.com/fleetdm/fleet/v4/server/mdm/apple"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/acme/internal/types"
+	"github.com/anilyagiz/automdm/v4/server/mdm/acme/testhelpers"
+	apple_mdm "github.com/anilyagiz/automdm/v4/server/mdm/apple"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 )
@@ -1544,14 +1544,14 @@ func testNewACMEEnrollment(t *testing.T, s *integrationTestSuite) {
 		return enroll
 	}
 
-	ident, err := s.svc.NewACMEEnrollment(ctx, "serial-1", fleet.AppleMDMCertPurposeACME, nil)
+	ident, err := s.svc.NewACMEEnrollment(ctx, "serial-1", automdm.AppleMDMCertPurposeACME, nil)
 	require.NoError(t, err)
 	enroll := stored(t, ident)
 	require.Equal(t, "serial-1", enroll.HostIdentifier)
 	require.Equal(t, "acme", enroll.Purpose)
 	require.Nil(t, enroll.EnrollmentID)
 
-	ident, err = s.svc.NewACMEEnrollment(ctx, "serial-2", fleet.AppleMDMCertPurposeACMERenewal, new("device-channel-id"))
+	ident, err = s.svc.NewACMEEnrollment(ctx, "serial-2", automdm.AppleMDMCertPurposeACMERenewal, new("device-channel-id"))
 	require.NoError(t, err)
 	enroll = stored(t, ident)
 	require.Equal(t, "serial-2", enroll.HostIdentifier)
@@ -1560,13 +1560,13 @@ func testNewACMEEnrollment(t *testing.T, s *integrationTestSuite) {
 
 	for _, c := range []struct {
 		name         string
-		purpose      fleet.AppleMDMCertPurpose
+		purpose      automdm.AppleMDMCertPurpose
 		enrollmentID *string
 	}{
-		{"acme with an enrollment ID", fleet.AppleMDMCertPurposeACME, new("device-channel-id")},
-		{"acme renewal without an enrollment ID", fleet.AppleMDMCertPurposeACMERenewal, nil},
-		{"acme renewal with an empty enrollment ID", fleet.AppleMDMCertPurposeACMERenewal, new("")},
-		{"a SCEP purpose", fleet.AppleMDMCertPurposeADE, nil},
+		{"acme with an enrollment ID", automdm.AppleMDMCertPurposeACME, new("device-channel-id")},
+		{"acme renewal without an enrollment ID", automdm.AppleMDMCertPurposeACMERenewal, nil},
+		{"acme renewal with an empty enrollment ID", automdm.AppleMDMCertPurposeACMERenewal, new("")},
+		{"a SCEP purpose", automdm.AppleMDMCertPurposeADE, nil},
 	} {
 		t.Run("rejects "+c.name, func(t *testing.T) {
 			_, err := s.svc.NewACMEEnrollment(ctx, "serial-3", c.purpose, c.enrollmentID)
@@ -1576,7 +1576,7 @@ func testNewACMEEnrollment(t *testing.T, s *integrationTestSuite) {
 }
 
 func testFinalizeOrder(t *testing.T, s *integrationTestSuite) {
-	// finalizeCrafted finalizes a ready order with a CSR asking for everything Fleet must not copy: extra Subject
+	// finalizeCrafted finalizes a ready order with a CSR asking for everything AutoMDM must not copy: extra Subject
 	// attributes, every SAN type and a forged binding extension. It returns the template the service signed.
 	finalizeCrafted := func(t *testing.T, purpose string, enrollmentID *string, ous ...string) (*types.Enrollment, *x509.Certificate) {
 		enroll, privateKey, accountURL, orderResp, nonce := s.createOrderForFinalize(t)
@@ -1611,7 +1611,7 @@ func testFinalizeOrder(t *testing.T, s *integrationTestSuite) {
 	}
 
 	requireCleanTemplate := func(t *testing.T, tmpl *x509.Certificate, wantOU []string) map[string]any {
-		require.Equal(t, pkix.Name{CommonName: "Fleet Identity", OrganizationalUnit: wantOU}, tmpl.Subject)
+		require.Equal(t, pkix.Name{CommonName: "AutoMDM Identity", OrganizationalUnit: wantOU}, tmpl.Subject)
 		require.Empty(t, tmpl.DNSNames)
 		require.Empty(t, tmpl.EmailAddresses)
 		require.Empty(t, tmpl.IPAddresses)
@@ -1630,14 +1630,14 @@ func testFinalizeOrder(t *testing.T, s *integrationTestSuite) {
 	}
 
 	t.Run("acme enrollment signs a clean subject and binding", func(t *testing.T) {
-		enroll, tmpl := finalizeCrafted(t, "acme", nil, "extra-ou", apple_mdm.FleetEnrollmentSubjectOU)
-		binding := requireCleanTemplate(t, tmpl, []string{"fleet", apple_mdm.FleetEnrollmentSubjectOU})
+		enroll, tmpl := finalizeCrafted(t, "acme", nil, "extra-ou", apple_mdm.AutoMDMEnrollmentSubjectOU)
+		binding := requireCleanTemplate(t, tmpl, []string{"automdm", apple_mdm.AutoMDMEnrollmentSubjectOU})
 		require.Equal(t, map[string]any{"v": 1.0, "purpose": "acme", "serial": enroll.HostIdentifier}, binding)
 	})
 
 	t.Run("acme renewal signs a clean subject and binding", func(t *testing.T) {
 		enroll, tmpl := finalizeCrafted(t, "acme_renewal", new("device-channel-id"))
-		binding := requireCleanTemplate(t, tmpl, []string{"fleet"})
+		binding := requireCleanTemplate(t, tmpl, []string{"automdm"})
 		require.Equal(t, map[string]any{
 			"v": 1.0, "purpose": "acme_renewal", "serial": enroll.HostIdentifier, "enrollment_id": "device-channel-id",
 		}, binding)

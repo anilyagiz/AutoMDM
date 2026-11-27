@@ -11,7 +11,7 @@ import getCSPNonce from "./nonce";
 // Scoped to <style> deliberately: every runtime CSP violation we hit is an
 // inline style, same-origin <script src> chunks are already allowed by
 // script-src 'self', and the template's inline scripts are nonced server-side.
-// So Fleet never needs to auto-nonce a <script>, and not doing so keeps this
+// So AutoMDM never needs to auto-nonce a <script>, and not doing so keeps this
 // wrapper from ever stamping the higher-value target. This only runs for code
 // that is already executing JS, so it is not itself an injection vector, and
 // the nonce is readable from the csp-nonce meta tag regardless.

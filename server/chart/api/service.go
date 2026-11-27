@@ -21,7 +21,7 @@ type Service interface {
 	// `scope` is a function that takes a dataset name and returns two values:
 	// 1. `skip` (bool): Indicates whether the dataset should be skipped entirely.
 	//     If `true`, the service will not call the Collect method for this dataset.
-	// 2. `disabledFleetIDs` ([]uint): A slice of fleet IDs that are disabled for this dataset.
+	// 2. `disabledTeamIDs` ([]uint): A slice of team IDs that are disabled for this dataset.
 	//     This is forwarded to the Collect method for each dataset.
 	//
 	// If `scope` is nil, it is treated as a function that returns (false, nil) for every dataset.
@@ -36,15 +36,15 @@ type Service interface {
 	// converges to the same end state (no rows for the dataset).
 	ScrubDatasetGlobal(ctx context.Context, dataset string) error
 
-	// ScrubDatasetFleet clears bits for every host currently in any of
-	// fleetIDs from every host_scd_data row for the dataset. Invoked by the
-	// chart_scrub_dataset_fleet worker after an admin disables the dataset
-	// for one or more fleets in a single operation. Idempotent.
-	ScrubDatasetFleet(ctx context.Context, dataset string, fleetIDs []uint) error
+	// ScrubDatasetAutoMDM clears bits for every host currently in any of
+	// automdmIDs from every host_scd_data row for the dataset. Invoked by the
+	// chart_scrub_dataset_automdm worker after an admin disables the dataset
+	// for one or more teams in a single operation. Idempotent.
+	ScrubDatasetAutoMDM(ctx context.Context, dataset string, automdmIDs []uint) error
 }
 
 // CollectScopeFn resolves per-dataset collection scope. See Service.CollectDatasets.
-type CollectScopeFn func(datasetName string) (skip bool, disabledFleetIDs []uint)
+type CollectScopeFn func(datasetName string) (skip bool, disabledTeamIDs []uint)
 
 // PlatformExpanderFn maps one platform filter value to the hosts.platform
 // values it covers. Linux hosts store their distro ("ubuntu", "rhel", ...,
@@ -55,7 +55,7 @@ type PlatformExpanderFn func(platform string) []string
 // ViewerProvider exposes authorization-relevant information about the current
 // authenticated viewer. Implementations typically read the viewer context, so
 // this is the seam that keeps the chart bounded context free of direct
-// server/fleet imports.
+// server/automdm imports.
 type ViewerProvider interface {
 	// ViewerScope reports what the authenticated viewer is allowed to see
 	// across teams.

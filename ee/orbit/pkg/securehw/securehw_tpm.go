@@ -13,7 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/constant"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/constant"
 	keyfile "github.com/foxboron/go-tpm-keyfiles"
 	"github.com/google/go-tpm/tpm2"
 	"github.com/google/go-tpm/tpm2/transport"
@@ -48,7 +48,7 @@ func NewTestSecureHW(device transport.TPMCloser, metadataDir string, logger zero
 	return &tpm2SecureHW{
 		device:      device,
 		logger:      logger.With().Str("component", "securehw-test").Logger(),
-		keyFilePath: filepath.Join(metadataDir, constant.FleetHTTPSignatureTPMKeyFileName),
+		keyFilePath: filepath.Join(metadataDir, constant.AutoMDMHTTPSignatureTPMKeyFileName),
 	}, nil
 }
 
@@ -246,7 +246,7 @@ func (t *tpm2SecureHW) saveTPMKeyFile(privateKey tpm2.TPM2BPrivate, publicKey tp
 		keyfile.OIDLoadableKey,
 		publicKey,
 		privateKey,
-		keyfile.WithDescription("fleetd httpsig key"),
+		keyfile.WithDescription("automdmd httpsig key"),
 	)
 	if err := os.WriteFile(t.keyFilePath, k.Bytes(), 0o600); err != nil {
 		return fmt.Errorf("failed to save keyfile: %w", err)

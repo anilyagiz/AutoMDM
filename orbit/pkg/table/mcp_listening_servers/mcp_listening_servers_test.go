@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
 	"github.com/osquery/osquery-go/plugin/table"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -40,7 +40,7 @@ func TestGenerate_WithMCPServerActive(t *testing.T) {
 				{"pid": "1234", "port": "3001", "address": "127.0.0.1", "name": "node", "cmdline": "node mcp-server.js"},
 			}}, nil
 		},
-		httpClient: fleethttp.NewClient(fleethttp.WithTimeout(2 * time.Second)),
+		httpClient: automdmhttp.NewClient(automdmhttp.WithTimeout(2 * time.Second)),
 	}
 
 	scanner.httpClient.Transport = &mockTransport{
@@ -126,7 +126,7 @@ func TestGenerate_WithMCPServerInactive(t *testing.T) {
 				{"pid": "5678", "port": "8080", "address": "0.0.0.0", "name": "nginx", "cmdline": "nginx"},
 			}}, nil
 		},
-		httpClient: fleethttp.NewClient(fleethttp.WithTimeout(2 * time.Second)),
+		httpClient: automdmhttp.NewClient(automdmhttp.WithTimeout(2 * time.Second)),
 	}
 
 	scanner.httpClient.Transport = &mockTransport{
@@ -151,7 +151,7 @@ func TestGenerate_MultipleActiveServers(t *testing.T) {
 				{"pid": "5678", "port": "3002", "address": "127.0.0.1", "name": "node", "cmdline": "node mcp2.js"},
 			}}, nil
 		},
-		httpClient: fleethttp.NewClient(fleethttp.WithTimeout(2 * time.Second)),
+		httpClient: automdmhttp.NewClient(automdmhttp.WithTimeout(2 * time.Second)),
 	}
 
 	scanner.httpClient.Transport = &mockTransport{
@@ -199,7 +199,7 @@ func TestGenerate_WithSSEResponse(t *testing.T) {
 				{"pid": "1234", "port": "3001", "address": "127.0.0.1", "name": "node", "cmdline": "node mcp-server.js"},
 			}}, nil
 		},
-		httpClient: fleethttp.NewClient(fleethttp.WithTimeout(2 * time.Second)),
+		httpClient: automdmhttp.NewClient(automdmhttp.WithTimeout(2 * time.Second)),
 	}
 
 	// Full SSE format with event, id, and data lines
@@ -237,7 +237,7 @@ func TestGenerate_WithIPv6Address(t *testing.T) {
 				{"pid": "9999", "port": "3003", "address": "::", "family": afInet6, "name": "node", "cmdline": "node mcp-server3.js"},
 			}}, nil
 		},
-		httpClient: fleethttp.NewClient(fleethttp.WithTimeout(2 * time.Second)),
+		httpClient: automdmhttp.NewClient(automdmhttp.WithTimeout(2 * time.Second)),
 	}
 
 	// Track which URLs were actually requested to verify IPv6 bracket handling
@@ -315,7 +315,7 @@ func TestSessionTermination(t *testing.T) {
 						{"pid": "1234", "port": "3001", "address": "127.0.0.1", "name": "node", "cmdline": "node mcp-server.js"},
 					}}, nil
 				},
-				httpClient: fleethttp.NewClient(fleethttp.WithTimeout(2 * time.Second)),
+				httpClient: automdmhttp.NewClient(automdmhttp.WithTimeout(2 * time.Second)),
 			}
 
 			scanner.httpClient.Transport = &mockTransport{

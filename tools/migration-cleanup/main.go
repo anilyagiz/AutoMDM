@@ -18,8 +18,8 @@ import (
 	"strings"
 	"time"
 
-	configpkg "github.com/fleetdm/fleet/v4/server/config"
-	commonmysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
+	configpkg "github.com/anilyagiz/automdm/v4/server/config"
+	commonmysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
 	gomysql "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
 	"github.com/spf13/cobra"
@@ -88,7 +88,7 @@ func main() {
 	opts := options{}
 	rootCmd := newRootCmd(&opts)
 	configManager := configpkg.NewManager(rootCmd)
-	hideUnneededFleetConfigFlags(rootCmd)
+	hideUnneededAutoMDMConfigFlags(rootCmd)
 
 	rootCmd.Run = func(cmd *cobra.Command, args []string) {
 		if err := run(cmd.Context(), configManager, opts); err != nil {
@@ -123,12 +123,12 @@ func (e exitError) Error() string {
 func newRootCmd(opts *options) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:          "migration-cleanup",
-		Short:        "Detect and fix Fleet migration renumbering",
+		Short:        "Detect and fix AutoMDM migration renumbering",
 		SilenceUsage: true,
 	}
 
-	cmd.PersistentFlags().String("config", "", "Path to a Fleet configuration file")
-	cmd.Flags().StringVarP(&opts.checkout, "checkout", "c", ".", "Path to fleetdm/fleet git checkout")
+	cmd.PersistentFlags().String("config", "", "Path to an AutoMDM configuration file")
+	cmd.Flags().StringVarP(&opts.checkout, "checkout", "c", ".", "Path to automdm/automdm git checkout")
 	cmd.Flags().StringVarP(&opts.branch, "branch", "b", "", "Branch name")
 	cmd.Flags().StringVarP(&opts.sinceCommit, "since-commit", "", "", "Scan main from this commit forward (hash or short ref)")
 	cmd.Flags().StringVarP(&opts.commit, "commit", "", "", "Inspect a single commit for renames")
@@ -150,9 +150,9 @@ func newRootCmd(opts *options) *cobra.Command {
 	return cmd
 }
 
-// hideUnneededFleetConfigFlags hides Fleet config flags that are not relevant
+// hideUnneededAutoMDMConfigFlags hides AutoMDM config flags that are not relevant
 // to this tool, keeping only the MySQL-related flags visible.
-func hideUnneededFleetConfigFlags(cmd *cobra.Command) {
+func hideUnneededAutoMDMConfigFlags(cmd *cobra.Command) {
 	visibleMysqlFlags := map[string]struct{}{
 		"mysql_protocol":            {},
 		"mysql_address":             {},
@@ -326,11 +326,11 @@ func run(ctx context.Context, configManager configpkg.Manager, opts options) err
 	var tableRows, dataRows []tableRow
 	var db *sqlx.DB
 	if opts.dryRun || opts.apply {
-		fleetConfig, err := configManager.LoadConfig()
+		automdmConfig, err := configManager.LoadConfig()
 		if err != nil {
 			return exitError{code: exitGeneral, message: "ERROR: " + err.Error()}
 		}
-		mysqlConfig, err := writerConfig(fleetConfig.Mysql, opts)
+		mysqlConfig, err := writerConfig(automdmConfig.Mysql, opts)
 		if err != nil {
 			return exitError{code: exitGeneral, message: "ERROR: " + err.Error()}
 		}
@@ -401,7 +401,7 @@ func validateTLSFlags(opts options) error {
 }
 
 // validateEffectiveTLSConfig validates the combined TLS configuration
-// after merging CLI flags and Fleet config.
+// after merging CLI flags and AutoMDM config.
 func validateEffectiveTLSConfig(conf configpkg.MysqlConfig, tlsMode string) error {
 	if tlsMode == "verify-ca" || tlsMode == "verify-identity" {
 		if conf.TLSCA == "" {
@@ -839,7 +839,7 @@ func validateFinalTableState(tableName string, rows []tableRow) []string {
 	return issues
 }
 
-// writerConfig merges CLI database options with Fleet config to produce
+// writerConfig merges CLI database options with AutoMDM config to produce
 // the effective MySQL configuration.
 func writerConfig(conf configpkg.MysqlConfig, opts options) (*configpkg.MysqlConfig, error) {
 	if opts.dbHost != "" {
@@ -853,7 +853,7 @@ func writerConfig(conf configpkg.MysqlConfig, opts options) (*configpkg.MysqlCon
 	}
 	if opts.dbPassword != "" {
 		conf.Password = opts.dbPassword
-	} else if env := os.Getenv("FLEET_DB_PASSWORD"); env != "" {
+	} else if env := os.Getenv("AUTOMDM_DB_PASSWORD"); env != "" {
 		conf.Password = env
 	}
 	if conf.Password == "" && conf.PasswordPath == "" && conf.Region == "" {

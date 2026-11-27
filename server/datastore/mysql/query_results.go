@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -24,7 +24,7 @@ import (
 // If replacing the host's rows would push the query's total above maxQueryReportRows, nothing is
 // changed: hosts already in the report keep updating, hosts not yet in it are skipped once it's full.
 // Excess rows across all hosts are cleaned up by a separate cron job.
-func (ds *Datastore) OverwriteQueryResultRows(ctx context.Context, rows []*fleet.ScheduledQueryResultRow, maxQueryReportRows, currentCount int) (res fleet.QueryReportWriteResult, err error) {
+func (ds *Datastore) OverwriteQueryResultRows(ctx context.Context, rows []*automdm.ScheduledQueryResultRow, maxQueryReportRows, currentCount int) (res automdm.QueryReportWriteResult, err error) {
 	if len(rows) == 0 {
 		return res, nil
 	}
@@ -174,7 +174,7 @@ func (ds *Datastore) deleteQueryResultsBeforeID(ctx context.Context, queryID, be
 	}
 }
 
-// queryResultHostDisplayNameExpr mirrors fleet.HostDisplayName so sorting and
+// queryResultHostDisplayNameExpr mirrors automdm.HostDisplayName so sorting and
 // searching by host name agree with the name shown in the report.
 const queryResultHostDisplayNameExpr = `COALESCE(
 	NULLIF(h.computer_name, ''),
@@ -207,12 +207,12 @@ type queryResultRowPage struct {
 // queryResultRowWithID is a query result row scanned with its ID so the page
 // order can be restored.
 type queryResultRowWithID struct {
-	fleet.ScheduledQueryResultRow
+	automdm.ScheduledQueryResultRow
 	ID uint `db:"id"`
 }
 
 // QueryResultRows returns the query result rows for a given query.
-func (ds *Datastore) QueryResultRows(ctx context.Context, queryID uint, filter fleet.TeamFilter, opts fleet.ListOptions) ([]*fleet.ScheduledQueryResultRow, int, *fleet.PaginationMetadata, error) {
+func (ds *Datastore) QueryResultRows(ctx context.Context, queryID uint, filter automdm.TeamFilter, opts automdm.ListOptions) ([]*automdm.ScheduledQueryResultRow, int, *automdm.PaginationMetadata, error) {
 	whereClause := fmt.Sprintf(`
 		FROM query_results qr
 		JOIN queries q ON q.id = qr.query_id AND qr.id >= q.results_valid_from_id
@@ -263,7 +263,7 @@ func (ds *Datastore) QueryResultRows(ctx context.Context, queryID uint, filter f
 	// Unpaginated callers expect every row; the list-options helper would
 	// otherwise silently cap them at DefaultPerPage.
 	if opts.PerPage == 0 {
-		opts.PerPage = fleet.PerPageUnlimited
+		opts.PerPage = automdm.PerPageUnlimited
 	}
 	pagedStmt, pagedArgs, err := appendListOptionsWithCursorToSQLSecure(pageStmt, pageArgs, &opts, allowedKeys)
 	if err != nil {
@@ -284,7 +284,7 @@ func (ds *Datastore) QueryResultRows(ctx context.Context, queryID uint, filter f
 	for _, p := range page {
 		ids = append(ids, p.ID)
 	}
-	rowsByID := make(map[uint]*fleet.ScheduledQueryResultRow, len(ids))
+	rowsByID := make(map[uint]*automdm.ScheduledQueryResultRow, len(ids))
 	const idBatchSize = 10000
 	for batch := range slices.Chunk(ids, idBatchSize) {
 		stmt, args, err := sqlx.In(`
@@ -306,7 +306,7 @@ func (ds *Datastore) QueryResultRows(ctx context.Context, queryID uint, filter f
 			rowsByID[rows[i].ID] = &rows[i].ScheduledQueryResultRow
 		}
 	}
-	results := make([]*fleet.ScheduledQueryResultRow, 0, len(ids))
+	results := make([]*automdm.ScheduledQueryResultRow, 0, len(ids))
 	for _, id := range ids {
 		// A row can be replaced by a host check-in, or hidden by a results-clearing edit, between
 		// the two queries.
@@ -320,9 +320,9 @@ func (ds *Datastore) QueryResultRows(ctx context.Context, queryID uint, filter f
 		return nil, 0, nil, ctxerr.Wrap(ctx, err, "counting query result rows")
 	}
 
-	var metadata *fleet.PaginationMetadata
+	var metadata *automdm.PaginationMetadata
 	if opts.IncludeMetadata {
-		metadata = &fleet.PaginationMetadata{
+		metadata = &automdm.PaginationMetadata{
 			HasPreviousResults: opts.Page > 0,
 			TotalResults:       uint(total), //nolint:gosec // dismiss G115
 			HasNextResults:     hasNextResults,
@@ -379,13 +379,13 @@ func (ds *Datastore) ResultCountsForQueries(ctx context.Context, queryIDs []uint
 
 // QueryResultRowsForHost returns the query result rows for a given query and host
 // including rows with null data
-func (ds *Datastore) QueryResultRowsForHost(ctx context.Context, queryID, hostID uint) ([]*fleet.ScheduledQueryResultRow, error) {
+func (ds *Datastore) QueryResultRowsForHost(ctx context.Context, queryID, hostID uint) ([]*automdm.ScheduledQueryResultRow, error) {
 	selectStmt := `
 		SELECT qr.query_id, qr.host_id, qr.last_fetched, qr.data FROM query_results qr
 		JOIN queries q ON q.id = qr.query_id AND qr.id >= q.results_valid_from_id
 		WHERE qr.query_id = ? AND qr.host_id = ?
 	`
-	results := []*fleet.ScheduledQueryResultRow{}
+	results := []*automdm.ScheduledQueryResultRow{}
 	err := sqlx.SelectContext(ctx, ds.reader(ctx), &results, selectStmt, queryID, hostID)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "selecting query result rows for host")
@@ -396,7 +396,7 @@ func (ds *Datastore) QueryResultRowsForHost(ctx context.Context, queryID, hostID
 
 // QueryResultRowsForHostByQuery returns a host's stored rows for each of the given queries,
 // including rows with null data. Rows are returned in insert order.
-func (ds *Datastore) QueryResultRowsForHostByQuery(ctx context.Context, hostID uint, queryIDs []uint) (map[uint][]*fleet.StoredQueryResultRow, error) {
+func (ds *Datastore) QueryResultRowsForHostByQuery(ctx context.Context, hostID uint, queryIDs []uint) (map[uint][]*automdm.StoredQueryResultRow, error) {
 	if len(queryIDs) == 0 {
 		return nil, nil
 	}
@@ -411,12 +411,12 @@ func (ds *Datastore) QueryResultRowsForHostByQuery(ctx context.Context, hostID u
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "building select query result rows for host")
 	}
-	var rows []*fleet.StoredQueryResultRow
+	var rows []*automdm.StoredQueryResultRow
 	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &rows, stmt, args...); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "selecting query result rows for host")
 	}
-	slices.SortFunc(rows, func(a, b *fleet.StoredQueryResultRow) int { return cmp.Compare(a.ID, b.ID) })
-	byQuery := make(map[uint][]*fleet.StoredQueryResultRow)
+	slices.SortFunc(rows, func(a, b *automdm.StoredQueryResultRow) int { return cmp.Compare(a.ID, b.ID) })
+	byQuery := make(map[uint][]*automdm.StoredQueryResultRow)
 	for _, row := range rows {
 		byQuery[row.QueryID] = append(byQuery[row.QueryID], row)
 	}
@@ -531,7 +531,7 @@ func (ds *Datastore) CleanupStaleQueryResults(ctx context.Context) error {
 // Deletes are batched to avoid large binlogs and long lock times.
 // This runs as a cron job to ensure the query_results table doesn't grow unbounded.
 // Returns a map of query IDs to their current row count after cleanup (for syncing Redis counters).
-func (ds *Datastore) CleanupExcessQueryResultRows(ctx context.Context, maxQueryReportRows int, opts ...fleet.CleanupExcessQueryResultRowsOptions) (map[uint]int, error) {
+func (ds *Datastore) CleanupExcessQueryResultRows(ctx context.Context, maxQueryReportRows int, opts ...automdm.CleanupExcessQueryResultRowsOptions) (map[uint]int, error) {
 	batchSize := 500
 	// Allow overriding the batch size mainly for tests.
 	if len(opts) > 0 && opts[0].BatchSize > 0 {
@@ -665,8 +665,8 @@ func (ds *Datastore) ListHostReports(
 	hostID uint,
 	teamID *uint,
 	hostPlatform string,
-	opts fleet.ListHostReportsOptions,
-) ([]*fleet.HostReport, int, *fleet.PaginationMetadata, error) {
+	opts automdm.ListHostReportsOptions,
+) ([]*automdm.HostReport, int, *automdm.PaginationMetadata, error) {
 	// We only care about saved queries
 	whereClause := "WHERE q.saved = 1"
 	var whereArgs []any
@@ -732,7 +732,7 @@ func (ds *Datastore) ListHostReports(
 	allowedKeys := hostReportAllowedOrderKeys
 	if opts.ListOptions.OrderKey == "last_fetched" {
 		sentinel := "'9999-12-31 23:59:59'" // NULLs → max, sort last in ASC
-		if opts.ListOptions.OrderDirection == fleet.OrderDescending {
+		if opts.ListOptions.OrderDirection == automdm.OrderDescending {
 			sentinel = "'0001-01-01 00:00:00'" // NULLs → min, sort last in DESC
 		}
 		allowedKeys = make(common_mysql.OrderKeyAllowlist, len(hostReportAllowedOrderKeys)+1)
@@ -759,14 +759,14 @@ func (ds *Datastore) ListHostReports(
 		return nil, 0, nil, ctxerr.Wrap(ctx, err, "counting host reports")
 	}
 
-	metadata := &fleet.PaginationMetadata{HasPreviousResults: opts.ListOptions.Page > 0}
+	metadata := &automdm.PaginationMetadata{HasPreviousResults: opts.ListOptions.Page > 0}
 	if len(queryRows) > int(opts.ListOptions.PerPage) { //nolint:gosec // dismiss G115
 		metadata.HasNextResults = true
 		queryRows = queryRows[:len(queryRows)-1]
 	}
 
 	if len(queryRows) == 0 {
-		return []*fleet.HostReport{}, total, metadata, nil
+		return []*automdm.HostReport{}, total, metadata, nil
 	}
 
 	// Collect IDs for the current page.
@@ -835,13 +835,13 @@ func (ds *Datastore) ListHostReports(
 	}
 
 	// Map to HostReport structs, joining in the batch-fetched metadata.
-	reports := make([]*fleet.HostReport, 0, len(queryRows))
+	reports := make([]*automdm.HostReport, 0, len(queryRows))
 	for _, qr := range queryRows {
-		r := &fleet.HostReport{
+		r := &automdm.HostReport{
 			ReportID:     qr.QueryID,
 			Name:         qr.Name,
 			Description:  qr.Description,
-			StoreResults: !qr.DiscardData && qr.LoggingType == fleet.LoggingSnapshot,
+			StoreResults: !qr.DiscardData && qr.LoggingType == automdm.LoggingSnapshot,
 		}
 		if qr.LastResultFetched.Valid {
 			t := qr.LastResultFetched.Time

@@ -257,9 +257,9 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
     <div style={{ maxWidth: 620, margin: "48px auto", display: "flex", flexDirection: "column", gap: "var(--pad-medium)", textAlign: "center" }}>
       <div style={{ fontSize: "var(--fs-medium)", fontWeight: 600 }}>No SCEP servers yet</div>
       <div className="dim" style={{ fontSize: "var(--fs-xx-small)", lineHeight: 1.6 }}>
-        Run local SCEP CAs for QA using Fleet's in-repo scepserver (a fork of micromdm/scep). Add a
+        Run local SCEP CAs for QA using AutoMDM's in-repo scepserver (a fork of micromdm/scep). Add a
         server, then create its CA — each server uses its own depot, port, and challenge, and several
-        can run at once so Fleet can register multiple Custom SCEP CAs simultaneously.
+        can run at once so AutoMDM can register multiple Custom SCEP CAs simultaneously.
       </div>
       <div>
         <button className="primary" onClick={onAdd}>+ Add SCEP server</button>
@@ -482,7 +482,7 @@ function InitCaModal({
 }) {
   const [depot, setDepot] = useState("");
   const [params, setParams] = useState<ScepInitCAParams>({
-    common_name: `Fleet ${profile.name || profile.id} SCEP CA`,
+    common_name: `AutoMDM ${profile.name || profile.id} SCEP CA`,
     organization: "Fleet Device Management Inc.",
     organizational_unit: "QA",
     country: "US",

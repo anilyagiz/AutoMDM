@@ -25,17 +25,17 @@ done
 [ -f /run/nologin ] && rm /run/nologin
 
 # Remove GDM banner if we set one
-if [ -f /etc/dconf/db/gdm.d/99-fleet-lock-banner ]; then
+if [ -f /etc/dconf/db/gdm.d/99-automdm-lock-banner ]; then
     echo "Removing GDM lock banner"
-    rm /etc/dconf/db/gdm.d/99-fleet-lock-banner
+    rm /etc/dconf/db/gdm.d/99-automdm-lock-banner
     dconf update 2>/dev/null || true
 fi
 
 # Remove our custom lock message service
-if [ -f /etc/systemd/system/fleet-lock-message.service ]; then
-    systemctl stop fleet-lock-message.service 2>/dev/null || true
-    systemctl disable fleet-lock-message.service 2>/dev/null
-    rm /etc/systemd/system/fleet-lock-message.service
+if [ -f /etc/systemd/system/automdm-lock-message.service ]; then
+    systemctl stop automdm-lock-message.service 2>/dev/null || true
+    systemctl disable automdm-lock-message.service 2>/dev/null
+    rm /etc/systemd/system/automdm-lock-message.service
     systemctl daemon-reload
 fi
 
@@ -47,21 +47,21 @@ if [ -f /usr/lib/systemd/system/systemd-user-sessions.service ]; then
 fi
 
 # Check if we switched to text mode during lock and restore GUI if needed
-if [ -f /etc/fleet.text-mode-lock ]; then
+if [ -f /etc/automdm.text-mode-lock ]; then
     echo "Restoring graphical mode"
     
     # Restore the original systemd target
-    if [ -f /etc/fleet.systemd-target.backup ]; then
-        TARGET=$(cat /etc/fleet.systemd-target.backup)
+    if [ -f /etc/automdm.systemd-target.backup ]; then
+        TARGET=$(cat /etc/automdm.systemd-target.backup)
         systemctl set-default "$TARGET" 2>/dev/null
-        rm /etc/fleet.systemd-target.backup
+        rm /etc/automdm.systemd-target.backup
     else
         # Default to graphical target if no backup found
         systemctl set-default graphical.target
     fi
     
     # Clean up marker file
-    rm /etc/fleet.text-mode-lock
+    rm /etc/automdm.text-mode-lock
     
     # System needs reboot to properly restore GUI
 fi
@@ -69,7 +69,7 @@ fi
 echo "All non-root users have been unlocked."
 
 # Schedule a reboot to resolve UI issues (e.g., password prompt not fully visible in LightDM+Ubuntu24.04)
-# We schedule it instead of immediate reboot to ensure the script completes and reports success to Fleet
+# We schedule it instead of immediate reboot to ensure the script completes and reports success to AutoMDM
 echo "Scheduling system reboot in 10 seconds to complete unlock process..."
 systemd-run --on-active=10s --timer-property=AccuracySec=100ms /sbin/reboot
 exit 0

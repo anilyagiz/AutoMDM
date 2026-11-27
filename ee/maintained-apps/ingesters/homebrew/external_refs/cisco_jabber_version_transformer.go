@@ -1,7 +1,7 @@
 package externalrefs
 
 import (
-	maintained_apps "github.com/fleetdm/fleet/v4/ee/maintained-apps"
+	maintained_apps "github.com/anilyagiz/automdm/v4/ee/maintained-apps"
 )
 
 // CiscoJabberVersionTransformer sets the version to "15.2.0" which matches what osquery reports.

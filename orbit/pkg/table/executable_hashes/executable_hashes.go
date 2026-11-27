@@ -20,7 +20,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/osquery/osquery-go/plugin/table"
 	"github.com/rs/zerolog/log"
 )
@@ -499,7 +499,7 @@ func getExecutablePath(ctx context.Context, path string) string {
 
 	// The macOS `defaults read` command encodes supplementary Unicode characters (such as emoji) as
 	// \uXXXX escape sequences using UTF-16 surrogate pairs.
-	executableName = fleet.DecodeUnicodeEscapes(executableName)
+	executableName = automdm.DecodeUnicodeEscapes(executableName)
 
 	return filepath.Join(path, "/Contents/MacOS/", executableName)
 }

@@ -56,7 +56,7 @@ const PolicyAutomationActivityItem = ({
       hideCancel
       hideShowDetails
     >
-      <b>{activity.fleet_initiated ? "Fleet" : activity.actor_full_name}</b>{" "}
+      <b>{activity.automdm_initiated ? "AutoMDM" : activity.actor_full_name}</b>{" "}
       {AUTOMATION_COPY[activity.type]}
     </ActivityItem>
   );

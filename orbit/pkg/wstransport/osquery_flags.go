@@ -55,8 +55,8 @@ func OsqueryFlags(requiredExtension string, userFlags map[string]string, osquery
 
 // UserConfigPlugin returns the config plugin set by userFlags (the parsed
 // flagfile, e.g. from the agent options' command_line_flags) when it isn't
-// osquery's TLS plugin, Fleet's default. Orbit then doesn't serve osquery its
-// config: the user manages it outside Fleet.
+// osquery's TLS plugin, AutoMDM's default. Orbit then doesn't serve osquery its
+// config: the user manages it outside AutoMDM.
 func UserConfigPlugin(userFlags map[string]string) (string, bool) {
 	plugin := flagValue(userFlags, "--config_plugin")
 	return plugin, plugin != "" && plugin != "tls"
@@ -75,7 +75,7 @@ func ServerConfigRefresh(userFlags map[string]string) time.Duration {
 }
 
 // flagValue returns the flag's value with any surrounding quotes stripped
-// (hand-edited flagfiles sometimes quote values; Fleet-written ones don't).
+// (hand-edited flagfiles sometimes quote values; AutoMDM-written ones don't).
 func flagValue(flags map[string]string, name string) string {
 	return strings.Trim(flags[name], `"'`)
 }

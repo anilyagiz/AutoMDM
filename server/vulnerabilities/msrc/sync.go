@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/io"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/msrc/parsed"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/io"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/msrc/parsed"
 	"github.com/google/go-github/v37/github"
 )
 
@@ -15,7 +15,7 @@ import (
 // from the local file system based what OSes are installed, what local bulletins we have and what
 // remote bulletins exist.
 func bulletinsDelta(
-	os []fleet.OperatingSystem,
+	os []automdm.OperatingSystem,
 	local []io.MetadataFileName,
 	remote []io.MetadataFileName,
 ) (
@@ -72,8 +72,8 @@ func bulletinsDelta(
 // systems with the security bulletin published in Github.
 //
 // If 'os' is nil, then all security bulletins will be synched.
-func SyncFromGithub(ctx context.Context, dstDir string, os []fleet.OperatingSystem) error {
-	client := fleethttp.NewGithubClient()
+func SyncFromGithub(ctx context.Context, dstDir string, os []automdm.OperatingSystem) error {
+	client := automdmhttp.NewGithubClient()
 	rep := github.NewClient(client).Repositories
 	gh := io.NewGitHubClient(client, rep, dstDir)
 	fs := io.NewFSClient(dstDir)
@@ -87,7 +87,7 @@ func SyncFromGithub(ctx context.Context, dstDir string, os []fleet.OperatingSyst
 
 func sync(
 	ctx context.Context,
-	os []fleet.OperatingSystem,
+	os []automdm.OperatingSystem,
 	fsClient io.FSAPI,
 	ghClient io.GitHubAPI,
 ) error {

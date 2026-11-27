@@ -12,11 +12,11 @@ const makeErr = (reason: string) => ({
 });
 
 describe("getInstallErrorMessage", () => {
-  it("returns fleetd-specific message", () => {
+  it("returns automdmd-specific message", () => {
     const result = getInstallErrorMessage(
-      makeErr("host has fleetd installed from another source")
+      makeErr("host has automdmd installed from another source")
     );
-    expect(result).toContain("fleetd installed");
+    expect(result).toContain("automdmd installed");
   });
 
   it("returns macOS-only install message", () => {
@@ -41,22 +41,22 @@ describe("getInstallErrorMessage", () => {
   it("surfaces the missing Managed Apple ID message as-is", () => {
     const result = getInstallErrorMessage(
       makeErr(
-        "Couldn't install. Fleet hasn't received a Managed Apple ID for this host yet. Please wait a few minutes after enrollment and try again."
+        "Couldn't install. AutoMDM hasn't received a Managed Apple ID for this host yet. Please wait a few minutes after enrollment and try again."
       )
     );
     expect(result).toBe(
-      "Couldn't install. Fleet hasn't received a Managed Apple ID for this host yet. Please wait a few minutes after enrollment and try again"
+      "Couldn't install. AutoMDM hasn't received a Managed Apple ID for this host yet. Please wait a few minutes after enrollment and try again"
     );
   });
 
-  it("returns unresolvable Fleet variable message", () => {
+  it("returns unresolvable AutoMDM variable message", () => {
     const result = getInstallErrorMessage(
       makeErr(
-        "apple_mdm: unresolvable Fleet variable in managed app configuration"
+        "apple_mdm: unresolvable AutoMDM variable in managed app configuration"
       )
     );
     expect(result).toBe(
-      "Couldn't install. Couldn't resolve a Fleet variable in the managed app configuration for this host."
+      "Couldn't install. Couldn't resolve an AutoMDM variable in the managed app configuration for this host."
     );
   });
 
@@ -100,7 +100,7 @@ describe("getInstallErrorMessage", () => {
   it("prefers the expiration message when the token name contains a later branch's trigger phrase", () => {
     const result = getInstallErrorMessage(
       makeErr(
-        `Couldn't install. VPP token "fleetd installed inc" is expired. Please renew it and try again.`
+        `Couldn't install. VPP token "automdmd installed inc" is expired. Please renew it and try again.`
       )
     );
     const { container } = render(<>{result}</>);

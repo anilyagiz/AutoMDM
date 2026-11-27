@@ -37,7 +37,7 @@ const EndUserAuthSection = ({
         tipContent={
           !isIdPConfigured ? (
             <>
-              To enable, first connect Fleet to your{" "}
+              To enable, first connect AutoMDM to your{" "}
               <CustomLink
                 url={PATHS.ADMIN_INTEGRATIONS_SSO_END_USERS}
                 text="identity provider (IdP)"

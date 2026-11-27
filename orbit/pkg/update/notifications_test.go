@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/bitlocker"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/scripts"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/bitlocker"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/scripts"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/rs/zerolog/log"
 	"github.com/stretchr/testify/require"
 )
@@ -41,7 +41,7 @@ func TestRenewEnrollmentProfile(t *testing.T) {
 		t.Run(c.desc, func(t *testing.T) {
 			logBuf.Reset()
 
-			testConfig := &fleet.OrbitConfig{Notifications: fleet.OrbitConfigNotifications{RenewEnrollmentProfile: c.renewFlag}}
+			testConfig := &automdm.OrbitConfig{Notifications: automdm.OrbitConfigNotifications{RenewEnrollmentProfile: c.renewFlag}}
 
 			var cmdGotCalled bool
 			var depAssignedCheckGotCalled bool
@@ -77,7 +77,7 @@ func TestRenewEnrollmentProfilePrevented(t *testing.T) {
 	log.Logger = log.Output(&logBuf)
 	t.Cleanup(func() { log.Logger = oldLog })
 
-	testConfig := &fleet.OrbitConfig{Notifications: fleet.OrbitConfigNotifications{RenewEnrollmentProfile: true}}
+	testConfig := &automdm.OrbitConfig{Notifications: automdm.OrbitConfigNotifications{RenewEnrollmentProfile: true}}
 
 	var cmdCallCount int
 	isEnrolled := false
@@ -234,7 +234,7 @@ func TestWindowsMDMEnrollment(t *testing.T) {
 				isUnenroll = c.unenrollFlag != nil
 			)
 
-			testConfig := &fleet.OrbitConfig{Notifications: fleet.OrbitConfigNotifications{
+			testConfig := &automdm.OrbitConfig{Notifications: automdm.OrbitConfigNotifications{
 				NeedsProgrammaticWindowsMDMEnrollment:   enroll,
 				NeedsProgrammaticWindowsMDMUnenrollment: unenroll,
 				NeedsMDMMigration:                       migrate,
@@ -277,7 +277,7 @@ func TestWindowsMDMEnrollmentPrevented(t *testing.T) {
 	log.Logger = log.Output(&logBuf)
 	t.Cleanup(func() { log.Logger = oldLog })
 
-	cfgs := []fleet.OrbitConfigNotifications{
+	cfgs := []automdm.OrbitConfigNotifications{
 		{
 			NeedsProgrammaticWindowsMDMEnrollment: true,
 			WindowsMDMDiscoveryEndpoint:           "http://example.com",
@@ -288,7 +288,7 @@ func TestWindowsMDMEnrollmentPrevented(t *testing.T) {
 	}
 	for _, cfg := range cfgs {
 		t.Run(fmt.Sprintf("%+v", cfg), func(t *testing.T) {
-			testConfig := &fleet.OrbitConfig{Notifications: cfg}
+			testConfig := &automdm.OrbitConfig{Notifications: cfg}
 
 			var (
 				apiCallCount int
@@ -403,7 +403,7 @@ func TestRunScripts(t *testing.T) {
 	t.Run("no pending scripts", func(t *testing.T) {
 		t.Cleanup(func() { callsCount.Store(0); logBuf.Reset() })
 
-		testConfig := &fleet.OrbitConfig{Notifications: fleet.OrbitConfigNotifications{
+		testConfig := &automdm.OrbitConfig{Notifications: automdm.OrbitConfigNotifications{
 			PendingScriptExecutionIDs: nil,
 		}}
 
@@ -422,7 +422,7 @@ func TestRunScripts(t *testing.T) {
 	t.Run("pending scripts succeed", func(t *testing.T) {
 		t.Cleanup(func() { callsCount.Store(0); logBuf.Reset() })
 
-		testConfig := &fleet.OrbitConfig{Notifications: fleet.OrbitConfigNotifications{
+		testConfig := &automdm.OrbitConfig{Notifications: automdm.OrbitConfigNotifications{
 			PendingScriptExecutionIDs: []string{"a", "b", "c"},
 		}}
 
@@ -441,7 +441,7 @@ func TestRunScripts(t *testing.T) {
 	t.Run("pending scripts failed", func(t *testing.T) {
 		t.Cleanup(func() { callsCount.Store(0); logBuf.Reset(); runFailure = nil })
 
-		testConfig := &fleet.OrbitConfig{Notifications: fleet.OrbitConfigNotifications{
+		testConfig := &automdm.OrbitConfig{Notifications: automdm.OrbitConfigNotifications{
 			PendingScriptExecutionIDs: []string{"a", "b", "c"},
 		}}
 
@@ -463,7 +463,7 @@ func TestRunScripts(t *testing.T) {
 	t.Run("concurrent run prevented", func(t *testing.T) {
 		t.Cleanup(func() { callsCount.Store(0); logBuf.Reset(); blockRun = nil })
 
-		testConfig := &fleet.OrbitConfig{Notifications: fleet.OrbitConfigNotifications{
+		testConfig := &automdm.OrbitConfig{Notifications: automdm.OrbitConfigNotifications{
 			PendingScriptExecutionIDs: []string{"a", "b", "c"},
 		}}
 
@@ -491,7 +491,7 @@ func TestRunScripts(t *testing.T) {
 	t.Run("dynamic enabling of scripts", func(t *testing.T) {
 		t.Cleanup(logBuf.Reset)
 
-		testConfig := &fleet.OrbitConfig{Notifications: fleet.OrbitConfigNotifications{
+		testConfig := &automdm.OrbitConfig{Notifications: automdm.OrbitConfigNotifications{
 			PendingScriptExecutionIDs: []string{"a"},
 		}}
 
@@ -508,8 +508,8 @@ func TestRunScripts(t *testing.T) {
 				scriptsEnabledCalls = append(scriptsEnabledCalls, r.ScriptExecutionEnabled)
 				return nil
 			},
-			testGetFleetdConfig: func() (*fleet.MDMAppleFleetdConfig, error) {
-				return &fleet.MDMAppleFleetdConfig{
+			testGetAutoMDMdConfig: func() (*automdm.MDMAppleAutoMDMdConfig, error) {
+				return &automdm.MDMAppleAutoMDMdConfig{
 					EnableScripts: dynamicEnabled.Load(),
 				}, nil
 			},
@@ -558,23 +558,23 @@ func TestRunScripts(t *testing.T) {
 }
 
 type mockDiskEncryptionKeySetter struct {
-	SetOrUpdateDiskEncryptionKeyImpl    func(diskEncryptionStatus fleet.OrbitHostDiskEncryptionKeyPayload) error
+	SetOrUpdateDiskEncryptionKeyImpl    func(diskEncryptionStatus automdm.OrbitHostDiskEncryptionKeyPayload) error
 	SetOrUpdateDiskEncryptionKeyInvoked bool
-	ProtectionOutcome                   fleet.DiskEncryptionProtectionOutcome
+	ProtectionOutcome                   automdm.DiskEncryptionProtectionOutcome
 	ProtectionClientError               string
 	ProtectionReportInvoked             bool
-	Capabilities                        fleet.CapabilityMap
+	Capabilities                        automdm.CapabilityMap
 	GetPINDetailsImpl                   func() (pin, requestUUID string, err error)
 	GetPINDetailsCalls                  int
 	SetPINResultImpl                    func(outcome pinOutcome) error
 	PINResults                          []pinOutcome
 }
 
-func (m *mockDiskEncryptionKeySetter) GetServerCapabilities() fleet.CapabilityMap {
+func (m *mockDiskEncryptionKeySetter) GetServerCapabilities() automdm.CapabilityMap {
 	return m.Capabilities
 }
 
-func (m *mockDiskEncryptionKeySetter) SetOrUpdateDiskEncryptionKey(diskEncryptionStatus fleet.OrbitHostDiskEncryptionKeyPayload) error {
+func (m *mockDiskEncryptionKeySetter) SetOrUpdateDiskEncryptionKey(diskEncryptionStatus automdm.OrbitHostDiskEncryptionKeyPayload) error {
 	m.SetOrUpdateDiskEncryptionKeyInvoked = true
 	return m.SetOrUpdateDiskEncryptionKeyImpl(diskEncryptionStatus)
 }
@@ -584,7 +584,7 @@ func (m *mockDiskEncryptionKeySetter) GetDiskEncryptionPINDetails() (string, str
 	return m.GetPINDetailsImpl()
 }
 
-func (m *mockDiskEncryptionKeySetter) SetDiskEncryptionPINResult(requestUUID string, outcome fleet.BitLockerPINRequestStatus,
+func (m *mockDiskEncryptionKeySetter) SetDiskEncryptionPINResult(requestUUID string, outcome automdm.BitLockerPINRequestStatus,
 	clientError string,
 ) error {
 	reported := pinOutcome{requestUUID: requestUUID, outcome: outcome, clientError: clientError}
@@ -592,7 +592,7 @@ func (m *mockDiskEncryptionKeySetter) SetDiskEncryptionPINResult(requestUUID str
 	return m.SetPINResultImpl(reported)
 }
 
-func (m *mockDiskEncryptionKeySetter) SetOrUpdateDiskEncryptionProtection(outcome fleet.DiskEncryptionProtectionOutcome, clientError string) error {
+func (m *mockDiskEncryptionKeySetter) SetOrUpdateDiskEncryptionProtection(outcome automdm.DiskEncryptionProtectionOutcome, clientError string) error {
 	m.ProtectionReportInvoked = true
 	m.ProtectionOutcome = outcome
 	m.ProtectionClientError = clientError
@@ -614,7 +614,7 @@ func TestBitlockerOperations(t *testing.T) {
 	)
 
 	clientMock := &mockDiskEncryptionKeySetter{}
-	clientMock.SetOrUpdateDiskEncryptionKeyImpl = func(diskEncryptionStatus fleet.OrbitHostDiskEncryptionKeyPayload) error {
+	clientMock.SetOrUpdateDiskEncryptionKeyImpl = func(diskEncryptionStatus automdm.OrbitHostDiskEncryptionKeyPayload) error {
 		if shouldFailServerUpdate {
 			return errors.New("server error")
 		}
@@ -664,13 +664,13 @@ func TestBitlockerOperations(t *testing.T) {
 		clientMock.ProtectionReportInvoked = false
 		clientMock.ProtectionOutcome = ""
 		clientMock.ProtectionClientError = ""
-		clientMock.Capabilities = fleet.CapabilityMap{fleet.CapabilityWindowsDiskEncryptionErrorKeepsKey: {}}
+		clientMock.Capabilities = automdm.CapabilityMap{automdm.CapabilityWindowsDiskEncryptionErrorKeepsKey: {}}
 		logBuf.Reset()
 	}
 
-	makeConfig := func() *fleet.OrbitConfig {
-		return &fleet.OrbitConfig{
-			Notifications: fleet.OrbitConfigNotifications{
+	makeConfig := func() *automdm.OrbitConfig {
+		return &automdm.OrbitConfig{
+			Notifications: automdm.OrbitConfigNotifications{
 				EnforceBitLockerEncryption: shouldEncrypt,
 			},
 		}
@@ -828,8 +828,8 @@ func TestBitlockerOperations(t *testing.T) {
 		unreadable := func() ([]bitlocker.VolumeStatus, error) {
 			return []bitlocker.VolumeStatus{{DriveVolume: "C:", Err: errors.New("WMI unavailable")}}, nil
 		}
-		protectionCfg := &fleet.OrbitConfig{
-			Notifications: fleet.OrbitConfigNotifications{EnableBitLockerProtection: true},
+		protectionCfg := &automdm.OrbitConfig{
+			Notifications: automdm.OrbitConfigNotifications{EnableBitLockerProtection: true},
 		}
 
 		// wantOutcome empty means the agent must report nothing at all. wantBackoff pins whether protectionRetryAfter is
@@ -845,7 +845,7 @@ func TestBitlockerOperations(t *testing.T) {
 			restartErr      error
 			wantAdd         bool
 			wantEnable      bool
-			wantOutcome     fleet.DiskEncryptionProtectionOutcome
+			wantOutcome     automdm.DiskEncryptionProtectionOutcome
 			wantErrContains string
 			wantBackoff     bool
 			// shortBackoff means the retry window must be the success backoff, not the full failure Frequency.
@@ -857,7 +857,7 @@ func TestBitlockerOperations(t *testing.T) {
 				status:       suspended,
 				hasProtector: true,
 				wantEnable:   true,
-				wantOutcome:  fleet.DiskEncryptionProtectionRestored,
+				wantOutcome:  automdm.DiskEncryptionProtectionRestored,
 				wantBackoff:  true,
 				shortBackoff: true,
 			},
@@ -867,7 +867,7 @@ func TestBitlockerOperations(t *testing.T) {
 				hasProtector:    true,
 				enableErr:       errors.New("0x80310000 the volume cannot be unlocked"),
 				wantEnable:      true,
-				wantOutcome:     fleet.DiskEncryptionProtectionFailed,
+				wantOutcome:     automdm.DiskEncryptionProtectionFailed,
 				wantErrContains: "cannot be unlocked",
 				wantBackoff:     true,
 			},
@@ -876,7 +876,7 @@ func TestBitlockerOperations(t *testing.T) {
 				status:          suspended,
 				addErr:          errors.New("0x80310066 policy does not permit TPM-only"),
 				wantAdd:         true,
-				wantOutcome:     fleet.DiskEncryptionProtectionFailed,
+				wantOutcome:     automdm.DiskEncryptionProtectionFailed,
 				wantErrContains: "policy does not permit TPM-only",
 				wantBackoff:     true,
 				reason:          "enabling without an auto-unlock protector would cause a recovery prompt",
@@ -885,7 +885,7 @@ func TestBitlockerOperations(t *testing.T) {
 				name:            "reports and backs off when the protector check fails",
 				status:          suspended,
 				hasProtectorErr: errors.New("WMI query failed"),
-				wantOutcome:     fleet.DiskEncryptionProtectionFailed,
+				wantOutcome:     automdm.DiskEncryptionProtectionFailed,
 				wantErrContains: "WMI query failed",
 				wantBackoff:     true,
 				reason:          "must not enable without knowing whether the volume can unseal at boot",
@@ -895,7 +895,7 @@ func TestBitlockerOperations(t *testing.T) {
 				status:         suspended,
 				hasProtector:   true,
 				restartPending: true,
-				wantOutcome:    fleet.DiskEncryptionProtectionDeferred,
+				wantOutcome:    automdm.DiskEncryptionProtectionDeferred,
 				wantBackoff:    true,
 				reason:         "re-sealing before a staged update applies risks a recovery prompt",
 			},
@@ -905,7 +905,7 @@ func TestBitlockerOperations(t *testing.T) {
 				name:           "defers without adding a protector when a restart is pending",
 				status:         suspended,
 				restartPending: true,
-				wantOutcome:    fleet.DiskEncryptionProtectionDeferred,
+				wantOutcome:    automdm.DiskEncryptionProtectionDeferred,
 				wantBackoff:    true,
 				reason:         "a staged restart must stop the repair before the volume is modified",
 			},
@@ -916,7 +916,7 @@ func TestBitlockerOperations(t *testing.T) {
 				status:          suspended,
 				hasProtectorErr: errors.New("WMI query failed"),
 				restartPending:  true,
-				wantOutcome:     fleet.DiskEncryptionProtectionDeferred,
+				wantOutcome:     automdm.DiskEncryptionProtectionDeferred,
 				wantBackoff:     true,
 				reason:          "a staged restart stops the repair before the protector is queried",
 			},
@@ -925,7 +925,7 @@ func TestBitlockerOperations(t *testing.T) {
 				status:          suspended,
 				hasProtector:    true,
 				restartErr:      errors.New("registry unavailable"),
-				wantOutcome:     fleet.DiskEncryptionProtectionFailed,
+				wantOutcome:     automdm.DiskEncryptionProtectionFailed,
 				wantErrContains: "registry unavailable",
 				wantBackoff:     true,
 				reason:          "an unknown restart state could still re-seal against stale measurements",
@@ -953,7 +953,7 @@ func TestBitlockerOperations(t *testing.T) {
 				name:         "adds a protector without re-enabling when protection is already on",
 				status:       statusFor(bitlocker.ConversionStatusFullyEncrypted, bitlocker.ProtectionStatusOn),
 				wantAdd:      true,
-				wantOutcome:  fleet.DiskEncryptionProtectionRestored,
+				wantOutcome:  automdm.DiskEncryptionProtectionRestored,
 				wantBackoff:  true,
 				shortBackoff: true,
 				reason:       "protection is already on, so it must not be re-enabled",
@@ -963,7 +963,7 @@ func TestBitlockerOperations(t *testing.T) {
 				status:         statusFor(bitlocker.ConversionStatusFullyEncrypted, bitlocker.ProtectionStatusOn),
 				restartPending: true,
 				wantAdd:        true,
-				wantOutcome:    fleet.DiskEncryptionProtectionRestored,
+				wantOutcome:    automdm.DiskEncryptionProtectionRestored,
 				wantBackoff:    true,
 				shortBackoff:   true,
 				reason:         "protection is already on, so it must not be re-enabled",
@@ -973,7 +973,7 @@ func TestBitlockerOperations(t *testing.T) {
 				status:          statusFor(bitlocker.ConversionStatusFullyEncrypted, bitlocker.ProtectionStatusOn),
 				addErr:          errors.New("0x80310066 policy does not permit TPM-only"),
 				wantAdd:         true,
-				wantOutcome:     fleet.DiskEncryptionProtectionFailed,
+				wantOutcome:     automdm.DiskEncryptionProtectionFailed,
 				wantErrContains: "could not add a TPM protector, " + repairCostNoBootProtector,
 				wantBackoff:     true,
 				reason:          "protection is already on, so it must not be re-enabled",
@@ -1043,7 +1043,7 @@ func TestBitlockerOperations(t *testing.T) {
 				},
 				{
 					name: "a failed escrow stops the repair", escrowErr: errors.New("server unreachable"),
-					wantRotate: true, wantErr: "could not send the rotated recovery key to Fleet, so protection was not re-enabled",
+					wantRotate: true, wantErr: "could not send the rotated recovery key to AutoMDM, so protection was not re-enabled",
 				},
 				{
 					name: "a failed rotation on a protected volume names the missing boot protector", protectionOn: true,
@@ -1053,7 +1053,7 @@ func TestBitlockerOperations(t *testing.T) {
 				{
 					name: "a failed escrow on a protected volume names the lost recovery key", protectionOn: true,
 					escrowErr: errors.New("server unreachable"), wantRotate: true,
-					wantErr: "could not send the rotated recovery key to Fleet, " + repairCostNoWorkingKey,
+					wantErr: "could not send the rotated recovery key to AutoMDM, " + repairCostNoWorkingKey,
 				},
 				{name: "a protected volume is repaired without re-enabling", protectionOn: true, wantRotate: true},
 			} {
@@ -1075,7 +1075,7 @@ func TestBitlockerOperations(t *testing.T) {
 					enrollReceiver.execEnableProtectionFn = func(string) error { enableCalled = true; return nil }
 					prevEscrow := clientMock.SetOrUpdateDiskEncryptionKeyImpl
 					t.Cleanup(func() { clientMock.SetOrUpdateDiskEncryptionKeyImpl = prevEscrow })
-					clientMock.SetOrUpdateDiskEncryptionKeyImpl = func(fleet.OrbitHostDiskEncryptionKeyPayload) error {
+					clientMock.SetOrUpdateDiskEncryptionKeyImpl = func(automdm.OrbitHostDiskEncryptionKeyPayload) error {
 						return tc.escrowErr
 					}
 
@@ -1090,9 +1090,9 @@ func TestBitlockerOperations(t *testing.T) {
 					// the server asking for this repair.
 					require.Equal(t, tc.protectionOn && tc.wantErr == "", addCalled, "adding a TPM protector")
 					if tc.wantErr == "" {
-						require.Equal(t, fleet.DiskEncryptionProtectionRestored, clientMock.ProtectionOutcome)
+						require.Equal(t, automdm.DiskEncryptionProtectionRestored, clientMock.ProtectionOutcome)
 					} else {
-						require.Equal(t, fleet.DiskEncryptionProtectionFailed, clientMock.ProtectionOutcome)
+						require.Equal(t, automdm.DiskEncryptionProtectionFailed, clientMock.ProtectionOutcome)
 						require.Contains(t, clientMock.ProtectionClientError, tc.wantErr)
 					}
 				})
@@ -1112,7 +1112,7 @@ func TestBitlockerOperations(t *testing.T) {
 			var escrowed []string
 			prevEscrow := clientMock.SetOrUpdateDiskEncryptionKeyImpl
 			t.Cleanup(func() { clientMock.SetOrUpdateDiskEncryptionKeyImpl = prevEscrow })
-			clientMock.SetOrUpdateDiskEncryptionKeyImpl = func(p fleet.OrbitHostDiskEncryptionKeyPayload) error {
+			clientMock.SetOrUpdateDiskEncryptionKeyImpl = func(p automdm.OrbitHostDiskEncryptionKeyPayload) error {
 				escrowAttempts++
 				if escrowFails {
 					return errors.New("server unreachable")
@@ -1120,7 +1120,7 @@ func TestBitlockerOperations(t *testing.T) {
 				escrowed = append(escrowed, string(p.EncryptionKey))
 				return nil
 			}
-			noRequestCfg := &fleet.OrbitConfig{}
+			noRequestCfg := &automdm.OrbitConfig{}
 
 			require.NoError(t, enrollReceiver.Run(protectionCfg))
 			require.Empty(t, escrowed, "the first pass must fail to escrow")
@@ -1151,7 +1151,7 @@ func TestBitlockerOperations(t *testing.T) {
 
 			require.NoError(t, enrollReceiver.Run(protectionCfg))
 			require.False(t, addCalled, "adding the protector would stop the server asking while the recovery password is still gone")
-			require.Equal(t, fleet.DiskEncryptionProtectionFailed, clientMock.ProtectionOutcome)
+			require.Equal(t, automdm.DiskEncryptionProtectionFailed, clientMock.ProtectionOutcome)
 		})
 
 		t.Run("rotates, then escrows, then adds a TPM protector, then enables", func(t *testing.T) {
@@ -1164,19 +1164,19 @@ func TestBitlockerOperations(t *testing.T) {
 			enrollReceiver.execEnableProtectionFn = func(string) error { order = append(order, "enable"); return nil }
 			prevEscrow := clientMock.SetOrUpdateDiskEncryptionKeyImpl
 			t.Cleanup(func() { clientMock.SetOrUpdateDiskEncryptionKeyImpl = prevEscrow })
-			clientMock.SetOrUpdateDiskEncryptionKeyImpl = func(fleet.OrbitHostDiskEncryptionKeyPayload) error {
+			clientMock.SetOrUpdateDiskEncryptionKeyImpl = func(automdm.OrbitHostDiskEncryptionKeyPayload) error {
 				order = append(order, "escrow")
 				return nil
 			}
 
 			require.NoError(t, enrollReceiver.Run(protectionCfg))
 			// Escrow has to land before protection is enabled. Leaving it out of this assertion is what would let a
-			// regression enable protection on a volume whose recovery key Fleet never received.
+			// regression enable protection on a volume whose recovery key AutoMDM never received.
 			require.Equal(t, []string{"rotate", "escrow", "add", "enable"}, order)
 		})
 
 		// Rotation puts the new protector on the volume before the escrow is attempted, so a second pass would find a
-		// recovery password, skip rotating, and enable protection on a volume whose key Fleet never received. The key
+		// recovery password, skip rotating, and enable protection on a volume whose key AutoMDM never received. The key
 		// has to survive the failed escrow and be retried.
 		t.Run("a failed escrow is retried on the next pass without rotating again", func(t *testing.T) {
 			setupTest()
@@ -1191,7 +1191,7 @@ func TestBitlockerOperations(t *testing.T) {
 			prevEscrow := clientMock.SetOrUpdateDiskEncryptionKeyImpl
 			t.Cleanup(func() { clientMock.SetOrUpdateDiskEncryptionKeyImpl = prevEscrow })
 			var escrowed string
-			clientMock.SetOrUpdateDiskEncryptionKeyImpl = func(p fleet.OrbitHostDiskEncryptionKeyPayload) error {
+			clientMock.SetOrUpdateDiskEncryptionKeyImpl = func(p automdm.OrbitHostDiskEncryptionKeyPayload) error {
 				escrows++
 				if escrowFails {
 					return errors.New("server unreachable")
@@ -1203,7 +1203,7 @@ func TestBitlockerOperations(t *testing.T) {
 			require.NoError(t, enrollReceiver.Run(protectionCfg))
 			require.Equal(t, 1, rotations)
 			require.Equal(t, 1, escrows)
-			require.Zero(t, enables, "protection must not be enabled before the key reaches Fleet")
+			require.Zero(t, enables, "protection must not be enabled before the key reaches AutoMDM")
 			require.Equal(t, "rotated-key", enrollReceiver.pendingRecoveryKey, "the key must survive a failed escrow")
 
 			// Second pass: the server keeps asking because protection is still off.
@@ -1213,7 +1213,7 @@ func TestBitlockerOperations(t *testing.T) {
 
 			require.Equal(t, 1, rotations, "must not rotate a second time and orphan the first key")
 			require.Equal(t, 2, escrows)
-			require.Equal(t, "rotated-key", escrowed, "the key Fleet receives must be the one on the volume")
+			require.Equal(t, "rotated-key", escrowed, "the key AutoMDM receives must be the one on the volume")
 			require.Equal(t, 1, enables, "protection is restored only once the key is escrowed")
 			require.Empty(t, enrollReceiver.pendingRecoveryKey, "the held key is cleared after a successful escrow")
 		})
@@ -1245,7 +1245,7 @@ func TestBitlockerOperations(t *testing.T) {
 		require.False(t, encryptFnCalled, "encryption function should not be called")
 	})
 
-	t.Run("successful fleet server update", func(t *testing.T) {
+	t.Run("successful automdm server update", func(t *testing.T) {
 		setupTest()
 		shouldFailEncryption = false
 		mockStatus := &bitlocker.EncryptionStatus{ConversionStatus: bitlocker.ConversionStatusFullyDecrypted}
@@ -1259,7 +1259,7 @@ func TestBitlockerOperations(t *testing.T) {
 		require.True(t, encryptFnCalled, "encryption function should have been called")
 	})
 
-	t.Run("failed fleet server update", func(t *testing.T) {
+	t.Run("failed automdm server update", func(t *testing.T) {
 		setupTest()
 		shouldFailEncryption = false
 		shouldFailServerUpdate = true
@@ -1270,7 +1270,7 @@ func TestBitlockerOperations(t *testing.T) {
 
 		err := enrollReceiver.Run(makeConfig())
 		require.NoError(t, err)
-		require.Contains(t, logBuf.String(), "failed to send encryption result to Fleet Server")
+		require.Contains(t, logBuf.String(), "failed to send encryption result to AutoMDM Server")
 		require.True(t, clientMock.SetOrUpdateDiskEncryptionKeyInvoked)
 		require.True(t, encryptFnCalled, "encryption function should have been called")
 	})
@@ -1333,7 +1333,7 @@ func TestBitlockerOperations(t *testing.T) {
 		require.Equal(t, "rotated-key-789", enrollReceiver.pendingRecoveryKey)
 
 		// Escrow is a server call that touches no disk state, so an unreadable volume status must not strand a key that
-		// already exists on disk but that Fleet does not hold yet.
+		// already exists on disk but that AutoMDM does not hold yet.
 		shouldFailServerUpdate = false
 		rotateKeyFnCalled, encryptFnCalled = false, false
 		enrollReceiver.execGetEncryptionStatusFn = func() ([]bitlocker.VolumeStatus, error) {
@@ -1388,7 +1388,7 @@ func TestBitlockerOperations(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				setupTest()
 				if tc.serverDiscardsKey {
-					clientMock.Capabilities = fleet.CapabilityMap{}
+					clientMock.Capabilities = automdm.CapabilityMap{}
 				}
 				var resumeCalled bool
 				enrollReceiver.execResumeConversionFn = func(string) error { resumeCalled = true; return tc.resumeErr }
@@ -1400,7 +1400,7 @@ func TestBitlockerOperations(t *testing.T) {
 				var reported string
 				prevEscrow := clientMock.SetOrUpdateDiskEncryptionKeyImpl
 				t.Cleanup(func() { clientMock.SetOrUpdateDiskEncryptionKeyImpl = prevEscrow })
-				clientMock.SetOrUpdateDiskEncryptionKeyImpl = func(p fleet.OrbitHostDiskEncryptionKeyPayload) error {
+				clientMock.SetOrUpdateDiskEncryptionKeyImpl = func(p automdm.OrbitHostDiskEncryptionKeyPayload) error {
 					reported = p.ClientError
 					return nil
 				}
@@ -1431,8 +1431,8 @@ func TestWindowsMDMSync(t *testing.T) {
 	log.Logger = log.Output(&logBuf)
 	t.Cleanup(func() { log.Logger = oldLog })
 
-	syncCfg := func(req bool) *fleet.OrbitConfig {
-		return &fleet.OrbitConfig{Notifications: fleet.OrbitConfigNotifications{WindowsMDMSyncRequest: req}}
+	syncCfg := func(req bool) *automdm.OrbitConfig {
+		return &automdm.OrbitConfig{Notifications: automdm.OrbitConfigNotifications{WindowsMDMSyncRequest: req}}
 	}
 
 	// newCounting builds a receiver whose sync increments calls and returns err: the common shape for most subtests below.
@@ -1527,7 +1527,7 @@ func TestWindowsMDMSync(t *testing.T) {
 	t.Run("request is quieted after repeated attempts until it clears", func(t *testing.T) {
 		logBuf.Reset()
 		quieted := func(r *windowsMDMSyncConfigReceiver) bool {
-			n := fleet.OrbitConfigNotifications{WindowsMDMSyncRequest: true}
+			n := automdm.OrbitConfigNotifications{WindowsMDMSyncRequest: true}
 			r.QuietNotifications(&n)
 			return !n.WindowsMDMSyncRequest
 		}
@@ -1556,7 +1556,7 @@ func TestWindowsMDMSync(t *testing.T) {
 			runSync(t, r, true)
 		}
 		require.Equal(t, int32(1), calls.Load())
-		n := fleet.OrbitConfigNotifications{WindowsMDMSyncRequest: true}
+		n := automdm.OrbitConfigNotifications{WindowsMDMSyncRequest: true}
 		r.QuietNotifications(&n)
 		require.True(t, n.WindowsMDMSyncRequest)
 	})

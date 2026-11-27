@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/ptr"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
@@ -23,10 +23,10 @@ func (s *integrationEnterpriseTestSuite) TestLinuxOSVulns() {
 	t := s.T()
 	ctx := context.Background()
 
-	kernel1 := fleet.Software{Name: "linux-image-6.11.0-9-generic", Version: "6.11.0-9.9", Source: "deb_packages", IsKernel: true}
-	kernel2 := fleet.Software{Name: "linux-image-7.11.0-10-generic", Version: "7.11.0-10.10", Source: "deb_packages", IsKernel: true}
-	kernel3 := fleet.Software{Name: "linux-image-8.11.0-11-generic", Version: "8.11.0-11.11", Source: "deb_packages", IsKernel: true}
-	software := []fleet.Software{
+	kernel1 := automdm.Software{Name: "linux-image-6.11.0-9-generic", Version: "6.11.0-9.9", Source: "deb_packages", IsKernel: true}
+	kernel2 := automdm.Software{Name: "linux-image-7.11.0-10-generic", Version: "7.11.0-10.10", Source: "deb_packages", IsKernel: true}
+	kernel3 := automdm.Software{Name: "linux-image-8.11.0-11-generic", Version: "8.11.0-11.11", Source: "deb_packages", IsKernel: true}
+	software := []automdm.Software{
 		kernel1,
 		kernel2,
 		kernel3, // this one will have 0 vulns
@@ -34,43 +34,43 @@ func (s *integrationEnterpriseTestSuite) TestLinuxOSVulns() {
 
 	cases := []struct {
 		name                 string
-		host                 *fleet.Host
-		software             []fleet.Software
-		vulns                []fleet.SoftwareVulnerability
+		host                 *automdm.Host
+		software             []automdm.Software
+		vulns                []automdm.SoftwareVulnerability
 		vulnsByKernelVersion map[string][]string
-		os                   fleet.OperatingSystem
+		os                   automdm.OperatingSystem
 	}{
 		{
 			name:  "ubuntu",
 			host:  test.NewHost(t, s.ds, "host_ubuntu2410", "", "hostkey_ubuntu2410", "hostuuid_ubuntu2410", time.Now(), test.WithPlatform("ubuntu")),
-			vulns: []fleet.SoftwareVulnerability{{CVE: "CVE-2025-0001"}, {CVE: "CVE-2025-0002"}, {CVE: "CVE-2025-0003"}},
+			vulns: []automdm.SoftwareVulnerability{{CVE: "CVE-2025-0001"}, {CVE: "CVE-2025-0002"}, {CVE: "CVE-2025-0003"}},
 			vulnsByKernelVersion: map[string][]string{
 				kernel1.Version: {"CVE-2025-0001", "CVE-2025-0002"},
 				kernel2.Version: {"CVE-2025-0003"},
 				kernel3.Version: nil,
 			},
 			software: software,
-			os:       fleet.OperatingSystem{Name: "Ubuntu", Version: "24.10", Arch: "x86_64", KernelVersion: "6.11.0-9-generic", Platform: "ubuntu"},
+			os:       automdm.OperatingSystem{Name: "Ubuntu", Version: "24.10", Arch: "x86_64", KernelVersion: "6.11.0-9-generic", Platform: "ubuntu"},
 		},
 		{
 			name:     "amazon linux",
 			host:     test.NewHost(t, s.ds, "host_amzn2023", "", "hostkey_amzn2023", "hostuuid_amzn2023", time.Now(), test.WithPlatform("fedora")),
-			software: []fleet.Software{{Name: "kernel", Version: "6.1.144", Arch: "x86_64", Source: "rpm_packages", IsKernel: true}},
-			vulns:    []fleet.SoftwareVulnerability{{CVE: "CVE-2025-0006"}},
+			software: []automdm.Software{{Name: "kernel", Version: "6.1.144", Arch: "x86_64", Source: "rpm_packages", IsKernel: true}},
+			vulns:    []automdm.SoftwareVulnerability{{CVE: "CVE-2025-0006"}},
 			vulnsByKernelVersion: map[string][]string{
 				"6.1.144": {"CVE-2025-0006"},
 			},
-			os: fleet.OperatingSystem{Name: "Amazon Linux", Version: "2023.0.0", Arch: "x86_64", KernelVersion: "6.1.144-170.251.amzn2023.x86_64", Platform: "amzn"},
+			os: automdm.OperatingSystem{Name: "Amazon Linux", Version: "2023.0.0", Arch: "x86_64", KernelVersion: "6.1.144-170.251.amzn2023.x86_64", Platform: "amzn"},
 		},
 		{
 			name:     "RHEL",
 			host:     test.NewHost(t, s.ds, "host_fedora41", "", "hostkey_fedora41", "hostuuid_fedora41", time.Now(), test.WithPlatform("rhel")),
-			software: []fleet.Software{{Name: "kernel", Version: "6.11.4", Arch: "aarch64", Source: "rpm_packages", IsKernel: true}},
-			vulns:    []fleet.SoftwareVulnerability{{CVE: "CVE-2025-0007"}},
+			software: []automdm.Software{{Name: "kernel", Version: "6.11.4", Arch: "aarch64", Source: "rpm_packages", IsKernel: true}},
+			vulns:    []automdm.SoftwareVulnerability{{CVE: "CVE-2025-0007"}},
 			vulnsByKernelVersion: map[string][]string{
 				"6.11.4": {"CVE-2025-0007"},
 			},
-			os: fleet.OperatingSystem{Name: "Fedora Linux", Version: "41.0.0", Arch: "aarch64", KernelVersion: "6.11.4-301.fc41.aarch64", Platform: "rhel"},
+			os: automdm.OperatingSystem{Name: "Fedora Linux", Version: "41.0.0", Arch: "aarch64", KernelVersion: "6.11.4-301.fc41.aarch64", Platform: "rhel"},
 		},
 	}
 
@@ -98,17 +98,17 @@ func (s *integrationEnterpriseTestSuite) TestLinuxOSVulns() {
 				softwareIDByVersion[s.Version] = s.ID
 			}
 
-			cpes := []fleet.SoftwareCPE{{SoftwareID: tt.host.Software[0].ID, CPE: "somecpe"}}
+			cpes := []automdm.SoftwareCPE{{SoftwareID: tt.host.Software[0].ID, CPE: "somecpe"}}
 			_, err = s.ds.UpsertSoftwareCPEs(ctx, cpes)
 			require.NoError(t, err)
 
 			// Reload software so that GeneratedCPEID is set.
 			require.NoError(t, s.ds.LoadHostSoftware(ctx, tt.host, false))
 
-			var vulnsToInsert []fleet.SoftwareVulnerability
+			var vulnsToInsert []automdm.SoftwareVulnerability
 			for k, v := range tt.vulnsByKernelVersion {
 				for _, s := range v {
-					vulnsToInsert = append(vulnsToInsert, fleet.SoftwareVulnerability{
+					vulnsToInsert = append(vulnsToInsert, automdm.SoftwareVulnerability{
 						SoftwareID: softwareIDByVersion[k],
 						CVE:        s,
 					})
@@ -116,13 +116,13 @@ func (s *integrationEnterpriseTestSuite) TestLinuxOSVulns() {
 			}
 
 			for _, v := range vulnsToInsert {
-				_, err = s.ds.InsertSoftwareVulnerability(ctx, v, fleet.NVDSource)
+				_, err = s.ds.InsertSoftwareVulnerability(ctx, v, automdm.NVDSource)
 				require.NoError(t, err)
 			}
 
 			// Entity endpoint kernels field should be empty
 			require.NoError(t, s.ds.UpdateOSVersions(ctx))
-			resp := s.Do("GET", fmt.Sprintf("/api/latest/fleet/os_versions/%d", osinfo.OSVersionID), nil, http.StatusOK, "fleet_id", fmt.Sprintf("%d", 0))
+			resp := s.Do("GET", fmt.Sprintf("/api/latest/automdm/os_versions/%d", osinfo.OSVersionID), nil, http.StatusOK, "team_id", fmt.Sprintf("%d", 0))
 			bodyBytes, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 			assert.Contains(t, string(bodyBytes), `"kernels": []`)
@@ -134,8 +134,8 @@ func (s *integrationEnterpriseTestSuite) TestLinuxOSVulns() {
 			require.NoError(t, s.ds.InsertKernelSoftwareMapping(ctx))
 
 			var osVersionsResp osVersionsResponse
-			s.DoJSON("GET", "/api/latest/fleet/os_versions", nil, http.StatusOK, &osVersionsResp)
-			var osVersion *fleet.OSVersion
+			s.DoJSON("GET", "/api/latest/automdm/os_versions", nil, http.StatusOK, &osVersionsResp)
+			var osVersion *automdm.OSVersion
 			for _, os := range osVersionsResp.OSVersions {
 				if os.Version == tt.os.Version {
 					osVersion = &os
@@ -151,7 +151,7 @@ func (s *integrationEnterpriseTestSuite) TestLinuxOSVulns() {
 
 			// Test entity endpoint
 			var osVersionResp getOSVersionResponse
-			s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/os_versions/%d", osVersion.OSVersionID), nil, http.StatusOK, &osVersionResp, "fleet_id", fmt.Sprintf("%d", 0))
+			s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/os_versions/%d", osVersion.OSVersionID), nil, http.StatusOK, &osVersionResp, "team_id", fmt.Sprintf("%d", 0))
 			require.NotNil(t, osVersionResp.OSVersion.Kernels)
 			kernels := *osVersionResp.OSVersion.Kernels
 			assert.Len(t, kernels, len(tt.software))
@@ -176,7 +176,7 @@ func (s *integrationEnterpriseTestSuite) TestOSVersionsMaxVulnerabilities() {
 	ctx := t.Context()
 
 	// Shared setup - create a host with an OS that has many vulnerabilities
-	host, err := s.ds.NewHost(ctx, &fleet.Host{
+	host, err := s.ds.NewHost(ctx, &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -190,7 +190,7 @@ func (s *integrationEnterpriseTestSuite) TestOSVersionsMaxVulnerabilities() {
 	require.NoError(t, err)
 
 	// Set the OS version with a kernel version
-	require.NoError(t, s.ds.UpdateHostOperatingSystem(ctx, host.ID, fleet.OperatingSystem{
+	require.NoError(t, s.ds.UpdateHostOperatingSystem(ctx, host.ID, automdm.OperatingSystem{
 		Name:          "Ubuntu",
 		Version:       "22.04.1 LTS",
 		Platform:      "ubuntu",
@@ -199,7 +199,7 @@ func (s *integrationEnterpriseTestSuite) TestOSVersionsMaxVulnerabilities() {
 	}))
 
 	// Create kernel software with many vulnerabilities
-	software := []fleet.Software{
+	software := []automdm.Software{
 		{Name: "linux-image-5.15.0-1001-generic", Version: "5.15.0-1001", Source: "deb_packages", IsKernel: true},
 		{Name: "linux-image-5.15.0-1002-generic", Version: "5.15.0-1002", Source: "deb_packages", IsKernel: true},
 	}
@@ -208,9 +208,9 @@ func (s *integrationEnterpriseTestSuite) TestOSVersionsMaxVulnerabilities() {
 	require.NoError(t, err)
 	require.NoError(t, s.ds.LoadHostSoftware(ctx, host, false))
 
-	cpes := make([]fleet.SoftwareCPE, 0, len(software))
+	cpes := make([]automdm.SoftwareCPE, 0, len(software))
 	for _, sw := range host.Software {
-		cpes = append(cpes, fleet.SoftwareCPE{
+		cpes = append(cpes, automdm.SoftwareCPE{
 			SoftwareID: sw.ID,
 			CPE:        fmt.Sprintf("cpe:2.3:a:linux:kernel:%s:*:*:*:*:*:*:*", sw.Version),
 		})
@@ -225,10 +225,10 @@ func (s *integrationEnterpriseTestSuite) TestOSVersionsMaxVulnerabilities() {
 	vulns := []string{"CVE-2024-0001", "CVE-2024-0002", "CVE-2024-0003", "CVE-2024-0004", "CVE-2024-0005", "CVE-2024-0006", "CVE-2024-0007", "CVE-2024-0008"}
 	for _, sw := range host.Software {
 		for _, cve := range vulns {
-			_, err = s.ds.InsertSoftwareVulnerability(ctx, fleet.SoftwareVulnerability{
+			_, err = s.ds.InsertSoftwareVulnerability(ctx, automdm.SoftwareVulnerability{
 				SoftwareID: sw.ID,
 				CVE:        cve,
-			}, fleet.NVDSource)
+			}, automdm.NVDSource)
 			require.NoError(t, err)
 		}
 	}
@@ -241,7 +241,7 @@ func (s *integrationEnterpriseTestSuite) TestOSVersionsMaxVulnerabilities() {
 
 	// Get the OS version ID for entity endpoint tests
 	var osVersionsResp osVersionsResponse
-	s.DoJSON("GET", "/api/latest/fleet/os_versions", nil, http.StatusOK, &osVersionsResp)
+	s.DoJSON("GET", "/api/latest/automdm/os_versions", nil, http.StatusOK, &osVersionsResp)
 	var osVersionID uint
 	for _, os := range osVersionsResp.OSVersions {
 		if os.Version == "22.04.1 LTS" {
@@ -254,8 +254,8 @@ func (s *integrationEnterpriseTestSuite) TestOSVersionsMaxVulnerabilities() {
 	t.Run("aggregate endpoint", func(t *testing.T) {
 		// Test 1: Request without max_vulnerabilities should return all vulnerabilities
 		var resp osVersionsResponse
-		s.DoJSON("GET", "/api/latest/fleet/os_versions", nil, http.StatusOK, &resp)
-		var osVersion *fleet.OSVersion
+		s.DoJSON("GET", "/api/latest/automdm/os_versions", nil, http.StatusOK, &resp)
+		var osVersion *automdm.OSVersion
 		for _, os := range resp.OSVersions {
 			if os.Version == "22.04.1 LTS" {
 				osVersion = &os
@@ -267,7 +267,7 @@ func (s *integrationEnterpriseTestSuite) TestOSVersionsMaxVulnerabilities() {
 		assert.Equal(t, len(vulns), osVersion.VulnerabilitiesCount, "Count should match total vulnerabilities")
 
 		// Test 2: Request with max_vulnerabilities=3 should return only 3 vulnerabilities
-		s.DoJSON("GET", "/api/latest/fleet/os_versions?max_vulnerabilities=3", nil, http.StatusOK, &resp)
+		s.DoJSON("GET", "/api/latest/automdm/os_versions?max_vulnerabilities=3", nil, http.StatusOK, &resp)
 		osVersion = nil
 		for _, os := range resp.OSVersions {
 			if os.Version == "22.04.1 LTS" {
@@ -280,7 +280,7 @@ func (s *integrationEnterpriseTestSuite) TestOSVersionsMaxVulnerabilities() {
 		assert.Equal(t, len(vulns), osVersion.VulnerabilitiesCount, "Count should still show total vulnerabilities")
 
 		// Test 3: Request with max_vulnerabilities=0 should return empty array with count
-		s.DoJSON("GET", "/api/latest/fleet/os_versions?max_vulnerabilities=0", nil, http.StatusOK, &resp)
+		s.DoJSON("GET", "/api/latest/automdm/os_versions?max_vulnerabilities=0", nil, http.StatusOK, &resp)
 		osVersion = nil
 		for _, os := range resp.OSVersions {
 			if os.Version == "22.04.1 LTS" {
@@ -293,7 +293,7 @@ func (s *integrationEnterpriseTestSuite) TestOSVersionsMaxVulnerabilities() {
 		assert.Equal(t, len(vulns), osVersion.VulnerabilitiesCount, "Count should still show total vulnerabilities")
 
 		// Test 4: Request with max_vulnerabilities=-1 should return error
-		res := s.Do("GET", "/api/latest/fleet/os_versions?max_vulnerabilities=-1", nil, http.StatusUnprocessableEntity)
+		res := s.Do("GET", "/api/latest/automdm/os_versions?max_vulnerabilities=-1", nil, http.StatusUnprocessableEntity)
 		errMsg := extractServerErrorText(res.Body)
 		require.Contains(t, errMsg, "max_vulnerabilities cannot be negative")
 	})
@@ -301,25 +301,25 @@ func (s *integrationEnterpriseTestSuite) TestOSVersionsMaxVulnerabilities() {
 	t.Run("entity endpoint", func(t *testing.T) {
 		// Test 1: Request without max_vulnerabilities should return all vulnerabilities
 		var resp getOSVersionResponse
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/os_versions/%d", osVersionID), nil, http.StatusOK, &resp)
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/os_versions/%d", osVersionID), nil, http.StatusOK, &resp)
 		require.NotNil(t, resp.OSVersion)
 		assert.Equal(t, len(vulns), len(resp.OSVersion.Vulnerabilities), "Should return all vulnerabilities when max_vulnerabilities is not specified")
 		assert.Equal(t, len(vulns), resp.OSVersion.VulnerabilitiesCount, "Count should match total vulnerabilities")
 
 		// Test 2: Request with max_vulnerabilities=3 should return only 3 vulnerabilities
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/os_versions/%d?max_vulnerabilities=3", osVersionID), nil, http.StatusOK, &resp)
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/os_versions/%d?max_vulnerabilities=3", osVersionID), nil, http.StatusOK, &resp)
 		require.NotNil(t, resp.OSVersion)
 		assert.Equal(t, 3, len(resp.OSVersion.Vulnerabilities), "Should return only 3 vulnerabilities when max_vulnerabilities=3")
 		assert.Equal(t, len(vulns), resp.OSVersion.VulnerabilitiesCount, "Count should still show total vulnerabilities")
 
 		// Test 3: Request with max_vulnerabilities=0 should return empty array with count
-		s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/os_versions/%d?max_vulnerabilities=0", osVersionID), nil, http.StatusOK, &resp)
+		s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/os_versions/%d?max_vulnerabilities=0", osVersionID), nil, http.StatusOK, &resp)
 		require.NotNil(t, resp.OSVersion)
 		assert.Equal(t, 0, len(resp.OSVersion.Vulnerabilities), "Should return 0 vulnerabilities when max_vulnerabilities=0")
 		assert.Equal(t, len(vulns), resp.OSVersion.VulnerabilitiesCount, "Count should still show total vulnerabilities")
 
 		// Test 4: Request with max_vulnerabilities=-1 should return error
-		res := s.Do("GET", fmt.Sprintf("/api/latest/fleet/os_versions/%d?max_vulnerabilities=-1", osVersionID), nil, http.StatusUnprocessableEntity)
+		res := s.Do("GET", fmt.Sprintf("/api/latest/automdm/os_versions/%d?max_vulnerabilities=-1", osVersionID), nil, http.StatusUnprocessableEntity)
 		errMsg := extractServerErrorText(res.Body)
 		require.Contains(t, errMsg, "max_vulnerabilities cannot be negative")
 	})
@@ -336,7 +336,7 @@ func (s *integrationEnterpriseTestSuite) TestOSVersionsMaxVulnerabilitiesMultipl
 
 	// Create two hosts with Windows 11 but different architectures
 	// This will result in two separate OS IDs in the operating_systems table
-	hostX64, err := s.ds.NewHost(ctx, &fleet.Host{
+	hostX64, err := s.ds.NewHost(ctx, &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -349,7 +349,7 @@ func (s *integrationEnterpriseTestSuite) TestOSVersionsMaxVulnerabilitiesMultipl
 	})
 	require.NoError(t, err)
 
-	hostARM, err := s.ds.NewHost(ctx, &fleet.Host{
+	hostARM, err := s.ds.NewHost(ctx, &automdm.Host{
 		DetailUpdatedAt: time.Now(),
 		LabelUpdatedAt:  time.Now(),
 		PolicyUpdatedAt: time.Now(),
@@ -363,14 +363,14 @@ func (s *integrationEnterpriseTestSuite) TestOSVersionsMaxVulnerabilitiesMultipl
 	require.NoError(t, err)
 
 	// Set the same Windows version for both hosts but with different architectures
-	require.NoError(t, s.ds.UpdateHostOperatingSystem(ctx, hostX64.ID, fleet.OperatingSystem{
+	require.NoError(t, s.ds.UpdateHostOperatingSystem(ctx, hostX64.ID, automdm.OperatingSystem{
 		Name:     "Microsoft Windows 11 Pro 21H2",
 		Version:  "10.0.22000.795",
 		Platform: "windows",
 		Arch:     "x86_64",
 	}))
 
-	require.NoError(t, s.ds.UpdateHostOperatingSystem(ctx, hostARM.ID, fleet.OperatingSystem{
+	require.NoError(t, s.ds.UpdateHostOperatingSystem(ctx, hostARM.ID, automdm.OperatingSystem{
 		Name:     "Microsoft Windows 11 Pro 21H2",
 		Version:  "10.0.22000.795",
 		Platform: "windows",
@@ -403,14 +403,14 @@ func (s *integrationEnterpriseTestSuite) TestOSVersionsMaxVulnerabilitiesMultipl
 
 	for _, osID := range osIDs {
 		vulnsList := vulnsPerArch[osID.Arch]
-		osVulns := make([]fleet.OSVulnerability, 0, len(vulnsList))
+		osVulns := make([]automdm.OSVulnerability, 0, len(vulnsList))
 		for _, cve := range vulnsList {
-			osVulns = append(osVulns, fleet.OSVulnerability{
+			osVulns = append(osVulns, automdm.OSVulnerability{
 				OSID: osID.ID,
 				CVE:  cve,
 			})
 		}
-		_, err = s.ds.InsertOSVulnerabilities(ctx, osVulns, fleet.NVDSource)
+		_, err = s.ds.InsertOSVulnerabilities(ctx, osVulns, automdm.NVDSource)
 		require.NoError(t, err)
 	}
 
@@ -420,9 +420,9 @@ func (s *integrationEnterpriseTestSuite) TestOSVersionsMaxVulnerabilitiesMultipl
 	// Test 1: Request with max_vulnerabilities=3
 	// Should enforce limit per name-version key, not per OSID
 	var resp osVersionsResponse
-	s.DoJSON("GET", "/api/latest/fleet/os_versions?max_vulnerabilities=3", nil, http.StatusOK, &resp)
+	s.DoJSON("GET", "/api/latest/automdm/os_versions?max_vulnerabilities=3", nil, http.StatusOK, &resp)
 
-	var osVersion *fleet.OSVersion
+	var osVersion *automdm.OSVersion
 	for _, os := range resp.OSVersions {
 		if os.Version == "10.0.22000.795" {
 			osVersion = &os
@@ -439,7 +439,7 @@ func (s *integrationEnterpriseTestSuite) TestOSVersionsMaxVulnerabilitiesMultipl
 		"Count should show total unique CVEs across all architectures")
 
 	// Test 2: Request with max_vulnerabilities=0 (count only)
-	s.DoJSON("GET", "/api/latest/fleet/os_versions?max_vulnerabilities=0", nil, http.StatusOK, &resp)
+	s.DoJSON("GET", "/api/latest/automdm/os_versions?max_vulnerabilities=0", nil, http.StatusOK, &resp)
 	osVersion = nil
 	for _, os := range resp.OSVersions {
 		if os.Version == "10.0.22000.795" {
@@ -454,7 +454,7 @@ func (s *integrationEnterpriseTestSuite) TestOSVersionsMaxVulnerabilitiesMultipl
 		"Count should still show total unique CVEs")
 
 	// Test 3: Request without max_vulnerabilities (all vulnerabilities)
-	s.DoJSON("GET", "/api/latest/fleet/os_versions", nil, http.StatusOK, &resp)
+	s.DoJSON("GET", "/api/latest/automdm/os_versions", nil, http.StatusOK, &resp)
 	osVersion = nil
 	for _, os := range resp.OSVersions {
 		if os.Version == "10.0.22000.795" {

@@ -3,7 +3,7 @@ package service
 import (
 	"context"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
 type triggerRequest struct {
@@ -16,7 +16,7 @@ type triggerResponse struct {
 
 func (r triggerResponse) Error() error { return r.Err }
 
-func triggerEndpoint(ctx context.Context, request interface{}, svc fleet.Service) (fleet.Errorer, error) {
+func triggerEndpoint(ctx context.Context, request interface{}, svc automdm.Service) (automdm.Errorer, error) {
 	_, err := svc.AuthenticatedUser(ctx)
 	if err != nil {
 		return triggerResponse{Err: err}, nil

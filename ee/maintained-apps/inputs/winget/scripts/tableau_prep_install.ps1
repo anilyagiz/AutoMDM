@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # Tableau Prep Builder ships as a WiX Burn bundle.
 #   ACCEPTEULA=1            - required; the install fails without it
@@ -28,7 +28,7 @@ function ConvertTo-FullVersion($text) {
 
 try {
 
-# The install fails (exit code 65535) while Tableau Prep Builder is open. Fleet
+# The install fails (exit code 65535) while Tableau Prep Builder is open. AutoMDM
 # runs as SYSTEM, outside the user's session, so it can't ask the app to close:
 # stop it first, along with the Java, Hyper, and connector processes it runs
 # from its install directory, in every installed release (older ones are

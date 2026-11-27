@@ -1,21 +1,21 @@
-# **Windows Update CSP Profiles for Fleet**
+# **Windows Update CSP Profiles for AutoMDM**
 
-Custom XML profiles for managing Windows Update behavior via Fleet MDM
+Custom XML profiles for managing Windows Update behavior via AutoMDM
 using Microsoft\'s Policy CSP - Update nodes. These profiles were built
-and tested on a Windows 11 24H2 VM enrolled in Fleet 4.83.
+and tested on a Windows 11 24H2 VM enrolled in AutoMDM 4.83.
 
 ## **PREREQUISITES**
 
-1.  Fleet 4.77.0 or later
+1.  AutoMDM 4.77.0 or later
 
 2.  Environment variable
-    > FLEET_MDM_ENABLE_CUSTOM_OS_UPDATES_AND_FILEVAULT=1 set on the
-    > Fleet server (requires restart)
+    > AUTOMDM_MDM_ENABLE_CUSTOM_OS_UPDATES_AND_FILEVAULT=1 set on the
+    > AutoMDM server (requires restart)
 
-3.  Fleet\'s built-in Windows OS update enforcement **disabled** for any
+3.  AutoMDM\'s built-in Windows OS update enforcement **disabled** for any
     > team these profiles are applied to (Controls \> OS updates \>
     > remove any Windows deadline/grace period). The custom CSP profiles
-    > take over update management and will conflict with Fleet\'s
+    > take over update management and will conflict with AutoMDM\'s
     > built-in controls if both are active.
 
 ## **PROFILE OVERVIEW**
@@ -110,7 +110,7 @@ XML file. Upload as one profile if you want everything applied at once.
 -   GitOps: Add to controls.windows_settings.configuration_profiles in
     > team YAML
 
--   API: POST /api/v1/fleet/configuration_profiles with XML content
+-   API: POST /api/v1/automdm/configuration_profiles with XML content
 
 Profiles apply on next MDM check-in (typically within an hour). Force a
 check-in from the host details page if needed.
@@ -227,9 +227,9 @@ Write-Host \"\$key = \$val\"
 
 -   07: Check NoUpdateNotificationsDuringActiveHours=1
 
-You can also verify profile delivery in Fleet on the host details page,
+You can also verify profile delivery in AutoMDM on the host details page,
 or on the device via Settings \> Accounts \> Access work or school \>
-Fleet connection \> Info \> Create Report.
+AutoMDM connection \> Info \> Create Report.
 
 ## **CUSTOMIZATION**
 
@@ -277,8 +277,8 @@ environment:
 -   [[Microsoft Policy CSP -
     > Update]{.underline}](https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-update)
 
--   [[Fleet: Custom OS
-    > Settings]{.underline}](https://fleetdm.com/guides/custom-os-settings)
+-   [[AutoMDM: Custom OS
+    > Settings]{.underline}](https://automdm.com/guides/custom-os-settings)
 
--   [[Fleet: Enforce OS
-    > Updates]{.underline}](https://fleetdm.com/guides/enforce-os-updates)
+-   [[AutoMDM: Enforce OS
+    > Updates]{.underline}](https://automdm.com/guides/enforce-os-updates)

@@ -5,7 +5,7 @@ import (
 	"io"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/require"
 )
 
@@ -18,22 +18,22 @@ func TestOrgLogoStore(t *testing.T) {
 	dark := []byte{0xFF, 0xD8, 0xFF}                                // JPEG magic
 
 	// Nothing stored yet.
-	exists, err := store.Exists(ctx, fleet.OrgLogoModeLight)
+	exists, err := store.Exists(ctx, automdm.OrgLogoModeLight)
 	require.NoError(t, err)
 	require.False(t, exists)
 
-	_, _, err = store.Get(ctx, fleet.OrgLogoModeLight)
+	_, _, err = store.Get(ctx, automdm.OrgLogoModeLight)
 	require.Error(t, err)
-	require.True(t, fleet.IsNotFound(err))
+	require.True(t, automdm.IsNotFound(err))
 
 	// Put light, then read it back.
-	require.NoError(t, store.Put(ctx, fleet.OrgLogoModeLight, bytes.NewReader(light)))
+	require.NoError(t, store.Put(ctx, automdm.OrgLogoModeLight, bytes.NewReader(light)))
 
-	exists, err = store.Exists(ctx, fleet.OrgLogoModeLight)
+	exists, err = store.Exists(ctx, automdm.OrgLogoModeLight)
 	require.NoError(t, err)
 	require.True(t, exists)
 
-	rc, size, err := store.Get(ctx, fleet.OrgLogoModeLight)
+	rc, size, err := store.Get(ctx, automdm.OrgLogoModeLight)
 	require.NoError(t, err)
 	got, err := io.ReadAll(rc)
 	require.NoError(t, rc.Close())
@@ -42,13 +42,13 @@ func TestOrgLogoStore(t *testing.T) {
 	require.EqualValues(t, len(light), size)
 
 	// Modes are independent: dark is still absent.
-	exists, err = store.Exists(ctx, fleet.OrgLogoModeDark)
+	exists, err = store.Exists(ctx, automdm.OrgLogoModeDark)
 	require.NoError(t, err)
 	require.False(t, exists)
 
 	// Put overwrites in place (upsert on the mode primary key).
-	require.NoError(t, store.Put(ctx, fleet.OrgLogoModeLight, bytes.NewReader(dark)))
-	rc, _, err = store.Get(ctx, fleet.OrgLogoModeLight)
+	require.NoError(t, store.Put(ctx, automdm.OrgLogoModeLight, bytes.NewReader(dark)))
+	rc, _, err = store.Get(ctx, automdm.OrgLogoModeLight)
 	require.NoError(t, err)
 	got, err = io.ReadAll(rc)
 	require.NoError(t, rc.Close())
@@ -56,9 +56,9 @@ func TestOrgLogoStore(t *testing.T) {
 	require.Equal(t, dark, got)
 
 	// Delete is idempotent.
-	require.NoError(t, store.Delete(ctx, fleet.OrgLogoModeLight))
-	exists, err = store.Exists(ctx, fleet.OrgLogoModeLight)
+	require.NoError(t, store.Delete(ctx, automdm.OrgLogoModeLight))
+	exists, err = store.Exists(ctx, automdm.OrgLogoModeLight)
 	require.NoError(t, err)
 	require.False(t, exists)
-	require.NoError(t, store.Delete(ctx, fleet.OrgLogoModeLight))
+	require.NoError(t, store.Delete(ctx, automdm.OrgLogoModeLight))
 }

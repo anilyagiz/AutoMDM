@@ -10,13 +10,13 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/authz"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/contexts/license"
-	"github.com/fleetdm/fleet/v4/server/contexts/logging"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	platform_logging "github.com/fleetdm/fleet/v4/server/platform/logging"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/contexts/license"
+	"github.com/anilyagiz/automdm/v4/server/contexts/logging"
+	platform_logging "github.com/anilyagiz/automdm/v4/server/platform/logging"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 )
 
 // setupExperienceGatingPolicyTimeout bounds how long a policy-gated setup-experience item waits for its in-scope gating
@@ -26,7 +26,7 @@ import (
 const setupExperienceGatingPolicyTimeout = 30 * time.Minute
 
 func (svc *Service) SetSetupExperienceSoftware(ctx context.Context, platform string, teamID uint, titleIDs []uint) error {
-	if err := svc.authz.Authorize(ctx, &fleet.SoftwareInstaller{TeamID: &teamID}, fleet.ActionWrite); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.SoftwareInstaller{TeamID: &teamID}, automdm.ActionWrite); err != nil {
 		return err
 	}
 
@@ -48,8 +48,8 @@ func (svc *Service) SetSetupExperienceSoftware(ctx context.Context, platform str
 		macosHasManualAgentInstall = team.Config.MDM.MacOSSetup.ManualAgentInstall.Value
 	}
 
-	if macosHasManualAgentInstall && fleet.IsMacOSPlatform(platform) && len(titleIDs) != 0 {
-		return fleet.NewUserMessageError(errors.New("Couldn’t add setup experience software. To add software, first disable macos_manual_agent_install."), http.StatusUnprocessableEntity)
+	if macosHasManualAgentInstall && automdm.IsMacOSPlatform(platform) && len(titleIDs) != 0 {
+		return automdm.NewUserMessageError(errors.New("Couldn’t add setup experience software. To add software, first disable macos_manual_agent_install."), http.StatusUnprocessableEntity)
 	}
 
 	if err := svc.ds.SetSetupExperienceSoftwareTitles(ctx, platform, teamID, titleIDs); err != nil {
@@ -59,7 +59,7 @@ func (svc *Service) SetSetupExperienceSoftware(ctx context.Context, platform str
 	if err := svc.NewActivity(
 		ctx,
 		authz.UserFromContext(ctx),
-		fleet.ActivityEditedSetupExperienceSoftware{
+		automdm.ActivityEditedSetupExperienceSoftware{
 			Platform: platform,
 			TeamID:   teamID,
 			TeamName: teamName,
@@ -71,10 +71,10 @@ func (svc *Service) SetSetupExperienceSoftware(ctx context.Context, platform str
 	return nil
 }
 
-func (svc *Service) ListSetupExperienceSoftware(ctx context.Context, platform string, teamID uint, opts fleet.ListOptions) ([]fleet.SoftwareTitleListResult, int, *fleet.PaginationMetadata, error) {
-	if err := svc.authz.Authorize(ctx, &fleet.AuthzSoftwareInventory{
+func (svc *Service) ListSetupExperienceSoftware(ctx context.Context, platform string, teamID uint, opts automdm.ListOptions) ([]automdm.SoftwareTitleListResult, int, *automdm.PaginationMetadata, error) {
+	if err := svc.authz.Authorize(ctx, &automdm.AuthzSoftwareInventory{
 		TeamID: &teamID,
-	}, fleet.ActionRead); err != nil {
+	}, automdm.ActionRead); err != nil {
 		return nil, 0, nil, err
 	}
 
@@ -86,8 +86,8 @@ func (svc *Service) ListSetupExperienceSoftware(ctx context.Context, platform st
 	return titles, count, meta, nil
 }
 
-func (svc *Service) GetSetupExperienceScript(ctx context.Context, teamID *uint, withContent bool) (*fleet.Script, []byte, error) {
-	if err := svc.authz.Authorize(ctx, &fleet.Script{TeamID: teamID}, fleet.ActionRead); err != nil {
+func (svc *Service) GetSetupExperienceScript(ctx context.Context, teamID *uint, withContent bool) (*automdm.Script, []byte, error) {
+	if err := svc.authz.Authorize(ctx, &automdm.Script{TeamID: teamID}, automdm.ActionRead); err != nil {
 		return nil, nil, err
 	}
 
@@ -108,7 +108,7 @@ func (svc *Service) GetSetupExperienceScript(ctx context.Context, teamID *uint, 
 }
 
 func (svc *Service) SetSetupExperienceScript(ctx context.Context, teamID *uint, name string, r io.Reader) error {
-	if err := svc.authz.Authorize(ctx, &fleet.Script{TeamID: teamID}, fleet.ActionWrite); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.Script{TeamID: teamID}, automdm.ActionWrite); err != nil {
 		return err
 	}
 
@@ -119,7 +119,7 @@ func (svc *Service) SetSetupExperienceScript(ctx context.Context, teamID *uint, 
 			return ctxerr.Wrap(ctx, err, "getting app config")
 		}
 		if ac.MDM.MacOSSetup.ManualAgentInstall.Value {
-			return fleet.NewUserMessageError(errors.New("Couldn’t add setup experience script. To add script, first disable macos_manual_agent_install."), http.StatusUnprocessableEntity)
+			return automdm.NewUserMessageError(errors.New("Couldn’t add setup experience script. To add script, first disable macos_manual_agent_install."), http.StatusUnprocessableEntity)
 		}
 	} else {
 		team, err := svc.ds.TeamLite(ctx, *teamID)
@@ -127,7 +127,7 @@ func (svc *Service) SetSetupExperienceScript(ctx context.Context, teamID *uint, 
 			return ctxerr.Wrap(ctx, err, "load team")
 		}
 		if team.Config.MDM.MacOSSetup.ManualAgentInstall.Value {
-			return fleet.NewUserMessageError(errors.New("Couldn’t add setup experience script. To add script, first disable macos_manual_agent_install."), http.StatusUnprocessableEntity)
+			return automdm.NewUserMessageError(errors.New("Couldn’t add setup experience script. To add script, first disable macos_manual_agent_install."), http.StatusUnprocessableEntity)
 		}
 		teamName = &team.Name
 	}
@@ -137,45 +137,45 @@ func (svc *Service) SetSetupExperienceScript(ctx context.Context, teamID *uint, 
 		return ctxerr.Wrap(ctx, err, "read setup experience script contents")
 	}
 
-	script := &fleet.Script{
+	script := &automdm.Script{
 		TeamID:         teamID,
 		Name:           name,
 		ScriptContents: string(b),
 	}
 
 	if err := svc.ds.ValidateEmbeddedSecrets(ctx, []string{script.ScriptContents}); err != nil {
-		return fleet.NewInvalidArgumentError("script", err.Error())
+		return automdm.NewInvalidArgumentError("script", err.Error())
 	}
 	if err := svc.ds.ValidateReferencedCustomHostVitals(ctx, []string{script.ScriptContents}); err != nil {
-		if !fleet.IsInvalidReferencedCustomHostVitalsError(err) {
+		if !automdm.IsInvalidReferencedCustomHostVitalsError(err) {
 			return ctxerr.Wrap(ctx, err, "validating referenced custom host vitals")
 		}
-		return fleet.NewInvalidArgumentError("script", err.Error())
+		return automdm.NewInvalidArgumentError("script", err.Error())
 	}
-	if err := fleet.ValidateFleetVariablesInScript(script.ScriptContents, license.IsPremium(ctx)); err != nil {
+	if err := automdm.ValidateAutoMDMVariablesInScript(script.ScriptContents, license.IsPremium(ctx)); err != nil {
 		return err
 	}
 
 	// setup experience is only supported for macOS currently so we need to override the file
 	// extension check in the general script validation
 	if filepath.Ext(script.Name) != ".sh" {
-		return fleet.NewInvalidArgumentError("script", "File type not supported. Only .sh file type is allowed.")
+		return automdm.NewInvalidArgumentError("script", "File type not supported. Only .sh file type is allowed.")
 	}
 	// now we can do our normal script validation
 	if err := script.ValidateNewScript(); err != nil {
-		return fleet.NewInvalidArgumentError("script", err.Error())
+		return automdm.NewInvalidArgumentError("script", err.Error())
 	}
 
 	changed, err := svc.ds.SetSetupExperienceScript(ctx, script)
 	if err != nil {
 		var (
-			existsErr fleet.AlreadyExistsError
-			fkErr     fleet.ForeignKeyError
+			existsErr automdm.AlreadyExistsError
+			fkErr     automdm.ForeignKeyError
 		)
 		if errors.As(err, &existsErr) {
-			err = fleet.NewInvalidArgumentError("script", err.Error()).WithStatus(http.StatusConflict) // TODO: confirm error message with product/frontend
+			err = automdm.NewInvalidArgumentError("script", err.Error()).WithStatus(http.StatusConflict) // TODO: confirm error message with product/frontend
 		} else if errors.As(err, &fkErr) {
-			err = fleet.NewInvalidArgumentError("fleet_id", "The fleet does not exist.").WithStatus(http.StatusNotFound)
+			err = automdm.NewInvalidArgumentError("team_id", "The team does not exist.").WithStatus(http.StatusNotFound)
 		}
 		return ctxerr.Wrap(ctx, err, "create setup experience script")
 	}
@@ -189,10 +189,10 @@ func (svc *Service) SetSetupExperienceScript(ctx context.Context, teamID *uint, 
 	if err := svc.NewActivity(
 		ctx,
 		authz.UserFromContext(ctx),
-		fleet.ActivityCreatedSetupExperienceScript{
-			FleetID:    teamID,
-			FleetName:  teamName,
-			ScriptName: name,
+		automdm.ActivityCreatedSetupExperienceScript{
+			AutoMDMID:   teamID,
+			AutoMDMName: teamName,
+			ScriptName:  name,
 		},
 	); err != nil {
 		return ctxerr.Wrap(ctx, err, "create activity for set setup experience script")
@@ -210,7 +210,7 @@ func logSetupExperienceScriptDeprecation(ctx context.Context) {
 }
 
 func (svc *Service) DeleteSetupExperienceScript(ctx context.Context, teamID *uint) error {
-	if err := svc.authz.Authorize(ctx, &fleet.Script{TeamID: teamID}, fleet.ActionWrite); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.Script{TeamID: teamID}, automdm.ActionWrite); err != nil {
 		return err
 	}
 
@@ -218,7 +218,7 @@ func (svc *Service) DeleteSetupExperienceScript(ctx context.Context, teamID *uin
 	// clears a script on every apply even when none was set) and so we can include its name.
 	script, err := svc.ds.GetSetupExperienceScript(ctx, teamID)
 	if err != nil {
-		if fleet.IsNotFound(err) {
+		if automdm.IsNotFound(err) {
 			return nil
 		}
 		return ctxerr.Wrap(ctx, err, "get setup experience script for delete")
@@ -241,10 +241,10 @@ func (svc *Service) DeleteSetupExperienceScript(ctx context.Context, teamID *uin
 	if err := svc.NewActivity(
 		ctx,
 		authz.UserFromContext(ctx),
-		fleet.ActivityDeletedSetupExperienceScript{
-			FleetID:    teamID,
-			FleetName:  teamName,
-			ScriptName: script.Name,
+		automdm.ActivityDeletedSetupExperienceScript{
+			AutoMDMID:   teamID,
+			AutoMDMName: teamName,
+			ScriptName:  script.Name,
 		},
 	); err != nil {
 		return ctxerr.Wrap(ctx, err, "create activity for delete setup experience script")
@@ -253,14 +253,14 @@ func (svc *Service) DeleteSetupExperienceScript(ctx context.Context, teamID *uin
 	return nil
 }
 
-func (svc *Service) SetupExperienceNextStep(ctx context.Context, host *fleet.Host) (bool, error) {
+func (svc *Service) SetupExperienceNextStep(ctx context.Context, host *automdm.Host) (bool, error) {
 	// NOTE: currently, the Android platform does not go through the step-by-step setup experience flow as it
 	// doesn't support any on-device UI (such as the screen showing setup progress) nor any
 	// ordering of installs - all software to install is provided as part of the Android policy
-	// when the host enrolls in Fleet.
+	// when the host enrolls in AutoMDM.
 	// See https://github.com/fleetdm/fleet/issues/33761#issuecomment-3548996114
 
-	hostUUID, err := fleet.HostUUIDForSetupExperience(host)
+	hostUUID, err := automdm.HostUUIDForSetupExperience(host)
 	if err != nil {
 		return false, ctxerr.Wrap(ctx, err, "failed to get host's UUID for the setup experience")
 	}
@@ -275,7 +275,7 @@ func (svc *Service) SetupExperienceNextStep(ctx context.Context, host *fleet.Hos
 	// which inserts them with auto-incremented IDs in the correct order.
 	// ListSetupExperienceResultsByHostUUID returns rows ordered by sesr.id.
 	// Scripts always run after all software is done.
-	var softwarePending, scriptsPending []*fleet.SetupExperienceStatusResult
+	var softwarePending, scriptsPending []*automdm.SetupExperienceStatusResult
 	var softwareRunning, scriptsRunning int
 
 	for _, status := range statuses {
@@ -286,16 +286,16 @@ func (svc *Service) SetupExperienceNextStep(ctx context.Context, host *fleet.Hos
 		switch {
 		case status.IsForSoftware():
 			switch status.Status {
-			case fleet.SetupExperienceStatusPending:
+			case automdm.SetupExperienceStatusPending:
 				softwarePending = append(softwarePending, status)
-			case fleet.SetupExperienceStatusRunning:
+			case automdm.SetupExperienceStatusRunning:
 				softwareRunning++
 			}
 		case status.IsForScript():
 			switch status.Status {
-			case fleet.SetupExperienceStatusPending:
+			case automdm.SetupExperienceStatusPending:
 				scriptsPending = append(scriptsPending, status)
-			case fleet.SetupExperienceStatusRunning:
+			case automdm.SetupExperienceStatusRunning:
 				finished, err := svc.syncSetupExperienceScriptResult(ctx, hostUUID, status)
 				if err != nil {
 					return false, err
@@ -312,7 +312,7 @@ func (svc *Service) SetupExperienceNextStep(ctx context.Context, host *fleet.Hos
 	// re-trigger this flow for it. Such an item counts toward softwareRunning, so it also correctly blocks the next item from
 	// starting until it resolves (skip or install).
 	for _, status := range statuses {
-		if status.IsForSoftware() && status.Status == fleet.SetupExperienceStatusRunning &&
+		if status.IsForSoftware() && status.Status == automdm.SetupExperienceStatusRunning &&
 			status.PolicyGated && status.HostSoftwareInstallsExecutionID == nil {
 			if err := svc.advancePolicyGatedSetupExperienceItem(ctx, host, status); err != nil {
 				return false, err
@@ -353,7 +353,7 @@ func (svc *Service) SetupExperienceNextStep(ctx context.Context, host *fleet.Hos
 				}
 				return false, nil
 			}
-			installUUID, err := svc.ds.InsertSoftwareInstallRequest(ctx, host.ID, *sw.SoftwareInstallerID, fleet.HostSoftwareInstallOptions{
+			installUUID, err := svc.ds.InsertSoftwareInstallRequest(ctx, host.ID, *sw.SoftwareInstallerID, automdm.HostSoftwareInstallOptions{
 				SelfService:        false,
 				ForSetupExperience: true,
 			})
@@ -361,7 +361,7 @@ func (svc *Service) SetupExperienceNextStep(ctx context.Context, host *fleet.Hos
 				return false, ctxerr.Wrap(ctx, err, "queueing setup experience install request")
 			}
 			sw.HostSoftwareInstallsExecutionID = &installUUID
-			sw.Status = fleet.SetupExperienceStatusRunning
+			sw.Status = automdm.SetupExperienceStatusRunning
 			if err := svc.ds.UpdateSetupExperienceStatusResult(ctx, sw); err != nil {
 				return false, ctxerr.Wrap(ctx, err, "updating setup experience result with install uuid")
 			}
@@ -376,16 +376,16 @@ func (svc *Service) SetupExperienceNextStep(ctx context.Context, host *fleet.Hos
 				return false, ctxerr.Errorf(ctx, "setup experience software title id missing from vpp app install request: %d", sw.ID)
 			}
 
-			vppApp := &fleet.VPPApp{
+			vppApp := &automdm.VPPApp{
 				TitleID: *sw.SoftwareTitleID,
-				VPPAppTeam: fleet.VPPAppTeam{
+				VPPAppTeam: automdm.VPPAppTeam{
 					VPPAppID:   *vppAppID,
 					AppTeamID:  ptr.ValOrZero(sw.VPPAppTeamID),
 					VPPTokenID: sw.VPPAppVPPTokenID,
 				},
 			}
 
-			cmdUUID, err := svc.installSoftwareFromVPP(ctx, host, vppApp, true, fleet.HostSoftwareInstallOptions{
+			cmdUUID, err := svc.installSoftwareFromVPP(ctx, host, vppApp, true, automdm.HostSoftwareInstallOptions{
 				SelfService:        false,
 				ForSetupExperience: true,
 			})
@@ -395,7 +395,7 @@ func (svc *Service) SetupExperienceNextStep(ctx context.Context, host *fleet.Hos
 				// install, then we should immediately go to an error state so setup experience
 				// isn't blocked.
 				svc.logger.WarnContext(ctx, "got an error when attempting to enqueue VPP app install", "err", err, "adam_id", sw.VPPAppAdamID)
-				sw.Status = fleet.SetupExperienceStatusFailure
+				sw.Status = automdm.SetupExperienceStatusFailure
 				sw.Error = ptr.String(err.Error())
 				// Persist the failure before cancelling other steps, so that
 				// maybeCancelPendingSetupExperienceSteps can find the failed
@@ -411,18 +411,18 @@ func (svc *Service) SetupExperienceNextStep(ctx context.Context, host *fleet.Hos
 					}
 					softwareDisplayName = dn
 				}
-				vppToken, tokErr := fleet.ActivityVPPTokenByID(ctx, svc.ds, sw.VPPAppVPPTokenID)
+				vppToken, tokErr := automdm.ActivityVPPTokenByID(ctx, svc.ds, sw.VPPAppVPPTokenID)
 				if tokErr != nil {
 					svc.logger.WarnContext(ctx, "failed to look up VPP token for VPP install failure activity", "err", tokErr)
 				}
-				failActivity := fleet.ActivityInstalledAppStoreApp{
+				failActivity := automdm.ActivityInstalledAppStoreApp{
 					VPPToken:            vppToken,
 					HostID:              host.ID,
 					HostDisplayName:     host.DisplayName(),
 					SoftwareTitle:       sw.Name,
 					SoftwareDisplayName: ptr.ValOrZero(softwareDisplayName),
 					AppStoreID:          ptr.ValOrZero(sw.VPPAppAdamID),
-					Status:              string(fleet.SoftwareInstallFailed),
+					Status:              string(automdm.SoftwareInstallFailed),
 					HostPlatform:        host.Platform,
 					FromSetupExperience: true,
 					VersionName:         ptr.ValOrZero(sw.VPPAppVersionName),
@@ -444,7 +444,7 @@ func (svc *Service) SetupExperienceNextStep(ctx context.Context, host *fleet.Hos
 				}
 			} else {
 				sw.NanoCommandUUID = &cmdUUID
-				sw.Status = fleet.SetupExperienceStatusRunning
+				sw.Status = automdm.SetupExperienceStatusRunning
 				if err := svc.ds.UpdateSetupExperienceStatusResult(ctx, sw); err != nil {
 					return false, ctxerr.Wrap(ctx, err, "updating setup experience with vpp install command uuid")
 				}
@@ -454,7 +454,7 @@ func (svc *Service) SetupExperienceNextStep(ctx context.Context, host *fleet.Hos
 			// which is driven in one pass by the worker and never reaches this
 			// poll-driven flow. Fail the item instead of letting it fall through
 			// the switch silently and stall the queue.
-			sw.Status = fleet.SetupExperienceStatusFailure
+			sw.Status = automdm.SetupExperienceStatusFailure
 			sw.Error = new("In-house apps can only be installed during setup experience on iOS and iPadOS.")
 			if err := svc.ds.UpdateSetupExperienceStatusResult(ctx, sw); err != nil {
 				return false, ctxerr.Wrap(ctx, err, "updating setup experience status result to failure")
@@ -467,7 +467,7 @@ func (svc *Service) SetupExperienceNextStep(ctx context.Context, host *fleet.Hos
 			if script.ScriptContentID == nil {
 				return false, ctxerr.Errorf(ctx, "setup experience script missing content id: %d", *script.SetupExperienceScriptID)
 			}
-			req := &fleet.HostScriptRequestPayload{
+			req := &automdm.HostScriptRequestPayload{
 				HostID:          host.ID,
 				ScriptName:      script.Name,
 				ScriptContentID: *script.ScriptContentID,
@@ -481,7 +481,7 @@ func (svc *Service) SetupExperienceNextStep(ctx context.Context, host *fleet.Hos
 				return false, ctxerr.Wrap(ctx, err, "queueing setup experience script execution request")
 			}
 			script.ScriptExecutionID = &res.ExecutionID
-			script.Status = fleet.SetupExperienceStatusRunning
+			script.Status = automdm.SetupExperienceStatusRunning
 			if err := svc.ds.UpdateSetupExperienceStatusResult(ctx, script); err != nil {
 				return false, ctxerr.Wrap(ctx, err, "updating setup experience script execution id")
 			}
@@ -499,15 +499,15 @@ func (svc *Service) SetupExperienceNextStep(ctx context.Context, host *fleet.Hos
 }
 
 // syncSetupExperienceScriptResult marks a running setup experience script step finished if its result is already
-// recorded. Saving the result and updating the step are separate writes, and fleetd doesn't resend a result whose
+// recorded. Saving the result and updating the step are separate writes, and automdmd doesn't resend a result whose
 // save request failed, so a failure between them would otherwise leave the step running forever.
-func (svc *Service) syncSetupExperienceScriptResult(ctx context.Context, hostUUID string, step *fleet.SetupExperienceStatusResult) (bool, error) {
+func (svc *Service) syncSetupExperienceScriptResult(ctx context.Context, hostUUID string, step *automdm.SetupExperienceStatusResult) (bool, error) {
 	if step.ScriptExecutionID == nil {
 		return false, nil
 	}
 	res, err := svc.ds.GetHostScriptExecutionResult(ctx, *step.ScriptExecutionID)
 	if err != nil {
-		if fleet.IsNotFound(err) {
+		if automdm.IsNotFound(err) {
 			return false, nil
 		}
 		return false, ctxerr.Wrap(ctx, err, "get setup experience script result")
@@ -515,7 +515,7 @@ func (svc *Service) syncSetupExperienceScriptResult(ctx context.Context, hostUUI
 	if res.ExitCode == nil {
 		return false, nil
 	}
-	status := fleet.SetupExperienceScriptResult{ExitCode: int(*res.ExitCode)}.SetupExperienceStatus()
+	status := automdm.SetupExperienceScriptResult{ExitCode: int(*res.ExitCode)}.SetupExperienceStatus()
 	updated, err := svc.ds.MaybeUpdateSetupExperienceScriptStatus(ctx, hostUUID, *step.ScriptExecutionID, status)
 	if err != nil {
 		return false, ctxerr.Wrap(ctx, err, "update setup experience script status from recorded result")
@@ -541,11 +541,11 @@ func (svc *Service) syncSetupExperienceScriptResult(ctx context.Context, hostUUI
 // knowable once the host has reported its labels for this enrollment, and a result reported before scope is known cannot be
 // trusted (e.g. an exclude-label policy can run on the first read, before its exclusion is computed). So we (1) wait for labels,
 // (2) compute the in-scope gating policies and install if none apply, and only then (3) aggregate their results.
-func (svc *Service) advancePolicyGatedSetupExperienceItem(ctx context.Context, host *fleet.Host, sw *fleet.SetupExperienceStatusResult) error {
+func (svc *Service) advancePolicyGatedSetupExperienceItem(ctx context.Context, host *automdm.Host, sw *automdm.SetupExperienceStatusResult) error {
 	// Set running on the struct only (not yet persisted); the single persist below holds the softwareRunning==0 guard so
 	// no other item starts while we wait.
-	alreadyRunning := sw.Status == fleet.SetupExperienceStatusRunning
-	sw.Status = fleet.SetupExperienceStatusRunning
+	alreadyRunning := sw.Status == automdm.SetupExperienceStatusRunning
+	sw.Status = automdm.SetupExperienceStatusRunning
 
 	// keepWaiting holds the item in "running" awaiting label/policy results. It persists the pending->running transition only once;
 	// on later polls nothing has changed, so it skips the redundant UPDATE to avoid write amplification while waiting.
@@ -620,7 +620,7 @@ func (svc *Service) advancePolicyGatedSetupExperienceItem(ctx context.Context, h
 	}
 
 	// Every in-scope gating policy passed (app present and up-to-date): skip the install (terminal success).
-	sw.Status = fleet.SetupExperienceStatusSuccess
+	sw.Status = automdm.SetupExperienceStatusSuccess
 	svc.logger.DebugContext(ctx, "setup experience: all gating policies passed; skipping install",
 		"host_id", host.ID, "software_installer_id", *sw.SoftwareInstallerID)
 	return svc.ds.UpdateSetupExperienceStatusResult(ctx, sw)
@@ -630,7 +630,7 @@ func (svc *Service) advancePolicyGatedSetupExperienceItem(ctx context.Context, h
 // items was policy-gated (Windows/Linux). During setup only the gated policy subset is distributed/reported, which advances the
 // host-wide policy_updated_at and would otherwise delay the host's remaining policies by up to a full policy update interval once
 // setup ends.
-func (svc *Service) resetPolicyClockAfterGatedSetup(ctx context.Context, host *fleet.Host, statuses []*fleet.SetupExperienceStatusResult) error {
+func (svc *Service) resetPolicyClockAfterGatedSetup(ctx context.Context, host *automdm.Host, statuses []*automdm.SetupExperienceStatusResult) error {
 	gated := false
 	for _, s := range statuses {
 		if s.PolicyGated {
@@ -649,8 +649,8 @@ func (svc *Service) resetPolicyClockAfterGatedSetup(ctx context.Context, host *f
 
 // enqueueSetupExperienceSoftwareInstall enqueues a software installer item the same way an un-gated setup-experience item is
 // enqueued (ForSetupExperience priority, the item owns its host_software_installs execution), and marks the item running.
-func (svc *Service) enqueueSetupExperienceSoftwareInstall(ctx context.Context, host *fleet.Host, sw *fleet.SetupExperienceStatusResult) error {
-	installUUID, err := svc.ds.InsertSoftwareInstallRequest(ctx, host.ID, *sw.SoftwareInstallerID, fleet.HostSoftwareInstallOptions{
+func (svc *Service) enqueueSetupExperienceSoftwareInstall(ctx context.Context, host *automdm.Host, sw *automdm.SetupExperienceStatusResult) error {
+	installUUID, err := svc.ds.InsertSoftwareInstallRequest(ctx, host.ID, *sw.SoftwareInstallerID, automdm.HostSoftwareInstallOptions{
 		SelfService:        false,
 		ForSetupExperience: true,
 	})
@@ -658,7 +658,7 @@ func (svc *Service) enqueueSetupExperienceSoftwareInstall(ctx context.Context, h
 		return ctxerr.Wrap(ctx, err, "queueing setup experience install request")
 	}
 	sw.HostSoftwareInstallsExecutionID = &installUUID
-	sw.Status = fleet.SetupExperienceStatusRunning
+	sw.Status = automdm.SetupExperienceStatusRunning
 	if err := svc.ds.UpdateSetupExperienceStatusResult(ctx, sw); err != nil {
 		return ctxerr.Wrap(ctx, err, "updating setup experience result with install uuid")
 	}

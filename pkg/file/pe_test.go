@@ -3,7 +3,7 @@ package file
 import (
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -11,7 +11,7 @@ import (
 func TestExtractPEMetadata(t *testing.T) {
 	t.Parallel()
 
-	tfr, err := fleet.NewKeepFileReader("testdata/software-installers/hello-world-installer.exe")
+	tfr, err := automdm.NewKeepFileReader("testdata/software-installers/hello-world-installer.exe")
 	require.NoError(t, err)
 	defer tfr.Close()
 

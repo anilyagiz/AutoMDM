@@ -17,11 +17,11 @@ import (
 	"time"
 
 	"github.com/Masterminds/semver"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/dialog"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/kdialog"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/lvm"
-	"github.com/fleetdm/fleet/v4/orbit/pkg/zenity"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/dialog"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/kdialog"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/lvm"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/zenity"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/rs/zerolog/log"
 	"github.com/siderolabs/go-blockdevice/v2/encryption"
 	luksdevice "github.com/siderolabs/go-blockdevice/v2/encryption/luks"
@@ -33,8 +33,8 @@ const (
 	retryEntryDialogText = "Passphrase incorrect. Please try again."
 	infoTitle            = "Disk encryption"
 	infoFailedText       = "Failed to escrow key. Please try again later."
-	infoSuccessText      = "Disk encryption key escrowed to Fleet. Close this window, navigate to your Fleet My Device page, and select Refetch to clear the yellow banner."
-	timeoutMessage       = "Please visit Fleet Desktop > My device and click Create key"
+	infoSuccessText      = "Disk encryption key escrowed to AutoMDM. Close this window, navigate to your AutoMDM My Device page, and select Refetch to clear the yellow banner."
+	timeoutMessage       = "Please visit AutoMDM Desktop > My device and click Create key"
 	maxKeySlots          = 8
 )
 
@@ -50,7 +50,7 @@ const (
 )
 
 func (lr *LuksRunner) reportsEscrowStatus() bool {
-	return lr.escrower.GetServerCapabilities().Has(fleet.CapabilityLinuxEscrowStatus)
+	return lr.escrower.GetServerCapabilities().Has(automdm.CapabilityLinuxEscrowStatus)
 }
 
 // sendEscrowStatus is a no-op without the server capability. prompting (per re-prompt) and
@@ -96,7 +96,7 @@ func (lr *LuksRunner) ensureNotifier() {
 	}
 }
 
-func (lr *LuksRunner) Run(oc *fleet.OrbitConfig) error {
+func (lr *LuksRunner) Run(oc *automdm.OrbitConfig) error {
 	if !oc.Notifications.RunDiskEncryptionEscrow {
 		return nil
 	}
@@ -161,9 +161,9 @@ func (lr *LuksRunner) runPassphraseEscrow(ctx context.Context, device luksDevice
 	if err == nil && outcome != promptEntered {
 		switch outcome {
 		case promptCanceled:
-			lr.sendEscrowStatus(fleet.LinuxEscrowStatusCanceled)
+			lr.sendEscrowStatus(automdm.LinuxEscrowStatusCanceled)
 		case promptTimedOut:
-			lr.sendEscrowStatus(fleet.LinuxEscrowStatusTimedOut)
+			lr.sendEscrowStatus(automdm.LinuxEscrowStatusTimedOut)
 		}
 		return nil
 	}
@@ -270,12 +270,12 @@ func (lr *LuksRunner) promptAndValidatePassphrase(ctx context.Context, device lu
 
 		if valid {
 			// key slot work starts; refresh the server's in-flight window
-			lr.sendEscrowStatus(fleet.LinuxEscrowStatusEscrowing)
+			lr.sendEscrowStatus(automdm.LinuxEscrowStatusEscrowing)
 			return passphrase, outcome, nil
 		}
 
 		// another minute at the prompt; keep the in-flight state alive
-		lr.sendEscrowStatus(fleet.LinuxEscrowStatusPrompting)
+		lr.sendEscrowStatus(automdm.LinuxEscrowStatusPrompting)
 		passphrase, outcome, err = lr.entryPrompt(entryDialogTitle, retryEntryDialogText)
 		if err != nil {
 			return nil, outcome, fmt.Errorf("Failed re-prompting for passphrase: %w", err)
@@ -538,8 +538,8 @@ func (s *snapdFDE) Detect(ctx context.Context) (bool, error) {
 	return managed, nil
 }
 
-func (s *snapdFDE) EnsureFleetRecoveryKey(ctx context.Context) (string, error) {
-	return s.socket.ensureFleetRecoveryKey(ctx)
+func (s *snapdFDE) EnsureAutoMDMRecoveryKey(ctx context.Context) (string, error) {
+	return s.socket.ensureAutoMDMRecoveryKey(ctx)
 }
 
 // isCryptsetupVersionLessThan2_4 checks if the installed cryptsetup version is less than 2.4.0

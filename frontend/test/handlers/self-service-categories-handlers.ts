@@ -14,7 +14,7 @@ export const createMockSelfServiceCategory = (
 ): ISelfServiceCategory => ({
   id: 1,
   name: "🌎 Browsers",
-  fleet_id: 0,
+  team_id: 0,
   created_at: DEFAULT_TIMESTAMP,
   updated_at: DEFAULT_TIMESTAMP,
   ...overrides,
@@ -23,7 +23,7 @@ export const createMockSelfServiceCategory = (
 const categoriesUrl = baseUrl("/software/self_service_categories");
 const categoryByIdUrl = baseUrl("/software/self_service_categories/:id");
 
-// GET /software/self_service_categories?fleet_id=:id
+// GET /software/self_service_categories?team_id=:id
 export const listSelfServiceCategoriesHandler = (
   categories: Partial<ISelfServiceCategory>[] = [
     { id: 1, name: "🌎 Browsers" },
@@ -42,7 +42,7 @@ export const listSelfServiceCategoriesHandler = (
   );
 
 // GET /device/:token/software/self_service_categories
-// Device-token-scoped variant — BE derives the fleet from the token.
+// Device-token-scoped variant — BE derives the team from the token.
 const deviceCategoriesUrl = baseUrl(
   "/device/:token/software/self_service_categories"
 );
@@ -91,7 +91,7 @@ export const addSelfServiceCategoryHandler = http.post(
       self_service_category: createMockSelfServiceCategory({
         id: 99,
         name: body.name,
-        fleet_id: body.fleet_id,
+        team_id: body.team_id,
       }),
     });
   }
@@ -106,7 +106,7 @@ export const addSelfServiceCategoryConflictHandler = http.post(
           {
             name: "name",
             reason:
-              "A self-service category with this name already exists in this fleet.",
+              "A self-service category with this name already exists in this team.",
           },
         ],
       },
@@ -144,7 +144,7 @@ export const editSelfServiceCategoryConflictHandler = http.patch(
           {
             name: "name",
             reason:
-              "A self-service category with this name already exists in this fleet.",
+              "A self-service category with this name already exists in this team.",
           },
         ],
       },

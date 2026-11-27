@@ -18,33 +18,33 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	ctxabm "github.com/fleetdm/fleet/v4/server/contexts/apple_bm"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/logging"
-	"github.com/fleetdm/fleet/v4/server/mdm/apple/gdmf"
-	"github.com/fleetdm/fleet/v4/server/mdm/apple/mobileconfig"
-	"github.com/fleetdm/fleet/v4/server/mdm/internal/commonmdm"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanodep/godep"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/cryptoutil"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	ctxabm "github.com/anilyagiz/automdm/v4/server/contexts/apple_bm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/logging"
+	"github.com/anilyagiz/automdm/v4/server/mdm/apple/gdmf"
+	"github.com/anilyagiz/automdm/v4/server/mdm/apple/mobileconfig"
+	"github.com/anilyagiz/automdm/v4/server/mdm/internal/commonmdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanodep/godep"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/cryptoutil"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
 	"github.com/micromdm/plist"
 	"github.com/smallstep/pkcs7"
 
-	depclient "github.com/fleetdm/fleet/v4/server/mdm/nanodep/client"
-	nanodep_storage "github.com/fleetdm/fleet/v4/server/mdm/nanodep/storage"
-	depsync "github.com/fleetdm/fleet/v4/server/mdm/nanodep/sync"
+	depclient "github.com/anilyagiz/automdm/v4/server/mdm/nanodep/client"
+	nanodep_storage "github.com/anilyagiz/automdm/v4/server/mdm/nanodep/storage"
+	depsync "github.com/anilyagiz/automdm/v4/server/mdm/nanodep/sync"
 )
 
 const (
-	// SCEPPath is Fleet's HTTP path for the SCEP service.
+	// SCEPPath is AutoMDM's HTTP path for the SCEP service.
 	SCEPPath = "/mdm/apple/scep"
-	// MDMPath is Fleet's HTTP path for the core MDM service.
+	// MDMPath is AutoMDM's HTTP path for the core MDM service.
 	MDMPath = "/mdm/apple/mdm"
-	// MDMServiceDiscoveryPath is Fleet's base HTTP path for the MDM service discovery service. And is kept for backwards compatible reasons.
+	// MDMServiceDiscoveryPath is AutoMDM's base HTTP path for the MDM service discovery service. And is kept for backwards compatible reasons.
 	//
 	// Deprecated: Use ServiceDiscoveryTokenPath instead.
 	ServiceDiscoveryPath      = "/mdm/apple/service_discovery"
@@ -58,31 +58,31 @@ const (
 	AccountDrivenEnrollPath      = "/api/mdm/apple/account_driven_enroll"
 	AccountDrivenEnrollTokenPath = "/api/mdm/apple/account_driven_enroll/{token}" // nolint:gosec // Not a secret
 
-	// FleetUISSOCallbackPath is the front-end route used to
+	// AutoMDMUISSOCallbackPath is the front-end route used to
 	// redirect after the SSO flow is completed.
-	FleetUISSOCallbackPath = "/mdm/sso/callback"
+	AutoMDMUISSOCallbackPath = "/mdm/sso/callback"
 
-	// FleetUISSOCallbackError redirects to the callback route's generic error.
-	FleetUISSOCallbackError = FleetUISSOCallbackPath + "?error=true"
+	// AutoMDMUISSOCallbackError redirects to the callback route's generic error.
+	AutoMDMUISSOCallbackError = AutoMDMUISSOCallbackPath + "?error=true"
 
-	// FleetUISSOCallbackSessionExpired redirects to the callback route and asks
+	// AutoMDMUISSOCallbackSessionExpired redirects to the callback route and asks
 	// it for the timed-out message instead of the generic one. Signing in can
 	// take a while on a device being set up for the first time, and the generic
 	// error gives the end user nothing to act on.
-	FleetUISSOCallbackSessionExpired = FleetUISSOCallbackError + "&reason=session_expired"
+	AutoMDMUISSOCallbackSessionExpired = AutoMDMUISSOCallbackError + "&reason=session_expired"
 
-	// FleetUIDeviceSSOError is where the Fleet Desktop SSO flow lands when the
+	// AutoMDMUIDeviceSSOError is where the AutoMDM Desktop SSO flow lands when the
 	// callback fails before loading the SSO session: the device-page counterpart
-	// of FleetUISSOCallbackError.
-	FleetUIDeviceSSOError = "/device/sso-error?reason=error"
+	// of AutoMDMUISSOCallbackError.
+	AutoMDMUIDeviceSSOError = "/device/sso-error?reason=error"
 
-	// FleetUIDeviceSSOErrorSessionExpired is the device-page counterpart of
-	// FleetUISSOCallbackSessionExpired.
-	FleetUIDeviceSSOErrorSessionExpired = "/device/sso-error?reason=session_expired"
+	// AutoMDMUIDeviceSSOErrorSessionExpired is the device-page counterpart of
+	// AutoMDMUISSOCallbackSessionExpired.
+	AutoMDMUIDeviceSSOErrorSessionExpired = "/device/sso-error?reason=session_expired"
 
-	// FleetPayloadIdentifier is the value for the "<key>PayloadIdentifier</key>"
-	// used by Fleet MDM on the enrollment profile.
-	FleetPayloadIdentifier = "com.fleetdm.fleet.mdm.apple"
+	// AutoMDMPayloadIdentifier is the value for the "<key>PayloadIdentifier</key>"
+	// used by AutoMDM on the enrollment profile.
+	AutoMDMPayloadIdentifier = "com.fleetdm.fleet.mdm.apple"
 
 	// SCEPProxyPath is the HTTP path that serves the SCEP proxy service. The path is followed by identifier.
 	SCEPProxyPath = "/mdm/scep/proxy/"
@@ -99,7 +99,7 @@ const (
 // MDM AccessRights bitmask values per Apple Device Management documentation.
 // https://developer.apple.com/documentation/devicemanagement/mdm#properties
 //
-// MDMAccessRightAll is the full set Fleet has always delivered historically.
+// MDMAccessRightAll is the full set AutoMDM has always delivered historically.
 // Callers that renew an existing host's profile must compute the new value as
 // (stored_rights AND current_max_rights) to honour the monotonic-narrowing rule:
 // Apple rejects an enrollment-profile replacement that grants MORE rights than
@@ -121,35 +121,35 @@ func AppleEnrollmentAccessRights(personal bool) int {
 	return MDMAccessRightAll &^ (MDMAccessRightDeviceLock | MDMAccessRightDeviceErase)
 }
 
-// FleetPersonalEnrollmentKey is the URL query-parameter key added to the MDM
+// AutoMDMPersonalEnrollmentKey is the URL query-parameter key added to the MDM
 // ServerURL in enrollment profiles for personal (BYOD) devices. nanomdm surfaces
 // URL query parameters as request.Params so the Authenticate checkin handler can
 // read it and set host_mdm.is_personal_enrollment accordingly. The "byod" key
 // matches the param the OTA endpoint and the /enroll page already use.
-const FleetPersonalEnrollmentKey = "byod"
+const AutoMDMPersonalEnrollmentKey = "byod"
 
-// FleetEnrollmentSubjectOU is the Organizational Unit Fleet embeds in the SCEP
+// AutoMDMEnrollmentSubjectOU is the Organizational Unit AutoMDM embeds in the SCEP
 // certificate Subject of NEW-enrollment profiles (never renewals). The SCEP signer
 // copies the CSR Subject verbatim into the issued identity certificate, so this
 // marker survives into the cert the device presents at MDM Authenticate. The checkin
 // handler reads it to tell a fresh enrollment apart from a stale pending SCEP renewal
 // (see server/service/apple_mdm.go Authenticate). It must NOT be set on renewal
 // profiles, or renewals would be misclassified as fresh enrollments.
-const FleetEnrollmentSubjectOU = "Fleet Device Enrollment"
+const AutoMDMEnrollmentSubjectOU = "AutoMDM Device Enrollment"
 
-// AddPersonalEnrollmentToFleetURL appends the FleetPersonalEnrollmentKey query
-// param to fleetURL when personal is true. If personal is false the URL is
+// AddPersonalEnrollmentToAutoMDMURL appends the AutoMDMPersonalEnrollmentKey query
+// param to automdmURL when personal is true. If personal is false the URL is
 // returned unchanged so company-owned profiles carry no extra parameters.
-func AddPersonalEnrollmentToFleetURL(fleetURL string, personal bool) (string, error) {
+func AddPersonalEnrollmentToAutoMDMURL(automdmURL string, personal bool) (string, error) {
 	if !personal {
-		return fleetURL, nil
+		return automdmURL, nil
 	}
-	u, err := url.Parse(fleetURL)
+	u, err := url.Parse(automdmURL)
 	if err != nil {
 		return "", fmt.Errorf("parsing configured server URL: %w", err)
 	}
 	q := u.Query()
-	q.Set(FleetPersonalEnrollmentKey, "1")
+	q.Set(AutoMDMPersonalEnrollmentKey, "1")
 	u.RawQuery = q.Encode()
 	return u.String(), nil
 }
@@ -179,11 +179,11 @@ func ResolveAppleACMEDirectoryURL(serverURL string, acmeIdent string) (string, e
 // DEPService is used to encapsulate tasks related to DEP enrollment.
 //
 // This service doesn't perform any authentication checks, so its suitable for
-// internal usage within Fleet. If you need to expose any of the functionality
+// internal usage within AutoMDM. If you need to expose any of the functionality
 // to users, please make sure the caller is enforcing the right authorization
 // checks.
 type DEPService struct {
-	ds         fleet.Datastore
+	ds         automdm.Datastore
 	depStorage nanodep_storage.AllDEPStorage
 	depClient  *godep.Client
 	logger     *slog.Logger
@@ -191,9 +191,9 @@ type DEPService struct {
 
 // GetDefaultProfile returns a godep.Profile with default values set.
 func (d *DEPService) GetDefaultProfile() *godep.Profile {
-	// If this definition change, make sure to update the fleetctl new template file
+	// If this definition change, make sure to update the automdmctl new template file
 	return &godep.Profile{
-		ProfileName:    "Fleet default enrollment profile",
+		ProfileName:    "AutoMDM default enrollment profile",
 		IsSupervised:   true,
 		IsMDMRemovable: false,
 	}
@@ -210,9 +210,9 @@ func (d *DEPService) createDefaultAutomaticProfile(ctx context.Context) error {
 		return ctxerr.Wrap(ctx, err, "marshaling default profile")
 	}
 
-	payload := fleet.MDMAppleEnrollmentProfilePayload{
+	payload := automdm.MDMAppleEnrollmentProfilePayload{
 		Token:      token,
-		Type:       fleet.MDMAppleEnrollmentTypeAutomatic,
+		Type:       automdm.MDMAppleEnrollmentTypeAutomatic,
 		DEPProfile: ptr.RawMessage(rawDEPProfile),
 	}
 	if _, err := d.ds.NewMDMAppleEnrollmentProfile(ctx, payload); err != nil {
@@ -226,7 +226,7 @@ func (d *DEPService) CreateDefaultAutomaticProfile(ctx context.Context) error {
 	return d.createDefaultAutomaticProfile(ctx)
 }
 
-func (d *DEPService) buildJSONProfile(ctx context.Context, setupAsstJSON json.RawMessage, appCfg *fleet.AppConfig, team *fleet.Team, enrollURL string) (*godep.Profile, error) {
+func (d *DEPService) buildJSONProfile(ctx context.Context, setupAsstJSON json.RawMessage, appCfg *automdm.AppConfig, team *automdm.Team, enrollURL string) (*godep.Profile, error) {
 	var jsonProf godep.Profile
 	jsonProf.IsMDMRemovable = true // the default value defined by Apple is true
 	if err := json.Unmarshal(setupAsstJSON, &jsonProf); err != nil {
@@ -263,7 +263,7 @@ func (d *DEPService) buildJSONProfile(ctx context.Context, setupAsstJSON json.Ra
 	}
 
 	// always set await_device_configured to true - it will be released either
-	// automatically by Fleet or manually by the user if
+	// automatically by AutoMDM or manually by the user if
 	// enable_release_device_manually is true.
 	jsonProf.AwaitDeviceConfigured = true
 
@@ -288,7 +288,7 @@ func (d *DEPService) buildJSONProfile(ctx context.Context, setupAsstJSON json.Ra
 //
 // On success, it returns the profile uuid and timestamp for the specific token
 // of interest to the caller (identified by its organization name).
-func (d *DEPService) RegisterProfileWithAppleDEPServer(ctx context.Context, team *fleet.Team, setupAsst *fleet.MDMAppleSetupAssistant, abmTokenOrgName string) (string, time.Time, error) {
+func (d *DEPService) RegisterProfileWithAppleDEPServer(ctx context.Context, team *automdm.Team, setupAsst *automdm.MDMAppleSetupAssistant, abmTokenOrgName string) (string, time.Time, error) {
 	appCfg, err := d.ds.AppConfig(ctx)
 	if err != nil {
 		return "", time.Time{}, ctxerr.Wrap(ctx, err, "fetching app config")
@@ -296,7 +296,7 @@ func (d *DEPService) RegisterProfileWithAppleDEPServer(ctx context.Context, team
 
 	// must always get the default profile, because the authentication token is
 	// defined on that profile.
-	defaultProf, err := d.ds.GetMDMAppleEnrollmentProfileByType(ctx, fleet.MDMAppleEnrollmentTypeAutomatic)
+	defaultProf, err := d.ds.GetMDMAppleEnrollmentProfileByType(ctx, automdm.MDMAppleEnrollmentTypeAutomatic)
 	if err != nil {
 		return "", time.Time{}, ctxerr.Wrap(ctx, err, "fetching default profile")
 	}
@@ -335,7 +335,7 @@ func (d *DEPService) RegisterProfileWithAppleDEPServer(ctx context.Context, team
 	}
 
 	if len(orgNames) == 0 {
-		d.logger.InfoContext(ctx, "skipping defining profile for fleet with no relevant ABM token")
+		d.logger.InfoContext(ctx, "skipping defining profile for team with no relevant ABM token")
 		return "", time.Time{}, nil
 	}
 
@@ -364,7 +364,7 @@ func (d *DEPService) RegisterProfileWithAppleDEPServer(ctx context.Context, team
 
 // ValidateSetupAssistant validates the setup assistant by sending the profile to the DefineProfile
 // Apple API.
-func (d *DEPService) ValidateSetupAssistant(ctx context.Context, team *fleet.Team, setupAsst *fleet.MDMAppleSetupAssistant, abmTokenOrgName string) error {
+func (d *DEPService) ValidateSetupAssistant(ctx context.Context, team *automdm.Team, setupAsst *automdm.MDMAppleSetupAssistant, abmTokenOrgName string) error {
 	appCfg, err := d.ds.AppConfig(ctx)
 	if err != nil {
 		return ctxerr.Wrap(ctx, err, "fetching app config")
@@ -372,7 +372,7 @@ func (d *DEPService) ValidateSetupAssistant(ctx context.Context, team *fleet.Tea
 
 	// must always get the default profile, because the authentication token is
 	// defined on that profile.
-	defaultProf, err := d.ds.GetMDMAppleEnrollmentProfileByType(ctx, fleet.MDMAppleEnrollmentTypeAutomatic)
+	defaultProf, err := d.ds.GetMDMAppleEnrollmentProfileByType(ctx, automdm.MDMAppleEnrollmentTypeAutomatic)
 	if err != nil {
 		return ctxerr.Wrap(ctx, err, "fetching default profile")
 	}
@@ -402,10 +402,10 @@ func (d *DEPService) ValidateSetupAssistant(ctx context.Context, team *fleet.Tea
 	}
 
 	if len(orgNames) == 0 {
-		// The fleet isn't tied to any ABM token yet, but validating the profile only
+		// The team isn't tied to any ABM token yet, but validating the profile only
 		// needs a credential to reach Apple's DefineProfile API, and that check is the
 		// same for any token. Use any usable token so validation doesn't fail on a
-		// fleet that will be tied to a token later; the profile defined here is not
+		// team that will be tied to a token later; the profile defined here is not
 		// assigned to anything. Only error when there is no token at all.
 		toks, err := d.ds.ListABMTokens(ctx)
 		if err != nil {
@@ -454,13 +454,13 @@ func (d *DEPService) ValidateSetupAssistant(ctx context.Context, team *fleet.Tea
 // is nil) using the specified ABM token, and returns its profile UUID. It does
 // not re-define the profile if it already exists and registered for that
 // token.
-func (d *DEPService) EnsureDefaultSetupAssistant(ctx context.Context, team *fleet.Team, abmTokenOrgName string) (string, time.Time, error) {
+func (d *DEPService) EnsureDefaultSetupAssistant(ctx context.Context, team *automdm.Team, abmTokenOrgName string) (string, time.Time, error) {
 	// the first step is to ensure that the default profile entry exists in the
 	// mdm_apple_enrollment_profiles table. When we create it there we also
 	// create the authentication token to retrieve enrollment profiles, and
 	// that's the place the token is stored.
-	defProf, err := d.ds.GetMDMAppleEnrollmentProfileByType(ctx, fleet.MDMAppleEnrollmentTypeAutomatic)
-	if err != nil && !fleet.IsNotFound(err) {
+	defProf, err := d.ds.GetMDMAppleEnrollmentProfileByType(ctx, automdm.MDMAppleEnrollmentTypeAutomatic)
+	if err != nil && !automdm.IsNotFound(err) {
 		return "", time.Time{}, ctxerr.Wrap(ctx, err, "get default automatic profile")
 	}
 	if defProf == nil || defProf.Token == "" {
@@ -476,7 +476,7 @@ func (d *DEPService) EnsureDefaultSetupAssistant(ctx context.Context, team *flee
 		tmID = &team.ID
 	}
 	profUUID, modTime, err := d.ds.GetMDMAppleDefaultSetupAssistant(ctx, tmID, abmTokenOrgName)
-	if err != nil && !fleet.IsNotFound(err) {
+	if err != nil && !automdm.IsNotFound(err) {
 		return "", time.Time{}, ctxerr.Wrap(ctx, err, "get default setup assistant profile uuid")
 	}
 	if profUUID == "" {
@@ -495,7 +495,7 @@ func (d *DEPService) EnsureDefaultSetupAssistant(ctx context.Context, team *flee
 // re-define the profile if it is already registered for that token. If no
 // custom setup assistant exists, it returns an empty string and timestamp and
 // no error.
-func (d *DEPService) EnsureCustomSetupAssistantIfExists(ctx context.Context, team *fleet.Team, abmTokenOrgName string) (string, time.Time, error) {
+func (d *DEPService) EnsureCustomSetupAssistantIfExists(ctx context.Context, team *automdm.Team, abmTokenOrgName string) (string, time.Time, error) {
 	var tmID *uint
 	if team != nil {
 		tmID = &team.ID
@@ -503,7 +503,7 @@ func (d *DEPService) EnsureCustomSetupAssistantIfExists(ctx context.Context, tea
 
 	asst, err := d.ds.GetMDMAppleSetupAssistant(ctx, tmID)
 	if err != nil {
-		if fleet.IsNotFound(err) {
+		if automdm.IsNotFound(err) {
 			// no error, no custom setup assistant for that team
 			return "", time.Time{}, nil
 		}
@@ -512,7 +512,7 @@ func (d *DEPService) EnsureCustomSetupAssistantIfExists(ctx context.Context, tea
 
 	// if we get here, there IS a custom setup assistant, so get its profile UUID
 	profileUUID, modTime, err := d.ds.GetMDMAppleSetupAssistantProfileForABMToken(ctx, tmID, abmTokenOrgName)
-	if err != nil && !fleet.IsNotFound(err) {
+	if err != nil && !automdm.IsNotFound(err) {
 		return "", time.Time{}, err
 	}
 
@@ -529,17 +529,17 @@ func (d *DEPService) EnsureCustomSetupAssistantIfExists(ctx context.Context, tea
 func (d *DEPService) RunAssigner(ctx context.Context) error {
 	syncerLogger := logging.NewNanoDEPLogger(ctx, d.logger.With("component", "nanodep-syncer"))
 	teams, err := d.ds.ListTeams(
-		ctx, fleet.TeamFilter{
-			User: &fleet.User{
-				GlobalRole: ptr.String(fleet.RoleAdmin),
+		ctx, automdm.TeamFilter{
+			User: &automdm.User{
+				GlobalRole: ptr.String(automdm.RoleAdmin),
 			},
-		}, fleet.ListOptions{},
+		}, automdm.ListOptions{},
 	)
 	if err != nil {
 		return ctxerr.Wrap(ctx, err, "listing teams")
 	}
 
-	teamsByID := make(map[uint]*fleet.Team, len(teams))
+	teamsByID := make(map[uint]*automdm.Team, len(teams))
 	for _, tm := range teams {
 		teamsByID[tm.ID] = tm
 	}
@@ -561,7 +561,7 @@ func (d *DEPService) RunAssigner(ctx context.Context) error {
 			}
 		}
 
-		var macOSTeam, iosTeam, ipadTeam *fleet.Team
+		var macOSTeam, iosTeam, ipadTeam *automdm.Team
 
 		if token.MacOSDefaultTeamID != nil {
 			macOSTeam = teamsByID[*token.MacOSDefaultTeamID]
@@ -575,7 +575,7 @@ func (d *DEPService) RunAssigner(ctx context.Context) error {
 			ipadTeam = teamsByID[*token.IPadOSDefaultTeamID]
 		}
 
-		teams := []*fleet.Team{macOSTeam, iosTeam, ipadTeam}
+		teams := []*automdm.Team{macOSTeam, iosTeam, ipadTeam}
 		for _, team := range teams {
 			// ensure the default (fallback) setup assistant profile exists, registered
 			// with Apple DEP.
@@ -664,7 +664,7 @@ func (d *DEPService) AssignMDMAppleServiceDiscoveryURL(ctx context.Context, toke
 }
 
 func NewDEPService(
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	depStorage nanodep_storage.AllDEPStorage,
 	logger *slog.Logger,
 ) *DEPService {
@@ -686,9 +686,9 @@ func (d *DEPService) processDeviceResponse(
 	resp *godep.DeviceResponse,
 	abmTokenID uint,
 	abmOrganizationName string,
-	macOSTeam *fleet.Team,
-	iosTeam *fleet.Team,
-	ipadTeam *fleet.Team,
+	macOSTeam *automdm.Team,
+	iosTeam *automdm.Team,
+	ipadTeam *automdm.Team,
 ) error {
 	if len(resp.Devices) < 1 {
 		// no devices means we can't assign anything
@@ -818,7 +818,7 @@ func (d *DEPService) processDeviceResponse(
 	}
 
 	// Check if any of the "added" or "modified" hosts are hosts that we've recently removed from
-	// Fleet in ABM. A host in this state will have a row in `host_dep_assignments` where the
+	// AutoMDM in ABM. A host in this state will have a row in `host_dep_assignments` where the
 	// `deleted_at ` col is NOT NULL. Down below we skip assigning the profile to devices that we
 	// think are still enrolled; doing this check here allows us to avoid skipping devices that
 	// _seem_ like they're still enrolled but were actually removed and should get the profile.
@@ -890,7 +890,7 @@ func (d *DEPService) processDeviceResponse(
 
 	// for all other hosts we received, find out the right DEP profile to
 	// assign, based on the team.
-	existingHosts := []fleet.Host{}
+	existingHosts := []automdm.Host{}
 	existingHostMigrationDeadlines := make(map[uint]time.Time)
 	for _, existingHost := range existingSerials {
 		d.logger.InfoContext(ctx, "preparing to upsert DEP assignment for existing host", "serial", existingHost.HardwareSerial, "host_id", existingHost.ID)
@@ -1011,7 +1011,7 @@ func (d *DEPService) processDeviceResponse(
 			}
 			for _, serial := range serials {
 				if _, ok := apiResp.Devices[serial]; !ok {
-					apiResp.Devices[serial] = string(fleet.DEPAssignProfileResponseFailed)
+					apiResp.Devices[serial] = string(automdm.DEPAssignProfileResponseFailed)
 					implicitlyFailedAssignments++
 				}
 			}
@@ -1045,10 +1045,10 @@ func (d *DEPService) processDeviceResponse(
 }
 
 func (d *DEPService) getProfileUUIDForTeam(ctx context.Context, tmID *uint, abmTokenOrgName string) (string, error) {
-	var appleBMTeam *fleet.Team
+	var appleBMTeam *automdm.Team
 	if tmID != nil {
 		tm, err := d.ds.TeamWithExtras(ctx, *tmID) // TODO see if we can convert to TeamLite
-		if err != nil && !fleet.IsNotFound(err) {
+		if err != nil && !automdm.IsNotFound(err) {
 			return "", ctxerr.Wrap(ctx, err, "get team")
 		}
 		appleBMTeam = tm
@@ -1092,8 +1092,8 @@ func logCountsForResults(deviceResults map[string]string) (out []interface{}) {
 // AppConfig's AppleBMTermsExpired field whenever the status of the terms
 // changes, and flag the ABM token's token_invalid field whenever Apple
 // rejects the token or reports its signature as invalid.
-func NewDEPClient(storage godep.ClientStorage, updater fleet.ABMTermsUpdater, logger *slog.Logger) *godep.Client {
-	httpClient := fleethttp.NewClient()
+func NewDEPClient(storage godep.ClientStorage, updater automdm.ABMTermsUpdater, logger *slog.Logger) *godep.Client {
+	httpClient := automdmhttp.NewClient()
 	return godep.NewClient(storage, httpClient, godep.WithAfterHook(func(ctx context.Context, reqErr error) error {
 		// to check for ABM terms expired, we must have an ABM token organization
 		// name and NOT a raw ABM token in the context (as the presence of a raw
@@ -1204,18 +1204,18 @@ func NewDEPClient(storage godep.ClientStorage, updater fleet.ABMTermsUpdater, lo
 // ClassifyDEPDeviceError classifies an error returned by a DEP device-details
 // style call (e.g. godep.Client.GetDeviceDetails) into a DEPDeviceErrorType
 // for API consumers, or "" if err is nil.
-func ClassifyDEPDeviceError(err error) fleet.DEPDeviceErrorType {
+func ClassifyDEPDeviceError(err error) automdm.DEPDeviceErrorType {
 	switch {
 	case err == nil:
 		return ""
 	case godep.IsTokenRejected(err) || godep.IsSignatureInvalid(err):
-		return fleet.DEPDeviceErrorTokenInvalid
+		return automdm.DEPDeviceErrorTokenInvalid
 	case godep.IsTermsNotSigned(err):
-		return fleet.DEPDeviceErrorTermsExpired
+		return automdm.DEPDeviceErrorTermsExpired
 	case godep.IsServerError(err):
-		return fleet.DEPDeviceErrorServerError
+		return automdm.DEPDeviceErrorServerError
 	default:
-		return fleet.DEPDeviceErrorUnavailable
+		return automdm.DEPDeviceErrorUnavailable
 	}
 }
 
@@ -1255,13 +1255,13 @@ var OTASCEPTemplate = template.Must(template.New("").Funcs(funcMap).Parse(`<?xml
             <array>
               <array>
                 <string>O</string>
-                <string>Fleet</string>
+                <string>AutoMDM</string>
               </array>
             </array>
             <array>
               <array>
                 <string>CN</string>
-                <string>Fleet Identity</string>
+                <string>AutoMDM Identity</string>
               </array>
             </array>
           </array>
@@ -1279,7 +1279,7 @@ var OTASCEPTemplate = template.Must(template.New("").Funcs(funcMap).Parse(`<?xml
   </dict>
 </plist>`))
 
-// enrollmentProfileMobileconfigTemplate is the template Fleet uses to assemble a .mobileconfig enrollment profile to serve to devices.
+// enrollmentProfileMobileconfigTemplate is the template AutoMDM uses to assemble a .mobileconfig enrollment profile to serve to devices.
 //
 // During a profile replacement, the system updates payloads with the same PayloadIdentifier and
 // PayloadUUID in the old and new profiles.
@@ -1305,9 +1305,9 @@ var enrollmentProfileMobileconfigTemplate = template.Must(template.New("").Funcs
 				<string>{{ .SCEPURL | xml }}</string>
 				<key>Subject</key>
 				<array>
-					<array><array><string>O</string><string>Fleet</string></array></array>
+					<array><array><string>O</string><string>AutoMDM</string></array></array>
 					{{ if .NewEnrollmentSubjectOU }}<array><array><string>OU</string><string>{{ .NewEnrollmentSubjectOU | xml }}</string></array></array>
-					{{ end }}<array><array><string>CN</string><string>Fleet Identity</string></array></array>
+					{{ end }}<array><array><string>CN</string><string>AutoMDM Identity</string></array></array>
 				</array>
 			</dict>
 			<key>PayloadIdentifier</key>
@@ -1351,7 +1351,7 @@ var enrollmentProfileMobileconfigTemplate = template.Must(template.New("").Funcs
 	<key>PayloadDisplayName</key>
 	<string>{{ .Organization | xml }} enrollment</string>
 	<key>PayloadIdentifier</key>
-	<string>` + FleetPayloadIdentifier + `</string>
+	<string>` + AutoMDMPayloadIdentifier + `</string>
 	<key>PayloadOrganization</key>
 	<string>{{ .Organization | xml }}</string>
 	<key>PayloadType</key>
@@ -1385,9 +1385,9 @@ var accountDrivenUserEnrollmentProfileMobileconfigTemplate = template.Must(templ
 				<string>{{ .SCEPURL | xml }}</string>
 				<key>Subject</key>
 				<array>
-					<array><array><string>O</string><string>Fleet</string></array></array>
+					<array><array><string>O</string><string>AutoMDM</string></array></array>
 					{{ if .NewEnrollmentSubjectOU }}<array><array><string>OU</string><string>{{ .NewEnrollmentSubjectOU | xml }}</string></array></array>
-					{{ end }}<array><array><string>CN</string><string>Fleet Identity</string></array></array>
+					{{ end }}<array><array><string>CN</string><string>AutoMDM Identity</string></array></array>
 				</array>
 			</dict>
 			<key>PayloadIdentifier</key>
@@ -1434,7 +1434,7 @@ var accountDrivenUserEnrollmentProfileMobileconfigTemplate = template.Must(templ
 	<key>PayloadDisplayName</key>
 	<string>{{ .Organization | xml }} enrollment</string>
 	<key>PayloadIdentifier</key>
-	<string>` + FleetPayloadIdentifier + `</string>
+	<string>` + AutoMDMPayloadIdentifier + `</string>
 	<key>PayloadOrganization</key>
 	<string>{{ .Organization | xml }}</string>
 	<key>PayloadScope</key>
@@ -1469,7 +1469,7 @@ var acmeEnrollmentProfileMobileconfigTemplate = template.Must(template.New("").F
 			<key>KeyType</key>
 			<string>ECSECPrimeRandom</string>
 			<key>PayloadDisplayName</key>
-			<string>Fleet Identity ACME</string>
+			<string>AutoMDM Identity ACME</string>
 			<key>PayloadIdentifier</key>
 			<string>BCA53F9D-5DD2-494D-98D3-0D0F20FF6BA1</string>
 			<key>PayloadType</key>
@@ -1521,7 +1521,7 @@ var acmeEnrollmentProfileMobileconfigTemplate = template.Must(template.New("").F
 	<key>PayloadDisplayName</key>
 	<string>{{ .Organization | xml }} enrollment</string>
 	<key>PayloadIdentifier</key>
-	<string>` + FleetPayloadIdentifier + `</string>
+	<string>` + AutoMDMPayloadIdentifier + `</string>
 	<key>PayloadOrganization</key>
 	<string>{{ .Organization | xml }}</string>
 	<key>PayloadType</key>
@@ -1535,14 +1535,14 @@ var acmeEnrollmentProfileMobileconfigTemplate = template.Must(template.New("").F
 
 // GenerateEnrollmentProfileMobileconfig builds a standard SCEP enrollment profile. Set newEnrollment
 // to true for profiles served from an enroll endpoint and false for SCEP renewal profiles; it controls
-// whether the SCEP Subject carries FleetEnrollmentSubjectOU, the marker the checkin handler uses to
+// whether the SCEP Subject carries AutoMDMEnrollmentSubjectOU, the marker the checkin handler uses to
 // distinguish a fresh enrollment from a renewal.
-func GenerateEnrollmentProfileMobileconfig(orgName, fleetURL, scepChallenge, topic string, accessRights int, newEnrollment bool) ([]byte, error) {
-	scepURL, err := ResolveAppleSCEPURL(fleetURL)
+func GenerateEnrollmentProfileMobileconfig(orgName, automdmURL, scepChallenge, topic string, accessRights int, newEnrollment bool) ([]byte, error) {
+	scepURL, err := ResolveAppleSCEPURL(automdmURL)
 	if err != nil {
 		return nil, fmt.Errorf("resolve Apple SCEP url: %w", err)
 	}
-	serverURL, err := ResolveAppleMDMURL(fleetURL)
+	serverURL, err := ResolveAppleMDMURL(automdmURL)
 	if err != nil {
 		return nil, fmt.Errorf("resolve Apple MDM url: %w", err)
 	}
@@ -1572,12 +1572,12 @@ func GenerateEnrollmentProfileMobileconfig(orgName, fleetURL, scepChallenge, top
 
 // GenerateAccountDrivenEnrollmentProfileMobileconfig builds an account-driven (BYOD) SCEP enrollment
 // profile. See GenerateEnrollmentProfileMobileconfig for newEnrollment.
-func GenerateAccountDrivenEnrollmentProfileMobileconfig(orgName, fleetURL, scepChallenge, topic, assignedManagedAppleID string, newEnrollment bool) ([]byte, error) {
-	scepURL, err := ResolveAppleSCEPURL(fleetURL)
+func GenerateAccountDrivenEnrollmentProfileMobileconfig(orgName, automdmURL, scepChallenge, topic, assignedManagedAppleID string, newEnrollment bool) ([]byte, error) {
+	scepURL, err := ResolveAppleSCEPURL(automdmURL)
 	if err != nil {
 		return nil, fmt.Errorf("resolve Apple SCEP url: %w", err)
 	}
-	serverURL, err := ResolveAppleMDMURL(fleetURL)
+	serverURL, err := ResolveAppleMDMURL(automdmURL)
 	if err != nil {
 		return nil, fmt.Errorf("resolve Apple MDM url: %w", err)
 	}
@@ -1609,28 +1609,28 @@ func GenerateAccountDrivenEnrollmentProfileMobileconfig(orgName, fleetURL, scepC
 // renewal (which omits the OU so renewals aren't misclassified as fresh enrollments).
 func newEnrollmentSubjectOU(newEnrollment bool) string {
 	if newEnrollment {
-		return FleetEnrollmentSubjectOU
+		return AutoMDMEnrollmentSubjectOU
 	}
 	return ""
 }
 
-func AddEnrollmentRefToFleetURL(fleetURL, reference string) (string, error) {
+func AddEnrollmentRefToAutoMDMURL(automdmURL, reference string) (string, error) {
 	if reference == "" {
-		return fleetURL, nil
+		return automdmURL, nil
 	}
 
-	u, err := url.Parse(fleetURL)
+	u, err := url.Parse(automdmURL)
 	if err != nil {
 		return "", fmt.Errorf("parsing configured server URL: %w", err)
 	}
 	q := u.Query()
-	q.Add(mobileconfig.FleetEnrollReferenceKey, reference)
+	q.Add(mobileconfig.AutoMDMEnrollReferenceKey, reference)
 	u.RawQuery = q.Encode()
 	return u.String(), nil
 }
 
 // GenerateACMEEnrollmentProfileMobileconfig builds an ACME (hardware-attested) enrollment profile. See
-// GenerateEnrollmentProfileMobileconfig for newEnrollment; the OU marker survives because Fleet's ACME
+// GenerateEnrollmentProfileMobileconfig for newEnrollment; the OU marker survives because AutoMDM's ACME
 // signer reuses the SCEP depot signer, which copies the CSR Subject verbatim.
 // deviceSerial fills both ClientIdentifier and the Subject CN. We observed that on iOS renewals,
 // the device does not substitute %SerialNumber% with its serial number, so we fill it in.
@@ -1677,37 +1677,37 @@ func GenerateACMEEnrollmentProfileMobileconfig(orgName, mdmURL, acmeIdent, devic
 // ProfileBimap implements bidirectional mapping for profiles, and utility
 // functions to generate those mappings based on frequently used operations.
 type ProfileBimap struct {
-	wantedState  map[*fleet.MDMAppleProfilePayload]*fleet.MDMAppleProfilePayload
-	currentState map[*fleet.MDMAppleProfilePayload]*fleet.MDMAppleProfilePayload
+	wantedState  map[*automdm.MDMAppleProfilePayload]*automdm.MDMAppleProfilePayload
+	currentState map[*automdm.MDMAppleProfilePayload]*automdm.MDMAppleProfilePayload
 }
 
 // NewProfileBimap retuns a new ProfileBimap
 func NewProfileBimap() *ProfileBimap {
 	return &ProfileBimap{
-		map[*fleet.MDMAppleProfilePayload]*fleet.MDMAppleProfilePayload{},
-		map[*fleet.MDMAppleProfilePayload]*fleet.MDMAppleProfilePayload{},
+		map[*automdm.MDMAppleProfilePayload]*automdm.MDMAppleProfilePayload{},
+		map[*automdm.MDMAppleProfilePayload]*automdm.MDMAppleProfilePayload{},
 	}
 }
 
 // GetMatchingProfileInDesiredState returns the addition key that matches the given removal
-func (pb *ProfileBimap) GetMatchingProfileInDesiredState(removal *fleet.MDMAppleProfilePayload) (*fleet.MDMAppleProfilePayload, bool) {
+func (pb *ProfileBimap) GetMatchingProfileInDesiredState(removal *automdm.MDMAppleProfilePayload) (*automdm.MDMAppleProfilePayload, bool) {
 	value, ok := pb.currentState[removal]
 	return value, ok
 }
 
 // GetMatchingProfileInCurrentState returns the removal key that matches the given addition
-func (pb *ProfileBimap) GetMatchingProfileInCurrentState(addition *fleet.MDMAppleProfilePayload) (*fleet.MDMAppleProfilePayload, bool) {
+func (pb *ProfileBimap) GetMatchingProfileInCurrentState(addition *automdm.MDMAppleProfilePayload) (*automdm.MDMAppleProfilePayload, bool) {
 	key, ok := pb.wantedState[addition]
 	return key, ok
 }
 
 // IntersectByIdentifierAndHostUUID populates the bimap matching the profiles by Identifier and HostUUID
-func (pb *ProfileBimap) IntersectByIdentifierAndHostUUID(wantedProfiles, currentProfiles []*fleet.MDMAppleProfilePayload) {
-	key := func(p *fleet.MDMAppleProfilePayload) string {
+func (pb *ProfileBimap) IntersectByIdentifierAndHostUUID(wantedProfiles, currentProfiles []*automdm.MDMAppleProfilePayload) {
+	key := func(p *automdm.MDMAppleProfilePayload) string {
 		return fmt.Sprintf("%s-%s", p.ProfileIdentifier, p.HostUUID)
 	}
 
-	removeProfs := map[string]*fleet.MDMAppleProfilePayload{}
+	removeProfs := map[string]*automdm.MDMAppleProfilePayload{}
 	for _, p := range currentProfiles {
 		removeProfs[key(p)] = p
 	}
@@ -1719,18 +1719,18 @@ func (pb *ProfileBimap) IntersectByIdentifierAndHostUUID(wantedProfiles, current
 	}
 }
 
-func (pb *ProfileBimap) add(wantedProfile, currentProfile *fleet.MDMAppleProfilePayload) {
+func (pb *ProfileBimap) add(wantedProfile, currentProfile *automdm.MDMAppleProfilePayload) {
 	pb.wantedState[wantedProfile] = currentProfile
 	pb.currentState[currentProfile] = wantedProfile
 }
 
-// NewActivityFunc is an alias for fleet.NewActivityFunc.
-type NewActivityFunc = fleet.NewActivityFunc
+// NewActivityFunc is an alias for automdm.NewActivityFunc.
+type NewActivityFunc = automdm.NewActivityFunc
 
 // IOSiPadOSRefetch sends refetch commands to at most batchSize iOS/iPadOS hosts,
 // longest-waiting first, so a large fleet's hourly refetch is spread across
 // cron ticks instead of sent at once.
-func IOSiPadOSRefetch(ctx context.Context, ds fleet.Datastore, commander *MDMAppleCommander, logger *slog.Logger,
+func IOSiPadOSRefetch(ctx context.Context, ds automdm.Datastore, commander *MDMAppleCommander, logger *slog.Logger,
 	newActivityFn NewActivityFunc, batchSize int,
 ) error {
 	appCfg, err := ds.AppConfig(ctx)
@@ -1744,7 +1744,7 @@ func IOSiPadOSRefetch(ctx context.Context, ds fleet.Datastore, commander *MDMApp
 	}
 
 	start := time.Now()
-	devices, err := ds.ListIOSAndIPadOSToRefetch(ctx, fleet.MobileRefetchInterval, batchSize)
+	devices, err := ds.ListIOSAndIPadOSToRefetch(ctx, automdm.MobileRefetchInterval, batchSize)
 	if err != nil {
 		return ctxerr.Wrap(ctx, err, "list ios and ipados devices to refetch")
 	}
@@ -1766,9 +1766,9 @@ func IOSiPadOSRefetch(ctx context.Context, ds fleet.Datastore, commander *MDMApp
 	// queued and the rows are removed again; if only the notification failed
 	// the command is durably queued and the rows must stay.
 	trackAndSend := func(commandType, commandUUID string, group deviceGroup, wrapMsg string, enqueue func() error) error {
-		rows := make([]fleet.HostMDMCommand, 0, len(group.hostIDs))
+		rows := make([]automdm.HostMDMCommand, 0, len(group.hostIDs))
 		for _, hostID := range group.hostIDs {
-			rows = append(rows, fleet.HostMDMCommand{
+			rows = append(rows, automdm.HostMDMCommand{
 				HostID:      hostID,
 				CommandType: commandType,
 				CommandUUID: commandUUID,
@@ -1812,7 +1812,7 @@ func IOSiPadOSRefetch(ctx context.Context, ds fleet.Datastore, commander *MDMApp
 	// groupsByFlag groups the devices that were not already sent a commandType
 	// command by the value of the command's per-batch flag (e.g. managedOnly),
 	// so each group can be enqueued with the flag value its devices require.
-	groupsByFlag := func(commandType string, flag func(device fleet.AppleDevicesToRefetch) bool) map[bool]deviceGroup {
+	groupsByFlag := func(commandType string, flag func(device automdm.AppleDevicesToRefetch) bool) map[bool]deviceGroup {
 		groups := map[bool]deviceGroup{}
 		for _, device := range devices {
 			if slices.Contains(device.CommandsAlreadySent, commandType) {
@@ -1827,7 +1827,7 @@ func IOSiPadOSRefetch(ctx context.Context, ds fleet.Datastore, commander *MDMApp
 		return groups
 	}
 
-	appGroups := groupsByFlag(fleet.RefetchAppsCommandUUIDPrefix, func(device fleet.AppleDevicesToRefetch) bool {
+	appGroups := groupsByFlag(automdm.RefetchAppsCommandUUIDPrefix, func(device automdm.AppleDevicesToRefetch) bool {
 		isBYODDevice := !device.InstalledFromDEP
 		return isBYODDevice // BYOD devices are only queried for managed apps
 	})
@@ -1837,8 +1837,8 @@ func IOSiPadOSRefetch(ctx context.Context, ds fleet.Datastore, commander *MDMApp
 			continue
 		}
 
-		commandUUID := fleet.RefetchAppsCommandUUIDPrefix + uuid.NewString()
-		err := trackAndSend(fleet.RefetchAppsCommandUUIDPrefix, commandUUID, group,
+		commandUUID := automdm.RefetchAppsCommandUUIDPrefix + uuid.NewString()
+		err := trackAndSend(automdm.RefetchAppsCommandUUIDPrefix, commandUUID, group,
 			"send InstalledApplicationList commands to ios and ipados devices", func() error {
 				return commander.InstalledApplicationList(ctx, group.uuids, commandUUID, managedOnly)
 			})
@@ -1847,10 +1847,10 @@ func IOSiPadOSRefetch(ctx context.Context, ds fleet.Datastore, commander *MDMApp
 		}
 	}
 
-	certs := groupToSend(fleet.RefetchCertsCommandUUIDPrefix)
+	certs := groupToSend(automdm.RefetchCertsCommandUUIDPrefix)
 	if len(certs.uuids) > 0 {
-		commandUUID := fleet.RefetchCertsCommandUUIDPrefix + uuid.NewString()
-		err := trackAndSend(fleet.RefetchCertsCommandUUIDPrefix, commandUUID, certs,
+		commandUUID := automdm.RefetchCertsCommandUUIDPrefix + uuid.NewString()
+		err := trackAndSend(automdm.RefetchCertsCommandUUIDPrefix, commandUUID, certs,
 			"send CertificateList commands to ios and ipados devices", func() error {
 				return commander.CertificateList(ctx, certs.uuids, commandUUID)
 			})
@@ -1860,7 +1860,7 @@ func IOSiPadOSRefetch(ctx context.Context, ds fleet.Datastore, commander *MDMApp
 	}
 
 	// DeviceInformation is last because the refetch response clears the refetch_requested flag
-	deviceInfoGroups := groupsByFlag(fleet.RefetchDeviceCommandUUIDPrefix, func(device fleet.AppleDevicesToRefetch) bool {
+	deviceInfoGroups := groupsByFlag(automdm.RefetchDeviceCommandUUIDPrefix, func(device automdm.AppleDevicesToRefetch) bool {
 		return device.IsPersonalEnrollment
 	})
 	for _, isPersonalEnrollment := range []bool{true, false} {
@@ -1869,8 +1869,8 @@ func IOSiPadOSRefetch(ctx context.Context, ds fleet.Datastore, commander *MDMApp
 			continue
 		}
 
-		commandUUID := fleet.RefetchDeviceCommandUUIDPrefix + uuid.NewString()
-		err := trackAndSend(fleet.RefetchDeviceCommandUUIDPrefix, commandUUID, group,
+		commandUUID := automdm.RefetchDeviceCommandUUIDPrefix + uuid.NewString()
+		err := trackAndSend(automdm.RefetchDeviceCommandUUIDPrefix, commandUUID, group,
 			"send DeviceInformation commands to ios and ipados devices", func() error {
 				return commander.DeviceInformation(ctx, group.uuids, commandUUID, isPersonalEnrollment)
 			})
@@ -1887,7 +1887,7 @@ func IOSiPadOSRefetch(ctx context.Context, ds fleet.Datastore, commander *MDMApp
 // err is an APNSDeliveryError — even when no device was turned off — signaling
 // the caller that only push delivery failed (commands remain durably queued)
 // so processing can continue.
-func turnOffMDMIfAPNSFailed(ctx context.Context, ds fleet.Datastore, err error, logger *slog.Logger, newActivityFn NewActivityFunc) (bool,
+func turnOffMDMIfAPNSFailed(ctx context.Context, ds automdm.Datastore, err error, logger *slog.Logger, newActivityFn NewActivityFunc) (bool,
 	error,
 ) {
 	var e *APNSDeliveryError
@@ -1907,7 +1907,7 @@ func turnOffMDMIfAPNSFailed(ctx context.Context, ds fleet.Datastore, err error, 
 			}
 
 			if len(users) != len(activities) {
-				return false, ctxerr.New(ctx, "number of users and activities must match, this is a Fleet development bug")
+				return false, ctxerr.New(ctx, "number of users and activities must match, this is an AutoMDM development bug")
 			}
 
 			for i, act := range activities {
@@ -1921,8 +1921,8 @@ func turnOffMDMIfAPNSFailed(ctx context.Context, ds fleet.Datastore, err error, 
 	return true, nil
 }
 
-func GenerateOTAEnrollmentProfileMobileconfig(orgName, fleetURL, enrollSecret, idpSessionID string, personal bool) ([]byte, error) {
-	path, err := url.JoinPath(fleetURL, "/api/v1/fleet/ota_enrollment")
+func GenerateOTAEnrollmentProfileMobileconfig(orgName, automdmURL, enrollSecret, idpSessionID string, personal bool) ([]byte, error) {
+	path, err := url.JoinPath(automdmURL, "/api/v1/automdm/ota_enrollment")
 	if err != nil {
 		return nil, fmt.Errorf("creating path for ota enrollment url: %w", err)
 	}
@@ -1960,7 +1960,7 @@ func GenerateOTAEnrollmentProfileMobileconfig(orgName, fleetURL, enrollSecret, i
 	return profileBuf.Bytes(), nil
 }
 
-func IOSiPadOSRevive(ctx context.Context, ds fleet.Datastore, commander *MDMAppleCommander, logger *slog.Logger) error {
+func IOSiPadOSRevive(ctx context.Context, ds automdm.Datastore, commander *MDMAppleCommander, logger *slog.Logger) error {
 	appCfg, err := ds.AppConfig(ctx)
 	if err != nil {
 		return ctxerr.Wrap(ctx, err, "fetching app config")
@@ -1971,7 +1971,7 @@ func IOSiPadOSRevive(ctx context.Context, ds fleet.Datastore, commander *MDMAppl
 		return nil
 	}
 
-	ids, err := ds.ListMDMAppleEnrolledIPhoneIpadDeletedFromFleet(ctx, 500)
+	ids, err := ds.ListMDMAppleEnrolledIPhoneIpadDeletedFromTeam(ctx, 500)
 	if err != nil {
 		return ctxerr.Wrap(ctx, err, "list ios and ipados devices to revive")
 	}
@@ -1990,13 +1990,13 @@ func IOSiPadOSRevive(ctx context.Context, ds fleet.Datastore, commander *MDMAppl
 	return nil
 }
 
-func ValidateMDMSettingsAppleSupportedOSVersion[T fleet.MDM | fleet.TeamMDM](settings T, excludeNonPublicAssetSets bool) (map[string]string, error) {
-	var macOSUpdates, iOSUpdates, iPadOSUpdates fleet.AppleOSUpdateSettings
-	if m, ok := any(settings).(fleet.MDM); ok {
+func ValidateMDMSettingsAppleSupportedOSVersion[T automdm.MDM | automdm.TeamMDM](settings T, excludeNonPublicAssetSets bool) (map[string]string, error) {
+	var macOSUpdates, iOSUpdates, iPadOSUpdates automdm.AppleOSUpdateSettings
+	if m, ok := any(settings).(automdm.MDM); ok {
 		macOSUpdates = m.MacOSUpdates
 		iOSUpdates = m.IOSUpdates
 		iPadOSUpdates = m.IPadOSUpdates
-	} else if t, ok := any(settings).(fleet.TeamMDM); ok {
+	} else if t, ok := any(settings).(automdm.TeamMDM); ok {
 		macOSUpdates = t.MacOSUpdates
 		iOSUpdates = t.IOSUpdates
 		iPadOSUpdates = t.IPadOSUpdates
@@ -2007,7 +2007,7 @@ func ValidateMDMSettingsAppleSupportedOSVersion[T fleet.MDM | fleet.TeamMDM](set
 	// "latest" is a sentinel, not a version: the concrete target is resolved per
 	// host from Apple's published versions later on, so there is nothing to look
 	// up here.
-	needsVersionCheck := func(s fleet.AppleOSUpdateSettings) bool {
+	needsVersionCheck := func(s automdm.AppleOSUpdateSettings) bool {
 		return s.MinimumVersion.Value != "" && !s.EnforcesLatestVersion()
 	}
 
@@ -2027,20 +2027,20 @@ func ValidateMDMSettingsAppleSupportedOSVersion[T fleet.MDM | fleet.TeamMDM](set
 	invalid := make(map[string]string, 3)
 	if needsVersionCheck(macOSUpdates) {
 		if ok := am.IsSupportedMacOSVersion(macOSUpdates.MinimumVersion.Value, excludeNonPublicAssetSets); !ok {
-			invalid["macos"] = fleet.AppleOSVersionUnsupportedMessage
+			invalid["macos"] = automdm.AppleOSVersionUnsupportedMessage
 		}
 	}
 	if needsVersionCheck(iOSUpdates) {
-		// NOTE: iPod generally falls in the category of iOS in Fleet, but we're only validating against iPhone here
+		// NOTE: iPod generally falls in the category of iOS in AutoMDM, but we're only validating against iPhone here
 		// because we assume Apple will eventually remove iPod versions from the Apple Software Lookup Service
 		// and we want to avoid breaking workflows for users in that event
 		if ok := am.IsSupportedIOSVersion(iOSUpdates.MinimumVersion.Value, "iphone", excludeNonPublicAssetSets); !ok {
-			invalid["ios"] = fleet.AppleOSVersionUnsupportedMessage
+			invalid["ios"] = automdm.AppleOSVersionUnsupportedMessage
 		}
 	}
 	if needsVersionCheck(iPadOSUpdates) {
 		if ok := am.IsSupportedIOSVersion(iPadOSUpdates.MinimumVersion.Value, "ipad", excludeNonPublicAssetSets); !ok {
-			invalid["ipados"] = fleet.AppleOSVersionUnsupportedMessage
+			invalid["ipados"] = automdm.AppleOSVersionUnsupportedMessage
 		}
 	}
 
@@ -2065,20 +2065,20 @@ type RecoveryLockCommander interface {
 // sendRecoveryLockVerifyCommands covers acknowledgments that handler never matched.
 func SendRecoveryLockCommands(
 	ctx context.Context,
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	commander *MDMAppleCommander,
 	logger *slog.Logger,
-	newActivityFn fleet.NewActivityFunc,
+	newActivityFn automdm.NewActivityFunc,
 ) error {
 	return sendRecoveryLockCommandsWithCommander(ctx, ds, commander, logger, newActivityFn)
 }
 
 func sendRecoveryLockCommandsWithCommander(
 	ctx context.Context,
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	commander RecoveryLockCommander,
 	logger *slog.Logger,
-	newActivityFn fleet.NewActivityFunc,
+	newActivityFn automdm.NewActivityFunc,
 ) error {
 	var result *multierror.Error
 
@@ -2129,7 +2129,7 @@ func sendRecoveryLockCommandsWithCommander(
 // 20261029055700 leaves behind.
 func sendRecoveryLockVerifyCommands(
 	ctx context.Context,
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	commander RecoveryLockCommander,
 	logger *slog.Logger,
 ) error {
@@ -2141,7 +2141,7 @@ func sendRecoveryLockVerifyCommands(
 	var result *multierror.Error
 	for _, c := range claims {
 		send := commander.VerifyRecoveryLock
-		if c.OperationType == fleet.MDMOperationTypeRemove {
+		if c.OperationType == automdm.MDMOperationTypeRemove {
 			send = commander.VerifyClearRecoveryLock
 		}
 		err := send(ctx, c.HostUUID, c.VerifyCommandUUID)
@@ -2167,7 +2167,7 @@ func sendRecoveryLockVerifyCommands(
 
 func sendSetRecoveryLockCommands(
 	ctx context.Context,
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	commander RecoveryLockCommander,
 	logger *slog.Logger,
 ) error {
@@ -2191,7 +2191,7 @@ func sendSetRecoveryLockCommands(
 	// Generate passwords for all hosts upfront.
 	// Passwords must be stored BEFORE enqueuing commands because they are injected
 	// at delivery time by ExpandHostSecrets (which looks up by host UUID).
-	passwords := make([]fleet.HostRecoveryLockPasswordPayload, 0, len(hosts))
+	passwords := make([]automdm.HostRecoveryLockPasswordPayload, 0, len(hosts))
 	freshSetHostUUIDs := make([]string, 0, len(hosts))
 	rotateHostUUIDs := make([]string, 0, len(hosts))
 	for hostUUID, hasPassword := range hosts {
@@ -2203,7 +2203,7 @@ func sendSetRecoveryLockCommands(
 			freshSetHostUUIDs = append(freshSetHostUUIDs, hostUUID)
 		}
 
-		passwords = append(passwords, fleet.HostRecoveryLockPasswordPayload{
+		passwords = append(passwords, automdm.HostRecoveryLockPasswordPayload{
 			HostUUID:              hostUUID,
 			Password:              GenerateRecoveryLockPassword(),
 			PendingSetCommandUUID: cmdUUID,
@@ -2277,7 +2277,7 @@ func sendSetRecoveryLockCommands(
 
 func sendClearRecoveryLockCommands(
 	ctx context.Context,
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	commander RecoveryLockCommander,
 	logger *slog.Logger,
 ) error {
@@ -2339,10 +2339,10 @@ func sendClearRecoveryLockCommands(
 
 func sendAutoRotationCommands(
 	ctx context.Context,
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	commander RecoveryLockCommander,
 	logger *slog.Logger,
-	newActivityFn fleet.NewActivityFunc,
+	newActivityFn automdm.NewActivityFunc,
 ) error {
 	hosts, err := ds.GetHostsForAutoRotation(ctx)
 	if err != nil {
@@ -2366,9 +2366,9 @@ func sendAutoRotationCommands(
 			// Check for benign race conditions where host state changed between
 			// GetHostsForAutoRotation and now (e.g., manual rotation started,
 			// password removed, host deleted, etc.)
-			if fleet.IsNotFound(err) ||
-				errors.Is(err, fleet.ErrRecoveryLockRotationPending) ||
-				errors.Is(err, fleet.ErrRecoveryLockNotEligible) {
+			if automdm.IsNotFound(err) ||
+				errors.Is(err, automdm.ErrRecoveryLockRotationPending) ||
+				errors.Is(err, automdm.ErrRecoveryLockNotEligible) {
 				logger.DebugContext(
 					ctx, "host lost eligibility for auto-rotation",
 					"host_uuid", host.HostUUID,
@@ -2419,7 +2419,7 @@ func sendAutoRotationCommands(
 			continue
 		}
 
-		// Log activity for auto-rotation (Fleet-initiated)
+		// Log activity for auto-rotation (AutoMDM-initiated)
 		logAutoRotationActivity(ctx, logger, newActivityFn, host)
 
 		logger.DebugContext(
@@ -2433,21 +2433,21 @@ func sendAutoRotationCommands(
 }
 
 // logAutoRotationActivity logs the rotation activity for auto-rotations.
-// It uses the same activity type as manual rotations but marks it as Fleet-initiated.
+// It uses the same activity type as manual rotations but marks it as AutoMDM-initiated.
 func logAutoRotationActivity(
 	ctx context.Context,
 	logger *slog.Logger,
-	newActivityFn fleet.NewActivityFunc,
-	host fleet.HostAutoRotationInfo,
+	newActivityFn automdm.NewActivityFunc,
+	host automdm.HostAutoRotationInfo,
 ) {
 	if newActivityFn == nil {
 		return
 	}
 
-	if err := newActivityFn(ctx, nil, fleet.ActivityTypeRotatedHostRecoveryLockPassword{
-		HostID:          host.HostID,
-		HostDisplayName: host.DisplayName,
-		FleetInitiated:  true,
+	if err := newActivityFn(ctx, nil, automdm.ActivityTypeRotatedHostRecoveryLockPassword{
+		HostID:           host.HostID,
+		HostDisplayName:  host.DisplayName,
+		AutoMDMInitiated: true,
 	}); err != nil {
 		logger.WarnContext(
 			ctx, "auto-rotation: failed to create activity",
@@ -2490,7 +2490,7 @@ func EnqueueManagedLocalAccountRotation(
 	commander ManagedLocalAccountRotationCommander,
 	hostUUID, accountUUID string,
 ) (cmdUUID string, err error, rollbackErr error) {
-	newPassword := fleet.GenerateManagedLocalAccountPassword(false)
+	newPassword := automdm.GenerateManagedLocalAccountPassword(false)
 	hashPlist, hashErr := GenerateSaltedSHA512PBKDF2Hash(newPassword)
 	if hashErr != nil {
 		return "", hashErr, nil
@@ -2516,31 +2516,31 @@ func EnqueueManagedLocalAccountRotation(
 }
 
 // SendManagedLocalAccountRotationCommands rotates the macOS managed local admin
-// (`_fleetadmin`) password for hosts whose auto_rotate_at has elapsed. It mirrors
+// (`_automdmadmin`) password for hosts whose auto_rotate_at has elapsed. It mirrors
 // SendRecoveryLockCommands: each row is generated/initiated/enqueued individually,
 // and a benign race (host gone, manual rotation snuck in, etc.) is debug-logged
 // and skipped rather than failing the cron iteration.
 //
 // Activity logging:
-//   - rows with initiated_by_fleet=1 (view-driven) → log with FleetInitiated=true
-//   - rows with initiated_by_fleet=0 (deferred manual rotation) → SKIP logging;
+//   - rows with initiated_by_team=1 (view-driven) → log with AutoMDMInitiated=true
+//   - rows with initiated_by_team=0 (deferred manual rotation) → SKIP logging;
 //     the manual click already logged the activity at click time
 func SendManagedLocalAccountRotationCommands(
 	ctx context.Context,
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	commander *MDMAppleCommander,
 	logger *slog.Logger,
-	newActivityFn fleet.NewActivityFunc,
+	newActivityFn automdm.NewActivityFunc,
 ) error {
 	return sendManagedLocalAccountRotationCommandsWithCommander(ctx, ds, commander, logger, newActivityFn)
 }
 
 func sendManagedLocalAccountRotationCommandsWithCommander(
 	ctx context.Context,
-	ds fleet.Datastore,
+	ds automdm.Datastore,
 	commander ManagedLocalAccountRotationCommander,
 	logger *slog.Logger,
-	newActivityFn fleet.NewActivityFunc,
+	newActivityFn automdm.NewActivityFunc,
 ) error {
 	hosts, err := ds.GetManagedLocalAccountsForAutoRotation(ctx)
 	if err != nil {
@@ -2558,9 +2558,9 @@ func sendManagedLocalAccountRotationCommandsWithCommander(
 		if sendErr != nil {
 			// Benign races: the row's eligibility flipped between the SELECT and
 			// Initiate (manual rotation, host wipe, etc.). Skip silently.
-			if fleet.IsNotFound(sendErr) ||
-				errors.Is(sendErr, fleet.ErrManagedLocalAccountRotationPending) ||
-				errors.Is(sendErr, fleet.ErrManagedLocalAccountNotEligible) {
+			if automdm.IsNotFound(sendErr) ||
+				errors.Is(sendErr, automdm.ErrManagedLocalAccountRotationPending) ||
+				errors.Is(sendErr, automdm.ErrManagedLocalAccountNotEligible) {
 				logger.DebugContext(ctx, "managed local account no longer eligible for rotation",
 					"host_uuid", host.HostUUID, "err", sendErr)
 				continue
@@ -2595,25 +2595,25 @@ func sendManagedLocalAccountRotationCommandsWithCommander(
 }
 
 // logManagedLocalAccountRotationActivity logs the rotation activity ONLY when the
-// row was view-driven (initiated_by_fleet=1). Rows with initiated_by_fleet=0 are
+// row was view-driven (initiated_by_team=1). Rows with initiated_by_team=0 are
 // deferred-manual rotations whose activity was logged by the EE service at click
 // time — re-logging here would double-count.
 func logManagedLocalAccountRotationActivity(
 	ctx context.Context,
 	logger *slog.Logger,
-	newActivityFn fleet.NewActivityFunc,
-	host fleet.HostManagedLocalAccountAutoRotationInfo,
+	newActivityFn automdm.NewActivityFunc,
+	host automdm.HostManagedLocalAccountAutoRotationInfo,
 ) {
-	if !host.InitiatedByFleet {
+	if !host.InitiatedByTeam {
 		return
 	}
 	if newActivityFn == nil {
 		return
 	}
-	if err := newActivityFn(ctx, nil, fleet.ActivityTypeRotatedManagedLocalAccountPassword{
-		HostID:          host.HostID,
-		HostDisplayName: host.DisplayName,
-		FleetInitiated:  true,
+	if err := newActivityFn(ctx, nil, automdm.ActivityTypeRotatedManagedLocalAccountPassword{
+		HostID:           host.HostID,
+		HostDisplayName:  host.DisplayName,
+		AutoMDMInitiated: true,
 	}); err != nil {
 		logger.WarnContext(ctx, "managed local account rotation: failed to create activity",
 			"host_uuid", host.HostUUID, "err", err)
@@ -2648,15 +2648,15 @@ func GenerateRecoveryLockPassword() string {
 	return strings.Join(groups, "-")
 }
 
-func MDMPushCertTopic(ctx context.Context, ds fleet.MDMAssetRetriever) (string, error) {
-	assets, err := ds.GetAllMDMConfigAssetsByName(ctx, []fleet.MDMAssetName{
-		fleet.MDMAssetAPNSCert,
+func MDMPushCertTopic(ctx context.Context, ds automdm.MDMAssetRetriever) (string, error) {
+	assets, err := ds.GetAllMDMConfigAssetsByName(ctx, []automdm.MDMAssetName{
+		automdm.MDMAssetAPNSCert,
 	}, nil)
 	if err != nil {
 		return "", ctxerr.Wrap(ctx, err, "loading SCEP keypair from the database")
 	}
 
-	block, _ := pem.Decode(assets[fleet.MDMAssetAPNSCert].Value)
+	block, _ := pem.Decode(assets[automdm.MDMAssetAPNSCert].Value)
 	if block == nil || block.Type != "CERTIFICATE" {
 		return "", ctxerr.New(ctx, "decoding APNs certificate PEM data")
 	}
@@ -2674,7 +2674,7 @@ func MDMPushCertTopic(ctx context.Context, ds fleet.MDMAssetRetriever) (string, 
 	return mdmPushCertTopic, nil
 }
 
-func HandleAppleMDMOSUpdates(ctx context.Context, ds fleet.Datastore, logger *slog.Logger) error {
+func HandleAppleMDMOSUpdates(ctx context.Context, ds automdm.Datastore, logger *slog.Logger) error {
 	lastUpdatedAt, err := ds.GetLastAppleOSUpdatesUpdate(ctx)
 	if err != nil {
 		return ctxerr.Wrap(ctx, err, "get last apple os updates update")
@@ -2689,7 +2689,7 @@ func HandleAppleMDMOSUpdates(ctx context.Context, ds fleet.Datastore, logger *sl
 			goto computeOSTargets
 		}
 
-		updates := map[string][]fleet.OSUpdateAsset{
+		updates := map[string][]automdm.OSUpdateAsset{
 			"macos": assetMetadata.PublicAssetSets.MacOS,
 			"ios":   assetMetadata.PublicAssetSets.IOS,
 		}
@@ -2728,9 +2728,9 @@ computeOSTargets:
 
 	// Get a list of all teams that has latest configured for macOS, iOS, or iPadOS.
 	// We use admin global role to have access to all teams.
-	teams, err := ds.ListTeams(ctx, fleet.TeamFilter{User: &fleet.User{
+	teams, err := ds.ListTeams(ctx, automdm.TeamFilter{User: &automdm.User{
 		GlobalRole: new("admin"),
-	}}, fleet.ListOptions{})
+	}}, automdm.ListOptions{})
 	if err != nil {
 		return ctxerr.Wrap(ctx, err, "listing teams")
 	}
@@ -2742,25 +2742,25 @@ computeOSTargets:
 	teamsWithLatest["ipados"] = map[uint]int{}
 
 	for _, team := range teams {
-		if team.Config.MDM.MacOSUpdates.MinimumVersion.Value == fleet.AppleOSUpdateLatestVersion {
+		if team.Config.MDM.MacOSUpdates.MinimumVersion.Value == automdm.AppleOSUpdateLatestVersion {
 			teamsWithLatest["darwin"][team.ID] = team.Config.MDM.MacOSUpdates.DeadlineDays.Value
 		}
-		if team.Config.MDM.IOSUpdates.MinimumVersion.Value == fleet.AppleOSUpdateLatestVersion {
+		if team.Config.MDM.IOSUpdates.MinimumVersion.Value == automdm.AppleOSUpdateLatestVersion {
 			teamsWithLatest["ios"][team.ID] = team.Config.MDM.IOSUpdates.DeadlineDays.Value
 		}
-		if team.Config.MDM.IPadOSUpdates.MinimumVersion.Value == fleet.AppleOSUpdateLatestVersion {
+		if team.Config.MDM.IPadOSUpdates.MinimumVersion.Value == automdm.AppleOSUpdateLatestVersion {
 			teamsWithLatest["ipados"][team.ID] = team.Config.MDM.IPadOSUpdates.DeadlineDays.Value
 		}
 	}
 
 	// We will replace 0 with NULL check when looking up hosts to reconcile and checking the team_id column
-	if appCfg.MDM.MacOSUpdates.MinimumVersion.Value == fleet.AppleOSUpdateLatestVersion {
+	if appCfg.MDM.MacOSUpdates.MinimumVersion.Value == automdm.AppleOSUpdateLatestVersion {
 		teamsWithLatest["darwin"][0] = appCfg.MDM.MacOSUpdates.DeadlineDays.Value
 	}
-	if appCfg.MDM.IOSUpdates.MinimumVersion.Value == fleet.AppleOSUpdateLatestVersion {
+	if appCfg.MDM.IOSUpdates.MinimumVersion.Value == automdm.AppleOSUpdateLatestVersion {
 		teamsWithLatest["ios"][0] = appCfg.MDM.IOSUpdates.DeadlineDays.Value
 	}
-	if appCfg.MDM.IPadOSUpdates.MinimumVersion.Value == fleet.AppleOSUpdateLatestVersion {
+	if appCfg.MDM.IPadOSUpdates.MinimumVersion.Value == automdm.AppleOSUpdateLatestVersion {
 		teamsWithLatest["ipados"][0] = appCfg.MDM.IPadOSUpdates.DeadlineDays.Value
 	}
 
@@ -2792,8 +2792,8 @@ computeOSTargets:
 	return nil
 }
 
-func computeOSUpdatesTarget(ctx context.Context, logger *slog.Logger, hosts []*fleet.AppleSoftwareUpdateHost, updateAssets map[string][]fleet.AppleSoftwareUpdateAsset, teamsWithLatest map[string]map[uint]int) []*fleet.ComputedAppleSoftwareUpdateHost {
-	var computedHosts []*fleet.ComputedAppleSoftwareUpdateHost
+func computeOSUpdatesTarget(ctx context.Context, logger *slog.Logger, hosts []*automdm.AppleSoftwareUpdateHost, updateAssets map[string][]automdm.AppleSoftwareUpdateAsset, teamsWithLatest map[string]map[uint]int) []*automdm.ComputedAppleSoftwareUpdateHost {
+	var computedHosts []*automdm.ComputedAppleSoftwareUpdateHost
 
 	// Deduping hosts to avoid gnarly bugs
 	seen := make(map[string]struct{}, len(hosts))
@@ -2825,7 +2825,7 @@ func computeOSUpdatesTarget(ctx context.Context, logger *slog.Logger, hosts []*f
 			host.TargetOSVersion = ""
 			host.TargetDeadline = nil
 			host.ResolvedAt = nil
-			computedHosts = append(computedHosts, &fleet.ComputedAppleSoftwareUpdateHost{
+			computedHosts = append(computedHosts, &automdm.ComputedAppleSoftwareUpdateHost{
 				AppleSoftwareUpdateHost: *host,
 				Resend:                  false,
 			})
@@ -2841,7 +2841,7 @@ func computeOSUpdatesTarget(ctx context.Context, logger *slog.Logger, hosts []*f
 			continue
 		}
 
-		var latestAsset *fleet.AppleSoftwareUpdateAsset
+		var latestAsset *automdm.AppleSoftwareUpdateAsset
 		for i := range assets {
 			asset := &assets[i]
 			if !slices.Contains(asset.SupportedDevices, host.SoftwareUpdateDeviceID) {
@@ -2881,7 +2881,7 @@ func computeOSUpdatesTarget(ctx context.Context, logger *slog.Logger, hosts []*f
 		host.TargetDeadline = &targetDeadline
 		host.ResolvedAt = new(time.Now().UTC())
 
-		computedHosts = append(computedHosts, &fleet.ComputedAppleSoftwareUpdateHost{
+		computedHosts = append(computedHosts, &automdm.ComputedAppleSoftwareUpdateHost{
 			AppleSoftwareUpdateHost: *host,
 			Resend:                  true,
 		})
@@ -2898,8 +2898,8 @@ func computeOSUpdatesTarget(ctx context.Context, logger *slog.Logger, hosts []*f
 var AppleMDMCertificateBindingExtensionOID = asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 63991, 1, 2}
 
 type AppleMDMCertificateBindingExtension struct {
-	Version int                       `json:"v"`
-	Purpose fleet.AppleMDMCertPurpose `json:"purpose"`
+	Version int                         `json:"v"`
+	Purpose automdm.AppleMDMCertPurpose `json:"purpose"`
 	// UDID is only used for "ade" and "ota_phase*"
 	UDID *string `json:"udid,omitempty"`
 	// Serial is only used for "ade", "ota_phase*", "acme", and "acme_renewal"
@@ -2964,9 +2964,9 @@ func ParseAppleMDMCertificateBindingExtension(cert *x509.Certificate) (*AppleMDM
 	return &binding, nil
 }
 
-// SilentMigrationRenewalProfile prepares the FLEET_SILENT_MIGRATION_ENROLLMENT_PROFILE env profile for a renewal: it
-// unwraps a signed profile, since Fleet signs it at delivery, and sets the Challenge of its SCEP payload to the
-// per-host challenge placeholder. That Challenge must be $FLEET_VAR_SILENT_MIGRATION_SCEP_CHALLENGE, or for profiles
+// SilentMigrationRenewalProfile prepares the AUTOMDM_SILENT_MIGRATION_ENROLLMENT_PROFILE env profile for a renewal: it
+// unwraps a signed profile, since AutoMDM signs it at delivery, and sets the Challenge of its SCEP payload to the
+// per-host challenge placeholder. That Challenge must be $AUTOMDM_VAR_SILENT_MIGRATION_SCEP_CHALLENGE, or for profiles
 // set up before that variable existed, the static challenge. The profile is returned as an XML plist.
 func SilentMigrationRenewalProfile(profile []byte, staticChallenge string) ([]byte, error) {
 	if p7, err := pkcs7.Parse(profile); err == nil {
@@ -2986,16 +2986,16 @@ func SilentMigrationRenewalProfile(profile []byte, staticChallenge string) ([]by
 		}
 		content, _ := payload["PayloadContent"].(map[string]any)
 		switch challenge, _ := content["Challenge"].(string); {
-		case challenge == fleet.FleetVarSilentMigrationSCEPChallenge.WithPrefix(),
-			challenge == fleet.FleetVarSilentMigrationSCEPChallenge.WithBraces(),
+		case challenge == automdm.AutoMDMVarSilentMigrationSCEPChallenge.WithPrefix(),
+			challenge == automdm.AutoMDMVarSilentMigrationSCEPChallenge.WithBraces(),
 			staticChallenge != "" && challenge == staticChallenge:
-			content["Challenge"] = fleet.HostSecretPlaceholder(fleet.HostSecretSCEPChallenge)
+			content["Challenge"] = automdm.HostSecretPlaceholder(automdm.HostSecretSCEPChallenge)
 			replaced = true
 		}
 	}
 	if !replaced {
 		return nil, fmt.Errorf("silent migration enrollment profile has no SCEP payload whose Challenge is %s or the static SCEP challenge",
-			fleet.FleetVarSilentMigrationSCEPChallenge.WithPrefix())
+			automdm.AutoMDMVarSilentMigrationSCEPChallenge.WithPrefix())
 	}
 
 	out, err := plist.Marshal(root)
@@ -3007,12 +3007,12 @@ func SilentMigrationRenewalProfile(profile []byte, staticChallenge string) ([]by
 
 func AppleMDMSCEPCertificateSubject(newEnrollment bool) pkix.Name {
 	subject := pkix.Name{
-		Organization: []string{"Fleet"},
-		CommonName:   "Fleet Identity",
+		Organization: []string{"AutoMDM"},
+		CommonName:   "AutoMDM Identity",
 	}
 
 	if newEnrollment {
-		subject.OrganizationalUnit = append(subject.OrganizationalUnit, FleetEnrollmentSubjectOU)
+		subject.OrganizationalUnit = append(subject.OrganizationalUnit, AutoMDMEnrollmentSubjectOU)
 	}
 
 	return subject
@@ -3020,12 +3020,12 @@ func AppleMDMSCEPCertificateSubject(newEnrollment bool) pkix.Name {
 
 func AppleMDMAcmeCertificateSubject(newEnrollment bool) pkix.Name {
 	subject := pkix.Name{
-		CommonName:         "Fleet Identity",
-		OrganizationalUnit: []string{"fleet"},
+		CommonName:         "AutoMDM Identity",
+		OrganizationalUnit: []string{"automdm"},
 	}
 
 	if newEnrollment {
-		subject.OrganizationalUnit = append(subject.OrganizationalUnit, FleetEnrollmentSubjectOU)
+		subject.OrganizationalUnit = append(subject.OrganizationalUnit, AutoMDMEnrollmentSubjectOU)
 	}
 
 	return subject
@@ -3037,7 +3037,7 @@ const (
 	IpadOSDDMSoftwareUpdateIdentifier = "ipados-software-update-94f4bbdf-f439-4fb1-8d27-ae1bb793e105"
 )
 
-func FleetReservedDeclarationIdentifiers() map[string]struct{} {
+func AutoMDMReservedDeclarationIdentifiers() map[string]struct{} {
 	return map[string]struct{}{
 		MacOSDDMSoftwareUpdateIdentifier:  {},
 		IOSDDMSoftwareUpdateIdentifier:    {},

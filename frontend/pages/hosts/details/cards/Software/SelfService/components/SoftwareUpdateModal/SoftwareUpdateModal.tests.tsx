@@ -96,7 +96,7 @@ describe("SoftwareUpdateModal", () => {
 
     expect(screen.queryByTestId("pending-icon")).toBeInTheDocument();
     expect(
-      screen.getByText(/Fleet is updating or will update/i)
+      screen.getByText(/AutoMDM is updating or will update/i)
     ).toBeInTheDocument();
     expect(screen.getByText(/Offline Laptop/)).toBeInTheDocument();
     expect(screen.getByText(/\(mock software\.app\)/)).toBeInTheDocument();
@@ -118,7 +118,7 @@ describe("SoftwareUpdateModal", () => {
 
     expect(screen.queryByTestId("pending-icon")).toBeInTheDocument();
     expect(
-      screen.getByText(/Fleet is updating or will update/i)
+      screen.getByText(/AutoMDM is updating or will update/i)
     ).toBeInTheDocument();
     expect(screen.getByText(/\(mock software\.app\)/i)).toBeInTheDocument();
     expect(screen.getByText(/Test Host/i)).toBeInTheDocument();

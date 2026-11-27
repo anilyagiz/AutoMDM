@@ -3,7 +3,7 @@ package service
 // Miscellaneous tests for the MDM suite.
 //
 // Belongs here: MDM enabled/configured gating across endpoints, custom enrollment web URLs, orbit
-// nudge settings, fleet labels used by MDM features, staged uploads, org logos served to devices,
+// nudge settings, team labels used by MDM features, staged uploads, org logos served to devices,
 // and the rule that Windows hosts can't turn MDM off.
 //
 // Does not belong here: anything with a topic file of its own — check the other
@@ -28,13 +28,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/dev_mode"
+	"github.com/anilyagiz/automdm/v4/server/dev_mode"
 
-	"github.com/fleetdm/fleet/v4/pkg/optjson"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanodep/godep"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/pkg/optjson"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanodep/godep"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
@@ -46,7 +46,7 @@ func (s *integrationMDMTestSuite) TestOrgLogo() {
 
 	// change org logo urls
 	var acResp appConfigResponse
-	s.DoJSON("PATCH", "/api/v1/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/v1/automdm/config", json.RawMessage(`{
 		"org_info": {
 			"org_logo_url_dark_mode": "http://test-image.com",
 			"org_logo_url_light_mode": "http://test-image-light.com"
@@ -59,8 +59,8 @@ func (s *integrationMDMTestSuite) TestOrgLogo() {
 	createDeviceTokenForHost(t, s.ds, host.ID, token)
 
 	// check icon urls are correct
-	getDesktopResp := fleetDesktopResponse{}
-	res := s.DoRawNoAuth("GET", "/api/latest/fleet/device/"+token+"/desktop", nil, http.StatusOK)
+	getDesktopResp := automdmDesktopResponse{}
+	res := s.DoRawNoAuth("GET", "/api/latest/automdm/device/"+token+"/desktop", nil, http.StatusOK)
 	require.NoError(t, json.NewDecoder(res.Body).Decode(&getDesktopResp))
 	require.NoError(t, res.Body.Close())
 	require.NoError(t, getDesktopResp.Err)
@@ -82,27 +82,27 @@ func (s *integrationMDMTestSuite) TestMDMEnabledAndConfigured() {
 
 	checkAppConfig := func(t *testing.T, mdmEnabled, winEnabled bool) appConfigResponse {
 		acResp := appConfigResponse{}
-		s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
+		s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
 		require.True(t, acResp.AppConfig.MDM.AppleBMEnabledAndConfigured)
 		require.Equal(t, mdmEnabled, acResp.AppConfig.MDM.EnabledAndConfigured)
 		require.Equal(t, winEnabled, acResp.AppConfig.MDM.WindowsEnabledAndConfigured)
 		return acResp
 	}
 
-	compareMacOSSetupValues := func(t *testing.T, got fleet.MacOSSetup, want fleet.MacOSSetup) {
+	compareMacOSSetupValues := func(t *testing.T, got automdm.MacOSSetup, want automdm.MacOSSetup) {
 		require.Equal(t, want.EnableEndUserAuthentication, got.EnableEndUserAuthentication)
 	}
 
 	// patchWithBootstrapPackage sends ac with the bootstrap package URL, which the config only
 	// reads from the request.
-	patchWithBootstrapPackage := func(t *testing.T, ac *fleet.AppConfig, url string, wantStatus int) appConfigResponse {
+	patchWithBootstrapPackage := func(t *testing.T, ac *automdm.AppConfig, url string, wantStatus int) appConfigResponse {
 		b, err := json.Marshal(ac)
 		require.NoError(t, err)
 		var payload map[string]any
 		require.NoError(t, json.Unmarshal(b, &payload))
 		payload["mdm"].(map[string]any)["setup_experience"].(map[string]any)["macos_bootstrap_package"] = url
 		var acResp appConfigResponse
-		s.DoJSON("PATCH", "/api/latest/fleet/config", payload, wantStatus, &acResp)
+		s.DoJSON("PATCH", "/api/latest/automdm/config", payload, wantStatus, &acResp)
 		return acResp
 	}
 
@@ -116,7 +116,7 @@ func (s *integrationMDMTestSuite) TestMDMEnabledAndConfigured() {
 		_ = s.ds.DeleteMDMAppleBootstrapPackage(ctx, tmID)
 
 		// add new bootstrap package
-		require.NoError(t, s.ds.InsertMDMAppleBootstrapPackage(ctx, &fleet.MDMAppleBootstrapPackage{
+		require.NoError(t, s.ds.InsertMDMAppleBootstrapPackage(ctx, &automdm.MDMAppleBootstrapPackage{
 			TeamID: tmID,
 			Name:   "foo",
 			Token:  uuid.New().String(),
@@ -125,7 +125,7 @@ func (s *integrationMDMTestSuite) TestMDMEnabledAndConfigured() {
 		}, nil))
 
 		// add new setup assistant
-		_, err := s.ds.SetOrUpdateMDMAppleSetupAssistant(ctx, &fleet.MDMAppleSetupAssistant{
+		_, err := s.ds.SetOrUpdateMDMAppleSetupAssistant(ctx, &automdm.MDMAppleSetupAssistant{
 			TeamID:  teamID,
 			Name:    "bar",
 			Profile: []byte("{}"),
@@ -161,7 +161,7 @@ func (s *integrationMDMTestSuite) TestMDMEnabledAndConfigured() {
 
 			// enable disk encryption
 			setACDiskEncryption(true)
-			s.DoJSON("PATCH", "/api/latest/fleet/config", ac, http.StatusOK, &acResp)
+			s.DoJSON("PATCH", "/api/latest/automdm/config", ac, http.StatusOK, &acResp)
 			acResp = checkAppConfig(t, true, true)                           // both mac and windows mdm enabled
 			require.True(t, acResp.AppConfig.MDM.EnableDiskEncryption.Value) // enabled
 
@@ -173,22 +173,22 @@ func (s *integrationMDMTestSuite) TestMDMEnabledAndConfigured() {
 
 			// making an unrelated change should not cause validation error
 			ac.OrgInfo.OrgName = "f1337"
-			s.DoJSON("PATCH", "/api/latest/fleet/config", ac, http.StatusOK, &acResp)
+			s.DoJSON("PATCH", "/api/latest/automdm/config", ac, http.StatusOK, &acResp)
 			acResp = checkAppConfig(t, false, true)                          // only windows mdm enabled
 			require.True(t, acResp.AppConfig.MDM.EnableDiskEncryption.Value) // no change
 			require.Equal(t, "f1337", acResp.AppConfig.OrgInfo.OrgName)
 
 			// disabling disk encryption doesn't cause validation error
 			setACDiskEncryption(false)
-			s.DoJSON("PATCH", "/api/latest/fleet/config", ac, http.StatusOK, &acResp)
+			s.DoJSON("PATCH", "/api/latest/automdm/config", ac, http.StatusOK, &acResp)
 			acResp = checkAppConfig(t, false, true)                           // only windows mdm enabled
 			require.False(t, acResp.AppConfig.MDM.EnableDiskEncryption.Value) // disabled
 			require.Equal(t, "f1337", acResp.AppConfig.OrgInfo.OrgName)
 
 			// enabling disk encryption doesn't cause validation error
 			setACDiskEncryption(true)
-			s.DoJSON("PATCH", "/api/latest/fleet/config", ac, http.StatusOK, &acResp)
-			s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
+			s.DoJSON("PATCH", "/api/latest/automdm/config", ac, http.StatusOK, &acResp)
+			s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
 			acResp = checkAppConfig(t, false, true)                          // only windows mdm enabled
 			require.True(t, acResp.AppConfig.MDM.EnableDiskEncryption.Value) // enabled
 
@@ -200,21 +200,21 @@ func (s *integrationMDMTestSuite) TestMDMEnabledAndConfigured() {
 
 			// disabling disk encryption doesn't cause validation error
 			setACDiskEncryption(false)
-			s.DoJSON("PATCH", "/api/latest/fleet/config", ac, http.StatusOK, &acResp)
+			s.DoJSON("PATCH", "/api/latest/automdm/config", ac, http.StatusOK, &acResp)
 			acResp = checkAppConfig(t, false, false)                          // no MDM enabled
 			require.False(t, acResp.AppConfig.MDM.EnableDiskEncryption.Value) // disabled
 			require.Equal(t, "f1337", acResp.AppConfig.OrgInfo.OrgName)
 
 			// enabling disk encryption doesn't cause validation error
 			setACDiskEncryption(true)
-			s.DoJSON("PATCH", "/api/latest/fleet/config", ac, http.StatusOK, &acResp)
-			s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
+			s.DoJSON("PATCH", "/api/latest/automdm/config", ac, http.StatusOK, &acResp)
+			s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
 			acResp = checkAppConfig(t, false, false)                         // no MDM enabled
 			require.True(t, acResp.AppConfig.MDM.EnableDiskEncryption.Value) // enabled
 
 			// changing unrelated config doesn't cause validation error
 			ac.OrgInfo.OrgName = "f1338"
-			s.DoJSON("PATCH", "/api/latest/fleet/config", ac, http.StatusOK, &acResp)
+			s.DoJSON("PATCH", "/api/latest/automdm/config", ac, http.StatusOK, &acResp)
 			acResp = checkAppConfig(t, false, false)                         // both mac and windows mdm disabled
 			require.True(t, acResp.AppConfig.MDM.EnableDiskEncryption.Value) // no change
 			require.Equal(t, "f1338", acResp.AppConfig.OrgInfo.OrgName)
@@ -229,12 +229,12 @@ func (s *integrationMDMTestSuite) TestMDMEnabledAndConfigured() {
 			})
 
 			acResp := checkAppConfig(t, true, true)
-			compareMacOSSetupValues(t, fleet.MacOSSetup{}, acResp.AppConfig.MDM.MacOSSetup) // disabled by default
+			compareMacOSSetupValues(t, automdm.MacOSSetup{}, acResp.AppConfig.MDM.MacOSSetup) // disabled by default
 
 			// initialize our test app config
 			ac := appConfig.Copy()
 			ac.AgentOptions = nil
-			ac.MDM.EndUserAuthentication = fleet.MDMEndUserAuthentication{
+			ac.MDM.EndUserAuthentication = automdm.MDMEndUserAuthentication{
 				EntityID:    "sso-provider",
 				IDPName:     "sso-provider",
 				MetadataURL: "https://sso-provider.example.com/metadata",
@@ -244,7 +244,7 @@ func (s *integrationMDMTestSuite) TestMDMEnabledAndConfigured() {
 			insertBootstrapPackageAndSetupAssistant(t, nil)
 
 			// enable MacOSSetup options
-			ac.MDM.MacOSSetup = fleet.MacOSSetup{EnableEndUserAuthentication: true}
+			ac.MDM.MacOSSetup = automdm.MacOSSetup{EnableEndUserAuthentication: true}
 			acResp = patchWithBootstrapPackage(t, ac, "foo", http.StatusOK)
 			acResp = checkAppConfig(t, true, true)                               // both mac and windows mdm enabled
 			compareMacOSSetupValues(t, acResp.MDM.MacOSSetup, ac.MDM.MacOSSetup) // applied
@@ -257,20 +257,20 @@ func (s *integrationMDMTestSuite) TestMDMEnabledAndConfigured() {
 
 			// making an unrelated change should not cause validation error
 			ac.OrgInfo.OrgName = "f1337"
-			s.DoJSON("PATCH", "/api/latest/fleet/config", ac, http.StatusOK, &acResp)
+			s.DoJSON("PATCH", "/api/latest/automdm/config", ac, http.StatusOK, &acResp)
 			acResp = checkAppConfig(t, false, true)                              // only windows mdm enabled
 			compareMacOSSetupValues(t, acResp.MDM.MacOSSetup, ac.MDM.MacOSSetup) // still applied
 			require.Equal(t, "f1337", acResp.AppConfig.OrgInfo.OrgName)
 
 			// disabling doesn't cause validation error
-			ac.MDM.MacOSSetup = fleet.MacOSSetup{EnableEndUserAuthentication: false}
+			ac.MDM.MacOSSetup = automdm.MacOSSetup{EnableEndUserAuthentication: false}
 			acResp = patchWithBootstrapPackage(t, ac, "", http.StatusOK)
 			acResp = checkAppConfig(t, false, true)                              // only windows mdm enabled
 			compareMacOSSetupValues(t, acResp.MDM.MacOSSetup, ac.MDM.MacOSSetup) // applied
 			require.Equal(t, "f1337", acResp.AppConfig.OrgInfo.OrgName)
 
 			// enable MacOSSetup options fails because only Windows is enabled.
-			ac.MDM.MacOSSetup = fleet.MacOSSetup{EnableEndUserAuthentication: true}
+			ac.MDM.MacOSSetup = automdm.MacOSSetup{EnableEndUserAuthentication: true}
 			acResp = patchWithBootstrapPackage(t, ac, "foo", http.StatusUnprocessableEntity)
 			acResp = checkAppConfig(t, false, true) // only windows enabled
 
@@ -283,19 +283,19 @@ func (s *integrationMDMTestSuite) TestMDMEnabledAndConfigured() {
 
 			// changing unrelated config doesn't cause validation error
 			ac.OrgInfo.OrgName = "f1338"
-			s.DoJSON("PATCH", "/api/latest/fleet/config", ac, http.StatusOK, &acResp)
+			s.DoJSON("PATCH", "/api/latest/automdm/config", ac, http.StatusOK, &acResp)
 			acResp = checkAppConfig(t, true, false)                              // mac enabled, windows disabled
 			compareMacOSSetupValues(t, acResp.MDM.MacOSSetup, ac.MDM.MacOSSetup) // no change
 			require.Equal(t, "f1338", acResp.AppConfig.OrgInfo.OrgName)
 
 			// disabling doesn't cause validation error
-			ac.MDM.MacOSSetup = fleet.MacOSSetup{EnableEndUserAuthentication: false}
+			ac.MDM.MacOSSetup = automdm.MacOSSetup{EnableEndUserAuthentication: false}
 			acResp = patchWithBootstrapPackage(t, ac, "", http.StatusOK)
 			acResp = checkAppConfig(t, true, false)                              // only windows mdm enabled
 			compareMacOSSetupValues(t, acResp.MDM.MacOSSetup, ac.MDM.MacOSSetup) // applied
 
 			// enable MacOSSetup options succeeds because only Windows is disabled
-			ac.MDM.MacOSSetup = fleet.MacOSSetup{EnableEndUserAuthentication: true}
+			ac.MDM.MacOSSetup = automdm.MacOSSetup{EnableEndUserAuthentication: true}
 			acResp = patchWithBootstrapPackage(t, ac, "foo", http.StatusOK)
 			acResp = checkAppConfig(t, true, false)                              // only windows enabled
 			compareMacOSSetupValues(t, acResp.MDM.MacOSSetup, ac.MDM.MacOSSetup) // applied
@@ -308,19 +308,19 @@ func (s *integrationMDMTestSuite) TestMDMEnabledAndConfigured() {
 
 			// changing unrelated config doesn't cause validation error
 			ac.OrgInfo.OrgName = "f1339"
-			s.DoJSON("PATCH", "/api/latest/fleet/config", ac, http.StatusOK, &acResp)
+			s.DoJSON("PATCH", "/api/latest/automdm/config", ac, http.StatusOK, &acResp)
 			acResp = checkAppConfig(t, false, false)                             // both disabled
 			compareMacOSSetupValues(t, acResp.MDM.MacOSSetup, ac.MDM.MacOSSetup) // no change
 			require.Equal(t, "f1339", acResp.AppConfig.OrgInfo.OrgName)
 
 			// setting macos setup empty values doesn't cause validation error when mdm is disabled
-			ac.MDM.MacOSSetup = fleet.MacOSSetup{EnableEndUserAuthentication: false}
+			ac.MDM.MacOSSetup = automdm.MacOSSetup{EnableEndUserAuthentication: false}
 			acResp = patchWithBootstrapPackage(t, ac, "", http.StatusOK)
 			acResp = checkAppConfig(t, false, false)                             // both disabled
 			compareMacOSSetupValues(t, acResp.MDM.MacOSSetup, ac.MDM.MacOSSetup) // applied
 
 			// setting macos setup to non-empty values fails because mdm disabled
-			ac.MDM.MacOSSetup = fleet.MacOSSetup{EnableEndUserAuthentication: true}
+			ac.MDM.MacOSSetup = automdm.MacOSSetup{EnableEndUserAuthentication: true}
 			acResp = patchWithBootstrapPackage(t, ac, "foo", http.StatusUnprocessableEntity)
 			acResp = checkAppConfig(t, false, false) // both disabled
 		})
@@ -336,9 +336,9 @@ func (s *integrationMDMTestSuite) TestMDMEnabledAndConfigured() {
 			require.NoError(t, s.ds.SaveAppConfig(ctx, appConfig))
 		})
 
-		checkTeam := func(t *testing.T, team *fleet.Team, checkMDM *fleet.TeamPayloadMDM) teamResponse {
+		checkTeam := func(t *testing.T, team *automdm.Team, checkMDM *automdm.TeamPayloadMDM) teamResponse {
 			var wantDiskEncryption bool
-			var wantMacOSSetup fleet.MacOSSetup
+			var wantMacOSSetup automdm.MacOSSetup
 			if checkMDM != nil {
 				if checkMDM.MacOSSetup != nil {
 					wantMacOSSetup = checkMDM.MacOSSetup.MacOSSetup
@@ -348,7 +348,7 @@ func (s *integrationMDMTestSuite) TestMDMEnabledAndConfigured() {
 			}
 
 			var resp teamResponse
-			s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/fleets/%d", team.ID), nil, http.StatusOK, &resp)
+			s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/teams/%d", team.ID), nil, http.StatusOK, &resp)
 			require.Equal(t, team.Name, resp.Team.Name)
 			require.Equal(t, wantDiskEncryption, resp.Team.Config.MDM.EnableDiskEncryption)
 			require.Equal(t, wantMacOSSetup.EnableEndUserAuthentication, resp.Team.Config.MDM.MacOSSetup.EnableEndUserAuthentication)
@@ -365,9 +365,9 @@ func (s *integrationMDMTestSuite) TestMDMEnabledAndConfigured() {
 		checkAppConfig(t, false, false) // both mac and windows mdm disabled
 
 		var createTeamResp teamResponse
-		s.DoJSON("POST", "/api/latest/fleet/fleets", createTeamRequest{fleet.TeamPayload{
+		s.DoJSON("POST", "/api/latest/automdm/teams", createTeamRequest{automdm.TeamPayload{
 			Name: new("Ninjas"),
-			MDM:  &fleet.TeamPayloadMDM{EnableDiskEncryption: optjson.SetBool(true)}, // mdm is ignored by the create team endpoint
+			MDM:  &automdm.TeamPayloadMDM{EnableDiskEncryption: optjson.SetBool(true)}, // mdm is ignored by the create team endpoint
 		}}, http.StatusOK, &createTeamResp)
 		team := createTeamResp.Team
 		getTeamResp := checkTeam(t, team, nil) // newly created team has empty mdm config
@@ -380,19 +380,19 @@ func (s *integrationMDMTestSuite) TestMDMEnabledAndConfigured() {
 		// migration) and for other permutations of starting values (see app config tests above).
 		cases := []struct {
 			name           string
-			mdm            *fleet.TeamPayloadMDM
+			mdm            *automdm.TeamPayloadMDM
 			expectedStatus int
 		}{
 			{
 				"mdm empty",
-				&fleet.TeamPayloadMDM{},
+				&automdm.TeamPayloadMDM{},
 				http.StatusOK,
 			},
 			{
 				"mdm all zero values",
-				&fleet.TeamPayloadMDM{
+				&automdm.TeamPayloadMDM{
 					EnableDiskEncryption: optjson.SetBool(false),
-					MacOSSetup: &fleet.TeamPayloadMacOSSetup{
+					MacOSSetup: &automdm.TeamPayloadMacOSSetup{
 						EnableEndUserAuthentication: optjson.SetBool(false),
 					},
 				},
@@ -400,7 +400,7 @@ func (s *integrationMDMTestSuite) TestMDMEnabledAndConfigured() {
 			},
 			{
 				"enable disk encryption",
-				&fleet.TeamPayloadMDM{
+				&automdm.TeamPayloadMDM{
 					EnableDiskEncryption: optjson.SetBool(true),
 				},
 				// disk encryption requires mdm enabled and configured
@@ -408,8 +408,8 @@ func (s *integrationMDMTestSuite) TestMDMEnabledAndConfigured() {
 			},
 			{
 				"enable end user auth",
-				&fleet.TeamPayloadMDM{
-					MacOSSetup: &fleet.TeamPayloadMacOSSetup{
+				&automdm.TeamPayloadMDM{
+					MacOSSetup: &automdm.TeamPayloadMacOSSetup{
 						EnableEndUserAuthentication: optjson.SetBool(true),
 					},
 				},
@@ -423,7 +423,7 @@ func (s *integrationMDMTestSuite) TestMDMEnabledAndConfigured() {
 			t.Run(c.name, func(t *testing.T) {
 				checkAppConfig(t, false, false) // both mac and windows mdm disabled
 
-				s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/fleets/%d", team.ID), fleet.TeamPayload{
+				s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/teams/%d", team.ID), automdm.TeamPayload{
 					Name:        &team.Name,
 					Description: new(c.name),
 					MDM:         c.mdm,
@@ -449,17 +449,17 @@ func (s *integrationMDMTestSuite) TestMDMEnabledAndConfigured() {
 			require.NoError(t, s.ds.SaveAppConfig(ctx, appConfig))
 		})
 
-		checkTeam := func(t *testing.T, team *fleet.Team, checkMDM *fleet.TeamSpecMDM) teamResponse {
+		checkTeam := func(t *testing.T, team *automdm.Team, checkMDM *automdm.TeamSpecMDM) teamResponse {
 			// TODO - remove check of disk encryption from this function entirely?
 			// var wantDiskEncryption bool
-			var wantMacOSSetup fleet.MacOSSetup
+			var wantMacOSSetup automdm.MacOSSetup
 			if checkMDM != nil {
 				wantMacOSSetup = checkMDM.MacOSSetup.MacOSSetup
 				// wantDiskEncryption = checkMDM.EnableDiskEncryption.Value
 			}
 
 			var resp teamResponse
-			s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/fleets/%d", team.ID), nil, http.StatusOK, &resp)
+			s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/teams/%d", team.ID), nil, http.StatusOK, &resp)
 			require.Equal(t, team.Name, resp.Team.Name)
 			// require.Equal(t, wantDiskEncryption, resp.Team.Config.MDM.EnableDiskEncryption)
 			require.Equal(t, wantMacOSSetup.EnableEndUserAuthentication, resp.Team.Config.MDM.MacOSSetup.EnableEndUserAuthentication)
@@ -476,12 +476,12 @@ func (s *integrationMDMTestSuite) TestMDMEnabledAndConfigured() {
 		checkAppConfig(t, false, false) // both mac and windows mdm disabled
 
 		// create a team from spec
-		tmSpecReq := applyTeamSpecsRequest{Specs: []*fleet.TeamSpec{{Name: "Pirates"}}}
+		tmSpecReq := applyTeamSpecsRequest{Specs: []*automdm.TeamSpec{{Name: "Pirates"}}}
 		var tmSpecResp applyTeamSpecsResponse
-		s.DoJSON("POST", "/api/latest/fleet/spec/fleets", tmSpecReq, http.StatusOK, &tmSpecResp)
+		s.DoJSON("POST", "/api/latest/automdm/spec/teams", tmSpecReq, http.StatusOK, &tmSpecResp)
 		teamID, ok := tmSpecResp.TeamIDsByName["Pirates"]
 		require.True(t, ok)
-		team := fleet.Team{ID: teamID, Name: "Pirates"}
+		team := automdm.Team{ID: teamID, Name: "Pirates"}
 		checkTeam(t, &team, nil) // newly created team has empty mdm config
 
 		t.Cleanup(func() {
@@ -492,19 +492,19 @@ func (s *integrationMDMTestSuite) TestMDMEnabledAndConfigured() {
 		// migration) and for other permutations of starting values (see app config tests above).
 		cases := []struct {
 			name           string
-			mdm            *fleet.TeamSpecMDM
+			mdm            *automdm.TeamSpecMDM
 			expectedStatus int
 		}{
 			{
 				"mdm empty",
-				&fleet.TeamSpecMDM{},
+				&automdm.TeamSpecMDM{},
 				http.StatusOK,
 			},
 			{
 				"mdm all zero values",
-				&fleet.TeamSpecMDM{
+				&automdm.TeamSpecMDM{
 					EnableDiskEncryption: optjson.SetBool(false),
-					MacOSSetup: fleet.MacOSSetupSpec{
+					MacOSSetup: automdm.MacOSSetupSpec{
 						EnableEndUserAuthentication: false,
 						BootstrapPackage:            optjson.SetString(""),
 					},
@@ -513,15 +513,15 @@ func (s *integrationMDMTestSuite) TestMDMEnabledAndConfigured() {
 			},
 			{
 				"bootstrap package",
-				&fleet.TeamSpecMDM{
-					MacOSSetup: fleet.MacOSSetupSpec{BootstrapPackage: optjson.SetString("some-package")},
+				&automdm.TeamSpecMDM{
+					MacOSSetup: automdm.MacOSSetupSpec{BootstrapPackage: optjson.SetString("some-package")},
 				},
 				// bootstrap package requires mdm enabled and configured
 				http.StatusUnprocessableEntity,
 			},
 			{
 				"enable disk encryption",
-				&fleet.TeamSpecMDM{
+				&automdm.TeamSpecMDM{
 					EnableDiskEncryption: optjson.SetBool(true),
 				},
 				// disk encryption does not require mdm enabled and configured
@@ -529,7 +529,7 @@ func (s *integrationMDMTestSuite) TestMDMEnabledAndConfigured() {
 			},
 			{
 				"enable recovery lock password",
-				&fleet.TeamSpecMDM{
+				&automdm.TeamSpecMDM{
 					EnableRecoveryLockPassword: optjson.SetBool(true),
 				},
 				// recovery lock password requires mdm enabled and configured
@@ -538,8 +538,8 @@ func (s *integrationMDMTestSuite) TestMDMEnabledAndConfigured() {
 			// Ian - this test still passes, that is, returns 4xx – perhaps related to one of the endpoints we still need to update
 			{
 				"enable end user auth",
-				&fleet.TeamSpecMDM{
-					MacOSSetup: fleet.MacOSSetupSpec{EnableEndUserAuthentication: true},
+				&automdm.TeamSpecMDM{
+					MacOSSetup: automdm.MacOSSetupSpec{EnableEndUserAuthentication: true},
 				},
 				// disk encryption requires mdm enabled and configured
 				http.StatusUnprocessableEntity,
@@ -551,11 +551,11 @@ func (s *integrationMDMTestSuite) TestMDMEnabledAndConfigured() {
 			t.Run(c.name, func(t *testing.T) {
 				checkAppConfig(t, false, false) // both mac and windows mdm disabled
 
-				tmSpecReq = applyTeamSpecsRequest{Specs: []*fleet.TeamSpec{{
+				tmSpecReq = applyTeamSpecsRequest{Specs: []*automdm.TeamSpec{{
 					Name: team.Name,
 					MDM:  *c.mdm,
 				}}}
-				s.DoJSON("POST", "/api/latest/fleet/spec/fleets", tmSpecReq, c.expectedStatus, &tmSpecResp)
+				s.DoJSON("POST", "/api/latest/automdm/spec/teams", tmSpecReq, c.expectedStatus, &tmSpecResp)
 
 				if c.expectedStatus == http.StatusOK {
 					checkTeam(t, &team, c.mdm)
@@ -572,7 +572,7 @@ func (s *integrationMDMTestSuite) TestCustomConfigurationWebURL() {
 	s.setSkipWorkerJobs(t)
 
 	acResp := appConfigResponse{}
-	s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &acResp)
+	s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &acResp)
 
 	s.enableABM(t.Name())
 	var lastSubmittedProfile *godep.Profile
@@ -626,7 +626,7 @@ func (s *integrationMDMTestSuite) TestCustomConfigurationWebURL() {
 			var resp godep.ProfileResponse
 			resp.ProfileUUID = prof.ProfileUUID
 			resp.Devices = map[string]string{
-				prof.Devices[0]: string(fleet.DEPAssignProfileResponseSuccess),
+				prof.Devices[0]: string(automdm.DEPAssignProfileResponseSuccess),
 			}
 			encoder := json.NewEncoder(w)
 			err = encoder.Encode(resp)
@@ -641,7 +641,7 @@ func (s *integrationMDMTestSuite) TestCustomConfigurationWebURL() {
 
 	// disable first to make sure we start in the desired state
 	acResp = appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 		"mdm": {
 			"setup_experience": {
 				"enable_end_user_authentication": false
@@ -651,7 +651,7 @@ func (s *integrationMDMTestSuite) TestCustomConfigurationWebURL() {
 
 	// configure end-user authentication globally
 	acResp = appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(fmt.Sprintf(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(fmt.Sprintf(`{
 		"mdm": {
 			"end_user_authentication": {
 				"entity_id": "https://localhost:8080",
@@ -673,7 +673,7 @@ func (s *integrationMDMTestSuite) TestCustomConfigurationWebURL() {
 	// trying to set a custom configuration_web_url fails because end user authentication is enabled
 	customSetupAsst := `{"configuration_web_url": "https://foo.example.com"}`
 	var globalAsstResp createMDMAppleSetupAssistantResponse
-	s.DoJSON("POST", "/api/latest/fleet/enrollment_profiles/automatic", createMDMAppleSetupAssistantRequest{
+	s.DoJSON("POST", "/api/latest/automdm/enrollment_profiles/automatic", createMDMAppleSetupAssistantRequest{
 		TeamID:            nil,
 		Name:              "no-team",
 		EnrollmentProfile: json.RawMessage(customSetupAsst),
@@ -681,7 +681,7 @@ func (s *integrationMDMTestSuite) TestCustomConfigurationWebURL() {
 
 	// disable end user authentication
 	acResp = appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(`{
 		"mdm": {
 			"end_user_authentication": {
 				"entity_id": "",
@@ -703,7 +703,7 @@ func (s *integrationMDMTestSuite) TestCustomConfigurationWebURL() {
 	// setting a custom configuration_web_url succeeds because user authentication is disabled
 	globalAsstResp = createMDMAppleSetupAssistantResponse{}
 	configurationWebURLShouldBeEmpty = false
-	s.DoJSON("POST", "/api/latest/fleet/enrollment_profiles/automatic", createMDMAppleSetupAssistantRequest{
+	s.DoJSON("POST", "/api/latest/automdm/enrollment_profiles/automatic", createMDMAppleSetupAssistantRequest{
 		TeamID:            nil,
 		Name:              "no-team",
 		EnrollmentProfile: json.RawMessage(customSetupAsst),
@@ -716,7 +716,7 @@ func (s *integrationMDMTestSuite) TestCustomConfigurationWebURL() {
 
 	// try to enable end user auth again, it fails because configuration_web_url is set
 	acResp = appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(fmt.Sprintf(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(fmt.Sprintf(`{
 		"mdm": {
 			"end_user_authentication": {
 				"entity_id": "https://localhost:8080",
@@ -743,20 +743,20 @@ func (s *integrationMDMTestSuite) TestCustomConfigurationWebURL() {
 		},
 	}
 	var applyResp applyTeamSpecsResponse
-	s.DoJSON("POST", "/api/latest/fleet/spec/fleets", teamSpecs, http.StatusOK, &applyResp)
+	s.DoJSON("POST", "/api/latest/automdm/spec/teams", teamSpecs, http.StatusOK, &applyResp)
 	require.Len(t, applyResp.TeamIDsByName, 1)
 	teamID := applyResp.TeamIDsByName[t.Name()]
 
 	// transfer a host to the team to ensure all ABM calls are made
 	h, err := s.ds.HostByIdentifier(context.Background(), "FAKE-1")
 	require.NoError(t, err)
-	s.DoJSON("POST", "/api/latest/fleet/hosts/transfer", addHostsToTeamRequest{TeamID: &teamID, HostIDs: []uint{h.ID}}, http.StatusOK, &addHostsToTeamResponse{})
+	s.DoJSON("POST", "/api/latest/automdm/hosts/transfer", addHostsToTeamRequest{TeamID: &teamID, HostIDs: []uint{h.ID}}, http.StatusOK, &addHostsToTeamResponse{})
 
 	// re-set the global state to configure MDM SSO
 	err = s.ds.DeleteMDMAppleSetupAssistant(context.Background(), nil)
 	require.NoError(t, err)
 	acResp = appConfigResponse{}
-	s.DoJSON("PATCH", "/api/latest/fleet/config", json.RawMessage(fmt.Sprintf(`{
+	s.DoJSON("PATCH", "/api/latest/automdm/config", json.RawMessage(fmt.Sprintf(`{
 		"mdm": {
 			"end_user_authentication": {
 				"entity_id": "https://localhost:8080",
@@ -783,7 +783,7 @@ func (s *integrationMDMTestSuite) TestCustomConfigurationWebURL() {
 		},
 	}
 	applyResp = applyTeamSpecsResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/spec/fleets", teamSpecs, http.StatusOK, &applyResp)
+	s.DoJSON("POST", "/api/latest/automdm/spec/teams", teamSpecs, http.StatusOK, &applyResp)
 	require.Len(t, applyResp.TeamIDsByName, 1)
 	// assign the DEP profile and assert that contains the right values for the URL
 	s.runWorker()
@@ -791,7 +791,7 @@ func (s *integrationMDMTestSuite) TestCustomConfigurationWebURL() {
 
 	// trying to set a custom configuration_web_url fails because end user authentication is enabled
 	var tmAsstResp createMDMAppleSetupAssistantResponse
-	s.DoJSON("POST", "/api/latest/fleet/enrollment_profiles/automatic", createMDMAppleSetupAssistantRequest{
+	s.DoJSON("POST", "/api/latest/automdm/enrollment_profiles/automatic", createMDMAppleSetupAssistantRequest{
 		TeamID:            &teamID,
 		Name:              t.Name(),
 		EnrollmentProfile: json.RawMessage(customSetupAsst),
@@ -811,7 +811,7 @@ func (s *integrationMDMTestSuite) TestCustomConfigurationWebURL() {
 		},
 	}
 	applyResp = applyTeamSpecsResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/spec/fleets", teamSpecs, http.StatusOK, &applyResp)
+	s.DoJSON("POST", "/api/latest/automdm/spec/teams", teamSpecs, http.StatusOK, &applyResp)
 	require.Len(t, applyResp.TeamIDsByName, 1)
 
 	// assign the DEP profile and assert that contains the right values for the URL
@@ -822,7 +822,7 @@ func (s *integrationMDMTestSuite) TestCustomConfigurationWebURL() {
 	// setting configuration_web_url succeeds because end user authentication is disabled
 	tmAsstResp = createMDMAppleSetupAssistantResponse{}
 	configurationWebURLShouldBeEmpty = false
-	s.DoJSON("POST", "/api/latest/fleet/enrollment_profiles/automatic", createMDMAppleSetupAssistantRequest{
+	s.DoJSON("POST", "/api/latest/automdm/enrollment_profiles/automatic", createMDMAppleSetupAssistantRequest{
 		TeamID:            &teamID,
 		Name:              t.Name(),
 		EnrollmentProfile: json.RawMessage(customSetupAsst),
@@ -846,7 +846,7 @@ func (s *integrationMDMTestSuite) TestCustomConfigurationWebURL() {
 		},
 	}
 	applyResp = applyTeamSpecsResponse{}
-	s.DoJSON("POST", "/api/latest/fleet/spec/fleets", teamSpecs, http.StatusUnprocessableEntity, &applyResp)
+	s.DoJSON("POST", "/api/latest/automdm/spec/teams", teamSpecs, http.StatusUnprocessableEntity, &applyResp)
 
 	t.Cleanup(func() {
 		acResp.MDM.MacOSSetup.EnableEndUserAuthentication = false
@@ -859,8 +859,8 @@ func (s *integrationMDMTestSuite) TestCustomConfigurationWebURL() {
 func (s *integrationMDMTestSuite) TestHostsCantTurnMDMOff() {
 	t := s.T()
 	winHost, _ := createWindowsHostThenEnrollMDM(s.ds, s.server.URL, t)
-	r := s.Do("DELETE", fmt.Sprintf("/api/latest/fleet/hosts/%d/mdm", winHost.ID), nil, http.StatusBadRequest)
-	require.Contains(t, extractServerErrorText(r.Body), fleet.CantTurnOffMDMForWindowsHostsMessage)
+	r := s.Do("DELETE", fmt.Sprintf("/api/latest/automdm/hosts/%d/mdm", winHost.ID), nil, http.StatusBadRequest)
+	require.Contains(t, extractServerErrorText(r.Body), automdm.CantTurnOffMDMForWindowsHostsMessage)
 }
 
 func (s *integrationMDMTestSuite) TestTeamLabelsTeamDeletion() {
@@ -868,17 +868,17 @@ func (s *integrationMDMTestSuite) TestTeamLabelsTeamDeletion() {
 
 	test.CreateInsertGlobalVPPToken(t, s.ds)
 
-	t1, err := s.ds.NewTeam(context.Background(), &fleet.Team{
+	t1, err := s.ds.NewTeam(context.Background(), &automdm.Team{
 		Name: "t1",
 	})
 	require.NoError(t, err)
-	t2, err := s.ds.NewTeam(context.Background(), &fleet.Team{
+	t2, err := s.ds.NewTeam(context.Background(), &automdm.Team{
 		Name: "t2",
 	})
 	require.NoError(t, err)
 
-	newHost := func(name string, platform string, teamID *uint) *fleet.Host {
-		h, err := s.ds.NewHost(t.Context(), &fleet.Host{
+	newHost := func(name string, platform string, teamID *uint) *automdm.Host {
+		h, err := s.ds.NewHost(t.Context(), &automdm.Host{
 			OsqueryHostID: new(t.Name() + name),
 			NodeKey:       new(t.Name() + name),
 			UUID:          uuid.New().String(),
@@ -904,30 +904,30 @@ func (s *integrationMDMTestSuite) TestTeamLabelsTeamDeletion() {
 	s.lq.On("QueriesForHost", ubuntuHostNoTeam.ID).Return(map[string]string{}, nil)
 
 	// Create label on team t1.
-	l1t1, err := s.ds.NewLabel(t.Context(), &fleet.Label{
+	l1t1, err := s.ds.NewLabel(t.Context(), &automdm.Label{
 		Name:                "l1t1",
 		Query:               "SELECT t1;",
 		TeamID:              &t1.ID,
-		LabelType:           fleet.LabelTypeRegular,
-		LabelMembershipType: fleet.LabelMembershipTypeDynamic,
+		LabelType:           automdm.LabelTypeRegular,
+		LabelMembershipType: automdm.LabelMembershipTypeDynamic,
 	})
 	require.NoError(t, err)
 	// Create a label on team t2.
-	l2t2, err := s.ds.NewLabel(t.Context(), &fleet.Label{
+	l2t2, err := s.ds.NewLabel(t.Context(), &automdm.Label{
 		Name:                "l2t2",
 		Query:               "SELECT t2;",
 		TeamID:              &t2.ID,
-		LabelType:           fleet.LabelTypeRegular,
-		LabelMembershipType: fleet.LabelMembershipTypeDynamic,
+		LabelType:           automdm.LabelTypeRegular,
+		LabelMembershipType: automdm.LabelMembershipTypeDynamic,
 	})
 	require.NoError(t, err)
 	// Create global label.
-	globalLabel, err := s.ds.NewLabel(t.Context(), &fleet.Label{
+	globalLabel, err := s.ds.NewLabel(t.Context(), &automdm.Label{
 		Name:                "global",
 		Query:               "SELECT global;",
 		TeamID:              nil,
-		LabelType:           fleet.LabelTypeRegular,
-		LabelMembershipType: fleet.LabelMembershipTypeDynamic,
+		LabelType:           automdm.LabelTypeRegular,
+		LabelMembershipType: automdm.LabelMembershipTypeDynamic,
 	})
 	require.NoError(t, err)
 
@@ -946,7 +946,7 @@ func (s *integrationMDMTestSuite) TestTeamLabelsTeamDeletion() {
 	}), http.StatusOK, &distributedResp)
 
 	// Create an installer on t1 that references l1t1.
-	payloadRubyTm1 := &fleet.UploadSoftwareInstallerPayload{
+	payloadRubyTm1 := &automdm.UploadSoftwareInstallerPayload{
 		InstallScript:    "install",
 		Filename:         "ruby.deb",
 		SelfService:      false,
@@ -957,14 +957,14 @@ func (s *integrationMDMTestSuite) TestTeamLabelsTeamDeletion() {
 	s.uploadSoftwareInstaller(t, payloadRubyTm1, http.StatusOK, "")
 
 	// Create a VPP app on t1 that references l1t1.
-	_, err = s.ds.InsertVPPAppWithTeam(t.Context(), &fleet.VPPApp{
+	_, err = s.ds.InsertVPPAppWithTeam(t.Context(), &automdm.VPPApp{
 		Name:             "App123 " + t.Name(),
 		BundleIdentifier: "bid_" + t.Name(),
 		AdamID:           "adam_test_vpp2",
-		Platform:         fleet.MacOSPlatform,
-		ValidatedLabels: &fleet.LabelIdentsWithScope{
-			LabelScope: fleet.LabelScopeIncludeAny,
-			ByName: map[string]fleet.LabelIdent{
+		Platform:         automdm.MacOSPlatform,
+		ValidatedLabels: &automdm.LabelIdentsWithScope{
+			LabelScope: automdm.LabelScopeIncludeAny,
+			ByName: map[string]automdm.LabelIdent{
 				l1t1.Name: {
 					LabelID:   l1t1.ID,
 					LabelName: l1t1.Name,
@@ -975,16 +975,16 @@ func (s *integrationMDMTestSuite) TestTeamLabelsTeamDeletion() {
 	require.NoError(t, err)
 
 	// Create an Apple configuration profile, a Windows profile and a declaration on t1 that references l1t1.
-	s.Do("POST", "/api/latest/fleet/configuration_profiles/batch", batchModifyMDMConfigProfilesRequest{
-		ConfigurationProfiles: []fleet.BatchModifyMDMConfigProfilePayload{
+	s.Do("POST", "/api/latest/automdm/configuration_profiles/batch", batchModifyMDMConfigProfilesRequest{
+		ConfigurationProfiles: []automdm.BatchModifyMDMConfigProfilePayload{
 			{DisplayName: "N1", Profile: mobileconfigForTestWithContent("N1", "I1", "com.test.profile.content", "test inner type", "test inner name"), LabelsIncludeAll: []string{l1t1.Name}},
 			{DisplayName: "N2", Profile: syncMLForTest("./Foo/Bar"), LabelsIncludeAll: []string{l1t1.Name}},
 			{DisplayName: "N3", Profile: declarationForTest("D1"), LabelsIncludeAll: []string{l1t1.Name}},
 		},
-	}, http.StatusNoContent, "fleet_id", fmt.Sprint(t1.ID))
+	}, http.StatusNoContent, "team_id", fmt.Sprint(t1.ID))
 
 	// Create in-house app in team t1 that references l1t1.
-	payload := &fleet.UploadSoftwareInstallerPayload{
+	payload := &automdm.UploadSoftwareInstallerPayload{
 		TeamID:           &t1.ID,
 		Filename:         "ipa_test2.ipa",
 		Version:          "1.0.0",
@@ -995,7 +995,7 @@ func (s *integrationMDMTestSuite) TestTeamLabelsTeamDeletion() {
 	s.uploadSoftwareInstaller(t, payload, http.StatusOK, "")
 
 	// Create a policy in t1 that references l1t1.
-	_, err = s.ds.NewTeamPolicy(t.Context(), t1.ID, nil, fleet.PolicyPayload{
+	_, err = s.ds.NewTeamPolicy(t.Context(), t1.ID, nil, automdm.PolicyPayload{
 		Name:             "p1t1",
 		Query:            "SELECT 1;",
 		Platform:         "darwin",
@@ -1006,13 +1006,13 @@ func (s *integrationMDMTestSuite) TestTeamLabelsTeamDeletion() {
 	// Create a query in t1 that references l1t1.
 	_, err = s.ds.NewQuery(
 		t.Context(),
-		&fleet.Query{
+		&automdm.Query{
 			Name:    "TestQueryTeamPolicy",
 			Query:   "SELECT 2;",
 			Saved:   true,
-			Logging: fleet.LoggingSnapshot,
+			Logging: automdm.LoggingSnapshot,
 			TeamID:  &t1.ID,
-			LabelsIncludeAny: []fleet.LabelIdent{
+			LabelsIncludeAny: []automdm.LabelIdent{
 				{
 					LabelID:   l1t1.ID,
 					LabelName: l1t1.Name,
@@ -1024,15 +1024,15 @@ func (s *integrationMDMTestSuite) TestTeamLabelsTeamDeletion() {
 
 	// Delete team t1.
 	delResp := deleteTeamResponse{}
-	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/fleet/fleets/%d", t1.ID), nil, http.StatusOK, &delResp)
+	s.DoJSON("DELETE", fmt.Sprintf("/api/latest/automdm/teams/%d", t1.ID), nil, http.StatusOK, &delResp)
 
 	// Check label l1t1 on t1 has been removed.
-	_, _, err = s.ds.Label(t.Context(), l1t1.ID, fleet.TeamFilter{})
+	_, _, err = s.ds.Label(t.Context(), l1t1.ID, automdm.TeamFilter{})
 	require.Error(t, err)
-	require.True(t, fleet.IsNotFound(err))
+	require.True(t, automdm.IsNotFound(err))
 
 	// Make sure l2t2 in t2 is unaffected.
-	_, _, err = s.ds.Label(t.Context(), l2t2.ID, fleet.TeamFilter{User: &fleet.User{GlobalRole: new(fleet.RoleAdmin)}})
+	_, _, err = s.ds.Label(t.Context(), l2t2.ID, automdm.TeamFilter{User: &automdm.User{GlobalRole: new(automdm.RoleAdmin)}})
 	require.NoError(t, err)
 
 	// Make sure label membership for l1t1 is gone.
@@ -1057,35 +1057,35 @@ func (s *integrationMDMTestSuite) TestTeamLabelsAssociationsCheck() {
 
 	test.CreateInsertGlobalVPPToken(t, s.ds)
 
-	t1, err := s.ds.NewTeam(context.Background(), &fleet.Team{
+	t1, err := s.ds.NewTeam(context.Background(), &automdm.Team{
 		Name: "t1",
 	})
 	require.NoError(t, err)
-	t2, err := s.ds.NewTeam(context.Background(), &fleet.Team{
+	t2, err := s.ds.NewTeam(context.Background(), &automdm.Team{
 		Name: "t2",
 	})
 	require.NoError(t, err)
 
 	// Create label on team t1.
-	l1t1, err := s.ds.NewLabel(t.Context(), &fleet.Label{
+	l1t1, err := s.ds.NewLabel(t.Context(), &automdm.Label{
 		Name:                "l1t1",
 		Query:               "SELECT t1;",
 		TeamID:              &t1.ID,
-		LabelType:           fleet.LabelTypeRegular,
-		LabelMembershipType: fleet.LabelMembershipTypeDynamic,
+		LabelType:           automdm.LabelTypeRegular,
+		LabelMembershipType: automdm.LabelMembershipTypeDynamic,
 	})
 	require.NoError(t, err)
 	// Create label on team t2.
-	l2t2, err := s.ds.NewLabel(t.Context(), &fleet.Label{
+	l2t2, err := s.ds.NewLabel(t.Context(), &automdm.Label{
 		Name:                "l2t2",
 		Query:               "SELECT t2;",
 		TeamID:              &t2.ID,
-		LabelType:           fleet.LabelTypeRegular,
-		LabelMembershipType: fleet.LabelMembershipTypeDynamic,
+		LabelType:           automdm.LabelTypeRegular,
+		LabelMembershipType: automdm.LabelMembershipTypeDynamic,
 	})
 	require.NoError(t, err)
 	// Create global label.
-	globalLabel, err := s.ds.NewLabel(t.Context(), &fleet.Label{
+	globalLabel, err := s.ds.NewLabel(t.Context(), &automdm.Label{
 		Name:   "global",
 		Query:  "SELECT global;",
 		TeamID: nil,
@@ -1094,72 +1094,72 @@ func (s *integrationMDMTestSuite) TestTeamLabelsAssociationsCheck() {
 
 	t.Run("1. policy labels assignment checks", func(t *testing.T) {
 		// 1.A.1 Attempt to create global policy that references l1t1 (should fail).
-		var gpResp fleet.CreatePolicyResponse
-		s.DoJSON("POST", "/api/latest/fleet/policies", fleet.CreatePolicyRequest{
+		var gpResp automdm.CreatePolicyResponse
+		s.DoJSON("POST", "/api/latest/automdm/policies", automdm.CreatePolicyRequest{
 			Name:             "All teams policy",
 			Query:            "SELECT 1;",
 			LabelsIncludeAny: []string{l1t1.Name, globalLabel.Name},
 		}, http.StatusBadRequest, &gpResp)
-		gpResp = fleet.CreatePolicyResponse{}
-		s.DoJSON("POST", "/api/latest/fleet/policies", fleet.CreatePolicyRequest{
+		gpResp = automdm.CreatePolicyResponse{}
+		s.DoJSON("POST", "/api/latest/automdm/policies", automdm.CreatePolicyRequest{
 			Name:             "All teams policy",
 			Query:            "SELECT 1;",
 			LabelsExcludeAny: []string{globalLabel.Name, l1t1.Name},
 		}, http.StatusBadRequest, &gpResp)
 
 		// 1.A.2 Attempt to create a global policy with global labels (should succeed).
-		gpResp = fleet.CreatePolicyResponse{}
-		s.DoJSON("POST", "/api/latest/fleet/policies", fleet.CreatePolicyRequest{
+		gpResp = automdm.CreatePolicyResponse{}
+		s.DoJSON("POST", "/api/latest/automdm/policies", automdm.CreatePolicyRequest{
 			Name:             "All teams policy",
 			Query:            "SELECT 1;",
 			LabelsIncludeAny: []string{globalLabel.Name},
 		}, http.StatusOK, &gpResp)
 		globalPolicyID := gpResp.Policy.ID
-		gpResp = fleet.CreatePolicyResponse{}
-		s.DoJSON("POST", "/api/latest/fleet/policies", fleet.CreatePolicyRequest{
+		gpResp = automdm.CreatePolicyResponse{}
+		s.DoJSON("POST", "/api/latest/automdm/policies", automdm.CreatePolicyRequest{
 			Name:             "All teams policy 2",
 			Query:            "SELECT 1;",
 			LabelsExcludeAny: []string{globalLabel.Name},
 		}, http.StatusOK, &gpResp)
 
 		// 1.A.3 Attempt to modify a global policy with team labels (should fail).
-		mgpr := &fleet.ModifyPolicyRequest{
+		mgpr := &automdm.ModifyPolicyRequest{
 			Name:             new("newName1"),
 			LabelsIncludeAny: []string{l1t1.Name},
 		}
-		patchPol1 := &fleet.ModifyPolicyResponse{}
-		s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/policies/%d", globalPolicyID), mgpr, http.StatusBadRequest, patchPol1)
-		mgpr = &fleet.ModifyPolicyRequest{
+		patchPol1 := &automdm.ModifyPolicyResponse{}
+		s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/policies/%d", globalPolicyID), mgpr, http.StatusBadRequest, patchPol1)
+		mgpr = &automdm.ModifyPolicyRequest{
 			Name:             new("newName1"),
 			LabelsExcludeAny: []string{l1t1.Name},
 		}
-		patchPol1 = &fleet.ModifyPolicyResponse{}
-		s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/policies/%d", globalPolicyID), mgpr, http.StatusBadRequest, patchPol1)
+		patchPol1 = &automdm.ModifyPolicyResponse{}
+		s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/policies/%d", globalPolicyID), mgpr, http.StatusBadRequest, patchPol1)
 
 		// 1.A.4 Attempt to modify a global policy with global labels (should succeed).
-		mgpr = &fleet.ModifyPolicyRequest{
+		mgpr = &automdm.ModifyPolicyRequest{
 			Name:             new("newName1"),
 			LabelsIncludeAny: []string{globalLabel.Name},
 		}
-		patchPol1 = &fleet.ModifyPolicyResponse{}
-		s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/policies/%d", globalPolicyID), mgpr, http.StatusOK, patchPol1)
-		mgpr = &fleet.ModifyPolicyRequest{
+		patchPol1 = &automdm.ModifyPolicyResponse{}
+		s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/policies/%d", globalPolicyID), mgpr, http.StatusOK, patchPol1)
+		mgpr = &automdm.ModifyPolicyRequest{
 			Name:             new("newName2"),
 			LabelsIncludeAny: []string{},
 			LabelsExcludeAny: []string{globalLabel.Name},
 		}
-		patchPol1 = &fleet.ModifyPolicyResponse{}
-		s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/policies/%d", globalPolicyID), mgpr, http.StatusOK, patchPol1)
+		patchPol1 = &automdm.ModifyPolicyResponse{}
+		s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/policies/%d", globalPolicyID), mgpr, http.StatusOK, patchPol1)
 
 		// 1.B.1 Attempt to create a team policy that references l2t2 (should fail).
-		tpResp := fleet.CreatePolicyResponse{}
-		s.DoJSON("POST", "/api/latest/fleet/policies", fleet.CreatePolicyRequest{
+		tpResp := automdm.CreatePolicyResponse{}
+		s.DoJSON("POST", "/api/latest/automdm/policies", automdm.CreatePolicyRequest{
 			TeamID:           new(t1.ID),
 			Name:             "t1 policy",
 			Query:            "SELECT 1;",
 			LabelsIncludeAny: []string{globalLabel.Name, l2t2.Name},
 		}, http.StatusBadRequest, &tpResp)
-		s.DoJSON("POST", "/api/latest/fleet/policies", fleet.CreatePolicyRequest{
+		s.DoJSON("POST", "/api/latest/automdm/policies", automdm.CreatePolicyRequest{
 			TeamID:           new(t1.ID),
 			Name:             "t1 policy exclude",
 			Query:            "SELECT 1;",
@@ -1167,15 +1167,15 @@ func (s *integrationMDMTestSuite) TestTeamLabelsAssociationsCheck() {
 		}, http.StatusBadRequest, &tpResp)
 
 		// 1.B.2 Attempt to create a team policy with a global label and same team label (should succeed).
-		tpResp = fleet.CreatePolicyResponse{}
-		s.DoJSON("POST", "/api/latest/fleet/policies", fleet.CreatePolicyRequest{
+		tpResp = automdm.CreatePolicyResponse{}
+		s.DoJSON("POST", "/api/latest/automdm/policies", automdm.CreatePolicyRequest{
 			TeamID:           new(t1.ID),
 			Name:             "t1 policy",
 			Query:            "SELECT 1;",
 			LabelsIncludeAny: []string{globalLabel.Name, l1t1.Name},
 		}, http.StatusOK, &tpResp)
 		teamPolicyID := tpResp.Policy.ID
-		s.DoJSON("POST", "/api/latest/fleet/policies", fleet.CreatePolicyRequest{
+		s.DoJSON("POST", "/api/latest/automdm/policies", automdm.CreatePolicyRequest{
 			TeamID:           new(t1.ID),
 			Name:             "t1 policy 2",
 			Query:            "SELECT 1;",
@@ -1183,36 +1183,36 @@ func (s *integrationMDMTestSuite) TestTeamLabelsAssociationsCheck() {
 		}, http.StatusOK, &tpResp)
 
 		// 1.B.3 Attempt to edit a team policy to reference l2t2 (should fail; label is outside team).
-		mtplr := fleet.ModifyPolicyResponse{}
-		s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/policies/%d", teamPolicyID), fleet.ModifyPolicyRequest{
+		mtplr := automdm.ModifyPolicyResponse{}
+		s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/policies/%d", teamPolicyID), automdm.ModifyPolicyRequest{
 			LabelsIncludeAny: []string{l2t2.Name},
 		}, http.StatusBadRequest, &mtplr)
-		mtplr = fleet.ModifyPolicyResponse{}
-		s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/policies/%d", teamPolicyID), fleet.ModifyPolicyRequest{
+		mtplr = automdm.ModifyPolicyResponse{}
+		s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/policies/%d", teamPolicyID), automdm.ModifyPolicyRequest{
 			LabelsIncludeAny: []string{},
 			LabelsExcludeAny: []string{l2t2.Name},
 		}, http.StatusBadRequest, &mtplr)
 
 		// 1.B.3 Attempt to edit a team policy to reference a team label on the same team (should succeed).
-		mtplr = fleet.ModifyPolicyResponse{}
-		s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/policies/%d", teamPolicyID), fleet.ModifyPolicyRequest{
+		mtplr = automdm.ModifyPolicyResponse{}
+		s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/policies/%d", teamPolicyID), automdm.ModifyPolicyRequest{
 			LabelsIncludeAny: []string{l1t1.Name},
 		}, http.StatusOK, &mtplr)
-		mtplr = fleet.ModifyPolicyResponse{}
-		s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/policies/%d", teamPolicyID), fleet.ModifyPolicyRequest{
+		mtplr = automdm.ModifyPolicyResponse{}
+		s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/policies/%d", teamPolicyID), automdm.ModifyPolicyRequest{
 			LabelsIncludeAny: []string{},
 			LabelsExcludeAny: []string{l1t1.Name, globalLabel.Name},
 		}, http.StatusOK, &mtplr)
 
 		// 1.C.1 Attempt to create a "No team" policy that references l1t1 (should fail).
-		tpResp = fleet.CreatePolicyResponse{}
-		s.DoJSON("POST", "/api/latest/fleet/policies", fleet.CreatePolicyRequest{
+		tpResp = automdm.CreatePolicyResponse{}
+		s.DoJSON("POST", "/api/latest/automdm/policies", automdm.CreatePolicyRequest{
 			TeamID:           new(uint(0)),
 			Name:             "no team policy",
 			Query:            "SELECT 1;",
 			LabelsIncludeAny: []string{globalLabel.Name, l2t2.Name},
 		}, http.StatusBadRequest, &tpResp)
-		s.DoJSON("POST", "/api/latest/fleet/policies", fleet.CreatePolicyRequest{
+		s.DoJSON("POST", "/api/latest/automdm/policies", automdm.CreatePolicyRequest{
 			TeamID:           new(uint(0)),
 			Name:             "no team policy exclude",
 			Query:            "SELECT 1;",
@@ -1220,15 +1220,15 @@ func (s *integrationMDMTestSuite) TestTeamLabelsAssociationsCheck() {
 		}, http.StatusBadRequest, &tpResp)
 
 		// 1.B.2 Attempt to create a "No team" policy with a global label (should succeed).
-		tpResp = fleet.CreatePolicyResponse{}
-		s.DoJSON("POST", "/api/latest/fleet/policies", fleet.CreatePolicyRequest{
+		tpResp = automdm.CreatePolicyResponse{}
+		s.DoJSON("POST", "/api/latest/automdm/policies", automdm.CreatePolicyRequest{
 			TeamID:           new(uint(0)),
 			Name:             "no team policy",
 			Query:            "SELECT 1;",
 			LabelsIncludeAny: []string{globalLabel.Name},
 		}, http.StatusOK, &tpResp)
 		noTeamPolicyID := tpResp.Policy.ID
-		s.DoJSON("POST", "/api/latest/fleet/policies", fleet.CreatePolicyRequest{
+		s.DoJSON("POST", "/api/latest/automdm/policies", automdm.CreatePolicyRequest{
 			TeamID:           new(uint(0)),
 			Name:             "no team policy 2",
 			Query:            "SELECT 1;",
@@ -1236,23 +1236,23 @@ func (s *integrationMDMTestSuite) TestTeamLabelsAssociationsCheck() {
 		}, http.StatusOK, &tpResp)
 
 		// 1.B.3 Attempt to edit a "No team" policy with a team policy that references l2t2 (should fail).
-		mtplr = fleet.ModifyPolicyResponse{}
-		s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/policies/%d", noTeamPolicyID), fleet.ModifyPolicyRequest{
+		mtplr = automdm.ModifyPolicyResponse{}
+		s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/policies/%d", noTeamPolicyID), automdm.ModifyPolicyRequest{
 			LabelsIncludeAny: []string{l2t2.Name},
 		}, http.StatusBadRequest, &mtplr)
-		mtplr = fleet.ModifyPolicyResponse{}
-		s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/policies/%d", noTeamPolicyID), fleet.ModifyPolicyRequest{
+		mtplr = automdm.ModifyPolicyResponse{}
+		s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/policies/%d", noTeamPolicyID), automdm.ModifyPolicyRequest{
 			LabelsIncludeAny: []string{},
 			LabelsExcludeAny: []string{l2t2.Name},
 		}, http.StatusBadRequest, &mtplr)
 
 		// 1.B.3 Attempt to edit a team policy to reference a global label (should succeed).
-		mtplr = fleet.ModifyPolicyResponse{}
-		s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/policies/%d", noTeamPolicyID), fleet.ModifyPolicyRequest{
+		mtplr = automdm.ModifyPolicyResponse{}
+		s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/policies/%d", noTeamPolicyID), automdm.ModifyPolicyRequest{
 			LabelsIncludeAny: []string{globalLabel.Name},
 		}, http.StatusOK, &mtplr)
-		mtplr = fleet.ModifyPolicyResponse{}
-		s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/policies/%d", noTeamPolicyID), fleet.ModifyPolicyRequest{
+		mtplr = automdm.ModifyPolicyResponse{}
+		s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/policies/%d", noTeamPolicyID), automdm.ModifyPolicyRequest{
 			LabelsIncludeAny: []string{},
 			LabelsExcludeAny: []string{globalLabel.Name},
 		}, http.StatusOK, &mtplr)
@@ -1260,117 +1260,117 @@ func (s *integrationMDMTestSuite) TestTeamLabelsAssociationsCheck() {
 
 	t.Run("2. query labels assignment checks", func(t *testing.T) {
 		// 2.A.1 Attempt to create global query with team labels (should fail).
-		var createQueryResp fleet.CreateQueryResponse
-		reqQuery := &fleet.QueryPayload{
+		var createQueryResp automdm.CreateQueryResponse
+		reqQuery := &automdm.QueryPayload{
 			Name:             new("All teams query"),
 			Query:            new("SELECT 1;"),
 			LabelsIncludeAny: []string{l1t1.Name},
 		}
-		s.DoJSON("POST", "/api/latest/fleet/reports", reqQuery, http.StatusBadRequest, &createQueryResp)
+		s.DoJSON("POST", "/api/latest/automdm/reports", reqQuery, http.StatusBadRequest, &createQueryResp)
 
 		// 2.A.2 Attempt to create global query with global label (should succeed).
-		createQueryResp = fleet.CreateQueryResponse{}
-		reqQuery = &fleet.QueryPayload{
+		createQueryResp = automdm.CreateQueryResponse{}
+		reqQuery = &automdm.QueryPayload{
 			Name:             new("All teams query"),
 			Query:            new("SELECT 1;"),
 			LabelsIncludeAny: []string{globalLabel.Name},
 		}
-		s.DoJSON("POST", "/api/latest/fleet/reports", reqQuery, http.StatusOK, &createQueryResp)
+		s.DoJSON("POST", "/api/latest/automdm/reports", reqQuery, http.StatusOK, &createQueryResp)
 		globalQueryID := createQueryResp.Report.ID
 
 		// 2.A.3 Attempt to edit global query with team label (should fail).
-		modifyQueryResp := fleet.ModifyQueryResponse{}
-		s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/reports/%d", globalQueryID), fleet.ModifyQueryRequest{
+		modifyQueryResp := automdm.ModifyQueryResponse{}
+		s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/reports/%d", globalQueryID), automdm.ModifyQueryRequest{
 			LabelsIncludeAny: []string{l1t1.Name},
 		}, http.StatusBadRequest, &modifyQueryResp)
 
 		// 2.A.4 Attempt to edit global query with global label (should succeed).
-		modifyQueryResp = fleet.ModifyQueryResponse{}
-		s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/reports/%d", globalQueryID), fleet.ModifyQueryRequest{
+		modifyQueryResp = automdm.ModifyQueryResponse{}
+		s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/reports/%d", globalQueryID), automdm.ModifyQueryRequest{
 			LabelsIncludeAny: []string{globalLabel.Name},
 		}, http.StatusOK, &modifyQueryResp)
 
 		// 2.B.1 Attempt to create a team query with a label of another team (should fail).
-		createQueryResp = fleet.CreateQueryResponse{}
-		reqQuery = &fleet.QueryPayload{
+		createQueryResp = automdm.CreateQueryResponse{}
+		reqQuery = &automdm.QueryPayload{
 			Name:             new("Team one query"),
 			Query:            new("SELECT 1;"),
 			LabelsIncludeAny: []string{l2t2.Name},
 
 			TeamID: &t1.ID,
 		}
-		s.DoJSON("POST", "/api/latest/fleet/reports", reqQuery, http.StatusBadRequest, &createQueryResp)
+		s.DoJSON("POST", "/api/latest/automdm/reports", reqQuery, http.StatusBadRequest, &createQueryResp)
 
 		// 2.B.2 Attempt to create a team query with a label of the same team (should succeed).
-		createQueryResp = fleet.CreateQueryResponse{}
-		reqQuery = &fleet.QueryPayload{
+		createQueryResp = automdm.CreateQueryResponse{}
+		reqQuery = &automdm.QueryPayload{
 			Name:             new("Team one query"),
 			Query:            new("SELECT 1;"),
 			LabelsIncludeAny: []string{l1t1.Name, globalLabel.Name},
 
 			TeamID: &t1.ID,
 		}
-		s.DoJSON("POST", "/api/latest/fleet/reports", reqQuery, http.StatusOK, &createQueryResp)
+		s.DoJSON("POST", "/api/latest/automdm/reports", reqQuery, http.StatusOK, &createQueryResp)
 		team1LabelID := createQueryResp.Report.ID
 
 		// 2.A.3 Attempt to edit a team query with a label of another team (should fail).
-		modifyQueryResp = fleet.ModifyQueryResponse{}
-		s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/reports/%d", team1LabelID), fleet.ModifyQueryRequest{
+		modifyQueryResp = automdm.ModifyQueryResponse{}
+		s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/reports/%d", team1LabelID), automdm.ModifyQueryRequest{
 			LabelsIncludeAny: []string{l2t2.Name, globalLabel.Name},
 		}, http.StatusBadRequest, &modifyQueryResp)
 
 		// 2.A.4 Attempt to edit team query with a label of the same team (should succeed).
-		modifyQueryResp = fleet.ModifyQueryResponse{}
-		s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/reports/%d", team1LabelID), fleet.ModifyQueryRequest{
+		modifyQueryResp = automdm.ModifyQueryResponse{}
+		s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/reports/%d", team1LabelID), automdm.ModifyQueryRequest{
 			LabelsIncludeAny: []string{l1t1.Name},
 		}, http.StatusOK, &modifyQueryResp)
 	})
 
 	t.Run("3. configuration profiles assignment check", func(t *testing.T) {
-		// NOTE: Not testing the API endpoint POST /api/latest/fleet/mdm/profiles used by the UI
+		// NOTE: Not testing the API endpoint POST /api/latest/automdm/mdm/profiles used by the UI
 		// because of time constraints (we haven't yet implemented test utilities for multipart uploads).
 
 		// Attempt to create a team profile with labels from another team (should fail).
-		res := s.Do("POST", "/api/latest/fleet/configuration_profiles/batch", batchModifyMDMConfigProfilesRequest{
-			ConfigurationProfiles: []fleet.BatchModifyMDMConfigProfilePayload{
+		res := s.Do("POST", "/api/latest/automdm/configuration_profiles/batch", batchModifyMDMConfigProfilesRequest{
+			ConfigurationProfiles: []automdm.BatchModifyMDMConfigProfilePayload{
 				{
 					DisplayName: "N1", Profile: mobileconfigForTestWithContent("N1", "I1", "com.test.profile.content", "test inner type", "test inner name"),
 					LabelsIncludeAll: []string{l2t2.Name},
 				},
 			},
-		}, http.StatusBadRequest, "fleet_id", fmt.Sprint(t1.ID))
+		}, http.StatusBadRequest, "team_id", fmt.Sprint(t1.ID))
 		require.Contains(t, extractServerErrorText(res.Body),
 			fmt.Sprintf("Couldn't update. Label %q doesn't exist. Please remove the label from the configuration profile.", l2t2.Name))
-		s.Do("POST", "/api/latest/fleet/configuration_profiles/batch", batchModifyMDMConfigProfilesRequest{
-			ConfigurationProfiles: []fleet.BatchModifyMDMConfigProfilePayload{
+		s.Do("POST", "/api/latest/automdm/configuration_profiles/batch", batchModifyMDMConfigProfilesRequest{
+			ConfigurationProfiles: []automdm.BatchModifyMDMConfigProfilePayload{
 				{
 					DisplayName: "N2", Profile: syncMLForTest("./Foo/Bar"),
 					LabelsIncludeAll: []string{l2t2.Name},
 				},
 			},
-		}, http.StatusBadRequest, "fleet_id", fmt.Sprint(t1.ID))
-		s.Do("POST", "/api/latest/fleet/configuration_profiles/batch", batchModifyMDMConfigProfilesRequest{
-			ConfigurationProfiles: []fleet.BatchModifyMDMConfigProfilePayload{
+		}, http.StatusBadRequest, "team_id", fmt.Sprint(t1.ID))
+		s.Do("POST", "/api/latest/automdm/configuration_profiles/batch", batchModifyMDMConfigProfilesRequest{
+			ConfigurationProfiles: []automdm.BatchModifyMDMConfigProfilePayload{
 				{
 					DisplayName: "N3", Profile: declarationForTest("D1"),
 					LabelsIncludeAll: []string{l2t2.Name},
 				},
 			},
-		}, http.StatusBadRequest, "fleet_id", fmt.Sprint(t1.ID))
+		}, http.StatusBadRequest, "team_id", fmt.Sprint(t1.ID))
 
 		// Attempt to create a profile with a label on the same team (should succeed).
-		s.Do("POST", "/api/latest/fleet/configuration_profiles/batch", batchModifyMDMConfigProfilesRequest{
-			ConfigurationProfiles: []fleet.BatchModifyMDMConfigProfilePayload{
+		s.Do("POST", "/api/latest/automdm/configuration_profiles/batch", batchModifyMDMConfigProfilesRequest{
+			ConfigurationProfiles: []automdm.BatchModifyMDMConfigProfilePayload{
 				{
 					DisplayName: "N3", Profile: declarationForTest("D1"),
 					LabelsIncludeAll: []string{l1t1.Name},
 				},
 			},
-		}, http.StatusNoContent, "fleet_id", fmt.Sprint(t1.ID))
+		}, http.StatusNoContent, "team_id", fmt.Sprint(t1.ID))
 
 		// Attempt to create a profile in "No team" with a label that belongs to a team (should fail).
-		s.Do("POST", "/api/latest/fleet/configuration_profiles/batch", batchModifyMDMConfigProfilesRequest{
-			ConfigurationProfiles: []fleet.BatchModifyMDMConfigProfilePayload{
+		s.Do("POST", "/api/latest/automdm/configuration_profiles/batch", batchModifyMDMConfigProfilesRequest{
+			ConfigurationProfiles: []automdm.BatchModifyMDMConfigProfilePayload{
 				{
 					DisplayName: "N1", Profile: mobileconfigForTestWithContent("N1", "I1", "com.test.profile.content", "test inner type", "test inner name"),
 					LabelsIncludeAll: []string{l1t1.Name},
@@ -1379,8 +1379,8 @@ func (s *integrationMDMTestSuite) TestTeamLabelsAssociationsCheck() {
 		}, http.StatusBadRequest)
 
 		// Attempt to create a profile in "No team" with a global label (should succeed).
-		s.Do("POST", "/api/latest/fleet/configuration_profiles/batch", batchModifyMDMConfigProfilesRequest{
-			ConfigurationProfiles: []fleet.BatchModifyMDMConfigProfilePayload{
+		s.Do("POST", "/api/latest/automdm/configuration_profiles/batch", batchModifyMDMConfigProfilesRequest{
+			ConfigurationProfiles: []automdm.BatchModifyMDMConfigProfilePayload{
 				{
 					DisplayName: "N1", Profile: mobileconfigForTestWithContent("N1", "I1", "com.test.profile.content", "test inner type", "test inner name"),
 					LabelsIncludeAll: []string{globalLabel.Name},
@@ -1391,7 +1391,7 @@ func (s *integrationMDMTestSuite) TestTeamLabelsAssociationsCheck() {
 
 	t.Run("4. software installers assignment check", func(t *testing.T) {
 		// Attempt to create a software installer with a label of another team (should fail).
-		payloadRubyTm1 := &fleet.UploadSoftwareInstallerPayload{
+		payloadRubyTm1 := &automdm.UploadSoftwareInstallerPayload{
 			InstallScript:    "install",
 			Filename:         "ruby.deb",
 			SelfService:      false,
@@ -1403,7 +1403,7 @@ func (s *integrationMDMTestSuite) TestTeamLabelsAssociationsCheck() {
 			fmt.Sprintf("Couldn't update. Label %q doesn't exist. Please remove the label from the software.", l2t2.Name))
 
 		// Attempt to create a software installer with a label on the same team (should succeed).
-		payloadRubyTm1 = &fleet.UploadSoftwareInstallerPayload{
+		payloadRubyTm1 = &automdm.UploadSoftwareInstallerPayload{
 			InstallScript:    "install",
 			Filename:         "ruby.deb",
 			SelfService:      false,
@@ -1415,7 +1415,7 @@ func (s *integrationMDMTestSuite) TestTeamLabelsAssociationsCheck() {
 		swTitleID := getSoftwareTitleID(t, s.ds, "ruby", "deb_packages")
 
 		// Attempt to edit a software installer with a label from another team (should fail).
-		updatePayload := &fleet.UpdateSoftwareInstallerPayload{
+		updatePayload := &automdm.UpdateSoftwareInstallerPayload{
 			TitleID:          swTitleID,
 			TeamID:           &t1.ID,
 			LabelsIncludeAny: []string{l2t2.Name},
@@ -1423,7 +1423,7 @@ func (s *integrationMDMTestSuite) TestTeamLabelsAssociationsCheck() {
 		s.updateSoftwareInstaller(t, updatePayload, http.StatusBadRequest, "")
 
 		// Attempt to edit a software installer with a label on the same team (should succeed).
-		updatePayload = &fleet.UpdateSoftwareInstallerPayload{
+		updatePayload = &automdm.UpdateSoftwareInstallerPayload{
 			TitleID:          swTitleID,
 			TeamID:           &t1.ID,
 			LabelsIncludeAny: []string{l1t1.Name, globalLabel.Name},
@@ -1431,7 +1431,7 @@ func (s *integrationMDMTestSuite) TestTeamLabelsAssociationsCheck() {
 		s.updateSoftwareInstaller(t, updatePayload, http.StatusOK, "")
 
 		// Attempt to create a software installer in "No team" with a team label (should fail).
-		payload := &fleet.UploadSoftwareInstallerPayload{
+		payload := &automdm.UploadSoftwareInstallerPayload{
 			InstallScript:    "install",
 			Filename:         "dummy_installer.pkg",
 			Title:            "DummyApp",
@@ -1441,7 +1441,7 @@ func (s *integrationMDMTestSuite) TestTeamLabelsAssociationsCheck() {
 		s.uploadSoftwareInstaller(t, payload, http.StatusBadRequest, "")
 
 		// Attempt to create a software installer in "No team" with a global label (should succeed).
-		payload = &fleet.UploadSoftwareInstallerPayload{
+		payload = &automdm.UploadSoftwareInstallerPayload{
 			InstallScript:    "install",
 			Filename:         "dummy_installer.pkg",
 			Title:            "DummyApp",
@@ -1452,7 +1452,7 @@ func (s *integrationMDMTestSuite) TestTeamLabelsAssociationsCheck() {
 		swTitleID = getSoftwareTitleID(t, s.ds, payload.Title, "apps")
 
 		// Attempt to edit a software installer in "No team" with a team label (should fail).
-		updatePayload = &fleet.UpdateSoftwareInstallerPayload{
+		updatePayload = &automdm.UpdateSoftwareInstallerPayload{
 			TitleID:          swTitleID,
 			TeamID:           nil,
 			LabelsIncludeAny: []string{l1t1.Name, globalLabel.Name},
@@ -1460,7 +1460,7 @@ func (s *integrationMDMTestSuite) TestTeamLabelsAssociationsCheck() {
 		s.updateSoftwareInstaller(t, updatePayload, http.StatusBadRequest, "")
 
 		// Attempt to edit a software installer in "No team" with a global label (should succeed).
-		updatePayload = &fleet.UpdateSoftwareInstallerPayload{
+		updatePayload = &automdm.UpdateSoftwareInstallerPayload{
 			TitleID:          swTitleID,
 			TeamID:           nil,
 			LabelsIncludeAny: []string{globalLabel.Name},
@@ -1473,20 +1473,20 @@ func (s *integrationMDMTestSuite) TestTeamLabelsAssociationsCheck() {
 		orgName := "Fleet Device Management Inc."
 		token := "mycooltoken"
 		expTime := time.Now().Add(200 * time.Hour).UTC().Round(time.Second)
-		expDate := expTime.Format(fleet.VPPTimeFormat)
+		expDate := expTime.Format(automdm.VPPTimeFormat)
 		tokenJSON := fmt.Sprintf(`{"expDate":"%s","token":"%s","orgName":"%s"}`, expDate, token, orgName)
-		dev_mode.SetOverride("FLEET_DEV_VPP_URL", s.appleVPPConfigSrv.URL, t)
+		dev_mode.SetOverride("AUTOMDM_DEV_VPP_URL", s.appleVPPConfigSrv.URL, t)
 		var validToken uploadVPPTokenResponse
-		s.uploadDataViaForm("/api/latest/fleet/vpp_tokens", "token", "token.vpptoken", []byte(base64.StdEncoding.EncodeToString([]byte(tokenJSON))), http.StatusAccepted, "", &validToken)
+		s.uploadDataViaForm("/api/latest/automdm/vpp_tokens", "token", "token.vpptoken", []byte(base64.StdEncoding.EncodeToString([]byte(tokenJSON))), http.StatusAccepted, "", &validToken)
 
 		// Get the token
 		var resp getVPPTokensResponse
-		s.DoJSON("GET", "/api/latest/fleet/vpp_tokens", &getVPPTokensRequest{}, http.StatusOK, &resp)
+		s.DoJSON("GET", "/api/latest/automdm/vpp_tokens", &getVPPTokensRequest{}, http.StatusOK, &resp)
 		require.NoError(t, resp.Err)
 
 		// Associate team to the VPP token.
 		var resPatchVPP patchVPPTokensTeamsResponse
-		s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/vpp_tokens/%d/fleets", resp.Tokens[0].ID), patchVPPTokensTeamsRequest{TeamIDs: []uint{t1.ID}}, http.StatusOK, &resPatchVPP)
+		s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/vpp_tokens/%d/teams", resp.Tokens[0].ID), patchVPPTokensTeamsRequest{TeamIDs: []uint{t1.ID}}, http.StatusOK, &resPatchVPP)
 
 		// Attempt to add an app store app on a team with a label from another team (should fail).
 		var addAppResp addAppStoreAppResponse
@@ -1496,7 +1496,7 @@ func (s *integrationMDMTestSuite) TestTeamLabelsAssociationsCheck() {
 			SelfService:      true,
 			LabelsIncludeAny: []string{l2t2.Name},
 		}
-		s.DoJSON("POST", "/api/latest/fleet/software/app_store_apps", addAppReq, http.StatusBadRequest, &addAppResp)
+		s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps", addAppReq, http.StatusBadRequest, &addAppResp)
 
 		// Attempt to add an app store app on a team with a label on the same team (should succeed).
 		addAppReq = &addAppStoreAppRequest{
@@ -1506,11 +1506,11 @@ func (s *integrationMDMTestSuite) TestTeamLabelsAssociationsCheck() {
 			LabelsIncludeAny: []string{l1t1.Name},
 		}
 		addAppResp = addAppStoreAppResponse{}
-		s.DoJSON("POST", "/api/latest/fleet/software/app_store_apps", addAppReq, http.StatusOK, &addAppResp)
+		s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps", addAppReq, http.StatusOK, &addAppResp)
 
 		// Associate all teams token.
 		resPatchVPP = patchVPPTokensTeamsResponse{}
-		s.DoJSON("PATCH", fmt.Sprintf("/api/latest/fleet/vpp_tokens/%d/fleets", resp.Tokens[0].ID), patchVPPTokensTeamsRequest{TeamIDs: []uint{}}, http.StatusOK, &resPatchVPP)
+		s.DoJSON("PATCH", fmt.Sprintf("/api/latest/automdm/vpp_tokens/%d/teams", resp.Tokens[0].ID), patchVPPTokensTeamsRequest{TeamIDs: []uint{}}, http.StatusOK, &resPatchVPP)
 
 		// Attempt to add an app store app to "No team" with a team label (should fail).
 		addAppResp = addAppStoreAppResponse{}
@@ -1520,7 +1520,7 @@ func (s *integrationMDMTestSuite) TestTeamLabelsAssociationsCheck() {
 			SelfService:      true,
 			LabelsIncludeAny: []string{l2t2.Name},
 		}
-		s.DoJSON("POST", "/api/latest/fleet/software/app_store_apps", addAppReq, http.StatusBadRequest, &addAppResp)
+		s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps", addAppReq, http.StatusBadRequest, &addAppResp)
 
 		// Attempt to add an app store app to "No team" with a global label (should succeed).
 		addAppResp = addAppStoreAppResponse{}
@@ -1530,12 +1530,12 @@ func (s *integrationMDMTestSuite) TestTeamLabelsAssociationsCheck() {
 			SelfService:      true,
 			LabelsIncludeAny: []string{globalLabel.Name},
 		}
-		s.DoJSON("POST", "/api/latest/fleet/software/app_store_apps", addAppReq, http.StatusOK, &addAppResp)
+		s.DoJSON("POST", "/api/latest/automdm/software/app_store_apps", addAppReq, http.StatusOK, &addAppResp)
 	})
 
 	t.Run("6. in-house apps assignment checks", func(t *testing.T) {
 		// Attempt to create in-house app in team t1 that references l2t2 (should fail).
-		payload := &fleet.UploadSoftwareInstallerPayload{
+		payload := &automdm.UploadSoftwareInstallerPayload{
 			TeamID:           &t1.ID,
 			Filename:         "ipa_test2.ipa",
 			Version:          "1.0.0",
@@ -1546,7 +1546,7 @@ func (s *integrationMDMTestSuite) TestTeamLabelsAssociationsCheck() {
 		s.uploadSoftwareInstaller(t, payload, http.StatusBadRequest, "")
 
 		// Attempt to create in-house app in team t1 that references l1t1 (should succeed).
-		payload = &fleet.UploadSoftwareInstallerPayload{
+		payload = &automdm.UploadSoftwareInstallerPayload{
 			TeamID:           &t1.ID,
 			Filename:         "ipa_test2.ipa",
 			Version:          "1.0.0",
@@ -1573,19 +1573,19 @@ func (s *integrationMDMTestSuite) TestStagedUpload() {
 		t.Skip("set S3_STORAGE_TEST to run staged upload tests")
 	}
 
-	presign := func(target fleet.StagedUploadTarget, size int64, wantStatus int, wantErr string) *fleet.StagedUpload {
+	presign := func(target automdm.StagedUploadTarget, size int64, wantStatus int, wantErr string) *automdm.StagedUpload {
 		var resp createStagedUploadResponse
-		res := s.Do("POST", "/api/latest/fleet/staged_upload", createStagedUploadRequest{Target: target, Size: size}, wantStatus)
+		res := s.Do("POST", "/api/latest/automdm/staged_upload", createStagedUploadRequest{Target: target, Size: size}, wantStatus)
 		if wantStatus != http.StatusOK {
 			require.Contains(t, extractServerErrorText(res.Body), wantErr)
 			return nil
 		}
 		require.NoError(t, json.NewDecoder(res.Body).Decode(&resp))
 		require.NotEmpty(t, resp.UploadID)
-		require.WithinDuration(t, time.Now().Add(fleet.StagedUploadURLExpiry), resp.ExpiresAt, time.Minute)
+		require.WithinDuration(t, time.Now().Add(automdm.StagedUploadURLExpiry), resp.ExpiresAt, time.Minute)
 		return resp.StagedUpload
 	}
-	stage := func(target fleet.StagedUploadTarget, content []byte) string {
+	stage := func(target automdm.StagedUploadTarget, content []byte) string {
 		up := presign(target, int64(len(content)), http.StatusOK, "")
 		req, err := http.NewRequest(http.MethodPut, up.URL, bytes.NewReader(content))
 		require.NoError(t, err)
@@ -1597,7 +1597,7 @@ func (s *integrationMDMTestSuite) TestStagedUpload() {
 	}
 	requireGone := func(uploadID string, gone bool) {
 		_, _, err := s.stagedUploadStore.Get(t.Context(), uploadID)
-		require.Equal(t, gone, fleet.IsNotFound(err), err)
+		require.Equal(t, gone, automdm.IsNotFound(err), err)
 	}
 	finalizeBootstrap := func(fields map[string]string, pkg []byte, dryRun bool, wantStatus int, wantErr string) {
 		var b bytes.Buffer
@@ -1612,7 +1612,7 @@ func (s *integrationMDMTestSuite) TestStagedUpload() {
 			require.NoError(t, err)
 		}
 		require.NoError(t, w.Close())
-		res := s.DoRawWithHeaders("POST", "/api/latest/fleet/bootstrap", b.Bytes(), wantStatus, map[string]string{
+		res := s.DoRawWithHeaders("POST", "/api/latest/automdm/bootstrap", b.Bytes(), wantStatus, map[string]string{
 			"Content-Type":  w.FormDataContentType(),
 			"Authorization": "Bearer " + s.token,
 		}, "dry_run", strconv.FormatBool(dryRun))
@@ -1628,20 +1628,20 @@ func (s *integrationMDMTestSuite) TestStagedUpload() {
 
 	// presign errors
 	var cfgResp appConfigResponse
-	s.DoJSON("GET", "/api/latest/fleet/config", nil, http.StatusOK, &cfgResp)
+	s.DoJSON("GET", "/api/latest/automdm/config", nil, http.StatusOK, &cfgResp)
 	maxSize := cfgResp.MaxSoftwarePackageSize
-	presign(fleet.StagedUploadTargetSoftwarePackage, maxSize+1, http.StatusBadRequest, "The maximum file size is")
-	presign(fleet.StagedUploadTargetSoftwarePackage, 0, http.StatusBadRequest, "size is required")
+	presign(automdm.StagedUploadTargetSoftwarePackage, maxSize+1, http.StatusBadRequest, "The maximum file size is")
+	presign(automdm.StagedUploadTargetSoftwarePackage, 0, http.StatusBadRequest, "size is required")
 	presign("nope", 1, http.StatusBadRequest, "Unsupported upload target")
 
-	observer := &fleet.User{Name: "Staged Observer", Email: "staged-observer@example.com", GlobalRole: new(fleet.RoleObserver)}
+	observer := &automdm.User{Name: "Staged Observer", Email: "staged-observer@example.com", GlobalRole: new(automdm.RoleObserver)}
 	require.NoError(t, observer.SetPassword(test.GoodPassword, 10, 10))
 	_, err := s.ds.NewUser(t.Context(), observer)
 	require.NoError(t, err)
 	adminToken := s.token
 	s.setTokenForTest(t, observer.Email, test.GoodPassword)
-	presign(fleet.StagedUploadTargetSoftwarePackage, 1, http.StatusForbidden, "")
-	presign(fleet.StagedUploadTargetBootstrapPackage, 1, http.StatusForbidden, "")
+	presign(automdm.StagedUploadTargetSoftwarePackage, 1, http.StatusForbidden, "")
+	presign(automdm.StagedUploadTargetBootstrapPackage, 1, http.StatusForbidden, "")
 	s.token = adminToken
 
 	// bootstrap package
@@ -1652,55 +1652,55 @@ func (s *integrationMDMTestSuite) TestStagedUpload() {
 	finalizeBootstrap(map[string]string{"upload_id": "../bootstrap-packages/x", "filename": "pkg.pkg"}, nil, false, http.StatusBadRequest, "Invalid upload_id")
 	finalizeBootstrap(map[string]string{"upload_id": uuid.NewString(), "filename": "pkg.pkg"}, nil, false, http.StatusBadRequest, "Upload not found")
 
-	unsignedID := stage(fleet.StagedUploadTargetBootstrapPackage, readTestdata("bootstrap-packages", "unsigned.pkg"))
+	unsignedID := stage(automdm.StagedUploadTargetBootstrapPackage, readTestdata("bootstrap-packages", "unsigned.pkg"))
 	finalizeBootstrap(map[string]string{"upload_id": unsignedID, "filename": "pkg.pkg"}, nil, false, http.StatusBadRequest, "file is not signed")
 	requireGone(unsignedID, false)
 
-	uploadID := stage(fleet.StagedUploadTargetBootstrapPackage, signedPkg)
+	uploadID := stage(automdm.StagedUploadTargetBootstrapPackage, signedPkg)
 	finalizeBootstrap(map[string]string{"upload_id": uploadID, "filename": "staged.pkg"}, nil, true, http.StatusOK, "")
-	s.Do("GET", "/api/latest/fleet/bootstrap/0/metadata", nil, http.StatusNotFound)
+	s.Do("GET", "/api/latest/automdm/bootstrap/0/metadata", nil, http.StatusNotFound)
 	requireGone(uploadID, true)
 
-	uploadID = stage(fleet.StagedUploadTargetBootstrapPackage, signedPkg)
+	uploadID = stage(automdm.StagedUploadTargetBootstrapPackage, signedPkg)
 	finalizeBootstrap(map[string]string{"upload_id": uploadID, "filename": "staged.pkg"}, nil, false, http.StatusOK, "")
 	requireGone(uploadID, true)
 	var metaResp bootstrapPackageMetadataResponse
-	s.DoJSON("GET", "/api/latest/fleet/bootstrap/0/metadata", nil, http.StatusOK, &metaResp)
+	s.DoJSON("GET", "/api/latest/automdm/bootstrap/0/metadata", nil, http.StatusOK, &metaResp)
 	require.Equal(t, "staged.pkg", metaResp.MDMAppleBootstrapPackage.Name)
 	wantSha := sha256.Sum256(signedPkg)
 	require.Equal(t, wantSha[:], metaResp.MDMAppleBootstrapPackage.Sha256)
-	s.lastActivityMatches(fleet.ActivityTypeAddedBootstrapPackage{}.ActivityName(),
-		`{"bootstrap_package_name": "staged.pkg", "fleet_id": null, "fleet_name": null}`, 0)
-	s.Do("DELETE", "/api/latest/fleet/bootstrap/0", nil, http.StatusOK)
+	s.lastActivityMatches(automdm.ActivityTypeAddedBootstrapPackage{}.ActivityName(),
+		`{"bootstrap_package_name": "staged.pkg", "team_id": null, "team_name": null}`, 0)
+	s.Do("DELETE", "/api/latest/automdm/bootstrap/0", nil, http.StatusOK)
 
 	// software package add and edit
-	uploadID = stage(fleet.StagedUploadTargetSoftwarePackage, readTestdata("software-installers", "ruby.deb"))
-	rubyFile, err := fleet.NewKeepFileReader(filepath.Join("testdata", "software-installers", "ruby.deb"))
+	uploadID = stage(automdm.StagedUploadTargetSoftwarePackage, readTestdata("software-installers", "ruby.deb"))
+	rubyFile, err := automdm.NewKeepFileReader(filepath.Join("testdata", "software-installers", "ruby.deb"))
 	require.NoError(t, err)
 	defer rubyFile.Close()
-	s.updateSoftwareInstaller(t, &fleet.UpdateSoftwareInstallerPayload{
+	s.updateSoftwareInstaller(t, &automdm.UpdateSoftwareInstallerPayload{
 		TitleID: 1, TeamID: new(uint(0)), StagedUploadID: uploadID, Filename: "ruby.deb", InstallerFile: rubyFile,
 	}, http.StatusBadRequest, "only one of software or upload_id")
-	s.uploadSoftwareInstaller(t, &fleet.UploadSoftwareInstallerPayload{
+	s.uploadSoftwareInstaller(t, &automdm.UploadSoftwareInstallerPayload{
 		StagedUploadID: uploadID, Filename: "ruby.deb", InstallScript: "install", TeamID: new(uint(0)),
 	}, http.StatusOK, "")
 	requireGone(uploadID, true)
 	titleID := getSoftwareTitleID(t, s.ds, "ruby", "deb_packages")
 	var titleResp getSoftwareTitleResponse
-	s.DoJSON("GET", fmt.Sprintf("/api/latest/fleet/software/titles/%d", titleID), nil, http.StatusOK, &titleResp, "fleet_id", "0")
+	s.DoJSON("GET", fmt.Sprintf("/api/latest/automdm/software/titles/%d", titleID), nil, http.StatusOK, &titleResp, "team_id", "0")
 	require.Equal(t, "ruby.deb", titleResp.SoftwareTitle.Packages[0].Name)
 
-	s.Do("DELETE", fmt.Sprintf("/api/latest/fleet/software/titles/%d/available_for_install", titleID), nil, http.StatusNoContent, "fleet_id", "0")
+	s.Do("DELETE", fmt.Sprintf("/api/latest/automdm/software/titles/%d/available_for_install", titleID), nil, http.StatusNoContent, "team_id", "0")
 
 	// edit replaces the package with the staged bytes
-	s.uploadSoftwareInstaller(t, &fleet.UploadSoftwareInstallerPayload{Filename: "script.sh", TeamID: new(uint(0))}, http.StatusOK, "")
+	s.uploadSoftwareInstaller(t, &automdm.UploadSoftwareInstallerPayload{Filename: "script.sh", TeamID: new(uint(0))}, http.StatusOK, "")
 	var scriptTitleID uint
 	mysqltest.ExecAdhocSQL(t, s.ds, func(q sqlx.ExtContext) error {
 		return sqlx.GetContext(t.Context(), q, &scriptTitleID, `SELECT title_id FROM software_installers WHERE filename = 'script.sh'`)
 	})
 	newScript := []byte("#!/bin/sh\necho staged\n")
-	uploadID = stage(fleet.StagedUploadTargetSoftwarePackage, newScript)
-	s.updateSoftwareInstaller(t, &fleet.UpdateSoftwareInstallerPayload{
+	uploadID = stage(automdm.StagedUploadTargetSoftwarePackage, newScript)
+	s.updateSoftwareInstaller(t, &automdm.UpdateSoftwareInstallerPayload{
 		TitleID: scriptTitleID, TeamID: new(uint(0)), StagedUploadID: uploadID, Filename: "script.sh",
 	}, http.StatusOK, "")
 	requireGone(uploadID, true)
@@ -1710,11 +1710,11 @@ func (s *integrationMDMTestSuite) TestStagedUpload() {
 	})
 	newSha := sha256.Sum256(newScript)
 	require.Equal(t, fmt.Sprintf("%x", newSha), storageID)
-	s.Do("DELETE", fmt.Sprintf("/api/latest/fleet/software/titles/%d/available_for_install", scriptTitleID), nil, http.StatusNoContent, "fleet_id", "0")
+	s.Do("DELETE", fmt.Sprintf("/api/latest/automdm/software/titles/%d/available_for_install", scriptTitleID), nil, http.StatusNoContent, "team_id", "0")
 
 	// in-house apps take the same staged add and edit paths
-	uploadID = stage(fleet.StagedUploadTargetSoftwarePackage, readTestdata("software-installers", "ipa_test.ipa"))
-	s.uploadSoftwareInstaller(t, &fleet.UploadSoftwareInstallerPayload{
+	uploadID = stage(automdm.StagedUploadTargetSoftwarePackage, readTestdata("software-installers", "ipa_test.ipa"))
+	s.uploadSoftwareInstaller(t, &automdm.UploadSoftwareInstallerPayload{
 		StagedUploadID: uploadID, Filename: "ipa_test.ipa", TeamID: new(uint(0)),
 	}, http.StatusOK, "")
 	requireGone(uploadID, true)
@@ -1734,8 +1734,8 @@ func (s *integrationMDMTestSuite) TestStagedUpload() {
 	_, err = zw.Create("extra.txt")
 	require.NoError(t, err)
 	require.NoError(t, zw.Close())
-	uploadID = stage(fleet.StagedUploadTargetSoftwarePackage, ipaV2.Bytes())
-	s.updateSoftwareInstaller(t, &fleet.UpdateSoftwareInstallerPayload{
+	uploadID = stage(automdm.StagedUploadTargetSoftwarePackage, ipaV2.Bytes())
+	s.updateSoftwareInstaller(t, &automdm.UpdateSoftwareInstallerPayload{
 		TitleID: ipaTitleID, TeamID: new(uint(0)), StagedUploadID: uploadID, Filename: "ipa_test_v2.ipa",
 	}, http.StatusOK, "")
 	requireGone(uploadID, true)
@@ -1746,5 +1746,5 @@ func (s *integrationMDMTestSuite) TestStagedUpload() {
 	ipaV2Sha := sha256.Sum256(ipaV2.Bytes())
 	require.Equal(t, "ipa_test_v2.ipa", ipaFilename)
 	require.Equal(t, fmt.Sprintf("%x", ipaV2Sha), ipaStorageID)
-	s.Do("DELETE", fmt.Sprintf("/api/latest/fleet/software/titles/%d/available_for_install", ipaTitleID), nil, http.StatusNoContent, "fleet_id", "0")
+	s.Do("DELETE", fmt.Sprintf("/api/latest/automdm/software/titles/%d/available_for_install", ipaTitleID), nil, http.StatusNoContent, "team_id", "0")
 }

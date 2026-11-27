@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	scep_depot "github.com/fleetdm/fleet/v4/server/mdm/scep/depot"
+	scep_depot "github.com/anilyagiz/automdm/v4/server/mdm/scep/depot"
 	"github.com/stretchr/testify/require"
 )
 
@@ -40,7 +40,7 @@ func TestAppleMDMSCEPSerial(t *testing.T) {
 func TestAppleMDMPutAndHasCN(t *testing.T) {
 	depot := setup(t)
 
-	name := "Fleet Identity"
+	name := "AutoMDM Identity"
 	serial, err := depot.Serial()
 	require.NoError(t, err)
 	cert := x509.Certificate{

@@ -15,7 +15,7 @@ type User struct {
 }
 
 // UserProvider is the interface for fetching user data.
-// Implemented by the ACL adapter that calls the Fleet service.
+// Implemented by the ACL adapter that calls the AutoMDM service.
 type UserProvider interface {
 	// UsersByIDs returns users for the given IDs (for enriching activities).
 	UsersByIDs(ctx context.Context, ids []uint) ([]*User, error)

@@ -62,7 +62,7 @@
 		</dict>
 	</array>
 	<key>PayloadDescription</key>
-	<string>CIS 2.6.3.x - Disable diagnostic and Siri data sharing to Apple. Covers the four managed_policies keys required by Fleet's combined 'Ensure Sending Diagnostic and Usage Data to Apple Is Disabled' policy.</string>
+	<string>CIS 2.6.3.x - Disable diagnostic and Siri data sharing to Apple. Covers the four managed_policies keys required by AutoMDM's combined 'Ensure Sending Diagnostic and Usage Data to Apple Is Disabled' policy.</string>
 	<key>PayloadDisplayName</key>
 	<string>Ensure Sending Diagnostic and Usage Data to Apple Is Disabled</string>
 	<key>PayloadIdentifier</key>

@@ -1,4 +1,4 @@
-$logFile = "${env:TEMP}/fleet-remove-software.log"
+$logFile = "${env:TEMP}/automdm-remove-software.log"
 
 $removeProcess = Start-Process msiexec.exe `
   -ArgumentList "/quiet /norestart /lv `"${logFile}`" /x `"${env:INSTALLER_PATH}`"" `

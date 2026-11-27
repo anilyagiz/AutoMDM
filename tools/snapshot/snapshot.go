@@ -85,7 +85,7 @@ func main() {
 
 // Restore a snapshot.
 func restore(homedir string) error {
-	snapshotsDir := filepath.Join(homedir, ".fleet", "snapshots")
+	snapshotsDir := filepath.Join(homedir, ".team", "snapshots")
 	_, err := os.Lstat(snapshotsDir)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -97,7 +97,7 @@ func restore(homedir string) error {
 		return err
 	}
 
-	// Walk the ~/.fleet/snapshots directory if it exists.
+	// Walk the ~/.automdm/snapshots directory if it exists.
 	dirEntries, err := os.ReadDir(snapshotsDir)
 	var snapshots []Snapshot
 	// var lastSnapshotName []byte
@@ -179,7 +179,7 @@ func restore(homedir string) error {
 
 // Create a snapshot.
 func snapshot(homedir string) error {
-	snapshotsDir := filepath.Join(homedir, ".fleet", "snapshots")
+	snapshotsDir := filepath.Join(homedir, ".team", "snapshots")
 
 	// Ensure the snapshots directory exists.
 	_, err := os.Lstat(snapshotsDir)

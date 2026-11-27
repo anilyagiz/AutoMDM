@@ -6,7 +6,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 	"github.com/stretchr/testify/require"
 )
 
@@ -52,7 +52,7 @@ func TestDecodeStringsMemoryAmplification(t *testing.T) {
 }
 
 func TestExtractMSIMetadataMalformedIsInvalidInstaller(t *testing.T) {
-	tfr, err := fleet.NewTempFileReader(bytes.NewReader([]byte("not an msi")), t.TempDir)
+	tfr, err := automdm.NewTempFileReader(bytes.NewReader([]byte("not an msi")), t.TempDir)
 	require.NoError(t, err)
 	defer tfr.Close()
 

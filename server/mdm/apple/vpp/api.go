@@ -14,10 +14,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/pkg/fleethttp"
-	"github.com/fleetdm/fleet/v4/pkg/retry"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/dev_mode"
+	"github.com/anilyagiz/automdm/v4/pkg/automdmhttp"
+	"github.com/anilyagiz/automdm/v4/pkg/retry"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/dev_mode"
 )
 
 // Asset is a product in the store.
@@ -89,9 +89,9 @@ type ResponseErrorInfo struct {
 // be reused instead of created as needed, as the internal Transport typically
 // has internal state (cached connections, etc) and it's safe for concurrent
 // use.
-var client = fleethttp.NewClient(fleethttp.WithTimeout(10 * time.Second))
+var client = automdmhttp.NewClient(automdmhttp.WithTimeout(10 * time.Second))
 
-// ClientConfig is the subset of Apple's /client/config response that Fleet
+// ClientConfig is the subset of Apple's /client/config response that AutoMDM
 // uses. CountryCode is the lowercase ISO 3166-1 alpha-2 code (e.g. "us",
 // "de") of the storefront associated with the token.
 type ClientConfig struct {
@@ -165,7 +165,7 @@ type AssociateAssetsRequest struct {
 	// assets to. Used for device-scoped licensing on manually-enrolled and
 	// DEP-enrolled hosts.
 	SerialNumbers []string `json:"serialNumbers,omitempty"`
-	// ClientUserIds is the set of Fleet-generated identifiers for VPP users
+	// ClientUserIds is the set of AutoMDM-generated identifiers for VPP users
 	// (registered via CreateUsers) to assign the assets to. Used for
 	// user-scoped licensing on Account-Driven User Enrolled (BYOD) hosts.
 	ClientUserIds []string `json:"clientUserIds,omitempty"`
@@ -676,7 +676,7 @@ func sleepContext(ctx context.Context, d time.Duration) error {
 }
 
 func getBaseURL() string {
-	devURL := dev_mode.Env("FLEET_DEV_VPP_URL")
+	devURL := dev_mode.Env("AUTOMDM_DEV_VPP_URL")
 	if devURL != "" {
 		return devURL
 	}
@@ -684,10 +684,10 @@ func getBaseURL() string {
 }
 
 // getV1BaseURL returns the base URL for Apple's legacy v1 VPP endpoints. The
-// dev override (FLEET_DEV_VPP_URL) is returned as-is so tests can mock both
+// dev override (AUTOMDM_DEV_VPP_URL) is returned as-is so tests can mock both
 // v1 and v2 against the same httptest server using path-based routing.
 func getV1BaseURL() string {
-	devURL := dev_mode.Env("FLEET_DEV_VPP_URL")
+	devURL := dev_mode.Env("AUTOMDM_DEV_VPP_URL")
 	if devURL != "" {
 		return devURL
 	}

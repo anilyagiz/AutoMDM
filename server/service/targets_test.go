@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mock"
-	"github.com/fleetdm/fleet/v4/server/ptr"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/viewer"
+	"github.com/anilyagiz/automdm/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/ptr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -17,36 +17,36 @@ func TestSearchTargets(t *testing.T) {
 	ds := new(mock.Store)
 	svc, ctx := newTestService(t, ds, nil, nil)
 
-	user := &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}
+	user := &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}
 	ctx = viewer.NewContext(ctx, viewer.Viewer{User: user})
 
-	hosts := []*fleet.Host{
+	hosts := []*automdm.Host{
 		{Hostname: "foo.local"},
 	}
-	labels := []*fleet.Label{
+	labels := []*automdm.Label{
 		{
 			Name:  "label foo",
 			Query: "query foo",
 		},
 	}
-	teams := []*fleet.Team{
+	teams := []*automdm.Team{
 		{Name: "team1"},
 	}
 
-	ds.SearchHostsFunc = func(ctx context.Context, filter fleet.TeamFilter, query string, excludeMobile bool, omit ...uint) ([]*fleet.Host, error) {
+	ds.SearchHostsFunc = func(ctx context.Context, filter automdm.TeamFilter, query string, excludeMobile bool, omit ...uint) ([]*automdm.Host, error) {
 		assert.Equal(t, user, filter.User)
 		return hosts, nil
 	}
-	ds.SearchLabelsFunc = func(ctx context.Context, filter fleet.TeamFilter, query string, omit ...uint) ([]*fleet.Label, error) {
+	ds.SearchLabelsFunc = func(ctx context.Context, filter automdm.TeamFilter, query string, omit ...uint) ([]*automdm.Label, error) {
 		assert.Equal(t, user, filter.User)
 		return labels, nil
 	}
-	ds.SearchTeamsFunc = func(ctx context.Context, filter fleet.TeamFilter, query string, omit ...uint) ([]*fleet.Team, error) {
+	ds.SearchTeamsFunc = func(ctx context.Context, filter automdm.TeamFilter, query string, omit ...uint) ([]*automdm.Team, error) {
 		assert.Equal(t, user, filter.User)
 		return teams, nil
 	}
 
-	results, err := svc.SearchTargets(ctx, "foo", nil, fleet.HostTargets{})
+	results, err := svc.SearchTargets(ctx, "foo", nil, automdm.HostTargets{})
 	require.NoError(t, err)
 	assert.Equal(t, hosts[0], results.Hosts[0])
 	assert.Equal(t, labels[0], results.Labels[0])
@@ -58,41 +58,41 @@ func TestSearchTargetsStripsSecretsAndAgentOptions(t *testing.T) {
 	svc, ctx := newTestService(t, ds, nil, nil)
 
 	// Use an observer role to mirror the vulnerable scenario.
-	user := &fleet.User{GlobalRole: new(fleet.RoleObserver)}
+	user := &automdm.User{GlobalRole: new(automdm.RoleObserver)}
 	ctx = viewer.NewContext(ctx, viewer.Viewer{User: user})
 
 	agentOpts := json.RawMessage(`{"config":{"options":{"aws_secret_access_key":"SECRET"}}}`)
-	teams := []*fleet.Team{
+	teams := []*automdm.Team{
 		{
 			ID:   1,
 			Name: "team1",
-			Config: fleet.TeamConfig{
+			Config: automdm.TeamConfig{
 				AgentOptions: &agentOpts,
 			},
-			Secrets: []*fleet.EnrollSecret{
+			Secrets: []*automdm.EnrollSecret{
 				{Secret: "super-secret-token", TeamID: new(uint(1))},
 			},
 		},
 		{
 			ID:   2,
 			Name: "team2",
-			Secrets: []*fleet.EnrollSecret{
+			Secrets: []*automdm.EnrollSecret{
 				{Secret: "another-secret", TeamID: new(uint(2))},
 			},
 		},
 	}
 
-	ds.SearchHostsFunc = func(ctx context.Context, filter fleet.TeamFilter, query string, excludeMobile bool, omit ...uint) ([]*fleet.Host, error) {
+	ds.SearchHostsFunc = func(ctx context.Context, filter automdm.TeamFilter, query string, excludeMobile bool, omit ...uint) ([]*automdm.Host, error) {
 		return nil, nil
 	}
-	ds.SearchLabelsFunc = func(ctx context.Context, filter fleet.TeamFilter, query string, omit ...uint) ([]*fleet.Label, error) {
+	ds.SearchLabelsFunc = func(ctx context.Context, filter automdm.TeamFilter, query string, omit ...uint) ([]*automdm.Label, error) {
 		return nil, nil
 	}
-	ds.SearchTeamsFunc = func(ctx context.Context, filter fleet.TeamFilter, query string, omit ...uint) ([]*fleet.Team, error) {
+	ds.SearchTeamsFunc = func(ctx context.Context, filter automdm.TeamFilter, query string, omit ...uint) ([]*automdm.Team, error) {
 		return teams, nil
 	}
 
-	results, err := svc.SearchTargets(ctx, "", nil, fleet.HostTargets{})
+	results, err := svc.SearchTargets(ctx, "", nil, automdm.HostTargets{})
 	require.NoError(t, err)
 	require.Len(t, results.Teams, 2)
 
@@ -112,26 +112,26 @@ func TestSearchWithOmit(t *testing.T) {
 	ds := new(mock.Store)
 	svc, ctx := newTestService(t, ds, nil, nil)
 
-	user := &fleet.User{GlobalRole: ptr.String(fleet.RoleAdmin)}
+	user := &automdm.User{GlobalRole: ptr.String(automdm.RoleAdmin)}
 	ctx = viewer.NewContext(ctx, viewer.Viewer{User: user})
 
-	ds.SearchHostsFunc = func(ctx context.Context, filter fleet.TeamFilter, query string, excludeMobile bool, omit ...uint) ([]*fleet.Host, error) {
+	ds.SearchHostsFunc = func(ctx context.Context, filter automdm.TeamFilter, query string, excludeMobile bool, omit ...uint) ([]*automdm.Host, error) {
 		assert.Equal(t, user, filter.User)
 		assert.Equal(t, []uint{1, 2}, omit)
 		return nil, nil
 	}
-	ds.SearchLabelsFunc = func(ctx context.Context, filter fleet.TeamFilter, query string, omit ...uint) ([]*fleet.Label, error) {
+	ds.SearchLabelsFunc = func(ctx context.Context, filter automdm.TeamFilter, query string, omit ...uint) ([]*automdm.Label, error) {
 		assert.Equal(t, user, filter.User)
 		assert.Equal(t, []uint{3, 4}, omit)
 		return nil, nil
 	}
-	ds.SearchTeamsFunc = func(ctx context.Context, filter fleet.TeamFilter, query string, omit ...uint) ([]*fleet.Team, error) {
+	ds.SearchTeamsFunc = func(ctx context.Context, filter automdm.TeamFilter, query string, omit ...uint) ([]*automdm.Team, error) {
 		assert.Equal(t, user, filter.User)
 		assert.Equal(t, []uint{5, 6}, omit)
 		return nil, nil
 	}
 
-	_, err := svc.SearchTargets(ctx, "foo", nil, fleet.HostTargets{HostIDs: []uint{1, 2}, LabelIDs: []uint{3, 4}, TeamIDs: []uint{5, 6}})
+	_, err := svc.SearchTargets(ctx, "foo", nil, automdm.HostTargets{HostIDs: []uint{1, 2}, LabelIDs: []uint{3, 4}, TeamIDs: []uint{5, 6}})
 	require.NoError(t, err)
 }
 
@@ -139,21 +139,21 @@ func TestSearchTargetsExcludesMobileHosts(t *testing.T) {
 	ds := new(mock.Store)
 	svc, ctx := newTestService(t, ds, nil, nil)
 
-	user := &fleet.User{GlobalRole: new(fleet.RoleAdmin)}
+	user := &automdm.User{GlobalRole: new(automdm.RoleAdmin)}
 	ctx = viewer.NewContext(ctx, viewer.Viewer{User: user})
 
-	ds.SearchHostsFunc = func(ctx context.Context, filter fleet.TeamFilter, query string, excludeMobile bool, omit ...uint) ([]*fleet.Host, error) {
+	ds.SearchHostsFunc = func(ctx context.Context, filter automdm.TeamFilter, query string, excludeMobile bool, omit ...uint) ([]*automdm.Host, error) {
 		assert.True(t, excludeMobile)
 		return nil, nil
 	}
-	ds.SearchLabelsFunc = func(ctx context.Context, filter fleet.TeamFilter, query string, omit ...uint) ([]*fleet.Label, error) {
+	ds.SearchLabelsFunc = func(ctx context.Context, filter automdm.TeamFilter, query string, omit ...uint) ([]*automdm.Label, error) {
 		return nil, nil
 	}
-	ds.SearchTeamsFunc = func(ctx context.Context, filter fleet.TeamFilter, query string, omit ...uint) ([]*fleet.Team, error) {
+	ds.SearchTeamsFunc = func(ctx context.Context, filter automdm.TeamFilter, query string, omit ...uint) ([]*automdm.Team, error) {
 		return nil, nil
 	}
 
-	_, err := svc.SearchTargets(ctx, "local", nil, fleet.HostTargets{})
+	_, err := svc.SearchTargets(ctx, "local", nil, automdm.HostTargets{})
 	require.NoError(t, err)
 	require.True(t, ds.SearchHostsFuncInvoked)
 }

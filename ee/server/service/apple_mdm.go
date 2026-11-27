@@ -11,15 +11,15 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/fleetdm/fleet/v4/server/authz"
-	ctx_authz "github.com/fleetdm/fleet/v4/server/contexts/authz"
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	apple_mdm "github.com/fleetdm/fleet/v4/server/mdm/apple"
-	mdmcrypto "github.com/fleetdm/fleet/v4/server/mdm/crypto"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanodep/client"
-	"github.com/fleetdm/fleet/v4/server/mdm/reconcile"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/authz"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	ctx_authz "github.com/anilyagiz/automdm/v4/server/contexts/authz"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	apple_mdm "github.com/anilyagiz/automdm/v4/server/mdm/apple"
+	mdmcrypto "github.com/anilyagiz/automdm/v4/server/mdm/crypto"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanodep/client"
+	"github.com/anilyagiz/automdm/v4/server/mdm/reconcile"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
 )
 
 func (svc *Service) GetMDMAccountDrivenEnrollmentSSOURL(ctx context.Context, enrollmentToken string) (string, error) {
@@ -32,7 +32,7 @@ func (svc *Service) GetMDMAccountDrivenEnrollmentSSOURL(ctx context.Context, enr
 	}
 
 	if appConfig.MDM.OnlyAllowAppleBusinessEnrollment {
-		return "", &fleet.ABOnlyEnrollmentForbiddenError{}
+		return "", &automdm.ABOnlyEnrollmentForbiddenError{}
 	}
 
 	url := appConfig.MDMUrl() + "/mdm/apple/account_driven_enroll/sso"
@@ -54,7 +54,7 @@ func (svc *Service) GetMDMAppleAccountEnrollmentProfile(ctx context.Context, enr
 	}
 
 	if appConfig.MDM.OnlyAllowAppleBusinessEnrollment {
-		return nil, &fleet.ABOnlyEnrollmentForbiddenError{}
+		return nil, &automdm.ABOnlyEnrollmentForbiddenError{}
 	}
 
 	enrollChallenge, err := svc.ds.ConsumeADUEEnrollmentChallenge(ctx, enrollRef)
@@ -62,7 +62,7 @@ func (svc *Service) GetMDMAppleAccountEnrollmentProfile(ctx context.Context, enr
 		return nil, ctxerr.Wrap(ctx, err, "consuming account driven enrollment challenge")
 	}
 	if enrollChallenge == nil {
-		return nil, &fleet.BadRequestError{Message: "account driven enrollment challenge not found"}
+		return nil, &automdm.BadRequestError{Message: "account driven enrollment challenge not found"}
 	}
 
 	idpAccount, err := svc.ds.GetMDMIdPAccountByUUID(ctx, enrollChallenge.IdPAccountUUID)
@@ -75,10 +75,10 @@ func (svc *Service) GetMDMAppleAccountEnrollmentProfile(ctx context.Context, enr
 		return nil, ctxerr.Wrap(ctx, err, "extracting topic from APNs cert")
 	}
 
-	scepChallenge, err := svc.ds.NewAppleSCEPChallenge(ctx, fleet.AppleSCEPChallengeInfo{
-		Purpose:        fleet.AppleMDMCertPurposeADUE,
+	scepChallenge, err := svc.ds.NewAppleSCEPChallenge(ctx, automdm.AppleSCEPChallengeInfo{
+		Purpose:        automdm.AppleMDMCertPurposeADUE,
 		IDPAccountUUID: &enrollChallenge.IdPAccountUUID,
-	}, fleet.AppleSCEPEnrollmentChallengeTTL)
+	}, automdm.AppleSCEPEnrollmentChallengeTTL)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "creating account driven enrollment SCEP challenge")
 	}
@@ -104,8 +104,8 @@ func (svc *Service) GetMDMAppleAccountEnrollmentProfile(ctx context.Context, enr
 	return signed, nil
 }
 
-func (svc *Service) ListAppleDDMAssets(ctx context.Context, teamID *uint) ([]*fleet.DDMAsset, error) {
-	if err := svc.authz.Authorize(ctx, &fleet.DDMAssetAuthz{TeamID: teamID}, fleet.ActionRead); err != nil {
+func (svc *Service) ListAppleDDMAssets(ctx context.Context, teamID *uint) ([]*automdm.DDMAsset, error) {
+	if err := svc.authz.Authorize(ctx, &automdm.DDMAssetAuthz{TeamID: teamID}, automdm.ActionRead); err != nil {
 		return nil, err
 	}
 
@@ -117,8 +117,8 @@ func (svc *Service) ListAppleDDMAssets(ctx context.Context, teamID *uint) ([]*fl
 	return assets, nil
 }
 
-func (svc *Service) GetAppleDDMAsset(ctx context.Context, assetUUID string) (*fleet.DDMAsset, error) {
-	if authzErr := svc.authz.Authorize(ctx, &fleet.Team{}, fleet.ActionRead); authzErr != nil {
+func (svc *Service) GetAppleDDMAsset(ctx context.Context, assetUUID string) (*automdm.DDMAsset, error) {
+	if authzErr := svc.authz.Authorize(ctx, &automdm.Team{}, automdm.ActionRead); authzErr != nil {
 		return nil, authzErr
 	}
 
@@ -127,7 +127,7 @@ func (svc *Service) GetAppleDDMAsset(ctx context.Context, assetUUID string) (*fl
 		return nil, ctxerr.Wrap(ctx, err, "getting Apple DDM asset")
 	}
 
-	if authzErr := svc.authz.Authorize(ctx, &fleet.DDMAssetAuthz{TeamID: asset.TeamID}, fleet.ActionRead); authzErr != nil {
+	if authzErr := svc.authz.Authorize(ctx, &automdm.DDMAssetAuthz{TeamID: asset.TeamID}, automdm.ActionRead); authzErr != nil {
 		// We return a not found error here to avoid leaking the existence of the asset to unauthorized users.
 		return nil, common_mysql.NotFound("Asset").WithName(assetUUID)
 	}
@@ -136,7 +136,7 @@ func (svc *Service) GetAppleDDMAsset(ctx context.Context, assetUUID string) (*fl
 }
 
 func (svc *Service) DownloadAppleDDMAsset(ctx context.Context, assetUUID string) (name string, data []byte, err error) {
-	if authzErr := svc.authz.Authorize(ctx, &fleet.Team{}, fleet.ActionRead); authzErr != nil {
+	if authzErr := svc.authz.Authorize(ctx, &automdm.Team{}, automdm.ActionRead); authzErr != nil {
 		return "", nil, authzErr
 	}
 
@@ -145,7 +145,7 @@ func (svc *Service) DownloadAppleDDMAsset(ctx context.Context, assetUUID string)
 		return "", nil, ctxerr.Wrap(ctx, err, "getting Apple DDM asset")
 	}
 
-	if authzErr := svc.authz.Authorize(ctx, &fleet.DDMAssetAuthz{TeamID: asset.TeamID}, fleet.ActionRead); authzErr != nil {
+	if authzErr := svc.authz.Authorize(ctx, &automdm.DDMAssetAuthz{TeamID: asset.TeamID}, automdm.ActionRead); authzErr != nil {
 		// We return a not found error here to avoid leaking the existence of the asset to unauthorized users.
 		return "", nil, common_mysql.NotFound("Asset").WithName(assetUUID)
 	}
@@ -154,7 +154,7 @@ func (svc *Service) DownloadAppleDDMAsset(ctx context.Context, assetUUID string)
 }
 
 func (svc *Service) CreateAppleDDMAsset(ctx context.Context, teamID *uint, name string, data []byte) (string, error) {
-	if authzErr := svc.authz.Authorize(ctx, &fleet.DDMAssetAuthz{TeamID: teamID}, fleet.ActionWrite); authzErr != nil {
+	if authzErr := svc.authz.Authorize(ctx, &automdm.DDMAssetAuthz{TeamID: teamID}, automdm.ActionWrite); authzErr != nil {
 		return "", authzErr
 	}
 
@@ -165,12 +165,12 @@ func (svc *Service) CreateAppleDDMAsset(ctx context.Context, teamID *uint, name 
 
 	assetUUID, err := svc.ds.CreateAppleDDMAsset(ctx, name, identifier, data, teamID)
 	if err != nil {
-		if alreadyExistsErr, ok := err.(fleet.AlreadyExistsError); ok && alreadyExistsErr.IsExists() {
+		if alreadyExistsErr, ok := err.(automdm.AlreadyExistsError); ok && alreadyExistsErr.IsExists() {
 			switch {
 			case strings.Contains(alreadyExistsErr.Error(), "asset_name"):
-				return "", &fleet.ConflictError{Message: fmt.Sprintf("An asset with the name %q already exists for this fleet", name)}
+				return "", &automdm.ConflictError{Message: fmt.Sprintf("An asset with the name %q already exists for this team", name)}
 			case strings.Contains(alreadyExistsErr.Error(), "asset_identifier"):
-				return "", &fleet.ConflictError{Message: fmt.Sprintf("An asset with the identifier %q already exists for this fleet", identifier)}
+				return "", &automdm.ConflictError{Message: fmt.Sprintf("An asset with the identifier %q already exists for this team", identifier)}
 			}
 		}
 		return "", ctxerr.Wrap(ctx, err, "creating Apple DDM asset")
@@ -180,7 +180,7 @@ func (svc *Service) CreateAppleDDMAsset(ctx context.Context, teamID *uint, name 
 	if err != nil {
 		return "", ctxerr.Wrap(ctx, err, "resolving team for asset activity")
 	}
-	if err := svc.NewActivity(ctx, authz.UserFromContext(ctx), fleet.ActivityTypeCreatedDeclarationAsset{
+	if err := svc.NewActivity(ctx, authz.UserFromContext(ctx), automdm.ActivityTypeCreatedDeclarationAsset{
 		AssetName: name,
 		TeamID:    actTeamID,
 		TeamName:  actTeamName,
@@ -205,22 +205,22 @@ func (svc *Service) assetActivityTeam(ctx context.Context, teamID *uint) (*uint,
 }
 
 func (svc *Service) validateAppleDDMAsset(ctx context.Context, data []byte) (identifier, assetType string, err error) {
-	var rawAsset fleet.RawDDMAsset
+	var rawAsset automdm.RawDDMAsset
 	if err := json.Unmarshal(data, &rawAsset); err != nil {
 		return "", "", ctxerr.Wrap(ctx, err, "unmarshaling asset data")
 	}
 
 	if rawAsset.Identifier == "" {
-		return "", "", &fleet.BadRequestError{Message: "Asset must contain a non-empty identifier"}
+		return "", "", &automdm.BadRequestError{Message: "Asset must contain a non-empty identifier"}
 	}
 
 	if !strings.HasPrefix(rawAsset.Type, "com.apple.asset.") {
-		return "", "", &fleet.BadRequestError{Message: "Asset type must be a valid Apple asset type beginning with 'com.apple.asset.'"}
+		return "", "", &automdm.BadRequestError{Message: "Asset type must be a valid Apple asset type beginning with 'com.apple.asset.'"}
 	}
 
-	// Check if Identifier uses a FLEET_SECRET, fail if so.
-	if strings.Contains(rawAsset.Identifier, "FLEET_SECRET") {
-		return "", "", &fleet.BadRequestError{Message: "Asset identifier must not contain a $FLEET_SECRET"}
+	// Check if Identifier uses a AUTOMDM_SECRET, fail if so.
+	if strings.Contains(rawAsset.Identifier, "AUTOMDM_SECRET") {
+		return "", "", &automdm.BadRequestError{Message: "Asset identifier must not contain a $AUTOMDM_SECRET"}
 	}
 
 	expanded, _, err := svc.ds.ExpandEmbeddedSecretsAndUpdatedAt(ctx, string(data))
@@ -234,22 +234,22 @@ func (svc *Service) validateAppleDDMAsset(ctx context.Context, data []byte) (ide
 
 	// We disallow authentication, as we force MDM auth when serving the assets.
 	if rawAsset.Payload.Authentication != nil {
-		return "", "", &fleet.BadRequestError{Message: "Asset payload must not contain an authentication key. Fleet enforces 'MDM' authentication."}
+		return "", "", &automdm.BadRequestError{Message: "Asset payload must not contain an authentication key. AutoMDM enforces 'MDM' authentication."}
 	}
 
 	if rawAsset.Payload.Reference.DataURL == "" {
-		return "", "", &fleet.BadRequestError{Message: "Asset payload must contain a non-empty reference data URL"}
+		return "", "", &automdm.BadRequestError{Message: "Asset payload must contain a non-empty reference data URL"}
 	}
 
 	if _, err := url.ParseRequestURI(rawAsset.Payload.Reference.DataURL); err != nil {
-		return "", "", &fleet.BadRequestError{Message: fmt.Sprintf("Invalid payload data URL: %v", err)}
+		return "", "", &automdm.BadRequestError{Message: fmt.Sprintf("Invalid payload data URL: %v", err)}
 	}
 
 	return rawAsset.Identifier, rawAsset.Type, nil
 }
 
 func (svc *Service) DeleteAppleDDMAsset(ctx context.Context, assetUUID string) error {
-	if authzErr := svc.authz.Authorize(ctx, &fleet.Team{}, fleet.ActionRead); authzErr != nil {
+	if authzErr := svc.authz.Authorize(ctx, &automdm.Team{}, automdm.ActionRead); authzErr != nil {
 		return authzErr
 	}
 
@@ -258,14 +258,14 @@ func (svc *Service) DeleteAppleDDMAsset(ctx context.Context, assetUUID string) e
 		return ctxerr.Wrap(ctx, err, "getting Apple DDM asset")
 	}
 
-	if authzErr := svc.authz.Authorize(ctx, &fleet.DDMAssetAuthz{TeamID: asset.TeamID}, fleet.ActionWrite); authzErr != nil {
+	if authzErr := svc.authz.Authorize(ctx, &automdm.DDMAssetAuthz{TeamID: asset.TeamID}, automdm.ActionWrite); authzErr != nil {
 		// We return a not found error here to avoid leaking the existence of the asset to unauthorized users.
 		return common_mysql.NotFound("Asset").WithName(assetUUID)
 	}
 
 	if err := svc.ds.DeleteAppleDDMAsset(ctx, assetUUID); err != nil {
-		if fleet.IsForeignKey(err) {
-			return &fleet.BadRequestError{Message: "Couldn't delete. A configuration profile is linked to this asset. Please delete the profile and try again."}
+		if automdm.IsForeignKey(err) {
+			return &automdm.BadRequestError{Message: "Couldn't delete. A configuration profile is linked to this asset. Please delete the profile and try again."}
 		}
 		return ctxerr.Wrap(ctx, err, "deleting Apple DDM asset")
 	}
@@ -274,7 +274,7 @@ func (svc *Service) DeleteAppleDDMAsset(ctx context.Context, assetUUID string) e
 	if err != nil {
 		return ctxerr.Wrap(ctx, err, "resolving team for asset activity")
 	}
-	if err := svc.NewActivity(ctx, authz.UserFromContext(ctx), fleet.ActivityTypeDeletedDeclarationAsset{
+	if err := svc.NewActivity(ctx, authz.UserFromContext(ctx), automdm.ActivityTypeDeletedDeclarationAsset{
 		AssetName: asset.Name,
 		TeamID:    actTeamID,
 		TeamName:  actTeamName,
@@ -285,14 +285,14 @@ func (svc *Service) DeleteAppleDDMAsset(ctx context.Context, assetUUID string) e
 	return nil
 }
 
-func (svc *Service) BatchSetAppleDDMAssets(ctx context.Context, teamID *uint, teamName string, assets []fleet.MDMAppleDDMAssetBatchPayload, dryRun bool) error {
+func (svc *Service) BatchSetAppleDDMAssets(ctx context.Context, teamID *uint, teamName string, assets []automdm.MDMAppleDDMAssetBatchPayload, dryRun bool) error {
 	var tmName *string
 	if teamName != "" {
 		tmName = &teamName
 	}
 	if teamID != nil && tmName != nil {
 		svc.authz.SkipAuthorization(ctx)
-		return ctxerr.Wrap(ctx, fleet.NewInvalidArgumentError("fleet_name", "cannot specify both fleet_id and fleet_name"))
+		return ctxerr.Wrap(ctx, automdm.NewInvalidArgumentError("team_name", "cannot specify both team_id and team_name"))
 	}
 
 	var resolvedTeamName string
@@ -302,29 +302,29 @@ func (svc *Service) BatchSetAppleDDMAssets(ctx context.Context, teamID *uint, te
 			return ctxerr.Wrap(ctx, err, "resolving team for assets batch")
 		}
 		if tm == nil {
-			return ctxerr.Wrap(ctx, common_mysql.NotFound("Fleet"))
+			return ctxerr.Wrap(ctx, common_mysql.NotFound("AutoMDM"))
 		}
 		teamID = &tm.ID
 		resolvedTeamName = tm.Name
 	}
 
-	if err := svc.authz.Authorize(ctx, &fleet.DDMAssetAuthz{TeamID: teamID}, fleet.ActionWrite); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.DDMAssetAuthz{TeamID: teamID}, automdm.ActionWrite); err != nil {
 		return err
 	}
 
 	// Secrets may not be available during a dry run (e.g. GitOps), so skip
 	// validating assets that reference them, mirroring the profiles batch path.
 	if dryRun {
-		withoutSecrets := make([]fleet.MDMAppleDDMAssetBatchPayload, 0, len(assets))
+		withoutSecrets := make([]automdm.MDMAppleDDMAssetBatchPayload, 0, len(assets))
 		for _, a := range assets {
-			if len(fleet.ContainsPrefixVars(string(a.Contents), fleet.ServerSecretPrefix)) == 0 {
+			if len(automdm.ContainsPrefixVars(string(a.Contents), automdm.ServerSecretPrefix)) == 0 {
 				withoutSecrets = append(withoutSecrets, a)
 			}
 		}
 		assets = withoutSecrets
 	}
 
-	toSet := make([]*fleet.MDMAppleDDMAssetToSet, 0, len(assets))
+	toSet := make([]*automdm.MDMAppleDDMAssetToSet, 0, len(assets))
 	seenNames := make(map[string]struct{}, len(assets))
 	seenIdentifiers := make(map[string]struct{}, len(assets))
 	for _, a := range assets {
@@ -333,14 +333,14 @@ func (svc *Service) BatchSetAppleDDMAssets(ctx context.Context, teamID *uint, te
 			return ctxerr.Wrapf(ctx, err, "validating asset %q", a.Name)
 		}
 		if _, ok := seenNames[a.Name]; ok {
-			return &fleet.BadRequestError{Message: fmt.Sprintf("Couldn't apply. The asset name %q is used more than once.", a.Name)}
+			return &automdm.BadRequestError{Message: fmt.Sprintf("Couldn't apply. The asset name %q is used more than once.", a.Name)}
 		}
 		if _, ok := seenIdentifiers[identifier]; ok {
-			return &fleet.BadRequestError{Message: fmt.Sprintf("Couldn't apply. The asset identifier %q is used more than once.", identifier)}
+			return &automdm.BadRequestError{Message: fmt.Sprintf("Couldn't apply. The asset identifier %q is used more than once.", identifier)}
 		}
 		seenNames[a.Name] = struct{}{}
 		seenIdentifiers[identifier] = struct{}{}
-		toSet = append(toSet, &fleet.MDMAppleDDMAssetToSet{
+		toSet = append(toSet, &automdm.MDMAppleDDMAssetToSet{
 			Name:       a.Name,
 			Identifier: identifier,
 			Type:       assetType,
@@ -366,7 +366,7 @@ func (svc *Service) BatchSetAppleDDMAssets(ctx context.Context, teamID *uint, te
 		actTeamName = &resolvedTeamName
 	}
 	for _, name := range changes.Created {
-		if err := svc.NewActivity(ctx, authz.UserFromContext(ctx), fleet.ActivityTypeCreatedDeclarationAsset{
+		if err := svc.NewActivity(ctx, authz.UserFromContext(ctx), automdm.ActivityTypeCreatedDeclarationAsset{
 			AssetName: name,
 			TeamID:    actTeamID,
 			TeamName:  actTeamName,
@@ -375,7 +375,7 @@ func (svc *Service) BatchSetAppleDDMAssets(ctx context.Context, teamID *uint, te
 		}
 	}
 	for _, name := range changes.Edited {
-		if err := svc.NewActivity(ctx, authz.UserFromContext(ctx), fleet.ActivityTypeEditedDeclarationAsset{
+		if err := svc.NewActivity(ctx, authz.UserFromContext(ctx), automdm.ActivityTypeEditedDeclarationAsset{
 			AssetName: name,
 			TeamID:    actTeamID,
 			TeamName:  actTeamName,
@@ -384,7 +384,7 @@ func (svc *Service) BatchSetAppleDDMAssets(ctx context.Context, teamID *uint, te
 		}
 	}
 	for _, name := range changes.Deleted {
-		if err := svc.NewActivity(ctx, authz.UserFromContext(ctx), fleet.ActivityTypeDeletedDeclarationAsset{
+		if err := svc.NewActivity(ctx, authz.UserFromContext(ctx), automdm.ActivityTypeDeletedDeclarationAsset{
 			AssetName: name,
 			TeamID:    actTeamID,
 			TeamName:  actTeamName,
@@ -396,18 +396,18 @@ func (svc *Service) BatchSetAppleDDMAssets(ctx context.Context, teamID *uint, te
 	return nil
 }
 
-func (svc *Service) ReleaseABDevices(ctx context.Context, hostIDs []uint) ([]*fleet.ABReleaseDeviceResponse, error) {
+func (svc *Service) ReleaseABDevices(ctx context.Context, hostIDs []uint) ([]*automdm.ABReleaseDeviceResponse, error) {
 	user := authz.UserFromContext(ctx)
 	if user == nil {
 		// skipauth: Without a user in context we cannot perform a Rego authorization check
 		svc.authz.SkipAuthorization(ctx)
-		return nil, fleet.NewAuthRequiredError("user not found in context")
+		return nil, automdm.NewAuthRequiredError("user not found in context")
 	}
 
 	if !user.IsAnyAdmin() {
 		// skipauth: Authorization is enforced via the role check in this branch
 		svc.authz.SkipAuthorization(ctx)
-		return nil, authz.ForbiddenWithInternal("release AB devices requires an admin role", user, nil, fleet.ActionWrite)
+		return nil, authz.ForbiddenWithInternal("release AB devices requires an admin role", user, nil, automdm.ActionWrite)
 	}
 
 	if len(hostIDs) > 32_000 {
@@ -415,14 +415,14 @@ func (svc *Service) ReleaseABDevices(ctx context.Context, hostIDs []uint) ([]*fl
 		svc.authz.SkipAuthorization(ctx)
 		// Arbitrary limit, Apple does not document what a fair limit is.
 		// Mainly to avoid querying more than 65k if that should ever happen in one MySQL statement, and break with too many statements.
-		return nil, &fleet.BadRequestError{Message: "Too many host IDs provided. Maximum is 32,000."}
+		return nil, &automdm.BadRequestError{Message: "Too many host IDs provided. Maximum is 32,000."}
 	}
 
 	if len(hostIDs) == 0 {
 		// skipauth: For a bad request we don't need a rego check
 		svc.authz.SkipAuthorization(ctx)
 
-		return nil, &fleet.BadRequestError{Message: "No host IDs provided."}
+		return nil, &automdm.BadRequestError{Message: "No host IDs provided."}
 	}
 
 	// First look up all hosts teamID's and serials.
@@ -433,26 +433,26 @@ func (svc *Service) ReleaseABDevices(ctx context.Context, hostIDs []uint) ([]*fl
 	}
 
 	// This is only really used for logging the display name in the activity
-	hostIDToLiteHost := make(map[uint]*fleet.Host, len(liteHosts))
+	hostIDToLiteHost := make(map[uint]*automdm.Host, len(liteHosts))
 
 	// hostID -> response map
-	response := make(map[uint]*fleet.ABReleaseDeviceResponse, len(hostIDs))
+	response := make(map[uint]*automdm.ABReleaseDeviceResponse, len(hostIDs))
 
 	setSuccessResponse := func(hostID uint) {
 		if response[hostID] != nil {
 			return // no-op, to avoid overwriting previous status, shouldn't really happen though.
 		}
-		response[hostID] = &fleet.ABReleaseDeviceResponse{
+		response[hostID] = &automdm.ABReleaseDeviceResponse{
 			HostID: hostID,
-			Status: string(fleet.ABReleaseDeviceStatusSuccess),
+			Status: string(automdm.ABReleaseDeviceStatusSuccess),
 		}
 	}
 
-	setErrorResponse := func(hostID uint, status fleet.ABReleaseDeviceStatus, errMsg string) {
+	setErrorResponse := func(hostID uint, status automdm.ABReleaseDeviceStatus, errMsg string) {
 		if response[hostID] != nil {
 			return // no-op, to avoid overwriting previous status, shouldn't really happen though.
 		}
-		response[hostID] = &fleet.ABReleaseDeviceResponse{
+		response[hostID] = &automdm.ABReleaseDeviceResponse{
 			HostID: hostID,
 			Status: string(status),
 			Error:  errMsg,
@@ -477,13 +477,13 @@ func (svc *Service) ReleaseABDevices(ctx context.Context, hostIDs []uint) ([]*fl
 			teamIDs[0] = struct{}{}
 		}
 
-		if !fleet.IsApplePlatform(h.FleetPlatform()) {
-			setErrorResponse(h.ID, fleet.ABReleaseDeviceStatusError, "This is not an eligible Apple host.")
+		if !automdm.IsApplePlatform(h.AutoMDMPlatform()) {
+			setErrorResponse(h.ID, automdm.ABReleaseDeviceStatusError, "This is not an eligible Apple host.")
 			continue
 		}
 
 		if h.HardwareSerial == "" {
-			setErrorResponse(h.ID, fleet.ABReleaseDeviceStatusError, "Host has no hardware serial.")
+			setErrorResponse(h.ID, automdm.ABReleaseDeviceStatusError, "Host has no hardware serial.")
 			continue
 		}
 
@@ -491,12 +491,12 @@ func (svc *Service) ReleaseABDevices(ctx context.Context, hostIDs []uint) ([]*fl
 	}
 
 	for hostID := range unseenHostIDs {
-		setErrorResponse(hostID, fleet.ABReleaseDeviceStatusError, "Host not found.")
+		setErrorResponse(hostID, automdm.ABReleaseDeviceStatusError, "Host not found.")
 	}
 
 	if len(teamIDs) == 0 {
 		// Only queried non-existent hosts, only global admin can see not founds.
-		if err := svc.authz.Authorize(ctx, &fleet.ABReleaseDeviceAuthz{}, fleet.ActionWrite); err != nil {
+		if err := svc.authz.Authorize(ctx, &automdm.ABReleaseDeviceAuthz{}, automdm.ActionWrite); err != nil {
 			return nil, err
 		}
 	}
@@ -504,14 +504,14 @@ func (svc *Service) ReleaseABDevices(ctx context.Context, hostIDs []uint) ([]*fl
 	// authz check on all teams from gathered hostID's
 	for teamID := range teamIDs {
 		tid := teamID
-		if err := svc.authz.Authorize(ctx, &fleet.ABReleaseDeviceAuthz{TeamID: &tid}, fleet.ActionWrite); err != nil {
+		if err := svc.authz.Authorize(ctx, &automdm.ABReleaseDeviceAuthz{TeamID: &tid}, automdm.ActionWrite); err != nil {
 			return nil, err
 		}
 	}
 
 	if len(serialToHostID) == 0 {
 		sliceResponse := slices.Collect(maps.Values(response))
-		slices.SortFunc(sliceResponse, func(a, b *fleet.ABReleaseDeviceResponse) int {
+		slices.SortFunc(sliceResponse, func(a, b *automdm.ABReleaseDeviceResponse) int {
 			return cmp.Compare(a.HostID, b.HostID)
 		})
 		return sliceResponse, nil
@@ -537,7 +537,7 @@ func (svc *Service) ReleaseABDevices(ctx context.Context, hostIDs []uint) ([]*fl
 		delete(unseenHostIDs, assignment.HostID)
 		if assignment.HardwareSerial == "" {
 			// Should not happen, but if query diverts then we safeguard.
-			setErrorResponse(assignment.HostID, fleet.ABReleaseDeviceStatusError, "Host has no hardware serial.")
+			setErrorResponse(assignment.HostID, automdm.ABReleaseDeviceStatusError, "Host has no hardware serial.")
 			continue
 		}
 		if assignment.ABMTokenID != nil {
@@ -545,12 +545,12 @@ func (svc *Service) ReleaseABDevices(ctx context.Context, hostIDs []uint) ([]*fl
 			serialToHostID[assignment.HardwareSerial] = assignment.HostID
 		} else {
 			// Should not happen, but if query diverts then we safeguard.
-			setErrorResponse(assignment.HostID, fleet.ABReleaseDeviceStatusError, "Host has no associated ABM token.")
+			setErrorResponse(assignment.HostID, automdm.ABReleaseDeviceStatusError, "Host has no associated ABM token.")
 		}
 	}
 
 	for hostID := range unseenHostIDs {
-		setErrorResponse(hostID, fleet.ABReleaseDeviceStatusError, "This host was not found in Apple Business.")
+		setErrorResponse(hostID, automdm.ABReleaseDeviceStatusError, "This host was not found in Apple Business.")
 	}
 
 	// We list all here and filter by deduped list, the returned list is so small anyways.
@@ -563,7 +563,7 @@ func (svc *Service) ReleaseABDevices(ctx context.Context, hostIDs []uint) ([]*fl
 
 	// Iterate over deduped token ID's and call the disown devices, for all serials associated with that token.
 	for tokenID, serials := range dedupedTokenIDs {
-		var token *fleet.ABMToken
+		var token *automdm.ABMToken
 		for _, t := range tokens {
 			if t.ID == tokenID {
 				token = t
@@ -572,7 +572,7 @@ func (svc *Service) ReleaseABDevices(ctx context.Context, hostIDs []uint) ([]*fl
 		}
 		if token == nil {
 			for _, serial := range serials {
-				setErrorResponse(serialToHostID[serial], fleet.ABReleaseDeviceStatusError, "ABM token not found.")
+				setErrorResponse(serialToHostID[serial], automdm.ABReleaseDeviceStatusError, "ABM token not found.")
 			}
 			continue
 		}
@@ -584,7 +584,7 @@ func (svc *Service) ReleaseABDevices(ctx context.Context, hostIDs []uint) ([]*fl
 				svc.logger.ErrorContext(ctx, "Release AB devices failed with DEP auth error", "token_id", tokenID, "organization_name", token.OrganizationName, "error", depAuthErr)
 
 				for _, serial := range serials {
-					setErrorResponse(serialToHostID[serial], fleet.ABReleaseDeviceStatusError, fmt.Sprintf("Couldn't release host from Apple Business. Apple rejected this request. Confirm that “Allow this service to release devices” is enabled in Apple Business. Learn More: %s", "https://fleetdm.com/learn-more-about/release-devices"))
+					setErrorResponse(serialToHostID[serial], automdm.ABReleaseDeviceStatusError, fmt.Sprintf("Couldn't release host from Apple Business. Apple rejected this request. Confirm that “Allow this service to release devices” is enabled in Apple Business. Learn More: %s", "https://automdm.com/learn-more-about/release-devices"))
 				}
 				continue
 			}
@@ -592,7 +592,7 @@ func (svc *Service) ReleaseABDevices(ctx context.Context, hostIDs []uint) ([]*fl
 			// Other generic HTTP/network/JSON errors.
 			svc.logger.ErrorContext(ctx, "Failed to release AB devices", "token_id", tokenID, "organization_name", token.OrganizationName, "error", err)
 			for _, serial := range serials {
-				setErrorResponse(serialToHostID[serial], fleet.ABReleaseDeviceStatusError, "Couldn't release host from Apple Business.")
+				setErrorResponse(serialToHostID[serial], automdm.ABReleaseDeviceStatusError, "Couldn't release host from Apple Business.")
 			}
 			continue
 		}
@@ -604,13 +604,13 @@ func (svc *Service) ReleaseABDevices(ctx context.Context, hostIDs []uint) ([]*fl
 			status, ok := disownResp.Devices[serial]
 			if !ok {
 				svc.logger.ErrorContext(ctx, "No status returned for serial from DEP disown devices", "token_id", tokenID, "organization_name", token.OrganizationName, "serial", serial)
-				setErrorResponse(hostID, fleet.ABReleaseDeviceStatusError, "Couldn't release host from Apple Business.")
+				setErrorResponse(hostID, automdm.ABReleaseDeviceStatusError, "Couldn't release host from Apple Business.")
 				continue
 			}
 
-			if strings.EqualFold(string(status), string(fleet.ABReleaseDeviceStatusSuccess)) {
+			if strings.EqualFold(string(status), string(automdm.ABReleaseDeviceStatusSuccess)) {
 				setSuccessResponse(hostID)
-				if err := svc.NewActivity(ctx, authz.UserFromContext(ctx), fleet.ActivityTypeReleasedDeviceFromAB{
+				if err := svc.NewActivity(ctx, authz.UserFromContext(ctx), automdm.ActivityTypeReleasedDeviceFromAB{
 					HostID:          hostID,
 					HostSerial:      serial,
 					HostDisplayName: hostIDToLiteHost[hostID].DisplayName(),
@@ -620,7 +620,7 @@ func (svc *Service) ReleaseABDevices(ctx context.Context, hostIDs []uint) ([]*fl
 				releasedSerials = append(releasedSerials, serial)
 			} else {
 				svc.logger.ErrorContext(ctx, "Got non success status from DEP disown devices", "token_id", tokenID, "organization_name", token.OrganizationName, "serial", serial, "status", status)
-				setErrorResponse(hostID, fleet.ABReleaseDeviceStatusError, fmt.Sprintf("Error releasing device: %s", status))
+				setErrorResponse(hostID, automdm.ABReleaseDeviceStatusError, fmt.Sprintf("Error releasing device: %s", status))
 			}
 
 		}
@@ -632,7 +632,7 @@ func (svc *Service) ReleaseABDevices(ctx context.Context, hostIDs []uint) ([]*fl
 	}
 
 	sliceResponse := slices.Collect(maps.Values(response))
-	slices.SortFunc(sliceResponse, func(a, b *fleet.ABReleaseDeviceResponse) int {
+	slices.SortFunc(sliceResponse, func(a, b *automdm.ABReleaseDeviceResponse) int {
 		return cmp.Compare(a.HostID, b.HostID)
 	})
 
@@ -641,7 +641,7 @@ func (svc *Service) ReleaseABDevices(ctx context.Context, hostIDs []uint) ([]*fl
 
 func (svc *Service) InstallSelfServiceConfigurationProfile(ctx context.Context, hostID uint, profileUUID string) error {
 	// first we perform a basic authz check, we use selective list action to include gitops users
-	if err := svc.authz.Authorize(ctx, &fleet.Host{}, fleet.ActionSelectiveList); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.Host{}, automdm.ActionSelectiveList); err != nil {
 		return ctxerr.Wrap(ctx, err)
 	}
 
@@ -652,7 +652,7 @@ func (svc *Service) InstallSelfServiceConfigurationProfile(ctx context.Context, 
 
 	// now we can do a specific authz check based on team id of the host before proceeding
 	// We re-use the resend action here to match the same role levels
-	if err := svc.authz.Authorize(ctx, &fleet.MDMConfigProfileAuthz{TeamID: liteHost.TeamID}, fleet.ActionResend); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.MDMConfigProfileAuthz{TeamID: liteHost.TeamID}, automdm.ActionResend); err != nil {
 		return ctxerr.Wrap(ctx, err)
 	}
 
@@ -661,7 +661,7 @@ func (svc *Service) InstallSelfServiceConfigurationProfile(ctx context.Context, 
 		return ctxerr.Wrap(ctx, err, "handling install self-service configuration profile")
 	}
 
-	if err := svc.NewActivity(ctx, authz.UserFromContext(ctx), fleet.ActivityTypeInstalledOptInConfigurationProfile{
+	if err := svc.NewActivity(ctx, authz.UserFromContext(ctx), automdm.ActivityTypeInstalledOptInConfigurationProfile{
 		HostID:          hostID,
 		HostDisplayName: liteHost.DisplayName(),
 		SelfService:     false, // IT admin triggered the opt-in
@@ -676,7 +676,7 @@ func (svc *Service) InstallSelfServiceConfigurationProfile(ctx context.Context, 
 
 func (svc *Service) UninstallSelfServiceConfigurationProfile(ctx context.Context, hostID uint, profileUUID string) error {
 	// first we perform a basic authz check, we use selective list action to include gitops users
-	if err := svc.authz.Authorize(ctx, &fleet.Host{}, fleet.ActionSelectiveList); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.Host{}, automdm.ActionSelectiveList); err != nil {
 		return ctxerr.Wrap(ctx, err)
 	}
 
@@ -687,7 +687,7 @@ func (svc *Service) UninstallSelfServiceConfigurationProfile(ctx context.Context
 
 	// now we can do a specific authz check based on team id of the host before proceeding
 	// We re-use the resend action here to match the same role levels
-	if err := svc.authz.Authorize(ctx, &fleet.MDMConfigProfileAuthz{TeamID: liteHost.TeamID}, fleet.ActionResend); err != nil {
+	if err := svc.authz.Authorize(ctx, &automdm.MDMConfigProfileAuthz{TeamID: liteHost.TeamID}, automdm.ActionResend); err != nil {
 		return ctxerr.Wrap(ctx, err)
 	}
 
@@ -696,7 +696,7 @@ func (svc *Service) UninstallSelfServiceConfigurationProfile(ctx context.Context
 		return ctxerr.Wrap(ctx, err, "handling uninstall self-service configuration profile")
 	}
 
-	if err := svc.NewActivity(ctx, authz.UserFromContext(ctx), fleet.ActivityTypeUninstalledOptInConfigurationProfile{
+	if err := svc.NewActivity(ctx, authz.UserFromContext(ctx), automdm.ActivityTypeUninstalledOptInConfigurationProfile{
 		HostID:          hostID,
 		HostDisplayName: liteHost.DisplayName(),
 		SelfService:     false, // IT admin triggered the opt-out
@@ -708,7 +708,7 @@ func (svc *Service) UninstallSelfServiceConfigurationProfile(ctx context.Context
 	return nil
 }
 
-func (svc *Service) DeviceInstallSelfServiceConfigurationProfile(ctx context.Context, host *fleet.Host, profileUUID string) error {
+func (svc *Service) DeviceInstallSelfServiceConfigurationProfile(ctx context.Context, host *automdm.Host, profileUUID string) error {
 	// Check auth was actually done by device token to avoid outside callers.
 	if !svc.authz.IsAuthenticatedWith(ctx, ctx_authz.AuthnDeviceToken) {
 		return authz.ForbiddenWithInternal("device token authentication required", nil, "self-service configuration profile", "install")
@@ -719,7 +719,7 @@ func (svc *Service) DeviceInstallSelfServiceConfigurationProfile(ctx context.Con
 		return err
 	}
 
-	if err := svc.NewActivity(ctx, nil, fleet.ActivityTypeInstalledOptInConfigurationProfile{
+	if err := svc.NewActivity(ctx, nil, automdm.ActivityTypeInstalledOptInConfigurationProfile{
 		HostID:          host.ID,
 		HostDisplayName: host.DisplayName(),
 		SelfService:     true,
@@ -731,7 +731,7 @@ func (svc *Service) DeviceInstallSelfServiceConfigurationProfile(ctx context.Con
 	return nil
 }
 
-func (svc *Service) DeviceUninstallSelfServiceConfigurationProfile(ctx context.Context, host *fleet.Host, profileUUID string) error {
+func (svc *Service) DeviceUninstallSelfServiceConfigurationProfile(ctx context.Context, host *automdm.Host, profileUUID string) error {
 	// Check auth was actually done by device token to avoid outside callers.
 	if !svc.authz.IsAuthenticatedWith(ctx, ctx_authz.AuthnDeviceToken) {
 		return authz.ForbiddenWithInternal("device token authentication required", nil, "self-service configuration profile", "uninstall")
@@ -742,7 +742,7 @@ func (svc *Service) DeviceUninstallSelfServiceConfigurationProfile(ctx context.C
 		return err
 	}
 
-	if err := svc.NewActivity(ctx, nil, fleet.ActivityTypeUninstalledOptInConfigurationProfile{
+	if err := svc.NewActivity(ctx, nil, automdm.ActivityTypeUninstalledOptInConfigurationProfile{
 		HostID:          host.ID,
 		HostDisplayName: host.DisplayName(),
 		SelfService:     true,
@@ -754,35 +754,35 @@ func (svc *Service) DeviceUninstallSelfServiceConfigurationProfile(ctx context.C
 	return nil
 }
 
-func (svc *Service) handleInstallSelfServiceConfigurationProfile(ctx context.Context, host *fleet.Host, profileUUID string) (string, error) {
+func (svc *Service) handleInstallSelfServiceConfigurationProfile(ctx context.Context, host *automdm.Host, profileUUID string) (string, error) {
 	if host == nil {
-		return "", fleet.NewInvalidArgumentError("host", "host cannot be nil")
+		return "", automdm.NewInvalidArgumentError("host", "host cannot be nil")
 	}
 	if profileUUID == "" {
-		return "", fleet.NewInvalidArgumentError("profileUUID", "profileUUID cannot be empty")
+		return "", automdm.NewInvalidArgumentError("profileUUID", "profileUUID cannot be empty")
 	}
-	if !fleet.IsMacOSPlatform(host.Platform) {
-		return "", &fleet.BadRequestError{
+	if !automdm.IsMacOSPlatform(host.Platform) {
+		return "", &automdm.BadRequestError{
 			Message: "Self-service configuration profiles are only supported on macOS",
 		}
 	}
-	if connected, err := svc.ds.IsHostConnectedToFleetMDM(ctx, host); err != nil {
-		return "", ctxerr.Wrap(ctx, err, "checking if host is connected to Fleet MDM")
+	if connected, err := svc.ds.IsHostConnectedToAutoMDMMDM(ctx, host); err != nil {
+		return "", ctxerr.Wrap(ctx, err, "checking if host is connected to AutoMDM")
 	} else if !connected {
-		return "", &fleet.BadRequestError{Message: "Host does not have MDM turned on."}
+		return "", &automdm.BadRequestError{Message: "Host does not have MDM turned on."}
 	}
 
 	if optedIn, err := svc.ds.HasHostMDMProfileOptIn(ctx, host.UUID, profileUUID); err != nil {
 		return "", ctxerr.Wrap(ctx, err, "checking host MDM profile opt-in")
 	} else if optedIn {
-		return "", &fleet.ConflictError{
+		return "", &automdm.ConflictError{
 			Message: "This profile is already installed or installing for this host.",
 		}
 	}
 	if hp, err := svc.hostSelfServiceProfileRow(ctx, host.UUID, profileUUID); err != nil {
 		return "", err
-	} else if hp != nil && hp.OperationType == fleet.MDMOperationTypeRemove && hp.Status != nil && *hp.Status == fleet.MDMDeliveryPending {
-		return "", &fleet.ConflictError{
+	} else if hp != nil && hp.OperationType == automdm.MDMOperationTypeRemove && hp.Status != nil && *hp.Status == automdm.MDMDeliveryPending {
+		return "", &automdm.ConflictError{
 			Message: "This profile is being removed from this host. Try again once it's removed.",
 		}
 	}
@@ -793,13 +793,13 @@ func (svc *Service) handleInstallSelfServiceConfigurationProfile(ctx context.Con
 	}
 	if profile == nil {
 		// Same error for not found and does not apply, to avoid leaking information about profile availability
-		return "", &fleet.BadRequestError{
+		return "", &automdm.BadRequestError{
 			Message: "This profile is not available for self-service installation on this host.",
 		}
 	}
 
 	if !profile.SelfService {
-		return "", &fleet.BadRequestError{
+		return "", &automdm.BadRequestError{
 			Message: "This is not a valid self-service profile.",
 		}
 	}
@@ -823,13 +823,13 @@ func (svc *Service) handleInstallSelfServiceConfigurationProfile(ctx context.Con
 
 	// entityOnHost=false matches the reconciler, which won't install a new opt-in until dynamic label membership is known.
 	if !reconcile.EntityAppliesToHost(profile, host.EffectiveTeamID(), host.LabelUpdatedAt, hostLabelMemberships, false) {
-		return "", &fleet.BadRequestError{
+		return "", &automdm.BadRequestError{
 			Message: "This profile is not available for self-service installation on this host.",
 		}
 	}
 
-	if err := svc.ds.ApplyHostMDMProfileOptInChanges(ctx, &fleet.MDMProfileOptInChanges{
-		Add: []fleet.HostProfileUUID{
+	if err := svc.ds.ApplyHostMDMProfileOptInChanges(ctx, &automdm.MDMProfileOptInChanges{
+		Add: []automdm.HostProfileUUID{
 			{
 				HostUUID:    host.UUID,
 				ProfileUUID: profile.ProfileUUID,
@@ -847,15 +847,15 @@ func (svc *Service) handleInstallSelfServiceConfigurationProfile(ctx context.Con
 	return profile.ProfileName, nil
 }
 
-func (svc *Service) handleUninstallSelfServiceConfigurationProfile(ctx context.Context, host *fleet.Host, profileUUID string) (profileName string, err error) {
+func (svc *Service) handleUninstallSelfServiceConfigurationProfile(ctx context.Context, host *automdm.Host, profileUUID string) (profileName string, err error) {
 	if host == nil {
-		return "", fleet.NewInvalidArgumentError("host", "host cannot be nil")
+		return "", automdm.NewInvalidArgumentError("host", "host cannot be nil")
 	}
 	if profileUUID == "" {
-		return "", fleet.NewInvalidArgumentError("profileUUID", "profileUUID cannot be empty")
+		return "", automdm.NewInvalidArgumentError("profileUUID", "profileUUID cannot be empty")
 	}
-	if !fleet.IsMacOSPlatform(host.Platform) {
-		return "", &fleet.BadRequestError{
+	if !automdm.IsMacOSPlatform(host.Platform) {
+		return "", &automdm.BadRequestError{
 			Message: "Self-service configuration profiles are only supported on macOS",
 		}
 	}
@@ -870,8 +870,8 @@ func (svc *Service) handleUninstallSelfServiceConfigurationProfile(ctx context.C
 	// An install still in flight would land after the removal and leave the profile on the device.
 	if hp, err := svc.hostSelfServiceProfileRow(ctx, host.UUID, profileUUID); err != nil {
 		return "", err
-	} else if hp != nil && (hp.OperationType == fleet.MDMOperationTypeRemove || hp.Status == nil || *hp.Status == fleet.MDMDeliveryPending) {
-		return "", &fleet.ConflictError{
+	} else if hp != nil && (hp.OperationType == automdm.MDMOperationTypeRemove || hp.Status == nil || *hp.Status == automdm.MDMDeliveryPending) {
+		return "", &automdm.ConflictError{
 			Message: "This profile is still being installed or removed on this host. Try again once it's finished.",
 		}
 	}
@@ -883,25 +883,25 @@ func (svc *Service) handleUninstallSelfServiceConfigurationProfile(ctx context.C
 	if profile == nil {
 		// If the profile is not found for reconciliation, it means it is not available for self-service uninstallation.
 		// Shouldn't happen, as on profile deletion we clear out opt-in rows.
-		return "", &fleet.BadRequestError{
+		return "", &automdm.BadRequestError{
 			Message: "This profile is not available for self-service uninstallation on this host.",
 		}
 	}
 
 	if !profile.SelfService {
-		return "", &fleet.BadRequestError{
+		return "", &automdm.BadRequestError{
 			Message: "This is not a valid self-service profile.",
 		}
 	}
 
 	if profile.HasBrokenLabel() {
-		return "", &fleet.BadRequestError{
+		return "", &automdm.BadRequestError{
 			Message: "This profile has a broken label and cannot be uninstalled through self-service.",
 		}
 	}
 
-	if err := svc.ds.ApplyHostMDMProfileOptInChanges(ctx, &fleet.MDMProfileOptInChanges{
-		Purge: []fleet.HostProfileUUID{
+	if err := svc.ds.ApplyHostMDMProfileOptInChanges(ctx, &automdm.MDMProfileOptInChanges{
+		Purge: []automdm.HostProfileUUID{
 			{
 				HostUUID:    host.UUID,
 				ProfileUUID: profileUUID,
@@ -921,7 +921,7 @@ func (svc *Service) handleUninstallSelfServiceConfigurationProfile(ctx context.C
 
 // hostSelfServiceProfileRow returns the host's profile row as the host details show it (a NULL status reads as pending),
 // or nil if the profile isn't on the host.
-func (svc *Service) hostSelfServiceProfileRow(ctx context.Context, hostUUID, profileUUID string) (*fleet.HostMDMAppleProfile, error) {
+func (svc *Service) hostSelfServiceProfileRow(ctx context.Context, hostUUID, profileUUID string) (*automdm.HostMDMAppleProfile, error) {
 	profs, err := svc.ds.GetHostMDMAppleProfiles(ctx, hostUUID)
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "getting host MDM Apple profiles")

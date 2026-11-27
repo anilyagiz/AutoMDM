@@ -19,7 +19,7 @@ const CriticalPolicyBadge = () => {
         <Icon
           className="critical-policy-icon"
           name="policy"
-          color="ui-fleet-black-75"
+          color="ui-automdm-black-75"
         />
       </TooltipWrapper>
     </div>

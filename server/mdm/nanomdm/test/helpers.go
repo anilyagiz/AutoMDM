@@ -8,7 +8,7 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
 )
 
 func GenerateRandomCertificateSerialNumber() (*big.Int, error) {

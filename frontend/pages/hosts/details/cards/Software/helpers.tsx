@@ -40,7 +40,7 @@ interface IHostSoftwareLocationParams {
   orderKey: string;
   orderDirection: string;
   page: number;
-  fleetId?: number;
+  automdmId?: number;
   macosApplications?: boolean;
   filters: ISoftwareFilters;
 }
@@ -54,7 +54,7 @@ export const getHostSoftwareLocationPath = ({
   orderKey,
   orderDirection,
   page,
-  fleetId,
+  automdmId,
   macosApplications,
   filters,
 }: IHostSoftwareLocationParams) =>
@@ -66,7 +66,7 @@ export const getHostSoftwareLocationPath = ({
       order_direction: orderDirection,
       order_key: orderKey,
       page,
-      fleet_id: fleetId,
+      team_id: automdmId,
       macos_applications: macosApplications,
       ...buildSoftwareFiltersQueryParams(filters),
       ...(isMacOS(platform) &&
@@ -597,7 +597,7 @@ export const getSoftwareSubheader = ({
       hostMdmEnrollmentStatus === "On (manual)" ||
       isBYODManualEnrollment(hostMdmEnrollmentStatus)
     ) {
-      return "Software installed by Fleet. Built-in apps (e.g. Calculator) and apps installed by the end user aren't included.";
+      return "Software installed by AutoMDM. Built-in apps (e.g. Calculator) and apps installed by the end user aren't included.";
     }
   }
   return isMyDevicePage

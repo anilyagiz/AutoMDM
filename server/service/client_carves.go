@@ -6,19 +6,19 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
 // ListCarves lists the file carving sessions
-func (c *Client) ListCarves(opt fleet.CarveListOptions) ([]*fleet.CarveMetadata, error) {
-	endpoint := "/api/latest/fleet/carves"
+func (c *Client) ListCarves(opt automdm.CarveListOptions) ([]*automdm.CarveMetadata, error) {
+	endpoint := "/api/latest/automdm/carves"
 	rawQuery := ""
 	if opt.Expired {
 		rawQuery = "expired=1"
 	}
 	response, err := c.AuthenticatedDo("GET", endpoint, rawQuery, nil)
 	if err != nil {
-		return nil, fmt.Errorf("GET /api/latest/fleet/carves: %w", err)
+		return nil, fmt.Errorf("GET /api/latest/automdm/carves: %w", err)
 	}
 	defer response.Body.Close()
 
@@ -30,7 +30,7 @@ func (c *Client) ListCarves(opt fleet.CarveListOptions) ([]*fleet.CarveMetadata,
 		)
 	}
 
-	var responseBody fleet.ListCarvesResponse
+	var responseBody automdm.ListCarvesResponse
 	err = json.NewDecoder(response.Body).Decode(&responseBody)
 	if err != nil {
 		return nil, fmt.Errorf("decode get carves response: %w", err)
@@ -39,7 +39,7 @@ func (c *Client) ListCarves(opt fleet.CarveListOptions) ([]*fleet.CarveMetadata,
 		return nil, fmt.Errorf("get carves: %s", responseBody.Err)
 	}
 
-	carves := []*fleet.CarveMetadata{}
+	carves := []*automdm.CarveMetadata{}
 	for _, carve := range responseBody.Carves {
 		c := carve
 		carves = append(carves, &c)
@@ -48,8 +48,8 @@ func (c *Client) ListCarves(opt fleet.CarveListOptions) ([]*fleet.CarveMetadata,
 	return carves, nil
 }
 
-func (c *Client) GetCarve(carveId int64) (*fleet.CarveMetadata, error) {
-	endpoint := fmt.Sprintf("/api/latest/fleet/carves/%d", carveId)
+func (c *Client) GetCarve(carveId int64) (*automdm.CarveMetadata, error) {
+	endpoint := fmt.Sprintf("/api/latest/automdm/carves/%d", carveId)
 	response, err := c.AuthenticatedDo("GET", endpoint, "", nil)
 	if err != nil {
 		return nil, fmt.Errorf("GET "+endpoint+": %w", err)
@@ -63,7 +63,7 @@ func (c *Client) GetCarve(carveId int64) (*fleet.CarveMetadata, error) {
 			extractServerErrorText(response.Body),
 		)
 	}
-	var responseBody fleet.GetCarveResponse
+	var responseBody automdm.GetCarveResponse
 	err = json.NewDecoder(response.Body).Decode(&responseBody)
 	if err != nil {
 		return nil, fmt.Errorf("decode carve response: %w", err)
@@ -77,7 +77,7 @@ func (c *Client) GetCarve(carveId int64) (*fleet.CarveMetadata, error) {
 
 func (c *Client) getCarveBlock(carveId, blockId int64) ([]byte, error) {
 	path := fmt.Sprintf(
-		"/api/latest/fleet/carves/%d/block/%d",
+		"/api/latest/automdm/carves/%d/block/%d",
 		carveId,
 		blockId,
 	)
@@ -95,7 +95,7 @@ func (c *Client) getCarveBlock(carveId, blockId int64) ([]byte, error) {
 		)
 	}
 
-	var responseBody fleet.GetCarveBlockResponse
+	var responseBody automdm.GetCarveBlockResponse
 	err = json.NewDecoder(response.Body).Decode(&responseBody)
 	if err != nil {
 		return nil, fmt.Errorf("decode get carve block response: %w", err)
@@ -108,14 +108,14 @@ func (c *Client) getCarveBlock(carveId, blockId int64) ([]byte, error) {
 }
 
 type carveReader struct {
-	carve     fleet.CarveMetadata
+	carve     automdm.CarveMetadata
 	bytesRead int64
 	curBlock  int64
 	buffer    []byte
 	client    *Client
 }
 
-func newCarveReader(carve fleet.CarveMetadata, client *Client) *carveReader {
+func newCarveReader(carve automdm.CarveMetadata, client *Client) *carveReader {
 	return &carveReader{
 		carve:     carve,
 		client:    client,
@@ -160,7 +160,7 @@ func (r *carveReader) Read(p []byte) (n int, err error) {
 
 // DownloadCarve creates a Reader downloading a carve (by ID)
 func (c *Client) DownloadCarve(id int64) (io.Reader, error) {
-	path := fmt.Sprintf("/api/latest/fleet/carves/%d", id)
+	path := fmt.Sprintf("/api/latest/automdm/carves/%d", id)
 	response, err := c.AuthenticatedDo("GET", path, "", nil)
 	if err != nil {
 		return nil, fmt.Errorf("GET %s: %w", path, err)
@@ -175,7 +175,7 @@ func (c *Client) DownloadCarve(id int64) (io.Reader, error) {
 		)
 	}
 
-	var responseBody fleet.GetCarveResponse
+	var responseBody automdm.GetCarveResponse
 	err = json.NewDecoder(response.Body).Decode(&responseBody)
 	if err != nil {
 		return nil, fmt.Errorf("decode get carve by name response: %w", err)

@@ -1,35 +1,35 @@
 package mysqlredis
 
 import (
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
 )
 
 // hostCacheEnvelope is the JSON wire format for cached host lookups. It
-// embeds fleet.Host so every normally-serializable field rides along
-// automatically, then shadows the fields fleet.Host tags `json:"-"` to
+// embeds automdm.Host so every normally-serializable field rides along
+// automatically, then shadows the fields automdm.Host tags `json:"-"` to
 // keep out of HTTP responses: OsqueryHostID, NodeKey, OrbitNodeKey,
 // HasHostIdentityCert, BitLockerProtectionStatus, and TPMPINSet. These MUST
 // round-trip or behaviour silently changes for up to TTL (a cached host with
 // HasHostIdentityCert=nil would cause AuthenticateHost to skip the httpsig
 // check).
 //
-// Why embedding works without collision: the embedded fleet.Host has those
+// Why embedding works without collision: the embedded automdm.Host has those
 // four fields tagged `json:"-"`, so encoding/json skips them entirely. Our
 // outer fields carry the real JSON names. On unmarshal, the tagged JSON keys
 // map to the outer fields; toHost() then copies them back onto the embedded
 // Host so downstream code can read them in their natural positions.
 //
 // One envelope serves both LoadHostByNodeKey and LoadHostByOrbitNodeKey
-// because their SELECT lists differ only in which fleet.Host fields they
+// because their SELECT lists differ only in which automdm.Host fields they
 // populate; unpopulated pointer/slice fields fall out via omitempty, and
 // the handful of non-pointer orbit-specific fields (MDM.EncryptionKeyAvailable)
 // are small enough that the constant overhead doesn't matter.
 //
-// When fleet.Host gains a new `json:"-"` field that downstream auth code
+// When automdm.Host gains a new `json:"-"` field that downstream auth code
 // reads, add a shadow here in lockstep. TestPBT_HostCacheEnvelopeRoundTrip
 // catches drift by asserting full-struct equivalence after marshal/unmarshal.
 type hostCacheEnvelope struct {
-	fleet.Host
+	automdm.Host
 
 	OsqueryHostID             *string `json:"osquery_host_id,omitempty"`
 	NodeKey                   *string `json:"node_key,omitempty"`
@@ -39,7 +39,7 @@ type hostCacheEnvelope struct {
 	TPMPINSet                 *bool   `json:"tpm_pin_set,omitempty"`
 	BitLockerBootProtectorSet *bool   `json:"bitlocker_boot_protector_set,omitempty"`
 
-	// OSVersion keeps the os_version key fleet.Host used before it moved the combined string out of API responses,
+	// OSVersion keeps the os_version key automdm.Host used before it moved the combined string out of API responses,
 	// so entries cached by an older server still decode. It shadows the embedded OSVersionOnly, hence the extra field.
 	OSVersion     string `json:"os_version,omitempty"`
 	OSVersionOnly string `json:"os_version_only,omitempty"`
@@ -48,7 +48,7 @@ type hostCacheEnvelope struct {
 // envelopeFromHost builds an envelope suitable for JSON marshaling by copying
 // the json:"-" shadow fields out of the embedded Host. Caller must
 // ensure h is non-nil.
-func envelopeFromHost(h *fleet.Host) *hostCacheEnvelope {
+func envelopeFromHost(h *automdm.Host) *hostCacheEnvelope {
 	return &hostCacheEnvelope{
 		Host:                      *h,
 		OsqueryHostID:             h.OsqueryHostID,
@@ -63,10 +63,10 @@ func envelopeFromHost(h *fleet.Host) *hostCacheEnvelope {
 	}
 }
 
-// toHost returns a fresh *fleet.Host populated from the envelope, with the
+// toHost returns a fresh *automdm.Host populated from the envelope, with the
 // shadow fields copied back onto the embedded Host so downstream auth code
 // reads them in their natural positions.
-func (e *hostCacheEnvelope) toHost() *fleet.Host {
+func (e *hostCacheEnvelope) toHost() *automdm.Host {
 	h := e.Host
 	h.OsqueryHostID = e.OsqueryHostID
 	h.NodeKey = e.NodeKey

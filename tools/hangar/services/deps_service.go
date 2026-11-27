@@ -1,6 +1,6 @@
 package services
 
-import "github.com/fleetdm/fleet/tools/hangar/internal/deps"
+import "github.com/anilyagiz/automdm/tools/hangar/internal/deps"
 
 // DepsService exposes the first-run dependency checklist. Mirrors deps.rs.
 type DepsService struct{}

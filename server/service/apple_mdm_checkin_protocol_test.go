@@ -17,12 +17,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	apple_mdm "github.com/fleetdm/fleet/v4/server/mdm/apple"
-	"github.com/fleetdm/fleet/v4/server/mdm/nanomdm/mdm"
-	nano_service "github.com/fleetdm/fleet/v4/server/mdm/nanomdm/service"
-	"github.com/fleetdm/fleet/v4/server/mock"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	apple_mdm "github.com/anilyagiz/automdm/v4/server/mdm/apple"
+	"github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/mdm"
+	nano_service "github.com/anilyagiz/automdm/v4/server/mdm/nanomdm/service"
+	"github.com/anilyagiz/automdm/v4/server/mock"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
@@ -40,17 +40,17 @@ func newGetTokenTestService(t *testing.T) (*MDMAppleGetTokenService, *mock.Store
 	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)})
 
 	ds := new(mock.Store)
-	ds.ListABMTokensFunc = func(ctx context.Context) ([]*fleet.ABMToken, error) {
-		return []*fleet.ABMToken{{ID: 1, ServerUUID: "default-server-uuid", IsDefault: true}}, nil
+	ds.ListABMTokensFunc = func(ctx context.Context) ([]*automdm.ABMToken, error) {
+		return []*automdm.ABMToken{{ID: 1, ServerUUID: "default-server-uuid", IsDefault: true}}, nil
 	}
-	ds.HostLiteByIdentifierFunc = func(ctx context.Context, identifier string) (*fleet.HostLite, error) {
+	ds.HostLiteByIdentifierFunc = func(ctx context.Context, identifier string) (*automdm.HostLite, error) {
 		return nil, newNotFoundError()
 	}
-	ds.GetHostDEPAssignmentFunc = func(ctx context.Context, hostID uint) (*fleet.HostDEPAssignment, error) {
+	ds.GetHostDEPAssignmentFunc = func(ctx context.Context, hostID uint) (*automdm.HostDEPAssignment, error) {
 		return nil, newNotFoundError()
 	}
-	ds.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, names []fleet.MDMAssetName, _ sqlx.QueryerContext) (map[fleet.MDMAssetName]fleet.MDMConfigAsset, error) {
-		return map[fleet.MDMAssetName]fleet.MDMConfigAsset{fleet.MDMAssetABMKey: {Name: fleet.MDMAssetABMKey, Value: keyPEM}}, nil
+	ds.GetAllMDMConfigAssetsByNameFunc = func(ctx context.Context, names []automdm.MDMAssetName, _ sqlx.QueryerContext) (map[automdm.MDMAssetName]automdm.MDMConfigAsset, error) {
+		return map[automdm.MDMAssetName]automdm.MDMConfigAsset{automdm.MDMAssetABMKey: {Name: automdm.MDMAssetABMKey, Value: keyPEM}}, nil
 	}
 
 	svc := NewMDMAppleGetTokenService(ds, slog.New(slog.NewTextHandler(io.Discard, nil)))
@@ -68,13 +68,13 @@ func getTokenRequest(t *testing.T, svc *MDMAppleGetTokenService, serviceType str
 func TestMDMAppleGetTokenClaims(t *testing.T) {
 	svc, _, key := newGetTokenTestService(t)
 
-	resp, err := getTokenRequest(t, svc, fleet.TokenServiceTypeMAID)
+	resp, err := getTokenRequest(t, svc, automdm.TokenServiceTypeMAID)
 	require.NoError(t, err)
 
 	var claims appleMAIDTokenClaims
 	_, err = jwt.ParseWithClaims(string(resp.TokenData), &claims, func(*jwt.Token) (any, error) { return &key.PublicKey, nil })
 	require.NoError(t, err)
-	require.Equal(t, fleet.TokenServiceTypeMAID, claims.TokenServiceType)
+	require.Equal(t, automdm.TokenServiceTypeMAID, claims.TokenServiceType)
 	require.Equal(t, "default-server-uuid", claims.Issuer)
 	require.NotEmpty(t, claims.ID)
 	require.NotNil(t, claims.IssuedAt)
@@ -82,11 +82,11 @@ func TestMDMAppleGetTokenClaims(t *testing.T) {
 
 func TestMDMAppleGetTokenSigningTokenSelection(t *testing.T) {
 	depAssignedHost := func(ds *mock.Store, abmTokenID *uint) {
-		ds.HostLiteByIdentifierFunc = func(ctx context.Context, identifier string) (*fleet.HostLite, error) {
-			return &fleet.HostLite{ID: 42, UUID: identifier}, nil
+		ds.HostLiteByIdentifierFunc = func(ctx context.Context, identifier string) (*automdm.HostLite, error) {
+			return &automdm.HostLite{ID: 42, UUID: identifier}, nil
 		}
-		ds.GetHostDEPAssignmentFunc = func(ctx context.Context, hostID uint) (*fleet.HostDEPAssignment, error) {
-			return &fleet.HostDEPAssignment{HostID: hostID, ABMTokenID: abmTokenID}, nil
+		ds.GetHostDEPAssignmentFunc = func(ctx context.Context, hostID uint) (*automdm.HostDEPAssignment, error) {
+			return &automdm.HostDEPAssignment{HostID: hostID, ABMTokenID: abmTokenID}, nil
 		}
 	}
 
@@ -102,32 +102,32 @@ func TestMDMAppleGetTokenSigningTokenSelection(t *testing.T) {
 		},
 		{
 			name:        "unknown host falls back to the default token",
-			serviceType: fleet.TokenServiceTypeMAID,
+			serviceType: automdm.TokenServiceTypeMAID,
 			wantIssuer:  "default-server-uuid",
 		},
 		{
 			name:        "DEP assigned host uses its own token",
-			serviceType: fleet.TokenServiceTypeMAID,
+			serviceType: automdm.TokenServiceTypeMAID,
 			setup: func(ds *mock.Store) {
 				depAssignedHost(ds, new(uint(2)))
-				ds.GetABMTokenByIDFunc = func(ctx context.Context, tokenID uint) (*fleet.ABMToken, error) {
-					return &fleet.ABMToken{ID: tokenID, ServerUUID: "dep-server-uuid"}, nil
+				ds.GetABMTokenByIDFunc = func(ctx context.Context, tokenID uint) (*automdm.ABMToken, error) {
+					return &automdm.ABMToken{ID: tokenID, ServerUUID: "dep-server-uuid"}, nil
 				}
 			},
 			wantIssuer: "dep-server-uuid",
 		},
 		{
 			name:        "DEP assigned host does not fall back to the default token",
-			serviceType: fleet.TokenServiceTypeMAID,
+			serviceType: automdm.TokenServiceTypeMAID,
 			setup: func(ds *mock.Store) {
 				depAssignedHost(ds, nil)
 			},
 		},
 		{
 			name:        "no ABM tokens",
-			serviceType: fleet.TokenServiceTypeMAID,
+			serviceType: automdm.TokenServiceTypeMAID,
 			setup: func(ds *mock.Store) {
-				ds.ListABMTokensFunc = func(ctx context.Context) ([]*fleet.ABMToken, error) { return nil, nil }
+				ds.ListABMTokensFunc = func(ctx context.Context) ([]*automdm.ABMToken, error) { return nil, nil }
 			},
 		},
 	}
@@ -165,7 +165,7 @@ func (s *recordingCheckinService) Authenticate(*mdm.Request, *mdm.Authenticate) 
 }
 
 type fakeCertAssocStore struct {
-	fleet.MDMAppleStore
+	automdm.MDMAppleStore
 	associated bool
 	checkedID  string
 }
@@ -199,7 +199,7 @@ func newCertWithExtensions(t *testing.T, ous []string, exts ...pkix.Extension) *
 	require.NoError(t, err)
 	tmpl := &x509.Certificate{
 		SerialNumber:    big.NewInt(1),
-		Subject:         pkix.Name{CommonName: "Fleet Identity", OrganizationalUnit: ous},
+		Subject:         pkix.Name{CommonName: "AutoMDM Identity", OrganizationalUnit: ous},
 		NotBefore:       time.Now().Add(-time.Hour),
 		NotAfter:        time.Now().Add(time.Hour),
 		ExtraExtensions: exts,
@@ -225,7 +225,7 @@ func TestCertVerifierEnrollmentCheckinServiceAuthenticate(t *testing.T) {
 	userEnrollment := func(id string) *mdm.Authenticate {
 		return &mdm.Authenticate{EnrollmentID: id}
 	}
-	bind := func(purpose fleet.AppleMDMCertPurpose, fields func(*apple_mdm.AppleMDMCertificateBindingExtension)) *apple_mdm.AppleMDMCertificateBindingExtension {
+	bind := func(purpose automdm.AppleMDMCertPurpose, fields func(*apple_mdm.AppleMDMCertificateBindingExtension)) *apple_mdm.AppleMDMCertificateBindingExtension {
 		b := &apple_mdm.AppleMDMCertificateBindingExtension{Purpose: purpose}
 		if fields != nil {
 			fields(b)
@@ -252,62 +252,62 @@ func TestCertVerifierEnrollmentCheckinServiceAuthenticate(t *testing.T) {
 		hostSerial string
 		allowed    bool
 	}{
-		{name: "ade matching", cert: newBindingCert(t, bind(fleet.AppleMDMCertPurposeADE, deviceIdentity)), msg: device(udid, serial), allowed: true},
-		{name: "ade other udid", cert: newBindingCert(t, bind(fleet.AppleMDMCertPurposeADE, deviceIdentity)), msg: device("other", serial)},
-		{name: "ade other serial", cert: newBindingCert(t, bind(fleet.AppleMDMCertPurposeADE, deviceIdentity)), msg: device(udid, "other")},
-		{name: "ade as user enrollment", cert: newBindingCert(t, bind(fleet.AppleMDMCertPurposeADE, deviceIdentity)), msg: userEnrollment(enrollmentID)},
-		{name: "ade with empty bound serial", cert: newBindingCert(t, bind(fleet.AppleMDMCertPurposeADE, func(b *apple_mdm.AppleMDMCertificateBindingExtension) {
+		{name: "ade matching", cert: newBindingCert(t, bind(automdm.AppleMDMCertPurposeADE, deviceIdentity)), msg: device(udid, serial), allowed: true},
+		{name: "ade other udid", cert: newBindingCert(t, bind(automdm.AppleMDMCertPurposeADE, deviceIdentity)), msg: device("other", serial)},
+		{name: "ade other serial", cert: newBindingCert(t, bind(automdm.AppleMDMCertPurposeADE, deviceIdentity)), msg: device(udid, "other")},
+		{name: "ade as user enrollment", cert: newBindingCert(t, bind(automdm.AppleMDMCertPurposeADE, deviceIdentity)), msg: userEnrollment(enrollmentID)},
+		{name: "ade with empty bound serial", cert: newBindingCert(t, bind(automdm.AppleMDMCertPurposeADE, func(b *apple_mdm.AppleMDMCertificateBindingExtension) {
 			b.UDID, b.Serial = new(udid), new("")
 		})), msg: device(udid, "")},
-		{name: "ota_phase2 matching", cert: newBindingCert(t, bind(fleet.AppleMDMCertPurposeOTAPhaseTwo, deviceIdentity)), msg: device(udid, serial), allowed: true},
-		{name: "ota_phase2 other udid", cert: newBindingCert(t, bind(fleet.AppleMDMCertPurposeOTAPhaseTwo, deviceIdentity)), msg: device("other", serial)},
-		{name: "ota_phase1 always rejected", cert: newBindingCert(t, bind(fleet.AppleMDMCertPurposeOTAPhaseOne, deviceIdentity)), msg: device(udid, serial)},
+		{name: "ota_phase2 matching", cert: newBindingCert(t, bind(automdm.AppleMDMCertPurposeOTAPhaseTwo, deviceIdentity)), msg: device(udid, serial), allowed: true},
+		{name: "ota_phase2 other udid", cert: newBindingCert(t, bind(automdm.AppleMDMCertPurposeOTAPhaseTwo, deviceIdentity)), msg: device("other", serial)},
+		{name: "ota_phase1 always rejected", cert: newBindingCert(t, bind(automdm.AppleMDMCertPurposeOTAPhaseOne, deviceIdentity)), msg: device(udid, serial)},
 
-		{name: "acme matching serial", cert: newBindingCert(t, bind(fleet.AppleMDMCertPurposeACME, func(b *apple_mdm.AppleMDMCertificateBindingExtension) {
+		{name: "acme matching serial", cert: newBindingCert(t, bind(automdm.AppleMDMCertPurposeACME, func(b *apple_mdm.AppleMDMCertificateBindingExtension) {
 			b.Serial = new(serial)
 		})), msg: device(udid, serial), allowed: true},
-		{name: "acme other serial", cert: newBindingCert(t, bind(fleet.AppleMDMCertPurposeACME, func(b *apple_mdm.AppleMDMCertificateBindingExtension) {
+		{name: "acme other serial", cert: newBindingCert(t, bind(automdm.AppleMDMCertPurposeACME, func(b *apple_mdm.AppleMDMCertificateBindingExtension) {
 			b.Serial = new(serial)
 		})), msg: device(udid, "other")},
-		{name: "acme_renewal matching", cert: newBindingCert(t, bind(fleet.AppleMDMCertPurposeACMERenewal, func(b *apple_mdm.AppleMDMCertificateBindingExtension) {
+		{name: "acme_renewal matching", cert: newBindingCert(t, bind(automdm.AppleMDMCertPurposeACMERenewal, func(b *apple_mdm.AppleMDMCertificateBindingExtension) {
 			b.Serial, b.EnrollmentID = new(serial), new(udid)
 		})), msg: device(udid, serial), allowed: true},
-		{name: "acme_renewal other enrollment with matching serial", cert: newBindingCert(t, bind(fleet.AppleMDMCertPurposeACMERenewal, func(b *apple_mdm.AppleMDMCertificateBindingExtension) {
+		{name: "acme_renewal other enrollment with matching serial", cert: newBindingCert(t, bind(automdm.AppleMDMCertPurposeACMERenewal, func(b *apple_mdm.AppleMDMCertificateBindingExtension) {
 			b.Serial, b.EnrollmentID = new(serial), new(udid)
 		})), msg: device("other", serial)},
 
-		{name: "renewal of its own device", cert: newBindingCert(t, bind(fleet.AppleMDMCertPurposeSCEPRenewal, func(b *apple_mdm.AppleMDMCertificateBindingExtension) {
+		{name: "renewal of its own device", cert: newBindingCert(t, bind(automdm.AppleMDMCertPurposeSCEPRenewal, func(b *apple_mdm.AppleMDMCertificateBindingExtension) {
 			b.EnrollmentID = new(udid)
 		})), msg: device(udid, serial), hostSerial: serial, allowed: true},
-		{name: "renewal of its own device claiming another serial", cert: newBindingCert(t, bind(fleet.AppleMDMCertPurposeSCEPRenewal, func(b *apple_mdm.AppleMDMCertificateBindingExtension) {
+		{name: "renewal of its own device claiming another serial", cert: newBindingCert(t, bind(automdm.AppleMDMCertPurposeSCEPRenewal, func(b *apple_mdm.AppleMDMCertificateBindingExtension) {
 			b.EnrollmentID = new(udid)
 		})), msg: device(udid, "other"), hostSerial: serial},
-		{name: "renewal presented as another device", cert: newBindingCert(t, bind(fleet.AppleMDMCertPurposeSCEPRenewal, func(b *apple_mdm.AppleMDMCertificateBindingExtension) {
+		{name: "renewal presented as another device", cert: newBindingCert(t, bind(automdm.AppleMDMCertPurposeSCEPRenewal, func(b *apple_mdm.AppleMDMCertificateBindingExtension) {
 			b.EnrollmentID = new(udid)
 		})), msg: device("host-b", serial)},
-		{name: "renewal of a user enrollment", cert: newBindingCert(t, bind(fleet.AppleMDMCertPurposeSCEPRenewal, func(b *apple_mdm.AppleMDMCertificateBindingExtension) {
+		{name: "renewal of a user enrollment", cert: newBindingCert(t, bind(automdm.AppleMDMCertPurposeSCEPRenewal, func(b *apple_mdm.AppleMDMCertificateBindingExtension) {
 			b.EnrollmentID = new(enrollmentID)
 		})), msg: userEnrollment(enrollmentID), allowed: true},
 
-		{name: "adue matching", cert: newBindingCert(t, bind(fleet.AppleMDMCertPurposeADUE, func(b *apple_mdm.AppleMDMCertificateBindingExtension) {
+		{name: "adue matching", cert: newBindingCert(t, bind(automdm.AppleMDMCertPurposeADUE, func(b *apple_mdm.AppleMDMCertificateBindingExtension) {
 			b.IDPAccountUUID = new(idpAccount)
 		})), msg: userEnrollment(enrollmentID), authorization: "Bearer " + adueToken, allowed: true},
-		{name: "adue existing enrollment", cert: newBindingCert(t, bind(fleet.AppleMDMCertPurposeADUE, func(b *apple_mdm.AppleMDMCertificateBindingExtension) {
+		{name: "adue existing enrollment", cert: newBindingCert(t, bind(automdm.AppleMDMCertPurposeADUE, func(b *apple_mdm.AppleMDMCertificateBindingExtension) {
 			b.IDPAccountUUID = new(idpAccount)
 		})), msg: userEnrollment(enrollmentID), authorization: "Bearer " + adueToken, enrolled: true},
-		{name: "adue as device enrollment", cert: newBindingCert(t, bind(fleet.AppleMDMCertPurposeADUE, func(b *apple_mdm.AppleMDMCertificateBindingExtension) {
+		{name: "adue as device enrollment", cert: newBindingCert(t, bind(automdm.AppleMDMCertPurposeADUE, func(b *apple_mdm.AppleMDMCertificateBindingExtension) {
 			b.IDPAccountUUID = new(idpAccount)
 		})), msg: device(udid, serial), authorization: "Bearer " + adueToken},
-		{name: "adue other idp account", cert: newBindingCert(t, bind(fleet.AppleMDMCertPurposeADUE, func(b *apple_mdm.AppleMDMCertificateBindingExtension) {
+		{name: "adue other idp account", cert: newBindingCert(t, bind(automdm.AppleMDMCertPurposeADUE, func(b *apple_mdm.AppleMDMCertificateBindingExtension) {
 			b.IDPAccountUUID = new("other-account")
 		})), msg: userEnrollment(enrollmentID), authorization: "Bearer " + adueToken},
-		{name: "adue unknown token", cert: newBindingCert(t, bind(fleet.AppleMDMCertPurposeADUE, func(b *apple_mdm.AppleMDMCertificateBindingExtension) {
+		{name: "adue unknown token", cert: newBindingCert(t, bind(automdm.AppleMDMCertPurposeADUE, func(b *apple_mdm.AppleMDMCertificateBindingExtension) {
 			b.IDPAccountUUID = new(idpAccount)
 		})), msg: userEnrollment(enrollmentID), authorization: "Bearer unknown"},
-		{name: "adue no bearer token", cert: newBindingCert(t, bind(fleet.AppleMDMCertPurposeADUE, func(b *apple_mdm.AppleMDMCertificateBindingExtension) {
+		{name: "adue no bearer token", cert: newBindingCert(t, bind(automdm.AppleMDMCertPurposeADUE, func(b *apple_mdm.AppleMDMCertificateBindingExtension) {
 			b.IDPAccountUUID = new(idpAccount)
 		})), msg: userEnrollment(enrollmentID)},
-		{name: "adue resend of associated cert", cert: newBindingCert(t, bind(fleet.AppleMDMCertPurposeADUE, func(b *apple_mdm.AppleMDMCertificateBindingExtension) {
+		{name: "adue resend of associated cert", cert: newBindingCert(t, bind(automdm.AppleMDMCertPurposeADUE, func(b *apple_mdm.AppleMDMCertificateBindingExtension) {
 			b.IDPAccountUUID = new(idpAccount)
 		})), msg: userEnrollment(enrollmentID), associated: true, enrolled: true, allowed: true},
 
@@ -322,36 +322,36 @@ func TestCertVerifierEnrollmentCheckinServiceAuthenticate(t *testing.T) {
 		{name: "unsupported version", cert: newRawBindingCert(t, utf8Value(`{"v":2,"purpose":"ade","udid":"`+udid+`","serial":"`+serial+`"}`)), msg: device(udid, serial), static: true},
 		{name: "unsupported version but associated", cert: newRawBindingCert(t, utf8Value(`{"v":2,"purpose":"ade","udid":"`+udid+`","serial":"`+serial+`"}`)), msg: device(udid, serial), associated: true, allowed: true},
 		{name: "supported version control", cert: newRawBindingCert(t, utf8Value(validBindingJSON)), msg: device(udid, serial), allowed: true},
-		{name: "mismatched but associated", cert: newBindingCert(t, bind(fleet.AppleMDMCertPurposeADE, deviceIdentity)), msg: device("other", serial), associated: true, allowed: true},
-		{name: "associated with its host's serial", cert: newBindingCert(t, bind(fleet.AppleMDMCertPurposeADE, deviceIdentity)), msg: device(udid, serial), associated: true, hostSerial: serial, allowed: true},
-		{name: "associated claiming another serial", cert: newBindingCert(t, bind(fleet.AppleMDMCertPurposeADE, deviceIdentity)), msg: device(udid, "other"), associated: true, hostSerial: serial},
+		{name: "mismatched but associated", cert: newBindingCert(t, bind(automdm.AppleMDMCertPurposeADE, deviceIdentity)), msg: device("other", serial), associated: true, allowed: true},
+		{name: "associated with its host's serial", cert: newBindingCert(t, bind(automdm.AppleMDMCertPurposeADE, deviceIdentity)), msg: device(udid, serial), associated: true, hostSerial: serial, allowed: true},
+		{name: "associated claiming another serial", cert: newBindingCert(t, bind(automdm.AppleMDMCertPurposeADE, deviceIdentity)), msg: device(udid, "other"), associated: true, hostSerial: serial},
 
 		{name: "unbound with static on", cert: newBindingCert(t, nil), msg: device(udid, serial), static: true, allowed: true},
 		{name: "unbound with static on claiming another serial", cert: newBindingCert(t, nil), msg: device(udid, "other"), static: true, hostSerial: serial},
 		{name: "unbound with static off", cert: newBindingCert(t, nil), msg: device(udid, serial)},
 		{name: "unbound associated with static off", cert: newBindingCert(t, nil), msg: device(udid, serial), associated: true, allowed: true},
-		{name: "bound with static on is still checked", cert: newBindingCert(t, bind(fleet.AppleMDMCertPurposeADE, deviceIdentity)), msg: device("other", serial), static: true},
+		{name: "bound with static on is still checked", cert: newBindingCert(t, bind(automdm.AppleMDMCertPurposeADE, deviceIdentity)), msg: device("other", serial), static: true},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			ds := new(mock.Store)
-			ds.GetNanoMDMEnrollmentFunc = func(ctx context.Context, id string) (*fleet.NanoEnrollment, error) {
+			ds.GetNanoMDMEnrollmentFunc = func(ctx context.Context, id string) (*automdm.NanoEnrollment, error) {
 				if c.enrolled {
-					return &fleet.NanoEnrollment{ID: id}, nil
+					return &automdm.NanoEnrollment{ID: id}, nil
 				}
 				return nil, nil
 			}
-			ds.GetHostMDMCheckinInfoFunc = func(ctx context.Context, hostUUID string) (*fleet.HostMDMCheckinInfo, error) {
+			ds.GetHostMDMCheckinInfoFunc = func(ctx context.Context, hostUUID string) (*automdm.HostMDMCheckinInfo, error) {
 				if c.hostSerial == "" {
 					return nil, newNotFoundError()
 				}
-				return &fleet.HostMDMCheckinInfo{HardwareSerial: c.hostSerial}, nil
+				return &automdm.HostMDMCheckinInfo{HardwareSerial: c.hostSerial}, nil
 			}
-			ds.GetADUEEnrollmentChallengeFunc = func(ctx context.Context, challenge string) (*fleet.ADUEEnrollmentChallenge, error) {
+			ds.GetADUEEnrollmentChallengeFunc = func(ctx context.Context, challenge string) (*automdm.ADUEEnrollmentChallenge, error) {
 				if challenge != adueToken {
 					return nil, newNotFoundError()
 				}
-				return &fleet.ADUEEnrollmentChallenge{IdPAccountUUID: idpAccount}, nil
+				return &automdm.ADUEEnrollmentChallenge{IdPAccountUUID: idpAccount}, nil
 			}
 			store := &fakeCertAssocStore{associated: c.associated}
 			next := &recordingCheckinService{}

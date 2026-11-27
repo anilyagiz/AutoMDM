@@ -11,7 +11,7 @@ import {
 } from "interfaces/platform";
 import { IHostBannersBaseProps } from "pages/hosts/details/HostDetailsPage/components/HostDetailsBanners/HostDetailsBanners";
 import {
-  INITIAL_FLEET_DATE,
+  INITIAL_AUTOMDM_DATE,
   LEARN_MORE_ABOUT_BASE_LINK,
 } from "utilities/constants";
 
@@ -31,7 +31,7 @@ const DeviceUserBanners = ({
   hostOsVersion,
   mdmEnrollmentStatus,
   mdmEnabledAndConfigured,
-  connectedToFleetMdm,
+  connectedToAutoMDMMdm,
   macDiskEncryptionStatus,
   diskEncryptionActionRequired,
   mdmManualEnrolmentUrl,
@@ -44,26 +44,26 @@ const DeviceUserBanners = ({
   onTriggerEscrowLinuxKey,
   lastMdmEnrolledAt,
   detailUpdatedAt,
-  depAssignedToFleet,
+  depAssignedToAutoMDM,
 }: IDeviceUserBannersProps) => {
   const isMdmUnenrolled =
     mdmEnrollmentStatus === "Off" || mdmEnrollmentStatus === null;
 
-  const mdmEnabledAndConnected = mdmEnabledAndConfigured && connectedToFleetMdm;
+  const mdmEnabledAndConnected = mdmEnabledAndConfigured && connectedToAutoMDMMdm;
 
   const showTurnOnAppleMdmBanner =
     hostPlatform === "darwin" &&
     isMdmUnenrolled &&
     mdmEnabledAndConfigured &&
     detailUpdatedAt &&
-    detailUpdatedAt > INITIAL_FLEET_DATE;
+    detailUpdatedAt > INITIAL_AUTOMDM_DATE;
 
   const isNewMdmEnrollment =
     !isMdmUnenrolled &&
     !!lastMdmEnrolledAt &&
     // if less than an hour has passed since the last MDM enrollment, we consider it a new
     // enrollment and won't show the disk encryption action required banner, as it's possible the
-    // host just hasn't sent its disk encryption status to Fleet yet
+    // host just hasn't sent its disk encryption status to AutoMDM yet
     !isPast(addHours(lastMdmEnrolledAt, 1));
 
   const showMacDiskEncryptionActionRequired =
@@ -87,7 +87,7 @@ const DeviceUserBanners = ({
   const renderBanner = () => {
     if (
       onlyAllowAppleBusinessEnrollment &&
-      !depAssignedToFleet &&
+      !depAssignedToAutoMDM &&
       isAppleDevice(hostPlatform) &&
       isMdmUnenrolled
     ) {
@@ -188,7 +188,7 @@ const DeviceUserBanners = ({
       hostPlatform === "windows" &&
       diskEncryptionOSSetting?.status === "action_required"
     ) {
-      // Fleet is holding the repair until the host restarts, so the restart is the only thing that moves it along.
+      // AutoMDM is holding the repair until the host restarts, so the restart is the only thing that moves it along.
       if (diskEncryptionOSSetting?.action_required === "restart") {
         return (
           <InfoBanner color="yellow">
@@ -212,8 +212,8 @@ const DeviceUserBanners = ({
           >
             Disk encryption: Create a BitLocker PIN to protect your data if your
             device is lost or stolen.
-            {/* Fleet clears the banner on its own once its agent applies the PIN. */}
-            {!diskEncryptionOSSetting.fleetd_can_set_pin && (
+            {/* AutoMDM clears the banner on its own once its agent applies the PIN. */}
+            {!diskEncryptionOSSetting.automdmd_can_set_pin && (
               <>
                 {" "}
                 After, select <strong>Refetch</strong> to clear this banner.

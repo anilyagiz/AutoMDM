@@ -8,30 +8,30 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql/mysqltest"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/mdm/android"
-	"github.com/fleetdm/fleet/v4/server/service"
-	"github.com/fleetdm/fleet/v4/server/test"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql/mysqltest"
+	"github.com/anilyagiz/automdm/v4/server/mdm/android"
+	"github.com/anilyagiz/automdm/v4/server/service"
+	"github.com/anilyagiz/automdm/v4/server/test"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/androidmanagement/v1"
 )
 
-const zeroTouchConfigPath = "/api/v1/fleet/android_enterprise/zero_touch_configuration"
+const zeroTouchConfigPath = "/api/v1/automdm/android_enterprise/zero_touch_configuration"
 
 func TestAndroidZeroTouchPremium(t *testing.T) {
-	s := SetUpSuite(t, "integrationtest.AndroidZeroTouchPremium", WithEEAndroidService(fleet.TierPremium))
+	s := SetUpSuite(t, "integrationtest.AndroidZeroTouchPremium", WithEEAndroidService(automdm.TierPremium))
 
 	cases := []struct {
 		name string
 		fn   func(t *testing.T, s *Suite)
 	}{
 		{"AndroidNotConfigured", testZeroTouchAndroidNotConfigured},
-		{"DestinationFleets", testZeroTouchDestinationFleets},
+		{"DestinationTeams", testZeroTouchDestinationTeams},
 		{"NonAdminsRejected", testZeroTouchNonAdminsRejected},
-		{"DeletedFleet", testZeroTouchDeletedFleet},
+		{"DeletedTeam", testZeroTouchDeletedTeam},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -43,19 +43,19 @@ func TestAndroidZeroTouchPremium(t *testing.T) {
 }
 
 func TestAndroidZeroTouchFree(t *testing.T) {
-	s := SetUpSuite(t, "integrationtest.AndroidZeroTouchFree", WithEEAndroidService(fleet.TierFree))
+	s := SetUpSuite(t, "integrationtest.AndroidZeroTouchFree", WithEEAndroidService(automdm.TierFree))
 	amapiCalls := setUpZeroTouch(t, s)
 
-	fleetA, err := s.DS.NewTeam(t.Context(), &fleet.Team{Name: "zero-touch-free"})
+	automdmA, err := s.DS.NewTeam(t.Context(), &automdm.Team{Name: "zero-touch-free"})
 	require.NoError(t, err)
 
 	s.Do(t, "GET", zeroTouchConfigPath, nil, http.StatusPaymentRequired)
-	s.Do(t, "GET", zeroTouchConfigPath, nil, http.StatusPaymentRequired, "fleet_id", fmt.Sprint(fleetA.ID))
+	s.Do(t, "GET", zeroTouchConfigPath, nil, http.StatusPaymentRequired, "team_id", fmt.Sprint(automdmA.ID))
 	assert.Empty(t, *amapiCalls)
 }
 
 // setUpZeroTouch turns on Android MDM, creates an enterprise, and records the
-// additionalData of every AMAPI enrollment token Fleet creates.
+// additionalData of every AMAPI enrollment token AutoMDM creates.
 func setUpZeroTouch(t *testing.T, s *Suite) *[]string {
 	t.Helper()
 
@@ -109,52 +109,52 @@ func countZeroTouchTokens(t *testing.T, s *Suite) int {
 }
 
 func testZeroTouchAndroidNotConfigured(t *testing.T, s *Suite) {
-	fleetA, err := s.DS.NewTeam(t.Context(), &fleet.Team{Name: "zero-touch-no-android"})
+	automdmA, err := s.DS.NewTeam(t.Context(), &automdm.Team{Name: "zero-touch-no-android"})
 	require.NoError(t, err)
 
 	s.Do(t, "GET", zeroTouchConfigPath, nil, http.StatusNotFound)
-	s.Do(t, "GET", zeroTouchConfigPath, nil, http.StatusNotFound, "fleet_id", fmt.Sprint(fleetA.ID))
+	s.Do(t, "GET", zeroTouchConfigPath, nil, http.StatusNotFound, "team_id", fmt.Sprint(automdmA.ID))
 }
 
-func testZeroTouchDestinationFleets(t *testing.T, s *Suite) {
+func testZeroTouchDestinationTeams(t *testing.T, s *Suite) {
 	amapiCalls := setUpZeroTouch(t, s)
 
-	fleetA, err := s.DS.NewTeam(t.Context(), &fleet.Team{Name: "zero-touch-a"})
+	automdmA, err := s.DS.NewTeam(t.Context(), &automdm.Team{Name: "zero-touch-a"})
 	require.NoError(t, err)
-	fleetB, err := s.DS.NewTeam(t.Context(), &fleet.Team{Name: "zero-touch-b"})
+	automdmB, err := s.DS.NewTeam(t.Context(), &automdm.Team{Name: "zero-touch-b"})
 	require.NoError(t, err)
-	fleetAID := strconv.FormatUint(uint64(fleetA.ID), 10)
-	fleetBID := strconv.FormatUint(uint64(fleetB.ID), 10)
+	automdmAID := strconv.FormatUint(uint64(automdmA.ID), 10)
+	automdmBID := strconv.FormatUint(uint64(automdmB.ID), 10)
 
-	// Unassigned, with no param and with fleet_id=0, shares one token.
+	// Unassigned, with no param and with team_id=0, shares one token.
 	unassignedToken := getZeroTouchToken(t, s)
 	require.Len(t, *amapiCalls, 1)
-	assert.JSONEq(t, `{"fleet_id":null}`, (*amapiCalls)[0])
-	assert.Equal(t, unassignedToken, getZeroTouchToken(t, s, "fleet_id", "0"))
+	assert.JSONEq(t, `{"team_id":null}`, (*amapiCalls)[0])
+	assert.Equal(t, unassignedToken, getZeroTouchToken(t, s, "team_id", "0"))
 
-	fleetAToken := getZeroTouchToken(t, s, "fleet_id", fleetAID)
+	automdmAToken := getZeroTouchToken(t, s, "team_id", automdmAID)
 	require.Len(t, *amapiCalls, 2)
-	assert.JSONEq(t, fmt.Sprintf(`{"fleet_id":%d}`, fleetA.ID), (*amapiCalls)[1])
-	assert.NotEqual(t, unassignedToken, fleetAToken)
+	assert.JSONEq(t, fmt.Sprintf(`{"team_id":%d}`, automdmA.ID), (*amapiCalls)[1])
+	assert.NotEqual(t, unassignedToken, automdmAToken)
 
 	// Repeat requests reuse the stored token.
-	assert.Equal(t, fleetAToken, getZeroTouchToken(t, s, "fleet_id", fleetAID))
+	assert.Equal(t, automdmAToken, getZeroTouchToken(t, s, "team_id", automdmAID))
 	require.Len(t, *amapiCalls, 2)
 
-	fleetBToken := getZeroTouchToken(t, s, "fleet_id", fleetBID)
+	automdmBToken := getZeroTouchToken(t, s, "team_id", automdmBID)
 	require.Len(t, *amapiCalls, 3)
-	assert.JSONEq(t, fmt.Sprintf(`{"fleet_id":%d}`, fleetB.ID), (*amapiCalls)[2])
-	assert.NotEqual(t, fleetAToken, fleetBToken)
+	assert.JSONEq(t, fmt.Sprintf(`{"team_id":%d}`, automdmB.ID), (*amapiCalls)[2])
+	assert.NotEqual(t, automdmAToken, automdmBToken)
 
 	assert.Equal(t, 3, countZeroTouchTokens(t, s))
 
-	stored, err := s.DS.GetZeroTouchEnrollmentToken(t.Context(), &fleetA.ID)
+	stored, err := s.DS.GetZeroTouchEnrollmentToken(t.Context(), &automdmA.ID)
 	require.NoError(t, err)
-	assert.Equal(t, fleetAToken, stored.TokenValue)
+	assert.Equal(t, automdmAToken, stored.TokenValue)
 
-	// A fleet that doesn't exist is a 404 and never reaches AMAPI.
-	s.Do(t, "GET", zeroTouchConfigPath, nil, http.StatusNotFound, "fleet_id", "999999")
-	s.Do(t, "GET", zeroTouchConfigPath, nil, http.StatusBadRequest, "fleet_id", "abc")
+	// A team that doesn't exist is a 404 and never reaches AMAPI.
+	s.Do(t, "GET", zeroTouchConfigPath, nil, http.StatusNotFound, "team_id", "999999")
+	s.Do(t, "GET", zeroTouchConfigPath, nil, http.StatusBadRequest, "team_id", "abc")
 	assert.Len(t, *amapiCalls, 3)
 	assert.Equal(t, 3, countZeroTouchTokens(t, s))
 }
@@ -162,7 +162,7 @@ func testZeroTouchDestinationFleets(t *testing.T, s *Suite) {
 func testZeroTouchNonAdminsRejected(t *testing.T, s *Suite) {
 	amapiCalls := setUpZeroTouch(t, s)
 
-	fleetA, err := s.DS.NewTeam(t.Context(), &fleet.Team{Name: "zero-touch-authz"})
+	automdmA, err := s.DS.NewTeam(t.Context(), &automdm.Team{Name: "zero-touch-authz"})
 	require.NoError(t, err)
 
 	adminToken := s.Token
@@ -172,9 +172,9 @@ func testZeroTouchNonAdminsRejected(t *testing.T, s *Suite) {
 		t.Run(email, func(t *testing.T) {
 			s.Token = s.GetTestToken(t, email, test.GoodPassword)
 			s.Do(t, "GET", zeroTouchConfigPath, nil, http.StatusForbidden)
-			s.Do(t, "GET", zeroTouchConfigPath, nil, http.StatusForbidden, "fleet_id", fmt.Sprint(fleetA.ID))
-			// A missing fleet is still 403, so non-admins can't probe which fleets exist.
-			s.Do(t, "GET", zeroTouchConfigPath, nil, http.StatusForbidden, "fleet_id", "999999")
+			s.Do(t, "GET", zeroTouchConfigPath, nil, http.StatusForbidden, "team_id", fmt.Sprint(automdmA.ID))
+			// A missing team is still 403, so non-admins can't probe which teams exist.
+			s.Do(t, "GET", zeroTouchConfigPath, nil, http.StatusForbidden, "team_id", "999999")
 		})
 	}
 
@@ -182,25 +182,25 @@ func testZeroTouchNonAdminsRejected(t *testing.T, s *Suite) {
 	assert.Zero(t, countZeroTouchTokens(t, s))
 }
 
-func testZeroTouchDeletedFleet(t *testing.T, s *Suite) {
+func testZeroTouchDeletedTeam(t *testing.T, s *Suite) {
 	amapiCalls := setUpZeroTouch(t, s)
 
-	deletedFleet, err := s.DS.NewTeam(t.Context(), &fleet.Team{Name: "zero-touch-deleted"})
+	deletedAutoMDM, err := s.DS.NewTeam(t.Context(), &automdm.Team{Name: "zero-touch-deleted"})
 	require.NoError(t, err)
-	keptFleet, err := s.DS.NewTeam(t.Context(), &fleet.Team{Name: "zero-touch-kept"})
+	keptAutoMDM, err := s.DS.NewTeam(t.Context(), &automdm.Team{Name: "zero-touch-kept"})
 	require.NoError(t, err)
 
-	getZeroTouchToken(t, s, "fleet_id", fmt.Sprint(deletedFleet.ID))
-	keptToken := getZeroTouchToken(t, s, "fleet_id", fmt.Sprint(keptFleet.ID))
+	getZeroTouchToken(t, s, "team_id", fmt.Sprint(deletedAutoMDM.ID))
+	keptToken := getZeroTouchToken(t, s, "team_id", fmt.Sprint(keptAutoMDM.ID))
 	require.Equal(t, 2, countZeroTouchTokens(t, s))
 
-	require.NoError(t, s.DS.DeleteTeam(t.Context(), deletedFleet.ID))
+	require.NoError(t, s.DS.DeleteTeam(t.Context(), deletedAutoMDM.ID))
 
 	assert.Equal(t, 1, countZeroTouchTokens(t, s))
-	_, err = s.DS.GetZeroTouchEnrollmentToken(t.Context(), &deletedFleet.ID)
-	assert.True(t, fleet.IsNotFound(err))
+	_, err = s.DS.GetZeroTouchEnrollmentToken(t.Context(), &deletedAutoMDM.ID)
+	assert.True(t, automdm.IsNotFound(err))
 
-	s.Do(t, "GET", zeroTouchConfigPath, nil, http.StatusNotFound, "fleet_id", fmt.Sprint(deletedFleet.ID))
-	assert.Equal(t, keptToken, getZeroTouchToken(t, s, "fleet_id", fmt.Sprint(keptFleet.ID)))
+	s.Do(t, "GET", zeroTouchConfigPath, nil, http.StatusNotFound, "team_id", fmt.Sprint(deletedAutoMDM.ID))
+	assert.Equal(t, keptToken, getZeroTouchToken(t, s, "team_id", fmt.Sprint(keptAutoMDM.ID)))
 	assert.Len(t, *amapiCalls, 2)
 }

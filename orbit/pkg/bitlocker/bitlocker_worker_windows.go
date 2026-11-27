@@ -154,7 +154,7 @@ func (w *COMWorker) EnableProtection(targetVolume string) error {
 }
 
 // RotateRecoveryKey rotates the recovery key on an already-encrypted volume.
-// It adds a new Fleet-managed recovery key, removes old recovery key protectors,
+// It adds a new AutoMDM-managed recovery key, removes old recovery key protectors,
 // and returns the new key for escrow. The disk is never decrypted.
 func (w *COMWorker) RotateRecoveryKey(targetVolume string) (string, error) {
 	r := w.exec(func() (any, error) { return rotateRecoveryKeyOnCOMThread(targetVolume) })

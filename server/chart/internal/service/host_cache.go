@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/RoaringBitmap/roaring"
-	"github.com/fleetdm/fleet/v4/server/chart/internal/types"
+	"github.com/anilyagiz/automdm/v4/server/chart/internal/types"
 	"golang.org/x/sync/singleflight"
 )
 

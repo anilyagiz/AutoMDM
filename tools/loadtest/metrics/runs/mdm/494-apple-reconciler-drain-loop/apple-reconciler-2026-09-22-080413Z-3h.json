@@ -10,7 +10,7 @@
     },
     "note": "76k hosts initial baseline"
   },
-  "fleet_server": {
+  "automdm_server": {
     "cpu_utilization": {
       "Average": 55.89,
       "Minimum": 55.17,
@@ -59,7 +59,7 @@
     }
   },
   "apns_mock": {
-    "service": "fleet-apple-reconciler-apple-apns-mock",
+    "service": "automdm-apple-reconciler-apple-apns-mock",
     "cpu_utilization": {
       "Average": 4.86,
       "Minimum": 4,
@@ -545,7 +545,7 @@
       "data_coverage": 1
     }
   },
-  "fleet_server_errors": {
+  "automdm_server_errors": {
     "error_count": 0.0,
     "sample_messages": []
   },

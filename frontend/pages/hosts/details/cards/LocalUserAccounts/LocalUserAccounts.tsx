@@ -48,9 +48,9 @@ const LocalUserAccounts = ({
           header="User collection has been disabled"
           info={
             <>
-              Check out the Fleet documentation for{" "}
+              Check out the AutoMDM documentation for{" "}
               <CustomLink
-                url="https://fleetdm.com/learn-more-about/enable-user-collection"
+                url="https://automdm.com/learn-more-about/enable-user-collection"
                 text="steps to enable this feature"
                 newTab
               />

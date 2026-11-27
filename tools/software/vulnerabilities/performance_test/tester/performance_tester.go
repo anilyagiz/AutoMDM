@@ -13,16 +13,16 @@ import (
 	"github.com/WatchBeam/clock"
 	_ "github.com/go-sql-driver/mysql"
 
-	"github.com/fleetdm/fleet/v4/server/config"
-	"github.com/fleetdm/fleet/v4/server/datastore/mysql"
+	"github.com/anilyagiz/automdm/v4/server/config"
+	"github.com/anilyagiz/automdm/v4/server/datastore/mysql"
 )
 
 var (
 	// MySQL config
 	mysqlAddr = "localhost:3306"
-	mysqlUser = "fleet"
+	mysqlUser = "automdm"
 	mysqlPass = "insecure"
-	mysqlDB   = "fleet"
+	mysqlDB   = "automdm"
 )
 
 // TestFunction represents a datastore method to test
@@ -194,8 +194,8 @@ func main() {
 	}
 
 	if *help {
-		fmt.Printf("Fleet Datastore Performance Tester\n\n")
-		fmt.Printf("This tool measures the performance of Fleet datastore methods.\n")
+		fmt.Printf("AutoMDM Datastore Performance Tester\n\n")
+		fmt.Printf("This tool measures the performance of AutoMDM datastore methods.\n")
 		fmt.Printf("It assumes test data has already been seeded using the data seeding tool.\n\n")
 		fmt.Printf("Available test functions:\n")
 		for _, name := range getTestFunctionNames() {

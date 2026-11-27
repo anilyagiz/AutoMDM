@@ -49,7 +49,7 @@ export interface ILibraryItemAccordionProps {
   installerType?: InstallerType;
   /** Play Store package id (e.g. `com.android.chrome`). Presence implies an Android app. */
   androidPlayStoreId?: string;
-  /** Fleet-maintained app — switches the version tooltip to the "Actions > Edit" hint. */
+  /** AutoMDM-maintained app — switches the version tooltip to the "Actions > Edit" hint. */
   isFma?: boolean;
   isLatestFmaVersion?: boolean;
   /** Hide the version entirely (script-only packages). */
@@ -384,7 +384,7 @@ const LibraryItemAccordion = ({
 
     return (
       <div className={`${baseClass}__badges`}>
-        {/* The "Latest" badge is FMA-specific — only Fleet-maintained apps
+        {/* The "Latest" badge is FMA-specific — only AutoMDM-maintained apps
             have a meaningful "latest available cached version" concept that
             drives the badge state. VPP / App Store / Play Store / iOS
             in-house and custom packages do not render this badge.
@@ -553,7 +553,7 @@ const LibraryItemAccordion = ({
     if (isScriptPackage) {
       return (
         <>
-          Fleet is running the script or will do
+          AutoMDM is running the script or will do
           <br />
           so when the host comes online.
         </>
@@ -570,7 +570,7 @@ const LibraryItemAccordion = ({
     }
     return (
       <>
-        Fleet is installing/uninstalling or will
+        AutoMDM is installing/uninstalling or will
         <br />
         do so when the host comes online.
       </>
@@ -746,7 +746,7 @@ const LibraryItemAccordion = ({
           [`${baseClass}__chevron--open`]: isExpanded,
         })}
       >
-        <Icon name="chevron-right" color="ui-fleet-black-75" />
+        <Icon name="chevron-right" color="ui-automdm-black-75" />
       </span>
       {isActive ? (
         installerDetails
@@ -794,7 +794,7 @@ const LibraryItemAccordion = ({
                   position="top"
                   tipOffset={8}
                 >
-                  <Icon name="info" color="ui-fleet-black-50" />
+                  <Icon name="info" color="ui-automdm-black-50" />
                 </TooltipWrapper>
               )}
               {renderStatusCount(

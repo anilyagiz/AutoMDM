@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	common_mysql "github.com/fleetdm/fleet/v4/server/platform/mysql"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	common_mysql "github.com/anilyagiz/automdm/v4/server/platform/mysql"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -36,16 +36,16 @@ const userLastActivitySelect = `(SELECT MAX(s.accessed_at) FROM sessions s WHERE
 const userSummaryColumns = `id, name, email, gravatar_url, api_only`
 
 // NewUser creates a new user
-func (ds *Datastore) NewUser(ctx context.Context, user *fleet.User) (*fleet.User, error) {
+func (ds *Datastore) NewUser(ctx context.Context, user *automdm.User) (*automdm.User, error) {
 	return ds.newUser(ctx, user, false)
 }
 
-func (ds *Datastore) NewInitialUser(ctx context.Context, user *fleet.User) (*fleet.User, error) {
+func (ds *Datastore) NewInitialUser(ctx context.Context, user *automdm.User) (*automdm.User, error) {
 	return ds.newUser(ctx, user, true)
 }
 
-func (ds *Datastore) newUser(ctx context.Context, user *fleet.User, isInitial bool) (*fleet.User, error) {
-	if err := fleet.ValidateRole(user.GlobalRole, user.Teams); err != nil {
+func (ds *Datastore) newUser(ctx context.Context, user *automdm.User, isInitial bool) (*automdm.User, error) {
+	if err := automdm.ValidateRole(user.GlobalRole, user.Teams); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "validate role")
 	}
 
@@ -128,13 +128,13 @@ func (ds *Datastore) newUser(ctx context.Context, user *fleet.User, isInitial bo
 	return user, nil
 }
 
-func (ds *Datastore) findUser(ctx context.Context, searchCol string, searchVal interface{}) (*fleet.User, error) {
+func (ds *Datastore) findUser(ctx context.Context, searchCol string, searchVal interface{}) (*automdm.User, error) {
 	sqlStatement := fmt.Sprintf(
 		"SELECT %s, %s FROM users WHERE %s = ? LIMIT 1",
 		userSelectColumns, userLastActivitySelect, searchCol,
 	)
 
-	user := &fleet.User{}
+	user := &automdm.User{}
 
 	err := sqlx.GetContext(ctx, ds.reader(ctx), user, sqlStatement, searchVal)
 	if err != nil && err == sql.ErrNoRows {
@@ -144,11 +144,11 @@ func (ds *Datastore) findUser(ctx context.Context, searchCol string, searchVal i
 		return nil, ctxerr.Wrap(ctx, err, "find user")
 	}
 
-	if err := ds.loadTeamsForUsers(ctx, []*fleet.User{user}); err != nil {
+	if err := ds.loadTeamsForUsers(ctx, []*automdm.User{user}); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "load teams")
 	}
 
-	if err := ds.loadAPIEndpointsForUsers(ctx, []*fleet.User{user}); err != nil {
+	if err := ds.loadAPIEndpointsForUsers(ctx, []*automdm.User{user}); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "load api endpoints")
 	}
 
@@ -161,7 +161,7 @@ func (ds *Datastore) findUser(ctx context.Context, searchCol string, searchVal i
 	return user, nil
 }
 
-// HasUsers returns whether Fleet has any users registered
+// HasUsers returns whether AutoMDM has any users registered
 func (ds *Datastore) HasUsers(ctx context.Context) (bool, error) {
 	var id uint
 	if err := sqlx.GetContext(ctx, ds.reader(ctx), &id, `SELECT id FROM users LIMIT 1`); err != nil {
@@ -188,7 +188,7 @@ var userAllowedOrderKeys = common_mysql.OrderKeyAllowlist{
 
 // ListUsers lists all users with team ID, limit, sort and offset passed in with
 // UserListOptions.
-func (ds *Datastore) ListUsers(ctx context.Context, opt fleet.UserListOptions) ([]*fleet.User, error) {
+func (ds *Datastore) ListUsers(ctx context.Context, opt automdm.UserListOptions) ([]*automdm.User, error) {
 	sqlStatement := `
 		SELECT users.*, ` + userLastActivitySelect + `
 		FROM users
@@ -206,7 +206,7 @@ func (ds *Datastore) ListUsers(ctx context.Context, opt fleet.UserListOptions) (
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "apply list options")
 	}
-	users := []*fleet.User{}
+	users := []*automdm.User{}
 
 	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &users, sqlStatement, params...); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "list users")
@@ -224,7 +224,7 @@ func (ds *Datastore) ListUsers(ctx context.Context, opt fleet.UserListOptions) (
 }
 
 // UsersByIDs returns user summaries matching the provided IDs.
-func (ds *Datastore) UsersByIDs(ctx context.Context, ids []uint) ([]*fleet.UserSummary, error) {
+func (ds *Datastore) UsersByIDs(ctx context.Context, ids []uint) ([]*automdm.UserSummary, error) {
 	if len(ids) == 0 {
 		return nil, nil
 	}
@@ -235,7 +235,7 @@ func (ds *Datastore) UsersByIDs(ctx context.Context, ids []uint) ([]*fleet.UserS
 		return nil, ctxerr.Wrap(ctx, err, "build users by IDs query")
 	}
 
-	var users []*fleet.UserSummary
+	var users []*automdm.UserSummary
 	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &users, query, args...); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "select users by IDs")
 	}
@@ -243,18 +243,18 @@ func (ds *Datastore) UsersByIDs(ctx context.Context, ids []uint) ([]*fleet.UserS
 	return users, nil
 }
 
-func (ds *Datastore) UserByEmail(ctx context.Context, email string) (*fleet.User, error) {
+func (ds *Datastore) UserByEmail(ctx context.Context, email string) (*automdm.User, error) {
 	return ds.findUser(ctx, "email", email)
 }
 
-func (ds *Datastore) UserByID(ctx context.Context, id uint) (*fleet.User, error) {
+func (ds *Datastore) UserByID(ctx context.Context, id uint) (*automdm.User, error) {
 	return ds.findUser(ctx, "id", id)
 }
 
-func (ds *Datastore) UserOrDeletedUserByID(ctx context.Context, id uint) (*fleet.User, error) {
+func (ds *Datastore) UserOrDeletedUserByID(ctx context.Context, id uint) (*automdm.User, error) {
 	user, err := ds.findUser(ctx, "id", id)
 	switch {
-	case fleet.IsNotFound(err):
+	case automdm.IsNotFound(err):
 		return ds.deletedUserByID(ctx, id)
 	case err != nil:
 		return nil, ctxerr.Wrap(ctx, err, "find user")
@@ -262,9 +262,9 @@ func (ds *Datastore) UserOrDeletedUserByID(ctx context.Context, id uint) (*fleet
 	return user, nil
 }
 
-func (ds *Datastore) deletedUserByID(ctx context.Context, id uint) (*fleet.User, error) {
+func (ds *Datastore) deletedUserByID(ctx context.Context, id uint) (*automdm.User, error) {
 	stmt := `SELECT id, name, email, 1 as deleted FROM users_deleted WHERE id = ?`
-	var user fleet.User
+	var user automdm.User
 	err := sqlx.GetContext(ctx, ds.reader(ctx), &user, stmt, id)
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
@@ -275,13 +275,13 @@ func (ds *Datastore) deletedUserByID(ctx context.Context, id uint) (*fleet.User,
 	return &user, nil
 }
 
-func (ds *Datastore) SaveUser(ctx context.Context, user *fleet.User) error {
+func (ds *Datastore) SaveUser(ctx context.Context, user *automdm.User) error {
 	return ds.withTx(ctx, func(tx sqlx.ExtContext) error {
 		return saveUserDB(ctx, tx, user)
 	})
 }
 
-func (ds *Datastore) SaveUsers(ctx context.Context, users []*fleet.User) error {
+func (ds *Datastore) SaveUsers(ctx context.Context, users []*automdm.User) error {
 	return ds.withTx(ctx, func(tx sqlx.ExtContext) error {
 		for _, user := range users {
 			if err := saveUserDB(ctx, tx, user); err != nil {
@@ -295,8 +295,8 @@ func (ds *Datastore) SaveUsers(ctx context.Context, users []*fleet.User) error {
 // lockUserRolesDB locks the users and returns their identity and current roles. Writers that take this lock, including
 // saveUserDB's UPDATE, serialize with it; SaveTeam does not. Call it first in the transaction, because an earlier plain
 // read would fix the snapshot that the role read uses.
-func lockUserRolesDB(ctx context.Context, tx sqlx.ExtContext, ids []uint) (map[uint]fleet.User, error) {
-	users := make(map[uint]fleet.User, len(ids))
+func lockUserRolesDB(ctx context.Context, tx sqlx.ExtContext, ids []uint) (map[uint]automdm.User, error) {
+	users := make(map[uint]automdm.User, len(ids))
 	if len(ids) == 0 {
 		return users, nil
 	}
@@ -305,7 +305,7 @@ func lockUserRolesDB(ctx context.Context, tx sqlx.ExtContext, ids []uint) (map[u
 	if err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "build lock users query")
 	}
-	var rows []fleet.User
+	var rows []automdm.User
 	if err := sqlx.SelectContext(ctx, tx, &rows, stmt, args...); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "lock users")
 	}
@@ -322,7 +322,7 @@ func lockUserRolesDB(ctx context.Context, tx sqlx.ExtContext, ids []uint) (map[u
 	}
 	var teams []struct {
 		UserID uint `db:"user_id"`
-		fleet.UserTeam
+		automdm.UserTeam
 	}
 	if err := sqlx.SelectContext(ctx, tx, &teams, stmt, args...); err != nil {
 		return nil, ctxerr.Wrap(ctx, err, "select user roles")
@@ -336,8 +336,8 @@ func lockUserRolesDB(ctx context.Context, tx sqlx.ExtContext, ids []uint) (map[u
 	return users, nil
 }
 
-func saveUserDB(ctx context.Context, tx sqlx.ExtContext, user *fleet.User) error {
-	if err := fleet.ValidateRole(user.GlobalRole, user.Teams); err != nil {
+func saveUserDB(ctx context.Context, tx sqlx.ExtContext, user *automdm.User) error {
+	if err := automdm.ValidateRole(user.GlobalRole, user.Teams); err != nil {
 		return ctxerr.Wrap(ctx, err, "validate role")
 	}
 	sqlStatement := `
@@ -400,7 +400,7 @@ func saveUserDB(ctx context.Context, tx sqlx.ExtContext, user *fleet.User) error
 }
 
 // loadAPIEndpointsForUsers loads api_endpoints for any API-only users in the slice.
-func (ds *Datastore) loadAPIEndpointsForUsers(ctx context.Context, users []*fleet.User) error {
+func (ds *Datastore) loadAPIEndpointsForUsers(ctx context.Context, users []*automdm.User) error {
 	var apiOnlyIDs []uint
 	for _, u := range users {
 		if u.APIOnly {
@@ -428,9 +428,9 @@ func (ds *Datastore) loadAPIEndpointsForUsers(ctx context.Context, users []*flee
 		return ctxerr.Wrap(ctx, err, "load api endpoints for users")
 	}
 
-	byUserID := make(map[uint][]fleet.APIEndpointRef, len(apiOnlyIDs))
+	byUserID := make(map[uint][]automdm.APIEndpointRef, len(apiOnlyIDs))
 	for _, row := range rows {
-		byUserID[row.UserID] = append(byUserID[row.UserID], fleet.APIEndpointRef{
+		byUserID[row.UserID] = append(byUserID[row.UserID], automdm.APIEndpointRef{
 			Method: row.Method,
 			Path:   row.Path,
 		})
@@ -444,15 +444,15 @@ func (ds *Datastore) loadAPIEndpointsForUsers(ctx context.Context, users []*flee
 }
 
 // loadTeamsForUsers will load the teams/roles for the provided users.
-func (ds *Datastore) loadTeamsForUsers(ctx context.Context, users []*fleet.User) error {
+func (ds *Datastore) loadTeamsForUsers(ctx context.Context, users []*automdm.User) error {
 	userIDs := make([]uint, 0, len(users)+1)
 	// Make sure the slice is never empty for IN by filling a nonexistent ID
 	userIDs = append(userIDs, 0)
-	idToUser := make(map[uint]*fleet.User, len(users))
+	idToUser := make(map[uint]*automdm.User, len(users))
 	for _, u := range users {
 		// Initialize empty slice so we get an array in JSON responses instead
 		// of null if it is empty
-		u.Teams = []fleet.UserTeam{}
+		u.Teams = []automdm.UserTeam{}
 		// Track IDs for queries and matching
 		userIDs = append(userIDs, u.ID)
 		idToUser[u.ID] = u
@@ -470,7 +470,7 @@ func (ds *Datastore) loadTeamsForUsers(ctx context.Context, users []*fleet.User)
 	}
 
 	var rows []struct {
-		fleet.UserTeam
+		automdm.UserTeam
 		UserID uint `db:"user_id"`
 	}
 	if err := sqlx.SelectContext(ctx, ds.reader(ctx), &rows, sql, args...); err != nil {
@@ -486,7 +486,7 @@ func (ds *Datastore) loadTeamsForUsers(ctx context.Context, users []*fleet.User)
 	return nil
 }
 
-func saveTeamsForUserDB(ctx context.Context, tx sqlx.ExtContext, user *fleet.User) error {
+func saveTeamsForUserDB(ctx context.Context, tx sqlx.ExtContext, user *automdm.User) error {
 	// Do a full teams update by deleting existing teams and then inserting all
 	// the current teams in a single transaction.
 
@@ -547,7 +547,7 @@ func (ds *Datastore) DeleteUserIfNotLastAdmin(ctx context.Context, id uint) erro
 			return ctxerr.Wrap(ctx, err, "count global admins for delete")
 		}
 		if count <= 1 {
-			return fleet.ErrLastGlobalAdmin
+			return automdm.ErrLastGlobalAdmin
 		}
 
 		// Transfer user data to deleted_users table for audit/activity purposes.
@@ -580,7 +580,7 @@ func (ds *Datastore) DeleteUserIfNotLastAdmin(ctx context.Context, id uint) erro
 //
 // It uses SELECT ... FOR UPDATE to prevent concurrent requests from bypassing
 // the check (TOCTOU race condition).
-func (ds *Datastore) SaveUserIfNotLastAdmin(ctx context.Context, user *fleet.User) error {
+func (ds *Datastore) SaveUserIfNotLastAdmin(ctx context.Context, user *automdm.User) error {
 	return ds.withTx(ctx, func(tx sqlx.ExtContext) error {
 		// Lock the admin rows to prevent concurrent modifications.
 		var count int
@@ -589,7 +589,7 @@ func (ds *Datastore) SaveUserIfNotLastAdmin(ctx context.Context, user *fleet.Use
 			return ctxerr.Wrap(ctx, err, "count global admins for save")
 		}
 		if count <= 1 {
-			return fleet.ErrLastGlobalAdmin
+			return automdm.ErrLastGlobalAdmin
 		}
 
 		return saveUserDB(ctx, tx, user)
@@ -622,8 +622,8 @@ func amountActiveUsersSinceDB(ctx context.Context, db sqlx.QueryerContext, since
 	return amount, nil
 }
 
-func (ds *Datastore) UserSettings(ctx context.Context, userID uint) (*fleet.UserSettings, error) {
-	settings := &fleet.UserSettings{}
+func (ds *Datastore) UserSettings(ctx context.Context, userID uint) (*automdm.UserSettings, error) {
+	settings := &automdm.UserSettings{}
 	var bytes []byte
 	stmt := `
 		SELECT settings FROM users WHERE id = ?
@@ -648,7 +648,7 @@ func (ds *Datastore) UserSettings(ctx context.Context, userID uint) (*fleet.User
 }
 
 // replaceUserAPIEndpoints replaces all API endpoint permissions for the given user.
-func replaceUserAPIEndpoints(ctx context.Context, tx sqlx.ExtContext, userID uint, endpoints []fleet.APIEndpointRef) error {
+func replaceUserAPIEndpoints(ctx context.Context, tx sqlx.ExtContext, userID uint, endpoints []automdm.APIEndpointRef) error {
 	if _, err := tx.ExecContext(ctx, `DELETE FROM user_api_endpoints WHERE user_id = ?`, userID); err != nil {
 		return ctxerr.Wrap(ctx, err, "delete user api endpoints")
 	}

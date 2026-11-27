@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/entratoken"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/entratoken"
 	"github.com/urfave/cli/v2"
 )
 

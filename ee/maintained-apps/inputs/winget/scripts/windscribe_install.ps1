@@ -1,12 +1,12 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 
 $exeFilePath = "${env:INSTALLER_PATH}"
 
 try {
 
 # Setup closes a running Windscribe by posting to its window, which it can't
-# find from Fleet's SYSTEM context. It then unregisters the previous version
+# find from AutoMDM's SYSTEM context. It then unregisters the previous version
 # before failing on the files the app still holds open, leaving Windscribe on
 # disk and absent from Programs. Stop the app first; setup stops the service
 # and the protocol handlers itself. The VPN connection drops.

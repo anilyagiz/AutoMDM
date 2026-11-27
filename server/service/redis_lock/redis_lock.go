@@ -4,29 +4,29 @@ import (
 	"context"
 	"errors"
 
-	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
-	"github.com/fleetdm/fleet/v4/server/datastore/redis"
-	"github.com/fleetdm/fleet/v4/server/fleet"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/contexts/ctxerr"
+	"github.com/anilyagiz/automdm/v4/server/datastore/redis"
 	redigo "github.com/gomodule/redigo/redis"
 )
 
 // This package implements a distributed lock using Redis. The lock can be used
-// to prevent multiple Fleet servers from accessing a shared resource.
+// to prevent multiple AutoMDM servers from accessing a shared resource.
 
 const (
 	defaultExpireMs = 60 * 1000
 )
 
 type redisLock struct {
-	pool       fleet.RedisPool
+	pool       automdm.RedisPool
 	testPrefix string // for tests, the key prefix to use to avoid conflicts
 }
 
-func NewLock(pool fleet.RedisPool) fleet.Lock {
+func NewLock(pool automdm.RedisPool) automdm.Lock {
 	lock := &redisLock{
 		pool: pool,
 	}
-	return fleet.Lock(lock)
+	return automdm.Lock(lock)
 }
 
 func (r *redisLock) SetIfNotExist(ctx context.Context, key string, value string, expireMs uint64) (ok bool, err error) {

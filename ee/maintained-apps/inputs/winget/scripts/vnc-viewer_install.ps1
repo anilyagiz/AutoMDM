@@ -1,6 +1,6 @@
 # RealVNC Connect Viewer ships as a zip containing the 64-bit MSI
 # (RealVNC-Connect-Viewer-<ver>-Windows.msi). Older releases bundled separate
-# 32/64-bit MSIs named *-64bit.msi. Fleet downloads the zip to INSTALLER_PATH;
+# 32/64-bit MSIs named *-64bit.msi. AutoMDM downloads the zip to INSTALLER_PATH;
 # this script extracts it and installs the (64-bit) MSI per-machine and silently.
 # The MSI sets ALLUSERS=1, so it always installs machine-wide.
 

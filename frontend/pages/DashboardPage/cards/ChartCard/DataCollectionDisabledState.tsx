@@ -10,7 +10,7 @@ const baseClass = "data-collection-disabled-state";
 
 interface IDataCollectionDisabledStateProps {
   datasetLabel: string;
-  // Org-level historical_data setting for this dataset. When false, the fleet
+  // Org-level historical_data setting for this dataset. When false, the team
   // toggle can't take effect and only a global admin can turn it back on.
   globallyEnabled: boolean;
   currentTeamId?: number;
@@ -22,18 +22,18 @@ const DataCollectionDisabledState = ({
   currentTeamId,
 }: IDataCollectionDisabledStateProps): JSX.Element => {
   const { currentUser, isGlobalAdmin } = useContext(AppContext);
-  // Only offer a fleet-level fix when the org gate is open — a team admin
+  // Only offer a team-level fix when the org gate is open — a team admin
   // can't override a disabled global setting. Resolve team-admin against the
-  // fleet we're rendering for, not the app's currently selected fleet.
-  const scopedToFleet = !!currentTeamId && globallyEnabled;
-  const canAccessSettings = scopedToFleet
+  // team we're rendering for, not the app's currently selected team.
+  const scopedToAutoMDM = !!currentTeamId && globallyEnabled;
+  const canAccessSettings = scopedToAutoMDM
     ? !!(isGlobalAdmin || permissions.isTeamAdmin(currentUser, currentTeamId))
     : !!isGlobalAdmin;
 
-  // Scope text tracks the user's context (which fleet they're viewing), not
-  // where the fix lives — otherwise a team admin sees "all fleets" while
-  // clearly inside one fleet's dashboard.
-  const scopeText = currentTeamId ? "this fleet" : "all fleets";
+  // Scope text tracks the user's context (which team they're viewing), not
+  // where the fix lives — otherwise a team admin sees "all teams" while
+  // clearly inside one team's dashboard.
+  const scopeText = currentTeamId ? "this team" : "all teams";
 
   return (
     <div className={baseClass}>
@@ -45,9 +45,9 @@ const DataCollectionDisabledState = ({
       {canAccessSettings && (
         <Button
           onClick={() => {
-            scopedToFleet
+            scopedToAutoMDM
               ? browserHistory.push(
-                  paths.FLEET_DETAILS_SETTINGS(currentTeamId as number)
+                  paths.TEAM_DETAILS_SETTINGS(currentTeamId as number)
                 )
               : browserHistory.push(paths.ADMIN_ORGANIZATION_ADVANCED);
           }}

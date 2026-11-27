@@ -1,5 +1,5 @@
 # Learn more about .exe install scripts:
-# http://fleetdm.com/learn-more-about/exe-install-scripts
+# http://automdm.com/learn-more-about/exe-install-scripts
 #
 # Bandicam uses an NSIS installer: /S installs it silently for all users.
 # Bandicam is closed first (an active recording is stopped), because the

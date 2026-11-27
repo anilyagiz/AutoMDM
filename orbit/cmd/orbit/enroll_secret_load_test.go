@@ -9,11 +9,11 @@ import (
 	"testing/synctest"
 	"time"
 
-	"github.com/fleetdm/fleet/v4/orbit/pkg/profiles"
+	"github.com/anilyagiz/automdm/v4/orbit/pkg/profiles"
 	"github.com/stretchr/testify/require"
 )
 
-// loadEnrollSecret is shared by the two delivery channels (the packaged secret file and, on Windows, the registry value Fleet MDM
+// loadEnrollSecret is shared by the two delivery channels (the packaged secret file and, on Windows, the registry value AutoMDM
 // writes). onDelivered is what discards the delivery copy.
 func TestLoadEnrollSecretDiscardsTheDeliveryCopyOnlyOnceStored(t *testing.T) {
 	for _, tc := range []struct {
@@ -156,7 +156,7 @@ func TestLoadDeliveredEnrollSecret(t *testing.T) {
 			cleared := false
 			var set string
 
-			// Fleet may write the same secret to the installer's file as well, so that an older fleetd
+			// AutoMDM may write the same secret to the installer's file as well, so that an older automdmd
 			// that cannot read the registry still enrolls. Loading has to retire that copy too.
 			secretPath := filepath.Join(t.TempDir(), "secret.txt")
 			require.NoError(t, os.WriteFile(secretPath, []byte("delivered"), 0o600))
@@ -240,7 +240,7 @@ func TestThrottledMDMSync(t *testing.T) {
 			synctest.Wait()
 		}
 
-		// No Fleet MDM enrollment means no channel to sync, and the check must not use up the interval.
+		// No AutoMDM enrollment means no channel to sync, and the check must not use up the interval.
 		trigger()
 		require.Zero(t, syncs.Load())
 

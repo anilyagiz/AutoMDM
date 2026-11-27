@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/fleetdm/fleet/v4/server/fleet"
-	"github.com/fleetdm/fleet/v4/server/vulnerabilities/io"
+	"github.com/anilyagiz/automdm/v4/server/automdm"
+	"github.com/anilyagiz/automdm/v4/server/vulnerabilities/io"
 	"github.com/stretchr/testify/require"
 )
 
@@ -69,7 +69,7 @@ func (fs fsMock) Delete(d io.MetadataFileName) error {
 func TestSync(t *testing.T) {
 	ctx := context.Background()
 	t.Run("#sync", func(t *testing.T) {
-		os := []fleet.OperatingSystem{
+		os := []automdm.OperatingSystem{
 			{
 				Name:          "Microsoft Windows 11 Enterprise",
 				Version:       "21H2",
@@ -102,7 +102,7 @@ func TestSync(t *testing.T) {
 
 	t.Run("#bulletinsDelta", func(t *testing.T) {
 		t.Run("win OS provided", func(t *testing.T) {
-			os := []fleet.OperatingSystem{
+			os := []automdm.OperatingSystem{
 				{
 					Name:          "Microsoft Windows 11 Enterprise",
 					Version:       "21H2",
@@ -193,7 +193,7 @@ func TestSync(t *testing.T) {
 		})
 
 		t.Run("no Win OS provided", func(t *testing.T) {
-			os := []fleet.OperatingSystem{
+			os := []automdm.OperatingSystem{
 				{
 					Name:          "CentOS",
 					Version:       "8.0.0",
@@ -212,7 +212,7 @@ func TestSync(t *testing.T) {
 		})
 
 		t.Run("no OS provided", func(t *testing.T) {
-			var os []fleet.OperatingSystem
+			var os []automdm.OperatingSystem
 			t.Run("no local bulletins", func(t *testing.T) {
 				var local []io.MetadataFileName
 
